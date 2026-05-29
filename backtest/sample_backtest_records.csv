@@ -1,0 +1,4 @@
+recorded_at,scenario,symbol,period,trades,win_rate,funding_income,trading_pnl,total_fees,net_pnl,max_drawdown,notes
+2026-05-20T08:00:00Z,FundingReplayDemo,BTCUSDT,2026-05-01~2026-05-20,12,0.7500,18.4200,6.3100,4.1200,20.6100,-3.2000,示例回测记录 用于演示面板与CSV字段
+2026-05-21T08:00:00Z,FundingReplayDemo,ETHUSDT,2026-05-01~2026-05-20,15,0.6667,15.8700,4.9200,3.7800,16.9900,-4.1500,示例回测记录 用于后续真实回测器替换
+2026-05-22T08:00:00Z,FundingReplayStress,SOLUSDT,2026-05-10~2026-05-22,9,0.5556,7.4500,-1.1800,2.2400,4.0300,-5.9200,压力场景样例 用于观察高波动下回撤

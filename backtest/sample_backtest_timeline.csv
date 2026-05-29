@@ -1,0 +1,23 @@
+scenario,symbol,period,phase,timestamp,funding_rate,basis_rate,spread_rate,fee_rate,notional_usdt,drawdown_rate,liquidity_ok,scan_score_rate,futures_leg_spread_rate,spot_leg_spread_rate,futures_leg_ok,spot_leg_ok,futures_fill_ratio,spot_fill_ratio,notes
+FundingTimelineDemo,BTCUSDT,2026-05-20 07:57~08:00,scan,2026-05-20T07:57:00Z,0.0039,0.0006,0.0000,0.0008,1000,-0.0015,true,0.0040,0.0000,0.0000,true,true,1.0,1.0,扫描入围TopN
+FundingTimelineDemo,BTCUSDT,2026-05-20 07:57~08:00,monitor,2026-05-20T07:58:00Z,0.0039,0.0006,0.0003,0.0008,1000,-0.0022,true,0.0000,0.0000,0.0000,true,true,1.0,1.0,监控保持健康
+FundingTimelineDemo,BTCUSDT,2026-05-20 07:57~08:00,open,2026-05-20T07:59:30Z,0.0039,0.0006,0.0000,0.0008,1000,-0.0028,true,0.0000,0.0002,0.0004,true,true,1.0,1.0,先合约后现货双腿成功
+FundingTimelineDemo,BTCUSDT,2026-05-20 07:57~08:00,close,2026-05-20T08:00:01Z,0.0032,0.0004,0.0000,0.0008,1000,-0.0031,true,0.0000,0.0002,0.0003,true,true,1.0,1.0,平仓双腿成功
+FundingTimelineDemo,ETHUSDT,2026-05-20 07:57~08:00,scan,2026-05-20T07:57:00Z,0.0034,0.0008,0.0000,0.0008,800,-0.0021,true,0.0037,0.0000,0.0000,true,true,1.0,1.0,扫描入围TopN
+FundingTimelineDemo,ETHUSDT,2026-05-20 07:57~08:00,monitor,2026-05-20T07:58:00Z,0.0032,0.0008,0.0005,0.0008,800,-0.0030,true,0.0000,0.0000,0.0000,true,true,1.0,1.0,先进入观察态
+FundingTimelineDemo,ETHUSDT,2026-05-20 07:57~08:00,monitor,2026-05-20T07:58:20Z,0.0038,0.0008,0.0002,0.0008,800,-0.0032,true,0.0000,0.0000,0.0000,true,true,1.0,1.0,恢复健康
+FundingTimelineDemo,ETHUSDT,2026-05-20 07:57~08:00,open,2026-05-20T07:59:30Z,0.0038,0.0008,0.0000,0.0008,800,-0.0034,true,0.0000,0.0003,0.0004,true,true,1.0,1.0,恢复后压哨开仓
+FundingTimelineDemo,ETHUSDT,2026-05-20 07:57~08:00,close,2026-05-20T08:00:01Z,0.0029,0.0006,0.0000,0.0008,800,-0.0038,true,0.0000,0.0003,0.0003,true,true,1.0,1.0,资金费后平仓
+FundingTimelineDemo,SOLUSDT,2026-05-20 07:57~08:00,scan,2026-05-20T07:57:00Z,0.0038,0.0011,0.0000,0.0010,700,-0.0065,true,0.0041,0.0000,0.0000,true,true,1.0,1.0,扫描分数高但后续监控恶化
+FundingTimelineDemo,SOLUSDT,2026-05-20 07:57~08:00,monitor,2026-05-20T07:58:00Z,0.0038,0.0011,0.0035,0.0010,700,-0.0080,true,0.0000,0.0000,0.0000,true,true,1.0,1.0,净收益过低直接作废
+FundingTimelineDemo,SOLUSDT,2026-05-20 07:57~08:00,open,2026-05-20T07:59:30Z,0.0038,0.0011,0.0000,0.0010,700,-0.0090,true,0.0000,0.0005,0.0005,true,true,1.0,1.0,已作废不应开仓
+FundingTimelineDemo,SOLUSDT,2026-05-20 07:57~08:00,close,2026-05-20T08:00:01Z,0.0035,0.0009,0.0000,0.0010,700,-0.0100,true,0.0000,0.0004,0.0004,true,true,1.0,1.0,已作废不应平仓
+FundingTimelineDemo,XRPUSDT,2026-05-20 07:57~08:00,scan,2026-05-20T07:57:00Z,0.0033,0.0009,0.0000,0.0008,600,-0.0038,true,0.0035,0.0000,0.0000,true,true,1.0,1.0,扫描入围TopN
+FundingTimelineDemo,XRPUSDT,2026-05-20 07:57~08:00,monitor,2026-05-20T07:58:00Z,0.0039,0.0007,0.0002,0.0008,600,-0.0041,true,0.0000,0.0000,0.0000,true,true,1.0,1.0,监控健康
+FundingTimelineDemo,XRPUSDT,2026-05-20 07:57~08:00,open,2026-05-20T07:59:30Z,0.0037,0.0007,0.0000,0.0008,600,-0.0044,true,0.0000,0.0002,0.0004,true,true,1.0,0.65,双腿都成交但数量不一致
+FundingTimelineDemo,XRPUSDT,2026-05-20 07:57~08:00,close,2026-05-20T08:00:01Z,0.0028,0.0005,0.0000,0.0008,600,-0.0048,true,0.0000,0.0002,0.0003,true,true,1.0,1.0,残腿风险后不应走到这里
+FundingTimelineDemo,BNBUSDT,2026-05-20 07:57~08:00,scan,2026-05-20T07:57:00Z,0.0031,0.0009,0.0000,0.0008,900,-0.0032,true,0.0032,0.0000,0.0000,true,true,1.0,1.0,扫描入围TopN
+FundingTimelineDemo,BNBUSDT,2026-05-20 07:57~08:00,monitor,2026-05-20T07:58:00Z,0.0031,0.0009,0.0005,0.0008,900,-0.0036,true,0.0000,0.0000,0.0000,true,true,1.0,1.0,持续观察未恢复
+FundingTimelineDemo,BNBUSDT,2026-05-20 07:57~08:00,open,2026-05-20T07:59:30Z,0.0031,0.0009,0.0000,0.0008,900,-0.0040,true,0.0000,0.0003,0.0004,true,true,1.0,1.0,观察态禁止开仓
+FundingTimelineDemo,BNBUSDT,2026-05-20 07:57~08:00,close,2026-05-20T08:00:01Z,0.0027,0.0006,0.0000,0.0008,900,-0.0045,true,0.0000,0.0003,0.0003,true,true,1.0,1.0,未开仓不应平仓
+FundingTimelineDemo,DOGEUSDT,2026-05-20 07:57~08:00,scan,2026-05-20T07:57:00Z,0.0027,0.0011,0.0000,0.0008,500,-0.0042,true,0.0020,0.0000,0.0000,true,true,1.0,1.0,分数最低 应在TopN竞争中被挤掉

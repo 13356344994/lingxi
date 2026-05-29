@@ -1,0 +1,2752 @@
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"math"
+	"net/http"
+	"net/url"
+	"os"
+	"path/filepath"
+	"sort"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+)
+
+const (
+	monthlySimulationLogCSVName     = "monthly_simulation_logs.json"
+	monthlySimulationArchiveDirName = "monthly_runs"
+	monthlyFundingFetchProgressStep = 20
+	monthlyEvaluationProgressStep   = 24
+	monthlyFundingDataCompleteFloor = 0.85
+	monthlyFundingFetchBatchSize    = 20
+	monthlyFundingFetchBatchPause   = 10 * time.Second
+	monthlyFundingPause403          = 60 * time.Second
+	monthlyFundingPause418          = 120 * time.Second
+	monthlyFundingPauseOther4xx     = 30 * time.Second
+	monthlyFundingAbort403Batches   = 2
+	monthlyFundingAbort418Batches   = 1
+)
+
+var monthlySimulationLogHeader = []string{
+	"recorded_at",
+	"funding_time",
+	"action",
+	"symbol",
+	"estimated_funding_rate",
+	"funding_rate",
+	"estimated_funding_income",
+	"funding_income",
+	"hedge_qty",
+	"spot_entry_price",
+	"futures_entry_price",
+	"spot_exit_price",
+	"futures_exit_price",
+	"open_basis_rate",
+	"close_basis_rate",
+	"spot_entry_quote_volume",
+	"futures_entry_quote_volume",
+	"spot_exit_quote_volume",
+	"futures_exit_quote_volume",
+	"spot_entry_slip_rate",
+	"futures_entry_slip_rate",
+	"spot_exit_slip_rate",
+	"futures_exit_slip_rate",
+	"spot_entry_impact_rate",
+	"futures_entry_impact_rate",
+	"spot_exit_impact_rate",
+	"futures_exit_impact_rate",
+	"spot_entry_fee",
+	"futures_entry_fee",
+	"spot_exit_fee",
+	"futures_exit_fee",
+	"open_basis_penalty",
+	"projected_exit_cost",
+	"min_liquidity_required",
+	"spot_gross_pnl",
+	"futures_gross_pnl",
+	"total_fees",
+	"total_friction",
+	"estimated_net_pnl",
+	"realized_net_pnl",
+	"equity_before",
+	"equity_after",
+	"drawdown_rate",
+	"reason",
+	"notes",
+}
+
+// FundingRateHistoryItem 对应币安 fundingRate 历史接口响应。
+type FundingRateHistoryItem struct {
+	Symbol      string `json:"symbol"`
+	FundingRate string `json:"fundingRate"`
+	FundingTime int64  `json:"fundingTime"`
+	MarkPrice   string `json:"markPrice"`
+}
+
+// MarketKline 表示币安 K 线的一根蜡烛。
+type MarketKline struct {
+	OpenTime         int64
+	Open             float64
+	High             float64
+	Low              float64
+	Close            float64
+	QuoteAssetVolume float64
+}
+
+// MonthlySimulationLogRecord 表示月度真实行情模拟的逐时点日志。
+type MonthlySimulationLogRecord struct {
+	TraceRecordMetadata
+	RecordedAt              string
+	FundingTime             string
+	Action                  string
+	Symbol                  string
+	EstimatedFundingRate    string
+	FundingRate             string
+	EstimatedFundingIncome  string
+	FundingIncome           string
+	HedgeQty                string
+	SpotEntryPrice          string
+	FuturesEntryPrice       string
+	SpotExitPrice           string
+	FuturesExitPrice        string
+	OpenBasisRate           string
+	CloseBasisRate          string
+	SpotEntryQuoteVolume    string
+	FuturesEntryQuoteVolume string
+	SpotExitQuoteVolume     string
+	FuturesExitQuoteVolume  string
+	SpotEntrySlipRate       string
+	FuturesEntrySlipRate    string
+	SpotExitSlipRate        string
+	FuturesExitSlipRate     string
+	SpotEntryImpactRate     string
+	FuturesEntryImpactRate  string
+	SpotExitImpactRate      string
+	FuturesExitImpactRate   string
+	SpotEntryFee            string
+	FuturesEntryFee         string
+	SpotExitFee             string
+	FuturesExitFee          string
+	OpenBasisPenalty        string
+	ProjectedExitCost       string
+	MinLiquidityRequired    string
+	SpotGrossPnL            string
+	FuturesGrossPnL         string
+	TotalFees               string
+	TotalFriction           string
+	EstimatedNetPnL         string
+	RealizedNetPnL          string
+	EquityBefore            string
+	EquityAfter             string
+	DrawdownRate            string
+	Reason                  string
+	Notes                   string
+}
+
+type monthlyCandidate struct {
+	Symbol                  string
+	FundingTime             time.Time
+	EstimatedFundingRate    float64
+	FundingRate             float64
+	EstimatedFundingIncome  float64
+	FundingIncome           float64
+	HedgeQty                float64
+	SpotEntryPrice          float64
+	FuturesEntryPrice       float64
+	SpotExitPrice           float64
+	FuturesExitPrice        float64
+	SpotEntryQuoteVolume    float64
+	FuturesEntryQuoteVolume float64
+	SpotExitQuoteVolume     float64
+	FuturesExitQuoteVolume  float64
+	SpotEntrySlipRate       float64
+	FuturesEntrySlipRate    float64
+	SpotExitSlipRate        float64
+	FuturesExitSlipRate     float64
+	SpotEntryImpactRate     float64
+	FuturesEntryImpactRate  float64
+	SpotExitImpactRate      float64
+	FuturesExitImpactRate   float64
+	SpotEntryFee            float64
+	FuturesEntryFee         float64
+	SpotExitFee             float64
+	FuturesExitFee          float64
+	OpenBasisRate           float64
+	CloseBasisRate          float64
+	OpenBasisPenalty        float64
+	ProjectedExitCost       float64
+	MinLiquidityRequired    float64
+	SpotGrossPnL            float64
+	FuturesGrossPnL         float64
+	TotalFees               float64
+	TotalFriction           float64
+	EstimatedNetPnL         float64
+	RealizedNetPnL          float64
+	Reason                  string
+	Notes                   []string
+}
+
+type monthlyEventGroup struct {
+	FundingTime time.Time
+	Items       []FundingRateHistoryItem
+}
+
+type monthlyKlineCache struct {
+	mu      sync.Mutex
+	spot    map[string]MarketKline
+	futures map[string]MarketKline
+	index   map[string]MarketKline
+	premium map[string]MarketKline
+	hits    map[string]int
+	loads   map[string]int
+}
+
+type monthlyFundingFetchStats struct {
+	SuccessSymbols int
+	FailureCount   int
+	FailureReasons map[string]int
+	FailureSamples map[string][]string
+	RequestSummary string
+}
+
+func (s monthlyFundingFetchStats) successRate(total int) float64 {
+	if total <= 0 {
+		return 0
+	}
+	return float64(s.SuccessSymbols) / float64(total)
+}
+
+type monthlySimulationStats struct {
+	GroupCount          int
+	EvaluatedCandidates int
+	SkippedGroups       int
+	TradeCount          int
+	SkipReasons         map[string]int
+	CandidateReasons    map[string]int
+	CacheSummary        string
+}
+
+type monthlyLogAggregation struct {
+	counts  map[string]int
+	samples map[string][]string
+}
+
+type historicalConfig struct {
+	DefaultLookbackDays            int
+	InitialEquityUSDT              float64
+	StopEquityUSDT                 float64
+	PerLegNotionalUSDT             float64
+	MaxPerLegEquityShare           float64
+	SpotTakerFeeRate               float64
+	FuturesTakerFeeRate            float64
+	FundingPhaseLead               time.Duration
+	FundingFetchConcurrency        int
+	FundingRetryMax                int
+	CacheDir                       string
+	ReferenceKlineLookback         int
+	EstimateKlineLookback          int
+	SafetyBufferFloorUSDT          float64
+	SafetyBufferCostMultiplier     float64
+	MaxDrawdownRate                float64
+	MaxConsecutiveLosses           int
+	MaxFundingRate                 float64
+	MaxFundingRateJump             float64
+	MaxSingleTradeLossUSDT         float64
+	FundingFetchSlot               time.Duration
+	FundingFetchTimeout            time.Duration
+	GroupEvaluationTimeout         time.Duration
+	CandidateBuildTimeout          time.Duration
+	CandidateFinalizeTimeout       time.Duration
+	ScreeningConcurrency           int
+	DeepCandidateLimit             int
+	LiquidityShareMin              float64
+	LiquidityShareFloor            float64
+	LiquidityShareMax              float64
+	SevereLiquidityShareCap        float64
+	SevereLiquidityShareMultiplier float64
+	SevereLiquidityShareMax        float64
+}
+
+// RunMonthlyMarketSimulation 拉取过去一段时间的真实历史数据，并按资金费套利规则做回放。
+func (r *BacktestRunner) RunMonthlyMarketSimulation(ctx context.Context, secretPath string, lookbackDays int) ([]BacktestCSVRecord, error) {
+	hcfg := r.historicalConfig()
+	if lookbackDays <= 0 {
+		lookbackDays = hcfg.DefaultLookbackDays
+	}
+
+	client, err := newHistoricalBacktestClient(secretPath, r.cfg.HTTPTimeout, hcfg)
+	if err != nil {
+		return nil, err
+	}
+
+	end := time.Now().UTC().Truncate(time.Minute)
+	start := end.AddDate(0, 0, -lookbackDays)
+	periodLabel := fmt.Sprintf("%s~%s", start.Format("2006-01-02"), end.Format("2006-01-02"))
+
+	symbols, err := client.ListGoldenSymbols(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("获取黄金币种失败: %w", err)
+	}
+	if len(symbols) == 0 {
+		return nil, fmt.Errorf("没有可用于月度模拟的黄金币种")
+	}
+
+	if r.logger != nil {
+		r.logger.Printf("月度真实行情模拟启动，区间=%s，黄金币种数=%d，单腿名义=%.2f，总初始权益=%.2f，止损权益=%.2f", periodLabel, len(symbols), r.monthlyPerLegNotional(), hcfg.InitialEquityUSDT, hcfg.StopEquityUSDT)
+	}
+	r.reportProgress(EngineStage("fetch_funding"), fmt.Sprintf("正在拉取 funding 历史: 0/%d", len(symbols)), 0, len(symbols))
+
+	groups, fetchStats, err := r.fetchMonthlyFundingGroups(ctx, client, symbols, start, end)
+	if err != nil {
+		return nil, err
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	r.reportProgress(EngineStage("evaluate_groups"), fmt.Sprintf("funding 历史拉取完成，开始评估 %d 个 funding 时点", len(groups)), 0, len(groups))
+
+	tradeSamples, logs, simStats, stopReason, err := r.simulateMonthlyFundingGroups(ctx, client, groups, periodLabel)
+	if err != nil {
+		return nil, err
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	logs = append(logs, buildMonthlyRunSummaryLogRecord(periodLabel, fetchStats, simStats, stopReason))
+
+	records := buildBacktestRecords(r.cfg, tradeSamples)
+	records = append(records, r.buildMonthlySummaryRecord(periodLabel, tradeSamples, fetchStats, simStats, stopReason))
+	records = append(records, r.buildMonthlyStressRecords(periodLabel, tradeSamples, fetchStats, simStats)...)
+
+	if err := writeMonthlySimulationLogs(r.recordDir(), r.cfg, logs); err != nil {
+		return nil, err
+	}
+
+	if r.store != nil {
+		if err := r.store.ReplaceBacktestRecords(records); err != nil {
+			return nil, err
+		}
+		if err := r.store.AppendBacktestRunSummaries("monthly_market", records); err != nil {
+			return nil, err
+		}
+		if err := r.store.ReplaceResidualRiskRecords(nil); err != nil {
+			return nil, err
+		}
+	}
+
+	if r.logger != nil {
+		r.logger.Printf("月度真实行情模拟完成，区间=%s，执行交易=%d，评估候选=%d，跳过轮次=%d，输出汇总=%d，停止原因=%s", periodLabel, len(tradeSamples), simStats.EvaluatedCandidates, simStats.SkippedGroups, len(records), stopReason)
+	}
+	r.reportProgress(StageCompleted, fmt.Sprintf("月度历史模拟完成，执行交易=%d，输出汇总=%d", len(tradeSamples), len(records)), len(groups), len(groups))
+
+	return records, nil
+}
+
+func (r *BacktestRunner) fetchMonthlyFundingGroups(ctx context.Context, client *BinanceClient, symbols []string, start time.Time, end time.Time) ([]monthlyEventGroup, monthlyFundingFetchStats, error) {
+	hcfg := r.historicalConfig()
+	startMillis := start.UnixMilli()
+	endMillis := end.UnixMilli()
+
+	type result struct {
+		symbol string
+		items  []FundingRateHistoryItem
+		err    error
+	}
+
+	grouped := make(map[int64][]FundingRateHistoryItem)
+	stats := monthlyFundingFetchStats{
+		FailureReasons: make(map[string]int),
+		FailureSamples: make(map[string][]string),
+	}
+	successCount := 0
+	processedCount := 0
+	consecutive403Batches := 0
+	consecutive418Batches := 0
+
+	batchSize := monthlyFundingFetchBatchSize
+	if batchSize <= 0 {
+		batchSize = 20
+	}
+	for batchStart := 0; batchStart < len(symbols); batchStart += batchSize {
+		batchEnd := minInt(len(symbols), batchStart+batchSize)
+		batchSymbols := symbols[batchStart:batchEnd]
+		results := make(chan result, len(batchSymbols))
+		sem := make(chan struct{}, hcfg.FundingFetchConcurrency)
+		batchFailures := make(map[string]int)
+		var wg sync.WaitGroup
+
+		for _, symbol := range batchSymbols {
+			wg.Add(1)
+			go func(sym string) {
+				defer wg.Done()
+				sem <- struct{}{}
+				defer func() { <-sem }()
+				symbolCtx, cancel := context.WithTimeout(ctx, hcfg.FundingFetchTimeout)
+				defer cancel()
+
+				items, err := client.fetchFundingRateHistory(symbolCtx, sym, startMillis, endMillis)
+				results <- result{symbol: sym, items: items, err: err}
+			}(symbol)
+		}
+
+		go func() {
+			wg.Wait()
+			close(results)
+		}()
+
+		for result := range results {
+			processedCount++
+			if result.err != nil {
+				stats.FailureCount++
+				reason := classifyMonthlyFetchError(result.err)
+				stats.FailureReasons[reason]++
+				batchFailures[reason]++
+				if len(stats.FailureSamples[reason]) < 5 {
+					stats.FailureSamples[reason] = append(stats.FailureSamples[reason], result.symbol)
+				}
+			} else {
+				successCount++
+				stats.SuccessSymbols++
+				for _, item := range result.items {
+					grouped[item.FundingTime] = append(grouped[item.FundingTime], item)
+				}
+			}
+			if r.logger != nil && (processedCount == len(symbols) || processedCount%monthlyFundingFetchProgressStep == 0) {
+				r.logger.Printf("月度模拟 funding 拉取进度：%d/%d，成功=%d，失败=%d", processedCount, len(symbols), stats.SuccessSymbols, stats.FailureCount)
+			}
+			r.reportProgress(EngineStage("fetch_funding"),
+				fmt.Sprintf("正在拉取 funding 历史: %d/%d，成功=%d，失败=%d", processedCount, len(symbols), stats.SuccessSymbols, stats.FailureCount),
+				processedCount, len(symbols))
+		}
+		if err := ctx.Err(); err != nil {
+			return nil, stats, err
+		}
+		if shouldAbortMonthlyFundingFetch(batchFailures, len(batchSymbols), &consecutive403Batches, &consecutive418Batches) {
+			reasons := summarizeMonthlyReasonCounts(batchFailures, nil)
+			if r.logger != nil {
+				r.logger.Printf("月度模拟 funding 提前中止：batch=%d-%d reasons=%s", batchStart+1, batchEnd, reasons)
+			}
+			return nil, stats, fmt.Errorf("连续批次遭遇访问拒绝，已提前中止本轮 funding 拉取: %s", reasons)
+		}
+		if batchEnd < len(symbols) && ctx.Err() == nil {
+			pause := monthlyFundingFetchBatchPause
+			if extraPause := monthlyFundingEscalatedPause(batchFailures); extraPause > pause {
+				pause = extraPause
+			}
+			if r.logger != nil {
+				r.logger.Printf("月度模拟 funding 批次暂停：batch=%d-%d pause=%s reasons=%s",
+					batchStart+1, batchEnd, pause, summarizeMonthlyReasonCounts(batchFailures, nil))
+			}
+			if !sleepWithContext(ctx, pause) {
+				return nil, stats, ctx.Err()
+			}
+		}
+	}
+
+	if successCount == 0 {
+		return nil, stats, fmt.Errorf("所有 symbol 的 fundingRate 拉取都失败了")
+	}
+	stats.RequestSummary = client.historicalRequestSummary()
+	if r.logger != nil {
+		r.logger.Printf("月度模拟 fundingRate 拉取汇总：成功=%d 失败=%d 失败分类=%s", stats.SuccessSymbols, stats.FailureCount, summarizeMonthlyReasonCounts(stats.FailureReasons, stats.FailureSamples))
+		if strings.TrimSpace(stats.RequestSummary) != "" {
+			r.logger.Printf("月度模拟历史请求摘要：%s", stats.RequestSummary)
+		}
+		successRate := stats.successRate(len(symbols))
+		if successRate < monthlyFundingDataCompleteFloor {
+			r.logger.Printf("月度模拟 funding 数据完整性不足：successRate=%.4f threshold=%.2f", successRate, monthlyFundingDataCompleteFloor)
+		}
+	}
+
+	times := make([]int64, 0, len(grouped))
+	for fundingTime := range grouped {
+		times = append(times, fundingTime)
+	}
+	sort.Slice(times, func(i, j int) bool { return times[i] < times[j] })
+
+	groups := make([]monthlyEventGroup, 0, len(times))
+	for _, fundingTime := range times {
+		items := grouped[fundingTime]
+		sort.Slice(items, func(i, j int) bool {
+			return parseFloat(items[i].FundingRate) > parseFloat(items[j].FundingRate)
+		})
+		groups = append(groups, monthlyEventGroup{
+			FundingTime: time.UnixMilli(fundingTime).UTC(),
+			Items:       items,
+		})
+	}
+	return groups, stats, nil
+}
+
+func (r *BacktestRunner) simulateMonthlyFundingGroups(ctx context.Context, client *BinanceClient, groups []monthlyEventGroup, periodLabel string) ([]BacktestTradeSample, []MonthlySimulationLogRecord, monthlySimulationStats, string, error) {
+	hcfg := r.historicalConfig()
+	equity := hcfg.InitialEquityUSDT
+	peakEquity := hcfg.InitialEquityUSDT
+	stopReason := "lookback_completed"
+	consecutiveLosses := 0
+	stats := monthlySimulationStats{
+		GroupCount:       len(groups),
+		SkipReasons:      make(map[string]int),
+		CandidateReasons: make(map[string]int),
+	}
+
+	trades := make([]BacktestTradeSample, 0, len(groups))
+	logs := make([]MonthlySimulationLogRecord, 0, len(groups)+1)
+	cache := &monthlyKlineCache{
+		spot:    make(map[string]MarketKline),
+		futures: make(map[string]MarketKline),
+		index:   make(map[string]MarketKline),
+		premium: make(map[string]MarketKline),
+		hits:    make(map[string]int),
+		loads:   make(map[string]int),
+	}
+	processedGroups := 0
+
+	for _, group := range groups {
+		if err := ctx.Err(); err != nil {
+			return nil, nil, stats, "context_canceled", err
+		}
+		processedGroups++
+		drawdownBefore := computeDrawdownRate(peakEquity, equity)
+		if r.logger != nil && (processedGroups == len(groups) || processedGroups%monthlyEvaluationProgressStep == 0) {
+			r.logger.Printf("月度模拟评估进度：%d/%d，已评估候选=%d，已成交=%d，已跳过轮次=%d", processedGroups, len(groups), stats.EvaluatedCandidates, stats.TradeCount, stats.SkippedGroups)
+		}
+		r.reportProgress(EngineStage("evaluate_groups"),
+			fmt.Sprintf("正在评估 funding 时点: %d/%d，已成交=%d，已跳过=%d", processedGroups, len(groups), stats.TradeCount, stats.SkippedGroups),
+			processedGroups, len(groups))
+		if drawdownBefore >= hcfg.MaxDrawdownRate || equity <= hcfg.StopEquityUSDT {
+			stopReason = "drawdown_limit_reached"
+			logs = append(logs, MonthlySimulationLogRecord{
+				RecordedAt:   time.Now().UTC().Format(time.RFC3339),
+				FundingTime:  group.FundingTime.Format(time.RFC3339),
+				Action:       "stop",
+				EquityBefore: formatFloat(equity),
+				EquityAfter:  formatFloat(equity),
+				DrawdownRate: formatFloat(drawdownBefore),
+				Reason:       stopReason,
+				Notes:        fmt.Sprintf("权益回撤已达到 %.0f%% 或权益已跌到 %.2f USDT 以下，停止后续模拟", hcfg.MaxDrawdownRate*100, hcfg.StopEquityUSDT),
+			})
+			break
+		}
+
+		best, evaluated, groupReason, err := r.selectBestMonthlyCandidate(ctx, client, cache, group)
+		if err != nil {
+			return nil, nil, stats, nonEmpty(groupReason, "context_canceled"), err
+		}
+		stats.EvaluatedCandidates += len(evaluated)
+		bestFound := false
+		if best != nil {
+			bestFound = true
+		}
+		for _, candidate := range evaluated {
+			action := "evaluate_skip"
+			reason := candidate.Reason
+			extraNotes := []string{}
+			if strings.TrimSpace(candidate.Reason) != "" {
+				stats.CandidateReasons[candidate.Reason]++
+			}
+			switch {
+			case candidate.Reason != "":
+			case bestFound && candidate.Symbol == best.Symbol:
+				action = "evaluate_selected"
+				reason = "selected_for_trade"
+			default:
+				action = "evaluate_ranked_out"
+				reason = "positive_but_not_top1"
+				extraNotes = append(extraNotes, fmt.Sprintf("bestEstimatedNetPnL=%.6f", best.EstimatedNetPnL))
+			}
+			logs = append(logs, buildMonthlyCandidateLogRecord(candidate, action, equity, equity, drawdownBefore, reason, extraNotes...))
+		}
+		logs = append(logs, buildMonthlyGroupSummaryLogRecord(group, evaluated, best, equity, drawdownBefore, groupReason))
+		if best == nil {
+			stats.SkippedGroups++
+			skipped := summarizeMonthlyGroupSkip(group, evaluated, groupReason, hcfg.GroupEvaluationTimeout)
+			logs = append(logs, MonthlySimulationLogRecord{
+				RecordedAt:   time.Now().UTC().Format(time.RFC3339),
+				FundingTime:  group.FundingTime.Format(time.RFC3339),
+				Action:       "skip",
+				EquityBefore: formatFloat(equity),
+				EquityAfter:  formatFloat(equity),
+				DrawdownRate: formatFloat(drawdownBefore),
+				Reason:       nonEmpty(skipped.Reason, "no_positive_candidate"),
+				Notes:        strings.Join(skipped.Notes, " | "),
+			})
+			stats.SkipReasons[nonEmpty(skipped.Reason, "no_positive_candidate")]++
+			continue
+		}
+
+		equityBefore := equity
+		equity += best.RealizedNetPnL
+		stats.TradeCount++
+		if equity > peakEquity {
+			peakEquity = equity
+		}
+		drawdownRate := computeDrawdownRate(peakEquity, equity)
+		drawdownAmount := math.Max(0, peakEquity-equity)
+		if best.RealizedNetPnL < 0 {
+			consecutiveLosses++
+		} else {
+			consecutiveLosses = 0
+		}
+
+		logs = append(logs, buildMonthlyTradeLogRecord(best, "trade", equityBefore, equity, drawdownRate))
+		trades = append(trades, BacktestTradeSample{
+			Scenario:      "MonthlyMarketReplay",
+			Symbol:        best.Symbol,
+			Period:        periodLabel,
+			TradeID:       best.FundingTime.Format(time.RFC3339),
+			FundingIncome: best.FundingIncome,
+			TradingPnL:    best.SpotGrossPnL + best.FuturesGrossPnL - best.TotalFriction,
+			TotalFees:     best.TotalFees,
+			Win:           best.RealizedNetPnL > 0,
+			Drawdown:      -drawdownAmount,
+			Notes:         strings.Join(best.Notes, " | "),
+		})
+
+		if r.logger != nil {
+			r.logger.Printf("月度模拟成交 fundingTime=%s symbol=%s fundingRate=%.6f fundingIncome=%.6f openBasis=%.6f closeBasis=%.6f fees=%.6f friction=%.6f realizedNet=%.6f equity=%.6f drawdown=%.6f",
+				best.FundingTime.Format(time.RFC3339), best.Symbol, best.FundingRate, best.FundingIncome, best.OpenBasisRate, best.CloseBasisRate, best.TotalFees, best.TotalFriction, best.RealizedNetPnL, equity, drawdownRate)
+		}
+		if hcfg.MaxSingleTradeLossUSDT > 0 && best.RealizedNetPnL <= -hcfg.MaxSingleTradeLossUSDT {
+			stopReason = "single_trade_loss_limit_reached"
+			logs = append(logs, MonthlySimulationLogRecord{
+				RecordedAt:   time.Now().UTC().Format(time.RFC3339),
+				FundingTime:  group.FundingTime.Format(time.RFC3339),
+				Action:       "stop",
+				Symbol:       best.Symbol,
+				EquityBefore: formatFloat(equityBefore),
+				EquityAfter:  formatFloat(equity),
+				DrawdownRate: formatFloat(drawdownRate),
+				Reason:       stopReason,
+				Notes:        fmt.Sprintf("单笔亏损 %.6f USDT 已达到阈值 %.6f USDT，停止后续模拟", -best.RealizedNetPnL, hcfg.MaxSingleTradeLossUSDT),
+			})
+			break
+		}
+
+		if consecutiveLosses >= hcfg.MaxConsecutiveLosses {
+			stopReason = "consecutive_losses_reached"
+			logs = append(logs, MonthlySimulationLogRecord{
+				RecordedAt:   time.Now().UTC().Format(time.RFC3339),
+				FundingTime:  group.FundingTime.Format(time.RFC3339),
+				Action:       "stop",
+				Symbol:       best.Symbol,
+				EquityBefore: formatFloat(equityBefore),
+				EquityAfter:  formatFloat(equity),
+				DrawdownRate: formatFloat(drawdownRate),
+				Reason:       stopReason,
+				Notes:        fmt.Sprintf("连续亏损次数已达到 %d 次，停止后续模拟", hcfg.MaxConsecutiveLosses),
+			})
+			break
+		}
+
+		if drawdownRate >= hcfg.MaxDrawdownRate || equity <= hcfg.StopEquityUSDT {
+			stopReason = "drawdown_limit_reached"
+			logs = append(logs, MonthlySimulationLogRecord{
+				RecordedAt:   time.Now().UTC().Format(time.RFC3339),
+				FundingTime:  group.FundingTime.Format(time.RFC3339),
+				Action:       "stop",
+				Symbol:       best.Symbol,
+				EquityBefore: formatFloat(equityBefore),
+				EquityAfter:  formatFloat(equity),
+				DrawdownRate: formatFloat(drawdownRate),
+				Reason:       stopReason,
+				Notes:        fmt.Sprintf("本轮交易后触发 %.0f%% 回撤或止损权益规则", hcfg.MaxDrawdownRate*100),
+			})
+			break
+		}
+	}
+
+	if r.logger != nil && len(stats.SkipReasons) > 0 {
+		r.logger.Printf("月度模拟轮次跳过汇总：%s", summarizeMonthlyReasonCounts(stats.SkipReasons, nil))
+	}
+	if r.logger != nil && len(stats.CandidateReasons) > 0 {
+		r.logger.Printf("月度模拟候选过滤汇总：%s", summarizeMonthlyReasonCounts(stats.CandidateReasons, nil))
+	}
+	stats.CacheSummary = cache.summary()
+	if r.logger != nil && stats.CacheSummary != "" {
+		r.logger.Printf("月度模拟 K 线缓存摘要：%s", stats.CacheSummary)
+	}
+	return trades, logs, stats, stopReason, nil
+}
+
+func (r *BacktestRunner) selectBestMonthlyCandidate(ctx context.Context, client *BinanceClient, cache *monthlyKlineCache, group monthlyEventGroup) (*monthlyCandidate, []monthlyCandidate, string, error) {
+	hcfg := r.historicalConfig()
+	groupTimeout := adaptiveMonthlyGroupTimeout(hcfg.GroupEvaluationTimeout, len(group.Items))
+	groupCtx, cancel := context.WithTimeout(ctx, groupTimeout)
+	defer cancel()
+
+	screeningItems, prefiltered := r.preselectMonthlyGroupItems(group)
+	evaluated := make([]monthlyCandidate, 0, len(group.Items))
+	evaluated = append(evaluated, prefiltered...)
+	screened := make([]monthlyCandidate, 0, len(screeningItems))
+	groupReason := ""
+	logAgg := newMonthlyLogAggregation()
+	type screeningResult struct {
+		item      FundingRateHistoryItem
+		candidate monthlyCandidate
+		err       error
+	}
+	results := make(chan screeningResult, len(screeningItems))
+	sem := make(chan struct{}, hcfg.ScreeningConcurrency)
+	var wg sync.WaitGroup
+	for _, item := range screeningItems {
+		item := item
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			select {
+			case sem <- struct{}{}:
+			case <-groupCtx.Done():
+				results <- screeningResult{item: item, err: groupCtx.Err()}
+				return
+			}
+			defer func() { <-sem }()
+
+			candidateBuildTimeout := adaptiveMonthlyCandidateBuildTimeout(hcfg.CandidateBuildTimeout, len(group.Items))
+			candidateCtx, candidateCancel := context.WithTimeout(groupCtx, candidateBuildTimeout)
+			candidate, err := r.buildMonthlyCandidate(candidateCtx, client, cache, group.FundingTime, item)
+			candidateCancel()
+			results <- screeningResult{item: item, candidate: candidate, err: err}
+		}()
+	}
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	for result := range results {
+		if result.err != nil {
+			if errors.Is(result.err, context.DeadlineExceeded) || errors.Is(result.err, context.Canceled) {
+				evaluated = append(evaluated, monthlyCandidate{
+					Symbol:      result.item.Symbol,
+					FundingTime: group.FundingTime,
+					FundingRate: parseFloat(result.item.FundingRate),
+					Reason:      "candidate_build_timeout",
+					Notes: []string{
+						"conservativeSkip=true",
+						fmt.Sprintf("timeout=%s", adaptiveMonthlyCandidateBuildTimeout(hcfg.CandidateBuildTimeout, len(group.Items))),
+						result.err.Error(),
+					},
+				})
+				logAgg.add("candidate_build_timeout", result.item.Symbol)
+				continue
+			}
+			if r.logger != nil {
+				r.logger.Printf("历史模拟评估失败 fundingTime=%s symbol=%s err=%v", group.FundingTime.Format(time.RFC3339), result.item.Symbol, result.err)
+			}
+			continue
+		}
+		if result.candidate.Reason == "candidate_build_timeout" {
+			logAgg.add("candidate_build_timeout", result.item.Symbol)
+		}
+		if strings.TrimSpace(result.candidate.Reason) != "" {
+			evaluated = append(evaluated, result.candidate)
+			continue
+		}
+		screened = append(screened, result.candidate)
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, nil, "context_canceled", err
+	}
+
+	if groupCtx.Err() != nil {
+		if errors.Is(groupCtx.Err(), context.Canceled) {
+			return nil, nil, "context_canceled", groupCtx.Err()
+		}
+		groupReason = "group_evaluation_timeout"
+	}
+
+	sort.SliceStable(screened, func(i, j int) bool {
+		if screened[i].EstimatedFundingRate == screened[j].EstimatedFundingRate {
+			return screened[i].Symbol < screened[j].Symbol
+		}
+		return screened[i].EstimatedFundingRate > screened[j].EstimatedFundingRate
+	})
+
+	if len(screened) > hcfg.DeepCandidateLimit {
+		for index := hcfg.DeepCandidateLimit; index < len(screened); index++ {
+			candidate := screened[index]
+			candidate.Reason = "screening_topn_excluded"
+			candidate.Notes = append(candidate.Notes,
+				fmt.Sprintf("screeningLimit=%d", hcfg.DeepCandidateLimit),
+				fmt.Sprintf("screeningRank=%d", index+1),
+			)
+			evaluated = append(evaluated, candidate)
+		}
+		screened = screened[:hcfg.DeepCandidateLimit]
+	}
+
+	for _, screenedCandidate := range screened {
+		if groupCtx.Err() != nil {
+			if errors.Is(groupCtx.Err(), context.Canceled) {
+				return nil, nil, "context_canceled", groupCtx.Err()
+			}
+			groupReason = "group_evaluation_timeout"
+			if r.logger != nil {
+				r.logger.Printf("历史模拟评估超时 fundingTime=%s candidates=%d timeout=%s err=%v",
+					group.FundingTime.Format(time.RFC3339), len(group.Items), groupTimeout, groupCtx.Err())
+			}
+			break
+		}
+		candidate := screenedCandidate
+		candidateBuildTimeout := adaptiveMonthlyCandidateBuildTimeout(hcfg.CandidateBuildTimeout, len(group.Items))
+		pricingCtx, pricingCancel := context.WithTimeout(groupCtx, candidateBuildTimeout)
+		err := r.completeMonthlyCandidateProxy(pricingCtx, client, cache, &candidate)
+		pricingCancel()
+		if err != nil {
+			candidate.Reason = monthlyBuildSkipReason("reference_kline_unavailable", err)
+			candidate.Notes = append(candidate.Notes, err.Error())
+			evaluated = append(evaluated, candidate)
+			if candidate.Reason == "candidate_build_timeout" {
+				logAgg.add("candidate_pricing_timeout", candidate.Symbol)
+			}
+			continue
+		}
+		evaluated = append(evaluated, candidate)
+	}
+
+	sort.SliceStable(evaluated, func(i, j int) bool {
+		if evaluated[i].EstimatedNetPnL == evaluated[j].EstimatedNetPnL {
+			return evaluated[i].Symbol < evaluated[j].Symbol
+		}
+		return evaluated[i].EstimatedNetPnL > evaluated[j].EstimatedNetPnL
+	})
+
+	for index := range evaluated {
+		if strings.TrimSpace(evaluated[index].Reason) != "" {
+			continue
+		}
+		candidate := evaluated[index]
+		finalizeTimeout := adaptiveMonthlyCandidateFinalizeTimeout(hcfg.CandidateFinalizeTimeout, len(group.Items))
+		finalizeCtx, finalizeCancel := context.WithTimeout(groupCtx, finalizeTimeout)
+		err := r.finalizeMonthlyCandidateExecution(finalizeCtx, client, cache, &candidate)
+		finalizeCancel()
+		if err != nil {
+			if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+				evaluated[index].Reason = "candidate_finalize_timeout"
+				evaluated[index].Notes = append(evaluated[index].Notes,
+					fmt.Sprintf("timeout=%s", finalizeTimeout),
+					err.Error(),
+				)
+				logAgg.add("candidate_finalize_timeout", candidate.Symbol)
+				continue
+			}
+			evaluated[index].Reason = "execution_kline_unavailable"
+			evaluated[index].Notes = append(evaluated[index].Notes, err.Error())
+			continue
+		}
+		evaluated[index] = candidate
+		if r.logger != nil {
+			r.logMonthlyGroupAggregation(group, len(screeningItems), logAgg, groupReason)
+		}
+		return &evaluated[index], evaluated, groupReason, nil
+	}
+	if r.logger != nil {
+		r.logMonthlyGroupAggregation(group, len(screeningItems), logAgg, groupReason)
+	}
+	return nil, evaluated, groupReason, nil
+}
+
+func (r *BacktestRunner) preselectMonthlyGroupItems(group monthlyEventGroup) ([]FundingRateHistoryItem, []monthlyCandidate) {
+	limit := r.monthlyScreeningCandidateLimit(len(group.Items))
+	if limit >= len(group.Items) {
+		return group.Items, nil
+	}
+	selected := make([]FundingRateHistoryItem, 0, limit)
+	excluded := make([]monthlyCandidate, 0, len(group.Items)-limit)
+	for index, item := range group.Items {
+		if index < limit {
+			selected = append(selected, item)
+			continue
+		}
+		excluded = append(excluded, monthlyCandidate{
+			Symbol:      item.Symbol,
+			FundingTime: group.FundingTime,
+			FundingRate: parseFloat(item.FundingRate),
+			Reason:      "screening_prefilter_excluded",
+			Notes: []string{
+				fmt.Sprintf("prefilterLimit=%d", limit),
+				fmt.Sprintf("prefilterRank=%d", index+1),
+				"screeningStage=funding_rate_only",
+			},
+		})
+	}
+	return selected, excluded
+}
+
+func (r *BacktestRunner) buildMonthlyCandidate(ctx context.Context, client *BinanceClient, cache *monthlyKlineCache, fundingTime time.Time, item FundingRateHistoryItem) (monthlyCandidate, error) {
+	hcfg := r.historicalConfig()
+	entryTime := fundingTime.Add(-hcfg.FundingPhaseLead)
+	premiumEntryRef, err := cache.getFuturesPremiumKlineBefore(ctx, client, item.Symbol, entryTime)
+	if err != nil {
+		return monthlySkippedCandidate(item, fundingTime, monthlyBuildSkipReason("premium_index_kline_unavailable", err), err, hcfg.CandidateBuildTimeout), nil
+	}
+	indexEntryRef, err := cache.getFuturesIndexKlineBefore(ctx, client, item.Symbol, entryTime)
+	if err != nil {
+		return monthlySkippedCandidate(item, fundingTime, monthlyBuildSkipReason("index_price_kline_unavailable", err), err, hcfg.CandidateBuildTimeout), nil
+	}
+
+	fundingRate := parseFloat(item.FundingRate)
+	markPrice := parseFloat(item.MarkPrice)
+	effectiveMarkPrice := markPrice
+	if effectiveMarkPrice <= 0 {
+		effectiveMarkPrice = 1
+	}
+	roughHedgeQty := r.monthlyPerLegNotional() / effectiveMarkPrice
+	preFundingBasisRate := 0.0
+	if indexEntryRef.Close > 0 && markPrice > 0 {
+		preFundingBasisRate = (markPrice - indexEntryRef.Close) / indexEntryRef.Close
+	}
+	estimatedFundingRate := conservativeHistoricalFundingRate(premiumEntryRef.Close, preFundingBasisRate)
+	estimatedFundingIncome := roughHedgeQty * effectiveMarkPrice * estimatedFundingRate
+	fundingIncome := roughHedgeQty * effectiveMarkPrice * fundingRate
+	fundingRateJump := math.Abs(fundingRate - estimatedFundingRate)
+
+	baseNotes := []string{
+		fmt.Sprintf("premiumIndexClose=%.6f", premiumEntryRef.Close),
+		fmt.Sprintf("markIndexBasis=%.6f", preFundingBasisRate),
+		fmt.Sprintf("fundingRateJump=%.6f", fundingRateJump),
+		"screeningStage=premium_index_only",
+	}
+
+	if estimatedFundingRate <= 0 {
+		return monthlyCandidate{
+			Symbol:                 item.Symbol,
+			FundingTime:            fundingTime,
+			EstimatedFundingRate:   estimatedFundingRate,
+			FundingRate:            fundingRate,
+			EstimatedFundingIncome: estimatedFundingIncome,
+			FundingIncome:          fundingIncome,
+			Reason:                 "estimated_funding_non_positive",
+			Notes:                  append([]string(nil), baseNotes...),
+		}, nil
+	}
+	if fundingRate >= hcfg.MaxFundingRate || estimatedFundingRate >= hcfg.MaxFundingRate {
+		return monthlyCandidate{
+			Symbol:                 item.Symbol,
+			FundingTime:            fundingTime,
+			EstimatedFundingRate:   estimatedFundingRate,
+			FundingRate:            fundingRate,
+			EstimatedFundingIncome: estimatedFundingIncome,
+			FundingIncome:          fundingIncome,
+			Reason:                 "funding_rate_extreme",
+			Notes: append(baseNotes,
+				fmt.Sprintf("maxFundingRate=%.6f", hcfg.MaxFundingRate),
+			),
+		}, nil
+	}
+	if fundingRateJump >= hcfg.MaxFundingRateJump {
+		return monthlyCandidate{
+			Symbol:                 item.Symbol,
+			FundingTime:            fundingTime,
+			EstimatedFundingRate:   estimatedFundingRate,
+			FundingRate:            fundingRate,
+			EstimatedFundingIncome: estimatedFundingIncome,
+			FundingIncome:          fundingIncome,
+			Reason:                 "funding_jump_too_large",
+			Notes: append(baseNotes,
+				fmt.Sprintf("maxFundingRateJump=%.6f", hcfg.MaxFundingRateJump),
+			),
+		}, nil
+	}
+	return monthlyCandidate{
+		Symbol:                 item.Symbol,
+		FundingTime:            fundingTime,
+		EstimatedFundingRate:   estimatedFundingRate,
+		FundingRate:            fundingRate,
+		EstimatedFundingIncome: estimatedFundingIncome,
+		FundingIncome:          fundingIncome,
+		Notes:                  append([]string(nil), baseNotes...),
+	}, nil
+}
+
+func (r *BacktestRunner) completeMonthlyCandidateProxy(ctx context.Context, client *BinanceClient, cache *monthlyKlineCache, candidate *monthlyCandidate) error {
+	hcfg := r.historicalConfig()
+	entryTime := candidate.FundingTime.Add(-hcfg.FundingPhaseLead)
+	spotEntryRef, err := cache.getSpotKlineBefore(ctx, client, candidate.Symbol, entryTime)
+	if err != nil {
+		return err
+	}
+	futuresEntryRef, err := cache.getFuturesKlineBefore(ctx, client, candidate.Symbol, entryTime)
+	if err != nil {
+		return err
+	}
+
+	spotEntryPrice := spotEntryRef.Close
+	futuresEntryPrice := futuresEntryRef.Close
+	if spotEntryPrice <= 0 || futuresEntryPrice <= 0 {
+		candidate.Reason = "invalid_market_data"
+		candidate.Notes = append(candidate.Notes, "存在非正价格", "pricingModel=entry_proxy_screening")
+		return nil
+	}
+
+	perLegNotional := r.monthlyPerLegNotional()
+	hedgeQty := math.Min(perLegNotional/spotEntryPrice, perLegNotional/futuresEntryPrice)
+	if hedgeQty <= 0 {
+		candidate.Reason = "invalid_quantity"
+		candidate.Notes = append(candidate.Notes, "对冲数量无法计算")
+		return nil
+	}
+
+	spotEntryNotional := hedgeQty * spotEntryPrice
+	futuresEntryNotional := hedgeQty * futuresEntryPrice
+	spotExitNotional := spotEntryNotional
+	futuresExitNotional := futuresEntryNotional
+	effectiveMarkPrice := futuresEntryPrice
+	if effectiveMarkPrice <= 0 {
+		effectiveMarkPrice = 1
+	}
+	candidate.HedgeQty = hedgeQty
+	candidate.SpotEntryPrice = spotEntryPrice
+	candidate.FuturesEntryPrice = futuresEntryPrice
+	candidate.SpotExitPrice = spotEntryPrice
+	candidate.FuturesExitPrice = futuresEntryPrice
+	candidate.SpotEntryQuoteVolume = spotEntryRef.QuoteAssetVolume
+	candidate.FuturesEntryQuoteVolume = futuresEntryRef.QuoteAssetVolume
+	candidate.SpotExitQuoteVolume = spotEntryRef.QuoteAssetVolume
+	candidate.FuturesExitQuoteVolume = futuresEntryRef.QuoteAssetVolume
+	candidate.EstimatedFundingIncome = hedgeQty * effectiveMarkPrice * candidate.EstimatedFundingRate
+	candidate.FundingIncome = hedgeQty * effectiveMarkPrice * candidate.FundingRate
+	candidate.OpenBasisRate = computeBasisRate(spotEntryPrice, futuresEntryPrice)
+	candidate.CloseBasisRate = candidate.OpenBasisRate
+	candidate.SpotEntrySlipRate = estimateHistoricalSlipRate(spotEntryRef)
+	candidate.FuturesEntrySlipRate = estimateHistoricalSlipRate(futuresEntryRef)
+	candidate.SpotExitSlipRate = candidate.SpotEntrySlipRate
+	candidate.FuturesExitSlipRate = candidate.FuturesEntrySlipRate
+	candidate.SpotEntryImpactRate = estimateMarketImpactRate(spotEntryNotional, spotEntryRef.QuoteAssetVolume)
+	candidate.FuturesEntryImpactRate = estimateMarketImpactRate(futuresEntryNotional, futuresEntryRef.QuoteAssetVolume)
+	candidate.SpotExitImpactRate = candidate.SpotEntryImpactRate
+	candidate.FuturesExitImpactRate = candidate.FuturesEntryImpactRate
+	candidate.SpotEntryFee = spotEntryNotional * hcfg.SpotTakerFeeRate
+	candidate.FuturesEntryFee = futuresEntryNotional * hcfg.FuturesTakerFeeRate
+	candidate.SpotExitFee = spotExitNotional * hcfg.SpotTakerFeeRate
+	candidate.FuturesExitFee = futuresExitNotional * hcfg.FuturesTakerFeeRate
+	candidate.TotalFees = candidate.SpotEntryFee + candidate.FuturesEntryFee + candidate.SpotExitFee + candidate.FuturesExitFee
+	candidate.TotalFriction = spotEntryNotional*(candidate.SpotEntrySlipRate+candidate.SpotEntryImpactRate) +
+		futuresEntryNotional*(candidate.FuturesEntrySlipRate+candidate.FuturesEntryImpactRate) +
+		spotExitNotional*(candidate.SpotExitSlipRate+candidate.SpotExitImpactRate) +
+		futuresExitNotional*(candidate.FuturesExitSlipRate+candidate.FuturesExitImpactRate)
+	candidate.ProjectedExitCost = spotExitNotional*(candidate.SpotExitSlipRate+candidate.SpotExitImpactRate+hcfg.SpotTakerFeeRate) +
+		futuresExitNotional*(candidate.FuturesExitSlipRate+candidate.FuturesExitImpactRate+hcfg.FuturesTakerFeeRate)
+	candidate.OpenBasisPenalty = computeAdverseBasisPenalty(candidate.OpenBasisRate, spotEntryNotional, futuresEntryNotional)
+	entryExecutionCost := spotEntryNotional*(candidate.SpotEntrySlipRate+candidate.SpotEntryImpactRate+hcfg.SpotTakerFeeRate) +
+		futuresEntryNotional*(candidate.FuturesEntrySlipRate+candidate.FuturesEntryImpactRate+hcfg.FuturesTakerFeeRate)
+	candidate.EstimatedNetPnL = candidate.EstimatedFundingIncome - candidate.OpenBasisPenalty - candidate.ProjectedExitCost - entryExecutionCost
+	candidate.SpotGrossPnL = 0
+	candidate.FuturesGrossPnL = 0
+	candidate.RealizedNetPnL = candidate.FundingIncome - candidate.TotalFriction - candidate.TotalFees
+	liquidityShareLimit := r.monthlyLiquidityShareLimit()
+	severeLiquidityShareLimit := r.monthlySevereLiquidityShareLimit(liquidityShareLimit)
+	candidate.MinLiquidityRequired = math.Max(spotEntryNotional, futuresEntryNotional) / liquidityShareLimit
+	spotLiquidityShare := ratioOrZero(spotEntryNotional, spotEntryRef.QuoteAssetVolume)
+	futuresLiquidityShare := ratioOrZero(futuresEntryNotional, futuresEntryRef.QuoteAssetVolume)
+	liquidityRisk := EvaluateLiquidityShareRisk(math.Max(spotLiquidityShare, futuresLiquidityShare), liquidityShareLimit, severeLiquidityShareLimit)
+	candidate.Notes = append(candidate.Notes,
+		fmt.Sprintf("estimatedFundingRate=%.6f", candidate.EstimatedFundingRate),
+		fmt.Sprintf("actualFundingRate=%.6f", candidate.FundingRate),
+		fmt.Sprintf("estimatedFundingIncome=%.6f", candidate.EstimatedFundingIncome),
+		fmt.Sprintf("actualFundingIncome=%.6f", candidate.FundingIncome),
+		fmt.Sprintf("spotEntrySlip=%.6f", candidate.SpotEntrySlipRate),
+		fmt.Sprintf("futuresEntrySlip=%.6f", candidate.FuturesEntrySlipRate),
+		fmt.Sprintf("spotExitSlip=%.6f", candidate.SpotExitSlipRate),
+		fmt.Sprintf("futuresExitSlip=%.6f", candidate.FuturesExitSlipRate),
+		fmt.Sprintf("spotEntryImpact=%.6f", candidate.SpotEntryImpactRate),
+		fmt.Sprintf("futuresEntryImpact=%.6f", candidate.FuturesEntryImpactRate),
+		fmt.Sprintf("spotExitImpact=%.6f", candidate.SpotExitImpactRate),
+		fmt.Sprintf("futuresExitImpact=%.6f", candidate.FuturesExitImpactRate),
+		fmt.Sprintf("openBasisPenalty=%.6f", candidate.OpenBasisPenalty),
+		fmt.Sprintf("projectedExitCost=%.6f", candidate.ProjectedExitCost),
+		fmt.Sprintf("spotLiquidityShare=%.6f", spotLiquidityShare),
+		fmt.Sprintf("futuresLiquidityShare=%.6f", futuresLiquidityShare),
+		fmt.Sprintf("liquidityShareLimit=%.6f", liquidityShareLimit),
+		fmt.Sprintf("severeLiquidityShareLimit=%.6f", severeLiquidityShareLimit),
+		fmt.Sprintf("liquidityRiskCategory=%s", liquidityRisk.Category),
+		fmt.Sprintf("liquidityRiskSeverity=%s", liquidityRisk.Severity),
+		fmt.Sprintf("liquidityRiskAction=%s", liquidityRisk.Action),
+		"pricingModel=entry_proxy_screening",
+		"exitCostModel=entry_liquidity_proxy",
+	)
+
+	if spotLiquidityShare > severeLiquidityShareLimit || futuresLiquidityShare > severeLiquidityShareLimit {
+		candidate.Reason = "entry_liquidity_extremely_poor"
+		candidate.Notes = append(candidate.Notes,
+			fmt.Sprintf("spotEntryQuoteVol=%.6f", spotEntryRef.QuoteAssetVolume),
+			fmt.Sprintf("futuresEntryQuoteVol=%.6f", futuresEntryRef.QuoteAssetVolume),
+		)
+		return nil
+	}
+	if spotLiquidityShare > liquidityShareLimit || futuresLiquidityShare > liquidityShareLimit {
+		candidate.Reason = "entry_liquidity_share_too_high"
+		candidate.Notes = append(candidate.Notes,
+			fmt.Sprintf("spotEntryQuoteVol=%.6f", spotEntryRef.QuoteAssetVolume),
+			fmt.Sprintf("futuresEntryQuoteVol=%.6f", futuresEntryRef.QuoteAssetVolume),
+		)
+		return nil
+	}
+	safetyBufferUSDT := r.monthlySafetyBuffer(entryExecutionCost, candidate.ProjectedExitCost, candidate.OpenBasisPenalty)
+	if candidate.EstimatedNetPnL <= safetyBufferUSDT {
+		candidate.Reason = "estimated_net_below_safety_buffer"
+		candidate.Notes = append(candidate.Notes,
+			fmt.Sprintf("safetyBufferUSDT=%.6f", safetyBufferUSDT),
+			fmt.Sprintf("entryExecutionCost=%.6f", entryExecutionCost),
+			fmt.Sprintf("safetyBufferGap=%.6f", safetyBufferUSDT-candidate.EstimatedNetPnL),
+			fmt.Sprintf("estimatedNetPnL=%.6f", candidate.EstimatedNetPnL),
+		)
+		return nil
+	}
+	return nil
+}
+
+func (r *BacktestRunner) finalizeMonthlyCandidateExecution(ctx context.Context, client *BinanceClient, cache *monthlyKlineCache, candidate *monthlyCandidate) error {
+	hcfg := r.historicalConfig()
+	entryTime := candidate.FundingTime.Add(-hcfg.FundingPhaseLead)
+	exitTime := candidate.FundingTime
+
+	spotEntryExec, err := cache.getSpotKline(ctx, client, candidate.Symbol, entryTime)
+	if err != nil {
+		return fmt.Errorf("entry_spot_execution: %w", err)
+	}
+	futuresEntryExec, err := cache.getFuturesKline(ctx, client, candidate.Symbol, entryTime)
+	if err != nil {
+		return fmt.Errorf("entry_futures_execution: %w", err)
+	}
+	spotExitExec, err := cache.getSpotKline(ctx, client, candidate.Symbol, exitTime)
+	if err != nil {
+		return fmt.Errorf("exit_spot_execution: %w", err)
+	}
+	futuresExitExec, err := cache.getFuturesKline(ctx, client, candidate.Symbol, exitTime)
+	if err != nil {
+		return fmt.Errorf("exit_futures_execution: %w", err)
+	}
+
+	candidate.SpotEntryPrice = spotEntryExec.Open
+	candidate.FuturesEntryPrice = futuresEntryExec.Open
+	candidate.SpotExitPrice = spotExitExec.Open
+	candidate.FuturesExitPrice = futuresExitExec.Open
+
+	spotEntryNotional := candidate.HedgeQty * candidate.SpotEntryPrice
+	futuresEntryNotional := candidate.HedgeQty * candidate.FuturesEntryPrice
+	spotExitNotional := candidate.HedgeQty * candidate.SpotExitPrice
+	futuresExitNotional := candidate.HedgeQty * candidate.FuturesExitPrice
+
+	candidate.OpenBasisRate = computeBasisRate(candidate.SpotEntryPrice, candidate.FuturesEntryPrice)
+	candidate.CloseBasisRate = computeBasisRate(candidate.SpotExitPrice, candidate.FuturesExitPrice)
+	candidate.SpotGrossPnL = candidate.HedgeQty * (candidate.SpotExitPrice - candidate.SpotEntryPrice)
+	candidate.FuturesGrossPnL = candidate.HedgeQty * (candidate.FuturesEntryPrice - candidate.FuturesExitPrice)
+	candidate.TotalFees = spotEntryNotional*hcfg.SpotTakerFeeRate +
+		futuresEntryNotional*hcfg.FuturesTakerFeeRate +
+		spotExitNotional*hcfg.SpotTakerFeeRate +
+		futuresExitNotional*hcfg.FuturesTakerFeeRate
+	candidate.SpotEntryFee = spotEntryNotional * hcfg.SpotTakerFeeRate
+	candidate.FuturesEntryFee = futuresEntryNotional * hcfg.FuturesTakerFeeRate
+	candidate.SpotExitFee = spotExitNotional * hcfg.SpotTakerFeeRate
+	candidate.FuturesExitFee = futuresExitNotional * hcfg.FuturesTakerFeeRate
+	candidate.TotalFriction = spotEntryNotional*(candidate.SpotEntrySlipRate+candidate.SpotEntryImpactRate) +
+		futuresEntryNotional*(candidate.FuturesEntrySlipRate+candidate.FuturesEntryImpactRate) +
+		spotExitNotional*(candidate.SpotExitSlipRate+candidate.SpotExitImpactRate) +
+		futuresExitNotional*(candidate.FuturesExitSlipRate+candidate.FuturesExitImpactRate)
+	candidate.ProjectedExitCost = spotExitNotional*(candidate.SpotExitSlipRate+candidate.SpotExitImpactRate+hcfg.SpotTakerFeeRate) +
+		futuresExitNotional*(candidate.FuturesExitSlipRate+candidate.FuturesExitImpactRate+hcfg.FuturesTakerFeeRate)
+	candidate.OpenBasisPenalty = computeAdverseBasisPenalty(candidate.OpenBasisRate, spotEntryNotional, futuresEntryNotional)
+	entryExecutionCost := spotEntryNotional*(candidate.SpotEntrySlipRate+candidate.SpotEntryImpactRate+hcfg.SpotTakerFeeRate) +
+		futuresEntryNotional*(candidate.FuturesEntrySlipRate+candidate.FuturesEntryImpactRate+hcfg.FuturesTakerFeeRate)
+	candidate.EstimatedNetPnL = candidate.EstimatedFundingIncome - candidate.OpenBasisPenalty - candidate.ProjectedExitCost - entryExecutionCost
+	candidate.RealizedNetPnL = candidate.FundingIncome + candidate.SpotGrossPnL + candidate.FuturesGrossPnL - candidate.TotalFriction - candidate.TotalFees
+	candidate.Notes = append(candidate.Notes, "executionModel=exact_entry_exit_open")
+	return nil
+}
+
+func monthlyBuildSkipReason(baseReason string, err error) string {
+	if err == nil {
+		return baseReason
+	}
+	if errors.Is(err, context.Canceled) {
+		return "candidate_build_canceled"
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return "candidate_build_timeout"
+	}
+	return baseReason
+}
+
+func monthlySkippedCandidate(item FundingRateHistoryItem, fundingTime time.Time, reason string, err error, candidateBuildTimeout time.Duration) monthlyCandidate {
+	notes := []string{"conservativeSkip=true"}
+	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			notes = append(notes, "canceled=true")
+		} else if errors.Is(err, context.DeadlineExceeded) {
+			notes = append(notes, fmt.Sprintf("timeout=%s", candidateBuildTimeout))
+		}
+		notes = append(notes, err.Error())
+	}
+	return monthlyCandidate{
+		Symbol:          item.Symbol,
+		FundingTime:     fundingTime,
+		FundingRate:     parseFloat(item.FundingRate),
+		FundingIncome:   0,
+		EstimatedNetPnL: 0,
+		RealizedNetPnL:  0,
+		Reason:          reason,
+		Notes:           notes,
+	}
+}
+
+func (r *BacktestRunner) buildMonthlySummaryRecord(periodLabel string, trades []BacktestTradeSample, fetchStats monthlyFundingFetchStats, simStats monthlySimulationStats, stopReason string) BacktestCSVRecord {
+	totalFunding := 0.0
+	totalTrading := 0.0
+	totalFees := 0.0
+	wins := 0
+	maxDrawdown := 0.0
+	for _, trade := range trades {
+		totalFunding += trade.FundingIncome
+		totalTrading += trade.TradingPnL
+		totalFees += trade.TotalFees
+		if trade.Win {
+			wins++
+		}
+		if trade.Drawdown < maxDrawdown {
+			maxDrawdown = trade.Drawdown
+		}
+	}
+
+	winRate := 0.0
+	if len(trades) > 0 {
+		winRate = float64(wins) / float64(len(trades))
+	}
+	notes := []string{
+		"stop=" + stopReason,
+		fmt.Sprintf("groups=%d", simStats.GroupCount),
+		fmt.Sprintf("evaluated=%d", simStats.EvaluatedCandidates),
+		fmt.Sprintf("skipped=%d", simStats.SkippedGroups),
+		fmt.Sprintf("fetchSuccessSymbols=%d", fetchStats.SuccessSymbols),
+		fmt.Sprintf("fetchFailures=%d", fetchStats.FailureCount),
+		fmt.Sprintf("fetchSuccessRate=%.4f", fetchStats.successRate(fetchStats.SuccessSymbols+fetchStats.FailureCount)),
+		fmt.Sprintf("dataComplete=%t", fetchStats.successRate(fetchStats.SuccessSymbols+fetchStats.FailureCount) >= monthlyFundingDataCompleteFloor),
+	}
+	if skipSummary := summarizeMonthlyReasonCounts(simStats.SkipReasons, nil); skipSummary != "" {
+		notes = append(notes, "groupSkips="+skipSummary)
+	}
+	if candidateSummary := summarizeMonthlyReasonCounts(simStats.CandidateReasons, nil); candidateSummary != "" {
+		notes = append(notes, "candidateReasons="+candidateSummary)
+	}
+	if timeoutSummary := summarizeMonthlyTimeoutReasons(simStats.CandidateReasons); timeoutSummary != "" {
+		notes = append(notes, "timeouts="+timeoutSummary)
+	}
+	if fetchSummary := summarizeMonthlyReasonCounts(fetchStats.FailureReasons, fetchStats.FailureSamples); fetchSummary != "" {
+		notes = append(notes, "fetchReasons="+fetchSummary)
+	}
+	if strings.TrimSpace(fetchStats.RequestSummary) != "" {
+		notes = append(notes, "requestSummary="+fetchStats.RequestSummary)
+	}
+	if strings.TrimSpace(simStats.CacheSummary) != "" {
+		notes = append(notes, "klineCache="+simStats.CacheSummary)
+	}
+
+	return BacktestCSVRecord{
+		TraceRecordMetadata: buildTraceRecordMetadata(r.cfg),
+		RecordedAt:          time.Now().UTC().Format(time.RFC3339),
+		Scenario:            "MonthlyMarketReplaySummary",
+		Symbol:              "ALL",
+		Period:              periodLabel,
+		Trades:              len(trades),
+		WinRate:             formatFloat(winRate),
+		FundingIncome:       formatFloat(totalFunding),
+		TradingPnL:          formatFloat(totalTrading),
+		TotalFees:           formatFloat(totalFees),
+		NetPnL:              formatFloat(totalFunding + totalTrading - totalFees),
+		MaxDrawdown:         formatFloat(maxDrawdown),
+		Notes:               strings.Join(notes, " | "),
+	}
+}
+
+func (r *BacktestRunner) buildMonthlyStressRecords(periodLabel string, trades []BacktestTradeSample, fetchStats monthlyFundingFetchStats, simStats monthlySimulationStats) []BacktestCSVRecord {
+	if len(trades) == 0 {
+		return nil
+	}
+	hcfg := r.historicalConfig()
+	records := make([]BacktestCSVRecord, 0, 3)
+	metadata := buildTraceRecordMetadata(r.cfg)
+
+	needleSamples := applyMonthlyStressNeedle(trades, hcfg.PerLegNotionalUSDT)
+	records = append(records, buildStressSummaryRecord(
+		"MonthlyStressNeedleShock",
+		periodLabel,
+		needleSamples,
+		hcfg.InitialEquityUSDT,
+		fetchStats,
+		simStats,
+		metadata,
+		[]string{"stress=needle_shock", "assumption=entry_exit_price_spike"},
+	))
+
+	fundingSamples := applyMonthlyStressFundingSpike(trades, hcfg.PerLegNotionalUSDT)
+	records = append(records, buildStressSummaryRecord(
+		"MonthlyStressFundingSpike",
+		periodLabel,
+		fundingSamples,
+		hcfg.InitialEquityUSDT,
+		fetchStats,
+		simStats,
+		metadata,
+		[]string{"stress=funding_spike", "assumption=funding_income_reversal"},
+	))
+
+	downtimeSamples := applyMonthlyStressPlatformDowntime(trades, hcfg.PerLegNotionalUSDT)
+	records = append(records, buildStressSummaryRecord(
+		"MonthlyStressPlatformDowntime",
+		periodLabel,
+		downtimeSamples,
+		hcfg.InitialEquityUSDT,
+		fetchStats,
+		simStats,
+		metadata,
+		[]string{"stress=platform_downtime", "assumption=exit_delay_and_emergency_hedge"},
+	))
+
+	return records
+}
+
+func applyMonthlyStressNeedle(samples []BacktestTradeSample, perLegNotional float64) []BacktestTradeSample {
+	stressed := make([]BacktestTradeSample, 0, len(samples))
+	for _, sample := range samples {
+		extraTradingLoss := math.Max(perLegNotional*0.02, math.Abs(sample.TradingPnL)*1.25+sample.TotalFees)
+		stressed = append(stressed, withStressAdjustment(sample, "MonthlyStressNeedleShock", 0, -extraTradingLoss, 0, fmt.Sprintf("needleLoss=%.6f", extraTradingLoss)))
+	}
+	return stressed
+}
+
+func applyMonthlyStressFundingSpike(samples []BacktestTradeSample, perLegNotional float64) []BacktestTradeSample {
+	stressed := make([]BacktestTradeSample, 0, len(samples))
+	for _, sample := range samples {
+		fundingShock := math.Max(perLegNotional*0.008, math.Abs(sample.FundingIncome)*1.6)
+		stressed = append(stressed, withStressAdjustment(sample, "MonthlyStressFundingSpike", -fundingShock, 0, 0, fmt.Sprintf("fundingShock=%.6f", fundingShock)))
+	}
+	return stressed
+}
+
+func applyMonthlyStressPlatformDowntime(samples []BacktestTradeSample, perLegNotional float64) []BacktestTradeSample {
+	stressed := make([]BacktestTradeSample, 0, len(samples))
+	for idx, sample := range samples {
+		if idx%3 != 0 {
+			stressed = append(stressed, withStressAdjustment(sample, "MonthlyStressPlatformDowntime", 0, 0, 0, "downtimeImpact=none"))
+			continue
+		}
+		emergencyLoss := math.Max(perLegNotional*0.03, math.Abs(sample.TradingPnL)+sample.TotalFees*2+0.3)
+		extraFees := math.Max(0.05, sample.TotalFees*0.5)
+		stressed = append(stressed, withStressAdjustment(sample, "MonthlyStressPlatformDowntime", 0, -emergencyLoss, extraFees, fmt.Sprintf("downtimeLoss=%.6f extraFees=%.6f", emergencyLoss, extraFees)))
+	}
+	return stressed
+}
+
+func withStressAdjustment(sample BacktestTradeSample, scenario string, fundingDelta float64, tradingDelta float64, feeDelta float64, note string) BacktestTradeSample {
+	adjusted := sample
+	adjusted.Scenario = scenario
+	adjusted.FundingIncome += fundingDelta
+	adjusted.TradingPnL += tradingDelta
+	adjusted.TotalFees += feeDelta
+	adjusted.Drawdown = 0
+	adjusted.Win = adjusted.FundingIncome+adjusted.TradingPnL-adjusted.TotalFees > 0
+	if strings.TrimSpace(note) != "" {
+		if strings.TrimSpace(adjusted.Notes) == "" {
+			adjusted.Notes = note
+		} else {
+			adjusted.Notes += " | " + note
+		}
+	}
+	return adjusted
+}
+
+func buildStressSummaryRecord(scenario string, periodLabel string, trades []BacktestTradeSample, initialEquity float64, fetchStats monthlyFundingFetchStats, simStats monthlySimulationStats, metadata TraceRecordMetadata, extraNotes []string) BacktestCSVRecord {
+	totalFunding := 0.0
+	totalTrading := 0.0
+	totalFees := 0.0
+	wins := 0
+	equity := initialEquity
+	peakEquity := initialEquity
+	maxDrawdown := 0.0
+	for _, trade := range trades {
+		totalFunding += trade.FundingIncome
+		totalTrading += trade.TradingPnL
+		totalFees += trade.TotalFees
+		netPnL := trade.FundingIncome + trade.TradingPnL - trade.TotalFees
+		if netPnL > 0 {
+			wins++
+		}
+		equity += netPnL
+		if equity > peakEquity {
+			peakEquity = equity
+		}
+		drawdownAmount := math.Max(0, peakEquity-equity)
+		if -drawdownAmount < maxDrawdown {
+			maxDrawdown = -drawdownAmount
+		}
+	}
+	winRate := 0.0
+	if len(trades) > 0 {
+		winRate = float64(wins) / float64(len(trades))
+	}
+	notes := []string{
+		fmt.Sprintf("groups=%d", simStats.GroupCount),
+		fmt.Sprintf("evaluated=%d", simStats.EvaluatedCandidates),
+		fmt.Sprintf("fetchSuccessRate=%.4f", fetchStats.successRate(fetchStats.SuccessSymbols+fetchStats.FailureCount)),
+	}
+	notes = append(notes, extraNotes...)
+	return BacktestCSVRecord{
+		TraceRecordMetadata: metadata.normalized(),
+		RecordedAt:          time.Now().UTC().Format(time.RFC3339),
+		Scenario:            scenario,
+		Symbol:              "ALL",
+		Period:              periodLabel,
+		Trades:              len(trades),
+		WinRate:             formatFloat(winRate),
+		FundingIncome:       formatFloat(totalFunding),
+		TradingPnL:          formatFloat(totalTrading),
+		TotalFees:           formatFloat(totalFees),
+		NetPnL:              formatFloat(totalFunding + totalTrading - totalFees),
+		MaxDrawdown:         formatFloat(maxDrawdown),
+		Notes:               strings.Join(notes, " | "),
+	}
+}
+
+func buildMonthlyRunSummaryLogRecord(periodLabel string, fetchStats monthlyFundingFetchStats, simStats monthlySimulationStats, stopReason string) MonthlySimulationLogRecord {
+	notes := []string{
+		"period=" + periodLabel,
+		"stop=" + stopReason,
+		fmt.Sprintf("groups=%d", simStats.GroupCount),
+		fmt.Sprintf("evaluated=%d", simStats.EvaluatedCandidates),
+		fmt.Sprintf("skipped=%d", simStats.SkippedGroups),
+		fmt.Sprintf("fetchSuccessSymbols=%d", fetchStats.SuccessSymbols),
+		fmt.Sprintf("fetchFailures=%d", fetchStats.FailureCount),
+	}
+	if fetchSummary := summarizeMonthlyReasonCounts(fetchStats.FailureReasons, fetchStats.FailureSamples); fetchSummary != "" {
+		notes = append(notes, "fetchReasons="+fetchSummary)
+	}
+	if strings.TrimSpace(fetchStats.RequestSummary) != "" {
+		notes = append(notes, "requestSummary="+fetchStats.RequestSummary)
+	}
+	if strings.TrimSpace(simStats.CacheSummary) != "" {
+		notes = append(notes, "klineCache="+simStats.CacheSummary)
+	}
+	return MonthlySimulationLogRecord{
+		RecordedAt:  time.Now().UTC().Format(time.RFC3339),
+		Action:      "run_summary",
+		Symbol:      "ALL",
+		Reason:      stopReason,
+		Notes:       strings.Join(notes, " | "),
+		FundingTime: periodLabel,
+	}
+}
+
+func summarizeMonthlyTimeoutReasons(reasonCounts map[string]int) string {
+	if len(reasonCounts) == 0 {
+		return ""
+	}
+	timeoutKeys := []string{
+		"candidate_build_timeout",
+		"candidate_finalize_timeout",
+		"group_evaluation_timeout",
+	}
+	parts := make([]string, 0, len(timeoutKeys))
+	for _, key := range timeoutKeys {
+		count := reasonCounts[key]
+		if count <= 0 {
+			continue
+		}
+		parts = append(parts, fmt.Sprintf("%s=%d", key, count))
+	}
+	return strings.Join(parts, ",")
+}
+
+func (r *BacktestRunner) recordDir() string {
+	if r.store != nil {
+		return r.store.RecordDir()
+	}
+	return r.cfg.NetworkConfig.RecordDir
+}
+
+func (r *BacktestRunner) historicalConfig() historicalConfig {
+	hcfg := r.cfg.HistoricalConfig
+	cfg := historicalConfig{
+		DefaultLookbackDays:            hcfg.DefaultLookbackDays,
+		InitialEquityUSDT:              hcfg.InitialEquityUSDT,
+		StopEquityUSDT:                 hcfg.StopEquityUSDT,
+		PerLegNotionalUSDT:             hcfg.PerLegNotionalUSDT,
+		MaxPerLegEquityShare:           hcfg.MaxPerLegEquityShare,
+		SpotTakerFeeRate:               hcfg.SpotTakerFeeRate,
+		FuturesTakerFeeRate:            hcfg.FuturesTakerFeeRate,
+		FundingPhaseLead:               hcfg.FundingPhaseLead,
+		FundingFetchConcurrency:        hcfg.FundingFetchConcurrency,
+		FundingRetryMax:                hcfg.FundingRetryMax,
+		CacheDir:                       hcfg.CacheDir,
+		ReferenceKlineLookback:         hcfg.ReferenceKlineLookback,
+		EstimateKlineLookback:          hcfg.EstimateKlineLookback,
+		SafetyBufferFloorUSDT:          hcfg.SafetyBufferFloorUSDT,
+		SafetyBufferCostMultiplier:     hcfg.SafetyBufferCostMultiplier,
+		MaxDrawdownRate:                hcfg.MaxDrawdownRate,
+		MaxConsecutiveLosses:           hcfg.MaxConsecutiveLosses,
+		MaxFundingRate:                 hcfg.MaxFundingRate,
+		MaxFundingRateJump:             hcfg.MaxFundingRateJump,
+		MaxSingleTradeLossUSDT:         hcfg.MaxSingleTradeLossUSDT,
+		FundingFetchSlot:               hcfg.FundingFetchSlot,
+		FundingFetchTimeout:            hcfg.FundingFetchTimeout,
+		GroupEvaluationTimeout:         hcfg.GroupEvaluationTimeout,
+		CandidateBuildTimeout:          hcfg.CandidateBuildTimeout,
+		CandidateFinalizeTimeout:       hcfg.CandidateFinalizeTimeout,
+		ScreeningConcurrency:           hcfg.ScreeningConcurrency,
+		DeepCandidateLimit:             hcfg.DeepCandidateLimit,
+		LiquidityShareMin:              hcfg.LiquidityShareMin,
+		LiquidityShareFloor:            hcfg.LiquidityShareFloor,
+		LiquidityShareMax:              hcfg.LiquidityShareMax,
+		SevereLiquidityShareCap:        hcfg.SevereLiquidityShareCap,
+		SevereLiquidityShareMultiplier: hcfg.SevereLiquidityShareMultiplier,
+		SevereLiquidityShareMax:        hcfg.SevereLiquidityShareMax,
+	}
+	if cfg.DefaultLookbackDays <= 0 {
+		cfg.DefaultLookbackDays = 30
+	}
+	if cfg.InitialEquityUSDT <= 0 {
+		cfg.InitialEquityUSDT = 20
+	}
+	if cfg.StopEquityUSDT <= 0 || cfg.StopEquityUSDT >= cfg.InitialEquityUSDT {
+		cfg.StopEquityUSDT = cfg.InitialEquityUSDT * 0.5
+	}
+	if cfg.PerLegNotionalUSDT <= 0 {
+		cfg.PerLegNotionalUSDT = 10
+	}
+	if cfg.MaxPerLegEquityShare <= 0 || cfg.MaxPerLegEquityShare > 1 {
+		cfg.MaxPerLegEquityShare = 0.5
+	}
+	if cfg.MaxFundingRate <= 0 {
+		cfg.MaxFundingRate = 0.03
+	}
+	if cfg.MaxFundingRateJump <= 0 {
+		cfg.MaxFundingRateJump = 0.015
+	}
+	if cfg.MaxSingleTradeLossUSDT <= 0 {
+		cfg.MaxSingleTradeLossUSDT = math.Max(1, cfg.InitialEquityUSDT*0.075)
+	}
+	if cfg.SpotTakerFeeRate <= 0 {
+		cfg.SpotTakerFeeRate = 0.0010
+	}
+	if cfg.FuturesTakerFeeRate <= 0 {
+		cfg.FuturesTakerFeeRate = 0.0005
+	}
+	if cfg.FundingPhaseLead <= 0 {
+		cfg.FundingPhaseLead = time.Minute
+	}
+	if cfg.FundingFetchConcurrency <= 0 {
+		cfg.FundingFetchConcurrency = 2
+	}
+	if cfg.FundingRetryMax <= 0 {
+		cfg.FundingRetryMax = 6
+	}
+	if strings.TrimSpace(cfg.CacheDir) == "" {
+		recordDir := r.recordDir()
+		if strings.TrimSpace(recordDir) == "" {
+			recordDir = "records"
+		}
+		cfg.CacheDir = filepath.Join(recordDir, "historical_cache")
+	}
+	if cfg.ReferenceKlineLookback <= 0 {
+		cfg.ReferenceKlineLookback = 60
+	}
+	if cfg.EstimateKlineLookback <= 0 {
+		cfg.EstimateKlineLookback = 180
+	}
+	if cfg.SafetyBufferFloorUSDT <= 0 {
+		cfg.SafetyBufferFloorUSDT = 0.02
+	}
+	if cfg.SafetyBufferCostMultiplier <= 0 {
+		cfg.SafetyBufferCostMultiplier = 0.50
+	}
+	if cfg.MaxDrawdownRate <= 0 || cfg.MaxDrawdownRate >= 1 {
+		cfg.MaxDrawdownRate = 0.25
+	}
+	if cfg.MaxConsecutiveLosses <= 0 {
+		cfg.MaxConsecutiveLosses = 2
+	}
+	if cfg.FundingFetchSlot <= 0 {
+		cfg.FundingFetchSlot = 0
+	}
+	if cfg.FundingFetchTimeout <= 0 {
+		cfg.FundingFetchTimeout = 45 * time.Second
+	}
+	if cfg.GroupEvaluationTimeout <= 0 {
+		cfg.GroupEvaluationTimeout = 90 * time.Second
+	}
+	if cfg.CandidateBuildTimeout <= 0 {
+		cfg.CandidateBuildTimeout = 20 * time.Second
+	}
+	if cfg.CandidateFinalizeTimeout <= 0 {
+		cfg.CandidateFinalizeTimeout = 20 * time.Second
+	}
+	if cfg.ScreeningConcurrency <= 0 {
+		cfg.ScreeningConcurrency = 10
+	}
+	if cfg.DeepCandidateLimit <= 0 {
+		cfg.DeepCandidateLimit = 24
+	}
+	if cfg.LiquidityShareMin <= 0 || cfg.LiquidityShareMin > 1 {
+		cfg.LiquidityShareMin = 0.01
+	}
+	if cfg.LiquidityShareFloor <= 0 || cfg.LiquidityShareFloor > 1 {
+		cfg.LiquidityShareFloor = 0.08
+	}
+	if cfg.LiquidityShareMax <= 0 || cfg.LiquidityShareMax > 1 {
+		cfg.LiquidityShareMax = 0.25
+	}
+	if cfg.LiquidityShareMax < cfg.LiquidityShareMin {
+		cfg.LiquidityShareMax = cfg.LiquidityShareMin
+	}
+	if cfg.SevereLiquidityShareCap <= 0 || cfg.SevereLiquidityShareCap > 1 {
+		cfg.SevereLiquidityShareCap = 0.20
+	}
+	if cfg.SevereLiquidityShareMultiplier <= 1 {
+		cfg.SevereLiquidityShareMultiplier = 2.5
+	}
+	if cfg.SevereLiquidityShareMax <= 0 || cfg.SevereLiquidityShareMax > 1 {
+		cfg.SevereLiquidityShareMax = 0.50
+	}
+	if cfg.SevereLiquidityShareMax < cfg.SevereLiquidityShareCap {
+		cfg.SevereLiquidityShareMax = cfg.SevereLiquidityShareCap
+	}
+	return cfg
+}
+
+func (r *BacktestRunner) monthlySafetyBuffer(entryExecutionCost float64, projectedExitCost float64, openBasisPenalty float64) float64 {
+	hcfg := r.historicalConfig()
+	explicitCost := math.Max(0, entryExecutionCost) + math.Max(0, projectedExitCost) + math.Max(0, openBasisPenalty)
+	return math.Max(hcfg.SafetyBufferFloorUSDT, explicitCost*hcfg.SafetyBufferCostMultiplier)
+}
+
+func (r *BacktestRunner) monthlyPerLegNotional() float64 {
+	hcfg := r.historicalConfig()
+	notional := hcfg.PerLegNotionalUSDT
+	if r.cfg.StrategyConfig.PerSymbolQuoteUSDT > 0 {
+		notional = math.Min(notional, r.cfg.StrategyConfig.PerSymbolQuoteUSDT)
+	}
+	maxPerLegByEquity := hcfg.InitialEquityUSDT * hcfg.MaxPerLegEquityShare
+	if maxPerLegByEquity > 0 {
+		notional = math.Min(notional, maxPerLegByEquity)
+	}
+	return math.Max(1, notional)
+}
+
+func (r *BacktestRunner) monthlyLiquidityShareLimit() float64 {
+	hcfg := r.historicalConfig()
+	limit := r.cfg.MaxVisibleDepthShare
+	if limit <= 0 {
+		limit = hcfg.LiquidityShareFloor
+	}
+	return math.Max(hcfg.LiquidityShareMin, math.Min(hcfg.LiquidityShareMax, limit))
+}
+
+func (r *BacktestRunner) monthlySevereLiquidityShareLimit(baseLimit float64) float64 {
+	hcfg := r.historicalConfig()
+	if baseLimit <= 0 {
+		baseLimit = r.monthlyLiquidityShareLimit()
+	}
+	return math.Max(hcfg.SevereLiquidityShareCap, math.Min(hcfg.SevereLiquidityShareMax, baseLimit*hcfg.SevereLiquidityShareMultiplier))
+}
+
+func (r *BacktestRunner) monthlyScreeningCandidateLimit(groupSize int) int {
+	if groupSize <= 0 {
+		return 0
+	}
+	hcfg := r.historicalConfig()
+	screeningRounds := int(hcfg.GroupEvaluationTimeout / maxDuration(hcfg.CandidateBuildTimeout, time.Second))
+	if screeningRounds <= 1 {
+		screeningRounds = 2
+	}
+	limitByBudget := hcfg.ScreeningConcurrency * maxInt(2, screeningRounds-1)
+	limit := maxInt(hcfg.DeepCandidateLimit*2, limitByBudget)
+	if limit < hcfg.DeepCandidateLimit {
+		limit = hcfg.DeepCandidateLimit
+	}
+	limit = minInt(limit, maxInt(hcfg.DeepCandidateLimit*3, 72))
+	return minInt(groupSize, limit)
+}
+
+func summarizeMonthlyGroupSkip(group monthlyEventGroup, evaluated []monthlyCandidate, groupReason string, groupTimeout time.Duration) monthlyCandidate {
+	summary := monthlyCandidate{
+		Reason: "no_positive_candidate",
+		Notes:  []string{"本轮所有候选经过收益与流动性校验后都未通过"},
+	}
+	if strings.TrimSpace(groupReason) != "" {
+		summary.Reason = groupReason
+		summary.Notes = []string{
+			fmt.Sprintf("groupTimeout=%s", groupTimeout),
+			fmt.Sprintf("candidates=%d", len(group.Items)),
+		}
+	}
+	if len(evaluated) == 0 {
+		return summary
+	}
+	reasonCounts := make(map[string]int)
+	for _, candidate := range evaluated {
+		reason := strings.TrimSpace(candidate.Reason)
+		if reason == "" {
+			continue
+		}
+		reasonCounts[reason]++
+	}
+	if len(reasonCounts) == 0 {
+		return summary
+	}
+	primaryReason := dominantMonthlyGroupSkipReason(reasonCounts)
+	summary.Reason = nonEmpty(primaryReason, summary.Reason)
+	notes := []string{
+		fmt.Sprintf("candidates=%d", len(group.Items)),
+		"reasonBreakdown=" + summarizeMonthlyReasonCounts(reasonCounts, nil),
+	}
+	if focus := firstMonthlyCandidateByReason(evaluated, primaryReason); focus != nil {
+		if focus.Symbol != "" {
+			notes = append(notes, "sampleSymbol="+focus.Symbol)
+		}
+		notes = append(notes, firstMatchingMonthlyNotes(focus.Notes,
+			"safetyBufferUSDT=",
+			"safetyBufferGap=",
+			"estimatedNetPnL=",
+			"entryExecutionCost=",
+			"spotLiquidityShare=",
+			"futuresLiquidityShare=",
+			"premiumIndexClose=",
+			"markIndexBasis=",
+		)...)
+	}
+	if strings.TrimSpace(groupReason) != "" && groupReason != summary.Reason {
+		notes = append(notes, "groupReason="+groupReason)
+	}
+	summary.Notes = notes
+	return summary
+}
+
+func dominantMonthlyGroupSkipReason(reasonCounts map[string]int) string {
+	if len(reasonCounts) == 0 {
+		return ""
+	}
+	bestReason := ""
+	bestCount := -1
+	for reason, count := range reasonCounts {
+		if reason == "screening_prefilter_excluded" && len(reasonCounts) > 1 {
+			continue
+		}
+		if count > bestCount || (count == bestCount && reason < bestReason) {
+			bestReason = reason
+			bestCount = count
+		}
+	}
+	if strings.TrimSpace(bestReason) != "" {
+		return bestReason
+	}
+	for reason, count := range reasonCounts {
+		if count > bestCount || (count == bestCount && reason < bestReason) {
+			bestReason = reason
+			bestCount = count
+		}
+	}
+	return bestReason
+}
+
+func firstMonthlyCandidateByReason(candidates []monthlyCandidate, reason string) *monthlyCandidate {
+	for index := range candidates {
+		if candidates[index].Reason == reason {
+			return &candidates[index]
+		}
+	}
+	return nil
+}
+
+func firstMatchingMonthlyNotes(notes []string, prefixes ...string) []string {
+	if len(notes) == 0 || len(prefixes) == 0 {
+		return nil
+	}
+	matches := make([]string, 0, len(prefixes))
+	for _, prefix := range prefixes {
+		for _, note := range notes {
+			if strings.HasPrefix(note, prefix) {
+				matches = append(matches, note)
+				break
+			}
+		}
+	}
+	return matches
+}
+
+func newMonthlyLogAggregation() *monthlyLogAggregation {
+	return &monthlyLogAggregation{
+		counts:  make(map[string]int),
+		samples: make(map[string][]string),
+	}
+}
+
+func (a *monthlyLogAggregation) add(reason string, symbol string) {
+	if a == nil || strings.TrimSpace(reason) == "" {
+		return
+	}
+	a.counts[reason]++
+	if strings.TrimSpace(symbol) == "" {
+		return
+	}
+	if len(a.samples[reason]) >= 5 {
+		return
+	}
+	a.samples[reason] = append(a.samples[reason], symbol)
+}
+
+func (r *BacktestRunner) logMonthlyGroupAggregation(group monthlyEventGroup, screeningCount int, agg *monthlyLogAggregation, groupReason string) {
+	if r.logger == nil {
+		return
+	}
+	parts := make([]string, 0, 4)
+	parts = append(parts,
+		fmt.Sprintf("原始候选=%d", len(group.Items)),
+		fmt.Sprintf("预筛后=%d", screeningCount),
+	)
+	for _, reason := range []string{"candidate_build_timeout", "candidate_pricing_timeout", "candidate_finalize_timeout"} {
+		count := agg.counts[reason]
+		if count <= 0 {
+			continue
+		}
+		part := fmt.Sprintf("%s=%d", reason, count)
+		if len(agg.samples[reason]) > 0 {
+			part += "[" + strings.Join(agg.samples[reason], ",") + "]"
+		}
+		parts = append(parts, part)
+	}
+	if strings.TrimSpace(groupReason) != "" {
+		parts = append(parts, "groupReason="+groupReason)
+	}
+	if len(parts) <= 2 && strings.TrimSpace(groupReason) == "" {
+		return
+	}
+	r.logger.Printf("历史模拟评估摘要 fundingTime=%s %s", group.FundingTime.Format(time.RFC3339), strings.Join(parts, " | "))
+}
+
+func buildMonthlyTradeLogRecord(candidate *monthlyCandidate, action string, equityBefore float64, equityAfter float64, drawdownRate float64) MonthlySimulationLogRecord {
+	return MonthlySimulationLogRecord{
+		RecordedAt:              time.Now().UTC().Format(time.RFC3339),
+		FundingTime:             candidate.FundingTime.Format(time.RFC3339),
+		Action:                  action,
+		Symbol:                  candidate.Symbol,
+		EstimatedFundingRate:    formatFloat(candidate.EstimatedFundingRate),
+		FundingRate:             formatFloat(candidate.FundingRate),
+		EstimatedFundingIncome:  formatFloat(candidate.EstimatedFundingIncome),
+		FundingIncome:           formatFloat(candidate.FundingIncome),
+		HedgeQty:                formatFloat(candidate.HedgeQty),
+		SpotEntryPrice:          formatFloat(candidate.SpotEntryPrice),
+		FuturesEntryPrice:       formatFloat(candidate.FuturesEntryPrice),
+		SpotExitPrice:           formatFloat(candidate.SpotExitPrice),
+		FuturesExitPrice:        formatFloat(candidate.FuturesExitPrice),
+		OpenBasisRate:           formatFloat(candidate.OpenBasisRate),
+		CloseBasisRate:          formatFloat(candidate.CloseBasisRate),
+		SpotEntryQuoteVolume:    formatFloat(candidate.SpotEntryQuoteVolume),
+		FuturesEntryQuoteVolume: formatFloat(candidate.FuturesEntryQuoteVolume),
+		SpotExitQuoteVolume:     formatFloat(candidate.SpotExitQuoteVolume),
+		FuturesExitQuoteVolume:  formatFloat(candidate.FuturesExitQuoteVolume),
+		SpotEntrySlipRate:       formatFloat(candidate.SpotEntrySlipRate),
+		FuturesEntrySlipRate:    formatFloat(candidate.FuturesEntrySlipRate),
+		SpotExitSlipRate:        formatFloat(candidate.SpotExitSlipRate),
+		FuturesExitSlipRate:     formatFloat(candidate.FuturesExitSlipRate),
+		SpotEntryImpactRate:     formatFloat(candidate.SpotEntryImpactRate),
+		FuturesEntryImpactRate:  formatFloat(candidate.FuturesEntryImpactRate),
+		SpotExitImpactRate:      formatFloat(candidate.SpotExitImpactRate),
+		FuturesExitImpactRate:   formatFloat(candidate.FuturesExitImpactRate),
+		SpotEntryFee:            formatFloat(candidate.SpotEntryFee),
+		FuturesEntryFee:         formatFloat(candidate.FuturesEntryFee),
+		SpotExitFee:             formatFloat(candidate.SpotExitFee),
+		FuturesExitFee:          formatFloat(candidate.FuturesExitFee),
+		OpenBasisPenalty:        formatFloat(candidate.OpenBasisPenalty),
+		ProjectedExitCost:       formatFloat(candidate.ProjectedExitCost),
+		MinLiquidityRequired:    formatFloat(candidate.MinLiquidityRequired),
+		SpotGrossPnL:            formatFloat(candidate.SpotGrossPnL),
+		FuturesGrossPnL:         formatFloat(candidate.FuturesGrossPnL),
+		TotalFees:               formatFloat(candidate.TotalFees),
+		TotalFriction:           formatFloat(candidate.TotalFriction),
+		EstimatedNetPnL:         formatFloat(candidate.EstimatedNetPnL),
+		RealizedNetPnL:          formatFloat(candidate.RealizedNetPnL),
+		EquityBefore:            formatFloat(equityBefore),
+		EquityAfter:             formatFloat(equityAfter),
+		DrawdownRate:            formatFloat(drawdownRate),
+		Reason:                  candidate.Reason,
+		Notes:                   strings.Join(candidate.Notes, " | "),
+	}
+}
+
+func buildMonthlyGroupSummaryLogRecord(group monthlyEventGroup, evaluated []monthlyCandidate, selected *monthlyCandidate, equity float64, drawdownRate float64, groupReason string) MonthlySimulationLogRecord {
+	focus := selected
+	if focus == nil {
+		focus = bestMonthlyCandidateForSummary(evaluated)
+	}
+	reasonCounts := make(map[string]int)
+	positiveCount := 0
+	for index := range evaluated {
+		reason := strings.TrimSpace(evaluated[index].Reason)
+		if reason == "" {
+			positiveCount++
+			continue
+		}
+		reasonCounts[reason]++
+	}
+	summaryReason := "group_without_trade"
+	if selected != nil {
+		summaryReason = "selected_for_trade"
+	} else if strings.TrimSpace(groupReason) != "" {
+		summaryReason = groupReason
+	} else if dominant := dominantMonthlyGroupSkipReason(reasonCounts); strings.TrimSpace(dominant) != "" {
+		summaryReason = dominant
+	}
+	notes := []string{
+		fmt.Sprintf("candidates=%d", len(group.Items)),
+		fmt.Sprintf("evaluated=%d", len(evaluated)),
+		fmt.Sprintf("positiveCandidates=%d", positiveCount),
+		"reasonBreakdown=" + summarizeMonthlyReasonCounts(reasonCounts, nil),
+	}
+	if focus != nil {
+		if focus.Symbol != "" {
+			notes = append(notes, "focusSymbol="+focus.Symbol)
+		}
+		focusReason := focus.Reason
+		if strings.TrimSpace(focusReason) == "" && selected != nil {
+			focusReason = "selected_for_trade"
+		}
+		if strings.TrimSpace(focusReason) != "" {
+			notes = append(notes, "focusReason="+focusReason)
+		}
+		notes = append(notes,
+			fmt.Sprintf("focusEstimatedNetPnL=%.6f", focus.EstimatedNetPnL),
+			fmt.Sprintf("focusEstimatedFundingIncome=%.6f", focus.EstimatedFundingIncome),
+			fmt.Sprintf("focusActualFundingIncome=%.6f", focus.FundingIncome),
+		)
+		notes = append(notes, firstMatchingMonthlyNotes(focus.Notes,
+			"safetyBufferUSDT=",
+			"safetyBufferGap=",
+			"estimatedNetPnL=",
+			"entryExecutionCost=",
+			"spotLiquidityShare=",
+			"futuresLiquidityShare=",
+			"premiumIndexClose=",
+			"markIndexBasis=",
+			"prefilterRank=",
+			"screeningRank=",
+		)...)
+	}
+	if strings.TrimSpace(groupReason) != "" && groupReason != summaryReason {
+		notes = append(notes, "groupReason="+groupReason)
+	}
+	record := MonthlySimulationLogRecord{
+		RecordedAt:   time.Now().UTC().Format(time.RFC3339),
+		FundingTime:  group.FundingTime.Format(time.RFC3339),
+		Action:       "group_summary",
+		EquityBefore: formatFloat(equity),
+		EquityAfter:  formatFloat(equity),
+		DrawdownRate: formatFloat(drawdownRate),
+		Reason:       summaryReason,
+		Notes:        strings.Join(notes, " | "),
+	}
+	if focus != nil {
+		record.Symbol = focus.Symbol
+		record.EstimatedFundingRate = formatFloat(focus.EstimatedFundingRate)
+		record.FundingRate = formatFloat(focus.FundingRate)
+		record.EstimatedFundingIncome = formatFloat(focus.EstimatedFundingIncome)
+		record.FundingIncome = formatFloat(focus.FundingIncome)
+		record.HedgeQty = formatFloat(focus.HedgeQty)
+		record.SpotEntryPrice = formatFloat(focus.SpotEntryPrice)
+		record.FuturesEntryPrice = formatFloat(focus.FuturesEntryPrice)
+		record.OpenBasisRate = formatFloat(focus.OpenBasisRate)
+		record.SpotEntryQuoteVolume = formatFloat(focus.SpotEntryQuoteVolume)
+		record.FuturesEntryQuoteVolume = formatFloat(focus.FuturesEntryQuoteVolume)
+		record.TotalFees = formatFloat(focus.TotalFees)
+		record.TotalFriction = formatFloat(focus.TotalFriction)
+		record.EstimatedNetPnL = formatFloat(focus.EstimatedNetPnL)
+		record.RealizedNetPnL = formatFloat(focus.RealizedNetPnL)
+	}
+	return record
+}
+
+func buildMonthlyCandidateLogRecord(candidate monthlyCandidate, action string, equityBefore float64, equityAfter float64, drawdownRate float64, reason string, extraNotes ...string) MonthlySimulationLogRecord {
+	notes := append([]string{}, candidate.Notes...)
+	notes = append(notes, extraNotes...)
+	candidate.Reason = reason
+	candidate.Notes = notes
+	return buildMonthlyTradeLogRecord(&candidate, action, equityBefore, equityAfter, drawdownRate)
+}
+
+func bestMonthlyCandidateForSummary(candidates []monthlyCandidate) *monthlyCandidate {
+	if len(candidates) == 0 {
+		return nil
+	}
+	bestIndex := -1
+	for index := range candidates {
+		if bestIndex == -1 || betterMonthlySummaryCandidate(candidates[index], candidates[bestIndex]) {
+			bestIndex = index
+		}
+	}
+	if bestIndex < 0 {
+		return nil
+	}
+	return &candidates[bestIndex]
+}
+
+func betterMonthlySummaryCandidate(candidate monthlyCandidate, current monthlyCandidate) bool {
+	if candidate.EstimatedNetPnL != current.EstimatedNetPnL {
+		return candidate.EstimatedNetPnL > current.EstimatedNetPnL
+	}
+	if candidate.EstimatedFundingRate != current.EstimatedFundingRate {
+		return candidate.EstimatedFundingRate > current.EstimatedFundingRate
+	}
+	if monthlyReasonPriority(candidate.Reason) != monthlyReasonPriority(current.Reason) {
+		return monthlyReasonPriority(candidate.Reason) < monthlyReasonPriority(current.Reason)
+	}
+	return candidate.Symbol < current.Symbol
+}
+
+func monthlyReasonPriority(reason string) int {
+	switch strings.TrimSpace(reason) {
+	case "":
+		return 0
+	case "funding_rate_extreme":
+		return 1
+	case "funding_jump_too_large":
+		return 2
+	case "estimated_net_below_safety_buffer":
+		return 3
+	case "entry_liquidity_share_too_high":
+		return 4
+	case "entry_liquidity_extremely_poor":
+		return 5
+	case "estimated_funding_non_positive":
+		return 6
+	case "screening_topn_excluded":
+		return 7
+	case "screening_prefilter_excluded":
+		return 8
+	default:
+		return 9
+	}
+}
+
+func writeMonthlySimulationLogs(recordDir string, cfg EngineConfig, logs []MonthlySimulationLogRecord) error {
+	if err := os.MkdirAll(recordDir, 0o755); err != nil {
+		return fmt.Errorf("创建记录目录失败: %w", err)
+	}
+	metadata := buildTraceRecordMetadata(cfg)
+	for idx := range logs {
+		if strings.TrimSpace(logs[idx].ConfigHash) == "" {
+			logs[idx].TraceRecordMetadata = metadata
+		}
+	}
+
+	path := filepath.Join(recordDir, monthlySimulationLogCSVName)
+	if err := writeMonthlySimulationLogFile(path, logs); err != nil {
+		return err
+	}
+
+	if len(logs) == 0 {
+		return nil
+	}
+	archiveDir := filepath.Join(recordDir, monthlySimulationArchiveDirName)
+	if err := os.MkdirAll(archiveDir, 0o755); err != nil {
+		return fmt.Errorf("创建月度模拟归档目录失败: %w", err)
+	}
+	archiveName := time.Now().UTC().Format("20060102_150405") + "_" + monthlySimulationLogCSVName
+	return writeMonthlySimulationLogFile(filepath.Join(archiveDir, archiveName), logs)
+}
+
+func writeMonthlySimulationLogFile(path string, logs []MonthlySimulationLogRecord) error {
+	if err := writeJSONFile(path, logs); err != nil {
+		return fmt.Errorf("写入月度模拟日志失败: %w", err)
+	}
+	_, err := compactJSONByRecordedAt(path, time.Now().UTC(), reportCSVRetention, reportCSVMaxFileSizeBytes)
+	return err
+}
+
+func newHistoricalBacktestClient(secretPath string, timeout time.Duration, hcfg historicalConfig) (*BinanceClient, error) {
+	if timeout < 30*time.Second {
+		timeout = 30 * time.Second
+	}
+	cache, cacheErr := newHistoricalPayloadCache(hcfg.CacheDir)
+	if cacheErr != nil {
+		return nil, cacheErr
+	}
+	secret, err := LoadSecretConfig(secretPath)
+	if err == nil {
+		httpClient, clientErr := NewHTTPClient(timeout, secret.ProxyURL)
+		if clientErr == nil {
+			return &BinanceClient{
+				spotBaseURL:                      binanceSpotBaseURL,
+				futuresBaseURL:                   binanceFuturesBaseURL,
+				httpClient:                       httpClient,
+				historicalFundingRetryMax:        hcfg.FundingRetryMax,
+				historicalPayloadCache:           cache,
+				historicalReferenceKlineLookback: hcfg.ReferenceKlineLookback,
+				historicalEstimateKlineLookback:  hcfg.EstimateKlineLookback,
+				historicalFundingFetchSlot:       hcfg.FundingFetchSlot,
+			}, nil
+		}
+	}
+	client := NewBinanceClient(timeout)
+	client.historicalFundingRetryMax = hcfg.FundingRetryMax
+	client.historicalPayloadCache = cache
+	client.historicalReferenceKlineLookback = hcfg.ReferenceKlineLookback
+	client.historicalEstimateKlineLookback = hcfg.EstimateKlineLookback
+	client.historicalFundingFetchSlot = hcfg.FundingFetchSlot
+	return client, nil
+}
+
+func classifyMonthlyFetchError(err error) string {
+	if err == nil {
+		return ""
+	}
+	text := strings.ToLower(strings.TrimSpace(err.Error()))
+	if statusCode := extractHTTPStatusCode(text); statusCode > 0 {
+		switch statusCode {
+		case http.StatusAccepted:
+			return "http_202"
+		case http.StatusForbidden:
+			return "http_403"
+		case http.StatusTeapot:
+			return "http_418"
+		case http.StatusTooManyRequests:
+			return "http_429"
+		default:
+			if statusCode >= 400 && statusCode < 600 {
+				return fmt.Sprintf("http_%d", statusCode)
+			}
+		}
+	}
+	switch {
+	case strings.Contains(text, "429"):
+		return "http_429"
+	case strings.Contains(text, "202"):
+		return "http_202"
+	case strings.Contains(text, "403"):
+		return "http_403"
+	case strings.Contains(text, "418"):
+		return "http_418"
+	case strings.Contains(text, "context canceled"):
+		return "context_canceled"
+	case strings.Contains(text, "deadline exceeded"):
+		return "deadline_exceeded"
+	case strings.Contains(text, "service unavailable"):
+		return "service_unavailable"
+	case strings.Contains(text, "bad gateway"):
+		return "bad_gateway"
+	case strings.Contains(text, "gateway timeout"):
+		return "gateway_timeout"
+	case strings.Contains(text, "解析"):
+		return "decode_error"
+	default:
+		text = strings.ReplaceAll(text, "|", "/")
+		if len(text) > 48 {
+			text = text[:48]
+		}
+		return text
+	}
+}
+
+func extractHTTPStatusCode(text string) int {
+	prefixes := []string{"http 状态异常: ", "状态异常: "}
+	for _, prefix := range prefixes {
+		idx := strings.Index(text, prefix)
+		if idx < 0 {
+			continue
+		}
+		start := idx + len(prefix)
+		if start >= len(text) {
+			continue
+		}
+		var code int
+		if _, err := fmt.Sscanf(text[start:], "%d", &code); err == nil && code >= 100 && code <= 599 {
+			return code
+		}
+	}
+	return 0
+}
+
+func monthlyFundingEscalatedPause(reasonCounts map[string]int) time.Duration {
+	switch {
+	case reasonCounts["http_418"] > 0:
+		return monthlyFundingPause418
+	case reasonCounts["http_403"] > 0:
+		return monthlyFundingPause403
+	}
+	other4xxCount := 0
+	for reason, count := range reasonCounts {
+		if strings.HasPrefix(reason, "http_4") {
+			other4xxCount += count
+		}
+	}
+	if other4xxCount > 0 {
+		return monthlyFundingPauseOther4xx
+	}
+	return 0
+}
+
+func shouldAbortMonthlyFundingFetch(reasonCounts map[string]int, batchSize int, consecutive403Batches *int, consecutive418Batches *int) bool {
+	if batchSize <= 0 {
+		batchSize = monthlyFundingFetchBatchSize
+	}
+	threshold := maxInt(1, batchSize/2)
+	if reasonCounts["http_418"] >= threshold {
+		*consecutive418Batches = *consecutive418Batches + 1
+	} else {
+		*consecutive418Batches = 0
+	}
+	if reasonCounts["http_403"] >= threshold {
+		*consecutive403Batches = *consecutive403Batches + 1
+	} else {
+		*consecutive403Batches = 0
+	}
+	return *consecutive418Batches >= monthlyFundingAbort418Batches || *consecutive403Batches >= monthlyFundingAbort403Batches
+}
+
+func adaptiveMonthlyGroupTimeout(base time.Duration, candidateCount int) time.Duration {
+	if base <= 0 {
+		base = 90 * time.Second
+	}
+	extraSteps := candidateCount / 120
+	timeout := base + time.Duration(extraSteps)*20*time.Second
+	maxTimeout := 3 * time.Minute
+	if timeout > maxTimeout {
+		return maxTimeout
+	}
+	return timeout
+}
+
+func adaptiveMonthlyCandidateBuildTimeout(base time.Duration, candidateCount int) time.Duration {
+	if base <= 0 {
+		base = 20 * time.Second
+	}
+	extraSteps := candidateCount / 120
+	timeout := base + time.Duration(extraSteps)*4*time.Second
+	maxTimeout := 40 * time.Second
+	if timeout > maxTimeout {
+		return maxTimeout
+	}
+	return timeout
+}
+
+func adaptiveMonthlyCandidateFinalizeTimeout(base time.Duration, candidateCount int) time.Duration {
+	if base <= 0 {
+		base = 20 * time.Second
+	}
+	extraSteps := candidateCount / 120
+	timeout := base + time.Duration(extraSteps)*3*time.Second
+	maxTimeout := 35 * time.Second
+	if timeout > maxTimeout {
+		return maxTimeout
+	}
+	return timeout
+}
+
+func summarizeMonthlyReasonCounts(counts map[string]int, samples map[string][]string) string {
+	if len(counts) == 0 {
+		return ""
+	}
+	type entry struct {
+		reason string
+		count  int
+	}
+	items := make([]entry, 0, len(counts))
+	for reason, count := range counts {
+		items = append(items, entry{reason: reason, count: count})
+	}
+	sort.Slice(items, func(i, j int) bool {
+		if items[i].count == items[j].count {
+			return items[i].reason < items[j].reason
+		}
+		return items[i].count > items[j].count
+	})
+	parts := make([]string, 0, len(items))
+	for index, item := range items {
+		if index >= 5 {
+			break
+		}
+		part := fmt.Sprintf("%s=%d", item.reason, item.count)
+		if len(samples[item.reason]) > 0 {
+			part += "[" + strings.Join(samples[item.reason], ",") + "]"
+		}
+		parts = append(parts, part)
+	}
+	return strings.Join(parts, " ; ")
+}
+
+func (c *BinanceClient) fetchFundingRateHistory(ctx context.Context, symbol string, startTimeMillis int64, endTimeMillis int64) ([]FundingRateHistoryItem, error) {
+	endpoint := fmt.Sprintf("%s/fapi/v1/fundingRate?symbol=%s&startTime=%d&endTime=%d&limit=1000",
+		c.futuresBaseURL,
+		url.QueryEscape(symbol),
+		startTimeMillis,
+		endTimeMillis,
+	)
+	return c.fetchFundingRateHistoryWithRetry(ctx, endpoint)
+}
+
+func (c *BinanceClient) fetchSpotKline(ctx context.Context, symbol string, start time.Time) (MarketKline, error) {
+	return c.fetchKline(ctx, c.spotBaseURL+"/api/v3/klines", symbol, start)
+}
+
+func (c *BinanceClient) fetchFuturesKline(ctx context.Context, symbol string, start time.Time) (MarketKline, error) {
+	return c.fetchKline(ctx, c.futuresBaseURL+"/fapi/v1/klines", symbol, start)
+}
+
+func (c *BinanceClient) fetchSpotKlineBefore(ctx context.Context, symbol string, start time.Time) (MarketKline, error) {
+	return c.fetchKlineBefore(ctx, c.spotBaseURL+"/api/v3/klines", symbol, start)
+}
+
+func (c *BinanceClient) fetchFuturesKlineBefore(ctx context.Context, symbol string, start time.Time) (MarketKline, error) {
+	return c.fetchKlineBefore(ctx, c.futuresBaseURL+"/fapi/v1/klines", symbol, start)
+}
+
+func (c *BinanceClient) fetchFuturesPremiumKlineBefore(ctx context.Context, symbol string, start time.Time) (MarketKline, error) {
+	return c.fetchKlineBeforeWithLimit(ctx, c.futuresBaseURL+"/fapi/v1/premiumIndexKlines", "symbol", symbol, start, c.historicalEstimateLookback())
+}
+
+func (c *BinanceClient) fetchFuturesIndexKlineBefore(ctx context.Context, pair string, start time.Time) (MarketKline, error) {
+	return c.fetchKlineBeforeWithLimit(ctx, c.futuresBaseURL+"/fapi/v1/indexPriceKlines", "pair", pair, start, c.historicalEstimateLookback())
+}
+
+func (c *BinanceClient) fetchKline(ctx context.Context, endpoint string, symbol string, start time.Time) (MarketKline, error) {
+	queryURL := fmt.Sprintf("%s?symbol=%s&interval=1m&startTime=%d&limit=1", endpoint, url.QueryEscape(symbol), start.UnixMilli())
+	var payload [][]any
+	if err := c.getJSONWithMonthlyRetry(ctx, queryURL, &payload); err != nil {
+		return MarketKline{}, err
+	}
+	if len(payload) == 0 {
+		return MarketKline{}, fmt.Errorf("未返回 K 线")
+	}
+	return parseMarketKline(payload[0])
+}
+
+func (c *BinanceClient) fetchKlineBefore(ctx context.Context, endpoint string, symbol string, start time.Time) (MarketKline, error) {
+	return c.fetchKlineBeforeWithLimit(ctx, endpoint, "symbol", symbol, start, c.historicalReferenceLookback())
+}
+
+func (c *BinanceClient) fetchKlineBeforeWithLimit(ctx context.Context, endpoint string, queryKey string, queryValue string, start time.Time, limit int) (MarketKline, error) {
+	if limit <= 0 {
+		limit = c.historicalReferenceLookback()
+	}
+	queryURL := fmt.Sprintf("%s?%s=%s&interval=1m&endTime=%d&limit=%d", endpoint, queryKey, url.QueryEscape(queryValue), start.UnixMilli()-1, limit)
+	var payload [][]any
+	if err := c.getJSONWithMonthlyRetry(ctx, queryURL, &payload); err != nil {
+		return MarketKline{}, err
+	}
+	if len(payload) == 0 {
+		return MarketKline{}, fmt.Errorf("未返回参考 K 线")
+	}
+	return parseMarketKline(payload[len(payload)-1])
+}
+
+func (c *BinanceClient) fetchFundingRateHistoryWithRetry(ctx context.Context, endpoint string) ([]FundingRateHistoryItem, error) {
+	if payload, ok, err := c.loadHistoricalPayload(endpoint); err == nil && ok {
+		var result []FundingRateHistoryItem
+		if decodeErr := json.Unmarshal(payload, &result); decodeErr == nil {
+			return result, nil
+		}
+		_ = c.invalidateHistoricalPayload(endpoint)
+	}
+	payload, statusCode, err := c.fetchHTTPPayload(ctx, endpoint)
+	if err != nil {
+		return nil, fmt.Errorf("获取 fundingRate 历史失败: 请求失败: %w", err)
+	}
+	if statusCode != http.StatusOK {
+		return nil, formatHistoricalHTTPStatusError("获取 fundingRate 历史失败", statusCode, payload)
+	}
+	var result []FundingRateHistoryItem
+	if decodeErr := json.Unmarshal(payload, &result); decodeErr != nil {
+		return nil, fmt.Errorf("解析 fundingRate 历史失败: %w", decodeErr)
+	}
+	_ = c.storeHistoricalPayload(endpoint, payload)
+	return result, nil
+}
+
+func (c *BinanceClient) fetchHTTPPayload(ctx context.Context, rawURL string) ([]byte, int, error) {
+	if err := c.waitHistoricalRequestSlot(ctx); err != nil {
+		return nil, 0, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+	if err != nil {
+		return nil, 0, fmt.Errorf("创建请求失败: %w", err)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer resp.Body.Close()
+
+	body, readErr := io.ReadAll(resp.Body)
+	if readErr != nil {
+		return nil, resp.StatusCode, fmt.Errorf("读取响应失败: %w", readErr)
+	}
+	c.recordHistoricalRequestStatus(resp.StatusCode)
+	return body, resp.StatusCode, nil
+}
+
+func (c *BinanceClient) getJSONWithMonthlyRetry(ctx context.Context, rawURL string, target any) error {
+	if payload, ok, err := c.loadHistoricalPayload(rawURL); err == nil && ok {
+		if decodeErr := json.Unmarshal(payload, target); decodeErr == nil {
+			return nil
+		}
+		_ = c.invalidateHistoricalPayload(rawURL)
+	}
+	payload, statusCode, err := c.fetchHTTPPayload(ctx, rawURL)
+	if err != nil {
+		return fmt.Errorf("请求失败: %w", err)
+	}
+	if statusCode != http.StatusOK {
+		return formatHistoricalHTTPStatusError("HTTP 状态异常", statusCode, payload)
+	}
+	if decodeErr := json.Unmarshal(payload, target); decodeErr != nil {
+		return fmt.Errorf("解析 JSON 失败: %w", decodeErr)
+	}
+	_ = c.storeHistoricalPayload(rawURL, payload)
+	return nil
+}
+
+func formatHistoricalHTTPStatusError(prefix string, statusCode int, payload []byte) error {
+	message := fmt.Sprintf("%s: %d %s", prefix, statusCode, http.StatusText(statusCode))
+	snippet := strings.TrimSpace(string(payload))
+	snippet = strings.ReplaceAll(snippet, "\n", " ")
+	snippet = strings.ReplaceAll(snippet, "\r", " ")
+	if len(snippet) > 160 {
+		snippet = snippet[:160]
+	}
+	if snippet != "" {
+		message += " body=" + snippet
+	}
+	return fmt.Errorf("%s", message)
+}
+
+func (c *BinanceClient) historicalReferenceLookback() int {
+	if c.historicalReferenceKlineLookback > 0 {
+		return c.historicalReferenceKlineLookback
+	}
+	return DefaultEngineConfig().HistoricalConfig.ReferenceKlineLookback
+}
+
+func (c *BinanceClient) historicalEstimateLookback() int {
+	if c.historicalEstimateKlineLookback > 0 {
+		return c.historicalEstimateKlineLookback
+	}
+	return DefaultEngineConfig().HistoricalConfig.EstimateKlineLookback
+}
+
+func (c *BinanceClient) historicalFundingRetryLimit() int {
+	if c.historicalFundingRetryMax > 0 {
+		return c.historicalFundingRetryMax
+	}
+	return DefaultEngineConfig().HistoricalConfig.FundingRetryMax
+}
+
+func (c *BinanceClient) loadHistoricalPayload(rawURL string) ([]byte, bool, error) {
+	if c == nil || c.historicalPayloadCache == nil {
+		return nil, false, nil
+	}
+	payload, ok, err := c.historicalPayloadCache.Load(rawURL)
+	if err == nil {
+		c.recordHistoricalCacheLookup(ok)
+	}
+	return payload, ok, err
+}
+
+func (c *BinanceClient) storeHistoricalPayload(rawURL string, payload []byte) error {
+	if c == nil || c.historicalPayloadCache == nil {
+		return nil
+	}
+	return c.historicalPayloadCache.Save(rawURL, payload)
+}
+
+func (c *BinanceClient) invalidateHistoricalPayload(rawURL string) error {
+	if c == nil || c.historicalPayloadCache == nil {
+		return nil
+	}
+	return c.historicalPayloadCache.Remove(rawURL)
+}
+
+func minInt(a int, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func maxInt(a int, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+func maxDuration(a time.Duration, b time.Duration) time.Duration {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+func parseMarketKline(row []any) (MarketKline, error) {
+	if len(row) < 8 {
+		return MarketKline{}, fmt.Errorf("K 线字段不足")
+	}
+	return MarketKline{
+		OpenTime:         parseAnyInt64(row[0]),
+		Open:             parseAnyFloat(row[1]),
+		High:             parseAnyFloat(row[2]),
+		Low:              parseAnyFloat(row[3]),
+		Close:            parseAnyFloat(row[4]),
+		QuoteAssetVolume: parseAnyFloat(row[7]),
+	}, nil
+}
+
+func (c *monthlyKlineCache) getSpotKline(ctx context.Context, client *BinanceClient, symbol string, start time.Time) (MarketKline, error) {
+	key := symbol + ":" + strconv.FormatInt(start.UnixMilli(), 10)
+	c.mu.Lock()
+	if kline, ok := c.spot[key]; ok {
+		c.hits["spot_exec"]++
+		c.mu.Unlock()
+		return kline, nil
+	}
+	c.loads["spot_exec"]++
+	c.mu.Unlock()
+
+	kline, err := client.fetchSpotKline(ctx, symbol, start)
+	if err != nil {
+		return MarketKline{}, err
+	}
+
+	c.mu.Lock()
+	c.spot[key] = kline
+	c.mu.Unlock()
+	return kline, nil
+}
+
+func (c *monthlyKlineCache) getFuturesKline(ctx context.Context, client *BinanceClient, symbol string, start time.Time) (MarketKline, error) {
+	key := symbol + ":" + strconv.FormatInt(start.UnixMilli(), 10)
+	c.mu.Lock()
+	if kline, ok := c.futures[key]; ok {
+		c.hits["futures_exec"]++
+		c.mu.Unlock()
+		return kline, nil
+	}
+	c.loads["futures_exec"]++
+	c.mu.Unlock()
+
+	kline, err := client.fetchFuturesKline(ctx, symbol, start)
+	if err != nil {
+		return MarketKline{}, err
+	}
+
+	c.mu.Lock()
+	c.futures[key] = kline
+	c.mu.Unlock()
+	return kline, nil
+}
+
+func (c *monthlyKlineCache) getSpotKlineBefore(ctx context.Context, client *BinanceClient, symbol string, start time.Time) (MarketKline, error) {
+	key := "before:" + symbol + ":" + strconv.FormatInt(start.UnixMilli(), 10)
+	c.mu.Lock()
+	if kline, ok := c.spot[key]; ok {
+		c.hits["spot_before"]++
+		c.mu.Unlock()
+		return kline, nil
+	}
+	c.loads["spot_before"]++
+	c.mu.Unlock()
+
+	kline, err := client.fetchSpotKlineBefore(ctx, symbol, start)
+	if err != nil {
+		return MarketKline{}, err
+	}
+
+	c.mu.Lock()
+	c.spot[key] = kline
+	c.mu.Unlock()
+	return kline, nil
+}
+
+func (c *monthlyKlineCache) getFuturesKlineBefore(ctx context.Context, client *BinanceClient, symbol string, start time.Time) (MarketKline, error) {
+	key := "before:" + symbol + ":" + strconv.FormatInt(start.UnixMilli(), 10)
+	c.mu.Lock()
+	if kline, ok := c.futures[key]; ok {
+		c.hits["futures_before"]++
+		c.mu.Unlock()
+		return kline, nil
+	}
+	c.loads["futures_before"]++
+	c.mu.Unlock()
+
+	kline, err := client.fetchFuturesKlineBefore(ctx, symbol, start)
+	if err != nil {
+		return MarketKline{}, err
+	}
+
+	c.mu.Lock()
+	c.futures[key] = kline
+	c.mu.Unlock()
+	return kline, nil
+}
+
+func (c *monthlyKlineCache) getFuturesPremiumKlineBefore(ctx context.Context, client *BinanceClient, symbol string, start time.Time) (MarketKline, error) {
+	key := "before:premium:" + symbol + ":" + strconv.FormatInt(start.UnixMilli(), 10)
+	c.mu.Lock()
+	if kline, ok := c.premium[key]; ok {
+		c.hits["premium_before"]++
+		c.mu.Unlock()
+		return kline, nil
+	}
+	c.loads["premium_before"]++
+	c.mu.Unlock()
+
+	kline, err := client.fetchFuturesPremiumKlineBefore(ctx, symbol, start)
+	if err != nil {
+		return MarketKline{}, err
+	}
+
+	c.mu.Lock()
+	c.premium[key] = kline
+	c.mu.Unlock()
+	return kline, nil
+}
+
+func (c *monthlyKlineCache) getFuturesIndexKlineBefore(ctx context.Context, client *BinanceClient, pair string, start time.Time) (MarketKline, error) {
+	key := "before:index:" + pair + ":" + strconv.FormatInt(start.UnixMilli(), 10)
+	c.mu.Lock()
+	if kline, ok := c.index[key]; ok {
+		c.hits["index_before"]++
+		c.mu.Unlock()
+		return kline, nil
+	}
+	c.loads["index_before"]++
+	c.mu.Unlock()
+
+	kline, err := client.fetchFuturesIndexKlineBefore(ctx, pair, start)
+	if err != nil {
+		return MarketKline{}, err
+	}
+
+	c.mu.Lock()
+	c.index[key] = kline
+	c.mu.Unlock()
+	return kline, nil
+}
+
+func (c *monthlyKlineCache) summary() string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	keys := []string{"premium_before", "index_before", "spot_before", "futures_before", "spot_exec", "futures_exec"}
+	parts := make([]string, 0, len(keys))
+	for _, key := range keys {
+		loads := c.loads[key]
+		hits := c.hits[key]
+		if loads == 0 && hits == 0 {
+			continue
+		}
+		parts = append(parts, fmt.Sprintf("%s(loads=%d,hits=%d)", key, loads, hits))
+	}
+	return strings.Join(parts, ";")
+}
+
+func computeBasisRate(spotPrice float64, futuresPrice float64) float64 {
+	if spotPrice <= 0 {
+		return 0
+	}
+	return (spotPrice - futuresPrice) / spotPrice
+}
+
+func computeAdverseBasisPenalty(openBasisRate float64, spotEntryNotional float64, futuresEntryNotional float64) float64 {
+	if openBasisRate >= 0 {
+		return openBasisRate * math.Max(spotEntryNotional, futuresEntryNotional)
+	}
+	return 0
+}
+
+func ratioOrZero(numerator float64, denominator float64) float64 {
+	if numerator <= 0 || denominator <= 0 {
+		return 0
+	}
+	return numerator / denominator
+}
+
+func computeDrawdownRate(peakEquity float64, equity float64) float64 {
+	if peakEquity <= 0 || equity >= peakEquity {
+		return 0
+	}
+	return (peakEquity - equity) / peakEquity
+}
+
+func estimateHistoricalSlipRate(kline MarketKline) float64 {
+	if kline.Open <= 0 {
+		return 0.0003
+	}
+	rangeRate := math.Abs(kline.High-kline.Low) / kline.Open
+	return math.Max(0.0003, rangeRate*0.10)
+}
+
+func estimateMarketImpactRate(notionalUSDT float64, quoteVolume float64) float64 {
+	if notionalUSDT <= 0 || quoteVolume <= 0 {
+		return 0.0025
+	}
+	impact := (notionalUSDT / quoteVolume) * 0.50
+	return math.Max(0.0001, math.Min(0.0025, impact))
+}
+
+func conservativeHistoricalFundingRate(premiumIndexRate float64, markIndexBasisRate float64) float64 {
+	candidates := make([]float64, 0, 2)
+	if premiumIndexRate > 0 {
+		candidates = append(candidates, premiumIndexRate)
+	}
+	if markIndexBasisRate > 0 {
+		candidates = append(candidates, markIndexBasisRate)
+	}
+	if len(candidates) == 0 {
+		return 0
+	}
+	lowest := candidates[0]
+	for _, candidate := range candidates[1:] {
+		if candidate < lowest {
+			lowest = candidate
+		}
+	}
+	return lowest
+}
+
+func parseAnyFloat(value any) float64 {
+	switch typed := value.(type) {
+	case string:
+		return parseFloat(typed)
+	case float64:
+		return typed
+	case int64:
+		return float64(typed)
+	case int:
+		return float64(typed)
+	default:
+		return parseFloat(fmt.Sprint(value))
+	}
+}
+
+func parseAnyInt64(value any) int64 {
+	switch typed := value.(type) {
+	case float64:
+		return int64(typed)
+	case int64:
+		return typed
+	case int:
+		return int64(typed)
+	case string:
+		parsed, _ := strconv.ParseInt(strings.TrimSpace(typed), 10, 64)
+		return parsed
+	default:
+		parsed, _ := strconv.ParseInt(strings.TrimSpace(fmt.Sprint(value)), 10, 64)
+		return parsed
+	}
+}

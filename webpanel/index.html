@@ -1,0 +1,1213 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Funding Rate Sniper Dashboard</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 0;
+      background: #0f172a;
+      color: #e2e8f0;
+    }
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+    h1, h2 {
+      margin: 0 0 12px 0;
+    }
+    .toolbar {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
+    }
+    .toolbar a, .toolbar button {
+      border: 0;
+      background: #2563eb;
+      color: #fff;
+      padding: 10px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      text-decoration: none;
+      font-size: 14px;
+    }
+    .toolbar button.danger {
+      background: #b91c1c;
+    }
+    .toolbar button.secondary {
+      background: #475569;
+    }
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    label {
+      display: block;
+      font-size: 13px;
+      color: #cbd5e1;
+      margin-bottom: 6px;
+    }
+    input, select {
+      width: 100%;
+      box-sizing: border-box;
+      background: #020617;
+      color: #e2e8f0;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 14px;
+    }
+    .panel {
+      background: #111827;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 20px;
+    }
+    .hint {
+      color: #94a3b8;
+      font-size: 13px;
+      margin-bottom: 12px;
+    }
+    .table-wrap {
+      overflow-x: auto;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    th, td {
+      border-bottom: 1px solid #1e293b;
+      padding: 10px 8px;
+      text-align: left;
+      white-space: nowrap;
+    }
+    th {
+      color: #93c5fd;
+      position: sticky;
+      top: 0;
+      background: #111827;
+    }
+    .empty {
+      color: #94a3b8;
+      padding: 12px 0;
+    }
+    .pill {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      background: #1e293b;
+    }
+    .pill.true {
+      background: #166534;
+    }
+    .pill.false {
+      background: #991b1b;
+    }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    .stat-card {
+      background: #0b1220;
+      border: 1px solid #1e293b;
+      border-radius: 10px;
+      padding: 12px;
+    }
+    .stat-label {
+      color: #94a3b8;
+      font-size: 12px;
+      margin-bottom: 6px;
+    }
+    .stat-value {
+      color: #f8fafc;
+      font-size: 22px;
+      font-weight: 600;
+    }
+    .pill.low {
+      background: #1d4ed8;
+    }
+    .pill.medium {
+      background: #b45309;
+    }
+    .pill.high {
+      background: #b91c1c;
+    }
+    .log-list {
+      max-height: 420px;
+      overflow: auto;
+      background: #020617;
+      border: 1px solid #1e293b;
+      border-radius: 10px;
+      padding: 0;
+    }
+    .log-item {
+      border-bottom: 1px solid #1e293b;
+      padding: 10px 12px;
+      font-size: 13px;
+    }
+    .log-item:last-child {
+      border-bottom: 0;
+    }
+    .log-meta {
+      color: #93c5fd;
+      font-size: 12px;
+      margin-bottom: 4px;
+    }
+    .status-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+      margin-top: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Funding Rate Sniper Dashboard</h1>
+    <div class="hint">构建信息：{{.VersionSummary}}</div>
+    <div class="hint">服务启动后默认进入控制台模式，你可以在页面上选择启动实盘引擎或按时间做历史模拟，并随时查看后台状态、JSON 落盘与详细运行日志。</div>
+    <div class="toolbar">
+      <button id="refresh-btn" type="button">刷新面板</button>
+      <button id="start-btn" type="button">启动任务</button>
+      <button id="stop-btn" type="button" class="danger">停止任务</button>
+      <button id="save-risk-config-btn" type="button" class="secondary">保存风控参数</button>
+      <button id="clear-runtime-logs-btn" type="button" class="secondary">清空运行日志</button>
+      <button id="clear-historical-cache-btn" type="button" class="secondary">清空历史缓存</button>
+      <button id="clear-dashboard-data-btn" type="button" class="danger">清空表格数据</button>
+      <a href="{{.SettlementCSV}}" target="_blank" rel="noopener noreferrer">下载结算 JSON</a>
+      <a href="{{.MonitorCSV}}" target="_blank" rel="noopener noreferrer">下载监控 JSONL</a>
+      <a href="{{.BacktestCSV}}" target="_blank" rel="noopener noreferrer">下载回测 JSON</a>
+      <a href="{{.ResidualCSV}}" target="_blank" rel="noopener noreferrer">下载残腿 JSON</a>
+      <a href="{{.ExecutionCSV}}" target="_blank" rel="noopener noreferrer">下载执行事故 JSONL</a>
+      <a href="{{.MonthlySimulationCSV}}" target="_blank" rel="noopener noreferrer">下载历史模拟日志 JSON</a>
+      <a href="{{.RuntimeEventLog}}" target="_blank" rel="noopener noreferrer">下载运行日志</a>
+      <a href="{{.ControlAuditLog}}" target="_blank" rel="noopener noreferrer">下载控制审计 JSONL</a>
+    </div>
+
+    <div class="panel">
+      <h2>运行控制台</h2>
+      <div class="hint">支持两种模式：`实盘引擎` 会按现有真实链路运行；`历史模拟` 会按你填写的回看天数拉取过去数据做模拟，并把详细收益影响因子落盘到 `monthly_simulation_logs.json`。</div>
+      <div class="hint">控制令牌不再随页面自动下发。需要时请从启动终端复制 `Dashboard 控制令牌`，手动填入下方输入框；浏览器会仅在本地缓存。</div>
+      <div class="form-grid">
+        <div>
+          <label for="mode-select">运行模式</label>
+          <select id="mode-select">
+            <option value="monthly">历史模拟</option>
+            <option value="live">实盘引擎</option>
+          </select>
+        </div>
+        <div>
+          <label for="dashboard-token">控制令牌</label>
+          <input id="dashboard-token" type="password" value="" placeholder="启动日志里打印的 Dashboard 控制令牌">
+        </div>
+        <div>
+          <label for="secret-path">配置文件路径</label>
+          <input id="secret-path" type="text" value="secret.yaml" placeholder="secret.yaml">
+        </div>
+        <div>
+          <label for="lookback-days">回看天数</label>
+          <input id="lookback-days" type="number" min="1" value="30">
+        </div>
+      </div>
+      <div class="status-grid">
+        <div class="stat-card">
+          <div class="stat-label">当前模式</div>
+          <div class="stat-value" id="runtime-mode">idle</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Run ID</div>
+          <div class="stat-value" id="runtime-run-id" style="font-size:14px">-</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Cycle ID</div>
+          <div class="stat-value" id="runtime-cycle-id" style="font-size:14px">-</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">运行状态</div>
+          <div class="stat-value" id="runtime-status">idle</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">当前阶段</div>
+          <div class="stat-value" id="runtime-stage" style="font-size:16px">-</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">开始时间</div>
+          <div class="stat-value" id="runtime-started" style="font-size:16px">-</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">结束时间</div>
+          <div class="stat-value" id="runtime-finished" style="font-size:16px">-</div>
+        </div>
+      </div>
+      <div class="status-grid">
+        <div class="stat-card">
+          <div class="stat-label">最后消息</div>
+          <div class="stat-value" id="runtime-message" style="font-size:16px">等待页面选择运行模式</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">阶段原因</div>
+          <div class="stat-value" id="runtime-stage-reason" style="font-size:16px">-</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">最后错误</div>
+          <div class="stat-value" id="runtime-error" style="font-size:16px">-</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">执行事故计数</div>
+          <div class="stat-value" id="runtime-incident-count" style="font-size:16px">0 / 0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">熔断状态</div>
+          <div class="stat-value" id="runtime-circuit" style="font-size:16px">未触发</div>
+        </div>
+      </div>
+      <div class="status-grid">
+        <div class="stat-card">
+          <div class="stat-label">当前健康度</div>
+          <div class="stat-value" id="runtime-health-status" style="font-size:16px">healthy</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">阶段更新时间</div>
+          <div class="stat-value" id="runtime-stage-transitioned" style="font-size:16px">-</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">健康摘要</div>
+          <div class="stat-value" id="runtime-health-summary" style="font-size:16px">等待进入实盘阶段</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">这轮还能继续跑</div>
+          <div class="stat-value" id="runtime-can-continue" style="font-size:16px">可以</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">连续平台拒单</div>
+          <div class="stat-value" id="runtime-consecutive-rejects" style="font-size:16px">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">连续异常请求</div>
+          <div class="stat-value" id="runtime-consecutive-errors" style="font-size:16px">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">已用敞口 / 剩余额度</div>
+          <div class="stat-value" id="runtime-notional-budget" style="font-size:16px">0 / -</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">最近异常分级</div>
+          <div class="stat-value" id="runtime-last-exception" style="font-size:16px">-</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">当前冷却来源</div>
+          <div class="stat-value" id="runtime-cooldown-source" style="font-size:16px">-</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Symbol 冷却列表</div>
+          <div class="stat-value" id="runtime-symbol-cooldowns" style="font-size:16px">-</div>
+        </div>
+      </div>
+      <div class="status-grid">
+        <div class="stat-card">
+          <div class="stat-label">当前目标数量</div>
+          <div class="stat-value" id="runtime-targets" style="font-size:16px">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">最近平台拒绝</div>
+          <div class="stat-value" id="runtime-platform-rejects" style="font-size:16px">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">最近异常请求</div>
+          <div class="stat-value" id="runtime-platform-errors" style="font-size:16px">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">最近回补次数</div>
+          <div class="stat-value" id="runtime-recovery-count" style="font-size:16px">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">熔断原因</div>
+          <div class="stat-value" id="runtime-circuit-reason" style="font-size:16px">-</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">冷却截止</div>
+          <div class="stat-value" id="runtime-cooldown-until" style="font-size:16px">-</div>
+        </div>
+      </div>
+      <div class="status-grid">
+        <div class="stat-card">
+          <div class="stat-label">当前持仓</div>
+          <div class="stat-value" id="runtime-positions" style="font-size:14px">-</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">当前监控中的目标</div>
+          <div class="stat-value" id="runtime-monitor-targets" style="font-size:14px">-</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">最近一次下单</div>
+          <div class="stat-value" id="runtime-last-order" style="font-size:14px">-</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">最近一次回补动作</div>
+          <div class="stat-value" id="runtime-last-recovery" style="font-size:14px">-</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">订单不确定次数</div>
+          <div class="stat-value" id="runtime-uncertain-orders" style="font-size:14px">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">本轮剩余风险额度</div>
+          <div class="stat-value" id="runtime-risk-budget" style="font-size:14px">-</div>
+        </div>
+      </div>
+      <div class="status-grid">
+        <div class="stat-card">
+          <div class="stat-label">紧急停机状态</div>
+          <div class="stat-value" id="runtime-emergency-stop" style="font-size:14px">未触发</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">当日收益 / 剩余亏损预算</div>
+          <div class="stat-value" id="runtime-daily-loss" style="font-size:14px">0.00 / -</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">当日下单 / 剩余额度</div>
+          <div class="stat-value" id="runtime-daily-orders" style="font-size:14px">0 / -</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">当日开仓名义 / 剩余额度</div>
+          <div class="stat-value" id="runtime-daily-notional" style="font-size:14px">0.00 / -</div>
+        </div>
+      </div>
+      <div class="panel" style="margin-top:12px; margin-bottom:0;">
+        <h2 style="font-size:18px;">最近执行事件</h2>
+        <div class="hint">这里优先展示最近几次结构化执行事件，包括事故计数递增、恢复动作和熔断触发。</div>
+        <div id="runtime-execution-events" class="log-list"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>在线风控参数</h2>
+      <div class="hint">这里同时包含容量约束和实盘熔断阈值，保存后会在下一次启动任务时生效，不会热更新当前正在运行的任务。</div>
+      <div class="form-grid">
+        <div>
+          <label for="risk-per-symbol-quote">单标的名义资金 (USDT)</label>
+          <input id="risk-per-symbol-quote" type="number" min="1" step="0.01" value="100">
+        </div>
+        <div>
+          <label for="risk-max-cycle-open-notional">单周期总敞口上限 (USDT)</label>
+          <input id="risk-max-cycle-open-notional" type="number" min="1" step="0.01" value="300">
+        </div>
+        <div>
+          <label for="risk-recent-window">最近成交额窗口</label>
+          <input id="risk-recent-window" type="text" value="5m" placeholder="5m / 15m / 1h">
+        </div>
+        <div>
+          <label for="risk-max-recent-share">最近成交额占比上限</label>
+          <input id="risk-max-recent-share" type="number" min="0.0001" max="1" step="0.0001" value="0.0020">
+        </div>
+        <div>
+          <label for="risk-max-oi-share">未平仓名义占比上限</label>
+          <input id="risk-max-oi-share" type="number" min="0.0001" max="1" step="0.0001" value="0.0005">
+        </div>
+        <div>
+          <label for="risk-max-depth-share">可见深度占比上限</label>
+          <input id="risk-max-depth-share" type="number" min="0.0001" max="1" step="0.0001" value="0.08">
+        </div>
+        <div>
+          <label for="risk-min-net-profit-rate">最低净收益率</label>
+          <input id="risk-min-net-profit-rate" type="number" min="0.0001" max="1" step="0.0001" value="0.0020">
+        </div>
+        <div>
+          <label for="risk-immediate-invalidate-rate">立即作废阈值</label>
+          <input id="risk-immediate-invalidate-rate" type="number" min="0.0001" max="1" step="0.0001" value="0.0005">
+        </div>
+        <div>
+          <label for="risk-monitor-breach-limit">最大连续观察 breach</label>
+          <input id="risk-monitor-breach-limit" type="number" min="1" step="1" value="3">
+        </div>
+        <div>
+          <label for="risk-max-cycle-loss">最大单周期亏损 (USDT)</label>
+          <input id="risk-max-cycle-loss" type="number" min="0.01" step="0.01" value="8">
+        </div>
+        <div>
+          <label for="risk-max-execution-incidents">最大执行事故数</label>
+          <input id="risk-max-execution-incidents" type="number" min="1" step="1" value="3">
+        </div>
+        <div>
+          <label for="risk-max-order-uncertainty">最大不确定成交数</label>
+          <input id="risk-max-order-uncertainty" type="number" min="1" step="1" value="2">
+        </div>
+        <div>
+          <label for="risk-max-platform-rejects">最大连续平台拒绝</label>
+          <input id="risk-max-platform-rejects" type="number" min="1" step="1" value="3">
+        </div>
+        <div>
+          <label for="risk-max-request-errors">最大连续异常请求</label>
+          <input id="risk-max-request-errors" type="number" min="1" step="1" value="6">
+        </div>
+        <div>
+          <label for="risk-confirm-timeout">开平仓确认超时</label>
+          <input id="risk-confirm-timeout" type="text" value="1500ms" placeholder="500ms / 2s / 5s">
+        </div>
+        <div>
+          <label for="risk-symbol-cooldown">symbol 异常冷却时间</label>
+          <input id="risk-symbol-cooldown" type="text" value="10m" placeholder="1m / 10m / 30m">
+        </div>
+        <div>
+          <label for="risk-platform-minor-cooldown">轻微异常冷却时间</label>
+          <input id="risk-platform-minor-cooldown" type="text" value="5m" placeholder="30s / 5m / 10m">
+        </div>
+        <div>
+          <label for="risk-platform-cooldown">平台异常冷却时间</label>
+          <input id="risk-platform-cooldown" type="text" value="15m" placeholder="30s / 5m / 1h">
+        </div>
+        <div>
+          <label for="risk-platform-critical-cooldown">严重异常冷却时间</label>
+          <input id="risk-platform-critical-cooldown" type="text" value="30m" placeholder="5m / 30m / 1h">
+        </div>
+        <div>
+          <label for="risk-max-recovery-actions">最大回补次数</label>
+          <input id="risk-max-recovery-actions" type="number" min="1" step="1" value="3">
+        </div>
+        <div>
+          <label for="risk-max-daily-loss">最大日亏损 (USDT)</label>
+          <input id="risk-max-daily-loss" type="number" min="0.01" step="0.01" value="25">
+        </div>
+        <div>
+          <label for="risk-max-daily-orders">最大日下单次数</label>
+          <input id="risk-max-daily-orders" type="number" min="1" step="1" value="40">
+        </div>
+        <div>
+          <label for="risk-max-daily-open-notional">最大日开仓名义 (USDT)</label>
+          <input id="risk-max-daily-open-notional" type="number" min="1" step="0.01" value="1500">
+        </div>
+      </div>
+      <div class="hint" id="risk-config-message">默认按当前配置展示，点击“保存风控参数”后写入后端内存配置。</div>
+    </div>
+
+    <div class="panel">
+      <h2>执行事故与恢复动作</h2>
+      <div class="hint">这里展示最近 200 条结构化执行事件，比普通运行日志更适合排查残腿恢复、部分成交和熔断停机。</div>
+      <div class="table-wrap">
+        <table id="execution-table">
+          <thead>
+            <tr>
+              <th>记录时间</th>
+              <th>级别</th>
+              <th>阶段</th>
+              <th>Symbol</th>
+              <th>动作</th>
+              <th>事故计数</th>
+              <th>熔断</th>
+              <th>详情</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>后台运行日志</h2>
+      <div class="hint">这里展示最近 200 条且只保留近 12 小时的后台日志；过期日志会在后台自动清理，不影响程序运行。</div>
+      <div id="runtime-log-list" class="log-list"></div>
+    </div>
+
+    <div class="panel">
+      <h2>回测总览</h2>
+      <div class="hint">快速查看当前回测成功结果与残腿风险的总体分布。</div>
+      <div class="stats">
+        <div class="stat-card">
+          <div class="stat-label">回测汇总条数</div>
+          <div class="stat-value" id="overview-backtests">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">成功目标数</div>
+          <div class="stat-value" id="overview-trades">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">残腿次数</div>
+          <div class="stat-value" id="overview-residuals">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">残腿率</div>
+          <div class="stat-value" id="overview-residual-rate">0%</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>模块五结算记录</h2>
+      <div class="hint">最近 200 条结算记录，优先用于运行记录和后续导出的 JSON 对照。</div>
+      <div class="table-wrap">
+        <table id="settlement-table">
+          <thead>
+            <tr>
+              <th>记录时间</th>
+              <th>资金费时间</th>
+              <th>平仓时间</th>
+              <th>目标数</th>
+              <th>资金费收入</th>
+              <th>理论资金费</th>
+              <th>资金费偏差</th>
+              <th>净利润</th>
+              <th>账户净变动</th>
+              <th>告警</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>模块三监控摘要</h2>
+      <div class="hint">最近 200 条目标监控结果，可直接看到 watching / observing / healthy / invalidated 状态。</div>
+      <div class="table-wrap">
+        <table id="monitor-table">
+          <thead>
+            <tr>
+              <th>记录时间</th>
+              <th>监控截止</th>
+              <th>资金费时间</th>
+              <th>Symbol</th>
+              <th>State</th>
+              <th>有效</th>
+              <th>Breach</th>
+              <th>预估费率</th>
+              <th>基差</th>
+              <th>净收益</th>
+              <th>Spread</th>
+              <th>原因</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>回测记录</h2>
+      <div class="hint">当前会优先展示 `backtest/` 目录提供的示例回测记录，后续真实回测器也可以复用同一份 JSON 结构。</div>
+      <div class="table-wrap">
+        <table id="backtest-table">
+          <thead>
+            <tr>
+              <th>记录时间</th>
+              <th>场景</th>
+              <th>Symbol</th>
+              <th>周期</th>
+              <th>交易数</th>
+              <th>胜率</th>
+              <th>资金费收入</th>
+              <th>交易PnL</th>
+              <th>总手续费</th>
+              <th>净利润</th>
+              <th>最大回撤</th>
+              <th>备注</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>残腿风险记录</h2>
+      <div class="hint">展示 timeline 回放里出现的先合约后现货失败、双腿数量不一致、平仓腿失败等异常。</div>
+      <div class="stats">
+        <div class="stat-card">
+          <div class="stat-label">残腿次数</div>
+          <div class="stat-value" id="residual-count">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">平均残差名义</div>
+          <div class="stat-value" id="residual-avg">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">最坏应急损益</div>
+          <div class="stat-value" id="residual-worst">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">高风险次数</div>
+          <div class="stat-value" id="residual-high">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">中风险次数</div>
+          <div class="stat-value" id="residual-medium">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">低风险次数</div>
+          <div class="stat-value" id="residual-low">0</div>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table id="residual-table">
+          <thead>
+            <tr>
+              <th>记录时间</th>
+              <th>场景</th>
+              <th>Symbol</th>
+              <th>阶段</th>
+              <th>事件时间</th>
+              <th>状态</th>
+              <th>合约腿</th>
+              <th>现货腿</th>
+              <th>合约成交比例</th>
+              <th>现货成交比例</th>
+              <th>残差名义</th>
+              <th>应急成本</th>
+              <th>应急估算损益</th>
+              <th>等级</th>
+              <th>原因</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>按场景聚合</h2>
+      <div class="hint">按 `scenario` 聚合残腿风险次数、平均残差和最坏应急损益，方便比较不同回放场景的稳定性。</div>
+      <div class="table-wrap">
+        <table id="scenario-table">
+          <thead>
+            <tr>
+              <th>场景</th>
+              <th>残腿次数</th>
+              <th>平均残差名义</th>
+              <th>最坏应急损益</th>
+              <th>高风险次数</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const dashboardTokenStorageKey = "lingxi-dashboard-token";
+
+    async function loadJSON(url) {
+      const res = await fetch(url);
+      if (!res.ok) {
+        throw new Error(await res.text());
+      }
+      return res.json();
+    }
+
+    function getControlToken() {
+      const input = document.getElementById("dashboard-token");
+      const token = String(input?.value || "").trim();
+      if (token) {
+        window.localStorage.setItem(dashboardTokenStorageKey, token);
+      }
+      return token;
+    }
+
+    function restoreControlToken() {
+      const saved = window.localStorage.getItem(dashboardTokenStorageKey) || "";
+      const input = document.getElementById("dashboard-token");
+      if (input && saved) {
+        input.value = saved;
+      }
+    }
+
+    function renderEmpty(tableBody, text) {
+      const colSpan = tableBody.closest("table").querySelectorAll("thead th").length || 12;
+      tableBody.innerHTML = `<tr><td class="empty" colspan="${colSpan}">${text}</td></tr>`;
+    }
+
+    function escapeHTML(value) {
+      return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+
+    function formatRuntimeMode(status) {
+      if ((status.mode || "") === "live") {
+        return "实盘引擎";
+      }
+      if ((status.mode || "") !== "monthly") {
+        return status.mode || "idle";
+      }
+      return "历史模拟";
+    }
+
+    function formatRuntimeList(values) {
+      if (!Array.isArray(values) || !values.length) {
+        return "-";
+      }
+      return values.join(" | ");
+    }
+
+    function formatRuntimeTimestampAction(timeValue, actionValue) {
+      const timeText = String(timeValue || "").trim();
+      const actionText = String(actionValue || "").trim();
+      if (!timeText && !actionText) {
+        return "-";
+      }
+      if (!timeText) {
+        return actionText;
+      }
+      if (!actionText) {
+        return timeText;
+      }
+      return `${timeText} | ${actionText}`;
+    }
+
+    function formatBudgetValue(value) {
+      return Number(value) < 0 ? "不限" : String(Number(value || 0));
+    }
+
+    function formatMoneyBudget(usedValue, remainingValue) {
+      const used = Number(usedValue || 0);
+      const remaining = Number(remainingValue || 0);
+      if (remaining < 0) {
+        return `${used.toFixed(2)} / 不限`;
+      }
+      return `${used.toFixed(2)} / ${remaining.toFixed(2)}`;
+    }
+
+    function renderRuntimeStatus(status) {
+      document.getElementById("runtime-mode").textContent = formatRuntimeMode(status);
+      document.getElementById("runtime-run-id").textContent = status.run_id || "-";
+      document.getElementById("runtime-cycle-id").textContent = status.current_cycle_id || "-";
+      document.getElementById("runtime-status").textContent = status.status || "idle";
+      document.getElementById("runtime-stage").textContent = status.current_stage || "-";
+      document.getElementById("runtime-stage-reason").textContent = status.stage_reason || "-";
+      document.getElementById("runtime-stage-transitioned").textContent = status.stage_transitioned_at || "-";
+      document.getElementById("runtime-health-status").textContent = status.health_status || "unknown";
+      document.getElementById("runtime-health-summary").textContent = status.health_summary || "-";
+      document.getElementById("runtime-can-continue").textContent = status.can_continue ? "可以" : "不可以";
+      document.getElementById("runtime-consecutive-rejects").textContent = String(Number(status.consecutive_rejects || 0));
+      document.getElementById("runtime-consecutive-errors").textContent = String(Number(status.consecutive_errors || 0));
+      document.getElementById("runtime-notional-budget").textContent = formatMoneyBudget(status.cycle_open_notional_usdt, status.remaining_notional_budget_usdt);
+      document.getElementById("runtime-last-exception").textContent = `${status.last_exception_category || "-"} | ${status.last_exception_severity || "-"} | ${status.last_exception_detail || "-"}`;
+      document.getElementById("runtime-cooldown-source").textContent = `${status.current_cooldown_category || "-"} | ${status.current_cooldown_severity || "-"}`;
+      document.getElementById("runtime-symbol-cooldowns").textContent = formatRuntimeList(status.cooled_symbols || []);
+      document.getElementById("runtime-started").textContent = status.started_at || "-";
+      document.getElementById("runtime-finished").textContent = status.finished_at || "-";
+      document.getElementById("runtime-message").textContent = status.last_message || "-";
+      document.getElementById("runtime-error").textContent = status.last_error || "-";
+      document.getElementById("runtime-incident-count").textContent = `${Number(status.execution_incident_count || 0)} / ${Number(status.execution_incident_limit || 0)}`;
+      document.getElementById("runtime-circuit").textContent = status.circuit_breaker_tripped ? "已触发" : "未触发";
+      document.getElementById("runtime-targets").textContent = String(Number(status.current_targets || 0));
+      document.getElementById("runtime-platform-rejects").textContent = String(Number(status.platform_reject_count || 0));
+      document.getElementById("runtime-platform-errors").textContent = String(Number(status.platform_request_errors || 0));
+      document.getElementById("runtime-recovery-count").textContent = String(Number(status.recovery_action_count || 0));
+      document.getElementById("runtime-circuit-reason").textContent = status.circuit_breaker_reason || "-";
+      document.getElementById("runtime-cooldown-until").textContent = status.cooldown_until || "-";
+      document.getElementById("runtime-positions").textContent = formatRuntimeList(status.current_positions || []);
+      document.getElementById("runtime-monitor-targets").textContent = formatRuntimeList(status.current_monitor_targets || []);
+      document.getElementById("runtime-last-order").textContent = formatRuntimeTimestampAction(status.last_order_at, status.last_order_action);
+      document.getElementById("runtime-last-recovery").textContent = formatRuntimeTimestampAction(status.last_recovery_at, status.last_recovery_action);
+      document.getElementById("runtime-uncertain-orders").textContent = `${Number(status.order_uncertainty_count || 0)} | ${status.last_uncertain_order || "-"}`;
+      document.getElementById("runtime-risk-budget").textContent = `事故 ${formatBudgetValue(status.remaining_incident_budget)} | 回补 ${formatBudgetValue(status.remaining_recovery_budget)} | 不确定 ${formatBudgetValue(status.remaining_uncertainty_budget)} | 拒单 ${formatBudgetValue(status.remaining_reject_budget)} | 异常 ${formatBudgetValue(status.remaining_error_budget)}`;
+      document.getElementById("runtime-emergency-stop").textContent = status.emergency_stop_triggered ? `已触发 | ${status.emergency_stop_reason || "-"}` : "未触发";
+      document.getElementById("runtime-daily-loss").textContent = `${Number(status.daily_realized_pnl || 0).toFixed(2)} / ${Number(status.remaining_daily_loss_budget_usdt || 0) < 0 ? "不限" : Number(status.remaining_daily_loss_budget_usdt || 0).toFixed(2)}`;
+      document.getElementById("runtime-daily-orders").textContent = `${Number(status.daily_order_count || 0)} / ${formatBudgetValue(status.remaining_daily_order_budget)}`;
+      document.getElementById("runtime-daily-notional").textContent = `${Number(status.daily_open_notional_usdt || 0).toFixed(2)} / ${Number(status.remaining_daily_notional_budget_usdt || 0) < 0 ? "不限" : Number(status.remaining_daily_notional_budget_usdt || 0).toFixed(2)}`;
+      if (status.secret_path) {
+        document.getElementById("secret-path").value = status.secret_path;
+      }
+      if (Number(status.lookback_days || 0) > 0) {
+        document.getElementById("lookback-days").value = String(status.lookback_days);
+      }
+      if (status.mode) {
+        document.getElementById("mode-select").value = status.mode;
+      }
+      renderRuntimeExecutionEvents(status.recent_execution_events || []);
+    }
+
+    function renderRuntimeExecutionEvents(records) {
+      const container = document.getElementById("runtime-execution-events");
+      if (!records.length) {
+        container.innerHTML = `<div class="log-item empty">当前还没有结构化执行事件。</div>`;
+        return;
+      }
+      container.innerHTML = records.slice().reverse().map((item) => `
+        <div class="log-item">
+          <div class="log-meta">${escapeHTML(item.recorded_at)} | ${escapeHTML(item.level)} | ${escapeHTML(item.category || "-")} | ${escapeHTML(item.severity || "-")} | ${escapeHTML(item.phase)} | ${escapeHTML(item.action)}</div>
+          <div>${escapeHTML(item.symbol || "-")} | count=${Number(item.incident_count || 0)} / ${Number(item.incident_limit || 0)} | fatal=${Boolean(item.fatal)} | ${escapeHTML(item.detail || "-")}</div>
+        </div>
+      `).join("");
+    }
+
+    function renderRuntimeLogs(records) {
+      const container = document.getElementById("runtime-log-list");
+      if (!records.length) {
+        container.innerHTML = `<div class="log-item empty">当前还没有后台运行日志。</div>`;
+        return;
+      }
+      container.innerHTML = records.slice().reverse().map((item) => `
+        <div class="log-item">
+          <div class="log-meta">${escapeHTML(item.recorded_at)} | ${escapeHTML(item.source)}</div>
+          <div>${escapeHTML(item.message)}</div>
+        </div>
+      `).join("");
+    }
+
+    function renderRiskConfig(config) {
+      if (!config) {
+        return;
+      }
+      document.getElementById("risk-per-symbol-quote").value = String(config.per_symbol_quote_usdt ?? "");
+      document.getElementById("risk-max-cycle-open-notional").value = String(config.max_cycle_open_notional_usdt ?? "");
+      document.getElementById("risk-recent-window").value = String(config.recent_trade_volume_window ?? "");
+      document.getElementById("risk-max-recent-share").value = String(config.max_recent_volume_share ?? "");
+      document.getElementById("risk-max-oi-share").value = String(config.max_open_interest_share ?? "");
+      document.getElementById("risk-max-depth-share").value = String(config.max_visible_depth_share ?? "");
+      document.getElementById("risk-min-net-profit-rate").value = String(config.min_net_profit_rate ?? "");
+      document.getElementById("risk-immediate-invalidate-rate").value = String(config.immediate_invalidate_rate ?? "");
+      document.getElementById("risk-monitor-breach-limit").value = String(config.monitor_max_consecutive_breach ?? "");
+      document.getElementById("risk-max-cycle-loss").value = String(config.max_cycle_loss_usdt ?? "");
+      document.getElementById("risk-max-execution-incidents").value = String(config.max_execution_incidents ?? "");
+      document.getElementById("risk-max-order-uncertainty").value = String(config.max_order_uncertainty_per_cycle ?? "");
+      document.getElementById("risk-max-platform-rejects").value = String(config.max_consecutive_platform_rejects ?? "");
+      document.getElementById("risk-max-request-errors").value = String(config.max_consecutive_request_errors ?? "");
+      document.getElementById("risk-confirm-timeout").value = String(config.execution_confirm_timeout ?? "");
+      document.getElementById("risk-symbol-cooldown").value = String(config.symbol_abnormal_cooldown ?? "");
+      document.getElementById("risk-platform-minor-cooldown").value = String(config.platform_minor_cooldown ?? "");
+      document.getElementById("risk-platform-cooldown").value = String(config.platform_abnormal_cooldown ?? "");
+      document.getElementById("risk-platform-critical-cooldown").value = String(config.platform_critical_cooldown ?? "");
+      document.getElementById("risk-max-recovery-actions").value = String(config.max_recovery_actions_per_cycle ?? "");
+      document.getElementById("risk-max-daily-loss").value = String(config.max_daily_loss_usdt ?? "");
+      document.getElementById("risk-max-daily-orders").value = String(config.max_daily_order_count ?? "");
+      document.getElementById("risk-max-daily-open-notional").value = String(config.max_daily_open_notional_usdt ?? "");
+    }
+
+    function renderExecutionIncidents(records) {
+      const tbody = document.querySelector("#execution-table tbody");
+      if (!records.length) {
+        renderEmpty(tbody, "当前还没有执行事故或恢复动作记录。");
+        return;
+      }
+      tbody.innerHTML = records.map((item) => `
+        <tr>
+          <td>${item.recorded_at}</td>
+          <td><span class="pill ${item.severity === "critical" ? "high" : "low"}">${item.level} / ${item.category || "-"}</span></td>
+          <td>${item.phase}</td>
+          <td>${item.symbol}</td>
+          <td>${item.action} | ${item.severity || "-"}</td>
+          <td>${item.incident_count} / ${item.incident_limit}</td>
+          <td><span class="pill ${item.fatal ? "high" : "low"}">${item.fatal}</span></td>
+          <td>${item.detail || "-"}</td>
+        </tr>
+      `).join("");
+    }
+
+    function renderSettlements(records) {
+      const tbody = document.querySelector("#settlement-table tbody");
+      if (!records.length) {
+        renderEmpty(tbody, "当前还没有结算记录，等待 JSON 落盘。");
+        return;
+      }
+      tbody.innerHTML = records.map((item) => `
+        <tr>
+          <td>${item.recorded_at}</td>
+          <td>${item.funding_time}</td>
+          <td>${item.close_executed_at}</td>
+          <td>${item.targets}</td>
+          <td>${item.funding_income}</td>
+          <td>${item.expected_funding_income}</td>
+          <td>${item.funding_income_diff}</td>
+          <td>${item.net_pnl}</td>
+          <td>${item.snapshot_net_pnl}</td>
+          <td>${item.alerts || "-"}</td>
+        </tr>
+      `).join("");
+    }
+
+    function renderMonitors(records) {
+      const tbody = document.querySelector("#monitor-table tbody");
+      if (!records.length) {
+        renderEmpty(tbody, "当前还没有模块三监控摘要记录。");
+        return;
+      }
+      tbody.innerHTML = records.map((item) => `
+        <tr>
+          <td>${item.recorded_at}</td>
+          <td>${item.monitor_stop_at}</td>
+          <td>${item.funding_time}</td>
+          <td>${item.symbol}</td>
+          <td>${item.state}</td>
+          <td><span class="pill ${item.valid}">${item.valid}</span></td>
+          <td>${item.breach_count}</td>
+          <td>${item.estimated_rate}</td>
+          <td>${item.basis_rate}</td>
+          <td>${item.last_net_profit}</td>
+          <td>${item.last_spread}</td>
+          <td>${item.invalid_reason || "-"}</td>
+        </tr>
+      `).join("");
+    }
+
+    function renderBacktests(records) {
+      const tbody = document.querySelector("#backtest-table tbody");
+      if (!records.length) {
+        renderEmpty(tbody, "当前还没有回测记录。");
+        return;
+      }
+      tbody.innerHTML = records.map((item) => `
+        <tr>
+          <td>${item.recorded_at}</td>
+          <td>${item.scenario}</td>
+          <td>${item.symbol}</td>
+          <td>${item.period}</td>
+          <td>${item.trades}</td>
+          <td>${item.win_rate}</td>
+          <td>${item.funding_income}</td>
+          <td>${item.trading_pnl}</td>
+          <td>${item.total_fees}</td>
+          <td>${item.net_pnl}</td>
+          <td>${item.max_drawdown}</td>
+          <td>${item.notes || "-"}</td>
+        </tr>
+      `).join("");
+    }
+
+    function renderOverview(backtests, residualRisks) {
+      const backtestCount = backtests.length;
+      const tradeCount = backtests.reduce((acc, item) => acc + Number(item.trades || 0), 0);
+      const residualCount = residualRisks.length;
+      const denominator = tradeCount + residualCount;
+      const residualRate = denominator > 0 ? (residualCount / denominator) * 100 : 0;
+
+      document.getElementById("overview-backtests").textContent = String(backtestCount);
+      document.getElementById("overview-trades").textContent = String(tradeCount);
+      document.getElementById("overview-residuals").textContent = String(residualCount);
+      document.getElementById("overview-residual-rate").textContent = `${residualRate.toFixed(1)}%`;
+    }
+
+    function renderResidualRisks(records, severityStats) {
+      const tbody = document.querySelector("#residual-table tbody");
+      const countEl = document.getElementById("residual-count");
+      const avgEl = document.getElementById("residual-avg");
+      const worstEl = document.getElementById("residual-worst");
+      const highEl = document.getElementById("residual-high");
+      const mediumEl = document.getElementById("residual-medium");
+      const lowEl = document.getElementById("residual-low");
+
+      const severityMap = Object.fromEntries((severityStats || []).map((item) => [item.severity, item.count]));
+
+      if (!records.length) {
+        countEl.textContent = "0";
+        avgEl.textContent = "0";
+        worstEl.textContent = "0";
+        highEl.textContent = "0";
+        mediumEl.textContent = "0";
+        lowEl.textContent = "0";
+      } else {
+        const sumResidual = records.reduce((acc, item) => acc + Number(item.residual_usdt || 0), 0);
+        const worstPnL = records.reduce((minValue, item) => Math.min(minValue, Number(item.emergency_hedge_pnl_estimate || 0)), 0);
+        countEl.textContent = String(records.length);
+        avgEl.textContent = (sumResidual / records.length).toFixed(2);
+        worstEl.textContent = worstPnL.toFixed(2);
+        highEl.textContent = String(severityMap.high || 0);
+        mediumEl.textContent = String(severityMap.medium || 0);
+        lowEl.textContent = String(severityMap.low || 0);
+      }
+
+      if (!records.length) {
+        renderEmpty(tbody, "当前还没有残腿风险记录。");
+        return;
+      }
+      tbody.innerHTML = records.map((item) => `
+        <tr>
+          <td>${item.recorded_at}</td>
+          <td>${item.scenario}</td>
+          <td>${item.symbol}</td>
+          <td>${item.phase}</td>
+          <td>${item.event_time}</td>
+          <td>${item.monitor_state}</td>
+          <td><span class="pill ${item.futures_leg_ok}">${item.futures_leg_ok}</span></td>
+          <td><span class="pill ${item.spot_leg_ok}">${item.spot_leg_ok}</span></td>
+          <td>${item.futures_fill_ratio}</td>
+          <td>${item.spot_fill_ratio}</td>
+          <td>${item.residual_usdt}</td>
+          <td>${item.emergency_hedge_cost_usdt}</td>
+          <td>${item.emergency_hedge_pnl_estimate}</td>
+          <td><span class="pill ${item.severity || "low"}">${item.severity || "low"}</span></td>
+          <td>${item.reason}</td>
+        </tr>
+      `).join("");
+    }
+
+    function renderScenarioStats(stats) {
+      const tbody = document.querySelector("#scenario-table tbody");
+      if (!stats.length) {
+        renderEmpty(tbody, "当前还没有按场景聚合的残腿风险统计。");
+        return;
+      }
+      tbody.innerHTML = stats.map((item) => `
+        <tr>
+          <td>${item.scenario}</td>
+          <td>${item.count}</td>
+          <td>${item.average_residual_usdt}</td>
+          <td>${item.worst_emergency_hedge_pnl}</td>
+          <td>${item.high_risk_count}</td>
+        </tr>
+      `).join("");
+    }
+
+    async function refreshDashboard() {
+      try {
+        const summary = await loadJSON("/api/dashboard/summary?limit=200");
+        renderRuntimeStatus(summary.runtime_status || {});
+        renderRuntimeLogs(summary.runtime_logs || []);
+        renderRiskConfig(summary.runtime_config || {});
+        renderExecutionIncidents(summary.execution_incidents || []);
+        renderOverview(summary.backtests || [], summary.residual_risks || []);
+        renderSettlements(summary.settlements || []);
+        renderMonitors(summary.monitors || []);
+        renderBacktests(summary.backtests || []);
+        renderResidualRisks(summary.residual_risks || [], summary.residual_severity_stats || []);
+        renderScenarioStats(summary.residual_scenario_stats || []);
+      } catch (err) {
+        console.error(err);
+        alert("加载面板数据失败: " + err.message);
+      }
+    }
+
+    async function postJSON(url, payload) {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Dashboard-Token": getControlToken()
+        },
+        body: JSON.stringify(payload || {})
+      });
+      if (!res.ok) {
+        throw new Error(await res.text());
+      }
+      return res.json();
+    }
+
+    async function saveRiskConfig() {
+      const payload = {
+        per_symbol_quote_usdt: Number(document.getElementById("risk-per-symbol-quote").value || "0"),
+        max_cycle_open_notional_usdt: Number(document.getElementById("risk-max-cycle-open-notional").value || "0"),
+        recent_trade_volume_window: document.getElementById("risk-recent-window").value.trim(),
+        max_recent_volume_share: Number(document.getElementById("risk-max-recent-share").value || "0"),
+        max_open_interest_share: Number(document.getElementById("risk-max-oi-share").value || "0"),
+        max_visible_depth_share: Number(document.getElementById("risk-max-depth-share").value || "0"),
+        min_net_profit_rate: Number(document.getElementById("risk-min-net-profit-rate").value || "0"),
+        immediate_invalidate_rate: Number(document.getElementById("risk-immediate-invalidate-rate").value || "0"),
+        monitor_max_consecutive_breach: Number(document.getElementById("risk-monitor-breach-limit").value || "0"),
+        max_cycle_loss_usdt: Number(document.getElementById("risk-max-cycle-loss").value || "0"),
+        max_execution_incidents: Number(document.getElementById("risk-max-execution-incidents").value || "0"),
+        max_order_uncertainty_per_cycle: Number(document.getElementById("risk-max-order-uncertainty").value || "0"),
+        max_consecutive_platform_rejects: Number(document.getElementById("risk-max-platform-rejects").value || "0"),
+        max_consecutive_request_errors: Number(document.getElementById("risk-max-request-errors").value || "0"),
+        execution_confirm_timeout: document.getElementById("risk-confirm-timeout").value.trim(),
+        symbol_abnormal_cooldown: document.getElementById("risk-symbol-cooldown").value.trim(),
+        platform_minor_cooldown: document.getElementById("risk-platform-minor-cooldown").value.trim(),
+        platform_abnormal_cooldown: document.getElementById("risk-platform-cooldown").value.trim(),
+        platform_critical_cooldown: document.getElementById("risk-platform-critical-cooldown").value.trim(),
+        max_recovery_actions_per_cycle: Number(document.getElementById("risk-max-recovery-actions").value || "0"),
+        max_daily_loss_usdt: Number(document.getElementById("risk-max-daily-loss").value || "0"),
+        max_daily_order_count: Number(document.getElementById("risk-max-daily-orders").value || "0"),
+        max_daily_open_notional_usdt: Number(document.getElementById("risk-max-daily-open-notional").value || "0")
+      };
+      try {
+        const result = await postJSON("/api/runtime/config", payload);
+        renderRiskConfig(result.config);
+        document.getElementById("risk-config-message").textContent = result.message || "风控参数已更新";
+        await refreshDashboard();
+      } catch (err) {
+        document.getElementById("risk-config-message").textContent = "保存失败: " + err.message;
+        alert("保存风控参数失败: " + err.message);
+      }
+    }
+
+    async function startTask() {
+      const mode = document.getElementById("mode-select").value;
+      const secretPath = document.getElementById("secret-path").value.trim() || "secret.yaml";
+      const lookbackDays = Number(document.getElementById("lookback-days").value || "30");
+      try {
+        await postJSON("/api/runtime/start", {
+          mode,
+          secret_path: secretPath,
+          lookback_days: lookbackDays
+        });
+        await refreshDashboard();
+      } catch (err) {
+        alert("启动任务失败: " + err.message);
+      }
+    }
+
+    async function stopTask() {
+      try {
+        await postJSON("/api/runtime/stop", {});
+        await refreshDashboard();
+      } catch (err) {
+        alert("停止任务失败: " + err.message);
+      }
+    }
+
+    async function clearRuntimeLogs() {
+      if (!confirm("确认清空近 12 小时的后台运行日志吗？清空后不可恢复。")) {
+        return;
+      }
+      try {
+        const result = await postJSON("/api/runtime/clear-logs", {});
+        await refreshDashboard();
+        alert(result.message || "后台运行日志已清空");
+      } catch (err) {
+        alert("清空运行日志失败: " + err.message);
+      }
+    }
+
+    async function clearDashboardData() {
+      if (!confirm("确认清空页面表格对应的 JSON 数据吗？清空后会保留空数组文件，后续新记录仍可继续写入。")) {
+        return;
+      }
+      try {
+        const result = await postJSON("/api/runtime/clear-data", {});
+        await refreshDashboard();
+        alert(result.message || "页面 JSON 数据已清空");
+      } catch (err) {
+        alert("清空表格数据失败: " + err.message);
+      }
+    }
+
+    async function clearHistoricalCache() {
+      if (!confirm("确认清空历史缓存吗？下次历史模拟会重新拉取 funding 和 K 线原始数据。")) {
+        return;
+      }
+      try {
+        const result = await postJSON("/api/runtime/clear-cache", {});
+        await refreshDashboard();
+        alert(result.message || "历史缓存已清空");
+      } catch (err) {
+        alert("清空历史缓存失败: " + err.message);
+      }
+    }
+
+    document.getElementById("refresh-btn").addEventListener("click", refreshDashboard);
+    document.getElementById("start-btn").addEventListener("click", startTask);
+    document.getElementById("stop-btn").addEventListener("click", stopTask);
+    document.getElementById("save-risk-config-btn").addEventListener("click", saveRiskConfig);
+    document.getElementById("clear-runtime-logs-btn").addEventListener("click", clearRuntimeLogs);
+    document.getElementById("clear-historical-cache-btn").addEventListener("click", clearHistoricalCache);
+    document.getElementById("clear-dashboard-data-btn").addEventListener("click", clearDashboardData);
+    document.getElementById("dashboard-token").addEventListener("change", getControlToken);
+    restoreControlToken();
+    refreshDashboard();
+    setInterval(refreshDashboard, 5000);
+  </script>
+</body>
+</html>

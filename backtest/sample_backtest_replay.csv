@@ -1,0 +1,9 @@
+scenario,symbol,period,timestamp,funding_rate,basis_rate,entry_spread_rate,exit_spread_rate,fee_rate,notional_usdt,drawdown_rate,liquidity_ok,notes
+FundingReplayHistory,BTCUSDT,2026-05-20 00:00~08:00,2026-05-20T07:57:00Z,0.0032,0.0004,0.0003,0.0002,0.0008,1200,-0.0020,true,费率高且基差稳定
+FundingReplayHistory,BTCUSDT,2026-05-20 00:00~08:00,2026-05-20T07:58:00Z,0.0028,0.0006,0.0005,0.0004,0.0008,1200,-0.0031,true,盘口摩擦略升高
+FundingReplayHistory,BTCUSDT,2026-05-20 00:00~08:00,2026-05-20T07:59:00Z,0.0016,0.0015,0.0008,0.0007,0.0008,1200,-0.0046,true,基差过宽被过滤
+FundingReplayHistory,ETHUSDT,2026-05-20 00:00~08:00,2026-05-20T07:57:00Z,0.0029,0.0005,0.0004,0.0003,0.0008,900,-0.0024,true,费率兑现窗口较好
+FundingReplayHistory,ETHUSDT,2026-05-20 00:00~08:00,2026-05-20T07:58:00Z,0.0022,0.0010,0.0006,0.0005,0.0008,900,-0.0035,true,边界状态
+FundingReplayHistory,ETHUSDT,2026-05-20 00:00~08:00,2026-05-20T07:59:00Z,0.0025,0.0007,0.0006,0.0005,0.0008,900,-0.0040,false,深度不足放弃交易
+FundingReplayHistory,SOLUSDT,2026-05-20 00:00~08:00,2026-05-20T07:57:00Z,0.0038,0.0012,0.0007,0.0007,0.0010,700,-0.0080,true,高收益但波动更大
+FundingReplayHistory,SOLUSDT,2026-05-20 00:00~08:00,2026-05-20T07:58:00Z,0.0024,0.0016,0.0008,0.0009,0.0010,700,-0.0100,true,摩擦过高应被过滤
