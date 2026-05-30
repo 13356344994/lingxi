@@ -156,6 +156,8 @@ type HistoricalConfig struct {
 	CandidateFinalizeTimeout               time.Duration
 	ScreeningConcurrency                   int
 	DeepCandidateLimit                     int
+	CoarseSymbolLimit                      int
+	FundingGroupTopSymbolsPerTime          int
 	LiquidityShareMin                      float64
 	LiquidityShareFloor                    float64
 	LiquidityShareMax                      float64
@@ -273,38 +275,40 @@ func DefaultEngineConfig() EngineConfig {
 			PerLegNotionalUSDT:                     10.0,
 			FundingDirectionMode:                   "both",
 			MaxFundingCyclesHeld:                   1,
-			BatchExperimentEnabled:                 true,
+			BatchExperimentEnabled:                 false,
 			BatchSpotTakerFeeRates:                 "0.0010,0.0000",
 			BatchPerLegNotionalUSDT:                "5,10,20",
-			BatchMaxFundingCyclesHeld:              "1,2",
+			BatchMaxFundingCyclesHeld:              "1",
 			MaxPerLegEquityShare:                   0.50,
 			SpotTakerFeeRate:                       0.0010,
 			FuturesTakerFeeRate:                    0.0005,
-			AssumedHourlyBorrowInterestRate:        0.0010,
+			AssumedHourlyBorrowInterestRate:        0.00005,
 			BorrowInterestMinBillingHours:          1,
-			NegativeCarrySpotEntryImpactMultiplier: 2.5,
-			NegativeCarrySpotExitImpactMultiplier:  2.5,
-			CrossStableQuoteMaxDeviationRate:       0.0010,
+			NegativeCarrySpotEntryImpactMultiplier: 1.5,
+			NegativeCarrySpotExitImpactMultiplier:  1.5,
+			CrossStableQuoteMaxDeviationRate:       0.0050,
 			FundingPhaseLead:                       30 * time.Second,
-			FundingFetchConcurrency:                20,
-			FundingRetryMax:                        6,
+			FundingFetchConcurrency:                8,
+			FundingRetryMax:                        2,
 			CacheDir:                               "records/historical_cache",
 			ReferenceKlineLookback:                 60,
 			EstimateKlineLookback:                  180,
-			SafetyBufferFloorUSDT:                  0.02,
-			SafetyBufferCostMultiplier:             0.50,
+			SafetyBufferFloorUSDT:                  0.001,
+			SafetyBufferCostMultiplier:             0.35,
 			MaxDrawdownRate:                        0.25,
 			MaxConsecutiveLosses:                   2,
 			MaxFundingRate:                         0.0300,
 			MaxFundingRateJump:                     0.0150,
 			MaxSingleTradeLossUSDT:                 1.5,
 			FundingFetchSlot:                       0,
-			FundingFetchTimeout:                    35 * time.Second,
+			FundingFetchTimeout:                    60 * time.Second,
 			GroupEvaluationTimeout:                 45 * time.Second,
 			CandidateBuildTimeout:                  12 * time.Second,
 			CandidateFinalizeTimeout:               15 * time.Second,
 			ScreeningConcurrency:                   10,
 			DeepCandidateLimit:                     24,
+			CoarseSymbolLimit:                      96,
+			FundingGroupTopSymbolsPerTime:          48,
 			LiquidityShareMin:                      0.01,
 			LiquidityShareFloor:                    0.08,
 			LiquidityShareMax:                      0.25,
@@ -449,6 +453,8 @@ func (cfg EngineConfig) Validate() error {
 	appendIssue(cfg.HistoricalConfig.CandidateFinalizeTimeout > 0, "Historical CandidateFinalizeTimeout 必须大于 0")
 	appendIssue(cfg.HistoricalConfig.ScreeningConcurrency > 0, "Historical ScreeningConcurrency 必须大于 0")
 	appendIssue(cfg.HistoricalConfig.DeepCandidateLimit > 0, "Historical DeepCandidateLimit 必须大于 0")
+	appendIssue(cfg.HistoricalConfig.CoarseSymbolLimit > 0, "Historical CoarseSymbolLimit 必须大于 0")
+	appendIssue(cfg.HistoricalConfig.FundingGroupTopSymbolsPerTime > 0, "Historical FundingGroupTopSymbolsPerTime 必须大于 0")
 	appendIssue(cfg.HistoricalConfig.LiquidityShareMin > 0 && cfg.HistoricalConfig.LiquidityShareMin <= 1, "Historical LiquidityShareMin 必须在 (0, 1] 之间")
 	appendIssue(cfg.HistoricalConfig.LiquidityShareFloor > 0 && cfg.HistoricalConfig.LiquidityShareFloor <= 1, "Historical LiquidityShareFloor 必须在 (0, 1] 之间")
 	appendIssue(cfg.HistoricalConfig.LiquidityShareMax > 0 && cfg.HistoricalConfig.LiquidityShareMax <= 1, "Historical LiquidityShareMax 必须在 (0, 1] 之间")

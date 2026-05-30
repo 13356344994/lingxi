@@ -14,6 +14,11 @@ import (
 const runtimeCapitalAdjustTimeout = 30 * time.Second
 
 const (
+	runtimeCapitalSnapshotCacheTTL = 15 * time.Second
+	runtimeCapitalSnapshotStaleTTL = 60 * time.Second
+)
+
+const (
 	capitalAccountSpot    = "spot"
 	capitalAccountFutures = "um_futures"
 	capitalAccountMargin  = "cross_margin"
@@ -139,7 +144,7 @@ func directOrHubTransferPlan(from string, to string) []string {
 }
 
 func (e *FundingRateSniperEngine) fetchFundingAccountFreeBalances(ctx context.Context) (map[string]float64, error) {
-	body, err := e.signedRequest(ctx, http.MethodGet, e.client.spotBaseURL+"/sapi/v1/asset/get-funding-asset", nil)
+	body, err := e.signedRequest(ctx, http.MethodPost, e.client.spotBaseURL+"/sapi/v1/asset/get-funding-asset", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -459,11 +464,18 @@ func (c *RuntimeController) CurrentCapitalSnapshot() (RuntimeCapitalSnapshot, er
 	c.mu.Lock()
 	secretPath := strings.TrimSpace(c.status.SecretPath)
 	cfg := c.cfg
+	cachedSnapshot := c.cachedCapitalSnapshot
+	cachedAt := c.cachedCapitalSnapshotAt
+	cachedSecretKey := c.cachedCapitalSnapshotSecretKey
 	c.mu.Unlock()
 	if secretPath == "" {
 		snapshot := RuntimeCapitalSnapshot{}
 		applyConfiguredCapitalTargets(&snapshot, cfg)
 		return snapshot, nil
+	}
+	cacheKey := secretPath + "|" + fmt.Sprintf("%.2f", configuredTradingCapitalUSDT(cfg))
+	if cachedSecretKey == cacheKey && !cachedAt.IsZero() && time.Since(cachedAt) <= runtimeCapitalSnapshotCacheTTL {
+		return cachedSnapshot, nil
 	}
 	ctx, cancel := context.WithTimeout(c.rootCtx, 10*time.Second)
 	defer cancel()
@@ -473,8 +485,19 @@ func (c *RuntimeController) CurrentCapitalSnapshot() (RuntimeCapitalSnapshot, er
 	}
 	snapshot, err := engine.captureRuntimeCapitalSnapshot(ctx)
 	if err != nil {
+		if cachedSecretKey == cacheKey && !cachedAt.IsZero() && time.Since(cachedAt) <= runtimeCapitalSnapshotStaleTTL {
+			if c.logger != nil {
+				c.logger.Printf("读取账户资金快照失败，回退到 %.1fs 内缓存: %v", time.Since(cachedAt).Seconds(), err)
+			}
+			return cachedSnapshot, nil
+		}
 		return RuntimeCapitalSnapshot{}, err
 	}
 	applyConfiguredCapitalTargets(&snapshot, cfg)
+	c.mu.Lock()
+	c.cachedCapitalSnapshot = snapshot
+	c.cachedCapitalSnapshotAt = time.Now()
+	c.cachedCapitalSnapshotSecretKey = cacheKey
+	c.mu.Unlock()
 	return snapshot, nil
 }

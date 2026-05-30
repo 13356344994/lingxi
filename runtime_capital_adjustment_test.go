@@ -2,12 +2,14 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"testing"
+	"time"
 )
 
 func TestAdjustTradingCapitalUSDTSweepsExcessToFunding(t *testing.T) {
@@ -25,6 +27,9 @@ func TestAdjustTradingCapitalUSDTSweepsExcessToFunding(t *testing.T) {
 		case "/sapi/v1/margin/account":
 			_, _ = w.Write([]byte(`{"created":true,"borrowEnabled":true,"tradeEnabled":true,"transferInEnabled":true,"transferOutEnabled":true,"accountType":"MARGIN_1","TotalCollateralValueInUSDT":"0","totalNetAssetOfBtc":"0","totalLiabilityOfBtc":"0","userAssets":[{"asset":"USDT","borrowed":"0","free":"` + formatFloat(margin) + `","interest":"0","locked":"0","netAsset":"` + formatFloat(margin) + `"}]}`))
 		case "/sapi/v1/asset/get-funding-asset":
+			if r.Method != http.MethodPost {
+				t.Fatalf("unexpected funding asset method: %s", r.Method)
+			}
 			_, _ = w.Write([]byte(`[{"asset":"USDT","free":"` + formatFloat(funding) + `","locked":"0","freeze":"0","withdrawing":"0"}]`))
 		case "/sapi/v1/asset/transfer":
 			values, _ := url.ParseQuery(r.URL.RawQuery)
@@ -98,6 +103,9 @@ func TestAdjustTradingCapitalUSDTUsesFundingToTopUpTradingBuckets(t *testing.T) 
 		case "/sapi/v1/margin/account":
 			_, _ = w.Write([]byte(`{"created":true,"borrowEnabled":true,"tradeEnabled":true,"transferInEnabled":true,"transferOutEnabled":true,"accountType":"MARGIN_1","TotalCollateralValueInUSDT":"0","totalNetAssetOfBtc":"0","totalLiabilityOfBtc":"0","userAssets":[{"asset":"USDT","borrowed":"0","free":"` + formatFloat(margin) + `","interest":"0","locked":"0","netAsset":"` + formatFloat(margin) + `"}]}`))
 		case "/sapi/v1/asset/get-funding-asset":
+			if r.Method != http.MethodPost {
+				t.Fatalf("unexpected funding asset method: %s", r.Method)
+			}
 			_, _ = w.Write([]byte(`[{"asset":"USDT","free":"` + formatFloat(funding) + `","locked":"0","freeze":"0","withdrawing":"0"}]`))
 		case "/sapi/v1/asset/transfer":
 			values, _ := url.ParseQuery(r.URL.RawQuery)
@@ -168,6 +176,9 @@ func TestAdjustTradingCapitalUSDTRejectsInsufficientLiveBalance(t *testing.T) {
 		case "/sapi/v1/margin/account":
 			_, _ = w.Write([]byte(`{"created":true,"borrowEnabled":true,"tradeEnabled":true,"transferInEnabled":true,"transferOutEnabled":true,"accountType":"MARGIN_1","TotalCollateralValueInUSDT":"0","totalNetAssetOfBtc":"0","totalLiabilityOfBtc":"0","userAssets":[{"asset":"USDT","borrowed":"0","free":"` + formatFloat(margin) + `","interest":"0","locked":"0","netAsset":"` + formatFloat(margin) + `"}]}`))
 		case "/sapi/v1/asset/get-funding-asset":
+			if r.Method != http.MethodPost {
+				t.Fatalf("unexpected funding asset method: %s", r.Method)
+			}
 			_, _ = w.Write([]byte(`[{"asset":"USDT","free":"` + formatFloat(funding) + `","locked":"0","freeze":"0","withdrawing":"0"}]`))
 		default:
 			t.Fatalf("unexpected path: %s", r.URL.Path)
@@ -242,6 +253,31 @@ func TestCurrentCapitalSnapshotWithoutSecretPathStillReturnsConfiguredTargets(t 
 	}
 	if got := snapshot.DesiredFundingUSDT; got != 0 {
 		t.Fatalf("expected desired funding 0, got %.2f", got)
+	}
+}
+
+func TestCurrentCapitalSnapshotUsesRecentCache(t *testing.T) {
+	controller := &RuntimeController{
+		cfg:     DefaultEngineConfig(),
+		rootCtx: context.Background(),
+		logger:  log.New(io.Discard, "", 0),
+	}
+	controller.status.SecretPath = "/tmp/invalid-secret.yaml"
+	cached := RuntimeCapitalSnapshot{
+		SpotFreeUSDT:         12,
+		FuturesAvailableUSDT: 34,
+		TotalMovableUSDT:     46,
+	}
+	controller.cachedCapitalSnapshot = cached
+	controller.cachedCapitalSnapshotAt = time.Now()
+	controller.cachedCapitalSnapshotSecretKey = controller.status.SecretPath + "|" + fmt.Sprintf("%.2f", configuredTradingCapitalUSDT(controller.cfg))
+
+	snapshot, err := controller.CurrentCapitalSnapshot()
+	if err != nil {
+		t.Fatalf("CurrentCapitalSnapshot() error = %v", err)
+	}
+	if snapshot != cached {
+		t.Fatalf("expected cached capital snapshot, got %+v", snapshot)
 	}
 }
 

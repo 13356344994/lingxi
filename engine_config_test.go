@@ -27,13 +27,40 @@ func TestDefaultEngineConfigSectionsExposePromotedFields(t *testing.T) {
 	if cfg.HistoricalConfig.ReferenceKlineLookback != 60 || cfg.HistoricalConfig.CacheDir == "" {
 		t.Fatalf("historical defaults not initialized: %+v", cfg.HistoricalConfig)
 	}
-	if !cfg.HistoricalConfig.BatchExperimentEnabled {
-		t.Fatal("expected historical batch experiment enabled by default")
+	if cfg.HistoricalConfig.BatchExperimentEnabled {
+		t.Fatal("expected historical batch experiment disabled by default")
 	}
-	if cfg.HistoricalConfig.CrossStableQuoteMaxDeviationRate != 0.0010 {
+	if cfg.HistoricalConfig.NegativeCarrySpotEntryImpactMultiplier != 1.5 || cfg.HistoricalConfig.NegativeCarrySpotExitImpactMultiplier != 1.5 {
+		t.Fatalf("unexpected negative carry impact defaults: entry=%.2f exit=%.2f", cfg.HistoricalConfig.NegativeCarrySpotEntryImpactMultiplier, cfg.HistoricalConfig.NegativeCarrySpotExitImpactMultiplier)
+	}
+	if cfg.HistoricalConfig.CrossStableQuoteMaxDeviationRate != 0.0050 {
 		t.Fatalf("unexpected historical cross stable deviation default: %.4f", cfg.HistoricalConfig.CrossStableQuoteMaxDeviationRate)
 	}
-	if cfg.HistoricalConfig.BatchSpotTakerFeeRates != "0.0010,0.0000" || cfg.HistoricalConfig.BatchPerLegNotionalUSDT != "5,10,20" || cfg.HistoricalConfig.BatchMaxFundingCyclesHeld != "1,2" {
+	if cfg.HistoricalConfig.SafetyBufferFloorUSDT != 0.001 {
+		t.Fatalf("unexpected historical safety buffer floor default: %.4f", cfg.HistoricalConfig.SafetyBufferFloorUSDT)
+	}
+	if cfg.HistoricalConfig.SafetyBufferCostMultiplier != 0.35 {
+		t.Fatalf("unexpected historical safety buffer multiplier default: %.2f", cfg.HistoricalConfig.SafetyBufferCostMultiplier)
+	}
+	if cfg.HistoricalConfig.AssumedHourlyBorrowInterestRate != 0.00005 {
+		t.Fatalf("unexpected historical hourly borrow rate default: %.5f", cfg.HistoricalConfig.AssumedHourlyBorrowInterestRate)
+	}
+	if cfg.HistoricalConfig.FundingFetchConcurrency != 8 {
+		t.Fatalf("unexpected historical funding fetch concurrency default: %d", cfg.HistoricalConfig.FundingFetchConcurrency)
+	}
+	if cfg.HistoricalConfig.FundingRetryMax != 2 {
+		t.Fatalf("unexpected historical funding retry max default: %d", cfg.HistoricalConfig.FundingRetryMax)
+	}
+	if cfg.HistoricalConfig.FundingFetchTimeout != 60*time.Second {
+		t.Fatalf("unexpected historical funding fetch timeout default: %s", cfg.HistoricalConfig.FundingFetchTimeout)
+	}
+	if cfg.HistoricalConfig.CoarseSymbolLimit != 96 {
+		t.Fatalf("unexpected historical coarse symbol limit default: %d", cfg.HistoricalConfig.CoarseSymbolLimit)
+	}
+	if cfg.HistoricalConfig.FundingGroupTopSymbolsPerTime != 48 {
+		t.Fatalf("unexpected historical group top symbols default: %d", cfg.HistoricalConfig.FundingGroupTopSymbolsPerTime)
+	}
+	if cfg.HistoricalConfig.BatchSpotTakerFeeRates != "0.0010,0.0000" || cfg.HistoricalConfig.BatchPerLegNotionalUSDT != "5,10,20" || cfg.HistoricalConfig.BatchMaxFundingCyclesHeld != "1" {
 		t.Fatalf("unexpected historical batch defaults: %+v", cfg.HistoricalConfig)
 	}
 }
@@ -88,8 +115,26 @@ func TestBacktestRunnerHistoricalConfigUsesGroupedFallbacks(t *testing.T) {
 	if got.ReferenceKlineLookback != 60 || got.EstimateKlineLookback != 180 {
 		t.Fatalf("unexpected lookback fallbacks: ref=%d estimate=%d", got.ReferenceKlineLookback, got.EstimateKlineLookback)
 	}
-	if got.CrossStableQuoteMaxDeviationRate != 0.0010 {
+	if got.NegativeCarrySpotEntryImpactMultiplier != 1.5 || got.NegativeCarrySpotExitImpactMultiplier != 1.5 {
+		t.Fatalf("unexpected negative carry multiplier fallbacks: entry=%.2f exit=%.2f", got.NegativeCarrySpotEntryImpactMultiplier, got.NegativeCarrySpotExitImpactMultiplier)
+	}
+	if got.CrossStableQuoteMaxDeviationRate != 0.0050 {
 		t.Fatalf("unexpected cross stable deviation fallback: %.4f", got.CrossStableQuoteMaxDeviationRate)
+	}
+	if got.SafetyBufferFloorUSDT != 0.001 {
+		t.Fatalf("unexpected safety buffer floor fallback: %.4f", got.SafetyBufferFloorUSDT)
+	}
+	if got.SafetyBufferCostMultiplier != 0.35 {
+		t.Fatalf("unexpected safety buffer multiplier fallback: %.2f", got.SafetyBufferCostMultiplier)
+	}
+	if got.AssumedHourlyBorrowInterestRate != 0.00005 {
+		t.Fatalf("unexpected hourly borrow rate fallback: %.5f", got.AssumedHourlyBorrowInterestRate)
+	}
+	if got.CoarseSymbolLimit != 96 {
+		t.Fatalf("unexpected coarse symbol limit fallback: %d", got.CoarseSymbolLimit)
+	}
+	if got.FundingGroupTopSymbolsPerTime != 48 {
+		t.Fatalf("unexpected funding group top symbols fallback: %d", got.FundingGroupTopSymbolsPerTime)
 	}
 }
 

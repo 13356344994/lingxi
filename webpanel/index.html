@@ -645,7 +645,7 @@
     </div>
 
     <div class="panel">
-      <h2>模块五结算记录</h2>
+      <h2>结算记录</h2>
       <div class="hint">最近 200 条结算记录，优先用于运行记录和后续导出的 JSON 对照。</div>
       <div class="table-wrap">
         <table id="settlement-table">
@@ -669,7 +669,7 @@
     </div>
 
     <div class="panel">
-      <h2>模块三监控摘要</h2>
+      <h2>监控摘要</h2>
       <div class="hint">最近 200 条目标监控结果，可直接看到 watching / observing / healthy / invalidated 状态。</div>
       <div class="table-wrap">
         <table id="monitor-table">
@@ -938,15 +938,6 @@
       document.getElementById("runtime-daily-loss").textContent = `${Number(status.daily_realized_pnl || 0).toFixed(2)} / ${Number(status.remaining_daily_loss_budget_usdt || 0) < 0 ? "不限" : Number(status.remaining_daily_loss_budget_usdt || 0).toFixed(2)}`;
       document.getElementById("runtime-daily-orders").textContent = `${Number(status.daily_order_count || 0)} / ${formatBudgetValue(status.remaining_daily_order_budget)}`;
       document.getElementById("runtime-daily-notional").textContent = `${Number(status.daily_open_notional_usdt || 0).toFixed(2)} / ${Number(status.remaining_daily_notional_budget_usdt || 0) < 0 ? "不限" : Number(status.remaining_daily_notional_budget_usdt || 0).toFixed(2)}`;
-      if (status.secret_path) {
-        document.getElementById("secret-path").value = status.secret_path;
-      }
-      if (Number(status.lookback_days || 0) > 0) {
-        document.getElementById("lookback-days").value = String(status.lookback_days);
-      }
-      if (status.mode) {
-        document.getElementById("mode-select").value = status.mode;
-      }
       renderRuntimeExecutionEvents(status.recent_execution_events || []);
     }
 
@@ -1137,7 +1128,7 @@
     function renderMonitors(records) {
       const tbody = document.querySelector("#monitor-table tbody");
       if (!records.length) {
-        renderEmpty(tbody, "当前还没有模块三监控摘要记录。");
+        renderEmpty(tbody, "当前还没有监控摘要记录。");
         return;
       }
       tbody.innerHTML = records.map((item) => `

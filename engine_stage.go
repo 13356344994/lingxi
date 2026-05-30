@@ -12,6 +12,9 @@ const (
 	StageReady              EngineStage = "ready"
 	StageScan               EngineStage = "scan"
 	StageScanEmpty          EngineStage = "scan_empty"
+	StageCoarseScreen       EngineStage = "coarse_screen"
+	StageFetchFunding       EngineStage = "fetch_funding"
+	StageEvaluateGroups     EngineStage = "evaluate_groups"
 	StageMonitor            EngineStage = "monitor"
 	StageMonitorInvalidated EngineStage = "monitor_invalidated"
 	StageOpen               EngineStage = "open"
@@ -33,19 +36,36 @@ type EngineStageTransition struct {
 
 var allowedEngineStageTransitions = map[EngineStage]map[EngineStage]struct{}{
 	StageReady: {
-		StageScan:     {},
-		StageCooldown: {},
+		StageScan:         {},
+		StageCoarseScreen: {},
+		StageCooldown:     {},
 	},
 	StageScan: {
 		StageScanEmpty: {},
 		StageMonitor:   {},
 		StageCooldown:  {},
 	},
-	StageScanEmpty: {
-		StageReady:     {},
-		StageScan:      {},
-		StageCooldown:  {},
+	StageCoarseScreen: {
+		StageFetchFunding:   {},
+		StageEvaluateGroups: {},
+		StageCompleted:      {},
+		StageCooldown:       {},
+	},
+	StageFetchFunding: {
+		StageEvaluateGroups: {},
+		StageCompleted:      {},
+		StageCooldown:       {},
+	},
+	StageEvaluateGroups: {
 		StageCompleted: {},
+		StageCooldown:  {},
+	},
+	StageScanEmpty: {
+		StageReady:        {},
+		StageScan:         {},
+		StageCoarseScreen: {},
+		StageCooldown:     {},
+		StageCompleted:    {},
 	},
 	StageMonitor: {
 		StageMonitorInvalidated: {},
@@ -80,12 +100,14 @@ var allowedEngineStageTransitions = map[EngineStage]map[EngineStage]struct{}{
 		StageCooldown:  {},
 	},
 	StageCooldown: {
-		StageReady: {},
-		StageScan:  {},
+		StageReady:        {},
+		StageScan:         {},
+		StageCoarseScreen: {},
 	},
 	StageCompleted: {
-		StageReady: {},
-		StageScan:  {},
+		StageReady:        {},
+		StageScan:         {},
+		StageCoarseScreen: {},
 	},
 }
 

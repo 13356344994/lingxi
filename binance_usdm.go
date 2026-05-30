@@ -2,10 +2,14 @@ package main
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"sort"
 	"strconv"
 	"strings"
@@ -27,6 +31,8 @@ type BinanceClient struct {
 	secretKey                        string
 	proxyURL                         string
 	httpClient                       *http.Client
+	futuresCommissionMu              sync.Mutex
+	futuresCommissionRateCache       map[string]futuresCommissionRate
 	historicalFundingRetryMax        int
 	historicalPayloadCache           *historicalPayloadCache
 	historicalReferenceKlineLookback int
@@ -68,6 +74,32 @@ type historicalRequestStats struct {
 	Cooldown403    int
 	Cooldown418    int
 	APIKeyAttached int
+}
+
+type accountTradingCostProfile struct {
+	SpotTakerFeeRate            float64
+	FuturesTakerFeeRate         float64
+	BorrowHourlyRateByAsset     map[string]float64
+	SpotFeeSymbol               string
+	FuturesFeeSymbol            string
+	BorrowInterestResolvedCount int
+}
+
+type spotTradeFee struct {
+	Symbol          string `json:"symbol"`
+	MakerCommission string `json:"makerCommission"`
+	TakerCommission string `json:"takerCommission"`
+}
+
+type futuresCommissionRate struct {
+	Symbol              string `json:"symbol"`
+	MakerCommissionRate string `json:"makerCommissionRate"`
+	TakerCommissionRate string `json:"takerCommissionRate"`
+}
+
+type marginNextHourlyInterestRate struct {
+	Asset                  string `json:"asset"`
+	NextHourlyInterestRate string `json:"nextHourlyInterestRate"`
 }
 
 const (
@@ -144,8 +176,9 @@ func NewBinanceClient(timeout time.Duration) *BinanceClient {
 		httpTimeout = 10 * time.Second
 	}
 	client = &BinanceClient{
-		spotBaseURL:    binanceSpotBaseURL,
-		futuresBaseURL: binanceFuturesBaseURL,
+		spotBaseURL:                binanceSpotBaseURL,
+		futuresBaseURL:             binanceFuturesBaseURL,
+		futuresCommissionRateCache: make(map[string]futuresCommissionRate),
 		httpClient: &http.Client{
 			Timeout: httpTimeout,
 		},
@@ -160,9 +193,10 @@ func NewBinanceClientWithNetworkConfig(networkCfg NetworkConfig) (*BinanceClient
 		return nil, err
 	}
 	client := &BinanceClient{
-		spotBaseURL:    binanceSpotBaseURL,
-		futuresBaseURL: binanceFuturesBaseURL,
-		httpClient:     httpClient,
+		spotBaseURL:                binanceSpotBaseURL,
+		futuresBaseURL:             binanceFuturesBaseURL,
+		httpClient:                 httpClient,
+		futuresCommissionRateCache: make(map[string]futuresCommissionRate),
 	}
 	client.applyNetworkConfig(networkCfg)
 	return client, nil
@@ -176,12 +210,13 @@ func NewAuthenticatedBinanceClient(secret SecretConfig, networkCfg NetworkConfig
 	}
 
 	client := &BinanceClient{
-		spotBaseURL:    binanceSpotBaseURL,
-		futuresBaseURL: binanceFuturesBaseURL,
-		apiKey:         secret.APIKey,
-		secretKey:      secret.Secret,
-		proxyURL:       secret.ProxyURL,
-		httpClient:     httpClient,
+		spotBaseURL:                binanceSpotBaseURL,
+		futuresBaseURL:             binanceFuturesBaseURL,
+		apiKey:                     secret.APIKey,
+		secretKey:                  secret.Secret,
+		proxyURL:                   secret.ProxyURL,
+		httpClient:                 httpClient,
+		futuresCommissionRateCache: make(map[string]futuresCommissionRate),
 	}
 	client.applyNetworkConfig(networkCfg)
 	return client, nil
@@ -288,6 +323,203 @@ func (c *BinanceClient) fetchFuturesExchangeInfo(ctx context.Context) ([]Futures
 	}
 
 	return payload.Symbols, nil
+}
+
+func (c *BinanceClient) fetchPremiumIndex(ctx context.Context) ([]PremiumIndexItem, error) {
+	var payload []PremiumIndexItem
+	if err := c.getJSON(ctx, c.futuresBaseURL+"/fapi/v1/premiumIndex", &payload); err != nil {
+		return nil, fmt.Errorf("获取 premiumIndex 失败: %w", err)
+	}
+	return payload, nil
+}
+
+func (c *BinanceClient) signedGetJSON(ctx context.Context, endpoint string, params url.Values, target any) error {
+	if c == nil {
+		return fmt.Errorf("binance client 为空")
+	}
+	if strings.TrimSpace(c.apiKey) == "" || strings.TrimSpace(c.secretKey) == "" {
+		return fmt.Errorf("缺少 API Key/Secret，无法查询账户真实费率")
+	}
+	if params == nil {
+		params = url.Values{}
+	}
+	cloned := url.Values{}
+	for key, values := range params {
+		copied := append([]string(nil), values...)
+		cloned[key] = copied
+	}
+	cloned.Set("recvWindow", strconv.FormatInt(DefaultEngineConfig().ExecutionConfig.RecvWindow, 10))
+	cloned.Set("timestamp", strconv.FormatInt(time.Now().UnixMilli(), 10))
+	query := cloned.Encode()
+	mac := hmac.New(sha256.New, []byte(c.secretKey))
+	_, _ = mac.Write([]byte(query))
+	query += "&signature=" + hex.EncodeToString(mac.Sum(nil))
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint+"?"+query, nil)
+	if err != nil {
+		return fmt.Errorf("创建签名请求失败: %w", err)
+	}
+	req.Header.Set("X-MBX-APIKEY", c.apiKey)
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("签名请求失败: %w", err)
+	}
+	defer resp.Body.Close()
+	c.noteUsedWeightFromHeaders(resp.Header)
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("读取签名响应失败: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("签名请求状态异常: %d %s body=%s", resp.StatusCode, resp.Status, strings.TrimSpace(string(body)))
+	}
+	if err := json.Unmarshal(body, target); err != nil {
+		return fmt.Errorf("解析签名 JSON 失败: %w", err)
+	}
+	return nil
+}
+
+func (c *BinanceClient) fetchSpotTradeFees(ctx context.Context) ([]spotTradeFee, error) {
+	var payload []spotTradeFee
+	if err := c.signedGetJSON(ctx, c.spotBaseURL+"/sapi/v1/asset/tradeFee", nil, &payload); err != nil {
+		return nil, err
+	}
+	return payload, nil
+}
+
+func (c *BinanceClient) fetchFuturesCommissionRate(ctx context.Context, symbol string) (futuresCommissionRate, error) {
+	normalizedSymbol := strings.ToUpper(strings.TrimSpace(symbol))
+	if normalizedSymbol == "" {
+		return futuresCommissionRate{}, fmt.Errorf("symbol 为空")
+	}
+	c.futuresCommissionMu.Lock()
+	if c.futuresCommissionRateCache == nil {
+		c.futuresCommissionRateCache = make(map[string]futuresCommissionRate)
+	}
+	if cached, ok := c.futuresCommissionRateCache[normalizedSymbol]; ok {
+		c.futuresCommissionMu.Unlock()
+		return cached, nil
+	}
+	c.futuresCommissionMu.Unlock()
+
+	var payload futuresCommissionRate
+	params := url.Values{}
+	params.Set("symbol", normalizedSymbol)
+	if err := c.signedGetJSON(ctx, c.futuresBaseURL+"/fapi/v1/commissionRate", params, &payload); err != nil {
+		return futuresCommissionRate{}, err
+	}
+	payload.Symbol = strings.ToUpper(strings.TrimSpace(payload.Symbol))
+	c.futuresCommissionMu.Lock()
+	c.futuresCommissionRateCache[normalizedSymbol] = payload
+	c.futuresCommissionMu.Unlock()
+	return payload, nil
+}
+
+func (c *BinanceClient) fetchNextHourlyMarginInterestRates(ctx context.Context, assets []string) (map[string]float64, error) {
+	result := make(map[string]float64)
+	normalized := make([]string, 0, len(assets))
+	seen := make(map[string]struct{}, len(assets))
+	for _, asset := range assets {
+		token := strings.ToUpper(strings.TrimSpace(asset))
+		if token == "" {
+			continue
+		}
+		if _, ok := seen[token]; ok {
+			continue
+		}
+		seen[token] = struct{}{}
+		normalized = append(normalized, token)
+	}
+	for start := 0; start < len(normalized); start += 20 {
+		end := start + 20
+		if end > len(normalized) {
+			end = len(normalized)
+		}
+		var payload []marginNextHourlyInterestRate
+		params := url.Values{}
+		params.Set("assets", strings.Join(normalized[start:end], ","))
+		params.Set("isIsolated", "FALSE")
+		if err := c.signedGetJSON(ctx, c.spotBaseURL+"/sapi/v1/margin/next-hourly-interest-rate", params, &payload); err != nil {
+			return nil, err
+		}
+		for _, item := range payload {
+			asset := strings.ToUpper(strings.TrimSpace(item.Asset))
+			if asset == "" {
+				continue
+			}
+			result[asset] = parseFloat(item.NextHourlyInterestRate)
+		}
+	}
+	return result, nil
+}
+
+func (c *BinanceClient) resolveAccountTradingCostProfile(ctx context.Context, spotSymbols []string, futuresSymbols []string, borrowAssets []string) (accountTradingCostProfile, error) {
+	profile := accountTradingCostProfile{
+		BorrowHourlyRateByAsset: make(map[string]float64),
+	}
+	spotSet := make(map[string]struct{}, len(spotSymbols))
+	for _, symbol := range spotSymbols {
+		spotSet[strings.ToUpper(strings.TrimSpace(symbol))] = struct{}{}
+	}
+	errs := make([]string, 0, 3)
+
+	if spotFees, err := c.fetchSpotTradeFees(ctx); err != nil {
+		errs = append(errs, fmt.Sprintf("spot_trade_fee=%v", err))
+	} else {
+		for _, item := range spotFees {
+			symbol := strings.ToUpper(strings.TrimSpace(item.Symbol))
+			if len(spotSet) > 0 {
+				if _, ok := spotSet[symbol]; !ok {
+					continue
+				}
+			}
+			taker := parseFloat(item.TakerCommission)
+			if taker > profile.SpotTakerFeeRate {
+				profile.SpotTakerFeeRate = taker
+				profile.SpotFeeSymbol = symbol
+			}
+		}
+		if profile.SpotTakerFeeRate <= 0 && len(spotFees) > 0 {
+			profile.SpotTakerFeeRate = parseFloat(spotFees[0].TakerCommission)
+			profile.SpotFeeSymbol = strings.ToUpper(strings.TrimSpace(spotFees[0].Symbol))
+		}
+	}
+
+	futuresSeen := make(map[string]struct{}, len(futuresSymbols))
+	for _, symbol := range futuresSymbols {
+		normalizedSymbol := strings.ToUpper(strings.TrimSpace(symbol))
+		if normalizedSymbol == "" {
+			continue
+		}
+		if _, ok := futuresSeen[normalizedSymbol]; ok {
+			continue
+		}
+		futuresSeen[normalizedSymbol] = struct{}{}
+		commission, err := c.fetchFuturesCommissionRate(ctx, normalizedSymbol)
+		if err != nil {
+			errs = append(errs, fmt.Sprintf("futures_commission[%s]=%v", normalizedSymbol, err))
+			continue
+		}
+		taker := parseFloat(commission.TakerCommissionRate)
+		if taker > profile.FuturesTakerFeeRate {
+			profile.FuturesTakerFeeRate = taker
+			profile.FuturesFeeSymbol = strings.ToUpper(strings.TrimSpace(commission.Symbol))
+		}
+	}
+
+	if len(borrowAssets) > 0 {
+		rates, err := c.fetchNextHourlyMarginInterestRates(ctx, borrowAssets)
+		if err != nil {
+			errs = append(errs, fmt.Sprintf("margin_interest=%v", err))
+		} else {
+			profile.BorrowHourlyRateByAsset = rates
+			profile.BorrowInterestResolvedCount = len(rates)
+		}
+	}
+	if len(errs) > 0 {
+		return profile, fmt.Errorf("账户真实成本存在部分查询失败: %s", strings.Join(errs, " | "))
+	}
+	return profile, nil
 }
 
 // getJSON 是统一的 HTTP GET + JSON 反序列化辅助函数。

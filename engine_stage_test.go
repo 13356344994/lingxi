@@ -8,6 +8,10 @@ func TestEngineStageTransitionAllowsExpectedPath(t *testing.T) {
 		to   EngineStage
 	}{
 		{from: StageReady, to: StageScan},
+		{from: StageReady, to: StageCoarseScreen},
+		{from: StageCoarseScreen, to: StageFetchFunding},
+		{from: StageFetchFunding, to: StageEvaluateGroups},
+		{from: StageEvaluateGroups, to: StageCompleted},
 		{from: StageScan, to: StageMonitor},
 		{from: StageMonitor, to: StageOpen},
 		{from: StageOpen, to: StageCloseMonitor},
@@ -15,6 +19,7 @@ func TestEngineStageTransitionAllowsExpectedPath(t *testing.T) {
 		{from: StageClose, to: StageCompleted},
 		{from: StageCooldown, to: StageReady},
 		{from: StageCompleted, to: StageScan},
+		{from: StageCompleted, to: StageCoarseScreen},
 		{from: StageOpenEmpty, to: StageScan},
 	}
 	for _, tc := range cases {

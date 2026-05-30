@@ -14,10 +14,11 @@ import (
 
 // BacktestRunner 负责从本地历史样本生成回测汇总结果。
 type BacktestRunner struct {
-	store        *ReportStore
-	logger       *log.Logger
-	cfg          EngineConfig
-	progressHook func(stage EngineStage, message string, current int, total int)
+	store                       *ReportStore
+	logger                      *log.Logger
+	cfg                         EngineConfig
+	progressHook                func(stage EngineStage, message string, current int, total int)
+	borrowHourlyInterestByAsset map[string]float64
 }
 
 // BacktestTradeSample 表示一条历史样本交易记录。
@@ -498,7 +499,7 @@ func (r *BacktestRunner) handleTimelineMonitor(state *timelineReplayState, sampl
 
 	hcfg := r.historicalConfig()
 	roundTripFeeRate := 2 * (hcfg.SpotTakerFeeRate + hcfg.FuturesTakerFeeRate)
-	netProfitRate := estimateReservedNetProfitRate(sample.FundingRate, math.Abs(sample.SpreadRate), roundTripFeeRate, r.cfg.StrategyConfig.ExitSpreadReserveRate)
+	netProfitRate := estimateReservedNetProfitRate(sample.FundingRate, math.Abs(sample.SpreadRate), roundTripFeeRate, r.cfg.StrategyConfig.ExitSpreadReserveRate, 0)
 	decision := EvaluateMonitorNetProfit(netProfitRate, r.cfg.RiskConfig.ImmediateInvalidateRate, r.cfg.RiskConfig.MinNetProfitRate, r.cfg.RiskConfig.MonitorMaxConsecutiveBreach, state.BreachCount)
 	if decision.Invalidate && decision.State == "invalidated" {
 		state.Invalidated = true

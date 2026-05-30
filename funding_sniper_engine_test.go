@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -209,6 +210,166 @@ func TestPlaceFuturesBatchOrdersIdempotentFallsBackAfterExpiredProtectedOpen(t *
 	}
 	if len(results) != 1 || results[0].OrderID != 2 {
 		t.Fatalf("expected fallback result to replace expired batch result, got %+v", results)
+	}
+}
+
+func TestSignedRequestBlocksNonCriticalOrderWhenLocalRateLimiterExceeded(t *testing.T) {
+	var requests int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&requests, 1)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	defer server.Close()
+
+	now := time.Now().UTC()
+	engine := &FundingRateSniperEngine{
+		client: &BinanceClient{
+			futuresBaseURL: server.URL,
+			apiKey:         "demo-api-key",
+			secretKey:      "demo-secret-key",
+			httpClient:     server.Client(),
+		},
+		cfg:                  DefaultEngineConfig(),
+		logger:               log.New(io.Discard, "", 0),
+		runtimeReporter:      newRuntimeReporter(nil),
+		orderRateRequests10s: make([]time.Time, orderRateLimitCapacity10s-orderRateLimitReserve10s),
+	}
+	engine.orderRateRequests1m = append(engine.orderRateRequests1m, now)
+	for i := range engine.orderRateRequests10s {
+		engine.orderRateRequests10s[i] = now
+	}
+
+	params := url.Values{}
+	params.Set("symbol", "BTCUSDT")
+	params.Set("side", "SELL")
+	params.Set("type", "MARKET")
+	params.Set("quantity", "1")
+	params.Set("newClientOrderId", "fopen-btc-1")
+	_, err := engine.signedRequest(context.Background(), http.MethodPost, server.URL+"/fapi/v1/order", params)
+	if err == nil || !strings.Contains(err.Error(), "order rate limiter") {
+		t.Fatalf("expected local order rate limiter error, got %v", err)
+	}
+	if atomic.LoadInt32(&requests) != 0 {
+		t.Fatalf("expected request to be blocked before exchange, got %d", requests)
+	}
+}
+
+func TestSignedRequestAllowsCriticalOrderUsingReservedBudget(t *testing.T) {
+	var requests int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&requests, 1)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	defer server.Close()
+
+	now := time.Now().UTC()
+	engine := &FundingRateSniperEngine{
+		client: &BinanceClient{
+			futuresBaseURL: server.URL,
+			apiKey:         "demo-api-key",
+			secretKey:      "demo-secret-key",
+			httpClient:     server.Client(),
+		},
+		cfg:             DefaultEngineConfig(),
+		logger:          log.New(io.Discard, "", 0),
+		runtimeReporter: newRuntimeReporter(nil),
+	}
+	engine.orderRateRequests10s = make([]time.Time, orderRateLimitCapacity10s-orderRateLimitReserve10s)
+	engine.orderRateRequests1m = make([]time.Time, orderRateLimitCapacity1m-orderRateLimitReserve1m)
+	for i := range engine.orderRateRequests10s {
+		engine.orderRateRequests10s[i] = now
+	}
+	for i := range engine.orderRateRequests1m {
+		engine.orderRateRequests1m[i] = now
+	}
+
+	params := url.Values{}
+	params.Set("symbol", "BTCUSDT")
+	params.Set("side", "BUY")
+	params.Set("type", "MARKET")
+	params.Set("quantity", "1")
+	params.Set("reduceOnly", "true")
+	params.Set("newClientOrderId", "ftrim-btc-1")
+	if _, err := engine.signedRequest(context.Background(), http.MethodPost, server.URL+"/fapi/v1/order", params); err != nil {
+		t.Fatalf("expected critical order to use reserved budget, got %v", err)
+	}
+	if atomic.LoadInt32(&requests) != 1 {
+		t.Fatalf("expected one exchange request, got %d", requests)
+	}
+}
+
+func TestSignedRequestAppliesExchangeOrderRateCooldownAfter1015(t *testing.T) {
+	var requests int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		call := atomic.AddInt32(&requests, 1)
+		w.Header().Set("Content-Type", "application/json")
+		if call == 1 {
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`{"code":-1015,"msg":"Too many new orders"}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	defer server.Close()
+
+	engine := &FundingRateSniperEngine{
+		client: &BinanceClient{
+			futuresBaseURL: server.URL,
+			apiKey:         "demo-api-key",
+			secretKey:      "demo-secret-key",
+			httpClient:     server.Client(),
+		},
+		cfg:             DefaultEngineConfig(),
+		logger:          log.New(io.Discard, "", 0),
+		runtimeReporter: newRuntimeReporter(nil),
+	}
+
+	params := url.Values{}
+	params.Set("symbol", "BTCUSDT")
+	params.Set("side", "SELL")
+	params.Set("type", "MARKET")
+	params.Set("quantity", "1")
+	params.Set("newClientOrderId", "fopen-btc-2")
+	_, err := engine.signedRequest(context.Background(), http.MethodPost, server.URL+"/fapi/v1/order", params)
+	if err == nil || !strings.Contains(strings.ToLower(err.Error()), "-1015") {
+		t.Fatalf("expected exchange -1015 error, got %v", err)
+	}
+	if atomic.LoadInt32(&requests) != 1 {
+		t.Fatalf("expected one exchange request before cooldown, got %d", requests)
+	}
+	if _, err := engine.signedRequest(context.Background(), http.MethodPost, server.URL+"/fapi/v1/order", params); err == nil || !strings.Contains(err.Error(), "remaining=") {
+		t.Fatalf("expected local exchange cooldown block, got %v", err)
+	}
+	if atomic.LoadInt32(&requests) != 1 {
+		t.Fatalf("expected cooldown to stop second request from hitting exchange, got %d", requests)
+	}
+}
+
+func TestAssessFuturesLeverageRiskRejectsExcessConfiguredLeverage(t *testing.T) {
+	brackets := []futuresLeverageBracket{
+		{Bracket: 1, InitialLeverage: 2, NotionalFloor: 0, NotionalCap: 50000, MaintMarginRatio: 0.01, Cum: 0},
+	}
+	_, ok, detail := assessFuturesLeverageRisk("BTCUSDT", 3, 0, 100, 100, 100000, brackets)
+	if ok {
+		t.Fatal("expected leverage bracket risk to reject configured leverage")
+	}
+	if !strings.Contains(detail, "最大初始杠杆") {
+		t.Fatalf("unexpected detail: %s", detail)
+	}
+}
+
+func TestAssessFuturesLeverageRiskRejectsInsufficientMaintMarginBuffer(t *testing.T) {
+	brackets := []futuresLeverageBracket{
+		{Bracket: 1, InitialLeverage: 5, NotionalFloor: 0, NotionalCap: 50000, MaintMarginRatio: 0.10, Cum: 50},
+	}
+	_, ok, detail := assessFuturesLeverageRisk("BTCUSDT", 3, 0, 10, 100, 400, brackets)
+	if ok {
+		t.Fatal("expected leverage bracket risk to reject insufficient margin buffer")
+	}
+	if !strings.Contains(detail, "maintMargin") {
+		t.Fatalf("unexpected detail: %s", detail)
 	}
 }
 
@@ -437,9 +598,80 @@ func TestShouldUseParallelOpenHedge(t *testing.T) {
 }
 
 func TestEstimateReservedNetProfitRateUsesRoundTripReserve(t *testing.T) {
-	got := estimateReservedNetProfitRate(0.0025, 0.0001, 0.0030, 0.0004)
+	got := estimateReservedNetProfitRate(0.0025, 0.0001, 0.0030, 0.0004, 0)
 	if diff := got - (-0.001); diff < -1e-12 || diff > 1e-12 {
 		t.Fatalf("unexpected reserved net profit rate: %.6f", got)
+	}
+}
+
+func TestEstimateReservedNetProfitRateIncludesBorrowReserve(t *testing.T) {
+	got := estimateReservedNetProfitRate(0.0025, 0.0001, 0.0030, 0.0004, 0.0006)
+	if diff := got - (-0.0016); diff < -1e-12 || diff > 1e-12 {
+		t.Fatalf("unexpected reserved net profit rate with borrow reserve: %.6f", got)
+	}
+}
+
+func TestEstimateTargetCapitalRequirementIncludesBorrowReserveForNegativeCarry(t *testing.T) {
+	engine := &FundingRateSniperEngine{
+		cfg: DefaultEngineConfig(),
+		borrowHourlyInterestByAsset: map[string]float64{
+			"BTC": 0.0015,
+		},
+	}
+	engine.cfg.HistoricalConfig.SpotTakerFeeRate = 0.001
+	engine.cfg.HistoricalConfig.FuturesTakerFeeRate = 0.0005
+	engine.cfg.HistoricalConfig.BorrowInterestMinBillingHours = 2
+
+	target := &MonitoredTarget{
+		Candidate: FundingCandidate{
+			Symbol:          "BTCUSDT",
+			Direction:       fundingCarryDirectionNegative,
+			SpotBaseAsset:   "BTC",
+			OrderQuantity:   2,
+			MarkPrice:       100,
+			NextFundingTime: time.Date(2026, 6, 1, 10, 0, 0, 0, time.UTC),
+		},
+	}
+	entryTime := time.Date(2026, 6, 1, 8, 30, 0, 0, time.UTC)
+
+	spotRequired, futuresRequired := engine.estimateTargetCapitalRequirement(target, 100, 101, entryTime)
+	if diff := spotRequired - 200.8; diff < -1e-9 || diff > 1e-9 {
+		t.Fatalf("unexpected spot capital requirement: %.6f", spotRequired)
+	}
+	if diff := futuresRequired - 202.101; diff < -1e-9 || diff > 1e-9 {
+		t.Fatalf("unexpected futures capital requirement: %.6f", futuresRequired)
+	}
+}
+
+func TestMonitorTargetLabelsIncludeBorrowReserve(t *testing.T) {
+	engine := &FundingRateSniperEngine{
+		cfg: DefaultEngineConfig(),
+		borrowHourlyInterestByAsset: map[string]float64{
+			"BTC": 0.0015,
+		},
+	}
+	target := &MonitoredTarget{
+		Candidate: FundingCandidate{
+			Symbol:          "BTCUSDT",
+			Direction:       fundingCarryDirectionNegative,
+			EstimatedRate:   0.0025,
+			SpotBaseAsset:   "BTC",
+			OrderQuantity:   1,
+			MarkPrice:       100,
+			NextFundingTime: time.Date(2026, 6, 1, 10, 0, 0, 0, time.UTC),
+		},
+	}
+
+	engine.setCurrentMonitorTargets([]*MonitoredTarget{target})
+	if got := strings.Join(engine.currentMonitorTargets, " "); !strings.Contains(got, "borrow=") || !strings.Contains(got, "funding=") {
+		t.Fatalf("expected monitor labels to include funding and borrow reserve, got %q", got)
+	}
+
+	target.LastNetProfit = 0.0012
+	target.LastBorrowReserveRate = 0.0006
+	engine.updateCurrentMonitorTargetLabel(target)
+	if got := strings.Join(engine.currentMonitorTargets, " "); !strings.Contains(got, "net=0.1200%") || !strings.Contains(got, "borrow=0.0600%") {
+		t.Fatalf("expected updated monitor label to reflect runtime reserve values, got %q", got)
 	}
 }
 
@@ -677,6 +909,67 @@ func TestEnsureUSDTFundingBalancesForOpenTransfersFromFuturesToSpot(t *testing.T
 	}
 	if transferCalls != 1 {
 		t.Fatalf("expected one transfer call, got %d", transferCalls)
+	}
+}
+
+func TestFetchFuturesAccountStateUsesCacheAndStaleFallback(t *testing.T) {
+	accountCalls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/fapi/v3/account":
+			accountCalls++
+			if accountCalls == 1 {
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{"assets":[{"asset":"USDT","walletBalance":"250","availableBalance":"200"}],"positions":[{"symbol":"BTCUSDT","positionAmt":"1.25"}]}`))
+				return
+			}
+			w.WriteHeader(http.StatusTeapot)
+			_, _ = w.Write([]byte(`{"code":-1003,"msg":"Way too many requests"}`))
+		default:
+			t.Fatalf("unexpected request path: %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	engine := &FundingRateSniperEngine{
+		client: &BinanceClient{
+			futuresBaseURL: server.URL,
+			apiKey:         "demo-api-key",
+			secretKey:      "demo-secret-key",
+			httpClient:     server.Client(),
+		},
+		logger: log.New(io.Discard, "", 0),
+	}
+
+	walletUSDT, availableUSDT, positions, err := engine.fetchFuturesAccountState(context.Background())
+	if err != nil {
+		t.Fatalf("fetchFuturesAccountState() first error = %v", err)
+	}
+	if walletUSDT != 250 || availableUSDT != 200 || positions["BTCUSDT"] != 1.25 {
+		t.Fatalf("unexpected first futures account state: wallet=%.2f available=%.2f positions=%+v", walletUSDT, availableUSDT, positions)
+	}
+
+	_, _, _, err = engine.fetchFuturesAccountState(context.Background())
+	if err != nil {
+		t.Fatalf("fetchFuturesAccountState() cache hit error = %v", err)
+	}
+	if accountCalls != 1 {
+		t.Fatalf("expected hot cache to avoid extra request, got %d calls", accountCalls)
+	}
+
+	engine.futuresAccountStateMu.Lock()
+	engine.futuresAccountStateCachedAt = time.Now().Add(-(futuresAccountStateCacheTTL + time.Second))
+	engine.futuresAccountStateMu.Unlock()
+
+	walletUSDT, availableUSDT, positions, err = engine.fetchFuturesAccountState(context.Background())
+	if err != nil {
+		t.Fatalf("fetchFuturesAccountState() stale fallback error = %v", err)
+	}
+	if walletUSDT != 250 || availableUSDT != 200 || positions["BTCUSDT"] != 1.25 {
+		t.Fatalf("unexpected stale fallback state: wallet=%.2f available=%.2f positions=%+v", walletUSDT, availableUSDT, positions)
+	}
+	if accountCalls != 2 {
+		t.Fatalf("expected one retry request before stale fallback, got %d calls", accountCalls)
 	}
 }
 

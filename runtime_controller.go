@@ -231,9 +231,12 @@ type RuntimeController struct {
 	logger  *log.Logger
 	logs    *RuntimeLogStore
 
-	mu     sync.Mutex
-	status RuntimeTaskStatus
-	cancel context.CancelFunc
+	mu                             sync.Mutex
+	status                         RuntimeTaskStatus
+	cancel                         context.CancelFunc
+	cachedCapitalSnapshot          RuntimeCapitalSnapshot
+	cachedCapitalSnapshotAt        time.Time
+	cachedCapitalSnapshotSecretKey string
 }
 
 // RuntimeLogStore 负责把后台运行日志保存到 jsonl 文件，并支持页面读取最近日志。

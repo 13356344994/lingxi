@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -207,5 +208,118 @@ func TestBuildGoldenSymbolSpotPairsCanBeRestrictedToUSDTOnly(t *testing.T) {
 	got := buildGoldenSymbolSpotPairs(spotSymbols, futuresSymbols, []string{"USDT"}, time.Now().UTC())
 	if got["BTCUSDT"] != "BTCUSDT" {
 		t.Fatalf("expected BTC futures to map to BTCUSDT when restricted to USDT, got %q", got["BTCUSDT"])
+	}
+}
+
+func TestResolveAccountTradingCostProfileUsesSignedEndpoints(t *testing.T) {
+	futuresCalls := map[string]int{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-MBX-APIKEY") != "demo-key" {
+			t.Fatalf("expected signed request to carry api key, got %q", r.Header.Get("X-MBX-APIKEY"))
+		}
+		if r.URL.Query().Get("timestamp") == "" || r.URL.Query().Get("signature") == "" {
+			t.Fatalf("expected signed query params, got %s", r.URL.RawQuery)
+		}
+		switch r.URL.Path {
+		case "/sapi/v1/asset/tradeFee":
+			_, _ = w.Write([]byte(`[{"symbol":"BTCUSDT","makerCommission":"0.0009","takerCommission":"0.0011"},{"symbol":"ETHUSDT","makerCommission":"0.0008","takerCommission":"0.0010"}]`))
+		case "/fapi/v1/commissionRate":
+			got := strings.ToUpper(r.URL.Query().Get("symbol"))
+			futuresCalls[got]++
+			switch got {
+			case "BTCUSDT":
+				_, _ = w.Write([]byte(`{"symbol":"BTCUSDT","makerCommissionRate":"0.0002","takerCommissionRate":"0.00045"}`))
+			case "ETHUSDT":
+				_, _ = w.Write([]byte(`{"symbol":"ETHUSDT","makerCommissionRate":"0.0002","takerCommissionRate":"0.00060"}`))
+			default:
+				t.Fatalf("unexpected futures commission symbol: %s", got)
+			}
+		case "/sapi/v1/margin/next-hourly-interest-rate":
+			assets := strings.ToUpper(r.URL.Query().Get("assets"))
+			if !strings.Contains(assets, "BTC") || !strings.Contains(assets, "ETH") {
+				t.Fatalf("unexpected margin assets query: %s", assets)
+			}
+			_, _ = w.Write([]byte(`[{"asset":"BTC","nextHourlyInterestRate":"0.000031"},{"asset":"ETH","nextHourlyInterestRate":"0.000044"}]`))
+		default:
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	client := &BinanceClient{
+		spotBaseURL:    server.URL,
+		futuresBaseURL: server.URL,
+		apiKey:         "demo-key",
+		secretKey:      "demo-secret",
+		httpClient:     server.Client(),
+	}
+
+	profile, err := client.resolveAccountTradingCostProfile(context.Background(), []string{"BTCUSDT", "ETHUSDT"}, []string{"BTCUSDT", "ETHUSDT"}, []string{"BTC", "ETH"})
+	if err != nil {
+		t.Fatalf("resolveAccountTradingCostProfile() error = %v", err)
+	}
+	if profile.SpotTakerFeeRate != 0.0011 || profile.SpotFeeSymbol != "BTCUSDT" {
+		t.Fatalf("unexpected spot profile: %+v", profile)
+	}
+	if profile.FuturesTakerFeeRate != 0.00060 || profile.FuturesFeeSymbol != "ETHUSDT" {
+		t.Fatalf("unexpected futures profile: %+v", profile)
+	}
+	if profile.BorrowHourlyRateByAsset["BTC"] != 0.000031 || profile.BorrowHourlyRateByAsset["ETH"] != 0.000044 {
+		t.Fatalf("unexpected borrow rates: %+v", profile.BorrowHourlyRateByAsset)
+	}
+	if futuresCalls["BTCUSDT"] != 1 || futuresCalls["ETHUSDT"] != 1 {
+		t.Fatalf("expected one commission query per futures symbol, got %+v", futuresCalls)
+	}
+
+	commission, err := client.fetchFuturesCommissionRate(context.Background(), "ETHUSDT")
+	if err != nil {
+		t.Fatalf("fetchFuturesCommissionRate() cached error = %v", err)
+	}
+	if commission.TakerCommissionRate != "0.00060" {
+		t.Fatalf("unexpected cached commission: %+v", commission)
+	}
+	if futuresCalls["ETHUSDT"] != 1 {
+		t.Fatalf("expected cached commission lookup to avoid extra request, got %+v", futuresCalls)
+	}
+}
+
+func TestResolveAccountTradingCostProfileReturnsPartialProfileOnBorrowFailure(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/sapi/v1/asset/tradeFee":
+			_, _ = w.Write([]byte(`[{"symbol":"BTCUSDT","makerCommission":"0.0009","takerCommission":"0.0011"}]`))
+		case "/fapi/v1/commissionRate":
+			_, _ = w.Write([]byte(`{"symbol":"BTCUSDT","makerCommissionRate":"0.0002","takerCommissionRate":"0.00045"}`))
+		case "/sapi/v1/margin/next-hourly-interest-rate":
+			http.Error(w, `{"code":-3000,"msg":"margin disabled"}`, http.StatusBadRequest)
+		default:
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	client := &BinanceClient{
+		spotBaseURL:    server.URL,
+		futuresBaseURL: server.URL,
+		apiKey:         "demo-key",
+		secretKey:      "demo-secret",
+		httpClient:     server.Client(),
+	}
+
+	profile, err := client.resolveAccountTradingCostProfile(context.Background(), []string{"BTCUSDT"}, []string{"BTCUSDT"}, []string{"BTC"})
+	if err == nil {
+		t.Fatal("expected partial failure error")
+	}
+	if !strings.Contains(err.Error(), "margin_interest=") {
+		t.Fatalf("expected partial failure to mention margin interest, got %v", err)
+	}
+	if profile.SpotTakerFeeRate != 0.0011 || profile.SpotFeeSymbol != "BTCUSDT" {
+		t.Fatalf("expected spot fee to survive partial failure, got %+v", profile)
+	}
+	if profile.FuturesTakerFeeRate != 0.00045 || profile.FuturesFeeSymbol != "BTCUSDT" {
+		t.Fatalf("expected futures fee to survive partial failure, got %+v", profile)
+	}
+	if len(profile.BorrowHourlyRateByAsset) != 0 {
+		t.Fatalf("expected borrow rates to fall back when borrow endpoint fails, got %+v", profile.BorrowHourlyRateByAsset)
 	}
 }

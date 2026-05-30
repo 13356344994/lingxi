@@ -28,6 +28,8 @@ const (
 	executionQtyTolerance          = 1e-8
 	spotFeeBNBSafetyMultiplier     = 1.2
 	defaultFundingSettlementDelay  = 30 * time.Second
+	futuresAccountStateCacheTTL    = 5 * time.Second
+	futuresAccountStateStaleTTL    = 30 * time.Second
 	sleepWaitChunkNear             = 1 * time.Second
 	sleepWaitChunkMid              = 5 * time.Second
 	sleepWaitChunkFar              = 30 * time.Second
@@ -36,6 +38,13 @@ const (
 	sleepResyncIntervalFar         = 10 * time.Minute
 	sleepNearThreshold             = 2 * time.Minute
 	sleepMidThreshold              = 10 * time.Minute
+	orderRateLimitWindow10s        = 10 * time.Second
+	orderRateLimitWindow1m         = 1 * time.Minute
+	orderRateLimitExchangeCooldown = 10 * time.Second
+	orderRateLimitCapacity10s      = 300
+	orderRateLimitCapacity1m       = 1200
+	orderRateLimitReserve10s       = 30
+	orderRateLimitReserve1m        = 120
 )
 
 var (
@@ -82,14 +91,19 @@ type FundingRateSniperEngine struct {
 	marginOrderHub              *OrderEventHub
 	futuresOrderHub             *OrderEventHub
 	reportStore                 *ReportStore
+	borrowHourlyInterestByAsset map[string]float64
 	serverTimeOffset            time.Duration
 	executionIncidents          int32
 	executionEventHook          func(ExecutionIncidentRecord)
 	liveStatusHook              func(LiveRuntimeSnapshot)
 	platformRiskMu              sync.Mutex
+	orderRateMu                 sync.Mutex
 	platformFuseReason          string
 	platformFuseTripped         bool
 	platformCooldownUntil       time.Time
+	orderRateLimitUntil         time.Time
+	orderRateRequests10s        []time.Time
+	orderRateRequests1m         []time.Time
 	consecutiveRequestErrors    int
 	consecutivePlatformRejects  int
 	requestErrorsThisCycle      int
@@ -152,6 +166,13 @@ type FundingRateSniperEngine struct {
 	fundingSettlementWorkerOnce sync.Once
 	fundingSettlementWakeCh     chan struct{}
 	cacheOnlyBookTickerUntil    int64
+	futuresLeverageBracketMu    sync.Mutex
+	futuresLeverageBrackets     map[string][]futuresLeverageBracket
+	futuresAccountStateMu       sync.Mutex
+	futuresAccountStateCachedAt time.Time
+	futuresAccountWalletUSDT    float64
+	futuresAccountAvailableUSDT float64
+	futuresAccountPositions     map[string]float64
 }
 
 type symbolCooldownState struct {
@@ -222,6 +243,17 @@ func (e signedRequestError) Error() string {
 
 func (e signedRequestError) Unwrap() error {
 	return e.Cause
+}
+
+func cloneFloat64Map(values map[string]float64) map[string]float64 {
+	if len(values) == 0 {
+		return map[string]float64{}
+	}
+	cloned := make(map[string]float64, len(values))
+	for key, value := range values {
+		cloned[key] = value
+	}
+	return cloned
 }
 
 func (e unknownOrderStateError) Error() string {
@@ -333,6 +365,8 @@ type MonitoredTarget struct {
 	IsValid                    int32
 	LastSpread                 float64
 	LastNetProfit              float64
+	LastBorrowReserveRate      float64
+	LastBorrowReserveUSDT      float64
 	LastSpotAsk                float64
 	LastFuturesBid             float64
 	LastSpotVWAP               float64
@@ -366,6 +400,7 @@ type openSequenceBuildState struct {
 	remainingSpotUSDT      float64
 	remainingFuturesUSDT   float64
 	remainingCycleNotional float64
+	projectedFuturesAbsQty map[string]float64
 }
 
 type openExecutionPreparation struct {
@@ -377,6 +412,28 @@ type openExecutionPreparation struct {
 
 type nonFatalOpenAbortError struct {
 	message string
+}
+
+type futuresLeverageBracket struct {
+	Bracket          int     `json:"bracket"`
+	InitialLeverage  int     `json:"initialLeverage"`
+	NotionalCap      float64 `json:"notionalCap"`
+	NotionalFloor    float64 `json:"notionalFloor"`
+	MaintMarginRatio float64 `json:"maintMarginRatio"`
+	Cum              float64 `json:"cum"`
+}
+
+type futuresLeverageBracketEnvelope struct {
+	Symbol   string                   `json:"symbol"`
+	Brackets []futuresLeverageBracket `json:"brackets"`
+}
+
+type futuresLeverageRiskAssessment struct {
+	Bracket               futuresLeverageBracket
+	ProjectedNotionalUSDT float64
+	EffectiveLeverage     int
+	InitialMarginUSDT     float64
+	MaintenanceMarginUSDT float64
 }
 
 func (e nonFatalOpenAbortError) Error() string {
@@ -629,6 +686,8 @@ func NewFundingRateSniperEngineWithConfig(secretPath string, cfg EngineConfig) (
 		realtimeRiskWakeCh:         make(chan struct{}, 1),
 		symbolPanicFlattenInFlight: make(map[string]time.Time),
 		fundingSettlementWakeCh:    make(chan struct{}, 1),
+		futuresLeverageBrackets:    make(map[string][]futuresLeverageBracket),
+		futuresAccountPositions:    make(map[string]float64),
 	}
 	engine.exposureManager = newExposureManager(engine)
 	engine.runtimeReporter = newRuntimeReporter(engine)
@@ -711,6 +770,40 @@ func (e *FundingRateSniperEngine) initialize(ctx context.Context) error {
 	for _, symbol := range futuresSymbols {
 		e.futuresMeta[symbol.Symbol] = symbol
 		e.futuresRules[symbol.Symbol] = extractTradeRules(symbol.Filters)
+	}
+	spotPairs := make([]string, 0, len(e.goldenSymbols))
+	borrowAssets := make([]string, 0, len(e.goldenSymbols))
+	for _, futureSymbol := range e.goldenSymbols {
+		if spotPair := strings.ToUpper(strings.TrimSpace(e.goldenSpotPairByFuture[futureSymbol])); spotPair != "" {
+			spotPairs = append(spotPairs, spotPair)
+			if meta, ok := e.spotMeta[spotPair]; ok && strings.TrimSpace(meta.BaseAsset) != "" {
+				borrowAssets = append(borrowAssets, meta.BaseAsset)
+			}
+		}
+	}
+	if profile, profileErr := e.client.resolveAccountTradingCostProfile(ctx, spotPairs, e.goldenSymbols, borrowAssets); profileErr != nil {
+		if profile.SpotTakerFeeRate > 0 {
+			e.cfg.HistoricalConfig.SpotTakerFeeRate = profile.SpotTakerFeeRate
+		}
+		if profile.FuturesTakerFeeRate > 0 {
+			e.cfg.HistoricalConfig.FuturesTakerFeeRate = profile.FuturesTakerFeeRate
+		}
+		if len(profile.BorrowHourlyRateByAsset) > 0 {
+			e.borrowHourlyInterestByAsset = profile.BorrowHourlyRateByAsset
+		}
+		e.logger.Printf("加载账户真实交易成本存在部分失败，已尽量使用成功结果并对其余项回退: %v", profileErr)
+		e.logger.Printf("当前交易成本参数: spot_taker=%.6f(symbol=%s) futures_taker=%.6f(symbol=%s) borrow_assets=%d",
+			e.cfg.HistoricalConfig.SpotTakerFeeRate, profile.SpotFeeSymbol, e.cfg.HistoricalConfig.FuturesTakerFeeRate, profile.FuturesFeeSymbol, len(e.borrowHourlyInterestByAsset))
+	} else {
+		if profile.SpotTakerFeeRate > 0 {
+			e.cfg.HistoricalConfig.SpotTakerFeeRate = profile.SpotTakerFeeRate
+		}
+		if profile.FuturesTakerFeeRate > 0 {
+			e.cfg.HistoricalConfig.FuturesTakerFeeRate = profile.FuturesTakerFeeRate
+		}
+		e.borrowHourlyInterestByAsset = profile.BorrowHourlyRateByAsset
+		e.logger.Printf("已加载账户真实交易成本: spot_taker=%.6f(symbol=%s) futures_taker=%.6f(symbol=%s) borrow_assets=%d",
+			e.cfg.HistoricalConfig.SpotTakerFeeRate, profile.SpotFeeSymbol, e.cfg.HistoricalConfig.FuturesTakerFeeRate, profile.FuturesFeeSymbol, profile.BorrowInterestResolvedCount)
 	}
 
 	if err := e.verifyTradingEnvironment(ctx); err != nil {
@@ -1280,7 +1373,9 @@ func (e *FundingRateSniperEngine) checkTargetCost(ctx context.Context, target *M
 
 	// 真实开仓方向按 funding carry direction 选择现货/合约对应吃单侧，再按该方向评估入场冲击成本。
 	spread := openEntrySpreadRate(direction, spotVWAP, futuresVWAP)
-	netProfit := estimateReservedNetProfitRate(target.Candidate.EstimatedRate, spread, e.cfg.StrategyConfig.FeeReserveRate, e.cfg.StrategyConfig.ExitSpreadReserveRate)
+	borrowReserveRate := e.liveBorrowReserveRate(target.Candidate, spotVWAP, e.serverNow())
+	borrowReserveUSDT := target.Candidate.OrderQuantity * spotVWAP * borrowReserveRate
+	netProfit := estimateReservedNetProfitRate(target.Candidate.EstimatedRate, spread, e.cfg.StrategyConfig.FeeReserveRate, e.cfg.StrategyConfig.ExitSpreadReserveRate, borrowReserveRate)
 
 	target.LastSpotAsk = spotBestAsk
 	target.LastFuturesBid = futuresBestBid
@@ -1289,7 +1384,10 @@ func (e *FundingRateSniperEngine) checkTargetCost(ctx context.Context, target *M
 	target.LastSpotVisibleNotional, target.LastFuturesVisibleNotional = visibleDepthNotionalForDirection(direction, spotDepth, futuresDepth)
 	target.LastSpread = spread
 	target.LastNetProfit = netProfit
+	target.LastBorrowReserveRate = borrowReserveRate
+	target.LastBorrowReserveUSDT = borrowReserveUSDT
 	target.LastObserveTime = time.Now()
+	e.updateCurrentMonitorTargetLabel(target)
 
 	immediateInvalidateRate := e.cfg.RiskConfig.ImmediateInvalidateRate + profile.ImmediateInvalidateBump
 	decision := EvaluateMonitorNetProfit(netProfit, immediateInvalidateRate, e.cfg.RiskConfig.MinNetProfitRate*profile.MinNetProfitMultiplier, e.cfg.RiskConfig.MonitorMaxConsecutiveBreach, *consecutiveBreaches)
@@ -1308,8 +1406,51 @@ func (e *FundingRateSniperEngine) checkTargetCost(ctx context.Context, target *M
 	e.transitionMonitorState(target, "healthy", "净收益回到健康区间")
 }
 
-func estimateReservedNetProfitRate(estimatedFundingRate float64, entrySpreadRate float64, roundTripFeeRate float64, exitSpreadReserveRate float64) float64 {
-	return estimatedFundingRate - entrySpreadRate - roundTripFeeRate - maxFloat(exitSpreadReserveRate, 0)
+func estimateReservedNetProfitRate(estimatedFundingRate float64, entrySpreadRate float64, roundTripFeeRate float64, exitSpreadReserveRate float64, borrowReserveRate float64) float64 {
+	return estimatedFundingRate - entrySpreadRate - roundTripFeeRate - maxFloat(exitSpreadReserveRate, 0) - maxFloat(borrowReserveRate, 0)
+}
+
+func (e *FundingRateSniperEngine) hourlyBorrowInterestRateForAsset(asset string) float64 {
+	rate := e.cfg.HistoricalConfig.AssumedHourlyBorrowInterestRate
+	if e == nil || len(e.borrowHourlyInterestByAsset) == 0 {
+		return rate
+	}
+	token := strings.ToUpper(strings.TrimSpace(asset))
+	if token == "" {
+		return rate
+	}
+	if actualRate, ok := e.borrowHourlyInterestByAsset[token]; ok && actualRate > 0 {
+		return actualRate
+	}
+	return rate
+}
+
+func (e *FundingRateSniperEngine) liveBorrowReserveCost(candidate FundingCandidate, spotReferencePrice float64, entryTime time.Time) float64 {
+	if spotReferencePrice <= 0 {
+		spotReferencePrice = candidate.MarkPrice
+	}
+	if spotReferencePrice <= 0 || candidate.OrderQuantity <= 0 {
+		return 0
+	}
+	direction := resolvedFundingCarryDirection(candidate.Direction, candidate.EstimatedRate)
+	exitTime := candidate.NextFundingTime
+	if exitTime.IsZero() || !exitTime.After(entryTime) {
+		exitTime = entryTime
+	}
+	spotNotional := candidate.OrderQuantity * spotReferencePrice
+	billedHours := historicalBorrowInterestHours(direction, entryTime, exitTime, e.cfg.HistoricalConfig.BorrowInterestMinBillingHours)
+	return historicalBorrowInterestCost(direction, spotNotional, e.hourlyBorrowInterestRateForAsset(candidate.SpotBaseAsset), billedHours)
+}
+
+func (e *FundingRateSniperEngine) liveBorrowReserveRate(candidate FundingCandidate, spotReferencePrice float64, entryTime time.Time) float64 {
+	if spotReferencePrice <= 0 {
+		spotReferencePrice = candidate.MarkPrice
+	}
+	spotNotional := candidate.OrderQuantity * spotReferencePrice
+	if spotNotional <= 0 {
+		return 0
+	}
+	return e.liveBorrowReserveCost(candidate, spotReferencePrice, entryTime) / spotNotional
 }
 
 // executeOpenSequence 执行模块四的压哨多空开枪，并记录开仓前账户基线。
@@ -1540,10 +1681,15 @@ func (e *FundingRateSniperEngine) verifyPreparedPlanFundingStability(ctx context
 }
 
 func newOpenSequenceBuildState(beforeSnapshot CycleAccountSnapshot, cfg EngineConfig) openSequenceBuildState {
+	projected := make(map[string]float64, len(beforeSnapshot.FuturesPositionAmounts))
+	for symbol, qty := range beforeSnapshot.FuturesPositionAmounts {
+		projected[strings.ToUpper(strings.TrimSpace(symbol))] = math.Abs(qty)
+	}
 	return openSequenceBuildState{
 		remainingSpotUSDT:      beforeSnapshot.SpotUSDTFree,
 		remainingFuturesUSDT:   beforeSnapshot.FuturesUSDTAvailable,
 		remainingCycleNotional: cfg.RiskConfig.MaxCycleOpenNotionalUSDT,
+		projectedFuturesAbsQty: projected,
 	}
 }
 
@@ -2115,8 +2261,31 @@ func (e *FundingRateSniperEngine) buildOpenSequencePlan(ctx context.Context, tar
 		target.Candidate.OrderQuantity = cycleLimitedQty
 		orderNotional = target.Candidate.OrderQuantity * futuresReferencePrice
 	}
+	currentAbsQty := 0.0
+	if state != nil && state.projectedFuturesAbsQty != nil {
+		currentAbsQty = state.projectedFuturesAbsQty[strings.ToUpper(strings.TrimSpace(target.Candidate.Symbol))]
+	}
+	if assessment, allowed, detail, bracketErr := e.assessOpenFuturesLeverage(ctx, target.Candidate.Symbol, currentAbsQty, target.Candidate.OrderQuantity, futuresReferencePrice, state.remainingFuturesUSDT); bracketErr != nil {
+		e.setSymbolCooldown(target.Candidate.Symbol, "leverage_bracket", "major", fmt.Sprintf("开仓前 leverage bracket 校验失败: %v", bracketErr))
+		e.logger.Printf("模块四跳过 %s，开仓前 leverage bracket 校验失败: %v", target.Candidate.Symbol, bracketErr)
+		return nil, nil
+	} else if !allowed {
+		e.setSymbolCooldown(target.Candidate.Symbol, "leverage_bracket", "major", detail)
+		e.logger.Printf("模块四跳过 %s，%s", target.Candidate.Symbol, detail)
+		return nil, nil
+	} else {
+		e.logger.Printf(
+			"模块四通过 %s leverage bracket 校验，projectedNotional=%.6f initialMargin=%.6f maintMargin=%.6f leverage=%dx bracket=%d",
+			target.Candidate.Symbol,
+			assessment.ProjectedNotionalUSDT,
+			assessment.InitialMarginUSDT,
+			assessment.MaintenanceMarginUSDT,
+			assessment.EffectiveLeverage,
+			assessment.Bracket.Bracket,
+		)
+	}
 
-	spotRequiredUSDT, futuresRequiredUSDT := estimateTargetCapitalRequirement(e.cfg, target, spotReferencePrice, futuresReferencePrice)
+	spotRequiredUSDT, futuresRequiredUSDT := e.estimateTargetCapitalRequirement(target, spotReferencePrice, futuresReferencePrice, e.serverNow())
 	if spotRequiredUSDT <= 0 || futuresRequiredUSDT <= 0 {
 		e.logger.Printf("模块四跳过 %s，资金需求估算无效，spotRequired=%.6f futuresRequired=%.6f", target.Candidate.Symbol, spotRequiredUSDT, futuresRequiredUSDT)
 		return nil, nil
@@ -2137,6 +2306,9 @@ func (e *FundingRateSniperEngine) buildOpenSequencePlan(ctx context.Context, tar
 	state.remainingFuturesUSDT -= futuresRequiredUSDT
 	if state.remainingCycleNotional > 0 {
 		state.remainingCycleNotional -= orderNotional
+	}
+	if state.projectedFuturesAbsQty != nil {
+		state.projectedFuturesAbsQty[strings.ToUpper(strings.TrimSpace(target.Candidate.Symbol))] = currentAbsQty + math.Abs(target.Candidate.OrderQuantity)
 	}
 
 	return &openSequencePlan{
@@ -2675,6 +2847,7 @@ func (e *FundingRateSniperEngine) validateFreshOpenHedge(ctx context.Context, he
 		adverseSpread,
 		e.cfg.StrategyConfig.FeeReserveRate,
 		e.cfg.StrategyConfig.ExitSpreadReserveRate,
+		e.liveBorrowReserveRate(hedge.Target, hedge.LastKnownSpotPrice(), e.serverNow()),
 	)
 	if adverseSpread <= e.cfg.StrategyConfig.ExitSpreadReserveRate && immediateNetProfit > e.cfg.RiskConfig.ImmediateInvalidateRate {
 		return nil
@@ -3302,7 +3475,7 @@ func (e *FundingRateSniperEngine) invalidateMonitorTarget(target *MonitoredTarge
 	e.transitionMonitorState(target, "invalidated", reason)
 	if atomic.CompareAndSwapInt32(&target.IsValid, 1, 0) {
 		target.InvalidReason = reason
-		e.logger.Printf("目标 %s 已作废: %s", target.Candidate.Symbol, target.InvalidReason)
+		e.logger.Printf("目标 %s 已作废: reason=%s net=%.6f spread=%.6f borrowRate=%.6f borrowUSDT=%.6f", target.Candidate.Symbol, target.InvalidReason, target.LastNetProfit, target.LastSpread, target.LastBorrowReserveRate, target.LastBorrowReserveUSDT)
 	}
 }
 
@@ -3314,13 +3487,15 @@ func (e *FundingRateSniperEngine) transitionMonitorState(target *MonitoredTarget
 
 	target.MonitorState = nextState
 	e.logger.Printf(
-		"模块三状态变更，symbol=%s %s->%s breach=%d net=%.6f spread=%.6f detail=%s",
+		"模块三状态变更，symbol=%s %s->%s breach=%d net=%.6f spread=%.6f borrowRate=%.6f borrowUSDT=%.6f detail=%s",
 		target.Candidate.Symbol,
 		nonEmpty(prevState, "unknown"),
 		nextState,
 		target.BreachCount,
 		target.LastNetProfit,
 		target.LastSpread,
+		target.LastBorrowReserveRate,
+		target.LastBorrowReserveUSDT,
 		nonEmpty(detail, "-"),
 	)
 }
@@ -3564,13 +3739,15 @@ func (e *FundingRateSniperEngine) logMonitorSummary(targets []*MonitoredTarget) 
 		state := nonEmpty(target.MonitorState, "unknown")
 		stateCounts[state]++
 		e.logger.Printf(
-			"模块三摘要，symbol=%s state=%s valid=%t breach=%d net=%.6f spread=%.6f reason=%s",
+			"模块三摘要，symbol=%s state=%s valid=%t breach=%d net=%.6f spread=%.6f borrowRate=%.6f borrowUSDT=%.6f reason=%s",
 			target.Candidate.Symbol,
 			state,
 			atomic.LoadInt32(&target.IsValid) == 1,
 			target.BreachCount,
 			target.LastNetProfit,
 			target.LastSpread,
+			target.LastBorrowReserveRate,
+			target.LastBorrowReserveUSDT,
 			nonEmpty(target.InvalidReason, "-"),
 		)
 	}
@@ -4635,8 +4812,36 @@ func (e *FundingRateSniperEngine) fetchSpotAccountFreeBalances(ctx context.Conte
 }
 
 func (e *FundingRateSniperEngine) fetchFuturesAccountState(ctx context.Context) (float64, float64, map[string]float64, error) {
+	if e != nil {
+		e.futuresAccountStateMu.Lock()
+		cachedAt := e.futuresAccountStateCachedAt
+		if !cachedAt.IsZero() && time.Since(cachedAt) <= futuresAccountStateCacheTTL {
+			walletUSDT := e.futuresAccountWalletUSDT
+			availableUSDT := e.futuresAccountAvailableUSDT
+			positions := cloneFloat64Map(e.futuresAccountPositions)
+			e.futuresAccountStateMu.Unlock()
+			return walletUSDT, availableUSDT, positions, nil
+		}
+		e.futuresAccountStateMu.Unlock()
+	}
+
 	body, err := e.signedRequest(ctx, http.MethodGet, e.client.futuresBaseURL+"/fapi/v3/account", nil)
 	if err != nil {
+		if e != nil {
+			e.futuresAccountStateMu.Lock()
+			cachedAt := e.futuresAccountStateCachedAt
+			if !cachedAt.IsZero() && time.Since(cachedAt) <= futuresAccountStateStaleTTL {
+				walletUSDT := e.futuresAccountWalletUSDT
+				availableUSDT := e.futuresAccountAvailableUSDT
+				positions := cloneFloat64Map(e.futuresAccountPositions)
+				e.futuresAccountStateMu.Unlock()
+				if e.logger != nil {
+					e.logger.Printf("合约账户快照读取失败，回退到 %.1fs 内缓存: %v", time.Since(cachedAt).Seconds(), err)
+				}
+				return walletUSDT, availableUSDT, positions, nil
+			}
+			e.futuresAccountStateMu.Unlock()
+		}
 		return 0, 0, nil, err
 	}
 
@@ -4668,6 +4873,15 @@ func (e *FundingRateSniperEngine) fetchFuturesAccountState(ctx context.Context) 
 	positions := make(map[string]float64, len(payload.Positions))
 	for _, position := range payload.Positions {
 		positions[position.Symbol] = parseFloat(position.PositionAmt)
+	}
+
+	if e != nil {
+		e.futuresAccountStateMu.Lock()
+		e.futuresAccountStateCachedAt = time.Now()
+		e.futuresAccountWalletUSDT = walletUSDT
+		e.futuresAccountAvailableUSDT = availableUSDT
+		e.futuresAccountPositions = cloneFloat64Map(positions)
+		e.futuresAccountStateMu.Unlock()
 	}
 
 	return walletUSDT, availableUSDT, positions, nil
@@ -5052,6 +5266,9 @@ func (e *FundingRateSniperEngine) signedRequest(ctx context.Context, method stri
 		params = url.Values{}
 	}
 	params = cloneURLValues(params)
+	if err := e.blockOrderRequestByLocalRateLimit(method, endpoint, params); err != nil {
+		return nil, err
+	}
 	params.Set("recvWindow", strconv.FormatInt(e.cfg.ExecutionConfig.RecvWindow, 10))
 	params.Set("timestamp", strconv.FormatInt(e.currentServerTimeMillis(), 10))
 
@@ -5125,7 +5342,7 @@ func (e *FundingRateSniperEngine) isCriticalExposureRequest(method string, endpo
 	if params != nil {
 		clientOrderID = strings.ToLower(strings.TrimSpace(params.Get("newClientOrderId")))
 	}
-	if strings.Contains(endpoint, "/api/v3/order") || strings.Contains(endpoint, "/fapi/v1/order") {
+	if isSignedOrderEndpoint(endpoint) {
 		if method == http.MethodDelete {
 			return true
 		}
@@ -5139,6 +5356,110 @@ func (e *FundingRateSniperEngine) isCriticalExposureRequest(method string, endpo
 		}
 	}
 	return false
+}
+
+func isSignedOrderEndpoint(endpoint string) bool {
+	endpoint = strings.ToLower(strings.TrimSpace(endpoint))
+	return strings.Contains(endpoint, "/api/v3/order") ||
+		strings.Contains(endpoint, "/sapi/v1/margin/order") ||
+		strings.Contains(endpoint, "/fapi/v1/order") ||
+		strings.Contains(endpoint, "/fapi/v1/batchorders")
+}
+
+func signedOrderRequestUnits(method string, endpoint string, params url.Values) int {
+	if strings.ToUpper(strings.TrimSpace(method)) != http.MethodPost || !isSignedOrderEndpoint(endpoint) {
+		return 0
+	}
+	endpoint = strings.ToLower(strings.TrimSpace(endpoint))
+	if strings.Contains(endpoint, "/fapi/v1/batchorders") {
+		if params == nil {
+			return 0
+		}
+		raw := strings.TrimSpace(params.Get("batchOrders"))
+		if raw == "" {
+			return 0
+		}
+		var items []map[string]any
+		if err := json.Unmarshal([]byte(raw), &items); err != nil {
+			return 1
+		}
+		if len(items) == 0 {
+			return 0
+		}
+		return len(items)
+	}
+	return 1
+}
+
+func (e *FundingRateSniperEngine) blockOrderRequestByLocalRateLimit(method string, endpoint string, params url.Values) error {
+	if e == nil {
+		return nil
+	}
+	units := signedOrderRequestUnits(method, endpoint, params)
+	if units <= 0 {
+		return nil
+	}
+	critical := e.isCriticalExposureRequest(method, endpoint, params)
+	now := time.Now().UTC()
+	e.orderRateMu.Lock()
+	e.pruneOrderRateRequestsLocked(now)
+	if !e.orderRateLimitUntil.IsZero() && e.orderRateLimitUntil.After(now) {
+		remaining := e.orderRateLimitUntil.Sub(now).Round(time.Millisecond)
+		e.orderRateMu.Unlock()
+		return e.noteOrderRateLimitEvent("exchange_cooldown", majorIfCritical(critical), fmt.Sprintf("endpoint=%s units=%d critical=%t remaining=%s", endpoint, units, critical, remaining))
+	}
+	limit10s := orderRateLimitCapacity10s
+	limit1m := orderRateLimitCapacity1m
+	if !critical {
+		limit10s -= orderRateLimitReserve10s
+		limit1m -= orderRateLimitReserve1m
+	}
+	projected10s := len(e.orderRateRequests10s) + units
+	projected1m := len(e.orderRateRequests1m) + units
+	if projected10s > limit10s || projected1m > limit1m {
+		e.orderRateMu.Unlock()
+		return e.noteOrderRateLimitEvent("local_guard", majorIfCritical(critical), fmt.Sprintf("endpoint=%s units=%d critical=%t projected10s=%d/%d projected1m=%d/%d", endpoint, units, critical, projected10s, limit10s, projected1m, limit1m))
+	}
+	for i := 0; i < units; i++ {
+		e.orderRateRequests10s = append(e.orderRateRequests10s, now)
+		e.orderRateRequests1m = append(e.orderRateRequests1m, now)
+	}
+	e.orderRateMu.Unlock()
+	return nil
+}
+
+func (e *FundingRateSniperEngine) pruneOrderRateRequestsLocked(now time.Time) {
+	prune := func(values []time.Time, window time.Duration) []time.Time {
+		kept := values[:0]
+		for _, item := range values {
+			if now.Sub(item) < window {
+				kept = append(kept, item)
+			}
+		}
+		return kept
+	}
+	e.orderRateRequests10s = prune(e.orderRateRequests10s, orderRateLimitWindow10s)
+	e.orderRateRequests1m = prune(e.orderRateRequests1m, orderRateLimitWindow1m)
+}
+
+func majorIfCritical(critical bool) string {
+	if critical {
+		return "critical"
+	}
+	return "major"
+}
+
+func (e *FundingRateSniperEngine) noteOrderRateLimitEvent(category string, severity string, detail string) error {
+	if e == nil {
+		return fmt.Errorf("order rate limiter 触发: %s", detail)
+	}
+	e.platformRiskMu.Lock()
+	e.lastExceptionCategory = "order_rate_limit"
+	e.lastExceptionSeverity = strings.TrimSpace(nonEmpty(severity, "major"))
+	e.lastExceptionDetail = fmt.Sprintf("%s %s", strings.TrimSpace(category), strings.TrimSpace(detail))
+	e.runtimeReporter.EmitLocked(EngineStage(""))
+	e.platformRiskMu.Unlock()
+	return fmt.Errorf("order rate limiter 触发: %s", detail)
 }
 
 func (e *FundingRateSniperEngine) blockNonCriticalRequestByUsedWeight(method string, endpoint string, params url.Values) (func(), error) {
@@ -5283,7 +5604,7 @@ func premiumIndexStaleness(now time.Time, item PremiumIndexItem) time.Duration {
 	return age
 }
 
-func estimateTargetCapitalRequirement(cfg EngineConfig, target *MonitoredTarget, spotReferencePrice float64, futuresReferencePrice float64) (float64, float64) {
+func (e *FundingRateSniperEngine) estimateTargetCapitalRequirement(target *MonitoredTarget, spotReferencePrice float64, futuresReferencePrice float64, entryTime time.Time) (float64, float64) {
 	if target == nil || target.Candidate.OrderQuantity <= 0 {
 		return 0, 0
 	}
@@ -5297,15 +5618,16 @@ func estimateTargetCapitalRequirement(cfg EngineConfig, target *MonitoredTarget,
 		return 0, 0
 	}
 
-	spotFeeRate := cfg.HistoricalConfig.SpotTakerFeeRate
+	spotFeeRate := e.cfg.HistoricalConfig.SpotTakerFeeRate
 	if spotFeeRate <= 0 {
 		spotFeeRate = 0.0010
 	}
-	futuresFeeRate := cfg.HistoricalConfig.FuturesTakerFeeRate
+	futuresFeeRate := e.cfg.HistoricalConfig.FuturesTakerFeeRate
 	if futuresFeeRate <= 0 {
 		futuresFeeRate = 0.0005
 	}
-	spotRequiredUSDT := target.Candidate.OrderQuantity * spotReferencePrice * (1 + spotFeeRate)
+	spotRequiredUSDT := target.Candidate.OrderQuantity*spotReferencePrice*(1+spotFeeRate) +
+		e.liveBorrowReserveCost(target.Candidate, spotReferencePrice, entryTime)
 	futuresRequiredUSDT := target.Candidate.OrderQuantity * futuresReferencePrice * (1 + futuresFeeRate)
 	return spotRequiredUSDT, futuresRequiredUSDT
 }
@@ -5655,8 +5977,16 @@ func (e *FundingRateSniperEngine) notePlatformRequestResult(endpoint string, err
 	}
 	category, severity := classifyPlatformException(err)
 	text := strings.ToLower(err.Error())
-	reject := category == "platform_reject"
+	reject := category == "platform_reject" || category == "order_rate_limit"
 	requestAbnormal := reject || strings.Contains(text, "timeout") || strings.Contains(text, "deadline exceeded") || strings.Contains(text, "context canceled") || strings.Contains(text, "request failed") || strings.Contains(text, "签名请求失败")
+	if category == "order_rate_limit" {
+		e.orderRateMu.Lock()
+		cooldownUntil := time.Now().UTC().Add(orderRateLimitExchangeCooldown)
+		if cooldownUntil.After(e.orderRateLimitUntil) {
+			e.orderRateLimitUntil = cooldownUntil
+		}
+		e.orderRateMu.Unlock()
+	}
 
 	e.platformRiskMu.Lock()
 	e.lastExceptionCategory = category
@@ -5783,6 +6113,8 @@ func classifyPlatformException(err error) (string, string) {
 	}
 	text := strings.ToLower(err.Error())
 	switch {
+	case strings.Contains(text, "-1015"), strings.Contains(text, "too many new orders"):
+		return "order_rate_limit", "major"
 	case strings.Contains(text, "403"), strings.Contains(text, "418"):
 		return "platform_reject", "critical"
 	case strings.Contains(text, "429"), strings.Contains(text, "too many requests"):
@@ -5794,6 +6126,118 @@ func classifyPlatformException(err error) (string, string) {
 	default:
 		return "request_error", "minor"
 	}
+}
+
+func (e *FundingRateSniperEngine) loadFuturesLeverageBrackets(ctx context.Context, symbol string) ([]futuresLeverageBracket, error) {
+	if e == nil || e.client == nil {
+		return nil, fmt.Errorf("leverage bracket 客户端未初始化")
+	}
+	symbol = strings.ToUpper(strings.TrimSpace(symbol))
+	if symbol == "" {
+		return nil, fmt.Errorf("symbol 不能为空")
+	}
+	e.futuresLeverageBracketMu.Lock()
+	if cached, ok := e.futuresLeverageBrackets[symbol]; ok && len(cached) > 0 {
+		cloned := append([]futuresLeverageBracket(nil), cached...)
+		e.futuresLeverageBracketMu.Unlock()
+		return cloned, nil
+	}
+	e.futuresLeverageBracketMu.Unlock()
+
+	params := url.Values{}
+	params.Set("symbol", symbol)
+	body, err := e.signedRequest(ctx, http.MethodGet, e.client.futuresBaseURL+"/fapi/v1/leverageBracket", params)
+	if err != nil {
+		return nil, fmt.Errorf("查询 %s leverageBracket 失败: %w", symbol, err)
+	}
+	var envelopes []futuresLeverageBracketEnvelope
+	if err := json.Unmarshal(body, &envelopes); err != nil || len(envelopes) == 0 {
+		var single futuresLeverageBracketEnvelope
+		if singleErr := json.Unmarshal(body, &single); singleErr != nil {
+			if err != nil {
+				return nil, fmt.Errorf("解析 %s leverageBracket 响应失败: %w", symbol, err)
+			}
+			return nil, fmt.Errorf("解析 %s leverageBracket 响应失败: %w", symbol, singleErr)
+		}
+		envelopes = []futuresLeverageBracketEnvelope{single}
+	}
+	for _, envelope := range envelopes {
+		if strings.EqualFold(strings.TrimSpace(envelope.Symbol), symbol) && len(envelope.Brackets) > 0 {
+			sort.Slice(envelope.Brackets, func(i int, j int) bool {
+				return envelope.Brackets[i].NotionalFloor < envelope.Brackets[j].NotionalFloor
+			})
+			e.futuresLeverageBracketMu.Lock()
+			if e.futuresLeverageBrackets == nil {
+				e.futuresLeverageBrackets = make(map[string][]futuresLeverageBracket)
+			}
+			e.futuresLeverageBrackets[symbol] = append([]futuresLeverageBracket(nil), envelope.Brackets...)
+			e.futuresLeverageBracketMu.Unlock()
+			return append([]futuresLeverageBracket(nil), envelope.Brackets...), nil
+		}
+	}
+	return nil, fmt.Errorf("%s leverageBracket 响应为空", symbol)
+}
+
+func assessFuturesLeverageRisk(symbol string, configuredLeverage int, currentAbsQty float64, orderQty float64, referencePrice float64, availableUSDT float64, brackets []futuresLeverageBracket) (futuresLeverageRiskAssessment, bool, string) {
+	if referencePrice <= 0 || math.Abs(orderQty) <= executionQtyTolerance {
+		return futuresLeverageRiskAssessment{}, false, "reference price 或 order qty 无效"
+	}
+	projectedNotional := (math.Abs(currentAbsQty) + math.Abs(orderQty)) * referencePrice
+	if projectedNotional <= 0 {
+		return futuresLeverageRiskAssessment{}, false, "projected notional 无效"
+	}
+	if len(brackets) == 0 {
+		return futuresLeverageRiskAssessment{}, false, "leverage bracket 为空"
+	}
+	var matched futuresLeverageBracket
+	matchedFound := false
+	for _, bracket := range brackets {
+		upperOK := projectedNotional <= bracket.NotionalCap+1e-9
+		if bracket.NotionalCap <= 0 {
+			upperOK = true
+		}
+		if projectedNotional+1e-9 >= bracket.NotionalFloor && upperOK {
+			matched = bracket
+			matchedFound = true
+			break
+		}
+	}
+	if !matchedFound {
+		last := brackets[len(brackets)-1]
+		return futuresLeverageRiskAssessment{}, false, fmt.Sprintf("projectedNotional=%.6f 超出 %s leverage bracket 上限 cap=%.6f", projectedNotional, symbol, last.NotionalCap)
+	}
+	if matched.InitialLeverage > 0 && configuredLeverage > matched.InitialLeverage {
+		return futuresLeverageRiskAssessment{}, false, fmt.Sprintf("projectedNotional=%.6f 命中 bracket=%d，仅允许最大初始杠杆=%dx，当前配置=%dx", projectedNotional, matched.Bracket, matched.InitialLeverage, configuredLeverage)
+	}
+	effectiveLeverage := configuredLeverage
+	if effectiveLeverage <= 0 {
+		effectiveLeverage = 1
+	}
+	if matched.InitialLeverage > 0 && effectiveLeverage > matched.InitialLeverage {
+		effectiveLeverage = matched.InitialLeverage
+	}
+	initialMargin := projectedNotional / float64(effectiveLeverage)
+	maintenanceMargin := projectedNotional*matched.MaintMarginRatio + matched.Cum
+	requiredBuffer := initialMargin + maintenanceMargin
+	if availableUSDT > 0 && requiredBuffer > availableUSDT+1e-9 {
+		return futuresLeverageRiskAssessment{}, false, fmt.Sprintf("projectedNotional=%.6f 预计 initialMargin=%.6f + maintMargin=%.6f 超过 futuresAvailable=%.6f", projectedNotional, initialMargin, maintenanceMargin, availableUSDT)
+	}
+	return futuresLeverageRiskAssessment{
+		Bracket:               matched,
+		ProjectedNotionalUSDT: projectedNotional,
+		EffectiveLeverage:     effectiveLeverage,
+		InitialMarginUSDT:     initialMargin,
+		MaintenanceMarginUSDT: maintenanceMargin,
+	}, true, ""
+}
+
+func (e *FundingRateSniperEngine) assessOpenFuturesLeverage(ctx context.Context, symbol string, currentAbsQty float64, orderQty float64, referencePrice float64, availableUSDT float64) (futuresLeverageRiskAssessment, bool, string, error) {
+	brackets, err := e.loadFuturesLeverageBrackets(ctx, symbol)
+	if err != nil {
+		return futuresLeverageRiskAssessment{}, false, "", err
+	}
+	assessment, ok, detail := assessFuturesLeverageRisk(symbol, e.cfg.ExecutionConfig.FuturesLeverage, currentAbsQty, orderQty, referencePrice, availableUSDT, brackets)
+	return assessment, ok, detail, nil
 }
 
 func (e *FundingRateSniperEngine) cooldownForSeverity(severity string) time.Duration {
@@ -5941,7 +6385,11 @@ func (e *FundingRateSniperEngine) setCurrentMonitorTargets(targets []*MonitoredT
 		if target == nil {
 			continue
 		}
-		labels = append(labels, fmt.Sprintf("%s %.4f%%", target.Candidate.Symbol, target.Candidate.EstimatedRate*100))
+		borrowRate := target.LastBorrowReserveRate
+		if borrowRate <= 0 {
+			borrowRate = e.liveBorrowReserveRate(target.Candidate, target.Candidate.MarkPrice, e.serverNow())
+		}
+		labels = append(labels, fmt.Sprintf("%s funding=%.4f%% net=%.4f%% borrow=%.4f%%", target.Candidate.Symbol, target.Candidate.EstimatedRate*100, target.LastNetProfit*100, borrowRate*100))
 	}
 	e.setCurrentMonitorTargetLabels(labels)
 }
@@ -5951,6 +6399,34 @@ func (e *FundingRateSniperEngine) setCurrentMonitorTargetLabels(labels []string)
 	e.currentMonitorTargets = append([]string(nil), labels...)
 	e.runtimeReporter.EmitLocked(EngineStage(""))
 	e.platformRiskMu.Unlock()
+}
+
+func (e *FundingRateSniperEngine) updateCurrentMonitorTargetLabel(target *MonitoredTarget) {
+	if e == nil || target == nil {
+		return
+	}
+	label := fmt.Sprintf(
+		"%s funding=%.4f%% net=%.4f%% borrow=%.4f%%",
+		target.Candidate.Symbol,
+		target.Candidate.EstimatedRate*100,
+		target.LastNetProfit*100,
+		target.LastBorrowReserveRate*100,
+	)
+	prefix := target.Candidate.Symbol + " "
+	e.platformRiskMu.Lock()
+	defer e.platformRiskMu.Unlock()
+	replaced := false
+	for idx, current := range e.currentMonitorTargets {
+		if strings.HasPrefix(current, prefix) {
+			e.currentMonitorTargets[idx] = label
+			replaced = true
+			break
+		}
+	}
+	if !replaced {
+		e.currentMonitorTargets = append(e.currentMonitorTargets, label)
+	}
+	e.runtimeReporter.EmitLocked(EngineStage(""))
 }
 
 func (e *FundingRateSniperEngine) setCurrentPositionsFromHedges(hedges []OpenHedge) {
