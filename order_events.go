@@ -89,6 +89,7 @@ func (h *OrderEventHub) Forget(clientOrderID string) {
 	}
 	h.mu.Lock()
 	delete(h.snapshots, clientOrderID)
+	h.snapshotOrder = removeSnapshotOrderEntries(h.snapshotOrder, clientOrderID)
 	h.mu.Unlock()
 }
 
@@ -208,25 +209,52 @@ func (h *OrderEventHub) tryFallbackSnapshot(
 }
 
 func (h *OrderEventHub) trimSnapshotsLocked() {
-	for len(h.snapshotOrder) > orderEventSnapshotLimit {
-		oldest := h.snapshotOrder[0]
-		h.snapshotOrder = trimSnapshotOrderIndex(h.snapshotOrder)
-		if _, ok := h.snapshots[oldest]; !ok {
+	if len(h.snapshotOrder) <= orderEventSnapshotLimit {
+		return
+	}
+	removable := len(h.snapshotOrder) - orderEventSnapshotLimit
+	kept := make([]string, 0, minInt(len(h.snapshotOrder), orderEventSnapshotLimit))
+	for _, clientOrderID := range h.snapshotOrder {
+		if removable > 0 && h.shouldDropSnapshotLocked(clientOrderID) {
+			delete(h.snapshots, clientOrderID)
+			removable--
 			continue
 		}
-		if _, waiting := h.waiters[oldest]; waiting {
-			h.snapshotOrder = append(h.snapshotOrder, oldest)
-			return
+		if strings.TrimSpace(clientOrderID) == "" {
+			continue
 		}
-		delete(h.snapshots, oldest)
+		kept = append(kept, clientOrderID)
 	}
+	h.snapshotOrder = append([]string(nil), kept...)
 }
 
-func trimSnapshotOrderIndex(items []string) []string {
-	if len(items) <= 1 {
-		return items[:0]
+func (h *OrderEventHub) shouldDropSnapshotLocked(clientOrderID string) bool {
+	if strings.TrimSpace(clientOrderID) == "" {
+		return true
 	}
-	trimmed := make([]string, len(items)-1)
-	copy(trimmed, items[1:])
-	return trimmed
+	if _, ok := h.snapshots[clientOrderID]; !ok {
+		return true
+	}
+	if waiters := h.waiters[clientOrderID]; len(waiters) > 0 {
+		return false
+	}
+	return true
+}
+
+func removeSnapshotOrderEntries(items []string, target string) []string {
+	target = strings.TrimSpace(target)
+	if len(items) == 0 || target == "" {
+		return items
+	}
+	filtered := items[:0]
+	for _, item := range items {
+		if item == target {
+			continue
+		}
+		filtered = append(filtered, item)
+	}
+	if len(filtered) == len(items) {
+		return items
+	}
+	return append([]string(nil), filtered...)
 }

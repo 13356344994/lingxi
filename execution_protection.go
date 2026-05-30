@@ -6,9 +6,17 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 )
 
 const protectedExecutionIOC = "IOC"
+
+const protectedTickerMaxStaleness = 500 * time.Millisecond
+const protectedTickerSilentSymbolMaxStaleness = 15 * time.Second
+
+func normalizedSTPMode(mode string) string {
+	return strings.ToUpper(strings.TrimSpace(mode))
+}
 
 func applyProtectedFuturesLimitOrder(cfg EngineConfig, order *FuturesBatchOrderRequest, referencePrice float64, tickSize float64) bool {
 	if order == nil || !cfg.ExecutionConfig.UseProtectedIOC || referencePrice <= 0 {
@@ -45,7 +53,10 @@ func protectedLimitPrice(side string, referencePrice float64, slippageRate float
 
 func (e *FundingRateSniperEngine) fetchSpotBookTicker(ctx context.Context, symbol string) (BookTicker, error) {
 	if e.spotTickerCache != nil {
-		if ticker, ok := e.spotTickerCache.Get(symbol); ok && (parseFloat(ticker.AskPrice) > 0 || parseFloat(ticker.BidPrice) > 0) {
+		if ticker, receivedAt, ok := e.spotTickerCache.GetWithReceivedAt(symbol); ok && (parseFloat(ticker.AskPrice) > 0 || parseFloat(ticker.BidPrice) > 0) {
+			if !e.allowSilentTickerReuse(symbol, receivedAt, e.spotTickerCache, spotTickerHeartbeatSymbol) {
+				return BookTicker{}, fmt.Errorf("现货 bookTicker 已失效: symbol=%s age=%s", symbol, time.Since(receivedAt).Round(time.Millisecond))
+			}
 			return ticker, nil
 		}
 	}
@@ -58,7 +69,10 @@ func (e *FundingRateSniperEngine) fetchSpotBookTicker(ctx context.Context, symbo
 
 func (e *FundingRateSniperEngine) fetchFuturesBookTicker(ctx context.Context, symbol string) (BookTicker, error) {
 	if e.futuresTickerCache != nil {
-		if ticker, ok := e.futuresTickerCache.Get(symbol); ok && (parseFloat(ticker.AskPrice) > 0 || parseFloat(ticker.BidPrice) > 0) {
+		if ticker, receivedAt, ok := e.futuresTickerCache.GetWithReceivedAt(symbol); ok && (parseFloat(ticker.AskPrice) > 0 || parseFloat(ticker.BidPrice) > 0) {
+			if !e.allowSilentTickerReuse(symbol, receivedAt, e.futuresTickerCache, futuresTickerHeartbeatSymbol) {
+				return BookTicker{}, fmt.Errorf("合约 bookTicker 已失效: symbol=%s age=%s", symbol, time.Since(receivedAt).Round(time.Millisecond))
+			}
 			return ticker, nil
 		}
 	}
@@ -67,6 +81,26 @@ func (e *FundingRateSniperEngine) fetchFuturesBookTicker(ctx context.Context, sy
 		return BookTicker{}, err
 	}
 	return ticker, nil
+}
+
+func (e *FundingRateSniperEngine) allowSilentTickerReuse(symbol string, receivedAt time.Time, cache *BookTickerCache, heartbeatSymbol string) bool {
+	if receivedAt.IsZero() {
+		return false
+	}
+	age := time.Since(receivedAt)
+	if age <= protectedTickerMaxStaleness {
+		return true
+	}
+	if age > protectedTickerSilentSymbolMaxStaleness {
+		return false
+	}
+	symbol = strings.ToUpper(strings.TrimSpace(symbol))
+	heartbeatSymbol = strings.ToUpper(strings.TrimSpace(heartbeatSymbol))
+	if symbol == "" || heartbeatSymbol == "" || symbol == heartbeatSymbol || cache == nil {
+		return false
+	}
+	heartbeatAt := cache.LastReceivedAt(heartbeatSymbol)
+	return !heartbeatAt.IsZero() && time.Since(heartbeatAt) <= protectedTickerMaxStaleness
 }
 
 func normalizeProtectedLimitPrice(side string, referencePrice float64, slippageRate float64, tickSize float64) float64 {
@@ -90,6 +124,9 @@ func (e *FundingRateSniperEngine) spotProtectedOrderParams(ctx context.Context, 
 	params.Set("symbol", symbol)
 	params.Set("side", side)
 	params.Set("quantity", formatFloat(quantity))
+	if mode := normalizedSTPMode(e.cfg.ExecutionConfig.SpotSTPMode); mode != "" {
+		params.Set("selfTradePreventionMode", mode)
+	}
 	if clientOrderID != "" {
 		params.Set("newClientOrderId", clientOrderID)
 	}
@@ -121,6 +158,9 @@ func (e *FundingRateSniperEngine) futuresProtectedOrderParams(ctx context.Contex
 	params.Set("symbol", symbol)
 	params.Set("side", side)
 	params.Set("quantity", formatFloat(quantity))
+	if mode := normalizedSTPMode(e.cfg.ExecutionConfig.FuturesSTPMode); mode != "" {
+		params.Set("selfTradePreventionMode", mode)
+	}
 	if reduceOnly {
 		params.Set("reduceOnly", "true")
 	}
@@ -159,6 +199,7 @@ func (e *FundingRateSniperEngine) buildProtectedOpenFuturesOrder(target *Monitor
 		Side:             "SELL",
 		Type:             "MARKET",
 		Quantity:         formatFloat(target.Candidate.OrderQuantity),
+		SelfTradeMode:    normalizedSTPMode(e.cfg.ExecutionConfig.FuturesSTPMode),
 		NewClientOrderID: newClientOrderID("fopen", target.Candidate.Symbol),
 		NewOrderRespType: "RESULT",
 	}
@@ -177,6 +218,7 @@ func (e *FundingRateSniperEngine) buildProtectedCloseFuturesOrder(ctx context.Co
 		Type:             "MARKET",
 		Quantity:         hedge.HedgeQtyText,
 		ReduceOnly:       "true",
+		SelfTradeMode:    normalizedSTPMode(e.cfg.ExecutionConfig.FuturesSTPMode),
 		NewClientOrderID: newClientOrderID("fclose", hedge.Target.Symbol),
 		NewOrderRespType: "RESULT",
 	}

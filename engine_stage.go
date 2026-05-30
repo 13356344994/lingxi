@@ -16,6 +16,7 @@ const (
 	StageMonitorInvalidated EngineStage = "monitor_invalidated"
 	StageOpen               EngineStage = "open"
 	StageOpenEmpty          EngineStage = "open_empty"
+	StageCloseMonitor       EngineStage = "close_monitor"
 	StageClose              EngineStage = "close"
 	StageCooldown           EngineStage = "cooldown"
 	StageCompleted          EngineStage = "completed"
@@ -58,13 +59,19 @@ var allowedEngineStageTransitions = map[EngineStage]map[EngineStage]struct{}{
 		StageCompleted: {},
 	},
 	StageOpen: {
-		StageOpenEmpty: {},
-		StageClose:     {},
-		StageCooldown:  {},
+		StageOpenEmpty:    {},
+		StageCloseMonitor: {},
+		StageClose:        {},
+		StageCooldown:     {},
 	},
 	StageOpenEmpty: {
 		StageReady:     {},
 		StageScan:      {},
+		StageCooldown:  {},
+		StageCompleted: {},
+	},
+	StageCloseMonitor: {
+		StageClose:     {},
 		StageCooldown:  {},
 		StageCompleted: {},
 	},

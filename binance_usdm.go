@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -30,8 +32,18 @@ type BinanceClient struct {
 	historicalReferenceKlineLookback int
 	historicalEstimateKlineLookback  int
 	historicalFundingFetchSlot       time.Duration
-	historicalRequestMu              sync.Mutex
-	historicalNextRequestAt          time.Time
+	publicGETBaseSlot                time.Duration
+	publicGETCooldown403             time.Duration
+	publicGETCooldown418             time.Duration
+	publicGETUseAPIKey               bool
+	publicGETAPIKeyWhitelist         []string
+	publicGETMu                      sync.Mutex
+	publicGETNextRequestAt           time.Time
+	publicGETCooldownUntil           time.Time
+	usedWeightMu                     sync.Mutex
+	usedWeight1m                     int
+	usedWeightLimit1m                int
+	usedWeightBlockThreshold         int
 	historicalStatsMu                sync.Mutex
 	historicalStats                  historicalRequestStats
 }
@@ -49,10 +61,14 @@ type historicalRequestStats struct {
 	Status5xx      int
 	TotalWait      time.Duration
 	RateLimited    int
+	Cooldown403    int
+	Cooldown418    int
+	APIKeyAttached int
 }
 
 const (
 	historicalRequestBaseSlotDefault = 0
+	defaultUsedWeightLimit1m         = 6000
 )
 
 // SpotExchangeInfoResponse 对应币安现货 exchangeInfo 的精简响应结构。
@@ -103,34 +119,61 @@ type ExchangeFilter struct {
 // NewBinanceClient 创建一个可复用的币安 HTTP 客户端。
 // 这里使用纯标准库，便于静态编译和快速落地 MVP。
 func NewBinanceClient(timeout time.Duration) *BinanceClient {
-	if timeout <= 0 {
-		timeout = 10 * time.Second
+	networkCfg := DefaultEngineConfig().NetworkConfig
+	if timeout > 0 {
+		networkCfg.HTTPTimeout = timeout
+	}
+	client, err := NewBinanceClientWithNetworkConfig(networkCfg)
+	if err == nil {
+		return client
 	}
 
-	return &BinanceClient{
+	httpTimeout := networkCfg.HTTPTimeout
+	if httpTimeout <= 0 {
+		httpTimeout = 10 * time.Second
+	}
+	client = &BinanceClient{
 		spotBaseURL:    binanceSpotBaseURL,
 		futuresBaseURL: binanceFuturesBaseURL,
 		httpClient: &http.Client{
-			Timeout: timeout,
+			Timeout: httpTimeout,
 		},
 	}
+	client.applyNetworkConfig(networkCfg)
+	return client
+}
+
+func NewBinanceClientWithNetworkConfig(networkCfg NetworkConfig) (*BinanceClient, error) {
+	httpClient, err := NewHTTPClient(networkCfg, "")
+	if err != nil {
+		return nil, err
+	}
+	client := &BinanceClient{
+		spotBaseURL:    binanceSpotBaseURL,
+		futuresBaseURL: binanceFuturesBaseURL,
+		httpClient:     httpClient,
+	}
+	client.applyNetworkConfig(networkCfg)
+	return client, nil
 }
 
 // NewAuthenticatedBinanceClient 创建带认证和代理能力的客户端。
-func NewAuthenticatedBinanceClient(secret SecretConfig, timeout time.Duration) (*BinanceClient, error) {
-	httpClient, err := NewHTTPClient(timeout, secret.ProxyURL)
+func NewAuthenticatedBinanceClient(secret SecretConfig, networkCfg NetworkConfig) (*BinanceClient, error) {
+	httpClient, err := NewHTTPClient(networkCfg, secret.ProxyURL)
 	if err != nil {
 		return nil, err
 	}
 
-	return &BinanceClient{
+	client := &BinanceClient{
 		spotBaseURL:    binanceSpotBaseURL,
 		futuresBaseURL: binanceFuturesBaseURL,
 		apiKey:         secret.APIKey,
 		secretKey:      secret.Secret,
 		proxyURL:       secret.ProxyURL,
 		httpClient:     httpClient,
-	}, nil
+	}
+	client.applyNetworkConfig(networkCfg)
+	return client, nil
 }
 
 // ListGoldenSymbols 是模块一的核心对外方法。
@@ -141,28 +184,11 @@ func (c *BinanceClient) ListGoldenSymbols(ctx context.Context) ([]string, error)
 		return nil, err
 	}
 
-	spotSet := buildSpotUSDTTradingSet(spotSymbols)
-	perpetuals := filterUSDTPERPTradingFutures(futuresSymbols, time.Now().UTC())
-
-	golden := make([]string, 0, len(perpetuals))
-	seen := make(map[string]struct{}, len(perpetuals))
-	for _, symbol := range perpetuals {
-		pair := symbol.Pair
-		if pair == "" {
-			pair = symbol.Symbol
-		}
-
-		if _, ok := spotSet[pair]; !ok {
-			continue
-		}
-		if _, duplicated := seen[pair]; duplicated {
-			continue
-		}
-
-		seen[pair] = struct{}{}
-		golden = append(golden, pair)
+	goldenMap := buildGoldenSymbolSpotPairs(spotSymbols, futuresSymbols, preferredSpotQuoteAssets(DefaultEngineConfig().StrategyConfig.PreferredSpotQuoteAssets), time.Now().UTC())
+	golden := make([]string, 0, len(goldenMap))
+	for symbol := range goldenMap {
+		golden = append(golden, symbol)
 	}
-
 	sort.Strings(golden)
 	return golden, nil
 }
@@ -226,10 +252,14 @@ func (c *BinanceClient) fetchFuturesExchangeInfo(ctx context.Context) ([]Futures
 func (c *BinanceClient) getJSON(ctx context.Context, url string, target any) error {
 	var lastErr error
 	for _, candidateURL := range c.candidateRequestURLs(url) {
+		if err := c.waitPublicGETRequestSlot(ctx, candidateURL, 0); err != nil {
+			return err
+		}
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, candidateURL, nil)
 		if err != nil {
 			return fmt.Errorf("创建请求失败: %w", err)
 		}
+		c.applyPublicGETHeaders(req, candidateURL)
 
 		resp, err := c.httpClient.Do(req)
 		if err != nil {
@@ -239,8 +269,11 @@ func (c *BinanceClient) getJSON(ctx context.Context, url string, target any) err
 
 		func() {
 			defer resp.Body.Close()
+			c.noteUsedWeightFromHeaders(resp.Header)
+			c.notePublicGETResponseStatus(resp.StatusCode)
 			if resp.StatusCode != http.StatusOK {
-				lastErr = fmt.Errorf("HTTP 状态异常: %s", resp.Status)
+				body, _ := io.ReadAll(resp.Body)
+				lastErr = newPublicGETHTTPError(candidateURL, resp.StatusCode, resp.Status, body)
 				return
 			}
 			if decodeErr := json.NewDecoder(resp.Body).Decode(target); decodeErr != nil {
@@ -258,6 +291,85 @@ func (c *BinanceClient) getJSON(ctx context.Context, url string, target any) err
 		lastErr = fmt.Errorf("未知请求失败")
 	}
 	return lastErr
+}
+
+func (c *BinanceClient) noteUsedWeightFromHeaders(header http.Header) {
+	if c == nil || header == nil {
+		return
+	}
+	usedWeight := parseHeaderInt(header.Get("X-MBX-USED-WEIGHT-1M"))
+	if usedWeight < 0 {
+		return
+	}
+	c.usedWeightMu.Lock()
+	c.usedWeight1m = usedWeight
+	if c.usedWeightLimit1m <= 0 {
+		c.usedWeightLimit1m = defaultUsedWeightLimit1m
+	}
+	if c.usedWeightBlockThreshold <= 0 {
+		c.usedWeightBlockThreshold = int(float64(c.usedWeightLimit1m) * 0.8)
+	}
+	c.usedWeightMu.Unlock()
+}
+
+func (c *BinanceClient) usedWeightStatus() (int, int) {
+	if c == nil {
+		return 0, 0
+	}
+	c.usedWeightMu.Lock()
+	defer c.usedWeightMu.Unlock()
+	if c.usedWeightLimit1m <= 0 {
+		c.usedWeightLimit1m = defaultUsedWeightLimit1m
+	}
+	if c.usedWeightBlockThreshold <= 0 {
+		c.usedWeightBlockThreshold = int(float64(c.usedWeightLimit1m) * 0.8)
+	}
+	return c.usedWeight1m, c.usedWeightBlockThreshold
+}
+
+func parseHeaderInt(raw string) int {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return -1
+	}
+	value, err := strconv.Atoi(raw)
+	if err != nil {
+		return -1
+	}
+	return value
+}
+
+type publicGETHTTPError struct {
+	URL        string
+	StatusCode int
+	Status     string
+	Body       string
+}
+
+func newPublicGETHTTPError(rawURL string, statusCode int, status string, body []byte) error {
+	snippet := strings.TrimSpace(string(body))
+	snippet = strings.ReplaceAll(snippet, "\n", " ")
+	snippet = strings.ReplaceAll(snippet, "\r", " ")
+	if len(snippet) > 160 {
+		snippet = snippet[:160]
+	}
+	return publicGETHTTPError{
+		URL:        rawURL,
+		StatusCode: statusCode,
+		Status:     strings.TrimSpace(status),
+		Body:       snippet,
+	}
+}
+
+func (e publicGETHTTPError) Error() string {
+	message := fmt.Sprintf("HTTP 状态异常: %d %s", e.StatusCode, http.StatusText(e.StatusCode))
+	if strings.TrimSpace(e.Status) != "" {
+		message = fmt.Sprintf("HTTP 状态异常: %s", e.Status)
+	}
+	if strings.TrimSpace(e.Body) != "" {
+		message += " body=" + e.Body
+	}
+	return message
 }
 
 func (c *BinanceClient) candidateRequestURLs(rawURL string) []string {
@@ -305,23 +417,59 @@ func replaceBaseURLs(rawURL string, currentBase string, bases []string) []string
 	return result
 }
 
-func (c *BinanceClient) waitHistoricalRequestSlot(ctx context.Context) error {
+func (c *BinanceClient) applyNetworkConfig(cfg NetworkConfig) {
+	if c == nil {
+		return
+	}
+	c.publicGETBaseSlot = maxRequestGovernorDuration(cfg.PublicGETBaseSlot, 0)
+	c.publicGETCooldown403 = maxRequestGovernorDuration(cfg.PublicGETCooldown403, 0)
+	c.publicGETCooldown418 = maxRequestGovernorDuration(cfg.PublicGETCooldown418, 0)
+	c.publicGETUseAPIKey = cfg.PublicGETUseAPIKey
+	c.publicGETAPIKeyWhitelist = parsePublicGETWhitelist(cfg.PublicGETAPIKeyWhitelist)
+}
+
+func parsePublicGETWhitelist(raw string) []string {
+	parts := strings.Split(raw, ",")
+	result := make([]string, 0, len(parts))
+	seen := make(map[string]struct{}, len(parts))
+	for _, part := range parts {
+		token := strings.ToLower(strings.TrimSpace(part))
+		if token == "" {
+			continue
+		}
+		if _, ok := seen[token]; ok {
+			continue
+		}
+		seen[token] = struct{}{}
+		result = append(result, token)
+	}
+	return result
+}
+
+func (c *BinanceClient) waitPublicGETRequestSlot(ctx context.Context, rawURL string, extraSlot time.Duration) error {
 	if c == nil {
 		return nil
 	}
-	slot := c.historicalFundingFetchSlot
-	if slot <= 0 {
-		return nil
+	slot := c.publicGETBaseSlot
+	if extraSlot > slot {
+		slot = extraSlot
 	}
 
-	c.historicalRequestMu.Lock()
+	c.publicGETMu.Lock()
 	now := time.Now()
-	releaseAt := c.historicalNextRequestAt
-	if releaseAt.Before(now) {
-		releaseAt = now
+	releaseAt := now
+	if c.publicGETCooldownUntil.After(releaseAt) {
+		releaseAt = c.publicGETCooldownUntil
 	}
-	c.historicalNextRequestAt = releaseAt.Add(slot)
-	c.historicalRequestMu.Unlock()
+	if c.publicGETNextRequestAt.After(releaseAt) {
+		releaseAt = c.publicGETNextRequestAt
+	}
+	if slot > 0 {
+		c.publicGETNextRequestAt = releaseAt.Add(slot)
+	} else {
+		c.publicGETNextRequestAt = releaseAt
+	}
+	c.publicGETMu.Unlock()
 
 	wait := time.Until(releaseAt)
 	if wait <= 0 {
@@ -332,6 +480,65 @@ func (c *BinanceClient) waitHistoricalRequestSlot(ctx context.Context) error {
 		return ctx.Err()
 	}
 	return nil
+}
+
+func (c *BinanceClient) applyPublicGETHeaders(req *http.Request, rawURL string) {
+	if req == nil || c == nil {
+		return
+	}
+	req.Header.Set("Accept", "application/json")
+	if !c.shouldAttachAPIKeyToPublicGET(rawURL) {
+		return
+	}
+	req.Header.Set("X-MBX-APIKEY", c.apiKey)
+	c.recordPublicGETAPIKeyAttached()
+}
+
+func (c *BinanceClient) shouldAttachAPIKeyToPublicGET(rawURL string) bool {
+	if c == nil || !c.publicGETUseAPIKey || strings.TrimSpace(c.apiKey) == "" {
+		return false
+	}
+	lowerURL := strings.ToLower(strings.TrimSpace(rawURL))
+	if len(c.publicGETAPIKeyWhitelist) == 0 {
+		return false
+	}
+	for _, token := range c.publicGETAPIKeyWhitelist {
+		if token != "" && strings.Contains(lowerURL, token) {
+			return true
+		}
+	}
+	return false
+}
+
+func (c *BinanceClient) notePublicGETResponseStatus(statusCode int) {
+	c.recordHistoricalRequestStatus(statusCode)
+	penalty := c.publicGETPenalty(statusCode)
+	if penalty <= 0 {
+		return
+	}
+	c.publicGETMu.Lock()
+	until := time.Now().UTC().Add(penalty)
+	if until.After(c.publicGETCooldownUntil) {
+		c.publicGETCooldownUntil = until
+	}
+	c.publicGETMu.Unlock()
+	c.recordPublicGETCooldown(statusCode)
+}
+
+func (c *BinanceClient) publicGETPenalty(statusCode int) time.Duration {
+	switch statusCode {
+	case http.StatusForbidden:
+		return c.publicGETCooldown403
+	case http.StatusTeapot:
+		return c.publicGETCooldown418
+	case http.StatusTooManyRequests, http.StatusAccepted:
+		if c.publicGETCooldown403 > 0 {
+			return maxRequestGovernorDuration(c.publicGETCooldown403/2, time.Second)
+		}
+		return 2 * time.Second
+	default:
+		return 0
+	}
 }
 
 func (c *BinanceClient) recordHistoricalCacheLookup(hit bool) {
@@ -390,6 +597,29 @@ func (c *BinanceClient) recordHistoricalWait(wait time.Duration) {
 	c.historicalStatsMu.Unlock()
 }
 
+func (c *BinanceClient) recordPublicGETCooldown(statusCode int) {
+	if c == nil {
+		return
+	}
+	c.historicalStatsMu.Lock()
+	defer c.historicalStatsMu.Unlock()
+	switch statusCode {
+	case http.StatusForbidden:
+		c.historicalStats.Cooldown403++
+	case http.StatusTeapot:
+		c.historicalStats.Cooldown418++
+	}
+}
+
+func (c *BinanceClient) recordPublicGETAPIKeyAttached() {
+	if c == nil {
+		return
+	}
+	c.historicalStatsMu.Lock()
+	c.historicalStats.APIKeyAttached++
+	c.historicalStatsMu.Unlock()
+}
+
 func (c *BinanceClient) historicalRequestSummary() string {
 	if c == nil {
 		return ""
@@ -397,7 +627,7 @@ func (c *BinanceClient) historicalRequestSummary() string {
 	c.historicalStatsMu.Lock()
 	stats := c.historicalStats
 	c.historicalStatsMu.Unlock()
-	return fmt.Sprintf("cache(hit=%d,miss=%d);http(req=%d,retry=%d,202=%d,403=%d,418=%d,429=%d,4xx_other=%d,5xx=%d,rateLimited=%d);wait=%s",
+	return fmt.Sprintf("cache(hit=%d,miss=%d);http(req=%d,retry=%d,202=%d,403=%d,418=%d,429=%d,4xx_other=%d,5xx=%d,rateLimited=%d);governor(cooldown403=%d,cooldown418=%d,apikey=%d);wait=%s",
 		stats.CacheHits,
 		stats.CacheMisses,
 		stats.RequestCount,
@@ -409,34 +639,107 @@ func (c *BinanceClient) historicalRequestSummary() string {
 		stats.Status4xxOther,
 		stats.Status5xx,
 		stats.RateLimited,
+		stats.Cooldown403,
+		stats.Cooldown418,
+		stats.APIKeyAttached,
 		stats.TotalWait.Round(time.Millisecond))
 }
 
-// buildSpotUSDTTradingSet 将“现货中符合条件的交易对”构造成集合，便于后续 O(1) 求交集。
-// 过滤条件：
-// 1. 交易对以 USDT 结尾
-// 2. 状态为 TRADING
-// 3. 计价资产为 USDT
-func buildSpotUSDTTradingSet(symbols []SpotSymbol) map[string]struct{} {
-	result := make(map[string]struct{}, len(symbols))
+func maxRequestGovernorDuration(a time.Duration, b time.Duration) time.Duration {
+	if a >= b {
+		return a
+	}
+	return b
+}
 
-	for _, symbol := range symbols {
-		if !isValidExchangeSymbol(symbol.Symbol) {
+func preferredSpotQuoteAssets(raw string) []string {
+	parts := strings.Split(raw, ",")
+	result := make([]string, 0, len(parts))
+	seen := make(map[string]struct{}, len(parts))
+	for _, part := range parts {
+		asset := strings.ToUpper(strings.TrimSpace(part))
+		if asset == "" {
 			continue
 		}
-		if !strings.HasSuffix(symbol.Symbol, "USDT") {
+		if _, duplicated := seen[asset]; duplicated {
 			continue
 		}
-		if symbol.Status != "TRADING" {
-			continue
-		}
-		if symbol.QuoteAsset != "USDT" {
-			continue
-		}
+		seen[asset] = struct{}{}
+		result = append(result, asset)
+	}
+	if len(result) == 0 {
+		return []string{"FDUSD", "USDC", "USDT"}
+	}
+	return result
+}
 
-		result[symbol.Symbol] = struct{}{}
+func buildPreferredSpotSymbolsByBase(symbols []SpotSymbol, preferredQuotes []string) map[string]SpotSymbol {
+	quoteRank := make(map[string]int, len(preferredQuotes))
+	for idx, asset := range preferredQuotes {
+		quoteRank[strings.ToUpper(strings.TrimSpace(asset))] = idx
 	}
 
+	result := make(map[string]SpotSymbol, len(symbols))
+	bestRank := make(map[string]int, len(symbols))
+	for _, symbol := range symbols {
+		if !isValidExchangeSymbol(symbol.Symbol) || symbol.Status != "TRADING" {
+			continue
+		}
+		rank, ok := quoteRank[strings.ToUpper(strings.TrimSpace(symbol.QuoteAsset))]
+		if !ok {
+			continue
+		}
+		baseAsset := strings.ToUpper(strings.TrimSpace(symbol.BaseAsset))
+		if baseAsset == "" {
+			continue
+		}
+		current, exists := result[baseAsset]
+		if !exists || rank < bestRank[baseAsset] || (rank == bestRank[baseAsset] && symbol.Symbol < current.Symbol) {
+			result[baseAsset] = symbol
+			bestRank[baseAsset] = rank
+		}
+	}
+	return result
+}
+
+func futuresBaseAsset(symbol FuturesSymbol) string {
+	pair := strings.ToUpper(strings.TrimSpace(symbol.Pair))
+	marginAsset := strings.ToUpper(strings.TrimSpace(symbol.MarginAsset))
+	if pair == "" {
+		pair = strings.ToUpper(strings.TrimSpace(symbol.Symbol))
+	}
+	if marginAsset != "" && strings.HasSuffix(pair, marginAsset) {
+		baseAsset := strings.TrimSuffix(pair, marginAsset)
+		if baseAsset != "" {
+			return baseAsset
+		}
+	}
+	for _, quoteAsset := range []string{"USDT", "FDUSD", "USDC"} {
+		if strings.HasSuffix(pair, quoteAsset) {
+			baseAsset := strings.TrimSuffix(pair, quoteAsset)
+			if baseAsset != "" {
+				return baseAsset
+			}
+		}
+	}
+	return pair
+}
+
+func buildGoldenSymbolSpotPairs(spotSymbols []SpotSymbol, futuresSymbols []FuturesSymbol, preferredQuotes []string, now time.Time) map[string]string {
+	spotByBase := buildPreferredSpotSymbolsByBase(spotSymbols, preferredQuotes)
+	perpetuals := filterUSDTPERPTradingFutures(futuresSymbols, now)
+	result := make(map[string]string, len(perpetuals))
+	for _, symbol := range perpetuals {
+		baseAsset := futuresBaseAsset(symbol)
+		if baseAsset == "" {
+			continue
+		}
+		spotSymbol, ok := spotByBase[baseAsset]
+		if !ok {
+			continue
+		}
+		result[symbol.Symbol] = spotSymbol.Symbol
+	}
 	return result
 }
 
@@ -483,7 +786,7 @@ func hasUpcomingFuturesDelist(symbol FuturesSymbol, now time.Time) bool {
 }
 
 func isValidExchangeSymbol(symbol string) bool {
-	if !strings.HasSuffix(symbol, "USDT") {
+	if strings.TrimSpace(symbol) == "" {
 		return false
 	}
 	for _, r := range symbol {

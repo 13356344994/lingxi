@@ -24,11 +24,16 @@ const (
 	monthlyFundingFetchProgressStep = 20
 	monthlyEvaluationProgressStep   = 24
 	monthlyFundingDataCompleteFloor = 0.85
+	monthlyFundingTopSymbolsPerTime = 20
 	monthlyFundingFetchBatchSize    = 20
 	monthlyFundingFetchBatchPause   = 10 * time.Second
+	monthlyFundingPause202          = 30 * time.Second
+	monthlyFundingPause429          = 60 * time.Second
 	monthlyFundingPause403          = 60 * time.Second
 	monthlyFundingPause418          = 120 * time.Second
 	monthlyFundingPauseOther4xx     = 30 * time.Second
+	monthlyFundingAbort202Batches   = 2
+	monthlyFundingAbort429Batches   = 2
 	monthlyFundingAbort403Batches   = 2
 	monthlyFundingAbort418Batches   = 1
 )
@@ -83,10 +88,11 @@ var monthlySimulationLogHeader = []string{
 
 // FundingRateHistoryItem 对应币安 fundingRate 历史接口响应。
 type FundingRateHistoryItem struct {
-	Symbol      string `json:"symbol"`
-	FundingRate string `json:"fundingRate"`
-	FundingTime int64  `json:"fundingTime"`
-	MarkPrice   string `json:"markPrice"`
+	Symbol               string `json:"symbol"`
+	FundingRate          string `json:"fundingRate"`
+	FundingTime          int64  `json:"fundingTime"`
+	MarkPrice            string `json:"markPrice"`
+	EstimatedFundingRate string `json:"-"`
 }
 
 // MarketKline 表示币安 K 线的一根蜡烛。
@@ -194,6 +200,7 @@ type monthlyCandidate struct {
 
 type monthlyEventGroup struct {
 	FundingTime time.Time
+	RawCount    int
 	Items       []FundingRateHistoryItem
 }
 
@@ -205,6 +212,17 @@ type monthlyKlineCache struct {
 	premium map[string]MarketKline
 	hits    map[string]int
 	loads   map[string]int
+}
+
+func newMonthlyKlineCache() *monthlyKlineCache {
+	return &monthlyKlineCache{
+		spot:    make(map[string]MarketKline),
+		futures: make(map[string]MarketKline),
+		index:   make(map[string]MarketKline),
+		premium: make(map[string]MarketKline),
+		hits:    make(map[string]int),
+		loads:   make(map[string]int),
+	}
 }
 
 type monthlyFundingFetchStats struct {
@@ -280,7 +298,7 @@ func (r *BacktestRunner) RunMonthlyMarketSimulation(ctx context.Context, secretP
 		lookbackDays = hcfg.DefaultLookbackDays
 	}
 
-	client, err := newHistoricalBacktestClient(secretPath, r.cfg.HTTPTimeout, hcfg)
+	client, err := newHistoricalBacktestClient(secretPath, r.cfg.HTTPTimeout, r.cfg.NetworkConfig, hcfg)
 	if err != nil {
 		return nil, err
 	}
@@ -300,9 +318,10 @@ func (r *BacktestRunner) RunMonthlyMarketSimulation(ctx context.Context, secretP
 	if r.logger != nil {
 		r.logger.Printf("月度真实行情模拟启动，区间=%s，黄金币种数=%d，单腿名义=%.2f，总初始权益=%.2f，止损权益=%.2f", periodLabel, len(symbols), r.monthlyPerLegNotional(), hcfg.InitialEquityUSDT, hcfg.StopEquityUSDT)
 	}
-	r.reportProgress(EngineStage("fetch_funding"), fmt.Sprintf("正在拉取 funding 历史: 0/%d", len(symbols)), 0, len(symbols))
+	cache := newMonthlyKlineCache()
+	r.reportProgress(EngineStage("fetch_funding"), fmt.Sprintf("正在按时间轴构建历史候选: 0/%d", len(symbols)), 0, len(symbols))
 
-	groups, fetchStats, err := r.fetchMonthlyFundingGroups(ctx, client, symbols, start, end)
+	groups, fetchStats, err := r.buildMonthlyTimelineGroups(ctx, client, cache, symbols, start, end)
 	if err != nil {
 		return nil, err
 	}
@@ -310,15 +329,16 @@ func (r *BacktestRunner) RunMonthlyMarketSimulation(ctx context.Context, secretP
 		return nil, err
 	}
 
-	r.reportProgress(EngineStage("evaluate_groups"), fmt.Sprintf("funding 历史拉取完成，开始评估 %d 个 funding 时点", len(groups)), 0, len(groups))
+	r.reportProgress(EngineStage("evaluate_groups"), fmt.Sprintf("时间轴候选构建完成，开始评估 %d 个 funding 时点", len(groups)), 0, len(groups))
 
-	tradeSamples, logs, simStats, stopReason, err := r.simulateMonthlyFundingGroups(ctx, client, groups, periodLabel)
+	tradeSamples, logs, simStats, stopReason, err := r.simulateMonthlyFundingGroups(ctx, client, cache, groups, periodLabel)
 	if err != nil {
 		return nil, err
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	fetchStats.RequestSummary = client.historicalRequestSummary()
 	logs = append(logs, buildMonthlyRunSummaryLogRecord(periodLabel, fetchStats, simStats, stopReason))
 
 	records := buildBacktestRecords(r.cfg, tradeSamples)
@@ -349,6 +369,159 @@ func (r *BacktestRunner) RunMonthlyMarketSimulation(ctx context.Context, secretP
 	return records, nil
 }
 
+func (r *BacktestRunner) buildMonthlyTimelineGroups(ctx context.Context, client *BinanceClient, cache *monthlyKlineCache, symbols []string, start time.Time, end time.Time) ([]monthlyEventGroup, monthlyFundingFetchStats, error) {
+	hcfg := r.historicalConfig()
+	timeline := monthlyFundingTimeline(start, end)
+	stats := monthlyFundingFetchStats{
+		FailureReasons: make(map[string]int),
+		FailureSamples: make(map[string][]string),
+	}
+	if len(timeline) == 0 {
+		return nil, stats, fmt.Errorf("指定区间内没有可评估的 funding 时点")
+	}
+
+	totalObservations := len(timeline) * len(symbols)
+	processedObservations := 0
+	groups := make([]monthlyEventGroup, 0, len(timeline))
+	preselectConcurrency := maxInt(1, minInt(hcfg.FundingFetchConcurrency, maxInt(1, hcfg.ScreeningConcurrency)))
+
+	for index, fundingTime := range timeline {
+		if err := ctx.Err(); err != nil {
+			return nil, stats, err
+		}
+		entryTime := fundingTime.Add(-hcfg.FundingPhaseLead)
+		type result struct {
+			symbol string
+			item   FundingRateHistoryItem
+			err    error
+		}
+		results := make(chan result, len(symbols))
+		sem := make(chan struct{}, preselectConcurrency)
+		var wg sync.WaitGroup
+
+		for _, symbol := range symbols {
+			symbol := symbol
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				select {
+				case sem <- struct{}{}:
+				case <-ctx.Done():
+					results <- result{symbol: symbol, err: ctx.Err()}
+					return
+				}
+				defer func() { <-sem }()
+
+				symbolCtx, cancel := context.WithTimeout(ctx, hcfg.CandidateBuildTimeout)
+				defer cancel()
+
+				item, err := r.buildMonthlyTimelinePreselectItem(symbolCtx, client, cache, symbol, fundingTime, entryTime)
+				results <- result{symbol: symbol, item: item, err: err}
+			}()
+		}
+		go func() {
+			wg.Wait()
+			close(results)
+		}()
+
+		items := make([]FundingRateHistoryItem, 0, len(symbols))
+		for result := range results {
+			processedObservations++
+			if result.err != nil {
+				stats.FailureCount++
+				reason := classifyMonthlyFetchError(result.err)
+				stats.FailureReasons[reason]++
+				if len(stats.FailureSamples[reason]) < 5 {
+					stats.FailureSamples[reason] = append(stats.FailureSamples[reason], result.symbol)
+				}
+			} else {
+				stats.SuccessSymbols++
+				items = append(items, result.item)
+			}
+			if r.logger != nil && (processedObservations == totalObservations || processedObservations%monthlyFundingFetchProgressStep == 0) {
+				r.logger.Printf("月度模拟时间轴预选进度：%d/%d，成功=%d，失败=%d", processedObservations, totalObservations, stats.SuccessSymbols, stats.FailureCount)
+			}
+			r.reportProgress(EngineStage("fetch_funding"),
+				fmt.Sprintf("正在按时间轴构建历史候选: %d/%d，成功=%d，失败=%d", processedObservations, totalObservations, stats.SuccessSymbols, stats.FailureCount),
+				processedObservations, totalObservations)
+		}
+
+		sort.SliceStable(items, func(i, j int) bool {
+			left := parseFloat(items[i].EstimatedFundingRate)
+			right := parseFloat(items[j].EstimatedFundingRate)
+			if left == right {
+				return items[i].Symbol < items[j].Symbol
+			}
+			return left > right
+		})
+		rawCount := len(items)
+		items = trimMonthlyFundingGroupItems(items, monthlyFundingTopSymbolsPerTime)
+		if len(items) > 0 {
+			groups = append(groups, monthlyEventGroup{
+				FundingTime: fundingTime,
+				RawCount:    rawCount,
+				Items:       items,
+			})
+		}
+		if r.logger != nil {
+			r.logger.Printf("月度模拟时间轴预选完成：index=%d/%d fundingTime=%s raw=%d retained=%d",
+				index+1, len(timeline), fundingTime.Format(time.RFC3339), rawCount, len(items))
+		}
+	}
+
+	if len(groups) == 0 {
+		return nil, stats, fmt.Errorf("所有 funding 时点都未构建出候选")
+	}
+	if r.logger != nil {
+		r.logger.Printf("月度模拟时间轴预选汇总：时点=%d，成功=%d，失败=%d，失败分类=%s", len(groups), stats.SuccessSymbols, stats.FailureCount, summarizeMonthlyReasonCounts(stats.FailureReasons, stats.FailureSamples))
+	}
+	return groups, stats, nil
+}
+
+func monthlyFundingTimeline(start time.Time, end time.Time) []time.Time {
+	if !end.After(start) {
+		return nil
+	}
+	cursor := time.Date(start.UTC().Year(), start.UTC().Month(), start.UTC().Day(), 0, 0, 0, 0, time.UTC)
+	for cursor.Before(start.UTC()) {
+		cursor = cursor.Add(8 * time.Hour)
+	}
+	timeline := make([]time.Time, 0, int(end.Sub(start)/(8*time.Hour))+2)
+	for !cursor.After(end.UTC()) {
+		timeline = append(timeline, cursor)
+		cursor = cursor.Add(8 * time.Hour)
+	}
+	return timeline
+}
+
+func (r *BacktestRunner) buildMonthlyTimelinePreselectItem(ctx context.Context, client *BinanceClient, cache *monthlyKlineCache, symbol string, fundingTime time.Time, entryTime time.Time) (FundingRateHistoryItem, error) {
+	premiumEntryRef, err := cache.getFuturesPremiumKlineBefore(ctx, client, symbol, entryTime)
+	if err != nil {
+		return FundingRateHistoryItem{}, err
+	}
+	indexEntryRef, err := cache.getFuturesIndexKlineBefore(ctx, client, symbol, entryTime)
+	if err != nil {
+		return FundingRateHistoryItem{}, err
+	}
+
+	preFundingBasisRate := 0.0
+	estimatedMarkPrice := indexEntryRef.Close
+	if premiumEntryRef.Close > -1 && indexEntryRef.Close > 0 {
+		estimatedMarkPrice = indexEntryRef.Close * (1 + premiumEntryRef.Close)
+	}
+	if indexEntryRef.Close > 0 && estimatedMarkPrice > 0 {
+		preFundingBasisRate = (estimatedMarkPrice - indexEntryRef.Close) / indexEntryRef.Close
+	}
+	estimatedFundingRate := conservativeHistoricalFundingRate(premiumEntryRef.Close, preFundingBasisRate)
+
+	return FundingRateHistoryItem{
+		Symbol:               symbol,
+		FundingTime:          fundingTime.UnixMilli(),
+		MarkPrice:            formatFloat(estimatedMarkPrice),
+		EstimatedFundingRate: formatFloat(estimatedFundingRate),
+	}, nil
+}
+
 func (r *BacktestRunner) fetchMonthlyFundingGroups(ctx context.Context, client *BinanceClient, symbols []string, start time.Time, end time.Time) ([]monthlyEventGroup, monthlyFundingFetchStats, error) {
 	hcfg := r.historicalConfig()
 	startMillis := start.UnixMilli()
@@ -367,6 +540,8 @@ func (r *BacktestRunner) fetchMonthlyFundingGroups(ctx context.Context, client *
 	}
 	successCount := 0
 	processedCount := 0
+	consecutive202Batches := 0
+	consecutive429Batches := 0
 	consecutive403Batches := 0
 	consecutive418Batches := 0
 
@@ -374,11 +549,12 @@ func (r *BacktestRunner) fetchMonthlyFundingGroups(ctx context.Context, client *
 	if batchSize <= 0 {
 		batchSize = 20
 	}
+	batchConcurrency := maxInt(1, hcfg.FundingFetchConcurrency)
 	for batchStart := 0; batchStart < len(symbols); batchStart += batchSize {
 		batchEnd := minInt(len(symbols), batchStart+batchSize)
 		batchSymbols := symbols[batchStart:batchEnd]
 		results := make(chan result, len(batchSymbols))
-		sem := make(chan struct{}, hcfg.FundingFetchConcurrency)
+		sem := make(chan struct{}, batchConcurrency)
 		batchFailures := make(map[string]int)
 		var wg sync.WaitGroup
 
@@ -428,21 +604,24 @@ func (r *BacktestRunner) fetchMonthlyFundingGroups(ctx context.Context, client *
 		if err := ctx.Err(); err != nil {
 			return nil, stats, err
 		}
-		if shouldAbortMonthlyFundingFetch(batchFailures, len(batchSymbols), &consecutive403Batches, &consecutive418Batches) {
+		if shouldAbortMonthlyFundingFetch(batchFailures, len(batchSymbols), &consecutive202Batches, &consecutive429Batches, &consecutive403Batches, &consecutive418Batches) {
 			reasons := summarizeMonthlyReasonCounts(batchFailures, nil)
 			if r.logger != nil {
 				r.logger.Printf("月度模拟 funding 提前中止：batch=%d-%d reasons=%s", batchStart+1, batchEnd, reasons)
 			}
 			return nil, stats, fmt.Errorf("连续批次遭遇访问拒绝，已提前中止本轮 funding 拉取: %s", reasons)
 		}
+		nextBatchConcurrency := adaptiveMonthlyFundingFetchConcurrency(hcfg.FundingFetchConcurrency, batchConcurrency, len(batchSymbols), batchFailures)
+		if r.logger != nil && nextBatchConcurrency != batchConcurrency {
+			r.logger.Printf("月度模拟 funding 并发调整：batch=%d-%d current=%d next=%d reasons=%s",
+				batchStart+1, batchEnd, batchConcurrency, nextBatchConcurrency, summarizeMonthlyReasonCounts(batchFailures, nil))
+		}
+		batchConcurrency = nextBatchConcurrency
 		if batchEnd < len(symbols) && ctx.Err() == nil {
-			pause := monthlyFundingFetchBatchPause
-			if extraPause := monthlyFundingEscalatedPause(batchFailures); extraPause > pause {
-				pause = extraPause
-			}
+			pause := adaptiveMonthlyFundingBatchPause(batchFailures, len(batchSymbols))
 			if r.logger != nil {
-				r.logger.Printf("月度模拟 funding 批次暂停：batch=%d-%d pause=%s reasons=%s",
-					batchStart+1, batchEnd, pause, summarizeMonthlyReasonCounts(batchFailures, nil))
+				r.logger.Printf("月度模拟 funding 批次暂停：batch=%d-%d pause=%s next_concurrency=%d reasons=%s",
+					batchStart+1, batchEnd, pause, batchConcurrency, summarizeMonthlyReasonCounts(batchFailures, nil))
 			}
 			if !sleepWithContext(ctx, pause) {
 				return nil, stats, ctx.Err()
@@ -477,15 +656,18 @@ func (r *BacktestRunner) fetchMonthlyFundingGroups(ctx context.Context, client *
 		sort.Slice(items, func(i, j int) bool {
 			return parseFloat(items[i].FundingRate) > parseFloat(items[j].FundingRate)
 		})
+		rawCount := len(items)
+		items = trimMonthlyFundingGroupItems(items, monthlyFundingTopSymbolsPerTime)
 		groups = append(groups, monthlyEventGroup{
 			FundingTime: time.UnixMilli(fundingTime).UTC(),
+			RawCount:    rawCount,
 			Items:       items,
 		})
 	}
 	return groups, stats, nil
 }
 
-func (r *BacktestRunner) simulateMonthlyFundingGroups(ctx context.Context, client *BinanceClient, groups []monthlyEventGroup, periodLabel string) ([]BacktestTradeSample, []MonthlySimulationLogRecord, monthlySimulationStats, string, error) {
+func (r *BacktestRunner) simulateMonthlyFundingGroups(ctx context.Context, client *BinanceClient, cache *monthlyKlineCache, groups []monthlyEventGroup, periodLabel string) ([]BacktestTradeSample, []MonthlySimulationLogRecord, monthlySimulationStats, string, error) {
 	hcfg := r.historicalConfig()
 	equity := hcfg.InitialEquityUSDT
 	peakEquity := hcfg.InitialEquityUSDT
@@ -499,14 +681,6 @@ func (r *BacktestRunner) simulateMonthlyFundingGroups(ctx context.Context, clien
 
 	trades := make([]BacktestTradeSample, 0, len(groups))
 	logs := make([]MonthlySimulationLogRecord, 0, len(groups)+1)
-	cache := &monthlyKlineCache{
-		spot:    make(map[string]MarketKline),
-		futures: make(map[string]MarketKline),
-		index:   make(map[string]MarketKline),
-		premium: make(map[string]MarketKline),
-		hits:    make(map[string]int),
-		loads:   make(map[string]int),
-	}
 	processedGroups := 0
 
 	for _, group := range groups {
@@ -797,8 +971,26 @@ func (r *BacktestRunner) selectBestMonthlyCandidate(ctx context.Context, client 
 		}
 		candidate := screenedCandidate
 		candidateBuildTimeout := adaptiveMonthlyCandidateBuildTimeout(hcfg.CandidateBuildTimeout, len(group.Items))
+		hydrateCtx, hydrateCancel := context.WithTimeout(groupCtx, candidateBuildTimeout)
+		err := r.hydrateMonthlyCandidateFunding(hydrateCtx, client, &candidate)
+		hydrateCancel()
+		if err != nil {
+			candidate.Reason = monthlyBuildSkipReason("funding_rate_unavailable", err)
+			candidate.Notes = append(candidate.Notes, err.Error())
+			evaluated = append(evaluated, candidate)
+			if candidate.Reason == "candidate_build_timeout" {
+				logAgg.add("candidate_funding_timeout", candidate.Symbol)
+			}
+			continue
+		}
+		if reason, notes := r.validateMonthlyActualFunding(candidate); reason != "" {
+			candidate.Reason = reason
+			candidate.Notes = append(candidate.Notes, notes...)
+			evaluated = append(evaluated, candidate)
+			continue
+		}
 		pricingCtx, pricingCancel := context.WithTimeout(groupCtx, candidateBuildTimeout)
-		err := r.completeMonthlyCandidateProxy(pricingCtx, client, cache, &candidate)
+		err = r.completeMonthlyCandidateProxy(pricingCtx, client, cache, &candidate)
 		pricingCancel()
 		if err != nil {
 			candidate.Reason = monthlyBuildSkipReason("reference_kline_unavailable", err)
@@ -893,27 +1085,44 @@ func (r *BacktestRunner) buildMonthlyCandidate(ctx context.Context, client *Bina
 		return monthlySkippedCandidate(item, fundingTime, monthlyBuildSkipReason("index_price_kline_unavailable", err), err, hcfg.CandidateBuildTimeout), nil
 	}
 
+	actualFundingLoaded := strings.TrimSpace(item.FundingRate) != ""
 	fundingRate := parseFloat(item.FundingRate)
 	markPrice := parseFloat(item.MarkPrice)
-	effectiveMarkPrice := markPrice
-	if effectiveMarkPrice <= 0 {
-		effectiveMarkPrice = 1
-	}
-	roughHedgeQty := r.monthlyPerLegNotional() / effectiveMarkPrice
 	preFundingBasisRate := 0.0
 	if indexEntryRef.Close > 0 && markPrice > 0 {
 		preFundingBasisRate = (markPrice - indexEntryRef.Close) / indexEntryRef.Close
 	}
-	estimatedFundingRate := conservativeHistoricalFundingRate(premiumEntryRef.Close, preFundingBasisRate)
+	if markPrice <= 0 && indexEntryRef.Close > 0 {
+		markPrice = indexEntryRef.Close * (1 + premiumEntryRef.Close)
+	}
+	effectiveMarkPrice := markPrice
+	if effectiveMarkPrice <= 0 {
+		effectiveMarkPrice = indexEntryRef.Close
+	}
+	if effectiveMarkPrice <= 0 {
+		effectiveMarkPrice = 1
+	}
+	roughHedgeQty := r.monthlyPerLegNotional() / effectiveMarkPrice
+	estimatedFundingRate := parseFloat(item.EstimatedFundingRate)
+	if estimatedFundingRate <= 0 {
+		estimatedFundingRate = conservativeHistoricalFundingRate(premiumEntryRef.Close, preFundingBasisRate)
+	}
 	estimatedFundingIncome := roughHedgeQty * effectiveMarkPrice * estimatedFundingRate
-	fundingIncome := roughHedgeQty * effectiveMarkPrice * fundingRate
-	fundingRateJump := math.Abs(fundingRate - estimatedFundingRate)
+	fundingIncome := 0.0
+	fundingRateJump := 0.0
+	if actualFundingLoaded {
+		fundingIncome = roughHedgeQty * effectiveMarkPrice * fundingRate
+		fundingRateJump = math.Abs(fundingRate - estimatedFundingRate)
+	}
 
 	baseNotes := []string{
 		fmt.Sprintf("premiumIndexClose=%.6f", premiumEntryRef.Close),
 		fmt.Sprintf("markIndexBasis=%.6f", preFundingBasisRate),
-		fmt.Sprintf("fundingRateJump=%.6f", fundingRateJump),
+		fmt.Sprintf("actualFundingLoaded=%t", actualFundingLoaded),
 		"screeningStage=premium_index_only",
+	}
+	if actualFundingLoaded {
+		baseNotes = append(baseNotes, fmt.Sprintf("fundingRateJump=%.6f", fundingRateJump))
 	}
 
 	if estimatedFundingRate <= 0 {
@@ -928,7 +1137,7 @@ func (r *BacktestRunner) buildMonthlyCandidate(ctx context.Context, client *Bina
 			Notes:                  append([]string(nil), baseNotes...),
 		}, nil
 	}
-	if fundingRate >= hcfg.MaxFundingRate || estimatedFundingRate >= hcfg.MaxFundingRate {
+	if estimatedFundingRate >= hcfg.MaxFundingRate || (actualFundingLoaded && fundingRate >= hcfg.MaxFundingRate) {
 		return monthlyCandidate{
 			Symbol:                 item.Symbol,
 			FundingTime:            fundingTime,
@@ -942,7 +1151,7 @@ func (r *BacktestRunner) buildMonthlyCandidate(ctx context.Context, client *Bina
 			),
 		}, nil
 	}
-	if fundingRateJump >= hcfg.MaxFundingRateJump {
+	if actualFundingLoaded && fundingRateJump >= hcfg.MaxFundingRateJump {
 		return monthlyCandidate{
 			Symbol:                 item.Symbol,
 			FundingTime:            fundingTime,
@@ -965,6 +1174,34 @@ func (r *BacktestRunner) buildMonthlyCandidate(ctx context.Context, client *Bina
 		FundingIncome:          fundingIncome,
 		Notes:                  append([]string(nil), baseNotes...),
 	}, nil
+}
+
+func (r *BacktestRunner) hydrateMonthlyCandidateFunding(ctx context.Context, client *BinanceClient, candidate *monthlyCandidate) error {
+	item, err := client.fetchFundingRateAt(ctx, candidate.Symbol, candidate.FundingTime)
+	if err != nil {
+		return err
+	}
+	candidate.FundingRate = parseFloat(item.FundingRate)
+	candidate.Notes = append(candidate.Notes,
+		fmt.Sprintf("actualFundingRate=%.6f", candidate.FundingRate),
+		fmt.Sprintf("actualFundingTime=%s", time.UnixMilli(item.FundingTime).UTC().Format(time.RFC3339)),
+	)
+	return nil
+}
+
+func (r *BacktestRunner) validateMonthlyActualFunding(candidate monthlyCandidate) (string, []string) {
+	hcfg := r.historicalConfig()
+	if candidate.FundingRate >= hcfg.MaxFundingRate {
+		return "funding_rate_extreme", []string{fmt.Sprintf("maxFundingRate=%.6f", hcfg.MaxFundingRate)}
+	}
+	fundingRateJump := math.Abs(candidate.FundingRate - candidate.EstimatedFundingRate)
+	if fundingRateJump >= hcfg.MaxFundingRateJump {
+		return "funding_jump_too_large", []string{
+			fmt.Sprintf("fundingRateJump=%.6f", fundingRateJump),
+			fmt.Sprintf("maxFundingRateJump=%.6f", hcfg.MaxFundingRateJump),
+		}
+	}
+	return "", nil
 }
 
 func (r *BacktestRunner) completeMonthlyCandidateProxy(ctx context.Context, client *BinanceClient, cache *monthlyKlineCache, candidate *monthlyCandidate) error {
@@ -1674,6 +1911,15 @@ func (r *BacktestRunner) monthlyScreeningCandidateLimit(groupSize int) int {
 	return minInt(groupSize, limit)
 }
 
+func trimMonthlyFundingGroupItems(items []FundingRateHistoryItem, limit int) []FundingRateHistoryItem {
+	if limit <= 0 || len(items) <= limit {
+		return items
+	}
+	trimmed := make([]FundingRateHistoryItem, limit)
+	copy(trimmed, items[:limit])
+	return trimmed
+}
+
 func summarizeMonthlyGroupSkip(group monthlyEventGroup, evaluated []monthlyCandidate, groupReason string, groupTimeout time.Duration) monthlyCandidate {
 	summary := monthlyCandidate{
 		Reason: "no_positive_candidate",
@@ -1683,7 +1929,8 @@ func summarizeMonthlyGroupSkip(group monthlyEventGroup, evaluated []monthlyCandi
 		summary.Reason = groupReason
 		summary.Notes = []string{
 			fmt.Sprintf("groupTimeout=%s", groupTimeout),
-			fmt.Sprintf("candidates=%d", len(group.Items)),
+			fmt.Sprintf("rawCandidates=%d", maxInt(group.RawCount, len(group.Items))),
+			fmt.Sprintf("retainedCandidates=%d", len(group.Items)),
 		}
 	}
 	if len(evaluated) == 0 {
@@ -1703,7 +1950,8 @@ func summarizeMonthlyGroupSkip(group monthlyEventGroup, evaluated []monthlyCandi
 	primaryReason := dominantMonthlyGroupSkipReason(reasonCounts)
 	summary.Reason = nonEmpty(primaryReason, summary.Reason)
 	notes := []string{
-		fmt.Sprintf("candidates=%d", len(group.Items)),
+		fmt.Sprintf("rawCandidates=%d", maxInt(group.RawCount, len(group.Items))),
+		fmt.Sprintf("retainedCandidates=%d", len(group.Items)),
 		"reasonBreakdown=" + summarizeMonthlyReasonCounts(reasonCounts, nil),
 	}
 	if focus := firstMonthlyCandidateByReason(evaluated, primaryReason); focus != nil {
@@ -1807,7 +2055,8 @@ func (r *BacktestRunner) logMonthlyGroupAggregation(group monthlyEventGroup, scr
 	}
 	parts := make([]string, 0, 4)
 	parts = append(parts,
-		fmt.Sprintf("原始候选=%d", len(group.Items)),
+		fmt.Sprintf("原始候选=%d", maxInt(group.RawCount, len(group.Items))),
+		fmt.Sprintf("保留候选=%d", len(group.Items)),
 		fmt.Sprintf("预筛后=%d", screeningCount),
 	)
 	for _, reason := range []string{"candidate_build_timeout", "candidate_pricing_timeout", "candidate_finalize_timeout"} {
@@ -1904,7 +2153,8 @@ func buildMonthlyGroupSummaryLogRecord(group monthlyEventGroup, evaluated []mont
 		summaryReason = dominant
 	}
 	notes := []string{
-		fmt.Sprintf("candidates=%d", len(group.Items)),
+		fmt.Sprintf("rawCandidates=%d", maxInt(group.RawCount, len(group.Items))),
+		fmt.Sprintf("retainedCandidates=%d", len(group.Items)),
 		fmt.Sprintf("evaluated=%d", len(evaluated)),
 		fmt.Sprintf("positiveCandidates=%d", positiveCount),
 		"reasonBreakdown=" + summarizeMonthlyReasonCounts(reasonCounts, nil),
@@ -2068,7 +2318,7 @@ func writeMonthlySimulationLogFile(path string, logs []MonthlySimulationLogRecor
 	return err
 }
 
-func newHistoricalBacktestClient(secretPath string, timeout time.Duration, hcfg historicalConfig) (*BinanceClient, error) {
+func newHistoricalBacktestClient(secretPath string, timeout time.Duration, ncfg NetworkConfig, hcfg historicalConfig) (*BinanceClient, error) {
 	if timeout < 30*time.Second {
 		timeout = 30 * time.Second
 	}
@@ -2078,21 +2328,30 @@ func newHistoricalBacktestClient(secretPath string, timeout time.Duration, hcfg 
 	}
 	secret, err := LoadSecretConfig(secretPath)
 	if err == nil {
-		httpClient, clientErr := NewHTTPClient(timeout, secret.ProxyURL)
+		httpClient, clientErr := NewHTTPClient(ncfg, secret.ProxyURL)
 		if clientErr == nil {
-			return &BinanceClient{
+			client := &BinanceClient{
 				spotBaseURL:                      binanceSpotBaseURL,
 				futuresBaseURL:                   binanceFuturesBaseURL,
+				apiKey:                           secret.APIKey,
+				secretKey:                        secret.Secret,
+				proxyURL:                         secret.ProxyURL,
 				httpClient:                       httpClient,
 				historicalFundingRetryMax:        hcfg.FundingRetryMax,
 				historicalPayloadCache:           cache,
 				historicalReferenceKlineLookback: hcfg.ReferenceKlineLookback,
 				historicalEstimateKlineLookback:  hcfg.EstimateKlineLookback,
 				historicalFundingFetchSlot:       hcfg.FundingFetchSlot,
-			}, nil
+			}
+			client.applyNetworkConfig(ncfg)
+			return client, nil
 		}
 	}
-	client := NewBinanceClient(timeout)
+	client, clientErr := NewBinanceClientWithNetworkConfig(ncfg)
+	if clientErr != nil {
+		client = NewBinanceClient(timeout)
+		client.applyNetworkConfig(ncfg)
+	}
 	client.historicalFundingRetryMax = hcfg.FundingRetryMax
 	client.historicalPayloadCache = cache
 	client.historicalReferenceKlineLookback = hcfg.ReferenceKlineLookback
@@ -2177,6 +2436,10 @@ func monthlyFundingEscalatedPause(reasonCounts map[string]int) time.Duration {
 		return monthlyFundingPause418
 	case reasonCounts["http_403"] > 0:
 		return monthlyFundingPause403
+	case reasonCounts["http_429"] > 0:
+		return monthlyFundingPause429
+	case reasonCounts["http_202"] > 0:
+		return monthlyFundingPause202
 	}
 	other4xxCount := 0
 	for reason, count := range reasonCounts {
@@ -2190,11 +2453,70 @@ func monthlyFundingEscalatedPause(reasonCounts map[string]int) time.Duration {
 	return 0
 }
 
-func shouldAbortMonthlyFundingFetch(reasonCounts map[string]int, batchSize int, consecutive403Batches *int, consecutive418Batches *int) bool {
+func adaptiveMonthlyFundingBatchPause(reasonCounts map[string]int, batchSize int) time.Duration {
+	pause := monthlyFundingFetchBatchPause
+	if escalated := monthlyFundingEscalatedPause(reasonCounts); escalated > pause {
+		pause = escalated
+	}
+	if batchSize <= 0 || len(reasonCounts) == 0 {
+		return pause
+	}
+	pressure := float64(reasonCounts["http_202"]) +
+		float64(reasonCounts["http_429"])*2 +
+		float64(reasonCounts["http_403"])*3 +
+		float64(reasonCounts["http_418"])*4
+	if pressure <= 0 {
+		return pause
+	}
+	multiplier := 1.0 + math.Min(3.0, pressure/float64(batchSize))
+	adjusted := time.Duration(float64(pause) * multiplier)
+	maxPause := 4 * time.Minute
+	if adjusted > maxPause {
+		return maxPause
+	}
+	return adjusted
+}
+
+func adaptiveMonthlyFundingFetchConcurrency(base int, current int, batchSize int, reasonCounts map[string]int) int {
+	base = maxInt(1, base)
+	current = maxInt(1, current)
 	if batchSize <= 0 {
 		batchSize = monthlyFundingFetchBatchSize
 	}
 	threshold := maxInt(1, batchSize/2)
+	severeCount := reasonCounts["http_418"] + reasonCounts["http_403"] + reasonCounts["http_429"]
+	softCount := reasonCounts["http_202"]
+	stepDown := maxInt(1, base/4)
+
+	switch {
+	case severeCount >= threshold:
+		return maxInt(1, current/2)
+	case softCount >= threshold:
+		return maxInt(1, current-stepDown)
+	case severeCount > 0 || softCount > 0:
+		return maxInt(1, current-1)
+	case current < base:
+		return current + 1
+	default:
+		return current
+	}
+}
+
+func shouldAbortMonthlyFundingFetch(reasonCounts map[string]int, batchSize int, consecutive202Batches *int, consecutive429Batches *int, consecutive403Batches *int, consecutive418Batches *int) bool {
+	if batchSize <= 0 {
+		batchSize = monthlyFundingFetchBatchSize
+	}
+	threshold := maxInt(1, batchSize/2)
+	if reasonCounts["http_202"] >= threshold {
+		*consecutive202Batches = *consecutive202Batches + 1
+	} else {
+		*consecutive202Batches = 0
+	}
+	if reasonCounts["http_429"] >= threshold {
+		*consecutive429Batches = *consecutive429Batches + 1
+	} else {
+		*consecutive429Batches = 0
+	}
 	if reasonCounts["http_418"] >= threshold {
 		*consecutive418Batches = *consecutive418Batches + 1
 	} else {
@@ -2205,7 +2527,10 @@ func shouldAbortMonthlyFundingFetch(reasonCounts map[string]int, batchSize int, 
 	} else {
 		*consecutive403Batches = 0
 	}
-	return *consecutive418Batches >= monthlyFundingAbort418Batches || *consecutive403Batches >= monthlyFundingAbort403Batches
+	return *consecutive202Batches >= monthlyFundingAbort202Batches ||
+		*consecutive429Batches >= monthlyFundingAbort429Batches ||
+		*consecutive418Batches >= monthlyFundingAbort418Batches ||
+		*consecutive403Batches >= monthlyFundingAbort403Batches
 }
 
 func adaptiveMonthlyGroupTimeout(base time.Duration, candidateCount int) time.Duration {
@@ -2289,6 +2614,26 @@ func (c *BinanceClient) fetchFundingRateHistory(ctx context.Context, symbol stri
 	return c.fetchFundingRateHistoryWithRetry(ctx, endpoint)
 }
 
+func (c *BinanceClient) fetchFundingRateAt(ctx context.Context, symbol string, fundingTime time.Time) (FundingRateHistoryItem, error) {
+	windowStart := fundingTime.Add(-8 * time.Hour).UnixMilli()
+	windowEnd := fundingTime.Add(time.Minute).UnixMilli()
+	items, err := c.fetchFundingRateHistory(ctx, symbol, windowStart, windowEnd)
+	if err != nil {
+		return FundingRateHistoryItem{}, err
+	}
+	for _, item := range items {
+		if item.FundingTime == fundingTime.UnixMilli() {
+			return item, nil
+		}
+	}
+	for idx := len(items) - 1; idx >= 0; idx-- {
+		if items[idx].FundingTime <= fundingTime.UnixMilli() {
+			return items[idx], nil
+		}
+	}
+	return FundingRateHistoryItem{}, fmt.Errorf("未找到 funding 结算记录")
+}
+
 func (c *BinanceClient) fetchSpotKline(ctx context.Context, symbol string, start time.Time) (MarketKline, error) {
 	return c.fetchKline(ctx, c.spotBaseURL+"/api/v3/klines", symbol, start)
 }
@@ -2368,26 +2713,42 @@ func (c *BinanceClient) fetchFundingRateHistoryWithRetry(ctx context.Context, en
 }
 
 func (c *BinanceClient) fetchHTTPPayload(ctx context.Context, rawURL string) ([]byte, int, error) {
-	if err := c.waitHistoricalRequestSlot(ctx); err != nil {
-		return nil, 0, err
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
-	if err != nil {
-		return nil, 0, fmt.Errorf("创建请求失败: %w", err)
-	}
+	var lastErr error
+	lastStatusCode := 0
+	for _, candidateURL := range c.candidateRequestURLs(rawURL) {
+		if err := c.waitPublicGETRequestSlot(ctx, candidateURL, c.historicalFundingFetchSlot); err != nil {
+			return nil, 0, err
+		}
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, candidateURL, nil)
+		if err != nil {
+			return nil, 0, fmt.Errorf("创建请求失败: %w", err)
+		}
+		c.applyPublicGETHeaders(req, candidateURL)
 
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, 0, err
-	}
-	defer resp.Body.Close()
+		resp, err := c.httpClient.Do(req)
+		if err != nil {
+			lastErr = err
+			continue
+		}
 
-	body, readErr := io.ReadAll(resp.Body)
-	if readErr != nil {
-		return nil, resp.StatusCode, fmt.Errorf("读取响应失败: %w", readErr)
+		body, readErr := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if readErr != nil {
+			lastErr = fmt.Errorf("读取响应失败: %w", readErr)
+			lastStatusCode = resp.StatusCode
+			continue
+		}
+		lastStatusCode = resp.StatusCode
+		c.notePublicGETResponseStatus(resp.StatusCode)
+		if resp.StatusCode == http.StatusOK {
+			return body, resp.StatusCode, nil
+		}
+		lastErr = newPublicGETHTTPError(candidateURL, resp.StatusCode, resp.Status, body)
 	}
-	c.recordHistoricalRequestStatus(resp.StatusCode)
-	return body, resp.StatusCode, nil
+	if lastErr == nil {
+		lastErr = fmt.Errorf("未知请求失败")
+	}
+	return nil, lastStatusCode, lastErr
 }
 
 func (c *BinanceClient) getJSONWithMonthlyRetry(ctx context.Context, rawURL string, target any) error {

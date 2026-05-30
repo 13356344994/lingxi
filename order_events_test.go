@@ -179,7 +179,7 @@ func TestOrderEventHubWaitForWithFallbackPoll(t *testing.T) {
 
 func TestOrderEventHubTrimSnapshotsLockedCompactsBackingSlice(t *testing.T) {
 	hub := NewOrderEventHub()
-	for i := 0; i < orderEventSnapshotLimit+32; i++ {
+	for i := range orderEventSnapshotLimit + 32 {
 		hub.Update(OrderExecutionSnapshot{
 			ClientOrderID: "cid-" + strconv.Itoa(i),
 			Status:        "FILLED",
@@ -190,5 +190,56 @@ func TestOrderEventHubTrimSnapshotsLockedCompactsBackingSlice(t *testing.T) {
 	}
 	if cap(hub.snapshotOrder) > orderEventSnapshotLimit+1 {
 		t.Fatalf("expected trimmed slice capacity to stay compact, got %d", cap(hub.snapshotOrder))
+	}
+}
+
+func TestOrderEventHubTrimSnapshotsLockedSkipsWaitingSnapshotAndContinuesEviction(t *testing.T) {
+	hub := NewOrderEventHub()
+	waiter := make(chan OrderExecutionSnapshot, 1)
+
+	hub.mu.Lock()
+	hub.waiters["cid-0"] = []chan OrderExecutionSnapshot{waiter}
+	hub.mu.Unlock()
+
+	for i := range orderEventSnapshotLimit + 4 {
+		hub.Update(OrderExecutionSnapshot{
+			ClientOrderID: "cid-" + strconv.Itoa(i),
+			Status:        "FILLED",
+		})
+	}
+
+	hub.mu.Lock()
+	defer hub.mu.Unlock()
+	if len(hub.snapshotOrder) != orderEventSnapshotLimit {
+		t.Fatalf("expected snapshot order length %d, got %d", orderEventSnapshotLimit, len(hub.snapshotOrder))
+	}
+	if _, ok := hub.snapshots["cid-0"]; !ok {
+		t.Fatal("expected waiting snapshot to be retained")
+	}
+	if _, ok := hub.snapshots["cid-1"]; ok {
+		t.Fatal("expected non-waiting oldest snapshot cid-1 to be evicted")
+	}
+	if _, ok := hub.snapshots["cid-2"]; ok {
+		t.Fatal("expected non-waiting oldest snapshot cid-2 to be evicted")
+	}
+}
+
+func TestOrderEventHubForgetRemovesSnapshotOrderEntries(t *testing.T) {
+	hub := NewOrderEventHub()
+	hub.Update(OrderExecutionSnapshot{ClientOrderID: "cid-1", Status: "FILLED"})
+	hub.Update(OrderExecutionSnapshot{ClientOrderID: "cid-2", Status: "FILLED"})
+
+	hub.Forget("cid-1")
+
+	if _, ok := hub.Get("cid-1"); ok {
+		t.Fatal("expected forgotten snapshot to be removed from cache")
+	}
+	hub.mu.Lock()
+	defer hub.mu.Unlock()
+	if len(hub.snapshotOrder) != 1 {
+		t.Fatalf("expected snapshot order to contain one entry after forget, got %d", len(hub.snapshotOrder))
+	}
+	if hub.snapshotOrder[0] != "cid-2" {
+		t.Fatalf("expected remaining snapshot order to be cid-2, got %+v", hub.snapshotOrder)
 	}
 }

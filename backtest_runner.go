@@ -496,7 +496,9 @@ func (r *BacktestRunner) handleTimelineMonitor(state *timelineReplayState, sampl
 		return
 	}
 
-	netProfitRate := sample.FundingRate - math.Abs(sample.SpreadRate) - r.cfg.StrategyConfig.FeeReserveRate
+	hcfg := r.historicalConfig()
+	roundTripFeeRate := 2 * (hcfg.SpotTakerFeeRate + hcfg.FuturesTakerFeeRate)
+	netProfitRate := estimateReservedNetProfitRate(sample.FundingRate, math.Abs(sample.SpreadRate), roundTripFeeRate, r.cfg.StrategyConfig.ExitSpreadReserveRate)
 	decision := EvaluateMonitorNetProfit(netProfitRate, r.cfg.RiskConfig.ImmediateInvalidateRate, r.cfg.RiskConfig.MinNetProfitRate, r.cfg.RiskConfig.MonitorMaxConsecutiveBreach, state.BreachCount)
 	if decision.Invalidate && decision.State == "invalidated" {
 		state.Invalidated = true

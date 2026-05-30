@@ -30,6 +30,8 @@ func TestRuntimeRiskConfigFromEngineConfigUsesGroupedSections(t *testing.T) {
 	cfg := DefaultEngineConfig()
 	cfg.StrategyConfig.PerSymbolQuoteUSDT = 250
 	cfg.RiskConfig.MinNetProfitRate = 0.0042
+	cfg.ExecutionConfig.ExitDelayAfterFunding = 4 * time.Second
+	cfg.ExecutionConfig.ExitMonitorInterval = 300 * time.Millisecond
 	cfg.ExecutionConfig.ExecutionConfirmTimeout = 3 * time.Second
 	cfg.RiskConfig.PlatformAbnormalCooldown = 12 * time.Minute
 
@@ -39,6 +41,12 @@ func TestRuntimeRiskConfigFromEngineConfigUsesGroupedSections(t *testing.T) {
 	}
 	if got.MinNetProfitRate != 0.0042 {
 		t.Fatalf("expected grouped risk value to be used, got %.4f", got.MinNetProfitRate)
+	}
+	if got.ExitDelayAfterFunding != "4s" {
+		t.Fatalf("expected grouped exit delay, got %s", got.ExitDelayAfterFunding)
+	}
+	if got.ExitMonitorInterval != "300ms" {
+		t.Fatalf("expected grouped exit monitor interval, got %s", got.ExitMonitorInterval)
 	}
 	if got.ExecutionConfirmTimeout != "3s" {
 		t.Fatalf("expected grouped execution timeout, got %s", got.ExecutionConfirmTimeout)
@@ -77,7 +85,8 @@ func TestDefaultEngineConfigValidatePasses(t *testing.T) {
 func TestEngineConfigValidateRejectsUnsafeLimits(t *testing.T) {
 	cfg := DefaultEngineConfig()
 	cfg.RiskConfig.MaxCycleOpenNotionalUSDT = cfg.StrategyConfig.PerSymbolQuoteUSDT - 1
-	cfg.RiskConfig.MinNetProfitRate = cfg.StrategyConfig.FeeReserveRate
+	cfg.StrategyConfig.PreferredSpotQuoteAssets = ""
+	cfg.StrategyConfig.LiveFundingAsset = ""
 
 	err := cfg.Validate()
 	if err == nil {
@@ -87,8 +96,11 @@ func TestEngineConfigValidateRejectsUnsafeLimits(t *testing.T) {
 	if !strings.Contains(message, "MaxCycleOpenNotionalUSDT") {
 		t.Fatalf("expected notional validation message, got %s", message)
 	}
-	if !strings.Contains(message, "MinNetProfitRate") {
-		t.Fatalf("expected profit-rate validation message, got %s", message)
+	if !strings.Contains(message, "PreferredSpotQuoteAssets") {
+		t.Fatalf("expected preferred spot quote validation message, got %s", message)
+	}
+	if !strings.Contains(message, "LiveFundingAsset") {
+		t.Fatalf("expected live funding asset validation message, got %s", message)
 	}
 }
 

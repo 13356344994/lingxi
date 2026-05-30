@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -22,6 +23,17 @@ type NetworkConfig struct {
 	HTTPTimeout              time.Duration
 	MaxPremiumIndexStaleness time.Duration
 	StreamWarmupTimeout      time.Duration
+	MaxIdleConns             int
+	MaxIdleConnsPerHost      int
+	IdleConnTimeout          time.Duration
+	TLSHandshakeTimeout      time.Duration
+	ResponseHeaderTimeout    time.Duration
+	ExpectContinueTimeout    time.Duration
+	PublicGETBaseSlot        time.Duration
+	PublicGETCooldown403     time.Duration
+	PublicGETCooldown418     time.Duration
+	PublicGETUseAPIKey       bool
+	PublicGETAPIKeyWhitelist string
 	DashboardAddr            string
 	RecordDir                string
 	EmergencyStopFile        string
@@ -29,35 +41,45 @@ type NetworkConfig struct {
 
 // StrategyConfig 表示扫描、监控和容量筛选配置。
 type StrategyConfig struct {
-	WakeMinute              int
-	WakeSecond              int
-	ScanWindow              time.Duration
-	MonitorInterval         time.Duration
-	MonitorStopLead         time.Duration
-	MinEstimatedFundingRate float64
-	MaxEstimatedFundingRate float64
-	MaxFundingRateJump      float64
-	MaxScanBasisRate        float64
-	FeeReserveRate          float64
-	MaxTargets              int
-	PerSymbolQuoteUSDT      float64
-	RecentTradeVolumeWindow time.Duration
-	MaxRecentVolumeShare    float64
-	MaxOpenInterestShare    float64
-	MaxVisibleDepthShare    float64
-	DepthLevels             int
+	WakeMinute               int
+	WakeSecond               int
+	ScanWindow               time.Duration
+	MonitorInterval          time.Duration
+	MonitorStopLead          time.Duration
+	MinEstimatedFundingRate  float64
+	MaxEstimatedFundingRate  float64
+	MaxFundingRateJump       float64
+	MaxScanBasisRate         float64
+	LiveFundingAsset         string
+	FeeReserveRate           float64
+	ExitSpreadReserveRate    float64
+	PreferredSpotQuoteAssets string
+	MaxTargets               int
+	PerSymbolQuoteUSDT       float64
+	RecentTradeVolumeWindow  time.Duration
+	MaxRecentVolumeShare     float64
+	MaxOpenInterestShare     float64
+	MaxVisibleDepthShare     float64
+	DepthLevels              int
 }
 
 // ExecutionConfig 表示下单确认、恢复和退出执行参数。
 type ExecutionConfig struct {
 	ExitDelayAfterFunding    time.Duration
+	ExitMonitorInterval      time.Duration
+	AutoBalanceUSDT          bool
 	RecvWindow               int64
 	ExecutionConfirmTimeout  time.Duration
 	ExecutionRecoveryTimeout time.Duration
+	OpenHedgeMaxConcurrency  int
+	ParallelOpenSymbols      string
+	ParallelCloseSymbols     string
 	UseProtectedIOC          bool
 	SpotLimitSlippageRate    float64
 	FuturesLimitSlippageRate float64
 	FuturesPriceProtect      bool
+	SpotSTPMode              string
+	FuturesSTPMode           string
 }
 
 // RiskConfig 表示实盘风控阈值和冷却预算。
@@ -75,6 +97,9 @@ type RiskConfig struct {
 	MaxOrderUncertaintyPerCycle   int
 	MaxConsecutivePlatformRejects int
 	MaxConsecutiveRequestErrors   int
+	ProtectedIOCMinAttempts       int
+	ProtectedIOCMaxUnfilledRatio  float64
+	ProtectedIOCMaxCancelRate     float64
 	SymbolAbnormalCooldown        time.Duration
 	PlatformMinorCooldown         time.Duration
 	PlatformAbnormalCooldown      time.Duration
@@ -138,38 +163,59 @@ func DefaultEngineConfig() EngineConfig {
 			HTTPTimeout:              10 * time.Second,
 			MaxPremiumIndexStaleness: 15 * time.Second,
 			StreamWarmupTimeout:      1500 * time.Millisecond,
+			MaxIdleConns:             256,
+			MaxIdleConnsPerHost:      128,
+			IdleConnTimeout:          90 * time.Second,
+			TLSHandshakeTimeout:      3 * time.Second,
+			ResponseHeaderTimeout:    5 * time.Second,
+			ExpectContinueTimeout:    1 * time.Second,
+			PublicGETBaseSlot:        120 * time.Millisecond,
+			PublicGETCooldown403:     5 * time.Second,
+			PublicGETCooldown418:     30 * time.Second,
+			PublicGETUseAPIKey:       false,
+			PublicGETAPIKeyWhitelist: "exchangeInfo,premiumIndex,openInterest,klines",
 			DashboardAddr:            "127.0.0.1:8080",
 			RecordDir:                "records",
 			EmergencyStopFile:        ".halt-live",
 		},
 		StrategyConfig: StrategyConfig{
-			WakeMinute:              57,
-			WakeSecond:              0,
-			ScanWindow:              3 * time.Minute,
-			MonitorInterval:         500 * time.Millisecond,
-			MonitorStopLead:         30 * time.Second,
-			MinEstimatedFundingRate: 0.0025,
-			MaxEstimatedFundingRate: 0.0300,
-			MaxFundingRateJump:      0.0150,
-			MaxScanBasisRate:        0.0015,
-			FeeReserveRate:          0.0015,
-			MaxTargets:              5,
-			PerSymbolQuoteUSDT:      100.0,
-			RecentTradeVolumeWindow: 5 * time.Minute,
-			MaxRecentVolumeShare:    0.0020,
-			MaxOpenInterestShare:    0.0005,
-			MaxVisibleDepthShare:    0.08,
-			DepthLevels:             20,
+			WakeMinute:               57,
+			WakeSecond:               0,
+			ScanWindow:               3 * time.Minute,
+			MonitorInterval:          500 * time.Millisecond,
+			MonitorStopLead:          30 * time.Second,
+			MinEstimatedFundingRate:  0.0025,
+			MaxEstimatedFundingRate:  0.0300,
+			MaxFundingRateJump:       0.0150,
+			MaxScanBasisRate:         0.0015,
+			LiveFundingAsset:         "USDT",
+			FeeReserveRate:           0.0030,
+			ExitSpreadReserveRate:    0.0005,
+			PreferredSpotQuoteAssets: "FDUSD,USDC,USDT",
+			MaxTargets:               5,
+			PerSymbolQuoteUSDT:       100.0,
+			RecentTradeVolumeWindow:  5 * time.Minute,
+			MaxRecentVolumeShare:     0.0020,
+			MaxOpenInterestShare:     0.0005,
+			MaxVisibleDepthShare:     0.08,
+			DepthLevels:              20,
 		},
 		ExecutionConfig: ExecutionConfig{
 			ExitDelayAfterFunding:    2 * time.Second,
+			ExitMonitorInterval:      250 * time.Millisecond,
+			AutoBalanceUSDT:          true,
 			RecvWindow:               5000,
 			ExecutionConfirmTimeout:  1500 * time.Millisecond,
 			ExecutionRecoveryTimeout: 4 * time.Second,
+			OpenHedgeMaxConcurrency:  2,
+			ParallelOpenSymbols:      "",
+			ParallelCloseSymbols:     "",
 			UseProtectedIOC:          true,
 			SpotLimitSlippageRate:    0.0015,
 			FuturesLimitSlippageRate: 0.0010,
 			FuturesPriceProtect:      true,
+			SpotSTPMode:              "EXPIRE_TAKER",
+			FuturesSTPMode:           "EXPIRE_TAKER",
 		},
 		RiskConfig: RiskConfig{
 			MinNetProfitRate:              0.0020,
@@ -185,6 +231,9 @@ func DefaultEngineConfig() EngineConfig {
 			MaxOrderUncertaintyPerCycle:   2,
 			MaxConsecutivePlatformRejects: 3,
 			MaxConsecutiveRequestErrors:   6,
+			ProtectedIOCMinAttempts:       5,
+			ProtectedIOCMaxUnfilledRatio:  0.40,
+			ProtectedIOCMaxCancelRate:     0.30,
 			SymbolAbnormalCooldown:        10 * time.Minute,
 			PlatformMinorCooldown:         5 * time.Minute,
 			PlatformAbnormalCooldown:      15 * time.Minute,
@@ -246,6 +295,17 @@ func (cfg EngineConfig) Validate() error {
 	appendIssue(strings.TrimSpace(cfg.NetworkConfig.RecordDir) != "", "RecordDir 不能为空")
 	appendIssue(cfg.NetworkConfig.MaxPremiumIndexStaleness > 0, "MaxPremiumIndexStaleness 必须大于 0")
 	appendIssue(cfg.NetworkConfig.StreamWarmupTimeout > 0, "StreamWarmupTimeout 必须大于 0")
+	appendIssue(cfg.NetworkConfig.MaxIdleConns > 0, "MaxIdleConns 必须大于 0")
+	appendIssue(cfg.NetworkConfig.MaxIdleConnsPerHost > 0, "MaxIdleConnsPerHost 必须大于 0")
+	appendIssue(cfg.NetworkConfig.MaxIdleConns >= cfg.NetworkConfig.MaxIdleConnsPerHost, "MaxIdleConns 不能小于 MaxIdleConnsPerHost")
+	appendIssue(cfg.NetworkConfig.IdleConnTimeout > 0, "IdleConnTimeout 必须大于 0")
+	appendIssue(cfg.NetworkConfig.TLSHandshakeTimeout > 0, "TLSHandshakeTimeout 必须大于 0")
+	appendIssue(cfg.NetworkConfig.ResponseHeaderTimeout > 0, "ResponseHeaderTimeout 必须大于 0")
+	appendIssue(cfg.NetworkConfig.ExpectContinueTimeout >= 0, "ExpectContinueTimeout 不能小于 0")
+	appendIssue(cfg.NetworkConfig.PublicGETBaseSlot >= 0, "PublicGETBaseSlot 不能小于 0")
+	appendIssue(cfg.NetworkConfig.PublicGETCooldown403 >= 0, "PublicGETCooldown403 不能小于 0")
+	appendIssue(cfg.NetworkConfig.PublicGETCooldown418 >= 0, "PublicGETCooldown418 不能小于 0")
+	appendIssue(cfg.NetworkConfig.PublicGETCooldown418 >= cfg.NetworkConfig.PublicGETCooldown403, "PublicGETCooldown418 不能小于 PublicGETCooldown403")
 
 	appendIssue(cfg.StrategyConfig.WakeMinute >= 0 && cfg.StrategyConfig.WakeMinute <= 59, "WakeMinute 必须在 0 到 59 之间")
 	appendIssue(cfg.StrategyConfig.WakeSecond >= 0 && cfg.StrategyConfig.WakeSecond <= 59, "WakeSecond 必须在 0 到 59 之间")
@@ -257,7 +317,10 @@ func (cfg EngineConfig) Validate() error {
 	appendIssue(cfg.StrategyConfig.MaxEstimatedFundingRate > cfg.StrategyConfig.MinEstimatedFundingRate, "MaxEstimatedFundingRate 必须大于 MinEstimatedFundingRate")
 	appendIssue(cfg.StrategyConfig.MaxFundingRateJump > 0, "MaxFundingRateJump 必须大于 0")
 	appendIssue(cfg.StrategyConfig.MaxScanBasisRate > 0, "MaxScanBasisRate 必须大于 0")
+	appendIssue(strings.TrimSpace(cfg.StrategyConfig.LiveFundingAsset) != "", "LiveFundingAsset 不能为空")
 	appendIssue(cfg.StrategyConfig.FeeReserveRate > 0, "FeeReserveRate 必须大于 0")
+	appendIssue(cfg.StrategyConfig.ExitSpreadReserveRate >= 0, "ExitSpreadReserveRate 不能小于 0")
+	appendIssue(strings.TrimSpace(cfg.StrategyConfig.PreferredSpotQuoteAssets) != "", "PreferredSpotQuoteAssets 不能为空")
 	appendIssue(cfg.StrategyConfig.MaxTargets > 0, "MaxTargets 必须大于 0")
 	appendIssue(cfg.StrategyConfig.PerSymbolQuoteUSDT > 0, "PerSymbolQuoteUSDT 必须大于 0")
 	appendIssue(cfg.StrategyConfig.RecentTradeVolumeWindow > 0, "RecentTradeVolumeWindow 必须大于 0")
@@ -267,14 +330,17 @@ func (cfg EngineConfig) Validate() error {
 	appendIssue(cfg.StrategyConfig.DepthLevels > 0, "DepthLevels 必须大于 0")
 
 	appendIssue(cfg.ExecutionConfig.ExitDelayAfterFunding >= 0, "ExitDelayAfterFunding 不能小于 0")
+	appendIssue(cfg.ExecutionConfig.ExitMonitorInterval > 0, "ExitMonitorInterval 必须大于 0")
 	appendIssue(cfg.ExecutionConfig.RecvWindow > 0, "RecvWindow 必须大于 0")
 	appendIssue(cfg.ExecutionConfig.ExecutionConfirmTimeout > 0, "ExecutionConfirmTimeout 必须大于 0")
 	appendIssue(cfg.ExecutionConfig.ExecutionRecoveryTimeout > 0, "ExecutionRecoveryTimeout 必须大于 0")
+	appendIssue(cfg.ExecutionConfig.OpenHedgeMaxConcurrency > 0, "OpenHedgeMaxConcurrency 必须大于 0")
 	appendIssue(cfg.ExecutionConfig.SpotLimitSlippageRate >= 0 && cfg.ExecutionConfig.SpotLimitSlippageRate < 0.05, "SpotLimitSlippageRate 必须在 [0, 0.05) 之间")
 	appendIssue(cfg.ExecutionConfig.FuturesLimitSlippageRate >= 0 && cfg.ExecutionConfig.FuturesLimitSlippageRate < 0.05, "FuturesLimitSlippageRate 必须在 [0, 0.05) 之间")
+	appendIssue(isValidSelfTradePreventionMode(cfg.ExecutionConfig.SpotSTPMode), "SpotSTPMode 必须是 EXPIRE_TAKER / EXPIRE_MAKER / EXPIRE_BOTH / NONE")
+	appendIssue(isValidSelfTradePreventionMode(cfg.ExecutionConfig.FuturesSTPMode), "FuturesSTPMode 必须是 EXPIRE_TAKER / EXPIRE_MAKER / EXPIRE_BOTH / NONE")
 
 	appendIssue(cfg.RiskConfig.MinNetProfitRate > 0, "MinNetProfitRate 必须大于 0")
-	appendIssue(cfg.RiskConfig.MinNetProfitRate > cfg.StrategyConfig.FeeReserveRate, "MinNetProfitRate 必须大于 FeeReserveRate")
 	appendIssue(cfg.RiskConfig.ImmediateInvalidateRate > 0, "ImmediateInvalidateRate 必须大于 0")
 	appendIssue(cfg.RiskConfig.ImmediateInvalidateRate < cfg.RiskConfig.MinNetProfitRate, "ImmediateInvalidateRate 必须小于 MinNetProfitRate")
 	appendIssue(cfg.RiskConfig.MonitorMaxConsecutiveBreach > 0, "MonitorMaxConsecutiveBreach 必须大于 0")
@@ -289,6 +355,9 @@ func (cfg EngineConfig) Validate() error {
 	appendIssue(cfg.RiskConfig.MaxOrderUncertaintyPerCycle > 0, "MaxOrderUncertaintyPerCycle 必须大于 0")
 	appendIssue(cfg.RiskConfig.MaxConsecutivePlatformRejects > 0, "MaxConsecutivePlatformRejects 必须大于 0")
 	appendIssue(cfg.RiskConfig.MaxConsecutiveRequestErrors > 0, "MaxConsecutiveRequestErrors 必须大于 0")
+	appendIssue(cfg.RiskConfig.ProtectedIOCMinAttempts > 0, "ProtectedIOCMinAttempts 必须大于 0")
+	appendIssue(cfg.RiskConfig.ProtectedIOCMaxUnfilledRatio > 0 && cfg.RiskConfig.ProtectedIOCMaxUnfilledRatio <= 1, "ProtectedIOCMaxUnfilledRatio 必须在 (0, 1] 之间")
+	appendIssue(cfg.RiskConfig.ProtectedIOCMaxCancelRate > 0 && cfg.RiskConfig.ProtectedIOCMaxCancelRate <= 1, "ProtectedIOCMaxCancelRate 必须在 (0, 1] 之间")
 	appendIssue(cfg.RiskConfig.SymbolAbnormalCooldown > 0, "SymbolAbnormalCooldown 必须大于 0")
 	appendIssue(cfg.RiskConfig.PlatformMinorCooldown > 0, "PlatformMinorCooldown 必须大于 0")
 	appendIssue(cfg.RiskConfig.PlatformAbnormalCooldown > 0, "PlatformAbnormalCooldown 必须大于 0")
@@ -341,6 +410,15 @@ func (cfg EngineConfig) Validate() error {
 	return fmt.Errorf("EngineConfig 校验失败: %s", strings.Join(issues, "; "))
 }
 
+func isValidSelfTradePreventionMode(mode string) bool {
+	switch strings.ToUpper(strings.TrimSpace(mode)) {
+	case "NONE", "EXPIRE_TAKER", "EXPIRE_MAKER", "EXPIRE_BOTH":
+		return true
+	default:
+		return false
+	}
+}
+
 // LoadSecretConfig 读取当前项目中的 secret.yaml。
 func LoadSecretConfig(path string) (SecretConfig, error) {
 	values, err := readSimpleYAML(path)
@@ -361,8 +439,22 @@ func LoadSecretConfig(path string) (SecretConfig, error) {
 }
 
 // NewHTTPClient 创建可选代理的 HTTP 客户端。
-func NewHTTPClient(timeout time.Duration, proxyAddress string) (*http.Client, error) {
-	transport := &http.Transport{}
+func NewHTTPClient(networkCfg NetworkConfig, proxyAddress string) (*http.Client, error) {
+	timeout := networkCfg.HTTPTimeout
+	if timeout <= 0 {
+		timeout = 10 * time.Second
+	}
+	transport := &http.Transport{
+		Proxy:                 http.ProxyFromEnvironment,
+		DialContext:           (&net.Dialer{Timeout: timeout, KeepAlive: 30 * time.Second}).DialContext,
+		ForceAttemptHTTP2:     true,
+		MaxIdleConns:          networkCfg.MaxIdleConns,
+		MaxIdleConnsPerHost:   networkCfg.MaxIdleConnsPerHost,
+		IdleConnTimeout:       networkCfg.IdleConnTimeout,
+		TLSHandshakeTimeout:   networkCfg.TLSHandshakeTimeout,
+		ResponseHeaderTimeout: networkCfg.ResponseHeaderTimeout,
+		ExpectContinueTimeout: networkCfg.ExpectContinueTimeout,
+	}
 
 	if strings.TrimSpace(proxyAddress) != "" {
 		parsed, err := url.Parse(proxyAddress)

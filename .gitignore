@@ -9,9 +9,9 @@ lingxi
 *.pid
 
 # Secrets and local-only config
-secret.yaml
-secret.local.yaml
-config.local.yaml
+# secret.yaml
+# secret.local.yaml
+# config.local.yaml
 config.local.json
 
 # Generated records and caches
@@ -20,9 +20,3 @@ records/
 .cache/
 
 # Go build/test artifacts
-*.out
-*.test
-coverage.out
-
-# Temporary files
-*.tmp

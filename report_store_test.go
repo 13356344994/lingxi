@@ -147,6 +147,92 @@ func TestReportStoreResidualStatsRefreshAfterReplaceAndClear(t *testing.T) {
 	}
 }
 
+func TestReportStoreAppendDustLedgerPersistsRecord(t *testing.T) {
+	store, err := NewReportStore(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewReportStore() error = %v", err)
+	}
+	record := DustLedgerRecord{
+		RunID:        "run-1",
+		CycleID:      "cycle-1",
+		RecordedAt:   "2026-05-30T00:00:00Z",
+		Phase:        "open_recovery",
+		Symbol:       "DOGEUSDT",
+		Pair:         "DOGEUSDT",
+		Asset:        "DOGE",
+		Quantity:     "1",
+		NotionalUSDT: "0.10000000",
+		Reason:       "spot_excess_below_min_notional",
+	}
+	if err := store.AppendDustLedger(record); err != nil {
+		t.Fatalf("AppendDustLedger() error = %v", err)
+	}
+	got, err := store.ListDustLedgerRecords(10)
+	if err != nil {
+		t.Fatalf("ListDustLedgerRecords() error = %v", err)
+	}
+	if len(got) != 1 || got[0].Reason != record.Reason || got[0].Asset != "DOGE" {
+		t.Fatalf("unexpected dust ledger records: %+v", got)
+	}
+}
+
+func TestReportStorePendingFundingSettlementPersistsLifecycle(t *testing.T) {
+	store, err := NewReportStore(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewReportStore() error = %v", err)
+	}
+	record := PendingFundingSettlementRecord{
+		RunID:         "run-1",
+		CycleID:       "cycle-1",
+		RecordedAt:    "2026-05-30T00:00:00Z",
+		NextAttemptAt: "2026-05-30T00:00:10Z",
+		AttemptCount:  1,
+		Settlement: CycleSettlement{
+			RunID:                "run-1",
+			CycleID:              "cycle-1",
+			FundingIncomePending: true,
+		},
+		Hedges: []OpenHedge{{
+			Target: FundingCandidate{Symbol: "BTCUSDT"},
+		}},
+	}
+	if err := store.UpsertPendingFundingSettlement(record); err != nil {
+		t.Fatalf("UpsertPendingFundingSettlement() error = %v", err)
+	}
+
+	got, err := store.ListPendingFundingSettlements(10)
+	if err != nil {
+		t.Fatalf("ListPendingFundingSettlements() error = %v", err)
+	}
+	if len(got) != 1 || got[0].CycleID != record.CycleID || got[0].AttemptCount != 1 {
+		t.Fatalf("unexpected pending funding records: %+v", got)
+	}
+
+	record.AttemptCount = 2
+	record.LastError = "still pending"
+	if err := store.UpsertPendingFundingSettlement(record); err != nil {
+		t.Fatalf("UpsertPendingFundingSettlement() update error = %v", err)
+	}
+	got, err = store.ListPendingFundingSettlements(10)
+	if err != nil {
+		t.Fatalf("ListPendingFundingSettlements() after update error = %v", err)
+	}
+	if len(got) != 1 || got[0].AttemptCount != 2 || got[0].LastError != "still pending" {
+		t.Fatalf("unexpected updated pending funding records: %+v", got)
+	}
+
+	if err := store.DeletePendingFundingSettlement(record.RunID, record.CycleID); err != nil {
+		t.Fatalf("DeletePendingFundingSettlement() error = %v", err)
+	}
+	got, err = store.ListPendingFundingSettlements(10)
+	if err != nil {
+		t.Fatalf("ListPendingFundingSettlements() after delete error = %v", err)
+	}
+	if len(got) != 0 {
+		t.Fatalf("expected pending funding records to be deleted, got %+v", got)
+	}
+}
+
 func TestCompactJSONLByRecordedAtKeepsRecentRowsWhenOversized(t *testing.T) {
 	path := filepath.Join(t.TempDir(), executionCSVName)
 	if err := rewriteJSONLFile(path, []ExecutionIncidentRecord{

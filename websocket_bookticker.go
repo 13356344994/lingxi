@@ -13,10 +13,20 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+const (
+	spotTickerHeartbeatSymbol    = "BTCUSDT"
+	futuresTickerHeartbeatSymbol = "BTCUSDT"
+)
+
 // BookTickerCache 保存最新的最优买卖一快照。
 type BookTickerCache struct {
 	mu      sync.RWMutex
-	tickers map[string]BookTicker
+	tickers map[string]bookTickerCacheEntry
+}
+
+type bookTickerCacheEntry struct {
+	Ticker     BookTicker
+	ReceivedAt time.Time
 }
 
 // DepthCache 保存最新的部分深度快照。
@@ -47,7 +57,7 @@ type ParsedOrderBookDepth struct {
 // NewBookTickerCache 创建一个线程安全的盘口缓存。
 func NewBookTickerCache() *BookTickerCache {
 	return &BookTickerCache{
-		tickers: make(map[string]BookTicker),
+		tickers: make(map[string]bookTickerCacheEntry),
 	}
 }
 
@@ -58,17 +68,46 @@ func NewDepthCache() *DepthCache {
 
 // Update 写入最新快照。
 func (c *BookTickerCache) Update(ticker BookTicker) {
+	c.UpdateAt(ticker, time.Now().UTC())
+}
+
+// UpdateAt 写入指定接收时间的最新快照，便于测试行情陈旧判断。
+func (c *BookTickerCache) UpdateAt(ticker BookTicker, receivedAt time.Time) {
 	c.mu.Lock()
-	c.tickers[ticker.Symbol] = ticker
+	c.tickers[ticker.Symbol] = bookTickerCacheEntry{
+		Ticker:     ticker,
+		ReceivedAt: receivedAt,
+	}
 	c.mu.Unlock()
 }
 
 // Get 返回指定 symbol 的最新盘口。
 func (c *BookTickerCache) Get(symbol string) (BookTicker, bool) {
 	c.mu.RLock()
-	ticker, ok := c.tickers[symbol]
+	entry, ok := c.tickers[symbol]
 	c.mu.RUnlock()
-	return ticker, ok
+	return entry.Ticker, ok
+}
+
+// GetWithReceivedAt 返回指定 symbol 的最新盘口以及本地接收时间。
+func (c *BookTickerCache) GetWithReceivedAt(symbol string) (BookTicker, time.Time, bool) {
+	c.mu.RLock()
+	entry, ok := c.tickers[symbol]
+	c.mu.RUnlock()
+	if !ok {
+		return BookTicker{}, time.Time{}, false
+	}
+	return entry.Ticker, entry.ReceivedAt, true
+}
+
+func (c *BookTickerCache) LastReceivedAt(symbol string) time.Time {
+	c.mu.RLock()
+	entry, ok := c.tickers[symbol]
+	c.mu.RUnlock()
+	if !ok {
+		return time.Time{}
+	}
+	return entry.ReceivedAt
 }
 
 // MissingSymbols 返回尚未完成 bookTicker 预热的 symbol 列表。
@@ -188,6 +227,8 @@ func (e *FundingRateSniperEngine) StartBookTickerStreams(ctx context.Context, ta
 		spotSymbols = append(spotSymbols, target.Candidate.Pair)
 		futuresSymbols = append(futuresSymbols, target.Candidate.Symbol)
 	}
+	spotSymbols = append(spotSymbols, spotTickerHeartbeatSymbol)
+	futuresSymbols = append(futuresSymbols, futuresTickerHeartbeatSymbol)
 
 	go e.runBookTickerStream(ctx, binanceSpotCombinedWSURL, spotSymbols, e.spotTickerCache)
 	go e.runBookTickerStream(ctx, binanceFuturesCombinedWSURL, futuresSymbols, e.futuresTickerCache)

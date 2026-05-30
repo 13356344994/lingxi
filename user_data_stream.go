@@ -173,6 +173,36 @@ func parseListenKey(body []byte) (string, error) {
 	return result.ListenKey, nil
 }
 
+func isManagedClientOrderID(clientOrderID string) bool {
+	clientOrderID = strings.ToLower(strings.TrimSpace(clientOrderID))
+	if clientOrderID == "" {
+		return false
+	}
+	prefixes := []string{
+		"fopen",
+		"fclose",
+		"ftrim",
+		"frescue",
+		"sopen",
+		"sclose",
+		"sclose_revert",
+		"srevert",
+		"srebalance",
+		"srebalf",
+		"sclosemaker",
+		"sclosechase",
+		"exp_sell",
+		"exp_buy",
+		"expfclose",
+	}
+	for _, prefix := range prefixes {
+		if strings.HasPrefix(clientOrderID, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
 func (e *FundingRateSniperEngine) consumeSpotUserDataMessages(ctx context.Context, conn *websocket.Conn) error {
 	for {
 		select {
@@ -203,6 +233,9 @@ func (e *FundingRateSniperEngine) consumeSpotUserDataMessages(ctx context.Contex
 			return fmt.Errorf("解析现货用户流消息失败: %w", err)
 		}
 		if event.EventType != "executionReport" {
+			continue
+		}
+		if !isManagedClientOrderID(event.ClientOrderID) {
 			continue
 		}
 
@@ -261,6 +294,9 @@ func (e *FundingRateSniperEngine) consumeFuturesUserDataMessages(ctx context.Con
 		if envelope.EventType != "ORDER_TRADE_UPDATE" {
 			continue
 		}
+		if !isManagedClientOrderID(envelope.Order.ClientOrderID) {
+			continue
+		}
 
 		snapshot := OrderExecutionSnapshot{
 			Market:          "futures",
@@ -292,7 +328,7 @@ func (e *FundingRateSniperEngine) waitForSpotOrder(ctx context.Context, symbol s
 		ctx,
 		clientOrderID,
 		func(snapshot OrderExecutionSnapshot) bool {
-			return snapshot.OrderID != 0 && (snapshot.ExecutedQty > 0 || isTerminalOrderStatus(snapshot.Status))
+			return hasConfirmedOrderExecution(snapshot)
 		},
 		2*time.Second,
 		500*time.Millisecond,
@@ -324,7 +360,7 @@ func (e *FundingRateSniperEngine) waitForFuturesOrder(ctx context.Context, symbo
 		ctx,
 		clientOrderID,
 		func(snapshot OrderExecutionSnapshot) bool {
-			return snapshot.OrderID != 0 && (snapshot.ExecutedQty > 0 || isTerminalOrderStatus(snapshot.Status))
+			return hasConfirmedOrderExecution(snapshot)
 		},
 		2*time.Second,
 		500*time.Millisecond,

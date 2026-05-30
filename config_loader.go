@@ -39,9 +39,21 @@ func loadEngineConfig() (EngineConfig, error) {
 func envConfigOverrides() map[string]string {
 	pairs := map[string]string{}
 	for _, key := range []string{
+		"network.http_timeout",
+		"network.max_idle_conns",
+		"network.max_idle_conns_per_host",
+		"network.idle_conn_timeout",
+		"network.tls_handshake_timeout",
+		"network.response_header_timeout",
+		"network.expect_continue_timeout",
 		"network.dashboard_addr",
 		"network.record_dir",
 		"network.emergency_stop_file",
+		"network.public_get_base_slot",
+		"network.public_get_cooldown_403",
+		"network.public_get_cooldown_418",
+		"network.public_get_use_apikey",
+		"network.public_get_apikey_whitelist",
 		"strategy.per_symbol_quote_usdt",
 		"strategy.max_targets",
 		"strategy.min_estimated_funding_rate",
@@ -51,16 +63,22 @@ func envConfigOverrides() map[string]string {
 		"execution.execution_confirm_timeout",
 		"execution.execution_recovery_timeout",
 		"execution.exit_delay_after_funding",
+		"execution.open_hedge_max_concurrency",
 		"execution.use_protected_ioc",
 		"execution.spot_limit_slippage_rate",
 		"execution.futures_limit_slippage_rate",
 		"execution.futures_price_protect",
+		"execution.spot_stp_mode",
+		"execution.futures_stp_mode",
 		"risk.min_net_profit_rate",
 		"risk.immediate_invalidate_rate",
 		"risk.max_cycle_loss_usdt",
 		"risk.max_cycle_open_notional_usdt",
 		"risk.max_execution_incidents",
 		"risk.max_order_uncertainty_per_cycle",
+		"risk.protected_ioc_min_attempts",
+		"risk.protected_ioc_max_unfilled_ratio",
+		"risk.protected_ioc_max_cancel_rate",
 		"risk.max_daily_loss_usdt",
 		"risk.max_daily_order_count",
 		"risk.max_daily_open_notional_usdt",
@@ -84,12 +102,80 @@ func applyEngineConfigOverrides(cfg *EngineConfig, values map[string]string) err
 			continue
 		}
 		switch key {
+		case "network.http_timeout", "http_timeout":
+			parsed, err := parseConfigDuration(value)
+			if err != nil {
+				return fmt.Errorf("%s: %w", key, err)
+			}
+			cfg.NetworkConfig.HTTPTimeout = parsed
+		case "network.max_idle_conns", "max_idle_conns":
+			parsed, err := parseConfigInt(value)
+			if err != nil {
+				return fmt.Errorf("%s: %w", key, err)
+			}
+			cfg.NetworkConfig.MaxIdleConns = parsed
+		case "network.max_idle_conns_per_host", "max_idle_conns_per_host":
+			parsed, err := parseConfigInt(value)
+			if err != nil {
+				return fmt.Errorf("%s: %w", key, err)
+			}
+			cfg.NetworkConfig.MaxIdleConnsPerHost = parsed
+		case "network.idle_conn_timeout", "idle_conn_timeout":
+			parsed, err := parseConfigDuration(value)
+			if err != nil {
+				return fmt.Errorf("%s: %w", key, err)
+			}
+			cfg.NetworkConfig.IdleConnTimeout = parsed
+		case "network.tls_handshake_timeout", "tls_handshake_timeout":
+			parsed, err := parseConfigDuration(value)
+			if err != nil {
+				return fmt.Errorf("%s: %w", key, err)
+			}
+			cfg.NetworkConfig.TLSHandshakeTimeout = parsed
+		case "network.response_header_timeout", "response_header_timeout":
+			parsed, err := parseConfigDuration(value)
+			if err != nil {
+				return fmt.Errorf("%s: %w", key, err)
+			}
+			cfg.NetworkConfig.ResponseHeaderTimeout = parsed
+		case "network.expect_continue_timeout", "expect_continue_timeout":
+			parsed, err := parseConfigDuration(value)
+			if err != nil {
+				return fmt.Errorf("%s: %w", key, err)
+			}
+			cfg.NetworkConfig.ExpectContinueTimeout = parsed
 		case "network.dashboard_addr", "dashboard_addr":
 			cfg.NetworkConfig.DashboardAddr = value
 		case "network.record_dir", "record_dir":
 			cfg.NetworkConfig.RecordDir = value
 		case "network.emergency_stop_file", "emergency_stop_file":
 			cfg.NetworkConfig.EmergencyStopFile = value
+		case "network.public_get_base_slot", "public_get_base_slot":
+			parsed, err := parseConfigDuration(value)
+			if err != nil {
+				return fmt.Errorf("%s: %w", key, err)
+			}
+			cfg.NetworkConfig.PublicGETBaseSlot = parsed
+		case "network.public_get_cooldown_403", "public_get_cooldown_403":
+			parsed, err := parseConfigDuration(value)
+			if err != nil {
+				return fmt.Errorf("%s: %w", key, err)
+			}
+			cfg.NetworkConfig.PublicGETCooldown403 = parsed
+		case "network.public_get_cooldown_418", "public_get_cooldown_418":
+			parsed, err := parseConfigDuration(value)
+			if err != nil {
+				return fmt.Errorf("%s: %w", key, err)
+			}
+			cfg.NetworkConfig.PublicGETCooldown418 = parsed
+		case "network.public_get_use_apikey", "public_get_use_apikey":
+			parsed, err := parseConfigBool(value)
+			if err != nil {
+				return fmt.Errorf("%s: %w", key, err)
+			}
+			cfg.NetworkConfig.PublicGETUseAPIKey = parsed
+		case "network.public_get_apikey_whitelist", "public_get_apikey_whitelist":
+			cfg.NetworkConfig.PublicGETAPIKeyWhitelist = value
 		case "strategy.per_symbol_quote_usdt", "per_symbol_quote_usdt":
 			parsed, err := parseConfigFloat(value)
 			if err != nil {
@@ -120,12 +206,22 @@ func applyEngineConfigOverrides(cfg *EngineConfig, values map[string]string) err
 				return fmt.Errorf("%s: %w", key, err)
 			}
 			cfg.StrategyConfig.MaxScanBasisRate = parsed
+		case "strategy.live_funding_asset", "live_funding_asset":
+			cfg.StrategyConfig.LiveFundingAsset = value
 		case "strategy.fee_reserve_rate", "fee_reserve_rate":
 			parsed, err := parseConfigFloat(value)
 			if err != nil {
 				return fmt.Errorf("%s: %w", key, err)
 			}
 			cfg.StrategyConfig.FeeReserveRate = parsed
+		case "strategy.exit_spread_reserve_rate", "exit_spread_reserve_rate":
+			parsed, err := parseConfigFloat(value)
+			if err != nil {
+				return fmt.Errorf("%s: %w", key, err)
+			}
+			cfg.StrategyConfig.ExitSpreadReserveRate = parsed
+		case "strategy.preferred_spot_quote_assets", "preferred_spot_quote_assets":
+			cfg.StrategyConfig.PreferredSpotQuoteAssets = value
 		case "execution.execution_confirm_timeout", "execution_confirm_timeout":
 			parsed, err := parseConfigDuration(value)
 			if err != nil {
@@ -144,6 +240,28 @@ func applyEngineConfigOverrides(cfg *EngineConfig, values map[string]string) err
 				return fmt.Errorf("%s: %w", key, err)
 			}
 			cfg.ExecutionConfig.ExitDelayAfterFunding = parsed
+		case "execution.exit_monitor_interval", "exit_monitor_interval":
+			parsed, err := parseConfigDuration(value)
+			if err != nil {
+				return fmt.Errorf("%s: %w", key, err)
+			}
+			cfg.ExecutionConfig.ExitMonitorInterval = parsed
+		case "execution.auto_balance_usdt", "auto_balance_usdt":
+			parsed, err := parseConfigBool(value)
+			if err != nil {
+				return fmt.Errorf("%s: %w", key, err)
+			}
+			cfg.ExecutionConfig.AutoBalanceUSDT = parsed
+		case "execution.open_hedge_max_concurrency", "open_hedge_max_concurrency":
+			parsed, err := parseConfigInt(value)
+			if err != nil {
+				return fmt.Errorf("%s: %w", key, err)
+			}
+			cfg.ExecutionConfig.OpenHedgeMaxConcurrency = parsed
+		case "execution.parallel_open_symbols", "parallel_open_symbols":
+			cfg.ExecutionConfig.ParallelOpenSymbols = value
+		case "execution.parallel_close_symbols", "parallel_close_symbols":
+			cfg.ExecutionConfig.ParallelCloseSymbols = value
 		case "execution.use_protected_ioc", "use_protected_ioc":
 			parsed, err := parseConfigBool(value)
 			if err != nil {
@@ -168,6 +286,10 @@ func applyEngineConfigOverrides(cfg *EngineConfig, values map[string]string) err
 				return fmt.Errorf("%s: %w", key, err)
 			}
 			cfg.ExecutionConfig.FuturesPriceProtect = parsed
+		case "execution.spot_stp_mode", "spot_stp_mode":
+			cfg.ExecutionConfig.SpotSTPMode = value
+		case "execution.futures_stp_mode", "futures_stp_mode":
+			cfg.ExecutionConfig.FuturesSTPMode = value
 		case "risk.min_net_profit_rate", "min_net_profit_rate":
 			parsed, err := parseConfigFloat(value)
 			if err != nil {
@@ -204,6 +326,24 @@ func applyEngineConfigOverrides(cfg *EngineConfig, values map[string]string) err
 				return fmt.Errorf("%s: %w", key, err)
 			}
 			cfg.RiskConfig.MaxOrderUncertaintyPerCycle = parsed
+		case "risk.protected_ioc_min_attempts", "protected_ioc_min_attempts":
+			parsed, err := parseConfigInt(value)
+			if err != nil {
+				return fmt.Errorf("%s: %w", key, err)
+			}
+			cfg.RiskConfig.ProtectedIOCMinAttempts = parsed
+		case "risk.protected_ioc_max_unfilled_ratio", "protected_ioc_max_unfilled_ratio":
+			parsed, err := parseConfigFloat(value)
+			if err != nil {
+				return fmt.Errorf("%s: %w", key, err)
+			}
+			cfg.RiskConfig.ProtectedIOCMaxUnfilledRatio = parsed
+		case "risk.protected_ioc_max_cancel_rate", "protected_ioc_max_cancel_rate":
+			parsed, err := parseConfigFloat(value)
+			if err != nil {
+				return fmt.Errorf("%s: %w", key, err)
+			}
+			cfg.RiskConfig.ProtectedIOCMaxCancelRate = parsed
 		case "risk.max_daily_loss_usdt", "max_daily_loss_usdt":
 			parsed, err := parseConfigFloat(value)
 			if err != nil {

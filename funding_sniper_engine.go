@@ -26,6 +26,16 @@ import (
 const (
 	monitorEstimateRefreshInterval = 2 * time.Second
 	executionQtyTolerance          = 1e-8
+	spotFeeBNBSafetyMultiplier     = 1.2
+	defaultFundingSettlementDelay  = 30 * time.Second
+	sleepWaitChunkNear             = 1 * time.Second
+	sleepWaitChunkMid              = 5 * time.Second
+	sleepWaitChunkFar              = 30 * time.Second
+	sleepResyncIntervalNear        = 10 * time.Second
+	sleepResyncIntervalMid         = 1 * time.Minute
+	sleepResyncIntervalFar         = 10 * time.Minute
+	sleepNearThreshold             = 2 * time.Minute
+	sleepMidThreshold              = 10 * time.Minute
 )
 
 var (
@@ -52,66 +62,79 @@ type symbolRiskProfile struct {
 // FundingRateSniperEngine 是资费压哨狙击引擎的单进程 MVP 主控。
 // 它负责模块二到模块五的完整调度链路。
 type FundingRateSniperEngine struct {
-	client                     *BinanceClient
-	cfg                        EngineConfig
-	logger                     *log.Logger
-	runID                      string
-	currentCycleID             string
-	goldenSymbols              []string
-	goldenSymbolSet            map[string]struct{}
-	spotMeta                   map[string]SpotSymbol
-	spotRules                  map[string]SymbolTradeRules
-	futuresMeta                map[string]FuturesSymbol
-	futuresRules               map[string]SymbolTradeRules
-	spotTickerCache            *BookTickerCache
-	futuresTickerCache         *BookTickerCache
-	spotDepthCache             *DepthCache
-	futuresDepthCache          *DepthCache
-	spotOrderHub               *OrderEventHub
-	futuresOrderHub            *OrderEventHub
-	reportStore                *ReportStore
-	serverTimeOffset           time.Duration
-	executionIncidents         int32
-	executionEventHook         func(ExecutionIncidentRecord)
-	liveStatusHook             func(LiveRuntimeSnapshot)
-	platformRiskMu             sync.Mutex
-	platformFuseReason         string
-	platformFuseTripped        bool
-	platformCooldownUntil      time.Time
-	consecutiveRequestErrors   int
-	consecutivePlatformRejects int
-	requestErrorsThisCycle     int
-	platformRejectsThisCycle   int
-	recoveryActionsThisCycle   int
-	orderUncertaintyCount      int
-	lastOrderAt                time.Time
-	lastOrderAction            string
-	lastRecoveryAt             time.Time
-	lastRecoveryAction         string
-	lastUncertainOrder         string
-	lastExceptionCategory      string
-	lastExceptionSeverity      string
-	lastExceptionDetail        string
-	emergencyStopFile          string
-	emergencyStopTriggered     bool
-	emergencyStopReason        string
-	dailyRiskStatePath         string
-	dailyRiskDate              string
-	dailyRealizedPnL           float64
-	dailyOrderCount            int
-	dailyOpenNotionalUsed      float64
-	dailyLimitTriggered        bool
-	dailyLimitReason           string
-	currentCooldownCategory    string
-	currentCooldownSeverity    string
-	currentMonitorTargets      []string
-	currentPositions           []string
-	cycleOpenNotionalUsed      float64
-	currentStage               EngineStage
-	currentStageReason         string
-	currentStageTransitionedAt string
-	symbolCooldowns            map[string]symbolCooldownState
-	runtimeReporter            *RuntimeReporter
+	client                      *BinanceClient
+	cfg                         EngineConfig
+	logger                      *log.Logger
+	runID                       string
+	currentCycleID              string
+	goldenSymbols               []string
+	goldenSymbolSet             map[string]struct{}
+	goldenSpotPairByFuture      map[string]string
+	spotMeta                    map[string]SpotSymbol
+	spotRules                   map[string]SymbolTradeRules
+	futuresMeta                 map[string]FuturesSymbol
+	futuresRules                map[string]SymbolTradeRules
+	spotTickerCache             *BookTickerCache
+	futuresTickerCache          *BookTickerCache
+	spotDepthCache              *DepthCache
+	futuresDepthCache           *DepthCache
+	spotOrderHub                *OrderEventHub
+	futuresOrderHub             *OrderEventHub
+	reportStore                 *ReportStore
+	serverTimeOffset            time.Duration
+	executionIncidents          int32
+	executionEventHook          func(ExecutionIncidentRecord)
+	liveStatusHook              func(LiveRuntimeSnapshot)
+	platformRiskMu              sync.Mutex
+	platformFuseReason          string
+	platformFuseTripped         bool
+	platformCooldownUntil       time.Time
+	consecutiveRequestErrors    int
+	consecutivePlatformRejects  int
+	requestErrorsThisCycle      int
+	platformRejectsThisCycle    int
+	recoveryActionsThisCycle    int
+	orderUncertaintyCount       int
+	protectedIOCAttempts        int
+	protectedIOCCanceled        int
+	protectedIOCExpired         int
+	protectedIOCPartial         int
+	protectedIOCUnfilledSum     float64
+	lastOrderAt                 time.Time
+	lastOrderAction             string
+	lastRecoveryAt              time.Time
+	lastRecoveryAction          string
+	lastUncertainOrder          string
+	lastExceptionCategory       string
+	lastExceptionSeverity       string
+	lastExceptionDetail         string
+	emergencyStopFile           string
+	openHedgeStatePath          string
+	openHedgeStateMu            sync.Mutex
+	emergencyStopTriggered      bool
+	emergencyStopReason         string
+	dailyRiskStatePath          string
+	dailyRiskDate               string
+	dailyRealizedPnL            float64
+	dailyOrderCount             int
+	dailyOpenNotionalUsed       float64
+	dailyLimitTriggered         bool
+	dailyLimitReason            string
+	currentCooldownCategory     string
+	currentCooldownSeverity     string
+	currentMonitorTargets       []string
+	currentPositions            []string
+	cycleOpenNotionalUsed       float64
+	currentStage                EngineStage
+	currentStageReason          string
+	currentStageTransitionedAt  string
+	symbolCooldowns             map[string]symbolCooldownState
+	exposureLocks               map[string]exposureLockState
+	exposureManager             *ExposureManager
+	fundingSettlementDelay      time.Duration
+	runtimeReporter             *RuntimeReporter
+	fundingSettlementWorkerOnce sync.Once
+	fundingSettlementWakeCh     chan struct{}
 }
 
 type symbolCooldownState struct {
@@ -135,6 +158,106 @@ func (e fatalEngineError) Error() string {
 
 func (e platformFuseError) Error() string {
 	return e.message
+}
+
+type signedRequestError struct {
+	Endpoint   string
+	StatusCode int
+	Status     string
+	Body       string
+	Cause      error
+}
+
+type unknownOrderStateError struct {
+	Market        string
+	Symbol        string
+	ClientOrderID string
+	Reason        string
+}
+
+type signedRequestMode int
+
+const (
+	signedRequestNormal signedRequestMode = iota
+	signedRequestRescue
+)
+
+func (e signedRequestError) Error() string {
+	switch {
+	case e.Cause != nil && e.StatusCode > 0:
+		return fmt.Sprintf("签名请求失败: endpoint=%s status=%s body=%s cause=%v", e.Endpoint, e.Status, e.Body, e.Cause)
+	case e.Cause != nil:
+		return fmt.Sprintf("签名请求失败: endpoint=%s cause=%v", e.Endpoint, e.Cause)
+	case e.StatusCode > 0:
+		return fmt.Sprintf("签名请求失败: endpoint=%s status=%s body=%s", e.Endpoint, e.Status, e.Body)
+	default:
+		return fmt.Sprintf("签名请求失败: endpoint=%s", e.Endpoint)
+	}
+}
+
+func (e signedRequestError) Unwrap() error {
+	return e.Cause
+}
+
+func (e unknownOrderStateError) Error() string {
+	return fmt.Sprintf(
+		"订单终态未知: market=%s symbol=%s clientOrderId=%s reason=%s",
+		nonEmpty(e.Market, "unknown"),
+		nonEmpty(e.Symbol, "-"),
+		nonEmpty(e.ClientOrderID, "-"),
+		nonEmpty(e.Reason, "-"),
+	)
+}
+
+func isUnknownOrderStateError(err error) bool {
+	if err == nil {
+		return false
+	}
+	var target unknownOrderStateError
+	return errors.As(err, &target)
+}
+
+func isUnknownOrderRequestError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	var requestErr signedRequestError
+	if errors.As(err, &requestErr) && isUnknownOrderHTTPStatus(requestErr.StatusCode) {
+		return true
+	}
+
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+		return true
+	}
+
+	type timeoutError interface {
+		Timeout() bool
+	}
+	var netErr timeoutError
+	if errors.As(err, &netErr) && netErr.Timeout() {
+		return true
+	}
+
+	text := strings.ToLower(err.Error())
+	return strings.Contains(text, "timeout") ||
+		strings.Contains(text, "deadline exceeded") ||
+		strings.Contains(text, "bad gateway") ||
+		strings.Contains(text, "gateway timeout") ||
+		strings.Contains(text, "unexpected eof") ||
+		strings.Contains(text, " eof") ||
+		strings.HasSuffix(text, "eof") ||
+		strings.Contains(text, "connection reset by peer") ||
+		strings.Contains(text, "server closed idle connection")
+}
+
+func isUnknownOrderHTTPStatus(statusCode int) bool {
+	switch statusCode {
+	case http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
+		return true
+	default:
+		return false
+	}
 }
 
 // FundingCandidate 表示模块二筛选出来的候选猎物。
@@ -182,6 +305,23 @@ type MonitoredTarget struct {
 	MonitorState    string
 	LastObserveTime time.Time
 	LastEstimateAt  time.Time
+}
+
+type openSequencePlan struct {
+	target       *MonitoredTarget
+	futuresOrder FuturesBatchOrderRequest
+}
+
+type closeSequencePlan struct {
+	hedge             *OpenHedge
+	futuresOrder      FuturesBatchOrderRequest
+	preferPassiveSpot bool
+}
+
+type openSequenceBuildState struct {
+	remainingSpotUSDT      float64
+	remainingFuturesUSDT   float64
+	remainingCycleNotional float64
 }
 
 // PremiumIndexItem 对应币安 /fapi/v1/premiumIndex 响应。
@@ -232,6 +372,7 @@ type FuturesBatchOrderRequest struct {
 	TimeInForce      string `json:"timeInForce,omitempty"`
 	PriceProtect     string `json:"priceProtect,omitempty"`
 	ReduceOnly       string `json:"reduceOnly,omitempty"`
+	SelfTradeMode    string `json:"selfTradePreventionMode,omitempty"`
 	NewClientOrderID string `json:"newClientOrderId,omitempty"`
 	NewOrderRespType string `json:"newOrderRespType,omitempty"`
 }
@@ -346,6 +487,8 @@ type CycleSettlement struct {
 	FundingTimePoint      time.Time
 	BeforeSnapshot        CycleAccountSnapshot
 	AfterSnapshot         CycleAccountSnapshot
+	FundingIncomePending  bool
+	FundingSettledAt      time.Time
 	HasAlert              bool
 	Alerts                []string
 }
@@ -360,9 +503,27 @@ type CycleAccountSnapshot struct {
 	FuturesPositionAmounts map[string]float64
 }
 
-// NewFundingRateSniperEngine 创建完整的资费压哨狙击引擎。
-func NewFundingRateSniperEngine(secretPath string) (*FundingRateSniperEngine, error) {
-	return NewFundingRateSniperEngineWithConfig(secretPath, DefaultEngineConfig())
+type CrossMarginAssetBalance struct {
+	Asset    string
+	Free     float64
+	Borrowed float64
+	Interest float64
+	Locked   float64
+	NetAsset float64
+}
+
+type CrossMarginAccountState struct {
+	Created             bool
+	BorrowEnabled       bool
+	TradeEnabled        bool
+	TransferInEnabled   bool
+	TransferOutEnabled  bool
+	AccountType         string
+	TotalCollateralUSDT float64
+	TotalNetAssetBTC    float64
+	TotalLiabilityBTC   float64
+	USDT                CrossMarginAssetBalance
+	Assets              map[string]CrossMarginAssetBalance
 }
 
 // NewFundingRateSniperEngineWithConfig 使用指定配置创建完整的资费压哨狙击引擎。
@@ -379,26 +540,32 @@ func NewFundingRateSniperEngineWithConfig(secretPath string, cfg EngineConfig) (
 	if err != nil {
 		return nil, err
 	}
-	client, err := NewAuthenticatedBinanceClient(secret, cfg.NetworkConfig.HTTPTimeout)
+	client, err := NewAuthenticatedBinanceClient(secret, cfg.NetworkConfig)
 	if err != nil {
 		return nil, err
 	}
+	client.applyNetworkConfig(cfg.NetworkConfig)
 
 	engine := &FundingRateSniperEngine{
-		client:             client,
-		cfg:                cfg,
-		logger:             log.New(os.Stdout, "[FundingRateSniper] ", log.LstdFlags|log.Lmicroseconds),
-		goldenSymbolSet:    make(map[string]struct{}),
-		spotMeta:           make(map[string]SpotSymbol),
-		spotRules:          make(map[string]SymbolTradeRules),
-		futuresMeta:        make(map[string]FuturesSymbol),
-		futuresRules:       make(map[string]SymbolTradeRules),
-		reportStore:        reportStore,
-		emergencyStopFile:  effectiveEmergencyStopFile(cfg),
-		dailyRiskStatePath: filepath.Join(cfg.NetworkConfig.RecordDir, liveDailyRiskStateName),
-		currentStage:       StageReady,
-		symbolCooldowns:    make(map[string]symbolCooldownState),
+		client:                  client,
+		cfg:                     cfg,
+		logger:                  log.New(os.Stdout, "[FundingRateSniper] ", log.LstdFlags|log.Lmicroseconds),
+		goldenSymbolSet:         make(map[string]struct{}),
+		goldenSpotPairByFuture:  make(map[string]string),
+		spotMeta:                make(map[string]SpotSymbol),
+		spotRules:               make(map[string]SymbolTradeRules),
+		futuresMeta:             make(map[string]FuturesSymbol),
+		futuresRules:            make(map[string]SymbolTradeRules),
+		reportStore:             reportStore,
+		emergencyStopFile:       effectiveEmergencyStopFile(cfg),
+		openHedgeStatePath:      effectiveOpenHedgeStatePath(cfg),
+		dailyRiskStatePath:      filepath.Join(cfg.NetworkConfig.RecordDir, liveDailyRiskStateName),
+		currentStage:            StageReady,
+		symbolCooldowns:         make(map[string]symbolCooldownState),
+		exposureLocks:           make(map[string]exposureLockState),
+		fundingSettlementWakeCh: make(chan struct{}, 1),
 	}
+	engine.exposureManager = newExposureManager(engine)
 	engine.runtimeReporter = newRuntimeReporter(engine)
 	return engine, nil
 }
@@ -408,6 +575,10 @@ func (e *FundingRateSniperEngine) Start(ctx context.Context) error {
 	if err := e.initialize(ctx); err != nil {
 		return err
 	}
+	if e.exposureManager != nil {
+		e.exposureManager.Start(ctx)
+	}
+	e.startFundingSettlementWorker(ctx)
 	e.startUserDataStreams(ctx)
 
 	for {
@@ -456,7 +627,7 @@ func (e *FundingRateSniperEngine) initialize(ctx context.Context) error {
 		return err
 	}
 
-	e.goldenSymbols = intersectGoldenSymbols(spotSymbols, futuresSymbols)
+	e.goldenSymbols, e.goldenSpotPairByFuture = intersectGoldenSymbols(spotSymbols, futuresSymbols, e.livePreferredSpotQuoteAssets())
 	e.goldenSymbolSet = make(map[string]struct{}, len(e.goldenSymbols))
 	e.spotMeta = make(map[string]SpotSymbol, len(spotSymbols))
 	e.spotRules = make(map[string]SymbolTradeRules, len(spotSymbols))
@@ -478,6 +649,9 @@ func (e *FundingRateSniperEngine) initialize(ctx context.Context) error {
 	if err := e.verifyTradingEnvironment(ctx); err != nil {
 		return err
 	}
+	if err := e.verifySpotBNBBurnEnabled(ctx); err != nil {
+		return err
+	}
 	if err := e.loadDailyRiskState(); err != nil {
 		return err
 	}
@@ -487,6 +661,14 @@ func (e *FundingRateSniperEngine) initialize(ctx context.Context) error {
 
 	e.logger.Printf("模块一已加载完成，黄金币种数量: %d", len(e.goldenSymbols))
 	return nil
+}
+
+func (e *FundingRateSniperEngine) livePreferredSpotQuoteAssets() []string {
+	asset := strings.ToUpper(strings.TrimSpace(e.cfg.StrategyConfig.LiveFundingAsset))
+	if asset == "" {
+		return preferredSpotQuoteAssets(e.cfg.StrategyConfig.PreferredSpotQuoteAssets)
+	}
+	return []string{asset}
 }
 
 // runOneCycle 串起模块二到模块五。
@@ -543,7 +725,7 @@ func (e *FundingRateSniperEngine) runOneCycle(ctx context.Context, wakeAt time.T
 		return nil
 	}
 
-	e.runtimeReporter.EmitWithReason(StageClose, len(openHedges), fmt.Sprintf("进入平仓阶段，持仓数=%d", len(openHedges)))
+	e.runtimeReporter.EmitWithReason(StageCloseMonitor, len(openHedges), fmt.Sprintf("进入平仓监控阶段，持仓数=%d", len(openHedges)))
 	settlement, err := e.executeCloseSequence(ctx, openHedges, beforeSnapshot)
 	if err != nil {
 		return err
@@ -573,6 +755,7 @@ func (e *FundingRateSniperEngine) runOneCycle(ctx context.Context, wakeAt time.T
 	if err := e.noteDailySettlement(settlement.NetPnL); err != nil {
 		return err
 	}
+	e.scheduleAsyncFundingSettlement(settlement, openHedges)
 	if e.cfg.RiskConfig.MaxCycleLossUSDT > 0 && settlement.NetPnL <= -e.cfg.RiskConfig.MaxCycleLossUSDT {
 		if incidentErr := e.recordExecutionIncident("cycle_loss_limit", "-", fmt.Sprintf("单周期净亏损 %.6f USDT 已超过阈值 %.6f USDT", -settlement.NetPnL, e.cfg.RiskConfig.MaxCycleLossUSDT)); incidentErr != nil {
 			return incidentErr
@@ -632,14 +815,18 @@ func (e *FundingRateSniperEngine) scanTopFundingTargets(ctx context.Context) ([]
 		if !ok {
 			continue
 		}
-		spotMeta, ok := e.spotMeta[meta.Pair]
+		spotPair, ok := e.goldenSpotPairByFuture[item.Symbol]
+		if !ok {
+			continue
+		}
+		spotMeta, ok := e.spotMeta[spotPair]
 		if !ok {
 			continue
 		}
 
 		candidates = append(candidates, FundingCandidate{
 			Symbol:            item.Symbol,
-			Pair:              meta.Pair,
+			Pair:              spotPair,
 			RiskTier:          profile.Tier,
 			EstimatedRate:     estimatedRate,
 			EstimatedRateText: formatFloat(estimatedRate),
@@ -956,7 +1143,7 @@ func (e *FundingRateSniperEngine) checkTargetCost(ctx context.Context, target *M
 
 	// 真实开仓方向是“现货吃卖盘买入 + 合约吃买盘卖出”，因此使用按下单量计算的 VWAP 评估冲击成本。
 	spread := (spotVWAP - futuresVWAP) / spotVWAP
-	netProfit := target.Candidate.EstimatedRate - spread - e.cfg.StrategyConfig.FeeReserveRate
+	netProfit := estimateReservedNetProfitRate(target.Candidate.EstimatedRate, spread, e.cfg.StrategyConfig.FeeReserveRate, e.cfg.StrategyConfig.ExitSpreadReserveRate)
 
 	target.LastSpotAsk = spotBestAsk
 	target.LastFuturesBid = futuresBestBid
@@ -983,6 +1170,10 @@ func (e *FundingRateSniperEngine) checkTargetCost(ctx context.Context, target *M
 	e.transitionMonitorState(target, "healthy", "净收益回到健康区间")
 }
 
+func estimateReservedNetProfitRate(estimatedFundingRate float64, entrySpreadRate float64, roundTripFeeRate float64, exitSpreadReserveRate float64) float64 {
+	return estimatedFundingRate - entrySpreadRate - roundTripFeeRate - maxFloat(exitSpreadReserveRate, 0)
+}
+
 // executeOpenSequence 执行模块四的压哨多空开枪，并记录开仓前账户基线。
 func (e *FundingRateSniperEngine) executeOpenSequence(ctx context.Context, targets []*MonitoredTarget) ([]OpenHedge, CycleAccountSnapshot, error) {
 	validTargets := filterValidTargets(targets)
@@ -990,6 +1181,12 @@ func (e *FundingRateSniperEngine) executeOpenSequence(ctx context.Context, targe
 		return nil, CycleAccountSnapshot{}, nil
 	}
 
+	if err := e.ensureUSDTFundingBalancesForOpen(ctx, validTargets); err != nil {
+		return nil, CycleAccountSnapshot{}, err
+	}
+	if err := e.ensureSpotBNBFeeCoverageForOpen(ctx, validTargets); err != nil {
+		return nil, CycleAccountSnapshot{}, err
+	}
 	beforeSnapshot, err := e.captureCycleAccountSnapshot(ctx, validTargets)
 	if err != nil {
 		return nil, CycleAccountSnapshot{}, err
@@ -999,191 +1196,671 @@ func (e *FundingRateSniperEngine) executeOpenSequence(ctx context.Context, targe
 	if syncErr := e.syncServerTimeOffset(ctx); syncErr != nil {
 		e.logger.Printf("模块四开仓前刷新服务器时间偏移失败，将沿用旧偏移: %v", syncErr)
 	}
-	futuresOrders := make([]FuturesBatchOrderRequest, 0, len(validTargets))
-	orderTargets := make([]*MonitoredTarget, 0, len(validTargets))
-	remainingSpotUSDT := beforeSnapshot.SpotUSDTFree
-	remainingFuturesUSDT := beforeSnapshot.FuturesUSDTAvailable
-	remainingCycleNotional := e.cfg.RiskConfig.MaxCycleOpenNotionalUSDT
-	for _, target := range validTargets {
-		profile := e.symbolRiskProfile(target.Candidate.Symbol)
-		refreshCtx, refreshCancel := context.WithTimeout(ctx, 1500*time.Millisecond)
-		refreshErr := e.refreshTargetFundingEstimate(refreshCtx, target, true)
-		refreshCancel()
-		if refreshErr != nil {
-			e.logger.Printf("模块四跳过 %s，开仓前刷新资金费预估失败: %v", target.Candidate.Symbol, refreshErr)
-			continue
-		}
-		if target.Candidate.EstimatedRate <= e.cfg.StrategyConfig.MinEstimatedFundingRate*profile.MinEstimatedRateMultiplier {
-			e.logger.Printf("模块四跳过 %s，开仓前最新预估费率不足: %.6f", target.Candidate.Symbol, target.Candidate.EstimatedRate)
-			continue
-		}
-		if target.Candidate.EstimatedRate >= e.cfg.StrategyConfig.MaxEstimatedFundingRate {
-			e.logger.Printf("模块四跳过 %s，开仓前最新预估费率过高触发异常熔断: %.6f", target.Candidate.Symbol, target.Candidate.EstimatedRate)
-			continue
-		}
-		if target.Candidate.FundingRateJump >= e.cfg.StrategyConfig.MaxFundingRateJump {
-			e.logger.Printf("模块四跳过 %s，开仓前资金费跳变过大触发异常熔断: %.6f", target.Candidate.Symbol, target.Candidate.FundingRateJump)
-			continue
-		}
-		if target.Candidate.BasisRate > e.cfg.StrategyConfig.MaxScanBasisRate {
-			e.logger.Printf("模块四跳过 %s，开仓前最新基差超阈值: %.6f", target.Candidate.Symbol, target.Candidate.BasisRate)
-			continue
-		}
-
-		futuresRule := e.futuresRules[target.Candidate.Symbol]
-		rawOrderQty := (e.cfg.StrategyConfig.PerSymbolQuoteUSDT * profile.PerSymbolQuoteMultiplier) / target.Candidate.MarkPrice
-		target.Candidate.OrderQuantity = normalizeQuantity(rawOrderQty, futuresRule, target.Candidate.QuantityPrecision)
-		if !isQuantityTradable(target.Candidate.OrderQuantity, target.Candidate.MarkPrice, futuresRule) {
-			continue
-		}
-		spotReferencePrice := target.LastSpotAsk
-		if spotReferencePrice <= 0 {
-			spotReferencePrice = target.Candidate.MarkPrice
-		}
-		futuresReferencePrice := target.LastFuturesBid
-		if futuresReferencePrice <= 0 {
-			futuresReferencePrice = target.Candidate.MarkPrice
-		}
-		capacityCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-		adjustedQty, capacityReason, capacityErr := e.constrainOrderQuantityByMarketCapacity(capacityCtx, target, spotReferencePrice, futuresReferencePrice)
-		cancel()
-		if capacityErr != nil {
-			e.setSymbolCooldown(target.Candidate.Symbol, "liquidity", "major", fmt.Sprintf("开仓前市场容量校验失败: %v", capacityErr))
-			e.logger.Printf("模块四跳过 %s，市场容量校验失败: %v", target.Candidate.Symbol, capacityErr)
-			continue
-		}
-		if adjustedQty <= 0 {
-			e.setSymbolCooldown(target.Candidate.Symbol, "liquidity", "major", fmt.Sprintf("开仓前市场容量校验后数量归零: %s", capacityReason))
-			e.logger.Printf("模块四跳过 %s，市场容量校验后数量归零: %s", target.Candidate.Symbol, capacityReason)
-			continue
-		}
-		if adjustedQty+1e-12 < target.Candidate.OrderQuantity {
-			coverageRatio := adjustedQty / target.Candidate.OrderQuantity
-			decision := EvaluateExecutionCoverageRisk("liquidity", coverageRatio)
-			if decision.Action == "symbol_cooldown" {
-				e.setSymbolCooldown(target.Candidate.Symbol, decision.Category, decision.Severity, fmt.Sprintf("开仓前市场容量不足 coverage=%.4f %s", coverageRatio, capacityReason))
-			} else if decision.Action == "global_pause" {
-				if fuseErr := e.tripPlatformFuse(decision.Category, decision.Severity, fmt.Sprintf("symbol=%s 开仓前市场容量极差 coverage=%.4f %s", target.Candidate.Symbol, coverageRatio, capacityReason)); fuseErr != nil {
-					return nil, beforeSnapshot, fuseErr
-				}
-			}
-			e.logger.Printf(
-				"模块四缩减 %s 下单数量，原数量=%.8f 新数量=%.8f 原名义=%.6fUSDT 新名义=%.6fUSDT %s",
-				target.Candidate.Symbol,
-				target.Candidate.OrderQuantity,
-				adjustedQty,
-				target.Candidate.OrderQuantity*futuresReferencePrice,
-				adjustedQty*futuresReferencePrice,
-				capacityReason,
-			)
-		}
-		target.Candidate.OrderQuantity = adjustedQty
-		if !isQuantityTradable(target.Candidate.OrderQuantity, futuresReferencePrice, futuresRule) {
-			e.logger.Printf("模块四跳过 %s，市场容量限制后数量低于最小下单门槛: %s", target.Candidate.Symbol, capacityReason)
-			continue
-		}
-		orderNotional := target.Candidate.OrderQuantity * futuresReferencePrice
-		if remainingCycleNotional > 0 && orderNotional > remainingCycleNotional+1e-9 {
-			cycleLimitedQty := normalizeQuantity(remainingCycleNotional/futuresReferencePrice, futuresRule, target.Candidate.QuantityPrecision)
-			if !isQuantityTradable(cycleLimitedQty, futuresReferencePrice, futuresRule) {
-				e.logger.Printf("模块四跳过 %s，单周期总敞口上限不足以继续开仓，remainingNotional=%.6f", target.Candidate.Symbol, remainingCycleNotional)
-				continue
-			}
-			e.logger.Printf("模块四缩减 %s 下单数量以满足单周期总敞口上限，原名义=%.6fUSDT 新名义=%.6fUSDT 上限剩余=%.6fUSDT", target.Candidate.Symbol, orderNotional, cycleLimitedQty*futuresReferencePrice, remainingCycleNotional)
-			target.Candidate.OrderQuantity = cycleLimitedQty
-			orderNotional = target.Candidate.OrderQuantity * futuresReferencePrice
-		}
-		spotRequiredUSDT, futuresRequiredUSDT := estimateTargetCapitalRequirement(e.cfg, target, spotReferencePrice, futuresReferencePrice)
-		if spotRequiredUSDT <= 0 || futuresRequiredUSDT <= 0 {
-			e.logger.Printf("模块四跳过 %s，资金需求估算无效，spotRequired=%.6f futuresRequired=%.6f", target.Candidate.Symbol, spotRequiredUSDT, futuresRequiredUSDT)
-			continue
-		}
-		if spotRequiredUSDT > remainingSpotUSDT+1e-9 || futuresRequiredUSDT > remainingFuturesUSDT+1e-9 {
-			e.logger.Printf(
-				"模块四跳过 %s，账户可用资金不足，spotRequired=%.6f spotFree=%.6f futuresRequired=%.6f futuresAvailable=%.6f",
-				target.Candidate.Symbol,
-				spotRequiredUSDT,
-				remainingSpotUSDT,
-				futuresRequiredUSDT,
-				remainingFuturesUSDT,
-			)
-			continue
-		}
-		remainingSpotUSDT -= spotRequiredUSDT
-		remainingFuturesUSDT -= futuresRequiredUSDT
-		if remainingCycleNotional > 0 {
-			remainingCycleNotional -= orderNotional
-		}
-		if err := e.setCycleOpenNotionalUsed(e.cfg.RiskConfig.MaxCycleOpenNotionalUSDT - maxFloat(remainingCycleNotional, 0)); err != nil {
-			return nil, CycleAccountSnapshot{}, err
-		}
-
-		futuresOrders = append(futuresOrders, e.buildProtectedOpenFuturesOrder(target))
-		orderTargets = append(orderTargets, target)
+	plans, err := e.buildOpenSequencePlans(ctx, validTargets, beforeSnapshot)
+	if err != nil {
+		return nil, beforeSnapshot, err
 	}
-	if len(futuresOrders) == 0 {
+	if len(plans) == 0 {
 		return nil, beforeSnapshot, nil
 	}
 	if sleepErr := e.sleepUntilServerTime(ctx, fireAt); sleepErr != nil {
 		return nil, CycleAccountSnapshot{}, sleepErr
 	}
 
-	e.logger.Printf("模块四开始，触发时间=%s，先发送合约批量空单，下单目标=%d", fireAt.Format("15:04:05"), len(futuresOrders))
+	sequentialPlans, parallelPlans := splitOpenSequencePlans(e.cfg, plans)
+	e.logger.Printf("模块四开始，触发时间=%s，顺序池=%d，并发池=%d", fireAt.Format("15:04:05"), len(sequentialPlans), len(parallelPlans))
+
+	var (
+		wg            sync.WaitGroup
+		sequentialErr error
+		parallelErr   error
+		sequentialHgs []OpenHedge
+		parallelHgs   []OpenHedge
+	)
+	if len(sequentialPlans) > 0 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			sequentialHgs, sequentialErr = e.executeSequentialOpenPlans(ctx, sequentialPlans)
+		}()
+	}
+	if len(parallelPlans) > 0 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			parallelHgs, parallelErr = e.executeParallelOpenPlans(ctx, parallelPlans)
+		}()
+	}
+	wg.Wait()
+	if sequentialErr != nil {
+		return nil, beforeSnapshot, sequentialErr
+	}
+	if parallelErr != nil {
+		return nil, beforeSnapshot, parallelErr
+	}
+	hedges := append(sequentialHgs, parallelHgs...)
+	e.setCurrentPositionsFromHedges(hedges)
+	e.logger.Printf("模块四结束，成功锁仓数量: %d", len(hedges))
+	return hedges, beforeSnapshot, nil
+}
+
+func newOpenSequenceBuildState(beforeSnapshot CycleAccountSnapshot, cfg EngineConfig) openSequenceBuildState {
+	return openSequenceBuildState{
+		remainingSpotUSDT:      beforeSnapshot.SpotUSDTFree,
+		remainingFuturesUSDT:   beforeSnapshot.FuturesUSDTAvailable,
+		remainingCycleNotional: cfg.RiskConfig.MaxCycleOpenNotionalUSDT,
+	}
+}
+
+func effectiveOpenHedgeMaxConcurrency(cfg EngineConfig) int {
+	if cfg.ExecutionConfig.OpenHedgeMaxConcurrency > 0 {
+		return cfg.ExecutionConfig.OpenHedgeMaxConcurrency
+	}
+	return 1
+}
+
+func configuredSymbolMatch(rawList string, symbol string) bool {
+	symbol = strings.ToUpper(strings.TrimSpace(symbol))
+	if symbol == "" {
+		return false
+	}
+	for _, raw := range strings.Split(rawList, ",") {
+		token := strings.ToUpper(strings.TrimSpace(raw))
+		if token == "" {
+			continue
+		}
+		if token == symbol || token == futuresBaseAsset(FuturesSymbol{Symbol: symbol, Pair: symbol, MarginAsset: "USDT"}) {
+			return true
+		}
+	}
+	return false
+}
+
+func shouldUseParallelOpenHedge(cfg EngineConfig, symbol string) bool {
+	return configuredSymbolMatch(cfg.ExecutionConfig.ParallelOpenSymbols, symbol)
+}
+
+func shouldUseParallelCloseHedge(cfg EngineConfig, symbol string) bool {
+	rawList := cfg.ExecutionConfig.ParallelCloseSymbols
+	if strings.TrimSpace(rawList) == "" {
+		rawList = cfg.ExecutionConfig.ParallelOpenSymbols
+	}
+	return configuredSymbolMatch(rawList, symbol)
+}
+
+func splitOpenSequencePlans(cfg EngineConfig, plans []openSequencePlan) ([]openSequencePlan, []openSequencePlan) {
+	sequential := make([]openSequencePlan, 0, len(plans))
+	parallel := make([]openSequencePlan, 0, len(plans))
+	for _, plan := range plans {
+		if shouldUseParallelOpenHedge(cfg, plan.target.Candidate.Symbol) {
+			parallel = append(parallel, plan)
+			continue
+		}
+		sequential = append(sequential, plan)
+	}
+	return sequential, parallel
+}
+
+func splitCloseSequencePlans(cfg EngineConfig, plans []closeSequencePlan) ([]closeSequencePlan, []closeSequencePlan) {
+	sequential := make([]closeSequencePlan, 0, len(plans))
+	parallel := make([]closeSequencePlan, 0, len(plans))
+	for _, plan := range plans {
+		if shouldUseParallelCloseHedge(cfg, plan.hedge.Target.Symbol) {
+			parallel = append(parallel, plan)
+			continue
+		}
+		sequential = append(sequential, plan)
+	}
+	return sequential, parallel
+}
+
+func (e *FundingRateSniperEngine) isLiveSpotPairFundable(pair string) bool {
+	meta, ok := e.spotMeta[pair]
+	if !ok {
+		return false
+	}
+	return strings.EqualFold(strings.TrimSpace(meta.QuoteAsset), strings.TrimSpace(e.cfg.StrategyConfig.LiveFundingAsset))
+}
+
+func (e *FundingRateSniperEngine) desiredOpenUSDTPerAccount(targets []*MonitoredTarget) float64 {
+	total := 0.0
+	for _, target := range targets {
+		total += e.cfg.StrategyConfig.PerSymbolQuoteUSDT * e.symbolRiskProfile(target.Candidate.Symbol).PerSymbolQuoteMultiplier
+	}
+	if total <= 0 {
+		total = float64(len(targets)) * e.cfg.StrategyConfig.PerSymbolQuoteUSDT
+	}
+	if e.cfg.RiskConfig.MaxCycleOpenNotionalUSDT > 0 && total > e.cfg.RiskConfig.MaxCycleOpenNotionalUSDT {
+		total = e.cfg.RiskConfig.MaxCycleOpenNotionalUSDT
+	}
+	return maxFloat(total, 0)
+}
+
+func (e *FundingRateSniperEngine) ensureUSDTFundingBalancesForOpen(ctx context.Context, targets []*MonitoredTarget) error {
+	if !e.cfg.ExecutionConfig.AutoBalanceUSDT || len(targets) == 0 {
+		return nil
+	}
+	if !strings.EqualFold(strings.TrimSpace(e.cfg.StrategyConfig.LiveFundingAsset), "USDT") {
+		return nil
+	}
+
+	_, spotUSDT, err := e.fetchSpotAccountBalances(ctx)
+	if err != nil {
+		return fmt.Errorf("读取现货 USDT 余额失败: %w", err)
+	}
+	_, futuresAvailableUSDT, _, err := e.fetchFuturesAccountState(ctx)
+	if err != nil {
+		return fmt.Errorf("读取合约 USDT 余额失败: %w", err)
+	}
+	totalUSDT := spotUSDT + futuresAvailableUSDT
+	if totalUSDT <= executionQtyTolerance {
+		return nil
+	}
+
+	perAccountTarget := e.desiredOpenUSDTPerAccount(targets)
+	if perAccountTarget <= executionQtyTolerance {
+		return nil
+	}
+	if totalUSDT < 2*perAccountTarget {
+		perAccountTarget = totalUSDT / 2
+	}
+
+	const transferEpsilon = 1e-6
+	switch {
+	case spotUSDT+transferEpsilon < perAccountTarget && futuresAvailableUSDT > perAccountTarget+transferEpsilon:
+		transferAmount := math.Min(perAccountTarget-spotUSDT, futuresAvailableUSDT-perAccountTarget)
+		if transferAmount <= transferEpsilon {
+			return nil
+		}
+		e.logger.Printf("模块四开仓前自动平衡 USDT，从 UM futures 转到 spot，amount=%.6f", transferAmount)
+		return e.transferAssetBetweenAccounts(ctx, "UMFUTURE_MAIN", "USDT", transferAmount)
+	case futuresAvailableUSDT+transferEpsilon < perAccountTarget && spotUSDT > perAccountTarget+transferEpsilon:
+		transferAmount := math.Min(perAccountTarget-futuresAvailableUSDT, spotUSDT-perAccountTarget)
+		if transferAmount <= transferEpsilon {
+			return nil
+		}
+		e.logger.Printf("模块四开仓前自动平衡 USDT，从 spot 转到 UM futures，amount=%.6f", transferAmount)
+		return e.transferAssetBetweenAccounts(ctx, "MAIN_UMFUTURE", "USDT", transferAmount)
+	default:
+		return nil
+	}
+}
+
+func (e *FundingRateSniperEngine) ensureSpotBNBFeeCoverageForOpen(ctx context.Context, targets []*MonitoredTarget) error {
+	if len(targets) == 0 {
+		return nil
+	}
+	freeBalances, _, err := e.fetchSpotAccountFreeBalances(ctx)
+	if err != nil {
+		return fmt.Errorf("读取现货账户余额失败: %w", err)
+	}
+	bnbFree := freeBalances["BNB"]
+	if bnbFree <= executionQtyTolerance {
+		return fmt.Errorf("现货账户 BNB 可用余额不足，已拒绝开仓以避免手续费从基础资产扣除")
+	}
+	bnbPriceUSDT, err := e.fetchSpotAssetUSDTPrice(ctx, "BNB")
+	if err != nil {
+		return fmt.Errorf("获取 BNB/USDT 价格失败，无法校验手续费覆盖: %w", err)
+	}
+	if bnbPriceUSDT <= 0 {
+		return fmt.Errorf("获取 BNB/USDT 价格失败，无法校验手续费覆盖: 无效价格 %.8f", bnbPriceUSDT)
+	}
+	requiredFeeUSDT := 0.0
+	for _, target := range targets {
+		if target == nil {
+			continue
+		}
+		referencePrice := maxFloat(target.LastSpotAsk, target.Candidate.MarkPrice)
+		if referencePrice <= 0 {
+			referencePrice = target.LastSpotVWAP
+		}
+		if referencePrice <= 0 || target.Candidate.OrderQuantity <= 0 {
+			continue
+		}
+		requiredFeeUSDT += target.Candidate.OrderQuantity * referencePrice * e.cfg.HistoricalConfig.SpotTakerFeeRate
+	}
+	if requiredFeeUSDT <= executionQtyTolerance {
+		return nil
+	}
+	requiredBNB := (requiredFeeUSDT * spotFeeBNBSafetyMultiplier) / bnbPriceUSDT
+	if bnbFree+executionQtyTolerance < requiredBNB {
+		return fmt.Errorf(
+			"现货账户 BNB 可用余额不足，已拒绝开仓: free=%.8f required=%.8f fee_usdt=%.6f bnb_price=%.6f",
+			bnbFree,
+			requiredBNB,
+			requiredFeeUSDT,
+			bnbPriceUSDT,
+		)
+	}
+	return nil
+}
+
+func (e *FundingRateSniperEngine) executeSequentialOpenPlans(ctx context.Context, plans []openSequencePlan) ([]OpenHedge, error) {
+	if len(plans) == 0 {
+		return nil, nil
+	}
+
+	futuresOrders := make([]FuturesBatchOrderRequest, 0, len(plans))
+	for _, plan := range plans {
+		futuresOrders = append(futuresOrders, plan.futuresOrder)
+	}
 	if err := e.noteOrderPlaced("batch_open_futures", fmt.Sprintf("targets=%d", len(futuresOrders)), len(futuresOrders), true); err != nil {
-		return nil, CycleAccountSnapshot{}, err
+		return nil, err
 	}
 	futuresResults, err := e.placeFuturesBatchOrdersIdempotent(ctx, futuresOrders)
 	if err != nil {
-		return nil, beforeSnapshot, err
+		return nil, err
+	}
+	return e.executeOpenHedgePlans(ctx, plans, futuresResults)
+}
+
+func (e *FundingRateSniperEngine) executeParallelOpenPlans(ctx context.Context, plans []openSequencePlan) ([]OpenHedge, error) {
+	if len(plans) == 0 {
+		return nil, nil
+	}
+
+	hedges := make([]OpenHedge, 0, len(plans))
+	var hedgesMu sync.Mutex
+	err := runBoundedConcurrentTasks(ctx, effectiveOpenHedgeMaxConcurrency(e.cfg), len(plans), func(workerCtx context.Context, idx int) error {
+		hedge, openErr := e.openHedgeForTargetParallel(workerCtx, plans[idx])
+		if openErr != nil {
+			return e.recordExecutionIncident("open_recovery", plans[idx].target.Candidate.Symbol, openErr.Error())
+		}
+		hedgesMu.Lock()
+		hedges = append(hedges, hedge)
+		persistErr := e.syncPersistedOpenHedges(hedges)
+		hedgesMu.Unlock()
+		return persistErr
+	})
+	if err != nil {
+		return nil, err
+	}
+	return hedges, nil
+}
+
+func (e *FundingRateSniperEngine) waitForCloseExecutionWindow(ctx context.Context, hedges []OpenHedge, fundingTime time.Time) (time.Time, []string, bool, error) {
+	alerts := make([]string, 0, 2)
+	if syncErr := e.syncServerTimeOffset(ctx); syncErr != nil {
+		e.logger.Printf("模块五平仓前刷新服务器时间偏移失败，将沿用旧偏移: %v", syncErr)
+	}
+	if e.serverNow().Before(fundingTime) {
+		if err := e.sleepUntilServerTime(ctx, fundingTime); err != nil {
+			return time.Time{}, nil, false, err
+		}
+	}
+
+	deadline := fundingTime.Add(e.cfg.ExecutionConfig.ExitDelayAfterFunding)
+	interval := e.cfg.ExecutionConfig.ExitMonitorInterval
+	if interval <= 0 {
+		interval = 250 * time.Millisecond
+	}
+
+	var lastMonitorErr error
+	for {
+		if err := e.checkLiveSafetyGuards("close_monitor"); err != nil {
+			return time.Time{}, nil, false, err
+		}
+		now := e.serverNow()
+		ready, worstAdverseSpread, monitorErr := e.closeWindowReady(ctx, hedges)
+		if monitorErr == nil && ready {
+			return now, alerts, false, nil
+		}
+		if monitorErr != nil {
+			lastMonitorErr = monitorErr
+			e.logger.Printf("模块五退出监控暂未就绪: %v", monitorErr)
+		}
+		if !now.Before(deadline) {
+			preferPassiveSpot := false
+			if lastMonitorErr != nil {
+				alerts = append(alerts, fmt.Sprintf("退出监控到达最晚时限，忽略最近盘口异常: %v", lastMonitorErr))
+			}
+			if worstAdverseSpread > e.cfg.StrategyConfig.ExitSpreadReserveRate {
+				alerts = append(alerts, fmt.Sprintf("退出监控到达最晚时限，按强制平仓执行: adverseSpread=%.6f reserve=%.6f", worstAdverseSpread, e.cfg.StrategyConfig.ExitSpreadReserveRate))
+				preferPassiveSpot = true
+			}
+			return now, alerts, preferPassiveSpot, nil
+		}
+		nextCheckAt := now.Add(interval)
+		if nextCheckAt.After(deadline) {
+			nextCheckAt = deadline
+		}
+		timer := time.NewTimer(time.Until(nextCheckAt))
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return time.Time{}, nil, false, ctx.Err()
+		case <-timer.C:
+		}
+	}
+}
+
+func (e *FundingRateSniperEngine) closeWindowReady(ctx context.Context, hedges []OpenHedge) (bool, float64, error) {
+	worstAdverseSpread := 0.0
+	for _, hedge := range hedges {
+		spotTicker, futuresTicker, err := e.fetchDualBookTicker(ctx, hedge.Target.Pair, hedge.Target.Symbol)
+		if err != nil {
+			return false, worstAdverseSpread, err
+		}
+		adverseSpread, ok := adverseCloseSpreadRate(spotTicker, futuresTicker)
+		if !ok {
+			return false, worstAdverseSpread, fmt.Errorf("退出监控盘口异常: symbol=%s", hedge.Target.Symbol)
+		}
+		if adverseSpread > worstAdverseSpread {
+			worstAdverseSpread = adverseSpread
+		}
+		if adverseSpread > e.cfg.StrategyConfig.ExitSpreadReserveRate {
+			return false, worstAdverseSpread, nil
+		}
+	}
+	return true, worstAdverseSpread, nil
+}
+
+func adverseCloseSpreadRate(spotTicker BookTicker, futuresTicker BookTicker) (float64, bool) {
+	spotBid := parseFloat(spotTicker.BidPrice)
+	futuresAsk := parseFloat(futuresTicker.AskPrice)
+	if spotBid <= 0 || futuresAsk <= 0 {
+		return 0, false
+	}
+	if futuresAsk <= spotBid {
+		return 0, true
+	}
+	return (futuresAsk - spotBid) / spotBid, true
+}
+
+func (e *FundingRateSniperEngine) executeSequentialClosePlans(ctx context.Context, plans []closeSequencePlan) ([]string, error) {
+	if len(plans) == 0 {
+		return nil, nil
+	}
+
+	futuresOrders := make([]FuturesBatchOrderRequest, 0, len(plans))
+	for _, plan := range plans {
+		futuresOrders = append(futuresOrders, plan.futuresOrder)
+	}
+	if err := e.noteOrderPlaced("batch_close_futures", fmt.Sprintf("targets=%d", len(futuresOrders)), len(futuresOrders), false); err != nil {
+		return nil, err
+	}
+	futuresCloseResults, err := e.placeFuturesBatchOrdersIdempotent(ctx, futuresOrders)
+	if err != nil {
+		return nil, err
+	}
+	closeResultBySymbol := make(map[string]FuturesBatchOrderResult, len(futuresCloseResults))
+	for _, result := range futuresCloseResults {
+		closeResultBySymbol[result.Symbol] = result
+	}
+
+	alerts := make([]string, 0, len(plans))
+	var alertsMu sync.Mutex
+	runErr := runBoundedConcurrentTasks(ctx, effectiveOpenHedgeMaxConcurrency(e.cfg), len(plans), func(workerCtx context.Context, idx int) error {
+		plan := plans[idx]
+		futureResult, ok := closeResultBySymbol[plan.hedge.Target.Symbol]
+		if !ok {
+			alertsMu.Lock()
+			alerts = append(alerts, fmt.Sprintf("合约平仓回执缺失 %s", plan.hedge.Target.Symbol))
+			alertsMu.Unlock()
+			return e.recordExecutionIncident("close_futures_missing", plan.hedge.Target.Symbol, "合约平仓回执缺失")
+		}
+		closeAlerts, closeErr := e.closeHedgePosition(workerCtx, plan.hedge, futureResult, plan.preferPassiveSpot)
+		alertsMu.Lock()
+		alerts = append(alerts, closeAlerts...)
+		if closeErr != nil {
+			alerts = append(alerts, closeErr.Error())
+		}
+		alertsMu.Unlock()
+		if closeErr == nil {
+			return nil
+		}
+		return e.recordExecutionIncident("close_recovery", plan.hedge.Target.Symbol, closeErr.Error())
+	})
+	if runErr != nil {
+		return nil, runErr
+	}
+	return alerts, nil
+}
+
+func (e *FundingRateSniperEngine) executeParallelClosePlans(ctx context.Context, plans []closeSequencePlan) ([]string, error) {
+	if len(plans) == 0 {
+		return nil, nil
+	}
+
+	alerts := make([]string, 0, len(plans))
+	var alertsMu sync.Mutex
+	runErr := runBoundedConcurrentTasks(ctx, effectiveOpenHedgeMaxConcurrency(e.cfg), len(plans), func(workerCtx context.Context, idx int) error {
+		closeAlerts, closeErr := e.closeHedgePositionParallel(workerCtx, plans[idx])
+		alertsMu.Lock()
+		alerts = append(alerts, closeAlerts...)
+		if closeErr != nil {
+			alerts = append(alerts, closeErr.Error())
+		}
+		alertsMu.Unlock()
+		if closeErr == nil {
+			return nil
+		}
+		return e.recordExecutionIncident("close_recovery", plans[idx].hedge.Target.Symbol, closeErr.Error())
+	})
+	if runErr != nil {
+		return nil, runErr
+	}
+	return alerts, nil
+}
+
+func runBoundedConcurrentTasks(ctx context.Context, maxConcurrency int, total int, worker func(context.Context, int) error) error {
+	if total <= 0 {
+		return nil
+	}
+	if maxConcurrency <= 0 {
+		maxConcurrency = 1
 	}
 
 	var (
 		wg       sync.WaitGroup
+		firstErr error
 		mu       sync.Mutex
-		hedges   []OpenHedge
-		fatalErr error
 	)
-
-	for idx, result := range futuresResults {
-		if result.Code != 0 || result.OrderID == 0 {
-			incidentErr := e.recordExecutionIncident("open_futures_rejected", futuresOrders[idx].Symbol, fmt.Sprintf("code=%d msg=%s", result.Code, result.Msg))
-			if incidentErr != nil {
+	slots := make(chan struct{}, maxConcurrency)
+	for idx := 0; idx < total; idx++ {
+		if ctx.Err() != nil {
+			break
+		}
+		slots <- struct{}{}
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			defer func() { <-slots }()
+			if err := worker(ctx, i); err != nil {
 				mu.Lock()
-				if fatalErr == nil {
-					fatalErr = incidentErr
+				if firstErr == nil {
+					firstErr = err
 				}
 				mu.Unlock()
 			}
+		}(idx)
+	}
+	wg.Wait()
+
+	if firstErr != nil {
+		return firstErr
+	}
+	return ctx.Err()
+}
+
+func (e *FundingRateSniperEngine) buildOpenSequencePlans(ctx context.Context, validTargets []*MonitoredTarget, beforeSnapshot CycleAccountSnapshot) ([]openSequencePlan, error) {
+	state := newOpenSequenceBuildState(beforeSnapshot, e.cfg)
+	plans := make([]openSequencePlan, 0, len(validTargets))
+	for _, target := range validTargets {
+		plan, err := e.buildOpenSequencePlan(ctx, target, &state)
+		if err != nil {
+			return nil, err
+		}
+		if plan == nil {
 			continue
 		}
+		plans = append(plans, *plan)
+	}
+	usedNotional := 0.0
+	if e.cfg.RiskConfig.MaxCycleOpenNotionalUSDT > 0 {
+		usedNotional = e.cfg.RiskConfig.MaxCycleOpenNotionalUSDT - maxFloat(state.remainingCycleNotional, 0)
+	}
+	if err := e.setCycleOpenNotionalUsed(usedNotional); err != nil {
+		return nil, err
+	}
+	return plans, nil
+}
 
-		target := orderTargets[idx]
-		wg.Add(1)
-		go func(t *MonitoredTarget, futureResult FuturesBatchOrderResult) {
-			defer wg.Done()
-			hedge, err := e.openHedgeForTarget(ctx, t, futureResult)
-			if err != nil {
-				incidentErr := e.recordExecutionIncident("open_recovery", t.Candidate.Symbol, err.Error())
-				mu.Lock()
-				if incidentErr != nil && fatalErr == nil {
-					fatalErr = incidentErr
-				}
-				mu.Unlock()
-				return
+func (e *FundingRateSniperEngine) buildOpenSequencePlan(ctx context.Context, target *MonitoredTarget, state *openSequenceBuildState) (*openSequencePlan, error) {
+	profile := e.symbolRiskProfile(target.Candidate.Symbol)
+	refreshCtx, refreshCancel := context.WithTimeout(ctx, 1500*time.Millisecond)
+	refreshErr := e.refreshTargetFundingEstimate(refreshCtx, target, true)
+	refreshCancel()
+	if refreshErr != nil {
+		e.logger.Printf("模块四跳过 %s，开仓前刷新资金费预估失败: %v", target.Candidate.Symbol, refreshErr)
+		return nil, nil
+	}
+	if target.Candidate.EstimatedRate <= e.cfg.StrategyConfig.MinEstimatedFundingRate*profile.MinEstimatedRateMultiplier {
+		e.logger.Printf("模块四跳过 %s，开仓前最新预估费率不足: %.6f", target.Candidate.Symbol, target.Candidate.EstimatedRate)
+		return nil, nil
+	}
+	if target.Candidate.EstimatedRate >= e.cfg.StrategyConfig.MaxEstimatedFundingRate {
+		e.logger.Printf("模块四跳过 %s，开仓前最新预估费率过高触发异常熔断: %.6f", target.Candidate.Symbol, target.Candidate.EstimatedRate)
+		return nil, nil
+	}
+	if target.Candidate.FundingRateJump >= e.cfg.StrategyConfig.MaxFundingRateJump {
+		e.logger.Printf("模块四跳过 %s，开仓前资金费跳变过大触发异常熔断: %.6f", target.Candidate.Symbol, target.Candidate.FundingRateJump)
+		return nil, nil
+	}
+	if target.Candidate.BasisRate > e.cfg.StrategyConfig.MaxScanBasisRate {
+		e.logger.Printf("模块四跳过 %s，开仓前最新基差超阈值: %.6f", target.Candidate.Symbol, target.Candidate.BasisRate)
+		return nil, nil
+	}
+	if !e.isLiveSpotPairFundable(target.Candidate.Pair) {
+		e.logger.Printf("模块四跳过 %s，现货交易对 %s 的计价资产不是 live funding asset=%s", target.Candidate.Symbol, target.Candidate.Pair, strings.ToUpper(strings.TrimSpace(e.cfg.StrategyConfig.LiveFundingAsset)))
+		return nil, nil
+	}
+
+	futuresRule := e.futuresRules[target.Candidate.Symbol]
+	rawOrderQty := (e.cfg.StrategyConfig.PerSymbolQuoteUSDT * profile.PerSymbolQuoteMultiplier) / target.Candidate.MarkPrice
+	target.Candidate.OrderQuantity = normalizeQuantity(rawOrderQty, futuresRule, target.Candidate.QuantityPrecision)
+	if !isQuantityTradable(target.Candidate.OrderQuantity, target.Candidate.MarkPrice, futuresRule) {
+		return nil, nil
+	}
+	spotReferencePrice := target.LastSpotAsk
+	if spotReferencePrice <= 0 {
+		spotReferencePrice = target.Candidate.MarkPrice
+	}
+	futuresReferencePrice := target.LastFuturesBid
+	if futuresReferencePrice <= 0 {
+		futuresReferencePrice = target.Candidate.MarkPrice
+	}
+
+	capacityCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	adjustedQty, capacityReason, capacityErr := e.constrainOrderQuantityByMarketCapacity(capacityCtx, target, spotReferencePrice, futuresReferencePrice)
+	cancel()
+	if capacityErr != nil {
+		e.setSymbolCooldown(target.Candidate.Symbol, "liquidity", "major", fmt.Sprintf("开仓前市场容量校验失败: %v", capacityErr))
+		e.logger.Printf("模块四跳过 %s，市场容量校验失败: %v", target.Candidate.Symbol, capacityErr)
+		return nil, nil
+	}
+	if adjustedQty <= 0 {
+		e.setSymbolCooldown(target.Candidate.Symbol, "liquidity", "major", fmt.Sprintf("开仓前市场容量校验后数量归零: %s", capacityReason))
+		e.logger.Printf("模块四跳过 %s，市场容量校验后数量归零: %s", target.Candidate.Symbol, capacityReason)
+		return nil, nil
+	}
+	if adjustedQty+1e-12 < target.Candidate.OrderQuantity {
+		coverageRatio := adjustedQty / target.Candidate.OrderQuantity
+		decision := EvaluateExecutionCoverageRisk("liquidity", coverageRatio)
+		switch decision.Action {
+		case "symbol_cooldown":
+			e.setSymbolCooldown(target.Candidate.Symbol, decision.Category, decision.Severity, fmt.Sprintf("开仓前市场容量不足 coverage=%.4f %s", coverageRatio, capacityReason))
+		case "global_pause":
+			if fuseErr := e.tripPlatformFuse(decision.Category, decision.Severity, fmt.Sprintf("symbol=%s 开仓前市场容量极差 coverage=%.4f %s", target.Candidate.Symbol, coverageRatio, capacityReason)); fuseErr != nil {
+				return nil, fuseErr
 			}
-			mu.Lock()
-			hedges = append(hedges, hedge)
-			mu.Unlock()
-		}(target, result)
+		}
+		e.logger.Printf(
+			"模块四缩减 %s 下单数量，原数量=%.8f 新数量=%.8f 原名义=%.6fUSDT 新名义=%.6fUSDT %s",
+			target.Candidate.Symbol,
+			target.Candidate.OrderQuantity,
+			adjustedQty,
+			target.Candidate.OrderQuantity*futuresReferencePrice,
+			adjustedQty*futuresReferencePrice,
+			capacityReason,
+		)
+	}
+	target.Candidate.OrderQuantity = adjustedQty
+	if !isQuantityTradable(target.Candidate.OrderQuantity, futuresReferencePrice, futuresRule) {
+		e.logger.Printf("模块四跳过 %s，市场容量限制后数量低于最小下单门槛: %s", target.Candidate.Symbol, capacityReason)
+		return nil, nil
 	}
 
-	wg.Wait()
-	if fatalErr != nil {
-		return nil, beforeSnapshot, fatalErr
+	orderNotional := target.Candidate.OrderQuantity * futuresReferencePrice
+	if state.remainingCycleNotional > 0 && orderNotional > state.remainingCycleNotional+1e-9 {
+		cycleLimitedQty := normalizeQuantity(state.remainingCycleNotional/futuresReferencePrice, futuresRule, target.Candidate.QuantityPrecision)
+		if !isQuantityTradable(cycleLimitedQty, futuresReferencePrice, futuresRule) {
+			e.logger.Printf("模块四跳过 %s，单周期总敞口上限不足以继续开仓，remainingNotional=%.6f", target.Candidate.Symbol, state.remainingCycleNotional)
+			return nil, nil
+		}
+		e.logger.Printf("模块四缩减 %s 下单数量以满足单周期总敞口上限，原名义=%.6fUSDT 新名义=%.6fUSDT 上限剩余=%.6fUSDT", target.Candidate.Symbol, orderNotional, cycleLimitedQty*futuresReferencePrice, state.remainingCycleNotional)
+		target.Candidate.OrderQuantity = cycleLimitedQty
+		orderNotional = target.Candidate.OrderQuantity * futuresReferencePrice
 	}
-	e.setCurrentPositionsFromHedges(hedges)
-	e.logger.Printf("模块四结束，成功锁仓数量: %d", len(hedges))
-	return hedges, beforeSnapshot, nil
+
+	spotRequiredUSDT, futuresRequiredUSDT := estimateTargetCapitalRequirement(e.cfg, target, spotReferencePrice, futuresReferencePrice)
+	if spotRequiredUSDT <= 0 || futuresRequiredUSDT <= 0 {
+		e.logger.Printf("模块四跳过 %s，资金需求估算无效，spotRequired=%.6f futuresRequired=%.6f", target.Candidate.Symbol, spotRequiredUSDT, futuresRequiredUSDT)
+		return nil, nil
+	}
+	if spotRequiredUSDT > state.remainingSpotUSDT+1e-9 || futuresRequiredUSDT > state.remainingFuturesUSDT+1e-9 {
+		e.logger.Printf(
+			"模块四跳过 %s，账户可用资金不足，spotRequired=%.6f spotFree=%.6f futuresRequired=%.6f futuresAvailable=%.6f",
+			target.Candidate.Symbol,
+			spotRequiredUSDT,
+			state.remainingSpotUSDT,
+			futuresRequiredUSDT,
+			state.remainingFuturesUSDT,
+		)
+		return nil, nil
+	}
+
+	state.remainingSpotUSDT -= spotRequiredUSDT
+	state.remainingFuturesUSDT -= futuresRequiredUSDT
+	if state.remainingCycleNotional > 0 {
+		state.remainingCycleNotional -= orderNotional
+	}
+
+	return &openSequencePlan{
+		target:       target,
+		futuresOrder: e.buildProtectedOpenFuturesOrder(target),
+	}, nil
+}
+
+func (e *FundingRateSniperEngine) executeOpenHedgePlans(ctx context.Context, plans []openSequencePlan, futuresResults []FuturesBatchOrderResult) ([]OpenHedge, error) {
+	if len(plans) != len(futuresResults) {
+		return nil, fmt.Errorf("开仓计划与合约回执数量不一致: plans=%d results=%d", len(plans), len(futuresResults))
+	}
+
+	hedges := make([]OpenHedge, 0, len(plans))
+	var hedgesMu sync.Mutex
+	err := runBoundedConcurrentTasks(ctx, effectiveOpenHedgeMaxConcurrency(e.cfg), len(plans), func(workerCtx context.Context, idx int) error {
+		plan := plans[idx]
+		result := futuresResults[idx]
+		if result.Code != 0 || result.OrderID == 0 {
+			return e.recordExecutionIncident("open_futures_rejected", plan.futuresOrder.Symbol, fmt.Sprintf("code=%d msg=%s", result.Code, result.Msg))
+		}
+
+		hedge, openErr := e.openHedgeForTarget(workerCtx, plan.target, result)
+		if openErr != nil {
+			return e.recordExecutionIncident("open_recovery", plan.target.Candidate.Symbol, openErr.Error())
+		}
+
+		hedgesMu.Lock()
+		hedges = append(hedges, hedge)
+		persistErr := e.syncPersistedOpenHedges(hedges)
+		hedgesMu.Unlock()
+		return persistErr
+	})
+	if err != nil {
+		return nil, err
+	}
+	return hedges, nil
 }
 
 // executeCloseSequence 执行模块五的收益落袋与闪电撤退。
@@ -1193,77 +1870,50 @@ func (e *FundingRateSniperEngine) executeCloseSequence(ctx context.Context, hedg
 	}
 
 	fundingTime := earliestFundingTimeFromHedges(hedges)
-	closeAt := fundingTime.Add(e.cfg.ExecutionConfig.ExitDelayAfterFunding)
-	if syncErr := e.syncServerTimeOffset(ctx); syncErr != nil {
-		e.logger.Printf("模块五平仓前刷新服务器时间偏移失败，将沿用旧偏移: %v", syncErr)
-	}
-	if err := e.sleepUntilServerTime(ctx, closeAt); err != nil {
-		return CycleSettlement{}, err
-	}
-
-	futuresOrders := make([]FuturesBatchOrderRequest, 0, len(hedges))
-	for _, hedge := range hedges {
-		futuresOrders = append(futuresOrders, e.buildProtectedCloseFuturesOrder(ctx, hedge))
-	}
-
-	e.logger.Printf("模块五开始，闪电撤退时间=%s", closeAt.Format("15:04:05"))
-	if err := e.noteOrderPlaced("batch_close_futures", fmt.Sprintf("targets=%d", len(futuresOrders)), len(futuresOrders), false); err != nil {
-		return CycleSettlement{}, err
-	}
-	futuresCloseResults, err := e.placeFuturesBatchOrdersIdempotent(ctx, futuresOrders)
+	closeAt, monitorAlerts, preferPassiveSpotClose, err := e.waitForCloseExecutionWindow(ctx, hedges, fundingTime)
 	if err != nil {
 		return CycleSettlement{}, err
 	}
 
-	closeResultBySymbol := make(map[string]FuturesBatchOrderResult, len(futuresCloseResults))
-	for _, result := range futuresCloseResults {
-		closeResultBySymbol[result.Symbol] = result
+	plans := make([]closeSequencePlan, 0, len(hedges))
+	for idx := range hedges {
+		plans = append(plans, closeSequencePlan{
+			hedge:             &hedges[idx],
+			futuresOrder:      e.buildProtectedCloseFuturesOrder(ctx, hedges[idx]),
+			preferPassiveSpot: preferPassiveSpotClose,
+		})
 	}
+	sequentialPlans, parallelPlans := splitCloseSequencePlans(e.cfg, plans)
+	e.runtimeReporter.EmitWithReason(StageClose, len(hedges), fmt.Sprintf("开始平仓执行，顺序池=%d，并发池=%d", len(sequentialPlans), len(parallelPlans)))
+	e.logger.Printf("模块五开始，实际平仓时间=%s，顺序池=%d，并发池=%d", closeAt.Format("15:04:05"), len(sequentialPlans), len(parallelPlans))
 
 	var (
-		wg       sync.WaitGroup
-		mu       sync.Mutex
-		errs     []string
-		fatalErr error
+		wg               sync.WaitGroup
+		sequentialErr    error
+		parallelErr      error
+		sequentialAlerts []string
+		parallelAlerts   []string
 	)
-	for idx := range hedges {
+	if len(sequentialPlans) > 0 {
 		wg.Add(1)
-		go func(hedge *OpenHedge) {
+		go func() {
 			defer wg.Done()
-			futureResult, ok := closeResultBySymbol[hedge.Target.Symbol]
-			if !ok {
-				mu.Lock()
-				errs = append(errs, fmt.Sprintf("合约平仓回执缺失 %s", hedge.Target.Symbol))
-				mu.Unlock()
-				if incidentErr := e.recordExecutionIncident("close_futures_missing", hedge.Target.Symbol, "合约平仓回执缺失"); incidentErr != nil {
-					mu.Lock()
-					if fatalErr == nil {
-						fatalErr = incidentErr
-					}
-					mu.Unlock()
-				}
-				return
-			}
-
-			closeAlerts, closeErr := e.closeHedgePosition(ctx, hedge, futureResult)
-			mu.Lock()
-			errs = append(errs, closeAlerts...)
-			mu.Unlock()
-			if closeErr == nil {
-				return
-			}
-			incidentErr := e.recordExecutionIncident("close_recovery", hedge.Target.Symbol, closeErr.Error())
-			mu.Lock()
-			errs = append(errs, closeErr.Error())
-			if incidentErr != nil && fatalErr == nil {
-				fatalErr = incidentErr
-			}
-			mu.Unlock()
-		}(&hedges[idx])
+			sequentialAlerts, sequentialErr = e.executeSequentialClosePlans(ctx, sequentialPlans)
+		}()
+	}
+	if len(parallelPlans) > 0 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			parallelAlerts, parallelErr = e.executeParallelClosePlans(ctx, parallelPlans)
+		}()
 	}
 	wg.Wait()
-	if fatalErr != nil {
-		return CycleSettlement{}, fatalErr
+	if sequentialErr != nil {
+		return CycleSettlement{}, sequentialErr
+	}
+	if parallelErr != nil {
+		return CycleSettlement{}, parallelErr
 	}
 	e.setCurrentPositions(nil)
 
@@ -1273,7 +1923,7 @@ func (e *FundingRateSniperEngine) executeCloseSequence(ctx context.Context, hedg
 	}
 
 	spotTradingPnL, futuresTradingPnL, totalFees := 0.0, 0.0, 0.0
-	totalFundingIncome, expectedFundingIncome, fundingAlerts := e.settleFundingIncome(ctx, hedges, beforeSnapshot, fundingTime)
+	expectedFundingIncome, fundingAlerts := e.expectedFundingIncomeSummary(hedges, beforeSnapshot)
 	for _, hedge := range hedges {
 		closedSpotOpenCost := 0.0
 		if hedge.HedgeQty > 0 && hedge.CloseSpotExecutedQty > 0 {
@@ -1296,15 +1946,23 @@ func (e *FundingRateSniperEngine) executeCloseSequence(ctx context.Context, hedg
 	residualSpotValue := calculateResidualSpotValue(afterSnapshot.SpotAssetBalances, hedges)
 	spotUSDTDelta := afterSnapshot.SpotUSDTFree - beforeSnapshot.SpotUSDTFree
 	futuresUSDTDelta := afterSnapshot.FuturesUSDTWallet - beforeSnapshot.FuturesUSDTWallet
-	netPnL := totalFundingIncome + spotTradingPnL + futuresTradingPnL - totalFees
+	totalFundingIncome := 0.0
+	netPnL := spotTradingPnL + futuresTradingPnL - totalFees
 	fundingIncomeDiff := totalFundingIncome - expectedFundingIncome
 	snapshotNetPnL := spotUSDTDelta + futuresUSDTDelta + residualSpotValue
 	alerts := e.buildSettlementAlerts(afterSnapshot, hedges, residualSpotValue, netPnL, snapshotNetPnL)
 	alerts = append(alerts, fundingAlerts...)
-
-	if len(errs) > 0 {
-		e.logger.Printf("模块五对账警告: %s", strings.Join(errs, " | "))
-		alerts = append(alerts, errs...)
+	alerts = append(alerts, fmt.Sprintf("资金费异步结算待处理，预计在 %s 后更新实收流水", e.effectiveFundingSettlementDelay().Round(time.Second)))
+	alerts = append(alerts, monitorAlerts...)
+	execAlerts := append(sequentialAlerts, parallelAlerts...)
+	if len(execAlerts) > 0 {
+		e.logger.Printf("模块五对账警告: %s", strings.Join(execAlerts, " | "))
+		alerts = append(alerts, execAlerts...)
+	}
+	if e.canClearPersistedOpenHedges(afterSnapshot, hedges) {
+		if clearErr := e.clearPersistedOpenHedges(); clearErr != nil {
+			return CycleSettlement{}, clearErr
+		}
 	}
 
 	return CycleSettlement{
@@ -1328,43 +1986,74 @@ func (e *FundingRateSniperEngine) executeCloseSequence(ctx context.Context, hedg
 		FundingTimePoint:      fundingTime,
 		BeforeSnapshot:        beforeSnapshot,
 		AfterSnapshot:         afterSnapshot,
+		FundingIncomePending:  true,
 		HasAlert:              len(alerts) > 0,
 		Alerts:                alerts,
 	}, nil
 }
 
 func (e *FundingRateSniperEngine) openHedgeForTarget(ctx context.Context, target *MonitoredTarget, futureResult FuturesBatchOrderResult) (OpenHedge, error) {
+	if err := e.ensureSymbolNotLockedByExposure(target.Candidate.Symbol, "open_hedge"); err != nil {
+		return OpenHedge{}, err
+	}
 	futuresExecution, resolveErr := e.resolveFuturesOrderExecution(ctx, futureResult.Symbol, futureResult.ClientOrderID, futureResult)
 	filledFuturesQty := futuresExecution.ExecutedQty
-	if resolveErr != nil || filledFuturesQty <= executionQtyTolerance {
+	if resolveErr != nil {
+		if isUnknownOrderStateError(resolveErr) {
+			rescueErr := e.scheduleExposureRescue(ctx, exposureRescueTask{
+				Mode:                 exposureRescueModeOpen,
+				Phase:                "open_futures_unknown",
+				Symbol:               target.Candidate.Symbol,
+				Pair:                 target.Candidate.Pair,
+				SpotBaseAsset:        target.Candidate.SpotBaseAsset,
+				SpotBasePrecision:    target.Candidate.SpotBasePrecision,
+				SpotReferencePrice:   target.LastSpotAsk,
+				FuturesClientOrderID: futureResult.ClientOrderID,
+			})
+			if rescueErr != nil {
+				return OpenHedge{}, fmt.Errorf("合约开仓终态未知且 ExposureManager 托管失败: %w", rescueErr)
+			}
+			return OpenHedge{}, fmt.Errorf("合约开仓终态未知，已转入 ExposureManager 托管")
+		}
 		cleanupCtx, cancel := context.WithTimeout(ctx, e.cfg.ExecutionRecoveryTimeout)
 		defer cancel()
 		e.flattenUncertainFuturesOpen(cleanupCtx, target.Candidate.Symbol, futureResult.ClientOrderID, futureResult)
-		if resolveErr != nil {
-			return OpenHedge{}, fmt.Errorf("合约空单未确认成交: %w", resolveErr)
-		}
+		return OpenHedge{}, fmt.Errorf("合约空单未确认成交: %w", resolveErr)
+	}
+	if filledFuturesQty <= executionQtyTolerance {
 		return OpenHedge{}, fmt.Errorf("合约空单成交数量为 0")
 	}
 
-	spotRule := e.spotRules[target.Candidate.Pair]
-	spotTargetQty := normalizeQuantity(filledFuturesQty, spotRule, target.Candidate.SpotBasePrecision)
-	spotPriceForCheck := target.LastSpotAsk
-	if spotPriceForCheck <= 0 {
-		spotPriceForCheck = target.Candidate.MarkPrice
-	}
-	if !isQuantityTradable(spotTargetQty, spotPriceForCheck, spotRule) {
+	spotQty, spotPriceForCheck, spotTradable := e.openSpotTarget(target, filledFuturesQty)
+	if !spotTradable {
 		recoverCtx, cancel := context.WithTimeout(ctx, e.cfg.ExecutionRecoveryTimeout)
 		defer cancel()
 		if _, err := e.placeSingleFuturesCloseConfirmed(recoverCtx, target.Candidate.Symbol, filledFuturesQty); err != nil {
 			return OpenHedge{}, fmt.Errorf("现货对冲数量无效且合约回补失败: %w", err)
 		}
-		e.recordExecutionAction("open_recovery", target.Candidate.Symbol, "close_futures_after_invalid_spot_qty", fmt.Sprintf("filledFuturesQty=%.8f spotTargetQty=%.8f", filledFuturesQty, spotTargetQty))
+		e.recordExecutionAction("open_recovery", target.Candidate.Symbol, "close_futures_after_invalid_spot_qty", fmt.Sprintf("filledFuturesQty=%.8f spotTargetQty=%.8f", filledFuturesQty, spotQty))
 		return OpenHedge{}, fmt.Errorf("现货对冲数量归零，已回补合约空单")
 	}
 
-	spotClientOrderID := newClientOrderID("sopen", target.Candidate.Pair)
-	spotOrder, spotErr := e.placeSpotMarketBuyByQuantityIdempotent(ctx, target.Candidate.Pair, spotTargetQty, spotClientOrderID)
+	spotOrder, spotErr := e.placeSpotMarketBuyByQuantityIdempotent(ctx, target.Candidate.Pair, spotQty, newClientOrderID("sopen", target.Candidate.Pair))
 	if spotErr != nil {
+		if isUnknownOrderStateError(spotErr) {
+			rescueErr := e.scheduleExposureRescue(ctx, exposureRescueTask{
+				Mode:                    exposureRescueModeOpen,
+				Phase:                   "open_spot_unknown",
+				Symbol:                  target.Candidate.Symbol,
+				Pair:                    target.Candidate.Pair,
+				SpotBaseAsset:           target.Candidate.SpotBaseAsset,
+				SpotBasePrecision:       target.Candidate.SpotBasePrecision,
+				SpotReferencePrice:      spotPriceForCheck,
+				FuturesClientOrderID:    futureResult.ClientOrderID,
+				KnownFuturesExecutedQty: filledFuturesQty,
+			})
+			if rescueErr != nil {
+				return OpenHedge{}, fmt.Errorf("现货开仓终态未知且 ExposureManager 托管失败: %w", rescueErr)
+			}
+			return OpenHedge{}, fmt.Errorf("现货开仓终态未知，已转入 ExposureManager 托管")
+		}
 		recoverCtx, cancel := context.WithTimeout(ctx, e.cfg.ExecutionRecoveryTimeout)
 		defer cancel()
 		if _, err := e.placeSingleFuturesCloseConfirmed(recoverCtx, target.Candidate.Symbol, filledFuturesQty); err != nil {
@@ -1374,6 +2063,187 @@ func (e *FundingRateSniperEngine) openHedgeForTarget(ctx context.Context, target
 		return OpenHedge{}, fmt.Errorf("现货补仓失败，已回补合约空单: %w", spotErr)
 	}
 
+	return e.finalizeOpenHedge(ctx, target, futureResult, futuresExecution, spotOrder, spotPriceForCheck)
+}
+
+func (e *FundingRateSniperEngine) openHedgeForTargetParallel(ctx context.Context, plan openSequencePlan) (OpenHedge, error) {
+	target := plan.target
+	if err := e.ensureSymbolNotLockedByExposure(target.Candidate.Symbol, "parallel_open_hedge"); err != nil {
+		return OpenHedge{}, err
+	}
+	spotQty, spotPriceForCheck, spotTradable := e.openSpotTarget(target, target.Candidate.OrderQuantity)
+	if !spotTradable {
+		return OpenHedge{}, fmt.Errorf("并发对冲的现货目标数量无效")
+	}
+	spotClientOrderID := newClientOrderID("sopen", target.Candidate.Pair)
+
+	type spotOpenResult struct {
+		order SpotOrderResponse
+		err   error
+	}
+	type futuresOpenResult struct {
+		snapshot OrderExecutionSnapshot
+		err      error
+	}
+
+	spotResultCh := make(chan spotOpenResult, 1)
+	futuresResultCh := make(chan futuresOpenResult, 1)
+	go func() {
+		order, err := e.placeSpotMarketBuyByQuantityIdempotent(ctx, target.Candidate.Pair, spotQty, spotClientOrderID)
+		spotResultCh <- spotOpenResult{order: order, err: err}
+	}()
+	go func() {
+		snapshot, err := e.placeSingleFuturesOpenOrderIdempotent(ctx, plan.futuresOrder)
+		futuresResultCh <- futuresOpenResult{snapshot: snapshot, err: err}
+	}()
+
+	spotResult := <-spotResultCh
+	futuresResult := <-futuresResultCh
+	filledFuturesQty := futuresResult.snapshot.ExecutedQty
+	if futuresResult.err != nil {
+		if isUnknownOrderStateError(futuresResult.err) {
+			rescueErr := e.scheduleExposureRescue(ctx, exposureRescueTask{
+				Mode:                 exposureRescueModeOpen,
+				Phase:                "parallel_open_futures_unknown",
+				Symbol:               target.Candidate.Symbol,
+				Pair:                 target.Candidate.Pair,
+				SpotBaseAsset:        target.Candidate.SpotBaseAsset,
+				SpotBasePrecision:    target.Candidate.SpotBasePrecision,
+				SpotReferencePrice:   spotPriceForCheck,
+				SpotClientOrderID:    spotClientOrderID,
+				FuturesClientOrderID: plan.futuresOrder.NewClientOrderID,
+			})
+			if rescueErr != nil {
+				return OpenHedge{}, fmt.Errorf("并发合约开仓终态未知且 ExposureManager 托管失败: %w", rescueErr)
+			}
+			return OpenHedge{}, fmt.Errorf("并发合约开仓终态未知，已转入 ExposureManager 托管")
+		}
+		if spotResult.err == nil {
+			if err := e.revertSpotOpenAfterFuturesFailure(ctx, target, spotResult.order, spotPriceForCheck); err != nil {
+				rescueErr := e.scheduleExposureRescue(ctx, exposureRescueTask{
+					Mode:                 exposureRescueModeOpen,
+					Phase:                "parallel_open_revert_spot_failed",
+					Symbol:               target.Candidate.Symbol,
+					Pair:                 target.Candidate.Pair,
+					SpotBaseAsset:        target.Candidate.SpotBaseAsset,
+					SpotBasePrecision:    target.Candidate.SpotBasePrecision,
+					SpotReferencePrice:   spotPriceForCheck,
+					SpotClientOrderID:    nonEmpty(spotResult.order.ClientOrderID, spotClientOrderID),
+					KnownSpotExecutedQty: resolvedSpotOrderBaseQty(spotResult.order, target.Candidate.SpotBaseAsset),
+				})
+				if rescueErr != nil {
+					return OpenHedge{}, fmt.Errorf("并发合约开仓失败且现货回滚失败，ExposureManager 也失败: rollbackErr=%v rescueErr=%w", err, rescueErr)
+				}
+				return OpenHedge{}, fmt.Errorf("并发合约开仓失败且现货回滚失败，已转入 ExposureManager: %w", err)
+			}
+		}
+		cleanupCtx, cancel := context.WithTimeout(ctx, e.cfg.ExecutionRecoveryTimeout)
+		defer cancel()
+		e.flattenUncertainFuturesOpen(cleanupCtx, target.Candidate.Symbol, plan.futuresOrder.NewClientOrderID, FuturesBatchOrderResult{
+			Symbol:        plan.futuresOrder.Symbol,
+			ClientOrderID: plan.futuresOrder.NewClientOrderID,
+		})
+		return OpenHedge{}, fmt.Errorf("并发合约空单未确认成交: %w", futuresResult.err)
+	}
+	if filledFuturesQty <= executionQtyTolerance {
+		if spotResult.err == nil {
+			if err := e.revertSpotOpenAfterFuturesFailure(ctx, target, spotResult.order, spotPriceForCheck); err != nil {
+				rescueErr := e.scheduleExposureRescue(ctx, exposureRescueTask{
+					Mode:                 exposureRescueModeOpen,
+					Phase:                "parallel_open_zero_fill_revert_failed",
+					Symbol:               target.Candidate.Symbol,
+					Pair:                 target.Candidate.Pair,
+					SpotBaseAsset:        target.Candidate.SpotBaseAsset,
+					SpotBasePrecision:    target.Candidate.SpotBasePrecision,
+					SpotReferencePrice:   spotPriceForCheck,
+					SpotClientOrderID:    nonEmpty(spotResult.order.ClientOrderID, spotClientOrderID),
+					KnownSpotExecutedQty: resolvedSpotOrderBaseQty(spotResult.order, target.Candidate.SpotBaseAsset),
+				})
+				if rescueErr != nil {
+					return OpenHedge{}, fmt.Errorf("并发合约零成交且现货回滚失败，ExposureManager 也失败: rollbackErr=%v rescueErr=%w", err, rescueErr)
+				}
+				return OpenHedge{}, fmt.Errorf("并发合约零成交且现货回滚失败，已转入 ExposureManager: %w", err)
+			}
+		}
+		return OpenHedge{}, fmt.Errorf("并发合约空单成交数量为 0")
+	}
+	if spotResult.err != nil {
+		if isUnknownOrderStateError(spotResult.err) {
+			rescueErr := e.scheduleExposureRescue(ctx, exposureRescueTask{
+				Mode:                    exposureRescueModeOpen,
+				Phase:                   "parallel_open_spot_unknown",
+				Symbol:                  target.Candidate.Symbol,
+				Pair:                    target.Candidate.Pair,
+				SpotBaseAsset:           target.Candidate.SpotBaseAsset,
+				SpotBasePrecision:       target.Candidate.SpotBasePrecision,
+				SpotReferencePrice:      spotPriceForCheck,
+				SpotClientOrderID:       spotClientOrderID,
+				FuturesClientOrderID:    plan.futuresOrder.NewClientOrderID,
+				KnownFuturesExecutedQty: filledFuturesQty,
+			})
+			if rescueErr != nil {
+				return OpenHedge{}, fmt.Errorf("并发现货开仓终态未知且 ExposureManager 托管失败: %w", rescueErr)
+			}
+			return OpenHedge{}, fmt.Errorf("并发现货开仓终态未知，已转入 ExposureManager 托管")
+		}
+		recoverCtx, cancel := context.WithTimeout(ctx, e.cfg.ExecutionRecoveryTimeout)
+		defer cancel()
+		if _, err := e.placeSingleFuturesCloseConfirmed(recoverCtx, target.Candidate.Symbol, filledFuturesQty); err != nil {
+			rescueErr := e.scheduleExposureRescue(ctx, exposureRescueTask{
+				Mode:                    exposureRescueModeOpen,
+				Phase:                   "parallel_open_spot_failure_close_futures_failed",
+				Symbol:                  target.Candidate.Symbol,
+				Pair:                    target.Candidate.Pair,
+				SpotBaseAsset:           target.Candidate.SpotBaseAsset,
+				SpotBasePrecision:       target.Candidate.SpotBasePrecision,
+				SpotReferencePrice:      spotPriceForCheck,
+				FuturesClientOrderID:    plan.futuresOrder.NewClientOrderID,
+				KnownFuturesExecutedQty: filledFuturesQty,
+			})
+			if rescueErr != nil {
+				return OpenHedge{}, fmt.Errorf("并发现货补仓失败且合约回补失败，ExposureManager 也失败: spotErr=%v recoverErr=%v rescueErr=%w", spotResult.err, err, rescueErr)
+			}
+			return OpenHedge{}, fmt.Errorf("并发现货补仓失败且合约回补失败，已转入 ExposureManager: spotErr=%v recoverErr=%w", spotResult.err, err)
+		}
+		e.recordExecutionAction("open_recovery", target.Candidate.Symbol, "close_futures_after_parallel_spot_open_failure", fmt.Sprintf("filledFuturesQty=%.8f spotErr=%v", filledFuturesQty, spotResult.err))
+		return OpenHedge{}, fmt.Errorf("并发现货补仓失败，已回补合约空单: %w", spotResult.err)
+	}
+
+	return e.finalizeOpenHedge(ctx, target, futuresExecutionToResult(futuresResult.snapshot, plan.futuresOrder), futuresResult.snapshot, spotResult.order, spotPriceForCheck)
+}
+
+func (e *FundingRateSniperEngine) openSpotTarget(target *MonitoredTarget, hedgeQty float64) (float64, float64, bool) {
+	spotRule := e.spotRules[target.Candidate.Pair]
+	spotQty := normalizeQuantity(hedgeQty, spotRule, target.Candidate.SpotBasePrecision)
+	spotPriceForCheck := target.LastSpotAsk
+	if spotPriceForCheck <= 0 {
+		spotPriceForCheck = target.Candidate.MarkPrice
+	}
+	return spotQty, spotPriceForCheck, isQuantityTradable(spotQty, spotPriceForCheck, spotRule)
+}
+
+func (e *FundingRateSniperEngine) revertSpotOpenAfterFuturesFailure(ctx context.Context, target *MonitoredTarget, spotOrder SpotOrderResponse, spotPriceForCheck float64) error {
+	boughtSpotQty := resolveSpotNetBaseQuantity(spotOrder, target.Candidate.SpotBaseAsset)
+	if boughtSpotQty <= executionQtyTolerance {
+		return nil
+	}
+	spotRule := e.spotRules[target.Candidate.Pair]
+	residualQty := normalizeQuantity(boughtSpotQty, spotRule, target.Candidate.SpotBasePrecision)
+	if residualQty <= executionQtyTolerance || !isQuantityTradable(residualQty, spotPriceForCheck, spotRule) {
+		return fmt.Errorf("现货已成交但无法安全回卖: boughtSpotQty=%.8f", boughtSpotQty)
+	}
+	recoverCtx, cancel := context.WithTimeout(ctx, e.cfg.ExecutionRecoveryTimeout)
+	defer cancel()
+	recoveryOrder, err := e.placeSpotMarketSellIdempotent(recoverCtx, target.Candidate.Pair, residualQty, newClientOrderID("srevert", target.Candidate.Pair))
+	if err != nil {
+		return fmt.Errorf("现货回卖失败: %w", err)
+	}
+	e.recordExecutionAction("open_recovery", target.Candidate.Symbol, "revert_spot_after_futures_open_failure", fmt.Sprintf("boughtSpotQty=%.8f soldQty=%.8f", boughtSpotQty, parseFloat(recoveryOrder.ExecutedQty)))
+	return nil
+}
+
+func (e *FundingRateSniperEngine) finalizeOpenHedge(ctx context.Context, target *MonitoredTarget, futureResult FuturesBatchOrderResult, futuresExecution OrderExecutionSnapshot, spotOrder SpotOrderResponse, spotPriceForCheck float64) (OpenHedge, error) {
+	filledFuturesQty := futuresExecution.ExecutedQty
 	boughtSpotQty := resolveSpotNetBaseQuantity(spotOrder, target.Candidate.SpotBaseAsset)
 	if boughtSpotQty <= executionQtyTolerance {
 		recoverCtx, cancel := context.WithTimeout(ctx, e.cfg.ExecutionRecoveryTimeout)
@@ -1385,13 +2255,14 @@ func (e *FundingRateSniperEngine) openHedgeForTarget(ctx context.Context, target
 		return OpenHedge{}, fmt.Errorf("现货买单无有效成交，已回补合约空单")
 	}
 
+	spotRule := e.spotRules[target.Candidate.Pair]
 	finalSpotQty := boughtSpotQty
 	additionalSpotFeeUSDT := 0.0
 	if spotResidualQty := finalSpotQty - filledFuturesQty; spotResidualQty > executionQtyTolerance {
 		residualQty := normalizeQuantity(spotResidualQty, spotRule, target.Candidate.SpotBasePrecision)
 		if residualQty > executionQtyTolerance && isQuantityTradable(residualQty, spotPriceForCheck, spotRule) {
 			recoverCtx, cancel := context.WithTimeout(ctx, e.cfg.ExecutionRecoveryTimeout)
-			recoveryOrder, err := e.placeSpotMarketSellIdempotent(recoverCtx, target.Candidate.Pair, residualQty, newClientOrderID("srebalance", target.Candidate.Pair))
+			recoveryOrder, err := e.placeSpotChasingOrder(recoverCtx, target.Candidate.Pair, "SELL", residualQty, "srebalance")
 			cancel()
 			if err != nil {
 				return OpenHedge{}, fmt.Errorf("现货超买后回卖失败: %w", err)
@@ -1400,6 +2271,10 @@ func (e *FundingRateSniperEngine) openHedgeForTarget(ctx context.Context, target
 			finalSpotQty = math.Max(0, finalSpotQty-soldQty)
 			additionalSpotFeeUSDT += e.estimateSpotCommissionUSDT(ctx, recoveryOrder)
 			e.recordExecutionAction("open_recovery", target.Candidate.Symbol, "rebalance_spot_excess", fmt.Sprintf("boughtSpotQty=%.8f soldQty=%.8f", boughtSpotQty, soldQty))
+		} else if residualQty > executionQtyTolerance {
+			if err := e.noteDustResidual("open_recovery", target.Candidate.Symbol, target.Candidate.Pair, target.Candidate.SpotBaseAsset, residualQty, residualQty*maxFloat(spotPriceForCheck, target.Candidate.MarkPrice), "spot_excess_below_min_notional"); err != nil {
+				e.logger.Printf("记录现货超买灰尘残差失败: %v", err)
+			}
 		}
 	}
 
@@ -1407,7 +2282,7 @@ func (e *FundingRateSniperEngine) openHedgeForTarget(ctx context.Context, target
 	additionalFuturesFeeUSDT := 0.0
 	if futuresResidualQty := filledFuturesQty - hedgeQty; futuresResidualQty > executionQtyTolerance {
 		recoverCtx, cancel := context.WithTimeout(ctx, e.cfg.ExecutionRecoveryTimeout)
-		recoveryExecution, err := e.placeSingleFuturesCloseConfirmed(recoverCtx, target.Candidate.Symbol, futuresResidualQty)
+		recoveryExecution, err := e.placeFuturesChasingClose(recoverCtx, target.Candidate.Symbol, futuresResidualQty, "srebalf")
 		cancel()
 		if err != nil {
 			return OpenHedge{}, fmt.Errorf("修正合约裸空失败: %w", err)
@@ -1439,10 +2314,30 @@ func (e *FundingRateSniperEngine) openHedgeForTarget(ctx context.Context, target
 	}, nil
 }
 
-func (e *FundingRateSniperEngine) closeHedgePosition(ctx context.Context, hedge *OpenHedge, futureResult FuturesBatchOrderResult) ([]string, error) {
+func (e *FundingRateSniperEngine) closeHedgePosition(ctx context.Context, hedge *OpenHedge, futureResult FuturesBatchOrderResult, preferPassiveSpot bool) ([]string, error) {
 	alerts := make([]string, 0, 2)
+	if err := e.ensureSymbolNotLockedByExposure(hedge.Target.Symbol, "close_hedge"); err != nil {
+		return alerts, err
+	}
 	futuresExecution, resolveErr := e.resolveFuturesOrderExecution(ctx, hedge.Target.Symbol, futureResult.ClientOrderID, futureResult)
 	if resolveErr != nil {
+		if isUnknownOrderStateError(resolveErr) {
+			rescueErr := e.scheduleExposureRescue(ctx, exposureRescueTask{
+				Mode:                 exposureRescueModeClose,
+				Phase:                "close_futures_unknown",
+				Symbol:               hedge.Target.Symbol,
+				Pair:                 hedge.Target.Pair,
+				SpotBaseAsset:        hedge.Target.SpotBaseAsset,
+				SpotBasePrecision:    hedge.Target.SpotBasePrecision,
+				SpotReferencePrice:   hedge.LastKnownSpotPrice(),
+				InitialHedgeQty:      hedge.HedgeQty,
+				FuturesClientOrderID: futureResult.ClientOrderID,
+			})
+			if rescueErr != nil {
+				return alerts, fmt.Errorf("合约平仓终态未知且 ExposureManager 托管失败: %w", rescueErr)
+			}
+			return alerts, fmt.Errorf("合约平仓终态未知，已转入 ExposureManager 托管")
+		}
 		return alerts, fmt.Errorf("合约平仓未确认成交: %w", resolveErr)
 	}
 	if futuresExecution.ExecutedQty <= executionQtyTolerance {
@@ -1465,6 +2360,11 @@ func (e *FundingRateSniperEngine) closeHedgePosition(ctx context.Context, hedge 
 	spotQty := normalizeQuantity(closeableSpotQty, spotRule, hedge.Target.SpotBasePrecision)
 	spotReferencePrice := hedge.LastKnownSpotPrice()
 	if !isQuantityTradable(spotQty, spotReferencePrice, spotRule) {
+		if spotQty > executionQtyTolerance {
+			if err := e.noteDustResidual("close_recovery", hedge.Target.Symbol, hedge.Target.Pair, hedge.Target.SpotBaseAsset, spotQty, spotQty*math.Max(spotReferencePrice, hedge.Target.MarkPrice), "close_spot_below_min_notional"); err != nil {
+				e.logger.Printf("记录现货平仓灰尘残差失败: %v", err)
+			}
+		}
 		if closeableSpotQty*math.Max(spotReferencePrice, hedge.Target.MarkPrice) >= e.cfg.ResidualSpotAlertUSDT {
 			recoverCtx, cancel := context.WithTimeout(ctx, e.cfg.ExecutionRecoveryTimeout)
 			recoveryExecution, err := e.placeSingleFuturesReopenShort(recoverCtx, hedge.Target.Symbol, closeableSpotQty)
@@ -1479,8 +2379,42 @@ func (e *FundingRateSniperEngine) closeHedgePosition(ctx context.Context, hedge 
 	}
 
 	clientOrderID := newClientOrderID("sclose", hedge.Target.Pair)
-	spotOrder, spotErr := e.placeSpotMarketSellIdempotent(ctx, hedge.Target.Pair, spotQty, clientOrderID)
+	var (
+		spotOrder SpotOrderResponse
+		spotErr   error
+	)
+	if preferPassiveSpot {
+		spotOrder, spotErr = e.placeSpotPassiveMakerClose(ctx, hedge.Target.Pair, spotQty, "sclosemaker")
+		if spotErr == nil && parseFloat(spotOrder.ExecutedQty)+executionQtyTolerance < spotQty {
+			chaseOrder, chaseErr := e.placeSpotChasingOrder(ctx, hedge.Target.Pair, "SELL", maxFloat(spotQty-parseFloat(spotOrder.ExecutedQty), 0), "sclosechase")
+			if chaseErr != nil {
+				spotErr = chaseErr
+			} else {
+				spotOrder = mergeSpotOrderResponses(spotOrder, chaseOrder)
+			}
+		}
+	} else {
+		spotOrder, spotErr = e.placeSpotMarketSellIdempotent(ctx, hedge.Target.Pair, spotQty, clientOrderID)
+	}
 	if spotErr != nil {
+		if isUnknownOrderStateError(spotErr) {
+			rescueErr := e.scheduleExposureRescue(ctx, exposureRescueTask{
+				Mode:                    exposureRescueModeClose,
+				Phase:                   "close_spot_unknown",
+				Symbol:                  hedge.Target.Symbol,
+				Pair:                    hedge.Target.Pair,
+				SpotBaseAsset:           hedge.Target.SpotBaseAsset,
+				SpotBasePrecision:       hedge.Target.SpotBasePrecision,
+				SpotReferencePrice:      spotReferencePrice,
+				InitialHedgeQty:         hedge.HedgeQty,
+				SpotClientOrderID:       clientOrderID,
+				KnownFuturesExecutedQty: closeableSpotQty,
+			})
+			if rescueErr != nil {
+				return alerts, fmt.Errorf("现货平仓终态未知且 ExposureManager 托管失败: %w", rescueErr)
+			}
+			return alerts, fmt.Errorf("现货平仓终态未知，已转入 ExposureManager 托管")
+		}
 		recoverCtx, cancel := context.WithTimeout(ctx, e.cfg.ExecutionRecoveryTimeout)
 		recoveryExecution, err := e.placeSingleFuturesReopenShort(recoverCtx, hedge.Target.Symbol, closeableSpotQty)
 		cancel()
@@ -1508,6 +2442,208 @@ func (e *FundingRateSniperEngine) closeHedgePosition(ctx context.Context, hedge 
 		alerts = append(alerts, fmt.Sprintf("现货平仓部分成交 %s: requested=%.8f executed=%.8f，已恢复剩余空头", hedge.Target.Pair, closeableSpotQty, hedge.CloseSpotExecutedQty))
 	}
 	return alerts, nil
+}
+
+func (e *FundingRateSniperEngine) closeHedgePositionParallel(ctx context.Context, plan closeSequencePlan) ([]string, error) {
+	hedge := plan.hedge
+	spotQty, spotReferencePrice, spotTradable := closeSpotTarget(hedge, hedge.HedgeQty, e.spotRules[hedge.Target.Pair])
+	if !spotTradable {
+		futuresExecution, err := e.placeSingleFuturesOrderIdempotent(ctx, plan.futuresOrder, "futures_close_single")
+		if err != nil {
+			return nil, fmt.Errorf("并发平仓回退到单腿模式时，合约平仓失败: %w", err)
+		}
+		return e.closeHedgePosition(ctx, hedge, futuresExecutionToResult(futuresExecution, plan.futuresOrder), plan.preferPassiveSpot)
+	}
+
+	type spotCloseResult struct {
+		order SpotOrderResponse
+		err   error
+	}
+	type futuresCloseResult struct {
+		snapshot OrderExecutionSnapshot
+		err      error
+	}
+	spotClientOrderID := newClientOrderID("sclose", hedge.Target.Pair)
+
+	spotResultCh := make(chan spotCloseResult, 1)
+	futuresResultCh := make(chan futuresCloseResult, 1)
+	go func() {
+		var (
+			order SpotOrderResponse
+			err   error
+		)
+		if plan.preferPassiveSpot {
+			order, err = e.placeSpotPassiveMakerClose(ctx, hedge.Target.Pair, spotQty, "sclosemaker")
+			if err == nil && parseFloat(order.ExecutedQty)+executionQtyTolerance < spotQty {
+				var chaseOrder SpotOrderResponse
+				chaseOrder, err = e.placeSpotChasingOrder(ctx, hedge.Target.Pair, "SELL", maxFloat(spotQty-parseFloat(order.ExecutedQty), 0), "sclosechase")
+				if err == nil {
+					order = mergeSpotOrderResponses(order, chaseOrder)
+				}
+			}
+		} else {
+			order, err = e.placeSpotMarketSellIdempotent(ctx, hedge.Target.Pair, spotQty, spotClientOrderID)
+		}
+		spotResultCh <- spotCloseResult{order: order, err: err}
+	}()
+	go func() {
+		snapshot, err := e.placeSingleFuturesOrderIdempotent(ctx, plan.futuresOrder, "futures_close_single")
+		futuresResultCh <- futuresCloseResult{snapshot: snapshot, err: err}
+	}()
+
+	spotResult := <-spotResultCh
+	futuresResult := <-futuresResultCh
+	filledFuturesQty := math.Min(hedge.HedgeQty, futuresResult.snapshot.ExecutedQty)
+	if futuresResult.err != nil {
+		if isUnknownOrderStateError(futuresResult.err) {
+			rescueErr := e.scheduleExposureRescue(ctx, exposureRescueTask{
+				Mode:                 exposureRescueModeClose,
+				Phase:                "parallel_close_futures_unknown",
+				Symbol:               hedge.Target.Symbol,
+				Pair:                 hedge.Target.Pair,
+				SpotBaseAsset:        hedge.Target.SpotBaseAsset,
+				SpotBasePrecision:    hedge.Target.SpotBasePrecision,
+				SpotReferencePrice:   spotReferencePrice,
+				InitialHedgeQty:      hedge.HedgeQty,
+				SpotClientOrderID:    spotClientOrderID,
+				FuturesClientOrderID: plan.futuresOrder.NewClientOrderID,
+			})
+			if rescueErr != nil {
+				return nil, fmt.Errorf("并发合约平仓终态未知且 ExposureManager 托管失败: %w", rescueErr)
+			}
+			return nil, fmt.Errorf("并发合约平仓终态未知，已转入 ExposureManager 托管")
+		}
+		if spotResult.err == nil {
+			if err := e.revertSpotCloseAfterFuturesFailure(ctx, hedge, spotResult.order, spotReferencePrice); err != nil {
+				return nil, fmt.Errorf("并发合约平仓失败且现货回补失败: %w", err)
+			}
+		}
+		return nil, fmt.Errorf("并发合约平仓未确认成交: %w", futuresResult.err)
+	}
+	if filledFuturesQty <= executionQtyTolerance {
+		if spotResult.err == nil {
+			if err := e.revertSpotCloseAfterFuturesFailure(ctx, hedge, spotResult.order, spotReferencePrice); err != nil {
+				return nil, fmt.Errorf("并发合约零成交且现货回补失败: %w", err)
+			}
+		}
+		return nil, fmt.Errorf("并发合约平仓成交数量为 0")
+	}
+
+	alerts := make([]string, 0, 2)
+	if futuresResult.snapshot.ExecutedQty+executionQtyTolerance < hedge.HedgeQty {
+		alerts = append(alerts, fmt.Sprintf("合约平仓部分成交 %s: requested=%.8f executed=%.8f", hedge.Target.Symbol, hedge.HedgeQty, futuresResult.snapshot.ExecutedQty))
+	}
+	hedge.CloseFuturesAvgPrice = futuresResult.snapshot.AvgPrice
+	hedge.CloseFuturesFeeUSDT = e.estimateFuturesExecutionFeeUSDT(ctx, futuresResult.snapshot)
+	hedge.CloseFuturesRealizedPnL = futuresResult.snapshot.RealizedPnL
+
+	if spotResult.err != nil {
+		if isUnknownOrderStateError(spotResult.err) {
+			rescueErr := e.scheduleExposureRescue(ctx, exposureRescueTask{
+				Mode:                    exposureRescueModeClose,
+				Phase:                   "parallel_close_spot_unknown",
+				Symbol:                  hedge.Target.Symbol,
+				Pair:                    hedge.Target.Pair,
+				SpotBaseAsset:           hedge.Target.SpotBaseAsset,
+				SpotBasePrecision:       hedge.Target.SpotBasePrecision,
+				SpotReferencePrice:      spotReferencePrice,
+				InitialHedgeQty:         hedge.HedgeQty,
+				FuturesClientOrderID:    plan.futuresOrder.NewClientOrderID,
+				KnownFuturesExecutedQty: filledFuturesQty,
+			})
+			if rescueErr != nil {
+				return alerts, fmt.Errorf("并发现货平仓终态未知且 ExposureManager 托管失败: %w", rescueErr)
+			}
+			return alerts, fmt.Errorf("并发现货平仓终态未知，已转入 ExposureManager 托管")
+		}
+		recoverCtx, cancel := context.WithTimeout(ctx, e.cfg.ExecutionRecoveryTimeout)
+		recoveryExecution, err := e.placeSingleFuturesReopenShort(recoverCtx, hedge.Target.Symbol, filledFuturesQty)
+		cancel()
+		if err != nil {
+			return alerts, fmt.Errorf("并发现货平仓失败且恢复空头失败: spotErr=%v recoverErr=%w", spotResult.err, err)
+		}
+		hedge.CloseFuturesFeeUSDT += e.estimateFuturesExecutionFeeUSDT(ctx, recoveryExecution)
+		e.recordExecutionAction("close_recovery", hedge.Target.Symbol, "reopen_short_after_parallel_spot_close_failure", fmt.Sprintf("closeableSpotQty=%.8f spotErr=%v", filledFuturesQty, spotResult.err))
+		return append(alerts, fmt.Sprintf("现货平仓失败 %s: %v，已恢复空头对冲", hedge.Target.Pair, spotResult.err)), nil
+	}
+
+	soldSpotQty := parseFloat(spotResult.order.ExecutedQty)
+	if soldSpotQty <= executionQtyTolerance {
+		recoverCtx, cancel := context.WithTimeout(ctx, e.cfg.ExecutionRecoveryTimeout)
+		recoveryExecution, err := e.placeSingleFuturesReopenShort(recoverCtx, hedge.Target.Symbol, filledFuturesQty)
+		cancel()
+		if err != nil {
+			return alerts, fmt.Errorf("并发现货平仓无有效成交且恢复空头失败: %w", err)
+		}
+		hedge.CloseFuturesFeeUSDT += e.estimateFuturesExecutionFeeUSDT(ctx, recoveryExecution)
+		return append(alerts, fmt.Sprintf("现货平仓无有效成交 %s，已恢复空头对冲", hedge.Target.Pair)), nil
+	}
+
+	hedge.CloseSpotExecutedQty = soldSpotQty
+	hedge.CloseSpotQuoteQty = parseFloat(spotResult.order.CummulativeQuoteQty)
+	hedge.CloseSpotFeeUSDT = e.estimateSpotCommissionUSDT(ctx, spotResult.order)
+	effectiveCloseQty := math.Min(filledFuturesQty, soldSpotQty)
+	if soldSpotQty > executionQtyTolerance && effectiveCloseQty+executionQtyTolerance < soldSpotQty {
+		residualQty := normalizeQuantity(soldSpotQty-effectiveCloseQty, e.spotRules[hedge.Target.Pair], hedge.Target.SpotBasePrecision)
+		if residualQty > executionQtyTolerance && isQuantityTradable(residualQty, spotReferencePrice, e.spotRules[hedge.Target.Pair]) {
+			recoverCtx, cancel := context.WithTimeout(ctx, e.cfg.ExecutionRecoveryTimeout)
+			recoveryOrder, err := e.placeSpotMarketBuyByQuantityIdempotent(recoverCtx, hedge.Target.Pair, residualQty, newClientOrderID("sclose_revert", hedge.Target.Pair))
+			cancel()
+			if err != nil {
+				return alerts, fmt.Errorf("并发现货超卖后回补失败: %w", err)
+			}
+			hedge.CloseSpotFeeUSDT += e.estimateSpotCommissionUSDT(ctx, recoveryOrder)
+			hedge.CloseSpotQuoteQty *= effectiveCloseQty / soldSpotQty
+			e.recordExecutionAction("close_recovery", hedge.Target.Symbol, "rebalance_spot_excess_after_parallel_close", fmt.Sprintf("soldSpotQty=%.8f effectiveCloseQty=%.8f", soldSpotQty, effectiveCloseQty))
+		}
+	}
+	if filledFuturesQty > effectiveCloseQty+executionQtyTolerance {
+		residualQty := filledFuturesQty - effectiveCloseQty
+		recoverCtx, cancel := context.WithTimeout(ctx, e.cfg.ExecutionRecoveryTimeout)
+		recoveryExecution, err := e.placeSingleFuturesReopenShort(recoverCtx, hedge.Target.Symbol, residualQty)
+		cancel()
+		if err != nil {
+			return alerts, fmt.Errorf("并发平仓后恢复剩余空头失败: %w", err)
+		}
+		hedge.CloseFuturesFeeUSDT += e.estimateFuturesExecutionFeeUSDT(ctx, recoveryExecution)
+		e.recordExecutionAction("close_recovery", hedge.Target.Symbol, "reopen_short_after_parallel_partial_spot_close", fmt.Sprintf("filledFuturesQty=%.8f effectiveCloseQty=%.8f residualQty=%.8f", filledFuturesQty, effectiveCloseQty, residualQty))
+		alerts = append(alerts, fmt.Sprintf("现货平仓部分成交 %s: requested=%.8f executed=%.8f，已恢复剩余空头", hedge.Target.Pair, filledFuturesQty, effectiveCloseQty))
+	}
+	hedge.CloseFuturesExecutedQty = effectiveCloseQty
+	hedge.CloseSpotExecutedQty = effectiveCloseQty
+	if effectiveCloseQty <= executionQtyTolerance {
+		return alerts, fmt.Errorf("并发平仓后有效成交数量为 0")
+	}
+	return alerts, nil
+}
+
+func closeSpotTarget(hedge *OpenHedge, closeableQty float64, spotRule SymbolTradeRules) (float64, float64, bool) {
+	spotQty := normalizeQuantity(closeableQty, spotRule, hedge.Target.SpotBasePrecision)
+	spotReferencePrice := hedge.LastKnownSpotPrice()
+	if spotReferencePrice <= 0 {
+		spotReferencePrice = hedge.Target.MarkPrice
+	}
+	return spotQty, spotReferencePrice, isQuantityTradable(spotQty, spotReferencePrice, spotRule)
+}
+
+func (e *FundingRateSniperEngine) revertSpotCloseAfterFuturesFailure(ctx context.Context, hedge *OpenHedge, spotOrder SpotOrderResponse, spotReferencePrice float64) error {
+	soldSpotQty := parseFloat(spotOrder.ExecutedQty)
+	if soldSpotQty <= executionQtyTolerance {
+		return nil
+	}
+	spotRule := e.spotRules[hedge.Target.Pair]
+	recoverQty := normalizeQuantity(soldSpotQty, spotRule, hedge.Target.SpotBasePrecision)
+	if recoverQty <= executionQtyTolerance || !isQuantityTradable(recoverQty, spotReferencePrice, spotRule) {
+		return fmt.Errorf("现货已卖出但无法安全回补: soldSpotQty=%.8f", soldSpotQty)
+	}
+	recoverCtx, cancel := context.WithTimeout(ctx, e.cfg.ExecutionRecoveryTimeout)
+	defer cancel()
+	recoveryOrder, err := e.placeSpotMarketBuyByQuantityIdempotent(recoverCtx, hedge.Target.Pair, recoverQty, newClientOrderID("sclose_revert", hedge.Target.Pair))
+	if err != nil {
+		return fmt.Errorf("现货回补失败: %w", err)
+	}
+	e.recordExecutionAction("close_recovery", hedge.Target.Symbol, "revert_spot_after_futures_close_failure", fmt.Sprintf("soldSpotQty=%.8f boughtQty=%.8f", soldSpotQty, resolveSpotNetBaseQuantity(recoveryOrder, hedge.Target.SpotBaseAsset)))
+	return nil
 }
 
 func (e *FundingRateSniperEngine) fetchPremiumIndex(ctx context.Context) ([]PremiumIndexItem, error) {
@@ -1744,6 +2880,197 @@ func (e *FundingRateSniperEngine) recordExecutionAction(phase string, symbol str
 	}
 }
 
+func isProtectedIOCRequestType(orderType string, tif string) bool {
+	return strings.EqualFold(strings.TrimSpace(orderType), "LIMIT") &&
+		strings.EqualFold(strings.TrimSpace(tif), protectedExecutionIOC)
+}
+
+func protectedIOCUnfilledRatio(requestedQty float64, executedQty float64) float64 {
+	if requestedQty <= executionQtyTolerance {
+		return 0
+	}
+	executedQty = maxFloat(executedQty, 0)
+	if executedQty > requestedQty {
+		executedQty = requestedQty
+	}
+	return maxFloat(requestedQty-executedQty, 0) / requestedQty
+}
+
+func (e *FundingRateSniperEngine) noteProtectedIOCResult(symbol string, market string, requestedQty float64, executedQty float64, status string) {
+	if e == nil || requestedQty <= executionQtyTolerance {
+		return
+	}
+	status = strings.ToUpper(strings.TrimSpace(status))
+	unfilledRatio := protectedIOCUnfilledRatio(requestedQty, executedQty)
+	partial := executedQty > executionQtyTolerance && executedQty+executionQtyTolerance < requestedQty
+
+	e.platformRiskMu.Lock()
+	e.protectedIOCAttempts++
+	e.protectedIOCUnfilledSum += unfilledRatio
+	if status == "CANCELED" {
+		e.protectedIOCCanceled++
+	}
+	if status == "EXPIRED" {
+		e.protectedIOCExpired++
+	}
+	if partial {
+		e.protectedIOCPartial++
+	}
+	if status == "CANCELED" || status == "EXPIRED" || partial {
+		e.lastExceptionCategory = "protected_ioc"
+		e.lastExceptionSeverity = "major"
+		e.lastExceptionDetail = fmt.Sprintf(
+			"market=%s symbol=%s status=%s requested=%.8f executed=%.8f unfilled_ratio=%.4f",
+			nonEmpty(strings.TrimSpace(market), "unknown"),
+			nonEmpty(symbol, "-"),
+			nonEmpty(status, "UNKNOWN"),
+			requestedQty,
+			executedQty,
+			unfilledRatio,
+		)
+	}
+	e.runtimeReporter.EmitLocked(EngineStage(""))
+	e.platformRiskMu.Unlock()
+}
+
+func (e *FundingRateSniperEngine) protectedIOCStatsLocked() (attempts int, canceled int, expired int, partial int, avgUnfilledRatio float64, cancelRate float64) {
+	attempts = e.protectedIOCAttempts
+	canceled = e.protectedIOCCanceled
+	expired = e.protectedIOCExpired
+	partial = e.protectedIOCPartial
+	if attempts <= 0 {
+		return attempts, canceled, expired, partial, 0, 0
+	}
+	avgUnfilledRatio = e.protectedIOCUnfilledSum / float64(attempts)
+	cancelRate = float64(canceled+expired) / float64(attempts)
+	return attempts, canceled, expired, partial, avgUnfilledRatio, cancelRate
+}
+
+func hasConfirmedOrderExecution(snapshot OrderExecutionSnapshot) bool {
+	return snapshot.OrderID != 0 && (snapshot.ExecutedQty > executionQtyTolerance || isClosedOrderStatus(snapshot.Status))
+}
+
+func hasConfirmedSpotOrderResult(order SpotOrderResponse) bool {
+	return order.OrderID != 0 && (parseFloat(order.ExecutedQty) > executionQtyTolerance || isClosedOrderStatus(order.Status))
+}
+
+func hasConfirmedFuturesOrderResult(result FuturesBatchOrderResult) bool {
+	return result.OrderID != 0 && (parseFloat(result.ExecutedQty) > executionQtyTolerance || isClosedOrderStatus(result.Status))
+}
+
+func unknownOrderReconcileTimeout(cfg EngineConfig) time.Duration {
+	if cfg.ExecutionRecoveryTimeout > 0 {
+		return cfg.ExecutionRecoveryTimeout
+	}
+	return 8 * time.Second
+}
+
+func (e *FundingRateSniperEngine) reconcileSpotOrderTerminalState(ctx context.Context, symbol string, clientOrderID string) (SpotOrderResponse, error) {
+	if strings.TrimSpace(clientOrderID) == "" {
+		return SpotOrderResponse{}, unknownOrderStateError{Market: "spot", Symbol: symbol, Reason: "clientOrderId 为空"}
+	}
+	reconcileCtx, cancel := context.WithTimeout(ctx, unknownOrderReconcileTimeout(e.cfg))
+	defer cancel()
+	backoff := 250 * time.Millisecond
+	var lastErr error
+	for {
+		queried, err := e.querySpotOrderByClientID(reconcileCtx, symbol, clientOrderID)
+		if err == nil && hasConfirmedSpotOrderResult(queried) {
+			return queried, nil
+		}
+		if err == nil {
+			lastErr = fmt.Errorf("spot status=%s executedQty=%s", queried.Status, queried.ExecutedQty)
+		} else {
+			lastErr = err
+		}
+		if reconcileCtx.Err() != nil {
+			break
+		}
+		timer := time.NewTimer(backoff)
+		select {
+		case <-reconcileCtx.Done():
+			if !timer.Stop() {
+				<-timer.C
+			}
+		case <-timer.C:
+		}
+		if backoff < time.Second {
+			backoff *= 2
+			if backoff > time.Second {
+				backoff = time.Second
+			}
+		}
+	}
+	return SpotOrderResponse{}, unknownOrderStateError{
+		Market:        "spot",
+		Symbol:        symbol,
+		ClientOrderID: clientOrderID,
+		Reason:        nonEmpty(errorString(lastErr), "reconcile timeout"),
+	}
+}
+
+func (e *FundingRateSniperEngine) reconcileFuturesOrderTerminalState(ctx context.Context, symbol string, clientOrderID string) (FuturesBatchOrderResult, error) {
+	if strings.TrimSpace(clientOrderID) == "" {
+		return FuturesBatchOrderResult{}, unknownOrderStateError{Market: "futures", Symbol: symbol, Reason: "clientOrderId 为空"}
+	}
+	reconcileCtx, cancel := context.WithTimeout(ctx, unknownOrderReconcileTimeout(e.cfg))
+	defer cancel()
+	backoff := 250 * time.Millisecond
+	var lastErr error
+	for {
+		queried, err := e.queryFuturesOrderByClientID(reconcileCtx, symbol, clientOrderID)
+		if err == nil && hasConfirmedFuturesOrderResult(queried) {
+			return queried, nil
+		}
+		if err == nil {
+			lastErr = fmt.Errorf("futures status=%s executedQty=%s", queried.Status, queried.ExecutedQty)
+		} else {
+			lastErr = err
+		}
+		if reconcileCtx.Err() != nil {
+			break
+		}
+		timer := time.NewTimer(backoff)
+		select {
+		case <-reconcileCtx.Done():
+			if !timer.Stop() {
+				<-timer.C
+			}
+		case <-timer.C:
+		}
+		if backoff < time.Second {
+			backoff *= 2
+			if backoff > time.Second {
+				backoff = time.Second
+			}
+		}
+	}
+	return FuturesBatchOrderResult{}, unknownOrderStateError{
+		Market:        "futures",
+		Symbol:        symbol,
+		ClientOrderID: clientOrderID,
+		Reason:        nonEmpty(errorString(lastErr), "reconcile timeout"),
+	}
+}
+
+func errorString(err error) string {
+	if err == nil {
+		return ""
+	}
+	return err.Error()
+}
+
+func (e *FundingRateSniperEngine) handleUnknownOrderState(symbol string, phase string, err error) error {
+	detail := nonEmpty(errorString(err), "订单终态未知")
+	if strings.TrimSpace(symbol) != "" {
+		e.setSymbolCooldown(symbol, "unknown_order", "critical", detail)
+	}
+	if incidentErr := e.recordExecutionIncident(phase, symbol, detail); incidentErr != nil {
+		e.logger.Printf("记录未知订单执行事故失败: %v", incidentErr)
+	}
+	return e.tripPlatformFuse("unknown_order", "critical", fmt.Sprintf("symbol=%s phase=%s detail=%s", nonEmpty(symbol, "-"), nonEmpty(phase, "unknown_order"), detail))
+}
+
 func (e *FundingRateSniperEngine) emitRiskEvent(event RiskEvent) {
 	runID, cycleID := e.traceIDs()
 	e.emitExecutionEvent(event.WithTrace(runID, cycleID).WithMetadata(e.recordMetadata()).ExecutionRecord())
@@ -1814,6 +3141,9 @@ func (e *FundingRateSniperEngine) placeFuturesBatchOrdersIdempotent(ctx context.
 	if err == nil {
 		return result, nil
 	}
+	if !isUnknownOrderRequestError(err) {
+		return nil, err
+	}
 	e.noteOrderUncertainty("-", "futures_batch_fallback", fmt.Sprintf("orders=%d err=%v", len(orders), err))
 
 	recovered := make([]FuturesBatchOrderResult, 0, len(orders))
@@ -1871,33 +3201,145 @@ func (e *FundingRateSniperEngine) placeSingleFuturesMarketOrderIdempotent(ctx co
 	if err != nil {
 		return OrderExecutionSnapshot{}, err
 	}
+	protectedIOC := isProtectedIOCRequestType(params.Get("type"), params.Get("timeInForce"))
 	if err := e.noteOrderPlaced("futures_market_"+strings.ToLower(side), fmt.Sprintf("%s qty=%s reduceOnly=%t", symbol, formatFloat(quantity), reduceOnly), 1, !reduceOnly); err != nil {
 		return OrderExecutionSnapshot{}, err
 	}
 
 	body, err := e.placeSignedOrder(ctx, e.futuresOrderRequestPath(), params)
 	if err != nil {
-		if clientOrderID == "" {
+		if clientOrderID == "" || !isUnknownOrderRequestError(err) {
 			return OrderExecutionSnapshot{}, err
 		}
 		e.noteOrderUncertainty(symbol, "futures_market_request_fallback", fmt.Sprintf("clientOrderId=%s err=%v", clientOrderID, err))
 		waitCtx, cancel := context.WithTimeout(ctx, e.cfg.ExecutionConfig.ExecutionConfirmTimeout)
 		defer cancel()
-		if snapshot, ok := e.waitForFuturesOrder(waitCtx, symbol, clientOrderID); ok && snapshot.ExecutedQty > 0 {
+		if snapshot, ok := e.waitForFuturesOrder(waitCtx, symbol, clientOrderID); ok && hasConfirmedOrderExecution(snapshot) {
+			if protectedIOC {
+				e.noteProtectedIOCResult(symbol, "futures", quantity, snapshot.ExecutedQty, snapshot.Status)
+			}
 			return snapshot, nil
 		}
 		queried, queryErr := e.queryFuturesOrderByClientID(ctx, symbol, clientOrderID)
 		if queryErr != nil {
-			return OrderExecutionSnapshot{}, err
+			queried = FuturesBatchOrderResult{
+				Symbol:        symbol,
+				ClientOrderID: clientOrderID,
+			}
 		}
-		return e.resolveFuturesOrderExecution(ctx, symbol, clientOrderID, queried)
+		snapshot, resolveErr := e.resolveFuturesOrderExecution(ctx, symbol, clientOrderID, queried)
+		if resolveErr == nil && protectedIOC {
+			e.noteProtectedIOCResult(symbol, "futures", quantity, snapshot.ExecutedQty, snapshot.Status)
+		}
+		return snapshot, resolveErr
 	}
 
 	var result FuturesBatchOrderResult
 	if err := json.Unmarshal(body, &result); err != nil {
 		return OrderExecutionSnapshot{}, fmt.Errorf("解析合约单笔市价单回执失败: %w", err)
 	}
-	return e.resolveFuturesOrderExecution(ctx, symbol, clientOrderID, result)
+	snapshot, resolveErr := e.resolveFuturesOrderExecution(ctx, symbol, clientOrderID, result)
+	if resolveErr == nil && protectedIOC {
+		e.noteProtectedIOCResult(symbol, "futures", quantity, snapshot.ExecutedQty, snapshot.Status)
+	}
+	return snapshot, resolveErr
+}
+
+func (e *FundingRateSniperEngine) placeSingleFuturesOrderIdempotent(ctx context.Context, order FuturesBatchOrderRequest, action string) (OrderExecutionSnapshot, error) {
+	params := url.Values{}
+	params.Set("symbol", order.Symbol)
+	params.Set("side", order.Side)
+	params.Set("type", order.Type)
+	params.Set("quantity", order.Quantity)
+	if order.Price != "" {
+		params.Set("price", order.Price)
+	}
+	if order.TimeInForce != "" {
+		params.Set("timeInForce", order.TimeInForce)
+	}
+	if order.PriceProtect != "" {
+		params.Set("priceProtect", order.PriceProtect)
+	}
+	if order.NewClientOrderID != "" {
+		params.Set("newClientOrderId", order.NewClientOrderID)
+	}
+	if order.NewOrderRespType != "" {
+		params.Set("newOrderRespType", order.NewOrderRespType)
+	}
+	if order.ReduceOnly != "" {
+		params.Set("reduceOnly", order.ReduceOnly)
+	}
+	if order.SelfTradeMode != "" {
+		params.Set("selfTradePreventionMode", order.SelfTradeMode)
+	}
+	requestedQty := parseFloat(order.Quantity)
+	protectedIOC := isProtectedIOCRequestType(order.Type, order.TimeInForce)
+	if err := e.noteOrderPlaced(action, fmt.Sprintf("%s qty=%s", order.Symbol, order.Quantity), 1, strings.Contains(strings.ToLower(action), "open")); err != nil {
+		return OrderExecutionSnapshot{}, err
+	}
+
+	body, err := e.placeSignedOrder(ctx, e.futuresOrderRequestPath(), params)
+	if err != nil {
+		if order.NewClientOrderID == "" || !isUnknownOrderRequestError(err) {
+			return OrderExecutionSnapshot{}, err
+		}
+		e.noteOrderUncertainty(order.Symbol, action+"_fallback", fmt.Sprintf("clientOrderId=%s err=%v", order.NewClientOrderID, err))
+		waitCtx, cancel := context.WithTimeout(ctx, e.cfg.ExecutionConfig.ExecutionConfirmTimeout)
+		defer cancel()
+		if snapshot, ok := e.waitForFuturesOrder(waitCtx, order.Symbol, order.NewClientOrderID); ok && hasConfirmedOrderExecution(snapshot) {
+			if protectedIOC {
+				e.noteProtectedIOCResult(order.Symbol, "futures", requestedQty, snapshot.ExecutedQty, snapshot.Status)
+			}
+			return snapshot, nil
+		}
+		queried, queryErr := e.queryFuturesOrderByClientID(ctx, order.Symbol, order.NewClientOrderID)
+		if queryErr != nil {
+			queried = FuturesBatchOrderResult{
+				Symbol:        order.Symbol,
+				ClientOrderID: order.NewClientOrderID,
+			}
+		}
+		snapshot, resolveErr := e.resolveFuturesOrderExecution(ctx, order.Symbol, order.NewClientOrderID, queried)
+		if resolveErr == nil && protectedIOC {
+			e.noteProtectedIOCResult(order.Symbol, "futures", requestedQty, snapshot.ExecutedQty, snapshot.Status)
+		}
+		return snapshot, resolveErr
+	}
+
+	var result FuturesBatchOrderResult
+	if err := json.Unmarshal(body, &result); err != nil {
+		return OrderExecutionSnapshot{}, fmt.Errorf("解析合约单笔回执失败: %w", err)
+	}
+	if parseFloat(result.ExecutedQty) > 0 {
+		snapshot := futuresResultToSnapshot(result)
+		if protectedIOC {
+			e.noteProtectedIOCResult(order.Symbol, "futures", requestedQty, snapshot.ExecutedQty, snapshot.Status)
+		}
+		return snapshot, nil
+	}
+	snapshot, resolveErr := e.resolveFuturesOrderExecution(ctx, order.Symbol, order.NewClientOrderID, result)
+	if resolveErr == nil && protectedIOC {
+		e.noteProtectedIOCResult(order.Symbol, "futures", requestedQty, snapshot.ExecutedQty, snapshot.Status)
+	}
+	return snapshot, resolveErr
+}
+
+func (e *FundingRateSniperEngine) placeSingleFuturesOpenOrderIdempotent(ctx context.Context, order FuturesBatchOrderRequest) (OrderExecutionSnapshot, error) {
+	return e.placeSingleFuturesOrderIdempotent(ctx, order, "futures_open_single")
+}
+
+func futuresExecutionToResult(snapshot OrderExecutionSnapshot, order FuturesBatchOrderRequest) FuturesBatchOrderResult {
+	return FuturesBatchOrderResult{
+		OrderID:       snapshot.OrderID,
+		Symbol:        nonEmpty(snapshot.Symbol, order.Symbol),
+		Status:        snapshot.Status,
+		ClientOrderID: nonEmpty(snapshot.ClientOrderID, order.NewClientOrderID),
+		ExecutedQty:   formatFloat(snapshot.ExecutedQty),
+		OrigQty:       order.Quantity,
+		AvgPrice:      formatFloat(snapshot.AvgPrice),
+		Side:          order.Side,
+		UpdateTime:    snapshot.EventTime.UnixMilli(),
+	}
 }
 
 func (e *FundingRateSniperEngine) placeSpotMarketBuyByQuantityIdempotent(ctx context.Context, symbol string, quantity float64, clientOrderID string) (SpotOrderResponse, error) {
@@ -1905,36 +3347,53 @@ func (e *FundingRateSniperEngine) placeSpotMarketBuyByQuantityIdempotent(ctx con
 	if err != nil {
 		return SpotOrderResponse{}, err
 	}
+	protectedIOC := isProtectedIOCRequestType(params.Get("type"), params.Get("timeInForce"))
 	if err := e.noteOrderPlaced("spot_market_buy", fmt.Sprintf("%s qty=%s", symbol, formatFloat(quantity)), 1, true); err != nil {
 		return SpotOrderResponse{}, err
 	}
 
 	body, err := e.placeSignedOrder(ctx, e.spotOrderRequestPath(), params)
 	if err != nil {
-		if clientOrderID != "" {
+		if clientOrderID != "" && isUnknownOrderRequestError(err) {
 			e.noteOrderUncertainty(symbol, "spot_buy_request_fallback", fmt.Sprintf("clientOrderId=%s err=%v", clientOrderID, err))
 			waitCtx, cancel := context.WithTimeout(ctx, e.cfg.ExecutionConfig.ExecutionConfirmTimeout)
 			defer cancel()
-			if snapshot, ok := e.waitForSpotOrder(waitCtx, symbol, clientOrderID); ok && snapshot.OrderID != 0 {
-				return e.spotSnapshotToOrderResponse(symbol, snapshot), nil
+			if snapshot, ok := e.waitForSpotOrder(waitCtx, symbol, clientOrderID); ok && hasConfirmedOrderExecution(snapshot) {
+				result := e.spotSnapshotToOrderResponse(symbol, snapshot)
+				if protectedIOC {
+					e.noteProtectedIOCResult(symbol, "spot", quantity, parseFloat(result.ExecutedQty), result.Status)
+				}
+				return result, nil
 			}
+			queried, queryErr := e.querySpotOrderByClientID(ctx, symbol, clientOrderID)
+			if queryErr == nil && hasConfirmedSpotOrderResult(queried) {
+				e.logger.Printf("现货买单出现不确定状态，已通过 clientOrderId 回查恢复，symbol=%s clientOrderId=%s", symbol, clientOrderID)
+				if protectedIOC {
+					e.noteProtectedIOCResult(symbol, "spot", quantity, parseFloat(queried.ExecutedQty), queried.Status)
+				}
+				return queried, nil
+			}
+			queried, reconcileErr := e.reconcileSpotOrderTerminalState(ctx, symbol, clientOrderID)
+			if reconcileErr == nil {
+				if protectedIOC {
+					e.noteProtectedIOCResult(symbol, "spot", quantity, parseFloat(queried.ExecutedQty), queried.Status)
+				}
+				return queried, nil
+			}
+			return SpotOrderResponse{}, reconcileErr
 		}
-		if clientOrderID == "" {
+		if clientOrderID == "" || !isUnknownOrderRequestError(err) {
 			return SpotOrderResponse{}, err
 		}
-
-		queried, queryErr := e.querySpotOrderByClientID(ctx, symbol, clientOrderID)
-		if queryErr == nil && queried.OrderID != 0 {
-			e.logger.Printf("现货买单出现不确定状态，已通过 clientOrderId 回查恢复，symbol=%s clientOrderId=%s", symbol, clientOrderID)
-			return queried, nil
-		}
-
 		return SpotOrderResponse{}, err
 	}
 
 	var result SpotOrderResponse
 	if err := json.Unmarshal(body, &result); err != nil {
 		return SpotOrderResponse{}, fmt.Errorf("解析现货买单回执失败: %w", err)
+	}
+	if protectedIOC {
+		e.noteProtectedIOCResult(symbol, "spot", quantity, parseFloat(result.ExecutedQty), result.Status)
 	}
 
 	return result, nil
@@ -1965,36 +3424,53 @@ func (e *FundingRateSniperEngine) placeSpotMarketSellIdempotent(ctx context.Cont
 	if err != nil {
 		return SpotOrderResponse{}, err
 	}
+	protectedIOC := isProtectedIOCRequestType(params.Get("type"), params.Get("timeInForce"))
 	if err := e.noteOrderPlaced("spot_market_sell", fmt.Sprintf("%s qty=%s", symbol, formatFloat(quantity)), 1, false); err != nil {
 		return SpotOrderResponse{}, err
 	}
 
 	body, err := e.placeSignedOrder(ctx, e.spotOrderRequestPath(), params)
 	if err != nil {
-		if clientOrderID != "" {
+		if clientOrderID != "" && isUnknownOrderRequestError(err) {
 			e.noteOrderUncertainty(symbol, "spot_sell_request_fallback", fmt.Sprintf("clientOrderId=%s err=%v", clientOrderID, err))
 			waitCtx, cancel := context.WithTimeout(ctx, e.cfg.ExecutionConfig.ExecutionConfirmTimeout)
 			defer cancel()
-			if snapshot, ok := e.waitForSpotOrder(waitCtx, symbol, clientOrderID); ok && snapshot.OrderID != 0 {
-				return e.spotSnapshotToOrderResponse(symbol, snapshot), nil
+			if snapshot, ok := e.waitForSpotOrder(waitCtx, symbol, clientOrderID); ok && hasConfirmedOrderExecution(snapshot) {
+				result := e.spotSnapshotToOrderResponse(symbol, snapshot)
+				if protectedIOC {
+					e.noteProtectedIOCResult(symbol, "spot", quantity, parseFloat(result.ExecutedQty), result.Status)
+				}
+				return result, nil
 			}
+			queried, queryErr := e.querySpotOrderByClientID(ctx, symbol, clientOrderID)
+			if queryErr == nil && hasConfirmedSpotOrderResult(queried) {
+				e.logger.Printf("现货卖单出现不确定状态，已通过 clientOrderId 回查恢复，symbol=%s clientOrderId=%s", symbol, clientOrderID)
+				if protectedIOC {
+					e.noteProtectedIOCResult(symbol, "spot", quantity, parseFloat(queried.ExecutedQty), queried.Status)
+				}
+				return queried, nil
+			}
+			queried, reconcileErr := e.reconcileSpotOrderTerminalState(ctx, symbol, clientOrderID)
+			if reconcileErr == nil {
+				if protectedIOC {
+					e.noteProtectedIOCResult(symbol, "spot", quantity, parseFloat(queried.ExecutedQty), queried.Status)
+				}
+				return queried, nil
+			}
+			return SpotOrderResponse{}, reconcileErr
 		}
-		if clientOrderID == "" {
+		if clientOrderID == "" || !isUnknownOrderRequestError(err) {
 			return SpotOrderResponse{}, err
 		}
-
-		queried, queryErr := e.querySpotOrderByClientID(ctx, symbol, clientOrderID)
-		if queryErr == nil && queried.OrderID != 0 {
-			e.logger.Printf("现货卖单出现不确定状态，已通过 clientOrderId 回查恢复，symbol=%s clientOrderId=%s", symbol, clientOrderID)
-			return queried, nil
-		}
-
 		return SpotOrderResponse{}, err
 	}
 
 	var result SpotOrderResponse
 	if err := json.Unmarshal(body, &result); err != nil {
 		return SpotOrderResponse{}, fmt.Errorf("解析现货卖单回执失败: %w", err)
+	}
+	if protectedIOC {
+		e.noteProtectedIOCResult(symbol, "spot", quantity, parseFloat(result.ExecutedQty), result.Status)
 	}
 
 	return result, nil
@@ -2022,6 +3498,27 @@ func (e *FundingRateSniperEngine) spotSnapshotToOrderResponse(symbol string, sna
 		}}
 	}
 	return response
+}
+
+func (e *FundingRateSniperEngine) expectedFundingIncomeSummary(hedges []OpenHedge, beforeSnapshot CycleAccountSnapshot) (float64, []string) {
+	symbolSet := make(map[string]struct{}, len(hedges))
+	expectedFundingBySymbol := make(map[string]float64, len(hedges))
+	for _, hedge := range hedges {
+		symbolSet[hedge.Target.Symbol] = struct{}{}
+		expectedFundingBySymbol[hedge.Target.Symbol] += estimateExpectedFundingIncome(hedge)
+	}
+
+	expectedFundingIncome := 0.0
+	alerts := make([]string, 0)
+	for symbol := range symbolSet {
+		beforeQty := beforeSnapshot.FuturesPositionAmounts[symbol]
+		if math.Abs(beforeQty) >= e.cfg.RiskConfig.ResidualPositionAlertQty {
+			alerts = append(alerts, fmt.Sprintf("资金费归因已跳过 %s: 开仓前已有持仓 positionAmt=%.10f", symbol, beforeQty))
+			continue
+		}
+		expectedFundingIncome += expectedFundingBySymbol[symbol]
+	}
+	return expectedFundingIncome, alerts
 }
 
 func (e *FundingRateSniperEngine) settleFundingIncome(ctx context.Context, hedges []OpenHedge, beforeSnapshot CycleAccountSnapshot, fundingTime time.Time) (float64, float64, []string) {
@@ -2067,6 +3564,48 @@ func (e *FundingRateSniperEngine) settleFundingIncome(ctx context.Context, hedge
 	}
 
 	return totalFundingIncome, expectedFundingIncome, alerts
+}
+
+func (e *FundingRateSniperEngine) effectiveFundingSettlementDelay() time.Duration {
+	if e == nil || e.fundingSettlementDelay <= 0 {
+		return defaultFundingSettlementDelay
+	}
+	return e.fundingSettlementDelay
+}
+
+func (e *FundingRateSniperEngine) scheduleAsyncFundingSettlement(base CycleSettlement, hedges []OpenHedge) {
+	if e == nil || e.reportStore == nil {
+		return
+	}
+	hedgeCopy := append([]OpenHedge(nil), hedges...)
+	task := PendingFundingSettlementRecord{
+		TraceRecordMetadata: base.TraceRecordMetadata.normalized(),
+		RunID:               strings.TrimSpace(base.RunID),
+		CycleID:             strings.TrimSpace(base.CycleID),
+		RecordedAt:          time.Now().UTC().Format(time.RFC3339),
+		NextAttemptAt:       time.Now().UTC().Add(e.effectiveFundingSettlementDelay()).Format(time.RFC3339),
+		Settlement:          base,
+		Hedges:              hedgeCopy,
+	}
+	if err := e.reportStore.UpsertPendingFundingSettlement(task); err != nil {
+		if e.logger != nil {
+			e.logger.Printf("持久化待结算资金费任务失败: %v", err)
+		}
+		return
+	}
+	e.startFundingSettlementWorker(context.Background())
+	e.wakeFundingSettlementWorker()
+}
+
+func filterOutFundingPendingAlerts(alerts []string) []string {
+	filtered := make([]string, 0, len(alerts))
+	for _, alert := range alerts {
+		if strings.Contains(alert, "资金费异步结算待处理") {
+			continue
+		}
+		filtered = append(filtered, alert)
+	}
+	return filtered
 }
 
 func (e *FundingRateSniperEngine) fetchFundingIncome(ctx context.Context, startTime time.Time, endTime time.Time, symbol string) ([]FundingIncomeRecord, error) {
@@ -2146,19 +3685,36 @@ func (e *FundingRateSniperEngine) querySpotOrderByClientID(ctx context.Context, 
 	return result, nil
 }
 
+func (e *FundingRateSniperEngine) cancelSpotOrderByClientID(ctx context.Context, symbol string, clientOrderID string) (SpotOrderResponse, error) {
+	params := url.Values{}
+	params.Set("symbol", symbol)
+	params.Set("origClientOrderId", clientOrderID)
+
+	body, err := e.signedRequest(ctx, http.MethodDelete, e.client.spotBaseURL+"/api/v3/order", params)
+	if err != nil {
+		return SpotOrderResponse{}, err
+	}
+
+	var result SpotOrderResponse
+	if err := json.Unmarshal(body, &result); err != nil {
+		return SpotOrderResponse{}, fmt.Errorf("解析现货撤单回执失败: %w", err)
+	}
+	return result, nil
+}
+
 func (e *FundingRateSniperEngine) resolveFuturesOrderExecution(ctx context.Context, symbol string, clientOrderID string, initial FuturesBatchOrderResult) (OrderExecutionSnapshot, error) {
 	result := initial
 	if clientOrderID != "" {
 		waitCtx, cancel := context.WithTimeout(ctx, e.cfg.ExecutionConfig.ExecutionConfirmTimeout)
 		defer cancel()
-		if snapshot, ok := e.waitForFuturesOrder(waitCtx, symbol, clientOrderID); ok && snapshot.ExecutedQty > 0 {
+		if snapshot, ok := e.waitForFuturesOrder(waitCtx, symbol, clientOrderID); ok && hasConfirmedOrderExecution(snapshot) {
 			return snapshot, nil
 		}
 		e.noteOrderUncertainty(symbol, "futures_order_confirm_timeout", fmt.Sprintf("clientOrderId=%s", clientOrderID))
 	}
 	for range 3 {
 		filledQty := parseFloat(result.ExecutedQty)
-		if filledQty > 0 {
+		if filledQty > executionQtyTolerance || isClosedOrderStatus(result.Status) {
 			return futuresResultToSnapshot(result), nil
 		}
 
@@ -2173,8 +3729,14 @@ func (e *FundingRateSniperEngine) resolveFuturesOrderExecution(ctx context.Conte
 		}
 		result = queried
 	}
-
-	return OrderExecutionSnapshot{}, fmt.Errorf("未能确认合约订单真实成交数量, symbol=%s clientOrderId=%s", symbol, clientOrderID)
+	if strings.TrimSpace(clientOrderID) == "" {
+		return OrderExecutionSnapshot{}, fmt.Errorf("未能确认合约订单真实成交数量, symbol=%s clientOrderId=%s", symbol, clientOrderID)
+	}
+	queried, err := e.reconcileFuturesOrderTerminalState(ctx, symbol, clientOrderID)
+	if err != nil {
+		return OrderExecutionSnapshot{}, err
+	}
+	return futuresResultToSnapshot(queried), nil
 }
 
 func (e *FundingRateSniperEngine) flattenUncertainFuturesOpen(ctx context.Context, symbol string, clientOrderID string, initial FuturesBatchOrderResult) {
@@ -2302,6 +3864,9 @@ func (e *FundingRateSniperEngine) verifyTradingEnvironment(ctx context.Context) 
 	if err != nil {
 		return fmt.Errorf("读取合约账户状态失败: %w", err)
 	}
+	if err := e.reconcilePersistedOpenHedges(spotBalances, positions); err != nil {
+		return err
+	}
 
 	futuresIssues := make([]string, 0)
 	for symbol, qty := range positions {
@@ -2343,6 +3908,23 @@ func (e *FundingRateSniperEngine) verifyTradingEnvironment(ctx context.Context) 
 	return nil
 }
 
+func (e *FundingRateSniperEngine) verifySpotBNBBurnEnabled(ctx context.Context) error {
+	body, err := e.signedRequest(ctx, http.MethodGet, e.client.spotBaseURL+"/sapi/v1/bnbBurn", nil)
+	if err != nil {
+		return fmt.Errorf("读取 Binance BNB burn 开关失败: %w", err)
+	}
+	var payload struct {
+		SpotBNBBurn bool `json:"spotBNBBurn"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return fmt.Errorf("解析 Binance BNB burn 开关失败: %w", err)
+	}
+	if !payload.SpotBNBBurn {
+		return fmt.Errorf("Binance 现货 BNB 抵扣手续费未开启，拒绝启动")
+	}
+	return nil
+}
+
 func (e *FundingRateSniperEngine) fetchFuturesPositionMode(ctx context.Context) (bool, error) {
 	body, err := e.signedRequest(ctx, http.MethodGet, e.client.futuresBaseURL+"/fapi/v1/positionSide/dual", nil)
 	if err != nil {
@@ -2366,9 +3948,17 @@ func (e *FundingRateSniperEngine) fetchFuturesPositionMode(ctx context.Context) 
 }
 
 func (e *FundingRateSniperEngine) fetchSpotAccountBalances(ctx context.Context) (map[string]float64, float64, error) {
-	body, err := e.signedRequest(ctx, http.MethodGet, e.client.spotBaseURL+"/api/v3/account", nil)
+	freeBalances, balances, err := e.fetchSpotAccountFreeBalances(ctx)
 	if err != nil {
 		return nil, 0, err
+	}
+	return balances, freeBalances["USDT"], nil
+}
+
+func (e *FundingRateSniperEngine) fetchSpotAccountFreeBalances(ctx context.Context) (map[string]float64, map[string]float64, error) {
+	body, err := e.signedRequest(ctx, http.MethodGet, e.client.spotBaseURL+"/api/v3/account", nil)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	var payload struct {
@@ -2379,20 +3969,19 @@ func (e *FundingRateSniperEngine) fetchSpotAccountBalances(ctx context.Context) 
 		} `json:"balances"`
 	}
 	if err := json.Unmarshal(body, &payload); err != nil {
-		return nil, 0, fmt.Errorf("解析现货账户快照失败: %w", err)
+		return nil, nil, fmt.Errorf("解析现货账户快照失败: %w", err)
 	}
 
+	freeBalances := make(map[string]float64, len(payload.Balances))
 	balances := make(map[string]float64, len(payload.Balances))
-	spotUSDT := 0.0
 	for _, balance := range payload.Balances {
+		free := parseFloat(balance.Free)
+		freeBalances[balance.Asset] = free
 		total := parseFloat(balance.Free) + parseFloat(balance.Locked)
 		balances[balance.Asset] = total
-		if balance.Asset == "USDT" {
-			spotUSDT = parseFloat(balance.Free)
-		}
 	}
 
-	return balances, spotUSDT, nil
+	return freeBalances, balances, nil
 }
 
 func (e *FundingRateSniperEngine) fetchFuturesAccountState(ctx context.Context) (float64, float64, map[string]float64, error) {
@@ -2432,6 +4021,126 @@ func (e *FundingRateSniperEngine) fetchFuturesAccountState(ctx context.Context) 
 	}
 
 	return walletUSDT, availableUSDT, positions, nil
+}
+
+func (e *FundingRateSniperEngine) transferAssetBetweenAccounts(ctx context.Context, transferType string, asset string, amount float64) error {
+	if amount <= executionQtyTolerance {
+		return nil
+	}
+	params := url.Values{}
+	params.Set("type", transferType)
+	params.Set("asset", strings.ToUpper(strings.TrimSpace(asset)))
+	params.Set("amount", formatFloat(amount))
+
+	body, err := e.signedRequest(ctx, http.MethodPost, e.client.spotBaseURL+"/sapi/v1/asset/transfer", params)
+	if err != nil {
+		return err
+	}
+	var payload struct {
+		TranID int64 `json:"tranId"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return fmt.Errorf("解析账户划转回执失败: %w", err)
+	}
+	if payload.TranID == 0 {
+		return fmt.Errorf("账户划转回执缺少 tranId")
+	}
+	return nil
+}
+
+func (e *FundingRateSniperEngine) fetchCrossMarginAccountState(ctx context.Context) (CrossMarginAccountState, error) {
+	body, err := e.signedRequest(ctx, http.MethodGet, e.client.spotBaseURL+"/sapi/v1/margin/account", nil)
+	if err != nil {
+		return CrossMarginAccountState{}, err
+	}
+
+	var payload struct {
+		Created                  bool   `json:"created"`
+		BorrowEnabled            bool   `json:"borrowEnabled"`
+		TradeEnabled             bool   `json:"tradeEnabled"`
+		TransferInEnabled        bool   `json:"transferInEnabled"`
+		TransferOutEnabled       bool   `json:"transferOutEnabled"`
+		AccountType              string `json:"accountType"`
+		TotalCollateralValueUSDT string `json:"TotalCollateralValueInUSDT"`
+		TotalNetAssetBTC         string `json:"totalNetAssetOfBtc"`
+		TotalLiabilityBTC        string `json:"totalLiabilityOfBtc"`
+		UserAssets               []struct {
+			Asset    string `json:"asset"`
+			Borrowed string `json:"borrowed"`
+			Free     string `json:"free"`
+			Interest string `json:"interest"`
+			Locked   string `json:"locked"`
+			NetAsset string `json:"netAsset"`
+		} `json:"userAssets"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return CrossMarginAccountState{}, fmt.Errorf("解析全仓账户快照失败: %w", err)
+	}
+
+	state := CrossMarginAccountState{
+		Created:             payload.Created,
+		BorrowEnabled:       payload.BorrowEnabled,
+		TradeEnabled:        payload.TradeEnabled,
+		TransferInEnabled:   payload.TransferInEnabled,
+		TransferOutEnabled:  payload.TransferOutEnabled,
+		AccountType:         payload.AccountType,
+		TotalCollateralUSDT: parseFloat(payload.TotalCollateralValueUSDT),
+		TotalNetAssetBTC:    parseFloat(payload.TotalNetAssetBTC),
+		TotalLiabilityBTC:   parseFloat(payload.TotalLiabilityBTC),
+		Assets:              make(map[string]CrossMarginAssetBalance, len(payload.UserAssets)),
+	}
+	for _, asset := range payload.UserAssets {
+		entry := CrossMarginAssetBalance{
+			Asset:    strings.ToUpper(strings.TrimSpace(asset.Asset)),
+			Free:     parseFloat(asset.Free),
+			Borrowed: parseFloat(asset.Borrowed),
+			Interest: parseFloat(asset.Interest),
+			Locked:   parseFloat(asset.Locked),
+			NetAsset: parseFloat(asset.NetAsset),
+		}
+		if entry.Asset == "" {
+			continue
+		}
+		state.Assets[entry.Asset] = entry
+		if entry.Asset == "USDT" {
+			state.USDT = entry
+		}
+	}
+	return state, nil
+}
+
+func (e *FundingRateSniperEngine) borrowCrossMarginAsset(ctx context.Context, asset string, amount float64) (int64, error) {
+	return e.crossMarginBorrowRepay(ctx, asset, amount, "BORROW")
+}
+
+func (e *FundingRateSniperEngine) repayCrossMarginAsset(ctx context.Context, asset string, amount float64) (int64, error) {
+	return e.crossMarginBorrowRepay(ctx, asset, amount, "REPAY")
+}
+
+func (e *FundingRateSniperEngine) crossMarginBorrowRepay(ctx context.Context, asset string, amount float64, action string) (int64, error) {
+	if amount <= executionQtyTolerance {
+		return 0, fmt.Errorf("margin %s amount 必须大于 0", strings.ToLower(action))
+	}
+	params := url.Values{}
+	params.Set("asset", strings.ToUpper(strings.TrimSpace(asset)))
+	params.Set("isIsolated", "FALSE")
+	params.Set("amount", formatFloat(amount))
+	params.Set("type", action)
+
+	body, err := e.signedRequest(ctx, http.MethodPost, e.client.spotBaseURL+"/sapi/v1/margin/borrow-repay", params)
+	if err != nil {
+		return 0, err
+	}
+	var payload struct {
+		TranID int64 `json:"tranId"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return 0, fmt.Errorf("解析全仓%s回执失败: %w", strings.ToLower(action), err)
+	}
+	if payload.TranID == 0 {
+		return 0, fmt.Errorf("全仓%s回执缺少 tranId", strings.ToLower(action))
+	}
+	return payload.TranID, nil
 }
 
 func futuresResultToSnapshot(result FuturesBatchOrderResult) OrderExecutionSnapshot {
@@ -2532,7 +4241,11 @@ func (e *FundingRateSniperEngine) convertCommissionToUSDT(ctx context.Context, s
 		if meta, ok := e.spotMeta[symbol]; ok && strings.EqualFold(meta.BaseAsset, commissionAsset) && referencePrice > 0 {
 			return commission * referencePrice
 		}
-		if meta, ok := e.futuresMeta[symbol]; ok {
+		if spotPair, ok := e.goldenSpotPairByFuture[symbol]; ok {
+			if spotMeta, spotOK := e.spotMeta[spotPair]; spotOK && strings.EqualFold(spotMeta.BaseAsset, commissionAsset) && referencePrice > 0 {
+				return commission * referencePrice
+			}
+		} else if meta, ok := e.futuresMeta[symbol]; ok {
 			if spotMeta, spotOK := e.spotMeta[meta.Pair]; spotOK && strings.EqualFold(spotMeta.BaseAsset, commissionAsset) && referencePrice > 0 {
 				return commission * referencePrice
 			}
@@ -2673,12 +4386,18 @@ func resolveSpotNetBaseQuantity(order SpotOrderResponse, baseAsset string) float
 }
 
 func (e *FundingRateSniperEngine) signedRequest(ctx context.Context, method string, endpoint string, params url.Values) ([]byte, error) {
-	if err := e.checkPlatformFuse(); err != nil {
-		return nil, err
+	if !isExposureManagerRequest(ctx) {
+		if err := e.checkPlatformFuse(); err != nil {
+			return nil, err
+		}
+		if err := e.blockNonCriticalRequestByUsedWeight(method, endpoint, params); err != nil {
+			return nil, err
+		}
 	}
 	if params == nil {
 		params = url.Values{}
 	}
+	params = cloneURLValues(params)
 	params.Set("recvWindow", strconv.FormatInt(e.cfg.ExecutionConfig.RecvWindow, 10))
 	params.Set("timestamp", strconv.FormatInt(e.currentServerTimeMillis(), 10))
 
@@ -2696,17 +4415,24 @@ func (e *FundingRateSniperEngine) signedRequest(ctx context.Context, method stri
 
 	resp, err := e.client.httpClient.Do(req)
 	if err != nil {
-		requestErr := fmt.Errorf("发送签名请求失败: %w", err)
+		requestErr := signedRequestError{
+			Endpoint: endpoint,
+			Cause:    err,
+		}
 		if markErr := e.notePlatformRequestResult(endpoint, requestErr); markErr != nil {
 			return nil, markErr
 		}
 		return nil, requestErr
 	}
 	defer resp.Body.Close()
+	e.client.noteUsedWeightFromHeaders(resp.Header)
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		requestErr := fmt.Errorf("读取签名响应失败: %w", err)
+		requestErr := signedRequestError{
+			Endpoint: endpoint,
+			Cause:    err,
+		}
 		if markErr := e.notePlatformRequestResult(endpoint, requestErr); markErr != nil {
 			return nil, markErr
 		}
@@ -2714,7 +4440,12 @@ func (e *FundingRateSniperEngine) signedRequest(ctx context.Context, method stri
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		requestErr := fmt.Errorf("签名请求失败: status=%s body=%s", resp.Status, string(body))
+		requestErr := signedRequestError{
+			Endpoint:   endpoint,
+			StatusCode: resp.StatusCode,
+			Status:     resp.Status,
+			Body:       strings.TrimSpace(string(body)),
+		}
 		if markErr := e.notePlatformRequestResult(endpoint, requestErr); markErr != nil {
 			return nil, markErr
 		}
@@ -2723,6 +4454,48 @@ func (e *FundingRateSniperEngine) signedRequest(ctx context.Context, method stri
 	e.notePlatformRequestSuccess()
 
 	return body, nil
+}
+
+func cloneURLValues(values url.Values) url.Values {
+	cloned := url.Values{}
+	for key, items := range values {
+		cloned[key] = append([]string(nil), items...)
+	}
+	return cloned
+}
+
+func (e *FundingRateSniperEngine) isCriticalExposureRequest(method string, endpoint string, params url.Values) bool {
+	method = strings.ToUpper(strings.TrimSpace(method))
+	endpoint = strings.ToLower(strings.TrimSpace(endpoint))
+	clientOrderID := ""
+	if params != nil {
+		clientOrderID = strings.ToLower(strings.TrimSpace(params.Get("newClientOrderId")))
+	}
+	if strings.Contains(endpoint, "/api/v3/order") || strings.Contains(endpoint, "/fapi/v1/order") {
+		if method == http.MethodDelete {
+			return true
+		}
+		if strings.EqualFold(params.Get("reduceOnly"), "true") {
+			return true
+		}
+		for _, prefix := range []string{"fclose", "ftrim", "frescue", "sclose", "srevert", "sclose_revert", "exp_"} {
+			if strings.HasPrefix(clientOrderID, prefix) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (e *FundingRateSniperEngine) blockNonCriticalRequestByUsedWeight(method string, endpoint string, params url.Values) error {
+	if e == nil || e.client == nil || e.isCriticalExposureRequest(method, endpoint, params) {
+		return nil
+	}
+	usedWeight, threshold := e.client.usedWeightStatus()
+	if threshold <= 0 || usedWeight < threshold {
+		return nil
+	}
+	return e.tripPlatformFuse("used_weight", "critical", fmt.Sprintf("usedWeight=%d 已达到阈值 %d，主动阻断非平仓/非救援请求 endpoint=%s", usedWeight, threshold, endpoint))
 }
 
 func (e *FundingRateSniperEngine) syncServerTimeOffset(ctx context.Context) error {
@@ -2745,23 +4518,62 @@ func (e *FundingRateSniperEngine) serverNow() time.Time {
 	return time.Now().Add(e.serverTimeOffset)
 }
 
+func sleepUntilServerTimeResyncInterval(remaining time.Duration) time.Duration {
+	if remaining <= sleepNearThreshold {
+		return sleepResyncIntervalNear
+	}
+	if remaining <= sleepMidThreshold {
+		return sleepResyncIntervalMid
+	}
+	return sleepResyncIntervalFar
+}
+
+func sleepUntilServerTimeWaitChunk(remaining time.Duration) time.Duration {
+	if remaining <= sleepNearThreshold {
+		return sleepWaitChunkNear
+	}
+	if remaining <= sleepMidThreshold {
+		return sleepWaitChunkMid
+	}
+	return sleepWaitChunkFar
+}
+
 func (e *FundingRateSniperEngine) sleepUntilServerTime(ctx context.Context, target time.Time) error {
+	lastResyncAttemptAt := time.Now()
 	for {
 		if err := e.checkLiveSafetyGuards("sleep_until_server_time"); err != nil {
 			return err
 		}
-		if !target.After(e.serverNow()) {
+		remainingServer := target.Sub(e.serverNow())
+		if remainingServer <= 0 {
 			return nil
 		}
+
+		now := time.Now()
+		resyncInterval := sleepUntilServerTimeResyncInterval(remainingServer)
+		if now.Sub(lastResyncAttemptAt) >= resyncInterval {
+			lastResyncAttemptAt = now
+			if err := e.syncServerTimeOffset(ctx); err != nil && e.logger != nil {
+				e.logger.Printf("等待唤醒期间刷新服务器时间偏移失败，将沿用旧偏移: %v", err)
+			}
+			continue
+		}
+
 		waitUntil := target.Add(-e.serverTimeOffset)
-		remaining := time.Until(waitUntil)
-		if remaining <= 0 {
+		remainingLocal := time.Until(waitUntil)
+		if remainingLocal <= 0 {
 			return nil
 		}
-		if remaining > time.Second {
-			remaining = time.Second
+
+		untilNextResync := resyncInterval - now.Sub(lastResyncAttemptAt)
+		if untilNextResync > 0 && untilNextResync < remainingLocal {
+			remainingLocal = untilNextResync
 		}
-		timer := time.NewTimer(remaining)
+		waitChunk := sleepUntilServerTimeWaitChunk(remainingServer)
+		if waitChunk > 0 && remainingLocal > waitChunk {
+			remainingLocal = waitChunk
+		}
+		timer := time.NewTimer(remainingLocal)
 		select {
 		case <-ctx.Done():
 			if !timer.Stop() {
@@ -2846,8 +4658,13 @@ func estimateTargetCapitalRequirement(cfg EngineConfig, target *MonitoredTarget,
 }
 
 func (e *FundingRateSniperEngine) getJSON(ctx context.Context, endpoint string, target any) error {
-	if err := e.checkPlatformFuse(); err != nil {
-		return err
+	if !isExposureManagerRequest(ctx) {
+		if err := e.checkPlatformFuse(); err != nil {
+			return err
+		}
+		if err := e.blockNonCriticalRequestByUsedWeight(http.MethodGet, endpoint, nil); err != nil {
+			return err
+		}
 	}
 	if err := e.client.getJSON(ctx, endpoint, target); err != nil {
 		if markErr := e.notePlatformRequestResult(endpoint, err); markErr != nil {
@@ -3142,6 +4959,11 @@ func (e *FundingRateSniperEngine) resetCyclePlatformRiskCounters() {
 	e.requestErrorsThisCycle = 0
 	e.platformRejectsThisCycle = 0
 	e.recoveryActionsThisCycle = 0
+	e.protectedIOCAttempts = 0
+	e.protectedIOCCanceled = 0
+	e.protectedIOCExpired = 0
+	e.protectedIOCPartial = 0
+	e.protectedIOCUnfilledSum = 0
 	e.platformFuseReason = ""
 	e.platformFuseTripped = false
 	e.platformCooldownUntil = time.Time{}
@@ -3380,6 +5202,10 @@ func (e *FundingRateSniperEngine) filterTargetsBySymbolCooldown(targets []*Monit
 		}
 		state, ok := e.symbolCooldowns[target.Candidate.Symbol]
 		if !ok {
+			if lockState, locked := e.exposureLocks[target.Candidate.Symbol]; locked {
+				e.logger.Printf("symbol 被 ExposureManager 锁定，跳过 %s phase=%s mode=%s locked_at=%s", target.Candidate.Symbol, lockState.Phase, lockState.Mode, lockState.LockedAt.Format(time.RFC3339))
+				continue
+			}
 			filtered = append(filtered, target)
 			continue
 		}
@@ -3503,6 +5329,7 @@ func maxFloat(a float64, b float64) float64 {
 
 func (e *FundingRateSniperEngine) healthStatusLocked() (string, string, bool) {
 	activeCooldowns := e.listActiveSymbolCooldownsLocked()
+	protectedIOCAttempts, _, _, _, protectedIOCAvgUnfilledRatio, protectedIOCCancelRate := e.protectedIOCStatsLocked()
 	if e.emergencyStopTriggered {
 		return "paused", nonEmpty(e.emergencyStopReason, "检测到 emergency stop，当前任务应立即停止"), false
 	}
@@ -3520,6 +5347,20 @@ func (e *FundingRateSniperEngine) healthStatusLocked() (string, string, bool) {
 	}
 	if remainingRiskBudget(e.cfg.RiskConfig.MaxOrderUncertaintyPerCycle, e.orderUncertaintyCount) == 0 {
 		return "paused", "不确定成交预算已耗尽，当前轮应立即暂停", false
+	}
+	if protectedIOCAttempts >= e.cfg.RiskConfig.ProtectedIOCMinAttempts {
+		if protectedIOCAvgUnfilledRatio >= e.cfg.RiskConfig.ProtectedIOCMaxUnfilledRatio {
+			return "paused", fmt.Sprintf("保护 IOC 平均未成交率 %.2f%% 超过阈值 %.2f%%，当前轮应暂停扩张", protectedIOCAvgUnfilledRatio*100, e.cfg.RiskConfig.ProtectedIOCMaxUnfilledRatio*100), false
+		}
+		if protectedIOCCancelRate >= e.cfg.RiskConfig.ProtectedIOCMaxCancelRate {
+			return "paused", fmt.Sprintf("保护 IOC 撤单/过期率 %.2f%% 超过阈值 %.2f%%，当前轮应暂停扩张", protectedIOCCancelRate*100, e.cfg.RiskConfig.ProtectedIOCMaxCancelRate*100), false
+		}
+		if protectedIOCAvgUnfilledRatio >= e.cfg.RiskConfig.ProtectedIOCMaxUnfilledRatio*0.8 {
+			return "degraded", fmt.Sprintf("保护 IOC 平均未成交率 %.2f%% 已接近阈值 %.2f%%", protectedIOCAvgUnfilledRatio*100, e.cfg.RiskConfig.ProtectedIOCMaxUnfilledRatio*100), true
+		}
+		if protectedIOCCancelRate >= e.cfg.RiskConfig.ProtectedIOCMaxCancelRate*0.8 {
+			return "degraded", fmt.Sprintf("保护 IOC 撤单/过期率 %.2f%% 已接近阈值 %.2f%%", protectedIOCCancelRate*100, e.cfg.RiskConfig.ProtectedIOCMaxCancelRate*100), true
+		}
 	}
 	if e.consecutivePlatformRejects >= maxIntValue(1, e.cfg.RiskConfig.MaxConsecutivePlatformRejects-1) && e.cfg.RiskConfig.MaxConsecutivePlatformRejects > 1 {
 		return "degraded", "平台已接近连续拒单阈值，应谨慎继续", true
@@ -3614,29 +5455,14 @@ func sleepUntil(ctx context.Context, target time.Time) error {
 	}
 }
 
-func intersectGoldenSymbols(spotSymbols []SpotSymbol, futuresSymbols []FuturesSymbol) []string {
-	spotSet := buildSpotUSDTTradingSet(spotSymbols)
-	perpetuals := filterUSDTPERPTradingFutures(futuresSymbols, time.Now().UTC())
-
-	result := make([]string, 0, len(perpetuals))
-	seen := make(map[string]struct{}, len(perpetuals))
-	for _, symbol := range perpetuals {
-		pair := symbol.Pair
-		if pair == "" {
-			pair = symbol.Symbol
-		}
-		if _, ok := spotSet[pair]; !ok {
-			continue
-		}
-		if _, duplicated := seen[pair]; duplicated {
-			continue
-		}
-		seen[pair] = struct{}{}
-		result = append(result, pair)
+func intersectGoldenSymbols(spotSymbols []SpotSymbol, futuresSymbols []FuturesSymbol, preferredQuotes []string) ([]string, map[string]string) {
+	pairByFuture := buildGoldenSymbolSpotPairs(spotSymbols, futuresSymbols, preferredQuotes, time.Now().UTC())
+	result := make([]string, 0, len(pairByFuture))
+	for symbol := range pairByFuture {
+		result = append(result, symbol)
 	}
-
 	sort.Strings(result)
-	return result
+	return result, pairByFuture
 }
 
 func extractTradeRules(filters []ExchangeFilter) SymbolTradeRules {

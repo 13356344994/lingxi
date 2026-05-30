@@ -4,11 +4,16 @@ import "testing"
 
 func TestRuntimeReporterEmitWithReasonTransitionsAndPublishesSnapshot(t *testing.T) {
 	engine := &FundingRateSniperEngine{
-		cfg:             DefaultEngineConfig(),
-		currentStage:    StageReady,
-		symbolCooldowns: make(map[string]symbolCooldownState),
-		runID:           "live-20260529T120000Z-11112222",
-		currentCycleID:  "live-20260529T120000Z-11112222-cycle-33334444",
+		cfg:                     DefaultEngineConfig(),
+		currentStage:            StageReady,
+		symbolCooldowns:         make(map[string]symbolCooldownState),
+		runID:                   "live-20260529T120000Z-11112222",
+		currentCycleID:          "live-20260529T120000Z-11112222-cycle-33334444",
+		protectedIOCAttempts:    6,
+		protectedIOCCanceled:    1,
+		protectedIOCExpired:     1,
+		protectedIOCPartial:     2,
+		protectedIOCUnfilledSum: 1.8,
 	}
 	reporter := newRuntimeReporter(engine)
 
@@ -33,5 +38,14 @@ func TestRuntimeReporterEmitWithReasonTransitionsAndPublishesSnapshot(t *testing
 	}
 	if snapshot.RunID != engine.runID || snapshot.CycleID != engine.currentCycleID {
 		t.Fatalf("unexpected trace ids: %+v", snapshot)
+	}
+	if snapshot.ProtectedIOCAttempts != 6 || snapshot.ProtectedIOCCanceled != 1 || snapshot.ProtectedIOCExpired != 1 || snapshot.ProtectedIOCPartial != 2 {
+		t.Fatalf("unexpected protected ioc counters: %+v", snapshot)
+	}
+	if snapshot.ProtectedIOCAvgUnfilledRatio != 0.3 {
+		t.Fatalf("unexpected protected ioc avg unfilled ratio: %v", snapshot.ProtectedIOCAvgUnfilledRatio)
+	}
+	if snapshot.ProtectedIOCCancelRate != (2.0 / 6.0) {
+		t.Fatalf("unexpected protected ioc cancel rate: %v", snapshot.ProtectedIOCCancelRate)
 	}
 }

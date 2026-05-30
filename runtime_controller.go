@@ -77,6 +77,12 @@ type RuntimeTaskStatus struct {
 	RemainingUncertaintyBudget   int                       `json:"remaining_uncertainty_budget"`
 	RemainingRejectBudget        int                       `json:"remaining_reject_budget"`
 	RemainingErrorBudget         int                       `json:"remaining_error_budget"`
+	ProtectedIOCAttempts         int                       `json:"protected_ioc_attempts"`
+	ProtectedIOCCanceled         int                       `json:"protected_ioc_canceled"`
+	ProtectedIOCExpired          int                       `json:"protected_ioc_expired"`
+	ProtectedIOCPartial          int                       `json:"protected_ioc_partial"`
+	ProtectedIOCAvgUnfilledRatio float64                   `json:"protected_ioc_avg_unfilled_ratio"`
+	ProtectedIOCCancelRate       float64                   `json:"protected_ioc_cancel_rate"`
 	HealthStatus                 string                    `json:"health_status"`
 	HealthSummary                string                    `json:"health_summary"`
 	CanContinue                  bool                      `json:"can_continue"`
@@ -137,6 +143,11 @@ type RuntimeRiskConfig struct {
 	MaxOrderUncertaintyPerCycle   int     `json:"max_order_uncertainty_per_cycle"`
 	MaxConsecutivePlatformRejects int     `json:"max_consecutive_platform_rejects"`
 	MaxConsecutiveRequestErrors   int     `json:"max_consecutive_request_errors"`
+	ProtectedIOCMinAttempts       int     `json:"protected_ioc_min_attempts"`
+	ProtectedIOCMaxUnfilledRatio  float64 `json:"protected_ioc_max_unfilled_ratio"`
+	ProtectedIOCMaxCancelRate     float64 `json:"protected_ioc_max_cancel_rate"`
+	ExitDelayAfterFunding         string  `json:"exit_delay_after_funding"`
+	ExitMonitorInterval           string  `json:"exit_monitor_interval"`
 	ExecutionConfirmTimeout       string  `json:"execution_confirm_timeout"`
 	SymbolAbnormalCooldown        string  `json:"symbol_abnormal_cooldown"`
 	PlatformMinorCooldown         string  `json:"platform_minor_cooldown"`
@@ -174,6 +185,12 @@ type LiveRuntimeSnapshot struct {
 	RemainingUncertaintyBudget   int
 	RemainingRejectBudget        int
 	RemainingErrorBudget         int
+	ProtectedIOCAttempts         int
+	ProtectedIOCCanceled         int
+	ProtectedIOCExpired          int
+	ProtectedIOCPartial          int
+	ProtectedIOCAvgUnfilledRatio float64
+	ProtectedIOCCancelRate       float64
 	HealthStatus                 string
 	HealthSummary                string
 	CanContinue                  bool
@@ -803,6 +820,23 @@ func (c *RuntimeController) UpdateRiskConfig(req RuntimeRiskConfig) (RuntimeRisk
 	if req.MaxConsecutiveRequestErrors <= 0 || req.MaxConsecutiveRequestErrors > 100 {
 		return RuntimeRiskConfig{}, fmt.Errorf("最大连续异常请求数必须在 1 到 100 之间")
 	}
+	if req.ProtectedIOCMinAttempts <= 0 || req.ProtectedIOCMinAttempts > 1000 {
+		return RuntimeRiskConfig{}, fmt.Errorf("IOC 风控最小观察次数必须在 1 到 1000 之间")
+	}
+	if req.ProtectedIOCMaxUnfilledRatio <= 0 || req.ProtectedIOCMaxUnfilledRatio > 1 {
+		return RuntimeRiskConfig{}, fmt.Errorf("IOC 最大未成交比例必须在 (0, 1] 之间")
+	}
+	if req.ProtectedIOCMaxCancelRate <= 0 || req.ProtectedIOCMaxCancelRate > 1 {
+		return RuntimeRiskConfig{}, fmt.Errorf("IOC 最大撤单比例必须在 (0, 1] 之间")
+	}
+	exitDelayAfterFunding, err := parseRuntimeFlexibleDuration(req.ExitDelayAfterFunding, c.cfg.ExecutionConfig.ExitDelayAfterFunding, "结算后最晚退出时限", 0, 30*time.Second)
+	if err != nil {
+		return RuntimeRiskConfig{}, err
+	}
+	exitMonitorInterval, err := parseRuntimeFlexibleDuration(req.ExitMonitorInterval, c.cfg.ExecutionConfig.ExitMonitorInterval, "退出监控轮询间隔", 50*time.Millisecond, 5*time.Second)
+	if err != nil {
+		return RuntimeRiskConfig{}, err
+	}
 	confirmTimeout, err := parseRuntimeFlexibleDuration(req.ExecutionConfirmTimeout, c.cfg.ExecutionConfig.ExecutionConfirmTimeout, "开平仓确认超时", 100*time.Millisecond, 30*time.Second)
 	if err != nil {
 		return RuntimeRiskConfig{}, err
@@ -857,6 +891,11 @@ func (c *RuntimeController) UpdateRiskConfig(req RuntimeRiskConfig) (RuntimeRisk
 	updated.RiskConfig.MaxOrderUncertaintyPerCycle = req.MaxOrderUncertaintyPerCycle
 	updated.RiskConfig.MaxConsecutivePlatformRejects = req.MaxConsecutivePlatformRejects
 	updated.RiskConfig.MaxConsecutiveRequestErrors = req.MaxConsecutiveRequestErrors
+	updated.RiskConfig.ProtectedIOCMinAttempts = req.ProtectedIOCMinAttempts
+	updated.RiskConfig.ProtectedIOCMaxUnfilledRatio = req.ProtectedIOCMaxUnfilledRatio
+	updated.RiskConfig.ProtectedIOCMaxCancelRate = req.ProtectedIOCMaxCancelRate
+	updated.ExecutionConfig.ExitDelayAfterFunding = exitDelayAfterFunding
+	updated.ExecutionConfig.ExitMonitorInterval = exitMonitorInterval
 	updated.ExecutionConfig.ExecutionConfirmTimeout = confirmTimeout
 	updated.RiskConfig.SymbolAbnormalCooldown = symbolCooldown
 	updated.RiskConfig.PlatformMinorCooldown = minorCooldown
@@ -892,6 +931,11 @@ func runtimeRiskConfigFromEngineConfig(cfg EngineConfig) RuntimeRiskConfig {
 		MaxOrderUncertaintyPerCycle:   cfg.RiskConfig.MaxOrderUncertaintyPerCycle,
 		MaxConsecutivePlatformRejects: cfg.RiskConfig.MaxConsecutivePlatformRejects,
 		MaxConsecutiveRequestErrors:   cfg.RiskConfig.MaxConsecutiveRequestErrors,
+		ProtectedIOCMinAttempts:       cfg.RiskConfig.ProtectedIOCMinAttempts,
+		ProtectedIOCMaxUnfilledRatio:  cfg.RiskConfig.ProtectedIOCMaxUnfilledRatio,
+		ProtectedIOCMaxCancelRate:     cfg.RiskConfig.ProtectedIOCMaxCancelRate,
+		ExitDelayAfterFunding:         formatRuntimeRiskDuration(cfg.ExecutionConfig.ExitDelayAfterFunding),
+		ExitMonitorInterval:           formatRuntimeRiskDuration(cfg.ExecutionConfig.ExitMonitorInterval),
 		ExecutionConfirmTimeout:       formatRuntimeRiskDuration(cfg.ExecutionConfig.ExecutionConfirmTimeout),
 		SymbolAbnormalCooldown:        formatRuntimeRiskDuration(cfg.RiskConfig.SymbolAbnormalCooldown),
 		PlatformMinorCooldown:         formatRuntimeRiskDuration(cfg.RiskConfig.PlatformMinorCooldown),
@@ -1080,6 +1124,12 @@ func (c *RuntimeController) recordLiveEngineStatus(snapshot LiveRuntimeSnapshot)
 	c.status.RemainingUncertaintyBudget = snapshot.RemainingUncertaintyBudget
 	c.status.RemainingRejectBudget = snapshot.RemainingRejectBudget
 	c.status.RemainingErrorBudget = snapshot.RemainingErrorBudget
+	c.status.ProtectedIOCAttempts = snapshot.ProtectedIOCAttempts
+	c.status.ProtectedIOCCanceled = snapshot.ProtectedIOCCanceled
+	c.status.ProtectedIOCExpired = snapshot.ProtectedIOCExpired
+	c.status.ProtectedIOCPartial = snapshot.ProtectedIOCPartial
+	c.status.ProtectedIOCAvgUnfilledRatio = snapshot.ProtectedIOCAvgUnfilledRatio
+	c.status.ProtectedIOCCancelRate = snapshot.ProtectedIOCCancelRate
 	c.status.HealthStatus = strings.TrimSpace(snapshot.HealthStatus)
 	c.status.HealthSummary = strings.TrimSpace(snapshot.HealthSummary)
 	c.status.CanContinue = snapshot.CanContinue

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"strings"
 	"sync/atomic"
@@ -17,15 +16,6 @@ func newRuntimeReporter(engine *FundingRateSniperEngine) *RuntimeReporter {
 		return nil
 	}
 	return &RuntimeReporter{engine: engine}
-}
-
-func (r *RuntimeReporter) Emit(stage EngineStage, currentTargets int) {
-	if r == nil || r.engine == nil {
-		return
-	}
-	r.engine.platformRiskMu.Lock()
-	defer r.engine.platformRiskMu.Unlock()
-	r.emitLockedWithTargets(stage, currentTargets, "")
 }
 
 func (r *RuntimeReporter) EmitWithReason(stage EngineStage, currentTargets int, reason string) {
@@ -57,6 +47,7 @@ func (r *RuntimeReporter) emitLockedWithTargets(stage EngineStage, currentTarget
 	if engine.cfg.RiskConfig.MaxCycleOpenNotionalUSDT > 0 {
 		remainingNotionalBudget = maxFloat(engine.cfg.RiskConfig.MaxCycleOpenNotionalUSDT-engine.cycleOpenNotionalUsed, 0)
 	}
+	protectedIOCAttempts, protectedIOCCanceled, protectedIOCExpired, protectedIOCPartial, protectedIOCAvgUnfilledRatio, protectedIOCCancelRate := engine.protectedIOCStatsLocked()
 	snapshot := LiveRuntimeSnapshot{
 		RunID:                        engine.runID,
 		CycleID:                      engine.currentCycleID,
@@ -80,6 +71,12 @@ func (r *RuntimeReporter) emitLockedWithTargets(stage EngineStage, currentTarget
 		RemainingUncertaintyBudget:   remainingRiskBudget(engine.cfg.RiskConfig.MaxOrderUncertaintyPerCycle, engine.orderUncertaintyCount),
 		RemainingRejectBudget:        remainingRiskBudget(engine.cfg.RiskConfig.MaxConsecutivePlatformRejects, engine.platformRejectsThisCycle),
 		RemainingErrorBudget:         remainingRiskBudget(engine.cfg.RiskConfig.MaxConsecutiveRequestErrors, engine.requestErrorsThisCycle),
+		ProtectedIOCAttempts:         protectedIOCAttempts,
+		ProtectedIOCCanceled:         protectedIOCCanceled,
+		ProtectedIOCExpired:          protectedIOCExpired,
+		ProtectedIOCPartial:          protectedIOCPartial,
+		ProtectedIOCAvgUnfilledRatio: protectedIOCAvgUnfilledRatio,
+		ProtectedIOCCancelRate:       protectedIOCCancelRate,
 		HealthStatus:                 healthStatus,
 		HealthSummary:                healthSummary,
 		CanContinue:                  canContinue,
@@ -114,22 +111,6 @@ func (r *RuntimeReporter) emitLockedWithTargets(stage EngineStage, currentTarget
 		snapshot.CooldownUntil = engine.platformCooldownUntil.UTC().Format(time.RFC3339)
 	}
 	engine.liveStatusHook(snapshot)
-}
-
-func (r *RuntimeReporter) TraceIDs() (string, string) {
-	if r == nil || r.engine == nil {
-		return "", ""
-	}
-	r.engine.platformRiskMu.Lock()
-	defer r.engine.platformRiskMu.Unlock()
-	return strings.TrimSpace(r.engine.runID), strings.TrimSpace(r.engine.currentCycleID)
-}
-
-func (r *RuntimeReporter) RecordMetadata() TraceRecordMetadata {
-	if r == nil || r.engine == nil {
-		return TraceRecordMetadata{}
-	}
-	return buildTraceRecordMetadata(r.engine.cfg)
 }
 
 func (r *RuntimeReporter) transitionStageLocked(next EngineStage, reason string) EngineStage {
@@ -171,26 +152,4 @@ func (r *RuntimeReporter) transitionStageLocked(next EngineStage, reason string)
 	engine.currentStageTransitionedAt = transition.Transitioned
 	engine.logger.Printf("状态迁移: %s -> %s | reason=%s", current, transition.To, nonEmpty(transition.Reason, "-"))
 	return transition.To
-}
-
-func (r *RuntimeReporter) CurrentStage() EngineStage {
-	if r == nil || r.engine == nil {
-		return ""
-	}
-	return NormalizeEngineStage(r.engine.currentStage)
-}
-
-func (r *RuntimeReporter) StageContext() (string, string) {
-	if r == nil || r.engine == nil {
-		return "", ""
-	}
-	return r.engine.currentStageReason, r.engine.currentStageTransitionedAt
-}
-
-func (r *RuntimeReporter) String() string {
-	if r == nil || r.engine == nil {
-		return "runtime-reporter<nil>"
-	}
-	stage, transitionedAt := r.StageContext()
-	return fmt.Sprintf("runtime-reporter<stage=%s transitioned_at=%s>", r.CurrentStage(), transitionedAt+stage)
 }

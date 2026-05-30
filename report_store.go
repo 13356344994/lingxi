@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -156,6 +157,8 @@ type SettlementCSVRecord struct {
 	FundingIncome         string `json:"funding_income"`
 	ExpectedFundingIncome string `json:"expected_funding_income"`
 	FundingIncomeDiff     string `json:"funding_income_diff"`
+	FundingIncomePending  bool   `json:"funding_income_pending"`
+	FundingSettledAt      string `json:"funding_settled_at,omitempty"`
 	SpotTradingPnL        string `json:"spot_trading_pnl"`
 	FuturesTradingPnL     string `json:"futures_trading_pnl"`
 	TotalFees             string `json:"total_fees"`
@@ -166,6 +169,33 @@ type SettlementCSVRecord struct {
 	FuturesUSDTDelta      string `json:"futures_usdt_delta"`
 	HasAlert              bool   `json:"has_alert"`
 	Alerts                string `json:"alerts"`
+}
+
+type DustLedgerRecord struct {
+	TraceRecordMetadata
+	RunID        string `json:"run_id"`
+	CycleID      string `json:"cycle_id"`
+	RecordedAt   string `json:"recorded_at"`
+	Phase        string `json:"phase"`
+	Symbol       string `json:"symbol"`
+	Pair         string `json:"pair"`
+	Asset        string `json:"asset"`
+	Quantity     string `json:"quantity"`
+	NotionalUSDT string `json:"notional_usdt"`
+	Reason       string `json:"reason"`
+}
+
+type PendingFundingSettlementRecord struct {
+	TraceRecordMetadata
+	RunID         string          `json:"run_id"`
+	CycleID       string          `json:"cycle_id"`
+	RecordedAt    string          `json:"recorded_at"`
+	NextAttemptAt string          `json:"next_attempt_at"`
+	LastAttemptAt string          `json:"last_attempt_at,omitempty"`
+	LastError     string          `json:"last_error,omitempty"`
+	AttemptCount  int             `json:"attempt_count"`
+	Settlement    CycleSettlement `json:"settlement"`
+	Hedges        []OpenHedge     `json:"hedges"`
 }
 
 // MonitorCSVRecord 表示模块三单目标落盘记录。
@@ -285,21 +315,25 @@ type ExecutionIncidentRecord struct {
 
 // ReportStore 负责 JSON 落盘与读取。
 type ReportStore struct {
-	recordDir       string
-	settlementPath  string
-	monitorPath     string
-	backtestPath    string
-	backtestRunPath string
-	residualPath    string
-	executionPath   string
-	monthlyPath     string
-	mu              sync.Mutex
+	recordDir          string
+	settlementPath     string
+	monitorPath        string
+	backtestPath       string
+	backtestRunPath    string
+	residualPath       string
+	executionPath      string
+	dustPath           string
+	pendingFundingPath string
+	monthlyPath        string
+	mu                 sync.Mutex
 
 	settlementRecords     []SettlementCSVRecord
 	monitorRecords        []MonitorCSVRecord
 	backtestRecords       []BacktestCSVRecord
 	residualRiskRecords   []ResidualRiskCSVRecord
 	executionIncidents    []ExecutionIncidentRecord
+	dustLedgerRecords     []DustLedgerRecord
+	pendingFundingRecords []PendingFundingSettlementRecord
 	residualSeverityStats []ResidualSeverityStats
 	residualScenarioStats []ResidualScenarioStats
 }
@@ -315,14 +349,16 @@ func NewReportStore(recordDir string) (*ReportStore, error) {
 	}
 
 	store := &ReportStore{
-		recordDir:       recordDir,
-		settlementPath:  filepath.Join(recordDir, settlementCSVName),
-		monitorPath:     filepath.Join(recordDir, monitorCSVName),
-		backtestPath:    filepath.Join(recordDir, backtestCSVName),
-		backtestRunPath: filepath.Join(recordDir, backtestRunCSVName),
-		residualPath:    filepath.Join(recordDir, residualCSVName),
-		executionPath:   filepath.Join(recordDir, executionCSVName),
-		monthlyPath:     filepath.Join(recordDir, monthlySimulationLogCSVName),
+		recordDir:          recordDir,
+		settlementPath:     filepath.Join(recordDir, settlementCSVName),
+		monitorPath:        filepath.Join(recordDir, monitorCSVName),
+		backtestPath:       filepath.Join(recordDir, backtestCSVName),
+		backtestRunPath:    filepath.Join(recordDir, backtestRunCSVName),
+		residualPath:       filepath.Join(recordDir, residualCSVName),
+		executionPath:      filepath.Join(recordDir, executionCSVName),
+		dustPath:           filepath.Join(recordDir, "dust_ledger.json"),
+		pendingFundingPath: filepath.Join(recordDir, "pending_funding_settlements.json"),
+		monthlyPath:        filepath.Join(recordDir, monthlySimulationLogCSVName),
 	}
 	if err := store.migrateLegacyCSVFilesLocked(); err != nil {
 		return nil, err
@@ -360,6 +396,7 @@ func (s *ReportStore) AppendSettlement(settlement CycleSettlement) error {
 		FundingIncome:         formatFloat(settlement.FundingIncome),
 		ExpectedFundingIncome: formatFloat(settlement.ExpectedFundingIncome),
 		FundingIncomeDiff:     formatFloat(settlement.FundingIncomeDiff),
+		FundingIncomePending:  settlement.FundingIncomePending,
 		SpotTradingPnL:        formatFloat(settlement.SpotTradingPnL),
 		FuturesTradingPnL:     formatFloat(settlement.FuturesTradingPnL),
 		TotalFees:             formatFloat(settlement.TotalFees),
@@ -371,11 +408,49 @@ func (s *ReportStore) AppendSettlement(settlement CycleSettlement) error {
 		HasAlert:              settlement.HasAlert,
 		Alerts:                strings.Join(settlement.Alerts, " | "),
 	}
+	if !settlement.FundingSettledAt.IsZero() {
+		record.FundingSettledAt = settlement.FundingSettledAt.UTC().Format(time.RFC3339)
+	}
 	s.settlementRecords = append(s.settlementRecords, record)
 	if err := writeJSONFile(s.settlementPath, s.settlementRecords); err != nil {
 		return err
 	}
 	return s.compactJSONIfNeededLocked(s.settlementPath)
+}
+
+func (s *ReportStore) UpdateSettlement(settlement CycleSettlement) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for idx := range s.settlementRecords {
+		record := &s.settlementRecords[idx]
+		if strings.TrimSpace(record.RunID) != strings.TrimSpace(settlement.RunID) || strings.TrimSpace(record.CycleID) != strings.TrimSpace(settlement.CycleID) {
+			continue
+		}
+		record.FundingIncome = formatFloat(settlement.FundingIncome)
+		record.ExpectedFundingIncome = formatFloat(settlement.ExpectedFundingIncome)
+		record.FundingIncomeDiff = formatFloat(settlement.FundingIncomeDiff)
+		record.FundingIncomePending = settlement.FundingIncomePending
+		if settlement.FundingSettledAt.IsZero() {
+			record.FundingSettledAt = ""
+		} else {
+			record.FundingSettledAt = settlement.FundingSettledAt.UTC().Format(time.RFC3339)
+		}
+		record.SpotTradingPnL = formatFloat(settlement.SpotTradingPnL)
+		record.FuturesTradingPnL = formatFloat(settlement.FuturesTradingPnL)
+		record.TotalFees = formatFloat(settlement.TotalFees)
+		record.NetPnL = formatFloat(settlement.NetPnL)
+		record.SnapshotNetPnL = formatFloat(settlement.SnapshotNetPnL)
+		record.ResidualSpotValue = formatFloat(settlement.ResidualSpotValue)
+		record.SpotUSDTDelta = formatFloat(settlement.SpotUSDTDelta)
+		record.FuturesUSDTDelta = formatFloat(settlement.FuturesUSDTDelta)
+		record.HasAlert = settlement.HasAlert
+		record.Alerts = strings.Join(settlement.Alerts, " | ")
+		if err := writeJSONFile(s.settlementPath, s.settlementRecords); err != nil {
+			return err
+		}
+		return s.compactJSONIfNeededLocked(s.settlementPath)
+	}
+	return fmt.Errorf("未找到待更新的结算记录: run_id=%s cycle_id=%s", settlement.RunID, settlement.CycleID)
 }
 
 // AppendMonitorSnapshot 追加模块三每个目标的监控摘要。
@@ -412,6 +487,86 @@ func (s *ReportStore) AppendMonitorSnapshot(stopAt time.Time, targets []*Monitor
 		return err
 	}
 	return s.compactJSONLIfNeededLocked(s.monitorPath)
+}
+
+func (s *ReportStore) AppendDustLedger(record DustLedgerRecord) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.dustLedgerRecords = append(s.dustLedgerRecords, record)
+	if err := writeJSONFile(s.dustPath, s.dustLedgerRecords); err != nil {
+		return err
+	}
+	return s.compactJSONIfNeededLocked(s.dustPath)
+}
+
+func (s *ReportStore) ListDustLedgerRecords(limit int) ([]DustLedgerRecord, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	records := append([]DustLedgerRecord(nil), s.dustLedgerRecords...)
+	if limit > 0 && len(records) > limit {
+		records = records[len(records)-limit:]
+	}
+	slices.Reverse(records)
+	return records, nil
+}
+
+func (s *ReportStore) UpsertPendingFundingSettlement(record PendingFundingSettlementRecord) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for idx := range s.pendingFundingRecords {
+		current := &s.pendingFundingRecords[idx]
+		if strings.TrimSpace(current.RunID) != strings.TrimSpace(record.RunID) || strings.TrimSpace(current.CycleID) != strings.TrimSpace(record.CycleID) {
+			continue
+		}
+		s.pendingFundingRecords[idx] = record
+		if err := writeJSONFile(s.pendingFundingPath, s.pendingFundingRecords); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	s.pendingFundingRecords = append(s.pendingFundingRecords, record)
+	if err := writeJSONFile(s.pendingFundingPath, s.pendingFundingRecords); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *ReportStore) DeletePendingFundingSettlement(runID string, cycleID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	filtered := s.pendingFundingRecords[:0]
+	removed := false
+	for _, record := range s.pendingFundingRecords {
+		if strings.TrimSpace(record.RunID) == strings.TrimSpace(runID) && strings.TrimSpace(record.CycleID) == strings.TrimSpace(cycleID) {
+			removed = true
+			continue
+		}
+		filtered = append(filtered, record)
+	}
+	if !removed {
+		return nil
+	}
+	s.pendingFundingRecords = append([]PendingFundingSettlementRecord(nil), filtered...)
+	return writeJSONFile(s.pendingFundingPath, s.pendingFundingRecords)
+}
+
+func (s *ReportStore) ListPendingFundingSettlements(limit int) ([]PendingFundingSettlementRecord, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	records := append([]PendingFundingSettlementRecord(nil), s.pendingFundingRecords...)
+	sort.Slice(records, func(i int, j int) bool {
+		left := records[i].RecordedAt
+		right := records[j].RecordedAt
+		return left > right
+	})
+	if limit > 0 && len(records) > limit {
+		records = records[:limit]
+	}
+	return records, nil
 }
 
 // AppendExecutionIncident 追加执行事故或恢复动作记录。
@@ -602,7 +757,7 @@ func (s *ReportStore) ClearDashboardData() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	clearTargets := []string{s.settlementPath, s.monitorPath, s.backtestPath, s.residualPath, s.executionPath, s.monthlyPath}
+	clearTargets := []string{s.settlementPath, s.monitorPath, s.backtestPath, s.residualPath, s.executionPath, s.dustPath, s.pendingFundingPath, s.monthlyPath}
 	for _, target := range clearTargets {
 		if strings.HasSuffix(target, ".jsonl") {
 			if err := clearJSONLFile(target); err != nil {
@@ -619,6 +774,8 @@ func (s *ReportStore) ClearDashboardData() error {
 	s.backtestRecords = nil
 	s.residualRiskRecords = nil
 	s.executionIncidents = nil
+	s.dustLedgerRecords = nil
+	s.pendingFundingRecords = nil
 	s.refreshResidualStatsLocked()
 	return nil
 }
@@ -655,6 +812,14 @@ func (s *ReportStore) reloadCachesLocked() error {
 	if err != nil {
 		return err
 	}
+	dustRecords, err := readJSONFile[DustLedgerRecord](s.dustPath)
+	if err != nil {
+		return err
+	}
+	pendingFundingRecords, err := readJSONFile[PendingFundingSettlementRecord](s.pendingFundingPath)
+	if err != nil {
+		return err
+	}
 	if strings.HasSuffix(s.executionPath, ".jsonl") {
 		executionRecords, readErr := readJSONLFile[ExecutionIncidentRecord](s.executionPath)
 		if readErr != nil {
@@ -672,6 +837,8 @@ func (s *ReportStore) reloadCachesLocked() error {
 	s.settlementRecords = settlementRecords
 	s.backtestRecords = backtestRecords
 	s.residualRiskRecords = residualRecords
+	s.dustLedgerRecords = dustRecords
+	s.pendingFundingRecords = pendingFundingRecords
 	s.trimExecutionIncidentsLocked()
 	s.refreshResidualStatsLocked()
 	return nil
