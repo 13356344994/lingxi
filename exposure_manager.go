@@ -26,6 +26,7 @@ type exposureRescueStateName string
 type exposureRescueTask struct {
 	Mode                    exposureRescueMode
 	Phase                   string
+	Direction               fundingCarryDirection
 	Symbol                  string
 	Pair                    string
 	SpotBaseAsset           string
@@ -119,6 +120,7 @@ func writePersistedExposureRescueState(path string, state persistedExposureRescu
 func normalizeExposureRescueTask(task exposureRescueTask) exposureRescueTask {
 	task.Mode = exposureRescueMode(strings.ToLower(strings.TrimSpace(string(task.Mode))))
 	task.Phase = strings.TrimSpace(task.Phase)
+	task.Direction = fundingCarryDirection(strings.ToLower(strings.TrimSpace(string(task.Direction))))
 	task.Symbol = strings.ToUpper(strings.TrimSpace(task.Symbol))
 	task.Pair = strings.ToUpper(strings.TrimSpace(task.Pair))
 	task.SpotBaseAsset = strings.ToUpper(strings.TrimSpace(task.SpotBaseAsset))
@@ -348,27 +350,36 @@ func (m *ExposureManager) handleTask(ctx context.Context, task exposureRescueTas
 }
 
 func (m *ExposureManager) flattenOpenExposure(ctx context.Context, task exposureRescueTask, spotExecutedQty float64, futuresExecutedQty float64) error {
-	return m.dynamicallyFlattenExposure(ctx, task, maxFloat(spotExecutedQty, 0), -maxFloat(futuresExecutedQty, 0))
+	spotFallback := maxFloat(spotExecutedQty, 0)
+	if resolvedFundingCarryDirection(task.Direction, 0) == fundingCarryDirectionNegative {
+		spotFallback = -spotFallback
+	}
+	return m.dynamicallyFlattenExposure(ctx, task, spotFallback, task.Direction.futuresPositionSign()*maxFloat(futuresExecutedQty, 0))
 }
 
 func (m *ExposureManager) flattenCloseExposure(ctx context.Context, task exposureRescueTask, soldSpotQty float64, futuresCloseQty float64) error {
-	remainingFuturesShort := maxFloat(task.InitialHedgeQty-futuresCloseQty, 0)
+	direction := resolvedFundingCarryDirection(task.Direction, 0)
+	remainingFuturesQty := maxFloat(task.InitialHedgeQty-futuresCloseQty, 0)
 	remainingSpotQty := maxFloat(task.InitialHedgeQty-soldSpotQty, 0)
-	return m.dynamicallyFlattenExposure(ctx, task, remainingSpotQty, -remainingFuturesShort)
+	spotFallback := remainingSpotQty
+	if direction == fundingCarryDirectionNegative {
+		spotFallback = -remainingSpotQty
+	}
+	return m.dynamicallyFlattenExposure(ctx, task, spotFallback, direction.futuresPositionSign()*remainingFuturesQty)
 }
 
-func (m *ExposureManager) dynamicallyFlattenExposure(ctx context.Context, task exposureRescueTask, fallbackSpotQty float64, fallbackFuturesPosition float64) error {
+func (m *ExposureManager) dynamicallyFlattenExposure(ctx context.Context, task exposureRescueTask, fallbackSpotPosition float64, fallbackFuturesPosition float64) error {
 	engine := m.engine
 	attempt := 0
 	for {
 		attempt++
-		spotQty, futuresPositionAmt, err := m.currentExposureState(ctx, task, fallbackSpotQty, fallbackFuturesPosition)
+		spotPositionAmt, futuresPositionAmt, err := m.currentExposureState(ctx, task, fallbackSpotPosition, fallbackFuturesPosition)
 		if err != nil {
 			return err
 		}
-		fallbackSpotQty = spotQty
+		fallbackSpotPosition = spotPositionAmt
 		fallbackFuturesPosition = futuresPositionAmt
-		if math.Abs(futuresPositionAmt) <= executionQtyTolerance && spotQty <= executionQtyTolerance {
+		if math.Abs(futuresPositionAmt) <= executionQtyTolerance && math.Abs(spotPositionAmt) <= executionQtyTolerance {
 			return nil
 		}
 		if math.Abs(futuresPositionAmt) > executionQtyTolerance {
@@ -392,8 +403,15 @@ func (m *ExposureManager) dynamicallyFlattenExposure(ctx context.Context, task e
 				return err
 			}
 		}
-		if spotQty > executionQtyTolerance {
-			if err := m.flattenSpotResidual(ctx, task, spotQty, "SELL", "exposure_rescue_sell_spot"); err != nil {
+		if math.Abs(spotPositionAmt) > executionQtyTolerance {
+			spotSide := "SELL"
+			action := "exposure_rescue_sell_spot"
+			spotQty := math.Abs(spotPositionAmt)
+			if spotPositionAmt < 0 {
+				spotSide = "BUY"
+				action = "exposure_rescue_buy_spot"
+			}
+			if err := m.flattenSpotResidual(ctx, task, spotQty, spotSide, action); err != nil {
 				return err
 			}
 		}
@@ -401,19 +419,29 @@ func (m *ExposureManager) dynamicallyFlattenExposure(ctx context.Context, task e
 			break
 		}
 	}
-	spotQty, futuresPositionAmt, _ := m.currentExposureState(context.Background(), task, fallbackSpotQty, fallbackFuturesPosition)
-	if math.Abs(futuresPositionAmt) <= executionQtyTolerance && spotQty <= executionQtyTolerance {
+	spotPositionAmt, futuresPositionAmt, _ := m.currentExposureState(context.Background(), task, fallbackSpotPosition, fallbackFuturesPosition)
+	if math.Abs(futuresPositionAmt) <= executionQtyTolerance && math.Abs(spotPositionAmt) <= executionQtyTolerance {
 		return nil
 	}
-	return fmt.Errorf("ExposureManager 在超时前未能完全收敛: spotQty=%.8f futuresPositionAmt=%.8f", spotQty, futuresPositionAmt)
+	return fmt.Errorf("ExposureManager 在超时前未能完全收敛: spotPositionAmt=%.8f futuresPositionAmt=%.8f", spotPositionAmt, futuresPositionAmt)
 }
 
-func (m *ExposureManager) currentExposureState(ctx context.Context, task exposureRescueTask, fallbackSpotQty float64, fallbackFuturesPosition float64) (float64, float64, error) {
+func (m *ExposureManager) currentExposureState(ctx context.Context, task exposureRescueTask, fallbackSpotPosition float64, fallbackFuturesPosition float64) (float64, float64, error) {
 	engine := m.engine
-	spotQty := maxFloat(fallbackSpotQty, 0)
+	direction := resolvedFundingCarryDirection(task.Direction, 0)
+	spotPositionAmt := fallbackSpotPosition
 	if strings.TrimSpace(task.SpotBaseAsset) != "" {
-		if balances, _, err := engine.fetchSpotAccountBalances(ctx); err == nil {
-			spotQty = maxFloat(balances[task.SpotBaseAsset], 0)
+		if direction == fundingCarryDirectionNegative {
+			if marginState, err := engine.fetchCrossMarginAccountState(ctx); err == nil {
+				asset := marginState.Assets[task.SpotBaseAsset]
+				if math.Abs(asset.NetAsset) > executionQtyTolerance {
+					spotPositionAmt = asset.NetAsset
+				}
+			} else if m.logger != nil {
+				m.logger.Printf("ExposureManager 读取全仓账户失败，沿用回退现货方向仓位: %v", err)
+			}
+		} else if balances, _, err := engine.fetchSpotAccountBalances(ctx); err == nil {
+			spotPositionAmt = maxFloat(balances[task.SpotBaseAsset], 0)
 		} else if m.logger != nil {
 			m.logger.Printf("ExposureManager 读取现货余额失败，沿用回退数量: %v", err)
 		}
@@ -425,7 +453,7 @@ func (m *ExposureManager) currentExposureState(ctx context.Context, task exposur
 	} else if m.logger != nil {
 		m.logger.Printf("ExposureManager 读取合约仓位失败，沿用回退仓位: %v", err)
 	}
-	return spotQty, futuresPositionAmt, nil
+	return spotPositionAmt, futuresPositionAmt, nil
 }
 
 func (m *ExposureManager) flattenSpotResidual(ctx context.Context, task exposureRescueTask, quantity float64, side string, action string) error {
@@ -458,11 +486,11 @@ func (m *ExposureManager) flattenSpotResidual(ctx context.Context, task exposure
 	chaseOptions := buildAnchoredSpotChaseOptions(side, referencePrice, spotRule.PriceTick)
 	switch strings.ToUpper(strings.TrimSpace(side)) {
 	case "SELL":
-		if _, err := engine.placeSpotChasingOrderWithOptions(ctx, task.Pair, "SELL", normalizedQty, "exp_sell", chaseOptions); err != nil {
+		if _, err := engine.placeDirectionalSpotChasingOrderWithOptions(ctx, task.Pair, "SELL", normalizedQty, "exp_sell", chaseOptions, resolvedFundingCarryDirection(task.Direction, 0).spotVenue()); err != nil {
 			return fmt.Errorf("ExposureManager 卖出现货残腿失败: %w", err)
 		}
 	case "BUY":
-		if _, err := engine.placeSpotChasingOrderWithOptions(ctx, task.Pair, "BUY", normalizedQty, "exp_buy", chaseOptions); err != nil {
+		if _, err := engine.placeDirectionalSpotChasingOrderWithOptions(ctx, task.Pair, "BUY", normalizedQty, "exp_buy", chaseOptions, resolvedFundingCarryDirection(task.Direction, 0).spotVenue()); err != nil {
 			return fmt.Errorf("ExposureManager 买回现货残腿失败: %w", err)
 		}
 	default:

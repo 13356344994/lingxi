@@ -23,6 +23,7 @@ func TestAssessPersistedOpenHedgeExposure(t *testing.T) {
 		entries,
 		map[string]float64{"BTC": 0.0102},
 		map[string]float64{"BTCUSDT": -0.0101},
+		nil,
 		0.0001,
 		10,
 	)

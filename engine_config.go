@@ -46,6 +46,7 @@ type StrategyConfig struct {
 	ScanWindow               time.Duration
 	MonitorInterval          time.Duration
 	MonitorStopLead          time.Duration
+	LiveFundingDirectionMode string
 	MinEstimatedFundingRate  float64
 	MaxEstimatedFundingRate  float64
 	MaxFundingRateJump       float64
@@ -200,6 +201,7 @@ func DefaultEngineConfig() EngineConfig {
 			ScanWindow:               3 * time.Minute,
 			MonitorInterval:          500 * time.Millisecond,
 			MonitorStopLead:          30 * time.Second,
+			LiveFundingDirectionMode: "positive_only",
 			MinEstimatedFundingRate:  0.0025,
 			MaxEstimatedFundingRate:  0.0300,
 			MaxFundingRateJump:       0.0150,
@@ -345,6 +347,7 @@ func (cfg EngineConfig) Validate() error {
 	appendIssue(cfg.StrategyConfig.MonitorInterval > 0, "MonitorInterval 必须大于 0")
 	appendIssue(cfg.StrategyConfig.MonitorStopLead > 0, "MonitorStopLead 必须大于 0")
 	appendIssue(cfg.StrategyConfig.MonitorStopLead < cfg.StrategyConfig.ScanWindow, "MonitorStopLead 必须小于 ScanWindow")
+	appendIssue(isValidLiveFundingDirectionMode(cfg.StrategyConfig.LiveFundingDirectionMode), "LiveFundingDirectionMode 必须是 positive_only、negative_only 或 both")
 	appendIssue(cfg.StrategyConfig.MinEstimatedFundingRate > 0, "MinEstimatedFundingRate 必须大于 0")
 	appendIssue(cfg.StrategyConfig.MaxEstimatedFundingRate > cfg.StrategyConfig.MinEstimatedFundingRate, "MaxEstimatedFundingRate 必须大于 MinEstimatedFundingRate")
 	appendIssue(cfg.StrategyConfig.MaxFundingRateJump > 0, "MaxFundingRateJump 必须大于 0")

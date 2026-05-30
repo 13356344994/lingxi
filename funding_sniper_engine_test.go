@@ -147,6 +147,71 @@ func TestPlaceFuturesBatchOrdersIdempotentSkipsFallbackForDeterministicReject(t 
 	}
 }
 
+func TestPlaceFuturesBatchOrdersIdempotentFallsBackAfterExpiredProtectedOpen(t *testing.T) {
+	var batchCalls int32
+	var singleOrderCalls int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/fapi/v1/batchOrders":
+			atomic.AddInt32(&batchCalls, 1)
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`[{"symbol":"BTCUSDT","orderId":1,"status":"EXPIRED","clientOrderId":"cid-1","executedQty":"0","origQty":"1","side":"SELL"}]`))
+		case "/fapi/v1/ticker/bookTicker":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"symbol":"BTCUSDT","bidPrice":"100","askPrice":"100.1"}`))
+		case "/fapi/v1/order":
+			atomic.AddInt32(&singleOrderCalls, 1)
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"symbol":"BTCUSDT","orderId":2,"status":"FILLED","clientOrderId":"cid-2","executedQty":"1","origQty":"1","avgPrice":"100","side":"SELL"}`))
+		default:
+			t.Fatalf("unexpected request path: %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	engine := &FundingRateSniperEngine{
+		client: &BinanceClient{
+			futuresBaseURL: server.URL,
+			apiKey:         "demo-api-key",
+			secretKey:      "demo-secret-key",
+			httpClient:     server.Client(),
+		},
+		cfg:                DefaultEngineConfig(),
+		logger:             log.New(io.Discard, "", 0),
+		runtimeReporter:    newRuntimeReporter(nil),
+		futuresTickerCache: NewBookTickerCache(),
+		futuresRules: map[string]SymbolTradeRules{
+			"BTCUSDT": {StepSize: 0.001, PriceTick: 0.1, MinQty: 0.001, MinNotional: 1},
+		},
+		futuresOrderHub: NewOrderEventHub(),
+	}
+	engine.cfg.ExecutionConfig.FuturesLimitSlippageRate = 0.001
+	engine.futuresTickerCache.UpdateAt(BookTicker{Symbol: "BTCUSDT", BidPrice: "100", AskPrice: "100.1"}, time.Now().UTC())
+
+	results, err := engine.placeFuturesBatchOrdersIdempotent(context.Background(), []FuturesBatchOrderRequest{{
+		Symbol:           "BTCUSDT",
+		Side:             "SELL",
+		Type:             "LIMIT",
+		Quantity:         "1",
+		Price:            "99.9",
+		TimeInForce:      "IOC",
+		NewClientOrderID: "cid-1",
+		NewOrderRespType: "RESULT",
+	}})
+	if err != nil {
+		t.Fatalf("placeFuturesBatchOrdersIdempotent() error = %v", err)
+	}
+	if atomic.LoadInt32(&batchCalls) != 1 {
+		t.Fatalf("expected one batch call, got %d", batchCalls)
+	}
+	if atomic.LoadInt32(&singleOrderCalls) < 1 {
+		t.Fatalf("expected fallback single futures order call, got %d", singleOrderCalls)
+	}
+	if len(results) != 1 || results[0].OrderID != 2 {
+		t.Fatalf("expected fallback result to replace expired batch result, got %+v", results)
+	}
+}
+
 func TestNewAuthenticatedBinanceClientUsesNetworkConfig(t *testing.T) {
 	client, err := NewAuthenticatedBinanceClient(SecretConfig{
 		APIKey:   "demo-api-key",

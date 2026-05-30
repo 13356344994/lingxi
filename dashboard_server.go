@@ -37,6 +37,8 @@ type DashboardServer struct {
 // DashboardSummaryResponse 表示面板一次刷新所需的聚合数据。
 type DashboardSummaryResponse struct {
 	RuntimeStatus         RuntimeTaskStatus         `json:"runtime_status"`
+	CapitalSnapshot       RuntimeCapitalSnapshot    `json:"capital_snapshot"`
+	CapitalSnapshotError  string                    `json:"capital_snapshot_error"`
 	RuntimeLogs           []RuntimeLogRecord        `json:"runtime_logs"`
 	RuntimeConfig         RuntimeRiskConfig         `json:"runtime_config"`
 	ExecutionIncidents    []ExecutionIncidentRecord `json:"execution_incidents"`
@@ -87,6 +89,7 @@ func (s *DashboardServer) Start(ctx context.Context) error {
 	mux.HandleFunc("/api/runtime/clear-logs", s.handleRuntimeClearLogsAPI)
 	mux.HandleFunc("/api/runtime/clear-data", s.handleRuntimeClearDataAPI)
 	mux.HandleFunc("/api/runtime/clear-cache", s.handleRuntimeClearCacheAPI)
+	mux.HandleFunc("/api/runtime/capital", s.handleRuntimeCapitalAPI)
 	mux.HandleFunc("/api/runtime/start", s.handleRuntimeStartAPI)
 	mux.HandleFunc("/api/runtime/stop", s.handleRuntimeStopAPI)
 	mux.Handle("/records/", http.StripPrefix("/records/", http.FileServer(http.Dir(s.store.RecordDir()))))
@@ -202,9 +205,18 @@ func (s *DashboardServer) handleDashboardSummaryAPI(w http.ResponseWriter, r *ht
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	capitalSnapshot := RuntimeCapitalSnapshot{}
+	capitalSnapshotError := ""
+	if snapshot, snapshotErr := s.controller.CurrentCapitalSnapshot(); snapshotErr != nil {
+		capitalSnapshotError = snapshotErr.Error()
+	} else {
+		capitalSnapshot = snapshot
+	}
 
 	writeJSON(w, DashboardSummaryResponse{
 		RuntimeStatus:         s.controller.Status(),
+		CapitalSnapshot:       capitalSnapshot,
+		CapitalSnapshotError:  capitalSnapshotError,
 		RuntimeLogs:           runtimeLogs,
 		RuntimeConfig:         s.controller.CurrentRiskConfig(),
 		ExecutionIncidents:    executionIncidents,
@@ -387,6 +399,34 @@ func (s *DashboardServer) handleRuntimeClearCacheAPI(w http.ResponseWriter, r *h
 	}
 	s.auditControlAction(r, "clear_cache", true, "历史缓存已清空")
 	writeJSON(w, map[string]string{"message": "历史缓存已清空"})
+}
+
+func (s *DashboardServer) handleRuntimeCapitalAPI(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if !s.authorizeRuntimeControl(w, r, "capital_adjust") {
+		return
+	}
+	if s.controller == nil {
+		http.Error(w, "后台控制器未初始化", http.StatusServiceUnavailable)
+		return
+	}
+	var req RuntimeCapitalAdjustmentRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		s.auditControlAction(r, "capital_adjust", false, fmt.Sprintf("解析仓位调整参数失败: %v", err))
+		http.Error(w, fmt.Sprintf("解析仓位调整参数失败: %v", err), http.StatusBadRequest)
+		return
+	}
+	result, err := s.controller.AdjustTradingCapital(req)
+	if err != nil {
+		s.auditControlAction(r, "capital_adjust", false, err.Error())
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	s.auditControlAction(r, "capital_adjust", true, result.Message)
+	writeJSON(w, result)
 }
 
 func (s *DashboardServer) handleRuntimeStartAPI(w http.ResponseWriter, r *http.Request) {

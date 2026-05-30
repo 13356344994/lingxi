@@ -56,6 +56,7 @@ func envConfigOverrides() map[string]string {
 		"network.public_get_apikey_whitelist",
 		"strategy.per_symbol_quote_usdt",
 		"strategy.max_targets",
+		"strategy.live_funding_direction_mode",
 		"strategy.min_estimated_funding_rate",
 		"strategy.max_estimated_funding_rate",
 		"strategy.max_scan_basis_rate",
@@ -187,6 +188,8 @@ func applyEngineConfigOverrides(cfg *EngineConfig, values map[string]string) err
 				return fmt.Errorf("%s: %w", key, err)
 			}
 			cfg.StrategyConfig.PerSymbolQuoteUSDT = parsed
+		case "strategy.live_funding_direction_mode", "live_funding_direction_mode":
+			cfg.StrategyConfig.LiveFundingDirectionMode = value
 		case "strategy.max_targets", "max_targets":
 			parsed, err := parseConfigInt(value)
 			if err != nil {

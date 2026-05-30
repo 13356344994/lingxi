@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -13,6 +14,8 @@ const protectedExecutionIOC = "IOC"
 
 const protectedTickerMaxStaleness = 500 * time.Millisecond
 const protectedTickerSilentSymbolMaxStaleness = 15 * time.Second
+const widenedProtectedIOCMultiplier = 3.0
+const blindStateHardDeadline = 2 * time.Second
 
 func normalizedSTPMode(mode string) string {
 	return strings.ToUpper(strings.TrimSpace(mode))
@@ -125,6 +128,69 @@ func normalizeProtectedLimitPrice(side string, referencePrice float64, slippageR
 	}
 }
 
+func widenedProtectedLimitPrice(side string, referencePrice float64, slippageRate float64, tickSize float64) float64 {
+	return normalizeProtectedLimitPrice(side, referencePrice, slippageRate*widenedProtectedIOCMultiplier, tickSize)
+}
+
+func (e *FundingRateSniperEngine) percentPriceRejectLikely(symbol string, side string, orderPrice float64, referencePrice float64, rules SymbolTradeRules) (bool, string) {
+	if orderPrice <= 0 || referencePrice <= 0 {
+		return false, ""
+	}
+	side = strings.ToUpper(strings.TrimSpace(side))
+	upper := 0.0
+	lower := 0.0
+	switch side {
+	case "BUY":
+		upper = rules.BidPercentPriceUp
+		lower = rules.BidPercentPriceDown
+	case "SELL":
+		upper = rules.AskPercentPriceUp
+		lower = rules.AskPercentPriceDown
+	}
+	if upper <= 0 {
+		upper = rules.PercentPriceUp
+	}
+	if lower <= 0 {
+		lower = rules.PercentPriceDown
+	}
+	if upper > 0 && orderPrice > referencePrice*upper {
+		return true, fmt.Sprintf("price %.8f exceeds upper percent-price bound %.8f", orderPrice, referencePrice*upper)
+	}
+	if lower > 0 && orderPrice < referencePrice*lower {
+		return true, fmt.Sprintf("price %.8f below lower percent-price bound %.8f", orderPrice, referencePrice*lower)
+	}
+	return false, ""
+}
+
+func isPercentPriceFilterError(err error) bool {
+	if err == nil {
+		return false
+	}
+	text := strings.ToUpper(err.Error())
+	return strings.Contains(text, "PERCENT_PRICE") || strings.Contains(text, "PERCENT_PRICE_BY_SIDE")
+}
+
+func isOpenProtectedFuturesOrder(order FuturesBatchOrderRequest) bool {
+	return isProtectedIOCRequestType(order.Type, order.TimeInForce) && !strings.EqualFold(strings.TrimSpace(order.ReduceOnly), "true")
+}
+
+func futuresProtectedOpenFallbackNeeded(order FuturesBatchOrderRequest, result FuturesBatchOrderResult) bool {
+	if !isOpenProtectedFuturesOrder(order) {
+		return false
+	}
+	if parseFloat(result.ExecutedQty) > executionQtyTolerance {
+		return false
+	}
+	status := strings.ToUpper(strings.TrimSpace(result.Status))
+	if status == "EXPIRED" || status == "CANCELED" || status == "REJECTED" {
+		return true
+	}
+	if result.Code != 0 && isPercentPriceFilterError(fmt.Errorf("%s", result.Msg)) {
+		return true
+	}
+	return false
+}
+
 func (e *FundingRateSniperEngine) spotProtectedOrderParams(ctx context.Context, symbol string, side string, quantity float64, clientOrderID string) (url.Values, error) {
 	params := url.Values{}
 	rules := e.spotRules[symbol]
@@ -201,17 +267,137 @@ func (e *FundingRateSniperEngine) futuresProtectedOrderParams(ctx context.Contex
 	return params, nil
 }
 
+func (e *FundingRateSniperEngine) placeSpotProtectedOpenDualTrack(ctx context.Context, symbol string, side string, quantity float64, clientOrderID string, protectedParams url.Values) (SpotOrderResponse, error) {
+	action := "spot_market_" + strings.ToLower(side)
+	if err := e.noteOrderPlaced(action, fmt.Sprintf("%s qty=%s", symbol, formatFloat(quantity)), 1, strings.EqualFold(side, "BUY")); err != nil {
+		return SpotOrderResponse{}, err
+	}
+
+	body, err := e.placeSignedOrder(ctx, e.spotOrderRequestPath(), protectedParams)
+	if err == nil {
+		var result SpotOrderResponse
+		if unmarshalErr := json.Unmarshal(body, &result); unmarshalErr != nil {
+			return SpotOrderResponse{}, fmt.Errorf("解析现货保护单回执失败: %w", unmarshalErr)
+		}
+		e.noteProtectedIOCResult(symbol, "spot", quantity, parseFloat(result.ExecutedQty), result.Status)
+		if parseFloat(result.ExecutedQty) > executionQtyTolerance || !strings.EqualFold(result.Status, "EXPIRED") {
+			return result, nil
+		}
+	} else if !isPercentPriceFilterError(err) && !isUnknownOrderRequestError(err) {
+		return SpotOrderResponse{}, err
+	}
+
+	ticker, tickerErr := e.fetchSpotBookTicker(ctx, symbol)
+	if tickerErr != nil {
+		if err != nil {
+			return SpotOrderResponse{}, err
+		}
+		return SpotOrderResponse{}, tickerErr
+	}
+	referencePrice := parseFloat(ticker.AskPrice)
+	if strings.EqualFold(side, "SELL") {
+		referencePrice = parseFloat(ticker.BidPrice)
+	}
+	rules := e.spotRules[symbol]
+	widenedPrice := widenedProtectedLimitPrice(side, referencePrice, e.cfg.ExecutionConfig.SpotLimitSlippageRate, rules.PriceTick)
+	if rejectLikely, _ := e.percentPriceRejectLikely(symbol, side, widenedPrice, referencePrice, rules); !rejectLikely && widenedPrice > 0 {
+		widenedClientOrderID := newClientOrderID("sopenw", symbol)
+		widenedParams, buildErr := e.buildSpotLimitOrderParams(symbol, side, quantity, widenedClientOrderID, "LIMIT", protectedExecutionIOC, widenedPrice)
+		if buildErr == nil {
+			widenedOrder, widenedErr := e.placeSpotOrderIdempotentWithParams(ctx, symbol, side, quantity, widenedClientOrderID, "spot_"+strings.ToLower(side)+"_open_widened_ioc", widenedParams)
+			if widenedErr == nil && parseFloat(widenedOrder.ExecutedQty) > executionQtyTolerance {
+				return widenedOrder, nil
+			}
+			if widenedErr == nil && !strings.EqualFold(widenedOrder.Status, "EXPIRED") {
+				return widenedOrder, nil
+			}
+		}
+	}
+
+	marketParams := url.Values{}
+	marketParams.Set("symbol", symbol)
+	marketParams.Set("side", side)
+	marketParams.Set("type", "MARKET")
+	marketParams.Set("quantity", formatQuantityForRules(quantity, rules, 0))
+	marketParams.Set("newOrderRespType", "FULL")
+	if mode := normalizedSTPMode(e.cfg.ExecutionConfig.SpotSTPMode); mode != "" {
+		marketParams.Set("selfTradePreventionMode", mode)
+	}
+	if clientOrderID != "" {
+		marketParams.Set("newClientOrderId", newClientOrderID("sopenm", symbol))
+	}
+	marketOrder, marketErr := e.placeSpotOrderIdempotentWithParams(ctx, symbol, side, quantity, marketParams.Get("newClientOrderId"), "spot_"+strings.ToLower(side)+"_open_market_fallback", marketParams)
+	if marketErr != nil {
+		return SpotOrderResponse{}, marketErr
+	}
+	return marketOrder, nil
+}
+
+func (e *FundingRateSniperEngine) placeFuturesProtectedOpenDualTrack(ctx context.Context, order FuturesBatchOrderRequest, action string, submit func(context.Context, FuturesBatchOrderRequest, string) (OrderExecutionSnapshot, error)) (OrderExecutionSnapshot, error) {
+	snapshot, err := submit(ctx, order, action)
+	if err == nil && (snapshot.ExecutedQty > executionQtyTolerance || !strings.EqualFold(snapshot.Status, "EXPIRED")) {
+		return snapshot, nil
+	}
+	if err != nil && !isPercentPriceFilterError(err) && !isUnknownOrderStateError(err) && !isUnknownOrderRequestError(err) {
+		return OrderExecutionSnapshot{}, err
+	}
+
+	ticker, tickerErr := e.fetchFuturesBookTicker(ctx, order.Symbol)
+	if tickerErr != nil {
+		if err != nil {
+			return OrderExecutionSnapshot{}, err
+		}
+		return OrderExecutionSnapshot{}, tickerErr
+	}
+	referencePrice := parseFloat(ticker.AskPrice)
+	if strings.EqualFold(order.Side, "SELL") {
+		referencePrice = parseFloat(ticker.BidPrice)
+	}
+	rules := e.futuresRules[order.Symbol]
+	widenedPrice := widenedProtectedLimitPrice(order.Side, referencePrice, e.cfg.ExecutionConfig.FuturesLimitSlippageRate, rules.PriceTick)
+	if rejectLikely, _ := e.percentPriceRejectLikely(order.Symbol, order.Side, widenedPrice, referencePrice, rules); !rejectLikely && widenedPrice > 0 {
+		widenedOrder := order
+		widenedOrder.Price = formatPriceForTick(widenedPrice, rules.PriceTick)
+		widenedOrder.Type = "LIMIT"
+		widenedOrder.TimeInForce = protectedExecutionIOC
+		widenedOrder.NewClientOrderID = newClientOrderID("fopenw", order.Symbol)
+		widenedSnapshot, widenedErr := submit(ctx, widenedOrder, action+"_widened_ioc")
+		if widenedErr == nil && (widenedSnapshot.ExecutedQty > executionQtyTolerance || !strings.EqualFold(widenedSnapshot.Status, "EXPIRED")) {
+			return widenedSnapshot, nil
+		}
+		if widenedErr != nil && !isUnknownOrderStateError(widenedErr) && !isUnknownOrderRequestError(widenedErr) && !isPercentPriceFilterError(widenedErr) {
+			return OrderExecutionSnapshot{}, widenedErr
+		}
+	}
+
+	marketOrder := order
+	marketOrder.Type = "MARKET"
+	marketOrder.Price = ""
+	marketOrder.TimeInForce = ""
+	marketOrder.PriceProtect = ""
+	marketOrder.NewClientOrderID = newClientOrderID("fopenm", order.Symbol)
+	return submit(ctx, marketOrder, action+"_market_fallback")
+}
+
 func (e *FundingRateSniperEngine) buildProtectedOpenFuturesOrder(target *MonitoredTarget) FuturesBatchOrderRequest {
+	direction := resolvedFundingCarryDirection(target.Candidate.Direction, target.Candidate.EstimatedRate)
+	side := direction.openFuturesSide()
 	order := FuturesBatchOrderRequest{
 		Symbol:           target.Candidate.Symbol,
-		Side:             "SELL",
+		Side:             side,
 		Type:             "MARKET",
 		Quantity:         formatQuantityForRules(target.Candidate.OrderQuantity, e.futuresRules[target.Candidate.Symbol], target.Candidate.QuantityPrecision),
 		SelfTradeMode:    normalizedSTPMode(e.cfg.ExecutionConfig.FuturesSTPMode),
 		NewClientOrderID: newClientOrderID("fopen", target.Candidate.Symbol),
 		NewOrderRespType: "RESULT",
 	}
-	referencePrice := maxFloat(target.LastFuturesVWAP, target.LastFuturesBid)
+	referencePrice := maxFloat(target.LastFuturesVWAP, target.Candidate.MarkPrice)
+	if side == "SELL" {
+		referencePrice = maxFloat(target.LastFuturesVWAP, target.LastFuturesBid)
+		if referencePrice <= 0 {
+			referencePrice = target.Candidate.MarkPrice
+		}
+	}
 	if referencePrice <= 0 {
 		referencePrice = target.Candidate.MarkPrice
 	}
@@ -220,9 +406,11 @@ func (e *FundingRateSniperEngine) buildProtectedOpenFuturesOrder(target *Monitor
 }
 
 func (e *FundingRateSniperEngine) buildProtectedCloseFuturesOrder(ctx context.Context, hedge OpenHedge) FuturesBatchOrderRequest {
+	direction := hedge.carryDirection()
+	side := direction.closeFuturesSide()
 	order := FuturesBatchOrderRequest{
 		Symbol:           hedge.Target.Symbol,
-		Side:             "BUY",
+		Side:             side,
 		Type:             "MARKET",
 		Quantity:         formatQuantityForRules(hedge.HedgeQty, e.futuresRules[hedge.Target.Symbol], hedge.Target.QuantityPrecision),
 		ReduceOnly:       "true",
@@ -239,6 +427,9 @@ func (e *FundingRateSniperEngine) buildProtectedCloseFuturesOrder(ctx context.Co
 		return order
 	}
 	referencePrice := parseFloat(ticker.AskPrice)
+	if side == "SELL" {
+		referencePrice = parseFloat(ticker.BidPrice)
+	}
 	if referencePrice <= 0 {
 		return order
 	}

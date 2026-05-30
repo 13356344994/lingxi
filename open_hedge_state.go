@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -21,21 +22,22 @@ type persistedOpenHedgeState struct {
 }
 
 type persistedOpenHedgeEntry struct {
-	RunID                string  `json:"run_id,omitempty"`
-	CycleID              string  `json:"cycle_id,omitempty"`
-	Symbol               string  `json:"symbol"`
-	Pair                 string  `json:"pair"`
-	SpotBaseAsset        string  `json:"spot_base_asset"`
-	HedgeQty             float64 `json:"hedge_qty"`
-	SpotBaseQty          float64 `json:"spot_base_qty"`
-	OpenSpotQuoteQty     float64 `json:"open_spot_quote_qty"`
-	OpenFuturesAvgPrice  float64 `json:"open_futures_avg_price"`
-	ReferenceSpotPrice   float64 `json:"reference_spot_price"`
-	SpotOrderID          int64   `json:"spot_order_id,omitempty"`
-	SpotClientOrderID    string  `json:"spot_client_order_id,omitempty"`
-	FuturesOrderID       int64   `json:"futures_order_id,omitempty"`
-	FuturesClientOrderID string  `json:"futures_client_order_id,omitempty"`
-	OpenedAt             string  `json:"opened_at"`
+	RunID                string                `json:"run_id,omitempty"`
+	CycleID              string                `json:"cycle_id,omitempty"`
+	Symbol               string                `json:"symbol"`
+	Pair                 string                `json:"pair"`
+	Direction            fundingCarryDirection `json:"direction,omitempty"`
+	SpotBaseAsset        string                `json:"spot_base_asset"`
+	HedgeQty             float64               `json:"hedge_qty"`
+	SpotBaseQty          float64               `json:"spot_base_qty"`
+	OpenSpotQuoteQty     float64               `json:"open_spot_quote_qty"`
+	OpenFuturesAvgPrice  float64               `json:"open_futures_avg_price"`
+	ReferenceSpotPrice   float64               `json:"reference_spot_price"`
+	SpotOrderID          int64                 `json:"spot_order_id,omitempty"`
+	SpotClientOrderID    string                `json:"spot_client_order_id,omitempty"`
+	FuturesOrderID       int64                 `json:"futures_order_id,omitempty"`
+	FuturesClientOrderID string                `json:"futures_client_order_id,omitempty"`
+	OpenedAt             string                `json:"opened_at"`
 }
 
 func effectiveOpenHedgeStatePath(cfg EngineConfig) string {
@@ -58,6 +60,7 @@ func buildPersistedOpenHedgeEntries(hedges []OpenHedge, runID string, cycleID st
 			CycleID:              cycleID,
 			Symbol:               hedge.Target.Symbol,
 			Pair:                 hedge.Target.Pair,
+			Direction:            hedge.carryDirection(),
 			SpotBaseAsset:        hedge.Target.SpotBaseAsset,
 			HedgeQty:             hedge.HedgeQty,
 			SpotBaseQty:          parseFloat(hedge.SpotBaseQty),
@@ -123,15 +126,23 @@ type persistedOpenHedgeAssessment struct {
 	HasExposure bool
 }
 
-func assessPersistedOpenHedgeExposure(entries []persistedOpenHedgeEntry, spotBalances map[string]float64, futuresPositions map[string]float64, residualFuturesQty float64, residualSpotNotional float64) persistedOpenHedgeAssessment {
+func assessPersistedOpenHedgeExposure(entries []persistedOpenHedgeEntry, spotBalances map[string]float64, futuresPositions map[string]float64, marginBalances map[string]CrossMarginAssetBalance, residualFuturesQty float64, residualSpotNotional float64) persistedOpenHedgeAssessment {
 	assessment := persistedOpenHedgeAssessment{
 		Issues: make([]string, 0, len(entries)),
 		Labels: make([]string, 0, len(entries)),
 	}
 	qtyThreshold := math.Max(executionQtyTolerance, residualFuturesQty)
 	for _, entry := range entries {
+		direction := resolvedFundingCarryDirection(entry.Direction, 0)
 		futuresQty := math.Abs(futuresPositions[entry.Symbol])
 		spotQty := math.Abs(spotBalances[entry.SpotBaseAsset])
+		if direction == fundingCarryDirectionNegative {
+			if margin, ok := marginBalances[entry.SpotBaseAsset]; ok {
+				spotQty = math.Abs(margin.NetAsset)
+			} else {
+				spotQty = 0
+			}
+		}
 		spotPrice := math.Max(entry.ReferenceSpotPrice, 0)
 		spotNotional := spotQty * spotPrice
 		futuresOpen := futuresQty > qtyThreshold
@@ -140,7 +151,7 @@ func assessPersistedOpenHedgeExposure(entries []persistedOpenHedgeEntry, spotBal
 			continue
 		}
 		assessment.HasExposure = true
-		label := fmt.Sprintf("%s spot=%s short=%s", entry.Symbol, entry.SpotBaseAsset, entry.Symbol)
+		label := fmt.Sprintf("%s %s", entry.Symbol, direction.positionLabel(entry.SpotBaseAsset, entry.Symbol))
 		assessment.Labels = append(assessment.Labels, label)
 		parts := make([]string, 0, 2)
 		if futuresOpen {
@@ -199,7 +210,19 @@ func (e *FundingRateSniperEngine) reconcilePersistedOpenHedges(spotBalances map[
 	if len(entries) == 0 {
 		return nil
 	}
-	assessment := assessPersistedOpenHedgeExposure(entries, spotBalances, futuresPositions, e.cfg.ResidualPositionAlertQty, e.cfg.ResidualSpotAlertUSDT)
+	marginBalances := map[string]CrossMarginAssetBalance(nil)
+	for _, entry := range entries {
+		if resolvedFundingCarryDirection(entry.Direction, 0) != fundingCarryDirectionNegative {
+			continue
+		}
+		marginState, marginErr := e.fetchCrossMarginAccountState(context.Background())
+		if marginErr != nil {
+			return marginErr
+		}
+		marginBalances = marginState.Assets
+		break
+	}
+	assessment := assessPersistedOpenHedgeExposure(entries, spotBalances, futuresPositions, marginBalances, e.cfg.ResidualPositionAlertQty, e.cfg.ResidualSpotAlertUSDT)
 	if !assessment.HasExposure {
 		if clearErr := e.clearPersistedOpenHedges(); clearErr != nil {
 			return clearErr
@@ -215,6 +238,12 @@ func (e *FundingRateSniperEngine) reconcilePersistedOpenHedges(spotBalances map[
 
 func (e *FundingRateSniperEngine) canClearPersistedOpenHedges(snapshot CycleAccountSnapshot, hedges []OpenHedge) bool {
 	entries := buildPersistedOpenHedgeEntries(hedges, e.runID, e.currentCycleID)
-	assessment := assessPersistedOpenHedgeExposure(entries, snapshot.SpotAssetBalances, snapshot.FuturesPositionAmounts, e.cfg.ResidualPositionAlertQty, e.cfg.ResidualSpotAlertUSDT)
+	marginBalances := map[string]CrossMarginAssetBalance(nil)
+	if len(entries) > 0 {
+		if marginState, err := e.fetchCrossMarginAccountState(context.Background()); err == nil {
+			marginBalances = marginState.Assets
+		}
+	}
+	assessment := assessPersistedOpenHedgeExposure(entries, snapshot.SpotAssetBalances, snapshot.FuturesPositionAmounts, marginBalances, e.cfg.ResidualPositionAlertQty, e.cfg.ResidualSpotAlertUSDT)
 	return !assessment.HasExposure
 }

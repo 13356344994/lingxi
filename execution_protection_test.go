@@ -2,10 +2,12 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"log"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -216,6 +218,176 @@ func TestFuturesProtectedOrderParamsFormatsRequestPrecisionByRules(t *testing.T)
 	}
 	if got := params.Get("price"); got != "99.9" {
 		t.Fatalf("expected protected futures price 99.9, got %q", got)
+	}
+}
+
+func TestPercentPriceRejectLikelyUsesSideSpecificBounds(t *testing.T) {
+	engine := &FundingRateSniperEngine{}
+	rules := SymbolTradeRules{
+		BidPercentPriceUp:   1.02,
+		BidPercentPriceDown: 0.98,
+		AskPercentPriceUp:   1.01,
+		AskPercentPriceDown: 0.99,
+	}
+
+	reject, _ := engine.percentPriceRejectLikely("BTCUSDT", "BUY", 103, 100, rules)
+	if !reject {
+		t.Fatal("expected BUY price above bid upper bound to be rejected")
+	}
+	reject, _ = engine.percentPriceRejectLikely("BTCUSDT", "SELL", 98, 100, rules)
+	if !reject {
+		t.Fatal("expected SELL price below ask lower bound to be rejected")
+	}
+}
+
+func TestPlaceSpotProtectedOpenDualTrackFallsBackAfterExpiredIOC(t *testing.T) {
+	var posts int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v3/ticker/bookTicker":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"symbol":"BTCUSDT","bidPrice":"100.0","askPrice":"100.1"}`))
+		case "/api/v3/order":
+			count := atomic.AddInt32(&posts, 1)
+			_ = r.ParseForm()
+			w.Header().Set("Content-Type", "application/json")
+			if count == 1 {
+				_, _ = w.Write([]byte(`{"symbol":"BTCUSDT","orderId":1,"status":"EXPIRED","clientOrderId":"cid-spot","executedQty":"0","cummulativeQuoteQty":"0","origQty":"1"}`))
+				return
+			}
+			if got := r.Form.Get("type"); got != "LIMIT" && got != "MARKET" {
+				t.Fatalf("expected fallback order type LIMIT or MARKET, got %q", got)
+			}
+			resp := SpotOrderResponse{
+				Symbol:              "BTCUSDT",
+				OrderID:             2,
+				Status:              "FILLED",
+				ClientOrderID:       r.Form.Get("newClientOrderId"),
+				ExecutedQty:         "1",
+				CummulativeQuoteQty: "100",
+				OrigQty:             "1",
+			}
+			_ = json.NewEncoder(w).Encode(resp)
+		default:
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	engine := &FundingRateSniperEngine{
+		client: &BinanceClient{
+			spotBaseURL: server.URL,
+			apiKey:      "demo-api-key",
+			secretKey:   "demo-secret-key",
+			httpClient:  server.Client(),
+		},
+		cfg:             DefaultEngineConfig(),
+		logger:          log.New(io.Discard, "", 0),
+		runtimeReporter: newRuntimeReporter(nil),
+		spotTickerCache: NewBookTickerCache(),
+		spotRules: map[string]SymbolTradeRules{
+			"BTCUSDT": {StepSize: 0.001, PriceTick: 0.1, MinQty: 0.001, MinNotional: 1},
+		},
+	}
+	engine.cfg.ExecutionConfig.UseProtectedIOC = true
+	engine.cfg.ExecutionConfig.SpotLimitSlippageRate = 0.001
+	engine.spotTickerCache.UpdateAt(BookTicker{Symbol: "BTCUSDT", BidPrice: "100.0", AskPrice: "100.1"}, time.Now().UTC())
+
+	protectedParams := url.Values{}
+	protectedParams.Set("symbol", "BTCUSDT")
+	protectedParams.Set("side", "BUY")
+	protectedParams.Set("type", "LIMIT")
+	protectedParams.Set("timeInForce", "IOC")
+	protectedParams.Set("quantity", "1")
+	protectedParams.Set("price", "100.2")
+	protectedParams.Set("newOrderRespType", "FULL")
+	protectedParams.Set("newClientOrderId", "cid-spot")
+
+	order, err := engine.placeSpotProtectedOpenDualTrack(context.Background(), "BTCUSDT", "BUY", 1, "cid-spot", protectedParams)
+	if err != nil {
+		t.Fatalf("placeSpotProtectedOpenDualTrack() error = %v", err)
+	}
+	if parseFloat(order.ExecutedQty) != 1 {
+		t.Fatalf("expected fallback executed qty 1, got %s", order.ExecutedQty)
+	}
+	if atomic.LoadInt32(&posts) < 2 {
+		t.Fatalf("expected fallback order after expired IOC, got %d posts", posts)
+	}
+}
+
+func TestPlaceFuturesProtectedOpenDualTrackFallsBackAfterExpiredIOC(t *testing.T) {
+	var posts int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/fapi/v1/ticker/bookTicker":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"symbol":"BTCUSDT","bidPrice":"100.0","askPrice":"100.1"}`))
+		case "/fapi/v1/order":
+			count := atomic.AddInt32(&posts, 1)
+			_ = r.ParseForm()
+			w.Header().Set("Content-Type", "application/json")
+			if count == 1 {
+				_, _ = w.Write([]byte(`{"symbol":"BTCUSDT","orderId":1,"status":"EXPIRED","clientOrderId":"cid-futures","executedQty":"0","avgPrice":"0","origQty":"1","side":"SELL"}`))
+				return
+			}
+			resp := FuturesBatchOrderResult{
+				Symbol:        "BTCUSDT",
+				OrderID:       2,
+				Status:        "FILLED",
+				ClientOrderID: r.Form.Get("newClientOrderId"),
+				ExecutedQty:   "1",
+				OrigQty:       "1",
+				AvgPrice:      "100",
+				Side:          "SELL",
+			}
+			_ = json.NewEncoder(w).Encode(resp)
+		default:
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	engine := &FundingRateSniperEngine{
+		client: &BinanceClient{
+			futuresBaseURL: server.URL,
+			apiKey:         "demo-api-key",
+			secretKey:      "demo-secret-key",
+			httpClient:     server.Client(),
+		},
+		cfg:                DefaultEngineConfig(),
+		logger:             log.New(io.Discard, "", 0),
+		runtimeReporter:    newRuntimeReporter(nil),
+		futuresTickerCache: NewBookTickerCache(),
+		futuresRules: map[string]SymbolTradeRules{
+			"BTCUSDT": {StepSize: 0.001, PriceTick: 0.1, MinQty: 0.001, MinNotional: 1},
+		},
+		futuresOrderHub: NewOrderEventHub(),
+	}
+	engine.cfg.ExecutionConfig.UseProtectedIOC = true
+	engine.cfg.ExecutionConfig.FuturesLimitSlippageRate = 0.001
+	engine.cfg.ExecutionConfig.ExecutionConfirmTimeout = 200 * time.Millisecond
+	engine.cfg.ExecutionConfig.ExecutionRecoveryTimeout = 400 * time.Millisecond
+	engine.futuresTickerCache.UpdateAt(BookTicker{Symbol: "BTCUSDT", BidPrice: "100.0", AskPrice: "100.1"}, time.Now().UTC())
+
+	order := FuturesBatchOrderRequest{
+		Symbol:           "BTCUSDT",
+		Side:             "SELL",
+		Type:             "LIMIT",
+		Quantity:         "1",
+		Price:            "99.9",
+		TimeInForce:      "IOC",
+		NewClientOrderID: "cid-futures",
+		NewOrderRespType: "RESULT",
+	}
+	snapshot, err := engine.placeSingleFuturesOpenOrderIdempotent(context.Background(), order)
+	if err != nil {
+		t.Fatalf("placeSingleFuturesOpenOrderIdempotent() error = %v", err)
+	}
+	if snapshot.ExecutedQty != 1 {
+		t.Fatalf("expected fallback executed qty 1, got %.8f", snapshot.ExecutedQty)
+	}
+	if atomic.LoadInt32(&posts) < 2 {
+		t.Fatalf("expected fallback futures order after expired IOC, got %d posts", posts)
 	}
 }
 

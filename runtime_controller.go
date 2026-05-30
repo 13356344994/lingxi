@@ -1490,6 +1490,17 @@ func (c *RuntimeController) runLiveStartupChecks(ctx context.Context, secretPath
 	if err := engine.verifyTradingEnvironment(ctx); err != nil {
 		return err
 	}
+	requiredTradingUSDT := configuredTradingCapitalUSDT(cfg)
+	if requiredTradingUSDT > 0 {
+		snapshot, err := engine.captureRuntimeCapitalSnapshot(ctx)
+		if err != nil {
+			return fmt.Errorf("读取实盘可调 USDT 失败: %w", err)
+		}
+		if snapshot.TotalMovableUSDT+executionQtyTolerance < requiredTradingUSDT {
+			return fmt.Errorf("实盘启动前检查失败：当前配置要求交易资金 %.2f USDT，但总可调 USDT 仅 %.2f", requiredTradingUSDT, snapshot.TotalMovableUSDT)
+		}
+		c.appendControllerTraceLog(runID, "", "启动前检查通过: 总可调 USDT=%.2f，满足配置交易资金 %.2f", snapshot.TotalMovableUSDT, requiredTradingUSDT)
+	}
 	c.appendControllerTraceLog(runID, "", "实盘启动前检查已全部通过")
 	return nil
 }

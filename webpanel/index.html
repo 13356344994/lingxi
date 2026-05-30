@@ -149,6 +149,17 @@
       font-size: 22px;
       font-weight: 600;
     }
+    .stat-subvalue {
+      margin-top: 6px;
+      font-size: 12px;
+      color: #94a3b8;
+    }
+    .stat-subvalue.positive {
+      color: #86efac;
+    }
+    .stat-subvalue.negative {
+      color: #fca5a5;
+    }
     .pill.low {
       background: #1d4ed8;
     }
@@ -234,7 +245,48 @@
           <label for="lookback-days">回看天数</label>
           <input id="lookback-days" type="number" min="1" value="30">
         </div>
+        <div>
+          <label for="position-target-usdt">目标交易仓位 (USDT)</label>
+          <input id="position-target-usdt" type="number" min="1" step="0.01" value="300">
+        </div>
       </div>
+      <div class="risk-actions" style="margin-top:0;">
+        <button id="apply-position-target-btn" type="button" class="secondary">应用仓位并调仓</button>
+      </div>
+      <div class="hint" id="position-config-message">输入的是总交易资金 USDT。历史模拟只改名义仓位，不碰真实账户；实盘会汇总 spot、cross margin、UM futures、funding 的可调 USDT，若总 U 小于你的输入会直接报错拒绝继续。目标资金会按现货主账户 25% + cross margin 25% + U 本位合约 50% 分配，并把本轮总仓位上限同步成这个值、单腿仓位同步成其一半。这个值只在开仓准备阶段使用，后续不管赚赔都不会自动再从 funding 补钱。</div>
+      <div class="status-grid">
+        <div class="stat-card">
+          <div class="stat-label">Spot U</div>
+          <div class="stat-value" id="capital-spot-usdt" style="font-size:18px">-</div>
+          <div class="stat-subvalue" id="capital-spot-target">目标: -</div>
+          <div class="stat-subvalue" id="capital-spot-delta">差额: -</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Cross Margin U</div>
+          <div class="stat-value" id="capital-margin-usdt" style="font-size:18px">-</div>
+          <div class="stat-subvalue" id="capital-margin-target">目标: -</div>
+          <div class="stat-subvalue" id="capital-margin-delta">差额: -</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">UM Futures U</div>
+          <div class="stat-value" id="capital-futures-usdt" style="font-size:18px">-</div>
+          <div class="stat-subvalue" id="capital-futures-target">目标: -</div>
+          <div class="stat-subvalue" id="capital-futures-delta">差额: -</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Funding U</div>
+          <div class="stat-value" id="capital-funding-usdt" style="font-size:18px">-</div>
+          <div class="stat-subvalue" id="capital-funding-target">目标: -</div>
+          <div class="stat-subvalue" id="capital-funding-delta">差额: -</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Total U</div>
+          <div class="stat-value" id="capital-total-usdt" style="font-size:18px">-</div>
+          <div class="stat-subvalue" id="capital-total-target">目标: -</div>
+          <div class="stat-subvalue" id="capital-total-delta">差额: -</div>
+        </div>
+      </div>
+      <div class="hint" id="capital-snapshot-message">这里展示实时账户 USDT 快照，仅用于观察，不会触发任何自动调仓。</div>
       <div class="status-grid">
         <div class="stat-card">
           <div class="stat-label">当前模式</div>
@@ -737,6 +789,7 @@
 
   <script>
     const dashboardTokenStorageKey = "lingxi-dashboard-token";
+    const tradingCapitalStorageKey = "lingxi-trading-capital-usdt";
 
     async function loadJSON(url) {
       const res = await fetch(url);
@@ -758,6 +811,14 @@
     function restoreControlToken() {
       const saved = window.localStorage.getItem(dashboardTokenStorageKey) || "";
       const input = document.getElementById("dashboard-token");
+      if (input && saved) {
+        input.value = saved;
+      }
+    }
+
+    function restoreTradingCapitalInput() {
+      const saved = window.localStorage.getItem(tradingCapitalStorageKey) || "";
+      const input = document.getElementById("position-target-usdt");
       if (input && saved) {
         input.value = saved;
       }
@@ -873,6 +934,45 @@
       renderRuntimeExecutionEvents(status.recent_execution_events || []);
     }
 
+    function formatCapitalValue(value) {
+      if (!Number.isFinite(Number(value))) {
+        return "-";
+      }
+      return Number(value || 0).toFixed(2);
+    }
+
+    function formatCapitalDelta(currentValue, targetValue) {
+      const current = Number(currentValue || 0);
+      const target = Number(targetValue || 0);
+      const delta = current - target;
+      return {
+        text: `${delta >= 0 ? "+" : ""}${delta.toFixed(2)}`,
+        className: delta > 0.005 ? "positive" : (delta < -0.005 ? "negative" : "")
+      };
+    }
+
+    function renderCapitalTargetAndDelta(currentId, targetId, deltaId, currentValue, targetValue) {
+      document.getElementById(currentId).textContent = formatCapitalValue(currentValue);
+      document.getElementById(targetId).textContent = `目标: ${formatCapitalValue(targetValue)}`;
+      const delta = formatCapitalDelta(currentValue, targetValue);
+      const deltaNode = document.getElementById(deltaId);
+      deltaNode.textContent = `差额: ${delta.text}`;
+      deltaNode.className = `stat-subvalue${delta.className ? " " + delta.className : ""}`;
+    }
+
+    function renderCapitalSnapshot(snapshot, errorText) {
+      const data = snapshot || {};
+      renderCapitalTargetAndDelta("capital-spot-usdt", "capital-spot-target", "capital-spot-delta", data.spot_free_usdt, data.desired_spot_usdt);
+      renderCapitalTargetAndDelta("capital-margin-usdt", "capital-margin-target", "capital-margin-delta", data.cross_margin_free_usdt, data.desired_cross_margin_usdt);
+      renderCapitalTargetAndDelta("capital-futures-usdt", "capital-futures-target", "capital-futures-delta", data.futures_available_usdt, data.desired_futures_usdt);
+      renderCapitalTargetAndDelta("capital-funding-usdt", "capital-funding-target", "capital-funding-delta", data.funding_free_usdt, data.desired_funding_usdt);
+      const totalTarget = Number(data.desired_spot_usdt || 0) + Number(data.desired_cross_margin_usdt || 0) + Number(data.desired_futures_usdt || 0) + Number(data.desired_funding_usdt || 0);
+      renderCapitalTargetAndDelta("capital-total-usdt", "capital-total-target", "capital-total-delta", data.total_movable_usdt, totalTarget);
+      document.getElementById("capital-snapshot-message").textContent = errorText
+        ? `账户快照读取失败：${errorText}`
+        : "这里展示实时账户 USDT 快照，仅用于观察，不会触发任何自动调仓。";
+    }
+
     function renderRuntimeExecutionEvents(records) {
       const container = document.getElementById("runtime-execution-events");
       if (!records.length) {
@@ -908,6 +1008,10 @@
         return;
       }
       currentRuntimeRiskConfig = config;
+      const tradingCapitalInput = document.getElementById("position-target-usdt");
+      if (tradingCapitalInput && !window.localStorage.getItem(tradingCapitalStorageKey)) {
+        tradingCapitalInput.value = String(config.max_cycle_open_notional_usdt ?? "");
+      }
       document.getElementById("risk-per-symbol-quote").value = String(config.per_symbol_quote_usdt ?? "");
       document.getElementById("risk-max-cycle-open-notional").value = String(config.max_cycle_open_notional_usdt ?? "");
       document.getElementById("risk-recent-window").value = String(config.recent_trade_volume_window ?? "");
@@ -1150,6 +1254,7 @@
       try {
         const summary = await loadJSON("/api/dashboard/summary?limit=200");
         renderRuntimeStatus(summary.runtime_status || {});
+        renderCapitalSnapshot(summary.capital_snapshot || {}, summary.capital_snapshot_error || "");
         renderRuntimeLogs(summary.runtime_logs || []);
         renderRiskConfig(summary.runtime_config || {});
         renderExecutionIncidents(summary.execution_incidents || []);
@@ -1214,6 +1319,41 @@
       } catch (err) {
         document.getElementById("risk-config-message").textContent = "保存失败: " + err.message;
         alert("保存风控参数失败: " + err.message);
+      }
+    }
+
+    function formatCapitalAdjustmentResult(result) {
+      const transfers = Array.isArray(result.transfers) ? result.transfers : [];
+      const transferText = transfers.length
+        ? transfers.map((item) => `${item.from} -> ${item.to} ${Number(item.amount_usdt || 0).toFixed(2)} USDT`).join(" | ")
+        : "无需额外划转";
+      return `${result.message || "仓位资金已调整"}\n请求=${Number(result.requested_trading_usdt || 0).toFixed(2)} | 实际=${Number(result.applied_trading_usdt || 0).toFixed(2)} | 单腿=${Number(result.per_leg_trading_usdt || 0).toFixed(2)}\n划转=${transferText}`;
+    }
+
+    async function applyTradingCapital() {
+      const mode = document.getElementById("mode-select").value;
+      const secretPath = document.getElementById("secret-path").value.trim() || "secret.yaml";
+      const targetTradingUSDT = Number(document.getElementById("position-target-usdt").value || "0");
+      if (!Number.isFinite(targetTradingUSDT) || targetTradingUSDT <= 0) {
+        document.getElementById("position-config-message").textContent = "请输入大于 0 的目标交易仓位 USDT。";
+        return;
+      }
+      try {
+        const result = await postJSON("/api/runtime/capital", {
+          mode,
+          secret_path: secretPath,
+          target_trading_usdt: targetTradingUSDT
+        });
+        window.localStorage.setItem(tradingCapitalStorageKey, String(targetTradingUSDT));
+        if (result.config) {
+          renderRiskConfig(result.config);
+        }
+        document.getElementById("position-config-message").textContent = result.message || "目标交易仓位已调整";
+        await refreshDashboard();
+        alert(formatCapitalAdjustmentResult(result));
+      } catch (err) {
+        document.getElementById("position-config-message").textContent = "应用失败: " + err.message;
+        alert("应用目标交易仓位失败: " + err.message);
       }
     }
 
@@ -1284,6 +1424,7 @@
     document.getElementById("refresh-btn").addEventListener("click", refreshDashboard);
     document.getElementById("start-btn").addEventListener("click", startTask);
     document.getElementById("stop-btn").addEventListener("click", stopTask);
+    document.getElementById("apply-position-target-btn").addEventListener("click", applyTradingCapital);
     document.getElementById("save-risk-config-btn").addEventListener("click", saveRiskConfig);
     document.getElementById("tighten-risk-10-btn").addEventListener("click", () => tightenRiskInputs(0.10));
     document.getElementById("tighten-risk-25-btn").addEventListener("click", () => tightenRiskInputs(0.25));
@@ -1292,6 +1433,7 @@
     document.getElementById("clear-dashboard-data-btn").addEventListener("click", clearDashboardData);
     document.getElementById("dashboard-token").addEventListener("change", getControlToken);
     restoreControlToken();
+    restoreTradingCapitalInput();
     refreshDashboard();
     setInterval(refreshDashboard, 5000);
   </script>

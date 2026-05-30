@@ -16,6 +16,9 @@ func (e *FundingRateSniperEngine) startUserDataStreams(ctx context.Context) {
 	if e.spotOrderHub == nil {
 		e.spotOrderHub = NewOrderEventHub()
 	}
+	if e.marginOrderHub == nil {
+		e.marginOrderHub = NewOrderEventHub()
+	}
 	if e.futuresOrderHub == nil {
 		e.futuresOrderHub = NewOrderEventHub()
 	}

@@ -111,13 +111,20 @@ type FuturesSymbol struct {
 
 // ExchangeFilter 表示交易所返回的交易限制规则。
 type ExchangeFilter struct {
-	FilterType  string `json:"filterType"`
-	MinQty      string `json:"minQty,omitempty"`
-	MaxQty      string `json:"maxQty,omitempty"`
-	StepSize    string `json:"stepSize,omitempty"`
-	TickSize    string `json:"tickSize,omitempty"`
-	MinNotional string `json:"minNotional,omitempty"`
-	Notional    string `json:"notional,omitempty"`
+	FilterType        string `json:"filterType"`
+	MinQty            string `json:"minQty,omitempty"`
+	MaxQty            string `json:"maxQty,omitempty"`
+	StepSize          string `json:"stepSize,omitempty"`
+	TickSize          string `json:"tickSize,omitempty"`
+	MinNotional       string `json:"minNotional,omitempty"`
+	Notional          string `json:"notional,omitempty"`
+	MultiplierUp      string `json:"multiplierUp,omitempty"`
+	MultiplierDown    string `json:"multiplierDown,omitempty"`
+	BidMultiplierUp   string `json:"bidMultiplierUp,omitempty"`
+	BidMultiplierDown string `json:"bidMultiplierDown,omitempty"`
+	AskMultiplierUp   string `json:"askMultiplierUp,omitempty"`
+	AskMultiplierDown string `json:"askMultiplierDown,omitempty"`
+	AvgPriceMins      int    `json:"avgPriceMins,omitempty"`
 }
 
 // NewBinanceClient 创建一个可复用的币安 HTTP 客户端。
