@@ -28,7 +28,7 @@ func applyProtectedFuturesLimitOrder(cfg EngineConfig, order *FuturesBatchOrderR
 	}
 	order.Type = "LIMIT"
 	order.TimeInForce = protectedExecutionIOC
-	order.Price = formatFloat(limitPrice)
+	order.Price = formatPriceForTick(limitPrice, tickSize)
 	if cfg.ExecutionConfig.FuturesPriceProtect {
 		order.PriceProtect = "TRUE"
 	}
@@ -60,6 +60,9 @@ func (e *FundingRateSniperEngine) fetchSpotBookTicker(ctx context.Context, symbo
 			return ticker, nil
 		}
 	}
+	if e.bookTickerCacheOnlyModeEnabled() {
+		return BookTicker{}, fmt.Errorf("现货 bookTicker 仅允许使用缓存: symbol=%s", symbol)
+	}
 	var ticker BookTicker
 	if err := e.getJSON(ctx, e.client.spotBaseURL+"/api/v3/ticker/bookTicker?symbol="+symbol, &ticker); err != nil {
 		return BookTicker{}, err
@@ -75,6 +78,9 @@ func (e *FundingRateSniperEngine) fetchFuturesBookTicker(ctx context.Context, sy
 			}
 			return ticker, nil
 		}
+	}
+	if e.bookTickerCacheOnlyModeEnabled() {
+		return BookTicker{}, fmt.Errorf("合约 bookTicker 仅允许使用缓存: symbol=%s", symbol)
 	}
 	var ticker BookTicker
 	if err := e.getJSON(ctx, e.client.futuresBaseURL+"/fapi/v1/ticker/bookTicker?symbol="+symbol, &ticker); err != nil {
@@ -121,9 +127,10 @@ func normalizeProtectedLimitPrice(side string, referencePrice float64, slippageR
 
 func (e *FundingRateSniperEngine) spotProtectedOrderParams(ctx context.Context, symbol string, side string, quantity float64, clientOrderID string) (url.Values, error) {
 	params := url.Values{}
+	rules := e.spotRules[symbol]
 	params.Set("symbol", symbol)
 	params.Set("side", side)
-	params.Set("quantity", formatFloat(quantity))
+	params.Set("quantity", formatQuantityForRules(quantity, rules, 0))
 	if mode := normalizedSTPMode(e.cfg.ExecutionConfig.SpotSTPMode); mode != "" {
 		params.Set("selfTradePreventionMode", mode)
 	}
@@ -149,15 +156,16 @@ func (e *FundingRateSniperEngine) spotProtectedOrderParams(ctx context.Context, 
 	}
 	params.Set("type", "LIMIT")
 	params.Set("timeInForce", protectedExecutionIOC)
-	params.Set("price", formatFloat(limitPrice))
+	params.Set("price", formatPriceForTick(limitPrice, rules.PriceTick))
 	return params, nil
 }
 
 func (e *FundingRateSniperEngine) futuresProtectedOrderParams(ctx context.Context, symbol string, side string, quantity float64, reduceOnly bool, clientOrderID string) (url.Values, error) {
 	params := url.Values{}
+	rules := e.futuresRules[symbol]
 	params.Set("symbol", symbol)
 	params.Set("side", side)
-	params.Set("quantity", formatFloat(quantity))
+	params.Set("quantity", formatQuantityForRules(quantity, rules, 0))
 	if mode := normalizedSTPMode(e.cfg.ExecutionConfig.FuturesSTPMode); mode != "" {
 		params.Set("selfTradePreventionMode", mode)
 	}
@@ -186,7 +194,7 @@ func (e *FundingRateSniperEngine) futuresProtectedOrderParams(ctx context.Contex
 	}
 	params.Set("type", "LIMIT")
 	params.Set("timeInForce", protectedExecutionIOC)
-	params.Set("price", formatFloat(limitPrice))
+	params.Set("price", formatPriceForTick(limitPrice, rules.PriceTick))
 	if e.cfg.ExecutionConfig.FuturesPriceProtect {
 		params.Set("priceProtect", "TRUE")
 	}
@@ -198,7 +206,7 @@ func (e *FundingRateSniperEngine) buildProtectedOpenFuturesOrder(target *Monitor
 		Symbol:           target.Candidate.Symbol,
 		Side:             "SELL",
 		Type:             "MARKET",
-		Quantity:         formatFloat(target.Candidate.OrderQuantity),
+		Quantity:         formatQuantityForRules(target.Candidate.OrderQuantity, e.futuresRules[target.Candidate.Symbol], target.Candidate.QuantityPrecision),
 		SelfTradeMode:    normalizedSTPMode(e.cfg.ExecutionConfig.FuturesSTPMode),
 		NewClientOrderID: newClientOrderID("fopen", target.Candidate.Symbol),
 		NewOrderRespType: "RESULT",
@@ -216,7 +224,7 @@ func (e *FundingRateSniperEngine) buildProtectedCloseFuturesOrder(ctx context.Co
 		Symbol:           hedge.Target.Symbol,
 		Side:             "BUY",
 		Type:             "MARKET",
-		Quantity:         hedge.HedgeQtyText,
+		Quantity:         formatQuantityForRules(hedge.HedgeQty, e.futuresRules[hedge.Target.Symbol], hedge.Target.QuantityPrecision),
 		ReduceOnly:       "true",
 		SelfTradeMode:    normalizedSTPMode(e.cfg.ExecutionConfig.FuturesSTPMode),
 		NewClientOrderID: newClientOrderID("fclose", hedge.Target.Symbol),

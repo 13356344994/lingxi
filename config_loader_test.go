@@ -8,35 +8,44 @@ import (
 func TestApplyEngineConfigOverrides(t *testing.T) {
 	cfg := DefaultEngineConfig()
 	err := applyEngineConfigOverrides(&cfg, map[string]string{
-		"network.http_timeout":                  "12s",
-		"network.max_idle_conns":                "320",
-		"network.max_idle_conns_per_host":       "96",
-		"network.idle_conn_timeout":             "75s",
-		"network.tls_handshake_timeout":         "4s",
-		"network.response_header_timeout":       "6s",
-		"network.expect_continue_timeout":       "1500ms",
-		"network.dashboard_addr":                "127.0.0.1:9090",
-		"network.public_get_base_slot":          "250ms",
-		"network.public_get_cooldown_403":       "7s",
-		"network.public_get_use_apikey":         "true",
-		"network.public_get_apikey_whitelist":   "premiumIndex,openInterest",
-		"strategy.live_funding_asset":           "USDT",
-		"strategy.exit_spread_reserve_rate":     "0.0008",
-		"strategy.preferred_spot_quote_assets":  "USDC,FDUSD,USDT",
-		"execution.exit_monitor_interval":       "350ms",
-		"execution.auto_balance_usdt":           "false",
-		"execution.open_hedge_max_concurrency":  "3",
-		"execution.parallel_open_symbols":       "BTCUSDT,ETH",
-		"execution.parallel_close_symbols":      "BTCUSDT",
-		"execution.use_protected_ioc":           "false",
-		"execution.spot_limit_slippage_rate":    "0.0025",
-		"execution.spot_stp_mode":               "EXPIRE_BOTH",
-		"execution.futures_stp_mode":            "EXPIRE_MAKER",
-		"execution.execution_confirm_timeout":   "2500ms",
-		"risk.protected_ioc_min_attempts":       "9",
-		"risk.protected_ioc_max_unfilled_ratio": "0.55",
-		"risk.protected_ioc_max_cancel_rate":    "0.45",
-		"risk.max_daily_loss_usdt":              "55.5",
+		"network.http_timeout":                             "12s",
+		"network.max_idle_conns":                           "320",
+		"network.max_idle_conns_per_host":                  "96",
+		"network.idle_conn_timeout":                        "75s",
+		"network.tls_handshake_timeout":                    "4s",
+		"network.response_header_timeout":                  "6s",
+		"network.expect_continue_timeout":                  "1500ms",
+		"network.dashboard_addr":                           "127.0.0.1:9090",
+		"network.public_get_base_slot":                     "250ms",
+		"network.public_get_cooldown_403":                  "7s",
+		"network.public_get_use_apikey":                    "true",
+		"network.public_get_apikey_whitelist":              "premiumIndex,openInterest",
+		"strategy.live_funding_asset":                      "USDT",
+		"strategy.exit_spread_reserve_rate":                "0.0008",
+		"strategy.preferred_spot_quote_assets":             "USDC,FDUSD,USDT",
+		"execution.exit_monitor_interval":                  "350ms",
+		"execution.auto_balance_usdt":                      "false",
+		"execution.open_hedge_max_concurrency":             "3",
+		"execution.parallel_open_symbols":                  "BTCUSDT,ETH",
+		"execution.parallel_close_symbols":                 "BTCUSDT",
+		"execution.use_protected_ioc":                      "false",
+		"execution.spot_limit_slippage_rate":               "0.0025",
+		"execution.spot_stp_mode":                          "EXPIRE_BOTH",
+		"execution.futures_stp_mode":                       "EXPIRE_MAKER",
+		"execution.execution_confirm_timeout":              "2500ms",
+		"risk.protected_ioc_min_attempts":                  "9",
+		"risk.protected_ioc_max_unfilled_ratio":            "0.55",
+		"risk.protected_ioc_max_cancel_rate":               "0.45",
+		"risk.max_daily_loss_usdt":                         "55.5",
+		"historical.spot_taker_fee_rate":                   "0.0000",
+		"historical.futures_taker_fee_rate":                "0.0002",
+		"historical.per_leg_notional_usdt":                 "5",
+		"historical.max_funding_cycles_held":               "2",
+		"historical.cross_stable_quote_max_deviation_rate": "0.0025",
+		"historical.batch_experiment_enabled":              "true",
+		"historical.batch_spot_taker_fee_rates":            "0.0010,0.0000",
+		"historical.batch_per_leg_notional_usdt":           "5,10,20",
+		"historical.batch_max_funding_cycles_held":         "1,2",
 	})
 	if err != nil {
 		t.Fatalf("applyEngineConfigOverrides() error = %v", err)
@@ -118,6 +127,24 @@ func TestApplyEngineConfigOverrides(t *testing.T) {
 	}
 	if cfg.RiskConfig.MaxDailyLossUSDT != 55.5 {
 		t.Fatalf("unexpected daily loss limit: %v", cfg.RiskConfig.MaxDailyLossUSDT)
+	}
+	if cfg.HistoricalConfig.SpotTakerFeeRate != 0 || cfg.HistoricalConfig.FuturesTakerFeeRate != 0.0002 {
+		t.Fatalf("unexpected historical fee overrides: spot=%v futures=%v", cfg.HistoricalConfig.SpotTakerFeeRate, cfg.HistoricalConfig.FuturesTakerFeeRate)
+	}
+	if cfg.HistoricalConfig.PerLegNotionalUSDT != 5 {
+		t.Fatalf("unexpected historical per leg override: %v", cfg.HistoricalConfig.PerLegNotionalUSDT)
+	}
+	if cfg.HistoricalConfig.MaxFundingCyclesHeld != 2 {
+		t.Fatalf("unexpected historical holding cycles override: %d", cfg.HistoricalConfig.MaxFundingCyclesHeld)
+	}
+	if cfg.HistoricalConfig.CrossStableQuoteMaxDeviationRate != 0.0025 {
+		t.Fatalf("unexpected historical cross stable deviation override: %v", cfg.HistoricalConfig.CrossStableQuoteMaxDeviationRate)
+	}
+	if !cfg.HistoricalConfig.BatchExperimentEnabled {
+		t.Fatal("expected historical batch experiment enabled")
+	}
+	if cfg.HistoricalConfig.BatchSpotTakerFeeRates != "0.0010,0.0000" || cfg.HistoricalConfig.BatchPerLegNotionalUSDT != "5,10,20" || cfg.HistoricalConfig.BatchMaxFundingCyclesHeld != "1,2" {
+		t.Fatalf("unexpected historical batch overrides: %+v", cfg.HistoricalConfig)
 	}
 	if cfg.RiskConfig.ProtectedIOCMinAttempts != 9 {
 		t.Fatalf("unexpected protected ioc min attempts: %d", cfg.RiskConfig.ProtectedIOCMinAttempts)

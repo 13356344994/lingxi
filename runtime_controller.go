@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"net"
 	"net/url"
 	"os"
@@ -875,6 +876,9 @@ func (c *RuntimeController) UpdateRiskConfig(req RuntimeRiskConfig) (RuntimeRisk
 	if criticalCooldown < cooldown {
 		return RuntimeRiskConfig{}, fmt.Errorf("严重异常冷却时间不能小于平台异常冷却时间")
 	}
+	if err := validateConservativeRuntimeRiskUpdate(c.cfg, req, window, exitDelayAfterFunding, exitMonitorInterval, confirmTimeout, symbolCooldown, minorCooldown, cooldown, criticalCooldown); err != nil {
+		return RuntimeRiskConfig{}, err
+	}
 
 	updated := c.cfg
 	updated.StrategyConfig.PerSymbolQuoteUSDT = req.PerSymbolQuoteUSDT
@@ -911,8 +915,85 @@ func (c *RuntimeController) UpdateRiskConfig(req RuntimeRiskConfig) (RuntimeRisk
 	c.cfg = updated
 
 	config := runtimeRiskConfigFromEngineConfig(updated)
-	c.status.LastMessage = "风控参数已更新，将在下一次启动任务时生效"
+	c.status.LastMessage = "风控参数已收紧，将在下一次启动任务时生效"
 	return config, nil
+}
+
+func validateConservativeRuntimeRiskUpdate(current EngineConfig, req RuntimeRiskConfig, recentWindow time.Duration, exitDelayAfterFunding time.Duration, exitMonitorInterval time.Duration, confirmTimeout time.Duration, symbolCooldown time.Duration, minorCooldown time.Duration, abnormalCooldown time.Duration, criticalCooldown time.Duration) error {
+	immutableViolations := make([]string, 0, 12)
+	tighteningViolations := make([]string, 0, 12)
+
+	requireEqualFloat := func(label string, currentValue float64, proposedValue float64) {
+		if !runtimeFloatEqual(currentValue, proposedValue) {
+			immutableViolations = append(immutableViolations, label)
+		}
+	}
+	requireEqualInt := func(label string, currentValue int, proposedValue int) {
+		if currentValue != proposedValue {
+			immutableViolations = append(immutableViolations, label)
+		}
+	}
+	requireEqualDuration := func(label string, currentValue time.Duration, proposedValue time.Duration) {
+		if currentValue != proposedValue {
+			immutableViolations = append(immutableViolations, label)
+		}
+	}
+	requireMax := func(label string, currentValue float64, proposedValue float64) {
+		if proposedValue-currentValue > 1e-12 {
+			tighteningViolations = append(tighteningViolations, label)
+		}
+	}
+	requireMaxInt := func(label string, currentValue int, proposedValue int) {
+		if proposedValue > currentValue {
+			tighteningViolations = append(tighteningViolations, label)
+		}
+	}
+	requireMinDuration := func(label string, currentValue time.Duration, proposedValue time.Duration) {
+		if proposedValue < currentValue {
+			tighteningViolations = append(tighteningViolations, label)
+		}
+	}
+
+	requireMax("单标的名义资金", current.StrategyConfig.PerSymbolQuoteUSDT, req.PerSymbolQuoteUSDT)
+	requireMax("单周期总敞口上限", current.RiskConfig.MaxCycleOpenNotionalUSDT, req.MaxCycleOpenNotionalUSDT)
+	requireMax("最大单周期亏损", current.RiskConfig.MaxCycleLossUSDT, req.MaxCycleLossUSDT)
+	requireMinDuration("symbol 异常冷却时间", current.RiskConfig.SymbolAbnormalCooldown, symbolCooldown)
+	requireMinDuration("轻微异常冷却时间", current.RiskConfig.PlatformMinorCooldown, minorCooldown)
+	requireMinDuration("平台异常冷却时间", current.RiskConfig.PlatformAbnormalCooldown, abnormalCooldown)
+	requireMinDuration("严重异常冷却时间", current.RiskConfig.PlatformCriticalCooldown, criticalCooldown)
+	requireMax("最大日亏损", current.RiskConfig.MaxDailyLossUSDT, req.MaxDailyLossUSDT)
+	requireMaxInt("最大日下单次数", current.RiskConfig.MaxDailyOrderCount, req.MaxDailyOrderCount)
+	requireMax("最大日开仓名义", current.RiskConfig.MaxDailyOpenNotionalUSDT, req.MaxDailyOpenNotionalUSDT)
+
+	requireEqualDuration("最近成交额窗口", current.StrategyConfig.RecentTradeVolumeWindow, recentWindow)
+	requireEqualFloat("最近成交额占比上限", current.StrategyConfig.MaxRecentVolumeShare, req.MaxRecentVolumeShare)
+	requireEqualFloat("未平仓名义占比上限", current.StrategyConfig.MaxOpenInterestShare, req.MaxOpenInterestShare)
+	requireEqualFloat("可见深度占比上限", current.StrategyConfig.MaxVisibleDepthShare, req.MaxVisibleDepthShare)
+	requireEqualFloat("最低净收益率", current.RiskConfig.MinNetProfitRate, req.MinNetProfitRate)
+	requireEqualFloat("立即作废阈值", current.RiskConfig.ImmediateInvalidateRate, req.ImmediateInvalidateRate)
+	requireEqualInt("最大连续观察 breach", current.RiskConfig.MonitorMaxConsecutiveBreach, req.MonitorMaxConsecutiveBreach)
+	requireEqualInt("最大执行事故数", current.RiskConfig.MaxExecutionIncidents, req.MaxExecutionIncidents)
+	requireEqualInt("最大不确定成交数", current.RiskConfig.MaxOrderUncertaintyPerCycle, req.MaxOrderUncertaintyPerCycle)
+	requireEqualInt("最大连续平台拒绝", current.RiskConfig.MaxConsecutivePlatformRejects, req.MaxConsecutivePlatformRejects)
+	requireEqualInt("最大连续异常请求", current.RiskConfig.MaxConsecutiveRequestErrors, req.MaxConsecutiveRequestErrors)
+	requireEqualDuration("结算后最晚退出时限", current.ExecutionConfig.ExitDelayAfterFunding, exitDelayAfterFunding)
+	requireEqualDuration("退出监控轮询间隔", current.ExecutionConfig.ExitMonitorInterval, exitMonitorInterval)
+	requireEqualDuration("开平仓确认超时", current.ExecutionConfig.ExecutionConfirmTimeout, confirmTimeout)
+	requireEqualInt("最大回补次数", current.RiskConfig.MaxRecoveryActionsPerCycle, req.MaxRecoveryActionsPerCycle)
+
+	if len(immutableViolations) > 0 {
+		sort.Strings(immutableViolations)
+		return fmt.Errorf("以下参数不允许通过页面在线修改，请改配置文件并重启: %s", strings.Join(immutableViolations, "、"))
+	}
+	if len(tighteningViolations) > 0 {
+		sort.Strings(tighteningViolations)
+		return fmt.Errorf("页面在线风控只允许收紧，不允许放松: %s", strings.Join(tighteningViolations, "、"))
+	}
+	return nil
+}
+
+func runtimeFloatEqual(left float64, right float64) bool {
+	return math.Abs(left-right) <= 1e-12
 }
 
 func runtimeRiskConfigFromEngineConfig(cfg EngineConfig) RuntimeRiskConfig {

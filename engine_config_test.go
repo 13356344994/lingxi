@@ -24,6 +24,15 @@ func TestDefaultEngineConfigSectionsExposePromotedFields(t *testing.T) {
 	if cfg.HistoricalConfig.ReferenceKlineLookback != 60 || cfg.HistoricalConfig.CacheDir == "" {
 		t.Fatalf("historical defaults not initialized: %+v", cfg.HistoricalConfig)
 	}
+	if !cfg.HistoricalConfig.BatchExperimentEnabled {
+		t.Fatal("expected historical batch experiment enabled by default")
+	}
+	if cfg.HistoricalConfig.CrossStableQuoteMaxDeviationRate != 0.0010 {
+		t.Fatalf("unexpected historical cross stable deviation default: %.4f", cfg.HistoricalConfig.CrossStableQuoteMaxDeviationRate)
+	}
+	if cfg.HistoricalConfig.BatchSpotTakerFeeRates != "0.0010,0.0000" || cfg.HistoricalConfig.BatchPerLegNotionalUSDT != "5,10,20" || cfg.HistoricalConfig.BatchMaxFundingCyclesHeld != "1,2" {
+		t.Fatalf("unexpected historical batch defaults: %+v", cfg.HistoricalConfig)
+	}
 }
 
 func TestRuntimeRiskConfigFromEngineConfigUsesGroupedSections(t *testing.T) {
@@ -70,8 +79,14 @@ func TestBacktestRunnerHistoricalConfigUsesGroupedFallbacks(t *testing.T) {
 	if got.SpotTakerFeeRate != 0.0010 || got.FuturesTakerFeeRate != 0.0005 {
 		t.Fatalf("unexpected fee fallbacks: spot=%.4f futures=%.4f", got.SpotTakerFeeRate, got.FuturesTakerFeeRate)
 	}
+	if got.MaxFundingCyclesHeld != 1 {
+		t.Fatalf("expected max funding cycles fallback 1, got %d", got.MaxFundingCyclesHeld)
+	}
 	if got.ReferenceKlineLookback != 60 || got.EstimateKlineLookback != 180 {
 		t.Fatalf("unexpected lookback fallbacks: ref=%d estimate=%d", got.ReferenceKlineLookback, got.EstimateKlineLookback)
+	}
+	if got.CrossStableQuoteMaxDeviationRate != 0.0010 {
+		t.Fatalf("unexpected cross stable deviation fallback: %.4f", got.CrossStableQuoteMaxDeviationRate)
 	}
 }
 

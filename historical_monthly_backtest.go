@@ -157,7 +157,10 @@ type MonthlySimulationLogRecord struct {
 
 type monthlyCandidate struct {
 	Symbol                  string
+	Direction               fundingCarryDirection
 	FundingTime             time.Time
+	ExitTime                time.Time
+	HoldingCycles           int
 	EstimatedFundingRate    float64
 	FundingRate             float64
 	EstimatedFundingIncome  float64
@@ -198,6 +201,137 @@ type monthlyCandidate struct {
 	Notes                   []string
 }
 
+type fundingCarryDirection string
+
+const (
+	fundingCarryDirectionPositive fundingCarryDirection = "positive_carry"
+	fundingCarryDirectionNegative fundingCarryDirection = "negative_carry"
+	historicalFundingModePositive                       = "positive_only"
+	historicalFundingModeNegative                       = "negative_only"
+	historicalFundingModeBoth                           = "both"
+)
+
+func normalizeHistoricalFundingDirectionMode(mode string) string {
+	switch strings.ToLower(strings.TrimSpace(mode)) {
+	case historicalFundingModePositive:
+		return historicalFundingModePositive
+	case historicalFundingModeNegative:
+		return historicalFundingModeNegative
+	case historicalFundingModeBoth:
+		return historicalFundingModeBoth
+	default:
+		return historicalFundingModeBoth
+	}
+}
+
+func isValidHistoricalFundingDirectionMode(mode string) bool {
+	switch strings.ToLower(strings.TrimSpace(mode)) {
+	case historicalFundingModePositive, historicalFundingModeNegative, historicalFundingModeBoth:
+		return true
+	default:
+		return false
+	}
+}
+
+func fundingDirectionFromRate(rate float64) fundingCarryDirection {
+	if rate < 0 {
+		return fundingCarryDirectionNegative
+	}
+	if rate > 0 {
+		return fundingCarryDirectionPositive
+	}
+	return ""
+}
+
+func historicalFundingDirectionEnabled(mode string, direction fundingCarryDirection) bool {
+	switch normalizeHistoricalFundingDirectionMode(mode) {
+	case historicalFundingModeNegative:
+		return direction == fundingCarryDirectionNegative
+	case historicalFundingModeBoth:
+		return direction == fundingCarryDirectionPositive || direction == fundingCarryDirectionNegative
+	default:
+		return direction == fundingCarryDirectionPositive
+	}
+}
+
+func historicalFundingIncome(direction fundingCarryDirection, hedgeQty float64, markPrice float64, fundingRate float64, cycles int) float64 {
+	if hedgeQty <= 0 || markPrice <= 0 || cycles <= 0 {
+		return 0
+	}
+	multiplier := 1.0
+	if direction == fundingCarryDirectionNegative {
+		multiplier = -1
+	}
+	return hedgeQty * markPrice * fundingRate * float64(cycles) * multiplier
+}
+
+func (d fundingCarryDirection) spotGrossPnL(hedgeQty float64, entryPrice float64, exitPrice float64) float64 {
+	switch d {
+	case fundingCarryDirectionNegative:
+		return hedgeQty * (entryPrice - exitPrice)
+	default:
+		return hedgeQty * (exitPrice - entryPrice)
+	}
+}
+
+func (d fundingCarryDirection) futuresGrossPnL(hedgeQty float64, entryPrice float64, exitPrice float64) float64 {
+	switch d {
+	case fundingCarryDirectionNegative:
+		return hedgeQty * (exitPrice - entryPrice)
+	default:
+		return hedgeQty * (entryPrice - exitPrice)
+	}
+}
+
+func historicalFundingPriorityScore(item FundingRateHistoryItem, mode string) float64 {
+	rate := parseFloat(item.EstimatedFundingRate)
+	if rate == 0 {
+		rate = parseFloat(item.FundingRate)
+	}
+	switch normalizeHistoricalFundingDirectionMode(mode) {
+	case historicalFundingModeNegative:
+		return math.Max(-rate, 0)
+	case historicalFundingModeBoth:
+		return math.Abs(rate)
+	default:
+		return math.Max(rate, 0)
+	}
+}
+
+func historicalBorrowInterestHours(direction fundingCarryDirection, entryTime time.Time, exitTime time.Time, minBillingHours int) int {
+	if direction != fundingCarryDirectionNegative {
+		return 0
+	}
+	hours := 1
+	if exitTime.After(entryTime) {
+		hours = int(math.Ceil(exitTime.Sub(entryTime).Hours()))
+		if hours < 1 {
+			hours = 1
+		}
+	}
+	if minBillingHours > hours {
+		hours = minBillingHours
+	}
+	return hours
+}
+
+func historicalBorrowInterestCost(direction fundingCarryDirection, notionalUSDT float64, hourlyRate float64, billedHours int) float64 {
+	if direction != fundingCarryDirectionNegative || notionalUSDT <= 0 || hourlyRate <= 0 || billedHours <= 0 {
+		return 0
+	}
+	return notionalUSDT * hourlyRate * float64(billedHours)
+}
+
+func historicalSpotImpactMultiplier(hcfg historicalConfig, direction fundingCarryDirection, isEntry bool) float64 {
+	if direction != fundingCarryDirectionNegative {
+		return 1
+	}
+	if isEntry {
+		return math.Max(hcfg.NegativeCarrySpotEntryImpactMultiplier, 1)
+	}
+	return math.Max(hcfg.NegativeCarrySpotExitImpactMultiplier, 1)
+}
+
 type monthlyEventGroup struct {
 	FundingTime time.Time
 	RawCount    int
@@ -210,6 +344,7 @@ type monthlyKlineCache struct {
 	futures map[string]MarketKline
 	index   map[string]MarketKline
 	premium map[string]MarketKline
+	funding map[string]FundingRateHistoryItem
 	hits    map[string]int
 	loads   map[string]int
 }
@@ -220,9 +355,16 @@ func newMonthlyKlineCache() *monthlyKlineCache {
 		futures: make(map[string]MarketKline),
 		index:   make(map[string]MarketKline),
 		premium: make(map[string]MarketKline),
+		funding: make(map[string]FundingRateHistoryItem),
 		hits:    make(map[string]int),
 		loads:   make(map[string]int),
 	}
+}
+
+type monthlyExperimentPlan struct {
+	Index int
+	Total int
+	Cfg   EngineConfig
 }
 
 type monthlyFundingFetchStats struct {
@@ -256,39 +398,46 @@ type monthlyLogAggregation struct {
 }
 
 type historicalConfig struct {
-	DefaultLookbackDays            int
-	InitialEquityUSDT              float64
-	StopEquityUSDT                 float64
-	PerLegNotionalUSDT             float64
-	MaxPerLegEquityShare           float64
-	SpotTakerFeeRate               float64
-	FuturesTakerFeeRate            float64
-	FundingPhaseLead               time.Duration
-	FundingFetchConcurrency        int
-	FundingRetryMax                int
-	CacheDir                       string
-	ReferenceKlineLookback         int
-	EstimateKlineLookback          int
-	SafetyBufferFloorUSDT          float64
-	SafetyBufferCostMultiplier     float64
-	MaxDrawdownRate                float64
-	MaxConsecutiveLosses           int
-	MaxFundingRate                 float64
-	MaxFundingRateJump             float64
-	MaxSingleTradeLossUSDT         float64
-	FundingFetchSlot               time.Duration
-	FundingFetchTimeout            time.Duration
-	GroupEvaluationTimeout         time.Duration
-	CandidateBuildTimeout          time.Duration
-	CandidateFinalizeTimeout       time.Duration
-	ScreeningConcurrency           int
-	DeepCandidateLimit             int
-	LiquidityShareMin              float64
-	LiquidityShareFloor            float64
-	LiquidityShareMax              float64
-	SevereLiquidityShareCap        float64
-	SevereLiquidityShareMultiplier float64
-	SevereLiquidityShareMax        float64
+	DefaultLookbackDays                    int
+	InitialEquityUSDT                      float64
+	StopEquityUSDT                         float64
+	PerLegNotionalUSDT                     float64
+	FundingDirectionMode                   string
+	MaxFundingCyclesHeld                   int
+	MaxPerLegEquityShare                   float64
+	SpotTakerFeeRate                       float64
+	FuturesTakerFeeRate                    float64
+	AssumedHourlyBorrowInterestRate        float64
+	BorrowInterestMinBillingHours          int
+	NegativeCarrySpotEntryImpactMultiplier float64
+	NegativeCarrySpotExitImpactMultiplier  float64
+	CrossStableQuoteMaxDeviationRate       float64
+	FundingPhaseLead                       time.Duration
+	FundingFetchConcurrency                int
+	FundingRetryMax                        int
+	CacheDir                               string
+	ReferenceKlineLookback                 int
+	EstimateKlineLookback                  int
+	SafetyBufferFloorUSDT                  float64
+	SafetyBufferCostMultiplier             float64
+	MaxDrawdownRate                        float64
+	MaxConsecutiveLosses                   int
+	MaxFundingRate                         float64
+	MaxFundingRateJump                     float64
+	MaxSingleTradeLossUSDT                 float64
+	FundingFetchSlot                       time.Duration
+	FundingFetchTimeout                    time.Duration
+	GroupEvaluationTimeout                 time.Duration
+	CandidateBuildTimeout                  time.Duration
+	CandidateFinalizeTimeout               time.Duration
+	ScreeningConcurrency                   int
+	DeepCandidateLimit                     int
+	LiquidityShareMin                      float64
+	LiquidityShareFloor                    float64
+	LiquidityShareMax                      float64
+	SevereLiquidityShareCap                float64
+	SevereLiquidityShareMultiplier         float64
+	SevereLiquidityShareMax                float64
 }
 
 // RunMonthlyMarketSimulation 拉取过去一段时间的真实历史数据，并按资金费套利规则做回放。
@@ -315,8 +464,10 @@ func (r *BacktestRunner) RunMonthlyMarketSimulation(ctx context.Context, secretP
 		return nil, fmt.Errorf("没有可用于月度模拟的黄金币种")
 	}
 
+	experiments := r.monthlyExperimentPlans()
 	if r.logger != nil {
-		r.logger.Printf("月度真实行情模拟启动，区间=%s，黄金币种数=%d，单腿名义=%.2f，总初始权益=%.2f，止损权益=%.2f", periodLabel, len(symbols), r.monthlyPerLegNotional(), hcfg.InitialEquityUSDT, hcfg.StopEquityUSDT)
+		r.logger.Printf("月度真实行情模拟启动，区间=%s，黄金币种数=%d，实验组数=%d，初始单组参数: 单腿名义=%.2f，止损权益=%.2f，现货费率=%.4f，合约费率=%.4f，持有 funding 次数=%d",
+			periodLabel, len(symbols), len(experiments), r.monthlyPerLegNotional(), hcfg.StopEquityUSDT, hcfg.SpotTakerFeeRate, hcfg.FuturesTakerFeeRate, r.monthlyHoldingCycles())
 	}
 	cache := newMonthlyKlineCache()
 	r.reportProgress(EngineStage("fetch_funding"), fmt.Sprintf("正在按时间轴构建历史候选: 0/%d", len(symbols)), 0, len(symbols))
@@ -329,31 +480,21 @@ func (r *BacktestRunner) RunMonthlyMarketSimulation(ctx context.Context, secretP
 		return nil, err
 	}
 
-	r.reportProgress(EngineStage("evaluate_groups"), fmt.Sprintf("时间轴候选构建完成，开始评估 %d 个 funding 时点", len(groups)), 0, len(groups))
-
-	tradeSamples, logs, simStats, stopReason, err := r.simulateMonthlyFundingGroups(ctx, client, cache, groups, periodLabel)
+	fetchStats.RequestSummary = client.historicalRequestSummary()
+	allRecords, allLogs, totalTrades, err := r.runMonthlyExperimentPlans(ctx, client, cache, groups, periodLabel, fetchStats, experiments)
 	if err != nil {
 		return nil, err
 	}
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	fetchStats.RequestSummary = client.historicalRequestSummary()
-	logs = append(logs, buildMonthlyRunSummaryLogRecord(periodLabel, fetchStats, simStats, stopReason))
 
-	records := buildBacktestRecords(r.cfg, tradeSamples)
-	records = append(records, r.buildMonthlySummaryRecord(periodLabel, tradeSamples, fetchStats, simStats, stopReason))
-	records = append(records, r.buildMonthlyStressRecords(periodLabel, tradeSamples, fetchStats, simStats)...)
-
-	if err := writeMonthlySimulationLogs(r.recordDir(), r.cfg, logs); err != nil {
+	if err := writeMonthlySimulationLogs(r.recordDir(), r.cfg, allLogs); err != nil {
 		return nil, err
 	}
 
 	if r.store != nil {
-		if err := r.store.ReplaceBacktestRecords(records); err != nil {
+		if err := r.store.ReplaceBacktestRecords(allRecords); err != nil {
 			return nil, err
 		}
-		if err := r.store.AppendBacktestRunSummaries("monthly_market", records); err != nil {
+		if err := r.store.AppendBacktestRunSummaries("monthly_market", allRecords); err != nil {
 			return nil, err
 		}
 		if err := r.store.ReplaceResidualRiskRecords(nil); err != nil {
@@ -362,11 +503,11 @@ func (r *BacktestRunner) RunMonthlyMarketSimulation(ctx context.Context, secretP
 	}
 
 	if r.logger != nil {
-		r.logger.Printf("月度真实行情模拟完成，区间=%s，执行交易=%d，评估候选=%d，跳过轮次=%d，输出汇总=%d，停止原因=%s", periodLabel, len(tradeSamples), simStats.EvaluatedCandidates, simStats.SkippedGroups, len(records), stopReason)
+		r.logger.Printf("月度真实行情模拟完成，区间=%s，实验组数=%d，总执行交易=%d，输出汇总=%d", periodLabel, len(experiments), totalTrades, len(allRecords))
 	}
-	r.reportProgress(StageCompleted, fmt.Sprintf("月度历史模拟完成，执行交易=%d，输出汇总=%d", len(tradeSamples), len(records)), len(groups), len(groups))
+	r.reportProgress(StageCompleted, fmt.Sprintf("月度历史模拟完成，实验组=%d，总执行交易=%d，输出汇总=%d", len(experiments), totalTrades, len(allRecords)), len(experiments), len(experiments))
 
-	return records, nil
+	return allRecords, nil
 }
 
 func (r *BacktestRunner) buildMonthlyTimelineGroups(ctx context.Context, client *BinanceClient, cache *monthlyKlineCache, symbols []string, start time.Time, end time.Time) ([]monthlyEventGroup, monthlyFundingFetchStats, error) {
@@ -447,8 +588,8 @@ func (r *BacktestRunner) buildMonthlyTimelineGroups(ctx context.Context, client 
 		}
 
 		sort.SliceStable(items, func(i, j int) bool {
-			left := parseFloat(items[i].EstimatedFundingRate)
-			right := parseFloat(items[j].EstimatedFundingRate)
+			left := historicalFundingPriorityScore(items[i], hcfg.FundingDirectionMode)
+			right := historicalFundingPriorityScore(items[j], hcfg.FundingDirectionMode)
 			if left == right {
 				return items[i].Symbol < items[j].Symbol
 			}
@@ -520,6 +661,21 @@ func (r *BacktestRunner) buildMonthlyTimelinePreselectItem(ctx context.Context, 
 		MarkPrice:            formatFloat(estimatedMarkPrice),
 		EstimatedFundingRate: formatFloat(estimatedFundingRate),
 	}, nil
+}
+
+func alignHistoricalExperimentCapital(cfg EngineConfig) EngineConfig {
+	perLeg := cfg.HistoricalConfig.PerLegNotionalUSDT
+	if perLeg <= 0 || cfg.HistoricalConfig.InitialEquityUSDT <= 0 {
+		return cfg
+	}
+	requiredShare := perLeg / cfg.HistoricalConfig.InitialEquityUSDT
+	if requiredShare > 1 {
+		requiredShare = 1
+	}
+	if requiredShare > cfg.HistoricalConfig.MaxPerLegEquityShare {
+		cfg.HistoricalConfig.MaxPerLegEquityShare = requiredShare
+	}
+	return cfg
 }
 
 func (r *BacktestRunner) fetchMonthlyFundingGroups(ctx context.Context, client *BinanceClient, symbols []string, start time.Time, end time.Time) ([]monthlyEventGroup, monthlyFundingFetchStats, error) {
@@ -654,7 +810,12 @@ func (r *BacktestRunner) fetchMonthlyFundingGroups(ctx context.Context, client *
 	for _, fundingTime := range times {
 		items := grouped[fundingTime]
 		sort.Slice(items, func(i, j int) bool {
-			return parseFloat(items[i].FundingRate) > parseFloat(items[j].FundingRate)
+			left := historicalFundingPriorityScore(items[i], r.historicalConfig().FundingDirectionMode)
+			right := historicalFundingPriorityScore(items[j], r.historicalConfig().FundingDirectionMode)
+			if left == right {
+				return items[i].Symbol < items[j].Symbol
+			}
+			return left > right
 		})
 		rawCount := len(items)
 		items = trimMonthlyFundingGroupItems(items, monthlyFundingTopSymbolsPerTime)
@@ -733,7 +894,7 @@ func (r *BacktestRunner) simulateMonthlyFundingGroups(ctx context.Context, clien
 				reason = "selected_for_trade"
 			default:
 				action = "evaluate_ranked_out"
-				reason = "positive_but_not_top1"
+				reason = "viable_but_not_top1"
 				extraNotes = append(extraNotes, fmt.Sprintf("bestEstimatedNetPnL=%.6f", best.EstimatedNetPnL))
 			}
 			logs = append(logs, buildMonthlyCandidateLogRecord(candidate, action, equity, equity, drawdownBefore, reason, extraNotes...))
@@ -749,10 +910,10 @@ func (r *BacktestRunner) simulateMonthlyFundingGroups(ctx context.Context, clien
 				EquityBefore: formatFloat(equity),
 				EquityAfter:  formatFloat(equity),
 				DrawdownRate: formatFloat(drawdownBefore),
-				Reason:       nonEmpty(skipped.Reason, "no_positive_candidate"),
+				Reason:       nonEmpty(skipped.Reason, "no_viable_candidate"),
 				Notes:        strings.Join(skipped.Notes, " | "),
 			})
-			stats.SkipReasons[nonEmpty(skipped.Reason, "no_positive_candidate")]++
+			stats.SkipReasons[nonEmpty(skipped.Reason, "no_viable_candidate")]++
 			continue
 		}
 
@@ -772,7 +933,7 @@ func (r *BacktestRunner) simulateMonthlyFundingGroups(ctx context.Context, clien
 
 		logs = append(logs, buildMonthlyTradeLogRecord(best, "trade", equityBefore, equity, drawdownRate))
 		trades = append(trades, BacktestTradeSample{
-			Scenario:      "MonthlyMarketReplay",
+			Scenario:      r.monthlyScenarioName("MonthlyMarketReplay"),
 			Symbol:        best.Symbol,
 			Period:        periodLabel,
 			TradeID:       best.FundingTime.Format(time.RFC3339),
@@ -938,10 +1099,12 @@ func (r *BacktestRunner) selectBestMonthlyCandidate(ctx context.Context, client 
 	}
 
 	sort.SliceStable(screened, func(i, j int) bool {
-		if screened[i].EstimatedFundingRate == screened[j].EstimatedFundingRate {
+		left := math.Abs(screened[i].EstimatedFundingRate)
+		right := math.Abs(screened[j].EstimatedFundingRate)
+		if left == right {
 			return screened[i].Symbol < screened[j].Symbol
 		}
-		return screened[i].EstimatedFundingRate > screened[j].EstimatedFundingRate
+		return left > right
 	})
 
 	if len(screened) > hcfg.DeepCandidateLimit {
@@ -972,7 +1135,7 @@ func (r *BacktestRunner) selectBestMonthlyCandidate(ctx context.Context, client 
 		candidate := screenedCandidate
 		candidateBuildTimeout := adaptiveMonthlyCandidateBuildTimeout(hcfg.CandidateBuildTimeout, len(group.Items))
 		hydrateCtx, hydrateCancel := context.WithTimeout(groupCtx, candidateBuildTimeout)
-		err := r.hydrateMonthlyCandidateFunding(hydrateCtx, client, &candidate)
+		err := r.hydrateMonthlyCandidateFunding(hydrateCtx, client, cache, &candidate)
 		hydrateCancel()
 		if err != nil {
 			candidate.Reason = monthlyBuildSkipReason("funding_rate_unavailable", err)
@@ -1035,6 +1198,9 @@ func (r *BacktestRunner) selectBestMonthlyCandidate(ctx context.Context, client 
 			continue
 		}
 		evaluated[index] = candidate
+		if strings.TrimSpace(evaluated[index].Reason) != "" {
+			continue
+		}
 		if r.logger != nil {
 			r.logMonthlyGroupAggregation(group, len(screeningItems), logAgg, groupReason)
 		}
@@ -1076,6 +1242,8 @@ func (r *BacktestRunner) preselectMonthlyGroupItems(group monthlyEventGroup) ([]
 func (r *BacktestRunner) buildMonthlyCandidate(ctx context.Context, client *BinanceClient, cache *monthlyKlineCache, fundingTime time.Time, item FundingRateHistoryItem) (monthlyCandidate, error) {
 	hcfg := r.historicalConfig()
 	entryTime := fundingTime.Add(-hcfg.FundingPhaseLead)
+	holdingCycles := r.monthlyHoldingCycles()
+	exitTime := r.monthlyExitTime(fundingTime)
 	premiumEntryRef, err := cache.getFuturesPremiumKlineBefore(ctx, client, item.Symbol, entryTime)
 	if err != nil {
 		return monthlySkippedCandidate(item, fundingTime, monthlyBuildSkipReason("premium_index_kline_unavailable", err), err, hcfg.CandidateBuildTimeout), nil
@@ -1104,31 +1272,38 @@ func (r *BacktestRunner) buildMonthlyCandidate(ctx context.Context, client *Bina
 	}
 	roughHedgeQty := r.monthlyPerLegNotional() / effectiveMarkPrice
 	estimatedFundingRate := parseFloat(item.EstimatedFundingRate)
-	if estimatedFundingRate <= 0 {
+	if estimatedFundingRate == 0 {
 		estimatedFundingRate = conservativeHistoricalFundingRate(premiumEntryRef.Close, preFundingBasisRate)
 	}
-	estimatedFundingIncome := roughHedgeQty * effectiveMarkPrice * estimatedFundingRate
+	direction := fundingDirectionFromRate(estimatedFundingRate)
+	estimatedFundingIncome := historicalFundingIncome(direction, roughHedgeQty, effectiveMarkPrice, estimatedFundingRate, holdingCycles)
 	fundingIncome := 0.0
 	fundingRateJump := 0.0
 	if actualFundingLoaded {
-		fundingIncome = roughHedgeQty * effectiveMarkPrice * fundingRate
+		fundingIncome = historicalFundingIncome(direction, roughHedgeQty, effectiveMarkPrice, fundingRate, holdingCycles)
 		fundingRateJump = math.Abs(fundingRate - estimatedFundingRate)
 	}
 
 	baseNotes := []string{
+		"fundingDirectionMode=" + normalizeHistoricalFundingDirectionMode(hcfg.FundingDirectionMode),
+		"direction=" + string(direction),
 		fmt.Sprintf("premiumIndexClose=%.6f", premiumEntryRef.Close),
 		fmt.Sprintf("markIndexBasis=%.6f", preFundingBasisRate),
 		fmt.Sprintf("actualFundingLoaded=%t", actualFundingLoaded),
 		"screeningStage=premium_index_only",
+		"estimatedFundingModel=conservative_premium_basis_haircut",
 	}
 	if actualFundingLoaded {
 		baseNotes = append(baseNotes, fmt.Sprintf("fundingRateJump=%.6f", fundingRateJump))
 	}
 
-	if estimatedFundingRate <= 0 {
+	if direction == "" {
 		return monthlyCandidate{
 			Symbol:                 item.Symbol,
+			Direction:              direction,
 			FundingTime:            fundingTime,
+			ExitTime:               exitTime,
+			HoldingCycles:          holdingCycles,
 			EstimatedFundingRate:   estimatedFundingRate,
 			FundingRate:            fundingRate,
 			EstimatedFundingIncome: estimatedFundingIncome,
@@ -1137,10 +1312,28 @@ func (r *BacktestRunner) buildMonthlyCandidate(ctx context.Context, client *Bina
 			Notes:                  append([]string(nil), baseNotes...),
 		}, nil
 	}
-	if estimatedFundingRate >= hcfg.MaxFundingRate || (actualFundingLoaded && fundingRate >= hcfg.MaxFundingRate) {
+	if !historicalFundingDirectionEnabled(hcfg.FundingDirectionMode, direction) {
 		return monthlyCandidate{
 			Symbol:                 item.Symbol,
+			Direction:              direction,
 			FundingTime:            fundingTime,
+			ExitTime:               exitTime,
+			HoldingCycles:          holdingCycles,
+			EstimatedFundingRate:   estimatedFundingRate,
+			FundingRate:            fundingRate,
+			EstimatedFundingIncome: estimatedFundingIncome,
+			FundingIncome:          fundingIncome,
+			Reason:                 "estimated_funding_direction_disabled",
+			Notes:                  append([]string(nil), baseNotes...),
+		}, nil
+	}
+	if math.Abs(estimatedFundingRate) >= hcfg.MaxFundingRate || (actualFundingLoaded && math.Abs(fundingRate) >= hcfg.MaxFundingRate) {
+		return monthlyCandidate{
+			Symbol:                 item.Symbol,
+			Direction:              direction,
+			FundingTime:            fundingTime,
+			ExitTime:               exitTime,
+			HoldingCycles:          holdingCycles,
 			EstimatedFundingRate:   estimatedFundingRate,
 			FundingRate:            fundingRate,
 			EstimatedFundingIncome: estimatedFundingIncome,
@@ -1154,7 +1347,10 @@ func (r *BacktestRunner) buildMonthlyCandidate(ctx context.Context, client *Bina
 	if actualFundingLoaded && fundingRateJump >= hcfg.MaxFundingRateJump {
 		return monthlyCandidate{
 			Symbol:                 item.Symbol,
+			Direction:              direction,
 			FundingTime:            fundingTime,
+			ExitTime:               exitTime,
+			HoldingCycles:          holdingCycles,
 			EstimatedFundingRate:   estimatedFundingRate,
 			FundingRate:            fundingRate,
 			EstimatedFundingIncome: estimatedFundingIncome,
@@ -1167,7 +1363,10 @@ func (r *BacktestRunner) buildMonthlyCandidate(ctx context.Context, client *Bina
 	}
 	return monthlyCandidate{
 		Symbol:                 item.Symbol,
+		Direction:              direction,
 		FundingTime:            fundingTime,
+		ExitTime:               exitTime,
+		HoldingCycles:          holdingCycles,
 		EstimatedFundingRate:   estimatedFundingRate,
 		FundingRate:            fundingRate,
 		EstimatedFundingIncome: estimatedFundingIncome,
@@ -1176,8 +1375,8 @@ func (r *BacktestRunner) buildMonthlyCandidate(ctx context.Context, client *Bina
 	}, nil
 }
 
-func (r *BacktestRunner) hydrateMonthlyCandidateFunding(ctx context.Context, client *BinanceClient, candidate *monthlyCandidate) error {
-	item, err := client.fetchFundingRateAt(ctx, candidate.Symbol, candidate.FundingTime)
+func (r *BacktestRunner) hydrateMonthlyCandidateFunding(ctx context.Context, client *BinanceClient, cache *monthlyKlineCache, candidate *monthlyCandidate) error {
+	item, err := cache.getFundingRateAt(ctx, client, candidate.Symbol, candidate.FundingTime)
 	if err != nil {
 		return err
 	}
@@ -1191,7 +1390,14 @@ func (r *BacktestRunner) hydrateMonthlyCandidateFunding(ctx context.Context, cli
 
 func (r *BacktestRunner) validateMonthlyActualFunding(candidate monthlyCandidate) (string, []string) {
 	hcfg := r.historicalConfig()
-	if candidate.FundingRate >= hcfg.MaxFundingRate {
+	actualDirection := fundingDirectionFromRate(candidate.FundingRate)
+	if candidate.Direction != "" && actualDirection != "" && actualDirection != candidate.Direction {
+		return "funding_direction_reversed", []string{
+			"estimatedDirection=" + string(candidate.Direction),
+			"actualDirection=" + string(actualDirection),
+		}
+	}
+	if math.Abs(candidate.FundingRate) >= hcfg.MaxFundingRate {
 		return "funding_rate_extreme", []string{fmt.Sprintf("maxFundingRate=%.6f", hcfg.MaxFundingRate)}
 	}
 	fundingRateJump := math.Abs(candidate.FundingRate - candidate.EstimatedFundingRate)
@@ -1204,10 +1410,112 @@ func (r *BacktestRunner) validateMonthlyActualFunding(candidate monthlyCandidate
 	return "", nil
 }
 
+type historicalSpotQuoteContext struct {
+	SpotPair   string
+	QuoteAsset string
+}
+
+type historicalSpotQuoteConversion struct {
+	SpotPair      string
+	QuoteAsset    string
+	FXSymbol      string
+	RateToUSDT    float64
+	DeviationRate float64
+}
+
+func resolveHistoricalSpotQuoteContext(client *BinanceClient, futureSymbol string) historicalSpotQuoteContext {
+	normalizedFuture := strings.ToUpper(strings.TrimSpace(futureSymbol))
+	ctx := historicalSpotQuoteContext{
+		SpotPair:   normalizedFuture,
+		QuoteAsset: "USDT",
+	}
+	if client == nil {
+		return ctx
+	}
+	if pair := strings.TrimSpace(client.historicalSpotPairForFuture(normalizedFuture)); pair != "" {
+		ctx.SpotPair = strings.ToUpper(pair)
+	}
+	if meta, ok := client.historicalSpotMetaForFuture(normalizedFuture); ok {
+		if strings.TrimSpace(meta.Symbol) != "" {
+			ctx.SpotPair = strings.ToUpper(strings.TrimSpace(meta.Symbol))
+		}
+		if strings.TrimSpace(meta.QuoteAsset) != "" {
+			ctx.QuoteAsset = strings.ToUpper(strings.TrimSpace(meta.QuoteAsset))
+		}
+	}
+	return ctx
+}
+
+func historicalSpotKlineAt(ctx context.Context, client *BinanceClient, cache *monthlyKlineCache, symbol string, at time.Time, before bool) (MarketKline, error) {
+	if before {
+		return cache.getSpotKlineBefore(ctx, client, symbol, at)
+	}
+	return cache.getSpotKline(ctx, client, symbol, at)
+}
+
+func historicalKlineReferencePrice(kline MarketKline, before bool) float64 {
+	if before {
+		return kline.Close
+	}
+	return kline.Open
+}
+
+func historicalSpotQuoteConversionAt(ctx context.Context, client *BinanceClient, cache *monthlyKlineCache, futureSymbol string, at time.Time, before bool) (historicalSpotQuoteConversion, error) {
+	quoteCtx := resolveHistoricalSpotQuoteContext(client, futureSymbol)
+	conversion := historicalSpotQuoteConversion{
+		SpotPair:   quoteCtx.SpotPair,
+		QuoteAsset: quoteCtx.QuoteAsset,
+		FXSymbol:   "USDT",
+		RateToUSDT: 1,
+	}
+	if quoteCtx.QuoteAsset == "" || quoteCtx.QuoteAsset == "USDT" {
+		return conversion, nil
+	}
+	directSymbol := quoteCtx.QuoteAsset + "USDT"
+	if directKline, err := historicalSpotKlineAt(ctx, client, cache, directSymbol, at, before); err == nil {
+		rate := historicalKlineReferencePrice(directKline, before)
+		if rate <= 0 {
+			return historicalSpotQuoteConversion{}, fmt.Errorf("cross quote fx 无效: pair=%s rate=%.8f", directSymbol, rate)
+		}
+		conversion.FXSymbol = directSymbol
+		conversion.RateToUSDT = rate
+		conversion.DeviationRate = math.Abs(rate - 1)
+		return conversion, nil
+	} else {
+		inverseSymbol := "USDT" + quoteCtx.QuoteAsset
+		inverseKline, inverseErr := historicalSpotKlineAt(ctx, client, cache, inverseSymbol, at, before)
+		if inverseErr != nil {
+			return historicalSpotQuoteConversion{}, fmt.Errorf("cross quote fx 不可用: future=%s spotPair=%s quote=%s directErr=%v inverseErr=%v", futureSymbol, quoteCtx.SpotPair, quoteCtx.QuoteAsset, err, inverseErr)
+		}
+		rawRate := historicalKlineReferencePrice(inverseKline, before)
+		if rawRate <= 0 {
+			return historicalSpotQuoteConversion{}, fmt.Errorf("cross quote fx 无效: pair=%s rate=%.8f", inverseSymbol, rawRate)
+		}
+		conversion.FXSymbol = inverseSymbol
+		conversion.RateToUSDT = 1 / rawRate
+		conversion.DeviationRate = math.Abs(conversion.RateToUSDT - 1)
+		return conversion, nil
+	}
+}
+
+func convertHistoricalSpotMetricsToUSDT(price float64, quoteVolume float64, conversion historicalSpotQuoteConversion) (float64, float64) {
+	rate := conversion.RateToUSDT
+	if rate <= 0 {
+		rate = 1
+	}
+	return price * rate, quoteVolume * rate
+}
+
 func (r *BacktestRunner) completeMonthlyCandidateProxy(ctx context.Context, client *BinanceClient, cache *monthlyKlineCache, candidate *monthlyCandidate) error {
 	hcfg := r.historicalConfig()
 	entryTime := candidate.FundingTime.Add(-hcfg.FundingPhaseLead)
-	spotEntryRef, err := cache.getSpotKlineBefore(ctx, client, candidate.Symbol, entryTime)
+	exitTime := candidate.ExitTime
+	if exitTime.IsZero() {
+		exitTime = r.monthlyExitTime(candidate.FundingTime)
+		candidate.ExitTime = exitTime
+	}
+	spotQuoteCtx := resolveHistoricalSpotQuoteContext(client, candidate.Symbol)
+	spotEntryRef, err := cache.getSpotKlineBefore(ctx, client, spotQuoteCtx.SpotPair, entryTime)
 	if err != nil {
 		return err
 	}
@@ -1215,14 +1523,51 @@ func (r *BacktestRunner) completeMonthlyCandidateProxy(ctx context.Context, clie
 	if err != nil {
 		return err
 	}
+	spotExitRef, err := cache.getSpotKlineBefore(ctx, client, spotQuoteCtx.SpotPair, exitTime)
+	if err != nil {
+		return err
+	}
+	futuresExitRef, err := cache.getFuturesKlineBefore(ctx, client, candidate.Symbol, exitTime)
+	if err != nil {
+		return err
+	}
+	entryConversion, err := historicalSpotQuoteConversionAt(ctx, client, cache, candidate.Symbol, entryTime, true)
+	if err != nil {
+		candidate.Reason = "cross_quote_fx_unavailable"
+		candidate.Notes = append(candidate.Notes, err.Error(), "pricingModel=entry_proxy_screening")
+		return nil
+	}
+	exitConversion, err := historicalSpotQuoteConversionAt(ctx, client, cache, candidate.Symbol, exitTime, true)
+	if err != nil {
+		candidate.Reason = "cross_quote_fx_unavailable"
+		candidate.Notes = append(candidate.Notes, err.Error(), "pricingModel=entry_proxy_screening")
+		return nil
+	}
+	if entryConversion.DeviationRate > hcfg.CrossStableQuoteMaxDeviationRate || exitConversion.DeviationRate > hcfg.CrossStableQuoteMaxDeviationRate {
+		candidate.Reason = "cross_quote_deviation_too_high"
+		candidate.Notes = append(candidate.Notes,
+			fmt.Sprintf("spotPair=%s", entryConversion.SpotPair),
+			fmt.Sprintf("spotQuoteAsset=%s", entryConversion.QuoteAsset),
+			fmt.Sprintf("spotEntryFXPair=%s", entryConversion.FXSymbol),
+			fmt.Sprintf("spotExitFXPair=%s", exitConversion.FXSymbol),
+			fmt.Sprintf("spotEntryFXRateToUSDT=%.6f", entryConversion.RateToUSDT),
+			fmt.Sprintf("spotExitFXRateToUSDT=%.6f", exitConversion.RateToUSDT),
+			fmt.Sprintf("spotEntryFXDeviationRate=%.6f", entryConversion.DeviationRate),
+			fmt.Sprintf("spotExitFXDeviationRate=%.6f", exitConversion.DeviationRate),
+			fmt.Sprintf("crossStableQuoteMaxDeviationRate=%.6f", hcfg.CrossStableQuoteMaxDeviationRate),
+			"pricingModel=entry_proxy_screening",
+		)
+		return nil
+	}
 
-	spotEntryPrice := spotEntryRef.Close
+	spotEntryPrice, spotEntryQuoteVolume := convertHistoricalSpotMetricsToUSDT(spotEntryRef.Close, spotEntryRef.QuoteAssetVolume, entryConversion)
 	futuresEntryPrice := futuresEntryRef.Close
 	if spotEntryPrice <= 0 || futuresEntryPrice <= 0 {
 		candidate.Reason = "invalid_market_data"
 		candidate.Notes = append(candidate.Notes, "存在非正价格", "pricingModel=entry_proxy_screening")
 		return nil
 	}
+	spotExitPrice, spotExitQuoteVolume := convertHistoricalSpotMetricsToUSDT(spotExitRef.Close, spotExitRef.QuoteAssetVolume, exitConversion)
 
 	perLegNotional := r.monthlyPerLegNotional()
 	hedgeQty := math.Min(perLegNotional/spotEntryPrice, perLegNotional/futuresEntryPrice)
@@ -1234,38 +1579,49 @@ func (r *BacktestRunner) completeMonthlyCandidateProxy(ctx context.Context, clie
 
 	spotEntryNotional := hedgeQty * spotEntryPrice
 	futuresEntryNotional := hedgeQty * futuresEntryPrice
-	spotExitNotional := spotEntryNotional
-	futuresExitNotional := futuresEntryNotional
+	spotExitNotional := hedgeQty * spotExitRef.Close
+	futuresExitNotional := hedgeQty * futuresExitRef.Close
 	effectiveMarkPrice := futuresEntryPrice
 	if effectiveMarkPrice <= 0 {
 		effectiveMarkPrice = 1
 	}
+	if candidate.Direction == "" {
+		candidate.Direction = fundingDirectionFromRate(candidate.EstimatedFundingRate)
+	}
+	spotEntryImpactMultiplier := historicalSpotImpactMultiplier(hcfg, candidate.Direction, true)
+	spotExitImpactMultiplier := historicalSpotImpactMultiplier(hcfg, candidate.Direction, false)
+	borrowInterestHours := historicalBorrowInterestHours(candidate.Direction, entryTime, exitTime, hcfg.BorrowInterestMinBillingHours)
 	candidate.HedgeQty = hedgeQty
 	candidate.SpotEntryPrice = spotEntryPrice
 	candidate.FuturesEntryPrice = futuresEntryPrice
-	candidate.SpotExitPrice = spotEntryPrice
-	candidate.FuturesExitPrice = futuresEntryPrice
-	candidate.SpotEntryQuoteVolume = spotEntryRef.QuoteAssetVolume
+	candidate.SpotExitPrice = spotExitPrice
+	candidate.FuturesExitPrice = futuresExitRef.Close
+	candidate.SpotEntryQuoteVolume = spotEntryQuoteVolume
 	candidate.FuturesEntryQuoteVolume = futuresEntryRef.QuoteAssetVolume
-	candidate.SpotExitQuoteVolume = spotEntryRef.QuoteAssetVolume
-	candidate.FuturesExitQuoteVolume = futuresEntryRef.QuoteAssetVolume
-	candidate.EstimatedFundingIncome = hedgeQty * effectiveMarkPrice * candidate.EstimatedFundingRate
-	candidate.FundingIncome = hedgeQty * effectiveMarkPrice * candidate.FundingRate
+	candidate.SpotExitQuoteVolume = spotExitQuoteVolume
+	candidate.FuturesExitQuoteVolume = futuresExitRef.QuoteAssetVolume
+	candidate.EstimatedFundingIncome = historicalFundingIncome(candidate.Direction, hedgeQty, effectiveMarkPrice, candidate.EstimatedFundingRate, maxInt(candidate.HoldingCycles, 1))
+	candidate.FundingIncome = historicalFundingIncome(candidate.Direction, hedgeQty, effectiveMarkPrice, candidate.FundingRate, maxInt(candidate.HoldingCycles, 1))
 	candidate.OpenBasisRate = computeBasisRate(spotEntryPrice, futuresEntryPrice)
-	candidate.CloseBasisRate = candidate.OpenBasisRate
+	candidate.CloseBasisRate = computeBasisRate(candidate.SpotExitPrice, candidate.FuturesExitPrice)
 	candidate.SpotEntrySlipRate = estimateHistoricalSlipRate(spotEntryRef)
 	candidate.FuturesEntrySlipRate = estimateHistoricalSlipRate(futuresEntryRef)
-	candidate.SpotExitSlipRate = candidate.SpotEntrySlipRate
-	candidate.FuturesExitSlipRate = candidate.FuturesEntrySlipRate
-	candidate.SpotEntryImpactRate = estimateMarketImpactRate(spotEntryNotional, spotEntryRef.QuoteAssetVolume)
+	candidate.SpotExitSlipRate = estimateHistoricalSlipRate(spotExitRef)
+	candidate.FuturesExitSlipRate = estimateHistoricalSlipRate(futuresExitRef)
+	candidate.SpotEntryImpactRate = estimateMarketImpactRate(spotEntryNotional*spotEntryImpactMultiplier, spotEntryQuoteVolume)
 	candidate.FuturesEntryImpactRate = estimateMarketImpactRate(futuresEntryNotional, futuresEntryRef.QuoteAssetVolume)
-	candidate.SpotExitImpactRate = candidate.SpotEntryImpactRate
-	candidate.FuturesExitImpactRate = candidate.FuturesEntryImpactRate
+	candidate.SpotExitImpactRate = estimateMarketImpactRate(spotExitNotional*spotExitImpactMultiplier, spotExitQuoteVolume)
+	candidate.FuturesExitImpactRate = estimateMarketImpactRate(futuresExitNotional, futuresExitRef.QuoteAssetVolume)
+	borrowInterestBaseNotional := hedgeQty * effectiveMarkPrice
+	if borrowInterestBaseNotional <= 0 {
+		borrowInterestBaseNotional = spotEntryNotional
+	}
+	borrowInterestCost := historicalBorrowInterestCost(candidate.Direction, borrowInterestBaseNotional, hcfg.AssumedHourlyBorrowInterestRate, borrowInterestHours)
 	candidate.SpotEntryFee = spotEntryNotional * hcfg.SpotTakerFeeRate
 	candidate.FuturesEntryFee = futuresEntryNotional * hcfg.FuturesTakerFeeRate
 	candidate.SpotExitFee = spotExitNotional * hcfg.SpotTakerFeeRate
 	candidate.FuturesExitFee = futuresExitNotional * hcfg.FuturesTakerFeeRate
-	candidate.TotalFees = candidate.SpotEntryFee + candidate.FuturesEntryFee + candidate.SpotExitFee + candidate.FuturesExitFee
+	candidate.TotalFees = candidate.SpotEntryFee + candidate.FuturesEntryFee + candidate.SpotExitFee + candidate.FuturesExitFee + borrowInterestCost
 	candidate.TotalFriction = spotEntryNotional*(candidate.SpotEntrySlipRate+candidate.SpotEntryImpactRate) +
 		futuresEntryNotional*(candidate.FuturesEntrySlipRate+candidate.FuturesEntryImpactRate) +
 		spotExitNotional*(candidate.SpotExitSlipRate+candidate.SpotExitImpactRate) +
@@ -1275,21 +1631,33 @@ func (r *BacktestRunner) completeMonthlyCandidateProxy(ctx context.Context, clie
 	candidate.OpenBasisPenalty = computeAdverseBasisPenalty(candidate.OpenBasisRate, spotEntryNotional, futuresEntryNotional)
 	entryExecutionCost := spotEntryNotional*(candidate.SpotEntrySlipRate+candidate.SpotEntryImpactRate+hcfg.SpotTakerFeeRate) +
 		futuresEntryNotional*(candidate.FuturesEntrySlipRate+candidate.FuturesEntryImpactRate+hcfg.FuturesTakerFeeRate)
-	candidate.EstimatedNetPnL = candidate.EstimatedFundingIncome - candidate.OpenBasisPenalty - candidate.ProjectedExitCost - entryExecutionCost
+	candidate.EstimatedNetPnL = candidate.EstimatedFundingIncome - candidate.OpenBasisPenalty - candidate.ProjectedExitCost - entryExecutionCost - borrowInterestCost
 	candidate.SpotGrossPnL = 0
 	candidate.FuturesGrossPnL = 0
 	candidate.RealizedNetPnL = candidate.FundingIncome - candidate.TotalFriction - candidate.TotalFees
 	liquidityShareLimit := r.monthlyLiquidityShareLimit()
 	severeLiquidityShareLimit := r.monthlySevereLiquidityShareLimit(liquidityShareLimit)
-	candidate.MinLiquidityRequired = math.Max(spotEntryNotional, futuresEntryNotional) / liquidityShareLimit
-	spotLiquidityShare := ratioOrZero(spotEntryNotional, spotEntryRef.QuoteAssetVolume)
+	candidate.MinLiquidityRequired = math.Max(spotEntryNotional*spotEntryImpactMultiplier, futuresEntryNotional) / liquidityShareLimit
+	rawSpotLiquidityShare := ratioOrZero(spotEntryNotional, spotEntryQuoteVolume)
+	spotLiquidityShare := rawSpotLiquidityShare * spotEntryImpactMultiplier
 	futuresLiquidityShare := ratioOrZero(futuresEntryNotional, futuresEntryRef.QuoteAssetVolume)
 	liquidityRisk := EvaluateLiquidityShareRisk(math.Max(spotLiquidityShare, futuresLiquidityShare), liquidityShareLimit, severeLiquidityShareLimit)
 	candidate.Notes = append(candidate.Notes,
+		fmt.Sprintf("spotPair=%s", entryConversion.SpotPair),
+		fmt.Sprintf("spotQuoteAsset=%s", entryConversion.QuoteAsset),
+		fmt.Sprintf("spotEntryFXPair=%s", entryConversion.FXSymbol),
+		fmt.Sprintf("spotExitFXPair=%s", exitConversion.FXSymbol),
+		fmt.Sprintf("spotEntryFXRateToUSDT=%.6f", entryConversion.RateToUSDT),
+		fmt.Sprintf("spotExitFXRateToUSDT=%.6f", exitConversion.RateToUSDT),
+		fmt.Sprintf("spotEntryFXDeviationRate=%.6f", entryConversion.DeviationRate),
+		fmt.Sprintf("spotExitFXDeviationRate=%.6f", exitConversion.DeviationRate),
+		"direction="+string(candidate.Direction),
 		fmt.Sprintf("estimatedFundingRate=%.6f", candidate.EstimatedFundingRate),
 		fmt.Sprintf("actualFundingRate=%.6f", candidate.FundingRate),
 		fmt.Sprintf("estimatedFundingIncome=%.6f", candidate.EstimatedFundingIncome),
 		fmt.Sprintf("actualFundingIncome=%.6f", candidate.FundingIncome),
+		fmt.Sprintf("holdingCycles=%d", maxInt(candidate.HoldingCycles, 1)),
+		fmt.Sprintf("exitTime=%s", candidate.ExitTime.UTC().Format(time.RFC3339)),
 		fmt.Sprintf("spotEntrySlip=%.6f", candidate.SpotEntrySlipRate),
 		fmt.Sprintf("futuresEntrySlip=%.6f", candidate.FuturesEntrySlipRate),
 		fmt.Sprintf("spotExitSlip=%.6f", candidate.SpotExitSlipRate),
@@ -1298,8 +1666,13 @@ func (r *BacktestRunner) completeMonthlyCandidateProxy(ctx context.Context, clie
 		fmt.Sprintf("futuresEntryImpact=%.6f", candidate.FuturesEntryImpactRate),
 		fmt.Sprintf("spotExitImpact=%.6f", candidate.SpotExitImpactRate),
 		fmt.Sprintf("futuresExitImpact=%.6f", candidate.FuturesExitImpactRate),
+		fmt.Sprintf("spotEntryImpactMultiplier=%.2f", spotEntryImpactMultiplier),
+		fmt.Sprintf("spotExitImpactMultiplier=%.2f", spotExitImpactMultiplier),
+		fmt.Sprintf("borrowInterestHours=%d", borrowInterestHours),
+		fmt.Sprintf("borrowInterestCost=%.6f", borrowInterestCost),
 		fmt.Sprintf("openBasisPenalty=%.6f", candidate.OpenBasisPenalty),
 		fmt.Sprintf("projectedExitCost=%.6f", candidate.ProjectedExitCost),
+		fmt.Sprintf("rawSpotLiquidityShare=%.6f", rawSpotLiquidityShare),
 		fmt.Sprintf("spotLiquidityShare=%.6f", spotLiquidityShare),
 		fmt.Sprintf("futuresLiquidityShare=%.6f", futuresLiquidityShare),
 		fmt.Sprintf("liquidityShareLimit=%.6f", liquidityShareLimit),
@@ -1308,13 +1681,13 @@ func (r *BacktestRunner) completeMonthlyCandidateProxy(ctx context.Context, clie
 		fmt.Sprintf("liquidityRiskSeverity=%s", liquidityRisk.Severity),
 		fmt.Sprintf("liquidityRiskAction=%s", liquidityRisk.Action),
 		"pricingModel=entry_proxy_screening",
-		"exitCostModel=entry_liquidity_proxy",
+		"exitCostModel=historical_exit_proxy",
 	)
 
 	if spotLiquidityShare > severeLiquidityShareLimit || futuresLiquidityShare > severeLiquidityShareLimit {
 		candidate.Reason = "entry_liquidity_extremely_poor"
 		candidate.Notes = append(candidate.Notes,
-			fmt.Sprintf("spotEntryQuoteVol=%.6f", spotEntryRef.QuoteAssetVolume),
+			fmt.Sprintf("spotEntryQuoteVol=%.6f", spotEntryQuoteVolume),
 			fmt.Sprintf("futuresEntryQuoteVol=%.6f", futuresEntryRef.QuoteAssetVolume),
 		)
 		return nil
@@ -1322,7 +1695,7 @@ func (r *BacktestRunner) completeMonthlyCandidateProxy(ctx context.Context, clie
 	if spotLiquidityShare > liquidityShareLimit || futuresLiquidityShare > liquidityShareLimit {
 		candidate.Reason = "entry_liquidity_share_too_high"
 		candidate.Notes = append(candidate.Notes,
-			fmt.Sprintf("spotEntryQuoteVol=%.6f", spotEntryRef.QuoteAssetVolume),
+			fmt.Sprintf("spotEntryQuoteVol=%.6f", spotEntryQuoteVolume),
 			fmt.Sprintf("futuresEntryQuoteVol=%.6f", futuresEntryRef.QuoteAssetVolume),
 		)
 		return nil
@@ -1344,9 +1717,14 @@ func (r *BacktestRunner) completeMonthlyCandidateProxy(ctx context.Context, clie
 func (r *BacktestRunner) finalizeMonthlyCandidateExecution(ctx context.Context, client *BinanceClient, cache *monthlyKlineCache, candidate *monthlyCandidate) error {
 	hcfg := r.historicalConfig()
 	entryTime := candidate.FundingTime.Add(-hcfg.FundingPhaseLead)
-	exitTime := candidate.FundingTime
+	exitTime := candidate.ExitTime
+	if exitTime.IsZero() {
+		exitTime = r.monthlyExitTime(candidate.FundingTime)
+		candidate.ExitTime = exitTime
+	}
 
-	spotEntryExec, err := cache.getSpotKline(ctx, client, candidate.Symbol, entryTime)
+	spotQuoteCtx := resolveHistoricalSpotQuoteContext(client, candidate.Symbol)
+	spotEntryExec, err := cache.getSpotKline(ctx, client, spotQuoteCtx.SpotPair, entryTime)
 	if err != nil {
 		return fmt.Errorf("entry_spot_execution: %w", err)
 	}
@@ -1354,7 +1732,7 @@ func (r *BacktestRunner) finalizeMonthlyCandidateExecution(ctx context.Context, 
 	if err != nil {
 		return fmt.Errorf("entry_futures_execution: %w", err)
 	}
-	spotExitExec, err := cache.getSpotKline(ctx, client, candidate.Symbol, exitTime)
+	spotExitExec, err := cache.getSpotKline(ctx, client, spotQuoteCtx.SpotPair, exitTime)
 	if err != nil {
 		return fmt.Errorf("exit_spot_execution: %w", err)
 	}
@@ -1362,11 +1740,43 @@ func (r *BacktestRunner) finalizeMonthlyCandidateExecution(ctx context.Context, 
 	if err != nil {
 		return fmt.Errorf("exit_futures_execution: %w", err)
 	}
+	entryConversion, err := historicalSpotQuoteConversionAt(ctx, client, cache, candidate.Symbol, entryTime, false)
+	if err != nil {
+		return fmt.Errorf("entry_spot_fx_execution: %w", err)
+	}
+	exitConversion, err := historicalSpotQuoteConversionAt(ctx, client, cache, candidate.Symbol, exitTime, false)
+	if err != nil {
+		return fmt.Errorf("exit_spot_fx_execution: %w", err)
+	}
+	if entryConversion.DeviationRate > hcfg.CrossStableQuoteMaxDeviationRate || exitConversion.DeviationRate > hcfg.CrossStableQuoteMaxDeviationRate {
+		candidate.Reason = "cross_quote_deviation_too_high"
+		candidate.Notes = append(candidate.Notes,
+			fmt.Sprintf("spotPair=%s", entryConversion.SpotPair),
+			fmt.Sprintf("spotQuoteAsset=%s", entryConversion.QuoteAsset),
+			fmt.Sprintf("spotEntryFXPair=%s", entryConversion.FXSymbol),
+			fmt.Sprintf("spotExitFXPair=%s", exitConversion.FXSymbol),
+			fmt.Sprintf("spotEntryFXRateToUSDT=%.6f", entryConversion.RateToUSDT),
+			fmt.Sprintf("spotExitFXRateToUSDT=%.6f", exitConversion.RateToUSDT),
+			fmt.Sprintf("spotEntryFXDeviationRate=%.6f", entryConversion.DeviationRate),
+			fmt.Sprintf("spotExitFXDeviationRate=%.6f", exitConversion.DeviationRate),
+			fmt.Sprintf("crossStableQuoteMaxDeviationRate=%.6f", hcfg.CrossStableQuoteMaxDeviationRate),
+			"executionModel=exact_entry_exit_open",
+		)
+		return nil
+	}
 
-	candidate.SpotEntryPrice = spotEntryExec.Open
+	candidate.SpotEntryPrice, candidate.SpotEntryQuoteVolume = convertHistoricalSpotMetricsToUSDT(spotEntryExec.Open, spotEntryExec.QuoteAssetVolume, entryConversion)
 	candidate.FuturesEntryPrice = futuresEntryExec.Open
-	candidate.SpotExitPrice = spotExitExec.Open
+	candidate.SpotExitPrice, candidate.SpotExitQuoteVolume = convertHistoricalSpotMetricsToUSDT(spotExitExec.Open, spotExitExec.QuoteAssetVolume, exitConversion)
 	candidate.FuturesExitPrice = futuresExitExec.Open
+	candidate.FuturesEntryQuoteVolume = futuresEntryExec.QuoteAssetVolume
+	candidate.FuturesExitQuoteVolume = futuresExitExec.QuoteAssetVolume
+	if candidate.Direction == "" {
+		candidate.Direction = fundingDirectionFromRate(candidate.EstimatedFundingRate)
+	}
+	spotEntryImpactMultiplier := historicalSpotImpactMultiplier(hcfg, candidate.Direction, true)
+	spotExitImpactMultiplier := historicalSpotImpactMultiplier(hcfg, candidate.Direction, false)
+	borrowInterestHours := historicalBorrowInterestHours(candidate.Direction, entryTime, exitTime, hcfg.BorrowInterestMinBillingHours)
 
 	spotEntryNotional := candidate.HedgeQty * candidate.SpotEntryPrice
 	futuresEntryNotional := candidate.HedgeQty * candidate.FuturesEntryPrice
@@ -1375,16 +1785,20 @@ func (r *BacktestRunner) finalizeMonthlyCandidateExecution(ctx context.Context, 
 
 	candidate.OpenBasisRate = computeBasisRate(candidate.SpotEntryPrice, candidate.FuturesEntryPrice)
 	candidate.CloseBasisRate = computeBasisRate(candidate.SpotExitPrice, candidate.FuturesExitPrice)
-	candidate.SpotGrossPnL = candidate.HedgeQty * (candidate.SpotExitPrice - candidate.SpotEntryPrice)
-	candidate.FuturesGrossPnL = candidate.HedgeQty * (candidate.FuturesEntryPrice - candidate.FuturesExitPrice)
+	candidate.SpotGrossPnL = candidate.Direction.spotGrossPnL(candidate.HedgeQty, candidate.SpotEntryPrice, candidate.SpotExitPrice)
+	candidate.FuturesGrossPnL = candidate.Direction.futuresGrossPnL(candidate.HedgeQty, candidate.FuturesEntryPrice, candidate.FuturesExitPrice)
+	borrowInterestCost := historicalBorrowInterestCost(candidate.Direction, spotEntryNotional, hcfg.AssumedHourlyBorrowInterestRate, borrowInterestHours)
 	candidate.TotalFees = spotEntryNotional*hcfg.SpotTakerFeeRate +
 		futuresEntryNotional*hcfg.FuturesTakerFeeRate +
 		spotExitNotional*hcfg.SpotTakerFeeRate +
-		futuresExitNotional*hcfg.FuturesTakerFeeRate
+		futuresExitNotional*hcfg.FuturesTakerFeeRate +
+		borrowInterestCost
 	candidate.SpotEntryFee = spotEntryNotional * hcfg.SpotTakerFeeRate
 	candidate.FuturesEntryFee = futuresEntryNotional * hcfg.FuturesTakerFeeRate
 	candidate.SpotExitFee = spotExitNotional * hcfg.SpotTakerFeeRate
 	candidate.FuturesExitFee = futuresExitNotional * hcfg.FuturesTakerFeeRate
+	candidate.SpotEntryImpactRate = estimateMarketImpactRate(spotEntryNotional*spotEntryImpactMultiplier, candidate.SpotEntryQuoteVolume)
+	candidate.SpotExitImpactRate = estimateMarketImpactRate(spotExitNotional*spotExitImpactMultiplier, candidate.SpotExitQuoteVolume)
 	candidate.TotalFriction = spotEntryNotional*(candidate.SpotEntrySlipRate+candidate.SpotEntryImpactRate) +
 		futuresEntryNotional*(candidate.FuturesEntrySlipRate+candidate.FuturesEntryImpactRate) +
 		spotExitNotional*(candidate.SpotExitSlipRate+candidate.SpotExitImpactRate) +
@@ -1394,9 +1808,31 @@ func (r *BacktestRunner) finalizeMonthlyCandidateExecution(ctx context.Context, 
 	candidate.OpenBasisPenalty = computeAdverseBasisPenalty(candidate.OpenBasisRate, spotEntryNotional, futuresEntryNotional)
 	entryExecutionCost := spotEntryNotional*(candidate.SpotEntrySlipRate+candidate.SpotEntryImpactRate+hcfg.SpotTakerFeeRate) +
 		futuresEntryNotional*(candidate.FuturesEntrySlipRate+candidate.FuturesEntryImpactRate+hcfg.FuturesTakerFeeRate)
-	candidate.EstimatedNetPnL = candidate.EstimatedFundingIncome - candidate.OpenBasisPenalty - candidate.ProjectedExitCost - entryExecutionCost
+	candidate.EstimatedNetPnL = candidate.EstimatedFundingIncome - candidate.OpenBasisPenalty - candidate.ProjectedExitCost - entryExecutionCost - borrowInterestCost
+	actualFundingIncome, err := r.sumMonthlyFundingIncome(ctx, client, cache, candidate.Symbol, candidate.Direction, candidate.HedgeQty, candidate.FuturesEntryPrice, candidate.FundingTime)
+	if err != nil {
+		return fmt.Errorf("funding_income_accumulate: %w", err)
+	}
+	candidate.FundingIncome = actualFundingIncome
 	candidate.RealizedNetPnL = candidate.FundingIncome + candidate.SpotGrossPnL + candidate.FuturesGrossPnL - candidate.TotalFriction - candidate.TotalFees
-	candidate.Notes = append(candidate.Notes, "executionModel=exact_entry_exit_open")
+	candidate.Notes = append(candidate.Notes,
+		fmt.Sprintf("spotPair=%s", entryConversion.SpotPair),
+		fmt.Sprintf("spotQuoteAsset=%s", entryConversion.QuoteAsset),
+		fmt.Sprintf("spotEntryFXPair=%s", entryConversion.FXSymbol),
+		fmt.Sprintf("spotExitFXPair=%s", exitConversion.FXSymbol),
+		fmt.Sprintf("spotEntryFXRateToUSDT=%.6f", entryConversion.RateToUSDT),
+		fmt.Sprintf("spotExitFXRateToUSDT=%.6f", exitConversion.RateToUSDT),
+		fmt.Sprintf("spotEntryFXDeviationRate=%.6f", entryConversion.DeviationRate),
+		fmt.Sprintf("spotExitFXDeviationRate=%.6f", exitConversion.DeviationRate),
+		"direction="+string(candidate.Direction),
+		"executionModel=exact_entry_exit_open",
+		fmt.Sprintf("spotEntryImpactMultiplier=%.2f", spotEntryImpactMultiplier),
+		fmt.Sprintf("spotExitImpactMultiplier=%.2f", spotExitImpactMultiplier),
+		fmt.Sprintf("borrowInterestHours=%d", borrowInterestHours),
+		fmt.Sprintf("borrowInterestCost=%.6f", borrowInterestCost),
+		fmt.Sprintf("holdingCycles=%d", maxInt(candidate.HoldingCycles, 1)),
+		fmt.Sprintf("exitTime=%s", candidate.ExitTime.UTC().Format(time.RFC3339)),
+	)
 	return nil
 }
 
@@ -1426,6 +1862,8 @@ func monthlySkippedCandidate(item FundingRateHistoryItem, fundingTime time.Time,
 	return monthlyCandidate{
 		Symbol:          item.Symbol,
 		FundingTime:     fundingTime,
+		ExitTime:        fundingTime,
+		HoldingCycles:   1,
 		FundingRate:     parseFloat(item.FundingRate),
 		FundingIncome:   0,
 		EstimatedNetPnL: 0,
@@ -1467,6 +1905,7 @@ func (r *BacktestRunner) buildMonthlySummaryRecord(periodLabel string, trades []
 		fmt.Sprintf("fetchSuccessRate=%.4f", fetchStats.successRate(fetchStats.SuccessSymbols+fetchStats.FailureCount)),
 		fmt.Sprintf("dataComplete=%t", fetchStats.successRate(fetchStats.SuccessSymbols+fetchStats.FailureCount) >= monthlyFundingDataCompleteFloor),
 	}
+	notes = append(notes, r.monthlyExperimentNotes()...)
 	if skipSummary := summarizeMonthlyReasonCounts(simStats.SkipReasons, nil); skipSummary != "" {
 		notes = append(notes, "groupSkips="+skipSummary)
 	}
@@ -1489,7 +1928,7 @@ func (r *BacktestRunner) buildMonthlySummaryRecord(periodLabel string, trades []
 	return BacktestCSVRecord{
 		TraceRecordMetadata: buildTraceRecordMetadata(r.cfg),
 		RecordedAt:          time.Now().UTC().Format(time.RFC3339),
-		Scenario:            "MonthlyMarketReplaySummary",
+		Scenario:            r.monthlyScenarioName("MonthlyMarketReplaySummary"),
 		Symbol:              "ALL",
 		Period:              periodLabel,
 		Trades:              len(trades),
@@ -1513,7 +1952,7 @@ func (r *BacktestRunner) buildMonthlyStressRecords(periodLabel string, trades []
 
 	needleSamples := applyMonthlyStressNeedle(trades, hcfg.PerLegNotionalUSDT)
 	records = append(records, buildStressSummaryRecord(
-		"MonthlyStressNeedleShock",
+		r.monthlyScenarioName("MonthlyStressNeedleShock"),
 		periodLabel,
 		needleSamples,
 		hcfg.InitialEquityUSDT,
@@ -1525,7 +1964,7 @@ func (r *BacktestRunner) buildMonthlyStressRecords(periodLabel string, trades []
 
 	fundingSamples := applyMonthlyStressFundingSpike(trades, hcfg.PerLegNotionalUSDT)
 	records = append(records, buildStressSummaryRecord(
-		"MonthlyStressFundingSpike",
+		r.monthlyScenarioName("MonthlyStressFundingSpike"),
 		periodLabel,
 		fundingSamples,
 		hcfg.InitialEquityUSDT,
@@ -1537,7 +1976,7 @@ func (r *BacktestRunner) buildMonthlyStressRecords(periodLabel string, trades []
 
 	downtimeSamples := applyMonthlyStressPlatformDowntime(trades, hcfg.PerLegNotionalUSDT)
 	records = append(records, buildStressSummaryRecord(
-		"MonthlyStressPlatformDowntime",
+		r.monthlyScenarioName("MonthlyStressPlatformDowntime"),
 		periodLabel,
 		downtimeSamples,
 		hcfg.InitialEquityUSDT,
@@ -1652,16 +2091,18 @@ func buildStressSummaryRecord(scenario string, periodLabel string, trades []Back
 	}
 }
 
-func buildMonthlyRunSummaryLogRecord(periodLabel string, fetchStats monthlyFundingFetchStats, simStats monthlySimulationStats, stopReason string) MonthlySimulationLogRecord {
+func (r *BacktestRunner) buildMonthlyRunSummaryLogRecord(periodLabel string, fetchStats monthlyFundingFetchStats, simStats monthlySimulationStats, stopReason string, experiment monthlyExperimentPlan) MonthlySimulationLogRecord {
 	notes := []string{
 		"period=" + periodLabel,
 		"stop=" + stopReason,
+		fmt.Sprintf("experiment=%d/%d", experiment.Index, experiment.Total),
 		fmt.Sprintf("groups=%d", simStats.GroupCount),
 		fmt.Sprintf("evaluated=%d", simStats.EvaluatedCandidates),
 		fmt.Sprintf("skipped=%d", simStats.SkippedGroups),
 		fmt.Sprintf("fetchSuccessSymbols=%d", fetchStats.SuccessSymbols),
 		fmt.Sprintf("fetchFailures=%d", fetchStats.FailureCount),
 	}
+	notes = append(notes, r.monthlyExperimentNotes()...)
 	if fetchSummary := summarizeMonthlyReasonCounts(fetchStats.FailureReasons, fetchStats.FailureSamples); fetchSummary != "" {
 		notes = append(notes, "fetchReasons="+fetchSummary)
 	}
@@ -1710,40 +2151,48 @@ func (r *BacktestRunner) recordDir() string {
 
 func (r *BacktestRunner) historicalConfig() historicalConfig {
 	hcfg := r.cfg.HistoricalConfig
+	zeroHistorical := HistoricalConfig{}
 	cfg := historicalConfig{
-		DefaultLookbackDays:            hcfg.DefaultLookbackDays,
-		InitialEquityUSDT:              hcfg.InitialEquityUSDT,
-		StopEquityUSDT:                 hcfg.StopEquityUSDT,
-		PerLegNotionalUSDT:             hcfg.PerLegNotionalUSDT,
-		MaxPerLegEquityShare:           hcfg.MaxPerLegEquityShare,
-		SpotTakerFeeRate:               hcfg.SpotTakerFeeRate,
-		FuturesTakerFeeRate:            hcfg.FuturesTakerFeeRate,
-		FundingPhaseLead:               hcfg.FundingPhaseLead,
-		FundingFetchConcurrency:        hcfg.FundingFetchConcurrency,
-		FundingRetryMax:                hcfg.FundingRetryMax,
-		CacheDir:                       hcfg.CacheDir,
-		ReferenceKlineLookback:         hcfg.ReferenceKlineLookback,
-		EstimateKlineLookback:          hcfg.EstimateKlineLookback,
-		SafetyBufferFloorUSDT:          hcfg.SafetyBufferFloorUSDT,
-		SafetyBufferCostMultiplier:     hcfg.SafetyBufferCostMultiplier,
-		MaxDrawdownRate:                hcfg.MaxDrawdownRate,
-		MaxConsecutiveLosses:           hcfg.MaxConsecutiveLosses,
-		MaxFundingRate:                 hcfg.MaxFundingRate,
-		MaxFundingRateJump:             hcfg.MaxFundingRateJump,
-		MaxSingleTradeLossUSDT:         hcfg.MaxSingleTradeLossUSDT,
-		FundingFetchSlot:               hcfg.FundingFetchSlot,
-		FundingFetchTimeout:            hcfg.FundingFetchTimeout,
-		GroupEvaluationTimeout:         hcfg.GroupEvaluationTimeout,
-		CandidateBuildTimeout:          hcfg.CandidateBuildTimeout,
-		CandidateFinalizeTimeout:       hcfg.CandidateFinalizeTimeout,
-		ScreeningConcurrency:           hcfg.ScreeningConcurrency,
-		DeepCandidateLimit:             hcfg.DeepCandidateLimit,
-		LiquidityShareMin:              hcfg.LiquidityShareMin,
-		LiquidityShareFloor:            hcfg.LiquidityShareFloor,
-		LiquidityShareMax:              hcfg.LiquidityShareMax,
-		SevereLiquidityShareCap:        hcfg.SevereLiquidityShareCap,
-		SevereLiquidityShareMultiplier: hcfg.SevereLiquidityShareMultiplier,
-		SevereLiquidityShareMax:        hcfg.SevereLiquidityShareMax,
+		DefaultLookbackDays:                    hcfg.DefaultLookbackDays,
+		InitialEquityUSDT:                      hcfg.InitialEquityUSDT,
+		StopEquityUSDT:                         hcfg.StopEquityUSDT,
+		PerLegNotionalUSDT:                     hcfg.PerLegNotionalUSDT,
+		FundingDirectionMode:                   hcfg.FundingDirectionMode,
+		MaxFundingCyclesHeld:                   hcfg.MaxFundingCyclesHeld,
+		MaxPerLegEquityShare:                   hcfg.MaxPerLegEquityShare,
+		SpotTakerFeeRate:                       hcfg.SpotTakerFeeRate,
+		FuturesTakerFeeRate:                    hcfg.FuturesTakerFeeRate,
+		AssumedHourlyBorrowInterestRate:        hcfg.AssumedHourlyBorrowInterestRate,
+		BorrowInterestMinBillingHours:          hcfg.BorrowInterestMinBillingHours,
+		NegativeCarrySpotEntryImpactMultiplier: hcfg.NegativeCarrySpotEntryImpactMultiplier,
+		NegativeCarrySpotExitImpactMultiplier:  hcfg.NegativeCarrySpotExitImpactMultiplier,
+		CrossStableQuoteMaxDeviationRate:       hcfg.CrossStableQuoteMaxDeviationRate,
+		FundingPhaseLead:                       hcfg.FundingPhaseLead,
+		FundingFetchConcurrency:                hcfg.FundingFetchConcurrency,
+		FundingRetryMax:                        hcfg.FundingRetryMax,
+		CacheDir:                               hcfg.CacheDir,
+		ReferenceKlineLookback:                 hcfg.ReferenceKlineLookback,
+		EstimateKlineLookback:                  hcfg.EstimateKlineLookback,
+		SafetyBufferFloorUSDT:                  hcfg.SafetyBufferFloorUSDT,
+		SafetyBufferCostMultiplier:             hcfg.SafetyBufferCostMultiplier,
+		MaxDrawdownRate:                        hcfg.MaxDrawdownRate,
+		MaxConsecutiveLosses:                   hcfg.MaxConsecutiveLosses,
+		MaxFundingRate:                         hcfg.MaxFundingRate,
+		MaxFundingRateJump:                     hcfg.MaxFundingRateJump,
+		MaxSingleTradeLossUSDT:                 hcfg.MaxSingleTradeLossUSDT,
+		FundingFetchSlot:                       hcfg.FundingFetchSlot,
+		FundingFetchTimeout:                    hcfg.FundingFetchTimeout,
+		GroupEvaluationTimeout:                 hcfg.GroupEvaluationTimeout,
+		CandidateBuildTimeout:                  hcfg.CandidateBuildTimeout,
+		CandidateFinalizeTimeout:               hcfg.CandidateFinalizeTimeout,
+		ScreeningConcurrency:                   hcfg.ScreeningConcurrency,
+		DeepCandidateLimit:                     hcfg.DeepCandidateLimit,
+		LiquidityShareMin:                      hcfg.LiquidityShareMin,
+		LiquidityShareFloor:                    hcfg.LiquidityShareFloor,
+		LiquidityShareMax:                      hcfg.LiquidityShareMax,
+		SevereLiquidityShareCap:                hcfg.SevereLiquidityShareCap,
+		SevereLiquidityShareMultiplier:         hcfg.SevereLiquidityShareMultiplier,
+		SevereLiquidityShareMax:                hcfg.SevereLiquidityShareMax,
 	}
 	if cfg.DefaultLookbackDays <= 0 {
 		cfg.DefaultLookbackDays = 30
@@ -1757,8 +2206,30 @@ func (r *BacktestRunner) historicalConfig() historicalConfig {
 	if cfg.PerLegNotionalUSDT <= 0 {
 		cfg.PerLegNotionalUSDT = 10
 	}
+	if cfg.MaxFundingCyclesHeld <= 0 {
+		cfg.MaxFundingCyclesHeld = 1
+	}
+	if strings.TrimSpace(cfg.FundingDirectionMode) == "" {
+		cfg.FundingDirectionMode = historicalFundingModeBoth
+	}
+	cfg.FundingDirectionMode = normalizeHistoricalFundingDirectionMode(cfg.FundingDirectionMode)
 	if cfg.MaxPerLegEquityShare <= 0 || cfg.MaxPerLegEquityShare > 1 {
 		cfg.MaxPerLegEquityShare = 0.5
+	}
+	if cfg.AssumedHourlyBorrowInterestRate < 0 || (cfg.AssumedHourlyBorrowInterestRate == 0 && hcfg == zeroHistorical) {
+		cfg.AssumedHourlyBorrowInterestRate = 0.0010
+	}
+	if cfg.BorrowInterestMinBillingHours <= 0 {
+		cfg.BorrowInterestMinBillingHours = 1
+	}
+	if cfg.NegativeCarrySpotEntryImpactMultiplier < 1 {
+		cfg.NegativeCarrySpotEntryImpactMultiplier = 2.5
+	}
+	if cfg.NegativeCarrySpotExitImpactMultiplier < 1 {
+		cfg.NegativeCarrySpotExitImpactMultiplier = 2.5
+	}
+	if cfg.CrossStableQuoteMaxDeviationRate < 0 || (cfg.CrossStableQuoteMaxDeviationRate == 0 && hcfg == zeroHistorical) {
+		cfg.CrossStableQuoteMaxDeviationRate = 0.0010
 	}
 	if cfg.MaxFundingRate <= 0 {
 		cfg.MaxFundingRate = 0.03
@@ -1769,14 +2240,17 @@ func (r *BacktestRunner) historicalConfig() historicalConfig {
 	if cfg.MaxSingleTradeLossUSDT <= 0 {
 		cfg.MaxSingleTradeLossUSDT = math.Max(1, cfg.InitialEquityUSDT*0.075)
 	}
-	if cfg.SpotTakerFeeRate <= 0 {
+	if cfg.SpotTakerFeeRate < 0 || (cfg.SpotTakerFeeRate == 0 && hcfg == zeroHistorical) {
 		cfg.SpotTakerFeeRate = 0.0010
 	}
-	if cfg.FuturesTakerFeeRate <= 0 {
+	if cfg.FuturesTakerFeeRate < 0 || (cfg.FuturesTakerFeeRate == 0 && hcfg == zeroHistorical) {
 		cfg.FuturesTakerFeeRate = 0.0005
 	}
 	if cfg.FundingPhaseLead <= 0 {
-		cfg.FundingPhaseLead = time.Minute
+		cfg.FundingPhaseLead = r.cfg.StrategyConfig.MonitorStopLead
+		if cfg.FundingPhaseLead <= 0 {
+			cfg.FundingPhaseLead = 30 * time.Second
+		}
 	}
 	if cfg.FundingFetchConcurrency <= 0 {
 		cfg.FundingFetchConcurrency = 2
@@ -1857,6 +2331,177 @@ func (r *BacktestRunner) historicalConfig() historicalConfig {
 	return cfg
 }
 
+func (r *BacktestRunner) monthlyExperimentPlans() []monthlyExperimentPlan {
+	if !r.cfg.HistoricalConfig.BatchExperimentEnabled {
+		return []monthlyExperimentPlan{{Index: 1, Total: 1, Cfg: r.cfg}}
+	}
+	spotFees := parseMonthlyFloatList(r.cfg.HistoricalConfig.BatchSpotTakerFeeRates, []float64{r.cfg.HistoricalConfig.SpotTakerFeeRate})
+	perLegs := parseMonthlyFloatList(r.cfg.HistoricalConfig.BatchPerLegNotionalUSDT, []float64{r.cfg.HistoricalConfig.PerLegNotionalUSDT})
+	holdingCycles := parseMonthlyIntList(r.cfg.HistoricalConfig.BatchMaxFundingCyclesHeld, []int{r.cfg.HistoricalConfig.MaxFundingCyclesHeld})
+	plans := make([]monthlyExperimentPlan, 0, len(spotFees)*len(perLegs)*len(holdingCycles))
+	index := 1
+	for _, spotFee := range spotFees {
+		for _, perLeg := range perLegs {
+			for _, cycles := range holdingCycles {
+				cfg := r.cfg
+				cfg.HistoricalConfig.BatchExperimentEnabled = false
+				cfg.HistoricalConfig.SpotTakerFeeRate = spotFee
+				cfg.HistoricalConfig.PerLegNotionalUSDT = perLeg
+				cfg.HistoricalConfig.MaxFundingCyclesHeld = maxInt(cycles, 1)
+				cfg = alignHistoricalExperimentCapital(cfg)
+				plans = append(plans, monthlyExperimentPlan{
+					Index: index,
+					Cfg:   cfg,
+				})
+				index++
+			}
+		}
+	}
+	for idx := range plans {
+		plans[idx].Total = len(plans)
+	}
+	if len(plans) == 0 {
+		return []monthlyExperimentPlan{{Index: 1, Total: 1, Cfg: r.cfg}}
+	}
+	return plans
+}
+
+func parseMonthlyFloatList(raw string, fallback []float64) []float64 {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return fallback
+	}
+	parts := strings.Split(raw, ",")
+	seen := make(map[string]struct{}, len(parts))
+	values := make([]float64, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		value := parseFloat(part)
+		key := fmt.Sprintf("%.8f", value)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		values = append(values, value)
+	}
+	if len(values) == 0 {
+		return fallback
+	}
+	return values
+}
+
+func parseMonthlyIntList(raw string, fallback []int) []int {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return fallback
+	}
+	parts := strings.Split(raw, ",")
+	seen := make(map[int]struct{}, len(parts))
+	values := make([]int, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		value := int(parseFloat(part))
+		if value <= 0 {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		values = append(values, value)
+	}
+	if len(values) == 0 {
+		return fallback
+	}
+	return values
+}
+
+func (r *BacktestRunner) runMonthlyExperimentPlans(ctx context.Context, client *BinanceClient, cache *monthlyKlineCache, groups []monthlyEventGroup, periodLabel string, fetchStats monthlyFundingFetchStats, experiments []monthlyExperimentPlan) ([]BacktestCSVRecord, []MonthlySimulationLogRecord, int, error) {
+	allRecords := make([]BacktestCSVRecord, 0, len(experiments)*8)
+	allLogs := make([]MonthlySimulationLogRecord, 0, len(experiments)*32)
+	totalTrades := 0
+	for _, experiment := range experiments {
+		if err := ctx.Err(); err != nil {
+			return nil, nil, 0, err
+		}
+		r.reportProgress(EngineStage("evaluate_groups"), fmt.Sprintf("实验 %d/%d: 现货费率=%.4f 单腿=%.2f funding=%d", experiment.Index, experiment.Total, experiment.Cfg.HistoricalConfig.SpotTakerFeeRate, experiment.Cfg.HistoricalConfig.PerLegNotionalUSDT, experiment.Cfg.HistoricalConfig.MaxFundingCyclesHeld), experiment.Index-1, experiment.Total)
+		experimentRunner := &BacktestRunner{
+			store:        r.store,
+			logger:       r.logger,
+			cfg:          experiment.Cfg,
+			progressHook: nil,
+		}
+		tradeSamples, logs, simStats, stopReason, err := experimentRunner.simulateMonthlyFundingGroups(ctx, client, cache, groups, periodLabel)
+		if err != nil {
+			return nil, nil, 0, err
+		}
+		localFetchStats := fetchStats
+		localFetchStats.RequestSummary = client.historicalRequestSummary()
+		logs = append(logs, experimentRunner.buildMonthlyRunSummaryLogRecord(periodLabel, localFetchStats, simStats, stopReason, experiment))
+		records := buildBacktestRecords(experimentRunner.cfg, tradeSamples)
+		records = append(records, experimentRunner.buildMonthlySummaryRecord(periodLabel, tradeSamples, localFetchStats, simStats, stopReason))
+		records = append(records, experimentRunner.buildMonthlyStressRecords(periodLabel, tradeSamples, localFetchStats, simStats)...)
+		allLogs = append(allLogs, logs...)
+		allRecords = append(allRecords, records...)
+		totalTrades += len(tradeSamples)
+	}
+	return allRecords, allLogs, totalTrades, nil
+}
+
+func (r *BacktestRunner) monthlyHoldingCycles() int {
+	return maxInt(1, r.historicalConfig().MaxFundingCyclesHeld)
+}
+
+func (r *BacktestRunner) monthlyExitTime(fundingTime time.Time) time.Time {
+	cycles := r.monthlyHoldingCycles()
+	return fundingTime.Add(time.Duration(cycles-1) * 8 * time.Hour)
+}
+
+func (r *BacktestRunner) monthlyScenarioName(base string) string {
+	hcfg := r.historicalConfig()
+	return fmt.Sprintf("%s[mode=%s,spot=%.4f,futures=%.4f,per_leg=%.2f,hold=%d]", base, normalizeHistoricalFundingDirectionMode(hcfg.FundingDirectionMode), hcfg.SpotTakerFeeRate, hcfg.FuturesTakerFeeRate, r.monthlyPerLegNotional(), r.monthlyHoldingCycles())
+}
+
+func (r *BacktestRunner) monthlyExperimentNotes() []string {
+	hcfg := r.historicalConfig()
+	return []string{
+		fmt.Sprintf("batchExperimentEnabled=%t", r.cfg.HistoricalConfig.BatchExperimentEnabled),
+		"fundingDirectionMode=" + normalizeHistoricalFundingDirectionMode(hcfg.FundingDirectionMode),
+		fmt.Sprintf("configuredPerLegNotionalUSDT=%.2f", r.cfg.HistoricalConfig.PerLegNotionalUSDT),
+		fmt.Sprintf("spotFeeRate=%.4f", hcfg.SpotTakerFeeRate),
+		fmt.Sprintf("futuresFeeRate=%.4f", hcfg.FuturesTakerFeeRate),
+		fmt.Sprintf("assumedHourlyBorrowInterestRate=%.4f", hcfg.AssumedHourlyBorrowInterestRate),
+		fmt.Sprintf("borrowInterestMinBillingHours=%d", hcfg.BorrowInterestMinBillingHours),
+		fmt.Sprintf("negativeCarrySpotEntryImpactMultiplier=%.2f", hcfg.NegativeCarrySpotEntryImpactMultiplier),
+		fmt.Sprintf("negativeCarrySpotExitImpactMultiplier=%.2f", hcfg.NegativeCarrySpotExitImpactMultiplier),
+		fmt.Sprintf("crossStableQuoteMaxDeviationRate=%.4f", hcfg.CrossStableQuoteMaxDeviationRate),
+		fmt.Sprintf("perLegNotionalUSDT=%.2f", r.monthlyPerLegNotional()),
+		fmt.Sprintf("maxFundingCyclesHeld=%d", r.monthlyHoldingCycles()),
+	}
+}
+
+func (r *BacktestRunner) sumMonthlyFundingIncome(ctx context.Context, client *BinanceClient, cache *monthlyKlineCache, symbol string, direction fundingCarryDirection, hedgeQty float64, markPrice float64, fundingTime time.Time) (float64, error) {
+	if hedgeQty <= 0 || markPrice <= 0 {
+		return 0, nil
+	}
+	total := 0.0
+	for cycle := 0; cycle < r.monthlyHoldingCycles(); cycle++ {
+		cycleFundingTime := fundingTime.Add(time.Duration(cycle) * 8 * time.Hour)
+		item, err := cache.getFundingRateAt(ctx, client, symbol, cycleFundingTime)
+		if err != nil {
+			return 0, err
+		}
+		total += historicalFundingIncome(direction, hedgeQty, markPrice, parseFloat(item.FundingRate), 1)
+	}
+	return total, nil
+}
+
 func (r *BacktestRunner) monthlySafetyBuffer(entryExecutionCost float64, projectedExitCost float64, openBasisPenalty float64) float64 {
 	hcfg := r.historicalConfig()
 	explicitCost := math.Max(0, entryExecutionCost) + math.Max(0, projectedExitCost) + math.Max(0, openBasisPenalty)
@@ -1922,7 +2567,7 @@ func trimMonthlyFundingGroupItems(items []FundingRateHistoryItem, limit int) []F
 
 func summarizeMonthlyGroupSkip(group monthlyEventGroup, evaluated []monthlyCandidate, groupReason string, groupTimeout time.Duration) monthlyCandidate {
 	summary := monthlyCandidate{
-		Reason: "no_positive_candidate",
+		Reason: "no_viable_candidate",
 		Notes:  []string{"本轮所有候选经过收益与流动性校验后都未通过"},
 	}
 	if strings.TrimSpace(groupReason) != "" {
@@ -2135,11 +2780,11 @@ func buildMonthlyGroupSummaryLogRecord(group monthlyEventGroup, evaluated []mont
 		focus = bestMonthlyCandidateForSummary(evaluated)
 	}
 	reasonCounts := make(map[string]int)
-	positiveCount := 0
+	viableCount := 0
 	for index := range evaluated {
 		reason := strings.TrimSpace(evaluated[index].Reason)
 		if reason == "" {
-			positiveCount++
+			viableCount++
 			continue
 		}
 		reasonCounts[reason]++
@@ -2156,7 +2801,7 @@ func buildMonthlyGroupSummaryLogRecord(group monthlyEventGroup, evaluated []mont
 		fmt.Sprintf("rawCandidates=%d", maxInt(group.RawCount, len(group.Items))),
 		fmt.Sprintf("retainedCandidates=%d", len(group.Items)),
 		fmt.Sprintf("evaluated=%d", len(evaluated)),
-		fmt.Sprintf("positiveCandidates=%d", positiveCount),
+		fmt.Sprintf("viableCandidates=%d", viableCount),
 		"reasonBreakdown=" + summarizeMonthlyReasonCounts(reasonCounts, nil),
 	}
 	if focus != nil {
@@ -2249,8 +2894,8 @@ func betterMonthlySummaryCandidate(candidate monthlyCandidate, current monthlyCa
 	if candidate.EstimatedNetPnL != current.EstimatedNetPnL {
 		return candidate.EstimatedNetPnL > current.EstimatedNetPnL
 	}
-	if candidate.EstimatedFundingRate != current.EstimatedFundingRate {
-		return candidate.EstimatedFundingRate > current.EstimatedFundingRate
+	if math.Abs(candidate.EstimatedFundingRate) != math.Abs(current.EstimatedFundingRate) {
+		return math.Abs(candidate.EstimatedFundingRate) > math.Abs(current.EstimatedFundingRate)
 	}
 	if monthlyReasonPriority(candidate.Reason) != monthlyReasonPriority(current.Reason) {
 		return monthlyReasonPriority(candidate.Reason) < monthlyReasonPriority(current.Reason)
@@ -2266,20 +2911,24 @@ func monthlyReasonPriority(reason string) int {
 		return 1
 	case "funding_jump_too_large":
 		return 2
-	case "estimated_net_below_safety_buffer":
+	case "funding_direction_reversed":
 		return 3
-	case "entry_liquidity_share_too_high":
+	case "estimated_net_below_safety_buffer":
 		return 4
-	case "entry_liquidity_extremely_poor":
+	case "entry_liquidity_share_too_high":
 		return 5
-	case "estimated_funding_non_positive":
+	case "entry_liquidity_extremely_poor":
 		return 6
-	case "screening_topn_excluded":
+	case "estimated_funding_direction_disabled":
 		return 7
-	case "screening_prefilter_excluded":
+	case "estimated_funding_non_positive":
 		return 8
-	default:
+	case "screening_topn_excluded":
 		return 9
+	case "screening_prefilter_excluded":
+		return 10
+	default:
+		return 11
 	}
 }
 
@@ -2999,11 +3648,33 @@ func (c *monthlyKlineCache) getFuturesIndexKlineBefore(ctx context.Context, clie
 	return kline, nil
 }
 
+func (c *monthlyKlineCache) getFundingRateAt(ctx context.Context, client *BinanceClient, symbol string, fundingTime time.Time) (FundingRateHistoryItem, error) {
+	key := symbol + ":" + strconv.FormatInt(fundingTime.UnixMilli(), 10)
+	c.mu.Lock()
+	if item, ok := c.funding[key]; ok {
+		c.hits["funding_actual"]++
+		c.mu.Unlock()
+		return item, nil
+	}
+	c.loads["funding_actual"]++
+	c.mu.Unlock()
+
+	item, err := client.fetchFundingRateAt(ctx, symbol, fundingTime)
+	if err != nil {
+		return FundingRateHistoryItem{}, err
+	}
+
+	c.mu.Lock()
+	c.funding[key] = item
+	c.mu.Unlock()
+	return item, nil
+}
+
 func (c *monthlyKlineCache) summary() string {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	keys := []string{"premium_before", "index_before", "spot_before", "futures_before", "spot_exec", "futures_exec"}
+	keys := []string{"premium_before", "index_before", "spot_before", "futures_before", "spot_exec", "futures_exec", "funding_actual"}
 	parts := make([]string, 0, len(keys))
 	for _, key := range keys {
 		loads := c.loads[key]
@@ -3061,23 +3732,52 @@ func estimateMarketImpactRate(notionalUSDT float64, quoteVolume float64) float64
 }
 
 func conservativeHistoricalFundingRate(premiumIndexRate float64, markIndexBasisRate float64) float64 {
-	candidates := make([]float64, 0, 2)
+	const (
+		singleSourceHaircut     = 0.10
+		confirmedBaseHaircut    = 0.10
+		confirmedAgreementBonus = 0.10
+		minAgreementFloor       = 0.35
+	)
+	premiumSign := 0.0
 	if premiumIndexRate > 0 {
-		candidates = append(candidates, premiumIndexRate)
+		premiumSign = 1
+	} else if premiumIndexRate < 0 {
+		premiumSign = -1
 	}
+	basisSign := 0.0
 	if markIndexBasisRate > 0 {
-		candidates = append(candidates, markIndexBasisRate)
+		basisSign = 1
+	} else if markIndexBasisRate < 0 {
+		basisSign = -1
 	}
-	if len(candidates) == 0 {
+	absPremium := math.Abs(premiumIndexRate)
+	absBasis := math.Abs(markIndexBasisRate)
+	if absPremium <= 0 && absBasis <= 0 {
 		return 0
 	}
-	lowest := candidates[0]
-	for _, candidate := range candidates[1:] {
-		if candidate < lowest {
-			lowest = candidate
-		}
+	switch {
+	case absPremium > 0 && absBasis > 0 && premiumSign != 0 && basisSign != 0 && premiumSign != basisSign:
+		return 0
+	case absPremium > 0 && absBasis <= 0:
+		return premiumSign * absPremium * singleSourceHaircut
+	case absBasis > 0 && absPremium <= 0:
+		return basisSign * absBasis * singleSourceHaircut
 	}
-	return lowest
+	sign := premiumSign
+	if sign == 0 {
+		sign = basisSign
+	}
+	lower := math.Min(absPremium, absBasis)
+	upper := math.Max(absPremium, absBasis)
+	if lower <= 0 || upper <= 0 {
+		return 0
+	}
+	agreement := lower / upper
+	if agreement < minAgreementFloor {
+		return sign * lower * singleSourceHaircut
+	}
+	haircut := confirmedBaseHaircut + confirmedAgreementBonus*agreement
+	return sign * lower * haircut
 }
 
 func parseAnyFloat(value any) float64 {

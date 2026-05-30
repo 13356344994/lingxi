@@ -228,11 +228,23 @@ func (e *FundingRateSniperEngine) consumeSpotUserDataMessages(ctx context.Contex
 			CumQuoteQty     string `json:"Z"`
 			LastCommission  string `json:"n"`
 			CommissionAsset string `json:"N"`
+			Balances        []struct {
+				Asset string `json:"a"`
+				Free  string `json:"f"`
+				Lock  string `json:"l"`
+			} `json:"B"`
 		}
 		if err := json.Unmarshal(payload, &event); err != nil {
 			return fmt.Errorf("解析现货用户流消息失败: %w", err)
 		}
 		if event.EventType != "executionReport" {
+			if event.EventType == "outboundAccountPosition" {
+				balances := make(map[string]float64, len(event.Balances))
+				for _, balance := range event.Balances {
+					balances[balance.Asset] = parseFloat(balance.Free) + parseFloat(balance.Lock)
+				}
+				e.noteSpotAccountPositionUpdate(balances)
+			}
 			continue
 		}
 		if !isManagedClientOrderID(event.ClientOrderID) {
@@ -275,7 +287,20 @@ func (e *FundingRateSniperEngine) consumeFuturesUserDataMessages(ctx context.Con
 		var envelope struct {
 			EventType string `json:"e"`
 			EventTime int64  `json:"E"`
-			Order     struct {
+			Account   struct {
+				Balances []struct {
+					Asset         string `json:"a"`
+					WalletBalance string `json:"wb"`
+				} `json:"B"`
+				Positions []struct {
+					Symbol           string `json:"s"`
+					PositionAmt      string `json:"pa"`
+					EntryPrice       string `json:"ep"`
+					UnrealizedProfit string `json:"up"`
+					MarkPrice        string `json:"mp"`
+				} `json:"P"`
+			} `json:"a"`
+			Order struct {
 				Symbol          string `json:"s"`
 				ClientOrderID   string `json:"c"`
 				Status          string `json:"X"`
@@ -292,6 +317,26 @@ func (e *FundingRateSniperEngine) consumeFuturesUserDataMessages(ctx context.Con
 			return fmt.Errorf("解析合约用户流消息失败: %w", err)
 		}
 		if envelope.EventType != "ORDER_TRADE_UPDATE" {
+			if envelope.EventType == "ACCOUNT_UPDATE" {
+				walletUSDT := 0.0
+				for _, balance := range envelope.Account.Balances {
+					if strings.EqualFold(balance.Asset, "USDT") {
+						walletUSDT = parseFloat(balance.WalletBalance)
+						break
+					}
+				}
+				positions := make([]futuresRealtimePosition, 0, len(envelope.Account.Positions))
+				for _, position := range envelope.Account.Positions {
+					positions = append(positions, futuresRealtimePosition{
+						Symbol:           position.Symbol,
+						PositionAmt:      parseFloat(position.PositionAmt),
+						EntryPrice:       parseFloat(position.EntryPrice),
+						UnrealizedProfit: parseFloat(position.UnrealizedProfit),
+						MarkPrice:        parseFloat(position.MarkPrice),
+					})
+				}
+				e.noteFuturesAccountUpdate(walletUSDT, positions)
+			}
 			continue
 		}
 		if !isManagedClientOrderID(envelope.Order.ClientOrderID) {

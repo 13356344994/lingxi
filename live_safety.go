@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -103,24 +104,79 @@ func (e *FundingRateSniperEngine) persistDailyRiskState() error {
 	}
 	e.platformRiskMu.Lock()
 	defer e.platformRiskMu.Unlock()
-	return e.persistDailyRiskStateLocked()
+	return e.queueDailyRiskStatePersistLocked()
 }
 
-func (e *FundingRateSniperEngine) persistDailyRiskStateLocked() error {
-	if strings.TrimSpace(e.dailyRiskStatePath) == "" {
-		return nil
-	}
-	if err := os.MkdirAll(filepath.Dir(e.dailyRiskStatePath), 0o755); err != nil {
-		return fmt.Errorf("创建日级风控状态目录失败: %w", err)
-	}
-	payload := persistedDailyRiskState{
+func (e *FundingRateSniperEngine) dailyRiskStatePayloadLocked() persistedDailyRiskState {
+	return persistedDailyRiskState{
 		TradingDay:       e.dailyRiskDate,
 		RealizedPnL:      e.dailyRealizedPnL,
 		OrderCount:       e.dailyOrderCount,
 		OpenNotionalUSDT: e.dailyOpenNotionalUsed,
 		UpdatedAt:        time.Now().UTC().Format(time.RFC3339),
 	}
-	return writeJSONFile(e.dailyRiskStatePath, payload)
+}
+
+func writeDailyRiskState(path string, payload persistedDailyRiskState) error {
+	if strings.TrimSpace(path) == "" {
+		return nil
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return fmt.Errorf("创建日级风控状态目录失败: %w", err)
+	}
+	return writeJSONFile(path, payload)
+}
+
+func (e *FundingRateSniperEngine) persistDailyRiskStateLocked() error {
+	if strings.TrimSpace(e.dailyRiskStatePath) == "" {
+		return nil
+	}
+	return writeDailyRiskState(e.dailyRiskStatePath, e.dailyRiskStatePayloadLocked())
+}
+
+func (e *FundingRateSniperEngine) queueDailyRiskStatePersistLocked() error {
+	if strings.TrimSpace(e.dailyRiskStatePath) == "" {
+		return nil
+	}
+	payload := e.dailyRiskStatePayloadLocked()
+	if e.dailyRiskPersistCh == nil {
+		return writeDailyRiskState(e.dailyRiskStatePath, payload)
+	}
+	select {
+	case e.dailyRiskPersistCh <- payload:
+		return nil
+	default:
+		select {
+		case <-e.dailyRiskPersistCh:
+		default:
+		}
+		select {
+		case e.dailyRiskPersistCh <- payload:
+			return nil
+		default:
+			return writeDailyRiskState(e.dailyRiskStatePath, payload)
+		}
+	}
+}
+
+func (e *FundingRateSniperEngine) startDailyRiskStateWriter(ctx context.Context) {
+	if e == nil || e.dailyRiskPersistCh == nil {
+		return
+	}
+	e.dailyRiskPersistWorkerOnce.Do(func() {
+		go func() {
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case payload := <-e.dailyRiskPersistCh:
+					if err := writeDailyRiskState(e.dailyRiskStatePath, payload); err != nil && e.logger != nil {
+						e.logger.Printf("异步持久化日级风控状态失败: %v", err)
+					}
+				}
+			}
+		}()
+	})
 }
 
 func (e *FundingRateSniperEngine) seedDailyRealizedPnL(day string) float64 {
@@ -264,7 +320,7 @@ func (e *FundingRateSniperEngine) noteDailySettlement(netPnL float64) error {
 	e.platformRiskMu.Lock()
 	e.ensureDailyRiskDateLocked()
 	e.dailyRealizedPnL += netPnL
-	if err := e.persistDailyRiskStateLocked(); err != nil {
+	if err := e.queueDailyRiskStatePersistLocked(); err != nil {
 		e.platformRiskMu.Unlock()
 		return err
 	}
@@ -293,7 +349,7 @@ func (e *FundingRateSniperEngine) noteOrderPlaced(action string, detail string, 
 	e.dailyOrderCount += maxIntValue(count, 0)
 	e.lastOrderAt = time.Now().UTC()
 	e.lastOrderAction = strings.TrimSpace(nonEmpty(action, detail))
-	if err := e.persistDailyRiskStateLocked(); err != nil {
+	if err := e.queueDailyRiskStatePersistLocked(); err != nil {
 		e.platformRiskMu.Unlock()
 		return err
 	}
@@ -325,7 +381,7 @@ func (e *FundingRateSniperEngine) setCycleOpenNotionalUsed(value float64) error 
 	if delta > 0 {
 		e.dailyOpenNotionalUsed += delta
 	}
-	if err := e.persistDailyRiskStateLocked(); err != nil {
+	if err := e.queueDailyRiskStatePersistLocked(); err != nil {
 		e.platformRiskMu.Unlock()
 		return err
 	}

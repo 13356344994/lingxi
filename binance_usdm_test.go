@@ -132,6 +132,48 @@ func TestBinanceClientGetJSONTracksUsedWeightHeader(t *testing.T) {
 	}
 }
 
+func TestBinanceClientUsedWeightStatusResetsAtMinuteBoundary(t *testing.T) {
+	client := NewBinanceClient(time.Second)
+	client.usedWeightMu.Lock()
+	client.usedWeight1m = 5234
+	client.usedWeightLimit1m = 6000
+	client.usedWeightBlockThreshold = 4800
+	client.usedWeightWindowMinuteUTC = time.Now().UTC().Add(-time.Minute).Truncate(time.Minute)
+	client.usedWeightMu.Unlock()
+
+	usedWeight, threshold := client.usedWeightStatus()
+	if usedWeight != 0 {
+		t.Fatalf("expected used weight to reset to 0 at new minute boundary, got %d", usedWeight)
+	}
+	if threshold != 4800 {
+		t.Fatalf("expected threshold 4800, got %d", threshold)
+	}
+}
+
+func TestBinanceClientReserveUsedWeightBudgetAccountsForParallelReservations(t *testing.T) {
+	client := NewBinanceClient(time.Second)
+	client.usedWeightMu.Lock()
+	client.usedWeight1m = 4798
+	client.usedWeightLimit1m = 6000
+	client.usedWeightBlockThreshold = 4800
+	client.usedWeightWindowMinuteUTC = time.Now().UTC().Truncate(time.Minute)
+	client.usedWeightMu.Unlock()
+
+	projected, threshold, ok := client.reserveUsedWeightBudget(1)
+	if !ok {
+		t.Fatalf("expected first reservation to pass, projected=%d threshold=%d", projected, threshold)
+	}
+	projected, threshold, ok = client.reserveUsedWeightBudget(1)
+	if ok {
+		t.Fatalf("expected second reservation to be blocked, projected=%d threshold=%d", projected, threshold)
+	}
+	client.releaseUsedWeightBudget(1)
+	projected, threshold, ok = client.reserveUsedWeightBudget(1)
+	if !ok {
+		t.Fatalf("expected reservation after release to pass, projected=%d threshold=%d", projected, threshold)
+	}
+}
+
 func TestBuildGoldenSymbolSpotPairsPrefersLowerFeeStablecoinSpot(t *testing.T) {
 	spotSymbols := []SpotSymbol{
 		{Symbol: "BTCUSDT", Status: "TRADING", BaseAsset: "BTC", QuoteAsset: "USDT"},

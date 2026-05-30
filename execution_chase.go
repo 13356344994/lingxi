@@ -2,28 +2,98 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"math"
+	"math/big"
 	"net/url"
 	"strings"
 	"time"
 )
 
 const (
-	executionChaseAttempts     = 4
-	executionChaseBaseSlippage = 0.0010
-	executionChaseStepSlippage = 0.0010
-	executionChaseInterval     = 400 * time.Millisecond
-	passiveMakerDwell          = 500 * time.Millisecond
-	passiveMakerDepthLevels    = 3
-	passiveMakerAskBidMaxRatio = 3.0
+	executionChaseAttempts        = 4
+	executionChaseInterval        = 400 * time.Millisecond
+	executionChaseIntervalJitter  = 150 * time.Millisecond
+	executionChaseMinWaitInterval = 75 * time.Millisecond
+	passiveMakerDwell             = 500 * time.Millisecond
+	passiveMakerMaxAttempts       = 3
+	passiveMakerCancelBudget      = 2
+	passiveMakerDepthLevels       = 3
+	passiveMakerAskBidMaxRatio    = 3.0
+	passiveMakerMaxBidDecayRate   = 0.0010
+	passiveMakerMaxSpreadRate     = 0.0025
 )
+
+var executionChaseSlippageSchedule = []float64{0.0010, 0.0025, 0.0020, 0.0035}
+var executionChaseJitterDuration = defaultExecutionChaseJitterDuration
 
 type spotChaseOptions struct {
 	AnchorPrice    float64
 	HardLimitPrice float64
 	ReanchorAfter  int
+}
+
+func chaseSlippageForAttempt(attempt int) float64 {
+	if attempt < 0 {
+		attempt = 0
+	}
+	if attempt < len(executionChaseSlippageSchedule) && executionChaseSlippageSchedule[attempt] > 0 {
+		return executionChaseSlippageSchedule[attempt]
+	}
+	if len(executionChaseSlippageSchedule) == 0 {
+		return 0.0010
+	}
+	last := executionChaseSlippageSchedule[len(executionChaseSlippageSchedule)-1]
+	if last <= 0 {
+		last = 0.0010
+	}
+	return last
+}
+
+func defaultExecutionChaseJitterDuration(maxJitter time.Duration) time.Duration {
+	if maxJitter <= 0 {
+		return 0
+	}
+	n, err := rand.Int(rand.Reader, big.NewInt(int64(maxJitter)*2+1))
+	if err != nil {
+		return 0
+	}
+	return time.Duration(n.Int64()) - maxJitter
+}
+
+func executionChaseWaitDuration(baseInterval time.Duration) time.Duration {
+	wait := baseInterval + executionChaseJitterDuration(executionChaseIntervalJitter)
+	if wait < executionChaseMinWaitInterval {
+		return executionChaseMinWaitInterval
+	}
+	return wait
+}
+
+func (e *FundingRateSniperEngine) enforceChaseLossLimit(symbol string, side string, quantity float64, referencePrice float64, marketReference float64, action string) error {
+	if e == nil || e.cfg.RiskConfig.MaxCycleLossUSDT <= 0 || quantity <= executionQtyTolerance || referencePrice <= 0 || marketReference <= 0 {
+		return nil
+	}
+	side = strings.ToUpper(strings.TrimSpace(side))
+	projectedLoss := 0.0
+	switch side {
+	case "SELL":
+		projectedLoss = maxFloat(referencePrice-marketReference, 0) * quantity
+	case "BUY":
+		projectedLoss = maxFloat(marketReference-referencePrice, 0) * quantity
+	default:
+		return nil
+	}
+	if projectedLoss+1e-9 < e.cfg.RiskConfig.MaxCycleLossUSDT {
+		return nil
+	}
+	detail := fmt.Sprintf("追价期间潜在损失超过单周期阈值: symbol=%s action=%s side=%s qty=%.8f reference=%.8f market=%.8f projected_loss=%.6f limit=%.6f",
+		nonEmpty(symbol, "-"), nonEmpty(action, "chase"), side, quantity, referencePrice, marketReference, projectedLoss, e.cfg.RiskConfig.MaxCycleLossUSDT)
+	if err := e.recordExecutionIncident("chase_loss_limit", symbol, detail); err != nil {
+		return err
+	}
+	return e.tripPlatformFuse("chase_loss_limit", "critical", detail)
 }
 
 func makerLimitPrice(side string, bestBid float64, bestAsk float64, tickSize float64) float64 {
@@ -52,9 +122,10 @@ func makerLimitPrice(side string, bestBid float64, bestAsk float64, tickSize flo
 
 func (e *FundingRateSniperEngine) buildSpotLimitOrderParams(symbol string, side string, quantity float64, clientOrderID string, orderType string, timeInForce string, price float64) (url.Values, error) {
 	params := url.Values{}
+	rules := e.spotRules[symbol]
 	params.Set("symbol", symbol)
 	params.Set("side", side)
-	params.Set("quantity", formatFloat(quantity))
+	params.Set("quantity", formatQuantityForRules(quantity, rules, 0))
 	params.Set("newOrderRespType", "FULL")
 	if mode := normalizedSTPMode(e.cfg.ExecutionConfig.SpotSTPMode); mode != "" {
 		params.Set("selfTradePreventionMode", mode)
@@ -77,7 +148,7 @@ func (e *FundingRateSniperEngine) buildSpotLimitOrderParams(symbol string, side 
 	if price <= 0 {
 		return nil, fmt.Errorf("现货限价单价格无效: symbol=%s side=%s price=%.8f", symbol, side, price)
 	}
-	params.Set("price", formatFloat(price))
+	params.Set("price", formatPriceForTick(price, rules.PriceTick))
 	return params, nil
 }
 
@@ -85,7 +156,10 @@ func buildAnchoredSpotChaseOptions(side string, anchorPrice float64, tickSize fl
 	if anchorPrice <= 0 {
 		return spotChaseOptions{}
 	}
-	maxSlippage := executionChaseBaseSlippage + executionChaseStepSlippage*float64(maxInt(executionChaseAttempts-1, 0))
+	maxSlippage := 0.0
+	for attempt := 0; attempt < executionChaseAttempts; attempt++ {
+		maxSlippage = math.Max(maxSlippage, chaseSlippageForAttempt(attempt))
+	}
 	return spotChaseOptions{
 		AnchorPrice:    anchorPrice,
 		HardLimitPrice: normalizeProtectedLimitPrice(side, anchorPrice, maxSlippage, tickSize),
@@ -107,7 +181,7 @@ func clampSpotChaseLimitPrice(side string, limitPrice float64, hardLimitPrice fl
 	}
 }
 
-func chaseReferencePrice(side string, marketReference float64, attempt int, options spotChaseOptions) float64 {
+func chaseReferencePrice(marketReference float64, attempt int, options spotChaseOptions) float64 {
 	if options.AnchorPrice > 0 {
 		reanchorAfter := options.ReanchorAfter
 		if reanchorAfter <= 0 || attempt < reanchorAfter {
@@ -181,14 +255,17 @@ func (e *FundingRateSniperEngine) placeSpotChasingOrderWithOptions(ctx context.C
 		}
 		bestBid := parseFloat(ticker.BidPrice)
 		bestAsk := parseFloat(ticker.AskPrice)
-		slippage := executionChaseBaseSlippage + executionChaseStepSlippage*float64(attempt)
+		slippage := chaseSlippageForAttempt(attempt)
 		var marketReference float64
 		if strings.EqualFold(side, "SELL") {
 			marketReference = bestBid
 		} else {
 			marketReference = bestAsk
 		}
-		referencePrice := chaseReferencePrice(side, marketReference, attempt, options)
+		referencePrice := chaseReferencePrice(marketReference, attempt, options)
+		if err := e.enforceChaseLossLimit(symbol, side, remaining, referencePrice, marketReference, "spot_"+strings.ToLower(side)+"_chase"); err != nil {
+			return aggregate, err
+		}
 		limitPrice := normalizeProtectedLimitPrice(side, referencePrice, slippage, e.spotRules[symbol].PriceTick)
 		limitPrice = clampSpotChaseLimitPrice(side, limitPrice, options.HardLimitPrice)
 		params, err := e.buildSpotLimitOrderParams(symbol, side, remaining, newClientOrderID(actionPrefix, symbol), "LIMIT", protectedExecutionIOC, limitPrice)
@@ -204,7 +281,7 @@ func (e *FundingRateSniperEngine) placeSpotChasingOrderWithOptions(ctx context.C
 		if remaining <= executionQtyTolerance {
 			return aggregate, nil
 		}
-		if attempt+1 < executionChaseAttempts && !sleepWithContext(ctx, executionChaseInterval) {
+		if attempt+1 < executionChaseAttempts && !sleepWithContext(ctx, executionChaseWaitDuration(executionChaseInterval)) {
 			return aggregate, ctx.Err()
 		}
 	}
@@ -240,6 +317,25 @@ func (e *FundingRateSniperEngine) shouldAttemptPassiveSpotClose(symbol string) (
 	}
 	if askQty > bidQty*passiveMakerAskBidMaxRatio {
 		return false, fmt.Sprintf("bearish_imbalance ask=%.4f bid=%.4f", askQty, bidQty)
+	}
+	return true, ""
+}
+
+func passiveMakerSellTrendAllowed(anchorBid float64, ticker BookTicker) (bool, string) {
+	currentBid := parseFloat(ticker.BidPrice)
+	currentAsk := parseFloat(ticker.AskPrice)
+	if currentBid <= 0 || currentAsk <= 0 {
+		return false, "maker_ticker_invalid"
+	}
+	if currentAsk <= currentBid {
+		return true, ""
+	}
+	if anchorBid > 0 && currentBid < anchorBid*(1-passiveMakerMaxBidDecayRate) {
+		return false, fmt.Sprintf("maker_bid_decay current=%.8f anchor=%.8f", currentBid, anchorBid)
+	}
+	spreadRate := (currentAsk - currentBid) / currentBid
+	if spreadRate > passiveMakerMaxSpreadRate {
+		return false, fmt.Sprintf("maker_spread_too_wide spread=%.6f limit=%.6f", spreadRate, passiveMakerMaxSpreadRate)
 	}
 	return true, ""
 }
@@ -292,14 +388,17 @@ func (e *FundingRateSniperEngine) placeFuturesChasingClose(ctx context.Context, 
 			return aggregate, err
 		}
 		referencePrice := parseFloat(ticker.AskPrice)
-		slippage := executionChaseBaseSlippage + executionChaseStepSlippage*float64(attempt)
+		slippage := chaseSlippageForAttempt(attempt)
+		if err := e.enforceChaseLossLimit(symbol, "BUY", remaining, referencePrice, referencePrice, "futures_close_chase"); err != nil {
+			return aggregate, err
+		}
 		limitPrice := normalizeProtectedLimitPrice("BUY", referencePrice, slippage, e.futuresRules[symbol].PriceTick)
 		order := FuturesBatchOrderRequest{
 			Symbol:           symbol,
 			Side:             "BUY",
 			Type:             "LIMIT",
-			Quantity:         formatFloat(remaining),
-			Price:            formatFloat(limitPrice),
+			Quantity:         formatQuantityForRules(remaining, e.futuresRules[symbol], 0),
+			Price:            formatPriceForTick(limitPrice, e.futuresRules[symbol].PriceTick),
 			TimeInForce:      protectedExecutionIOC,
 			ReduceOnly:       "true",
 			SelfTradeMode:    normalizedSTPMode(e.cfg.ExecutionConfig.FuturesSTPMode),
@@ -318,7 +417,7 @@ func (e *FundingRateSniperEngine) placeFuturesChasingClose(ctx context.Context, 
 		if remaining <= executionQtyTolerance {
 			return aggregate, nil
 		}
-		if attempt+1 < executionChaseAttempts && !sleepWithContext(ctx, executionChaseInterval) {
+		if attempt+1 < executionChaseAttempts && !sleepWithContext(ctx, executionChaseWaitDuration(executionChaseInterval)) {
 			return aggregate, ctx.Err()
 		}
 	}
@@ -329,42 +428,69 @@ func (e *FundingRateSniperEngine) placeFuturesChasingClose(ctx context.Context, 
 }
 
 func (e *FundingRateSniperEngine) placeSpotPassiveMakerClose(ctx context.Context, symbol string, quantity float64, actionPrefix string) (SpotOrderResponse, error) {
-	if ok, reason := e.shouldAttemptPassiveSpotClose(symbol); !ok {
-		if e != nil && e.logger != nil {
-			e.logger.Printf("跳过 maker 平仓，symbol=%s reason=%s", symbol, reason)
+	remaining := quantity
+	var aggregate SpotOrderResponse
+	cancelCount := 0
+	anchorBid := 0.0
+	for attempt := 0; attempt < passiveMakerMaxAttempts && remaining > executionQtyTolerance; attempt++ {
+		if attempt > 0 && cancelCount >= passiveMakerCancelBudget {
+			return aggregate, nil
 		}
-		return SpotOrderResponse{}, nil
+		if ok, reason := e.shouldAttemptPassiveSpotClose(symbol); !ok {
+			if e != nil && e.logger != nil {
+				e.logger.Printf("跳过 maker 平仓，symbol=%s reason=%s", symbol, reason)
+			}
+			return aggregate, nil
+		}
+		ticker, err := e.fetchSpotBookTicker(ctx, symbol)
+		if err != nil {
+			return aggregate, err
+		}
+		currentBid := parseFloat(ticker.BidPrice)
+		if anchorBid <= 0 {
+			anchorBid = currentBid
+		}
+		if ok, reason := passiveMakerSellTrendAllowed(anchorBid, ticker); !ok {
+			if e != nil && e.logger != nil {
+				e.logger.Printf("终止 maker 平仓并回退追价，symbol=%s reason=%s", symbol, reason)
+			}
+			return aggregate, nil
+		}
+		price := makerLimitPrice("SELL", currentBid, parseFloat(ticker.AskPrice), e.spotRules[symbol].PriceTick)
+		clientOrderID := newClientOrderID(actionPrefix, symbol)
+		params, err := e.buildSpotLimitOrderParams(symbol, "SELL", remaining, clientOrderID, "LIMIT_MAKER", "", price)
+		if err != nil {
+			return aggregate, err
+		}
+		order, err := e.placeSpotOrderIdempotentWithParams(ctx, symbol, "SELL", remaining, clientOrderID, "spot_sell_passive_maker", params)
+		if err != nil {
+			return aggregate, err
+		}
+		finalOrder := order
+		if parseFloat(order.ExecutedQty) <= executionQtyTolerance && !isClosedOrderStatus(order.Status) {
+			if !sleepWithContext(ctx, passiveMakerDwell) {
+				return aggregate, ctx.Err()
+			}
+			if queried, queryErr := e.querySpotOrderByClientID(ctx, symbol, clientOrderID); queryErr == nil {
+				finalOrder = queried
+			}
+			if parseFloat(finalOrder.ExecutedQty) <= executionQtyTolerance && !isClosedOrderStatus(finalOrder.Status) {
+				if cancelCount >= passiveMakerCancelBudget {
+					return aggregate, nil
+				}
+				canceled, cancelErr := e.cancelSpotOrderByClientID(ctx, symbol, clientOrderID)
+				if cancelErr != nil {
+					return aggregate, cancelErr
+				}
+				cancelCount++
+				finalOrder = canceled
+			}
+		}
+		aggregate = mergeSpotOrderResponses(aggregate, finalOrder)
+		remaining = maxFloat(quantity-parseFloat(aggregate.ExecutedQty), 0)
+		if remaining <= executionQtyTolerance {
+			return aggregate, nil
+		}
 	}
-	ticker, err := e.fetchSpotBookTicker(ctx, symbol)
-	if err != nil {
-		return SpotOrderResponse{}, err
-	}
-	price := makerLimitPrice("SELL", parseFloat(ticker.BidPrice), parseFloat(ticker.AskPrice), e.spotRules[symbol].PriceTick)
-	clientOrderID := newClientOrderID(actionPrefix, symbol)
-	params, err := e.buildSpotLimitOrderParams(symbol, "SELL", quantity, clientOrderID, "LIMIT_MAKER", "", price)
-	if err != nil {
-		return SpotOrderResponse{}, err
-	}
-	order, err := e.placeSpotOrderIdempotentWithParams(ctx, symbol, "SELL", quantity, clientOrderID, "spot_sell_passive_maker", params)
-	if err != nil {
-		return SpotOrderResponse{}, err
-	}
-	if parseFloat(order.ExecutedQty) > executionQtyTolerance || isClosedOrderStatus(order.Status) {
-		return order, nil
-	}
-	if !sleepWithContext(ctx, passiveMakerDwell) {
-		return order, ctx.Err()
-	}
-	queried, queryErr := e.querySpotOrderByClientID(ctx, symbol, clientOrderID)
-	if queryErr == nil && (parseFloat(queried.ExecutedQty) > executionQtyTolerance || isClosedOrderStatus(queried.Status)) {
-		return queried, nil
-	}
-	canceled, cancelErr := e.cancelSpotOrderByClientID(ctx, symbol, clientOrderID)
-	if cancelErr == nil {
-		return canceled, nil
-	}
-	if queryErr == nil {
-		return queried, nil
-	}
-	return order, cancelErr
+	return aggregate, nil
 }

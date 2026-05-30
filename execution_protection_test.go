@@ -88,6 +88,9 @@ func TestPlaceSpotChasingOrderRetriesAfterCanceledAttempt(t *testing.T) {
 	var posts int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
+		case "/api/v3/ticker/bookTicker":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"symbol":"BTCUSDT","bidPrice":"100","askPrice":"100.1"}`))
 		case "/api/v3/order":
 			count := atomic.AddInt32(&posts, 1)
 			w.Header().Set("Content-Type", "application/json")
@@ -115,10 +118,8 @@ func TestPlaceSpotChasingOrderRetriesAfterCanceledAttempt(t *testing.T) {
 		spotRules: map[string]SymbolTradeRules{
 			"BTCUSDT": {StepSize: 0.001, PriceTick: 0.1, MinQty: 0.001, MinNotional: 1},
 		},
-		spotTickerCache: NewBookTickerCache(),
 	}
-	now := time.Now().UTC()
-	engine.spotTickerCache.UpdateAt(BookTicker{Symbol: "BTCUSDT", BidPrice: "100", AskPrice: "100.1"}, now)
+	engine.cfg.RiskConfig.MaxCycleLossUSDT = 20
 
 	order, err := engine.placeSpotChasingOrder(context.Background(), "BTCUSDT", "SELL", 1, "exp_sell")
 	if err != nil {
@@ -151,6 +152,30 @@ func TestSpotProtectedOrderParamsSetsSTPMode(t *testing.T) {
 	}
 }
 
+func TestSpotProtectedOrderParamsFormatsRequestPrecisionByRules(t *testing.T) {
+	engine := &FundingRateSniperEngine{
+		cfg:             DefaultEngineConfig(),
+		spotTickerCache: NewBookTickerCache(),
+		spotRules: map[string]SymbolTradeRules{
+			"BTCUSDT": {StepSize: 0.1, PriceTick: 0.05, MinQty: 0.1, MinNotional: 1},
+		},
+	}
+	engine.cfg.ExecutionConfig.UseProtectedIOC = true
+	engine.cfg.ExecutionConfig.SpotLimitSlippageRate = 0.001
+	engine.spotTickerCache.UpdateAt(BookTicker{Symbol: "BTCUSDT", BidPrice: "100.0", AskPrice: "100.0003"}, time.Now().UTC())
+
+	params, err := engine.spotProtectedOrderParams(context.Background(), "BTCUSDT", "BUY", 0.30000000000000004, "cid-spot")
+	if err != nil {
+		t.Fatalf("spotProtectedOrderParams() error = %v", err)
+	}
+	if got := params.Get("quantity"); got != "0.3" {
+		t.Fatalf("expected normalized spot quantity 0.3, got %q", got)
+	}
+	if got := params.Get("price"); got != "100.15" {
+		t.Fatalf("expected protected spot price 100.15, got %q", got)
+	}
+}
+
 func TestFuturesProtectedOrderParamsSetsSTPMode(t *testing.T) {
 	engine := &FundingRateSniperEngine{
 		cfg: DefaultEngineConfig(),
@@ -170,6 +195,30 @@ func TestFuturesProtectedOrderParamsSetsSTPMode(t *testing.T) {
 	}
 }
 
+func TestFuturesProtectedOrderParamsFormatsRequestPrecisionByRules(t *testing.T) {
+	engine := &FundingRateSniperEngine{
+		cfg:                DefaultEngineConfig(),
+		futuresTickerCache: NewBookTickerCache(),
+		futuresRules: map[string]SymbolTradeRules{
+			"BTCUSDT": {StepSize: 0.001, PriceTick: 0.1, MinQty: 0.001, MinNotional: 1},
+		},
+	}
+	engine.cfg.ExecutionConfig.UseProtectedIOC = true
+	engine.cfg.ExecutionConfig.FuturesLimitSlippageRate = 0
+	engine.futuresTickerCache.UpdateAt(BookTicker{Symbol: "BTCUSDT", BidPrice: "99.9", AskPrice: "100.0003"}, time.Now().UTC())
+
+	params, err := engine.futuresProtectedOrderParams(context.Background(), "BTCUSDT", "SELL", 1.2300000000000002, true, "cid-futures")
+	if err != nil {
+		t.Fatalf("futuresProtectedOrderParams() error = %v", err)
+	}
+	if got := params.Get("quantity"); got != "1.230" {
+		t.Fatalf("expected normalized futures quantity 1.230, got %q", got)
+	}
+	if got := params.Get("price"); got != "99.9" {
+		t.Fatalf("expected protected futures price 99.9, got %q", got)
+	}
+}
+
 func TestBuildProtectedOpenFuturesOrderCarriesSTPMode(t *testing.T) {
 	engine := &FundingRateSniperEngine{
 		cfg: DefaultEngineConfig(),
@@ -185,5 +234,27 @@ func TestBuildProtectedOpenFuturesOrderCarriesSTPMode(t *testing.T) {
 	})
 	if order.SelfTradeMode != "EXPIRE_TAKER" {
 		t.Fatalf("expected open futures order to carry stp mode, got %q", order.SelfTradeMode)
+	}
+}
+
+func TestBuildProtectedOpenFuturesOrderFormatsQuantityByRules(t *testing.T) {
+	engine := &FundingRateSniperEngine{
+		cfg: DefaultEngineConfig(),
+		futuresRules: map[string]SymbolTradeRules{
+			"BTCUSDT": {StepSize: 0.001, PriceTick: 0.1, MinQty: 0.001, MinNotional: 1},
+		},
+	}
+	engine.cfg.ExecutionConfig.UseProtectedIOC = false
+
+	order := engine.buildProtectedOpenFuturesOrder(&MonitoredTarget{
+		Candidate: FundingCandidate{
+			Symbol:            "BTCUSDT",
+			OrderQuantity:     0.30000000000000004,
+			QuantityPrecision: 3,
+			MarkPrice:         100,
+		},
+	})
+	if order.Quantity != "0.300" {
+		t.Fatalf("expected formatted futures open quantity 0.300, got %q", order.Quantity)
 	}
 }

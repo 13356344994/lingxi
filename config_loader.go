@@ -85,6 +85,11 @@ func envConfigOverrides() map[string]string {
 		"historical.default_lookback_days",
 		"historical.initial_equity_usdt",
 		"historical.per_leg_notional_usdt",
+		"historical.assumed_hourly_borrow_interest_rate",
+		"historical.borrow_interest_min_billing_hours",
+		"historical.negative_carry_spot_entry_impact_multiplier",
+		"historical.negative_carry_spot_exit_impact_multiplier",
+		"historical.cross_stable_quote_max_deviation_rate",
 	} {
 		envKey := "LINGXI_" + strings.ToUpper(strings.ReplaceAll(strings.ReplaceAll(key, ".", "_"), "-", "_"))
 		if value := strings.TrimSpace(os.Getenv(envKey)); value != "" {
@@ -252,6 +257,24 @@ func applyEngineConfigOverrides(cfg *EngineConfig, values map[string]string) err
 				return fmt.Errorf("%s: %w", key, err)
 			}
 			cfg.ExecutionConfig.AutoBalanceUSDT = parsed
+		case "execution.open_preparation_lead", "open_preparation_lead":
+			parsed, err := parseConfigDuration(value)
+			if err != nil {
+				return fmt.Errorf("%s: %w", key, err)
+			}
+			cfg.ExecutionConfig.OpenPreparationLead = parsed
+		case "execution.pre_open_no_go_lead", "pre_open_no_go_lead":
+			parsed, err := parseConfigDuration(value)
+			if err != nil {
+				return fmt.Errorf("%s: %w", key, err)
+			}
+			cfg.ExecutionConfig.PreOpenNoGoLead = parsed
+		case "execution.pre_open_ticker_max_age", "pre_open_ticker_max_age":
+			parsed, err := parseConfigDuration(value)
+			if err != nil {
+				return fmt.Errorf("%s: %w", key, err)
+			}
+			cfg.ExecutionConfig.PreOpenTickerMaxAge = parsed
 		case "execution.open_hedge_max_concurrency", "open_hedge_max_concurrency":
 			parsed, err := parseConfigInt(value)
 			if err != nil {
@@ -290,6 +313,14 @@ func applyEngineConfigOverrides(cfg *EngineConfig, values map[string]string) err
 			cfg.ExecutionConfig.SpotSTPMode = value
 		case "execution.futures_stp_mode", "futures_stp_mode":
 			cfg.ExecutionConfig.FuturesSTPMode = value
+		case "execution.futures_margin_type", "futures_margin_type":
+			cfg.ExecutionConfig.FuturesMarginType = value
+		case "execution.futures_leverage", "futures_leverage":
+			parsed, err := parseConfigInt(value)
+			if err != nil {
+				return fmt.Errorf("%s: %w", key, err)
+			}
+			cfg.ExecutionConfig.FuturesLeverage = parsed
 		case "risk.min_net_profit_rate", "min_net_profit_rate":
 			parsed, err := parseConfigFloat(value)
 			if err != nil {
@@ -380,6 +411,68 @@ func applyEngineConfigOverrides(cfg *EngineConfig, values map[string]string) err
 				return fmt.Errorf("%s: %w", key, err)
 			}
 			cfg.HistoricalConfig.PerLegNotionalUSDT = parsed
+		case "historical.funding_direction_mode", "funding_direction_mode":
+			cfg.HistoricalConfig.FundingDirectionMode = strings.TrimSpace(value)
+		case "historical.max_funding_cycles_held", "max_funding_cycles_held":
+			parsed, err := parseConfigInt(value)
+			if err != nil {
+				return fmt.Errorf("%s: %w", key, err)
+			}
+			cfg.HistoricalConfig.MaxFundingCyclesHeld = parsed
+		case "historical.batch_experiment_enabled", "batch_experiment_enabled":
+			parsed, err := parseConfigBool(value)
+			if err != nil {
+				return fmt.Errorf("%s: %w", key, err)
+			}
+			cfg.HistoricalConfig.BatchExperimentEnabled = parsed
+		case "historical.batch_spot_taker_fee_rates", "batch_spot_taker_fee_rates":
+			cfg.HistoricalConfig.BatchSpotTakerFeeRates = strings.TrimSpace(value)
+		case "historical.batch_per_leg_notional_usdt", "batch_per_leg_notional_usdt":
+			cfg.HistoricalConfig.BatchPerLegNotionalUSDT = strings.TrimSpace(value)
+		case "historical.batch_max_funding_cycles_held", "batch_max_funding_cycles_held":
+			cfg.HistoricalConfig.BatchMaxFundingCyclesHeld = strings.TrimSpace(value)
+		case "historical.spot_taker_fee_rate", "spot_taker_fee_rate":
+			parsed, err := parseConfigFloat(value)
+			if err != nil {
+				return fmt.Errorf("%s: %w", key, err)
+			}
+			cfg.HistoricalConfig.SpotTakerFeeRate = parsed
+		case "historical.futures_taker_fee_rate", "futures_taker_fee_rate":
+			parsed, err := parseConfigFloat(value)
+			if err != nil {
+				return fmt.Errorf("%s: %w", key, err)
+			}
+			cfg.HistoricalConfig.FuturesTakerFeeRate = parsed
+		case "historical.assumed_hourly_borrow_interest_rate", "assumed_hourly_borrow_interest_rate":
+			parsed, err := parseConfigFloat(value)
+			if err != nil {
+				return fmt.Errorf("%s: %w", key, err)
+			}
+			cfg.HistoricalConfig.AssumedHourlyBorrowInterestRate = parsed
+		case "historical.borrow_interest_min_billing_hours", "borrow_interest_min_billing_hours":
+			parsed, err := parseConfigInt(value)
+			if err != nil {
+				return fmt.Errorf("%s: %w", key, err)
+			}
+			cfg.HistoricalConfig.BorrowInterestMinBillingHours = parsed
+		case "historical.negative_carry_spot_entry_impact_multiplier", "negative_carry_spot_entry_impact_multiplier":
+			parsed, err := parseConfigFloat(value)
+			if err != nil {
+				return fmt.Errorf("%s: %w", key, err)
+			}
+			cfg.HistoricalConfig.NegativeCarrySpotEntryImpactMultiplier = parsed
+		case "historical.negative_carry_spot_exit_impact_multiplier", "negative_carry_spot_exit_impact_multiplier":
+			parsed, err := parseConfigFloat(value)
+			if err != nil {
+				return fmt.Errorf("%s: %w", key, err)
+			}
+			cfg.HistoricalConfig.NegativeCarrySpotExitImpactMultiplier = parsed
+		case "historical.cross_stable_quote_max_deviation_rate", "cross_stable_quote_max_deviation_rate":
+			parsed, err := parseConfigFloat(value)
+			if err != nil {
+				return fmt.Errorf("%s: %w", key, err)
+			}
+			cfg.HistoricalConfig.CrossStableQuoteMaxDeviationRate = parsed
 		default:
 			continue
 		}

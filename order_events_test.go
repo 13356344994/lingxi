@@ -224,6 +224,59 @@ func TestOrderEventHubTrimSnapshotsLockedSkipsWaitingSnapshotAndContinuesEvictio
 	}
 }
 
+func TestOrderEventHubDoesNotDowngradeTerminalStatusOnOutOfOrderEvent(t *testing.T) {
+	hub := NewOrderEventHub()
+	filledAt := time.UnixMilli(2000)
+	newAt := time.UnixMilli(1000)
+	hub.Update(OrderExecutionSnapshot{
+		ClientOrderID: "cid-terminal",
+		Status:        "FILLED",
+		ExecutedQty:   1,
+		CumQuoteQty:   100,
+		EventTime:     filledAt,
+	})
+	hub.Update(OrderExecutionSnapshot{
+		ClientOrderID: "cid-terminal",
+		Status:        "NEW",
+		EventTime:     newAt,
+	})
+
+	got, ok := hub.Get("cid-terminal")
+	if !ok {
+		t.Fatal("expected snapshot to remain cached")
+	}
+	if got.Status != "FILLED" {
+		t.Fatalf("expected terminal status to be retained, got %+v", got)
+	}
+	if !got.EventTime.Equal(filledAt) {
+		t.Fatalf("expected terminal event time %s, got %s", filledAt, got.EventTime)
+	}
+}
+
+func TestOrderEventHubPrefersNewerTerminalSnapshot(t *testing.T) {
+	hub := NewOrderEventHub()
+	hub.Update(OrderExecutionSnapshot{
+		ClientOrderID: "cid-latest",
+		Status:        "NEW",
+		EventTime:     time.UnixMilli(1000),
+	})
+	hub.Update(OrderExecutionSnapshot{
+		ClientOrderID: "cid-latest",
+		Status:        "FILLED",
+		ExecutedQty:   2,
+		CumQuoteQty:   200,
+		EventTime:     time.UnixMilli(2000),
+	})
+
+	got, ok := hub.Get("cid-latest")
+	if !ok {
+		t.Fatal("expected snapshot to remain cached")
+	}
+	if got.Status != "FILLED" || got.ExecutedQty != 2 {
+		t.Fatalf("expected newer terminal snapshot to win, got %+v", got)
+	}
+}
+
 func TestOrderEventHubForgetRemovesSnapshotOrderEntries(t *testing.T) {
 	hub := NewOrderEventHub()
 	hub.Update(OrderExecutionSnapshot{ClientOrderID: "cid-1", Status: "FILLED"})

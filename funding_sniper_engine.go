@@ -114,10 +114,21 @@ type FundingRateSniperEngine struct {
 	emergencyStopTriggered      bool
 	emergencyStopReason         string
 	dailyRiskStatePath          string
+	dailyRiskPersistCh          chan persistedDailyRiskState
+	dailyRiskPersistWorkerOnce  sync.Once
 	dailyRiskDate               string
 	dailyRealizedPnL            float64
 	dailyOrderCount             int
 	dailyOpenNotionalUsed       float64
+	activeOpenHedges            []OpenHedge
+	futuresRealtimeWalletUSDT   float64
+	futuresRealtimePositions    map[string]futuresRealtimePosition
+	lastFuturesAccountUpdateAt  time.Time
+	spotRealtimeBalances        map[string]float64
+	lastSpotAccountUpdateAt     time.Time
+	realtimeRiskWakeCh          chan struct{}
+	realtimeRiskWorkerOnce      sync.Once
+	panicFlattenInFlight        bool
 	dailyLimitTriggered         bool
 	dailyLimitReason            string
 	currentCooldownCategory     string
@@ -135,6 +146,7 @@ type FundingRateSniperEngine struct {
 	runtimeReporter             *RuntimeReporter
 	fundingSettlementWorkerOnce sync.Once
 	fundingSettlementWakeCh     chan struct{}
+	cacheOnlyBookTickerUntil    int64
 }
 
 type symbolCooldownState struct {
@@ -142,6 +154,14 @@ type symbolCooldownState struct {
 	Severity string
 	Reason   string
 	Until    time.Time
+}
+
+type futuresRealtimePosition struct {
+	Symbol           string
+	PositionAmt      float64
+	EntryPrice       float64
+	MarkPrice        float64
+	UnrealizedProfit float64
 }
 
 type fatalEngineError struct {
@@ -322,6 +342,21 @@ type openSequenceBuildState struct {
 	remainingSpotUSDT      float64
 	remainingFuturesUSDT   float64
 	remainingCycleNotional float64
+}
+
+type openExecutionPreparation struct {
+	beforeSnapshot CycleAccountSnapshot
+	plans          []openSequencePlan
+	fireAt         time.Time
+	goNoGoAt       time.Time
+}
+
+type nonFatalOpenAbortError struct {
+	message string
+}
+
+func (e nonFatalOpenAbortError) Error() string {
+	return e.message
 }
 
 // PremiumIndexItem 对应币安 /fapi/v1/premiumIndex 响应。
@@ -547,23 +582,27 @@ func NewFundingRateSniperEngineWithConfig(secretPath string, cfg EngineConfig) (
 	client.applyNetworkConfig(cfg.NetworkConfig)
 
 	engine := &FundingRateSniperEngine{
-		client:                  client,
-		cfg:                     cfg,
-		logger:                  log.New(os.Stdout, "[FundingRateSniper] ", log.LstdFlags|log.Lmicroseconds),
-		goldenSymbolSet:         make(map[string]struct{}),
-		goldenSpotPairByFuture:  make(map[string]string),
-		spotMeta:                make(map[string]SpotSymbol),
-		spotRules:               make(map[string]SymbolTradeRules),
-		futuresMeta:             make(map[string]FuturesSymbol),
-		futuresRules:            make(map[string]SymbolTradeRules),
-		reportStore:             reportStore,
-		emergencyStopFile:       effectiveEmergencyStopFile(cfg),
-		openHedgeStatePath:      effectiveOpenHedgeStatePath(cfg),
-		dailyRiskStatePath:      filepath.Join(cfg.NetworkConfig.RecordDir, liveDailyRiskStateName),
-		currentStage:            StageReady,
-		symbolCooldowns:         make(map[string]symbolCooldownState),
-		exposureLocks:           make(map[string]exposureLockState),
-		fundingSettlementWakeCh: make(chan struct{}, 1),
+		client:                   client,
+		cfg:                      cfg,
+		logger:                   log.New(os.Stdout, "[FundingRateSniper] ", log.LstdFlags|log.Lmicroseconds),
+		goldenSymbolSet:          make(map[string]struct{}),
+		goldenSpotPairByFuture:   make(map[string]string),
+		spotMeta:                 make(map[string]SpotSymbol),
+		spotRules:                make(map[string]SymbolTradeRules),
+		futuresMeta:              make(map[string]FuturesSymbol),
+		futuresRules:             make(map[string]SymbolTradeRules),
+		reportStore:              reportStore,
+		emergencyStopFile:        effectiveEmergencyStopFile(cfg),
+		openHedgeStatePath:       effectiveOpenHedgeStatePath(cfg),
+		dailyRiskStatePath:       filepath.Join(cfg.NetworkConfig.RecordDir, liveDailyRiskStateName),
+		dailyRiskPersistCh:       make(chan persistedDailyRiskState, 1),
+		currentStage:             StageReady,
+		symbolCooldowns:          make(map[string]symbolCooldownState),
+		exposureLocks:            make(map[string]exposureLockState),
+		futuresRealtimePositions: make(map[string]futuresRealtimePosition),
+		spotRealtimeBalances:     make(map[string]float64),
+		realtimeRiskWakeCh:       make(chan struct{}, 1),
+		fundingSettlementWakeCh:  make(chan struct{}, 1),
 	}
 	engine.exposureManager = newExposureManager(engine)
 	engine.runtimeReporter = newRuntimeReporter(engine)
@@ -572,6 +611,7 @@ func NewFundingRateSniperEngineWithConfig(secretPath string, cfg EngineConfig) (
 
 // Start 启动完整的小时级主循环。
 func (e *FundingRateSniperEngine) Start(ctx context.Context) error {
+	e.startDailyRiskStateWriter(ctx)
 	if err := e.initialize(ctx); err != nil {
 		return err
 	}
@@ -580,6 +620,7 @@ func (e *FundingRateSniperEngine) Start(ctx context.Context) error {
 	}
 	e.startFundingSettlementWorker(ctx)
 	e.startUserDataStreams(ctx)
+	e.startRealtimeDrawdownMonitor(ctx)
 
 	for {
 		if err := e.checkLiveSafetyGuards("idle"); err != nil {
@@ -711,7 +752,11 @@ func (e *FundingRateSniperEngine) runOneCycle(ctx context.Context, wakeAt time.T
 
 	e.setCurrentMonitorTargets(validTargets)
 	e.runtimeReporter.EmitWithReason(StageOpen, len(validTargets), fmt.Sprintf("进入开仓阶段，目标数=%d", len(validTargets)))
-	openHedges, beforeSnapshot, err := e.executeOpenSequence(ctx, validTargets)
+	preparedOpen, err := e.prepareOpenSequence(ctx, validTargets)
+	if err != nil {
+		return err
+	}
+	openHedges, beforeSnapshot, err := e.executeOpenSequence(ctx, validTargets, preparedOpen)
 	if err != nil {
 		return err
 	}
@@ -888,7 +933,7 @@ func (e *FundingRateSniperEngine) scanTopFundingTargets(ctx context.Context) ([]
 
 // monitorTargets 启动模块三的 Top 5 高频死守监控。
 func (e *FundingRateSniperEngine) monitorTargets(ctx context.Context, targets []*MonitoredTarget) []*MonitoredTarget {
-	stopAt := earliestFundingTime(targets).Add(-e.cfg.StrategyConfig.MonitorStopLead)
+	stopAt := e.openPreparationStartAt(targets)
 	monitorCtx, cancel := context.WithDeadline(ctx, stopAt)
 	defer cancel()
 
@@ -913,6 +958,57 @@ func (e *FundingRateSniperEngine) monitorTargets(ctx context.Context, targets []
 	}
 	e.logger.Printf("模块三完成，监控截止时间: %s", stopAt.Format("15:04:05"))
 	return targets
+}
+
+func (e *FundingRateSniperEngine) openFireAt(targets []*MonitoredTarget) time.Time {
+	if len(targets) == 0 {
+		return time.Time{}
+	}
+	return earliestFundingTime(targets).Add(-e.cfg.StrategyConfig.MonitorStopLead)
+}
+
+func (e *FundingRateSniperEngine) openPreparationStartAt(targets []*MonitoredTarget) time.Time {
+	fireAt := e.openFireAt(targets)
+	if fireAt.IsZero() {
+		return time.Time{}
+	}
+	lead := e.cfg.ExecutionConfig.OpenPreparationLead
+	if lead <= 0 {
+		return fireAt
+	}
+	return fireAt.Add(-lead)
+}
+
+func (e *FundingRateSniperEngine) openNoGoCheckAt(targets []*MonitoredTarget) time.Time {
+	fireAt := e.openFireAt(targets)
+	if fireAt.IsZero() {
+		return time.Time{}
+	}
+	lead := e.cfg.ExecutionConfig.PreOpenNoGoLead
+	if lead <= 0 {
+		return fireAt
+	}
+	return fireAt.Add(-lead)
+}
+
+func maxDurationValue(a time.Duration, b time.Duration) time.Duration {
+	if a >= b {
+		return a
+	}
+	return b
+}
+
+func (e *FundingRateSniperEngine) setBookTickerCacheOnlyUntil(until time.Time) {
+	if until.IsZero() {
+		atomic.StoreInt64(&e.cacheOnlyBookTickerUntil, 0)
+		return
+	}
+	atomic.StoreInt64(&e.cacheOnlyBookTickerUntil, until.UnixNano())
+}
+
+func (e *FundingRateSniperEngine) bookTickerCacheOnlyModeEnabled() bool {
+	until := atomic.LoadInt64(&e.cacheOnlyBookTickerUntil)
+	return until > 0 && time.Now().UTC().UnixNano() < until
 }
 
 func (e *FundingRateSniperEngine) warmupMarketCaches(ctx context.Context, targets []*MonitoredTarget) {
@@ -1175,40 +1271,75 @@ func estimateReservedNetProfitRate(estimatedFundingRate float64, entrySpreadRate
 }
 
 // executeOpenSequence 执行模块四的压哨多空开枪，并记录开仓前账户基线。
-func (e *FundingRateSniperEngine) executeOpenSequence(ctx context.Context, targets []*MonitoredTarget) ([]OpenHedge, CycleAccountSnapshot, error) {
+func (e *FundingRateSniperEngine) prepareOpenSequence(ctx context.Context, targets []*MonitoredTarget) (openExecutionPreparation, error) {
+	validTargets := filterValidTargets(targets)
+	if len(validTargets) == 0 {
+		return openExecutionPreparation{}, nil
+	}
+	if err := e.ensureFuturesExecutionSettings(ctx, validTargets); err != nil {
+		return openExecutionPreparation{}, err
+	}
+	if err := e.ensureUSDTFundingBalancesForOpen(ctx, validTargets); err != nil {
+		return openExecutionPreparation{}, err
+	}
+	if err := e.ensureSpotBNBFeeCoverageForOpen(ctx, validTargets); err != nil {
+		return openExecutionPreparation{}, err
+	}
+	beforeSnapshot, err := e.captureCycleAccountSnapshot(ctx, validTargets)
+	if err != nil {
+		return openExecutionPreparation{}, err
+	}
+	plans, err := e.buildOpenSequencePlans(ctx, validTargets, beforeSnapshot)
+	if err != nil {
+		return openExecutionPreparation{beforeSnapshot: beforeSnapshot}, err
+	}
+	prepared := openExecutionPreparation{
+		beforeSnapshot: beforeSnapshot,
+		plans:          plans,
+		fireAt:         e.openFireAt(validTargets),
+		goNoGoAt:       e.openNoGoCheckAt(validTargets),
+	}
+	e.logger.Printf(
+		"模块四预备完成，开仓时间=%s，战前检查时间=%s，顺序池候选=%d",
+		prepared.fireAt.Format("15:04:05"),
+		prepared.goNoGoAt.Format("15:04:05"),
+		len(prepared.plans),
+	)
+	return prepared, nil
+}
+
+func (e *FundingRateSniperEngine) executeOpenSequence(ctx context.Context, targets []*MonitoredTarget, prepared openExecutionPreparation) ([]OpenHedge, CycleAccountSnapshot, error) {
 	validTargets := filterValidTargets(targets)
 	if len(validTargets) == 0 {
 		return nil, CycleAccountSnapshot{}, nil
 	}
-
-	if err := e.ensureUSDTFundingBalancesForOpen(ctx, validTargets); err != nil {
-		return nil, CycleAccountSnapshot{}, err
+	if len(prepared.plans) == 0 {
+		return nil, prepared.beforeSnapshot, nil
 	}
-	if err := e.ensureSpotBNBFeeCoverageForOpen(ctx, validTargets); err != nil {
-		return nil, CycleAccountSnapshot{}, err
+	if !prepared.goNoGoAt.IsZero() && e.serverNow().Before(prepared.goNoGoAt) {
+		if sleepErr := e.sleepUntilServerTime(ctx, prepared.goNoGoAt); sleepErr != nil {
+			return nil, CycleAccountSnapshot{}, sleepErr
+		}
 	}
-	beforeSnapshot, err := e.captureCycleAccountSnapshot(ctx, validTargets)
-	if err != nil {
-		return nil, CycleAccountSnapshot{}, err
-	}
-
-	fireAt := earliestFundingTime(validTargets).Add(-e.cfg.StrategyConfig.MonitorStopLead)
 	if syncErr := e.syncServerTimeOffset(ctx); syncErr != nil {
-		e.logger.Printf("模块四开仓前刷新服务器时间偏移失败，将沿用旧偏移: %v", syncErr)
+		e.logger.Printf("模块四战前刷新服务器时间偏移失败，将沿用旧偏移: %v", syncErr)
 	}
-	plans, err := e.buildOpenSequencePlans(ctx, validTargets, beforeSnapshot)
-	if err != nil {
-		return nil, beforeSnapshot, err
+	if err := e.verifyPreOpenGoNoGo(validTargets); err != nil {
+		e.logger.Printf("模块四放弃本轮开仓，战前检查失败: %v", err)
+		e.runtimeReporter.EmitWithReason(StageOpenEmpty, 0, fmt.Sprintf("战前 Go/No-Go 未通过: %v", err))
+		return nil, prepared.beforeSnapshot, nil
 	}
-	if len(plans) == 0 {
-		return nil, beforeSnapshot, nil
-	}
-	if sleepErr := e.sleepUntilServerTime(ctx, fireAt); sleepErr != nil {
-		return nil, CycleAccountSnapshot{}, sleepErr
+	cacheOnlyUntil := prepared.fireAt.Add(maxDurationValue(e.cfg.ExecutionConfig.ExecutionRecoveryTimeout, 5*time.Second))
+	e.setBookTickerCacheOnlyUntil(cacheOnlyUntil)
+	defer e.setBookTickerCacheOnlyUntil(time.Time{})
+	if prepared.fireAt.After(e.serverNow()) {
+		if sleepErr := e.sleepUntilServerTime(ctx, prepared.fireAt); sleepErr != nil {
+			return nil, CycleAccountSnapshot{}, sleepErr
+		}
 	}
 
-	sequentialPlans, parallelPlans := splitOpenSequencePlans(e.cfg, plans)
-	e.logger.Printf("模块四开始，触发时间=%s，顺序池=%d，并发池=%d", fireAt.Format("15:04:05"), len(sequentialPlans), len(parallelPlans))
+	sequentialPlans, parallelPlans := splitOpenSequencePlans(e.cfg, prepared.plans)
+	e.logger.Printf("模块四开始，触发时间=%s，顺序池=%d，并发池=%d", prepared.fireAt.Format("15:04:05"), len(sequentialPlans), len(parallelPlans))
 
 	var (
 		wg            sync.WaitGroup
@@ -1233,15 +1364,15 @@ func (e *FundingRateSniperEngine) executeOpenSequence(ctx context.Context, targe
 	}
 	wg.Wait()
 	if sequentialErr != nil {
-		return nil, beforeSnapshot, sequentialErr
+		return nil, prepared.beforeSnapshot, sequentialErr
 	}
 	if parallelErr != nil {
-		return nil, beforeSnapshot, parallelErr
+		return nil, prepared.beforeSnapshot, parallelErr
 	}
 	hedges := append(sequentialHgs, parallelHgs...)
 	e.setCurrentPositionsFromHedges(hedges)
 	e.logger.Printf("模块四结束，成功锁仓数量: %d", len(hedges))
-	return hedges, beforeSnapshot, nil
+	return hedges, prepared.beforeSnapshot, nil
 }
 
 func newOpenSequenceBuildState(beforeSnapshot CycleAccountSnapshot, cfg EngineConfig) openSequenceBuildState {
@@ -1464,6 +1595,11 @@ func (e *FundingRateSniperEngine) executeParallelOpenPlans(ctx context.Context, 
 	err := runBoundedConcurrentTasks(ctx, effectiveOpenHedgeMaxConcurrency(e.cfg), len(plans), func(workerCtx context.Context, idx int) error {
 		hedge, openErr := e.openHedgeForTargetParallel(workerCtx, plans[idx])
 		if openErr != nil {
+			var skipped nonFatalOpenAbortError
+			if errors.As(openErr, &skipped) {
+				e.logger.Printf("模块四跳过 %s: %v", plans[idx].target.Candidate.Symbol, skipped)
+				return nil
+			}
 			return e.recordExecutionIncident("open_recovery", plans[idx].target.Candidate.Symbol, openErr.Error())
 		}
 		hedgesMu.Lock()
@@ -1848,6 +1984,11 @@ func (e *FundingRateSniperEngine) executeOpenHedgePlans(ctx context.Context, pla
 
 		hedge, openErr := e.openHedgeForTarget(workerCtx, plan.target, result)
 		if openErr != nil {
+			var skipped nonFatalOpenAbortError
+			if errors.As(openErr, &skipped) {
+				e.logger.Printf("模块四跳过 %s: %v", plan.target.Candidate.Symbol, skipped)
+				return nil
+			}
 			return e.recordExecutionIncident("open_recovery", plan.target.Candidate.Symbol, openErr.Error())
 		}
 
@@ -2063,7 +2204,14 @@ func (e *FundingRateSniperEngine) openHedgeForTarget(ctx context.Context, target
 		return OpenHedge{}, fmt.Errorf("现货补仓失败，已回补合约空单: %w", spotErr)
 	}
 
-	return e.finalizeOpenHedge(ctx, target, futureResult, futuresExecution, spotOrder, spotPriceForCheck)
+	hedge, err := e.finalizeOpenHedge(ctx, target, futureResult, futuresExecution, spotOrder, spotPriceForCheck)
+	if err != nil {
+		return OpenHedge{}, err
+	}
+	if err := e.validateFreshOpenHedge(ctx, &hedge); err != nil {
+		return OpenHedge{}, err
+	}
+	return hedge, nil
 }
 
 func (e *FundingRateSniperEngine) openHedgeForTargetParallel(ctx context.Context, plan openSequencePlan) (OpenHedge, error) {
@@ -2209,7 +2357,14 @@ func (e *FundingRateSniperEngine) openHedgeForTargetParallel(ctx context.Context
 		return OpenHedge{}, fmt.Errorf("并发现货补仓失败，已回补合约空单: %w", spotResult.err)
 	}
 
-	return e.finalizeOpenHedge(ctx, target, futuresExecutionToResult(futuresResult.snapshot, plan.futuresOrder), futuresResult.snapshot, spotResult.order, spotPriceForCheck)
+	hedge, err := e.finalizeOpenHedge(ctx, target, futuresExecutionToResult(futuresResult.snapshot, plan.futuresOrder), futuresResult.snapshot, spotResult.order, spotPriceForCheck)
+	if err != nil {
+		return OpenHedge{}, err
+	}
+	if err := e.validateFreshOpenHedge(ctx, &hedge); err != nil {
+		return OpenHedge{}, err
+	}
+	return hedge, nil
 }
 
 func (e *FundingRateSniperEngine) openSpotTarget(target *MonitoredTarget, hedgeQty float64) (float64, float64, bool) {
@@ -2312,6 +2467,55 @@ func (e *FundingRateSniperEngine) finalizeOpenHedge(ctx context.Context, target 
 		OpenFuturesAvgPrice: futuresExecution.AvgPrice,
 		OpenFuturesFeeUSDT:  e.estimateFuturesExecutionFeeUSDT(ctx, futuresExecution) + additionalFuturesFeeUSDT,
 	}, nil
+}
+
+func (e *FundingRateSniperEngine) validateFreshOpenHedge(ctx context.Context, hedge *OpenHedge) error {
+	spotTicker, futuresTicker, err := e.fetchDualBookTicker(ctx, hedge.Target.Pair, hedge.Target.Symbol)
+	if err != nil {
+		return e.abortFreshOpenHedge(ctx, hedge, fmt.Sprintf("post_open_ticker_unavailable: %v", err))
+	}
+	adverseSpread, ok := adverseCloseSpreadRate(spotTicker, futuresTicker)
+	if !ok {
+		return e.abortFreshOpenHedge(ctx, hedge, "post_open_spread_invalid")
+	}
+	immediateNetProfit := estimateReservedNetProfitRate(
+		hedge.Target.EstimatedRate,
+		adverseSpread,
+		e.cfg.StrategyConfig.FeeReserveRate,
+		e.cfg.StrategyConfig.ExitSpreadReserveRate,
+	)
+	if adverseSpread <= e.cfg.StrategyConfig.ExitSpreadReserveRate && immediateNetProfit > e.cfg.RiskConfig.ImmediateInvalidateRate {
+		return nil
+	}
+	return e.abortFreshOpenHedge(
+		ctx,
+		hedge,
+		fmt.Sprintf(
+			"adverse_spread=%.6f reserve=%.6f immediate_net=%.6f invalidate=%.6f",
+			adverseSpread,
+			e.cfg.StrategyConfig.ExitSpreadReserveRate,
+			immediateNetProfit,
+			e.cfg.RiskConfig.ImmediateInvalidateRate,
+		),
+	)
+}
+
+func (e *FundingRateSniperEngine) abortFreshOpenHedge(ctx context.Context, hedge *OpenHedge, reason string) error {
+	closeCtx, cancel := context.WithTimeout(ctx, e.cfg.ExecutionRecoveryTimeout)
+	defer cancel()
+	alerts, err := e.closeHedgePositionParallel(closeCtx, closeSequencePlan{
+		hedge:             hedge,
+		futuresOrder:      e.buildProtectedCloseFuturesOrder(closeCtx, *hedge),
+		preferPassiveSpot: false,
+	})
+	if err != nil {
+		return fmt.Errorf("开仓后逆向选择复核失败且即时撤退失败: %w", err)
+	}
+	if len(alerts) > 0 {
+		e.logger.Printf("开仓后即时撤退告警 %s: %s", hedge.Target.Symbol, strings.Join(alerts, " | "))
+	}
+	e.recordExecutionAction("open_recovery", hedge.Target.Symbol, "abort_after_adverse_selection", reason)
+	return nonFatalOpenAbortError{message: fmt.Sprintf("开仓后逆向选择复核未通过，已即时撤退: %s", reason)}
 }
 
 func (e *FundingRateSniperEngine) closeHedgePosition(ctx context.Context, hedge *OpenHedge, futureResult FuturesBatchOrderResult, preferPassiveSpot bool) ([]string, error) {
@@ -2697,40 +2901,14 @@ func (e *FundingRateSniperEngine) refreshTargetFundingEstimate(ctx context.Conte
 }
 
 func (e *FundingRateSniperEngine) fetchDualBookTicker(ctx context.Context, spotSymbol string, futuresSymbol string) (BookTicker, BookTicker, error) {
-	if e.spotTickerCache != nil && e.futuresTickerCache != nil {
-		if spotTicker, ok := e.spotTickerCache.Get(spotSymbol); ok {
-			if futuresTicker, ok := e.futuresTickerCache.Get(futuresSymbol); ok {
-				return spotTicker, futuresTicker, nil
-			}
-		}
-	}
-
-	var (
-		wg            sync.WaitGroup
-		spotTicker    BookTicker
-		futuresTicker BookTicker
-		spotErr       error
-		futuresErr    error
-	)
-
-	wg.Add(2)
-	go func() {
-		defer wg.Done()
-		spotErr = e.getJSON(ctx, e.client.spotBaseURL+"/api/v3/ticker/bookTicker?symbol="+spotSymbol, &spotTicker)
-	}()
-	go func() {
-		defer wg.Done()
-		futuresErr = e.getJSON(ctx, e.client.futuresBaseURL+"/fapi/v1/ticker/bookTicker?symbol="+futuresSymbol, &futuresTicker)
-	}()
-	wg.Wait()
-
+	spotTicker, spotErr := e.fetchSpotBookTicker(ctx, spotSymbol)
 	if spotErr != nil {
 		return BookTicker{}, BookTicker{}, fmt.Errorf("现货盘口失败: %w", spotErr)
 	}
+	futuresTicker, futuresErr := e.fetchFuturesBookTicker(ctx, futuresSymbol)
 	if futuresErr != nil {
 		return BookTicker{}, BookTicker{}, fmt.Errorf("合约盘口失败: %w", futuresErr)
 	}
-
 	return spotTicker, futuresTicker, nil
 }
 
@@ -3908,6 +4086,117 @@ func (e *FundingRateSniperEngine) verifyTradingEnvironment(ctx context.Context) 
 	return nil
 }
 
+func normalizedFuturesMarginType(mode string) string {
+	switch strings.ToUpper(strings.TrimSpace(mode)) {
+	case "ISOLATED":
+		return "ISOLATED"
+	default:
+		return "CROSSED"
+	}
+}
+
+func (e *FundingRateSniperEngine) ensureFuturesExecutionSettings(ctx context.Context, targets []*MonitoredTarget) error {
+	if len(targets) == 0 {
+		return nil
+	}
+	marginType := normalizedFuturesMarginType(e.cfg.ExecutionConfig.FuturesMarginType)
+	leverage := e.cfg.ExecutionConfig.FuturesLeverage
+	seen := make(map[string]struct{}, len(targets))
+	for _, target := range targets {
+		symbol := strings.ToUpper(strings.TrimSpace(target.Candidate.Symbol))
+		if symbol == "" {
+			continue
+		}
+		if _, ok := seen[symbol]; ok {
+			continue
+		}
+		seen[symbol] = struct{}{}
+		if err := e.setFuturesMarginType(ctx, symbol, marginType); err != nil {
+			return err
+		}
+		if err := e.setFuturesLeverage(ctx, symbol, leverage); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (e *FundingRateSniperEngine) setFuturesMarginType(ctx context.Context, symbol string, marginType string) error {
+	params := url.Values{}
+	params.Set("symbol", strings.ToUpper(strings.TrimSpace(symbol)))
+	params.Set("marginType", normalizedFuturesMarginType(marginType))
+	body, err := e.signedRequest(ctx, http.MethodPost, e.client.futuresBaseURL+"/fapi/v1/marginType", params)
+	if err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "no need to change margin type") || strings.Contains(err.Error(), "-4046") {
+			return nil
+		}
+		return fmt.Errorf("设置 %s 保证金模式失败: %w", symbol, err)
+	}
+	var payload struct {
+		Code int    `json:"code"`
+		Msg  string `json:"msg"`
+	}
+	if len(body) > 0 && json.Unmarshal(body, &payload) == nil && payload.Code != 0 {
+		if strings.Contains(strings.ToLower(payload.Msg), "no need to change margin type") || payload.Code == -4046 {
+			return nil
+		}
+		return fmt.Errorf("设置 %s 保证金模式失败: code=%d msg=%s", symbol, payload.Code, payload.Msg)
+	}
+	return nil
+}
+
+func (e *FundingRateSniperEngine) setFuturesLeverage(ctx context.Context, symbol string, leverage int) error {
+	params := url.Values{}
+	params.Set("symbol", strings.ToUpper(strings.TrimSpace(symbol)))
+	params.Set("leverage", strconv.Itoa(leverage))
+	if _, err := e.signedRequest(ctx, http.MethodPost, e.client.futuresBaseURL+"/fapi/v1/leverage", params); err != nil {
+		return fmt.Errorf("设置 %s 杠杆倍数失败: %w", symbol, err)
+	}
+	return nil
+}
+
+func (e *FundingRateSniperEngine) verifyPreOpenGoNoGo(targets []*MonitoredTarget) error {
+	if len(targets) == 0 {
+		return nil
+	}
+	if err := e.checkLiveSafetyGuards("pre_open_go_nogo"); err != nil {
+		return err
+	}
+	maxAge := e.cfg.ExecutionConfig.PreOpenTickerMaxAge
+	if maxAge <= 0 {
+		maxAge = time.Second
+	}
+	issues := make([]string, 0, len(targets)*2)
+	for _, target := range targets {
+		if _, issue := e.preOpenTickerFreshnessIssue(target.Candidate.Pair, e.spotTickerCache, maxAge, "spot"); issue != "" {
+			issues = append(issues, issue)
+		}
+		if _, issue := e.preOpenTickerFreshnessIssue(target.Candidate.Symbol, e.futuresTickerCache, maxAge, "futures"); issue != "" {
+			issues = append(issues, issue)
+		}
+	}
+	if len(issues) > 0 {
+		sort.Strings(issues)
+		return errors.New(strings.Join(issues, "; "))
+	}
+	return nil
+}
+
+func (e *FundingRateSniperEngine) preOpenTickerFreshnessIssue(symbol string, cache *BookTickerCache, maxAge time.Duration, label string) (BookTicker, string) {
+	if cache == nil {
+		return BookTicker{}, fmt.Sprintf("%s %s bookTicker 缓存未初始化", label, symbol)
+	}
+	ticker, receivedAt, ok := cache.GetWithReceivedAt(symbol)
+	if !ok || (parseFloat(ticker.AskPrice) <= 0 && parseFloat(ticker.BidPrice) <= 0) {
+		return BookTicker{}, fmt.Sprintf("%s %s bookTicker 缺失", label, symbol)
+	}
+	age := time.Since(receivedAt)
+	if receivedAt.IsZero() || age > maxAge {
+		return BookTicker{}, fmt.Sprintf("%s %s bookTicker 延迟过高: age=%s limit=%s", label, symbol, age.Round(time.Millisecond), maxAge)
+	}
+	return ticker, ""
+}
+
 func (e *FundingRateSniperEngine) verifySpotBNBBurnEnabled(ctx context.Context) error {
 	body, err := e.signedRequest(ctx, http.MethodGet, e.client.spotBaseURL+"/sapi/v1/bnbBurn", nil)
 	if err != nil {
@@ -4030,7 +4319,7 @@ func (e *FundingRateSniperEngine) transferAssetBetweenAccounts(ctx context.Conte
 	params := url.Values{}
 	params.Set("type", transferType)
 	params.Set("asset", strings.ToUpper(strings.TrimSpace(asset)))
-	params.Set("amount", formatFloat(amount))
+	params.Set("amount", formatRequestAmount(amount))
 
 	body, err := e.signedRequest(ctx, http.MethodPost, e.client.spotBaseURL+"/sapi/v1/asset/transfer", params)
 	if err != nil {
@@ -4124,7 +4413,7 @@ func (e *FundingRateSniperEngine) crossMarginBorrowRepay(ctx context.Context, as
 	params := url.Values{}
 	params.Set("asset", strings.ToUpper(strings.TrimSpace(asset)))
 	params.Set("isIsolated", "FALSE")
-	params.Set("amount", formatFloat(amount))
+	params.Set("amount", formatRequestAmount(amount))
 	params.Set("type", action)
 
 	body, err := e.signedRequest(ctx, http.MethodPost, e.client.spotBaseURL+"/sapi/v1/margin/borrow-repay", params)
@@ -4386,14 +4675,18 @@ func resolveSpotNetBaseQuantity(order SpotOrderResponse, baseAsset string) float
 }
 
 func (e *FundingRateSniperEngine) signedRequest(ctx context.Context, method string, endpoint string, params url.Values) ([]byte, error) {
+	releaseUsedWeightBudget := func() {}
 	if !isExposureManagerRequest(ctx) {
 		if err := e.checkPlatformFuse(); err != nil {
 			return nil, err
 		}
-		if err := e.blockNonCriticalRequestByUsedWeight(method, endpoint, params); err != nil {
+		release, err := e.blockNonCriticalRequestByUsedWeight(method, endpoint, params)
+		if err != nil {
 			return nil, err
 		}
+		releaseUsedWeightBudget = release
 	}
+	defer releaseUsedWeightBudget()
 	if params == nil {
 		params = url.Values{}
 	}
@@ -4487,15 +4780,17 @@ func (e *FundingRateSniperEngine) isCriticalExposureRequest(method string, endpo
 	return false
 }
 
-func (e *FundingRateSniperEngine) blockNonCriticalRequestByUsedWeight(method string, endpoint string, params url.Values) error {
+func (e *FundingRateSniperEngine) blockNonCriticalRequestByUsedWeight(method string, endpoint string, params url.Values) (func(), error) {
 	if e == nil || e.client == nil || e.isCriticalExposureRequest(method, endpoint, params) {
-		return nil
+		return func() {}, nil
 	}
-	usedWeight, threshold := e.client.usedWeightStatus()
-	if threshold <= 0 || usedWeight < threshold {
-		return nil
+	projected, threshold, ok := e.client.reserveUsedWeightBudget(1)
+	if threshold <= 0 || ok {
+		return func() {
+			e.client.releaseUsedWeightBudget(1)
+		}, nil
 	}
-	return e.tripPlatformFuse("used_weight", "critical", fmt.Sprintf("usedWeight=%d 已达到阈值 %d，主动阻断非平仓/非救援请求 endpoint=%s", usedWeight, threshold, endpoint))
+	return func() {}, e.tripPlatformFuse("used_weight", "critical", fmt.Sprintf("usedWeightProjected=%d 已达到阈值 %d，主动阻断非平仓/非救援请求 endpoint=%s", projected, threshold, endpoint))
 }
 
 func (e *FundingRateSniperEngine) syncServerTimeOffset(ctx context.Context) error {
@@ -4658,14 +4953,18 @@ func estimateTargetCapitalRequirement(cfg EngineConfig, target *MonitoredTarget,
 }
 
 func (e *FundingRateSniperEngine) getJSON(ctx context.Context, endpoint string, target any) error {
+	releaseUsedWeightBudget := func() {}
 	if !isExposureManagerRequest(ctx) {
 		if err := e.checkPlatformFuse(); err != nil {
 			return err
 		}
-		if err := e.blockNonCriticalRequestByUsedWeight(http.MethodGet, endpoint, nil); err != nil {
+		release, err := e.blockNonCriticalRequestByUsedWeight(http.MethodGet, endpoint, nil)
+		if err != nil {
 			return err
 		}
+		releaseUsedWeightBudget = release
 	}
+	defer releaseUsedWeightBudget()
 	if err := e.client.getJSON(ctx, endpoint, target); err != nil {
 		if markErr := e.notePlatformRequestResult(endpoint, err); markErr != nil {
 			return markErr
@@ -5300,14 +5599,23 @@ func (e *FundingRateSniperEngine) setCurrentPositionsFromHedges(hedges []OpenHed
 		}
 		labels = append(labels, fmt.Sprintf("%s spot+short %.8f", hedge.Target.Symbol, hedge.HedgeQty))
 	}
-	e.setCurrentPositions(labels)
+	e.platformRiskMu.Lock()
+	e.activeOpenHedges = append([]OpenHedge(nil), hedges...)
+	e.currentPositions = append([]string(nil), labels...)
+	e.runtimeReporter.EmitLocked(EngineStage(""))
+	e.platformRiskMu.Unlock()
+	e.wakeRealtimeDrawdownMonitor()
 }
 
 func (e *FundingRateSniperEngine) setCurrentPositions(labels []string) {
 	e.platformRiskMu.Lock()
+	if len(labels) == 0 {
+		e.activeOpenHedges = nil
+	}
 	e.currentPositions = append([]string(nil), labels...)
 	e.runtimeReporter.EmitLocked(EngineStage(""))
 	e.platformRiskMu.Unlock()
+	e.wakeRealtimeDrawdownMonitor()
 }
 
 func remainingRiskBudget(limit int, used int) int {
@@ -5543,6 +5851,48 @@ func roundDownQuantity(value float64, precision int) float64 {
 	}
 	factor := math.Pow10(precision)
 	return math.Floor(value*factor) / factor
+}
+
+func precisionFromIncrement(increment float64, fallbackPrecision int) int {
+	if increment <= 0 {
+		if fallbackPrecision < 0 {
+			return 0
+		}
+		return fallbackPrecision
+	}
+	text := strconv.FormatFloat(increment, 'f', -1, 64)
+	if dot := strings.IndexByte(text, '.'); dot >= 0 {
+		return len(strings.TrimRight(text[dot+1:], "0"))
+	}
+	return 0
+}
+
+func formatFloatWithPrecision(value float64, precision int) string {
+	if precision < 0 {
+		precision = 0
+	}
+	return strconv.FormatFloat(roundDownQuantity(value, precision), 'f', precision, 64)
+}
+
+func formatQuantityForRules(quantity float64, rules SymbolTradeRules, fallbackPrecision int) string {
+	normalized := normalizeQuantity(quantity, rules, fallbackPrecision)
+	precision := precisionFromIncrement(rules.StepSize, fallbackPrecision)
+	return formatFloatWithPrecision(normalized, precision)
+}
+
+func formatPriceForTick(price float64, tickSize float64) string {
+	precision := precisionFromIncrement(tickSize, 0)
+	return formatFloatWithPrecision(price, precision)
+}
+
+func formatRequestAmount(value float64) string {
+	text := formatFloatWithPrecision(value, 12)
+	text = strings.TrimRight(text, "0")
+	text = strings.TrimRight(text, ".")
+	if text == "" {
+		return "0"
+	}
+	return text
 }
 
 func formatFloat(value float64) string {

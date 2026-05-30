@@ -44,6 +44,10 @@ type BinanceClient struct {
 	usedWeight1m                     int
 	usedWeightLimit1m                int
 	usedWeightBlockThreshold         int
+	usedWeightWindowMinuteUTC        time.Time
+	usedWeightReserved1m             int
+	historicalSpotPairByFuture       map[string]string
+	historicalSpotMeta               map[string]SpotSymbol
 	historicalStatsMu                sync.Mutex
 	historicalStats                  historicalRequestStats
 }
@@ -179,18 +183,49 @@ func NewAuthenticatedBinanceClient(secret SecretConfig, networkCfg NetworkConfig
 // ListGoldenSymbols 是模块一的核心对外方法。
 // 它会并发拉取现货和 U 本位合约的 exchangeInfo，过滤后求交集，返回干净的黄金币种列表。
 func (c *BinanceClient) ListGoldenSymbols(ctx context.Context) ([]string, error) {
+	return c.ListGoldenSymbolsWithPreferredQuotes(ctx, preferredSpotQuoteAssets(DefaultEngineConfig().StrategyConfig.PreferredSpotQuoteAssets))
+}
+
+func (c *BinanceClient) ListGoldenSymbolsWithPreferredQuotes(ctx context.Context, preferredQuotes []string) ([]string, error) {
 	spotSymbols, futuresSymbols, err := c.fetchExchangeInfos(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	goldenMap := buildGoldenSymbolSpotPairs(spotSymbols, futuresSymbols, preferredSpotQuoteAssets(DefaultEngineConfig().StrategyConfig.PreferredSpotQuoteAssets), time.Now().UTC())
+	goldenMap := buildGoldenSymbolSpotPairs(spotSymbols, futuresSymbols, preferredQuotes, time.Now().UTC())
+	spotMeta := make(map[string]SpotSymbol, len(spotSymbols))
+	for _, symbol := range spotSymbols {
+		spotMeta[symbol.Symbol] = symbol
+	}
+	c.historicalSpotPairByFuture = make(map[string]string, len(goldenMap))
+	c.historicalSpotMeta = make(map[string]SpotSymbol, len(goldenMap))
+	for futureSymbol, spotPair := range goldenMap {
+		c.historicalSpotPairByFuture[futureSymbol] = spotPair
+		if meta, ok := spotMeta[spotPair]; ok {
+			c.historicalSpotMeta[futureSymbol] = meta
+		}
+	}
 	golden := make([]string, 0, len(goldenMap))
 	for symbol := range goldenMap {
 		golden = append(golden, symbol)
 	}
 	sort.Strings(golden)
 	return golden, nil
+}
+
+func (c *BinanceClient) historicalSpotPairForFuture(symbol string) string {
+	if c == nil {
+		return ""
+	}
+	return c.historicalSpotPairByFuture[strings.ToUpper(strings.TrimSpace(symbol))]
+}
+
+func (c *BinanceClient) historicalSpotMetaForFuture(symbol string) (SpotSymbol, bool) {
+	if c == nil {
+		return SpotSymbol{}, false
+	}
+	meta, ok := c.historicalSpotMeta[strings.ToUpper(strings.TrimSpace(symbol))]
+	return meta, ok
 }
 
 // fetchExchangeInfos 并发抓取现货和 U 本位合约的 exchangeInfo。
@@ -302,7 +337,9 @@ func (c *BinanceClient) noteUsedWeightFromHeaders(header http.Header) {
 		return
 	}
 	c.usedWeightMu.Lock()
+	c.resetUsedWeightWindowLocked(time.Now().UTC())
 	c.usedWeight1m = usedWeight
+	c.usedWeightReserved1m = 0
 	if c.usedWeightLimit1m <= 0 {
 		c.usedWeightLimit1m = defaultUsedWeightLimit1m
 	}
@@ -318,6 +355,7 @@ func (c *BinanceClient) usedWeightStatus() (int, int) {
 	}
 	c.usedWeightMu.Lock()
 	defer c.usedWeightMu.Unlock()
+	c.resetUsedWeightWindowLocked(time.Now().UTC())
 	if c.usedWeightLimit1m <= 0 {
 		c.usedWeightLimit1m = defaultUsedWeightLimit1m
 	}
@@ -325,6 +363,59 @@ func (c *BinanceClient) usedWeightStatus() (int, int) {
 		c.usedWeightBlockThreshold = int(float64(c.usedWeightLimit1m) * 0.8)
 	}
 	return c.usedWeight1m, c.usedWeightBlockThreshold
+}
+
+func (c *BinanceClient) resetUsedWeightWindowLocked(now time.Time) {
+	if c == nil {
+		return
+	}
+	currentMinute := now.UTC().Truncate(time.Minute)
+	if c.usedWeightWindowMinuteUTC.IsZero() {
+		c.usedWeightWindowMinuteUTC = currentMinute
+		return
+	}
+	if currentMinute.After(c.usedWeightWindowMinuteUTC) {
+		c.usedWeightWindowMinuteUTC = currentMinute
+		c.usedWeight1m = 0
+		c.usedWeightReserved1m = 0
+	}
+}
+
+func (c *BinanceClient) reserveUsedWeightBudget(units int) (int, int, bool) {
+	if c == nil {
+		return 0, 0, true
+	}
+	if units <= 0 {
+		units = 1
+	}
+	c.usedWeightMu.Lock()
+	defer c.usedWeightMu.Unlock()
+	c.resetUsedWeightWindowLocked(time.Now().UTC())
+	if c.usedWeightLimit1m <= 0 {
+		c.usedWeightLimit1m = defaultUsedWeightLimit1m
+	}
+	if c.usedWeightBlockThreshold <= 0 {
+		c.usedWeightBlockThreshold = int(float64(c.usedWeightLimit1m) * 0.8)
+	}
+	projected := c.usedWeight1m + c.usedWeightReserved1m + units
+	if c.usedWeightBlockThreshold > 0 && projected >= c.usedWeightBlockThreshold {
+		return projected, c.usedWeightBlockThreshold, false
+	}
+	c.usedWeightReserved1m += units
+	return projected, c.usedWeightBlockThreshold, true
+}
+
+func (c *BinanceClient) releaseUsedWeightBudget(units int) {
+	if c == nil {
+		return
+	}
+	if units <= 0 {
+		units = 1
+	}
+	c.usedWeightMu.Lock()
+	defer c.usedWeightMu.Unlock()
+	c.resetUsedWeightWindowLocked(time.Now().UTC())
+	c.usedWeightReserved1m = maxIntValue(c.usedWeightReserved1m-units, 0)
 }
 
 func parseHeaderInt(raw string) int {

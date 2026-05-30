@@ -68,6 +68,9 @@ type ExecutionConfig struct {
 	ExitDelayAfterFunding    time.Duration
 	ExitMonitorInterval      time.Duration
 	AutoBalanceUSDT          bool
+	OpenPreparationLead      time.Duration
+	PreOpenNoGoLead          time.Duration
+	PreOpenTickerMaxAge      time.Duration
 	RecvWindow               int64
 	ExecutionConfirmTimeout  time.Duration
 	ExecutionRecoveryTimeout time.Duration
@@ -80,6 +83,8 @@ type ExecutionConfig struct {
 	FuturesPriceProtect      bool
 	SpotSTPMode              string
 	FuturesSTPMode           string
+	FuturesMarginType        string
+	FuturesLeverage          int
 }
 
 // RiskConfig 表示实盘风控阈值和冷却预算。
@@ -112,39 +117,50 @@ type RiskConfig struct {
 
 // HistoricalConfig 表示月度模拟与历史验证配置。
 type HistoricalConfig struct {
-	DefaultLookbackDays            int
-	InitialEquityUSDT              float64
-	StopEquityUSDT                 float64
-	PerLegNotionalUSDT             float64
-	MaxPerLegEquityShare           float64
-	SpotTakerFeeRate               float64
-	FuturesTakerFeeRate            float64
-	FundingPhaseLead               time.Duration
-	FundingFetchConcurrency        int
-	FundingRetryMax                int
-	CacheDir                       string
-	ReferenceKlineLookback         int
-	EstimateKlineLookback          int
-	SafetyBufferFloorUSDT          float64
-	SafetyBufferCostMultiplier     float64
-	MaxDrawdownRate                float64
-	MaxConsecutiveLosses           int
-	MaxFundingRate                 float64
-	MaxFundingRateJump             float64
-	MaxSingleTradeLossUSDT         float64
-	FundingFetchSlot               time.Duration
-	FundingFetchTimeout            time.Duration
-	GroupEvaluationTimeout         time.Duration
-	CandidateBuildTimeout          time.Duration
-	CandidateFinalizeTimeout       time.Duration
-	ScreeningConcurrency           int
-	DeepCandidateLimit             int
-	LiquidityShareMin              float64
-	LiquidityShareFloor            float64
-	LiquidityShareMax              float64
-	SevereLiquidityShareCap        float64
-	SevereLiquidityShareMultiplier float64
-	SevereLiquidityShareMax        float64
+	DefaultLookbackDays                    int
+	InitialEquityUSDT                      float64
+	StopEquityUSDT                         float64
+	PerLegNotionalUSDT                     float64
+	FundingDirectionMode                   string
+	MaxFundingCyclesHeld                   int
+	BatchExperimentEnabled                 bool
+	BatchSpotTakerFeeRates                 string
+	BatchPerLegNotionalUSDT                string
+	BatchMaxFundingCyclesHeld              string
+	MaxPerLegEquityShare                   float64
+	SpotTakerFeeRate                       float64
+	FuturesTakerFeeRate                    float64
+	AssumedHourlyBorrowInterestRate        float64
+	BorrowInterestMinBillingHours          int
+	NegativeCarrySpotEntryImpactMultiplier float64
+	NegativeCarrySpotExitImpactMultiplier  float64
+	CrossStableQuoteMaxDeviationRate       float64
+	FundingPhaseLead                       time.Duration
+	FundingFetchConcurrency                int
+	FundingRetryMax                        int
+	CacheDir                               string
+	ReferenceKlineLookback                 int
+	EstimateKlineLookback                  int
+	SafetyBufferFloorUSDT                  float64
+	SafetyBufferCostMultiplier             float64
+	MaxDrawdownRate                        float64
+	MaxConsecutiveLosses                   int
+	MaxFundingRate                         float64
+	MaxFundingRateJump                     float64
+	MaxSingleTradeLossUSDT                 float64
+	FundingFetchSlot                       time.Duration
+	FundingFetchTimeout                    time.Duration
+	GroupEvaluationTimeout                 time.Duration
+	CandidateBuildTimeout                  time.Duration
+	CandidateFinalizeTimeout               time.Duration
+	ScreeningConcurrency                   int
+	DeepCandidateLimit                     int
+	LiquidityShareMin                      float64
+	LiquidityShareFloor                    float64
+	LiquidityShareMax                      float64
+	SevereLiquidityShareCap                float64
+	SevereLiquidityShareMultiplier         float64
+	SevereLiquidityShareMax                float64
 }
 
 // EngineConfig 是 Funding Rate Sniper Engine 的 MVP 运行配置。
@@ -204,6 +220,9 @@ func DefaultEngineConfig() EngineConfig {
 			ExitDelayAfterFunding:    2 * time.Second,
 			ExitMonitorInterval:      250 * time.Millisecond,
 			AutoBalanceUSDT:          true,
+			OpenPreparationLead:      5 * time.Second,
+			PreOpenNoGoLead:          1 * time.Second,
+			PreOpenTickerMaxAge:      1 * time.Second,
 			RecvWindow:               5000,
 			ExecutionConfirmTimeout:  1500 * time.Millisecond,
 			ExecutionRecoveryTimeout: 4 * time.Second,
@@ -216,6 +235,8 @@ func DefaultEngineConfig() EngineConfig {
 			FuturesPriceProtect:      true,
 			SpotSTPMode:              "EXPIRE_TAKER",
 			FuturesSTPMode:           "EXPIRE_TAKER",
+			FuturesMarginType:        "CROSSED",
+			FuturesLeverage:          3,
 		},
 		RiskConfig: RiskConfig{
 			MinNetProfitRate:              0.0020,
@@ -244,39 +265,50 @@ func DefaultEngineConfig() EngineConfig {
 			MaxDailyOpenNotionalUSDT:      1500.0,
 		},
 		HistoricalConfig: HistoricalConfig{
-			DefaultLookbackDays:            30,
-			InitialEquityUSDT:              20.0,
-			StopEquityUSDT:                 10.0,
-			PerLegNotionalUSDT:             10.0,
-			MaxPerLegEquityShare:           0.50,
-			SpotTakerFeeRate:               0.0010,
-			FuturesTakerFeeRate:            0.0005,
-			FundingPhaseLead:               time.Minute,
-			FundingFetchConcurrency:        20,
-			FundingRetryMax:                6,
-			CacheDir:                       "records/historical_cache",
-			ReferenceKlineLookback:         60,
-			EstimateKlineLookback:          180,
-			SafetyBufferFloorUSDT:          0.02,
-			SafetyBufferCostMultiplier:     0.50,
-			MaxDrawdownRate:                0.25,
-			MaxConsecutiveLosses:           2,
-			MaxFundingRate:                 0.0300,
-			MaxFundingRateJump:             0.0150,
-			MaxSingleTradeLossUSDT:         1.5,
-			FundingFetchSlot:               0,
-			FundingFetchTimeout:            35 * time.Second,
-			GroupEvaluationTimeout:         45 * time.Second,
-			CandidateBuildTimeout:          12 * time.Second,
-			CandidateFinalizeTimeout:       15 * time.Second,
-			ScreeningConcurrency:           10,
-			DeepCandidateLimit:             24,
-			LiquidityShareMin:              0.01,
-			LiquidityShareFloor:            0.08,
-			LiquidityShareMax:              0.25,
-			SevereLiquidityShareCap:        0.20,
-			SevereLiquidityShareMultiplier: 2.5,
-			SevereLiquidityShareMax:        0.50,
+			DefaultLookbackDays:                    30,
+			InitialEquityUSDT:                      20.0,
+			StopEquityUSDT:                         10.0,
+			PerLegNotionalUSDT:                     10.0,
+			FundingDirectionMode:                   "both",
+			MaxFundingCyclesHeld:                   1,
+			BatchExperimentEnabled:                 true,
+			BatchSpotTakerFeeRates:                 "0.0010,0.0000",
+			BatchPerLegNotionalUSDT:                "5,10,20",
+			BatchMaxFundingCyclesHeld:              "1,2",
+			MaxPerLegEquityShare:                   0.50,
+			SpotTakerFeeRate:                       0.0010,
+			FuturesTakerFeeRate:                    0.0005,
+			AssumedHourlyBorrowInterestRate:        0.0010,
+			BorrowInterestMinBillingHours:          1,
+			NegativeCarrySpotEntryImpactMultiplier: 2.5,
+			NegativeCarrySpotExitImpactMultiplier:  2.5,
+			CrossStableQuoteMaxDeviationRate:       0.0010,
+			FundingPhaseLead:                       30 * time.Second,
+			FundingFetchConcurrency:                20,
+			FundingRetryMax:                        6,
+			CacheDir:                               "records/historical_cache",
+			ReferenceKlineLookback:                 60,
+			EstimateKlineLookback:                  180,
+			SafetyBufferFloorUSDT:                  0.02,
+			SafetyBufferCostMultiplier:             0.50,
+			MaxDrawdownRate:                        0.25,
+			MaxConsecutiveLosses:                   2,
+			MaxFundingRate:                         0.0300,
+			MaxFundingRateJump:                     0.0150,
+			MaxSingleTradeLossUSDT:                 1.5,
+			FundingFetchSlot:                       0,
+			FundingFetchTimeout:                    35 * time.Second,
+			GroupEvaluationTimeout:                 45 * time.Second,
+			CandidateBuildTimeout:                  12 * time.Second,
+			CandidateFinalizeTimeout:               15 * time.Second,
+			ScreeningConcurrency:                   10,
+			DeepCandidateLimit:                     24,
+			LiquidityShareMin:                      0.01,
+			LiquidityShareFloor:                    0.08,
+			LiquidityShareMax:                      0.25,
+			SevereLiquidityShareCap:                0.20,
+			SevereLiquidityShareMultiplier:         2.5,
+			SevereLiquidityShareMax:                0.50,
 		},
 	}
 }
@@ -331,6 +363,11 @@ func (cfg EngineConfig) Validate() error {
 
 	appendIssue(cfg.ExecutionConfig.ExitDelayAfterFunding >= 0, "ExitDelayAfterFunding 不能小于 0")
 	appendIssue(cfg.ExecutionConfig.ExitMonitorInterval > 0, "ExitMonitorInterval 必须大于 0")
+	appendIssue(cfg.ExecutionConfig.OpenPreparationLead >= 0, "OpenPreparationLead 不能小于 0")
+	appendIssue(cfg.ExecutionConfig.PreOpenNoGoLead >= 0, "PreOpenNoGoLead 不能小于 0")
+	appendIssue(cfg.ExecutionConfig.PreOpenTickerMaxAge > 0, "PreOpenTickerMaxAge 必须大于 0")
+	appendIssue(cfg.ExecutionConfig.OpenPreparationLead >= cfg.ExecutionConfig.PreOpenNoGoLead, "OpenPreparationLead 不能小于 PreOpenNoGoLead")
+	appendIssue(cfg.StrategyConfig.MonitorStopLead > cfg.ExecutionConfig.OpenPreparationLead, "MonitorStopLead 必须大于 OpenPreparationLead")
 	appendIssue(cfg.ExecutionConfig.RecvWindow > 0, "RecvWindow 必须大于 0")
 	appendIssue(cfg.ExecutionConfig.ExecutionConfirmTimeout > 0, "ExecutionConfirmTimeout 必须大于 0")
 	appendIssue(cfg.ExecutionConfig.ExecutionRecoveryTimeout > 0, "ExecutionRecoveryTimeout 必须大于 0")
@@ -339,6 +376,8 @@ func (cfg EngineConfig) Validate() error {
 	appendIssue(cfg.ExecutionConfig.FuturesLimitSlippageRate >= 0 && cfg.ExecutionConfig.FuturesLimitSlippageRate < 0.05, "FuturesLimitSlippageRate 必须在 [0, 0.05) 之间")
 	appendIssue(isValidSelfTradePreventionMode(cfg.ExecutionConfig.SpotSTPMode), "SpotSTPMode 必须是 EXPIRE_TAKER / EXPIRE_MAKER / EXPIRE_BOTH / NONE")
 	appendIssue(isValidSelfTradePreventionMode(cfg.ExecutionConfig.FuturesSTPMode), "FuturesSTPMode 必须是 EXPIRE_TAKER / EXPIRE_MAKER / EXPIRE_BOTH / NONE")
+	appendIssue(strings.EqualFold(strings.TrimSpace(cfg.ExecutionConfig.FuturesMarginType), "CROSSED"), "FuturesMarginType 当前必须为 CROSSED")
+	appendIssue(cfg.ExecutionConfig.FuturesLeverage >= 1 && cfg.ExecutionConfig.FuturesLeverage <= 20, "FuturesLeverage 必须在 1 到 20 之间")
 
 	appendIssue(cfg.RiskConfig.MinNetProfitRate > 0, "MinNetProfitRate 必须大于 0")
 	appendIssue(cfg.RiskConfig.ImmediateInvalidateRate > 0, "ImmediateInvalidateRate 必须大于 0")
@@ -374,9 +413,21 @@ func (cfg EngineConfig) Validate() error {
 	appendIssue(cfg.HistoricalConfig.InitialEquityUSDT > 0, "Historical InitialEquityUSDT 必须大于 0")
 	appendIssue(cfg.HistoricalConfig.StopEquityUSDT > 0 && cfg.HistoricalConfig.StopEquityUSDT < cfg.HistoricalConfig.InitialEquityUSDT, "Historical StopEquityUSDT 必须在 (0, InitialEquityUSDT) 之间")
 	appendIssue(cfg.HistoricalConfig.PerLegNotionalUSDT > 0, "Historical PerLegNotionalUSDT 必须大于 0")
+	appendIssue(isValidHistoricalFundingDirectionMode(cfg.HistoricalConfig.FundingDirectionMode), "Historical FundingDirectionMode 必须是 positive_only、negative_only 或 both")
+	appendIssue(cfg.HistoricalConfig.MaxFundingCyclesHeld > 0, "Historical MaxFundingCyclesHeld 必须大于 0")
+	if cfg.HistoricalConfig.BatchExperimentEnabled {
+		appendIssue(strings.TrimSpace(cfg.HistoricalConfig.BatchSpotTakerFeeRates) != "", "Historical BatchSpotTakerFeeRates 不能为空")
+		appendIssue(strings.TrimSpace(cfg.HistoricalConfig.BatchPerLegNotionalUSDT) != "", "Historical BatchPerLegNotionalUSDT 不能为空")
+		appendIssue(strings.TrimSpace(cfg.HistoricalConfig.BatchMaxFundingCyclesHeld) != "", "Historical BatchMaxFundingCyclesHeld 不能为空")
+	}
 	appendIssue(cfg.HistoricalConfig.MaxPerLegEquityShare > 0 && cfg.HistoricalConfig.MaxPerLegEquityShare <= 1, "Historical MaxPerLegEquityShare 必须在 (0, 1] 之间")
 	appendIssue(cfg.HistoricalConfig.SpotTakerFeeRate >= 0, "Historical SpotTakerFeeRate 不能小于 0")
 	appendIssue(cfg.HistoricalConfig.FuturesTakerFeeRate >= 0, "Historical FuturesTakerFeeRate 不能小于 0")
+	appendIssue(cfg.HistoricalConfig.AssumedHourlyBorrowInterestRate >= 0, "Historical AssumedHourlyBorrowInterestRate 不能小于 0")
+	appendIssue(cfg.HistoricalConfig.BorrowInterestMinBillingHours > 0, "Historical BorrowInterestMinBillingHours 必须大于 0")
+	appendIssue(cfg.HistoricalConfig.NegativeCarrySpotEntryImpactMultiplier >= 1, "Historical NegativeCarrySpotEntryImpactMultiplier 不能小于 1")
+	appendIssue(cfg.HistoricalConfig.NegativeCarrySpotExitImpactMultiplier >= 1, "Historical NegativeCarrySpotExitImpactMultiplier 不能小于 1")
+	appendIssue(cfg.HistoricalConfig.CrossStableQuoteMaxDeviationRate >= 0 && cfg.HistoricalConfig.CrossStableQuoteMaxDeviationRate < 0.2, "Historical CrossStableQuoteMaxDeviationRate 必须在 [0, 0.2) 之间")
 	appendIssue(cfg.HistoricalConfig.FundingPhaseLead > 0, "Historical FundingPhaseLead 必须大于 0")
 	appendIssue(cfg.HistoricalConfig.FundingFetchConcurrency > 0, "Historical FundingFetchConcurrency 必须大于 0")
 	appendIssue(cfg.HistoricalConfig.FundingRetryMax >= 0, "Historical FundingRetryMax 不能小于 0")

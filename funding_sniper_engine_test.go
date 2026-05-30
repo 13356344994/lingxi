@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -33,6 +34,19 @@ func TestIsUnknownOrderRequestError(t *testing.T) {
 	}
 	if isUnknownOrderRequestError(errors.New("签名请求失败: endpoint=/api/v3/order status=400 Bad Request body=bad symbol")) {
 		t.Fatal("did not expect deterministic 400 error to be treated as unknown order state")
+	}
+}
+
+func TestRequestFormattingUsesRulePrecision(t *testing.T) {
+	rules := SymbolTradeRules{StepSize: 0.001, PriceTick: 0.05}
+	if got := formatQuantityForRules(0.30000000000000004, rules, 3); got != "0.300" {
+		t.Fatalf("expected formatted quantity 0.300, got %q", got)
+	}
+	if got := formatPriceForTick(100.15000000000002, rules.PriceTick); got != "100.15" {
+		t.Fatalf("expected formatted price 100.15, got %q", got)
+	}
+	if got := formatRequestAmount(1.234567890123456); got != "1.234567890123" {
+		t.Fatalf("expected formatted amount 1.234567890123, got %q", got)
 	}
 }
 
@@ -310,8 +324,10 @@ func TestOpenHedgeForTargetParallelSendsDualPostsConcurrently(t *testing.T) {
 			secretKey:      "demo-secret-key",
 			httpClient:     server.Client(),
 		},
-		cfg:    cfg,
-		logger: log.New(io.Discard, "", 0),
+		cfg:                cfg,
+		logger:             log.New(io.Discard, "", 0),
+		spotTickerCache:    NewBookTickerCache(),
+		futuresTickerCache: NewBookTickerCache(),
 		spotMeta: map[string]SpotSymbol{
 			"BTCUSDT": {Symbol: "BTCUSDT", BaseAsset: "BTC", QuoteAsset: "USDT"},
 		},
@@ -326,6 +342,7 @@ func TestOpenHedgeForTargetParallelSendsDualPostsConcurrently(t *testing.T) {
 		Candidate: FundingCandidate{
 			Symbol:            "BTCUSDT",
 			Pair:              "BTCUSDT",
+			EstimatedRate:     0.01,
 			MarkPrice:         100,
 			OrderQuantity:     1,
 			SpotBaseAsset:     "BTC",
@@ -333,6 +350,9 @@ func TestOpenHedgeForTargetParallelSendsDualPostsConcurrently(t *testing.T) {
 		},
 		LastSpotAsk: 100,
 	}
+	now := time.Now().UTC()
+	engine.spotTickerCache.UpdateAt(BookTicker{Symbol: "BTCUSDT", BidPrice: "100", AskPrice: "100.05"}, now)
+	engine.futuresTickerCache.UpdateAt(BookTicker{Symbol: "BTCUSDT", BidPrice: "100", AskPrice: "100.02"}, now)
 	plan := openSequencePlan{
 		target: target,
 		futuresOrder: FuturesBatchOrderRequest{
@@ -503,6 +523,196 @@ func TestEnsureUSDTFundingBalancesForOpenTransfersFromFuturesToSpot(t *testing.T
 	}
 }
 
+func TestOpenPreparationTimingUsesConfiguredLead(t *testing.T) {
+	engine := &FundingRateSniperEngine{cfg: DefaultEngineConfig()}
+	fundingTime := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	targets := []*MonitoredTarget{{Candidate: FundingCandidate{NextFundingTime: fundingTime}}}
+
+	fireAt := engine.openFireAt(targets)
+	if want := fundingTime.Add(-engine.cfg.StrategyConfig.MonitorStopLead); !fireAt.Equal(want) {
+		t.Fatalf("expected fireAt=%s, got %s", want.Format(time.RFC3339), fireAt.Format(time.RFC3339))
+	}
+	if want := fireAt.Add(-engine.cfg.ExecutionConfig.OpenPreparationLead); !engine.openPreparationStartAt(targets).Equal(want) {
+		t.Fatalf("expected preparation start=%s, got %s", want.Format(time.RFC3339), engine.openPreparationStartAt(targets).Format(time.RFC3339))
+	}
+	if want := fireAt.Add(-engine.cfg.ExecutionConfig.PreOpenNoGoLead); !engine.openNoGoCheckAt(targets).Equal(want) {
+		t.Fatalf("expected no-go time=%s, got %s", want.Format(time.RFC3339), engine.openNoGoCheckAt(targets).Format(time.RFC3339))
+	}
+}
+
+func TestEnsureFuturesExecutionSettingsConfiguresMarginTypeAndLeverage(t *testing.T) {
+	marginCalls := 0
+	leverageCalls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/fapi/v1/marginType":
+			marginCalls++
+			if got := r.URL.Query().Get("marginType"); got != "CROSSED" {
+				t.Fatalf("unexpected marginType: %s", got)
+			}
+			if got := r.URL.Query().Get("symbol"); got != "BTCUSDT" {
+				t.Fatalf("unexpected marginType symbol: %s", got)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{}`))
+		case "/fapi/v1/leverage":
+			leverageCalls++
+			if got := r.URL.Query().Get("leverage"); got != "3" {
+				t.Fatalf("unexpected leverage: %s", got)
+			}
+			if got := r.URL.Query().Get("symbol"); got != "BTCUSDT" {
+				t.Fatalf("unexpected leverage symbol: %s", got)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{}`))
+		default:
+			t.Fatalf("unexpected request path: %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	engine := &FundingRateSniperEngine{
+		client: &BinanceClient{
+			futuresBaseURL: server.URL,
+			apiKey:         "demo-api-key",
+			secretKey:      "demo-secret-key",
+			httpClient:     server.Client(),
+		},
+		cfg:    DefaultEngineConfig(),
+		logger: log.New(io.Discard, "", 0),
+	}
+	targets := []*MonitoredTarget{
+		{Candidate: FundingCandidate{Symbol: "BTCUSDT"}},
+		{Candidate: FundingCandidate{Symbol: "BTCUSDT"}},
+	}
+	if err := engine.ensureFuturesExecutionSettings(context.Background(), targets); err != nil {
+		t.Fatalf("ensureFuturesExecutionSettings() error = %v", err)
+	}
+	if marginCalls != 1 || leverageCalls != 1 {
+		t.Fatalf("expected one margin + one leverage call, got margin=%d leverage=%d", marginCalls, leverageCalls)
+	}
+}
+
+func TestVerifyPreOpenGoNoGoRejectsStaleTicker(t *testing.T) {
+	engine := &FundingRateSniperEngine{
+		cfg:                DefaultEngineConfig(),
+		logger:             log.New(io.Discard, "", 0),
+		spotTickerCache:    NewBookTickerCache(),
+		futuresTickerCache: NewBookTickerCache(),
+	}
+	staleAt := time.Now().UTC().Add(-2 * time.Second)
+	engine.spotTickerCache.UpdateAt(BookTicker{Symbol: "BTCUSDT", BidPrice: "100", AskPrice: "100.1"}, staleAt)
+	engine.futuresTickerCache.UpdateAt(BookTicker{Symbol: "BTCUSDT", BidPrice: "100", AskPrice: "100.1"}, staleAt)
+
+	err := engine.verifyPreOpenGoNoGo([]*MonitoredTarget{{Candidate: FundingCandidate{Pair: "BTCUSDT", Symbol: "BTCUSDT"}}})
+	if err == nil || !strings.Contains(err.Error(), "延迟过高") {
+		t.Fatalf("expected stale ticker rejection, got %v", err)
+	}
+}
+
+func TestValidateFreshOpenHedgeAbortsOnAdverseSelection(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/fapi/v1/order":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"symbol":"BTCUSDT","clientOrderId":"fclose-now","status":"FILLED","executedQty":"1","avgPrice":"101","orderId":2,"updateTime":1}`))
+		case "/fapi/v1/userTrades":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`[]`))
+		case "/api/v3/order":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"symbol":"BTCUSDT","orderId":3,"status":"FILLED","clientOrderId":"sclose-now","executedQty":"1","cummulativeQuoteQty":"98","fills":[{"price":"98","qty":"1","commission":"0","commissionAsset":"USDT"}]}`))
+		default:
+			t.Fatalf("unexpected request path: %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	cfg := DefaultEngineConfig()
+	cfg.ExecutionConfig.UseProtectedIOC = false
+	engine := &FundingRateSniperEngine{
+		client: &BinanceClient{
+			spotBaseURL:    server.URL,
+			futuresBaseURL: server.URL,
+			apiKey:         "demo-api-key",
+			secretKey:      "demo-secret-key",
+			httpClient:     server.Client(),
+		},
+		cfg:                cfg,
+		logger:             log.New(io.Discard, "", 0),
+		spotTickerCache:    NewBookTickerCache(),
+		futuresTickerCache: NewBookTickerCache(),
+		spotMeta: map[string]SpotSymbol{
+			"BTCUSDT": {Symbol: "BTCUSDT", BaseAsset: "BTC", QuoteAsset: "USDT"},
+		},
+		spotRules: map[string]SymbolTradeRules{
+			"BTCUSDT": {MinQty: 0.001, StepSize: 0.001, MinNotional: 1},
+		},
+		futuresRules: map[string]SymbolTradeRules{
+			"BTCUSDT": {MinQty: 0.001, StepSize: 0.001, MinNotional: 1},
+		},
+	}
+	now := time.Now().UTC()
+	engine.spotTickerCache.UpdateAt(BookTicker{Symbol: "BTCUSDT", BidPrice: "98", AskPrice: "98.1"}, now)
+	engine.futuresTickerCache.UpdateAt(BookTicker{Symbol: "BTCUSDT", BidPrice: "100.9", AskPrice: "101"}, now)
+
+	hedge := OpenHedge{
+		Target: FundingCandidate{
+			Symbol:            "BTCUSDT",
+			Pair:              "BTCUSDT",
+			EstimatedRate:     0.002,
+			MarkPrice:         100,
+			SpotBaseAsset:     "BTC",
+			SpotBasePrecision: 3,
+		},
+		HedgeQty:         1,
+		HedgeQtyText:     "1",
+		OpenSpotQuoteQty: 100,
+		SpotOrder: SpotOrderResponse{
+			ExecutedQty:         "1",
+			CummulativeQuoteQty: "100",
+		},
+	}
+
+	err := engine.validateFreshOpenHedge(context.Background(), &hedge)
+	var skipped nonFatalOpenAbortError
+	if !errors.As(err, &skipped) {
+		t.Fatalf("expected nonFatalOpenAbortError, got %v", err)
+	}
+	if hedge.CloseFuturesExecutedQty != 1 || hedge.CloseSpotExecutedQty != 1 {
+		t.Fatalf("expected immediate unwind to close hedge, got futures=%.8f spot=%.8f", hedge.CloseFuturesExecutedQty, hedge.CloseSpotExecutedQty)
+	}
+}
+
+func TestFetchSpotBookTickerRejectsRESTFallbackInCacheOnlyMode(t *testing.T) {
+	restCalls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		restCalls++
+		t.Fatalf("unexpected REST fallback request: %s", r.URL.Path)
+	}))
+	defer server.Close()
+
+	engine := &FundingRateSniperEngine{
+		client: &BinanceClient{
+			spotBaseURL: server.URL,
+			httpClient:  server.Client(),
+		},
+		cfg:             DefaultEngineConfig(),
+		logger:          log.New(io.Discard, "", 0),
+		spotTickerCache: NewBookTickerCache(),
+	}
+	engine.setBookTickerCacheOnlyUntil(time.Now().UTC().Add(time.Second))
+	defer engine.setBookTickerCacheOnlyUntil(time.Time{})
+
+	_, err := engine.fetchSpotBookTicker(context.Background(), "BTCUSDT")
+	if err == nil || !strings.Contains(err.Error(), "仅允许使用缓存") {
+		t.Fatalf("expected cache-only rejection, got %v", err)
+	}
+	if restCalls != 0 {
+		t.Fatalf("expected zero REST fallback calls, got %d", restCalls)
+	}
+}
+
 func TestEnsureSpotBNBFeeCoverageForOpenRejectsInsufficientBNB(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -563,6 +773,12 @@ func TestOpenHedgeForTargetParallelUnknownSpotSchedulesExposureRescue(t *testing
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
+		case "/fapi/v3/account":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"assets":[{"asset":"USDT","walletBalance":"100","availableBalance":"100"}],"positions":[{"symbol":"BTCUSDT","positionAmt":"-1"}]}`))
+		case "/api/v3/account":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"balances":[{"asset":"BTC","free":"0","locked":"0"},{"asset":"USDT","free":"100","locked":"0"}]}`))
 		case "/fapi/v1/order":
 			clientOrderID := r.URL.Query().Get("newClientOrderId")
 			if r.Method == http.MethodGet {
@@ -732,6 +948,71 @@ func TestGetJSONBlocksNonCriticalRequestWhenUsedWeightIsHigh(t *testing.T) {
 	}
 	if atomic.LoadInt32(&hits) != 0 {
 		t.Fatalf("expected blocked request to avoid hitting server, got %d", hits)
+	}
+}
+
+func TestSignedRequestReservesUsedWeightBudgetAcrossParallelRequests(t *testing.T) {
+	started := make(chan struct{}, 2)
+	release := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		started <- struct{}{}
+		<-release
+		w.Header().Set("X-MBX-USED-WEIGHT-1M", "4799")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	defer server.Close()
+
+	engine := &FundingRateSniperEngine{
+		client: &BinanceClient{
+			spotBaseURL:               server.URL,
+			futuresBaseURL:            server.URL,
+			apiKey:                    "demo-api-key",
+			secretKey:                 "demo-secret-key",
+			httpClient:                server.Client(),
+			usedWeight1m:              4798,
+			usedWeightLimit1m:         6000,
+			usedWeightBlockThreshold:  4800,
+			usedWeightWindowMinuteUTC: time.Now().UTC().Truncate(time.Minute),
+		},
+		cfg:    DefaultEngineConfig(),
+		logger: log.New(io.Discard, "", 0),
+	}
+
+	results := make(chan error, 2)
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		_, err := engine.signedRequest(context.Background(), http.MethodGet, server.URL+"/fapi/v1/account", nil)
+		results <- err
+	}()
+	time.Sleep(10 * time.Millisecond)
+	go func() {
+		defer wg.Done()
+		_, err := engine.signedRequest(context.Background(), http.MethodGet, server.URL+"/fapi/v1/account", nil)
+		results <- err
+	}()
+
+	<-started
+	close(release)
+	wg.Wait()
+	close(results)
+
+	var blocked, succeeded int
+	for err := range results {
+		if err == nil {
+			succeeded++
+			continue
+		}
+		if strings.Contains(err.Error(), "usedWeightProjected") {
+			blocked++
+			continue
+		}
+		t.Fatalf("unexpected signedRequest error: %v", err)
+	}
+	if succeeded != 1 || blocked != 1 {
+		t.Fatalf("expected one request to succeed and one to be blocked, got succeeded=%d blocked=%d", succeeded, blocked)
 	}
 }
 

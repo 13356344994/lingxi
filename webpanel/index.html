@@ -63,6 +63,21 @@
       padding: 10px 12px;
       font-size: 14px;
     }
+    input[disabled] {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    .field-note {
+      color: #94a3b8;
+      font-size: 12px;
+      margin-top: 6px;
+    }
+    .risk-actions {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
     .panel {
       background: #111827;
       border: 1px solid #334155;
@@ -181,7 +196,7 @@
       <button id="refresh-btn" type="button">刷新面板</button>
       <button id="start-btn" type="button">启动任务</button>
       <button id="stop-btn" type="button" class="danger">停止任务</button>
-      <button id="save-risk-config-btn" type="button" class="secondary">保存风控参数</button>
+      <button id="save-risk-config-btn" type="button" class="secondary">保存更保守的风险收紧</button>
       <button id="clear-runtime-logs-btn" type="button" class="secondary">清空运行日志</button>
       <button id="clear-historical-cache-btn" type="button" class="secondary">清空历史缓存</button>
       <button id="clear-dashboard-data-btn" type="button" class="danger">清空表格数据</button>
@@ -393,102 +408,129 @@
 
     <div class="panel">
       <h2>在线风控参数</h2>
-      <div class="hint">这里同时包含容量约束和实盘熔断阈值，保存后会在下一次启动任务时生效，不会热更新当前正在运行的任务。</div>
+      <div class="hint">页面现在不再是自由调参台。这里只允许把系统收紧到更保守，不允许在线放松风险，也不允许在线改策略模型参数；所有改动仅在下一次启动任务时生效。</div>
       <div class="form-grid">
         <div>
           <label for="risk-per-symbol-quote">单标的名义资金 (USDT)</label>
           <input id="risk-per-symbol-quote" type="number" min="1" step="0.01" value="100">
+          <div class="field-note">允许在线收紧：只能降低，不能提高。</div>
         </div>
         <div>
           <label for="risk-max-cycle-open-notional">单周期总敞口上限 (USDT)</label>
           <input id="risk-max-cycle-open-notional" type="number" min="1" step="0.01" value="300">
+          <div class="field-note">允许在线收紧：只能降低，不能提高。</div>
         </div>
         <div>
           <label for="risk-recent-window">最近成交额窗口</label>
-          <input id="risk-recent-window" type="text" value="5m" placeholder="5m / 15m / 1h">
+          <input id="risk-recent-window" type="text" value="5m" placeholder="5m / 15m / 1h" disabled>
+          <div class="field-note">策略模型参数，只读展示；如需修改请改配置文件并重启。</div>
         </div>
         <div>
           <label for="risk-max-recent-share">最近成交额占比上限</label>
-          <input id="risk-max-recent-share" type="number" min="0.0001" max="1" step="0.0001" value="0.0020">
+          <input id="risk-max-recent-share" type="number" min="0.0001" max="1" step="0.0001" value="0.0020" disabled>
+          <div class="field-note">策略模型参数，只读展示；如需修改请改配置文件并重启。</div>
         </div>
         <div>
           <label for="risk-max-oi-share">未平仓名义占比上限</label>
-          <input id="risk-max-oi-share" type="number" min="0.0001" max="1" step="0.0001" value="0.0005">
+          <input id="risk-max-oi-share" type="number" min="0.0001" max="1" step="0.0001" value="0.0005" disabled>
+          <div class="field-note">策略模型参数，只读展示；如需修改请改配置文件并重启。</div>
         </div>
         <div>
           <label for="risk-max-depth-share">可见深度占比上限</label>
-          <input id="risk-max-depth-share" type="number" min="0.0001" max="1" step="0.0001" value="0.08">
+          <input id="risk-max-depth-share" type="number" min="0.0001" max="1" step="0.0001" value="0.08" disabled>
+          <div class="field-note">策略模型参数，只读展示；如需修改请改配置文件并重启。</div>
         </div>
         <div>
           <label for="risk-min-net-profit-rate">最低净收益率</label>
-          <input id="risk-min-net-profit-rate" type="number" min="0.0001" max="1" step="0.0001" value="0.0020">
+          <input id="risk-min-net-profit-rate" type="number" min="0.0001" max="1" step="0.0001" value="0.0020" disabled>
+          <div class="field-note">策略模型参数，只读展示；如需修改请改配置文件并重启。</div>
         </div>
         <div>
           <label for="risk-immediate-invalidate-rate">立即作废阈值</label>
-          <input id="risk-immediate-invalidate-rate" type="number" min="0.0001" max="1" step="0.0001" value="0.0005">
+          <input id="risk-immediate-invalidate-rate" type="number" min="0.0001" max="1" step="0.0001" value="0.0005" disabled>
+          <div class="field-note">策略模型参数，只读展示；如需修改请改配置文件并重启。</div>
         </div>
         <div>
           <label for="risk-monitor-breach-limit">最大连续观察 breach</label>
-          <input id="risk-monitor-breach-limit" type="number" min="1" step="1" value="3">
+          <input id="risk-monitor-breach-limit" type="number" min="1" step="1" value="3" disabled>
+          <div class="field-note">策略模型参数，只读展示；如需修改请改配置文件并重启。</div>
         </div>
         <div>
           <label for="risk-max-cycle-loss">最大单周期亏损 (USDT)</label>
           <input id="risk-max-cycle-loss" type="number" min="0.01" step="0.01" value="8">
+          <div class="field-note">允许在线收紧：只能降低，不能提高。</div>
         </div>
         <div>
           <label for="risk-max-execution-incidents">最大执行事故数</label>
-          <input id="risk-max-execution-incidents" type="number" min="1" step="1" value="3">
+          <input id="risk-max-execution-incidents" type="number" min="1" step="1" value="3" disabled>
+          <div class="field-note">运行模型参数，只读展示；如需修改请改配置文件并重启。</div>
         </div>
         <div>
           <label for="risk-max-order-uncertainty">最大不确定成交数</label>
-          <input id="risk-max-order-uncertainty" type="number" min="1" step="1" value="2">
+          <input id="risk-max-order-uncertainty" type="number" min="1" step="1" value="2" disabled>
+          <div class="field-note">运行模型参数，只读展示；如需修改请改配置文件并重启。</div>
         </div>
         <div>
           <label for="risk-max-platform-rejects">最大连续平台拒绝</label>
-          <input id="risk-max-platform-rejects" type="number" min="1" step="1" value="3">
+          <input id="risk-max-platform-rejects" type="number" min="1" step="1" value="3" disabled>
+          <div class="field-note">运行模型参数，只读展示；如需修改请改配置文件并重启。</div>
         </div>
         <div>
           <label for="risk-max-request-errors">最大连续异常请求</label>
-          <input id="risk-max-request-errors" type="number" min="1" step="1" value="6">
+          <input id="risk-max-request-errors" type="number" min="1" step="1" value="6" disabled>
+          <div class="field-note">运行模型参数，只读展示；如需修改请改配置文件并重启。</div>
         </div>
         <div>
           <label for="risk-confirm-timeout">开平仓确认超时</label>
-          <input id="risk-confirm-timeout" type="text" value="1500ms" placeholder="500ms / 2s / 5s">
+          <input id="risk-confirm-timeout" type="text" value="1500ms" placeholder="500ms / 2s / 5s" disabled>
+          <div class="field-note">执行模型参数，只读展示；如需修改请改配置文件并重启。</div>
         </div>
         <div>
           <label for="risk-symbol-cooldown">symbol 异常冷却时间</label>
           <input id="risk-symbol-cooldown" type="text" value="10m" placeholder="1m / 10m / 30m">
+          <div class="field-note">允许在线收紧：只能延长，不能缩短。</div>
         </div>
         <div>
           <label for="risk-platform-minor-cooldown">轻微异常冷却时间</label>
           <input id="risk-platform-minor-cooldown" type="text" value="5m" placeholder="30s / 5m / 10m">
+          <div class="field-note">允许在线收紧：只能延长，不能缩短。</div>
         </div>
         <div>
           <label for="risk-platform-cooldown">平台异常冷却时间</label>
           <input id="risk-platform-cooldown" type="text" value="15m" placeholder="30s / 5m / 1h">
+          <div class="field-note">允许在线收紧：只能延长，不能缩短。</div>
         </div>
         <div>
           <label for="risk-platform-critical-cooldown">严重异常冷却时间</label>
           <input id="risk-platform-critical-cooldown" type="text" value="30m" placeholder="5m / 30m / 1h">
+          <div class="field-note">允许在线收紧：只能延长，不能缩短。</div>
         </div>
         <div>
           <label for="risk-max-recovery-actions">最大回补次数</label>
-          <input id="risk-max-recovery-actions" type="number" min="1" step="1" value="3">
+          <input id="risk-max-recovery-actions" type="number" min="1" step="1" value="3" disabled>
+          <div class="field-note">恢复策略参数，只读展示；如需修改请改配置文件并重启。</div>
         </div>
         <div>
           <label for="risk-max-daily-loss">最大日亏损 (USDT)</label>
           <input id="risk-max-daily-loss" type="number" min="0.01" step="0.01" value="25">
+          <div class="field-note">允许在线收紧：只能降低，不能提高。</div>
         </div>
         <div>
           <label for="risk-max-daily-orders">最大日下单次数</label>
           <input id="risk-max-daily-orders" type="number" min="1" step="1" value="40">
+          <div class="field-note">允许在线收紧：只能降低，不能提高。</div>
         </div>
         <div>
           <label for="risk-max-daily-open-notional">最大日开仓名义 (USDT)</label>
           <input id="risk-max-daily-open-notional" type="number" min="1" step="0.01" value="1500">
+          <div class="field-note">允许在线收紧：只能降低，不能提高。</div>
         </div>
       </div>
-      <div class="hint" id="risk-config-message">默认按当前配置展示，点击“保存风控参数”后写入后端内存配置。</div>
+      <div class="risk-actions">
+        <button id="tighten-risk-10-btn" type="button" class="secondary">一键收紧 10%</button>
+        <button id="tighten-risk-25-btn" type="button" class="secondary">一键收紧 25%</button>
+      </div>
+      <div class="hint" id="risk-config-message">默认按当前配置展示。页面只允许收紧风险，策略模型参数只读展示。</div>
     </div>
 
     <div class="panel">
@@ -859,10 +901,13 @@
       `).join("");
     }
 
+    let currentRuntimeRiskConfig = null;
+
     function renderRiskConfig(config) {
       if (!config) {
         return;
       }
+      currentRuntimeRiskConfig = config;
       document.getElementById("risk-per-symbol-quote").value = String(config.per_symbol_quote_usdt ?? "");
       document.getElementById("risk-max-cycle-open-notional").value = String(config.max_cycle_open_notional_usdt ?? "");
       document.getElementById("risk-recent-window").value = String(config.recent_trade_volume_window ?? "");
@@ -886,6 +931,45 @@
       document.getElementById("risk-max-daily-loss").value = String(config.max_daily_loss_usdt ?? "");
       document.getElementById("risk-max-daily-orders").value = String(config.max_daily_order_count ?? "");
       document.getElementById("risk-max-daily-open-notional").value = String(config.max_daily_open_notional_usdt ?? "");
+    }
+
+    function tightenRiskInputs(ratio) {
+      const scaleDownNumberInput = (id, minimum) => {
+        const input = document.getElementById(id);
+        const current = Number(input.value || "0");
+        if (!Number.isFinite(current) || current <= 0) {
+          return;
+        }
+        input.value = String(Math.max(minimum, Number((current * (1 - ratio)).toFixed(4))));
+      };
+      const extendDurationInput = (id) => {
+        const input = document.getElementById(id);
+        const raw = String(input.value || "").trim();
+        if (!raw) {
+          return;
+        }
+        const matched = raw.match(/^(\d+(?:\.\d+)?)(ms|s|m|h)$/);
+        if (!matched) {
+          return;
+        }
+        const amount = Number(matched[1]);
+        if (!Number.isFinite(amount) || amount <= 0) {
+          return;
+        }
+        input.value = `${Number((amount * (1 + ratio)).toFixed(3))}${matched[2]}`;
+      };
+
+      scaleDownNumberInput("risk-per-symbol-quote", 1);
+      scaleDownNumberInput("risk-max-cycle-open-notional", 1);
+      scaleDownNumberInput("risk-max-cycle-loss", 0.01);
+      scaleDownNumberInput("risk-max-daily-loss", 0.01);
+      scaleDownNumberInput("risk-max-daily-orders", 1);
+      scaleDownNumberInput("risk-max-daily-open-notional", 1);
+      extendDurationInput("risk-symbol-cooldown");
+      extendDurationInput("risk-platform-minor-cooldown");
+      extendDurationInput("risk-platform-cooldown");
+      extendDurationInput("risk-platform-critical-cooldown");
+      document.getElementById("risk-config-message").textContent = `已按 ${(ratio * 100).toFixed(0)}% 收紧可在线调整项，确认后保存。`;
     }
 
     function renderExecutionIncidents(records) {
@@ -1201,6 +1285,8 @@
     document.getElementById("start-btn").addEventListener("click", startTask);
     document.getElementById("stop-btn").addEventListener("click", stopTask);
     document.getElementById("save-risk-config-btn").addEventListener("click", saveRiskConfig);
+    document.getElementById("tighten-risk-10-btn").addEventListener("click", () => tightenRiskInputs(0.10));
+    document.getElementById("tighten-risk-25-btn").addEventListener("click", () => tightenRiskInputs(0.25));
     document.getElementById("clear-runtime-logs-btn").addEventListener("click", clearRuntimeLogs);
     document.getElementById("clear-historical-cache-btn").addEventListener("click", clearHistoricalCache);
     document.getElementById("clear-dashboard-data-btn").addEventListener("click", clearDashboardData);

@@ -122,3 +122,72 @@ func TestRuntimeControllerSetStageLockedAppendsTransitionLog(t *testing.T) {
 		t.Fatalf("expected stage transition log, got %+v", logs)
 	}
 }
+
+func TestRuntimeControllerUpdateRiskConfigRejectsAggressiveRelaxation(t *testing.T) {
+	store, err := NewReportStore(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewReportStore() error = %v", err)
+	}
+	controller, err := NewRuntimeController(context.Background(), store, DefaultEngineConfig(), nil)
+	if err != nil {
+		t.Fatalf("NewRuntimeController() error = %v", err)
+	}
+
+	req := controller.CurrentRiskConfig()
+	req.PerSymbolQuoteUSDT = req.PerSymbolQuoteUSDT * 1.2
+	if _, err := controller.UpdateRiskConfig(req); err == nil {
+		t.Fatal("expected aggressive runtime relaxation to be rejected")
+	}
+}
+
+func TestRuntimeControllerUpdateRiskConfigRejectsOnlineModelChange(t *testing.T) {
+	store, err := NewReportStore(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewReportStore() error = %v", err)
+	}
+	controller, err := NewRuntimeController(context.Background(), store, DefaultEngineConfig(), nil)
+	if err != nil {
+		t.Fatalf("NewRuntimeController() error = %v", err)
+	}
+
+	req := controller.CurrentRiskConfig()
+	req.MinNetProfitRate = req.MinNetProfitRate + 0.001
+	if _, err := controller.UpdateRiskConfig(req); err == nil {
+		t.Fatal("expected online model parameter change to be rejected")
+	}
+}
+
+func TestRuntimeControllerUpdateRiskConfigAllowsConservativeTightening(t *testing.T) {
+	store, err := NewReportStore(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewReportStore() error = %v", err)
+	}
+	controller, err := NewRuntimeController(context.Background(), store, DefaultEngineConfig(), nil)
+	if err != nil {
+		t.Fatalf("NewRuntimeController() error = %v", err)
+	}
+
+	original := controller.CurrentRiskConfig()
+	req := controller.CurrentRiskConfig()
+	req.PerSymbolQuoteUSDT = req.PerSymbolQuoteUSDT * 0.8
+	req.MaxCycleOpenNotionalUSDT = req.MaxCycleOpenNotionalUSDT * 0.8
+	req.MaxCycleLossUSDT = req.MaxCycleLossUSDT * 0.8
+	req.SymbolAbnormalCooldown = "12m"
+	req.PlatformMinorCooldown = "6m"
+	req.PlatformAbnormalCooldown = "20m"
+	req.PlatformCriticalCooldown = "40m"
+	req.MaxDailyLossUSDT = req.MaxDailyLossUSDT * 0.8
+	req.MaxDailyOrderCount = req.MaxDailyOrderCount - 5
+	req.MaxDailyOpenNotionalUSDT = req.MaxDailyOpenNotionalUSDT * 0.8
+
+	updated, err := controller.UpdateRiskConfig(req)
+	if err != nil {
+		t.Fatalf("UpdateRiskConfig() error = %v", err)
+	}
+	if updated.PerSymbolQuoteUSDT >= original.PerSymbolQuoteUSDT {
+		t.Fatalf("expected per-symbol quote to be tightened, got %.2f", updated.PerSymbolQuoteUSDT)
+	}
+	if updated.PlatformCriticalCooldown != "40m0s" {
+		t.Fatalf("expected critical cooldown to be extended, got %s", updated.PlatformCriticalCooldown)
+	}
+}

@@ -34,6 +34,110 @@ type OrderEventHub struct {
 	waiters       map[string][]chan OrderExecutionSnapshot
 }
 
+func normalizedOrderStatus(status string) string {
+	return strings.ToUpper(strings.TrimSpace(status))
+}
+
+func orderStatusRank(status string) int {
+	switch normalizedOrderStatus(status) {
+	case "FILLED":
+		return 5
+	case "CANCELED", "EXPIRED", "REJECTED":
+		return 4
+	case "PARTIALLY_FILLED":
+		return 3
+	case "NEW":
+		return 2
+	default:
+		return 1
+	}
+}
+
+func shouldReplaceOrderSnapshot(current OrderExecutionSnapshot, incoming OrderExecutionSnapshot) bool {
+	if strings.TrimSpace(current.ClientOrderID) == "" {
+		return true
+	}
+	currentTerminal := isTerminalOrderStatus(current.Status)
+	incomingTerminal := isTerminalOrderStatus(incoming.Status)
+	if !incoming.EventTime.IsZero() && !current.EventTime.IsZero() {
+		if incoming.EventTime.After(current.EventTime) {
+			if currentTerminal && !incomingTerminal {
+				return false
+			}
+			return true
+		}
+		if incoming.EventTime.Before(current.EventTime) {
+			return false
+		}
+	}
+	if currentTerminal && !incomingTerminal {
+		return false
+	}
+	if incomingTerminal && !currentTerminal {
+		return true
+	}
+	if orderStatusRank(incoming.Status) != orderStatusRank(current.Status) {
+		return orderStatusRank(incoming.Status) > orderStatusRank(current.Status)
+	}
+	if incoming.ExecutedQty > current.ExecutedQty {
+		return true
+	}
+	if incoming.CumQuoteQty > current.CumQuoteQty {
+		return true
+	}
+	if current.OrderID == 0 && incoming.OrderID != 0 {
+		return true
+	}
+	return false
+}
+
+func mergeOrderExecutionSnapshots(current OrderExecutionSnapshot, incoming OrderExecutionSnapshot) OrderExecutionSnapshot {
+	if strings.TrimSpace(current.ClientOrderID) == "" {
+		return incoming
+	}
+	merged := current
+	if shouldReplaceOrderSnapshot(current, incoming) {
+		merged = incoming
+	}
+	if strings.TrimSpace(merged.Market) == "" && strings.TrimSpace(incoming.Market) != "" {
+		merged.Market = incoming.Market
+	}
+	if strings.TrimSpace(merged.Symbol) == "" && strings.TrimSpace(incoming.Symbol) != "" {
+		merged.Symbol = incoming.Symbol
+	}
+	if strings.TrimSpace(merged.ClientOrderID) == "" && strings.TrimSpace(incoming.ClientOrderID) != "" {
+		merged.ClientOrderID = incoming.ClientOrderID
+	}
+	if merged.OrderID == 0 && incoming.OrderID != 0 {
+		merged.OrderID = incoming.OrderID
+	}
+	if merged.ExecutedQty < incoming.ExecutedQty {
+		merged.ExecutedQty = incoming.ExecutedQty
+	}
+	if merged.CumQuoteQty < incoming.CumQuoteQty {
+		merged.CumQuoteQty = incoming.CumQuoteQty
+	}
+	if merged.AvgPrice <= 0 && incoming.AvgPrice > 0 {
+		merged.AvgPrice = incoming.AvgPrice
+	}
+	if merged.Commission < incoming.Commission {
+		merged.Commission = incoming.Commission
+	}
+	if strings.TrimSpace(merged.CommissionAsset) == "" && strings.TrimSpace(incoming.CommissionAsset) != "" {
+		merged.CommissionAsset = incoming.CommissionAsset
+	}
+	if mathAbs(merged.RealizedPnL) < mathAbs(incoming.RealizedPnL) {
+		merged.RealizedPnL = incoming.RealizedPnL
+	}
+	if merged.EventTime.IsZero() || (!incoming.EventTime.IsZero() && incoming.EventTime.After(merged.EventTime) && !isTerminalOrderStatus(merged.Status)) {
+		merged.EventTime = incoming.EventTime
+	}
+	if merged.AvgPrice <= 0 && merged.ExecutedQty > 0 && merged.CumQuoteQty > 0 {
+		merged.AvgPrice = merged.CumQuoteQty / merged.ExecutedQty
+	}
+	return merged
+}
+
 // NewOrderEventHub 创建订单回报中心。
 func NewOrderEventHub() *OrderEventHub {
 	return &OrderEventHub{
@@ -53,21 +157,22 @@ func (h *OrderEventHub) Update(snapshot OrderExecutionSnapshot) {
 	if _, existed := h.snapshots[snapshot.ClientOrderID]; !existed {
 		h.snapshotOrder = append(h.snapshotOrder, snapshot.ClientOrderID)
 	}
-	h.snapshots[snapshot.ClientOrderID] = snapshot
+	h.snapshots[snapshot.ClientOrderID] = mergeOrderExecutionSnapshots(h.snapshots[snapshot.ClientOrderID], snapshot)
 	h.trimSnapshotsLocked()
 	waiters := append([]chan OrderExecutionSnapshot(nil), h.waiters[snapshot.ClientOrderID]...)
+	resolvedSnapshot := h.snapshots[snapshot.ClientOrderID]
 	h.mu.Unlock()
 
 	for _, waiter := range waiters {
 		select {
-		case waiter <- snapshot:
+		case waiter <- resolvedSnapshot:
 		default:
 			select {
 			case <-waiter:
 			default:
 			}
 			select {
-			case waiter <- snapshot:
+			case waiter <- resolvedSnapshot:
 			default:
 			}
 		}
@@ -257,4 +362,11 @@ func removeSnapshotOrderEntries(items []string, target string) []string {
 		return items
 	}
 	return append([]string(nil), filtered...)
+}
+
+func mathAbs(value float64) float64 {
+	if value < 0 {
+		return -value
+	}
+	return value
 }
