@@ -215,7 +215,7 @@ func DefaultEngineConfig() EngineConfig {
 			RecentTradeVolumeWindow:  5 * time.Minute,
 			MaxRecentVolumeShare:     0.0020,
 			MaxOpenInterestShare:     0.0005,
-			MaxVisibleDepthShare:     0.08,
+			MaxVisibleDepthShare:     0.05,
 			DepthLevels:              20,
 		},
 		ExecutionConfig: ExecutionConfig{

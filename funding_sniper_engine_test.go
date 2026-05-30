@@ -212,6 +212,98 @@ func TestPlaceFuturesBatchOrdersIdempotentFallsBackAfterExpiredProtectedOpen(t *
 	}
 }
 
+func TestVerifyPreparedPlanFundingStabilityAcceptsStableSamples(t *testing.T) {
+	var calls int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/fapi/v1/premiumIndex":
+			atomic.AddInt32(&calls, 1)
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(fmt.Sprintf(`{"symbol":"BTCUSDT","markPrice":"100","indexPrice":"100","estimatedSettlePrice":"100.30","lastFundingRate":"0.0030","interestRate":"0.0001","nextFundingTime":%d,"time":%d}`,
+				time.Now().Add(time.Minute).UnixMilli(), time.Now().UnixMilli())))
+		default:
+			t.Fatalf("unexpected request path: %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	engine := &FundingRateSniperEngine{
+		client: &BinanceClient{
+			spotBaseURL:    "https://api.binance.com",
+			futuresBaseURL: server.URL,
+			httpClient:     server.Client(),
+		},
+		cfg:    DefaultEngineConfig(),
+		logger: log.New(io.Discard, "", 0),
+	}
+	plan := openSequencePlan{
+		target: &MonitoredTarget{
+			Candidate: FundingCandidate{
+				Symbol:        "BTCUSDT",
+				Direction:     fundingCarryDirectionPositive,
+				EstimatedRate: 0.0030,
+			},
+		},
+	}
+
+	ok, detail := engine.verifyPreparedPlanFundingStability(context.Background(), &plan, time.Now().Add(600*time.Millisecond))
+	if !ok {
+		t.Fatalf("expected stable funding samples to pass, got detail=%s", detail)
+	}
+	if atomic.LoadInt32(&calls) < 2 {
+		t.Fatalf("expected multiple premiumIndex samples, got %d", calls)
+	}
+}
+
+func TestVerifyPreparedPlanFundingStabilityRejectsDirectionFlip(t *testing.T) {
+	var calls int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/fapi/v1/premiumIndex":
+			call := atomic.AddInt32(&calls, 1)
+			w.Header().Set("Content-Type", "application/json")
+			rate := "0.0030"
+			settlePrice := "100.30"
+			if call >= 2 {
+				rate = "-0.0030"
+				settlePrice = "99.70"
+			}
+			_, _ = w.Write([]byte(fmt.Sprintf(`{"symbol":"BTCUSDT","markPrice":"100","indexPrice":"100","estimatedSettlePrice":"%s","lastFundingRate":"%s","interestRate":"0.0001","nextFundingTime":%d,"time":%d}`,
+				settlePrice, rate, time.Now().Add(time.Minute).UnixMilli(), time.Now().UnixMilli())))
+		default:
+			t.Fatalf("unexpected request path: %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	engine := &FundingRateSniperEngine{
+		client: &BinanceClient{
+			spotBaseURL:    "https://api.binance.com",
+			futuresBaseURL: server.URL,
+			httpClient:     server.Client(),
+		},
+		cfg:    DefaultEngineConfig(),
+		logger: log.New(io.Discard, "", 0),
+	}
+	plan := openSequencePlan{
+		target: &MonitoredTarget{
+			Candidate: FundingCandidate{
+				Symbol:        "BTCUSDT",
+				Direction:     fundingCarryDirectionPositive,
+				EstimatedRate: 0.0030,
+			},
+		},
+	}
+
+	ok, detail := engine.verifyPreparedPlanFundingStability(context.Background(), &plan, time.Now().Add(600*time.Millisecond))
+	if ok {
+		t.Fatalf("expected funding direction flip to fail stability gate, detail=%s", detail)
+	}
+	if !strings.Contains(detail, "方向翻转") {
+		t.Fatalf("expected direction flip detail, got %s", detail)
+	}
+}
+
 func TestNewAuthenticatedBinanceClientUsesNetworkConfig(t *testing.T) {
 	client, err := NewAuthenticatedBinanceClient(SecretConfig{
 		APIKey:   "demo-api-key",

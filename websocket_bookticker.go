@@ -52,6 +52,7 @@ type ParsedOrderBookDepth struct {
 	LastUpdateID int64
 	Bids         []DepthLevel
 	Asks         []DepthLevel
+	ReceivedAt   time.Time
 }
 
 // NewBookTickerCache 创建一个线程安全的盘口缓存。
@@ -124,6 +125,12 @@ func (c *BookTickerCache) MissingSymbols(symbols []string) []string {
 
 // Update 写入最新深度快照。
 func (c *DepthCache) Update(symbol string, depth ParsedOrderBookDepth) {
+	c.UpdateAt(symbol, depth, time.Now().UTC())
+}
+
+// UpdateAt 写入指定接收时间的深度快照，便于测试深度陈旧与稳定性判断。
+func (c *DepthCache) UpdateAt(symbol string, depth ParsedOrderBookDepth, receivedAt time.Time) {
+	depth.ReceivedAt = receivedAt
 	c.depths.Store(symbol, depth)
 	if signal, ok := c.loadSignal(symbol); ok {
 		select {

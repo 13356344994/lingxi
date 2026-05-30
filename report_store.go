@@ -73,6 +73,13 @@ var monitorCSVHeader = []string{
 	"scan_score_rate",
 	"last_net_profit",
 	"last_spread",
+	"depth_stability_ratio",
+	"spot_visible_notional",
+	"futures_visible_notional",
+	"market_risk_category",
+	"market_risk_severity",
+	"market_risk_action",
+	"market_risk_detail",
 	"invalid_reason",
 }
 
@@ -201,23 +208,30 @@ type PendingFundingSettlementRecord struct {
 // MonitorCSVRecord 表示模块三单目标落盘记录。
 type MonitorCSVRecord struct {
 	TraceRecordMetadata
-	RunID           string `json:"run_id"`
-	CycleID         string `json:"cycle_id"`
-	RecordedAt      string `json:"recorded_at"`
-	MonitorStopAt   string `json:"monitor_stop_at"`
-	FundingTime     string `json:"funding_time"`
-	Symbol          string `json:"symbol"`
-	Pair            string `json:"pair"`
-	State           string `json:"state"`
-	Valid           bool   `json:"valid"`
-	BreachCount     int    `json:"breach_count"`
-	EstimatedRate   string `json:"estimated_rate"`
-	LastFundingRate string `json:"last_funding_rate"`
-	BasisRate       string `json:"basis_rate"`
-	ScanScoreRate   string `json:"scan_score_rate"`
-	LastNetProfit   string `json:"last_net_profit"`
-	LastSpread      string `json:"last_spread"`
-	InvalidReason   string `json:"invalid_reason"`
+	RunID                  string `json:"run_id"`
+	CycleID                string `json:"cycle_id"`
+	RecordedAt             string `json:"recorded_at"`
+	MonitorStopAt          string `json:"monitor_stop_at"`
+	FundingTime            string `json:"funding_time"`
+	Symbol                 string `json:"symbol"`
+	Pair                   string `json:"pair"`
+	State                  string `json:"state"`
+	Valid                  bool   `json:"valid"`
+	BreachCount            int    `json:"breach_count"`
+	EstimatedRate          string `json:"estimated_rate"`
+	LastFundingRate        string `json:"last_funding_rate"`
+	BasisRate              string `json:"basis_rate"`
+	ScanScoreRate          string `json:"scan_score_rate"`
+	LastNetProfit          string `json:"last_net_profit"`
+	LastSpread             string `json:"last_spread"`
+	DepthStabilityRatio    string `json:"depth_stability_ratio"`
+	SpotVisibleNotional    string `json:"spot_visible_notional"`
+	FuturesVisibleNotional string `json:"futures_visible_notional"`
+	MarketRiskCategory     string `json:"market_risk_category"`
+	MarketRiskSeverity     string `json:"market_risk_severity"`
+	MarketRiskAction       string `json:"market_risk_action"`
+	MarketRiskDetail       string `json:"market_risk_detail"`
+	InvalidReason          string `json:"invalid_reason"`
 }
 
 // BacktestCSVRecord 表示回测结果的单行记录。
@@ -462,24 +476,31 @@ func (s *ReportStore) AppendMonitorSnapshot(stopAt time.Time, targets []*Monitor
 	records := make([]MonitorCSVRecord, 0, len(targets))
 	for _, target := range targets {
 		records = append(records, MonitorCSVRecord{
-			TraceRecordMetadata: target.TraceRecordMetadata.normalized(),
-			RunID:               strings.TrimSpace(target.RunID),
-			CycleID:             strings.TrimSpace(target.CycleID),
-			RecordedAt:          recordedAt,
-			MonitorStopAt:       stopAt.Format(time.RFC3339),
-			FundingTime:         target.Candidate.NextFundingTime.Format(time.RFC3339),
-			Symbol:              target.Candidate.Symbol,
-			Pair:                target.Candidate.Pair,
-			State:               target.MonitorState,
-			Valid:               atomicLoadTargetValid(target),
-			BreachCount:         target.BreachCount,
-			EstimatedRate:       formatFloat(target.Candidate.EstimatedRate),
-			LastFundingRate:     formatFloat(target.Candidate.LastFundingRate),
-			BasisRate:           formatFloat(target.Candidate.BasisRate),
-			ScanScoreRate:       formatFloat(target.Candidate.ScanScoreRate),
-			LastNetProfit:       formatFloat(target.LastNetProfit),
-			LastSpread:          formatFloat(target.LastSpread),
-			InvalidReason:       target.InvalidReason,
+			TraceRecordMetadata:    target.TraceRecordMetadata.normalized(),
+			RunID:                  strings.TrimSpace(target.RunID),
+			CycleID:                strings.TrimSpace(target.CycleID),
+			RecordedAt:             recordedAt,
+			MonitorStopAt:          stopAt.Format(time.RFC3339),
+			FundingTime:            target.Candidate.NextFundingTime.Format(time.RFC3339),
+			Symbol:                 target.Candidate.Symbol,
+			Pair:                   target.Candidate.Pair,
+			State:                  target.MonitorState,
+			Valid:                  atomicLoadTargetValid(target),
+			BreachCount:            target.BreachCount,
+			EstimatedRate:          formatFloat(target.Candidate.EstimatedRate),
+			LastFundingRate:        formatFloat(target.Candidate.LastFundingRate),
+			BasisRate:              formatFloat(target.Candidate.BasisRate),
+			ScanScoreRate:          formatFloat(target.Candidate.ScanScoreRate),
+			LastNetProfit:          formatFloat(target.LastNetProfit),
+			LastSpread:             formatFloat(target.LastSpread),
+			DepthStabilityRatio:    formatFloat(target.LastDepthStabilityRatio),
+			SpotVisibleNotional:    formatFloat(target.LastSpotVisibleNotional),
+			FuturesVisibleNotional: formatFloat(target.LastFuturesVisibleNotional),
+			MarketRiskCategory:     target.LastMarketRiskCategory,
+			MarketRiskSeverity:     target.LastMarketRiskSeverity,
+			MarketRiskAction:       target.LastMarketRiskAction,
+			MarketRiskDetail:       target.LastMarketRiskDetail,
+			InvalidReason:          target.InvalidReason,
 		})
 	}
 	s.monitorRecords = append(s.monitorRecords, records...)
@@ -1603,12 +1624,12 @@ func parseSettlementRows(rows [][]string) []SettlementCSVRecord {
 func parseMonitorRows(rows [][]string) []MonitorCSVRecord {
 	result := make([]MonitorCSVRecord, 0, len(rows))
 	for _, row := range rows {
-		if len(row) < len(monitorCSVHeader) {
+		if len(row) < 15 {
 			continue
 		}
 		valid, _ := strconv.ParseBool(row[6])
 		breachCount, _ := strconv.Atoi(row[7])
-		result = append(result, MonitorCSVRecord{
+		record := MonitorCSVRecord{
 			RecordedAt:      row[0],
 			MonitorStopAt:   row[1],
 			FundingTime:     row[2],
@@ -1624,7 +1645,18 @@ func parseMonitorRows(rows [][]string) []MonitorCSVRecord {
 			LastNetProfit:   row[12],
 			LastSpread:      row[13],
 			InvalidReason:   row[14],
-		})
+		}
+		if len(row) >= len(monitorCSVHeader) {
+			record.DepthStabilityRatio = row[14]
+			record.SpotVisibleNotional = row[15]
+			record.FuturesVisibleNotional = row[16]
+			record.MarketRiskCategory = row[17]
+			record.MarketRiskSeverity = row[18]
+			record.MarketRiskAction = row[19]
+			record.MarketRiskDetail = row[20]
+			record.InvalidReason = row[21]
+		}
+		result = append(result, record)
 	}
 	return result
 }

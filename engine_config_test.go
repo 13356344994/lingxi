@@ -15,6 +15,9 @@ func TestDefaultEngineConfigSectionsExposePromotedFields(t *testing.T) {
 	if cfg.StrategyConfig.PerSymbolQuoteUSDT != 100 || cfg.PerSymbolQuoteUSDT != cfg.StrategyConfig.PerSymbolQuoteUSDT {
 		t.Fatalf("strategy config mismatch: flat=%.2f grouped=%.2f", cfg.PerSymbolQuoteUSDT, cfg.StrategyConfig.PerSymbolQuoteUSDT)
 	}
+	if cfg.StrategyConfig.MaxVisibleDepthShare != 0.05 || cfg.MaxVisibleDepthShare != cfg.StrategyConfig.MaxVisibleDepthShare {
+		t.Fatalf("strategy visible depth share mismatch: flat=%.2f grouped=%.2f", cfg.MaxVisibleDepthShare, cfg.StrategyConfig.MaxVisibleDepthShare)
+	}
 	if cfg.ExecutionConfig.ExecutionConfirmTimeout != 1500*time.Millisecond || cfg.ExecutionConfirmTimeout != cfg.ExecutionConfig.ExecutionConfirmTimeout {
 		t.Fatalf("execution config mismatch: flat=%s grouped=%s", cfg.ExecutionConfirmTimeout, cfg.ExecutionConfig.ExecutionConfirmTimeout)
 	}

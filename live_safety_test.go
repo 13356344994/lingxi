@@ -105,3 +105,41 @@ func TestStartDailyRiskStateWriterPersistsQueuedState(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 }
+
+func TestEvaluateOpenDepthStabilityTripsOnVisibleDepthCollapse(t *testing.T) {
+	engine := &FundingRateSniperEngine{cfg: DefaultEngineConfig()}
+	target := &MonitoredTarget{
+		LastObserveTime:            time.Now().UTC(),
+		LastSpotAsk:                100,
+		LastFuturesBid:             101,
+		LastSpotVisibleNotional:    1000,
+		LastFuturesVisibleNotional: 1000,
+	}
+	spotDepth := ParsedOrderBookDepth{
+		Asks:       []DepthLevel{{Price: 100.2, Quantity: 4}},
+		Bids:       []DepthLevel{{Price: 99.8, Quantity: 4}},
+		ReceivedAt: time.Now().UTC(),
+	}
+	futuresDepth := ParsedOrderBookDepth{
+		Bids:       []DepthLevel{{Price: 100.7, Quantity: 4}},
+		Asks:       []DepthLevel{{Price: 101.1, Quantity: 4}},
+		ReceivedAt: time.Now().UTC(),
+	}
+
+	decision, detail, unstable, spotVisible, futuresVisible, ratio := engine.evaluateOpenDepthStability(target, fundingCarryDirectionPositive, spotDepth, futuresDepth, 100.2, 100.7)
+	if !unstable {
+		t.Fatal("expected visible depth collapse to be treated as unstable")
+	}
+	if decision.Action != "symbol_cooldown" {
+		t.Fatalf("expected symbol cooldown, got %+v", decision)
+	}
+	if !strings.Contains(detail, "可见深度快速塌陷") {
+		t.Fatalf("unexpected stability detail: %s", detail)
+	}
+	if spotVisible <= 0 || futuresVisible <= 0 {
+		t.Fatalf("expected visible notionals to be returned, got spot=%.4f futures=%.4f", spotVisible, futuresVisible)
+	}
+	if ratio >= 0.65 {
+		t.Fatalf("expected collapsed ratio below cooldown threshold, got %.4f", ratio)
+	}
+}

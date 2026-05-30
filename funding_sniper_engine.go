@@ -105,6 +105,9 @@ type FundingRateSniperEngine struct {
 	lastOrderAction             string
 	lastRecoveryAt              time.Time
 	lastRecoveryAction          string
+	lastManagedDrawdownAt       time.Time
+	lastManagedDrawdownAction   string
+	managedDrawdownSummary      string
 	lastUncertainOrder          string
 	lastExceptionCategory       string
 	lastExceptionSeverity       string
@@ -130,6 +133,7 @@ type FundingRateSniperEngine struct {
 	realtimeRiskWakeCh          chan struct{}
 	realtimeRiskWorkerOnce      sync.Once
 	panicFlattenInFlight        bool
+	symbolPanicFlattenInFlight  map[string]time.Time
 	dailyLimitTriggered         bool
 	dailyLimitReason            string
 	currentCooldownCategory     string
@@ -323,21 +327,28 @@ type SymbolTradeRules struct {
 // MonitoredTarget 表示模块三进入死守监控阶段的目标。
 type MonitoredTarget struct {
 	TraceRecordMetadata
-	RunID           string
-	CycleID         string
-	Candidate       FundingCandidate
-	IsValid         int32
-	LastSpread      float64
-	LastNetProfit   float64
-	LastSpotAsk     float64
-	LastFuturesBid  float64
-	LastSpotVWAP    float64
-	LastFuturesVWAP float64
-	InvalidReason   string
-	BreachCount     int
-	MonitorState    string
-	LastObserveTime time.Time
-	LastEstimateAt  time.Time
+	RunID                      string
+	CycleID                    string
+	Candidate                  FundingCandidate
+	IsValid                    int32
+	LastSpread                 float64
+	LastNetProfit              float64
+	LastSpotAsk                float64
+	LastFuturesBid             float64
+	LastSpotVWAP               float64
+	LastFuturesVWAP            float64
+	LastSpotVisibleNotional    float64
+	LastFuturesVisibleNotional float64
+	LastDepthStabilityRatio    float64
+	LastMarketRiskCategory     string
+	LastMarketRiskSeverity     string
+	LastMarketRiskAction       string
+	LastMarketRiskDetail       string
+	InvalidReason              string
+	BreachCount                int
+	MonitorState               string
+	LastObserveTime            time.Time
+	LastEstimateAt             time.Time
 }
 
 type openSequencePlan struct {
@@ -596,27 +607,28 @@ func NewFundingRateSniperEngineWithConfig(secretPath string, cfg EngineConfig) (
 	client.applyNetworkConfig(cfg.NetworkConfig)
 
 	engine := &FundingRateSniperEngine{
-		client:                   client,
-		cfg:                      cfg,
-		logger:                   log.New(os.Stdout, "[FundingRateSniper] ", log.LstdFlags|log.Lmicroseconds),
-		goldenSymbolSet:          make(map[string]struct{}),
-		goldenSpotPairByFuture:   make(map[string]string),
-		spotMeta:                 make(map[string]SpotSymbol),
-		spotRules:                make(map[string]SymbolTradeRules),
-		futuresMeta:              make(map[string]FuturesSymbol),
-		futuresRules:             make(map[string]SymbolTradeRules),
-		reportStore:              reportStore,
-		emergencyStopFile:        effectiveEmergencyStopFile(cfg),
-		openHedgeStatePath:       effectiveOpenHedgeStatePath(cfg),
-		dailyRiskStatePath:       filepath.Join(cfg.NetworkConfig.RecordDir, liveDailyRiskStateName),
-		dailyRiskPersistCh:       make(chan persistedDailyRiskState, 1),
-		currentStage:             StageReady,
-		symbolCooldowns:          make(map[string]symbolCooldownState),
-		exposureLocks:            make(map[string]exposureLockState),
-		futuresRealtimePositions: make(map[string]futuresRealtimePosition),
-		spotRealtimeBalances:     make(map[string]float64),
-		realtimeRiskWakeCh:       make(chan struct{}, 1),
-		fundingSettlementWakeCh:  make(chan struct{}, 1),
+		client:                     client,
+		cfg:                        cfg,
+		logger:                     log.New(os.Stdout, "[FundingRateSniper] ", log.LstdFlags|log.Lmicroseconds),
+		goldenSymbolSet:            make(map[string]struct{}),
+		goldenSpotPairByFuture:     make(map[string]string),
+		spotMeta:                   make(map[string]SpotSymbol),
+		spotRules:                  make(map[string]SymbolTradeRules),
+		futuresMeta:                make(map[string]FuturesSymbol),
+		futuresRules:               make(map[string]SymbolTradeRules),
+		reportStore:                reportStore,
+		emergencyStopFile:          effectiveEmergencyStopFile(cfg),
+		openHedgeStatePath:         effectiveOpenHedgeStatePath(cfg),
+		dailyRiskStatePath:         filepath.Join(cfg.NetworkConfig.RecordDir, liveDailyRiskStateName),
+		dailyRiskPersistCh:         make(chan persistedDailyRiskState, 1),
+		currentStage:               StageReady,
+		symbolCooldowns:            make(map[string]symbolCooldownState),
+		exposureLocks:              make(map[string]exposureLockState),
+		futuresRealtimePositions:   make(map[string]futuresRealtimePosition),
+		spotRealtimeBalances:       make(map[string]float64),
+		realtimeRiskWakeCh:         make(chan struct{}, 1),
+		symbolPanicFlattenInFlight: make(map[string]time.Time),
+		fundingSettlementWakeCh:    make(chan struct{}, 1),
 	}
 	engine.exposureManager = newExposureManager(engine)
 	engine.runtimeReporter = newRuntimeReporter(engine)
@@ -1011,6 +1023,13 @@ func maxDurationValue(a time.Duration, b time.Duration) time.Duration {
 	return b
 }
 
+func minDurationValue(a time.Duration, b time.Duration) time.Duration {
+	if a <= b {
+		return a
+	}
+	return b
+}
+
 func (e *FundingRateSniperEngine) setBookTickerCacheOnlyUntil(until time.Time) {
 	if until.IsZero() {
 		atomic.StoreInt64(&e.cacheOnlyBookTickerUntil, 0)
@@ -1229,6 +1248,7 @@ func (e *FundingRateSniperEngine) checkTargetCost(ctx context.Context, target *M
 	if futuresQty <= 0 {
 		return
 	}
+	direction := resolvedFundingCarryDirection(target.Candidate.Direction, target.Candidate.EstimatedRate)
 
 	spotRule := e.spotRules[target.Candidate.Pair]
 	spotQty := normalizeQuantity(futuresQty, spotRule, target.Candidate.SpotBasePrecision)
@@ -1237,8 +1257,9 @@ func (e *FundingRateSniperEngine) checkTargetCost(ctx context.Context, target *M
 		return
 	}
 
-	spotVWAP, spotBestAsk, spotFilled, spotEnough := computeAverageFillPrice(spotDepth.Asks, requiredQty)
-	futuresVWAP, futuresBestBid, futuresFilled, futuresEnough := computeAverageFillPrice(futuresDepth.Bids, requiredQty)
+	spotLevels, futuresLevels := openDepthLevelsForDirection(direction, spotDepth, futuresDepth)
+	spotVWAP, spotBestAsk, spotFilled, spotEnough := computeAverageFillPrice(spotLevels, requiredQty)
+	futuresVWAP, futuresBestBid, futuresFilled, futuresEnough := computeAverageFillPrice(futuresLevels, requiredQty)
 	if !spotEnough || !futuresEnough || spotVWAP <= 0 || futuresVWAP <= 0 {
 		shortQty := requiredQty - math.Min(spotFilled, futuresFilled)
 		coverageRatio := 0.0
@@ -1249,15 +1270,23 @@ func (e *FundingRateSniperEngine) checkTargetCost(ctx context.Context, target *M
 		e.handleMarketRisk(target, consecutiveBreaches, -1, risk, fmt.Sprintf("连续观察阶段发现盘口深度不足，coverage=%.4f 所需数量=%.8f 缺口=%.8f", coverageRatio, requiredQty, shortQty))
 		return
 	}
+	if risk, detail, unstable, spotVisible, futuresVisible, stabilityRatio := e.evaluateOpenDepthStability(target, direction, spotDepth, futuresDepth, spotBestAsk, futuresBestBid); unstable {
+		target.LastSpotVisibleNotional = spotVisible
+		target.LastFuturesVisibleNotional = futuresVisible
+		target.LastDepthStabilityRatio = stabilityRatio
+		e.handleMarketRisk(target, consecutiveBreaches, target.LastNetProfit, risk, detail)
+		return
+	}
 
-	// 真实开仓方向是“现货吃卖盘买入 + 合约吃买盘卖出”，因此使用按下单量计算的 VWAP 评估冲击成本。
-	spread := (spotVWAP - futuresVWAP) / spotVWAP
+	// 真实开仓方向按 funding carry direction 选择现货/合约对应吃单侧，再按该方向评估入场冲击成本。
+	spread := openEntrySpreadRate(direction, spotVWAP, futuresVWAP)
 	netProfit := estimateReservedNetProfitRate(target.Candidate.EstimatedRate, spread, e.cfg.StrategyConfig.FeeReserveRate, e.cfg.StrategyConfig.ExitSpreadReserveRate)
 
 	target.LastSpotAsk = spotBestAsk
 	target.LastFuturesBid = futuresBestBid
 	target.LastSpotVWAP = spotVWAP
 	target.LastFuturesVWAP = futuresVWAP
+	target.LastSpotVisibleNotional, target.LastFuturesVisibleNotional = visibleDepthNotionalForDirection(direction, spotDepth, futuresDepth)
 	target.LastSpread = spread
 	target.LastNetProfit = netProfit
 	target.LastObserveTime = time.Now()
@@ -1342,6 +1371,14 @@ func (e *FundingRateSniperEngine) executeOpenSequence(ctx context.Context, targe
 		e.runtimeReporter.EmitWithReason(StageOpenEmpty, 0, fmt.Sprintf("战前 Go/No-Go 未通过: %v", err))
 		return nil, prepared.beforeSnapshot, nil
 	}
+	stablePlans, stabilityAlerts := e.filterOpenPlansByFundingStability(ctx, prepared.plans, prepared.fireAt)
+	for _, alert := range stabilityAlerts {
+		e.logger.Printf("模块四战前稳定性过滤: %s", alert)
+	}
+	if len(stablePlans) == 0 {
+		e.runtimeReporter.EmitWithReason(StageOpenEmpty, 0, "战前 funding 稳定性门未通过")
+		return nil, prepared.beforeSnapshot, nil
+	}
 	cacheOnlyUntil := prepared.fireAt.Add(maxDurationValue(e.cfg.ExecutionConfig.ExecutionRecoveryTimeout, 5*time.Second))
 	e.setBookTickerCacheOnlyUntil(cacheOnlyUntil)
 	defer e.setBookTickerCacheOnlyUntil(time.Time{})
@@ -1351,7 +1388,7 @@ func (e *FundingRateSniperEngine) executeOpenSequence(ctx context.Context, targe
 		}
 	}
 
-	sequentialPlans, parallelPlans := splitOpenSequencePlans(e.cfg, prepared.plans)
+	sequentialPlans, parallelPlans := splitOpenSequencePlans(e.cfg, stablePlans)
 	e.logger.Printf("模块四开始，触发时间=%s，顺序池=%d，并发池=%d", prepared.fireAt.Format("15:04:05"), len(sequentialPlans), len(parallelPlans))
 
 	var (
@@ -1386,6 +1423,120 @@ func (e *FundingRateSniperEngine) executeOpenSequence(ctx context.Context, targe
 	e.setCurrentPositionsFromHedges(hedges)
 	e.logger.Printf("模块四结束，成功锁仓数量: %d", len(hedges))
 	return hedges, prepared.beforeSnapshot, nil
+}
+
+const (
+	preOpenFundingStabilitySamples       = 3
+	preOpenFundingStabilityMinSamples    = 1
+	preOpenFundingStabilityMaxInterval   = 250 * time.Millisecond
+	preOpenFundingStabilityMinInterval   = 75 * time.Millisecond
+	preOpenFundingStabilityRefreshBudget = 400 * time.Millisecond
+)
+
+func fundingStabilitySampleCount(window time.Duration) int {
+	switch {
+	case window < 250*time.Millisecond:
+		return preOpenFundingStabilityMinSamples
+	case window < 500*time.Millisecond:
+		return 2
+	default:
+		return preOpenFundingStabilitySamples
+	}
+}
+
+func fundingStabilitySleepInterval(window time.Duration, samples int) time.Duration {
+	if samples <= 1 || window <= 0 {
+		return 0
+	}
+	interval := window / time.Duration(samples)
+	if interval > preOpenFundingStabilityMaxInterval {
+		interval = preOpenFundingStabilityMaxInterval
+	}
+	if interval < preOpenFundingStabilityMinInterval {
+		interval = preOpenFundingStabilityMinInterval
+	}
+	return interval
+}
+
+func (e *FundingRateSniperEngine) filterOpenPlansByFundingStability(ctx context.Context, plans []openSequencePlan, fireAt time.Time) ([]openSequencePlan, []string) {
+	if len(plans) == 0 {
+		return nil, nil
+	}
+	filtered := make([]openSequencePlan, 0, len(plans))
+	alerts := make([]string, 0, len(plans))
+	for _, plan := range plans {
+		ok, detail := e.verifyPreparedPlanFundingStability(ctx, &plan, fireAt)
+		if ok {
+			filtered = append(filtered, plan)
+			continue
+		}
+		if plan.target != nil {
+			e.invalidateMonitorTarget(plan.target, plan.target.LastNetProfit, fmt.Sprintf("战前 funding 稳定性门未通过: %s", detail))
+		}
+		alerts = append(alerts, fmt.Sprintf("%s %s", plan.target.Candidate.Symbol, detail))
+	}
+	return filtered, alerts
+}
+
+func (e *FundingRateSniperEngine) verifyPreparedPlanFundingStability(ctx context.Context, plan *openSequencePlan, fireAt time.Time) (bool, string) {
+	if e == nil || plan == nil || plan.target == nil {
+		return false, "plan 为空"
+	}
+	target := plan.target
+	profile := e.symbolRiskProfile(target.Candidate.Symbol)
+	baselineDirection := resolvedFundingCarryDirection(target.Candidate.Direction, target.Candidate.EstimatedRate)
+	if baselineDirection == "" {
+		return false, "目标方向为空"
+	}
+	window := fireAt.Sub(e.serverNow())
+	if window < 0 {
+		window = 0
+	}
+	samples := fundingStabilitySampleCount(window)
+	interval := fundingStabilitySleepInterval(window, samples)
+	lastRate := target.Candidate.EstimatedRate
+	lastJump := target.Candidate.FundingRateJump
+	lastBasis := target.Candidate.BasisRate
+	for sample := 0; sample < samples; sample++ {
+		refreshBudget := preOpenFundingStabilityRefreshBudget
+		if remaining := fireAt.Sub(e.serverNow()); !fireAt.IsZero() && remaining > 0 {
+			refreshBudget = minDurationValue(refreshBudget, remaining)
+		}
+		if refreshBudget <= 0 {
+			refreshBudget = preOpenFundingStabilityMinInterval
+		}
+		refreshCtx, cancel := context.WithTimeout(ctx, refreshBudget)
+		err := e.refreshTargetFundingEstimate(refreshCtx, target, true)
+		cancel()
+		if err != nil {
+			return false, fmt.Sprintf("sample=%d funding refresh 失败: %v", sample+1, err)
+		}
+		currentDirection := resolvedFundingCarryDirection(target.Candidate.Direction, target.Candidate.EstimatedRate)
+		lastRate = target.Candidate.EstimatedRate
+		lastJump = target.Candidate.FundingRateJump
+		lastBasis = target.Candidate.BasisRate
+		if currentDirection != baselineDirection {
+			return false, fmt.Sprintf("sample=%d funding 方向翻转: baseline=%s current=%s rate=%.6f", sample+1, baselineDirection, currentDirection, target.Candidate.EstimatedRate)
+		}
+		if !liveFundingMagnitudePasses(e.cfg, currentDirection, target.Candidate.EstimatedRate, profile) {
+			return false, fmt.Sprintf("sample=%d funding 预估不足: rate=%.6f", sample+1, target.Candidate.EstimatedRate)
+		}
+		if math.Abs(target.Candidate.EstimatedRate) >= e.cfg.StrategyConfig.MaxEstimatedFundingRate {
+			return false, fmt.Sprintf("sample=%d funding 预估过高触发异常熔断: rate=%.6f", sample+1, target.Candidate.EstimatedRate)
+		}
+		if target.Candidate.FundingRateJump >= e.cfg.StrategyConfig.MaxFundingRateJump {
+			return false, fmt.Sprintf("sample=%d funding jump 过大: jump=%.6f", sample+1, target.Candidate.FundingRateJump)
+		}
+		if math.Abs(target.Candidate.BasisRate) > e.cfg.StrategyConfig.MaxScanBasisRate {
+			return false, fmt.Sprintf("sample=%d basis 超阈值: basis=%.6f", sample+1, target.Candidate.BasisRate)
+		}
+		if sample+1 < samples && interval > 0 {
+			if !sleepWithContext(ctx, interval) {
+				return false, "funding 稳定性采样被取消"
+			}
+		}
+	}
+	return true, fmt.Sprintf("samples=%d direction=%s rate=%.6f jump=%.6f basis=%.6f", samples, baselineDirection, lastRate, lastJump, lastBasis)
 }
 
 func newOpenSequenceBuildState(beforeSnapshot CycleAccountSnapshot, cfg EngineConfig) openSequenceBuildState {
@@ -2999,15 +3150,106 @@ func (e *FundingRateSniperEngine) fetchDualOrderBookDepth(ctx context.Context, s
 		return ParsedOrderBookDepth{}, ParsedOrderBookDepth{}, fmt.Errorf("合约深度失败: %w", futuresErr)
 	}
 
+	receivedAt := time.Now().UTC()
 	return ParsedOrderBookDepth{
 			LastUpdateID: spotDepthRaw.LastUpdateID,
 			Bids:         parseDepthLevels(spotDepthRaw.Bids),
 			Asks:         parseDepthLevels(spotDepthRaw.Asks),
+			ReceivedAt:   receivedAt,
 		}, ParsedOrderBookDepth{
 			LastUpdateID: futuresDepthRaw.LastUpdateID,
 			Bids:         parseDepthLevels(futuresDepthRaw.Bids),
 			Asks:         parseDepthLevels(futuresDepthRaw.Asks),
+			ReceivedAt:   receivedAt,
 		}, nil
+}
+
+const (
+	depthStabilityMaxAge         = 750 * time.Millisecond
+	depthStabilityLookbackWindow = 1500 * time.Millisecond
+	depthStabilityObserveRatio   = 0.80
+	depthStabilityCooldownRatio  = 0.65
+	depthStabilityPriceDriftRate = 0.0008
+)
+
+func openDepthLevelsForDirection(direction fundingCarryDirection, spotDepth ParsedOrderBookDepth, futuresDepth ParsedOrderBookDepth) ([]DepthLevel, []DepthLevel) {
+	switch direction {
+	case fundingCarryDirectionNegative:
+		return spotDepth.Bids, futuresDepth.Asks
+	default:
+		return spotDepth.Asks, futuresDepth.Bids
+	}
+}
+
+func visibleDepthNotionalForDirection(direction fundingCarryDirection, spotDepth ParsedOrderBookDepth, futuresDepth ParsedOrderBookDepth) (float64, float64) {
+	spotLevels, futuresLevels := openDepthLevelsForDirection(direction, spotDepth, futuresDepth)
+	return estimateVisibleDepthNotional(spotLevels), estimateVisibleDepthNotional(futuresLevels)
+}
+
+func openEntrySpreadRate(direction fundingCarryDirection, spotVWAP float64, futuresVWAP float64) float64 {
+	if spotVWAP <= 0 || futuresVWAP <= 0 {
+		return 0
+	}
+	switch direction {
+	case fundingCarryDirectionNegative:
+		return (futuresVWAP - spotVWAP) / spotVWAP
+	default:
+		return (spotVWAP - futuresVWAP) / spotVWAP
+	}
+}
+
+func priceMovedAdversely(direction fundingCarryDirection, previousSpot float64, currentSpot float64, previousFutures float64, currentFutures float64) bool {
+	switch direction {
+	case fundingCarryDirectionNegative:
+		spotWorse := previousSpot > 0 && currentSpot > 0 && currentSpot < previousSpot*(1-depthStabilityPriceDriftRate)
+		futuresWorse := previousFutures > 0 && currentFutures > 0 && currentFutures > previousFutures*(1+depthStabilityPriceDriftRate)
+		return spotWorse || futuresWorse
+	default:
+		spotWorse := previousSpot > 0 && currentSpot > 0 && currentSpot > previousSpot*(1+depthStabilityPriceDriftRate)
+		futuresWorse := previousFutures > 0 && currentFutures > 0 && currentFutures < previousFutures*(1-depthStabilityPriceDriftRate)
+		return spotWorse || futuresWorse
+	}
+}
+
+func (e *FundingRateSniperEngine) evaluateOpenDepthStability(target *MonitoredTarget, direction fundingCarryDirection, spotDepth ParsedOrderBookDepth, futuresDepth ParsedOrderBookDepth, currentSpotBest float64, currentFuturesBest float64) (MarketRiskDecision, string, bool, float64, float64, float64) {
+	spotVisible, futuresVisible := visibleDepthNotionalForDirection(direction, spotDepth, futuresDepth)
+	now := time.Now().UTC()
+	if !spotDepth.ReceivedAt.IsZero() {
+		spotAge := now.Sub(spotDepth.ReceivedAt)
+		if spotAge > depthStabilityMaxAge {
+			return MarketRiskDecision{Category: "depth_stability", Severity: "major", Action: "symbol_cooldown"},
+				fmt.Sprintf("spot depth 延迟过高: age=%s limit=%s", spotAge.Round(time.Millisecond), depthStabilityMaxAge), true, spotVisible, futuresVisible, 0
+		}
+	}
+	if !futuresDepth.ReceivedAt.IsZero() {
+		futuresAge := now.Sub(futuresDepth.ReceivedAt)
+		if futuresAge > depthStabilityMaxAge {
+			return MarketRiskDecision{Category: "depth_stability", Severity: "major", Action: "symbol_cooldown"},
+				fmt.Sprintf("futures depth 延迟过高: age=%s limit=%s", futuresAge.Round(time.Millisecond), depthStabilityMaxAge), true, spotVisible, futuresVisible, 0
+		}
+	}
+	if target == nil || target.LastObserveTime.IsZero() || now.Sub(target.LastObserveTime) > depthStabilityLookbackWindow {
+		return MarketRiskDecision{}, "", false, spotVisible, futuresVisible, 0
+	}
+	previousVisible := minPositiveFloat(target.LastSpotVisibleNotional, target.LastFuturesVisibleNotional)
+	currentVisible := minPositiveFloat(spotVisible, futuresVisible)
+	if previousVisible <= 0 || currentVisible <= 0 {
+		return MarketRiskDecision{}, "", false, spotVisible, futuresVisible, 0
+	}
+	ratio := currentVisible / previousVisible
+	if !priceMovedAdversely(direction, target.LastSpotAsk, currentSpotBest, target.LastFuturesBid, currentFuturesBest) {
+		return MarketRiskDecision{}, "", false, spotVisible, futuresVisible, ratio
+	}
+	switch {
+	case ratio < depthStabilityCooldownRatio:
+		return MarketRiskDecision{Category: "depth_stability", Severity: "major", Action: "symbol_cooldown"},
+			fmt.Sprintf("可见深度快速塌陷: ratio=%.4f prev=%.6f current=%.6f", ratio, previousVisible, currentVisible), true, spotVisible, futuresVisible, ratio
+	case ratio < depthStabilityObserveRatio:
+		return MarketRiskDecision{Category: "depth_stability", Severity: "minor", Action: "observe"},
+			fmt.Sprintf("可见深度快速恶化: ratio=%.4f prev=%.6f current=%.6f", ratio, previousVisible, currentVisible), true, spotVisible, futuresVisible, ratio
+	default:
+		return MarketRiskDecision{}, "", false, spotVisible, futuresVisible, ratio
+	}
 }
 
 func computeAverageFillPrice(levels []DepthLevel, requiredQty float64) (float64, float64, float64, bool) {
@@ -5221,8 +5463,8 @@ func (e *FundingRateSniperEngine) collectMarketCapacitySnapshot(ctx context.Cont
 			mu.Unlock()
 			return
 		}
-		spotVisible := estimateVisibleDepthNotional(spotDepth.Asks)
-		futuresVisible := estimateVisibleDepthNotional(futuresDepth.Bids)
+		direction := resolvedFundingCarryDirection(target.Candidate.Direction, target.Candidate.EstimatedRate)
+		spotVisible, futuresVisible := visibleDepthNotionalForDirection(direction, spotDepth, futuresDepth)
 		mu.Lock()
 		if spotVisible > 0 {
 			snapshot.VisibleSpotAskNotional = spotVisible
@@ -5639,6 +5881,10 @@ func (e *FundingRateSniperEngine) handleMarketRisk(target *MonitoredTarget, cons
 	if target == nil {
 		return
 	}
+	target.LastMarketRiskCategory = strings.TrimSpace(nonEmpty(decision.Category, "market"))
+	target.LastMarketRiskSeverity = strings.TrimSpace(nonEmpty(decision.Severity, "healthy"))
+	target.LastMarketRiskAction = strings.TrimSpace(nonEmpty(decision.Action, "healthy"))
+	target.LastMarketRiskDetail = strings.TrimSpace(detail)
 	message := fmt.Sprintf("%s severity=%s action=%s %s", nonEmpty(decision.Category, "market"), nonEmpty(decision.Severity, "unknown"), nonEmpty(decision.Action, "unknown"), strings.TrimSpace(detail))
 	switch decision.Action {
 	case "observe":

@@ -65,6 +65,8 @@ func (r *RuntimeReporter) emitLockedWithTargets(stage EngineStage, currentTarget
 		FuseReason:                   engine.platformFuseReason,
 		LastOrderAction:              engine.lastOrderAction,
 		LastRecoveryAction:           engine.lastRecoveryAction,
+		LastManagedDrawdownAction:    engine.lastManagedDrawdownAction,
+		ManagedDrawdownSummary:       engine.managedDrawdownSummary,
 		LastUncertainOrder:           engine.lastUncertainOrder,
 		RemainingIncidentBudget:      remainingRiskBudget(engine.cfg.RiskConfig.MaxExecutionIncidents, int(atomic.LoadInt32(&engine.executionIncidents))),
 		RemainingRecoveryBudget:      remainingRiskBudget(engine.cfg.RiskConfig.MaxRecoveryActionsPerCycle, engine.recoveryActionsThisCycle),
@@ -106,6 +108,9 @@ func (r *RuntimeReporter) emitLockedWithTargets(stage EngineStage, currentTarget
 	}
 	if !engine.lastRecoveryAt.IsZero() {
 		snapshot.LastRecoveryAt = engine.lastRecoveryAt.Format(time.RFC3339)
+	}
+	if !engine.lastManagedDrawdownAt.IsZero() {
+		snapshot.LastManagedDrawdownAt = engine.lastManagedDrawdownAt.Format(time.RFC3339)
 	}
 	if !engine.platformCooldownUntil.IsZero() {
 		snapshot.CooldownUntil = engine.platformCooldownUntil.UTC().Format(time.RFC3339)

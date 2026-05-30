@@ -72,6 +72,9 @@ type RuntimeTaskStatus struct {
 	LastOrderAction              string                    `json:"last_order_action"`
 	LastRecoveryAt               string                    `json:"last_recovery_at"`
 	LastRecoveryAction           string                    `json:"last_recovery_action"`
+	LastManagedDrawdownAt        string                    `json:"last_managed_drawdown_at"`
+	LastManagedDrawdownAction    string                    `json:"last_managed_drawdown_action"`
+	ManagedDrawdownSummary       string                    `json:"managed_drawdown_summary"`
 	LastUncertainOrder           string                    `json:"last_uncertain_order"`
 	RemainingIncidentBudget      int                       `json:"remaining_incident_budget"`
 	RemainingRecoveryBudget      int                       `json:"remaining_recovery_budget"`
@@ -180,6 +183,9 @@ type LiveRuntimeSnapshot struct {
 	LastOrderAction              string
 	LastRecoveryAt               string
 	LastRecoveryAction           string
+	LastManagedDrawdownAt        string
+	LastManagedDrawdownAction    string
+	ManagedDrawdownSummary       string
 	LastUncertainOrder           string
 	RemainingIncidentBudget      int
 	RemainingRecoveryBudget      int
@@ -1199,6 +1205,9 @@ func (c *RuntimeController) recordLiveEngineStatus(snapshot LiveRuntimeSnapshot)
 	c.status.LastOrderAction = strings.TrimSpace(snapshot.LastOrderAction)
 	c.status.LastRecoveryAt = strings.TrimSpace(snapshot.LastRecoveryAt)
 	c.status.LastRecoveryAction = strings.TrimSpace(snapshot.LastRecoveryAction)
+	c.status.LastManagedDrawdownAt = strings.TrimSpace(snapshot.LastManagedDrawdownAt)
+	c.status.LastManagedDrawdownAction = strings.TrimSpace(snapshot.LastManagedDrawdownAction)
+	c.status.ManagedDrawdownSummary = strings.TrimSpace(snapshot.ManagedDrawdownSummary)
 	c.status.LastUncertainOrder = strings.TrimSpace(snapshot.LastUncertainOrder)
 	c.status.RemainingIncidentBudget = snapshot.RemainingIncidentBudget
 	c.status.RemainingRecoveryBudget = snapshot.RemainingRecoveryBudget

@@ -99,6 +99,62 @@ func TestReportStoreAppendExecutionIncidentPersistsRiskMetadata(t *testing.T) {
 	}
 }
 
+func TestReportStoreAppendMonitorSnapshotPersistsDepthRiskFields(t *testing.T) {
+	store, err := NewReportStore(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewReportStore() error = %v", err)
+	}
+
+	target := &MonitoredTarget{
+		RunID:   "live-20260531T010000Z-abcd1234",
+		CycleID: "live-20260531T010000Z-abcd1234-cycle-ef567890",
+		Candidate: FundingCandidate{
+			Symbol:          "BTCUSDT",
+			Pair:            "BTCUSDT",
+			EstimatedRate:   0.0032,
+			LastFundingRate: 0.0030,
+			BasisRate:       0.0007,
+			ScanScoreRate:   0.0025,
+			NextFundingTime: time.Date(2026, 5, 31, 8, 0, 0, 0, time.UTC),
+		},
+		MonitorState:               "observing",
+		BreachCount:                2,
+		LastNetProfit:              0.0014,
+		LastSpread:                 0.0006,
+		LastDepthStabilityRatio:    0.61,
+		LastSpotVisibleNotional:    1200,
+		LastFuturesVisibleNotional: 980,
+		LastMarketRiskCategory:     "depth_stability",
+		LastMarketRiskSeverity:     "major",
+		LastMarketRiskAction:       "symbol_cooldown",
+		LastMarketRiskDetail:       "可见深度快速塌陷",
+		InvalidReason:              "symbol 冷却: depth_stability severity=major action=symbol_cooldown",
+	}
+
+	if err := store.AppendMonitorSnapshot(time.Date(2026, 5, 31, 7, 59, 30, 0, time.UTC), []*MonitoredTarget{target}); err != nil {
+		t.Fatalf("AppendMonitorSnapshot() error = %v", err)
+	}
+	got, err := store.ListMonitorRecords(10)
+	if err != nil {
+		t.Fatalf("ListMonitorRecords() error = %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("expected 1 monitor record, got %d", len(got))
+	}
+	if got[0].DepthStabilityRatio != "0.61" {
+		t.Fatalf("unexpected depth ratio: %+v", got[0])
+	}
+	if got[0].SpotVisibleNotional != "1200" || got[0].FuturesVisibleNotional != "980" {
+		t.Fatalf("unexpected visible notionals: %+v", got[0])
+	}
+	if got[0].MarketRiskCategory != "depth_stability" || got[0].MarketRiskAction != "symbol_cooldown" {
+		t.Fatalf("unexpected market risk fields: %+v", got[0])
+	}
+	if got[0].MarketRiskDetail != "可见深度快速塌陷" {
+		t.Fatalf("unexpected market risk detail: %+v", got[0])
+	}
+}
+
 func TestReportStoreResidualStatsRefreshAfterReplaceAndClear(t *testing.T) {
 	store, err := NewReportStore(t.TempDir())
 	if err != nil {

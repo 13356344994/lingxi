@@ -425,15 +425,23 @@
           <div class="stat-value" id="runtime-last-recovery" style="font-size:14px">-</div>
         </div>
         <div class="stat-card">
+          <div class="stat-label">最近一次单币止血</div>
+          <div class="stat-value" id="runtime-last-managed-drawdown" style="font-size:14px">-</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">托管敞口浮亏摘要</div>
+          <div class="stat-value" id="runtime-managed-drawdown-summary" style="font-size:14px">-</div>
+        </div>
+        <div class="stat-card">
           <div class="stat-label">订单不确定次数</div>
           <div class="stat-value" id="runtime-uncertain-orders" style="font-size:14px">0</div>
         </div>
+      </div>
+      <div class="status-grid">
         <div class="stat-card">
           <div class="stat-label">本轮剩余风险额度</div>
           <div class="stat-value" id="runtime-risk-budget" style="font-size:14px">-</div>
         </div>
-      </div>
-      <div class="status-grid">
         <div class="stat-card">
           <div class="stat-label">紧急停机状态</div>
           <div class="stat-value" id="runtime-emergency-stop" style="font-size:14px">未触发</div>
@@ -678,6 +686,12 @@
               <th>基差</th>
               <th>净收益</th>
               <th>Spread</th>
+              <th>深度比率</th>
+              <th>Spot 可见深度</th>
+              <th>Futures 可见深度</th>
+              <th>风险分类</th>
+              <th>风险动作</th>
+              <th>风险细节</th>
               <th>原因</th>
             </tr>
           </thead>
@@ -916,6 +930,8 @@
       document.getElementById("runtime-monitor-targets").textContent = formatRuntimeList(status.current_monitor_targets || []);
       document.getElementById("runtime-last-order").textContent = formatRuntimeTimestampAction(status.last_order_at, status.last_order_action);
       document.getElementById("runtime-last-recovery").textContent = formatRuntimeTimestampAction(status.last_recovery_at, status.last_recovery_action);
+      document.getElementById("runtime-last-managed-drawdown").textContent = formatRuntimeTimestampAction(status.last_managed_drawdown_at, status.last_managed_drawdown_action);
+      document.getElementById("runtime-managed-drawdown-summary").textContent = status.managed_drawdown_summary || "-";
       document.getElementById("runtime-uncertain-orders").textContent = `${Number(status.order_uncertainty_count || 0)} | ${status.last_uncertain_order || "-"}`;
       document.getElementById("runtime-risk-budget").textContent = `事故 ${formatBudgetValue(status.remaining_incident_budget)} | 回补 ${formatBudgetValue(status.remaining_recovery_budget)} | 不确定 ${formatBudgetValue(status.remaining_uncertainty_budget)} | 拒单 ${formatBudgetValue(status.remaining_reject_budget)} | 异常 ${formatBudgetValue(status.remaining_error_budget)}`;
       document.getElementById("runtime-emergency-stop").textContent = status.emergency_stop_triggered ? `已触发 | ${status.emergency_stop_reason || "-"}` : "未触发";
@@ -1137,6 +1153,12 @@
           <td>${item.basis_rate}</td>
           <td>${item.last_net_profit}</td>
           <td>${item.last_spread}</td>
+          <td>${item.depth_stability_ratio || "-"}</td>
+          <td>${item.spot_visible_notional || "-"}</td>
+          <td>${item.futures_visible_notional || "-"}</td>
+          <td>${item.market_risk_category || "-"} / ${item.market_risk_severity || "-"}</td>
+          <td>${item.market_risk_action || "-"}</td>
+          <td>${item.market_risk_detail || "-"}</td>
           <td>${item.invalid_reason || "-"}</td>
         </tr>
       `).join("");
