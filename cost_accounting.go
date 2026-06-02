@@ -43,6 +43,7 @@ type CycleSettlement struct {
 	SpotTradingPnL        float64
 	FuturesTradingPnL     float64
 	TotalFees             float64
+	TotalBorrowCosts      float64
 	NetPnL                float64
 	SnapshotNetPnL        float64
 	ResidualSpotValue     float64

@@ -110,7 +110,7 @@ func (e *FundingRateSniperEngine) processPendingFundingSettlement(record Pending
         updated.FundingIncome = result.TotalFundingIncome
         updated.ExpectedFundingIncome = result.ExpectedFundingIncome
         updated.FundingIncomeDiff = result.TotalFundingIncome - result.ExpectedFundingIncome
-        updated.NetPnL = result.TotalFundingIncome + updated.SpotTradingPnL + updated.FuturesTradingPnL - updated.TotalFees
+        updated.NetPnL = result.TotalFundingIncome + updated.SpotTradingPnL + updated.FuturesTradingPnL - updated.TotalFees - updated.TotalBorrowCosts
         updated.FundingIncomePending = false
         updated.FundingSettledAt = now
         

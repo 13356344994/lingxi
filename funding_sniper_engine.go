@@ -1573,6 +1573,29 @@ func (e *FundingRateSniperEngine) liveBorrowReserveCost(candidate FundingCandida
 	return historicalBorrowInterestCost(direction, spotNotional, e.hourlyBorrowInterestRateForAsset(candidate.SpotBaseAsset), billedHours)
 }
 
+// settlementBorrowCost 计算一次负 carry 对冲在「实际持仓期」内累计的真实借币利息(USDT)。
+// 正 carry 不借币，返回 0。利息 = 借入名义(开仓现货名义 OpenSpotQuoteQty) × 每小时利率(优先真实 per-asset 利率)
+// × 实际计费小时数(开仓到平仓，按小时向上取整，至少 BorrowInterestMinBillingHours)。
+// 开仓时间取自现货成交回执 TransactTime；缺失时退化为最小计费小时，保证利息不被低估为 0。
+// 这样负 carry 的核心成本不再被结算静默记为 0，落袋净利与实盘借币摩擦更一致。
+func (e *FundingRateSniperEngine) settlementBorrowCost(hedge OpenHedge, closeTime time.Time) float64 {
+	direction := hedge.carryDirection()
+	if direction != fundingCarryDirectionNegative {
+		return 0
+	}
+	borrowedNotional := hedge.OpenSpotQuoteQty
+	if borrowedNotional <= 0 {
+		return 0
+	}
+	entryTime := closeTime
+	if hedge.SpotOrder.TransactTime > 0 {
+		entryTime = time.UnixMilli(hedge.SpotOrder.TransactTime).UTC()
+	}
+	billedHours := historicalBorrowInterestHours(direction, entryTime, closeTime, e.cfg.HistoricalConfig.BorrowInterestMinBillingHours)
+	hourlyRate := e.hourlyBorrowInterestRateForAsset(hedge.Target.SpotBaseAsset)
+	return historicalBorrowInterestCost(direction, borrowedNotional, hourlyRate, billedHours)
+}
+
 func (e *FundingRateSniperEngine) liveBorrowReserveRate(candidate FundingCandidate, spotReferencePrice float64, entryTime time.Time) float64 {
 	if spotReferencePrice <= 0 {
 		spotReferencePrice = candidate.MarkPrice

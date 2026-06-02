@@ -171,6 +171,7 @@ type SettlementCSVRecord struct {
 	SpotTradingPnL        string `json:"spot_trading_pnl"`
 	FuturesTradingPnL     string `json:"futures_trading_pnl"`
 	TotalFees             string `json:"total_fees"`
+	TotalBorrowCosts      string `json:"total_borrow_costs"`
 	NetPnL                string `json:"net_pnl"`
 	SnapshotNetPnL        string `json:"snapshot_net_pnl"`
 	ResidualSpotValue     string `json:"residual_spot_value"`
@@ -498,6 +499,7 @@ func (s *ReportStore) AppendSettlement(settlement CycleSettlement) error {
 		SpotTradingPnL:        formatFloat(settlement.SpotTradingPnL),
 		FuturesTradingPnL:     formatFloat(settlement.FuturesTradingPnL),
 		TotalFees:             formatFloat(settlement.TotalFees),
+		TotalBorrowCosts:      formatFloat(settlement.TotalBorrowCosts),
 		NetPnL:                formatFloat(settlement.NetPnL),
 		SnapshotNetPnL:        formatFloat(settlement.SnapshotNetPnL),
 		ResidualSpotValue:     formatFloat(settlement.ResidualSpotValue),
@@ -536,6 +538,7 @@ func (s *ReportStore) UpdateSettlement(settlement CycleSettlement) error {
 		record.SpotTradingPnL = formatFloat(settlement.SpotTradingPnL)
 		record.FuturesTradingPnL = formatFloat(settlement.FuturesTradingPnL)
 		record.TotalFees = formatFloat(settlement.TotalFees)
+		record.TotalBorrowCosts = formatFloat(settlement.TotalBorrowCosts)
 		record.NetPnL = formatFloat(settlement.NetPnL)
 		record.SnapshotNetPnL = formatFloat(settlement.SnapshotNetPnL)
 		record.ResidualSpotValue = formatFloat(settlement.ResidualSpotValue)

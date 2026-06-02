@@ -222,6 +222,8 @@ func (p *CloseProtocol) executeSequence(ctx context.Context, hedges []OpenHedge,
 	}
 
 	spotTradingPnL, futuresTradingPnL, totalFees := 0.0, 0.0, 0.0
+	totalBorrowCosts := 0.0
+	borrowCostCloseTime := time.Now().UTC()
 	expectedFundingIncome, fundingAlerts := p.engine.expectedFundingIncomeSummary(hedges, beforeSnapshot)
 	attributions := make([]SettlementAttribution, 0, len(hedges))
 	for _, hedge := range hedges {
@@ -249,16 +251,20 @@ func (p *CloseProtocol) executeSequence(ctx context.Context, hedges []OpenHedge,
 			futuresTradingPnL += futuresPnL
 		}
 
+		borrowCost := p.engine.settlementBorrowCost(hedge, borrowCostCloseTime)
+		totalBorrowCosts += borrowCost
+		hedgeFees := hedge.OpenSpotFeeUSDT + hedge.CloseSpotFeeUSDT + hedge.OpenFuturesFeeUSDT + hedge.CloseFuturesFeeUSDT
+
 		attributions = append(attributions, SettlementAttribution{
 			Symbol:           hedge.Target.Symbol,
 			FundingIncome:    0, // 异步更新
 			SpotFees:         hedge.OpenSpotFeeUSDT + hedge.CloseSpotFeeUSDT,
 			FuturesFees:      hedge.OpenFuturesFeeUSDT + hedge.CloseFuturesFeeUSDT,
-			BorrowCosts:      0,
+			BorrowCosts:      borrowCost,
 			OpenSlippage:     hedge.OpenSlippageUSDT,
 			CloseSlippage:    hedge.CloseSlippageUSDT,
 			RecoveryFriction: hedge.RecoveryFrictionUSDT,
-			NetPnL:           spotPnL + futuresPnL - (hedge.OpenSpotFeeUSDT + hedge.CloseSpotFeeUSDT + hedge.OpenFuturesFeeUSDT + hedge.CloseFuturesFeeUSDT),
+			NetPnL:           spotPnL + futuresPnL - hedgeFees - borrowCost,
 		})
 	}
 
@@ -266,7 +272,7 @@ func (p *CloseProtocol) executeSequence(ctx context.Context, hedges []OpenHedge,
 	spotUSDTDelta := afterSnapshot.SpotUSDTFree - beforeSnapshot.SpotUSDTFree
 	futuresUSDTDelta := afterSnapshot.FuturesUSDTWallet - beforeSnapshot.FuturesUSDTWallet
 	totalFundingIncome := 0.0
-	netPnL := spotTradingPnL + futuresTradingPnL - totalFees
+	netPnL := spotTradingPnL + futuresTradingPnL - totalFees - totalBorrowCosts
 	fundingIncomeDiff := totalFundingIncome - expectedFundingIncome
 	snapshotNetPnL := spotUSDTDelta + futuresUSDTDelta + residualSpotValue
 	alerts := p.engine.buildSettlementAlerts(afterSnapshot, hedges, residualSpotValue, netPnL, snapshotNetPnL)
@@ -296,6 +302,7 @@ func (p *CloseProtocol) executeSequence(ctx context.Context, hedges []OpenHedge,
 		SpotTradingPnL:        spotTradingPnL,
 		FuturesTradingPnL:     futuresTradingPnL,
 		TotalFees:             totalFees,
+		TotalBorrowCosts:      totalBorrowCosts,
 		NetPnL:                netPnL,
 		SnapshotNetPnL:        snapshotNetPnL,
 		ResidualSpotValue:     residualSpotValue,
