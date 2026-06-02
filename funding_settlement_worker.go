@@ -9,10 +9,11 @@ import (
 )
 
 type fundingSettlementAttemptResult struct {
-	TotalFundingIncome    float64
-	ExpectedFundingIncome float64
-	Alerts                []string
-	PendingSymbols        []string
+        TotalFundingIncome      float64
+        ExpectedFundingIncome   float64
+        Alerts                  []string
+        PendingSymbols          []string
+        FundingIncomeBySymbol   map[string]float64
 }
 
 func (e *FundingRateSniperEngine) startFundingSettlementWorker(ctx context.Context) {
@@ -106,13 +107,22 @@ func (e *FundingRateSniperEngine) processPendingFundingSettlement(record Pending
 	}
 
 	updated := record.Settlement
-	updated.FundingIncome = result.TotalFundingIncome
-	updated.ExpectedFundingIncome = result.ExpectedFundingIncome
-	updated.FundingIncomeDiff = result.TotalFundingIncome - result.ExpectedFundingIncome
-	updated.NetPnL = result.TotalFundingIncome + updated.SpotTradingPnL + updated.FuturesTradingPnL - updated.TotalFees
-	updated.FundingIncomePending = false
-	updated.FundingSettledAt = now
-	alerts := append([]string(nil), updated.Alerts...)
+        updated.FundingIncome = result.TotalFundingIncome
+        updated.ExpectedFundingIncome = result.ExpectedFundingIncome
+        updated.FundingIncomeDiff = result.TotalFundingIncome - result.ExpectedFundingIncome
+        updated.NetPnL = result.TotalFundingIncome + updated.SpotTradingPnL + updated.FuturesTradingPnL - updated.TotalFees
+        updated.FundingIncomePending = false
+        updated.FundingSettledAt = now
+        
+        // 更新单币种利润归因
+        for i, attr := range updated.Attributions {
+                if actualIncome, ok := result.FundingIncomeBySymbol[attr.Symbol]; ok {
+                        updated.Attributions[i].FundingIncome = actualIncome
+                        updated.Attributions[i].NetPnL += actualIncome
+                }
+        }
+        
+        alerts := append([]string(nil), updated.Alerts...)
 	alerts = filterOutFundingPendingAlerts(alerts)
 	alerts = append(alerts, result.Alerts...)
 	updated.Alerts = alerts
@@ -165,8 +175,9 @@ func (e *FundingRateSniperEngine) settleFundingIncomeDetailed(ctx context.Contex
 	}
 
 	result := fundingSettlementAttemptResult{
-		Alerts:         make([]string, 0),
-		PendingSymbols: make([]string, 0),
+		Alerts:                make([]string, 0),
+		PendingSymbols:        make([]string, 0),
+		FundingIncomeBySymbol: make(map[string]float64, len(symbolSet)),
 	}
 	for symbol := range symbolSet {
 		beforeQty := beforeSnapshot.FuturesPositionAmounts[symbol]
@@ -199,6 +210,7 @@ func (e *FundingRateSniperEngine) settleFundingIncomeDetailed(ctx context.Contex
 
 		result.TotalFundingIncome += actualFundingIncome
 		result.ExpectedFundingIncome += expectedFundingBySymbol[symbol]
+		result.FundingIncomeBySymbol[symbol] = actualFundingIncome
 		diff := actualFundingIncome - expectedFundingBySymbol[symbol]
 		if math.Abs(diff) >= e.cfg.RiskConfig.FundingIncomeDiffAlertUSDT {
 			result.Alerts = append(result.Alerts, fmt.Sprintf("资金费到账偏差过大 %s: 实收=%.6f 理论=%.6f 偏差=%.6f", symbol, actualFundingIncome, expectedFundingBySymbol[symbol], diff))

@@ -261,6 +261,7 @@ func (e *FundingRateSniperEngine) runBookTickerStream(ctx context.Context, baseU
 
 	endpoint := baseURL + strings.Join(streams, "/")
 	retryDelay := 200 * time.Millisecond
+	maxRetryDelay := 5 * time.Second
 
 	for {
 		if ctx.Err() != nil {
@@ -273,11 +274,15 @@ func (e *FundingRateSniperEngine) runBookTickerStream(ctx context.Context, baseU
 			if !sleepWithContext(ctx, retryDelay) {
 				return
 			}
+			retryDelay = nextStreamBackoff(retryDelay, maxRetryDelay)
 			continue
 		}
+		retryDelay = 200 * time.Millisecond
 		stopClose := closeWebSocketOnContextDone(ctx, conn)
 
+		stopPing := startWebSocketPing(ctx, conn)
 		err = e.consumeBookTickerStream(ctx, conn, cache)
+		stopPing()
 		stopClose()
 		_ = conn.Close()
 		if err != nil && ctx.Err() == nil {
@@ -308,6 +313,7 @@ func (e *FundingRateSniperEngine) runPartialDepthStream(ctx context.Context, bas
 
 	endpoint := baseURL + strings.Join(streams, "/")
 	retryDelay := 200 * time.Millisecond
+	maxRetryDelay := 5 * time.Second
 
 	for {
 		if ctx.Err() != nil {
@@ -320,11 +326,15 @@ func (e *FundingRateSniperEngine) runPartialDepthStream(ctx context.Context, bas
 			if !sleepWithContext(ctx, retryDelay) {
 				return
 			}
+			retryDelay = nextStreamBackoff(retryDelay, maxRetryDelay)
 			continue
 		}
+		retryDelay = 200 * time.Millisecond
 		stopClose := closeWebSocketOnContextDone(ctx, conn)
 
+		stopPing := startWebSocketPing(ctx, conn)
 		err = e.consumeDepthStream(ctx, conn, cache)
+		stopPing()
 		stopClose()
 		_ = conn.Close()
 		if err != nil && ctx.Err() == nil {

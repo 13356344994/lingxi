@@ -41,7 +41,9 @@ type DashboardSummaryResponse struct {
 	CapitalSnapshotError  string                    `json:"capital_snapshot_error"`
 	RuntimeLogs           []RuntimeLogRecord        `json:"runtime_logs"`
 	RuntimeConfig         RuntimeRiskConfig         `json:"runtime_config"`
+	UnifiedEvents         []UnifiedDashboardEvent   `json:"unified_events"`
 	ExecutionIncidents    []ExecutionIncidentRecord `json:"execution_incidents"`
+	DomainEvents          []DomainEvent             `json:"domain_events"`
 	Settlements           []SettlementCSVRecord     `json:"settlements"`
 	Monitors              []MonitorCSVRecord        `json:"monitors"`
 	Backtests             []BacktestCSVRecord       `json:"backtests"`
@@ -75,24 +77,26 @@ func NewDashboardServer(addr string, store *ReportStore, controller *RuntimeCont
 func (s *DashboardServer) Start(ctx context.Context) error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", s.handleIndex)
-	mux.HandleFunc("/api/dashboard/summary", s.handleDashboardSummaryAPI)
-	mux.HandleFunc("/api/settlements", s.handleSettlementAPI)
-	mux.HandleFunc("/api/monitor-records", s.handleMonitorAPI)
-	mux.HandleFunc("/api/backtest-records", s.handleBacktestAPI)
-	mux.HandleFunc("/api/residual-risk-records", s.handleResidualRiskAPI)
-	mux.HandleFunc("/api/residual-severity-stats", s.handleResidualSeverityStatsAPI)
-	mux.HandleFunc("/api/residual-scenario-stats", s.handleResidualScenarioStatsAPI)
-	mux.HandleFunc("/api/runtime/status", s.handleRuntimeStatusAPI)
-	mux.HandleFunc("/api/runtime/logs", s.handleRuntimeLogsAPI)
-	mux.HandleFunc("/api/execution-incidents", s.handleExecutionIncidentsAPI)
-	mux.HandleFunc("/api/runtime/config", s.handleRuntimeConfigAPI)
+	mux.HandleFunc("/api/dashboard/summary", s.authorizeReadAPI(s.handleDashboardSummaryAPI))
+	mux.HandleFunc("/api/settlements", s.authorizeReadAPI(s.handleSettlementAPI))
+	mux.HandleFunc("/api/monitor-records", s.authorizeReadAPI(s.handleMonitorAPI))
+	mux.HandleFunc("/api/backtest-records", s.authorizeReadAPI(s.handleBacktestAPI))
+	mux.HandleFunc("/api/residual-risk-records", s.authorizeReadAPI(s.handleResidualRiskAPI))
+	mux.HandleFunc("/api/residual-severity-stats", s.authorizeReadAPI(s.handleResidualSeverityStatsAPI))
+	mux.HandleFunc("/api/residual-scenario-stats", s.authorizeReadAPI(s.handleResidualScenarioStatsAPI))
+	mux.HandleFunc("/api/runtime/status", s.authorizeReadAPI(s.handleRuntimeStatusAPI))
+	mux.HandleFunc("/api/runtime/logs", s.authorizeReadAPI(s.handleRuntimeLogsAPI))
+	mux.HandleFunc("/api/unified-events", s.authorizeReadAPI(s.handleUnifiedEventsAPI))
+	mux.HandleFunc("/api/execution-incidents", s.authorizeReadAPI(s.handleExecutionIncidentsAPI))
+	mux.HandleFunc("/api/domain-events", s.authorizeReadAPI(s.handleDomainEventsAPI))
+	mux.HandleFunc("/api/runtime/config", s.authorizeReadAPI(s.handleRuntimeConfigAPI))
 	mux.HandleFunc("/api/runtime/clear-logs", s.handleRuntimeClearLogsAPI)
 	mux.HandleFunc("/api/runtime/clear-data", s.handleRuntimeClearDataAPI)
 	mux.HandleFunc("/api/runtime/clear-cache", s.handleRuntimeClearCacheAPI)
 	mux.HandleFunc("/api/runtime/capital", s.handleRuntimeCapitalAPI)
 	mux.HandleFunc("/api/runtime/start", s.handleRuntimeStartAPI)
 	mux.HandleFunc("/api/runtime/stop", s.handleRuntimeStopAPI)
-	mux.Handle("/records/", http.StripPrefix("/records/", http.FileServer(http.Dir(s.store.RecordDir()))))
+	mux.Handle("/records/", s.authorizeRead(http.StripPrefix("/records/", http.FileServer(http.Dir(s.store.RecordDir())))))
 
 	server := &http.Server{
 		Addr:              s.addr,
@@ -107,10 +111,9 @@ func (s *DashboardServer) Start(ctx context.Context) error {
 		_ = server.Shutdown(shutdownCtx)
 	}()
 
+	// 安全与配置止血：停止在日志中明文打印控制 token，仅做本地环境提示
 	s.logger.Printf("Web 面板已启动: %s", dashboardBaseURL(s.addr))
-	if strings.TrimSpace(s.controlToken) != "" {
-		s.logger.Printf("Dashboard 控制令牌: %s", s.controlToken)
-	}
+	s.logger.Printf("请在启动输出中确认当前 token（如果启用了非本地访问）")
 	err := server.ListenAndServe()
 	if errors.Is(err, http.ErrServerClosed) {
 		return nil
@@ -129,6 +132,7 @@ func (s *DashboardServer) handleIndex(w http.ResponseWriter, r *http.Request) {
 		BacktestCSV          string
 		ResidualCSV          string
 		ExecutionCSV         string
+		DomainEventCSV       string
 		MonthlySimulationCSV string
 		RuntimeEventLog      string
 		ControlAuditLog      string
@@ -139,6 +143,7 @@ func (s *DashboardServer) handleIndex(w http.ResponseWriter, r *http.Request) {
 		BacktestCSV:          path.Join("/records", backtestCSVName),
 		ResidualCSV:          path.Join("/records", residualCSVName),
 		ExecutionCSV:         path.Join("/records", executionCSVName),
+		DomainEventCSV:       path.Join("/records", domainEventJSONLName),
 		MonthlySimulationCSV: path.Join("/records", monthlySimulationLogCSVName),
 		RuntimeEventLog:      path.Join("/records", runtimeEventLogJSONLName),
 		ControlAuditLog:      path.Join("/records", dashboardAuditLogJSONLName),
@@ -171,6 +176,11 @@ func (s *DashboardServer) handleDashboardSummaryAPI(w http.ResponseWriter, r *ht
 		return
 	}
 	executionIncidents, err := s.store.ListExecutionIncidents(limit)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	domainEvents, err := s.store.ListDomainEvents(limit)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -219,7 +229,9 @@ func (s *DashboardServer) handleDashboardSummaryAPI(w http.ResponseWriter, r *ht
 		CapitalSnapshotError:  capitalSnapshotError,
 		RuntimeLogs:           runtimeLogs,
 		RuntimeConfig:         s.controller.CurrentRiskConfig(),
+		UnifiedEvents:         buildUnifiedDashboardEvents(domainEvents, executionIncidents, limit),
 		ExecutionIncidents:    executionIncidents,
+		DomainEvents:          domainEvents,
 		Settlements:           settlements,
 		Monitors:              monitors,
 		Backtests:             backtests,
@@ -227,6 +239,21 @@ func (s *DashboardServer) handleDashboardSummaryAPI(w http.ResponseWriter, r *ht
 		ResidualSeverityStats: residualSeverityStats,
 		ResidualScenarioStats: residualScenarioStats,
 	})
+}
+
+func (s *DashboardServer) handleUnifiedEventsAPI(w http.ResponseWriter, r *http.Request) {
+	limit := parseLimit(r, 200)
+	executionIncidents, err := s.store.ListExecutionIncidents(limit)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	domainEvents, err := s.store.ListDomainEvents(limit)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, buildUnifiedDashboardEvents(domainEvents, executionIncidents, limit))
 }
 
 func (s *DashboardServer) handleMonitorAPI(w http.ResponseWriter, r *http.Request) {
@@ -297,6 +324,15 @@ func (s *DashboardServer) handleRuntimeLogsAPI(w http.ResponseWriter, r *http.Re
 
 func (s *DashboardServer) handleExecutionIncidentsAPI(w http.ResponseWriter, r *http.Request) {
 	records, err := s.store.ListExecutionIncidents(parseLimit(r, 200))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, records)
+}
+
+func (s *DashboardServer) handleDomainEventsAPI(w http.ResponseWriter, r *http.Request) {
+	records, err := s.store.ListDomainEvents(parseLimit(r, 200))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -493,6 +529,31 @@ func (s *DashboardServer) authorizeRuntimeControl(w http.ResponseWriter, r *http
 		return false
 	}
 	return true
+}
+
+func (s *DashboardServer) authorizeRead(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !isLoopbackRequest(r) {
+			if s.controlToken != "" && r.Header.Get("X-Dashboard-Token") != s.controlToken {
+				http.Error(w, "仅允许本机或持有合法令牌访问记录数据", http.StatusForbidden)
+				return
+			}
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// authorizeReadAPI 对单个 API 接口进行包装鉴权，逻辑同 authorizeRead
+func (s *DashboardServer) authorizeReadAPI(handler http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !isLoopbackRequest(r) {
+			if s.controlToken != "" && r.Header.Get("X-Dashboard-Token") != s.controlToken {
+				http.Error(w, "仅允许本机或持有合法令牌访问 API", http.StatusForbidden)
+				return
+			}
+		}
+		handler(w, r)
+	}
 }
 
 func (s *DashboardServer) auditControlAction(r *http.Request, action string, success bool, detail string) {

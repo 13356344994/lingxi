@@ -116,7 +116,7 @@ func TestEnforceChaseLossLimitTripsPlatformFuse(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected chase loss limit to trip")
 	}
-	if !engine.platformFuseTripped {
+	if !engine.platformState.FuseTripped {
 		t.Fatal("expected platform fuse to be tripped")
 	}
 	if got := atomic.LoadInt32(&engine.executionIncidents); got != 1 {

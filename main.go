@@ -25,6 +25,12 @@ func main() {
 	if err != nil {
 		log.Fatalf("加载主配置失败: %v", err)
 	}
+
+	// 新增：每日冷启动健康检查
+	if err := PerformColdStartCheck(ctx, cfg); err != nil {
+		log.Fatalf("冷启动检查未通过，拒绝启动: %v", err)
+	}
+
 	store, err := NewReportStore(cfg.NetworkConfig.RecordDir)
 	if err != nil {
 		log.Fatalf("初始化记录存储失败: %v", err)

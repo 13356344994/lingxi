@@ -227,6 +227,16 @@ func isExposureManagerRequest(ctx context.Context) bool {
 	return value
 }
 
+// guardRecoveryFuturesReduceOnly 是 C3 策略的硬保证：恢复/平残腿通道(exposure manager / panic flatten)
+// 拥有绕过熔断与急停的特权，但物理上只允许减仓。任何处于恢复上下文的非 reduceOnly 合约下单都被拒绝，
+// 确保该特权通道永远无法被用来开新仓或加仓。
+func guardRecoveryFuturesReduceOnly(ctx context.Context, symbol string, descriptor string, reduceOnly bool) error {
+	if isExposureManagerRequest(ctx) && !reduceOnly {
+		return fmt.Errorf("恢复/平残腿通道禁止开新仓: symbol=%s %s 必须 reduceOnly", symbol, descriptor)
+	}
+	return nil
+}
+
 func exposureRescueTimeout(cfg EngineConfig) time.Duration {
 	timeout := unknownOrderReconcileTimeout(cfg) * 4
 	if timeout < 30*time.Second {
@@ -324,7 +334,7 @@ func (m *ExposureManager) handleTask(ctx context.Context, task exposureRescueTas
 			return fmt.Errorf("ExposureManager 现货对账失败: %w", err)
 		}
 		if err == nil {
-			spotExecutedQty = maxFloat(resolvedSpotOrderBaseQty(spotOrder, task.SpotBaseAsset), 0)
+			spotExecutedQty = maxFloat(spotOrder.ExecutedBaseQty(task.SpotBaseAsset), 0)
 		}
 	}
 
@@ -335,7 +345,7 @@ func (m *ExposureManager) handleTask(ctx context.Context, task exposureRescueTas
 			return fmt.Errorf("ExposureManager 合约对账失败: %w", err)
 		}
 		if err == nil {
-			futuresExecutedQty = maxFloat(parseFloat(futuresOrder.ExecutedQty), 0)
+			futuresExecutedQty = maxFloat(futuresOrder.ExecutedQtyValue(), 0)
 		}
 	}
 
@@ -497,13 +507,6 @@ func (m *ExposureManager) flattenSpotResidual(ctx context.Context, task exposure
 		return fmt.Errorf("ExposureManager 不支持的现货残腿方向: %s", side)
 	}
 	return engine.noteRecoveryAction(task.Phase, task.Symbol, action, fmt.Sprintf("qty=%.8f side=%s", normalizedQty, side))
-}
-
-func resolvedSpotOrderBaseQty(order SpotOrderResponse, baseAsset string) float64 {
-	if len(order.Fills) > 0 {
-		return resolveSpotNetBaseQuantity(order, baseAsset)
-	}
-	return maxFloat(parseFloat(order.ExecutedQty), 0)
 }
 
 func (e *FundingRateSniperEngine) scheduleExposureRescue(ctx context.Context, task exposureRescueTask) error {

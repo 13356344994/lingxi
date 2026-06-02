@@ -287,11 +287,11 @@ func (d fundingCarryDirection) futuresGrossPnL(hedgeQty float64, entryPrice floa
 	}
 }
 
+// historicalFundingPriorityScore 仅依据「点位预估费率」(EstimatedFundingRate)给候选打分。
+// 这里刻意不再回退到已实现的 FundingRate——用结算后的真实费率给候选排序/截断会引入经典的前视偏差
+// (look-ahead bias)，等于用未来已知的结果反推选币。点位预估缺失时返回 0，由上游确保使用点位数据。
 func historicalFundingPriorityScore(item FundingRateHistoryItem, mode string) float64 {
 	rate := parseFloat(item.EstimatedFundingRate)
-	if rate == 0 {
-		rate = parseFloat(item.FundingRate)
-	}
 	switch normalizeHistoricalFundingDirectionMode(mode) {
 	case historicalFundingModeNegative:
 		return math.Max(-rate, 0)
@@ -843,19 +843,14 @@ func mergeSparseMonthlyEventGroups(groups []monthlyEventGroup, minItems int, max
 		if pendingRawCount == 0 {
 			return
 		}
+		// 合并阶段同样早于点位预估，只做确定性的字典序排序、不按已实现费率截断；
+		// 真正的 top-N 择优由下游点位预估预选完成。
 		items := append([]FundingRateHistoryItem(nil), pendingItems...)
-		sort.SliceStable(items, func(i, j int) bool {
-			left := historicalFundingPriorityScore(items[i], fundingDirectionMode)
-			right := historicalFundingPriorityScore(items[j], fundingDirectionMode)
-			if left == right {
-				return items[i].Symbol < items[j].Symbol
-			}
-			return left > right
-		})
+		sortFundingItemsBySymbol(items)
 		merged = append(merged, monthlyEventGroup{
 			FundingTime: anchor,
 			RawCount:    pendingRawCount,
-			Items:       trimMonthlyFundingGroupItems(items, monthlyFundingTopSymbolsPerTime),
+			Items:       items,
 		})
 		resetPending()
 	}
@@ -874,18 +869,11 @@ func mergeSparseMonthlyEventGroups(groups []monthlyEventGroup, minItems int, max
 				if maxWindow <= 0 || group.FundingTime.Sub(pendingStart) <= maxWindow {
 					items := append([]FundingRateHistoryItem(nil), pendingItems...)
 					items = append(items, group.Items...)
-					sort.SliceStable(items, func(i, j int) bool {
-						left := historicalFundingPriorityScore(items[i], fundingDirectionMode)
-						right := historicalFundingPriorityScore(items[j], fundingDirectionMode)
-						if left == right {
-							return items[i].Symbol < items[j].Symbol
-						}
-						return left > right
-					})
+					sortFundingItemsBySymbol(items)
 					merged = append(merged, monthlyEventGroup{
 						FundingTime: group.FundingTime,
 						RawCount:    pendingRawCount + group.RawCount,
-						Items:       trimMonthlyFundingGroupItems(items, monthlyFundingTopSymbolsPerTime),
+						Items:       items,
 					})
 					resetPending()
 					continue
@@ -1270,19 +1258,16 @@ func (r *BacktestRunner) fetchMonthlyFundingGroups(ctx context.Context, client *
 	}
 	sort.Slice(times, func(i, j int) bool { return times[i] < times[j] })
 
+	// 注意：此处的 items 只有已实现的 FundingRate，没有点位预估信号。
+	// 因此绝不能按已实现费率排序/截断来选币（那是前视偏差）。这里只做确定性的字典序排序，
+	// 并仅按 coarse 宇宙上限兜底截断；真正按「点位预估」择优 top-N 的工作交给下游 buildMonthlyTimelineGroups 的预选阶段。
+	universeCap := r.monthlyPreEstimateUniverseCap()
 	groups := make([]monthlyEventGroup, 0, len(times))
 	for _, fundingTime := range times {
 		items := grouped[fundingTime]
-		sort.Slice(items, func(i, j int) bool {
-			left := historicalFundingPriorityScore(items[i], r.historicalConfig().FundingDirectionMode)
-			right := historicalFundingPriorityScore(items[j], r.historicalConfig().FundingDirectionMode)
-			if left == right {
-				return items[i].Symbol < items[j].Symbol
-			}
-			return left > right
-		})
+		sortFundingItemsBySymbol(items)
 		rawCount := len(items)
-		items = trimMonthlyFundingGroupItems(items, r.historicalConfig().FundingGroupTopSymbolsPerTime)
+		items = trimMonthlyFundingGroupItems(items, universeCap)
 		groups = append(groups, monthlyEventGroup{
 			FundingTime: time.UnixMilli(fundingTime).UTC(),
 			RawCount:    rawCount,
@@ -3168,6 +3153,30 @@ func trimMonthlyFundingGroupItems(items []FundingRateHistoryItem, limit int) []F
 	trimmed := make([]FundingRateHistoryItem, limit)
 	copy(trimmed, items[:limit])
 	return trimmed
+}
+
+// sortFundingItemsBySymbol 按 symbol 名做确定性排序。
+// 用于「点位预估之前」的分组阶段——此时没有点位预估信号，任何基于已实现费率的排序都会引入前视偏差，
+// 因此这里只做与结果无关的字典序排序，把真正的择优交给下游的点位预估预选。
+func sortFundingItemsBySymbol(items []FundingRateHistoryItem) {
+	sort.SliceStable(items, func(i, j int) bool {
+		return items[i].Symbol < items[j].Symbol
+	})
+}
+
+// monthlyPreEstimateUniverseCap 是「点位预估之前」候选宇宙的兜底上限。
+// 正常情况下 coarse 粗筛已把 symbol 数限制在 CoarseSymbolLimit 内，此处只在 coarse 降级(回退全量)时
+// 兜底防止候选爆炸。取值不低于 FundingGroupTopSymbolsPerTime，确保下游点位预估仍有足够候选可择优。
+func (r *BacktestRunner) monthlyPreEstimateUniverseCap() int {
+	hcfg := r.historicalConfig()
+	cap := hcfg.CoarseSymbolLimit
+	if cap < hcfg.FundingGroupTopSymbolsPerTime {
+		cap = hcfg.FundingGroupTopSymbolsPerTime
+	}
+	if cap <= 0 {
+		cap = monthlyFundingTopSymbolsPerTime
+	}
+	return cap
 }
 
 func summarizeMonthlyGroupSkip(group monthlyEventGroup, evaluated []monthlyCandidate, groupReason string, groupTimeout time.Duration) monthlyCandidate {

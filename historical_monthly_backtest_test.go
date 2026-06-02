@@ -202,7 +202,9 @@ func TestCoarseScreenMonthlySymbolsUsesPremiumIndexSnapshot(t *testing.T) {
 		futuresBaseURL: server.URL,
 		httpClient:     server.Client(),
 	}
-	items, err := client.fetchPremiumIndex(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	items, err := client.fetchPremiumIndex(ctx)
 	if err != nil {
 		t.Fatalf("fetchPremiumIndex() error = %v", err)
 	}
@@ -210,7 +212,7 @@ func TestCoarseScreenMonthlySymbolsUsesPremiumIndexSnapshot(t *testing.T) {
 		t.Fatalf("expected premiumIndex size=4, got %d", len(items))
 	}
 
-	got, err := runner.coarseScreenMonthlySymbols(context.Background(), client, []string{"XRPUSDT", "BTCUSDT", "ETHUSDT", "DOGEUSDT"}, now)
+	got, err := runner.coarseScreenMonthlySymbols(ctx, client, []string{"XRPUSDT", "BTCUSDT", "ETHUSDT", "DOGEUSDT"}, now)
 	if err != nil {
 		t.Fatalf("coarseScreenMonthlySymbols() error = %v", err)
 	}
@@ -238,8 +240,10 @@ func TestCoarseScreenMonthlySymbolsFallsBackWhenPremiumIndexFails(t *testing.T) 
 		httpClient:     server.Client(),
 	}
 	symbols := []string{"BTCUSDT", "ETHUSDT", "XRPUSDT"}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
 
-	got, err := runner.coarseScreenMonthlySymbols(context.Background(), client, symbols, time.Now().UTC())
+	got, err := runner.coarseScreenMonthlySymbols(ctx, client, symbols, time.Now().UTC())
 	if err != nil {
 		t.Fatalf("coarseScreenMonthlySymbols() error = %v", err)
 	}
@@ -294,6 +298,33 @@ func TestTrimMonthlyFundingGroupItemsKeepsTopNOnly(t *testing.T) {
 	underLimit := trimMonthlyFundingGroupItems(items[:12], monthlyFundingTopSymbolsPerTime)
 	if len(underLimit) != 12 {
 		t.Fatalf("expected under-limit slice to remain unchanged, got %d", len(underLimit))
+	}
+}
+
+// TestHistoricalFundingPriorityScoreIgnoresRealizedRate 钉死 H1：候选打分绝不能回退到结算后的真实费率，
+// 否则等于用未来已知结果反推选币（前视偏差）。
+func TestHistoricalFundingPriorityScoreIgnoresRealizedRate(t *testing.T) {
+	realizedOnly := FundingRateHistoryItem{Symbol: "AAA", FundingRate: "0.05"}
+	if score := historicalFundingPriorityScore(realizedOnly, "positive_only"); score != 0 {
+		t.Fatalf("只有已实现费率的候选必须打 0 分(杜绝前视)，实际=%.6f", score)
+	}
+	estimated := FundingRateHistoryItem{Symbol: "BBB", EstimatedFundingRate: "0.01", FundingRate: "0.05"}
+	if score := historicalFundingPriorityScore(estimated, "positive_only"); score <= 0 {
+		t.Fatalf("有点位预估的候选应按预估打分，实际=%.6f", score)
+	}
+}
+
+// TestSortFundingItemsBySymbolIsDeterministicNotLookAhead 钉死 H1：点位预估之前的排序按字典序、与结算结果无关，
+// 已实现费率最高的 symbol 不应因此被排到前面。
+func TestSortFundingItemsBySymbolIsDeterministicNotLookAhead(t *testing.T) {
+	items := []FundingRateHistoryItem{
+		{Symbol: "ZZZ", FundingRate: "0.09"},
+		{Symbol: "AAA", FundingRate: "0.01"},
+		{Symbol: "MMM", FundingRate: "0.05"},
+	}
+	sortFundingItemsBySymbol(items)
+	if items[0].Symbol != "AAA" || items[1].Symbol != "MMM" || items[2].Symbol != "ZZZ" {
+		t.Fatalf("期望确定性字典序，实际=%s,%s,%s", items[0].Symbol, items[1].Symbol, items[2].Symbol)
 	}
 }
 

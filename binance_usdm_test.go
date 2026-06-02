@@ -151,6 +151,16 @@ func TestBinanceClientUsedWeightStatusResetsAtMinuteBoundary(t *testing.T) {
 	}
 }
 
+func TestBinanceClientCandidateRequestURLsSkipsExternalFallbackForCustomBase(t *testing.T) {
+	client := NewBinanceClient(time.Second)
+	client.futuresBaseURL = "http://127.0.0.1:18080"
+
+	got := client.candidateRequestURLs("http://127.0.0.1:18080/fapi/v1/premiumIndex")
+	if len(got) != 1 || got[0] != "http://127.0.0.1:18080/fapi/v1/premiumIndex" {
+		t.Fatalf("expected custom base URL to avoid external fallbacks, got %v", got)
+	}
+}
+
 func TestBinanceClientReserveUsedWeightBudgetAccountsForParallelReservations(t *testing.T) {
 	client := NewBinanceClient(time.Second)
 	client.usedWeightMu.Lock()

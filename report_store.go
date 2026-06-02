@@ -22,7 +22,9 @@ const (
 	backtestRunCSVName          = "backtest_run_summaries.json"
 	residualCSVName             = "residual_risk_records.json"
 	executionCSVName            = "execution_incidents.jsonl"
+	domainEventJSONLName        = "domain_events.jsonl"
 	executionIncidentCacheLimit = 5000
+	domainEventCacheLimit       = 5000
 	reportCSVRetention          = 6 * time.Hour
 	reportCSVMaxFileSizeBytes   = 8 << 20
 )
@@ -327,6 +329,75 @@ type ExecutionIncidentRecord struct {
 	Detail        string `json:"detail"`
 }
 
+func (r ExecutionIncidentRecord) DomainEvent() (DomainEvent, bool) {
+	eventType, ok := executionIncidentEventType(r)
+	if !ok {
+		return DomainEvent{}, false
+	}
+	occurredAt := time.Now().UTC()
+	if parsed, err := time.Parse(time.RFC3339, strings.TrimSpace(r.RecordedAt)); err == nil {
+		occurredAt = parsed.UTC()
+	}
+	return DomainEvent{
+		TraceRecordMetadata: r.TraceRecordMetadata.normalized(),
+		Type:                eventType,
+		Level:               executionIncidentEventLevel(r),
+		OccurredAt:          occurredAt,
+		RunID:               strings.TrimSpace(r.RunID),
+		CycleID:             strings.TrimSpace(r.CycleID),
+		Protocol:            strings.TrimSpace("legacy." + nonEmpty(r.Category, "execution")),
+		Stage:               executionIncidentLifecycleStage(r),
+		Successful:          !r.Fatal,
+		Reason:              strings.TrimSpace(r.Detail),
+	}, true
+}
+
+func executionIncidentEventType(r ExecutionIncidentRecord) (EventType, bool) {
+	phase := strings.TrimSpace(r.Phase)
+	action := strings.TrimSpace(r.Action)
+	category := strings.TrimSpace(r.Category)
+	switch {
+	case r.Fatal && (action == "trip" || strings.Contains(phase, "fuse") || category == RiskCategoryPlatform || category == RiskCategorySafety):
+		return EventTypeFuseTripped, true
+	case category == RiskCategoryRecovery || strings.Contains(action, "recover") || strings.Contains(phase, "recovery"):
+		return EventTypeRecoveryEscalated, true
+	case category == RiskCategoryOrderUncertain || strings.Contains(phase, "uncertain"):
+		return EventTypeOrderUncertain, true
+	case action == "set" && strings.Contains(phase, "cooldown"):
+		return EventTypeSymbolCooldownSet, true
+	default:
+		return "", false
+	}
+}
+
+func executionIncidentEventLevel(r ExecutionIncidentRecord) EventLevel {
+	switch strings.TrimSpace(r.Severity) {
+	case RiskSeverityCritical:
+		return EventLevelCritical
+	case RiskSeverityWarning:
+		return EventLevelWarning
+	default:
+		return EventLevelInfo
+	}
+}
+
+func executionIncidentLifecycleStage(r ExecutionIncidentRecord) LifecycleStage {
+	switch eventType, ok := executionIncidentEventType(r); {
+	case !ok:
+		return ""
+	case eventType == EventTypeFuseTripped:
+		return LifecycleStageFused
+	case eventType == EventTypeRecoveryEscalated:
+		return LifecycleStageRecovering
+	case eventType == EventTypeOrderUncertain:
+		return LifecycleStageRecovering
+	case eventType == EventTypeSymbolCooldownSet:
+		return LifecycleStageCoolingDown
+	default:
+		return ""
+	}
+}
+
 // ReportStore 负责 JSON 落盘与读取。
 type ReportStore struct {
 	recordDir          string
@@ -336,6 +407,7 @@ type ReportStore struct {
 	backtestRunPath    string
 	residualPath       string
 	executionPath      string
+	domainEventPath    string
 	dustPath           string
 	pendingFundingPath string
 	monthlyPath        string
@@ -346,6 +418,7 @@ type ReportStore struct {
 	backtestRecords       []BacktestCSVRecord
 	residualRiskRecords   []ResidualRiskCSVRecord
 	executionIncidents    []ExecutionIncidentRecord
+	domainEvents          []DomainEvent
 	dustLedgerRecords     []DustLedgerRecord
 	pendingFundingRecords []PendingFundingSettlementRecord
 	residualSeverityStats []ResidualSeverityStats
@@ -361,8 +434,15 @@ func NewReportStore(recordDir string) (*ReportStore, error) {
 	if err := os.MkdirAll(recordDir, 0o755); err != nil {
 		return nil, fmt.Errorf("创建记录目录失败: %w", err)
 	}
+	store := newReportStoreWithPaths(recordDir)
+	if err := store.initialize(filepath.Join("backtest", "sample_backtest_records.csv"), time.Now().UTC()); err != nil {
+		return nil, err
+	}
+	return store, nil
+}
 
-	store := &ReportStore{
+func newReportStoreWithPaths(recordDir string) *ReportStore {
+	return &ReportStore{
 		recordDir:          recordDir,
 		settlementPath:     filepath.Join(recordDir, settlementCSVName),
 		monitorPath:        filepath.Join(recordDir, monitorCSVName),
@@ -370,23 +450,27 @@ func NewReportStore(recordDir string) (*ReportStore, error) {
 		backtestRunPath:    filepath.Join(recordDir, backtestRunCSVName),
 		residualPath:       filepath.Join(recordDir, residualCSVName),
 		executionPath:      filepath.Join(recordDir, executionCSVName),
+		domainEventPath:    filepath.Join(recordDir, domainEventJSONLName),
 		dustPath:           filepath.Join(recordDir, "dust_ledger.json"),
 		pendingFundingPath: filepath.Join(recordDir, "pending_funding_settlements.json"),
 		monthlyPath:        filepath.Join(recordDir, monthlySimulationLogCSVName),
 	}
-	if err := store.migrateLegacyCSVFilesLocked(); err != nil {
-		return nil, err
+}
+
+func (s *ReportStore) initialize(sampleBacktestPath string, now time.Time) error {
+	if err := s.migrateLegacyCSVFilesLocked(); err != nil {
+		return err
 	}
-	if err := store.seedBacktestRecordsIfEmpty(filepath.Join("backtest", "sample_backtest_records.csv")); err != nil {
-		return nil, err
+	if err := s.seedBacktestRecordsIfEmpty(sampleBacktestPath); err != nil {
+		return err
 	}
-	if err := store.compactRuntimeJSONsLocked(time.Now().UTC()); err != nil {
-		return nil, err
+	if err := s.compactRuntimeJSONsLocked(now); err != nil {
+		return err
 	}
-	if err := store.reloadCaches(); err != nil {
-		return nil, err
+	if err := s.reloadCaches(); err != nil {
+		return err
 	}
-	return store, nil
+	return nil
 }
 
 // RecordDir 返回记录目录，供 Web 面板暴露下载链接。
@@ -618,6 +702,53 @@ func (s *ReportStore) AppendExecutionIncident(record ExecutionIncidentRecord) er
 	return s.compactJSONLIfNeededLocked(s.executionPath)
 }
 
+func (s *ReportStore) AppendDomainEvents(events []DomainEvent) error {
+	if len(events) == 0 {
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	normalized := make([]DomainEvent, 0, len(events))
+	for _, event := range events {
+		if event.Type == "" {
+			continue
+		}
+		normalized = append(normalized, DomainEvent{
+			TraceRecordMetadata: event.TraceRecordMetadata.normalized(),
+			Type:                event.Type,
+			Level:               eventLevelOrDefault(event.Level),
+			OccurredAt:          event.OccurredAt.UTC(),
+			RunID:               strings.TrimSpace(event.RunID),
+			CycleID:             strings.TrimSpace(event.CycleID),
+			Protocol:            strings.TrimSpace(event.Protocol),
+			Stage:               NormalizeLifecycleStage(event.Stage),
+			Successful:          event.Successful,
+			Reason:              strings.TrimSpace(event.Reason),
+		})
+	}
+	if len(normalized) == 0 {
+		return nil
+	}
+	s.domainEvents = append(s.domainEvents, normalized...)
+	s.trimDomainEventsLocked()
+	if err := appendJSONLRecords(s.domainEventPath, normalized); err != nil {
+		return err
+	}
+	return s.compactJSONLIfNeededLocked(s.domainEventPath)
+}
+
+func (s *ReportStore) ListDomainEvents(limit int) ([]DomainEvent, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	records := append([]DomainEvent(nil), s.domainEvents...)
+	if limit > 0 && len(records) > limit {
+		records = records[len(records)-limit:]
+	}
+	slices.Reverse(records)
+	return records, nil
+}
+
 // ListSettlementRecords 读取最近 N 条结算记录。
 func (s *ReportStore) ListSettlementRecords(limit int) ([]SettlementCSVRecord, error) {
 	s.mu.Lock()
@@ -778,7 +909,7 @@ func (s *ReportStore) ClearDashboardData() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	clearTargets := []string{s.settlementPath, s.monitorPath, s.backtestPath, s.residualPath, s.executionPath, s.dustPath, s.pendingFundingPath, s.monthlyPath}
+	clearTargets := []string{s.settlementPath, s.monitorPath, s.backtestPath, s.residualPath, s.executionPath, s.domainEventPath, s.dustPath, s.pendingFundingPath, s.monthlyPath}
 	for _, target := range clearTargets {
 		if strings.HasSuffix(target, ".jsonl") {
 			if err := clearJSONLFile(target); err != nil {
@@ -795,6 +926,7 @@ func (s *ReportStore) ClearDashboardData() error {
 	s.backtestRecords = nil
 	s.residualRiskRecords = nil
 	s.executionIncidents = nil
+	s.domainEvents = nil
 	s.dustLedgerRecords = nil
 	s.pendingFundingRecords = nil
 	s.refreshResidualStatsLocked()
@@ -854,6 +986,19 @@ func (s *ReportStore) reloadCachesLocked() error {
 		}
 		s.executionIncidents = executionRecords
 	}
+	if strings.HasSuffix(s.domainEventPath, ".jsonl") {
+		domainEventRecords, readErr := readJSONLFile[DomainEvent](s.domainEventPath)
+		if readErr != nil {
+			return readErr
+		}
+		s.domainEvents = domainEventRecords
+	} else {
+		domainEventRecords, readErr := readJSONFile[DomainEvent](s.domainEventPath)
+		if readErr != nil {
+			return readErr
+		}
+		s.domainEvents = domainEventRecords
+	}
 
 	s.settlementRecords = settlementRecords
 	s.backtestRecords = backtestRecords
@@ -861,6 +1006,7 @@ func (s *ReportStore) reloadCachesLocked() error {
 	s.dustLedgerRecords = dustRecords
 	s.pendingFundingRecords = pendingFundingRecords
 	s.trimExecutionIncidentsLocked()
+	s.trimDomainEventsLocked()
 	s.refreshResidualStatsLocked()
 	return nil
 }
@@ -875,6 +1021,13 @@ func (s *ReportStore) trimExecutionIncidentsLocked() {
 		return
 	}
 	s.executionIncidents = append([]ExecutionIncidentRecord(nil), s.executionIncidents[len(s.executionIncidents)-executionIncidentCacheLimit:]...)
+}
+
+func (s *ReportStore) trimDomainEventsLocked() {
+	if len(s.domainEvents) <= domainEventCacheLimit {
+		return
+	}
+	s.domainEvents = append([]DomainEvent(nil), s.domainEvents[len(s.domainEvents)-domainEventCacheLimit:]...)
 }
 
 func (s *ReportStore) migrateLegacyCSVFilesLocked() error {

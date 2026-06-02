@@ -89,6 +89,8 @@ type RuntimeTaskStatus struct {
 	ProtectedIOCCancelRate       float64                   `json:"protected_ioc_cancel_rate"`
 	HealthStatus                 string                    `json:"health_status"`
 	HealthSummary                string                    `json:"health_summary"`
+	HealthScore                  float64                   `json:"health_score"`
+	EngineGear                   string                    `json:"engine_gear"`
 	CanContinue                  bool                      `json:"can_continue"`
 	ConsecutiveRejects           int                       `json:"consecutive_rejects"`
 	ConsecutiveErrors            int                       `json:"consecutive_errors"`
@@ -200,6 +202,8 @@ type LiveRuntimeSnapshot struct {
 	ProtectedIOCCancelRate       float64
 	HealthStatus                 string
 	HealthSummary                string
+	HealthScore                  float64
+	EngineGear                   string
 	CanContinue                  bool
 	ConsecutiveRejects           int
 	ConsecutiveErrors            int
@@ -1225,6 +1229,27 @@ func (c *RuntimeController) recordLiveEngineStatus(snapshot LiveRuntimeSnapshot)
 	c.status.ProtectedIOCCancelRate = snapshot.ProtectedIOCCancelRate
 	c.status.HealthStatus = strings.TrimSpace(snapshot.HealthStatus)
 	c.status.HealthSummary = strings.TrimSpace(snapshot.HealthSummary)
+	c.status.HealthScore = snapshot.HealthScore
+
+	oldGear := c.status.EngineGear
+	c.status.EngineGear = snapshot.EngineGear
+	if oldGear != "" && oldGear != snapshot.EngineGear {
+		if c.store != nil {
+			event := DomainEvent{
+				Type:       EventTypeEngineGearChanged,
+				Level:      EventLevelWarning,
+				OccurredAt: time.Now().UTC(),
+				RunID:      c.status.RunID,
+				CycleID:    c.status.CurrentCycleID,
+				Protocol:   "RiskSupervisor",
+				Stage:      LifecycleStage(c.status.CurrentStage),
+				Successful: true,
+				Reason:     fmt.Sprintf("EngineGear %s -> %s", oldGear, snapshot.EngineGear),
+			}
+			_ = c.store.AppendDomainEvents([]DomainEvent{event})
+		}
+	}
+
 	c.status.CanContinue = snapshot.CanContinue
 	c.status.ConsecutiveRejects = snapshot.ConsecutiveRejects
 	c.status.ConsecutiveErrors = snapshot.ConsecutiveErrors
@@ -1604,5 +1629,23 @@ func (c *RuntimeController) appendStageTransitionLogLocked(source string, transi
 	}
 	if err := c.logs.Append(record); err != nil && c.logger != nil {
 		c.logger.Printf("写入状态迁移日志失败: %v", err)
+	}
+
+	if c.store != nil {
+		event := DomainEvent{
+			Type:       EventTypeStageTransition,
+			Level:      EventLevelInfo,
+			OccurredAt: time.Now().UTC(),
+			RunID:      c.status.RunID,
+			CycleID:    c.status.CurrentCycleID,
+			Protocol:   "RuntimeController",
+			Stage:      LifecycleStage(transition.To),
+			Successful: transition.To != StageFailed && transition.To != StageStopped,
+			Reason:     fmt.Sprintf("%s -> %s (%s)", transition.From, transition.To, transition.Reason),
+		}
+		if transition.To == StageFailed || transition.To == StageStopped {
+			event.Level = EventLevelWarning
+		}
+		_ = c.store.AppendDomainEvents([]DomainEvent{event})
 	}
 }

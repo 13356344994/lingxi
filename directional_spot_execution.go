@@ -106,7 +106,7 @@ func (e *FundingRateSniperEngine) observeDirectionalSpotOrderUntilTerminal(ctx c
 		queried, err := e.queryDirectionalSpotOrderByClientID(ctx, symbol, clientOrderID, venue)
 		if err == nil && queried.OrderID != 0 {
 			e.noteDirectionalSpotOrderObservation(symbol, venue, queried)
-			if isClosedOrderStatus(queried.Status) {
+			if queried.IsClosed() {
 				return
 			}
 		}
@@ -226,52 +226,32 @@ func (e *FundingRateSniperEngine) queryDirectionalSpotOrderByClientID(ctx contex
 }
 
 func (e *FundingRateSniperEngine) reconcileDirectionalSpotOrderTerminalState(ctx context.Context, symbol string, clientOrderID string, venue spotExecutionVenue) (SpotOrderResponse, error) {
-	if strings.TrimSpace(clientOrderID) == "" {
-		return SpotOrderResponse{}, unknownOrderStateError{Market: "spot", Symbol: symbol, Reason: "clientOrderId 为空"}
-	}
-	reconcileCtx, cancel := context.WithTimeout(ctx, unknownOrderReconcileTimeout(e.cfg))
-	defer cancel()
-	backoff := 250 * time.Millisecond
-	var lastErr error
-	for {
-		queried, err := e.queryDirectionalSpotOrderByClientID(reconcileCtx, symbol, clientOrderID, venue)
-		if err == nil && hasConfirmedSpotOrderResult(queried) {
-			e.noteDirectionalSpotOrderObservation(symbol, venue, queried)
-			return queried, nil
-		}
-		if err == nil {
-			lastErr = fmt.Errorf("spot status=%s executedQty=%s", queried.Status, queried.ExecutedQty)
-		} else {
-			lastErr = err
-		}
-		if reconcileCtx.Err() != nil {
-			break
-		}
-		timer := time.NewTimer(backoff)
-		select {
-		case <-reconcileCtx.Done():
-			timer.Stop()
-		case <-timer.C:
-		}
-		if backoff < time.Second {
-			backoff *= 2
-			if backoff > time.Second {
-				backoff = time.Second
+	return reconcileOrderTerminalState(
+		ctx,
+		unknownOrderReconcileTimeout(e.cfg),
+		spotExecutionMarketLabel(venue),
+		symbol,
+		clientOrderID,
+		func(queryCtx context.Context) (orderTerminalReconcilePollResult[SpotOrderResponse], error) {
+			queried, err := e.queryDirectionalSpotOrderByClientID(queryCtx, symbol, clientOrderID, venue)
+			if err != nil {
+				return orderTerminalReconcilePollResult[SpotOrderResponse]{}, err
 			}
-		}
-	}
-	return SpotOrderResponse{}, unknownOrderStateError{
-		Market:        "spot",
-		Symbol:        symbol,
-		ClientOrderID: clientOrderID,
-		Reason:        nonEmpty(errorString(lastErr), "reconcile timeout"),
-	}
+			return orderTerminalReconcilePollResult[SpotOrderResponse]{
+				Value: queried,
+				View:  queried.SemanticView(),
+			}, nil
+		},
+		func(polled orderTerminalReconcilePollResult[SpotOrderResponse]) {
+			e.noteDirectionalSpotOrderObservation(symbol, venue, polled.Value)
+		},
+	)
 }
 
 func (e *FundingRateSniperEngine) placeDirectionalSpotOrderIdempotentWithParams(ctx context.Context, symbol string, side string, quantity float64, clientOrderID string, action string, venue spotExecutionVenue, params url.Values) (SpotOrderResponse, error) {
 	protectedIOC := isProtectedIOCRequestType(params.Get("type"), params.Get("timeInForce"))
 	enforceLimit := strings.EqualFold(strings.TrimSpace(side), "BUY") && !strings.Contains(strings.ToLower(action), "rescue") && !strings.Contains(strings.ToLower(action), "close")
-	if err := e.noteOrderPlaced(action, fmt.Sprintf("%s qty=%s", symbol, formatFloat(quantity)), 1, enforceLimit); err != nil {
+	if err := e.noteOrderPlaced(ctx, action, fmt.Sprintf("%s qty=%s", symbol, formatFloat(quantity)), 1, enforceLimit); err != nil {
 		return SpotOrderResponse{}, err
 	}
 	body, err := e.placeSignedOrder(ctx, e.spotOrderRequestPathForVenue(venue), params)
@@ -283,17 +263,17 @@ func (e *FundingRateSniperEngine) placeDirectionalSpotOrderIdempotentWithParams(
 			if snapshot, blindErr := e.waitForDirectionalSpotOrderWithBlindDeadline(waitCtx, symbol, clientOrderID, venue); blindErr == nil && hasConfirmedOrderExecution(snapshot) {
 				result := e.spotSnapshotToOrderResponse(symbol, snapshot)
 				if protectedIOC {
-					e.noteProtectedIOCResult(symbol, "spot", quantity, parseFloat(result.ExecutedQty), result.Status)
+					e.noteProtectedIOCObservation(symbol, "spot", result.ProtectedIOCObservation(quantity))
 				}
 				return result, nil
 			} else if blindErr != nil {
 				return SpotOrderResponse{}, blindErr
 			}
 			queried, queryErr := e.queryDirectionalSpotOrderByClientID(ctx, symbol, clientOrderID, venue)
-			if queryErr == nil && hasConfirmedSpotOrderResult(queried) {
+			if queryErr == nil && queried.HasConfirmedExecution() {
 				e.noteDirectionalSpotOrderObservation(symbol, venue, queried)
 				if protectedIOC {
-					e.noteProtectedIOCResult(symbol, "spot", quantity, parseFloat(queried.ExecutedQty), queried.Status)
+					e.noteProtectedIOCObservation(symbol, "spot", queried.ProtectedIOCObservation(quantity))
 				}
 				return queried, nil
 			}
@@ -301,7 +281,7 @@ func (e *FundingRateSniperEngine) placeDirectionalSpotOrderIdempotentWithParams(
 			if reconcileErr == nil {
 				e.noteDirectionalSpotOrderObservation(symbol, venue, queried)
 				if protectedIOC {
-					e.noteProtectedIOCResult(symbol, "spot", quantity, parseFloat(queried.ExecutedQty), queried.Status)
+					e.noteProtectedIOCObservation(symbol, "spot", queried.ProtectedIOCObservation(quantity))
 				}
 				return queried, nil
 			}
@@ -314,7 +294,7 @@ func (e *FundingRateSniperEngine) placeDirectionalSpotOrderIdempotentWithParams(
 		return SpotOrderResponse{}, fmt.Errorf("解析现货订单回执失败: %w", err)
 	}
 	e.noteDirectionalSpotOrderObservation(symbol, venue, result)
-	if venue == spotExecutionVenueCrossMargin && strings.TrimSpace(result.ClientOrderID) != "" && !isClosedOrderStatus(result.Status) {
+	if venue == spotExecutionVenueCrossMargin && strings.TrimSpace(result.ClientOrderID) != "" && !result.IsClosed() {
 		go func() {
 			observeCtx, cancel := context.WithTimeout(context.Background(), unknownOrderReconcileTimeout(e.cfg))
 			defer cancel()
@@ -322,14 +302,14 @@ func (e *FundingRateSniperEngine) placeDirectionalSpotOrderIdempotentWithParams(
 		}()
 	}
 	if protectedIOC {
-		e.noteProtectedIOCResult(symbol, "spot", quantity, parseFloat(result.ExecutedQty), result.Status)
+		e.noteProtectedIOCObservation(symbol, "spot", result.ProtectedIOCObservation(quantity))
 	}
 	return result, nil
 }
 
 func (e *FundingRateSniperEngine) placeDirectionalSpotProtectedOpenDualTrack(ctx context.Context, symbol string, side string, quantity float64, clientOrderID string, venue spotExecutionVenue, protectedParams url.Values) (SpotOrderResponse, error) {
 	action := "spot_market_" + strings.ToLower(side)
-	if err := e.noteOrderPlaced(action, fmt.Sprintf("%s qty=%s", symbol, formatFloat(quantity)), 1, strings.EqualFold(side, "BUY")); err != nil {
+	if err := e.noteOrderPlaced(ctx, action, fmt.Sprintf("%s qty=%s", symbol, formatFloat(quantity)), 1, strings.EqualFold(side, "BUY")); err != nil {
 		return SpotOrderResponse{}, err
 	}
 	body, err := e.placeSignedOrder(ctx, e.spotOrderRequestPathForVenue(venue), protectedParams)
@@ -339,15 +319,15 @@ func (e *FundingRateSniperEngine) placeDirectionalSpotProtectedOpenDualTrack(ctx
 			return SpotOrderResponse{}, fmt.Errorf("解析现货保护单回执失败: %w", unmarshalErr)
 		}
 		e.noteDirectionalSpotOrderObservation(symbol, venue, result)
-		if venue == spotExecutionVenueCrossMargin && strings.TrimSpace(result.ClientOrderID) != "" && !isClosedOrderStatus(result.Status) {
+		if venue == spotExecutionVenueCrossMargin && strings.TrimSpace(result.ClientOrderID) != "" && !result.IsClosed() {
 			go func() {
 				observeCtx, cancel := context.WithTimeout(context.Background(), unknownOrderReconcileTimeout(e.cfg))
 				defer cancel()
 				e.observeDirectionalSpotOrderUntilTerminal(observeCtx, symbol, result.ClientOrderID, venue)
 			}()
 		}
-		e.noteProtectedIOCResult(symbol, "spot", quantity, parseFloat(result.ExecutedQty), result.Status)
-		if parseFloat(result.ExecutedQty) > executionQtyTolerance || !strings.EqualFold(result.Status, "EXPIRED") {
+		e.noteProtectedIOCObservation(symbol, "spot", result.ProtectedIOCObservation(quantity))
+		if !result.RequiresProtectedOpenFallback(quantity) {
 			return result, nil
 		}
 	} else if !isPercentPriceFilterError(err) && !isUnknownOrderRequestError(err) {
@@ -371,10 +351,7 @@ func (e *FundingRateSniperEngine) placeDirectionalSpotProtectedOpenDualTrack(ctx
 		widenedParams, buildErr := e.buildDirectionalSpotLimitOrderParams(symbol, side, quantity, widenedClientOrderID, "LIMIT", protectedExecutionIOC, widenedPrice, venue)
 		if buildErr == nil {
 			widenedOrder, widenedErr := e.placeDirectionalSpotOrderIdempotentWithParams(ctx, symbol, side, quantity, widenedClientOrderID, "spot_"+strings.ToLower(side)+"_open_widened_ioc", venue, widenedParams)
-			if widenedErr == nil && parseFloat(widenedOrder.ExecutedQty) > executionQtyTolerance {
-				return widenedOrder, nil
-			}
-			if widenedErr == nil && !strings.EqualFold(widenedOrder.Status, "EXPIRED") {
+			if widenedErr == nil && !widenedOrder.RequiresProtectedOpenFallback(quantity) {
 				return widenedOrder, nil
 			}
 		}
@@ -402,7 +379,7 @@ func (e *FundingRateSniperEngine) placeDirectionalSpotMarketOrderIdempotent(ctx 
 	}
 	if enableDualTrack && isProtectedIOCRequestType(params.Get("type"), params.Get("timeInForce")) {
 		result, dualTrackErr := e.placeDirectionalSpotProtectedOpenDualTrack(ctx, symbol, side, quantity, clientOrderID, venue, params)
-		if dualTrackErr == nil || parseFloat(result.ExecutedQty) > executionQtyTolerance {
+		if dualTrackErr == nil || result.SemanticView().ExecutedQty > executionQtyTolerance {
 			return result, dualTrackErr
 		}
 		if !isUnknownOrderRequestError(dualTrackErr) && !isPercentPriceFilterError(dualTrackErr) {

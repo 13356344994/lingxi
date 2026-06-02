@@ -166,8 +166,7 @@ func isPercentPriceFilterError(err error) bool {
 	if err == nil {
 		return false
 	}
-	text := strings.ToUpper(err.Error())
-	return strings.Contains(text, "PERCENT_PRICE") || strings.Contains(text, "PERCENT_PRICE_BY_SIDE")
+	return isPercentPriceFilterMessage(err.Error())
 }
 
 func isOpenProtectedFuturesOrder(order FuturesBatchOrderRequest) bool {
@@ -178,17 +177,7 @@ func futuresProtectedOpenFallbackNeeded(order FuturesBatchOrderRequest, result F
 	if !isOpenProtectedFuturesOrder(order) {
 		return false
 	}
-	if parseFloat(result.ExecutedQty) > executionQtyTolerance {
-		return false
-	}
-	status := strings.ToUpper(strings.TrimSpace(result.Status))
-	if status == "EXPIRED" || status == "CANCELED" || status == "REJECTED" {
-		return true
-	}
-	if result.Code != 0 && isPercentPriceFilterError(fmt.Errorf("%s", result.Msg)) {
-		return true
-	}
-	return false
+	return result.RequiresProtectedOpenFallback(parseFloat(order.Quantity))
 }
 
 func (e *FundingRateSniperEngine) spotProtectedOrderParams(ctx context.Context, symbol string, side string, quantity float64, clientOrderID string) (url.Values, error) {
@@ -269,7 +258,7 @@ func (e *FundingRateSniperEngine) futuresProtectedOrderParams(ctx context.Contex
 
 func (e *FundingRateSniperEngine) placeSpotProtectedOpenDualTrack(ctx context.Context, symbol string, side string, quantity float64, clientOrderID string, protectedParams url.Values) (SpotOrderResponse, error) {
 	action := "spot_market_" + strings.ToLower(side)
-	if err := e.noteOrderPlaced(action, fmt.Sprintf("%s qty=%s", symbol, formatFloat(quantity)), 1, strings.EqualFold(side, "BUY")); err != nil {
+	if err := e.noteOrderPlaced(ctx, action, fmt.Sprintf("%s qty=%s", symbol, formatFloat(quantity)), 1, strings.EqualFold(side, "BUY")); err != nil {
 		return SpotOrderResponse{}, err
 	}
 
@@ -279,8 +268,8 @@ func (e *FundingRateSniperEngine) placeSpotProtectedOpenDualTrack(ctx context.Co
 		if unmarshalErr := json.Unmarshal(body, &result); unmarshalErr != nil {
 			return SpotOrderResponse{}, fmt.Errorf("解析现货保护单回执失败: %w", unmarshalErr)
 		}
-		e.noteProtectedIOCResult(symbol, "spot", quantity, parseFloat(result.ExecutedQty), result.Status)
-		if parseFloat(result.ExecutedQty) > executionQtyTolerance || !strings.EqualFold(result.Status, "EXPIRED") {
+		e.noteProtectedIOCObservation(symbol, "spot", result.ProtectedIOCObservation(quantity))
+		if !result.RequiresProtectedOpenFallback(quantity) {
 			return result, nil
 		}
 	} else if !isPercentPriceFilterError(err) && !isUnknownOrderRequestError(err) {
@@ -305,10 +294,7 @@ func (e *FundingRateSniperEngine) placeSpotProtectedOpenDualTrack(ctx context.Co
 		widenedParams, buildErr := e.buildSpotLimitOrderParams(symbol, side, quantity, widenedClientOrderID, "LIMIT", protectedExecutionIOC, widenedPrice)
 		if buildErr == nil {
 			widenedOrder, widenedErr := e.placeSpotOrderIdempotentWithParams(ctx, symbol, side, quantity, widenedClientOrderID, "spot_"+strings.ToLower(side)+"_open_widened_ioc", widenedParams)
-			if widenedErr == nil && parseFloat(widenedOrder.ExecutedQty) > executionQtyTolerance {
-				return widenedOrder, nil
-			}
-			if widenedErr == nil && !strings.EqualFold(widenedOrder.Status, "EXPIRED") {
+			if widenedErr == nil && !widenedOrder.RequiresProtectedOpenFallback(quantity) {
 				return widenedOrder, nil
 			}
 		}
@@ -335,7 +321,7 @@ func (e *FundingRateSniperEngine) placeSpotProtectedOpenDualTrack(ctx context.Co
 
 func (e *FundingRateSniperEngine) placeFuturesProtectedOpenDualTrack(ctx context.Context, order FuturesBatchOrderRequest, action string, submit func(context.Context, FuturesBatchOrderRequest, string) (OrderExecutionSnapshot, error)) (OrderExecutionSnapshot, error) {
 	snapshot, err := submit(ctx, order, action)
-	if err == nil && (snapshot.ExecutedQty > executionQtyTolerance || !strings.EqualFold(snapshot.Status, "EXPIRED")) {
+	if err == nil && !snapshot.RequiresProtectedOpenFallback(parseFloat(order.Quantity)) {
 		return snapshot, nil
 	}
 	if err != nil && !isPercentPriceFilterError(err) && !isUnknownOrderStateError(err) && !isUnknownOrderRequestError(err) {
@@ -362,7 +348,7 @@ func (e *FundingRateSniperEngine) placeFuturesProtectedOpenDualTrack(ctx context
 		widenedOrder.TimeInForce = protectedExecutionIOC
 		widenedOrder.NewClientOrderID = newClientOrderID("fopenw", order.Symbol)
 		widenedSnapshot, widenedErr := submit(ctx, widenedOrder, action+"_widened_ioc")
-		if widenedErr == nil && (widenedSnapshot.ExecutedQty > executionQtyTolerance || !strings.EqualFold(widenedSnapshot.Status, "EXPIRED")) {
+		if widenedErr == nil && !widenedSnapshot.RequiresProtectedOpenFallback(parseFloat(widenedOrder.Quantity)) {
 			return widenedSnapshot, nil
 		}
 		if widenedErr != nil && !isUnknownOrderStateError(widenedErr) && !isUnknownOrderRequestError(widenedErr) && !isPercentPriceFilterError(widenedErr) {

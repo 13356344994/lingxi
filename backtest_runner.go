@@ -500,18 +500,22 @@ func (r *BacktestRunner) handleTimelineMonitor(state *timelineReplayState, sampl
 	hcfg := r.historicalConfig()
 	roundTripFeeRate := 2 * (hcfg.SpotTakerFeeRate + hcfg.FuturesTakerFeeRate)
 	netProfitRate := estimateReservedNetProfitRate(sample.FundingRate, math.Abs(sample.SpreadRate), roundTripFeeRate, r.cfg.StrategyConfig.ExitSpreadReserveRate, 0)
-	decision := EvaluateMonitorNetProfit(netProfitRate, r.cfg.RiskConfig.ImmediateInvalidateRate, r.cfg.RiskConfig.MinNetProfitRate, r.cfg.RiskConfig.MonitorMaxConsecutiveBreach, state.BreachCount)
-	if decision.Invalidate && decision.State == "invalidated" {
+
+	strategy := NewDefaultFundingStrategy()
+	profile := GetSymbolRiskProfile(sample.Symbol)
+	action, detail := strategy.EvaluateMonitorTick(FundingCandidate{Symbol: sample.Symbol}, netProfitRate, profile, r.cfg, state.BreachCount)
+
+	if action == StrategyActionReject {
 		state.Invalidated = true
 		state.MonitorState = "invalidated"
-		state.Notes = append(state.Notes, fmt.Sprintf("monitor_invalidate@%s net=%.6f", sample.Timestamp, netProfitRate))
+		state.Notes = append(state.Notes, fmt.Sprintf("monitor_invalidate@%s net=%.6f detail=%s", sample.Timestamp, netProfitRate, detail))
 		return
 	}
-	if decision.State == "observing" {
-		state.BreachCount = decision.NextBreachCount
+	if action == StrategyActionObserve {
+		state.BreachCount++
 		state.MonitorState = "observing"
-		state.Notes = append(state.Notes, fmt.Sprintf("monitor_observe@%s breach=%d net=%.6f", sample.Timestamp, state.BreachCount, netProfitRate))
-		if decision.Invalidate {
+		state.Notes = append(state.Notes, fmt.Sprintf("monitor_observe@%s breach=%d net=%.6f detail=%s", sample.Timestamp, state.BreachCount, netProfitRate, detail))
+		if r.cfg.RiskConfig.MonitorMaxConsecutiveBreach > 0 && state.BreachCount >= r.cfg.RiskConfig.MonitorMaxConsecutiveBreach {
 			state.Invalidated = true
 			state.MonitorState = "invalidated"
 			state.Notes = append(state.Notes, fmt.Sprintf("monitor_max_breach@%s", sample.Timestamp))

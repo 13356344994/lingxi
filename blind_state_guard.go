@@ -20,23 +20,29 @@ func (e *FundingRateSniperEngine) triggerBlindStateEmergencyFlatten(market strin
 	if e == nil {
 		return
 	}
-	go e.panicFlattenManagedExposure(fmt.Sprintf("blind_state market=%s symbol=%s clientOrderId=%s reason=%s", market, symbol, clientOrderID, reason))
+	// 架构简化：放弃异步抢跑平仓，改为安全挂起（Halt），防止竞态反向敞口
+	fuseReason := fmt.Sprintf("盲态超时挂起: market=%s symbol=%s clientOrderId=%s reason=%s", market, symbol, clientOrderID, reason)
+	_ = e.tripPlatformFuse("blind_state_halt", "critical", fuseReason)
+	if e.logger != nil {
+		e.logger.Println(fuseReason)
+	}
 }
 
 func (e *FundingRateSniperEngine) waitForSpotOrderWithBlindDeadline(ctx context.Context, symbol string, clientOrderID string) (OrderExecutionSnapshot, error) {
 	if e == nil || e.spotOrderHub == nil {
 		return OrderExecutionSnapshot{}, nil
 	}
-	waitCtx, cancel := context.WithTimeout(ctx, blindStateHardDeadline)
-	defer cancel()
-	if snapshot, ok := e.waitForSpotOrder(waitCtx, symbol, clientOrderID); ok && hasConfirmedOrderExecution(snapshot) {
-		return snapshot, nil
-	}
-	if err := waitCtx.Err(); err != nil {
-		e.triggerBlindStateEmergencyFlatten("spot", symbol, clientOrderID, err.Error())
-		return OrderExecutionSnapshot{}, blindStateError{Market: "spot", Symbol: symbol, ClientOrderID: clientOrderID, Reason: err.Error()}
-	}
-	return OrderExecutionSnapshot{}, blindStateError{Market: "spot", Symbol: symbol, ClientOrderID: clientOrderID, Reason: "ws/rest blind deadline reached"}
+	return waitForConfirmedOrderOrBlindState(
+		ctx,
+		blindStateHardDeadline,
+		"spot",
+		symbol,
+		clientOrderID,
+		func(waitCtx context.Context) (OrderExecutionSnapshot, bool) {
+			return e.waitForSpotOrder(waitCtx, symbol, clientOrderID)
+		},
+		e.triggerBlindStateEmergencyFlatten,
+	)
 }
 
 func (e *FundingRateSniperEngine) waitForDirectionalSpotOrderWithBlindDeadline(ctx context.Context, symbol string, clientOrderID string, venue spotExecutionVenue) (OrderExecutionSnapshot, error) {
@@ -47,31 +53,33 @@ func (e *FundingRateSniperEngine) waitForDirectionalSpotOrderWithBlindDeadline(c
 	if hub == nil {
 		return OrderExecutionSnapshot{}, nil
 	}
-	waitCtx, cancel := context.WithTimeout(ctx, blindStateHardDeadline)
-	defer cancel()
-	if snapshot, ok := e.waitForDirectionalSpotOrder(waitCtx, symbol, clientOrderID, venue); ok && hasConfirmedOrderExecution(snapshot) {
-		return snapshot, nil
-	}
 	market := spotExecutionMarketLabel(venue)
-	if err := waitCtx.Err(); err != nil {
-		e.triggerBlindStateEmergencyFlatten(market, symbol, clientOrderID, err.Error())
-		return OrderExecutionSnapshot{}, blindStateError{Market: market, Symbol: symbol, ClientOrderID: clientOrderID, Reason: err.Error()}
-	}
-	return OrderExecutionSnapshot{}, blindStateError{Market: market, Symbol: symbol, ClientOrderID: clientOrderID, Reason: "ws/rest blind deadline reached"}
+	return waitForConfirmedOrderOrBlindState(
+		ctx,
+		blindStateHardDeadline,
+		market,
+		symbol,
+		clientOrderID,
+		func(waitCtx context.Context) (OrderExecutionSnapshot, bool) {
+			return e.waitForDirectionalSpotOrder(waitCtx, symbol, clientOrderID, venue)
+		},
+		e.triggerBlindStateEmergencyFlatten,
+	)
 }
 
 func (e *FundingRateSniperEngine) waitForFuturesOrderWithBlindDeadline(ctx context.Context, symbol string, clientOrderID string) (OrderExecutionSnapshot, error) {
 	if e == nil || e.futuresOrderHub == nil {
 		return OrderExecutionSnapshot{}, nil
 	}
-	waitCtx, cancel := context.WithTimeout(ctx, blindStateHardDeadline)
-	defer cancel()
-	if snapshot, ok := e.waitForFuturesOrder(waitCtx, symbol, clientOrderID); ok && hasConfirmedOrderExecution(snapshot) {
-		return snapshot, nil
-	}
-	if err := waitCtx.Err(); err != nil {
-		e.triggerBlindStateEmergencyFlatten("futures", symbol, clientOrderID, err.Error())
-		return OrderExecutionSnapshot{}, blindStateError{Market: "futures", Symbol: symbol, ClientOrderID: clientOrderID, Reason: err.Error()}
-	}
-	return OrderExecutionSnapshot{}, blindStateError{Market: "futures", Symbol: symbol, ClientOrderID: clientOrderID, Reason: "ws/rest blind deadline reached"}
+	return waitForConfirmedOrderOrBlindState(
+		ctx,
+		blindStateHardDeadline,
+		"futures",
+		symbol,
+		clientOrderID,
+		func(waitCtx context.Context) (OrderExecutionSnapshot, bool) {
+			return e.waitForFuturesOrder(waitCtx, symbol, clientOrderID)
+		},
+		e.triggerBlindStateEmergencyFlatten,
+	)
 }

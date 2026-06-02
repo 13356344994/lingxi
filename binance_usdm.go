@@ -703,6 +703,9 @@ func (e publicGETHTTPError) Error() string {
 }
 
 func (c *BinanceClient) candidateRequestURLs(rawURL string) []string {
+	if c == nil {
+		return []string{rawURL}
+	}
 	spotBases := []string{
 		c.spotBaseURL,
 		"https://api1.binance.com",
@@ -718,12 +721,27 @@ func (c *BinanceClient) candidateRequestURLs(rawURL string) []string {
 
 	switch {
 	case strings.HasPrefix(rawURL, c.spotBaseURL):
+		if !shouldUseBinanceFallbackBases(c.spotBaseURL, binanceSpotBaseURL) {
+			return []string{rawURL}
+		}
 		return replaceBaseURLs(rawURL, c.spotBaseURL, spotBases)
 	case strings.HasPrefix(rawURL, c.futuresBaseURL):
+		if !shouldUseBinanceFallbackBases(c.futuresBaseURL, binanceFuturesBaseURL) {
+			return []string{rawURL}
+		}
 		return replaceBaseURLs(rawURL, c.futuresBaseURL, futuresBases)
 	default:
 		return []string{rawURL}
 	}
+}
+
+func shouldUseBinanceFallbackBases(currentBase string, officialBase string) bool {
+	currentBase = strings.TrimSpace(strings.ToLower(currentBase))
+	officialBase = strings.TrimSpace(strings.ToLower(officialBase))
+	if currentBase == "" || officialBase == "" {
+		return false
+	}
+	return currentBase == officialBase || strings.Contains(currentBase, ".binance.com")
 }
 
 func replaceBaseURLs(rawURL string, currentBase string, bases []string) []string {

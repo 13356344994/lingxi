@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"strconv"
 	"strings"
@@ -107,6 +108,7 @@ func applyEngineConfigOverrides(cfg *EngineConfig, values map[string]string) err
 		if key == "" || value == "" {
 			continue
 		}
+		handled := true
 		switch key {
 		case "network.http_timeout", "http_timeout":
 			parsed, err := parseConfigDuration(value)
@@ -477,7 +479,15 @@ func applyEngineConfigOverrides(cfg *EngineConfig, values map[string]string) err
 			}
 			cfg.HistoricalConfig.CrossStableQuoteMaxDeviationRate = parsed
 		default:
-			continue
+			if os.Getenv("LINGXI_ALLOW_UNKNOWN_CONFIG") == "true" {
+				log.Printf("[警告] 使用了兼容模式，忽略了未知配置字段: %s", rawKey)
+				handled = true
+			} else {
+				handled = false
+			}
+		}
+		if !handled {
+			return fmt.Errorf("未知配置字段: %s (如果确认需要忽略，可设置 LINGXI_ALLOW_UNKNOWN_CONFIG=true)", rawKey)
 		}
 	}
 	return nil

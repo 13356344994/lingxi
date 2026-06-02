@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"strings"
 	"time"
 )
@@ -21,6 +22,7 @@ type RiskEvent struct {
 	RunID         string
 	CycleID       string
 	RecordedAt    string
+	EventType     string
 	Level         string
 	Category      string
 	Severity      string
@@ -36,6 +38,7 @@ type RiskEvent struct {
 func newRiskEvent(level string, category string, severity string, phase string, symbol string, action string, incidentCount int, incidentLimit int, fatal bool, detail string) RiskEvent {
 	return RiskEvent{
 		RecordedAt:    time.Now().UTC().Format(time.RFC3339),
+		EventType:     "",
 		Level:         nonEmpty(level, "action"),
 		Category:      nonEmpty(category, RiskCategoryExecution),
 		Severity:      nonEmpty(severity, RiskSeverityInfo),
@@ -68,6 +71,34 @@ func (e RiskEvent) ExecutionRecord() ExecutionIncidentRecord {
 	}
 }
 
+func (e RiskEvent) DomainEvent(currentStage LifecycleStage) (DomainEvent, bool) {
+	eventType := EventType(strings.TrimSpace(e.EventType))
+	if eventType == "" {
+		return DomainEvent{}, false
+	}
+	occurredAt := time.Now().UTC()
+	if parsed, err := time.Parse(time.RFC3339, strings.TrimSpace(e.RecordedAt)); err == nil {
+		occurredAt = parsed.UTC()
+	}
+	stage := riskEventLifecycleStage(eventType, currentStage)
+	reason := strings.TrimSpace(e.Detail)
+	if reason == "" {
+		reason = strings.TrimSpace(fmt.Sprintf("category=%s action=%s", nonEmpty(e.Category, "-"), nonEmpty(e.Action, "-")))
+	}
+	return DomainEvent{
+		TraceRecordMetadata: e.TraceRecordMetadata.normalized(),
+		Type:                eventType,
+		Level:               riskEventLevel(e.Severity),
+		OccurredAt:          occurredAt,
+		RunID:               strings.TrimSpace(e.RunID),
+		CycleID:             strings.TrimSpace(e.CycleID),
+		Protocol:            strings.TrimSpace("risk." + nonEmpty(e.Category, "event")),
+		Stage:               stage,
+		Successful:          !e.Fatal,
+		Reason:              reason,
+	}, true
+}
+
 func (e RiskEvent) WithTrace(runID string, cycleID string) RiskEvent {
 	e.RunID = strings.TrimSpace(runID)
 	e.CycleID = strings.TrimSpace(cycleID)
@@ -77,4 +108,38 @@ func (e RiskEvent) WithTrace(runID string, cycleID string) RiskEvent {
 func (e RiskEvent) WithMetadata(metadata TraceRecordMetadata) RiskEvent {
 	e.TraceRecordMetadata = metadata.normalized()
 	return e
+}
+
+func (e RiskEvent) WithEventType(eventType EventType) RiskEvent {
+	e.EventType = strings.TrimSpace(string(eventType))
+	return e
+}
+
+func riskEventLevel(severity string) EventLevel {
+	switch strings.TrimSpace(severity) {
+	case RiskSeverityCritical:
+		return EventLevelCritical
+	case RiskSeverityWarning:
+		return EventLevelWarning
+	default:
+		return EventLevelInfo
+	}
+}
+
+func riskEventLifecycleStage(eventType EventType, fallback LifecycleStage) LifecycleStage {
+	switch eventType {
+	case EventTypeFuseTripped:
+		return LifecycleStageFused
+	case EventTypeSymbolCooldownSet:
+		return LifecycleStageCoolingDown
+	case EventTypeRecoveryEscalated:
+		return LifecycleStageRecovering
+	case EventTypeOrderUncertain:
+		if NormalizeLifecycleStage(fallback) != "" {
+			return NormalizeLifecycleStage(fallback)
+		}
+		return LifecycleStageRecovering
+	default:
+		return NormalizeLifecycleStage(fallback)
+	}
 }

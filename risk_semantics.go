@@ -1,5 +1,7 @@
 package main
 
+import "strings"
+
 type MonitorHealthDecision struct {
 	State           string
 	Invalidate      bool
@@ -9,56 +11,43 @@ type MonitorHealthDecision struct {
 type MarketRiskDecision struct {
 	Category string
 	Severity string
-	Action   string
+	Action   RiskAction
 }
 
-func EvaluateMonitorNetProfit(netProfit float64, immediateInvalidateRate float64, minNetProfitRate float64, maxConsecutiveBreach int, currentBreaches int) MonitorHealthDecision {
-	if netProfit <= immediateInvalidateRate {
-		return MonitorHealthDecision{
-			State:           "invalidated",
-			Invalidate:      true,
-			NextBreachCount: currentBreaches,
-		}
+func (d MarketRiskDecision) Normalized() MarketRiskDecision {
+	d.Category = strings.TrimSpace(d.Category)
+	d.Severity = strings.TrimSpace(d.Severity)
+	if d.Action == "" {
+		d.Action = RiskActionObserve
 	}
-	if netProfit <= minNetProfitRate {
-		nextBreaches := currentBreaches + 1
-		return MonitorHealthDecision{
-			State:           "observing",
-			Invalidate:      maxConsecutiveBreach > 0 && nextBreaches >= maxConsecutiveBreach,
-			NextBreachCount: nextBreaches,
-		}
-	}
-	return MonitorHealthDecision{
-		State:           "healthy",
-		Invalidate:      false,
-		NextBreachCount: 0,
-	}
+	return d
 }
+
 
 func EvaluateExecutionCoverageRisk(category string, coverageRatio float64) MarketRiskDecision {
 	switch {
 	case coverageRatio >= 0.98:
-		return MarketRiskDecision{Category: category, Severity: "healthy", Action: "healthy"}
+		return MarketRiskDecision{Category: category, Severity: "healthy", Action: RiskActionObserve}
 	case coverageRatio >= 0.90:
-		return MarketRiskDecision{Category: category, Severity: "minor", Action: "observe"}
+		return MarketRiskDecision{Category: category, Severity: "minor", Action: RiskActionObserve}
 	case coverageRatio >= 0.70:
-		return MarketRiskDecision{Category: category, Severity: "major", Action: "symbol_cooldown"}
+		return MarketRiskDecision{Category: category, Severity: "major", Action: RiskActionTighten}
 	default:
-		return MarketRiskDecision{Category: category, Severity: "critical", Action: "global_pause"}
+		return MarketRiskDecision{Category: category, Severity: "critical", Action: RiskActionPauseCycle}
 	}
 }
 
 func EvaluateLiquidityShareRisk(share float64, limit float64, severeLimit float64) MarketRiskDecision {
 	switch {
 	case share <= 0 || limit <= 0:
-		return MarketRiskDecision{Category: "liquidity", Severity: "healthy", Action: "healthy"}
+		return MarketRiskDecision{Category: "liquidity", Severity: "healthy", Action: RiskActionObserve}
 	case severeLimit > 0 && share > severeLimit:
-		return MarketRiskDecision{Category: "liquidity", Severity: "critical", Action: "global_pause"}
+		return MarketRiskDecision{Category: "liquidity", Severity: "critical", Action: RiskActionPauseCycle}
 	case share > limit:
-		return MarketRiskDecision{Category: "liquidity", Severity: "major", Action: "symbol_cooldown"}
+		return MarketRiskDecision{Category: "liquidity", Severity: "major", Action: RiskActionTighten}
 	case share > limit*0.85:
-		return MarketRiskDecision{Category: "liquidity", Severity: "minor", Action: "observe"}
+		return MarketRiskDecision{Category: "liquidity", Severity: "minor", Action: RiskActionObserve}
 	default:
-		return MarketRiskDecision{Category: "liquidity", Severity: "healthy", Action: "healthy"}
+		return MarketRiskDecision{Category: "liquidity", Severity: "healthy", Action: RiskActionObserve}
 	}
 }

@@ -197,7 +197,7 @@ func chaseReferencePrice(marketReference float64, attempt int, options spotChase
 func (e *FundingRateSniperEngine) placeSpotOrderIdempotentWithParams(ctx context.Context, symbol string, side string, quantity float64, clientOrderID string, action string, params url.Values) (SpotOrderResponse, error) {
 	protectedIOC := isProtectedIOCRequestType(params.Get("type"), params.Get("timeInForce"))
 	enforceLimit := strings.EqualFold(strings.TrimSpace(side), "BUY") && !strings.Contains(strings.ToLower(action), "rescue") && !strings.Contains(strings.ToLower(action), "close")
-	if err := e.noteOrderPlaced(action, fmt.Sprintf("%s qty=%s", symbol, formatFloat(quantity)), 1, enforceLimit); err != nil {
+	if err := e.noteOrderPlaced(ctx, action, fmt.Sprintf("%s qty=%s", symbol, formatFloat(quantity)), 1, enforceLimit); err != nil {
 		return SpotOrderResponse{}, err
 	}
 	body, err := e.placeSignedOrder(ctx, e.spotOrderRequestPath(), params)
@@ -209,21 +209,21 @@ func (e *FundingRateSniperEngine) placeSpotOrderIdempotentWithParams(ctx context
 			if snapshot, ok := e.waitForSpotOrder(waitCtx, symbol, clientOrderID); ok && hasConfirmedOrderExecution(snapshot) {
 				result := e.spotSnapshotToOrderResponse(symbol, snapshot)
 				if protectedIOC {
-					e.noteProtectedIOCResult(symbol, "spot", quantity, parseFloat(result.ExecutedQty), result.Status)
+					e.noteProtectedIOCObservation(symbol, "spot", result.ProtectedIOCObservation(quantity))
 				}
 				return result, nil
 			}
 			queried, queryErr := e.querySpotOrderByClientID(ctx, symbol, clientOrderID)
-			if queryErr == nil && hasConfirmedSpotOrderResult(queried) {
+			if queryErr == nil && queried.HasConfirmedExecution() {
 				if protectedIOC {
-					e.noteProtectedIOCResult(symbol, "spot", quantity, parseFloat(queried.ExecutedQty), queried.Status)
+					e.noteProtectedIOCObservation(symbol, "spot", queried.ProtectedIOCObservation(quantity))
 				}
 				return queried, nil
 			}
 			queried, reconcileErr := e.reconcileSpotOrderTerminalState(ctx, symbol, clientOrderID)
 			if reconcileErr == nil {
 				if protectedIOC {
-					e.noteProtectedIOCResult(symbol, "spot", quantity, parseFloat(queried.ExecutedQty), queried.Status)
+					e.noteProtectedIOCObservation(symbol, "spot", queried.ProtectedIOCObservation(quantity))
 				}
 				return queried, nil
 			}
@@ -236,7 +236,7 @@ func (e *FundingRateSniperEngine) placeSpotOrderIdempotentWithParams(ctx context
 		return SpotOrderResponse{}, fmt.Errorf("解析现货订单回执失败: %w", err)
 	}
 	if protectedIOC {
-		e.noteProtectedIOCResult(symbol, "spot", quantity, parseFloat(result.ExecutedQty), result.Status)
+		e.noteProtectedIOCObservation(symbol, "spot", result.ProtectedIOCObservation(quantity))
 	}
 	return result, nil
 }
@@ -277,7 +277,8 @@ func (e *FundingRateSniperEngine) placeSpotChasingOrderWithOptions(ctx context.C
 			return aggregate, err
 		}
 		aggregate = mergeSpotOrderResponses(aggregate, order)
-		remaining = maxFloat(quantity-parseFloat(aggregate.ExecutedQty), 0)
+		aggregateView := aggregate.SemanticView()
+		remaining = maxFloat(quantity-aggregateView.ExecutedQty, 0)
 		if remaining <= executionQtyTolerance {
 			return aggregate, nil
 		}
@@ -285,7 +286,7 @@ func (e *FundingRateSniperEngine) placeSpotChasingOrderWithOptions(ctx context.C
 			return aggregate, ctx.Err()
 		}
 	}
-	if parseFloat(aggregate.ExecutedQty) > executionQtyTolerance {
+	if aggregate.SemanticView().ExecutedQty > executionQtyTolerance {
 		return aggregate, fmt.Errorf("现货追价后仍有残余数量未成交: symbol=%s side=%s remaining=%.8f", symbol, side, remaining)
 	}
 	return aggregate, fmt.Errorf("现货追价未成交: symbol=%s side=%s quantity=%.8f", symbol, side, quantity)
@@ -467,14 +468,16 @@ func (e *FundingRateSniperEngine) placeSpotPassiveMakerClose(ctx context.Context
 			return aggregate, err
 		}
 		finalOrder := order
-		if parseFloat(order.ExecutedQty) <= executionQtyTolerance && !isClosedOrderStatus(order.Status) {
+		view := order.SemanticView()
+		if !view.Closed && view.ExecutedQty <= executionQtyTolerance {
 			if !sleepWithContext(ctx, passiveMakerDwell) {
 				return aggregate, ctx.Err()
 			}
 			if queried, queryErr := e.querySpotOrderByClientID(ctx, symbol, clientOrderID); queryErr == nil {
 				finalOrder = queried
 			}
-			if parseFloat(finalOrder.ExecutedQty) <= executionQtyTolerance && !isClosedOrderStatus(finalOrder.Status) {
+			finalView := finalOrder.SemanticView()
+			if !finalView.Closed && finalView.ExecutedQty <= executionQtyTolerance {
 				if cancelCount >= passiveMakerCancelBudget {
 					return aggregate, nil
 				}

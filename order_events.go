@@ -26,6 +26,157 @@ type OrderExecutionSnapshot struct {
 	EventTime       time.Time
 }
 
+// ProtectedIOCObservation 是保护 IOC 订单结果的统一语义视图。
+type ProtectedIOCObservation struct {
+	RequestedQty  float64
+	ExecutedQty   float64
+	RawStatus     string
+	Status        ExecutionStatus
+	UnfilledRatio float64
+	Partial       bool
+	Canceled      bool
+	Expired       bool
+	Rejected      bool
+}
+
+func (s OrderExecutionSnapshot) SemanticView() ExecutionSemanticView {
+	return semanticViewFromSnapshot(s)
+}
+
+func (s OrderExecutionSnapshot) ExecutionStatus() ExecutionStatus {
+	return s.SemanticView().Status
+}
+
+func (s OrderExecutionSnapshot) IsTerminal() bool {
+	return s.SemanticView().Terminal
+}
+
+func (s OrderExecutionSnapshot) IsClosed() bool {
+	return s.SemanticView().Closed
+}
+
+func (s OrderExecutionSnapshot) HasConfirmedExecution() bool {
+	return s.SemanticView().Confirmed
+}
+
+func (s OrderExecutionSnapshot) HasExecutionProgress() bool {
+	return s.ExecutedQty > executionQtyTolerance
+}
+
+func (s OrderExecutionSnapshot) IsPartialFill(requestedQty float64) bool {
+	if requestedQty <= executionQtyTolerance {
+		return false
+	}
+	return s.ExecutedQty > executionQtyTolerance && s.ExecutedQty+executionQtyTolerance < requestedQty
+}
+
+func (s OrderExecutionSnapshot) ProtectedIOCObservation(requestedQty float64) ProtectedIOCObservation {
+	return protectedIOCObservationFromView(requestedQty, s.SemanticView())
+}
+
+func (s OrderExecutionSnapshot) RequiresProtectedOpenFallback(requestedQty float64) bool {
+	return s.ProtectedIOCObservation(requestedQty).RequiresFallback()
+}
+
+func (o SpotOrderResponse) SemanticView() ExecutionSemanticView {
+	return semanticViewFromSpotOrder(o)
+}
+
+func (o SpotOrderResponse) HasConfirmedExecution() bool {
+	return o.SemanticView().Confirmed
+}
+
+func (o SpotOrderResponse) IsClosed() bool {
+	return o.SemanticView().Closed
+}
+
+func (o SpotOrderResponse) IsTerminal() bool {
+	return o.SemanticView().Terminal
+}
+
+func (o SpotOrderResponse) ExecutedBaseQty(baseAsset string) float64 {
+	if len(o.Fills) > 0 {
+		return resolveSpotNetBaseQuantity(o, baseAsset)
+	}
+	return maxFloat(o.SemanticView().ExecutedQty, 0)
+}
+
+func (o SpotOrderResponse) ProtectedIOCObservation(requestedQty float64) ProtectedIOCObservation {
+	return protectedIOCObservationFromView(requestedQty, o.SemanticView())
+}
+
+func (o SpotOrderResponse) RequiresProtectedOpenFallback(requestedQty float64) bool {
+	return o.ProtectedIOCObservation(requestedQty).RequiresFallback()
+}
+
+func (r FuturesBatchOrderResult) SemanticView() ExecutionSemanticView {
+	return semanticViewFromFuturesResult(r)
+}
+
+func (r FuturesBatchOrderResult) HasConfirmedExecution() bool {
+	return r.SemanticView().Confirmed
+}
+
+func (r FuturesBatchOrderResult) IsClosed() bool {
+	return r.SemanticView().Closed
+}
+
+func (r FuturesBatchOrderResult) IsTerminal() bool {
+	return r.SemanticView().Terminal
+}
+
+func (r FuturesBatchOrderResult) ExecutedQtyValue() float64 {
+	return maxFloat(r.SemanticView().ExecutedQty, 0)
+}
+
+func (r FuturesBatchOrderResult) ProtectedIOCObservation(requestedQty float64) ProtectedIOCObservation {
+	return protectedIOCObservationFromView(requestedQty, r.SemanticView())
+}
+
+func (r FuturesBatchOrderResult) RejectedByPercentPriceFilter() bool {
+	return r.Code != 0 && isPercentPriceFilterMessage(r.Msg)
+}
+
+func (r FuturesBatchOrderResult) RequiresProtectedOpenFallback(requestedQty float64) bool {
+	return r.ProtectedIOCObservation(requestedQty).RequiresFallback() || r.RejectedByPercentPriceFilter()
+}
+
+func protectedIOCObservationFromView(requestedQty float64, view ExecutionSemanticView) ProtectedIOCObservation {
+	return newProtectedIOCObservation(requestedQty, view.ExecutedQty, view.RawStatus)
+}
+
+func newProtectedIOCObservation(requestedQty float64, executedQty float64, rawStatus string) ProtectedIOCObservation {
+	status := normalizeExecutionStatus(rawStatus)
+	return ProtectedIOCObservation{
+		RequestedQty:  requestedQty,
+		ExecutedQty:   maxFloat(executedQty, 0),
+		RawStatus:     strings.TrimSpace(rawStatus),
+		Status:        status,
+		UnfilledRatio: protectedIOCUnfilledRatio(requestedQty, executedQty),
+		Partial:       requestedQty > executionQtyTolerance && executedQty > executionQtyTolerance && executedQty+executionQtyTolerance < requestedQty,
+		Canceled:      status == ExecutionStatusCanceled,
+		Expired:       status == ExecutionStatusExpired,
+		Rejected:      status == ExecutionStatusRejected,
+	}
+}
+
+func (o ProtectedIOCObservation) NeedsAttention() bool {
+	return o.Canceled || o.Expired || o.Partial
+}
+
+func (o ProtectedIOCObservation) ExhaustedWithoutFill() bool {
+	return o.ExecutedQty <= executionQtyTolerance && (o.Canceled || o.Expired || o.Rejected)
+}
+
+func (o ProtectedIOCObservation) RequiresFallback() bool {
+	return o.ExhaustedWithoutFill()
+}
+
+func isPercentPriceFilterMessage(message string) bool {
+	text := strings.ToUpper(strings.TrimSpace(message))
+	return strings.Contains(text, "PERCENT_PRICE") || strings.Contains(text, "PERCENT_PRICE_BY_SIDE")
+}
+
 // OrderEventHub 用于缓存最新订单回报，并支持基于 clientOrderId 等待。
 type OrderEventHub struct {
 	mu            sync.Mutex
@@ -39,14 +190,14 @@ func normalizedOrderStatus(status string) string {
 }
 
 func orderStatusRank(status string) int {
-	switch normalizedOrderStatus(status) {
-	case "FILLED":
+	switch normalizeExecutionStatus(status) {
+	case ExecutionStatusFilled:
 		return 5
-	case "CANCELED", "EXPIRED", "REJECTED":
+	case ExecutionStatusCanceled, ExecutionStatusExpired, ExecutionStatusRejected:
 		return 4
-	case "PARTIALLY_FILLED":
+	case ExecutionStatusPartiallyFilled:
 		return 3
-	case "NEW":
+	case ExecutionStatusNew:
 		return 2
 	default:
 		return 1
@@ -57,8 +208,8 @@ func shouldReplaceOrderSnapshot(current OrderExecutionSnapshot, incoming OrderEx
 	if strings.TrimSpace(current.ClientOrderID) == "" {
 		return true
 	}
-	currentTerminal := isTerminalOrderStatus(current.Status)
-	incomingTerminal := isTerminalOrderStatus(incoming.Status)
+	currentTerminal := current.IsTerminal()
+	incomingTerminal := incoming.IsTerminal()
 	if !incoming.EventTime.IsZero() && !current.EventTime.IsZero() {
 		if incoming.EventTime.After(current.EventTime) {
 			if currentTerminal && !incomingTerminal {
@@ -129,7 +280,7 @@ func mergeOrderExecutionSnapshots(current OrderExecutionSnapshot, incoming Order
 	if mathAbs(merged.RealizedPnL) < mathAbs(incoming.RealizedPnL) {
 		merged.RealizedPnL = incoming.RealizedPnL
 	}
-	if merged.EventTime.IsZero() || (!incoming.EventTime.IsZero() && incoming.EventTime.After(merged.EventTime) && !isTerminalOrderStatus(merged.Status)) {
+	if merged.EventTime.IsZero() || (!incoming.EventTime.IsZero() && incoming.EventTime.After(merged.EventTime) && !merged.IsTerminal()) {
 		merged.EventTime = incoming.EventTime
 	}
 	if merged.AvgPrice <= 0 && merged.ExecutedQty > 0 && merged.CumQuoteQty > 0 {

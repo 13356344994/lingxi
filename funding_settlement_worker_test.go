@@ -69,7 +69,9 @@ func TestFundingSettlementWorkerRecoversPendingTaskAfterRestart(t *testing.T) {
 		fundingSettlementDelay:  10 * time.Millisecond,
 		fundingSettlementWakeCh: make(chan struct{}, 1),
 	}
-	engine.startFundingSettlementWorker(context.Background())
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	engine.startFundingSettlementWorker(ctx)
 	engine.wakeFundingSettlementWorker()
 
 	deadline := time.Now().Add(500 * time.Millisecond)
@@ -83,8 +85,8 @@ func TestFundingSettlementWorkerRecoversPendingTaskAfterRestart(t *testing.T) {
 			t.Fatalf("ListSettlementRecords() error = %v", listErr)
 		}
 		if len(pending) == 0 && len(records) == 1 && records[0].FundingIncome == "1.25" && !records[0].FundingIncomePending {
-			if engine.dailyRealizedPnL != 1.25 {
-				t.Fatalf("expected daily pnl to be adjusted by recovered funding delta, got %.8f", engine.dailyRealizedPnL)
+			if engine.riskBudgetState.DailyRealizedPnL != 1.25 {
+				t.Fatalf("expected daily pnl to be adjusted by recovered funding delta, got %.8f", engine.riskBudgetState.DailyRealizedPnL)
 			}
 			return
 		}

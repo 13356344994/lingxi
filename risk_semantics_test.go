@@ -6,28 +6,6 @@ import (
 	"time"
 )
 
-func TestEvaluateMonitorNetProfit(t *testing.T) {
-	t.Run("immediate invalidate", func(t *testing.T) {
-		got := EvaluateMonitorNetProfit(0.0004, 0.0005, 0.0020, 3, 1)
-		if got.State != "invalidated" || !got.Invalidate {
-			t.Fatalf("expected invalidated decision, got %+v", got)
-		}
-	})
-
-	t.Run("observe and count breaches", func(t *testing.T) {
-		got := EvaluateMonitorNetProfit(0.0015, 0.0005, 0.0020, 3, 1)
-		if got.State != "observing" || got.Invalidate || got.NextBreachCount != 2 {
-			t.Fatalf("expected observing with breach count 2, got %+v", got)
-		}
-	})
-
-	t.Run("healthy resets breach count", func(t *testing.T) {
-		got := EvaluateMonitorNetProfit(0.0030, 0.0005, 0.0020, 3, 2)
-		if got.State != "healthy" || got.Invalidate || got.NextBreachCount != 0 {
-			t.Fatalf("expected healthy reset, got %+v", got)
-		}
-	})
-}
 
 func TestEvaluateExecutionCoverageRisk(t *testing.T) {
 	cases := []struct {
@@ -36,15 +14,15 @@ func TestEvaluateExecutionCoverageRisk(t *testing.T) {
 		action   string
 		severity string
 	}{
-		{name: "healthy", coverage: 0.99, action: "healthy", severity: "healthy"},
+		{name: "healthy", coverage: 0.99, action: "observe", severity: "healthy"},
 		{name: "observe", coverage: 0.95, action: "observe", severity: "minor"},
-		{name: "symbol cooldown", coverage: 0.75, action: "symbol_cooldown", severity: "major"},
-		{name: "global pause", coverage: 0.50, action: "global_pause", severity: "critical"},
+		{name: "symbol_cooldown", coverage: 0.75, action: "tighten", severity: "major"},
+		{name: "global_pause", coverage: 0.50, action: "pause_cycle", severity: "critical"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			got := EvaluateExecutionCoverageRisk("depth", tc.coverage)
-			if got.Action != tc.action || got.Severity != tc.severity {
+			if string(got.Action) != string(tc.action) || got.Severity != tc.severity {
 				t.Fatalf("unexpected decision: %+v", got)
 			}
 		})
@@ -82,5 +60,30 @@ func TestRiskEventExecutionRecord(t *testing.T) {
 	}
 	if record.Phase != string(StageCooldown) || !record.Fatal {
 		t.Fatalf("unexpected record payload: %+v", record)
+	}
+}
+
+func TestRiskEventDomainEvent(t *testing.T) {
+	event := newRiskEvent("action", RiskCategoryPlatform, RiskSeverityCritical, "platform_fuse", "BTCUSDT", "trip", 2, 3, true, "platform rejected").
+		WithTrace("run-1", "cycle-1").
+		WithMetadata(TraceRecordMetadata{StrategyVersion: "funding-sniper-v1"}).
+		WithEventType(EventTypeFuseTripped)
+	event.RecordedAt = "2026-06-01T12:00:00Z"
+
+	domainEvent, ok := event.DomainEvent(LifecycleStageMonitoring)
+	if !ok {
+		t.Fatal("expected risk event to convert to domain event")
+	}
+	if domainEvent.Type != EventTypeFuseTripped || domainEvent.Protocol != "risk.platform" {
+		t.Fatalf("unexpected domain event identity: %+v", domainEvent)
+	}
+	if domainEvent.Stage != LifecycleStageFused {
+		t.Fatalf("unexpected mapped lifecycle stage: %+v", domainEvent)
+	}
+	if domainEvent.Successful {
+		t.Fatalf("expected fatal risk event to map to unsuccessful domain event: %+v", domainEvent)
+	}
+	if domainEvent.RunID != "run-1" || domainEvent.CycleID != "cycle-1" {
+		t.Fatalf("unexpected trace ids: %+v", domainEvent)
 	}
 }

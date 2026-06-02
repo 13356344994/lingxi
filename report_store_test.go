@@ -99,6 +99,108 @@ func TestReportStoreAppendExecutionIncidentPersistsRiskMetadata(t *testing.T) {
 	}
 }
 
+func TestReportStoreAppendDomainEventsPersistsProtocolEvents(t *testing.T) {
+	store, err := NewReportStore(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewReportStore() error = %v", err)
+	}
+
+	occurredAt := time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
+	want := DomainEvent{
+		TraceRecordMetadata: TraceRecordMetadata{
+			StrategyVersion: "funding-sniper-v1",
+			ConfigHash:      "cfg-hash-2",
+			AppVersion:      "dev",
+			GitCommit:       "unknown",
+		},
+		Type:       EventTypeOpenExecuted,
+		Level:      EventLevelInfo,
+		OccurredAt: occurredAt,
+		RunID:      "live-20260601T120000Z-abcd1234",
+		CycleID:    "live-20260601T120000Z-abcd1234-cycle-ef567890",
+		Protocol:   "open.execute",
+		Stage:      LifecycleStageOpening,
+		Successful: true,
+		Reason:     "open sequence executed",
+	}
+	if err := store.AppendDomainEvents([]DomainEvent{want}); err != nil {
+		t.Fatalf("AppendDomainEvents() error = %v", err)
+	}
+	if err := store.reloadCaches(); err != nil {
+		t.Fatalf("reloadCaches() error = %v", err)
+	}
+
+	got, err := store.ListDomainEvents(10)
+	if err != nil {
+		t.Fatalf("ListDomainEvents() error = %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("expected 1 domain event, got %d", len(got))
+	}
+	if got[0].Type != want.Type || got[0].Protocol != want.Protocol || got[0].Stage != want.Stage {
+		t.Fatalf("domain event drifted in cache: got=%+v want=%+v", got[0], want)
+	}
+	if got[0].RunID != want.RunID || got[0].CycleID != want.CycleID {
+		t.Fatalf("domain event trace ids not persisted: got=%+v want=%+v", got[0], want)
+	}
+	if !got[0].OccurredAt.Equal(occurredAt) {
+		t.Fatalf("domain event occurred_at mismatch: got=%s want=%s", got[0].OccurredAt.Format(time.RFC3339), occurredAt.Format(time.RFC3339))
+	}
+
+	file, err := os.Open(filepath.Join(store.RecordDir(), domainEventJSONLName))
+	if err != nil {
+		t.Fatalf("open domain event jsonl: %v", err)
+	}
+	defer file.Close()
+	scanner := bufio.NewScanner(file)
+	rows := make([]DomainEvent, 0, 2)
+	for scanner.Scan() {
+		var row DomainEvent
+		if err := json.Unmarshal(scanner.Bytes(), &row); err != nil {
+			t.Fatalf("read domain event jsonl: %v", err)
+		}
+		rows = append(rows, row)
+	}
+	if err := scanner.Err(); err != nil {
+		t.Fatalf("scan domain event jsonl: %v", err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("expected 1 domain event row, got %d", len(rows))
+	}
+	if rows[0].Type != want.Type || rows[0].Reason != want.Reason || rows[0].Stage != want.Stage {
+		t.Fatalf("json did not persist domain event fields: row=%+v", rows[0])
+	}
+}
+
+func TestReportStoreInitializeSeedsBacktestRecords(t *testing.T) {
+	root := t.TempDir()
+	backtestDir := filepath.Join(root, "backtest")
+	if err := os.MkdirAll(backtestDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	samplePath := filepath.Join(backtestDir, "sample.csv")
+	sampleCSV := "recorded_at,scenario,symbol,period,trades,win_rate,funding_income,trading_pnl,total_fees,net_pnl,max_drawdown,notes\n2026-05-31T00:00:00Z,baseline,BTCUSDT,2026-05,12,0.75,120.5,-10.2,8.1,102.2,15.4,seeded sample\n"
+	if err := os.WriteFile(samplePath, []byte(sampleCSV), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	store := newReportStoreWithPaths(root)
+	if err := store.initialize(samplePath, time.Now().UTC()); err != nil {
+		t.Fatalf("initialize() error = %v", err)
+	}
+
+	records, err := store.ListBacktestRecords(10)
+	if err != nil {
+		t.Fatalf("ListBacktestRecords() error = %v", err)
+	}
+	if len(records) != 1 {
+		t.Fatalf("expected seeded backtest record, got %d", len(records))
+	}
+	if records[0].Symbol != "BTCUSDT" {
+		t.Fatalf("unexpected seeded symbol: %+v", records[0])
+	}
+}
+
 func TestReportStoreAppendMonitorSnapshotPersistsDepthRiskFields(t *testing.T) {
 	store, err := NewReportStore(t.TempDir())
 	if err != nil {
@@ -200,6 +302,36 @@ func TestReportStoreResidualStatsRefreshAfterReplaceAndClear(t *testing.T) {
 	}
 	if len(cleared) != 0 {
 		t.Fatalf("expected no residual records after clear, got %d", len(cleared))
+	}
+}
+
+func TestReportStoreClearDashboardDataClearsDomainEvents(t *testing.T) {
+	store, err := NewReportStore(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewReportStore() error = %v", err)
+	}
+	if err := store.AppendDomainEvents([]DomainEvent{{
+		Type:       EventTypeOpenExecuted,
+		Level:      EventLevelInfo,
+		OccurredAt: time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC),
+		RunID:      "run-1",
+		CycleID:    "cycle-1",
+		Protocol:   "open.execute",
+		Stage:      LifecycleStageOpening,
+		Successful: true,
+		Reason:     "open sequence executed",
+	}}); err != nil {
+		t.Fatalf("AppendDomainEvents() error = %v", err)
+	}
+	if err := store.ClearDashboardData(); err != nil {
+		t.Fatalf("ClearDashboardData() error = %v", err)
+	}
+	got, err := store.ListDomainEvents(10)
+	if err != nil {
+		t.Fatalf("ListDomainEvents() error = %v", err)
+	}
+	if len(got) != 0 {
+		t.Fatalf("expected no domain events after clear, got %d", len(got))
 	}
 }
 
@@ -352,5 +484,38 @@ func TestCompactJSONLByRecordedAtKeepsRecentRowsWhenOversized(t *testing.T) {
 	}
 	if rows[0].Detail != "recent" {
 		t.Fatalf("expected only recent row to remain, got %+v", rows[0])
+	}
+}
+
+func TestExecutionIncidentRecordDomainEvent(t *testing.T) {
+	record := ExecutionIncidentRecord{
+		TraceRecordMetadata: TraceRecordMetadata{
+			StrategyVersion: "funding-sniper-v1",
+		},
+		RunID:         "run-1",
+		CycleID:       "cycle-1",
+		RecordedAt:    "2026-06-01T12:00:00Z",
+		Category:      RiskCategoryRecovery,
+		Severity:      RiskSeverityWarning,
+		Phase:         "recovery_close",
+		Action:        "recover",
+		IncidentCount: 2,
+		IncidentLimit: 3,
+		Fatal:         false,
+		Detail:        "close leg recovered",
+	}
+
+	event, ok := record.DomainEvent()
+	if !ok {
+		t.Fatal("expected execution incident to map to domain event")
+	}
+	if event.Type != EventTypeRecoveryEscalated || event.Protocol != "legacy.recovery" {
+		t.Fatalf("unexpected compatible domain event: %+v", event)
+	}
+	if event.Stage != LifecycleStageRecovering {
+		t.Fatalf("unexpected lifecycle stage: %+v", event)
+	}
+	if event.RunID != "run-1" || event.CycleID != "cycle-1" {
+		t.Fatalf("unexpected trace ids: %+v", event)
 	}
 }

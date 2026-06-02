@@ -42,63 +42,78 @@ func (r *RuntimeReporter) emitLockedWithTargets(stage EngineStage, currentTarget
 	engine := r.engine
 	stage = r.transitionStageLocked(stage, reason)
 	healthStatus, healthSummary, canContinue := engine.healthStatusLocked()
-	activeCooldowns := engine.listActiveSymbolCooldownsLocked()
+
+	// 注入 Health Trend Score 与 Engine Gear
+	healthScore := 1.0
+	currentGear := string(GearObserve)
+	if engine.riskSupervisor != nil {
+		healthScore = engine.riskSupervisor.currentHealthScoreLocked()
+		currentGear = string(engine.riskSupervisor.currentGearLocked())
+	}
+
+	// ---------------------------------------------------------
+	// 状态主权解耦（阶段五）：直接使用只读快照替代零散状态组装
+	// ---------------------------------------------------------
+	snapshotView := engine.generateSnapshotLocked()
+
 	remainingNotionalBudget := -1.0
 	if engine.cfg.RiskConfig.MaxCycleOpenNotionalUSDT > 0 {
-		remainingNotionalBudget = maxFloat(engine.cfg.RiskConfig.MaxCycleOpenNotionalUSDT-engine.cycleOpenNotionalUsed, 0)
+		remainingNotionalBudget = maxFloat(engine.cfg.RiskConfig.MaxCycleOpenNotionalUSDT-snapshotView.Risk.CycleOpenNotionalUsed, 0)
 	}
-	protectedIOCAttempts, protectedIOCCanceled, protectedIOCExpired, protectedIOCPartial, protectedIOCAvgUnfilledRatio, protectedIOCCancelRate := engine.protectedIOCStatsLocked()
+
 	snapshot := LiveRuntimeSnapshot{
-		RunID:                        engine.runID,
-		CycleID:                      engine.currentCycleID,
-		Stage:                        stage,
-		StageReason:                  engine.currentStageReason,
-		StageTransitionedAt:          engine.currentStageTransitionedAt,
+		RunID:                        snapshotView.RunID,
+		CycleID:                      snapshotView.CurrentCycleID,
+		Stage:                        snapshotView.CurrentStage,
+		StageReason:                  snapshotView.CurrentStageReason,
+		StageTransitionedAt:          snapshotView.StageTransitionedAt,
 		CurrentTargets:               currentTargets,
-		CurrentPositions:             append([]string(nil), engine.currentPositions...),
-		CurrentMonitorTargets:        append([]string(nil), engine.currentMonitorTargets...),
-		PlatformRejectCount:          engine.platformRejectsThisCycle,
-		PlatformRequestErrors:        engine.requestErrorsThisCycle,
-		RecoveryActionCount:          engine.recoveryActionsThisCycle,
-		OrderUncertaintyCount:        engine.orderUncertaintyCount,
-		FuseTripped:                  engine.platformFuseTripped,
-		FuseReason:                   engine.platformFuseReason,
-		LastOrderAction:              engine.lastOrderAction,
-		LastRecoveryAction:           engine.lastRecoveryAction,
-		LastManagedDrawdownAction:    engine.lastManagedDrawdownAction,
-		ManagedDrawdownSummary:       engine.managedDrawdownSummary,
-		LastUncertainOrder:           engine.lastUncertainOrder,
+		CurrentPositions:             snapshotView.CurrentPositions,
+		CurrentMonitorTargets:        snapshotView.CurrentMonitorTargets,
+		PlatformRejectCount:          snapshotView.Risk.PlatformRejectsThisCycle,
+		PlatformRequestErrors:        snapshotView.Risk.RequestErrorsThisCycle,
+		RecoveryActionCount:          snapshotView.Risk.RecoveryActionsThisCycle,
+		OrderUncertaintyCount:        snapshotView.Risk.OrderUncertaintyCount,
+		FuseTripped:                  snapshotView.Platform.FuseTripped,
+		FuseReason:                   snapshotView.Platform.FuseReason,
+		LastOrderAction:              snapshotView.LastOrderAction,
+		LastRecoveryAction:           snapshotView.LastRecoveryAction,
+		LastManagedDrawdownAction:    snapshotView.LastManagedDrawdownAction,
+		ManagedDrawdownSummary:       snapshotView.ManagedDrawdownSummary,
+		LastUncertainOrder:           snapshotView.LastUncertainOrder,
 		RemainingIncidentBudget:      remainingRiskBudget(engine.cfg.RiskConfig.MaxExecutionIncidents, int(atomic.LoadInt32(&engine.executionIncidents))),
-		RemainingRecoveryBudget:      remainingRiskBudget(engine.cfg.RiskConfig.MaxRecoveryActionsPerCycle, engine.recoveryActionsThisCycle),
-		RemainingUncertaintyBudget:   remainingRiskBudget(engine.cfg.RiskConfig.MaxOrderUncertaintyPerCycle, engine.orderUncertaintyCount),
-		RemainingRejectBudget:        remainingRiskBudget(engine.cfg.RiskConfig.MaxConsecutivePlatformRejects, engine.platformRejectsThisCycle),
-		RemainingErrorBudget:         remainingRiskBudget(engine.cfg.RiskConfig.MaxConsecutiveRequestErrors, engine.requestErrorsThisCycle),
-		ProtectedIOCAttempts:         protectedIOCAttempts,
-		ProtectedIOCCanceled:         protectedIOCCanceled,
-		ProtectedIOCExpired:          protectedIOCExpired,
-		ProtectedIOCPartial:          protectedIOCPartial,
-		ProtectedIOCAvgUnfilledRatio: protectedIOCAvgUnfilledRatio,
-		ProtectedIOCCancelRate:       protectedIOCCancelRate,
+		RemainingRecoveryBudget:      remainingRiskBudget(engine.cfg.RiskConfig.MaxRecoveryActionsPerCycle, snapshotView.Risk.RecoveryActionsThisCycle),
+		RemainingUncertaintyBudget:   remainingRiskBudget(engine.cfg.RiskConfig.MaxOrderUncertaintyPerCycle, snapshotView.Risk.OrderUncertaintyCount),
+		RemainingRejectBudget:        remainingRiskBudget(engine.cfg.RiskConfig.MaxConsecutivePlatformRejects, snapshotView.Risk.PlatformRejectsThisCycle),
+		RemainingErrorBudget:         remainingRiskBudget(engine.cfg.RiskConfig.MaxConsecutiveRequestErrors, snapshotView.Risk.RequestErrorsThisCycle),
+		ProtectedIOCAttempts:         snapshotView.ProtectedIOCAttempts,
+		ProtectedIOCCanceled:         snapshotView.ProtectedIOCCanceled,
+		ProtectedIOCExpired:          snapshotView.ProtectedIOCExpired,
+		ProtectedIOCPartial:          snapshotView.ProtectedIOCPartial,
+		ProtectedIOCAvgUnfilledRatio: snapshotView.ProtectedIOCAvgUnfilledRatio,
+		ProtectedIOCCancelRate:       snapshotView.ProtectedIOCCancelRate,
 		HealthStatus:                 healthStatus,
 		HealthSummary:                healthSummary,
+		HealthScore:                  healthScore,
+		EngineGear:                   currentGear,
 		CanContinue:                  canContinue,
 		ConsecutiveRejects:           engine.consecutivePlatformRejects,
 		ConsecutiveErrors:            engine.consecutiveRequestErrors,
-		CycleOpenNotionalUSDT:        engine.cycleOpenNotionalUsed,
+		CycleOpenNotionalUSDT:        snapshotView.Risk.CycleOpenNotionalUsed,
 		RemainingNotionalBudget:      remainingNotionalBudget,
-		LastExceptionCategory:        engine.lastExceptionCategory,
-		LastExceptionSeverity:        engine.lastExceptionSeverity,
-		LastExceptionDetail:          engine.lastExceptionDetail,
-		CurrentCooldownCategory:      engine.currentCooldownCategory,
-		CurrentCooldownSeverity:      engine.currentCooldownSeverity,
-		CooledSymbols:                activeCooldowns,
+		LastExceptionCategory:        snapshotView.Platform.LastExceptionCategory,
+		LastExceptionSeverity:        snapshotView.Platform.LastExceptionSeverity,
+		LastExceptionDetail:          snapshotView.Platform.LastExceptionDetail,
+		CurrentCooldownCategory:      snapshotView.Platform.CurrentCooldownCategory,
+		CurrentCooldownSeverity:      snapshotView.Platform.CurrentCooldownSeverity,
+		CooledSymbols:                snapshotView.CooledSymbols,
 		EmergencyStopTriggered:       engine.emergencyStopTriggered,
 		EmergencyStopReason:          engine.emergencyStopReason,
-		DailyRiskLimitTriggered:      engine.dailyLimitTriggered,
-		DailyRiskLimitReason:         engine.dailyLimitReason,
-		DailyRealizedPnL:             engine.dailyRealizedPnL,
-		DailyOrderCount:              engine.dailyOrderCount,
-		DailyOpenNotionalUSDT:        engine.dailyOpenNotionalUsed,
+		DailyRiskLimitTriggered:      snapshotView.Risk.DailyLimitTriggered,
+		DailyRiskLimitReason:         snapshotView.Risk.DailyLimitReason,
+		DailyRealizedPnL:             snapshotView.Risk.DailyRealizedPnL,
+		DailyOrderCount:              snapshotView.Risk.DailyOrderCount,
+		DailyOpenNotionalUSDT:        snapshotView.Risk.DailyOpenNotionalUsed,
 		RemainingDailyLossBudget:     engine.remainingDailyLossBudgetLocked(),
 		RemainingDailyOrderBudget:    engine.remainingDailyOrderBudgetLocked(),
 		RemainingDailyNotionalBudget: engine.remainingDailyNotionalBudgetLocked(),
@@ -112,8 +127,8 @@ func (r *RuntimeReporter) emitLockedWithTargets(stage EngineStage, currentTarget
 	if !engine.lastManagedDrawdownAt.IsZero() {
 		snapshot.LastManagedDrawdownAt = engine.lastManagedDrawdownAt.Format(time.RFC3339)
 	}
-	if !engine.platformCooldownUntil.IsZero() {
-		snapshot.CooldownUntil = engine.platformCooldownUntil.UTC().Format(time.RFC3339)
+	if !engine.platformState.CooldownUntil.IsZero() {
+		snapshot.CooldownUntil = engine.platformState.CooldownUntil.UTC().Format(time.RFC3339)
 	}
 	engine.liveStatusHook(snapshot)
 }

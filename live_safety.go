@@ -91,9 +91,9 @@ func (e *FundingRateSniperEngine) loadDailyRiskState() error {
 	}
 	e.platformRiskMu.Lock()
 	e.dailyRiskDate = day
-	e.dailyRealizedPnL = state.RealizedPnL
-	e.dailyOrderCount = maxIntValue(state.OrderCount, 0)
-	e.dailyOpenNotionalUsed = maxFloat(state.OpenNotionalUSDT, 0)
+	e.riskBudgetState.DailyRealizedPnL = state.RealizedPnL
+	e.riskBudgetState.DailyOrderCount = maxIntValue(state.OrderCount, 0)
+	e.riskBudgetState.DailyOpenNotionalUsed = maxFloat(state.OpenNotionalUSDT, 0)
 	e.platformRiskMu.Unlock()
 	return e.persistDailyRiskState()
 }
@@ -110,9 +110,9 @@ func (e *FundingRateSniperEngine) persistDailyRiskState() error {
 func (e *FundingRateSniperEngine) dailyRiskStatePayloadLocked() persistedDailyRiskState {
 	return persistedDailyRiskState{
 		TradingDay:       e.dailyRiskDate,
-		RealizedPnL:      e.dailyRealizedPnL,
-		OrderCount:       e.dailyOrderCount,
-		OpenNotionalUSDT: e.dailyOpenNotionalUsed,
+		RealizedPnL:      e.riskBudgetState.DailyRealizedPnL,
+		OrderCount:       e.riskBudgetState.DailyOrderCount,
+		OpenNotionalUSDT: e.riskBudgetState.DailyOpenNotionalUsed,
 		UpdatedAt:        time.Now().UTC().Format(time.RFC3339),
 	}
 }
@@ -215,11 +215,11 @@ func (e *FundingRateSniperEngine) ensureDailyRiskDateLocked() {
 		return
 	}
 	e.dailyRiskDate = day
-	e.dailyRealizedPnL = e.seedDailyRealizedPnL(day)
-	e.dailyOrderCount = 0
-	e.dailyOpenNotionalUsed = 0
-	e.dailyLimitTriggered = false
-	e.dailyLimitReason = ""
+	e.riskBudgetState.DailyRealizedPnL = e.seedDailyRealizedPnL(day)
+	e.riskBudgetState.DailyOrderCount = 0
+	e.riskBudgetState.DailyOpenNotionalUsed = 0
+	e.riskBudgetState.DailyLimitTriggered = false
+	e.riskBudgetState.DailyLimitReason = ""
 }
 
 func (e *FundingRateSniperEngine) checkLiveSafetyGuards(phase string) error {
@@ -248,9 +248,7 @@ func (e *FundingRateSniperEngine) checkEmergencyStop(phase string) error {
 	e.platformRiskMu.Lock()
 	e.emergencyStopTriggered = true
 	e.emergencyStopReason = reason
-	e.lastExceptionCategory = "kill_switch"
-	e.lastExceptionSeverity = RiskSeverityCritical
-	e.lastExceptionDetail = reason
+	e.platformState.RecordException("kill_switch", RiskSeverityCritical, e.emergencyStopReason)
 	e.runtimeReporter.EmitLockedWithReason(StageStopped, "检测到 emergency stop 文件，立即停止实盘")
 	e.platformRiskMu.Unlock()
 	e.emitRiskEvent(newRiskEvent("incident", RiskCategorySafety, RiskSeverityCritical, nonEmpty(strings.TrimSpace(phase), "kill_switch"), "-", "emergency_stop", int(e.executionIncidents), e.cfg.RiskConfig.MaxExecutionIncidents, true, reason))
@@ -262,17 +260,14 @@ func (e *FundingRateSniperEngine) checkDailyRiskLimits(phase string) error {
 	e.ensureDailyRiskDateLocked()
 	reason := e.currentDailyLimitReasonLocked()
 	if reason == "" {
-		e.dailyLimitTriggered = false
-		e.dailyLimitReason = ""
+		e.riskBudgetState.DailyLimitTriggered = false
+		e.riskBudgetState.DailyLimitReason = ""
 		e.platformRiskMu.Unlock()
 		return nil
 	}
 	reason = fmt.Sprintf("phase=%s %s", nonEmpty(strings.TrimSpace(phase), "unknown"), reason)
-	e.dailyLimitTriggered = true
-	e.dailyLimitReason = reason
-	e.lastExceptionCategory = "daily_limit"
-	e.lastExceptionSeverity = RiskSeverityCritical
-	e.lastExceptionDetail = reason
+	e.riskBudgetState.TripDailyLimit(reason)
+	e.platformState.RecordException("daily_limit", RiskSeverityCritical, reason)
 	e.runtimeReporter.EmitLockedWithReason(StageStopped, "触发日级风控限制，立即停止实盘")
 	e.platformRiskMu.Unlock()
 	e.emitRiskEvent(newRiskEvent("incident", RiskCategorySafety, RiskSeverityCritical, nonEmpty(strings.TrimSpace(phase), "daily_limit"), "-", "daily_limit", int(e.executionIncidents), e.cfg.RiskConfig.MaxExecutionIncidents, true, reason))
@@ -281,16 +276,16 @@ func (e *FundingRateSniperEngine) checkDailyRiskLimits(phase string) error {
 
 func (e *FundingRateSniperEngine) currentDailyLimitReasonLocked() string {
 	lossLimit := e.cfg.RiskConfig.MaxDailyLossUSDT
-	if lossLimit > 0 && e.dailyRealizedPnL <= -lossLimit {
-		return fmt.Sprintf("当日累计亏损 %.6f USDT 已超过阈值 %.6f USDT", -e.dailyRealizedPnL, lossLimit)
+	if lossLimit > 0 && e.riskBudgetState.DailyRealizedPnL <= -lossLimit {
+		return fmt.Sprintf("当日累计亏损 %.6f USDT 已超过阈值 %.6f USDT", -e.riskBudgetState.DailyRealizedPnL, lossLimit)
 	}
 	orderLimit := e.cfg.RiskConfig.MaxDailyOrderCount
-	if orderLimit > 0 && e.dailyOrderCount >= orderLimit {
-		return fmt.Sprintf("当日累计下单次数 %d 已达到阈值 %d", e.dailyOrderCount, orderLimit)
+	if orderLimit > 0 && e.riskBudgetState.DailyOrderCount >= orderLimit {
+		return fmt.Sprintf("当日累计下单次数 %d 已达到阈值 %d", e.riskBudgetState.DailyOrderCount, orderLimit)
 	}
 	notionalLimit := e.cfg.RiskConfig.MaxDailyOpenNotionalUSDT
-	if notionalLimit > 0 && e.dailyOpenNotionalUsed >= notionalLimit {
-		return fmt.Sprintf("当日累计开仓名义 %.6f USDT 已达到阈值 %.6f USDT", e.dailyOpenNotionalUsed, notionalLimit)
+	if notionalLimit > 0 && e.riskBudgetState.DailyOpenNotionalUsed >= notionalLimit {
+		return fmt.Sprintf("当日累计开仓名义 %.6f USDT 已达到阈值 %.6f USDT", e.riskBudgetState.DailyOpenNotionalUsed, notionalLimit)
 	}
 	return ""
 }
@@ -300,12 +295,12 @@ func (e *FundingRateSniperEngine) remainingDailyLossBudgetLocked() float64 {
 	if limit <= 0 {
 		return -1
 	}
-	usedLoss := maxFloat(-e.dailyRealizedPnL, 0)
+	usedLoss := maxFloat(-e.riskBudgetState.DailyRealizedPnL, 0)
 	return maxFloat(limit-usedLoss, 0)
 }
 
 func (e *FundingRateSniperEngine) remainingDailyOrderBudgetLocked() int {
-	return remainingRiskBudget(e.cfg.RiskConfig.MaxDailyOrderCount, e.dailyOrderCount)
+	return remainingRiskBudget(e.cfg.RiskConfig.MaxDailyOrderCount, e.riskBudgetState.DailyOrderCount)
 }
 
 func (e *FundingRateSniperEngine) remainingDailyNotionalBudgetLocked() float64 {
@@ -313,13 +308,13 @@ func (e *FundingRateSniperEngine) remainingDailyNotionalBudgetLocked() float64 {
 	if limit <= 0 {
 		return -1
 	}
-	return maxFloat(limit-e.dailyOpenNotionalUsed, 0)
+	return maxFloat(limit-e.riskBudgetState.DailyOpenNotionalUsed, 0)
 }
 
 func (e *FundingRateSniperEngine) noteDailySettlement(netPnL float64) error {
 	e.platformRiskMu.Lock()
 	e.ensureDailyRiskDateLocked()
-	e.dailyRealizedPnL += netPnL
+	e.riskBudgetState.DailyRealizedPnL += netPnL
 	if err := e.queueDailyRiskStatePersistLocked(); err != nil {
 		e.platformRiskMu.Unlock()
 		return err
@@ -329,24 +324,27 @@ func (e *FundingRateSniperEngine) noteDailySettlement(netPnL float64) error {
 	return e.checkDailyRiskLimits("settlement")
 }
 
-func (e *FundingRateSniperEngine) noteOrderPlaced(action string, detail string, count int, enforceLimit bool) error {
-	if err := e.checkEmergencyStop("order_precheck"); err != nil {
+func (e *FundingRateSniperEngine) noteOrderPlaced(ctx context.Context, action string, detail string, count int, enforceLimit bool) error {
+	// C3 策略：减仓型恢复/平残腿(exposure manager / panic flatten)允许在熔断与急停期间继续，
+	// 以尽快收敛敞口；它们绝不会开新仓——开仓的硬保证由下单层的 reduceOnly 守卫负责。
+	// 因此恢复请求跳过急停检查与日级预算阻断（仍计入下单计数用于审计），其余路径维持原有硬约束。
+	recovery := isExposureManagerRequest(ctx)
+	if recovery {
+		enforceLimit = false
+	} else if err := e.checkEmergencyStop("order_precheck"); err != nil {
 		return err
 	}
 	e.platformRiskMu.Lock()
 	e.ensureDailyRiskDateLocked()
-	if enforceLimit && e.cfg.RiskConfig.MaxDailyOrderCount > 0 && e.dailyOrderCount+count > e.cfg.RiskConfig.MaxDailyOrderCount {
-		e.dailyLimitTriggered = true
-		e.dailyLimitReason = fmt.Sprintf("当日累计下单次数即将超过阈值: current=%d add=%d limit=%d", e.dailyOrderCount, count, e.cfg.RiskConfig.MaxDailyOrderCount)
-		e.lastExceptionCategory = "daily_limit"
-		e.lastExceptionSeverity = RiskSeverityCritical
-		e.lastExceptionDetail = e.dailyLimitReason
+	if enforceLimit && e.cfg.RiskConfig.MaxDailyOrderCount > 0 && e.riskBudgetState.DailyOrderCount+count > e.cfg.RiskConfig.MaxDailyOrderCount {
+		e.riskBudgetState.TripDailyLimit(fmt.Sprintf("当日累计下单次数即将超过阈值: current=%d add=%d limit=%d", e.riskBudgetState.DailyOrderCount, count, e.cfg.RiskConfig.MaxDailyOrderCount))
+		e.platformState.RecordException("daily_limit", RiskSeverityCritical, e.riskBudgetState.DailyLimitReason)
 		e.runtimeReporter.EmitLockedWithReason(StageStopped, "触发日级下单次数限制，阻止继续扩仓")
 		e.platformRiskMu.Unlock()
-		e.emitRiskEvent(newRiskEvent("incident", RiskCategorySafety, RiskSeverityCritical, "order_precheck", "-", "daily_order_limit", int(e.executionIncidents), e.cfg.RiskConfig.MaxExecutionIncidents, true, e.dailyLimitReason))
-		return fatalEngineError{message: e.dailyLimitReason}
+		e.emitRiskEvent(newRiskEvent("incident", RiskCategorySafety, RiskSeverityCritical, "order_precheck", "-", "daily_order_limit", int(e.executionIncidents), e.cfg.RiskConfig.MaxExecutionIncidents, true, e.riskBudgetState.DailyLimitReason))
+		return fatalEngineError{message: e.riskBudgetState.DailyLimitReason}
 	}
-	e.dailyOrderCount += maxIntValue(count, 0)
+	e.riskBudgetState.DailyOrderCount += maxIntValue(count, 0)
 	e.lastOrderAt = time.Now().UTC()
 	e.lastOrderAction = strings.TrimSpace(nonEmpty(action, detail))
 	if err := e.queueDailyRiskStatePersistLocked(); err != nil {
@@ -365,21 +363,18 @@ func (e *FundingRateSniperEngine) setCycleOpenNotionalUsed(value float64) error 
 	e.platformRiskMu.Lock()
 	e.ensureDailyRiskDateLocked()
 	value = maxFloat(value, 0)
-	delta := value - e.cycleOpenNotionalUsed
-	if delta > 0 && e.cfg.RiskConfig.MaxDailyOpenNotionalUSDT > 0 && e.dailyOpenNotionalUsed+delta > e.cfg.RiskConfig.MaxDailyOpenNotionalUSDT {
-		e.dailyLimitTriggered = true
-		e.dailyLimitReason = fmt.Sprintf("当日累计开仓名义即将超过阈值: current=%s add=%s limit=%s", formatFloat(e.dailyOpenNotionalUsed), formatFloat(delta), formatFloat(e.cfg.RiskConfig.MaxDailyOpenNotionalUSDT))
-		e.lastExceptionCategory = "daily_limit"
-		e.lastExceptionSeverity = RiskSeverityCritical
-		e.lastExceptionDetail = e.dailyLimitReason
+	delta := value - e.riskBudgetState.CycleOpenNotionalUsed
+	if delta > 0 && e.cfg.RiskConfig.MaxDailyOpenNotionalUSDT > 0 && e.riskBudgetState.DailyOpenNotionalUsed+delta > e.cfg.RiskConfig.MaxDailyOpenNotionalUSDT {
+		e.riskBudgetState.TripDailyLimit(fmt.Sprintf("当日累计开仓名义即将超过阈值: current=%s add=%s limit=%s", formatFloat(e.riskBudgetState.DailyOpenNotionalUsed), formatFloat(delta), formatFloat(e.cfg.RiskConfig.MaxDailyOpenNotionalUSDT)))
+		e.platformState.RecordException("daily_limit", RiskSeverityCritical, e.riskBudgetState.DailyLimitReason)
 		e.runtimeReporter.EmitLockedWithReason(StageStopped, "触发日级名义限制，阻止继续扩仓")
 		e.platformRiskMu.Unlock()
-		e.emitRiskEvent(newRiskEvent("incident", RiskCategorySafety, RiskSeverityCritical, "capacity_precheck", "-", "daily_notional_limit", int(e.executionIncidents), e.cfg.RiskConfig.MaxExecutionIncidents, true, e.dailyLimitReason))
-		return fatalEngineError{message: e.dailyLimitReason}
+		e.emitRiskEvent(newRiskEvent("incident", RiskCategorySafety, RiskSeverityCritical, "capacity_precheck", "-", "daily_notional_limit", int(e.executionIncidents), e.cfg.RiskConfig.MaxExecutionIncidents, true, e.riskBudgetState.DailyLimitReason))
+		return fatalEngineError{message: e.riskBudgetState.DailyLimitReason}
 	}
-	e.cycleOpenNotionalUsed = value
+	e.riskBudgetState.CycleOpenNotionalUsed = value
 	if delta > 0 {
-		e.dailyOpenNotionalUsed += delta
+		e.riskBudgetState.DailyOpenNotionalUsed += delta
 	}
 	if err := e.queueDailyRiskStatePersistLocked(); err != nil {
 		e.platformRiskMu.Unlock()

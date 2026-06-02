@@ -24,6 +24,7 @@ func (e *FundingRateSniperEngine) startUserDataStreams(ctx context.Context) {
 	}
 
 	go e.runSpotUserDataStream(ctx)
+	go e.runMarginUserDataStream(ctx)
 	go e.runFuturesUserDataStream(ctx)
 }
 
@@ -34,6 +35,17 @@ func (e *FundingRateSniperEngine) runSpotUserDataStream(ctx context.Context) {
 		e.keepaliveSpotListenKey,
 		binanceSpotUserWSBaseURL,
 		e.consumeSpotUserDataMessages,
+	)
+}
+
+func (e *FundingRateSniperEngine) runMarginUserDataStream(ctx context.Context) {
+	// cross margin 用户数据流复用现货 WS host，但 listenKey 走 /sapi/v1/userDataStream。
+	e.runListenKeyStream(
+		ctx,
+		e.startMarginListenKey,
+		e.keepaliveMarginListenKey,
+		binanceSpotUserWSBaseURL,
+		e.consumeMarginUserDataMessages,
 	)
 }
 
@@ -55,6 +67,8 @@ func (e *FundingRateSniperEngine) runListenKeyStream(
 	consume func(context.Context, *websocket.Conn) error,
 ) {
 	retryDelay := 500 * time.Millisecond
+	maxRetryDelay := 10 * time.Second
+
 	for {
 		if ctx.Err() != nil {
 			return
@@ -66,6 +80,7 @@ func (e *FundingRateSniperEngine) runListenKeyStream(
 			if !sleepWithContext(ctx, retryDelay) {
 				return
 			}
+			retryDelay = nextStreamBackoff(retryDelay, maxRetryDelay)
 			continue
 		}
 
@@ -79,11 +94,15 @@ func (e *FundingRateSniperEngine) runListenKeyStream(
 			if !sleepWithContext(ctx, retryDelay) {
 				return
 			}
+			retryDelay = nextStreamBackoff(retryDelay, maxRetryDelay)
 			continue
 		}
+		retryDelay = 500 * time.Millisecond
 		stopClose := closeWebSocketOnContextDone(streamCtx, conn)
 
+		stopPing := startWebSocketPing(streamCtx, conn)
 		err = consume(streamCtx, conn)
+		stopPing()
 		stopClose()
 		cancel()
 		_ = conn.Close()
@@ -94,6 +113,7 @@ func (e *FundingRateSniperEngine) runListenKeyStream(
 		if !sleepWithContext(ctx, retryDelay) {
 			return
 		}
+		retryDelay = nextStreamBackoff(retryDelay, maxRetryDelay)
 	}
 }
 
@@ -123,6 +143,19 @@ func (e *FundingRateSniperEngine) startSpotListenKey(ctx context.Context) (strin
 
 func (e *FundingRateSniperEngine) keepaliveSpotListenKey(ctx context.Context, listenKey string) error {
 	_, err := e.apiKeyRequest(ctx, http.MethodPut, e.client.spotBaseURL+"/api/v3/userDataStream?listenKey="+listenKey, nil)
+	return err
+}
+
+func (e *FundingRateSniperEngine) startMarginListenKey(ctx context.Context) (string, error) {
+	body, err := e.apiKeyRequest(ctx, http.MethodPost, e.client.spotBaseURL+"/sapi/v1/userDataStream", nil)
+	if err != nil {
+		return "", err
+	}
+	return parseListenKey(body)
+}
+
+func (e *FundingRateSniperEngine) keepaliveMarginListenKey(ctx context.Context, listenKey string) error {
+	_, err := e.apiKeyRequest(ctx, http.MethodPut, e.client.spotBaseURL+"/sapi/v1/userDataStream?listenKey="+listenKey, nil)
 	return err
 }
 
@@ -207,6 +240,27 @@ func isManagedClientOrderID(clientOrderID string) bool {
 }
 
 func (e *FundingRateSniperEngine) consumeSpotUserDataMessages(ctx context.Context, conn *websocket.Conn) error {
+	return e.consumeSpotStyleUserDataMessages(ctx, conn, "spot", e.spotOrderHub, e.noteSpotAccountPositionUpdate, "解析现货用户流消息失败")
+}
+
+// consumeMarginUserDataMessages 消费全仓杠杆(cross margin)用户数据流。
+// cross margin 的 executionReport 与现货格式一致，但只会出现在 /sapi/v1/userDataStream 这条独立 listenKey 上，
+// 不会出现在现货 listenKey 中——这正是负 carry 现货腿(走 cross margin)此前必须依赖 REST 轮询确认的根因。
+// 这里把 margin 订单回报正确投递到 marginOrderHub，使 waitForDirectionalSpotOrder(cross margin) 能命中 WS 推送。
+// 注意：不把 margin 余额并入 spot 余额映射，避免污染现货残腿判定；margin 敞口仍由 REST 对账负责。
+func (e *FundingRateSniperEngine) consumeMarginUserDataMessages(ctx context.Context, conn *websocket.Conn) error {
+	return e.consumeSpotStyleUserDataMessages(ctx, conn, "margin", e.marginOrderHub, nil, "解析全仓杠杆用户流消息失败")
+}
+
+// consumeSpotStyleUserDataMessages 共享现货 / 全仓杠杆这两条同构用户数据流的解析逻辑。
+func (e *FundingRateSniperEngine) consumeSpotStyleUserDataMessages(
+	ctx context.Context,
+	conn *websocket.Conn,
+	market string,
+	hub *OrderEventHub,
+	onBalances func(map[string]float64),
+	parseErrLabel string,
+) error {
 	for {
 		select {
 		case <-ctx.Done():
@@ -238,24 +292,27 @@ func (e *FundingRateSniperEngine) consumeSpotUserDataMessages(ctx context.Contex
 			} `json:"B"`
 		}
 		if err := json.Unmarshal(payload, &event); err != nil {
-			return fmt.Errorf("解析现货用户流消息失败: %w", err)
+			return fmt.Errorf("%s: %w", parseErrLabel, err)
 		}
 		if event.EventType != "executionReport" {
-			if event.EventType == "outboundAccountPosition" {
+			if event.EventType == "outboundAccountPosition" && onBalances != nil {
 				balances := make(map[string]float64, len(event.Balances))
 				for _, balance := range event.Balances {
 					balances[balance.Asset] = parseFloat(balance.Free) + parseFloat(balance.Lock)
 				}
-				e.noteSpotAccountPositionUpdate(balances)
+				onBalances(balances)
 			}
 			continue
 		}
 		if !isManagedClientOrderID(event.ClientOrderID) {
 			continue
 		}
+		if hub == nil {
+			continue
+		}
 
 		snapshot := OrderExecutionSnapshot{
-			Market:          "spot",
+			Market:          market,
 			Symbol:          event.Symbol,
 			ClientOrderID:   event.ClientOrderID,
 			OrderID:         event.OrderID,
@@ -270,7 +327,7 @@ func (e *FundingRateSniperEngine) consumeSpotUserDataMessages(ctx context.Contex
 		if snapshot.ExecutedQty > 0 && snapshot.CumQuoteQty > 0 {
 			snapshot.AvgPrice = snapshot.CumQuoteQty / snapshot.ExecutedQty
 		}
-		e.spotOrderHub.Update(snapshot)
+		hub.Update(snapshot)
 	}
 }
 

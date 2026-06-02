@@ -86,6 +86,26 @@ func TestFetchBookTickerAllowsSilentAltWhenHeartbeatIsFresh(t *testing.T) {
 	}
 }
 
+func TestFuturesProtectedOpenFallbackNeededUsesUnifiedIOCObservation(t *testing.T) {
+	order := FuturesBatchOrderRequest{
+		Type:        "LIMIT",
+		TimeInForce: protectedExecutionIOC,
+		Quantity:    "1",
+	}
+	if !futuresProtectedOpenFallbackNeeded(order, FuturesBatchOrderResult{
+		Status:      "REJECTED",
+		ExecutedQty: "0",
+	}) {
+		t.Fatal("expected rejected zero-fill protected IOC to require fallback")
+	}
+	if futuresProtectedOpenFallbackNeeded(order, FuturesBatchOrderResult{
+		Status:      "FILLED",
+		ExecutedQty: "0.2",
+	}) {
+		t.Fatal("expected partial progress protected IOC to avoid fallback")
+	}
+}
+
 func TestPlaceSpotChasingOrderRetriesAfterCanceledAttempt(t *testing.T) {
 	var posts int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

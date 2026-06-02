@@ -74,7 +74,7 @@ func (e *FundingRateSniperEngine) shouldTriggerManagedSymbolDrawdownCut() (strin
 		triggerLoss = limit * singleSymbolDrawdownTriggerShare
 	}
 	if limit := e.cfg.RiskConfig.MaxDailyLossUSDT; limit > 0 {
-		remaining := maxFloat(limit-maxFloat(-e.dailyRealizedPnL, 0), 0)
+		remaining := maxFloat(limit-maxFloat(-e.riskBudgetState.DailyRealizedPnL, 0), 0)
 		if remaining > 0 {
 			triggerLoss = minPositiveFloat(triggerLoss, remaining*singleSymbolDrawdownTriggerShare)
 		}
@@ -208,10 +208,10 @@ func (e *FundingRateSniperEngine) shouldTriggerRealtimeDrawdownPanic() (bool, st
 		return true, fmt.Sprintf("实时浮亏触发单周期熔断: managedUnrealizedLoss=%.6f limit=%.6f details=%s", managedUnrealizedLoss, limit, strings.Join(worst, " | "))
 	}
 	if limit := e.cfg.RiskConfig.MaxDailyLossUSDT; limit > 0 {
-		totalLoss := maxFloat(-e.dailyRealizedPnL, 0) + managedUnrealizedLoss
+		totalLoss := maxFloat(-e.riskBudgetState.DailyRealizedPnL, 0) + managedUnrealizedLoss
 		if totalLoss+1e-9 >= limit {
 			e.panicFlattenInFlight = true
-			return true, fmt.Sprintf("实时浮亏触发日级熔断: realizedLoss=%.6f managedUnrealizedLoss=%.6f limit=%.6f details=%s", maxFloat(-e.dailyRealizedPnL, 0), managedUnrealizedLoss, limit, strings.Join(worst, " | "))
+			return true, fmt.Sprintf("实时浮亏触发日级熔断: realizedLoss=%.6f managedUnrealizedLoss=%.6f limit=%.6f details=%s", maxFloat(-e.riskBudgetState.DailyRealizedPnL, 0), managedUnrealizedLoss, limit, strings.Join(worst, " | "))
 		}
 	}
 	return false, ""
@@ -320,7 +320,9 @@ func (e *FundingRateSniperEngine) panicFlattenManagedExposure(reason string) {
 	if timeout < 12*time.Second {
 		timeout = 12 * time.Second
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	// 标记为恢复/平残腿请求：panic flatten 自身刚触发了 platform fuse，
+	// 必须以恢复语义绕过该熔断与急停，才能把刚才的浮亏敞口真正平掉（仅 reduceOnly 减仓）。
+	ctx, cancel := context.WithTimeout(withExposureManagerRequest(context.Background()), timeout)
 	defer cancel()
 
 	_, _, positions, err := e.fetchFuturesAccountState(ctx)
@@ -427,7 +429,7 @@ func (e *FundingRateSniperEngine) flattenManagedSymbolExposure(symbol string, re
 		if timeout < 12*time.Second {
 			timeout = 12 * time.Second
 		}
-		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		ctx, cancel := context.WithTimeout(withExposureManagerRequest(context.Background()), timeout)
 		defer cancel()
 		alerts, err := e.closeHedgePositionParallel(ctx, closeSequencePlan{
 			hedge:             &hedge,
@@ -452,7 +454,7 @@ func (e *FundingRateSniperEngine) flattenManagedSymbolExposure(symbol string, re
 	if timeout < 12*time.Second {
 		timeout = 12 * time.Second
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	ctx, cancel := context.WithTimeout(withExposureManagerRequest(context.Background()), timeout)
 	defer cancel()
 	_, _, positions, err := e.fetchFuturesAccountState(ctx)
 	if err != nil {

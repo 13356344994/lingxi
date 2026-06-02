@@ -202,48 +202,27 @@
   <div class="container">
     <h1>Funding Rate Sniper Dashboard</h1>
     <div class="hint">构建信息：{{.VersionSummary}}</div>
-    <div class="hint">服务启动后默认进入控制台模式，你可以在页面上选择启动实盘引擎或按时间做历史模拟，并随时查看后台状态、JSON 落盘与详细运行日志。</div>
+    <div class="hint">系统已处于【读保护模式】。所有自动化配置由 EngineGear 与 EngineProfile 后台自动接管。仅开放安全监控和必要的人工介入入口。</div>
     <div class="toolbar">
       <button id="refresh-btn" type="button">刷新面板</button>
-      <button id="start-btn" type="button">启动任务</button>
-      <button id="stop-btn" type="button" class="danger">停止任务</button>
-      <button id="save-risk-config-btn" type="button" class="secondary">保存更保守的风险收紧</button>
-      <button id="clear-runtime-logs-btn" type="button" class="secondary">清空运行日志</button>
-      <button id="clear-historical-cache-btn" type="button" class="secondary">清空历史缓存</button>
-      <button id="clear-dashboard-data-btn" type="button" class="danger">清空表格数据</button>
       <a href="{{.SettlementCSV}}" target="_blank" rel="noopener noreferrer">下载结算 JSON</a>
       <a href="{{.MonitorCSV}}" target="_blank" rel="noopener noreferrer">下载监控 JSONL</a>
       <a href="{{.BacktestCSV}}" target="_blank" rel="noopener noreferrer">下载回测 JSON</a>
       <a href="{{.ResidualCSV}}" target="_blank" rel="noopener noreferrer">下载残腿 JSON</a>
       <a href="{{.ExecutionCSV}}" target="_blank" rel="noopener noreferrer">下载执行事故 JSONL</a>
+      <a href="{{.DomainEventCSV}}" target="_blank" rel="noopener noreferrer">下载协议事件 JSONL</a>
       <a href="{{.MonthlySimulationCSV}}" target="_blank" rel="noopener noreferrer">下载历史模拟日志 JSON</a>
       <a href="{{.RuntimeEventLog}}" target="_blank" rel="noopener noreferrer">下载运行日志</a>
       <a href="{{.ControlAuditLog}}" target="_blank" rel="noopener noreferrer">下载控制审计 JSONL</a>
     </div>
 
     <div class="panel">
-      <h2>运行控制台</h2>
-      <div class="hint">支持两种模式：`实盘引擎` 会按现有真实链路运行；`历史模拟` 会按你填写的回看天数拉取过去数据做模拟，并把详细收益影响因子落盘到 `monthly_simulation_logs.json`。</div>
-      <div class="hint">控制令牌不再随页面自动下发。需要时请从启动终端复制 `Dashboard 控制令牌`，手动填入下方输入框；浏览器会仅在本地缓存。</div>
+      <h2>人工接管与安全控制台</h2>
+      <div class="hint">填写后台打印的 Token 获取控制权限。当系统出现异常且无法自动降级时，可通过此面板强制停机或调仓。</div>
       <div class="form-grid">
-        <div>
-          <label for="mode-select">运行模式</label>
-          <select id="mode-select">
-            <option value="monthly">历史模拟</option>
-            <option value="live">实盘引擎</option>
-          </select>
-        </div>
         <div>
           <label for="dashboard-token">控制令牌</label>
           <input id="dashboard-token" type="password" value="" placeholder="启动日志里打印的 Dashboard 控制令牌">
-        </div>
-        <div>
-          <label for="secret-path">配置文件路径</label>
-          <input id="secret-path" type="text" value="secret.yaml" placeholder="secret.yaml">
-        </div>
-        <div>
-          <label for="lookback-days">回看天数</label>
-          <input id="lookback-days" type="number" min="1" value="30">
         </div>
         <div>
           <label for="position-target-usdt">目标交易仓位 (USDT)</label>
@@ -252,8 +231,9 @@
       </div>
       <div class="risk-actions" style="margin-top:0;">
         <button id="apply-position-target-btn" type="button" class="secondary">应用仓位并调仓</button>
+        <button id="stop-btn" type="button" class="danger">强制停止所有自动任务</button>
       </div>
-      <div class="hint" id="position-config-message">输入的是总交易资金 USDT。历史模拟只改名义仓位，不碰真实账户；实盘会汇总 spot、cross margin、UM futures、funding 的可调 USDT，若总 U 小于你的输入会直接报错拒绝继续。目标资金会按现货主账户 25% + cross margin 25% + U 本位合约 50% 分配，并把本轮总仓位上限同步成这个值、单腿仓位同步成其一半。这个值只在开仓准备阶段使用，后续不管赚赔都不会自动再从 funding 补钱。</div>
+      <div class="hint" id="position-config-message">输入的是总交易资金 USDT。实盘会汇总 spot、cross margin、UM futures、funding 的可调 USDT，若总 U 小于你的输入会直接报错拒绝继续。目标资金会按现货主账户 25% + cross margin 25% + U 本位合约 50% 分配，并把本轮总仓位上限同步成这个值。系统会根据健康分自动决定是否开新仓。</div>
       <div class="status-grid">
         <div class="stat-card">
           <div class="stat-label">Spot U</div>
@@ -305,7 +285,7 @@
           <div class="stat-value" id="runtime-status">idle</div>
         </div>
         <div class="stat-card">
-          <div class="stat-label">当前阶段</div>
+          <div class="stat-label">主阶段</div>
           <div class="stat-value" id="runtime-stage" style="font-size:16px">-</div>
         </div>
         <div class="stat-card">
@@ -323,7 +303,7 @@
           <div class="stat-value" id="runtime-message" style="font-size:16px">等待页面选择运行模式</div>
         </div>
         <div class="stat-card">
-          <div class="stat-label">阶段原因</div>
+          <div class="stat-label">主阶段原因</div>
           <div class="stat-value" id="runtime-stage-reason" style="font-size:16px">-</div>
         </div>
         <div class="stat-card">
@@ -345,7 +325,7 @@
           <div class="stat-value" id="runtime-health-status" style="font-size:16px">healthy</div>
         </div>
         <div class="stat-card">
-          <div class="stat-label">阶段更新时间</div>
+          <div class="stat-label">主阶段更新时间</div>
           <div class="stat-value" id="runtime-stage-transitioned" style="font-size:16px">-</div>
         </div>
         <div class="stat-card">
@@ -375,6 +355,18 @@
         <div class="stat-card">
           <div class="stat-label">当前冷却来源</div>
           <div class="stat-value" id="runtime-cooldown-source" style="font-size:16px">-</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">兼容引擎阶段</div>
+          <div class="stat-value" id="runtime-compat-stage" style="font-size:16px">-</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">双轨对齐</div>
+          <div class="stat-value" id="runtime-stage-alignment" style="font-size:16px">-</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">最近统一事件</div>
+          <div class="stat-value" id="runtime-last-domain-event" style="font-size:16px">-</div>
         </div>
         <div class="stat-card">
           <div class="stat-label">Symbol 冷却列表</div>
@@ -460,25 +452,30 @@
         </div>
       </div>
       <div class="panel" style="margin-top:12px; margin-bottom:0;">
+        <h2 style="font-size:18px;">最近统一事件流</h2>
+        <div class="hint">这里优先展示 runtime 最近收到的统一结构化事件，包含协议事件和已桥接的关键风险事件。</div>
+        <div id="runtime-domain-events" class="log-list"></div>
+      </div>
+      <div class="panel" style="margin-top:12px; margin-bottom:0;">
         <h2 style="font-size:18px;">最近执行事件</h2>
-        <div class="hint">这里优先展示最近几次结构化执行事件，包括事故计数递增、恢复动作和熔断触发。</div>
+        <div class="hint">这里保留兼容视图，主要展示旧执行事故流，方便和统一事件流对照排查。</div>
         <div id="runtime-execution-events" class="log-list"></div>
       </div>
     </div>
 
     <div class="panel">
       <h2>在线风控参数</h2>
-      <div class="hint">页面现在不再是自由调参台。这里只允许把系统收紧到更保守，不允许在线放松风险，也不允许在线改策略模型参数；所有改动仅在下一次启动任务时生效。</div>
+      <div class="hint">系统已处于【读保护模式】。参数仅供只读查看。所有改动必须通过修改底层配置和重启引擎来完成，以此保证配置的单一真相源。</div>
       <div class="form-grid">
         <div>
           <label for="risk-per-symbol-quote">单标的名义资金 (USDT)</label>
-          <input id="risk-per-symbol-quote" type="number" min="1" step="0.01" value="100">
-          <div class="field-note">允许在线收紧：只能降低，不能提高。</div>
+          <input id="risk-per-symbol-quote" type="number" min="1" step="0.01" value="100" disabled>
+          <div class="field-note">系统已处于【读保护模式】，仅支持只读展示。</div>
         </div>
         <div>
           <label for="risk-max-cycle-open-notional">单周期总敞口上限 (USDT)</label>
-          <input id="risk-max-cycle-open-notional" type="number" min="1" step="0.01" value="300">
-          <div class="field-note">允许在线收紧：只能降低，不能提高。</div>
+          <input id="risk-max-cycle-open-notional" type="number" min="1" step="0.01" value="300" disabled>
+          <div class="field-note">系统已处于【读保护模式】，仅支持只读展示。</div>
         </div>
         <div>
           <label for="risk-recent-window">最近成交额窗口</label>
@@ -517,8 +514,8 @@
         </div>
         <div>
           <label for="risk-max-cycle-loss">最大单周期亏损 (USDT)</label>
-          <input id="risk-max-cycle-loss" type="number" min="0.01" step="0.01" value="8">
-          <div class="field-note">允许在线收紧：只能降低，不能提高。</div>
+          <input id="risk-max-cycle-loss" type="number" min="0.01" step="0.01" value="8" disabled>
+          <div class="field-note">系统已处于【读保护模式】，仅支持只读展示。</div>
         </div>
         <div>
           <label for="risk-max-execution-incidents">最大执行事故数</label>
@@ -547,23 +544,23 @@
         </div>
         <div>
           <label for="risk-symbol-cooldown">symbol 异常冷却时间</label>
-          <input id="risk-symbol-cooldown" type="text" value="10m" placeholder="1m / 10m / 30m">
-          <div class="field-note">允许在线收紧：只能延长，不能缩短。</div>
+          <input id="risk-symbol-cooldown" type="text" value="10m" placeholder="1m / 10m / 30m" disabled>
+          <div class="field-note">系统已处于【读保护模式】，仅支持只读展示。</div>
         </div>
         <div>
           <label for="risk-platform-minor-cooldown">轻微异常冷却时间</label>
-          <input id="risk-platform-minor-cooldown" type="text" value="5m" placeholder="30s / 5m / 10m">
-          <div class="field-note">允许在线收紧：只能延长，不能缩短。</div>
+          <input id="risk-platform-minor-cooldown" type="text" value="5m" placeholder="30s / 5m / 10m" disabled>
+          <div class="field-note">系统已处于【读保护模式】，仅支持只读展示。</div>
         </div>
         <div>
           <label for="risk-platform-cooldown">平台异常冷却时间</label>
-          <input id="risk-platform-cooldown" type="text" value="15m" placeholder="30s / 5m / 1h">
-          <div class="field-note">允许在线收紧：只能延长，不能缩短。</div>
+          <input id="risk-platform-cooldown" type="text" value="15m" placeholder="30s / 5m / 1h" disabled>
+          <div class="field-note">系统已处于【读保护模式】，仅支持只读展示。</div>
         </div>
         <div>
           <label for="risk-platform-critical-cooldown">严重异常冷却时间</label>
-          <input id="risk-platform-critical-cooldown" type="text" value="30m" placeholder="5m / 30m / 1h">
-          <div class="field-note">允许在线收紧：只能延长，不能缩短。</div>
+          <input id="risk-platform-critical-cooldown" type="text" value="30m" placeholder="5m / 30m / 1h" disabled>
+          <div class="field-note">系统已处于【读保护模式】，仅支持只读展示。</div>
         </div>
         <div>
           <label for="risk-max-recovery-actions">最大回补次数</label>
@@ -572,30 +569,51 @@
         </div>
         <div>
           <label for="risk-max-daily-loss">最大日亏损 (USDT)</label>
-          <input id="risk-max-daily-loss" type="number" min="0.01" step="0.01" value="25">
-          <div class="field-note">允许在线收紧：只能降低，不能提高。</div>
+          <input id="risk-max-daily-loss" type="number" min="0.01" step="0.01" value="25" disabled>
+          <div class="field-note">系统已处于【读保护模式】，仅支持只读展示。</div>
         </div>
         <div>
           <label for="risk-max-daily-orders">最大日下单次数</label>
-          <input id="risk-max-daily-orders" type="number" min="1" step="1" value="40">
-          <div class="field-note">允许在线收紧：只能降低，不能提高。</div>
+          <input id="risk-max-daily-orders" type="number" min="1" step="1" value="40" disabled>
+          <div class="field-note">系统已处于【读保护模式】，仅支持只读展示。</div>
         </div>
         <div>
           <label for="risk-max-daily-open-notional">最大日开仓名义 (USDT)</label>
-          <input id="risk-max-daily-open-notional" type="number" min="1" step="0.01" value="1500">
-          <div class="field-note">允许在线收紧：只能降低，不能提高。</div>
+          <input id="risk-max-daily-open-notional" type="number" min="1" step="0.01" value="1500" disabled>
+          <div class="field-note">系统已处于【读保护模式】，仅支持只读展示。</div>
         </div>
       </div>
-      <div class="risk-actions">
-        <button id="tighten-risk-10-btn" type="button" class="secondary">一键收紧 10%</button>
-        <button id="tighten-risk-25-btn" type="button" class="secondary">一键收紧 25%</button>
+      <div class="risk-actions" style="display:none;">
+        <button id="tighten-risk-10-btn" type="button" class="secondary" disabled>一键收紧 10%</button>
+        <button id="tighten-risk-25-btn" type="button" class="secondary" disabled>一键收紧 25%</button>
       </div>
-      <div class="hint" id="risk-config-message">默认按当前配置展示。页面只允许收紧风险，策略模型参数只读展示。</div>
+      <div class="hint" id="risk-config-message">由于系统已切换至读保护模式，面板风险参数均已锁定只读，不再允许通过 Web 面板修改。如需修改，请修改配置文件后重启系统。</div>
     </div>
 
     <div class="panel">
-      <h2>执行事故与恢复动作</h2>
-      <div class="hint">这里展示最近 200 条结构化执行事件，比普通运行日志更适合排查残腿恢复、部分成交和熔断停机。</div>
+      <h2>统一事件主视图</h2>
+      <div class="hint">这里优先展示统一事件流的主表：协议事件、风险事件桥接，以及仍未完成语义迁移的 legacy execution 兼容项都会合流到这里。</div>
+      <div class="table-wrap">
+        <table id="unified-event-table">
+          <thead>
+            <tr>
+              <th>发生时间</th>
+              <th>来源</th>
+              <th>类型</th>
+              <th>协议</th>
+              <th>生命周期</th>
+              <th>结果</th>
+              <th>说明</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>兼容执行事故原始流</h2>
+      <div class="hint">这里保留 legacy execution 原始记录，主要用于对照排查迁移期问题，不再是 dashboard 的主事件表。</div>
       <div class="table-wrap">
         <table id="execution-table">
           <thead>
@@ -608,6 +626,27 @@
               <th>事故计数</th>
               <th>熔断</th>
               <th>详情</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>原始协议事件流</h2>
+      <div class="hint">这里保留 protocol/domain 原始事件，方便和统一主视图交叉核对。</div>
+      <div class="table-wrap">
+        <table id="domain-event-table">
+          <thead>
+            <tr>
+              <th>发生时间</th>
+              <th>类型</th>
+              <th>协议</th>
+              <th>生命周期</th>
+              <th>成功</th>
+              <th>原因</th>
+              <th>RunID</th>
             </tr>
           </thead>
           <tbody></tbody>
@@ -902,9 +941,9 @@
       document.getElementById("runtime-run-id").textContent = status.run_id || "-";
       document.getElementById("runtime-cycle-id").textContent = status.current_cycle_id || "-";
       document.getElementById("runtime-status").textContent = status.status || "idle";
-      document.getElementById("runtime-stage").textContent = status.current_stage || "-";
-      document.getElementById("runtime-stage-reason").textContent = status.stage_reason || "-";
-      document.getElementById("runtime-stage-transitioned").textContent = status.stage_transitioned_at || "-";
+      document.getElementById("runtime-stage").textContent = status.primary_stage || status.lifecycle_stage || status.stage_lifecycle_projection || status.current_stage || "-";
+      document.getElementById("runtime-stage-reason").textContent = status.primary_stage_reason || status.lifecycle_reason || status.stage_reason || "-";
+      document.getElementById("runtime-stage-transitioned").textContent = status.primary_stage_transitioned_at || status.lifecycle_transitioned_at || status.stage_transitioned_at || "-";
       document.getElementById("runtime-health-status").textContent = status.health_status || "unknown";
       document.getElementById("runtime-health-summary").textContent = status.health_summary || "-";
       document.getElementById("runtime-can-continue").textContent = status.can_continue ? "可以" : "不可以";
@@ -913,6 +952,9 @@
       document.getElementById("runtime-notional-budget").textContent = formatMoneyBudget(status.cycle_open_notional_usdt, status.remaining_notional_budget_usdt);
       document.getElementById("runtime-last-exception").textContent = `${status.last_exception_category || "-"} | ${status.last_exception_severity || "-"} | ${status.last_exception_detail || "-"}`;
       document.getElementById("runtime-cooldown-source").textContent = `${status.current_cooldown_category || "-"} | ${status.current_cooldown_severity || "-"}`;
+      document.getElementById("runtime-compat-stage").textContent = `${status.current_stage || "-"} | ${status.primary_stage_source || "-"}`;
+      document.getElementById("runtime-stage-alignment").textContent = `${status.stage_lifecycle_projection || "-"} | ${status.stage_lifecycle_alignment || "-"}`;
+      document.getElementById("runtime-last-domain-event").textContent = status.last_domain_event || "-";
       document.getElementById("runtime-symbol-cooldowns").textContent = formatRuntimeList(status.cooled_symbols || []);
       document.getElementById("runtime-started").textContent = status.started_at || "-";
       document.getElementById("runtime-finished").textContent = status.finished_at || "-";
@@ -938,6 +980,7 @@
       document.getElementById("runtime-daily-loss").textContent = `${Number(status.daily_realized_pnl || 0).toFixed(2)} / ${Number(status.remaining_daily_loss_budget_usdt || 0) < 0 ? "不限" : Number(status.remaining_daily_loss_budget_usdt || 0).toFixed(2)}`;
       document.getElementById("runtime-daily-orders").textContent = `${Number(status.daily_order_count || 0)} / ${formatBudgetValue(status.remaining_daily_order_budget)}`;
       document.getElementById("runtime-daily-notional").textContent = `${Number(status.daily_open_notional_usdt || 0).toFixed(2)} / ${Number(status.remaining_daily_notional_budget_usdt || 0) < 0 ? "不限" : Number(status.remaining_daily_notional_budget_usdt || 0).toFixed(2)}`;
+      renderRuntimeDomainEvents(status.recent_domain_events || []);
       renderRuntimeExecutionEvents(status.recent_execution_events || []);
     }
 
@@ -990,6 +1033,20 @@
         <div class="log-item">
           <div class="log-meta">${escapeHTML(item.recorded_at)} | ${escapeHTML(item.level)} | ${escapeHTML(item.category || "-")} | ${escapeHTML(item.severity || "-")} | ${escapeHTML(item.phase)} | ${escapeHTML(item.action)}</div>
           <div>${escapeHTML(item.symbol || "-")} | count=${Number(item.incident_count || 0)} / ${Number(item.incident_limit || 0)} | fatal=${Boolean(item.fatal)} | ${escapeHTML(item.detail || "-")}</div>
+        </div>
+      `).join("");
+    }
+
+    function renderRuntimeDomainEvents(records) {
+      const container = document.getElementById("runtime-domain-events");
+      if (!records.length) {
+        container.innerHTML = `<div class="log-item empty">当前还没有统一事件流摘要。</div>`;
+        return;
+      }
+      container.innerHTML = records.slice().reverse().map((item) => `
+        <div class="log-item">
+          <div class="log-meta">${escapeHTML(item.occurred_at || "-")} | ${escapeHTML(item.type || "-")} | ${escapeHTML(item.protocol || "-")} | ${escapeHTML(item.stage || "-")}</div>
+          <div>${escapeHTML(item.reason || "-")} | success=${Boolean(item.successful)} | run=${escapeHTML(item.run_id || "-")}</div>
         </div>
       `).join("");
     }
@@ -1099,6 +1156,44 @@
           <td>${item.incident_count} / ${item.incident_limit}</td>
           <td><span class="pill ${item.fatal ? "high" : "low"}">${item.fatal}</span></td>
           <td>${item.detail || "-"}</td>
+        </tr>
+      `).join("");
+    }
+
+    function renderUnifiedEvents(records) {
+      const tbody = document.querySelector("#unified-event-table tbody");
+      if (!records.length) {
+        renderEmpty(tbody, "当前还没有统一事件主视图记录。");
+        return;
+      }
+      tbody.innerHTML = records.map((item) => `
+        <tr>
+          <td>${item.occurred_at || "-"}</td>
+          <td><span class="pill ${item.source === "domain" ? "low" : "high"}">${item.source || "-"}</span></td>
+          <td>${item.type || "-"}</td>
+          <td>${item.protocol || "-"}</td>
+          <td>${item.stage || "-"}</td>
+          <td><span class="pill ${item.successful ? "low" : "high"}">${item.successful}</span></td>
+          <td>${item.reason || "-"}${item.symbol ? ` | ${item.symbol}` : ""}</td>
+        </tr>
+      `).join("");
+    }
+
+    function renderDomainEvents(records) {
+      const tbody = document.querySelector("#domain-event-table tbody");
+      if (!records.length) {
+        renderEmpty(tbody, "当前还没有协议事件流记录。");
+        return;
+      }
+      tbody.innerHTML = records.map((item) => `
+        <tr>
+          <td>${item.occurred_at || "-"}</td>
+          <td><span class="pill ${item.level === "critical" ? "high" : "low"}">${item.type || "-"}</span></td>
+          <td>${item.protocol || "-"}</td>
+          <td>${item.stage || "-"}</td>
+          <td><span class="pill ${item.successful ? "low" : "high"}">${item.successful}</span></td>
+          <td>${item.reason || "-"}</td>
+          <td>${item.run_id || "-"}</td>
         </tr>
       `).join("");
     }
@@ -1270,7 +1365,9 @@
         renderCapitalSnapshot(summary.capital_snapshot || {}, summary.capital_snapshot_error || "");
         renderRuntimeLogs(summary.runtime_logs || []);
         renderRiskConfig(summary.runtime_config || {});
+        renderUnifiedEvents(summary.unified_events || []);
         renderExecutionIncidents(summary.execution_incidents || []);
+        renderDomainEvents(summary.domain_events || []);
         renderOverview(summary.backtests || [], summary.residual_risks || []);
         renderSettlements(summary.settlements || []);
         renderMonitors(summary.monitors || []);
@@ -1344,8 +1441,6 @@
     }
 
     async function applyTradingCapital() {
-      const mode = document.getElementById("mode-select").value;
-      const secretPath = document.getElementById("secret-path").value.trim() || "secret.yaml";
       const targetTradingUSDT = Number(document.getElementById("position-target-usdt").value || "0");
       if (!Number.isFinite(targetTradingUSDT) || targetTradingUSDT <= 0) {
         document.getElementById("position-config-message").textContent = "请输入大于 0 的目标交易仓位 USDT。";
@@ -1353,8 +1448,6 @@
       }
       try {
         const result = await postJSON("/api/runtime/capital", {
-          mode,
-          secret_path: secretPath,
           target_trading_usdt: targetTradingUSDT
         });
         window.localStorage.setItem(tradingCapitalStorageKey, String(targetTradingUSDT));
@@ -1434,17 +1527,17 @@
       }
     }
 
-    document.getElementById("refresh-btn").addEventListener("click", refreshDashboard);
-    document.getElementById("start-btn").addEventListener("click", startTask);
-    document.getElementById("stop-btn").addEventListener("click", stopTask);
-    document.getElementById("apply-position-target-btn").addEventListener("click", applyTradingCapital);
-    document.getElementById("save-risk-config-btn").addEventListener("click", saveRiskConfig);
-    document.getElementById("tighten-risk-10-btn").addEventListener("click", () => tightenRiskInputs(0.10));
-    document.getElementById("tighten-risk-25-btn").addEventListener("click", () => tightenRiskInputs(0.25));
-    document.getElementById("clear-runtime-logs-btn").addEventListener("click", clearRuntimeLogs);
-    document.getElementById("clear-historical-cache-btn").addEventListener("click", clearHistoricalCache);
-    document.getElementById("clear-dashboard-data-btn").addEventListener("click", clearDashboardData);
-    document.getElementById("dashboard-token").addEventListener("change", getControlToken);
+    document.getElementById("refresh-btn")?.addEventListener("click", refreshDashboard);
+    document.getElementById("start-btn")?.addEventListener("click", startTask);
+    document.getElementById("stop-btn")?.addEventListener("click", stopTask);
+    document.getElementById("apply-position-target-btn")?.addEventListener("click", applyTradingCapital);
+    document.getElementById("save-risk-config-btn")?.addEventListener("click", saveRiskConfig);
+    document.getElementById("tighten-risk-10-btn")?.addEventListener("click", () => tightenRiskInputs(0.10));
+    document.getElementById("tighten-risk-25-btn")?.addEventListener("click", () => tightenRiskInputs(0.25));
+    document.getElementById("clear-runtime-logs-btn")?.addEventListener("click", clearRuntimeLogs);
+    document.getElementById("clear-historical-cache-btn")?.addEventListener("click", clearHistoricalCache);
+    document.getElementById("clear-dashboard-data-btn")?.addEventListener("click", clearDashboardData);
+    document.getElementById("dashboard-token")?.addEventListener("change", getControlToken);
     restoreControlToken();
     restoreTradingCapitalInput();
     refreshDashboard();

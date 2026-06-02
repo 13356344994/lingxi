@@ -51,6 +51,412 @@ func TestRequestFormattingUsesRulePrecision(t *testing.T) {
 	}
 }
 
+func TestOpenHedgeLifecycleTransitions(t *testing.T) {
+	hedge := &OpenHedge{HedgeQty: 1}
+	hedge.markPendingValidation("awaiting validation")
+	if hedge.LifecycleState != OpenHedgeLifecyclePendingValidation {
+		t.Fatalf("expected pending validation, got %s", hedge.LifecycleState)
+	}
+
+	hedge.markActive("validated")
+	if hedge.LifecycleState != OpenHedgeLifecycleActive {
+		t.Fatalf("expected active, got %s", hedge.LifecycleState)
+	}
+
+	hedge.markClosing("close started")
+	hedge.CloseFuturesExecutedQty = 1
+	hedge.CloseSpotExecutedQty = 1
+	hedge.completeCloseLifecycle(false, "closed cleanly")
+	if hedge.LifecycleState != OpenHedgeLifecycleClosed {
+		t.Fatalf("expected closed, got %s", hedge.LifecycleState)
+	}
+
+	hedge.CloseSpotExecutedQty = 0.4
+	hedge.completeCloseLifecycle(true, "abort left residual")
+	if hedge.LifecycleState != OpenHedgeLifecycleAbortedWithResidual {
+		t.Fatalf("expected aborted with residual, got %s", hedge.LifecycleState)
+	}
+	if hedge.LifecycleUpdatedAt.IsZero() {
+		t.Fatal("expected lifecycle updated timestamp to be recorded")
+	}
+}
+
+func TestScheduleExposureRescueOrFailWrapsFailureMessage(t *testing.T) {
+	var engine *FundingRateSniperEngine
+	err := engine.scheduleExposureRescueOrFail(context.Background(), exposureRescueTask{
+		Mode:   exposureRescueModeOpen,
+		Phase:  "open_futures_unknown",
+		Symbol: "BTCUSDT",
+		Pair:   "BTCUSDT",
+	}, "托管失败", "已转入 ExposureManager 托管")
+	if err == nil || !strings.Contains(err.Error(), "托管失败") {
+		t.Fatalf("unexpected rescue result: %v", err)
+	}
+	if !strings.Contains(err.Error(), "exposure manager 未初始化") {
+		t.Fatalf("expected wrapped rescue failure, got %v", err)
+	}
+}
+
+func TestRecoveryActionResultFeeHelpers(t *testing.T) {
+	engine := &FundingRateSniperEngine{
+		logger:   log.New(io.Discard, "", 0),
+		spotMeta: map[string]SpotSymbol{"BTCUSDT": {BaseAsset: "BTC"}},
+	}
+	result := recoveryActionResult{
+		SpotOrder: SpotOrderResponse{
+			Symbol:              "BTCUSDT",
+			ExecutedQty:         "1",
+			CummulativeQuoteQty: "100",
+			Fills:               []SpotFill{{Commission: "0.25", CommissionAsset: "USDT"}},
+		},
+		FuturesExecution: OrderExecutionSnapshot{
+			Symbol:          "BTCUSDT",
+			OrderID:         1,
+			ExecutedQty:     1,
+			AvgPrice:        100,
+			Commission:      0.5,
+			CommissionAsset: "USDT",
+		},
+	}
+
+	if got := result.spotFeeUSDT(engine, context.Background()); got != 0.25 {
+		t.Fatalf("expected spot fee 0.25, got %.8f", got)
+	}
+	if got := result.futuresFeeUSDT(engine, context.Background()); got != 0.5 {
+		t.Fatalf("expected futures fee 0.5, got %.8f", got)
+	}
+}
+
+func TestRecoveryActionResultApplyCloseProtocolMarksRecoveredState(t *testing.T) {
+	hedge := &OpenHedge{HedgeQty: 1}
+	result := recoveryActionResult{
+		Summary:       "spot close failed, hedge restored",
+		RestoredHedge: true,
+		PartialClose:  true,
+	}
+
+	result.applyCloseProtocol(hedge, "fallback")
+	if hedge.LifecycleState != OpenHedgeLifecycleCloseRecoveredPart {
+		t.Fatalf("expected close recovered partial, got %s", hedge.LifecycleState)
+	}
+	if hedge.LifecycleReason != "spot close failed, hedge restored" {
+		t.Fatalf("unexpected lifecycle reason: %s", hedge.LifecycleReason)
+	}
+}
+
+func TestRecoveryActionResultApplyCloseProtocolMarksEscalatedState(t *testing.T) {
+	hedge := &OpenHedge{HedgeQty: 1}
+	result := recoveryActionResult{
+		Summary:   "unknown order escalated",
+		Escalated: true,
+	}
+
+	result.applyCloseProtocol(hedge, "fallback")
+	if hedge.LifecycleState != OpenHedgeLifecycleEscalated {
+		t.Fatalf("expected escalated, got %s", hedge.LifecycleState)
+	}
+}
+
+func TestRecoveryActionResultCloseDecisionRecoveredPartial(t *testing.T) {
+	result := recoveryActionResult{
+		Summary:       "partial close restored hedge",
+		RestoredHedge: true,
+		PartialClose:  true,
+	}
+	decision := result.closeDecision("fallback")
+	if decision.Outcome != RecoveryOutcomeCloseRecoveredPt {
+		t.Fatalf("expected recovered partial outcome, got %s", decision.Outcome)
+	}
+	if decision.LifecycleState != OpenHedgeLifecycleCloseRecoveredPart {
+		t.Fatalf("expected close recovered partial state, got %s", decision.LifecycleState)
+	}
+	if !decision.RestoredHedge {
+		t.Fatal("expected restored hedge decision")
+	}
+}
+
+func TestRecoveryActionResultCloseDecisionEscalated(t *testing.T) {
+	result := recoveryActionResult{
+		Summary:   "escalated to exposure manager",
+		Escalated: true,
+	}
+	decision := result.closeDecision("fallback")
+	if decision.Outcome != RecoveryOutcomeEscalated {
+		t.Fatalf("expected escalated outcome, got %s", decision.Outcome)
+	}
+	if !decision.RequiresEscalation {
+		t.Fatal("expected escalation flag")
+	}
+}
+
+func TestRecoveryProtocolResultDelegatesRecoveryBehavior(t *testing.T) {
+	hedge := &OpenHedge{HedgeQty: 1}
+	result := RecoveryProtocolResult{
+		ProtocolResult: ProtocolResult{
+			Summary: "protocol summary",
+		},
+		Action: recoveryActionResult{
+			RestoredHedge: true,
+			PartialClose:  true,
+		},
+	}
+
+	if got := result.lifecycleReason("fallback"); got != "protocol summary" {
+		t.Fatalf("expected protocol summary, got %q", got)
+	}
+	if err := result.openError("fallback", nil); err == nil || err.Error() != "protocol summary" {
+		t.Fatalf("expected delegated open error, got %v", err)
+	}
+
+	result.applyCloseProtocol(hedge, "fallback")
+	if hedge.LifecycleState != OpenHedgeLifecycleCloseRecoveredPart {
+		t.Fatalf("expected close recovered partial, got %s", hedge.LifecycleState)
+	}
+	if hedge.LifecycleReason != "protocol summary" {
+		t.Fatalf("unexpected lifecycle reason: %s", hedge.LifecycleReason)
+	}
+}
+
+func TestOpenLifecycleReasonWithProtocolResults(t *testing.T) {
+	detail := openLifecycleReason(
+		"open orders filled; awaiting post-open validation",
+		RecoveryProtocolResult{
+			ProtocolResult: ProtocolResult{Summary: "spot excess rebalanced"},
+			Action: recoveryActionResult{
+				ProtocolAction: "rebalance_spot_excess",
+				Summary:        "spot excess rebalanced",
+			},
+		},
+		RecoveryProtocolResult{
+			ProtocolResult: ProtocolResult{Summary: "futures residual closed"},
+			Action: recoveryActionResult{
+				ProtocolAction: "close_futures_residual",
+				Summary:        "futures residual closed",
+			},
+		},
+	)
+	if detail != "open orders filled; awaiting post-open validation | spot excess rebalanced | futures residual closed" {
+		t.Fatalf("unexpected lifecycle detail: %s", detail)
+	}
+}
+
+func TestRecoveryActionResultOpenDecisionEscalatedAndReverted(t *testing.T) {
+	escalated := recoveryActionResult{
+		Summary:   "open unknown escalated",
+		Escalated: true,
+	}
+	escalatedDecision := escalated.openDecision("fallback")
+	if escalatedDecision.Outcome != OpenRecoveryOutcomeEscalated {
+		t.Fatalf("expected escalated open outcome, got %s", escalatedDecision.Outcome)
+	}
+	if !escalatedDecision.RequiresEscalation {
+		t.Fatal("expected escalation requirement")
+	}
+
+	reverted := recoveryActionResult{
+		ProtocolAction: "close_futures_after_spot_open_failure",
+		Summary:        "spot open failed, futures reverted",
+		Reverted:       true,
+	}
+	revertedDecision := reverted.openDecision("fallback")
+	if revertedDecision.Outcome != OpenRecoveryOutcomeReverted {
+		t.Fatalf("expected reverted open outcome, got %s", revertedDecision.Outcome)
+	}
+	if !revertedDecision.Reverted {
+		t.Fatal("expected reverted flag")
+	}
+}
+
+func TestRecoveryActionResultOpenDecisionAbortedAndOpened(t *testing.T) {
+	aborted := recoveryActionResult{
+		ProtocolAction: "abort_after_adverse_selection",
+		Summary:        "opened but aborted immediately",
+		Aborted:        true,
+	}
+	abortedDecision := aborted.openDecision("fallback")
+	if abortedDecision.Outcome != OpenRecoveryOutcomeAborted {
+		t.Fatalf("expected aborted open outcome, got %s", abortedDecision.Outcome)
+	}
+	if !abortedDecision.Aborted {
+		t.Fatal("expected aborted flag")
+	}
+
+	opened := recoveryActionResult{
+		ProtocolAction: "rebalance_spot_excess",
+		Summary:        "spot excess rebalanced",
+	}
+	openedDecision := opened.openDecision("fallback")
+	if openedDecision.Outcome != OpenRecoveryOutcomeOpened {
+		t.Fatalf("expected opened outcome for rebalance-only action, got %s", openedDecision.Outcome)
+	}
+	if openedDecision.Reverted || openedDecision.Aborted || openedDecision.RequiresEscalation {
+		t.Fatalf("unexpected opened decision flags: %+v", openedDecision)
+	}
+}
+
+func TestBuildOpenExposureRescueTaskCarriesOpenContext(t *testing.T) {
+	target := &MonitoredTarget{
+		Candidate: FundingCandidate{
+			Symbol:            "BTCUSDT",
+			Pair:              "BTCUSDT",
+			SpotBaseAsset:     "BTC",
+			SpotBasePrecision: 3,
+		},
+	}
+
+	task := buildOpenExposureRescueTask(
+		target,
+		fundingCarryDirectionPositive,
+		"parallel_open_spot_unknown",
+		101.25,
+		"spot-cid",
+		"futures-cid",
+		0.4,
+		0.5,
+	)
+
+	if task.Mode != exposureRescueModeOpen {
+		t.Fatalf("expected open rescue mode, got %s", task.Mode)
+	}
+	if task.Phase != "parallel_open_spot_unknown" {
+		t.Fatalf("unexpected phase: %s", task.Phase)
+	}
+	if task.Symbol != "BTCUSDT" || task.Pair != "BTCUSDT" {
+		t.Fatalf("unexpected symbol context: %+v", task)
+	}
+	if task.SpotBaseAsset != "BTC" || task.SpotBasePrecision != 3 {
+		t.Fatalf("unexpected spot metadata: %+v", task)
+	}
+	if task.SpotClientOrderID != "spot-cid" || task.FuturesClientOrderID != "futures-cid" {
+		t.Fatalf("unexpected order ids: %+v", task)
+	}
+	if task.KnownSpotExecutedQty != 0.4 || task.KnownFuturesExecutedQty != 0.5 {
+		t.Fatalf("unexpected known quantities: %+v", task)
+	}
+}
+
+func TestParallelOpenResolutionDecisionOutcomes(t *testing.T) {
+	cases := []struct {
+		name       string
+		resolution parallelOpenResolution
+		want       parallelOpenDecisionOutcome
+	}{
+		{
+			name: "futures failed",
+			resolution: parallelOpenResolution{
+				futuresResult: parallelOpenFuturesResult{err: errors.New("timeout")},
+			},
+			want: parallelOpenDecisionFuturesFailed,
+		},
+		{
+			name: "zero futures fill",
+			resolution: parallelOpenResolution{
+				futuresResult: parallelOpenFuturesResult{snapshot: OrderExecutionSnapshot{ExecutedQty: 0}},
+			},
+			want: parallelOpenDecisionZeroFuturesFill,
+		},
+		{
+			name: "spot failed",
+			resolution: parallelOpenResolution{
+				futuresResult: parallelOpenFuturesResult{snapshot: OrderExecutionSnapshot{ExecutedQty: 1}},
+				spotResult:    parallelOpenSpotResult{err: errors.New("spot reject")},
+			},
+			want: parallelOpenDecisionSpotFailed,
+		},
+		{
+			name: "proceed",
+			resolution: parallelOpenResolution{
+				futuresResult: parallelOpenFuturesResult{snapshot: OrderExecutionSnapshot{ExecutedQty: 1}},
+				spotResult:    parallelOpenSpotResult{},
+			},
+			want: parallelOpenDecisionProceed,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			decision := tc.resolution.decision()
+			if decision.Outcome != tc.want {
+				t.Fatalf("expected outcome %s, got %s", tc.want, decision.Outcome)
+			}
+		})
+	}
+}
+
+func TestApplyMarketRiskDecisionSetsSymbolCooldownWithoutInvalidation(t *testing.T) {
+	engine := &FundingRateSniperEngine{
+		cfg:             DefaultEngineConfig(),
+		logger:          log.New(io.Discard, "", 0),
+		symbolCooldowns: make(map[string]symbolCooldownState),
+	}
+	engine.cfg.RiskConfig.SymbolAbnormalCooldown = time.Minute
+	target := &MonitoredTarget{
+		Candidate: FundingCandidate{Symbol: "BTCUSDT"},
+		IsValid:   1,
+	}
+
+	err := engine.applyMarketRiskDecision(target, MarketRiskDecision{
+		Category: "liquidity",
+		Severity: "major",
+		Action:   RiskActionTighten,
+	}, marketRiskActionOptions{
+		detail:               "容量不足",
+		symbolCooldownReason: "容量不足",
+	})
+	if err != nil {
+		t.Fatalf("applyMarketRiskDecision() error = %v", err)
+	}
+	if atomic.LoadInt32(&target.IsValid) != 1 {
+		t.Fatal("expected target to remain valid")
+	}
+	if target.LastMarketRiskAction != string(RiskActionTighten) {
+		t.Fatalf("unexpected action: %s", target.LastMarketRiskAction)
+	}
+	state, ok := engine.symbolCooldowns["BTCUSDT"]
+	if !ok {
+		t.Fatal("expected symbol cooldown to be recorded")
+	}
+	if state.Category != "liquidity" || state.Severity != "major" {
+		t.Fatalf("unexpected cooldown state: %+v", state)
+	}
+}
+
+func TestApplyMarketRiskDecisionGlobalPauseInvalidatesTargetAndTripsFuse(t *testing.T) {
+	engine := &FundingRateSniperEngine{
+		cfg:             DefaultEngineConfig(),
+		logger:          log.New(io.Discard, "", 0),
+		symbolCooldowns: make(map[string]symbolCooldownState),
+	}
+	target := &MonitoredTarget{
+		Candidate: FundingCandidate{Symbol: "BTCUSDT"},
+		IsValid:   1,
+	}
+
+	err := engine.applyMarketRiskDecision(target, MarketRiskDecision{
+		Category: "liquidity",
+		Severity: "critical",
+		Action:   RiskActionPauseCycle,
+	}, marketRiskActionOptions{
+		detail:                  "流动性极差",
+		netProfit:               -0.2,
+		invalidateOnGlobalPause: true,
+		globalPauseReason:       "symbol=BTCUSDT 流动性极差",
+	})
+	var fuseErr platformFuseError
+	if !errors.As(err, &fuseErr) {
+		t.Fatalf("expected platform fuse error, got %v", err)
+	}
+	if atomic.LoadInt32(&target.IsValid) != 0 {
+		t.Fatal("expected target to be invalidated")
+	}
+	if !engine.platformState.FuseTripped {
+		t.Fatal("expected platform fuse to be tripped")
+	}
+	if target.LastMarketRiskAction != string(RiskActionPauseCycle) {
+		t.Fatalf("unexpected action: %s", target.LastMarketRiskAction)
+	}
+}
+
 func TestPlaceFuturesBatchOrdersIdempotentRecoversUnknownOrderState(t *testing.T) {
 	postCalls := 0
 	queryCalls := 0
@@ -507,13 +913,13 @@ func TestEffectiveOpenHedgeMaxConcurrency(t *testing.T) {
 	}
 }
 
-func TestNoteProtectedIOCResultAccumulatesStats(t *testing.T) {
+func TestNoteProtectedIOCObservationAccumulatesStats(t *testing.T) {
 	engine := &FundingRateSniperEngine{
 		cfg:             DefaultEngineConfig(),
 		symbolCooldowns: make(map[string]symbolCooldownState),
 	}
 
-	engine.noteProtectedIOCResult("BTCUSDT", "futures", 10, 6, "EXPIRED")
+	engine.noteProtectedIOCObservation("BTCUSDT", "futures", newProtectedIOCObservation(10, 6, "EXPIRED"))
 	engine.platformRiskMu.Lock()
 	attempts, canceled, expired, partial, avgUnfilled, cancelRate := engine.protectedIOCStatsLocked()
 	engine.platformRiskMu.Unlock()
@@ -1132,6 +1538,12 @@ func TestValidateFreshOpenHedgeAbortsOnAdverseSelection(t *testing.T) {
 	if hedge.CloseFuturesExecutedQty != 1 || hedge.CloseSpotExecutedQty != 1 {
 		t.Fatalf("expected immediate unwind to close hedge, got futures=%.8f spot=%.8f", hedge.CloseFuturesExecutedQty, hedge.CloseSpotExecutedQty)
 	}
+	if hedge.LifecycleState != OpenHedgeLifecycleAborted {
+		t.Fatalf("expected aborted lifecycle after immediate unwind, got %s", hedge.LifecycleState)
+	}
+	if !strings.Contains(hedge.LifecycleReason, "已即时撤退") {
+		t.Fatalf("expected aborted lifecycle reason to mention immediate unwind, got %s", hedge.LifecycleReason)
+	}
 }
 
 func TestFetchSpotBookTickerRejectsRESTFallbackInCacheOnlyMode(t *testing.T) {
@@ -1523,8 +1935,8 @@ func TestScheduleAsyncFundingSettlementUpdatesSettlementAndDailyPnL(t *testing.T
 			t.Fatalf("ListSettlementRecords() error = %v", listErr)
 		}
 		if len(records) == 1 && records[0].FundingIncome == "1.25" && !records[0].FundingIncomePending {
-			if engine.dailyRealizedPnL != 1.25 {
-				t.Fatalf("expected daily pnl to be adjusted by funding delta, got %.8f", engine.dailyRealizedPnL)
+			if engine.riskBudgetState.DailyRealizedPnL != 1.25 {
+				t.Fatalf("expected daily pnl to be adjusted by funding delta, got %.8f", engine.riskBudgetState.DailyRealizedPnL)
 			}
 			return
 		}

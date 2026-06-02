@@ -46,8 +46,8 @@ func TestWaitForDirectionalSpotOrderWithBlindDeadlineSupportsMarginFallback(t *t
 	if snapshot.OrderID != 123456 {
 		t.Fatalf("expected order id 123456, got %d", snapshot.OrderID)
 	}
-	if snapshot.Status != "FILLED" {
-		t.Fatalf("expected FILLED status, got %s", snapshot.Status)
+	if !snapshot.HasConfirmedExecution() || !snapshot.IsClosed() {
+		t.Fatalf("expected confirmed closed snapshot, got %+v", snapshot)
 	}
 }
 
@@ -88,7 +88,7 @@ func TestObserveDirectionalSpotOrderUntilTerminalUpdatesMarginHub(t *testing.T) 
 	if !ok {
 		t.Fatal("expected margin order hub snapshot")
 	}
-	if snapshot.OrderID != 88 || snapshot.Status != "FILLED" {
+	if snapshot.OrderID != 88 || !snapshot.HasConfirmedExecution() || !snapshot.IsClosed() {
 		t.Fatalf("unexpected snapshot: %+v", snapshot)
 	}
 }

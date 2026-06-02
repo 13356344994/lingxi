@@ -50,19 +50,6 @@ func liveFundingDirectionEnabled(mode string, direction fundingCarryDirection) b
 	}
 }
 
-func liveFundingMagnitudePasses(cfg EngineConfig, direction fundingCarryDirection, rate float64, profile symbolRiskProfile) bool {
-	if !liveFundingDirectionEnabled(cfg.StrategyConfig.LiveFundingDirectionMode, direction) {
-		return false
-	}
-	magnitude := math.Abs(rate)
-	if magnitude <= cfg.StrategyConfig.MinEstimatedFundingRate*profile.MinEstimatedRateMultiplier {
-		return false
-	}
-	if magnitude >= cfg.StrategyConfig.MaxEstimatedFundingRate {
-		return false
-	}
-	return true
-}
 
 func liveFundingPriorityScore(mode string, estimatedRate float64, basisRate float64) float64 {
 	switch normalizeLiveFundingDirectionMode(mode) {
