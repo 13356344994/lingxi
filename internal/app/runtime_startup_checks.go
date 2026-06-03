@@ -41,6 +41,7 @@ func (c *RuntimeController) runLiveStartupChecks(ctx context.Context, secretPath
 		return fmt.Errorf("创建实盘引擎失败: %w", err)
 	}
 	engine.runID = strings.TrimSpace(runID)
+	engine.setTraceLogIDs(engine.runID, "")
 	engine.logger = log.New(newRuntimeLogWriter(c.logs, "live-preflight", os.Stdout, engine.traceIDs, engine.recordMetadata), "[LivePreflight] ", log.LstdFlags|log.Lmicroseconds)
 
 	if err := engine.syncServerTimeOffset(ctx); err != nil {

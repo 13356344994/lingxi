@@ -20,6 +20,7 @@ const (
 	residualCSVName             = "residual_risk_records.json"
 	executionCSVName            = "execution_incidents.jsonl"
 	domainEventJSONLName        = "domain_events.jsonl"
+	scanObservationJSONLName    = "scan_observations.jsonl"
 	executionIncidentCacheLimit = 5000
 	domainEventCacheLimit       = 5000
 	reportCSVRetention          = 6 * time.Hour
@@ -47,6 +48,7 @@ type ReportStore struct {
 	residualPath       string
 	executionPath      string
 	domainEventPath    string
+	scanObsPath        string
 	dustPath           string
 	pendingFundingPath string
 	monthlyPath        string
@@ -90,6 +92,7 @@ func newReportStoreWithPaths(recordDir string) *ReportStore {
 		residualPath:       filepath.Join(recordDir, residualCSVName),
 		executionPath:      filepath.Join(recordDir, executionCSVName),
 		domainEventPath:    filepath.Join(recordDir, domainEventJSONLName),
+		scanObsPath:        filepath.Join(recordDir, scanObservationJSONLName),
 		dustPath:           filepath.Join(recordDir, "dust_ledger.json"),
 		pendingFundingPath: filepath.Join(recordDir, "pending_funding_settlements.json"),
 		monthlyPath:        filepath.Join(recordDir, monthlySimulationLogCSVName),
@@ -550,7 +553,7 @@ func (s *ReportStore) ClearDashboardData() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	clearTargets := []string{s.settlementPath, s.monitorPath, s.backtestPath, s.residualPath, s.executionPath, s.domainEventPath, s.dustPath, s.pendingFundingPath, s.monthlyPath}
+	clearTargets := []string{s.settlementPath, s.monitorPath, s.backtestPath, s.residualPath, s.executionPath, s.domainEventPath, s.scanObsPath, s.dustPath, s.pendingFundingPath, s.monthlyPath}
 	for _, target := range clearTargets {
 		if strings.HasSuffix(target, ".jsonl") {
 			if err := clearJSONLFile(target); err != nil {

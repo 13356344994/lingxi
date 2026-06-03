@@ -571,10 +571,26 @@ func maxIntValue(a int, b int) int {
 	return b
 }
 
+// traceIDs 供日志写入器（runtimeLogWriter）旁路读取当前 run/cycle id 作为日志元数据。
+// 它【刻意不锁 platformRiskMu】：本函数会在「已持有 platformRiskMu 的协程正在写日志」时被回调，
+// 若再锁 platformRiskMu 会造成同协程自死锁（曾导致引擎在首个 ready->scan 状态迁移处整体卡死）。
+// 改用独立的 traceLogMu 保护一份 id 副本，写入侧通过 setTraceLogIDs 同步，读侧永不触碰风控锁。
 func (e *FundingRateSniperEngine) traceIDs() (string, string) {
-	e.platformRiskMu.Lock()
-	defer e.platformRiskMu.Unlock()
-	return strings.TrimSpace(e.runID), strings.TrimSpace(e.currentCycleID)
+	e.traceLogMu.Lock()
+	defer e.traceLogMu.Unlock()
+	return strings.TrimSpace(e.traceLogRunID), strings.TrimSpace(e.traceLogCycleID)
+}
+
+// setTraceLogIDs 更新供日志旁路读取的 run/cycle id 副本。只锁 traceLogMu，绝不在持有 platformRiskMu
+// 时调用（调用方需在释放 platformRiskMu 之后再调用），从而保持与风控锁的解耦。
+func (e *FundingRateSniperEngine) setTraceLogIDs(runID string, cycleID string) {
+	if e == nil {
+		return
+	}
+	e.traceLogMu.Lock()
+	e.traceLogRunID = runID
+	e.traceLogCycleID = cycleID
+	e.traceLogMu.Unlock()
 }
 
 func (e *FundingRateSniperEngine) recordMetadata() TraceRecordMetadata {

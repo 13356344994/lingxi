@@ -415,6 +415,54 @@ func (c *RuntimeController) ClearHistoricalCache() error {
 	return nil
 }
 
+// ClearAllRecords 一键清空所有页面日志与落盘记录：后台运行日志（含按天轮转）、各类记录文件、
+// 历史缓存，以及运行态状态台账（回测汇总、控制审计、日级风控、残腿救援、未平仓对冲）。
+// 要求后台任务未运行，避免与正在写盘的引擎竞争导致记录不一致。
+func (c *RuntimeController) ClearAllRecords() error {
+	c.mu.Lock()
+	running := c.status.Running
+	c.mu.Unlock()
+	if running {
+		return fmt.Errorf("后台任务运行中，请先停止任务再清空所有日志与记录")
+	}
+
+	// 1) 页面 JSON/JSONL 记录（结算/监控/回测/残腿/执行事故/领域事件/灰尘/待结算资金费/月度模拟）。
+	if err := c.store.ClearDashboardData(); err != nil {
+		return err
+	}
+	// 2) 后台运行日志（runtime_events.jsonl 及其按天轮转文件）。
+	if err := c.logs.Clear(); err != nil {
+		return err
+	}
+	// 3) 历史缓存。
+	if err := c.ClearHistoricalCache(); err != nil {
+		return err
+	}
+	// 4) 其余运行态台账 / 审计 / 事件文件：直接删除，引擎会在需要时按需重建。
+	recordDir := strings.TrimSpace(c.cfg.NetworkConfig.RecordDir)
+	if recordDir == "" {
+		recordDir = "records"
+	}
+	auxiliary := []string{
+		backtestRunCSVName,
+		dashboardAuditLogJSONLName,
+		liveDailyRiskStateName,
+		string(liveExposureRescueStateName),
+		liveOpenHedgesStateName,
+	}
+	for _, name := range auxiliary {
+		target := filepath.Join(recordDir, name)
+		if err := os.Remove(target); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("删除记录文件失败(%s): %w", name, err)
+		}
+	}
+
+	c.mu.Lock()
+	c.status.LastMessage = "所有日志与记录已清空"
+	c.mu.Unlock()
+	return nil
+}
+
 func (c *RuntimeController) runTask(ctx context.Context, mode RuntimeMode, secretPath string, lookbackDays int, cfg EngineConfig) {
 	var (
 		err     error
@@ -664,6 +712,7 @@ func (c *RuntimeController) runLiveEngine(ctx context.Context, secretPath string
 		return "", err
 	}
 	engine.runID = c.currentRunID()
+	engine.setTraceLogIDs(engine.runID, "")
 	engine.reportStore = c.store
 	engine.logger = log.New(newRuntimeLogWriter(c.logs, "live-engine", os.Stdout, engine.traceIDs, engine.recordMetadata), "[FundingRateSniper] ", log.LstdFlags|log.Lmicroseconds)
 	engine.executionEventHook = c.recordExecutionEvent

@@ -21,6 +21,18 @@ const (
 	liveExposureRescueStateName exposureRescueStateName = "live_exposure_rescue_tasks.json"
 )
 
+// isValid 报告该 mode 是否对应一条可被恢复处理的救援任务。只有 open / close 有对应的
+// flatten 恢复逻辑；其余（含空字符串）都无法被 handleTask 消化，若被持久化只会在每次启动时
+// 无限重试并记一条永远清不掉的事故。
+func (mode exposureRescueMode) isValid() bool {
+	switch mode {
+	case exposureRescueModeOpen, exposureRescueModeClose:
+		return true
+	default:
+		return false
+	}
+}
+
 type exposureRescueStateName string
 
 type exposureRescueTask struct {
@@ -188,8 +200,18 @@ func (m *ExposureManager) restorePendingTasks() error {
 	if m.pending == nil {
 		m.pending = make(map[string]exposureRescueTask, len(state.Tasks))
 	}
+	droppedInvalid := 0
 	for _, task := range state.Tasks {
 		normalized := normalizeExposureRescueTask(task)
+		if !normalized.Mode.isValid() {
+			// 非法 / 空 mode 的任务永远无法被 handleTask 恢复，保留只会在每次启动时无限重试并
+			// 污染事故计数。直接丢弃这条坏台账，避免它自我复制（多为旧版本未写 Mode 留下的孤儿记录）。
+			droppedInvalid++
+			if m.logger != nil {
+				m.logger.Printf("ExposureManager 丢弃无法恢复的救援任务(mode 非法)，symbol=%s phase=%s mode=%q pair=%s", normalized.Symbol, normalized.Phase, string(normalized.Mode), normalized.Pair)
+			}
+			continue
+		}
 		m.pending[exposureRescueTaskKey(normalized)] = normalized
 	}
 	tasks := make([]exposureRescueTask, 0, len(m.pending))
@@ -199,6 +221,13 @@ func (m *ExposureManager) restorePendingTasks() error {
 	sort.Slice(tasks, func(i, j int) bool {
 		return exposureRescueTaskKey(tasks[i]) < exposureRescueTaskKey(tasks[j])
 	})
+	// 丢弃过坏任务时立即把清理后的台账落盘，确保非法记录不再残留磁盘；清理后若为空，
+	// writePersistedExposureRescueState 会顺带删除整个台账文件。
+	if droppedInvalid > 0 {
+		if syncErr := m.syncPersistedTasksLocked(); syncErr != nil && m.logger != nil {
+			m.logger.Printf("ExposureManager 清理非法救援任务后落盘失败: %v", syncErr)
+		}
+	}
 	m.mu.Unlock()
 
 	for _, task := range tasks {

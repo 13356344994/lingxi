@@ -93,6 +93,7 @@ func (s *DashboardServer) Start(ctx context.Context) error {
 	mux.HandleFunc("/api/runtime/clear-logs", s.handleRuntimeClearLogsAPI)
 	mux.HandleFunc("/api/runtime/clear-data", s.handleRuntimeClearDataAPI)
 	mux.HandleFunc("/api/runtime/clear-cache", s.handleRuntimeClearCacheAPI)
+	mux.HandleFunc("/api/runtime/clear-all", s.handleRuntimeClearAllAPI)
 	mux.HandleFunc("/api/runtime/capital", s.handleRuntimeCapitalAPI)
 	mux.HandleFunc("/api/runtime/start", s.handleRuntimeStartAPI)
 	mux.HandleFunc("/api/runtime/stop", s.handleRuntimeStopAPI)
@@ -440,6 +441,27 @@ func (s *DashboardServer) handleRuntimeClearCacheAPI(w http.ResponseWriter, r *h
 	}
 	s.auditControlAction(r, "clear_cache", true, "历史缓存已清空")
 	writeJSON(w, map[string]string{"message": "历史缓存已清空"})
+}
+
+func (s *DashboardServer) handleRuntimeClearAllAPI(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if !s.authorizeRuntimeControl(w, r, "clear_all") {
+		return
+	}
+	if s.controller == nil {
+		http.Error(w, "后台控制器未初始化", http.StatusServiceUnavailable)
+		return
+	}
+	if err := s.controller.ClearAllRecords(); err != nil {
+		s.auditControlAction(r, "clear_all", false, err.Error())
+		http.Error(w, err.Error(), http.StatusConflict)
+		return
+	}
+	s.auditControlAction(r, "clear_all", true, "所有日志与记录已清空")
+	writeJSON(w, map[string]string{"message": "所有日志与记录已清空"})
 }
 
 func (s *DashboardServer) handleRuntimeCapitalAPI(w http.ResponseWriter, r *http.Request) {

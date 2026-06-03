@@ -214,7 +214,10 @@ func (e *FundingRateSniperEngine) livePreferredSpotQuoteAssets() []string {
 func (e *FundingRateSniperEngine) runOneCycle(ctx context.Context, wakeAt time.Time) error {
 	e.platformRiskMu.Lock()
 	e.currentCycleID = newCycleID(e.runID)
+	cycleID := e.currentCycleID
 	e.platformRiskMu.Unlock()
+	// 同步日志旁路用的 trace id 副本（在释放 platformRiskMu 之后），后续状态迁移日志才能带上本轮 cycle id。
+	e.setTraceLogIDs(e.runID, cycleID)
 	e.resetLifecycleTracking(LifecycleStageScanning, "开始扫描候选标的")
 	e.resetCyclePlatformRiskCounters()
 	e.runtimeReporter.EmitWithReason(StageScan, 0, "开始扫描候选标的")
@@ -359,6 +362,8 @@ func (e *FundingRateSniperEngine) scanTopFundingTargets(ctx context.Context) ([]
 
 	now := e.serverNow()
 	candidates := make([]FundingCandidate, 0, len(items))
+	observations := make([]ScanObservationRecord, 0, len(items))
+	breakEven := coherentMinFundingRate(e.cfg)
 	for _, item := range items {
 		if _, ok := e.goldenSymbolSet[item.Symbol]; !ok {
 			continue
@@ -378,7 +383,7 @@ func (e *FundingRateSniperEngine) scanTopFundingTargets(ctx context.Context) ([]
 		profile := GetSymbolRiskProfile(item.Symbol)
 
 		strategy := NewDefaultFundingStrategy()
-		action, _ := strategy.EvaluateScanCandidate(
+		action, reason := strategy.EvaluateScanCandidate(
 			FundingCandidate{Symbol: item.Symbol},
 			FundingSnapshot{
 				Symbol:          item.Symbol,
@@ -393,6 +398,15 @@ func (e *FundingRateSniperEngine) scanTopFundingTargets(ctx context.Context) ([]
 			profile,
 			e.cfg,
 		)
+
+		// 逐标的评估观测（通过/被拒都记），用于事后量化机会供给与近失幅度（estimated_rate 与 min_rate_gate 的差距）。
+		minRateGate := maxFloat(e.cfg.StrategyConfig.MinEstimatedFundingRate, breakEven) * profile.MinEstimatedRateMultiplier
+		observations = append(observations, newScanObservationRecord(
+			e.runID, e.currentCycleID, now, item.Symbol, nextFundingTime, direction,
+			estimatedRate, lastFundingRate, fundingJump, basisRate,
+			breakEven, minRateGate, e.cfg.StrategyConfig.MaxEstimatedFundingRate,
+			isStale, action != StrategyActionReject, reason,
+		))
 
 		if action == StrategyActionReject {
 			continue
@@ -456,6 +470,7 @@ func (e *FundingRateSniperEngine) scanTopFundingTargets(ctx context.Context) ([]
 		})
 	}
 
+	e.flushScanObservations(observations)
 	e.logger.Printf("模块二完成，候选目标数量: %d", len(targets))
 	for _, target := range targets {
 		e.logger.Printf(

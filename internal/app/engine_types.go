@@ -67,11 +67,17 @@ type symbolRiskProfile struct {
 
 // FundingRateSniperEngine 是资费压哨狙击引擎的单进程 MVP 主控。
 type FundingRateSniperEngine struct {
-	client                      *BinanceClient
-	cfg                         EngineConfig
-	logger                      *log.Logger
-	runID                       string
-	currentCycleID              string
+	client         *BinanceClient
+	cfg            EngineConfig
+	logger         *log.Logger
+	runID          string
+	currentCycleID string
+	// traceLogMu 仅保护下面两个供日志旁路读取的 trace id 副本。它与 platformRiskMu 完全解耦，
+	// 杜绝「持有 platformRiskMu 时写日志 -> 日志写入器回调 traceIDs() 再次 Lock platformRiskMu」
+	// 造成的同协程自死锁（Go 互斥锁不可重入）。
+	traceLogMu                  sync.Mutex
+	traceLogRunID               string
+	traceLogCycleID             string
 	goldenSymbols               []string
 	goldenSymbolSet             map[string]struct{}
 	goldenSpotPairByFuture      map[string]string
