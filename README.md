@@ -19,20 +19,20 @@
 
 ## 运行模式
 - `Dashboard` 模式
-  - `go run .`
+  - `go run ./cmd/lingxi`
   - 启动本地面板，默认监听 `127.0.0.1:8080`
   - 页面可启动实盘引擎、月度模拟、查看记录与运行状态
 - `Backtest` 模式
-  - `go run . backtest`
+  - `go run ./cmd/lingxi backtest`
   - 读取 `backtest/sample_backtest_trades.csv`
 - `Replay` 模式
-  - `go run . backtest replay`
+  - `go run ./cmd/lingxi backtest replay`
   - 读取 `backtest/sample_backtest_replay.csv`
 - `Timeline` 模式
-  - `go run . backtest timeline`
+  - `go run ./cmd/lingxi backtest timeline`
   - 读取 `backtest/sample_backtest_timeline.csv`
 - `Monthly` 模式
-  - `go run . backtest-monthly secret.yaml 30`
+  - `go run ./cmd/lingxi backtest-monthly secret.yaml 30`
   - 使用真实历史行情做月度模拟
 
 `backtest/README.md` 里有更详细的样例文件说明和回放字段解释。

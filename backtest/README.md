@@ -9,13 +9,13 @@
   - 程序首次启动时，如果 `records/backtest_records.csv` 还没有任何记录，会自动把这个样例文件的内容复制过去
 - `sample_backtest_trades.csv`
   - 作为最小回测器的交易样本输入
-  - 可通过 `go run . backtest` 聚合生成新的 `records/backtest_records.csv`
+  - 可通过 `go run ./cmd/lingxi backtest` 聚合生成新的 `records/backtest_records.csv`
 - `sample_backtest_replay.csv`
   - 作为历史回放式最小回测器的时点样本输入
-  - 可通过 `go run . backtest replay` 或 `go run . backtest-replay` 回放生成新的 `records/backtest_records.csv`
+  - 可通过 `go run ./cmd/lingxi backtest replay` 或 `go run ./cmd/lingxi backtest-replay` 回放生成新的 `records/backtest_records.csv`
 - `sample_backtest_timeline.csv`
   - 作为按模块时序推进的事件流样本输入
-  - 可通过 `go run . backtest timeline` 或 `go run . backtest-timeline` 生成新的 `records/backtest_records.csv`
+  - 可通过 `go run ./cmd/lingxi backtest timeline` 或 `go run ./cmd/lingxi backtest-timeline` 生成新的 `records/backtest_records.csv`
   - 运行后若出现残腿或双腿数量不一致，还会同步生成 `records/residual_risk_records.csv`
 
 当前回测 CSV 字段说明：
@@ -43,49 +43,49 @@
 最小回测器当前用法：
 
 ```bash
-go run . backtest
+go run ./cmd/lingxi backtest
 ```
 
 如果要指定自定义输入文件：
 
 ```bash
-go run . backtest backtest/your_trades.csv
+go run ./cmd/lingxi backtest backtest/your_trades.csv
 ```
 
 历史回放式最小回测器当前用法：
 
 ```bash
-go run . backtest replay
+go run ./cmd/lingxi backtest replay
 ```
 
 或：
 
 ```bash
-go run . backtest-replay
+go run ./cmd/lingxi backtest-replay
 ```
 
 如果要指定自定义回放样本：
 
 ```bash
-go run . backtest replay backtest/your_replay.csv
+go run ./cmd/lingxi backtest replay backtest/your_replay.csv
 ```
 
 按模块时序推进的回放器当前用法：
 
 ```bash
-go run . backtest timeline
+go run ./cmd/lingxi backtest timeline
 ```
 
 或：
 
 ```bash
-go run . backtest-timeline
+go run ./cmd/lingxi backtest-timeline
 ```
 
 如果要指定自定义时序样本：
 
 ```bash
-go run . backtest timeline backtest/your_timeline.csv
+go run ./cmd/lingxi backtest timeline backtest/your_timeline.csv
 ```
 
 `timeline` 样本字段说明：
@@ -132,3 +132,32 @@ go run . backtest timeline backtest/your_timeline.csv
 - `high`: `residual_usdt >= 200` 或 `emergency_hedge_pnl_estimate <= -0.20`
 - `medium`: `residual_usdt >= 50` 或 `emergency_hedge_pnl_estimate <= -0.05`
 - `low`: 其他情况
+
+## 月度主回测残腿 / 部分成交 haircut（H2）
+
+月度真实行情回测（`go run ./cmd/lingxi backtest-monthly` / `RunMonthlyMarketSimulation`）此前假设
+「完美对冲、100% 成交、零残腿」，会系统性高估收益。现在主路径会用一套保守、确定性的
+期望成本模型对每笔候选计提 haircut，和 `timeline` 回放里的 `fill_ratio` / `leg_reject`
+残腿逻辑同源：
+
+1. 部分成交残腿：每条腿期望只成交 `expected_leg_fill_ratio`，未匹配名义需在更差价格
+   紧急补腿，成本 = 残腿名义 ×（单边摩擦率 × `emergency_hedge_spread_multiplier` + |基差|）。
+2. 单腿拒单：以 `leg_reject_probability` 的概率某条腿完全未成交，已成交腿被迫紧急平掉，
+   开仓、平仓两侧各计提一次整条腿名义的期望成本。
+
+haircut 会同时作用于：
+
+- `EstimatedNetPnL`（参与安全边际门禁与候选择优，让回测主动拒掉「只有在完美对冲假设下
+  才赚钱」的边缘候选）；
+- `RealizedNetPnL` 与 `backtest_records.csv` 的 `trading_pnl` / `net_pnl`（让汇总净收益诚实）。
+
+相关配置项（`config.yaml` 的 `historical.*`，含默认值）：
+
+- `residual_fill_haircut_enabled`（默认 `true`）：是否启用 haircut；设为 `false` 可用于
+  对照「修正前 vs 修正后」净收益差异。
+- `expected_leg_fill_ratio`（默认 `0.99`，取值 `(0,1]`）：单腿期望成交比例。
+- `leg_reject_probability`（默认 `0.01`，取值 `[0,1]`）：单腿拒单概率。
+- `emergency_hedge_spread_multiplier`（默认 `4.0`，`>=1`）：紧急补腿/平腿相对正常摩擦的恶化倍数。
+
+每笔候选的 `notes` 会输出 `residualFillHaircut` / `residualPartialFillCost` /
+`residualLegRejectCost` / `expectedLegFillRatio` / `legRejectProbability`，便于事后审计。
