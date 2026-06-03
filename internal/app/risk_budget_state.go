@@ -17,6 +17,16 @@ type EngineRiskBudgetState struct {
 	DailyOpenNotionalUsed float64
 	DailyLimitTriggered   bool
 	DailyLimitReason      string
+
+	// ConsecutiveLossCycles 记录「按 funding 实收结算后真实净利为负」的连续周期数（当日维度）。
+	// 达到 RiskConfig.MaxConsecutiveLossCycles 即触发日级熔断停机，要求人工复核系统性失效。
+	ConsecutiveLossCycles int
+
+	// RealizedPnLCumulativeUSDT / RealizedPnLPeakUSDT 维护「全部已结算周期净利累计曲线」及其历史高水位，
+	// 用于账户级回撤熔断：drawdown = Peak − Cumulative。两者在启动时由已落盘结算记录回放重算复原，
+	// 之后每个周期 funding 实收结算完成时增量更新，因此跨重启自洽、不会被重启清零绕过。
+	RealizedPnLCumulativeUSDT float64
+	RealizedPnLPeakUSDT       float64
 }
 
 func (s *EngineRiskBudgetState) AddRequestError() {

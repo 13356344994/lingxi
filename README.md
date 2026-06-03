@@ -34,6 +34,19 @@
 - `Monthly` 模式
   - `go run ./cmd/lingxi backtest-monthly secret.yaml 30`
   - 使用真实历史行情做月度模拟
+- `Reconcile`（只读对账）模式
+  - `go run ./cmd/lingxi reconcile`
+  - 把已落盘结算记录与「模型预期」逐周期对账，输出胜率、实盘累计净利 vs 预期、资金费预测误差、
+    超阈值周期与 HEALTHY/UNHEALTHY 结论
+  - 不触碰任何下单/实盘路径，可在实盘运行期间随时执行；用于小额实盘验证「钱是不是按模型假设赚到的」
+- `Shadow`（影子只读冒烟）模式
+  - `go run ./cmd/lingxi shadow`
+  - 照常对接真实行情/账户、照常完成扫描/评估/决策，但任何会动用资金或改变交易所状态的签名请求
+    （下单/撤单/改杠杆/划转/借还币等一切非 GET）都会在唯一咽喉点 `signedRequest` 被**硬拦截**、
+    绝不触达交易所，下单意图以 `SHADOW_BLOCKED` 日志行落盘供核查
+  - 用途：实盘前的安全冒烟，抓「下错方向 / 异常数量 / 失控循环」等灾难性 bug；**不是**用来校准经济阈值
+    （模拟/影子量不到真实滑点、成交率、真实资金费与竞争，纸面数字会系统性偏乐观）
+  - 也可通过配置 `execution.shadow_trading: true` 开启
 
 `backtest/README.md` 里有更详细的样例文件说明和回放字段解释。
 
@@ -54,29 +67,23 @@ proxy_url: http://127.0.0.1:7890
 - 后续建议引入 `config.yaml` 和环境变量覆盖，把策略与风控参数从代码里分离出去
 
 ## 仓库结构
-- `main.go`
-  - 启动入口和回测入口
-- `funding_sniper_engine.go`
-  - 当前实盘主引擎编排核心
-- `runtime_controller.go`
-  - 后台任务控制、运行日志、页面状态
-- `dashboard_server.go`
-  - 本地控制面板与 API
-- `report_store.go`
-  - 记录存储、JSON / JSONL 迁移与保留策略
-- `risk_event.go` / `risk_semantics.go`
-  - 风险语义和风险事件模型
-- `engine_stage.go`
-  - 阶段枚举与合法迁移规则
-- `order_events.go`
-  - 订单回报缓存和等待中心
-- `historical_monthly_backtest.go`
-  - 月度真实行情模拟
-- `historical_data_cache.go`
-  - 历史请求缓存
+- `cmd/lingxi/main.go`
+  - 进程入口薄壳：信号处理 + 根 context，委托 `internal/app.Run`
+- `internal/app/`
+  - 实盘主引擎编排、面板、记录存储、风控语义、回测/模拟等核心域逻辑
+  - `funding_sniper_engine.go` 主引擎编排核心
+  - `run.go` 应用编排入口（实盘/回测模式选择与依赖装配）
+  - `dashboard_server.go` 本地控制面板与 API
+  - `report_store.go` 记录存储、JSON / JSONL 迁移与保留策略
+  - `close_protocol.go` / `open_protocol.go` 开平仓协议
+  - `strategy_evaluator.go` 选币/打分/成本进场闸
+  - `engine_settlement.go` / `funding_settlement_worker.go` 资金费结算
+- `internal/` 其余包
+  - `core`（配置内核）、`exchange`、`money`（定点记账）、`fillmodel`（成交/费用模型）、
+    `lifecycle`、`strategy`、`risk`、`store`、`marketdata` 等可独立单测的边界包
 - `backtest/`
   - 样例回测输入与 README
-- `webpanel/index.html`
+- `internal/app/webpanel/index.html`
   - 面板前端
 
 ## 记录文件
@@ -145,6 +152,13 @@ go build ./...
 - `/records/` 目录会通过 HTTP 暴露记录文件，所以不要把密钥、真实私密文件放进 `records/`
 - 如果未来需要监听非 localhost，必须再加正式认证和更严格的访问控制
 
+## 账户级风控刹车（fail-safe，只停机不下单）
+- 合约默认 **全仓(CROSSED) + 2x 杠杆**：全仓保住 delta 中性对冲不被单腿强平打破，2x 拉远强平价
+- 实时浮亏 panic-flatten + 单币止血 + 开仓前爆仓距离校验
+- `MaxConsecutiveLossCycles`：按 funding 实收结算后的真实净利连亏 N 周期即停机（当日维度，跨重启保留）
+- `MaxAccountDrawdownUSDT`：以全部已结算周期净利的累计曲线为准，自历史高水位回撤超阈值即停机
+  （补 `MaxDailyLossUSDT` 日清零抓不住的跨日慢性失血；回撤由结算记录回放得出，重启自动复原）
+
 ## 实盘前 Checklist
 - 确认 `secret.yaml` 只在本机存在，且权限正确
 - 确认 `DefaultEngineConfig()` 或运行时风控参数已按资金规模调整
@@ -152,6 +166,7 @@ go build ./...
 - 确认测试、`go vet`、`go build` 可通过
 - 确认 `records/` 清理策略符合本次实验需求
 - 确认没有误提交运行产物、缓存和日志
+- 小额实盘跑出若干完整周期后，用 `go run ./cmd/lingxi reconcile` 核对实盘是否按模型预期赚钱，再考虑放大档位
 
 ## 后续优先方向
 - 拆薄 `funding_sniper_engine.go`

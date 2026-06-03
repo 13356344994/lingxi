@@ -150,6 +150,8 @@ func TestOpenPreparationTimingUsesConfiguredLead(t *testing.T) {
 func TestEnsureFuturesExecutionSettingsConfiguresMarginTypeAndLeverage(t *testing.T) {
 	marginCalls := 0
 	leverageCalls := 0
+	// 期望杠杆从默认配置派生，默认值变动（如 3x→2x 的尾部风控收紧）时本测试不应僵硬误报。
+	expectedLeverage := fmt.Sprintf("%d", DefaultEngineConfig().ExecutionConfig.FuturesLeverage)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/fapi/v1/marginType":
@@ -164,8 +166,8 @@ func TestEnsureFuturesExecutionSettingsConfiguresMarginTypeAndLeverage(t *testin
 			_, _ = w.Write([]byte(`{}`))
 		case "/fapi/v1/leverage":
 			leverageCalls++
-			if got := r.URL.Query().Get("leverage"); got != "3" {
-				t.Fatalf("unexpected leverage: %s", got)
+			if got := r.URL.Query().Get("leverage"); got != expectedLeverage {
+				t.Fatalf("unexpected leverage: %s (want %s)", got, expectedLeverage)
 			}
 			if got := r.URL.Query().Get("symbol"); got != "BTCUSDT" {
 				t.Fatalf("unexpected leverage symbol: %s", got)

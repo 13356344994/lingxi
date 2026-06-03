@@ -183,7 +183,7 @@ func TestVerifyPreparedPlanFundingStabilityAcceptsStableSamples(t *testing.T) {
 		case "/fapi/v1/premiumIndex":
 			atomic.AddInt32(&calls, 1)
 			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(fmt.Sprintf(`{"symbol":"BTCUSDT","markPrice":"100","indexPrice":"100","estimatedSettlePrice":"100.30","lastFundingRate":"0.0030","interestRate":"0.0001","nextFundingTime":%d,"time":%d}`,
+			_, _ = w.Write([]byte(fmt.Sprintf(`{"symbol":"BTCUSDT","markPrice":"100","indexPrice":"100","estimatedSettlePrice":"100.70","lastFundingRate":"0.0070","interestRate":"0.0001","nextFundingTime":%d,"time":%d}`,
 				time.Now().Add(time.Minute).UnixMilli(), time.Now().UnixMilli())))
 		default:
 			t.Fatalf("unexpected request path: %s", r.URL.Path)
@@ -205,7 +205,7 @@ func TestVerifyPreparedPlanFundingStabilityAcceptsStableSamples(t *testing.T) {
 			Candidate: FundingCandidate{
 				Symbol:        "BTCUSDT",
 				Direction:     fundingCarryDirectionPositive,
-				EstimatedRate: 0.0030,
+				EstimatedRate: 0.0070,
 			},
 		},
 	}
@@ -226,11 +226,11 @@ func TestVerifyPreparedPlanFundingStabilityRejectsDirectionFlip(t *testing.T) {
 		case "/fapi/v1/premiumIndex":
 			call := atomic.AddInt32(&calls, 1)
 			w.Header().Set("Content-Type", "application/json")
-			rate := "0.0030"
-			settlePrice := "100.30"
+			rate := "0.0070"
+			settlePrice := "100.70"
 			if call >= 2 {
-				rate = "-0.0030"
-				settlePrice = "99.70"
+				rate = "-0.0070"
+				settlePrice = "99.30"
 			}
 			_, _ = w.Write([]byte(fmt.Sprintf(`{"symbol":"BTCUSDT","markPrice":"100","indexPrice":"100","estimatedSettlePrice":"%s","lastFundingRate":"%s","interestRate":"0.0001","nextFundingTime":%d,"time":%d}`,
 				settlePrice, rate, time.Now().Add(time.Minute).UnixMilli(), time.Now().UnixMilli())))
@@ -254,7 +254,7 @@ func TestVerifyPreparedPlanFundingStabilityRejectsDirectionFlip(t *testing.T) {
 			Candidate: FundingCandidate{
 				Symbol:        "BTCUSDT",
 				Direction:     fundingCarryDirectionPositive,
-				EstimatedRate: 0.0030,
+				EstimatedRate: 0.0070,
 			},
 		},
 	}

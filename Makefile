@@ -5,7 +5,8 @@ BINARY ?= lingxi
 VERSION ?= dev
 COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 BUILD_TIME ?= $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
-LDFLAGS := -X 'main.appVersion=$(VERSION)' -X 'main.gitCommit=$(COMMIT)' -X 'main.buildTime=$(BUILD_TIME)'
+VERSION_PKG := lingxi/internal/app
+LDFLAGS := -X '$(VERSION_PKG).appVersion=$(VERSION)' -X '$(VERSION_PKG).gitCommit=$(COMMIT)' -X '$(VERSION_PKG).buildTime=$(BUILD_TIME)'
 
 fmt:
 	@find . -name '*.go' -not -path './.gocache/*' -print0 | xargs -0 $(GO)fmt -w
@@ -24,7 +25,7 @@ cover:
 	$(GO) tool cover -func=coverage.out
 
 build:
-	$(GO) build -ldflags "$(LDFLAGS)" -o $(BINARY) .
+	$(GO) build -ldflags "$(LDFLAGS)" -o $(BINARY) ./cmd/lingxi
 
 vuln:
 	$(GO) run golang.org/x/vuln/cmd/govulncheck@latest ./...

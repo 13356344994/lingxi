@@ -42,7 +42,11 @@ jobs:
           go tool cover -func=coverage.out
 
       - name: Build
-        run: go build ./...
+        run: |
+          # 先编译全部包（含未被 main 引用的包），再用 make build 验证可执行入口确实能产出二进制，
+          # 避免「go build ./... 因无 main 包而误绿」掩盖入口缺失。
+          go build ./...
+          make build
 
       - name: Govulncheck
         run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...

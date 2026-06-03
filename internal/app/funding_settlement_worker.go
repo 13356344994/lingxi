@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"lingxi/internal/money"
 	"math"
 	"strings"
 	"time"
@@ -109,8 +110,16 @@ func (e *FundingRateSniperEngine) processPendingFundingSettlement(record Pending
 	updated := record.Settlement
 	updated.FundingIncome = result.TotalFundingIncome
 	updated.ExpectedFundingIncome = result.ExpectedFundingIncome
-	updated.FundingIncomeDiff = result.TotalFundingIncome - result.ExpectedFundingIncome
-	updated.NetPnL = result.TotalFundingIncome + updated.SpotTradingPnL + updated.FuturesTradingPnL - updated.TotalFees - updated.TotalBorrowCosts
+	updated.FundingIncomeDiff = money.Sum(result.TotalFundingIncome, -result.ExpectedFundingIncome).USDT()
+	// 资金费实收到账后，落袋净利以定点求和重算：funding + 现货/合约交易盈亏 - 手续费 - 借币成本，
+	// 与开仓阶段(close_protocol)同一套 money 口径，避免 float64 连加漂移使净利与对账值逐分偏离。
+	updated.NetPnL = money.Sum(
+		result.TotalFundingIncome,
+		updated.SpotTradingPnL,
+		updated.FuturesTradingPnL,
+		-updated.TotalFees,
+		-updated.TotalBorrowCosts,
+	).USDT()
 	updated.FundingIncomePending = false
 	updated.FundingSettledAt = now
 
@@ -138,6 +147,11 @@ func (e *FundingRateSniperEngine) processPendingFundingSettlement(record Pending
 		if err := e.noteDailySettlement(deltaFunding); err != nil && e.logger != nil {
 			e.logger.Printf("异步资金费结算写入日内盈亏失败: %v", err)
 		}
+	}
+	// funding 实收落袋后，updated.NetPnL 才是该周期的真实净利——此刻才能判定本周期是赚是亏。
+	// 连续亏损熔断必须挂在这里，而非平仓时(close 阶段净利还不含 funding，几乎必为负会误判)。
+	if err := e.noteCycleFinalSettlement(updated.NetPnL); err != nil && e.logger != nil {
+		e.logger.Printf("连续亏损熔断复核触发停机: cycle=%s netPnL=%.6f err=%v", updated.CycleID, updated.NetPnL, err)
 	}
 	if e.logger != nil {
 		e.logger.Printf(

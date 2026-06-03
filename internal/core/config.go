@@ -94,6 +94,11 @@ type ExecutionConfig struct {
 	FuturesSTPMode           string
 	FuturesMarginType        string
 	FuturesLeverage          int
+	// ShadowTrading 为 true 时进入「影子(只读冒烟)」模式：引擎照常对接真实行情与账户、照常完成扫描/评估/
+	// 决策，但任何会改变交易所状态或动用资金的签名请求(下单/撤单/改杠杆/划转/借还币等一切非 GET)都会在
+	// 唯一咽喉点 signedRequest 被硬拦截、绝不触达交易所，只把下单意图落日志。用于实盘前抓灾难性 bug
+	// (下错方向/异常数量/失控循环)，而非校准经济阈值。默认 false。
+	ShadowTrading bool
 }
 
 // RiskConfig 表示实盘风控阈值和冷却预算。
@@ -122,6 +127,15 @@ type RiskConfig struct {
 	MaxDailyLossUSDT              float64
 	MaxDailyOrderCount            int
 	MaxDailyOpenNotionalUSDT      float64
+	// MaxConsecutiveLossCycles 是实盘连续亏损熔断阈值：当「按 funding 实收结算后的真实净利」连续为负的
+	// 周期数达到该值时，触发日级熔断、停止继续开仓，要求人工复核。0 表示关闭该维度。它对应回测里的
+	// MaxConsecutiveLosses，把同一条系统性失效保护从回测补齐到实盘，且只会停机（fail-safe），不会下新单。
+	MaxConsecutiveLossCycles int
+	// MaxAccountDrawdownUSDT 是账户级「高水位回撤」熔断阈值（USDT）：以全部已结算周期净利的累计曲线为准，
+	// 当从历史最高累计净利(high-water mark)回撤的绝对额达到该值时停机待人工复核。它补的是 MaxDailyLossUSDT
+	// 的盲区——日亏每个 UTC 日清零，抓不住「每天小亏、跨日慢性失血」累计掏空账户的情形。回撤额完全由已落盘
+	// 结算记录回放得出，无需权益基线、不依赖现货 mark-to-market，重启后可重算复原。0 表示关闭该维度。
+	MaxAccountDrawdownUSDT float64
 	// HedgeImbalanceAbortUSDT / HedgeImbalanceAbortRate 是 Gate 4 关键不变量守卫的阈值：
 	// 当 |现货腿名义 − 合约腿名义| 的绝对值(USDT)或相对比例超过阈值时立即熔断，防止裸敞口。
 	// 默认 0 表示该维度不启用（不改变既有行为，opt-in）。
@@ -208,6 +222,8 @@ func (cfg *EngineConfig) ApplyProfile(profile EngineProfile) {
 		cfg.RiskConfig.MaxConsecutiveRequestErrors = 3
 		cfg.RiskConfig.MaxConsecutivePlatformRejects = 2
 		cfg.RiskConfig.MaxOrderUncertaintyPerCycle = 1
+		cfg.RiskConfig.MaxConsecutiveLossCycles = 2
+		cfg.RiskConfig.MaxAccountDrawdownUSDT = 25.0
 	case ProfileResearch:
 		cfg.StrategyConfig.MaxTargets = 20
 		cfg.StrategyConfig.PerSymbolQuoteUSDT = 200.0
@@ -218,6 +234,8 @@ func (cfg *EngineConfig) ApplyProfile(profile EngineProfile) {
 		cfg.RiskConfig.MaxConsecutiveRequestErrors = 20
 		cfg.RiskConfig.MaxConsecutivePlatformRejects = 10
 		cfg.RiskConfig.MaxOrderUncertaintyPerCycle = 5
+		cfg.RiskConfig.MaxConsecutiveLossCycles = 5
+		cfg.RiskConfig.MaxAccountDrawdownUSDT = 400.0
 	case ProfileStandard:
 		// 保持默认值不变
 	}
@@ -340,6 +358,8 @@ func (cfg EngineConfig) Validate() error {
 	appendIssue(isValidCoreSelfTradePreventionMode(cfg.ExecutionConfig.FuturesSTPMode), "FuturesSTPMode 必须是 EXPIRE_TAKER / EXPIRE_MAKER / EXPIRE_BOTH / NONE")
 	appendIssue(strings.EqualFold(strings.TrimSpace(cfg.ExecutionConfig.FuturesMarginType), "CROSSED"), "FuturesMarginType 当前必须为 CROSSED")
 	appendIssue(cfg.ExecutionConfig.FuturesLeverage >= 1 && cfg.ExecutionConfig.FuturesLeverage <= 20, "FuturesLeverage 必须在 1 到 20 之间")
+	appendIssue(cfg.RiskConfig.MaxConsecutiveLossCycles >= 0, "MaxConsecutiveLossCycles 不能小于 0（0 表示关闭连续亏损熔断）")
+	appendIssue(cfg.RiskConfig.MaxAccountDrawdownUSDT >= 0, "MaxAccountDrawdownUSDT 不能小于 0（0 表示关闭账户级回撤熔断）")
 
 	appendIssue(cfg.RiskConfig.MinNetProfitRate > 0, "MinNetProfitRate 必须大于 0")
 	appendIssue(cfg.RiskConfig.ImmediateInvalidateRate > 0, "ImmediateInvalidateRate 必须大于 0")

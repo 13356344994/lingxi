@@ -72,6 +72,7 @@ func envConfigOverrides() map[string]string {
 		"execution.futures_price_protect",
 		"execution.spot_stp_mode",
 		"execution.futures_stp_mode",
+		"execution.shadow_trading",
 		"risk.min_net_profit_rate",
 		"risk.immediate_invalidate_rate",
 		"risk.max_cycle_loss_usdt",
@@ -84,6 +85,8 @@ func envConfigOverrides() map[string]string {
 		"risk.max_daily_loss_usdt",
 		"risk.max_daily_order_count",
 		"risk.max_daily_open_notional_usdt",
+		"risk.max_consecutive_loss_cycles",
+		"risk.max_account_drawdown_usdt",
 		"historical.default_lookback_days",
 		"historical.initial_equity_usdt",
 		"historical.per_leg_notional_usdt",
@@ -308,6 +311,12 @@ func applyEngineConfigOverrides(cfg *EngineConfig, values map[string]string) err
 				return fmt.Errorf("%s: %w", key, err)
 			}
 			cfg.ExecutionConfig.FuturesLimitSlippageRate = parsed
+		case "execution.shadow_trading", "shadow_trading":
+			parsed, err := parseConfigBool(value)
+			if err != nil {
+				return fmt.Errorf("%s: %w", key, err)
+			}
+			cfg.ExecutionConfig.ShadowTrading = parsed
 		case "execution.futures_price_protect", "futures_price_protect":
 			parsed, err := parseConfigBool(value)
 			if err != nil {
@@ -398,6 +407,18 @@ func applyEngineConfigOverrides(cfg *EngineConfig, values map[string]string) err
 				return fmt.Errorf("%s: %w", key, err)
 			}
 			cfg.RiskConfig.MaxDailyOpenNotionalUSDT = parsed
+		case "risk.max_consecutive_loss_cycles", "max_consecutive_loss_cycles":
+			parsed, err := parseConfigInt(value)
+			if err != nil {
+				return fmt.Errorf("%s: %w", key, err)
+			}
+			cfg.RiskConfig.MaxConsecutiveLossCycles = parsed
+		case "risk.max_account_drawdown_usdt", "max_account_drawdown_usdt":
+			parsed, err := parseConfigFloat(value)
+			if err != nil {
+				return fmt.Errorf("%s: %w", key, err)
+			}
+			cfg.RiskConfig.MaxAccountDrawdownUSDT = parsed
 		case "historical.default_lookback_days", "default_lookback_days":
 			parsed, err := parseConfigInt(value)
 			if err != nil {

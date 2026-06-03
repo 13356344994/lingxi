@@ -235,6 +235,208 @@ func TestNoteOrderPlacedRecoveryBypassesEmergencyStop(t *testing.T) {
 	}
 }
 
+// TestNoteCycleFinalSettlementTripsConsecutiveLossBreaker 钉死 P3：实盘连续亏损熔断。
+// 当「按 funding 实收结算后的真实净利」连续为负达到阈值时必须停机，且这是 fail-safe（只停机不下单）。
+func TestNoteCycleFinalSettlementTripsConsecutiveLossBreaker(t *testing.T) {
+	cfg := DefaultEngineConfig()
+	cfg.RiskConfig.MaxConsecutiveLossCycles = 2
+	cfg.RiskConfig.MaxDailyLossUSDT = 1e9 // 排除日亏维度干扰，单独验证连亏维度
+	engine := &FundingRateSniperEngine{
+		cfg:             cfg,
+		logger:          log.Default(),
+		runtimeReporter: newRuntimeReporter(nil),
+		dailyRiskDate:   tradingDayUTC(time.Now().UTC()),
+	}
+	engine.runtimeReporter = newRuntimeReporter(engine)
+
+	if err := engine.noteCycleFinalSettlement(-0.5); err != nil {
+		t.Fatalf("第一次亏损不应触线: %v", err)
+	}
+	if engine.riskBudgetState.ConsecutiveLossCycles != 1 {
+		t.Fatalf("expected consecutive loss count 1, got %d", engine.riskBudgetState.ConsecutiveLossCycles)
+	}
+	err := engine.noteCycleFinalSettlement(-0.5)
+	if err == nil {
+		t.Fatal("连续第二次亏损应触发连亏熔断")
+	}
+	if !strings.Contains(err.Error(), "连续亏损周期数") {
+		t.Fatalf("unexpected breaker error: %v", err)
+	}
+	if !engine.riskBudgetState.DailyLimitTriggered {
+		t.Fatal("expected daily limit flag to be set after consecutive loss breaker")
+	}
+}
+
+// TestNoteCycleFinalSettlementResetsOnProfit 断言一旦出现盈利周期，连亏计数清零，不会错误累积触发熔断。
+func TestNoteCycleFinalSettlementResetsOnProfit(t *testing.T) {
+	cfg := DefaultEngineConfig()
+	cfg.RiskConfig.MaxConsecutiveLossCycles = 2
+	cfg.RiskConfig.MaxDailyLossUSDT = 1e9
+	engine := &FundingRateSniperEngine{
+		cfg:             cfg,
+		logger:          log.Default(),
+		runtimeReporter: newRuntimeReporter(nil),
+		dailyRiskDate:   tradingDayUTC(time.Now().UTC()),
+	}
+	engine.runtimeReporter = newRuntimeReporter(engine)
+
+	if err := engine.noteCycleFinalSettlement(-0.5); err != nil {
+		t.Fatalf("第一次亏损不应触线: %v", err)
+	}
+	if err := engine.noteCycleFinalSettlement(0.8); err != nil {
+		t.Fatalf("盈利周期不应触线: %v", err)
+	}
+	if engine.riskBudgetState.ConsecutiveLossCycles != 0 {
+		t.Fatalf("expected counter reset to 0 after profit, got %d", engine.riskBudgetState.ConsecutiveLossCycles)
+	}
+	if err := engine.noteCycleFinalSettlement(-0.5); err != nil {
+		t.Fatalf("盈利清零后单次亏损不应触线: %v", err)
+	}
+}
+
+// TestConsecutiveLossSurvivesRestart 钉死连亏计数必须随持久化状态在进程重启后恢复，
+// 不能因为重启把 riskBudgetState 清零而绕过连亏熔断。
+func TestConsecutiveLossSurvivesRestart(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "live_daily_risk_state.json")
+	cfg := DefaultEngineConfig()
+	cfg.RiskConfig.MaxConsecutiveLossCycles = 2
+	cfg.RiskConfig.MaxDailyLossUSDT = 1e9
+
+	first := &FundingRateSniperEngine{
+		cfg:                cfg,
+		logger:             log.Default(),
+		runtimeReporter:    newRuntimeReporter(nil),
+		dailyRiskStatePath: path,
+		dailyRiskDate:      tradingDayUTC(time.Now().UTC()),
+	}
+	first.runtimeReporter = newRuntimeReporter(first)
+	if err := first.noteCycleFinalSettlement(-0.5); err != nil {
+		t.Fatalf("第一次亏损不应触线: %v", err)
+	}
+
+	second := &FundingRateSniperEngine{
+		cfg:                cfg,
+		logger:             log.Default(),
+		runtimeReporter:    newRuntimeReporter(nil),
+		dailyRiskStatePath: path,
+	}
+	second.runtimeReporter = newRuntimeReporter(second)
+	if err := second.loadDailyRiskState(); err != nil {
+		t.Fatalf("loadDailyRiskState() error = %v", err)
+	}
+	if second.riskBudgetState.ConsecutiveLossCycles != 1 {
+		t.Fatalf("expected restored consecutive loss count 1 after restart, got %d", second.riskBudgetState.ConsecutiveLossCycles)
+	}
+	if err := second.noteCycleFinalSettlement(-0.5); err == nil {
+		t.Fatal("重启后再亏一次应触发连亏熔断")
+	}
+}
+
+// TestAccountDrawdownBreakerTripsFromHighWaterMark 钉死账户级高水位回撤熔断：累计净利冲高后回撤超阈值即停机。
+// 这是 MaxDailyLossUSDT(日清零)抓不到的「跨日慢性失血」维度。
+func TestAccountDrawdownBreakerTripsFromHighWaterMark(t *testing.T) {
+	cfg := DefaultEngineConfig()
+	cfg.RiskConfig.MaxAccountDrawdownUSDT = 10
+	cfg.RiskConfig.MaxConsecutiveLossCycles = 0 // 隔离：只验证回撤维度
+	cfg.RiskConfig.MaxDailyLossUSDT = 1e9
+	engine := &FundingRateSniperEngine{
+		cfg:             cfg,
+		logger:          log.Default(),
+		runtimeReporter: newRuntimeReporter(nil),
+		dailyRiskDate:   tradingDayUTC(time.Now().UTC()),
+	}
+	engine.runtimeReporter = newRuntimeReporter(engine)
+
+	// 先盈利冲出高水位 +20。
+	if err := engine.noteCycleFinalSettlement(20); err != nil {
+		t.Fatalf("盈利周期不应触线: %v", err)
+	}
+	if engine.riskBudgetState.RealizedPnLPeakUSDT != 20 {
+		t.Fatalf("expected peak 20, got %.4f", engine.riskBudgetState.RealizedPnLPeakUSDT)
+	}
+	// 回撤 -9：尚未触线（drawdown=9 < 10）。
+	if err := engine.noteCycleFinalSettlement(-9); err != nil {
+		t.Fatalf("回撤未达阈值不应触线: %v", err)
+	}
+	// 高水位不应随回撤下降。
+	if engine.riskBudgetState.RealizedPnLPeakUSDT != 20 {
+		t.Fatalf("expected high-water mark to stay at 20, got %.4f", engine.riskBudgetState.RealizedPnLPeakUSDT)
+	}
+	// 再回撤 -2：累计=9，drawdown=11 >= 10，触发停机。
+	err := engine.noteCycleFinalSettlement(-2)
+	if err == nil {
+		t.Fatal("自高水位回撤超阈值应触发账户级熔断")
+	}
+	if !strings.Contains(err.Error(), "账户级回撤") {
+		t.Fatalf("unexpected breaker error: %v", err)
+	}
+	if !engine.riskBudgetState.DailyLimitTriggered {
+		t.Fatal("expected daily limit flag to be set after account drawdown breaker")
+	}
+}
+
+// TestAccountDrawdownWaterMarkSeededFromRecords 钉死高水位由已落盘结算记录按时间顺序回放重算复原，
+// 重启后无需独立持久化峰值即可恢复正确回撤，不会被重启清零绕过。
+func TestAccountDrawdownWaterMarkSeededFromRecords(t *testing.T) {
+	store, err := NewReportStore(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewReportStore() error = %v", err)
+	}
+	base := time.Now().UTC().Add(-time.Hour)
+	// 时间乱序写入，验证回放时会按时间排序得到正确的累计曲线: +30(峰) -> -12 -> -6，累计=12，峰=30，回撤=18。
+	appendSettled := func(cycle string, at time.Time, net float64) {
+		if appendErr := store.AppendSettlement(CycleSettlement{
+			RunID:           "run-1",
+			CycleID:         cycle,
+			CloseExecutedAt: at,
+			NetPnL:          net,
+		}); appendErr != nil {
+			t.Fatalf("AppendSettlement() error = %v", appendErr)
+		}
+	}
+	appendSettled("c2", base.Add(2*time.Minute), -12)
+	appendSettled("c1", base.Add(1*time.Minute), 30)
+	appendSettled("c3", base.Add(3*time.Minute), -6)
+	// 仍在等待 funding 的周期净利未定稿，必须被回放跳过。
+	if appendErr := store.AppendSettlement(CycleSettlement{
+		RunID: "run-1", CycleID: "c4", CloseExecutedAt: base.Add(4 * time.Minute),
+		NetPnL: -999, FundingIncomePending: true,
+	}); appendErr != nil {
+		t.Fatalf("AppendSettlement() error = %v", appendErr)
+	}
+
+	cfg := DefaultEngineConfig()
+	cfg.RiskConfig.MaxAccountDrawdownUSDT = 15
+	cfg.RiskConfig.MaxConsecutiveLossCycles = 0
+	cfg.RiskConfig.MaxDailyLossUSDT = 1e9 // 隔离日亏维度，单独验证回撤维度
+	engine := &FundingRateSniperEngine{
+		cfg:                cfg,
+		logger:             log.Default(),
+		runtimeReporter:    newRuntimeReporter(nil),
+		reportStore:        store,
+		dailyRiskStatePath: filepath.Join(t.TempDir(), "live_daily_risk_state.json"),
+	}
+	engine.runtimeReporter = newRuntimeReporter(engine)
+	if err := engine.loadDailyRiskState(); err != nil {
+		t.Fatalf("loadDailyRiskState() error = %v", err)
+	}
+
+	if engine.riskBudgetState.RealizedPnLPeakUSDT != 30 {
+		t.Fatalf("expected replayed peak 30, got %.4f", engine.riskBudgetState.RealizedPnLPeakUSDT)
+	}
+	if engine.riskBudgetState.RealizedPnLCumulativeUSDT != 12 {
+		t.Fatalf("expected replayed cumulative 12 (pending cycle skipped), got %.4f", engine.riskBudgetState.RealizedPnLCumulativeUSDT)
+	}
+	// 回撤=18 >= 15：重启后首次安全检查就应停机，且原因必须是账户级回撤。
+	err = engine.checkDailyRiskLimits("post_restart")
+	if err == nil {
+		t.Fatal("重启后自高水位回撤超阈值应触发账户级熔断")
+	}
+	if !strings.Contains(err.Error(), "账户级回撤") {
+		t.Fatalf("unexpected halt reason after restart: %v", err)
+	}
+}
+
 func TestEvaluateOpenDepthStabilityTripsOnVisibleDepthCollapse(t *testing.T) {
 	engine := &FundingRateSniperEngine{cfg: DefaultEngineConfig()}
 	target := &MonitoredTarget{

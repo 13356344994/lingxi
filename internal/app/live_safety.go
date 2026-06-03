@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -18,11 +19,12 @@ const (
 )
 
 type persistedDailyRiskState struct {
-	TradingDay       string  `json:"trading_day"`
-	RealizedPnL      float64 `json:"realized_pnl"`
-	OrderCount       int     `json:"order_count"`
-	OpenNotionalUSDT float64 `json:"open_notional_usdt"`
-	UpdatedAt        string  `json:"updated_at"`
+	TradingDay        string  `json:"trading_day"`
+	RealizedPnL       float64 `json:"realized_pnl"`
+	OrderCount        int     `json:"order_count"`
+	OpenNotionalUSDT  float64 `json:"open_notional_usdt"`
+	ConsecutiveLosses int     `json:"consecutive_losses"`
+	UpdatedAt         string  `json:"updated_at"`
 }
 
 func effectiveEmergencyStopFile(cfg EngineConfig) string {
@@ -89,11 +91,15 @@ func (e *FundingRateSniperEngine) loadDailyRiskState() error {
 			UpdatedAt:        time.Now().UTC().Format(time.RFC3339),
 		}
 	}
+	cumulativePnL, peakPnL := e.computeRealizedEquityWaterMark()
 	e.platformRiskMu.Lock()
 	e.dailyRiskDate = day
 	e.riskBudgetState.DailyRealizedPnL = state.RealizedPnL
 	e.riskBudgetState.DailyOrderCount = maxIntValue(state.OrderCount, 0)
 	e.riskBudgetState.DailyOpenNotionalUsed = maxFloat(state.OpenNotionalUSDT, 0)
+	e.riskBudgetState.ConsecutiveLossCycles = maxIntValue(state.ConsecutiveLosses, 0)
+	e.riskBudgetState.RealizedPnLCumulativeUSDT = cumulativePnL
+	e.riskBudgetState.RealizedPnLPeakUSDT = peakPnL
 	e.platformRiskMu.Unlock()
 	return e.persistDailyRiskState()
 }
@@ -109,11 +115,12 @@ func (e *FundingRateSniperEngine) persistDailyRiskState() error {
 
 func (e *FundingRateSniperEngine) dailyRiskStatePayloadLocked() persistedDailyRiskState {
 	return persistedDailyRiskState{
-		TradingDay:       e.dailyRiskDate,
-		RealizedPnL:      e.riskBudgetState.DailyRealizedPnL,
-		OrderCount:       e.riskBudgetState.DailyOrderCount,
-		OpenNotionalUSDT: e.riskBudgetState.DailyOpenNotionalUsed,
-		UpdatedAt:        time.Now().UTC().Format(time.RFC3339),
+		TradingDay:        e.dailyRiskDate,
+		RealizedPnL:       e.riskBudgetState.DailyRealizedPnL,
+		OrderCount:        e.riskBudgetState.DailyOrderCount,
+		OpenNotionalUSDT:  e.riskBudgetState.DailyOpenNotionalUsed,
+		ConsecutiveLosses: e.riskBudgetState.ConsecutiveLossCycles,
+		UpdatedAt:         time.Now().UTC().Format(time.RFC3339),
 	}
 }
 
@@ -140,22 +147,29 @@ func (e *FundingRateSniperEngine) queueDailyRiskStatePersistLocked() error {
 	}
 	payload := e.dailyRiskStatePayloadLocked()
 	if e.dailyRiskPersistCh == nil {
+		// 退化路径：没有配置异步 writer(单元测试 / 装配早期)。此时不存在抢 platformRiskMu 的并发协程，
+		// 同步写盘没有锁竞争风险，反而保证调用返回时状态已落盘(测试依赖这一点)。
 		return writeDailyRiskState(e.dailyRiskStatePath, payload)
 	}
+	// 关键不变量：本函数在持有 platformRiskMu(全局风控锁)的前提下被调用，因此【绝不能】在锁内做任何
+	// 阻塞式磁盘 I/O——否则云盘几十毫秒抖动就会让所有抢这把锁的协程排队卡死。这里只做非阻塞入队，真正写盘
+	// 交给 startDailyRiskStateWriter 的后台协程。daily 风控状态是「全量快照」而非增量，丢旧留新或偶尔跳过
+	// 一次中间快照都不损坏一致性：后台 writer 始终持久化它收到的最新快照，下一次风控事件会重新入队最新全量状态。
 	select {
 	case e.dailyRiskPersistCh <- payload:
 		return nil
 	default:
+		// channel 满：丢弃最旧的待写快照，给最新快照腾位。
 		select {
 		case <-e.dailyRiskPersistCh:
 		default:
 		}
 		select {
 		case e.dailyRiskPersistCh <- payload:
-			return nil
 		default:
-			return writeDailyRiskState(e.dailyRiskStatePath, payload)
+			// 极端背压下仍塞不进：直接跳过本次入队，绝不在锁内同步写盘。下一次风控事件会带着最新全量状态重新入队。
 		}
+		return nil
 	}
 }
 
@@ -205,6 +219,46 @@ func (e *FundingRateSniperEngine) seedDailyRealizedPnL(day string) float64 {
 	return total
 }
 
+// computeRealizedEquityWaterMark 按时间顺序回放全部「已定稿(funding 实收已结算)」的周期净利，得出累计净利
+// 曲线的当前值与历史高水位。它是纯读取（只读结算记录、不改引擎状态），因此可在持锁前调用，避免磁盘 IO 占锁。
+// 仍在等待 funding 实收的周期净利尚未定稿，跳过以免把不完整净利计入高水位。
+func (e *FundingRateSniperEngine) computeRealizedEquityWaterMark() (cumulative float64, peak float64) {
+	if e == nil || e.reportStore == nil {
+		return 0, 0
+	}
+	records, err := e.reportStore.ListSettlementRecords(0)
+	if err != nil {
+		return 0, 0
+	}
+	type stampedPnL struct {
+		at  time.Time
+		pnl float64
+	}
+	ordered := make([]stampedPnL, 0, len(records))
+	for _, record := range records {
+		if record.FundingIncomePending {
+			continue
+		}
+		stamp := strings.TrimSpace(record.CloseExecutedAt)
+		if stamp == "" {
+			stamp = strings.TrimSpace(record.RecordedAt)
+		}
+		parsed, perr := time.Parse(time.RFC3339, stamp)
+		if perr != nil {
+			parsed = time.Time{}
+		}
+		ordered = append(ordered, stampedPnL{at: parsed, pnl: parseFloat(record.NetPnL)})
+	}
+	sort.SliceStable(ordered, func(i, j int) bool { return ordered[i].at.Before(ordered[j].at) })
+	for _, item := range ordered {
+		cumulative += item.pnl
+		if cumulative > peak {
+			peak = cumulative
+		}
+	}
+	return cumulative, peak
+}
+
 func tradingDayUTC(at time.Time) string {
 	return at.UTC().Format("2006-01-02")
 }
@@ -220,6 +274,9 @@ func (e *FundingRateSniperEngine) ensureDailyRiskDateLocked() {
 	e.riskBudgetState.DailyOpenNotionalUsed = 0
 	e.riskBudgetState.DailyLimitTriggered = false
 	e.riskBudgetState.DailyLimitReason = ""
+	// 连续亏损计数与其余日级预算同口径，按 UTC 交易日清零：新的一天给策略一个重新开始的机会，
+	// 与 MaxDailyLoss/MaxDailyOrderCount 的「日级」语义保持一致。
+	e.riskBudgetState.ConsecutiveLossCycles = 0
 }
 
 func (e *FundingRateSniperEngine) checkLiveSafetyGuards(phase string) error {
@@ -287,7 +344,50 @@ func (e *FundingRateSniperEngine) currentDailyLimitReasonLocked() string {
 	if notionalLimit > 0 && e.riskBudgetState.DailyOpenNotionalUsed >= notionalLimit {
 		return fmt.Sprintf("当日累计开仓名义 %.6f USDT 已达到阈值 %.6f USDT", e.riskBudgetState.DailyOpenNotionalUsed, notionalLimit)
 	}
+	lossCycleLimit := e.cfg.RiskConfig.MaxConsecutiveLossCycles
+	if lossCycleLimit > 0 && e.riskBudgetState.ConsecutiveLossCycles >= lossCycleLimit {
+		return fmt.Sprintf("连续亏损周期数 %d 已达到阈值 %d（系统性失效保护，停止继续开仓待人工复核）", e.riskBudgetState.ConsecutiveLossCycles, lossCycleLimit)
+	}
+	drawdownLimit := e.cfg.RiskConfig.MaxAccountDrawdownUSDT
+	if drawdownLimit > 0 {
+		drawdown := e.riskBudgetState.RealizedPnLPeakUSDT - e.riskBudgetState.RealizedPnLCumulativeUSDT
+		if drawdown >= drawdownLimit {
+			return fmt.Sprintf("账户级回撤 %.6f USDT 已达到阈值 %.6f USDT（自高水位 %.6f 累计回撤，停止继续开仓待人工复核）", drawdown, drawdownLimit, e.riskBudgetState.RealizedPnLPeakUSDT)
+		}
+	}
 	return ""
+}
+
+// noteCycleFinalSettlement 在「funding 实收结算完成、周期真实净利已确定」后推进两条账户级风控信号：
+// (1) 连续亏损计数——真实净利为负则自增、为正则清零（~0 视作打平不变）；
+// (2) 累计净利曲线与高水位——用于账户级回撤熔断。
+// 随后立即用日级风控复核：连亏触线或自高水位回撤超阈值都会触发停机。它只会停机、绝不下单（fail-safe），
+// 因此即便在异步结算 worker 中调用也安全：worker 只记录返回的 fatalEngineError，真正的拦截发生在主循环
+// 下一次 checkLiveSafetyGuards。
+func (e *FundingRateSniperEngine) noteCycleFinalSettlement(finalNetPnL float64) error {
+	if e == nil {
+		return nil
+	}
+	e.platformRiskMu.Lock()
+	e.ensureDailyRiskDateLocked()
+	switch {
+	case finalNetPnL < -executionQtyTolerance:
+		e.riskBudgetState.ConsecutiveLossCycles++
+	case finalNetPnL > executionQtyTolerance:
+		e.riskBudgetState.ConsecutiveLossCycles = 0
+	}
+	// 累计净利曲线增量推进 + 高水位刷新：与启动时由结算记录回放出的初值同口径，跨重启自洽。
+	e.riskBudgetState.RealizedPnLCumulativeUSDT += finalNetPnL
+	if e.riskBudgetState.RealizedPnLCumulativeUSDT > e.riskBudgetState.RealizedPnLPeakUSDT {
+		e.riskBudgetState.RealizedPnLPeakUSDT = e.riskBudgetState.RealizedPnLCumulativeUSDT
+	}
+	if err := e.queueDailyRiskStatePersistLocked(); err != nil {
+		e.platformRiskMu.Unlock()
+		return err
+	}
+	e.runtimeReporter.EmitLocked(EngineStage(""))
+	e.platformRiskMu.Unlock()
+	return e.checkDailyRiskLimits("consecutive_loss")
 }
 
 func (e *FundingRateSniperEngine) remainingDailyLossBudgetLocked() float64 {

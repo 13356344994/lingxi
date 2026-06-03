@@ -35,7 +35,10 @@ func DefaultEngineConfig() EngineConfig {
 			MonitorInterval:          500 * time.Millisecond,
 			MonitorStopLead:          30 * time.Second,
 			LiveFundingDirectionMode: "positive_only",
-			MinEstimatedFundingRate:  0.0025,
+			// 单周期对冲往返的真实盈亏平衡线：FeeReserveRate(0.0030)+ExitSpreadReserveRate(0.0005)+
+			// MinNetProfitRate(0.0020)=0.0055。低于此值的预估资金费率开仓注定亏损或被监控期净利门拒绝，
+			// 故地板线下沉到与成本自洽的 0.0055，而非掩盖真实成本的 0.0025。
+			MinEstimatedFundingRate:  0.0055,
 			MaxEstimatedFundingRate:  0.0300,
 			MaxFundingRateJump:       0.0150,
 			MaxScanBasisRate:         0.0015,
@@ -71,7 +74,11 @@ func DefaultEngineConfig() EngineConfig {
 			SpotSTPMode:              "EXPIRE_TAKER",
 			FuturesSTPMode:           "EXPIRE_TAKER",
 			FuturesMarginType:        "CROSSED",
-			FuturesLeverage:          3,
+			// 全仓(CROSSED)是 delta 中性对冲的刻意选择：给合约腿更大的强平缓冲，避免单腿被强平后留下裸现货腿。
+			// 杠杆从 3x 降到 2x：资金费按名义计提、与杠杆无关，降杠杆不影响收费，却把同名义下的初始保证金
+			// 抬高 50%，使强平价更远——对「小散户求稳不爆」是纯安全收益（代价仅是合约钱包占用略增，且
+			// 开仓前 assessOpenFuturesLeverage 会在保证金不足时自动拒单兜底）。
+			FuturesLeverage: 2,
 		},
 		RiskConfig: RiskConfig{
 			MinNetProfitRate:              0.0020,
@@ -98,6 +105,8 @@ func DefaultEngineConfig() EngineConfig {
 			MaxDailyLossUSDT:              25.0,
 			MaxDailyOrderCount:            40,
 			MaxDailyOpenNotionalUSDT:      1500.0,
+			MaxConsecutiveLossCycles:      3,
+			MaxAccountDrawdownUSDT:        60.0,
 		},
 		HistoricalConfig: HistoricalConfig{
 			DefaultLookbackDays:                    30,

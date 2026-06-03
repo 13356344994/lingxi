@@ -31,7 +31,7 @@ func sampleValidConfig() EngineConfig {
 			MonitorInterval:          500 * time.Millisecond,
 			MonitorStopLead:          30 * time.Second,
 			LiveFundingDirectionMode: "positive_only",
-			MinEstimatedFundingRate:  0.0025,
+			MinEstimatedFundingRate:  0.0055,
 			MaxEstimatedFundingRate:  0.0300,
 			MaxFundingRateJump:       0.0150,
 			MaxScanBasisRate:         0.0015,
@@ -61,7 +61,7 @@ func sampleValidConfig() EngineConfig {
 			SpotSTPMode:              "EXPIRE_TAKER",
 			FuturesSTPMode:           "EXPIRE_TAKER",
 			FuturesMarginType:        "CROSSED",
-			FuturesLeverage:          3,
+			FuturesLeverage:          2,
 		},
 		RiskConfig: RiskConfig{
 			MinNetProfitRate:              0.0020,
@@ -84,6 +84,8 @@ func sampleValidConfig() EngineConfig {
 			MaxDailyLossUSDT:              25.0,
 			MaxDailyOrderCount:            40,
 			MaxDailyOpenNotionalUSDT:      1500.0,
+			MaxConsecutiveLossCycles:      3,
+			MaxAccountDrawdownUSDT:        60.0,
 		},
 		HistoricalConfig: HistoricalConfig{
 			DefaultLookbackDays:                    30,

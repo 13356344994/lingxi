@@ -37,6 +37,20 @@ type FundingStrategy interface {
 	) (float64, string, error)
 }
 
+// coherentMinFundingRate 返回「值得进入监控阶段」的最低预估资金费率，即一次单周期对冲往返的真实
+// 盈亏平衡线再叠加健康净利目标：
+//
+//	breakEven = 往返费用预留(FeeReserveRate) + 退出价差预留(ExitSpreadReserveRate) + 健康净利门(MinNetProfitRate)
+//
+// 预估资金费率低于该值时，监控阶段 estimateReservedNetProfitRate 扣除上述成本后净收益必然落在健康门
+// 之下（价差/借币/残腿成本只会让它更低），开仓注定亏损或被拒。海选阶段用它给地板线兜底，使粗筛门槛与
+// 监控期净利门保持自洽，避免把结构性亏损单放进监控、白白消耗预算与执行窗口。
+func coherentMinFundingRate(config EngineConfig) float64 {
+	return maxFloat(config.StrategyConfig.FeeReserveRate, 0) +
+		maxFloat(config.StrategyConfig.ExitSpreadReserveRate, 0) +
+		maxFloat(config.RiskConfig.MinNetProfitRate, 0)
+}
+
 // DefaultFundingStrategy 默认资金费率套利策略实现
 type DefaultFundingStrategy struct{}
 
@@ -60,8 +74,11 @@ func (s *DefaultFundingStrategy) EvaluateScanCandidate(
 		return StrategyActionReject, fmt.Sprintf("基差率过大 (%.4f > %.4f)", math.Abs(funding.BasisRate), config.StrategyConfig.MaxScanBasisRate)
 	}
 
-	// 计算建议的最低预期收益门槛
-	minRate := config.StrategyConfig.MinEstimatedFundingRate * profile.MinEstimatedRateMultiplier
+	// 计算建议的最低预期收益门槛。海选地板线不允许低于「真实盈亏平衡线」：
+	// 低于该线的候选，即便价差/借币/残腿成本全为零，扣掉往返费用预留与退出价差预留后也越不过健康
+	// 净利门(MinNetProfitRate)，监控阶段必然拒绝。提前用 coherentMinFundingRate 兜底，避免地板线被
+	// 配置成低于成本而放进结构性亏损单。
+	minRate := maxFloat(config.StrategyConfig.MinEstimatedFundingRate, coherentMinFundingRate(config)) * profile.MinEstimatedRateMultiplier
 	maxRate := config.StrategyConfig.MaxEstimatedFundingRate
 
 	// 方向校验和收益率大小校验

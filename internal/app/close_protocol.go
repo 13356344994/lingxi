@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"lingxi/internal/lifecycle"
+	"lingxi/internal/money"
 	"math"
 	"strings"
 	"sync"
@@ -222,8 +223,9 @@ func (p *CloseProtocol) executeSequence(ctx context.Context, hedges []OpenHedge,
 		return CycleSettlement{}, err
 	}
 
-	spotTradingPnL, futuresTradingPnL, totalFees := 0.0, 0.0, 0.0
-	totalBorrowCosts := 0.0
+	// 交易盈亏 / 手续费 / 借币成本以 money.Micros 定点累加，消除多笔 float64 连加的舍入漂移，
+	// 并与回测汇总(historical_summary)同口径，保证落袋净利逐位可对账。
+	var spotTradingPnLM, futuresTradingPnLM, totalFeesM, totalBorrowCostsM money.Micros
 	borrowCostCloseTime := time.Now().UTC()
 	expectedFundingIncome, fundingAlerts := p.engine.expectedFundingIncomeSummary(hedges, beforeSnapshot)
 	attributions := make([]SettlementAttribution, 0, len(hedges))
@@ -236,25 +238,25 @@ func (p *CloseProtocol) executeSequence(ctx context.Context, hedges []OpenHedge,
 			spotEntryPrice := openSpotCost / closedSpotQty
 			spotExitPrice := hedge.CloseSpotQuoteQty / closedSpotQty
 			spotPnL = direction.spotGrossPnL(closedSpotQty, spotEntryPrice, spotExitPrice)
-			spotTradingPnL += spotPnL
+			spotTradingPnLM = spotTradingPnLM.Add(money.FromUSDT(spotPnL))
 		}
-		totalFees += hedge.OpenSpotFeeUSDT + hedge.CloseSpotFeeUSDT + hedge.OpenFuturesFeeUSDT + hedge.CloseFuturesFeeUSDT
+		hedgeFees := hedge.OpenSpotFeeUSDT + hedge.CloseSpotFeeUSDT + hedge.OpenFuturesFeeUSDT + hedge.CloseFuturesFeeUSDT
+		totalFeesM = totalFeesM.Add(money.FromUSDT(hedgeFees))
 
 		if hedge.CloseFuturesRealizedPnL != 0 {
 			futuresPnL = hedge.CloseFuturesRealizedPnL
-			futuresTradingPnL += futuresPnL
+			futuresTradingPnLM = futuresTradingPnLM.Add(money.FromUSDT(futuresPnL))
 		} else if hedge.OpenFuturesAvgPrice > 0 && hedge.CloseFuturesAvgPrice > 0 {
 			closedFuturesQty := hedge.CloseFuturesExecutedQty
 			if closedFuturesQty <= 0 {
 				closedFuturesQty = hedge.HedgeQty
 			}
 			futuresPnL = direction.futuresGrossPnL(closedFuturesQty, hedge.OpenFuturesAvgPrice, hedge.CloseFuturesAvgPrice)
-			futuresTradingPnL += futuresPnL
+			futuresTradingPnLM = futuresTradingPnLM.Add(money.FromUSDT(futuresPnL))
 		}
 
 		borrowCost := p.engine.settlementBorrowCost(hedge, borrowCostCloseTime)
-		totalBorrowCosts += borrowCost
-		hedgeFees := hedge.OpenSpotFeeUSDT + hedge.CloseSpotFeeUSDT + hedge.OpenFuturesFeeUSDT + hedge.CloseFuturesFeeUSDT
+		totalBorrowCostsM = totalBorrowCostsM.Add(money.FromUSDT(borrowCost))
 
 		attributions = append(attributions, SettlementAttribution{
 			Symbol:           hedge.Target.Symbol,
@@ -265,15 +267,19 @@ func (p *CloseProtocol) executeSequence(ctx context.Context, hedges []OpenHedge,
 			OpenSlippage:     hedge.OpenSlippageUSDT,
 			CloseSlippage:    hedge.CloseSlippageUSDT,
 			RecoveryFriction: hedge.RecoveryFrictionUSDT,
-			NetPnL:           spotPnL + futuresPnL - hedgeFees - borrowCost,
+			NetPnL:           money.Sum(spotPnL, futuresPnL, -hedgeFees, -borrowCost).USDT(),
 		})
 	}
 
+	spotTradingPnL := spotTradingPnLM.USDT()
+	futuresTradingPnL := futuresTradingPnLM.USDT()
+	totalFees := totalFeesM.USDT()
+	totalBorrowCosts := totalBorrowCostsM.USDT()
 	residualSpotValue := calculateResidualSpotValue(afterSnapshot.SpotAssetBalances, hedges)
 	spotUSDTDelta := afterSnapshot.SpotUSDTFree - beforeSnapshot.SpotUSDTFree
 	futuresUSDTDelta := afterSnapshot.FuturesUSDTWallet - beforeSnapshot.FuturesUSDTWallet
 	totalFundingIncome := 0.0
-	netPnL := spotTradingPnL + futuresTradingPnL - totalFees - totalBorrowCosts
+	netPnL := spotTradingPnLM.Add(futuresTradingPnLM).Sub(totalFeesM).Sub(totalBorrowCostsM).USDT()
 	fundingIncomeDiff := totalFundingIncome - expectedFundingIncome
 	snapshotNetPnL := spotUSDTDelta + futuresUSDTDelta + residualSpotValue
 	alerts := p.engine.buildSettlementAlerts(afterSnapshot, hedges, residualSpotValue, netPnL, snapshotNetPnL)
@@ -299,7 +305,7 @@ func (p *CloseProtocol) executeSequence(ctx context.Context, hedges []OpenHedge,
 		FundingIncome:         totalFundingIncome,
 		ExpectedFundingIncome: expectedFundingIncome,
 		FundingIncomeDiff:     fundingIncomeDiff,
-		TradingPnL:            spotTradingPnL + futuresTradingPnL,
+		TradingPnL:            spotTradingPnLM.Add(futuresTradingPnLM).USDT(),
 		SpotTradingPnL:        spotTradingPnL,
 		FuturesTradingPnL:     futuresTradingPnL,
 		TotalFees:             totalFees,

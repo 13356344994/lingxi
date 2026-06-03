@@ -20,12 +20,35 @@ func Run(ctx context.Context) {
 		return
 	}
 
+	// reconcile 是只读对账子命令：把已落盘结算记录与模型预期逐周期对账并打印报告，不触碰下单/实盘路径。
+	if len(os.Args) > 1 && os.Args[1] == "reconcile" {
+		runReconcileMode(ctx)
+		return
+	}
+
 	cfg, err := loadEngineConfig()
 	if err != nil {
 		log.Fatalf("加载主配置失败: %v", err)
 	}
 
-	// 新增：每日冷启动健康检查
+	// shadow 是影子(只读冒烟)子命令：照常对接真实行情/账户、照常决策，但任何会动用资金或改变交易所
+	// 状态的签名请求都会在 signedRequest 咽喉点被硬拦截、绝不触达交易所，只把意图落日志。用于实盘前抓
+	// 灾难性 bug，而非校准阈值。这里强制把开关打开，避免依赖配置文件遗漏。
+	if len(os.Args) > 1 && os.Args[1] == "shadow" {
+		cfg.ExecutionConfig.ShadowTrading = true
+		log.Printf("============================================================")
+		log.Printf("  SHADOW MODE 已启用：不会有任何真实订单/资金动作触达交易所")
+		log.Printf("  所有下单意图将以 SHADOW_BLOCKED 日志行记录，供人工核查")
+		log.Printf("============================================================")
+	}
+
+	startLiveStack(ctx, cfg)
+}
+
+// startLiveStack 装配并启动实盘技术栈(冷启动检查 → 记录存储 → 后台控制器 → Web 面板)。
+// 实盘与影子模式共用同一套装配，唯一差别是 cfg.ExecutionConfig.ShadowTrading：影子模式下引擎跑的
+// 是完全相同的真实流程，只是签名下单在咽喉点被拦截，从而保证「真实输入 + 零真实副作用」。
+func startLiveStack(ctx context.Context, cfg EngineConfig) {
 	if err := PerformColdStartCheck(ctx, cfg); err != nil {
 		log.Fatalf("冷启动检查未通过，拒绝启动: %v", err)
 	}
