@@ -1087,6 +1087,9 @@
     }
 
     let currentRuntimeRiskConfig = null;
+    // 目标交易仓位输入框只在首次加载时从配置/本地缓存初始化一次；避免每 5 秒 refreshDashboard
+    // 反复写 .value 导致你正在输入的数字被「刷新」掉或光标跳动。
+    let tradingCapitalInputInitialized = false;
 
     function renderRiskConfig(config) {
       if (!config) {
@@ -1094,8 +1097,14 @@
       }
       currentRuntimeRiskConfig = config;
       const tradingCapitalInput = document.getElementById("position-target-usdt");
-      if (tradingCapitalInput && !window.localStorage.getItem(tradingCapitalStorageKey)) {
-        tradingCapitalInput.value = String(config.max_cycle_open_notional_usdt ?? "");
+      if (tradingCapitalInput && !tradingCapitalInputInitialized) {
+        const saved = window.localStorage.getItem(tradingCapitalStorageKey);
+        if (saved) {
+          tradingCapitalInput.value = saved;
+        } else {
+          tradingCapitalInput.value = String(config.max_cycle_open_notional_usdt ?? "");
+        }
+        tradingCapitalInputInitialized = true;
       }
       document.getElementById("risk-per-symbol-quote").value = String(config.per_symbol_quote_usdt ?? "");
       document.getElementById("risk-max-cycle-open-notional").value = String(config.max_cycle_open_notional_usdt ?? "");
@@ -1559,8 +1568,18 @@
     document.getElementById("clear-historical-cache-btn")?.addEventListener("click", clearHistoricalCache);
     document.getElementById("clear-dashboard-data-btn")?.addEventListener("click", clearDashboardData);
     document.getElementById("dashboard-token")?.addEventListener("change", getControlToken);
+    document.getElementById("position-target-usdt")?.addEventListener("input", (event) => {
+      const value = String(event.target?.value || "").trim();
+      if (value) {
+        window.localStorage.setItem(tradingCapitalStorageKey, value);
+        tradingCapitalInputInitialized = true;
+      }
+    });
     restoreControlToken();
     restoreTradingCapitalInput();
+    if (window.localStorage.getItem(tradingCapitalStorageKey)) {
+      tradingCapitalInputInitialized = true;
+    }
     refreshDashboard();
     setInterval(refreshDashboard, 5000);
   </script>
