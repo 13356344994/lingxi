@@ -38,6 +38,54 @@ func TestAssessPersistedOpenHedgeExposure(t *testing.T) {
 	}
 }
 
+func TestPersistedOpenHedgeLifecycleRoundTrip(t *testing.T) {
+	statePath := filepath.Join(t.TempDir(), liveOpenHedgesStateName)
+
+	hedge := OpenHedge{
+		Target:   FundingCandidate{Symbol: "BTCUSDT", Pair: "BTCUSDT", SpotBaseAsset: "BTC"},
+		HedgeQty: 0.01,
+	}
+	hedge.markPendingValidation("opened")
+	hedge.markActive("validated")
+
+	entries := buildPersistedOpenHedgeEntries([]OpenHedge{hedge}, "run-1", "cycle-1")
+	if entries[0].LifecycleState != OpenHedgeLifecycleActive {
+		t.Fatalf("expected persisted lifecycle active, got %q", entries[0].LifecycleState)
+	}
+	if entries[0].LifecycleReason != "validated" {
+		t.Fatalf("expected persisted lifecycle reason, got %q", entries[0].LifecycleReason)
+	}
+
+	if err := writePersistedOpenHedgeState(statePath, persistedOpenHedgeState{Hedges: entries}); err != nil {
+		t.Fatalf("write error: %v", err)
+	}
+	loaded, err := loadPersistedOpenHedgeState(statePath)
+	if err != nil {
+		t.Fatalf("load error: %v", err)
+	}
+	if len(loaded.Hedges) != 1 || loaded.Hedges[0].LifecycleState != OpenHedgeLifecycleActive {
+		t.Fatalf("lifecycle not preserved across persist/load: %+v", loaded.Hedges)
+	}
+
+	// 重启重建：恢复的对冲应携带权威生命周期态（active），而非未知/空闲态。
+	rebuilt := rebuildOpenHedgeFromEntry(loaded.Hedges[0])
+	if rebuilt.lifecycleOrderGate() != OpenHedgeLifecycleActive {
+		t.Fatalf("rebuilt hedge should restore active lifecycle, got %q", rebuilt.lifecycleOrderGate())
+	}
+}
+
+func TestPersistedOpenHedgeLegacyDefaultsActive(t *testing.T) {
+	// 旧台账无 lifecycle_state 字段（零值）→ 退化为 active，避免重启后被当作"空闲"而误判可开新仓。
+	legacy := persistedOpenHedgeEntry{Symbol: "ETHUSDT", Pair: "ETHUSDT", SpotBaseAsset: "ETH", HedgeQty: 0.1}
+	if legacy.lifecycleOrDefault() != OpenHedgeLifecycleActive {
+		t.Fatalf("legacy entry should default to active, got %q", legacy.lifecycleOrDefault())
+	}
+	rebuilt := rebuildOpenHedgeFromEntry(legacy)
+	if rebuilt.LifecycleState != OpenHedgeLifecycleActive {
+		t.Fatalf("rebuilt legacy hedge should be active, got %q", rebuilt.LifecycleState)
+	}
+}
+
 func TestReconcilePersistedOpenHedgesClearsStaleState(t *testing.T) {
 	tempDir := t.TempDir()
 	statePath := filepath.Join(tempDir, liveOpenHedgesStateName)

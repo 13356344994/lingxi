@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"lingxi/internal/lifecycle"
 	"math"
 	"os"
 	"path/filepath"
@@ -38,6 +39,17 @@ type persistedOpenHedgeEntry struct {
 	FuturesOrderID       int64                 `json:"futures_order_id,omitempty"`
 	FuturesClientOrderID string                `json:"futures_client_order_id,omitempty"`
 	OpenedAt             string                `json:"opened_at"`
+	LifecycleState       lifecycle.State       `json:"lifecycle_state,omitempty"`
+	LifecycleReason      string                `json:"lifecycle_reason,omitempty"`
+}
+
+// lifecycleOrDefault 返回台账条目记录的对冲生命周期状态；旧台账（无该字段）退化为 active——
+// 一笔被落盘的未平仓对冲按定义至少处于持仓态，绝不会是"空闲/未知"，从而让重启后的 SSOT 有确定起点。
+func (entry persistedOpenHedgeEntry) lifecycleOrDefault() lifecycle.State {
+	if entry.LifecycleState == lifecycle.StateNone {
+		return lifecycle.StateActive
+	}
+	return entry.LifecycleState
 }
 
 func effectiveOpenHedgeStatePath(cfg EngineConfig) string {
@@ -54,6 +66,10 @@ func buildPersistedOpenHedgeEntries(hedges []OpenHedge, runID string, cycleID st
 		openedAt := time.Now().UTC().Format(time.RFC3339)
 		if hedge.SpotOrder.TransactTime > 0 {
 			openedAt = time.UnixMilli(hedge.SpotOrder.TransactTime).UTC().Format(time.RFC3339)
+		}
+		lifecycleState := hedge.LifecycleState
+		if lifecycleState == lifecycle.StateNone {
+			lifecycleState = OpenHedgeLifecycleActive
 		}
 		entries = append(entries, persistedOpenHedgeEntry{
 			RunID:                runID,
@@ -72,9 +88,32 @@ func buildPersistedOpenHedgeEntries(hedges []OpenHedge, runID string, cycleID st
 			FuturesOrderID:       hedge.FuturesOrder.OrderID,
 			FuturesClientOrderID: hedge.FuturesOrder.ClientOrderID,
 			OpenedAt:             openedAt,
+			LifecycleState:       lifecycleState,
+			LifecycleReason:      hedge.LifecycleReason,
 		})
 	}
 	return entries
+}
+
+// rebuildOpenHedgeFromEntry 从落盘台账条目重建一个携带权威生命周期状态的 OpenHedge 骨架，
+// 让重启后引擎对该对冲的下单前置门（guardHedgeOrderIntent）以确定状态判定，而非"未知/空闲"态。
+// 仅恢复对冲身份与生命周期所需字段；成交明细以交易所实际持仓为准，不在此臆造。
+func rebuildOpenHedgeFromEntry(entry persistedOpenHedgeEntry) OpenHedge {
+	hedge := OpenHedge{
+		Target: FundingCandidate{
+			Symbol:        entry.Symbol,
+			Pair:          entry.Pair,
+			SpotBaseAsset: entry.SpotBaseAsset,
+		},
+		Direction:           resolvedFundingCarryDirection(entry.Direction, 0),
+		HedgeQty:            entry.HedgeQty,
+		OpenSpotQuoteQty:    entry.OpenSpotQuoteQty,
+		OpenFuturesAvgPrice: entry.OpenFuturesAvgPrice,
+	}
+	hedge.LifecycleState = entry.lifecycleOrDefault()
+	hedge.LifecycleReason = entry.LifecycleReason
+	hedge.LifecycleUpdatedAt = time.Now().UTC()
+	return hedge
 }
 
 func loadPersistedOpenHedgeState(path string) (persistedOpenHedgeState, error) {
@@ -160,6 +199,7 @@ func assessPersistedOpenHedgeExposure(entries []persistedOpenHedgeEntry, spotBal
 		if spotOpen {
 			parts = append(parts, fmt.Sprintf("%s=%.8f(%.6fUSDT)", entry.SpotBaseAsset, spotBalances[entry.SpotBaseAsset], spotNotional))
 		}
+		parts = append(parts, fmt.Sprintf("lifecycle=%s", entry.lifecycleOrDefault()))
 		assessment.Issues = append(assessment.Issues, fmt.Sprintf("%s[%s]", entry.Symbol, strings.Join(parts, " ")))
 	}
 	sort.Strings(assessment.Issues)
