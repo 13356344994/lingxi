@@ -222,7 +222,7 @@
       <div class="form-grid">
         <div>
           <label for="dashboard-token">控制令牌</label>
-          <input id="dashboard-token" type="password" value="" placeholder="启动日志里打印的 Dashboard 控制令牌">
+          <input id="dashboard-token" type="password" value="" placeholder="启动程序时控制台/日志打印的 Dashboard 控制令牌">
         </div>
         <div>
           <label for="position-target-usdt">目标交易仓位 (USDT)</label>
@@ -233,6 +233,27 @@
         <button id="apply-position-target-btn" type="button" class="secondary">应用仓位并调仓</button>
         <button id="stop-btn" type="button" class="danger">强制停止所有自动任务</button>
       </div>
+      <div class="form-grid" style="margin-top:16px;">
+        <div>
+          <label for="mode-select">运行模式</label>
+          <select id="mode-select">
+            <option value="monthly">历史模拟（回测，不下真实单）</option>
+            <option value="live">实盘（连真实 Binance，会真实下单）</option>
+          </select>
+        </div>
+        <div>
+          <label for="secret-path">密钥文件路径</label>
+          <input id="secret-path" type="text" value="secret.yaml" placeholder="secret.yaml">
+        </div>
+        <div>
+          <label for="lookback-days">历史模拟回看天数</label>
+          <input id="lookback-days" type="number" min="1" step="1" value="30">
+        </div>
+      </div>
+      <div class="risk-actions" style="margin-top:0;">
+        <button id="start-btn" type="button">启动任务</button>
+      </div>
+      <div class="hint">「历史模拟」用于安全回测，不会下真实单；「实盘」会连真实 Binance 真实下单，请谨慎。启动/停止等控制操作需要上方填入“控制令牌”（启动程序时会打印在控制台/日志）。</div>
       <div class="hint" id="position-config-message">输入的是总交易资金 USDT。实盘会汇总 spot、cross margin、UM futures、funding 的可调 USDT，若总 U 小于你的输入会直接报错拒绝继续。目标资金会按现货主账户 25% + cross margin 25% + U 本位合约 50% 分配，并把本轮总仓位上限同步成这个值。系统会根据健康分自动决定是否开新仓。</div>
       <div class="status-grid">
         <div class="stat-card">

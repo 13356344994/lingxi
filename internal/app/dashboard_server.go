@@ -111,9 +111,14 @@ func (s *DashboardServer) Start(ctx context.Context) error {
 		_ = server.Shutdown(shutdownCtx)
 	}()
 
-	// 安全与配置止血：停止在日志中明文打印控制 token，仅做本地环境提示
 	s.logger.Printf("Web 面板已启动: %s", dashboardBaseURL(s.addr))
-	s.logger.Printf("请在启动输出中确认当前 token（如果启用了非本地访问）")
+	// 面板默认仅监听本机，控制类操作需要该令牌；启动时打印到控制台/日志，方便本机填入面板。
+	// 注意：请勿把含有该令牌的日志公开分享。
+	if s.controlToken != "" {
+		s.logger.Printf("Dashboard 控制令牌: %s", s.controlToken)
+	} else {
+		s.logger.Printf("Dashboard 控制令牌未设置（控制类操作不需要令牌）")
+	}
 	err := server.ListenAndServe()
 	if errors.Is(err, http.ErrServerClosed) {
 		return nil
