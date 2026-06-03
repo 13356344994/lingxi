@@ -31,7 +31,7 @@ if [ "$RUNNING" -eq 1 ]; then
 fi
 
 echo "开始构建 lingxi..."
-go build -o "$BIN_FILE" .
+go build -o "$BIN_FILE" ./cmd/lingxi
 
 echo "启动 lingxi..."
 nohup "$BIN_FILE" >>"$LOG_FILE" 2>&1 &
