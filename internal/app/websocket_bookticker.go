@@ -364,9 +364,9 @@ func (e *FundingRateSniperEngine) dialWebSocket(endpoint string) (*websocket.Con
 		return nil, err
 	}
 
-	_ = conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+	_ = conn.SetReadDeadline(time.Now().Add(userStreamReadDeadline))
 	conn.SetPongHandler(func(string) error {
-		return conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+		return conn.SetReadDeadline(time.Now().Add(userStreamReadDeadline))
 	})
 
 	return conn, nil

@@ -166,7 +166,7 @@ go build ./...
 - 确认测试、`go vet`、`go build` 可通过
 - 确认 `records/` 清理策略符合本次实验需求
 - 确认没有误提交运行产物、缓存和日志
-- 小额实盘跑出若干完整周期后，用 `go run ./cmd/lingxi reconcile` 核对实盘是否按模型预期赚钱，再考虑放大档位
+- 小额实盘跑出若干完整周期后，用 `go run ./cmd/lingxi reconcile` 核对实盘是否按模型预期赚钱，再考虑放大档位(起步用 shadow)
 
 ## 后续优先方向
 - 拆薄 `funding_sniper_engine.go`

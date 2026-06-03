@@ -29,12 +29,14 @@ func DefaultEngineConfig() EngineConfig {
 			EmergencyStopFile:        ".halt-live",
 		},
 		StrategyConfig: StrategyConfig{
-			WakeMinute:               57,
-			WakeSecond:               0,
-			ScanWindow:               3 * time.Minute,
-			MonitorInterval:          500 * time.Millisecond,
-			MonitorStopLead:          30 * time.Second,
-			LiveFundingDirectionMode: "positive_only",
+			WakeMinute:      57,
+			WakeSecond:      0,
+			ScanWindow:      3 * time.Minute,
+			MonitorInterval: 500 * time.Millisecond,
+			MonitorStopLead: 30 * time.Second,
+			// both：正向(现货持有+合约做空，吃正费率)与负向(全仓杠杆借币做空现货+合约做多，吃负费率)
+			// 两种 carry 都开。负向 carry 依赖已开通且可借币的全仓杠杆账户，并会产生借币利息。
+			LiveFundingDirectionMode: "both",
 			// 单周期对冲往返的真实盈亏平衡线：FeeReserveRate(0.0030)+ExitSpreadReserveRate(0.0005)+
 			// MinNetProfitRate(0.0020)=0.0055。低于此值的预估资金费率开仓注定亏损或被监控期净利门拒绝，
 			// 故地板线下沉到与成本自洽的 0.0055，而非掩盖真实成本的 0.0025。

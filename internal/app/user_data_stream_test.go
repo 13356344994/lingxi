@@ -2,12 +2,16 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
+
+	"lingxi/internal/exchange"
 
 	"github.com/gorilla/websocket"
 )
@@ -94,5 +98,99 @@ func TestConsumeMarginUserDataRoutesToMarginHub(t *testing.T) {
 	}
 	if _, leaked := engine.spotOrderHub.Get(clientOrderID); leaked {
 		t.Fatal("cross margin 订单不应泄漏进 spotOrderHub")
+	}
+}
+
+// TestConsumeSpotWSAPIUserDataSubscribesAndRoutesEvents 钉死现货用户数据流从 listenKey(已下线)
+// 迁移到 WebSocket API userDataStream.subscribe.signature 后的完整链路：
+// 1) 发出的订阅请求 method 正确、签名口径正确(对 apiKey&timestamp 按字母序做 HMAC-SHA256);
+// 2) 收到 200 ack 后能解包 {"subscriptionId":N,"event":{...}} 信封，并把 executionReport 路由进 spotOrderHub。
+func TestConsumeSpotWSAPIUserDataSubscribesAndRoutesEvents(t *testing.T) {
+	const (
+		apiKey        = "test-api-key"
+		secretKey     = "test-secret-key"
+		clientOrderID = "sopen-btcusdt-9"
+	)
+
+	type subscribeRequest struct {
+		ID     string `json:"id"`
+		Method string `json:"method"`
+		Params struct {
+			APIKey    string `json:"apiKey"`
+			Timestamp int64  `json:"timestamp"`
+			Signature string `json:"signature"`
+		} `json:"params"`
+	}
+
+	gotReq := make(chan subscribeRequest, 1)
+	upgrader := websocket.Upgrader{}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+
+		_, payload, err := conn.ReadMessage()
+		if err != nil {
+			return
+		}
+		var req subscribeRequest
+		if err := json.Unmarshal(payload, &req); err != nil {
+			return
+		}
+		gotReq <- req
+
+		ack := `{"id":"` + req.ID + `","status":200,"result":{"subscriptionId":0}}`
+		_ = conn.WriteMessage(websocket.TextMessage, []byte(ack))
+
+		event := `{"subscriptionId":0,"event":{"e":"executionReport","E":1700000000000,"s":"BTCUSDT","c":"` + clientOrderID + `","X":"FILLED","x":"TRADE","i":777,"z":"0.5","Z":"15000","n":"0.01","N":"USDT"}}`
+		_ = conn.WriteMessage(websocket.TextMessage, []byte(event))
+		time.Sleep(150 * time.Millisecond)
+	}))
+	defer srv.Close()
+
+	engine := &FundingRateSniperEngine{
+		logger: log.Default(),
+		client: exchange.NewClient(exchange.ClientConfig{
+			APIKey:    apiKey,
+			SecretKey: secretKey,
+		}),
+		spotOrderHub: NewOrderEventHub(),
+	}
+
+	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http")
+	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("拨号 websocket 失败: %v", err)
+	}
+	defer conn.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	_ = engine.consumeSpotWSAPIUserData(ctx, conn)
+
+	select {
+	case req := <-gotReq:
+		if req.Method != "userDataStream.subscribe.signature" {
+			t.Fatalf("订阅 method 错误: %q", req.Method)
+		}
+		if req.Params.APIKey != apiKey {
+			t.Fatalf("订阅 apiKey 错误: %q", req.Params.APIKey)
+		}
+		wantSig := exchange.Sign(secretKey, "apiKey="+apiKey+"&timestamp="+strconv.FormatInt(req.Params.Timestamp, 10))
+		if req.Params.Signature != wantSig {
+			t.Fatalf("订阅签名不匹配\n want=%s\n  got=%s", wantSig, req.Params.Signature)
+		}
+	default:
+		t.Fatal("未收到订阅请求")
+	}
+
+	snapshot, ok := engine.spotOrderHub.Get(clientOrderID)
+	if !ok {
+		t.Fatal("现货 executionReport 必须被路由到 spotOrderHub")
+	}
+	if snapshot.Market != "spot" || !hasConfirmedOrderExecution(snapshot) {
+		t.Fatalf("期望已确认成交的现货快照, 实际=%+v", snapshot)
 	}
 }

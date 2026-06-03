@@ -6,8 +6,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
+
+	"lingxi/internal/exchange"
 
 	"github.com/gorilla/websocket"
 )
@@ -24,29 +27,14 @@ func (e *FundingRateSniperEngine) startUserDataStreams(ctx context.Context) {
 	}
 
 	go e.runSpotUserDataStream(ctx)
-	go e.runMarginUserDataStream(ctx)
 	go e.runFuturesUserDataStream(ctx)
-}
 
-func (e *FundingRateSniperEngine) runSpotUserDataStream(ctx context.Context) {
-	e.runListenKeyStream(
-		ctx,
-		e.startSpotListenKey,
-		e.keepaliveSpotListenKey,
-		binanceSpotUserWSBaseURL,
-		e.consumeSpotUserDataMessages,
-	)
-}
-
-func (e *FundingRateSniperEngine) runMarginUserDataStream(ctx context.Context) {
-	// cross margin 用户数据流复用现货 WS host，但 listenKey 走 /sapi/v1/userDataStream。
-	e.runListenKeyStream(
-		ctx,
-		e.startMarginListenKey,
-		e.keepaliveMarginListenKey,
-		binanceSpotUserWSBaseURL,
-		e.consumeMarginUserDataMessages,
-	)
+	// cross margin(负 carry 现货腿)用户数据流：旧的 /sapi/v1/userDataStream listenKey 端点已被 Binance
+	// 一并下线(返回 404)，新的全仓杠杆实时回报需走独立的 Margin listenToken WebSocket API，迁移尚未完成。
+	// 在此之前不再启动这条死流(避免无意义重连刷屏)，cross margin 订单确认退回到 waitForDirectionalSpotOrder
+	// 内置的 REST 轮询兜底(queryDirectionalSpotOrderByClientID)，这本就是该腿最初的确认机制，正确性不受影响，
+	// 仅确认时延略高。正 carry(现货腿走现货账户)不受影响，已走下方 WS API 实时流。
+	e.logger.Printf("全仓杠杆(cross margin)用户数据流暂未启用 WS 实时推送，订单确认退回 REST 轮询兜底；正 carry 现货流走 WS API")
 }
 
 func (e *FundingRateSniperEngine) runFuturesUserDataStream(ctx context.Context) {
@@ -57,6 +45,146 @@ func (e *FundingRateSniperEngine) runFuturesUserDataStream(ctx context.Context) 
 		binanceFuturesUserWSBaseURL,
 		e.consumeFuturesUserDataMessages,
 	)
+}
+
+// runSpotUserDataStream 通过 WebSocket API 的 userDataStream.subscribe.signature 订阅现货用户数据流。
+// 不再依赖已下线的 listenKey REST 端点，因此也无需 listenKey 保活——连接本身存活即订阅有效。
+func (e *FundingRateSniperEngine) runSpotUserDataStream(ctx context.Context) {
+	retryDelay := 500 * time.Millisecond
+	maxRetryDelay := 10 * time.Second
+
+	for {
+		if ctx.Err() != nil {
+			return
+		}
+
+		streamCtx, cancel := context.WithCancel(ctx)
+		conn, err := e.dialWebSocket(binanceSpotWSAPIBaseURL)
+		if err != nil {
+			cancel()
+			e.logger.Printf("连接现货 WS API 用户数据流失败: %v", err)
+			if !sleepWithContext(ctx, retryDelay) {
+				return
+			}
+			retryDelay = nextStreamBackoff(retryDelay, maxRetryDelay)
+			continue
+		}
+
+		stopClose := closeWebSocketOnContextDone(streamCtx, conn)
+		stopPing := startWebSocketPing(streamCtx, conn)
+
+		err = e.consumeSpotWSAPIUserData(streamCtx, conn)
+
+		stopPing()
+		stopClose()
+		cancel()
+		_ = conn.Close()
+		if err != nil && ctx.Err() == nil {
+			e.logger.Printf("现货 WS API 用户数据流中断，准备重连: %v", err)
+		}
+
+		if !sleepWithContext(ctx, retryDelay) {
+			return
+		}
+		retryDelay = nextStreamBackoff(retryDelay, maxRetryDelay)
+	}
+}
+
+// subscribeSpotUserDataWSAPI 在已建立的 WS API 连接上发起 userDataStream.subscribe.signature 订阅。
+// 该方法对 HMAC/RSA/Ed25519 任意密钥类型均可用(2026-02-20 起官方放开)，签名口径与 SIGNED 请求一致：
+// 取除 signature 外的全部参数按字母序拼成 query，对其做 HMAC-SHA256 得到十六进制签名。
+func (e *FundingRateSniperEngine) subscribeSpotUserDataWSAPI(conn *websocket.Conn) (string, error) {
+	apiKey := strings.TrimSpace(e.client.APIKey())
+	secret := strings.TrimSpace(e.client.SecretKey())
+	if apiKey == "" || secret == "" {
+		return "", fmt.Errorf("缺少 API Key/Secret，无法订阅 WS API 用户数据流")
+	}
+
+	timestamp := time.Now().UnixMilli()
+	// 参数按字母序排列：apiKey、timestamp。
+	payload := "apiKey=" + apiKey + "&timestamp=" + strconv.FormatInt(timestamp, 10)
+	signature := exchange.Sign(secret, payload)
+
+	requestID := "uds-spot-" + strconv.FormatInt(timestamp, 10)
+	request := map[string]any{
+		"id":     requestID,
+		"method": "userDataStream.subscribe.signature",
+		"params": map[string]any{
+			"apiKey":    apiKey,
+			"timestamp": timestamp,
+			"signature": signature,
+		},
+	}
+	if err := conn.WriteJSON(request); err != nil {
+		return "", fmt.Errorf("发送 userDataStream.subscribe.signature 失败: %w", err)
+	}
+	return requestID, nil
+}
+
+// consumeSpotWSAPIUserData 订阅后在同一连接上消费现货用户数据事件。
+// WS API 的事件以 {"subscriptionId":N,"event":{...}} 文本帧推送，其中内层 event 与旧 listenKey 流格式完全一致，
+// 因此解析逻辑复用 processSpotStyleUserDataEvent。请求应答帧形如 {"id":..,"status":200,"result":{...}}。
+func (e *FundingRateSniperEngine) consumeSpotWSAPIUserData(ctx context.Context, conn *websocket.Conn) error {
+	requestID, err := e.subscribeSpotUserDataWSAPI(conn)
+	if err != nil {
+		return err
+	}
+
+	subscribed := false
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		_, payload, err := conn.ReadMessage()
+		if err != nil {
+			return err
+		}
+
+		var frame struct {
+			ID     *string `json:"id"`
+			Status *int    `json:"status"`
+			Error  *struct {
+				Code int    `json:"code"`
+				Msg  string `json:"msg"`
+			} `json:"error"`
+			Event json.RawMessage `json:"event"`
+		}
+		if err := json.Unmarshal(payload, &frame); err != nil {
+			// 未知/无法解析的帧不致命，跳过即可。
+			continue
+		}
+
+		// 请求应答帧(订阅 ack / 错误)。
+		if frame.Status != nil {
+			if *frame.Status != http.StatusOK {
+				if frame.Error != nil {
+					return fmt.Errorf("WS API 订阅被拒绝: status=%d code=%d msg=%s", *frame.Status, frame.Error.Code, frame.Error.Msg)
+				}
+				return fmt.Errorf("WS API 订阅被拒绝: status=%d body=%s", *frame.Status, string(payload))
+			}
+			if frame.ID != nil && *frame.ID == requestID && !subscribed {
+				subscribed = true
+				e.logger.Printf("现货用户数据流(WS API)订阅成功")
+			}
+			continue
+		}
+
+		// 事件帧。
+		if len(frame.Event) > 0 {
+			reconnect, perr := e.processSpotStyleUserDataEvent(frame.Event, "spot", e.spotOrderHub, e.noteSpotAccountPositionUpdate, "解析现货用户流事件失败")
+			if perr != nil {
+				// 单帧解析失败不致命：记录后继续读后续事件，避免一条坏帧拖垮整条流。
+				e.logger.Printf("现货 WS API 用户数据事件解析失败(已跳过): %v", perr)
+				continue
+			}
+			if reconnect {
+				return fmt.Errorf("收到 serverShutdown 事件，按要求重连")
+			}
+		}
+	}
 }
 
 func (e *FundingRateSniperEngine) runListenKeyStream(
@@ -131,32 +259,6 @@ func (e *FundingRateSniperEngine) keepaliveListenKey(ctx context.Context, listen
 			}
 		}
 	}
-}
-
-func (e *FundingRateSniperEngine) startSpotListenKey(ctx context.Context) (string, error) {
-	body, err := e.apiKeyRequest(ctx, http.MethodPost, e.client.SpotBaseURL()+"/api/v3/userDataStream", nil)
-	if err != nil {
-		return "", err
-	}
-	return parseListenKey(body)
-}
-
-func (e *FundingRateSniperEngine) keepaliveSpotListenKey(ctx context.Context, listenKey string) error {
-	_, err := e.apiKeyRequest(ctx, http.MethodPut, e.client.SpotBaseURL()+"/api/v3/userDataStream?listenKey="+listenKey, nil)
-	return err
-}
-
-func (e *FundingRateSniperEngine) startMarginListenKey(ctx context.Context) (string, error) {
-	body, err := e.apiKeyRequest(ctx, http.MethodPost, e.client.SpotBaseURL()+"/sapi/v1/userDataStream", nil)
-	if err != nil {
-		return "", err
-	}
-	return parseListenKey(body)
-}
-
-func (e *FundingRateSniperEngine) keepaliveMarginListenKey(ctx context.Context, listenKey string) error {
-	_, err := e.apiKeyRequest(ctx, http.MethodPut, e.client.SpotBaseURL()+"/sapi/v1/userDataStream?listenKey="+listenKey, nil)
-	return err
 }
 
 func (e *FundingRateSniperEngine) startFuturesListenKey(ctx context.Context) (string, error) {
@@ -253,6 +355,8 @@ func (e *FundingRateSniperEngine) consumeMarginUserDataMessages(ctx context.Cont
 }
 
 // consumeSpotStyleUserDataMessages 共享现货 / 全仓杠杆这两条同构用户数据流的解析逻辑。
+// 每个 WS 文本帧本身即一条内层 event(旧 listenKey 流格式)。WS API 流的帧外层带 {"event":{...}} 信封，
+// 解包后复用同一个 processSpotStyleUserDataEvent。
 func (e *FundingRateSniperEngine) consumeSpotStyleUserDataMessages(
 	ctx context.Context,
 	conn *websocket.Conn,
@@ -273,62 +377,84 @@ func (e *FundingRateSniperEngine) consumeSpotStyleUserDataMessages(
 			return err
 		}
 
-		var event struct {
-			EventType       string `json:"e"`
-			EventTime       int64  `json:"E"`
-			Symbol          string `json:"s"`
-			ClientOrderID   string `json:"c"`
-			Status          string `json:"X"`
-			ExecutionType   string `json:"x"`
-			OrderID         int64  `json:"i"`
-			CumFilledQty    string `json:"z"`
-			CumQuoteQty     string `json:"Z"`
-			LastCommission  string `json:"n"`
-			CommissionAsset string `json:"N"`
-			Balances        []struct {
-				Asset string `json:"a"`
-				Free  string `json:"f"`
-				Lock  string `json:"l"`
-			} `json:"B"`
+		reconnect, perr := e.processSpotStyleUserDataEvent(payload, market, hub, onBalances, parseErrLabel)
+		if perr != nil {
+			return perr
 		}
-		if err := json.Unmarshal(payload, &event); err != nil {
-			return fmt.Errorf("%s: %w", parseErrLabel, err)
+		if reconnect {
+			return fmt.Errorf("收到 serverShutdown 事件，按要求重连")
 		}
-		if event.EventType != "executionReport" {
-			if event.EventType == "outboundAccountPosition" && onBalances != nil {
-				balances := make(map[string]float64, len(event.Balances))
-				for _, balance := range event.Balances {
-					balances[balance.Asset] = parseFloat(balance.Free) + parseFloat(balance.Lock)
-				}
-				onBalances(balances)
-			}
-			continue
-		}
-		if !isManagedClientOrderID(event.ClientOrderID) {
-			continue
-		}
-		if hub == nil {
-			continue
-		}
-
-		snapshot := OrderExecutionSnapshot{
-			Market:          market,
-			Symbol:          event.Symbol,
-			ClientOrderID:   event.ClientOrderID,
-			OrderID:         event.OrderID,
-			Status:          event.Status,
-			ExecutionType:   event.ExecutionType,
-			ExecutedQty:     parseFloat(event.CumFilledQty),
-			CumQuoteQty:     parseFloat(event.CumQuoteQty),
-			Commission:      parseFloat(event.LastCommission),
-			CommissionAsset: event.CommissionAsset,
-			EventTime:       time.UnixMilli(event.EventTime),
-		}
-		if snapshot.ExecutedQty > 0 && snapshot.CumQuoteQty > 0 {
-			snapshot.AvgPrice = snapshot.CumQuoteQty / snapshot.ExecutedQty
-		}
-		hub.Update(snapshot)
 	}
+}
+
+// processSpotStyleUserDataEvent 解析并分发单条现货/杠杆用户数据内层事件(executionReport / outboundAccountPosition)。
+// 返回 reconnect=true 表示收到 serverShutdown，调用方应主动重连;返回 err 表示该帧解析失败。
+func (e *FundingRateSniperEngine) processSpotStyleUserDataEvent(
+	payload []byte,
+	market string,
+	hub *OrderEventHub,
+	onBalances func(map[string]float64),
+	parseErrLabel string,
+) (bool, error) {
+	var event struct {
+		EventType       string `json:"e"`
+		EventTime       int64  `json:"E"`
+		Symbol          string `json:"s"`
+		ClientOrderID   string `json:"c"`
+		Status          string `json:"X"`
+		ExecutionType   string `json:"x"`
+		OrderID         int64  `json:"i"`
+		CumFilledQty    string `json:"z"`
+		CumQuoteQty     string `json:"Z"`
+		LastCommission  string `json:"n"`
+		CommissionAsset string `json:"N"`
+		Balances        []struct {
+			Asset string `json:"a"`
+			Free  string `json:"f"`
+			Lock  string `json:"l"`
+		} `json:"B"`
+	}
+	if err := json.Unmarshal(payload, &event); err != nil {
+		return false, fmt.Errorf("%s: %w", parseErrLabel, err)
+	}
+	if event.EventType == "serverShutdown" {
+		return true, nil
+	}
+	if event.EventType != "executionReport" {
+		if event.EventType == "outboundAccountPosition" && onBalances != nil {
+			balances := make(map[string]float64, len(event.Balances))
+			for _, balance := range event.Balances {
+				balances[balance.Asset] = parseFloat(balance.Free) + parseFloat(balance.Lock)
+			}
+			onBalances(balances)
+		}
+		return false, nil
+	}
+	if !isManagedClientOrderID(event.ClientOrderID) {
+		return false, nil
+	}
+	if hub == nil {
+		return false, nil
+	}
+
+	snapshot := OrderExecutionSnapshot{
+		Market:          market,
+		Symbol:          event.Symbol,
+		ClientOrderID:   event.ClientOrderID,
+		OrderID:         event.OrderID,
+		Status:          event.Status,
+		ExecutionType:   event.ExecutionType,
+		ExecutedQty:     parseFloat(event.CumFilledQty),
+		CumQuoteQty:     parseFloat(event.CumQuoteQty),
+		Commission:      parseFloat(event.LastCommission),
+		CommissionAsset: event.CommissionAsset,
+		EventTime:       time.UnixMilli(event.EventTime),
+	}
+	if snapshot.ExecutedQty > 0 && snapshot.CumQuoteQty > 0 {
+		snapshot.AvgPrice = snapshot.CumQuoteQty / snapshot.ExecutedQty
+	}
+	hub.Update(snapshot)
+	return false, nil
 }
 
 func (e *FundingRateSniperEngine) consumeFuturesUserDataMessages(ctx context.Context, conn *websocket.Conn) error {

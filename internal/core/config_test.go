@@ -30,7 +30,7 @@ func sampleValidConfig() EngineConfig {
 			ScanWindow:               3 * time.Minute,
 			MonitorInterval:          500 * time.Millisecond,
 			MonitorStopLead:          30 * time.Second,
-			LiveFundingDirectionMode: "positive_only",
+			LiveFundingDirectionMode: "both",
 			MinEstimatedFundingRate:  0.0055,
 			MaxEstimatedFundingRate:  0.0300,
 			MaxFundingRateJump:       0.0150,

@@ -535,6 +535,19 @@ func (c *BinanceClient) fetchNextHourlyMarginInterestRates(ctx context.Context, 
 	return result, nil
 }
 
+// isRateLimitError 判断错误是否为币安限流/封禁(429 Too Many Requests / 418 banned)。
+// 用于在批量探测费率时一旦触发限流就立即停手，避免把账户 IP 越查越封。
+func isRateLimitError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "418") ||
+		strings.Contains(msg, "429") ||
+		strings.Contains(msg, "Too Many Requests") ||
+		strings.Contains(msg, "banned")
+}
+
 func (c *BinanceClient) resolveAccountTradingCostProfile(ctx context.Context, spotSymbols []string, futuresSymbols []string, borrowAssets []string) (AccountTradingCostProfile, error) {
 	profile := AccountTradingCostProfile{
 		BorrowHourlyRateByAsset: make(map[string]float64),
@@ -567,7 +580,13 @@ func (c *BinanceClient) resolveAccountTradingCostProfile(ctx context.Context, sp
 		}
 	}
 
+	// 合约 taker/maker 费率是按账户 VIP 等级【全市场统一】的，这里也只取 max。因此【绝不能】把整个
+	// golden 宇宙(数百个 symbol)逐个 /fapi/v1/commissionRate 探测——签名请求不走公共 GET 限流器，
+	// 几百个瞬时请求会直接撞 2400/min 限额，从 429 升级成 418 封 IP。只探测少量代表 symbol 即可代表账户档位；
+	// 单个 symbol 的费率在真正交易时再按需 fetch+缓存。
+	const maxFuturesCommissionProbeSymbols = 6
 	futuresSeen := make(map[string]struct{}, len(futuresSymbols))
+	probed := 0
 	for _, symbol := range futuresSymbols {
 		normalizedSymbol := strings.ToUpper(strings.TrimSpace(symbol))
 		if normalizedSymbol == "" {
@@ -577,9 +596,17 @@ func (c *BinanceClient) resolveAccountTradingCostProfile(ctx context.Context, sp
 			continue
 		}
 		futuresSeen[normalizedSymbol] = struct{}{}
+		if probed >= maxFuturesCommissionProbeSymbols {
+			break
+		}
+		probed++
 		commission, err := c.fetchFuturesCommissionRate(ctx, normalizedSymbol)
 		if err != nil {
 			errs = append(errs, fmt.Sprintf("futures_commission[%s]=%v", normalizedSymbol, err))
+			// 一旦被限流/封禁，立即停手，避免把 IP 越查越封。已探测到的样本足以代表账户费率档位。
+			if isRateLimitError(err) {
+				break
+			}
 			continue
 		}
 		taker := parseFloat(commission.TakerCommissionRate)
