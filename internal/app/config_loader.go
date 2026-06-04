@@ -34,7 +34,22 @@ func loadEngineConfig() (EngineConfig, error) {
 	if err := cfg.Validate(); err != nil {
 		return EngineConfig{}, err
 	}
+	logEffectiveConfigDiff(cfg)
 	return cfg, nil
+}
+
+// logEffectiveConfigDiff 在启动时打印生效配置相对默认值的字段级差异（M-S1.0，纯观测）。
+// 让「实际跑的参数 vs 代码默认」一眼可核对，便于审计 YAML/env 覆盖是否如预期；不参与控制流。
+func logEffectiveConfigDiff(cfg EngineConfig) {
+	diff := cfg.DiffFromDefaults()
+	if len(diff) == 0 {
+		log.Printf("[配置] 生效配置与默认值完全一致（无 YAML/env 覆盖）")
+		return
+	}
+	log.Printf("[配置] 生效配置相对默认值有 %d 处覆盖:", len(diff))
+	for _, entry := range diff {
+		log.Printf("[配置]   %s: %s => %s", entry.Path, entry.Default, entry.Current)
+	}
 }
 
 func envConfigOverrides() map[string]string {
