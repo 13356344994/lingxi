@@ -341,6 +341,24 @@ func isManagedClientOrderID(clientOrderID string) bool {
 	return false
 }
 
+// classifyFuturesForcedClosure 依据币安合约 ORDER_TRADE_UPDATE 的 clientOrderId 约定识别「交易所强制平仓」事件：
+//   - "adl_autoclose..." : 自动减仓(ADL)
+//   - "autoclose-..."    : 强平(liquidation)
+//
+// 这类订单由交易所而非本系统发起，clientOrderId 不在本系统托管命名空间内，因此必须在「跳过非托管订单」之前
+// 识别，否则单腿被强平/ADL 后另一腿会一直裸露而系统毫不知情。
+func classifyFuturesForcedClosure(clientOrderID string) (bool, string) {
+	id := strings.ToLower(strings.TrimSpace(clientOrderID))
+	switch {
+	case strings.HasPrefix(id, "adl_autoclose"):
+		return true, "adl"
+	case strings.HasPrefix(id, "autoclose-"):
+		return true, "liquidation"
+	default:
+		return false, ""
+	}
+}
+
 func (e *FundingRateSniperEngine) consumeSpotUserDataMessages(ctx context.Context, conn *websocket.Conn) error {
 	return e.consumeSpotStyleUserDataMessages(ctx, conn, "spot", e.spotOrderHub, e.noteSpotAccountPositionUpdate, "解析现货用户流消息失败")
 }
@@ -523,6 +541,12 @@ func (e *FundingRateSniperEngine) consumeFuturesUserDataMessages(ctx context.Con
 				}
 				e.noteFuturesAccountUpdate(walletUSDT, positions)
 			}
+			continue
+		}
+		// 交易所强平/ADL 检测必须先于「跳过非托管订单」：强平/ADL 单由交易所发起、clientOrderId 不在托管命名空间，
+		// 若不在此识别，单腿被强制平掉后另一腿会持续裸露而系统无感知(R3 单腿强平/ADL 盲区)。
+		if forced, kind := classifyFuturesForcedClosure(envelope.Order.ClientOrderID); forced {
+			e.handleFuturesForcedClosure(envelope.Order.Symbol, kind, envelope.Order.ClientOrderID)
 			continue
 		}
 		if !isManagedClientOrderID(envelope.Order.ClientOrderID) {

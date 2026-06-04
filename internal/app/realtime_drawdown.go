@@ -512,3 +512,50 @@ func (e *FundingRateSniperEngine) flattenManagedSymbolExposure(symbol string, re
 	e.noteManagedDrawdownAction("symbol_cut_futures_trimmed", fmt.Sprintf("%s | qty=%.8f", normalized, positionQty))
 	e.recordExecutionAction("realtime_drawdown_symbol", normalized, "poison_symbol_futures_trimmed", fmt.Sprintf("qty=%.8f", positionQty))
 }
+
+// handleFuturesForcedClosure 响应「交易所强平/ADL 平掉了合约腿」事件：此时对冲的另一条腿(现货/全仓杠杆)
+// 已裸露，必须立即收敛，否则在滚动长持语境下会演变成无对冲的单边敞口。它复用单币止血路径
+// flattenManagedSymbolExposure(方向感知双腿平仓 + 兜底)：即便合约腿已被平光，并发的现货平仓腿仍会把裸露的
+// 现货/杠杆腿收敛掉，合约侧的 reduceOnly 在零仓位上被拒绝属无害噪声。仅对托管中的 symbol 触发收敛，
+// 非托管事件只记录不动作。
+func (e *FundingRateSniperEngine) handleFuturesForcedClosure(symbol string, kind string, clientOrderID string) {
+	if e == nil {
+		return
+	}
+	normalized := strings.ToUpper(strings.TrimSpace(symbol))
+	if normalized == "" {
+		return
+	}
+	reason := fmt.Sprintf(
+		"交易所强制平仓事件(%s): symbol=%s clientOrderId=%s，合约腿已被交易所平掉，立即收敛剩余裸腿",
+		kind, normalized, strings.TrimSpace(clientOrderID),
+	)
+	_ = e.recordExecutionIncident("forced_closure", normalized, reason)
+	e.emitRiskEvent(newRiskEvent("incident", RiskCategorySafety, RiskSeverityCritical, "forced_closure", normalized, kind, int(e.executionIncidents), e.cfg.RiskConfig.MaxExecutionIncidents, true, reason))
+	if e.logger != nil {
+		e.logger.Printf("检测到交易所强平/ADL: %s", reason)
+	}
+
+	// 仅对托管中的 symbol 触发收敛，避免对历史 / 无关 symbol 的强平事件误动作。
+	if _, ok := e.managedOpenHedgeBySymbol(normalized); !ok {
+		e.noteManagedDrawdownAction("forced_closure_untracked", fmt.Sprintf("%s | %s | 非托管 symbol，仅记录", normalized, kind))
+		return
+	}
+
+	// 抢占单币止血 in-flight 守卫，避免与实时浮亏监控重复派发；抢不到说明已有止血在跑，本次让位。
+	// 抢到后由 flattenManagedSymbolExposure 的 defer 负责清理该守卫，契约与监控派发路径一致。
+	e.platformRiskMu.Lock()
+	if e.symbolPanicFlattenInFlight == nil {
+		e.symbolPanicFlattenInFlight = make(map[string]time.Time)
+	}
+	if _, inFlight := e.symbolPanicFlattenInFlight[normalized]; inFlight {
+		e.platformRiskMu.Unlock()
+		e.noteManagedDrawdownAction("forced_closure_flatten_skip", fmt.Sprintf("%s | %s | 已有止血在途", normalized, kind))
+		return
+	}
+	e.symbolPanicFlattenInFlight[normalized] = time.Now().UTC()
+	e.platformRiskMu.Unlock()
+
+	e.noteManagedDrawdownAction("forced_closure_flatten_start", fmt.Sprintf("%s | %s", normalized, kind))
+	go e.flattenManagedSymbolExposure(normalized, reason)
+}

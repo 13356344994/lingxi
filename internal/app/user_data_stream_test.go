@@ -51,6 +51,36 @@ func TestIsManagedClientOrderIDRejectsExternalOrderIDs(t *testing.T) {
 	}
 }
 
+func TestClassifyFuturesForcedClosure(t *testing.T) {
+	forced := map[string]string{
+		"autoclose-1700000000000":  "liquidation",
+		"AUTOCLOSE-BTCUSDT":        "liquidation",
+		"adl_autoclose":            "adl",
+		"adl_autoclose-1700000000": "adl",
+	}
+	for clientOrderID, wantKind := range forced {
+		ok, kind := classifyFuturesForcedClosure(clientOrderID)
+		if !ok || kind != wantKind {
+			t.Fatalf("classifyFuturesForcedClosure(%q) = (%v, %q), want (true, %q)", clientOrderID, ok, kind, wantKind)
+		}
+	}
+
+	// 本系统托管单与第三方单都不得被误判为强平/ADL。
+	notForced := []string{
+		"",
+		"fopen-btcusdt-1",
+		"fclose-btcusdt-1",
+		"sclose-btcusdt-1",
+		"manual-order-1",
+		"autocloseable-typo",
+	}
+	for _, clientOrderID := range notForced {
+		if ok, kind := classifyFuturesForcedClosure(clientOrderID); ok {
+			t.Fatalf("classifyFuturesForcedClosure(%q) = (true, %q), want false", clientOrderID, kind)
+		}
+	}
+}
+
 // TestConsumeMarginUserDataRoutesToMarginHub 钉死 C4：cross margin 的 executionReport 必须落到 marginOrderHub，
 // 而不能进入 spotOrderHub，否则负 carry 现货腿(走全仓杠杆)的 WS 确认会全部丢失、退化为 REST 轮询。
 func TestConsumeMarginUserDataRoutesToMarginHub(t *testing.T) {
