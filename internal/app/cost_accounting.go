@@ -69,6 +69,12 @@ type CycleSettlement struct {
 	TotalCloseSlippageUSDT    float64
 	TotalRecoveryFrictionUSDT float64
 	NetPnLAfterFrictions      float64
+
+	// M-S3.1 对账诚实化(R6):开仓期同源费率模型对本轮手续费的预期值,以及本轮总名义。对账(reconcile)
+	// 用 ExpectedTotalFees 作为成本侧的「模型预期」(而非抄实测),令成本侧模型误差不再恒为 0;
+	// CycleNotionalUSDT 作为相对偏差的名义分母。两者均为只读对账输入,不参与任何熔断/风控判定。
+	ExpectedTotalFees float64
+	CycleNotionalUSDT float64
 }
 
 // applyFrictionObservation 依据各 symbol 归因聚合执行摩擦,并按「NetPnL + 已测摩擦」折算出完整净利影子口径。
@@ -86,6 +92,36 @@ func (s *CycleSettlement) applyFrictionObservation() {
 	s.TotalCloseSlippageUSDT = closeSlip
 	s.TotalRecoveryFrictionUSDT = recovery
 	s.NetPnLAfterFrictions = money.SumUSDT(s.NetPnL, openSlip, closeSlip, recovery)
+}
+
+// expectedHedgeCostObservation 按与策略 breakeven 同源的配置 taker 费率,估算一组对冲的「模型预期手续费」
+// 与本轮总名义(M-S3.1,R6)。模型费 = Σ 各腿(开+平)名义 × 配置费率;它与实测手续费(可能含 BNB 抵扣/
+// 挂单返佣/部分成交)的差,正是对账要暴露的成本侧模型误差。借币侧当前实测值本身即由同一利率模型推导,
+// 无独立「实测 vs 模型」可比口径,故对账沿用实测借币,待接入交易所真实利息后再单列(诚实标注)。纯只读。
+func (e *FundingRateSniperEngine) expectedHedgeCostObservation(hedges []OpenHedge) (expectedFees, notional float64) {
+	spotFeeRate := e.cfg.HistoricalConfig.SpotTakerFeeRate
+	if spotFeeRate <= 0 {
+		spotFeeRate = 0.0010
+	}
+	futuresFeeRate := e.cfg.HistoricalConfig.FuturesTakerFeeRate
+	if futuresFeeRate <= 0 {
+		futuresFeeRate = 0.0005
+	}
+	var feesM, notionalM money.Micros
+	for _, hedge := range hedges {
+		openSpotNotional := hedge.OpenSpotQuoteQty
+		closeSpotNotional := hedge.CloseSpotQuoteQty
+		openFuturesNotional := hedge.HedgeQty * hedge.OpenFuturesAvgPrice
+		closeFuturesQty := hedge.CloseFuturesExecutedQty
+		if closeFuturesQty <= 0 {
+			closeFuturesQty = hedge.HedgeQty
+		}
+		closeFuturesNotional := closeFuturesQty * hedge.CloseFuturesAvgPrice
+		feesM = feesM.Add(money.FromUSDT((openSpotNotional + closeSpotNotional) * spotFeeRate))
+		feesM = feesM.Add(money.FromUSDT((openFuturesNotional + closeFuturesNotional) * futuresFeeRate))
+		notionalM = notionalM.Add(money.FromUSDT(openSpotNotional + openFuturesNotional))
+	}
+	return feesM.USDT(), notionalM.USDT()
 }
 
 // logFrictionObservation 打印 M-S3.0 观测行:账面 NetPnL vs 折入执行摩擦后的完整净利影子口径,

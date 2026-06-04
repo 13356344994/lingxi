@@ -154,6 +154,10 @@ type SettlementCSVRecord struct {
 	TotalCloseSlippageUSDT    string `json:"total_close_slippage_usdt,omitempty"`
 	TotalRecoveryFrictionUSDT string `json:"total_recovery_friction_usdt,omitempty"`
 	NetPnLAfterFrictions      string `json:"net_pnl_after_frictions,omitempty"`
+	// M-S3.1(R6):成本侧模型预期手续费与本轮名义,供 reconcile 暴露成本侧模型误差。omitempty 让历史记录
+	// 无此字段时为空 → 对账回退到实测费用(旧行为),零回归。
+	ExpectedTotalFees string `json:"expected_total_fees,omitempty"`
+	CycleNotionalUSDT string `json:"cycle_notional_usdt,omitempty"`
 }
 
 type DustLedgerRecord struct {

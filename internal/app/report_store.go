@@ -153,6 +153,8 @@ func (s *ReportStore) AppendSettlement(settlement CycleSettlement) error {
 		TotalCloseSlippageUSDT:    formatFloat(settlement.TotalCloseSlippageUSDT),
 		TotalRecoveryFrictionUSDT: formatFloat(settlement.TotalRecoveryFrictionUSDT),
 		NetPnLAfterFrictions:      formatFloat(settlement.NetPnLAfterFrictions),
+		ExpectedTotalFees:         formatFloat(settlement.ExpectedTotalFees),
+		CycleNotionalUSDT:         formatFloat(settlement.CycleNotionalUSDT),
 	}
 	if !settlement.FundingSettledAt.IsZero() {
 		record.FundingSettledAt = settlement.FundingSettledAt.UTC().Format(time.RFC3339)
@@ -196,6 +198,8 @@ func (s *ReportStore) UpdateSettlement(settlement CycleSettlement) error {
 		record.TotalCloseSlippageUSDT = formatFloat(settlement.TotalCloseSlippageUSDT)
 		record.TotalRecoveryFrictionUSDT = formatFloat(settlement.TotalRecoveryFrictionUSDT)
 		record.NetPnLAfterFrictions = formatFloat(settlement.NetPnLAfterFrictions)
+		record.ExpectedTotalFees = formatFloat(settlement.ExpectedTotalFees)
+		record.CycleNotionalUSDT = formatFloat(settlement.CycleNotionalUSDT)
 		if err := writeJSONFile(s.settlementPath, s.settlementRecords); err != nil {
 			return err
 		}

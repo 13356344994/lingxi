@@ -324,6 +324,7 @@ func (p *CloseProtocol) executeSequence(ctx context.Context, hedges []OpenHedge,
 		Alerts:                alerts,
 		Attributions:          attributions,
 	}
+	settlement.ExpectedTotalFees, settlement.CycleNotionalUSDT = p.engine.expectedHedgeCostObservation(hedges)
 	settlement.applyFrictionObservation()
 	p.engine.logFrictionObservation(settlement, "close_presettle")
 	return settlement, nil

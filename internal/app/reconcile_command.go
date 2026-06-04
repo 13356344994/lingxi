@@ -42,8 +42,16 @@ func buildLiveVsExpectedReconcileRecords(records []SettlementCSVRecord) (live, e
 		totalFees := parseFloat(record.TotalFees)
 		totalBorrow := parseFloat(record.TotalBorrowCosts)
 		actualNet := parseFloat(record.NetPnL)
-		// 模型预期净利：预期资金费 + 0(delta 中性) - 实际手续费 - 实际借币成本。
-		expectedNet := money.Sum(expectedFunding, -totalFees, -totalBorrow).USDT()
+		notional := parseFloat(record.CycleNotionalUSDT)
+		// 成本侧用「模型预期手续费」(M-S3.1,R6):不再把实测手续费抄到预期侧,从而让 total_fees 字段的
+		// 偏差暴露成本侧模型误差(BNB 抵扣/挂单返佣/部分成交)。历史记录无该字段时回退到实测费用(旧行为,零回归)。
+		expectedFees := totalFees
+		if strings.TrimSpace(record.ExpectedTotalFees) != "" {
+			expectedFees = parseFloat(record.ExpectedTotalFees)
+		}
+		// 模型预期净利：预期资金费 + 0(delta 中性) - 模型预期手续费 - 实际借币成本(借币侧本身即模型推导,
+		// 暂无独立实测可比口径,故沿用实测值)。
+		expectedNet := money.Sum(expectedFunding, -expectedFees, -totalBorrow).USDT()
 
 		live = append(live, reconcile.TradeRecord{
 			Key:           key,
@@ -52,6 +60,7 @@ func buildLiveVsExpectedReconcileRecords(records []SettlementCSVRecord) (live, e
 			FundingIncome: actualFunding,
 			TradingPnL:    tradingPnL,
 			TotalFees:     totalFees,
+			Notional:      notional,
 		})
 		expected = append(expected, reconcile.TradeRecord{
 			Key:           key,
@@ -59,7 +68,8 @@ func buildLiveVsExpectedReconcileRecords(records []SettlementCSVRecord) (live, e
 			NetPnL:        expectedNet,
 			FundingIncome: expectedFunding,
 			TradingPnL:    0,
-			TotalFees:     totalFees,
+			TotalFees:     expectedFees,
+			Notional:      notional,
 		})
 	}
 	return live, expected
@@ -107,6 +117,12 @@ func formatReconcileReport(report reconcile.Report, summary reconcileSummary, th
 	if thresholds.AbsUSDT > 0 {
 		b.WriteString(fmt.Sprintf("单字段绝对偏差阈值: %.4f USDT\n", thresholds.AbsUSDT))
 	}
+	if thresholds.Rel > 0 {
+		b.WriteString(fmt.Sprintf("单字段相对偏差阈值: %.1f%%（已设相对阈值时以相对差为准,抓小名义大比例泄漏）\n", thresholds.Rel*100))
+	}
+	if thresholds.TotalAbsUSDT > 0 {
+		b.WriteString(fmt.Sprintf("净利偏差绝对值之和阈值: %.4f USDT  总闸触发: %t\n", thresholds.TotalAbsUSDT, report.TotalBreached))
+	}
 
 	if report.BreachedCount > 0 {
 		b.WriteString("\n--- 偏差超阈值的周期（实盘明显偏离模型假设，重点排查滑点/对冲泄漏/资金费预测）---\n")
@@ -117,7 +133,7 @@ func formatReconcileReport(report reconcile.Report, summary reconcileSummary, th
 			}
 			b.WriteString(fmt.Sprintf("  cycle=%s 触发字段=%s\n", rec.Symbol, strings.Join(rec.Breaches, ",")))
 			for _, gap := range rec.Gaps {
-				b.WriteString(fmt.Sprintf("    %-14s 实际=%+.4f 预期=%+.4f 绝对偏差=%.4f\n", gap.Field, gap.Live, gap.Backtest, gap.AbsGap))
+				b.WriteString(fmt.Sprintf("    %-14s 实际=%+.4f 预期=%+.4f 绝对偏差=%.4f 相对偏差=%.2f%%\n", gap.Field, gap.Live, gap.Backtest, gap.AbsGap, gap.RelGap*100))
 			}
 			shown++
 			if shown >= 20 {
@@ -164,8 +180,8 @@ func runReconcileMode(_ context.Context) error {
 	live, expected := buildLiveVsExpectedReconcileRecords(records)
 	thresholds := reconcile.Thresholds{
 		AbsUSDT:      cfg.RiskConfig.SettlementDiffAlertUSDT,
-		Rel:          0,
-		TotalAbsUSDT: 0,
+		Rel:          cfg.RiskConfig.SettlementDiffRate,
+		TotalAbsUSDT: cfg.RiskConfig.SettlementTotalDiffAlertUSDT,
 	}
 	report := reconcile.Reconcile(live, expected, thresholds)
 	summary := summarizeReconcile(live, expected)

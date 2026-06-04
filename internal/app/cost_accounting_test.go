@@ -34,6 +34,40 @@ func TestApplyFrictionObservationFoldsSignedFrictions(t *testing.T) {
 	}
 }
 
+// M-S3.1(R6):模型预期手续费 = Σ 各腿(开+平)名义 × 配置费率;名义 = Σ 开仓两腿名义。
+func TestExpectedHedgeCostObservation(t *testing.T) {
+	e := &FundingRateSniperEngine{}
+	e.cfg.HistoricalConfig.SpotTakerFeeRate = 0.0010
+	e.cfg.HistoricalConfig.FuturesTakerFeeRate = 0.0005
+	hedges := []OpenHedge{{
+		HedgeQty:                1,
+		OpenSpotQuoteQty:        100,
+		OpenFuturesAvgPrice:     100,
+		CloseSpotQuoteQty:       100,
+		CloseFuturesExecutedQty: 1,
+		CloseFuturesAvgPrice:    100,
+	}}
+	fees, notional := e.expectedHedgeCostObservation(hedges)
+	// spot:(100+100)×0.0010=0.20  futures:(100+100)×0.0005=0.10  合计 0.30
+	if !approxEqual(fees, 0.30) {
+		t.Fatalf("模型预期手续费=%v want 0.30", fees)
+	}
+	// 名义:开仓现货 100 + 开仓合约 100 = 200
+	if !approxEqual(notional, 200) {
+		t.Fatalf("本轮名义=%v want 200", notional)
+	}
+}
+
+func TestExpectedHedgeCostObservationFeeRateFallback(t *testing.T) {
+	e := &FundingRateSniperEngine{}
+	hedges := []OpenHedge{{HedgeQty: 1, OpenSpotQuoteQty: 100, OpenFuturesAvgPrice: 100, CloseSpotQuoteQty: 100, CloseFuturesAvgPrice: 100, CloseFuturesExecutedQty: 1}}
+	fees, _ := e.expectedHedgeCostObservation(hedges)
+	// 费率为 0 时回退默认 spot0.0010/futures0.0005 → 同上 0.30
+	if !approxEqual(fees, 0.30) {
+		t.Fatalf("费率回退后模型预期手续费=%v want 0.30", fees)
+	}
+}
+
 func TestApplyFrictionObservationNoAttributionsIsNetPnL(t *testing.T) {
 	s := CycleSettlement{NetPnL: -3.2}
 	s.applyFrictionObservation()

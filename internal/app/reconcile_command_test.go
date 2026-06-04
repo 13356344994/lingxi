@@ -115,6 +115,68 @@ func TestReconcileReportBreachAndHealthy(t *testing.T) {
 	}
 }
 
+// TestReconcileExpectedSideUsesModelFees 钉死 M-S3.1(R6):预期侧手续费取模型预期值(而非抄实测),
+// 从而让 total_fees 字段的偏差暴露成本侧模型误差;历史记录(无该字段)回退到实测费用,零回归。
+func TestReconcileExpectedSideUsesModelFees(t *testing.T) {
+	// 模型预期手续费 0.30,实测仅 0.18(BNB 抵扣/部分挂单)→ 成本侧应出现 0.12 偏差。
+	records := []SettlementCSVRecord{{
+		RunID: "r", CycleID: "c1",
+		FundingIncome: "2.0", ExpectedFundingIncome: "2.0",
+		TotalFees: "0.18", ExpectedTotalFees: "0.30", TotalBorrowCosts: "0.0",
+		CycleNotionalUSDT: "1000", NetPnL: "1.82",
+	}}
+	live, expected := buildLiveVsExpectedReconcileRecords(records)
+	if !approxEqual(expected[0].TotalFees, 0.30) {
+		t.Fatalf("预期侧应使用模型预期手续费 0.30, got %.6f", expected[0].TotalFees)
+	}
+	if !approxEqual(live[0].TotalFees, 0.18) {
+		t.Fatalf("实盘侧应使用实测手续费 0.18, got %.6f", live[0].TotalFees)
+	}
+	if !approxEqual(live[0].Notional, 1000) || !approxEqual(expected[0].Notional, 1000) {
+		t.Fatalf("两侧名义应取自落盘 CycleNotionalUSDT=1000, got live=%.4f expected=%.4f", live[0].Notional, expected[0].Notional)
+	}
+	// expectedNet = 2.0 - 0.30 - 0 = 1.70;成本侧模型误差体现在 net_pnl/total_fees 偏差里。
+	if !approxEqual(expected[0].NetPnL, 1.70) {
+		t.Fatalf("expectedNet 应为 1.70, got %.6f", expected[0].NetPnL)
+	}
+
+	// 历史记录:无 ExpectedTotalFees → 回退实测费用,预期侧 fees == 实测,成本侧偏差归零(旧行为)。
+	legacy := []SettlementCSVRecord{{
+		RunID: "r", CycleID: "c1",
+		FundingIncome: "2.0", ExpectedFundingIncome: "2.0",
+		TotalFees: "0.18", NetPnL: "1.82",
+	}}
+	_, legacyExpected := buildLiveVsExpectedReconcileRecords(legacy)
+	if !approxEqual(legacyExpected[0].TotalFees, 0.18) {
+		t.Fatalf("历史记录应回退到实测手续费 0.18, got %.6f", legacyExpected[0].TotalFees)
+	}
+}
+
+// TestReconcileRelativeThresholdCatchesSmallNotionalLeak 钉死 R6 核心修复:小名义下绝对偏差很小(< 绝对
+// 阈值)但相对比例很大的泄漏,过去只设绝对阈值会被盖 HEALTHY;设了相对阈值后应判 UNHEALTHY。
+func TestReconcileRelativeThresholdCatchesSmallNotionalLeak(t *testing.T) {
+	// 小仓:预期净利 2.0,实盘只赚 0.5 → 绝对偏差 1.5(< 绝对阈值 3),相对偏差 75%(> 相对阈值 20%)。
+	records := []SettlementCSVRecord{{
+		RunID: "r", CycleID: "c1",
+		FundingIncome: "0.6", ExpectedFundingIncome: "2.1",
+		TotalFees: "0.1", ExpectedTotalFees: "0.1", TotalBorrowCosts: "0.0",
+		CycleNotionalUSDT: "50", NetPnL: "0.5",
+	}}
+	live, expected := buildLiveVsExpectedReconcileRecords(records)
+
+	// 仅绝对阈值(旧默认):绝对偏差 1.5 < 3 → 蒙混过 HEALTHY。
+	absOnly := reconcile.Reconcile(live, expected, reconcile.Thresholds{AbsUSDT: 3})
+	if !absOnly.Healthy {
+		t.Fatalf("仅绝对阈值时小额泄漏本应蒙混过 HEALTHY(用于反衬修复), got breached=%d", absOnly.BreachedCount)
+	}
+
+	// 引入相对阈值后:相对偏差 75% > 20% → 判 breach。
+	withRel := reconcile.Reconcile(live, expected, reconcile.Thresholds{AbsUSDT: 3, Rel: 0.20})
+	if withRel.Healthy || withRel.BreachedCount == 0 {
+		t.Fatalf("相对阈值应抓出小名义大比例泄漏, got %+v", withRel)
+	}
+}
+
 // TestFormatReconcileReportEmpty 断言无已结算周期时给出明确引导而非崩溃/空报告。
 func TestFormatReconcileReportEmpty(t *testing.T) {
 	text := formatReconcileReport(reconcile.Report{}, reconcileSummary{}, reconcile.Thresholds{AbsUSDT: 1})

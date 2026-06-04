@@ -144,20 +144,20 @@ func computeFieldGap(field string, live, backtest, notional float64) FieldGap {
 	return FieldGap{Field: field, Live: live, Backtest: backtest, AbsGap: absGap, RelGap: relGap}
 }
 
-// breachField 报告某字段 gap 是否同时突破了「绝对 + 相对」两道阈值（两者都设限时需同时突破才算 breach，
-// 避免噪声级小额绝对差或小分母放大相对差单独触发误报）。只设一道时按该道判定。
+// breachField 报告某字段 gap 是否突破阈值。语义(R6 对账诚实化):
+//   - 设了相对阈值(Rel>0)时,相对差是「钱是否按模型比例赚到」的主信号——相对显著即判 breach,
+//     这样小名义下的大比例泄漏不会因绝对差小而蒙混过 HEALTHY;绝对阈值此时退为「未设相对阈值」
+//     场景下的回退闸。
+//   - 只设了绝对阈值时,按绝对差判定。
+//
+// 相对差以回测/模型值为分母(见 computeFieldGap),分母为 0 时退化为名义,名义也为 0 时相对差记 0,
+// 从而避免「无名义、无模型值」的纯噪声字段被小分母放大误触发。
 func breachField(gap FieldGap, thresholds Thresholds) bool {
-	absLimited := thresholds.AbsUSDT > 0
-	relLimited := thresholds.Rel > 0
-	absBreach := absLimited && gap.AbsGap > thresholds.AbsUSDT
-	relBreach := relLimited && gap.RelGap > thresholds.Rel
 	switch {
-	case absLimited && relLimited:
-		return absBreach && relBreach
-	case absLimited:
-		return absBreach
-	case relLimited:
-		return relBreach
+	case thresholds.Rel > 0:
+		return gap.RelGap > thresholds.Rel
+	case thresholds.AbsUSDT > 0:
+		return gap.AbsGap > thresholds.AbsUSDT
 	default:
 		return false
 	}

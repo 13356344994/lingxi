@@ -103,13 +103,18 @@ type ExecutionConfig struct {
 
 // RiskConfig 表示实盘风控阈值和冷却预算。
 type RiskConfig struct {
-	MinNetProfitRate              float64       `cfg:"min_net_profit_rate"`
-	ImmediateInvalidateRate       float64       `cfg:"immediate_invalidate_rate"`
-	MonitorMaxConsecutiveBreach   int           `cfg:"monitor_max_consecutive_breach"`
-	ResidualSpotAlertUSDT         float64       `cfg:"residual_spot_alert_usdt"`
-	ResidualPositionAlertQty      float64       `cfg:"residual_position_alert_qty"`
-	FundingIncomeDiffAlertUSDT    float64       `cfg:"funding_income_diff_alert_usdt"`
-	SettlementDiffAlertUSDT       float64       `cfg:"settlement_diff_alert_usdt"`
+	MinNetProfitRate            float64 `cfg:"min_net_profit_rate"`
+	ImmediateInvalidateRate     float64 `cfg:"immediate_invalidate_rate"`
+	MonitorMaxConsecutiveBreach int     `cfg:"monitor_max_consecutive_breach"`
+	ResidualSpotAlertUSDT       float64 `cfg:"residual_spot_alert_usdt"`
+	ResidualPositionAlertQty    float64 `cfg:"residual_position_alert_qty"`
+	FundingIncomeDiffAlertUSDT  float64 `cfg:"funding_income_diff_alert_usdt"`
+	SettlementDiffAlertUSDT     float64 `cfg:"settlement_diff_alert_usdt"`
+	// 对账(reconcile,只读工具)阈值。SettlementDiffRate 为单字段相对偏差上限(0~1):设置后相对差
+	// 成为「钱是否按模型比例赚到」的主信号,可抓出小名义大比例泄漏(R6)。SettlementTotalDiffAlertUSDT
+	// 为「全部已配对周期净利偏差绝对值之和」上限(<=0 关闭),用于抓系统性慢性泄漏。
+	SettlementDiffRate            float64       `cfg:"settlement_diff_rate"`
+	SettlementTotalDiffAlertUSDT  float64       `cfg:"settlement_total_diff_alert_usdt"`
 	MaxExecutionIncidents         int           `cfg:"max_execution_incidents"`
 	MaxCycleLossUSDT              float64       `cfg:"max_cycle_loss_usdt"`
 	MaxCycleOpenNotionalUSDT      float64       `cfg:"max_cycle_open_notional_usdt"`
@@ -392,6 +397,8 @@ func (cfg EngineConfig) Validate() error {
 	appendIssue(cfg.RiskConfig.ResidualPositionAlertQty >= 0, "ResidualPositionAlertQty 不能小于 0")
 	appendIssue(cfg.RiskConfig.FundingIncomeDiffAlertUSDT >= 0, "FundingIncomeDiffAlertUSDT 不能小于 0")
 	appendIssue(cfg.RiskConfig.SettlementDiffAlertUSDT >= 0, "SettlementDiffAlertUSDT 不能小于 0")
+	appendIssue(cfg.RiskConfig.SettlementDiffRate >= 0 && cfg.RiskConfig.SettlementDiffRate <= 1, "SettlementDiffRate 必须在 [0,1] 区间")
+	appendIssue(cfg.RiskConfig.SettlementTotalDiffAlertUSDT >= 0, "SettlementTotalDiffAlertUSDT 不能小于 0")
 	appendIssue(cfg.RiskConfig.MaxExecutionIncidents > 0, "MaxExecutionIncidents 必须大于 0")
 	appendIssue(cfg.RiskConfig.MaxCycleLossUSDT > 0, "MaxCycleLossUSDT 必须大于 0")
 	appendIssue(cfg.RiskConfig.MaxCycleOpenNotionalUSDT > 0, "MaxCycleOpenNotionalUSDT 必须大于 0")

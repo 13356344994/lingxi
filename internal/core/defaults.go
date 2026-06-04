@@ -90,6 +90,8 @@ func DefaultEngineConfig() EngineConfig {
 			ResidualPositionAlertQty:      1e-8,
 			FundingIncomeDiffAlertUSDT:    1.0,
 			SettlementDiffAlertUSDT:       3.0,
+			SettlementDiffRate:            0.20,
+			SettlementTotalDiffAlertUSDT:  0,
 			MaxExecutionIncidents:         3,
 			MaxCycleLossUSDT:              8.0,
 			MaxCycleOpenNotionalUSDT:      300.0,
