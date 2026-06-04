@@ -147,19 +147,19 @@ func formatReconcileReport(report reconcile.Report, summary reconcileSummary, th
 
 // runReconcileMode 是 `lingxi reconcile` 子命令：只读地把已落盘结算记录与模型预期对账并打印报告，
 // 不触碰任何下单/实盘路径，可在实盘运行期间安全随时执行。
-func runReconcileMode(_ context.Context) {
+func runReconcileMode(_ context.Context) error {
 	log.Printf("启动对账模式: %s", buildVersionSummary())
 	cfg, err := loadEngineConfig()
 	if err != nil {
-		log.Fatalf("加载主配置失败: %v", err)
+		return fmt.Errorf("加载主配置失败: %w", err)
 	}
 	store, err := NewReportStore(cfg.NetworkConfig.RecordDir)
 	if err != nil {
-		log.Fatalf("初始化记录存储失败: %v", err)
+		return fmt.Errorf("初始化记录存储失败: %w", err)
 	}
 	records, err := store.ListSettlementRecords(0)
 	if err != nil {
-		log.Fatalf("读取结算记录失败: %v", err)
+		return fmt.Errorf("读取结算记录失败: %w", err)
 	}
 	live, expected := buildLiveVsExpectedReconcileRecords(records)
 	thresholds := reconcile.Thresholds{
@@ -170,4 +170,5 @@ func runReconcileMode(_ context.Context) {
 	report := reconcile.Reconcile(live, expected, thresholds)
 	summary := summarizeReconcile(live, expected)
 	fmt.Print(formatReconcileReport(report, summary, thresholds))
+	return nil
 }
