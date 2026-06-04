@@ -3,11 +3,13 @@ package app
 import (
 	"testing"
 	"time"
+
+	"lingxi/internal/core"
 )
 
-func TestApplyEngineConfigOverrides(t *testing.T) {
+func TestBindConfigOverrides(t *testing.T) {
 	cfg := DefaultEngineConfig()
-	err := applyEngineConfigOverrides(&cfg, map[string]string{
+	err := core.BindConfig(&cfg, map[string]string{
 		"network.http_timeout":                             "12s",
 		"network.max_idle_conns":                           "320",
 		"network.max_idle_conns_per_host":                  "96",
@@ -46,9 +48,9 @@ func TestApplyEngineConfigOverrides(t *testing.T) {
 		"historical.batch_spot_taker_fee_rates":            "0.0010,0.0000",
 		"historical.batch_per_leg_notional_usdt":           "5,10,20",
 		"historical.batch_max_funding_cycles_held":         "1,2",
-	})
+	}, false)
 	if err != nil {
-		t.Fatalf("applyEngineConfigOverrides() error = %v", err)
+		t.Fatalf("core.BindConfig() error = %v", err)
 	}
 	if cfg.NetworkConfig.DashboardAddr != "127.0.0.1:9090" {
 		t.Fatalf("unexpected dashboard addr: %s", cfg.NetworkConfig.DashboardAddr)

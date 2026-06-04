@@ -138,6 +138,19 @@ func ConfigKeyKinds() map[string]string {
 	return out
 }
 
+// IsConfigKey 报告某键(完整键或无歧义裸别名,大小写不敏感)是否为已知可配置项。
+// 供上层在兼容模式下识别未知键以告警。
+func IsConfigKey(key string) bool {
+	var cfg EngineConfig
+	full, bare := buildConfigIndex(&cfg)
+	k := strings.ToLower(strings.TrimSpace(key))
+	if _, ok := full[k]; ok {
+		return true
+	}
+	_, ok := bare[k]
+	return ok
+}
+
 func configValueKind(fv reflect.Value) string {
 	if fv.Type() == durationType {
 		return "duration"
