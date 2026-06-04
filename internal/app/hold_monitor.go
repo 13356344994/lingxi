@@ -50,6 +50,9 @@ const (
 	holdMonitorInterval        = 1 * time.Second
 	holdMonitorFeedDegradedAge = 15 * time.Second
 	holdMonitorFeedBlindAge    = 45 * time.Second
+	// feedBlindnessWithdrawGrace 是行情流连续"失明/未知"多久后触发保守撤离(在 blind 阈值之上再叠加),
+	// 给资格重连留出宽限,避免瞬时抖动误撤离;总静默约 holdMonitorFeedBlindAge + 本宽限。
+	feedBlindnessWithdrawGrace = 30 * time.Second
 )
 
 // holdMonitorWatchedFeeds 是 HoldMonitor 观测的常驻流集合。S2.1 起纳入 feedMarket(持仓期常驻行情流)；
@@ -156,7 +159,47 @@ func (e *FundingRateSniperEngine) runHoldMonitor(ctx context.Context) {
 		if symbol, reason := e.shouldTriggerHoldHedgeFlatten(); symbol != "" {
 			go e.flattenManagedSymbolExposure(symbol, reason)
 		}
+		if reason, ok := e.shouldTriggerFeedBlindnessWithdraw(); ok {
+			go e.panicFlattenManagedExposure(reason)
+		}
 	}
+}
+
+// shouldTriggerFeedBlindnessWithdraw 判定行情流是否已"持续失明"到必须保守撤离(R32)：在持有期、行情流
+// 连续失明/未知超过 feedBlindnessWithdrawGrace 时，抢占全局 panic 在途守卫并返回撤离理由，由调用方走
+// panicFlattenManagedExposure(方向感知双腿全平 + 平台熔断进入冷却)。opt-in，关闭时恒不触发。
+func (e *FundingRateSniperEngine) shouldTriggerFeedBlindnessWithdraw() (string, bool) {
+	if e == nil || !e.cfg.RiskConfig.FeedBlindnessGuardEnabled {
+		return "", false
+	}
+	e.platformRiskMu.Lock()
+	defer e.platformRiskMu.Unlock()
+	if e.panicFlattenInFlight {
+		return "", false
+	}
+	if len(e.managedExposureSymbolsLocked()) == 0 {
+		return "", false
+	}
+	if e.feedMarketBlindSince.IsZero() {
+		return "", false
+	}
+	blindFor := time.Now().UTC().Sub(e.feedMarketBlindSince)
+	if blindFor < feedBlindnessWithdrawGrace {
+		return "", false
+	}
+	e.panicFlattenInFlight = true
+	return fmt.Sprintf("数据流持续失明保守撤离: market_blind_for=%s grace=%s",
+		blindFor.Truncate(time.Second), feedBlindnessWithdrawGrace), true
+}
+
+// feedBlindnessBlockingOpens 报告断连盲窗守卫当前是否要求暂停开新仓（供主循环在每轮开仓前门控）。
+func (e *FundingRateSniperEngine) feedBlindnessBlockingOpens() (bool, string) {
+	if e == nil || !e.cfg.RiskConfig.FeedBlindnessGuardEnabled {
+		return false, ""
+	}
+	e.platformRiskMu.Lock()
+	defer e.platformRiskMu.Unlock()
+	return e.feedBlindnessBlockOpens, e.feedBlindnessBlockReason
 }
 
 // observeHoldMonitor 在持有期把各常驻流的失明分级汇成摘要。M-S2.0 仅观测：分级跃迁时记日志、
@@ -176,6 +219,12 @@ func (e *FundingRateSniperEngine) observeHoldMonitor() {
 		cleared := e.holdMonitorSummary != "" || e.holdMonitorWorstState != ""
 		e.holdMonitorSummary = ""
 		e.holdMonitorWorstState = ""
+		// 无托管敞口：清空盲窗守卫状态（撤离/停开仓只在持有期有意义）。
+		e.feedMarketBlindSince = time.Time{}
+		if e.feedBlindnessBlockOpens {
+			e.feedBlindnessBlockOpens = false
+			e.feedBlindnessBlockReason = ""
+		}
 		if cleared {
 			e.runtimeReporter.EmitLocked(EngineStage(""))
 		}
@@ -184,10 +233,14 @@ func (e *FundingRateSniperEngine) observeHoldMonitor() {
 	}
 
 	worst := feedStateLive
+	marketState := feedStateLive
 	parts := make([]string, 0, len(watched))
 	for _, kind := range watched {
 		state := classifyFeedLiveness(ages[kind], thr)
 		worst = worseFeedState(worst, state)
+		if kind == feedMarket {
+			marketState = state
+		}
 		parts = append(parts, fmt.Sprintf("%s=%s(%s)", kind, state, formatFeedAge(ages[kind])))
 	}
 	summary := fmt.Sprintf("managed=%d worst=%s %s", managed, worst, strings.Join(parts, " "))
@@ -199,6 +252,29 @@ func (e *FundingRateSniperEngine) observeHoldMonitor() {
 		e.holdMonitorSummary = summary
 		e.holdMonitorWorstState = worst
 		e.runtimeReporter.EmitLocked(EngineStage(""))
+	}
+
+	// 断连盲窗守卫状态机(R32, opt-in)：以行情流(持续推送、判活可靠)为准。
+	//   - blind / unknown：无可信行情 → 起算失明持续时长(供撤离判定) + 停开新仓；
+	//   - degraded：行情迟滞 → 停开新仓，但不算"无数据"，重置失明计时；
+	//   - live：解除停开仓、清失明计时。
+	if e.cfg.RiskConfig.FeedBlindnessGuardEnabled {
+		switch marketState {
+		case feedStateBlind, feedStateUnknown:
+			if e.feedMarketBlindSince.IsZero() {
+				e.feedMarketBlindSince = now
+			}
+			e.feedBlindnessBlockOpens = true
+			e.feedBlindnessBlockReason = "行情流失明，暂停开新仓: " + summary
+		case feedStateDegraded:
+			e.feedMarketBlindSince = time.Time{}
+			e.feedBlindnessBlockOpens = true
+			e.feedBlindnessBlockReason = "行情流降级，暂停开新仓: " + summary
+		default:
+			e.feedMarketBlindSince = time.Time{}
+			e.feedBlindnessBlockOpens = false
+			e.feedBlindnessBlockReason = ""
+		}
 	}
 	e.platformRiskMu.Unlock()
 

@@ -110,6 +110,10 @@ func (e *FundingRateSniperEngine) Start(ctx context.Context) error {
 		if err := e.checkLiveSafetyGuards("before_cycle"); err != nil {
 			return err
 		}
+		if blocked, reason := e.feedBlindnessBlockingOpens(); blocked {
+			e.logger.Printf("断连盲窗守卫: 暂停本轮开仓，等待行情流恢复或保守撤离 (%s)", reason)
+			continue
+		}
 		if err := e.runOneCycle(ctx, wakeAt); err != nil {
 			var fatalErr fatalEngineError
 			if errors.As(err, &fatalErr) {

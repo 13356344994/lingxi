@@ -173,6 +173,12 @@ type FundingRateSniperEngine struct {
 	holdSpotTickerCache    *BookTickerCache
 	holdFuturesTickerCache *BookTickerCache
 
+	// 断连盲窗守卫(R32)状态，均由 platformRiskMu 保护。feedMarketBlindSince 记录行情流进入"失明/未知"
+	// 的起点(用于撤离的持续性判定)；feedBlindnessBlockOpens 在降级/失明期间置位,门控新周期开仓。
+	feedMarketBlindSince     time.Time
+	feedBlindnessBlockOpens  bool
+	feedBlindnessBlockReason string
+
 	currentStage                   EngineStage
 	currentStageReason             string
 	currentStageTransitionedAt     string
