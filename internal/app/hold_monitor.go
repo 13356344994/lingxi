@@ -162,6 +162,9 @@ func (e *FundingRateSniperEngine) runHoldMonitor(ctx context.Context) {
 		if reason, ok := e.shouldTriggerFeedBlindnessWithdraw(); ok {
 			go e.panicFlattenManagedExposure(reason)
 		}
+		if reason, ok := e.shouldTriggerMarginHealthWithdraw(); ok {
+			go e.panicFlattenManagedExposure(reason)
+		}
 	}
 }
 

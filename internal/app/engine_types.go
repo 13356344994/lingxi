@@ -179,6 +179,12 @@ type FundingRateSniperEngine struct {
 	feedBlindnessBlockOpens  bool
 	feedBlindnessBlockReason string
 
+	// 负 carry 保证金腿健康(M0.3b-)：cross-margin WS 未启用，由 REST 轮询兜底。下列字段由 platformRiskMu 保护。
+	marginHealthOnce         sync.Once
+	marginHealthLevel        float64
+	marginHealthLiabilityBTC float64
+	lastMarginHealthAt       time.Time
+
 	currentStage                   EngineStage
 	currentStageReason             string
 	currentStageTransitionedAt     string
@@ -776,8 +782,10 @@ type CrossMarginAccountState struct {
 	TotalCollateralUSDT float64
 	TotalNetAssetBTC    float64
 	TotalLiabilityBTC   float64
-	USDT                CrossMarginAssetBalance
-	Assets              map[string]CrossMarginAssetBalance
+	// MarginLevel 是币安返回的全仓保证金率(总资产/总负债)；无借币时币安返回 999；解析缺失时为 0。
+	MarginLevel float64
+	USDT        CrossMarginAssetBalance
+	Assets      map[string]CrossMarginAssetBalance
 }
 
 // NewFundingRateSniperEngineWithConfig 使用指定配置创建完整的资费压哨狙击引擎。

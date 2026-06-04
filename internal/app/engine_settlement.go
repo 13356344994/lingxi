@@ -692,6 +692,7 @@ func (e *FundingRateSniperEngine) fetchCrossMarginAccountState(ctx context.Conte
 		TotalCollateralValueUSDT string `json:"TotalCollateralValueInUSDT"`
 		TotalNetAssetBTC         string `json:"totalNetAssetOfBtc"`
 		TotalLiabilityBTC        string `json:"totalLiabilityOfBtc"`
+		MarginLevel              string `json:"marginLevel"`
 		UserAssets               []struct {
 			Asset    string `json:"asset"`
 			Borrowed string `json:"borrowed"`
@@ -715,6 +716,7 @@ func (e *FundingRateSniperEngine) fetchCrossMarginAccountState(ctx context.Conte
 		TotalCollateralUSDT: parseFloat(payload.TotalCollateralValueUSDT),
 		TotalNetAssetBTC:    parseFloat(payload.TotalNetAssetBTC),
 		TotalLiabilityBTC:   parseFloat(payload.TotalLiabilityBTC),
+		MarginLevel:         parseFloat(payload.MarginLevel),
 		Assets:              make(map[string]CrossMarginAssetBalance, len(payload.UserAssets)),
 	}
 	for _, asset := range payload.UserAssets {
