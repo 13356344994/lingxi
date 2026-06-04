@@ -60,6 +60,8 @@ func NewFundingRateSniperEngineWithConfig(secretPath string, cfg EngineConfig) (
 		fundingSettlementWakeCh:    make(chan struct{}, 1),
 		futuresLeverageBrackets:    make(map[string][]futuresLeverageBracket),
 		futuresAccountPositions:    make(map[string]float64),
+		holdSpotTickerCache:        NewBookTickerCache(),
+		holdFuturesTickerCache:     NewBookTickerCache(),
 	}
 	engine.exposureManager = newExposureManager(engine)
 	engine.riskSupervisor = newRiskSupervisor(engine)
@@ -86,6 +88,7 @@ func (e *FundingRateSniperEngine) Start(ctx context.Context) error {
 	e.startUserDataStreams(ctx)
 	e.startRealtimeDrawdownMonitor(ctx)
 	e.startHoldMonitor(ctx)
+	e.startResidentMarketFeed(ctx)
 
 	for {
 		if err := e.checkLiveSafetyGuards("idle"); err != nil {

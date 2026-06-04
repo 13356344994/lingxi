@@ -51,9 +51,10 @@ const (
 	holdMonitorFeedBlindAge    = 45 * time.Second
 )
 
-// holdMonitorWatchedFeeds 是 M-S2.0 观测的常驻流集合。S2.1 起会随托管腿动态纳入 market/margin。
+// holdMonitorWatchedFeeds 是 HoldMonitor 观测的常驻流集合。S2.1 起纳入 feedMarket(持仓期常驻行情流)；
+// margin 健康流(feedMarginHealth)在 S2.4 接入。
 func holdMonitorWatchedFeeds() []feedKind {
-	return []feedKind{feedFuturesUser, feedSpotUser}
+	return []feedKind{feedFuturesUser, feedSpotUser, feedMarket}
 }
 
 // classifyFeedLiveness 是纯函数：按"距上一帧时延"把单条流分级。age<0 视为从未收到帧（unknown）。

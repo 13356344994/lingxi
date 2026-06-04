@@ -92,9 +92,10 @@ func TestObserveHoldMonitorClearsSummaryWhenFlat(t *testing.T) {
 func TestObserveHoldMonitorPopulatesSummaryWhileHolding(t *testing.T) {
 	engine := &FundingRateSniperEngine{logger: log.New(io.Discard, "", 0)}
 	engine.exposureLocks = map[string]exposureLockState{"BTCUSDT": {}}
-	// 两条用户流均刚收到帧 → 应判定 live。
-	engine.noteFeedFrame(feedFuturesUser)
-	engine.noteFeedFrame(feedSpotUser)
+	// 所有受监控的流均刚收到帧 → 应判定 live。
+	for _, kind := range holdMonitorWatchedFeeds() {
+		engine.noteFeedFrame(kind)
+	}
 
 	engine.observeHoldMonitor()
 

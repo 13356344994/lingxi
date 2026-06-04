@@ -167,6 +167,12 @@ type FundingRateSniperEngine struct {
 	holdMonitorWorstState feedLivenessState
 	lastHoldMonitorAt     time.Time
 
+	// ResidentMarketFeed(持仓期常驻行情流)：与单周期 monitorCtx 解耦，跟随托管敞口集合存活，
+	// 为持有期提供新鲜双腿盘口（S2.3 两腿名义复核的价格源）并喂 feedMarket 失明信号。
+	residentMarketFeedOnce sync.Once
+	holdSpotTickerCache    *BookTickerCache
+	holdFuturesTickerCache *BookTickerCache
+
 	currentStage                   EngineStage
 	currentStageReason             string
 	currentStageTransitionedAt     string

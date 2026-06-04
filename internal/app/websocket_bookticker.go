@@ -384,6 +384,8 @@ func (e *FundingRateSniperEngine) consumeBookTickerStream(ctx context.Context, c
 		if err != nil {
 			return err
 		}
+		// 连接级"距上一帧"打点：bookTicker 流读到任意一帧即视为行情流存活（HoldMonitor 的 feedMarket 失明信号）。
+		e.noteFeedFrame(feedMarket)
 
 		var envelope struct {
 			Stream string          `json:"stream"`
