@@ -16,11 +16,18 @@ import (
 const liveOpenHedgesStateName = "live_open_hedges.json"
 
 type persistedOpenHedgeState struct {
-	UpdatedAt string                    `json:"updated_at"`
-	RunID     string                    `json:"run_id,omitempty"`
-	CycleID   string                    `json:"cycle_id,omitempty"`
-	Hedges    []persistedOpenHedgeEntry `json:"hedges"`
+	SchemaVersion int                       `json:"schema_version,omitempty"`
+	Checksum      string                    `json:"checksum,omitempty"`
+	UpdatedAt     string                    `json:"updated_at"`
+	RunID         string                    `json:"run_id,omitempty"`
+	CycleID       string                    `json:"cycle_id,omitempty"`
+	Hedges        []persistedOpenHedgeEntry `json:"hedges"`
 }
+
+func (s *persistedOpenHedgeState) getSchemaVersion() int  { return s.SchemaVersion }
+func (s *persistedOpenHedgeState) setSchemaVersion(v int) { s.SchemaVersion = v }
+func (s *persistedOpenHedgeState) getChecksum() string    { return s.Checksum }
+func (s *persistedOpenHedgeState) setChecksum(c string)   { s.Checksum = c }
 
 type persistedOpenHedgeEntry struct {
 	RunID                string                `json:"run_id,omitempty"`
@@ -150,6 +157,9 @@ func writePersistedOpenHedgeState(path string, state persistedOpenHedgeState) er
 		return nil
 	}
 	state.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
+	if err := stampStateEnvelope(&state); err != nil {
+		return fmt.Errorf("标记未平仓台账信封失败: %w", err)
+	}
 	return writeJSONFile(path, state)
 }
 

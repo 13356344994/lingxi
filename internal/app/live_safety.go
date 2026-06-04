@@ -19,6 +19,8 @@ const (
 )
 
 type persistedDailyRiskState struct {
+	SchemaVersion     int     `json:"schema_version,omitempty"`
+	Checksum          string  `json:"checksum,omitempty"`
 	TradingDay        string  `json:"trading_day"`
 	RealizedPnL       float64 `json:"realized_pnl"`
 	OrderCount        int     `json:"order_count"`
@@ -26,6 +28,11 @@ type persistedDailyRiskState struct {
 	ConsecutiveLosses int     `json:"consecutive_losses"`
 	UpdatedAt         string  `json:"updated_at"`
 }
+
+func (s *persistedDailyRiskState) getSchemaVersion() int  { return s.SchemaVersion }
+func (s *persistedDailyRiskState) setSchemaVersion(v int) { s.SchemaVersion = v }
+func (s *persistedDailyRiskState) getChecksum() string    { return s.Checksum }
+func (s *persistedDailyRiskState) setChecksum(c string)   { s.Checksum = c }
 
 func effectiveEmergencyStopFile(cfg EngineConfig) string {
 	path := strings.TrimSpace(cfg.NetworkConfig.EmergencyStopFile)
@@ -130,6 +137,9 @@ func writeDailyRiskState(path string, payload persistedDailyRiskState) error {
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return fmt.Errorf("创建日级风控状态目录失败: %w", err)
+	}
+	if err := stampStateEnvelope(&payload); err != nil {
+		return fmt.Errorf("标记日级风控状态信封失败: %w", err)
 	}
 	return writeJSONFile(path, payload)
 }

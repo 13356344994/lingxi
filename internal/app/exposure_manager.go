@@ -80,9 +80,16 @@ func newExposureManager(engine *FundingRateSniperEngine) *ExposureManager {
 }
 
 type persistedExposureRescueState struct {
-	UpdatedAt string               `json:"updated_at"`
-	Tasks     []exposureRescueTask `json:"tasks"`
+	SchemaVersion int                  `json:"schema_version,omitempty"`
+	Checksum      string               `json:"checksum,omitempty"`
+	UpdatedAt     string               `json:"updated_at"`
+	Tasks         []exposureRescueTask `json:"tasks"`
 }
+
+func (s *persistedExposureRescueState) getSchemaVersion() int  { return s.SchemaVersion }
+func (s *persistedExposureRescueState) setSchemaVersion(v int) { s.SchemaVersion = v }
+func (s *persistedExposureRescueState) getChecksum() string    { return s.Checksum }
+func (s *persistedExposureRescueState) setChecksum(c string)   { s.Checksum = c }
 
 func effectiveExposureRescueStatePath(cfg EngineConfig) string {
 	recordDir := strings.TrimSpace(cfg.NetworkConfig.RecordDir)
@@ -126,6 +133,9 @@ func writePersistedExposureRescueState(path string, state persistedExposureRescu
 		return nil
 	}
 	state.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
+	if err := stampStateEnvelope(&state); err != nil {
+		return fmt.Errorf("标记 exposure rescue 台账信封失败: %w", err)
+	}
 	return writeJSONFile(path, state)
 }
 
