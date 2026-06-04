@@ -30,6 +30,7 @@ type EngineSnapshot struct {
 	LastRecoveryAction        string
 	LastManagedDrawdownAction string
 	ManagedDrawdownSummary    string
+	HoldMonitorSummary        string
 	LastUncertainOrder        string
 }
 
@@ -90,6 +91,7 @@ func (e *FundingRateSniperEngine) generateSnapshotLocked() EngineSnapshot {
 		LastRecoveryAction:        e.lastRecoveryAction,
 		LastManagedDrawdownAction: e.lastManagedDrawdownAction,
 		ManagedDrawdownSummary:    e.managedDrawdownSummary,
+		HoldMonitorSummary:        e.holdMonitorSummary,
 		LastUncertainOrder:        e.lastUncertainOrder,
 	}
 }

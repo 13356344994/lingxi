@@ -85,6 +85,7 @@ func (e *FundingRateSniperEngine) Start(ctx context.Context) error {
 	e.startFundingSettlementWorker(ctx)
 	e.startUserDataStreams(ctx)
 	e.startRealtimeDrawdownMonitor(ctx)
+	e.startHoldMonitor(ctx)
 
 	for {
 		if err := e.checkLiveSafetyGuards("idle"); err != nil {

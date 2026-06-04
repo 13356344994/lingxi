@@ -157,6 +157,16 @@ type FundingRateSniperEngine struct {
 	currentMonitorTargets      []string
 	currentPositions           []string
 
+	// HoldMonitor(持仓期常驻监控)状态。feedLivenessMu 是独立叶子锁，仅保护 feedLastFrameAt，
+	// 不与 platformRiskMu 嵌套（观测路径先取 feedLivenessMu 算时延、再取 platformRiskMu 落摘要），
+	// 杜绝锁序倒置。holdMonitor* 字段由 platformRiskMu 保护，沿用既有摘要/报告落点的锁纪律。
+	feedLivenessMu        sync.Mutex
+	feedLastFrameAt       map[feedKind]time.Time
+	holdMonitorWorkerOnce sync.Once
+	holdMonitorSummary    string
+	holdMonitorWorstState feedLivenessState
+	lastHoldMonitorAt     time.Time
+
 	currentStage                   EngineStage
 	currentStageReason             string
 	currentStageTransitionedAt     string

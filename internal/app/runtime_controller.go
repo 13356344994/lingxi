@@ -68,6 +68,7 @@ type RuntimeTaskStatus struct {
 	LastManagedDrawdownAt        string                    `json:"last_managed_drawdown_at"`
 	LastManagedDrawdownAction    string                    `json:"last_managed_drawdown_action"`
 	ManagedDrawdownSummary       string                    `json:"managed_drawdown_summary"`
+	HoldMonitorSummary           string                    `json:"hold_monitor_summary"`
 	LastUncertainOrder           string                    `json:"last_uncertain_order"`
 	RemainingIncidentBudget      int                       `json:"remaining_incident_budget"`
 	RemainingRecoveryBudget      int                       `json:"remaining_recovery_budget"`
@@ -181,6 +182,7 @@ type LiveRuntimeSnapshot struct {
 	LastManagedDrawdownAt        string
 	LastManagedDrawdownAction    string
 	ManagedDrawdownSummary       string
+	HoldMonitorSummary           string
 	LastUncertainOrder           string
 	RemainingIncidentBudget      int
 	RemainingRecoveryBudget      int
@@ -589,6 +591,7 @@ func (c *RuntimeController) recordLiveEngineStatus(snapshot LiveRuntimeSnapshot)
 	c.status.LastManagedDrawdownAt = strings.TrimSpace(snapshot.LastManagedDrawdownAt)
 	c.status.LastManagedDrawdownAction = strings.TrimSpace(snapshot.LastManagedDrawdownAction)
 	c.status.ManagedDrawdownSummary = strings.TrimSpace(snapshot.ManagedDrawdownSummary)
+	c.status.HoldMonitorSummary = strings.TrimSpace(snapshot.HoldMonitorSummary)
 	c.status.LastUncertainOrder = strings.TrimSpace(snapshot.LastUncertainOrder)
 	c.status.RemainingIncidentBudget = snapshot.RemainingIncidentBudget
 	c.status.RemainingRecoveryBudget = snapshot.RemainingRecoveryBudget

@@ -80,6 +80,7 @@ func (r *RuntimeReporter) emitLockedWithTargets(stage EngineStage, currentTarget
 		LastRecoveryAction:           snapshotView.LastRecoveryAction,
 		LastManagedDrawdownAction:    snapshotView.LastManagedDrawdownAction,
 		ManagedDrawdownSummary:       snapshotView.ManagedDrawdownSummary,
+		HoldMonitorSummary:           snapshotView.HoldMonitorSummary,
 		LastUncertainOrder:           snapshotView.LastUncertainOrder,
 		RemainingIncidentBudget:      remainingRiskBudget(engine.cfg.RiskConfig.MaxExecutionIncidents, int(atomic.LoadInt32(&engine.executionIncidents))),
 		RemainingRecoveryBudget:      remainingRiskBudget(engine.cfg.RiskConfig.MaxRecoveryActionsPerCycle, snapshotView.Risk.RecoveryActionsThisCycle),

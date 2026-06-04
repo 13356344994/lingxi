@@ -142,6 +142,8 @@ func (e *FundingRateSniperEngine) consumeSpotWSAPIUserData(ctx context.Context, 
 		if err != nil {
 			return err
 		}
+		// 连接级"距上一帧"打点：现货用户流读到任意一帧即视为存活（HoldMonitor 失明判定的真实连通性信号）。
+		e.noteFeedFrame(feedSpotUser)
 
 		var frame struct {
 			ID     *string `json:"id"`
@@ -487,6 +489,9 @@ func (e *FundingRateSniperEngine) consumeFuturesUserDataMessages(ctx context.Con
 		if err != nil {
 			return err
 		}
+		// 连接级"距上一帧"打点：合约用户流读到任意一帧即视为存活（ACCOUNT_UPDATE 事件驱动，
+		// 不能用"距上次账户更新"判活，连接级帧才是真实连通性信号）。
+		e.noteFeedFrame(feedFuturesUser)
 
 		var envelope struct {
 			EventType string `json:"e"`
