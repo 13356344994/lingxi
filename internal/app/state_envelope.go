@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 )
 
 // state_envelope.go 给 live 台账(未平仓对冲 / 敞口救援 / 日级风控)加「schema 版本 + 内容校验和」头(M-S1.1)。
@@ -99,4 +100,27 @@ func classifyStateEnvelope(s checksummableState) (stateEnvelopeStatus, error) {
 		return stateEnvelopeChecksumMismatch, nil
 	}
 	return stateEnvelopeOK, nil
+}
+
+// stateEnvelopeAutoRecoverable 报告某分级是否允许「自动接管」(沿用既有恢复逻辑)。
+// legacy(旧文件)与 ok(版本兼容且校验和匹配)可自动接管;checksum_mismatch(损坏/篡改)与
+// version_ahead(被更新版本写过)不可信,必须人工确认,绝不在不可信状态上自动恢复。
+func stateEnvelopeAutoRecoverable(status stateEnvelopeStatus) bool {
+	return status == stateEnvelopeLegacy || status == stateEnvelopeOK
+}
+
+// guardStateEnvelope 是恢复契约(M-S1.2)的统一闸:对已反序列化的台账信封做完整性/版本分级,
+// 凡不可自动接管者返回 error 拒绝自动接管(由启动期调用方据此阻断启动,要求人工核对)。
+func guardStateEnvelope(label string, s checksummableState) error {
+	status, err := classifyStateEnvelope(s)
+	if err != nil {
+		return fmt.Errorf("校验%s完整性失败: %w", label, err)
+	}
+	if !stateEnvelopeAutoRecoverable(status) {
+		return fmt.Errorf("%s不可自动接管(envelope=%s schema_version=%d 本进程支持=%d):"+
+			"为避免在不可信状态上自动恢复,已拒绝启动。请人工核对该文件——确认与交易所实际持仓/敞口一致,"+
+			"或确认确无残留后删除该文件以重置",
+			label, status, s.getSchemaVersion(), liveStateSchemaVersion)
+	}
+	return nil
 }

@@ -240,6 +240,9 @@ func (e *FundingRateSniperEngine) loadPersistedOpenHedges() ([]persistedOpenHedg
 	if err != nil {
 		return nil, err
 	}
+	if err := guardStateEnvelope("未平仓对冲台账", &state); err != nil {
+		return nil, err
+	}
 	return append([]persistedOpenHedgeEntry(nil), state.Hedges...), nil
 }
 

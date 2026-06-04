@@ -203,6 +203,9 @@ func (e *FundingRateSniperEngine) initialize(ctx context.Context) error {
 	if err := e.loadDailyRiskState(); err != nil {
 		return err
 	}
+	if err := e.guardExposureRescueEnvelopeOnStartup(); err != nil {
+		return err
+	}
 	if err := e.checkLiveSafetyGuards("initialize"); err != nil {
 		return err
 	}

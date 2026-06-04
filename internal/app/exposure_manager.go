@@ -195,6 +195,20 @@ func (m *ExposureManager) removePendingTask(task exposureRescueTask) error {
 	return m.syncPersistedTasksLocked()
 }
 
+// guardExposureRescueEnvelopeOnStartup 是恢复契约(M-S1.2)对敞口救援台账的启动闸:在 ExposureManager
+// 自动重排任务前,先验证落盘信封的完整性/版本兼容性。台账记录的是潜在残腿敞口,绝不能在不可信(损坏/
+// 被更新版本写过)状态上自动重排,故不可自动接管时直接拒绝启动,要求人工核对。
+func (e *FundingRateSniperEngine) guardExposureRescueEnvelopeOnStartup() error {
+	if e == nil {
+		return nil
+	}
+	state, err := loadPersistedExposureRescueState(effectiveExposureRescueStatePath(e.cfg))
+	if err != nil {
+		return err
+	}
+	return guardStateEnvelope("敞口救援台账", &state)
+}
+
 func (m *ExposureManager) restorePendingTasks() error {
 	if m == nil {
 		return nil

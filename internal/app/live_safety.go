@@ -79,6 +79,9 @@ func (e *FundingRateSniperEngine) loadDailyRiskState() error {
 			var loaded persistedDailyRiskState
 			if err := json.Unmarshal(data, &loaded); err == nil {
 				if strings.TrimSpace(loaded.TradingDay) == day {
+					if guardErr := guardStateEnvelope("日级风控状态", &loaded); guardErr != nil {
+						return guardErr
+					}
 					state = loaded
 					if state.RealizedPnL == 0 && realizedPnL != 0 {
 						state.RealizedPnL = realizedPnL
