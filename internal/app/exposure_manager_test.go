@@ -20,10 +20,12 @@ import (
 // 让断言聚焦于「调度 -> 入队」的接线契约本身，保持确定性。
 func TestScheduleExposureRescueStartsWithRunCtx(t *testing.T) {
 	engine := &FundingRateSniperEngine{
-		cfg:             DefaultEngineConfig(),
-		logger:          log.New(io.Discard, "", 0),
-		symbolCooldowns: make(map[string]symbolCooldownState),
-		exposureLocks:   make(map[string]exposureLockState),
+		cfg:    DefaultEngineConfig(),
+		logger: log.New(io.Discard, "", 0),
+		portfolioManager: portfolioManager{
+			symbolCooldowns: make(map[string]symbolCooldownState),
+			exposureLocks:   make(map[string]exposureLockState),
+		},
 	}
 	runCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -167,10 +169,12 @@ func TestExposureManagerFlattenSpotResidualUsesSpotReferenceAnchor(t *testing.T)
 
 func TestExposureLockBlocksSymbolUntilRescueReportsCompletion(t *testing.T) {
 	engine := &FundingRateSniperEngine{
-		cfg:             DefaultEngineConfig(),
-		logger:          log.New(io.Discard, "", 0),
-		symbolCooldowns: make(map[string]symbolCooldownState),
-		exposureLocks:   make(map[string]exposureLockState),
+		cfg:    DefaultEngineConfig(),
+		logger: log.New(io.Discard, "", 0),
+		portfolioManager: portfolioManager{
+			symbolCooldowns: make(map[string]symbolCooldownState),
+			exposureLocks:   make(map[string]exposureLockState),
+		},
 	}
 	target := &MonitoredTarget{
 		Candidate: FundingCandidate{
@@ -206,10 +210,12 @@ func TestExposureLockBlocksSymbolUntilRescueReportsCompletion(t *testing.T) {
 func TestExposureManagerSubmitPersistsAndClearsPendingTasks(t *testing.T) {
 	recordDir := t.TempDir()
 	engine := &FundingRateSniperEngine{
-		cfg:             DefaultEngineConfig(),
-		logger:          log.New(io.Discard, "", 0),
-		symbolCooldowns: make(map[string]symbolCooldownState),
-		exposureLocks:   make(map[string]exposureLockState),
+		cfg:    DefaultEngineConfig(),
+		logger: log.New(io.Discard, "", 0),
+		portfolioManager: portfolioManager{
+			symbolCooldowns: make(map[string]symbolCooldownState),
+			exposureLocks:   make(map[string]exposureLockState),
+		},
 	}
 	engine.cfg.NetworkConfig.RecordDir = recordDir
 	manager := newExposureManager(engine)
@@ -255,10 +261,12 @@ func TestExposureManagerRestorePendingTasksRequeuesPersistedState(t *testing.T) 
 	}
 
 	engine := &FundingRateSniperEngine{
-		cfg:             DefaultEngineConfig(),
-		logger:          log.New(io.Discard, "", 0),
-		symbolCooldowns: make(map[string]symbolCooldownState),
-		exposureLocks:   make(map[string]exposureLockState),
+		cfg:    DefaultEngineConfig(),
+		logger: log.New(io.Discard, "", 0),
+		portfolioManager: portfolioManager{
+			symbolCooldowns: make(map[string]symbolCooldownState),
+			exposureLocks:   make(map[string]exposureLockState),
+		},
 	}
 	engine.cfg.NetworkConfig.RecordDir = recordDir
 	manager := newExposureManager(engine)

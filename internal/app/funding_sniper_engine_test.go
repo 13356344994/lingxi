@@ -384,9 +384,9 @@ func TestParallelOpenResolutionDecisionOutcomes(t *testing.T) {
 
 func TestApplyMarketRiskDecisionSetsSymbolCooldownWithoutInvalidation(t *testing.T) {
 	engine := &FundingRateSniperEngine{
-		cfg:             DefaultEngineConfig(),
-		logger:          log.New(io.Discard, "", 0),
-		symbolCooldowns: make(map[string]symbolCooldownState),
+		cfg:              DefaultEngineConfig(),
+		logger:           log.New(io.Discard, "", 0),
+		portfolioManager: portfolioManager{symbolCooldowns: make(map[string]symbolCooldownState)},
 	}
 	engine.cfg.RiskConfig.SymbolAbnormalCooldown = time.Minute
 	target := &MonitoredTarget{
@@ -422,9 +422,9 @@ func TestApplyMarketRiskDecisionSetsSymbolCooldownWithoutInvalidation(t *testing
 
 func TestApplyMarketRiskDecisionGlobalPauseInvalidatesTargetAndTripsFuse(t *testing.T) {
 	engine := &FundingRateSniperEngine{
-		cfg:             DefaultEngineConfig(),
-		logger:          log.New(io.Discard, "", 0),
-		symbolCooldowns: make(map[string]symbolCooldownState),
+		cfg:              DefaultEngineConfig(),
+		logger:           log.New(io.Discard, "", 0),
+		portfolioManager: portfolioManager{symbolCooldowns: make(map[string]symbolCooldownState)},
 	}
 	target := &MonitoredTarget{
 		Candidate: FundingCandidate{Symbol: "BTCUSDT"},

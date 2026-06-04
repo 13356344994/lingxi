@@ -347,8 +347,8 @@ func TestEffectiveOpenHedgeMaxConcurrency(t *testing.T) {
 
 func TestNoteProtectedIOCObservationAccumulatesStats(t *testing.T) {
 	engine := &FundingRateSniperEngine{
-		cfg:             DefaultEngineConfig(),
-		symbolCooldowns: make(map[string]symbolCooldownState),
+		cfg:              DefaultEngineConfig(),
+		portfolioManager: portfolioManager{symbolCooldowns: make(map[string]symbolCooldownState)},
 	}
 
 	engine.noteProtectedIOCObservation("BTCUSDT", "futures", newProtectedIOCObservation(10, 6, "EXPIRED"))
@@ -369,8 +369,8 @@ func TestNoteProtectedIOCObservationAccumulatesStats(t *testing.T) {
 
 func TestHealthStatusLockedPausesWhenProtectedIOCExceedsThreshold(t *testing.T) {
 	engine := &FundingRateSniperEngine{
-		cfg:             DefaultEngineConfig(),
-		symbolCooldowns: make(map[string]symbolCooldownState),
+		cfg:              DefaultEngineConfig(),
+		portfolioManager: portfolioManager{symbolCooldowns: make(map[string]symbolCooldownState)},
 	}
 	engine.cfg.RiskConfig.ProtectedIOCMinAttempts = 3
 	engine.cfg.RiskConfig.ProtectedIOCMaxUnfilledRatio = 0.4

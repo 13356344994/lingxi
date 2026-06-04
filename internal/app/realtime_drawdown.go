@@ -241,20 +241,7 @@ func (e *FundingRateSniperEngine) noteManagedDrawdownAction(action string, detai
 }
 
 func (e *FundingRateSniperEngine) managedExposureSymbolsLocked() map[string]struct{} {
-	symbols := make(map[string]struct{}, len(e.activeOpenHedges)+len(e.exposureLocks))
-	for _, hedge := range e.activeOpenHedges {
-		if strings.TrimSpace(hedge.Target.Symbol) == "" {
-			continue
-		}
-		symbols[strings.ToUpper(strings.TrimSpace(hedge.Target.Symbol))] = struct{}{}
-	}
-	for symbol := range e.exposureLocks {
-		if strings.TrimSpace(symbol) == "" {
-			continue
-		}
-		symbols[strings.ToUpper(strings.TrimSpace(symbol))] = struct{}{}
-	}
-	return symbols
+	return e.portfolioManager.managedExposureSymbols()
 }
 
 func (e *FundingRateSniperEngine) managedExposureTargets() []managedExposureTarget {

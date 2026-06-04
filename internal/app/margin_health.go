@@ -88,12 +88,7 @@ func (e *FundingRateSniperEngine) hasNegativeCarryManagedExposure() bool {
 }
 
 func (e *FundingRateSniperEngine) hasNegativeCarryManagedExposureLocked() bool {
-	for i := range e.activeOpenHedges {
-		if e.activeOpenHedges[i].carryDirection() == fundingCarryDirectionNegative {
-			return true
-		}
-	}
-	return false
+	return e.portfolioManager.hasNegativeCarryHedge()
 }
 
 // shouldTriggerMarginHealthWithdraw 判定负 carry 保证金腿是否已危险到必须保守撤离(M0.3b-)：在持有负 carry

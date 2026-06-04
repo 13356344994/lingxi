@@ -14,10 +14,12 @@ func TestShouldTriggerRealtimeDrawdownPanicTripsOnManagedUnrealizedLoss(t *testi
 			"BTCUSDT": {Symbol: "BTCUSDT", PositionAmt: 1, UnrealizedProfit: -25},
 			"ETHUSDT": {Symbol: "ETHUSDT", PositionAmt: -1, UnrealizedProfit: 5},
 		},
-		activeOpenHedges: []OpenHedge{
-			{Target: FundingCandidate{Symbol: "BTCUSDT", Pair: "BTCUSDT", SpotBaseAsset: "BTC"}, HedgeQty: 1},
+		portfolioManager: portfolioManager{
+			activeOpenHedges: []OpenHedge{
+				{Target: FundingCandidate{Symbol: "BTCUSDT", Pair: "BTCUSDT", SpotBaseAsset: "BTC"}, HedgeQty: 1},
+			},
+			exposureLocks: make(map[string]exposureLockState),
 		},
-		exposureLocks: make(map[string]exposureLockState),
 	}
 	engine.cfg.RiskConfig.MaxCycleLossUSDT = 20
 
@@ -34,7 +36,7 @@ func TestManagedExposureTargetsIncludeExposureLocks(t *testing.T) {
 	engine := &FundingRateSniperEngine{
 		goldenSpotPairByFuture: map[string]string{"BTCUSDT": "BTCUSDT"},
 		spotMeta:               map[string]SpotSymbol{"BTCUSDT": {BaseAsset: "BTC"}},
-		exposureLocks:          map[string]exposureLockState{"BTCUSDT": {}},
+		portfolioManager:       portfolioManager{exposureLocks: map[string]exposureLockState{"BTCUSDT": {}}},
 	}
 
 	targets := engine.managedExposureTargets()
@@ -56,11 +58,13 @@ func TestShouldTriggerManagedSymbolDrawdownCutTargetsWorstSymbol(t *testing.T) {
 			"BTCUSDT": {Symbol: "BTCUSDT", PositionAmt: 1, UnrealizedProfit: -60},
 			"ETHUSDT": {Symbol: "ETHUSDT", PositionAmt: 1, UnrealizedProfit: -15},
 		},
-		activeOpenHedges: []OpenHedge{
-			{Target: FundingCandidate{Symbol: "BTCUSDT", Pair: "BTCUSDT", SpotBaseAsset: "BTC"}, HedgeQty: 1},
-			{Target: FundingCandidate{Symbol: "ETHUSDT", Pair: "ETHUSDT", SpotBaseAsset: "ETH"}, HedgeQty: 1},
+		portfolioManager: portfolioManager{
+			activeOpenHedges: []OpenHedge{
+				{Target: FundingCandidate{Symbol: "BTCUSDT", Pair: "BTCUSDT", SpotBaseAsset: "BTC"}, HedgeQty: 1},
+				{Target: FundingCandidate{Symbol: "ETHUSDT", Pair: "ETHUSDT", SpotBaseAsset: "ETH"}, HedgeQty: 1},
+			},
+			exposureLocks: make(map[string]exposureLockState),
 		},
-		exposureLocks: make(map[string]exposureLockState),
 	}
 
 	symbol, reason := engine.shouldTriggerManagedSymbolDrawdownCut()

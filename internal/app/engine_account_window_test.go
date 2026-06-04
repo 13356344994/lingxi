@@ -450,9 +450,9 @@ func TestOpenHedgeForTargetParallelUnknownSpotSchedulesExposureRescue(t *testing
 			SecretKey:      "demo-secret-key",
 			HTTPClient:     server.Client(),
 		}),
-		cfg:             cfg,
-		logger:          log.New(io.Discard, "", 0),
-		symbolCooldowns: make(map[string]symbolCooldownState),
+		cfg:              cfg,
+		logger:           log.New(io.Discard, "", 0),
+		portfolioManager: portfolioManager{symbolCooldowns: make(map[string]symbolCooldownState)},
 		spotMeta: map[string]SpotSymbol{
 			"BTCUSDT": {Symbol: "BTCUSDT", BaseAsset: "BTC", QuoteAsset: "USDT"},
 		},

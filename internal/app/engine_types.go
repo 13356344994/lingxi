@@ -144,7 +144,10 @@ type FundingRateSniperEngine struct {
 	dailyRiskPersistCh         chan persistedDailyRiskState
 	dailyRiskPersistWorkerOnce sync.Once
 	dailyRiskDate              string
-	activeOpenHedges           []OpenHedge
+	// portfolioManager 匿名嵌入:收拢「当前组合/受管敞口」高内聚状态(activeOpenHedges/currentPositions/
+	// currentMonitorTargets/symbolCooldowns/exposureLocks),字段经提升对既有访问点透明。仍由 platformRiskMu
+	// 守护(共享锁,零行为变更;独立锁留作 M-S2.4)。
+	portfolioManager
 	futuresRealtimeWalletUSDT  float64
 	futuresRealtimePositions   map[string]futuresRealtimePosition
 	lastFuturesAccountUpdateAt time.Time
@@ -154,8 +157,6 @@ type FundingRateSniperEngine struct {
 	realtimeRiskWorkerOnce     sync.Once
 	panicFlattenInFlight       bool
 	symbolPanicFlattenInFlight map[string]time.Time
-	currentMonitorTargets      []string
-	currentPositions           []string
 
 	// HoldMonitor(持仓期常驻监控)状态。feedLivenessMu 是独立叶子锁，仅保护 feedLastFrameAt，
 	// 不与 platformRiskMu 嵌套（观测路径先取 feedLivenessMu 算时延、再取 platformRiskMu 落摘要），
@@ -194,8 +195,6 @@ type FundingRateSniperEngine struct {
 	lastLifecycleTransitionFrom    LifecycleStage
 	lastLifecycleTransitionTo      LifecycleStage
 	lifecycleStateMachine          *LifecycleStateMachine
-	symbolCooldowns                map[string]symbolCooldownState
-	exposureLocks                  map[string]exposureLockState
 	exposureManager                *ExposureManager
 	runCtx                         context.Context
 	riskSupervisorOnce             sync.Once

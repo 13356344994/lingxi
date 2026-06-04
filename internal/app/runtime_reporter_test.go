@@ -9,7 +9,7 @@ func TestRuntimeReporterEmitWithReasonTransitionsAndPublishesSnapshot(t *testing
 	engine := &FundingRateSniperEngine{
 		cfg:                       DefaultEngineConfig(),
 		currentStage:              StageReady,
-		symbolCooldowns:           make(map[string]symbolCooldownState),
+		portfolioManager:          portfolioManager{symbolCooldowns: make(map[string]symbolCooldownState)},
 		runID:                     "live-20260529T120000Z-11112222",
 		currentCycleID:            "live-20260529T120000Z-11112222-cycle-33334444",
 		protectedIOCAttempts:      6,
