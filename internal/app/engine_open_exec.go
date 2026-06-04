@@ -308,7 +308,7 @@ func (e *FundingRateSniperEngine) refreshTargetFundingEstimate(ctx context.Conte
 		}
 	}
 
-	estimatedRate, lastFundingRate, fundingJump, basisRate, _ := estimateScanFundingSignal(item)
+	estimatedRate, lastFundingRate, fundingJump, basisRate, _ := estimateScanFundingSignal(item, e.cfg.RiskConfig.ConservativeFundingOnSignConflictEnabled)
 	target.Candidate.Direction = fundingDirectionFromRate(estimatedRate)
 	target.Candidate.EstimatedRate = estimatedRate
 	target.Candidate.EstimatedRateText = formatFloat(estimatedRate)

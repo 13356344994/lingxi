@@ -257,7 +257,8 @@ func (r *BacktestRunner) coarseScreenMonthlySymbols(ctx context.Context, client 
 				continue
 			}
 		}
-		estimatedFundingRate, _, fundingJump, basisRate, scanScoreRate := estimateScanFundingSignal(item)
+		// 回测恒传 false:R7 保守开关仅作用于实盘开仓,回测保持历史可复现。
+		estimatedFundingRate, _, fundingJump, basisRate, scanScoreRate := estimateScanFundingSignal(item, false)
 		priorityScore := historicalFundingPriorityScore(FundingRateHistoryItem{
 			Symbol:               symbol,
 			EstimatedFundingRate: formatFloat(estimatedFundingRate),

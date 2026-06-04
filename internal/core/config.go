@@ -156,6 +156,12 @@ type RiskConfig struct {
 	// 判活可靠)为准驱动状态机——降级(degraded)即暂停本轮开新仓;持续失明(blind 超过宽限)即对托管敞口
 	// 保守撤离(panic flatten 双腿平仓 + 平台熔断进入冷却,冷却结束自动恢复)。默认 false(opt-in,零行为变更)。
 	FeedBlindnessGuardEnabled bool `cfg:"feed_blindness_guard_enabled"`
+	// ConservativeFundingOnSignConflictEnabled 修正资金费估计在「符号冲突」时退回乐观值的隐患(R7):
+	// 当前向估计(premium + interestRate)与上期实收 lastFundingRate 严格反号时,意味着资金费正在反转——
+	// 旧逻辑此时把估计退回 lastFundingRate(旧方向、可能过度乐观),恰好在最危险时刻按旧方向开仓。
+	// 启用后,符号冲突时估计取保守 0(候选不达标 → 本轮不开该 symbol),不在反转时刻押注旧方向。
+	// 仅作用于实盘扫描/开仓路径;回测路径不受影响(保持历史可复现)。默认 false(opt-in,零行为变更)。
+	ConservativeFundingOnSignConflictEnabled bool `cfg:"conservative_funding_on_sign_conflict_enabled"`
 	// MinMarginLevel 是负 carry 保证金腿的最低全仓杠杆「保证金率(marginLevel = 总资产/总负债)」健康阈值(M0.3b-):
 	// 启用后,持有负 carry(全仓杠杆借币空头)敞口期间常驻 REST 轮询 cross-margin 账户健康,marginLevel 跌破该
 	// 阈值即保守撤离(panic flatten + 熔断冷却)。币安 marginLevel 触发追保≈1.3、强平≈1.1,建议设 1.5 留缓冲。

@@ -75,6 +75,14 @@ func conservativeLiveFundingRate(lastFundingRate float64, premiumEstimate float6
 	}
 }
 
+// fundingSignConflict 报告「当前向估计(premium + interestRate)」是否与上期实收 lastFundingRate 严格反号。
+// 严格反号意味着资金费正在反转,此时沿用旧方向 lastFundingRate 开仓最危险(R7)。注意:任一侧为 0 不算冲突
+// (退回既有行为),只有正负相对才判冲突。
+func fundingSignConflict(lastFundingRate float64, premiumEstimate float64, interestRate float64) bool {
+	forward := premiumEstimate + interestRate
+	return (forward > 0 && lastFundingRate < 0) || (forward < 0 && lastFundingRate > 0)
+}
+
 func (d fundingCarryDirection) openFuturesSide() string {
 	switch d {
 	case fundingCarryDirectionNegative:

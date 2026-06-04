@@ -489,7 +489,10 @@ func (e *FundingRateSniperEngine) sleepUntilServerTime(ctx context.Context, targ
 	}
 }
 
-func estimateScanFundingSignal(item PremiumIndexItem) (float64, float64, float64, float64, float64) {
+// estimateScanFundingSignal 从 premiumIndex 推导扫描所需的资金费信号。conservativeOnConflict 为 R7 修复开关
+// (实盘 opt-in):为 true 且当前向估计与上期实收资金费严格反号时,估计取保守 0(不在反转时刻按旧方向开仓);
+// 为 false 时保持既有行为(符号冲突退回 lastFundingRate)。回测路径恒传 false 以保持历史可复现。
+func estimateScanFundingSignal(item PremiumIndexItem, conservativeOnConflict bool) (float64, float64, float64, float64, float64) {
 	lastFundingRate := parseFloat(item.LastFundingRate)
 	interestRate := parseFloat(item.InterestRate)
 	markPrice := parseFloat(item.MarkPrice)
@@ -511,8 +514,12 @@ func estimateScanFundingSignal(item PremiumIndexItem) (float64, float64, float64
 
 	estimatedFundingRate := lastFundingRate
 	conservativeRate := conservativeLiveFundingRate(lastFundingRate, premiumEstimate, interestRate)
-	if conservativeRate != 0 {
+	switch {
+	case conservativeRate != 0:
 		estimatedFundingRate = conservativeRate
+	case conservativeOnConflict && fundingSignConflict(lastFundingRate, premiumEstimate, interestRate):
+		// R7:资金费正在反转,不退回旧方向乐观值,保守估 0 → 候选不达标 → 本轮不开该 symbol。
+		estimatedFundingRate = 0
 	}
 
 	fundingJump := math.Abs(estimatedFundingRate - lastFundingRate)

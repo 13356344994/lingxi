@@ -392,7 +392,7 @@ func (e *FundingRateSniperEngine) scanTopFundingTargets(ctx context.Context) ([]
 		staleness := premiumIndexStaleness(now, item)
 		isStale := e.cfg.NetworkConfig.MaxPremiumIndexStaleness > 0 && staleness > e.cfg.NetworkConfig.MaxPremiumIndexStaleness
 
-		estimatedRate, lastFundingRate, fundingJump, basisRate, _ := estimateScanFundingSignal(item)
+		estimatedRate, lastFundingRate, fundingJump, basisRate, _ := estimateScanFundingSignal(item, e.cfg.RiskConfig.ConservativeFundingOnSignConflictEnabled)
 		direction := fundingDirectionFromRate(estimatedRate)
 		profile := GetSymbolRiskProfile(item.Symbol)
 
