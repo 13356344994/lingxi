@@ -99,7 +99,7 @@ func (e *FundingRateSniperEngine) Start(ctx context.Context) error {
 			e.logger.Printf("刷新服务器时间偏移失败，将沿用旧偏移继续调度: %v", err)
 		}
 
-		wakeAt := nextWakeTime(e.serverNow(), e.cfg.StrategyConfig.WakeMinute, e.cfg.StrategyConfig.WakeSecond)
+		wakeAt := e.scheduler().NextWake(e.serverNow())
 		e.logger.Printf("系统静默中，等待下一次觉醒时间: %s", wakeAt.Format("2006-01-02 15:04:05"))
 		if err := e.sleepUntilServerTime(ctx, wakeAt); err != nil {
 			return err
@@ -373,6 +373,7 @@ func (e *FundingRateSniperEngine) scanTopFundingTargets(ctx context.Context) ([]
 	}
 
 	now := e.serverNow()
+	sched := e.scheduler()
 	candidates := make([]FundingCandidate, 0, len(items))
 	observations := make([]ScanObservationRecord, 0, len(items))
 	breakEven := coherentMinFundingRate(e.cfg)
@@ -382,8 +383,7 @@ func (e *FundingRateSniperEngine) scanTopFundingTargets(ctx context.Context) ([]
 		}
 
 		nextFundingTime := time.UnixMilli(item.NextFundingTime)
-		remaining := nextFundingTime.Sub(now)
-		if remaining <= 0 || remaining > e.cfg.StrategyConfig.ScanWindow {
+		if !sched.ScanEligible(now, nextFundingTime) {
 			continue
 		}
 
@@ -530,35 +530,30 @@ func (e *FundingRateSniperEngine) monitorTargets(ctx context.Context, targets []
 	return targets
 }
 
+// scheduler 返回由当前配置派生的周期调度器(纯时点计算,无状态)。时点口径全部委托给它(M-S2.2)。
+func (e *FundingRateSniperEngine) scheduler() cycleScheduler {
+	return newCycleScheduler(e.cfg)
+}
+
 func (e *FundingRateSniperEngine) openFireAt(targets []*MonitoredTarget) time.Time {
 	if len(targets) == 0 {
 		return time.Time{}
 	}
-	return earliestFundingTime(targets).Add(-e.cfg.StrategyConfig.MonitorStopLead)
+	return e.scheduler().OpenFireAt(earliestFundingTime(targets))
 }
 
 func (e *FundingRateSniperEngine) openPreparationStartAt(targets []*MonitoredTarget) time.Time {
-	fireAt := e.openFireAt(targets)
-	if fireAt.IsZero() {
+	if len(targets) == 0 {
 		return time.Time{}
 	}
-	lead := e.cfg.ExecutionConfig.OpenPreparationLead
-	if lead <= 0 {
-		return fireAt
-	}
-	return fireAt.Add(-lead)
+	return e.scheduler().OpenPreparationStartAt(earliestFundingTime(targets))
 }
 
 func (e *FundingRateSniperEngine) openNoGoCheckAt(targets []*MonitoredTarget) time.Time {
-	fireAt := e.openFireAt(targets)
-	if fireAt.IsZero() {
+	if len(targets) == 0 {
 		return time.Time{}
 	}
-	lead := e.cfg.ExecutionConfig.PreOpenNoGoLead
-	if lead <= 0 {
-		return fireAt
-	}
-	return fireAt.Add(-lead)
+	return e.scheduler().OpenNoGoCheckAt(earliestFundingTime(targets))
 }
 
 func maxDurationValue(a time.Duration, b time.Duration) time.Duration {

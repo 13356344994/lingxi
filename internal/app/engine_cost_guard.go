@@ -528,7 +528,7 @@ func (e *FundingRateSniperEngine) waitForCloseExecutionWindow(ctx context.Contex
 		}
 	}
 
-	deadline := fundingTime.Add(e.cfg.ExecutionConfig.ExitDelayAfterFunding)
+	deadline := e.scheduler().CloseDeadline(fundingTime)
 	interval := e.cfg.ExecutionConfig.ExitMonitorInterval
 	if interval <= 0 {
 		interval = 250 * time.Millisecond
