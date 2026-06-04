@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 )
@@ -152,6 +153,9 @@ func (e *FundingRateSniperEngine) runHoldMonitor(ctx context.Context) {
 		case <-ticker.C:
 		}
 		e.observeHoldMonitor()
+		if symbol, reason := e.shouldTriggerHoldHedgeFlatten(); symbol != "" {
+			go e.flattenManagedSymbolExposure(symbol, reason)
+		}
 	}
 }
 
@@ -201,4 +205,86 @@ func (e *FundingRateSniperEngine) observeHoldMonitor() {
 	if transitioned && worst != feedStateLive && e.logger != nil {
 		e.logger.Printf("HoldMonitor 数据流失明分级跃迁: %s", summary)
 	}
+}
+
+// shouldTriggerHoldHedgeFlatten 是 M0.2b「持有期对冲偏离守卫」(M-S2.3)：在持有期按实时两腿名义
+// 周期性复核 EvaluateHedgeImbalance，偏离突破即抢占单币止血 in-flight 守卫并返回待平仓 symbol，
+// 由调用方走方向感知双腿平仓(flattenManagedSymbolExposure，与强平/ADL 处置一致)。
+//
+// 安全契约（避免缺数据误平）：
+//   - opt-in：HoldHedgeGuardEnabled 默认 false，关闭时恒不触发(零行为变更)；
+//   - 仅正 carry：现货腿在现货钱包可实时测量；负 carry 在全仓杠杆(借币空头)，其持有期复核依赖
+//     cross-margin 实时健康数据(S2.4)，此处跳过；
+//   - 两腿都须有可信实时测量(合约实时仓位 present 且 >0、现货实时余额 >0、有新鲜现货价)才评估；
+//     任一腿测量缺失即跳过——「某腿完全消失」由强平/ADL 与实时浮亏止血路径覆盖，本守卫只抓「两腿都在
+//     但名义漂移」的裸敞口，避免把"数据未到"误判成"腿没了"而错误平仓。
+func (e *FundingRateSniperEngine) shouldTriggerHoldHedgeFlatten() (string, string) {
+	if e == nil || !e.cfg.RiskConfig.HoldHedgeGuardEnabled {
+		return "", ""
+	}
+	absThr := e.cfg.RiskConfig.HedgeImbalanceAbortUSDT
+	rateThr := e.cfg.RiskConfig.HedgeImbalanceAbortRate
+	if absThr <= 0 && rateThr <= 0 {
+		return "", ""
+	}
+
+	e.platformRiskMu.Lock()
+	defer e.platformRiskMu.Unlock()
+	if e.panicFlattenInFlight {
+		return "", ""
+	}
+	for i := range e.activeOpenHedges {
+		hedge := e.activeOpenHedges[i]
+		symbol := strings.ToUpper(strings.TrimSpace(hedge.Target.Symbol))
+		if symbol == "" {
+			continue
+		}
+		if _, inFlight := e.symbolPanicFlattenInFlight[symbol]; inFlight {
+			continue
+		}
+		if hedge.carryDirection().spotVenue() != spotExecutionVenueSpot {
+			continue
+		}
+		baseAsset := strings.ToUpper(strings.TrimSpace(hedge.Target.SpotBaseAsset))
+		pair := strings.ToUpper(strings.TrimSpace(hedge.Target.Pair))
+		if baseAsset == "" || pair == "" {
+			continue
+		}
+		pos, ok := e.futuresRealtimePositions[symbol]
+		if !ok {
+			continue
+		}
+		futuresAbsQty := math.Abs(pos.PositionAmt)
+		spotQty := e.spotRealtimeBalances[baseAsset]
+		if futuresAbsQty <= executionQtyTolerance || spotQty <= executionQtyTolerance {
+			continue
+		}
+		spotMid, spotOK := e.heldSpotMid(pair)
+		if !spotOK {
+			continue
+		}
+		futMid := pos.MarkPrice
+		if mid, ok := e.heldFuturesMid(symbol); ok {
+			futMid = mid
+		}
+		if futMid <= 0 {
+			continue
+		}
+		spotNotional := spotQty * spotMid
+		futuresNotional := futuresAbsQty * futMid
+		decision := EvaluateHedgeImbalance(spotNotional, futuresNotional, absThr, rateThr)
+		if !decision.Breached {
+			continue
+		}
+		if e.symbolPanicFlattenInFlight == nil {
+			e.symbolPanicFlattenInFlight = make(map[string]time.Time)
+		}
+		e.symbolPanicFlattenInFlight[symbol] = time.Now().UTC()
+		reason := fmt.Sprintf(
+			"持有期对冲偏离守卫触发平仓: symbol=%s spot_notional=%.6f futures_notional=%.6f imbalance=%.6f rate=%.4f abs_thr=%.6f rate_thr=%.4f",
+			symbol, spotNotional, futuresNotional, decision.Imbalance, decision.ImbalanceRate, absThr, rateThr,
+		)
+		return symbol, reason
+	}
+	return "", ""
 }
