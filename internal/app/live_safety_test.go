@@ -437,6 +437,74 @@ func TestAccountDrawdownWaterMarkSeededFromRecords(t *testing.T) {
 	}
 }
 
+// TestConsecutiveLossResetsAtUTCDayRollover 钉死 R9 的已知行为:连亏计数在 UTC 跨日时清零。
+// 这是有意为之(快速系统性失效闸,日级语义),其留下的跨日慢性失血缺口由账户级回撤兜底(见下一条)。
+func TestConsecutiveLossResetsAtUTCDayRollover(t *testing.T) {
+	engine := &FundingRateSniperEngine{
+		cfg:             DefaultEngineConfig(),
+		logger:          log.Default(),
+		runtimeReporter: newRuntimeReporter(nil),
+		dailyRiskDate:   "2000-01-01", // 过去的交易日 → 强制下次检查触发跨日清零
+	}
+	engine.runtimeReporter = newRuntimeReporter(engine)
+	engine.riskBudgetState.ConsecutiveLossCycles = 5
+
+	engine.platformRiskMu.Lock()
+	engine.ensureDailyRiskDateLocked()
+	engine.platformRiskMu.Unlock()
+
+	if engine.dailyRiskDate != tradingDayUTC(time.Now().UTC()) {
+		t.Fatalf("跨日后 dailyRiskDate 应推进到今天, got %s", engine.dailyRiskDate)
+	}
+	if engine.riskBudgetState.ConsecutiveLossCycles != 0 {
+		t.Fatalf("R9: 连亏计数应在 UTC 跨日清零, got %d", engine.riskBudgetState.ConsecutiveLossCycles)
+	}
+}
+
+// TestChronicCrossDayBleedCaughtByDrawdownDespiteConsecutiveReset 核验 R9 的兜底:每个 UTC 交易日只亏一次
+// 小额(连亏计数每日清零、永不触线)的慢性失血,最终必然被账户级高水位回撤熔断 MaxAccountDrawdownUSDT 拦下。
+// 这证明「连亏日级清零」留下的缝隙不是真窟窿——回撤维度才是跨日慢性失血的安全网。
+func TestChronicCrossDayBleedCaughtByDrawdownDespiteConsecutiveReset(t *testing.T) {
+	cfg := DefaultEngineConfig()
+	cfg.RiskConfig.MaxAccountDrawdownUSDT = 10
+	cfg.RiskConfig.MaxConsecutiveLossCycles = 3 // 每天只亏 1 次,连亏永远停在 1 < 3,绝不触线
+	cfg.RiskConfig.MaxDailyLossUSDT = 1e9       // 隔离日亏维度,单独验证跨日慢性失血
+	engine := &FundingRateSniperEngine{
+		cfg:             cfg,
+		logger:          log.Default(),
+		runtimeReporter: newRuntimeReporter(nil),
+		dailyRiskDate:   tradingDayUTC(time.Now().UTC()),
+	}
+	engine.runtimeReporter = newRuntimeReporter(engine)
+
+	// 第 0 天:盈利冲出高水位 +5。
+	if err := engine.noteCycleFinalSettlement(5); err != nil {
+		t.Fatalf("盈利周期不应触线: %v", err)
+	}
+
+	// 之后每个交易日开始前强制跨日(连亏清零),再亏 1 次小额 → 模拟跨日慢性失血。
+	var tripErr error
+	for day := 0; day < 30; day++ {
+		engine.platformRiskMu.Lock()
+		engine.dailyRiskDate = "2000-01-01" // 强制下次 ensureDailyRiskDateLocked 视为跨日 → 连亏清零
+		engine.platformRiskMu.Unlock()
+		if err := engine.noteCycleFinalSettlement(-1); err != nil {
+			tripErr = err
+			break
+		}
+		if engine.riskBudgetState.ConsecutiveLossCycles > 1 {
+			t.Fatalf("连亏计数应因每日清零停在 <=1, got %d", engine.riskBudgetState.ConsecutiveLossCycles)
+		}
+	}
+
+	if tripErr == nil {
+		t.Fatal("跨日慢性失血最终应被账户级回撤熔断兜住,却始终未触发")
+	}
+	if !strings.Contains(tripErr.Error(), "账户级回撤") {
+		t.Fatalf("兜底熔断应为账户级回撤, got %v", tripErr)
+	}
+}
+
 func TestEvaluateOpenDepthStabilityTripsOnVisibleDepthCollapse(t *testing.T) {
 	engine := &FundingRateSniperEngine{cfg: DefaultEngineConfig()}
 	target := &MonitoredTarget{

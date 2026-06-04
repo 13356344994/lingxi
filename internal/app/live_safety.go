@@ -289,6 +289,12 @@ func (e *FundingRateSniperEngine) ensureDailyRiskDateLocked() {
 	e.riskBudgetState.DailyLimitReason = ""
 	// 连续亏损计数与其余日级预算同口径，按 UTC 交易日清零：新的一天给策略一个重新开始的机会，
 	// 与 MaxDailyLoss/MaxDailyOrderCount 的「日级」语义保持一致。
+	//
+	// R9 核验(M-S3.5):连亏是「不间断亏损 streak」的快速系统性失效闸,日级清零是有意为之——任意一次盈利
+	// 也会清零,故它本就不是「跨日慢性失血(每天小亏、偶有小赚)」的探测器。跨日慢性失血由账户级高水位回撤
+	// 熔断 MaxAccountDrawdownUSDT 兜底:累计净利曲线跨日、跨重启(由结算记录回放重算)持续累积,慢性失血必然
+	// 把回撤推过阈值而停机(见 TestChronicCrossDayBleedCaughtByDrawdownDespiteConsecutiveReset)。因此切勿把连亏
+	// 改成跨日不清零来「修」R9——那会在正常波动里误停机,真正的慢性失血网是回撤,而非连亏。
 	e.riskBudgetState.ConsecutiveLossCycles = 0
 }
 
