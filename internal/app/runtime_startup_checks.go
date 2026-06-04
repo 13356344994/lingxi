@@ -47,14 +47,14 @@ func (c *RuntimeController) runLiveStartupChecks(ctx context.Context, secretPath
 	if err := engine.syncServerTimeOffset(ctx); err != nil {
 		return fmt.Errorf("同步服务器时间失败: %w", err)
 	}
-	offset := engine.serverTimeOffset
+	offset := engine.serverTimeOffsetDuration()
 	if offset < 0 {
 		offset = -offset
 	}
 	if offset > maxServerTimeOffset {
 		return fmt.Errorf("服务器时间偏移过大: %s，超过允许阈值 %s", offset, maxServerTimeOffset)
 	}
-	c.appendControllerTraceLog(runID, "", "启动前检查通过: 服务器时间偏移=%s", engine.serverTimeOffset)
+	c.appendControllerTraceLog(runID, "", "启动前检查通过: 服务器时间偏移=%s", engine.serverTimeOffsetDuration())
 	if err := engine.verifyTradingEnvironment(ctx); err != nil {
 		return err
 	}

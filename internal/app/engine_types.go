@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"lingxi/internal/exchange"
@@ -96,11 +97,14 @@ type FundingRateSniperEngine struct {
 	domainEventSink             DomainEventSink
 	costModel                   fillmodel.CostModel
 	borrowHourlyInterestByAsset map[string]float64
-	serverTimeOffset            time.Duration
-	executionIncidents          int32
-	executionEventHook          func(ExecutionIncidentRecord)
-	domainEventHook             func(DomainEvent)
-	liveStatusHook              func(LiveRuntimeSnapshot)
+	// serverTimeOffset 是「服务器时间 − 本地时间」的偏移(纳秒)。它被主循环 / 唤醒等待 / 开仓预备等
+	// 路径写入，同时被监控 worker、并发开平仓、签名时间戳等多个 goroutine 经 serverNow() 并发读取，
+	// 故用 atomic.Int64 做无锁安全读写，杜绝撕裂读导致的 fire-at 时点漂移（S0 / R4）。
+	serverTimeOffset   atomic.Int64
+	executionIncidents int32
+	executionEventHook func(ExecutionIncidentRecord)
+	domainEventHook    func(DomainEvent)
+	liveStatusHook     func(LiveRuntimeSnapshot)
 
 	// 新增拆分的状态容器，后续逐步替换零散字段
 	platformState   EnginePlatformState

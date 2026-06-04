@@ -405,8 +405,13 @@ func (e *FundingRateSniperEngine) syncServerTimeOffset(ctx context.Context) erro
 		return fmt.Errorf("同步服务器时间失败: %w", err)
 	}
 
-	e.serverTimeOffset = time.Until(time.UnixMilli(payload.ServerTime))
+	e.serverTimeOffset.Store(int64(time.Until(time.UnixMilli(payload.ServerTime))))
 	return nil
+}
+
+// serverTimeOffsetDuration 原子读取当前服务器时间偏移，供 serverNow / 唤醒等待等读路径使用。
+func (e *FundingRateSniperEngine) serverTimeOffsetDuration() time.Duration {
+	return time.Duration(e.serverTimeOffset.Load())
 }
 
 func (e *FundingRateSniperEngine) currentServerTimeMillis() int64 {
@@ -414,7 +419,7 @@ func (e *FundingRateSniperEngine) currentServerTimeMillis() int64 {
 }
 
 func (e *FundingRateSniperEngine) serverNow() time.Time {
-	return time.Now().Add(e.serverTimeOffset)
+	return time.Now().Add(e.serverTimeOffsetDuration())
 }
 
 func sleepUntilServerTimeResyncInterval(remaining time.Duration) time.Duration {
@@ -458,7 +463,7 @@ func (e *FundingRateSniperEngine) sleepUntilServerTime(ctx context.Context, targ
 			continue
 		}
 
-		waitUntil := target.Add(-e.serverTimeOffset)
+		waitUntil := target.Add(-e.serverTimeOffsetDuration())
 		remainingLocal := time.Until(waitUntil)
 		if remainingLocal <= 0 {
 			return nil
