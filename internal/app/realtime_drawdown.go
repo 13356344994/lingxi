@@ -329,19 +329,44 @@ func (e *FundingRateSniperEngine) panicFlattenManagedExposure(reason string) {
 	ctx, cancel := context.WithTimeout(withExposureManagerRequest(parent), timeout)
 	defer cancel()
 
+	// 合约实仓拉取失败不再直接放弃：它只用于「无跟踪对冲的孤儿残腿」兜底，下面方向感知的双腿平仓
+	// 不依赖它，因此即便拉取失败也要继续尽力收敛已跟踪的对冲。
 	_, _, positions, err := e.fetchFuturesAccountState(ctx)
 	if err != nil {
+		positions = nil
 		e.noteManagedDrawdownAction("global_panic_fetch_failed", err.Error())
 		if e.logger != nil {
-			e.logger.Printf("实时浮亏 panic flatten 获取合约仓位失败: %v", err)
+			e.logger.Printf("实时浮亏 panic flatten 获取合约仓位失败(转为方向感知平仓+尽力兜底): %v", err)
 		}
-		return
 	}
 	spotBalances, _, err := e.fetchSpotAccountBalances(ctx)
 	if err != nil && e.logger != nil {
 		e.logger.Printf("实时浮亏 panic flatten 获取现货余额失败: %v", err)
 	}
 	for _, target := range targets {
+		// 优先用方向感知的双腿平仓：正 carry(现货 SELL)与负 carry(全仓杠杆 BUY + AUTO_BORROW_REPAY 还币)
+		// 都能正确收敛。这修复了旧全局 panic「只 SELL 现货钱包正余额、对负 carry 杠杆空头完全无效」的窟窿(R3)。
+		if hedge, ok := e.managedOpenHedgeBySymbol(target.Symbol); ok {
+			alerts, closeErr := e.closeHedgePositionParallel(ctx, closeSequencePlan{
+				hedge:             &hedge,
+				futuresOrder:      e.buildProtectedCloseFuturesOrder(ctx, hedge),
+				preferPassiveSpot: false,
+			})
+			if closeErr == nil {
+				filtered := e.removeManagedOpenHedgeSymbol(target.Symbol)
+				if persistErr := e.syncPersistedOpenHedges(filtered); persistErr != nil && e.logger != nil {
+					e.logger.Printf("全局 panic flatten 平仓后同步未平仓台账失败: symbol=%s err=%v", target.Symbol, persistErr)
+				}
+				e.noteManagedDrawdownAction("global_panic_hedge_closed", fmt.Sprintf("%s | alerts=%s", target.Symbol, strings.Join(alerts, "; ")))
+				continue
+			}
+			e.noteManagedDrawdownAction("global_panic_hedge_close_failed", fmt.Sprintf("%s | %v", target.Symbol, closeErr))
+			if e.logger != nil {
+				e.logger.Printf("全局 panic flatten 双腿平仓失败，转交易所实仓兜底: symbol=%s err=%v", target.Symbol, closeErr)
+			}
+		}
+		// 兜底：无跟踪对冲的孤儿残腿，或上面双腿平仓失败 → 按交易所实际持仓尽力收敛。
+		// 注意：此兜底对负 carry 的杠杆空头现货腿仍不完整(只 SELL 现货钱包正余额)，正常路径应走上面的方向感知平仓。
 		positionQty := positions[target.Symbol]
 		if math.Abs(positionQty) > executionQtyTolerance {
 			side := "BUY"
