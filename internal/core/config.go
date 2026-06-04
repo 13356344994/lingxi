@@ -141,6 +141,14 @@ type RiskConfig struct {
 	// 默认 0 表示该维度不启用（不改变既有行为，opt-in）。
 	HedgeImbalanceAbortUSDT float64
 	HedgeImbalanceAbortRate float64
+	// MinLiquidationDistanceRate 是开仓前「强平距离」安全闸：估算合约腿开仓后从入场价到强平价可承受的
+	// 逆向价格移动幅度（占入场价比例），低于该阈值则跳过该候选、不开仓（仅冷却该 symbol，非熔断）。
+	// 距离用隔离保证金近似导出（可吸收浮亏 = 初始保证金 − 维持保证金，再除以名义），对全仓(CROSSED)模式
+	// 是保守下界——全仓有整账户权益兜底，真实距离更大，因此用它作开仓前闸只会更安全。它防的是「杠杆相对
+	// 持有期可能的价格波动设得过高、一波行情就把单腿合约打爆、对冲随之失效裸奔」。默认 0.15（15%）：
+	// 配默认 2x 杠杆时实际距离约 49%，永不触发；只有当杠杆被调高到安全距离不足时才作为防爆刹车。
+	// 0 表示关闭该维度。
+	MinLiquidationDistanceRate float64
 }
 
 // HistoricalConfig 表示月度模拟与历史验证配置。

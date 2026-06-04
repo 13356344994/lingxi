@@ -159,6 +159,21 @@ func (e *FundingRateSniperEngine) buildOpenSequencePlan(ctx context.Context, tar
 			assessment.EffectiveLeverage,
 			assessment.Bracket.Bracket,
 		)
+		// 开仓前强平距离安全闸（R2）：合约腿入场价到强平价的可承受逆向幅度低于阈值则跳过该候选、不开仓。
+		// 仅冷却该 symbol（non-fatal），不触发平台熔断——与上方 leverage bracket 拒绝同一处置语义。
+		if minDistance := e.cfg.RiskConfig.MinLiquidationDistanceRate; minDistance > 0 {
+			distance := assessment.liquidationDistanceRate()
+			if distance < minDistance {
+				detail := fmt.Sprintf(
+					"开仓前强平距离不足: 预计强平距离=%.4f 低于阈值=%.4f (leverage=%dx maintMarginRatio=%.4f projectedNotional=%.6f)",
+					distance, minDistance, assessment.EffectiveLeverage, assessment.Bracket.MaintMarginRatio, assessment.ProjectedNotionalUSDT,
+				)
+				e.setSymbolCooldown(target.Candidate.Symbol, "liquidation_distance", "major", detail)
+				e.logger.Printf("模块四跳过 %s，%s", target.Candidate.Symbol, detail)
+				return nil, nil
+			}
+			e.logger.Printf("模块四通过 %s 强平距离校验，预计强平距离=%.4f 阈值=%.4f", target.Candidate.Symbol, distance, minDistance)
+		}
 	}
 
 	spotRequiredUSDT, futuresRequiredUSDT := e.estimateTargetCapitalRequirement(target, spotReferencePrice, futuresReferencePrice, e.serverNow())

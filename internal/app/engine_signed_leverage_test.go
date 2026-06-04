@@ -176,6 +176,41 @@ func TestAssessFuturesLeverageRiskRejectsInsufficientMaintMarginBuffer(t *testin
 	}
 }
 
+func TestLiquidationDistanceRate(t *testing.T) {
+	// 2x 杠杆、维持保证金率 0.4%：初始保证金 50% 名义，强平距离≈(0.5-0.004)=0.496。
+	low := []futuresLeverageBracket{
+		{Bracket: 1, InitialLeverage: 2, NotionalFloor: 0, NotionalCap: 1000000, MaintMarginRatio: 0.004, Cum: 0},
+	}
+	assessment, ok, detail := assessFuturesLeverageRisk("BTCUSDT", 2, 0, 10, 100, 1000000, low)
+	if !ok {
+		t.Fatalf("expected leverage assessment to pass, got: %s", detail)
+	}
+	if d := assessment.liquidationDistanceRate(); d < 0.495 || d > 0.497 {
+		t.Fatalf("2x distance = %.6f, want ~0.496", d)
+	}
+
+	// 20x 杠杆、维持保证金率 5%：初始保证金 5% 名义，强平距离≈0（被任何正阈值拦下）。
+	high := []futuresLeverageBracket{
+		{Bracket: 1, InitialLeverage: 20, NotionalFloor: 0, NotionalCap: 1000000, MaintMarginRatio: 0.05, Cum: 0},
+	}
+	highAssessment, ok, detail := assessFuturesLeverageRisk("BTCUSDT", 20, 0, 10, 100, 1000000, high)
+	if !ok {
+		t.Fatalf("expected high-leverage assessment to pass margin buffer, got: %s", detail)
+	}
+	if d := highAssessment.liquidationDistanceRate(); d > 0.01 {
+		t.Fatalf("20x distance = %.6f, expected near 0", d)
+	}
+
+	// 退化输入：名义为 0 → 0；维持>初始（负距离）→ 钳到 0。
+	if d := (futuresLeverageRiskAssessment{}).liquidationDistanceRate(); d != 0 {
+		t.Fatalf("zero-notional distance = %.6f, want 0", d)
+	}
+	negative := futuresLeverageRiskAssessment{ProjectedNotionalUSDT: 1000, InitialMarginUSDT: 1, MaintenanceMarginUSDT: 5}
+	if d := negative.liquidationDistanceRate(); d != 0 {
+		t.Fatalf("negative distance should clamp to 0, got %.6f", d)
+	}
+}
+
 func TestVerifyPreparedPlanFundingStabilityAcceptsStableSamples(t *testing.T) {
 	var calls int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

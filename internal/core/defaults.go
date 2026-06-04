@@ -115,6 +115,9 @@ func DefaultEngineConfig() EngineConfig {
 			// 或未成交」导致的裸敞口。绝对额维度(HedgeImbalanceAbortUSDT)随资金规模难取统一默认，保持 0
 			// (按需开启)。
 			HedgeImbalanceAbortRate: 0.10,
+			// MinLiquidationDistanceRate 默认 0.15：配默认 2x 杠杆时合约腿实际强平距离约 49%，远高于该阈值、
+			// 永不触发（零行为变更）；它只在杠杆被调高、安全距离不足时作为开仓前防爆刹车。
+			MinLiquidationDistanceRate: 0.15,
 		},
 		HistoricalConfig: HistoricalConfig{
 			DefaultLookbackDays:                    30,

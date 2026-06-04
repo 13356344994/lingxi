@@ -477,6 +477,22 @@ type futuresLeverageRiskAssessment struct {
 	MaintenanceMarginUSDT float64
 }
 
+// liquidationDistanceRate 估算合约腿开仓后「入场价到强平价」的安全距离（占入场价比例）。
+// 隔离保证金近似：可吸收的逆向浮亏 = 初始保证金 − 维持保证金，占名义的比例即价格可逆向移动的幅度。
+// MaintenanceMarginUSDT 已含 bracket 的 Cum 项，因此该比例同时反映了维持保证金率与维持保证金常数。
+// 对全仓(CROSSED)模式而言这是保守下界（全仓有整账户权益兜底，真实距离更大），用作开仓前安全闸恰当。
+// 名义无效或结果为负时返回 0（视为「无安全距离」，必被任何正阈值拦下）。
+func (a futuresLeverageRiskAssessment) liquidationDistanceRate() float64 {
+	if a.ProjectedNotionalUSDT <= 0 {
+		return 0
+	}
+	rate := (a.InitialMarginUSDT - a.MaintenanceMarginUSDT) / a.ProjectedNotionalUSDT
+	if rate < 0 {
+		return 0
+	}
+	return rate
+}
+
 func (e nonFatalOpenAbortError) Error() string {
 	return e.message
 }
