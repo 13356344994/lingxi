@@ -2,6 +2,8 @@ package app
 
 import (
 	"time"
+
+	"lingxi/internal/money"
 )
 
 // ExecutionCostRecord 记录单次执行的延迟和滑点成本
@@ -58,6 +60,46 @@ type CycleSettlement struct {
 	HasAlert              bool
 	Alerts                []string
 	Attributions          []SettlementAttribution
+
+	// M-S3.0 观测先行(R5,纯观测、零行为变更):把已测量但未计入 NetPnL 的执行摩擦(开/平滑点 + 恢复摩擦)
+	// 按 symbol 归因聚合出来,并给出折算后的「完整净利」影子口径,用于量化「账面 NetPnL vs 诚实净利」缺口。
+	// 这些字段不参与任何熔断/风控判定;是否把摩擦折进权威 NetPnL(并处理与 TradingPnL 是否重复计的问题)
+	// 留待 M-S3.2 单独评审。
+	TotalOpenSlippageUSDT     float64
+	TotalCloseSlippageUSDT    float64
+	TotalRecoveryFrictionUSDT float64
+	NetPnLAfterFrictions      float64
+}
+
+// applyFrictionObservation 依据各 symbol 归因聚合执行摩擦,并按「NetPnL + 已测摩擦」折算出完整净利影子口径。
+// OpenSlippage/CloseSlippage/RecoveryFriction 是带符号的损益影响(负=逆向成本),故以加法折入。
+// 纯观测:仅写入 M-S3.0 新增的观测字段,不改动 NetPnL 等既有口径。NetPnL 在资金费到账后会变,
+// 故 close 阶段与异步结算阶段都应调用本方法重算。
+func (s *CycleSettlement) applyFrictionObservation() {
+	var openSlip, closeSlip, recovery float64
+	for _, attr := range s.Attributions {
+		openSlip += attr.OpenSlippage
+		closeSlip += attr.CloseSlippage
+		recovery += attr.RecoveryFriction
+	}
+	s.TotalOpenSlippageUSDT = openSlip
+	s.TotalCloseSlippageUSDT = closeSlip
+	s.TotalRecoveryFrictionUSDT = recovery
+	s.NetPnLAfterFrictions = money.SumUSDT(s.NetPnL, openSlip, closeSlip, recovery)
+}
+
+// logFrictionObservation 打印 M-S3.0 观测行:账面 NetPnL vs 折入执行摩擦后的完整净利影子口径,
+// 以及开/平滑点与恢复摩擦聚合。纯观测,供实盘前量化「成本侧盲区」与缺口大小。
+func (e *FundingRateSniperEngine) logFrictionObservation(s CycleSettlement, phase string) {
+	if e == nil || e.logger == nil {
+		return
+	}
+	gap := s.NetPnLAfterFrictions - s.NetPnL
+	e.logger.Printf(
+		"盈亏诚实化观测[%s] cycle=%s NetPnL=%.4f 完整净利(含摩擦)=%.4f 缺口=%.4f 开仓滑点=%.4f 平仓滑点=%.4f 恢复摩擦=%.4f",
+		phase, s.CycleID, s.NetPnL, s.NetPnLAfterFrictions, gap,
+		s.TotalOpenSlippageUSDT, s.TotalCloseSlippageUSDT, s.TotalRecoveryFrictionUSDT,
+	)
 }
 
 // CalculateSlippage 计算执行滑点造成的法币成本 (以 USDT 计价)

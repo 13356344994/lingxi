@@ -148,6 +148,12 @@ type SettlementCSVRecord struct {
 	FuturesUSDTDelta      string `json:"futures_usdt_delta"`
 	HasAlert              bool   `json:"has_alert"`
 	Alerts                string `json:"alerts"`
+	// M-S3.0 观测字段(纯观测,不参与风控):执行摩擦聚合与折入摩擦后的完整净利影子口径。
+	// omitempty 让历史记录无此字段时解码为零、零回归。
+	TotalOpenSlippageUSDT     string `json:"total_open_slippage_usdt,omitempty"`
+	TotalCloseSlippageUSDT    string `json:"total_close_slippage_usdt,omitempty"`
+	TotalRecoveryFrictionUSDT string `json:"total_recovery_friction_usdt,omitempty"`
+	NetPnLAfterFrictions      string `json:"net_pnl_after_frictions,omitempty"`
 }
 
 type DustLedgerRecord struct {

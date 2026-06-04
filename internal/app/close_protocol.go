@@ -297,7 +297,7 @@ func (p *CloseProtocol) executeSequence(ctx context.Context, hedges []OpenHedge,
 		}
 	}
 
-	return CycleSettlement{
+	settlement := CycleSettlement{
 		TraceRecordMetadata:   p.engine.recordMetadata(),
 		RunID:                 p.engine.runID,
 		CycleID:               p.engine.currentCycleID,
@@ -323,7 +323,10 @@ func (p *CloseProtocol) executeSequence(ctx context.Context, hedges []OpenHedge,
 		HasAlert:              len(alerts) > 0,
 		Alerts:                alerts,
 		Attributions:          attributions,
-	}, nil
+	}
+	settlement.applyFrictionObservation()
+	p.engine.logFrictionObservation(settlement, "close_presettle")
+	return settlement, nil
 }
 
 func (p *CloseProtocol) closeHedgePosition(ctx context.Context, hedge *OpenHedge, futureResult FuturesBatchOrderResult, preferPassiveSpot bool) ([]string, error) {
