@@ -3,8 +3,11 @@ package app
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
+
+	"lingxi/internal/core"
 )
 
 func writeTempConfig(t *testing.T, body string) string {
@@ -124,5 +127,26 @@ func TestFlattenYAMLConfigSequenceJoinsCSV(t *testing.T) {
 func TestFlattenYAMLConfigRejectsNonMappingRoot(t *testing.T) {
 	if _, err := flattenYAMLConfig([]byte("- a\n- b\n")); err == nil {
 		t.Fatal("根为序列应报错")
+	}
+}
+
+// TestSampleConfigYAMLRoundTrips 钉死自文档化样例的正确性:core.SampleConfigYAML() 生成物经
+// flatten + BindConfig 回灌到零值配置,必须精确复现 DefaultEngineConfig()(既证明它是合法 YAML,
+// 又证明它逐字段忠实于默认值,且覆盖全部可配置项)。
+func TestSampleConfigYAMLRoundTrips(t *testing.T) {
+	sample := core.SampleConfigYAML()
+	values, err := flattenYAMLConfig([]byte(sample))
+	if err != nil {
+		t.Fatalf("样例配置不是合法 YAML: %v", err)
+	}
+	if len(values) != len(core.ConfigKeys()) {
+		t.Fatalf("样例应覆盖全部 %d 个键,实得 %d", len(core.ConfigKeys()), len(values))
+	}
+	var cfg EngineConfig // 零值起步
+	if err := core.BindConfig(&cfg, values, false); err != nil {
+		t.Fatalf("回灌样例失败(可能含未知键或类型错误): %v", err)
+	}
+	if !reflect.DeepEqual(cfg, DefaultEngineConfig()) {
+		t.Fatal("样例回灌结果与 DefaultEngineConfig 不一致")
 	}
 }

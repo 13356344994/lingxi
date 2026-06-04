@@ -3,10 +3,13 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
 	"strconv"
+
+	"lingxi/internal/core"
 )
 
 // Run 是应用编排入口：进程级信号处理由调用方（cmd/lingxi）负责，本函数仅依据命令行参数选择
@@ -23,6 +26,13 @@ func Run(ctx context.Context) {
 	// reconcile 是只读对账子命令：把已落盘结算记录与模型预期逐周期对账并打印报告，不触碰下单/实盘路径。
 	if len(os.Args) > 1 && os.Args[1] == "reconcile" {
 		runReconcileMode(ctx)
+		return
+	}
+
+	// config-sample 导出一份自文档化的样例配置(列出全部可配项及默认值),不读取配置文件、不触碰实盘。
+	// 用法: lingxi config-sample [输出路径]; 省略路径则打印到 stdout。
+	if len(os.Args) > 1 && os.Args[1] == "config-sample" {
+		runConfigSample()
 		return
 	}
 
@@ -68,6 +78,20 @@ func startLiveStack(ctx context.Context, cfg EngineConfig) {
 	if err := dashboard.Start(ctx); err != nil && !errors.Is(err, context.Canceled) {
 		log.Fatalf("Web 面板异常退出: %v", err)
 	}
+}
+
+// runConfigSample 输出/写出由结构体 tag 反射生成的全字段样例配置。
+func runConfigSample() {
+	sample := core.SampleConfigYAML()
+	if len(os.Args) > 2 {
+		path := os.Args[2]
+		if err := os.WriteFile(path, []byte(sample), 0o644); err != nil {
+			log.Fatalf("写出样例配置失败: %v", err)
+		}
+		log.Printf("已写出样例配置到 %s(共 %d 个可配置项)", path, len(core.ConfigKeys()))
+		return
+	}
+	fmt.Print(sample)
 }
 
 func runBacktestMode(ctx context.Context) {

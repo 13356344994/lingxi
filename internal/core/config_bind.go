@@ -138,6 +138,79 @@ func ConfigKeyKinds() map[string]string {
 	return out
 }
 
+// SampleConfigYAML 由 EngineConfig 的 cfg tag 与默认值反射生成一份自文档化的样例配置(嵌套 YAML),
+// 列出**每一个**可配置项及其代码默认值。供 `lingxi config-sample` 导出,作为「有哪些旋钮 + 默认是多少」
+// 的单一事实参考。生成物为合法 YAML,且经 flatten+BindConfig 回灌零值配置可精确复现默认值(见 app 层往返测试)。
+func SampleConfigYAML() string {
+	var b strings.Builder
+	b.WriteString("# lingxi 配置样例(由 `lingxi config-sample` 自动生成)\n")
+	b.WriteString("# - 每一项均为代码默认值;只需保留你要覆盖的项即可。\n")
+	b.WriteString("# - 等价环境变量:LINGXI_<SECTION>_<LEAF>(大写,点号→下划线),如 LINGXI_NETWORK_HTTP_TIMEOUT。\n")
+	b.WriteString("# - 未知字段默认报错阻断启动;设 LINGXI_ALLOW_UNKNOWN_CONFIG=true 可改为告警并忽略。\n")
+
+	def := DefaultEngineConfig()
+	root := reflect.ValueOf(def)
+	rootType := root.Type()
+
+	// 先输出顶层标量项(无 section 前缀)。
+	for i := 0; i < rootType.NumField(); i++ {
+		field := rootType.Field(i)
+		tag := strings.TrimSpace(field.Tag.Get("cfg"))
+		if tag == "" || tag == "-" {
+			continue
+		}
+		fv := root.Field(i)
+		if fv.Kind() == reflect.Struct {
+			continue
+		}
+		b.WriteString(fmt.Sprintf("%s: %s\n", tag, yamlScalar(fv)))
+	}
+
+	// 再按 section 分组输出嵌套项,保持结构体声明顺序以便阅读。
+	for i := 0; i < rootType.NumField(); i++ {
+		field := rootType.Field(i)
+		tag := strings.TrimSpace(field.Tag.Get("cfg"))
+		if tag == "" || tag == "-" {
+			continue
+		}
+		fv := root.Field(i)
+		if fv.Kind() != reflect.Struct {
+			continue
+		}
+		b.WriteString("\n" + tag + ":\n")
+		sub := fv.Type()
+		for j := 0; j < sub.NumField(); j++ {
+			leaf := strings.TrimSpace(sub.Field(j).Tag.Get("cfg"))
+			if leaf == "" || leaf == "-" {
+				continue
+			}
+			b.WriteString(fmt.Sprintf("  %s: %s\n", leaf, yamlScalar(fv.Field(j))))
+		}
+	}
+	return b.String()
+}
+
+func yamlScalar(fv reflect.Value) string {
+	if fv.Type() == durationType {
+		return time.Duration(fv.Int()).String()
+	}
+	switch fv.Kind() {
+	case reflect.String:
+		s := fv.String()
+		if s == "" || strings.ContainsAny(s, ":#{}[],&*!|>'\"%@` ") {
+			return strconv.Quote(s)
+		}
+		return s
+	case reflect.Bool:
+		if fv.Bool() {
+			return "true"
+		}
+		return "false"
+	default:
+		return fmt.Sprintf("%v", fv.Interface())
+	}
+}
+
 // IsConfigKey 报告某键(完整键或无歧义裸别名,大小写不敏感)是否为已知可配置项。
 // 供上层在兼容模式下识别未知键以告警。
 func IsConfigKey(key string) bool {
