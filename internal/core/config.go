@@ -28,134 +28,134 @@ const (
 
 // NetworkConfig 表示网络、流和本地运行相关配置。
 type NetworkConfig struct {
-	HTTPTimeout              time.Duration
-	MaxPremiumIndexStaleness time.Duration
-	StreamWarmupTimeout      time.Duration
-	MaxIdleConns             int
-	MaxIdleConnsPerHost      int
-	IdleConnTimeout          time.Duration
-	TLSHandshakeTimeout      time.Duration
-	ResponseHeaderTimeout    time.Duration
-	ExpectContinueTimeout    time.Duration
-	PublicGETBaseSlot        time.Duration
-	PublicGETCooldown403     time.Duration
-	PublicGETCooldown418     time.Duration
-	PublicGETUseAPIKey       bool
-	PublicGETAPIKeyWhitelist string
-	DashboardAddr            string
-	RecordDir                string
-	EmergencyStopFile        string
+	HTTPTimeout              time.Duration `cfg:"http_timeout"`
+	MaxPremiumIndexStaleness time.Duration `cfg:"max_premium_index_staleness"`
+	StreamWarmupTimeout      time.Duration `cfg:"stream_warmup_timeout"`
+	MaxIdleConns             int           `cfg:"max_idle_conns"`
+	MaxIdleConnsPerHost      int           `cfg:"max_idle_conns_per_host"`
+	IdleConnTimeout          time.Duration `cfg:"idle_conn_timeout"`
+	TLSHandshakeTimeout      time.Duration `cfg:"tls_handshake_timeout"`
+	ResponseHeaderTimeout    time.Duration `cfg:"response_header_timeout"`
+	ExpectContinueTimeout    time.Duration `cfg:"expect_continue_timeout"`
+	PublicGETBaseSlot        time.Duration `cfg:"public_get_base_slot"`
+	PublicGETCooldown403     time.Duration `cfg:"public_get_cooldown_403"`
+	PublicGETCooldown418     time.Duration `cfg:"public_get_cooldown_418"`
+	PublicGETUseAPIKey       bool          `cfg:"public_get_use_apikey"`
+	PublicGETAPIKeyWhitelist string        `cfg:"public_get_apikey_whitelist"`
+	DashboardAddr            string        `cfg:"dashboard_addr"`
+	RecordDir                string        `cfg:"record_dir"`
+	EmergencyStopFile        string        `cfg:"emergency_stop_file"`
 }
 
 // StrategyConfig 表示扫描、监控和容量筛选配置。
 type StrategyConfig struct {
-	WakeMinute               int
-	WakeSecond               int
-	ScanWindow               time.Duration
-	MonitorInterval          time.Duration
-	MonitorStopLead          time.Duration
-	LiveFundingDirectionMode string
-	MinEstimatedFundingRate  float64
-	MaxEstimatedFundingRate  float64
-	MaxFundingRateJump       float64
-	MaxScanBasisRate         float64
-	LiveFundingAsset         string
-	FeeReserveRate           float64
-	ExitSpreadReserveRate    float64
-	PreferredSpotQuoteAssets string
-	MaxTargets               int
-	PerSymbolQuoteUSDT       float64
-	RecentTradeVolumeWindow  time.Duration
-	MaxRecentVolumeShare     float64
-	MaxOpenInterestShare     float64
-	MaxVisibleDepthShare     float64
-	DepthLevels              int
+	WakeMinute               int           `cfg:"wake_minute"`
+	WakeSecond               int           `cfg:"wake_second"`
+	ScanWindow               time.Duration `cfg:"scan_window"`
+	MonitorInterval          time.Duration `cfg:"monitor_interval"`
+	MonitorStopLead          time.Duration `cfg:"monitor_stop_lead"`
+	LiveFundingDirectionMode string        `cfg:"live_funding_direction_mode"`
+	MinEstimatedFundingRate  float64       `cfg:"min_estimated_funding_rate"`
+	MaxEstimatedFundingRate  float64       `cfg:"max_estimated_funding_rate"`
+	MaxFundingRateJump       float64       `cfg:"max_funding_rate_jump"`
+	MaxScanBasisRate         float64       `cfg:"max_scan_basis_rate"`
+	LiveFundingAsset         string        `cfg:"live_funding_asset"`
+	FeeReserveRate           float64       `cfg:"fee_reserve_rate"`
+	ExitSpreadReserveRate    float64       `cfg:"exit_spread_reserve_rate"`
+	PreferredSpotQuoteAssets string        `cfg:"preferred_spot_quote_assets"`
+	MaxTargets               int           `cfg:"max_targets"`
+	PerSymbolQuoteUSDT       float64       `cfg:"per_symbol_quote_usdt"`
+	RecentTradeVolumeWindow  time.Duration `cfg:"recent_trade_volume_window"`
+	MaxRecentVolumeShare     float64       `cfg:"max_recent_volume_share"`
+	MaxOpenInterestShare     float64       `cfg:"max_open_interest_share"`
+	MaxVisibleDepthShare     float64       `cfg:"max_visible_depth_share"`
+	DepthLevels              int           `cfg:"depth_levels"`
 }
 
 // ExecutionConfig 表示下单确认、恢复和退出执行参数。
 type ExecutionConfig struct {
-	ExitDelayAfterFunding    time.Duration
-	ExitMonitorInterval      time.Duration
-	AutoBalanceUSDT          bool
-	OpenPreparationLead      time.Duration
-	PreOpenNoGoLead          time.Duration
-	PreOpenTickerMaxAge      time.Duration
-	RecvWindow               int64
-	ExecutionConfirmTimeout  time.Duration
-	ExecutionRecoveryTimeout time.Duration
-	OpenHedgeMaxConcurrency  int
-	ParallelOpenSymbols      string
-	ParallelCloseSymbols     string
-	UseProtectedIOC          bool
-	SpotLimitSlippageRate    float64
-	FuturesLimitSlippageRate float64
-	FuturesPriceProtect      bool
-	SpotSTPMode              string
-	FuturesSTPMode           string
-	FuturesMarginType        string
-	FuturesLeverage          int
+	ExitDelayAfterFunding    time.Duration `cfg:"exit_delay_after_funding"`
+	ExitMonitorInterval      time.Duration `cfg:"exit_monitor_interval"`
+	AutoBalanceUSDT          bool          `cfg:"auto_balance_usdt"`
+	OpenPreparationLead      time.Duration `cfg:"open_preparation_lead"`
+	PreOpenNoGoLead          time.Duration `cfg:"pre_open_no_go_lead"`
+	PreOpenTickerMaxAge      time.Duration `cfg:"pre_open_ticker_max_age"`
+	RecvWindow               int64         `cfg:"recv_window"`
+	ExecutionConfirmTimeout  time.Duration `cfg:"execution_confirm_timeout"`
+	ExecutionRecoveryTimeout time.Duration `cfg:"execution_recovery_timeout"`
+	OpenHedgeMaxConcurrency  int           `cfg:"open_hedge_max_concurrency"`
+	ParallelOpenSymbols      string        `cfg:"parallel_open_symbols"`
+	ParallelCloseSymbols     string        `cfg:"parallel_close_symbols"`
+	UseProtectedIOC          bool          `cfg:"use_protected_ioc"`
+	SpotLimitSlippageRate    float64       `cfg:"spot_limit_slippage_rate"`
+	FuturesLimitSlippageRate float64       `cfg:"futures_limit_slippage_rate"`
+	FuturesPriceProtect      bool          `cfg:"futures_price_protect"`
+	SpotSTPMode              string        `cfg:"spot_stp_mode"`
+	FuturesSTPMode           string        `cfg:"futures_stp_mode"`
+	FuturesMarginType        string        `cfg:"futures_margin_type"`
+	FuturesLeverage          int           `cfg:"futures_leverage"`
 	// ShadowTrading 为 true 时进入「影子(只读冒烟)」模式：引擎照常对接真实行情与账户、照常完成扫描/评估/
 	// 决策，但任何会改变交易所状态或动用资金的签名请求(下单/撤单/改杠杆/划转/借还币等一切非 GET)都会在
 	// 唯一咽喉点 signedRequest 被硬拦截、绝不触达交易所，只把下单意图落日志。用于实盘前抓灾难性 bug
 	// (下错方向/异常数量/失控循环)，而非校准经济阈值。默认 false。
-	ShadowTrading bool
+	ShadowTrading bool `cfg:"shadow_trading"`
 }
 
 // RiskConfig 表示实盘风控阈值和冷却预算。
 type RiskConfig struct {
-	MinNetProfitRate              float64
-	ImmediateInvalidateRate       float64
-	MonitorMaxConsecutiveBreach   int
-	ResidualSpotAlertUSDT         float64
-	ResidualPositionAlertQty      float64
-	FundingIncomeDiffAlertUSDT    float64
-	SettlementDiffAlertUSDT       float64
-	MaxExecutionIncidents         int
-	MaxCycleLossUSDT              float64
-	MaxCycleOpenNotionalUSDT      float64
-	MaxOrderUncertaintyPerCycle   int
-	MaxConsecutivePlatformRejects int
-	MaxConsecutiveRequestErrors   int
-	ProtectedIOCMinAttempts       int
-	ProtectedIOCMaxUnfilledRatio  float64
-	ProtectedIOCMaxCancelRate     float64
-	SymbolAbnormalCooldown        time.Duration
-	PlatformMinorCooldown         time.Duration
-	PlatformAbnormalCooldown      time.Duration
-	PlatformCriticalCooldown      time.Duration
-	MaxRecoveryActionsPerCycle    int
-	MaxDailyLossUSDT              float64
-	MaxDailyOrderCount            int
-	MaxDailyOpenNotionalUSDT      float64
+	MinNetProfitRate              float64       `cfg:"min_net_profit_rate"`
+	ImmediateInvalidateRate       float64       `cfg:"immediate_invalidate_rate"`
+	MonitorMaxConsecutiveBreach   int           `cfg:"monitor_max_consecutive_breach"`
+	ResidualSpotAlertUSDT         float64       `cfg:"residual_spot_alert_usdt"`
+	ResidualPositionAlertQty      float64       `cfg:"residual_position_alert_qty"`
+	FundingIncomeDiffAlertUSDT    float64       `cfg:"funding_income_diff_alert_usdt"`
+	SettlementDiffAlertUSDT       float64       `cfg:"settlement_diff_alert_usdt"`
+	MaxExecutionIncidents         int           `cfg:"max_execution_incidents"`
+	MaxCycleLossUSDT              float64       `cfg:"max_cycle_loss_usdt"`
+	MaxCycleOpenNotionalUSDT      float64       `cfg:"max_cycle_open_notional_usdt"`
+	MaxOrderUncertaintyPerCycle   int           `cfg:"max_order_uncertainty_per_cycle"`
+	MaxConsecutivePlatformRejects int           `cfg:"max_consecutive_platform_rejects"`
+	MaxConsecutiveRequestErrors   int           `cfg:"max_consecutive_request_errors"`
+	ProtectedIOCMinAttempts       int           `cfg:"protected_ioc_min_attempts"`
+	ProtectedIOCMaxUnfilledRatio  float64       `cfg:"protected_ioc_max_unfilled_ratio"`
+	ProtectedIOCMaxCancelRate     float64       `cfg:"protected_ioc_max_cancel_rate"`
+	SymbolAbnormalCooldown        time.Duration `cfg:"symbol_abnormal_cooldown"`
+	PlatformMinorCooldown         time.Duration `cfg:"platform_minor_cooldown"`
+	PlatformAbnormalCooldown      time.Duration `cfg:"platform_abnormal_cooldown"`
+	PlatformCriticalCooldown      time.Duration `cfg:"platform_critical_cooldown"`
+	MaxRecoveryActionsPerCycle    int           `cfg:"max_recovery_actions_per_cycle"`
+	MaxDailyLossUSDT              float64       `cfg:"max_daily_loss_usdt"`
+	MaxDailyOrderCount            int           `cfg:"max_daily_order_count"`
+	MaxDailyOpenNotionalUSDT      float64       `cfg:"max_daily_open_notional_usdt"`
 	// MaxConsecutiveLossCycles 是实盘连续亏损熔断阈值：当「按 funding 实收结算后的真实净利」连续为负的
 	// 周期数达到该值时，触发日级熔断、停止继续开仓，要求人工复核。0 表示关闭该维度。它对应回测里的
 	// MaxConsecutiveLosses，把同一条系统性失效保护从回测补齐到实盘，且只会停机（fail-safe），不会下新单。
-	MaxConsecutiveLossCycles int
+	MaxConsecutiveLossCycles int `cfg:"max_consecutive_loss_cycles"`
 	// MaxAccountDrawdownUSDT 是账户级「高水位回撤」熔断阈值（USDT）：以全部已结算周期净利的累计曲线为准，
 	// 当从历史最高累计净利(high-water mark)回撤的绝对额达到该值时停机待人工复核。它补的是 MaxDailyLossUSDT
 	// 的盲区——日亏每个 UTC 日清零，抓不住「每天小亏、跨日慢性失血」累计掏空账户的情形。回撤额完全由已落盘
 	// 结算记录回放得出，无需权益基线、不依赖现货 mark-to-market，重启后可重算复原。0 表示关闭该维度。
-	MaxAccountDrawdownUSDT float64
+	MaxAccountDrawdownUSDT float64 `cfg:"max_account_drawdown_usdt"`
 	// HedgeImbalanceAbortUSDT / HedgeImbalanceAbortRate 是 Gate 4 关键不变量守卫的阈值：
 	// 当 |现货腿名义 − 合约腿名义| 的绝对值(USDT)或相对比例超过阈值时立即熔断，防止裸敞口。
 	// 默认 0 表示该维度不启用（不改变既有行为，opt-in）。
-	HedgeImbalanceAbortUSDT float64
-	HedgeImbalanceAbortRate float64
+	HedgeImbalanceAbortUSDT float64 `cfg:"hedge_imbalance_abort_usdt"`
+	HedgeImbalanceAbortRate float64 `cfg:"hedge_imbalance_abort_rate"`
 	// HoldHedgeGuardEnabled 把对冲偏离守卫从「仅开仓校验」扩展到「持有期周期性校验」(M0.2b)：
 	// 启用后,持仓期常驻监控会按 HedgeImbalanceAbort{USDT,Rate} 阈值周期性复核两腿实时名义,
 	// 偏离突破即对该 symbol 走方向感知双腿平仓(与强平/ADL 处置一致)。默认 false(opt-in,零行为变更)。
 	// 当前仅对正 carry(现货腿在现货钱包,可实时测量)生效;负 carry(全仓杠杆借币空头)的持有期复核
 	// 依赖 cross-margin 实时健康数据(S2.4)接入后再覆盖。
-	HoldHedgeGuardEnabled bool
+	HoldHedgeGuardEnabled bool `cfg:"hold_hedge_guard_enabled"`
 	// FeedBlindnessGuardEnabled 启用「持有期断连盲窗守卫」(R32)：常驻监控以行情流(bookTicker 持续推送、
 	// 判活可靠)为准驱动状态机——降级(degraded)即暂停本轮开新仓;持续失明(blind 超过宽限)即对托管敞口
 	// 保守撤离(panic flatten 双腿平仓 + 平台熔断进入冷却,冷却结束自动恢复)。默认 false(opt-in,零行为变更)。
-	FeedBlindnessGuardEnabled bool
+	FeedBlindnessGuardEnabled bool `cfg:"feed_blindness_guard_enabled"`
 	// MinMarginLevel 是负 carry 保证金腿的最低全仓杠杆「保证金率(marginLevel = 总资产/总负债)」健康阈值(M0.3b-):
 	// 启用后,持有负 carry(全仓杠杆借币空头)敞口期间常驻 REST 轮询 cross-margin 账户健康,marginLevel 跌破该
 	// 阈值即保守撤离(panic flatten + 熔断冷却)。币安 marginLevel 触发追保≈1.3、强平≈1.1,建议设 1.5 留缓冲。
 	// 默认 0 表示该维度不启用(opt-in,零行为变更)。
-	MinMarginLevel float64
+	MinMarginLevel float64 `cfg:"min_margin_level"`
 	// MinLiquidationDistanceRate 是开仓前「强平距离」安全闸：估算合约腿开仓后从入场价到强平价可承受的
 	// 逆向价格移动幅度（占入场价比例），低于该阈值则跳过该候选、不开仓（仅冷却该 symbol，非熔断）。
 	// 距离用隔离保证金近似导出（可吸收浮亏 = 初始保证金 − 维持保证金，再除以名义），对全仓(CROSSED)模式
@@ -163,72 +163,72 @@ type RiskConfig struct {
 	// 持有期可能的价格波动设得过高、一波行情就把单腿合约打爆、对冲随之失效裸奔」。默认 0.15（15%）：
 	// 配默认 2x 杠杆时实际距离约 49%，永不触发；只有当杠杆被调高到安全距离不足时才作为防爆刹车。
 	// 0 表示关闭该维度。
-	MinLiquidationDistanceRate float64
+	MinLiquidationDistanceRate float64 `cfg:"min_liquidation_distance_rate"`
 }
 
 // HistoricalConfig 表示月度模拟与历史验证配置。
 type HistoricalConfig struct {
-	DefaultLookbackDays                    int
-	InitialEquityUSDT                      float64
-	StopEquityUSDT                         float64
-	PerLegNotionalUSDT                     float64
-	FundingDirectionMode                   string
-	MaxFundingCyclesHeld                   int
-	BatchExperimentEnabled                 bool
-	BatchSpotTakerFeeRates                 string
-	BatchPerLegNotionalUSDT                string
-	BatchMaxFundingCyclesHeld              string
-	MaxPerLegEquityShare                   float64
-	SpotTakerFeeRate                       float64
-	FuturesTakerFeeRate                    float64
-	AssumedHourlyBorrowInterestRate        float64
-	BorrowInterestMinBillingHours          int
-	NegativeCarrySpotEntryImpactMultiplier float64
-	NegativeCarrySpotExitImpactMultiplier  float64
-	CrossStableQuoteMaxDeviationRate       float64
-	ResidualFillHaircutEnabled             bool
-	ExpectedLegFillRatio                   float64
-	LegRejectProbability                   float64
-	EmergencyHedgeSpreadMultiplier         float64
-	FundingPhaseLead                       time.Duration
-	FundingFetchConcurrency                int
-	FundingRetryMax                        int
-	CacheDir                               string
-	ReferenceKlineLookback                 int
-	EstimateKlineLookback                  int
-	SafetyBufferFloorUSDT                  float64
-	SafetyBufferCostMultiplier             float64
-	MaxDrawdownRate                        float64
-	MaxConsecutiveLosses                   int
-	MaxFundingRate                         float64
-	MaxFundingRateJump                     float64
-	MaxSingleTradeLossUSDT                 float64
-	FundingFetchSlot                       time.Duration
-	FundingFetchTimeout                    time.Duration
-	GroupEvaluationTimeout                 time.Duration
-	CandidateBuildTimeout                  time.Duration
-	CandidateFinalizeTimeout               time.Duration
-	ScreeningConcurrency                   int
-	DeepCandidateLimit                     int
-	CoarseSymbolLimit                      int
-	FundingGroupTopSymbolsPerTime          int
-	LiquidityShareMin                      float64
-	LiquidityShareFloor                    float64
-	LiquidityShareMax                      float64
-	SevereLiquidityShareCap                float64
-	SevereLiquidityShareMultiplier         float64
-	SevereLiquidityShareMax                float64
+	DefaultLookbackDays                    int           `cfg:"default_lookback_days"`
+	InitialEquityUSDT                      float64       `cfg:"initial_equity_usdt"`
+	StopEquityUSDT                         float64       `cfg:"stop_equity_usdt"`
+	PerLegNotionalUSDT                     float64       `cfg:"per_leg_notional_usdt"`
+	FundingDirectionMode                   string        `cfg:"funding_direction_mode"`
+	MaxFundingCyclesHeld                   int           `cfg:"max_funding_cycles_held"`
+	BatchExperimentEnabled                 bool          `cfg:"batch_experiment_enabled"`
+	BatchSpotTakerFeeRates                 string        `cfg:"batch_spot_taker_fee_rates"`
+	BatchPerLegNotionalUSDT                string        `cfg:"batch_per_leg_notional_usdt"`
+	BatchMaxFundingCyclesHeld              string        `cfg:"batch_max_funding_cycles_held"`
+	MaxPerLegEquityShare                   float64       `cfg:"max_per_leg_equity_share"`
+	SpotTakerFeeRate                       float64       `cfg:"spot_taker_fee_rate"`
+	FuturesTakerFeeRate                    float64       `cfg:"futures_taker_fee_rate"`
+	AssumedHourlyBorrowInterestRate        float64       `cfg:"assumed_hourly_borrow_interest_rate"`
+	BorrowInterestMinBillingHours          int           `cfg:"borrow_interest_min_billing_hours"`
+	NegativeCarrySpotEntryImpactMultiplier float64       `cfg:"negative_carry_spot_entry_impact_multiplier"`
+	NegativeCarrySpotExitImpactMultiplier  float64       `cfg:"negative_carry_spot_exit_impact_multiplier"`
+	CrossStableQuoteMaxDeviationRate       float64       `cfg:"cross_stable_quote_max_deviation_rate"`
+	ResidualFillHaircutEnabled             bool          `cfg:"residual_fill_haircut_enabled"`
+	ExpectedLegFillRatio                   float64       `cfg:"expected_leg_fill_ratio"`
+	LegRejectProbability                   float64       `cfg:"leg_reject_probability"`
+	EmergencyHedgeSpreadMultiplier         float64       `cfg:"emergency_hedge_spread_multiplier"`
+	FundingPhaseLead                       time.Duration `cfg:"funding_phase_lead"`
+	FundingFetchConcurrency                int           `cfg:"funding_fetch_concurrency"`
+	FundingRetryMax                        int           `cfg:"funding_retry_max"`
+	CacheDir                               string        `cfg:"cache_dir"`
+	ReferenceKlineLookback                 int           `cfg:"reference_kline_lookback"`
+	EstimateKlineLookback                  int           `cfg:"estimate_kline_lookback"`
+	SafetyBufferFloorUSDT                  float64       `cfg:"safety_buffer_floor_usdt"`
+	SafetyBufferCostMultiplier             float64       `cfg:"safety_buffer_cost_multiplier"`
+	MaxDrawdownRate                        float64       `cfg:"max_drawdown_rate"`
+	MaxConsecutiveLosses                   int           `cfg:"max_consecutive_losses"`
+	MaxFundingRate                         float64       `cfg:"max_funding_rate"`
+	MaxFundingRateJump                     float64       `cfg:"max_funding_rate_jump"`
+	MaxSingleTradeLossUSDT                 float64       `cfg:"max_single_trade_loss_usdt"`
+	FundingFetchSlot                       time.Duration `cfg:"funding_fetch_slot"`
+	FundingFetchTimeout                    time.Duration `cfg:"funding_fetch_timeout"`
+	GroupEvaluationTimeout                 time.Duration `cfg:"group_evaluation_timeout"`
+	CandidateBuildTimeout                  time.Duration `cfg:"candidate_build_timeout"`
+	CandidateFinalizeTimeout               time.Duration `cfg:"candidate_finalize_timeout"`
+	ScreeningConcurrency                   int           `cfg:"screening_concurrency"`
+	DeepCandidateLimit                     int           `cfg:"deep_candidate_limit"`
+	CoarseSymbolLimit                      int           `cfg:"coarse_symbol_limit"`
+	FundingGroupTopSymbolsPerTime          int           `cfg:"funding_group_top_symbols_per_time"`
+	LiquidityShareMin                      float64       `cfg:"liquidity_share_min"`
+	LiquidityShareFloor                    float64       `cfg:"liquidity_share_floor"`
+	LiquidityShareMax                      float64       `cfg:"liquidity_share_max"`
+	SevereLiquidityShareCap                float64       `cfg:"severe_liquidity_share_cap"`
+	SevereLiquidityShareMultiplier         float64       `cfg:"severe_liquidity_share_multiplier"`
+	SevereLiquidityShareMax                float64       `cfg:"severe_liquidity_share_max"`
 }
 
 // EngineConfig 是 Funding Rate Sniper Engine 的 MVP 运行配置。
 type EngineConfig struct {
-	ActiveProfile EngineProfile // 运行偏好档位
+	ActiveProfile EngineProfile `cfg:"active_profile"` // 运行偏好档位
 
-	NetworkConfig
-	StrategyConfig
-	ExecutionConfig
-	RiskConfig
-	HistoricalConfig
+	NetworkConfig    `cfg:"network"`
+	StrategyConfig   `cfg:"strategy"`
+	ExecutionConfig  `cfg:"execution"`
+	RiskConfig       `cfg:"risk"`
+	HistoricalConfig `cfg:"historical"`
 }
 
 // ApplyProfile 根据给定的运行档案，覆写当前配置的关键风控和容量参数
