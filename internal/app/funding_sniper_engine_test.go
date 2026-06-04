@@ -484,17 +484,48 @@ func TestAssertHedgeInvariantTripsFuseOnBreach(t *testing.T) {
 	}
 }
 
-func TestAssertHedgeInvariantDisabledByDefault(t *testing.T) {
+func TestAssertHedgeInvariantDisabledWhenThresholdsZero(t *testing.T) {
+	cfg := DefaultEngineConfig()
+	// 两个阈值都显式置 0：完全关闭关键不变量守卫，即使两腿完全不平衡也不应熔断。
+	cfg.RiskConfig.HedgeImbalanceAbortUSDT = 0
+	cfg.RiskConfig.HedgeImbalanceAbortRate = 0
+	engine := &FundingRateSniperEngine{
+		cfg:    cfg,
+		logger: log.New(io.Discard, "", 0),
+	}
+	if err := engine.assertHedgeInvariant("BTCUSDT", 1000, 0); err != nil {
+		t.Fatalf("guard disabled (both thresholds 0) should not trip fuse, got %v", err)
+	}
+	if engine.platformState.FuseTripped {
+		t.Fatal("fuse should remain clear when guard disabled")
+	}
+}
+
+func TestAssertHedgeInvariantEnabledByDefault(t *testing.T) {
+	// 默认配置开启相对偏离维度(HedgeImbalanceAbortRate=0.10)：单腿裸露(futures=0, rate=100%)必须熔断。
 	engine := &FundingRateSniperEngine{
 		cfg:    DefaultEngineConfig(),
 		logger: log.New(io.Discard, "", 0),
 	}
-	// 默认阈值为 0（不启用）：即使两腿完全不平衡也不应熔断（保持既有行为）。
-	if err := engine.assertHedgeInvariant("BTCUSDT", 1000, 0); err != nil {
-		t.Fatalf("guard disabled by default should not trip fuse, got %v", err)
+	err := engine.assertHedgeInvariant("BTCUSDT", 1000, 0)
+	var fuseErr platformFuseError
+	if !errors.As(err, &fuseErr) {
+		t.Fatalf("default config should trip fuse on naked leg, got %v", err)
 	}
-	if engine.platformState.FuseTripped {
-		t.Fatal("fuse should remain clear when guard disabled")
+	if !engine.platformState.FuseTripped {
+		t.Fatal("expected fuse tripped on naked leg under default config")
+	}
+
+	// 默认 rate=0.10 应容忍正常开仓的小幅名义偏离(此处约 3%，源于步进取整/基差)。
+	tolerant := &FundingRateSniperEngine{
+		cfg:    DefaultEngineConfig(),
+		logger: log.New(io.Discard, "", 0),
+	}
+	if err := tolerant.assertHedgeInvariant("BTCUSDT", 1000, 970); err != nil {
+		t.Fatalf("default rate guard should tolerate ~3%% imbalance, got %v", err)
+	}
+	if tolerant.platformState.FuseTripped {
+		t.Fatal("fuse should remain clear for ~3% imbalance under default config")
 	}
 }
 

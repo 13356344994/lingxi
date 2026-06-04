@@ -277,6 +277,9 @@ func TestValidateFreshOpenHedgeAbortsOnAdverseSelection(t *testing.T) {
 		HedgeQty:         1,
 		HedgeQtyText:     "1",
 		OpenSpotQuoteQty: 100,
+		// 合约腿成交均价补全为 100：使合约名义(1*100)与现货名义(100)均衡，先通过 Gate 4 关键
+		// 不变量守卫(默认 rate=0.10)，再进入本用例真正要验证的「开仓后逆向选择即时撤退」路径。
+		OpenFuturesAvgPrice: 100,
 		SpotOrder: SpotOrderResponse{
 			ExecutedQty:         "1",
 			CummulativeQuoteQty: "100",

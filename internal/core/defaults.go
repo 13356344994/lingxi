@@ -109,6 +109,12 @@ func DefaultEngineConfig() EngineConfig {
 			MaxDailyOpenNotionalUSDT:      1500.0,
 			MaxConsecutiveLossCycles:      3,
 			MaxAccountDrawdownUSDT:        60.0,
+			// HedgeImbalanceAbortRate 默认开启「相对偏离」维度的关键不变量守卫(Gate 4)：两腿名义偏离
+			// 超过较大腿的 10% 即熔断。该比例尺度无关，在「数百 U → 100k」全资金区间一致有效，不会像
+			// 绝对额阈值那样随资金规模失真。10% 足以容忍正常开仓的步进取整 / 基差，又能抓住「某腿半成交
+			// 或未成交」导致的裸敞口。绝对额维度(HedgeImbalanceAbortUSDT)随资金规模难取统一默认，保持 0
+			// (按需开启)。
+			HedgeImbalanceAbortRate: 0.10,
 		},
 		HistoricalConfig: HistoricalConfig{
 			DefaultLookbackDays:                    30,
