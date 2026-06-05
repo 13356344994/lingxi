@@ -378,19 +378,8 @@ func (e *FundingRateSniperEngine) runOneCycle(ctx context.Context, wakeAt time.T
 		return err
 	}
 	e.scheduleAsyncFundingSettlement(settlement, openHedges)
-	// 单周期净亏熔断(R8 口径修正)：平仓这一刻资金费尚未实收（FundingIncomePending），settlement.NetPnL
-	// 不含资金费，对资金费套利策略而言几乎必为负，直接拿它判亏会把「资金费还没到账」误判成单周期巨亏而误停机。
-	// 这里改用「投影最终净利 = 已落袋净利 + 预期资金费」做保守早刹车（仍是同步永久停机，能挡住开/平腿真实巨亏，
-	// 如剧烈滑点）；funding 实收后的真实最终净利再由 noteCycleFinalSettlement 做权威复核（见 R8 第二道）。
-	if limit := e.cfg.RiskConfig.MaxCycleLossUSDT; limit > 0 {
-		projectedNetPnL := projectedCycleNetPnL(settlement)
-		if projectedNetPnL <= -limit {
-			detail := fmt.Sprintf("单周期投影净亏损 %.6f USDT（已落袋 %.6f + 预期资金费 %.6f）已超过阈值 %.6f USDT", -projectedNetPnL, settlement.NetPnL, settlement.ExpectedFundingIncome, limit)
-			if incidentErr := e.recordExecutionIncident("cycle_loss_limit", "-", detail); incidentErr != nil {
-				return incidentErr
-			}
-			return fatalEngineError{message: fmt.Sprintf("单周期投影净亏损达到熔断阈值: loss=%.6f limit=%.6f", -projectedNetPnL, limit)}
-		}
+	if err := e.checkCycleLossProjectionBrake(settlement); err != nil {
+		return err
 	}
 	if fuseErr := e.checkPlatformFuse(); fuseErr != nil {
 		return fuseErr
@@ -411,6 +400,26 @@ func projectedCycleNetPnL(settlement CycleSettlement) float64 {
 		return money.Sum(settlement.NetPnL, settlement.ExpectedFundingIncome).USDT()
 	}
 	return settlement.NetPnL
+}
+
+// checkCycleLossProjectionBrake 是单周期净亏熔断的「投影早刹车」(R8 第一道):平仓这一刻资金费尚未实收
+// (FundingIncomePending),settlement.NetPnL 不含资金费,直接判亏会把「资金费还没到账」误判成单周期巨亏而误停机;
+// 改用「投影最终净利 = 已落袋净利 + 预期资金费」做保守早刹车(同步永久停机,挡住开/平腿真实巨亏,如剧烈滑点)。
+// funding 实收后的真实最终净利再由 noteCycleFinalSettlement 做权威复核(R8 第二道)。单周期与滚动 drop 平仓共用。
+func (e *FundingRateSniperEngine) checkCycleLossProjectionBrake(settlement CycleSettlement) error {
+	limit := e.cfg.RiskConfig.MaxCycleLossUSDT
+	if limit <= 0 {
+		return nil
+	}
+	projectedNetPnL := projectedCycleNetPnL(settlement)
+	if projectedNetPnL > -limit {
+		return nil
+	}
+	detail := fmt.Sprintf("单周期投影净亏损 %.6f USDT（已落袋 %.6f + 预期资金费 %.6f）已超过阈值 %.6f USDT", -projectedNetPnL, settlement.NetPnL, settlement.ExpectedFundingIncome, limit)
+	if incidentErr := e.recordExecutionIncident("cycle_loss_limit", "-", detail); incidentErr != nil {
+		return incidentErr
+	}
+	return fatalEngineError{message: fmt.Sprintf("单周期投影净亏损达到熔断阈值: loss=%.6f limit=%.6f", -projectedNetPnL, limit)}
 }
 
 // scanTopFundingTargets 在 XX:57:00 后扫描全网费率，并取 Top 5。

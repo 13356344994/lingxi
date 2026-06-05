@@ -159,5 +159,156 @@ func (e *FundingRateSniperEngine) openResidentPositions(ctx context.Context, wak
 // 「复核→keep/drop+settleKeptPositions+保留 keep」(c-iii-3)与「:57 空槽 rebalancePortfolio 补位」(c-iii-4)
 // 在后续接入这里。故启用 flag 但无常驻持仓时,行为与单周期完全一致。
 func (e *FundingRateSniperEngine) runRollingPortfolioCycle(ctx context.Context, wakeAt time.Time) error {
-	return e.runOneCycle(ctx, wakeAt)
+	due, untouched := classifyResidentsForRevalidation(e.snapshotActiveOpenHedges(), e.scheduler(), e.serverNow())
+	if len(due) > 0 {
+		if err := e.processResidentRevalidation(ctx, due, untouched); err != nil {
+			return err
+		}
+	}
+
+	// 空槽补位(L3):未满则尝试新开;开仓时机由 openCyclePositions 内的 ScanEligible 闸把关(非 :57 窗口扫描为空 → no-op)。
+	if e.residentFreeSlots() != 0 {
+		if _, err := e.openResidentPositions(ctx, wakeAt); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// residentFreeSlots 返回当前组合的 L3 空槽数(-1 表示不限币数);持 platformRiskMu 读取。
+func (e *FundingRateSniperEngine) residentFreeSlots() int {
+	e.platformRiskMu.Lock()
+	defer e.platformRiskMu.Unlock()
+	return e.portfolioFreeSlots(e.cfg.PortfolioConfig.MaxPortfolioSymbols)
+}
+
+// hedgeSymbolSet 返回一组持仓的大写 symbol 集合(跳过空 symbol)。
+func hedgeSymbolSet(hedges []OpenHedge) map[string]struct{} {
+	set := make(map[string]struct{}, len(hedges))
+	for _, h := range hedges {
+		if s := strings.ToUpper(strings.TrimSpace(h.Target.Symbol)); s != "" {
+			set[s] = struct{}{}
+		}
+	}
+	return set
+}
+
+func symbolSetKeys(set map[string]struct{}) []string {
+	keys := make([]string, 0, len(set))
+	for s := range set {
+		keys = append(keys, s)
+	}
+	return keys
+}
+
+// snapshotActiveOpenHedges 在 platformRiskMu 下复制当前常驻组合,供编排在临界区外安全遍历。
+func (e *FundingRateSniperEngine) snapshotActiveOpenHedges() []OpenHedge {
+	e.platformRiskMu.Lock()
+	defer e.platformRiskMu.Unlock()
+	return append([]OpenHedge(nil), e.activeOpenHedges...)
+}
+
+// classifyResidentsForRevalidation 把常驻持仓按 funding 时钟分为 due(已落入复核窗 [:55,:00) 或 funding 已过、
+// 待结算)与 untouched(本轮不动)。纯函数:确定性、无副作用。
+func classifyResidentsForRevalidation(residents []OpenHedge, sched cycleScheduler, now time.Time) (due, untouched []OpenHedge) {
+	for _, h := range residents {
+		nft := h.Target.NextFundingTime
+		fundingPassed := !nft.IsZero() && !now.Before(nft)
+		if sched.RevalidateDue(now, nft) || fundingPassed {
+			due = append(due, h)
+		} else {
+			untouched = append(untouched, h)
+		}
+	}
+	return due, untouched
+}
+
+// advanceResidentFundingClocks 在结算成功后把指定持仓(keep/新仓)的 NextFundingTime 推进一个 funding 间隔
+// (保守默认 8h),并重持久化台账——避免本周期已处理的持仓在下一次唤醒被重复判为「到期」。持 platformRiskMu 改写。
+func (e *FundingRateSniperEngine) advanceResidentFundingClocks(advanced []OpenHedge) error {
+	advancedSet := hedgeSymbolSet(advanced)
+	if len(advancedSet) == 0 {
+		return nil
+	}
+	e.platformRiskMu.Lock()
+	for i := range e.activeOpenHedges {
+		symbol := strings.ToUpper(strings.TrimSpace(e.activeOpenHedges[i].Target.Symbol))
+		if _, ok := advancedSet[symbol]; !ok {
+			continue
+		}
+		if nft := e.activeOpenHedges[i].Target.NextFundingTime; !nft.IsZero() {
+			e.activeOpenHedges[i].Target.NextFundingTime = nft.Add(defaultFundingIntervalHours * time.Hour)
+		}
+	}
+	hedgesCopy := append([]OpenHedge(nil), e.activeOpenHedges...)
+	e.platformRiskMu.Unlock()
+	return e.syncPersistedOpenHedges(hedgesCopy)
+}
+
+// processResidentRevalidation 对到期常驻持仓执行 keep/drop:续持判定 → 平 drop(保留 keep ∪ 未到期、放行 drop 资金费
+// 归因)、结算 keep(funding-only)→ 推进 keep funding 时钟。drop 平仓的落盘/日亏/R8 投影刹车与单周期同口径。
+func (e *FundingRateSniperEngine) processResidentRevalidation(ctx context.Context, due, untouched []OpenHedge) error {
+	heldSymbols := hedgeSymbolSet(due)
+	rates, err := e.collectRollFundingSignals(ctx, heldSymbols)
+	if err != nil {
+		return err
+	}
+	costs := e.marginalHoldCostRates(due)
+	inputs := buildRollDecisionInputs(due, rates, costs, e.cfg.PortfolioConfig)
+	keepSymbols := make(map[string]struct{}, len(inputs))
+	for _, in := range inputs {
+		if evaluateRollDecision(in).Keep {
+			keepSymbols[in.Symbol] = struct{}{}
+		}
+	}
+	keep, drop := partitionHedgesByRoll(due, keepSymbols)
+
+	// 常驻仓无「开仓前快照」,平仓/结算的账户口径用一份当下快照,其 FuturesPositionAmounts 含持仓量。
+	beforeSnapshot, err := e.captureCycleAccountSnapshotFromHedges(ctx, due)
+	if err != nil {
+		return err
+	}
+
+	retained := append(append([]OpenHedge(nil), keep...), untouched...)
+	if len(drop) > 0 {
+		dropSymbols := hedgeSymbolSet(drop)
+		closeResult, closeErr := e.ensureCloseProtocol().ExecuteSequence(ctx, drop, beforeSnapshot, retained, dropSymbols)
+		if closeErr != nil {
+			return closeErr
+		}
+		e.emitDomainEvents(closeResult.ProtocolResult.Events)
+		settlement := closeResult.Settlement
+		if e.reportStore != nil {
+			if appendErr := e.reportStore.AppendSettlement(settlement); appendErr != nil && e.logger != nil {
+				e.logger.Printf("滚动持有 drop 平仓结算落盘失败: %v", appendErr)
+			}
+		}
+		if noteErr := e.noteDailySettlement(settlement.NetPnL); noteErr != nil {
+			return noteErr
+		}
+		e.scheduleAsyncFundingSettlementWithRoll(settlement, drop, symbolSetKeys(dropSymbols))
+		if brakeErr := e.checkCycleLossProjectionBrake(settlement); brakeErr != nil {
+			return brakeErr
+		}
+		if fuseErr := e.checkPlatformFuse(); fuseErr != nil {
+			return fuseErr
+		}
+	} else {
+		// 无 drop:不平仓,但仍把常驻态收敛到 retained(keep ∪ 未到期),口径与有 drop 路径一致。
+		e.reconcileResidentPositionsAfterClose(retained)
+		if ledgerErr := e.reconcileResidentLedgerAfterClose(beforeSnapshot, nil, retained); ledgerErr != nil {
+			return ledgerErr
+		}
+	}
+
+	if len(keep) > 0 {
+		fundingTime := earliestFundingTimeFromHedges(keep)
+		if _, settleErr := e.settleKeptPositions(keep, beforeSnapshot, fundingTime); settleErr != nil {
+			return settleErr
+		}
+		if advanceErr := e.advanceResidentFundingClocks(keep); advanceErr != nil {
+			return advanceErr
+		}
+	}
+	return nil
 }

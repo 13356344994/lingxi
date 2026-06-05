@@ -103,6 +103,60 @@ func TestSettleKeptPositionsEmitsFundingOnlySettlement(t *testing.T) {
 	}
 }
 
+// TestClassifyResidentsForRevalidation 钉死 c-iii-3b-2:常驻持仓按 funding 时钟分 due(复核窗内 / funding 已过)
+// 与 untouched(远期 / 无时钟)。
+func TestClassifyResidentsForRevalidation(t *testing.T) {
+	sched := newCycleScheduler(DefaultEngineConfig())
+	now := time.Date(2026, 6, 5, 10, 56, 0, 0, time.UTC) // 11:00 结算的复核窗 [10:55,11:00) 内
+	residents := []OpenHedge{
+		{Target: FundingCandidate{Symbol: "DUE", NextFundingTime: time.Date(2026, 6, 5, 11, 0, 0, 0, time.UTC)}},
+		{Target: FundingCandidate{Symbol: "PASSED", NextFundingTime: time.Date(2026, 6, 5, 10, 0, 0, 0, time.UTC)}},
+		{Target: FundingCandidate{Symbol: "FUTURE", NextFundingTime: time.Date(2026, 6, 5, 18, 0, 0, 0, time.UTC)}},
+		{Target: FundingCandidate{Symbol: "ZERO"}},
+	}
+	due, untouched := classifyResidentsForRevalidation(residents, sched, now)
+	if got := hedgeSymbolSet(due); len(got) != 2 || !hasKey(got, "DUE") || !hasKey(got, "PASSED") {
+		t.Fatalf("due 应为 {DUE,PASSED}, got %v", got)
+	}
+	if got := hedgeSymbolSet(untouched); len(got) != 2 || !hasKey(got, "FUTURE") || !hasKey(got, "ZERO") {
+		t.Fatalf("untouched 应为 {FUTURE,ZERO}, got %v", got)
+	}
+}
+
+func hasKey(set map[string]struct{}, key string) bool {
+	_, ok := set[key]
+	return ok
+}
+
+// TestAdvanceResidentFundingClocks 钉死 c-iii-3b-2:推进指定持仓的 NextFundingTime(+8h)并重持久化台账,
+// 未指定的持仓时钟不动。
+func TestAdvanceResidentFundingClocks(t *testing.T) {
+	statePath := t.TempDir() + "/open_hedges.json"
+	engine := &FundingRateSniperEngine{cfg: DefaultEngineConfig(), runID: "r", currentCycleID: "c", openHedgeStatePath: statePath}
+	nft := time.Date(2026, 6, 5, 11, 0, 0, 0, time.UTC)
+	engine.activeOpenHedges = []OpenHedge{
+		{Target: FundingCandidate{Symbol: "BTCUSDT", SpotBaseAsset: "BTC", NextFundingTime: nft}, HedgeQty: 1, OpenFuturesAvgPrice: 100},
+		{Target: FundingCandidate{Symbol: "ETHUSDT", SpotBaseAsset: "ETH", NextFundingTime: nft}, HedgeQty: 1, OpenFuturesAvgPrice: 50},
+	}
+	if err := engine.advanceResidentFundingClocks([]OpenHedge{{Target: FundingCandidate{Symbol: "BTCUSDT"}}}); err != nil {
+		t.Fatalf("advanceResidentFundingClocks() error = %v", err)
+	}
+	wantBTC := nft.Add(8 * time.Hour)
+	if !engine.activeOpenHedges[0].Target.NextFundingTime.Equal(wantBTC) {
+		t.Fatalf("BTC 时钟应推进到 %v, got %v", wantBTC, engine.activeOpenHedges[0].Target.NextFundingTime)
+	}
+	if !engine.activeOpenHedges[1].Target.NextFundingTime.Equal(nft) {
+		t.Fatalf("ETH 时钟不应变, got %v", engine.activeOpenHedges[1].Target.NextFundingTime)
+	}
+	entries, err := engine.loadPersistedOpenHedges()
+	if err != nil {
+		t.Fatalf("loadPersistedOpenHedges() error = %v", err)
+	}
+	if len(entries) != 2 {
+		t.Fatalf("台账应有 2 条, got %d", len(entries))
+	}
+}
+
 // TestExpectedFundingIncomeSummaryResidentBypass 钉死 c-iii-3b-2a:被平的常驻仓(drop)开仓前持仓≠0,
 // 默认会被「开仓前已有持仓」闸跳过预期资金费;经 fundingEligibleResidents 放行后正常计入(不跳过)。
 func TestExpectedFundingIncomeSummaryResidentBypass(t *testing.T) {
