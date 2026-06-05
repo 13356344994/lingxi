@@ -175,6 +175,12 @@ type RiskConfig struct {
 	// 配默认 2x 杠杆时实际距离约 49%，永不触发；只有当杠杆被调高到安全距离不足时才作为防爆刹车。
 	// 0 表示关闭该维度。
 	MinLiquidationDistanceRate float64 `cfg:"min_liquidation_distance_rate"`
+	// MaxFundingSettlementAttempts / MaxFundingSettlementAge 是 R34「pending funding 处置」阈值(S5-E):
+	// 资金费异步结算重试达 MaxFundingSettlementAttempts 次,或自创建挂起超过 MaxFundingSettlementAge 仍未到账,
+	// 即升级为 critical 告警 + 停止静默重试(待人工确认),并把该 cycle 从连亏/回撤口径隔离(回退平仓时已记入的
+	// 日内净利,避免一笔"funding 还没到账"的不完整周期误触发熔断)。任一为 0 表示该维度不启用。
+	MaxFundingSettlementAttempts int           `cfg:"max_funding_settlement_attempts"`
+	MaxFundingSettlementAge      time.Duration `cfg:"max_funding_settlement_age"`
 }
 
 // HistoricalConfig 表示月度模拟与历史验证配置。

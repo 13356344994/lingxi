@@ -120,6 +120,10 @@ func DefaultEngineConfig() EngineConfig {
 			// MinLiquidationDistanceRate 默认 0.15：配默认 2x 杠杆时合约腿实际强平距离约 49%，远高于该阈值、
 			// 永不触发（零行为变更）；它只在杠杆被调高、安全距离不足时作为开仓前防爆刹车。
 			MinLiquidationDistanceRate: 0.15,
+			// R34 pending funding 处置默认开启,阈值取宽松值(正常运行永不触发,只兜住真正卡死的周期):
+			// 重试 30 次或挂起 12h 仍未到账 → critical 升级 + 停重试 + cycle 隔离。
+			MaxFundingSettlementAttempts: 30,
+			MaxFundingSettlementAge:      12 * time.Hour,
 		},
 		HistoricalConfig: HistoricalConfig{
 			DefaultLookbackDays:                    30,

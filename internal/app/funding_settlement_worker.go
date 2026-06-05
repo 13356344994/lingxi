@@ -73,6 +73,10 @@ func (e *FundingRateSniperEngine) processDuePendingFundingSettlements() error {
 	}
 	now := time.Now().UTC()
 	for _, record := range records {
+		// 已升级人工处置的记录不再自动重试(R34/S5-E),避免无限静默重试,待人工确认/清理。
+		if record.Escalated {
+			continue
+		}
 		nextAttemptAt, parseErr := time.Parse(time.RFC3339, strings.TrimSpace(record.NextAttemptAt))
 		if parseErr == nil && nextAttemptAt.After(now) {
 			continue
@@ -82,6 +86,49 @@ func (e *FundingRateSniperEngine) processDuePendingFundingSettlements() error {
 		}
 	}
 	return nil
+}
+
+// shouldEscalatePendingFunding 判定一笔迟迟未到账的 pending funding 是否应升级为人工处置(纯函数,可单测)。
+// 触发任一阈值即升级:重试次数 ≥ maxAttempts(>0) 或 自创建以来挂起年龄 ≥ maxAge(>0)。返回是否升级与原因。
+func shouldEscalatePendingFunding(attemptCount int, recordedAt time.Time, now time.Time, maxAttempts int, maxAge time.Duration) (bool, string) {
+	if maxAttempts > 0 && attemptCount >= maxAttempts {
+		return true, fmt.Sprintf("资金费结算重试达上限 %d 次仍未到账", maxAttempts)
+	}
+	if maxAge > 0 && !recordedAt.IsZero() && now.Sub(recordedAt) >= maxAge {
+		return true, fmt.Sprintf("资金费结算挂起超过 %s 仍未到账", maxAge.Round(time.Minute))
+	}
+	return false, ""
+}
+
+// escalatePendingFundingSettlement 执行 R34 升级:发 critical 告警 + cycle 隔离(回退平仓时记入的日内净利)+ 标记
+// Escalated 落盘停重试。幂等:Escalated 已置位则只更新 LastError 不重复隔离/告警。
+func (e *FundingRateSniperEngine) escalatePendingFundingSettlement(record PendingFundingSettlementRecord, reason string, now time.Time) error {
+	if record.Escalated {
+		return nil
+	}
+	record.Escalated = true
+	record.LastAttemptAt = now.Format(time.RFC3339)
+	record.LastError = "已升级人工处置: " + reason
+	// cycle 隔离:平仓时已把(不含 funding 的)平仓净利记入当日已实现盈亏(noteDailySettlement)。该周期 funding
+	// 迟迟不到账、净利不完整,继续留在连亏/回撤口径里会误触发熔断 → 回退这笔记入,把该 cycle 从风控口径中隔离。
+	if math.Abs(record.Settlement.NetPnL) > executionQtyTolerance {
+		if err := e.noteDailySettlement(-record.Settlement.NetPnL); err != nil && e.logger != nil {
+			e.logger.Printf("pending funding 隔离回退日内净利失败: cycle=%s err=%v", record.CycleID, err)
+		}
+	}
+	detail := fmt.Sprintf("cycle=%s %s;已停止自动重试并把该周期从连亏/回撤口径隔离,需人工核实资金费流水后处理", record.CycleID, reason)
+	e.emitDomainEvents([]DomainEvent{{
+		Type:       EventTypePendingFundingStuck,
+		Level:      EventLevelCritical,
+		OccurredAt: now,
+		RunID:      record.RunID,
+		CycleID:    record.CycleID,
+		Reason:     detail,
+	}})
+	if e.logger != nil {
+		e.logger.Printf("[CRITICAL] pending funding 升级人工处置: %s", detail)
+	}
+	return e.reportStore.UpsertPendingFundingSettlement(record)
 }
 
 func (e *FundingRateSniperEngine) processPendingFundingSettlement(record PendingFundingSettlementRecord) error {
@@ -98,11 +145,16 @@ func (e *FundingRateSniperEngine) processPendingFundingSettlement(record Pending
 		record.LastAttemptAt = now.Format(time.RFC3339)
 		record.NextAttemptAt = e.nextFundingSettlementAttemptAt(record.AttemptCount).Format(time.RFC3339)
 		record.LastError = fmt.Sprintf("资金费流水尚未齐全: %s", strings.Join(result.PendingSymbols, ","))
+		// R34/S5-E:重试达上限或挂起超时 → 升级 critical 告警 + cycle 隔离 + 停重试,不再无限静默等待。
+		recordedAt, _ := time.Parse(time.RFC3339, strings.TrimSpace(record.RecordedAt))
+		if escalate, reason := shouldEscalatePendingFunding(record.AttemptCount, recordedAt, now, e.cfg.RiskConfig.MaxFundingSettlementAttempts, e.cfg.RiskConfig.MaxFundingSettlementAge); escalate {
+			return e.escalatePendingFundingSettlement(record, reason, now)
+		}
 		if err := e.reportStore.UpsertPendingFundingSettlement(record); err != nil {
 			return err
 		}
 		if e.logger != nil {
-			e.logger.Printf("资金费异步结算继续等待，cycle=%s pending_symbols=%s next_attempt_at=%s", record.CycleID, strings.Join(result.PendingSymbols, ","), record.NextAttemptAt)
+			e.logger.Printf("资金费异步结算继续等待，cycle=%s pending_symbols=%s next_attempt_at=%s attempt=%d", record.CycleID, strings.Join(result.PendingSymbols, ","), record.NextAttemptAt, record.AttemptCount)
 		}
 		return nil
 	}

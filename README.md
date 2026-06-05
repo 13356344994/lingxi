@@ -402,8 +402,8 @@ L2 簇上限在 §16.6 已设计；**M-S4.8 已落地基础件**：`admitByClust
 §17.4/§18.3 的灰度门当前是人工判断。10k→30k→100k 的放行应由**实测 edge、滑点、成交率、对账健康**自动判定。
 - **影响**：人工凭感觉放大，易在「实测已偏离模型」时仍然加码。9.6 需：灰度门为可量化规则（滚动窗口净 edge ≥ 阈值、滑点 ≤ 预算、成交率 ≥ 阈值、`reconcile` 连续 HEALTHY）自动放行/回退。
 
-### 🟠 R34. pending funding 卡住的处置（避免无限静默重试）→ S5
-`funding_settlement_worker.go` 有重试 + 退避（封顶 4×）并记 `LastError`，但**无「重试 N 次 / 超 T 小时即升级为告警 + 人工确认」**的终止路径。
+### ✅ R34. pending funding 卡住的处置（避免无限静默重试）→ S5（已修复·S5-E）
+原 `funding_settlement_worker.go` 有重试 + 退避（封顶 4×）但**无终止路径**,会无限静默重试。**S5-E 已落地升级处置**:`shouldEscalatePendingFunding`(纯函数)——重试达 `MaxFundingSettlementAttempts`(默认 30) 或挂起超 `MaxFundingSettlementAge`(默认 12h) → `escalatePendingFundingSettlement`:发 `pending_funding_stuck` critical 告警(经 S5-A 出口)+ **cycle 隔离**(回退平仓时记入的日内净利,使该不完整周期不污染连亏/回撤)+ 标记 `Escalated` 停止自动重试,待人工核实。
 - **影响**：资金费迟迟不到账（交易所延迟/口径异常）时会无限静默重试，净利长期挂在 `FundingIncomePending`、风控口径失真。9.6 需：超时升级为 critical 告警 + 人工确认流程 + 该 cycle 隔离不污染连亏/回撤计算。
 
 ### 🟡 R35. 运行时改参数治理（人本身会成为事故源）→ S1/S5
@@ -848,7 +848,7 @@ M6(治理) 可与 M2~M5 并行
 
 **S5 可观测性与安全治理** —— 覆盖 R16·R25·R26 / §14 P5
 - 关键事件实时告警（Telegram/钉钉）+ 指标导出 + 存活心跳；API Key 启动期权限自检（拒绝带提现权限）+ IP 白名单（文档强制）+ 密钥静态加密；Dashboard 凭证哈希化、读/写授权分离。
-- **进度**：✅ S5-A 告警分发(`alerting.go`);✅ S5-B `/livez`+`/healthz`+`/metrics`+心跳文件(`observability_http.go`);✅ S5-C 启动期 API Key 权限自检(`verifyAPIKeyPermissions`:带提现权限拒绝启动,未开 IP 白名单告警);✅ S5-D 凭证卫生(控制令牌改写 0600 文件+只记指纹,secret 路径脱敏)。待:S5-E R34 pending 升级、S5-F R35 改参 diff/回滚。密钥静态加密 + IP 白名单(交易所侧)留实盘/基建侧。
+- **进度**：✅ S5-A 告警分发(`alerting.go`);✅ S5-B `/livez`+`/healthz`+`/metrics`+心跳文件(`observability_http.go`);✅ S5-C 启动期 API Key 权限自检(`verifyAPIKeyPermissions`:带提现权限拒绝启动,未开 IP 白名单告警);✅ S5-D 凭证卫生(控制令牌改写 0600 文件+只记指纹,secret 路径脱敏)。✅ S5-E R34 pending funding 升级处置(`shouldEscalatePendingFunding`+`escalatePendingFundingSettlement`)。待:S5-F R35 改参 diff/回滚。密钥静态加密 + IP 白名单(交易所侧)留实盘/基建侧。
 - **退出**：熔断/裸腿/UNHEALTHY 会实时推送；带提现权限的 Key 被拒启动；日志无明文凭证。**评分↑：维度 9/10。**
 
 **S6 策略健康守卫** —— 覆盖 R27

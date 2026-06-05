@@ -189,6 +189,9 @@ type PendingFundingSettlementRecord struct {
 	// keep 仓是上周期持有过来的,资金费结算时其开仓前快照里 futures 持仓本就≠0——这对单周期是"开仓前已有持仓"
 	// 异常、要跳过资金费归因,但对 keep 仓是正常预期,必须放行归因。单周期路径不写此字段(nil)→ 闸行为不变。
 	RollingHoldSymbols []string `json:"rolling_hold_symbols,omitempty"`
+	// Escalated 标记本笔 pending funding 已升级为人工处置(R34/S5-E):重试达上限或挂起超时仍未到账,已发 critical
+	// 告警、回退日内净利做 cycle 隔离,并停止自动重试。置位后 worker 不再自动处理(待人工确认/清理),避免无限静默重试。
+	Escalated bool `json:"escalated,omitempty"`
 }
 
 // rollingHoldSymbolSet 返回本记录中滚动续持(keep)持仓的大写 symbol 集合,供资金费归因闸放行。

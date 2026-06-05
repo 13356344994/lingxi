@@ -6,18 +6,19 @@ import "time"
 type EventType string
 
 const (
-	EventTypeFuseTripped       EventType = "fuse_tripped"
-	EventTypeSymbolCooldownSet EventType = "symbol_cooldown_set"
-	EventTypeOrderUncertain    EventType = "order_uncertain"
-	EventTypeRecoveryEscalated EventType = "recovery_escalated"
-	EventTypeRecoveryStarted   EventType = "recovery_started"
-	EventTypeOpenPrepared      EventType = "open_prepared"
-	EventTypeOpenExecuted      EventType = "open_executed"
-	EventTypeOpenValidated     EventType = "open_validated"
-	EventTypeCloseExecuted     EventType = "close_executed"
-	EventTypeStageTransition   EventType = "stage_transition"
-	EventTypeEngineGearChanged EventType = "engine_gear_changed"
-	EventTypeRiskDowngrade     EventType = "risk_downgrade"
+	EventTypeFuseTripped         EventType = "fuse_tripped"
+	EventTypeSymbolCooldownSet   EventType = "symbol_cooldown_set"
+	EventTypeOrderUncertain      EventType = "order_uncertain"
+	EventTypeRecoveryEscalated   EventType = "recovery_escalated"
+	EventTypeRecoveryStarted     EventType = "recovery_started"
+	EventTypeOpenPrepared        EventType = "open_prepared"
+	EventTypeOpenExecuted        EventType = "open_executed"
+	EventTypeOpenValidated       EventType = "open_validated"
+	EventTypeCloseExecuted       EventType = "close_executed"
+	EventTypeStageTransition     EventType = "stage_transition"
+	EventTypeEngineGearChanged   EventType = "engine_gear_changed"
+	EventTypeRiskDowngrade       EventType = "risk_downgrade"
+	EventTypePendingFundingStuck EventType = "pending_funding_stuck"
 )
 
 // EventLevel 描述结构化事件的观测级别。
