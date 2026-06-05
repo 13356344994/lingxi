@@ -124,6 +124,16 @@ func DefaultEngineConfig() EngineConfig {
 			// 或未成交」导致的裸敞口。绝对额维度(HedgeImbalanceAbortUSDT)随资金规模难取统一默认，保持 0
 			// (按需开启)。
 			HedgeImbalanceAbortRate: 0.10,
+			// 出厂最安全姿态(实盘 profile 默认武装,P3):以下关键守卫默认开启——它们只在真实异常时动作、
+			// 正常运行恒不触发,且只会停机/收敛(fail-safe),不会主动放大风险:
+			//   - HoldHedgeGuardEnabled:持有期逐腿对冲偏离守卫(正/负 carry 均覆盖),配 HedgeImbalanceAbortRate=0.10;
+			//   - FeedBlindnessGuardEnabled:行情断连盲窗守卫(R32),失明即暂停开仓/保守撤离;
+			//   - MinMarginLevel=1.5:负 carry 全仓杠杆保证金腿健康下限(无负 carry 敞口时为 no-op);
+			//   - DeadMansSwitchEnabled:交易所侧 countdownCancelAll(无持仓时不发请求,进程失联兜底撤单)。
+			// 任一项可在 YAML/env 显式置 false / 0 退回兼容姿态(逐字段逃生口)。
+			HoldHedgeGuardEnabled:     true,
+			FeedBlindnessGuardEnabled: true,
+			MinMarginLevel:            1.5,
 			// MinLiquidationDistanceRate 默认 0.15：配默认 2x 杠杆时合约腿实际强平距离约 49%，远高于该阈值、
 			// 永不触发（零行为变更）；它只在杠杆被调高、安全距离不足时作为开仓前防爆刹车。
 			MinLiquidationDistanceRate: 0.15,
@@ -136,8 +146,9 @@ func DefaultEngineConfig() EngineConfig {
 			EdgeWindowCycles:       50,
 			MinRealizedNetEdgeRate: 0,
 			EdgeGuardMinSamples:    20,
-			// S7-B 交易所 dead-man:默认关闭;启用后 30s 倒计时(每 ~10s 续期),进程失联即由交易所兜底撤单。
-			DeadMansSwitchEnabled:   false,
+			// S7-B 交易所 dead-man:默认开启(出厂最安全);30s 倒计时(每 ~10s 续期),进程失联即由交易所
+			// 兜底撤单。无活跃合约持仓时 renew 不发任何请求(deadManArmSymbols 为空),故对空仓/回测为 no-op。
+			DeadMansSwitchEnabled:   true,
 			DeadMansSwitchCountdown: 30 * time.Second,
 			// R29 借币容量守卫:默认关闭(advisory 由人工开启);开启后要求最大可借量留 10% 余量,
 			// 利率上限默认 0=不限(只查容量,避免误标定阈值挡掉正常机会)。

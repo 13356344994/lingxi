@@ -13,9 +13,10 @@ func TestDiffFromDefaultsEmptyWhenUnchanged(t *testing.T) {
 }
 
 func TestDiffFromDefaultsReportsOverrides(t *testing.T) {
+	// 出厂默认已武装 MinMarginLevel=1.5 / FeedBlindnessGuardEnabled=true,这里用偏离默认的值制造 diff。
 	cfg := DefaultEngineConfig()
-	cfg.RiskConfig.MinMarginLevel = 1.5
-	cfg.RiskConfig.FeedBlindnessGuardEnabled = true
+	cfg.RiskConfig.MinMarginLevel = 2.5
+	cfg.RiskConfig.FeedBlindnessGuardEnabled = false
 	cfg.NetworkConfig.HTTPTimeout = 9 * time.Second
 
 	diff := cfg.DiffFromDefaults()
@@ -26,12 +27,12 @@ func TestDiffFromDefaultsReportsOverrides(t *testing.T) {
 
 	if e, ok := got["RiskConfig.MinMarginLevel"]; !ok {
 		t.Fatal("expected RiskConfig.MinMarginLevel in diff")
-	} else if e.Default != "0" || e.Current != "1.5" {
+	} else if e.Default != "1.5" || e.Current != "2.5" {
 		t.Fatalf("MinMarginLevel diff wrong: %+v", e)
 	}
 	if e, ok := got["RiskConfig.FeedBlindnessGuardEnabled"]; !ok {
 		t.Fatal("expected RiskConfig.FeedBlindnessGuardEnabled in diff")
-	} else if e.Default != "false" || e.Current != "true" {
+	} else if e.Default != "true" || e.Current != "false" {
 		t.Fatalf("FeedBlindnessGuardEnabled diff wrong: %+v", e)
 	}
 	// time.Duration 走 Stringer 文本。
@@ -44,7 +45,7 @@ func TestDiffFromDefaultsReportsOverrides(t *testing.T) {
 
 func TestDiffFromDefaultsSortedByPath(t *testing.T) {
 	cfg := DefaultEngineConfig()
-	cfg.RiskConfig.MinMarginLevel = 1.5
+	cfg.RiskConfig.MinMarginLevel = 2.5
 	cfg.StrategyConfig.MaxTargets = 99
 	cfg.ExecutionConfig.FuturesLeverage = 3
 
