@@ -92,6 +92,13 @@ func (e *FundingRateSniperEngine) effectiveFundingSettlementDelay() time.Duratio
 }
 
 func (e *FundingRateSniperEngine) scheduleAsyncFundingSettlement(base CycleSettlement, hedges []OpenHedge) {
+	e.scheduleAsyncFundingSettlementWithRoll(base, hedges, nil)
+}
+
+// scheduleAsyncFundingSettlementWithRoll 与 scheduleAsyncFundingSettlement 相同,但额外标记 rollingHoldSymbols
+// (滚动续持 keep 仓),供 worker 放行「开仓前已有持仓」的资金费归因(见 PendingFundingSettlementRecord.RollingHoldSymbols)。
+// 单周期路径以 nil 调用上面的薄封装 → 行为逐字节不变。
+func (e *FundingRateSniperEngine) scheduleAsyncFundingSettlementWithRoll(base CycleSettlement, hedges []OpenHedge, rollingHoldSymbols []string) {
 	if e == nil || e.reportStore == nil {
 		return
 	}
@@ -104,6 +111,7 @@ func (e *FundingRateSniperEngine) scheduleAsyncFundingSettlement(base CycleSettl
 		NextAttemptAt:       time.Now().UTC().Add(e.effectiveFundingSettlementDelay()).Format(time.RFC3339),
 		Settlement:          base,
 		Hedges:              hedgeCopy,
+		RollingHoldSymbols:  append([]string(nil), rollingHoldSymbols...),
 	}
 	if err := e.reportStore.UpsertPendingFundingSettlement(task); err != nil {
 		if e.logger != nil {

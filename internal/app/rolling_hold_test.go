@@ -230,3 +230,28 @@ func TestRebalancePortfolioDeterministic(t *testing.T) {
 		}
 	}
 }
+
+// TestPartitionHedgesByRoll 钉死 keep/drop 拆分:命中 keep 集合的留任、其余(含空 symbol)平仓,各组保持原序。
+func TestPartitionHedgesByRoll(t *testing.T) {
+	hedges := []OpenHedge{
+		{Target: FundingCandidate{Symbol: "btcusdt"}},
+		{Target: FundingCandidate{Symbol: "ETHUSDT"}},
+		{Target: FundingCandidate{Symbol: " SOLUSDT "}},
+		{Target: FundingCandidate{Symbol: ""}}, // 空 symbol 一律 drop
+	}
+	keepSet := map[string]struct{}{"BTCUSDT": {}, "SOLUSDT": {}}
+	keep, drop := partitionHedgesByRoll(hedges, keepSet)
+
+	if len(keep) != 2 || keep[0].Target.Symbol != "btcusdt" || keep[1].Target.Symbol != " SOLUSDT " {
+		t.Fatalf("keep 组应为 [btcusdt, SOLUSDT] 原序, got %+v", keep)
+	}
+	if len(drop) != 2 || drop[0].Target.Symbol != "ETHUSDT" || drop[1].Target.Symbol != "" {
+		t.Fatalf("drop 组应为 [ETHUSDT, 空], got %+v", drop)
+	}
+
+	// 空 keep 集合 → 全 drop(单周期口径)。
+	allDropKeep, allDrop := partitionHedgesByRoll(hedges, nil)
+	if len(allDropKeep) != 0 || len(allDrop) != len(hedges) {
+		t.Fatalf("空 keep 集合应全平仓, keep=%+v drop=%+v", allDropKeep, allDrop)
+	}
+}

@@ -308,3 +308,18 @@ func buildFundingOnlySettlement(in fundingOnlySettlementInput) CycleSettlement {
 	settlement.applyFrictionObservation()
 	return settlement
 }
+
+// partitionHedgesByRoll 按续持复核结果把当前持仓拆成 keep(续持)与 drop(平仓)两组,各组保持原相对顺序(确定性)。
+// keepSymbols 为大写 symbol 集合(由 evaluateRollDecision 判定续持的币);不在集合内(含空 symbol)的一律 drop。
+// 纯函数:无引擎状态、无锁、无网络——供 live 循环在复核窗口拆分后,drop 走平仓、keep 走 funding-only 结算(M-S4.4c)。
+func partitionHedgesByRoll(hedges []OpenHedge, keepSymbols map[string]struct{}) (keep, drop []OpenHedge) {
+	for _, h := range hedges {
+		symbol := strings.ToUpper(strings.TrimSpace(h.Target.Symbol))
+		if _, ok := keepSymbols[symbol]; ok && symbol != "" {
+			keep = append(keep, h)
+			continue
+		}
+		drop = append(drop, h)
+	}
+	return keep, drop
+}
