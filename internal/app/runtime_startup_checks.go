@@ -58,6 +58,10 @@ func (c *RuntimeController) runLiveStartupChecks(ctx context.Context, secretPath
 	if err := engine.verifyTradingEnvironment(ctx); err != nil {
 		return err
 	}
+	if err := engine.verifyAPIKeyPermissions(ctx); err != nil {
+		return err
+	}
+	c.appendControllerTraceLog(runID, "", "启动前检查通过: API Key 无提现权限")
 	requiredTradingUSDT := configuredTradingCapitalUSDT(cfg)
 	if requiredTradingUSDT > 0 {
 		snapshot, err := engine.captureRuntimeCapitalSnapshot(ctx)

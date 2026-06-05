@@ -528,6 +528,54 @@ func (e *FundingRateSniperEngine) verifySpotBNBBurnEnabled(ctx context.Context) 
 	return nil
 }
 
+// apiKeyRestrictions 是 Binance GET /sapi/v1/account/apiRestrictions 的关键字段(S5-C / R26)。
+type apiKeyRestrictions struct {
+	IPRestrict        bool `json:"ipRestrict"`
+	EnableWithdrawals bool `json:"enableWithdrawals"`
+	EnableReading     bool `json:"enableReading"`
+}
+
+// evaluateAPIKeyRestrictions 纯判定 API Key 权限是否安全(可单测):带提现权限 → 致命拒绝;未开 IP 白名单 /
+// 未开读取权限 → 非致命告警(返回 warnings,由调用方记日志/推送)。
+func evaluateAPIKeyRestrictions(r apiKeyRestrictions) (warnings []string, err error) {
+	if r.EnableWithdrawals {
+		return nil, fmt.Errorf("API Key 启用了提现权限(enableWithdrawals=true),出于资金安全拒绝启动:请在 Binance 关闭该 Key 的提现权限后重试")
+	}
+	if !r.IPRestrict {
+		warnings = append(warnings, "API Key 未启用 IP 白名单(ipRestrict=false):强烈建议在 Binance 限制该 Key 仅本机出口 IP 可用,降低泄露风险")
+	}
+	if !r.EnableReading {
+		warnings = append(warnings, "API Key 未启用读取权限(enableReading=false):账户/行情读取可能受限")
+	}
+	return warnings, nil
+}
+
+// verifyAPIKeyPermissions 启动期 API Key 权限自检(S5-C / R26):拉取 apiRestrictions,带提现权限即拒绝启动。
+// 读取失败仅告警不阻塞(部分子账户 Key 类型不支持该端点 / 瞬时网络错误,不应 brick 实盘启动);提现权限检测为硬闸。
+func (e *FundingRateSniperEngine) verifyAPIKeyPermissions(ctx context.Context) error {
+	body, err := e.signedRequest(ctx, http.MethodGet, e.client.SpotBaseURL()+"/sapi/v1/account/apiRestrictions", nil)
+	if err != nil {
+		if e.logger != nil {
+			e.logger.Printf("API Key 权限自检告警: 读取 apiRestrictions 失败(不阻塞启动,但无法确认提现权限,请确保该 Key 无提现权限): %v", err)
+		}
+		return nil
+	}
+	var payload apiKeyRestrictions
+	if err := json.Unmarshal(body, &payload); err != nil {
+		if e.logger != nil {
+			e.logger.Printf("API Key 权限自检告警: 解析 apiRestrictions 失败(不阻塞启动): %v", err)
+		}
+		return nil
+	}
+	warnings, evalErr := evaluateAPIKeyRestrictions(payload)
+	for _, w := range warnings {
+		if e.logger != nil {
+			e.logger.Printf("API Key 权限告警: %s", w)
+		}
+	}
+	return evalErr
+}
+
 func (e *FundingRateSniperEngine) fetchFuturesPositionMode(ctx context.Context) (bool, error) {
 	body, err := e.signedRequest(ctx, http.MethodGet, e.client.FuturesBaseURL()+"/fapi/v1/positionSide/dual", nil)
 	if err != nil {
