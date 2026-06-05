@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"strings"
 	"time"
 )
@@ -60,4 +61,37 @@ func (e *FundingRateSniperEngine) settleKeptPositions(keepHedges []OpenHedge, be
 	}
 	e.scheduleAsyncFundingSettlementWithRoll(settlement, keepHedges, symbols)
 	return settlement, nil
+}
+
+// residentClocks 读取常驻组合各持仓的逐币 funding 时钟(symbol + NextFundingTime),供 NextPortfolioWake 计算
+// 下一次「复核(:55)或新开(:57)」唤醒点。无持仓(或未填 NextFundingTime)时返回空 → NextPortfolioWake 退化为
+// 全局 :57 新开唤醒。持有 platformRiskMu 读取 activeOpenHedges,保持与风控/报告状态同一临界区。
+func (e *FundingRateSniperEngine) residentClocks() []symbolFundingClock {
+	if e == nil {
+		return nil
+	}
+	e.platformRiskMu.Lock()
+	defer e.platformRiskMu.Unlock()
+	clocks := make([]symbolFundingClock, 0, len(e.activeOpenHedges))
+	for i := range e.activeOpenHedges {
+		symbol := strings.ToUpper(strings.TrimSpace(e.activeOpenHedges[i].Target.Symbol))
+		if symbol == "" {
+			continue
+		}
+		clocks = append(clocks, symbolFundingClock{
+			Symbol:          symbol,
+			NextFundingTime: e.activeOpenHedges[i].Target.NextFundingTime,
+		})
+	}
+	return clocks
+}
+
+// runRollingPortfolioCycle 是滚动持有(EnableRollingHold)下的常驻组合编排(M-S4.4c-iii):与单周期 runOneCycle
+// 不同,它在迭代间保留常驻组合——复核窗口对到期持仓做 keep/drop、对空槽做新开补位。
+//
+// 接线分块推进。本骨架阶段(c-iii-1):尚无常驻持仓时退化为「仅新开」一轮,等价 runOneCycle;
+// 「复核→keep/drop+settleKeptPositions+保留 keep」(c-iii-3)与「:57 空槽 rebalancePortfolio 补位」(c-iii-4)
+// 在后续接入这里。故启用 flag 但无常驻持仓时,行为与单周期完全一致。
+func (e *FundingRateSniperEngine) runRollingPortfolioCycle(ctx context.Context, wakeAt time.Time) error {
+	return e.runOneCycle(ctx, wakeAt)
 }

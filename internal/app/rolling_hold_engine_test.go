@@ -102,6 +102,44 @@ func TestSettleKeptPositionsEmitsFundingOnlySettlement(t *testing.T) {
 	}
 }
 
+// TestResidentClocksDrivesPortfolioWake 钉死 c-iii-1:residentClocks 从常驻持仓读出逐币 funding 时钟,
+// 空组合 → 退化为全局 :57 新开唤醒;有到期持仓落入复核窗口 → NextPortfolioWake 立即唤醒。
+func TestResidentClocksDrivesPortfolioWake(t *testing.T) {
+	engine := &FundingRateSniperEngine{cfg: DefaultEngineConfig()}
+
+	// 空常驻组合 → 无时钟。
+	if got := engine.residentClocks(); len(got) != 0 {
+		t.Fatalf("空组合应无逐币时钟, got %v", got)
+	}
+
+	sched := newCycleScheduler(engine.cfg)
+	now := time.Date(2026, 6, 5, 10, 30, 0, 0, time.UTC)
+	// 空时钟:NextPortfolioWake 退化为全局新开唤醒(= NextWake)。
+	if got, want := sched.NextPortfolioWake(now, engine.residentClocks()), sched.NextWake(now); !got.Equal(want) {
+		t.Fatalf("空组合 NextPortfolioWake 应退化为 NextWake: got %v want %v", got, want)
+	}
+
+	// 注入一个 11:00 结算的持仓,复核提前量默认 5min → 复核窗口 [10:55, 11:00)。
+	nextFunding := time.Date(2026, 6, 5, 11, 0, 0, 0, time.UTC)
+	engine.activeOpenHedges = []OpenHedge{{
+		Target: FundingCandidate{Symbol: "btcusdt", NextFundingTime: nextFunding},
+	}}
+	clocks := engine.residentClocks()
+	if len(clocks) != 1 || clocks[0].Symbol != "BTCUSDT" || !clocks[0].NextFundingTime.Equal(nextFunding) {
+		t.Fatalf("应读出 1 个 BTCUSDT 逐币时钟, got %+v", clocks)
+	}
+	// 10:56 落入复核窗口 → 立即唤醒(now)。
+	inWindow := time.Date(2026, 6, 5, 10, 56, 0, 0, time.UTC)
+	if got := sched.NextPortfolioWake(inWindow, clocks); !got.Equal(inWindow) {
+		t.Fatalf("复核窗口内应立即唤醒 %v, got %v", inWindow, got)
+	}
+	// 10:30 未到复核窗口 → 唤醒点为 10:55(早于全局 :57)。
+	wantRevalidate := time.Date(2026, 6, 5, 10, 55, 0, 0, time.UTC)
+	if got := sched.NextPortfolioWake(now, clocks); !got.Equal(wantRevalidate) {
+		t.Fatalf("复核前应在 10:55 唤醒, got %v", got)
+	}
+}
+
 // TestSettleKeptPositionsEmptyNoop 空 keep 集合应为 no-op(无落盘、无待结算、不推进盈亏)。
 func TestSettleKeptPositionsEmptyNoop(t *testing.T) {
 	store, err := NewReportStore(t.TempDir())

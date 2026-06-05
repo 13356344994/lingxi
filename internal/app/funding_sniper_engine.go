@@ -103,7 +103,13 @@ func (e *FundingRateSniperEngine) Start(ctx context.Context) error {
 			e.logger.Printf("刷新服务器时间偏移失败，将沿用旧偏移继续调度: %v", err)
 		}
 
-		wakeAt := e.scheduler().NextWake(e.serverNow())
+		// 滚动持有启用时按逐币 funding 时钟驱动唤醒(复核 :55 ∪ 新开 :57);否则保持全局单点 :57 新开唤醒。
+		var wakeAt time.Time
+		if e.cfg.PortfolioConfig.EnableRollingHold {
+			wakeAt = e.scheduler().NextPortfolioWake(e.serverNow(), e.residentClocks())
+		} else {
+			wakeAt = e.scheduler().NextWake(e.serverNow())
+		}
 		e.logger.Printf("系统静默中，等待下一次觉醒时间: %s", wakeAt.Format("2006-01-02 15:04:05"))
 		if err := e.sleepUntilServerTime(ctx, wakeAt); err != nil {
 			return err
@@ -119,7 +125,13 @@ func (e *FundingRateSniperEngine) Start(ctx context.Context) error {
 			e.logger.Printf("断连盲窗守卫: 暂停本轮开仓，等待行情流恢复或保守撤离 (%s)", reason)
 			continue
 		}
-		if err := e.runOneCycle(ctx, wakeAt); err != nil {
+		var cycleErr error
+		if e.cfg.PortfolioConfig.EnableRollingHold {
+			cycleErr = e.runRollingPortfolioCycle(ctx, wakeAt)
+		} else {
+			cycleErr = e.runOneCycle(ctx, wakeAt)
+		}
+		if err := cycleErr; err != nil {
 			var fatalErr fatalEngineError
 			if errors.As(err, &fatalErr) {
 				return err
