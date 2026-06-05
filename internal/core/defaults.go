@@ -193,6 +193,14 @@ func DefaultEngineConfig() EngineConfig {
 			MaxBorrowNotionalPerAssetUSDT: 0,
 			CapitalRampSchedule:           "",
 		},
+		AlertingConfig: AlertingConfig{
+			// 实时告警默认关闭：禁用时不做任何外部推送,关键事件仍走既有日志/事件落盘,对运行零影响(opt-in)。
+			Enabled:         false,
+			WebhookURL:      "",
+			MinSeverity:     "warning",
+			DedupWindow:     5 * time.Minute,
+			DispatchTimeout: 5 * time.Second,
+		},
 	}
 	return cfg
 }

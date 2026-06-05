@@ -75,6 +75,7 @@ func NewFundingRateSniperEngineWithConfig(secretPath string, cfg EngineConfig) (
 	engine.recoveryProtocol = newRecoveryProtocol(engine)
 	engine.runtimeReporter = newRuntimeReporter(engine)
 	engine.costReporter = NewCostReporter(engine.logger, engine.reportStore)
+	engine.alertDispatcher = newAlertDispatcher(cfg.AlertingConfig, engine.logger)
 	return engine, nil
 }
 

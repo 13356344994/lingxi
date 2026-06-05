@@ -26,6 +26,7 @@ type (
 	HistoricalConfig = core.HistoricalConfig
 	EngineConfig     = core.EngineConfig
 	PortfolioConfig  = core.PortfolioConfig
+	AlertingConfig   = core.AlertingConfig
 )
 
 const (

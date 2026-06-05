@@ -263,6 +263,25 @@ type PortfolioConfig struct {
 	CapitalRampSchedule string `cfg:"capital_ramp_schedule"`
 }
 
+// AlertingConfig 表示「关键事件实时告警」配置（S5 / R25）。默认 Enabled=false：禁用时引擎不做任何外部推送,
+// 关键事件仍走既有日志/事件落盘路径,对运行零影响。启用后按 MinSeverity 分级、按 DedupWindow 去重,经 webhook /
+// Telegram 等出口异步推送(fire-and-forget,不阻塞热路径);未配任何外部出口时退化为带 [ALERT] 前缀的本地日志出口。
+type AlertingConfig struct {
+	// Enabled 启用实时告警分发。默认 false。
+	Enabled bool `cfg:"enabled"`
+	// WebhookURL 通用 JSON webhook 出口(钉钉/飞书/自建均可)。空表示不启用该出口。
+	WebhookURL string `cfg:"webhook_url"`
+	// TelegramBotToken / TelegramChatID Telegram 机器人出口。两者皆非空时启用。
+	TelegramBotToken string `cfg:"telegram_bot_token"`
+	TelegramChatID   string `cfg:"telegram_chat_id"`
+	// MinSeverity 推送的最低级别:info|warning|critical。默认 warning(只推 warning 及以上)。
+	MinSeverity string `cfg:"min_severity"`
+	// DedupWindow 同一(级别+标题+symbol)告警的去重窗口,窗口内重复告警被抑制。默认 5min;0 表示不去重。
+	DedupWindow time.Duration `cfg:"dedup_window"`
+	// DispatchTimeout 单次出口推送的超时。默认 5s。
+	DispatchTimeout time.Duration `cfg:"dispatch_timeout"`
+}
+
 // EngineConfig 是 Funding Rate Sniper Engine 的 MVP 运行配置。
 type EngineConfig struct {
 	ActiveProfile EngineProfile `cfg:"active_profile"` // 运行偏好档位
@@ -273,6 +292,7 @@ type EngineConfig struct {
 	RiskConfig       `cfg:"risk"`
 	HistoricalConfig `cfg:"historical"`
 	PortfolioConfig  `cfg:"portfolio"`
+	AlertingConfig   `cfg:"alerting"`
 }
 
 // ApplyProfile 根据给定的运行档案，覆写当前配置的关键风控和容量参数
@@ -528,6 +548,15 @@ func (cfg EngineConfig) Validate() error {
 	if cfg.PortfolioConfig.DynamicSizingEnabled {
 		appendIssue(cfg.PortfolioConfig.PerSymbolHardCapUSDT > 0 || (cfg.PortfolioConfig.MaxPortfolioNotionalUSDT > 0 && cfg.PortfolioConfig.MaxPortfolioSymbols > 0),
 			"启用 DynamicSizingEnabled 时必须能推导单币硬顶（设 PerSymbolHardCapUSDT>0，或同时设 MaxPortfolioNotionalUSDT>0 与 MaxPortfolioSymbols>0）")
+	}
+
+	// Alerting：去重窗口/超时非负；MinSeverity 必须是合法级别(空表示用默认 warning)。仅在启用时做更强校验。
+	appendIssue(cfg.AlertingConfig.DedupWindow >= 0, "Alerting DedupWindow 不能小于 0")
+	appendIssue(cfg.AlertingConfig.DispatchTimeout >= 0, "Alerting DispatchTimeout 不能小于 0")
+	switch strings.ToLower(strings.TrimSpace(cfg.AlertingConfig.MinSeverity)) {
+	case "", "info", "warning", "critical":
+	default:
+		appendIssue(false, "Alerting MinSeverity 必须是 info|warning|critical 之一")
 	}
 
 	if len(issues) == 0 {

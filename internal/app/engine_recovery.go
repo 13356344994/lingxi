@@ -344,6 +344,12 @@ func (e *FundingRateSniperEngine) emitDomainEvents(events []DomainEvent) {
 			e.domainEventHook(event)
 		}
 	}
+	// S5-A:把达标的领域事件实时推送到外部告警出口(级别/去重在 dispatcher 内判定,nil-safe、fire-and-forget)。
+	if e.alertDispatcher != nil {
+		for _, event := range events {
+			e.alertDispatcher.Notify(domainEventToAlert(event))
+		}
+	}
 }
 
 func (e *FundingRateSniperEngine) emitExecutionEvent(record ExecutionIncidentRecord) {

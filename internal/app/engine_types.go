@@ -105,6 +105,8 @@ type FundingRateSniperEngine struct {
 	executionEventHook func(ExecutionIncidentRecord)
 	domainEventHook    func(DomainEvent)
 	liveStatusHook     func(LiveRuntimeSnapshot)
+	// alertDispatcher 把关键领域事件实时推送到外部告警出口(S5-A)。默认关闭时为 nil(所有调用 nil-safe)。
+	alertDispatcher *AlertDispatcher
 
 	// 新增拆分的状态容器，后续逐步替换零散字段
 	platformState   EnginePlatformState

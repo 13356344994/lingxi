@@ -361,8 +361,8 @@ README 旧承诺与代码不符（见上节）。仅有保证金充足性检查�
 > 以下 R25~R28 是对「优化计划本身」的审判（god's-eye on the plan）：即使 R1~R24 全修、M0~M6 全做完，
 > 一个真正 9.6 的**无人值守实盘**系统仍缺下列维度。它们不是代码 bug，而是计划的结构性盲区。
 
-### 🔴 R25. 无实时告警与可观测性（无人值守的致命盲区）
-全仓库无任何告警/推送通道（grep `telegram|webhook|notify` 零命中）；`internal/metrics` 仅是统计函数（`Quantile`/`Summarize`/`WindowTracker`），**无指标导出 / 无看板 / 无报警**。熔断、单腿裸奔、对账 UNHEALTHY、连亏停机发生时**没有任何人会被通知**。
+### 🟠 R25. 无实时告警与可观测性（无人值守的致命盲区）→ S5（告警分发已落地·S5-A）
+**S5-A 已落地实时告警分发**：`internal/app/alerting.go` —— `AlertDispatcher`（级别过滤 + 去重窗口 + fire-and-forget 异步推送）+ `AlertSink` 出口接口（`webhook` / `Telegram` / 兜底 `logger`），接在 `emitDomainEvents` funnel 上,熔断/裸腿/恢复升级/fatal 等领域事件按级别自动推送。全部 behind `AlertingConfig.Enabled`(默认 false → 零外部调用)。**仍缺**:指标导出(`/metrics`)与存活心跳(S5-B)。
 - **影响**：真金无人值守运行时等于盲飞——出事只能事后从日志里考古。9.6 必须有：关键事件实时推送（Telegram/钉钉/PagerDuty）+ 指标导出（Prometheus/统计端点）+ 存活心跳。
 
 ### 🔴 R26. 交易所 API Key 未硬化
@@ -848,6 +848,7 @@ M6(治理) 可与 M2~M5 并行
 
 **S5 可观测性与安全治理** —— 覆盖 R16·R25·R26 / §14 P5
 - 关键事件实时告警（Telegram/钉钉）+ 指标导出 + 存活心跳；API Key 启动期权限自检（拒绝带提现权限）+ IP 白名单（文档强制）+ 密钥静态加密；Dashboard 凭证哈希化、读/写授权分离。
+- **进度**：✅ S5-A 告警分发(`alerting.go`,behind `AlertingConfig.Enabled`)。待:S5-B `/metrics`+心跳、S5-C API Key 权限自检、S5-D 凭证脱敏、S5-E R34 pending 升级、S5-F R35 改参 diff/回滚。密钥静态加密 + IP 白名单留实盘/基建侧。
 - **退出**：熔断/裸腿/UNHEALTHY 会实时推送；带提现权限的 Key 被拒启动；日志无明文凭证。**评分↑：维度 9/10。**
 
 **S6 策略健康守卫** —— 覆盖 R27
