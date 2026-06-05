@@ -211,6 +211,8 @@ func (e *FundingRateSniperEngine) processPendingFundingSettlement(record Pending
 	}
 	// S6-A:funding 实收后 NetPnL 才权威,记入滚动窗实测净 edge(供 S6-B 健康守卫)。
 	e.observeRealizedEdge(updated.NetPnL, updated.CycleNotionalUSDT)
+	// S6-C:实测信号更新后跑灰度门,产出放行/回退建议(仅 AutoCapitalRampEnabled 时;不直接改资金)。
+	e.evaluateCapitalRampRecommendation()
 	if e.logger != nil {
 		e.logger.Printf(
 			"异步资金费结算完成，cycle=%s 实收=%.6f 理论=%.6f 偏差=%.6f 结算完成时间=%s",

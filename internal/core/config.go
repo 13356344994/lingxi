@@ -10,9 +10,37 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 )
+
+// capitalRampScheduleValid 校验灰度爬坡计划字符串：逗号分隔、每档为正、严格升序。
+// （与 app.parseCapitalRampSchedule 保持同一规则，此处仅做配置期校验，避免 core→app 反向依赖。）
+func capitalRampScheduleValid(s string) bool {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return true
+	}
+	prev := 0.0
+	seen := false
+	for _, p := range strings.Split(s, ",") {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		v, err := strconv.ParseFloat(p, 64)
+		if err != nil || v <= 0 {
+			return false
+		}
+		if seen && v <= prev {
+			return false
+		}
+		prev = v
+		seen = true
+	}
+	return seen
+}
 
 // EngineProfile 描述系统的资金和运行偏好，主要用于一键切换不同资金规模或场景的参数包。
 type EngineProfile string
@@ -274,6 +302,18 @@ type PortfolioConfig struct {
 	MaxBorrowNotionalPerAssetUSDT float64 `cfg:"max_borrow_notional_per_asset_usdt"`
 	// CapitalRampSchedule 灰度爬坡计划（逗号分隔，如 "10000,30000,100000"），由验证门逐档放行。默认空。
 	CapitalRampSchedule string `cfg:"capital_ramp_schedule"`
+	// --- S6-C 灰度门量化门槛（R33）。所有阈值默认 0 表示该项不参与判定（只观测、给建议，不强制）。---
+	// RampPromoteMinNetEdgeRate 升档要求的实测净 edge 率下限。默认 0（不约束）。
+	RampPromoteMinNetEdgeRate float64 `cfg:"ramp_promote_min_net_edge_rate"`
+	// RampMaxSlippageRate 实测滑点率上限（超过→回退/阻止升档）。0=不约束。
+	RampMaxSlippageRate float64 `cfg:"ramp_max_slippage_rate"`
+	// RampMinFillRate 实测成交率下限（0..1，低于→回退/阻止升档）。0=不约束。
+	RampMinFillRate float64 `cfg:"ramp_min_fill_rate"`
+	// RampMinHealthyReconciles 升档要求的连续 HEALTHY 对账次数。0=不要求。
+	RampMinHealthyReconciles int `cfg:"ramp_min_healthy_reconciles"`
+	// AutoCapitalRampEnabled 是否允许引擎按灰度门「自动收紧（回退档位）」MaxPortfolioNotionalUSDT。默认 false：
+	// 仅产出建议（日志 + 告警），实际放大/回退由人工确认后改参（资金投放是高后果决策，默认人工把关）。
+	AutoCapitalRampEnabled bool `cfg:"auto_capital_ramp_enabled"`
 }
 
 // AlertingConfig 表示「关键事件实时告警」配置（S5 / R25）。默认 Enabled=false：禁用时引擎不做任何外部推送,
@@ -554,6 +594,13 @@ func (cfg EngineConfig) Validate() error {
 	appendIssue(cfg.PortfolioConfig.PerSymbolHardCapUSDT >= 0, "Portfolio PerSymbolHardCapUSDT 不能小于 0")
 	appendIssue(cfg.PortfolioConfig.ClusterMaxNotionalUSDT >= 0, "Portfolio ClusterMaxNotionalUSDT 不能小于 0")
 	appendIssue(cfg.PortfolioConfig.MaxBorrowNotionalPerAssetUSDT >= 0, "Portfolio MaxBorrowNotionalPerAssetUSDT 不能小于 0")
+	appendIssue(cfg.PortfolioConfig.RampPromoteMinNetEdgeRate >= 0, "Portfolio RampPromoteMinNetEdgeRate 不能小于 0")
+	appendIssue(cfg.PortfolioConfig.RampMaxSlippageRate >= 0, "Portfolio RampMaxSlippageRate 不能小于 0")
+	appendIssue(cfg.PortfolioConfig.RampMinFillRate >= 0 && cfg.PortfolioConfig.RampMinFillRate <= 1, "Portfolio RampMinFillRate 必须在 [0,1]")
+	appendIssue(cfg.PortfolioConfig.RampMinHealthyReconciles >= 0, "Portfolio RampMinHealthyReconciles 不能小于 0")
+	if cfg.PortfolioConfig.CapitalRampSchedule != "" {
+		appendIssue(capitalRampScheduleValid(cfg.PortfolioConfig.CapitalRampSchedule), "Portfolio CapitalRampSchedule 必须为正、严格升序的逗号分隔数值（如 10000,30000,100000）")
+	}
 	if cfg.PortfolioConfig.EnableRollingHold {
 		appendIssue(cfg.PortfolioConfig.MaxPortfolioSymbols > 0, "启用 EnableRollingHold 时 MaxPortfolioSymbols 必须大于 0")
 		appendIssue(cfg.PortfolioConfig.RevalidateLead > 0, "启用 EnableRollingHold 时 RevalidateLead 必须大于 0")

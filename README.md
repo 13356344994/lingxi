@@ -854,7 +854,7 @@ M6(治理) 可与 M2~M5 并行
 **S6 策略健康守卫** —— 覆盖 R27
 - 滚动窗口实测净 edge 跟踪，低于阈值自动降档/停机，并与灰度门联动。
 - **退出**：edge 衰减到阈值下自动降挡，有测试。**评分↑：维度 8。**
-- **进度**：✅ S6-A 滚动窗实测净 edge 跟踪器(`edge_tracker.go`:`realizedEdgeWindow`/`computeRealizedEdgeStats`/`decideEdgeHealth`,funding 实收后入窗 + 启动回填,behind `EdgeWindowCycles`>0,阈值 `MinRealizedNetEdgeRate` 默认 0=只观测)。✅ S6-B edge 衰减自动降档:`currentGearLocked` 在 edge 低于阈值时降到 `GearObserve`,`verifyPreOpenGoNoGo`→`checkGearAllowsOpen` 用 `GearAllowsNewOrders` 拦截开新仓(非致命、可自动恢复、已有持仓照常结算),并发去重告警。待:S6-C R33 灰度门自动 promote/rollback + `CapitalRampSchedule` 解析。
+- **进度**：✅ S6-A 滚动窗实测净 edge 跟踪器(`edge_tracker.go`:`realizedEdgeWindow`/`computeRealizedEdgeStats`/`decideEdgeHealth`,funding 实收后入窗 + 启动回填,behind `EdgeWindowCycles`>0,阈值 `MinRealizedNetEdgeRate` 默认 0=只观测)。✅ S6-B edge 衰减自动降档:`currentGearLocked` 在 edge 低于阈值时降到 `GearObserve`,`verifyPreOpenGoNoGo`→`checkGearAllowsOpen` 用 `GearAllowsNewOrders` 拦截开新仓(非致命、可自动恢复、已有持仓照常结算),并发去重告警。✅ S6-C R33 灰度门量化(`capital_ramp.go`):`parseCapitalRampSchedule` 解析 `10000,30000,100000` 升序档位;`decideCapitalRampAction`(纯)按实测净 edge/滑点/成交率/对账健康产出 `promote/hold/rollback`(回退优先、样本不足不误判、顶档保持);`evaluateCapitalRampRecommendation` 在结算后跑门并以 critical(回退)/warning(升档)告警上报。**安全边界**:引擎只给建议、不自动改 `MaxPortfolioNotionalUSDT`——资金放大/回退由人工核实(尤其滑点/成交率/对账需人工确认的信号)后经改参路径(S5-F diff/回滚/audit)落地。**S6 代码侧完成。**
 
 **S7 高可用与容灾** —— 覆盖 M5.2·M5.3 / R14
 - 外部看门狗 + 交易所 Kill Switch（到期自动撤单）；多节点热备 + 单写租约（杜绝双开）。
@@ -890,7 +890,7 @@ M6(治理) 可与 M2~M5 并行
 - [ ] **簇/相关性上限（R30）**：按 base/板块/相关性聚类，`ClusterMaxNotionalUSDT` 硬约束单簇暴露，防 10 币同向。
 - [ ] **逐币 funding 时钟（R31）**：调度由每个币自身下次 funding time 驱动，不再靠全局 `:57`，兼容 8h/4h/可变间隔。
 - [ ] **断连盲窗守卫（R32）**：行情/订单回报失明超阈值→停开新仓 + 降级 REST 轮询 + 持续失明保守撤离。
-- [ ] **灰度门自动化（R33）**：放行/回退由实测 edge、滑点、成交率、`reconcile` 健康按量化规则自动判定，非人工感觉。
+- [x] **灰度门自动化（R33）**：放行/回退由实测 edge、滑点、成交率、`reconcile` 健康按量化规则判定（`decideCapitalRampAction`），引擎产出建议 + 告警；实际改参由人工核实后落地（资金投放高后果，默认人工把关）。
 - [ ] **pending funding 处置（R34）**：重试超 N 次/超 T 小时→critical 告警 + 人工确认；该 cycle 隔离不污染连亏/回撤。
 - [ ] **改参治理（R35）**：热改风控有 diff 预览 + 权限分级/二次确认 + 一键回滚 + 全程审计。
 - [ ] **单点容灾（R36）**：单交易所/账户故障时系统能安全停机而非裸奔；稳定币敞口分散；预留 venue/account 抽象口。
