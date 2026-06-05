@@ -375,9 +375,11 @@ README 旧承诺与代码不符（见上节）。仅有保证金充足性检查�
 资金费套利的边际随竞争与市场状态衰减。当前除**事后** `reconcile` 外，无**活体**监控在 edge 真实衰减时自动降挡/暂停。
 - **影响**：策略可能在「已经不赚钱」之后继续跑很久才被人发现。9.6 需要：滚动窗口实测净 edge 跟踪 + 低于阈值自动降档/停机 + 与灰度门联动。
 
-### 🟡 R28. 无事故运行手册（runbook）与演练
-缺少「断连 / 单腿裸露 / 熔断触发 / 交易所故障 / 密钥泄漏」等场景的人工 SOP 与定期演练。
-- **影响**：真出事时操作者无章可循，处置延迟放大损失。9.6 需要：成文 runbook + 定期故障演练（含 `shadow`/小额下的撤离演练）。
+### ✅ R28. 事故运行手册（runbook）与演练（已补 · S8-D）
+~~缺少人工 SOP 与定期演练~~。**S8-D 已补**:`deploy/RUNBOOK.md` 覆盖断连 / 单腿裸露 / 熔断触发 / 交易所故障 /
+密钥泄漏五类场景的人工 SOP（与代码侧紧急停机/dead-man/单写租约/看门狗/reconcile/pending 升级隔离/改参回滚一一对应），
+含「出事先做三步」速查、对账流程、关键文件命令速查表，以及上线前/定期**演练清单**（紧急停机、SIGTERM 优雅停机、
+dead-man 兜底、看门狗拉起、防双开、熔断、单腿裸露、对账、改参回滚、密钥轮换）。**演练记录由操作者执行后留存。**
 
 ---
 
@@ -866,7 +868,7 @@ M6(治理) 可与 M2~M5 并行
 **S8 规模化执行与高保真回测** —— 覆盖 M5.1·M5.4 / R13·R15·R19·R23
 - TWAP/冰山执行切片；L3 Tick 回测校正阈值；结算/pending 事件化存储；对账诊断字段清洁；事故 runbook + 演练（R28）。
 - **退出**：大单冲击受控；纸面阈值经 L3 校正；有成文 runbook 与演练记录。**评分↑：维度 1/5/8。**
-- **进度**：✅ S8-A R23 对账诊断清洁(`reconcile.TradeRecord` 增 `CycleID` 专用字段,`Symbol` 不再被污染,报告 `cycle=<CycleID>`)+ 执行摩擦聚合 `Friction` 入对账(诊断展示、不卡 breach)。✅ S8-C R19 结算/pending 存储崩溃安全化(`report_store_journal.go`:`WriteJSONFile` 本就原子写[temp+fsync+rename],本次补 append-only 事实源——结算 append/update 与 pending upsert/delete 每次变更逐条 fsync 追加到 `settlements_journal.jsonl`/`pending_funding_journal.jsonl`,永不重写;原 JSON 退化为「物化视图」,事实源可经纯函数 `materializeSettlementsFromJournal`/`materializePendingFromJournal` 回放重建,防止内存截断被原子写忠实落盘而丢史)。✅ S8-B 执行切片规划层(`execution_slicing.go`:`planExecutionSlices` 纯函数——单腿名义超 `SliceThresholdNotionalUSDT` 才按 TWAP 等分切片,每片 ≤ `MaxSliceNotionalUSDT`、间隔 `SliceIntervalMs`、封顶 `MaxSlices`,末片吃浮点余量保证 Σ=总量;默认 `ExecutionSlicingEnabled=false` 单发零变更)。⚠️ **实盘双腿 lockstep 执行接线分阶段灰度**:切片间不得产生裸腿,需小额实盘校验后再把规划接入开仓提交路径(故本次只落地经过单测的规划层 + 配置/门槛,不改动现有 S0~S4 的双腿原子开仓与裸腿守卫)。待:S8-C 结算/pending 存储崩溃安全化、S8-D 事故 runbook。
+- **进度**：✅ S8-A R23 对账诊断清洁(`reconcile.TradeRecord` 增 `CycleID` 专用字段,`Symbol` 不再被污染,报告 `cycle=<CycleID>`)+ 执行摩擦聚合 `Friction` 入对账(诊断展示、不卡 breach)。✅ S8-C R19 结算/pending 存储崩溃安全化(`report_store_journal.go`:`WriteJSONFile` 本就原子写[temp+fsync+rename],本次补 append-only 事实源——结算 append/update 与 pending upsert/delete 每次变更逐条 fsync 追加到 `settlements_journal.jsonl`/`pending_funding_journal.jsonl`,永不重写;原 JSON 退化为「物化视图」,事实源可经纯函数 `materializeSettlementsFromJournal`/`materializePendingFromJournal` 回放重建,防止内存截断被原子写忠实落盘而丢史)。✅ S8-B 执行切片规划层(`execution_slicing.go`:`planExecutionSlices` 纯函数——单腿名义超 `SliceThresholdNotionalUSDT` 才按 TWAP 等分切片,每片 ≤ `MaxSliceNotionalUSDT`、间隔 `SliceIntervalMs`、封顶 `MaxSlices`,末片吃浮点余量保证 Σ=总量;默认 `ExecutionSlicingEnabled=false` 单发零变更)。⚠️ **实盘双腿 lockstep 执行接线分阶段灰度**:切片间不得产生裸腿,需小额实盘校验后再把规划接入开仓提交路径(故本次只落地经过单测的规划层 + 配置/门槛,不改动现有 S0~S4 的双腿原子开仓与裸腿守卫)。✅ S8-D 事故 runbook + 演练清单(`deploy/RUNBOOK.md`,覆盖五类场景 SOP + 演练清单)。**S8 代码侧完成。** 待实盘/外部基建:L3 Tick 回测校正阈值(R15,需真实 tick 数据)、TWAP 双腿 lockstep 实盘接线(需小额实盘校验)、演练记录留存。
 
 ### 18.3 阶段→灰度联动
 - S0 完成 → 可上 `shadow`。
