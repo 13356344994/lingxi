@@ -49,7 +49,18 @@ type exposureRescueTask struct {
 	FuturesClientOrderID    string
 	KnownSpotExecutedQty    float64
 	KnownFuturesExecutedQty float64
+	// Attempts 记录该任务已尝试收敛的次数(跨重启持久化)。单次 handleTask 失败后据此做有界的进程内重试,
+	// 重试期间保持 symbol 锁定(不让残腿敞口的币被重新开仓),耗尽后释放锁并升级 critical 等待人工。
+	Attempts int
 }
+
+const (
+	// exposureRescueMaxAttempts 是单条救援任务在进程内的最大收敛尝试次数(含首次)。耗尽后释放锁、升级 critical。
+	exposureRescueMaxAttempts = 6
+	// 失败重试退避:指数退避,封顶。残腿收敛是高优先级但又依赖交易所恢复,过密重试无益、过疏拖长敞口窗口。
+	exposureRescueRetryBaseBackoff = 2 * time.Second
+	exposureRescueRetryMaxBackoff  = 60 * time.Second
+)
 
 type exposureManagerContextKey string
 
@@ -315,22 +326,53 @@ func (m *ExposureManager) Submit(ctx context.Context, task exposureRescueTask) e
 		return fmt.Errorf("exposure manager 未初始化")
 	}
 	task = normalizeExposureRescueTask(task)
+	// 先持久化,再投递。救援任务承载的是潜在残腿敞口,绝不能因队列瞬时满或停机而丢失——持久化后即使本次
+	// 未能入队,也由后台重投或重启 restorePendingTasks 兜底重排,且 symbol 锁保持(由 scheduleExposureRescue 持有)。
 	if err := m.persistPendingTask(task); err != nil {
 		return err
 	}
+	m.enqueueOrRetry(ctx, task)
+	return nil
+}
+
+// enqueueOrRetry 尽力把任务投入处理队列;队列瞬时满时**不丢弃**(任务已持久化),改为后台延迟重投,
+// 确保救援任务永不丢失、对应 symbol 保持锁定直至真正收敛或重试耗尽。停机(ctx 取消)时同样不删除,
+// 任务留盘由重启后的 restorePendingTasks 重排。
+func (m *ExposureManager) enqueueOrRetry(ctx context.Context, task exposureRescueTask) {
 	select {
 	case m.taskQueue <- task:
 		if m.logger != nil {
-			m.logger.Printf("ExposureManager 任务已入队，phase=%s mode=%s symbol=%s pair=%s", task.Phase, task.Mode, task.Symbol, task.Pair)
+			m.logger.Printf("ExposureManager 任务已入队，phase=%s mode=%s symbol=%s pair=%s attempt=%d", task.Phase, task.Mode, task.Symbol, task.Pair, task.Attempts)
 		}
-		return nil
-	default:
-		_ = m.removePendingTask(task)
-		return fmt.Errorf("exposure manager 队列已满: symbol=%s phase=%s", task.Symbol, task.Phase)
 	case <-ctx.Done():
-		_ = m.removePendingTask(task)
-		return ctx.Err()
+		if m.logger != nil {
+			m.logger.Printf("ExposureManager 停机,任务留盘待重启重排，symbol=%s phase=%s", task.Symbol, task.Phase)
+		}
+	default:
+		if m.logger != nil {
+			m.logger.Printf("ExposureManager 队列已满,任务已持久化并安排后台重投，symbol=%s phase=%s", task.Symbol, task.Phase)
+		}
+		if m.engine != nil {
+			m.engine.emitRiskEvent(newRiskEvent("incident", RiskCategoryPlatform, RiskSeverityCritical, task.Phase, task.Symbol, "exposure_rescue_queue_full", int(m.engine.executionIncidents), m.engine.cfg.RiskConfig.MaxExecutionIncidents, false, "救援队列已满,任务已持久化并后台重投,symbol 保持锁定"))
+		}
+		go m.scheduleRetry(ctx, task)
 	}
+}
+
+// scheduleRetry 在退避后把任务重新投入队列。退避按尝试次数指数增长并封顶。停机则放弃重投(任务已留盘)。
+func (m *ExposureManager) scheduleRetry(ctx context.Context, task exposureRescueTask) {
+	backoff := exposureRescueRetryBaseBackoff << task.Attempts
+	if backoff > exposureRescueRetryMaxBackoff || backoff <= 0 {
+		backoff = exposureRescueRetryMaxBackoff
+	}
+	timer := time.NewTimer(backoff)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return
+	case <-timer.C:
+	}
+	m.enqueueOrRetry(ctx, task)
 }
 
 func (m *ExposureManager) run(ctx context.Context) {
@@ -342,30 +384,45 @@ func (m *ExposureManager) run(ctx context.Context) {
 			taskCtx, cancel := context.WithTimeout(withExposureManagerRequest(ctx), exposureRescueTimeout(m.engine.cfg))
 			err := m.handleTask(taskCtx, task)
 			cancel()
-			m.reportTaskResult(task, err)
+			m.reportTaskResult(ctx, task, err)
 		}
 	}
 }
 
-func (m *ExposureManager) reportTaskResult(task exposureRescueTask, err error) {
+func (m *ExposureManager) reportTaskResult(ctx context.Context, task exposureRescueTask, err error) {
 	if m == nil || m.engine == nil {
 		return
 	}
-	m.engine.releaseExposureLock(task.Symbol)
 	if err == nil {
+		// 成功收敛:释放锁、清理持久化任务。
+		m.engine.releaseExposureLock(task.Symbol)
 		if removeErr := m.removePendingTask(task); removeErr != nil && m.logger != nil {
 			m.logger.Printf("ExposureManager 清理已完成任务失败，symbol=%s phase=%s err=%v", task.Symbol, task.Phase, removeErr)
 		}
-		m.engine.recordExecutionAction(task.Phase, task.Symbol, "exposure_rescue_completed", fmt.Sprintf("mode=%s pair=%s", task.Mode, task.Pair))
+		m.engine.recordExecutionAction(task.Phase, task.Symbol, "exposure_rescue_completed", fmt.Sprintf("mode=%s pair=%s attempt=%d", task.Mode, task.Pair, task.Attempts+1))
 		return
 	}
 	if m.logger != nil {
-		m.logger.Printf("ExposureManager 处理失败，phase=%s mode=%s symbol=%s pair=%s err=%v", task.Phase, task.Mode, task.Symbol, task.Pair, err)
+		m.logger.Printf("ExposureManager 处理失败，phase=%s mode=%s symbol=%s pair=%s attempt=%d/%d err=%v", task.Phase, task.Mode, task.Symbol, task.Pair, task.Attempts+1, exposureRescueMaxAttempts, err)
 	}
-	if incidentErr := m.engine.recordExecutionIncident(task.Phase, task.Symbol, fmt.Sprintf("ExposureManager 处理失败: %v", err)); incidentErr != nil && m.logger != nil {
+	if incidentErr := m.engine.recordExecutionIncident(task.Phase, task.Symbol, fmt.Sprintf("ExposureManager 处理失败(尝试 %d/%d): %v", task.Attempts+1, exposureRescueMaxAttempts, err)); incidentErr != nil && m.logger != nil {
 		m.logger.Printf("ExposureManager 记录执行事故失败: %v", incidentErr)
 	}
-	m.engine.emitRiskEvent(newRiskEvent("incident", RiskCategoryPlatform, RiskSeverityCritical, task.Phase, task.Symbol, "exposure_rescue_pending", int(m.engine.executionIncidents), m.engine.cfg.RiskConfig.MaxExecutionIncidents, false, fmt.Sprintf("任务已持久化等待恢复: %v", err)))
+	// 进程内有界重试:残腿敞口未收敛时**不**释放 symbol 锁(防止带残腿的币被重新开仓),增计尝试次数后持久化并
+	// 安排后台延迟重投;耗尽尝试才释放锁并升级 critical 等待人工/重启恢复。
+	if task.Attempts+1 < exposureRescueMaxAttempts {
+		retry := task
+		retry.Attempts = task.Attempts + 1
+		if persistErr := m.persistPendingTask(retry); persistErr != nil && m.logger != nil {
+			m.logger.Printf("ExposureManager 持久化重试任务失败，symbol=%s err=%v", task.Symbol, persistErr)
+		}
+		m.engine.emitRiskEvent(newRiskEvent("incident", RiskCategoryPlatform, RiskSeverityWarning, task.Phase, task.Symbol, "exposure_rescue_retry", int(m.engine.executionIncidents), m.engine.cfg.RiskConfig.MaxExecutionIncidents, false, fmt.Sprintf("第 %d/%d 次收敛失败,保持锁定并安排重试: %v", task.Attempts+1, exposureRescueMaxAttempts, err)))
+		go m.scheduleRetry(ctx, retry)
+		return
+	}
+	// 重试耗尽:释放锁(否则该 symbol 永久锁死),任务保留在盘(重启会再排)并升级 critical 要求人工核查残腿。
+	m.engine.releaseExposureLock(task.Symbol)
+	m.engine.emitRiskEvent(newRiskEvent("incident", RiskCategoryPlatform, RiskSeverityCritical, task.Phase, task.Symbol, "exposure_rescue_exhausted", int(m.engine.executionIncidents), m.engine.cfg.RiskConfig.MaxExecutionIncidents, false, fmt.Sprintf("救援重试已耗尽(%d 次),任务留盘待重启重排,请立即人工核查残腿: %v", exposureRescueMaxAttempts, err)))
 }
 
 func (m *ExposureManager) handleTask(ctx context.Context, task exposureRescueTask) error {

@@ -434,7 +434,25 @@ func (p *OpenProtocol) abortFreshOpenHedge(ctx context.Context, hedge *OpenHedge
 		preferPassiveSpot: false,
 	})
 	if err != nil {
-		return fmt.Errorf("开仓后逆向选择复核失败且即时撤退失败: %w", err)
+		// 即时撤退失败时**不**直接放弃:这是一笔双腿已成交的真实持仓,必须转入 ExposureManager 托管收敛
+		// (保持 symbol 锁定 + 有界重试 + 升级),否则会留下无人收敛的活敞口。
+		rescueResult, rescueErr := p.engine.scheduleExposureRescueProtocolResult(ctx, exposureRescueTask{
+			Mode:               exposureRescueModeClose,
+			Phase:              "abort_after_adverse_selection",
+			Direction:          hedge.carryDirection(),
+			Symbol:             hedge.Target.Symbol,
+			Pair:               hedge.Target.Pair,
+			SpotBaseAsset:      hedge.Target.SpotBaseAsset,
+			SpotBasePrecision:  hedge.Target.SpotBasePrecision,
+			SpotReferencePrice: hedge.LastKnownSpotPrice(),
+			InitialHedgeQty:    hedge.HedgeQty,
+		}, "开仓后逆向选择复核失败且即时撤退失败且 ExposureManager 托管失败", "开仓后即时撤退失败，已转入 ExposureManager 托管收敛")
+		if rescueErr != nil {
+			return fmt.Errorf("开仓后逆向选择复核失败且即时撤退失败: closeErr=%v rescueErr=%w", err, rescueErr)
+		}
+		rescueResult.applyOpenProtocol(hedge, "abort_after_adverse_selection_escalated")
+		p.engine.recordExecutionAction("open_recovery", hedge.Target.Symbol, "abort_after_adverse_selection_escalated", fmt.Sprintf("closeErr=%v", err))
+		return nonFatalOpenAbortError{message: rescueResult.lifecycleReason("开仓后即时撤退失败，已转入 ExposureManager 托管收敛")}
 	}
 	if len(alerts) > 0 {
 		p.engine.logger.Printf("开仓后即时撤退告警 %s: %s", hedge.Target.Symbol, strings.Join(alerts, " | "))

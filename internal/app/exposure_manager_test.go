@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log"
 	"net/http"
@@ -14,6 +15,8 @@ import (
 
 	"lingxi/internal/exchange"
 )
+
+var errTestRescueFailure = errors.New("rescue 收敛失败(测试)")
 
 // TestScheduleExposureRescueStartsWithRunCtx 钉死 C3：ExposureManager 必须由 engine 统一持有，
 // 调度成功后任务进入队列。这里预先触发 startOnce，避免后台 worker 在半初始化引擎上消费任务，
@@ -199,11 +202,71 @@ func TestExposureLockBlocksSymbolUntilRescueReportsCompletion(t *testing.T) {
 		engine: engine,
 		logger: engine.logger,
 	}
-	manager.reportTaskResult(task, nil)
+	manager.reportTaskResult(context.Background(), task, nil)
 
 	filtered = engine.filterTargetsBySymbolCooldown([]*MonitoredTarget{target})
 	if len(filtered) != 1 || filtered[0].Candidate.Symbol != "BTCUSDT" {
 		t.Fatalf("expected symbol to be released after rescue completion, got %+v", filtered)
+	}
+}
+
+// TestExposureManagerFailedRescueRetriesAndKeepsLock 钉死:救援失败但未耗尽重试时,**不**释放 symbol 锁
+// (带残腿的币不得被重新开仓),并把尝试次数+1 持久化以便后台/重启重排。
+func TestExposureManagerFailedRescueRetriesAndKeepsLock(t *testing.T) {
+	recordDir := t.TempDir()
+	engine := &FundingRateSniperEngine{
+		cfg:    DefaultEngineConfig(),
+		logger: log.New(io.Discard, "", 0),
+		portfolioManager: portfolioManager{
+			symbolCooldowns: make(map[string]symbolCooldownState),
+			exposureLocks:   make(map[string]exposureLockState),
+		},
+	}
+	engine.cfg.NetworkConfig.RecordDir = recordDir
+	manager := newExposureManager(engine)
+	task := exposureRescueTask{Mode: exposureRescueModeOpen, Phase: "x", Symbol: "BTCUSDT", Pair: "BTCUSDT", SpotBaseAsset: "BTC"}
+	engine.lockSymbolForExposure(task)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	manager.reportTaskResult(ctx, task, errTestRescueFailure)
+
+	target := &MonitoredTarget{Candidate: FundingCandidate{Symbol: "BTCUSDT", Pair: "BTCUSDT"}}
+	if filtered := engine.filterTargetsBySymbolCooldown([]*MonitoredTarget{target}); len(filtered) != 0 {
+		t.Fatalf("救援未耗尽时 symbol 应保持锁定, got %+v", filtered)
+	}
+	state, err := loadPersistedExposureRescueState(filepath.Join(recordDir, string(liveExposureRescueStateName)))
+	if err != nil {
+		t.Fatalf("load state: %v", err)
+	}
+	if len(state.Tasks) != 1 || state.Tasks[0].Attempts != 1 {
+		t.Fatalf("expected persisted retry task attempts=1, got %+v", state.Tasks)
+	}
+}
+
+// TestExposureManagerExhaustedRescueReleasesLock 钉死:重试耗尽后释放 symbol 锁(避免永久锁死),并保留任务在盘待人工/重启。
+func TestExposureManagerExhaustedRescueReleasesLock(t *testing.T) {
+	recordDir := t.TempDir()
+	engine := &FundingRateSniperEngine{
+		cfg:    DefaultEngineConfig(),
+		logger: log.New(io.Discard, "", 0),
+		portfolioManager: portfolioManager{
+			symbolCooldowns: make(map[string]symbolCooldownState),
+			exposureLocks:   make(map[string]exposureLockState),
+		},
+	}
+	engine.cfg.NetworkConfig.RecordDir = recordDir
+	manager := newExposureManager(engine)
+	task := exposureRescueTask{Mode: exposureRescueModeOpen, Phase: "x", Symbol: "BTCUSDT", Pair: "BTCUSDT", SpotBaseAsset: "BTC", Attempts: exposureRescueMaxAttempts - 1}
+	engine.lockSymbolForExposure(task)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	manager.reportTaskResult(ctx, task, errTestRescueFailure)
+
+	target := &MonitoredTarget{Candidate: FundingCandidate{Symbol: "BTCUSDT", Pair: "BTCUSDT"}}
+	if filtered := engine.filterTargetsBySymbolCooldown([]*MonitoredTarget{target}); len(filtered) != 1 {
+		t.Fatalf("救援耗尽后 symbol 应释放, got %+v", filtered)
 	}
 }
 
