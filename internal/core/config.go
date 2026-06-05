@@ -216,6 +216,12 @@ type RiskConfig struct {
 	EdgeWindowCycles       int     `cfg:"edge_window_cycles"`
 	MinRealizedNetEdgeRate float64 `cfg:"min_realized_net_edge_rate"`
 	EdgeGuardMinSamples    int     `cfg:"edge_guard_min_samples"`
+	// DeadMansSwitchEnabled / DeadMansSwitchCountdown 是 S7-B「交易所侧 dead-man 开关」(R14)参数:
+	// 启用后引擎按 countdown/3 周期向 Binance 合约 countdownCancelAll 续期一个倒计时;若本进程崩溃/失联未能续期,
+	// 交易所会在 countdown 到期后自动撤销该账户的全部挂单(兜底,防裸挂单)。优雅停机时主动撤销(countdownTime=0)。
+	// DeadMansSwitchEnabled=false 关闭(默认);Countdown 须 ≥ 10s(过短易误触发)。
+	DeadMansSwitchEnabled   bool          `cfg:"dead_mans_switch_enabled"`
+	DeadMansSwitchCountdown time.Duration `cfg:"dead_mans_switch_countdown"`
 }
 
 // HistoricalConfig 表示月度模拟与历史验证配置。
@@ -625,6 +631,10 @@ func (cfg EngineConfig) Validate() error {
 	appendIssue(cfg.RiskConfig.EdgeWindowCycles >= 0, "Risk EdgeWindowCycles 不能小于 0")
 	appendIssue(cfg.RiskConfig.MinRealizedNetEdgeRate >= 0, "Risk MinRealizedNetEdgeRate 不能小于 0")
 	appendIssue(cfg.RiskConfig.EdgeGuardMinSamples >= 0, "Risk EdgeGuardMinSamples 不能小于 0")
+	appendIssue(cfg.RiskConfig.DeadMansSwitchCountdown >= 0, "Risk DeadMansSwitchCountdown 不能小于 0")
+	if cfg.RiskConfig.DeadMansSwitchEnabled {
+		appendIssue(cfg.RiskConfig.DeadMansSwitchCountdown >= 10*time.Second, "启用 DeadMansSwitchEnabled 时 DeadMansSwitchCountdown 必须 ≥ 10s（过短易误触发交易所撤单）")
+	}
 
 	if len(issues) == 0 {
 		return nil

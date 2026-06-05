@@ -129,6 +129,9 @@ func DefaultEngineConfig() EngineConfig {
 			EdgeWindowCycles:       50,
 			MinRealizedNetEdgeRate: 0,
 			EdgeGuardMinSamples:    20,
+			// S7-B 交易所 dead-man:默认关闭;启用后 30s 倒计时(每 ~10s 续期),进程失联即由交易所兜底撤单。
+			DeadMansSwitchEnabled:   false,
+			DeadMansSwitchCountdown: 30 * time.Second,
 		},
 		HistoricalConfig: HistoricalConfig{
 			DefaultLookbackDays:                    30,

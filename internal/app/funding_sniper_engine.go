@@ -99,6 +99,7 @@ func (e *FundingRateSniperEngine) Start(ctx context.Context) error {
 	e.startResidentMarketFeed(ctx)
 	e.startMarginHealthPoller(ctx)
 	e.startHeartbeatWriter(ctx)
+	e.startDeadMansSwitch(ctx)
 	e.backfillRealizedEdge()
 
 	for {
