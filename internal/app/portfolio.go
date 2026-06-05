@@ -85,6 +85,21 @@ func (p *portfolioManager) portfolioHeldNotionalUSDT() float64 {
 	return total
 }
 
+// portfolioClusterNotionalUSDT 按 L2 簇键(clusterKeyForSymbol,当前以 base 资产聚类)汇总当前常驻组合各簇的合约腿
+// 名义(与 portfolioHeldNotionalUSDT 同口径)。供 admitByClusterCap 在开仓/补位侧做高相关集中度封顶。纯查询,
+// 调用方须持有 platformRiskMu。
+func (p *portfolioManager) portfolioClusterNotionalUSDT() map[string]float64 {
+	byCluster := make(map[string]float64, len(p.activeOpenHedges))
+	for i := range p.activeOpenHedges {
+		key := clusterKeyForSymbol(p.activeOpenHedges[i].Target.SpotBaseAsset, p.activeOpenHedges[i].Target.Symbol)
+		if key == "" {
+			continue
+		}
+		byCluster[key] += p.activeOpenHedges[i].HedgeQty * p.activeOpenHedges[i].OpenFuturesAvgPrice
+	}
+	return byCluster
+}
+
 // portfolioFreeSlots 返回 :57 找币补位的可用槽位数 = MaxSymbols − 当前持仓币数(下界 0)。MaxSymbols<=0 表示不限,
 // 返回 -1 约定为「无币数上限」。纯查询,调用方须持有 platformRiskMu。
 func (p *portfolioManager) portfolioFreeSlots(maxSymbols int) int {

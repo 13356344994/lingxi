@@ -3,6 +3,7 @@ package app
 import (
 	"fmt"
 	"math"
+	"strings"
 )
 
 // dynamic_sizing.go 提供「市场驱动的单币容量定 size」纯函数(M3.1 / README §16.3):把多个流动性/风险天花板
@@ -185,6 +186,29 @@ func resolveHardCapUSDT(perSymbolHardCapUSDT, maxPortfolioNotionalUSDT float64, 
 		return maxPortfolioNotionalUSDT / float64(maxPortfolioSymbols)
 	}
 	return 0
+}
+
+// clusterKeyForSymbol 返回某币的 L2 簇键(M3.3 / README §16.2.2「按 base 资产/板块聚类防高相关集中」)。当前以现货
+// base 资产聚类作最小实现:同 base 资产视为同簇。这是 L2 簇划分的唯一注入点,后续可替换为板块/相关性映射而不动调用方。
+func clusterKeyForSymbol(spotBaseAsset, symbol string) string {
+	if k := strings.ToUpper(strings.TrimSpace(spotBaseAsset)); k != "" {
+		return k
+	}
+	return strings.ToUpper(strings.TrimSpace(symbol))
+}
+
+// admitByClusterCap 报告把 candidateNotionalUSDT 加入其所属簇后是否仍在 L2 簇上限内。clusterMaxUSDT<=0 表示不启用
+// 簇上限(灰度旋钮未开,默认放行)。候选已在该簇内有持仓时累加(同簇加仓仍受簇上限约束)。返回是否放行与拒绝原因。纯函数。
+func admitByClusterCap(clusterNotionalUSDT map[string]float64, candidateCluster string, candidateNotionalUSDT, clusterMaxUSDT float64) (bool, string) {
+	if clusterMaxUSDT <= 0 {
+		return true, ""
+	}
+	cluster := strings.ToUpper(strings.TrimSpace(candidateCluster))
+	projected := clusterNotionalUSDT[cluster] + candidateNotionalUSDT
+	if projected > clusterMaxUSDT+notionalTolerance {
+		return false, fmt.Sprintf("簇 %s 名义 %.2f USDT 将超过 L2 簇上限 %.2f USDT", cluster, projected, clusterMaxUSDT)
+	}
+	return true, ""
 }
 
 // positiveMulOrOne 把分层乘子归一:<=0(未配)视为 1.0,不缩放。

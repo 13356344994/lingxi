@@ -184,6 +184,49 @@ func TestImpactAdjustedNetProfitRate(t *testing.T) {
 	}
 }
 
+// TestClusterKeyForSymbol 钉死 L2 簇键:有 base 资产用 base(大写),缺省回退到 symbol。
+func TestClusterKeyForSymbol(t *testing.T) {
+	if got := clusterKeyForSymbol("btc", "BTCUSDT"); got != "BTC" {
+		t.Fatalf("应按 base 资产聚类(大写), got %s", got)
+	}
+	if got := clusterKeyForSymbol("", "ethusdt"); got != "ETHUSDT" {
+		t.Fatalf("缺 base 资产应回退 symbol(大写), got %s", got)
+	}
+}
+
+// TestAdmitByClusterCap 钉死 L2 簇上限:上限<=0 放行;同簇累加触顶拒绝;未触顶放行。
+func TestAdmitByClusterCap(t *testing.T) {
+	clusterNotional := map[string]float64{"BTC": 6000}
+	// 上限关闭(<=0)→ 放行。
+	if ok, _ := admitByClusterCap(clusterNotional, "BTC", 9000, 0); !ok {
+		t.Fatal("簇上限<=0 应放行")
+	}
+	// 6000 + 3000 = 9000 ≤ 10000 → 放行。
+	if ok, _ := admitByClusterCap(clusterNotional, "BTC", 3000, 10000); !ok {
+		t.Fatal("未触顶应放行")
+	}
+	// 6000 + 5000 = 11000 > 10000 → 拒绝。
+	if ok, reason := admitByClusterCap(clusterNotional, "btc", 5000, 10000); ok || reason == "" {
+		t.Fatalf("同簇加仓触顶应拒绝并给原因, ok=%v reason=%q", ok, reason)
+	}
+	// 新簇(无既有名义)→ 仅候选名义参与。
+	if ok, _ := admitByClusterCap(clusterNotional, "ETH", 9000, 10000); !ok {
+		t.Fatal("新簇未触顶应放行")
+	}
+}
+
+// TestPortfolioClusterNotionalUSDT 钉死组合簇名义汇总:同 base 资产合并、按合约腿名义累加。
+func TestPortfolioClusterNotionalUSDT(t *testing.T) {
+	p := &portfolioManager{activeOpenHedges: []OpenHedge{
+		{Target: FundingCandidate{Symbol: "BTCUSDT", SpotBaseAsset: "BTC"}, HedgeQty: 1, OpenFuturesAvgPrice: 100},
+		{Target: FundingCandidate{Symbol: "ETHUSDT", SpotBaseAsset: "ETH"}, HedgeQty: 2, OpenFuturesAvgPrice: 50},
+	}}
+	byCluster := p.portfolioClusterNotionalUSDT()
+	if !approxEqualSizing(byCluster["BTC"], 100) || !approxEqualSizing(byCluster["ETH"], 100) {
+		t.Fatalf("簇名义应为 BTC=100 ETH=100, got %+v", byCluster)
+	}
+}
+
 func TestResolveHardCapUSDT(t *testing.T) {
 	if got := resolveHardCapUSDT(7000, 100000, 10); !approxEqualSizing(got, 7000) {
 		t.Fatalf("显式硬顶优先, got %.4f", got)
