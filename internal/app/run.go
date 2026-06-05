@@ -27,6 +27,13 @@ func Run(ctx context.Context) error {
 		return runReconcileMode(ctx)
 	}
 
+	// flatten/emergency-flatten 是应急强平子命令：补全交易所侧 dead-man 的盲区(已成交裸仓)。供外部看门狗在
+	// 确认主进程已死、本地未平仓台账非空时触发——从台账重建裸仓并方向感知双腿强平。这是会动用资金的实盘动作,
+	// 故独立成命令、不在常规启动路径上,且必须在主进程确已退出后触发(详见 emergency_flatten.go)。
+	if len(os.Args) > 1 && (os.Args[1] == "flatten" || os.Args[1] == "emergency-flatten") {
+		return runEmergencyFlatten(ctx)
+	}
+
 	// config-sample 导出一份自文档化的样例配置(列出全部可配项及默认值),不读取配置文件、不触碰实盘。
 	// 用法: lingxi config-sample [输出路径]; 省略路径则打印到 stdout。
 	if len(os.Args) > 1 && os.Args[1] == "config-sample" {

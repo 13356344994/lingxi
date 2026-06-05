@@ -2,8 +2,9 @@
 
 > 目标：真出事时**操作者有章可循**，把处置延迟与误操作导致的损失降到最低。本手册覆盖
 > 断连 / 单腿裸露 / 熔断触发 / 交易所故障 / 密钥泄漏五类场景的人工 SOP，并给出上线前/定期演练清单。
-> 配套机制（代码侧）：紧急停机文件、交易所 dead-man（`countdownCancelAll`）、单写租约（flock）、外部看门狗、
-> `reconcile` 对账、pending funding 升级隔离、运行期改参 diff/回滚、告警分发。
+> 配套机制（代码侧）：紧急停机文件、交易所 dead-man（`countdownCancelAll`）、**已成交裸仓应急强平**（`lingxi flatten`）、
+> 单写租约（flock）、外部看门狗、`reconcile` 对账、pending funding 升级隔离、运行期改参 diff/回滚、告警分发。
+> 进程**启动/计划停机/异常崩溃**均会推送 Telegram 生命周期通知（崩溃为 critical 并提示人工核查）。
 
 ---
 
@@ -16,6 +17,9 @@
    ```
    若进程已失控/不响应：`systemctl stop lingxi`（触发 SIGTERM → 优雅停机收尾：停用 dead-man、落盘、平仓善后）。
    若怀疑挂单裸奔且进程已死：**等待交易所 dead-man 倒计时到期自动撤单**（启用时 30s 内），或登录交易所手动撤单/平仓。
+   若进程已死且**已成交的对冲腿（裸仓）需要平掉**（dead-man 只撤未成交挂单、平不掉已成交仓位）：
+   `lingxi flatten`（先 `systemctl stop lingxi` 确保主进程已退出）——从本地台账重建裸仓并方向感知双腿强平；
+   该命令会抢单写租约做互锁，若主进程仍存活会自动拒绝。先 `lingxi flatten shadow` 预演可看清将平哪些仓而不下真实单。
 3. **通报 + 取证**：截图账户持仓/挂单，备份 `records/`（尤其 `settlements_journal.jsonl` /
    `pending_funding_journal.jsonl` / `domain_events.jsonl` / `*_server.log`），再开始处置。
 
@@ -48,6 +52,11 @@
 2. **手动对冲到中性**：用市价单把裸露腿补齐或把多出的腿平掉，**先到中性、再谈盈亏**。
 3. 创建紧急停机文件，阻止系统继续开新仓，待人工核实根因（执行超时？部分成交？精度？）。
 4. 记录事故到事故日志，更新 `MaxExecutionIncidents` 等阈值是否需收紧。
+
+**进程已死、整组裸仓需批量收敛时**（区别于上面的单腿残留）：确认主进程已退出后跑 `lingxi flatten`——
+它从台账（`records/live_open_hedges.json`）重建全部裸仓并对每笔做方向感知双腿强平（正 carry 卖现货、负 carry
+全仓杠杆买回还币），强平后核对台账残留并告警；仍有残留则返回非零、需人工介入。外部看门狗可设
+`LINGXI_FLATTEN_ON_DEAD=1` 在「确认主进程已死 + 台账有裸仓」时于重启前自动触发（见 `watchdog.sh` 文件头）。
 
 ---
 
@@ -138,6 +147,9 @@ lingxi reconcile     # 实盘 ↔ 模型预期 对账；只读，可在运行期
 - [ ] **紧急停机演练**：创建/删除 emergency stop 文件，确认引擎在安全点停机、清除后可恢复。
 - [ ] **SIGTERM 优雅停机**：`systemctl stop`，确认日志有 `graceful_shutdown` 事件、状态/账本已落盘、dead-man 已停用。
 - [ ] **dead-man 兜底**：启用 dead-man，`kill -9` 主进程（模拟崩溃），确认交易所在倒计时到期后自动撤掉测试挂单。
+- [ ] **应急强平演练**：最小额开一笔对冲后 `kill -9` 主进程，先 `lingxi flatten shadow` 看预演清单，再 `lingxi flatten`
+      确认裸仓被双腿收敛、台账清零、收到「紧急强平完成」Telegram；并验证主进程存活时 `flatten` 因单写租约被拒绝。
+- [ ] **生命周期通知**：启动/`systemctl stop`/模拟崩溃，确认分别收到「已启动」「计划停机」「异常退出(崩溃)」Telegram。
 - [ ] **看门狗拉起**：停掉心跳/healthz（或杀进程），确认 `watchdog.sh` 连续失败达阈值后重启服务并告警。
 - [ ] **防双开**：在已运行时再启动一个实例，确认单写租约拒绝第二个并打印既有持有者 pid/host。
 - [ ] **熔断演练**：把某项 `Max*Loss/Drawdown` 阈值临时调到极小触发熔断，确认 fail-safe 停机 + 持久化 + 告警。
@@ -154,7 +166,9 @@ lingxi reconcile     # 实盘 ↔ 模型预期 对账；只读，可在运行期
 |---|---|
 | 紧急停机 | `touch <emergency_stop 文件>`；清除后自动恢复 |
 | 停服务（优雅） | `systemctl stop lingxi`（SIGTERM → 优雅收尾） |
-| 看门狗 | `deploy/watchdog.sh`（systemd timer / cron） |
+| 已成交裸仓应急强平 | `lingxi flatten [reason]`（先停主进程）；`lingxi flatten shadow` 预演 |
+| 看门狗 | `deploy/watchdog.sh`（systemd timer / cron；`LINGXI_FLATTEN_ON_DEAD=1` 开兜底强平） |
+| 未平仓台账（SSOT） | `records/live_open_hedges.json`（flatten 据此重建裸仓） |
 | 对账 | `lingxi reconcile` |
 | 结算事实源 | `records/settlements_journal.jsonl`（append-only） |
 | pending 事实源 | `records/pending_funding_journal.jsonl`（append-only） |

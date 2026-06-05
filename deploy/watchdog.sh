@@ -32,6 +32,15 @@ STATE_DIR="${LINGXI_WATCHDOG_STATE_DIR:-$RECORD_DIR}"
 FAIL_COUNT_FILE="$STATE_DIR/.watchdog_fail_count"
 LAST_RESTART_FILE="$STATE_DIR/.watchdog_last_restart"
 
+# 已成交裸仓兜底强平(补全交易所侧 dead-man 的盲区:dead-man 只撤未成交挂单,平不掉已成交的对冲腿)。
+# 默认关闭(0):这是会动用资金的实盘动作,须显式开启。开启后,仅当①主进程确已死(心跳年龄 > FLATTEN_STALE_THRESHOLD,
+# 取一个明显大于普通卡死阈值的值,避免把「短暂不健康」当死)②本地未平仓台账非空(确有裸仓)时,在重启前先触发一次
+# 应急强平。flatten 命令自身还会抢单写租约做二次互锁:若主进程其实还活着持锁,flatten 会自动拒绝,绝不并发平仓。
+FLATTEN_ON_DEAD="${LINGXI_FLATTEN_ON_DEAD:-0}"
+FLATTEN_STALE_THRESHOLD="${LINGXI_FLATTEN_STALE_THRESHOLD:-300}"   # 心跳超过多少秒才视为「确已死」可兜底强平(须 ≫ STALE_THRESHOLD)
+OPEN_HEDGES_FILE="${LINGXI_OPEN_HEDGES_FILE:-$RECORD_DIR/live_open_hedges.json}"
+FLATTEN_CMD="${LINGXI_FLATTEN_CMD:-systemctl stop lingxi; lingxi flatten watchdog}"
+
 log() { echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] watchdog: $*"; }
 
 alert() {
@@ -62,6 +71,34 @@ heartbeat_age() {
 health_ok() {
   code=$(curl -fsS -m 5 -o /dev/null -w '%{http_code}' "$HEALTH_URL" 2>/dev/null || echo 000)
   [ "$code" = "200" ]
+}
+
+# ledger_has_hedges 返回 0 表示本地未平仓台账存在且含裸仓(空台账时引擎会删文件,故文件在即视为有内容,再核对 symbol 字段)。
+ledger_has_hedges() {
+  [ -f "$OPEN_HEDGES_FILE" ] || return 1
+  grep -q '"symbol"' "$OPEN_HEDGES_FILE" 2>/dev/null
+}
+
+# maybe_flatten_naked_positions 在「确认主进程已死 + 台账有裸仓 + 开关开启」时,于重启前触发一次应急强平兜底。
+# flatten 命令内部还会抢单写租约二次互锁(主进程仍存活则自动拒绝),这里只做粗筛与触发。
+maybe_flatten_naked_positions() {
+  age="$1"
+  [ "$FLATTEN_ON_DEAD" = "1" ] || return 0
+  if [ "$age" -le "$FLATTEN_STALE_THRESHOLD" ]; then
+    log "未达兜底强平的「确已死」阈值(心跳 ${age}s ≤ ${FLATTEN_STALE_THRESHOLD}s),跳过强平,仅常规重启"
+    return 0
+  fi
+  if ! ledger_has_hedges; then
+    log "本地未平仓台账无裸仓,无需兜底强平"
+    return 0
+  fi
+  alert "主进程确已死(心跳 ${age}s)且台账存在裸仓,重启前触发应急强平兜底: $FLATTEN_CMD"
+  # shellcheck disable=SC2086
+  if sh -c "$FLATTEN_CMD"; then
+    log "应急强平命令已执行"
+  else
+    alert "应急强平命令失败,裸仓可能仍在!需立即人工介入: $FLATTEN_CMD"
+  fi
 }
 
 check_once() {
@@ -100,6 +137,8 @@ check_once() {
   alert "连续 $fails 次不健康($reasons),执行重启: $RESTART_CMD"
   now_epoch >"$LAST_RESTART_FILE"
   echo 0 >"$FAIL_COUNT_FILE"
+  # 重启前的已成交裸仓兜底强平(默认关闭,仅在确认主进程已死时触发;见文件头说明)。
+  maybe_flatten_naked_positions "$age"
   # shellcheck disable=SC2086
   if sh -c "$RESTART_CMD"; then
     log "重启命令已执行"

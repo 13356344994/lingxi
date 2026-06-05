@@ -945,10 +945,11 @@ M6(治理) 可与 M2~M5 并行
 - **[P3] 出厂默认武装关键守卫**：基线默认开启 `HoldHedgeGuardEnabled`、`FeedBlindnessGuardEnabled`、`MinMarginLevel=1.5`、`DeadMansSwitchEnabled`（空仓/无负 carry/回测下均为 no-op，逐字段可在 YAML/env 退回兼容姿态）。`MinRealizedNetEdgeRate` 仍留 0（策略 edge 闸需实盘标定）。（`defaults.go`）
 - **[P1] 灰度门 de-risk 自动闭环**：rollback 决策自动收紧生效组合名义硬顶（`effectiveMaxPortfolioNotionalUSDT`，原子 override、单调只减）；promote（放大风险）仍只建议不自动放大。（`capital_ramp.go`）
 - **[P2] Dashboard 令牌恒定时间比较**：`X-Dashboard-Token` 核对改 `crypto/subtle.ConstantTimeCompare`，消除时序侧信道。（`dashboard_server.go`）
+- **[P2] 死手开关覆盖已成交裸仓**：新增 `lingxi flatten` 应急强平子命令——从未平仓台账（SSOT）重建裸仓，复用方向感知双腿强平（`panicFlattenManagedExposure`）收敛现货/合约两腿，强平后核对台账残留并告警。抢单写租约做并发互锁（主进程存活时自动拒绝），支持 `shadow` 预演；外部看门狗 `LINGXI_FLATTEN_ON_DEAD=1` 可在「主进程确已死 + 台账有裸仓」时于重启前自动兜底。（`emergency_flatten.go` / `watchdog.sh`）
+- **[运维] 进程生命周期 Telegram 通知**：启动（info）/计划停机（warning,`graceful_shutdown`）/异常崩溃（critical,`engine_crashed`）经 `notifyLifecycle`（绕过 MinSeverity 过滤，必达）推送；主循环 panic 兜底 recover 转受控关停并发崩溃通知，不再无声消失。（`funding_sniper_engine.go` / `graceful_shutdown.go`）
 
 **未闭环（大改 / 基建，建议下一步按序）**
 - **[P1] 负 carry 实时 WS 用户流（cross-margin）**：当前 5s REST 轮询已兜住正确性，WS 为时效升级（最大件，建议单独迭代）。
-- **[P2] 死手开关覆盖已成交裸仓**：交易所无「失联自动平仓」原生能力；根治路径＝外部看门狗在主进程失联时调用一次性 `flatten` 入口（可复用 `panicFlattenManagedExposure`，需独立进程 + 谨慎评审，会下真实平仓单）。
 - **[P2] 负 carry 健康守卫 REST→WS**：同上 WS 项，5s 轮询/30s 过期窗口已兜底。
 - **[部署] secret.yaml 静态加密 / KMS / keyring**：主机/基建侧（见 §18.4.1 A）。
 - **[部署] Dashboard 正式多层鉴权**：内网面板标准做法是反代鉴权 / 仅绑 loopback；代码侧已做令牌 + 本机限制 + 恒定时间比较 + 审计。
