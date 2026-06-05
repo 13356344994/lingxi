@@ -196,6 +196,11 @@ type FundingRateSniperEngine struct {
 	// 供负 carry 持有期逐腿对冲偏离守卫测量借币空头规模(abs(NetAsset))。
 	crossMarginAssetBalances map[string]CrossMarginAssetBalance
 
+	// rampNotionalOverrideBits 是灰度门「自动收紧」的组合名义硬顶 override(float64 位模式,原子读写)。
+	// 灰度门 rollback(de-risk 方向)自动把硬顶临时收紧到更低档闭环无人值守降险;升档(放大风险)仍只建议
+	// 不自动放大。0 表示无 override(用配置基线值)。重启后 override 丢失回到基线,由灰度门重新评估再收紧。
+	rampNotionalOverrideBits atomic.Uint64
+
 	currentStage                   EngineStage
 	currentStageReason             string
 	currentStageTransitionedAt     string

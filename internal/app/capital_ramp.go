@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 )
@@ -147,12 +148,49 @@ func decideCapitalRampAction(currentNotional float64, tiers []float64, sig capit
 	return capitalRampDecision{Action: capitalRampPromote, TargetNotional: tiers[idx+1], Reason: "升档门全部通过(净 edge/滑点/成交率/对账均达标)"}
 }
 
+// effectiveMaxPortfolioNotionalUSDT 返回当前生效的组合名义硬顶:配置基线与灰度门自动收紧 override 取更严
+// (更小的正值)。0 表示该维度不设限(基线与 override 皆未设)。原子读取,可在热开仓路径无锁调用。
+func (e *FundingRateSniperEngine) effectiveMaxPortfolioNotionalUSDT() float64 {
+	base := e.cfg.PortfolioConfig.MaxPortfolioNotionalUSDT
+	bits := e.rampNotionalOverrideBits.Load()
+	if bits == 0 {
+		return base
+	}
+	override := math.Float64frombits(bits)
+	if override <= 0 {
+		return base
+	}
+	if base <= 0 {
+		return override
+	}
+	return math.Min(base, override)
+}
+
+// tightenRampNotionalOverride 把组合名义硬顶 override 收紧到 target(只允许变小,de-risk 单调方向)。
+func (e *FundingRateSniperEngine) tightenRampNotionalOverride(target float64) {
+	if target <= 0 {
+		return
+	}
+	for {
+		cur := e.rampNotionalOverrideBits.Load()
+		if cur != 0 {
+			if existing := math.Float64frombits(cur); existing > 0 && existing <= target {
+				return // 已不高于目标,保持更严的现值。
+			}
+		}
+		if e.rampNotionalOverrideBits.CompareAndSwap(cur, math.Float64bits(target)) {
+			return
+		}
+	}
+}
+
 // evaluateCapitalRampRecommendation 用当前实测信号跑灰度门,产出放行/回退建议并经日志 + 告警上报。
 // 仅在 AutoCapitalRampEnabled=true 且配置了 CapitalRampSchedule 时运行(否则纯函数仍可供离线/面板使用)。
 //
-// 安全边界:本方法**不**直接改动 MaxPortfolioNotionalUSDT——资金放大/回退是高后果决策,由人工核实建议
-// (尤其滑点/成交率/对账等需人工确认的信号)后经改参路径(带 audit/回滚)落地。回退建议以 critical 告警上报,
-// 升档建议以 warning 上报,提醒运维及时处置。返回判定供调用方/测试使用。
+// 安全边界(已闭环 de-risk 方向):rollback(收紧投放名义)会**自动**把生效硬顶收紧到更低档
+// (effectiveMaxPortfolioNotionalUSDT,经 override,单调只减)——无人值守时自动降险;promote(放大风险)
+// 仍只建议不自动放大(高后果,且滑点/成交率/对账等需人工确认的信号引擎未连续跟踪)。回退以 critical 告警、
+// 升档以 warning 告警上报。返回判定供调用方/测试使用。
 func (e *FundingRateSniperEngine) evaluateCapitalRampRecommendation() (capitalRampDecision, bool) {
 	if e == nil || !e.cfg.PortfolioConfig.AutoCapitalRampEnabled {
 		return capitalRampDecision{}, false
@@ -182,12 +220,17 @@ func (e *FundingRateSniperEngine) evaluateCapitalRampRecommendation() (capitalRa
 	}
 	level := EventLevelWarning
 	title := "灰度门建议升档"
+	enforced := ""
 	if decision.Action == capitalRampRollback {
 		level = EventLevelCritical
-		title = "灰度门建议回退档位"
+		title = "灰度门自动回退档位(已收紧硬顶)"
+		// de-risk 方向自动闭环:把生效组合名义硬顶收紧到回退目标(单调只减,重启回基线再评估)。
+		e.tightenRampNotionalOverride(decision.TargetNotional)
+		enforced = "已自动收紧生效硬顶;"
 	}
-	detail := fmt.Sprintf("灰度门建议 %s:当前投放名义 %.0f → 目标 %.0f USDT;%s(实测净edge率=%.6f 样本=%d)。需人工核实后改参落地。",
-		decision.Action, e.cfg.PortfolioConfig.MaxPortfolioNotionalUSDT, decision.TargetNotional, decision.Reason, stats.NetEdgeRate, stats.Samples)
+	detail := fmt.Sprintf("灰度门 %s:当前投放名义 %.0f → 目标 %.0f USDT;%s(实测净edge率=%.6f 样本=%d)。%s",
+		decision.Action, e.cfg.PortfolioConfig.MaxPortfolioNotionalUSDT, decision.TargetNotional, decision.Reason, stats.NetEdgeRate, stats.Samples,
+		nonEmpty(enforced, "升档为放大风险,仅建议,需人工核实后改参落地。"))
 	if e.logger != nil {
 		e.logger.Printf("[capital-ramp] %s", detail)
 	}

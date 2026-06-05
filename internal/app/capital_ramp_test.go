@@ -108,3 +108,32 @@ func TestDecideCapitalRampHealthyReconcilesGate(t *testing.T) {
 		t.Fatalf("HEALTHY 达标应升档, got %+v", d)
 	}
 }
+
+// TestRampNotionalOverrideMonotonicTighten 钉死灰度门自动收紧:override 只减不增,且与基线取更严。
+func TestRampNotionalOverrideMonotonicTighten(t *testing.T) {
+	e := &FundingRateSniperEngine{cfg: DefaultEngineConfig()}
+	e.cfg.PortfolioConfig.MaxPortfolioNotionalUSDT = 1000
+
+	if got := e.effectiveMaxPortfolioNotionalUSDT(); got != 1000 {
+		t.Fatalf("无 override 应返回基线 1000, got %.0f", got)
+	}
+	e.tightenRampNotionalOverride(600)
+	if got := e.effectiveMaxPortfolioNotionalUSDT(); got != 600 {
+		t.Fatalf("收紧到 600 应生效, got %.0f", got)
+	}
+	// 更高目标不放松(只减不增)。
+	e.tightenRampNotionalOverride(800)
+	if got := e.effectiveMaxPortfolioNotionalUSDT(); got != 600 {
+		t.Fatalf("更高目标不应放松 override, got %.0f", got)
+	}
+	// 更低目标继续收紧。
+	e.tightenRampNotionalOverride(400)
+	if got := e.effectiveMaxPortfolioNotionalUSDT(); got != 400 {
+		t.Fatalf("更低目标应继续收紧, got %.0f", got)
+	}
+	// 基线比 override 更严时取基线。
+	e.cfg.PortfolioConfig.MaxPortfolioNotionalUSDT = 300
+	if got := e.effectiveMaxPortfolioNotionalUSDT(); got != 300 {
+		t.Fatalf("基线更严应取基线 300, got %.0f", got)
+	}
+}

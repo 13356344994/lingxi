@@ -208,7 +208,7 @@ func (e *FundingRateSniperEngine) admitResidentFillTargets(validTargets []*Monit
 	}
 	plan := rebalancePortfolio(e.residentPortfolioPositions(), candidates, rebalanceLimits{
 		MaxSymbols:         e.cfg.PortfolioConfig.MaxPortfolioSymbols,
-		MaxNotionalUSDT:    e.cfg.PortfolioConfig.MaxPortfolioNotionalUSDT,
+		MaxNotionalUSDT:    e.effectiveMaxPortfolioNotionalUSDT(),
 		HysteresisBandRate: residentOpenNoChurnBand,
 	})
 	admitSet := make(map[string]struct{}, len(plan.Add))

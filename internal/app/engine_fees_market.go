@@ -640,7 +640,7 @@ func (e *FundingRateSniperEngine) applyDynamicSizingTightening(target *Monitored
 	profile := GetSymbolRiskProfile(target.Candidate.Symbol)
 	hardCap := resolveHardCapUSDT(
 		e.cfg.PortfolioConfig.PerSymbolHardCapUSDT,
-		e.cfg.PortfolioConfig.MaxPortfolioNotionalUSDT,
+		e.effectiveMaxPortfolioNotionalUSDT(),
 		e.cfg.PortfolioConfig.MaxPortfolioSymbols,
 	)
 	dynRes := resolveDynamicPerSymbolCap(dynamicPerSymbolCapInput{
@@ -671,7 +671,7 @@ func (e *FundingRateSniperEngine) applyDynamicSizingTightening(target *Monitored
 	capNotional, ok, reason := constrainedSizingNotionalUSDT(
 		dynRes,
 		clusterNotional, clusterKey, e.cfg.PortfolioConfig.ClusterMaxNotionalUSDT,
-		heldNotional, e.cfg.PortfolioConfig.MaxPortfolioNotionalUSDT,
+		heldNotional, e.effectiveMaxPortfolioNotionalUSDT(),
 		minNotionalUSDT,
 	)
 	target.LastDynamicSizingReason = reason
