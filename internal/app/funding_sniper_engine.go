@@ -238,8 +238,10 @@ func (e *FundingRateSniperEngine) livePreferredSpotQuoteAssets() []string {
 	return []string{asset}
 }
 
-// runOneCycle 串起模块二到模块五。
-func (e *FundingRateSniperEngine) runOneCycle(ctx context.Context, wakeAt time.Time) error {
+// openCyclePositions 执行「扫描→监控→开仓」段(模块二~四),产出本轮成功建仓的对冲与开仓前账户快照。
+// opened=false 表示本轮无可开仓(无满足目标 / 全被风控作废 / 无成功建仓),各分支已完成相应生命周期迁移与上报副作用,
+// 调用方直接结束本轮即可。供单周期(runOneCycle,随后进平仓监控)与滚动新开(openResidentPositions,开后保留为常驻)复用。
+func (e *FundingRateSniperEngine) openCyclePositions(ctx context.Context, wakeAt time.Time) ([]OpenHedge, CycleAccountSnapshot, bool, error) {
 	e.platformRiskMu.Lock()
 	e.currentCycleID = newCycleID(e.runID)
 	cycleID := e.currentCycleID
@@ -251,12 +253,12 @@ func (e *FundingRateSniperEngine) runOneCycle(ctx context.Context, wakeAt time.T
 	e.runtimeReporter.EmitWithReason(StageScan, 0, "开始扫描候选标的")
 	e.logger.Printf("模块二启动，觉醒时间: %s", wakeAt.Format("15:04:05"))
 	if err := e.syncServerTimeOffset(ctx); err != nil {
-		return err
+		return nil, CycleAccountSnapshot{}, false, err
 	}
 
 	targets, err := e.scanTopFundingTargets(ctx)
 	if err != nil {
-		return err
+		return nil, CycleAccountSnapshot{}, false, err
 	}
 	targets = e.filterTargetsBySymbolCooldown(targets)
 	if len(targets) == 0 {
@@ -264,7 +266,7 @@ func (e *FundingRateSniperEngine) runOneCycle(ctx context.Context, wakeAt time.T
 		_ = e.advanceLifecycleStage(LifecycleStageCompleted, "扫描结束，没有满足条件的目标")
 		e.runtimeReporter.EmitWithReason(StageScanEmpty, 0, "扫描结束，没有满足条件的目标")
 		e.logger.Println("模块二扫描结束，本轮没有满足条件的目标")
-		return nil
+		return nil, CycleAccountSnapshot{}, false, nil
 	}
 
 	e.setCurrentMonitorTargets(targets)
@@ -272,7 +274,7 @@ func (e *FundingRateSniperEngine) runOneCycle(ctx context.Context, wakeAt time.T
 	e.runtimeReporter.EmitWithReason(StageMonitor, len(targets), fmt.Sprintf("进入监控阶段，目标数=%d", len(targets)))
 	monitored := e.monitorTargets(ctx, targets)
 	if fuseErr := e.checkPlatformFuse(); fuseErr != nil {
-		return fuseErr
+		return nil, CycleAccountSnapshot{}, false, fuseErr
 	}
 	validTargets := filterValidTargets(monitored)
 	if len(validTargets) == 0 {
@@ -280,18 +282,18 @@ func (e *FundingRateSniperEngine) runOneCycle(ctx context.Context, wakeAt time.T
 		_ = e.advanceLifecycleStage(LifecycleStageCompleted, "监控结束，所有目标都已被风控作废")
 		e.runtimeReporter.EmitWithReason(StageMonitorInvalidated, 0, "监控结束，所有目标都已被风控作废")
 		e.logger.Println("模块三结束，所有目标都已被风控作废")
-		return nil
+		return nil, CycleAccountSnapshot{}, false, nil
 	}
 
 	e.setCurrentMonitorTargets(validTargets)
 	e.runtimeReporter.EmitWithReason(StageOpen, len(validTargets), fmt.Sprintf("进入开仓阶段，目标数=%d", len(validTargets)))
 	openProtocol := e.ensureOpenProtocol()
 	if openProtocol == nil {
-		return fmt.Errorf("open protocol 未初始化")
+		return nil, CycleAccountSnapshot{}, false, fmt.Errorf("open protocol 未初始化")
 	}
 	preparedResult, err := openProtocol.PrepareSequence(ctx, validTargets)
 	if err != nil {
-		return err
+		return nil, CycleAccountSnapshot{}, false, err
 	}
 	if err := e.applyLifecycleProtocolResult(preparedResult.ProtocolResult); err != nil {
 		e.logger.Printf("忽略非法生命周期迁移(open.prepare): %v", err)
@@ -301,7 +303,7 @@ func (e *FundingRateSniperEngine) runOneCycle(ctx context.Context, wakeAt time.T
 	e.emitDomainEvents(preparedResult.ProtocolResult.Events)
 	executeOpenResult, err := openProtocol.ExecuteSequence(ctx, validTargets, preparedResult.Preparation)
 	if err != nil {
-		return err
+		return nil, CycleAccountSnapshot{}, false, err
 	}
 	if err := e.applyLifecycleProtocolResult(executeOpenResult.ProtocolResult); err != nil {
 		e.logger.Printf("忽略非法生命周期迁移(open.execute): %v", err)
@@ -311,13 +313,25 @@ func (e *FundingRateSniperEngine) runOneCycle(ctx context.Context, wakeAt time.T
 	e.emitDomainEvents(executeOpenResult.ProtocolResult.Events)
 	openHedges, beforeSnapshot := executeOpenResult.Hedges, executeOpenResult.BeforeSnapshot
 	if fuseErr := e.checkPlatformFuse(); fuseErr != nil {
-		return fuseErr
+		return nil, CycleAccountSnapshot{}, false, fuseErr
 	}
 	if len(openHedges) == 0 {
 		e.setCurrentPositions(nil)
 		_ = e.advanceLifecycleStage(LifecycleStageCompleted, "开仓结束，没有成功建仓的目标")
 		e.runtimeReporter.EmitWithReason(StageOpenEmpty, 0, "开仓结束，没有成功建仓的目标")
 		e.logger.Println("模块四结束，没有成功建仓的目标")
+		return nil, CycleAccountSnapshot{}, false, nil
+	}
+	return openHedges, beforeSnapshot, true, nil
+}
+
+// runOneCycle 串起模块二到模块五(单周期:开 N → 当轮全平 N)。
+func (e *FundingRateSniperEngine) runOneCycle(ctx context.Context, wakeAt time.Time) error {
+	openHedges, beforeSnapshot, opened, err := e.openCyclePositions(ctx, wakeAt)
+	if err != nil {
+		return err
+	}
+	if !opened {
 		return nil
 	}
 

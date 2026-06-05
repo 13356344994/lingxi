@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 )
@@ -130,6 +131,26 @@ func (e *FundingRateSniperEngine) marginalHoldCostRates(held []OpenHedge) map[st
 // defaultFundingIntervalHours 是边际持有成本估算所用的 funding 间隔保守默认(8h)。台账只持久化单点 NextFundingTime、
 // 不含间隔,逐币真实间隔(4h/8h/可变)的标定留作后续;8h 对借币成本是偏大(保守)估计,符合 fail-safe 偏向平仓。
 const defaultFundingIntervalHours = 8.0
+
+// openResidentPositions 执行滚动持有的新开:复用「扫描→监控→开仓」段(openCyclePositions)开仓,但开后**不当轮平仓**,
+// 而是保留为常驻组合——写入持仓标签 + activeOpenHedges + 本地台账(各币 NextFundingTime 已由 scan 注入 Target,
+// 供 residentClocks 驱动后续 :55 复核决定 keep/drop)。返回本轮新开的常驻对冲;无可开仓时返回 (nil,nil)。
+func (e *FundingRateSniperEngine) openResidentPositions(ctx context.Context, wakeAt time.Time) ([]OpenHedge, error) {
+	openHedges, _, opened, err := e.openCyclePositions(ctx, wakeAt)
+	if err != nil {
+		return nil, err
+	}
+	if !opened {
+		return nil, nil
+	}
+	e.setCurrentPositionsFromHedges(openHedges)
+	if err := e.syncPersistedOpenHedges(openHedges); err != nil {
+		return nil, err
+	}
+	_ = e.advanceLifecycleStage(LifecycleStageCloseMonitoring, fmt.Sprintf("滚动持有:新开 %d 仓保留为常驻组合", len(openHedges)))
+	e.runtimeReporter.EmitWithReason(StageCloseMonitor, len(openHedges), fmt.Sprintf("滚动持有:常驻持仓数=%d", len(openHedges)))
+	return openHedges, nil
+}
 
 // runRollingPortfolioCycle 是滚动持有(EnableRollingHold)下的常驻组合编排(M-S4.4c-iii):与单周期 runOneCycle
 // 不同,它在迭代间保留常驻组合——复核窗口对到期持仓做 keep/drop、对空槽做新开补位。
