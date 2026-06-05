@@ -133,6 +133,20 @@ func sampleValidConfig() EngineConfig {
 			SevereLiquidityShareMultiplier:         2.5,
 			SevereLiquidityShareMax:                0.50,
 		},
+		PortfolioConfig: PortfolioConfig{
+			EnableRollingHold:                 false,
+			DynamicSizingEnabled:              false,
+			MaxPortfolioSymbols:               10,
+			MaxPortfolioNotionalUSDT:          0,
+			RevalidateLead:                    5 * time.Minute,
+			HoldRollThresholdRate:             0,
+			RollSafetyBufferRate:              0,
+			RebalanceHysteresisCostMultiplier: 1.0,
+			PerSymbolHardCapUSDT:              0,
+			ClusterMaxNotionalUSDT:            0,
+			MaxBorrowNotionalPerAssetUSDT:     0,
+			CapitalRampSchedule:               "",
+		},
 	}
 }
 
@@ -147,6 +161,56 @@ func TestEngineConfigValidateRejectsBadLeverage(t *testing.T) {
 	cfg.ExecutionConfig.FuturesLeverage = 0
 	if err := cfg.Validate(); err == nil {
 		t.Fatal("expected invalid leverage to fail validation")
+	}
+}
+
+// TestPortfolioConfigDefaultsValid 钉死 §16.7 滚动持有/动态仓位配置默认值（全关闭、滞后带 1.0）通过校验，
+// 对运行零影响。
+func TestPortfolioConfigDefaultsValid(t *testing.T) {
+	if err := DefaultEngineConfig().Validate(); err != nil {
+		t.Fatalf("默认 PortfolioConfig 应通过校验: %v", err)
+	}
+}
+
+// TestPortfolioConfigValidationGates 钉死 Portfolio 校验的「恒检非负 + 启用时门控」语义。
+func TestPortfolioConfigValidationGates(t *testing.T) {
+	// 滞后带 < 1.0 恒拒（防 churn 下界）。
+	cfg := sampleValidConfig()
+	cfg.PortfolioConfig.RebalanceHysteresisCostMultiplier = 0.5
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("RebalanceHysteresisCostMultiplier<1.0 应被拒")
+	}
+
+	// EnableRollingHold 但 RevalidateLead<=0 应拒。
+	cfg = sampleValidConfig()
+	cfg.PortfolioConfig.EnableRollingHold = true
+	cfg.PortfolioConfig.RevalidateLead = 0
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("EnableRollingHold 且 RevalidateLead<=0 应被拒")
+	}
+
+	// EnableRollingHold + 合法参数应通过。
+	cfg = sampleValidConfig()
+	cfg.PortfolioConfig.EnableRollingHold = true
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("EnableRollingHold + 合法参数应通过: %v", err)
+	}
+
+	// DynamicSizingEnabled 但无法推导单币硬顶应拒。
+	cfg = sampleValidConfig()
+	cfg.PortfolioConfig.DynamicSizingEnabled = true
+	cfg.PortfolioConfig.PerSymbolHardCapUSDT = 0
+	cfg.PortfolioConfig.MaxPortfolioNotionalUSDT = 0
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("DynamicSizingEnabled 且无法推导单币硬顶应被拒")
+	}
+
+	// DynamicSizingEnabled + 显式硬顶应通过。
+	cfg = sampleValidConfig()
+	cfg.PortfolioConfig.DynamicSizingEnabled = true
+	cfg.PortfolioConfig.PerSymbolHardCapUSDT = 1000
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("DynamicSizingEnabled + 显式硬顶应通过: %v", err)
 	}
 }
 

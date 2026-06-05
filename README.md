@@ -616,7 +616,7 @@ finalNotional = clamp(baseUnit × edgeScore, minNotional, perSymbolCap)
 
 **分配策略：** 10 个槽位**按净 carry 边际择优加权**（不等权），但受 L1 单币上限与 L2 簇上限约束防集中。
 
-### 16.7 新增配置项（草案，纳入真 YAML + 自动映射；见 R17/R24）
+### 16.7 新增配置项（✅ 已落地为 `core.PortfolioConfig`，默认全关闭/零行为变更；纳入真 YAML + 自动映射，见 R17/R24）
 > 架构上限按 10W 设计；「当前投放档」由 `MaxPortfolioNotionalUSDT` 这一个旋钮随灰度计划调高（见 16.2.1）。
 > 「灰度起步值」列是首次实盘验证的建议起点，不是架构上限。
 

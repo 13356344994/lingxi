@@ -173,6 +173,26 @@ func DefaultEngineConfig() EngineConfig {
 			SevereLiquidityShareMultiplier:         2.5,
 			SevereLiquidityShareMax:                0.50,
 		},
+		PortfolioConfig: PortfolioConfig{
+			// 行为开关默认关闭：保持既有「单周期、静态 size」行为，对运行零影响（opt-in）。
+			EnableRollingHold:    false,
+			DynamicSizingEnabled: false,
+			// L3 组合约束：币数上限按架构目标 10；总名义上限默认 0（不启用，由灰度计划调高，见 §16.2.1）。
+			MaxPortfolioSymbols:      10,
+			MaxPortfolioNotionalUSDT: 0,
+			// 续持复核提前量 = :55（结算前 5min 做 keep/drop 复核）。
+			RevalidateLead: 5 * time.Minute,
+			// 续持门槛 / 安全垫待实盘标定，默认 0（启用滚动持有时须显式配置）。
+			HoldRollThresholdRate: 0,
+			RollSafetyBufferRate:  0,
+			// 换仓滞后带默认 1.0（净 carry 优势须超过完整往返成本才换仓，防 churn）。
+			RebalanceHysteresisCostMultiplier: 1.0,
+			// 单币硬顶 / 簇上限 / 单资产借币上限默认 0（不约束 / 按组合上限派生），待标定。
+			PerSymbolHardCapUSDT:          0,
+			ClusterMaxNotionalUSDT:        0,
+			MaxBorrowNotionalPerAssetUSDT: 0,
+			CapitalRampSchedule:           "",
+		},
 	}
 	return cfg
 }

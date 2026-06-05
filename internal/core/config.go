@@ -231,6 +231,38 @@ type HistoricalConfig struct {
 	SevereLiquidityShareMax                float64       `cfg:"severe_liquidity_share_max"`
 }
 
+// PortfolioConfig 表示「跨周期滚动持有的资金费 carry 组合 + 市场驱动的动态仓位管理」配置（见 README 第十六节）。
+//
+// 架构按 10W 目标一次设计到位，但所有行为开关默认关闭（opt-in）：EnableRollingHold / DynamicSizingEnabled 为
+// false 时，引擎严格保持既有「单周期、静态 size」行为，本结构对运行零影响。实际投放档位由 MaxPortfolioNotionalUSDT
+// 这一个旋钮随灰度计划（如 10000→30000→100000）调高，与架构进度解耦（见 §16.2.1）。
+type PortfolioConfig struct {
+	// EnableRollingHold 启用跨周期滚动持有：到期前按各币 funding 时钟做 keep/drop 复核，盈利续持省往返成本。默认 false。
+	EnableRollingHold bool `cfg:"enable_rolling_hold"`
+	// MaxPortfolioSymbols 组合最大同时持仓币数（L3）。默认 10。
+	MaxPortfolioSymbols int `cfg:"max_portfolio_symbols"`
+	// MaxPortfolioNotionalUSDT 组合最大总名义（L3，灰度旋钮）。0 表示不启用组合名义上限（默认）；架构上限 100000。
+	MaxPortfolioNotionalUSDT float64 `cfg:"max_portfolio_notional_usdt"`
+	// RevalidateLead 结算前续持复核提前量（即 :55）。默认 5min。
+	RevalidateLead time.Duration `cfg:"revalidate_lead"`
+	// HoldRollThresholdRate 续持门槛费率（远低于入场门槛，只需覆盖多持一周期的边际成本）。默认 0（待标定）。
+	HoldRollThresholdRate float64 `cfg:"hold_roll_threshold_rate"`
+	// RollSafetyBufferRate 续持安全垫：下期保守预期净资金费须明显为正（> buffer）才续持。默认 0（待标定）。
+	RollSafetyBufferRate float64 `cfg:"roll_safety_buffer_rate"`
+	// RebalanceHysteresisCostMultiplier 换仓滞后带（往返成本倍数，防 churn）。须 ≥ 1.0。默认 1.0。
+	RebalanceHysteresisCostMultiplier float64 `cfg:"rebalance_hysteresis_cost_multiplier"`
+	// DynamicSizingEnabled 启用市场驱动的容量定 size（depth/volume/OI/强平距离多重天花板取最小）。默认 false。
+	DynamicSizingEnabled bool `cfg:"dynamic_sizing_enabled"`
+	// PerSymbolHardCapUSDT 单币绝对硬顶（L1 尾部风险封顶）。0 表示按 MaxPortfolioNotionalUSDT/MaxPortfolioSymbols 起步。
+	PerSymbolHardCapUSDT float64 `cfg:"per_symbol_hard_cap_usdt"`
+	// ClusterMaxNotionalUSDT 单簇上限（L2，按 base 资产/板块聚类防高相关集中）。0 表示不启用（默认，待标定）。
+	ClusterMaxNotionalUSDT float64 `cfg:"cluster_max_notional_usdt"`
+	// MaxBorrowNotionalPerAssetUSDT 负向 carry 单资产借币名义上限（撞可借量/利率阶梯前封顶）。0 表示不约束（默认，待标定）。
+	MaxBorrowNotionalPerAssetUSDT float64 `cfg:"max_borrow_notional_per_asset_usdt"`
+	// CapitalRampSchedule 灰度爬坡计划（逗号分隔，如 "10000,30000,100000"），由验证门逐档放行。默认空。
+	CapitalRampSchedule string `cfg:"capital_ramp_schedule"`
+}
+
 // EngineConfig 是 Funding Rate Sniper Engine 的 MVP 运行配置。
 type EngineConfig struct {
 	ActiveProfile EngineProfile `cfg:"active_profile"` // 运行偏好档位
@@ -240,6 +272,7 @@ type EngineConfig struct {
 	ExecutionConfig  `cfg:"execution"`
 	RiskConfig       `cfg:"risk"`
 	HistoricalConfig `cfg:"historical"`
+	PortfolioConfig  `cfg:"portfolio"`
 }
 
 // ApplyProfile 根据给定的运行档案，覆写当前配置的关键风控和容量参数
@@ -477,6 +510,25 @@ func (cfg EngineConfig) Validate() error {
 	appendIssue(cfg.HistoricalConfig.SevereLiquidityShareCap > 0 && cfg.HistoricalConfig.SevereLiquidityShareCap <= 1, "Historical SevereLiquidityShareCap 必须在 (0, 1] 之间")
 	appendIssue(cfg.HistoricalConfig.SevereLiquidityShareMultiplier > 1, "Historical SevereLiquidityShareMultiplier 必须大于 1")
 	appendIssue(cfg.HistoricalConfig.SevereLiquidityShareMax >= cfg.HistoricalConfig.SevereLiquidityShareCap, "Historical SevereLiquidityShareMax 不能小于 SevereLiquidityShareCap")
+
+	// Portfolio：恒检非负 + 滞后带 ≥ 1.0（防 churn 的下界）；其余约束仅在对应开关启用时生效，关闭时对运行零影响。
+	appendIssue(cfg.PortfolioConfig.MaxPortfolioSymbols >= 0, "Portfolio MaxPortfolioSymbols 不能小于 0")
+	appendIssue(cfg.PortfolioConfig.MaxPortfolioNotionalUSDT >= 0, "Portfolio MaxPortfolioNotionalUSDT 不能小于 0（0 表示不启用组合名义上限）")
+	appendIssue(cfg.PortfolioConfig.RevalidateLead >= 0, "Portfolio RevalidateLead 不能小于 0")
+	appendIssue(cfg.PortfolioConfig.HoldRollThresholdRate >= 0, "Portfolio HoldRollThresholdRate 不能小于 0")
+	appendIssue(cfg.PortfolioConfig.RollSafetyBufferRate >= 0, "Portfolio RollSafetyBufferRate 不能小于 0")
+	appendIssue(cfg.PortfolioConfig.RebalanceHysteresisCostMultiplier >= 1.0, "Portfolio RebalanceHysteresisCostMultiplier 必须 ≥ 1.0（滞后带须至少覆盖完整往返成本以防 churn）")
+	appendIssue(cfg.PortfolioConfig.PerSymbolHardCapUSDT >= 0, "Portfolio PerSymbolHardCapUSDT 不能小于 0")
+	appendIssue(cfg.PortfolioConfig.ClusterMaxNotionalUSDT >= 0, "Portfolio ClusterMaxNotionalUSDT 不能小于 0")
+	appendIssue(cfg.PortfolioConfig.MaxBorrowNotionalPerAssetUSDT >= 0, "Portfolio MaxBorrowNotionalPerAssetUSDT 不能小于 0")
+	if cfg.PortfolioConfig.EnableRollingHold {
+		appendIssue(cfg.PortfolioConfig.MaxPortfolioSymbols > 0, "启用 EnableRollingHold 时 MaxPortfolioSymbols 必须大于 0")
+		appendIssue(cfg.PortfolioConfig.RevalidateLead > 0, "启用 EnableRollingHold 时 RevalidateLead 必须大于 0")
+	}
+	if cfg.PortfolioConfig.DynamicSizingEnabled {
+		appendIssue(cfg.PortfolioConfig.PerSymbolHardCapUSDT > 0 || (cfg.PortfolioConfig.MaxPortfolioNotionalUSDT > 0 && cfg.PortfolioConfig.MaxPortfolioSymbols > 0),
+			"启用 DynamicSizingEnabled 时必须能推导单币硬顶（设 PerSymbolHardCapUSDT>0，或同时设 MaxPortfolioNotionalUSDT>0 与 MaxPortfolioSymbols>0）")
+	}
 
 	if len(issues) == 0 {
 		return nil
