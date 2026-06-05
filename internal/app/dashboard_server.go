@@ -13,6 +13,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
 	"path"
 	"path/filepath"
 	"strconv"
@@ -119,10 +120,14 @@ func (s *DashboardServer) Start(ctx context.Context) error {
 	}()
 
 	s.logger.Printf("Web 面板已启动: %s", dashboardBaseURL(s.addr))
-	// 面板默认仅监听本机，控制类操作需要该令牌；启动时打印到控制台/日志，方便本机填入面板。
-	// 注意：请勿把含有该令牌的日志公开分享。
+	// S5-D 凭证卫生:不再把控制令牌明文打到日志(日志可能被转存/分享 → 泄露)。改为写入仅本机可读(0600)的令牌
+	// 文件,日志只留路径 + 指纹(sha256 前 8 字节),操作者本机读取该文件填入面板即可。
 	if s.controlToken != "" {
-		s.logger.Printf("Dashboard 控制令牌: %s", s.controlToken)
+		if tokenPath, err := s.persistControlToken(); err == nil {
+			s.logger.Printf("Dashboard 控制令牌已写入 %s (0600,仅本机可读,请勿分享);指纹=%s", tokenPath, hashDashboardToken(s.controlToken))
+		} else {
+			s.logger.Printf("Dashboard 控制令牌写入文件失败(%v);指纹=%s,如需明文请重启后查看令牌文件", err, hashDashboardToken(s.controlToken))
+		}
 	} else {
 		s.logger.Printf("Dashboard 控制令牌未设置（控制类操作不需要令牌）")
 	}
@@ -613,6 +618,26 @@ func (s *DashboardServer) auditControlAction(r *http.Request, action string, suc
 	if err := s.auditStore.Append(record); err != nil && s.logger != nil {
 		s.logger.Printf("写入 dashboard 审计日志失败: %v", err)
 	}
+}
+
+// dashboardControlTokenFileName 是控制令牌落盘文件名(写在 RecordDir 下,0600 权限)。
+const dashboardControlTokenFileName = ".dashboard_control_token"
+
+// persistControlToken 把控制令牌以 0600 权限原子写入 RecordDir 下的令牌文件,返回路径。供操作者本机读取,避免明文进日志。
+func (s *DashboardServer) persistControlToken() (string, error) {
+	if s.store == nil {
+		return "", fmt.Errorf("记录存储未初始化")
+	}
+	tokenPath := filepath.Join(s.store.RecordDir(), dashboardControlTokenFileName)
+	tmp := tokenPath + ".tmp"
+	if err := os.WriteFile(tmp, []byte(s.controlToken+"\n"), 0o600); err != nil {
+		return "", err
+	}
+	if err := os.Rename(tmp, tokenPath); err != nil {
+		_ = os.Remove(tmp)
+		return "", err
+	}
+	return tokenPath, nil
 }
 
 func hashDashboardToken(token string) string {

@@ -5,11 +5,21 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"lingxi/internal/core"
 	"lingxi/internal/exchange"
 )
+
+// redactSecretPath 把凭证文件路径脱敏为仅文件名,避免日志泄露目录结构/部署布局(S5-D 凭证卫生)。
+func redactSecretPath(p string) string {
+	p = strings.TrimSpace(p)
+	if p == "" {
+		return "(unset)"
+	}
+	return filepath.Base(p)
+}
 
 // SecretConfig 表示从 secret.yaml 读取的最小认证配置。
 // SecretConfig 已迁移到 internal/exchange（凭证由交易所客户端消费）。保留别名以零改动兼容。

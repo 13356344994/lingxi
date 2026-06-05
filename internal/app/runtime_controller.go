@@ -328,7 +328,7 @@ func (c *RuntimeController) Start(req RuntimeStartRequest) error {
 	}
 	c.mu.Unlock()
 
-	c.appendControllerTraceLog(runID, "", "已接收运行请求，mode=%s secret=%s lookbackDays=%d", mode, secretPath, lookbackDays)
+	c.appendControllerTraceLog(runID, "", "已接收运行请求，mode=%s secret=%s lookbackDays=%d", mode, redactSecretPath(secretPath), lookbackDays)
 	go c.runTask(taskCtx, mode, secretPath, lookbackDays, taskCfg)
 	return nil
 }

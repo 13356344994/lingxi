@@ -848,7 +848,7 @@ M6(治理) 可与 M2~M5 并行
 
 **S5 可观测性与安全治理** —— 覆盖 R16·R25·R26 / §14 P5
 - 关键事件实时告警（Telegram/钉钉）+ 指标导出 + 存活心跳；API Key 启动期权限自检（拒绝带提现权限）+ IP 白名单（文档强制）+ 密钥静态加密；Dashboard 凭证哈希化、读/写授权分离。
-- **进度**：✅ S5-A 告警分发(`alerting.go`);✅ S5-B `/livez`+`/healthz`+`/metrics`+心跳文件(`observability_http.go`)。待:S5-C API Key 权限自检、S5-D 凭证脱敏、S5-E R34 pending 升级、S5-F R35 改参 diff/回滚。密钥静态加密 + IP 白名单留实盘/基建侧。
+- **进度**：✅ S5-A 告警分发(`alerting.go`);✅ S5-B `/livez`+`/healthz`+`/metrics`+心跳文件(`observability_http.go`);✅ S5-C 启动期 API Key 权限自检(`verifyAPIKeyPermissions`:带提现权限拒绝启动,未开 IP 白名单告警);✅ S5-D 凭证卫生(控制令牌改写 0600 文件+只记指纹,secret 路径脱敏)。待:S5-E R34 pending 升级、S5-F R35 改参 diff/回滚。密钥静态加密 + IP 白名单(交易所侧)留实盘/基建侧。
 - **退出**：熔断/裸腿/UNHEALTHY 会实时推送；带提现权限的 Key 被拒启动；日志无明文凭证。**评分↑：维度 9/10。**
 
 **S6 策略健康守卫** —— 覆盖 R27
