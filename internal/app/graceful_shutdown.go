@@ -23,13 +23,16 @@ func (e *FundingRateSniperEngine) finalizeGracefulShutdown(cause error) {
 		ctx, cancel := context.WithTimeout(context.Background(), gracefulShutdownTimeout)
 		defer cancel()
 
+		// 区分「计划停机」(ctx 取消)与「异常退出/崩溃」(致命熔断/panic 等真实错误):前者 warning，
+		// 后者 critical,且通知文案明确标注崩溃,便于运营者与外部看门狗区分处置。
+		abnormal := cause != nil && !errors.Is(cause, context.Canceled)
 		reason := "ctx 取消(SIGTERM/Interrupt)"
-		if cause != nil && !errors.Is(cause, context.Canceled) {
+		if abnormal {
 			reason = cause.Error()
 		}
 		active := e.snapshotActiveOpenHedges()
 		if e.logger != nil {
-			e.logger.Printf("[shutdown] 开始优雅停机收尾: 原因=%s 活跃对冲=%d", reason, len(active))
+			e.logger.Printf("[shutdown] 开始优雅停机收尾: 原因=%s 活跃对冲=%d 异常退出=%t", reason, len(active), abnormal)
 		}
 
 		// 1) 停用交易所 dead-man 倒计时:优雅停机我们自己负责善后,避免旧倒计时误撤后续实例挂单。
@@ -45,18 +48,30 @@ func (e *FundingRateSniperEngine) finalizeGracefulShutdown(cause error) {
 			e.logger.Printf("[shutdown] 落盘持仓账本失败: %v", err)
 		}
 
-		// 3) 发清晰的计划内停机事件 → 路由到告警/落盘。
+		// 3) 发清晰的停机/崩溃事件 → 路由到告警/落盘,并经 notifyLifecycle 保证必达 Telegram(不被 MinSeverity 过滤)。
 		runID, cycleID := e.traceIDs()
-		e.emitDomainEvents([]DomainEvent{{
-			Type:       EventTypeGracefulShutdown,
-			Level:      EventLevelWarning,
+		eventType := EventTypeGracefulShutdown
+		level := EventLevelWarning
+		title := "实盘引擎已停止(计划停机)"
+		detail := fmt.Sprintf("计划停机: %s; 活跃对冲 %d 笔已落盘, dead-man 已停用", reason, len(active))
+		if abnormal {
+			eventType = EventTypeEngineCrashed
+			level = EventLevelCritical
+			title = "实盘引擎异常退出(崩溃)"
+			detail = fmt.Sprintf("异常退出: %s; 活跃对冲 %d 笔已落盘, dead-man 已停用(交易所侧到期兜底撤单)。请尽快人工核查持仓与账户。", reason, len(active))
+		}
+		// 落盘 + 观测(不经 dispatcher.Notify,告警必达由下面的 notifyLifecycle 单路负责,避免重复推送)。
+		e.persistDomainEvents([]DomainEvent{{
+			Type:       eventType,
+			Level:      level,
 			OccurredAt: time.Now().UTC(),
 			RunID:      runID,
 			CycleID:    cycleID,
-			Reason:     fmt.Sprintf("优雅停机: %s; 活跃对冲 %d 笔已落盘, dead-man 已停用", reason, len(active)),
+			Reason:     detail,
 		}})
+		e.notifyLifecycle(level, title, detail)
 		if e.logger != nil {
-			e.logger.Printf("[shutdown] 优雅停机收尾完成")
+			e.logger.Printf("[shutdown] 停机收尾完成(异常退出=%t)", abnormal)
 		}
 	})
 }

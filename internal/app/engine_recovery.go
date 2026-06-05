@@ -331,6 +331,18 @@ func (e *FundingRateSniperEngine) emitRiskEvent(event RiskEvent) {
 }
 
 func (e *FundingRateSniperEngine) emitDomainEvents(events []DomainEvent) {
+	e.persistDomainEvents(events)
+	// S5-A:把达标的领域事件实时推送到外部告警出口(级别/去重在 dispatcher 内判定,nil-safe、fire-and-forget)。
+	if e.alertDispatcher != nil {
+		for _, event := range events {
+			e.alertDispatcher.Notify(domainEventToAlert(event))
+		}
+	}
+}
+
+// persistDomainEvents 落盘结构化事件 + 触发观测 hook,但**不**推送告警出口。供已自行用 notifyLifecycle/NotifyTrade
+// 保证告警必达的调用方使用(如停机/崩溃通知),避免同一事件在 Telegram 上重复推送两条。
+func (e *FundingRateSniperEngine) persistDomainEvents(events []DomainEvent) {
 	if e == nil || len(events) == 0 {
 		return
 	}
@@ -342,12 +354,6 @@ func (e *FundingRateSniperEngine) emitDomainEvents(events []DomainEvent) {
 	if e.domainEventHook != nil {
 		for _, event := range events {
 			e.domainEventHook(event)
-		}
-	}
-	// S5-A:把达标的领域事件实时推送到外部告警出口(级别/去重在 dispatcher 内判定,nil-safe、fire-and-forget)。
-	if e.alertDispatcher != nil {
-		for _, event := range events {
-			e.alertDispatcher.Notify(domainEventToAlert(event))
 		}
 	}
 }

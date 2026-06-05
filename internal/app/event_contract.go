@@ -20,6 +20,8 @@ const (
 	EventTypeRiskDowngrade       EventType = "risk_downgrade"
 	EventTypePendingFundingStuck EventType = "pending_funding_stuck"
 	EventTypeGracefulShutdown    EventType = "graceful_shutdown"
+	EventTypeEngineStarted       EventType = "engine_started"
+	EventTypeEngineCrashed       EventType = "engine_crashed"
 )
 
 // EventLevel 描述结构化事件的观测级别。

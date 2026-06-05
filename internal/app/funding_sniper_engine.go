@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"sort"
 	"strings"
 	"sync"
@@ -97,7 +98,21 @@ func NewFundingRateSniperEngineWithConfig(secretPath string, cfg EngineConfig) (
 func (e *FundingRateSniperEngine) Start(ctx context.Context) (err error) {
 	e.runCtx = ctx
 	// S7-C:无论从哪个 return 退出(SIGTERM/Interrupt 取消、致命熔断),都执行一次有界、幂等的优雅停机收尾。
+	// 注意 defer 注册顺序:此 defer 先注册 → 后执行(LIFO),因此 panic 恢复 defer(下行)会先把 err 置成崩溃
+	// 错误,再由本 defer 据此发「崩溃」通知并安全收尾。
 	defer func() { e.finalizeGracefulShutdown(err) }()
+	// 把未预期的 panic 转成受控关停:记录堆栈、置为崩溃错误(交给 finalizeGracefulShutdown 发 Telegram 崩溃
+	// 通知 + dead-man 兜底),不再裸 panic 让进程在无通知下消失。硬崩溃(OOM/kill -9)走不到这里,由 dead-man
+	// (交易所侧)+ 外部看门狗兜底。
+	defer func() {
+		if r := recover(); r != nil {
+			stack := string(debug.Stack())
+			if e.logger != nil {
+				e.logger.Printf("[panic] 主循环发生未捕获 panic: %v\n%s", r, stack)
+			}
+			err = fatalEngineError{message: fmt.Sprintf("主循环 panic: %v", r)}
+		}
+	}()
 	e.startDailyRiskStateWriter(ctx)
 	if err = e.initialize(ctx); err != nil {
 		return err
@@ -114,6 +129,9 @@ func (e *FundingRateSniperEngine) Start(ctx context.Context) (err error) {
 	e.startHeartbeatWriter(ctx)
 	e.startDeadMansSwitch(ctx)
 	e.backfillRealizedEdge()
+
+	// 启动通知:子系统全部拉起、即将进入主循环 → 通知运营者(含 Telegram)。
+	e.notifyLifecycle(EventLevelInfo, "实盘引擎已启动", e.lifecycleStartupDetail())
 
 	for {
 		if err := e.checkLiveSafetyGuards("idle"); err != nil {
@@ -480,6 +498,31 @@ func (e *FundingRateSniperEngine) notifyTrade(title, detail string) {
 		Detail:     detail,
 		OccurredAt: e.serverNow(),
 	})
+}
+
+// notifyLifecycle 推送进程生命周期通知(启动/停止/崩溃)到告警出口(含 Telegram)。
+// 走 NotifyTrade:不受 MinSeverity 过滤、不做去重——这是用户主动要的「启停崩都通知我」,确保必达。nil-safe。
+func (e *FundingRateSniperEngine) notifyLifecycle(level EventLevel, title, detail string) {
+	if e == nil || e.alertDispatcher == nil {
+		return
+	}
+	e.alertDispatcher.NotifyTrade(Alert{
+		Level:      level,
+		Title:      title,
+		Detail:     detail,
+		OccurredAt: e.serverNow(),
+	})
+}
+
+// lifecycleStartupDetail 组装一条启动通知文案(版本/模式/档位/滚动持有/恢复的活跃对冲数)。
+func (e *FundingRateSniperEngine) lifecycleStartupDetail() string {
+	mode := "实盘"
+	if e.cfg.ExecutionConfig.ShadowTrading {
+		mode = "影子(只读冒烟)"
+	}
+	return fmt.Sprintf("模式=%s 档位=%s 滚动持有=%t 恢复活跃对冲=%d 版本=%s",
+		mode, e.cfg.ActiveProfile, e.cfg.PortfolioConfig.EnableRollingHold,
+		len(e.snapshotActiveOpenHedges()), buildVersionSummary())
 }
 
 // summarizeOpenHedges 汇总一组刚建仓对冲的 symbol 列表与现货名义合计,供开仓通知文案使用。
