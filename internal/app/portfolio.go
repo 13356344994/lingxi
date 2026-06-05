@@ -1,6 +1,9 @@
 package app
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+)
 
 // portfolioManager 把 God object(FundingRateSniperEngine)中「当前组合 / 受管敞口」这一族高内聚状态
 // 收拢为独立、命名清晰的子结构(M-S2.3,R10/R21):持仓对冲、持仓/监控标签、逐币冷却、ExposureManager 锁。
@@ -45,4 +48,71 @@ func (p *portfolioManager) hasNegativeCarryHedge() bool {
 		}
 	}
 	return false
+}
+
+// portfolioL3Limits 是常驻组合的 L3 上限(来自 PortfolioConfig,§16.6):同时持仓币数 ≤ MaxSymbols 且
+// 总名义 ≤ MaxNotionalUSDT。任一维度 <=0 表示该维度不约束(MaxNotionalUSDT=0 即灰度旋钮未启用组合名义上限)。
+type portfolioL3Limits struct {
+	MaxSymbols      int
+	MaxNotionalUSDT float64
+}
+
+// heldSymbolSet 返回当前常驻组合实际持仓(activeOpenHedges)的大写 symbol 集合,跳过空 symbol。
+// 与 managedExposureSymbols 的区别:后者并入 ExposureManager 锁,用于「该盯哪些 symbol」;本集合只含真实持仓,
+// 是滚动持有 L3 币数/补位槽计算的 SSOT。纯查询,调用方须持有 platformRiskMu。
+func (p *portfolioManager) heldSymbolSet() map[string]struct{} {
+	set := make(map[string]struct{}, len(p.activeOpenHedges))
+	for i := range p.activeOpenHedges {
+		if s := strings.ToUpper(strings.TrimSpace(p.activeOpenHedges[i].Target.Symbol)); s != "" {
+			set[s] = struct{}{}
+		}
+	}
+	return set
+}
+
+// portfolioHeldSymbolCount 返回当前常驻组合的持仓币数(去重大写)。纯查询,调用方须持有 platformRiskMu。
+func (p *portfolioManager) portfolioHeldSymbolCount() int {
+	return len(p.heldSymbolSet())
+}
+
+// portfolioHeldNotionalUSDT 汇总当前常驻组合的总名义(L3 口径):每币取合约腿名义 HedgeQty×OpenFuturesAvgPrice,
+// 即对冲仓位规模,与「10 币 × 1万 = 10W 总名义」的设计口径一致(§16.2.2)。纯查询,调用方须持有 platformRiskMu。
+func (p *portfolioManager) portfolioHeldNotionalUSDT() float64 {
+	total := 0.0
+	for i := range p.activeOpenHedges {
+		total += p.activeOpenHedges[i].HedgeQty * p.activeOpenHedges[i].OpenFuturesAvgPrice
+	}
+	return total
+}
+
+// portfolioFreeSlots 返回 :57 找币补位的可用槽位数 = MaxSymbols − 当前持仓币数(下界 0)。MaxSymbols<=0 表示不限,
+// 返回 -1 约定为「无币数上限」。纯查询,调用方须持有 platformRiskMu。
+func (p *portfolioManager) portfolioFreeSlots(maxSymbols int) int {
+	if maxSymbols <= 0 {
+		return -1
+	}
+	free := maxSymbols - p.portfolioHeldSymbolCount()
+	if free < 0 {
+		return 0
+	}
+	return free
+}
+
+// admitCandidateToPortfolio 在不破坏 L3 上限的前提下,判定能否把名义为 candidateNotional 的某币纳入常驻组合。
+// 候选已是持仓(如续持/同币加仓)时不增加币数占用,但仍校验名义维度。返回是否放行与拒绝原因。
+// 纯查询,调用方须持有 platformRiskMu。
+func (p *portfolioManager) admitCandidateToPortfolio(candidateSymbol string, candidateNotional float64, limits portfolioL3Limits) (bool, string) {
+	symbol := strings.ToUpper(strings.TrimSpace(candidateSymbol))
+	held := p.heldSymbolSet()
+	_, already := held[symbol]
+	if limits.MaxSymbols > 0 && !already && len(held) >= limits.MaxSymbols {
+		return false, fmt.Sprintf("组合持仓币数已达 L3 上限 %d(当前 %d 币)", limits.MaxSymbols, len(held))
+	}
+	if limits.MaxNotionalUSDT > 0 {
+		projected := p.portfolioHeldNotionalUSDT() + candidateNotional
+		if projected > limits.MaxNotionalUSDT+notionalTolerance {
+			return false, fmt.Sprintf("组合总名义 %.6f USDT 将超过 L3 上限 %.6f USDT", projected, limits.MaxNotionalUSDT)
+		}
+	}
+	return true, ""
 }
