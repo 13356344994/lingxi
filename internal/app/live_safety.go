@@ -296,6 +296,9 @@ func (e *FundingRateSniperEngine) ensureDailyRiskDateLocked() {
 	// 把回撤推过阈值而停机(见 TestChronicCrossDayBleedCaughtByDrawdownDespiteConsecutiveReset)。因此切勿把连亏
 	// 改成跨日不清零来「修」R9——那会在正常波动里误停机,真正的慢性失血网是回撤,而非连亏。
 	e.riskBudgetState.ConsecutiveLossCycles = 0
+	// 单周期净亏熔断为当日维度，与连亏/日亏同口径按 UTC 交易日清零：新的一天重新开始；当日内的破线则由
+	// 进程停机 + 人工复核重启来解除（重启后内存清零，与原单周期 fatal 语义一致，不做跨重启持久化）。
+	e.riskBudgetState.WorstCycleNetLossUSDT = 0
 }
 
 func (e *FundingRateSniperEngine) checkLiveSafetyGuards(phase string) error {
@@ -355,6 +358,10 @@ func (e *FundingRateSniperEngine) currentDailyLimitReasonLocked() string {
 	if lossLimit > 0 && e.riskBudgetState.DailyRealizedPnL <= -lossLimit {
 		return fmt.Sprintf("当日累计亏损 %.6f USDT 已超过阈值 %.6f USDT", -e.riskBudgetState.DailyRealizedPnL, lossLimit)
 	}
+	cycleLossLimit := e.cfg.RiskConfig.MaxCycleLossUSDT
+	if cycleLossLimit > 0 && e.riskBudgetState.WorstCycleNetLossUSDT >= cycleLossLimit {
+		return fmt.Sprintf("单周期最终净亏损 %.6f USDT（funding 实收后）已达到阈值 %.6f USDT（停止继续开仓待人工复核）", e.riskBudgetState.WorstCycleNetLossUSDT, cycleLossLimit)
+	}
 	orderLimit := e.cfg.RiskConfig.MaxDailyOrderCount
 	if orderLimit > 0 && e.riskBudgetState.DailyOrderCount >= orderLimit {
 		return fmt.Sprintf("当日累计下单次数 %d 已达到阈值 %d", e.riskBudgetState.DailyOrderCount, orderLimit)
@@ -394,6 +401,11 @@ func (e *FundingRateSniperEngine) noteCycleFinalSettlement(finalNetPnL float64) 
 		e.riskBudgetState.ConsecutiveLossCycles++
 	case finalNetPnL > executionQtyTolerance:
 		e.riskBudgetState.ConsecutiveLossCycles = 0
+	}
+	// 单周期净亏熔断的权威复核（R8）：funding 实收后 finalNetPnL 才是该周期真实净利。若实收资金费远低于预期，
+	// 平仓时的投影早刹车可能放过、此处用真实值兜住——记录当日最差单周期净亏，由 currentDailyLimitReasonLocked 判线停机。
+	if loss := -finalNetPnL; loss > e.riskBudgetState.WorstCycleNetLossUSDT {
+		e.riskBudgetState.WorstCycleNetLossUSDT = loss
 	}
 	// 累计净利曲线增量推进 + 高水位刷新：与启动时由结算记录回放出的初值同口径，跨重启自洽。
 	e.riskBudgetState.RealizedPnLCumulativeUSDT += finalNetPnL

@@ -339,6 +339,7 @@ func TestAccountDrawdownBreakerTripsFromHighWaterMark(t *testing.T) {
 	cfg.RiskConfig.MaxAccountDrawdownUSDT = 10
 	cfg.RiskConfig.MaxConsecutiveLossCycles = 0 // 隔离：只验证回撤维度
 	cfg.RiskConfig.MaxDailyLossUSDT = 1e9
+	cfg.RiskConfig.MaxCycleLossUSDT = 0 // 隔离：关闭单周期净亏熔断，避免 -9 单周期亏损先触线
 	engine := &FundingRateSniperEngine{
 		cfg:             cfg,
 		logger:          log.Default(),
@@ -372,6 +373,56 @@ func TestAccountDrawdownBreakerTripsFromHighWaterMark(t *testing.T) {
 	}
 	if !engine.riskBudgetState.DailyLimitTriggered {
 		t.Fatal("expected daily limit flag to be set after account drawdown breaker")
+	}
+}
+
+// TestCycleLossBreakerTripsOnFinalNetLoss 钉死 R8：单周期净亏熔断必须用 funding 实收后的真实最终净利判定。
+// 当某个周期最终净亏超过 MaxCycleLossUSDT 时停机，即便日亏/连亏/回撤维度都未触线；funding 实收前不会因
+// 「资金费尚未到账」的 pre-funding 负净利而误触。
+func TestCycleLossBreakerTripsOnFinalNetLoss(t *testing.T) {
+	cfg := DefaultEngineConfig()
+	cfg.RiskConfig.MaxCycleLossUSDT = 8
+	// 隔离其余维度，单独验证单周期净亏维度。
+	cfg.RiskConfig.MaxConsecutiveLossCycles = 0
+	cfg.RiskConfig.MaxDailyLossUSDT = 1e9
+	cfg.RiskConfig.MaxAccountDrawdownUSDT = 0
+	engine := &FundingRateSniperEngine{
+		cfg:             cfg,
+		logger:          log.Default(),
+		runtimeReporter: newRuntimeReporter(nil),
+		dailyRiskDate:   tradingDayUTC(time.Now().UTC()),
+	}
+	engine.runtimeReporter = newRuntimeReporter(engine)
+
+	// 单周期最终净亏 7.5 < 8：不触线。
+	if err := engine.noteCycleFinalSettlement(-7.5); err != nil {
+		t.Fatalf("单周期净亏未达阈值不应触线: %v", err)
+	}
+	// 单周期最终净亏 9 >= 8：触发停机。
+	err := engine.noteCycleFinalSettlement(-9)
+	if err == nil {
+		t.Fatal("单周期最终净亏超过阈值应触发熔断")
+	}
+	if !strings.Contains(err.Error(), "单周期最终净亏损") {
+		t.Fatalf("unexpected breaker error: %v", err)
+	}
+	if !engine.riskBudgetState.DailyLimitTriggered {
+		t.Fatal("expected daily limit flag to be set after cycle loss breaker")
+	}
+}
+
+// TestProjectedCycleNetPnLAddsExpectedFundingWhenPending 钉死单周期熔断早刹车口径：funding 未实收时投影最终净利
+// 必须叠加预期资金费，避免把「资金费还没到账」误判成单周期巨亏（资金费套利平仓那刻 NetPnL 几乎必为负）。
+func TestProjectedCycleNetPnLAddsExpectedFundingWhenPending(t *testing.T) {
+	// pre-funding 净亏 -6，预期资金费 +10：投影最终净利应为 +4（不应被当作亏损）。
+	pending := CycleSettlement{NetPnL: -6, ExpectedFundingIncome: 10, FundingIncomePending: true}
+	if got := projectedCycleNetPnL(pending); got <= 0 {
+		t.Fatalf("funding 未实收时应叠加预期资金费得正投影, got %.6f", got)
+	}
+	// funding 已实收：直接用真实 NetPnL，不再叠加。
+	settled := CycleSettlement{NetPnL: -6, ExpectedFundingIncome: 10, FundingIncomePending: false}
+	if got := projectedCycleNetPnL(settled); got != -6 {
+		t.Fatalf("funding 已实收应直接用 NetPnL=-6, got %.6f", got)
 	}
 }
 

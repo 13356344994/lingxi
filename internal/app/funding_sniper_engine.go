@@ -12,6 +12,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"lingxi/internal/money"
 )
 
 func NewFundingRateSniperEngineWithConfig(secretPath string, cfg EngineConfig) (*FundingRateSniperEngine, error) {
@@ -350,11 +352,19 @@ func (e *FundingRateSniperEngine) runOneCycle(ctx context.Context, wakeAt time.T
 		return err
 	}
 	e.scheduleAsyncFundingSettlement(settlement, openHedges)
-	if e.cfg.RiskConfig.MaxCycleLossUSDT > 0 && settlement.NetPnL <= -e.cfg.RiskConfig.MaxCycleLossUSDT {
-		if incidentErr := e.recordExecutionIncident("cycle_loss_limit", "-", fmt.Sprintf("单周期净亏损 %.6f USDT 已超过阈值 %.6f USDT", -settlement.NetPnL, e.cfg.RiskConfig.MaxCycleLossUSDT)); incidentErr != nil {
-			return incidentErr
+	// 单周期净亏熔断(R8 口径修正)：平仓这一刻资金费尚未实收（FundingIncomePending），settlement.NetPnL
+	// 不含资金费，对资金费套利策略而言几乎必为负，直接拿它判亏会把「资金费还没到账」误判成单周期巨亏而误停机。
+	// 这里改用「投影最终净利 = 已落袋净利 + 预期资金费」做保守早刹车（仍是同步永久停机，能挡住开/平腿真实巨亏，
+	// 如剧烈滑点）；funding 实收后的真实最终净利再由 noteCycleFinalSettlement 做权威复核（见 R8 第二道）。
+	if limit := e.cfg.RiskConfig.MaxCycleLossUSDT; limit > 0 {
+		projectedNetPnL := projectedCycleNetPnL(settlement)
+		if projectedNetPnL <= -limit {
+			detail := fmt.Sprintf("单周期投影净亏损 %.6f USDT（已落袋 %.6f + 预期资金费 %.6f）已超过阈值 %.6f USDT", -projectedNetPnL, settlement.NetPnL, settlement.ExpectedFundingIncome, limit)
+			if incidentErr := e.recordExecutionIncident("cycle_loss_limit", "-", detail); incidentErr != nil {
+				return incidentErr
+			}
+			return fatalEngineError{message: fmt.Sprintf("单周期投影净亏损达到熔断阈值: loss=%.6f limit=%.6f", -projectedNetPnL, limit)}
 		}
-		return fatalEngineError{message: fmt.Sprintf("单周期净亏损达到熔断阈值: loss=%.6f limit=%.6f", -settlement.NetPnL, e.cfg.RiskConfig.MaxCycleLossUSDT)}
 	}
 	if fuseErr := e.checkPlatformFuse(); fuseErr != nil {
 		return fuseErr
@@ -365,6 +375,16 @@ func (e *FundingRateSniperEngine) runOneCycle(ctx context.Context, wakeAt time.T
 	e.runtimeReporter.EmitWithReason(StageCompleted, 0, "本轮狙击周期已完成")
 
 	return nil
+}
+
+// projectedCycleNetPnL 返回单周期净亏熔断「早刹车」使用的投影最终净利。
+// funding 尚未实收（FundingIncomePending）时，平仓即时的 NetPnL 不含资金费，叠加预期资金费得到对最终净利的
+// 保守投影，避免把「资金费还没到账」误判成单周期巨亏。funding 已实收时直接用 NetPnL（即真实最终净利）。
+func projectedCycleNetPnL(settlement CycleSettlement) float64 {
+	if settlement.FundingIncomePending {
+		return money.Sum(settlement.NetPnL, settlement.ExpectedFundingIncome).USDT()
+	}
+	return settlement.NetPnL
 }
 
 // scanTopFundingTargets 在 XX:57:00 后扫描全网费率，并取 Top 5。

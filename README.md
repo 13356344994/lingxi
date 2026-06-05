@@ -272,8 +272,12 @@ README 旧承诺与代码不符（见上节）。仅有保证金充足性检查�
 ### 🟠 R7. 资金费估计在符号冲突时退回乐观值
 当 premium 与 last funding rate 符号不一致时，保守估计返回 0，估计值退回 `lastFundingRate`（可能过度乐观）。**影响**：在资金费率正要反转时（最危险的时刻）用旧方向费率开仓。
 
-### 🟠 R8. 周期/日级亏损熔断在资金费到账前误触发
-`MaxCycleLossUSDT` / `MaxDailyLossUSDT` 在平仓时用 pre-funding 的 `NetPnL` 判断（此时 `FundingIncomePending=true`）。对靠资金费翻正的策略会误停机（连亏维度已修为用 final，cycle/daily 未修）。**影响**：本该盈利的周期被误判停机（方向偏安全，但口径与两阶段结算未对齐）。
+### ✅ R8. 周期/日级亏损熔断在资金费到账前误触发（已修复 · S3 收尾）
+原问题：`MaxCycleLossUSDT` / `MaxDailyLossUSDT` 在平仓时用 pre-funding 的 `NetPnL` 判断（此时 `FundingIncomePending=true`），对靠资金费翻正的策略会误停机。
+- **日亏（`MaxDailyLossUSDT`）**：已对齐 final——平仓先按 pre-funding 计入 `DailyRealizedPnL`，funding 实收后由结算 worker 补 `deltaFunding` 修正到真实净利。
+- **连亏 / 账户回撤**：已在 `noteCycleFinalSettlement` 用 funding-settled 的 final 净利推进。
+- **单周期（`MaxCycleLossUSDT`）口径修正（本次收尾）**：① 平仓同步「早刹车」改用**投影最终净利 = `NetPnL + ExpectedFundingIncome`**（`projectedCycleNetPnL`），消灭「资金费未到账被误判巨亏」的误停，仍保留 `fatalEngineError` 永久停机以挡住开/平腿真实巨亏；② funding 实收后由 `noteCycleFinalSettlement` 记录当日最差单周期最终净亏（`WorstCycleNetLossUSDT`，当日维度、跨日清零），经 `currentDailyLimitReasonLocked → checkDailyRiskLimits` 做权威复核停机，兜住「实收资金费远低于预期」的漏网。
+- **测试**：`TestCycleLossBreakerTripsOnFinalNetLoss`、`TestProjectedCycleNetPnLAddsExpectedFundingWhenPending`。
 
 ### 🟠 R9. 连亏计数 UTC 每日清零
 连亏维度按 UTC 交易日清零，与 README「补跨日慢性失血」的意图存在缝隙：每天小亏、不触发回撤峰值的慢性失血可能被漏掉。
