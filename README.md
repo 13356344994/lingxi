@@ -332,7 +332,9 @@ README 旧承诺与代码不符（见上节）。仅有保证金充足性检查�
 `report_store` 对历史记录有迁移意识（legacy 文件迁移），但真正决定**恢复安全**的运行态文件——未平仓台账（`open_hedge_state.go`）、残腿救援台账（`exposure_manager.go`）、日级风控状态（`live_safety.go`）——都只有业务字段 + `updated_at`，**无显式 `schema_version` / 兼容版本 / 校验机制**。
 - **影响**：字段语义一旦变更，重启恢复可能「成功反序列化但语义已错」——这是最危险的一类故障（系统自信地用错误状态接管真实仓位）。
 
-### 🟠 R19. 结算 / pending funding / dust ledger 仍是「整文件重写」
+### ✅ R19. 结算 / pending funding 存储崩溃安全化（已修复 · S8-C）
+~~结算 / pending funding / dust ledger 仍是「整文件重写」~~。**S8-C 已补**:整文件重写本就走原子 temp+fsync+rename(防撕裂);现额外为结算与 pending 两类崩溃关键记录加 append-only JSONL 事实源(每次变更只追加、永不重写),原 JSON 退化为物化视图,事实源可回放重建——把「审计事实」与「当前状态」分层,内存截断不再能通过原子写抹掉历史。dust ledger 体量小、非状态机,暂沿用原子重写。
+### 🟠 R19（原始描述存档）. 结算 / pending funding / dust ledger 仍是「整文件重写」
 这几类状态更新当前把整个 JSON 数组读进内存、改完整体重写（`report_store.go`）。
 - **影响**：当前规模无碍，但对 9.6 而言，写放大、崩溃恢复、部分失败、并发一致性、审计重放都没解决。高分做法是 append-only event log + materialized view，或 SQLite/Postgres 这类有事务语义的存储。
 
@@ -864,7 +866,7 @@ M6(治理) 可与 M2~M5 并行
 **S8 规模化执行与高保真回测** —— 覆盖 M5.1·M5.4 / R13·R15·R19·R23
 - TWAP/冰山执行切片；L3 Tick 回测校正阈值；结算/pending 事件化存储；对账诊断字段清洁；事故 runbook + 演练（R28）。
 - **退出**：大单冲击受控；纸面阈值经 L3 校正；有成文 runbook 与演练记录。**评分↑：维度 1/5/8。**
-- **进度**：✅ S8-A R23 对账诊断清洁(`reconcile.TradeRecord` 增 `CycleID` 专用字段,`Symbol` 不再被污染,报告 `cycle=<CycleID>`)+ 执行摩擦聚合 `Friction` 入对账(诊断展示、不卡 breach)。✅ S8-B 执行切片规划层(`execution_slicing.go`:`planExecutionSlices` 纯函数——单腿名义超 `SliceThresholdNotionalUSDT` 才按 TWAP 等分切片,每片 ≤ `MaxSliceNotionalUSDT`、间隔 `SliceIntervalMs`、封顶 `MaxSlices`,末片吃浮点余量保证 Σ=总量;默认 `ExecutionSlicingEnabled=false` 单发零变更)。⚠️ **实盘双腿 lockstep 执行接线分阶段灰度**:切片间不得产生裸腿,需小额实盘校验后再把规划接入开仓提交路径(故本次只落地经过单测的规划层 + 配置/门槛,不改动现有 S0~S4 的双腿原子开仓与裸腿守卫)。待:S8-C 结算/pending 存储崩溃安全化、S8-D 事故 runbook。
+- **进度**：✅ S8-A R23 对账诊断清洁(`reconcile.TradeRecord` 增 `CycleID` 专用字段,`Symbol` 不再被污染,报告 `cycle=<CycleID>`)+ 执行摩擦聚合 `Friction` 入对账(诊断展示、不卡 breach)。✅ S8-C R19 结算/pending 存储崩溃安全化(`report_store_journal.go`:`WriteJSONFile` 本就原子写[temp+fsync+rename],本次补 append-only 事实源——结算 append/update 与 pending upsert/delete 每次变更逐条 fsync 追加到 `settlements_journal.jsonl`/`pending_funding_journal.jsonl`,永不重写;原 JSON 退化为「物化视图」,事实源可经纯函数 `materializeSettlementsFromJournal`/`materializePendingFromJournal` 回放重建,防止内存截断被原子写忠实落盘而丢史)。✅ S8-B 执行切片规划层(`execution_slicing.go`:`planExecutionSlices` 纯函数——单腿名义超 `SliceThresholdNotionalUSDT` 才按 TWAP 等分切片,每片 ≤ `MaxSliceNotionalUSDT`、间隔 `SliceIntervalMs`、封顶 `MaxSlices`,末片吃浮点余量保证 Σ=总量;默认 `ExecutionSlicingEnabled=false` 单发零变更)。⚠️ **实盘双腿 lockstep 执行接线分阶段灰度**:切片间不得产生裸腿,需小额实盘校验后再把规划接入开仓提交路径(故本次只落地经过单测的规划层 + 配置/门槛,不改动现有 S0~S4 的双腿原子开仓与裸腿守卫)。待:S8-C 结算/pending 存储崩溃安全化、S8-D 事故 runbook。
 
 ### 18.3 阶段→灰度联动
 - S0 完成 → 可上 `shadow`。

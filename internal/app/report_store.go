@@ -52,7 +52,10 @@ type ReportStore struct {
 	dustPath           string
 	pendingFundingPath string
 	monthlyPath        string
-	mu                 sync.Mutex
+	// S8-C append-only 事实源(JSONL)路径:每次结算/pending 变更只追加、永不重写,作为崩溃安全的审计源。
+	settlementJournalPath     string
+	pendingFundingJournalPath string
+	mu                        sync.Mutex
 
 	settlementRecords     []SettlementCSVRecord
 	monitorRecords        []MonitorCSVRecord
@@ -84,18 +87,20 @@ func NewReportStore(recordDir string) (*ReportStore, error) {
 
 func newReportStoreWithPaths(recordDir string) *ReportStore {
 	return &ReportStore{
-		recordDir:          recordDir,
-		settlementPath:     filepath.Join(recordDir, settlementCSVName),
-		monitorPath:        filepath.Join(recordDir, monitorCSVName),
-		backtestPath:       filepath.Join(recordDir, backtestCSVName),
-		backtestRunPath:    filepath.Join(recordDir, backtestRunCSVName),
-		residualPath:       filepath.Join(recordDir, residualCSVName),
-		executionPath:      filepath.Join(recordDir, executionCSVName),
-		domainEventPath:    filepath.Join(recordDir, domainEventJSONLName),
-		scanObsPath:        filepath.Join(recordDir, scanObservationJSONLName),
-		dustPath:           filepath.Join(recordDir, "dust_ledger.json"),
-		pendingFundingPath: filepath.Join(recordDir, "pending_funding_settlements.json"),
-		monthlyPath:        filepath.Join(recordDir, monthlySimulationLogCSVName),
+		recordDir:                 recordDir,
+		settlementPath:            filepath.Join(recordDir, settlementCSVName),
+		monitorPath:               filepath.Join(recordDir, monitorCSVName),
+		backtestPath:              filepath.Join(recordDir, backtestCSVName),
+		backtestRunPath:           filepath.Join(recordDir, backtestRunCSVName),
+		residualPath:              filepath.Join(recordDir, residualCSVName),
+		executionPath:             filepath.Join(recordDir, executionCSVName),
+		domainEventPath:           filepath.Join(recordDir, domainEventJSONLName),
+		scanObsPath:               filepath.Join(recordDir, scanObservationJSONLName),
+		dustPath:                  filepath.Join(recordDir, "dust_ledger.json"),
+		pendingFundingPath:        filepath.Join(recordDir, "pending_funding_settlements.json"),
+		monthlyPath:               filepath.Join(recordDir, monthlySimulationLogCSVName),
+		settlementJournalPath:     filepath.Join(recordDir, settlementJournalName),
+		pendingFundingJournalPath: filepath.Join(recordDir, pendingFundingJournalName),
 	}
 }
 
@@ -159,6 +164,10 @@ func (s *ReportStore) AppendSettlement(settlement CycleSettlement) error {
 	if !settlement.FundingSettledAt.IsZero() {
 		record.FundingSettledAt = settlement.FundingSettledAt.UTC().Format(time.RFC3339)
 	}
+	// S8-C:先把事实写入 append-only 事实源(durable),再更新物化视图;视图写失败也不丢历史。
+	if err := s.appendSettlementJournalLocked("append", record); err != nil {
+		return err
+	}
 	s.settlementRecords = append(s.settlementRecords, record)
 	if err := writeJSONFile(s.settlementPath, s.settlementRecords); err != nil {
 		return err
@@ -200,6 +209,9 @@ func (s *ReportStore) UpdateSettlement(settlement CycleSettlement) error {
 		record.NetPnLAfterFrictions = formatFloat(settlement.NetPnLAfterFrictions)
 		record.ExpectedTotalFees = formatFloat(settlement.ExpectedTotalFees)
 		record.CycleNotionalUSDT = formatFloat(settlement.CycleNotionalUSDT)
+		if err := s.appendSettlementJournalLocked("update", *record); err != nil {
+			return err
+		}
 		if err := writeJSONFile(s.settlementPath, s.settlementRecords); err != nil {
 			return err
 		}
@@ -281,6 +293,9 @@ func (s *ReportStore) UpsertPendingFundingSettlement(record PendingFundingSettle
 		if strings.TrimSpace(current.RunID) != strings.TrimSpace(record.RunID) || strings.TrimSpace(current.CycleID) != strings.TrimSpace(record.CycleID) {
 			continue
 		}
+		if err := s.appendPendingFundingJournalLocked("upsert", record); err != nil {
+			return err
+		}
 		s.pendingFundingRecords[idx] = record
 		if err := writeJSONFile(s.pendingFundingPath, s.pendingFundingRecords); err != nil {
 			return err
@@ -288,6 +303,9 @@ func (s *ReportStore) UpsertPendingFundingSettlement(record PendingFundingSettle
 		return nil
 	}
 
+	if err := s.appendPendingFundingJournalLocked("upsert", record); err != nil {
+		return err
+	}
 	s.pendingFundingRecords = append(s.pendingFundingRecords, record)
 	if err := writeJSONFile(s.pendingFundingPath, s.pendingFundingRecords); err != nil {
 		return err
@@ -310,6 +328,9 @@ func (s *ReportStore) DeletePendingFundingSettlement(runID string, cycleID strin
 	}
 	if !removed {
 		return nil
+	}
+	if err := s.appendPendingFundingJournalLocked("delete", PendingFundingSettlementRecord{RunID: strings.TrimSpace(runID), CycleID: strings.TrimSpace(cycleID)}); err != nil {
+		return err
 	}
 	s.pendingFundingRecords = append([]PendingFundingSettlementRecord(nil), filtered...)
 	return writeJSONFile(s.pendingFundingPath, s.pendingFundingRecords)
