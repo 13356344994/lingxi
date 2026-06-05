@@ -236,7 +236,12 @@ type RuntimeController struct {
 	cachedCapitalSnapshot          RuntimeCapitalSnapshot
 	cachedCapitalSnapshotAt        time.Time
 	cachedCapitalSnapshotSecretKey string
+	// riskConfigHistory 保存每次在线改参前的配置快照(最近 riskConfigHistoryLimit 条),供 R35 一键回滚(S5-F)。
+	riskConfigHistory []EngineConfig
 }
+
+// riskConfigHistoryLimit 限制在线改参历史栈深度,防止无界增长。
+const riskConfigHistoryLimit = 10
 
 // RuntimeLogStore 负责把后台运行日志保存到 jsonl 文件，并支持页面读取最近日志。
 func NewRuntimeController(ctx context.Context, store *ReportStore, cfg EngineConfig, logger *log.Logger) (*RuntimeController, error) {

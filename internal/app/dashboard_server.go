@@ -93,6 +93,8 @@ func (s *DashboardServer) Start(ctx context.Context) error {
 	mux.HandleFunc("/api/execution-incidents", s.authorizeReadAPI(s.handleExecutionIncidentsAPI))
 	mux.HandleFunc("/api/domain-events", s.authorizeReadAPI(s.handleDomainEventsAPI))
 	mux.HandleFunc("/api/runtime/config", s.authorizeReadAPI(s.handleRuntimeConfigAPI))
+	mux.HandleFunc("/api/runtime/config/preview", s.authorizeReadAPI(s.handleRuntimeConfigPreviewAPI))
+	mux.HandleFunc("/api/runtime/config/rollback", s.handleRuntimeConfigRollbackAPI)
 	mux.HandleFunc("/api/runtime/clear-logs", s.handleRuntimeClearLogsAPI)
 	mux.HandleFunc("/api/runtime/clear-data", s.handleRuntimeClearDataAPI)
 	mux.HandleFunc("/api/runtime/clear-cache", s.handleRuntimeClearCacheAPI)
@@ -389,6 +391,55 @@ func (s *DashboardServer) handleRuntimeConfigAPI(w http.ResponseWriter, r *http.
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	}
+}
+
+// handleRuntimeConfigPreviewAPI 干跑预览改参的字段级 before/after diff,不落地任何改动(R35/S5-F)。
+func (s *DashboardServer) handleRuntimeConfigPreviewAPI(w http.ResponseWriter, r *http.Request) {
+	if s.controller == nil {
+		http.Error(w, "后台控制器未初始化", http.StatusServiceUnavailable)
+		return
+	}
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var req RuntimeRiskConfig
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, fmt.Sprintf("解析风控参数失败: %v", err), http.StatusBadRequest)
+		return
+	}
+	diffs, err := s.controller.PreviewRiskConfigUpdate(req)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	writeJSON(w, map[string]any{"diffs": diffs, "changed": len(diffs)})
+}
+
+// handleRuntimeConfigRollbackAPI 一键回滚到上一次改参前的配置(R35/S5-F)。
+func (s *DashboardServer) handleRuntimeConfigRollbackAPI(w http.ResponseWriter, r *http.Request) {
+	if s.controller == nil {
+		http.Error(w, "后台控制器未初始化", http.StatusServiceUnavailable)
+		return
+	}
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if !s.authorizeRuntimeControl(w, r, "config_rollback") {
+		return
+	}
+	rolledBack, err := s.controller.RollbackRiskConfig()
+	if err != nil {
+		s.auditControlAction(r, "config_rollback", false, err.Error())
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	s.auditControlAction(r, "config_rollback", true, "风控参数已回滚到上一版本")
+	writeJSON(w, map[string]any{
+		"message": "风控参数已回滚到上一版本，将在下一次启动任务时生效",
+		"config":  rolledBack,
+	})
 }
 
 func (s *DashboardServer) handleRuntimeClearLogsAPI(w http.ResponseWriter, r *http.Request) {

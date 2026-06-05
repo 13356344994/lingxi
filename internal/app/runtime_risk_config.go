@@ -3,6 +3,7 @@ package app
 import (
 	"fmt"
 	"math"
+	"reflect"
 	"sort"
 	"strings"
 	"time"
@@ -22,112 +23,193 @@ func (c *RuntimeController) UpdateRiskConfig(req RuntimeRiskConfig) (RuntimeRisk
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	window, err := parseRuntimeWindowDuration(req.RecentTradeVolumeWindow, c.cfg.StrategyConfig.RecentTradeVolumeWindow)
+	updated, err := buildValidatedRiskUpdate(c.cfg, req)
 	if err != nil {
 		return RuntimeRiskConfig{}, err
+	}
+	c.pushRiskConfigHistoryLocked(c.cfg)
+	c.cfg = updated
+	config := runtimeRiskConfigFromEngineConfig(updated)
+	c.status.LastMessage = "风控参数已收紧，将在下一次启动任务时生效"
+	return config, nil
+}
+
+// PreviewRiskConfigUpdate 干跑校验提案并返回字段级 before/after diff,不落地任何改动(R35 diff 预览 / S5-F)。
+// 校验逻辑与 UpdateRiskConfig 完全一致(共用 buildValidatedRiskUpdate),保证"预览能过"与"提交能过"等价。
+func (c *RuntimeController) PreviewRiskConfigUpdate(req RuntimeRiskConfig) ([]RuntimeConfigFieldDiff, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	updated, err := buildValidatedRiskUpdate(c.cfg, req)
+	if err != nil {
+		return nil, err
+	}
+	return diffRuntimeRiskConfig(runtimeRiskConfigFromEngineConfig(c.cfg), runtimeRiskConfigFromEngineConfig(updated)), nil
+}
+
+// RollbackRiskConfig 一键回滚到上一次在线改参前的配置(R35 / S5-F)。回滚是恢复已知良好的历史快照(而非放松当前值),
+// 故不受"在线只允许收紧"约束。返回回滚后的配置;无历史可回滚时报错。
+func (c *RuntimeController) RollbackRiskConfig() (RuntimeRiskConfig, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	prev, ok := c.popRiskConfigHistoryLocked()
+	if !ok {
+		return RuntimeRiskConfig{}, fmt.Errorf("没有可回滚的历史风控配置")
+	}
+	c.cfg = prev
+	config := runtimeRiskConfigFromEngineConfig(prev)
+	c.status.LastMessage = "风控参数已回滚到上一版本，将在下一次启动任务时生效"
+	return config, nil
+}
+
+// pushRiskConfigHistoryLocked 把改参前的配置快照压入历史栈(持锁调用),超限丢弃最旧。
+func (c *RuntimeController) pushRiskConfigHistoryLocked(prev EngineConfig) {
+	c.riskConfigHistory = append(c.riskConfigHistory, prev)
+	if len(c.riskConfigHistory) > riskConfigHistoryLimit {
+		c.riskConfigHistory = c.riskConfigHistory[len(c.riskConfigHistory)-riskConfigHistoryLimit:]
+	}
+}
+
+// popRiskConfigHistoryLocked 弹出最近一条历史快照(持锁调用)。
+func (c *RuntimeController) popRiskConfigHistoryLocked() (EngineConfig, bool) {
+	if len(c.riskConfigHistory) == 0 {
+		return EngineConfig{}, false
+	}
+	last := c.riskConfigHistory[len(c.riskConfigHistory)-1]
+	c.riskConfigHistory = c.riskConfigHistory[:len(c.riskConfigHistory)-1]
+	return last, true
+}
+
+// RuntimeConfigFieldDiff 是一条字段级 before/after 变更(R35 diff 预览)。
+type RuntimeConfigFieldDiff struct {
+	Field  string `json:"field"`
+	Before string `json:"before"`
+	After  string `json:"after"`
+}
+
+// diffRuntimeRiskConfig 反射比对两份在线风控配置,返回发生变化的字段(纯函数,可单测)。
+func diffRuntimeRiskConfig(before, after RuntimeRiskConfig) []RuntimeConfigFieldDiff {
+	bv := reflect.ValueOf(before)
+	av := reflect.ValueOf(after)
+	t := bv.Type()
+	diffs := make([]RuntimeConfigFieldDiff, 0, t.NumField())
+	for i := 0; i < t.NumField(); i++ {
+		bs := fmt.Sprintf("%v", bv.Field(i).Interface())
+		as := fmt.Sprintf("%v", av.Field(i).Interface())
+		if bs != as {
+			diffs = append(diffs, RuntimeConfigFieldDiff{Field: t.Field(i).Name, Before: bs, After: as})
+		}
+	}
+	return diffs
+}
+
+// buildValidatedRiskUpdate 校验在线改参提案并构造收紧后的完整配置(纯函数,不触碰控制器状态)。供 Update 与 Preview 共用。
+func buildValidatedRiskUpdate(current EngineConfig, req RuntimeRiskConfig) (EngineConfig, error) {
+	window, err := parseRuntimeWindowDuration(req.RecentTradeVolumeWindow, current.StrategyConfig.RecentTradeVolumeWindow)
+	if err != nil {
+		return EngineConfig{}, err
 	}
 	if req.PerSymbolQuoteUSDT <= 0 {
-		return RuntimeRiskConfig{}, fmt.Errorf("单标的名义资金必须大于 0")
+		return EngineConfig{}, fmt.Errorf("单标的名义资金必须大于 0")
 	}
 	if req.MaxCycleOpenNotionalUSDT <= 0 {
-		return RuntimeRiskConfig{}, fmt.Errorf("单周期总敞口上限必须大于 0")
+		return EngineConfig{}, fmt.Errorf("单周期总敞口上限必须大于 0")
 	}
 	if req.MaxRecentVolumeShare <= 0 || req.MaxRecentVolumeShare > 1 {
-		return RuntimeRiskConfig{}, fmt.Errorf("最近成交额占比必须在 (0, 1] 之间")
+		return EngineConfig{}, fmt.Errorf("最近成交额占比必须在 (0, 1] 之间")
 	}
 	if req.MaxOpenInterestShare <= 0 || req.MaxOpenInterestShare > 1 {
-		return RuntimeRiskConfig{}, fmt.Errorf("未平仓名义占比必须在 (0, 1] 之间")
+		return EngineConfig{}, fmt.Errorf("未平仓名义占比必须在 (0, 1] 之间")
 	}
 	if req.MaxVisibleDepthShare <= 0 || req.MaxVisibleDepthShare > 1 {
-		return RuntimeRiskConfig{}, fmt.Errorf("可见深度占比必须在 (0, 1] 之间")
+		return EngineConfig{}, fmt.Errorf("可见深度占比必须在 (0, 1] 之间")
 	}
 	if req.MinNetProfitRate <= 0 || req.MinNetProfitRate > 1 {
-		return RuntimeRiskConfig{}, fmt.Errorf("最低净收益率必须在 (0, 1] 之间")
+		return EngineConfig{}, fmt.Errorf("最低净收益率必须在 (0, 1] 之间")
 	}
 	if req.ImmediateInvalidateRate <= 0 || req.ImmediateInvalidateRate > 1 {
-		return RuntimeRiskConfig{}, fmt.Errorf("立即作废阈值必须在 (0, 1] 之间")
+		return EngineConfig{}, fmt.Errorf("立即作废阈值必须在 (0, 1] 之间")
 	}
 	if req.ImmediateInvalidateRate >= req.MinNetProfitRate {
-		return RuntimeRiskConfig{}, fmt.Errorf("立即作废阈值必须小于最低净收益率")
+		return EngineConfig{}, fmt.Errorf("立即作废阈值必须小于最低净收益率")
 	}
 	if req.MonitorMaxConsecutiveBreach <= 0 || req.MonitorMaxConsecutiveBreach > 20 {
-		return RuntimeRiskConfig{}, fmt.Errorf("最大连续观察 breach 必须在 1 到 20 之间")
+		return EngineConfig{}, fmt.Errorf("最大连续观察 breach 必须在 1 到 20 之间")
 	}
 	if req.MaxCycleLossUSDT <= 0 {
-		return RuntimeRiskConfig{}, fmt.Errorf("最大单周期亏损必须大于 0")
+		return EngineConfig{}, fmt.Errorf("最大单周期亏损必须大于 0")
 	}
 	if req.MaxExecutionIncidents <= 0 || req.MaxExecutionIncidents > 100 {
-		return RuntimeRiskConfig{}, fmt.Errorf("最大执行事故数必须在 1 到 100 之间")
+		return EngineConfig{}, fmt.Errorf("最大执行事故数必须在 1 到 100 之间")
 	}
 	if req.MaxOrderUncertaintyPerCycle <= 0 || req.MaxOrderUncertaintyPerCycle > 100 {
-		return RuntimeRiskConfig{}, fmt.Errorf("最大不确定成交数必须在 1 到 100 之间")
+		return EngineConfig{}, fmt.Errorf("最大不确定成交数必须在 1 到 100 之间")
 	}
 	if req.MaxConsecutivePlatformRejects <= 0 || req.MaxConsecutivePlatformRejects > 100 {
-		return RuntimeRiskConfig{}, fmt.Errorf("最大连续平台拒绝数必须在 1 到 100 之间")
+		return EngineConfig{}, fmt.Errorf("最大连续平台拒绝数必须在 1 到 100 之间")
 	}
 	if req.MaxConsecutiveRequestErrors <= 0 || req.MaxConsecutiveRequestErrors > 100 {
-		return RuntimeRiskConfig{}, fmt.Errorf("最大连续异常请求数必须在 1 到 100 之间")
+		return EngineConfig{}, fmt.Errorf("最大连续异常请求数必须在 1 到 100 之间")
 	}
 	if req.ProtectedIOCMinAttempts <= 0 || req.ProtectedIOCMinAttempts > 1000 {
-		return RuntimeRiskConfig{}, fmt.Errorf("IOC 风控最小观察次数必须在 1 到 1000 之间")
+		return EngineConfig{}, fmt.Errorf("IOC 风控最小观察次数必须在 1 到 1000 之间")
 	}
 	if req.ProtectedIOCMaxUnfilledRatio <= 0 || req.ProtectedIOCMaxUnfilledRatio > 1 {
-		return RuntimeRiskConfig{}, fmt.Errorf("IOC 最大未成交比例必须在 (0, 1] 之间")
+		return EngineConfig{}, fmt.Errorf("IOC 最大未成交比例必须在 (0, 1] 之间")
 	}
 	if req.ProtectedIOCMaxCancelRate <= 0 || req.ProtectedIOCMaxCancelRate > 1 {
-		return RuntimeRiskConfig{}, fmt.Errorf("IOC 最大撤单比例必须在 (0, 1] 之间")
+		return EngineConfig{}, fmt.Errorf("IOC 最大撤单比例必须在 (0, 1] 之间")
 	}
-	exitDelayAfterFunding, err := parseRuntimeFlexibleDuration(req.ExitDelayAfterFunding, c.cfg.ExecutionConfig.ExitDelayAfterFunding, "结算后最晚退出时限", 0, 30*time.Second)
+	exitDelayAfterFunding, err := parseRuntimeFlexibleDuration(req.ExitDelayAfterFunding, current.ExecutionConfig.ExitDelayAfterFunding, "结算后最晚退出时限", 0, 30*time.Second)
 	if err != nil {
-		return RuntimeRiskConfig{}, err
+		return EngineConfig{}, err
 	}
-	exitMonitorInterval, err := parseRuntimeFlexibleDuration(req.ExitMonitorInterval, c.cfg.ExecutionConfig.ExitMonitorInterval, "退出监控轮询间隔", 50*time.Millisecond, 5*time.Second)
+	exitMonitorInterval, err := parseRuntimeFlexibleDuration(req.ExitMonitorInterval, current.ExecutionConfig.ExitMonitorInterval, "退出监控轮询间隔", 50*time.Millisecond, 5*time.Second)
 	if err != nil {
-		return RuntimeRiskConfig{}, err
+		return EngineConfig{}, err
 	}
-	confirmTimeout, err := parseRuntimeFlexibleDuration(req.ExecutionConfirmTimeout, c.cfg.ExecutionConfig.ExecutionConfirmTimeout, "开平仓确认超时", 100*time.Millisecond, 30*time.Second)
+	confirmTimeout, err := parseRuntimeFlexibleDuration(req.ExecutionConfirmTimeout, current.ExecutionConfig.ExecutionConfirmTimeout, "开平仓确认超时", 100*time.Millisecond, 30*time.Second)
 	if err != nil {
-		return RuntimeRiskConfig{}, err
+		return EngineConfig{}, err
 	}
-	symbolCooldown, err := parseRuntimeFlexibleDuration(req.SymbolAbnormalCooldown, c.cfg.RiskConfig.SymbolAbnormalCooldown, "symbol 异常冷却时间", time.Second, 24*time.Hour)
+	symbolCooldown, err := parseRuntimeFlexibleDuration(req.SymbolAbnormalCooldown, current.RiskConfig.SymbolAbnormalCooldown, "symbol 异常冷却时间", time.Second, 24*time.Hour)
 	if err != nil {
-		return RuntimeRiskConfig{}, err
+		return EngineConfig{}, err
 	}
-	minorCooldown, err := parseRuntimeFlexibleDuration(req.PlatformMinorCooldown, c.cfg.RiskConfig.PlatformMinorCooldown, "轻微异常冷却时间", time.Second, 24*time.Hour)
+	minorCooldown, err := parseRuntimeFlexibleDuration(req.PlatformMinorCooldown, current.RiskConfig.PlatformMinorCooldown, "轻微异常冷却时间", time.Second, 24*time.Hour)
 	if err != nil {
-		return RuntimeRiskConfig{}, err
+		return EngineConfig{}, err
 	}
 	if req.MaxRecoveryActionsPerCycle <= 0 || req.MaxRecoveryActionsPerCycle > 100 {
-		return RuntimeRiskConfig{}, fmt.Errorf("最大回补次数必须在 1 到 100 之间")
+		return EngineConfig{}, fmt.Errorf("最大回补次数必须在 1 到 100 之间")
 	}
 	if req.MaxDailyLossUSDT <= 0 {
-		return RuntimeRiskConfig{}, fmt.Errorf("最大日亏损必须大于 0")
+		return EngineConfig{}, fmt.Errorf("最大日亏损必须大于 0")
 	}
 	if req.MaxDailyOrderCount <= 0 || req.MaxDailyOrderCount > 10000 {
-		return RuntimeRiskConfig{}, fmt.Errorf("最大日下单次数必须在 1 到 10000 之间")
+		return EngineConfig{}, fmt.Errorf("最大日下单次数必须在 1 到 10000 之间")
 	}
 	if req.MaxDailyOpenNotionalUSDT <= 0 {
-		return RuntimeRiskConfig{}, fmt.Errorf("最大日开仓名义必须大于 0")
+		return EngineConfig{}, fmt.Errorf("最大日开仓名义必须大于 0")
 	}
-	cooldown, err := parseRuntimeCooldownDuration(req.PlatformAbnormalCooldown, c.cfg.RiskConfig.PlatformAbnormalCooldown)
+	cooldown, err := parseRuntimeCooldownDuration(req.PlatformAbnormalCooldown, current.RiskConfig.PlatformAbnormalCooldown)
 	if err != nil {
-		return RuntimeRiskConfig{}, err
+		return EngineConfig{}, err
 	}
-	criticalCooldown, err := parseRuntimeFlexibleDuration(req.PlatformCriticalCooldown, c.cfg.RiskConfig.PlatformCriticalCooldown, "严重异常冷却时间", time.Second, 24*time.Hour)
+	criticalCooldown, err := parseRuntimeFlexibleDuration(req.PlatformCriticalCooldown, current.RiskConfig.PlatformCriticalCooldown, "严重异常冷却时间", time.Second, 24*time.Hour)
 	if err != nil {
-		return RuntimeRiskConfig{}, err
+		return EngineConfig{}, err
 	}
 	if minorCooldown > cooldown {
-		return RuntimeRiskConfig{}, fmt.Errorf("轻微异常冷却时间不能大于平台异常冷却时间")
+		return EngineConfig{}, fmt.Errorf("轻微异常冷却时间不能大于平台异常冷却时间")
 	}
 	if criticalCooldown < cooldown {
-		return RuntimeRiskConfig{}, fmt.Errorf("严重异常冷却时间不能小于平台异常冷却时间")
+		return EngineConfig{}, fmt.Errorf("严重异常冷却时间不能小于平台异常冷却时间")
 	}
-	if err := validateConservativeRuntimeRiskUpdate(c.cfg, req, window, exitDelayAfterFunding, exitMonitorInterval, confirmTimeout, symbolCooldown, minorCooldown, cooldown, criticalCooldown); err != nil {
-		return RuntimeRiskConfig{}, err
+	if err := validateConservativeRuntimeRiskUpdate(current, req, window, exitDelayAfterFunding, exitMonitorInterval, confirmTimeout, symbolCooldown, minorCooldown, cooldown, criticalCooldown); err != nil {
+		return EngineConfig{}, err
 	}
 
-	updated := c.cfg
+	updated := current
 	updated.StrategyConfig.PerSymbolQuoteUSDT = req.PerSymbolQuoteUSDT
 	updated.RiskConfig.MaxCycleOpenNotionalUSDT = req.MaxCycleOpenNotionalUSDT
 	updated.StrategyConfig.RecentTradeVolumeWindow = window
@@ -157,13 +239,9 @@ func (c *RuntimeController) UpdateRiskConfig(req RuntimeRiskConfig) (RuntimeRisk
 	updated.RiskConfig.MaxDailyOrderCount = req.MaxDailyOrderCount
 	updated.RiskConfig.MaxDailyOpenNotionalUSDT = req.MaxDailyOpenNotionalUSDT
 	if err := updated.Validate(); err != nil {
-		return RuntimeRiskConfig{}, err
+		return EngineConfig{}, err
 	}
-	c.cfg = updated
-
-	config := runtimeRiskConfigFromEngineConfig(updated)
-	c.status.LastMessage = "风控参数已收紧，将在下一次启动任务时生效"
-	return config, nil
+	return updated, nil
 }
 
 func validateConservativeRuntimeRiskUpdate(current EngineConfig, req RuntimeRiskConfig, recentWindow time.Duration, exitDelayAfterFunding time.Duration, exitMonitorInterval time.Duration, confirmTimeout time.Duration, symbolCooldown time.Duration, minorCooldown time.Duration, abnormalCooldown time.Duration, criticalCooldown time.Duration) error {

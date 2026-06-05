@@ -406,8 +406,8 @@ L2 簇上限在 §16.6 已设计；**M-S4.8 已落地基础件**：`admitByClust
 原 `funding_settlement_worker.go` 有重试 + 退避（封顶 4×）但**无终止路径**,会无限静默重试。**S5-E 已落地升级处置**:`shouldEscalatePendingFunding`(纯函数)——重试达 `MaxFundingSettlementAttempts`(默认 30) 或挂起超 `MaxFundingSettlementAge`(默认 12h) → `escalatePendingFundingSettlement`:发 `pending_funding_stuck` critical 告警(经 S5-A 出口)+ **cycle 隔离**(回退平仓时记入的日内净利,使该不完整周期不污染连亏/回撤)+ 标记 `Escalated` 停止自动重试,待人工核实。
 - **影响**：资金费迟迟不到账（交易所延迟/口径异常）时会无限静默重试，净利长期挂在 `FundingIncomePending`、风控口径失真。9.6 需：超时升级为 critical 告警 + 人工确认流程 + 该 cycle 隔离不污染连亏/回撤计算。
 
-### 🟡 R35. 运行时改参数治理（人本身会成为事故源）→ S1/S5
-有 `auditControlAction` + `controlToken` + loopback（`dashboard_audit.go`），但热改风控**无 diff 预览、无权限分级、无一键回滚**。
+### ✅ R35. 运行时改参数治理（人本身会成为事故源）→ S1/S5（已补齐 diff 预览 + 回滚·S5-F）
+原有 `auditControlAction` + `controlToken` + loopback + 收紧-only 校验。**S5-F 已补**:`PreviewRiskConfigUpdate`(干跑,反射出字段级 before/after `RuntimeConfigFieldDiff`,经 `/api/runtime/config/preview`)+ `RollbackRiskConfig`(改参前快照历史栈,一键回滚到上一版,`/api/runtime/config/rollback`,带 audit)。校验逻辑抽到共用 `buildValidatedRiskUpdate`,保证"预览能过"≡"提交能过"。
 - **影响**：运行中手改风控参数若改错（如把熔断阈值改成 0），等于自废武功且难追溯。9.6 需：改参前展示 diff、敏感参数二次确认/权限分级、变更可回滚、全程审计。
 
 ### 🟠 R36. 单交易所 / 单账户系统性单点 → S7
@@ -848,7 +848,7 @@ M6(治理) 可与 M2~M5 并行
 
 **S5 可观测性与安全治理** —— 覆盖 R16·R25·R26 / §14 P5
 - 关键事件实时告警（Telegram/钉钉）+ 指标导出 + 存活心跳；API Key 启动期权限自检（拒绝带提现权限）+ IP 白名单（文档强制）+ 密钥静态加密；Dashboard 凭证哈希化、读/写授权分离。
-- **进度**：✅ S5-A 告警分发(`alerting.go`);✅ S5-B `/livez`+`/healthz`+`/metrics`+心跳文件(`observability_http.go`);✅ S5-C 启动期 API Key 权限自检(`verifyAPIKeyPermissions`:带提现权限拒绝启动,未开 IP 白名单告警);✅ S5-D 凭证卫生(控制令牌改写 0600 文件+只记指纹,secret 路径脱敏)。✅ S5-E R34 pending funding 升级处置(`shouldEscalatePendingFunding`+`escalatePendingFundingSettlement`)。待:S5-F R35 改参 diff/回滚。密钥静态加密 + IP 白名单(交易所侧)留实盘/基建侧。
+- **进度**：✅ S5-A 告警分发(`alerting.go`);✅ S5-B `/livez`+`/healthz`+`/metrics`+心跳文件(`observability_http.go`);✅ S5-C 启动期 API Key 权限自检(`verifyAPIKeyPermissions`:带提现权限拒绝启动,未开 IP 白名单告警);✅ S5-D 凭证卫生(控制令牌改写 0600 文件+只记指纹,secret 路径脱敏)。✅ S5-E R34 pending funding 升级处置;✅ S5-F R35 改参 diff 预览 + 一键回滚(`PreviewRiskConfigUpdate`/`RollbackRiskConfig`)。**S5 代码侧已全部完成。** 密钥静态加密 + IP 白名单(交易所侧)留实盘/基建侧。
 - **退出**：熔断/裸腿/UNHEALTHY 会实时推送；带提现权限的 Key 被拒启动；日志无明文凭证。**评分↑：维度 9/10。**
 
 **S6 策略健康守卫** —— 覆盖 R27
