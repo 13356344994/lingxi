@@ -186,11 +186,19 @@ func TestImpactAdjustedNetProfitRate(t *testing.T) {
 
 // TestClusterKeyForSymbol 钉死 L2 簇键:有 base 资产用 base(大写),缺省回退到 symbol。
 func TestClusterKeyForSymbol(t *testing.T) {
-	if got := clusterKeyForSymbol("btc", "BTCUSDT"); got != "BTC" {
+	if got := clusterKeyForSymbol(nil, "btc", "BTCUSDT"); got != "BTC" {
 		t.Fatalf("应按 base 资产聚类(大写), got %s", got)
 	}
-	if got := clusterKeyForSymbol("", "ethusdt"); got != "ETHUSDT" {
+	if got := clusterKeyForSymbol(nil, "", "ethusdt"); got != "ETHUSDT" {
 		t.Fatalf("缺 base 资产应回退 symbol(大写), got %s", got)
+	}
+	// R30:配了板块映射时,同板块归一到簇名。
+	cm := map[string]string{"BTC": "MAJORS", "ETH": "MAJORS"}
+	if got := clusterKeyForSymbol(cm, "eth", "ETHUSDT"); got != "MAJORS" {
+		t.Fatalf("已映射资产应归到板块簇 MAJORS, got %s", got)
+	}
+	if got := clusterKeyForSymbol(cm, "doge", "DOGEUSDT"); got != "DOGE" {
+		t.Fatalf("未映射资产应回退 base 资产, got %s", got)
 	}
 }
 
@@ -221,7 +229,7 @@ func TestPortfolioClusterNotionalUSDT(t *testing.T) {
 		{Target: FundingCandidate{Symbol: "BTCUSDT", SpotBaseAsset: "BTC"}, HedgeQty: 1, OpenFuturesAvgPrice: 100},
 		{Target: FundingCandidate{Symbol: "ETHUSDT", SpotBaseAsset: "ETH"}, HedgeQty: 2, OpenFuturesAvgPrice: 50},
 	}}
-	byCluster := p.portfolioClusterNotionalUSDT()
+	byCluster := p.portfolioClusterNotionalUSDT(nil)
 	if !approxEqualSizing(byCluster["BTC"], 100) || !approxEqualSizing(byCluster["ETH"], 100) {
 		t.Fatalf("簇名义应为 BTC=100 ETH=100, got %+v", byCluster)
 	}

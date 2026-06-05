@@ -624,9 +624,10 @@ func (e *FundingRateSniperEngine) constrainOrderQuantityByMarketCapacity(ctx con
 // residentSizingLimitsSnapshot 在 platformRiskMu 下一次性读取 L2 簇名义分布与 L3 组合已持名义,供动态 sizing 收紧用。
 // 单次取锁避免「读簇」「读组合名义」两次取锁间状态漂移。
 func (e *FundingRateSniperEngine) residentSizingLimitsSnapshot() (clusterNotional map[string]float64, heldNotionalUSDT float64) {
+	clusterMap := e.clusterMap()
 	e.platformRiskMu.Lock()
 	defer e.platformRiskMu.Unlock()
-	return e.portfolioClusterNotionalUSDT(), e.portfolioHeldNotionalUSDT()
+	return e.portfolioClusterNotionalUSDT(clusterMap), e.portfolioHeldNotionalUSDT()
 }
 
 // applyDynamicSizingTightening 计算 DynamicSizingEnabled 下的「收紧后数量」:由 snapshot 与配置/分层乘子构造动态容量输入,
@@ -666,7 +667,7 @@ func (e *FundingRateSniperEngine) applyDynamicSizingTightening(target *Monitored
 	})
 
 	clusterNotional, heldNotional := e.residentSizingLimitsSnapshot()
-	clusterKey := clusterKeyForSymbol(target.Candidate.SpotBaseAsset, target.Candidate.Symbol)
+	clusterKey := clusterKeyForSymbol(e.clusterMap(), target.Candidate.SpotBaseAsset, target.Candidate.Symbol)
 	capNotional, ok, reason := constrainedSizingNotionalUSDT(
 		dynRes,
 		clusterNotional, clusterKey, e.cfg.PortfolioConfig.ClusterMaxNotionalUSDT,

@@ -5,6 +5,29 @@ import (
 	"time"
 )
 
+func TestParseClusterMap(t *testing.T) {
+	// 空串 → 空 map,不报错。
+	if m, err := ParseClusterMap(""); err != nil || len(m) != 0 {
+		t.Fatalf("空串应返回空 map 且无错, got m=%v err=%v", m, err)
+	}
+	// 正常多组 + 大小写归一 + 空白容忍。
+	m, err := ParseClusterMap(" majors = BTC, eth ;MEMES=doge,SHIB ")
+	if err != nil {
+		t.Fatalf("合法映射不应报错: %v", err)
+	}
+	for asset, want := range map[string]string{"BTC": "MAJORS", "ETH": "MAJORS", "DOGE": "MEMES", "SHIB": "MEMES"} {
+		if m[asset] != want {
+			t.Fatalf("资产 %s 应映射到 %s, got %s", asset, want, m[asset])
+		}
+	}
+	// 缺 '='、空簇名、空资产组、资产映射到多簇 → 报错。
+	for _, bad := range []string{"BTC,ETH", "=BTC", "MAJORS=", "MAJORS=BTC;MEMES=BTC"} {
+		if _, err := ParseClusterMap(bad); err == nil {
+			t.Fatalf("非法映射 %q 应报错", bad)
+		}
+	}
+}
+
 func sampleValidConfig() EngineConfig {
 	return EngineConfig{
 		ActiveProfile: ProfileStandard,

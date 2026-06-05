@@ -42,6 +42,48 @@ func capitalRampScheduleValid(s string) bool {
 	return seen
 }
 
+// ParseClusterMap 解析 R30 板块/相关性簇映射(PortfolioConfig.ClusterMap)。格式:分号分隔的「簇名=资产,资产,...」组,
+// 如 "MAJORS=BTC,ETH;MEMES=DOGE,SHIB"。返回 base 资产(大写)→ 簇名(大写)的映射。空串返回空 map(不报错)。
+// 同一资产被映射到多个簇视为非法(防歧义)。簇名或资产为空、缺 '=' 视为非法。
+func ParseClusterMap(spec string) (map[string]string, error) {
+	out := make(map[string]string)
+	spec = strings.TrimSpace(spec)
+	if spec == "" {
+		return out, nil
+	}
+	for _, group := range strings.Split(spec, ";") {
+		group = strings.TrimSpace(group)
+		if group == "" {
+			continue
+		}
+		parts := strings.SplitN(group, "=", 2)
+		if len(parts) != 2 {
+			return nil, fmt.Errorf("ClusterMap 组缺少 '=': %q", group)
+		}
+		cluster := strings.ToUpper(strings.TrimSpace(parts[0]))
+		if cluster == "" {
+			return nil, fmt.Errorf("ClusterMap 簇名为空: %q", group)
+		}
+		assets := strings.Split(parts[1], ",")
+		hasAsset := false
+		for _, a := range assets {
+			asset := strings.ToUpper(strings.TrimSpace(a))
+			if asset == "" {
+				continue
+			}
+			if existing, ok := out[asset]; ok && existing != cluster {
+				return nil, fmt.Errorf("ClusterMap 资产 %s 被映射到多个簇(%s / %s)", asset, existing, cluster)
+			}
+			out[asset] = cluster
+			hasAsset = true
+		}
+		if !hasAsset {
+			return nil, fmt.Errorf("ClusterMap 簇 %s 无任何资产", cluster)
+		}
+	}
+	return out, nil
+}
+
 // EngineProfile 描述系统的资金和运行偏好，主要用于一键切换不同资金规模或场景的参数包。
 type EngineProfile string
 
@@ -231,6 +273,15 @@ type RiskConfig struct {
 	// DeadMansSwitchEnabled=false 关闭(默认);Countdown 须 ≥ 10s(过短易误触发)。
 	DeadMansSwitchEnabled   bool          `cfg:"dead_mans_switch_enabled"`
 	DeadMansSwitchCountdown time.Duration `cfg:"dead_mans_switch_countdown"`
+
+	// BorrowCapacityCheckEnabled / BorrowCapacityMinHeadroomRate / MaxBorrowHourlyInterestRate 是 R29
+	// 「借币容量/利率阶梯 pre-open 守卫」参数:负向 carry 开仓需借入 base 资产做空现货,开仓前校验
+	// ①交易所最大可借量 ≥ 需借量 ×(1+MinHeadroomRate);②当前每小时借币利率 ≤ MaxBorrowHourlyInterestRate。
+	// 任一不满足则该币本轮不开(从候选剔除,不留裸腿)。BorrowCapacityCheckEnabled=false 关闭(默认);
+	// MaxBorrowHourlyInterestRate=0 表示不设利率上限(只查容量)。正向 carry 不借币,恒放行。
+	BorrowCapacityCheckEnabled    bool    `cfg:"borrow_capacity_check_enabled"`
+	BorrowCapacityMinHeadroomRate float64 `cfg:"borrow_capacity_min_headroom_rate"`
+	MaxBorrowHourlyInterestRate   float64 `cfg:"max_borrow_hourly_interest_rate"`
 }
 
 // HistoricalConfig 表示月度模拟与历史验证配置。
@@ -313,6 +364,10 @@ type PortfolioConfig struct {
 	PerSymbolHardCapUSDT float64 `cfg:"per_symbol_hard_cap_usdt"`
 	// ClusterMaxNotionalUSDT 单簇上限（L2，按 base 资产/板块聚类防高相关集中）。0 表示不启用（默认，待标定）。
 	ClusterMaxNotionalUSDT float64 `cfg:"cluster_max_notional_usdt"`
+	// ClusterMap 把 base 资产映射到「板块/相关性簇」(R30 真·相关性簇),格式:分号分隔的「簇名=资产,资产,...」组,
+	// 如 "MAJORS=BTC,ETH;MEMES=DOGE,SHIB,PEPE;DEFI=UNI,AAVE"。未映射的资产回退到自身 base 资产(≈每币一簇,即旧行为)。
+	// 空字符串=不启用板块映射(默认),此时簇键=base 资产。配合 ClusterMaxNotionalUSDT 才生效。
+	ClusterMap string `cfg:"cluster_map"`
 	// MaxBorrowNotionalPerAssetUSDT 负向 carry 单资产借币名义上限（撞可借量/利率阶梯前封顶）。0 表示不约束（默认，待标定）。
 	MaxBorrowNotionalPerAssetUSDT float64 `cfg:"max_borrow_notional_per_asset_usdt"`
 	// CapitalRampSchedule 灰度爬坡计划（逗号分隔，如 "10000,30000,100000"），由验证门逐档放行。默认空。
@@ -616,6 +671,9 @@ func (cfg EngineConfig) Validate() error {
 	appendIssue(cfg.PortfolioConfig.RebalanceHysteresisCostMultiplier >= 1.0, "Portfolio RebalanceHysteresisCostMultiplier 必须 ≥ 1.0（滞后带须至少覆盖完整往返成本以防 churn）")
 	appendIssue(cfg.PortfolioConfig.PerSymbolHardCapUSDT >= 0, "Portfolio PerSymbolHardCapUSDT 不能小于 0")
 	appendIssue(cfg.PortfolioConfig.ClusterMaxNotionalUSDT >= 0, "Portfolio ClusterMaxNotionalUSDT 不能小于 0")
+	if _, err := ParseClusterMap(cfg.PortfolioConfig.ClusterMap); err != nil {
+		appendIssue(false, "Portfolio ClusterMap 格式非法：%v", err)
+	}
 	appendIssue(cfg.PortfolioConfig.MaxBorrowNotionalPerAssetUSDT >= 0, "Portfolio MaxBorrowNotionalPerAssetUSDT 不能小于 0")
 	appendIssue(cfg.PortfolioConfig.RampPromoteMinNetEdgeRate >= 0, "Portfolio RampPromoteMinNetEdgeRate 不能小于 0")
 	appendIssue(cfg.PortfolioConfig.RampMaxSlippageRate >= 0, "Portfolio RampMaxSlippageRate 不能小于 0")
@@ -652,6 +710,10 @@ func (cfg EngineConfig) Validate() error {
 	if cfg.RiskConfig.DeadMansSwitchEnabled {
 		appendIssue(cfg.RiskConfig.DeadMansSwitchCountdown >= 10*time.Second, "启用 DeadMansSwitchEnabled 时 DeadMansSwitchCountdown 必须 ≥ 10s（过短易误触发交易所撤单）")
 	}
+
+	// R29 借币容量/利率守卫:余量率与利率上限恒非负(关闭利率上限用 0)。
+	appendIssue(cfg.RiskConfig.BorrowCapacityMinHeadroomRate >= 0, "Risk BorrowCapacityMinHeadroomRate 不能小于 0")
+	appendIssue(cfg.RiskConfig.MaxBorrowHourlyInterestRate >= 0, "Risk MaxBorrowHourlyInterestRate 不能小于 0")
 
 	if len(issues) == 0 {
 		return nil

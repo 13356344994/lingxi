@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"math"
 	"strings"
+
+	"lingxi/internal/core"
 )
 
 // dynamic_sizing.go 提供「市场驱动的单币容量定 size」纯函数(M3.1 / README §16.3):把多个流动性/风险天花板
@@ -188,13 +190,30 @@ func resolveHardCapUSDT(perSymbolHardCapUSDT, maxPortfolioNotionalUSDT float64, 
 	return 0
 }
 
-// clusterKeyForSymbol 返回某币的 L2 簇键(M3.3 / README §16.2.2「按 base 资产/板块聚类防高相关集中」)。当前以现货
-// base 资产聚类作最小实现:同 base 资产视为同簇。这是 L2 簇划分的唯一注入点,后续可替换为板块/相关性映射而不动调用方。
-func clusterKeyForSymbol(spotBaseAsset, symbol string) string {
+// clusterKeyForSymbol 返回某币的 L2 簇键(M3.3 / README §16.2.2「按 base 资产/板块聚类防高相关集中」)。
+// R30:若 clusterMap 把该 base 资产映射到某板块/相关性簇,返回簇名(同板块视为同簇,真正防高相关集中);
+// 未映射(或 clusterMap 为空)则回退到 base 资产(≈每币一簇,即旧行为)。这是 L2 簇划分的唯一注入点。
+func clusterKeyForSymbol(clusterMap map[string]string, spotBaseAsset, symbol string) string {
 	if k := strings.ToUpper(strings.TrimSpace(spotBaseAsset)); k != "" {
+		if cluster, ok := clusterMap[k]; ok && cluster != "" {
+			return cluster
+		}
 		return k
 	}
 	return strings.ToUpper(strings.TrimSpace(symbol))
+}
+
+// clusterMap 返回引擎当前生效的 R30 板块/相关性簇映射(base 资产→簇名)。从 PortfolioConfig.ClusterMap 解析;
+// 配置非法时已被启动期校验拦截,这里防御性地返回空 map(回退到 base 资产聚类,即旧行为)。
+func (e *FundingRateSniperEngine) clusterMap() map[string]string {
+	if e == nil {
+		return nil
+	}
+	m, err := core.ParseClusterMap(e.cfg.PortfolioConfig.ClusterMap)
+	if err != nil {
+		return nil
+	}
+	return m
 }
 
 // admitByClusterCap 报告把 candidateNotionalUSDT 加入其所属簇后是否仍在 L2 簇上限内。clusterMaxUSDT<=0 表示不启用

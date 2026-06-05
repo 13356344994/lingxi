@@ -389,13 +389,13 @@ dead-man 兜底、看门狗拉起、防双开、熔断、单腿裸露、对账�
 > 以下 R29~R36 是「放大 + 滚动持有」语境下进一步暴露的盲区（部分是对前文的强化，已标注与现有覆盖的关系）。
 > 每条标注其归属阶段（→ Sx，见第十八节），并已并入 9.6 判据（§18.4）。
 
-### 🟠 R29. 借币容量与利率阶梯（负向 carry 放大后的硬约束）→ S4
-负向 carry 借币做空现货，放大后会撞**可借量上限 / 利率阶梯跳变 / 借币失败 / 利率突变**。`MaxBorrowNotionalPerAssetUSDT`（§16.7）仅为设计草案，未实现；借币失败与利率突变也无专门处置。
-- **影响**：可借量耗尽时开仓失败留下单腿；利率阶梯跳变使负向 carry 实际成本远超模型 → 看似盈利实则亏损。9.6 需：开仓前校验可借量与当前阶梯利率、借币失败降级为不开仓而非裸腿、利率突变触发该币退出。
+### ✅ R29. 借币容量与利率阶梯（pre-open 守卫已落地）
+~~负向 carry 借币做空现货，放大后会撞可借量上限/利率阶梯但无校验~~。**已落地**:`borrow_capacity.go` —— 开仓前对每个负向 carry 候选(此刻 `OrderQuantity` 已定,估算精确)经纯函数 `decideBorrowAdmission` 校验:①交易所最大可借量(`client.MaxBorrowable` 查 `/sapi/v1/margin/maxBorrowable`)≥ 需借量 ×(1+`BorrowCapacityMinHeadroomRate`);②当前每小时借币利率(`hourlyBorrowInterestRateForAsset`)≤ `MaxBorrowHourlyInterestRate`。任一不满足则从本轮候选**剔除**(剔除=根本不开,天然无裸腿)+ warning 告警。查询失败不误杀(advisory)。behind `BorrowCapacityCheckEnabled`(默认关闭)。
+- **影响（已消解）**：可借量耗尽/利率阶梯过高的负向 carry 候选在开仓前被剔除,不再撞墙留单腿或「看似盈利实则亏损」。**待标定**:`MaxBorrowHourlyInterestRate` 默认 0=不限,需实盘标定利率阈值。
 
-### 🟡 R30. 组合相关性 / 簇上限（极端行情同向流动性蒸发）→ S4（基础件已落地·M-S4.8）
-L2 簇上限在 §16.6 已设计；**M-S4.8 已落地基础件**：`admitByClusterCap` + `portfolioClusterNotionalUSDT` 已按 base 资产聚类硬约束单簇名义，并接入开仓侧 sizing（behind `ClusterMaxNotionalUSDT`，默认 0=关）。10 个币若全是同一类山寨 beta，极端行情会**一起流动性消失、一起反向**，对冲腿同时滑点放大。
-- **影响**：名义上分散到 10 个币，实质是一个高相关大仓位。9.6 需：按 base 资产/板块/相关性聚类，`ClusterMaxNotionalUSDT` 硬约束单簇暴露。**待完善**：当前簇键=base 资产（≈每币一簇），真正的高相关防护需板块/相关性映射替换 `clusterKeyForSymbol`（唯一注入点）。
+### ✅ R30. 组合相关性 / 簇上限（板块/相关性映射已落地）
+L2 簇上限 + `admitByClusterCap` + `portfolioClusterNotionalUSDT` 已落地(M-S4.8)。**本次补齐真·相关性簇**:`clusterKeyForSymbol(clusterMap, base, symbol)` 现按可配置的 `PortfolioConfig.ClusterMap`(格式 `MAJORS=BTC,ETH;MEMES=DOGE,SHIB,PEPE`)把同板块/高相关资产归一到同一簇键,未映射资产回退 base 资产(旧行为)。10 个同类山寨 beta 配同一簇 + `ClusterMaxNotionalUSDT` 即被当作**一个高相关大仓位**硬约束,防极端行情一起流动性蒸发。
+- **影响（已消解）**：可按板块/相关性聚类硬约束单簇暴露。**待标定**:`ClusterMap` 的板块划分与 `ClusterMaxNotionalUSDT` 阈值需按实际持仓相关性标定;更进一步的动态相关性矩阵属未来扩展。
 
 ### ✅ R31. 逐币 funding 时钟（已落地于滚动路径 · S4）
 ~~当前全局 `WakeMinute=57` 单点调度~~。**已落地**:`scheduler.go:symbolFundingClock` + `rolling_hold_engine.go:residentClocks()` 由每个常驻币自身的下次 funding time 计算 `NextPortfolioWake`,驱动 `runRollingPortfolioCycle` 的逐币唤醒/再校验(`RevalidateAt`/`RevalidateDue`),兼容 8h/4h/可变间隔。
@@ -676,7 +676,11 @@ finalNotional = clamp(baseUnit × edgeScore, minNotional, perSymbolCap)
 | `DynamicSizingEnabled` | 启用市场驱动动态 size | false（默认关闭，opt-in） |
 | `PerSymbolHardCapUSDT` | 单币绝对硬顶 | 按 `MaxPortfolioNotionalUSDT / MaxPortfolioSymbols` 起步 |
 | `ClusterMaxNotionalUSDT` | 单簇上限（L2） | 待标定 |
+| `ClusterMap` | 板块/相关性簇映射（R30，如 `MAJORS=BTC,ETH;MEMES=DOGE,SHIB`） | 空=按 base 资产聚类（每币一簇） |
 | `MaxBorrowNotionalPerAssetUSDT` | 负向 carry 单资产借币名义上限（撞可借量/利率阶梯前封顶） | 待标定（按账户可借量与利率阶梯） |
+| `BorrowCapacityCheckEnabled` | 开仓前借币容量/利率守卫（R29，负向 carry） | false（默认关闭，opt-in） |
+| `BorrowCapacityMinHeadroomRate` | 可借量余量率（需借量 ×(1+该值) ≤ 最大可借） | 0.10 |
+| `MaxBorrowHourlyInterestRate` | 每小时借币利率上限（超则剔除候选） | 0（不限，待标定） |
 | `CapitalRampSchedule` | 灰度爬坡计划（如 `10000,30000,100000`） | 由验证门逐档放行 |
 
 ### 16.8 状态、恢复与风控耦合（滚动持有把这些从「可选」变「必选」）
@@ -895,8 +899,8 @@ M6(治理) 可与 M2~M5 并行
 - [x] 有成文事故 runbook 与定期演练（演练记录待实盘留存）。（S8-D)
 
 **放大 + 滚动持有专项（R29~R36，本次补充）**
-- [ ] **借币容量/利率阶梯（R29）**：开仓前校验可借量与当前阶梯利率；借币失败→不开仓（不留裸腿）；利率突变→该币退出。**（未实现——放大负向 carry 前必须补）**
-- [ ] **簇/相关性上限（R30）**：基础件已落地(`admitByClusterCap` 按 base 资产聚类硬约束单簇名义,M-S4.8);**待完善**真·板块/相关性映射替换 `clusterKeyForSymbol`。
+- [x] **借币容量/利率阶梯（R29）**：开仓前经 `decideBorrowAdmission` 校验最大可借量(留余量)与每小时利率,不满足则剔除候选(不留裸腿)+告警(`borrow_capacity.go`,behind `BorrowCapacityCheckEnabled`)。利率阈值待实盘标定。
+- [x] **簇/相关性上限（R30）**：`clusterKeyForSymbol` 按可配置 `ClusterMap`(板块/相关性)归一同簇 + `admitByClusterCap`/`ClusterMaxNotionalUSDT` 硬约束单簇名义。板块划分与阈值待标定。
 - [x] **逐币 funding 时钟（R31）**：滚动路径调度由每个币自身下次 funding time 驱动(`symbolFundingClock`/`residentClocks`→`NextPortfolioWake`)，兼容 8h/4h/可变间隔。
 - [x] **断连盲窗守卫（R32）**：行情失明超阈值→`feedBlindnessBlockOpens` 停开新仓 + 持续失明 `panicFlattenManagedExposure` 保守撤离(`hold_monitor.go`);REST 轮询降级为余量。
 - [x] **灰度门自动化（R33）**：放行/回退由实测 edge、滑点、成交率、`reconcile` 健康按量化规则判定（`decideCapitalRampAction`），引擎产出建议 + 告警；实际改参由人工核实后落地（资金投放高后果，默认人工把关）。

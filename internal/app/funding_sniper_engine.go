@@ -308,6 +308,17 @@ func (e *FundingRateSniperEngine) openCyclePositions(ctx context.Context, wakeAt
 		return nil, CycleAccountSnapshot{}, false, nil
 	}
 
+	// R29 借币容量/利率守卫:剔除借不到 / 利率过高的负向 carry 候选(此刻 OrderQuantity 已定,估算精确)。
+	// 守卫关闭(默认)时原样返回。剔除=根本不开,天然无裸腿。
+	validTargets = e.filterTargetsByBorrowCapacity(ctx, validTargets)
+	if len(validTargets) == 0 {
+		e.setCurrentMonitorTargets(nil)
+		_ = e.advanceLifecycleStage(LifecycleStageCompleted, "借币容量守卫：所有候选均借不到 / 利率过高")
+		e.runtimeReporter.EmitWithReason(StageMonitorInvalidated, 0, "借币容量守卫：所有候选均借不到 / 利率过高")
+		e.logger.Println("R29 借币容量守卫：本轮所有负向 carry 候选均被剔除")
+		return nil, CycleAccountSnapshot{}, false, nil
+	}
+
 	if selectTargets != nil {
 		validTargets = selectTargets(validTargets)
 		if len(validTargets) == 0 {

@@ -88,10 +88,10 @@ func (p *portfolioManager) portfolioHeldNotionalUSDT() float64 {
 // portfolioClusterNotionalUSDT 按 L2 簇键(clusterKeyForSymbol,当前以 base 资产聚类)汇总当前常驻组合各簇的合约腿
 // 名义(与 portfolioHeldNotionalUSDT 同口径)。供 admitByClusterCap 在开仓/补位侧做高相关集中度封顶。纯查询,
 // 调用方须持有 platformRiskMu。
-func (p *portfolioManager) portfolioClusterNotionalUSDT() map[string]float64 {
+func (p *portfolioManager) portfolioClusterNotionalUSDT(clusterMap map[string]string) map[string]float64 {
 	byCluster := make(map[string]float64, len(p.activeOpenHedges))
 	for i := range p.activeOpenHedges {
-		key := clusterKeyForSymbol(p.activeOpenHedges[i].Target.SpotBaseAsset, p.activeOpenHedges[i].Target.Symbol)
+		key := clusterKeyForSymbol(clusterMap, p.activeOpenHedges[i].Target.SpotBaseAsset, p.activeOpenHedges[i].Target.Symbol)
 		if key == "" {
 			continue
 		}

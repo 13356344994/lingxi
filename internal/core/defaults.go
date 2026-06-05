@@ -139,6 +139,11 @@ func DefaultEngineConfig() EngineConfig {
 			// S7-B 交易所 dead-man:默认关闭;启用后 30s 倒计时(每 ~10s 续期),进程失联即由交易所兜底撤单。
 			DeadMansSwitchEnabled:   false,
 			DeadMansSwitchCountdown: 30 * time.Second,
+			// R29 借币容量守卫:默认关闭(advisory 由人工开启);开启后要求最大可借量留 10% 余量,
+			// 利率上限默认 0=不限(只查容量,避免误标定阈值挡掉正常机会)。
+			BorrowCapacityCheckEnabled:    false,
+			BorrowCapacityMinHeadroomRate: 0.10,
+			MaxBorrowHourlyInterestRate:   0,
 		},
 		HistoricalConfig: HistoricalConfig{
 			DefaultLookbackDays:                    30,

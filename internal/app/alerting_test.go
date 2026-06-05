@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -10,6 +11,8 @@ import (
 	"testing"
 	"time"
 )
+
+var errTest = errors.New("test sink failure")
 
 // fakeAlertSink 是捕获型出口,供测试断言。
 type fakeAlertSink struct {
@@ -126,6 +129,108 @@ func TestWebhookAlertSink(t *testing.T) {
 	sinkErr := &webhookAlertSink{url: srvErr.URL, client: srvErr.Client()}
 	if err := sinkErr.Dispatch(context.Background(), Alert{Level: EventLevelCritical, Title: "x"}); err == nil {
 		t.Fatal("5xx 应返回错误")
+	}
+}
+
+// scriptedAlertSink 按预设错误序列响应,记录被调用次数,用于断言重试行为。
+type scriptedAlertSink struct {
+	mu    sync.Mutex
+	errs  []error // 第 i 次调用返回 errs[i];超出长度返回 nil(成功)
+	calls int
+}
+
+func (s *scriptedAlertSink) Name() string { return "scripted" }
+
+func (s *scriptedAlertSink) Dispatch(_ context.Context, _ Alert) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	idx := s.calls
+	s.calls++
+	if idx < len(s.errs) {
+		return s.errs[idx]
+	}
+	return nil
+}
+
+func (s *scriptedAlertSink) count() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.calls
+}
+
+func TestClassifyHTTPStatus(t *testing.T) {
+	for _, c := range []struct {
+		code int
+		want bool
+	}{{429, true}, {500, true}, {503, true}, {400, false}, {401, false}, {403, false}, {404, false}} {
+		if got := classifyHTTPStatus(c.code); got != c.want {
+			t.Fatalf("classifyHTTPStatus(%d)=%v want %v", c.code, got, c.want)
+		}
+	}
+}
+
+func TestDispatchRetriesTransientThenSucceeds(t *testing.T) {
+	sink := &scriptedAlertSink{errs: []error{
+		&sinkError{Retryable: true, err: errTest},
+		&sinkError{Retryable: true, err: errTest},
+	}}
+	d := &AlertDispatcher{sinks: []AlertSink{sink}, minRank: severityRank(EventLevelInfo), timeout: time.Second, now: time.Now, lastSent: map[string]time.Time{}}
+	d.dispatchToSinkWithRetry(sink, Alert{Level: EventLevelCritical, Title: "x"}, time.Second)
+	if sink.count() != 3 {
+		t.Fatalf("两次可重试失败后应在第3次成功, calls=%d", sink.count())
+	}
+}
+
+func TestDispatchStopsOnPermanentError(t *testing.T) {
+	sink := &scriptedAlertSink{errs: []error{&sinkError{Retryable: false, err: errTest}}}
+	d := &AlertDispatcher{sinks: []AlertSink{sink}, timeout: time.Second, now: time.Now, lastSent: map[string]time.Time{}}
+	d.dispatchToSinkWithRetry(sink, Alert{Level: EventLevelCritical, Title: "x"}, time.Second)
+	if sink.count() != 1 {
+		t.Fatalf("永久失败应只尝试1次, calls=%d", sink.count())
+	}
+}
+
+func TestTelegramRetryAfterParsing(t *testing.T) {
+	body := []byte(`{"ok":false,"error_code":429,"description":"Too Many Requests","parameters":{"retry_after":7}}`)
+	if got := telegramRetryAfter(body); got != 7*time.Second {
+		t.Fatalf("应解析 retry_after=7s, got %s", got)
+	}
+	if got := telegramRetryAfter([]byte(`{"ok":true}`)); got != 0 {
+		t.Fatalf("无 retry_after 应为 0, got %s", got)
+	}
+}
+
+func TestTelegramAlertSinkStubbed(t *testing.T) {
+	var gotChat, gotText string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var payload struct {
+			ChatID string `json:"chat_id"`
+			Text   string `json:"text"`
+		}
+		b, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(b, &payload)
+		gotChat, gotText = payload.ChatID, payload.Text
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+	sink := &telegramAlertSink{token: "tok", chatID: "123", client: srv.Client(), baseURL: srv.URL}
+	if err := sink.Dispatch(context.Background(), Alert{Level: EventLevelCritical, Title: "开仓成功", Detail: "BTC", Symbol: "BTCUSDT"}); err != nil {
+		t.Fatalf("telegram 推送应成功: %v", err)
+	}
+	if gotChat != "123" || gotText == "" {
+		t.Fatalf("telegram payload 不正确: chat=%q text=%q", gotChat, gotText)
+	}
+
+	// 429 → 返回可重试 sinkError 且带 RetryAfter。
+	srv429 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusTooManyRequests)
+		_, _ = w.Write([]byte(`{"ok":false,"error_code":429,"parameters":{"retry_after":3}}`))
+	}))
+	defer srv429.Close()
+	sink429 := &telegramAlertSink{token: "tok", chatID: "123", client: srv429.Client(), baseURL: srv429.URL}
+	err := sink429.Dispatch(context.Background(), Alert{Level: EventLevelCritical, Title: "x"})
+	if !retryableSink(err) || retryAfterHint(err) != 3*time.Second {
+		t.Fatalf("429 应可重试且 retry_after=3s, retryable=%v after=%s", retryableSink(err), retryAfterHint(err))
 	}
 }
 

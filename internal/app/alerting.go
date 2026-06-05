@@ -4,12 +4,23 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
+)
+
+const (
+	// alertSinkMaxAttempts 是单条告警在单个出口上的最大尝试次数(含首次);可重试失败之间按指数退避。
+	alertSinkMaxAttempts = 3
+	// alertSinkBaseBackoff 是重试退避基准(第 n 次重试退避 ≈ base×2^(n-1),并尊重 429 的 retry_after)。
+	alertSinkBaseBackoff = 400 * time.Millisecond
+	// alertSinkMaxBackoff 是单次退避上限,避免 429 给出超长 retry_after 时阻塞推送 goroutine 过久。
+	alertSinkMaxBackoff = 5 * time.Second
 )
 
 // alerting.go 实现「关键事件实时告警」分发(S5-A / R25):把引擎产生的结构化领域事件(DomainEvent)按级别过滤、
@@ -32,6 +43,47 @@ type Alert struct {
 type AlertSink interface {
 	Dispatch(ctx context.Context, alert Alert) error
 	Name() string
+}
+
+// sinkError 是出口推送失败的结构化错误:区分可重试(网络抖动 / 429 限流 / 5xx)与永久失败(400/401/403 等
+// 配置/凭证错误,重试只会刷屏),并携带 429 的 RetryAfter。分发层据此决定是否退避重试。
+type sinkError struct {
+	Retryable  bool
+	RetryAfter time.Duration
+	err        error
+}
+
+func (e *sinkError) Error() string {
+	if e == nil || e.err == nil {
+		return "sink error"
+	}
+	return e.err.Error()
+}
+
+// classifyHTTPStatus 把 HTTP 状态码归类为可重试:429(限流)或 5xx(服务端临时故障)可重试;其余(尤其 4xx)永久。
+func classifyHTTPStatus(code int) bool {
+	return code == http.StatusTooManyRequests || code >= 500
+}
+
+// retryableSink 报告错误是否值得退避重试(非 sinkError 的未知错误保守视为可重试)。
+func retryableSink(err error) bool {
+	if err == nil {
+		return false
+	}
+	var se *sinkError
+	if errors.As(err, &se) {
+		return se.Retryable
+	}
+	return true
+}
+
+// retryAfterHint 从错误中取 429 的 RetryAfter(无则 0)。
+func retryAfterHint(err error) time.Duration {
+	var se *sinkError
+	if errors.As(err, &se) {
+		return se.RetryAfter
+	}
+	return 0
 }
 
 // severityRank 把级别映射成可比较的序:info(1) < warning(2) < critical(3);未知级别为 0(低于一切阈值)。
@@ -147,7 +199,7 @@ func (d *AlertDispatcher) NotifyTrade(alert Alert) {
 	d.dispatch(alert)
 }
 
-// dispatch 对每个出口 fire-and-forget 异步推送(各出口独立超时),不阻塞调用方。
+// dispatch 对每个出口 fire-and-forget 异步推送(各出口独立超时 + 可重试失败退避重试),不阻塞调用方。
 func (d *AlertDispatcher) dispatch(alert Alert) {
 	if alert.OccurredAt.IsZero() {
 		alert.OccurredAt = d.now()
@@ -156,13 +208,37 @@ func (d *AlertDispatcher) dispatch(alert Alert) {
 	timeout := d.timeout
 	go func() {
 		for _, sink := range sinks {
-			ctx, cancel := context.WithTimeout(context.Background(), timeout)
-			if err := sink.Dispatch(ctx, alert); err != nil && d.logger != nil {
-				d.logger.Printf("告警出口[%s]推送失败: %v", sink.Name(), err)
-			}
-			cancel()
+			d.dispatchToSinkWithRetry(sink, alert, timeout)
 		}
 	}()
+}
+
+// dispatchToSinkWithRetry 向单个出口推送,可重试失败(网络/429/5xx)按指数退避重试至多 alertSinkMaxAttempts 次;
+// 永久失败(4xx 配置/凭证错误)立即停手不刷屏。429 的 retry_after 优先于指数退避。
+func (d *AlertDispatcher) dispatchToSinkWithRetry(sink AlertSink, alert Alert, timeout time.Duration) {
+	for attempt := 1; attempt <= alertSinkMaxAttempts; attempt++ {
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		err := sink.Dispatch(ctx, alert)
+		cancel()
+		if err == nil {
+			return
+		}
+		if attempt >= alertSinkMaxAttempts || !retryableSink(err) {
+			if d.logger != nil {
+				d.logger.Printf("告警出口[%s]推送失败(尝试%d/%d,可重试=%t): %v",
+					sink.Name(), attempt, alertSinkMaxAttempts, retryableSink(err), err)
+			}
+			return
+		}
+		backoff := alertSinkBaseBackoff << (attempt - 1)
+		if hint := retryAfterHint(err); hint > backoff {
+			backoff = hint
+		}
+		if backoff > alertSinkMaxBackoff {
+			backoff = alertSinkMaxBackoff
+		}
+		time.Sleep(backoff)
+	}
 }
 
 // domainEventToAlert 把结构化领域事件映射为告警(纯函数)。标题取事件类型,明细取 Reason。
@@ -228,46 +304,83 @@ func (s *webhookAlertSink) Dispatch(ctx context.Context, alert Alert) error {
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := s.client.Do(req)
 	if err != nil {
-		return err
+		return &sinkError{Retryable: true, err: err} // 网络错误/超时:可重试
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 300 {
-		return fmt.Errorf("webhook 返回状态码 %d", resp.StatusCode)
+		return &sinkError{
+			Retryable: classifyHTTPStatus(resp.StatusCode),
+			err:       fmt.Errorf("webhook 返回状态码 %d", resp.StatusCode),
+		}
 	}
 	return nil
 }
 
 // telegramAlertSink 通过 Telegram Bot API sendMessage 推送。
 type telegramAlertSink struct {
-	token  string
-	chatID string
-	client *http.Client
+	token   string
+	chatID  string
+	client  *http.Client
+	baseURL string // 空=官方 api.telegram.org;单测可注入打桩地址
 }
 
 func (s *telegramAlertSink) Name() string { return "telegram" }
 
 func (s *telegramAlertSink) Dispatch(ctx context.Context, alert Alert) error {
+	// 不设 parse_mode → Telegram 按纯文本发送,无需对 Markdown/HTML 特殊字符转义(避免转义遗漏导致 400)。
 	text := fmt.Sprintf("[%s] %s\n%s", strings.ToUpper(string(alert.Level)), alert.Title, alert.Detail)
+	if alert.Symbol != "" {
+		text += "\nsymbol=" + alert.Symbol
+	}
 	if alert.CycleID != "" {
 		text += "\ncycle=" + alert.CycleID
 	}
-	body, err := json.Marshal(map[string]string{"chat_id": s.chatID, "text": text})
+	endpoint := s.apiBase() + "/bot" + s.token + "/sendMessage"
+	body, err := json.Marshal(map[string]any{"chat_id": s.chatID, "text": text, "disable_web_page_preview": true})
 	if err != nil {
-		return err
+		return &sinkError{Retryable: false, err: err}
 	}
-	endpoint := fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", s.token)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {
-		return err
+		return &sinkError{Retryable: false, err: err}
 	}
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := s.client.Do(req)
 	if err != nil {
-		return err
+		return &sinkError{Retryable: true, err: err}
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 300 {
-		return fmt.Errorf("telegram 返回状态码 %d", resp.StatusCode)
+		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		return &sinkError{
+			Retryable:  classifyHTTPStatus(resp.StatusCode),
+			RetryAfter: telegramRetryAfter(respBody),
+			err:        fmt.Errorf("telegram 返回状态码 %d: %s", resp.StatusCode, strings.TrimSpace(string(respBody))),
+		}
 	}
 	return nil
+}
+
+// apiBase 返回 Telegram API 基址(可注入,便于单测打桩)。
+func (s *telegramAlertSink) apiBase() string {
+	if strings.TrimSpace(s.baseURL) != "" {
+		return strings.TrimRight(s.baseURL, "/")
+	}
+	return "https://api.telegram.org"
+}
+
+// telegramRetryAfter 从 Telegram 429 回执 {"parameters":{"retry_after":N}} 解析建议的退避秒数。
+func telegramRetryAfter(body []byte) time.Duration {
+	var payload struct {
+		Parameters struct {
+			RetryAfter int `json:"retry_after"`
+		} `json:"parameters"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return 0
+	}
+	if payload.Parameters.RetryAfter > 0 {
+		return time.Duration(payload.Parameters.RetryAfter) * time.Second
+	}
+	return 0
 }

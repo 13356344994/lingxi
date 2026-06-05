@@ -535,6 +535,29 @@ func (c *BinanceClient) fetchNextHourlyMarginInterestRates(ctx context.Context, 
 	return result, nil
 }
 
+// marginMaxBorrowable 是 GET /sapi/v1/margin/maxBorrowable 的回执:amount=当前最大可借(base 单位)。
+type marginMaxBorrowable struct {
+	Amount      string `json:"amount"`
+	BorrowLimit string `json:"borrowLimit"`
+}
+
+// MaxBorrowable 查询全仓杠杆账户某资产的当前最大可借数量(base 单位)。R29 借币容量 pre-open 守卫用:
+// 负向 carry 开仓需借入 base 资产做空现货,开仓前据此判断「借得到 + 留足余量」,借不到则不开(不留裸腿)。
+func (c *BinanceClient) MaxBorrowable(ctx context.Context, asset string) (float64, error) {
+	token := strings.ToUpper(strings.TrimSpace(asset))
+	if token == "" {
+		return 0, fmt.Errorf("maxBorrowable: asset 不能为空")
+	}
+	params := url.Values{}
+	params.Set("asset", token)
+	params.Set("isIsolated", "FALSE")
+	var payload marginMaxBorrowable
+	if err := c.signedGetJSON(ctx, c.spotBaseURL+"/sapi/v1/margin/maxBorrowable", params, &payload); err != nil {
+		return 0, err
+	}
+	return parseFloat(payload.Amount), nil
+}
+
 // isRateLimitError 判断错误是否为币安限流/封禁(429 Too Many Requests / 418 banned)。
 // 用于在批量探测费率时一旦触发限流就立即停手，避免把账户 IP 越查越封。
 func isRateLimitError(err error) bool {
