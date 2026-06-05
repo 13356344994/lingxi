@@ -11,6 +11,9 @@ import (
 const realtimeDrawdownMonitorInterval = 100 * time.Millisecond
 const singleSymbolDrawdownTriggerShare = 0.5
 
+// realtimeSpotPriceStaleAfter 现货 book ticker 超过该时长视为过期不可信,组合浮亏估值回退到合约腿口径。
+const realtimeSpotPriceStaleAfter = 15 * time.Second
+
 type managedExposureTarget struct {
 	Symbol    string
 	Pair      string
@@ -88,10 +91,14 @@ func (e *FundingRateSniperEngine) shouldTriggerManagedSymbolDrawdownCut() (strin
 	managedUnrealizedLoss := 0.0
 	for symbol := range symbols {
 		position, ok := e.futuresRealtimePositions[symbol]
-		if !ok || position.UnrealizedProfit >= 0 {
+		if !ok {
 			continue
 		}
-		loss := -position.UnrealizedProfit
+		combined, _ := e.combinedManagedUnrealizedLocked(symbol, position.UnrealizedProfit)
+		if combined >= 0 {
+			continue
+		}
+		loss := -combined
 		managedUnrealizedLoss += loss
 		if loss <= worstLoss {
 			continue
@@ -190,9 +197,14 @@ func (e *FundingRateSniperEngine) shouldTriggerRealtimeDrawdownPanic() (bool, st
 		if !ok {
 			continue
 		}
-		if position.UnrealizedProfit < 0 {
-			managedUnrealizedLoss += -position.UnrealizedProfit
-			worst = append(worst, fmt.Sprintf("%s upnl=%.6f qty=%.8f", symbol, position.UnrealizedProfit, position.PositionAmt))
+		combined, spotIncluded := e.combinedManagedUnrealizedLocked(symbol, position.UnrealizedProfit)
+		if combined < 0 {
+			managedUnrealizedLoss += -combined
+			legNote := "fut+spot"
+			if !spotIncluded {
+				legNote = "fut-only"
+			}
+			worst = append(worst, fmt.Sprintf("%s combined=%.6f(%s) futUpnl=%.6f qty=%.8f", symbol, combined, legNote, position.UnrealizedProfit, position.PositionAmt))
 		}
 	}
 	summary := fmt.Sprintf("tracked=%d managedLoss=%.6f", len(symbols), managedUnrealizedLoss)
@@ -215,6 +227,85 @@ func (e *FundingRateSniperEngine) shouldTriggerRealtimeDrawdownPanic() (bool, st
 		}
 	}
 	return false, ""
+}
+
+// combinedManagedUnrealizedLocked 计算单个 symbol 的「组合级」实时浮动盈亏(合约腿 + 现货腿)。
+// 修复 P0:旧口径只累计合约腿 UnrealizedProfit,对 delta 中性对冲会让「合约腿单边浮亏」与组合真实
+// 盈亏脱钩——价格不利于合约腿时现货腿等额获利、组合接近中性,旧逻辑却会提前误触熔断;反之两腿漂移
+// /缺腿导致的真实组合亏损才是该抓的风险。现货腿用实时 book ticker 估值,价缺失/过期时回退到合约腿
+// 口径(对已对冲仓位这是高估亏损的保守方向),并以 spotIncluded=false 告知调用方。
+// 调用方必须持有 platformRiskMu。
+func (e *FundingRateSniperEngine) combinedManagedUnrealizedLocked(symbol string, futuresUPnL float64) (combined float64, spotIncluded bool) {
+	hedge, ok := e.activeOpenHedgeBySymbolLocked(symbol)
+	if !ok {
+		return futuresUPnL, false
+	}
+	spotPnL, ok := e.spotLegUnrealizedLocked(hedge)
+	if !ok {
+		return futuresUPnL, false
+	}
+	return futuresUPnL + spotPnL, true
+}
+
+// activeOpenHedgeBySymbolLocked 在已持有 platformRiskMu 的前提下按 symbol 查找受管对冲(无锁版本,
+// 避免与 managedOpenHedgeBySymbol 的二次加锁死锁)。
+func (e *FundingRateSniperEngine) activeOpenHedgeBySymbolLocked(symbol string) (OpenHedge, bool) {
+	normalized := strings.ToUpper(strings.TrimSpace(symbol))
+	if normalized == "" {
+		return OpenHedge{}, false
+	}
+	for i := range e.activeOpenHedges {
+		if strings.ToUpper(strings.TrimSpace(e.activeOpenHedges[i].Target.Symbol)) == normalized {
+			return e.activeOpenHedges[i], true
+		}
+	}
+	return OpenHedge{}, false
+}
+
+// spotLegUnrealizedLocked 用实时现货 book ticker 估算现货腿的浮动盈亏。
+// 正 carry 现货多头:(mid-entry)*qty;负 carry 借币空头:(entry-mid)*qty。
+// 现货价缺失/过期或入场价不可得 → 返回 ok=false,由调用方回退。
+func (e *FundingRateSniperEngine) spotLegUnrealizedLocked(hedge OpenHedge) (float64, bool) {
+	pair := strings.ToUpper(strings.TrimSpace(hedge.Target.Pair))
+	if pair == "" || e.spotTickerCache == nil {
+		return 0, false
+	}
+	baseQty := parseFloat(hedge.SpotBaseQty)
+	if baseQty <= executionQtyTolerance {
+		baseQty = hedge.HedgeQty
+	}
+	if baseQty <= executionQtyTolerance || hedge.OpenSpotQuoteQty <= 0 {
+		return 0, false
+	}
+	entryPrice := hedge.OpenSpotQuoteQty / baseQty
+	if entryPrice <= 0 {
+		return 0, false
+	}
+	ticker, receivedAt, ok := e.spotTickerCache.GetWithReceivedAt(pair)
+	if !ok {
+		return 0, false
+	}
+	if receivedAt.IsZero() || time.Since(receivedAt) > realtimeSpotPriceStaleAfter {
+		return 0, false
+	}
+	bid := parseFloat(ticker.BidPrice)
+	ask := parseFloat(ticker.AskPrice)
+	mid := 0.0
+	switch {
+	case bid > 0 && ask > 0:
+		mid = (bid + ask) / 2
+	case bid > 0:
+		mid = bid
+	case ask > 0:
+		mid = ask
+	default:
+		return 0, false
+	}
+	sign := 1.0
+	if hedge.carryDirection() == fundingCarryDirectionNegative {
+		sign = -1.0
+	}
+	return (mid - entryPrice) * baseQty * sign, true
 }
 
 func (e *FundingRateSniperEngine) noteManagedDrawdownSummaryLocked(summary string) {
@@ -333,7 +424,8 @@ func (e *FundingRateSniperEngine) panicFlattenManagedExposure(reason string) {
 	for _, target := range targets {
 		// 优先用方向感知的双腿平仓：正 carry(现货 SELL)与负 carry(全仓杠杆 BUY + AUTO_BORROW_REPAY 还币)
 		// 都能正确收敛。这修复了旧全局 panic「只 SELL 现货钱包正余额、对负 carry 杠杆空头完全无效」的窟窿(R3)。
-		if hedge, ok := e.managedOpenHedgeBySymbol(target.Symbol); ok {
+		hedge, hedgeTracked := e.managedOpenHedgeBySymbol(target.Symbol)
+		if hedgeTracked {
 			alerts, closeErr := e.closeHedgePositionParallel(ctx, closeSequencePlan{
 				hedge:             &hedge,
 				futuresOrder:      e.buildProtectedCloseFuturesOrder(ctx, hedge),
@@ -353,7 +445,6 @@ func (e *FundingRateSniperEngine) panicFlattenManagedExposure(reason string) {
 			}
 		}
 		// 兜底：无跟踪对冲的孤儿残腿，或上面双腿平仓失败 → 按交易所实际持仓尽力收敛。
-		// 注意：此兜底对负 carry 的杠杆空头现货腿仍不完整(只 SELL 现货钱包正余额)，正常路径应走上面的方向感知平仓。
 		positionQty := positions[target.Symbol]
 		if math.Abs(positionQty) > executionQtyTolerance {
 			side := "BUY"
@@ -364,7 +455,27 @@ func (e *FundingRateSniperEngine) panicFlattenManagedExposure(reason string) {
 				e.logger.Printf("实时浮亏 panic flatten 合约平仓失败: symbol=%s qty=%.8f err=%v", target.Symbol, positionQty, closeErr)
 			}
 		}
-		if target.Pair == "" || target.BaseAsset == "" || spotBalances == nil {
+		if target.Pair == "" {
+			continue
+		}
+		// 现货腿方向感知收敛(修 P0:旧兜底只 SELL 现货钱包正余额,对负 carry「借币卖空」的现货腿是错误语义)。
+		// 负 carry:现货腿是全仓杠杆借入 base 做空 → 必须 BUY 买回 + AUTO_BORROW_REPAY 还币才算真正收敛;
+		// 仅当有跟踪台账(知道借入数量)时走此路径,买回数量取台账记录的 base 数量。
+		if hedgeTracked && hedge.carryDirection() == fundingCarryDirectionNegative {
+			buyQty := parseFloat(hedge.SpotBaseQty)
+			if buyQty <= executionQtyTolerance {
+				buyQty = hedge.HedgeQty
+			}
+			if buyQty <= executionQtyTolerance {
+				continue
+			}
+			if _, buyErr := e.placeDirectionalSpotMarketOrderIdempotent(ctx, target.Pair, "BUY", buyQty, newClientOrderID("srepay", target.Pair), spotExecutionVenueCrossMargin, "panic_neg_carry_repay", true); buyErr != nil && e.logger != nil {
+				e.logger.Printf("实时浮亏 panic flatten 负 carry 借币空头买回还币失败: pair=%s qty=%.8f err=%v", target.Pair, buyQty, buyErr)
+			}
+			continue
+		}
+		// 正 carry / 未跟踪孤儿:卖出现货钱包正余额。
+		if target.BaseAsset == "" || spotBalances == nil {
 			continue
 		}
 		spotQty := spotBalances[target.BaseAsset]

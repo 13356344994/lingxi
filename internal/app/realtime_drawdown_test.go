@@ -4,7 +4,51 @@ import (
 	"log"
 	"strings"
 	"testing"
+	"time"
 )
+
+// TestCombinedManagedUnrealizedNetsSpotLeg 钉死 P0 修复:组合级浮亏口径把现货腿实时市值纳入。
+// 合约腿单边浮亏 -25,但 delta 中性现货腿等额获利 → 组合接近中性,不应误触熔断;现货腿少赚导致
+// 真实组合净亏 → 仍应触发。
+func TestCombinedManagedUnrealizedNetsSpotLeg(t *testing.T) {
+	build := func(spotPrice string) *FundingRateSniperEngine {
+		cache := NewBookTickerCache()
+		cache.UpdateAt(BookTicker{Symbol: "BTCUSDT", BidPrice: spotPrice, AskPrice: spotPrice}, time.Now().UTC())
+		eng := &FundingRateSniperEngine{
+			cfg:             DefaultEngineConfig(),
+			logger:          log.Default(),
+			spotTickerCache: cache,
+			futuresRealtimePositions: map[string]futuresRealtimePosition{
+				// 价格上行:合约空头浮亏 -25。
+				"BTCUSDT": {Symbol: "BTCUSDT", PositionAmt: -1, UnrealizedProfit: -25},
+			},
+			portfolioManager: portfolioManager{
+				activeOpenHedges: []OpenHedge{{
+					Target:           FundingCandidate{Symbol: "BTCUSDT", Pair: "BTCUSDT", SpotBaseAsset: "BTC"},
+					Direction:        fundingCarryDirectionPositive,
+					HedgeQty:         1,
+					SpotBaseQty:      "1",
+					OpenSpotQuoteQty: 100, // 入场现货价 100
+				}},
+				exposureLocks: make(map[string]exposureLockState),
+			},
+		}
+		eng.cfg.RiskConfig.MaxCycleLossUSDT = 20
+		return eng
+	}
+
+	// 现货涨到 125:现货多头 +25,组合净 ≈ 0 → 不触发(旧口径会按 -25 误触)。
+	hedged := build("125")
+	if trip, _ := hedged.shouldTriggerRealtimeDrawdownPanic(); trip {
+		t.Fatal("对冲组合净接近中性,不应触发实时熔断(旧口径只看合约腿会误触)")
+	}
+
+	// 现货只涨到 105:现货多头 +5,组合净亏 -20 ≥ 限额 → 触发。
+	drifted := build("105")
+	if trip, reason := drifted.shouldTriggerRealtimeDrawdownPanic(); !trip {
+		t.Fatalf("组合真实净亏达限额应触发,got trip=false reason=%q", reason)
+	}
+}
 
 func TestShouldTriggerRealtimeDrawdownPanicTripsOnManagedUnrealizedLoss(t *testing.T) {
 	engine := &FundingRateSniperEngine{
