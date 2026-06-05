@@ -571,6 +571,13 @@ finalNotional = clamp(baseUnit × edgeScore, minNotional, perSymbolCap)
 2. `[目标]` size 决策前先估算并扣除**冲击成本**：以「边际资金费收入 = 边际冲击成本」为停止加仓点。
 3. `[依赖]` 冲击成本必须计入进场闸与 `NetPnL`（对应 R5：当前滑点不入账；P2 第 6 项）。
 
+> **实现状态（M-S4.6 已落地纯函数）**：`dynamic_sizing.go:resolveDynamicPerSymbolCap` 已实现「多重天花板取最小
+> （depth/volume/oi/liqSafe/hardCap）+ 边际择优夹取（edgeScore=clamp(预期净费率/入场阈值,EdgeMin,EdgeMax)）」,
+> 含 :57 踩踏窗深度打折（坑1,默认 0.5）、绝对硬顶推导 `resolveHardCapUSDT`、`BindingCeiling` 可观测,以及
+> fail-safe（无天花板或容量低于最小单 → 不可交易）。**接入开仓侧**（替换静态 `PerSymbolQuoteMultiplier`）须配合
+> **冲击成本入闸/计入 NetPnL（M-S4.7/R5）**与 **L2 簇上限/L3 sizing（M-S4.8）**,且全程 behind `DynamicSizingEnabled`;
+> `liqSafeCap` 依赖 R2 强平距离反推（当前为可选输入,缺省即跳过）。
+
 **坑（务必规避）：**
 - **坑 1：深度 ≠ 容量。** `:57` 抢费窗口是踩踏窗口，`:55` 看到的盘口到 `:57` 会蒸发（R13/R15）。
   depth 推出的容量要重度打折，大单必须切片执行（TWAP/冰山，P4 #16）。
