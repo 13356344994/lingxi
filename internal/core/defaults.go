@@ -144,6 +144,10 @@ func DefaultEngineConfig() EngineConfig {
 			BorrowCapacityCheckEnabled:    false,
 			BorrowCapacityMinHeadroomRate: 0.10,
 			MaxBorrowHourlyInterestRate:   0,
+			// R26 API Key 权限自检姿态:默认 fail-close(读取/解析失败即拒启,出厂最安全);
+			// IP 白名单默认仅告警(避免直接 brick 现有未配白名单的 Key),建议实盘置 true 转硬门。
+			RequireAPIKeyPermissionCheck: true,
+			RequireIPWhitelist:           false,
 		},
 		HistoricalConfig: HistoricalConfig{
 			DefaultLookbackDays:                    30,

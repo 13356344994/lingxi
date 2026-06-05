@@ -282,6 +282,14 @@ type RiskConfig struct {
 	BorrowCapacityCheckEnabled    bool    `cfg:"borrow_capacity_check_enabled"`
 	BorrowCapacityMinHeadroomRate float64 `cfg:"borrow_capacity_min_headroom_rate"`
 	MaxBorrowHourlyInterestRate   float64 `cfg:"max_borrow_hourly_interest_rate"`
+
+	// RequireAPIKeyPermissionCheck / RequireIPWhitelist 是启动期 API Key 权限自检的安全姿态(R26):
+	// RequireAPIKeyPermissionCheck=true(默认,出厂最安全)时,读取或解析 apiRestrictions 失败 → **拒绝启动**
+	// (fail-close:最需要确认提现权限时不允许带未知状态开跑);设为 false 才退回「失败仅告警」的兼容行为
+	// (用于不支持该端点的子账户 Key 类型)。RequireIPWhitelist=true 时未启用 IP 白名单(ipRestrict=false)→
+	// 拒绝启动(硬门);默认 false(仅告警),建议实盘开启。提现权限恒为硬闸,与这两项无关。
+	RequireAPIKeyPermissionCheck bool `cfg:"require_api_key_permission_check"`
+	RequireIPWhitelist           bool `cfg:"require_ip_whitelist"`
 }
 
 // HistoricalConfig 表示月度模拟与历史验证配置。

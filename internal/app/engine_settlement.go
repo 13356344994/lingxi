@@ -542,12 +542,15 @@ type apiKeyRestrictions struct {
 
 // evaluateAPIKeyRestrictions 纯判定 API Key 权限是否安全(可单测):带提现权限 → 致命拒绝;未开 IP 白名单 /
 // 未开读取权限 → 非致命告警(返回 warnings,由调用方记日志/推送)。
-func evaluateAPIKeyRestrictions(r apiKeyRestrictions) (warnings []string, err error) {
+func evaluateAPIKeyRestrictions(r apiKeyRestrictions, requireIPWhitelist bool) (warnings []string, err error) {
 	if r.EnableWithdrawals {
 		return nil, fmt.Errorf("API Key 启用了提现权限(enableWithdrawals=true),出于资金安全拒绝启动:请在 Binance 关闭该 Key 的提现权限后重试")
 	}
 	if !r.IPRestrict {
-		warnings = append(warnings, "API Key 未启用 IP 白名单(ipRestrict=false):强烈建议在 Binance 限制该 Key 仅本机出口 IP 可用,降低泄露风险")
+		if requireIPWhitelist {
+			return nil, fmt.Errorf("API Key 未启用 IP 白名单(ipRestrict=false)且 RequireIPWhitelist=true(硬门):请在 Binance 限制该 Key 仅本机出口 IP 可用后重试,或将 require_ip_whitelist 置为 false 退回告警模式")
+		}
+		warnings = append(warnings, "API Key 未启用 IP 白名单(ipRestrict=false):强烈建议在 Binance 限制该 Key 仅本机出口 IP 可用,降低泄露风险(可置 require_ip_whitelist=true 转为硬门)")
 	}
 	if !r.EnableReading {
 		warnings = append(warnings, "API Key 未启用读取权限(enableReading=false):账户/行情读取可能受限")
@@ -556,23 +559,32 @@ func evaluateAPIKeyRestrictions(r apiKeyRestrictions) (warnings []string, err er
 }
 
 // verifyAPIKeyPermissions 启动期 API Key 权限自检(S5-C / R26):拉取 apiRestrictions,带提现权限即拒绝启动。
-// 读取失败仅告警不阻塞(部分子账户 Key 类型不支持该端点 / 瞬时网络错误,不应 brick 实盘启动);提现权限检测为硬闸。
+// 安全姿态由 RequireAPIKeyPermissionCheck 控制:默认 true(fail-close)——读取/解析失败即**拒绝启动**,因为这正是
+// 最需要确认提现权限的时刻,不应带未知状态开跑;置 false 才退回「失败仅告警」的兼容行为(供不支持该端点的子账户 Key)。
+// IP 白名单是否为硬门由 RequireIPWhitelist 控制。提现权限检测恒为硬闸。
 func (e *FundingRateSniperEngine) verifyAPIKeyPermissions(ctx context.Context) error {
+	failClose := e.cfg.RiskConfig.RequireAPIKeyPermissionCheck
 	body, err := e.signedRequest(ctx, http.MethodGet, e.client.SpotBaseURL()+"/sapi/v1/account/apiRestrictions", nil)
 	if err != nil {
+		if failClose {
+			return fmt.Errorf("API Key 权限自检失败(fail-close,拒绝启动):读取 apiRestrictions 失败,无法确认提现权限;若该 Key 类型确实不支持该端点,可将 require_api_key_permission_check 置为 false: %w", err)
+		}
 		if e.logger != nil {
-			e.logger.Printf("API Key 权限自检告警: 读取 apiRestrictions 失败(不阻塞启动,但无法确认提现权限,请确保该 Key 无提现权限): %v", err)
+			e.logger.Printf("API Key 权限自检告警: 读取 apiRestrictions 失败(require_api_key_permission_check=false,不阻塞启动,但无法确认提现权限,请确保该 Key 无提现权限): %v", err)
 		}
 		return nil
 	}
 	var payload apiKeyRestrictions
 	if err := json.Unmarshal(body, &payload); err != nil {
+		if failClose {
+			return fmt.Errorf("API Key 权限自检失败(fail-close,拒绝启动):解析 apiRestrictions 失败,无法确认提现权限: %w", err)
+		}
 		if e.logger != nil {
-			e.logger.Printf("API Key 权限自检告警: 解析 apiRestrictions 失败(不阻塞启动): %v", err)
+			e.logger.Printf("API Key 权限自检告警: 解析 apiRestrictions 失败(require_api_key_permission_check=false,不阻塞启动): %v", err)
 		}
 		return nil
 	}
-	warnings, evalErr := evaluateAPIKeyRestrictions(payload)
+	warnings, evalErr := evaluateAPIKeyRestrictions(payload, e.cfg.RiskConfig.RequireIPWhitelist)
 	for _, w := range warnings {
 		if e.logger != nil {
 			e.logger.Printf("API Key 权限告警: %s", w)
