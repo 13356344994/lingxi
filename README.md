@@ -931,6 +931,28 @@ M6(治理) 可与 M2~M5 并行
 - **演练记录留存**：`deploy/RUNBOOK.md` 已给演练清单，**实际演练 + 记录**由操作者执行。
 - **最终裁定**：连续多周期小额实盘 `reconcile` HEALTHY 且实测净利稳定贴合模型——这一锤只能由你的实盘数据落下。
 
+### 18.4.2 外部审阅（朋友审判）P0/P1/P2 处置台账
+
+> 一轮独立代码审阅给出的「默认是否足够安全 / 负 carry 是否闭环 / 失联时能否按组合语义收敛」清单及其处置。
+> 已闭环项均带单测；未闭环项归入 §18.4.1（基建/真金/大改）。
+
+**已修复（本轮）**
+- **[P0] 组合级实时浮亏口径**：panic-flatten 熔断从「只看合约腿 UnrealizedProfit」升级为「合约腿 + 现货腿」组合级——现货腿用实时 book ticker 估值（正 carry 多头 / 负 carry 借币空头方向感知），价缺失/过期回退合约腿保守口径。消除对冲组合的误触、并抓住两腿漂移/缺腿的真实净亏。（`realtime_drawdown.go`）
+- **[P0] API Key 权限自检 fail-close**：读取/解析 `apiRestrictions` 失败默认**拒绝启动**（`require_api_key_permission_check=true`），新增 `require_ip_whitelist` 硬门开关；提现权限恒为硬闸。（`engine_settlement.go`）
+- **[P0] 负 carry 孤儿腿方向感知收敛**：panic 兜底对借币空头改为全仓杠杆 BUY + AUTO_BORROW_REPAY 买回还币，不再错误地只 SELL 现货正余额。（`realtime_drawdown.go`）
+- **[P1/R12] 并发任务池首错取消**：`runBoundedConcurrentTasks` 派生可取消 ctx，首错即 cancel 兄弟任务，缩小残腿窗口。（`engine_cost_guard.go`）
+- **[P1] 负 carry 持有期逐腿对冲偏离守卫**：`HoldHedgeGuard` 不再对负 carry 跳过——借币空头腿用 margin 健康轮询缓存的逐资产快照 `abs(NetAsset)` 测量（5s 新鲜度，过期/缺失不评估）。（`hold_monitor.go` / `margin_health.go`）
+- **[P3] 出厂默认武装关键守卫**：基线默认开启 `HoldHedgeGuardEnabled`、`FeedBlindnessGuardEnabled`、`MinMarginLevel=1.5`、`DeadMansSwitchEnabled`（空仓/无负 carry/回测下均为 no-op，逐字段可在 YAML/env 退回兼容姿态）。`MinRealizedNetEdgeRate` 仍留 0（策略 edge 闸需实盘标定）。（`defaults.go`）
+- **[P1] 灰度门 de-risk 自动闭环**：rollback 决策自动收紧生效组合名义硬顶（`effectiveMaxPortfolioNotionalUSDT`，原子 override、单调只减）；promote（放大风险）仍只建议不自动放大。（`capital_ramp.go`）
+- **[P2] Dashboard 令牌恒定时间比较**：`X-Dashboard-Token` 核对改 `crypto/subtle.ConstantTimeCompare`，消除时序侧信道。（`dashboard_server.go`）
+
+**未闭环（大改 / 基建，建议下一步按序）**
+- **[P1] 负 carry 实时 WS 用户流（cross-margin）**：当前 5s REST 轮询已兜住正确性，WS 为时效升级（最大件，建议单独迭代）。
+- **[P2] 死手开关覆盖已成交裸仓**：交易所无「失联自动平仓」原生能力；根治路径＝外部看门狗在主进程失联时调用一次性 `flatten` 入口（可复用 `panicFlattenManagedExposure`，需独立进程 + 谨慎评审，会下真实平仓单）。
+- **[P2] 负 carry 健康守卫 REST→WS**：同上 WS 项，5s 轮询/30s 过期窗口已兜底。
+- **[部署] secret.yaml 静态加密 / KMS / keyring**：主机/基建侧（见 §18.4.1 A）。
+- **[部署] Dashboard 正式多层鉴权**：内网面板标准做法是反代鉴权 / 仅绑 loopback；代码侧已做令牌 + 本机限制 + 恒定时间比较 + 审计。
+
 ### 18.5 一句话总结
 **代码侧能做到的极限是「理论 9.6」——把 R1~R28 全闭环、S0~S8 全落地、每个评分维度都拉到 9.5±。
 但最后那 0.1、那一锤定音的「真的赚钱且稳健」，只能由你数十~数百 U 起步、逐档放大的实盘记录来盖章。
