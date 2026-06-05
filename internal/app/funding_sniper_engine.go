@@ -83,10 +83,12 @@ func NewFundingRateSniperEngineWithConfig(secretPath string, cfg EngineConfig) (
 }
 
 // Start 启动完整的小时级主循环。
-func (e *FundingRateSniperEngine) Start(ctx context.Context) error {
+func (e *FundingRateSniperEngine) Start(ctx context.Context) (err error) {
 	e.runCtx = ctx
+	// S7-C:无论从哪个 return 退出(SIGTERM/Interrupt 取消、致命熔断),都执行一次有界、幂等的优雅停机收尾。
+	defer func() { e.finalizeGracefulShutdown(err) }()
 	e.startDailyRiskStateWriter(ctx)
-	if err := e.initialize(ctx); err != nil {
+	if err = e.initialize(ctx); err != nil {
 		return err
 	}
 	if e.exposureManager != nil {
