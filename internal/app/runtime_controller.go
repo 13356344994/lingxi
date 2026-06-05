@@ -714,6 +714,20 @@ func (c *RuntimeController) setStageLocked(stage EngineStage, reason string, sou
 
 func (c *RuntimeController) runLiveEngine(ctx context.Context, secretPath string, cfg EngineConfig) (string, error) {
 	c.appendControllerLog("开始启动实盘引擎")
+	// S7-A:抢单写租约,防止同一账户双开(双写撞单/对账错乱)。flock 在进程退出时由内核自动释放,无陈旧锁问题。
+	lease, err := acquireSingleWriterLease(cfg.NetworkConfig.RecordDir)
+	if err != nil {
+		c.appendControllerLog("单写租约获取失败: %v", err)
+		return "", err
+	}
+	defer func() {
+		if rerr := lease.Release(); rerr != nil {
+			c.appendControllerLog("释放单写租约失败: %v", rerr)
+		} else {
+			c.appendControllerLog("已释放单写租约")
+		}
+	}()
+	c.appendControllerLog("已获取单写租约,确保单实例独占写入")
 	engine, err := NewFundingRateSniperEngineWithConfig(secretPath, cfg)
 	if err != nil {
 		c.appendControllerLog("创建实盘引擎失败: %v", err)

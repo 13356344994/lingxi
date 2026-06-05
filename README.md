@@ -859,6 +859,7 @@ M6(治理) 可与 M2~M5 并行
 **S7 高可用与容灾** —— 覆盖 M5.2·M5.3 / R14
 - 外部看门狗 + 交易所 Kill Switch（到期自动撤单）；多节点热备 + 单写租约（杜绝双开）。
 - **退出**：进程被杀/断连有交易所侧兜底；主备切换不双开。**评分↑：维度 11。**
+- **进度**：✅ S7-A 单写租约(`single_writer_lease.go`:flock `LOCK_EX|LOCK_NB` 锁 `records/.lingxi-live.lock`,`runLiveEngine` 启动时抢锁、退出 defer 释放;已有持有者立即拒绝双开并报既有 pid/host;flock 进程退出由内核自动释放、无陈旧锁)。待:S7-B 交易所 dead-man(countdownCancelAll)、S7-C SIGTERM 优雅停机、S7-D 外部看门狗 + systemd(运维产物)。
 
 **S8 规模化执行与高保真回测** —— 覆盖 M5.1·M5.4 / R13·R15·R19·R23
 - TWAP/冰山执行切片；L3 Tick 回测校正阈值；结算/pending 事件化存储；对账诊断字段清洁；事故 runbook + 演练（R28）。
