@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -55,10 +56,39 @@ func (g *BinanceGateway) SignedRequest(ctx context.Context, method string, endpo
 	if err := engine.blockOrderRequestByLocalRateLimit(method, endpoint, params); err != nil {
 		return nil, err
 	}
-	params.Set("recvWindow", strconv.FormatInt(engine.cfg.ExecutionConfig.RecvWindow, 10))
-	params.Set("timestamp", strconv.FormatInt(engine.currentServerTimeMillis(), 10))
 
-	query := params.Encode()
+	body, requestErr := g.sendSignedOnce(ctx, method, endpoint, params)
+	// -1021(timestamp 超出 recvWindow):本地与服务器时钟漂移导致的**执行前**拒绝(请求从未进入撮合,故重试幂等安全)。
+	// 重同步服务器时间偏移后用新 timestamp 重签重试一次;首次失败不计入平台拒绝计数(避免时钟抖动误触熔断)。
+	if requestErr != nil && isTimestampOutsideRecvWindowError(requestErr) {
+		if engine.logger != nil {
+			engine.logger.Printf("[time] 签名请求触发 -1021(时钟漂移),重同步服务器时间后重试一次: %s", endpoint)
+		}
+		if syncErr := engine.syncServerTimeOffset(ctx); syncErr == nil {
+			body, requestErr = g.sendSignedOnce(ctx, method, endpoint, params)
+		} else if engine.logger != nil {
+			engine.logger.Printf("[time] -1021 后重同步服务器时间失败: %v", syncErr)
+		}
+	}
+	if requestErr != nil {
+		if markErr := engine.notePlatformRequestResult(endpoint, requestErr); markErr != nil {
+			return nil, markErr
+		}
+		return nil, requestErr
+	}
+	engine.notePlatformRequestSuccess()
+	return body, nil
+}
+
+// sendSignedOnce 执行一次签名请求(每次调用都用当前 serverTimeMillis 重新盖 timestamp 并重签,确保重试用新鲜时间)。
+// 不在此处记平台请求成败计数——交由 SignedRequest 在最终结果上统一处理,避免 -1021 重试时把首次失败误计为平台拒绝。
+func (g *BinanceGateway) sendSignedOnce(ctx context.Context, method string, endpoint string, params url.Values) ([]byte, error) {
+	engine := g.engine
+	signed := cloneURLValues(params)
+	signed.Set("recvWindow", strconv.FormatInt(engine.cfg.ExecutionConfig.RecvWindow, 10))
+	signed.Set("timestamp", strconv.FormatInt(engine.currentServerTimeMillis(), 10))
+
+	query := signed.Encode()
 	query = query + "&signature=" + exchange.Sign(engine.client.SecretKey(), query)
 
 	req, err := http.NewRequestWithContext(ctx, method, endpoint+"?"+query, nil)
@@ -69,38 +99,33 @@ func (g *BinanceGateway) SignedRequest(ctx context.Context, method string, endpo
 
 	resp, err := engine.client.HTTPClient().Do(req)
 	if err != nil {
-		requestErr := signedRequestError{Endpoint: endpoint, Cause: err}
-		if markErr := engine.notePlatformRequestResult(endpoint, requestErr); markErr != nil {
-			return nil, markErr
-		}
-		return nil, requestErr
+		return nil, signedRequestError{Endpoint: endpoint, Cause: err}
 	}
 	defer resp.Body.Close()
 	engine.client.NoteUsedWeightFromHeaders(resp.Header)
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		requestErr := signedRequestError{Endpoint: endpoint, Cause: err}
-		if markErr := engine.notePlatformRequestResult(endpoint, requestErr); markErr != nil {
-			return nil, markErr
-		}
-		return nil, requestErr
+		return nil, signedRequestError{Endpoint: endpoint, Cause: err}
 	}
-
 	if resp.StatusCode != http.StatusOK {
-		requestErr := signedRequestError{
+		return nil, signedRequestError{
 			Endpoint:   endpoint,
 			StatusCode: resp.StatusCode,
 			Status:     resp.Status,
 			Body:       strings.TrimSpace(string(body)),
 		}
-		if markErr := engine.notePlatformRequestResult(endpoint, requestErr); markErr != nil {
-			return nil, markErr
-		}
-		return nil, requestErr
 	}
-	engine.notePlatformRequestSuccess()
 	return body, nil
+}
+
+// isTimestampOutsideRecvWindowError 判定签名请求错误是否为币安 -1021(timestamp 超出 recvWindow)。
+func isTimestampOutsideRecvWindowError(err error) bool {
+	var requestErr signedRequestError
+	if !errors.As(err, &requestErr) {
+		return false
+	}
+	return strings.Contains(requestErr.Body, "-1021")
 }
 
 func (g *BinanceGateway) GetJSON(ctx context.Context, endpoint string, target any) error {

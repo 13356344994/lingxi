@@ -396,7 +396,43 @@ func (e *FundingRateSniperEngine) verifyTradingEnvironment(ctx context.Context) 
 		return fmt.Errorf("检测到存量现货仓位，拒绝启动: %s", strings.Join(spotIssues, ", "))
 	}
 
+	if err := e.verifyCrossMarginReadyForNegativeCarry(ctx); err != nil {
+		return err
+	}
+
 	e.logger.Printf("模块一环境校验通过：单向持仓、无显著残余现货/合约仓位")
+	return nil
+}
+
+// verifyCrossMarginReadyForNegativeCarry 在启用负 carry(LiveFundingDirectionMode=negative_only/both)时,于启动前
+// 校验全仓杠杆账户已开通且可借/可交易。负 carry 的现货腿走全仓杠杆借币(spotVenue=cross-margin):若账户未开通/
+// 禁借/禁交易而直到首次开仓才发现,会在合约腿已成交后现货腿失败,留下裸合约敞口(只能靠回补/救援补救)。
+// 故采用 fail-close 的启动闸:不可用即拒绝启动并给出可执行指引(开通杠杆/授信,或将方向模式改为 positive_only)。
+func (e *FundingRateSniperEngine) verifyCrossMarginReadyForNegativeCarry(ctx context.Context) error {
+	if e == nil {
+		return nil
+	}
+	if !liveFundingDirectionEnabled(e.cfg.StrategyConfig.LiveFundingDirectionMode, fundingCarryDirectionNegative) {
+		return nil
+	}
+	state, err := e.fetchCrossMarginAccountState(ctx)
+	if err != nil {
+		return fmt.Errorf("启用负 carry(模式=%s)但读取全仓杠杆账户失败,拒绝启动(请确认已开通全仓杠杆账户,或将 LiveFundingDirectionMode 改为 positive_only): %w", e.cfg.StrategyConfig.LiveFundingDirectionMode, err)
+	}
+	missing := make([]string, 0, 3)
+	if !state.Created {
+		missing = append(missing, "账户未开通(created=false)")
+	}
+	if !state.BorrowEnabled {
+		missing = append(missing, "禁止借币(borrowEnabled=false)")
+	}
+	if !state.TradeEnabled {
+		missing = append(missing, "禁止交易(tradeEnabled=false)")
+	}
+	if len(missing) > 0 {
+		return fmt.Errorf("启用负 carry(模式=%s)但全仓杠杆账户不可用: %s。请在币安开通全仓杠杆并授信,或将 LiveFundingDirectionMode 改为 positive_only 后重启", e.cfg.StrategyConfig.LiveFundingDirectionMode, strings.Join(missing, "、"))
+	}
+	e.logger.Printf("全仓杠杆账户就绪校验通过(负 carry 已启用,模式=%s):created/borrowEnabled/tradeEnabled 均为真", e.cfg.StrategyConfig.LiveFundingDirectionMode)
 	return nil
 }
 

@@ -153,8 +153,12 @@ func TestFundingSettlementWorkerRecoversPendingTaskAfterRestart(t *testing.T) {
 			t.Fatalf("ListSettlementRecords() error = %v", listErr)
 		}
 		if len(pending) == 0 && len(records) == 1 && records[0].FundingIncome == "1.25" && !records[0].FundingIncomePending {
-			if engine.riskBudgetState.DailyRealizedPnL != 1.25 {
-				t.Fatalf("expected daily pnl to be adjusted by recovered funding delta, got %.8f", engine.riskBudgetState.DailyRealizedPnL)
+			// 后台结算 worker 在持有 platformRiskMu 下写 riskBudgetState,这里读必须同样持锁,避免与之竞争。
+			engine.platformRiskMu.Lock()
+			dailyPnL := engine.riskBudgetState.DailyRealizedPnL
+			engine.platformRiskMu.Unlock()
+			if dailyPnL != 1.25 {
+				t.Fatalf("expected daily pnl to be adjusted by recovered funding delta, got %.8f", dailyPnL)
 			}
 			return
 		}
