@@ -292,9 +292,9 @@ func (e *FundingRateSniperEngine) observeHoldMonitor() {
 //
 // 安全契约（避免缺数据误平）：
 //   - opt-in：HoldHedgeGuardEnabled 默认 false，关闭时恒不触发(零行为变更)；
-//   - 仅正 carry：现货腿在现货钱包可实时测量；负 carry 在全仓杠杆(借币空头)，其持有期复核依赖
-//     cross-margin 实时健康数据(S2.4)，此处跳过；
-//   - 两腿都须有可信实时测量(合约实时仓位 present 且 >0、现货实时余额 >0、有新鲜现货价)才评估；
+//   - 正 carry 现货腿在现货钱包实时测量；负 carry 借币空头腿用 margin 健康轮询缓存的逐资产
+//     快照 abs(NetAsset) 测量(5s 级新鲜度,过期不评估)——cross-margin 实时 WS 流接通前的诚实兜底；
+//   - 两腿都须有可信实时测量(合约实时仓位 present 且 >0、现货腿规模 >0、有新鲜现货价)才评估；
 //     任一腿测量缺失即跳过——「某腿完全消失」由强平/ADL 与实时浮亏止血路径覆盖，本守卫只抓「两腿都在
 //     但名义漂移」的裸敞口，避免把"数据未到"误判成"腿没了"而错误平仓。
 func (e *FundingRateSniperEngine) shouldTriggerHoldHedgeFlatten() (string, string) {
@@ -321,9 +321,6 @@ func (e *FundingRateSniperEngine) shouldTriggerHoldHedgeFlatten() (string, strin
 		if _, inFlight := e.symbolPanicFlattenInFlight[symbol]; inFlight {
 			continue
 		}
-		if hedge.carryDirection().spotVenue() != spotExecutionVenueSpot {
-			continue
-		}
 		baseAsset := strings.ToUpper(strings.TrimSpace(hedge.Target.SpotBaseAsset))
 		pair := strings.ToUpper(strings.TrimSpace(hedge.Target.Pair))
 		if baseAsset == "" || pair == "" {
@@ -334,7 +331,25 @@ func (e *FundingRateSniperEngine) shouldTriggerHoldHedgeFlatten() (string, strin
 			continue
 		}
 		futuresAbsQty := math.Abs(pos.PositionAmt)
-		spotQty := e.spotRealtimeBalances[baseAsset]
+		// 现货腿规模测量按 venue 分流(P1:不再对负 carry 一刀切跳过):
+		//   - 正 carry 现货钱包多头:用现货实时余额;
+		//   - 负 carry 全仓杠杆借币空头:用 margin 健康轮询缓存的逐资产快照 abs(NetAsset) 测量空头规模,
+		//     且要求该快照新鲜(<=marginHealthStaleAfter),数据缺失/过期不评估——与正 carry 同样的
+		//     「两腿都须可信实时测量才动作」契约,避免把"数据未到"误判成"腿漂了"而错误平仓。
+		var spotQty float64
+		switch hedge.carryDirection().spotVenue() {
+		case spotExecutionVenueSpot:
+			spotQty = e.spotRealtimeBalances[baseAsset]
+		case spotExecutionVenueCrossMargin:
+			if e.lastMarginHealthAt.IsZero() || time.Since(e.lastMarginHealthAt) > marginHealthStaleAfter {
+				continue
+			}
+			if bal, ok := e.crossMarginAssetBalances[baseAsset]; ok {
+				spotQty = math.Abs(bal.NetAsset)
+			}
+		default:
+			continue
+		}
 		if futuresAbsQty <= executionQtyTolerance || spotQty <= executionQtyTolerance {
 			continue
 		}

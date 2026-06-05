@@ -72,6 +72,7 @@ func (e *FundingRateSniperEngine) runMarginHealthPoller(ctx context.Context) {
 		e.platformRiskMu.Lock()
 		e.marginHealthLevel = level
 		e.marginHealthLiabilityBTC = state.TotalLiabilityBTC
+		e.crossMarginAssetBalances = state.Assets
 		e.lastMarginHealthAt = time.Now().UTC()
 		e.platformRiskMu.Unlock()
 	}

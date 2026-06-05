@@ -192,6 +192,9 @@ type FundingRateSniperEngine struct {
 	marginHealthLevel        float64
 	marginHealthLiabilityBTC float64
 	lastMarginHealthAt       time.Time
+	// crossMarginAssetBalances 缓存全仓杠杆逐资产快照(由 margin 健康轮询填充,5s 级新鲜度),
+	// 供负 carry 持有期逐腿对冲偏离守卫测量借币空头规模(abs(NetAsset))。
+	crossMarginAssetBalances map[string]CrossMarginAssetBalance
 
 	currentStage                   EngineStage
 	currentStageReason             string

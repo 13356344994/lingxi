@@ -63,13 +63,41 @@ func TestHoldHedgeGuardDisabledByDefault(t *testing.T) {
 	}
 }
 
-func TestHoldHedgeGuardSkipsNegativeCarry(t *testing.T) {
+func TestHoldHedgeGuardSkipsNegativeCarryWhenMarginDataMissing(t *testing.T) {
 	engine := newHoldHedgeGuardEngine(t, fundingCarryDirectionNegative)
 	engine.spotRealtimeBalances["BTC"] = 0.0015 // 即便偏离
 
-	// 负 carry 现货腿在全仓杠杆，无实时数据，必须跳过（留给 S2.4），避免误平。
+	// 负 carry 现货腿在全仓杠杆;无 margin 健康快照(lastMarginHealthAt 为零)→ 不臆测,跳过避免误平。
 	if symbol, _ := engine.shouldTriggerHoldHedgeFlatten(); symbol != "" {
-		t.Fatalf("negative carry should be skipped until S2.4, got %q", symbol)
+		t.Fatalf("negative carry without fresh margin data should be skipped, got %q", symbol)
+	}
+}
+
+func TestHoldHedgeGuardTriggersNegativeCarryWithFreshMarginData(t *testing.T) {
+	engine := newHoldHedgeGuardEngine(t, fundingCarryDirectionNegative)
+	// 负 carry 借币空头规模用 cross-margin 逐资产快照 abs(NetAsset) 测量:0.0015 BTC ~ 名义 90,
+	// 合约腿名义 ~60 → 偏离率 33% > 默认 10% → 应触发。
+	engine.crossMarginAssetBalances = map[string]CrossMarginAssetBalance{
+		"BTC": {Asset: "BTC", Borrowed: 0.0015, NetAsset: -0.0015},
+	}
+	engine.lastMarginHealthAt = time.Now().UTC()
+
+	symbol, reason := engine.shouldTriggerHoldHedgeFlatten()
+	if symbol != "BTCUSDT" {
+		t.Fatalf("负 carry 两腿漂移应触发,got symbol=%q reason=%q", symbol, reason)
+	}
+}
+
+func TestHoldHedgeGuardSkipsNegativeCarryWhenMarginDataStale(t *testing.T) {
+	engine := newHoldHedgeGuardEngine(t, fundingCarryDirectionNegative)
+	engine.crossMarginAssetBalances = map[string]CrossMarginAssetBalance{
+		"BTC": {Asset: "BTC", Borrowed: 0.0015, NetAsset: -0.0015},
+	}
+	// 过期快照(超过 marginHealthStaleAfter)→ 不据此动作,避免拿过期数据误平。
+	engine.lastMarginHealthAt = time.Now().UTC().Add(-2 * marginHealthStaleAfter)
+
+	if symbol, _ := engine.shouldTriggerHoldHedgeFlatten(); symbol != "" {
+		t.Fatalf("过期 margin 数据不应触发,got %q", symbol)
 	}
 }
 
