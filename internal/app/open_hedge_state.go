@@ -48,6 +48,11 @@ type persistedOpenHedgeEntry struct {
 	OpenedAt             string                `json:"opened_at"`
 	LifecycleState       lifecycle.State       `json:"lifecycle_state,omitempty"`
 	LifecycleReason      string                `json:"lifecycle_reason,omitempty"`
+	// NextFundingTime 是该持仓自身的下次资金费结算时间(RFC3339)。滚动持有(EnableRollingHold)下,组合内各币
+	// 结算时刻可能不同步(8h/4h/可变),续持复核必须按各币自身时钟驱动(R31,§16.4)。落盘并跨重启恢复后,
+	// 引擎才能从台账重建每个持仓的逐币 funding 时钟(symbolFundingClock),而不依赖一次性的全局 :57。
+	// omitempty + 向后兼容:旧台账无此字段→零值,单周期路径不读它,零行为变更。
+	NextFundingTime string `json:"next_funding_time,omitempty"`
 }
 
 // lifecycleOrDefault 返回台账条目记录的对冲生命周期状态；旧台账（无该字段）退化为 active——
@@ -78,6 +83,10 @@ func buildPersistedOpenHedgeEntries(hedges []OpenHedge, runID string, cycleID st
 		if lifecycleState == lifecycle.StateNone {
 			lifecycleState = OpenHedgeLifecycleActive
 		}
+		nextFundingTime := ""
+		if !hedge.Target.NextFundingTime.IsZero() {
+			nextFundingTime = hedge.Target.NextFundingTime.UTC().Format(time.RFC3339)
+		}
 		entries = append(entries, persistedOpenHedgeEntry{
 			RunID:                runID,
 			CycleID:              cycleID,
@@ -97,6 +106,7 @@ func buildPersistedOpenHedgeEntries(hedges []OpenHedge, runID string, cycleID st
 			OpenedAt:             openedAt,
 			LifecycleState:       lifecycleState,
 			LifecycleReason:      hedge.LifecycleReason,
+			NextFundingTime:      nextFundingTime,
 		})
 	}
 	return entries
@@ -116,6 +126,12 @@ func rebuildOpenHedgeFromEntry(entry persistedOpenHedgeEntry) OpenHedge {
 		HedgeQty:            entry.HedgeQty,
 		OpenSpotQuoteQty:    entry.OpenSpotQuoteQty,
 		OpenFuturesAvgPrice: entry.OpenFuturesAvgPrice,
+	}
+	// 恢复逐币 funding 时钟:滚动持有跨重启后,引擎据此重建每个持仓自身的续持复核时点(R31,§16.4)。
+	if ts := strings.TrimSpace(entry.NextFundingTime); ts != "" {
+		if parsed, err := time.Parse(time.RFC3339, ts); err == nil {
+			hedge.Target.NextFundingTime = parsed.UTC()
+		}
 	}
 	hedge.LifecycleState = entry.lifecycleOrDefault()
 	hedge.LifecycleReason = entry.LifecycleReason

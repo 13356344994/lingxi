@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestAssessPersistedOpenHedgeExposure(t *testing.T) {
@@ -71,6 +72,56 @@ func TestPersistedOpenHedgeLifecycleRoundTrip(t *testing.T) {
 	rebuilt := rebuildOpenHedgeFromEntry(loaded.Hedges[0])
 	if rebuilt.lifecycleOrderGate() != OpenHedgeLifecycleActive {
 		t.Fatalf("rebuilt hedge should restore active lifecycle, got %q", rebuilt.lifecycleOrderGate())
+	}
+}
+
+// TestPersistedOpenHedgeNextFundingTimeRoundTrip 钉死 M-S4.4a:滚动持有所需的逐币 funding 时钟(NextFundingTime)
+// 必须随台账落盘、跨信封与重启恢复,并能据此重建持仓的续持复核时点(R31,§16.4)。
+func TestPersistedOpenHedgeNextFundingTimeRoundTrip(t *testing.T) {
+	statePath := filepath.Join(t.TempDir(), liveOpenHedgesStateName)
+	funding := time.Date(2026, 6, 5, 12, 0, 0, 0, time.UTC)
+
+	hedge := OpenHedge{
+		Target:   FundingCandidate{Symbol: "BTCUSDT", Pair: "BTCUSDT", SpotBaseAsset: "BTC", NextFundingTime: funding},
+		HedgeQty: 0.01,
+	}
+	hedge.markActive("validated")
+
+	entries := buildPersistedOpenHedgeEntries([]OpenHedge{hedge}, "run-1", "cycle-1")
+	if entries[0].NextFundingTime == "" {
+		t.Fatal("NextFundingTime 应被落盘")
+	}
+
+	if err := writePersistedOpenHedgeState(statePath, persistedOpenHedgeState{Hedges: entries}); err != nil {
+		t.Fatalf("write error: %v", err)
+	}
+	// 经 guardStateEnvelope 校验(含 schema_version + 校验和信封)加载,模拟重启恢复。
+	engine := &FundingRateSniperEngine{openHedgeStatePath: statePath}
+	loaded, err := engine.loadPersistedOpenHedges()
+	if err != nil {
+		t.Fatalf("loadPersistedOpenHedges error: %v", err)
+	}
+	if len(loaded) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(loaded))
+	}
+
+	rebuilt := rebuildOpenHedgeFromEntry(loaded[0])
+	if !rebuilt.Target.NextFundingTime.Equal(funding) {
+		t.Fatalf("恢复后逐币 funding 时钟应等于 %v, got %v", funding, rebuilt.Target.NextFundingTime)
+	}
+
+	// 据恢复的时钟重建 symbolFundingClock,验证续持复核时点可被逐币驱动(对接 M-S4.3)。
+	s := newCycleScheduler(func() EngineConfig {
+		cfg := DefaultEngineConfig()
+		cfg.PortfolioConfig.RevalidateLead = 5 * time.Minute
+		return cfg
+	}())
+	clock := symbolFundingClock{Symbol: rebuilt.Target.Symbol, NextFundingTime: rebuilt.Target.NextFundingTime}
+	if !s.RevalidateDue(funding.Add(-3*time.Minute), clock.NextFundingTime) {
+		t.Fatal("恢复的逐币时钟应在结算前 3min 处于续持复核窗口内")
+	}
+	if s.RevalidateDue(funding.Add(-10*time.Minute), clock.NextFundingTime) {
+		t.Fatal("结算前 10min 不应在复核窗口内")
 	}
 }
 
