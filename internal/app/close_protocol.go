@@ -38,7 +38,7 @@ func (e *FundingRateSniperEngine) executeCloseSequence(ctx context.Context, hedg
 	if protocol == nil {
 		return CycleSettlement{}, nil
 	}
-	result, err := protocol.ExecuteSequence(ctx, hedges, beforeSnapshot, nil)
+	result, err := protocol.ExecuteSequence(ctx, hedges, beforeSnapshot, nil, nil)
 	return result.Settlement, err
 }
 
@@ -66,9 +66,11 @@ func (e *FundingRateSniperEngine) reconcileResidentLedgerAfterClose(afterSnapsho
 	return e.syncPersistedOpenHedges(retained)
 }
 
-// ExecuteSequence 执行平仓。retained 为本次平仓后仍需常驻保留的持仓(滚动续持 keep 仓);单周期全平传 nil。
-func (p *CloseProtocol) ExecuteSequence(ctx context.Context, hedges []OpenHedge, beforeSnapshot CycleAccountSnapshot, retained []OpenHedge) (CloseProtocolExecutionResult, error) {
-	settlement, err := p.executeSequence(ctx, hedges, beforeSnapshot, retained)
+// ExecuteSequence 执行平仓。retained 为本次平仓后仍需常驻保留的持仓(滚动续持 keep ∪ 未到期);单周期全平传 nil。
+// fundingEligibleResidents 为被平的常驻 symbol(drop):其开仓前持仓≠0 但本周期资金费应正常归因,放行避免误跳过;
+// 单周期全平传 nil。
+func (p *CloseProtocol) ExecuteSequence(ctx context.Context, hedges []OpenHedge, beforeSnapshot CycleAccountSnapshot, retained []OpenHedge, fundingEligibleResidents map[string]struct{}) (CloseProtocolExecutionResult, error) {
+	settlement, err := p.executeSequence(ctx, hedges, beforeSnapshot, retained, fundingEligibleResidents)
 	return CloseProtocolExecutionResult{
 		ProtocolResult: ProtocolResult{
 			Protocol:     "close.execute",
@@ -190,7 +192,7 @@ func (e *FundingRateSniperEngine) closeHedgePositionParallel(ctx context.Context
 	return protocol.CloseHedgePositionParallel(ctx, plan)
 }
 
-func (p *CloseProtocol) executeSequence(ctx context.Context, hedges []OpenHedge, beforeSnapshot CycleAccountSnapshot, retained []OpenHedge) (CycleSettlement, error) {
+func (p *CloseProtocol) executeSequence(ctx context.Context, hedges []OpenHedge, beforeSnapshot CycleAccountSnapshot, retained []OpenHedge, fundingEligibleResidents map[string]struct{}) (CycleSettlement, error) {
 	if len(hedges) == 0 {
 		return CycleSettlement{}, nil
 	}
@@ -252,7 +254,7 @@ func (p *CloseProtocol) executeSequence(ctx context.Context, hedges []OpenHedge,
 	// 并与回测汇总(historical_summary)同口径，保证落袋净利逐位可对账。
 	var spotTradingPnLM, futuresTradingPnLM, totalFeesM, totalBorrowCostsM money.Micros
 	borrowCostCloseTime := time.Now().UTC()
-	expectedFundingIncome, fundingAlerts := p.engine.expectedFundingIncomeSummary(hedges, beforeSnapshot)
+	expectedFundingIncome, fundingAlerts := p.engine.expectedFundingIncomeSummary(hedges, beforeSnapshot, fundingEligibleResidents)
 	attributions := make([]SettlementAttribution, 0, len(hedges))
 	for _, hedge := range hedges {
 		direction := hedge.carryDirection()

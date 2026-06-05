@@ -18,7 +18,7 @@ import (
 // 快照采集、交易环境校验、合约执行参数设置与现货/合约/全仓杠杆账户状态与划转等结算/账户域逻辑
 // （同包搬移、行为不变），向单文件 ≤ 800 行门禁靠拢。
 
-func (e *FundingRateSniperEngine) expectedFundingIncomeSummary(hedges []OpenHedge, beforeSnapshot CycleAccountSnapshot) (float64, []string) {
+func (e *FundingRateSniperEngine) expectedFundingIncomeSummary(hedges []OpenHedge, beforeSnapshot CycleAccountSnapshot, fundingEligibleResidents map[string]struct{}) (float64, []string) {
 	symbolSet := make(map[string]struct{}, len(hedges))
 	expectedFundingBySymbol := make(map[string]float64, len(hedges))
 	for _, hedge := range hedges {
@@ -29,10 +29,14 @@ func (e *FundingRateSniperEngine) expectedFundingIncomeSummary(hedges []OpenHedg
 	expectedFundingIncome := 0.0
 	alerts := make([]string, 0)
 	for symbol := range symbolSet {
-		beforeQty := beforeSnapshot.FuturesPositionAmounts[symbol]
-		if math.Abs(beforeQty) >= e.cfg.RiskConfig.ResidualPositionAlertQty {
-			alerts = append(alerts, fmt.Sprintf("资金费归因已跳过 %s: 开仓前已有持仓 positionAmt=%.10f", symbol, beforeQty))
-			continue
+		// 滚动续持下的 drop(平掉的常驻仓)开仓前持仓本就≠0,其本周期资金费应正常归因——经 fundingEligibleResidents
+		// 放行,避免被「开仓前已有持仓」闸误跳过(导致 PnL 低估 / R8 投影刹车过保守)。单周期路径传 nil → 闸不变。
+		if _, eligible := fundingEligibleResidents[strings.ToUpper(strings.TrimSpace(symbol))]; !eligible {
+			beforeQty := beforeSnapshot.FuturesPositionAmounts[symbol]
+			if math.Abs(beforeQty) >= e.cfg.RiskConfig.ResidualPositionAlertQty {
+				alerts = append(alerts, fmt.Sprintf("资金费归因已跳过 %s: 开仓前已有持仓 positionAmt=%.10f", symbol, beforeQty))
+				continue
+			}
 		}
 		expectedFundingIncome += expectedFundingBySymbol[symbol]
 	}

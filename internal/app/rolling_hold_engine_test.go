@@ -103,6 +103,36 @@ func TestSettleKeptPositionsEmitsFundingOnlySettlement(t *testing.T) {
 	}
 }
 
+// TestExpectedFundingIncomeSummaryResidentBypass 钉死 c-iii-3b-2a:被平的常驻仓(drop)开仓前持仓≠0,
+// 默认会被「开仓前已有持仓」闸跳过预期资金费;经 fundingEligibleResidents 放行后正常计入(不跳过)。
+func TestExpectedFundingIncomeSummaryResidentBypass(t *testing.T) {
+	engine := &FundingRateSniperEngine{cfg: DefaultEngineConfig()}
+	hedges := []OpenHedge{{
+		Target:              FundingCandidate{Symbol: "BTCUSDT", EstimatedRate: 0.001},
+		HedgeQty:            1,
+		OpenFuturesAvgPrice: 100,
+	}}
+	before := CycleAccountSnapshot{FuturesPositionAmounts: map[string]float64{"BTCUSDT": -1.0}}
+
+	// 不放行(单周期口径)→ 跳过 → expected=0 且有跳过告警。
+	exp, alerts := engine.expectedFundingIncomeSummary(hedges, before, nil)
+	if exp != 0 {
+		t.Fatalf("未放行应跳过预期资金费(=0), got %.6f", exp)
+	}
+	if len(alerts) == 0 {
+		t.Fatal("未放行应有「开仓前已有持仓」跳过告警")
+	}
+
+	// 放行常驻 drop → 正常计入(>0)、无跳过告警。
+	expBypass, alertsBypass := engine.expectedFundingIncomeSummary(hedges, before, map[string]struct{}{"BTCUSDT": {}})
+	if expBypass <= 0 {
+		t.Fatalf("放行后预期资金费应 > 0, got %.6f", expBypass)
+	}
+	if len(alertsBypass) != 0 {
+		t.Fatalf("放行后不应有跳过告警, got %v", alertsBypass)
+	}
+}
+
 // TestCollectRollFundingSignals 钉死 c-iii-3a:复核拉取持仓币的保守预测费率(复用开仓 fetchPremiumIndex +
 // estimateScanFundingSignal),只返回持仓币、非持仓币剔除;空持仓返回空。
 func TestCollectRollFundingSignals(t *testing.T) {
