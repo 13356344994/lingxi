@@ -17,6 +17,7 @@ type reconcileSummary struct {
 	ExpectedNetTotal     float64
 	ActualFundingTotal   float64
 	ExpectedFundingTotal float64
+	FrictionTotal        float64
 	WinningCycles        int
 }
 
@@ -34,7 +35,14 @@ func buildLiveVsExpectedReconcileRecords(records []SettlementCSVRecord) (live, e
 			continue
 		}
 		key := strings.TrimSpace(record.RunID) + "/" + strings.TrimSpace(record.CycleID)
-		symbol := strings.TrimSpace(record.CycleID)
+		cycleID := strings.TrimSpace(record.CycleID)
+		// R23 修复:结算记录是 cycle 级(可含多 symbol,见 Targets),没有单一 symbol。过去把 CycleID 塞进 Symbol
+		// 字段导致诊断语义混淆;现在 CycleID 走专用字段,Symbol 留空(无意义不强填)。
+		friction := money.Sum(
+			parseFloat(record.TotalOpenSlippageUSDT),
+			parseFloat(record.TotalCloseSlippageUSDT),
+			parseFloat(record.TotalRecoveryFrictionUSDT),
+		).USDT()
 
 		actualFunding := parseFloat(record.FundingIncome)
 		expectedFunding := parseFloat(record.ExpectedFundingIncome)
@@ -55,21 +63,24 @@ func buildLiveVsExpectedReconcileRecords(records []SettlementCSVRecord) (live, e
 
 		live = append(live, reconcile.TradeRecord{
 			Key:           key,
-			Symbol:        symbol,
+			CycleID:       cycleID,
 			NetPnL:        actualNet,
 			FundingIncome: actualFunding,
 			TradingPnL:    tradingPnL,
 			TotalFees:     totalFees,
+			Friction:      friction,
 			Notional:      notional,
 		})
 		expected = append(expected, reconcile.TradeRecord{
 			Key:           key,
-			Symbol:        symbol,
+			CycleID:       cycleID,
 			NetPnL:        expectedNet,
 			FundingIncome: expectedFunding,
 			TradingPnL:    0,
 			TotalFees:     expectedFees,
-			Notional:      notional,
+			// 模型理想执行摩擦为 0(零滑点 delta 中性);live.Friction - 0 即执行泄漏,仅展示不卡 breach。
+			Friction: 0,
+			Notional: notional,
 		})
 	}
 	return live, expected
@@ -78,14 +89,16 @@ func buildLiveVsExpectedReconcileRecords(records []SettlementCSVRecord) (live, e
 // summarizeReconcile 汇总两侧记录的总量与胜率。live 与 expected 一一对应（同序、同 Key）。
 func summarizeReconcile(live, expected []reconcile.TradeRecord) reconcileSummary {
 	summary := reconcileSummary{Cycles: len(live)}
-	var actualNet, expectedNet, actualFunding, expectedFunding money.Micros
+	var actualNet, expectedNet, actualFunding, expectedFunding, friction money.Micros
 	for i := range live {
 		actualNet = actualNet.Add(money.FromUSDT(live[i].NetPnL))
 		actualFunding = actualFunding.Add(money.FromUSDT(live[i].FundingIncome))
+		friction = friction.Add(money.FromUSDT(live[i].Friction))
 		if live[i].NetPnL > 0 {
 			summary.WinningCycles++
 		}
 	}
+	summary.FrictionTotal = friction.USDT()
 	for i := range expected {
 		expectedNet = expectedNet.Add(money.FromUSDT(expected[i].NetPnL))
 		expectedFunding = expectedFunding.Add(money.FromUSDT(expected[i].FundingIncome))
@@ -113,6 +126,7 @@ func formatReconcileReport(report reconcile.Report, summary reconcileSummary, th
 	b.WriteString(fmt.Sprintf("已结算周期: %d  其中盈利周期: %d  胜率: %.1f%%\n", summary.Cycles, summary.WinningCycles, winRate))
 	b.WriteString(fmt.Sprintf("实盘累计净利: %+.4f USDT   模型预期净利: %+.4f USDT   净利偏差: %+.4f USDT\n", summary.ActualNetTotal, summary.ExpectedNetTotal, netGap))
 	b.WriteString(fmt.Sprintf("资金费实收累计: %+.4f USDT   预期资金费累计: %+.4f USDT   资金费预测误差: %+.4f USDT\n", summary.ActualFundingTotal, summary.ExpectedFundingTotal, fundingGap))
+	b.WriteString(fmt.Sprintf("执行摩擦累计(开/平滑点+恢复): %+.4f USDT（诊断:执行泄漏,已隐含在净利偏差里,不单独卡 HEALTHY）\n", summary.FrictionTotal))
 	b.WriteString(fmt.Sprintf("配对周期: %d  逐周期偏差超阈值: %d  净利偏差绝对值之和: %.4f USDT\n", report.MatchedCount, report.BreachedCount, report.TotalNetAbsGap))
 	if thresholds.AbsUSDT > 0 {
 		b.WriteString(fmt.Sprintf("单字段绝对偏差阈值: %.4f USDT\n", thresholds.AbsUSDT))
@@ -131,7 +145,7 @@ func formatReconcileReport(report reconcile.Report, summary reconcileSummary, th
 			if !rec.Breached {
 				continue
 			}
-			b.WriteString(fmt.Sprintf("  cycle=%s 触发字段=%s\n", rec.Symbol, strings.Join(rec.Breaches, ",")))
+			b.WriteString(fmt.Sprintf("  cycle=%s 触发字段=%s\n", rec.CycleID, strings.Join(rec.Breaches, ",")))
 			for _, gap := range rec.Gaps {
 				b.WriteString(fmt.Sprintf("    %-14s 实际=%+.4f 预期=%+.4f 绝对偏差=%.4f 相对偏差=%.2f%%\n", gap.Field, gap.Live, gap.Backtest, gap.AbsGap, gap.RelGap*100))
 			}

@@ -20,11 +20,15 @@ import (
 type TradeRecord struct {
 	Key           string
 	Symbol        string
+	CycleID       string
 	NetPnL        float64
 	FundingIncome float64
 	TradingPnL    float64
 	TotalFees     float64
-	Notional      float64
+	// Friction 是本笔的执行摩擦聚合(开/平滑点 + 恢复摩擦,USDT)。它是诊断字段:在报告里展示「执行泄漏」,
+	// 但不参与 breach 判定(实盘摩擦本就非零,且已隐含在 NetPnL 偏差里,再以期望 0 硬卡会让对账永远 UNHEALTHY)。
+	Friction float64
+	Notional float64
 }
 
 // FieldGap 描述单个字段的实盘-回测偏差：绝对差（USDT）与相对差（相对回测值，回测为 0 时退化为相对名义）。
@@ -48,6 +52,7 @@ type Thresholds struct {
 type RecordReconciliation struct {
 	Key      string
 	Symbol   string
+	CycleID  string
 	Gaps     []FieldGap
 	Breached bool
 	Breaches []string
@@ -107,21 +112,24 @@ func Reconcile(live, backtest []TradeRecord, thresholds Thresholds) Report {
 }
 
 func reconcileRecord(live, backtest TradeRecord, thresholds Thresholds) RecordReconciliation {
-	rec := RecordReconciliation{Key: live.Key, Symbol: live.Symbol}
+	rec := RecordReconciliation{Key: live.Key, Symbol: live.Symbol, CycleID: live.CycleID}
 	notional := math.Max(math.Abs(live.Notional), math.Abs(backtest.Notional))
 	fields := []struct {
 		name           string
 		live, backtest float64
+		gated          bool
 	}{
-		{"net_pnl", live.NetPnL, backtest.NetPnL},
-		{"funding_income", live.FundingIncome, backtest.FundingIncome},
-		{"trading_pnl", live.TradingPnL, backtest.TradingPnL},
-		{"total_fees", live.TotalFees, backtest.TotalFees},
+		{"net_pnl", live.NetPnL, backtest.NetPnL, true},
+		{"funding_income", live.FundingIncome, backtest.FundingIncome, true},
+		{"trading_pnl", live.TradingPnL, backtest.TradingPnL, true},
+		{"total_fees", live.TotalFees, backtest.TotalFees, true},
+		// friction 为诊断字段:计算并展示,但不参与 breach 判定(见 TradeRecord.Friction 注释)。
+		{"friction", live.Friction, backtest.Friction, false},
 	}
 	for _, f := range fields {
 		gap := computeFieldGap(f.name, f.live, f.backtest, notional)
 		rec.Gaps = append(rec.Gaps, gap)
-		if breachField(gap, thresholds) {
+		if f.gated && breachField(gap, thresholds) {
 			rec.Breached = true
 			rec.Breaches = append(rec.Breaches, f.name)
 		}

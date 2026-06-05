@@ -177,6 +177,58 @@ func TestReconcileRelativeThresholdCatchesSmallNotionalLeak(t *testing.T) {
 	}
 }
 
+// TestReconcileCycleIDNotInSymbol 钉死 R23 修复:CycleID 走专用字段、不再塞进 Symbol;报告用 cycle=<CycleID> 标注。
+func TestReconcileCycleIDNotInSymbol(t *testing.T) {
+	records := []SettlementCSVRecord{{
+		RunID: "r", CycleID: "cycle-42",
+		FundingIncome: "0.1", ExpectedFundingIncome: "2.0",
+		TotalFees: "0.2", NetPnL: "-0.1",
+	}}
+	live, expected := buildLiveVsExpectedReconcileRecords(records)
+	if live[0].CycleID != "cycle-42" {
+		t.Fatalf("CycleID 应填入专用字段, got %q", live[0].CycleID)
+	}
+	if live[0].Symbol != "" {
+		t.Fatalf("Symbol 不应再被 CycleID 污染, got %q", live[0].Symbol)
+	}
+	report := reconcile.Reconcile(live, expected, reconcile.Thresholds{AbsUSDT: 1.0})
+	text := formatReconcileReport(report, summarizeReconcile(live, expected), reconcile.Thresholds{AbsUSDT: 1.0})
+	if !strings.Contains(text, "cycle=cycle-42") {
+		t.Fatalf("报告应以 cycle=<CycleID> 标注超阈周期, got:\n%s", text)
+	}
+}
+
+// TestReconcileFrictionSurfacedNotGated 钉死 S8-A:执行摩擦聚合进对账并在报告里展示,但不参与 breach 判定。
+func TestReconcileFrictionSurfacedNotGated(t *testing.T) {
+	// 资金费完全符合预期(net gap≈0),但有显著执行摩擦 → 不应因摩擦判 UNHEALTHY,且报告展示摩擦累计。
+	records := []SettlementCSVRecord{{
+		RunID: "r", CycleID: "c1",
+		FundingIncome: "2.0", ExpectedFundingIncome: "2.0",
+		TotalFees: "0.2", NetPnL: "1.8",
+		TotalOpenSlippageUSDT: "-0.30", TotalCloseSlippageUSDT: "-0.20", TotalRecoveryFrictionUSDT: "0.0",
+	}}
+	live, expected := buildLiveVsExpectedReconcileRecords(records)
+	if !approxEqual(live[0].Friction, -0.50) {
+		t.Fatalf("摩擦应聚合开+平滑点+恢复=-0.50, got %.6f", live[0].Friction)
+	}
+	if expected[0].Friction != 0 {
+		t.Fatalf("模型理想摩擦应为 0, got %.6f", expected[0].Friction)
+	}
+	thresholds := reconcile.Thresholds{AbsUSDT: 0.1}
+	report := reconcile.Reconcile(live, expected, thresholds)
+	if !report.Healthy {
+		t.Fatalf("摩擦不应触发 breach(诊断字段), 但 report 判为 unhealthy: breaches=%d", report.BreachedCount)
+	}
+	summary := summarizeReconcile(live, expected)
+	if !approxEqual(summary.FrictionTotal, -0.50) {
+		t.Fatalf("摩擦累计应为 -0.50, got %.6f", summary.FrictionTotal)
+	}
+	text := formatReconcileReport(report, summary, thresholds)
+	if !strings.Contains(text, "执行摩擦累计") {
+		t.Fatalf("报告应展示执行摩擦累计行, got:\n%s", text)
+	}
+}
+
 // TestFormatReconcileReportEmpty 断言无已结算周期时给出明确引导而非崩溃/空报告。
 func TestFormatReconcileReportEmpty(t *testing.T) {
 	text := formatReconcileReport(reconcile.Report{}, reconcileSummary{}, reconcile.Thresholds{AbsUSDT: 1})

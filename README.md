@@ -348,9 +348,9 @@ README 旧承诺与代码不符（见上节）。仅有保证金充足性检查�
 底层 `WriteJSONFile` 已做临时文件 + `rename`（`fileio.go:66/87`），解决了「写半截」；但运行态文件仍无 checksum、epoch、source-of-truth 标识、写入代次号。
 - **影响**：未解决「写对了但语义过时 / 来源不明 / 跨版本不兼容」问题（与 R18 互补）。
 
-### 🟡 R23. 对账报告诊断语义不干净
-`reconcile` 把 `CycleID` 填进了 `Symbol` 字段输出报告（`reconcile_command.go`）。功能能用，但诊断语义混淆。
-- **影响**：实盘排障越来越依赖自动化报告定位异常时，这类「小脏」会放大排查成本。
+### ✅ R23. 对账报告诊断语义不干净（已修复 · S8-A）
+~~`reconcile` 把 `CycleID` 填进了 `Symbol` 字段输出报告~~。**S8-A 已修复**:`reconcile.TradeRecord`/`RecordReconciliation` 新增专用 `CycleID` 字段,结算记录是 cycle 级(含多 symbol,无单一 symbol)故 `Symbol` 留空不强填;报告以 `cycle=<CycleID>` 标注。同时把执行摩擦(开/平滑点 + 恢复摩擦)聚合为 `Friction` 字段入对账——作为**诊断字段**展示「执行泄漏累计」(已隐含在净利偏差里,不重复卡 HEALTHY,避免实盘摩擦恒非零导致永远 UNHEALTHY)。
+- **影响**：诊断语义干净,自动化报告定位异常成本下降;执行质量(摩擦)有独立可见 KPI。
 
 ### 🟠 R24. 配置暴露是「白名单式人工维护」，天然容易漂移
 `envConfigOverrides()`（`config_loader.go:40`）与 `applyEngineConfigOverrides()`（`:107`）都是手工枚举字段。
@@ -864,6 +864,7 @@ M6(治理) 可与 M2~M5 并行
 **S8 规模化执行与高保真回测** —— 覆盖 M5.1·M5.4 / R13·R15·R19·R23
 - TWAP/冰山执行切片；L3 Tick 回测校正阈值；结算/pending 事件化存储；对账诊断字段清洁；事故 runbook + 演练（R28）。
 - **退出**：大单冲击受控；纸面阈值经 L3 校正；有成文 runbook 与演练记录。**评分↑：维度 1/5/8。**
+- **进度**：✅ S8-A R23 对账诊断清洁(`reconcile.TradeRecord` 增 `CycleID` 专用字段,`Symbol` 不再被污染,报告 `cycle=<CycleID>`)+ 执行摩擦聚合 `Friction` 入对账(诊断展示、不卡 breach)。待:S8-B TWAP/冰山切片、S8-C 结算/pending 存储崩溃安全化、S8-D 事故 runbook。
 
 ### 18.3 阶段→灰度联动
 - S0 完成 → 可上 `shadow`。
