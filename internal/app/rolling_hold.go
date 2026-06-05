@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
+
+	"lingxi/internal/money"
 )
 
 // notionalTolerance 名义额比较容差(USDT):避免浮点连加在「恰好触顶」边界上误判。
@@ -215,4 +218,93 @@ func notionalFits(total, limit float64) bool {
 		return true
 	}
 	return total <= limit+notionalTolerance
+}
+
+// fundingOnlySettlementInput 是滚动续持(keep)持仓某 funding 周期「funding-only 结算」的输入(M-S4.4b)。
+// 各 map 以大写 symbol 为键:
+//   - ExpectedFundingBySymbol:各币本周期「保守」预期资金费(规避 R7),由 worker 异步用实收值校正。
+//   - BorrowCostThisCycleBySymbol:各币本周期「真实经过时长」新增借币利息(决策3:不用最小计费小时;
+//     负向 carry 才 > 0,正向 carry 应为 0)。开仓手续费已在开仓周期计入,keep 周期不重计(决策2)。
+type fundingOnlySettlementInput struct {
+	RunID                       string
+	CycleID                     string
+	Symbols                     []string
+	ExpectedFundingBySymbol     map[string]float64
+	BorrowCostThisCycleBySymbol map[string]float64
+	FundingTimePoint            time.Time
+	BeforeSnapshot              CycleAccountSnapshot
+}
+
+// buildFundingOnlySettlement 为滚动续持(keep)持仓构造该 funding 周期的「funding-only 结算骨架」(M-S4.4b)。
+//
+// 与单周期 close 结算镜像的两阶段口径,但 keep 周期没有平仓:
+//   - 交易盈亏(现货/合约)= 0,手续费 = 0(开仓费在开仓周期已计,不重计——决策2);
+//   - 仅扣本周期新增借币利息(决策3);
+//   - FundingIncomePending=true、只填 ExpectedFundingIncome,真实资金费由 funding_settlement_worker 异步补入,
+//     届时重算 NetPnL = funding − 本周期借币。
+//
+// 这笔结算复用同一条 worker → noteDailySettlement + noteCycleFinalSettlement 链路,使每个 keep 周期的真实净利
+// (funding − 借币)照常计入 R8 单周期 / 连亏 / 回撤 / 日亏 / 对账口径(决策1:keep 周期算作一个周期)。
+//
+// 纯函数:确定性(symbol 大写去重升序)、无副作用、无网络、无引擎状态。
+func buildFundingOnlySettlement(in fundingOnlySettlementInput) CycleSettlement {
+	symbols := make([]string, 0, len(in.Symbols))
+	seen := make(map[string]struct{}, len(in.Symbols))
+	for _, raw := range in.Symbols {
+		symbol := strings.ToUpper(strings.TrimSpace(raw))
+		if symbol == "" {
+			continue
+		}
+		if _, dup := seen[symbol]; dup {
+			continue
+		}
+		seen[symbol] = struct{}{}
+		symbols = append(symbols, symbol)
+	}
+	sort.Strings(symbols)
+
+	expectedFundingM := money.FromUSDT(0)
+	totalBorrowM := money.FromUSDT(0)
+	attributions := make([]SettlementAttribution, 0, len(symbols))
+	for _, symbol := range symbols {
+		expected := in.ExpectedFundingBySymbol[symbol]
+		borrow := in.BorrowCostThisCycleBySymbol[symbol]
+		expectedFundingM = expectedFundingM.Add(money.FromUSDT(expected))
+		totalBorrowM = totalBorrowM.Add(money.FromUSDT(borrow))
+		attributions = append(attributions, SettlementAttribution{
+			Symbol:        symbol,
+			FundingIncome: 0, // 异步更新
+			SpotFees:      0, // keep 周期无平仓、不重计开仓费
+			FuturesFees:   0,
+			BorrowCosts:   borrow,
+			// 预结算净利(pre-funding):−本周期借币;资金费到账后由 worker 加上实收。
+			NetPnL: money.Sum(0, 0, -borrow).USDT(),
+		})
+	}
+
+	expectedFundingIncome := expectedFundingM.USDT()
+	totalBorrowCosts := totalBorrowM.USDT()
+	// 预结算 NetPnL = 0(交易盈亏) − 0(手续费) − 本周期借币。资金费未到账,FundingIncomePending=true。
+	netPnL := money.Sum(0, 0, -totalBorrowCosts).USDT()
+
+	settlement := CycleSettlement{
+		RunID:                 in.RunID,
+		CycleID:               in.CycleID,
+		Targets:               len(symbols),
+		FundingIncome:         0,
+		ExpectedFundingIncome: expectedFundingIncome,
+		FundingIncomeDiff:     0 - expectedFundingIncome,
+		TradingPnL:            0,
+		SpotTradingPnL:        0,
+		FuturesTradingPnL:     0,
+		TotalFees:             0,
+		TotalBorrowCosts:      totalBorrowCosts,
+		NetPnL:                netPnL,
+		FundingTimePoint:      in.FundingTimePoint,
+		BeforeSnapshot:        in.BeforeSnapshot,
+		FundingIncomePending:  true,
+		Attributions:          attributions,
+	}
+	settlement.applyFrictionObservation()
+	return settlement
 }

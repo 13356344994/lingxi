@@ -1,9 +1,11 @@
 package app
 
 import (
+	"math"
 	"reflect"
 	"sort"
 	"testing"
+	"time"
 )
 
 // TestEvaluateRollDecision 钉死续持判定(§16.4)的纯函数语义:门槛闸 + 安全垫闸,fail-safe 偏向平仓。
@@ -155,6 +157,58 @@ func TestRebalancePortfolioSymbolCapFull(t *testing.T) {
 	assertSet(t, "Keep", plan.Keep, []string{})
 	assertSet(t, "Add", plan.Add, []string{"BBB"})
 	assertSet(t, "Drop", plan.Drop, []string{"AAA"})
+}
+
+// TestBuildFundingOnlySettlement 钉死 keep 周期 funding-only 结算骨架(M-S4.4b):零交易腿/零手续费、
+// 只扣本周期借币、FundingIncomePending=true、预结算 NetPnL=−借币;归因逐币正确。
+func TestBuildFundingOnlySettlement(t *testing.T) {
+	fundingTime := time.Date(2026, 6, 5, 12, 0, 0, 0, time.UTC)
+	s := buildFundingOnlySettlement(fundingOnlySettlementInput{
+		RunID:   "run-1",
+		CycleID: "cycle-keep-1",
+		Symbols: []string{"btcusdt", "ETHUSDT", "BTCUSDT"}, // 含小写与重复,验证归一去重
+		ExpectedFundingBySymbol: map[string]float64{
+			"BTCUSDT": 0.40,
+			"ETHUSDT": 0.25,
+		},
+		BorrowCostThisCycleBySymbol: map[string]float64{
+			"ETHUSDT": 0.10, // 负向 carry,本周期借币利息
+		},
+		FundingTimePoint: fundingTime,
+	})
+
+	if s.Targets != 2 {
+		t.Fatalf("去重后应 2 个 symbol, got %d", s.Targets)
+	}
+	if s.SpotTradingPnL != 0 || s.FuturesTradingPnL != 0 || s.TradingPnL != 0 {
+		t.Fatalf("keep 周期不应有交易盈亏: spot=%.6f fut=%.6f", s.SpotTradingPnL, s.FuturesTradingPnL)
+	}
+	if s.TotalFees != 0 {
+		t.Fatalf("keep 周期不应重计手续费, got %.6f", s.TotalFees)
+	}
+	if math.Abs(s.TotalBorrowCosts-0.10) > 1e-9 {
+		t.Fatalf("本周期借币应为 0.10, got %.6f", s.TotalBorrowCosts)
+	}
+	if math.Abs(s.ExpectedFundingIncome-0.65) > 1e-9 {
+		t.Fatalf("预期资金费应为 0.65, got %.6f", s.ExpectedFundingIncome)
+	}
+	if !s.FundingIncomePending {
+		t.Fatal("FundingIncomePending 应为 true")
+	}
+	if math.Abs(s.NetPnL-(-0.10)) > 1e-9 {
+		t.Fatalf("预结算 NetPnL 应为 −本周期借币=−0.10, got %.6f", s.NetPnL)
+	}
+	// 投影最终净利(R8 早刹车口径)= NetPnL + ExpectedFundingIncome = −0.10 + 0.65 = 0.55 > 0。
+	if proj := projectedCycleNetPnL(s); math.Abs(proj-0.55) > 1e-9 {
+		t.Fatalf("投影最终净利应为 0.55, got %.6f", proj)
+	}
+	// 归因:逐币、确定性升序。
+	if len(s.Attributions) != 2 || s.Attributions[0].Symbol != "BTCUSDT" || s.Attributions[1].Symbol != "ETHUSDT" {
+		t.Fatalf("归因 symbol 序不符: %+v", s.Attributions)
+	}
+	if math.Abs(s.Attributions[1].BorrowCosts-0.10) > 1e-9 || math.Abs(s.Attributions[1].NetPnL-(-0.10)) > 1e-9 {
+		t.Fatalf("ETHUSDT 归因借币/净利不符: %+v", s.Attributions[1])
+	}
 }
 
 // TestRebalancePortfolioDeterministic 同输入多次执行结果稳定(确定性,无 map 迭代序泄漏)。
