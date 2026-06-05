@@ -73,3 +73,56 @@ func TestDecideEdgeHealth(t *testing.T) {
 		t.Fatal("达标应健康")
 	}
 }
+
+// TestEdgeDecayDowngradesGear 钉死 S6-B:edge 衰减到阈值下,档位降到 Observe 且禁止开新仓;
+// edge 达标则恢复到可开仓档位。
+func TestEdgeDecayDowngradesGear(t *testing.T) {
+	cfg := EngineConfig{}
+	cfg.RiskConfig.EdgeGuardMinSamples = 20
+	cfg.RiskConfig.MinRealizedNetEdgeRate = 0.001
+	engine := &FundingRateSniperEngine{cfg: cfg}
+	engine.riskSupervisor = newRiskSupervisor(engine)
+	engine.edgeWindow = newRealizedEdgeWindow(50)
+
+	// 灌入 30 个净亏损样本(净 edge 率为负)→ 低于阈值。
+	for i := 0; i < 30; i++ {
+		engine.edgeWindow.observe(-1, 100)
+	}
+	if gear := engine.riskSupervisor.CurrentGear(); gear != GearObserve {
+		t.Fatalf("edge 衰减应降到 Observe, got %s", gear)
+	}
+	if GearAllowsNewOrders(engine.riskSupervisor.CurrentGear()) {
+		t.Fatal("Observe 档不应允许开新仓")
+	}
+	if err := engine.checkGearAllowsOpen(); err == nil {
+		t.Fatal("edge 衰减时 checkGearAllowsOpen 应拦截开仓")
+	}
+
+	// 换成健康样本(净 edge 率达标)→ 恢复到可开仓档位。
+	engine.edgeWindow = newRealizedEdgeWindow(50)
+	for i := 0; i < 30; i++ {
+		engine.edgeWindow.observe(1, 100) // 净 edge 率=0.01 > 0.001
+	}
+	if gear := engine.riskSupervisor.CurrentGear(); !GearAllowsNewOrders(gear) {
+		t.Fatalf("edge 恢复后应允许开仓, got %s", gear)
+	}
+	if err := engine.checkGearAllowsOpen(); err != nil {
+		t.Fatalf("edge 健康时不应拦截, got %v", err)
+	}
+}
+
+// TestEdgeGuardDisabledWhenThresholdZero 钉死阈值=0 时即便净 edge 为负也不降档(只观测)。
+func TestEdgeGuardDisabledWhenThresholdZero(t *testing.T) {
+	cfg := EngineConfig{}
+	cfg.RiskConfig.EdgeGuardMinSamples = 20
+	cfg.RiskConfig.MinRealizedNetEdgeRate = 0 // 关闭强制
+	engine := &FundingRateSniperEngine{cfg: cfg}
+	engine.riskSupervisor = newRiskSupervisor(engine)
+	engine.edgeWindow = newRealizedEdgeWindow(50)
+	for i := 0; i < 30; i++ {
+		engine.edgeWindow.observe(-1, 100)
+	}
+	if gear := engine.riskSupervisor.CurrentGear(); !GearAllowsNewOrders(gear) {
+		t.Fatalf("阈值=0 应只观测不降档, got %s", gear)
+	}
+}

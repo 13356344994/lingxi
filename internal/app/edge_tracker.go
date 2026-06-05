@@ -1,5 +1,7 @@
 package app
 
+import "fmt"
+
 // edge_tracker.go 实现 S6-A「滚动窗实测净 edge 跟踪」(R27):在最近 N 个已结算(funding 实收后)周期上,
 // 滚动统计实测净 edge 率(Σ NetPnL / Σ 名义)、胜率与样本数。它是 S6-B 自动降档/停机的输入信号。
 // 设计:窗口与统计是纯逻辑(computeRealizedEdgeStats / decideEdgeHealth 可单测),与引擎状态、锁、I/O 解耦。
@@ -98,6 +100,54 @@ func (e *FundingRateSniperEngine) observeRealizedEdge(netPnL, notionalUSDT float
 	if e.logger != nil {
 		e.logger.Printf("实测净 edge 观测: 样本=%d 净edge率=%.6f 胜率=%.1f%% Σ净利=%.4f Σ名义=%.2f",
 			stats.Samples, stats.NetEdgeRate, stats.WinRate*100, stats.SumNetPnL, stats.SumNotional)
+	}
+}
+
+// checkGearAllowsOpen 在开新仓前按当前档位放行/拦截。返回非 nil 错误表示「本轮跳过开仓」(非致命,
+// 调用方吞掉即可,下一轮会重新评估)。当拦截原因是 edge 衰减时,额外发一条(去重的)告警。
+func (e *FundingRateSniperEngine) checkGearAllowsOpen() error {
+	if e == nil || e.riskSupervisor == nil {
+		return nil
+	}
+	gear := e.riskSupervisor.CurrentGear()
+	if GearAllowsNewOrders(gear) {
+		return nil
+	}
+	// 判定是否由 edge 衰减触发,以决定告警与文案。
+	healthy, reason := e.edgeHealthSnapshot()
+	if !healthy {
+		e.notifyEdgeGuard(gear, reason)
+		return fmt.Errorf("edge 守卫降档(档位=%s):%s,本轮暂停开新仓", gear, reason)
+	}
+	return fmt.Errorf("当前档位 %s 不允许开新仓,本轮跳过", gear)
+}
+
+// edgeHealthSnapshot 锁安全地评估当前实测净 edge 是否达标。未启用时恒健康。
+func (e *FundingRateSniperEngine) edgeHealthSnapshot() (bool, string) {
+	if e == nil || e.edgeWindow == nil {
+		return true, ""
+	}
+	e.platformRiskMu.Lock()
+	stats := e.edgeWindow.stats()
+	e.platformRiskMu.Unlock()
+	return decideEdgeHealth(stats, e.cfg.RiskConfig.EdgeGuardMinSamples, e.cfg.RiskConfig.MinRealizedNetEdgeRate)
+}
+
+// notifyEdgeGuard 发出 edge 衰减降档告警(AlertDispatcher 自带去重,可每轮调用)。
+func (e *FundingRateSniperEngine) notifyEdgeGuard(gear EngineGear, reason string) {
+	stats := e.realizedEdgeStatsSnapshot()
+	detail := fmt.Sprintf("实测净 edge 衰减触发降档(档位=%s):样本=%d 净edge率=%.6f 阈值=%.6f;原因=%s。已暂停开新仓,已有持仓照常结算,待 edge 回升自动恢复。",
+		gear, stats.Samples, stats.NetEdgeRate, e.cfg.RiskConfig.MinRealizedNetEdgeRate, reason)
+	if e.logger != nil {
+		e.logger.Printf("[edge-guard] %s", detail)
+	}
+	if e.alertDispatcher != nil {
+		e.alertDispatcher.Notify(Alert{
+			Level:      EventLevelWarning,
+			Title:      "实测净 edge 衰减降档",
+			Detail:     detail,
+			OccurredAt: e.serverNow(),
+		})
 	}
 }
 

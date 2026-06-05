@@ -476,6 +476,11 @@ func (e *FundingRateSniperEngine) verifyPreOpenGoNoGo(targets []*MonitoredTarget
 	if err := e.checkLiveSafetyGuards("pre_open_go_nogo"); err != nil {
 		return err
 	}
+	// S6-B:档位不允许开新仓时跳过本轮(非致命)。edge 衰减导致的 Observe 在此被拦截;
+	// fuse/日限导致的 Observe 已由 checkLiveSafetyGuards 走致命停机路径,这里仅顺带兜底。
+	if err := e.checkGearAllowsOpen(); err != nil {
+		return err
+	}
 	maxAge := e.cfg.ExecutionConfig.PreOpenTickerMaxAge
 	if maxAge <= 0 {
 		maxAge = time.Second

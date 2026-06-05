@@ -284,6 +284,10 @@ func (s *RiskSupervisor) currentGearLocked() EngineGear {
 	if score <= 0.4 {
 		return GearDefensive
 	}
+	// S6-B:实测净 edge 衰减到阈值下 → 降到 Observe(停开新仓,但不致命、可自动恢复;已有持仓照常结算)。
+	if healthy, _ := s.edgeHealthyLocked(); !healthy {
+		return GearObserve
+	}
 	// 将配置的 profile 映射回默认 Gear
 	switch s.engine.cfg.ActiveProfile {
 	case ProfileSmallCapital:
@@ -291,6 +295,16 @@ func (s *RiskSupervisor) currentGearLocked() EngineGear {
 	default:
 		return GearNormal
 	}
+}
+
+// edgeHealthyLocked 评估滚动窗实测净 edge 是否达标(调用方须已持 platformRiskMu)。
+// edgeWindow 未启用或阈值=0 时恒返回健康(只观测不强制)。
+func (s *RiskSupervisor) edgeHealthyLocked() (bool, string) {
+	if s.engine == nil || s.engine.edgeWindow == nil {
+		return true, ""
+	}
+	stats := s.engine.edgeWindow.stats()
+	return decideEdgeHealth(stats, s.engine.cfg.RiskConfig.EdgeGuardMinSamples, s.engine.cfg.RiskConfig.MinRealizedNetEdgeRate)
 }
 
 func (s *RiskSupervisor) ClearPlatformFuse() {
