@@ -32,6 +32,7 @@ type DashboardServer struct {
 	controlToken string
 	logger       *log.Logger
 	indexTmpl    *template.Template
+	startedAt    time.Time
 }
 
 // DashboardSummaryResponse 表示面板一次刷新所需的聚合数据。
@@ -70,6 +71,7 @@ func NewDashboardServer(addr string, store *ReportStore, controller *RuntimeCont
 		controlToken: randomDashboardToken(),
 		logger:       logger,
 		indexTmpl:    indexTmpl,
+		startedAt:    time.Now(),
 	}, nil
 }
 
@@ -97,6 +99,10 @@ func (s *DashboardServer) Start(ctx context.Context) error {
 	mux.HandleFunc("/api/runtime/capital", s.handleRuntimeCapitalAPI)
 	mux.HandleFunc("/api/runtime/start", s.handleRuntimeStartAPI)
 	mux.HandleFunc("/api/runtime/stop", s.handleRuntimeStopAPI)
+	// S5-B 探针/指标(不鉴权,只暴露非敏感健康信息):供 k8s liveness/readiness 与 Prometheus 抓取。
+	mux.HandleFunc("/livez", s.handleLivez)
+	mux.HandleFunc("/healthz", s.handleHealthz)
+	mux.HandleFunc("/metrics", s.handleMetrics)
 	mux.Handle("/records/", s.authorizeRead(http.StripPrefix("/records/", http.FileServer(http.Dir(s.store.RecordDir())))))
 
 	server := &http.Server{

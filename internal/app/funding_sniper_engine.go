@@ -95,6 +95,7 @@ func (e *FundingRateSniperEngine) Start(ctx context.Context) error {
 	e.startHoldMonitor(ctx)
 	e.startResidentMarketFeed(ctx)
 	e.startMarginHealthPoller(ctx)
+	e.startHeartbeatWriter(ctx)
 
 	for {
 		if err := e.checkLiveSafetyGuards("idle"); err != nil {
