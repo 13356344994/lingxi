@@ -211,6 +211,8 @@ func (e *FundingRateSniperEngine) processPendingFundingSettlement(record Pending
 	}
 	// funding 实收后真实净利已定,推送本周期收益通知(平仓时若 funding 仍 pending 则收益在此刻才通知)。
 	e.notifyCycleProfit(updated.NetPnL, updated.CycleNotionalUSDT)
+	// funding 实收后逐标的明细再打一遍(此刻 funding_pending=false,资金费为实收值),便于脚本对账。
+	e.logSettlementTradeDetails(updated)
 	// S6-A:funding 实收后 NetPnL 才权威,记入滚动窗实测净 edge(供 S6-B 健康守卫)。
 	e.observeRealizedEdge(updated.NetPnL, updated.CycleNotionalUSDT)
 	// S6-C:实测信号更新后跑灰度门,产出放行/回退建议(仅 AutoCapitalRampEnabled 时;不直接改资金)。

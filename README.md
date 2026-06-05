@@ -273,8 +273,13 @@ README 旧承诺与代码不符（见上节）。仅有保证金充足性检查�
 - **结论**:连亏/回撤/单周期熔断口径**未偏乐观**(滑点/恢复成本已计入权威 NetPnL)。**真正漏算项:无**。
 - **已修复**:`NetPnLAfterFrictions` 经语义重定为「零滑点理想净利基准」=`NetPnL − Σ滑点`(把已在 NetPnL 的滑点加回得到理想值),`gap=NetPnL−基准=Σ滑点≤0` 为执行拖累 KPI,修掉了 M-S3.0「NetPnL+滑点」的重复计数。诊断专用,不参与任何熔断。
 
-### 🟠 R6. 对账会给亏钱策略盖「健康」章
-`reconcile_command.go` 把实测手续费/借币成本抄到「模型预期」一侧，成本侧模型误差在对账里恒为 0；默认只有绝对阈值（`SettlementDiffAlertUSDT=3`），相对阈值=0，小名义下大比例泄漏能蒙混过 HEALTHY。**影响**：对账无法完成「验证钱按模型赚到」的核心使命。
+### ✅ R6. 对账成本侧已用模型费率（已修复 · M-S3.1，经独立代码核对确认）
+~~`reconcile_command.go` 把实测手续费抄到「模型预期」一侧，成本侧模型误差恒为 0；且无相对阈值~~。**已闭环**：
+结算时 `close_protocol.go:expectedHedgeCostObservation` 记录 `ExpectedTotalFees`（模型预期手续费），
+`reconcile_command.go` 的模型预期侧改用它（历史无该字段时回退实测、零回归），令 `total_fees` 字段的偏差
+**真实暴露成本侧模型误差**（BNB 抵扣 / 挂单返佣 / 部分成交）；同时默认相对阈值 `SettlementDiffRate=0.20` 已设
+（绝对 `SettlementDiffAlertUSDT=3` 之外再以相对差抓「小名义大比例泄漏」）。**剩余边界**：借币成本侧暂无独立
+实测可比口径，仍沿用实测值（负 carry 借币率本身即模型推导）。
 
 ### 🟠 R7. 资金费估计在符号冲突时退回乐观值
 当 premium 与 last funding rate 符号不一致时，保守估计返回 0，估计值退回 `lastFundingRate`（可能过度乐观）。**影响**：在资金费率正要反转时（最危险的时刻）用旧方向费率开仓。

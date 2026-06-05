@@ -22,6 +22,10 @@ User=lingxi
 Group=lingxi
 WorkingDirectory=/opt/lingxi
 ExecStart=/opt/lingxi/lingxi
+# 裸二进制 = Dashboard 模式：默认只起面板，需人工在面板点"启动实盘"(最安全，适合首次实盘校准)。
+# 若要让进程崩溃重启后【自动恢复实盘交易】(无人值守)，取消下面一行注释——单写租约(S7-A)保证不会双开：
+#   崩溃重启会自动续上交易；首次实盘校准期建议保持注释、人工把关。
+# Environment=LINGXI_AUTOSTART_LIVE=1
 # 优雅停机:发 SIGTERM,给足收尾时间(落盘/停用 dead-man/平仓善后)。
 KillSignal=SIGTERM
 TimeoutStopSec=30

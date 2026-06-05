@@ -8,9 +8,19 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
+	"time"
 
 	"lingxi/internal/core"
 )
+
+// autoStartLiveDelay 是 opt-in 自动启动实盘前的就绪等待：给面板/控制器/单写租约一点时间起来再触发。
+const autoStartLiveDelay = 3 * time.Second
+
+// autoStartLiveEnv 控制「进程启动后自动恢复实盘交易」。默认关闭：不设该环境变量时仅起面板，需人工点启动
+// （最安全，适合首次实盘校准）。设为 1/true/yes 时配合 systemd/watchdog，可让崩溃重启后自动续上交易
+// （单写租约 single_writer_lease 已保证不会双开）。
+const autoStartLiveEnv = "LINGXI_AUTOSTART_LIVE"
 
 // Run 是应用编排入口：进程级信号处理由调用方（cmd/lingxi）负责，本函数仅依据命令行参数选择
 // 实盘/回测模式并完成依赖装配，并把失败以 error 上抛由 main 决定退出策略（R20：编排层不再 log.Fatalf，
@@ -80,10 +90,49 @@ func startLiveStack(ctx context.Context, cfg EngineConfig) error {
 	if err != nil {
 		return fmt.Errorf("创建 Web 面板失败: %w", err)
 	}
+	// opt-in：显式开启 LINGXI_AUTOSTART_LIVE 时，面板拉起后自动触发实盘交易（等价于面板点"启动实盘"），
+	// 用于崩溃重启后自动恢复；影子模式不自动开（影子是人工冒烟，无需无人值守恢复）。默认关闭，零行为变更。
+	if !cfg.ExecutionConfig.ShadowTrading {
+		maybeAutoStartLiveTrading(ctx, controller)
+	}
 	if err := dashboard.Start(ctx); err != nil && !errors.Is(err, context.Canceled) {
 		return fmt.Errorf("Web 面板异常退出: %w", err)
 	}
 	return nil
+}
+
+// envFlagEnabled 解析布尔型环境变量（1/true/yes/on 视为真，大小写无关）。
+func envFlagEnabled(name string) bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv(name))) {
+	case "1", "true", "yes", "on":
+		return true
+	default:
+		return false
+	}
+}
+
+// maybeAutoStartLiveTrading 在 opt-in（LINGXI_AUTOSTART_LIVE 为真）时，于面板就绪后异步触发实盘交易，
+// 等价于面板上点"启动实盘"。默认关闭。失败仅记日志、不影响面板存活（用户仍可手动启动）。
+// 配合 systemd Restart=always + watchdog，可让进程崩溃重启后自动续上交易；单写租约保证不会双开。
+func maybeAutoStartLiveTrading(ctx context.Context, controller *RuntimeController) {
+	if controller == nil || !envFlagEnabled(autoStartLiveEnv) {
+		return
+	}
+	secretPath := strings.TrimSpace(os.Getenv("LINGXI_SECRET_PATH"))
+	if secretPath == "" {
+		secretPath = "secret.yaml"
+	}
+	go func() {
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(autoStartLiveDelay):
+		}
+		log.Printf("%s 已启用：自动触发实盘交易启动(secret=%s)", autoStartLiveEnv, redactSecretPath(secretPath))
+		if err := controller.Start(RuntimeStartRequest{Mode: string(RuntimeModeLive), SecretPath: secretPath}); err != nil {
+			log.Printf("自动启动实盘交易失败(可在面板手动启动): %v", err)
+		}
+	}()
 }
 
 // runConfigSample 输出/写出由结构体 tag 反射生成的全字段样例配置。

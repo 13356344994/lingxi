@@ -316,11 +316,24 @@ func (e *FundingRateSniperEngine) openCyclePositions(ctx context.Context, wakeAt
 		return nil, CycleAccountSnapshot{}, false, err
 	}
 
-	targets, err := e.scanTopFundingTargets(ctx)
+	// 周期决策漏斗：进度式填充，在本函数所有"决策性"返回路径(已过扫描)通过 defer 汇总成一条可读日志，
+	// 回答"本轮为什么没开仓 / 把入场闸调到多少能纳入近失候选"。纯旁路，不影响开仓判定。
+	funnel := cycleDecisionFunnel{CycleID: cycleID}
+	emitFunnel := false
+	defer func() {
+		if emitFunnel {
+			e.logCycleDecisionFunnel(funnel)
+		}
+	}()
+
+	targets, scanSummary, err := e.scanTopFundingTargets(ctx)
 	if err != nil {
 		return nil, CycleAccountSnapshot{}, false, err
 	}
+	funnel.Scan = scanSummary
+	emitFunnel = true
 	targets = e.filterTargetsBySymbolCooldown(targets)
+	funnel.AfterCooldown = len(targets)
 	if len(targets) == 0 {
 		e.setCurrentMonitorTargets(nil)
 		_ = e.advanceLifecycleStage(LifecycleStageCompleted, "扫描结束，没有满足条件的目标")
@@ -337,6 +350,8 @@ func (e *FundingRateSniperEngine) openCyclePositions(ctx context.Context, wakeAt
 		return nil, CycleAccountSnapshot{}, false, fuseErr
 	}
 	validTargets := filterValidTargets(monitored)
+	funnel.MonitorValid = len(validTargets)
+	funnel.InvalidReasons = tallyInvalidReasons(monitored)
 	if len(validTargets) == 0 {
 		e.setCurrentMonitorTargets(nil)
 		_ = e.advanceLifecycleStage(LifecycleStageCompleted, "监控结束，所有目标都已被风控作废")
@@ -348,6 +363,7 @@ func (e *FundingRateSniperEngine) openCyclePositions(ctx context.Context, wakeAt
 	// R29 借币容量/利率守卫:剔除借不到 / 利率过高的负向 carry 候选(此刻 OrderQuantity 已定,估算精确)。
 	// 守卫关闭(默认)时原样返回。剔除=根本不开,天然无裸腿。
 	validTargets = e.filterTargetsByBorrowCapacity(ctx, validTargets)
+	funnel.BorrowAdmitted = len(validTargets)
 	if len(validTargets) == 0 {
 		e.setCurrentMonitorTargets(nil)
 		_ = e.advanceLifecycleStage(LifecycleStageCompleted, "借币容量守卫：所有候选均借不到 / 利率过高")
@@ -367,6 +383,7 @@ func (e *FundingRateSniperEngine) openCyclePositions(ctx context.Context, wakeAt
 		}
 	}
 
+	funnel.Selected = len(validTargets)
 	e.setCurrentMonitorTargets(validTargets)
 	e.runtimeReporter.EmitWithReason(StageOpen, len(validTargets), fmt.Sprintf("进入开仓阶段，目标数=%d", len(validTargets)))
 	openProtocol := e.ensureOpenProtocol()
@@ -394,6 +411,7 @@ func (e *FundingRateSniperEngine) openCyclePositions(ctx context.Context, wakeAt
 	}
 	e.emitDomainEvents(executeOpenResult.ProtocolResult.Events)
 	openHedges, beforeSnapshot := executeOpenResult.Hedges, executeOpenResult.BeforeSnapshot
+	funnel.Opened = len(openHedges)
 	if fuseErr := e.checkPlatformFuse(); fuseErr != nil {
 		return nil, CycleAccountSnapshot{}, false, fuseErr
 	}
@@ -454,6 +472,7 @@ func (e *FundingRateSniperEngine) runOneCycle(ctx context.Context, wakeAt time.T
 	if settlement.HasAlert {
 		e.logger.Printf("模块五告警: %s", strings.Join(settlement.Alerts, " | "))
 	}
+	e.logSettlementTradeDetails(settlement)
 	e.notifyCloseSettlement(settlement)
 	if e.reportStore != nil {
 		if err := e.reportStore.AppendSettlement(settlement); err != nil {
@@ -587,10 +606,10 @@ func (e *FundingRateSniperEngine) checkCycleLossProjectionBrake(settlement Cycle
 }
 
 // scanTopFundingTargets 在 XX:57:00 后扫描全网费率，并取 Top 5。
-func (e *FundingRateSniperEngine) scanTopFundingTargets(ctx context.Context) ([]*MonitoredTarget, error) {
+func (e *FundingRateSniperEngine) scanTopFundingTargets(ctx context.Context) ([]*MonitoredTarget, scanFunnelSummary, error) {
 	items, err := e.fetchPremiumIndex(ctx)
 	if err != nil {
-		return nil, err
+		return nil, scanFunnelSummary{}, err
 	}
 
 	now := e.serverNow()
@@ -704,6 +723,7 @@ func (e *FundingRateSniperEngine) scanTopFundingTargets(ctx context.Context) ([]
 	}
 
 	e.flushScanObservations(observations)
+	scanSummary := summarizeScanNearMiss(observations)
 	e.logger.Printf("模块二完成，候选目标数量: %d", len(targets))
 	for _, target := range targets {
 		e.logger.Printf(
@@ -719,7 +739,7 @@ func (e *FundingRateSniperEngine) scanTopFundingTargets(ctx context.Context) ([]
 		)
 	}
 
-	return targets, nil
+	return targets, scanSummary, nil
 }
 
 // monitorTargets 启动模块三的 Top 5 高频死守监控。
