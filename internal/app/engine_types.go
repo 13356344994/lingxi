@@ -430,6 +430,7 @@ type MonitoredTarget struct {
 	LastResidualReserveUSDT    float64
 	LastImpactReserveRate      float64
 	LastImpactReserveUSDT      float64
+	LastDynamicSizingReason    string
 	LastSpotAsk                float64
 	LastFuturesBid             float64
 	LastSpotVWAP               float64

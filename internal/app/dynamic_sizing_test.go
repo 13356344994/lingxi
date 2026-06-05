@@ -227,6 +227,37 @@ func TestPortfolioClusterNotionalUSDT(t *testing.T) {
 	}
 }
 
+// TestConstrainedSizingNotional 钉死 L1容量→L2簇→L3组合 的合成收紧:动态不可交易直接拒;L2/L3 余量分别收紧;
+// 余量低于最小单则拒。
+func TestConstrainedSizingNotional(t *testing.T) {
+	dynOK := dynamicPerSymbolCapResult{Tradable: true, FinalNotionalUSDT: 1000, BindingCeiling: "hardCap"}
+
+	// 动态判不可交易 → 直接拒,带原因。
+	if cap, ok, reason := constrainedSizingNotionalUSDT(dynamicPerSymbolCapResult{Tradable: false, Reason: "no ceiling"}, nil, "BTC", 0, 0, 0, 10); ok || cap != 0 || reason == "" {
+		t.Fatalf("动态不可交易应拒, cap=%.2f ok=%v reason=%q", cap, ok, reason)
+	}
+
+	// 无 L2/L3 约束(均<=0)→ 透传动态容量。
+	if cap, ok, _ := constrainedSizingNotionalUSDT(dynOK, nil, "BTC", 0, 0, 0, 10); !ok || !approxEqualSizing(cap, 1000) {
+		t.Fatalf("无 L2/L3 应透传动态容量 1000, cap=%.2f ok=%v", cap, ok)
+	}
+
+	// L2 簇余量更紧:簇上限 5000、已持 4600 → 余量 400 < 1000,收紧到 400。
+	if cap, ok, _ := constrainedSizingNotionalUSDT(dynOK, map[string]float64{"BTC": 4600}, "btc", 5000, 0, 0, 10); !ok || !approxEqualSizing(cap, 400) {
+		t.Fatalf("L2 簇余量应收紧到 400, cap=%.2f ok=%v", cap, ok)
+	}
+
+	// L3 组合余量更紧:组合上限 10000、已持 9700 → 余量 300 < 1000,收紧到 300。
+	if cap, ok, _ := constrainedSizingNotionalUSDT(dynOK, nil, "BTC", 0, 9700, 10000, 10); !ok || !approxEqualSizing(cap, 300) {
+		t.Fatalf("L3 组合余量应收紧到 300, cap=%.2f ok=%v", cap, ok)
+	}
+
+	// L3 余量低于最小可下单名义 → 拒。
+	if cap, ok, reason := constrainedSizingNotionalUSDT(dynOK, nil, "BTC", 0, 9995, 10000, 50); ok || cap != 0 || reason == "" {
+		t.Fatalf("余量 5 低于最小单 50 应拒, cap=%.2f ok=%v reason=%q", cap, ok, reason)
+	}
+}
+
 func TestResolveHardCapUSDT(t *testing.T) {
 	if got := resolveHardCapUSDT(7000, 100000, 10); !approxEqualSizing(got, 7000) {
 		t.Fatalf("显式硬顶优先, got %.4f", got)

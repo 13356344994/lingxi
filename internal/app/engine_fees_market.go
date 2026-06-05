@@ -602,8 +602,87 @@ func (e *FundingRateSniperEngine) constrainOrderQuantityByMarketCapacity(ctx con
 	}
 
 	futuresRule := e.futuresRules[target.Candidate.Symbol]
+
+	// 动态 sizing 接入(M-S4.8b / M3.3,behind DynamicSizingEnabled):在 L0 实时容量数量之上,用 resolveDynamicPerSymbolCap
+	// (深度/成交/OI/L1 硬顶 + 边际择优 + :57 深度打折)叠加 L2 簇上限、L3 组合名义余量收紧。仅收紧:与 L0 数量取 min,
+	// 绝不放大;判不可纳入(动态/L2/L3 无余量到最小单)则归零跳过。默认关闭时对静态路径零影响。
+	if e.cfg.PortfolioConfig.DynamicSizingEnabled {
+		dynQty, dynReason := e.applyDynamicSizingTightening(target, snapshot, referencePrice, limitedQty, futuresRule.MinNotional)
+		if dynReason != "" {
+			reasons = strings.TrimSpace(reasons + " | dyn:" + dynReason)
+		}
+		if dynQty <= 0 {
+			return 0, reasons, nil
+		}
+		limitedQty = dynQty
+	}
+
 	finalQty := normalizeQuantity(limitedQty, futuresRule, target.Candidate.QuantityPrecision)
 	return finalQty, reasons, nil
+}
+
+// residentSizingLimitsSnapshot 在 platformRiskMu 下一次性读取 L2 簇名义分布与 L3 组合已持名义,供动态 sizing 收紧用。
+// 单次取锁避免「读簇」「读组合名义」两次取锁间状态漂移。
+func (e *FundingRateSniperEngine) residentSizingLimitsSnapshot() (clusterNotional map[string]float64, heldNotionalUSDT float64) {
+	e.platformRiskMu.Lock()
+	defer e.platformRiskMu.Unlock()
+	return e.portfolioClusterNotionalUSDT(), e.portfolioHeldNotionalUSDT()
+}
+
+// applyDynamicSizingTightening 计算 DynamicSizingEnabled 下的「收紧后数量」:由 snapshot 与配置/分层乘子构造动态容量输入,
+// 经 resolveDynamicPerSymbolCap 得单币容量上限,再被 L2 簇余量、L3 组合名义余量收紧(constrainedSizingNotionalUSDT),
+// 最后与传入的 L0 容量数量取 min(只收紧、不放大)。不可纳入返回 (0, 原因);否则返回收紧数量(未 normalize,由调用方统一规整)。
+func (e *FundingRateSniperEngine) applyDynamicSizingTightening(target *MonitoredTarget, snapshot MarketCapacitySnapshot, referencePrice, l0Qty, minNotionalUSDT float64) (float64, string) {
+	if l0Qty <= 0 || referencePrice <= 0 {
+		return l0Qty, ""
+	}
+	profile := GetSymbolRiskProfile(target.Candidate.Symbol)
+	hardCap := resolveHardCapUSDT(
+		e.cfg.PortfolioConfig.PerSymbolHardCapUSDT,
+		e.cfg.PortfolioConfig.MaxPortfolioNotionalUSDT,
+		e.cfg.PortfolioConfig.MaxPortfolioSymbols,
+	)
+	dynRes := resolveDynamicPerSymbolCap(dynamicPerSymbolCapInput{
+		Symbol:                     target.Candidate.Symbol,
+		VisibleSpotNotionalUSDT:    snapshot.VisibleSpotAskNotional,
+		VisibleFuturesNotionalUSDT: snapshot.VisibleFuturesBidNotional,
+		RecentSpotVolumeUSDT:       snapshot.RecentSpotQuoteVolume,
+		RecentFuturesVolumeUSDT:    snapshot.RecentFuturesQuoteVolume,
+		OpenInterestNotionalUSDT:   snapshot.FuturesOpenInterestNotional,
+		MaxVisibleDepthShare:       e.cfg.StrategyConfig.MaxVisibleDepthShare,
+		MaxRecentVolumeShare:       e.cfg.StrategyConfig.MaxRecentVolumeShare,
+		MaxOpenInterestShare:       e.cfg.StrategyConfig.MaxOpenInterestShare,
+		DepthShareMul:              profile.MaxVisibleDepthShareMul,
+		VolumeShareMul:             profile.MaxRecentVolumeShareMul,
+		OIShareMul:                 profile.MaxOpenInterestShareMul,
+		DepthCapDiscount:           defaultDepthCapDiscount,
+		HardCapUSDT:                hardCap,
+		ExpectedNetFundingRate:     target.Candidate.EstimatedRate,
+		EntryThresholdRate:         coherentMinFundingRate(e.cfg),
+		BaseUnitUSDT:               e.cfg.StrategyConfig.PerSymbolQuoteUSDT * profile.PerSymbolQuoteMultiplier,
+		EdgeMin:                    defaultDynamicEdgeMin,
+		EdgeMax:                    defaultDynamicEdgeMax,
+		MinNotionalUSDT:            minNotionalUSDT,
+	})
+
+	clusterNotional, heldNotional := e.residentSizingLimitsSnapshot()
+	clusterKey := clusterKeyForSymbol(target.Candidate.SpotBaseAsset, target.Candidate.Symbol)
+	capNotional, ok, reason := constrainedSizingNotionalUSDT(
+		dynRes,
+		clusterNotional, clusterKey, e.cfg.PortfolioConfig.ClusterMaxNotionalUSDT,
+		heldNotional, e.cfg.PortfolioConfig.MaxPortfolioNotionalUSDT,
+		minNotionalUSDT,
+	)
+	target.LastDynamicSizingReason = reason
+	if !ok {
+		return 0, reason
+	}
+	dynQty := capNotional / referencePrice
+	if dynQty < l0Qty {
+		return dynQty, reason
+	}
+	// 动态结果不小于 L0 容量数量 → 保持 L0(只收紧,不放大)。
+	return l0Qty, reason
 }
 
 func (e *FundingRateSniperEngine) collectMarketCapacitySnapshot(ctx context.Context, target *MonitoredTarget, futuresReferencePrice float64) (MarketCapacitySnapshot, error) {

@@ -382,9 +382,9 @@ README 旧承诺与代码不符（见上节）。仅有保证金充足性检查�
 负向 carry 借币做空现货，放大后会撞**可借量上限 / 利率阶梯跳变 / 借币失败 / 利率突变**。`MaxBorrowNotionalPerAssetUSDT`（§16.7）仅为设计草案，未实现；借币失败与利率突变也无专门处置。
 - **影响**：可借量耗尽时开仓失败留下单腿；利率阶梯跳变使负向 carry 实际成本远超模型 → 看似盈利实则亏损。9.6 需：开仓前校验可借量与当前阶梯利率、借币失败降级为不开仓而非裸腿、利率突变触发该币退出。
 
-### 🟠 R30. 组合相关性 / 簇上限（极端行情同向流动性蒸发）→ S4
-L2 簇上限在 §16.6 已设计但未实现。10 个币若全是同一类山寨 beta，极端行情会**一起流动性消失、一起反向**，对冲腿同时滑点放大。
-- **影响**：名义上分散到 10 个币，实质是一个高相关大仓位。9.6 需：按 base 资产/板块/相关性聚类，`ClusterMaxNotionalUSDT` 硬约束单簇暴露。
+### 🟡 R30. 组合相关性 / 簇上限（极端行情同向流动性蒸发）→ S4（基础件已落地·M-S4.8）
+L2 簇上限在 §16.6 已设计；**M-S4.8 已落地基础件**：`admitByClusterCap` + `portfolioClusterNotionalUSDT` 已按 base 资产聚类硬约束单簇名义，并接入开仓侧 sizing（behind `ClusterMaxNotionalUSDT`，默认 0=关）。10 个币若全是同一类山寨 beta，极端行情会**一起流动性消失、一起反向**，对冲腿同时滑点放大。
+- **影响**：名义上分散到 10 个币，实质是一个高相关大仓位。9.6 需：按 base 资产/板块/相关性聚类，`ClusterMaxNotionalUSDT` 硬约束单簇暴露。**待完善**：当前簇键=base 资产（≈每币一簇），真正的高相关防护需板块/相关性映射替换 `clusterKeyForSymbol`（唯一注入点）。
 
 ### 🟠 R31. 逐币 funding 时钟（不能继续靠全局 `:57`）→ S2
 当前全局 `WakeMinute=57` 单点调度；不同合约 funding 间隔可能不同（8h/4h/可变）。§16.4/M2.2 已设计逐币时钟但未实现。
@@ -585,6 +585,16 @@ finalNotional = clamp(baseUnit × edgeScore, minNotional, perSymbolCap)
 > **R5「滑点计入 NetPnL」未按字面实现**:经核查 `TradingPnL` 已用**实际成交价**计算,成交劣于 mark 的滑点**已隐含在
 > 权威 NetPnL 内**,M-S3.0 的 `NetPnLAfterFrictions` 是「重基准到 mark 价」的诊断量;若再减一次将**重复计算**、令熔断
 > 口径失真,故 R5 改权威 PnL 一事另立「对账口径审查」任务,不在 M-S4.7 内执行。
+>
+> **L2 簇上限 + L3 sizing 接入（M-S4.8 已落地·M3.3）**：① **L2 簇上限**——`clusterKeyForSymbol`(按现货 base 资产聚类,
+> 唯一注入点,后续可换板块/相关性映射)+ `admitByClusterCap`(`ClusterMaxNotionalUSDT<=0` 不启用)+
+> `portfolioManager.portfolioClusterNotionalUSDT`(按簇汇总常驻组合合约腿名义,补 R30 缺口)。② **L3 sizing 接入开仓侧**——
+> `constrainOrderQuantityByMarketCapacity` 在 **`DynamicSizingEnabled` 启用时**于既有 L0 实时容量数量之上,用
+> `resolveDynamicPerSymbolCap`(L1:深度/成交/OI/硬顶 + 边际择优 + :57 深度打折)→ `constrainedSizingNotionalUSDT`
+> 叠加 L2 簇余量、L3 组合名义余量收紧,最后**与 L0 数量取 min**。**仅收紧、绝不放大**(money-safe 首接:开关启用时
+> 下单量只会 ≤ 静态路径;edge 放大尾部留待小档实盘校准后另开),L2/L3 无余量到最小单则归零跳过。L2/L3 状态经
+> `residentSizingLimitsSnapshot` 单次取 `platformRiskMu` 读取避免漂移,收紧原因经 `LastDynamicSizingReason` 可观测。
+> 默认 `DynamicSizingEnabled=false`、`ClusterMaxNotionalUSDT=0`,对静态开仓路径零行为变更。
 
 **坑（务必规避）：**
 - **坑 1：深度 ≠ 容量。** `:57` 抢费窗口是踩踏窗口，`:55` 看到的盘口到 `:57` 会蒸发（R13/R15）。
@@ -631,9 +641,9 @@ finalNotional = clamp(baseUnit × edgeScore, minNotional, perSymbolCap)
 | 层级 | 含义 | 落点 / 依赖 |
 |---|---|---|
 | **L0 单笔执行上限** | 别打穿盘口（depth/volume/OI 份额） | 16.3；扩展 `defaults.go:54-57` 份额闸 |
-| **L1 单币上限** | `min(L0容量, 绝对硬顶, 强平安全)` | 16.3；替换 `PerSymbolQuoteMultiplier` |
-| **L2 相关性/簇上限** | 别把大额砸进高相关山寨簇 | **新增**（10W 组合必须有；按 base 资产/板块聚类） |
-| **L3 组合上限** | 同时 ≤ `MaxPortfolioSymbols`(10) 且 ≤ `MaxPortfolioNotionalUSDT`(100000) | **新增**；常驻、跨周期、跨重启 |
+| **L1 单币上限** | `min(L0容量, 绝对硬顶, 强平安全)` | 16.3；✅ M-S4.8 接入开仓侧（behind `DynamicSizingEnabled`，仅收紧）；`liqSafeCap` 待 R2 |
+| **L2 相关性/簇上限** | 别把大额砸进高相关山寨簇 | ✅ M-S4.8（`clusterKeyForSymbol`/`admitByClusterCap`，按 base 资产聚类；待板块/相关性映射） |
+| **L3 组合上限** | 同时 ≤ `MaxPortfolioSymbols`(10) 且 ≤ `MaxPortfolioNotionalUSDT`(100000) | ✅ 常驻/跨周期 L3 已接入补位(c-iii-4)与 sizing(M-S4.8) |
 | **L4 滚动再平衡** | 每个币的结算边界 keep/drop/add + 滞后带 | 16.4 / 16.5 |
 
 **分配策略：** 10 个槽位**按净 carry 边际择优加权**（不等权），但受 L1 单币上限与 L2 簇上限约束防集中。
@@ -739,7 +749,7 @@ finalNotional = clamp(baseUnit × edgeScore, minNotional, perSymbolCap)
 **M3 — 动态仓位（想法 1，behind `DynamicSizingEnabled`）**
 - M3.1 纯函数 `resolveDynamicPerSymbolCap`（L0/L1 多重天花板取最小，§16.3），替换静态 `PerSymbolQuoteMultiplier`。
 - M3.2 冲击成本估算入进场闸 + 计入 `NetPnL`（R5）。
-- M3.3 L2 簇上限 + L3 组合上限接入 sizing。
+- ✅ M3.3 L2 簇上限 + L3 组合上限接入 sizing（M-S4.8：`admitByClusterCap` + `constrainedSizingNotionalUSDT` 接开仓侧，仅收紧，behind `DynamicSizingEnabled`）。
 - **退出标准**：纯函数全单测；开关关闭时行为=旧版；小档实盘冲击成本可见、可对账。
 
 **M4 — 滚动持有（想法 2，behind `EnableRollingHold`）**

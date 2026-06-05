@@ -211,6 +211,39 @@ func admitByClusterCap(clusterNotionalUSDT map[string]float64, candidateCluster 
 	return true, ""
 }
 
+// constrainedSizingNotionalUSDT 把动态容量上限(dynRes)与 L2 簇余量、L3 组合名义余量合成单币「可下单名义上限」(USDT,
+// M-S4.8b / README §16.6)。语义:在 dynRes.FinalNotionalUSDT 上再被 L2 簇余量、L3 组合名义余量收紧;任一余量(含动态
+// 容量本身)使上限低于最小可下单名义则该币不可纳入(返回 false,调用方跳过)。该上限由调用方与既有 L0 静态-容量数量
+// 取 min——DynamicSizingEnabled 时只会更小、绝不更大(money-safe 首接;edge 放大尾部留待校准后另开)。纯函数。
+func constrainedSizingNotionalUSDT(
+	dynRes dynamicPerSymbolCapResult,
+	clusterNotionalUSDT map[string]float64, clusterKey string, clusterMaxUSDT float64,
+	heldNotionalUSDT, portfolioMaxNotionalUSDT float64,
+	minNotionalUSDT float64,
+) (float64, bool, string) {
+	if !dynRes.Tradable {
+		return 0, false, dynRes.Reason
+	}
+	capUSDT := dynRes.FinalNotionalUSDT
+	binding := dynRes.BindingCeiling
+	if clusterMaxUSDT > 0 {
+		headroom := clusterMaxUSDT - clusterNotionalUSDT[strings.ToUpper(strings.TrimSpace(clusterKey))]
+		if headroom < capUSDT {
+			capUSDT, binding = headroom, "L2簇"
+		}
+	}
+	if portfolioMaxNotionalUSDT > 0 {
+		headroom := portfolioMaxNotionalUSDT - heldNotionalUSDT
+		if headroom < capUSDT {
+			capUSDT, binding = headroom, "L3组合"
+		}
+	}
+	if capUSDT <= 0 || capUSDT+notionalTolerance < minNotionalUSDT {
+		return 0, false, fmt.Sprintf("可下单名义 %.2f USDT(受 %s 约束)低于最小可下单名义 %.2f USDT,跳过", capUSDT, binding, minNotionalUSDT)
+	}
+	return capUSDT, true, fmt.Sprintf("可下单名义 %.2f USDT(受 %s 约束)", capUSDT, binding)
+}
+
 // positiveMulOrOne 把分层乘子归一:<=0(未配)视为 1.0,不缩放。
 func positiveMulOrOne(mul float64) float64 {
 	if mul <= 0 {
