@@ -111,6 +111,9 @@ type FundingRateSniperEngine struct {
 	// 新增拆分的状态容器，后续逐步替换零散字段
 	platformState   EnginePlatformState
 	riskBudgetState EngineRiskBudgetState
+	// edgeWindow 滚动统计最近 N 个已结算周期的实测净 edge(S6-A),受 platformRiskMu 保护(随 noteCycleFinalSettlement
+	// 同路径更新)。nil 表示未启用跟踪(EdgeWindowCycles<=0)。
+	edgeWindow *realizedEdgeWindow
 
 	platformRiskMu sync.Mutex
 	orderRateMu    sync.Mutex

@@ -76,6 +76,9 @@ func NewFundingRateSniperEngineWithConfig(secretPath string, cfg EngineConfig) (
 	engine.runtimeReporter = newRuntimeReporter(engine)
 	engine.costReporter = NewCostReporter(engine.logger, engine.reportStore)
 	engine.alertDispatcher = newAlertDispatcher(cfg.AlertingConfig, engine.logger)
+	if cfg.RiskConfig.EdgeWindowCycles > 0 {
+		engine.edgeWindow = newRealizedEdgeWindow(cfg.RiskConfig.EdgeWindowCycles)
+	}
 	return engine, nil
 }
 
@@ -96,6 +99,7 @@ func (e *FundingRateSniperEngine) Start(ctx context.Context) error {
 	e.startResidentMarketFeed(ctx)
 	e.startMarginHealthPoller(ctx)
 	e.startHeartbeatWriter(ctx)
+	e.backfillRealizedEdge()
 
 	for {
 		if err := e.checkLiveSafetyGuards("idle"); err != nil {

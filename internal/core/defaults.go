@@ -124,6 +124,11 @@ func DefaultEngineConfig() EngineConfig {
 			// 重试 30 次或挂起 12h 仍未到账 → critical 升级 + 停重试 + cycle 隔离。
 			MaxFundingSettlementAttempts: 30,
 			MaxFundingSettlementAge:      12 * time.Hour,
+			// S6 策略健康守卫:默认跟踪最近 50 个已结算周期的实测净 edge,但阈值闸默认关闭(MinRealizedNetEdgeRate=0)——
+			// 只观测不强制降档,阈值待实盘标定后再开(opt-in,零行为变更)。
+			EdgeWindowCycles:       50,
+			MinRealizedNetEdgeRate: 0,
+			EdgeGuardMinSamples:    20,
 		},
 		HistoricalConfig: HistoricalConfig{
 			DefaultLookbackDays:                    30,

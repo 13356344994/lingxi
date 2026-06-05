@@ -181,6 +181,13 @@ type RiskConfig struct {
 	// 日内净利,避免一笔"funding 还没到账"的不完整周期误触发熔断)。任一为 0 表示该维度不启用。
 	MaxFundingSettlementAttempts int           `cfg:"max_funding_settlement_attempts"`
 	MaxFundingSettlementAge      time.Duration `cfg:"max_funding_settlement_age"`
+	// EdgeWindowCycles / MinRealizedNetEdgeRate / EdgeGuardMinSamples 是 S6「策略健康守卫」(R27)参数:
+	// 在最近 EdgeWindowCycles 个已结算周期上滚动统计实测净 edge 率(Σ净利/Σ名义),低于 MinRealizedNetEdgeRate
+	// 且样本数 ≥ EdgeGuardMinSamples 时自动降档/停机(S6-B)。EdgeWindowCycles=0 关闭跟踪;MinRealizedNetEdgeRate=0
+	// 关闭 edge 阈值闸(只跟踪不强制,默认如此 → 纯观测、对运行零影响,阈值待实盘标定后再开)。
+	EdgeWindowCycles       int     `cfg:"edge_window_cycles"`
+	MinRealizedNetEdgeRate float64 `cfg:"min_realized_net_edge_rate"`
+	EdgeGuardMinSamples    int     `cfg:"edge_guard_min_samples"`
 }
 
 // HistoricalConfig 表示月度模拟与历史验证配置。
@@ -564,6 +571,13 @@ func (cfg EngineConfig) Validate() error {
 	default:
 		appendIssue(false, "Alerting MinSeverity 必须是 info|warning|critical 之一")
 	}
+
+	// S5-E / S6 健康守卫:阈值恒非负(关闭维度用 0,不允许负数)。
+	appendIssue(cfg.RiskConfig.MaxFundingSettlementAttempts >= 0, "Risk MaxFundingSettlementAttempts 不能小于 0")
+	appendIssue(cfg.RiskConfig.MaxFundingSettlementAge >= 0, "Risk MaxFundingSettlementAge 不能小于 0")
+	appendIssue(cfg.RiskConfig.EdgeWindowCycles >= 0, "Risk EdgeWindowCycles 不能小于 0")
+	appendIssue(cfg.RiskConfig.MinRealizedNetEdgeRate >= 0, "Risk MinRealizedNetEdgeRate 不能小于 0")
+	appendIssue(cfg.RiskConfig.EdgeGuardMinSamples >= 0, "Risk EdgeGuardMinSamples 不能小于 0")
 
 	if len(issues) == 0 {
 		return nil

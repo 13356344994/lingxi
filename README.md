@@ -854,6 +854,7 @@ M6(治理) 可与 M2~M5 并行
 **S6 策略健康守卫** —— 覆盖 R27
 - 滚动窗口实测净 edge 跟踪，低于阈值自动降档/停机，并与灰度门联动。
 - **退出**：edge 衰减到阈值下自动降挡，有测试。**评分↑：维度 8。**
+- **进度**：✅ S6-A 滚动窗实测净 edge 跟踪器(`edge_tracker.go`:`realizedEdgeWindow`/`computeRealizedEdgeStats`/`decideEdgeHealth`,funding 实收后入窗 + 启动回填,behind `EdgeWindowCycles`>0,阈值 `MinRealizedNetEdgeRate` 默认 0=只观测)。待:S6-B 自动降档/停机接 `GearAllowsNewOrders`、S6-C R33 灰度门自动 promote/rollback。
 
 **S7 高可用与容灾** —— 覆盖 M5.2·M5.3 / R14
 - 外部看门狗 + 交易所 Kill Switch（到期自动撤单）；多节点热备 + 单写租约（杜绝双开）。
