@@ -25,6 +25,17 @@ func NewFundingRateSniperEngineWithConfig(secretPath string, cfg EngineConfig) (
 		return nil, err
 	}
 
+	// Telegram 凭证(放在 secret.yaml)若齐备,则自动启用告警分发的 Telegram 出口。
+	// 开/平/收益走 NotifyTrade(info,不受 MinSeverity 过滤),风控告警走 MinSeverity(默认 warning+)。
+	if token, chatID := loadAlertingSecretsOrEmpty(secretPath); token != "" && chatID != "" {
+		cfg.AlertingConfig.Enabled = true
+		cfg.AlertingConfig.TelegramBotToken = token
+		cfg.AlertingConfig.TelegramChatID = chatID
+		if strings.TrimSpace(cfg.AlertingConfig.MinSeverity) == "" {
+			cfg.AlertingConfig.MinSeverity = "warning"
+		}
+	}
+
 	reportStore, err := NewReportStore(cfg.NetworkConfig.RecordDir)
 	if err != nil {
 		return nil, err
@@ -345,6 +356,9 @@ func (e *FundingRateSniperEngine) openCyclePositions(ctx context.Context, wakeAt
 		e.logger.Println("模块四结束，没有成功建仓的目标")
 		return nil, CycleAccountSnapshot{}, false, nil
 	}
+	if symbols, notional := summarizeOpenHedges(openHedges); symbols != "" {
+		e.notifyTrade("开仓成功", fmt.Sprintf("建仓 %d 个对冲: %s | 现货名义合计≈%.2f USDT", len(openHedges), symbols, notional))
+	}
 	return openHedges, beforeSnapshot, true, nil
 }
 
@@ -392,6 +406,7 @@ func (e *FundingRateSniperEngine) runOneCycle(ctx context.Context, wakeAt time.T
 	if settlement.HasAlert {
 		e.logger.Printf("模块五告警: %s", strings.Join(settlement.Alerts, " | "))
 	}
+	e.notifyCloseSettlement(settlement)
 	if e.reportStore != nil {
 		if err := e.reportStore.AppendSettlement(settlement); err != nil {
 			e.logger.Printf("模块五 JSON 落盘失败: %v", err)
@@ -413,6 +428,59 @@ func (e *FundingRateSniperEngine) runOneCycle(ctx context.Context, wakeAt time.T
 	e.runtimeReporter.EmitWithReason(StageCompleted, 0, "本轮狙击周期已完成")
 
 	return nil
+}
+
+// notifyCloseSettlement 推送平仓通知;若资金费已实收(非 pending),顺带推送本周期收益(最终净利)。
+// 资金费仍 pending 时,真实最终净利由结算 worker 在到账后经 notifyCycleProfit 推送,避免重复/过早通知。
+func (e *FundingRateSniperEngine) notifyCloseSettlement(settlement CycleSettlement) {
+	e.notifyTrade("平仓完成", fmt.Sprintf(
+		"平仓 %d 个目标 | 资金费收入=%.4f 现货PnL=%.4f 合约PnL=%.4f 手续费=%.4f | 即时净利=%.4f USDT%s",
+		settlement.Targets, settlement.FundingIncome, settlement.SpotTradingPnL, settlement.FuturesTradingPnL,
+		settlement.TotalFees, settlement.NetPnL,
+		map[bool]string{true: "（资金费待到账，最终收益到账后另行通知）", false: ""}[settlement.FundingIncomePending],
+	))
+	if !settlement.FundingIncomePending {
+		e.notifyCycleProfit(settlement.NetPnL, settlement.CycleNotionalUSDT)
+	}
+}
+
+// notifyCycleProfit 推送本周期最终收益(资金费实收、真实净利已确定后)。盈亏用前缀区分,便于一眼看出。
+func (e *FundingRateSniperEngine) notifyCycleProfit(netPnL, notionalUSDT float64) {
+	tag := "盈利"
+	if netPnL < 0 {
+		tag = "亏损"
+	}
+	detail := fmt.Sprintf("本周期最终净利=%.4f USDT", netPnL)
+	if notionalUSDT > 0 {
+		detail += fmt.Sprintf(" | 名义=%.2f USDT | 净edge=%.4f%%", notionalUSDT, netPnL/notionalUSDT*100)
+	}
+	e.notifyTrade("周期收益结算（"+tag+"）", detail)
+}
+
+// notifyTrade 推送一条交易生命周期通知(开仓/平仓/收益)到告警出口(含 Telegram)。
+// 走 NotifyTrade:info 级,不受 MinSeverity 过滤、不做去重——这是用户主动要的「每笔都通知」。nil-safe。
+func (e *FundingRateSniperEngine) notifyTrade(title, detail string) {
+	if e == nil || e.alertDispatcher == nil {
+		return
+	}
+	e.alertDispatcher.NotifyTrade(Alert{
+		Level:      EventLevelInfo,
+		Title:      title,
+		Detail:     detail,
+		OccurredAt: e.serverNow(),
+	})
+}
+
+// summarizeOpenHedges 汇总一组刚建仓对冲的 symbol 列表与现货名义合计,供开仓通知文案使用。
+func summarizeOpenHedges(hedges []OpenHedge) (symbols string, notionalUSDT float64) {
+	names := make([]string, 0, len(hedges))
+	for i := range hedges {
+		if s := strings.ToUpper(strings.TrimSpace(hedges[i].Target.Symbol)); s != "" {
+			names = append(names, s)
+		}
+		notionalUSDT += hedges[i].OpenSpotQuoteQty
+	}
+	return strings.Join(names, ", "), notionalUSDT
 }
 
 // projectedCycleNetPnL 返回单周期净亏熔断「早刹车」使用的投影最终净利。

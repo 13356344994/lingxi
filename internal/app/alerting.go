@@ -135,6 +135,20 @@ func (d *AlertDispatcher) Notify(alert Alert) {
 	if d == nil || !d.shouldDispatch(alert) {
 		return
 	}
+	d.dispatch(alert)
+}
+
+// NotifyTrade 推送交易生命周期通知(开仓/平仓/收益)。与 Notify 不同:不受 MinSeverity 过滤、不做去重——
+// 这些是用户主动要的「每笔都通知」,频率低且每条内容不同,去重反而会吞掉合法重复。nil-safe。
+func (d *AlertDispatcher) NotifyTrade(alert Alert) {
+	if d == nil {
+		return
+	}
+	d.dispatch(alert)
+}
+
+// dispatch 对每个出口 fire-and-forget 异步推送(各出口独立超时),不阻塞调用方。
+func (d *AlertDispatcher) dispatch(alert Alert) {
 	if alert.OccurredAt.IsZero() {
 		alert.OccurredAt = d.now()
 	}

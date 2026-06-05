@@ -79,6 +79,16 @@ func LoadSecretConfig(path string) (SecretConfig, error) {
 	return cfg, nil
 }
 
+// loadAlertingSecretsOrEmpty 从 secret.yaml 读取 Telegram 凭证(Telegram_Token / Telegram_Chat_ID)。
+// 凭证天然属于机密,放在 secret.yaml 而非主配置;缺失或读取失败时返回空串(告警通道随之保持关闭),不报错。
+func loadAlertingSecretsOrEmpty(path string) (token string, chatID string) {
+	values, err := readSimpleYAML(path)
+	if err != nil {
+		return "", ""
+	}
+	return strings.TrimSpace(values["Telegram_Token"]), strings.TrimSpace(values["Telegram_Chat_ID"])
+}
+
 // NewHTTPClient 创建可选代理的 HTTP 客户端。
 func NewHTTPClient(networkCfg NetworkConfig, proxyAddress string) (*http.Client, error) {
 	return exchange.NewHTTPClient(networkCfg, proxyAddress)

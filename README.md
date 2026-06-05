@@ -147,10 +147,13 @@
 api: your_binance_api_key
 secret: your_binance_api_secret
 proxy_url: http://127.0.0.1:7890
+Telegram_Token: your_telegram_bot_token       # 可选
+Telegram_Chat_ID: your_telegram_chat_id       # 可选
 ```
 
 说明：
 - `proxy_url` 可选
+- `Telegram_Token` + `Telegram_Chat_ID` 两者都填好即**自动启用** Telegram 通知:开仓/平仓/周期收益每笔推送(info,不过滤),风控告警(熔断/裸腿/edge 衰减/pending 卡住/优雅停机等,warning+)按级别推送;任一为空则通道保持关闭
 - 可直接复制 `secret.example.yaml` 为 `secret.yaml` 后再填写真实密钥
 - `secret.yaml` 仅用于本机，不应提交到仓库
 - 当前策略 / 风控默认值在 `DefaultEngineConfig()` 中定义
@@ -363,8 +366,8 @@ README 旧承诺与代码不符（见上节）。仅有保证金充足性检查�
 > 以下 R25~R28 是对「优化计划本身」的审判（god's-eye on the plan）：即使 R1~R24 全修、M0~M6 全做完，
 > 一个真正 9.6 的**无人值守实盘**系统仍缺下列维度。它们不是代码 bug，而是计划的结构性盲区。
 
-### 🟠 R25. 无实时告警与可观测性（无人值守的致命盲区）→ S5（告警分发已落地·S5-A）
-**S5-A 已落地实时告警分发**：`internal/app/alerting.go` —— `AlertDispatcher`（级别过滤 + 去重窗口 + fire-and-forget 异步推送）+ `AlertSink` 出口接口（`webhook` / `Telegram` / 兜底 `logger`），接在 `emitDomainEvents` funnel 上,熔断/裸腿/恢复升级/fatal 等领域事件按级别自动推送。全部 behind `AlertingConfig.Enabled`(默认 false → 零外部调用)。**S5-B 已落地指标/探针/心跳**:`observability_http.go` —— `/livez`(进程存活)、`/healthz`(就绪:运行+未熔断+健康正常才 200,否则 503)、`/metrics`(Prometheus 文本格式,无新依赖)三个不鉴权端点 + 引擎周期写 `records/heartbeat.json` 心跳文件(供无 HTTP 的外部看门狗判活)。
+### ✅ R25. 无实时告警与可观测性（已落地 · S5-A/S5-B）
+**S5-A 已落地实时告警分发**：`internal/app/alerting.go` —— `AlertDispatcher`（级别过滤 + 去重窗口 + fire-and-forget 异步推送）+ `AlertSink` 出口接口（`webhook` / `Telegram` / 兜底 `logger`），接在 `emitDomainEvents` funnel 上,熔断/裸腿/恢复升级/fatal 等领域事件按级别自动推送。**交易生命周期通知**(开仓/平仓/周期收益)经 `NotifyTrade` 不过滤不去重逐笔推送。**填好 `secret.yaml` 的 `Telegram_Token`+`Telegram_Chat_ID` 即自动启用**(否则 behind `AlertingConfig.Enabled`,默认零外部调用)。**S5-B 已落地指标/探针/心跳**:`observability_http.go` —— `/livez`(进程存活)、`/healthz`(就绪:运行+未熔断+健康正常才 200,否则 503)、`/metrics`(Prometheus 文本格式,无新依赖)三个不鉴权端点 + 引擎周期写 `records/heartbeat.json` 心跳文件(供无 HTTP 的外部看门狗判活)。
 - **影响**：真金无人值守运行时等于盲飞——出事只能事后从日志里考古。9.6 必须有：关键事件实时推送（Telegram/钉钉/PagerDuty）+ 指标导出（Prometheus/统计端点）+ 存活心跳。
 
 ### 🔴 R26. 交易所 API Key 未硬化
@@ -394,13 +397,13 @@ dead-man 兜底、看门狗拉起、防双开、熔断、单腿裸露、对账�
 L2 簇上限在 §16.6 已设计；**M-S4.8 已落地基础件**：`admitByClusterCap` + `portfolioClusterNotionalUSDT` 已按 base 资产聚类硬约束单簇名义，并接入开仓侧 sizing（behind `ClusterMaxNotionalUSDT`，默认 0=关）。10 个币若全是同一类山寨 beta，极端行情会**一起流动性消失、一起反向**，对冲腿同时滑点放大。
 - **影响**：名义上分散到 10 个币，实质是一个高相关大仓位。9.6 需：按 base 资产/板块/相关性聚类，`ClusterMaxNotionalUSDT` 硬约束单簇暴露。**待完善**：当前簇键=base 资产（≈每币一簇），真正的高相关防护需板块/相关性映射替换 `clusterKeyForSymbol`（唯一注入点）。
 
-### 🟠 R31. 逐币 funding 时钟（不能继续靠全局 `:57`）→ S2
-当前全局 `WakeMinute=57` 单点调度；不同合约 funding 间隔可能不同（8h/4h/可变）。§16.4/M2.2 已设计逐币时钟但未实现。
-- **影响**：混合间隔组合下，全局唤醒会错过部分币的结算窗口或在错误时点动作。9.6 需：调度由每个币自身的下次 funding time 驱动。
+### ✅ R31. 逐币 funding 时钟（已落地于滚动路径 · S4）
+~~当前全局 `WakeMinute=57` 单点调度~~。**已落地**:`scheduler.go:symbolFundingClock` + `rolling_hold_engine.go:residentClocks()` 由每个常驻币自身的下次 funding time 计算 `NextPortfolioWake`,驱动 `runRollingPortfolioCycle` 的逐币唤醒/再校验(`RevalidateAt`/`RevalidateDue`),兼容 8h/4h/可变间隔。
+- **影响（已消解）**：滚动组合的调度由逐币 funding time 驱动,不再靠全局 `:57`。注:默认单周期(`EnableRollingHold=false`)路径仍走全局唤醒——其持仓短、盲窗有界,逐币时钟是滚动持有(S4 目标)的能力。
 
-### 🔴 R32. WebSocket / 订单回报断连盲窗（长持比单周期危险得多）→ S0/S5
-`stream_common.go` 有 ping/keepalive 与 context 关闭，但**无「持仓期行情/订单回报失明超过阈值即自动降级/撤离」**。单周期持仓短、盲窗天然有界；滚动长持后，断连期间引擎对市场与成交是「瞎」的。
-- **影响**：长持期间 user data stream / bookTicker 断连，引擎可能在失明状态下错过强平、错过单腿成交、用过期价格决策。9.6 需：失明时长守卫——超阈值即停止开新仓 + 降级为 REST 轮询 + 持续失明则保守撤离。
+### ✅ R32. WebSocket / 订单回报断连盲窗（核心守卫已落地 · S0/S2）
+~~无「持仓期行情/订单回报失明超过阈值即自动降级/撤离」~~。**已落地**:`hold_monitor.go` 以「连接级距上一帧时延」做失明分级状态机(live/unknown/degraded/blind),持有期常驻监控——失明即 `feedBlindnessBlockOpens` **停开新仓**;连续失明超 `feedBlindnessWithdrawGrace` 触发 `shouldTriggerFeedBlindnessWithdraw → panicFlattenManagedExposure`(方向感知双腿全平 + 平台熔断冷却);margin 健康轮询失明同样触发保守撤离。
+- **影响（已消解）**：失明时长守卫已具备「停开新仓 + 持续失明保守撤离」。注:WS 自动重连已有,**REST 轮询降级**为余量增强(失明期保守撤离已兜住下行风险)。
 
 ### 🟠 R33. 灰度验证门自动化（不能靠人工感觉）→ S6
 §17.4/§18.3 的灰度门当前是人工判断。10k→30k→100k 的放行应由**实测 edge、滑点、成交率、对账健康**自动判定。
@@ -881,25 +884,25 @@ M6(治理) 可与 M2~M5 并行
 ### 18.4 「理论 9.6」判据清单（self-check）
 
 **基础（R1~R28）**
-- [ ] 无默认关闭的关键风控；无「文档承诺 > 代码现实」缺口。
-- [ ] `make race` 绿；关键并发路径有 `-race` 回归测试。
-- [ ] `NetPnL` 含滑点/冲击/借币/恢复摩擦；对账能暴露成本侧模型误差。
-- [ ] 滚动持有经济回归证明优于单周期；防 churn 测试通过。
-- [ ] 动态 size 为 capacity-driven，可一旋钮从数百 U 调到 10W 不改代码。
-- [ ] 熔断/裸腿/UNHEALTHY 实时告警；指标可导出；存活心跳。
-- [ ] API Key 无提现权限 + IP 白名单；日志无明文凭证。
-- [ ] edge 衰减自动降档；进程/断连有交易所侧 Kill Switch 兜底；主备不双开。
-- [ ] 有成文事故 runbook 与定期演练。
+- [x] 无默认关闭的关键风控；无「文档承诺 > 代码现实」缺口。（S0)
+- [x] `make race` 绿；关键并发路径有 `-race` 回归测试。（S0)
+- [x] `NetPnL` 含滑点/借币/恢复摩擦；对账能暴露成本侧模型误差(摩擦 `Friction` 入对账诊断)。（S3/S8-A;冲击成本入开仓闸而非重复计入 NetPnL,见 R5 审定)
+- [x] 滚动持有经济回归证明优于单周期；防 churn 测试通过。（S4/M-S4.5)
+- [x] 动态 size 为 capacity-driven，可一旋钮从数百 U 调到 10W 不改代码。（S4/M-S4.6,behind `DynamicSizingEnabled`)
+- [x] 熔断/裸腿/UNHEALTHY 实时告警；指标可导出；存活心跳。（S5-A/B;填好 `secret.yaml` Telegram 即自动启用)
+- [x] API Key 无提现权限 + IP 白名单；日志无明文凭证。（S5-C/D 启动期自检 + 凭证卫生;IP 白名单为交易所侧配置,代码侧已自检告警)
+- [x] edge 衰减自动降档；进程/断连有交易所侧 Kill Switch 兜底；主备不双开。（S6-B/S7-A/S7-B)
+- [x] 有成文事故 runbook 与定期演练（演练记录待实盘留存）。（S8-D)
 
 **放大 + 滚动持有专项（R29~R36，本次补充）**
-- [ ] **借币容量/利率阶梯（R29）**：开仓前校验可借量与当前阶梯利率；借币失败→不开仓（不留裸腿）；利率突变→该币退出。
-- [ ] **簇/相关性上限（R30）**：按 base/板块/相关性聚类，`ClusterMaxNotionalUSDT` 硬约束单簇暴露，防 10 币同向。
-- [ ] **逐币 funding 时钟（R31）**：调度由每个币自身下次 funding time 驱动，不再靠全局 `:57`，兼容 8h/4h/可变间隔。
-- [ ] **断连盲窗守卫（R32）**：行情/订单回报失明超阈值→停开新仓 + 降级 REST 轮询 + 持续失明保守撤离。
+- [ ] **借币容量/利率阶梯（R29）**：开仓前校验可借量与当前阶梯利率；借币失败→不开仓（不留裸腿）；利率突变→该币退出。**（未实现——放大负向 carry 前必须补）**
+- [ ] **簇/相关性上限（R30）**：基础件已落地(`admitByClusterCap` 按 base 资产聚类硬约束单簇名义,M-S4.8);**待完善**真·板块/相关性映射替换 `clusterKeyForSymbol`。
+- [x] **逐币 funding 时钟（R31）**：滚动路径调度由每个币自身下次 funding time 驱动(`symbolFundingClock`/`residentClocks`→`NextPortfolioWake`)，兼容 8h/4h/可变间隔。
+- [x] **断连盲窗守卫（R32）**：行情失明超阈值→`feedBlindnessBlockOpens` 停开新仓 + 持续失明 `panicFlattenManagedExposure` 保守撤离(`hold_monitor.go`);REST 轮询降级为余量。
 - [x] **灰度门自动化（R33）**：放行/回退由实测 edge、滑点、成交率、`reconcile` 健康按量化规则判定（`decideCapitalRampAction`），引擎产出建议 + 告警；实际改参由人工核实后落地（资金投放高后果，默认人工把关）。
-- [ ] **pending funding 处置（R34）**：重试超 N 次/超 T 小时→critical 告警 + 人工确认；该 cycle 隔离不污染连亏/回撤。
-- [ ] **改参治理（R35）**：热改风控有 diff 预览 + 权限分级/二次确认 + 一键回滚 + 全程审计。
-- [ ] **单点容灾（R36）**：单交易所/账户故障时系统能安全停机而非裸奔；稳定币敞口分散；预留 venue/account 抽象口。
+- [x] **pending funding 处置（R34）**：重试超 N 次/超 T 小时→critical 告警 + `Escalated` 停重试；该 cycle 隔离不污染连亏/回撤(S5-E)。
+- [x] **改参治理（R35）**：热改风控有 diff 预览 + 一键回滚 + 全程审计(`PreviewRiskConfigUpdate`/`RollbackRiskConfig`,S5-F)。
+- [x] **单点容灾（R36）**：单写租约(flock)杜绝双开 + 优雅停机/dead-man 保证「停得安全而非裸奔」(S7-A/B/C);**待扩展**多 venue/account 抽象与稳定币敞口分散(属未来扩展)。
 
 - [ ] **最终裁定**：连续多周期小额实盘 `reconcile` HEALTHY 且实测净利稳定贴合模型（这一条只能由你的实盘记录给出）。
 
