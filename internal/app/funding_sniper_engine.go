@@ -361,7 +361,7 @@ func (e *FundingRateSniperEngine) openCyclePositions(ctx context.Context, wakeAt
 	if err := e.applyLifecycleProtocolResult(preparedResult.ProtocolResult); err != nil {
 		e.logger.Printf("忽略非法生命周期迁移(open.prepare): %v", err)
 	} else {
-		e.runtimeReporter.EmitLocked(EngineStage(""))
+		e.runtimeReporter.Emit(EngineStage(""))
 	}
 	e.emitDomainEvents(preparedResult.ProtocolResult.Events)
 	executeOpenResult, err := openProtocol.ExecuteSequence(ctx, validTargets, preparedResult.Preparation)
@@ -371,7 +371,7 @@ func (e *FundingRateSniperEngine) openCyclePositions(ctx context.Context, wakeAt
 	if err := e.applyLifecycleProtocolResult(executeOpenResult.ProtocolResult); err != nil {
 		e.logger.Printf("忽略非法生命周期迁移(open.execute): %v", err)
 	} else {
-		e.runtimeReporter.EmitLocked(EngineStage(""))
+		e.runtimeReporter.Emit(EngineStage(""))
 	}
 	e.emitDomainEvents(executeOpenResult.ProtocolResult.Events)
 	openHedges, beforeSnapshot := executeOpenResult.Hedges, executeOpenResult.BeforeSnapshot
@@ -414,7 +414,7 @@ func (e *FundingRateSniperEngine) runOneCycle(ctx context.Context, wakeAt time.T
 	if err := e.applyLifecycleProtocolResult(closeResult.ProtocolResult); err != nil {
 		e.logger.Printf("忽略非法生命周期迁移(close.execute): %v", err)
 	} else {
-		e.runtimeReporter.EmitLocked(EngineStage(""))
+		e.runtimeReporter.Emit(EngineStage(""))
 	}
 	e.emitDomainEvents(closeResult.ProtocolResult.Events)
 	settlement := closeResult.Settlement

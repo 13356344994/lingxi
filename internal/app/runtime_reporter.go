@@ -31,6 +31,19 @@ func (r *RuntimeReporter) EmitLocked(stage EngineStage) {
 	r.emitLockedWithTargets(stage, -1, "")
 }
 
+// Emit 是 EmitLocked 的「自加锁」版本:供**未持有** platformRiskMu 的调用方使用(典型场景:生命周期迁移
+// applyLifecycleProtocolResult 已 defer 释放锁后,需要再发一次状态快照)。EmitLocked 系列会读取 activeOpenHedges、
+// platformState、cooldown/exposure 等受 platformRiskMu 保护的字段(含 map 迭代),不持锁直接调用会与后台监控
+// (drawdown/hold/margin/结算)的并发写形成数据竞争,严重时触发「concurrent map iteration」运行时致命崩溃。
+func (r *RuntimeReporter) Emit(stage EngineStage) {
+	if r == nil || r.engine == nil {
+		return
+	}
+	r.engine.platformRiskMu.Lock()
+	defer r.engine.platformRiskMu.Unlock()
+	r.emitLockedWithTargets(stage, -1, "")
+}
+
 func (r *RuntimeReporter) EmitLockedWithReason(stage EngineStage, reason string) {
 	r.emitLockedWithTargets(stage, -1, reason)
 }
