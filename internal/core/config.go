@@ -127,6 +127,15 @@ type ExecutionConfig struct {
 	// 唯一咽喉点 signedRequest 被硬拦截、绝不触达交易所，只把下单意图落日志。用于实盘前抓灾难性 bug
 	// (下错方向/异常数量/失控循环)，而非校准经济阈值。默认 false。
 	ShadowTrading bool `cfg:"shadow_trading"`
+	// --- S8-B 执行切片（TWAP/冰山，R13）。默认关闭：单发(现有行为)零变更。启用后,单腿名义超过
+	// SliceThresholdNotionalUSDT 的开仓按 TWAP 等分切片(每片 ≤ MaxSliceNotionalUSDT、间隔 SliceIntervalMs、
+	// 不超过 MaxSlices 片),平滑大单冲击。规划是纯函数(planExecutionSlices),已单测;实盘双腿 lockstep 执行
+	// 接线在 flag 后分阶段灰度,需小额实盘校验(切片间不得产生裸腿)。---
+	ExecutionSlicingEnabled    bool    `cfg:"execution_slicing_enabled"`
+	SliceThresholdNotionalUSDT float64 `cfg:"slice_threshold_notional_usdt"`
+	MaxSliceNotionalUSDT       float64 `cfg:"max_slice_notional_usdt"`
+	SliceIntervalMs            int     `cfg:"slice_interval_ms"`
+	MaxSlices                  int     `cfg:"max_slices"`
 }
 
 // RiskConfig 表示实盘风控阈值和冷却预算。
@@ -504,6 +513,14 @@ func (cfg EngineConfig) Validate() error {
 	appendIssue(isValidCoreSelfTradePreventionMode(cfg.ExecutionConfig.FuturesSTPMode), "FuturesSTPMode 必须是 EXPIRE_TAKER / EXPIRE_MAKER / EXPIRE_BOTH / NONE")
 	appendIssue(strings.EqualFold(strings.TrimSpace(cfg.ExecutionConfig.FuturesMarginType), "CROSSED"), "FuturesMarginType 当前必须为 CROSSED")
 	appendIssue(cfg.ExecutionConfig.FuturesLeverage >= 1 && cfg.ExecutionConfig.FuturesLeverage <= 20, "FuturesLeverage 必须在 1 到 20 之间")
+	appendIssue(cfg.ExecutionConfig.SliceThresholdNotionalUSDT >= 0, "SliceThresholdNotionalUSDT 不能小于 0")
+	appendIssue(cfg.ExecutionConfig.MaxSliceNotionalUSDT >= 0, "MaxSliceNotionalUSDT 不能小于 0")
+	appendIssue(cfg.ExecutionConfig.SliceIntervalMs >= 0, "SliceIntervalMs 不能小于 0")
+	appendIssue(cfg.ExecutionConfig.MaxSlices >= 0, "MaxSlices 不能小于 0")
+	if cfg.ExecutionConfig.ExecutionSlicingEnabled {
+		appendIssue(cfg.ExecutionConfig.MaxSliceNotionalUSDT > 0, "启用 ExecutionSlicingEnabled 时 MaxSliceNotionalUSDT 必须大于 0")
+		appendIssue(cfg.ExecutionConfig.MaxSlices > 0, "启用 ExecutionSlicingEnabled 时 MaxSlices 必须大于 0")
+	}
 	appendIssue(cfg.RiskConfig.MaxConsecutiveLossCycles >= 0, "MaxConsecutiveLossCycles 不能小于 0（0 表示关闭连续亏损熔断）")
 	appendIssue(cfg.RiskConfig.MaxAccountDrawdownUSDT >= 0, "MaxAccountDrawdownUSDT 不能小于 0（0 表示关闭账户级回撤熔断）")
 

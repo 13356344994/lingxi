@@ -81,6 +81,13 @@ func DefaultEngineConfig() EngineConfig {
 			// 抬高 50%，使强平价更远——对「小散户求稳不爆」是纯安全收益（代价仅是合约钱包占用略增，且
 			// 开仓前 assessOpenFuturesLeverage 会在保证金不足时自动拒单兜底）。
 			FuturesLeverage: 2,
+			// S8-B 执行切片:默认关闭(单发,零行为变更)。启用时建议起点:单腿名义 > 2000U 才切片,
+			// 每片 ≤ 1000U,间隔 800ms,最多 8 片(具体阈值待实盘 depth/冲击校准)。
+			ExecutionSlicingEnabled:    false,
+			SliceThresholdNotionalUSDT: 2000,
+			MaxSliceNotionalUSDT:       1000,
+			SliceIntervalMs:            800,
+			MaxSlices:                  8,
 		},
 		RiskConfig: RiskConfig{
 			MinNetProfitRate:              0.0020,

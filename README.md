@@ -864,7 +864,7 @@ M6(治理) 可与 M2~M5 并行
 **S8 规模化执行与高保真回测** —— 覆盖 M5.1·M5.4 / R13·R15·R19·R23
 - TWAP/冰山执行切片；L3 Tick 回测校正阈值；结算/pending 事件化存储；对账诊断字段清洁；事故 runbook + 演练（R28）。
 - **退出**：大单冲击受控；纸面阈值经 L3 校正；有成文 runbook 与演练记录。**评分↑：维度 1/5/8。**
-- **进度**：✅ S8-A R23 对账诊断清洁(`reconcile.TradeRecord` 增 `CycleID` 专用字段,`Symbol` 不再被污染,报告 `cycle=<CycleID>`)+ 执行摩擦聚合 `Friction` 入对账(诊断展示、不卡 breach)。待:S8-B TWAP/冰山切片、S8-C 结算/pending 存储崩溃安全化、S8-D 事故 runbook。
+- **进度**：✅ S8-A R23 对账诊断清洁(`reconcile.TradeRecord` 增 `CycleID` 专用字段,`Symbol` 不再被污染,报告 `cycle=<CycleID>`)+ 执行摩擦聚合 `Friction` 入对账(诊断展示、不卡 breach)。✅ S8-B 执行切片规划层(`execution_slicing.go`:`planExecutionSlices` 纯函数——单腿名义超 `SliceThresholdNotionalUSDT` 才按 TWAP 等分切片,每片 ≤ `MaxSliceNotionalUSDT`、间隔 `SliceIntervalMs`、封顶 `MaxSlices`,末片吃浮点余量保证 Σ=总量;默认 `ExecutionSlicingEnabled=false` 单发零变更)。⚠️ **实盘双腿 lockstep 执行接线分阶段灰度**:切片间不得产生裸腿,需小额实盘校验后再把规划接入开仓提交路径(故本次只落地经过单测的规划层 + 配置/门槛,不改动现有 S0~S4 的双腿原子开仓与裸腿守卫)。待:S8-C 结算/pending 存储崩溃安全化、S8-D 事故 runbook。
 
 ### 18.3 阶段→灰度联动
 - S0 完成 → 可上 `shadow`。
