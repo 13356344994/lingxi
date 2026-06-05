@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -417,6 +418,37 @@ func TestRunBoundedConcurrentTasksHonorsConcurrencyLimit(t *testing.T) {
 	}
 	if maxSeen > 2 {
 		t.Fatalf("expected max concurrency <= 2, got %d", maxSeen)
+	}
+}
+
+// TestRunBoundedConcurrentTasksCancelsSiblingsOnFirstError 钉死 R12:首个 worker 返回错误后,
+// 派生 ctx 被 cancel,在途的兄弟 worker 应观察到 ctx 取消并停止推进(不再启动新任务)。
+func TestRunBoundedConcurrentTasksCancelsSiblingsOnFirstError(t *testing.T) {
+	var (
+		started  int32
+		canceled int32
+	)
+	err := runBoundedConcurrentTasks(context.Background(), 1, 5, func(workerCtx context.Context, idx int) error {
+		atomic.AddInt32(&started, 1)
+		if idx == 0 {
+			return errors.New("leg0 failed")
+		}
+		// 串行(并发=1)下,后续 worker 启动前 taskCtx 应已被首错 cancel。
+		if workerCtx.Err() != nil {
+			atomic.AddInt32(&canceled, 1)
+			return workerCtx.Err()
+		}
+		return nil
+	})
+	if err == nil {
+		t.Fatal("首错后应返回错误")
+	}
+	if !strings.Contains(err.Error(), "leg0 failed") {
+		t.Fatalf("应返回首个错误, got %v", err)
+	}
+	// 至少有一个后续 worker 观察到取消(或循环在启动前已 break,started 不会到 5)。
+	if got := atomic.LoadInt32(&started); got >= 5 && atomic.LoadInt32(&canceled) == 0 {
+		t.Fatalf("首错未传播取消:started=%d canceled=%d", got, atomic.LoadInt32(&canceled))
 	}
 }
 

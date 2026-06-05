@@ -633,6 +633,12 @@ func runBoundedConcurrentTasks(ctx context.Context, maxConcurrency int, total in
 		maxConcurrency = 1
 	}
 
+	// 首错即取消(errgroup 语义):派生可取消的子 ctx,任一 worker 返回错误立即 cancel,
+	// 让在途/未启动的兄弟任务尽早收到 ctx 取消而停止推进,缩小开平仓时的残腿窗口与恢复复杂度。
+	// 已开始的下单本身受现有「裸腿守卫 + 恢复协议」兜底,这里只负责不再扩大新敞口。
+	taskCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	var (
 		wg       sync.WaitGroup
 		firstErr error
@@ -640,7 +646,7 @@ func runBoundedConcurrentTasks(ctx context.Context, maxConcurrency int, total in
 	)
 	slots := make(chan struct{}, maxConcurrency)
 	for idx := 0; idx < total; idx++ {
-		if ctx.Err() != nil {
+		if taskCtx.Err() != nil {
 			break
 		}
 		slots <- struct{}{}
@@ -648,12 +654,13 @@ func runBoundedConcurrentTasks(ctx context.Context, maxConcurrency int, total in
 		go func(i int) {
 			defer wg.Done()
 			defer func() { <-slots }()
-			if err := worker(ctx, i); err != nil {
+			if err := worker(taskCtx, i); err != nil {
 				mu.Lock()
 				if firstErr == nil {
 					firstErr = err
 				}
 				mu.Unlock()
+				cancel()
 			}
 		}(idx)
 	}
