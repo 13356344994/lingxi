@@ -146,6 +146,44 @@ func TestResolveDynamicCapBaseUnitUnsetUsesCap(t *testing.T) {
 	}
 }
 
+// TestRoundTripImpactReserveRate 钉死 M3.2:往返冲击 = 2×spot + 2×futures;流动性充裕→撞下限(各 0.0001),
+// 单笔名义撞满流动性→撞上限(各 0.0025);名义<=0 → 0;缺流动性退保守上限。
+func TestRoundTripImpactReserveRate(t *testing.T) {
+	// 充裕流动性(notional 远小于流动性)→ 每腿冲击撞下限 0.0001 → 2×0.0001+2×0.0001 = 0.0004。
+	if got := roundTripImpactReserveRate(1000, 100000000, 100000000); !approxEqualSizing(got, 0.0004) {
+		t.Fatalf("充裕流动性应为 0.0004, got %.6f", got)
+	}
+	// 薄流动性(notional==流动性)→ (1)*0.5=0.5 撞上限 0.0025 → 2×0.0025×2 = 0.01。
+	if got := roundTripImpactReserveRate(100000, 100000, 100000); !approxEqualSizing(got, 0.01) {
+		t.Fatalf("薄流动性应撞上限 0.01, got %.6f", got)
+	}
+	// 名义<=0 → 0(无单可下)。
+	if got := roundTripImpactReserveRate(0, 100000, 100000); got != 0 {
+		t.Fatalf("名义<=0 应为 0, got %.6f", got)
+	}
+	// 缺流动性数据 → 每腿退保守上限 0.0025 → 0.01。
+	if got := roundTripImpactReserveRate(1000, 0, 0); !approxEqualSizing(got, 0.01) {
+		t.Fatalf("缺流动性应退保守上限 0.01, got %.6f", got)
+	}
+}
+
+// TestImpactAdjustedNetProfitRate 钉死入场闸接线:DynamicSizingEnabled=false 时净利率不变、冲击储备=0(零行为变更);
+// 启用时净利率被往返冲击扣减。
+func TestImpactAdjustedNetProfitRate(t *testing.T) {
+	// 关闭(默认)→ 不扣、储备 0。
+	if net, impact := impactAdjustedNetProfitRate(0.0055, false, 100000, 100000, 100000); net != 0.0055 || impact != 0 {
+		t.Fatalf("关闭时应零行为变更, net=%.6f impact=%.6f", net, impact)
+	}
+	// 启用 + 薄流动性 → 扣 0.01 → 0.0055-0.01 = -0.0045(转负,会被入场闸拒掉)。
+	net, impact := impactAdjustedNetProfitRate(0.0055, true, 100000, 100000, 100000)
+	if !approxEqualSizing(impact, 0.01) {
+		t.Fatalf("启用时冲击储备应为 0.01, got %.6f", impact)
+	}
+	if !approxEqualSizing(net, 0.0055-0.01) {
+		t.Fatalf("启用时净利率应被扣减, got %.6f", net)
+	}
+}
+
 func TestResolveHardCapUSDT(t *testing.T) {
 	if got := resolveHardCapUSDT(7000, 100000, 10); !approxEqualSizing(got, 7000) {
 		t.Fatalf("显式硬顶优先, got %.4f", got)

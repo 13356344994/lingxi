@@ -577,6 +577,14 @@ finalNotional = clamp(baseUnit × edgeScore, minNotional, perSymbolCap)
 > fail-safe（无天花板或容量低于最小单 → 不可交易）。**接入开仓侧**（替换静态 `PerSymbolQuoteMultiplier`）须配合
 > **冲击成本入闸/计入 NetPnL（M-S4.7/R5）**与 **L2 簇上限/L3 sizing（M-S4.8）**,且全程 behind `DynamicSizingEnabled`;
 > `liqSafeCap` 依赖 R2 强平距离反推（当前为可选输入,缺省即跳过）。
+>
+> **冲击成本入闸（M-S4.7 已落地·M3.2）**：`roundTripImpactReserveRate`(复用 `strategy.EstimateMarketImpactRate`,
+> 现货+合约各开/平共 4 次冲击)+ `impactAdjustedNetProfitRate` 已接入监控入场闸 `checkTargetCost`:**`DynamicSizingEnabled`
+> 启用时**把往返市场冲击从净利率扣除(坑2:不扣冲击就放大 size 只会放大隐性亏损),默认关闭对入场闸零行为变更;
+> 流动性基数复用监控期已算的可见深度名义,**不在热循环加网络调用**。冲击储备经 `LastImpactReserveRate/USDT` 可观测。
+> **R5「滑点计入 NetPnL」未按字面实现**:经核查 `TradingPnL` 已用**实际成交价**计算,成交劣于 mark 的滑点**已隐含在
+> 权威 NetPnL 内**,M-S3.0 的 `NetPnLAfterFrictions` 是「重基准到 mark 价」的诊断量;若再减一次将**重复计算**、令熔断
+> 口径失真,故 R5 改权威 PnL 一事另立「对账口径审查」任务,不在 M-S4.7 内执行。
 
 **坑（务必规避）：**
 - **坑 1：深度 ≠ 容量。** `:57` 抢费窗口是踩踏窗口，`:55` 看到的盘口到 `:57` 会蒸发（R13/R15）。

@@ -153,6 +153,28 @@ func resolveDynamicPerSymbolCap(in dynamicPerSymbolCapInput) dynamicPerSymbolCap
 	}
 }
 
+// roundTripImpactReserveRate 估算一次「开+平」对冲往返的市场冲击成本率(占名义,M3.2 / README §16.3 实现要点2):
+// 现货腿与合约腿各在开仓、平仓时吃一次冲击,故 = 2×spotImpact + 2×futuresImpact。流动性基数(成交额 / 可见深度名义)
+// 越小、单笔名义越大,冲击率越高(撞 strategy.EstimateMarketImpactRate 的 0.0025 上限);流动性缺失时退回保守上限。
+// 纯函数:确定性、无网络。用于入场闸扣除冲击(让薄边际 0.0055 不被冲击吃光),以及放大 size 的边际停止点。
+func roundTripImpactReserveRate(notionalUSDT, spotLiquidityUSDT, futuresLiquidityUSDT float64) float64 {
+	if notionalUSDT <= 0 {
+		return 0
+	}
+	return 2*estimateMarketImpactRate(notionalUSDT, spotLiquidityUSDT) + 2*estimateMarketImpactRate(notionalUSDT, futuresLiquidityUSDT)
+}
+
+// impactAdjustedNetProfitRate 在基础净利率上扣除往返冲击储备——仅当 DynamicSizingEnabled 时生效(opt-in,默认关闭
+// 对入场闸零影响)。返回(扣冲击后净利率, 本次冲击储备率)。这道扣除让入场闸把市场冲击纳入盈亏平衡(坑2:不扣冲击
+// 就放大 size 只会放大隐性亏损)。纯函数。
+func impactAdjustedNetProfitRate(baseNetProfitRate float64, dynamicSizingEnabled bool, notionalUSDT, spotLiquidityUSDT, futuresLiquidityUSDT float64) (float64, float64) {
+	if !dynamicSizingEnabled {
+		return baseNetProfitRate, 0
+	}
+	impact := roundTripImpactReserveRate(notionalUSDT, spotLiquidityUSDT, futuresLiquidityUSDT)
+	return baseNetProfitRate - impact, impact
+}
+
 // resolveHardCapUSDT 实现 §16.7 文档化的单币绝对硬顶推导:显式配 PerSymbolHardCapUSDT 优先;否则当组合名义上限与
 // 币数都已配时,均分为 MaxPortfolioNotionalUSDT / MaxPortfolioSymbols;两者皆缺则返回 0(无硬顶)。纯函数。
 func resolveHardCapUSDT(perSymbolHardCapUSDT, maxPortfolioNotionalUSDT float64, maxPortfolioSymbols int) float64 {

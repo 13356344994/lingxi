@@ -428,6 +428,8 @@ type MonitoredTarget struct {
 	LastBorrowReserveUSDT      float64
 	LastResidualReserveRate    float64
 	LastResidualReserveUSDT    float64
+	LastImpactReserveRate      float64
+	LastImpactReserveUSDT      float64
 	LastSpotAsk                float64
 	LastFuturesBid             float64
 	LastSpotVWAP               float64

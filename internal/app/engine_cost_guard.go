@@ -72,19 +72,25 @@ func (e *FundingRateSniperEngine) checkTargetCost(ctx context.Context, target *M
 	borrowReserveUSDT := target.Candidate.OrderQuantity * spotVWAP * borrowReserveRate
 	roundTripNotional := target.Candidate.OrderQuantity * spotVWAP
 	residualReserveRate, residualReserveUSDT := e.liveResidualReserveRate(roundTripNotional, spread)
-	netProfit := estimateReservedNetProfitRate(target.Candidate.EstimatedRate, spread, e.cfg.StrategyConfig.FeeReserveRate, e.cfg.StrategyConfig.ExitSpreadReserveRate, borrowReserveRate) - residualReserveRate
+	spotVisibleNotional, futuresVisibleNotional := visibleDepthNotionalForDirection(direction, spotDepth, futuresDepth)
+	baseNetProfit := estimateReservedNetProfitRate(target.Candidate.EstimatedRate, spread, e.cfg.StrategyConfig.FeeReserveRate, e.cfg.StrategyConfig.ExitSpreadReserveRate, borrowReserveRate) - residualReserveRate
+	// 冲击成本入闸(M3.2/§16.3):DynamicSizingEnabled 时把往返市场冲击纳入盈亏平衡;默认关闭对入场闸零影响。
+	netProfit, impactReserveRate := impactAdjustedNetProfitRate(baseNetProfit, e.cfg.PortfolioConfig.DynamicSizingEnabled, roundTripNotional, spotVisibleNotional, futuresVisibleNotional)
 
 	target.LastSpotAsk = spotBestAsk
 	target.LastFuturesBid = futuresBestBid
 	target.LastSpotVWAP = spotVWAP
 	target.LastFuturesVWAP = futuresVWAP
-	target.LastSpotVisibleNotional, target.LastFuturesVisibleNotional = visibleDepthNotionalForDirection(direction, spotDepth, futuresDepth)
+	target.LastSpotVisibleNotional = spotVisibleNotional
+	target.LastFuturesVisibleNotional = futuresVisibleNotional
 	target.LastSpread = spread
 	target.LastNetProfit = netProfit
 	target.LastBorrowReserveRate = borrowReserveRate
 	target.LastBorrowReserveUSDT = borrowReserveUSDT
 	target.LastResidualReserveRate = residualReserveRate
 	target.LastResidualReserveUSDT = residualReserveUSDT
+	target.LastImpactReserveRate = impactReserveRate
+	target.LastImpactReserveUSDT = impactReserveRate * roundTripNotional
 	target.LastObserveTime = time.Now()
 	e.updateCurrentMonitorTargetLabel(target)
 
