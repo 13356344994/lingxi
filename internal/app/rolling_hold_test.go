@@ -255,3 +255,32 @@ func TestPartitionHedgesByRoll(t *testing.T) {
 		t.Fatalf("空 keep 集合应全平仓, keep=%+v drop=%+v", allDropKeep, allDrop)
 	}
 }
+
+// TestBuildRollDecisionInputs 钉死续持判定输入构建(方案 3):按 carry 方向归一「对我有利为正」、跳过 0 qty、
+// 门槛/安全垫/边际成本透传;费率反转(预测费率与开仓方向相悖)→ 净 carry 变负 → fail-safe 平仓。
+func TestBuildRollDecisionInputs(t *testing.T) {
+	cfg := PortfolioConfig{HoldRollThresholdRate: 0.0005, RollSafetyBufferRate: 0.0003}
+	held := []OpenHedge{
+		{Target: FundingCandidate{Symbol: "BTCUSDT", EstimatedRate: 0.001}, HedgeQty: 1, OpenFuturesAvgPrice: 100}, // 正 carry
+		{Target: FundingCandidate{Symbol: "ETHUSDT", EstimatedRate: 0.001}, HedgeQty: 0, OpenFuturesAvgPrice: 50},  // 0 qty 跳过
+	}
+	rates := map[string]float64{"BTCUSDT": 0.0008}
+	cost := map[string]float64{"BTCUSDT": 0.0001}
+	inputs := buildRollDecisionInputs(held, rates, cost, cfg)
+	if len(inputs) != 1 || inputs[0].Symbol != "BTCUSDT" {
+		t.Fatalf("应只构造 BTCUSDT(跳过 0 qty), got %+v", inputs)
+	}
+	if inputs[0].ExpectedNextNetFundingRate <= 0 {
+		t.Fatalf("正 carry + 正预测费率应为正净 carry, got %.6f", inputs[0].ExpectedNextNetFundingRate)
+	}
+	if inputs[0].HoldRollThresholdRate != 0.0005 || inputs[0].RollSafetyBufferRate != 0.0003 || inputs[0].MarginalHoldCostRate != 0.0001 {
+		t.Fatalf("门槛/安全垫/边际成本透传错误: %+v", inputs[0])
+	}
+
+	reversed := buildRollDecisionInputs(
+		[]OpenHedge{{Target: FundingCandidate{Symbol: "BTCUSDT", EstimatedRate: 0.001}, HedgeQty: 1, OpenFuturesAvgPrice: 100}},
+		map[string]float64{"BTCUSDT": -0.0008}, nil, cfg)
+	if reversed[0].ExpectedNextNetFundingRate >= 0 {
+		t.Fatalf("费率反转应使净 carry 为负(fail-safe 平仓), got %.6f", reversed[0].ExpectedNextNetFundingRate)
+	}
+}

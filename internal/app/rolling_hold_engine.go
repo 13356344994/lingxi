@@ -86,6 +86,51 @@ func (e *FundingRateSniperEngine) residentClocks() []symbolFundingClock {
 	return clocks
 }
 
+// collectRollFundingSignals 为续持复核拉取持仓币的「保守预测费率」,口径与开仓 scan 完全一致(fetchPremiumIndex +
+// estimateScanFundingSignal,R7 符号冲突保守化),使续持门槛(HoldRollThresholdRate)与入场门槛可比(方案 3)。
+// 返回 symbol(大写)→ 估计费率;无持仓时返回空 map。
+func (e *FundingRateSniperEngine) collectRollFundingSignals(ctx context.Context, heldSymbols map[string]struct{}) (map[string]float64, error) {
+	rates := make(map[string]float64, len(heldSymbols))
+	if len(heldSymbols) == 0 {
+		return rates, nil
+	}
+	items, err := e.fetchPremiumIndex(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, item := range items {
+		symbol := strings.ToUpper(strings.TrimSpace(item.Symbol))
+		if _, ok := heldSymbols[symbol]; !ok {
+			continue
+		}
+		estimatedRate, _, _, _, _ := estimateScanFundingSignal(item, e.cfg.RiskConfig.ConservativeFundingOnSignConflictEnabled)
+		rates[symbol] = estimatedRate
+	}
+	return rates, nil
+}
+
+// marginalHoldCostRates 计算各持仓「多持一个 funding 周期」的边际成本率:正向 carry 无借币 → 0;负向 carry 取
+// 该资产时薪借币利率 × 下一 funding 间隔小时数(撞利率阶梯前的近似),除以名义即成本率。供 buildRollDecisionInputs。
+func (e *FundingRateSniperEngine) marginalHoldCostRates(held []OpenHedge) map[string]float64 {
+	rates := make(map[string]float64, len(held))
+	for _, hedge := range held {
+		symbol := strings.ToUpper(strings.TrimSpace(hedge.Target.Symbol))
+		if symbol == "" {
+			continue
+		}
+		if hedge.carryDirection() != fundingCarryDirectionNegative {
+			rates[symbol] = 0
+			continue
+		}
+		rates[symbol] = e.hourlyBorrowInterestRateForAsset(hedge.Target.SpotBaseAsset) * defaultFundingIntervalHours
+	}
+	return rates
+}
+
+// defaultFundingIntervalHours 是边际持有成本估算所用的 funding 间隔保守默认(8h)。台账只持久化单点 NextFundingTime、
+// 不含间隔,逐币真实间隔(4h/8h/可变)的标定留作后续;8h 对借币成本是偏大(保守)估计,符合 fail-safe 偏向平仓。
+const defaultFundingIntervalHours = 8.0
+
 // runRollingPortfolioCycle 是滚动持有(EnableRollingHold)下的常驻组合编排(M-S4.4c-iii):与单周期 runOneCycle
 // 不同,它在迭代间保留常驻组合——复核窗口对到期持仓做 keep/drop、对空槽做新开补位。
 //

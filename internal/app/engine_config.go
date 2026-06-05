@@ -25,6 +25,7 @@ type (
 	RiskConfig       = core.RiskConfig
 	HistoricalConfig = core.HistoricalConfig
 	EngineConfig     = core.EngineConfig
+	PortfolioConfig  = core.PortfolioConfig
 )
 
 const (

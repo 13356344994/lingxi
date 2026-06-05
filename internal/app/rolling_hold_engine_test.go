@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"io"
 	"log"
 	"net/http"
@@ -99,6 +100,46 @@ func TestSettleKeptPositionsEmitsFundingOnlySettlement(t *testing.T) {
 	}
 	if len(pending[0].RollingHoldSymbols) != 1 || pending[0].RollingHoldSymbols[0] != "BTCUSDT" {
 		t.Fatalf("待结算任务应标记 RollingHoldSymbols=[BTCUSDT], got %v", pending[0].RollingHoldSymbols)
+	}
+}
+
+// TestCollectRollFundingSignals 钉死 c-iii-3a:复核拉取持仓币的保守预测费率(复用开仓 fetchPremiumIndex +
+// estimateScanFundingSignal),只返回持仓币、非持仓币剔除;空持仓返回空。
+func TestCollectRollFundingSignals(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`[
+			{"symbol":"BTCUSDT","markPrice":"100","indexPrice":"99.9","estimatedSettlePrice":"100","lastFundingRate":"0.0008","interestRate":"0.0001","nextFundingTime":1,"time":1},
+			{"symbol":"DOGEUSDT","markPrice":"0.1","indexPrice":"0.1","estimatedSettlePrice":"0.1","lastFundingRate":"0.0005","interestRate":"0.0001","nextFundingTime":1,"time":1}
+		]`))
+	}))
+	defer server.Close()
+
+	engine := &FundingRateSniperEngine{
+		client: exchange.NewClient(exchange.ClientConfig{
+			FuturesBaseURL: server.URL,
+			APIKey:         "demo-api-key",
+			SecretKey:      "demo-secret-key",
+			HTTPClient:     server.Client(),
+		}),
+		cfg:    DefaultEngineConfig(),
+		logger: log.New(io.Discard, "", 0),
+	}
+
+	// 空持仓 → 空 map、不发请求。
+	if got, err := engine.collectRollFundingSignals(context.Background(), nil); err != nil || len(got) != 0 {
+		t.Fatalf("空持仓应返回空 map, got %v err=%v", got, err)
+	}
+
+	rates, err := engine.collectRollFundingSignals(context.Background(), map[string]struct{}{"BTCUSDT": {}})
+	if err != nil {
+		t.Fatalf("collectRollFundingSignals() error = %v", err)
+	}
+	if _, ok := rates["BTCUSDT"]; !ok {
+		t.Fatalf("应含持仓币 BTCUSDT 的费率, got %v", rates)
+	}
+	if _, ok := rates["DOGEUSDT"]; ok {
+		t.Fatalf("非持仓币不应出现, got %v", rates)
 	}
 }
 

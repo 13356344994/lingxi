@@ -309,6 +309,41 @@ func buildFundingOnlySettlement(in fundingOnlySettlementInput) CycleSettlement {
 	return settlement
 }
 
+// buildRollDecisionInputs 由持仓 + 各币「保守预测费率」+ 各币「边际持有成本率」构造每个持仓的续持判定输入(纯函数)。
+//
+// ExpectedNextNetFundingRate 按持仓 carry 方向归一为「对我有利为正」:用 hedge.carryDirection().expectedFundingIncome
+// 把预测费率换算成「该持仓下期资金费收益」再除以名义——与结算口径同一套方向逻辑,故费率反转(预测费率与开仓方向
+// 相悖)时自然变负 → 续持净 carry 为负 → evaluateRollDecision 判平仓(fail-safe)。门槛/安全垫取自 PortfolioConfig。
+// 确定性、无引擎状态、无网络。
+func buildRollDecisionInputs(held []OpenHedge, estimatedRateBySymbol, marginalHoldCostRateBySymbol map[string]float64, cfg PortfolioConfig) []rollDecisionInput {
+	inputs := make([]rollDecisionInput, 0, len(held))
+	for _, hedge := range held {
+		symbol := strings.ToUpper(strings.TrimSpace(hedge.Target.Symbol))
+		if symbol == "" || hedge.HedgeQty <= 0 {
+			continue
+		}
+		price := hedge.OpenFuturesAvgPrice
+		if price <= 0 {
+			price = hedge.Target.MarkPrice
+		}
+		expectedNet := 0.0
+		if price > 0 {
+			if notional := hedge.HedgeQty * price; notional > 0 {
+				rate := estimatedRateBySymbol[symbol]
+				expectedNet = hedge.carryDirection().expectedFundingIncome(price, hedge.HedgeQty, rate) / notional
+			}
+		}
+		inputs = append(inputs, rollDecisionInput{
+			Symbol:                     symbol,
+			ExpectedNextNetFundingRate: expectedNet,
+			MarginalHoldCostRate:       marginalHoldCostRateBySymbol[symbol],
+			HoldRollThresholdRate:      cfg.HoldRollThresholdRate,
+			RollSafetyBufferRate:       cfg.RollSafetyBufferRate,
+		})
+	}
+	return inputs
+}
+
 // partitionHedgesByRoll 按续持复核结果把当前持仓拆成 keep(续持)与 drop(平仓)两组,各组保持原相对顺序(确定性)。
 // keepSymbols 为大写 symbol 集合(由 evaluateRollDecision 判定续持的币);不在集合内(含空 symbol)的一律 drop。
 // 纯函数:无引擎状态、无锁、无网络——供 live 循环在复核窗口拆分后,drop 走平仓、keep 走 funding-only 结算(M-S4.4c)。
