@@ -92,7 +92,7 @@ func (e *FundingRateSniperEngine) processPendingFundingSettlement(record Pending
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	result := e.settleFundingIncomeDetailed(ctx, record.Hedges, record.Settlement.BeforeSnapshot, record.Settlement.FundingTimePoint)
+	result := e.settleFundingIncomeDetailed(ctx, record.Hedges, record.Settlement.BeforeSnapshot, record.Settlement.FundingTimePoint, record.rollingHoldSymbolSet())
 	if len(result.PendingSymbols) > 0 {
 		record.AttemptCount++
 		record.LastAttemptAt = now.Format(time.RFC3339)
@@ -182,7 +182,7 @@ func (e *FundingRateSniperEngine) nextFundingSettlementAttemptAt(attempt int) ti
 	return time.Now().UTC().Add(delay * scale)
 }
 
-func (e *FundingRateSniperEngine) settleFundingIncomeDetailed(ctx context.Context, hedges []OpenHedge, beforeSnapshot CycleAccountSnapshot, fundingTime time.Time) fundingSettlementAttemptResult {
+func (e *FundingRateSniperEngine) settleFundingIncomeDetailed(ctx context.Context, hedges []OpenHedge, beforeSnapshot CycleAccountSnapshot, fundingTime time.Time, keptSymbols map[string]struct{}) fundingSettlementAttemptResult {
 	startTime := fundingTime.Add(-1 * time.Minute)
 	endTime := fundingTime.Add(2 * time.Minute)
 	symbolSet := make(map[string]struct{}, len(hedges))
@@ -199,7 +199,10 @@ func (e *FundingRateSniperEngine) settleFundingIncomeDetailed(ctx context.Contex
 	}
 	for symbol := range symbolSet {
 		beforeQty := beforeSnapshot.FuturesPositionAmounts[symbol]
-		if math.Abs(beforeQty) >= e.cfg.RiskConfig.ResidualPositionAlertQty {
+		// 「开仓前已有持仓」对单周期是异常(无法把资金费干净归因到本周期开的仓)→ 跳过归因。
+		// 但滚动续持(keep)仓是上周期持有过来的,beforeQty≠0 是正常预期,其资金费正属于本周期,必须放行归因(M-S4.4b)。
+		_, kept := keptSymbols[symbol]
+		if !kept && math.Abs(beforeQty) >= e.cfg.RiskConfig.ResidualPositionAlertQty {
 			result.Alerts = append(result.Alerts, fmt.Sprintf("资金费归因已跳过 %s: 开仓前已有持仓 positionAmt=%.10f", symbol, beforeQty))
 			continue
 		}

@@ -185,6 +185,24 @@ type PendingFundingSettlementRecord struct {
 	AttemptCount  int             `json:"attempt_count"`
 	Settlement    CycleSettlement `json:"settlement"`
 	Hedges        []OpenHedge     `json:"hedges"`
+	// RollingHoldSymbols 列出本笔结算中属于「滚动续持(keep)」的持仓 symbol(大写)。滚动持有(M-S4.4)下,
+	// keep 仓是上周期持有过来的,资金费结算时其开仓前快照里 futures 持仓本就≠0——这对单周期是"开仓前已有持仓"
+	// 异常、要跳过资金费归因,但对 keep 仓是正常预期,必须放行归因。单周期路径不写此字段(nil)→ 闸行为不变。
+	RollingHoldSymbols []string `json:"rolling_hold_symbols,omitempty"`
+}
+
+// rollingHoldSymbolSet 返回本记录中滚动续持(keep)持仓的大写 symbol 集合,供资金费归因闸放行。
+func (r PendingFundingSettlementRecord) rollingHoldSymbolSet() map[string]struct{} {
+	if len(r.RollingHoldSymbols) == 0 {
+		return nil
+	}
+	set := make(map[string]struct{}, len(r.RollingHoldSymbols))
+	for _, raw := range r.RollingHoldSymbols {
+		if symbol := strings.ToUpper(strings.TrimSpace(raw)); symbol != "" {
+			set[symbol] = struct{}{}
+		}
+	}
+	return set
 }
 
 // MonitorCSVRecord 表示模块三单目标落盘记录。
