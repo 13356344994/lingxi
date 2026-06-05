@@ -666,7 +666,10 @@ finalNotional = clamp(baseUnit × edgeScore, minNotional, perSymbolCap)
 - 逐币时钟测试：混合 8h/4h 间隔的组合，断言各币按各自 funding time 触发复核。
 - L3 上限测试：续持 + 新开合计触顶时，断言新仓被拒且不破坏已持仓。
 - 恢复测试：滚动持有期模拟重启，断言组合台账（含版本）正确恢复且对冲不变量成立。
-- 经济回归：对比「单周期」vs「滚动续持」在同一回测序列上的净利，验证省下的往返成本真实落地。
+- ✅ 经济回归(M-S4.5 已落地)：`rolling_economics.go` 在同一 funding 费率序列上对比「单周期」vs「滚动续持」累计净利,
+  复用实盘同一条 `evaluateRollDecision` 判据 + 真实往返成本常数,确定性纯函数仿真。`rolling_economics_test.go` 钉死:
+  ① 全程盈利时滚动净利优势 = 省下的 (N−1) 次往返成本(可精确对账);② 滚动在「续持有利但不值得新开」的费率带
+  多吃 funding;③ 费率转差时滚动果断平仓、绝不劣于单周期;④ 负向 carry 借币正确计入;⑤ 多币组合汇总。
 
 ---
 
