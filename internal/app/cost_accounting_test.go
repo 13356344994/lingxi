@@ -4,7 +4,8 @@ import (
 	"testing"
 )
 
-// M-S3.0:完整净利影子口径 = NetPnL + 已测执行摩擦(带符号:负=逆向成本)。纯观测,不改 NetPnL。
+// R5 审定语义:NetPnLAfterFrictions = 零滑点理想净利基准 = NetPnL − Σ滑点(滑点带符号、负=成本,
+// 减法把已在 NetPnL 内的滑点成本加回 → 得到「零滑点理想净利」)。纯观测,不改 NetPnL。
 func TestApplyFrictionObservationFoldsSignedFrictions(t *testing.T) {
 	s := CycleSettlement{
 		NetPnL: 10,
@@ -24,9 +25,13 @@ func TestApplyFrictionObservationFoldsSignedFrictions(t *testing.T) {
 	if !approxEqual(s.TotalRecoveryFrictionUSDT, -0.4) {
 		t.Fatalf("恢复摩擦聚合=%v want -0.4", s.TotalRecoveryFrictionUSDT)
 	}
-	// 10 + (-0.8) + (-0.15) + (-0.4) = 8.65
-	if !approxEqual(s.NetPnLAfterFrictions, 8.65) {
-		t.Fatalf("完整净利影子口径=%v want 8.65", s.NetPnLAfterFrictions)
+	// 零滑点理想净利 = NetPnL − Σ滑点 = 10 − (-0.8 -0.15 -0.4) = 10 + 1.35 = 11.35。
+	if !approxEqual(s.NetPnLAfterFrictions, 11.35) {
+		t.Fatalf("零滑点理想净利基准=%v want 11.35", s.NetPnLAfterFrictions)
+	}
+	// 执行拖累 = NetPnL − 基准 = Σ滑点 = -1.35(已在 NetPnL 内,此处仅量化)。
+	if !approxEqual(s.NetPnL-s.NetPnLAfterFrictions, -1.35) {
+		t.Fatalf("执行拖累=%v want -1.35", s.NetPnL-s.NetPnLAfterFrictions)
 	}
 	// 纯观测:NetPnL 不应被改动。
 	if !approxEqual(s.NetPnL, 10) {
@@ -72,7 +77,7 @@ func TestApplyFrictionObservationNoAttributionsIsNetPnL(t *testing.T) {
 	s := CycleSettlement{NetPnL: -3.2}
 	s.applyFrictionObservation()
 	if !approxEqual(s.NetPnLAfterFrictions, -3.2) {
-		t.Fatalf("无归因时完整净利应等于 NetPnL, got %v", s.NetPnLAfterFrictions)
+		t.Fatalf("无滑点时零滑点理想净利应等于 NetPnL, got %v", s.NetPnLAfterFrictions)
 	}
 	if s.TotalOpenSlippageUSDT != 0 || s.TotalCloseSlippageUSDT != 0 || s.TotalRecoveryFrictionUSDT != 0 {
 		t.Fatalf("无归因时摩擦聚合应为 0")

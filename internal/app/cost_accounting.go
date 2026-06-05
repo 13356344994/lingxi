@@ -61,10 +61,13 @@ type CycleSettlement struct {
 	Alerts                []string
 	Attributions          []SettlementAttribution
 
-	// M-S3.0 观测先行(R5,纯观测、零行为变更):把已测量但未计入 NetPnL 的执行摩擦(开/平滑点 + 恢复摩擦)
-	// 按 symbol 归因聚合出来,并给出折算后的「完整净利」影子口径,用于量化「账面 NetPnL vs 诚实净利」缺口。
-	// 这些字段不参与任何熔断/风控判定;是否把摩擦折进权威 NetPnL(并处理与 TradingPnL 是否重复计的问题)
-	// 留待 M-S3.2 单独评审。
+	// R5 对账口径(M-S3.0 起观测,S4 收尾审定·纯观测、零行为变更、不参与任何熔断/风控):
+	// 【审定结论】开/平滑点已隐含在权威 NetPnL —— TradingPnL 由**实际成交价**算出(现货用成交均价、合约用交易所实现盈亏),
+	// 成交劣于参考价的滑点已计入;恢复摩擦的真实成本(额外成交 + 手续费)亦已折进 hedge 的平仓名义与 Fee 字段。
+	// 因此 Total*SlippageUSDT 是「相对参考价的偏离」执行质量量,**不可再从 NetPnL 扣一次(否则重复计数)**。
+	// NetPnLAfterFrictions 经语义重定为「零滑点理想净利基准」= NetPnL − Σ滑点(滑点带符号、负=成本,减法即把成本加回);
+	// gap = NetPnL − 基准 = Σ滑点 ≤ 0,量化执行滑点拖累(已在 NetPnL 内,此处仅度量大小)。RecoveryFriction 当前结构性恒 0
+	// (恢复路径以成交均价自比),真正漏算项经审查为无;若日后接入「相对恢复前参考价」的真实度量再单列。
 	TotalOpenSlippageUSDT     float64
 	TotalCloseSlippageUSDT    float64
 	TotalRecoveryFrictionUSDT float64
@@ -77,10 +80,11 @@ type CycleSettlement struct {
 	CycleNotionalUSDT float64
 }
 
-// applyFrictionObservation 依据各 symbol 归因聚合执行摩擦,并按「NetPnL + 已测摩擦」折算出完整净利影子口径。
-// OpenSlippage/CloseSlippage/RecoveryFriction 是带符号的损益影响(负=逆向成本),故以加法折入。
-// 纯观测:仅写入 M-S3.0 新增的观测字段,不改动 NetPnL 等既有口径。NetPnL 在资金费到账后会变,
-// 故 close 阶段与异步结算阶段都应调用本方法重算。
+// applyFrictionObservation 聚合各 symbol 执行摩擦,并算出「零滑点理想净利基准」NetPnLAfterFrictions(R5 审定语义)。
+// 【关键】开/平滑点已隐含在权威 NetPnL(TradingPnL 用实际成交价),故基准 = NetPnL − Σ滑点(滑点带符号、负=成本,
+// 减法把成本加回 → 基准 ≥ 实际净利,代表「若零滑点能拿到的理想净利」);gap = NetPnL − 基准 = Σ滑点 ≤ 0 = 执行拖累。
+// 这修复了 M-S3.0「NetPnL + 滑点」的重复计数(那样会把已在 NetPnL 的滑点再扣一次)。纯观测:不改 NetPnL 等既有口径,
+// 不参与任何熔断;NetPnL 在资金费到账后会变,故 close 与异步结算阶段都应调用本方法重算。
 func (s *CycleSettlement) applyFrictionObservation() {
 	var openSlip, closeSlip, recovery float64
 	for _, attr := range s.Attributions {
@@ -91,7 +95,7 @@ func (s *CycleSettlement) applyFrictionObservation() {
 	s.TotalOpenSlippageUSDT = openSlip
 	s.TotalCloseSlippageUSDT = closeSlip
 	s.TotalRecoveryFrictionUSDT = recovery
-	s.NetPnLAfterFrictions = money.SumUSDT(s.NetPnL, openSlip, closeSlip, recovery)
+	s.NetPnLAfterFrictions = money.SumUSDT(s.NetPnL, -openSlip, -closeSlip, -recovery)
 }
 
 // expectedHedgeCostObservation 按与策略 breakeven 同源的配置 taker 费率,估算一组对冲的「模型预期手续费」
@@ -124,16 +128,16 @@ func (e *FundingRateSniperEngine) expectedHedgeCostObservation(hedges []OpenHedg
 	return feesM.USDT(), notionalM.USDT()
 }
 
-// logFrictionObservation 打印 M-S3.0 观测行:账面 NetPnL vs 折入执行摩擦后的完整净利影子口径,
-// 以及开/平滑点与恢复摩擦聚合。纯观测,供实盘前量化「成本侧盲区」与缺口大小。
+// logFrictionObservation 打印 R5 执行质量观测行:权威 NetPnL(已含滑点)vs 零滑点理想净利基准,
+// gap = NetPnL − 基准 = Σ滑点 ≤ 0 = 执行滑点拖累(已在 NetPnL 内,此处量化大小)。纯观测,供实盘前度量执行质量。
 func (e *FundingRateSniperEngine) logFrictionObservation(s CycleSettlement, phase string) {
 	if e == nil || e.logger == nil {
 		return
 	}
-	gap := s.NetPnLAfterFrictions - s.NetPnL
+	executionDrag := s.NetPnL - s.NetPnLAfterFrictions
 	e.logger.Printf(
-		"盈亏诚实化观测[%s] cycle=%s NetPnL=%.4f 完整净利(含摩擦)=%.4f 缺口=%.4f 开仓滑点=%.4f 平仓滑点=%.4f 恢复摩擦=%.4f",
-		phase, s.CycleID, s.NetPnL, s.NetPnLAfterFrictions, gap,
+		"执行质量观测[%s] cycle=%s NetPnL(已含滑点)=%.4f 零滑点理想净利=%.4f 执行拖累=%.4f 开仓滑点=%.4f 平仓滑点=%.4f 恢复摩擦=%.4f",
+		phase, s.CycleID, s.NetPnL, s.NetPnLAfterFrictions, executionDrag,
 		s.TotalOpenSlippageUSDT, s.TotalCloseSlippageUSDT, s.TotalRecoveryFrictionUSDT,
 	)
 }

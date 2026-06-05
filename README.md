@@ -263,8 +263,12 @@ README 旧承诺与代码不符（见上节）。仅有保证金充足性检查�
 ### 🔴 R4. `serverTimeOffset` 数据竞争
 `engine_types.go` 中 `serverTimeOffset time.Duration` 为裸字段，`syncServerTimeOffset` 裸写、`serverNow()` 裸读，且 `serverNow()` 被监控 worker / 并发开平仓 / 签名时间戳并发调用，无锁/atomic 保护。**影响**：撕裂读取导致 fire-at 时点漂移，在错误时刻动手。`go vet` 抓不到，`go test -race` 大概率会爆。（同类较轻：`websocket_bookticker.go` `DepthCache.refCount` 未加锁递增。）
 
-### 🟠 R5. 净利 `NetPnL` 不含滑点与恢复摩擦
-`NetPnL = 资金费 + 交易盈亏 − 费用 − 借币`，**滑点和恢复摩擦只进 attribution，不进 `NetPnL`**。恢复摩擦是实打实的逆向成本。**影响**：连亏/回撤熔断口径偏乐观。
+### ✅ R5. 净利 `NetPnL` 不含滑点与恢复摩擦 —— 经审定为**误判**,口径本就诚实(S4 收尾·对账口径审查)
+原描述「滑点/恢复摩擦不进 NetPnL」**经代码审查证实不成立**:
+- **滑点已在 `NetPnL`**:`TradingPnL` 由**实际成交价**算出 —— 现货 `entry=OpenSpotQuoteQty/qty`、`exit=CloseSpotQuoteQty/qty`(`close_protocol.go:264-267`),合约用**交易所实现盈亏**或实际成交均价(`:273-283`)。成交劣于参考价的滑点已隐含其中。`OpenSlippageUSDT/CloseSlippageUSDT` 只是「相对参考价偏离」的诊断量,**再从 NetPnL 扣一次即重复计数**。
+- **恢复摩擦已在 `NetPnL` 且度量恒为 0**:恢复成交的额外名义/手续费已折进 `hedge.CloseSpotQuoteQty`、`Close*FeeUSDT`(`close_protocol.go:135/171-174`)→ 已在 `TradingPnL/TotalFees`;而 `RecoveryFrictionUSDT` 各路径以 `targetPrice=execution.AvgPrice` 自比(`recovery_protocol.go:475-476/523-524/569/612`)→ 结构性恒 0。
+- **结论**:连亏/回撤/单周期熔断口径**未偏乐观**(滑点/恢复成本已计入权威 NetPnL)。**真正漏算项:无**。
+- **已修复**:`NetPnLAfterFrictions` 经语义重定为「零滑点理想净利基准」=`NetPnL − Σ滑点`(把已在 NetPnL 的滑点加回得到理想值),`gap=NetPnL−基准=Σ滑点≤0` 为执行拖累 KPI,修掉了 M-S3.0「NetPnL+滑点」的重复计数。诊断专用,不参与任何熔断。
 
 ### 🟠 R6. 对账会给亏钱策略盖「健康」章
 `reconcile_command.go` 把实测手续费/借币成本抄到「模型预期」一侧，成本侧模型误差在对账里恒为 0；默认只有绝对阈值（`SettlementDiffAlertUSDT=3`），相对阈值=0，小名义下大比例泄漏能蒙混过 HEALTHY。**影响**：对账无法完成「验证钱按模型赚到」的核心使命。
@@ -582,9 +586,10 @@ finalNotional = clamp(baseUnit × edgeScore, minNotional, perSymbolCap)
 > 现货+合约各开/平共 4 次冲击)+ `impactAdjustedNetProfitRate` 已接入监控入场闸 `checkTargetCost`:**`DynamicSizingEnabled`
 > 启用时**把往返市场冲击从净利率扣除(坑2:不扣冲击就放大 size 只会放大隐性亏损),默认关闭对入场闸零行为变更;
 > 流动性基数复用监控期已算的可见深度名义,**不在热循环加网络调用**。冲击储备经 `LastImpactReserveRate/USDT` 可观测。
-> **R5「滑点计入 NetPnL」未按字面实现**:经核查 `TradingPnL` 已用**实际成交价**计算,成交劣于 mark 的滑点**已隐含在
-> 权威 NetPnL 内**,M-S3.0 的 `NetPnLAfterFrictions` 是「重基准到 mark 价」的诊断量;若再减一次将**重复计算**、令熔断
-> 口径失真,故 R5 改权威 PnL 一事另立「对账口径审查」任务,不在 M-S4.7 内执行。
+> **R5「滑点计入 NetPnL」经对账口径审查审定为误判(S4 收尾)**:`TradingPnL` 用**实际成交价**计算,滑点**已隐含在
+> 权威 NetPnL 内**;恢复摩擦真实成本亦已折进平仓名义与 Fee 字段,且 `RecoveryFrictionUSDT` 结构性恒 0。**真正漏算项:无**。
+> M-S3.0 的 `NetPnLAfterFrictions = NetPnL + 滑点` 属**重复计数**,已重定语义为「零滑点理想净利基准」=`NetPnL − Σ滑点`,
+> `gap` 为执行拖累 KPI(诊断专用、不碰熔断)。详见上文 R5 条目。
 >
 > **L2 簇上限 + L3 sizing 接入（M-S4.8 已落地·M3.3）**：① **L2 簇上限**——`clusterKeyForSymbol`(按现货 base 资产聚类,
 > 唯一注入点,后续可换板块/相关性映射)+ `admitByClusterCap`(`ClusterMaxNotionalUSDT<=0` 不启用)+
