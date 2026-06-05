@@ -327,7 +327,7 @@ func (e *FundingRateSniperEngine) runOneCycle(ctx context.Context, wakeAt time.T
 	if closeProtocol == nil {
 		return fmt.Errorf("close protocol 未初始化")
 	}
-	closeResult, err := closeProtocol.ExecuteSequence(ctx, openHedges, beforeSnapshot)
+	closeResult, err := closeProtocol.ExecuteSequence(ctx, openHedges, beforeSnapshot, nil)
 	if err != nil {
 		return err
 	}

@@ -38,12 +38,37 @@ func (e *FundingRateSniperEngine) executeCloseSequence(ctx context.Context, hedg
 	if protocol == nil {
 		return CycleSettlement{}, nil
 	}
-	result, err := protocol.ExecuteSequence(ctx, hedges, beforeSnapshot)
+	result, err := protocol.ExecuteSequence(ctx, hedges, beforeSnapshot, nil)
 	return result.Settlement, err
 }
 
-func (p *CloseProtocol) ExecuteSequence(ctx context.Context, hedges []OpenHedge, beforeSnapshot CycleAccountSnapshot) (CloseProtocolExecutionResult, error) {
-	settlement, err := p.executeSequence(ctx, hedges, beforeSnapshot)
+// reconcileResidentPositionsAfterClose 平仓执行后把内存常驻态(activeOpenHedges + 持仓标签)收敛到 retained。
+// retained 为空(单周期全平 / 无续持)→ setCurrentPositions(nil),与既有行为逐字节一致;
+// 非空(滚动续持 keep 仓)→ setCurrentPositionsFromHedges 原子收敛到 keep,无「先清空再重建」窗口(方案 A)。
+func (e *FundingRateSniperEngine) reconcileResidentPositionsAfterClose(retained []OpenHedge) {
+	if len(retained) == 0 {
+		e.setCurrentPositions(nil)
+		return
+	}
+	e.setCurrentPositionsFromHedges(retained)
+}
+
+// reconcileResidentLedgerAfterClose 平仓后收敛本地未平仓台账到 retained。
+// retained 为空 → 沿用既有「确认交易所无残留(canClear)则清空台账」语义(逐字节不变);
+// 非空(滚动续持)→ 把台账收敛到 keep 仓,使台账任意时刻与交易所持仓一致(崩溃恢复 SSOT)。
+func (e *FundingRateSniperEngine) reconcileResidentLedgerAfterClose(afterSnapshot CycleAccountSnapshot, closedHedges, retained []OpenHedge) error {
+	if len(retained) == 0 {
+		if e.canClearPersistedOpenHedges(afterSnapshot, closedHedges) {
+			return e.clearPersistedOpenHedges()
+		}
+		return nil
+	}
+	return e.syncPersistedOpenHedges(retained)
+}
+
+// ExecuteSequence 执行平仓。retained 为本次平仓后仍需常驻保留的持仓(滚动续持 keep 仓);单周期全平传 nil。
+func (p *CloseProtocol) ExecuteSequence(ctx context.Context, hedges []OpenHedge, beforeSnapshot CycleAccountSnapshot, retained []OpenHedge) (CloseProtocolExecutionResult, error) {
+	settlement, err := p.executeSequence(ctx, hedges, beforeSnapshot, retained)
 	return CloseProtocolExecutionResult{
 		ProtocolResult: ProtocolResult{
 			Protocol:     "close.execute",
@@ -165,7 +190,7 @@ func (e *FundingRateSniperEngine) closeHedgePositionParallel(ctx context.Context
 	return protocol.CloseHedgePositionParallel(ctx, plan)
 }
 
-func (p *CloseProtocol) executeSequence(ctx context.Context, hedges []OpenHedge, beforeSnapshot CycleAccountSnapshot) (CycleSettlement, error) {
+func (p *CloseProtocol) executeSequence(ctx context.Context, hedges []OpenHedge, beforeSnapshot CycleAccountSnapshot, retained []OpenHedge) (CycleSettlement, error) {
 	if len(hedges) == 0 {
 		return CycleSettlement{}, nil
 	}
@@ -216,7 +241,7 @@ func (p *CloseProtocol) executeSequence(ctx context.Context, hedges []OpenHedge,
 	if parallelErr != nil {
 		return CycleSettlement{}, parallelErr
 	}
-	p.engine.setCurrentPositions(nil)
+	p.engine.reconcileResidentPositionsAfterClose(retained)
 
 	afterSnapshot, err := p.engine.captureCycleAccountSnapshotFromHedges(ctx, hedges)
 	if err != nil {
@@ -291,10 +316,8 @@ func (p *CloseProtocol) executeSequence(ctx context.Context, hedges []OpenHedge,
 		p.engine.logger.Printf("模块五对账警告: %s", strings.Join(execAlerts, " | "))
 		alerts = append(alerts, execAlerts...)
 	}
-	if p.engine.canClearPersistedOpenHedges(afterSnapshot, hedges) {
-		if clearErr := p.engine.clearPersistedOpenHedges(); clearErr != nil {
-			return CycleSettlement{}, clearErr
-		}
+	if ledgerErr := p.engine.reconcileResidentLedgerAfterClose(afterSnapshot, hedges, retained); ledgerErr != nil {
+		return CycleSettlement{}, ledgerErr
 	}
 
 	settlement := CycleSettlement{

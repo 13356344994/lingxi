@@ -102,6 +102,63 @@ func TestSettleKeptPositionsEmitsFundingOnlySettlement(t *testing.T) {
 	}
 }
 
+// TestReconcileResidentPositionsAfterClose 钉死 c-iii-2 的内存常驻态收敛:retained 为空清空(单周期口径);
+// 非空原子收敛到 keep 仓(activeOpenHedges + 持仓标签),无先清空再重建窗口。
+func TestReconcileResidentPositionsAfterClose(t *testing.T) {
+	engine := &FundingRateSniperEngine{cfg: DefaultEngineConfig(), runtimeReporter: newRuntimeReporter(nil)}
+	engine.activeOpenHedges = []OpenHedge{
+		{Target: FundingCandidate{Symbol: "BTCUSDT"}, HedgeQty: 1, OpenFuturesAvgPrice: 100},
+		{Target: FundingCandidate{Symbol: "ETHUSDT"}, HedgeQty: 2, OpenFuturesAvgPrice: 50},
+	}
+	engine.currentPositions = []string{"BTCUSDT x", "ETHUSDT y"}
+
+	// retained=keep 子集(只留 BTCUSDT)→ 原子收敛。
+	keep := []OpenHedge{{Target: FundingCandidate{Symbol: "BTCUSDT"}, HedgeQty: 1, OpenFuturesAvgPrice: 100}}
+	engine.reconcileResidentPositionsAfterClose(keep)
+	if engine.portfolioHeldSymbolCount() != 1 {
+		t.Fatalf("收敛后应只剩 1 个持仓, got %d", engine.portfolioHeldSymbolCount())
+	}
+	if _, ok := engine.heldSymbolSet()["BTCUSDT"]; !ok {
+		t.Fatalf("收敛后应保留 BTCUSDT, got %v", engine.heldSymbolSet())
+	}
+	if len(engine.currentPositions) != 1 {
+		t.Fatalf("持仓标签应收敛为 1, got %v", engine.currentPositions)
+	}
+
+	// retained=空 → 清空(单周期口径)。
+	engine.reconcileResidentPositionsAfterClose(nil)
+	if engine.portfolioHeldSymbolCount() != 0 || len(engine.currentPositions) != 0 {
+		t.Fatalf("空 retained 应清空常驻态, hedges=%d labels=%v", engine.portfolioHeldSymbolCount(), engine.currentPositions)
+	}
+}
+
+// TestReconcileResidentLedgerRetainsKeeps 钉死 c-iii-2 的台账收敛:retained 非空时本地台账收敛到 keep 仓
+// (而非清空),保证滚动续持下台账与交易所持仓一致。
+func TestReconcileResidentLedgerRetainsKeeps(t *testing.T) {
+	statePath := t.TempDir() + "/open_hedges.json"
+	engine := &FundingRateSniperEngine{
+		cfg:                DefaultEngineConfig(),
+		runID:              "run-x",
+		currentCycleID:     "cycle-x",
+		openHedgeStatePath: statePath,
+	}
+	keep := []OpenHedge{{
+		Target:              FundingCandidate{Symbol: "BTCUSDT", SpotBaseAsset: "BTC"},
+		HedgeQty:            1,
+		OpenFuturesAvgPrice: 100,
+	}}
+	if err := engine.reconcileResidentLedgerAfterClose(CycleAccountSnapshot{}, nil, keep); err != nil {
+		t.Fatalf("reconcileResidentLedgerAfterClose() error = %v", err)
+	}
+	entries, err := engine.loadPersistedOpenHedges()
+	if err != nil {
+		t.Fatalf("loadPersistedOpenHedges() error = %v", err)
+	}
+	if len(entries) != 1 || entries[0].Symbol != "BTCUSDT" {
+		t.Fatalf("台账应收敛为 [BTCUSDT], got %+v", entries)
+	}
+}
+
 // TestResidentClocksDrivesPortfolioWake 钉死 c-iii-1:residentClocks 从常驻持仓读出逐币 funding 时钟,
 // 空组合 → 退化为全局 :57 新开唤醒;有到期持仓落入复核窗口 → NextPortfolioWake 立即唤醒。
 func TestResidentClocksDrivesPortfolioWake(t *testing.T) {
