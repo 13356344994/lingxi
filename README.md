@@ -589,10 +589,12 @@ finalNotional = clamp(baseUnit × edgeScore, minNotional, perSymbolCap)
 > **冲击成本入闸/计入 NetPnL（M-S4.7/R5）**与 **L2 簇上限/L3 sizing（M-S4.8）**,且全程 behind `DynamicSizingEnabled`;
 > `liqSafeCap` 依赖 R2 强平距离反推（当前为可选输入,缺省即跳过）。
 >
-> **冲击成本入闸（M-S4.7 已落地·M3.2）**：`roundTripImpactReserveRate`(复用 `strategy.EstimateMarketImpactRate`,
-> 现货+合约各开/平共 4 次冲击)+ `impactAdjustedNetProfitRate` 已接入监控入场闸 `checkTargetCost`:**`DynamicSizingEnabled`
-> 启用时**把往返市场冲击从净利率扣除(坑2:不扣冲击就放大 size 只会放大隐性亏损),默认关闭对入场闸零行为变更;
-> 流动性基数复用监控期已算的可见深度名义,**不在热循环加网络调用**。冲击储备经 `LastImpactReserveRate/USDT` 可观测。
+> **冲击成本入闸（M-S4.7 已落地·M3.2;P1 默认武装）**：`roundTripImpactReserveRate`(复用 `strategy.EstimateMarketImpactRate`,
+> 现货+合约各开/平共 4 次冲击)+ `impactAdjustedNetProfitRate` 已接入监控入场闸 `checkTargetCost`。**冲击入闸已与
+> `DynamicSizingEnabled` 解耦**:新增 `ImpactReserveInGateEnabled` **默认 true(出厂最安全)**——入场闸恒扣往返冲击,不再
+> 因默认关闭 DynamicSizing 而系统性高估净利、在薄流动性上隐性亏损(坑2);任一开关开启即扣冲击,置 false 退回旧行为。
+> 流动性基数复用监控期已算的可见深度名义(20 档可见深度,薄盘=高冲击),**不在热循环加网络调用**。冲击储备经
+> `LastImpactReserveRate/USDT` 可观测。
 > **R5「滑点计入 NetPnL」经对账口径审查审定为误判(S4 收尾)**:`TradingPnL` 用**实际成交价**计算,滑点**已隐含在
 > 权威 NetPnL 内**;恢复摩擦真实成本亦已折进平仓名义与 Fee 字段,且 `RecoveryFrictionUSDT` 结构性恒 0。**真正漏算项:无**。
 > M-S3.0 的 `NetPnLAfterFrictions = NetPnL + 滑点` 属**重复计数**,已重定语义为「零滑点理想净利基准」=`NetPnL − Σ滑点`,

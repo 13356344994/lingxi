@@ -74,8 +74,10 @@ func (e *FundingRateSniperEngine) checkTargetCost(ctx context.Context, target *M
 	residualReserveRate, residualReserveUSDT := e.liveResidualReserveRate(roundTripNotional, spread)
 	spotVisibleNotional, futuresVisibleNotional := visibleDepthNotionalForDirection(direction, spotDepth, futuresDepth)
 	baseNetProfit := estimateReservedNetProfitRate(target.Candidate.EstimatedRate, spread, e.cfg.StrategyConfig.FeeReserveRate, e.cfg.StrategyConfig.ExitSpreadReserveRate, borrowReserveRate) - residualReserveRate
-	// 冲击成本入闸(M3.2/§16.3):DynamicSizingEnabled 时把往返市场冲击纳入盈亏平衡;默认关闭对入场闸零影响。
-	netProfit, impactReserveRate := impactAdjustedNetProfitRate(baseNetProfit, e.cfg.PortfolioConfig.DynamicSizingEnabled, roundTripNotional, spotVisibleNotional, futuresVisibleNotional)
+	// 冲击成本入闸(M3.2/§16.3):默认出厂姿态始终把往返市场冲击纳入盈亏平衡(ImpactReserveInGateEnabled),
+	// 与 DynamicSizing 解耦;任一开启即扣冲击。置 false 退回旧的「仅 DynamicSizing 才扣」行为。
+	reserveImpact := e.cfg.StrategyConfig.ImpactReserveInGateEnabled || e.cfg.PortfolioConfig.DynamicSizingEnabled
+	netProfit, impactReserveRate := impactAdjustedNetProfitRate(baseNetProfit, reserveImpact, roundTripNotional, spotVisibleNotional, futuresVisibleNotional)
 
 	target.LastSpotAsk = spotBestAsk
 	target.LastFuturesBid = futuresBestBid

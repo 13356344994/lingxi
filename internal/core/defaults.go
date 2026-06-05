@@ -47,6 +47,8 @@ func DefaultEngineConfig() EngineConfig {
 			LiveFundingAsset:         "USDT",
 			FeeReserveRate:           0.0030,
 			ExitSpreadReserveRate:    0.0005,
+			// 出厂最安全:入场净利闸始终扣往返市场冲击(与 DynamicSizing 解耦),避免薄盘上系统性高估净利。
+			ImpactReserveInGateEnabled: true,
 			PreferredSpotQuoteAssets: "FDUSD,USDC,USDT",
 			MaxTargets:               5,
 			PerSymbolQuoteUSDT:       100.0,
@@ -134,6 +136,9 @@ func DefaultEngineConfig() EngineConfig {
 			HoldHedgeGuardEnabled:     true,
 			FeedBlindnessGuardEnabled: true,
 			MinMarginLevel:            1.5,
+			// R7:资金费符号冲突(前向估计与上期实收严格反号=费率正在反转)时,取保守 0 而非退回旧方向乐观值,
+			// 不在最危险的反转时刻按旧方向开仓。默认开启(出厂最安全),仅作用于实盘扫描/开仓,回测不受影响。
+			ConservativeFundingOnSignConflictEnabled: true,
 			// MinLiquidationDistanceRate 默认 0.15：配默认 2x 杠杆时合约腿实际强平距离约 49%，远高于该阈值、
 			// 永不触发（零行为变更）；它只在杠杆被调高、安全距离不足时作为开仓前防爆刹车。
 			MinLiquidationDistanceRate: 0.15,

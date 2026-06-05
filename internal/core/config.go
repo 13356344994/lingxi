@@ -132,6 +132,10 @@ type StrategyConfig struct {
 	LiveFundingAsset         string        `cfg:"live_funding_asset"`
 	FeeReserveRate           float64       `cfg:"fee_reserve_rate"`
 	ExitSpreadReserveRate    float64       `cfg:"exit_spread_reserve_rate"`
+	// ImpactReserveInGateEnabled 让开仓前净利闸始终扣除往返市场冲击储备(按可见盘口深度估计,薄盘=高冲击),
+	// 与 DynamicSizingEnabled 解耦。默认 true(出厂最安全):不扣冲击的入场闸会系统性高估净利、在薄流动性上隐性亏损。
+	// 置 false 退回「仅 DynamicSizing 开启时才扣冲击」的旧行为。
+	ImpactReserveInGateEnabled bool `cfg:"impact_reserve_in_gate_enabled"`
 	PreferredSpotQuoteAssets string        `cfg:"preferred_spot_quote_assets"`
 	MaxTargets               int           `cfg:"max_targets"`
 	PerSymbolQuoteUSDT       float64       `cfg:"per_symbol_quote_usdt"`

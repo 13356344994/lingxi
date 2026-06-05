@@ -167,11 +167,11 @@ func roundTripImpactReserveRate(notionalUSDT, spotLiquidityUSDT, futuresLiquidit
 	return 2*estimateMarketImpactRate(notionalUSDT, spotLiquidityUSDT) + 2*estimateMarketImpactRate(notionalUSDT, futuresLiquidityUSDT)
 }
 
-// impactAdjustedNetProfitRate 在基础净利率上扣除往返冲击储备——仅当 DynamicSizingEnabled 时生效(opt-in,默认关闭
-// 对入场闸零影响)。返回(扣冲击后净利率, 本次冲击储备率)。这道扣除让入场闸把市场冲击纳入盈亏平衡(坑2:不扣冲击
-// 就放大 size 只会放大隐性亏损)。纯函数。
-func impactAdjustedNetProfitRate(baseNetProfitRate float64, dynamicSizingEnabled bool, notionalUSDT, spotLiquidityUSDT, futuresLiquidityUSDT float64) (float64, float64) {
-	if !dynamicSizingEnabled {
+// impactAdjustedNetProfitRate 在基础净利率上扣除往返冲击储备。reserveImpact=true 时生效(默认出厂姿态:入场闸
+// 始终扣冲击;亦在 DynamicSizingEnabled 时为真)。返回(扣冲击后净利率, 本次冲击储备率)。这道扣除让入场闸把市场
+// 冲击纳入盈亏平衡(坑2:不扣冲击就放大 size 只会放大隐性亏损)。纯函数。
+func impactAdjustedNetProfitRate(baseNetProfitRate float64, reserveImpact bool, notionalUSDT, spotLiquidityUSDT, futuresLiquidityUSDT float64) (float64, float64) {
+	if !reserveImpact {
 		return baseNetProfitRate, 0
 	}
 	impact := roundTripImpactReserveRate(notionalUSDT, spotLiquidityUSDT, futuresLiquidityUSDT)
