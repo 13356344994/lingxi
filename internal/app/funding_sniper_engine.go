@@ -241,7 +241,10 @@ func (e *FundingRateSniperEngine) livePreferredSpotQuoteAssets() []string {
 // openCyclePositions 执行「扫描→监控→开仓」段(模块二~四),产出本轮成功建仓的对冲与开仓前账户快照。
 // opened=false 表示本轮无可开仓(无满足目标 / 全被风控作废 / 无成功建仓),各分支已完成相应生命周期迁移与上报副作用,
 // 调用方直接结束本轮即可。供单周期(runOneCycle,随后进平仓监控)与滚动新开(openResidentPositions,开后保留为常驻)复用。
-func (e *FundingRateSniperEngine) openCyclePositions(ctx context.Context, wakeAt time.Time) ([]OpenHedge, CycleAccountSnapshot, bool, error) {
+// openCyclePositions 串起「扫描→监控→开仓」段并返回成功建仓的对冲。selectTargets(可空)是一道开仓前的目标筛选
+// 钩子:单周期(runOneCycle)传 nil 表示开全部有效目标;滚动持有补位(openResidentPositions)传 rebalance 选择器,
+// 在 L3 币数/名义上限内择优填空槽。钩子返回空集等价「本轮无可开目标」,与监控全废口径一致地优雅收尾。
+func (e *FundingRateSniperEngine) openCyclePositions(ctx context.Context, wakeAt time.Time, selectTargets func([]*MonitoredTarget) []*MonitoredTarget) ([]OpenHedge, CycleAccountSnapshot, bool, error) {
 	e.platformRiskMu.Lock()
 	e.currentCycleID = newCycleID(e.runID)
 	cycleID := e.currentCycleID
@@ -283,6 +286,17 @@ func (e *FundingRateSniperEngine) openCyclePositions(ctx context.Context, wakeAt
 		e.runtimeReporter.EmitWithReason(StageMonitorInvalidated, 0, "监控结束，所有目标都已被风控作废")
 		e.logger.Println("模块三结束，所有目标都已被风控作废")
 		return nil, CycleAccountSnapshot{}, false, nil
+	}
+
+	if selectTargets != nil {
+		validTargets = selectTargets(validTargets)
+		if len(validTargets) == 0 {
+			e.setCurrentMonitorTargets(nil)
+			_ = e.advanceLifecycleStage(LifecycleStageCompleted, "滚动持有：L3 补位无可纳入空槽的候选")
+			e.runtimeReporter.EmitWithReason(StageMonitorInvalidated, 0, "滚动持有：L3 补位无可纳入空槽的候选")
+			e.logger.Println("模块四收尾：滚动持有补位无可纳入 L3 空槽的候选")
+			return nil, CycleAccountSnapshot{}, false, nil
+		}
 	}
 
 	e.setCurrentMonitorTargets(validTargets)
@@ -327,7 +341,7 @@ func (e *FundingRateSniperEngine) openCyclePositions(ctx context.Context, wakeAt
 
 // runOneCycle 串起模块二到模块五(单周期:开 N → 当轮全平 N)。
 func (e *FundingRateSniperEngine) runOneCycle(ctx context.Context, wakeAt time.Time) error {
-	openHedges, beforeSnapshot, opened, err := e.openCyclePositions(ctx, wakeAt)
+	openHedges, beforeSnapshot, opened, err := e.openCyclePositions(ctx, wakeAt, nil)
 	if err != nil {
 		return err
 	}

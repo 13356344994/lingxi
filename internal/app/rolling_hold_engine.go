@@ -3,9 +3,16 @@ package app
 import (
 	"context"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 )
+
+// residentOpenNoChurnBand 是开仓补位阶段喂给 rebalancePortfolio 的换仓滞后带:取 +Inf,使「已持常驻仓」在补位
+// 阶段绝不被新候选替换(churn 抑制最强档)——补位只填空槽(plan.Add 受 L3 币数/名义双重封顶),已持仓的 keep/drop
+// 仅由到期复核(evaluateRollDecision)决定。常驻仓「在 open 阶段被更优候选主动换出」属独立特性,经济性待 M-S4.5
+// 单周期 vs 滚动续持回归验证后另设里程碑接入,本步不做(避免在未验证收益前关闭刚被判 keep 的仓位)。
+const residentOpenNoChurnBand = math.MaxFloat64
 
 // rolling_hold_engine.go 收拢「跨周期滚动持有」的引擎侧(有状态)方法,与 rolling_hold.go 的纯函数式决策核心区分。
 // 当前仅承载 keep 仓的「结算/会计」一侧(M-S4.4c-ii);持仓保留 / NextFundingTime 刷新 / 生命周期接线由后续
@@ -136,7 +143,7 @@ const defaultFundingIntervalHours = 8.0
 // 而是保留为常驻组合——写入持仓标签 + activeOpenHedges + 本地台账(各币 NextFundingTime 已由 scan 注入 Target,
 // 供 residentClocks 驱动后续 :55 复核决定 keep/drop)。返回本轮新开的常驻对冲;无可开仓时返回 (nil,nil)。
 func (e *FundingRateSniperEngine) openResidentPositions(ctx context.Context, wakeAt time.Time) ([]OpenHedge, error) {
-	openHedges, _, opened, err := e.openCyclePositions(ctx, wakeAt)
+	openHedges, _, opened, err := e.openCyclePositions(ctx, wakeAt, e.admitResidentFillTargets)
 	if err != nil {
 		return nil, err
 	}
@@ -173,6 +180,70 @@ func (e *FundingRateSniperEngine) runRollingPortfolioCycle(ctx context.Context, 
 		}
 	}
 	return nil
+}
+
+// admitResidentFillTargets 是开仓补位的目标筛选钩子(c-iii-4):把当前常驻持仓(held)与本轮有效候选(candidates)
+// 喂给 rebalancePortfolio,在 L3 币数(MaxPortfolioSymbols)+ 名义(MaxPortfolioNotionalUSDT)双重上限内择优填空槽。
+// 滞后带取 +Inf(residentOpenNoChurnBand)→ 已持仓绝不被换出,故 plan.Drop 恒空、plan.Add 即「可纳入空槽的新候选」。
+// 返回 validTargets 中被 plan.Add 选中的子集(保持入参顺序,即 scan 评分序),空集表示无空槽/名义触顶 → 上层优雅收尾。
+func (e *FundingRateSniperEngine) admitResidentFillTargets(validTargets []*MonitoredTarget) []*MonitoredTarget {
+	if e == nil || len(validTargets) == 0 {
+		return validTargets
+	}
+	candidates := make([]portfolioPosition, 0, len(validTargets))
+	bySymbol := make(map[string]*MonitoredTarget, len(validTargets))
+	for _, t := range validTargets {
+		symbol := strings.ToUpper(strings.TrimSpace(t.Candidate.Symbol))
+		if symbol == "" {
+			continue
+		}
+		candidates = append(candidates, portfolioPosition{
+			Symbol:       symbol,
+			NetCarryRate: t.Candidate.EstimatedRate,
+			NotionalUSDT: t.Candidate.OrderQuantity * t.Candidate.MarkPrice,
+		})
+		if _, dup := bySymbol[symbol]; !dup {
+			bySymbol[symbol] = t
+		}
+	}
+	plan := rebalancePortfolio(e.residentPortfolioPositions(), candidates, rebalanceLimits{
+		MaxSymbols:         e.cfg.PortfolioConfig.MaxPortfolioSymbols,
+		MaxNotionalUSDT:    e.cfg.PortfolioConfig.MaxPortfolioNotionalUSDT,
+		HysteresisBandRate: residentOpenNoChurnBand,
+	})
+	admitSet := make(map[string]struct{}, len(plan.Add))
+	for _, symbol := range plan.Add {
+		admitSet[symbol] = struct{}{}
+	}
+	admitted := make([]*MonitoredTarget, 0, len(admitSet))
+	for _, t := range validTargets {
+		symbol := strings.ToUpper(strings.TrimSpace(t.Candidate.Symbol))
+		if _, ok := admitSet[symbol]; ok {
+			admitted = append(admitted, t)
+		}
+	}
+	return admitted
+}
+
+// residentPortfolioPositions 把当前常驻持仓快照成 rebalancePortfolio 的 held 输入:名义取合约腿 HedgeQty×开仓均价
+// (与 portfolioHeldNotionalUSDT 同口径,供 L3 名义封顶累加);NetCarryRate 在补位阶段无意义(滞后带 +Inf 下已持仓
+// 恒不被换出),取 0 占位。持 platformRiskMu 读取 activeOpenHedges。
+func (e *FundingRateSniperEngine) residentPortfolioPositions() []portfolioPosition {
+	e.platformRiskMu.Lock()
+	defer e.platformRiskMu.Unlock()
+	positions := make([]portfolioPosition, 0, len(e.activeOpenHedges))
+	for i := range e.activeOpenHedges {
+		symbol := strings.ToUpper(strings.TrimSpace(e.activeOpenHedges[i].Target.Symbol))
+		if symbol == "" {
+			continue
+		}
+		positions = append(positions, portfolioPosition{
+			Symbol:       symbol,
+			NetCarryRate: 0,
+			NotionalUSDT: e.activeOpenHedges[i].HedgeQty * e.activeOpenHedges[i].OpenFuturesAvgPrice,
+		})
+	}
+	return positions
 }
 
 // residentFreeSlots 返回当前组合的 L3 空槽数(-1 表示不限币数);持 platformRiskMu 读取。

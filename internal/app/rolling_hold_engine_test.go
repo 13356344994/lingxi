@@ -322,6 +322,64 @@ func TestResidentClocksDrivesPortfolioWake(t *testing.T) {
 	}
 }
 
+// TestAdmitResidentFillTargetsCapsBySymbols 钉死 c-iii-4:开仓补位按 L3 币数上限封顶——已持 2 仓、上限 3 → 空槽 1,
+// 只放行净 carry 最高的非持仓候选;与已持仓同名的候选(即便净 carry 更高)被去重跳过,不会越过 L3 币数上限。
+func TestAdmitResidentFillTargetsCapsBySymbols(t *testing.T) {
+	engine := &FundingRateSniperEngine{cfg: DefaultEngineConfig()}
+	engine.cfg.PortfolioConfig.MaxPortfolioSymbols = 3
+	engine.cfg.PortfolioConfig.MaxPortfolioNotionalUSDT = 0 // 仅测币数维度
+	engine.activeOpenHedges = []OpenHedge{
+		{Target: FundingCandidate{Symbol: "BTCUSDT"}, HedgeQty: 1, OpenFuturesAvgPrice: 100},
+		{Target: FundingCandidate{Symbol: "ETHUSDT"}, HedgeQty: 1, OpenFuturesAvgPrice: 100},
+	}
+	valid := []*MonitoredTarget{
+		{Candidate: FundingCandidate{Symbol: "DOGEUSDT", EstimatedRate: 0.003, OrderQuantity: 1, MarkPrice: 50}},
+		{Candidate: FundingCandidate{Symbol: "SOLUSDT", EstimatedRate: 0.002, OrderQuantity: 1, MarkPrice: 50}},
+		{Candidate: FundingCandidate{Symbol: "BTCUSDT", EstimatedRate: 0.009, OrderQuantity: 1, MarkPrice: 50}}, // 已持→跳过
+	}
+	admitted := engine.admitResidentFillTargets(valid)
+	if len(admitted) != 1 {
+		t.Fatalf("空槽=1 应只纳入 1 个候选, got %d (%+v)", len(admitted), admitted)
+	}
+	if admitted[0].Candidate.Symbol != "DOGEUSDT" {
+		t.Fatalf("应纳入净 carry 最高的非持仓候选 DOGEUSDT, got %s", admitted[0].Candidate.Symbol)
+	}
+}
+
+// TestAdmitResidentFillTargetsCapsByNotional 钉死 c-iii-4:开仓补位按 L3 名义上限封顶——已用 100、上限 150 →
+// 名义头寸只够再纳入一个候选(40→140 合规;再 +40→180 超顶)。
+func TestAdmitResidentFillTargetsCapsByNotional(t *testing.T) {
+	engine := &FundingRateSniperEngine{cfg: DefaultEngineConfig()}
+	engine.cfg.PortfolioConfig.MaxPortfolioSymbols = 10 // 币数不卡
+	engine.cfg.PortfolioConfig.MaxPortfolioNotionalUSDT = 150
+	engine.activeOpenHedges = []OpenHedge{
+		{Target: FundingCandidate{Symbol: "BTCUSDT"}, HedgeQty: 1, OpenFuturesAvgPrice: 100},
+	}
+	valid := []*MonitoredTarget{
+		{Candidate: FundingCandidate{Symbol: "DOGEUSDT", EstimatedRate: 0.003, OrderQuantity: 1, MarkPrice: 40}},
+		{Candidate: FundingCandidate{Symbol: "SOLUSDT", EstimatedRate: 0.002, OrderQuantity: 1, MarkPrice: 40}},
+	}
+	admitted := engine.admitResidentFillTargets(valid)
+	if len(admitted) != 1 || admitted[0].Candidate.Symbol != "DOGEUSDT" {
+		t.Fatalf("名义上限应只放行 DOGEUSDT, got %+v", admitted)
+	}
+}
+
+// TestAdmitResidentFillTargetsUnlimitedOpensAll 钉死 c-iii-4:MaxPortfolioSymbols=0(不限)且无名义上限 →
+// 全部非持仓候选放行(补位不收紧无上限场景)。
+func TestAdmitResidentFillTargetsUnlimitedOpensAll(t *testing.T) {
+	engine := &FundingRateSniperEngine{cfg: DefaultEngineConfig()}
+	engine.cfg.PortfolioConfig.MaxPortfolioSymbols = 0
+	engine.cfg.PortfolioConfig.MaxPortfolioNotionalUSDT = 0
+	valid := []*MonitoredTarget{
+		{Candidate: FundingCandidate{Symbol: "DOGEUSDT", EstimatedRate: 0.003, OrderQuantity: 1, MarkPrice: 50}},
+		{Candidate: FundingCandidate{Symbol: "SOLUSDT", EstimatedRate: 0.002, OrderQuantity: 1, MarkPrice: 50}},
+	}
+	if admitted := engine.admitResidentFillTargets(valid); len(admitted) != 2 {
+		t.Fatalf("无上限应放行全部候选, got %d", len(admitted))
+	}
+}
+
 // TestSettleKeptPositionsEmptyNoop 空 keep 集合应为 no-op(无落盘、无待结算、不推进盈亏)。
 func TestSettleKeptPositionsEmptyNoop(t *testing.T) {
 	store, err := NewReportStore(t.TempDir())

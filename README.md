@@ -604,6 +604,13 @@ finalNotional = clamp(baseUnit × edgeScore, minNotional, perSymbolCap)
 
 `[目标]` 抽象出纯函数 `rebalancePortfolio(held, candidates, costs, limits) -> {keep, drop, add}`，可单测、确定性。
 
+> **实现状态（S4 c-iii-4 已落地）**：`:57` 开仓补位侧已接入 `rebalancePortfolio`，在 L3 币数(`MaxPortfolioSymbols`)+
+> 名义(`MaxPortfolioNotionalUSDT`)双重上限内按净 carry 择优**填空槽**（`plan.Add` 受双上限封顶，已修复「补位可能越过 L3
+> 币数」的缺口）。当前阶段滞后带取 `+Inf` → **已持常驻仓在补位阶段绝不被换出**（churn 抑制最强档），持仓的 keep/drop
+> 仅由到期复核 `evaluateRollDecision` 决定。**「常驻仓被更优新候选主动换出」(plan.Drop) 属独立特性**，因其会关闭一个刚被判
+> keep 的仓位、收益需先量化，故经济性待 **M-S4.5 单周期 vs 滚动续持回归**验证后另设里程碑接入，本步不做。全部 behind
+> `EnableRollingHold`，默认关闭对单周期路径零影响。
+
 ### 16.6 分层限额模型（仓位管理总框架）
 
 | 层级 | 含义 | 落点 / 依赖 |
