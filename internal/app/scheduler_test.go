@@ -113,3 +113,70 @@ func testSchedulerEngineConfig() EngineConfig {
 	cfg.ExecutionConfig.PreOpenNoGoLead = 5 * time.Second
 	return cfg
 }
+
+// TestSchedulerRevalidateWindow 钉死逐币续持复核窗口(R31,§16.4):[结算−RevalidateLead, 结算) 内为 due。
+func TestSchedulerRevalidateWindow(t *testing.T) {
+	cfg := DefaultEngineConfig()
+	cfg.PortfolioConfig.RevalidateLead = 5 * time.Minute
+	s := newCycleScheduler(cfg)
+	funding := time.Date(2026, 6, 5, 11, 0, 0, 0, time.UTC)
+
+	if at := s.RevalidateAt(funding); !at.Equal(funding.Add(-5 * time.Minute)) {
+		t.Fatalf("RevalidateAt=%v want %v", at, funding.Add(-5*time.Minute))
+	}
+	cases := []struct {
+		name string
+		now  time.Time
+		want bool
+	}{
+		{"窗口前", funding.Add(-6 * time.Minute), false},
+		{"窗口开启边界", funding.Add(-5 * time.Minute), true},
+		{"窗口内", funding.Add(-1 * time.Minute), true},
+		{"结算时刻关闭", funding, false},
+		{"结算后", funding.Add(time.Second), false},
+	}
+	for _, tc := range cases {
+		if got := s.RevalidateDue(tc.now, funding); got != tc.want {
+			t.Fatalf("%s: RevalidateDue=%v want %v", tc.name, got, tc.want)
+		}
+	}
+	// 零 funding time 视为不 due(无时钟信息)。
+	if s.RevalidateDue(funding, time.Time{}) {
+		t.Fatal("零 nextFundingTime 不应为 due")
+	}
+}
+
+// TestSchedulerNextPortfolioWakeMixedIntervals 钉死逐币时钟聚合:混合 8h/4h 间隔的持仓各按自身结算时钟驱动,
+// 取「各持仓续持复核时刻」与「全局新开唤醒」的最早者;已落入复核窗口的持仓使主循环立即唤醒。
+func TestSchedulerNextPortfolioWakeMixedIntervals(t *testing.T) {
+	cfg := DefaultEngineConfig()
+	cfg.StrategyConfig.WakeMinute = 57
+	cfg.StrategyConfig.WakeSecond = 0
+	cfg.PortfolioConfig.RevalidateLead = 5 * time.Minute
+	s := newCycleScheduler(cfg)
+
+	now := time.Date(2026, 6, 5, 10, 30, 0, 0, time.UTC)
+	globalWake := s.NextWake(now) // 10:57
+
+	// 无持仓 → 退化为全局新开唤醒。
+	if got := s.NextPortfolioWake(now, nil); !got.Equal(globalWake) {
+		t.Fatalf("无持仓应退化为全局唤醒 %v, got %v", globalWake, got)
+	}
+
+	// 持仓 A 结算 12:00(8h 周期),复核 11:55;持仓 B 结算 10:50(4h 周期),复核 10:45。
+	// 最早事件是 B 的复核 10:45(早于全局 10:57 与 A 的 11:55)。
+	clocks := []symbolFundingClock{
+		{Symbol: "AAAUSDT", NextFundingTime: time.Date(2026, 6, 5, 12, 0, 0, 0, time.UTC)},
+		{Symbol: "BBBUSDT", NextFundingTime: time.Date(2026, 6, 5, 10, 50, 0, 0, time.UTC)},
+	}
+	want := time.Date(2026, 6, 5, 10, 45, 0, 0, time.UTC)
+	if got := s.NextPortfolioWake(now, clocks); !got.Equal(want) {
+		t.Fatalf("NextPortfolioWake=%v want %v(B 的逐币复核最早)", got, want)
+	}
+
+	// 某持仓已落入复核窗口(now 在 [复核, 结算))→ 立即唤醒(返回 now)。
+	dueNow := time.Date(2026, 6, 5, 10, 46, 0, 0, time.UTC)
+	if got := s.NextPortfolioWake(dueNow, clocks); !got.Equal(dueNow) {
+		t.Fatalf("已到复核窗口应立即唤醒 %v, got %v", dueNow, got)
+	}
+}

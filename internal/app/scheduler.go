@@ -15,6 +15,10 @@ type cycleScheduler struct {
 	openPreparationLead   time.Duration
 	preOpenNoGoLead       time.Duration
 	exitDelayAfterFunding time.Duration
+	// revalidateLead 是逐币 funding 时钟(R31,§16.4)的续持复核提前量(即 :55):每个持仓在其自身
+	// nextFundingTime − revalidateLead 触发 keep/drop 复核。仅滚动持有(EnableRollingHold)路径使用,
+	// 旧全局 :57 单周期路径不受影响。
+	revalidateLead time.Duration
 }
 
 func newCycleScheduler(cfg EngineConfig) cycleScheduler {
@@ -26,6 +30,7 @@ func newCycleScheduler(cfg EngineConfig) cycleScheduler {
 		openPreparationLead:   cfg.ExecutionConfig.OpenPreparationLead,
 		preOpenNoGoLead:       cfg.ExecutionConfig.PreOpenNoGoLead,
 		exitDelayAfterFunding: cfg.ExecutionConfig.ExitDelayAfterFunding,
+		revalidateLead:        cfg.PortfolioConfig.RevalidateLead,
 	}
 }
 
@@ -58,6 +63,48 @@ func (s cycleScheduler) OpenNoGoCheckAt(earliestFunding time.Time) time.Time {
 // CloseDeadline 返回平仓监控窗口的硬截止 = 结算时间 + ExitDelayAfterFunding。
 func (s cycleScheduler) CloseDeadline(fundingTime time.Time) time.Time {
 	return fundingTime.Add(s.exitDelayAfterFunding)
+}
+
+// symbolFundingClock 描述一个持仓的逐币资金费时钟:它自身的下次结算时间(R31,§16.4)。
+// 不同合约结算间隔可能不同(8h/4h/可变),组合里各币结算时刻不同步,故续持复核必须逐币驱动而非全局单点。
+type symbolFundingClock struct {
+	Symbol          string
+	NextFundingTime time.Time
+}
+
+// RevalidateAt 返回某持仓的续持复核时刻 = 其下次结算时间 − revalidateLead(逐币的 :55)。
+// lead<=0 时即结算时刻本身。
+func (s cycleScheduler) RevalidateAt(nextFundingTime time.Time) time.Time {
+	return applyLead(nextFundingTime, s.revalidateLead)
+}
+
+// RevalidateDue 报告某持仓此刻是否落在续持复核窗口内:[RevalidateAt, nextFundingTime)。
+// 复核窗口在结算前开启、结算时刻关闭——确保 keep/drop 决策在资金费实际发生之前完成。
+func (s cycleScheduler) RevalidateDue(now, nextFundingTime time.Time) bool {
+	if nextFundingTime.IsZero() {
+		return false
+	}
+	return !now.Before(s.RevalidateAt(nextFundingTime)) && now.Before(nextFundingTime)
+}
+
+// NextPortfolioWake 返回组合下一个需要被唤醒处理的时刻:取「所有持仓各自的续持复核时刻」与「全局新开唤醒
+// (找新币补位)」中的最早者,用于逐币 funding 时钟驱动主循环定时(取代全局单点 :57)。
+//
+// 若已有持仓落入复核窗口但尚未结算,返回 now(立即唤醒)。纯函数:无副作用、确定性、无锁。
+func (s cycleScheduler) NextPortfolioWake(now time.Time, clocks []symbolFundingClock) time.Time {
+	earliest := s.NextWake(now) // 全局新开唤醒兜底(始终存在,确保即使无持仓也按 :57 找币)
+	for _, c := range clocks {
+		if c.NextFundingTime.IsZero() {
+			continue
+		}
+		if s.RevalidateDue(now, c.NextFundingTime) {
+			return now // 已到复核窗口、未结算 → 立即唤醒做 keep/drop
+		}
+		if revalidate := s.RevalidateAt(c.NextFundingTime); revalidate.After(now) && revalidate.Before(earliest) {
+			earliest = revalidate
+		}
+	}
+	return earliest
 }
 
 func applyLead(t time.Time, lead time.Duration) time.Time {
