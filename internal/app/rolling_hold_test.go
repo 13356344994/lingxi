@@ -1,6 +1,10 @@
 package app
 
-import "testing"
+import (
+	"reflect"
+	"sort"
+	"testing"
+)
 
 // TestEvaluateRollDecision 钉死续持判定(§16.4)的纯函数语义:门槛闸 + 安全垫闸,fail-safe 偏向平仓。
 func TestEvaluateRollDecision(t *testing.T) {
@@ -65,5 +69,110 @@ func TestEvaluateRollDecisionClampsNegativeHoldCost(t *testing.T) {
 	}
 	if got.NetHoldCarryRate != 0.0003 {
 		t.Fatalf("夹 0 后净 carry 应等于 ExpectedNextNetFundingRate=0.0003, got %.6f", got.NetHoldCarryRate)
+	}
+}
+
+func sortedStrings(in []string) []string {
+	out := append([]string(nil), in...)
+	sort.Strings(out)
+	if out == nil {
+		out = []string{}
+	}
+	return out
+}
+
+func assertSet(t *testing.T, label string, got, want []string) {
+	t.Helper()
+	if !reflect.DeepEqual(sortedStrings(got), sortedStrings(want)) {
+		t.Fatalf("%s = %v, want %v", label, sortedStrings(got), sortedStrings(want))
+	}
+}
+
+// TestRebalancePortfolioFillsFreeSlots 空槽充足时,达标候选直接补入,不触发任何替换。
+func TestRebalancePortfolioFillsFreeSlots(t *testing.T) {
+	held := []portfolioPosition{{Symbol: "AAA", NetCarryRate: 0.003, NotionalUSDT: 1000}}
+	cands := []portfolioPosition{
+		{Symbol: "BBB", NetCarryRate: 0.004, NotionalUSDT: 1000},
+		{Symbol: "CCC", NetCarryRate: 0.0035, NotionalUSDT: 1000},
+	}
+	plan := rebalancePortfolio(held, cands, rebalanceLimits{MaxSymbols: 5, MaxNotionalUSDT: 0, HysteresisBandRate: 0.001})
+	assertSet(t, "Keep", plan.Keep, []string{"AAA"})
+	assertSet(t, "Add", plan.Add, []string{"BBB", "CCC"})
+	assertSet(t, "Drop", plan.Drop, []string{})
+}
+
+// TestRebalancePortfolioHysteresisPreventsChurn 槽位满 + 新候选仅略优于最弱持仓(优势 ≤ 滞后带)→ 不换仓(防 churn)。
+func TestRebalancePortfolioHysteresisPreventsChurn(t *testing.T) {
+	held := []portfolioPosition{
+		{Symbol: "AAA", NetCarryRate: 0.003, NotionalUSDT: 1000},
+		{Symbol: "BBB", NetCarryRate: 0.0035, NotionalUSDT: 1000},
+	}
+	// 候选 0.0035 比最弱持仓 AAA(0.003)优 0.0005，但滞后带 0.001 → 优势不足，不换。
+	cands := []portfolioPosition{{Symbol: "CCC", NetCarryRate: 0.0035, NotionalUSDT: 1000}}
+	plan := rebalancePortfolio(held, cands, rebalanceLimits{MaxSymbols: 2, MaxNotionalUSDT: 0, HysteresisBandRate: 0.001})
+	assertSet(t, "Keep", plan.Keep, []string{"AAA", "BBB"})
+	assertSet(t, "Add", plan.Add, []string{})
+	assertSet(t, "Drop", plan.Drop, []string{})
+}
+
+// TestRebalancePortfolioReplacesWhenBeyondBand 槽位满 + 候选净 carry 超过最弱持仓「> 滞后带」→ 替换最弱持仓。
+func TestRebalancePortfolioReplacesWhenBeyondBand(t *testing.T) {
+	held := []portfolioPosition{
+		{Symbol: "AAA", NetCarryRate: 0.003, NotionalUSDT: 1000},
+		{Symbol: "BBB", NetCarryRate: 0.0035, NotionalUSDT: 1000},
+	}
+	// 候选 0.006 比最弱 AAA(0.003)优 0.003 > 滞后带 0.001 → 替换 AAA。
+	cands := []portfolioPosition{{Symbol: "CCC", NetCarryRate: 0.006, NotionalUSDT: 1000}}
+	plan := rebalancePortfolio(held, cands, rebalanceLimits{MaxSymbols: 2, MaxNotionalUSDT: 0, HysteresisBandRate: 0.001})
+	assertSet(t, "Keep", plan.Keep, []string{"BBB"})
+	assertSet(t, "Add", plan.Add, []string{"CCC"})
+	assertSet(t, "Drop", plan.Drop, []string{"AAA"})
+}
+
+// TestRebalancePortfolioL3NotionalCapRejectsNewWithoutBreakingHeld 名义触顶时,即便有空币槽,新仓也被拒,
+// 且不破坏已持仓(§16.10 L3 上限测试)。
+func TestRebalancePortfolioL3NotionalCapRejectsNewWithoutBreakingHeld(t *testing.T) {
+	held := []portfolioPosition{
+		{Symbol: "AAA", NetCarryRate: 0.003, NotionalUSDT: 6000},
+		{Symbol: "BBB", NetCarryRate: 0.0035, NotionalUSDT: 3500},
+	}
+	// 币数上限 5 仍有空槽,但名义上限 10000：已用 9500，新候选 1000 会超顶 → 被拒。
+	// 且候选净 carry 不足以超过最弱持仓+滞后带 → 也不触发替换。
+	cands := []portfolioPosition{{Symbol: "CCC", NetCarryRate: 0.0036, NotionalUSDT: 1000}}
+	plan := rebalancePortfolio(held, cands, rebalanceLimits{MaxSymbols: 5, MaxNotionalUSDT: 10000, HysteresisBandRate: 0.001})
+	assertSet(t, "Keep", plan.Keep, []string{"AAA", "BBB"})
+	assertSet(t, "Add", plan.Add, []string{})
+	assertSet(t, "Drop", plan.Drop, []string{})
+}
+
+// TestRebalancePortfolioSymbolCapFull 币数触顶 + 候选优势超滞后带 → 替换最弱;名义随替换保持合规。
+func TestRebalancePortfolioSymbolCapFull(t *testing.T) {
+	held := []portfolioPosition{
+		{Symbol: "AAA", NetCarryRate: 0.003, NotionalUSDT: 1000},
+	}
+	cands := []portfolioPosition{{Symbol: "BBB", NetCarryRate: 0.01, NotionalUSDT: 1000}}
+	plan := rebalancePortfolio(held, cands, rebalanceLimits{MaxSymbols: 1, MaxNotionalUSDT: 0, HysteresisBandRate: 0.001})
+	assertSet(t, "Keep", plan.Keep, []string{})
+	assertSet(t, "Add", plan.Add, []string{"BBB"})
+	assertSet(t, "Drop", plan.Drop, []string{"AAA"})
+}
+
+// TestRebalancePortfolioDeterministic 同输入多次执行结果稳定(确定性,无 map 迭代序泄漏)。
+func TestRebalancePortfolioDeterministic(t *testing.T) {
+	held := []portfolioPosition{
+		{Symbol: "AAA", NetCarryRate: 0.003, NotionalUSDT: 1000},
+		{Symbol: "DDD", NetCarryRate: 0.003, NotionalUSDT: 1000},
+	}
+	cands := []portfolioPosition{
+		{Symbol: "BBB", NetCarryRate: 0.009, NotionalUSDT: 1000},
+		{Symbol: "CCC", NetCarryRate: 0.008, NotionalUSDT: 1000},
+	}
+	limits := rebalanceLimits{MaxSymbols: 2, MaxNotionalUSDT: 0, HysteresisBandRate: 0.001}
+	first := rebalancePortfolio(held, cands, limits)
+	for i := 0; i < 20; i++ {
+		got := rebalancePortfolio(held, cands, limits)
+		if !reflect.DeepEqual(got, first) {
+			t.Fatalf("再平衡非确定性: 第%d次 %+v != 首次 %+v", i, got, first)
+		}
 	}
 }
