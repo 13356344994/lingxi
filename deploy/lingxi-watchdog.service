@@ -1,0 +1,25 @@
+# lingxi-watchdog.service —— 看门狗的 oneshot 单元,由 lingxi-watchdog.timer 周期触发(S7-D)。
+#
+# 安装(与 lingxi-watchdog.timer 一起):
+#   sudo cp deploy/lingxi-watchdog.service deploy/lingxi-watchdog.timer /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now lingxi-watchdog.timer
+#
+# 说明:看门狗作为独立单元运行,不依赖被监控进程;心跳卡死/healthz 异常达阈值即重启 lingxi。
+# 通过 Environment= 覆盖 watchdog.sh 的默认阈值/告警 webhook。
+
+[Unit]
+Description=lingxi external watchdog (heartbeat + healthz)
+After=lingxi.service
+
+[Service]
+Type=oneshot
+User=lingxi
+Group=lingxi
+WorkingDirectory=/opt/lingxi
+Environment=LINGXI_HEALTH_URL=http://127.0.0.1:8080/healthz
+Environment=LINGXI_RECORD_DIR=/opt/lingxi/records
+Environment=LINGXI_STALE_THRESHOLD=90
+Environment=LINGXI_FAIL_THRESHOLD=3
+Environment=LINGXI_RESTART_CMD=systemctl restart lingxi
+# 可选告警出口:Environment=LINGXI_ALERT_WEBHOOK=https://...
+ExecStart=/opt/lingxi/deploy/watchdog.sh

@@ -1,0 +1,37 @@
+# lingxi.service —— systemd 主进程单元(S7-D / R14)。
+#
+# 安装:
+#   sudo cp deploy/lingxi.service /etc/systemd/system/lingxi.service
+#   # 按需修改 User/WorkingDirectory/ExecStart 路径
+#   sudo systemctl daemon-reload && sudo systemctl enable --now lingxi
+#
+# 要点:
+#   - Restart=always + RestartSec:进程异常退出自动拉起(配合 dead-man,崩溃期间挂单由交易所兜底撤销);
+#   - TimeoutStopSec 给足优雅停机收尾时间(S7-C 的 finalizeGracefulShutdown 默认 10s 上限,这里留 30s);
+#   - KillSignal=SIGTERM:触发 main.go 的 signal.NotifyContext → 取消 ctx → 优雅停机;
+#   - 单写租约(S7-A)从底层杜绝重复拉起导致的双开。
+
+[Unit]
+Description=lingxi funding-rate arbitrage engine
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=lingxi
+Group=lingxi
+WorkingDirectory=/opt/lingxi
+ExecStart=/opt/lingxi/lingxi
+# 优雅停机:发 SIGTERM,给足收尾时间(落盘/停用 dead-man/平仓善后)。
+KillSignal=SIGTERM
+TimeoutStopSec=30
+Restart=always
+RestartSec=5
+# 资源/安全收紧(按需调整)。
+LimitNOFILE=65536
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

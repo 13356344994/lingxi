@@ -1,0 +1,15 @@
+# lingxi-watchdog.timer —— 每分钟触发一次看门狗检查(S7-D)。
+#
+# 频率可按需调小;OnUnitActiveSec 控制两次检查的间隔。AccuracySec 收紧抖动。
+
+[Unit]
+Description=Run lingxi watchdog periodically
+
+[Timer]
+OnBootSec=60
+OnUnitActiveSec=60
+AccuracySec=5s
+Unit=lingxi-watchdog.service
+
+[Install]
+WantedBy=timers.target
