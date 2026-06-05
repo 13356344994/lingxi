@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/subtle"
 	"embed"
 	"encoding/hex"
 	"encoding/json"
@@ -603,6 +604,14 @@ func (s *DashboardServer) handleRuntimeStopAPI(w http.ResponseWriter, r *http.Re
 	writeJSON(w, map[string]string{"message": "已发送停止信号"})
 }
 
+// tokenMatches 用恒定时间比较核对面板令牌(防时序侧信道泄露令牌长度/前缀)。空令牌视为不匹配。
+func (s *DashboardServer) tokenMatches(provided string) bool {
+	if s.controlToken == "" {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(provided), []byte(s.controlToken)) == 1
+}
+
 func (s *DashboardServer) authorizeRuntimeControl(w http.ResponseWriter, r *http.Request, action string) bool {
 	if !isLoopbackRequest(r) {
 		s.auditControlAction(r, action, false, "仅允许本机请求控制后台任务")
@@ -612,7 +621,7 @@ func (s *DashboardServer) authorizeRuntimeControl(w http.ResponseWriter, r *http
 	if s.controlToken == "" {
 		return true
 	}
-	if r.Header.Get("X-Dashboard-Token") != s.controlToken {
+	if !s.tokenMatches(r.Header.Get("X-Dashboard-Token")) {
 		s.auditControlAction(r, action, false, "后台控制令牌无效")
 		http.Error(w, "后台控制令牌无效", http.StatusForbidden)
 		return false
@@ -623,7 +632,7 @@ func (s *DashboardServer) authorizeRuntimeControl(w http.ResponseWriter, r *http
 func (s *DashboardServer) authorizeRead(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !isLoopbackRequest(r) {
-			if s.controlToken != "" && r.Header.Get("X-Dashboard-Token") != s.controlToken {
+			if s.controlToken != "" && !s.tokenMatches(r.Header.Get("X-Dashboard-Token")) {
 				http.Error(w, "仅允许本机或持有合法令牌访问记录数据", http.StatusForbidden)
 				return
 			}
@@ -636,7 +645,7 @@ func (s *DashboardServer) authorizeRead(next http.Handler) http.Handler {
 func (s *DashboardServer) authorizeReadAPI(handler http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if !isLoopbackRequest(r) {
-			if s.controlToken != "" && r.Header.Get("X-Dashboard-Token") != s.controlToken {
+			if s.controlToken != "" && !s.tokenMatches(r.Header.Get("X-Dashboard-Token")) {
 				http.Error(w, "仅允许本机或持有合法令牌访问 API", http.StatusForbidden)
 				return
 			}
