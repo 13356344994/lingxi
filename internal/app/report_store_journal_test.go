@@ -4,6 +4,104 @@ import (
 	"testing"
 )
 
+// TestReconcileSettlementsRecoversLostAppend 钉死:journal 有而物化视图缺失的记录(崩溃丢失的 append 写)被补回,
+// 且物化视图中 journal 不知道的记录(journal 截断)被保留——绝不丢数据。
+func TestReconcileSettlementsRecoversLostAppend(t *testing.T) {
+	materialized := []SettlementCSVRecord{
+		{RunID: "r", CycleID: "c1", NetPnL: "1.5"},
+		{RunID: "r", CycleID: "legacy", NetPnL: "9.0"}, // journal 不知道,应保留
+	}
+	entries := []settlementJournalEntry{
+		{Op: "append", Record: SettlementCSVRecord{RunID: "r", CycleID: "c1", NetPnL: "1.0"}},
+		{Op: "update", Record: SettlementCSVRecord{RunID: "r", CycleID: "c1", NetPnL: "1.5"}},
+		{Op: "append", Record: SettlementCSVRecord{RunID: "r", CycleID: "c2", NetPnL: "2.0"}}, // 丢失的 append
+	}
+	merged, changed := reconcileSettlementsWithJournal(materialized, entries)
+	if !changed {
+		t.Fatalf("应检测到不一致并修复")
+	}
+	if len(merged) != 3 {
+		t.Fatalf("应为 3 条(c1 + legacy 保留 + c2 补回), got %d: %+v", len(merged), merged)
+	}
+	var hasC2, hasLegacy bool
+	for _, rec := range merged {
+		if rec.CycleID == "c2" && rec.NetPnL == "2.0" {
+			hasC2 = true
+		}
+		if rec.CycleID == "legacy" {
+			hasLegacy = true
+		}
+	}
+	if !hasC2 || !hasLegacy {
+		t.Fatalf("c2 应补回且 legacy 应保留, got %+v", merged)
+	}
+}
+
+// TestReconcileSettlementsOverridesStaleContent 钉死:崩溃丢失 update 定稿时,物化视图的旧内容被 journal 的定稿覆盖。
+func TestReconcileSettlementsOverridesStaleContent(t *testing.T) {
+	materialized := []SettlementCSVRecord{{RunID: "r", CycleID: "c1", NetPnL: "1.0", FundingIncomePending: true}}
+	entries := []settlementJournalEntry{
+		{Op: "append", Record: SettlementCSVRecord{RunID: "r", CycleID: "c1", NetPnL: "1.0", FundingIncomePending: true}},
+		{Op: "update", Record: SettlementCSVRecord{RunID: "r", CycleID: "c1", NetPnL: "1.5", FundingIncomePending: false}},
+	}
+	merged, changed := reconcileSettlementsWithJournal(materialized, entries)
+	if !changed || len(merged) != 1 || merged[0].NetPnL != "1.5" || merged[0].FundingIncomePending {
+		t.Fatalf("物化旧内容应被 journal 定稿覆盖, got changed=%v %+v", changed, merged)
+	}
+}
+
+// TestReconcilePendingFundingDropsLostDelete 钉死:journal 已记录删除但物化残留时,以 journal 为准移除(避免重复结算)。
+func TestReconcilePendingFundingDropsLostDelete(t *testing.T) {
+	materialized := []PendingFundingSettlementRecord{
+		{RunID: "r", CycleID: "c1", AttemptCount: 2},
+		{RunID: "r", CycleID: "c2", AttemptCount: 1},
+	}
+	entries := []pendingFundingJournalEntry{
+		{Op: "upsert", Record: PendingFundingSettlementRecord{RunID: "r", CycleID: "c1", AttemptCount: 2}},
+		{Op: "upsert", Record: PendingFundingSettlementRecord{RunID: "r", CycleID: "c2", AttemptCount: 1}},
+		{Op: "delete", Record: PendingFundingSettlementRecord{RunID: "r", CycleID: "c1"}},
+	}
+	merged, changed := reconcilePendingFundingWithJournal(materialized, entries)
+	if !changed || len(merged) != 1 || merged[0].CycleID != "c2" {
+		t.Fatalf("c1 删除写应据事实源生效, got changed=%v %+v", changed, merged)
+	}
+}
+
+// TestReportStoreRecoversLostSettlementWriteOnReload 端到端:模拟「journal 已追加但物化 JSON 重写丢失」的崩溃,
+// 新建 ReportStore(重载)应从事实源自动重放修复物化 JSON,并产生恢复证据(recoveryNotes)。
+func TestReportStoreRecoversLostSettlementWriteOnReload(t *testing.T) {
+	dir := t.TempDir()
+	store, err := NewReportStore(dir)
+	if err != nil {
+		t.Fatalf("建 store: %v", err)
+	}
+	if err := store.AppendSettlement(CycleSettlement{RunID: "r", CycleID: "c1", NetPnL: 1.0}); err != nil {
+		t.Fatalf("append c1: %v", err)
+	}
+	if err := store.AppendSettlement(CycleSettlement{RunID: "r", CycleID: "c2", NetPnL: 2.0}); err != nil {
+		t.Fatalf("append c2: %v", err)
+	}
+	// 模拟崩溃:物化视图回退到只有 c1(c2 的 JSON 重写丢失),但事实源仍含两条。
+	if err := writeJSONFile(store.settlementPath, []SettlementCSVRecord{{RunID: "r", CycleID: "c1", NetPnL: "1.000000"}}); err != nil {
+		t.Fatalf("篡改物化视图: %v", err)
+	}
+
+	recovered, err := NewReportStore(dir)
+	if err != nil {
+		t.Fatalf("重载 store: %v", err)
+	}
+	if notes := recovered.DrainRecoveryNotes(); len(notes) == 0 {
+		t.Fatalf("应产生崩溃恢复证据")
+	}
+	onDisk, err := readJSONFile[SettlementCSVRecord](recovered.settlementPath)
+	if err != nil {
+		t.Fatalf("读修复后的物化视图: %v", err)
+	}
+	if len(onDisk) != 2 {
+		t.Fatalf("c2 应从事实源重放补回到物化 JSON, got %d: %+v", len(onDisk), onDisk)
+	}
+}
+
 func TestMaterializeSettlementsFromJournal(t *testing.T) {
 	entries := []settlementJournalEntry{
 		{Op: "append", Record: SettlementCSVRecord{RunID: "r", CycleID: "c1", NetPnL: "1.0", FundingIncomePending: true}},

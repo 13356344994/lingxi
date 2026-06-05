@@ -195,6 +195,8 @@ func (e *FundingRateSniperEngine) startDailyRiskStateWriter(ctx context.Context)
 			for {
 				select {
 				case <-ctx.Done():
+					// 停机:排空队列里最后一个(最新)待写快照并落盘,避免最近一次计数变更随队列一起丢失。
+					e.drainAndWriteLatestDailyRiskStateLocked()
 					return
 				case payload := <-e.dailyRiskPersistCh:
 					if err := writeDailyRiskState(e.dailyRiskStatePath, payload); err != nil && e.logger != nil {
@@ -204,6 +206,42 @@ func (e *FundingRateSniperEngine) startDailyRiskStateWriter(ctx context.Context)
 			}
 		}()
 	})
+}
+
+// drainAndWriteLatestDailyRiskStateLocked 在 writer 协程收到 ctx 取消时调用:非阻塞排空通道,只落盘最新(最后入队)
+// 的全量快照(daily 风控状态是全量快照而非增量,故只写最新即可)。
+func (e *FundingRateSniperEngine) drainAndWriteLatestDailyRiskStateLocked() {
+	if e == nil || e.dailyRiskPersistCh == nil {
+		return
+	}
+	var latest *persistedDailyRiskState
+	for {
+		select {
+		case payload := <-e.dailyRiskPersistCh:
+			p := payload
+			latest = &p
+		default:
+			if latest != nil {
+				if err := writeDailyRiskState(e.dailyRiskStatePath, *latest); err != nil && e.logger != nil {
+					e.logger.Printf("停机排空日级风控状态失败: %v", err)
+				}
+			}
+			return
+		}
+	}
+}
+
+// flushDailyRiskStateNow 同步落盘当前日级风控全量快照,用于停机收尾,确保最近一次计数变更不因异步队列丢失。
+func (e *FundingRateSniperEngine) flushDailyRiskStateNow() {
+	if e == nil {
+		return
+	}
+	e.platformRiskMu.Lock()
+	err := e.persistDailyRiskStateLocked()
+	e.platformRiskMu.Unlock()
+	if err != nil && e.logger != nil {
+		e.logger.Printf("停机同步落盘日级风控状态失败: %v", err)
+	}
 }
 
 func (e *FundingRateSniperEngine) seedDailyRealizedPnL(day string) float64 {

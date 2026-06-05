@@ -263,9 +263,28 @@ func (e *FundingRateSniperEngine) initialize(ctx context.Context) error {
 	if err := e.checkLiveSafetyGuards("initialize"); err != nil {
 		return err
 	}
+	e.reportJournalRecoveryNotes()
 
 	e.logger.Printf("模块一已加载完成，黄金币种数量: %d", len(e.goldenSymbols))
 	return nil
+}
+
+// reportJournalRecoveryNotes 在启动恢复后排空 ReportStore 的事实源重放证据:若物化视图曾与 append-only 事实源
+// 不一致并被自动重放修复(典型为崩溃丢失最近一次结算/pending 写),记日志并以必达通知升级告警,提示人工复核。
+func (e *FundingRateSniperEngine) reportJournalRecoveryNotes() {
+	if e == nil || e.reportStore == nil {
+		return
+	}
+	notes := e.reportStore.DrainRecoveryNotes()
+	if len(notes) == 0 {
+		return
+	}
+	for _, note := range notes {
+		if e.logger != nil {
+			e.logger.Printf("[recovery] 事实源重放: %s", note)
+		}
+	}
+	e.notifyLifecycle(EventLevelWarning, "启动检测到崩溃恢复:已从事实源重放修复落盘视图", strings.Join(notes, "\n"))
 }
 
 func (e *FundingRateSniperEngine) livePreferredSpotQuoteAssets() []string {

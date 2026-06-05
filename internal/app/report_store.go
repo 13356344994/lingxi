@@ -67,6 +67,8 @@ type ReportStore struct {
 	pendingFundingRecords []PendingFundingSettlementRecord
 	residualSeverityStats []ResidualSeverityStats
 	residualScenarioStats []ResidualScenarioStats
+	// recoveryNotes 记录启动重放/对账事实源时对物化视图做出的修正(崩溃恢复证据),供引擎在初始化后排空并告警。
+	recoveryNotes []string
 }
 
 // NewReportStore 初始化记录目录和 JSON 记录文件。
@@ -678,6 +680,9 @@ func (s *ReportStore) reloadCachesLocked() error {
 		s.domainEvents = domainEventRecords
 	}
 
+	settlementRecords = s.recoverSettlementsFromJournalLocked(settlementRecords)
+	pendingFundingRecords = s.recoverPendingFundingFromJournalLocked(pendingFundingRecords)
+
 	s.settlementRecords = settlementRecords
 	s.backtestRecords = backtestRecords
 	s.residualRiskRecords = residualRecords
@@ -687,6 +692,66 @@ func (s *ReportStore) reloadCachesLocked() error {
 	s.trimDomainEventsLocked()
 	s.refreshResidualStatsLocked()
 	return nil
+}
+
+// recoverSettlementsFromJournalLocked 在加载物化结算视图后,用 append-only 事实源回放校正(S8-C 崩溃恢复闭环)。
+// 若 journal 因损坏/读失败无法解析,保守地保留物化视图(绝不因事实源不可读而拒绝启动或丢弃已落盘数据)。
+func (s *ReportStore) recoverSettlementsFromJournalLocked(materialized []SettlementCSVRecord) []SettlementCSVRecord {
+	if strings.TrimSpace(s.settlementJournalPath) == "" {
+		return materialized
+	}
+	entries, err := readJSONLFile[settlementJournalEntry](s.settlementJournalPath)
+	if err != nil {
+		s.recoveryNotes = append(s.recoveryNotes, fmt.Sprintf("结算事实源读取失败,沿用物化视图(未自动重放): %v", err))
+		return materialized
+	}
+	merged, changed := reconcileSettlementsWithJournal(materialized, entries)
+	if !changed {
+		return materialized
+	}
+	if writeErr := writeJSONFile(s.settlementPath, merged); writeErr != nil {
+		s.recoveryNotes = append(s.recoveryNotes, fmt.Sprintf("从事实源重建结算视图后回写失败: %v", writeErr))
+		return merged
+	}
+	s.recoveryNotes = append(s.recoveryNotes, fmt.Sprintf("检测到物化结算视图与事实源不一致,已从 append-only 事实源重放修复: 物化=%d 修复后=%d", len(materialized), len(merged)))
+	return merged
+}
+
+// recoverPendingFundingFromJournalLocked 同上,针对 pending funding(含 delete 语义)。
+func (s *ReportStore) recoverPendingFundingFromJournalLocked(materialized []PendingFundingSettlementRecord) []PendingFundingSettlementRecord {
+	if strings.TrimSpace(s.pendingFundingJournalPath) == "" {
+		return materialized
+	}
+	entries, err := readJSONLFile[pendingFundingJournalEntry](s.pendingFundingJournalPath)
+	if err != nil {
+		s.recoveryNotes = append(s.recoveryNotes, fmt.Sprintf("pending funding 事实源读取失败,沿用物化视图(未自动重放): %v", err))
+		return materialized
+	}
+	merged, changed := reconcilePendingFundingWithJournal(materialized, entries)
+	if !changed {
+		return materialized
+	}
+	if writeErr := writeJSONFile(s.pendingFundingPath, merged); writeErr != nil {
+		s.recoveryNotes = append(s.recoveryNotes, fmt.Sprintf("从事实源重建 pending funding 视图后回写失败: %v", writeErr))
+		return merged
+	}
+	s.recoveryNotes = append(s.recoveryNotes, fmt.Sprintf("检测到物化 pending funding 视图与事实源不一致,已从 append-only 事实源重放修复: 物化=%d 修复后=%d", len(materialized), len(merged)))
+	return merged
+}
+
+// DrainRecoveryNotes 取出并清空启动重放期间累积的崩溃恢复证据,供引擎记录日志并升级告警(必达通知)。
+func (s *ReportStore) DrainRecoveryNotes() []string {
+	if s == nil {
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.recoveryNotes) == 0 {
+		return nil
+	}
+	notes := append([]string(nil), s.recoveryNotes...)
+	s.recoveryNotes = nil
+	return notes
 }
 
 func (s *ReportStore) refreshResidualStatsLocked() {

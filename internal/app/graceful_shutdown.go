@@ -41,9 +41,9 @@ func (e *FundingRateSniperEngine) finalizeGracefulShutdown(cause error) {
 		}
 
 		// 2) 落盘最终风控状态与持仓账本(best-effort,失败仅记日志)。
-		if err := e.persistDailyRiskState(); err != nil && e.logger != nil {
-			e.logger.Printf("[shutdown] 落盘日级风控状态失败: %v", err)
-		}
+		// 用**同步**落盘而非异步入队:停机时异步 writer 可能已随 ctx 退出,入队的最后一次计数变更会丢失,
+		// 导致重启后日级亏损/下单计数被低估、绕过当日风控上限。flushDailyRiskStateNow 直接写盘保证必达。
+		e.flushDailyRiskStateNow()
 		if err := e.syncPersistedOpenHedges(active); err != nil && e.logger != nil {
 			e.logger.Printf("[shutdown] 落盘持仓账本失败: %v", err)
 		}

@@ -1,6 +1,7 @@
 package app
 
 import (
+	"reflect"
 	"strings"
 	"time"
 )
@@ -107,4 +108,105 @@ func materializePendingFromJournal(entries []pendingFundingJournalEntry) []Pendi
 		}
 	}
 	return filtered
+}
+
+func settlementJournalKey(rec SettlementCSVRecord) string {
+	return strings.TrimSpace(rec.RunID) + "/" + strings.TrimSpace(rec.CycleID)
+}
+
+func pendingFundingJournalKey(rec PendingFundingSettlementRecord) string {
+	return strings.TrimSpace(rec.RunID) + "/" + strings.TrimSpace(rec.CycleID)
+}
+
+// reconcileSettlementsWithJournal 用 append-only 事实源(journal)校正物化视图(materialized JSON)。
+// journal 在每次变更时**先于** JSON 写,故若发生「journal 已追加、JSON 原子重写未落盘即崩溃」,journal 是更
+// 完整、更权威的来源。合并规则(绝不丢数据):
+//   - 以物化视图顺序为基准,对每个键用 journal 的最新内容覆盖(修正崩溃丢失的 update 定稿);
+//   - journal 有而物化缺失的键(丢失的 append 写)按 journal 顺序补到末尾;
+//   - 物化有而 journal 完全不知道的键(journal 被轮转/截断)原样保留。
+// 返回合并结果与是否发生变化(changed=true 时需回写物化 JSON 并告警)。
+func reconcileSettlementsWithJournal(materialized []SettlementCSVRecord, entries []settlementJournalEntry) ([]SettlementCSVRecord, bool) {
+	if len(entries) == 0 {
+		return materialized, false
+	}
+	journalView := materializeSettlementsFromJournal(entries)
+	authoritative := make(map[string]SettlementCSVRecord, len(journalView))
+	journalOrder := make([]string, 0, len(journalView))
+	for _, rec := range journalView {
+		key := settlementJournalKey(rec)
+		authoritative[key] = rec
+		journalOrder = append(journalOrder, key)
+	}
+	merged := make([]SettlementCSVRecord, 0, len(materialized)+len(journalView))
+	seen := make(map[string]bool, len(materialized))
+	changed := false
+	for _, rec := range materialized {
+		key := settlementJournalKey(rec)
+		seen[key] = true
+		if auth, ok := authoritative[key]; ok {
+			if !reflect.DeepEqual(rec, auth) {
+				changed = true
+			}
+			merged = append(merged, auth)
+		} else {
+			merged = append(merged, rec)
+		}
+	}
+	for _, key := range journalOrder {
+		if seen[key] {
+			continue
+		}
+		merged = append(merged, authoritative[key])
+		changed = true
+	}
+	return merged, changed
+}
+
+// reconcilePendingFundingWithJournal 同 reconcileSettlementsWithJournal,但 pending funding 事实源含 delete:
+// 若 journal 已记录某键删除而物化 JSON 因崩溃仍残留该键,以 journal 为准移除之(避免对已结算 pending 重复结算)。
+func reconcilePendingFundingWithJournal(materialized []PendingFundingSettlementRecord, entries []pendingFundingJournalEntry) ([]PendingFundingSettlementRecord, bool) {
+	if len(entries) == 0 {
+		return materialized, false
+	}
+	journalView := materializePendingFromJournal(entries)
+	known := make(map[string]bool, len(entries))
+	for _, e := range entries {
+		known[pendingFundingJournalKey(e.Record)] = true
+	}
+	authoritative := make(map[string]PendingFundingSettlementRecord, len(journalView))
+	journalOrder := make([]string, 0, len(journalView))
+	for _, rec := range journalView {
+		key := pendingFundingJournalKey(rec)
+		authoritative[key] = rec
+		journalOrder = append(journalOrder, key)
+	}
+	merged := make([]PendingFundingSettlementRecord, 0, len(materialized)+len(journalView))
+	seen := make(map[string]bool, len(materialized))
+	changed := false
+	for _, rec := range materialized {
+		key := pendingFundingJournalKey(rec)
+		seen[key] = true
+		if known[key] {
+			auth, alive := authoritative[key]
+			if !alive {
+				// journal 最终态为已删除:丢弃物化残留(其删除写在崩溃中丢失)。
+				changed = true
+				continue
+			}
+			if !reflect.DeepEqual(rec, auth) {
+				changed = true
+			}
+			merged = append(merged, auth)
+		} else {
+			merged = append(merged, rec)
+		}
+	}
+	for _, key := range journalOrder {
+		if seen[key] {
+			continue
+		}
+		merged = append(merged, authoritative[key])
+		changed = true
+	}
+	return merged, changed
 }
