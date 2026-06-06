@@ -16,7 +16,16 @@
 - **正向 carry**：现货持有 + 合约做空，吃正资金费率。
 - **负向 carry**：全仓杠杆借币做空现货 + 合约做多，吃负资金费率（产生借币利息成本）。
 
-边际很薄：单周期对冲往返的真实盈亏平衡线 = `FeeReserveRate(0.0030) + ExitSpreadReserveRate(0.0005) + MinNetProfitRate(0.0020) = 0.0055`。低于此预估费率的机会注定亏损或被监控期净利门拒绝。
+边际很薄：单周期对冲往返的真实盈亏平衡线（海选地板 `coherentMinFundingRate`）= `FeeReserveRate(0.0030) + ExitSpreadReserveRate(0.0005) + MinNetProfitRate(0.0020) = 0.0055`（以上为默认值，可被 `config.yaml` 覆盖）。低于此预估费率的机会注定亏损或被监控期净利门拒绝。
+
+> ⚠️ **成本口径关键澄清（实盘 vs 回测，basis 的角色）**——这是最容易误解的一点：
+> - **basis（mark-index 基差）在实盘里不是成本，只是一道「过/不过」的门**。`strategy_evaluator.go` 海选与
+>   `engine_cost_guard.go` 战前稳定性都只判 `|basis| > MaxScanBasisRate` 拒绝；实盘净利公式
+>   `estimateReservedNetProfitRate`（`engine_cost_guard.go:117`）**不扣 basis**，扣的是**现货↔合约真实两腿成交
+>   价差 `entrySpreadRate`** + 费用 + 退出预留 + 借币 + 残腿 + 冲击。下文及 §五「价差」均指这个两腿价差，不是 basis。
+> - **回测/月度模拟是另一套口径**：月度回测用 `SafetyBufferFloorUSDT/SafetyBufferCostMultiplier` 的安全垫、并把
+>   basis 当成本（`OpenBasisPenalty`，`historical_execution.go`），且月度海选**不读** `MaxScanBasisRate`；CSV replay
+>   也把 `|basis|×0.5` 当成本（`backtest_runner.go:190`）。**因此回测结论不能直接外推实盘的开仓判定**（见 R15）。
 
 ---
 
@@ -119,6 +128,13 @@
   - 用途：实盘前的安全冒烟，抓「下错方向 / 异常数量 / 失控循环」等灾难性 bug；**不是**用来校准经济阈值
     （模拟/影子量不到真实滑点、成交率、真实资金费与竞争，纸面数字会系统性偏乐观）
   - 也可通过配置 `execution.shadow_trading: true` 开启
+  - ⚠️ **已知限制（咽喉点一刀切拦所有非 GET 的副作用）**：实盘启动前检查 `runLiveStartupChecks`
+    要读「资金账户可用 USDT」，而币安该查询用的是**只读但 POST** 的 `/sapi/v1/asset/get-funding-asset`
+    （`runtime_capital_adjustment.go:fetchFundingAccountFreeBalances`）。shadow 把它当「状态变更」一并拦掉，
+    导致**面板点「启动实盘」会在启动前检查阶段失败**（`读取实盘可调 USDT 失败: shadow 模式已拦截…`），
+    主循环根本起不来；面板的「资金快照 / 调仓」同样依赖该 POST，在 shadow 下也会失败。
+    即 shadow 目前**无法完整冒烟**「扫描→评估→决策」。如需在 shadow 跑通，需把 `get-funding-asset`
+    这类只读 POST 加入白名单放行（`shadow_trading.go`），或让启动前检查在 shadow 下对该读取容错跳过。
 
 `backtest/README.md` 里有更详细的样例文件说明和回放字段解释。
 
@@ -127,7 +143,7 @@
 ## 五、核心交易流程（一个完整周期）
 1. **唤醒**（`WakeMinute=57`）：资金费结算前数分钟，同步服务器时间偏移、刷新账户。
 2. **扫描**（`ScanWindow=3min`）：拉 `premiumIndex`、黄金币种交集，按预估费率/流动性粗筛。
-3. **评估**：`strategy_evaluator` 深度打分 + 成本进场闸（费用 + 价差 + 借币储备 + 最小净利门）。
+3. **评估**：`strategy_evaluator` 深度打分 + 成本进场闸（费用 + **两腿成交价差 `entrySpreadRate`** + 借币储备 + 冲击储备 + 最小净利门；注意「价差」是现货↔合约两腿价差，**不是** mark-index 基差——basis 仅作 `MaxScanBasisRate` 海选门，见 §一 成本口径澄清）。
 4. **预备**（`OpenPreparationLead=5s`）：设杠杆/全仓、确保 USDT/BNB 资金、构建顺序/并发开仓计划。
 5. **战前 Go/No-Go**（`PreOpenNoGoLead=1s`）：再次校验 ticker 新鲜度、资金费稳定性、保证金充足。
 6. **开仓**（fire-at）：先下合约批量单 → 解析成交 → 下现货对冲单 → 超配回滚 / 裸腿修正 → 开仓后逆向选择复核（不达标即时撤退）。
@@ -246,7 +262,7 @@ CI（`.github/workflows/ci.yml`）会跑：`gofmt` 检查 → `go vet` → `go t
 
 > ⚠️ 以下两条曾在旧版 README 中被表述为「已具备」，经代码核对**与现实不符**，已下调为「待实现」：
 > - **开仓前「爆仓距离/强平距离」校验**：当前**未实现**。代码只有保证金充足性检查，没有对强平价或强平距离的计算。2x 全仓拉远了强平价，但不存在显式的「距离校验」。
-> - **对冲两腿名义偏离熔断（Gate 4 关键不变量守卫）**：代码存在（`risk.EvaluateHedgeImbalance` + `assertHedgeInvariant`），但 `HedgeImbalanceAbortUSDT` / `HedgeImbalanceAbortRate` 在 `DefaultEngineConfig()` 中**默认 0 = 关闭**，且 `config_loader.go` 无对应 YAML key，**不改代码无法开启**。出厂状态下该守卫为空操作。
+> - **对冲两腿名义偏离熔断（Gate 4 关键不变量守卫）**：`[已更新]` 早期「默认 0 = 关闭、无 YAML key、不改代码无法开启」的描述**已过时**。现状（`defaults.go:123-136`、`config.go` 含 `hedge_imbalance_abort_rate` 等 cfg tag）：**相对偏离维度 `HedgeImbalanceAbortRate=0.10` 出厂即武装**（两腿名义偏离 > 较大腿 10% 即熔断，尺度无关），且 `HoldHedgeGuardEnabled=true` 把校验从「仅开仓」扩展到「持有期周期性复核」（`hold_monitor.go`，正/负 carry 均覆盖）。仅**绝对额维度** `HedgeImbalanceAbortUSDT` 仍默认 0（随资金规模难取统一默认，按需开启）。详见 §18.4.2 P3。
 
 ---
 
@@ -254,8 +270,8 @@ CI（`.github/workflows/ci.yml`）会跑：`gofmt` 检查 → `go vet` → `go t
 
 > 严重度：🔴 致命（可致真实裸敞口 / 虚假安全感） · 🟠 重大（误判盈亏 / 误停机） · 🟡 一般（边界 / 可维护性）
 
-### 🔴 R1. Gate 4 对冲偏离守卫默认关闭
-`HedgeImbalanceAbortUSDT/Rate` 默认 0，运行时对冲两腿名义偏离的熔断为空操作。一旦某腿在持有期被悄悄放大/缩小，没有运行时拦截。**影响**：裸敞口可在运行期累积而不被熔断。
+### ✅ R1. Gate 4 对冲偏离守卫（原「默认关闭」已修复）
+`[已修复]` 早期版本 `HedgeImbalanceAbortUSDT/Rate` 默认 0、熔断为空操作。**现状**（`defaults.go:128,136`）：相对维度 `HedgeImbalanceAbortRate=0.10` 出厂武装、`HoldHedgeGuardEnabled=true` 覆盖持有期周期性复核（见 §18.4.2 P3）。某腿在持有期被悄悄放大/缩小会被运行时熔断。仅绝对额维度 `HedgeImbalanceAbortUSDT` 仍默认 0（按需开启）。
 
 ### 🔴 R2. 缺少「开仓前爆仓距离校验」
 README 旧承诺与代码不符（见上节）。仅有保证金充足性检查，无强平距离计算。**影响**：极端行情下单腿被强平的概率高于文档暗示。
@@ -303,6 +319,54 @@ README 旧承诺与代码不符（见上节）。仅有保证金充足性检查�
 ### 🟡 R12. 并发开仓首错不取消兄弟任务
 `runBoundedConcurrentTasks` 首个 worker 失败不取消其余 worker，放大竞争窗口与潜在多腿暴露。
 
+### ✅ R12b. 现货 Protected IOC 双轨在「不确定态」重复下单（已修复）
+`[已修复]` `placeSpotProtectedOpenDualTrack` 主腿原先走裸 `placeSignedOrder`，当返回**不确定态**
+（`isUnknownOrderRequestError`：超时/5xx，不知交易所是否已成交）时会**直接用新 `clientOrderID`
+（`sopenw`/`sopenm`）走 widened/market 兜底**；若主单其实已成交，新单号不被币安去重 → 叠加成交 →
+**现货超配、对冲腿裸露**。**现状**（`execution_protection.go`）：不确定态下不再换新单号盲补，改为先按
+**原 `clientOrderID`** 对账（`waitForSpotOrder` → `querySpotOrderByClientID` → `reconcileSpotOrderTerminalState`，
+助手 `confirmSpotPrimaryFilledOnUnknown`）；**确认成交即采用**，无法确认成交则把不确定错误上抛，交由外层包装
+（`placeSpotMarketBuy/SellByQuantityIdempotent` 用**同一 `clientOrderID`** 重试，受币安重复单号拒绝 + 对账保护）安全收敛。
+`err==nil` 的「IOC 未成交」与 `PERCENT_PRICE` 过滤错误仍正常走 widened/market 兜底，行为不变。
+
+### ✅ R12c. 深度数据缺失被误判为流动性枯竭、熔断整轮（已修复）
+`[已修复]` 监控阶段 `checkTargetCost`（`engine_cost_guard.go`）原先把「盘口某侧档位为空」算出的
+`coverage=0.0000` 直接喂给 `EvaluateExecutionCoverageRisk` → `critical` → `pause_cycle`，**把"没拿到深度数据"
+误判成"市场没流动性"并暂停整轮**。根因：① WS 局部深度流是进监控才订阅的（`websocket_bookticker.go`），
+冷启动首轮 + 到币安网络抖动（日志可见大量 `TLS handshake timeout`）时第一帧常未到齐；② 深度缓存命中
+（`fetchDualOrderBookDepth`）与 `DepthCache.Get` 都不校验"空/陈旧"，空快照被当成有效深度。后果：像
+PORTALUSDT 这种有量的币因瞬态取数失败被 critical 熔断，且 `pause_cycle` 会连带停掉同轮其他候选。
+**现状（已修复）**：
+- **数据缺失 vs 真薄盘分流**：`filled≈0`（某侧吃不到一档=数据未就绪）→ 降级为「观察」（`applyMonitorObserveBreach`，
+  仅累计超阈值才作废该币），**不再 `pause_cycle`**；`filled>0 但不足`（真实薄盘）→ 维持原 coverage 风险熔断。
+- **不复用空/单边快照**：缓存命中与预热补齐均加 `depthHasBothSides`（两侧非空）判定，空/单边视为未命中 →
+  回退 REST 重取，避免把"没拿到盘口"当"有盘口"。
+- **开仓时刻同口径**：模块四开仓前容量校验（`engine_open_exec.go` `constrainOrderQuantityByMarketCapacity` 后）
+  也加同样护栏——`openCapacityDepthReady` 判双腿深度未就绪时按 symbol 冷却跳过本次，不升级为 `pause_cycle`；
+  数据就绪后仍容量极差才维持原风险熔断。两条 coverage 路径（监控阶段 / 开仓时刻）口径一致。
+- 单测 `TestDepthHasBothSides` / `TestComputeAverageFillPriceMissingVsThin` 钉死上述判据。
+
+### ✅ R12d. 只读行情 GET 超时被当「订单不确定」计入致命熔断、误杀健康单（已修复）
+`[已修复]` 与 R12c 同源但**触发的是另一道闸**。结算窗口内监控/开仓要拉深度（`fetchDualOrderBookDepth` →
+`getJSON`），到币安网络抖动时这些**只读 GET** 频繁 `context deadline exceeded`。根因：
+`isUnknownOrderRequestError`（`engine_types.go`）对 `context.DeadlineExceeded`/`EOF` 一律返回 true（语义是
+「不知道订单是否进了撮合」，本为**下单 POST** 设计），而网关 `GetJSON` 失败也走同一条 `NotePlatformRequestResult`
+→ 只读超时被算成 `requestAbnormal` → 累计 `MaxConsecutiveRequestErrors`(默认 6) → `TripPlatformFuse`
+（**fatal `pause_cycle`**）。实测后果：FIDAUSDT 监控全程 `healthy`、净利 +1.2%，却在开仓准备（结算前
+35s）那一刻被 6 次深度 GET 超时熔断，**连带整轮停摆、健康单一单未开**。
+**现状（已修复）**：
+- **只读路径单独计数**：网关 `GetJSON`（纯只读公共行情）改用 `notePlatformReadRequestResult`
+  （`RiskSupervisor.NotePlatformReadRequestResult`）。只读 GET 不可能下单，故「超时/EOF/一般网络错误」
+  **不再计入致命熔断**——只记录、不累计、不 `pause_cycle`，交由调用方逐帧重试 / 单币降级。
+- **保留真正的保护**：服务端封禁（403/418/429 → `platform_reject` / `order_rate_limit`）与 `api_key_error`
+  在只读路径上仍照常累计；下单/签名路径（`SignedRequest`）行为**完全不变**，订单不确定性仍触发熔断。
+- **预热与开火缓冲**（`internal/core/defaults.go`）：`StreamWarmupTimeout` 1.5s→3s（给 WS 缓存更多时间填满、
+  少在结算窗口现拉 REST）；`MonitorStopLead` 30s→60s（开火点提前到结算前 60s，单次取数/下单遇抖动还有重试余量）。
+- 单测 `TestNotePlatformReadRequestResultTimeoutDoesNotTripFuse`（只读连续超时不熔断）+
+  `TestNotePlatformRequestResultTimeoutStillTripsFuseOnWritePath`（写路径仍熔断）钉死边界。
+- ⚠️ 这只解决「只读取数失败不该停摆整轮」的软件层面；**根因仍是国内到币安的网络链路不稳**，根治需把程序部署到
+  离币安撮合更近、能稳定直连的东京云主机（见路线图/讨论）。
+
 ---
 
 > 以下 R13~R15 为战略性/规模化局限（外部评审意见，经代码核对采纳）。它们在**当前小额默认档**（`PerSymbolQuoteUSDT=100`、`MaxCycleOpenNotionalUSDT=300`）下多数不是即时亏损源，但**是放大资金前必须先解决的前置条件**，对应路线图 P4。
@@ -328,9 +392,16 @@ README 旧承诺与代码不符（见上节）。仅有保证金充足性检查�
 >
 > 评审另提「仓库缺 `cmd/` 与 `package main`，构建闭环不可信」一条——经核对**对当前仓库不成立**：`cmd/lingxi/main.go` 存在且含 `func main()`，`go build ./... && make build` 闭环完整（评审应是基于不含 `cmd/` 的导出快照）。但「main/build/CI/README 必须始终是同一个现实」的原则有效，已列入 P5 交付治理。
 
-### 🔴 R16. Dashboard 控制令牌明文打印，读面凭证模型偏弱
-启动时 `controlToken` 被**明文打到日志**（`dashboard_server.go:118-119`）。鉴权模型上：**写操作强制 loopback + token**（`authorizeRuntimeControl:545`，保守，good），但**读操作只要带合法 token 即可非 loopback 访问**（`authorizeRead:563-568`，覆盖 `/records/`、对账、运行状态等高价值情报）。审计日志里 token 是哈希存的（`:612`，good）。
-- **影响**：一旦日志被转存/截屏/共享/被同机其他进程读到，读面就相当于对外开放（前提是面板被绑定到非 loopback——默认 `127.0.0.1` 时不暴露，但默认配置不应是唯一防线）。交易系统的日志里出现明文能力凭证本身就不应该。
+### ✅ R16. Dashboard 控制令牌凭证卫生（S5-D；启动期按运维要求明文打印）
+**现状**（`dashboard_server.go`）：令牌写入仅本机可读的 `records/.dashboard_control_token`（0600），令牌核对用
+`crypto/subtle.ConstantTimeCompare`（恒定时间，防时序侧信道）；每次重启重新随机生成。
+**⚠️ 凭证卫生例外（按运维显式要求）**：启动时**永远以明文打印完整控制令牌到日志/控制台**
+（格式 `Dashboard 控制令牌: <token>`，被 `start.sh` 解析后回显到终端），便于直接复制到面板。
+代价：日志若被转存/分享会随之泄露令牌——需自行确保终端与 `records/lingxi_server.log` 仅本机可见。
+如需恢复「只打指纹不打明文」的更严格姿态，删除 `dashboard_server.go` 中那行 `Dashboard 控制令牌: %s` 即可（令牌文件仍在）。
+- **仍存在的读面权属问题（未变）**：写操作强制 loopback + token；读操作只要带合法 token 即可**非 loopback** 访问
+  （`authorizeRead`，覆盖 `/records/`、对账、运行状态等）。默认 `127.0.0.1` 时不暴露，但读/写授权彻底分离（读面独立只读令牌）
+  仍是 P5 治理目标。**结论**：明文凭证问题已解决，读面授权分离仍待做。
 
 ### 🟠 R17. 配置系统不是真 YAML，只是「扁平 key:value 解析器」
 文件名叫 `config.yaml`，但解析器是逐行 `strings.SplitN(line, ":", 2)`（`engine_config.go:91`），只支持平铺键值，不支持真正 YAML 的层级、数组、复杂字符串语义。
@@ -431,7 +502,7 @@ L2 簇上限 + `admitByClusterCap` + `portfolioClusterNotionalUSDT` 已落地(M-
 ## 十三、实盘前 Checklist（已按现实修订）
 - [ ] 确认 `secret.yaml` 只在本机存在，且权限正确
 - [ ] 确认 `DefaultEngineConfig()` 或运行时风控参数已按资金规模调整
-- [ ] **确认是否需要并已开启 `HedgeImbalanceAbortUSDT/Rate`（默认关闭，见 R1）**
+- [ ] **知悉对冲偏离守卫相对维度 `HedgeImbalanceAbortRate=0.10` + `HoldHedgeGuardEnabled` 出厂已武装（R1 已修）；如需绝对额维度再设 `HedgeImbalanceAbortUSDT`**
 - [ ] **知悉「开仓前爆仓距离校验」尚未实现，仅有保证金充足性检查（R2）**
 - [ ] **知悉 panic-flatten 不覆盖现货腿、无单腿强平检测（R3）**
 - [ ] 确认 Dashboard 只监听本机地址
@@ -518,24 +589,38 @@ L2 簇上限 + `admitByClusterCap` + `portfolioClusterNotionalUSDT` 已落地(M-
 
 ---
 
-## 十六、组合滚动持有与动态仓位管理设计（待实现，重构主线）
+## 十六、组合滚动持有与动态仓位管理设计（滚动持有已落地·默认关闭，动态仓位部分推进，重构主线）
 
 > 本节是后续重构/优化的实现依据。目标：把系统从「单周期打一枪就走 + 固定单币上限」升级为
 > 「跨周期滚动持有的资金费 carry 组合 + 市场驱动的动态仓位管理」。
 > 标注 `[现状]` 的是当前代码事实，`[目标]` 是要实现的行为，`[依赖]` 是必须先具备的前置条件。
 
 ### 16.1 现状基线（为什么要重构）
-- **`[现状]` 实盘是严格单周期模型**：`close_protocol.go` 在资金费结算后 `ExitDelayAfterFunding`（默认 2s）即
-  `setCurrentPositions(nil)` 并 `clearPersistedOpenHedges()`，持仓不跨周期存活。`MaxFundingCyclesHeld`
-  仅存在于回测/历史配置（`historical_config.go`），实盘路径无滚动持有概念。
+- **`[已更新]` 滚动持有已落地，默认关闭（opt-in）**：实盘主循环按 `PortfolioConfig.EnableRollingHold` 分叉
+  （`funding_sniper_engine.go:167-170`）。早期"实盘无滚动持有概念"的描述已过时（M4 已实现、R31 ✅），现状是：
+  - **默认 `EnableRollingHold=false`（`defaults.go:222`）→ 严格单周期**：走 `runOneCycle`，开仓 N → 当轮全平 N；
+    `close_protocol.go` 在资金费结算后 `ExitDelayAfterFunding`（默认 2s）即 `setCurrentPositions(nil)` 并
+    `clearPersistedOpenHedges()`，持仓不跨周期存活。
+  - **设 `EnableRollingHold=true` → 跨周期滚动持有**：按各币自身 funding 时钟在 `RevalidateLead`（:55）复核
+    （`runRollingPortfolioCycle` → `evaluateRollDecision`）——边际净 carry 同时越过续持门槛 `HoldRollThresholdRate`
+    与安全垫 `RollSafetyBufferRate` 才 keep（续持，省掉重新开仓的整套往返费），否则 drop 到期平仓；:57 空槽由
+    `rebalancePortfolio` 在 L3 币数/名义上限内择优补位。
+  - 注：`MaxFundingCyclesHeld` 仍仅存在于回测/历史配置（`historical_config.go`）；实盘续持由「逐币时钟 + keep/drop
+    复核」驱动，而非固定持有周期数。续持门槛 `HoldRollThresholdRate` / 安全垫 `RollSafetyBufferRate` 仍待标定。
 - **`[现状]` 单币 sizing 是静态的**：`engine_cost_guard.go:32`
   `rawOrderQty = (PerSymbolQuoteUSDT × PerSymbolQuoteMultiplier) / MarkPrice`，
   其中 `PerSymbolQuoteUSDT=100`、`PerSymbolQuoteMultiplier` 来自写死的 `GetSymbolRiskProfile`，
   再被 `MaxCycleOpenNotionalUSDT=300` 截断。
+- **`[补充]` 实盘每腿名义额的真实来源是面板「调仓」，不是这个静态默认**：在面板设「目标交易资金 USDT」
+  会调 `applyTradingCapitalTargetToConfig`（`runtime_capital_adjustment.go:247-255`）→ 把
+  `PerSymbolQuoteUSDT = 目标/2`、`MaxCycleOpenNotionalUSDT = 目标` **覆盖**掉默认 100/300，并真实划转资金。
+  默认 100/300 仅是「从未调仓时的兜底」。启动前检查按 `configuredTradingCapitalUSDT = max(MaxCycleOpenNotionalUSDT,
+  PerSymbolQuoteUSDT×2)` 验资（调仓后按覆盖值）。注：滚动持有下页面调仓只影响**新开**每腿，已常驻仓不会自动缩。
 - **`[现状]` 市场信号只当过滤器**：`MaxRecentVolumeShare`/`MaxOpenInterestShare`/`MaxVisibleDepthShare`/
   `DepthLevels`（`defaults.go:54-57`）目前只用于「超标即拒」，未用于反推「该下多大」。
-- **`[现状]` 无跨周期组合级上限**：当前只有每周期 `MaxCycleOpenNotionalUSDT` 与每日 `MaxDailyOpenNotionalUSDT`，
-  没有「同时持有 ≤ N 币、总名义 ≤ X USDT」的常驻组合约束（因为持仓不跨周期）。
+- **`[已更新]` 组合级上限：单周期路径无、滚动路径有**：默认单周期路径只有每周期 `MaxCycleOpenNotionalUSDT`
+  与每日 `MaxDailyOpenNotionalUSDT`（持仓不跨周期，无常驻组合）。启用 `EnableRollingHold` 后，常驻组合受 L3 约束
+  「同时持有 ≤ `MaxPortfolioSymbols` 币、总名义 ≤ `MaxPortfolioNotionalUSDT`」（`rebalancePortfolio` 的 `rebalanceLimits`）。
 
 ### 16.2 目标模型（一句话）
 **一个常驻的、上限 ≤ 10 个币 / ≤ 100,000 USDT（10W，最终目标）总名义的资金费 carry 组合；每个币按其
@@ -631,9 +716,13 @@ finalNotional = clamp(baseUnit × edgeScore, minNotional, perSymbolCap)
 **续持判定阈值 ≠ 入场阈值（省钱的核心）：**
 - 新开：必须覆盖**完整往返** ≈ `FeeReserveRate(0.0030) + ExitSpreadReserveRate + MinNetProfitRate ≈ 0.0055`。
 - 续持：只需覆盖**多持一周期的边际成本** ≈ 借币利息（负向 carry）+ 持有期对冲漂移风险（正向 carry≈0）。
-- `[目标]` 新增 `HoldRollThresholdRate`（续持门槛，远低于入场门槛）与 `RollSafetyBufferRate`（安全垫）：
-  仅当「下期保守预期净资金费 > HoldRollThreshold 且明显为正（> buffer）」才续持，贴近 0 即果断平。
-- `[依赖]` 续持预测用**保守估计**，规避 R7（premium/last rate 符号冲突时退回乐观 `lastFundingRate`）。
+- `[已落地·阈值待标定]` `HoldRollThresholdRate`（续持门槛）与 `RollSafetyBufferRate`（安全垫）已在
+  `PortfolioConfig` 落地并接入 `evaluateRollDecision`（`rolling_hold.go:57-86`）：仅当「下期保守预期净资金费 −
+  边际持有成本 ≥ HoldRollThreshold 且 > buffer」才续持，贴近 0 即果断平（fail-safe 偏退出）。
+  ⚠️ **两者默认均为 0**（`defaults.go:230-231`，待实盘标定）→ 默认语义退化为「**边际净 carry 严格 > 0 就续持，≤0 才平**」，
+  这是**极宽松**档；要更保守需在 `config.yaml` 显式设非零门槛/安全垫。
+- `[已落地] R7`：续持预测用**保守估计**——符号冲突时取 0 而非退回乐观 `lastFundingRate`
+  （`ConservativeFundingOnSignConflictEnabled=true`，`defaults.go:141`），不在反转时刻乐观续持。
 
 ### 16.5 组合再平衡：滞后带 keep/drop/add（防 churn）
 每个结算边界把「已持仓（无入场成本）」与「新候选（含入场往返成本）」放进同一排序，但**必须加滞后带**，
@@ -691,8 +780,8 @@ finalNotional = clamp(baseUnit × edgeScore, minNotional, perSymbolCap)
 | `CapitalRampSchedule` | 灰度爬坡计划（如 `10000,30000,100000`） | 由验证门逐档放行 |
 
 ### 16.8 状态、恢复与风控耦合（滚动持有把这些从「可选」变「必选」）
-- `[依赖] R1`：持有多周期后两腿名义会漂移，**必须开启对冲偏离运行时守卫**（`HedgeImbalanceAbort*`，当前默认关闭），
-  且从「仅开仓校验」扩展到「持有期周期性校验」。
+- `[已满足] R1`：持有多周期后两腿名义会漂移，需对冲偏离运行时守卫 + 持有期周期性校验。**现状已具备**：
+  `HedgeImbalanceAbortRate=0.10` + `HoldHedgeGuardEnabled=true` 出厂武装（`defaults.go:128,136`，`hold_monitor.go` 持有期复核）。
 - `[依赖] R3`：panic-flatten 必须纳入现货腿 + 单腿强平/ADL 检测（长持期间单腿被打掉的概率随持有时长上升）。
 - `[依赖] R-borrow`：负向 carry 长持时借币利息连续累积，roll 判定必须扣**真实跨周期借币**（非最小计费小时）。
 - `[依赖] R18`：未平仓台账从「平仓即清空」变为**长期存活的权威组合**，必须带 `schema_version` + 校验和，跨重启恢复。

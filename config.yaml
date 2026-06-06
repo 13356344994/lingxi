@@ -1,0 +1,47 @@
+# lingxi 配置覆盖（仅列出与默认值不同的项；未列出的键沿用 internal/core/defaults.go 默认值）。
+# 本文件目的：把三档 BNB 抵扣后的真实成本算进开单闸，把最低净利门降到 0.05% 以「优先开出单」，
+#            并开启跨周期滚动持有（数据采集姿态）。
+# ⚠️ 运行形态（以代码为准，funding_sniper_engine.go:167-171）：本文件设 enable_rolling_hold=true，
+#    所以实盘【不是】单周期，而是【跨周期滚动持有】：吃完一次后在 :55（RevalidateLead）复核，
+#    下期边际净 carry > 0 就续持、≤0 才平（默认门槛/安全垫=0，见下）。常驻组合上限 = 最多
+#    MaxPortfolioSymbols=10 个币、且无组合名义顶（MaxPortfolioNotionalUSDT=0）→ 实际只受可用资金约束。
+#    页面「调仓」设的小仓只影响【新开】每腿名义，已常驻仓不会自动缩。
+# ⚠️ 经济性：0.05% 净利门扣掉真实滑点/两腿价差（回测系统性偏乐观，见 README R15）很可能转负；
+#    跨周期还额外暴露在资金费反转 / 借币利息 / 对冲漂移里。这套是「极小仓买真实数据的学费」姿态，
+#    不建议直接拿大钱长期跑。回到盈利配置时：max_scan_basis_rate 改回 0.0015、抬高净利门、按需关滚动持有。
+
+strategy:
+  # 往返手续费预留 = 2×现货(0.00075) + 2×合约(0.00045) = 0.0024（三档抵扣后）
+  fee_reserve_rate: 0.0024
+  # 必须同步下调，否则 max(min_estimated_funding_rate, breakEven) 会被 0.0055 顶住，降闸无效。
+  # 设为与新 breakEven(0.0024+0.0005+0.0005=0.0034) 一致。
+  min_estimated_funding_rate: 0.0034
+  # ⚠️ 数据采集用：从 0.0015 放大到 0.04，主动放进高基差候选以「能开出单」。
+  # 订正：实盘里 basis(mark-index)只是一道「过/不过」的门(strategy_evaluator.go:73 / engine_cost_guard.go:320)，
+  #   过门后在净利公式里【不扣 basis】(engine_cost_guard.go:117 estimateReservedNetProfitRate)。真正扣的是
+  #   现货↔合约的真实两腿成交价差 entrySpreadRate。所以放大此门=放高基差/高资费的币进场，能不能开只看
+  #   funding − 真实两腿价差 − 费用 − 预留。注意 basis 大的币往往两腿价差也大(相关但不等价)。
+  #   （此前把 basis 当成本、说「单笔必净亏」是回测口径串到实盘的误判，已订正。）回到盈利配置时改回 0.0015。
+  max_scan_basis_rate: 0.04
+
+risk:
+  # 用户要求：成本之外的最低净利目标 0.05%
+  min_net_profit_rate: 0.0005
+  # 硬约束 immediate_invalidate_rate < min_net_profit_rate，被迫从 0.0005 下调到 0.0003
+  immediate_invalidate_rate: 0.0003
+
+portfolio:
+  # 实盘：开启跨周期滚动持有（吃完一次后在 :55 复核，能吃就续持、不能吃就平仓）。
+  # 默认门槛/安全垫=0（HoldRollThresholdRate/RollSafetyBufferRate）→ 语义是「下期边际净 carry > 0
+  #   （还能净赚）就续持，≤0 就平」（rolling_hold.go:64-86，fail-safe 偏向退出）。
+  # 组合上限沿用默认：最多 MaxPortfolioSymbols=10 个币、MaxPortfolioNotionalUSDT=0=无名义顶，
+  #   即「10 个币 / 资金不够为止」——这是有意选择，未在此覆盖。
+  enable_rolling_hold: true
+
+historical:
+  # 回测成本按三档 BNB 抵扣后折算（现货 -25% / 合约 -10% / 借币利息 -5%）
+  spot_taker_fee_rate: 0.00075
+  futures_taker_fee_rate: 0.00045
+  assumed_hourly_borrow_interest_rate: 0.0000475
+  # 回测的「滚动持有」由本项控制（≠ 实盘的 enable_rolling_hold）：最多持有 3 个 funding 周期。
+  max_funding_cycles_held: 3

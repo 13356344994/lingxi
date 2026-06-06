@@ -140,6 +140,21 @@ func (s *RiskSupervisor) NotePlatformRequestSuccess() {
 }
 
 func (s *RiskSupervisor) NotePlatformRequestResult(endpoint string, err error) error {
+	return s.notePlatformRequestResultMode(endpoint, err, false)
+}
+
+// NotePlatformReadRequestResult 处理只读公共行情请求(深度 / bookTicker / premiumIndex 等)的结果。
+// 与下单/签名路径不同：只读 GET 永远不会进入撮合、不可能产生订单，故「超时 / EOF / 一般网络错误」
+// 不蕴含任何订单不确定性，不应被当成 unknown_order 计入「连续异常请求」这道**致命**平台熔断
+// （否则本地网络抖动会把一次只读取数失败升级成 pause_cycle，连带停掉同轮其它健康候选——
+// 正是 FIDAUSDT 健康单被深度 GET 超时熔断误杀的根因）。
+// 这里仅把真正的服务端封禁(403/418/429 → platform_reject / order_rate_limit)与 api_key_error 计入异常，
+// 保留对 IP 封禁/权限问题的保护；纯客户端超时只记录、不累计、不熔断，交由调用方逐帧重试或单币降级。
+func (s *RiskSupervisor) NotePlatformReadRequestResult(endpoint string, err error) error {
+	return s.notePlatformRequestResultMode(endpoint, err, true)
+}
+
+func (s *RiskSupervisor) notePlatformRequestResultMode(endpoint string, err error, readonly bool) error {
 	engine := s.engine
 	if err == nil {
 		s.NotePlatformRequestSuccess()
@@ -148,13 +163,17 @@ func (s *RiskSupervisor) NotePlatformRequestResult(endpoint string, err error) e
 	category, severity := classifyPlatformException(err)
 	reject := category == "platform_reject" || category == "order_rate_limit"
 
-	// 统一错误归类判断，不让业务逻辑感知 Binance 原始报错文本
-	requestAbnormal := reject ||
-		isUnknownOrderRequestError(err) ||
-		isUnknownOrderStateError(err) ||
-		category == "network_error" ||
-		category == "unknown_order" ||
-		category == "api_key_error"
+	// 统一错误归类判断，不让业务逻辑感知 Binance 原始报错文本。
+	// 服务端封禁与权限错误对任何路径都算异常；订单不确定性(超时/EOF/unknown_order)仅在
+	// 写/签名路径(readonly=false)才计入——只读 GET 不会下单，对它而言这些只是可重试的取数失败。
+	requestAbnormal := reject || category == "api_key_error"
+	if !readonly {
+		requestAbnormal = requestAbnormal ||
+			isUnknownOrderRequestError(err) ||
+			isUnknownOrderStateError(err) ||
+			category == "network_error" ||
+			category == "unknown_order"
+	}
 
 	if category == "order_rate_limit" {
 		engine.orderRateMu.Lock()

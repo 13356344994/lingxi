@@ -690,3 +690,49 @@ func TestPlaceFuturesBatchOrdersIdempotentFallsBackAfterExpiredProtectedOpen(t *
 		t.Fatalf("expected fallback result to replace expired batch result, got %+v", results)
 	}
 }
+
+// 只读公共行情 GET 的超时不可累计触发致命平台熔断：连续 N 次 deadline exceeded 后熔断必须保持关闭，
+// 否则结算窗口里一次只读取数失败会 pause_cycle 连带停掉同轮健康候选（FIDAUSDT 被误杀的根因）。
+func TestNotePlatformReadRequestResultTimeoutDoesNotTripFuse(t *testing.T) {
+	engine := &FundingRateSniperEngine{
+		cfg:             DefaultEngineConfig(),
+		logger:          log.New(io.Discard, "", 0),
+		runtimeReporter: newRuntimeReporter(nil),
+	}
+	depthEndpoint := "https://fapi.binance.com/fapi/v1/depth?symbol=PORTALUSDT&limit=20"
+	// 连续触发远超阈值次数的只读超时。
+	for i := 0; i < engine.cfg.RiskConfig.MaxConsecutiveRequestErrors+3; i++ {
+		if err := engine.notePlatformReadRequestResult(depthEndpoint, context.DeadlineExceeded); err != nil {
+			var fuseErr platformFuseError
+			if errors.As(err, &fuseErr) {
+				t.Fatalf("只读 GET 超时不应触发致命熔断，第 %d 次即熔断: %v", i+1, err)
+			}
+			t.Fatalf("意外错误: %v", err)
+		}
+	}
+	if engine.platformState.FuseTripped {
+		t.Fatal("只读 GET 连续超时后平台熔断不应被触发")
+	}
+}
+
+// 回归保护：写/签名路径上同样的超时仍按「订单不确定」累计并在达到阈值时触发致命熔断，
+// 确保本次只读豁免没有削弱下单路径对网络异常的保护。
+func TestNotePlatformRequestResultTimeoutStillTripsFuseOnWritePath(t *testing.T) {
+	engine := &FundingRateSniperEngine{
+		cfg:             DefaultEngineConfig(),
+		logger:          log.New(io.Discard, "", 0),
+		runtimeReporter: newRuntimeReporter(nil),
+	}
+	orderEndpoint := "https://fapi.binance.com/fapi/v1/order"
+	var tripped bool
+	for i := 0; i < engine.cfg.RiskConfig.MaxConsecutiveRequestErrors; i++ {
+		err := engine.notePlatformRequestResult(orderEndpoint, context.DeadlineExceeded)
+		var fuseErr platformFuseError
+		if errors.As(err, &fuseErr) {
+			tripped = true
+		}
+	}
+	if !tripped || !engine.platformState.FuseTripped {
+		t.Fatal("写路径上连续超时(订单不确定)应在达到阈值时触发致命熔断")
+	}
+}

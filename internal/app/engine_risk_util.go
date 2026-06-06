@@ -100,6 +100,16 @@ func (e *FundingRateSniperEngine) notePlatformRequestResult(endpoint string, err
 	return supervisor.NotePlatformRequestResult(endpoint, err)
 }
 
+// notePlatformReadRequestResult 用于只读公共行情 GET：超时/EOF 等客户端取数失败不计入致命熔断，
+// 避免网络抖动把一次只读取数失败升级成 pause_cycle 停摆整轮（见 RiskSupervisor.NotePlatformReadRequestResult）。
+func (e *FundingRateSniperEngine) notePlatformReadRequestResult(endpoint string, err error) error {
+	supervisor := e.ensureRiskSupervisor()
+	if supervisor == nil {
+		return err
+	}
+	return supervisor.NotePlatformReadRequestResult(endpoint, err)
+}
+
 func (e *FundingRateSniperEngine) noteRecoveryAction(phase string, symbol string, action string, detail string) error {
 	supervisor := e.ensureRiskSupervisor()
 	if supervisor == nil {

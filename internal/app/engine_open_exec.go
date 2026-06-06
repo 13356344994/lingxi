@@ -101,6 +101,14 @@ func (e *FundingRateSniperEngine) buildOpenSequencePlan(ctx context.Context, tar
 	}
 	if adjustedQty+1e-12 < target.Candidate.OrderQuantity {
 		coverageRatio := adjustedQty / target.Candidate.OrderQuantity
+		// 与监控阶段同口径：开仓前容量不足若源于「盘口深度数据未就绪」(某腿空/单边)，按 symbol 冷却跳过本次，
+		// 不升级为 pause_cycle 熔断整轮，避免瞬态取数问题连带停掉同轮其他候选；数据就绪后仍容量极差才是真实流动性不足。
+		if !e.openCapacityDepthReady(target) {
+			detail := fmt.Sprintf("开仓前市场容量数据未就绪，按 symbol 冷却跳过本次 coverage=%.4f %s", coverageRatio, capacityReason)
+			e.setSymbolCooldown(target.Candidate.Symbol, "liquidity", "major", detail)
+			e.logger.Printf("模块四跳过 %s，%s", target.Candidate.Symbol, detail)
+			return nil, nil
+		}
 		decision := EvaluateExecutionCoverageRisk("liquidity", coverageRatio)
 		detail := fmt.Sprintf("开仓前市场容量不足 coverage=%.4f %s", coverageRatio, capacityReason)
 		if err := e.applyMarketRiskDecision(target, decision, marketRiskActionOptions{
@@ -337,9 +345,11 @@ func (e *FundingRateSniperEngine) fetchDualBookTicker(ctx context.Context, spotS
 }
 
 func (e *FundingRateSniperEngine) fetchDualOrderBookDepth(ctx context.Context, spotSymbol string, futuresSymbol string) (ParsedOrderBookDepth, ParsedOrderBookDepth, error) {
+	// 仅当缓存里的快照两侧档位都非空时才直接复用；空/单边快照（WS 预热未到位等）视为未命中，
+	// 落到下方 REST 重取，避免把「没拿到盘口」当成「有盘口」喂进下游 coverage 判定。
 	if e.spotDepthCache != nil && e.futuresDepthCache != nil {
-		if spotDepth, ok := e.spotDepthCache.Get(spotSymbol); ok {
-			if futuresDepth, ok := e.futuresDepthCache.Get(futuresSymbol); ok {
+		if spotDepth, ok := e.spotDepthCache.Get(spotSymbol); ok && depthHasBothSides(spotDepth) {
+			if futuresDepth, ok := e.futuresDepthCache.Get(futuresSymbol); ok && depthHasBothSides(futuresDepth) {
 				return spotDepth, futuresDepth, nil
 			}
 		}
@@ -393,6 +403,24 @@ const (
 	depthStabilityCooldownRatio  = 0.65
 	depthStabilityPriceDriftRate = 0.0008
 )
+
+// depthHasBothSides 判断一份盘口快照买卖两侧是否都有档位。空/单边快照说明深度数据尚未就绪
+// （WS 预热未到、REST 返回空等），不应被当作有效深度复用或参与流动性判定。
+func depthHasBothSides(depth ParsedOrderBookDepth) bool {
+	return len(depth.Bids) > 0 && len(depth.Asks) > 0
+}
+
+// openCapacityDepthReady 判断开仓前容量校验所依赖的双腿盘口深度是否已就绪（两侧非空）。
+// 用于把「数据未就绪导致的容量不足」与「真实流动性不足」区分开：前者只冷却该 symbol、跳过本次开仓，
+// 不升级为 pause_cycle 熔断整轮（与监控阶段同口径）。无深度缓存判据时返回 true，沿用原有风险处置、不误放行。
+func (e *FundingRateSniperEngine) openCapacityDepthReady(target *MonitoredTarget) bool {
+	if target == nil || e.spotDepthCache == nil || e.futuresDepthCache == nil {
+		return true
+	}
+	spotDepth, spotOK := e.spotDepthCache.Get(target.Candidate.Pair)
+	futuresDepth, futuresOK := e.futuresDepthCache.Get(target.Candidate.Symbol)
+	return spotOK && futuresOK && depthHasBothSides(spotDepth) && depthHasBothSides(futuresDepth)
+}
 
 func openDepthLevelsForDirection(direction fundingCarryDirection, spotDepth ParsedOrderBookDepth, futuresDepth ParsedOrderBookDepth) ([]DepthLevel, []DepthLevel) {
 	switch direction {

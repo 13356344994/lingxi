@@ -134,6 +134,52 @@ func TestOpenDepthLevelsForDirection(t *testing.T) {
 	}
 }
 
+func TestDepthHasBothSides(t *testing.T) {
+	full := ParsedOrderBookDepth{
+		Bids: []DepthLevel{{Price: 99, Quantity: 1}},
+		Asks: []DepthLevel{{Price: 101, Quantity: 1}},
+	}
+	if !depthHasBothSides(full) {
+		t.Fatalf("两侧都有档位应判为有效")
+	}
+	if depthHasBothSides(ParsedOrderBookDepth{Asks: []DepthLevel{{Price: 101, Quantity: 1}}}) {
+		t.Fatalf("缺买侧应判为无效(数据未就绪)")
+	}
+	if depthHasBothSides(ParsedOrderBookDepth{Bids: []DepthLevel{{Price: 99, Quantity: 1}}}) {
+		t.Fatalf("缺卖侧应判为无效(数据未就绪)")
+	}
+	if depthHasBothSides(ParsedOrderBookDepth{}) {
+		t.Fatalf("空快照应判为无效(数据未就绪)")
+	}
+}
+
+// TestComputeAverageFillPriceMissingVsThin 钉死深度风控的关键判据：
+// 盘口为空 → filled==0（数据缺失，checkTargetCost 据此降级为「观察」而非熔断整轮）；
+// 盘口非空但量不足 → filled>0 且 complete=false（真薄盘，维持 coverage→风险熔断）。
+func TestComputeAverageFillPriceMissingVsThin(t *testing.T) {
+	requiredQty := 10.0
+
+	// 数据缺失：无任何档位。
+	if _, _, filled, complete := computeAverageFillPrice(nil, requiredQty); filled != 0 || complete {
+		t.Fatalf("空盘口应 filled==0 且未完全成交, got filled=%.4f complete=%v", filled, complete)
+	}
+	// 数据缺失变体：有档位但数量全为 0，应等价于吃不到（filled==0）。
+	zeroQty := []DepthLevel{{Price: 100, Quantity: 0}}
+	if _, _, filled, complete := computeAverageFillPrice(zeroQty, requiredQty); filled != 0 || complete {
+		t.Fatalf("全 0 数量盘口应 filled==0, got filled=%.4f complete=%v", filled, complete)
+	}
+	// 真薄盘：有档位但累计量 < 所需量 → filled>0 但未完全成交（保留真实流动性熔断）。
+	thin := []DepthLevel{{Price: 100, Quantity: 3}}
+	if _, _, filled, complete := computeAverageFillPrice(thin, requiredQty); !(filled > 0) || complete {
+		t.Fatalf("薄盘应 filled>0 且未完全成交, got filled=%.4f complete=%v", filled, complete)
+	}
+	// 充足：累计量 ≥ 所需量 → 完全成交。
+	enough := []DepthLevel{{Price: 100, Quantity: 12}}
+	if _, _, filled, complete := computeAverageFillPrice(enough, requiredQty); !complete || filled+1e-9 < requiredQty {
+		t.Fatalf("充足盘口应完全成交, got filled=%.4f complete=%v", filled, complete)
+	}
+}
+
 func TestSummarizeOpenHedges(t *testing.T) {
 	hedges := []OpenHedge{
 		{Target: FundingCandidate{Symbol: "ethusdt"}, OpenSpotQuoteQty: 100.5},

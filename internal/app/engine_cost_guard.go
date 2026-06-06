@@ -49,6 +49,18 @@ func (e *FundingRateSniperEngine) checkTargetCost(ctx context.Context, target *M
 	spotVWAP, spotBestAsk, spotFilled, spotEnough := computeAverageFillPrice(spotLevels, requiredQty)
 	futuresVWAP, futuresBestBid, futuresFilled, futuresEnough := computeAverageFillPrice(futuresLevels, requiredQty)
 	if !spotEnough || !futuresEnough || spotVWAP <= 0 || futuresVWAP <= 0 {
+		// 区分「数据缺失」与「真薄盘」：某侧一档都吃不到(filled≈0，即盘口为空/未就绪)说明深度数据没拿到
+		// （WS 预热未到 / REST 兜底拿到空盘口），coverage 会退化成 0；此时绝不能按流动性枯竭熔断整轮，
+		// 否则会把瞬态数据问题误判成 critical pause_cycle，连带其他候选一起停摆。改为按「观察」降级，
+		// 等待下一帧深度到位后重评，累计超阈值仅作废该币。filled>0 但不足才是真实流动性不足，维持原熔断。
+		if spotFilled <= executionQtyTolerance || futuresFilled <= executionQtyTolerance {
+			e.logger.Printf(
+				"监控 %s 盘口深度数据未就绪(spotFilled=%.8f futuresFilled=%.8f 档位:spot=%d futures=%d)，按数据未就绪重试，不触发流动性熔断",
+				target.Candidate.Symbol, spotFilled, futuresFilled, len(spotLevels), len(futuresLevels),
+			)
+			e.applyMonitorObserveBreach(target, consecutiveBreaches, -1, "盘口深度数据未就绪(疑似 WS 预热/网络抖动)，等待下一帧深度")
+			return
+		}
 		shortQty := requiredQty - math.Min(spotFilled, futuresFilled)
 		coverageRatio := 0.0
 		if requiredQty > 0 {

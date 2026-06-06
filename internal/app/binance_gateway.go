@@ -143,7 +143,9 @@ func (g *BinanceGateway) GetJSON(ctx context.Context, endpoint string, target an
 	}
 	defer releaseUsedWeightBudget()
 	if err := engine.client.GetJSON(ctx, endpoint, target); err != nil {
-		if markErr := engine.notePlatformRequestResult(endpoint, err); markErr != nil {
+		// 只读公共行情 GET：用读路径计数，纯客户端超时/EOF 不计入致命的「连续异常请求」熔断，
+		// 仅服务端封禁(403/418/429)才累计——避免一次只读取数失败 pause_cycle 停摆整轮。
+		if markErr := engine.notePlatformReadRequestResult(endpoint, err); markErr != nil {
 			return markErr
 		}
 		return err

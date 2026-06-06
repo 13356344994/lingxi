@@ -12,7 +12,9 @@ func DefaultEngineConfig() EngineConfig {
 		NetworkConfig: NetworkConfig{
 			HTTPTimeout:              10 * time.Second,
 			MaxPremiumIndexStaleness: 15 * time.Second,
-			StreamWarmupTimeout:      1500 * time.Millisecond,
+			// WS(bookTicker/depth)预热等待上限：给行情流更充裕的时间填满缓存，再回退到 REST 兜底，
+			// 让监控/开仓关键路径尽量读 WS 缓存而非在结算窗口现拉 REST（网络抖动时 REST 易超时）。
+			StreamWarmupTimeout:      3 * time.Second,
 			MaxIdleConns:             256,
 			MaxIdleConnsPerHost:      128,
 			IdleConnTimeout:          90 * time.Second,
@@ -33,7 +35,10 @@ func DefaultEngineConfig() EngineConfig {
 			WakeSecond:      0,
 			ScanWindow:      3 * time.Minute,
 			MonitorInterval: 500 * time.Millisecond,
-			MonitorStopLead: 30 * time.Second,
+			// 开火点 = 结算 − MonitorStopLead。提前到结算前 60s 开火（原 30s），给开仓序列预留更大的
+			// 失败重试缓冲：单次取数/下单遇网络抖动还有时间重试，而不是一次超时就撞上结算死线。
+			// 仍满足 MonitorStopLead < ScanWindow(3m) 且 > OpenPreparationLead(5s)。
+			MonitorStopLead: 60 * time.Second,
 			// both：正向(现货持有+合约做空，吃正费率)与负向(全仓杠杆借币做空现货+合约做多，吃负费率)
 			// 两种 carry 都开。负向 carry 依赖已开通且可借币的全仓杠杆账户，并会产生借币利息。
 			LiveFundingDirectionMode: "both",

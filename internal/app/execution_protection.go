@@ -249,7 +249,18 @@ func (e *FundingRateSniperEngine) placeSpotProtectedOpenDualTrack(ctx context.Co
 		if !result.RequiresProtectedOpenFallback(quantity) {
 			return result, nil
 		}
-	} else if !isPercentPriceFilterError(err) && !isUnknownOrderRequestError(err) {
+		// err==nil 且 IOC 几乎未成交（canceled/expired 且成交≈0）→ 已知主单没吃到，下方 widened/market 兜底安全。
+	} else if isUnknownOrderRequestError(err) {
+		// 不确定态（超时/5xx，不知主单是否已在交易所成交）：绝不能用【新 clientOrderID】走下面的 widened/market
+		// 兜底——若主单其实已成交，新单号不会被去重，会叠加成交 → 现货超配、对冲裸腿。这里先按【原 clientOrderID】
+		// 对账：确认成交即直接采用；无法确认成交则把不确定错误上抛，交由上层包装
+		// （placeSpotMarketBuy/SellByQuantityIdempotent 用【同一 clientOrderID】重试，受币安重复单号拒绝 + 对账保护）
+		// 安全收敛，而不是在此盲目补单。
+		if confirmed, ok := e.confirmSpotPrimaryFilledOnUnknown(ctx, symbol, clientOrderID, quantity); ok {
+			return confirmed, nil
+		}
+		return SpotOrderResponse{}, err
+	} else if !isPercentPriceFilterError(err) {
 		return SpotOrderResponse{}, err
 	}
 
@@ -294,6 +305,32 @@ func (e *FundingRateSniperEngine) placeSpotProtectedOpenDualTrack(ctx context.Co
 		return SpotOrderResponse{}, marketErr
 	}
 	return marketOrder, nil
+}
+
+// confirmSpotPrimaryFilledOnUnknown 在「保护单主腿」返回不确定态（超时/5xx，不知是否已成交）时，
+// 按【原 clientOrderID】对账，仅当能确认「已成交」才返回该回执（ok=true）。用于双轨开仓在不确定态下
+// 杜绝用新单号重复下单：确认成交即采用、避免现货超配裸腿；无法确认成交一律返回 false，由调用方安全失败。
+func (e *FundingRateSniperEngine) confirmSpotPrimaryFilledOnUnknown(ctx context.Context, symbol string, clientOrderID string, quantity float64) (SpotOrderResponse, bool) {
+	if strings.TrimSpace(clientOrderID) == "" {
+		return SpotOrderResponse{}, false
+	}
+	e.noteOrderUncertainty(symbol, "spot_open_primary_unknown", fmt.Sprintf("clientOrderId=%s 对账确认成交以免重复下单", clientOrderID))
+	waitCtx, cancel := context.WithTimeout(ctx, e.cfg.ExecutionConfig.ExecutionConfirmTimeout)
+	defer cancel()
+	if snapshot, ok := e.waitForSpotOrder(waitCtx, symbol, clientOrderID); ok && hasConfirmedOrderExecution(snapshot) {
+		result := e.spotSnapshotToOrderResponse(symbol, snapshot)
+		e.noteProtectedIOCObservation(symbol, "spot", result.ProtectedIOCObservation(quantity))
+		return result, true
+	}
+	if queried, queryErr := e.querySpotOrderByClientID(ctx, symbol, clientOrderID); queryErr == nil && queried.HasConfirmedExecution() {
+		e.noteProtectedIOCObservation(symbol, "spot", queried.ProtectedIOCObservation(quantity))
+		return queried, true
+	}
+	if reconciled, reconcileErr := e.reconcileSpotOrderTerminalState(ctx, symbol, clientOrderID); reconcileErr == nil && reconciled.HasConfirmedExecution() {
+		e.noteProtectedIOCObservation(symbol, "spot", reconciled.ProtectedIOCObservation(quantity))
+		return reconciled, true
+	}
+	return SpotOrderResponse{}, false
 }
 
 func (e *FundingRateSniperEngine) placeFuturesProtectedOpenDualTrack(ctx context.Context, order FuturesBatchOrderRequest, action string, submit func(context.Context, FuturesBatchOrderRequest, string) (OrderExecutionSnapshot, error)) (OrderExecutionSnapshot, error) {

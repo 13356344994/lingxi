@@ -916,14 +916,14 @@ func (e *FundingRateSniperEngine) backfillMissingMarketData(ctx context.Context,
 
 		needSpotDepth := e.spotDepthCache != nil
 		if needSpotDepth {
-			_, needSpotDepth = e.spotDepthCache.Get(target.Candidate.Pair)
-			needSpotDepth = !needSpotDepth
+			cached, ok := e.spotDepthCache.Get(target.Candidate.Pair)
+			needSpotDepth = !ok || !depthHasBothSides(cached)
 		}
 
 		needFuturesDepth := e.futuresDepthCache != nil
 		if needFuturesDepth {
-			_, needFuturesDepth = e.futuresDepthCache.Get(target.Candidate.Symbol)
-			needFuturesDepth = !needFuturesDepth
+			cached, ok := e.futuresDepthCache.Get(target.Candidate.Symbol)
+			needFuturesDepth = !ok || !depthHasBothSides(cached)
 		}
 
 		if !needSpotTicker && !needFuturesTicker && !needSpotDepth && !needFuturesDepth {
