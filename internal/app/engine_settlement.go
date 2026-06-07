@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"lingxi/internal/venue/binance"
 )
 
 // 本文件从 funding_sniper_engine.go 拆出：仅承载资金费结算、订单查询/撤销与终态解析、周期账户
@@ -148,7 +150,7 @@ func (e *FundingRateSniperEngine) fetchFundingIncome(ctx context.Context, startT
 		params.Set("symbol", symbol)
 	}
 
-	body, err := e.signedRequest(ctx, http.MethodGet, e.client.FuturesBaseURL()+"/fapi/v1/income", params)
+	body, err := e.signedRequest(ctx, http.MethodGet, e.client.FuturesBaseURL()+binance.PathFuturesIncome, params)
 	if err != nil {
 		return nil, err
 	}
@@ -166,7 +168,7 @@ func (e *FundingRateSniperEngine) queryFuturesOrderByClientID(ctx context.Contex
 	params.Set("symbol", symbol)
 	params.Set("origClientOrderId", clientOrderID)
 
-	body, err := e.signedRequest(ctx, http.MethodGet, e.client.FuturesBaseURL()+"/fapi/v1/order", params)
+	body, err := e.signedRequest(ctx, http.MethodGet, e.client.FuturesBaseURL()+binance.PathFuturesOrder, params)
 	if err != nil {
 		return FuturesBatchOrderResult{}, err
 	}
@@ -184,7 +186,7 @@ func (e *FundingRateSniperEngine) cancelFuturesOrderByClientID(ctx context.Conte
 	params.Set("symbol", symbol)
 	params.Set("origClientOrderId", clientOrderID)
 
-	body, err := e.signedRequest(ctx, http.MethodDelete, e.client.FuturesBaseURL()+"/fapi/v1/order", params)
+	body, err := e.signedRequest(ctx, http.MethodDelete, e.client.FuturesBaseURL()+binance.PathFuturesOrder, params)
 	if err != nil {
 		return FuturesBatchOrderResult{}, err
 	}
@@ -202,7 +204,7 @@ func (e *FundingRateSniperEngine) querySpotOrderByClientID(ctx context.Context, 
 	params.Set("symbol", symbol)
 	params.Set("origClientOrderId", clientOrderID)
 
-	body, err := e.signedRequest(ctx, http.MethodGet, e.client.SpotBaseURL()+"/api/v3/order", params)
+	body, err := e.signedRequest(ctx, http.MethodGet, e.client.SpotBaseURL()+binance.PathSpotOrder, params)
 	if err != nil {
 		return SpotOrderResponse{}, err
 	}
@@ -220,7 +222,7 @@ func (e *FundingRateSniperEngine) cancelSpotOrderByClientID(ctx context.Context,
 	params.Set("symbol", symbol)
 	params.Set("origClientOrderId", clientOrderID)
 
-	body, err := e.signedRequest(ctx, http.MethodDelete, e.client.SpotBaseURL()+"/api/v3/order", params)
+	body, err := e.signedRequest(ctx, http.MethodDelete, e.client.SpotBaseURL()+binance.PathSpotOrder, params)
 	if err != nil {
 		return SpotOrderResponse{}, err
 	}
@@ -475,7 +477,7 @@ func (e *FundingRateSniperEngine) setFuturesMarginType(ctx context.Context, symb
 	params := url.Values{}
 	params.Set("symbol", strings.ToUpper(strings.TrimSpace(symbol)))
 	params.Set("marginType", normalizedFuturesMarginType(marginType))
-	body, err := e.signedRequest(ctx, http.MethodPost, e.client.FuturesBaseURL()+"/fapi/v1/marginType", params)
+	body, err := e.signedRequest(ctx, http.MethodPost, e.client.FuturesBaseURL()+binance.PathFuturesMarginType, params)
 	if err != nil {
 		if strings.Contains(strings.ToLower(err.Error()), "no need to change margin type") || strings.Contains(err.Error(), "-4046") {
 			return nil
@@ -499,13 +501,13 @@ func (e *FundingRateSniperEngine) setFuturesLeverage(ctx context.Context, symbol
 	params := url.Values{}
 	params.Set("symbol", strings.ToUpper(strings.TrimSpace(symbol)))
 	params.Set("leverage", strconv.Itoa(leverage))
-	if _, err := e.signedRequest(ctx, http.MethodPost, e.client.FuturesBaseURL()+"/fapi/v1/leverage", params); err != nil {
+	if _, err := e.signedRequest(ctx, http.MethodPost, e.client.FuturesBaseURL()+binance.PathFuturesLeverage, params); err != nil {
 		return fmt.Errorf("设置 %s 杠杆倍数失败: %w", symbol, err)
 	}
 	return nil
 }
 
-func (e *FundingRateSniperEngine) verifyPreOpenGoNoGo(targets []*MonitoredTarget) error {
+func (e *FundingRateSniperEngine) verifyPreOpenGoNoGo(ctx context.Context, targets []*MonitoredTarget) error {
 	if len(targets) == 0 {
 		return nil
 	}
@@ -523,11 +525,22 @@ func (e *FundingRateSniperEngine) verifyPreOpenGoNoGo(targets []*MonitoredTarget
 	}
 	issues := make([]string, 0, len(targets)*2)
 	for _, target := range targets {
-		if _, issue := e.preOpenTickerFreshnessIssue(target.Candidate.Pair, e.spotTickerCache, maxAge, "spot"); issue != "" {
-			issues = append(issues, issue)
+		_, spotIssue := e.preOpenTickerFreshnessIssue(target.Candidate.Pair, e.spotTickerCache, maxAge, "spot")
+		_, futuresIssue := e.preOpenTickerFreshnessIssue(target.Candidate.Symbol, e.futuresTickerCache, maxAge, "futures")
+		// 盘口陈旧/缺失:Binance @bookTicker 是「最优买/卖价变化才推」的事件流,薄盘冷门币顶档长时间不动 →
+		// 该 symbol 久无 WS 推送,缓存只剩预热时 REST 补的旧价(实盘曾见 age≈2min 撞穿 maxAge 误拒)。此处仅在
+		// 本轮确有腿陈旧时,用 REST 现拉一次真实最优买卖价补鲜再复检:拉到真·当前价→照常放行;拉失败/仍陈旧→
+		// 保留原拒因放弃开仓(fail-safe)。流动性好的标的(WS 本就新鲜)不触发补鲜、零额外请求。
+		if (spotIssue != "" || futuresIssue != "") && e.cfg.ExecutionConfig.PreOpenTickerRESTRefreshEnabled {
+			e.refreshPreOpenTickersViaREST(ctx, target)
+			_, spotIssue = e.preOpenTickerFreshnessIssue(target.Candidate.Pair, e.spotTickerCache, maxAge, "spot")
+			_, futuresIssue = e.preOpenTickerFreshnessIssue(target.Candidate.Symbol, e.futuresTickerCache, maxAge, "futures")
 		}
-		if _, issue := e.preOpenTickerFreshnessIssue(target.Candidate.Symbol, e.futuresTickerCache, maxAge, "futures"); issue != "" {
-			issues = append(issues, issue)
+		if spotIssue != "" {
+			issues = append(issues, spotIssue)
+		}
+		if futuresIssue != "" {
+			issues = append(issues, futuresIssue)
 		}
 	}
 	if len(issues) > 0 {
@@ -553,7 +566,7 @@ func (e *FundingRateSniperEngine) preOpenTickerFreshnessIssue(symbol string, cac
 }
 
 func (e *FundingRateSniperEngine) verifySpotBNBBurnEnabled(ctx context.Context) error {
-	body, err := e.signedRequest(ctx, http.MethodGet, e.client.SpotBaseURL()+"/sapi/v1/bnbBurn", nil)
+	body, err := e.signedRequest(ctx, http.MethodGet, e.client.SpotBaseURL()+binance.PathBNBBurn, nil)
 	if err != nil {
 		return fmt.Errorf("读取 Binance BNB burn 开关失败: %w", err)
 	}
@@ -600,7 +613,7 @@ func evaluateAPIKeyRestrictions(r apiKeyRestrictions, requireIPWhitelist bool) (
 // IP 白名单是否为硬门由 RequireIPWhitelist 控制。提现权限检测恒为硬闸。
 func (e *FundingRateSniperEngine) verifyAPIKeyPermissions(ctx context.Context) error {
 	failClose := e.cfg.RiskConfig.RequireAPIKeyPermissionCheck
-	body, err := e.signedRequest(ctx, http.MethodGet, e.client.SpotBaseURL()+"/sapi/v1/account/apiRestrictions", nil)
+	body, err := e.signedRequest(ctx, http.MethodGet, e.client.SpotBaseURL()+binance.PathAPIRestrictions, nil)
 	if err != nil {
 		if failClose {
 			return fmt.Errorf("API Key 权限自检失败(fail-close,拒绝启动):读取 apiRestrictions 失败,无法确认提现权限;若该 Key 类型确实不支持该端点,可将 require_api_key_permission_check 置为 false: %w", err)
@@ -630,7 +643,7 @@ func (e *FundingRateSniperEngine) verifyAPIKeyPermissions(ctx context.Context) e
 }
 
 func (e *FundingRateSniperEngine) fetchFuturesPositionMode(ctx context.Context) (bool, error) {
-	body, err := e.signedRequest(ctx, http.MethodGet, e.client.FuturesBaseURL()+"/fapi/v1/positionSide/dual", nil)
+	body, err := e.signedRequest(ctx, http.MethodGet, e.client.FuturesBaseURL()+binance.PathFuturesPositionSideDual, nil)
 	if err != nil {
 		return false, err
 	}
@@ -660,7 +673,7 @@ func (e *FundingRateSniperEngine) fetchSpotAccountBalances(ctx context.Context) 
 }
 
 func (e *FundingRateSniperEngine) fetchSpotAccountFreeBalances(ctx context.Context) (map[string]float64, map[string]float64, error) {
-	body, err := e.signedRequest(ctx, http.MethodGet, e.client.SpotBaseURL()+"/api/v3/account", nil)
+	body, err := e.signedRequest(ctx, http.MethodGet, e.client.SpotBaseURL()+binance.PathSpotAccount, nil)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -702,7 +715,7 @@ func (e *FundingRateSniperEngine) fetchFuturesAccountState(ctx context.Context) 
 		e.futuresAccountStateMu.Unlock()
 	}
 
-	body, err := e.signedRequest(ctx, http.MethodGet, e.client.FuturesBaseURL()+"/fapi/v3/account", nil)
+	body, err := e.signedRequest(ctx, http.MethodGet, e.client.FuturesBaseURL()+binance.PathFuturesAccountV3, nil)
 	if err != nil {
 		if e != nil {
 			e.futuresAccountStateMu.Lock()
@@ -773,7 +786,7 @@ func (e *FundingRateSniperEngine) transferAssetBetweenAccounts(ctx context.Conte
 	params.Set("asset", strings.ToUpper(strings.TrimSpace(asset)))
 	params.Set("amount", formatRequestAmount(amount))
 
-	body, err := e.signedRequest(ctx, http.MethodPost, e.client.SpotBaseURL()+"/sapi/v1/asset/transfer", params)
+	body, err := e.signedRequest(ctx, http.MethodPost, e.client.SpotBaseURL()+binance.PathAssetTransfer, params)
 	if err != nil {
 		return err
 	}
@@ -790,7 +803,7 @@ func (e *FundingRateSniperEngine) transferAssetBetweenAccounts(ctx context.Conte
 }
 
 func (e *FundingRateSniperEngine) fetchCrossMarginAccountState(ctx context.Context) (CrossMarginAccountState, error) {
-	body, err := e.signedRequest(ctx, http.MethodGet, e.client.SpotBaseURL()+"/sapi/v1/margin/account", nil)
+	body, err := e.signedRequest(ctx, http.MethodGet, e.client.SpotBaseURL()+binance.PathMarginAccount, nil)
 	if err != nil {
 		return CrossMarginAccountState{}, err
 	}
@@ -870,7 +883,7 @@ func (e *FundingRateSniperEngine) crossMarginBorrowRepay(ctx context.Context, as
 	params.Set("amount", formatRequestAmount(amount))
 	params.Set("type", action)
 
-	body, err := e.signedRequest(ctx, http.MethodPost, e.client.SpotBaseURL()+"/sapi/v1/margin/borrow-repay", params)
+	body, err := e.signedRequest(ctx, http.MethodPost, e.client.SpotBaseURL()+binance.PathMarginBorrowRepay, params)
 	if err != nil {
 		return 0, err
 	}

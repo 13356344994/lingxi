@@ -49,6 +49,37 @@ func effectiveEmergencyStopFile(cfg EngineConfig) string {
 	return filepath.Join(recordDir, path)
 }
 
+// emergencyStopPaths 返回某 cfg 下需检查的急停文件路径集合(双级急停,§7.4):全局总闸在前、本所 halt 在后。
+// 两者重合(单所/币安:GlobalEmergencyStopFile 解析到与本所 halt 同一路径)时去重为一条 → 行为与改造前一致。
+// 任一存在即应停。GlobalEmergencyStopFile 为空时退化为仅本所 halt(后向兼容)。
+func emergencyStopPaths(cfg EngineConfig) []string {
+	perVenue := strings.TrimSpace(effectiveEmergencyStopFile(cfg))
+	global := strings.TrimSpace(cfg.NetworkConfig.GlobalEmergencyStopFile)
+	return dedupEmergencyStopPaths(global, perVenue)
+}
+
+// dedupEmergencyStopPaths 拼出 [global, perVenue] 并去重/去空,保持「全局在前」的检查序。
+func dedupEmergencyStopPaths(global, perVenue string) []string {
+	var paths []string
+	if global != "" {
+		paths = append(paths, global)
+	}
+	if perVenue != "" && perVenue != global {
+		paths = append(paths, perVenue)
+	}
+	return paths
+}
+
+// ensureEmergencyStopsClear 依次检查多个急停文件(全局 + 本所),任一存在即返回阻断错误(§7.4)。
+func ensureEmergencyStopsClear(paths []string) error {
+	for _, p := range paths {
+		if err := ensureEmergencyStopClear(p); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func ensureEmergencyStopClear(path string) error {
 	path = strings.TrimSpace(path)
 	if path == "" {
@@ -346,22 +377,35 @@ func (e *FundingRateSniperEngine) checkLiveSafetyGuards(phase string) error {
 	return e.checkDailyRiskLimits(phase)
 }
 
+// engineEmergencyStopPaths 返回引擎运行期需检查的急停文件(双级:全局总闸 + 本所 halt,§7.4),全局在前、去重去空。
+func (e *FundingRateSniperEngine) engineEmergencyStopPaths() []string {
+	return dedupEmergencyStopPaths(strings.TrimSpace(e.globalEmergencyStopFile), strings.TrimSpace(e.emergencyStopFile))
+}
+
 func (e *FundingRateSniperEngine) checkEmergencyStop(phase string) error {
-	path := strings.TrimSpace(e.emergencyStopFile)
-	if path == "" {
+	paths := e.engineEmergencyStopPaths()
+	if len(paths) == 0 {
 		return nil
 	}
-	if err := ensureEmergencyStopClear(path); err == nil {
+	tripped := ""
+	for _, path := range paths {
+		if err := ensureEmergencyStopClear(path); err == nil {
+			continue
+		} else if !strings.Contains(err.Error(), "实盘启动已阻断") {
+			return err
+		}
+		tripped = path
+		break
+	}
+	if tripped == "" {
 		e.platformRiskMu.Lock()
 		e.emergencyStopTriggered = false
 		e.emergencyStopReason = ""
 		e.platformRiskMu.Unlock()
 		return nil
-	} else if !strings.Contains(err.Error(), "实盘启动已阻断") {
-		return err
 	}
 
-	reason := fmt.Sprintf("phase=%s emergency stop 文件存在: %s", nonEmpty(strings.TrimSpace(phase), "unknown"), path)
+	reason := fmt.Sprintf("phase=%s emergency stop 文件存在: %s", nonEmpty(strings.TrimSpace(phase), "unknown"), tripped)
 	e.platformRiskMu.Lock()
 	e.emergencyStopTriggered = true
 	e.emergencyStopReason = reason

@@ -69,6 +69,16 @@ type PremiumIndexItem struct {
 	Time                 int64  `json:"time"`
 }
 
+// FundingInfoItem 是 GET /fapi/v1/fundingInfo 的单条回执:仅列出「资金费上下限/结算周期偏离默认值」
+// 的 symbol。adjustedFundingRateCap / adjustedFundingRateFloor 即该 symbol 单次结算资金费的封顶/封底
+// (如 0.02 / -0.02),撞限豁免据此判定某币实收费率是否已贴住交易所硬限。
+type FundingInfoItem struct {
+	Symbol                   string `json:"symbol"`
+	AdjustedFundingRateCap   string `json:"adjustedFundingRateCap"`
+	AdjustedFundingRateFloor string `json:"adjustedFundingRateFloor"`
+	FundingIntervalHours     int    `json:"fundingIntervalHours"`
+}
+
 // ExchangeFilter 表示交易所返回的交易限制规则。
 type ExchangeFilter struct {
 	FilterType        string `json:"filterType"`

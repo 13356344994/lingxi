@@ -2,6 +2,21 @@ package app
 
 import "time"
 
+// scanBootstrapRetryInterval 是逐结算唤醒模型(P2.4)下,当结算时钟暂不可用(冷启动/上轮扫描失败/
+// 结算边界刚过)而算出「立即唤醒」时施加的最小重试间隔,防止扫描持续失败时空转打满行情接口。
+const scanBootstrapRetryInterval = 15 * time.Second
+
+// anyRevalidationDue 报告是否有持仓此刻已落入续持复核窗口(需立即 keep/drop)。用于区分 NextMarketWake
+// 返回「立即唤醒」是出于真实续持复核(必须立即),还是出于结算时钟不可用(可施加重试退避)。
+func anyRevalidationDue(s cycleScheduler, now time.Time, clocks []symbolFundingClock) bool {
+	for _, c := range clocks {
+		if s.RevalidateDue(now, c.NextFundingTime) {
+			return true
+		}
+	}
+	return false
+}
+
 // cycleScheduler 把「一次狙击周期的时点判断」从 God object(FundingRateSniperEngine)中抽出为纯函数式组件
 // (M-S2.2,R10/R21 解耦):仅依赖配置里的时点参数 + 输入时间,无引擎状态、无副作用、无锁,可独立单测。
 //
@@ -34,9 +49,59 @@ func newCycleScheduler(cfg EngineConfig) cycleScheduler {
 	}
 }
 
-// NextWake 返回下一个整点 :wakeMinute:wakeSecond 唤醒时刻(全局唤醒,保持现状)。
+// NextWake 返回下一个整点 :wakeMinute:wakeSecond 唤醒时刻。
+//
+// 弃用(P2.4):新开唤醒不再绑全局 :wakeMinute,改由 NextScanWake 按「全市场最近未来结算 − ScanWindow」
+// 驱动。本方法仅保留给旧 timing 回归测试用,**实盘调度路径(NextMarketWake)不再引用它**。
 func (s cycleScheduler) NextWake(now time.Time) time.Time {
 	return nextWakeTime(now, s.wakeMinute, s.wakeSecond)
+}
+
+// NextScanWake 返回「新开扫描」的唤醒时刻 = 全市场最近一次**未来**结算时间减 ScanWindow(P2.4 目标调度模型)。
+//
+// marketNextFunding 为已知各币下次结算时间(来自上一轮行情快照里逐 symbol 的 nextFundingTime)。
+//   - 取其中严格晚于 now 的最小者作为「最近机会」,提前 ScanWindow 唤醒进入扫描窗口;
+//   - 无任何可用信息时(冷启动/尚未拉过行情)返回 now,立即引导一次扫描以填充时钟;
+//   - 减去 ScanWindow 后若已早于 now(已落在窗口内/刚过),同样返回 now 立即唤醒。
+//
+// 该模型完全不依赖全局 :wakeMinute:多所下各所结算间隔不同(币安 8h / OKX 1h),固定单点本就不成立;
+// 单所(币安固定 8h 边界)下它捕获的机会集与旧 :57 每小时扫一遍一致,但只在真正临近结算时唤醒(去掉空转)。
+func (s cycleScheduler) NextScanWake(now time.Time, marketNextFunding []time.Time) time.Time {
+	var earliest time.Time
+	for _, t := range marketNextFunding {
+		if !t.After(now) {
+			continue
+		}
+		if earliest.IsZero() || t.Before(earliest) {
+			earliest = t
+		}
+	}
+	if earliest.IsZero() {
+		return now
+	}
+	wake := earliest.Add(-s.scanWindow)
+	if wake.Before(now) {
+		return now
+	}
+	return wake
+}
+
+// NextMarketWake 是 P2.4 统一唤醒点:取「新开扫描唤醒(NextScanWake)」与「各持仓续持复核(:55,逐币)」
+// 中的最早者,**完全不引用全局 WakeMinute**。空持仓时退化为「下一次最近结算 − ScanWindow」(或冷启动 now)。
+func (s cycleScheduler) NextMarketWake(now time.Time, clocks []symbolFundingClock, marketNextFunding []time.Time) time.Time {
+	earliest := s.NextScanWake(now, marketNextFunding)
+	for _, c := range clocks {
+		if c.NextFundingTime.IsZero() {
+			continue
+		}
+		if s.RevalidateDue(now, c.NextFundingTime) {
+			return now // 已到复核窗口、未结算 → 立即唤醒做 keep/drop
+		}
+		if revalidate := s.RevalidateAt(c.NextFundingTime); revalidate.After(now) && revalidate.Before(earliest) {
+			earliest = revalidate
+		}
+	}
+	return earliest
 }
 
 // ScanEligible 判断某 symbol 的下次结算是否落在扫描窗口内:0 < 剩余 <= scanWindow。

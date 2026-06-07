@@ -15,6 +15,7 @@ import (
 	"lingxi/internal/exchange"
 	"lingxi/internal/fillmodel"
 	"lingxi/internal/lifecycle"
+	"lingxi/internal/venue"
 )
 
 // 本文件从 funding_sniper_engine.go 拆出：仅承载引擎的常量、领域类型与轻量类型方法
@@ -45,13 +46,16 @@ const (
 	orderRateLimitReserve1m        = 120
 )
 
+// 风险分层按 **base asset** 归类(BTC 无论在哪个所、配哪种计价币都是 major)。P2.3 把键从币安原始
+// 符号 "BTCUSDT" 改为 base asset "BTC",使分层 venue-neutral——接 OKX/Bybit/Gate 时无需改这张表,
+// 也不依赖任一所的符号拼接格式(canonical "BTC-USDT" 与原始 "BTCUSDT" 都解析到同一 base)。
 var (
-	majorRiskTierSymbols = map[string]struct{}{
-		"BTCUSDT": {}, "ETHUSDT": {}, "BNBUSDT": {}, "SOLUSDT": {}, "XRPUSDT": {},
+	majorRiskTierAssets = map[string]struct{}{
+		"BTC": {}, "ETH": {}, "BNB": {}, "SOL": {}, "XRP": {},
 	}
-	mainstreamRiskTierSymbols = map[string]struct{}{
-		"DOGEUSDT": {}, "ADAUSDT": {}, "LINKUSDT": {}, "LTCUSDT": {}, "AVAXUSDT": {},
-		"DOTUSDT": {}, "TRXUSDT": {}, "BCHUSDT": {}, "APTUSDT": {}, "SUIUSDT": {},
+	mainstreamRiskTierAssets = map[string]struct{}{
+		"DOGE": {}, "ADA": {}, "LINK": {}, "LTC": {}, "AVAX": {},
+		"DOT": {}, "TRX": {}, "BCH": {}, "APT": {}, "SUI": {},
 	}
 )
 
@@ -68,24 +72,35 @@ type symbolRiskProfile struct {
 
 // FundingRateSniperEngine 是资费压哨狙击引擎的单进程 MVP 主控。
 type FundingRateSniperEngine struct {
-	client         *BinanceClient
-	cfg            EngineConfig
+	client *BinanceClient
+	// venueAdapter 是 client 的 venue.Venue 抽象包装(P0 引入的多所抽象接缝)。它包住同一个
+	// *BinanceClient 指针,不持有任何额外状态,故行为与改造前逐字节一致。P1 起逐步把引擎内
+	// 散落的 e.client.XXX 直连调用迁移到 e.venueAdapter.XXX(下沉端点知识),最终去掉 client 字段。
+	venueAdapter venue.Venue
+	cfg          EngineConfig
+	// econ 是「当前所」的经济闸参数(EconomicParams,见 economic_params.go)。P2.1 在构造时由
+	// economicParamsFromConfig(cfg) 实例化(值镜像 cfg,零行为变更);P2.2 起 initialize 阶段会用
+	// 实拉 CostProfile 覆盖。引擎侧经济闸读取统一走 e.economicParams() 访问器(对直建结构体的测试有兜底)。
+	econ           EconomicParams
 	logger         *log.Logger
 	runID          string
 	currentCycleID string
 	// traceLogMu 仅保护下面两个供日志旁路读取的 trace id 副本。它与 platformRiskMu 完全解耦，
 	// 杜绝「持有 platformRiskMu 时写日志 -> 日志写入器回调 traceIDs() 再次 Lock platformRiskMu」
 	// 造成的同协程自死锁（Go 互斥锁不可重入）。
-	traceLogMu                  sync.Mutex
-	traceLogRunID               string
-	traceLogCycleID             string
-	goldenSymbols               []string
-	goldenSymbolSet             map[string]struct{}
-	goldenSpotPairByFuture      map[string]string
-	spotMeta                    map[string]SpotSymbol
-	spotRules                   map[string]SymbolTradeRules
-	futuresMeta                 map[string]FuturesSymbol
-	futuresRules                map[string]SymbolTradeRules
+	traceLogMu             sync.Mutex
+	traceLogRunID          string
+	traceLogCycleID        string
+	goldenSymbols          []string
+	goldenSymbolSet        map[string]struct{}
+	goldenSpotPairByFuture map[string]string
+	spotMeta               map[string]SpotSymbol
+	spotRules              map[string]SymbolTradeRules
+	futuresMeta            map[string]FuturesSymbol
+	futuresRules           map[string]SymbolTradeRules
+	// fundingRateCapBySymbol 缓存交易所 fundingInfo 给出的逐 symbol 资金费上下限(cap/floor),
+	// 供撞限豁免判定使用。仅收录「偏离默认上下限」的 symbol;未收录者按默认 ±2% 回退处理。
+	fundingRateCapBySymbol      map[string]fundingRateCapFloor
 	spotTickerCache             *BookTickerCache
 	futuresTickerCache          *BookTickerCache
 	spotDepthCache              *DepthCache
@@ -120,6 +135,11 @@ type FundingRateSniperEngine struct {
 	platformRiskMu sync.Mutex
 	orderRateMu    sync.Mutex
 
+	// marketNextFundings 缓存上一轮扫描观测到的「黄金币种各自下次结算时间」,供 P2.4 的逐结算唤醒
+	// (NextScanWake/NextMarketWake)在下一轮 sleep 前计算「最近未来结算 − ScanWindow」。由 platformRiskMu
+	// 保护(扫描写、主循环读,虽同协程,仍统一走锁与组合状态同临界区)。冷启动为空 → 退化为立即扫描引导。
+	marketNextFundings []time.Time
+
 	orderRateRequests10s       []time.Time
 	orderRateRequests1m        []time.Time
 	consecutiveRequestErrors   int
@@ -142,7 +162,10 @@ type FundingRateSniperEngine struct {
 	managedDrawdownSummary     string
 	lastUncertainOrder         string
 
-	emergencyStopFile          string
+	emergencyStopFile string
+	// globalEmergencyStopFile 是「全局急停总闸」(双级急停之全局级,§7.4)。引擎运行期守卫同时检查它与
+	// 本所 emergencyStopFile——任一存在即停。单所(币安)两者同路径,去重后等价改造前;空 → 仅看本所(后向兼容)。
+	globalEmergencyStopFile    string
 	openHedgeStatePath         string
 	openHedgeStateMu           sync.Mutex
 	emergencyStopTriggered     bool

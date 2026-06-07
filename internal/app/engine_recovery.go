@@ -8,6 +8,8 @@ import (
 	"net/url"
 	"strings"
 	"sync/atomic"
+
+	"lingxi/internal/venue/binance"
 )
 
 // 本文件从 funding_sniper_engine.go 拆出：仅承载开/平仓恢复协议结果的语义映射（生命周期理由、
@@ -407,7 +409,7 @@ func (e *FundingRateSniperEngine) placeFuturesBatchOrders(ctx context.Context, o
 	params := url.Values{}
 	params.Set("batchOrders", string(raw))
 
-	body, err := e.signedRequest(ctx, http.MethodPost, e.client.FuturesBaseURL()+"/fapi/v1/batchOrders", params)
+	body, err := e.signedRequest(ctx, http.MethodPost, e.client.FuturesBaseURL()+binance.PathFuturesBatchOrders, params)
 	if err != nil {
 		return nil, err
 	}

@@ -42,6 +42,11 @@ func flattenYAMLMapping(node *yaml.Node, prefix string, out map[string]string) e
 		if key == "" {
 			continue
 		}
+		// venues: 子树走独立解析路径(path B,见 config_venues.go),不进全局扁平映射——否则 venues.<v>.*
+		// 会被 BindConfig 当未知键报错。仅在根层跳过(prefix=="");嵌套层不会出现 venues 段。
+		if prefix == "" && key == venuesConfigKey {
+			continue
+		}
 		fullKey := key
 		if prefix != "" {
 			fullKey = prefix + "." + key

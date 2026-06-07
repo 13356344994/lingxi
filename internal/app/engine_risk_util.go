@@ -14,14 +14,35 @@ import (
 
 	"lingxi/internal/exchange"
 	"lingxi/internal/lifecycle"
+	"lingxi/internal/venue/binance"
 )
 
 // 本文件从 funding_sniper_engine.go 拆出：仅承载平台熔断/冷却、杠杆风险评估、市场风险决策应用、
 // 对冲不变量守卫、监控目标/持仓状态维护、健康状态与追踪元数据等风险与运行时状态逻辑（同包搬移、
 // 行为不变），向单文件 ≤ 800 行门禁靠拢。
 
+// baseAssetOf 从交易对符号解析 base asset,用于 venue-neutral 的风险分层判定(不参与下单符号转换)。
+// 兼容两种形态:① 中性 canonical "BASE-QUOTE"(取 '-' 前段);② 交易所原始拼接 "BASEQUOTE"
+// (剥离已知计价币后缀,长后缀优先以免 USD 抢先于 USDT/USDC)。无法识别时原样返回(归入长尾层)。
+func baseAssetOf(symbol string) string {
+	s := strings.ToUpper(strings.TrimSpace(symbol))
+	if s == "" {
+		return ""
+	}
+	if i := strings.IndexByte(s, '-'); i > 0 {
+		return s[:i]
+	}
+	for _, quote := range []string{"USDT", "USDC", "FDUSD", "TUSD", "BUSD", "USD"} {
+		if len(s) > len(quote) && strings.HasSuffix(s, quote) {
+			return s[:len(s)-len(quote)]
+		}
+	}
+	return s
+}
+
 func GetSymbolRiskProfile(symbol string) symbolRiskProfile {
-	if _, ok := majorRiskTierSymbols[symbol]; ok {
+	base := baseAssetOf(symbol)
+	if _, ok := majorRiskTierAssets[base]; ok {
 		return symbolRiskProfile{
 			Tier:                       "major",
 			PerSymbolQuoteMultiplier:   1.0,
@@ -32,7 +53,7 @@ func GetSymbolRiskProfile(symbol string) symbolRiskProfile {
 			MaxVisibleDepthShareMul:    1.0,
 		}
 	}
-	if _, ok := mainstreamRiskTierSymbols[symbol]; ok {
+	if _, ok := mainstreamRiskTierAssets[base]; ok {
 		return symbolRiskProfile{
 			Tier:                       "mainstream",
 			PerSymbolQuoteMultiplier:   0.75,
@@ -202,7 +223,7 @@ func (e *FundingRateSniperEngine) loadFuturesLeverageBrackets(ctx context.Contex
 
 	params := url.Values{}
 	params.Set("symbol", symbol)
-	body, err := e.signedRequest(ctx, http.MethodGet, e.client.FuturesBaseURL()+"/fapi/v1/leverageBracket", params)
+	body, err := e.signedRequest(ctx, http.MethodGet, e.client.FuturesBaseURL()+binance.PathFuturesLeverageBracket, params)
 	if err != nil {
 		return nil, fmt.Errorf("查询 %s leverageBracket 失败: %w", symbol, err)
 	}

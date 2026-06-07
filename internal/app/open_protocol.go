@@ -194,7 +194,7 @@ func (p *OpenProtocol) executeSequence(ctx context.Context, targets []*Monitored
 	if syncErr := p.engine.syncServerTimeOffset(ctx); syncErr != nil {
 		p.engine.logger.Printf("模块四战前刷新服务器时间偏移失败，将沿用旧偏移: %v", syncErr)
 	}
-	if err := p.engine.verifyPreOpenGoNoGo(validTargets); err != nil {
+	if err := p.engine.verifyPreOpenGoNoGo(ctx, validTargets); err != nil {
 		p.engine.logger.Printf("模块四放弃本轮开仓，战前检查失败: %v", err)
 		p.engine.runtimeReporter.EmitWithReason(StageOpenEmpty, 0, fmt.Sprintf("战前 Go/No-Go 未通过: %v", err))
 		return nil, prepared.beforeSnapshot, nil
@@ -404,11 +404,12 @@ func (p *OpenProtocol) validateFreshOpenHedge(ctx context.Context, hedge *OpenHe
 		hedge.markActive(fmt.Sprintf("validated adverse_spread=%.6f", adverseSpread))
 		return nil
 	}
+	econGate := p.engine.economicParams()
 	immediateNetProfit := estimateReservedNetProfitRate(
 		hedge.Target.EstimatedRate,
 		adverseSpread,
-		p.engine.cfg.StrategyConfig.FeeReserveRate,
-		p.engine.cfg.StrategyConfig.ExitSpreadReserveRate,
+		econGate.FeeReserveRate,
+		econGate.ExitSpreadReserveRate,
 		p.engine.liveBorrowReserveRate(hedge.Target, hedge.LastKnownSpotPrice(), p.engine.serverNow()),
 	)
 	return p.abortFreshOpenHedge(
@@ -417,7 +418,7 @@ func (p *OpenProtocol) validateFreshOpenHedge(ctx context.Context, hedge *OpenHe
 		fmt.Sprintf(
 			"adverse_spread=%.6f reserve=%.6f immediate_net=%.6f invalidate=%.6f",
 			adverseSpread,
-			p.engine.cfg.StrategyConfig.ExitSpreadReserveRate,
+			econGate.ExitSpreadReserveRate,
 			immediateNetProfit,
 			p.engine.cfg.RiskConfig.ImmediateInvalidateRate,
 		),
@@ -679,12 +680,13 @@ func (p *OpenProtocol) isFreshOpenHedgeSafe(hedge *OpenHedge, adverseSpread floa
 	if hedge == nil {
 		return false
 	}
+	econGate := p.engine.economicParams()
 	immediateNetProfit := estimateReservedNetProfitRate(
 		hedge.Target.EstimatedRate,
 		adverseSpread,
-		p.engine.cfg.StrategyConfig.FeeReserveRate,
-		p.engine.cfg.StrategyConfig.ExitSpreadReserveRate,
+		econGate.FeeReserveRate,
+		econGate.ExitSpreadReserveRate,
 		p.engine.liveBorrowReserveRate(hedge.Target, hedge.LastKnownSpotPrice(), p.engine.serverNow()),
 	)
-	return adverseSpread <= p.engine.cfg.StrategyConfig.ExitSpreadReserveRate && immediateNetProfit > p.engine.cfg.RiskConfig.ImmediateInvalidateRate
+	return adverseSpread <= econGate.ExitSpreadReserveRate && immediateNetProfit > p.engine.cfg.RiskConfig.ImmediateInvalidateRate
 }

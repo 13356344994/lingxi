@@ -7,6 +7,8 @@ import (
 	"sort"
 	"strconv"
 	"time"
+
+	"lingxi/internal/venue/binance"
 )
 
 // dead_mans_switch.go 实现 S7-B「交易所侧 dead-man 开关」(R14):
@@ -117,6 +119,6 @@ func (e *FundingRateSniperEngine) setCountdownCancelAll(ctx context.Context, sym
 	params := url.Values{}
 	params.Set("symbol", symbol)
 	params.Set("countdownTime", strconv.FormatInt(countdownTimeMs, 10))
-	_, err := e.signedRequest(ctx, http.MethodPost, e.client.FuturesBaseURL()+"/fapi/v1/countdownCancelAll", params)
+	_, err := e.signedRequest(ctx, http.MethodPost, e.client.FuturesBaseURL()+binance.PathFuturesCountdownCancel, params)
 	return err
 }

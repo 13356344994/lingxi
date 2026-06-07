@@ -7,10 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
-
-	"lingxi/internal/exchange"
 )
 
 // BinanceGateway 收口底层 Binance 请求入口，先保留原有语义与限流/风控联动。
@@ -84,39 +81,25 @@ func (g *BinanceGateway) SignedRequest(ctx context.Context, method string, endpo
 // 不在此处记平台请求成败计数——交由 SignedRequest 在最终结果上统一处理,避免 -1021 重试时把首次失败误计为平台拒绝。
 func (g *BinanceGateway) sendSignedOnce(ctx context.Context, method string, endpoint string, params url.Values) ([]byte, error) {
 	engine := g.engine
-	signed := cloneURLValues(params)
-	signed.Set("recvWindow", strconv.FormatInt(engine.cfg.ExecutionConfig.RecvWindow, 10))
-	signed.Set("timestamp", strconv.FormatInt(engine.currentServerTimeMillis(), 10))
-
-	query := signed.Encode()
-	query = query + "&signature=" + exchange.Sign(engine.client.SecretKey(), query)
-
-	req, err := http.NewRequestWithContext(ctx, method, endpoint+"?"+query, nil)
-	if err != nil {
-		return nil, fmt.Errorf("创建签名请求失败: %w", err)
+	adapter := engine.binanceVenue()
+	if adapter == nil {
+		return nil, fmt.Errorf("binance 适配器未初始化")
 	}
-	req.Header.Set("X-MBX-APIKEY", engine.client.APIKey())
-
-	resp, err := engine.client.HTTPClient().Do(req)
+	// 「怎么签、打哪个 URL」已下沉到 binance 适配器(P1b);本中间件仅保留与所无关的编排:
+	// recvWindow/timestamp 取自引擎校时态,错误映射回 signedRequestError 维持原有分类语义。
+	out, err := adapter.SignedSend(ctx, method, endpoint, params, engine.cfg.ExecutionConfig.RecvWindow, engine.currentServerTimeMillis())
 	if err != nil {
 		return nil, signedRequestError{Endpoint: endpoint, Cause: err}
 	}
-	defer resp.Body.Close()
-	engine.client.NoteUsedWeightFromHeaders(resp.Header)
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, signedRequestError{Endpoint: endpoint, Cause: err}
-	}
-	if resp.StatusCode != http.StatusOK {
+	if out.StatusCode != http.StatusOK {
 		return nil, signedRequestError{
 			Endpoint:   endpoint,
-			StatusCode: resp.StatusCode,
-			Status:     resp.Status,
-			Body:       strings.TrimSpace(string(body)),
+			StatusCode: out.StatusCode,
+			Status:     out.Status,
+			Body:       strings.TrimSpace(string(out.Body)),
 		}
 	}
-	return body, nil
+	return out.Body, nil
 }
 
 // isTimestampOutsideRecvWindowError 判定签名请求错误是否为币安 -1021(timestamp 超出 recvWindow)。

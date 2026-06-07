@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"lingxi/internal/exchange"
+	"lingxi/internal/venue/binance"
 
 	"github.com/gorilla/websocket"
 )
@@ -264,7 +265,7 @@ func (e *FundingRateSniperEngine) keepaliveListenKey(ctx context.Context, listen
 }
 
 func (e *FundingRateSniperEngine) startFuturesListenKey(ctx context.Context) (string, error) {
-	body, err := e.apiKeyRequest(ctx, http.MethodPost, e.client.FuturesBaseURL()+"/fapi/v1/listenKey", nil)
+	body, err := e.apiKeyRequest(ctx, http.MethodPost, e.client.FuturesBaseURL()+binance.PathFuturesListenKey, nil)
 	if err != nil {
 		return "", err
 	}
@@ -272,7 +273,7 @@ func (e *FundingRateSniperEngine) startFuturesListenKey(ctx context.Context) (st
 }
 
 func (e *FundingRateSniperEngine) keepaliveFuturesListenKey(ctx context.Context, listenKey string) error {
-	_, err := e.apiKeyRequest(ctx, http.MethodPut, e.client.FuturesBaseURL()+"/fapi/v1/listenKey?listenKey="+listenKey, nil)
+	_, err := e.apiKeyRequest(ctx, http.MethodPut, e.client.FuturesBaseURL()+binance.PathFuturesListenKey+"?listenKey="+listenKey, nil)
 	return err
 }
 

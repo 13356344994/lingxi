@@ -203,8 +203,11 @@ func TestEnsureFuturesExecutionSettingsConfiguresMarginTypeAndLeverage(t *testin
 }
 
 func TestVerifyPreOpenGoNoGoRejectsStaleTicker(t *testing.T) {
+	cfg := DefaultEngineConfig()
+	// 关闭 REST 补鲜:本用例锁定「纯缓存新鲜度闸」在陈旧时仍拒开的核心行为。
+	cfg.ExecutionConfig.PreOpenTickerRESTRefreshEnabled = false
 	engine := &FundingRateSniperEngine{
-		cfg:                DefaultEngineConfig(),
+		cfg:                cfg,
 		logger:             log.New(io.Discard, "", 0),
 		spotTickerCache:    NewBookTickerCache(),
 		futuresTickerCache: NewBookTickerCache(),
@@ -213,9 +216,88 @@ func TestVerifyPreOpenGoNoGoRejectsStaleTicker(t *testing.T) {
 	engine.spotTickerCache.UpdateAt(BookTicker{Symbol: "BTCUSDT", BidPrice: "100", AskPrice: "100.1"}, staleAt)
 	engine.futuresTickerCache.UpdateAt(BookTicker{Symbol: "BTCUSDT", BidPrice: "100", AskPrice: "100.1"}, staleAt)
 
-	err := engine.verifyPreOpenGoNoGo([]*MonitoredTarget{{Candidate: FundingCandidate{Pair: "BTCUSDT", Symbol: "BTCUSDT"}}})
+	err := engine.verifyPreOpenGoNoGo(context.Background(), []*MonitoredTarget{{Candidate: FundingCandidate{Pair: "BTCUSDT", Symbol: "BTCUSDT"}}})
 	if err == nil || !strings.Contains(err.Error(), "延迟过高") {
 		t.Fatalf("expected stale ticker rejection, got %v", err)
+	}
+}
+
+// 复刻实盘 EDENUSDT 场景:薄盘冷门币 @bookTicker 事件流长时间不推,缓存只剩预热旧价(age≈2min)撞穿
+// PreOpenTickerMaxAge。开启 REST 补鲜后,战前应能现拉真·当前价救回开仓。
+func TestVerifyPreOpenGoNoGoRefreshesStaleTickerViaREST(t *testing.T) {
+	var spotHits, futuresHits int64
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v3/ticker/bookTicker":
+			atomic.AddInt64(&spotHits, 1)
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"symbol":"EDENUSDT","bidPrice":"0.5000","bidQty":"100","askPrice":"0.5010","askQty":"100"}`))
+		case "/fapi/v1/ticker/bookTicker":
+			atomic.AddInt64(&futuresHits, 1)
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"symbol":"EDENUSDT","bidPrice":"0.4990","bidQty":"100","askPrice":"0.5000","askQty":"100"}`))
+		default:
+			t.Fatalf("unexpected request path: %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	engine := &FundingRateSniperEngine{
+		client: exchange.NewClient(exchange.ClientConfig{
+			SpotBaseURL:    server.URL,
+			FuturesBaseURL: server.URL,
+			APIKey:         "demo-api-key",
+			SecretKey:      "demo-secret-key",
+			HTTPClient:     server.Client(),
+		}),
+		cfg:                DefaultEngineConfig(),
+		logger:             log.New(io.Discard, "", 0),
+		spotTickerCache:    NewBookTickerCache(),
+		futuresTickerCache: NewBookTickerCache(),
+	}
+	staleAt := time.Now().UTC().Add(-2 * time.Minute)
+	engine.spotTickerCache.UpdateAt(BookTicker{Symbol: "EDENUSDT", BidPrice: "0.49", AskPrice: "0.51"}, staleAt)
+	engine.futuresTickerCache.UpdateAt(BookTicker{Symbol: "EDENUSDT", BidPrice: "0.49", AskPrice: "0.51"}, staleAt)
+
+	err := engine.verifyPreOpenGoNoGo(context.Background(), []*MonitoredTarget{{Candidate: FundingCandidate{Pair: "EDENUSDT", Symbol: "EDENUSDT"}}})
+	if err != nil {
+		t.Fatalf("expected REST refresh to revive stale ticker and pass, got %v", err)
+	}
+	if atomic.LoadInt64(&spotHits) == 0 || atomic.LoadInt64(&futuresHits) == 0 {
+		t.Fatalf("expected both legs refreshed via REST, spotHits=%d futuresHits=%d", spotHits, futuresHits)
+	}
+	if ticker, _, ok := engine.spotTickerCache.GetWithReceivedAt("EDENUSDT"); !ok || ticker.AskPrice != "0.5010" {
+		t.Fatalf("expected spot cache updated with fresh REST price, got %+v ok=%v", ticker, ok)
+	}
+}
+
+// REST 补鲜失败(服务端 5xx)时,陈旧盘口应保持被拒,绝不放行裸开。
+func TestVerifyPreOpenGoNoGoRESTRefreshFailureStillRejects(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, `{"code":-1001,"msg":"internal"}`, http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	engine := &FundingRateSniperEngine{
+		client: exchange.NewClient(exchange.ClientConfig{
+			SpotBaseURL:    server.URL,
+			FuturesBaseURL: server.URL,
+			APIKey:         "demo-api-key",
+			SecretKey:      "demo-secret-key",
+			HTTPClient:     server.Client(),
+		}),
+		cfg:                DefaultEngineConfig(),
+		logger:             log.New(io.Discard, "", 0),
+		spotTickerCache:    NewBookTickerCache(),
+		futuresTickerCache: NewBookTickerCache(),
+	}
+	staleAt := time.Now().UTC().Add(-2 * time.Minute)
+	engine.spotTickerCache.UpdateAt(BookTicker{Symbol: "EDENUSDT", BidPrice: "0.49", AskPrice: "0.51"}, staleAt)
+	engine.futuresTickerCache.UpdateAt(BookTicker{Symbol: "EDENUSDT", BidPrice: "0.49", AskPrice: "0.51"}, staleAt)
+
+	err := engine.verifyPreOpenGoNoGo(context.Background(), []*MonitoredTarget{{Candidate: FundingCandidate{Pair: "EDENUSDT", Symbol: "EDENUSDT"}}})
+	if err == nil || !strings.Contains(err.Error(), "延迟过高") {
+		t.Fatalf("expected stale rejection after REST refresh failure, got %v", err)
 	}
 }
 

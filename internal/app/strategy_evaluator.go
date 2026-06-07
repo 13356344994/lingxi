@@ -45,10 +45,10 @@ type FundingStrategy interface {
 // 预估资金费率低于该值时，监控阶段 estimateReservedNetProfitRate 扣除上述成本后净收益必然落在健康门
 // 之下（价差/借币/残腿成本只会让它更低），开仓注定亏损或被拒。海选阶段用它给地板线兜底，使粗筛门槛与
 // 监控期净利门保持自洽，避免把结构性亏损单放进监控、白白消耗预算与执行窗口。
+// 公式归属已收敛到 EconomicParams.BreakEven()(P2.1);本函数保留为薄包装,确保所有按 cfg 取值的
+// 旧调用点(纯策略层 / 回测 / 测试)逐位等价不变。引擎侧改走 e.economicParams().BreakEven()。
 func coherentMinFundingRate(config EngineConfig) float64 {
-	return maxFloat(config.StrategyConfig.FeeReserveRate, 0) +
-		maxFloat(config.StrategyConfig.ExitSpreadReserveRate, 0) +
-		maxFloat(config.RiskConfig.MinNetProfitRate, 0)
+	return economicParamsFromConfig(config).BreakEven()
 }
 
 // DefaultFundingStrategy 默认资金费率套利策略实现

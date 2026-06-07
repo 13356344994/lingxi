@@ -45,23 +45,31 @@ func DefaultEngineConfig() EngineConfig {
 			// 单周期对冲往返的真实盈亏平衡线：FeeReserveRate(0.0030)+ExitSpreadReserveRate(0.0005)+
 			// MinNetProfitRate(0.0020)=0.0055。低于此值的预估资金费率开仓注定亏损或被监控期净利门拒绝，
 			// 故地板线下沉到与成本自洽的 0.0055，而非掩盖真实成本的 0.0025。
-			MinEstimatedFundingRate:  0.0055,
-			MaxEstimatedFundingRate:  0.0300,
-			MaxFundingRateJump:       0.0150,
-			MaxScanBasisRate:         0.0015,
-			LiveFundingAsset:         "USDT",
-			FeeReserveRate:           0.0030,
-			ExitSpreadReserveRate:    0.0005,
+			MinEstimatedFundingRate: 0.0055,
+			MaxEstimatedFundingRate: 0.0300,
+			MaxFundingRateJump:      0.0150,
+			MaxScanBasisRate:        0.0015,
+			LiveFundingAsset:        "USDT",
+			FeeReserveRate:          0.0030,
+			ExitSpreadReserveRate:   0.0005,
+			// 默认按账户实拉真实 taker 费率派生 FeeReserveRate(2*spot+2*futures),使经济闸据实成本判定;
+			// fail-safe 回退手填 0.0030(见 StrategyConfig.AutoDeriveFeeReserveEnabled 说明)。
+			AutoDeriveFeeReserveEnabled: true,
 			// 出厂最安全:入场净利闸始终扣往返市场冲击(与 DynamicSizing 解耦),避免薄盘上系统性高估净利。
 			ImpactReserveInGateEnabled: true,
-			PreferredSpotQuoteAssets: "FDUSD,USDC,USDT",
-			MaxTargets:               5,
-			PerSymbolQuoteUSDT:       100.0,
-			RecentTradeVolumeWindow:  5 * time.Minute,
-			MaxRecentVolumeShare:     0.0020,
-			MaxOpenInterestShare:     0.0005,
-			MaxVisibleDepthShare:     0.05,
-			DepthLevels:              20,
+			PreferredSpotQuoteAssets:   "FDUSD,USDC,USDT",
+			MaxTargets:                 5,
+			PerSymbolQuoteUSDT:         100.0,
+			RecentTradeVolumeWindow:    5 * time.Minute,
+			MaxRecentVolumeShare:       0.0020,
+			MaxOpenInterestShare:       0.0005,
+			MaxVisibleDepthShare:       0.05,
+			DepthLevels:                20,
+			// 撞限豁免默认关闭(出厂最安全):需人工在配置里显式开启后才生效。
+			// 接近度 0.9 = 实收费率达到 symbol cap/floor 的 90% 即视为撞限;倍率 1.0 = 撞限时全额信其持续。
+			CapPinnedFundingOverrideEnabled: false,
+			CapPinnedFundingProximityRate:   0.9,
+			CapPinnedFundingEstimateFactor:  1.0,
 		},
 		ExecutionConfig: ExecutionConfig{
 			ExitDelayAfterFunding:    2 * time.Second,
@@ -70,6 +78,9 @@ func DefaultEngineConfig() EngineConfig {
 			OpenPreparationLead:      5 * time.Second,
 			PreOpenNoGoLead:          1 * time.Second,
 			PreOpenTickerMaxAge:      1 * time.Second,
+			// 默认开启战前盘口 REST 补鲜:薄盘冷门币(大负费率机会高发区)的 @bookTicker 事件流常长时间不推,
+			// 仅靠缓存新鲜度会把这类「价其实没变」的标的误判成行情失效而错过开仓;补鲜给一个真·当前价的兜底。
+			PreOpenTickerRESTRefreshEnabled: true,
 			RecvWindow:               5000,
 			ExecutionConfirmTimeout:  1500 * time.Millisecond,
 			ExecutionRecoveryTimeout: 4 * time.Second,

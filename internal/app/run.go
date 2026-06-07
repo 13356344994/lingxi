@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"lingxi/internal/core"
+	"lingxi/internal/venue/binance"
 )
 
 // autoStartLiveDelay 是 opt-in 自动启动实盘前的就绪等待：给面板/控制器/单写租约一点时间起来再触发。
@@ -78,15 +79,17 @@ func startLiveStack(ctx context.Context, cfg EngineConfig) error {
 		return fmt.Errorf("冷启动检查未通过，拒绝启动: %w", err)
 	}
 
-	store, err := NewReportStore(cfg.NetworkConfig.RecordDir)
+	// P3a/P3b:用 Orchestrator 组装控制面,每所经 buildVenueRuntime 拿到独立的 (ReportStore, RuntimeController)。
+	// 当前只注册唯一一个 venue("binance",recordDir 沿用 records/ 保后向兼容),行为与改造前一致;
+	// 面板经 Primary() 路由到它。P3 后续在此注册更多所(records/<venue>/ 隔离)并按 ?venue= 路由。
+	orch := NewOrchestrator()
+	binanceRT, err := buildVenueRuntime(ctx, cfg, binance.VenueName, log.Default())
 	if err != nil {
-		return fmt.Errorf("初始化记录存储失败: %w", err)
+		return fmt.Errorf("创建 binance 运行时失败: %w", err)
 	}
-	controller, err := NewRuntimeController(ctx, store, cfg, log.Default())
-	if err != nil {
-		return fmt.Errorf("创建后台控制器失败: %w", err)
-	}
-	dashboard, err := NewDashboardServer(cfg.NetworkConfig.DashboardAddr, store, controller, log.Default())
+	orch.Register(binanceRT)
+	controller := binanceRT.controller
+	dashboard, err := NewDashboardServer(cfg.NetworkConfig.DashboardAddr, orch, log.Default())
 	if err != nil {
 		return fmt.Errorf("创建 Web 面板失败: %w", err)
 	}

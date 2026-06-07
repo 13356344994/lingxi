@@ -85,7 +85,8 @@ func (e *FundingRateSniperEngine) checkTargetCost(ctx context.Context, target *M
 	roundTripNotional := target.Candidate.OrderQuantity * spotVWAP
 	residualReserveRate, residualReserveUSDT := e.liveResidualReserveRate(roundTripNotional, spread)
 	spotVisibleNotional, futuresVisibleNotional := visibleDepthNotionalForDirection(direction, spotDepth, futuresDepth)
-	baseNetProfit := estimateReservedNetProfitRate(target.Candidate.EstimatedRate, spread, e.cfg.StrategyConfig.FeeReserveRate, e.cfg.StrategyConfig.ExitSpreadReserveRate, borrowReserveRate) - residualReserveRate
+	econGate := e.economicParams()
+	baseNetProfit := estimateReservedNetProfitRate(target.Candidate.EstimatedRate, spread, econGate.FeeReserveRate, econGate.ExitSpreadReserveRate, borrowReserveRate) - residualReserveRate
 	// 冲击成本入闸(M3.2/§16.3):默认出厂姿态始终把往返市场冲击纳入盈亏平衡(ImpactReserveInGateEnabled),
 	// 与 DynamicSizing 解耦;任一开启即扣冲击。置 false 退回旧的「仅 DynamicSizing 才扣」行为。
 	reserveImpact := e.cfg.StrategyConfig.ImpactReserveInGateEnabled || e.cfg.PortfolioConfig.DynamicSizingEnabled
@@ -138,8 +139,9 @@ func (e *FundingRateSniperEngine) liveResidualReserveRate(roundTripNotional floa
 	if e.costModel == nil || roundTripNotional <= 0 {
 		return 0, 0
 	}
-	feeRate := maxFloat(e.cfg.StrategyConfig.FeeReserveRate, 0)
-	exitReserve := maxFloat(e.cfg.StrategyConfig.ExitSpreadReserveRate, 0)
+	econGate := e.economicParams()
+	feeRate := maxFloat(econGate.FeeReserveRate, 0)
+	exitReserve := maxFloat(econGate.ExitSpreadReserveRate, 0)
 	openBasis := maxFloat(entrySpreadRate, 0)
 	breakdown := e.costModel.ResidualFillCost(fillmodel.RoundTrip{
 		OpenNotional:      roundTripNotional,
@@ -573,8 +575,9 @@ func (e *FundingRateSniperEngine) waitForCloseExecutionWindow(ctx context.Contex
 			if lastMonitorErr != nil {
 				alerts = append(alerts, fmt.Sprintf("退出监控到达最晚时限，忽略最近盘口异常: %v", lastMonitorErr))
 			}
-			if worstAdverseSpread > e.cfg.StrategyConfig.ExitSpreadReserveRate {
-				alerts = append(alerts, fmt.Sprintf("退出监控到达最晚时限，按强制平仓执行: adverseSpread=%.6f reserve=%.6f", worstAdverseSpread, e.cfg.StrategyConfig.ExitSpreadReserveRate))
+			exitReserveGate := e.economicParams().ExitSpreadReserveRate
+			if worstAdverseSpread > exitReserveGate {
+				alerts = append(alerts, fmt.Sprintf("退出监控到达最晚时限，按强制平仓执行: adverseSpread=%.6f reserve=%.6f", worstAdverseSpread, exitReserveGate))
 				preferPassiveSpot = true
 			}
 			return now, alerts, preferPassiveSpot, nil
@@ -607,7 +610,7 @@ func (e *FundingRateSniperEngine) closeWindowReady(ctx context.Context, hedges [
 		if adverseSpread > worstAdverseSpread {
 			worstAdverseSpread = adverseSpread
 		}
-		if adverseSpread > e.cfg.StrategyConfig.ExitSpreadReserveRate {
+		if adverseSpread > e.economicParams().ExitSpreadReserveRate {
 			return false, worstAdverseSpread, nil
 		}
 	}

@@ -15,7 +15,38 @@ import (
 	"time"
 
 	"lingxi/internal/money"
+	"lingxi/internal/venue"
+	"lingxi/internal/venue/binance"
 )
+
+// Venue 返回引擎的 venue.Venue 抽象(包住底层币安 client)。P0 接缝:供编排层/未来调用点
+// 通过中性接口访问交易所;为兼容直接以结构体字面量构造的测试引擎,nil 时按需懒包装现有 client。
+func (e *FundingRateSniperEngine) Venue() venue.Venue {
+	if e == nil {
+		return nil
+	}
+	if e.venueAdapter == nil && e.client != nil {
+		e.venueAdapter = binance.New(e.client)
+	}
+	return e.venueAdapter
+}
+
+// binanceVenue 返回引擎持有的币安适配器具体类型(*binance.Adapter),供 gateway 中间件下沉
+// 签名/发送(P1b)时复用同一实例,而非每次新建。nil-safe;旧测试若未注入适配器则按需懒构造。
+func (e *FundingRateSniperEngine) binanceVenue() *binance.Adapter {
+	if e == nil {
+		return nil
+	}
+	if adapter, ok := e.venueAdapter.(*binance.Adapter); ok && adapter != nil {
+		return adapter
+	}
+	// 兜底:仅当引擎未注入适配器(部分直建结构体的测试)时,按需构造一个无状态适配器返回。
+	// **不**回写 e.venueAdapter —— 本方法处于并发签名请求热路径,回写共享字段会引入数据竞争。
+	if e.client != nil {
+		return binance.New(e.client)
+	}
+	return nil
+}
 
 func NewFundingRateSniperEngineWithConfig(secretPath string, cfg EngineConfig) (*FundingRateSniperEngine, error) {
 	if err := cfg.Validate(); err != nil {
@@ -48,23 +79,27 @@ func NewFundingRateSniperEngineWithConfig(secretPath string, cfg EngineConfig) (
 	client.ApplyNetworkConfig(cfg.NetworkConfig)
 
 	engine := &FundingRateSniperEngine{
-		client:                 client,
-		cfg:                    cfg,
-		logger:                 log.New(os.Stdout, "[FundingRateSniper] ", log.LstdFlags|log.Lmicroseconds),
-		goldenSymbolSet:        make(map[string]struct{}),
-		goldenSpotPairByFuture: make(map[string]string),
-		spotMeta:               make(map[string]SpotSymbol),
-		spotRules:              make(map[string]SymbolTradeRules),
-		futuresMeta:            make(map[string]FuturesSymbol),
-		futuresRules:           make(map[string]SymbolTradeRules),
-		reportStore:            reportStore,
-		domainEventSink:        reportStore,
-		costModel:              newResidualCostModel(cfg.HistoricalConfig),
-		emergencyStopFile:      effectiveEmergencyStopFile(cfg),
-		openHedgeStatePath:     effectiveOpenHedgeStatePath(cfg),
-		dailyRiskStatePath:     filepath.Join(cfg.NetworkConfig.RecordDir, liveDailyRiskStateName),
-		dailyRiskPersistCh:     make(chan persistedDailyRiskState, 1),
-		currentStage:           StageReady,
+		client:                  client,
+		venueAdapter:            binance.New(client),
+		cfg:                     cfg,
+		econ:                    economicParamsFromConfig(cfg),
+		logger:                  log.New(os.Stdout, "[FundingRateSniper] ", log.LstdFlags|log.Lmicroseconds),
+		goldenSymbolSet:         make(map[string]struct{}),
+		goldenSpotPairByFuture:  make(map[string]string),
+		spotMeta:                make(map[string]SpotSymbol),
+		spotRules:               make(map[string]SymbolTradeRules),
+		futuresMeta:             make(map[string]FuturesSymbol),
+		futuresRules:            make(map[string]SymbolTradeRules),
+		fundingRateCapBySymbol:  make(map[string]fundingRateCapFloor),
+		reportStore:             reportStore,
+		domainEventSink:         reportStore,
+		costModel:               newResidualCostModel(cfg.HistoricalConfig),
+		emergencyStopFile:       effectiveEmergencyStopFile(cfg),
+		globalEmergencyStopFile: strings.TrimSpace(cfg.NetworkConfig.GlobalEmergencyStopFile),
+		openHedgeStatePath:      effectiveOpenHedgeStatePath(cfg),
+		dailyRiskStatePath:      filepath.Join(cfg.NetworkConfig.RecordDir, liveDailyRiskStateName),
+		dailyRiskPersistCh:      make(chan persistedDailyRiskState, 1),
+		currentStage:            StageReady,
 		portfolioManager: portfolioManager{
 			symbolCooldowns: make(map[string]symbolCooldownState),
 			exposureLocks:   make(map[string]exposureLockState),
@@ -141,12 +176,18 @@ func (e *FundingRateSniperEngine) Start(ctx context.Context) (err error) {
 			e.logger.Printf("刷新服务器时间偏移失败，将沿用旧偏移继续调度: %v", err)
 		}
 
-		// 滚动持有启用时按逐币 funding 时钟驱动唤醒(复核 :55 ∪ 新开 :57);否则保持全局单点 :57 新开唤醒。
-		var wakeAt time.Time
-		if e.cfg.PortfolioConfig.EnableRollingHold {
-			wakeAt = e.scheduler().NextPortfolioWake(e.serverNow(), e.residentClocks())
-		} else {
-			wakeAt = e.scheduler().NextWake(e.serverNow())
+		// P2.4 统一逐结算唤醒:取「新开扫描(最近未来结算 − ScanWindow)」与「各持仓续持复核(:55)」最早者,
+		// 不再绑全局 :wakeMinute。冷启动(无已知结算)退化为立即扫描引导;滚动/单周期路径同一唤醒口径,
+		// 仅 cycle 编排仍按 EnableRollingHold 分叉。
+		sched := e.scheduler()
+		wakeNow := e.serverNow()
+		residentClocks := e.residentClocks()
+		wakeAt := sched.NextMarketWake(wakeNow, residentClocks, e.knownMarketNextFundings())
+		// 防御:若算出「立即唤醒」但**并非**因持仓到了续持复核窗口(即纯因冷启动/上轮扫描失败/结算边界刚过、
+		// 结算时钟尚不可用),施加最小重试间隔。否则持续扫描失败会空转打满公共行情接口、反招平台熔断——
+		// 这正是旧 :57 模型(失败自然退避到下个整点)隐含的兜底,逐结算模型必须显式补回。
+		if !wakeAt.After(wakeNow) && !anyRevalidationDue(sched, wakeNow, residentClocks) {
+			wakeAt = wakeNow.Add(scanBootstrapRetryInterval)
 		}
 		e.logger.Printf("系统静默中，等待下一次觉醒时间: %s", wakeAt.Format("2006-01-02 15:04:05"))
 		if err := e.sleepUntilServerTime(ctx, wakeAt); err != nil {
@@ -213,6 +254,16 @@ func (e *FundingRateSniperEngine) initialize(ctx context.Context) error {
 		e.futuresMeta[symbol.Symbol] = symbol
 		e.futuresRules[symbol.Symbol] = extractTradeRules(symbol.Filters)
 	}
+
+	// 撞限豁免开启时才需要逐 symbol 的资金费上下限;拉取失败不致命,回退默认 ±2%(仅记日志)。
+	if e.cfg.StrategyConfig.CapPinnedFundingOverrideEnabled {
+		if fundingInfos, fundingErr := e.client.FetchFundingInfo(ctx); fundingErr != nil {
+			e.logger.Printf("拉取 fundingInfo 失败(撞限豁免将回退默认 ±%.2f%% 上下限): %v", defaultFundingRateCapAbs*100, fundingErr)
+		} else {
+			e.fundingRateCapBySymbol = loadFundingRateCaps(fundingInfos)
+			e.logger.Printf("已加载 fundingInfo: %d 个 symbol 设有特殊资金费上下限(撞限豁免已启用)", len(e.fundingRateCapBySymbol))
+		}
+	}
 	spotPairs := make([]string, 0, len(e.goldenSymbols))
 	borrowAssets := make([]string, 0, len(e.goldenSymbols))
 	for _, futureSymbol := range e.goldenSymbols {
@@ -247,6 +298,10 @@ func (e *FundingRateSniperEngine) initialize(ctx context.Context) error {
 		e.logger.Printf("已加载账户真实交易成本: spot_taker=%.6f(symbol=%s) futures_taker=%.6f(symbol=%s) borrow_assets=%d",
 			e.cfg.HistoricalConfig.SpotTakerFeeRate, profile.SpotFeeSymbol, e.cfg.HistoricalConfig.FuturesTakerFeeRate, profile.FuturesFeeSymbol, profile.BorrowInterestResolvedCount)
 	}
+
+	// P2.2:用刚实拉的真实 taker 费率派生 FeeReserveRate(4 腿往返),刷新该所经济闸 e.econ。
+	// 必须在 ResolveAccountTradingCostProfile 写回 HistoricalConfig taker 费率之后调用。
+	e.applyDerivedEconomicParams()
 
 	if err := e.verifyTradingEnvironment(ctx); err != nil {
 		return err
@@ -614,15 +669,21 @@ func (e *FundingRateSniperEngine) scanTopFundingTargets(ctx context.Context) ([]
 
 	now := e.serverNow()
 	sched := e.scheduler()
+	// P2.4:记录本轮黄金币种各自的下次结算时间(无论是否落在扫描窗口),供下一轮逐结算唤醒计算。
+	fundingClock := make([]time.Time, 0, len(items))
 	candidates := make([]FundingCandidate, 0, len(items))
 	observations := make([]ScanObservationRecord, 0, len(items))
-	breakEven := coherentMinFundingRate(e.cfg)
+	econScan := e.economicParams()
+	breakEven := econScan.BreakEven()
 	for _, item := range items {
 		if _, ok := e.goldenSymbolSet[item.Symbol]; !ok {
 			continue
 		}
 
 		nextFundingTime := time.UnixMilli(item.NextFundingTime)
+		if item.NextFundingTime > 0 {
+			fundingClock = append(fundingClock, nextFundingTime)
+		}
 		if !sched.ScanEligible(now, nextFundingTime) {
 			continue
 		}
@@ -631,6 +692,8 @@ func (e *FundingRateSniperEngine) scanTopFundingTargets(ctx context.Context) ([]
 		isStale := e.cfg.NetworkConfig.MaxPremiumIndexStaleness > 0 && staleness > e.cfg.NetworkConfig.MaxPremiumIndexStaleness
 
 		estimatedRate, lastFundingRate, fundingJump, basisRate, _ := estimateScanFundingSignal(item, e.cfg.RiskConfig.ConservativeFundingOnSignConflictEnabled)
+		var capPinnedOverride bool
+		estimatedRate, fundingJump, capPinnedOverride = e.applyCapPinnedFundingOverride(item.Symbol, lastFundingRate, estimatedRate, fundingJump)
 		direction := fundingDirectionFromRate(estimatedRate)
 		profile := GetSymbolRiskProfile(item.Symbol)
 
@@ -656,8 +719,8 @@ func (e *FundingRateSniperEngine) scanTopFundingTargets(ctx context.Context) ([]
 		observations = append(observations, newScanObservationRecord(
 			e.runID, e.currentCycleID, now, item.Symbol, nextFundingTime, direction,
 			estimatedRate, lastFundingRate, fundingJump, basisRate,
-			breakEven, minRateGate, e.cfg.StrategyConfig.MaxEstimatedFundingRate,
-			isStale, action != StrategyActionReject, reason,
+			breakEven, minRateGate, econScan.MaxEstimatedRate,
+			isStale, action != StrategyActionReject, reason, capPinnedOverride,
 		))
 
 		if action == StrategyActionReject {
@@ -695,6 +758,8 @@ func (e *FundingRateSniperEngine) scanTopFundingTargets(ctx context.Context) ([]
 			QuantityPrecision: meta.QuantityPrecision,
 		})
 	}
+
+	e.setMarketNextFundings(fundingClock)
 
 	for idx := range candidates {
 		futuresRule := e.futuresRules[candidates[idx].Symbol]

@@ -250,6 +250,11 @@ func (c *BinanceClient) FetchPremiumIndex(ctx context.Context) ([]PremiumIndexIt
 	return c.fetchPremiumIndex(ctx)
 }
 
+// FetchFundingInfo 导出 fundingInfo(资金费上下限/结算周期)拉取。
+func (c *BinanceClient) FetchFundingInfo(ctx context.Context) ([]FundingInfoItem, error) {
+	return c.fetchFundingInfo(ctx)
+}
+
 // ResolveAccountTradingCostProfile 导出账户费率/借贷成本画像解析。
 func (c *BinanceClient) ResolveAccountTradingCostProfile(ctx context.Context, spotSymbols []string, futuresSymbols []string, borrowAssets []string) (AccountTradingCostProfile, error) {
 	return c.resolveAccountTradingCostProfile(ctx, spotSymbols, futuresSymbols, borrowAssets)
@@ -411,6 +416,14 @@ func (c *BinanceClient) fetchPremiumIndex(ctx context.Context) ([]PremiumIndexIt
 	var payload []PremiumIndexItem
 	if err := c.getJSON(ctx, c.futuresBaseURL+"/fapi/v1/premiumIndex", &payload); err != nil {
 		return nil, fmt.Errorf("获取 premiumIndex 失败: %w", err)
+	}
+	return payload, nil
+}
+
+func (c *BinanceClient) fetchFundingInfo(ctx context.Context) ([]FundingInfoItem, error) {
+	var payload []FundingInfoItem
+	if err := c.getJSON(ctx, c.futuresBaseURL+"/fapi/v1/fundingInfo", &payload); err != nil {
+		return nil, fmt.Errorf("获取 fundingInfo 失败: %w", err)
 	}
 	return payload, nil
 }

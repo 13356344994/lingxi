@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"lingxi/internal/venue/binance"
 )
 
 const runtimeCapitalAdjustTimeout = 30 * time.Second
@@ -144,7 +146,7 @@ func directOrHubTransferPlan(from string, to string) []string {
 }
 
 func (e *FundingRateSniperEngine) fetchFundingAccountFreeBalances(ctx context.Context) (map[string]float64, error) {
-	body, err := e.signedRequest(ctx, http.MethodPost, e.client.SpotBaseURL()+"/sapi/v1/asset/get-funding-asset", nil)
+	body, err := e.signedRequest(ctx, http.MethodPost, e.client.SpotBaseURL()+binance.PathAssetFundingAsset, nil)
 	if err != nil {
 		return nil, err
 	}

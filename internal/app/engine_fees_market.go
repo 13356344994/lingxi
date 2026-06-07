@@ -14,6 +14,7 @@ import (
 
 	"lingxi/internal/exchange"
 	"lingxi/internal/marketdata"
+	"lingxi/internal/venue/binance"
 )
 
 // 本文件从 funding_sniper_engine.go 拆出：仅承载手续费估算与币种换算、签名请求与本地限频/权重
@@ -87,7 +88,7 @@ func (e *FundingRateSniperEngine) fetchFuturesTradeCommissionUSDT(ctx context.Co
 	params.Set("symbol", symbol)
 	params.Set("orderId", strconv.FormatInt(orderID, 10))
 	params.Set("limit", "1000")
-	body, err := e.signedRequest(ctx, http.MethodGet, e.client.FuturesBaseURL()+"/fapi/v1/userTrades", params)
+	body, err := e.signedRequest(ctx, http.MethodGet, e.client.FuturesBaseURL()+binance.PathFuturesUserTrades, params)
 	if err != nil {
 		return 0, err
 	}
@@ -178,7 +179,7 @@ func (e *FundingRateSniperEngine) fetchSpotAssetUSDTPrice(ctx context.Context, a
 
 	symbol := asset + "USDT"
 	ticker := BookTicker{}
-	if err := e.getJSON(ctx, e.client.SpotBaseURL()+"/api/v3/ticker/bookTicker?symbol="+symbol, &ticker); err != nil {
+	if err := e.getJSON(ctx, e.client.SpotBaseURL()+binance.PathSpotBookTicker+"?symbol="+symbol, &ticker); err != nil {
 		return 0, err
 	}
 
@@ -401,7 +402,7 @@ func (e *FundingRateSniperEngine) syncServerTimeOffset(ctx context.Context) erro
 	var payload struct {
 		ServerTime int64 `json:"serverTime"`
 	}
-	if err := e.getJSON(ctx, e.client.FuturesBaseURL()+"/fapi/v1/time", &payload); err != nil {
+	if err := e.getJSON(ctx, e.client.FuturesBaseURL()+binance.PathFuturesTime, &payload); err != nil {
 		return fmt.Errorf("同步服务器时间失败: %w", err)
 	}
 
@@ -659,7 +660,7 @@ func (e *FundingRateSniperEngine) applyDynamicSizingTightening(target *Monitored
 		DepthCapDiscount:           defaultDepthCapDiscount,
 		HardCapUSDT:                hardCap,
 		ExpectedNetFundingRate:     target.Candidate.EstimatedRate,
-		EntryThresholdRate:         coherentMinFundingRate(e.cfg),
+		EntryThresholdRate:         e.economicParams().BreakEven(),
 		BaseUnitUSDT:               e.cfg.StrategyConfig.PerSymbolQuoteUSDT * profile.PerSymbolQuoteMultiplier,
 		EdgeMin:                    defaultDynamicEdgeMin,
 		EdgeMax:                    defaultDynamicEdgeMax,
@@ -788,7 +789,7 @@ func (e *FundingRateSniperEngine) fetchFuturesOpenInterestNotional(ctx context.C
 	var payload struct {
 		OpenInterest string `json:"openInterest"`
 	}
-	if err := e.getJSON(ctx, e.client.FuturesBaseURL()+"/fapi/v1/openInterest?symbol="+symbol, &payload); err != nil {
+	if err := e.getJSON(ctx, e.client.FuturesBaseURL()+binance.PathFuturesOpenInterest+"?symbol="+symbol, &payload); err != nil {
 		return 0, err
 	}
 	openInterestQty := parseFloat(payload.OpenInterest)
@@ -799,11 +800,11 @@ func (e *FundingRateSniperEngine) fetchFuturesOpenInterestNotional(ctx context.C
 }
 
 func (e *FundingRateSniperEngine) fetchRecentSpotQuoteVolume(ctx context.Context, symbol string) (float64, error) {
-	return e.fetchRecentQuoteVolume(ctx, e.client.SpotBaseURL()+"/api/v3/klines", symbol)
+	return e.fetchRecentQuoteVolume(ctx, e.client.SpotBaseURL()+binance.PathSpotKlines, symbol)
 }
 
 func (e *FundingRateSniperEngine) fetchRecentFuturesQuoteVolume(ctx context.Context, symbol string) (float64, error) {
-	return e.fetchRecentQuoteVolume(ctx, e.client.FuturesBaseURL()+"/fapi/v1/klines", symbol)
+	return e.fetchRecentQuoteVolume(ctx, e.client.FuturesBaseURL()+binance.PathFuturesKlines, symbol)
 }
 
 func (e *FundingRateSniperEngine) fetchRecentQuoteVolume(ctx context.Context, endpoint string, symbol string) (float64, error) {

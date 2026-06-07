@@ -8,6 +8,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"lingxi/internal/venue/binance"
 )
 
 func spotExecutionMarketLabel(venue spotExecutionVenue) string {
@@ -135,9 +137,9 @@ func applySpotVenueOrderParams(params url.Values, venue spotExecutionVenue) {
 
 func (e *FundingRateSniperEngine) spotOrderRequestPathForVenue(venue spotExecutionVenue) string {
 	if venue == spotExecutionVenueCrossMargin {
-		return e.client.SpotBaseURL() + "/sapi/v1/margin/order"
+		return e.client.SpotBaseURL() + binance.PathMarginOrder
 	}
-	return e.client.SpotBaseURL() + "/api/v3/order"
+	return e.client.SpotBaseURL() + binance.PathSpotOrder
 }
 
 func (e *FundingRateSniperEngine) buildDirectionalSpotProtectedOrderParams(ctx context.Context, symbol string, side string, quantity float64, clientOrderID string, venue spotExecutionVenue) (url.Values, error) {

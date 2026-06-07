@@ -115,6 +115,11 @@ type NetworkConfig struct {
 	DashboardAddr            string        `cfg:"dashboard_addr"`
 	RecordDir                string        `cfg:"record_dir"`
 	EmergencyStopFile        string        `cfg:"emergency_stop_file"`
+	// GlobalEmergencyStopFile 是「全局急停总闸」路径(多所部署的双级急停之全局级,§7.4)。运行期由
+	// buildVenueRuntime 注入为基记录目录下的 .halt-live(= 改造前的 records/.halt-live);引擎/启动检查
+	// 既看本所 EmergencyStopFile(records/<venue>/.halt-live)又看本字段——任一存在即停。单所(币安)
+	// 两者解析为同一路径,去重后行为与改造前逐字节一致。空 → 回退仅看 EmergencyStopFile(后向兼容)。
+	GlobalEmergencyStopFile string `cfg:"global_emergency_stop_file"`
 }
 
 // StrategyConfig 表示扫描、监控和容量筛选配置。
@@ -132,18 +137,35 @@ type StrategyConfig struct {
 	LiveFundingAsset         string        `cfg:"live_funding_asset"`
 	FeeReserveRate           float64       `cfg:"fee_reserve_rate"`
 	ExitSpreadReserveRate    float64       `cfg:"exit_spread_reserve_rate"`
+	// AutoDeriveFeeReserveEnabled 开启后,引擎在启动实拉账户真实 taker 费率时,把 FeeReserveRate 重算为
+	// 2*SpotTaker + 2*FuturesTaker(开+平 × 现货+合约 四腿往返;平台币抵扣已含在实拉费率里),取代手填常量,
+	// 使进场/净利经济闸按「该账户真实成本」收紧或放宽(§6)。默认 true。fail-safe:费率拉取失败/异常(≤0)时
+	// 保持手填值,绝不把闸塌成 0。置 false 可回退到纯手填 FeeReserveRate。
+	AutoDeriveFeeReserveEnabled bool `cfg:"auto_derive_fee_reserve_enabled"`
 	// ImpactReserveInGateEnabled 让开仓前净利闸始终扣除往返市场冲击储备(按可见盘口深度估计,薄盘=高冲击),
 	// 与 DynamicSizingEnabled 解耦。默认 true(出厂最安全):不扣冲击的入场闸会系统性高估净利、在薄流动性上隐性亏损。
 	// 置 false 退回「仅 DynamicSizing 开启时才扣冲击」的旧行为。
-	ImpactReserveInGateEnabled bool `cfg:"impact_reserve_in_gate_enabled"`
-	PreferredSpotQuoteAssets string        `cfg:"preferred_spot_quote_assets"`
-	MaxTargets               int           `cfg:"max_targets"`
-	PerSymbolQuoteUSDT       float64       `cfg:"per_symbol_quote_usdt"`
-	RecentTradeVolumeWindow  time.Duration `cfg:"recent_trade_volume_window"`
-	MaxRecentVolumeShare     float64       `cfg:"max_recent_volume_share"`
-	MaxOpenInterestShare     float64       `cfg:"max_open_interest_share"`
-	MaxVisibleDepthShare     float64       `cfg:"max_visible_depth_share"`
-	DepthLevels              int           `cfg:"depth_levels"`
+	ImpactReserveInGateEnabled bool          `cfg:"impact_reserve_in_gate_enabled"`
+	PreferredSpotQuoteAssets   string        `cfg:"preferred_spot_quote_assets"`
+	MaxTargets                 int           `cfg:"max_targets"`
+	PerSymbolQuoteUSDT         float64       `cfg:"per_symbol_quote_usdt"`
+	RecentTradeVolumeWindow    time.Duration `cfg:"recent_trade_volume_window"`
+	MaxRecentVolumeShare       float64       `cfg:"max_recent_volume_share"`
+	MaxOpenInterestShare       float64       `cfg:"max_open_interest_share"`
+	MaxVisibleDepthShare       float64       `cfg:"max_visible_depth_share"`
+	DepthLevels                int           `cfg:"depth_levels"`
+
+	// CapPinnedFundingOverride* 处理「资金费撞交易所上下限(cap/floor)」这一极端但真实的行情:
+	// 当某币本期实收资金费已贴住交易所封顶(如 -2% floor),前向溢价信号常因均值回归/插值而与之反号,
+	// 触发 R7 保守化把预估费率归零 → 跳变 = |0 - last| 撞穿 MaxFundingRateJump → 该极端肥单被误拒。
+	// 开启后:若 |lastFundingRate| 已达 symbol cap/floor 的 ProximityRate 倍且方向一致,则不再让 R7 归零,
+	// 而是按 lastFundingRate × EstimateFactor 给出保守但非零的预估(撞限多为持续而非反转)。
+	// CapPinnedFundingOverrideEnabled=false(默认,出厂最安全):完全保持既有 R7 行为,本豁免不生效。
+	// ProximityRate∈(0,1]:贴限判定的接近度(0.9=达到上下限 90% 即视为撞限);EstimateFactor∈(0,1]:
+	// 撞限时预估取 last 的倍率(1.0=全额信其持续,最激进;<1 则按比例打折更保守)。仅 Enabled=true 时校验后两者。
+	CapPinnedFundingOverrideEnabled bool    `cfg:"cap_pinned_funding_override_enabled"`
+	CapPinnedFundingProximityRate   float64 `cfg:"cap_pinned_funding_proximity_rate"`
+	CapPinnedFundingEstimateFactor  float64 `cfg:"cap_pinned_funding_estimate_factor"`
 }
 
 // ExecutionConfig 表示下单确认、恢复和退出执行参数。
@@ -154,6 +176,12 @@ type ExecutionConfig struct {
 	OpenPreparationLead      time.Duration `cfg:"open_preparation_lead"`
 	PreOpenNoGoLead          time.Duration `cfg:"pre_open_no_go_lead"`
 	PreOpenTickerMaxAge      time.Duration `cfg:"pre_open_ticker_max_age"`
+	// PreOpenTickerRESTRefreshEnabled:战前 Go/No-Go 发现某腿 bookTicker 陈旧/缺失时,是否先用 REST 现拉一次
+	// 真实最优买卖价补鲜后再复检(默认 true)。背景:Binance @bookTicker 是「最优买/卖价变化才推」的事件流,
+	// 薄盘冷门币顶档长时间不动 → 该 symbol 久无 WS 推送,缓存只剩预热时 REST 补的旧价(实盘曾见 age≈2min 撞穿
+	// PreOpenTickerMaxAge 误拒开仓)。补鲜只在本轮确有腿陈旧时触发,流动性好的标的零额外请求;REST 失败/仍陈旧
+	// 则保留原拒因放弃开仓(fail-safe,绝不拿旧价裸开)。置 false 完全回退改造前行为(纯按缓存新鲜度判)。
+	PreOpenTickerRESTRefreshEnabled bool `cfg:"pre_open_ticker_rest_refresh_enabled"`
 	RecvWindow               int64         `cfg:"recv_window"`
 	ExecutionConfirmTimeout  time.Duration `cfg:"execution_confirm_timeout"`
 	ExecutionRecoveryTimeout time.Duration `cfg:"execution_recovery_timeout"`
@@ -421,6 +449,12 @@ type AlertingConfig struct {
 type EngineConfig struct {
 	ActiveProfile EngineProfile `cfg:"active_profile"` // 运行偏好档位
 
+	// AllocatedCapitalUSDT 是「主观认定投入该所策略的资金」,**仅作绩效指标(夏普/索提诺/回撤等)的收益率分母**
+	// (MULTI_VENUE_REFACTOR §9.1)。它**不**限制下单规模——实际下单由 strategy.per_symbol_quote_usdt 决定;
+	// 两者口径须自行对齐(配小实放大→收益率高估,反之低估)。多所部署下由 venues.<v>.allocated_capital_usdt
+	// 逐所覆盖;0 或未配 → 绩效接口判 Insufficient 分母(不静默猜)。
+	AllocatedCapitalUSDT float64 `cfg:"allocated_capital_usdt"`
+
 	NetworkConfig    `cfg:"network"`
 	StrategyConfig   `cfg:"strategy"`
 	ExecutionConfig  `cfg:"execution"`
@@ -551,6 +585,10 @@ func (cfg EngineConfig) Validate() error {
 	appendIssue(cfg.StrategyConfig.MaxEstimatedFundingRate > cfg.StrategyConfig.MinEstimatedFundingRate, "MaxEstimatedFundingRate 必须大于 MinEstimatedFundingRate")
 	appendIssue(cfg.StrategyConfig.MaxFundingRateJump > 0, "MaxFundingRateJump 必须大于 0")
 	appendIssue(cfg.StrategyConfig.MaxScanBasisRate > 0, "MaxScanBasisRate 必须大于 0")
+	if cfg.StrategyConfig.CapPinnedFundingOverrideEnabled {
+		appendIssue(cfg.StrategyConfig.CapPinnedFundingProximityRate > 0 && cfg.StrategyConfig.CapPinnedFundingProximityRate <= 1, "CapPinnedFundingProximityRate 必须在 (0, 1] 之间")
+		appendIssue(cfg.StrategyConfig.CapPinnedFundingEstimateFactor > 0 && cfg.StrategyConfig.CapPinnedFundingEstimateFactor <= 1, "CapPinnedFundingEstimateFactor 必须在 (0, 1] 之间")
+	}
 	appendIssue(strings.TrimSpace(cfg.StrategyConfig.LiveFundingAsset) != "", "LiveFundingAsset 不能为空")
 	appendIssue(cfg.StrategyConfig.FeeReserveRate > 0, "FeeReserveRate 必须大于 0")
 	appendIssue(cfg.StrategyConfig.ExitSpreadReserveRate >= 0, "ExitSpreadReserveRate 不能小于 0")

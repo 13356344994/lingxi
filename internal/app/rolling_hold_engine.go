@@ -71,6 +71,28 @@ func (e *FundingRateSniperEngine) settleKeptPositions(keepHedges []OpenHedge, be
 	return settlement, nil
 }
 
+// setMarketNextFundings 缓存本轮扫描观测到的黄金币种下次结算时间(P2.4),供下一轮逐结算唤醒计算。
+// 防御性复制入参,避免与调用方切片别名共享。
+func (e *FundingRateSniperEngine) setMarketNextFundings(fundings []time.Time) {
+	if e == nil {
+		return
+	}
+	cp := append([]time.Time(nil), fundings...)
+	e.platformRiskMu.Lock()
+	e.marketNextFundings = cp
+	e.platformRiskMu.Unlock()
+}
+
+// knownMarketNextFundings 返回上一轮缓存的市场下次结算时间副本(P2.4 唤醒计算用)。冷启动为空。
+func (e *FundingRateSniperEngine) knownMarketNextFundings() []time.Time {
+	if e == nil {
+		return nil
+	}
+	e.platformRiskMu.Lock()
+	defer e.platformRiskMu.Unlock()
+	return append([]time.Time(nil), e.marketNextFundings...)
+}
+
 // residentClocks 读取常驻组合各持仓的逐币 funding 时钟(symbol + NextFundingTime),供 NextPortfolioWake 计算
 // 下一次「复核(:55)或新开(:57)」唤醒点。无持仓(或未填 NextFundingTime)时返回空 → NextPortfolioWake 退化为
 // 全局 :57 新开唤醒。持有 platformRiskMu 读取 activeOpenHedges,保持与风控/报告状态同一临界区。

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"lingxi/internal/execution"
+	"lingxi/internal/venue/binance"
 	"net/http"
 	"net/url"
 	"strings"
@@ -56,7 +57,7 @@ func (e *FundingRateSniperEngine) fetchSpotBookTicker(ctx context.Context, symbo
 		return BookTicker{}, fmt.Errorf("现货 bookTicker 仅允许使用缓存: symbol=%s", symbol)
 	}
 	var ticker BookTicker
-	if err := e.getJSON(ctx, e.client.SpotBaseURL()+"/api/v3/ticker/bookTicker?symbol="+symbol, &ticker); err != nil {
+	if err := e.getJSON(ctx, e.client.SpotBaseURL()+binance.PathSpotBookTicker+"?symbol="+symbol, &ticker); err != nil {
 		return BookTicker{}, err
 	}
 	return ticker, nil
@@ -75,7 +76,7 @@ func (e *FundingRateSniperEngine) fetchFuturesBookTicker(ctx context.Context, sy
 		return BookTicker{}, fmt.Errorf("合约 bookTicker 仅允许使用缓存: symbol=%s", symbol)
 	}
 	var ticker BookTicker
-	if err := e.getJSON(ctx, e.client.FuturesBaseURL()+"/fapi/v1/ticker/bookTicker?symbol="+symbol, &ticker); err != nil {
+	if err := e.getJSON(ctx, e.client.FuturesBaseURL()+binance.PathFuturesBookTicker+"?symbol="+symbol, &ticker); err != nil {
 		return BookTicker{}, err
 	}
 	return ticker, nil
@@ -438,11 +439,11 @@ func (e *FundingRateSniperEngine) buildProtectedCloseFuturesOrder(ctx context.Co
 }
 
 func (e *FundingRateSniperEngine) spotOrderRequestPath() string {
-	return e.client.SpotBaseURL() + "/api/v3/order"
+	return e.client.SpotBaseURL() + binance.PathSpotOrder
 }
 
 func (e *FundingRateSniperEngine) futuresOrderRequestPath() string {
-	return e.client.FuturesBaseURL() + "/fapi/v1/order"
+	return e.client.FuturesBaseURL() + binance.PathFuturesOrder
 }
 
 func (e *FundingRateSniperEngine) placeSignedOrder(ctx context.Context, endpoint string, params url.Values) ([]byte, error) {

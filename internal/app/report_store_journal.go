@@ -124,6 +124,7 @@ func pendingFundingJournalKey(rec PendingFundingSettlementRecord) string {
 //   - 以物化视图顺序为基准,对每个键用 journal 的最新内容覆盖(修正崩溃丢失的 update 定稿);
 //   - journal 有而物化缺失的键(丢失的 append 写)按 journal 顺序补到末尾;
 //   - 物化有而 journal 完全不知道的键(journal 被轮转/截断)原样保留。
+//
 // 返回合并结果与是否发生变化(changed=true 时需回写物化 JSON 并告警)。
 func reconcileSettlementsWithJournal(materialized []SettlementCSVRecord, entries []settlementJournalEntry) ([]SettlementCSVRecord, bool) {
 	if len(entries) == 0 {

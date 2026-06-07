@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"lingxi/internal/marketdata"
+	"lingxi/internal/venue/binance"
 	"math"
 	"net/url"
 	"strconv"
@@ -283,7 +284,7 @@ func (e *FundingRateSniperEngine) revertSpotCloseAfterFuturesFailure(ctx context
 
 func (e *FundingRateSniperEngine) fetchPremiumIndex(ctx context.Context) ([]PremiumIndexItem, error) {
 	var payload []PremiumIndexItem
-	if err := e.getJSON(ctx, e.client.FuturesBaseURL()+"/fapi/v1/premiumIndex", &payload); err != nil {
+	if err := e.getJSON(ctx, e.client.FuturesBaseURL()+binance.PathFuturesPremiumIndex, &payload); err != nil {
 		return nil, fmt.Errorf("获取 premiumIndex 失败: %w", err)
 	}
 	return payload, nil
@@ -291,7 +292,7 @@ func (e *FundingRateSniperEngine) fetchPremiumIndex(ctx context.Context) ([]Prem
 
 func (e *FundingRateSniperEngine) fetchPremiumIndexBySymbol(ctx context.Context, symbol string) (PremiumIndexItem, error) {
 	var payload PremiumIndexItem
-	if err := e.getJSON(ctx, e.client.FuturesBaseURL()+"/fapi/v1/premiumIndex?symbol="+url.QueryEscape(symbol), &payload); err != nil {
+	if err := e.getJSON(ctx, e.client.FuturesBaseURL()+binance.PathFuturesPremiumIndex+"?symbol="+url.QueryEscape(symbol), &payload); err != nil {
 		return PremiumIndexItem{}, fmt.Errorf("获取 premiumIndex 失败: %w", err)
 	}
 	return payload, nil
@@ -317,6 +318,7 @@ func (e *FundingRateSniperEngine) refreshTargetFundingEstimate(ctx context.Conte
 	}
 
 	estimatedRate, lastFundingRate, fundingJump, basisRate, _ := estimateScanFundingSignal(item, e.cfg.RiskConfig.ConservativeFundingOnSignConflictEnabled)
+	estimatedRate, fundingJump, _ = e.applyCapPinnedFundingOverride(target.Candidate.Symbol, lastFundingRate, estimatedRate, fundingJump)
 	target.Candidate.Direction = fundingDirectionFromRate(estimatedRate)
 	target.Candidate.EstimatedRate = estimatedRate
 	target.Candidate.EstimatedRateText = formatFloat(estimatedRate)
@@ -344,6 +346,51 @@ func (e *FundingRateSniperEngine) fetchDualBookTicker(ctx context.Context, spotS
 	return spotTicker, futuresTicker, nil
 }
 
+// preOpenTickerRefreshTimeout 是战前盘口 REST 补鲜的总预算(两腿并发)。开火前通常有 ~1s 余量
+// (战前检查时间 = 开仓时间 - PreOpenNoGoLead),东京到币安 REST 往返仅数十毫秒,800ms 足够且留安全边际。
+const preOpenTickerRefreshTimeout = 800 * time.Millisecond
+
+// refreshPreOpenTickersViaREST 在战前 Go/No-Go 发现某腿 bookTicker 陈旧/缺失时,用 REST 现拉一次两腿
+// 真实最优买卖价并写回缓存(并发、紧超时)。事件驱动的 @bookTicker 对薄盘冷门币长时间不推,这给开仓前
+// 一个「真·当前价」的诚实补鲜机会。本方法只读(仅 GET 公共行情,不动账户/不下单),失败时静默返回 →
+// 调用方复检仍判陈旧 → 放弃开仓(fail-safe)。client/gateway 未就绪或处于 cache-only 窗口则跳过补鲜。
+func (e *FundingRateSniperEngine) refreshPreOpenTickersViaREST(ctx context.Context, target *MonitoredTarget) {
+	if e.client == nil || e.bookTickerCacheOnlyModeEnabled() {
+		return
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	refreshCtx, cancel := context.WithTimeout(ctx, preOpenTickerRefreshTimeout)
+	defer cancel()
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		var ticker BookTicker
+		if err := e.getJSON(refreshCtx, e.client.SpotBaseURL()+binance.PathSpotBookTicker+"?symbol="+target.Candidate.Pair, &ticker); err != nil {
+			e.logger.Printf("战前补鲜现货盘口失败 symbol=%s err=%v", target.Candidate.Pair, err)
+			return
+		}
+		if e.spotTickerCache != nil && (parseFloat(ticker.AskPrice) > 0 || parseFloat(ticker.BidPrice) > 0) {
+			e.spotTickerCache.Update(ticker)
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		var ticker BookTicker
+		if err := e.getJSON(refreshCtx, e.client.FuturesBaseURL()+binance.PathFuturesBookTicker+"?symbol="+target.Candidate.Symbol, &ticker); err != nil {
+			e.logger.Printf("战前补鲜合约盘口失败 symbol=%s err=%v", target.Candidate.Symbol, err)
+			return
+		}
+		if e.futuresTickerCache != nil && (parseFloat(ticker.AskPrice) > 0 || parseFloat(ticker.BidPrice) > 0) {
+			e.futuresTickerCache.Update(ticker)
+		}
+	}()
+	wg.Wait()
+}
+
 func (e *FundingRateSniperEngine) fetchDualOrderBookDepth(ctx context.Context, spotSymbol string, futuresSymbol string) (ParsedOrderBookDepth, ParsedOrderBookDepth, error) {
 	// 仅当缓存里的快照两侧档位都非空时才直接复用；空/单边快照（WS 预热未到位等）视为未命中，
 	// 落到下方 REST 重取，避免把「没拿到盘口」当成「有盘口」喂进下游 coverage 判定。
@@ -367,11 +414,11 @@ func (e *FundingRateSniperEngine) fetchDualOrderBookDepth(ctx context.Context, s
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		spotErr = e.getJSON(ctx, e.client.SpotBaseURL()+"/api/v3/depth?symbol="+spotSymbol+"&limit="+limit, &spotDepthRaw)
+		spotErr = e.getJSON(ctx, e.client.SpotBaseURL()+binance.PathSpotDepth+"?symbol="+spotSymbol+"&limit="+limit, &spotDepthRaw)
 	}()
 	go func() {
 		defer wg.Done()
-		futuresErr = e.getJSON(ctx, e.client.FuturesBaseURL()+"/fapi/v1/depth?symbol="+futuresSymbol+"&limit="+limit, &futuresDepthRaw)
+		futuresErr = e.getJSON(ctx, e.client.FuturesBaseURL()+binance.PathFuturesDepth+"?symbol="+futuresSymbol+"&limit="+limit, &futuresDepthRaw)
 	}()
 	wg.Wait()
 

@@ -32,6 +32,9 @@ type ScanObservationRecord struct {
 	IsStale       bool    `json:"is_stale"`
 	Passed        bool    `json:"passed"`
 	RejectReason  string  `json:"reject_reason"`
+	// CapPinnedOverride 标记本条观测的预估费率是否经「撞限豁免」修正(实收费率贴住交易所上下限,
+	// 不再被 R7 保守归零)。便于事后区分「自然通过」与「靠撞限豁免才纳入」的候选。
+	CapPinnedOverride bool `json:"cap_pinned_override,omitempty"`
 }
 
 // AppendScanObservations 把本轮海选的逐标的评估观测追加落盘（JSONL，按行可流式分析）。
@@ -68,7 +71,7 @@ func (e *FundingRateSniperEngine) flushScanObservations(observations []ScanObser
 	if e.logger != nil {
 		e.logger.Printf(
 			"扫描观测: 评估=%d 通过=%d 最高预估费率=%.6f(%s) 平衡线=%.6f",
-			len(observations), passed, bestRate, bestSymbol, coherentMinFundingRate(e.cfg),
+			len(observations), passed, bestRate, bestSymbol, e.economicParams().BreakEven(),
 		)
 	}
 	if e.reportStore != nil {
@@ -96,23 +99,25 @@ func newScanObservationRecord(
 	isStale bool,
 	passed bool,
 	rejectReason string,
+	capPinnedOverride bool,
 ) ScanObservationRecord {
 	return ScanObservationRecord{
-		RecordedAt:      recordedAt.UTC().Format(time.RFC3339Nano),
-		RunID:           runID,
-		CycleID:         cycleID,
-		Symbol:          symbol,
-		FundingTime:     fundingTime.UTC().Format(time.RFC3339),
-		Direction:       string(direction),
-		EstimatedRate:   estimatedRate,
-		LastFundingRate: lastFundingRate,
-		FundingJump:     fundingJump,
-		BasisRate:       basisRate,
-		BreakEvenRate:   breakEvenRate,
-		MinRateGate:     minRateGate,
-		MaxRateGate:     maxRateGate,
-		IsStale:         isStale,
-		Passed:          passed,
-		RejectReason:    rejectReason,
+		RecordedAt:        recordedAt.UTC().Format(time.RFC3339Nano),
+		RunID:             runID,
+		CycleID:           cycleID,
+		Symbol:            symbol,
+		FundingTime:       fundingTime.UTC().Format(time.RFC3339),
+		Direction:         string(direction),
+		EstimatedRate:     estimatedRate,
+		LastFundingRate:   lastFundingRate,
+		FundingJump:       fundingJump,
+		BasisRate:         basisRate,
+		BreakEvenRate:     breakEvenRate,
+		MinRateGate:       minRateGate,
+		MaxRateGate:       maxRateGate,
+		IsStale:           isStale,
+		Passed:            passed,
+		RejectReason:      rejectReason,
+		CapPinnedOverride: capPinnedOverride,
 	}
 }

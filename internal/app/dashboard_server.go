@@ -27,7 +27,10 @@ var webPanelFS embed.FS
 
 // DashboardServer 提供记录查看和下载面板。
 type DashboardServer struct {
-	addr         string
+	addr string
+	// orchestrator 持有所有 venue 运行时(P3a)。store/controller 是 Primary() 的快捷引用,使现有 handler
+	// 保持走缺省所、路由零变化;P3 后续 handler 改按 ?venue= 经 orchestrator 路由。
+	orchestrator *Orchestrator
 	store        *ReportStore
 	controller   *RuntimeController
 	auditStore   *DashboardAuditStore
@@ -55,8 +58,15 @@ type DashboardSummaryResponse struct {
 	ResidualScenarioStats []ResidualScenarioStats   `json:"residual_scenario_stats"`
 }
 
-// NewDashboardServer 创建一个只读 Web 面板服务。
-func NewDashboardServer(addr string, store *ReportStore, controller *RuntimeController, logger *log.Logger) (*DashboardServer, error) {
+// NewDashboardServer 创建一个只读 Web 面板服务。P3a 起接收 Orchestrator;缺省所(Primary)的 store/controller
+// 作为现有 handler 的快捷引用,保持路由与行为零变化。
+func NewDashboardServer(addr string, orch *Orchestrator, logger *log.Logger) (*DashboardServer, error) {
+	primary := orch.Primary()
+	if primary == nil {
+		return nil, fmt.Errorf("编排器未注册任何 venue,无法创建面板")
+	}
+	store := primary.store
+	controller := primary.controller
 	indexTmpl, err := template.ParseFS(webPanelFS, "webpanel/index.html")
 	if err != nil {
 		return nil, fmt.Errorf("解析 Web 面板模板失败: %w", err)
@@ -67,6 +77,7 @@ func NewDashboardServer(addr string, store *ReportStore, controller *RuntimeCont
 	}
 	return &DashboardServer{
 		addr:         addr,
+		orchestrator: orch,
 		store:        store,
 		controller:   controller,
 		auditStore:   auditStore,
@@ -82,6 +93,7 @@ func (s *DashboardServer) Start(ctx context.Context) error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", s.handleIndex)
 	mux.HandleFunc("/api/dashboard/summary", s.authorizeReadAPI(s.handleDashboardSummaryAPI))
+	mux.HandleFunc("/api/performance", s.authorizeReadAPI(s.handlePerformanceAPI))
 	mux.HandleFunc("/api/settlements", s.authorizeReadAPI(s.handleSettlementAPI))
 	mux.HandleFunc("/api/monitor-records", s.authorizeReadAPI(s.handleMonitorAPI))
 	mux.HandleFunc("/api/backtest-records", s.authorizeReadAPI(s.handleBacktestAPI))
@@ -178,7 +190,12 @@ func (s *DashboardServer) handleIndex(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *DashboardServer) handleSettlementAPI(w http.ResponseWriter, r *http.Request) {
-	records, err := s.store.ListSettlementRecords(parseLimit(r, 200))
+	targets, err := s.readTargets(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	records, err := aggregateRecords(targets, parseLimit(r, 200), (*ReportStore).ListSettlementRecords)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -187,71 +204,79 @@ func (s *DashboardServer) handleSettlementAPI(w http.ResponseWriter, r *http.Req
 }
 
 func (s *DashboardServer) handleDashboardSummaryAPI(w http.ResponseWriter, r *http.Request) {
-	if s.controller == nil {
+	// summary 是「单所视图」:缺省/all → 缺省所(Primary);具名 → 该所。跨所 all 聚合视图是独立后续项(§9.2)。
+	rt, err := s.resolveVenue(venueParam(r))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	if rt.controller == nil {
 		http.Error(w, "后台控制器未初始化", http.StatusServiceUnavailable)
 		return
 	}
+	ctrl := rt.controller
+	store := rt.store
 
 	limit := parseLimit(r, 200)
-	runtimeLogs, err := s.controller.RecentLogs(limit)
+	runtimeLogs, err := ctrl.RecentLogs(limit)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	executionIncidents, err := s.store.ListExecutionIncidents(limit)
+	executionIncidents, err := store.ListExecutionIncidents(limit)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	domainEvents, err := s.store.ListDomainEvents(limit)
+	domainEvents, err := store.ListDomainEvents(limit)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	settlements, err := s.store.ListSettlementRecords(limit)
+	settlements, err := store.ListSettlementRecords(limit)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	monitors, err := s.store.ListMonitorRecords(limit)
+	monitors, err := store.ListMonitorRecords(limit)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	backtests, err := s.store.ListBacktestRecords(limit)
+	backtests, err := store.ListBacktestRecords(limit)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	residualRisks, err := s.store.ListResidualRiskRecords(limit)
+	residualRisks, err := store.ListResidualRiskRecords(limit)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	residualSeverityStats, err := s.store.ListResidualSeverityStats()
+	residualSeverityStats, err := store.ListResidualSeverityStats()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	residualScenarioStats, err := s.store.ListResidualScenarioStats()
+	residualScenarioStats, err := store.ListResidualScenarioStats()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	capitalSnapshot := RuntimeCapitalSnapshot{}
 	capitalSnapshotError := ""
-	if snapshot, snapshotErr := s.controller.CurrentCapitalSnapshot(); snapshotErr != nil {
+	if snapshot, snapshotErr := ctrl.CurrentCapitalSnapshot(); snapshotErr != nil {
 		capitalSnapshotError = snapshotErr.Error()
 	} else {
 		capitalSnapshot = snapshot
 	}
 
 	writeJSON(w, DashboardSummaryResponse{
-		RuntimeStatus:         s.controller.Status(),
+		RuntimeStatus:         ctrl.Status(),
 		CapitalSnapshot:       capitalSnapshot,
 		CapitalSnapshotError:  capitalSnapshotError,
 		RuntimeLogs:           runtimeLogs,
-		RuntimeConfig:         s.controller.CurrentRiskConfig(),
+		RuntimeConfig:         ctrl.CurrentRiskConfig(),
 		UnifiedEvents:         buildUnifiedDashboardEvents(domainEvents, executionIncidents, limit),
 		ExecutionIncidents:    executionIncidents,
 		DomainEvents:          domainEvents,
@@ -265,13 +290,18 @@ func (s *DashboardServer) handleDashboardSummaryAPI(w http.ResponseWriter, r *ht
 }
 
 func (s *DashboardServer) handleUnifiedEventsAPI(w http.ResponseWriter, r *http.Request) {
+	targets, err := s.readTargets(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
 	limit := parseLimit(r, 200)
-	executionIncidents, err := s.store.ListExecutionIncidents(limit)
+	executionIncidents, err := aggregateRecords(targets, limit, (*ReportStore).ListExecutionIncidents)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	domainEvents, err := s.store.ListDomainEvents(limit)
+	domainEvents, err := aggregateRecords(targets, limit, (*ReportStore).ListDomainEvents)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -280,7 +310,12 @@ func (s *DashboardServer) handleUnifiedEventsAPI(w http.ResponseWriter, r *http.
 }
 
 func (s *DashboardServer) handleMonitorAPI(w http.ResponseWriter, r *http.Request) {
-	records, err := s.store.ListMonitorRecords(parseLimit(r, 200))
+	targets, err := s.readTargets(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	records, err := aggregateRecords(targets, parseLimit(r, 200), (*ReportStore).ListMonitorRecords)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -289,7 +324,12 @@ func (s *DashboardServer) handleMonitorAPI(w http.ResponseWriter, r *http.Reques
 }
 
 func (s *DashboardServer) handleBacktestAPI(w http.ResponseWriter, r *http.Request) {
-	records, err := s.store.ListBacktestRecords(parseLimit(r, 200))
+	targets, err := s.readTargets(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	records, err := aggregateRecords(targets, parseLimit(r, 200), (*ReportStore).ListBacktestRecords)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -298,7 +338,12 @@ func (s *DashboardServer) handleBacktestAPI(w http.ResponseWriter, r *http.Reque
 }
 
 func (s *DashboardServer) handleResidualRiskAPI(w http.ResponseWriter, r *http.Request) {
-	records, err := s.store.ListResidualRiskRecords(parseLimit(r, 200))
+	targets, err := s.readTargets(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	records, err := aggregateRecords(targets, parseLimit(r, 200), (*ReportStore).ListResidualRiskRecords)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -307,7 +352,12 @@ func (s *DashboardServer) handleResidualRiskAPI(w http.ResponseWriter, r *http.R
 }
 
 func (s *DashboardServer) handleResidualSeverityStatsAPI(w http.ResponseWriter, r *http.Request) {
-	stats, err := s.store.ListResidualSeverityStats()
+	targets, err := s.readTargets(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	stats, err := aggregateStats(targets, (*ReportStore).ListResidualSeverityStats)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -316,7 +366,12 @@ func (s *DashboardServer) handleResidualSeverityStatsAPI(w http.ResponseWriter, 
 }
 
 func (s *DashboardServer) handleResidualScenarioStatsAPI(w http.ResponseWriter, r *http.Request) {
-	stats, err := s.store.ListResidualScenarioStats()
+	targets, err := s.readTargets(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	stats, err := aggregateStats(targets, (*ReportStore).ListResidualScenarioStats)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -325,19 +380,29 @@ func (s *DashboardServer) handleResidualScenarioStatsAPI(w http.ResponseWriter, 
 }
 
 func (s *DashboardServer) handleRuntimeStatusAPI(w http.ResponseWriter, r *http.Request) {
-	if s.controller == nil {
+	rt, err := s.resolveVenue(venueParam(r))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	if rt.controller == nil {
 		http.Error(w, "后台控制器未初始化", http.StatusServiceUnavailable)
 		return
 	}
-	writeJSON(w, s.controller.Status())
+	writeJSON(w, rt.controller.Status())
 }
 
 func (s *DashboardServer) handleRuntimeLogsAPI(w http.ResponseWriter, r *http.Request) {
-	if s.controller == nil {
+	rt, err := s.resolveVenue(venueParam(r))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	if rt.controller == nil {
 		http.Error(w, "后台控制器未初始化", http.StatusServiceUnavailable)
 		return
 	}
-	logs, err := s.controller.RecentLogs(parseLimit(r, 200))
+	logs, err := rt.controller.RecentLogs(parseLimit(r, 200))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -346,7 +411,12 @@ func (s *DashboardServer) handleRuntimeLogsAPI(w http.ResponseWriter, r *http.Re
 }
 
 func (s *DashboardServer) handleExecutionIncidentsAPI(w http.ResponseWriter, r *http.Request) {
-	records, err := s.store.ListExecutionIncidents(parseLimit(r, 200))
+	targets, err := s.readTargets(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	records, err := aggregateRecords(targets, parseLimit(r, 200), (*ReportStore).ListExecutionIncidents)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -355,7 +425,12 @@ func (s *DashboardServer) handleExecutionIncidentsAPI(w http.ResponseWriter, r *
 }
 
 func (s *DashboardServer) handleDomainEventsAPI(w http.ResponseWriter, r *http.Request) {
-	records, err := s.store.ListDomainEvents(parseLimit(r, 200))
+	targets, err := s.readTargets(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	records, err := aggregateRecords(targets, parseLimit(r, 200), (*ReportStore).ListDomainEvents)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -364,15 +439,28 @@ func (s *DashboardServer) handleDomainEventsAPI(w http.ResponseWriter, r *http.R
 }
 
 func (s *DashboardServer) handleRuntimeConfigAPI(w http.ResponseWriter, r *http.Request) {
-	if s.controller == nil {
-		http.Error(w, "后台控制器未初始化", http.StatusServiceUnavailable)
-		return
-	}
 	switch r.Method {
 	case http.MethodGet:
-		writeJSON(w, s.controller.CurrentRiskConfig())
+		rt, err := s.resolveVenue(venueParam(r))
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		if rt.controller == nil {
+			http.Error(w, "后台控制器未初始化", http.StatusServiceUnavailable)
+			return
+		}
+		writeJSON(w, rt.controller.CurrentRiskConfig())
 	case http.MethodPost:
 		if !s.authorizeRuntimeControl(w, r, "config_update") {
+			return
+		}
+		rt, ok := s.resolveControlTarget(w, r, "config_update")
+		if !ok {
+			return
+		}
+		if rt.controller == nil {
+			http.Error(w, "后台控制器未初始化", http.StatusServiceUnavailable)
 			return
 		}
 		var req RuntimeRiskConfig
@@ -381,7 +469,7 @@ func (s *DashboardServer) handleRuntimeConfigAPI(w http.ResponseWriter, r *http.
 			http.Error(w, fmt.Sprintf("解析风控参数失败: %v", err), http.StatusBadRequest)
 			return
 		}
-		updated, err := s.controller.UpdateRiskConfig(req)
+		updated, err := rt.controller.UpdateRiskConfig(req)
 		if err != nil {
 			s.auditControlAction(r, "config_update", false, err.Error())
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -399,12 +487,18 @@ func (s *DashboardServer) handleRuntimeConfigAPI(w http.ResponseWriter, r *http.
 
 // handleRuntimeConfigPreviewAPI 干跑预览改参的字段级 before/after diff,不落地任何改动(R35/S5-F)。
 func (s *DashboardServer) handleRuntimeConfigPreviewAPI(w http.ResponseWriter, r *http.Request) {
-	if s.controller == nil {
-		http.Error(w, "后台控制器未初始化", http.StatusServiceUnavailable)
-		return
-	}
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	// 预览为干跑(不落地),按单所视图解析(缺省/all → 缺省所)。
+	rt, err := s.resolveVenue(venueParam(r))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	if rt.controller == nil {
+		http.Error(w, "后台控制器未初始化", http.StatusServiceUnavailable)
 		return
 	}
 	var req RuntimeRiskConfig
@@ -412,7 +506,7 @@ func (s *DashboardServer) handleRuntimeConfigPreviewAPI(w http.ResponseWriter, r
 		http.Error(w, fmt.Sprintf("解析风控参数失败: %v", err), http.StatusBadRequest)
 		return
 	}
-	diffs, err := s.controller.PreviewRiskConfigUpdate(req)
+	diffs, err := rt.controller.PreviewRiskConfigUpdate(req)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -422,10 +516,6 @@ func (s *DashboardServer) handleRuntimeConfigPreviewAPI(w http.ResponseWriter, r
 
 // handleRuntimeConfigRollbackAPI 一键回滚到上一次改参前的配置(R35/S5-F)。
 func (s *DashboardServer) handleRuntimeConfigRollbackAPI(w http.ResponseWriter, r *http.Request) {
-	if s.controller == nil {
-		http.Error(w, "后台控制器未初始化", http.StatusServiceUnavailable)
-		return
-	}
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -433,7 +523,15 @@ func (s *DashboardServer) handleRuntimeConfigRollbackAPI(w http.ResponseWriter, 
 	if !s.authorizeRuntimeControl(w, r, "config_rollback") {
 		return
 	}
-	rolledBack, err := s.controller.RollbackRiskConfig()
+	rt, ok := s.resolveControlTarget(w, r, "config_rollback")
+	if !ok {
+		return
+	}
+	if rt.controller == nil {
+		http.Error(w, "后台控制器未初始化", http.StatusServiceUnavailable)
+		return
+	}
+	rolledBack, err := rt.controller.RollbackRiskConfig()
 	if err != nil {
 		s.auditControlAction(r, "config_rollback", false, err.Error())
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -454,11 +552,15 @@ func (s *DashboardServer) handleRuntimeClearLogsAPI(w http.ResponseWriter, r *ht
 	if !s.authorizeRuntimeControl(w, r, "clear_logs") {
 		return
 	}
-	if s.controller == nil {
+	rt, ok := s.resolveControlTarget(w, r, "clear_logs")
+	if !ok {
+		return
+	}
+	if rt.controller == nil {
 		http.Error(w, "后台控制器未初始化", http.StatusServiceUnavailable)
 		return
 	}
-	if err := s.controller.ClearRuntimeLogs(); err != nil {
+	if err := rt.controller.ClearRuntimeLogs(); err != nil {
 		s.auditControlAction(r, "clear_logs", false, err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -475,11 +577,15 @@ func (s *DashboardServer) handleRuntimeClearDataAPI(w http.ResponseWriter, r *ht
 	if !s.authorizeRuntimeControl(w, r, "clear_data") {
 		return
 	}
-	if s.controller == nil {
+	rt, ok := s.resolveControlTarget(w, r, "clear_data")
+	if !ok {
+		return
+	}
+	if rt.controller == nil {
 		http.Error(w, "后台控制器未初始化", http.StatusServiceUnavailable)
 		return
 	}
-	if err := s.controller.ClearDashboardData(); err != nil {
+	if err := rt.controller.ClearDashboardData(); err != nil {
 		s.auditControlAction(r, "clear_data", false, err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -496,11 +602,15 @@ func (s *DashboardServer) handleRuntimeClearCacheAPI(w http.ResponseWriter, r *h
 	if !s.authorizeRuntimeControl(w, r, "clear_cache") {
 		return
 	}
-	if s.controller == nil {
+	rt, ok := s.resolveControlTarget(w, r, "clear_cache")
+	if !ok {
+		return
+	}
+	if rt.controller == nil {
 		http.Error(w, "后台控制器未初始化", http.StatusServiceUnavailable)
 		return
 	}
-	if err := s.controller.ClearHistoricalCache(); err != nil {
+	if err := rt.controller.ClearHistoricalCache(); err != nil {
 		s.auditControlAction(r, "clear_cache", false, err.Error())
 		http.Error(w, err.Error(), http.StatusConflict)
 		return
@@ -517,11 +627,15 @@ func (s *DashboardServer) handleRuntimeClearAllAPI(w http.ResponseWriter, r *htt
 	if !s.authorizeRuntimeControl(w, r, "clear_all") {
 		return
 	}
-	if s.controller == nil {
+	rt, ok := s.resolveControlTarget(w, r, "clear_all")
+	if !ok {
+		return
+	}
+	if rt.controller == nil {
 		http.Error(w, "后台控制器未初始化", http.StatusServiceUnavailable)
 		return
 	}
-	if err := s.controller.ClearAllRecords(); err != nil {
+	if err := rt.controller.ClearAllRecords(); err != nil {
 		s.auditControlAction(r, "clear_all", false, err.Error())
 		http.Error(w, err.Error(), http.StatusConflict)
 		return
@@ -538,7 +652,11 @@ func (s *DashboardServer) handleRuntimeCapitalAPI(w http.ResponseWriter, r *http
 	if !s.authorizeRuntimeControl(w, r, "capital_adjust") {
 		return
 	}
-	if s.controller == nil {
+	rt, ok := s.resolveControlTarget(w, r, "capital_adjust")
+	if !ok {
+		return
+	}
+	if rt.controller == nil {
 		http.Error(w, "后台控制器未初始化", http.StatusServiceUnavailable)
 		return
 	}
@@ -548,7 +666,7 @@ func (s *DashboardServer) handleRuntimeCapitalAPI(w http.ResponseWriter, r *http
 		http.Error(w, fmt.Sprintf("解析仓位调整参数失败: %v", err), http.StatusBadRequest)
 		return
 	}
-	result, err := s.controller.AdjustTradingCapital(req)
+	result, err := rt.controller.AdjustTradingCapital(req)
 	if err != nil {
 		s.auditControlAction(r, "capital_adjust", false, err.Error())
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -566,7 +684,11 @@ func (s *DashboardServer) handleRuntimeStartAPI(w http.ResponseWriter, r *http.R
 	if !s.authorizeRuntimeControl(w, r, "start") {
 		return
 	}
-	if s.controller == nil {
+	rt, ok := s.resolveControlTarget(w, r, "start")
+	if !ok {
+		return
+	}
+	if rt.controller == nil {
 		http.Error(w, "后台控制器未初始化", http.StatusServiceUnavailable)
 		return
 	}
@@ -577,7 +699,7 @@ func (s *DashboardServer) handleRuntimeStartAPI(w http.ResponseWriter, r *http.R
 		http.Error(w, fmt.Sprintf("解析启动参数失败: %v", err), http.StatusBadRequest)
 		return
 	}
-	if err := s.controller.Start(req); err != nil {
+	if err := rt.controller.Start(req); err != nil {
 		s.auditControlAction(r, "start", false, err.Error())
 		http.Error(w, err.Error(), http.StatusConflict)
 		return
@@ -594,11 +716,15 @@ func (s *DashboardServer) handleRuntimeStopAPI(w http.ResponseWriter, r *http.Re
 	if !s.authorizeRuntimeControl(w, r, "stop") {
 		return
 	}
-	if s.controller == nil {
+	rt, ok := s.resolveControlTarget(w, r, "stop")
+	if !ok {
+		return
+	}
+	if rt.controller == nil {
 		http.Error(w, "后台控制器未初始化", http.StatusServiceUnavailable)
 		return
 	}
-	if err := s.controller.Stop(); err != nil {
+	if err := rt.controller.Stop(); err != nil {
 		s.auditControlAction(r, "stop", false, err.Error())
 		http.Error(w, err.Error(), http.StatusConflict)
 		return

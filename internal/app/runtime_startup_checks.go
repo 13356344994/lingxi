@@ -25,7 +25,7 @@ func (c *RuntimeController) runLiveStartupChecks(ctx context.Context, secretPath
 		return err
 	}
 	c.appendControllerTraceLog(runID, "", "启动前检查通过: records 目录可写")
-	if err := ensureEmergencyStopClear(effectiveEmergencyStopFile(cfg)); err != nil {
+	if err := ensureEmergencyStopsClear(emergencyStopPaths(cfg)); err != nil {
 		return err
 	}
 	c.appendControllerTraceLog(runID, "", "启动前检查通过: 未检测到 emergency stop 文件")
