@@ -189,9 +189,13 @@ type persistedOpenHedgeAssessment struct {
 	Issues      []string
 	Labels      []string
 	HasExposure bool
+	// HasResidual:任一暴露持仓为「裸腿 / 两腿失衡 / 数量与台账对不上」→ 不可安全自动接管,须人工 flatten。
+	HasResidual bool
+	// ResumableEntries:两腿齐全、各腿数量 ≈ 台账 HedgeQty 且平衡的完整对冲 → 可安全自动接管(重建持仓继续管理)。
+	ResumableEntries []persistedOpenHedgeEntry
 }
 
-func assessPersistedOpenHedgeExposure(entries []persistedOpenHedgeEntry, spotBalances map[string]float64, futuresPositions map[string]float64, marginBalances map[string]CrossMarginAssetBalance, residualFuturesQty float64, residualSpotNotional float64) persistedOpenHedgeAssessment {
+func assessPersistedOpenHedgeExposure(entries []persistedOpenHedgeEntry, spotBalances map[string]float64, futuresPositions map[string]float64, marginBalances map[string]CrossMarginAssetBalance, residualFuturesQty float64, residualSpotNotional float64, imbalanceAbortRate float64) persistedOpenHedgeAssessment {
 	assessment := persistedOpenHedgeAssessment{
 		Issues: make([]string, 0, len(entries)),
 		Labels: make([]string, 0, len(entries)),
@@ -227,6 +231,18 @@ func assessPersistedOpenHedgeExposure(entries []persistedOpenHedgeEntry, spotBal
 		}
 		parts = append(parts, fmt.Sprintf("lifecycle=%s", entry.lifecycleOrDefault()))
 		assessment.Issues = append(assessment.Issues, fmt.Sprintf("%s[%s]", entry.Symbol, strings.Join(parts, " ")))
+		// 可接管性:两腿齐全 + 各腿数量 ≈ 台账 HedgeQty(失衡在阈值内)→ 完整对冲,可安全接管;否则记为残腿(裸腿/失衡/数量对不上)。
+		tol := imbalanceAbortRate
+		if tol <= 0 {
+			tol = 0.10
+		}
+		if futuresOpen && spotOpen && entry.HedgeQty > executionQtyTolerance &&
+			math.Abs(futuresQty-entry.HedgeQty)/entry.HedgeQty <= tol &&
+			math.Abs(spotQty-entry.HedgeQty)/entry.HedgeQty <= tol {
+			assessment.ResumableEntries = append(assessment.ResumableEntries, entry)
+		} else {
+			assessment.HasResidual = true
+		}
 	}
 	sort.Strings(assessment.Issues)
 	sort.Strings(assessment.Labels)
@@ -291,7 +307,7 @@ func (e *FundingRateSniperEngine) reconcilePersistedOpenHedges(spotBalances map[
 		marginBalances = marginState.Assets
 		break
 	}
-	assessment := assessPersistedOpenHedgeExposure(entries, spotBalances, futuresPositions, marginBalances, e.cfg.ResidualPositionAlertQty, e.cfg.ResidualSpotAlertUSDT)
+	assessment := assessPersistedOpenHedgeExposure(entries, spotBalances, futuresPositions, marginBalances, e.cfg.ResidualPositionAlertQty, e.cfg.ResidualSpotAlertUSDT, e.cfg.RiskConfig.HedgeImbalanceAbortRate)
 	if !assessment.HasExposure {
 		if clearErr := e.clearPersistedOpenHedges(); clearErr != nil {
 			return clearErr
@@ -301,8 +317,22 @@ func (e *FundingRateSniperEngine) reconcilePersistedOpenHedges(spotBalances map[
 		}
 		return nil
 	}
+	// 自动接管(R3x):开启 AutoResumeOpenHedges + 无残腿 + 全部为「完整且平衡」的对冲 →
+	//   从台账重建持仓写入 activeOpenHedges,引擎据此继续监控/滚动复核/到点平仓,而非拒启等人工。
+	// 任一裸腿/失衡/数量对不上(HasResidual) → 维持拒启 + 人工 flatten(失败方向偏安全,绝不把裸腿当健康对冲接管)。
+	if e.cfg.RiskConfig.AutoResumeOpenHedges && !assessment.HasResidual && len(assessment.ResumableEntries) > 0 {
+		hedges := make([]OpenHedge, 0, len(assessment.ResumableEntries))
+		for _, entry := range assessment.ResumableEntries {
+			hedges = append(hedges, rebuildOpenHedgeFromEntry(entry))
+		}
+		e.setCurrentPositionsFromHedges(hedges)
+		if e.logger != nil {
+			e.logger.Printf("启动时检测到 %d 笔完整且平衡的对冲残留,已自动接管继续监控/平仓(未发现裸腿/失衡): %s", len(hedges), strings.Join(assessment.Labels, ", "))
+		}
+		return nil
+	}
 	e.setCurrentPositions(assessment.Labels)
-	return fmt.Errorf("检测到未恢复的本地未平仓对冲，拒绝启动: %s", strings.Join(assessment.Issues, ", "))
+	return fmt.Errorf("检测到未恢复的本地未平仓对冲(疑似裸腿/失衡或数量与台账不符,需人工核查 flatten),拒绝启动: %s", strings.Join(assessment.Issues, ", "))
 }
 
 func (e *FundingRateSniperEngine) canClearPersistedOpenHedges(snapshot CycleAccountSnapshot, hedges []OpenHedge) bool {
@@ -313,6 +343,6 @@ func (e *FundingRateSniperEngine) canClearPersistedOpenHedges(snapshot CycleAcco
 			marginBalances = marginState.Assets
 		}
 	}
-	assessment := assessPersistedOpenHedgeExposure(entries, snapshot.SpotAssetBalances, snapshot.FuturesPositionAmounts, marginBalances, e.cfg.ResidualPositionAlertQty, e.cfg.ResidualSpotAlertUSDT)
+	assessment := assessPersistedOpenHedgeExposure(entries, snapshot.SpotAssetBalances, snapshot.FuturesPositionAmounts, marginBalances, e.cfg.ResidualPositionAlertQty, e.cfg.ResidualSpotAlertUSDT, e.cfg.RiskConfig.HedgeImbalanceAbortRate)
 	return !assessment.HasExposure
 }

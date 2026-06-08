@@ -116,6 +116,7 @@ func DefaultEngineConfig() EngineConfig {
 			MonitorMaxConsecutiveBreach:   3,
 			ResidualSpotAlertUSDT:         3.0,
 			ResidualPositionAlertQty:      1e-8,
+			AutoResumeOpenHedges:          true,
 			FundingIncomeDiffAlertUSDT:    1.0,
 			SettlementDiffAlertUSDT:       3.0,
 			SettlementDiffRate:            0.20,

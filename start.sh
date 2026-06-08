@@ -78,11 +78,9 @@ echo "面板: http://127.0.0.1:$PORT/"
 TOKEN=""
 i=0
 while [ "$i" -lt 25 ]; do
+  # 安全:令牌只从仅本机可读(0600)的令牌文件读取;不再从日志解析(日志已不含明文令牌)。
   if [ -f "$TOKEN_FILE" ]; then
     TOKEN=$(tr -d '\r\n' <"$TOKEN_FILE" 2>/dev/null || true)
-  fi
-  if [ -z "$TOKEN" ]; then
-    TOKEN=$(tail -n "+$((LOG_LINES_BEFORE + 1))" "$LOG_FILE" 2>/dev/null | sed -n 's/.*Dashboard 控制令牌: //p' | tail -1 || true)
   fi
   if [ -n "$TOKEN" ]; then
     break

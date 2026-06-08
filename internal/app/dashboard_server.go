@@ -139,16 +139,13 @@ func (s *DashboardServer) Start(ctx context.Context) error {
 	}()
 
 	s.logger.Printf("Web 面板已启动: %s", dashboardBaseURL(s.addr))
-	// 按运维要求:启动时永远在控制台/日志打印完整控制令牌,便于直接复制到面板「后台控制令牌」。
-	// 安全提示:日志若被转存/分享会随之泄露令牌,请自行确保终端与日志文件仅本机可见。
-	// 同时仍写入仅本机可读(0600)的令牌文件作为备份,可随时 cat 查看。
-	// 注意:下面这行的格式 "Dashboard 控制令牌: <token>" 被 start.sh 用 sed 解析,改动时需同步 start.sh。
+	// 安全:控制令牌**不再打印明文到日志**(日志会被转存/分享,明文令牌等于裸奔),只写入仅本机可读(0600)的
+	// 令牌文件,并在日志里打印「文件路径 + 指纹」便于核对。start.sh 从该文件读取令牌打印到本机控制台。
 	if s.controlToken != "" {
-		s.logger.Printf("Dashboard 控制令牌: %s", s.controlToken)
 		if tokenPath, err := s.persistControlToken(); err == nil {
-			s.logger.Printf("Dashboard 控制令牌已写入 %s (0600,仅本机可读,可随时 cat 查看);指纹=%s", tokenPath, hashDashboardToken(s.controlToken))
+			s.logger.Printf("Dashboard 控制令牌已写入 %s (0600,仅本机可读,可 cat 查看);指纹=%s", tokenPath, hashDashboardToken(s.controlToken))
 		} else {
-			s.logger.Printf("Dashboard 控制令牌写入文件失败(%v);指纹=%s", err, hashDashboardToken(s.controlToken))
+			s.logger.Printf("Dashboard 控制令牌写入文件失败(%v),请改用 cat 令牌文件;指纹=%s", err, hashDashboardToken(s.controlToken))
 		}
 	} else {
 		s.logger.Printf("Dashboard 控制令牌未设置（控制类操作不需要令牌）")

@@ -27,6 +27,7 @@ func TestAssessPersistedOpenHedgeExposure(t *testing.T) {
 		nil,
 		0.0001,
 		10,
+		0.10,
 	)
 	if !assessment.HasExposure {
 		t.Fatal("expected residual exposure to be detected")
@@ -36,6 +37,30 @@ func TestAssessPersistedOpenHedgeExposure(t *testing.T) {
 	}
 	if len(assessment.Labels) != 1 || !strings.Contains(assessment.Labels[0], "BTCUSDT") {
 		t.Fatalf("expected dashboard label for BTCUSDT, got %+v", assessment.Labels)
+	}
+}
+
+// TestAssessPersistedOpenHedgeResumableVsResidual 钉死自动接管的安全分类:
+// 两腿齐全且数量≈台账→可接管(无残腿);任一腿缺失/失衡→记残腿(拒启交人工)。
+func TestAssessPersistedOpenHedgeResumableVsResidual(t *testing.T) {
+	entries := []persistedOpenHedgeEntry{{Symbol: "BTCUSDT", Pair: "BTCUSDT", SpotBaseAsset: "BTC", HedgeQty: 0.01, ReferenceSpotPrice: 100000}}
+
+	// 1) 完整且平衡:两腿都≈0.01 → 可接管,无残腿。
+	full := assessPersistedOpenHedgeExposure(entries, map[string]float64{"BTC": 0.0101}, map[string]float64{"BTCUSDT": -0.0100}, nil, 0.0001, 10, 0.10)
+	if !full.HasExposure || full.HasResidual || len(full.ResumableEntries) != 1 {
+		t.Fatalf("完整对冲应可接管且无残腿, got HasResidual=%v resumable=%d", full.HasResidual, len(full.ResumableEntries))
+	}
+
+	// 2) 裸腿:只有合约腿、现货腿缺失 → 残腿,不可接管。
+	naked := assessPersistedOpenHedgeExposure(entries, map[string]float64{"BTC": 0}, map[string]float64{"BTCUSDT": -0.0100}, nil, 0.0001, 10, 0.10)
+	if !naked.HasExposure || !naked.HasResidual || len(naked.ResumableEntries) != 0 {
+		t.Fatalf("裸腿应记残腿且不可接管, got HasResidual=%v resumable=%d", naked.HasResidual, len(naked.ResumableEntries))
+	}
+
+	// 3) 两腿都在但严重失衡(合约腿只剩一半)→ 残腿,不可接管。
+	imbalanced := assessPersistedOpenHedgeExposure(entries, map[string]float64{"BTC": 0.0101}, map[string]float64{"BTCUSDT": -0.005}, nil, 0.0001, 10, 0.10)
+	if !imbalanced.HasResidual || len(imbalanced.ResumableEntries) != 0 {
+		t.Fatalf("失衡应记残腿且不可接管, got HasResidual=%v resumable=%d", imbalanced.HasResidual, len(imbalanced.ResumableEntries))
 	}
 }
 
