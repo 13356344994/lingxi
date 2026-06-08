@@ -300,7 +300,8 @@ func (c *RuntimeController) bybitManageCycle(
 			c.appendControllerLog("[bybit-shadow][拟平仓] %s(结算后到期)", p.Symbol)
 			continue
 		}
-		if closeErr := executor.CloseDeltaNeutral(ctx, p); closeErr != nil {
+		closeRes, closeErr := executor.CloseDeltaNeutral(ctx, p)
+		if closeErr != nil {
 			c.appendControllerLog("Bybit 平仓失败(保留持仓,下轮重试) %s: %v", p.Symbol, closeErr)
 			c.bybitNotifyWarn("Bybit 平仓失败", closeErr.Error(), string(p.Symbol))
 			continue
@@ -308,8 +309,17 @@ func (c *RuntimeController) bybitManageCycle(
 		if rmErr := store.remove(p.Symbol); rmErr != nil {
 			c.appendControllerLog("Bybit 平仓后清记录失败 %s: %v", p.Symbol, rmErr)
 		}
-		c.appendControllerLog("Bybit 已平仓 %s(结算后 %ds,共收 %d 次资金费)", p.Symbol, cfg.BybitExecutor.HoldAfterSeconds, p.SettlementsHeld+1)
-		c.bybitNotifyTrade("Bybit 已平仓", fmt.Sprintf("结算后 %ds 平仓,共收 %d 次资金费", cfg.BybitExecutor.HoldAfterSeconds, p.SettlementsHeld+1), string(p.Symbol))
+		settlements := p.SettlementsHeld + 1
+		estFunding := float64(settlements) * p.FundingRate * p.PerpNotional
+		closeDetail := fmt.Sprintf(
+			"%s 已平仓(持有 %d 次结算各收 1 次资金费)\n开仓实扣费: 永续 %.6f %s + 现货 %.6f %s\n平仓实扣费: 永续 %.6f %s + 现货 %.6f %s\n名义≈%.2f USDT | 估算资金费收入≈%.4f USDT(%d×%.4f%%×名义)\n开仓均价 永续%.6f/现货%.6f → 平仓均价 永续%.6f/现货%.6f",
+			p.Symbol, settlements,
+			p.OpenPerpFee, p.OpenPerpFeeAsset, p.OpenSpotFee, p.OpenSpotFeeAsset,
+			closeRes.PerpCloseFee, closeRes.PerpFeeAsset, closeRes.SpotCloseFee, closeRes.SpotFeeAsset,
+			p.PerpNotional, estFunding, settlements, p.FundingRate*100,
+			p.PerpEntryPrice, p.SpotEntryPrice, closeRes.PerpClosePrice, closeRes.SpotClosePrice)
+		c.appendControllerLog("Bybit 已平仓 %s", closeDetail)
+		c.bybitNotifyTrade("Bybit 已平仓", closeDetail, string(p.Symbol))
 	}
 
 	// 重新读取在场持仓(平仓可能已删除若干)。
@@ -378,8 +388,14 @@ func (c *RuntimeController) bybitManageCycle(
 		if upErr := store.upsert(pos); upErr != nil {
 			c.appendControllerLog("Bybit 持仓落盘失败(已开仓,务必人工核对!) %s: %v", pos.Symbol, upErr)
 		}
-		c.bybitNotifyTrade("Bybit 已开仓", fmt.Sprintf("费率=%.4f%% 数量=%.6f 现货名义=%.2f 永续名义=%.2f 预计净利率=%.4f%% 结算=%s",
-			p.FundingRate*100, p.BaseQty, p.SpotNotional, p.PerpNotional, p.EstNetProfitRate*100, p.NextFundingTime.UTC().Format("15:04:05Z")), string(p.Symbol))
+		openDetail := fmt.Sprintf(
+			"%s 已开仓 delta-neutral\n永续空 %.6f@%.6f(名义 %.2f USDT,实扣费 %.6f %s)\n现货多 %.6f@%.6f(名义 %.2f USDT,实扣费 %.6f %s)\n预估费率 %.4f%% | 预估净利率 %.4f%% | 结算 %s",
+			pos.Symbol,
+			pos.BaseQty, pos.PerpEntryPrice, pos.PerpNotional, pos.OpenPerpFee, pos.OpenPerpFeeAsset,
+			pos.BaseQty, pos.SpotEntryPrice, pos.SpotNotional, pos.OpenSpotFee, pos.OpenSpotFeeAsset,
+			p.FundingRate*100, p.EstNetProfitRate*100, pos.NextFundingTime.UTC().Format("15:04:05Z"))
+		c.appendControllerLog("Bybit %s", openDetail)
+		c.bybitNotifyTrade("Bybit 已开仓", openDetail, string(p.Symbol))
 		held[pos.Symbol] = true
 		open = append(open, pos)
 	}

@@ -160,7 +160,7 @@ func TestCloseDeltaNeutral(t *testing.T) {
 	tr := newFakeBybitTrader()
 	e := newTestExecutor(tr)
 	pos := BybitLivePosition{Symbol: "HOME-USDT", BaseQty: 10, IdemPrefix: "lx-HOMEUSDT-1"}
-	if err := e.CloseDeltaNeutral(context.Background(), pos); err != nil {
+	if _, err := e.CloseDeltaNeutral(context.Background(), pos); err != nil {
 		t.Fatalf("平仓应成功: %v", err)
 	}
 	if len(tr.placed) != 2 {
@@ -187,7 +187,7 @@ func TestCloseDeltaNeutralSpotSellsAvailableBalance(t *testing.T) {
 	tr.instruments = []venue.Instrument{{Symbol: "HOME-USDT", Market: venue.MarketSpot, StepSize: 0.01, BaseAsset: "HOME"}}
 	e := newTestExecutor(tr)
 	pos := BybitLivePosition{Symbol: "HOME-USDT", BaseQty: 10, IdemPrefix: "lx-HOMEUSDT-1"}
-	if err := e.CloseDeltaNeutral(context.Background(), pos); err != nil {
+	if _, err := e.CloseDeltaNeutral(context.Background(), pos); err != nil {
 		t.Fatalf("平仓应成功(按真实余额卖出): %v", err)
 	}
 	var spotQty float64
@@ -210,7 +210,7 @@ func TestCloseDeltaNeutralLegFailReturnsError(t *testing.T) {
 	e := newTestExecutor(tr)
 	pos := BybitLivePosition{Symbol: "HOME-USDT", BaseQty: 10, IdemPrefix: "lx-HOMEUSDT-1"}
 	tr.placeErr["lx-HOMEUSDT-1-cs"] = errors.New("spot sell failed")
-	if err := e.CloseDeltaNeutral(context.Background(), pos); err == nil {
+	if _, err := e.CloseDeltaNeutral(context.Background(), pos); err == nil {
 		t.Fatal("一腿平仓失败时应返回错误(供上层保留持仓重试)")
 	}
 }
