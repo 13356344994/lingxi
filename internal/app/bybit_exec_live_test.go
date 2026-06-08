@@ -74,7 +74,7 @@ func (f *fakeBybitTrader) FetchInstruments(_ context.Context) ([]venue.Instrumen
 }
 
 func newTestExecutor(tr bybitTrader) *BybitLiveExecutor {
-	e := NewBybitLiveExecutor(tr, nil)
+	e := NewBybitLiveExecutor(tr, nil, "")
 	e.confirmTimeout = 200 * time.Millisecond
 	e.confirmPoll = 5 * time.Millisecond
 	return e

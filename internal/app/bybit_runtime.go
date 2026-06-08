@@ -110,7 +110,7 @@ func (c *RuntimeController) runBybitExecutor(ctx context.Context, secretPath str
 	execCfg := bybitExecConfigFromEngine(cfg)
 	logf := func(format string, args ...any) { c.appendControllerLog(format, args...) }
 	planner := NewBybitShadowExecutor(adapter, execCfg, logf)
-	executor := NewBybitLiveExecutor(adapter, logf)
+	executor := NewBybitLiveExecutor(adapter, logf, cfg.NetworkConfig.RecordDir)
 	live := cfg.BybitExecutor.LiveTradingEnabled
 	haltPaths := emergencyStopPaths(cfg)
 

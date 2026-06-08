@@ -206,6 +206,10 @@ type OrderResult struct {
 	ExecutedQty    float64
 	AvgPrice       float64
 	CumQuoteUSDT   float64
+	// Fee 是该订单累计实际成交手续费(交易所真实扣费,含 BNB/MNT 等抵扣后的真实口径);FeeAsset 是计费币种。
+	// 用于「真实成交成本」量化(估算费率 vs 实扣费率的对照),解析缺失时为 0/""。
+	Fee            float64
+	FeeAsset       string
 	RawCode        string
 }
 

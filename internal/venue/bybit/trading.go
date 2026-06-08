@@ -202,12 +202,14 @@ func (a *Adapter) QueryOrder(ctx context.Context, m venue.Market, s venue.Symbol
 	q.Set("orderLinkId", clientOrderID)
 	var res struct {
 		List []struct {
-			OrderID     string `json:"orderId"`
-			OrderLinkID string `json:"orderLinkId"`
-			OrderStatus string `json:"orderStatus"`
-			CumExecQty  string `json:"cumExecQty"`
-			AvgPrice    string `json:"avgPrice"`
+			OrderID      string `json:"orderId"`
+			OrderLinkID  string `json:"orderLinkId"`
+			OrderStatus  string `json:"orderStatus"`
+			CumExecQty   string `json:"cumExecQty"`
+			AvgPrice     string `json:"avgPrice"`
 			CumExecValue string `json:"cumExecValue"`
+			CumExecFee   string `json:"cumExecFee"`
+			FeeCurrency  string `json:"feeCurrency"`
 		} `json:"list"`
 	}
 	if err := a.t.signedGet(ctx, pathOrderRealtime, q, &res); err != nil {
@@ -226,6 +228,8 @@ func (a *Adapter) QueryOrder(ctx context.Context, m venue.Market, s venue.Symbol
 		ExecutedQty:     parseFloat(o.CumExecQty),
 		AvgPrice:        parseFloat(o.AvgPrice),
 		CumQuoteUSDT:    parseFloat(o.CumExecValue),
+		Fee:             parseFloat(o.CumExecFee),
+		FeeAsset:        o.FeeCurrency,
 		RawCode:         o.OrderStatus,
 	}, nil
 }

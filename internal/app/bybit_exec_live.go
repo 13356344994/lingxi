@@ -2,7 +2,10 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -56,12 +59,18 @@ type BybitLiveExecutor struct {
 	confirmTimeout time.Duration // 单腿成交确认总时限
 	confirmPoll    time.Duration // 轮询间隔
 	now            func() time.Time
+	costRecordPath string // 真实成交成本(实扣手续费 + 滑点)JSONL 落盘路径;空=不记录
 }
 
 // NewBybitLiveExecutor 构造 live 执行器。logf 为空时用 no-op;超时/轮询为 0 时用保守默认。
-func NewBybitLiveExecutor(trader bybitTrader, logf func(string, ...any)) *BybitLiveExecutor {
+// recordDir 非空时,把每条腿的「真实实扣手续费 + 相对下单中价的滑点」追加到 <recordDir>/execution_costs.jsonl。
+func NewBybitLiveExecutor(trader bybitTrader, logf func(string, ...any), recordDir string) *BybitLiveExecutor {
 	if logf == nil {
 		logf = func(string, ...any) {}
+	}
+	costPath := ""
+	if strings.TrimSpace(recordDir) != "" {
+		costPath = filepath.Join(recordDir, "execution_costs.jsonl")
 	}
 	return &BybitLiveExecutor{
 		trader:         trader,
@@ -69,7 +78,67 @@ func NewBybitLiveExecutor(trader bybitTrader, logf func(string, ...any)) *BybitL
 		confirmTimeout: 8 * time.Second,
 		confirmPoll:    400 * time.Millisecond,
 		now:            func() time.Time { return time.Now().UTC() },
+		costRecordPath: costPath,
 	}
+}
+
+// bybitExecutionCost 是一条腿的真实成交成本记录(实扣手续费 + 滑点),用于「估算 vs 真实」成本对照。
+type bybitExecutionCost struct {
+	RecordedAt   string  `json:"recorded_at"`
+	Symbol       string  `json:"symbol"`
+	Phase        string  `json:"phase"` // open / close
+	Leg          string  `json:"leg"`   // perp / spot
+	Side         string  `json:"side"`
+	Qty          float64 `json:"qty"`
+	AvgPrice     float64 `json:"avg_price"`
+	RefPrice     float64 `json:"ref_price,omitempty"`     // 下单时中价(仅开仓腿有;用于算滑点)
+	SlippageRate float64 `json:"slippage_rate,omitempty"` // (按方向)不利滑点占比,正=吃亏
+	NotionalUSDT float64 `json:"notional_usdt"`
+	Fee          float64 `json:"fee"`       // 交易所实扣手续费(含 BNB/MNT 抵扣后的真实口径)
+	FeeAsset     string  `json:"fee_asset"` // 计费币种(注意:可能为 base 币/MNT,费率换算需按币种)
+}
+
+// recordExecutionCost 把一条腿的真实成交成本追加到 execution_costs.jsonl(失败仅告警,绝不影响交易)。
+func (e *BybitLiveExecutor) recordExecutionCost(phase, leg string, side venue.Side, refPrice float64, res venue.OrderResult) {
+	if e.costRecordPath == "" || res.ExecutedQty <= 0 {
+		return
+	}
+	rec := bybitExecutionCost{
+		RecordedAt:   e.now().Format(time.RFC3339),
+		Symbol:       string(res.Symbol),
+		Phase:        phase,
+		Leg:          leg,
+		Side:         string(side),
+		Qty:          res.ExecutedQty,
+		AvgPrice:     res.AvgPrice,
+		RefPrice:     refPrice,
+		SlippageRate: directionalSlippageRate(side, res.AvgPrice, refPrice),
+		NotionalUSDT: res.CumQuoteUSDT,
+		Fee:          res.Fee,
+		FeeAsset:     res.FeeAsset,
+	}
+	b, err := json.Marshal(rec)
+	if err != nil {
+		return
+	}
+	f, err := os.OpenFile(e.costRecordPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		e.logf("[bybit-live] 记录成交成本失败: %v", err)
+		return
+	}
+	defer f.Close()
+	_, _ = f.Write(append(b, '\n'))
+}
+
+// directionalSlippageRate 返回相对下单中价的「不利滑点」占比(买:成交价更高=吃亏;卖:成交价更低=吃亏)。ref<=0 时返回 0。
+func directionalSlippageRate(side venue.Side, avg, ref float64) float64 {
+	if ref <= 0 || avg <= 0 {
+		return 0
+	}
+	if side == venue.SideBuy {
+		return (avg - ref) / ref
+	}
+	return (ref - avg) / ref
 }
 
 // idem 生成某条腿的确定性 clientOrderId(≤36 字符,Bybit orderLinkId 限制内)。
@@ -143,6 +212,7 @@ func (e *BybitLiveExecutor) OpenDeltaNeutral(ctx context.Context, plan BybitOpen
 		return BybitLivePosition{}, fmt.Errorf("永续空腿成交数量为 0,放弃")
 	}
 	hedgeQty := perpExec.ExecutedQty
+	e.recordExecutionCost("open", "perp", venue.SideSell, plan.PerpPrice, perpExec)
 
 	// 第二腿:现货多(对冲永续空,按永续实际成交量对齐)。
 	spotReq := venue.OrderRequest{
@@ -183,6 +253,7 @@ func (e *BybitLiveExecutor) OpenDeltaNeutral(ctx context.Context, plan BybitOpen
 		}
 		return BybitLivePosition{}, fmt.Errorf("现货多腿失败,已回补永续空腿(已平): %v", firstNonNilErr(spotErr, fmt.Errorf("现货成交为 0")))
 	}
+	e.recordExecutionCost("open", "spot", venue.SideBuy, plan.SpotPrice, spotExec)
 
 	pos := BybitLivePosition{
 		Symbol:          plan.Symbol,
@@ -218,8 +289,10 @@ func (e *BybitLiveExecutor) CloseDeltaNeutral(ctx context.Context, pos BybitLive
 		ClientOrderID: bybitLegClientID(pos.IdemPrefix, "cp"),
 		ReduceOnly:    true,
 	}
-	if _, err := e.placeAndConfirm(ctx, perpReq); err != nil {
+	if perpRes, err := e.placeAndConfirm(ctx, perpReq); err != nil {
 		errs = append(errs, "永续平仓失败: "+err.Error())
+	} else {
+		e.recordExecutionCost("close", "perp", venue.SideBuy, 0, perpRes)
 	}
 	// 现货卖出。Bybit 现货买入的 taker 费在 base 资产里扣,故实际持有的 base 略少于开仓名义 BaseQty。
 	// 若按 BaseQty 卖出会撞 -170131 "Insufficient balance" 并永久重试死循环(且永续腿已先平 → 留下裸现货多腿)。
@@ -245,8 +318,10 @@ func (e *BybitLiveExecutor) CloseDeltaNeutral(ctx context.Context, pos BybitLive
 			Qty:           spotSellQty,
 			ClientOrderID: bybitLegClientID(pos.IdemPrefix, "cs"),
 		}
-		if _, err := e.placeAndConfirm(ctx, spotReq); err != nil {
+		if spotRes, err := e.placeAndConfirm(ctx, spotReq); err != nil {
 			errs = append(errs, "现货平仓失败: "+err.Error())
+		} else {
+			e.recordExecutionCost("close", "spot", venue.SideSell, 0, spotRes)
 		}
 	}
 	if len(errs) > 0 {
