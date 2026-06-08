@@ -131,12 +131,22 @@ type StrategyConfig struct {
 	MonitorStopLead          time.Duration `cfg:"monitor_stop_lead"`
 	LiveFundingDirectionMode string        `cfg:"live_funding_direction_mode"`
 	MinEstimatedFundingRate  float64       `cfg:"min_estimated_funding_rate"`
-	MaxEstimatedFundingRate  float64       `cfg:"max_estimated_funding_rate"`
-	MaxFundingRateJump       float64       `cfg:"max_funding_rate_jump"`
-	MaxScanBasisRate         float64       `cfg:"max_scan_basis_rate"`
-	LiveFundingAsset         string        `cfg:"live_funding_asset"`
-	FeeReserveRate           float64       `cfg:"fee_reserve_rate"`
-	ExitSpreadReserveRate    float64       `cfg:"exit_spread_reserve_rate"`
+	// PositiveMinEstimatedFundingRate 是「正 carry(短永续+买现货,免借币)」专用的海选地板线,与负 carry
+	// 解耦:正 carry 无借币利息、无可借性风险,理应用更低门槛。>0 时正 carry 走此值,负 carry 仍走
+	// MinEstimatedFundingRate;0=关闭(正负共用 MinEstimatedFundingRate,行为不变)。无论取何值,都仍被
+	// 真实盈亏平衡线(coherentMinFundingRate=往返费用+退出价差+健康净利门)硬兜底,绝不会放进结构性亏损单。
+	PositiveMinEstimatedFundingRate float64 `cfg:"positive_min_estimated_funding_rate"`
+	MaxEstimatedFundingRate         float64 `cfg:"max_estimated_funding_rate"`
+	MaxFundingRateJump              float64 `cfg:"max_funding_rate_jump"`
+	MaxScanBasisRate                float64 `cfg:"max_scan_basis_rate"`
+	// FavorableBasisMaxRate 是「有利基差」专用的更高基差上限。基差与 carry 方向同向(负 carry=长永续+负基差,
+	// 正 carry=短永续+正基差)时,该基差是 carry 仓位的方向性顺风(收敛即额外盈利),用此上限放宽;否则仍用
+	// MaxScanBasisRate。0=关闭(回退到处处用 MaxScanBasisRate,行为不变)。仅在 ≥ MaxScanBasisRate 时生效。
+	// 注意:这只放宽「扫描/监控的基差闸」,真实可成交性仍由下游深度/价差/成本守卫在执行期把关。
+	FavorableBasisMaxRate float64 `cfg:"favorable_basis_max_rate"`
+	LiveFundingAsset      string  `cfg:"live_funding_asset"`
+	FeeReserveRate        float64 `cfg:"fee_reserve_rate"`
+	ExitSpreadReserveRate float64 `cfg:"exit_spread_reserve_rate"`
 	// AutoDeriveFeeReserveEnabled 开启后,引擎在启动实拉账户真实 taker 费率时,把 FeeReserveRate 重算为
 	// 2*SpotTaker + 2*FuturesTaker(开+平 × 现货+合约 四腿往返;平台币抵扣已含在实拉费率里),取代手填常量,
 	// 使进场/净利经济闸按「该账户真实成本」收紧或放宽(§6)。默认 true。fail-safe:费率拉取失败/异常(≤0)时
@@ -170,32 +180,32 @@ type StrategyConfig struct {
 
 // ExecutionConfig 表示下单确认、恢复和退出执行参数。
 type ExecutionConfig struct {
-	ExitDelayAfterFunding    time.Duration `cfg:"exit_delay_after_funding"`
-	ExitMonitorInterval      time.Duration `cfg:"exit_monitor_interval"`
-	AutoBalanceUSDT          bool          `cfg:"auto_balance_usdt"`
-	OpenPreparationLead      time.Duration `cfg:"open_preparation_lead"`
-	PreOpenNoGoLead          time.Duration `cfg:"pre_open_no_go_lead"`
-	PreOpenTickerMaxAge      time.Duration `cfg:"pre_open_ticker_max_age"`
+	ExitDelayAfterFunding time.Duration `cfg:"exit_delay_after_funding"`
+	ExitMonitorInterval   time.Duration `cfg:"exit_monitor_interval"`
+	AutoBalanceUSDT       bool          `cfg:"auto_balance_usdt"`
+	OpenPreparationLead   time.Duration `cfg:"open_preparation_lead"`
+	PreOpenNoGoLead       time.Duration `cfg:"pre_open_no_go_lead"`
+	PreOpenTickerMaxAge   time.Duration `cfg:"pre_open_ticker_max_age"`
 	// PreOpenTickerRESTRefreshEnabled:战前 Go/No-Go 发现某腿 bookTicker 陈旧/缺失时,是否先用 REST 现拉一次
 	// 真实最优买卖价补鲜后再复检(默认 true)。背景:Binance @bookTicker 是「最优买/卖价变化才推」的事件流,
 	// 薄盘冷门币顶档长时间不动 → 该 symbol 久无 WS 推送,缓存只剩预热时 REST 补的旧价(实盘曾见 age≈2min 撞穿
 	// PreOpenTickerMaxAge 误拒开仓)。补鲜只在本轮确有腿陈旧时触发,流动性好的标的零额外请求;REST 失败/仍陈旧
 	// 则保留原拒因放弃开仓(fail-safe,绝不拿旧价裸开)。置 false 完全回退改造前行为(纯按缓存新鲜度判)。
-	PreOpenTickerRESTRefreshEnabled bool `cfg:"pre_open_ticker_rest_refresh_enabled"`
-	RecvWindow               int64         `cfg:"recv_window"`
-	ExecutionConfirmTimeout  time.Duration `cfg:"execution_confirm_timeout"`
-	ExecutionRecoveryTimeout time.Duration `cfg:"execution_recovery_timeout"`
-	OpenHedgeMaxConcurrency  int           `cfg:"open_hedge_max_concurrency"`
-	ParallelOpenSymbols      string        `cfg:"parallel_open_symbols"`
-	ParallelCloseSymbols     string        `cfg:"parallel_close_symbols"`
-	UseProtectedIOC          bool          `cfg:"use_protected_ioc"`
-	SpotLimitSlippageRate    float64       `cfg:"spot_limit_slippage_rate"`
-	FuturesLimitSlippageRate float64       `cfg:"futures_limit_slippage_rate"`
-	FuturesPriceProtect      bool          `cfg:"futures_price_protect"`
-	SpotSTPMode              string        `cfg:"spot_stp_mode"`
-	FuturesSTPMode           string        `cfg:"futures_stp_mode"`
-	FuturesMarginType        string        `cfg:"futures_margin_type"`
-	FuturesLeverage          int           `cfg:"futures_leverage"`
+	PreOpenTickerRESTRefreshEnabled bool          `cfg:"pre_open_ticker_rest_refresh_enabled"`
+	RecvWindow                      int64         `cfg:"recv_window"`
+	ExecutionConfirmTimeout         time.Duration `cfg:"execution_confirm_timeout"`
+	ExecutionRecoveryTimeout        time.Duration `cfg:"execution_recovery_timeout"`
+	OpenHedgeMaxConcurrency         int           `cfg:"open_hedge_max_concurrency"`
+	ParallelOpenSymbols             string        `cfg:"parallel_open_symbols"`
+	ParallelCloseSymbols            string        `cfg:"parallel_close_symbols"`
+	UseProtectedIOC                 bool          `cfg:"use_protected_ioc"`
+	SpotLimitSlippageRate           float64       `cfg:"spot_limit_slippage_rate"`
+	FuturesLimitSlippageRate        float64       `cfg:"futures_limit_slippage_rate"`
+	FuturesPriceProtect             bool          `cfg:"futures_price_protect"`
+	SpotSTPMode                     string        `cfg:"spot_stp_mode"`
+	FuturesSTPMode                  string        `cfg:"futures_stp_mode"`
+	FuturesMarginType               string        `cfg:"futures_margin_type"`
+	FuturesLeverage                 int           `cfg:"futures_leverage"`
 	// ShadowTrading 为 true 时进入「影子(只读冒烟)」模式：引擎照常对接真实行情与账户、照常完成扫描/评估/
 	// 决策，但任何会改变交易所状态或动用资金的签名请求(下单/撤单/改杠杆/划转/借还币等一切非 GET)都会在
 	// 唯一咽喉点 signedRequest 被硬拦截、绝不触达交易所，只把下单意图落日志。用于实盘前抓灾难性 bug
@@ -273,6 +283,17 @@ type RiskConfig struct {
 	// 启用后,符号冲突时估计取保守 0(候选不达标 → 本轮不开该 symbol),不在反转时刻押注旧方向。
 	// 仅作用于实盘扫描/开仓路径;回测路径不受影响(保持历史可复现)。默认 false(opt-in,零行为变更)。
 	ConservativeFundingOnSignConflictEnabled bool `cfg:"conservative_funding_on_sign_conflict_enabled"`
+	// FundingReversalConfirmRatio 给 R7「符号冲突保守归零」加可信度门槛(R7b),修正 EDENUSDT 类误杀:
+	// 仅当反向前瞻信号幅度 |premium+interestRate| ≥ |lastFundingRate| × ratio 时才认定为「真反转」并保守归零;
+	// 否则视为预估结算价/盘口的瞬时毛刺,不否决既有强势费率(退回 lastFundingRate)。一个微弱反向瞬时信号
+	// 不应否决一笔已强势成立的资金费(如上次实收 -0.585% 却被一个 +0.1% 毛刺归零)。
+	// 仅在 ConservativeFundingOnSignConflictEnabled 启用时生效;≤0 表示不设门槛(任何反向冲突都归零,旧 R7 行为)。
+	FundingReversalConfirmRatio float64 `cfg:"funding_reversal_confirm_ratio"`
+	// ConflictingPremiumSignGuardEnabled 修正前瞻费率估计里「预估结算价基差仅凭绝对值更大就翻转前瞻符号」的
+	// 缺陷(R7c,EDENUSDT 误杀根因之一):当预估结算价基差(settleBasis)与盘口基差(markBasis)反号时,
+	// 启用后禁止仅因 settleBasis 绝对值更大就用它(从而翻转前瞻符号),改保留更实时直接的盘口基差。
+	// 仅作用于实盘扫描/开仓路径;回测路径不受影响。默认 false(opt-in,零行为变更)。
+	ConflictingPremiumSignGuardEnabled bool `cfg:"conflicting_premium_sign_guard_enabled"`
 	// MinMarginLevel 是负 carry 保证金腿的最低全仓杠杆「保证金率(marginLevel = 总资产/总负债)」健康阈值(M0.3b-):
 	// 启用后,持有负 carry(全仓杠杆借币空头)敞口期间常驻 REST 轮询 cross-margin 账户健康,marginLevel 跌破该
 	// 阈值即保守撤离(panic flatten + 熔断冷却)。币安 marginLevel 触发追保≈1.3、强平≈1.1,建议设 1.5 留缓冲。
@@ -314,6 +335,14 @@ type RiskConfig struct {
 	BorrowCapacityCheckEnabled    bool    `cfg:"borrow_capacity_check_enabled"`
 	BorrowCapacityMinHeadroomRate float64 `cfg:"borrow_capacity_min_headroom_rate"`
 	MaxBorrowHourlyInterestRate   float64 `cfg:"max_borrow_hourly_interest_rate"`
+
+	// BorrowUnavailableNonFatalEnabled:开仓时现货借币腿因「交易所借不到」(币安 -3045 系统无可借资产 /
+	// -3006 超最大可借 / -3008 该资产禁止借入)失败、且合约腿已成功回补(账户已回平、无裸腿)时,
+	// 把这类**已知良性失败**降级为「该币本轮跳过 + 置 symbol 冷却」,而**不**计入执行事故熔断计数。
+	// 背景:HOME 等长尾负费率币恒被选成 Top 候选,但全仓杠杆池无该币可借 → 每周期连试 3 次同样借不到 →
+	//   撞 MaxExecutionIncidents(3) 把整个引擎熔断停机。开启后这类币被冷却跳过,不再拖垮引擎。
+	// 仅在合约腿已确认回补(reverted、账户平)时降级;若回补失败(裸腿)仍按致命事故处理。默认开启。
+	BorrowUnavailableNonFatalEnabled bool `cfg:"borrow_unavailable_non_fatal_enabled"`
 
 	// RequireAPIKeyPermissionCheck / RequireIPWhitelist 是启动期 API Key 权限自检的安全姿态(R26):
 	// RequireAPIKeyPermissionCheck=true(默认,出厂最安全)时,读取或解析 apiRestrictions 失败 → **拒绝启动**
@@ -462,6 +491,36 @@ type EngineConfig struct {
 	HistoricalConfig `cfg:"historical"`
 	PortfolioConfig  `cfg:"portfolio"`
 	AlertingConfig   `cfg:"alerting"`
+
+	// BybitExecutor 是 Bybit 精简执行器(Approach B:正费率 50/50 delta-neutral)的参数,仅 bybit 所读取,
+	// 币安路径完全忽略。多所部署下由 venues.bybit.bybit_executor.* 覆盖。主安全闸 LiveTradingEnabled 默认 false
+	// → 即便启动 bybit 任务也只 shadow(规划+日志,绝不下单);置 true 才真实下单。
+	BybitExecutor BybitExecutorConfig `cfg:"bybit_executor"`
+}
+
+// BybitExecutorConfig 是 Bybit 精简执行器的可调参数。所有阈值默认保守;LiveTradingEnabled 是真实下单的总开关。
+type BybitExecutorConfig struct {
+	// LiveTradingEnabled 主安全闸:false=shadow(只规划+日志,绝不下单);true=真实下单。默认 false。
+	LiveTradingEnabled bool `cfg:"live_trading_enabled"`
+	// TopN 每周期最多并发开仓的标的数(正费率降序取前 N)。默认 1(最保守,先验证单标的闭环)。
+	TopN int `cfg:"top_n"`
+	// MinFundingRate 仅做单次结算正费率 ≥ 此阈值的标的(如 0.0005=0.05%)。
+	MinFundingRate float64 `cfg:"min_funding_rate"`
+	// MinNetProfitRate 成本后净利率阈值(相对部署资金),低于则放弃。
+	MinNetProfitRate float64 `cfg:"min_net_profit_rate"`
+	// LeadSeconds 结算前多少秒进入开仓窗口(在此窗口内扫描→定量→开)。
+	LeadSeconds int `cfg:"lead_seconds"`
+	// HoldAfterSeconds 结算后持有多少秒再平仓(确保资金费已结算入账)。
+	HoldAfterSeconds int `cfg:"hold_after_seconds"`
+	// MaxConcurrentPositions 同时在场的最大持仓数(总闸,跨周期)。默认 1。
+	MaxConcurrentPositions int `cfg:"max_concurrent_positions"`
+	// MaxPositionNotionalUSDT 单标的两腿合计名义上限(0=不限,仅受分配资金约束)。实验期建议设小额硬顶。
+	MaxPositionNotionalUSDT float64 `cfg:"max_position_notional_usdt"`
+	// RollEnabled 开启「滚动持有」(与币安同口径):到期不直接平,复核下期费率——只要仍为正(>0)就续持到下一个结算、
+	// 继续收资金费(把一次性往返手续费摊薄到多次结算);费率转负/不达标才平。默认 false(单次结算收割)。
+	RollEnabled bool `cfg:"roll_enabled"`
+	// MaxHoldSettlements 滚动持有最多跨越的结算次数(含首次)。RollEnabled 时生效;≤1 等价于不滚动。默认 1。
+	MaxHoldSettlements int `cfg:"max_hold_settlements"`
 }
 
 // ApplyProfile 根据给定的运行档案，覆写当前配置的关键风控和容量参数

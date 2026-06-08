@@ -56,6 +56,17 @@ type RuntimeCapitalSnapshot struct {
 	DesiredCrossMarginUSDT float64 `json:"desired_cross_margin_usdt,omitempty"`
 	DesiredFuturesUSDT     float64 `json:"desired_futures_usdt,omitempty"`
 	DesiredFundingUSDT     float64 `json:"desired_funding_usdt,omitempty"`
+	// Wallets 是 venue 中性的钱包列表,供前端动态渲染任意交易所的钱包(币安 4 钱包 / Bybit 统一+资金)。
+	// 币安路径同样回填它(由上面 4 组字段映射),让面板用同一套动态渲染;为空时前端回退旧的固定卡片。
+	Wallets []RuntimeWalletBalance `json:"wallets,omitempty"`
+}
+
+// RuntimeWalletBalance 是面板动态渲染用的单钱包条目(venue 中性)。
+type RuntimeWalletBalance struct {
+	Wallet      string  `json:"wallet"`       // 钱包标识:spot/um_futures/cross_margin/funding/unified
+	Label       string  `json:"label"`        // UI 展示名
+	FreeUSDT    float64 `json:"free_usdt"`    // 当前可用
+	DesiredUSDT float64 `json:"desired_usdt"` // 目标分配(无目标则为 0)
 }
 
 func applyConfiguredCapitalTargets(snapshot *RuntimeCapitalSnapshot, cfg EngineConfig) {
@@ -415,6 +426,10 @@ func (c *RuntimeController) AdjustTradingCapital(req RuntimeCapitalAdjustmentReq
 	if secretPath == "" {
 		secretPath = "secret.yaml"
 	}
+	// 非币安所走 venue.CapitalManagement 适配器路径(币安以下逻辑逐字节不变)。
+	if c.isNonBinanceVenue() {
+		return c.adjustVenueTradingCapital(mode, secretPath, targetTradingUSDT)
+	}
 
 	c.mu.Lock()
 	if c.status.Running {
@@ -462,6 +477,10 @@ func (c *RuntimeController) AdjustTradingCapital(req RuntimeCapitalAdjustmentReq
 func (c *RuntimeController) CurrentCapitalSnapshot() (RuntimeCapitalSnapshot, error) {
 	if c == nil {
 		return RuntimeCapitalSnapshot{}, fmt.Errorf("后台控制器未初始化")
+	}
+	// 非币安所走 venue 适配器只读快照路径(币安以下逻辑不变)。
+	if c.isNonBinanceVenue() {
+		return c.currentVenueCapitalSnapshot()
 	}
 	c.mu.Lock()
 	secretPath := strings.TrimSpace(c.status.SecretPath)

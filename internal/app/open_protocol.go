@@ -520,7 +520,12 @@ func (p *OpenProtocol) handleOpenSpotFailure(ctx context.Context, target *Monito
 	if err != nil {
 		return OpenHedge{}, fmt.Errorf("现货补仓失败且合约回补失败: spotErr=%v recoverErr=%w", spotErr, err)
 	}
-	return OpenHedge{}, result.openError("现货补仓失败，已回补合约空单", spotErr)
+	revertErr := result.openError("现货补仓失败，已回补合约空单", spotErr)
+	// 借币不可用(-3045/-3006/-3008)且合约腿已回补 → 标记为良性「跳过+冷却」错误,不计熔断(R 借币降级)。
+	if isBorrowUnavailableError(spotErr) {
+		return OpenHedge{}, borrowUnavailableRevertedError{message: revertErr.Error()}
+	}
+	return OpenHedge{}, revertErr
 }
 
 func (p *OpenProtocol) openSpotTarget(target *MonitoredTarget, hedgeQty float64) (float64, float64, bool) {

@@ -3,6 +3,7 @@ package app
 import (
 	"fmt"
 	"strings"
+	"time"
 )
 
 // portfolioManager 把 God object(FundingRateSniperEngine)中「当前组合 / 受管敞口」这一族高内聚状态
@@ -20,6 +21,11 @@ type portfolioManager struct {
 	currentMonitorTargets []string
 	symbolCooldowns       map[string]symbolCooldownState
 	exposureLocks         map[string]exposureLockState
+	// borrowUnavailableUntil 记录「该所确定性借不到」的 base 资产 → 失效时刻(UTC)。由 R29 查最大可借量
+	// 命中币安 -3045/-3006/-3008 时写入(见 borrow_availability_cache.go),供海选阶段在 Top-N 截断**之前**
+	// 剔除借不到的负 carry 候选,让可借的负 carry / 免借币的正 carry 顶上空槽,而不是被 HOME 这类长尾币霸占。
+	// 带 TTL 自动过期(借币池可能回补),由 platformRiskMu 守护(与 symbolCooldowns 同临界区)。
+	borrowUnavailableUntil map[string]time.Time
 }
 
 // managedExposureSymbols 汇总当前所有受管敞口 symbol(持仓对冲 ∪ ExposureManager 锁),大写归一化。

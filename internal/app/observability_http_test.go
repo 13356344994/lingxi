@@ -23,38 +23,58 @@ func TestEvaluateReadiness(t *testing.T) {
 	}
 }
 
-// TestBuildPrometheusMetrics 钉死指标输出:含关键 gauge、gear/health 标签、布尔映射正确。
+// TestBuildPrometheusMetrics 钉死指标输出:进程级无标签、引擎级带 venue 标签、gear/health 标签、布尔映射正确。
 func TestBuildPrometheusMetrics(t *testing.T) {
-	out := buildPrometheusMetrics(RuntimeTaskStatus{
-		Running:               true,
-		CircuitBreakerTripped: false,
-		HealthScore:           0.8,
-		HealthStatus:          "healthy",
-		EngineGear:            "normal",
-		CurrentTargets:        3,
-		PlatformRejectCount:   2,
-	}, 123.0)
+	out := buildPrometheusMetrics([]venueMetricSample{{
+		Venue: "binance",
+		Status: RuntimeTaskStatus{
+			Running:               true,
+			CircuitBreakerTripped: false,
+			HealthScore:           0.8,
+			HealthStatus:          "healthy",
+			EngineGear:            "normal",
+			CurrentTargets:        3,
+			PlatformRejectCount:   2,
+		},
+	}}, 123.0)
 
 	for _, want := range []string{
 		"lingxi_up 1",
 		"lingxi_uptime_seconds 123",
-		"lingxi_engine_running 1",
-		"lingxi_engine_ready 1",
-		"lingxi_circuit_breaker_tripped 0",
-		"lingxi_health_score 0.8",
-		"lingxi_current_targets 3",
-		"lingxi_platform_reject_count 2",
-		`lingxi_engine_gear_info{gear="normal"} 1`,
-		`lingxi_engine_health_info{status="healthy"} 1`,
+		`lingxi_engine_running{venue="binance"} 1`,
+		`lingxi_engine_ready{venue="binance"} 1`,
+		`lingxi_circuit_breaker_tripped{venue="binance"} 0`,
+		`lingxi_health_score{venue="binance"} 0.8`,
+		`lingxi_current_targets{venue="binance"} 3`,
+		`lingxi_platform_reject_count{venue="binance"} 2`,
+		`lingxi_engine_gear_info{venue="binance",gear="normal"} 1`,
+		`lingxi_engine_health_info{venue="binance",status="healthy"} 1`,
 	} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("指标输出缺少 %q\n---\n%s", want, out)
 		}
 	}
 
+	// 每个 metric 的 HELP/TYPE 只出现一次(多所时不得重复)。
+	if strings.Count(out, "# TYPE lingxi_engine_running gauge") != 1 {
+		t.Fatalf("HELP/TYPE 应每 metric 仅一次:\n%s", out)
+	}
+
+	// 多所:两行带不同 venue 标签的样本。
+	multi := buildPrometheusMetrics([]venueMetricSample{
+		{Venue: "binance", Status: RuntimeTaskStatus{Running: true}},
+		{Venue: "okx", Status: RuntimeTaskStatus{Running: false}},
+	}, 1)
+	if !strings.Contains(multi, `lingxi_engine_running{venue="binance"} 1`) || !strings.Contains(multi, `lingxi_engine_running{venue="okx"} 0`) {
+		t.Fatalf("多所指标应按 venue 拆行:\n%s", multi)
+	}
+	if strings.Count(multi, "# TYPE lingxi_engine_running gauge") != 1 {
+		t.Fatalf("多所时 HELP/TYPE 仍应每 metric 仅一次:\n%s", multi)
+	}
+
 	// 熔断时 ready=0。
-	out2 := buildPrometheusMetrics(RuntimeTaskStatus{Running: true, CircuitBreakerTripped: true, HealthStatus: "paused"}, 1)
-	if !strings.Contains(out2, "lingxi_engine_ready 0") || !strings.Contains(out2, "lingxi_circuit_breaker_tripped 1") {
+	out2 := buildPrometheusMetrics([]venueMetricSample{{Venue: "binance", Status: RuntimeTaskStatus{Running: true, CircuitBreakerTripped: true, HealthStatus: "paused"}}}, 1)
+	if !strings.Contains(out2, `lingxi_engine_ready{venue="binance"} 0`) || !strings.Contains(out2, `lingxi_circuit_breaker_tripped{venue="binance"} 1`) {
 		t.Fatalf("熔断态指标不正确:\n%s", out2)
 	}
 }

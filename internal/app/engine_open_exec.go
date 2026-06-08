@@ -239,6 +239,13 @@ func (e *FundingRateSniperEngine) executeOpenHedgePlans(ctx context.Context, pla
 				e.logger.Printf("模块四跳过 %s: %v", plan.target.Candidate.Symbol, skipped)
 				return nil
 			}
+			// 借币不可用(币安 -3045/-3006/-3008)且合约腿已回补:已知良性失败,该币置冷却本轮跳过,不计熔断,
+			// 避免长尾负费率币(借不到)每周期连撞 MaxExecutionIncidents 把整个引擎熔断停机。
+			var borrowUnavail borrowUnavailableRevertedError
+			if e.cfg.RiskConfig.BorrowUnavailableNonFatalEnabled && errors.As(openErr, &borrowUnavail) {
+				e.handleBorrowUnavailableOpenSkip(plan.target.Candidate.Symbol, borrowUnavail.Error())
+				return nil
+			}
 			return e.recordExecutionIncident("open_recovery", plan.target.Candidate.Symbol, openErr.Error())
 		}
 
@@ -317,7 +324,7 @@ func (e *FundingRateSniperEngine) refreshTargetFundingEstimate(ctx context.Conte
 		}
 	}
 
-	estimatedRate, lastFundingRate, fundingJump, basisRate, _ := estimateScanFundingSignal(item, e.cfg.RiskConfig.ConservativeFundingOnSignConflictEnabled)
+	estimatedRate, lastFundingRate, fundingJump, basisRate, _ := estimateScanFundingSignal(item, e.liveFundingSignalConfig())
 	estimatedRate, fundingJump, _ = e.applyCapPinnedFundingOverride(target.Candidate.Symbol, lastFundingRate, estimatedRate, fundingJump)
 	target.Candidate.Direction = fundingDirectionFromRate(estimatedRate)
 	target.Candidate.EstimatedRate = estimatedRate
@@ -587,6 +594,19 @@ func (e *FundingRateSniperEngine) recordExecutionIncident(phase string, symbol s
 		return fatalEngineError{message: fmt.Sprintf("执行事故次数达到熔断阈值(%d)，已停止引擎: %s", e.cfg.RiskConfig.MaxExecutionIncidents, message)}
 	}
 	return nil
+}
+
+// handleBorrowUnavailableOpenSkip 处理「开仓借币不可用且合约腿已回补」的良性跳过:置 symbol 冷却(本轮及
+// 接下来若干周期不再选它,避免反复撞同一借不到的币)、发 warning 告警、记一条非熔断的执行 action 供观测。
+// 关键:**不**调用 recordExecutionIncident,不递增熔断计数 —— 这正是与普通执行事故的区别。
+func (e *FundingRateSniperEngine) handleBorrowUnavailableOpenSkip(symbol string, detail string) {
+	if e.logger != nil {
+		e.logger.Printf("借币不可用,本轮跳过 %s 开仓(合约腿已回补/账户已平,不计熔断,置 symbol 冷却): %s", symbol, detail)
+	}
+	e.setSymbolCooldown(symbol, "borrow_unavailable", "major", detail)
+	// 用非 recovery phase 记 action(纯观测),避免触发恢复预算/平台风控分支。
+	e.recordExecutionAction("open_borrow_skip", symbol, "skip_borrow_unavailable", detail)
+	e.notifyBorrowCapacityBlock(symbol, "开仓时借币不可用(合约已回补,本轮跳过): "+detail)
 }
 
 func (e *FundingRateSniperEngine) recordExecutionAction(phase string, symbol string, action string, detail string) {

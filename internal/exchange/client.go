@@ -571,6 +571,69 @@ func (c *BinanceClient) MaxBorrowable(ctx context.Context, asset string) (float6
 	return parseFloat(payload.Amount), nil
 }
 
+// marginAssetInfo 是 GET /sapi/v1/margin/allAssets 的单条回执:assetName=资产符号,isBorrowable=是否可借入。
+type marginAssetInfo struct {
+	AssetName    string `json:"assetName"`
+	IsBorrowable bool   `json:"isBorrowable"`
+}
+
+// MarginAllAssets 拉取全仓杠杆「可借资产白名单」:返回 asset(大写)→ 是否可借入。MARKET_DATA 端点,
+// 只需 API Key、无需签名。A 方案主动预筛用:不在白名单(isBorrowable=false / 未列出)的负 carry 候选,
+// 在选币前就排除——比撞 -3045 才知道更早、更省。注:白名单内仍可能因库存被借空(-3045),那一层仍交给
+// 实时 MaxBorrowable 检查兜底。
+func (c *BinanceClient) MarginAllAssets(ctx context.Context) (map[string]bool, error) {
+	var payload []marginAssetInfo
+	if err := c.apiKeyGetJSON(ctx, c.spotBaseURL+"/sapi/v1/margin/allAssets", nil, &payload); err != nil {
+		return nil, err
+	}
+	out := make(map[string]bool, len(payload))
+	for _, item := range payload {
+		asset := strings.ToUpper(strings.TrimSpace(item.AssetName))
+		if asset == "" {
+			continue
+		}
+		out[asset] = item.IsBorrowable
+	}
+	return out, nil
+}
+
+// apiKeyGetJSON 发起仅需 API Key、不签名的 GET(MARKET_DATA 端点)。与 signedGetJSON 同构但不加
+// timestamp/recvWindow/signature。
+func (c *BinanceClient) apiKeyGetJSON(ctx context.Context, endpoint string, params url.Values, target any) error {
+	if c == nil {
+		return fmt.Errorf("binance client 为空")
+	}
+	if strings.TrimSpace(c.apiKey) == "" {
+		return fmt.Errorf("缺少 API Key,无法查询可借资产白名单")
+	}
+	rawURL := endpoint
+	if q := params.Encode(); q != "" {
+		rawURL += "?" + q
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+	if err != nil {
+		return fmt.Errorf("创建 API Key 请求失败: %w", err)
+	}
+	req.Header.Set("X-MBX-APIKEY", c.apiKey)
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("API Key 请求失败: %w", err)
+	}
+	defer resp.Body.Close()
+	c.noteUsedWeightFromHeaders(resp.Header)
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("读取 API Key 响应失败: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("API Key 请求状态异常: %d %s body=%s", resp.StatusCode, resp.Status, strings.TrimSpace(string(body)))
+	}
+	if err := json.Unmarshal(body, target); err != nil {
+		return fmt.Errorf("解析 API Key JSON 失败: %w", err)
+	}
+	return nil
+}
+
 // isRateLimitError 判断错误是否为币安限流/封禁(429 Too Many Requests / 418 banned)。
 // 用于在批量探测费率时一旦触发限流就立即停手，避免把账户 IP 越查越封。
 func isRateLimitError(err error) bool {

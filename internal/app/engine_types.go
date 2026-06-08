@@ -81,10 +81,14 @@ type FundingRateSniperEngine struct {
 	// econ 是「当前所」的经济闸参数(EconomicParams,见 economic_params.go)。P2.1 在构造时由
 	// economicParamsFromConfig(cfg) 实例化(值镜像 cfg,零行为变更);P2.2 起 initialize 阶段会用
 	// 实拉 CostProfile 覆盖。引擎侧经济闸读取统一走 e.economicParams() 访问器(对直建结构体的测试有兜底)。
-	econ           EconomicParams
-	logger         *log.Logger
-	runID          string
-	currentCycleID string
+	econ EconomicParams
+	// borrowableAllowlist 缓存币安全仓杠杆「可借资产白名单」(/sapi/v1/margin/allAssets 的 isBorrowable),
+	// 供 A 方案在选币前主动排除「根本不在白名单」的负 carry 候选(详见 borrow_allowlist_cache.go)。
+	// 带长 TTL、fail-open(未拉到则不据此排除),与 platformRiskMu 解耦的独立锁。
+	borrowableAllowlist borrowableAllowlistState
+	logger              *log.Logger
+	runID               string
+	currentCycleID      string
 	// traceLogMu 仅保护下面两个供日志旁路读取的 trace id 副本。它与 platformRiskMu 完全解耦，
 	// 杜绝「持有 platformRiskMu 时写日志 -> 日志写入器回调 traceIDs() 再次 Lock platformRiskMu」
 	// 造成的同协程自死锁（Go 互斥锁不可重入）。
@@ -521,6 +525,42 @@ type openExecutionPreparation struct {
 
 type nonFatalOpenAbortError struct {
 	message string
+}
+
+// borrowUnavailableRevertedError 表示开仓时现货借币腿因「交易所借不到」(币安 -3045/-3006/-3008)失败,
+// 且合约腿已成功回补(账户已回平、无裸腿)。这是已知良性失败:不应计入执行事故熔断,改由调用方将该币置
+// symbol 冷却、本轮跳过。**只在合约腿确认回补成功时**才构造此错误;裸腿/回补失败仍走普通(致命)事故路径。
+type borrowUnavailableRevertedError struct {
+	message string
+}
+
+func (e borrowUnavailableRevertedError) Error() string {
+	return e.message
+}
+
+// isBorrowUnavailableError 判断错误链里是否含「交易所当前无法满足借币」的币安杠杆错误码:
+//
+//	-3045 The system does not have enough asset now.(借币池无可借资产)
+//	-3006 Your borrow amount has exceed maximum borrow amount.(超最大可借)
+//	-3008 Borrow is banned for this asset.(该资产禁止借入)
+//
+// 这类失败意味着「此刻借不到该资产」而非真实执行事故,适合降级为跳过+冷却。优先解构 signedRequestError
+// 读其 Body;取不到时回退整串匹配,保证稳健。
+func isBorrowUnavailableError(err error) bool {
+	if err == nil {
+		return false
+	}
+	haystack := err.Error()
+	var sre signedRequestError
+	if errors.As(err, &sre) && strings.TrimSpace(sre.Body) != "" {
+		haystack = sre.Body
+	}
+	for _, code := range []string{`"code":-3045`, `"code":-3006`, `"code":-3008`} {
+		if strings.Contains(haystack, code) {
+			return true
+		}
+	}
+	return false
 }
 
 type futuresLeverageBracket struct {

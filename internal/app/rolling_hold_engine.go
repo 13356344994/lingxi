@@ -133,7 +133,7 @@ func (e *FundingRateSniperEngine) collectRollFundingSignals(ctx context.Context,
 		if _, ok := heldSymbols[symbol]; !ok {
 			continue
 		}
-		estimatedRate, _, _, _, _ := estimateScanFundingSignal(item, e.cfg.RiskConfig.ConservativeFundingOnSignConflictEnabled)
+		estimatedRate, _, _, _, _ := estimateScanFundingSignal(item, e.liveFundingSignalConfig())
 		rates[symbol] = estimatedRate
 	}
 	return rates, nil

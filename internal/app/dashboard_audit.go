@@ -23,6 +23,8 @@ type DashboardAuditRecord struct {
 	Source     string `json:"source"`
 	Operator   string `json:"operator"`
 	TokenHash  string `json:"token_hash"`
+	// Venue 记录本次控制操作作用的所(§13.2:审计保持单文件 + 每条带 venue 字段,聚合查询方便)。
+	Venue string `json:"venue,omitempty"`
 }
 
 type DashboardAuditStore struct {
@@ -69,7 +71,7 @@ func normalizeAuditDetail(detail string) string {
 	return strings.TrimSpace(detail)
 }
 
-func newDashboardAuditRecord(action string, success bool, detail string, source string, operator string, tokenHash string, runID string, cycleID string, metadata TraceRecordMetadata) DashboardAuditRecord {
+func newDashboardAuditRecord(action string, success bool, detail string, source string, operator string, tokenHash string, runID string, cycleID string, venue string, metadata TraceRecordMetadata) DashboardAuditRecord {
 	return DashboardAuditRecord{
 		TraceRecordMetadata: metadata.normalized(),
 		RecordedAt:          time.Now().UTC().Format(time.RFC3339),
@@ -81,5 +83,6 @@ func newDashboardAuditRecord(action string, success bool, detail string, source 
 		Source:              strings.TrimSpace(source),
 		Operator:            strings.TrimSpace(operator),
 		TokenHash:           strings.TrimSpace(tokenHash),
+		Venue:               strings.TrimSpace(venue),
 	}
 }

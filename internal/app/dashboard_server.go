@@ -42,6 +42,9 @@ type DashboardServer struct {
 
 // DashboardSummaryResponse 表示面板一次刷新所需的聚合数据。
 type DashboardSummaryResponse struct {
+	// Venue 标识本次 summary 代表的所(读时注入,§9.2):summary 是单所视图,缺省/all → 缺省所(Primary),
+	// 具名 → 该所;前端据此知道当前 Tab 展示的是哪家。
+	Venue                 string                    `json:"venue"`
 	RuntimeStatus         RuntimeTaskStatus         `json:"runtime_status"`
 	CapitalSnapshot       RuntimeCapitalSnapshot    `json:"capital_snapshot"`
 	CapitalSnapshotError  string                    `json:"capital_snapshot_error"`
@@ -94,6 +97,7 @@ func (s *DashboardServer) Start(ctx context.Context) error {
 	mux.HandleFunc("/", s.handleIndex)
 	mux.HandleFunc("/api/dashboard/summary", s.authorizeReadAPI(s.handleDashboardSummaryAPI))
 	mux.HandleFunc("/api/performance", s.authorizeReadAPI(s.handlePerformanceAPI))
+	mux.HandleFunc("/api/venues", s.authorizeReadAPI(s.handleVenuesAPI))
 	mux.HandleFunc("/api/settlements", s.authorizeReadAPI(s.handleSettlementAPI))
 	mux.HandleFunc("/api/monitor-records", s.authorizeReadAPI(s.handleMonitorAPI))
 	mux.HandleFunc("/api/backtest-records", s.authorizeReadAPI(s.handleBacktestAPI))
@@ -161,6 +165,10 @@ func (s *DashboardServer) handleIndex(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+	// 面板 HTML 内嵌于二进制,版本随构建变化;禁用浏览器缓存,避免改版后用户仍看到旧页面(需强刷)。
+	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+	w.Header().Set("Pragma", "no-cache")
+	w.Header().Set("Expires", "0")
 	data := struct {
 		SettlementCSV        string
 		MonitorCSV           string
@@ -195,7 +203,7 @@ func (s *DashboardServer) handleSettlementAPI(w http.ResponseWriter, r *http.Req
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
-	records, err := aggregateRecords(targets, parseLimit(r, 200), (*ReportStore).ListSettlementRecords)
+	records, err := aggregateRecords(targets, parseLimit(r, 200), (*ReportStore).ListSettlementRecords, venueParam(r) == venueAllSelector)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -272,6 +280,7 @@ func (s *DashboardServer) handleDashboardSummaryAPI(w http.ResponseWriter, r *ht
 	}
 
 	writeJSON(w, DashboardSummaryResponse{
+		Venue:                 rt.name,
 		RuntimeStatus:         ctrl.Status(),
 		CapitalSnapshot:       capitalSnapshot,
 		CapitalSnapshotError:  capitalSnapshotError,
@@ -296,12 +305,13 @@ func (s *DashboardServer) handleUnifiedEventsAPI(w http.ResponseWriter, r *http.
 		return
 	}
 	limit := parseLimit(r, 200)
-	executionIncidents, err := aggregateRecords(targets, limit, (*ReportStore).ListExecutionIncidents)
+	injectVenue := venueParam(r) == venueAllSelector
+	executionIncidents, err := aggregateRecords(targets, limit, (*ReportStore).ListExecutionIncidents, injectVenue)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	domainEvents, err := aggregateRecords(targets, limit, (*ReportStore).ListDomainEvents)
+	domainEvents, err := aggregateRecords(targets, limit, (*ReportStore).ListDomainEvents, injectVenue)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -315,7 +325,7 @@ func (s *DashboardServer) handleMonitorAPI(w http.ResponseWriter, r *http.Reques
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
-	records, err := aggregateRecords(targets, parseLimit(r, 200), (*ReportStore).ListMonitorRecords)
+	records, err := aggregateRecords(targets, parseLimit(r, 200), (*ReportStore).ListMonitorRecords, venueParam(r) == venueAllSelector)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -329,7 +339,7 @@ func (s *DashboardServer) handleBacktestAPI(w http.ResponseWriter, r *http.Reque
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
-	records, err := aggregateRecords(targets, parseLimit(r, 200), (*ReportStore).ListBacktestRecords)
+	records, err := aggregateRecords(targets, parseLimit(r, 200), (*ReportStore).ListBacktestRecords, venueParam(r) == venueAllSelector)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -343,7 +353,7 @@ func (s *DashboardServer) handleResidualRiskAPI(w http.ResponseWriter, r *http.R
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
-	records, err := aggregateRecords(targets, parseLimit(r, 200), (*ReportStore).ListResidualRiskRecords)
+	records, err := aggregateRecords(targets, parseLimit(r, 200), (*ReportStore).ListResidualRiskRecords, venueParam(r) == venueAllSelector)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -416,7 +426,7 @@ func (s *DashboardServer) handleExecutionIncidentsAPI(w http.ResponseWriter, r *
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
-	records, err := aggregateRecords(targets, parseLimit(r, 200), (*ReportStore).ListExecutionIncidents)
+	records, err := aggregateRecords(targets, parseLimit(r, 200), (*ReportStore).ListExecutionIncidents, venueParam(r) == venueAllSelector)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -430,7 +440,7 @@ func (s *DashboardServer) handleDomainEventsAPI(w http.ResponseWriter, r *http.R
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
-	records, err := aggregateRecords(targets, parseLimit(r, 200), (*ReportStore).ListDomainEvents)
+	records, err := aggregateRecords(targets, parseLimit(r, 200), (*ReportStore).ListDomainEvents, venueParam(r) == venueAllSelector)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -635,6 +645,13 @@ func (s *DashboardServer) handleRuntimeClearAllAPI(w http.ResponseWriter, r *htt
 		http.Error(w, "后台控制器未初始化", http.StatusServiceUnavailable)
 		return
 	}
+	// clear_all 毁灭性(清空该所全部日志+记录),强制 confirm:必须显式带 confirm=<venue 名>,防误触(§7.3/§13.2)。
+	if strings.TrimSpace(r.URL.Query().Get("confirm")) != rt.name {
+		const msg = "clear_all 为毁灭性操作,须显式确认:请带 confirm=<交易所名>(与目标所一致)"
+		s.auditControlAction(r, "clear_all", false, msg)
+		http.Error(w, msg, http.StatusBadRequest)
+		return
+	}
 	if err := rt.controller.ClearAllRecords(); err != nil {
 		s.auditControlAction(r, "clear_all", false, err.Error())
 		http.Error(w, err.Error(), http.StatusConflict)
@@ -742,10 +759,20 @@ func (s *DashboardServer) tokenMatches(provided string) bool {
 }
 
 func (s *DashboardServer) authorizeRuntimeControl(w http.ResponseWriter, r *http.Request, action string) bool {
+	// 远程请求(非本机回环):按需放开——只要持有合法控制令牌即放行(原为一律拒绝本机外请求)。
+	// 令牌是此处唯一鉴权凭据;未配置令牌时仍只允许本机,避免裸奔写接口被公网直接调用。
 	if !isLoopbackRequest(r) {
-		s.auditControlAction(r, action, false, "仅允许本机请求控制后台任务")
-		http.Error(w, "仅允许本机请求控制后台任务", http.StatusForbidden)
-		return false
+		if s.controlToken == "" {
+			s.auditControlAction(r, action, false, "未设置控制令牌时仅允许本机控制")
+			http.Error(w, "未设置控制令牌时仅允许本机控制", http.StatusForbidden)
+			return false
+		}
+		if !s.tokenMatches(r.Header.Get("X-Dashboard-Token")) {
+			s.auditControlAction(r, action, false, "远程控制令牌无效")
+			http.Error(w, "远程控制令牌无效", http.StatusForbidden)
+			return false
+		}
+		return true
 	}
 	if s.controlToken == "" {
 		return true
@@ -802,11 +829,27 @@ func (s *DashboardServer) auditControlAction(r *http.Request, action string, suc
 		hashDashboardToken(r.Header.Get("X-Dashboard-Token")),
 		status.RunID,
 		status.CurrentCycleID,
+		s.auditVenueLabel(r),
 		metadata,
 	)
 	if err := s.auditStore.Append(record); err != nil && s.logger != nil {
 		s.logger.Printf("写入 dashboard 审计日志失败: %v", err)
 	}
+}
+
+// auditVenueLabel 解析本次控制操作作用的所标签供审计:具名 → 该名;all → "all"(扇出拒绝场景也如实记录意图);
+// 缺省(空)→ 缺省所名(Primary)。编排器缺失时回退空串。
+func (s *DashboardServer) auditVenueLabel(r *http.Request) string {
+	name := venueParam(r)
+	if name != "" {
+		return name
+	}
+	if s.orchestrator != nil {
+		if primary := s.orchestrator.Primary(); primary != nil {
+			return primary.name
+		}
+	}
+	return ""
 }
 
 // dashboardControlTokenFileName 是控制令牌落盘文件名(写在 RecordDir 下,0600 权限)。

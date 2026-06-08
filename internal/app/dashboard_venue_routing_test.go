@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"testing"
+	"time"
 )
 
 // newRoutingTestServer 造一个仅用于路由解析的 DashboardServer:挂一个带 [binance, okx] 的编排器,
@@ -118,5 +119,49 @@ func TestResolveControlTargetRejectsAll(t *testing.T) {
 	}
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("未知 venue 控制应返回 404, got %d", w.Code)
+	}
+}
+
+// TestAggregateRecordsInjectsVenue 验证 venue=all 跨所聚合读时为每条记录注入来源所标签(§9.2),
+// 且 injectVenue=false(单所/默认)时不注入(落盘/默认输出零变化)。
+func TestAggregateRecordsInjectsVenue(t *testing.T) {
+	mkStore := func(cycle string) *ReportStore {
+		store, err := NewReportStore(t.TempDir())
+		if err != nil {
+			t.Fatalf("NewReportStore() error = %v", err)
+		}
+		ts, _ := time.Parse(time.RFC3339, "2026-03-01T08:00:00Z")
+		if err := store.AppendSettlement(CycleSettlement{
+			RunID: "r", CycleID: cycle, CloseExecutedAt: ts, FundingSettledAt: ts, NetPnL: 1,
+		}); err != nil {
+			t.Fatalf("AppendSettlement() error = %v", err)
+		}
+		return store
+	}
+	b := &venueRuntime{name: "binance", store: mkStore("cb")}
+	k := &venueRuntime{name: "okx", store: mkStore("ck")}
+	targets := []*venueRuntime{b, k}
+
+	// injectVenue=true:每条记录带来源所标签。
+	recs, err := aggregateRecords(targets, 0, (*ReportStore).ListSettlementRecords, true)
+	if err != nil {
+		t.Fatalf("aggregateRecords() error = %v", err)
+	}
+	if len(recs) != 2 {
+		t.Fatalf("应聚合两所各 1 条, got %d", len(recs))
+	}
+	if recs[0].Venue != "binance" || recs[1].Venue != "okx" {
+		t.Fatalf("venue 注入错误: %q / %q", recs[0].Venue, recs[1].Venue)
+	}
+
+	// injectVenue=false:不注入 → Venue 为空(默认/单所输出逐字节同改造前)。
+	recs2, err := aggregateRecords(targets, 0, (*ReportStore).ListSettlementRecords, false)
+	if err != nil {
+		t.Fatalf("aggregateRecords() error = %v", err)
+	}
+	for i, rec := range recs2 {
+		if rec.Venue != "" {
+			t.Fatalf("injectVenue=false 不应注入 venue, 条目%d=%q", i, rec.Venue)
+		}
 	}
 }

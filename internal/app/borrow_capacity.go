@@ -152,15 +152,30 @@ func (e *FundingRateSniperEngine) filterTargetsByBorrowCapacity(ctx context.Cont
 	return kept
 }
 
-// queryMaxBorrowable best-effort 查询某资产当前最大可借量。返回 (qty, known);查询失败 known=false(不据此剔除)。
+// queryMaxBorrowable best-effort 查询某资产当前最大可借量。返回 (qty, known):
+//   - 成功 → (qty, true);
+//   - 查询返回**确定性「借不到」**错误(币安 -3045 系统无可借 / -3006 超最大可借 / -3008 禁止借入)→ (0, true):
+//     这不是「未知」,而是交易所明确告诉你「此刻最大可借≈0」,据此剔除候选(选币阶段干净跳过,绝不再 committed
+//     合约腿后撞 -3045 白开又回补、污染冷却)。HOME 这类币安杠杆池无可借资产的长尾负费率币会在此被根本性跳过。
+//   - 其它(网络抖动/限频/超时等)真·未知 → (0, false):advisory 不剔除,避免一次只读查询失败误杀机会,
+//     裸腿仍由开仓守卫与恢复协议兜底。
 func (e *FundingRateSniperEngine) queryMaxBorrowable(ctx context.Context, asset string) (float64, bool) {
 	if e == nil || e.client == nil || strings.TrimSpace(asset) == "" {
 		return 0, false
 	}
 	qty, err := e.client.MaxBorrowable(ctx, asset)
 	if err != nil {
+		if isBorrowUnavailableError(err) {
+			if e.logger != nil {
+				e.logger.Printf("R29 查最大可借量返回确定性借不到(剔除该候选,不再开合约腿) asset=%s err=%v", asset, err)
+			}
+			// 缓存「确定性借不到」(A 方案):下轮海选在 Top-N 截断前就跳过该资产,把名额让给可执行候选,
+			// 不再让 HOME 这类长尾币每轮霸占监控名额(详见 borrow_availability_cache.go)。
+			e.markBorrowAssetUnavailable(asset)
+			return 0, true // 确定性借不到:最大可借≈0 → decideBorrowAdmission 据此剔除
+		}
 		if e.logger != nil {
-			e.logger.Printf("R29 查询最大可借量失败(不据此剔除) asset=%s err=%v", asset, err)
+			e.logger.Printf("R29 查询最大可借量失败(真·未知,不据此剔除) asset=%s err=%v", asset, err)
 		}
 		return 0, false
 	}

@@ -12,8 +12,8 @@ import (
 // 只取资金费已到账的最终净利,按 FundingSettledAt 的 UTC 日聚合 + 补零,÷分配本金得日收益序列,喂
 // internal/metrics 纯函数算 Sharpe/Sortino/Calmar/MaxDD/WinRate/Alpha/Beta 与权益曲线。
 //
-// 基准(BTC 现货日 K → Alpha/Beta)留作后续(需在面板侧引入公共 K 线拉取);当前 Benchmark 缺省 → 指标里
-// BenchmarkMissing=true、Alpha/Beta=0(§9.5 小样本本就主推 MaxDD/Sortino/胜率,不阻塞)。
+// 基准(BTC 现货日 K → Alpha/Beta)由 benchmark.go 尽力而为拉取公共 K 线并对齐日序后喂入;拉取失败/缺日 →
+// Benchmark=nil → 指标里 BenchmarkMissing=true、Alpha/Beta=0(§9.5 小样本本就主推 MaxDD/Sortino/胜率,不阻塞)。
 
 // PerformanceResponse 是 /api/performance 的响应:绩效指标 + 权益/水下回撤曲线点。
 type PerformanceResponse struct {
@@ -54,11 +54,10 @@ func venueDailyPnL(records []SettlementCSVRecord) []metrics.DailyPnL {
 	return out
 }
 
-// computePerformanceForTargets 聚合一组所的结算为组合绩效(单所=该所;venue=all=组合:Σpnl_t / Σ分配本金,
-// 在组合曲线上独立计算,§9.3 步骤 4)。
-func computePerformanceForTargets(targets []*venueRuntime) (metrics.PerformanceMetrics, []metrics.EquityPoint, error) {
+// portfolioReturns 把一组所的结算聚合为「按 UTC 日重采样的日收益序列 r_t + 对齐日序 + 总分配本金」
+// (单所=该所;venue=all=组合:Σpnl_t / Σ分配本金,§9.3 步骤 4)。capital≤0 → returns 为 nil(诚实:分母缺失)。
+func portfolioReturns(targets []*venueRuntime) (returns []float64, days []string, capital float64, err error) {
 	var entries []metrics.DailyPnL
-	var capital float64
 	for _, rt := range targets {
 		if rt == nil {
 			continue
@@ -67,24 +66,57 @@ func computePerformanceForTargets(targets []*venueRuntime) (metrics.PerformanceM
 		if rt.store == nil {
 			continue
 		}
-		records, err := rt.store.ListSettlementRecords(0) // 0 = 全部
-		if err != nil {
-			return metrics.PerformanceMetrics{}, nil, err
+		records, e := rt.store.ListSettlementRecords(0) // 0 = 全部
+		if e != nil {
+			return nil, nil, 0, e
 		}
 		entries = append(entries, venueDailyPnL(records)...)
 	}
 	series := metrics.BuildDailySeries(entries)
-	returns := metrics.ReturnsFromDaily(series, capital) // capital≤0 → nil → 指标 Insufficient(诚实)
-	days := make([]string, len(series))
+	returns = metrics.ReturnsFromDaily(series, capital)
+	days = make([]string, len(series))
 	for i, d := range series {
 		days[i] = d.Day
 	}
+	return returns, days, capital, nil
+}
+
+// computePerformanceForTargets 聚合一组所的结算为组合绩效。benchmark 为与日序同长的基准日收益(可 nil → 跳过
+// Alpha/Beta,置 BenchmarkMissing)。
+func computePerformanceForTargets(targets []*venueRuntime, benchmark []float64) (metrics.PerformanceMetrics, []metrics.EquityPoint, error) {
+	returns, days, capital, err := portfolioReturns(targets)
+	if err != nil {
+		return metrics.PerformanceMetrics{}, nil, err
+	}
 	m := metrics.ComputePerformance(metrics.PerformanceInputs{
 		Returns:          returns,
+		Benchmark:        benchmark,
 		AllocatedCapital: capital,
 	})
 	equity := metrics.EquityCurve(days, returns, capital)
 	return m, equity, nil
+}
+
+// VenuesResponse 列出已注册的所与缺省所,供面板渲染 venue 选择器/Tab。
+type VenuesResponse struct {
+	Venues  []string `json:"venues"`
+	Primary string   `json:"primary"`
+}
+
+// handleVenuesAPI 返回编排器已注册的 venue 列表(注册序)与缺省所,供前端构建 venue 选择器。
+func (s *DashboardServer) handleVenuesAPI(w http.ResponseWriter, _ *http.Request) {
+	resp := VenuesResponse{}
+	if s.orchestrator != nil {
+		for _, rt := range s.orchestrator.All() {
+			if rt != nil {
+				resp.Venues = append(resp.Venues, rt.name)
+			}
+		}
+		if primary := s.orchestrator.Primary(); primary != nil {
+			resp.Primary = primary.name
+		}
+	}
+	writeJSON(w, resp)
 }
 
 func (s *DashboardServer) handlePerformanceAPI(w http.ResponseWriter, r *http.Request) {
@@ -93,11 +125,19 @@ func (s *DashboardServer) handlePerformanceAPI(w http.ResponseWriter, r *http.Re
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
-	m, equity, err := computePerformanceForTargets(targets)
+	returns, days, capital, err := portfolioReturns(targets)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	// 尽力而为拉 BTC 现货日 K 基准(§9.1);失败 → nil → BenchmarkMissing,不影响其它指标。
+	benchmark := s.fetchBenchmarkReturns(r.Context(), days)
+	m := metrics.ComputePerformance(metrics.PerformanceInputs{
+		Returns:          returns,
+		Benchmark:        benchmark,
+		AllocatedCapital: capital,
+	})
+	equity := metrics.EquityCurve(days, returns, capital)
 	label := venueParam(r)
 	if label == "" {
 		if primary := s.orchestrator.Primary(); primary != nil {

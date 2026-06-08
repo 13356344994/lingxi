@@ -662,6 +662,9 @@ func (e *FundingRateSniperEngine) checkCycleLossProjectionBrake(settlement Cycle
 
 // scanTopFundingTargets 在 XX:57:00 后扫描全网费率，并取 Top 5。
 func (e *FundingRateSniperEngine) scanTopFundingTargets(ctx context.Context) ([]*MonitoredTarget, scanFunnelSummary, error) {
+	// best-effort 刷新可借白名单(长 TTL,fail-open):供下方在 Top-N 截断前主动排除不在白名单的负 carry。
+	e.ensureBorrowableAllowlistFresh(ctx)
+
 	items, err := e.fetchPremiumIndex(ctx)
 	if err != nil {
 		return nil, scanFunnelSummary{}, err
@@ -691,7 +694,7 @@ func (e *FundingRateSniperEngine) scanTopFundingTargets(ctx context.Context) ([]
 		staleness := premiumIndexStaleness(now, item)
 		isStale := e.cfg.NetworkConfig.MaxPremiumIndexStaleness > 0 && staleness > e.cfg.NetworkConfig.MaxPremiumIndexStaleness
 
-		estimatedRate, lastFundingRate, fundingJump, basisRate, _ := estimateScanFundingSignal(item, e.cfg.RiskConfig.ConservativeFundingOnSignConflictEnabled)
+		estimatedRate, lastFundingRate, fundingJump, basisRate, _ := estimateScanFundingSignal(item, e.liveFundingSignalConfig())
 		var capPinnedOverride bool
 		estimatedRate, fundingJump, capPinnedOverride = e.applyCapPinnedFundingOverride(item.Symbol, lastFundingRate, estimatedRate, fundingJump)
 		direction := fundingDirectionFromRate(estimatedRate)
@@ -766,6 +769,12 @@ func (e *FundingRateSniperEngine) scanTopFundingTargets(ctx context.Context) ([]
 		profile := GetSymbolRiskProfile(candidates[idx].Symbol)
 		rawOrderQty := (e.cfg.StrategyConfig.PerSymbolQuoteUSDT * profile.PerSymbolQuoteMultiplier) / candidates[idx].MarkPrice
 		candidates[idx].OrderQuantity = normalizeQuantity(rawOrderQty, futuresRule, candidates[idx].QuantityPrecision)
+	}
+
+	// A 方案:在 Top-N 截断之前剔除「base 资产近期确定性借不到」的负 carry 候选,让可借的负 carry /
+	// 免借币的正 carry 顶上空槽,而不是被 HOME 这类长尾币霸占唯一名额、监控完必被 R29 剔除而本轮 0 开。
+	if filtered, dropped := e.dropBorrowUnavailableNegativeCarry(candidates); dropped > 0 {
+		candidates = filtered
 	}
 
 	sort.Slice(candidates, func(i, j int) bool {

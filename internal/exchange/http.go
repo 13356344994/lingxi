@@ -16,6 +16,8 @@ type SecretConfig struct {
 	APIKey   string
 	Secret   string
 	ProxyURL string
+	// Passphrase 仅部分交易所需要(如 OKX 的 API passphrase);币安/Bybit 留空。多所 secret 每所一节时按所读取。
+	Passphrase string
 }
 
 // NewHTTPClient 按网络配置创建一个可选代理的 *http.Client。

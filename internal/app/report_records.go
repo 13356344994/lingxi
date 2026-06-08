@@ -158,7 +158,12 @@ type SettlementCSVRecord struct {
 	// 无此字段时为空 → 对账回退到实测费用(旧行为),零回归。
 	ExpectedTotalFees string `json:"expected_total_fees,omitempty"`
 	CycleNotionalUSDT string `json:"cycle_notional_usdt,omitempty"`
+	// Venue 仅在 venue=all 跨所聚合时由 API 响应层读时注入(§9.2);单所/落盘永远为空(omitempty → 不落盘、不改历史)。
+	Venue string `json:"venue,omitempty"`
 }
+
+// SetVenue 供跨所聚合读时注入来源所标签(venueTagger);单所路径不调用 → 字段保持空、输出逐字节同改造前。
+func (r *SettlementCSVRecord) SetVenue(v string) { r.Venue = v }
 
 type DustLedgerRecord struct {
 	TraceRecordMetadata
@@ -235,7 +240,10 @@ type MonitorCSVRecord struct {
 	MarketRiskAction       string `json:"market_risk_action"`
 	MarketRiskDetail       string `json:"market_risk_detail"`
 	InvalidReason          string `json:"invalid_reason"`
+	Venue                  string `json:"venue,omitempty"` // venue=all 读时注入(§9.2),单所/落盘为空
 }
+
+func (r *MonitorCSVRecord) SetVenue(v string) { r.Venue = v }
 
 // BacktestCSVRecord 表示回测结果的单行记录。
 type BacktestCSVRecord struct {
@@ -252,7 +260,10 @@ type BacktestCSVRecord struct {
 	NetPnL        string `json:"net_pnl"`
 	MaxDrawdown   string `json:"max_drawdown"`
 	Notes         string `json:"notes"`
+	Venue         string `json:"venue,omitempty"` // venue=all 读时注入(§9.2),单所/落盘为空
 }
+
+func (r *BacktestCSVRecord) SetVenue(v string) { r.Venue = v }
 
 // BacktestRunSummaryRecord 表示按运行批次归档的回测摘要记录。
 type BacktestRunSummaryRecord struct {
@@ -295,7 +306,10 @@ type ResidualRiskCSVRecord struct {
 	Severity           string `json:"severity"`
 	Reason             string `json:"reason"`
 	Notes              string `json:"notes"`
+	Venue              string `json:"venue,omitempty"` // venue=all 读时注入(§9.2),单所/落盘为空
 }
+
+func (r *ResidualRiskCSVRecord) SetVenue(v string) { r.Venue = v }
 
 // ResidualSeverityStats 表示残腿风险的分级统计。
 type ResidualSeverityStats struct {
@@ -328,7 +342,10 @@ type ExecutionIncidentRecord struct {
 	IncidentLimit int    `json:"incident_limit"`
 	Fatal         bool   `json:"fatal"`
 	Detail        string `json:"detail"`
+	Venue         string `json:"venue,omitempty"` // venue=all 读时注入(§9.2),单所/落盘为空
 }
+
+func (r *ExecutionIncidentRecord) SetVenue(v string) { r.Venue = v }
 
 func (r ExecutionIncidentRecord) DomainEvent() (DomainEvent, bool) {
 	eventType, ok := executionIncidentEventType(r)

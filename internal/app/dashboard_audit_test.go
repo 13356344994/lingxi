@@ -24,6 +24,7 @@ func TestDashboardAuditStoreAppendPersistsRecord(t *testing.T) {
 		"abcd1234",
 		"live-20260529T120000Z-a1b2c3d4",
 		"live-20260529T120000Z-a1b2c3d4-cycle-e5f60708",
+		"binance",
 		TraceRecordMetadata{
 			StrategyVersion: "funding-sniper-v1",
 			ConfigHash:      "cfg123",

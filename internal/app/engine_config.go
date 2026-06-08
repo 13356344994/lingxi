@@ -105,7 +105,14 @@ func readSimpleYAML(path string) (map[string]string, error) {
 	values := make(map[string]string)
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
+		raw := scanner.Text()
+		// 跳过缩进的「嵌套子键」行:本函数只解析顶层扁平 key: value(币安 + Telegram_*)。
+		// 多所凭证用 venues 嵌套节(bybit/okx/gate),由 yaml.v3 的 parseVenueSecrets 解析;
+		// 这里若把嵌套节的 `  api:`/`  secret:` 当成顶层键读入,会覆盖币安凭证,故按缩进显式忽略。
+		if len(raw) > 0 && (raw[0] == ' ' || raw[0] == '\t') {
+			continue
+		}
+		line := strings.TrimSpace(raw)
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}

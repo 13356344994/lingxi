@@ -230,6 +230,14 @@ type RuntimeController struct {
 	logger  *log.Logger
 	logs    *RuntimeLogStore
 
+	// venueName 标识本控制器归属的交易所(""/"binance"=币安主路径,走引擎;其它=多所适配器路径)。
+	// 由 buildVenueRuntime 注入;资金快照/调仓据此分支到对应 venue.CapitalManagement,绝不改币安行为。
+	venueName string
+
+	// bybitAlerts 是 Bybit 执行器的实时告警分发器(开/平/启停/失败推送到 Telegram 等出口)。
+	// 仅在 runBybitExecutor 启动时按 secret.yaml 的 Telegram 凭据构造;未配置或非 bybit 路径时为 nil(所有调用 nil-safe)。
+	bybitAlerts *AlertDispatcher
+
 	mu                             sync.Mutex
 	status                         RuntimeTaskStatus
 	cancel                         context.CancelFunc
@@ -269,9 +277,19 @@ func NewRuntimeController(ctx context.Context, store *ReportStore, cfg EngineCon
 }
 
 func (c *RuntimeController) Start(req RuntimeStartRequest) error {
+	// 安全闸:Bybit 走独立的精简执行器(B5,runBybitExecutor,主闸 LiveTradingEnabled 默认 OFF=只 shadow);
+	// 其余非币安所(OKX/Gate)的交易引擎尚未接入,Start 会构造币安引擎——若误启会变成「第二个币安引擎」双开实盘,
+	// 故一律拒绝,当前仅开放资金管理(调仓)。
+	isBybit := c.isBybitVenue()
+	if c.isNonBinanceVenue() && !isBybit {
+		return fmt.Errorf("venue %q 的自动交易引擎尚未接入,当前仅支持资金管理(调仓);请勿在该所启动任务", c.venueName)
+	}
 	mode := RuntimeMode(strings.TrimSpace(req.Mode))
 	if mode != RuntimeModeLive && mode != RuntimeModeMonthly {
 		return fmt.Errorf("不支持的运行模式: %s", req.Mode)
+	}
+	if isBybit && mode != RuntimeModeLive {
+		return fmt.Errorf("Bybit 执行器仅支持实盘(live)模式,不支持历史模拟")
 	}
 
 	secretPath := strings.TrimSpace(req.SecretPath)
@@ -293,7 +311,9 @@ func (c *RuntimeController) Start(req RuntimeStartRequest) error {
 	cooldownUntil := strings.TrimSpace(c.status.CooldownUntil)
 	c.mu.Unlock()
 
-	if mode == RuntimeModeLive {
+	// 币安实盘启动前检查是币安专属(账户/持仓 reconcile 等);Bybit 执行器有自己的启动前置(构造适配器 + 单写租约 +
+	// reconcile,见 runBybitExecutor),故跳过这套币安检查。
+	if mode == RuntimeModeLive && !isBybit {
 		preflightCtx, cancel := context.WithTimeout(c.rootCtx, liveStartupCheckTimeout)
 		defer cancel()
 		if err := c.runLiveStartupChecks(preflightCtx, secretPath, taskCfg, runID, cooldownUntil); err != nil {
@@ -487,7 +507,11 @@ func (c *RuntimeController) runTask(ctx context.Context, mode RuntimeMode, secre
 
 	switch mode {
 	case RuntimeModeLive:
-		message, err = c.runLiveEngine(ctx, secretPath, cfg)
+		if c.isBybitVenue() {
+			message, err = c.runBybitExecutor(ctx, secretPath, cfg)
+		} else {
+			message, err = c.runLiveEngine(ctx, secretPath, cfg)
+		}
 	case RuntimeModeMonthly:
 		message, err = c.runMonthlySimulation(ctx, secretPath, lookbackDays, cfg)
 	default:

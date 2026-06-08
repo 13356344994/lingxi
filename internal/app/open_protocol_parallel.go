@@ -194,7 +194,12 @@ func (p parallelOpenProtocol) handleSpotFailure(ctx context.Context, filledFutur
 		}
 		return fmt.Errorf("并发现货补仓失败且合约回补失败，已转入 ExposureManager")
 	}
-	return result.openError("并发现货补仓失败，已回补合约空单", spotErr)
+	revertErr := result.openError("并发现货补仓失败，已回补合约空单", spotErr)
+	// 借币不可用(-3045/-3006/-3008)且合约腿已回补 → 标记为良性「跳过+冷却」错误,不计熔断(R 借币降级)。
+	if isBorrowUnavailableError(spotErr) {
+		return borrowUnavailableRevertedError{message: revertErr.Error()}
+	}
+	return revertErr
 }
 
 func (p parallelOpenProtocol) revertSpotOrRescue(ctx context.Context, phase string, failureMessage string, scheduledMessage string) error {

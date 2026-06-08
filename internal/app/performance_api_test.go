@@ -83,7 +83,7 @@ func TestComputePerformanceForTargets(t *testing.T) {
 	seed("c4", day("2026-03-04T08:00:00Z"), 999, true)
 
 	rt := &venueRuntime{name: "binance", store: store, allocatedCapitalUSDT: 1000}
-	m, equity, err := computePerformanceForTargets([]*venueRuntime{rt})
+	m, equity, err := computePerformanceForTargets([]*venueRuntime{rt}, nil)
 	if err != nil {
 		t.Fatalf("computePerformanceForTargets() error = %v", err)
 	}
@@ -99,7 +99,7 @@ func TestComputePerformanceForTargets(t *testing.T) {
 
 	// 分配本金为 0 → 分母缺失,指标 Insufficient(诚实,不静默猜)。
 	rt0 := &venueRuntime{name: "binance", store: store, allocatedCapitalUSDT: 0}
-	m0, _, err := computePerformanceForTargets([]*venueRuntime{rt0})
+	m0, _, err := computePerformanceForTargets([]*venueRuntime{rt0}, nil)
 	if err != nil {
 		t.Fatalf("computePerformanceForTargets(capital=0) error = %v", err)
 	}

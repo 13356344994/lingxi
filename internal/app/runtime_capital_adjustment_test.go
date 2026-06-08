@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"reflect"
 	"testing"
 	"time"
 
@@ -278,7 +279,7 @@ func TestCurrentCapitalSnapshotUsesRecentCache(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CurrentCapitalSnapshot() error = %v", err)
 	}
-	if snapshot != cached {
+	if !reflect.DeepEqual(snapshot, cached) {
 		t.Fatalf("expected cached capital snapshot, got %+v", snapshot)
 	}
 }

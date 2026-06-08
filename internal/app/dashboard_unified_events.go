@@ -26,6 +26,7 @@ type UnifiedDashboardEvent struct {
 	IncidentCount  int    `json:"incident_count"`
 	IncidentLimit  int    `json:"incident_limit"`
 	Fatal          bool   `json:"fatal"`
+	Venue          string `json:"venue,omitempty"` // venue=all 读时由来源记录透传(§9.2),单所为空
 }
 
 func buildUnifiedDashboardEvents(domainEvents []DomainEvent, executionIncidents []ExecutionIncidentRecord, limit int) []UnifiedDashboardEvent {
@@ -80,6 +81,7 @@ func newUnifiedDashboardEventFromDomainEvent(event DomainEvent) UnifiedDashboard
 		Reason:     strings.TrimSpace(event.Reason),
 		RunID:      strings.TrimSpace(event.RunID),
 		CycleID:    strings.TrimSpace(event.CycleID),
+		Venue:      strings.TrimSpace(event.Venue),
 	}
 }
 
@@ -95,6 +97,7 @@ func newUnifiedDashboardEventFromExecutionIncident(record ExecutionIncidentRecor
 		view.IncidentCount = record.IncidentCount
 		view.IncidentLimit = record.IncidentLimit
 		view.Fatal = record.Fatal
+		view.Venue = strings.TrimSpace(record.Venue)
 		return view
 	}
 	return UnifiedDashboardEvent{
@@ -116,6 +119,7 @@ func newUnifiedDashboardEventFromExecutionIncident(record ExecutionIncidentRecor
 		IncidentCount:  record.IncidentCount,
 		IncidentLimit:  record.IncidentLimit,
 		Fatal:          record.Fatal,
+		Venue:          strings.TrimSpace(record.Venue),
 	}
 }
 

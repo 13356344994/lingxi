@@ -11,24 +11,62 @@
 #    不建议直接拿大钱长期跑。回到盈利配置时：max_scan_basis_rate 改回 0.0015、抬高净利门、按需关滚动持有。
 
 strategy:
-  # 往返手续费预留 = 2×现货(0.00075) + 2×合约(0.00045) = 0.0024（三档抵扣后）
-  fee_reserve_rate: 0.0024
-  # 必须同步下调，否则 max(min_estimated_funding_rate, breakEven) 会被 0.0055 顶住，降闸无效。
-  # 设为与新 breakEven(0.0024+0.0005+0.0005=0.0034) 一致。
-  min_estimated_funding_rate: 0.0034
+  # ⚠️【数据采集姿态 / 已接受亏损】以下闸门被刻意压到地板,目的是「能开出单拿真实成交数据」,不是盈利配置。
+  #   净利公式 = 预估费率 − 真实两腿价差(entrySpreadRate,实测不可配) − fee_reserve − exit_spread − borrow_reserve。
+  #   下面把可配的几项全压到地板,使「预估费率 − 实测两腿价差」能勉强过 min_net_profit_rate;盈利时全部改回。
+  # 往返手续费预留:压到接近 0(校验要求 >0)。真实四腿 taker 费仍会真实扣到余额,这里只是不再据它挡单。
+  fee_reserve_rate: 0.0002
+  # 退出价差预留压到 0(允许 ≥0)。
+  exit_spread_reserve_rate: 0.0
+  # ⚠️ 关闭「按账户实拉真实 taker 费派生 fee_reserve」——否则启动时会把上面的 0.0002 重算回真实 ~0.0024,relax 失效。
+  auto_derive_fee_reserve_enabled: false
+  # ⚠️ 关闭「开仓前净利闸扣往返市场冲击储备」——薄盘币的冲击储备会把净利估算压成负,挡掉开单。
+  impact_reserve_in_gate_enabled: false
+  # 海选地板线压到 0.05%:|预估费率| ≥ 0.05% 即放进来(正/负 carry 通用)。负向如 FIDA(-0.14%)/PORTAL(-0.11%)由此过闸,
+  #   再由下游 R29 借币守卫挑出「真能借到的」开仓;正向极低费率多半会在净利闸/两腿价差处被刷掉(正常)。
+  min_estimated_funding_rate: 0.0005
+  # 正 carry 专用地板线,同样压到 0.0005。
+  positive_min_estimated_funding_rate: 0.0005
   # ⚠️ 数据采集用：从 0.0015 放大到 0.04，主动放进高基差候选以「能开出单」。
   # 订正：实盘里 basis(mark-index)只是一道「过/不过」的门(strategy_evaluator.go:73 / engine_cost_guard.go:320)，
   #   过门后在净利公式里【不扣 basis】(engine_cost_guard.go:117 estimateReservedNetProfitRate)。真正扣的是
   #   现货↔合约的真实两腿成交价差 entrySpreadRate。所以放大此门=放高基差/高资费的币进场，能不能开只看
   #   funding − 真实两腿价差 − 费用 − 预留。注意 basis 大的币往往两腿价差也大(相关但不等价)。
   #   （此前把 basis 当成本、说「单笔必净亏」是回测口径串到实盘的误判，已订正。）回到盈利配置时改回 0.0015。
-  max_scan_basis_rate: 0.04
+  # ⚠️【数据采集】从 0.04 放宽到 0.10:放进更多高基差候选,基差闸不再挡单(真实可成交性仍由下游执行闸把关)。
+  max_scan_basis_rate: 0.10
+  # 「有利基差」更高上限:当 basis 与 carry 同向(负 carry=长永续+负基差 / 正 carry=短永续+正基差)时,
+  #   该 basis 是仓位方向性顺风(收敛即额外盈利),用此上限放宽;反向/中性仍用 max_scan_basis_rate。
+  #   典型如 HOMEUSDT(负费率 -0.81% 且 mark 较 index 折价 7.23%)即同向有利,旧 0.04 门会误挡。
+  #   ⚠️ 这只放宽「扫描/监控基差闸」;真实可成交性仍由下游深度/价差/成本守卫在执行期把关(高基差币两腿价差
+  #   往往也大,过不了执行闸照样不开)。0=关闭(回退处处用 max_scan_basis_rate)。
+  favorable_basis_max_rate: 0.10
 
 risk:
-  # 用户要求：成本之外的最低净利目标 0.05%
-  min_net_profit_rate: 0.0005
-  # 硬约束 immediate_invalidate_rate < min_net_profit_rate，被迫从 0.0005 下调到 0.0003
-  immediate_invalidate_rate: 0.0003
+  # 【理论不赔即进】净利门降到极小正值 0.0001(0.01%):成本后净利只要 >0 就放行,不再要求 0.05% 利润。
+  #   受核心硬约束 MinNetProfitRate>0 限制无法设 0,0.0001 是逼近「理论不赔」的实际最小值。
+  #   ⚠️ 含义:进场后下一结算点赚的概率更大(资金费已确定方向),这是用「零利润缓冲」换「能开出单」。
+  min_net_profit_rate: 0.0001
+  # 硬约束 immediate_invalidate_rate < min_net_profit_rate 且 >0,故取更小正值 0.00005:
+  #   监控期净利跌破 0.005% 才作废,给 break-even 附近一点容差,避免在平衡线反复 observe/作废抖动。
+  immediate_invalidate_rate: 0.00005
+  # R7b 可信反转门槛（修正 EDENUSDT 类误杀）：R7 在「前瞻费率与上期实收反号」时会保守归零，
+  #   但一个瞬时毛刺反向信号不该否决一笔已强势成立的负费率（如上次实收 -0.585% 被 +0.1% 毛刺归零）。
+  #   仅当 |前瞻| ≥ |上期实收| × ratio 才认定真反转并归零；否则退回上期实收。0.5=反向信号需达既有费率一半。
+  #   置 0 = 退回旧 R7（任何反向冲突都归零）。默认值即 0.5，此处显式写出便于按需微调。
+  funding_reversal_confirm_ratio: 0.5
+  # R7c 前瞻基差同号守卫（EDENUSDT 误杀根因之一）：前瞻估计原本在「盘口基差」与「预估结算价基差」里
+  #   只挑绝对值大的、不看符号——一个反号的预估结算价毛刺会翻转前瞻符号、触发 R7 误杀。开启后：两者反号时
+  #   保留更实时直接的盘口基差，不被毛刺翻转。默认即开启，此处显式写出。回到旧行为可置 false。
+  conflicting_premium_sign_guard_enabled: true
+  # R29 借币容量守卫(开仓前预检)：负向 carry 需借入 base 资产做空现货。开启后开仓前查 /sapi/v1/margin/maxBorrowable，
+  #   借不到/余量不足的候选直接从本轮剔除(根本不开 → 天然无裸腿、无回滚、无熔断)。HOMEUSDT 这类长尾负费率币
+  #   (币安杠杆池无该币可借)会在选币阶段被干净跳过，不再 committed 永续腿后撞 -3045 失败。余量 10%(默认)。
+  borrow_capacity_check_enabled: true
+  # 借币不可用降级：若 R29 漏网(查询失败 advisory 不剔除)、开仓时现货借币腿仍撞 -3045/-3006/-3008(借不到)
+  #   且合约腿已成功回补 → 该币本轮跳过 + 置 symbol 冷却，且【不计入执行事故熔断计数】。防止一个借不到的币
+  #   每周期连试 3 次撞 max_execution_incidents 把整个实盘引擎熔断停机。默认开启，此处显式写出。
+  borrow_unavailable_non_fatal_enabled: true
 
 portfolio:
   # 实盘：开启跨周期滚动持有（吃完一次后在 :55 复核，能吃就续持、不能吃就平仓）。
@@ -45,3 +83,54 @@ historical:
   assumed_hourly_borrow_interest_rate: 0.0000475
   # 回测的「滚动持有」由本项控制（≠ 实盘的 enable_rolling_hold）：最多持有 3 个 funding 周期。
   max_funding_cycles_held: 3
+
+network:
+  # 监听所有网卡,通过机器 IP+端口(8080)直接访问面板,不再依赖 tailscale/本地回环。
+  dashboard_addr: "0.0.0.0:8080"
+
+# 多所编排（§7 / §8）。注册到此的所会出现在面板 venue 选择器里，并各自拥有独立的 RuntimeController/记录目录。
+#   - binance：主所(primary，按字母序首位)，行为与改造前逐字节一致(recordDir=records/，autostart 受全局/环境变量控制)。
+#   - bybit：已接入【独立精简执行器(B5)】——正费率 50/50 delta-neutral，跨结算收一次资金费即平，独立单写租约/
+#     急停/持仓落盘 reconcile，records/bybit/ 隔离。**主安全闸 bybit_executor.live_trading_enabled 默认 false**，
+#     即便在面板启动 bybit 任务也只【影子运行(shadow)】:扫描+规划+日志，绝不下单。确认无误后置 true 才真实下单。
+#     资金管理(调仓)照旧可用("输入总额→划入统一交易账户、余量留资金账户")。autostart=false:需在面板手动启动。
+venues:
+  binance:
+    enabled: true
+  bybit:
+    enabled: true
+    autostart: false
+    # 分配给 Bybit 策略的资金(USDT)。**这是定量基准**:0 → 定量为 0 → 永远不开仓。
+    # ⚠️【数据采集】选币代码已修复为「先过滤掉无现货腿的 perp-only 标的、再取 top_n / 均分资金」,所以分配资金
+    #   只会按「真正可对冲的现货标的数」均分(当前约 1~2 个),无需再为 perp-only 稀释补一大笔钱。60U 足够:
+    #   候选 1 个 → 每腿 ~30U;候选 2 个 → 每腿 ~15U,都远高于交易所 5U/腿 最小下单额,且两腿合计 ≤ 单标的名义硬顶。
+    allocated_capital_usdt: 60
+    # Bybit 精简执行器参数(仅 bybit 读取)。留空即用代码默认(见 core/defaults.go)。
+    bybit_executor:
+      # 主安全闸:true=真实下单。⚠️ 已开实盘 —— 在结算前窗口内会对正费率标的真实开/平 delta-neutral 仓。
+      live_trading_enabled: true
+      # ⚠️【数据采集姿态 / 已接受亏损】放宽以「能开出单」为唯一目标,非盈利配置。
+      #   - 选币逻辑(已改代码):先过滤掉无现货腿的 perp-only 标的(SKHYNIX/SAMSUNG/ESPORTS… 这些盘前合约虽费率最高
+      #     但无法 delta 对冲),再在「可对冲的现货标的」里按费率取 top_n。当前可对冲的最高正费率币是 TACUSDT(~0.04%)。
+      #   - top_n=3:可对冲现货标的本就不多(当前约 1~2 个),取 3 即可;同时它是分配资金的除数上限,取小→每腿名义更大。
+      #   - min_funding_rate=0.0002:初筛地板压到 0.02%,确保 TAC(~0.04%)/MBOX(~0.03%)等现货标的稳定入选,
+      #     不再被盘前 perp-only 的高费率挤掉(那些已在选币阶段过滤)。
+      #   - min_net_profit_rate=-0.005:TAC 单次结算资金费(~0.04%)覆盖不了 Bybit 往返四腿 taker 费(~0.31%),
+      #     成本后净利率约 -0.13%。设 -0.5% 的负门 = 主动接受这点手续费亏损以「开出单拿数据」(单笔亏约几分钱)。
+      #   - lead_seconds=1800:结算前 30 分钟即可开仓,提高命中窗口。
+      top_n: 3
+      min_funding_rate: 0.0002
+      min_net_profit_rate: -0.005
+      lead_seconds: 1800
+      hold_after_seconds: 20
+      # 只抓 1 个币(当前=TAC)做端到端验证即可。
+      max_concurrent_positions: 1
+      # 单标的两腿合计名义硬顶(USDT)。候选=1 时每标的 ~60U,设 80 留出余量不误挡;异常放大时兜底。
+      max_position_notional_usdt: 80
+      # ⚠️【滚动持有】与币安同口径:到期不直接平,复核下期费率,只要**仍为正(>0)**就续持到下一个结算继续收(往返手续费已沉没,多持一期不额外收费、边际净 carry>0 就值得持),
+      #   继续收资金费;费率转负/不达标才平。把一次性往返四腿手续费(~0.31%)摊薄到多次结算——单次收割必亏,
+      #   多吃几次才可能回正。安全闸:仅在永续对冲腿确认在场时续持(绝不滚动裸仓);结算后交易所 nextFundingTime
+      #   尚未翻进时会「续持待定」保持持仓、下轮再复核(修掉了之前「吃一次就走」的时序竞态)。
+      roll_enabled: true
+      # 滚动持有最多跨越的结算次数(含首次)。12 次足以让累计资金费覆盖往返手续费;费率掉下去会提前平。
+      max_hold_settlements: 12

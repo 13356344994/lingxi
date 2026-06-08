@@ -331,8 +331,8 @@ func (e *FundingRateSniperEngine) verifyPreparedPlanFundingStability(ctx context
 		if action == StrategyActionReject {
 			return false, fmt.Sprintf("sample=%d funding 预估不再满足入场门槛: rate=%.6f", sample+1, target.Candidate.EstimatedRate)
 		}
-		if math.Abs(target.Candidate.BasisRate) > e.cfg.StrategyConfig.MaxScanBasisRate {
-			return false, fmt.Sprintf("sample=%d basis 超阈值: basis=%.6f", sample+1, target.Candidate.BasisRate)
+		if maxBasis := effectiveMaxScanBasisRate(e.cfg, currentDirection, target.Candidate.BasisRate); math.Abs(target.Candidate.BasisRate) > maxBasis {
+			return false, fmt.Sprintf("sample=%d basis 超阈值: basis=%.6f > %.6f", sample+1, target.Candidate.BasisRate, maxBasis)
 		}
 		if sample+1 < samples && interval > 0 {
 			if !sleepWithContext(ctx, interval) {

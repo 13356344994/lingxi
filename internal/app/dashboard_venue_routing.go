@@ -71,9 +71,16 @@ func (s *DashboardServer) resolveControlTarget(w http.ResponseWriter, r *http.Re
 	return rt, true
 }
 
+// venueTagger 由可被读时注入来源所标签的记录类型实现(指针接收者 SetVenue)。仅在 venue=all 跨所聚合时调用,
+// 单所/默认路径不注入 → JSON 输出与落盘逐字节同改造前(配合 `json:"venue,omitempty"`)。
+type venueTagger interface {
+	SetVenue(string)
+}
+
 // aggregateRecords 对一组所的 ReportStore 各取 limit 条后顺序拼接(venue=all 聚合的通用工具)。
 // 单所时即该所的 list(limit),与改造前逐字节一致。某所取数失败即整体失败(避免悄悄漏所)。
-func aggregateRecords[T any](targets []*venueRuntime, limit int, list func(*ReportStore, int) ([]T, error)) ([]T, error) {
+// injectVenue=true(仅 venue=all)时,为每条记录读时注入其来源所标签(§9.2),不改落盘。
+func aggregateRecords[T any](targets []*venueRuntime, limit int, list func(*ReportStore, int) ([]T, error), injectVenue bool) ([]T, error) {
 	var out []T
 	for _, rt := range targets {
 		if rt == nil || rt.store == nil {
@@ -82,6 +89,13 @@ func aggregateRecords[T any](targets []*venueRuntime, limit int, list func(*Repo
 		recs, err := list(rt.store, limit)
 		if err != nil {
 			return nil, err
+		}
+		if injectVenue {
+			for i := range recs {
+				if tagger, ok := any(&recs[i]).(venueTagger); ok {
+					tagger.SetVenue(rt.name)
+				}
+			}
 		}
 		out = append(out, recs...)
 	}

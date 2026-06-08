@@ -20,7 +20,7 @@ func (c *RuntimeController) runLiveStartupChecks(ctx context.Context, secretPath
 	if err := validateLocalDashboardAddr(cfg.NetworkConfig.DashboardAddr); err != nil {
 		return err
 	}
-	c.appendControllerTraceLog(runID, "", "启动前检查通过: dashboard 仅监听本地地址")
+	c.appendControllerTraceLog(runID, "", "启动前检查通过: dashboard 监听地址格式校验通过")
 	if err := ensureWritableDirectory(cfg.NetworkConfig.RecordDir); err != nil {
 		return err
 	}
@@ -96,12 +96,10 @@ func validateLocalDashboardAddr(addr string) error {
 		return fmt.Errorf("dashboard 地址格式非法: %w", err)
 	}
 	host = strings.Trim(host, "[]")
-	switch strings.ToLower(strings.TrimSpace(host)) {
-	case "", "127.0.0.1", "localhost", "::1":
-		return nil
-	default:
-		return fmt.Errorf("dashboard 必须只监听本地地址，当前配置=%s", addr)
-	}
+	// 按需放开:允许 dashboard 监听任意地址(含 0.0.0.0 / 机器公网 IP),以便通过机器 IP+端口直接访问。
+	// 仅做基本格式校验(上面已解析 host/port),不再限定本地地址。控制类操作仍由 control token 保护。
+	_ = host
+	return nil
 }
 
 func ensureWritableDirectory(dir string) error {

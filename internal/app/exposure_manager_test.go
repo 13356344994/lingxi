@@ -244,8 +244,9 @@ func TestExposureManagerFailedRescueRetriesAndKeepsLock(t *testing.T) {
 	}
 }
 
-// TestExposureManagerExhaustedRescueReleasesLock 钉死:重试耗尽后释放 symbol 锁(避免永久锁死),并保留任务在盘待人工/重启。
-func TestExposureManagerExhaustedRescueReleasesLock(t *testing.T) {
+// TestExposureManagerExhaustedRescueKeepsLock 钉死:重试耗尽后**保持** symbol 锁定(防止带未收敛残腿的币被重开叠加敞口),
+// 任务保留在盘待人工/重启重排;锁死边界由 critical 告警 + 重启介入兜底。
+func TestExposureManagerExhaustedRescueKeepsLock(t *testing.T) {
 	recordDir := t.TempDir()
 	engine := &FundingRateSniperEngine{
 		cfg:    DefaultEngineConfig(),
@@ -265,8 +266,8 @@ func TestExposureManagerExhaustedRescueReleasesLock(t *testing.T) {
 	manager.reportTaskResult(ctx, task, errTestRescueFailure)
 
 	target := &MonitoredTarget{Candidate: FundingCandidate{Symbol: "BTCUSDT", Pair: "BTCUSDT"}}
-	if filtered := engine.filterTargetsBySymbolCooldown([]*MonitoredTarget{target}); len(filtered) != 1 {
-		t.Fatalf("救援耗尽后 symbol 应释放, got %+v", filtered)
+	if filtered := engine.filterTargetsBySymbolCooldown([]*MonitoredTarget{target}); len(filtered) != 0 {
+		t.Fatalf("救援耗尽后 symbol 应保持锁定(不可重开), got %+v", filtered)
 	}
 }
 

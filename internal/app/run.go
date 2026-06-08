@@ -79,16 +79,34 @@ func startLiveStack(ctx context.Context, cfg EngineConfig) error {
 		return fmt.Errorf("冷启动检查未通过，拒绝启动: %w", err)
 	}
 
-	// P3a/P3b:用 Orchestrator 组装控制面,每所经 buildVenueRuntime 拿到独立的 (ReportStore, RuntimeController)。
-	// 当前只注册唯一一个 venue("binance",recordDir 沿用 records/ 保后向兼容),行为与改造前一致;
-	// 面板经 Primary() 路由到它。P3 后续在此注册更多所(records/<venue>/ 隔离)并按 ?venue= 路由。
+	// P3a/P3b/P3f:用 Orchestrator 组装控制面,每所经 buildVenueRuntime 拿到独立的 (ReportStore, RuntimeController)。
+	// 无 `venues:` 段(现网 config.yaml 即如此)→ 只注册唯一 venue("binance",recordDir 沿用 records/),
+	// 行为与改造前逐字节一致。配置了 `venues:` 段 → 按 enabled 计划逐所注册(records/<venue>/ 隔离),
+	// 并启用**启动隔离**:某所失败仅禁用该所、不阻塞其它所。
 	orch := NewOrchestrator()
-	binanceRT, err := buildVenueRuntime(ctx, cfg, binance.VenueName, log.Default())
+	allowUnknown := strings.EqualFold(strings.TrimSpace(os.Getenv(allowUnknownConfigEnv)), "true")
+	plans, err := loadVenuePlans(cfg, allowUnknown)
 	if err != nil {
-		return fmt.Errorf("创建 binance 运行时失败: %w", err)
+		return fmt.Errorf("解析 venues 配置失败: %w", err)
 	}
-	orch.Register(binanceRT)
-	controller := binanceRT.controller
+	enabled := enabledVenuePlans(plans)
+	if len(enabled) == 0 {
+		// 单所旧路径:无 venues 段。
+		binanceRT, berr := buildVenueRuntime(ctx, cfg, binance.VenueName, log.Default())
+		if berr != nil {
+			return fmt.Errorf("创建 binance 运行时失败: %w", berr)
+		}
+		orch.Register(binanceRT)
+	} else {
+		// 多所路径:逐所构建 + 启动隔离(一所失败不连累其它所)。
+		registered := registerEnabledVenues(orch, enabled, func(p VenuePlan) (*venueRuntime, error) {
+			return buildVenueRuntime(ctx, p.Config, p.Name, log.Default())
+		}, log.Default())
+		if registered == 0 || orch.Primary() == nil {
+			return fmt.Errorf("所有启用的 venue 均启动失败,无可用交易所运行时")
+		}
+	}
+	controller := orch.Primary().controller
 	dashboard, err := NewDashboardServer(cfg.NetworkConfig.DashboardAddr, orch, log.Default())
 	if err != nil {
 		return fmt.Errorf("创建 Web 面板失败: %w", err)

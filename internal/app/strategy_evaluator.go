@@ -51,6 +51,36 @@ func coherentMinFundingRate(config EngineConfig) float64 {
 	return economicParamsFromConfig(config).BreakEven()
 }
 
+// isBasisFavorableForCarry 判定基差是否与 carry 方向同向(对仓位是方向性顺风)。
+//   - 负 carry = 长永续 + 短现货 ⇒ 长「基差」(perp−spot);基差为负(perp 折价)时,收敛上行利好 ⇒ 有利。
+//   - 正 carry = 短永续 + 长现货 ⇒ 短「基差」;基差为正(perp 溢价)时,收敛下行利好 ⇒ 有利。
+//
+// 基差为 0 或方向未定时视为「不有利」(不放宽),保守。
+func isBasisFavorableForCarry(direction fundingCarryDirection, basisRate float64) bool {
+	if basisRate == 0 {
+		return false
+	}
+	switch direction {
+	case fundingCarryDirectionNegative:
+		return basisRate < 0
+	case fundingCarryDirectionPositive:
+		return basisRate > 0
+	default:
+		return false
+	}
+}
+
+// effectiveMaxScanBasisRate 计算当前候选适用的基差上限:基差与 carry 同向(有利)且配置了更高的
+// FavorableBasisMaxRate(且 ≥ 常规上限)时用更高上限;否则用常规 MaxScanBasisRate。纯函数,scan/monitor 共用。
+func effectiveMaxScanBasisRate(config EngineConfig, direction fundingCarryDirection, basisRate float64) float64 {
+	base := config.StrategyConfig.MaxScanBasisRate
+	favorable := config.StrategyConfig.FavorableBasisMaxRate
+	if favorable > base && isBasisFavorableForCarry(direction, basisRate) {
+		return favorable
+	}
+	return base
+}
+
 // DefaultFundingStrategy 默认资金费率套利策略实现
 type DefaultFundingStrategy struct{}
 
@@ -70,15 +100,23 @@ func (s *DefaultFundingStrategy) EvaluateScanCandidate(
 	if funding.FundingJump >= config.StrategyConfig.MaxFundingRateJump {
 		return StrategyActionReject, fmt.Sprintf("资金费率跳跃度过大 (%.4f >= %.4f)", funding.FundingJump, config.StrategyConfig.MaxFundingRateJump)
 	}
-	if math.Abs(funding.BasisRate) > config.StrategyConfig.MaxScanBasisRate {
-		return StrategyActionReject, fmt.Sprintf("基差率过大 (%.4f > %.4f)", math.Abs(funding.BasisRate), config.StrategyConfig.MaxScanBasisRate)
+	if maxBasis := effectiveMaxScanBasisRate(config, funding.Direction, funding.BasisRate); math.Abs(funding.BasisRate) > maxBasis {
+		return StrategyActionReject, fmt.Sprintf("基差率过大 (%.4f > %.4f)", math.Abs(funding.BasisRate), maxBasis)
 	}
 
 	// 计算建议的最低预期收益门槛。海选地板线不允许低于「真实盈亏平衡线」：
 	// 低于该线的候选，即便价差/借币/残腿成本全为零，扣掉往返费用预留与退出价差预留后也越不过健康
 	// 净利门(MinNetProfitRate)，监控阶段必然拒绝。提前用 coherentMinFundingRate 兜底，避免地板线被
 	// 配置成低于成本而放进结构性亏损单。
-	minRate := maxFloat(config.StrategyConfig.MinEstimatedFundingRate, coherentMinFundingRate(config)) * profile.MinEstimatedRateMultiplier
+	// 正 carry 可走解耦的更低地板线(免借币、无可借性风险);负 carry 仍走 MinEstimatedFundingRate。
+	// 无论方向,都以真实盈亏平衡线 coherentMinFundingRate 硬兜底,绝不放进结构性亏损单。
+	configFloor := config.StrategyConfig.MinEstimatedFundingRate
+	if funding.Direction != fundingCarryDirectionNegative {
+		if pos := config.StrategyConfig.PositiveMinEstimatedFundingRate; pos > 0 {
+			configFloor = pos
+		}
+	}
+	minRate := maxFloat(configFloor, coherentMinFundingRate(config)) * profile.MinEstimatedRateMultiplier
 	maxRate := config.StrategyConfig.MaxEstimatedFundingRate
 
 	// 方向校验和收益率大小校验

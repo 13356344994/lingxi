@@ -420,9 +420,10 @@ func (m *ExposureManager) reportTaskResult(ctx context.Context, task exposureRes
 		go m.scheduleRetry(ctx, retry)
 		return
 	}
-	// 重试耗尽:释放锁(否则该 symbol 永久锁死),任务保留在盘(重启会再排)并升级 critical 要求人工核查残腿。
-	m.engine.releaseExposureLock(task.Symbol)
-	m.engine.emitRiskEvent(newRiskEvent("incident", RiskCategoryPlatform, RiskSeverityCritical, task.Phase, task.Symbol, "exposure_rescue_exhausted", int(m.engine.executionIncidents), m.engine.cfg.RiskConfig.MaxExecutionIncidents, false, fmt.Sprintf("救援重试已耗尽(%d 次),任务留盘待重启重排,请立即人工核查残腿: %v", exposureRescueMaxAttempts, err)))
+	// 重试耗尽:**保持** symbol 锁定(任务留盘待重启重排)并升级 critical 要求人工核查残腿。
+	// 此前会在耗尽时释放锁以避免「永久锁死」,但那会让带未收敛残腿的 symbol 被重新开仓、叠加敞口——风险更高。
+	// 现改为继续锁定:本进程内不再重开该 symbol(锁死边界由 critical 告警 + 人工/重启介入兜底,重启后任务自动重排)。
+	m.engine.emitRiskEvent(newRiskEvent("incident", RiskCategoryPlatform, RiskSeverityCritical, task.Phase, task.Symbol, "exposure_rescue_exhausted", int(m.engine.executionIncidents), m.engine.cfg.RiskConfig.MaxExecutionIncidents, false, fmt.Sprintf("救援重试已耗尽(%d 次),已保持 symbol 锁定防止带残腿重开,任务留盘待重启重排,请立即人工核查残腿: %v", exposureRescueMaxAttempts, err)))
 }
 
 func (m *ExposureManager) handleTask(ctx context.Context, task exposureRescueTask) error {

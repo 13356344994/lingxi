@@ -17,6 +17,54 @@ func TestParseVenuePlansNoSection(t *testing.T) {
 	}
 }
 
+// TestParseVenuePlansBybitExecutorOverride 钉死 bybit_executor 嵌套段经 venues 覆盖能正确绑定到
+// EngineConfig.BybitExecutor(主安全闸 + 各执行器参数),保证「写进 config 即生效」。
+func TestParseVenuePlansBybitExecutorOverride(t *testing.T) {
+	yaml := `
+venues:
+  bybit:
+    enabled: true
+    autostart: false
+    allocated_capital_usdt: 300
+    bybit_executor:
+      live_trading_enabled: true
+      top_n: 2
+      min_funding_rate: 0.0008
+      lead_seconds: 90
+      max_concurrent_positions: 3
+      max_position_notional_usdt: 200
+`
+	plans, err := parseVenuePlans([]byte(yaml), DefaultEngineConfig(), false)
+	if err != nil {
+		t.Fatalf("parseVenuePlans() error = %v", err)
+	}
+	if len(plans) != 1 {
+		t.Fatalf("应解析出 1 个 venue 计划, got %d", len(plans))
+	}
+	bx := plans[0].Config.BybitExecutor
+	if !bx.LiveTradingEnabled {
+		t.Fatal("live_trading_enabled 覆盖应为 true")
+	}
+	if bx.TopN != 2 {
+		t.Fatalf("top_n 应为 2, got %d", bx.TopN)
+	}
+	if math.Abs(bx.MinFundingRate-0.0008) > 1e-12 {
+		t.Fatalf("min_funding_rate 应为 0.0008, got %v", bx.MinFundingRate)
+	}
+	if bx.LeadSeconds != 90 {
+		t.Fatalf("lead_seconds 应为 90, got %d", bx.LeadSeconds)
+	}
+	if bx.MaxConcurrentPositions != 3 {
+		t.Fatalf("max_concurrent_positions 应为 3, got %d", bx.MaxConcurrentPositions)
+	}
+	if math.Abs(bx.MaxPositionNotionalUSDT-200) > 1e-9 {
+		t.Fatalf("max_position_notional_usdt 应为 200, got %v", bx.MaxPositionNotionalUSDT)
+	}
+	if plans[0].Config.AllocatedCapitalUSDT != 300 {
+		t.Fatalf("allocated_capital_usdt 应为 300, got %v", plans[0].Config.AllocatedCapitalUSDT)
+	}
+}
+
 // TestParseVenuePlansMergeAndMeta 校验每所 = 全局 + 覆盖,且 enabled/autostart 元信息正确抽出。
 func TestParseVenuePlansMergeAndMeta(t *testing.T) {
 	yaml := `

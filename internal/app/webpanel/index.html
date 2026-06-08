@@ -92,6 +92,10 @@
     }
     .table-wrap {
       overflow-x: auto;
+      overflow-y: auto;
+      max-height: 380px;
+      border: 1px solid #1e293b;
+      border-radius: 10px;
     }
     table {
       width: 100%;
@@ -196,15 +200,81 @@
       gap: 12px;
       margin-top: 12px;
     }
+    .wb-bar {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      background: #0b1220;
+      border: 1px solid #243049;
+      border-radius: 12px;
+      padding: 14px 16px;
+      margin: 10px 0 20px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex-wrap: wrap;
+      box-shadow: 0 6px 24px rgba(0,0,0,0.35);
+    }
+    .wb-title {
+      font-size: 17px;
+      font-weight: 700;
+      color: #e5edff;
+      margin-right: 4px;
+    }
+    .wb-tabs {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .wb-tab {
+      padding: 8px 18px;
+      border-radius: 999px;
+      border: 1px solid #2c3b59;
+      background: #111a2e;
+      color: #cbd5e1;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.12s ease;
+    }
+    .wb-tab:hover {
+      border-color: #3b82f6;
+      color: #e5edff;
+    }
+    .wb-tab.active {
+      background: #2563eb;
+      border-color: #2563eb;
+      color: #fff;
+      font-weight: 600;
+    }
   </style>
 </head>
 <body>
+  <div id="login-gate" style="position:fixed;inset:0;z-index:9999;display:none;align-items:center;justify-content:center;background:rgba(5,9,18,0.96);">
+    <div style="width:min(420px,92vw);background:#111a2e;border:1px solid #243049;border-radius:12px;padding:28px 26px;box-shadow:0 18px 60px rgba(0,0,0,0.55);">
+      <h2 style="margin:0 0 6px;font-size:18px;color:#e5edff;">Funding Rate Sniper</h2>
+      <div style="font-size:13px;color:#8aa0c6;margin-bottom:18px;">请输入控制令牌进入。令牌打印在后台日志 / 记录目录的 <code>.dashboard_control_token</code> 文件中。</div>
+      <label for="gate-token" style="display:block;font-size:12px;color:#8aa0c6;margin-bottom:6px;">控制令牌</label>
+      <input id="gate-token" type="password" autocomplete="off" placeholder="粘贴控制令牌"
+        style="width:100%;box-sizing:border-box;padding:11px 12px;border-radius:8px;border:1px solid #2c3b59;background:#0b1220;color:#e5edff;font-size:14px;">
+      <div id="gate-error" style="display:none;margin-top:10px;font-size:13px;color:#fca5a5;"></div>
+      <button id="gate-enter-btn" type="button"
+        style="margin-top:16px;width:100%;padding:11px 12px;border:none;border-radius:8px;background:#2563eb;color:#fff;font-size:14px;font-weight:600;cursor:pointer;">进入面板</button>
+    </div>
+  </div>
   <div class="container">
     <h1>Funding Rate Sniper Dashboard</h1>
     <div class="hint">构建信息：{{.VersionSummary}}</div>
+    <!-- 交易所工作台:顶部选交易所 → 下方整页(启停/调仓/绩效/账户/记录)都只看这一个所。 -->
+    <div class="wb-bar">
+      <span class="wb-title" id="workbench-title">选择交易所</span>
+      <div class="wb-tabs" id="venue-tabs"></div>
+    </div>
     <div class="hint">系统已处于【读保护模式】。所有自动化配置由 EngineGear 与 EngineProfile 后台自动接管。仅开放安全监控和必要的人工介入入口。</div>
+    <div id="load-error-banner" style="display:none;margin:8px 0;padding:10px 14px;border-radius:8px;background:#3a1212;border:1px solid #ef4444;color:#fca5a5;font-size:13px;"></div>
     <div class="toolbar">
       <button id="refresh-btn" type="button">刷新面板</button>
+      <label for="venue-select" style="margin-left:8px;display:none;">交易所</label>
+      <select id="venue-select" title="选择查看的交易所(含「全部(总览)」聚合)" style="display:none;"></select>
       <a href="{{.SettlementCSV}}" target="_blank" rel="noopener noreferrer">下载结算 JSON</a>
       <a href="{{.MonitorCSV}}" target="_blank" rel="noopener noreferrer">下载监控 JSONL</a>
       <a href="{{.BacktestCSV}}" target="_blank" rel="noopener noreferrer">下载回测 JSON</a>
@@ -217,49 +287,45 @@
     </div>
 
     <div class="panel">
+      <h2 id="venue-overview-title">多所运行总览</h2>
+      <div class="hint">跟随上方「交易所」下拉:选具体交易所 → 只显示该所的启动/停止/调仓与记录;选「全部(总览)」→ 显示所有交易所。每所相互独立,可分别或同时运行。Bybit 仅支持实盘(live)模式。</div>
+      <div class="risk-actions" style="margin:8px 0;">
+        <button id="start-all-btn" type="button">全部启动(实盘)</button>
+        <button id="stop-all-btn" type="button" class="danger">全部停止</button>
+      </div>
+      <div id="venue-overview" style="display:flex;flex-wrap:wrap;gap:12px;"></div>
+    </div>
+
+    <div class="panel">
+      <h2>绩效指标 <span id="performance-venue-label" class="hint" style="font-weight:normal;"></span></h2>
+      <div class="hint" id="performance-note">按已结算净利(资金费已到账)的 UTC 日收益序列计算;分母为该所分配本金(allocated_capital_usdt)。小样本下重点看最大回撤 / 索提诺 / 胜率。基准为 BTC 现货日 K(Alpha/Beta)。</div>
+      <div class="stats" id="performance-cards">
+        <div class="stat-card"><div class="stat-label">总收益率</div><div class="stat-value" id="perf-total-return">-</div></div>
+        <div class="stat-card"><div class="stat-label">年化收益</div><div class="stat-value" id="perf-annualized">-</div></div>
+        <div class="stat-card"><div class="stat-label">最大回撤</div><div class="stat-value" id="perf-maxdd">-</div></div>
+        <div class="stat-card"><div class="stat-label">夏普比率</div><div class="stat-value" id="perf-sharpe">-</div></div>
+        <div class="stat-card"><div class="stat-label">索提诺比率</div><div class="stat-value" id="perf-sortino">-</div></div>
+        <div class="stat-card"><div class="stat-label">卡尔玛比率</div><div class="stat-value" id="perf-calmar">-</div></div>
+        <div class="stat-card"><div class="stat-label">Alpha</div><div class="stat-value" id="perf-alpha">-</div></div>
+        <div class="stat-card"><div class="stat-label">Beta</div><div class="stat-value" id="perf-beta">-</div></div>
+        <div class="stat-card"><div class="stat-label">日胜率</div><div class="stat-value" id="perf-winrate">-</div></div>
+        <div class="stat-card"><div class="stat-label">样本天数</div><div class="stat-value" id="perf-samples">-</div></div>
+      </div>
+      <div style="margin-top:12px;">
+        <div class="hint">权益曲线(蓝)与水下回撤(红,自前缀高水位)</div>
+        <svg id="equity-chart" viewBox="0 0 800 220" preserveAspectRatio="none" style="width:100%;height:220px;background:#0b1220;border-radius:8px;"></svg>
+      </div>
+    </div>
+
+    <div class="panel">
       <h2>人工接管与安全控制台</h2>
-      <div class="hint">填写后台打印的 Token 获取控制权限。当系统出现异常且无法自动降级时，可通过此面板强制停机或调仓。</div>
-      <div class="form-grid">
-        <div>
-          <label for="dashboard-token">控制令牌</label>
-          <input id="dashboard-token" type="password" value="" placeholder="记录目录下 .dashboard_control_token 文件中的令牌（控制台仅打印路径与指纹）">
-        </div>
-        <div>
-          <label for="position-target-usdt">目标交易仓位 (USDT)</label>
-          <input id="position-target-usdt" type="number" min="1" step="0.01" value="300">
-        </div>
-      </div>
-      <div class="risk-actions" style="margin-top:0;">
-        <button id="apply-position-target-btn" type="button" class="secondary">应用仓位并调仓</button>
-        <button id="stop-btn" type="button" class="danger">强制停止所有自动任务</button>
-      </div>
+      <div class="hint">启动 / 停止 / 调仓已按交易所拆分到上方「多所运行总览」按所操作。此处仅保留全局危险操作与账户余额观测;控制令牌在进入页面时输入,无需在此重复填写。</div>
       <div class="risk-actions" style="margin-top:0;">
         <button id="clear-all-records-btn" type="button" class="danger">一键删除所有日志和记录</button>
       </div>
-      <div class="hint">该操作会清空：后台运行日志、历史缓存、全部页面记录（结算/监控/回测/残腿/执行事故/协议事件/灰尘/待结算资金费/月度模拟），以及运行态台账（控制审计、日级风控、残腿救援、未平仓对冲）。清空后不可恢复，需先停止后台任务，并填入上方控制令牌。</div>
-      <div class="form-grid" style="margin-top:16px;">
-        <div>
-          <label for="mode-select">运行模式</label>
-          <select id="mode-select">
-            <option value="monthly">历史模拟（回测，不下真实单）</option>
-            <option value="live">实盘（连真实 Binance，会真实下单）</option>
-          </select>
-        </div>
-        <div>
-          <label for="secret-path">密钥文件路径</label>
-          <input id="secret-path" type="text" value="secret.yaml" placeholder="secret.yaml">
-        </div>
-        <div>
-          <label for="lookback-days">历史模拟回看天数</label>
-          <input id="lookback-days" type="number" min="1" step="1" value="30">
-        </div>
-      </div>
-      <div class="risk-actions" style="margin-top:0;">
-        <button id="start-btn" type="button">启动任务</button>
-      </div>
-      <div class="hint">「历史模拟」用于安全回测，不会下真实单；「实盘」会连真实 Binance 真实下单，请谨慎。启动/停止等控制操作需要上方填入“控制令牌”。控制台/日志只打印令牌文件路径与指纹，请打开记录目录下的 .dashboard_control_token 文件（0600，仅本机可读）复制其中的令牌；每次重启会重新生成。</div>
-      <div class="hint" id="position-config-message">输入的是总交易资金 USDT。实盘会汇总 spot、cross margin、UM futures、funding 的可调 USDT，若总 U 小于你的输入会直接报错拒绝继续。目标资金会按现货主账户 25% + cross margin 25% + U 本位合约 50% 分配，并把本轮总仓位上限同步成这个值。系统会根据健康分自动决定是否开新仓。</div>
-      <div class="status-grid">
+      <div class="hint">该操作会清空：后台运行日志、历史缓存、全部页面记录（结算/监控/回测/残腿/执行事故/协议事件/灰尘/待结算资金费/月度模拟），以及运行态台账（控制审计、日级风控、残腿救援、未平仓对冲）。清空后不可恢复，需先停止后台任务。</div>
+      <div class="status-grid" id="capital-wallets-dynamic" style="display:none"></div>
+      <div class="status-grid" id="capital-wallets-legacy">
         <div class="stat-card">
           <div class="stat-label">Spot U</div>
           <div class="stat-value" id="capital-spot-usdt" style="font-size:18px">-</div>
@@ -867,39 +933,82 @@
 
   <script>
     const dashboardTokenStorageKey = "lingxi-dashboard-token";
+    const SECRET_PATH = "secret.yaml"; // 密钥文件路径固定,不在面板暴露。
     const tradingCapitalStorageKey = "lingxi-trading-capital-usdt";
+    const venueStorageKey = "lingxi-selected-venue";
+
+    // selectedVenue 为空 = 缺省所(Primary,后向兼容);"all" = 跨所总览(仅读接口聚合)。
+    let selectedVenue = window.localStorage.getItem(venueStorageKey) || "";
+    let primaryVenue = ""; // 由 /api/venues 填充,用于 clear-all 的 confirm 默认值
+
+    // controlURL 给控制类(写)接口拼接 venue 选择器;缺省走 Primary。
+    function controlURL(path) {
+      return path + venueQuery("?");
+    }
+    // 控制写操作不支持 venue=all(后端 400);选了 all 时本地拦截并提示选单一所。
+    function blockIfAllVenue() {
+      if (selectedVenue === "all") {
+        alert("「全部(总览)」为只读聚合视图,控制类操作请先选择单一交易所。");
+        return true;
+      }
+      return false;
+    }
+
+    // venueQuery 生成 venue 查询串(sep 为 "?" 或 "&");selectedVenue 为空则不附加(走缺省所)。
+    function venueQuery(sep) {
+      if (!selectedVenue) {
+        return "";
+      }
+      return sep + "venue=" + encodeURIComponent(selectedVenue);
+    }
+
+    // 调仓本金按所隔离存储(§7.8 per-venue localStorage):primary(币安)沿用旧 key,避免清掉用户既有值。
+    function capitalStorageKeyFor(venue) {
+      const v = String(venue || "").trim();
+      if (!v || v === primaryVenue) {
+        return tradingCapitalStorageKey;
+      }
+      return tradingCapitalStorageKey + ":" + v;
+    }
+
+    // showLoadError 非阻塞地在页面顶部横幅显示加载错误(取代会卡住页面的 alert);空串则隐藏横幅。
+    // 命中令牌类 403 时追加提示,引导去下方「控制令牌」框填入令牌。
+    function showLoadError(msg) {
+      const el = document.getElementById("load-error-banner");
+      if (!el) return;
+      const text = String(msg || "").trim();
+      if (!text) {
+        el.style.display = "none";
+        el.textContent = "";
+        return;
+      }
+      let hint = "";
+      if (text.indexOf("令牌") >= 0 || text.indexOf("API") >= 0) {
+        hint = "  → 控制令牌可能失效,请刷新页面在登录框重新输入(记录目录 .dashboard_control_token)。";
+      }
+      el.textContent = "加载面板数据失败: " + text + hint;
+      el.style.display = "block";
+    }
 
     async function loadJSON(url) {
-      const res = await fetch(url);
+      // 携带控制令牌:远程(通过机器 IP 访问,非本机回环)时后端要求读接口也持令牌;本机访问令牌为空也放行。
+      const res = await fetch(url, {
+        headers: { "X-Dashboard-Token": getControlToken() }
+      });
       if (!res.ok) {
         throw new Error(await res.text());
       }
       return res.json();
     }
 
+    // 令牌在登录门(#gate-token)输入并存入 localStorage;面板内不再有令牌框。优先取门里的当前值,其次取已存值。
     function getControlToken() {
-      const input = document.getElementById("dashboard-token");
-      const token = String(input?.value || "").trim();
-      if (token) {
-        window.localStorage.setItem(dashboardTokenStorageKey, token);
+      const fromGate = String(document.getElementById("gate-token")?.value || "").trim();
+      if (fromGate) {
+        window.localStorage.setItem(dashboardTokenStorageKey, fromGate);
+        return fromGate;
       }
-      return token;
-    }
-
-    function restoreControlToken() {
-      const saved = window.localStorage.getItem(dashboardTokenStorageKey) || "";
-      const input = document.getElementById("dashboard-token");
-      if (input && saved) {
-        input.value = saved;
-      }
-    }
-
-    function restoreTradingCapitalInput() {
-      const saved = window.localStorage.getItem(tradingCapitalStorageKey) || "";
-      const input = document.getElementById("position-target-usdt");
-      if (input && saved) {
-        input.value = saved;
-      }
+      return window.localStorage.getItem(dashboardTokenStorageKey) || "";
     }
 
     function renderEmpty(tableBody, text) {
@@ -1035,14 +1144,64 @@
       deltaNode.className = `stat-subvalue${delta.className ? " " + delta.className : ""}`;
     }
 
+    function renderDynamicCapitalWallets(data) {
+      // 非币安所:后端给出 venue 中性的钱包列表(如 Bybit 统一交易账户 + 资金账户),按列表动态渲染卡片。
+      const dynamic = document.getElementById("capital-wallets-dynamic");
+      const legacy = document.getElementById("capital-wallets-legacy");
+      const wallets = data.wallets || [];
+      let totalTarget = 0;
+      const cards = wallets.map((wRow) => {
+        const free = Number(wRow.free_usdt || 0);
+        const target = Number(wRow.desired_usdt || 0);
+        totalTarget += target;
+        const delta = formatCapitalDelta(free, target);
+        return `
+        <div class="stat-card">
+          <div class="stat-label">${escapeHTML(wRow.label || wRow.wallet)}</div>
+          <div class="stat-value" style="font-size:18px">${formatCapitalValue(free)}</div>
+          <div class="stat-subvalue">目标: ${formatCapitalValue(target)}</div>
+          <div class="stat-subvalue${delta.className ? " " + delta.className : ""}">差额: ${delta.text}</div>
+        </div>`;
+      });
+      const total = Number(data.total_movable_usdt || 0);
+      const totalDelta = formatCapitalDelta(total, totalTarget);
+      cards.push(`
+        <div class="stat-card">
+          <div class="stat-label">Total U</div>
+          <div class="stat-value" style="font-size:18px">${formatCapitalValue(total)}</div>
+          <div class="stat-subvalue">目标: ${formatCapitalValue(totalTarget)}</div>
+          <div class="stat-subvalue${totalDelta.className ? " " + totalDelta.className : ""}">差额: ${totalDelta.text}</div>
+        </div>`);
+      dynamic.innerHTML = cards.join("");
+      dynamic.style.display = "";
+      legacy.style.display = "none";
+    }
+
     function renderCapitalSnapshot(snapshot, errorText) {
       const data = snapshot || {};
-      renderCapitalTargetAndDelta("capital-spot-usdt", "capital-spot-target", "capital-spot-delta", data.spot_free_usdt, data.desired_spot_usdt);
-      renderCapitalTargetAndDelta("capital-margin-usdt", "capital-margin-target", "capital-margin-delta", data.cross_margin_free_usdt, data.desired_cross_margin_usdt);
-      renderCapitalTargetAndDelta("capital-futures-usdt", "capital-futures-target", "capital-futures-delta", data.futures_available_usdt, data.desired_futures_usdt);
-      renderCapitalTargetAndDelta("capital-funding-usdt", "capital-funding-target", "capital-funding-delta", data.funding_free_usdt, data.desired_funding_usdt);
-      const totalTarget = Number(data.desired_spot_usdt || 0) + Number(data.desired_cross_margin_usdt || 0) + Number(data.desired_futures_usdt || 0) + Number(data.desired_funding_usdt || 0);
-      renderCapitalTargetAndDelta("capital-total-usdt", "capital-total-target", "capital-total-delta", data.total_movable_usdt, totalTarget);
+      const dynamic = document.getElementById("capital-wallets-dynamic");
+      const legacy = document.getElementById("capital-wallets-legacy");
+      if (Array.isArray(data.wallets) && data.wallets.length) {
+        renderDynamicCapitalWallets(data);
+      } else {
+        // 币安路径(固定四钱包),与改造前逐字节一致。
+        if (dynamic) dynamic.style.display = "none";
+        if (legacy) legacy.style.display = "";
+        renderCapitalTargetAndDelta("capital-spot-usdt", "capital-spot-target", "capital-spot-delta", data.spot_free_usdt, data.desired_spot_usdt);
+        renderCapitalTargetAndDelta("capital-margin-usdt", "capital-margin-target", "capital-margin-delta", data.cross_margin_free_usdt, data.desired_cross_margin_usdt);
+        renderCapitalTargetAndDelta("capital-futures-usdt", "capital-futures-target", "capital-futures-delta", data.futures_available_usdt, data.desired_futures_usdt);
+        renderCapitalTargetAndDelta("capital-funding-usdt", "capital-funding-target", "capital-funding-delta", data.funding_free_usdt, data.desired_funding_usdt);
+        const totalTarget = Number(data.desired_spot_usdt || 0) + Number(data.desired_cross_margin_usdt || 0) + Number(data.desired_futures_usdt || 0) + Number(data.desired_funding_usdt || 0);
+        renderCapitalTargetAndDelta("capital-total-usdt", "capital-total-target", "capital-total-delta", data.total_movable_usdt, totalTarget);
+      }
+      const cfgMsg = document.getElementById("position-config-message");
+      if (cfgMsg) {
+        if (Array.isArray(data.wallets) && data.wallets.length) {
+          cfgMsg.textContent = "输入的是总交易资金 USDT。该所为统一交易账户(UTA)模型:目标资金会划入统一交易账户、余量留在资金账户;现货/合约 50/50 在下单时自动分,无需钱包预切。若可调总额小于你的输入会直接报错拒绝。";
+        } else {
+          cfgMsg.textContent = "输入的是总交易资金 USDT。实盘会汇总 spot、cross margin、UM futures、funding 的可调 USDT，若总 U 小于你的输入会直接报错拒绝继续。目标资金会按现货主账户 25% + cross margin 25% + U 本位合约 50% 分配，并把本轮总仓位上限同步成这个值。系统会根据健康分自动决定是否开新仓。";
+        }
+      }
       document.getElementById("capital-snapshot-message").textContent = errorText
         ? `账户快照读取失败：${errorText}`
         : "这里展示实时账户 USDT 快照，仅用于观察，不会触发任何自动调仓。";
@@ -1091,25 +1250,12 @@
     }
 
     let currentRuntimeRiskConfig = null;
-    // 目标交易仓位输入框只在首次加载时从配置/本地缓存初始化一次；避免每 5 秒 refreshDashboard
-    // 反复写 .value 导致你正在输入的数字被「刷新」掉或光标跳动。
-    let tradingCapitalInputInitialized = false;
 
     function renderRiskConfig(config) {
       if (!config) {
         return;
       }
       currentRuntimeRiskConfig = config;
-      const tradingCapitalInput = document.getElementById("position-target-usdt");
-      if (tradingCapitalInput && !tradingCapitalInputInitialized) {
-        const saved = window.localStorage.getItem(tradingCapitalStorageKey);
-        if (saved) {
-          tradingCapitalInput.value = saved;
-        } else {
-          tradingCapitalInput.value = String(config.max_cycle_open_notional_usdt ?? "");
-        }
-        tradingCapitalInputInitialized = true;
-      }
       document.getElementById("risk-per-symbol-quote").value = String(config.per_symbol_quote_usdt ?? "");
       document.getElementById("risk-max-cycle-open-notional").value = String(config.max_cycle_open_notional_usdt ?? "");
       document.getElementById("risk-recent-window").value = String(config.recent_trade_volume_window ?? "");
@@ -1394,7 +1540,7 @@
 
     async function refreshDashboard() {
       try {
-        const summary = await loadJSON("/api/dashboard/summary?limit=200");
+        const summary = await loadJSON("/api/dashboard/summary?limit=200" + venueQuery("&"));
         renderRuntimeStatus(summary.runtime_status || {});
         renderCapitalSnapshot(summary.capital_snapshot || {}, summary.capital_snapshot_error || "");
         renderRuntimeLogs(summary.runtime_logs || []);
@@ -1408,10 +1554,79 @@
         renderBacktests(summary.backtests || []);
         renderResidualRisks(summary.residual_risks || [], summary.residual_severity_stats || []);
         renderScenarioStats(summary.residual_scenario_stats || []);
+        showLoadError("");
       } catch (err) {
         console.error(err);
-        alert("加载面板数据失败: " + err.message);
+        showLoadError(err.message);
       }
+      // 绩效面板独立拉取(失败不阻塞主面板)。
+      try {
+        const perf = await loadJSON("/api/performance" + venueQuery("?"));
+        renderPerformance(perf || {});
+      } catch (err) {
+        console.error("加载绩效指标失败", err);
+      }
+    }
+
+    function fmtPct(v) {
+      if (v === null || v === undefined || !Number.isFinite(Number(v))) return "-";
+      return (Number(v) * 100).toFixed(2) + "%";
+    }
+    function fmtNum(v) {
+      if (v === null || v === undefined || !Number.isFinite(Number(v))) return "-";
+      return Number(v).toFixed(2);
+    }
+
+    function renderPerformance(resp) {
+      const m = resp.metrics || {};
+      const venueLabel = resp.venue ? "(" + escapeHTML(resp.venue) + ")" : "";
+      document.getElementById("performance-venue-label").textContent = venueLabel;
+      document.getElementById("perf-total-return").textContent = m.insufficient ? "样本不足" : fmtPct(m.total_return);
+      document.getElementById("perf-annualized").textContent = m.insufficient ? "-" : fmtPct(m.annualized_return);
+      document.getElementById("perf-maxdd").textContent = (m.max_drawdown !== undefined ? fmtNum(m.max_drawdown) + " USDT" : "-") + " / " + fmtPct(m.max_drawdown_rate);
+      document.getElementById("perf-sharpe").textContent = m.insufficient ? "-" : fmtNum(m.sharpe);
+      document.getElementById("perf-sortino").textContent = m.insufficient ? "-" : fmtNum(m.sortino);
+      document.getElementById("perf-calmar").textContent = m.insufficient ? "-" : fmtNum(m.calmar);
+      const benchMissing = m.benchmark_insufficient;
+      document.getElementById("perf-alpha").textContent = benchMissing ? "基准缺失" : fmtPct(m.alpha);
+      document.getElementById("perf-beta").textContent = benchMissing ? "基准缺失" : fmtNum(m.beta);
+      document.getElementById("perf-winrate").textContent = fmtPct(m.win_rate);
+      document.getElementById("perf-samples").textContent = String(Number(m.samples || 0));
+      renderEquityChart(Array.isArray(resp.equity) ? resp.equity : []);
+    }
+
+    // renderEquityChart 用内联 SVG 画权益曲线(蓝)与水下回撤(红填充),无第三方依赖。
+    function renderEquityChart(points) {
+      const svg = document.getElementById("equity-chart");
+      if (!svg) return;
+      const W = 800, H = 220, pad = 24;
+      if (!points.length) {
+        svg.innerHTML = `<text x="${W / 2}" y="${H / 2}" fill="#64748b" font-size="14" text-anchor="middle">暂无足够已结算数据</text>`;
+        return;
+      }
+      const eq = points.map((p) => Number(p.equity || 0));
+      const dd = points.map((p) => Number(p.drawdown || 0));
+      const minEq = Math.min(...eq), maxEq = Math.max(...eq);
+      const maxDD = Math.max(...dd, 0);
+      const n = points.length;
+      const x = (i) => pad + (n === 1 ? (W - 2 * pad) / 2 : (i * (W - 2 * pad)) / (n - 1));
+      const yEq = (v) => {
+        if (maxEq === minEq) return H / 2;
+        return pad + (H - 2 * pad) * (1 - (v - minEq) / (maxEq - minEq));
+      };
+      const eqPath = eq.map((v, i) => (i === 0 ? "M" : "L") + x(i).toFixed(1) + " " + yEq(v).toFixed(1)).join(" ");
+      // 水下回撤:底部带状,高度按回撤占 maxDD 比例。
+      const ddBars = maxDD > 0
+        ? dd.map((v, i) => {
+            const h = (H - 2 * pad) * 0.3 * (v / maxDD);
+            return `<rect x="${(x(i) - 2).toFixed(1)}" y="${(H - pad - h).toFixed(1)}" width="4" height="${h.toFixed(1)}" fill="#ef4444" opacity="0.5"></rect>`;
+          }).join("")
+        : "";
+      svg.innerHTML =
+        ddBars +
+        `<path d="${eqPath}" fill="none" stroke="#38bdf8" stroke-width="2"></path>` +
+        `<text x="${pad}" y="14" fill="#94a3b8" font-size="11">权益 ${fmtNum(eq[eq.length - 1])} USDT</text>` +
+        `<text x="${W - pad}" y="14" fill="#94a3b8" font-size="11" text-anchor="end">最大回撤 ${fmtNum(maxDD)} USDT</text>`;
     }
 
     async function postJSON(url, payload) {
@@ -1455,8 +1670,9 @@
         max_daily_order_count: Number(document.getElementById("risk-max-daily-orders").value || "0"),
         max_daily_open_notional_usdt: Number(document.getElementById("risk-max-daily-open-notional").value || "0")
       };
+      if (blockIfAllVenue()) { return; }
       try {
-        const result = await postJSON("/api/runtime/config", payload);
+        const result = await postJSON(controlURL("/api/runtime/config"), payload);
         renderRiskConfig(result.config);
         document.getElementById("risk-config-message").textContent = result.message || "风控参数已更新";
         await refreshDashboard();
@@ -1474,60 +1690,196 @@
       return `${result.message || "仓位资金已调整"}\n请求=${Number(result.requested_trading_usdt || 0).toFixed(2)} | 实际=${Number(result.applied_trading_usdt || 0).toFixed(2)} | 单腿=${Number(result.per_leg_trading_usdt || 0).toFixed(2)}\n划转=${transferText}`;
     }
 
-    async function applyTradingCapital() {
-      const targetTradingUSDT = Number(document.getElementById("position-target-usdt").value || "0");
-      if (!Number.isFinite(targetTradingUSDT) || targetTradingUSDT <= 0) {
-        document.getElementById("position-config-message").textContent = "请输入大于 0 的目标交易仓位 USDT。";
+    // ===== 多所运行总览:每所独立的运行模式 / 回看天数 / 目标仓位 / 启停 / 调仓 =====
+    let knownVenues = []; // 由 loadVenues() 填充的具名所列表(不含 all 哨兵)。
+
+    // controlURLForVenue 给写接口拼接「指定所」的 venue 查询串(与上方下拉选择无关)。
+    function controlURLForVenue(path, venue) {
+      const v = String(venue || "").trim();
+      if (!v) { return path; } // 空 = 缺省所(primary)
+      return path + (path.indexOf("?") >= 0 ? "&" : "?") + "venue=" + encodeURIComponent(v);
+    }
+
+    // venueStartMode:读取该所卡片里的「运行模式」下拉;缺省 live。
+    function venueStartMode(venue) {
+      const sel = document.getElementById("vmode-" + venue);
+      return (sel && sel.value) ? sel.value : "live";
+    }
+
+    async function startVenue(venue) {
+      const lb = document.getElementById("vlookback-" + venue);
+      const lookbackDays = Number(lb && lb.value ? lb.value : "30");
+      await postJSON(controlURLForVenue("/api/runtime/start", venue), {
+        mode: venueStartMode(venue),
+        secret_path: SECRET_PATH,
+        lookback_days: lookbackDays
+      });
+    }
+
+    async function stopVenue(venue) {
+      await postJSON(controlURLForVenue("/api/runtime/stop", venue), {});
+    }
+
+    async function applyVenueCapital(venue) {
+      const input = document.getElementById("vcap-" + venue);
+      const msg = document.getElementById("vmsg-" + venue);
+      const target = Number(input && input.value ? input.value : "0");
+      if (!Number.isFinite(target) || target <= 0) {
+        if (msg) { msg.textContent = "请输入大于 0 的目标交易仓位 USDT。"; }
         return;
       }
       try {
-        const result = await postJSON("/api/runtime/capital", {
-          target_trading_usdt: targetTradingUSDT
-        });
-        window.localStorage.setItem(tradingCapitalStorageKey, String(targetTradingUSDT));
-        if (result.config) {
-          renderRiskConfig(result.config);
-        }
-        document.getElementById("position-config-message").textContent = result.message || "目标交易仓位已调整";
+        const result = await postJSON(controlURLForVenue("/api/runtime/capital", venue), { target_trading_usdt: target });
+        window.localStorage.setItem(capitalStorageKeyFor(venue), String(target));
+        if (msg) { msg.textContent = result.message || "目标交易仓位已调整"; }
         await refreshDashboard();
         alert(formatCapitalAdjustmentResult(result));
       } catch (err) {
-        document.getElementById("position-config-message").textContent = "应用失败: " + err.message;
+        if (msg) { msg.textContent = "应用失败: " + err.message; }
         alert("应用目标交易仓位失败: " + err.message);
       }
     }
 
-    async function startTask() {
-      const mode = document.getElementById("mode-select").value;
-      const secretPath = document.getElementById("secret-path").value.trim() || "secret.yaml";
-      const lookbackDays = Number(document.getElementById("lookback-days").value || "30");
-      try {
-        await postJSON("/api/runtime/start", {
-          mode,
-          secret_path: secretPath,
-          lookback_days: lookbackDays
+    async function startAllVenues() {
+      const targets = knownVenues.length ? knownVenues : [""];
+      const errs = [];
+      for (const v of targets) {
+        try { await startVenue(v); } catch (err) { errs.push((v || "默认所") + ": " + err.message); }
+      }
+      await refreshDashboard();
+      await refreshVenueOverview();
+      if (errs.length) { alert("部分交易所启动失败:\n" + errs.join("\n")); }
+    }
+
+    async function stopAllVenues() {
+      if (!confirm("确认停止所有交易所的自动任务吗?")) { return; }
+      const targets = knownVenues.length ? knownVenues : [""];
+      const errs = [];
+      for (const v of targets) {
+        try { await stopVenue(v); } catch (err) { errs.push((v || "默认所") + ": " + err.message); }
+      }
+      await refreshDashboard();
+      await refreshVenueOverview();
+      if (errs.length) { alert("部分交易所停止失败:\n" + errs.join("\n")); }
+    }
+
+    // buildVenueOverview:一次性构建每所控制卡片(运行模式 / 回看天数 / 目标仓位 / 启停 / 调仓)。
+    // 输入框只建一次,避免每 5 秒刷新冲掉正在输入的值;运行状态由 refreshVenueOverview 单独增量更新。
+    function buildVenueOverview() {
+      const box = document.getElementById("venue-overview");
+      if (!box) { return; }
+      const venues = knownVenues.length ? knownVenues : ["binance"];
+      box.innerHTML = venues.map((v) => {
+        const isBybit = String(v).toLowerCase() === "bybit";
+        const modeOptions = isBybit
+          ? `<option value="live">实盘(真实下单)</option>`
+          : `<option value="live">实盘(真实下单)</option><option value="monthly">历史模拟(回测,不下单)</option>`;
+        const savedCap = window.localStorage.getItem(capitalStorageKeyFor(v)) || "";
+        const lookbackRow = isBybit ? "" : `
+            <div style="margin-top:8px;">
+              <label style="display:block;font-size:12px;color:#8aa0c6;margin-bottom:4px;">历史模拟回看天数</label>
+              <input id="vlookback-${escapeHTML(v)}" type="number" min="1" step="1" value="30" style="width:100%;box-sizing:border-box;">
+            </div>`;
+        return `
+          <div id="vcard-${escapeHTML(v)}" data-venue="${escapeHTML(v)}" style="flex:1 1 280px;min-width:280px;background:#0f1830;border:1px solid #243049;border-radius:10px;padding:14px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+              <strong style="color:#e5edff;font-size:15px;">${escapeHTML(v)}</strong>
+              <span id="vbadge-${escapeHTML(v)}"></span>
+            </div>
+            <div class="hint" id="vstatus-${escapeHTML(v)}" style="margin:0 0 10px;">阶段: - · 模式: -</div>
+            <div>
+              <label style="display:block;font-size:12px;color:#8aa0c6;margin-bottom:4px;">运行模式</label>
+              <select id="vmode-${escapeHTML(v)}" style="width:100%;box-sizing:border-box;">${modeOptions}</select>
+            </div>
+            ${lookbackRow}
+            <div style="margin-top:8px;">
+              <label style="display:block;font-size:12px;color:#8aa0c6;margin-bottom:4px;">目标交易仓位 (USDT)</label>
+              <input id="vcap-${escapeHTML(v)}" type="number" min="1" step="0.01" value="${escapeHTML(savedCap)}" placeholder="留空则不调仓" style="width:100%;box-sizing:border-box;">
+            </div>
+            <div class="risk-actions" style="margin:12px 0 0;">
+              <button type="button" id="vstart-${escapeHTML(v)}">启动</button>
+              <button type="button" class="danger" id="vstop-${escapeHTML(v)}">停止</button>
+              <button type="button" class="secondary" id="vapply-${escapeHTML(v)}">应用调仓</button>
+            </div>
+            <div class="hint" id="vmsg-${escapeHTML(v)}" style="margin:8px 0 0;"></div>
+          </div>`;
+      }).join("");
+      // 每所按钮绑定(只建一次,不随状态刷新重建)。
+      venues.forEach((v) => {
+        document.getElementById("vstart-" + v)?.addEventListener("click", async () => {
+          try { await startVenue(v); } catch (err) { alert("启动失败: " + err.message); }
+          await refreshDashboard();
+          await refreshVenueOverview();
         });
-        await refreshDashboard();
-      } catch (err) {
-        alert("启动任务失败: " + err.message);
+        document.getElementById("vstop-" + v)?.addEventListener("click", async () => {
+          try { await stopVenue(v); } catch (err) { alert("停止失败: " + err.message); }
+          await refreshDashboard();
+          await refreshVenueOverview();
+        });
+        document.getElementById("vapply-" + v)?.addEventListener("click", () => applyVenueCapital(v));
+      });
+      applyVenueFilter();
+    }
+
+    // applyVenueFilter:按上方「交易所」下拉过滤多所控制卡片——
+    //   选具体所 → 只显示该所卡片;默认所(空)→ 显示主所;全部(总览)→ 显示所有卡片。
+    function applyVenueFilter() {
+      const box = document.getElementById("venue-overview");
+      if (!box) { return; }
+      const target = selectedVenue === "" ? primaryVenue : selectedVenue; // 默认所→主所
+      const showAll = selectedVenue === "all" || !target;
+      box.querySelectorAll("[data-venue]").forEach((card) => {
+        const v = card.getAttribute("data-venue");
+        card.style.display = (showAll || v === target) ? "" : "none";
+      });
+      const titleEl = document.getElementById("venue-overview-title");
+      if (titleEl) {
+        titleEl.textContent = showAll ? "多所运行总览" : ("运行控制 · " + target);
       }
     }
 
-    async function stopTask() {
-      try {
-        await postJSON("/api/runtime/stop", {});
-        await refreshDashboard();
-      } catch (err) {
-        alert("停止任务失败: " + err.message);
-      }
+    // refreshVenueOverview:仅更新每所运行徽标 / 阶段 / 模式 / 启停按钮可用态,不触碰输入框。
+    async function refreshVenueOverview() {
+      const venues = knownVenues.length ? knownVenues : ["binance"];
+      await Promise.all(venues.map(async (v) => {
+        let st = {};
+        let errMsg = "";
+        try {
+          st = await loadJSON(controlURLForVenue("/api/runtime/status", v));
+        } catch (err) {
+          errMsg = err.message;
+        }
+        const running = !!st.running;
+        const badge = document.getElementById("vbadge-" + v);
+        const statusLine = document.getElementById("vstatus-" + v);
+        const startBtn = document.getElementById("vstart-" + v);
+        const stopBtn = document.getElementById("vstop-" + v);
+        if (badge) {
+          badge.innerHTML = errMsg
+            ? `<span style="color:#fca5a5;font-size:12px;">读取失败</span>`
+            : (running
+                ? `<span style="display:inline-block;padding:2px 8px;border-radius:10px;background:#14532d;color:#86efac;font-size:12px;">运行中</span>`
+                : `<span style="display:inline-block;padding:2px 8px;border-radius:10px;background:#3f2937;color:#fca5a5;font-size:12px;">已停止</span>`);
+        }
+        if (statusLine) {
+          if (errMsg) {
+            statusLine.textContent = "读取失败: " + errMsg;
+          } else {
+            statusLine.textContent = "阶段: " + (st.current_stage || st.status || "-") + " · 模式: " + (st.mode || "-");
+          }
+        }
+        if (startBtn) { startBtn.disabled = running; }
+        if (stopBtn) { stopBtn.disabled = !running; }
+      }));
     }
 
     async function clearRuntimeLogs() {
       if (!confirm("确认清空近 12 小时的后台运行日志吗？清空后不可恢复。")) {
         return;
       }
+      if (blockIfAllVenue()) { return; }
       try {
-        const result = await postJSON("/api/runtime/clear-logs", {});
+        const result = await postJSON(controlURL("/api/runtime/clear-logs"), {});
         await refreshDashboard();
         alert(result.message || "后台运行日志已清空");
       } catch (err) {
@@ -1539,8 +1891,9 @@
       if (!confirm("确认清空页面表格对应的 JSON 数据吗？清空后会保留空数组文件，后续新记录仍可继续写入。")) {
         return;
       }
+      if (blockIfAllVenue()) { return; }
       try {
-        const result = await postJSON("/api/runtime/clear-data", {});
+        const result = await postJSON(controlURL("/api/runtime/clear-data"), {});
         await refreshDashboard();
         alert(result.message || "页面 JSON 数据已清空");
       } catch (err) {
@@ -1552,8 +1905,9 @@
       if (!confirm("确认清空历史缓存吗？下次历史模拟会重新拉取 funding 和 K 线原始数据。")) {
         return;
       }
+      if (blockIfAllVenue()) { return; }
       try {
-        const result = await postJSON("/api/runtime/clear-cache", {});
+        const result = await postJSON(controlURL("/api/runtime/clear-cache"), {});
         await refreshDashboard();
         alert(result.message || "历史缓存已清空");
       } catch (err) {
@@ -1565,8 +1919,17 @@
       if (!confirm("确认删除所有日志和记录吗？\n将清空：后台运行日志、历史缓存、全部页面记录，以及运行态台账（控制审计/日级风控/残腿救援/未平仓对冲）。\n清空后不可恢复，且必须先停止后台任务。")) {
         return;
       }
+      if (blockIfAllVenue()) { return; }
+      // clear-all 为毁灭性操作,后端强制 confirm=<目标所名>;缺省所用 primaryVenue。
+      const target = selectedVenue || primaryVenue;
+      if (!target) {
+        alert("无法确定目标交易所(venue 列表未就绪),请先刷新面板后重试。");
+        return;
+      }
+      const base = controlURL("/api/runtime/clear-all");
+      const url = base + (base.indexOf("?") >= 0 ? "&" : "?") + "confirm=" + encodeURIComponent(target);
       try {
-        const result = await postJSON("/api/runtime/clear-all", {});
+        const result = await postJSON(url, {});
         await refreshDashboard();
         alert(result.message || "所有日志与记录已清空");
       } catch (err) {
@@ -1574,10 +1937,9 @@
       }
     }
 
-    document.getElementById("refresh-btn")?.addEventListener("click", refreshDashboard);
-    document.getElementById("start-btn")?.addEventListener("click", startTask);
-    document.getElementById("stop-btn")?.addEventListener("click", stopTask);
-    document.getElementById("apply-position-target-btn")?.addEventListener("click", applyTradingCapital);
+    document.getElementById("refresh-btn")?.addEventListener("click", () => { refreshDashboard(); refreshVenueOverview(); });
+    document.getElementById("start-all-btn")?.addEventListener("click", startAllVenues);
+    document.getElementById("stop-all-btn")?.addEventListener("click", stopAllVenues);
     document.getElementById("save-risk-config-btn")?.addEventListener("click", saveRiskConfig);
     document.getElementById("tighten-risk-10-btn")?.addEventListener("click", () => tightenRiskInputs(0.10));
     document.getElementById("tighten-risk-25-btn")?.addEventListener("click", () => tightenRiskInputs(0.25));
@@ -1585,21 +1947,193 @@
     document.getElementById("clear-historical-cache-btn")?.addEventListener("click", clearHistoricalCache);
     document.getElementById("clear-dashboard-data-btn")?.addEventListener("click", clearDashboardData);
     document.getElementById("clear-all-records-btn")?.addEventListener("click", clearAllRecords);
-    document.getElementById("dashboard-token")?.addEventListener("change", getControlToken);
-    document.getElementById("position-target-usdt")?.addEventListener("input", (event) => {
-      const value = String(event.target?.value || "").trim();
-      if (value) {
-        window.localStorage.setItem(tradingCapitalStorageKey, value);
-        tradingCapitalInputInitialized = true;
+
+    // venue 选择器:从 /api/venues 拉取注册的交易所,填充下拉并附「全部(总览)」聚合项。
+    async function loadVenues() {
+      const select = document.getElementById("venue-select");
+      if (!select) { return; }
+      try {
+        const resp = await loadJSON("/api/venues");
+        primaryVenue = resp.primary || "";
+        const venues = Array.isArray(resp.venues) ? resp.venues : [];
+        // 记录具名所列表(供多所总览的逐所启停/全部启停用)。
+        knownVenues = venues.map((v) => (typeof v === "string" ? v : (v.name || ""))).filter((n) => n);
+        select.innerHTML = "";
+        // 缺省所(Primary):空 value,后向兼容旧接口路径。
+        const primaryOpt = document.createElement("option");
+        primaryOpt.value = "";
+        primaryOpt.textContent = "默认所" + (primaryVenue ? "(" + primaryVenue + ")" : "");
+        select.appendChild(primaryOpt);
+        for (const v of venues) {
+          const name = typeof v === "string" ? v : (v.name || "");
+          if (!name) { continue; }
+          const opt = document.createElement("option");
+          opt.value = name;
+          opt.textContent = name + (name === primaryVenue ? "(主)" : "");
+          select.appendChild(opt);
+        }
+        if (venues.length > 1) {
+          const allOpt = document.createElement("option");
+          allOpt.value = "all";
+          allOpt.textContent = "全部(总览)";
+          select.appendChild(allOpt);
+        }
+        // 校验已保存的选择仍然有效,否则回退到默认所。
+        const valid = Array.from(select.options).some((o) => o.value === selectedVenue);
+        if (!valid) {
+          selectedVenue = "";
+          window.localStorage.setItem(venueStorageKey, "");
+        }
+        select.value = selectedVenue;
+      } catch (err) {
+        console.error("加载交易所列表失败", err);
+      }
+    }
+
+    // switchVenue:切换工作台到某交易所(顶部 tab 与隐藏 select 共用此入口)。
+    //   ""=默认所(主所);"all"=全部总览;具名=该所。驱动整页:控制卡片过滤 + 只读视图/记录按所刷新。
+    function switchVenue(name) {
+      selectedVenue = String(name || "");
+      window.localStorage.setItem(venueStorageKey, selectedVenue);
+      const sel = document.getElementById("venue-select");
+      if (sel && sel.value !== selectedVenue) { sel.value = selectedVenue; }
+      renderVenueTabsActive();
+      updateWorkbenchTitle();
+      applyVenueFilter();
+      refreshVenueOverview();
+      refreshDashboard();
+    }
+
+    // renderVenueTabs:把注册的交易所渲染成顶部「工作台」切换标签(+「全部(总览)」)。
+    function renderVenueTabs() {
+      const box = document.getElementById("venue-tabs");
+      if (!box) { return; }
+      const tabs = [];
+      for (const v of knownVenues) {
+        tabs.push({ value: v, label: v + (v === primaryVenue ? "(主)" : "") });
+      }
+      if (knownVenues.length > 1) {
+        tabs.push({ value: "all", label: "全部(总览)" });
+      }
+      box.innerHTML = tabs.map((t) =>
+        `<button type="button" class="wb-tab" data-venue-tab="${escapeHTML(t.value)}">${escapeHTML(t.label)}</button>`
+      ).join("");
+      box.querySelectorAll("[data-venue-tab]").forEach((btn) => {
+        btn.addEventListener("click", () => switchVenue(btn.getAttribute("data-venue-tab")));
+      });
+      renderVenueTabsActive();
+      updateWorkbenchTitle();
+    }
+
+    // renderVenueTabsActive:高亮当前选中的所对应的 tab(默认所空值映射到主所)。
+    function renderVenueTabsActive() {
+      const box = document.getElementById("venue-tabs");
+      if (!box) { return; }
+      const active = selectedVenue === "" ? primaryVenue : selectedVenue;
+      box.querySelectorAll("[data-venue-tab]").forEach((btn) => {
+        const v = btn.getAttribute("data-venue-tab");
+        btn.classList.toggle("active", v === active);
+      });
+    }
+
+    // updateWorkbenchTitle:工作台标题随选中的所更新。
+    function updateWorkbenchTitle() {
+      const el = document.getElementById("workbench-title");
+      if (!el) { return; }
+      if (selectedVenue === "all") {
+        el.textContent = "全部交易所(总览)";
+      } else {
+        const v = selectedVenue || primaryVenue || "默认所";
+        el.textContent = String(v).toUpperCase() + " 工作台";
+      }
+    }
+
+    document.getElementById("venue-select")?.addEventListener("change", (event) => {
+      switchVenue(String(event.target?.value || ""));
+    });
+
+    // ===== 登录门:进页面先验令牌,通过后才启动数据加载;通过后所有操作自动带令牌,无需再输 =====
+    let dashboardStarted = false;
+
+    // verifyToken 用当前令牌探测一个需要鉴权的只读接口(/api/venues)。本机回环时后端允许空令牌,
+    // 故本机会直接通过;远程则必须持有效令牌。返回 true=可进入。
+    async function verifyToken() {
+      try {
+        const res = await fetch("/api/venues", { headers: { "X-Dashboard-Token": getControlToken() } });
+        return res.ok;
+      } catch (err) {
+        // 网络层失败(如连不上)按未通过处理,门里给出提示而非整页卡死。
+        return false;
+      }
+    }
+
+    function showGate(msg) {
+      const gate = document.getElementById("login-gate");
+      const err = document.getElementById("gate-error");
+      if (err) {
+        const text = String(msg || "").trim();
+        err.textContent = text;
+        err.style.display = text ? "block" : "none";
+      }
+      if (gate) { gate.style.display = "flex"; }
+      const input = document.getElementById("gate-token");
+      if (input) { setTimeout(() => input.focus(), 0); }
+    }
+
+    function hideGate() {
+      const gate = document.getElementById("login-gate");
+      if (gate) { gate.style.display = "none"; }
+    }
+
+    // enterDashboard 仅在令牌校验通过后调用:隐藏门、启动数据加载与轮询(只启动一次)。
+    function enterDashboard() {
+      hideGate();
+      if (dashboardStarted) { return; }
+      dashboardStarted = true;
+      // 先加载 venue 列表(填充 knownVenues),构建多所卡片(一次),再渲染主面板与状态。
+      loadVenues().then(() => { renderVenueTabs(); buildVenueOverview(); refreshVenueOverview(); });
+      refreshDashboard();
+      setInterval(() => { refreshDashboard(); refreshVenueOverview(); }, 5000);
+    }
+
+    async function attemptEnter(tokenFromGate) {
+      if (typeof tokenFromGate === "string" && tokenFromGate.trim()) {
+        // 令牌存入 localStorage,后续所有请求复用,无需再输。
+        window.localStorage.setItem(dashboardTokenStorageKey, tokenFromGate.trim());
+      }
+      const ok = await verifyToken();
+      if (ok) {
+        enterDashboard();
+      } else {
+        showGate("令牌无效或无法访问,请检查后重试。");
+      }
+    }
+
+    document.getElementById("gate-enter-btn")?.addEventListener("click", () => {
+      const input = document.getElementById("gate-token");
+      attemptEnter(String(input?.value || ""));
+    });
+    document.getElementById("gate-token")?.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        const input = document.getElementById("gate-token");
+        attemptEnter(String(input?.value || ""));
       }
     });
-    restoreControlToken();
-    restoreTradingCapitalInput();
-    if (window.localStorage.getItem(tradingCapitalStorageKey)) {
-      tradingCapitalInputInitialized = true;
-    }
-    refreshDashboard();
-    setInterval(refreshDashboard, 5000);
+
+    // 启动时:先用已保存令牌(或本机空令牌)静默校验;通过则直接进,否则弹登录门。
+    (async () => {
+      // 把已保存令牌回填到门输入框,方便用户看到/修改。
+      const saved = window.localStorage.getItem(dashboardTokenStorageKey) || "";
+      const gateInput = document.getElementById("gate-token");
+      if (gateInput && saved) { gateInput.value = saved; }
+      const ok = await verifyToken();
+      if (ok) {
+        enterDashboard();
+      } else {
+        showGate("");
+      }
+    })();
   </script>
 </body>
 </html>

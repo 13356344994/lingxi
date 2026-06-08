@@ -45,7 +45,10 @@ type DomainEvent struct {
 	Stage      LifecycleStage
 	Successful bool
 	Reason     string
+	Venue      string `json:"venue,omitempty"` // venue=all 读时注入(§9.2),单所/落盘为空
 }
+
+func (e *DomainEvent) SetVenue(v string) { e.Venue = v }
 
 // DomainEventSink 描述结构化事件的最小落点接口。
 type DomainEventSink interface {

@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"path/filepath"
 	"sort"
@@ -85,16 +86,59 @@ func buildVenueRuntime(ctx context.Context, cfg EngineConfig, venueName string, 
 	if err != nil {
 		return nil, err
 	}
-	controller, err := NewRuntimeController(ctx, store, venueCfg, logger)
+	// 日志 venue 维度(§12.1):非币安所给 logger 加 `[venue=<name>] ` 前缀,四所并行时进程日志可按所区分;
+	// 币安(primary)沿用原 logger(无前缀)→ 既有日志逐字节不变。结构化记录已按 records/<venue>/ 物理隔离。
+	venueLogger := venueScopedLogger(logger, venueName)
+	controller, err := NewRuntimeController(ctx, store, venueCfg, venueLogger)
 	if err != nil {
 		return nil, err
 	}
+	controller.venueName = venueName // 资金快照/调仓据此分支(币安走引擎,其它走 venue 适配器)
 	return &venueRuntime{
 		name:                 venueName,
 		controller:           controller,
 		store:                store,
 		allocatedCapitalUSDT: venueCfg.AllocatedCapitalUSDT,
 	}, nil
+}
+
+// registerEnabledVenues 按 enabled 计划逐所构建并注册运行时,实现**启动隔离**(§7.9 / §12.1):某所构建失败
+// 或 panic → 记录告警并跳过(该所 disabled),**绝不阻塞其它所注册**。build 为注入的运行时构造器(便于单测打桩,
+// 也便于真实路径复用 buildVenueRuntime)。返回成功注册的所数。
+func registerEnabledVenues(orch *Orchestrator, plans []VenuePlan, build func(VenuePlan) (*venueRuntime, error), logger *log.Logger) int {
+	logf := func(format string, args ...any) {
+		if logger != nil {
+			logger.Printf(format, args...)
+		}
+	}
+	registered := 0
+	for _, plan := range plans {
+		func() {
+			defer func() {
+				if rec := recover(); rec != nil {
+					logf("[启动隔离] venue=%s 构建 panic,已禁用该所,不影响其它所: %v", plan.Name, rec)
+				}
+			}()
+			rt, err := build(plan)
+			if err != nil || rt == nil {
+				logf("[启动隔离] venue=%s 启动失败,已禁用该所,其它所照常 Start: %v", plan.Name, err)
+				return
+			}
+			orch.Register(rt)
+			registered++
+			logf("[编排] venue=%s 运行时已注册(enabled,默认 idle,plan.autostart=%v)", plan.Name, plan.Autostart)
+		}()
+	}
+	return registered
+}
+
+// venueScopedLogger 为非 primary(币安)所派生带 `[venue=<name>] ` 前缀的 logger,使单进程多引擎的进程日志
+// 可按所区分(§12.1)。币安所或入参为空时原样返回 → 既有日志零变化。复用同一底层 writer/flags。
+func venueScopedLogger(logger *log.Logger, venueName string) *log.Logger {
+	if logger == nil || venueName == "" || venueName == binance.VenueName {
+		return logger
+	}
+	return log.New(logger.Writer(), fmt.Sprintf("%s[venue=%s] ", logger.Prefix(), venueName), logger.Flags())
 }
 
 // Register 登记一个 venue 运行时。首个登记者自动成为 primary(可被 SetPrimary 覆盖)。

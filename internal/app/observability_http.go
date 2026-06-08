@@ -126,36 +126,73 @@ func sanitizeLabelValue(v string) string {
 	return v
 }
 
-// buildPrometheusMetrics 把运行状态渲染为 Prometheus 文本格式(纯函数,可单测)。只暴露非敏感健康/计数指标。
-func buildPrometheusMetrics(status RuntimeTaskStatus, uptimeSeconds float64) string {
-	var b strings.Builder
-	writeGauge := func(name, help string, value float64) {
-		fmt.Fprintf(&b, "# HELP %s %s\n# TYPE %s gauge\n%s %g\n", name, help, name, name, value)
-	}
-	writeGauge("lingxi_up", "Process is up (always 1 when scraped).", 1)
-	writeGauge("lingxi_uptime_seconds", "Seconds since dashboard server started.", uptimeSeconds)
-	writeGauge("lingxi_engine_running", "Engine live task running (1) or not (0).", float64(boolGauge(status.Running)))
-	ready, _ := evaluateReadiness(status)
-	writeGauge("lingxi_engine_ready", "Engine ready: running, not fused, health not failed/paused.", float64(boolGauge(ready)))
-	writeGauge("lingxi_circuit_breaker_tripped", "Platform circuit breaker tripped (1) or not (0).", float64(boolGauge(status.CircuitBreakerTripped)))
-	writeGauge("lingxi_health_score", "Engine health score in [0,1].", status.HealthScore)
-	writeGauge("lingxi_current_targets", "Current monitored/target symbols count.", float64(status.CurrentTargets))
-	writeGauge("lingxi_platform_reject_count", "Cumulative platform reject count.", float64(status.PlatformRejectCount))
-	writeGauge("lingxi_platform_request_errors", "Cumulative platform request error count.", float64(status.PlatformRequestErrors))
-	writeGauge("lingxi_recovery_action_count", "Cumulative recovery action count.", float64(status.RecoveryActionCount))
-	writeGauge("lingxi_order_uncertainty_count", "Cumulative uncertain-order count.", float64(status.OrderUncertaintyCount))
+// venueMetricSample 是单个所的指标样本(§12.1:四家并行时按 venue 拆指标)。Venue 为空时该所样本无 venue 标签。
+type venueMetricSample struct {
+	Venue  string
+	Status RuntimeTaskStatus
+}
 
-	gear := strings.TrimSpace(status.EngineGear)
-	if gear == "" {
-		gear = "unknown"
+// buildPrometheusMetrics 把各所运行状态渲染为 Prometheus 文本格式(纯函数,可单测)。只暴露非敏感健康/计数指标。
+// 进程级指标(lingxi_up/uptime)全局无标签;引擎级指标按 §12.1 带 venue 标签——每个 metric 的 HELP/TYPE 仅一次,
+// 后随每所一行带 venue 标签的样本(单所时即一行 {venue="binance"})。
+func buildPrometheusMetrics(samples []venueMetricSample, uptimeSeconds float64) string {
+	var b strings.Builder
+	// 进程级(无 venue 标签):整进程一份。
+	fmt.Fprintf(&b, "# HELP lingxi_up Process is up (always 1 when scraped).\n# TYPE lingxi_up gauge\nlingxi_up 1\n")
+	fmt.Fprintf(&b, "# HELP lingxi_uptime_seconds Seconds since dashboard server started.\n# TYPE lingxi_uptime_seconds gauge\nlingxi_uptime_seconds %g\n", uptimeSeconds)
+
+	// venueLabel 渲染 {venue="..."};venue 为空则不加标签(回退全局,保兼容)。
+	venueLabel := func(v string) string {
+		if strings.TrimSpace(v) == "" {
+			return ""
+		}
+		return fmt.Sprintf("{venue=\"%s\"}", sanitizeLabelValue(v))
 	}
-	healthStatus := strings.TrimSpace(status.HealthStatus)
-	if healthStatus == "" {
-		healthStatus = "unknown"
+	writeVenueGauge := func(name, help string, val func(RuntimeTaskStatus) float64) {
+		fmt.Fprintf(&b, "# HELP %s %s\n# TYPE %s gauge\n", name, help, name)
+		for _, s := range samples {
+			fmt.Fprintf(&b, "%s%s %g\n", name, venueLabel(s.Venue), val(s.Status))
+		}
 	}
-	fmt.Fprintf(&b, "# HELP lingxi_engine_gear_info Current engine gear (value always 1, gear in label).\n# TYPE lingxi_engine_gear_info gauge\nlingxi_engine_gear_info{gear=\"%s\"} 1\n", sanitizeLabelValue(gear))
-	fmt.Fprintf(&b, "# HELP lingxi_engine_health_info Current health status (value always 1, status in label).\n# TYPE lingxi_engine_health_info gauge\nlingxi_engine_health_info{status=\"%s\"} 1\n", sanitizeLabelValue(healthStatus))
+	writeVenueGauge("lingxi_engine_running", "Engine live task running (1) or not (0).", func(st RuntimeTaskStatus) float64 { return float64(boolGauge(st.Running)) })
+	writeVenueGauge("lingxi_engine_ready", "Engine ready: running, not fused, health not failed/paused.", func(st RuntimeTaskStatus) float64 {
+		ready, _ := evaluateReadiness(st)
+		return float64(boolGauge(ready))
+	})
+	writeVenueGauge("lingxi_circuit_breaker_tripped", "Platform circuit breaker tripped (1) or not (0).", func(st RuntimeTaskStatus) float64 { return float64(boolGauge(st.CircuitBreakerTripped)) })
+	writeVenueGauge("lingxi_health_score", "Engine health score in [0,1].", func(st RuntimeTaskStatus) float64 { return st.HealthScore })
+	writeVenueGauge("lingxi_current_targets", "Current monitored/target symbols count.", func(st RuntimeTaskStatus) float64 { return float64(st.CurrentTargets) })
+	writeVenueGauge("lingxi_platform_reject_count", "Cumulative platform reject count.", func(st RuntimeTaskStatus) float64 { return float64(st.PlatformRejectCount) })
+	writeVenueGauge("lingxi_platform_request_errors", "Cumulative platform request error count.", func(st RuntimeTaskStatus) float64 { return float64(st.PlatformRequestErrors) })
+	writeVenueGauge("lingxi_recovery_action_count", "Cumulative recovery action count.", func(st RuntimeTaskStatus) float64 { return float64(st.RecoveryActionCount) })
+	writeVenueGauge("lingxi_order_uncertainty_count", "Cumulative uncertain-order count.", func(st RuntimeTaskStatus) float64 { return float64(st.OrderUncertaintyCount) })
+
+	// gear/health info:value 恒 1,信息在标签(venue + gear/status)。
+	fmt.Fprintf(&b, "# HELP lingxi_engine_gear_info Current engine gear (value always 1, gear in label).\n# TYPE lingxi_engine_gear_info gauge\n")
+	for _, s := range samples {
+		gear := strings.TrimSpace(s.Status.EngineGear)
+		if gear == "" {
+			gear = "unknown"
+		}
+		fmt.Fprintf(&b, "lingxi_engine_gear_info%s 1\n", labelSet(s.Venue, "gear", gear))
+	}
+	fmt.Fprintf(&b, "# HELP lingxi_engine_health_info Current health status (value always 1, status in label).\n# TYPE lingxi_engine_health_info gauge\n")
+	for _, s := range samples {
+		healthStatus := strings.TrimSpace(s.Status.HealthStatus)
+		if healthStatus == "" {
+			healthStatus = "unknown"
+		}
+		fmt.Fprintf(&b, "lingxi_engine_health_info%s 1\n", labelSet(s.Venue, "status", healthStatus))
+	}
 	return b.String()
+}
+
+// labelSet 渲染 Prometheus 标签集:venue 非空则带 venue 标签,外加给定 key=val(均转义)。
+func labelSet(venue, key, val string) string {
+	if strings.TrimSpace(venue) == "" {
+		return fmt.Sprintf("{%s=\"%s\"}", key, sanitizeLabelValue(val))
+	}
+	return fmt.Sprintf("{venue=\"%s\",%s=\"%s\"}", sanitizeLabelValue(venue), key, sanitizeLabelValue(val))
 }
 
 // handleLivez 进程存活探针:只要 HTTP 在响应即 200。
@@ -186,13 +223,36 @@ func (s *DashboardServer) handleHealthz(w http.ResponseWriter, _ *http.Request) 
 	})
 }
 
-// handleMetrics 暴露 Prometheus 文本格式指标。
+// handleMetrics 暴露 Prometheus 文本格式指标(§12.1 按 venue 拆引擎级指标)。
 func (s *DashboardServer) handleMetrics(w http.ResponseWriter, _ *http.Request) {
-	status := s.controllerStatus()
+	samples := s.venueMetricSamples()
 	uptime := time.Since(s.startedAt).Seconds()
 	w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte(buildPrometheusMetrics(status, uptime)))
+	_, _ = w.Write([]byte(buildPrometheusMetrics(samples, uptime)))
+}
+
+// venueMetricSamples 收集各所(注册序)的运行状态样本供 /metrics 按 venue 拆指标。
+// 无编排器(裸 DashboardServer,如探针单测)→ 回退单条无标签样本(取 s.controller 状态),保兼容。
+func (s *DashboardServer) venueMetricSamples() []venueMetricSample {
+	if s == nil || s.orchestrator == nil {
+		return []venueMetricSample{{Venue: "", Status: s.controllerStatus()}}
+	}
+	var out []venueMetricSample
+	for _, rt := range s.orchestrator.All() {
+		if rt == nil {
+			continue
+		}
+		st := RuntimeTaskStatus{}
+		if rt.controller != nil {
+			st = rt.controller.Status()
+		}
+		out = append(out, venueMetricSample{Venue: rt.name, Status: st})
+	}
+	if len(out) == 0 {
+		out = append(out, venueMetricSample{Venue: "", Status: s.controllerStatus()})
+	}
+	return out
 }
 
 // controllerStatus 安全读取控制器状态;控制器为空时返回零值(未运行)。

@@ -46,12 +46,15 @@ func DefaultEngineConfig() EngineConfig {
 			// MinNetProfitRate(0.0020)=0.0055。低于此值的预估资金费率开仓注定亏损或被监控期净利门拒绝，
 			// 故地板线下沉到与成本自洽的 0.0055，而非掩盖真实成本的 0.0025。
 			MinEstimatedFundingRate: 0.0055,
-			MaxEstimatedFundingRate: 0.0300,
-			MaxFundingRateJump:      0.0150,
-			MaxScanBasisRate:        0.0015,
-			LiveFundingAsset:        "USDT",
-			FeeReserveRate:          0.0030,
-			ExitSpreadReserveRate:   0.0005,
+			// 0=正负共用 MinEstimatedFundingRate(行为不变)。正 carry 免借币、无可借性风险,可单独下调;
+			// 但仍被真实盈亏平衡线硬兜底,设得再低也不会放进结构性亏损单。
+			PositiveMinEstimatedFundingRate: 0,
+			MaxEstimatedFundingRate:         0.0300,
+			MaxFundingRateJump:              0.0150,
+			MaxScanBasisRate:                0.0015,
+			LiveFundingAsset:                "USDT",
+			FeeReserveRate:                  0.0030,
+			ExitSpreadReserveRate:           0.0005,
 			// 默认按账户实拉真实 taker 费率派生 FeeReserveRate(2*spot+2*futures),使经济闸据实成本判定;
 			// fail-safe 回退手填 0.0030(见 StrategyConfig.AutoDeriveFeeReserveEnabled 说明)。
 			AutoDeriveFeeReserveEnabled: true,
@@ -72,28 +75,28 @@ func DefaultEngineConfig() EngineConfig {
 			CapPinnedFundingEstimateFactor:  1.0,
 		},
 		ExecutionConfig: ExecutionConfig{
-			ExitDelayAfterFunding:    2 * time.Second,
-			ExitMonitorInterval:      250 * time.Millisecond,
-			AutoBalanceUSDT:          true,
-			OpenPreparationLead:      5 * time.Second,
-			PreOpenNoGoLead:          1 * time.Second,
-			PreOpenTickerMaxAge:      1 * time.Second,
+			ExitDelayAfterFunding: 2 * time.Second,
+			ExitMonitorInterval:   250 * time.Millisecond,
+			AutoBalanceUSDT:       true,
+			OpenPreparationLead:   5 * time.Second,
+			PreOpenNoGoLead:       1 * time.Second,
+			PreOpenTickerMaxAge:   1 * time.Second,
 			// 默认开启战前盘口 REST 补鲜:薄盘冷门币(大负费率机会高发区)的 @bookTicker 事件流常长时间不推,
 			// 仅靠缓存新鲜度会把这类「价其实没变」的标的误判成行情失效而错过开仓;补鲜给一个真·当前价的兜底。
 			PreOpenTickerRESTRefreshEnabled: true,
-			RecvWindow:               5000,
-			ExecutionConfirmTimeout:  1500 * time.Millisecond,
-			ExecutionRecoveryTimeout: 4 * time.Second,
-			OpenHedgeMaxConcurrency:  2,
-			ParallelOpenSymbols:      "",
-			ParallelCloseSymbols:     "",
-			UseProtectedIOC:          true,
-			SpotLimitSlippageRate:    0.0015,
-			FuturesLimitSlippageRate: 0.0010,
-			FuturesPriceProtect:      true,
-			SpotSTPMode:              "EXPIRE_TAKER",
-			FuturesSTPMode:           "EXPIRE_TAKER",
-			FuturesMarginType:        "CROSSED",
+			RecvWindow:                      5000,
+			ExecutionConfirmTimeout:         1500 * time.Millisecond,
+			ExecutionRecoveryTimeout:        4 * time.Second,
+			OpenHedgeMaxConcurrency:         2,
+			ParallelOpenSymbols:             "",
+			ParallelCloseSymbols:            "",
+			UseProtectedIOC:                 true,
+			SpotLimitSlippageRate:           0.0015,
+			FuturesLimitSlippageRate:        0.0010,
+			FuturesPriceProtect:             true,
+			SpotSTPMode:                     "EXPIRE_TAKER",
+			FuturesSTPMode:                  "EXPIRE_TAKER",
+			FuturesMarginType:               "CROSSED",
 			// 全仓(CROSSED)是 delta 中性对冲的刻意选择：给合约腿更大的强平缓冲，避免单腿被强平后留下裸现货腿。
 			// 杠杆从 3x 降到 2x：资金费按名义计提、与杠杆无关，降杠杆不影响收费，却把同名义下的初始保证金
 			// 抬高 50%，使强平价更远——对「小散户求稳不爆」是纯安全收益（代价仅是合约钱包占用略增，且
@@ -155,6 +158,12 @@ func DefaultEngineConfig() EngineConfig {
 			// R7:资金费符号冲突(前向估计与上期实收严格反号=费率正在反转)时,取保守 0 而非退回旧方向乐观值,
 			// 不在最危险的反转时刻按旧方向开仓。默认开启(出厂最安全),仅作用于实盘扫描/开仓,回测不受影响。
 			ConservativeFundingOnSignConflictEnabled: true,
+			// R7b 可信反转门槛:反向前瞻信号需达到既有费率绝对值的一半(0.5)才认定真反转并保守归零,
+			// 否则视为瞬时毛刺、不否决既有强势费率(修正 EDENUSDT 类误杀)。默认 0.5(开启 R7 时生效)。
+			FundingReversalConfirmRatio: 0.5,
+			// R7c 前瞻基差同号守卫:预估结算价基差与盘口基差反号时,禁止仅凭绝对值更大就翻转前瞻符号。
+			// 默认开启(出厂最安全),仅作用于实盘,回测不受影响。
+			ConflictingPremiumSignGuardEnabled: true,
 			// MinLiquidationDistanceRate 默认 0.15：配默认 2x 杠杆时合约腿实际强平距离约 49%，远高于该阈值、
 			// 永不触发（零行为变更）；它只在杠杆被调高、安全距离不足时作为开仓前防爆刹车。
 			MinLiquidationDistanceRate: 0.15,
@@ -176,6 +185,8 @@ func DefaultEngineConfig() EngineConfig {
 			BorrowCapacityCheckEnabled:    false,
 			BorrowCapacityMinHeadroomRate: 0.10,
 			MaxBorrowHourlyInterestRate:   0,
+			// 借币不可用(-3045/-3006/-3008)且合约腿已回补时降级为「跳过+冷却」,不计熔断。默认开启(防长尾币拖垮引擎)。
+			BorrowUnavailableNonFatalEnabled: true,
 			// R26 API Key 权限自检姿态:默认 fail-close(读取/解析失败即拒启,出厂最安全);
 			// IP 白名单默认仅告警(避免直接 brick 现有未配白名单的 Key),建议实盘置 true 转硬门。
 			RequireAPIKeyPermissionCheck: true,
@@ -260,6 +271,20 @@ func DefaultEngineConfig() EngineConfig {
 			MinSeverity:     "warning",
 			DedupWindow:     5 * time.Minute,
 			DispatchTimeout: 5 * time.Second,
+		},
+		BybitExecutor: BybitExecutorConfig{
+			// 主安全闸默认关闭:启动 bybit 任务也只 shadow(规划+日志,绝不下单),置 true 才真实下单。
+			LiveTradingEnabled: false,
+			// 最保守起步:单标的、正费率 ≥0.05%、成本后净利率 ≥0.05%、结算前 60s 开、结算后 20s 平、最多 1 个并发持仓。
+			TopN:                    1,
+			MinFundingRate:          0.0005,
+			MinNetProfitRate:        0.0005,
+			LeadSeconds:             60,
+			HoldAfterSeconds:        20,
+			MaxConcurrentPositions:  1,
+			MaxPositionNotionalUSDT: 0,
+			RollEnabled:             false,
+			MaxHoldSettlements:      1,
 		},
 	}
 	return cfg

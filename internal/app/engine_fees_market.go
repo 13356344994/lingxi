@@ -490,10 +490,42 @@ func (e *FundingRateSniperEngine) sleepUntilServerTime(ctx context.Context, targ
 	}
 }
 
-// estimateScanFundingSignal 从 premiumIndex 推导扫描所需的资金费信号。conservativeOnConflict 为 R7 修复开关
-// (实盘 opt-in):为 true 且当前向估计与上期实收资金费严格反号时,估计取保守 0(不在反转时刻按旧方向开仓);
-// 为 false 时保持既有行为(符号冲突退回 lastFundingRate)。回测路径恒传 false 以保持历史可复现。
-func estimateScanFundingSignal(item PremiumIndexItem, conservativeOnConflict bool) (float64, float64, float64, float64, float64) {
+// fundingSignalConfig 聚合资金费前瞻估计的实盘修正开关,便于逐项 opt-in 且可单测。
+// 回测路径恒传零值(全部关闭)以保持历史可复现。
+type fundingSignalConfig struct {
+	// ConservativeOnConflict 为 R7 总开关:前瞻估计与上期实收资金费严格反号时,认定费率正在反转。
+	ConservativeOnConflict bool
+	// ReversalConfirmRatio 为 R7b 可信反转门槛:仅当 |forward| ≥ |lastFundingRate| × ratio 才认定真反转并归零;
+	// ≤0 表示不设门槛(任何反向冲突都归零,旧 R7 行为)。挡住瞬时毛刺否决既有强势费率(EDENUSDT 误杀)。
+	ReversalConfirmRatio float64
+	// ConflictingPremiumSignGuard 为 R7c 同号守卫:预估结算价基差与盘口基差反号时,禁止仅凭绝对值更大就翻转
+	// 前瞻符号,改保留更实时直接的盘口基差。
+	ConflictingPremiumSignGuard bool
+}
+
+// liveFundingSignalConfig 从引擎配置组装实盘扫描所需的前瞻估计修正开关。
+func (e *FundingRateSniperEngine) liveFundingSignalConfig() fundingSignalConfig {
+	return fundingSignalConfig{
+		ConservativeOnConflict:      e.cfg.RiskConfig.ConservativeFundingOnSignConflictEnabled,
+		ReversalConfirmRatio:        e.cfg.RiskConfig.FundingReversalConfirmRatio,
+		ConflictingPremiumSignGuard: e.cfg.RiskConfig.ConflictingPremiumSignGuardEnabled,
+	}
+}
+
+// credibleFundingReversal 判定反向前瞻信号是否足以认定「资金费真反转」(R7b)。仅当反向前瞻幅度
+// |premium+interestRate| ≥ |lastFundingRate| × ratio 才可信。ratio≤0 不设门槛(旧 R7:任何反向冲突都归零);
+// lastFundingRate==0 时无既有费率可参照,视为可信(退回旧行为)。
+func credibleFundingReversal(lastFundingRate, premiumEstimate, interestRate, ratio float64) bool {
+	if ratio <= 0 || lastFundingRate == 0 {
+		return true
+	}
+	forward := premiumEstimate + interestRate
+	return math.Abs(forward) >= math.Abs(lastFundingRate)*ratio
+}
+
+// estimateScanFundingSignal 从 premiumIndex 推导扫描所需的资金费信号。sigCfg 控制 R7/R7b/R7c 三档实盘修正
+// (回测恒传零值,保持历史可复现)。返回 (估计费率, 上期实收, 跳变, 盘口基差, 扫描评分)。
+func estimateScanFundingSignal(item PremiumIndexItem, sigCfg fundingSignalConfig) (float64, float64, float64, float64, float64) {
 	lastFundingRate := parseFloat(item.LastFundingRate)
 	interestRate := parseFloat(item.InterestRate)
 	markPrice := parseFloat(item.MarkPrice)
@@ -508,7 +540,10 @@ func estimateScanFundingSignal(item PremiumIndexItem, conservativeOnConflict boo
 	premiumEstimate := basisRate
 	if estimatedSettlePrice > 0 && indexPrice > 0 {
 		settleBasisRate := (estimatedSettlePrice - indexPrice) / indexPrice
-		if math.Abs(settleBasisRate) > math.Abs(premiumEstimate) {
+		// R7c 同号守卫:settleBasis 与 markBasis 反号且仅凭绝对值更大就翻转前瞻符号,是 EDENUSDT 误杀的根因之一。
+		// 守卫开启时,反号则保留盘口基差(更实时直接);同号(或任一为 0、无符号冲突)仍取绝对值更大者。
+		signConflict := premiumEstimate != 0 && settleBasisRate != 0 && (settleBasisRate > 0) != (premiumEstimate > 0)
+		if math.Abs(settleBasisRate) > math.Abs(premiumEstimate) && !(sigCfg.ConflictingPremiumSignGuard && signConflict) {
 			premiumEstimate = settleBasisRate
 		}
 	}
@@ -518,8 +553,11 @@ func estimateScanFundingSignal(item PremiumIndexItem, conservativeOnConflict boo
 	switch {
 	case conservativeRate != 0:
 		estimatedFundingRate = conservativeRate
-	case conservativeOnConflict && fundingSignConflict(lastFundingRate, premiumEstimate, interestRate):
-		// R7:资金费正在反转,不退回旧方向乐观值,保守估 0 → 候选不达标 → 本轮不开该 symbol。
+	case sigCfg.ConservativeOnConflict &&
+		fundingSignConflict(lastFundingRate, premiumEstimate, interestRate) &&
+		credibleFundingReversal(lastFundingRate, premiumEstimate, interestRate, sigCfg.ReversalConfirmRatio):
+		// R7:资金费正在反转(且 R7b 确认反向信号可信),不退回旧方向乐观值,保守估 0 → 本轮不开该 symbol。
+		// 反向信号不可信(瞬时毛刺)时不归零,退回 lastFundingRate(既有强势费率不被毛刺否决)。
 		estimatedFundingRate = 0
 	}
 
