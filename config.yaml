@@ -14,19 +14,22 @@ strategy:
   # ⚠️【数据采集姿态 / 已接受亏损】以下闸门被刻意压到地板,目的是「能开出单拿真实成交数据」,不是盈利配置。
   #   净利公式 = 预估费率 − 真实两腿价差(entrySpreadRate,实测不可配) − fee_reserve − exit_spread − borrow_reserve。
   #   下面把可配的几项全压到地板,使「预估费率 − 实测两腿价差」能勉强过 min_net_profit_rate;盈利时全部改回。
-  # 往返手续费预留:压到接近 0(校验要求 >0)。真实四腿 taker 费仍会真实扣到余额,这里只是不再据它挡单。
-  fee_reserve_rate: 0.0002
+  # ⚠️【币安采数据姿态 / 已接受亏损】把成本预留闸压到「校验允许的最低」,让净利估算对极低费率币也为正→能开单交学费。
+  #   注意:币安有写死的硬约束 MinNetProfitRate>0 + FeeReserveRate>0,无法像 Bybit 设负门,所以「费率>0 就开」
+  #   实际有效地板 ≈ fee_reserve(0.00001)+min_net(0.0001)+实测两腿价差 ≈ 资金费 >0.01%~0.02% 才开(这是硬约束下的最低)。
+  # 往返手续费预留:压到 1e-5(逼近 0,校验要求 >0)。真实四腿 taker 费仍会真实扣到余额,这里只是不再据它挡单。
+  fee_reserve_rate: 0.00001
   # 退出价差预留压到 0(允许 ≥0)。
   exit_spread_reserve_rate: 0.0
-  # ⚠️ 关闭「按账户实拉真实 taker 费派生 fee_reserve」——否则启动时会把上面的 0.0002 重算回真实 ~0.0024,relax 失效。
+  # ⚠️ 关闭「按账户实拉真实 taker 费派生 fee_reserve」——否则启动时会把上面的值重算回真实 ~0.0024,relax 失效。
   auto_derive_fee_reserve_enabled: false
   # ⚠️ 关闭「开仓前净利闸扣往返市场冲击储备」——薄盘币的冲击储备会把净利估算压成负,挡掉开单。
   impact_reserve_in_gate_enabled: false
-  # 海选地板线压到 0.05%:|预估费率| ≥ 0.05% 即放进来(正/负 carry 通用)。负向如 FIDA(-0.14%)/PORTAL(-0.11%)由此过闸,
-  #   再由下游 R29 借币守卫挑出「真能借到的」开仓;正向极低费率多半会在净利闸/两腿价差处被刷掉(正常)。
-  min_estimated_funding_rate: 0.0005
-  # 正 carry 专用地板线,同样压到 0.0005。
-  positive_min_estimated_funding_rate: 0.0005
+  # 海选地板线压到 0.0001(0.01%):|预估费率| ≥ 0.01% 即放进来(正/负 carry 通用)。实际能否开仍由净利闸(funding−两腿价差−预留)
+  #   把关,所以正 carry 小费率币(免借币)会开出来采数据;负向肥单仍受 R29 借币墙限制(借不到不开)。
+  min_estimated_funding_rate: 0.0001
+  # 正 carry 专用地板线,同样压到 0.0001。
+  positive_min_estimated_funding_rate: 0.0001
   # ⚠️ 数据采集用：从 0.0015 放大到 0.04，主动放进高基差候选以「能开出单」。
   # 订正：实盘里 basis(mark-index)只是一道「过/不过」的门(strategy_evaluator.go:73 / engine_cost_guard.go:320)，
   #   过门后在净利公式里【不扣 basis】(engine_cost_guard.go:117 estimateReservedNetProfitRate)。真正扣的是
