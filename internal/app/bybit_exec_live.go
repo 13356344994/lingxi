@@ -294,13 +294,55 @@ func (e *BybitLiveExecutor) OpenDeltaNeutral(ctx context.Context, plan BybitOpen
 	}
 	e.recordExecutionCost("open", "spot", spotOpenSide, plan.SpotPrice, spotExec)
 
+	// 修 FIX_PLAN #3:现货腿仅「部分成交」(< 永续对冲量)时,把永续多出的部分买回(reduceOnly 反向)让两腿严格对齐。
+	// 否则会把「永续全量 + 现货半量」当成全量对冲落盘,差额=未对冲的裸永续腿(对冲系统最危险的静默敞口)。
+	perpNotional := perpExec.CumQuoteUSDT
+	if spotExec.ExecutedQty+executionQtyTolerance < hedgeQty {
+		excess := hedgeQty - spotExec.ExecutedQty
+		trimReq := venue.OrderRequest{
+			Market:        venue.MarketPerp,
+			Symbol:        plan.Symbol,
+			Side:          perpRevertSide,
+			Type:          venue.OrderTypeMarket,
+			Qty:           excess,
+			ClientOrderID: bybitLegClientID(idemPrefix, "tp"),
+			ReduceOnly:    true,
+		}
+		if _, trimErr := e.placeAndConfirm(ctx, trimReq); trimErr != nil {
+			// 削减失败 → 残留 excess 的裸永续。按「永续全量」记持仓 + 返回错误:BaseQty=hedgeQty 让平仓按全永续
+			// reduceOnly 收敛(现货按真实余额卖),调用方落盘待平/reconcile 兜底,绝不静默把半量当全量。
+			naked := BybitLivePosition{
+				Symbol:           plan.Symbol,
+				BaseQty:          hedgeQty,
+				SpotEntryPrice:   spotExec.AvgPrice,
+				PerpEntryPrice:   perpExec.AvgPrice,
+				SpotNotional:     spotExec.CumQuoteUSDT,
+				PerpNotional:     perpExec.CumQuoteUSDT,
+				FundingRate:      plan.FundingRate,
+				NextFundingTime:  plan.NextFundingTime,
+				OpenedAt:         e.now(),
+				RunID:            runID,
+				IdemPrefix:       idemPrefix,
+				Negative:         plan.Negative,
+				OpenPerpFee:      perpExec.Fee,
+				OpenPerpFeeAsset: perpExec.FeeAsset,
+				OpenSpotFee:      spotExec.Fee,
+				OpenSpotFeeAsset: spotExec.FeeAsset,
+			}
+			return naked, fmt.Errorf("现货部分成交 %.6f/%.6f 且永续削减失败(残留裸永续 %.6f): %w", spotExec.ExecutedQty, hedgeQty, excess, trimErr)
+		}
+		e.logf("[bybit-live][开仓] %s 现货部分成交 %.6f/%.6f,已买回永续 %.6f 对齐两腿(避免裸永续)", plan.Symbol, spotExec.ExecutedQty, hedgeQty, excess)
+		hedgeQty = spotExec.ExecutedQty
+		perpNotional = hedgeQty * perpExec.AvgPrice // 名义按对齐后的真实持仓量重算
+	}
+
 	pos := BybitLivePosition{
 		Symbol:           plan.Symbol,
 		BaseQty:          hedgeQty,
 		SpotEntryPrice:   spotExec.AvgPrice,
 		PerpEntryPrice:   perpExec.AvgPrice,
 		SpotNotional:     spotExec.CumQuoteUSDT,
-		PerpNotional:     perpExec.CumQuoteUSDT,
+		PerpNotional:     perpNotional,
 		FundingRate:      plan.FundingRate,
 		NextFundingTime:  plan.NextFundingTime,
 		OpenedAt:         e.now(),
@@ -354,7 +396,11 @@ func (e *BybitLiveExecutor) CloseDeltaNeutral(ctx context.Context, pos BybitLive
 		result.PerpFeeAsset = perpRes.FeeAsset
 		e.recordExecutionCost("close", "perp", perpCloseSide, 0, perpRes)
 	}
-	if pos.Negative {
+	if pos.Negative && pos.SpotEntryPrice <= 0 {
+		// 修 FIX_PLAN #5:负 carry 但现货腿从未建立(开仓回补失败留下的纯永续裸腿,SpotEntryPrice=0)。
+		// 此时没有借币欠款,绝不跑「现货买回还币」——否则会凭空买入现货(乱买 + PnL 用 0 开仓价算错)。永续腿已在上方按 reduceOnly 平。
+		e.logf("[bybit-live][平仓] %s 负 carry 但现货腿未建立(裸永续),跳过现货买回还币", pos.Symbol)
+	} else if pos.Negative {
 		// 负 carry 平现货腿:买回借入的 base 并还币(MarginEffect=Repay,UTA spot margin 自动还)。
 		// 买回数量取开仓借入量 pos.BaseQty(还清欠款);买入费在 quote(USDT)里扣,不存在「持有 base 不足」问题。
 		spotReq := venue.OrderRequest{

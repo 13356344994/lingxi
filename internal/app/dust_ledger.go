@@ -9,7 +9,7 @@ func (e *FundingRateSniperEngine) noteDustResidual(phase string, symbol string, 
 	record := DustLedgerRecord{
 		TraceRecordMetadata: e.recordMetadata(),
 		RunID:               e.runID,
-		CycleID:             e.currentCycleID,
+		CycleID:             e.cycleIDSnapshot(),
 		RecordedAt:          time.Now().UTC().Format(time.RFC3339),
 		Phase:               phase,
 		Symbol:              symbol,

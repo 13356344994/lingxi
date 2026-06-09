@@ -27,7 +27,7 @@ func (e *FundingRateSniperEngine) lockSymbolForExposure(task exposureRescueTask)
 		Phase:    strings.TrimSpace(task.Phase),
 		Mode:     string(task.Mode),
 		RunID:    strings.TrimSpace(e.runID),
-		CycleID:  strings.TrimSpace(e.currentCycleID),
+		CycleID:  strings.TrimSpace(e.cycleIDSnapshot()),
 		Reason:   fmt.Sprintf("phase=%s mode=%s pair=%s", task.Phase, task.Mode, task.Pair),
 		LockedAt: time.Now().UTC(),
 	}

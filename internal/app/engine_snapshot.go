@@ -48,7 +48,7 @@ func (e *FundingRateSniperEngine) generateSnapshotLocked() EngineSnapshot {
 
 	return EngineSnapshot{
 		RunID:               e.runID,
-		CurrentCycleID:      e.currentCycleID,
+		CurrentCycleID:      e.cycleIDSnapshot(),
 		CurrentStage:        e.currentStage,
 		CurrentStageReason:  e.currentStageReason,
 		StageTransitionedAt: e.currentStageTransitionedAt,

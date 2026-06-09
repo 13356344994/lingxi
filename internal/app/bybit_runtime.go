@@ -210,10 +210,24 @@ func (c *RuntimeController) bybitReconcileOnStart(ctx context.Context, adapter b
 	for _, p := range open {
 		tracked[p.Symbol] = true
 		if actualBySym[p.Symbol] <= executionQtyTolerance {
-			// 永续已平。但若现货 base 仍有余额(典型:历史平仓腿因「按名义卖出 > 真实余额」失败而残留),
+			// 永续已平。现货腿(base 资产)是否仍需收敛,按方向判定:
+			baseBal := bybitSpotFreeBalance(bals, p.Symbol)
+			if p.Negative {
+				// 修 FIX_PLAN #4:负 carry 现货腿是「借币空头」,持有的 free base≈0,但可能仍欠借币本金(UTA walletBalance 记为负)。
+				// 绝不能只看 free>0 就判定「无现货腿」而删台账——否则借币债务无人管 + 继续计息。base 余额为负(欠款未还清)→ 保留,
+				// 交由 manage 用 CloseDeltaNeutral 买回还币。
+				if baseBal < -executionQtyTolerance {
+					c.appendControllerLog("Bybit reconcile:%s 永续已平但仍有借币欠款≈%.6f(未还清),保留持仓待 manage 买回还币", p.Symbol, -baseBal)
+					continue
+				}
+				c.appendControllerLog("Bybit reconcile:%s 负 carry 永续已平且借币已还清,清除落盘记录", p.Symbol)
+				_ = store.remove(p.Symbol)
+				continue
+			}
+			// 正 carry:若现货 base 仍有余额(典型:历史平仓腿因「按名义卖出 > 真实余额」失败而残留),
 			// 保留持仓 → 交由 manage 循环用修复后的 CloseDeltaNeutral 按真实余额把裸现货腿平掉,避免孤儿敞口。
-			if spotBal := bybitSpotFreeBalance(bals, p.Symbol); spotBal > executionQtyTolerance {
-				c.appendControllerLog("Bybit reconcile:%s 永续已平但现货仍有余额≈%.6f(裸现货腿),保留持仓待 manage 按真实余额平掉", p.Symbol, spotBal)
+			if baseBal > executionQtyTolerance {
+				c.appendControllerLog("Bybit reconcile:%s 永续已平但现货仍有余额≈%.6f(裸现货腿),保留持仓待 manage 按真实余额平掉", p.Symbol, baseBal)
 				continue
 			}
 			c.appendControllerLog("Bybit reconcile:%s 交易所无永续持仓且现货无余额,清除落盘记录", p.Symbol)

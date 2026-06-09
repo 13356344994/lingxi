@@ -400,7 +400,7 @@ func (e *FundingRateSniperEngine) applyMarketRiskDecision(target *MonitoredTarge
 			Level:      level,
 			OccurredAt: time.Now().UTC(),
 			RunID:      e.runID,
-			CycleID:    e.currentCycleID,
+			CycleID:    e.cycleIDSnapshot(),
 			Protocol:   "RiskSupervisor",
 			Stage:      e.currentLifecycleStage,
 			Successful: true,
@@ -654,6 +654,28 @@ func (e *FundingRateSniperEngine) traceIDs() (string, string) {
 	e.traceLogMu.Lock()
 	defer e.traceLogMu.Unlock()
 	return strings.TrimSpace(e.traceLogRunID), strings.TrimSpace(e.traceLogCycleID)
+}
+
+// cycleIDSnapshot 返回当前 cycle id 的并发安全快照(修 FIX_PLAN 待复核#1)。此前后台 goroutine(面板快照 / 救援 /
+// 平仓 / 台账持久化)直接裸读 e.currentCycleID,与主循环每轮改写并发 → string 双字读取可能撕裂。改为统一经 cycleIDMu
+// 读写:读侧用独立的 cycleIDMu(绝不触碰 platformRiskMu,无锁序/死锁问题)。
+func (e *FundingRateSniperEngine) cycleIDSnapshot() string {
+	if e == nil {
+		return ""
+	}
+	e.cycleIDMu.RLock()
+	defer e.cycleIDMu.RUnlock()
+	return e.currentCycleID
+}
+
+// setCurrentCycleID 在 cycleIDMu 下写入本轮 cycle id,与 cycleIDSnapshot 配对消除撕裂读(FIX_PLAN 待复核#1)。
+func (e *FundingRateSniperEngine) setCurrentCycleID(id string) {
+	if e == nil {
+		return
+	}
+	e.cycleIDMu.Lock()
+	e.currentCycleID = id
+	e.cycleIDMu.Unlock()
 }
 
 // setTraceLogIDs 更新供日志旁路读取的 run/cycle id 副本。只锁 traceLogMu，绝不在持有 platformRiskMu

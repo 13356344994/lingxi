@@ -328,7 +328,7 @@ func (p *CloseProtocol) executeSequence(ctx context.Context, hedges []OpenHedge,
 	settlement := CycleSettlement{
 		TraceRecordMetadata:   p.engine.recordMetadata(),
 		RunID:                 p.engine.runID,
-		CycleID:               p.engine.currentCycleID,
+		CycleID:               p.engine.cycleIDSnapshot(),
 		Targets:               len(hedges),
 		FundingIncome:         totalFundingIncome,
 		ExpectedFundingIncome: expectedFundingIncome,

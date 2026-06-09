@@ -282,51 +282,65 @@
     单周期开仓前组合为空 → merge==仅新开,**行为不变**。
   - 回归测试:`TestMergeResidentBaselineWith`。验收:`go build`/`go vet`/全包 `go test` 全绿。
 
-### ⬜ 待修(按优先级,接手者从 #2 起)
+### ✅ 已修(接手 agent 续修,2026-06-10 · 详见文末 §5)
+- #2 借币利息重复计费 / #3 部分成交裸腿 / #4 Bybit reconcile 误删孤儿借币 / #5 Bybit 裸永续误买回 /
+  #6 panic 与单币止血并发重复平仓 / #7 生命周期 SSOT 阶段桥接 / #8 滚动复核按真实 4h/8h 推进 /
+  待复核 #1 currentCycleID 撕裂读 / 待复核 #3 救援循环 5s 缓存重复下单 —— **均已修复 + 回归测试,全包 `go vet`/`go test`/`-race` 全绿**。
+- #9 Bybit 负 carry 借币预检 / 待复核 #2 纳秒幂等键 —— **暂缓**(理由见 §5)。
 
-**#2 借币利息重复计费 + 还币不含利息(HIGH,影响"负 carry + 滚动")** ✅核实
+### ⬜ 原始待修清单(按优先级,状态见上;细节存档)
+
+**#2 借币利息重复计费 + 还币不含利息(HIGH,影响"负 carry + 滚动")** ✅核实 → ✅已修
 - `rolling_hold_engine.go:47` `settleKeptPositions` 每个 keep 周期调 `settlementBorrowCost(hedge, now)`,而该函数
   (`engine_cost_guard.go:197-213`)算的是 **开仓→现在的累计利息**(起点 `SpotOrder.TransactTime`),不是"距上次结算的增量"
   → 滚动每轮重记 open→now,**借币成本翻 N 倍**,污染 NetPnL/日亏/连亏熔断。drop 平仓(`close_protocol.go:288`)又全额再记一次。
 - Bybit 侧同类:`bybit_exec_live.go:358-365` 平仓还币量=本金 `pos.BaseQty`,**不含已计利息** → 可能留残债。
 - 修法:借币计费改"增量"(记录上次结算时点,只算 lastSettle→now);Bybit 还币按实际欠款(查 borrow 余额或本金+利息估)。
 
-**#3 部分成交被当全量成交(HIGH,双平台双方向)** ✅核实
+**#3 部分成交被当全量成交(HIGH,双平台双方向)** ✅核实 → ✅已修(Bybit 削减对齐;币安经核对已由 rebalanceOpenFuturesResidual 处理,无需改)
 - `bybit_exec_live.go` 开仓现货腿只判 `spotExec.ExecutedQty <= executionQtyTolerance`,**没判 `< hedgeQty`**:
   成交 5/10(status=filled)也算成功,却记 `BaseQty=hedgeQty`(永续全量)→ 单边裸腿。币安开仓路径同类(核对 `engine_open_exec.go`/`open_protocol.go` 的成交量校验)。
 - 修法:要求 `spotExec.ExecutedQty ≈ hedgeQty`(容差内)才算成功;不足则回补永续到对齐 或 补开现货差额。
 
-**#4 Bybit reconcile 误删负 carry 孤儿借币(HIGH,负 carry)** ⚠️待复核
+**#4 Bybit reconcile 误删负 carry 孤儿借币(HIGH,负 carry)** ⚠️待复核 → ✅已修(reconcile 方向感知:负 carry 按 base 负余额判欠款,有欠款绝不 remove)
 - `bybit_runtime.go:212-220` perp 平了但还币失败时,只看 `bybitSpotFreeBalance`(借币空头 free base≈0)→ 删台账,借币债务无人管+继续计息。
 - 修法:reconcile 检测未还借币负债(借 API 或"还币失败"标志),有债务绝不 `store.remove`。
 
-**#5 Bybit 裸永续平仓仍发"现货买回还币"(MED-HIGH,负 carry)** ⚠️待复核
+**#5 Bybit 裸永续平仓仍发"现货买回还币"(MED-HIGH,负 carry)** ⚠️待复核 → ✅已修(SpotEntryPrice<=0 跳过现货买回还币)
 - `bybit_exec_live.go:357-377` 对任意 `pos.Negative` 都跑 spot BUY+Repay;revert 失败留下的纯永续裸腿(`SpotEntryPrice=0`)也照买 → 乱买/PnL 用 0 价算错。
 - 修法:`SpotEntryPrice==0`(或加 `SpotLegOpened` 标志)时跳过现货腿。
 
-**#6 全局 panic 与单币止血并发 → 重复平仓单(MED,并发)** ✅核实
+**#6 全局 panic 与单币止血并发 → 重复平仓单(MED,并发)** ✅核实 → ✅已修(全局 panic 快照并跳过 symbolPanicFlattenInFlight 中的标的)
 - `realtime_drawdown.go:52-58`、`hold_monitor.go:159-166`:两条 goroutine 无互斥,可对同一 hedge 同时发平仓单
   (`managedOpenHedgeBySymbol` 返回 OpenHedge **值拷贝**,各自过 `guardHedgeOrderIntent`、各自 `markClosing`)。
 - 修法:全局/单币 panic 共用一把"收敛中"互斥(symbol 级 + 全局级统一登记),或全局 panic 跳过已在单币收敛中的 symbol。
 
-**#7 生命周期状态机 SSOT 与真实阶段不同步(MED,观测)** ✅核实
+**#7 生命周期状态机 SSOT 与真实阶段不同步(MED,观测)** ✅核实 → ✅已修(applyLifecycleProtocolResult 对「机器→协议 from」合法单跳自动桥接)
 - `open_protocol.go:92`/`close_protocol.go:79` 声明的 `CurrentStage`(Opening/Closing)与机器实际阶段(PreOpenCheck/CloseMonitoring)
   不一致 → `applyLifecycleProtocolResult` 丢弃迁移(日志"忽略非法生命周期迁移"),主开仓路径 lifecycle **从未走过 Opening→Holding**
   → 面板/审计/依赖 stage 的守卫看到陈旧阶段。**不是无害日志**。
 - 修法:让协议声明的 from-stage 与机器当前阶段对齐(或在 prepare/execute 前推进机器到对应阶段)。
 
-**#8 滚动复核固定 +8h、不分 4h/8h 币(MED)** ⚠️待复核
+**#8 滚动复核固定 +8h、不分 4h/8h 币(MED)** ⚠️待复核 → ✅已修(按交易所真实 nextFundingTime 推进时钟,逐币 4h/8h;未翻进时退回 +8h)
 - `rolling_hold_engine.go:155`(`defaultFundingIntervalHours=8`)、`:333` `advanceResidentFundingClocks` 恒 +8h → 4h 币复核时点错。
 - 修法:按逐币真实 funding interval(已有 `FundingIntervalsHours` 能力位 / instruments fundingInterval)推进时钟。
 
-**#9 Bybit 负 carry 无借币容量预检(MED)** ⚠️待复核
+**#9 Bybit 负 carry 无借币容量预检(MED)** ⚠️待复核 → ⏸️暂缓(opt-in 默认关 + API 未验证;开仓借不到时已由 OpenDeltaNeutral 回补永续兜底,无裸腿,仅浪费手续费。实现 MaxBorrowable 需未验证的新接口,留待 negative-carry 真实验证时一并做)
 - 币安有 `dropBorrowUnavailableNegativeCarry`,Bybit 无 → 借不到的币照开永续、白烧手续费再回补。
 - 修法:实现 Bybit `MaxBorrowable`(读 UTA wallet-balance `availableToBorrow`)+ 选币阶段预剔除借不到的负 carry 候选。
 
-### ⚠️ 待复核(代理标疑,未逐一证实)
-- `currentCycleID` 可能无锁并发读(`open_hedge_state.go:259`、`close_protocol.go:330`、`engine_risk_util.go:402`);确认哪些读在后台 goroutine(`runID` 启动后只读、安全)。
-- 恢复重试用纳秒级 `newClientOrderID`(非稳定幂等键),超时后成交可能重复下单(reduceOnly 多半被拒,现货追价腿有风险):`recovery_protocol.go:446`、`exposure_manager.go:517`。
-- 恢复用 5s 缓存的合约持仓 → 一次 handleTask 内对已平仓位重复下单:`exposure_manager.go:490-537`。
+### ⚠️ 待复核(代理标疑)→ 复核结论(2026-06-10)
+- **#待复核1 `currentCycleID` 无锁并发读 → ✅已修**:经核对确为真实撕裂读(`engine_snapshot.go` 面板快照 goroutine、
+  `open_hedge_state.go`/`close_protocol.go`/`engine_risk_util.go`/`dust_ledger.go`/`exposure_locks.go`/`protocol_contract.go`/
+  `rolling_hold_engine.go` 等后台路径直接裸读;主循环每轮改写)。已加 `cycleIDMu` + `setCurrentCycleID`/`cycleIDSnapshot`,
+  写读统一走访问器(独立锁,不触 platformRiskMu,无锁序问题);`runID` 确为启动后只读、安全。
+- **#待复核3 恢复用 5s 缓存合约持仓 → 重复下单 → ✅已修**:`fetchFuturesAccountState` 有 5s 缓存且下单后无失效,
+  救援收敛循环(150ms 一轮)会在一个 TTL 窗口里对已收敛仓位反复下单。已加 `invalidateFuturesAccountStateCache`,
+  `dynamicallyFlattenExposure` 每轮下完平仓单即失效缓存,下轮现拉真实仓位。
+- **#待复核2 恢复重试用纳秒级 `newClientOrderID`(非稳定幂等键)→ ⏸️保留**:确为真实幂等性缺口(超时后成交可能重下单),
+  但合约腿是 reduceOnly(过量被拒)、且 #待复核3 修复后救援循环现拉真实仓位会更快收敛、显著减少重试次数。
+  改为稳定幂等键需贯通恢复/救援多处下单口径(键派生 + 跨重试复用 + 交易所去重语义),改动面大、风险高,留作单独可审计的后续。
+- 其余「经核对【正确,无需改】」项维持原结论。
 
 ### 经核对【正确,无需改】
 - 单周期正/负 carry 的腿方向、PnL 符号、funding 归因:对(`live_negative_carry.go:86-118`、`historical_pricing.go:58-84`、两阶段结算无 funding 重复计)。
@@ -340,3 +354,26 @@
 ### 运维待办(代码替代不了,用户必做)
 - **P0-3**:构建新二进制 → 重启 → `lingxi reconcile` + 查币安账户,确认 `live_exposure_rescue_tasks.json` 里 ENA/TAO 旧卡死残腿的真实持仓,清掉或 `lingxi flatten`,再让引擎接管。
 - Bybit 负 carry 启用前:确认 UTA 已开通现货杠杆借币 + testnet/极小额验证借币空现货能成交且能买回还币,才置 `enable_negative_carry: true`。
+
+---
+
+## 5. 接手 agent 续修交接(2026-06-10)
+
+> 在 `d1a4cbb`(含上文 §1~§4 已修项)基础上,逐条**用代码核实**后修复了 §4 剩余的 #2~#8 与待复核 #1/#3。
+> 遵守铁律:**不抬入场闸;单周期(无滚动)/正 carry 路径零行为变更;每条带回归测试;全包 `go vet`+`go test`+`-race` 全绿、0 lint。**
+
+| 项 | 根因 | 修法 | 回归测试 |
+|---|---|---|---|
+| **#2** 借币利息每轮从开仓全额重记(滚动 N 次 → 借币成本翻 N 倍,污染 NetPnL/连亏熔断) | `settlementBorrowCost` 恒按 开仓→now 计;keep 每轮 + drop 平仓各记一次 | `OpenHedge.BorrowSettledThroughMs` 增量计息锚点:计 `max(开仓,锚点)→close`;每轮 keep 结算后推进锚点(`advanceResidentFundingClocks`);落盘+跨重启恢复。单周期锚点=0,口径不变 | `TestSettlementBorrowCostIncrementalAnchor` |
+| **#3** 现货腿部分成交被当全量 → 差额裸永续 | Bybit `OpenDeltaNeutral` 只判现货 ExecutedQty>0,未判 ≈hedgeQty | 现货<永续 → reduceOnly 买回多出的永续对齐两腿;削减失败按全永续记+返错落盘待平。**币安经核对已由 `rebalanceOpenFuturesResidual`(min(腿))处理,无需改** | `TestOpenDeltaNeutralPartialSpotTrimsPerp`/`...TrimFailReturnsNaked` |
+| **#4** 负 carry 永续平后,reconcile 只看现货 free(借空 free≈0)→ 删台账,借币债务无人管 | 未区分方向 | reconcile 方向感知:负 carry 看 base **负余额(欠款)**,有欠款绝不 remove,留给 manage 买回还币 | `bybit_runtime`(逻辑核对) |
+| **#5** 负 carry 裸永续(现货腿未建)平仓仍发"现货买回还币" → 乱买/0 价算错 | 对任意 `Negative` 都跑 spot BUY+Repay | `SpotEntryPrice<=0` 跳过现货腿,只平永续 | `TestCloseDeltaNeutralNegativeNakedPerpSkipsSpot` |
+| **#6** 全局 panic 与单币止血并发对同一对冲重复平仓单 | 全局 panic 只看 `panicFlattenInFlight`,不看已在途的单币止血 | panic 快照 `symbolPanicFlattenInFlight` 并跳过这些标的(此刻已阻断新单币止血,快照即权威) | 既有 drawdown/exposure 套件 + `-race` |
+| **#7** 阶段机停在 PreOpenCheck/CloseMonitoring,协议声明 from=Opening/Closing → 迁移被静默丢弃,面板/审计看陈旧阶段 | 协议跳过中间阶段、from 与机器不符 | `applyLifecycleProtocolResult`:若「机器当前→协议 from」是合法单跳,先桥接再应用;非法单跳维持原行为(零回归) | `TestApplyLifecycleProtocolResultBridgesIntermediateStage`/`...RejectsNonAdjacentMismatch` |
+| **#8** 滚动复核时钟恒 +8h,4h 币复核时点错 | `advanceResidentFundingClocks` 用 `defaultFundingIntervalHours` | 用 `collectRollFundingSignals` 拿到的交易所真实 `nextFundingTime`(逐币 4h/8h)推进;未翻进(real≤now)才退回 +8h | `TestAdvanceResidentFundingClocksUsesExchangeNextFunding` |
+| **待复核#1** `currentCycleID` 撕裂读 | 主循环每轮改写 vs 后台 goroutine(面板/救援/平仓/台账)裸读 | `cycleIDMu` + `setCurrentCycleID`/`cycleIDSnapshot`,读写统一走访问器(独立锁) | 全套 `-race` |
+| **待复核#3** 救援循环 5s 缓存致重复下单 | `fetchFuturesAccountState` 5s 缓存且下单后不失效 | `invalidateFuturesAccountStateCache`,救援每轮下单后失效、下轮现拉真实仓位 | 既有 exposure 套件 |
+
+**暂缓(理由充分,非遗漏)**:
+- **#9 Bybit 负 carry 借币容量预检**:opt-in 默认关 + 接口未经真实 API 验证;借不到时 `OpenDeltaNeutral` 已回补永续兜底(无裸腿),仅浪费手续费。实现 `MaxBorrowable` 是新增未验证接口,留待 negative-carry 真实验证时一并做。
+- **待复核#2 纳秒级 `newClientOrderID` 幂等键**:真实缺口,但合约腿 reduceOnly + 待复核#3 修复后收敛更快、重试更少已大幅降低风险;改稳定幂等键需贯通恢复/救援多处下单口径,改动面大,留作单独可审计后续。

@@ -777,6 +777,19 @@ func (e *FundingRateSniperEngine) fetchFuturesAccountState(ctx context.Context) 
 	return walletUSDT, availableUSDT, positions, nil
 }
 
+// invalidateFuturesAccountStateCache 作废合约账户快照缓存,强制下次 fetchFuturesAccountState 现拉真实仓位。
+// 救援收敛循环刚下过平仓单后调用:否则 5s 缓存(futuresAccountStateCacheTTL)会让循环在一个 TTL 窗口内对
+// 已在收敛的仓位反复读到陈旧持仓 → 重复下平仓单(FIX_PLAN 待复核#3)。合约腿是 reduceOnly 不会过平,但会刷单;
+// 现货残腿按陈旧量重复卖可能超卖,故收敛中必须读真实仓位。
+func (e *FundingRateSniperEngine) invalidateFuturesAccountStateCache() {
+	if e == nil {
+		return
+	}
+	e.futuresAccountStateMu.Lock()
+	e.futuresAccountStateCachedAt = time.Time{}
+	e.futuresAccountStateMu.Unlock()
+}
+
 func (e *FundingRateSniperEngine) transferAssetBetweenAccounts(ctx context.Context, transferType string, asset string, amount float64) error {
 	if amount <= executionQtyTolerance {
 		return nil

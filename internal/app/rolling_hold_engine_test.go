@@ -128,6 +128,27 @@ func hasKey(set map[string]struct{}, key string) bool {
 	return ok
 }
 
+// TestAdvanceResidentFundingClocksUsesExchangeNextFunding 钉死 FIX_PLAN #8:有交易所真实下次结算时间(逐币 4h/8h)时,
+// 时钟应推进到该真实时点,而非一律 +8h(4h 币会被推迟到错误时点)。
+func TestAdvanceResidentFundingClocksUsesExchangeNextFunding(t *testing.T) {
+	statePath := t.TempDir() + "/open_hedges.json"
+	engine := &FundingRateSniperEngine{cfg: DefaultEngineConfig(), runID: "r", currentCycleID: "c", openHedgeStatePath: statePath}
+	nft := time.Date(2026, 6, 5, 11, 0, 0, 0, time.UTC)
+	engine.activeOpenHedges = []OpenHedge{
+		{Target: FundingCandidate{Symbol: "FOURUSDT", SpotBaseAsset: "FOUR", NextFundingTime: nft}, HedgeQty: 1, OpenFuturesAvgPrice: 100},
+	}
+	real := time.Now().UTC().Add(4 * time.Hour).Truncate(time.Second)
+	if err := engine.advanceResidentFundingClocks(
+		[]OpenHedge{{Target: FundingCandidate{Symbol: "FOURUSDT"}}},
+		map[string]time.Time{"FOURUSDT": real},
+	); err != nil {
+		t.Fatalf("advanceResidentFundingClocks() error = %v", err)
+	}
+	if !engine.activeOpenHedges[0].Target.NextFundingTime.Equal(real) {
+		t.Fatalf("4h 币应采用交易所真实下次结算 %v, got %v", real, engine.activeOpenHedges[0].Target.NextFundingTime)
+	}
+}
+
 // TestAdvanceResidentFundingClocks 钉死 c-iii-3b-2:推进指定持仓的 NextFundingTime(+8h)并重持久化台账,
 // 未指定的持仓时钟不动。
 func TestAdvanceResidentFundingClocks(t *testing.T) {
@@ -138,7 +159,8 @@ func TestAdvanceResidentFundingClocks(t *testing.T) {
 		{Target: FundingCandidate{Symbol: "BTCUSDT", SpotBaseAsset: "BTC", NextFundingTime: nft}, HedgeQty: 1, OpenFuturesAvgPrice: 100},
 		{Target: FundingCandidate{Symbol: "ETHUSDT", SpotBaseAsset: "ETH", NextFundingTime: nft}, HedgeQty: 1, OpenFuturesAvgPrice: 50},
 	}
-	if err := engine.advanceResidentFundingClocks([]OpenHedge{{Target: FundingCandidate{Symbol: "BTCUSDT"}}}); err != nil {
+	// 不传交易所真实下次结算时间(nil)→ 退回保守 +8h,验证 fallback 行为。
+	if err := engine.advanceResidentFundingClocks([]OpenHedge{{Target: FundingCandidate{Symbol: "BTCUSDT"}}}, nil); err != nil {
 		t.Fatalf("advanceResidentFundingClocks() error = %v", err)
 	}
 	wantBTC := nft.Add(8 * time.Hour)
@@ -211,11 +233,11 @@ func TestCollectRollFundingSignals(t *testing.T) {
 	}
 
 	// 空持仓 → 空 map、不发请求。
-	if got, err := engine.collectRollFundingSignals(context.Background(), nil); err != nil || len(got) != 0 {
+	if got, _, err := engine.collectRollFundingSignals(context.Background(), nil); err != nil || len(got) != 0 {
 		t.Fatalf("空持仓应返回空 map, got %v err=%v", got, err)
 	}
 
-	rates, err := engine.collectRollFundingSignals(context.Background(), map[string]struct{}{"BTCUSDT": {}})
+	rates, _, err := engine.collectRollFundingSignals(context.Background(), map[string]struct{}{"BTCUSDT": {}})
 	if err != nil {
 		t.Fatalf("collectRollFundingSignals() error = %v", err)
 	}

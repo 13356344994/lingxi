@@ -53,6 +53,9 @@ type persistedOpenHedgeEntry struct {
 	// 引擎才能从台账重建每个持仓的逐币 funding 时钟(symbolFundingClock),而不依赖一次性的全局 :57。
 	// omitempty + 向后兼容:旧台账无此字段→零值,单周期路径不读它,零行为变更。
 	NextFundingTime string `json:"next_funding_time,omitempty"`
+	// BorrowSettledThroughMs 借币利息已结算到的 Unix 毫秒锚点(滚动持有增量计息,FIX_PLAN #2)。
+	// omitempty 向后兼容:旧台账/单周期无此字段→0,跨重启恢复后续持仓只计锚点之后的增量利息。
+	BorrowSettledThroughMs int64 `json:"borrow_settled_through_ms,omitempty"`
 }
 
 // lifecycleOrDefault 返回台账条目记录的对冲生命周期状态；旧台账（无该字段）退化为 active——
@@ -88,25 +91,26 @@ func buildPersistedOpenHedgeEntries(hedges []OpenHedge, runID string, cycleID st
 			nextFundingTime = hedge.Target.NextFundingTime.UTC().Format(time.RFC3339)
 		}
 		entries = append(entries, persistedOpenHedgeEntry{
-			RunID:                runID,
-			CycleID:              cycleID,
-			Symbol:               hedge.Target.Symbol,
-			Pair:                 hedge.Target.Pair,
-			Direction:            hedge.carryDirection(),
-			SpotBaseAsset:        hedge.Target.SpotBaseAsset,
-			HedgeQty:             hedge.HedgeQty,
-			SpotBaseQty:          parseFloat(hedge.SpotBaseQty),
-			OpenSpotQuoteQty:     hedge.OpenSpotQuoteQty,
-			OpenFuturesAvgPrice:  hedge.OpenFuturesAvgPrice,
-			ReferenceSpotPrice:   hedge.LastKnownSpotPrice(),
-			SpotOrderID:          hedge.SpotOrder.OrderID,
-			SpotClientOrderID:    hedge.SpotOrder.ClientOrderID,
-			FuturesOrderID:       hedge.FuturesOrder.OrderID,
-			FuturesClientOrderID: hedge.FuturesOrder.ClientOrderID,
-			OpenedAt:             openedAt,
-			LifecycleState:       lifecycleState,
-			LifecycleReason:      hedge.LifecycleReason,
-			NextFundingTime:      nextFundingTime,
+			RunID:                  runID,
+			CycleID:                cycleID,
+			Symbol:                 hedge.Target.Symbol,
+			Pair:                   hedge.Target.Pair,
+			Direction:              hedge.carryDirection(),
+			SpotBaseAsset:          hedge.Target.SpotBaseAsset,
+			HedgeQty:               hedge.HedgeQty,
+			SpotBaseQty:            parseFloat(hedge.SpotBaseQty),
+			OpenSpotQuoteQty:       hedge.OpenSpotQuoteQty,
+			OpenFuturesAvgPrice:    hedge.OpenFuturesAvgPrice,
+			ReferenceSpotPrice:     hedge.LastKnownSpotPrice(),
+			SpotOrderID:            hedge.SpotOrder.OrderID,
+			SpotClientOrderID:      hedge.SpotOrder.ClientOrderID,
+			FuturesOrderID:         hedge.FuturesOrder.OrderID,
+			FuturesClientOrderID:   hedge.FuturesOrder.ClientOrderID,
+			OpenedAt:               openedAt,
+			LifecycleState:         lifecycleState,
+			LifecycleReason:        hedge.LifecycleReason,
+			NextFundingTime:        nextFundingTime,
+			BorrowSettledThroughMs: hedge.BorrowSettledThroughMs,
 		})
 	}
 	return entries
@@ -122,10 +126,11 @@ func rebuildOpenHedgeFromEntry(entry persistedOpenHedgeEntry) OpenHedge {
 			Pair:          entry.Pair,
 			SpotBaseAsset: entry.SpotBaseAsset,
 		},
-		Direction:           resolvedFundingCarryDirection(entry.Direction, 0),
-		HedgeQty:            entry.HedgeQty,
-		OpenSpotQuoteQty:    entry.OpenSpotQuoteQty,
-		OpenFuturesAvgPrice: entry.OpenFuturesAvgPrice,
+		Direction:              resolvedFundingCarryDirection(entry.Direction, 0),
+		HedgeQty:               entry.HedgeQty,
+		OpenSpotQuoteQty:       entry.OpenSpotQuoteQty,
+		OpenFuturesAvgPrice:    entry.OpenFuturesAvgPrice,
+		BorrowSettledThroughMs: entry.BorrowSettledThroughMs,
 	}
 	// 恢复逐币 funding 时钟:滚动持有跨重启后,引擎据此重建每个持仓自身的续持复核时点(R31,§16.4)。
 	if ts := strings.TrimSpace(entry.NextFundingTime); ts != "" {
@@ -257,8 +262,8 @@ func (e *FundingRateSniperEngine) syncPersistedOpenHedges(hedges []OpenHedge) er
 	defer e.openHedgeStateMu.Unlock()
 	return writePersistedOpenHedgeState(e.openHedgeStatePath, persistedOpenHedgeState{
 		RunID:   e.runID,
-		CycleID: e.currentCycleID,
-		Hedges:  buildPersistedOpenHedgeEntries(hedges, e.runID, e.currentCycleID),
+		CycleID: e.cycleIDSnapshot(),
+		Hedges:  buildPersistedOpenHedgeEntries(hedges, e.runID, e.cycleIDSnapshot()),
 	})
 }
 
@@ -336,7 +341,7 @@ func (e *FundingRateSniperEngine) reconcilePersistedOpenHedges(spotBalances map[
 }
 
 func (e *FundingRateSniperEngine) canClearPersistedOpenHedges(snapshot CycleAccountSnapshot, hedges []OpenHedge) bool {
-	entries := buildPersistedOpenHedgeEntries(hedges, e.runID, e.currentCycleID)
+	entries := buildPersistedOpenHedgeEntries(hedges, e.runID, e.cycleIDSnapshot())
 	marginBalances := map[string]CrossMarginAssetBalance(nil)
 	if len(entries) > 0 {
 		if marginState, err := e.fetchCrossMarginAccountState(context.Background()); err == nil {

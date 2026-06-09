@@ -413,6 +413,10 @@ func (e *FundingRateSniperEngine) panicFlattenManagedExposure(reason string) {
 		e.noteManagedDrawdownAction("global_panic_skip", "无托管敞口可处理")
 		return
 	}
+	// 修 FIX_PLAN #6:快照「单币止血并发收敛中」的标的,全局 panic 跳过它们,避免对同一对冲重复下平仓单。
+	// 此刻 panicFlattenInFlight 已置 true,触发函数已阻断新的单币止血启动,故快照即权威(不会漏新增)。
+	// 被跳过的标的由其单币止血路径完成收敛(同样方向感知双腿平 + 同套恢复兜底),不留敞口。
+	inflightCuts := e.snapshotSymbolCutsInFlight()
 	timeout := e.cfg.ExecutionConfig.ExecutionRecoveryTimeout
 	if timeout < 12*time.Second {
 		timeout = 12 * time.Second
@@ -441,6 +445,10 @@ func (e *FundingRateSniperEngine) panicFlattenManagedExposure(reason string) {
 		e.logger.Printf("实时浮亏 panic flatten 获取现货余额失败: %v", err)
 	}
 	for _, target := range targets {
+		if _, cutting := inflightCuts[strings.ToUpper(strings.TrimSpace(target.Symbol))]; cutting {
+			e.noteManagedDrawdownAction("global_panic_skip_symbol_cut", target.Symbol)
+			continue
+		}
 		// 优先用方向感知的双腿平仓：正 carry(现货 SELL)与负 carry(全仓杠杆 BUY + AUTO_BORROW_REPAY 还币)
 		// 都能正确收敛。这修复了旧全局 panic「只 SELL 现货钱包正余额、对负 carry 杠杆空头完全无效」的窟窿(R3)。
 		hedge, hedgeTracked := e.managedOpenHedgeBySymbol(target.Symbol)
@@ -522,6 +530,20 @@ func (e *FundingRateSniperEngine) removeManagedOpenHedgeSymbol(symbol string) []
 	e.platformRiskMu.Unlock()
 	e.wakeRealtimeDrawdownMonitor()
 	return append([]OpenHedge(nil), filtered...)
+}
+
+// snapshotSymbolCutsInFlight 返回当前「单币止血并发收敛中」标的的快照(大写归一键),供全局 panic 跳过它们(FIX_PLAN #6)。
+func (e *FundingRateSniperEngine) snapshotSymbolCutsInFlight() map[string]struct{} {
+	e.platformRiskMu.Lock()
+	defer e.platformRiskMu.Unlock()
+	if len(e.symbolPanicFlattenInFlight) == 0 {
+		return nil
+	}
+	out := make(map[string]struct{}, len(e.symbolPanicFlattenInFlight))
+	for sym := range e.symbolPanicFlattenInFlight {
+		out[strings.ToUpper(strings.TrimSpace(sym))] = struct{}{}
+	}
+	return out
 }
 
 func (e *FundingRateSniperEngine) flattenManagedSymbolExposure(symbol string, reason string) {

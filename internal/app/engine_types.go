@@ -88,7 +88,10 @@ type FundingRateSniperEngine struct {
 	borrowableAllowlist borrowableAllowlistState
 	logger              *log.Logger
 	runID               string
-	currentCycleID      string
+	// currentCycleID 每轮开仓改写;cycleIDMu 保护它的并发读写(主循环写 vs 后台 goroutine 读),消除 string 撕裂读。
+	// 一律经 setCurrentCycleID / cycleIDSnapshot 访问(FIX_PLAN 待复核#1)。
+	currentCycleID string
+	cycleIDMu      sync.RWMutex
 	// traceLogMu 仅保护下面两个供日志旁路读取的 trace id 副本。它与 platformRiskMu 完全解耦，
 	// 杜绝「持有 platformRiskMu 时写日志 -> 日志写入器回调 traceIDs() 再次 Lock platformRiskMu」
 	// 造成的同协程自死锁（Go 互斥锁不可重入）。
@@ -718,6 +721,10 @@ type OpenHedge struct {
 	CloseSlippageUSDT          float64
 	RecoveryFrictionUSDT       float64
 	CloseFuturesRealizedPnL    float64
+	// BorrowSettledThroughMs 记录该负 carry 对冲的借币利息「已结算到」的 Unix 毫秒时点(滚动持有增量计息锚点)。
+	// 0 = 尚未结算过 → 从开仓时点起算。每个 keep 周期结算后推进到结算时点,使利息只按「上次结算→本次」的增量计,
+	// 修掉「每轮从开仓全额重记 → 借币成本翻 N 倍」(FIX_PLAN #2)。单周期(无滚动)恒为 0,计息口径与原先逐字节一致。
+	BorrowSettledThroughMs int64
 }
 
 // OpenHedgeLifecycleState 的状态词表与合法迁移收敛到 internal/lifecycle（SSOT）。这里以类型别名 +

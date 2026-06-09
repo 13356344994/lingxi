@@ -49,7 +49,7 @@ func (e *FundingRateSniperEngine) settleKeptPositions(keepHedges []OpenHedge, be
 
 	settlement := buildFundingOnlySettlement(fundingOnlySettlementInput{
 		RunID:                       e.runID,
-		CycleID:                     e.currentCycleID,
+		CycleID:                     e.cycleIDSnapshot(),
 		Symbols:                     symbols,
 		ExpectedFundingBySymbol:     expectedBySymbol,
 		BorrowCostThisCycleBySymbol: borrowBySymbol,
@@ -119,14 +119,15 @@ func (e *FundingRateSniperEngine) residentClocks() []symbolFundingClock {
 // collectRollFundingSignals 为续持复核拉取持仓币的「保守预测费率」,口径与开仓 scan 完全一致(fetchPremiumIndex +
 // estimateScanFundingSignal,R7 符号冲突保守化),使续持门槛(HoldRollThresholdRate)与入场门槛可比(方案 3)。
 // 返回 symbol(大写)→ 估计费率;无持仓时返回空 map。
-func (e *FundingRateSniperEngine) collectRollFundingSignals(ctx context.Context, heldSymbols map[string]struct{}) (map[string]float64, error) {
+func (e *FundingRateSniperEngine) collectRollFundingSignals(ctx context.Context, heldSymbols map[string]struct{}) (map[string]float64, map[string]time.Time, error) {
 	rates := make(map[string]float64, len(heldSymbols))
+	nextFundings := make(map[string]time.Time, len(heldSymbols))
 	if len(heldSymbols) == 0 {
-		return rates, nil
+		return rates, nextFundings, nil
 	}
 	items, err := e.fetchPremiumIndex(ctx)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	for _, item := range items {
 		symbol := strings.ToUpper(strings.TrimSpace(item.Symbol))
@@ -135,8 +136,13 @@ func (e *FundingRateSniperEngine) collectRollFundingSignals(ctx context.Context,
 		}
 		estimatedRate, _, _, _, _ := estimateScanFundingSignal(item, e.liveFundingSignalConfig())
 		rates[symbol] = estimatedRate
+		// 记录交易所真实下次结算时间(逐币 4h/8h),供续持后按真实间隔推进时钟(修 FIX_PLAN #8),
+		// 而非一律 +8h(4h 币会被推迟到错误时点)。
+		if item.NextFundingTime > 0 {
+			nextFundings[symbol] = time.UnixMilli(item.NextFundingTime).UTC()
+		}
 	}
-	return rates, nil
+	return rates, nextFundings, nil
 }
 
 // marginalHoldCostRates 计算各持仓「多持一个 funding 周期」的边际成本率:正向 carry 无借币 → 0;负向 carry 取
@@ -317,11 +323,13 @@ func classifyResidentsForRevalidation(residents []OpenHedge, sched cycleSchedule
 
 // advanceResidentFundingClocks 在结算成功后把指定持仓(keep/新仓)的 NextFundingTime 推进一个 funding 间隔
 // (保守默认 8h),并重持久化台账——避免本周期已处理的持仓在下一次唤醒被重复判为「到期」。持 platformRiskMu 改写。
-func (e *FundingRateSniperEngine) advanceResidentFundingClocks(advanced []OpenHedge) error {
+func (e *FundingRateSniperEngine) advanceResidentFundingClocks(advanced []OpenHedge, nextFundingBySymbol map[string]time.Time) error {
 	advancedSet := hedgeSymbolSet(advanced)
 	if len(advancedSet) == 0 {
 		return nil
 	}
+	now := time.Now().UTC()
+	settledThroughMs := now.UnixMilli()
 	e.platformRiskMu.Lock()
 	for i := range e.activeOpenHedges {
 		symbol := strings.ToUpper(strings.TrimSpace(e.activeOpenHedges[i].Target.Symbol))
@@ -329,8 +337,17 @@ func (e *FundingRateSniperEngine) advanceResidentFundingClocks(advanced []OpenHe
 			continue
 		}
 		if nft := e.activeOpenHedges[i].Target.NextFundingTime; !nft.IsZero() {
-			e.activeOpenHedges[i].Target.NextFundingTime = nft.Add(defaultFundingIntervalHours * time.Hour)
+			// 修 FIX_PLAN #8:优先用交易所真实下次结算时间(逐币 4h/8h);仅当交易所尚未翻进下一个结算
+			// (real ≤ now,罕见的结算后短暂窗口)时,才退回保守 +8h(与原行为一致,下一轮复核会自校正)。
+			if real, ok := nextFundingBySymbol[symbol]; ok && real.After(now) {
+				e.activeOpenHedges[i].Target.NextFundingTime = real
+			} else {
+				e.activeOpenHedges[i].Target.NextFundingTime = nft.Add(defaultFundingIntervalHours * time.Hour)
+			}
 		}
+		// 借币计息锚点推进到本次结算时点(修 FIX_PLAN #2):下一轮 keep 结算 / 最终平仓只计此后的增量利息。
+		// 仅影响负 carry 计息口径;正 carry 的 settlementBorrowCost 恒返回 0,设此字段无副作用。
+		e.activeOpenHedges[i].BorrowSettledThroughMs = settledThroughMs
 	}
 	hedgesCopy := append([]OpenHedge(nil), e.activeOpenHedges...)
 	e.platformRiskMu.Unlock()
@@ -341,7 +358,7 @@ func (e *FundingRateSniperEngine) advanceResidentFundingClocks(advanced []OpenHe
 // 归因)、结算 keep(funding-only)→ 推进 keep funding 时钟。drop 平仓的落盘/日亏/R8 投影刹车与单周期同口径。
 func (e *FundingRateSniperEngine) processResidentRevalidation(ctx context.Context, due, untouched []OpenHedge) error {
 	heldSymbols := hedgeSymbolSet(due)
-	rates, err := e.collectRollFundingSignals(ctx, heldSymbols)
+	rates, nextFundings, err := e.collectRollFundingSignals(ctx, heldSymbols)
 	if err != nil {
 		return err
 	}
@@ -398,7 +415,7 @@ func (e *FundingRateSniperEngine) processResidentRevalidation(ctx context.Contex
 		if _, settleErr := e.settleKeptPositions(keep, beforeSnapshot, fundingTime); settleErr != nil {
 			return settleErr
 		}
-		if advanceErr := e.advanceResidentFundingClocks(keep); advanceErr != nil {
+		if advanceErr := e.advanceResidentFundingClocks(keep, nextFundings); advanceErr != nil {
 			return advanceErr
 		}
 	}

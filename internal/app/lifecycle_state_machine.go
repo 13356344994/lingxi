@@ -265,6 +265,22 @@ func (e *FundingRateSniperEngine) applyLifecycleProtocolResult(result ProtocolRe
 		e.lifecycleStateMachine = NewLifecycleStateMachine(currentStage)
 		e.currentLifecycleStage = currentStage
 	}
+	// 修 FIX_PLAN #7:协议声明的 from-stage 与机器实际阶段常差一个「中间阶段」——prepare 已把机器推进到
+	// PreOpenCheck,但 execute 协议声明 from=Opening;平仓前主循环把机器推进到 CloseMonitoring,但 close 协议声明
+	// from=Closing。若「机器当前 → 协议 from」是合法单跳,先桥接补上这一跳,再应用协议迁移,让阶段 SSOT 跟上真实
+	// 进度(面板/审计/依赖 stage 的观测不再看到陈旧阶段),而不是整条迁移被静默丢弃。非合法单跳维持原行为(下方
+	// ApplyProtocolResult 仍返回错误、被调用方记日志忽略),零回归。
+	if machineStage := NormalizeLifecycleStage(e.lifecycleStateMachine.CurrentStage()); machineStage != "" && machineStage != currentStage {
+		if ValidateLifecycleTransition(machineStage, currentStage) == nil {
+			e.lifecycleStateMachine.current = currentStage
+			e.lifecycleStateMachine.transitions = append(e.lifecycleStateMachine.transitions, LifecycleTransition{
+				From:         machineStage,
+				To:           currentStage,
+				Reason:       "桥接到协议声明阶段(" + strings.TrimSpace(result.Protocol) + ")",
+				Transitioned: time.Now().UTC(),
+			})
+		}
+	}
 	transition, err := e.lifecycleStateMachine.ApplyProtocolResult(result)
 	if err != nil {
 		return err

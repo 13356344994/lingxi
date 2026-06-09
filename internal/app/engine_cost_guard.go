@@ -207,6 +207,14 @@ func (e *FundingRateSniperEngine) settlementBorrowCost(hedge OpenHedge, closeTim
 	if hedge.SpotOrder.TransactTime > 0 {
 		entryTime = time.UnixMilli(hedge.SpotOrder.TransactTime).UTC()
 	}
+	// 滚动持有增量计息(修 FIX_PLAN #2):若该对冲借币利息已结算到某锚点,则只计「锚点→closeTime」的增量,
+	// 避免每个 keep 周期结算与最终 drop 平仓都从开仓时点全额重记(N 次结算 → 借币成本翻 N 倍,污染 NetPnL/连亏熔断)。
+	// 单周期(无滚动)下 BorrowSettledThroughMs=0 → 锚点不晚于开仓时点,entryTime 仍取开仓时点,计息口径逐字节不变。
+	if hedge.BorrowSettledThroughMs > 0 {
+		if anchor := time.UnixMilli(hedge.BorrowSettledThroughMs).UTC(); anchor.After(entryTime) {
+			entryTime = anchor
+		}
+	}
 	billedHours := historicalBorrowInterestHours(direction, entryTime, closeTime, e.cfg.HistoricalConfig.BorrowInterestMinBillingHours)
 	hourlyRate := e.hourlyBorrowInterestRateForAsset(hedge.Target.SpotBaseAsset)
 	return historicalBorrowInterestCost(direction, borrowedNotional, hourlyRate, billedHours)

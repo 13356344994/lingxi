@@ -357,10 +357,8 @@ func (e *FundingRateSniperEngine) livePreferredSpotQuoteAssets() []string {
 // 钩子:单周期(runOneCycle)传 nil 表示开全部有效目标;滚动持有补位(openResidentPositions)传 rebalance 选择器,
 // 在 L3 币数/名义上限内择优填空槽。钩子返回空集等价「本轮无可开目标」,与监控全废口径一致地优雅收尾。
 func (e *FundingRateSniperEngine) openCyclePositions(ctx context.Context, wakeAt time.Time, selectTargets func([]*MonitoredTarget) []*MonitoredTarget) ([]OpenHedge, CycleAccountSnapshot, bool, error) {
-	e.platformRiskMu.Lock()
-	e.currentCycleID = newCycleID(e.runID)
-	cycleID := e.currentCycleID
-	e.platformRiskMu.Unlock()
+	cycleID := newCycleID(e.runID)
+	e.setCurrentCycleID(cycleID)
 	// 同步日志旁路用的 trace id 副本（在释放 platformRiskMu 之后），后续状态迁移日志才能带上本轮 cycle id。
 	e.setTraceLogIDs(e.runID, cycleID)
 	e.resetLifecycleTracking(LifecycleStageScanning, "开始扫描候选标的")
@@ -720,7 +718,7 @@ func (e *FundingRateSniperEngine) scanTopFundingTargets(ctx context.Context) ([]
 		// 逐标的评估观测（通过/被拒都记），用于事后量化机会供给与近失幅度（estimated_rate 与 min_rate_gate 的差距）。
 		minRateGate := maxFloat(e.cfg.StrategyConfig.MinEstimatedFundingRate, breakEven) * profile.MinEstimatedRateMultiplier
 		observations = append(observations, newScanObservationRecord(
-			e.runID, e.currentCycleID, now, item.Symbol, nextFundingTime, direction,
+			e.runID, e.cycleIDSnapshot(), now, item.Symbol, nextFundingTime, direction,
 			estimatedRate, lastFundingRate, fundingJump, basisRate,
 			breakEven, minRateGate, econScan.MaxEstimatedRate,
 			isStale, action != StrategyActionReject, reason, capPinnedOverride,
@@ -789,7 +787,7 @@ func (e *FundingRateSniperEngine) scanTopFundingTargets(ctx context.Context) ([]
 		targets = append(targets, &MonitoredTarget{
 			TraceRecordMetadata: e.recordMetadata(),
 			RunID:               e.runID,
-			CycleID:             e.currentCycleID,
+			CycleID:             e.cycleIDSnapshot(),
 			Candidate:           candidate,
 			IsValid:             1,
 			MonitorState:        "watching",

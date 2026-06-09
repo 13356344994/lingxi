@@ -532,6 +532,9 @@ func (m *ExposureManager) dynamicallyFlattenExposure(ctx context.Context, task e
 				return err
 			}
 		}
+		// 修 FIX_PLAN 待复核#3:刚下过平仓单,作废合约账户快照缓存,确保下一轮 currentExposureState 现拉真实仓位,
+		// 而非在 5s 缓存窗口内对已收敛的仓位反复重复下单。
+		engine.invalidateFuturesAccountStateCache()
 		if !sleepWithContext(ctx, executionChaseWaitDuration(150*time.Millisecond)) {
 			break
 		}

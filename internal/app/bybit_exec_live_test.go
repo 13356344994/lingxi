@@ -145,6 +145,54 @@ func TestOpenDeltaNeutralSpotFailRevertsPerp(t *testing.T) {
 	}
 }
 
+// TestOpenDeltaNeutralPartialSpotTrimsPerp 钉死 FIX_PLAN #3:现货腿部分成交(6/10)时,必须买回多出的永续(4)
+// 让两腿对齐到 6,而不是把「永续 10 + 现货 6」当成全量对冲(差额 4 = 裸永续)。
+func TestOpenDeltaNeutralPartialSpotTrimsPerp(t *testing.T) {
+	tr := newFakeBybitTrader()
+	tr.fills["lx-HOMEUSDT-1-os"] = venue.OrderResult{
+		ClientOrderID: "lx-HOMEUSDT-1-os", Status: "filled",
+		ExecutedQty: 6, AvgPrice: 100, CumQuoteUSDT: 600,
+	}
+	e := newTestExecutor(tr)
+	pos, err := e.OpenDeltaNeutral(context.Background(), samplePlan(), "lx-HOMEUSDT-1", "run-1")
+	if err != nil {
+		t.Fatalf("部分成交应削减永续后成功: %v", err)
+	}
+	if pos.BaseQty != 6 {
+		t.Fatalf("两腿应对齐到现货成交量 6, got %v", pos.BaseQty)
+	}
+	var foundTrim bool
+	var trimQty float64
+	for _, o := range tr.placed {
+		if o.Market == venue.MarketPerp && o.Side == venue.SideBuy && o.ReduceOnly {
+			foundTrim = true
+			trimQty = o.Qty
+		}
+	}
+	if !foundTrim || trimQty != 4 {
+		t.Fatalf("应买回永续 4 对齐两腿, foundTrim=%v trimQty=%v placed=%+v", foundTrim, trimQty, tr.placed)
+	}
+}
+
+// TestOpenDeltaNeutralPartialSpotTrimFailReturnsNaked 钉死:削减永续失败时,返回错误且按永续全量记 BaseQty,
+// 供平仓 reduceOnly 收敛 + reconcile 兜底,绝不静默把半量当全量。
+func TestOpenDeltaNeutralPartialSpotTrimFailReturnsNaked(t *testing.T) {
+	tr := newFakeBybitTrader()
+	tr.fills["lx-HOMEUSDT-1-os"] = venue.OrderResult{
+		ClientOrderID: "lx-HOMEUSDT-1-os", Status: "filled",
+		ExecutedQty: 6, AvgPrice: 100, CumQuoteUSDT: 600,
+	}
+	tr.placeErr["lx-HOMEUSDT-1-tp"] = errors.New("trim rejected")
+	e := newTestExecutor(tr)
+	pos, err := e.OpenDeltaNeutral(context.Background(), samplePlan(), "lx-HOMEUSDT-1", "run-1")
+	if err == nil {
+		t.Fatal("削减失败应返回错误(残留裸永续待平)")
+	}
+	if pos.BaseQty != 10 {
+		t.Fatalf("削减失败应按永续全量记 BaseQty=10 供平仓收敛, got %v", pos.BaseQty)
+	}
+}
+
 func TestOpenDeltaNeutralPerpFailNoSpot(t *testing.T) {
 	tr := newFakeBybitTrader()
 	e := newTestExecutor(tr)
@@ -182,6 +230,29 @@ func TestCloseDeltaNeutral(t *testing.T) {
 	}
 	if !perpClose || !spotClose {
 		t.Fatalf("平仓应含永续买回(reduceOnly)+ 现货卖出, placed=%+v", tr.placed)
+	}
+}
+
+// TestCloseDeltaNeutralNegativeNakedPerpSkipsSpot 钉死 FIX_PLAN #5:负 carry 但现货腿未建立(裸永续,SpotEntryPrice=0)时,
+// 平仓只平永续多头,绝不跑「现货买回还币」(否则凭空买入现货 + PnL 用 0 开仓价算错)。
+func TestCloseDeltaNeutralNegativeNakedPerpSkipsSpot(t *testing.T) {
+	tr := newFakeBybitTrader()
+	e := newTestExecutor(tr)
+	pos := BybitLivePosition{Symbol: "HOME-USDT", BaseQty: 10, IdemPrefix: "lx-HOMEUSDT-1", Negative: true, SpotEntryPrice: 0}
+	if _, err := e.CloseDeltaNeutral(context.Background(), pos); err != nil {
+		t.Fatalf("裸永续平仓应成功: %v", err)
+	}
+	var perpClose bool
+	for _, o := range tr.placed {
+		if o.Market == venue.MarketSpot {
+			t.Fatalf("现货腿未建立时不应下任何现货单, placed=%+v", tr.placed)
+		}
+		if o.Market == venue.MarketPerp && o.Side == venue.SideSell && o.ReduceOnly {
+			perpClose = true
+		}
+	}
+	if !perpClose {
+		t.Fatalf("应平永续多头(卖出 reduceOnly), placed=%+v", tr.placed)
 	}
 }
 
@@ -273,7 +344,8 @@ func TestOpenDeltaNeutralNegativeSpotFailRevertsPerpLong(t *testing.T) {
 func TestCloseDeltaNeutralNegativeShortsPerpAndRepaysSpotBuy(t *testing.T) {
 	tr := newFakeBybitTrader()
 	e := newTestExecutor(tr)
-	pos := BybitLivePosition{Symbol: "HOME-USDT", BaseQty: 10, IdemPrefix: "lx-HOMEUSDT-1", Negative: true}
+	// 真实负 carry 持仓:现货借币空头已建立(SpotEntryPrice>0);SpotEntryPrice=0 专表「裸永续」走跳过分支(见另一测试)。
+	pos := BybitLivePosition{Symbol: "HOME-USDT", BaseQty: 10, IdemPrefix: "lx-HOMEUSDT-1", Negative: true, SpotEntryPrice: 100}
 	if _, err := e.CloseDeltaNeutral(context.Background(), pos); err != nil {
 		t.Fatalf("负 carry 平仓应成功: %v", err)
 	}

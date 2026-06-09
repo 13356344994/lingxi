@@ -59,7 +59,7 @@ func newProtocolEvents(engine *FundingRateSniperEngine, protocol string, success
 			Level:               eventLevelOrDefault(spec.Level),
 			OccurredAt:          occurredAt,
 			RunID:               nonEmpty(engine.runID),
-			CycleID:             nonEmpty(engine.currentCycleID),
+			CycleID:             nonEmpty(engine.cycleIDSnapshot()),
 			Protocol:            nonEmpty(protocol),
 			Stage:               spec.Stage,
 			Successful:          successful,
