@@ -37,6 +37,52 @@ func TestSelectBybitCandidatesExcludesNegativeAndBelowThreshold(t *testing.T) {
 	}
 }
 
+func TestSelectBybitCandidatesNegativeCarryWhenEnabled(t *testing.T) {
+	now := time.Now()
+	snaps := []venue.FundingSnapshot{
+		{Symbol: "POS-USDT", LastFundingRate: 0.001, NextFundingTime: now},
+		{Symbol: "NEGBIG-USDT", LastFundingRate: -0.008, NextFundingTime: now},
+		{Symbol: "NEGSMALL-USDT", LastFundingRate: -0.0006, NextFundingTime: now},
+		{Symbol: "NEGTINY-USDT", LastFundingRate: -0.0001, NextFundingTime: now}, // |费率| 低于阈值,排除
+	}
+	cfg := BybitExecConfig{MinFundingRate: 0.0005, TopN: 5, EnableNegativeCarry: true}
+	got := selectBybitCandidates(snaps, cfg)
+	if len(got) != 3 {
+		t.Fatalf("应选 3 个(正 1 + 负 2,排除低于阈值的负), got %d: %+v", len(got), got)
+	}
+	// 按 |费率| 降序:NEGBIG(0.008) > POS(0.001) > NEGSMALL(0.0006)。
+	if got[0].Symbol != "NEGBIG-USDT" || !got[0].Negative {
+		t.Fatalf("最肥候选应为 NEGBIG 且标记负 carry, got %+v", got[0])
+	}
+	if got[1].Symbol != "POS-USDT" || got[1].Negative {
+		t.Fatalf("次候选应为 POS 且正 carry, got %+v", got[1])
+	}
+	if got[2].Symbol != "NEGSMALL-USDT" || !got[2].Negative {
+		t.Fatalf("第三候选应为 NEGSMALL 且负 carry, got %+v", got[2])
+	}
+}
+
+func TestPlanDeltaNeutralOpenNegativeUsesAbsFundingAndSetsDirection(t *testing.T) {
+	c := BybitCandidate{Symbol: "HOME-USDT", FundingRate: -0.004, Negative: true, NextFundingTime: time.Now()}
+	spotInstr := venue.Instrument{Symbol: "HOME-USDT", Market: venue.MarketSpot, StepSize: 0.001, MinNotional: 1}
+	perpInstr := venue.Instrument{Symbol: "HOME-USDT", Market: venue.MarketPerp, StepSize: 0.001, MinNotional: 1}
+	cfg := BybitExecConfig{SpotTakerFee: 0.0002, PerpTakerFee: 0.0002, MinNetProfitRate: -1, EnableNegativeCarry: true}
+	plan, ok, reason := planBybitDeltaNeutralOpen(c, 100, 100, spotInstr, perpInstr, 200, cfg)
+	if !ok {
+		t.Fatalf("应可下单, reason=%s", reason)
+	}
+	if !plan.Negative {
+		t.Fatal("计划应标记为负 carry")
+	}
+	// 毛资金费按 |费率| 计:名义 100 × 0.004 = 0.4(收益为正,而非 -0.4)。
+	if plan.EstGrossFunding <= 0 {
+		t.Fatalf("负 carry 毛资金费应为正(按 |费率|), got %.6f", plan.EstGrossFunding)
+	}
+	if plan.EstGrossFunding != plan.PerpNotional*0.004 {
+		t.Fatalf("毛资金费应= 名义×|费率|=%.6f, got %.6f", plan.PerpNotional*0.004, plan.EstGrossFunding)
+	}
+}
+
 func TestPlanDeltaNeutralOpenHappyPath(t *testing.T) {
 	c := BybitCandidate{Symbol: "BTC-USDT", FundingRate: 0.005, IntervalHours: 8}
 	spotInstr := venue.Instrument{Symbol: "BTC-USDT", Market: venue.MarketSpot, StepSize: 0.001, MinNotional: 5}

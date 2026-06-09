@@ -44,13 +44,44 @@ func protectedLimitPrice(side string, referencePrice float64, slippageRate float
 	return execution.ProtectedLimitPrice(side, referencePrice, slippageRate)
 }
 
+type flattenIntentContextKey string
+
+const flattenIntentRequestContextKey flattenIntentContextKey = "flatten-intent"
+
+// withFlattenIntent 标记「这是一个平仓 / 收敛敞口的操作」。此类操作【必须拿到价】才能把腿平掉，
+// 不能因 WS bookTicker 缓存陈旧就直接放弃（否则薄盘冷门币的 @bookTicker 事件流长时间不推时，裸腿
+// 永远平不掉 —— 实盘 TAOUSDT/ENAUSDT 平仓与救援因「bookTicker 已失效」反复失败即此根因）。
+func withFlattenIntent(ctx context.Context) context.Context {
+	return context.WithValue(ctx, flattenIntentRequestContextKey, true)
+}
+
+func isFlattenIntent(ctx context.Context) bool {
+	if ctx == nil {
+		return false
+	}
+	v, _ := ctx.Value(flattenIntentRequestContextKey).(bool)
+	return v
+}
+
+// tickerStaleRESTRefreshAllowed 判定本次取价在「缓存有票但已陈旧」时是否允许回退 REST 现拉真·当前价。
+// 仅平仓（withFlattenIntent）与残腿救援（withExposureManagerRequest）这类「必须拿到价才能收敛」的动作允许；
+// 开仓 / 监控路径维持原「缓存陈旧即报失效」的严格语义（开仓由 PreOpenTickerRESTRefresh 主动补鲜兜底）。
+// cache-only 模式（影子 / 安全期）由各 fetch 函数单独硬挡，本判定不绕过它。
+func tickerStaleRESTRefreshAllowed(ctx context.Context) bool {
+	return isFlattenIntent(ctx) || isExposureManagerRequest(ctx)
+}
+
 func (e *FundingRateSniperEngine) fetchSpotBookTicker(ctx context.Context, symbol string) (BookTicker, error) {
 	if e.spotTickerCache != nil {
 		if ticker, receivedAt, ok := e.spotTickerCache.GetWithReceivedAt(symbol); ok && (parseFloat(ticker.AskPrice) > 0 || parseFloat(ticker.BidPrice) > 0) {
-			if !e.allowSilentTickerReuse(symbol, receivedAt, e.spotTickerCache, spotTickerHeartbeatSymbol) {
+			if e.allowSilentTickerReuse(symbol, receivedAt, e.spotTickerCache, spotTickerHeartbeatSymbol) {
+				return ticker, nil
+			}
+			// 缓存有票但已陈旧：平仓 / 救援（必须拿到价）在非 cache-only 模式下回退 REST 现拉，避免裸腿平不掉；
+			// 其它路径（开仓 / 监控）维持原「报失效」语义。
+			if !tickerStaleRESTRefreshAllowed(ctx) || e.bookTickerCacheOnlyModeEnabled() {
 				return BookTicker{}, fmt.Errorf("现货 bookTicker 已失效: symbol=%s age=%s", symbol, time.Since(receivedAt).Round(time.Millisecond))
 			}
-			return ticker, nil
 		}
 	}
 	if e.bookTickerCacheOnlyModeEnabled() {
@@ -66,10 +97,12 @@ func (e *FundingRateSniperEngine) fetchSpotBookTicker(ctx context.Context, symbo
 func (e *FundingRateSniperEngine) fetchFuturesBookTicker(ctx context.Context, symbol string) (BookTicker, error) {
 	if e.futuresTickerCache != nil {
 		if ticker, receivedAt, ok := e.futuresTickerCache.GetWithReceivedAt(symbol); ok && (parseFloat(ticker.AskPrice) > 0 || parseFloat(ticker.BidPrice) > 0) {
-			if !e.allowSilentTickerReuse(symbol, receivedAt, e.futuresTickerCache, futuresTickerHeartbeatSymbol) {
+			if e.allowSilentTickerReuse(symbol, receivedAt, e.futuresTickerCache, futuresTickerHeartbeatSymbol) {
+				return ticker, nil
+			}
+			if !tickerStaleRESTRefreshAllowed(ctx) || e.bookTickerCacheOnlyModeEnabled() {
 				return BookTicker{}, fmt.Errorf("合约 bookTicker 已失效: symbol=%s age=%s", symbol, time.Since(receivedAt).Round(time.Millisecond))
 			}
-			return ticker, nil
 		}
 	}
 	if e.bookTickerCacheOnlyModeEnabled() {

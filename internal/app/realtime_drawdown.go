@@ -377,6 +377,24 @@ func (e *FundingRateSniperEngine) managedExposureTargets() []managedExposureTarg
 	return targets
 }
 
+// requestPanicHardStopIfEnabled 在配置开启 PanicFlattenHardStopEnabled(P5-2 opt-in)时,标记 panic-flatten 后
+// 硬停机原因;主循环 checkLiveSafetyGuards 据此返回 fatalEngineError 永久停机,要求人工核对后重启(而非熔断冷却
+// 自动复活)。开关关闭(默认)时为 no-op,零行为变更。仅首次触发记录原因(后续触发不覆盖,保留最初根因)。
+func (e *FundingRateSniperEngine) requestPanicHardStopIfEnabled(reason string) {
+	if e == nil || !e.cfg.RiskConfig.PanicFlattenHardStopEnabled {
+		return
+	}
+	e.platformRiskMu.Lock()
+	first := e.panicHardStopReason == ""
+	if first {
+		e.panicHardStopReason = reason
+	}
+	e.platformRiskMu.Unlock()
+	if first && e.logger != nil {
+		e.logger.Printf("[硬停机] 实时浮亏 panic-flatten 已触发,配置要求停机待人工核对(PanicFlattenHardStopEnabled): %s", reason)
+	}
+}
+
 func (e *FundingRateSniperEngine) panicFlattenManagedExposure(reason string) {
 	if e == nil {
 		return
@@ -389,6 +407,7 @@ func (e *FundingRateSniperEngine) panicFlattenManagedExposure(reason string) {
 		e.wakeRealtimeDrawdownMonitor()
 	}()
 	_ = e.tripPlatformFuse("realtime_drawdown", "critical", reason)
+	e.requestPanicHardStopIfEnabled(reason)
 	targets := e.managedExposureTargets()
 	if len(targets) == 0 {
 		e.noteManagedDrawdownAction("global_panic_skip", "无托管敞口可处理")
@@ -455,36 +474,8 @@ func (e *FundingRateSniperEngine) panicFlattenManagedExposure(reason string) {
 				e.logger.Printf("实时浮亏 panic flatten 合约平仓失败: symbol=%s qty=%.8f err=%v", target.Symbol, positionQty, closeErr)
 			}
 		}
-		if target.Pair == "" {
-			continue
-		}
-		// 现货腿方向感知收敛(修 P0:旧兜底只 SELL 现货钱包正余额,对负 carry「借币卖空」的现货腿是错误语义)。
-		// 负 carry:现货腿是全仓杠杆借入 base 做空 → 必须 BUY 买回 + AUTO_BORROW_REPAY 还币才算真正收敛;
-		// 仅当有跟踪台账(知道借入数量)时走此路径,买回数量取台账记录的 base 数量。
-		if hedgeTracked && hedge.carryDirection() == fundingCarryDirectionNegative {
-			buyQty := parseFloat(hedge.SpotBaseQty)
-			if buyQty <= executionQtyTolerance {
-				buyQty = hedge.HedgeQty
-			}
-			if buyQty <= executionQtyTolerance {
-				continue
-			}
-			if _, buyErr := e.placeDirectionalSpotMarketOrderIdempotent(ctx, target.Pair, "BUY", buyQty, newClientOrderID("srepay", target.Pair), spotExecutionVenueCrossMargin, "panic_neg_carry_repay", true); buyErr != nil && e.logger != nil {
-				e.logger.Printf("实时浮亏 panic flatten 负 carry 借币空头买回还币失败: pair=%s qty=%.8f err=%v", target.Pair, buyQty, buyErr)
-			}
-			continue
-		}
-		// 正 carry / 未跟踪孤儿:卖出现货钱包正余额。
-		if target.BaseAsset == "" || spotBalances == nil {
-			continue
-		}
-		spotQty := spotBalances[target.BaseAsset]
-		if spotQty <= executionQtyTolerance {
-			continue
-		}
-		if _, sellErr := e.placeSpotMarketSellIdempotent(ctx, target.Pair, spotQty, newClientOrderID("srevert", target.Pair)); sellErr != nil && e.logger != nil {
-			e.logger.Printf("实时浮亏 panic flatten 现货平仓失败: pair=%s qty=%.8f err=%v", target.Pair, spotQty, sellErr)
-		}
+		// 现货腿方向感知收敛(共享兜底:负 carry BUY 买回 + AUTO_BORROW_REPAY 还币;正 carry / 孤儿 SELL 现货钱包)。
+		e.convergeManagedSpotLegBestEffort(ctx, target.Pair, target.BaseAsset, hedge, hedgeTracked, spotBalances)
 	}
 	e.noteManagedDrawdownAction("global_panic_completed", fmt.Sprintf("targets=%d", len(targets)))
 }
@@ -551,7 +542,8 @@ func (e *FundingRateSniperEngine) flattenManagedSymbolExposure(symbol string, re
 	e.setSymbolCooldown(normalized, "realtime_drawdown_symbol", "critical", reason)
 	_ = e.recordExecutionIncident("realtime_drawdown_symbol", normalized, reason)
 	e.recordExecutionAction("realtime_drawdown_symbol", normalized, "poison_symbol_flatten_start", reason)
-	if hedge, ok := e.managedOpenHedgeBySymbol(normalized); ok {
+	hedge, hedgeTracked := e.managedOpenHedgeBySymbol(normalized)
+	if hedgeTracked {
 		timeout := e.cfg.ExecutionRecoveryTimeout
 		if timeout < 12*time.Second {
 			timeout = 12 * time.Second
@@ -577,38 +569,108 @@ func (e *FundingRateSniperEngine) flattenManagedSymbolExposure(symbol string, re
 			e.logger.Printf("单币实时止血平仓失败，symbol=%s err=%v", normalized, err)
 		}
 	}
+	// 兜底：双腿平仓失败 / 无跟踪对冲 → 按交易所实仓尽力收敛【双腿】。
+	// R3 修复：旧兜底只平合约腿，且在「合约腿已被强平(qty≈0)」时直接 return，会留下裸露的现货/杠杆腿；
+	// 现改为合约腿(若有残余)与现货/杠杆腿(方向感知)都收敛，覆盖 ADL/单腿强平后另一腿裸露的场景。
 	timeout := e.cfg.ExecutionRecoveryTimeout
 	if timeout < 12*time.Second {
 		timeout = 12 * time.Second
 	}
 	ctx, cancel := context.WithTimeout(withExposureManagerRequest(context.Background()), timeout)
 	defer cancel()
-	_, _, positions, err := e.fetchFuturesAccountState(ctx)
-	if err != nil {
-		e.noteManagedDrawdownAction("symbol_cut_fetch_failed", fmt.Sprintf("%s | %v", normalized, err))
+
+	pair, baseAsset := e.resolveManagedSymbolSpotLeg(normalized, hedge, hedgeTracked)
+
+	_, _, positions, posErr := e.fetchFuturesAccountState(ctx)
+	if posErr != nil {
+		e.noteManagedDrawdownAction("symbol_cut_fetch_failed", fmt.Sprintf("%s | %v", normalized, posErr))
 		if e.logger != nil {
-			e.logger.Printf("单币实时止血获取合约仓位失败: symbol=%s err=%v", normalized, err)
+			e.logger.Printf("单币实时止血获取合约仓位失败(仍尝试收敛现货/杠杆腿): symbol=%s err=%v", normalized, posErr)
+		}
+	} else if positionQty := positions[normalized]; math.Abs(positionQty) > executionQtyTolerance {
+		side := "BUY"
+		if positionQty > 0 {
+			side = "SELL"
+		}
+		if _, closeErr := e.placeSingleFuturesMarketOrderIdempotent(ctx, normalized, side, math.Abs(positionQty), true, newClientOrderID("ftrim", normalized)); closeErr != nil {
+			e.noteManagedDrawdownAction("symbol_cut_futures_trim_failed", fmt.Sprintf("%s | qty=%.8f | %v", normalized, positionQty, closeErr))
+			if e.logger != nil {
+				e.logger.Printf("单币实时止血合约兜底平仓失败: symbol=%s qty=%.8f err=%v", normalized, positionQty, closeErr)
+			}
+		} else {
+			e.noteManagedDrawdownAction("symbol_cut_futures_trimmed", fmt.Sprintf("%s | qty=%.8f", normalized, positionQty))
+			e.recordExecutionAction("realtime_drawdown_symbol", normalized, "poison_symbol_futures_trimmed", fmt.Sprintf("qty=%.8f", positionQty))
+		}
+	}
+
+	// 现货/杠杆腿方向感知收敛（R3 修复核心：兜底也必须平另一条腿，否则单腿强平后裸腿无人收敛）。
+	var spotBalances map[string]float64
+	if !(hedgeTracked && hedge.carryDirection() == fundingCarryDirectionNegative) {
+		balances, _, balErr := e.fetchSpotAccountBalances(ctx)
+		if balErr != nil && e.logger != nil {
+			e.logger.Printf("单币实时止血获取现货余额失败(现货腿可能未收敛): symbol=%s err=%v", normalized, balErr)
+		}
+		spotBalances = balances
+	}
+	e.convergeManagedSpotLegBestEffort(ctx, pair, baseAsset, hedge, hedgeTracked, spotBalances)
+	e.noteManagedDrawdownAction("symbol_cut_fallback_completed", fmt.Sprintf("%s | pair=%s tracked=%v", normalized, pair, hedgeTracked))
+}
+
+// resolveManagedSymbolSpotLeg 解析某 symbol 的现货腿 pair / base 资产：有跟踪台账时取台账（权威），
+// 否则回退到 managedExposureTargets()（覆盖孤儿残腿：经 goldenSpotPairByFuture / spotMeta 推断）。
+func (e *FundingRateSniperEngine) resolveManagedSymbolSpotLeg(symbol string, hedge OpenHedge, hedgeTracked bool) (string, string) {
+	if hedgeTracked {
+		pair := strings.ToUpper(strings.TrimSpace(hedge.Target.Pair))
+		baseAsset := strings.ToUpper(strings.TrimSpace(hedge.Target.SpotBaseAsset))
+		if pair != "" {
+			return pair, baseAsset
+		}
+	}
+	normalized := strings.ToUpper(strings.TrimSpace(symbol))
+	for _, t := range e.managedExposureTargets() {
+		if strings.EqualFold(strings.TrimSpace(t.Symbol), normalized) {
+			return t.Pair, t.BaseAsset
+		}
+	}
+	return "", ""
+}
+
+// convergeManagedSpotLegBestEffort 方向感知地收敛某 symbol 的现货 / 全仓杠杆腿（panic-flatten 与单币止血的
+// 「双腿平仓失败 / 孤儿残腿」兜底共用，best-effort、失败仅记日志）：
+//   - 负 carry（全仓杠杆借入 base 做空现货）→ BUY 买回 + AUTO_BORROW_REPAY 还币（数量取台账借入量）；
+//   - 正 carry / 未跟踪孤儿 → SELL 现货钱包正余额。
+//
+// 抽成共享函数是为了消灭两处兜底逻辑漂移的隐患——R3 的根因正是「兜底只平合约腿、漏平现货/杠杆腿」，
+// 而该漏洞曾只在单币止血路径出现、与全局 panic 不一致。pair 为空（无法定位现货腿）时直接返回。
+func (e *FundingRateSniperEngine) convergeManagedSpotLegBestEffort(ctx context.Context, pair string, baseAsset string, hedge OpenHedge, hedgeTracked bool, spotBalances map[string]float64) {
+	pair = strings.ToUpper(strings.TrimSpace(pair))
+	if pair == "" {
+		return
+	}
+	if hedgeTracked && hedge.carryDirection() == fundingCarryDirectionNegative {
+		buyQty := parseFloat(hedge.SpotBaseQty)
+		if buyQty <= executionQtyTolerance {
+			buyQty = hedge.HedgeQty
+		}
+		if buyQty <= executionQtyTolerance {
+			return
+		}
+		if _, buyErr := e.placeDirectionalSpotMarketOrderIdempotent(ctx, pair, "BUY", buyQty, newClientOrderID("srepay", pair), spotExecutionVenueCrossMargin, "panic_neg_carry_repay", true); buyErr != nil && e.logger != nil {
+			e.logger.Printf("实时止血兜底 负 carry 借币空头买回还币失败: pair=%s qty=%.8f err=%v", pair, buyQty, buyErr)
 		}
 		return
 	}
-	positionQty := positions[normalized]
-	if math.Abs(positionQty) <= executionQtyTolerance {
-		e.noteManagedDrawdownAction("symbol_cut_skip", fmt.Sprintf("%s | futures position already flat", normalized))
+	baseAsset = strings.ToUpper(strings.TrimSpace(baseAsset))
+	if baseAsset == "" || spotBalances == nil {
 		return
 	}
-	side := "BUY"
-	if positionQty > 0 {
-		side = "SELL"
-	}
-	if _, closeErr := e.placeSingleFuturesMarketOrderIdempotent(ctx, normalized, side, math.Abs(positionQty), true, newClientOrderID("ftrim", normalized)); closeErr != nil {
-		e.noteManagedDrawdownAction("symbol_cut_futures_trim_failed", fmt.Sprintf("%s | qty=%.8f | %v", normalized, positionQty, closeErr))
-		if e.logger != nil {
-			e.logger.Printf("单币实时止血合约兜底平仓失败: symbol=%s qty=%.8f err=%v", normalized, positionQty, closeErr)
-		}
+	spotQty := spotBalances[baseAsset]
+	if spotQty <= executionQtyTolerance {
 		return
 	}
-	e.noteManagedDrawdownAction("symbol_cut_futures_trimmed", fmt.Sprintf("%s | qty=%.8f", normalized, positionQty))
-	e.recordExecutionAction("realtime_drawdown_symbol", normalized, "poison_symbol_futures_trimmed", fmt.Sprintf("qty=%.8f", positionQty))
+	if _, sellErr := e.placeSpotMarketSellIdempotent(ctx, pair, spotQty, newClientOrderID("srevert", pair)); sellErr != nil && e.logger != nil {
+		e.logger.Printf("实时止血兜底 现货平仓失败: pair=%s qty=%.8f err=%v", pair, spotQty, sellErr)
+	}
 }
 
 // handleFuturesForcedClosure 响应「交易所强平/ADL 平掉了合约腿」事件：此时对冲的另一条腿(现货/全仓杠杆)

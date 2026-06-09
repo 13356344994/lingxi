@@ -25,6 +25,10 @@ type BybitExecConfig struct {
 	MinNetProfitRate float64 // 成本后净利率阈值(相对部署资金),低于则放弃
 	SpotTakerFee     float64 // 现货吃单费率(实拉,见 FetchTradingCostProfile)
 	PerpTakerFee     float64 // 永续吃单费率
+	// EnableNegativeCarry=true 时,除正费率外也吃【负费率】标的:多永续(收负费率)+ 借币做空现货(UTA spot margin)。
+	// 默认 false=仅正 carry(零行为变更)。负 carry 依赖统一账户开通现货杠杆借币,且借不到的现货卖单会被
+	// 执行器回补永续兜底(绝不裸腿)。
+	EnableNegativeCarry bool
 }
 
 // BybitCandidate 是一个通过费率筛选的候选标的。
@@ -33,6 +37,8 @@ type BybitCandidate struct {
 	FundingRate     float64
 	IntervalHours   int
 	NextFundingTime time.Time
+	// Negative=true 表示负 carry 候选(费率为负,多永续吃负费率 + 借币做空现货);false=正 carry。
+	Negative bool
 }
 
 // BybitOpenPlan 是一笔 delta-neutral 开仓计划(纯计算产物,供 shadow 打印或实盘下单)。
@@ -50,24 +56,39 @@ type BybitOpenPlan struct {
 	EstNetProfit     float64
 	EstNetProfitRate float64 // 相对 DeployedUSDT
 	NextFundingTime  time.Time
+	// Negative=true 表示负 carry(多永续 + 借币做空现货);false=正 carry(空永续 + 多现货)。
+	Negative bool
 }
 
-// selectBybitCandidates 过滤正费率 ≥ 阈值的标的,按费率降序取 TopN。纯函数。
+// selectBybitCandidates 过滤「|费率| ≥ 阈值」的标的,按 |费率| 降序取 TopN。纯函数。
+// 正费率恒纳入(正 carry);负费率仅在 EnableNegativeCarry 时纳入(负 carry,Negative=true)。
 func selectBybitCandidates(snaps []venue.FundingSnapshot, cfg BybitExecConfig) []BybitCandidate {
 	out := make([]BybitCandidate, 0, len(snaps))
 	for _, s := range snaps {
-		if s.LastFundingRate >= cfg.MinFundingRate && s.LastFundingRate > 0 {
+		rate := s.LastFundingRate
+		switch {
+		case rate >= cfg.MinFundingRate && rate > 0:
 			out = append(out, BybitCandidate{
 				Symbol:          s.Symbol,
-				FundingRate:     s.LastFundingRate,
+				FundingRate:     rate,
 				IntervalHours:   s.IntervalHours,
 				NextFundingTime: s.NextFundingTime,
+				Negative:        false,
+			})
+		case cfg.EnableNegativeCarry && rate <= -cfg.MinFundingRate && rate < 0:
+			out = append(out, BybitCandidate{
+				Symbol:          s.Symbol,
+				FundingRate:     rate,
+				IntervalHours:   s.IntervalHours,
+				NextFundingTime: s.NextFundingTime,
+				Negative:        true,
 			})
 		}
 	}
 	sort.Slice(out, func(i, j int) bool {
-		if out[i].FundingRate != out[j].FundingRate {
-			return out[i].FundingRate > out[j].FundingRate
+		ai, aj := math.Abs(out[i].FundingRate), math.Abs(out[j].FundingRate)
+		if ai != aj {
+			return ai > aj // 按 |费率| 降序:正负 carry 同台竞争,吃最肥的
 		}
 		return out[i].Symbol < out[j].Symbol // 平手按符号稳定排序
 	})
@@ -136,7 +157,8 @@ func planBybitDeltaNeutralOpen(
 		return BybitOpenPlan{}, false, "永续名义低于最小下单额"
 	}
 
-	grossFunding := perpNotional * c.FundingRate // 空永续在正费率收资金费
+	// 毛资金费按 |费率| 计:正 carry 空永续收正费率;负 carry 多永续收负费率(付方→收方),两者收益都 = 名义×|费率|。
+	grossFunding := perpNotional * math.Abs(c.FundingRate)
 	// 开+平各一次吃单,双腿:现货 2 次 + 永续 2 次。
 	feeCost := spotNotional*cfg.SpotTakerFee*2 + perpNotional*cfg.PerpTakerFee*2
 	netProfit := grossFunding - feeCost
@@ -160,6 +182,7 @@ func planBybitDeltaNeutralOpen(
 		EstNetProfit:     netProfit,
 		EstNetProfitRate: netRate,
 		NextFundingTime:  c.NextFundingTime,
+		Negative:         c.Negative,
 	}
 	if netRate < cfg.MinNetProfitRate {
 		return plan, false, "成本后净利率低于阈值"

@@ -196,6 +196,9 @@ func (p *CloseProtocol) executeSequence(ctx context.Context, hedges []OpenHedge,
 	if len(hedges) == 0 {
 		return CycleSettlement{}, nil
 	}
+	// 平仓是「必须拿到价」的收敛动作：标记 flatten 意图，使下游取价在 WS 缓存陈旧时回退 REST 现拉，
+	// 而非直接报「bookTicker 已失效」放弃（避免薄盘币裸腿平不掉）。覆盖结算平仓 / 滚动持有 drop 平仓。
+	ctx = withFlattenIntent(ctx)
 
 	fundingTime := earliestFundingTimeFromHedges(hedges)
 	closeAt, monitorAlerts, preferPassiveSpotClose, err := p.engine.waitForCloseExecutionWindow(ctx, hedges, fundingTime)
@@ -352,10 +355,19 @@ func (p *CloseProtocol) executeSequence(ctx context.Context, hedges []OpenHedge,
 	settlement.ExpectedTotalFees, settlement.CycleNotionalUSDT = p.engine.expectedHedgeCostObservation(hedges)
 	settlement.applyFrictionObservation()
 	p.engine.logFrictionObservation(settlement, "close_presettle")
+	// 真实扣息观测（旁路、goroutine 零延迟、绝不影响净利/风控）：拉交易所真实扣息与模型借币成本对照，
+	// 便于实盘后用真实数据校准 AssumedHourlyBorrowInterestRate。仅负 carry 触发，正 carry 内部直接返回。
+	interestParent := context.Background()
+	if p.engine.runCtx != nil {
+		interestParent = p.engine.runCtx
+	}
+	hedgesForInterest := append([]OpenHedge(nil), hedges...)
+	go p.engine.observeActualBorrowInterest(interestParent, hedgesForInterest, settlement)
 	return settlement, nil
 }
 
 func (p *CloseProtocol) closeHedgePosition(ctx context.Context, hedge *OpenHedge, futureResult FuturesBatchOrderResult, preferPassiveSpot bool) ([]string, error) {
+	ctx = withFlattenIntent(ctx) // 平仓取价允许 WS 陈旧时回退 REST，避免裸腿平不掉（覆盖 abort 平仓等直连入口）
 	alerts := make([]string, 0, 2)
 	if err := p.engine.guardHedgeOrderIntent(hedge, lifecycle.IntentCloseLeg); err != nil {
 		return alerts, err
@@ -499,6 +511,7 @@ func (p *CloseProtocol) closeHedgePosition(ctx context.Context, hedge *OpenHedge
 }
 
 func (p *CloseProtocol) closeHedgePositionParallel(ctx context.Context, plan closeSequencePlan) ([]string, error) {
+	ctx = withFlattenIntent(ctx) // 平仓取价允许 WS 陈旧时回退 REST，避免裸腿平不掉（覆盖 panic-flatten / abort 并发平仓）
 	hedge := plan.hedge
 	if err := p.engine.guardHedgeOrderIntent(hedge, lifecycle.IntentCloseLeg); err != nil {
 		return nil, err

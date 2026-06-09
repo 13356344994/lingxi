@@ -374,7 +374,22 @@ func (e *FundingRateSniperEngine) checkLiveSafetyGuards(phase string) error {
 	if err := e.checkEmergencyStop(phase); err != nil {
 		return err
 	}
+	if err := e.checkPanicHardStop(phase); err != nil {
+		return err
+	}
 	return e.checkDailyRiskLimits(phase)
+}
+
+// checkPanicHardStop 在 panic-flatten 已请求硬停机(P5-2 opt-in)时返回 fatalEngineError,使主循环永久停机、
+// 要求人工核对后重启,而非熔断冷却自动复活。开关关闭时 panicHardStopReason 恒为空 → no-op(零行为变更)。
+func (e *FundingRateSniperEngine) checkPanicHardStop(phase string) error {
+	e.platformRiskMu.Lock()
+	reason := e.panicHardStopReason
+	e.platformRiskMu.Unlock()
+	if reason == "" {
+		return nil
+	}
+	return fatalEngineError{message: fmt.Sprintf("phase=%s 实时浮亏 panic-flatten 后硬停机(需人工核对账户与原因后重启): %s", nonEmpty(strings.TrimSpace(phase), "unknown"), reason)}
 }
 
 // engineEmergencyStopPaths 返回引擎运行期需检查的急停文件(双级:全局总闸 + 本所 halt,§7.4),全局在前、去重去空。

@@ -66,6 +66,9 @@ type bybitCreateOrderBody struct {
 	OrderLinkID string `json:"orderLinkId,omitempty"`
 	ReduceOnly  bool   `json:"reduceOnly,omitempty"`
 	MarketUnit  string `json:"marketUnit,omitempty"`
+	// IsLeverage=1 启用现货杠杆(UTA spot margin):卖出超过持有量时自动借入 base 做空,买回时自动还币。
+	// 仅在中性 OrderRequest 显式标注 MarginEffect(Borrow/Repay)且为现货时设置;普通现货/永续不设(=0)。
+	IsLeverage int `json:"isLeverage,omitempty"`
 }
 
 // buildCreateBody 把中性 OrderRequest 翻译成 Bybit 下单体(纯函数,便于单测)。
@@ -100,6 +103,10 @@ func (a *Adapter) buildCreateBody(req venue.OrderRequest) (bybitCreateOrderBody,
 	// 现货市价单按币数量计:显式 marketUnit=baseCoin,与中性 Qty(币数量)对齐。
 	if req.Market == venue.MarketSpot && orderType == "Market" {
 		body.MarketUnit = "baseCoin"
+	}
+	// 负 carry:现货做空(借币卖出)/平仓还币(买回) → isLeverage=1 启用现货杠杆自动借/还。
+	if req.Market == venue.MarketSpot && (req.MarginEffect == venue.MarginEffectBorrow || req.MarginEffect == venue.MarginEffectRepay) {
+		body.IsLeverage = 1
 	}
 	return body, nil
 }

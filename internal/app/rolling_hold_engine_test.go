@@ -402,3 +402,43 @@ func TestSettleKeptPositionsEmptyNoop(t *testing.T) {
 		t.Fatalf("空 keep 不应推进当日盈亏, got %.6f", engine.riskBudgetState.DailyRealizedPnL)
 	}
 }
+
+// TestMergeResidentBaselineWith 钉死 #1 修复:开仓持久化前把「本轮新开」并入「既有常驻组合」,既有 keep 仓不被抹掉;
+// 同名以新开覆盖;单周期(既有为空)等价仅新开,行为不变。
+func TestMergeResidentBaselineWith(t *testing.T) {
+	engine := &FundingRateSniperEngine{
+		portfolioManager: portfolioManager{
+			activeOpenHedges: []OpenHedge{
+				{Target: FundingCandidate{Symbol: "AAAUSDT"}, HedgeQty: 1},
+				{Target: FundingCandidate{Symbol: "BBBUSDT"}, HedgeQty: 2},
+			},
+		},
+	}
+	newHedges := []OpenHedge{
+		{Target: FundingCandidate{Symbol: "BBBUSDT"}, HedgeQty: 99}, // 同名:应被新开覆盖
+		{Target: FundingCandidate{Symbol: "CCCUSDT"}, HedgeQty: 3},  // 新开:应纳入
+	}
+	merged := engine.mergeResidentBaselineWith(newHedges)
+	bySym := make(map[string]float64, len(merged))
+	for _, h := range merged {
+		bySym[h.Target.Symbol] = h.HedgeQty
+	}
+	if len(merged) != 3 {
+		t.Fatalf("应为 3 个(AAA 既有 + BBB 覆盖 + CCC 新开),got %d: %+v", len(merged), merged)
+	}
+	if bySym["AAAUSDT"] != 1 {
+		t.Fatalf("既有 AAA 应保留(不被抹掉),got %v", bySym["AAAUSDT"])
+	}
+	if bySym["BBBUSDT"] != 99 {
+		t.Fatalf("同名 BBB 应被新开覆盖(=99),got %v", bySym["BBBUSDT"])
+	}
+	if bySym["CCCUSDT"] != 3 {
+		t.Fatalf("新开 CCC 应纳入(=3),got %v", bySym["CCCUSDT"])
+	}
+
+	// 单周期:既有为空 → 合并==仅新开(零行为变更)。
+	empty := &FundingRateSniperEngine{}
+	if res := empty.mergeResidentBaselineWith(newHedges); len(res) != 2 {
+		t.Fatalf("空既有应返回仅新开(2),got %d", len(res))
+	}
+}

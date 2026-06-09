@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"math"
 	"sort"
 
 	"lingxi/internal/venue"
@@ -152,7 +153,7 @@ func (e *BybitShadowExecutor) PlanCycle(ctx context.Context) (BybitCyclePlan, er
 		result.Accepted = append(result.Accepted, plan)
 	}
 	sort.Slice(result.Accepted, func(i, j int) bool {
-		return result.Accepted[i].FundingRate > result.Accepted[j].FundingRate
+		return math.Abs(result.Accepted[i].FundingRate) > math.Abs(result.Accepted[j].FundingRate)
 	})
 	return result, nil
 }

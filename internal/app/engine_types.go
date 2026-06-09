@@ -191,6 +191,10 @@ type FundingRateSniperEngine struct {
 	realtimeRiskWorkerOnce     sync.Once
 	panicFlattenInFlight       bool
 	symbolPanicFlattenInFlight map[string]time.Time
+	// panicHardStopReason 非空表示「已触发实时浮亏 panic-flatten 且配置要求硬停机」(P5-2 opt-in)。
+	// 主循环的 checkLiveSafetyGuards 据此返回 fatalEngineError 永久停机,要求人工核对后重启(不熔断冷却自动复活)。
+	// 由 platformRiskMu 保护。默认行为(开关关闭)恒为空,不改变既有「熔断冷却自动复活」语义。
+	panicHardStopReason string
 
 	// HoldMonitor(持仓期常驻监控)状态。feedLivenessMu 是独立叶子锁，仅保护 feedLastFrameAt，
 	// 不与 platformRiskMu 嵌套（观测路径先取 feedLivenessMu 算时延、再取 platformRiskMu 落摘要），

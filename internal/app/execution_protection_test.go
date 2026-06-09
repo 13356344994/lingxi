@@ -88,6 +88,85 @@ func TestFetchBookTickerAllowsSilentAltWhenHeartbeatIsFresh(t *testing.T) {
 	}
 }
 
+// TestFetchBookTickerStaleCacheFallsBackToRESTOnFlattenIntent 钉死 P0-2：平仓 / 救援（必须拿到价）在 WS
+// bookTicker 缓存陈旧时回退 REST 现拉真·当前价，而非直接报「已失效」放弃（实盘 TAOUSDT/ENAUSDT 平仓与救援
+// 因此卡死的根因）。对照：开仓 / 监控路径（普通 ctx）维持原「陈旧即报失效」语义；cache-only 模式硬挡 REST。
+func TestFetchBookTickerStaleCacheFallsBackToRESTOnFlattenIntent(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/api/v3/ticker/bookTicker":
+			_, _ = w.Write([]byte(`{"symbol":"TAOUSDT","bidPrice":"218.5","askPrice":"218.6"}`))
+		case "/fapi/v1/ticker/bookTicker":
+			_, _ = w.Write([]byte(`{"symbol":"TAOUSDT","bidPrice":"218.4","askPrice":"218.5"}`))
+		default:
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	newEngine := func() *FundingRateSniperEngine {
+		e := &FundingRateSniperEngine{
+			client: exchange.NewClient(exchange.ClientConfig{
+				SpotBaseURL:    server.URL,
+				FuturesBaseURL: server.URL,
+				APIKey:         "demo-api-key",
+				SecretKey:      "demo-secret-key",
+				HTTPClient:     server.Client(),
+			}),
+			cfg:                DefaultEngineConfig(),
+			logger:             log.New(io.Discard, "", 0),
+			runtimeReporter:    newRuntimeReporter(nil),
+			spotTickerCache:    NewBookTickerCache(),
+			futuresTickerCache: NewBookTickerCache(),
+		}
+		// 陈旧到连「静默复用」窗口（15s）都过期，确保 allowSilentTickerReuse=false。
+		staleAt := time.Now().UTC().Add(-2 * protectedTickerSilentSymbolMaxStaleness)
+		e.spotTickerCache.UpdateAt(BookTicker{Symbol: "TAOUSDT", BidPrice: "1.0", AskPrice: "1.1"}, staleAt)
+		e.futuresTickerCache.UpdateAt(BookTicker{Symbol: "TAOUSDT", BidPrice: "1.0", AskPrice: "1.1"}, staleAt)
+		return e
+	}
+
+	// 普通 ctx（开仓 / 监控语义）：陈旧缓存仍报失效，维持原行为。
+	plain := newEngine()
+	if _, err := plain.fetchSpotBookTicker(context.Background(), "TAOUSDT"); err == nil {
+		t.Fatal("普通 ctx 下陈旧现货 bookTicker 应报失效")
+	}
+	if _, err := plain.fetchFuturesBookTicker(context.Background(), "TAOUSDT"); err == nil {
+		t.Fatal("普通 ctx 下陈旧合约 bookTicker 应报失效")
+	}
+
+	// flatten 意图（平仓）：陈旧缓存回退 REST，拿到真·当前价（≠ 陈旧缓存价 1.1/1.0），裸腿才能平掉。
+	flatten := newEngine()
+	spotTicker, err := flatten.fetchSpotBookTicker(withFlattenIntent(context.Background()), "TAOUSDT")
+	if err != nil {
+		t.Fatalf("flatten 意图下陈旧现货应回退 REST，却失败: %v", err)
+	}
+	if spotTicker.AskPrice != "218.6" {
+		t.Fatalf("flatten 意图应取到 REST 现价 askPrice=218.6，实际 %+v", spotTicker)
+	}
+	futTicker, err := flatten.fetchFuturesBookTicker(withFlattenIntent(context.Background()), "TAOUSDT")
+	if err != nil {
+		t.Fatalf("flatten 意图下陈旧合约应回退 REST，却失败: %v", err)
+	}
+	if futTicker.BidPrice != "218.4" {
+		t.Fatalf("flatten 意图应取到 REST 现价 bidPrice=218.4，实际 %+v", futTicker)
+	}
+
+	// 残腿救援（withExposureManagerRequest）同样回退 REST。
+	rescue := newEngine()
+	if _, err := rescue.fetchSpotBookTicker(withExposureManagerRequest(context.Background()), "TAOUSDT"); err != nil {
+		t.Fatalf("救援意图下陈旧现货应回退 REST，却失败: %v", err)
+	}
+
+	// cache-only 模式（影子 / 安全期）：即便有 flatten 意图也不得 REST，硬挡。
+	cacheOnly := newEngine()
+	cacheOnly.setBookTickerCacheOnlyUntil(time.Now().UTC().Add(time.Minute))
+	if _, err := cacheOnly.fetchSpotBookTicker(withFlattenIntent(context.Background()), "TAOUSDT"); err == nil {
+		t.Fatal("cache-only 模式即便 flatten 意图也应拒绝 REST 回退")
+	}
+}
+
 func TestFuturesProtectedOpenFallbackNeededUsesUnifiedIOCObservation(t *testing.T) {
 	order := FuturesBatchOrderRequest{
 		Type:        "LIMIT",

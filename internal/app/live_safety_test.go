@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"log"
 	"os"
 	"path/filepath"
@@ -9,6 +10,45 @@ import (
 	"testing"
 	"time"
 )
+
+// TestPanicHardStopOptInGatesFatalStop 钉死 P5-2:panic-flatten 后硬停机是 opt-in。
+// 开关关闭(默认)→ requestPanicHardStopIfEnabled 为 no-op,checkLiveSafetyGuards 不返回 fatal(熔断冷却自动复活,行为不变);
+// 开关开启 → panic 触发后 checkLiveSafetyGuards 返回 fatalEngineError(永久停机,需人工核对重启)。
+func TestPanicHardStopOptInGatesFatalStop(t *testing.T) {
+	newEngine := func(enabled bool) *FundingRateSniperEngine {
+		cfg := DefaultEngineConfig()
+		cfg.RiskConfig.PanicFlattenHardStopEnabled = enabled
+		return &FundingRateSniperEngine{cfg: cfg, logger: log.New(os.Stderr, "", 0), runtimeReporter: newRuntimeReporter(nil)}
+	}
+
+	// 关闭(默认):请求硬停机为 no-op,guard 放行。
+	off := newEngine(false)
+	off.requestPanicHardStopIfEnabled("realtime drawdown panic")
+	if off.panicHardStopReason != "" {
+		t.Fatalf("开关关闭时不应设置硬停机原因, got %q", off.panicHardStopReason)
+	}
+	if err := off.checkPanicHardStop("idle"); err != nil {
+		t.Fatalf("开关关闭时 guard 应放行, got %v", err)
+	}
+
+	// 开启:panic 后设原因,guard 返回 fatalEngineError(主循环据此永久停机)。
+	on := newEngine(true)
+	if err := on.checkPanicHardStop("idle"); err != nil {
+		t.Fatalf("panic 触发前 guard 应放行, got %v", err)
+	}
+	on.requestPanicHardStopIfEnabled("realtime drawdown panic")
+	if on.panicHardStopReason == "" {
+		t.Fatal("开关开启时 panic 后应设置硬停机原因")
+	}
+	err := on.checkPanicHardStop("before_cycle")
+	if err == nil {
+		t.Fatal("开关开启且 panic 后,guard 应返回 fatal 错误")
+	}
+	var fatal fatalEngineError
+	if !errors.As(err, &fatal) {
+		t.Fatalf("应返回 fatalEngineError(主循环据此停机), got %T: %v", err, err)
+	}
+}
 
 func TestEnsureEmergencyStopClear(t *testing.T) {
 	path := filepath.Join(t.TempDir(), ".halt-live")

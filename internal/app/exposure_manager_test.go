@@ -419,3 +419,45 @@ func TestExposureManagerDynamicallyFlattensResidualUntilSpotBalanceClears(t *tes
 		t.Fatalf("expected dynamic rescue to sell spot twice until flat, got %d", spotSellOrders)
 	}
 }
+
+// TestNoteRescueActionNeverTripsFuse 钉死 P0-1：ExposureManager 残腿救援动作（noteRescueAction）无论调用
+// 多少次都【不】计入 MaxRecoveryActionsPerCycle、【不】触发平台熔断——救援是最后一道防线，必须能持续重试
+// 把裸腿收敛归零，绝不能被「单轮恢复动作过多」反向锁死（实盘 ENAUSDT/TAOUSDT 卡死的根因）。
+// 对照：普通开仓恢复动作（noteRecoveryAction）超过预算仍会熔断，保留对开仓恢复死循环的保护。
+func TestNoteRescueActionNeverTripsFuse(t *testing.T) {
+	newEngine := func() *FundingRateSniperEngine {
+		return &FundingRateSniperEngine{
+			cfg:    DefaultEngineConfig(),
+			logger: log.New(io.Discard, "", 0),
+		}
+	}
+
+	rescueEngine := newEngine()
+	limit := rescueEngine.cfg.RiskConfig.MaxRecoveryActionsPerCycle
+	if limit <= 0 {
+		t.Fatalf("前置条件：MaxRecoveryActionsPerCycle 应 > 0，实际 %d", limit)
+	}
+	for i := 0; i < limit*3+5; i++ {
+		rescueEngine.noteRescueAction("abort_after_adverse_selection", "TAOUSDT", "exposure_rescue_start", "mode=close")
+	}
+	if rescueEngine.platformState.FuseTripped {
+		t.Fatalf("救援动作不应触发平台熔断，但 FuseTripped=true reason=%q", rescueEngine.platformState.FuseReason)
+	}
+	if got := rescueEngine.riskBudgetState.RecoveryActionsThisCycle; got != 0 {
+		t.Fatalf("救援动作不应累加恢复预算，RecoveryActionsThisCycle=%d，期望 0", got)
+	}
+	if rescueEngine.platformState.LastExceptionSeverity != "major" {
+		t.Fatalf("救援动作应记录 major 级异常以触发 degraded（出问题时不再扩张），实际 severity=%q", rescueEngine.platformState.LastExceptionSeverity)
+	}
+
+	recoveryEngine := newEngine()
+	tripped := false
+	for i := 0; i < limit+2; i++ {
+		if err := recoveryEngine.noteRecoveryAction("open_recovery", "HOMEUSDT", "close_futures_after_spot_open_failure", "spotErr=-3045"); err != nil {
+			tripped = true
+		}
+	}
+	if !tripped || !recoveryEngine.platformState.FuseTripped {
+		t.Fatalf("开仓恢复动作超过预算应触发熔断，但未熔断 (tripped=%v FuseTripped=%v)", tripped, recoveryEngine.platformState.FuseTripped)
+	}
+}

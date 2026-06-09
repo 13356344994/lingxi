@@ -763,25 +763,23 @@ func TestScheduleAsyncFundingSettlementUpdatesSettlementAndDailyPnL(t *testing.T
 	}
 
 	engine.scheduleAsyncFundingSettlement(settlement, hedges)
-	deadline := time.Now().Add(500 * time.Millisecond)
+	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
 		records, listErr := store.ListSettlementRecords(5)
 		if listErr != nil {
 			t.Fatalf("ListSettlementRecords() error = %v", listErr)
 		}
-		if len(records) == 1 && records[0].FundingIncome == "1.25" && !records[0].FundingIncomePending {
-			// 后台结算 worker 在持有 platformRiskMu 下写 riskBudgetState,这里读必须同样持锁,避免与之竞争。
-			engine.platformRiskMu.Lock()
-			dailyPnL := engine.riskBudgetState.DailyRealizedPnL
-			engine.platformRiskMu.Unlock()
-			if dailyPnL != 1.25 {
-				t.Fatalf("expected daily pnl to be adjusted by funding delta, got %.8f", dailyPnL)
-			}
+		// 后台 worker 先写结算记录、再写 riskBudgetState.DailyRealizedPnL（两步非原子）。把「日内盈亏已更新」一并
+		// 纳入轮询终态条件，避免撞上两步之间的窗口（记录已结算但 dailyPnL 仍为 0）而误判失败（flaky）。
+		engine.platformRiskMu.Lock()
+		dailyPnL := engine.riskBudgetState.DailyRealizedPnL
+		engine.platformRiskMu.Unlock()
+		if len(records) == 1 && records[0].FundingIncome == "1.25" && !records[0].FundingIncomePending && dailyPnL == 1.25 {
 			return
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
-	t.Fatal("expected async funding settlement to update store")
+	t.Fatal("expected async funding settlement to update store and daily pnl within deadline")
 }
 
 func TestWaitForCloseExecutionWindowPrefersPassiveSpotWhenSpreadStaysWide(t *testing.T) {

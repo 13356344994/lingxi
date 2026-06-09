@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -58,13 +59,31 @@ func bybitExecConfigFromEngine(cfg EngineConfig) BybitExecConfig {
 		topN = 1
 	}
 	return BybitExecConfig{
-		AllocatedUSDT:    cfg.AllocatedCapitalUSDT,
-		TopN:             topN,
-		MinFundingRate:   bx.MinFundingRate,
-		MinNetProfitRate: bx.MinNetProfitRate,
-		SpotTakerFee:     cfg.HistoricalConfig.SpotTakerFeeRate,
-		PerpTakerFee:     cfg.HistoricalConfig.FuturesTakerFeeRate,
+		AllocatedUSDT:       cfg.AllocatedCapitalUSDT,
+		TopN:                topN,
+		MinFundingRate:      bx.MinFundingRate,
+		MinNetProfitRate:    bx.MinNetProfitRate,
+		SpotTakerFee:        cfg.HistoricalConfig.SpotTakerFeeRate,
+		PerpTakerFee:        cfg.HistoricalConfig.FuturesTakerFeeRate,
+		EnableNegativeCarry: bx.EnableNegativeCarry,
 	}
+}
+
+// bybitFundingStillFavorable 判定续持复核时下期费率是否仍对该方向有利(还能净收资金费)。
+// 正 carry:费率仍 > 0;负 carry:费率仍 < 0。不利(含归零)即应平仓,避免继续持有倒贴。
+func bybitFundingStillFavorable(rate float64, negative bool) bool {
+	if negative {
+		return rate < 0
+	}
+	return rate > 0
+}
+
+// bybitCarryLabel 返回方向中文标签(日志/通知用)。
+func bybitCarryLabel(negative bool) string {
+	if negative {
+		return "负 carry"
+	}
+	return "正 carry"
 }
 
 func bybitModeLabel(cfg EngineConfig) string {
@@ -263,10 +282,10 @@ func (c *RuntimeController) bybitManageCycle(
 			switch {
 			case ferr != nil:
 				c.appendControllerLog("Bybit 续持复核拉取费率失败 %s(本轮按平仓处理): %v", p.Symbol, ferr)
-			case !ok || snap.LastFundingRate <= 0:
-				// 与币安滚动持有同口径:开仓后往返手续费已是沉没成本,再多持有一个结算「不额外收费」,故只要下期资金费仍为正
-				// (边际净 carry>0)就续持收下一次;直到费率转 ≤0(继续持有会倒贴)才平。不再用开仓地板 MinFundingRate 当续持门槛。
-				c.appendControllerLog("Bybit 续持复核未通过 %s(下期费率≤0/转负,继续持有会倒贴),平仓", p.Symbol)
+			case !ok || !bybitFundingStillFavorable(snap.LastFundingRate, p.Negative):
+				// 与币安滚动持有同口径:开仓后往返手续费已是沉没成本,再多持有一个结算「不额外收费」,故只要下期资金费仍对
+				// 本方向有利(正 carry:>0;负 carry:<0,边际净 carry>0)就续持收下一次;直到费率转向不利(继续持有会倒贴)才平。
+				c.appendControllerLog("Bybit 续持复核未通过 %s(下期费率转向不利,继续持有会倒贴),平仓", p.Symbol)
 			case !snap.NextFundingTime.After(now):
 				// 费率达标,但交易所 nextFundingTime 尚未翻进下一个结算(刚结算后的短暂窗口):短暂保持持仓、下一轮再复核,
 				// 既不平仓也不推进计数——避免把一笔仍健康、费率仍好的仓在结算时间翻转前误平(这正是之前「吃一次就走」的根因)。
@@ -310,14 +329,30 @@ func (c *RuntimeController) bybitManageCycle(
 			c.appendControllerLog("Bybit 平仓后清记录失败 %s: %v", p.Symbol, rmErr)
 		}
 		settlements := p.SettlementsHeld + 1
-		estFunding := float64(settlements) * p.FundingRate * p.PerpNotional
+		// 资金费 + 实现盈亏:优先用真实查流水口径;查不到则退回按开仓费率估算(并明确标注)。
+		// 估算资金费收入按 |费率| 计(正/负 carry 都是收方:正 carry 空头收正费率,负 carry 多头收负费率)。
+		fundingLine := fmt.Sprintf("估算资金费收入 ≈ %+.4f USDT(%d×%.4f%%×名义)", float64(settlements)*math.Abs(p.FundingRate)*p.PerpNotional, settlements, math.Abs(p.FundingRate)*100)
+		realizedLine := ""
+		if closeRes.FundingOK {
+			fundingLine = fmt.Sprintf("真实资金费收入 = %+.4f USDT(共 %d 次结算)", closeRes.RealFunding, settlements)
+			verdict := "赚"
+			if closeRes.RealizedPnL < 0 {
+				verdict = "赔"
+			}
+			realizedLine = fmt.Sprintf("\n【实现盈亏 = %+.4f USDT(%s)】= 价差 %+.4f + 资金费 %+.4f − 手续费 %.4f", closeRes.RealizedPnL, verdict, closeRes.PricePnL, closeRes.RealFunding, closeRes.TotalFeesUSDT)
+		}
+		openPerpLabel, openSpotLabel, closePerpLabel, closeSpotLabel := "永续空", "现货多", "永续买回", "现货卖出"
+		if p.Negative {
+			openPerpLabel, openSpotLabel, closePerpLabel, closeSpotLabel = "永续多", "借币空现货", "永续卖出", "现货买回还币"
+		}
 		closeDetail := fmt.Sprintf(
-			"%s 已平仓(持有 %d 次结算各收 1 次资金费)\n开仓实扣费: 永续 %.6f %s + 现货 %.6f %s\n平仓实扣费: 永续 %.6f %s + 现货 %.6f %s\n名义≈%.2f USDT | 估算资金费收入≈%.4f USDT(%d×%.4f%%×名义)\n开仓均价 永续%.6f/现货%.6f → 平仓均价 永续%.6f/现货%.6f",
+			"%s 已平仓(持有 %d 次结算)\n开仓: %s %.2fU @%.6f(费 %.6f %s) + %s %.2fU @%.6f(费 %.6f %s)\n平仓: %s @%.6f(费 %.6f %s) + %s %.6f @%.6f(费 %.6f %s)\n%s%s",
 			p.Symbol, settlements,
-			p.OpenPerpFee, p.OpenPerpFeeAsset, p.OpenSpotFee, p.OpenSpotFeeAsset,
-			closeRes.PerpCloseFee, closeRes.PerpFeeAsset, closeRes.SpotCloseFee, closeRes.SpotFeeAsset,
-			p.PerpNotional, estFunding, settlements, p.FundingRate*100,
-			p.PerpEntryPrice, p.SpotEntryPrice, closeRes.PerpClosePrice, closeRes.SpotClosePrice)
+			openPerpLabel, p.PerpNotional, p.PerpEntryPrice, p.OpenPerpFee, p.OpenPerpFeeAsset,
+			openSpotLabel, p.SpotNotional, p.SpotEntryPrice, p.OpenSpotFee, p.OpenSpotFeeAsset,
+			closePerpLabel, closeRes.PerpClosePrice, closeRes.PerpCloseFee, closeRes.PerpFeeAsset,
+			closeSpotLabel, closeRes.SpotSoldQty, closeRes.SpotClosePrice, closeRes.SpotCloseFee, closeRes.SpotFeeAsset,
+			fundingLine, realizedLine)
 		c.appendControllerLog("Bybit 已平仓 %s", closeDetail)
 		c.bybitNotifyTrade("Bybit 已平仓", closeDetail, string(p.Symbol))
 	}
@@ -388,11 +423,15 @@ func (c *RuntimeController) bybitManageCycle(
 		if upErr := store.upsert(pos); upErr != nil {
 			c.appendControllerLog("Bybit 持仓落盘失败(已开仓,务必人工核对!) %s: %v", pos.Symbol, upErr)
 		}
+		openPerpLabel, openSpotLabel := "永续空", "现货多"
+		if pos.Negative {
+			openPerpLabel, openSpotLabel = "永续多", "借币空现货"
+		}
 		openDetail := fmt.Sprintf(
-			"%s 已开仓 delta-neutral\n永续空 %.6f@%.6f(名义 %.2f USDT,实扣费 %.6f %s)\n现货多 %.6f@%.6f(名义 %.2f USDT,实扣费 %.6f %s)\n预估费率 %.4f%% | 预估净利率 %.4f%% | 结算 %s",
-			pos.Symbol,
-			pos.BaseQty, pos.PerpEntryPrice, pos.PerpNotional, pos.OpenPerpFee, pos.OpenPerpFeeAsset,
-			pos.BaseQty, pos.SpotEntryPrice, pos.SpotNotional, pos.OpenSpotFee, pos.OpenSpotFeeAsset,
+			"%s 已开仓 delta-neutral(%s)\n%s %.6f@%.6f(名义 %.2f USDT,实扣费 %.6f %s)\n%s %.6f@%.6f(名义 %.2f USDT,实扣费 %.6f %s)\n预估费率 %.4f%% | 预估净利率 %.4f%% | 结算 %s",
+			pos.Symbol, bybitCarryLabel(pos.Negative),
+			openPerpLabel, pos.BaseQty, pos.PerpEntryPrice, pos.PerpNotional, pos.OpenPerpFee, pos.OpenPerpFeeAsset,
+			openSpotLabel, pos.BaseQty, pos.SpotEntryPrice, pos.SpotNotional, pos.OpenSpotFee, pos.OpenSpotFeeAsset,
 			p.FundingRate*100, p.EstNetProfitRate*100, pos.NextFundingTime.UTC().Format("15:04:05Z"))
 		c.appendControllerLog("Bybit %s", openDetail)
 		c.bybitNotifyTrade("Bybit 已开仓", openDetail, string(p.Symbol))
@@ -414,7 +453,11 @@ func (c *RuntimeController) bybitLogCycleDiag(
 	cfg EngineConfig,
 ) {
 	if len(plan.Candidates) == 0 {
-		c.appendControllerLog("[bybit] 本轮无正费率候选(需≥%.4f%%);在场 %d/%d", cfg.BybitExecutor.MinFundingRate*100, openCount, maxConcurrent)
+		dirNote := "正费率"
+		if cfg.BybitExecutor.EnableNegativeCarry {
+			dirNote = "正/负费率"
+		}
+		c.appendControllerLog("[bybit] 本轮无%s候选(需|费率|≥%.4f%%);在场 %d/%d", dirNote, cfg.BybitExecutor.MinFundingRate*100, openCount, maxConcurrent)
 		return
 	}
 	c.appendControllerLog("[bybit] 候选=%d 通过定量=%d 放弃=%d 在场=%d/%d",

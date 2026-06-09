@@ -142,7 +142,7 @@ func TestFundingSettlementWorkerRecoversPendingTaskAfterRestart(t *testing.T) {
 	engine.startFundingSettlementWorker(ctx)
 	engine.wakeFundingSettlementWorker()
 
-	deadline := time.Now().Add(500 * time.Millisecond)
+	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
 		pending, listErr := store.ListPendingFundingSettlements(10)
 		if listErr != nil {
@@ -152,17 +152,16 @@ func TestFundingSettlementWorkerRecoversPendingTaskAfterRestart(t *testing.T) {
 		if listErr != nil {
 			t.Fatalf("ListSettlementRecords() error = %v", listErr)
 		}
-		if len(pending) == 0 && len(records) == 1 && records[0].FundingIncome == "1.25" && !records[0].FundingIncomePending {
-			// 后台结算 worker 在持有 platformRiskMu 下写 riskBudgetState,这里读必须同样持锁,避免与之竞争。
-			engine.platformRiskMu.Lock()
-			dailyPnL := engine.riskBudgetState.DailyRealizedPnL
-			engine.platformRiskMu.Unlock()
-			if dailyPnL != 1.25 {
-				t.Fatalf("expected daily pnl to be adjusted by recovered funding delta, got %.8f", dailyPnL)
-			}
+		// 后台 worker 先写结算记录、再写 riskBudgetState.DailyRealizedPnL（两步非原子）。必须把「日内盈亏已更新」
+		// 一并纳入轮询终态条件，否则会撞上两步之间的窗口（记录已结算但 dailyPnL 仍为 0）而误判失败（flaky）。
+		// 持有 platformRiskMu 读 riskBudgetState，避免与 worker 的并发写竞争。
+		engine.platformRiskMu.Lock()
+		dailyPnL := engine.riskBudgetState.DailyRealizedPnL
+		engine.platformRiskMu.Unlock()
+		if len(pending) == 0 && len(records) == 1 && records[0].FundingIncome == "1.25" && !records[0].FundingIncomePending && dailyPnL == 1.25 {
 			return
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
-	t.Fatal("expected recovered pending funding settlement to be processed")
+	t.Fatal("expected recovered pending funding settlement to be processed and daily pnl updated within deadline")
 }

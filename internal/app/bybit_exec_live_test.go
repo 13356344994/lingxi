@@ -16,9 +16,10 @@ type fakeBybitTrader struct {
 	fills       map[string]venue.OrderResult
 	placeErr    map[string]error
 	queryErr    map[string]error
-	positions   []venue.Position
-	balances    venue.Balances
-	instruments []venue.Instrument
+	positions      []venue.Position
+	balances       venue.Balances
+	instruments    []venue.Instrument
+	fundingIncomes []venue.FundingIncome
 }
 
 func newFakeBybitTrader() *fakeBybitTrader {
@@ -71,6 +72,10 @@ func (f *fakeBybitTrader) FetchBalances(_ context.Context) (venue.Balances, erro
 
 func (f *fakeBybitTrader) FetchInstruments(_ context.Context) ([]venue.Instrument, error) {
 	return f.instruments, nil
+}
+
+func (f *fakeBybitTrader) FetchRealizedFunding(_ context.Context, _ venue.Symbol, _ time.Time) ([]venue.FundingIncome, error) {
+	return f.fundingIncomes, nil
 }
 
 func newTestExecutor(tr bybitTrader) *BybitLiveExecutor {
@@ -212,6 +217,80 @@ func TestCloseDeltaNeutralLegFailReturnsError(t *testing.T) {
 	tr.placeErr["lx-HOMEUSDT-1-cs"] = errors.New("spot sell failed")
 	if _, err := e.CloseDeltaNeutral(context.Background(), pos); err == nil {
 		t.Fatal("一腿平仓失败时应返回错误(供上层保留持仓重试)")
+	}
+}
+
+func TestOpenDeltaNeutralNegativeLongsPerpAndBorrowShortsSpot(t *testing.T) {
+	tr := newFakeBybitTrader()
+	e := newTestExecutor(tr)
+	plan := samplePlan()
+	plan.Negative = true
+	plan.FundingRate = -0.001
+	pos, err := e.OpenDeltaNeutral(context.Background(), plan, "lx-HOMEUSDT-1", "run-1")
+	if err != nil {
+		t.Fatalf("负 carry 开仓应成功: %v", err)
+	}
+	if !pos.Negative {
+		t.Fatal("持仓应标记为负 carry")
+	}
+	if len(tr.placed) != 2 {
+		t.Fatalf("应下 2 腿, got %d", len(tr.placed))
+	}
+	// 第一腿:永续多(BUY)。
+	if tr.placed[0].Market != venue.MarketPerp || tr.placed[0].Side != venue.SideBuy {
+		t.Fatalf("负 carry 第一腿应为永续买入(多), got %+v", tr.placed[0])
+	}
+	// 第二腿:现货卖出 + 借币(MarginEffect=Borrow)。
+	if tr.placed[1].Market != venue.MarketSpot || tr.placed[1].Side != venue.SideSell {
+		t.Fatalf("负 carry 第二腿应为现货卖出(做空), got %+v", tr.placed[1])
+	}
+	if tr.placed[1].MarginEffect != venue.MarginEffectBorrow {
+		t.Fatalf("负 carry 现货做空腿应带 MarginEffectBorrow(自动借币), got %v", tr.placed[1].MarginEffect)
+	}
+}
+
+func TestOpenDeltaNeutralNegativeSpotFailRevertsPerpLong(t *testing.T) {
+	tr := newFakeBybitTrader()
+	e := newTestExecutor(tr)
+	plan := samplePlan()
+	plan.Negative = true
+	tr.placeErr["lx-HOMEUSDT-1-os"] = errors.New("borrow unavailable")
+	if _, err := e.OpenDeltaNeutral(context.Background(), plan, "lx-HOMEUSDT-1", "run-1"); err == nil {
+		t.Fatal("负 carry 现货借币卖出失败时应返回错误")
+	}
+	// 应回补永续多腿:永续卖出 + reduceOnly。
+	var foundRevert bool
+	for _, o := range tr.placed {
+		if o.Market == venue.MarketPerp && o.Side == venue.SideSell && o.ReduceOnly {
+			foundRevert = true
+		}
+	}
+	if !foundRevert {
+		t.Fatalf("负 carry 现货失败后应回补永续多腿(卖出 reduceOnly), placed=%+v", tr.placed)
+	}
+}
+
+func TestCloseDeltaNeutralNegativeShortsPerpAndRepaysSpotBuy(t *testing.T) {
+	tr := newFakeBybitTrader()
+	e := newTestExecutor(tr)
+	pos := BybitLivePosition{Symbol: "HOME-USDT", BaseQty: 10, IdemPrefix: "lx-HOMEUSDT-1", Negative: true}
+	if _, err := e.CloseDeltaNeutral(context.Background(), pos); err != nil {
+		t.Fatalf("负 carry 平仓应成功: %v", err)
+	}
+	var perpClose, spotRepay bool
+	for _, o := range tr.placed {
+		if o.Market == venue.MarketPerp && o.Side == venue.SideSell && o.ReduceOnly {
+			perpClose = true
+		}
+		if o.Market == venue.MarketSpot && o.Side == venue.SideBuy && o.MarginEffect == venue.MarginEffectRepay && o.Qty == 10 {
+			spotRepay = true
+		}
+	}
+	if !perpClose {
+		t.Fatalf("负 carry 平仓永续腿应为卖出 reduceOnly, placed=%+v", tr.placed)
+	}
+	if !spotRepay {
+		t.Fatalf("负 carry 平仓现货腿应为买回还币(BUY+Repay, qty=借入量 10), placed=%+v", tr.placed)
 	}
 }
 

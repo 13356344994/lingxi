@@ -9,8 +9,9 @@ const (
 	pathOpenInterest    = "/v5/market/open-interest"    // 公共:持仓量
 	pathKline           = "/v5/market/kline"            // 公共:K 线(近端成交额估算)
 
-	pathWalletBalance = "/v5/account/wallet-balance" // 私有只读:统一账户余额
-	pathFeeRate       = "/v5/account/fee-rate"       // 私有只读:手续费率
+	pathWalletBalance  = "/v5/account/wallet-balance"  // 私有只读:统一账户余额
+	pathFeeRate        = "/v5/account/fee-rate"        // 私有只读:手续费率
+	pathTransactionLog = "/v5/account/transaction-log" // 私有只读:账户流水(资金费结算/手续费/已实现盈亏)
 	pathPositionList  = "/v5/position/list"          // 私有只读:持仓
 	pathQueryAPI      = "/v5/user/query-api"         // 私有只读:API key 权限自检
 

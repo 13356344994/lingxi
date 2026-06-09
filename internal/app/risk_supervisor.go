@@ -229,6 +229,23 @@ func (s *RiskSupervisor) NoteRecoveryAction(phase string, symbol string, action 
 	return nil
 }
 
+// NoteRescueAction 记录 ExposureManager 残腿救援动作（最后一道防线），仅做审计 + 风险事件可观测。
+// 与 NoteRecoveryAction 的关键区别：救援动作【不】计入 recoveryActionsThisCycle、【永不】触发平台熔断、
+// 也不返回熔断错误。原因：救援的职责是在出现裸腿时持续重试、把敞口收敛归零，必须无条件能跑；若像普通
+// 恢复动作那样计入熔断预算，救援重试（最多 exposureRescueMaxAttempts 次）会在第 MaxRecoveryActionsPerCycle+1
+// 次自触发「单轮恢复动作过多」熔断，之后又被自己触发的熔断挡住，导致残腿永久卡在救援队列（实盘已复现
+// ENAUSDT/TAOUSDT 卡死）。「开仓恢复死循环」这一真正需要被熔断抓住的场景仍由 NoteRecoveryAction 覆盖。
+// 注：救援期间引擎健康仍会因 RecordException(severity=major) 在 healthStatusLocked 转入 degraded、停止扩张，
+// 故「出问题时不再开新仓」这道保护不会因本方法不计数而丢失。
+func (s *RiskSupervisor) NoteRescueAction(phase string, symbol string, action string, detail string) {
+	engine := s.engine
+	engine.platformRiskMu.Lock()
+	engine.platformState.RecordException("exposure_rescue", "major", fmt.Sprintf("phase=%s symbol=%s action=%s detail=%s", phase, nonEmpty(symbol, "-"), action, nonEmpty(detail, "-")))
+	engine.runtimeReporter.EmitLocked(EngineStage(""))
+	engine.platformRiskMu.Unlock()
+	engine.emitRiskEvent(newRiskEvent("action", RiskCategoryRecovery, RiskSeverityWarning, nonEmpty(phase, "rescue"), symbol, nonEmpty(action, "rescue"), int(atomic.LoadInt32(&engine.executionIncidents)), engine.cfg.RiskConfig.MaxExecutionIncidents, false, detail).WithEventType(EventTypeRecoveryEscalated))
+}
+
 func (s *RiskSupervisor) TripPlatformFuse(category string, severity string, reason string) error {
 	engine := s.engine
 	engine.platformRiskMu.Lock()

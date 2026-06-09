@@ -139,6 +139,16 @@ func (e *FundingRateSniperEngine) noteRecoveryAction(phase string, symbol string
 	return supervisor.NoteRecoveryAction(phase, symbol, action, detail)
 }
 
+// noteRescueAction 记录 ExposureManager 残腿救援动作：只审计 + 发风险事件，不累加熔断预算、永不触发/被
+// 平台熔断阻断（详见 RiskSupervisor.NoteRescueAction）。救援是最后一道防线，必须能持续重试到把裸腿收敛归零。
+func (e *FundingRateSniperEngine) noteRescueAction(phase string, symbol string, action string, detail string) {
+	supervisor := e.ensureRiskSupervisor()
+	if supervisor == nil {
+		return
+	}
+	supervisor.NoteRescueAction(phase, symbol, action, detail)
+}
+
 func (e *FundingRateSniperEngine) tripPlatformFuse(category string, severity string, reason string) error {
 	supervisor := e.ensureRiskSupervisor()
 	if supervisor == nil {
@@ -496,6 +506,40 @@ func (e *FundingRateSniperEngine) updateCurrentMonitorTargetLabel(target *Monito
 		e.currentMonitorTargets = append(e.currentMonitorTargets, label)
 	}
 	e.runtimeReporter.EmitLocked(EngineStage(""))
+}
+
+// mergeResidentBaselineWith 把「本轮新开 / 正在开的对冲」并入「开仓前已在场的常驻持仓组合」,按 symbol 合并
+// (同名以新开覆盖),返回完整组合快照。
+//
+// 为什么需要(修 #1 滚动持有组合抹除):开仓持久化(setCurrentPositionsFromHedges / syncPersistedOpenHedges)是
+// 「整体替换」语义。单周期模式开仓前 activeOpenHedges 为空 → 替换==仅新开,行为正确且不变。但滚动持有
+// (EnableRollingHold)下组合是常驻的:若直接用「仅新开」整体替换,会把既有 keep 仓从内存与台账双双抹掉 →
+// 变成未跟踪裸敞口。本函数在替换前先并入既有常驻仓,使「被替换写入的内容」始终是完整组合。
+// 读 activeOpenHedges 持 platformRiskMu;幂等(再次并入同名以新开覆盖,不会重复)。
+func (e *FundingRateSniperEngine) mergeResidentBaselineWith(newHedges []OpenHedge) []OpenHedge {
+	if e == nil {
+		return newHedges
+	}
+	newSymbols := make(map[string]struct{}, len(newHedges))
+	for _, h := range newHedges {
+		if s := strings.ToUpper(strings.TrimSpace(h.Target.Symbol)); s != "" {
+			newSymbols[s] = struct{}{}
+		}
+	}
+	e.platformRiskMu.Lock()
+	baseline := make([]OpenHedge, 0, len(e.activeOpenHedges))
+	for _, h := range e.activeOpenHedges {
+		s := strings.ToUpper(strings.TrimSpace(h.Target.Symbol))
+		if s == "" {
+			continue
+		}
+		if _, isNew := newSymbols[s]; isNew {
+			continue // 同名由新开覆盖
+		}
+		baseline = append(baseline, h)
+	}
+	e.platformRiskMu.Unlock()
+	return append(baseline, newHedges...)
 }
 
 func (e *FundingRateSniperEngine) setCurrentPositionsFromHedges(hedges []OpenHedge) {

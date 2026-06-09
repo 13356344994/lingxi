@@ -431,9 +431,7 @@ func (m *ExposureManager) handleTask(ctx context.Context, task exposureRescueTas
 		return fmt.Errorf("exposure manager 不可用")
 	}
 	engine := m.engine
-	if err := engine.noteRecoveryAction(task.Phase, task.Symbol, "exposure_rescue_start", fmt.Sprintf("mode=%s pair=%s", task.Mode, task.Pair)); err != nil {
-		return err
-	}
+	engine.noteRescueAction(task.Phase, task.Symbol, "exposure_rescue_start", fmt.Sprintf("mode=%s pair=%s", task.Mode, task.Pair))
 	if m.logger != nil {
 		m.logger.Printf("ExposureManager 接管敞口，phase=%s mode=%s symbol=%s pair=%s", task.Phase, task.Mode, task.Symbol, task.Pair)
 	}
@@ -520,9 +518,7 @@ func (m *ExposureManager) dynamicallyFlattenExposure(ctx context.Context, task e
 					return fmt.Errorf("ExposureManager 平掉残余合约多头失败: %w", err)
 				}
 			}
-			if err := engine.noteRecoveryAction(task.Phase, task.Symbol, action, fmt.Sprintf("attempt=%d qty=%.8f", attempt, closeQty)); err != nil {
-				return err
-			}
+			engine.noteRescueAction(task.Phase, task.Symbol, action, fmt.Sprintf("attempt=%d qty=%.8f", attempt, closeQty))
 		}
 		if math.Abs(spotPositionAmt) > executionQtyTolerance {
 			spotSide := "SELL"
@@ -617,7 +613,8 @@ func (m *ExposureManager) flattenSpotResidual(ctx context.Context, task exposure
 	default:
 		return fmt.Errorf("ExposureManager 不支持的现货残腿方向: %s", side)
 	}
-	return engine.noteRecoveryAction(task.Phase, task.Symbol, action, fmt.Sprintf("qty=%.8f side=%s", normalizedQty, side))
+	engine.noteRescueAction(task.Phase, task.Symbol, action, fmt.Sprintf("qty=%.8f side=%s", normalizedQty, side))
+	return nil
 }
 
 func (e *FundingRateSniperEngine) scheduleExposureRescue(ctx context.Context, task exposureRescueTask) error {

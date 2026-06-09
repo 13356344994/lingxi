@@ -92,6 +92,37 @@ func TestManagedExposureTargetsIncludeExposureLocks(t *testing.T) {
 	}
 }
 
+// TestResolveManagedSymbolSpotLeg 钉死 P1-1：单币止血兜底要能定位「另一条腿(现货/杠杆)」才能把它平掉。
+// 有跟踪台账→取台账权威 pair/base；无台账(孤儿残腿/合约腿已被强平)→回退 managedExposureTargets() 推断。
+func TestResolveManagedSymbolSpotLeg(t *testing.T) {
+	engine := &FundingRateSniperEngine{
+		goldenSpotPairByFuture: map[string]string{"ENAUSDT": "ENAUSDT"},
+		spotMeta:               map[string]SpotSymbol{"ENAUSDT": {BaseAsset: "ENA"}},
+		portfolioManager: portfolioManager{
+			activeOpenHedges: []OpenHedge{
+				{Target: FundingCandidate{Symbol: "TAOUSDT", Pair: "TAOUSDT", SpotBaseAsset: "TAO"}, HedgeQty: 0.09},
+			},
+			exposureLocks: map[string]exposureLockState{"ENAUSDT": {}},
+		},
+	}
+
+	// 1) 有跟踪台账：取台账权威值。
+	tracked, _ := engine.managedOpenHedgeBySymbol("TAOUSDT")
+	if pair, base := engine.resolveManagedSymbolSpotLeg("TAOUSDT", tracked, true); pair != "TAOUSDT" || base != "TAO" {
+		t.Fatalf("tracked hedge 应解析出 TAOUSDT/TAO，实际 pair=%q base=%q", pair, base)
+	}
+
+	// 2) 无台账孤儿(合约腿已被强平场景)：回退 managedExposureTargets() 经 goldenSpotPairByFuture/spotMeta 推断。
+	if pair, base := engine.resolveManagedSymbolSpotLeg("ENAUSDT", OpenHedge{}, false); pair != "ENAUSDT" || base != "ENA" {
+		t.Fatalf("孤儿残腿应解析出 ENAUSDT/ENA，实际 pair=%q base=%q", pair, base)
+	}
+
+	// 3) 完全未知：返回空(调用方据此跳过现货腿收敛，不误下单)。
+	if pair, base := engine.resolveManagedSymbolSpotLeg("UNKNOWNUSDT", OpenHedge{}, false); pair != "" || base != "" {
+		t.Fatalf("未知 symbol 应返回空，实际 pair=%q base=%q", pair, base)
+	}
+}
+
 func TestShouldTriggerManagedSymbolDrawdownCutTargetsWorstSymbol(t *testing.T) {
 	cfg := DefaultEngineConfig()
 	cfg.RiskConfig.MaxCycleLossUSDT = 100

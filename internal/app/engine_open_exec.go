@@ -251,7 +251,8 @@ func (e *FundingRateSniperEngine) executeOpenHedgePlans(ctx context.Context, pla
 
 		hedgesMu.Lock()
 		hedges = append(hedges, hedge)
-		persistErr := e.syncPersistedOpenHedges(hedges)
+		// 增量落盘时并入既有常驻组合,避免崩溃在开仓中途时台账只剩本轮新开、丢失既有 keep 仓(滚动持有)。
+		persistErr := e.syncPersistedOpenHedges(e.mergeResidentBaselineWith(hedges))
 		hedgesMu.Unlock()
 		return persistErr
 	})

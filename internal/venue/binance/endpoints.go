@@ -35,9 +35,10 @@ const (
 	PathFuturesAccountV3        = "/fapi/v3/account"
 
 	// ---- 杠杆/资产/账户 /sapi ----
-	PathMarginOrder       = "/sapi/v1/margin/order"
-	PathMarginAccount     = "/sapi/v1/margin/account"
-	PathMarginBorrowRepay = "/sapi/v1/margin/borrow-repay"
+	PathMarginOrder           = "/sapi/v1/margin/order"
+	PathMarginAccount         = "/sapi/v1/margin/account"
+	PathMarginBorrowRepay     = "/sapi/v1/margin/borrow-repay"
+	PathMarginInterestHistory = "/sapi/v1/margin/interestHistory"
 	PathAssetTransfer     = "/sapi/v1/asset/transfer"
 	PathAssetFundingAsset = "/sapi/v1/asset/get-funding-asset"
 	PathBNBBurn           = "/sapi/v1/bnbBurn"

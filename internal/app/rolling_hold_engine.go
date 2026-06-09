@@ -172,10 +172,9 @@ func (e *FundingRateSniperEngine) openResidentPositions(ctx context.Context, wak
 	if !opened {
 		return nil, nil
 	}
-	e.setCurrentPositionsFromHedges(openHedges)
-	if err := e.syncPersistedOpenHedges(openHedges); err != nil {
-		return nil, err
-	}
+	// 注:内存组合与台账已由开仓协议(executeSequence → setCurrentPositionsFromHedges / syncPersistedOpenHedges,
+	// 均经 mergeResidentBaselineWith 并入既有常驻仓)落定为「既有 keep ∪ 本轮新开」的完整组合。此处不再用
+	// 「仅新开」整体覆盖(那正是 #1 组合抹除的根因);仅推进生命周期与面板。
 	_ = e.advanceLifecycleStage(LifecycleStageCloseMonitoring, fmt.Sprintf("滚动持有:新开 %d 仓保留为常驻组合", len(openHedges)))
 	e.runtimeReporter.EmitWithReason(StageCloseMonitor, len(openHedges), fmt.Sprintf("滚动持有:常驻持仓数=%d", len(openHedges)))
 	return openHedges, nil

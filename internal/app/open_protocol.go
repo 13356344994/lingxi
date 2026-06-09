@@ -248,7 +248,8 @@ func (p *OpenProtocol) executeSequence(ctx context.Context, targets []*Monitored
 		return nil, prepared.beforeSnapshot, parallelErr
 	}
 	hedges := append(sequentialHgs, parallelHgs...)
-	p.engine.setCurrentPositionsFromHedges(hedges)
+	// 并入既有常驻组合后整体写入(滚动持有下不抹既有 keep 仓;单周期下既有为空=仅新开,行为不变)。
+	p.engine.setCurrentPositionsFromHedges(p.engine.mergeResidentBaselineWith(hedges))
 	p.engine.logger.Printf("模块四结束，成功锁仓数量: %d", len(hedges))
 	return hedges, prepared.beforeSnapshot, nil
 }
@@ -291,7 +292,8 @@ func (p *OpenProtocol) executeParallelPlans(ctx context.Context, plans []openSeq
 		}
 		hedgesMu.Lock()
 		hedges = append(hedges, hedge)
-		persistErr := p.engine.syncPersistedOpenHedges(hedges)
+		// 增量落盘时并入既有常驻组合,避免崩溃在开仓中途时台账只剩本轮新开、丢失既有 keep 仓。
+		persistErr := p.engine.syncPersistedOpenHedges(p.engine.mergeResidentBaselineWith(hedges))
 		hedgesMu.Unlock()
 		return persistErr
 	})

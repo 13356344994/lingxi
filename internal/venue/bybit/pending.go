@@ -2,6 +2,9 @@ package bybit
 
 import (
 	"context"
+	"net/url"
+	"strconv"
+	"strings"
 	"time"
 
 	"lingxi/internal/venue"
@@ -21,8 +24,51 @@ func (a *Adapter) BorrowRepay(ctx context.Context, asset string, amt float64, di
 	return venue.ErrUnsupported // TODO(Stage3):统一账户借币做空(Capabilities.SupportsNegativeCarry 同步置 true)
 }
 
+// FetchRealizedFunding 拉某永续标的自 since 起的真实资金费结算流水(/v5/account/transaction-log, type=SETTLEMENT)。
+// 用于平仓时给出「真实收到/支付的资金费」,而非按开仓费率估算。change>0=收到,<0=支付。
 func (a *Adapter) FetchRealizedFunding(ctx context.Context, s venue.Symbol, since time.Time) ([]venue.FundingIncome, error) {
-	return nil, venue.ErrUnsupported // TODO(Stage3)
+	raw, err := a.ToVenue(s, venue.MarketPerp)
+	if err != nil {
+		return nil, err
+	}
+	q := url.Values{}
+	q.Set("accountType", "UNIFIED")
+	q.Set("category", categoryLinear)
+	q.Set("symbol", raw)
+	q.Set("type", "SETTLEMENT")
+	if !since.IsZero() {
+		q.Set("startTime", strconv.FormatInt(since.UnixMilli(), 10))
+	}
+	q.Set("limit", "50")
+	var res struct {
+		List []struct {
+			Symbol          string `json:"symbol"`
+			Type            string `json:"type"`
+			Change          string `json:"change"`
+			Funding         string `json:"funding"`
+			Currency        string `json:"currency"`
+			TransactionTime string `json:"transactionTime"`
+		} `json:"list"`
+	}
+	if err := a.t.signedGet(ctx, pathTransactionLog, q, &res); err != nil {
+		return nil, err
+	}
+	out := make([]venue.FundingIncome, 0, len(res.List))
+	for _, it := range res.List {
+		if !strings.EqualFold(strings.TrimSpace(it.Type), "SETTLEMENT") {
+			continue
+		}
+		income := parseFloat(it.Change)
+		if income == 0 {
+			income = parseFloat(it.Funding)
+		}
+		var ts time.Time
+		if ms, e := strconv.ParseInt(strings.TrimSpace(it.TransactionTime), 10, 64); e == nil && ms > 0 {
+			ts = time.UnixMilli(ms).UTC()
+		}
+		out = append(out, venue.FundingIncome{Symbol: s, Income: income, Asset: it.Currency, Time: ts})
+	}
+	return out, nil
 }
 
 func (a *Adapter) FetchUserTrades(ctx context.Context, m venue.Market, s venue.Symbol, since time.Time) ([]venue.Trade, error) {

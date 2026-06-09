@@ -1,6 +1,9 @@
 package app
 
 import (
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -61,6 +64,62 @@ func TestBybitPositionStoreRoundTrip(t *testing.T) {
 	ps, _ = store2.load()
 	if len(ps) != 1 || ps[0].Symbol != "EDEN-USDT" {
 		t.Fatalf("跨实例加载应保留 EDEN, got %+v", ps)
+	}
+}
+
+// TestBybitPositionStoreWritesEnvelope 钉死 R18:新格式落盘带 schema_version + checksum 信封(非裸数组)。
+func TestBybitPositionStoreWritesEnvelope(t *testing.T) {
+	dir := t.TempDir()
+	store, _ := newBybitPositionStore(dir)
+	if err := store.upsert(BybitLivePosition{Symbol: "HOME-USDT", BaseQty: 10, IdemPrefix: "lx-1"}); err != nil {
+		t.Fatalf("upsert: %v", err)
+	}
+	raw, err := os.ReadFile(filepath.Join(dir, bybitPositionsFileName))
+	if err != nil {
+		t.Fatalf("读文件: %v", err)
+	}
+	content := string(raw)
+	if !strings.Contains(content, "\"schema_version\"") || !strings.Contains(content, "\"checksum\"") || !strings.Contains(content, "\"positions\"") {
+		t.Fatalf("落盘应为带信封头的对象,实际:\n%s", content)
+	}
+}
+
+// TestBybitPositionStoreLegacyBareArrayPassthrough 钉死向后兼容:旧版本写的裸 JSON 数组仍能读出。
+func TestBybitPositionStoreLegacyBareArrayPassthrough(t *testing.T) {
+	dir := t.TempDir()
+	legacy := `[{"symbol":"EDEN-USDT","base_qty":7,"idem_prefix":"lx-legacy"}]`
+	if err := os.WriteFile(filepath.Join(dir, bybitPositionsFileName), []byte(legacy), 0o600); err != nil {
+		t.Fatalf("写 legacy 文件: %v", err)
+	}
+	store, _ := newBybitPositionStore(dir)
+	ps, err := store.load()
+	if err != nil {
+		t.Fatalf("读 legacy 裸数组应放行,却报错: %v", err)
+	}
+	if len(ps) != 1 || ps[0].Symbol != "EDEN-USDT" || ps[0].BaseQty != 7 {
+		t.Fatalf("legacy 加载结果不对: %+v", ps)
+	}
+}
+
+// TestBybitPositionStoreRejectsTampered 钉死完整性:信封内容被外部篡改后,load 拒绝放行(不在不可信状态上自动接管)。
+func TestBybitPositionStoreRejectsTampered(t *testing.T) {
+	dir := t.TempDir()
+	store, _ := newBybitPositionStore(dir)
+	if err := store.upsert(BybitLivePosition{Symbol: "HOME-USDT", BaseQty: 10, IdemPrefix: "lx-1"}); err != nil {
+		t.Fatalf("upsert: %v", err)
+	}
+	path := filepath.Join(dir, bybitPositionsFileName)
+	raw, _ := os.ReadFile(path)
+	// 篡改持仓数量(checksum 不再匹配),但保留信封结构。
+	tampered := strings.Replace(string(raw), "\"base_qty\": 10", "\"base_qty\": 9999", 1)
+	if tampered == string(raw) {
+		t.Fatal("测试前置:未找到可篡改的字段")
+	}
+	if err := os.WriteFile(path, []byte(tampered), 0o600); err != nil {
+		t.Fatalf("写篡改文件: %v", err)
+	}
+	if _, err := store.load(); err == nil {
+		t.Fatal("篡改后的台账应被拒绝(checksum 不匹配),却放行了")
 	}
 }
 

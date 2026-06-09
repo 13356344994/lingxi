@@ -33,6 +33,8 @@ type bybitTrader interface {
 	// 资产里扣,实际持有的 base < 开仓名义 → 必须按真实余额卖,否则撞 -170131 "Insufficient balance" 死循环)。
 	FetchBalances(ctx context.Context) (venue.Balances, error)
 	FetchInstruments(ctx context.Context) ([]venue.Instrument, error)
+	// FetchRealizedFunding 拉某标的自 since 起的真实资金费结算流水,供平仓时给出真实资金费收入与实现盈亏。
+	FetchRealizedFunding(ctx context.Context, s venue.Symbol, since time.Time) ([]venue.FundingIncome, error)
 }
 
 // BybitLivePosition 是一笔已开的 delta-neutral 持仓(落盘用于跨重启 reconcile/平仓)。
@@ -48,6 +50,9 @@ type BybitLivePosition struct {
 	OpenedAt        time.Time    `json:"opened_at"`
 	RunID           string       `json:"run_id"`
 	IdemPrefix      string       `json:"idem_prefix"`
+	// Negative=true 表示负 carry 持仓(多永续 + 借币做空现货);false(零值,向后兼容旧记录)=正 carry。
+	// 平仓方向、PnL 符号、续持复核都据此区分。
+	Negative bool `json:"negative,omitempty"`
 	// SettlementsHeld 已收过资金费的结算次数(滚动持有计数);开仓后首个结算收一次记 1。
 	SettlementsHeld int `json:"settlements_held"`
 	// 开仓真实实扣手续费(含 MNT 抵扣后的真实口径)+ 计费币种,用于平仓时算「开+平真实总费」与实现净利。
@@ -66,6 +71,13 @@ type bybitCloseResult struct {
 	SpotCloseFee   float64
 	SpotFeeAsset   string
 	SpotSoldQty    float64
+	// 真实实现盈亏(尽力):RealFunding=真实收到资金费(查流水);PricePnL=两腿价差盈亏;
+	// TotalFeesUSDT=开+平真实手续费折 USDT;RealizedPnL=PricePnL+RealFunding−TotalFeesUSDT。FundingOK=资金费流水是否查到。
+	RealFunding   float64
+	PricePnL      float64
+	TotalFeesUSDT float64
+	RealizedPnL   float64
+	FundingOK     bool
 }
 
 // BybitLiveExecutor 用真实下单接口执行 delta-neutral 开/平仓。
@@ -209,11 +221,20 @@ func (e *BybitLiveExecutor) OpenDeltaNeutral(ctx context.Context, plan BybitOpen
 	if plan.BaseQty <= executionQtyTolerance {
 		return BybitLivePosition{}, fmt.Errorf("开仓数量过小: %.10f", plan.BaseQty)
 	}
-	// 第一腿:永续空(正费率时空头收资金费)。
+	// 方向感知:正 carry=空永续(收正费率)+ 多现货;负 carry=多永续(收负费率)+ 借币做空现货。
+	perpOpenSide, spotOpenSide := venue.SideSell, venue.SideBuy
+	spotMargin := venue.MarginEffectNone
+	perpRevertSide := venue.SideBuy // 现货失败时回补永续的反向
+	if plan.Negative {
+		perpOpenSide, spotOpenSide = venue.SideBuy, venue.SideSell
+		spotMargin = venue.MarginEffectBorrow // 借币做空现货(UTA spot margin 自动借入)
+		perpRevertSide = venue.SideSell
+	}
+	// 第一腿:永续(收资金费的腿)先行。
 	perpReq := venue.OrderRequest{
 		Market:        venue.MarketPerp,
 		Symbol:        plan.Symbol,
-		Side:          venue.SideSell,
+		Side:          perpOpenSide,
 		Type:          venue.OrderTypeMarket,
 		Qty:           plan.BaseQty,
 		ClientOrderID: bybitLegClientID(idemPrefix, "op"),
@@ -222,30 +243,31 @@ func (e *BybitLiveExecutor) OpenDeltaNeutral(ctx context.Context, plan BybitOpen
 	if err != nil {
 		// 永续腿未确认成交:尝试撤单(幂等),不进入现货腿 → 无对冲敞口。reconcile 兜底核对真实持仓。
 		_ = e.trader.CancelOrder(ctx, venue.MarketPerp, plan.Symbol, perpReq.ClientOrderID)
-		return BybitLivePosition{}, fmt.Errorf("永续空腿开仓失败(未建仓): %w", err)
+		return BybitLivePosition{}, fmt.Errorf("永续腿开仓失败(未建仓): %w", err)
 	}
 	if perpExec.ExecutedQty <= executionQtyTolerance {
-		return BybitLivePosition{}, fmt.Errorf("永续空腿成交数量为 0,放弃")
+		return BybitLivePosition{}, fmt.Errorf("永续腿成交数量为 0,放弃")
 	}
 	hedgeQty := perpExec.ExecutedQty
-	e.recordExecutionCost("open", "perp", venue.SideSell, plan.PerpPrice, perpExec)
+	e.recordExecutionCost("open", "perp", perpOpenSide, plan.PerpPrice, perpExec)
 
-	// 第二腿:现货多(对冲永续空,按永续实际成交量对齐)。
+	// 第二腿:现货对冲腿(正 carry 多现货 / 负 carry 借币做空现货),按永续实际成交量对齐。
 	spotReq := venue.OrderRequest{
 		Market:        venue.MarketSpot,
 		Symbol:        plan.Symbol,
-		Side:          venue.SideBuy,
+		Side:          spotOpenSide,
 		Type:          venue.OrderTypeMarket,
 		Qty:           hedgeQty,
 		ClientOrderID: bybitLegClientID(idemPrefix, "os"),
+		MarginEffect:  spotMargin,
 	}
 	spotExec, spotErr := e.placeAndConfirm(ctx, spotReq)
 	if spotErr != nil || spotExec.ExecutedQty <= executionQtyTolerance {
-		// 现货腿失败 → 立即回补永续空腿(买入 reduceOnly),回到平,绝不裸腿。
+		// 现货腿失败 → 立即回补永续腿(反向 reduceOnly),回到平,绝不裸腿。
 		revertReq := venue.OrderRequest{
 			Market:        venue.MarketPerp,
 			Symbol:        plan.Symbol,
-			Side:          venue.SideBuy,
+			Side:          perpRevertSide,
 			Type:          venue.OrderTypeMarket,
 			Qty:           hedgeQty,
 			ClientOrderID: bybitLegClientID(idemPrefix, "rp"),
@@ -264,12 +286,13 @@ func (e *BybitLiveExecutor) OpenDeltaNeutral(ctx context.Context, plan BybitOpen
 				OpenedAt:        e.now(),
 				RunID:           runID,
 				IdemPrefix:      idemPrefix,
+				Negative:        plan.Negative,
 			}
 			return naked, fmt.Errorf("现货腿失败且永续回补失败(裸腿风险!): spotErr=%v revertErr=%w", spotErr, revertErr)
 		}
-		return BybitLivePosition{}, fmt.Errorf("现货多腿失败,已回补永续空腿(已平): %v", firstNonNilErr(spotErr, fmt.Errorf("现货成交为 0")))
+		return BybitLivePosition{}, fmt.Errorf("现货对冲腿失败,已回补永续腿(已平): %v", firstNonNilErr(spotErr, fmt.Errorf("现货成交为 0")))
 	}
-	e.recordExecutionCost("open", "spot", venue.SideBuy, plan.SpotPrice, spotExec)
+	e.recordExecutionCost("open", "spot", spotOpenSide, plan.SpotPrice, spotExec)
 
 	pos := BybitLivePosition{
 		Symbol:           plan.Symbol,
@@ -283,15 +306,20 @@ func (e *BybitLiveExecutor) OpenDeltaNeutral(ctx context.Context, plan BybitOpen
 		OpenedAt:         e.now(),
 		RunID:            runID,
 		IdemPrefix:       idemPrefix,
+		Negative:         plan.Negative,
 		OpenPerpFee:      perpExec.Fee,
 		OpenPerpFeeAsset: perpExec.FeeAsset,
 		OpenSpotFee:      spotExec.Fee,
 		OpenSpotFeeAsset: spotExec.FeeAsset,
 	}
-	e.logf("[bybit-live][开仓] %s 永续空 %.6f@%.6f(名义%.4fU 实扣费%.6f%s 滑点%.4f%%) + 现货多 %.6f@%.6f(名义%.4fU 实扣费%.6f%s 滑点%.4f%%) 预估费率%.4f%% 结算%s",
+	perpLabel, spotLabel := "永续空", "现货多"
+	if plan.Negative {
+		perpLabel, spotLabel = "永续多", "借币空现货"
+	}
+	e.logf("[bybit-live][开仓] %s %s %.6f@%.6f(名义%.4fU 实扣费%.6f%s 滑点%.4f%%) + %s %.6f@%.6f(名义%.4fU 实扣费%.6f%s 滑点%.4f%%) 预估费率%.4f%% 结算%s",
 		pos.Symbol,
-		perpExec.ExecutedQty, perpExec.AvgPrice, perpExec.CumQuoteUSDT, perpExec.Fee, perpExec.FeeAsset, directionalSlippageRate(venue.SideSell, perpExec.AvgPrice, plan.PerpPrice)*100,
-		spotExec.ExecutedQty, spotExec.AvgPrice, spotExec.CumQuoteUSDT, spotExec.Fee, spotExec.FeeAsset, directionalSlippageRate(venue.SideBuy, spotExec.AvgPrice, plan.SpotPrice)*100,
+		perpLabel, perpExec.ExecutedQty, perpExec.AvgPrice, perpExec.CumQuoteUSDT, perpExec.Fee, perpExec.FeeAsset, directionalSlippageRate(perpOpenSide, perpExec.AvgPrice, plan.PerpPrice)*100,
+		spotLabel, spotExec.ExecutedQty, spotExec.AvgPrice, spotExec.CumQuoteUSDT, spotExec.Fee, spotExec.FeeAsset, directionalSlippageRate(spotOpenSide, spotExec.AvgPrice, plan.SpotPrice)*100,
 		pos.FundingRate*100, pos.NextFundingTime.UTC().Format("15:04:05Z"))
 	return pos, nil
 }
@@ -304,11 +332,15 @@ func (e *BybitLiveExecutor) CloseDeltaNeutral(ctx context.Context, pos BybitLive
 		return result, nil
 	}
 	var errs []string
-	// 永续买回(reduceOnly)。
+	// 永续平仓(reduceOnly):正 carry 买回空头;负 carry 卖出多头。
+	perpCloseSide := venue.SideBuy
+	if pos.Negative {
+		perpCloseSide = venue.SideSell
+	}
 	perpReq := venue.OrderRequest{
 		Market:        venue.MarketPerp,
 		Symbol:        pos.Symbol,
-		Side:          venue.SideBuy,
+		Side:          perpCloseSide,
 		Type:          venue.OrderTypeMarket,
 		Qty:           pos.BaseQty,
 		ClientOrderID: bybitLegClientID(pos.IdemPrefix, "cp"),
@@ -320,48 +352,102 @@ func (e *BybitLiveExecutor) CloseDeltaNeutral(ctx context.Context, pos BybitLive
 		result.PerpClosePrice = perpRes.AvgPrice
 		result.PerpCloseFee = perpRes.Fee
 		result.PerpFeeAsset = perpRes.FeeAsset
-		e.recordExecutionCost("close", "perp", venue.SideBuy, 0, perpRes)
+		e.recordExecutionCost("close", "perp", perpCloseSide, 0, perpRes)
 	}
-	// 现货卖出。Bybit 现货买入的 taker 费在 base 资产里扣,故实际持有的 base 略少于开仓名义 BaseQty。
-	// 若按 BaseQty 卖出会撞 -170131 "Insufficient balance" 并永久重试死循环(且永续腿已先平 → 留下裸现货多腿)。
-	// 因此按「真实可用余额(向下取整到现货 lot step)」卖出;查不到余额时回退到 BaseQty(保持原行为)。
-	spotSellQty := pos.BaseQty
-	if avail, step, ok := e.spotSellableQty(ctx, pos.Symbol); ok {
-		if avail < spotSellQty {
-			spotSellQty = avail
-		}
-		if step > 0 {
-			spotSellQty = roundDownToStep(spotSellQty, step)
-		}
-	}
-	if spotSellQty <= executionQtyTolerance {
-		// 现货已无可卖余额(已平/被吃光),视为现货腿已平,不再下单。
-		e.logf("[bybit-live][平仓] %s 现货可卖余额≈0,视为现货腿已平", pos.Symbol)
-	} else {
+	if pos.Negative {
+		// 负 carry 平现货腿:买回借入的 base 并还币(MarginEffect=Repay,UTA spot margin 自动还)。
+		// 买回数量取开仓借入量 pos.BaseQty(还清欠款);买入费在 quote(USDT)里扣,不存在「持有 base 不足」问题。
 		spotReq := venue.OrderRequest{
 			Market:        venue.MarketSpot,
 			Symbol:        pos.Symbol,
-			Side:          venue.SideSell,
+			Side:          venue.SideBuy,
 			Type:          venue.OrderTypeMarket,
-			Qty:           spotSellQty,
+			Qty:           pos.BaseQty,
 			ClientOrderID: bybitLegClientID(pos.IdemPrefix, "cs"),
+			MarginEffect:  venue.MarginEffectRepay,
 		}
 		if spotRes, err := e.placeAndConfirm(ctx, spotReq); err != nil {
-			errs = append(errs, "现货平仓失败: "+err.Error())
+			errs = append(errs, "现货买回还币失败: "+err.Error())
 		} else {
 			result.SpotClosePrice = spotRes.AvgPrice
 			result.SpotCloseFee = spotRes.Fee
 			result.SpotFeeAsset = spotRes.FeeAsset
 			result.SpotSoldQty = spotRes.ExecutedQty
-			e.recordExecutionCost("close", "spot", venue.SideSell, 0, spotRes)
+			e.recordExecutionCost("close", "spot", venue.SideBuy, 0, spotRes)
+		}
+	} else {
+		// 正 carry 平现货腿:卖出持有的 base。Bybit 现货买入的 taker 费在 base 资产里扣,故实际持有的 base 略少于
+		// 开仓名义 BaseQty。若按 BaseQty 卖出会撞 -170131 "Insufficient balance" 死循环(且永续腿已先平 → 裸现货多腿)。
+		// 因此按「真实可用余额(向下取整到现货 lot step)」卖出;查不到余额时回退到 BaseQty(保持原行为)。
+		spotSellQty := pos.BaseQty
+		if avail, step, ok := e.spotSellableQty(ctx, pos.Symbol); ok {
+			if avail < spotSellQty {
+				spotSellQty = avail
+			}
+			if step > 0 {
+				spotSellQty = roundDownToStep(spotSellQty, step)
+			}
+		}
+		if spotSellQty <= executionQtyTolerance {
+			// 现货已无可卖余额(已平/被吃光),视为现货腿已平,不再下单。
+			e.logf("[bybit-live][平仓] %s 现货可卖余额≈0,视为现货腿已平", pos.Symbol)
+		} else {
+			spotReq := venue.OrderRequest{
+				Market:        venue.MarketSpot,
+				Symbol:        pos.Symbol,
+				Side:          venue.SideSell,
+				Type:          venue.OrderTypeMarket,
+				Qty:           spotSellQty,
+				ClientOrderID: bybitLegClientID(pos.IdemPrefix, "cs"),
+			}
+			if spotRes, err := e.placeAndConfirm(ctx, spotReq); err != nil {
+				errs = append(errs, "现货平仓失败: "+err.Error())
+			} else {
+				result.SpotClosePrice = spotRes.AvgPrice
+				result.SpotCloseFee = spotRes.Fee
+				result.SpotFeeAsset = spotRes.FeeAsset
+				result.SpotSoldQty = spotRes.ExecutedQty
+				e.recordExecutionCost("close", "spot", venue.SideSell, 0, spotRes)
+			}
 		}
 	}
 	if len(errs) > 0 {
 		return result, fmt.Errorf("平仓未完全成交(%s): %s", pos.Symbol, strings.Join(errs, "; "))
 	}
-	e.logf("[bybit-live][平仓] %s 永续买回@%.6f(实扣费%.6f%s) + 现货卖出 %.6f@%.6f(实扣费%.6f%s) 已双边平",
-		pos.Symbol, result.PerpClosePrice, result.PerpCloseFee, result.PerpFeeAsset,
-		result.SpotSoldQty, result.SpotClosePrice, result.SpotCloseFee, result.SpotFeeAsset)
+	// 真实实现盈亏(尽力):真实资金费(查流水)+ 两腿价差盈亏 − 真实手续费(折 USDT)。
+	// 查不到资金费流水时 FundingOK=false,调用方退回估算口径(失败方向偏保守:只是显示估算,不影响交易)。
+	if incomes, ferr := e.trader.FetchRealizedFunding(ctx, pos.Symbol, pos.OpenedAt); ferr == nil {
+		for _, in := range incomes {
+			result.RealFunding += in.Income
+		}
+		result.FundingOK = true
+	} else {
+		e.logf("[bybit-live][平仓] %s 资金费流水查询失败(实现盈亏退回估算): %v", pos.Symbol, ferr)
+	}
+	// 价差盈亏按方向取符号:正 carry=现货多(收盘-开仓)+ 永续空(开仓-收盘);负 carry 两腿方向相反。
+	var spotPnl, perpPnl float64
+	if pos.Negative {
+		spotPnl = (pos.SpotEntryPrice - result.SpotClosePrice) * result.SpotSoldQty // 现货空头价差(借币卖→买回)
+		perpPnl = (result.PerpClosePrice - pos.PerpEntryPrice) * pos.BaseQty         // 永续多头价差
+	} else {
+		spotPnl = (result.SpotClosePrice - pos.SpotEntryPrice) * result.SpotSoldQty // 现货多头价差
+		perpPnl = (pos.PerpEntryPrice - result.PerpClosePrice) * pos.BaseQty        // 永续空头价差
+	}
+	result.PricePnL = spotPnl + perpPnl
+	openSpotFeeUSDT := pos.OpenSpotFee // 现货买入费多以 base 币计,折 USDT
+	if strings.EqualFold(pos.OpenSpotFeeAsset, baseAssetOf(string(pos.Symbol))) && pos.SpotEntryPrice > 0 {
+		openSpotFeeUSDT = pos.OpenSpotFee * pos.SpotEntryPrice
+	}
+	result.TotalFeesUSDT = pos.OpenPerpFee + openSpotFeeUSDT + result.PerpCloseFee + result.SpotCloseFee
+	result.RealizedPnL = result.PricePnL + result.RealFunding - result.TotalFeesUSDT
+	perpCloseLabel, spotCloseLabel := "永续买回", "现货卖出"
+	if pos.Negative {
+		perpCloseLabel, spotCloseLabel = "永续卖出", "现货买回还币"
+	}
+	e.logf("[bybit-live][平仓] %s %s@%.6f(实扣费%.6f%s) + %s %.6f@%.6f(实扣费%.6f%s) | 真实资金费%.6f(查到=%t) 价差盈亏%.6f 总费%.6fU → 实现盈亏%.6fU 已双边平",
+		pos.Symbol, perpCloseLabel, result.PerpClosePrice, result.PerpCloseFee, result.PerpFeeAsset,
+		spotCloseLabel, result.SpotSoldQty, result.SpotClosePrice, result.SpotCloseFee, result.SpotFeeAsset,
+		result.RealFunding, result.FundingOK, result.PricePnL, result.TotalFeesUSDT, result.RealizedPnL)
 	return result, nil
 }
 

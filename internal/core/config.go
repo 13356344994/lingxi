@@ -281,6 +281,11 @@ type RiskConfig struct {
 	// 判活可靠)为准驱动状态机——降级(degraded)即暂停本轮开新仓;持续失明(blind 超过宽限)即对托管敞口
 	// 保守撤离(panic flatten 双腿平仓 + 平台熔断进入冷却,冷却结束自动恢复)。默认 false(opt-in,零行为变更)。
 	FeedBlindnessGuardEnabled bool `cfg:"feed_blindness_guard_enabled"`
+	// PanicFlattenHardStopEnabled 启用后:实时浮亏 panic-flatten 触发并完成双腿收敛后,引擎**永久硬停机**
+	// (主循环 checkLiveSafetyGuards 返回 fatalEngineError),要求人工核对账户/原因后重启——而非默认的「平台熔断
+	// 冷却结束自动复活继续交易」。出过一次实时浮亏急平这种严重事件后,停下等人确认更稳妥。
+	// 默认 false(opt-in,零行为变更:保持熔断冷却自动复活)。⚠️ 数据采集姿态下若希望无人值守持续运行,保持 false。
+	PanicFlattenHardStopEnabled bool `cfg:"panic_flatten_hard_stop_enabled"`
 	// ConservativeFundingOnSignConflictEnabled 修正资金费估计在「符号冲突」时退回乐观值的隐患(R7):
 	// 当前向估计(premium + interestRate)与上期实收 lastFundingRate 严格反号时,意味着资金费正在反转——
 	// 旧逻辑此时把估计退回 lastFundingRate(旧方向、可能过度乐观),恰好在最危险时刻按旧方向开仓。
@@ -525,6 +530,10 @@ type BybitExecutorConfig struct {
 	RollEnabled bool `cfg:"roll_enabled"`
 	// MaxHoldSettlements 滚动持有最多跨越的结算次数(含首次)。RollEnabled 时生效;≤1 等价于不滚动。默认 1。
 	MaxHoldSettlements int `cfg:"max_hold_settlements"`
+	// EnableNegativeCarry 开启后,除正费率外也吃【负费率】标的:多永续(收负费率)+ 借币做空现货(UTA spot margin)。
+	// 默认 false=仅正 carry(零行为变更)。⚠️ 依赖统一账户已开通现货杠杆借币;借不到的现货卖单由执行器回补永续兜底
+	// (绝不裸腿)。首次启用务必先 testnet / 极小额验证借币空现货能成交并能买回还币。
+	EnableNegativeCarry bool `cfg:"enable_negative_carry"`
 }
 
 // ApplyProfile 根据给定的运行档案，覆写当前配置的关键风控和容量参数
