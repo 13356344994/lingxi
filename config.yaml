@@ -18,8 +18,8 @@ strategy:
   #   注意:币安有写死的硬约束 MinNetProfitRate>0 + FeeReserveRate>0,无法像 Bybit 设负门,所以「费率>0 就开」
   #   实际有效地板 ≈ fee_reserve(0.00001)+min_net(0.0001)+实测两腿价差 ≈ 资金费 >0.01%~0.02% 才开(这是硬约束下的最低)。
   # 【对齐真实余额,O-5】单标的单腿配额(默认 100 → 45):preflight 资金要求 = max(max_cycle_open_notional, 本值×2)。
-  #   币安总可调 ~99U,默认 100×2=200/300 会拒启;45×2=90 留 ~9U 余量给手续费与波动。资金加仓后调回。
-  per_symbol_quote_usdt: 45
+  #   币安总可调 ~99U,默认 100×2=200/300 会拒启;30×2=60:实测可调随 ENA/TAO 残腿负债在 75~99U 间波动,留足缓冲。资金加仓后调回。
+  per_symbol_quote_usdt: 30
   # 往返手续费预留:压到 1e-5(逼近 0,校验要求 >0)。真实四腿 taker 费仍会真实扣到余额,这里只是不再据它挡单。
   fee_reserve_rate: 0.00001
   # 退出价差预留压到 0(允许 ≥0)。
@@ -49,9 +49,9 @@ strategy:
   favorable_basis_max_rate: 0.10
 
 risk:
-  # 【对齐真实余额,O-5】单周期开仓名义上限(默认 300 → 90):与 per_symbol_quote_usdt×2 同步,
+  # 【对齐真实余额,O-5】单周期开仓名义上限(默认 300 → 60):与 per_symbol_quote_usdt×2 同步(60),
   #   否则 preflight 按默认 300 对照 ~99U 真实余额直接拒启(日志已三连实锤)。资金加仓后调回。
-  max_cycle_open_notional_usdt: 90
+  max_cycle_open_notional_usdt: 60
   # 【理论不赔即进】净利门降到极小正值 0.0001(0.01%):成本后净利只要 >0 就放行,不再要求 0.05% 利润。
   #   受核心硬约束 MinNetProfitRate>0 限制无法设 0,0.0001 是逼近「理论不赔」的实际最小值。
   #   ⚠️ 含义:进场后下一结算点赚的概率更大(资金费已确定方向),这是用「零利润缓冲」换「能开出单」。
