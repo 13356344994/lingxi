@@ -10,12 +10,14 @@ import (
 // stubVenue 是一个最小 Venue 实现,只用于验证接口可被满足 + 注册表往返。
 type stubVenue struct{ name string }
 
-func (s stubVenue) Name() string                { return s.name }
-func (s stubVenue) Capabilities() Capabilities  { return Capabilities{SupportsNegativeCarry: true} }
-func (s stubVenue) ToVenue(c Symbol, m Market) (string, error)   { return string(c), nil }
-func (s stubVenue) ToCanonical(raw string, m Market) (Symbol, error) { return Symbol(raw), nil }
+func (s stubVenue) Name() string                                               { return s.name }
+func (s stubVenue) Capabilities() Capabilities                                 { return Capabilities{SupportsNegativeCarry: true} }
+func (s stubVenue) ToVenue(c Symbol, m Market) (string, error)                 { return string(c), nil }
+func (s stubVenue) ToCanonical(raw string, m Market) (Symbol, error)           { return Symbol(raw), nil }
 func (s stubVenue) FetchInstruments(ctx context.Context) ([]Instrument, error) { return nil, nil }
-func (s stubVenue) FetchFundingSnapshot(ctx context.Context) ([]FundingSnapshot, error) { return nil, nil }
+func (s stubVenue) FetchFundingSnapshot(ctx context.Context) ([]FundingSnapshot, error) {
+	return nil, nil
+}
 func (s stubVenue) FetchBookTicker(ctx context.Context, m Market, sym Symbol) (BookTicker, error) {
 	return BookTicker{}, nil
 }
@@ -26,8 +28,8 @@ func (s stubVenue) FetchOpenInterest(ctx context.Context, sym Symbol) (float64, 
 func (s stubVenue) FetchRecentQuoteVolume(ctx context.Context, m Market, sym Symbol, w time.Duration) (float64, error) {
 	return 0, nil
 }
-func (s stubVenue) ServerTime(ctx context.Context) (time.Time, error) { return time.Time{}, nil }
-func (s stubVenue) FetchBalances(ctx context.Context) (Balances, error) { return Balances{}, nil }
+func (s stubVenue) ServerTime(ctx context.Context) (time.Time, error)      { return time.Time{}, nil }
+func (s stubVenue) FetchBalances(ctx context.Context) (Balances, error)    { return Balances{}, nil }
 func (s stubVenue) FetchPositions(ctx context.Context) ([]Position, error) { return nil, nil }
 func (s stubVenue) FetchTradingCostProfile(ctx context.Context, syms []Symbol) (CostProfile, error) {
 	return CostProfile{}, nil
@@ -47,11 +49,13 @@ func (s stubVenue) PlaceOrder(ctx context.Context, req OrderRequest) (OrderResul
 func (s stubVenue) PlaceBatch(ctx context.Context, reqs []OrderRequest) ([]OrderResult, error) {
 	return nil, nil
 }
-func (s stubVenue) CancelOrder(ctx context.Context, m Market, sym Symbol, id string) error { return nil }
+func (s stubVenue) CancelOrder(ctx context.Context, m Market, sym Symbol, id string) error {
+	return nil
+}
 func (s stubVenue) QueryOrder(ctx context.Context, m Market, sym Symbol, id string) (OrderResult, error) {
 	return OrderResult{}, nil
 }
-func (s stubVenue) SetLeverage(ctx context.Context, sym Symbol, lev int) error  { return nil }
+func (s stubVenue) SetLeverage(ctx context.Context, sym Symbol, lev int) error           { return nil }
 func (s stubVenue) SetMarginMode(ctx context.Context, sym Symbol, mode MarginMode) error { return nil }
 func (s stubVenue) BorrowRepay(ctx context.Context, asset string, amt float64, dir BorrowDir) error {
 	return ErrUnsupported
@@ -69,10 +73,12 @@ func (s stubVenue) StreamDepth(ctx context.Context, syms []Symbol) (<-chan Depth
 	return nil, nil
 }
 func (s stubVenue) StreamUserData(ctx context.Context) (<-chan UserEvent, error) { return nil, nil }
-func (s stubVenue) Classify(err error) (string, string)                         { return "request_error", "minor" }
+func (s stubVenue) Classify(err error) (string, string)                          { return "request_error", "minor" }
 func (s stubVenue) ReserveOrderBudget(units int) bool                            { return true }
 func (s stubVenue) ReleaseOrderBudget(units int)                                 {}
-func (s stubVenue) ArmDeadMansSwitch(ctx context.Context, c time.Duration) error { return ErrUnsupported }
+func (s stubVenue) ArmDeadMansSwitch(ctx context.Context, c time.Duration) error {
+	return ErrUnsupported
+}
 func (s stubVenue) CaptureMovableSnapshot(ctx context.Context) ([]WalletSnapshot, float64, error) {
 	return nil, 0, nil
 }

@@ -74,6 +74,8 @@ type bybitCloseResult struct {
 	// 真实实现盈亏(尽力):RealFunding=真实收到资金费(查流水);PricePnL=两腿价差盈亏;
 	// TotalFeesUSDT=开+平真实手续费折 USDT;RealizedPnL=PricePnL+RealFunding−TotalFeesUSDT。FundingOK=资金费流水是否查到。
 	RealFunding   float64
+	SpotPricePnL  float64
+	PerpPricePnL  float64
 	PricePnL      float64
 	TotalFeesUSDT float64
 	RealizedPnL   float64
@@ -474,11 +476,13 @@ func (e *BybitLiveExecutor) CloseDeltaNeutral(ctx context.Context, pos BybitLive
 	var spotPnl, perpPnl float64
 	if pos.Negative {
 		spotPnl = (pos.SpotEntryPrice - result.SpotClosePrice) * result.SpotSoldQty // 现货空头价差(借币卖→买回)
-		perpPnl = (result.PerpClosePrice - pos.PerpEntryPrice) * pos.BaseQty         // 永续多头价差
+		perpPnl = (result.PerpClosePrice - pos.PerpEntryPrice) * pos.BaseQty        // 永续多头价差
 	} else {
 		spotPnl = (result.SpotClosePrice - pos.SpotEntryPrice) * result.SpotSoldQty // 现货多头价差
 		perpPnl = (pos.PerpEntryPrice - result.PerpClosePrice) * pos.BaseQty        // 永续空头价差
 	}
+	result.SpotPricePnL = spotPnl
+	result.PerpPricePnL = perpPnl
 	result.PricePnL = spotPnl + perpPnl
 	openSpotFeeUSDT := pos.OpenSpotFee // 现货买入费多以 base 币计,折 USDT
 	if strings.EqualFold(pos.OpenSpotFeeAsset, baseAssetOf(string(pos.Symbol))) && pos.SpotEntryPrice > 0 {

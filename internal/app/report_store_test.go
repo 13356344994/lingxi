@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -517,5 +518,39 @@ func TestExecutionIncidentRecordDomainEvent(t *testing.T) {
 	}
 	if event.RunID != "run-1" || event.CycleID != "cycle-1" {
 		t.Fatalf("unexpected trace ids: %+v", event)
+	}
+}
+
+// TestCompactJSONLByOccurredAtCompactsDomainEvents 钉死 domain_events.jsonl 的压缩:
+// DomainEvent 落盘只有 OccurredAt(无 recorded_at),修复前压缩永不生效 → 文件无限增长,
+// 且超过体积阈值后每次追加都全量重写再丢弃。
+func TestCompactJSONLByOccurredAtCompactsDomainEvents(t *testing.T) {
+	path := filepath.Join(t.TempDir(), domainEventJSONLName)
+	now := time.Now().UTC()
+	events := []DomainEvent{
+		{Type: "stage_transition", Level: "info", OccurredAt: now.Add(-13 * time.Hour), RunID: "r1", Protocol: "RuntimeController", Stage: LifecycleStageReady, Successful: true, Reason: "old"},
+		{Type: "stage_transition", Level: "info", OccurredAt: now.Add(-time.Hour), RunID: "r1", Protocol: "RuntimeController", Stage: LifecycleStageReady, Successful: true, Reason: "recent"},
+	}
+	if err := appendJSONLRecords(path, events); err != nil {
+		t.Fatalf("appendJSONLRecords() error = %v", err)
+	}
+
+	compacted, err := compactJSONLByRecordedAt(path, now, 12*time.Hour, 1)
+	if err != nil {
+		t.Fatalf("compactJSONLByRecordedAt() error = %v", err)
+	}
+	if !compacted {
+		t.Fatal("domain_events(OccurredAt 口径)必须可被压缩")
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("读取压缩后文件失败: %v", err)
+	}
+	content := string(data)
+	if strings.Contains(content, `"Reason":"old"`) {
+		t.Fatal("超过保留期的事件应被裁剪")
+	}
+	if !strings.Contains(content, `"Reason":"recent"`) {
+		t.Fatal("保留期内的事件不应被裁剪")
 	}
 }

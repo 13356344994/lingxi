@@ -7,7 +7,7 @@
 
 ## 一、一句话定位
 
-`lingxi` 是一个用 **Go** 写的**单体（monolith）币安（Binance）资金费率套利交易系统**，覆盖「机会筛选 → 对冲开仓 → 持仓监控 → 资金费结算 → 平仓 → 对账」的完整闭环，并自带本地 Web 控制面板、历史回测与多档运行模式。
+`lingxi` 是一个用 **Go** 写的**资金费率套利交易系统**:**Binance 全引擎(单体)+ Bybit 独立精简执行器 + Orchestrator 多所编排**,覆盖「机会筛选 → 对冲开仓 → 持仓监控 → 资金费结算 → 平仓 → 对账」的完整闭环,并自带本地 Web 控制面板(venue 切换)、历史回测与多档运行模式。多所架构详见 `MULTI_VENUE_REFACTOR.md`。
 
 ### 策略本质：delta 中性的资金费率套利（funding carry）
 - **正向 carry**：现货买入 + 合约做空，吃**正**资金费率。
@@ -23,26 +23,27 @@
 |---|---|
 | 语言 | Go（`go.mod` 要求 **go 1.25.3**） |
 | 外部依赖 | 仅 2 个：`github.com/gorilla/websocket`（WS 行情/用户数据流）、`gopkg.in/yaml.v3`（配置/密钥解析） |
-| 代码规模 | 总计约 **56,000 行 Go**；140 个源文件 + 94 个测试文件 |
-| 交易所接口 | Binance 现货 + U 本位合约 REST + WebSocket（行情、用户数据流、下单回报） |
+| 代码规模 | 总计约 **68,000 行 Go**；304 个 `.go` 文件（其中 127 个测试文件） |
+| 交易所接口 | Binance 现货 + U 本位合约 REST + WebSocket（行情、用户数据流、下单回报）；Bybit v5 统一账户 REST（`internal/venue/bybit/`，现货+永续 delta 中性执行器） |
 | 持久化 | 本地文件：JSON / JSONL（append-only 事实源 + 物化视图），无外部数据库 |
 | 部署 | Linux（CentOS/AlmaLinux）+ systemd 守护 + 外部 watchdog；当前部署在东京 VPS 降低对币安的网络延迟 |
 | 可观测性 | 本地 Web 面板、Prometheus `/metrics`、`/livez` `/healthz` 探针、心跳文件、Telegram 告警 |
 | 工程工具 | `Makefile`（fmt/vet/test/race/cover/build/vuln）、GitHub Actions CI（`.github/workflows/ci.yml`，含 `govulncheck`） |
 
-> 设计哲学值得评估者注意：**几乎零第三方依赖**（连 HTTP 客户端、限频、记账、回测、面板都是手写），换来可控性与可审计性，代价是自制轮子的维护负担（如自制配置解析器，见局限 R17）。
+> 设计哲学值得评估者注意：**几乎零第三方依赖**（连 HTTP 客户端、限频、记账、回测、面板都是手写），换来可控性与可审计性，代价是自制轮子的维护负担。主配置已是真 YAML（`yaml.v3` + 反射自动绑定），README 旧 R17「自制扁平解析器」描述已过时。
 
 ---
 
 ## 三、系统架构：分部分拆解 + 每部分用到的技术
 
-进程是单体 Go 应用，核心是一个大型引擎对象 `FundingRateSniperEngine`，周边由**可独立单测的边界包**支撑。代码量分布如下：
+进程是单体 Go 应用，核心是一个大型引擎对象 `FundingRateSniperEngine`(Binance),另有 Bybit 独立执行器与 Orchestrator 编排。代码量分布如下：
 
 | 包 | 约 LOC | 职责 |
 |---|---|---|
-| `internal/app` | 48,243 | 交易主引擎、协议、风控、面板、回测（系统主体） |
-| `internal/exchange` | 3,183 | **唯一摸网络的包**：币安 REST/WS 客户端、限频、缓存 |
-| `internal/core` | 1,795 | 配置内核 `EngineConfig` + 默认值 + 校验 |
+| `internal/app` | 56,010 | 交易主引擎、协议、风控、面板、回测、Bybit 执行器（`bybit_*.go`）、多所编排（`orchestrator.go`） |
+| `internal/venue` | 3,615 | 多所适配层：`venue` 抽象 + `binance/` 适配 + `bybit/` v5 客户端（行情/交易/资金/对账） |
+| `internal/exchange` | 3,248 | Binance REST/WS 客户端、限频、缓存 |
+| `internal/core` | 1,921 | 配置内核 `EngineConfig` + 默认值 + 校验 + `venues:` 多所配置 |
 | `internal/store` | 763 | 记录存储、JSON/JSONL 编解码与迁移 |
 | `internal/reconcile` | 288 | 只读对账内核 |
 | `internal/metrics` | 287 | 指标 |
@@ -57,7 +58,8 @@
 ### 3.1 入口与编排
 - `cmd/lingxi/main.go`：进程入口薄壳，信号处理 + 根 context。
 - `internal/app/run.go`：按运行模式（实盘 / 回测 / 对账 / 影子）装配依赖。
-- `internal/app/funding_sniper_engine.go`（1022 行，最大文件）：主引擎编排核心（扫描→评估→开仓→监控→结算→平仓总调度）。
+- `internal/app/funding_sniper_engine.go`（约 1081 行，最大文件）：主引擎编排核心（扫描→评估→开仓→监控→结算→平仓总调度）。
+- `internal/app/orchestrator.go` + `internal/app/bybit_runtime.go`：多所编排与 Bybit 执行循环（独立 `records/bybit/` 记录目录）。
 - `internal/app/runtime_controller.go`：运行期控制器（启停、参数热调整、控制审计）。
 - **技术**：Go context 取消传播、`sync.Once`/atomic/多把分域锁、`defer` 优雅停机 + panic 恢复转受控关停。
 
@@ -167,14 +169,14 @@
 - 文档诚实度高：`README.md` 用「以代码现实为准」的姿态逐条标注「文档承诺 > 代码现实」的缺口，并给出严重度分级（🔴致命/🟠重大/🟡一般）与优化路线图。
 - CI 完整：fmt → vet → test → race → cover → build → govulncheck。
 
-**已知局限（README 自评，节选高严重度）**
-- 🔴 R2：缺「开仓前爆仓距离校验」（仅有保证金充足性检查）。
-- 🔴 R3：panic-flatten 只看合约腿浮亏，对现货腿盲、无单腿强平/ADL 检测。
-- 🔴 R4：`serverTimeOffset` 等存在数据竞争（`make race` 预期命中）。
+**已知局限（节选高严重度,2026-06 校订后口径）**
+- ✅ R2/R4/R11/R12/R17/R20/R24 已修复（强平距离闸、atomic 时钟偏移、config.yaml、首错取消、真 YAML、Run 返回 error、配置自动绑定），详见 README §十二。
+- ⚠️ R3：强平/ADL 检测代码已写,但被币安 WS 字段解析 bug 打断,当前实际不生效（见 `PROJECT_AUDIT.md` C-1）。
 - 🔴 R14：单体进程无热备/外部 Kill Switch，物理断连即裸奔（放大资金前的最大黑天鹅）。
 - 🔴 R26：API Key 硬化（关提现权限 + IP 白名单）未由代码强制。
 - 🟠 R13/R15：缺 TWAP/VWAP/冰山等平滑执行；回测微观失真、纸面阈值偏乐观。
-- 🟡 R10/R11/R17/R21：上帝对象、配置硬编码、自制非真 YAML 解析器、引擎状态面过大。
+- 🟡 R10/R21：上帝对象、引擎状态面过大（结构性债,仍真实存在）。
+- 🟠 新发现问题以 `PROJECT_AUDIT.md`（2026-06-10 审计）为准:WS 字段覆盖(C-1)、domain_events 压缩失效(C-2)、Bybit 数据/健壮性缺口(C-3~C-6)等。
 
 > 说明：部分上述条目（如 R7 撞限相关）已在近期迭代中部分缓解，详见 `README.md` 第十二节与本文件 §七。
 
@@ -189,8 +191,8 @@
 3. 看 `internal/app/funding_sniper_engine.go`：主循环编排骨架。
 4. 看 `internal/money/`：定点记账，判断金融正确性姿态。
 5. 看 `internal/exchange/client.go`：网络治理（限频/回退/used-weight）。
-6. 跑 `make check`（fmt+vet+test+build）与 `make race`（验证 R4 数据竞争现状）。
-7. 部署/运维看 `DEPLOY_HANDOFF.md` 与 `deploy/RUNBOOK.md`。
+6. 跑 `make check`（fmt+vet+test+build）与 `make race`。
+7. 部署/运维看 `deploy/RUNBOOK.md`；多所架构看 `MULTI_VENUE_REFACTOR.md`；最新问题清单看 `PROJECT_AUDIT.md`。
 
 ---
 
@@ -199,7 +201,7 @@
 | 用途 | 路径 |
 |---|---|
 | 项目说明（最权威、最详尽） | `README.md` |
-| 部署交接 | `DEPLOY_HANDOFF.md` |
+| 部署运维 | `deploy/RUNBOOK.md`(旧 `DEPLOY_HANDOFF.md` 因快照严重过时已删除) |
 | 优化计划 | `IMPROVEMENT_PLAN.md` |
 | 事故运行手册 | `deploy/RUNBOOK.md` |
 | 进程入口 | `cmd/lingxi/main.go` |

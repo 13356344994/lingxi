@@ -417,19 +417,26 @@ func (e *FundingRateSniperEngine) processSpotStyleUserDataEvent(
 	onBalances func(map[string]float64),
 	parseErrLabel string,
 ) (bool, error) {
+	// 注意:必须显式声明 Side("S")/OrigClientOrderID("C")/Ignore("I")等大写键。
+	// encoding/json 对未声明的键做大小写不敏感回退匹配,executionReport 里 "S"/"C"/"I"
+	// 分别出现在 "s"/"c"/"i" 之后,若不声明会把 Symbol 覆盖成方向、ClientOrderID 清空
+	// (导致所有现货回报被当作非托管单丢弃)、OrderID 写入垃圾值。
 	var event struct {
-		EventType       string `json:"e"`
-		EventTime       int64  `json:"E"`
-		Symbol          string `json:"s"`
-		ClientOrderID   string `json:"c"`
-		Status          string `json:"X"`
-		ExecutionType   string `json:"x"`
-		OrderID         int64  `json:"i"`
-		CumFilledQty    string `json:"z"`
-		CumQuoteQty     string `json:"Z"`
-		LastCommission  string `json:"n"`
-		CommissionAsset string `json:"N"`
-		Balances        []struct {
+		EventType         string `json:"e"`
+		EventTime         int64  `json:"E"`
+		Symbol            string `json:"s"`
+		ClientOrderID     string `json:"c"`
+		Side              string `json:"S"`
+		OrigClientOrderID string `json:"C"`
+		Status            string `json:"X"`
+		ExecutionType     string `json:"x"`
+		OrderID           int64  `json:"i"`
+		Ignore            int64  `json:"I"`
+		CumFilledQty      string `json:"z"`
+		CumQuoteQty       string `json:"Z"`
+		LastCommission    string `json:"n"`
+		CommissionAsset   string `json:"N"`
+		Balances          []struct {
 			Asset string `json:"a"`
 			Free  string `json:"f"`
 			Lock  string `json:"l"`
@@ -451,7 +458,13 @@ func (e *FundingRateSniperEngine) processSpotStyleUserDataEvent(
 		}
 		return false, nil
 	}
-	if !isManagedClientOrderID(event.ClientOrderID) {
+	// 撤单类回报里 "c" 是撤单请求 ID、"C" 才是原订单 ID;事件按原订单归属,
+	// 让等待原 clientOrderID 的 hub 等待者能看到终态。
+	effectiveClientOrderID := event.ClientOrderID
+	if trimmed := strings.TrimSpace(event.OrigClientOrderID); trimmed != "" && trimmed != "null" {
+		effectiveClientOrderID = trimmed
+	}
+	if !isManagedClientOrderID(effectiveClientOrderID) {
 		return false, nil
 	}
 	if hub == nil {
@@ -461,7 +474,7 @@ func (e *FundingRateSniperEngine) processSpotStyleUserDataEvent(
 	snapshot := OrderExecutionSnapshot{
 		Market:          market,
 		Symbol:          event.Symbol,
-		ClientOrderID:   event.ClientOrderID,
+		ClientOrderID:   effectiveClientOrderID,
 		OrderID:         event.OrderID,
 		Status:          event.Status,
 		ExecutionType:   event.ExecutionType,
@@ -494,90 +507,103 @@ func (e *FundingRateSniperEngine) consumeFuturesUserDataMessages(ctx context.Con
 		// 不能用"距上次账户更新"判活，连接级帧才是真实连通性信号）。
 		e.noteFeedFrame(feedFuturesUser)
 
-		var envelope struct {
-			EventType string `json:"e"`
-			EventTime int64  `json:"E"`
-			Account   struct {
-				Balances []struct {
-					Asset         string `json:"a"`
-					WalletBalance string `json:"wb"`
-				} `json:"B"`
-				Positions []struct {
-					Symbol           string `json:"s"`
-					PositionAmt      string `json:"pa"`
-					EntryPrice       string `json:"ep"`
-					UnrealizedProfit string `json:"up"`
-					MarkPrice        string `json:"mp"`
-				} `json:"P"`
-			} `json:"a"`
-			Order struct {
-				Symbol          string `json:"s"`
-				ClientOrderID   string `json:"c"`
-				Status          string `json:"X"`
-				ExecutionType   string `json:"x"`
-				OrderID         int64  `json:"i"`
-				CumFilledQty    string `json:"z"`
-				AvgPrice        string `json:"ap"`
-				Commission      string `json:"n"`
-				CommissionAsset string `json:"N"`
-				RealizedPnL     string `json:"rp"`
-			} `json:"o"`
+		if err := e.processFuturesUserDataEvent(payload); err != nil {
+			return err
 		}
-		if err := json.Unmarshal(payload, &envelope); err != nil {
-			return fmt.Errorf("解析合约用户流消息失败: %w", err)
-		}
-		if envelope.EventType != "ORDER_TRADE_UPDATE" {
-			if envelope.EventType == "ACCOUNT_UPDATE" {
-				walletUSDT := 0.0
-				for _, balance := range envelope.Account.Balances {
-					if strings.EqualFold(balance.Asset, "USDT") {
-						walletUSDT = parseFloat(balance.WalletBalance)
-						break
-					}
-				}
-				positions := make([]futuresRealtimePosition, 0, len(envelope.Account.Positions))
-				for _, position := range envelope.Account.Positions {
-					positions = append(positions, futuresRealtimePosition{
-						Symbol:           position.Symbol,
-						PositionAmt:      parseFloat(position.PositionAmt),
-						EntryPrice:       parseFloat(position.EntryPrice),
-						UnrealizedProfit: parseFloat(position.UnrealizedProfit),
-						MarkPrice:        parseFloat(position.MarkPrice),
-					})
-				}
-				e.noteFuturesAccountUpdate(walletUSDT, positions)
-			}
-			continue
-		}
-		// 交易所强平/ADL 检测必须先于「跳过非托管订单」：强平/ADL 单由交易所发起、clientOrderId 不在托管命名空间，
-		// 若不在此识别，单腿被强制平掉后另一腿会持续裸露而系统无感知(R3 单腿强平/ADL 盲区)。
-		if forced, kind := classifyFuturesForcedClosure(envelope.Order.ClientOrderID); forced {
-			e.handleFuturesForcedClosure(envelope.Order.Symbol, kind, envelope.Order.ClientOrderID)
-			continue
-		}
-		if !isManagedClientOrderID(envelope.Order.ClientOrderID) {
-			continue
-		}
-
-		snapshot := OrderExecutionSnapshot{
-			Market:          "futures",
-			Symbol:          envelope.Order.Symbol,
-			ClientOrderID:   envelope.Order.ClientOrderID,
-			OrderID:         envelope.Order.OrderID,
-			Status:          envelope.Order.Status,
-			ExecutionType:   envelope.Order.ExecutionType,
-			ExecutedQty:     parseFloat(envelope.Order.CumFilledQty),
-			AvgPrice:        parseFloat(envelope.Order.AvgPrice),
-			Commission:      parseFloat(envelope.Order.Commission),
-			CommissionAsset: envelope.Order.CommissionAsset,
-			RealizedPnL:     parseFloat(envelope.Order.RealizedPnL),
-			EventTime:       time.UnixMilli(envelope.EventTime),
-		}
-		if snapshot.ExecutedQty > 0 && snapshot.AvgPrice > 0 {
-			snapshot.CumQuoteQty = snapshot.ExecutedQty * snapshot.AvgPrice
-		}
-		e.futuresOrderHub.Update(snapshot)
 	}
+}
+
+// processFuturesUserDataEvent 解析并分发单条合约用户数据事件(ORDER_TRADE_UPDATE / ACCOUNT_UPDATE)。
+// 从 consumeFuturesUserDataMessages 拆出以便用真实报文做反序列化回归测试。
+func (e *FundingRateSniperEngine) processFuturesUserDataEvent(payload []byte) error {
+	var envelope struct {
+		EventType string `json:"e"`
+		EventTime int64  `json:"E"`
+		Account   struct {
+			Balances []struct {
+				Asset         string `json:"a"`
+				WalletBalance string `json:"wb"`
+			} `json:"B"`
+			Positions []struct {
+				Symbol           string `json:"s"`
+				PositionAmt      string `json:"pa"`
+				EntryPrice       string `json:"ep"`
+				UnrealizedProfit string `json:"up"`
+				MarkPrice        string `json:"mp"`
+			} `json:"P"`
+		} `json:"a"`
+		// 注意:必须显式声明 Side("S")。ORDER_TRADE_UPDATE 里 "S" 在 "s" 之后,
+		// encoding/json 大小写不敏感回退会把 Symbol 覆盖成 "BUY"/"SELL"
+		// (实锤:日志出现过 userTrades?symbol=BUY → Invalid symbol,且强平检测拿错 symbol)。
+		Order struct {
+			Symbol          string `json:"s"`
+			ClientOrderID   string `json:"c"`
+			Side            string `json:"S"`
+			Status          string `json:"X"`
+			ExecutionType   string `json:"x"`
+			OrderID         int64  `json:"i"`
+			CumFilledQty    string `json:"z"`
+			AvgPrice        string `json:"ap"`
+			Commission      string `json:"n"`
+			CommissionAsset string `json:"N"`
+			RealizedPnL     string `json:"rp"`
+		} `json:"o"`
+	}
+	if err := json.Unmarshal(payload, &envelope); err != nil {
+		return fmt.Errorf("解析合约用户流消息失败: %w", err)
+	}
+	if envelope.EventType != "ORDER_TRADE_UPDATE" {
+		if envelope.EventType == "ACCOUNT_UPDATE" {
+			walletUSDT := 0.0
+			for _, balance := range envelope.Account.Balances {
+				if strings.EqualFold(balance.Asset, "USDT") {
+					walletUSDT = parseFloat(balance.WalletBalance)
+					break
+				}
+			}
+			positions := make([]futuresRealtimePosition, 0, len(envelope.Account.Positions))
+			for _, position := range envelope.Account.Positions {
+				positions = append(positions, futuresRealtimePosition{
+					Symbol:           position.Symbol,
+					PositionAmt:      parseFloat(position.PositionAmt),
+					EntryPrice:       parseFloat(position.EntryPrice),
+					UnrealizedProfit: parseFloat(position.UnrealizedProfit),
+					MarkPrice:        parseFloat(position.MarkPrice),
+				})
+			}
+			e.noteFuturesAccountUpdate(walletUSDT, positions)
+		}
+		return nil
+	}
+	// 交易所强平/ADL 检测必须先于「跳过非托管订单」：强平/ADL 单由交易所发起、clientOrderId 不在托管命名空间，
+	// 若不在此识别，单腿被强制平掉后另一腿会持续裸露而系统无感知(R3 单腿强平/ADL 盲区)。
+	if forced, kind := classifyFuturesForcedClosure(envelope.Order.ClientOrderID); forced {
+		e.handleFuturesForcedClosure(envelope.Order.Symbol, kind, envelope.Order.ClientOrderID)
+		return nil
+	}
+	if !isManagedClientOrderID(envelope.Order.ClientOrderID) {
+		return nil
+	}
+
+	snapshot := OrderExecutionSnapshot{
+		Market:          "futures",
+		Symbol:          envelope.Order.Symbol,
+		ClientOrderID:   envelope.Order.ClientOrderID,
+		OrderID:         envelope.Order.OrderID,
+		Status:          envelope.Order.Status,
+		ExecutionType:   envelope.Order.ExecutionType,
+		ExecutedQty:     parseFloat(envelope.Order.CumFilledQty),
+		AvgPrice:        parseFloat(envelope.Order.AvgPrice),
+		Commission:      parseFloat(envelope.Order.Commission),
+		CommissionAsset: envelope.Order.CommissionAsset,
+		RealizedPnL:     parseFloat(envelope.Order.RealizedPnL),
+		EventTime:       time.UnixMilli(envelope.EventTime),
+	}
+	if snapshot.ExecutedQty > 0 && snapshot.AvgPrice > 0 {
+		snapshot.CumQuoteQty = snapshot.ExecutedQty * snapshot.AvgPrice
+	}
+	e.futuresOrderHub.Update(snapshot)
+	return nil
 }
 
 func (e *FundingRateSniperEngine) waitForSpotOrder(ctx context.Context, symbol string, clientOrderID string) (OrderExecutionSnapshot, bool) {

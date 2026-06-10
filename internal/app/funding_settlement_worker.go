@@ -71,7 +71,7 @@ func (e *FundingRateSniperEngine) processDuePendingFundingSettlements() error {
 	if err != nil {
 		return err
 	}
-	now := time.Now().UTC()
+	now := e.serverNow().UTC()
 	for _, record := range records {
 		// 已升级人工处置的记录不再自动重试(R34/S5-E),避免无限静默重试,待人工确认/清理。
 		if record.Escalated {
@@ -135,7 +135,7 @@ func (e *FundingRateSniperEngine) processPendingFundingSettlement(record Pending
 	if e == nil || e.reportStore == nil {
 		return nil
 	}
-	now := time.Now().UTC()
+	now := e.serverNow().UTC()
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
@@ -199,14 +199,13 @@ func (e *FundingRateSniperEngine) processPendingFundingSettlement(record Pending
 		return err
 	}
 	deltaFunding := updated.FundingIncome - record.Settlement.FundingIncome
-	if math.Abs(deltaFunding) > executionQtyTolerance {
-		if err := e.noteDailySettlement(deltaFunding); err != nil && e.logger != nil {
-			e.logger.Printf("异步资金费结算写入日内盈亏失败: %v", err)
-		}
+	if math.Abs(deltaFunding) <= executionQtyTolerance {
+		deltaFunding = 0
 	}
 	// funding 实收落袋后，updated.NetPnL 才是该周期的真实净利——此刻才能判定本周期是赚是亏。
 	// 连续亏损熔断必须挂在这里，而非平仓时(close 阶段净利还不含 funding，几乎必为负会误判)。
-	if err := e.noteCycleFinalSettlement(updated.NetPnL); err != nil && e.logger != nil {
+	// 日内盈亏增量与最终净利信号在同一临界区内原子推进(C-9),drawdown 不会读到半新半旧状态。
+	if err := e.noteCycleFinalSettlementWithDailyDelta(updated.NetPnL, deltaFunding); err != nil && e.logger != nil {
 		e.logger.Printf("连续亏损熔断复核触发停机: cycle=%s netPnL=%.6f err=%v", updated.CycleID, updated.NetPnL, err)
 	}
 	// funding 实收后真实净利已定,推送本周期收益通知(平仓时若 funding 仍 pending 则收益在此刻才通知)。

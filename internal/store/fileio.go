@@ -285,8 +285,7 @@ func CompactJSONLByRecordedAt(path string, now time.Time, retention time.Duratio
 		if err := json.Unmarshal([]byte(line), &row); err != nil {
 			return false, fmt.Errorf("解析 JSONL 记录失败: %w", err)
 		}
-		recordedAtText, _ := row["recorded_at"].(string)
-		recordedAt, ok := ParseCSVRecordedAt(recordedAtText)
+		recordedAt, ok := extractJSONLRecordTime(row)
 		if ok && recordedAt.Before(cutoff) {
 			compacted = true
 			continue
@@ -312,6 +311,20 @@ func CompactJSONLByRecordedAt(path string, now time.Time, retention time.Duratio
 	}
 	success = true
 	return true, nil
+}
+
+// extractJSONLRecordTime 从 JSONL 行提取记录时间。优先 recorded_at;兼容 domain_events 等
+// 只带 OccurredAt/occurred_at 的记录——此前压缩只认 recorded_at,导致 domain_events.jsonl
+// 永不裁剪且超过体积阈值后每次追加都全量重写再丢弃(O(N²) I/O,文件无限增长)。
+func extractJSONLRecordTime(row map[string]any) (time.Time, bool) {
+	// "at" 兼容 settlements_journal.jsonl 的事实源条目({"op","at","record"})。
+	for _, key := range []string{"recorded_at", "OccurredAt", "occurred_at", "at"} {
+		text, _ := row[key].(string)
+		if recordedAt, ok := ParseCSVRecordedAt(text); ok {
+			return recordedAt, true
+		}
+	}
+	return time.Time{}, false
 }
 
 // ClearJSONLFile 清空 JSONL 文件内容（保留文件本身）。

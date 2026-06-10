@@ -232,9 +232,9 @@ type RiskConfig struct {
 	// AutoResumeOpenHedges 开启后:带仓重启时,若交易所残留与本地台账核对为「**完整且平衡**的 delta-neutral 对冲」
 	// (两腿都在、各腿数量 ≈ 台账 HedgeQty,失衡在 HedgeImbalanceAbortRate 内),则自动重建持仓继续监控/平仓,
 	// 而非拒启等人工 flatten。任一腿缺失/失衡/数量对不上 → 仍拒启交人工处理(失败方向偏安全)。默认 true。
-	AutoResumeOpenHedges bool `cfg:"auto_resume_open_hedges"`
-	FundingIncomeDiffAlertUSDT  float64 `cfg:"funding_income_diff_alert_usdt"`
-	SettlementDiffAlertUSDT     float64 `cfg:"settlement_diff_alert_usdt"`
+	AutoResumeOpenHedges       bool    `cfg:"auto_resume_open_hedges"`
+	FundingIncomeDiffAlertUSDT float64 `cfg:"funding_income_diff_alert_usdt"`
+	SettlementDiffAlertUSDT    float64 `cfg:"settlement_diff_alert_usdt"`
 	// 对账(reconcile,只读工具)阈值。SettlementDiffRate 为单字段相对偏差上限(0~1):设置后相对差
 	// 成为「钱是否按模型比例赚到」的主信号,可抓出小名义大比例泄漏(R6)。SettlementTotalDiffAlertUSDT
 	// 为「全部已配对周期净利偏差绝对值之和」上限(<=0 关闭),用于抓系统性慢性泄漏。

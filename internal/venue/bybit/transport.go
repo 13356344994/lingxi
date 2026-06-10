@@ -21,6 +21,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -38,6 +39,9 @@ type transport struct {
 	apiSecret  string
 	recvWindow string
 	nowFn      func() time.Time // 可注入,便于测试固定时间戳
+	// timeOffsetMs 是「Bybit 服务器时间 − 本地时间」的毫秒偏移(SyncServerTime 写入,签名时间戳叠加)。
+	// 修 PROJECT_AUDIT C-5:此前签名直接用本地时钟,VPS 漂移超 recvWindow(5s)即全部签名请求被拒且无自愈。
+	timeOffsetMs atomic.Int64
 }
 
 func newTransport(baseURL, apiKey, apiSecret string) *transport {
@@ -75,6 +79,37 @@ func signaturePayload(timestamp, apiKey, recvWindow, queryString string) string 
 	return timestamp + apiKey + recvWindow + queryString
 }
 
+// signTimestampMs 返回签名用毫秒时间戳 = 本地时钟 + 已同步的服务器偏移。
+func (t *transport) signTimestampMs() string {
+	return strconv.FormatInt(t.nowFn().UTC().UnixMilli()+t.timeOffsetMs.Load(), 10)
+}
+
+// syncServerTime 拉 /v5/market/time 计算「服务器 − 本地」偏移(以请求中点近似),写入 timeOffsetMs
+// 供后续签名使用,并返回偏移量。失败不改动现有偏移。
+func (t *transport) syncServerTime(ctx context.Context) (time.Duration, error) {
+	var res struct {
+		TimeSecond string `json:"timeSecond"`
+		TimeNano   string `json:"timeNano"`
+	}
+	start := t.nowFn()
+	if err := t.do(ctx, "/v5/market/time", nil, false, &res); err != nil {
+		return 0, fmt.Errorf("bybit: 拉取服务器时间失败: %w", err)
+	}
+	rtt := t.nowFn().Sub(start)
+	serverMs := int64(0)
+	if nano, err := strconv.ParseInt(strings.TrimSpace(res.TimeNano), 10, 64); err == nil && nano > 0 {
+		serverMs = nano / int64(time.Millisecond)
+	} else if sec, err := strconv.ParseInt(strings.TrimSpace(res.TimeSecond), 10, 64); err == nil && sec > 0 {
+		serverMs = sec * 1000
+	} else {
+		return 0, fmt.Errorf("bybit: 服务器时间响应无法解析: timeSecond=%q timeNano=%q", res.TimeSecond, res.TimeNano)
+	}
+	localMidMs := start.Add(rtt / 2).UTC().UnixMilli()
+	offsetMs := serverMs - localMidMs
+	t.timeOffsetMs.Store(offsetMs)
+	return time.Duration(offsetMs) * time.Millisecond, nil
+}
+
 // publicGet 发公共 GET(无需签名),把 result 解进 out。
 func (t *transport) publicGet(ctx context.Context, path string, query url.Values, out any) error {
 	return t.do(ctx, path, query, false, out)
@@ -102,7 +137,7 @@ func (t *transport) signedPost(ctx context.Context, path string, reqBody any, ou
 		}
 		bodyBytes = b
 	}
-	ts := strconv.FormatInt(t.nowFn().UTC().UnixMilli(), 10)
+	ts := t.signTimestampMs()
 	sign := signString(t.apiSecret, signaturePayload(ts, t.apiKey, t.recvWindow, string(bodyBytes)))
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, t.baseURL+path, bytes.NewReader(bodyBytes))
@@ -144,7 +179,35 @@ func (t *transport) signedPost(ctx context.Context, path string, reqBody any, ou
 	return nil
 }
 
+// doGetMaxAttempts/doGetBackoff:GET 幂等,对瞬时故障(网络错误/5xx/限频 retCode=10006)做有限重试,
+// 修 PROJECT_AUDIT C-6:此前任何一次网络抖动都会让 manage 整轮跳过(平仓顺延一个 tick)。
+const (
+	doGetMaxAttempts = 3
+	doGetBackoff     = 300 * time.Millisecond
+)
+
 func (t *transport) do(ctx context.Context, path string, query url.Values, signed bool, out any) error {
+	var lastErr error
+	for attempt := 1; attempt <= doGetMaxAttempts; attempt++ {
+		retryable, err := t.doOnce(ctx, path, query, signed, out)
+		if err == nil {
+			return nil
+		}
+		lastErr = err
+		if !retryable || attempt == doGetMaxAttempts {
+			return err
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(doGetBackoff * time.Duration(attempt)):
+		}
+	}
+	return lastErr
+}
+
+// doOnce 单次 GET。返回 (是否可安全重试, 错误)。
+func (t *transport) doOnce(ctx context.Context, path string, query url.Values, signed bool, out any) (bool, error) {
 	qs := ""
 	if query != nil {
 		qs = query.Encode() // Go 按 key 排序;签名与 URL 用同一串,保证一致
@@ -156,10 +219,11 @@ func (t *transport) do(ctx context.Context, path string, query url.Values, signe
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, full, nil)
 	if err != nil {
-		return err
+		return false, err
 	}
 	if signed {
-		ts := strconv.FormatInt(t.nowFn().UTC().UnixMilli(), 10)
+		// 时间戳/签名每次重试重算,避免重试时超出 recvWindow。
+		ts := t.signTimestampMs()
 		sign := signString(t.apiSecret, signaturePayload(ts, t.apiKey, t.recvWindow, qs))
 		req.Header.Set("X-BAPI-API-KEY", t.apiKey)
 		req.Header.Set("X-BAPI-SIGN", sign)
@@ -170,34 +234,36 @@ func (t *transport) do(ctx context.Context, path string, query url.Values, signe
 
 	resp, err := t.httpClient.Do(req)
 	if err != nil {
-		return err
+		// 网络层错误(连接重置/超时):GET 幂等,可重试;但 ctx 已取消则不重试。
+		return ctx.Err() == nil, err
 	}
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return err
+		return ctx.Err() == nil, err
 	}
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("bybit: HTTP %d: %s", resp.StatusCode, truncate(string(body), 256))
+		return resp.StatusCode >= 500, fmt.Errorf("bybit: HTTP %d: %s", resp.StatusCode, truncate(string(body), 256))
 	}
 
 	var env envelope
 	if err := json.Unmarshal(body, &env); err != nil {
-		return fmt.Errorf("bybit: 解析信封失败: %w", err)
+		return false, fmt.Errorf("bybit: 解析信封失败: %w", err)
 	}
 	if env.RetCode != 0 {
-		return fmt.Errorf("bybit: retCode=%d retMsg=%q", env.RetCode, env.RetMsg)
+		// 10006 = 访问过频(限频),退避后重试一次是安全的。
+		return env.RetCode == 10006, fmt.Errorf("bybit: retCode=%d retMsg=%q", env.RetCode, env.RetMsg)
 	}
 	if out == nil {
-		return nil
+		return false, nil
 	}
 	if len(env.Result) == 0 {
-		return nil
+		return false, nil
 	}
 	if err := json.Unmarshal(env.Result, out); err != nil {
-		return fmt.Errorf("bybit: 解析 result 失败: %w", err)
+		return false, fmt.Errorf("bybit: 解析 result 失败: %w", err)
 	}
-	return nil
+	return false, nil
 }
 
 func truncate(s string, n int) string {

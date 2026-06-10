@@ -41,17 +41,22 @@ func Factory(cfg venue.Config) (venue.Venue, error) {
 // Name 返回 "bybit"。
 func (a *Adapter) Name() string { return VenueName }
 
+// SyncServerTime 同步 Bybit 服务器时间偏移到签名时钟(本地时钟漂移自愈),返回「服务器 − 本地」偏移。
+func (a *Adapter) SyncServerTime(ctx context.Context) (time.Duration, error) {
+	return a.t.syncServerTime(ctx)
+}
+
 // Capabilities 声明 Bybit 能力。Stage 1 保守:负 carry / 调仓 / 原生 Kill-Switch 暂未接,置 false,
 // 引擎据此裁剪(负 carry=false → 该所走 50/50 正 carry,§P4)。后续阶段落地后再逐项打开。
 func (a *Adapter) Capabilities() venue.Capabilities {
 	return venue.Capabilities{
-		SupportsNegativeCarry:    false,        // TODO(Stage3+): 统一账户借币做空后置 true
+		SupportsNegativeCarry:    false,          // TODO(Stage3+): 统一账户借币做空后置 true
 		FundingIntervalsHours:    []int{8, 4, 1}, // Bybit linear 常见 8h,部分 4h/1h(逐币以 instruments fundingInterval 为准)
-		HasNativeDeadMan:         false,        // TODO: set-dcp(disconnect-cancel-all)接入后置 true
+		HasNativeDeadMan:         false,          // TODO: set-dcp(disconnect-cancel-all)接入后置 true
 		HasFeeDiscountToken:      false,
-		MaxBatchOrders:           10, // v5 linear 批量上限
+		MaxBatchOrders:           10,    // v5 linear 批量上限
 		ContractBasedPerp:        false, // USDT 永续按币数量下单
-		SupportsCapitalRebalance: true,                                       // capital.go:资金↔统一账户划转
+		SupportsCapitalRebalance: true,  // capital.go:资金↔统一账户划转
 		CapitalWallets:           []venue.Wallet{WalletUnified, WalletFunding},
 	}
 }

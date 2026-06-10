@@ -668,7 +668,7 @@ capital.go       实现 CapitalManagement:钱包快照 + PlanAllocation + Execut
 - **Prometheus `/metrics` 加 `venue` label**(现为全局);四家并行时按所拆指标。
 - **日志/trace 加 `venue` 维度**(排障四所并行时必需:每条结构化日志带 `venue=` 字段)。
 - **`reconcile` 命令 per-venue**(现按单一 `RecordDir`):`reconcile --venue=okx` 只对账该所。
-- **`shadow` 模式 per-venue**:支持「一所 shadow、一所 live」混合运维(影子拦截已上移到 `Trading.PlaceOrder`,天然支持)。
+- **`shadow` 模式 per-venue**:支持「一所 shadow、一所 live」混合运维(注意:影子拦截上移到 `Trading.PlaceOrder` **尚未完成**,见 P1c;币安仍走 `signedRequest` 咽喉点,Bybit 由 `live_trading_enabled` 开关控制)。
 - **启动语义**:一所 API key 无效/连接失败 → 该所 `disabled` + 告警,**不阻塞其它所**;启动日志逐所打印生效配置。
 
 ---
@@ -789,7 +789,7 @@ review 列了若干"仍绑单所"的模块。核实代码后**分两类处理,�
   - **Stage 3C-B3(持仓落盘 + reconcile)完成**:`bybit_positions_store.go` 原子(tmp+rename,0600)落盘在场持仓到 `records/bybit/bybit_positions.json`,按 Symbol 唯一 upsert/remove。`runBybitExecutor` 启动先 `bybitReconcileOnStart`:落盘持仓 vs 交易所真实永续仓核对——交易所已无仓→清记录(不误平),仍有仓→恢复监控按结算时间平。单测 `bybit_positions_store_test.go`(round-trip/覆盖/跨实例持久化/幂等前缀稳定)。
   - **Stage 3C-B5(编排接入)完成** ⭐:`bybit_runtime.go` 的 `runBybitExecutor` 主循环 = 单写租约(records/bybit/)+ 双级急停每 tick 检查 + reconcile + 30s tick(先平结算后到期持仓、再在 `[结算-lead, 结算)` 窗口内未满并发上限时扫描开新仓)。`RuntimeController.Start`/`runTask` 去掉对 bybit 的硬拒绝、改路由到 `runBybitExecutor`(其余非币安所 OKX/Gate 仍硬拒);bybit 仅支持 live 模式、跳过币安专属启动前检查。**主安全闸 `bybit_executor.live_trading_enabled` 默认 false → 即便启动也只影子运行(规划+日志,绝不下单)**。新增 `core.BybitExecutorConfig`(`cfg:"bybit_executor"` 段:live 闸/topN/费率阈值/lead/hold/并发/名义硬顶,默认全保守),`config.yaml` venues.bybit 下显式写出(默认 shadow)。单测覆盖执行器/台账/配置绑定(`TestParseVenuePlansBybitExecutorOverride`),全量 `go build ./... && go vet && go test ./...` 全绿。
   - **待续**:活体真实下单验证(需把 `live_trading_enabled` 置 true + 已注资统一交易账户,挑一个现货+永续双挂的正费率标的小额验证开/平闭环);B4 交易侧记账/面板 venue Tab;Stage 3B(WS 流)与 OKX/Gate 适配器按用户要求暂缓。
-- [ ] P4:Bybit 调仓 `PlanAllocation`(统一账户 spot/perp);`SupportsNegativeCarry=false` 用 50/50;conformance 测 wallet plan
+- [x] P4:Bybit 调仓 `PlanAllocation` 已实现(`internal/venue/bybit/capital.go` + `runtime_capital_venue.go` 接入面板调仓);conformance 见 capital 测试
 - [ ] P5:`venue/okx`、`venue/gate` 同上(Gate 可先 `SupportsCapitalRebalance=false`,只读快照人工调)
 - [ ] 全程:每阶段 `go build ./... && make vet test race` 全绿,币安实盘不中断
 

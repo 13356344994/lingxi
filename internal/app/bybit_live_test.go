@@ -249,7 +249,7 @@ func TestBybitShadowExecutorLive(t *testing.T) {
 		TopN:             5,
 		MinFundingRate:   0.0005, // 0.05%/结算
 		MinNetProfitRate: 0.0003,
-		SpotTakerFee:     0.001,  // 兜底静态费率(若 FetchTradingCostProfile 无签名失败)
+		SpotTakerFee:     0.001, // 兜底静态费率(若 FetchTradingCostProfile 无签名失败)
 		PerpTakerFee:     0.00055,
 	}
 	exec := NewBybitShadowExecutor(adp, cfg, t.Logf)

@@ -2,7 +2,6 @@
 #
 # 安装:
 #   sudo cp deploy/lingxi.service /etc/systemd/system/lingxi.service
-#   # 按需修改 User/WorkingDirectory/ExecStart 路径
 #   sudo systemctl daemon-reload && sudo systemctl enable --now lingxi
 #
 # 要点:
@@ -10,6 +9,9 @@
 #   - TimeoutStopSec 给足优雅停机收尾时间(S7-C 的 finalizeGracefulShutdown 默认 10s 上限,这里留 30s);
 #   - KillSignal=SIGTERM:触发 main.go 的 signal.NotifyContext → 取消 ctx → 优雅停机;
 #   - 单写租约(S7-A)从底层杜绝重复拉起导致的双开。
+#
+# 注意:必须用 systemd 启动(systemctl start lingxi),不要手动 nohup 起进程——
+# 手动起的进程不受 Restart=always 保护,崩溃后无人拉起。
 
 [Unit]
 Description=lingxi funding-rate arbitrage engine
@@ -18,14 +20,13 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=lingxi
-Group=lingxi
-WorkingDirectory=/opt/lingxi
-ExecStart=/opt/lingxi/lingxi
-# 裸二进制 = Dashboard 模式：默认只起面板，需人工在面板点"启动实盘"(最安全，适合首次实盘校准)。
-# 若要让进程崩溃重启后【自动恢复实盘交易】(无人值守)，取消下面一行注释——单写租约(S7-A)保证不会双开：
-#   崩溃重启会自动续上交易；首次实盘校准期建议保持注释、人工把关。
-# Environment=LINGXI_AUTOSTART_LIVE=1
+User=root
+Group=root
+WorkingDirectory=/root/lingxi
+ExecStart=/root/lingxi/lingxi
+# 崩溃重启后【自动恢复实盘交易】(无人值守)——单写租约(S7-A)保证不会双开,reconcile 兜底持仓对账。
+# 2026-06-10 起开启(PROJECT_AUDIT O-2):此前进程死亡只回到面板模式,持仓失管,Restart=always 形同虚设。
+Environment=LINGXI_AUTOSTART_LIVE=1
 # 优雅停机:发 SIGTERM,给足收尾时间(落盘/停用 dead-man/平仓善后)。
 KillSignal=SIGTERM
 TimeoutStopSec=30
@@ -34,8 +35,10 @@ RestartSec=5
 # 资源/安全收紧(按需调整)。
 LimitNOFILE=65536
 NoNewPrivileges=true
+# 运行目录在 /root 下,必须关闭 ProtectHome,否则 systemd 屏蔽 /root → 读不到二进制/secret.yaml/records。
+ProtectHome=false
 ProtectSystem=full
-ProtectHome=true
+ReadWritePaths=/root/lingxi
 
 [Install]
 WantedBy=multi-user.target

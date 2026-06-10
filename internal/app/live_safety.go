@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -427,7 +428,7 @@ func (e *FundingRateSniperEngine) checkEmergencyStop(phase string) error {
 	e.platformState.RecordException("kill_switch", RiskSeverityCritical, e.emergencyStopReason)
 	e.runtimeReporter.EmitLockedWithReason(StageStopped, "检测到 emergency stop 文件，立即停止实盘")
 	e.platformRiskMu.Unlock()
-	e.emitRiskEvent(newRiskEvent("incident", RiskCategorySafety, RiskSeverityCritical, nonEmpty(strings.TrimSpace(phase), "kill_switch"), "-", "emergency_stop", int(e.executionIncidents), e.cfg.RiskConfig.MaxExecutionIncidents, true, reason))
+	e.emitRiskEvent(newRiskEvent("incident", RiskCategorySafety, RiskSeverityCritical, nonEmpty(strings.TrimSpace(phase), "kill_switch"), "-", "emergency_stop", int(atomic.LoadInt32(&e.executionIncidents)), e.cfg.RiskConfig.MaxExecutionIncidents, true, reason))
 	return fatalEngineError{message: reason}
 }
 
@@ -446,7 +447,7 @@ func (e *FundingRateSniperEngine) checkDailyRiskLimits(phase string) error {
 	e.platformState.RecordException("daily_limit", RiskSeverityCritical, reason)
 	e.runtimeReporter.EmitLockedWithReason(StageStopped, "触发日级风控限制，立即停止实盘")
 	e.platformRiskMu.Unlock()
-	e.emitRiskEvent(newRiskEvent("incident", RiskCategorySafety, RiskSeverityCritical, nonEmpty(strings.TrimSpace(phase), "daily_limit"), "-", "daily_limit", int(e.executionIncidents), e.cfg.RiskConfig.MaxExecutionIncidents, true, reason))
+	e.emitRiskEvent(newRiskEvent("incident", RiskCategorySafety, RiskSeverityCritical, nonEmpty(strings.TrimSpace(phase), "daily_limit"), "-", "daily_limit", int(atomic.LoadInt32(&e.executionIncidents)), e.cfg.RiskConfig.MaxExecutionIncidents, true, reason))
 	return fatalEngineError{message: reason}
 }
 
@@ -488,11 +489,20 @@ func (e *FundingRateSniperEngine) currentDailyLimitReasonLocked() string {
 // 因此即便在异步结算 worker 中调用也安全：worker 只记录返回的 fatalEngineError，真正的拦截发生在主循环
 // 下一次 checkLiveSafetyGuards。
 func (e *FundingRateSniperEngine) noteCycleFinalSettlement(finalNetPnL float64) error {
+	return e.noteCycleFinalSettlementWithDailyDelta(finalNetPnL, 0)
+}
+
+// noteCycleFinalSettlementWithDailyDelta 在同一次 platformRiskMu 临界区内推进「日内已实现盈亏增量」与
+// 「周期最终净利风控信号(连亏计数/最差单周期净亏/累计净利曲线)」。修 PROJECT_AUDIT C-9:此前
+// noteDailySettlement 与 noteCycleFinalSettlement 两次加锁推进,窗口内实时 drawdown 读到一半新一半旧的
+// 风控状态,可能误触发/漏触发熔断;合并后状态推进原子、只持久化与复核一次。
+func (e *FundingRateSniperEngine) noteCycleFinalSettlementWithDailyDelta(finalNetPnL float64, dailyDelta float64) error {
 	if e == nil {
 		return nil
 	}
 	e.platformRiskMu.Lock()
 	e.ensureDailyRiskDateLocked()
+	e.riskBudgetState.DailyRealizedPnL += dailyDelta
 	switch {
 	case finalNetPnL < -executionQtyTolerance:
 		e.riskBudgetState.ConsecutiveLossCycles++
@@ -569,7 +579,7 @@ func (e *FundingRateSniperEngine) noteOrderPlaced(ctx context.Context, action st
 		e.platformState.RecordException("daily_limit", RiskSeverityCritical, e.riskBudgetState.DailyLimitReason)
 		e.runtimeReporter.EmitLockedWithReason(StageStopped, "触发日级下单次数限制，阻止继续扩仓")
 		e.platformRiskMu.Unlock()
-		e.emitRiskEvent(newRiskEvent("incident", RiskCategorySafety, RiskSeverityCritical, "order_precheck", "-", "daily_order_limit", int(e.executionIncidents), e.cfg.RiskConfig.MaxExecutionIncidents, true, e.riskBudgetState.DailyLimitReason))
+		e.emitRiskEvent(newRiskEvent("incident", RiskCategorySafety, RiskSeverityCritical, "order_precheck", "-", "daily_order_limit", int(atomic.LoadInt32(&e.executionIncidents)), e.cfg.RiskConfig.MaxExecutionIncidents, true, e.riskBudgetState.DailyLimitReason))
 		return fatalEngineError{message: e.riskBudgetState.DailyLimitReason}
 	}
 	e.riskBudgetState.DailyOrderCount += maxIntValue(count, 0)
@@ -597,7 +607,7 @@ func (e *FundingRateSniperEngine) setCycleOpenNotionalUsed(value float64) error 
 		e.platformState.RecordException("daily_limit", RiskSeverityCritical, e.riskBudgetState.DailyLimitReason)
 		e.runtimeReporter.EmitLockedWithReason(StageStopped, "触发日级名义限制，阻止继续扩仓")
 		e.platformRiskMu.Unlock()
-		e.emitRiskEvent(newRiskEvent("incident", RiskCategorySafety, RiskSeverityCritical, "capacity_precheck", "-", "daily_notional_limit", int(e.executionIncidents), e.cfg.RiskConfig.MaxExecutionIncidents, true, e.riskBudgetState.DailyLimitReason))
+		e.emitRiskEvent(newRiskEvent("incident", RiskCategorySafety, RiskSeverityCritical, "capacity_precheck", "-", "daily_notional_limit", int(atomic.LoadInt32(&e.executionIncidents)), e.cfg.RiskConfig.MaxExecutionIncidents, true, e.riskBudgetState.DailyLimitReason))
 		return fatalEngineError{message: e.riskBudgetState.DailyLimitReason}
 	}
 	e.riskBudgetState.CycleOpenNotionalUsed = value

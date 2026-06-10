@@ -39,8 +39,8 @@ const (
 	PathMarginAccount         = "/sapi/v1/margin/account"
 	PathMarginBorrowRepay     = "/sapi/v1/margin/borrow-repay"
 	PathMarginInterestHistory = "/sapi/v1/margin/interestHistory"
-	PathAssetTransfer     = "/sapi/v1/asset/transfer"
-	PathAssetFundingAsset = "/sapi/v1/asset/get-funding-asset"
-	PathBNBBurn           = "/sapi/v1/bnbBurn"
-	PathAPIRestrictions   = "/sapi/v1/account/apiRestrictions"
+	PathAssetTransfer         = "/sapi/v1/asset/transfer"
+	PathAssetFundingAsset     = "/sapi/v1/asset/get-funding-asset"
+	PathBNBBurn               = "/sapi/v1/bnbBurn"
+	PathAPIRestrictions       = "/sapi/v1/account/apiRestrictions"
 )

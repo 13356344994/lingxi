@@ -11,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"lingxi/internal/venue"
 )
 
 const runtimeEventLogJSONLName = "runtime_events.jsonl"
@@ -237,6 +239,11 @@ type RuntimeController struct {
 	// bybitAlerts 是 Bybit 执行器的实时告警分发器(开/平/启停/失败推送到 Telegram 等出口)。
 	// 仅在 runBybitExecutor 启动时按 secret.yaml 的 Telegram 凭据构造;未配置或非 bybit 路径时为 nil(所有调用 nil-safe)。
 	bybitAlerts *AlertDispatcher
+
+	// bybitPendingPersist 是「交易所已成交但台账落盘失败」的持仓内存兜底(PROJECT_AUDIT C-10):
+	// manage 每 tick 先重试落盘,且把仍未落盘的持仓并入管理视图——即便磁盘持续故障,平仓调度照常,
+	// 绝不因记账失败让真实持仓失管。仅 Bybit 执行循环 goroutine 访问(单写者),无需额外锁。
+	bybitPendingPersist map[venue.Symbol]BybitLivePosition
 
 	mu                             sync.Mutex
 	status                         RuntimeTaskStatus

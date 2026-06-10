@@ -32,9 +32,9 @@ type bybitPositionsEnvelope struct {
 }
 
 func (e *bybitPositionsEnvelope) getSchemaVersion() int  { return e.SchemaVersion }
-func (e *bybitPositionsEnvelope) setSchemaVersion(v int)  { e.SchemaVersion = v }
-func (e *bybitPositionsEnvelope) getChecksum() string     { return e.Checksum }
-func (e *bybitPositionsEnvelope) setChecksum(c string)     { e.Checksum = c }
+func (e *bybitPositionsEnvelope) setSchemaVersion(v int) { e.SchemaVersion = v }
+func (e *bybitPositionsEnvelope) getChecksum() string    { return e.Checksum }
+func (e *bybitPositionsEnvelope) setChecksum(c string)   { e.Checksum = c }
 
 type bybitPositionStore struct {
 	mu   sync.Mutex

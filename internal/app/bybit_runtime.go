@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -146,6 +148,32 @@ func (c *RuntimeController) runBybitExecutor(ctx context.Context, secretPath str
 		c.bybitAlerts = newAlertDispatcher(ac, c.logger)
 	}
 
+	// 修 PROJECT_AUDIT C-5(preflight 校时):同步 Bybit 服务器时间偏移到签名时钟。此前签名用裸本地时钟,
+	// VPS 漂移超 recvWindow(5s)→ 全部签名请求被拒且无自愈。失败不阻塞启动(网络瞬断时偏移保持 0,下轮重校)。
+	lastTimeSync := time.Time{}
+	syncBybitClock := func() {
+		type timeSyncer interface {
+			SyncServerTime(context.Context) (time.Duration, error)
+		}
+		ts, ok := adapter.(timeSyncer)
+		if !ok {
+			return
+		}
+		offset, serr := ts.SyncServerTime(ctx)
+		if serr != nil {
+			c.appendControllerLog("Bybit 服务器时间同步失败(签名沿用当前偏移,下轮重试): %v", serr)
+			return
+		}
+		lastTimeSync = time.Now()
+		if offset > 2*time.Second || offset < -2*time.Second {
+			c.appendControllerLog("Bybit 时钟偏移较大: 服务器−本地=%s(已补偿进签名时间戳,建议检查 VPS NTP)", offset)
+			c.bybitNotifyWarn("Bybit 时钟偏移", fmt.Sprintf("服务器−本地=%s,已自动补偿,建议检查 NTP", offset), "")
+		} else {
+			c.appendControllerLog("Bybit 服务器时间已同步: 偏移=%s", offset)
+		}
+	}
+	syncBybitClock()
+
 	c.bybitReconcileOnStart(ctx, adapter, store)
 
 	readyMsg := fmt.Sprintf("模式=%s 分配资金=%.2f TopN=%d 最小费率=%.4f%% 提前=%ds 持有=%ds 并发上限=%d",
@@ -162,7 +190,13 @@ func (c *RuntimeController) runBybitExecutor(ctx context.Context, secretPath str
 			c.bybitNotifyWarn("Bybit 执行器急停", haltErr.Error(), "")
 			return "Bybit 执行器因急停停止", haltErr
 		}
-		c.bybitManageCycle(ctx, cfg, store, planner, executor, live)
+		// 修 PROJECT_AUDIT C-4:Bybit 执行器不经过币安引擎,此前从不写心跳 → 外部 watchdog
+		// 双信号判活(心跳+/healthz)会把健康的 Bybit 单所进程当卡死连续误杀。每 tick 写本所心跳。
+		c.writeBybitHeartbeat(cfg)
+		if time.Since(lastTimeSync) > time.Hour {
+			syncBybitClock()
+		}
+		c.bybitManageCycle(ctx, cfg, store, planner, executor, adapter, live)
 		select {
 		case <-ctx.Done():
 			c.appendControllerLog("Bybit 执行器已停止")
@@ -170,6 +204,69 @@ func (c *RuntimeController) runBybitExecutor(ctx context.Context, secretPath str
 			return "Bybit 执行器已停止", ctx.Err()
 		case <-ticker.C:
 		}
+	}
+}
+
+// bybitPersistPosition 落盘持仓;失败时收进内存兜底队列(C-10),manage 每 tick 重试并保证失管为零。
+// 返回是否真正写进磁盘。
+func (c *RuntimeController) bybitPersistPosition(store *bybitPositionStore, pos BybitLivePosition, what string) bool {
+	if err := store.upsert(pos); err != nil {
+		if c.bybitPendingPersist == nil {
+			c.bybitPendingPersist = make(map[venue.Symbol]BybitLivePosition)
+		}
+		c.bybitPendingPersist[pos.Symbol] = pos
+		c.appendControllerLog("Bybit %s落盘失败 %s(已收进内存兜底,每轮重试落盘且照常管理平仓): %v", what, pos.Symbol, err)
+		c.bybitNotifyWarn("Bybit 台账落盘失败", fmt.Sprintf("%s %s 落盘失败,已转内存兜底管理,请尽快检查磁盘: %v", what, pos.Symbol, err), string(pos.Symbol))
+		return false
+	}
+	delete(c.bybitPendingPersist, pos.Symbol)
+	return true
+}
+
+// bybitFlushPendingPersist 重试内存兜底队列落盘,并把仍未落盘的持仓并入管理视图(按 symbol 去重)。
+func (c *RuntimeController) bybitFlushPendingPersist(store *bybitPositionStore, open []BybitLivePosition) []BybitLivePosition {
+	if len(c.bybitPendingPersist) == 0 {
+		return open
+	}
+	onDisk := make(map[venue.Symbol]bool, len(open))
+	for _, p := range open {
+		onDisk[p.Symbol] = true
+	}
+	for sym, pos := range c.bybitPendingPersist {
+		if err := store.upsert(pos); err == nil {
+			delete(c.bybitPendingPersist, sym)
+			c.appendControllerLog("Bybit 内存兜底持仓 %s 已补落盘", sym)
+			if !onDisk[sym] {
+				open = append(open, pos)
+				onDisk[sym] = true
+			}
+			continue
+		}
+		if !onDisk[sym] {
+			open = append(open, pos)
+			onDisk[sym] = true
+		}
+	}
+	return open
+}
+
+// writeBybitHeartbeat 把 Bybit 执行循环的活性写进本所 records 目录的 heartbeat.json
+// (tmp+fsync+rename 原子写)。best-effort:失败仅记日志。
+func (c *RuntimeController) writeBybitHeartbeat(cfg EngineConfig) {
+	dir := strings.TrimSpace(cfg.NetworkConfig.RecordDir)
+	if dir == "" {
+		return
+	}
+	now := time.Now().UTC()
+	payload := heartbeatPayload{
+		TS:    now.Unix(),
+		Time:  now.Format(time.RFC3339),
+		PID:   os.Getpid(),
+		RunID: c.currentRunID(),
+		Stage: "bybit_manage",
+	}
+	if err := writeJSONFile(filepath.Join(dir, heartbeatFileName), payload); err != nil {
+		c.appendControllerLog("写 Bybit 心跳失败: %v", err)
 	}
 }
 
@@ -236,14 +333,99 @@ func (c *RuntimeController) bybitReconcileOnStart(ctx context.Context, adapter b
 		}
 		c.appendControllerLog("Bybit reconcile:%s 恢复持仓监控(永续≈%.6f),将按结算时间平仓", p.Symbol, actualBySym[p.Symbol])
 	}
-	// 孤儿仓兜底:交易所有永续持仓但本地无台账(开仓回补失败/落盘失败遗留)。出于「账户可能有其他人工持仓」的
-	// 保守考虑,这里只告警提示人工核对,不自动平仓(避免误平无关持仓);本机产生的裸腿在开仓失败分支已落盘待平。
-	for sym, qty := range actualBySym {
+	// 孤儿仓兜底:交易所有永续持仓但本地无台账(开仓成功但落盘失败后崩溃等)。修 PROJECT_AUDIT C-10:
+	// 先用确定性 orderLinkId(lx-<SYM>-<结算时刻>-op)向交易所回查近 48 个整点,确认是本机所开则
+	// 自动收编为「立即到期、只平不滚」的台账记录,交由 manage 循环按真实余额平掉;查不到归属
+	// (人工持仓/超出回查窗口)仍只告警不动仓,绝不误平无关持仓。
+	for _, ep := range positions {
+		sym := ep.Symbol
+		qty := actualBySym[sym]
 		if qty <= executionQtyTolerance || tracked[sym] {
 			continue
 		}
-		c.appendControllerLog("Bybit reconcile:发现未登记的永续持仓 %s(≈%.6f),疑似开仓异常/落盘失败遗留,请人工核对", sym, qty)
-		c.bybitNotifyWarn("Bybit 发现未登记持仓", fmt.Sprintf("%s 永续≈%.6f 无本地台账,疑似开仓异常遗留,请人工核对", sym, qty), string(sym))
+		tracked[sym] = true // 同一 symbol 多条(双向持仓)只处理一次
+		if adopted, ok := c.bybitProbeOrphanOwnership(ctx, adapter, ep); ok {
+			if c.bybitPersistPosition(store, adopted, "孤儿仓收编") {
+				c.appendControllerLog("Bybit reconcile:未登记持仓 %s(≈%.6f)确认为本机所开(orderLinkId 命中),已收编落盘待平", sym, qty)
+			}
+			c.bybitNotifyWarn("Bybit 孤儿仓已收编", fmt.Sprintf("%s 永续≈%.6f 确认为本机遗留,已自动收编待平", sym, qty), string(sym))
+			continue
+		}
+		c.appendControllerLog("Bybit reconcile:发现未登记的永续持仓 %s(≈%.6f),回查未命中本机订单,请人工核对", sym, qty)
+		c.bybitNotifyWarn("Bybit 发现未登记持仓", fmt.Sprintf("%s 永续≈%.6f 无本地台账且回查未命中本机订单,请人工核对", sym, qty), string(sym))
+	}
+}
+
+// bybitOrphanProbeHours 是孤儿仓归属回查的整点窗口数(Bybit 结算时刻总在整点;realtime 接口可查近期已成交单)。
+const bybitOrphanProbeHours = 48
+
+// bybitProbeOrphanOwnership 回查某未登记永续持仓是否本机所开:用确定性幂等前缀重构开仓腿
+// orderLinkId 逐整点探测,命中已成交单即返回可收编的「立即到期待平」持仓。
+func (c *RuntimeController) bybitProbeOrphanOwnership(ctx context.Context, adapter bybitFullVenue, ep venue.Position) (BybitLivePosition, bool) {
+	now := time.Now().UTC()
+	hourTop := now.Truncate(time.Hour)
+	for h := 0; h <= bybitOrphanProbeHours; h++ {
+		funding := hourTop.Add(time.Duration(1-h) * time.Hour) // 从下一个整点往回探(开仓时记录的是未来的结算时刻)
+		clientID := bybitLegClientID(bybitIdemPrefix(ep.Symbol, funding), "op")
+		res, err := adapter.QueryOrder(ctx, venue.MarketPerp, ep.Symbol, clientID)
+		if err != nil || res.Status != "filled" || res.ExecutedQty <= executionQtyTolerance {
+			continue
+		}
+		qty := math.Abs(ep.PositionAmt)
+		adopted := BybitLivePosition{
+			Symbol:          ep.Symbol,
+			BaseQty:         qty,
+			SpotEntryPrice:  ep.EntryPrice,
+			PerpEntryPrice:  ep.EntryPrice,
+			SpotNotional:    qty * ep.EntryPrice,
+			PerpNotional:    qty * ep.EntryPrice,
+			NextFundingTime: now.Add(-time.Hour), // 立即到期
+			OpenedAt:        funding.Add(-time.Hour),
+			RunID:           c.currentRunID(),
+			IdemPrefix:      bybitIdemPrefix(ep.Symbol, funding),
+			Negative:        ep.PositionAmt > 0, // 永续多头 = 负 carry 持仓
+			SettlementsHeld: 1 << 30,            // 不续持,直接平
+		}
+		return adopted, true
+	}
+	return BybitLivePosition{}, false
+}
+
+// appendBybitSettlement 把 Bybit 平仓结果写入与币安同 schema 的结算台账(settlements.json,per-venue
+// 目录天然隔离)。修 PROJECT_AUDIT C-3:此前 Bybit 平仓盈亏只打日志/Telegram,无结构化记录,
+// 两所成本口径不可比、学费数据只能从日志手工拼。写失败只告警(平仓事实已发生,不能因记账失败中断管理循环)。
+func (c *RuntimeController) appendBybitSettlement(p BybitLivePosition, closeRes bybitCloseResult, settlements int, now time.Time) {
+	if c.store == nil {
+		return
+	}
+	estFunding := float64(settlements) * math.Abs(p.FundingRate) * p.PerpNotional
+	fundingIncome := estFunding
+	if closeRes.FundingOK {
+		fundingIncome = closeRes.RealFunding
+	}
+	settlement := CycleSettlement{
+		RunID:                 c.currentRunID(),
+		CycleID:               p.IdemPrefix,
+		Targets:               1,
+		FundingIncome:         fundingIncome,
+		ExpectedFundingIncome: estFunding,
+		FundingIncomeDiff:     fundingIncome - estFunding,
+		FundingIncomePending:  !closeRes.FundingOK,
+		TradingPnL:            closeRes.PricePnL,
+		SpotTradingPnL:        closeRes.SpotPricePnL,
+		FuturesTradingPnL:     closeRes.PerpPricePnL,
+		TotalFees:             closeRes.TotalFeesUSDT,
+		NetPnL:                closeRes.RealizedPnL,
+		SnapshotNetPnL:        closeRes.RealizedPnL,
+		CloseExecutedAt:       now,
+		FundingTimePoint:      p.NextFundingTime,
+		CycleNotionalUSDT:     p.SpotNotional + p.PerpNotional,
+	}
+	if closeRes.FundingOK {
+		settlement.FundingSettledAt = now
+	}
+	if err := c.store.AppendSettlement(settlement); err != nil {
+		c.appendControllerLog("Bybit 结算记录落盘失败 %s(平仓已完成,仅记账缺失): %v", p.Symbol, err)
 	}
 }
 
@@ -266,6 +448,7 @@ func (c *RuntimeController) bybitManageCycle(
 	store *bybitPositionStore,
 	planner *BybitShadowExecutor,
 	executor *BybitLiveExecutor,
+	adapter bybitFullVenue,
 	live bool,
 ) {
 	now := time.Now().UTC()
@@ -278,6 +461,7 @@ func (c *RuntimeController) bybitManageCycle(
 		c.appendControllerLog("Bybit 读取持仓失败: %v", err)
 		return
 	}
+	open = c.bybitFlushPendingPersist(store, open)
 
 	// 1) 到期持仓(结算后 holdAfter):滚动持有模式下先复核下期费率决定续持/等待/平仓;否则直接平(单次收割)。
 	rollEnabled := cfg.BybitExecutor.RollEnabled
@@ -305,8 +489,8 @@ func (c *RuntimeController) bybitManageCycle(
 				// 既不平仓也不推进计数——避免把一笔仍健康、费率仍好的仓在结算时间翻转前误平(这正是之前「吃一次就走」的根因)。
 				// 安全上限:若结算后超过 bybitMaxRollWait 仍未翻进(交易所异常),放弃续持转平仓,避免无限持有。
 				if now.Before(p.NextFundingTime.Add(bybitMaxRollWait)) {
-				c.appendControllerLog("Bybit 续持待定 %s:下期费率=%.4f%% 达标,但 nextFundingTime 尚未翻进,保持持仓下轮复核", p.Symbol, snap.LastFundingRate*100)
-				continue
+					c.appendControllerLog("Bybit 续持待定 %s:下期费率=%.4f%% 达标,但 nextFundingTime 尚未翻进,保持持仓下轮复核", p.Symbol, snap.LastFundingRate*100)
+					continue
 				}
 				c.appendControllerLog("Bybit 续持超时 %s:结算后 %s 内 nextFundingTime 仍未翻进,放弃续持转平仓", p.Symbol, bybitMaxRollWait)
 			default:
@@ -318,15 +502,13 @@ func (c *RuntimeController) bybitManageCycle(
 				rolled.NextFundingTime = snap.NextFundingTime
 				rolled.FundingRate = snap.LastFundingRate
 				rolled.SettlementsHeld = p.SettlementsHeld + 1
-				if upErr := store.upsert(rolled); upErr != nil {
-					c.appendControllerLog("Bybit 续持落盘失败 %s(本轮按平仓处理): %v", p.Symbol, upErr)
-				} else {
-					c.appendControllerLog("Bybit 续持 %s:已收 %d 次资金费,下期费率=%.4f%% 续持到 %s(上限 %d 次)",
-						p.Symbol, rolled.SettlementsHeld, snap.LastFundingRate*100, snap.NextFundingTime.UTC().Format("15:04:05Z"), maxHold)
-					c.bybitNotifyTrade("Bybit 续持", fmt.Sprintf("已收 %d 次资金费,下期费率=%.4f%%,续持到 %s",
-						rolled.SettlementsHeld, snap.LastFundingRate*100, snap.NextFundingTime.UTC().Format("15:04:05Z")), string(p.Symbol))
-					continue
-				}
+				// 落盘失败也照常续持(内存兜底接管):此前"落盘失败按平仓处理"会把仍健康的仓提前平掉。
+				c.bybitPersistPosition(store, rolled, "续持")
+				c.appendControllerLog("Bybit 续持 %s:已收 %d 次资金费,下期费率=%.4f%% 续持到 %s(上限 %d 次)",
+					p.Symbol, rolled.SettlementsHeld, snap.LastFundingRate*100, snap.NextFundingTime.UTC().Format("15:04:05Z"), maxHold)
+				c.bybitNotifyTrade("Bybit 续持", fmt.Sprintf("已收 %d 次资金费,下期费率=%.4f%%,续持到 %s",
+					rolled.SettlementsHeld, snap.LastFundingRate*100, snap.NextFundingTime.UTC().Format("15:04:05Z")), string(p.Symbol))
+				continue
 			}
 		}
 		if !live {
@@ -342,6 +524,7 @@ func (c *RuntimeController) bybitManageCycle(
 		if rmErr := store.remove(p.Symbol); rmErr != nil {
 			c.appendControllerLog("Bybit 平仓后清记录失败 %s: %v", p.Symbol, rmErr)
 		}
+		delete(c.bybitPendingPersist, p.Symbol)
 		settlements := p.SettlementsHeld + 1
 		// 资金费 + 实现盈亏:优先用真实查流水口径;查不到则退回按开仓费率估算(并明确标注)。
 		// 估算资金费收入按 |费率| 计(正/负 carry 都是收方:正 carry 空头收正费率,负 carry 多头收负费率)。
@@ -369,14 +552,16 @@ func (c *RuntimeController) bybitManageCycle(
 			fundingLine, realizedLine)
 		c.appendControllerLog("Bybit 已平仓 %s", closeDetail)
 		c.bybitNotifyTrade("Bybit 已平仓", closeDetail, string(p.Symbol))
+		c.appendBybitSettlement(p, closeRes, settlements, now)
 	}
 
-	// 重新读取在场持仓(平仓可能已删除若干)。
+	// 重新读取在场持仓(平仓可能已删除若干);内存兜底里仍未落盘的也要占并发名额。
 	open, err = store.load()
 	if err != nil {
 		c.appendControllerLog("Bybit 重载持仓失败: %v", err)
 		return
 	}
+	open = c.bybitFlushPendingPersist(store, open)
 	held := make(map[venue.Symbol]bool, len(open))
 	for _, p := range open {
 		held[p.Symbol] = true
@@ -397,6 +582,17 @@ func (c *RuntimeController) bybitManageCycle(
 	if live {
 		c.bybitLogCycleDiag(now, lead, plan, held, maxConcurrent, len(open), cfg)
 	}
+	// 修 PROJECT_AUDIT C-5(余额裁剪):planner 只信配置 AllocatedUSDT,从不对照真实账户。
+	// 配置与余额脱节时按名义下单只会制造无谓的失败样本。开仓前拉一次统一账户 USDT 可用余额,
+	// 名义超过可用即跳过(拉取失败时退回旧行为,不阻塞开仓)。
+	availUSDT := math.Inf(1)
+	if live && len(plan.Accepted) > 0 {
+		if bals, berr := adapter.FetchBalances(ctx); berr != nil {
+			c.appendControllerLog("Bybit 开仓前拉余额失败(本轮跳过余额校验): %v", berr)
+		} else if usdt, ok := bals.ByAsset["USDT"]; ok {
+			availUSDT = usdt.Free
+		}
+	}
 	for _, p := range plan.Accepted {
 		if len(held) >= maxConcurrent {
 			break
@@ -412,6 +608,16 @@ func (c *RuntimeController) bybitManageCycle(
 			c.appendControllerLog("Bybit 跳过 %s:两腿名义 %.2f 超单标的上限 %.2f", p.Symbol, p.SpotNotional+p.PerpNotional, capN)
 			continue
 		}
+		// 真实余额闸:正 carry 需要 现货名义 + 永续保证金(保守按 1x 全额计);负 carry 现货腿是借币卖出
+		// (反而收 USDT),只需永续保证金。
+		requiredUSDT := p.SpotNotional + p.PerpNotional
+		if p.Negative {
+			requiredUSDT = p.PerpNotional
+		}
+		if requiredUSDT > availUSDT {
+			c.appendControllerLog("Bybit 跳过 %s:开仓需要 ≈%.2f USDT,统一账户可用仅 %.2f(配置分配与真实余额脱节)", p.Symbol, requiredUSDT, availUSDT)
+			continue
+		}
 		if !live {
 			c.appendControllerLog("[bybit-shadow][拟开仓] %s 费率=%.4f%% 数量=%.6f 净利率=%.4f%%(结算 %s)",
 				p.Symbol, p.FundingRate*100, p.BaseQty, p.EstNetProfitRate*100, p.NextFundingTime.Format(time.RFC3339))
@@ -424,9 +630,7 @@ func (c *RuntimeController) bybitManageCycle(
 			if pos.BaseQty > executionQtyTolerance {
 				pos.SettlementsHeld = 1 << 30 // 远超 maxHold → 不续持,直接平
 				pos.NextFundingTime = now.Add(-time.Hour)
-				if upErr := store.upsert(pos); upErr != nil {
-					c.appendControllerLog("Bybit 开仓裸腿落盘失败 %s(务必人工核对!): %v", pos.Symbol, upErr)
-				} else {
+				if c.bybitPersistPosition(store, pos, "开仓裸腿") {
 					c.appendControllerLog("Bybit 开仓异常留有永续敞口 %s(≈%.6f),已落盘待平", pos.Symbol, pos.BaseQty)
 				}
 			}
@@ -434,9 +638,7 @@ func (c *RuntimeController) bybitManageCycle(
 			c.bybitNotifyWarn("Bybit 开仓失败", openErr.Error(), string(p.Symbol))
 			continue
 		}
-		if upErr := store.upsert(pos); upErr != nil {
-			c.appendControllerLog("Bybit 持仓落盘失败(已开仓,务必人工核对!) %s: %v", pos.Symbol, upErr)
-		}
+		c.bybitPersistPosition(store, pos, "新开持仓")
 		openPerpLabel, openSpotLabel := "永续空", "现货多"
 		if pos.Negative {
 			openPerpLabel, openSpotLabel = "永续多", "借币空现货"
@@ -451,6 +653,7 @@ func (c *RuntimeController) bybitManageCycle(
 		c.bybitNotifyTrade("Bybit 已开仓", openDetail, string(p.Symbol))
 		held[pos.Symbol] = true
 		open = append(open, pos)
+		availUSDT -= requiredUSDT
 	}
 	c.setBybitStatus(open, fmt.Sprintf("在场 %d/%d", len(open), maxConcurrent))
 }

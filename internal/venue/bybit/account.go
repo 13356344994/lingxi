@@ -165,9 +165,9 @@ func (a *Adapter) FetchTradingCostProfile(ctx context.Context, syms []venue.Symb
 func (a *Adapter) fetchFeeRate(ctx context.Context, q url.Values) (taker, maker float64, err error) {
 	var res struct {
 		List []struct {
-			Symbol        string `json:"symbol"`
-			TakerFeeRate  string `json:"takerFeeRate"`
-			MakerFeeRate  string `json:"makerFeeRate"`
+			Symbol       string `json:"symbol"`
+			TakerFeeRate string `json:"takerFeeRate"`
+			MakerFeeRate string `json:"makerFeeRate"`
 		} `json:"list"`
 	}
 	if e := a.t.signedGet(ctx, pathFeeRate, q, &res); e != nil {

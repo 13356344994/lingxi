@@ -1,6 +1,6 @@
 # lingxi
 
-`lingxi` 是一个围绕 Binance 现货 / U 本位合约组合、资金费率机会筛选、执行风控、历史模拟和本地面板观测构建的单体交易系统原型。
+`lingxi` 是一个资金费率套利交易系统:**Binance 全引擎(现货/U 本位合约 delta 中性)+ Bybit 独立精简执行器 + Orchestrator 多所编排**,涵盖机会筛选、执行风控、历史模拟和本地面板观测。多所架构细节见 `MULTI_VENUE_REFACTOR.md`;本 README 主体描述 Binance 引擎,部分章节写作时间早于多所改造,以代码为准。
 
 > 本 README 经过一次「以代码现实为准」的全面校订：凡是 README 承诺但代码尚未实现 / 默认关闭的能力，都在「已知风险与局限」一节明确标注，避免文档制造虚假安全感。最后附「通往 9.6 分的优化路线图」。
 
@@ -55,7 +55,7 @@
 - `dust_ledger.go`：灰尘残差台账（不可交易的微小残腿登记）。
 
 ### 2.3 网络与下单咽喉点
-- `internal/exchange/`：**唯一摸网络的包**。`client.go`（现货/合约元数据、账户费率、历史抓取、限频/回退/used-weight 治理）、`http.go` / `transport.go`（代理与连接池）、`symbols.go`（黄金币种交集）、`cache.go`（历史负载缓存）。
+- `internal/exchange/`：Binance 侧摸网络的包（另有 `internal/venue/bybit/` 直连 Bybit v5 API）。`client.go`（现货/合约元数据、账户费率、历史抓取、限频/回退/used-weight 治理）、`http.go` / `transport.go`（代理与连接池）、`symbols.go`（黄金币种交集）、`cache.go`（历史负载缓存）。
 - `internal/app/binance_gateway.go`：`SignedRequest` / `GetJSON` / `APIKeyRequest` 收口，联动平台熔断、used-weight 预算、本地下单限频。
 - `internal/app/engine_fees_market.go`：`signedRequest` 是**所有签名请求的唯一咽喉点**——影子模式在此硬拦截一切非 GET 调用（绝无真实订单/资金动作漏出）。
 - `internal/app/order_events.go`（`OrderEventHub`）/ `user_data_stream.go` / `websocket_bookticker.go`：订单回报中心、用户数据流、bookTicker/depth 行情流。
@@ -83,7 +83,8 @@
 ---
 
 ## 三、当前能力
-- 实盘运行入口和 Web Dashboard
+- 实盘运行入口和 Web Dashboard(支持 venue 切换,`/api/venues`、`/api/performance?venue=`)
+- 多所编排:`orchestrator.go` + `internal/venue/`(Binance 适配 + Bybit 执行器,`records/bybit/` 独立记录目录)
 - Binance REST / WebSocket 行情与用户数据流
 - 订单回报中心 `OrderEventHub`
 - 分层配置 `EngineConfig` 与启动前校验
@@ -119,7 +120,7 @@
   - 把已落盘结算记录与「模型预期」逐周期对账，输出胜率、实盘累计净利 vs 预期、资金费预测误差、
     超阈值周期与 HEALTHY/UNHEALTHY 结论
   - 不触碰任何下单/实盘路径，可在实盘运行期间随时执行；用于小额实盘验证「钱是不是按模型假设赚到的」
-  - **注意**：当前对账把「实测手续费/借币成本」抄到「模型预期」一侧，因此成本侧的模型误差不会出现在对账里（见「已知风险与局限 R6」）。
+  - 对账成本侧已用模型费率计算预期(`ExpectedTotalFees`),成本模型误差会暴露在对账偏差中(R6 已修复,见「已知风险与局限 R6」)。
 - `Shadow`（影子只读冒烟）模式
   - `go run ./cmd/lingxi shadow`
   - 照常对接真实行情/账户、照常完成扫描/评估/决策，但任何会动用资金或改变交易所状态的签名请求
@@ -173,7 +174,7 @@ Telegram_Chat_ID: your_telegram_chat_id       # 可选
 - 可直接复制 `secret.example.yaml` 为 `secret.yaml` 后再填写真实密钥
 - `secret.yaml` 仅用于本机，不应提交到仓库
 - 当前策略 / 风控默认值在 `DefaultEngineConfig()` 中定义
-- **当前局限**：策略 / 风控参数硬编码在 `DefaultEngineConfig()`，调参 = 改代码 = 重新构建；建议引入 `config.yaml` 和环境变量覆盖（见路线图 P3）
+- `[已落地]` 策略 / 风控参数默认值在 `DefaultEngineConfig()`，可被 `config.yaml`(真 YAML,`yaml.v3` + `BindConfig` 按 `cfg` tag 自动绑定)与环境变量覆盖,无需改代码重构建
 
 ---
 
@@ -261,7 +262,7 @@ CI（`.github/workflows/ci.yml`）会跑：`gofmt` 检查 → `go vet` → `go t
 - `MaxAccountDrawdownUSDT`：以全部已结算周期净利的累计曲线为准，自历史高水位回撤超阈值即停机（回撤由结算记录回放得出，重启自动复原）。
 
 > ⚠️ 以下两条曾在旧版 README 中被表述为「已具备」，经代码核对**与现实不符**，已下调为「待实现」：
-> - **开仓前「爆仓距离/强平距离」校验**：当前**未实现**。代码只有保证金充足性检查，没有对强平价或强平距离的计算。2x 全仓拉远了强平价，但不存在显式的「距离校验」。
+> - **开仓前「爆仓距离/强平距离」校验**：`[已实现]` `RiskConfig.MinLiquidationDistanceRate`(默认 0.15)在开仓前校验估算强平距离(`engine_open_exec.go:173-185`),低于阈值拒绝开仓;默认 2x 杠杆下实际强平距离约 49%。
 > - **对冲两腿名义偏离熔断（Gate 4 关键不变量守卫）**：`[已更新]` 早期「默认 0 = 关闭、无 YAML key、不改代码无法开启」的描述**已过时**。现状（`defaults.go:123-136`、`config.go` 含 `hedge_imbalance_abort_rate` 等 cfg tag）：**相对偏离维度 `HedgeImbalanceAbortRate=0.10` 出厂即武装**（两腿名义偏离 > 较大腿 10% 即熔断，尺度无关），且 `HoldHedgeGuardEnabled=true` 把校验从「仅开仓」扩展到「持有期周期性复核」（`hold_monitor.go`，正/负 carry 均覆盖）。仅**绝对额维度** `HedgeImbalanceAbortUSDT` 仍默认 0（随资金规模难取统一默认，按需开启）。详见 §18.4.2 P3。
 
 ---
@@ -273,14 +274,14 @@ CI（`.github/workflows/ci.yml`）会跑：`gofmt` 检查 → `go vet` → `go t
 ### ✅ R1. Gate 4 对冲偏离守卫（原「默认关闭」已修复）
 `[已修复]` 早期版本 `HedgeImbalanceAbortUSDT/Rate` 默认 0、熔断为空操作。**现状**（`defaults.go:128,136`）：相对维度 `HedgeImbalanceAbortRate=0.10` 出厂武装、`HoldHedgeGuardEnabled=true` 覆盖持有期周期性复核（见 §18.4.2 P3）。某腿在持有期被悄悄放大/缩小会被运行时熔断。仅绝对额维度 `HedgeImbalanceAbortUSDT` 仍默认 0（按需开启）。
 
-### 🔴 R2. 缺少「开仓前爆仓距离校验」
-README 旧承诺与代码不符（见上节）。仅有保证金充足性检查，无强平距离计算。**影响**：极端行情下单腿被强平的概率高于文档暗示。
+### ✅ R2. 开仓前爆仓距离校验（已实现）
+`[已修复]` `MinLiquidationDistanceRate=0.15` 开仓前闸(`engine_open_exec.go:173-185`),见 §十一更新说明。
 
-### 🔴 R3. panic-flatten 只看合约腿浮亏，对现货腿是盲的
-`realtime_drawdown.go` 的实时急停用「受管合约仓位 `UnrealizedProfit` 之和」判断，忽略现货腿；且某腿 `PositionAmt→0` 后受管浮亏被从 map 删除。**影响**：现货腿先出问题、或单腿被强平/ADL 时，急停可能不触发。全系统**无专门的单腿强平/ADL 事件处理器**，中途单腿被打掉只能等下次启动 `verifyTradingEnvironment` 才发现。
+### ⚠️ R3. 单腿强平/ADL 检测——代码已写,但被 WS 字段解析 bug 实际打断
+`[部分修复]` `realtime_drawdown.go` 已改为现货+合约合并浮亏(`combinedManagedUnrealizedLocked`);`user_data_stream.go` 已加 `classifyFuturesForcedClosure`/`handleFuturesForcedClosure` 识别强平/ADL。**但**:合约 WS 回报结构体未声明 `"S"`(side)字段,Go json 大小写回退使 `Symbol` 被 side 值覆盖为 "BUY"(`PROJECT_AUDIT.md` C-1,有日志实锤 `symbol=BUY`),强平检测拿到的 symbol 是错的 → **该检测当前实际不生效**,修复 C-1 后才成立。
 
-### 🔴 R4. `serverTimeOffset` 数据竞争
-`engine_types.go` 中 `serverTimeOffset time.Duration` 为裸字段，`syncServerTimeOffset` 裸写、`serverNow()` 裸读，且 `serverNow()` 被监控 worker / 并发开平仓 / 签名时间戳并发调用，无锁/atomic 保护。**影响**：撕裂读取导致 fire-at 时点漂移，在错误时刻动手。`go vet` 抓不到，`go test -race` 大概率会爆。（同类较轻：`websocket_bookticker.go` `DepthCache.refCount` 未加锁递增。）
+### ✅ R4. `serverTimeOffset` 数据竞争（已修复）
+`[已修复]` `engine_types.go:125` 已改为 `atomic.Int64`,裸字段竞争消除。
 
 ### ✅ R5. 净利 `NetPnL` 不含滑点与恢复摩擦 —— 经审定为**误判**,口径本就诚实(S4 收尾·对账口径审查)
 原描述「滑点/恢复摩擦不进 NetPnL」**经代码审查证实不成立**:
@@ -313,11 +314,11 @@ README 旧承诺与代码不符（见上节）。仅有保证金充足性检查�
 ### 🟡 R10. 上帝对象与锁纪律靠人脑维持
 `FundingRateSniperEngine` 背 6 把锁 + 多个 atomic + 9 个 `sync.Once`，多个 750+ 行巨型文件；按字段分锁（`platformRiskMu`/`orderRateMu` 守 `platformState` 不同字段）靠约定维持，新增字段易踩进 R4 类竞争。
 
-### 🟡 R11. 配置与代码未分离
-策略/风控参数硬编码，调参需改代码重新构建——实盘期间是事故源。
+### ✅ R11. 配置与代码分离（已落地）
+`[已修复]` `config.yaml`(真 YAML)+ env 覆盖已在生产使用,调参不需要改代码。
 
-### 🟡 R12. 并发开仓首错不取消兄弟任务
-`runBoundedConcurrentTasks` 首个 worker 失败不取消其余 worker，放大竞争窗口与潜在多腿暴露。
+### ✅ R12. 并发开仓首错取消兄弟任务（已修复）
+`[已修复]` `runBoundedConcurrentTasks` 已用可取消子 ctx,任一 worker 出错立即 `cancel()` 其余任务(`engine_cost_guard.go:653` 起)。
 
 ### ✅ R12b. 现货 Protected IOC 双轨在「不确定态」重复下单（已修复）
 `[已修复]` `placeSpotProtectedOpenDualTrack` 主腿原先走裸 `placeSignedOrder`，当返回**不确定态**
@@ -403,9 +404,8 @@ PORTALUSDT 这种有量的币因瞬态取数失败被 critical 熔断，且 `pau
   （`authorizeRead`，覆盖 `/records/`、对账、运行状态等）。默认 `127.0.0.1` 时不暴露，但读/写授权彻底分离（读面独立只读令牌）
   仍是 P5 治理目标。**结论**：明文凭证问题已解决，读面授权分离仍待做。
 
-### 🟠 R17. 配置系统不是真 YAML，只是「扁平 key:value 解析器」
-文件名叫 `config.yaml`，但解析器是逐行 `strings.SplitN(line, ":", 2)`（`engine_config.go:91`），只支持平铺键值，不支持真正 YAML 的层级、数组、复杂字符串语义。
-- **影响**：用户以为在写 YAML，实际不是；配置复杂度上来后这套自制 parser 会成为事故源。9.6 要求配置「强约束 + 可验证 + 真实语义一致」。
+### ✅ R17. 配置系统已是真 YAML（已修复）
+`[已修复]` 主配置走 `config_yaml.go` 的 `yaml.v3` 解析 + `flattenYAMLConfig` 拍平 + `BindConfig` 自动绑定;`venues:` 嵌套段由 `config_venues.go` 专门解析。`engine_config.go` 的 `readSimpleYAML`(逐行 SplitN)仅用于 secret 等简单平铺文件。已知局限:拍平不支持嵌套数组(误写会启动报错);`BindConfig` 跳过空值,YAML 无法显式"清零覆盖"默认值(删键=回默认)。
 
 ### 🔴 R18. 运行态关键状态文件缺 schema version / migration 契约
 `report_store` 对历史记录有迁移意识（legacy 文件迁移），但真正决定**恢复安全**的运行态文件——未平仓台账（`open_hedge_state.go`）、残腿救援台账（`exposure_manager.go`）、日级风控状态（`live_safety.go`）——都只有业务字段 + `updated_at`，**无显式 `schema_version` / 兼容版本 / 校验机制**。
@@ -417,9 +417,8 @@ PORTALUSDT 这种有量的币因瞬态取数失败被 critical 熔断，且 `pau
 这几类状态更新当前把整个 JSON 数组读进内存、改完整体重写（`report_store.go`）。
 - **影响**：当前规模无碍，但对 9.6 而言，写放大、崩溃恢复、部分失败、并发一致性、审计重放都没解决。高分做法是 append-only event log + materialized view，或 SQLite/Postgres 这类有事务语义的存储。
 
-### 🟠 R20. 编排层 `Run()` 仍像伪 main，难宿主化
-`internal/app.Run()` 名义上是编排入口，但内部有 **9 处 `log.Fatalf`**（`run.go:31/53/58/62/66/69/77/81/149`）。
-- **影响**：很难被别的宿主复用，难做细粒度集成测试、守护进程接管、上层 supervisor 重试。9.6 的编排层应更多返回 `error`，把退出策略交给真正的 `main` 或 supervisor。
+### ✅ R20. 编排层 `Run()` 已改为返回 error（已修复）
+`[已修复]` `run.go` 已无 `log.Fatalf`,失败全部以 `error` 上抛;仅 `cmd/lingxi/main.go` 保留一处 `log.Fatal(err)` 作为最终退出点。
 
 ### 🟡 R21. 引擎状态面过大（比「文件长」更严重）
 `FundingRateSniperEngine`（`engine_types.go`）把交易状态、风控状态、实时账户、运行时控制、恢复、面板、报告几乎全挤在一个核心 struct 上。
@@ -433,9 +432,8 @@ PORTALUSDT 这种有量的币因瞬态取数失败被 critical 熔断，且 `pau
 ~~`reconcile` 把 `CycleID` 填进了 `Symbol` 字段输出报告~~。**S8-A 已修复**:`reconcile.TradeRecord`/`RecordReconciliation` 新增专用 `CycleID` 字段,结算记录是 cycle 级(含多 symbol,无单一 symbol)故 `Symbol` 留空不强填;报告以 `cycle=<CycleID>` 标注。同时把执行摩擦(开/平滑点 + 恢复摩擦)聚合为 `Friction` 字段入对账——作为**诊断字段**展示「执行泄漏累计」(已隐含在净利偏差里,不重复卡 HEALTHY,避免实盘摩擦恒非零导致永远 UNHEALTHY)。
 - **影响**：诊断语义干净,自动化报告定位异常成本下降;执行质量(摩擦)有独立可见 KPI。
 
-### 🟠 R24. 配置暴露是「白名单式人工维护」，天然容易漂移
-`envConfigOverrides()`（`config_loader.go:40`）与 `applyEngineConfigOverrides()`（`:107`）都是手工枚举字段。
-- **影响**：结构体里有字段 ≠ YAML/env 能配；README 写了能配 ≠ loader 真接上了。**R1 的 `HedgeImbalanceAbort*` 无法通过配置开启，本质就是这个系统性缺陷的实例**。需要结构体自动映射，消灭人工白名单。
+### ✅ R24. 配置自动映射（已修复）
+`[已修复]` `internal/core/config_bind.go` 的 `BindConfig` 按结构体 `cfg` tag 反射自动绑定,白名单人工维护已消除;`hedge_imbalance_abort_rate` 等均可经 YAML 配置。
 
 ---
 
@@ -535,7 +533,7 @@ L2 簇上限 + `admitByClusterCap` + `portfolioClusterNotionalUSDT` 已落地(M-
    - 在监控循环周期性调用 `assertHedgeInvariant`。
 
 ### P2 — 盈亏与对账诚实化
-6. **`NetPnL` 纳入滑点与恢复摩擦（修 R5）**
+6. ~~**`NetPnL` 纳入滑点与恢复摩擦（修 R5）**~~ `[作废]` R5 经审定为误判:滑点/恢复摩擦已隐含在按实际成交价计算的 NetPnL 中,再扣即重复计数(见 R5 条目)。
 7. **对账成本侧用模型值而非实测值（修 R6）**
    - 模型预期侧用「模型费率/借币率」算 `totalFees/totalBorrow`，让成本模型误差暴露；并引入相对阈值（`Rel > 0`）。
 8. **周期/日级亏损熔断改用 funding-settled final 口径（修 R8）**，与连亏维度对齐。
@@ -544,8 +542,8 @@ L2 簇上限 + `admitByClusterCap` + `portfolioClusterNotionalUSDT` 已落地(M-
 
 ### P3 — 架构与可维护性
 11. **拆薄 `funding_sniper_engine.go` / `engine_*.go` 巨型文件**，让状态机成为主流程骨架。
-12. **配置与代码分离（修 R11）**：引入 `config.yaml` + 环境变量覆盖 + 启动期校验。
-13. **`runBoundedConcurrentTasks` 首错即 cancel 兄弟任务（修 R12）**（`errgroup` + ctx 取消）。
+12. ~~**配置与代码分离（修 R11）**~~ `[已完成]` `config.yaml`(yaml.v3 + BindConfig)+ env 覆盖 + 启动期校验已落地。
+13. ~~**`runBoundedConcurrentTasks` 首错即 cancel 兄弟任务（修 R12）**~~ `[已完成]` 见 R12 条目。
 14. **抽象存储接口**，为 JSONL / SQLite 演进做准备。
 15. **给 `RiskEvent` 增加更丰富的上下文**，扩大业务流程级与 `-race` 测试覆盖。
 
@@ -1002,7 +1000,7 @@ M6(治理) 可与 M2~M5 并行
 - [x] **灰度门自动化（R33）**：放行/回退由实测 edge、滑点、成交率、`reconcile` 健康按量化规则判定（`decideCapitalRampAction`），引擎产出建议 + 告警；实际改参由人工核实后落地（资金投放高后果，默认人工把关）。
 - [x] **pending funding 处置（R34）**：重试超 N 次/超 T 小时→critical 告警 + `Escalated` 停重试；该 cycle 隔离不污染连亏/回撤(S5-E)。
 - [x] **改参治理（R35）**：热改风控有 diff 预览 + 一键回滚 + 全程审计(`PreviewRiskConfigUpdate`/`RollbackRiskConfig`,S5-F)。
-- [x] **单点容灾（R36）**：单写租约(flock)杜绝双开 + 优雅停机/dead-man 保证「停得安全而非裸奔」(S7-A/B/C);**待扩展**多 venue/account 抽象与稳定币敞口分散(属未来扩展)。
+- [x] **单点容灾（R36）**：单写租约(flock)杜绝双开 + 优雅停机/dead-man 保证「停得安全而非裸奔」(S7-A/B/C);多 venue 抽象已部分落地(Binance+Bybit,见 `MULTI_VENUE_REFACTOR.md`),account 抽象与稳定币敞口分散属未来扩展。
 
 - [ ] **最终裁定**：连续多周期小额实盘 `reconcile` HEALTHY 且实测净利稳定贴合模型（这一条只能由你的实盘记录给出）。
 
@@ -1021,7 +1019,7 @@ M6(治理) 可与 M2~M5 并行
 - **L3 Tick 回测校正阈值（R15）**：用真实逐笔深度回测校正成本/冲击阈值，需真实 L3 tick 数据源（当前阈值为模型推导，待实盘标定）。
 - **TWAP/冰山双腿 lockstep 实盘接线（R13）**：规划层 `planExecutionSlices` 已落地并单测；实盘把切片接入双腿提交需小额实盘校验「切片间不产生裸腿」后再开（默认 `ExecutionSlicingEnabled=false`）。
 - **各类阈值标定**：`MinRealizedNetEdgeRate`、灰度门门槛、续持门槛/安全垫、簇上限等当前默认 0/保守值（只观测不强制），待实盘数据标定后再开启强制。
-- **多 venue 容灾（R36）**：当前单 venue，已预留「停得安全」；多 venue/account 抽象与跨所对冲属未来扩展。
+- **多 venue 容灾（R36）**：`[部分落地]` 已接入 Binance + Bybit 双所(`orchestrator.go` + `internal/venue/`,Bybit 走独立精简执行器、`records/bybit/` 隔离);跨所对冲与更多所抽象属未来扩展。
 
 **C. 只能由实盘记录盖章**
 - **演练记录留存**：`deploy/RUNBOOK.md` 已给演练清单，**实际演练 + 记录**由操作者执行。

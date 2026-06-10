@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -353,7 +354,7 @@ func (m *ExposureManager) enqueueOrRetry(ctx context.Context, task exposureRescu
 			m.logger.Printf("ExposureManager 队列已满,任务已持久化并安排后台重投，symbol=%s phase=%s", task.Symbol, task.Phase)
 		}
 		if m.engine != nil {
-			m.engine.emitRiskEvent(newRiskEvent("incident", RiskCategoryPlatform, RiskSeverityCritical, task.Phase, task.Symbol, "exposure_rescue_queue_full", int(m.engine.executionIncidents), m.engine.cfg.RiskConfig.MaxExecutionIncidents, false, "救援队列已满,任务已持久化并后台重投,symbol 保持锁定"))
+			m.engine.emitRiskEvent(newRiskEvent("incident", RiskCategoryPlatform, RiskSeverityCritical, task.Phase, task.Symbol, "exposure_rescue_queue_full", int(atomic.LoadInt32(&m.engine.executionIncidents)), m.engine.cfg.RiskConfig.MaxExecutionIncidents, false, "救援队列已满,任务已持久化并后台重投,symbol 保持锁定"))
 		}
 		go m.scheduleRetry(ctx, task)
 	}
@@ -416,14 +417,14 @@ func (m *ExposureManager) reportTaskResult(ctx context.Context, task exposureRes
 		if persistErr := m.persistPendingTask(retry); persistErr != nil && m.logger != nil {
 			m.logger.Printf("ExposureManager 持久化重试任务失败，symbol=%s err=%v", task.Symbol, persistErr)
 		}
-		m.engine.emitRiskEvent(newRiskEvent("incident", RiskCategoryPlatform, RiskSeverityWarning, task.Phase, task.Symbol, "exposure_rescue_retry", int(m.engine.executionIncidents), m.engine.cfg.RiskConfig.MaxExecutionIncidents, false, fmt.Sprintf("第 %d/%d 次收敛失败,保持锁定并安排重试: %v", task.Attempts+1, exposureRescueMaxAttempts, err)))
+		m.engine.emitRiskEvent(newRiskEvent("incident", RiskCategoryPlatform, RiskSeverityWarning, task.Phase, task.Symbol, "exposure_rescue_retry", int(atomic.LoadInt32(&m.engine.executionIncidents)), m.engine.cfg.RiskConfig.MaxExecutionIncidents, false, fmt.Sprintf("第 %d/%d 次收敛失败,保持锁定并安排重试: %v", task.Attempts+1, exposureRescueMaxAttempts, err)))
 		go m.scheduleRetry(ctx, retry)
 		return
 	}
 	// 重试耗尽:**保持** symbol 锁定(任务留盘待重启重排)并升级 critical 要求人工核查残腿。
 	// 此前会在耗尽时释放锁以避免「永久锁死」,但那会让带未收敛残腿的 symbol 被重新开仓、叠加敞口——风险更高。
 	// 现改为继续锁定:本进程内不再重开该 symbol(锁死边界由 critical 告警 + 人工/重启介入兜底,重启后任务自动重排)。
-	m.engine.emitRiskEvent(newRiskEvent("incident", RiskCategoryPlatform, RiskSeverityCritical, task.Phase, task.Symbol, "exposure_rescue_exhausted", int(m.engine.executionIncidents), m.engine.cfg.RiskConfig.MaxExecutionIncidents, false, fmt.Sprintf("救援重试已耗尽(%d 次),已保持 symbol 锁定防止带残腿重开,任务留盘待重启重排,请立即人工核查残腿: %v", exposureRescueMaxAttempts, err)))
+	m.engine.emitRiskEvent(newRiskEvent("incident", RiskCategoryPlatform, RiskSeverityCritical, task.Phase, task.Symbol, "exposure_rescue_exhausted", int(atomic.LoadInt32(&m.engine.executionIncidents)), m.engine.cfg.RiskConfig.MaxExecutionIncidents, false, fmt.Sprintf("救援重试已耗尽(%d 次),已保持 symbol 锁定防止带残腿重开,任务留盘待重启重排,请立即人工核查残腿: %v", exposureRescueMaxAttempts, err)))
 }
 
 func (m *ExposureManager) handleTask(ctx context.Context, task exposureRescueTask) error {

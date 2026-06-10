@@ -137,17 +137,17 @@ type Depth struct {
 
 // CostProfile 是账户实拉的手续费画像(平台币抵扣已计入实拉费率,由 DiscountApplied 标记)。
 type CostProfile struct {
-	SpotTaker    float64
-	SpotMaker    float64
-	FuturesTaker float64
-	FuturesMaker float64
+	SpotTaker       float64
+	SpotMaker       float64
+	FuturesTaker    float64
+	FuturesMaker    float64
 	DiscountApplied bool
 }
 
 // LeverageBracket 是合约杠杆档位。
 type LeverageBracket struct {
-	NotionalCap   float64
-	MaxLeverage   int
+	NotionalCap     float64
+	MaxLeverage     int
 	MaintMarginRate float64
 }
 
@@ -166,21 +166,21 @@ type Balances struct {
 
 // Position 是合约持仓。
 type Position struct {
-	Symbol       Symbol
-	PositionAmt  float64 // 正=多,负=空(币数量)
-	EntryPrice   float64
-	MarkPrice    float64
+	Symbol        Symbol
+	PositionAmt   float64 // 正=多,负=空(币数量)
+	EntryPrice    float64
+	MarkPrice     float64
 	UnrealizedPnL float64
-	Leverage     int
-	MarginMode   MarginMode
+	Leverage      int
+	MarginMode    MarginMode
 }
 
 // KeyPosture 是 API key 安全自检结果(提现权限/IP 白名单等)。
 type KeyPosture struct {
-	CanTrade          bool
-	CanWithdraw       bool // 期望 false:套利 key 不应有提现权限
-	IPRestricted      bool
-	Notes             string
+	CanTrade     bool
+	CanWithdraw  bool // 期望 false:套利 key 不应有提现权限
+	IPRestricted bool
+	Notes        string
 }
 
 // OrderRequest 是中性下单请求;数量统一用币数量,适配器内部换算成该所张数。
@@ -198,40 +198,40 @@ type OrderRequest struct {
 
 // OrderResult 是下单/查单的中性结果。
 type OrderResult struct {
-	Symbol         Symbol
-	Market         Market
-	ClientOrderID  string
+	Symbol          Symbol
+	Market          Market
+	ClientOrderID   string
 	ExchangeOrderID string
-	Status         string  // new/filled/partially_filled/canceled/rejected
-	ExecutedQty    float64
-	AvgPrice       float64
-	CumQuoteUSDT   float64
+	Status          string // new/filled/partially_filled/canceled/rejected
+	ExecutedQty     float64
+	AvgPrice        float64
+	CumQuoteUSDT    float64
 	// Fee 是该订单累计实际成交手续费(交易所真实扣费,含 BNB/MNT 等抵扣后的真实口径);FeeAsset 是计费币种。
 	// 用于「真实成交成本」量化(估算费率 vs 实扣费率的对照),解析缺失时为 0/""。
-	Fee            float64
-	FeeAsset       string
-	RawCode        string
+	Fee      float64
+	FeeAsset string
+	RawCode  string
 }
 
 // Trade 是一笔用户成交。
 type Trade struct {
-	Symbol       Symbol
-	Market       Market
-	Price        float64
-	Qty          float64
-	QuoteQty     float64
-	Commission   float64
+	Symbol          Symbol
+	Market          Market
+	Price           float64
+	Qty             float64
+	QuoteQty        float64
+	Commission      float64
 	CommissionAsset string
-	IsMaker      bool
-	Time         time.Time
+	IsMaker         bool
+	Time            time.Time
 }
 
 // FundingIncome 是一笔已实现资金费收入(用于结算复核)。
 type FundingIncome struct {
-	Symbol   Symbol
-	Income   float64
-	Asset    string
-	Time     time.Time
+	Symbol Symbol
+	Income float64
+	Asset  string
+	Time   time.Time
 }
 
 // UserEventKind 区分用户数据流事件类别。
@@ -245,17 +245,18 @@ const (
 
 // UserEvent 是用户数据流的中性事件(封装 listenKey 续期等所内细节)。
 type UserEvent struct {
-	Kind   UserEventKind
-	Symbol Symbol
-	Market Market
-	Order  *OrderResult
+	Kind    UserEventKind
+	Symbol  Symbol
+	Market  Market
+	Order   *OrderResult
 	RawType string
-	Time   time.Time
+	Time    time.Time
 }
 
 // Wallet 是该所参与调仓的钱包标识(各所自定义取值)。
-//   binance: "spot" / "um_futures" / "cross_margin" / "funding"
-//   bybit:   "unified" / "funding"
+//
+//	binance: "spot" / "um_futures" / "cross_margin" / "funding"
+//	bybit:   "unified" / "funding"
 type Wallet string
 
 // WalletSnapshot 是单个钱包的可动用快照。

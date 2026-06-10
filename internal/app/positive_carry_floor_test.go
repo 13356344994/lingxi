@@ -109,9 +109,9 @@ func TestDropBorrowUnavailableNegativeCarry(t *testing.T) {
 	e.markBorrowAssetUnavailable("HOME")
 
 	candidates := []FundingCandidate{
-		{Symbol: "HOMEUSDT", SpotBaseAsset: "HOME", Direction: fundingCarryDirectionNegative, EstimatedRate: -0.01}, // 借不到的负 carry → 剔除
+		{Symbol: "HOMEUSDT", SpotBaseAsset: "HOME", Direction: fundingCarryDirectionNegative, EstimatedRate: -0.01},      // 借不到的负 carry → 剔除
 		{Symbol: "PORTALUSDT", SpotBaseAsset: "PORTAL", Direction: fundingCarryDirectionNegative, EstimatedRate: -0.006}, // 可借的负 carry → 保留
-		{Symbol: "HOMEUSDT-P", SpotBaseAsset: "HOME", Direction: fundingCarryDirectionPositive, EstimatedRate: 0.006}, // 正 carry 免借币 → 保留(即便 base 借不到)
+		{Symbol: "HOMEUSDT-P", SpotBaseAsset: "HOME", Direction: fundingCarryDirectionPositive, EstimatedRate: 0.006},    // 正 carry 免借币 → 保留(即便 base 借不到)
 	}
 	kept, dropped := e.dropBorrowUnavailableNegativeCarry(candidates)
 	if dropped != 1 {

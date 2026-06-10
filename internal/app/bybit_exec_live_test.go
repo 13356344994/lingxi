@@ -11,11 +11,11 @@ import (
 
 // fakeBybitTrader 是离线下单桩:记录下单/撤单,QueryOrder 默认回「已全量成交」,可按 clientOrderID 注入失败。
 type fakeBybitTrader struct {
-	placed      []venue.OrderRequest
-	canceled    []string
-	fills       map[string]venue.OrderResult
-	placeErr    map[string]error
-	queryErr    map[string]error
+	placed         []venue.OrderRequest
+	canceled       []string
+	fills          map[string]venue.OrderResult
+	placeErr       map[string]error
+	queryErr       map[string]error
 	positions      []venue.Position
 	balances       venue.Balances
 	instruments    []venue.Instrument
@@ -390,4 +390,3 @@ func TestIsBybitDuplicateOrderError(t *testing.T) {
 		}
 	}
 }
-

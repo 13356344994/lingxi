@@ -59,12 +59,19 @@ read_int_file() {
   if [ -f "$f" ]; then cat "$f" 2>/dev/null || echo "$default"; else echo "$default"; fi
 }
 
-# heartbeat_age 返回心跳文件年龄(秒);文件缺失/无 ts 返回一个超大值(视为不健康)。
+# heartbeat_age 返回心跳年龄(秒)。多 venue 共存一个进程:取主目录与各 venue 子目录
+# (如 records/bybit/heartbeat.json)里**最新**的一份——任一执行循环活着即进程活着,
+# 避免「只跑 Bybit 时主心跳缺失被误判卡死」。全部缺失/无 ts 返回超大值(视为不健康)。
 heartbeat_age() {
-  if [ ! -f "$HEARTBEAT_FILE" ]; then echo 999999; return; fi
-  ts=$(sed -n 's/.*"ts"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$HEARTBEAT_FILE" | head -1)
-  if [ -z "${ts:-}" ]; then echo 999999; return; fi
-  echo $(( $(now_epoch) - ts ))
+  newest_ts=""
+  for f in "$HEARTBEAT_FILE" "$RECORD_DIR"/*/heartbeat.json; do
+    [ -f "$f" ] || continue
+    ts=$(sed -n 's/.*"ts"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$f" | head -1)
+    [ -n "${ts:-}" ] || continue
+    if [ -z "$newest_ts" ] || [ "$ts" -gt "$newest_ts" ]; then newest_ts="$ts"; fi
+  done
+  if [ -z "${newest_ts:-}" ]; then echo 999999; return; fi
+  echo $(( $(now_epoch) - newest_ts ))
 }
 
 # health_ok 返回 0 表示 /healthz 200;非 200 / 无法连接返回 1。
@@ -74,9 +81,16 @@ health_ok() {
 }
 
 # ledger_has_hedges 返回 0 表示本地未平仓台账存在且含裸仓(空台账时引擎会删文件,故文件在即视为有内容,再核对 symbol 字段)。
+# 多 venue:币安主台账之外,也核对各 venue 子目录的 bybit_positions.json,任一有仓即视为有敞口。
 ledger_has_hedges() {
-  [ -f "$OPEN_HEDGES_FILE" ] || return 1
-  grep -q '"symbol"' "$OPEN_HEDGES_FILE" 2>/dev/null
+  if [ -f "$OPEN_HEDGES_FILE" ] && grep -q '"symbol"' "$OPEN_HEDGES_FILE" 2>/dev/null; then
+    return 0
+  fi
+  for f in "$RECORD_DIR"/*/bybit_positions.json "$RECORD_DIR"/bybit_positions.json; do
+    [ -f "$f" ] || continue
+    if grep -q '"symbol"' "$f" 2>/dev/null; then return 0; fi
+  done
+  return 1
 }
 
 # maybe_flatten_naked_positions 在「确认主进程已死 + 台账有裸仓 + 开关开启」时,于重启前触发一次应急强平兜底。

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -713,7 +714,7 @@ func (e *FundingRateSniperEngine) handleFuturesForcedClosure(symbol string, kind
 		kind, normalized, strings.TrimSpace(clientOrderID),
 	)
 	_ = e.recordExecutionIncident("forced_closure", normalized, reason)
-	e.emitRiskEvent(newRiskEvent("incident", RiskCategorySafety, RiskSeverityCritical, "forced_closure", normalized, kind, int(e.executionIncidents), e.cfg.RiskConfig.MaxExecutionIncidents, true, reason))
+	e.emitRiskEvent(newRiskEvent("incident", RiskCategorySafety, RiskSeverityCritical, "forced_closure", normalized, kind, int(atomic.LoadInt32(&e.executionIncidents)), e.cfg.RiskConfig.MaxExecutionIncidents, true, reason))
 	if e.logger != nil {
 		e.logger.Printf("检测到交易所强平/ADL: %s", reason)
 	}

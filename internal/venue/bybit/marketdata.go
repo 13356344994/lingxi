@@ -63,11 +63,11 @@ type bybitInstrument struct {
 		TickSize string `json:"tickSize"`
 	} `json:"priceFilter"`
 	LotSizeFilter struct {
-		QtyStep         string `json:"qtyStep"`
-		BasePrecision   string `json:"basePrecision"`
-		MinOrderQty     string `json:"minOrderQty"`
-		MinNotionalVal  string `json:"minNotionalValue"`
-		MinOrderAmt     string `json:"minOrderAmt"`
+		QtyStep        string `json:"qtyStep"`
+		BasePrecision  string `json:"basePrecision"`
+		MinOrderQty    string `json:"minOrderQty"`
+		MinNotionalVal string `json:"minNotionalValue"`
+		MinOrderAmt    string `json:"minOrderAmt"`
 	} `json:"lotSizeFilter"`
 }
 

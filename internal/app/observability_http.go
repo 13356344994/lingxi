@@ -63,7 +63,7 @@ func (e *FundingRateSniperEngine) startHeartbeatWriter(ctx context.Context) {
 	}()
 }
 
-// writeHeartbeat 原子写心跳文件(写临时文件 + rename,避免外部读到半截)。best-effort:失败仅记日志,不影响交易。
+// writeHeartbeat 原子写心跳文件。best-effort:失败仅记日志,不影响交易。
 func (e *FundingRateSniperEngine) writeHeartbeat(path string) {
 	runID, cycleID := e.traceIDs()
 	now := e.serverNow()
@@ -75,19 +75,10 @@ func (e *FundingRateSniperEngine) writeHeartbeat(path string) {
 		CycleID: cycleID,
 		Stage:   string(e.currentLifecycleStage),
 	}
-	data, err := json.Marshal(payload)
-	if err != nil {
-		return
-	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o644); err != nil {
-		if e.logger != nil {
-			e.logger.Printf("写心跳文件失败: %v", err)
-		}
-		return
-	}
-	if err := os.Rename(tmp, path); err != nil && e.logger != nil {
-		e.logger.Printf("提交心跳文件失败: %v", err)
+	// 复用 store.WriteJSONFile:tmp+fsync+rename,失败自动清理 tmp(此前裸 WriteFile 无 fsync,
+	// 掉电时 watchdog 可能读到空/旧心跳误重启;rename 失败还会残留 tmp)。
+	if err := writeJSONFile(path, payload); err != nil && e.logger != nil {
+		e.logger.Printf("写心跳文件失败: %v", err)
 	}
 }
 

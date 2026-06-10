@@ -971,8 +971,14 @@ func (e *FundingRateSniperEngine) marketCacheMissingSymbols(spotSymbols []string
 	return spotTickerMissing, futuresTickerMissing, spotDepthMissing, futuresDepthMissing
 }
 
+// backfillConcurrencyLimit 限制补齐取价的并发 REST 数。修 PROJECT_AUDIT C-7:此前每个标的
+// 无上限起 goroutine(N 标的 → 2N 并发请求),:58~:59 高峰互相挤兑共享 ctx 的截止时间,
+// 3 天日志里 286 次 context deadline exceeded 全部集中在开仓决策最需要新鲜盘口的那一分钟。
+const backfillConcurrencyLimit = 8
+
 func (e *FundingRateSniperEngine) backfillMissingMarketData(ctx context.Context, targets []*MonitoredTarget) {
 	var wg sync.WaitGroup
+	sem := make(chan struct{}, backfillConcurrencyLimit)
 	for _, target := range targets {
 		needSpotTicker := e.spotTickerCache != nil
 		if needSpotTicker {
@@ -1005,6 +1011,12 @@ func (e *FundingRateSniperEngine) backfillMissingMarketData(ctx context.Context,
 		wg.Add(1)
 		go func(t *MonitoredTarget, needSpotTicker bool, needFuturesTicker bool, needSpotDepth bool, needFuturesDepth bool) {
 			defer wg.Done()
+			select {
+			case sem <- struct{}{}:
+				defer func() { <-sem }()
+			case <-ctx.Done():
+				return
+			}
 
 			if needSpotTicker || needFuturesTicker {
 				spotTicker, futuresTicker, tickerErr := e.fetchDualBookTicker(ctx, t.Candidate.Pair, t.Candidate.Symbol)

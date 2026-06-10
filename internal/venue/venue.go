@@ -145,12 +145,12 @@ type Factory func(cfg Config) (Venue, error)
 // Config 是构造适配器所需的中性配置(密钥 + 网络 + 该所参数)。
 // 具体字段由调用方填充;适配器只读取自己关心的部分。
 type Config struct {
-	Name        string
-	APIKey      string
-	APISecret   string
-	Passphrase  string // OKX 等需要
-	ProxyURL    string // 可选 per-venue 代理
-	Extra       map[string]string
+	Name       string
+	APIKey     string
+	APISecret  string
+	Passphrase string // OKX 等需要
+	ProxyURL   string // 可选 per-venue 代理
+	Extra      map[string]string
 }
 
 // Registry 是适配器注册表:「加一家 = 注册一行」。

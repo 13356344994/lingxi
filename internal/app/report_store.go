@@ -568,7 +568,9 @@ func (s *ReportStore) compactRuntimeJSONsLocked(now time.Time) error {
 			compactedAny = true
 		}
 	}
-	jsonlTargets := []string{s.monitorPath, s.executionPath}
+	// settlements_journal 是 append-only 事实源:按与物化视图一致的保留期裁剪(超期记录在视图里也已
+	// 被裁剪,重放语义不变)。pending_funding_journal 不裁剪——长期未决/升级人工的记录必须永远可重放。
+	jsonlTargets := []string{s.monitorPath, s.executionPath, s.domainEventPath, s.settlementJournalPath}
 	for _, target := range jsonlTargets {
 		compacted, err := compactJSONLByRecordedAt(target, now, reportCSVRetention, reportCSVMaxFileSizeBytes)
 		if err != nil {

@@ -12,7 +12,8 @@ import (
 
 // TestSignStringKnownVector 用业界公认的 HMAC-SHA256 测试向量校验签名底层正确:
 // key="key", msg="The quick brown fox jumps over the lazy dog"
-//   → f7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8
+//
+//	→ f7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8
 func TestSignStringKnownVector(t *testing.T) {
 	got := signString("key", "The quick brown fox jumps over the lazy dog")
 	want := "f7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8"
@@ -82,5 +83,79 @@ func TestDoRetCodeError(t *testing.T) {
 	err := tr.publicGet(context.Background(), "/v5/market/time", nil, nil)
 	if err == nil {
 		t.Fatalf("retCode!=0 应返回错误")
+	}
+}
+
+// TestSyncServerTimeAdjustsSignTimestamp 钉死时钟偏移自愈(PROJECT_AUDIT C-5):
+// 服务器时间领先本地 10s 时,SyncServerTime 后签名时间戳应叠加该偏移。
+func TestSyncServerTimeAdjustsSignTimestamp(t *testing.T) {
+	fixedLocal := time.UnixMilli(1_700_000_000_000).UTC()
+	serverMs := fixedLocal.UnixMilli() + 10_000 // 服务器快 10s
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v5/market/time" {
+			http.NotFound(w, r)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"retCode": 0, "retMsg": "OK",
+			"result": map[string]string{
+				"timeSecond": "1700000010",
+				"timeNano":   "1700000010000000000",
+			},
+		})
+	}))
+	defer srv.Close()
+
+	tr := newTransport(srv.URL, "K", "S")
+	tr.nowFn = func() time.Time { return fixedLocal }
+	offset, err := tr.syncServerTime(context.Background())
+	if err != nil {
+		t.Fatalf("syncServerTime() error = %v", err)
+	}
+	if offset != 10*time.Second {
+		t.Fatalf("偏移计算错误: 期望 10s, 实际 %s", offset)
+	}
+	if got := tr.signTimestampMs(); got != "1700000010000" {
+		t.Fatalf("签名时间戳未叠加偏移: %s(期望 %d)", got, serverMs)
+	}
+}
+
+// TestDoRetriesOn5xx 钉死 GET 瞬时故障重试(PROJECT_AUDIT C-6):前两次 500,第三次成功。
+func TestDoRetriesOn5xx(t *testing.T) {
+	attempts := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attempts++
+		if attempts < 3 {
+			http.Error(w, "boom", http.StatusInternalServerError)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"retCode": 0, "retMsg": "OK", "result": map[string]string{}})
+	}))
+	defer srv.Close()
+
+	tr := newTransport(srv.URL, "", "")
+	if err := tr.publicGet(context.Background(), "/v5/test", nil, nil); err != nil {
+		t.Fatalf("第三次应成功, 实际 err=%v", err)
+	}
+	if attempts != 3 {
+		t.Fatalf("期望重试到第 3 次, 实际 %d 次", attempts)
+	}
+}
+
+// TestDoDoesNotRetryBusinessError 业务错误(retCode≠0 且非限频)不应重试。
+func TestDoDoesNotRetryBusinessError(t *testing.T) {
+	attempts := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attempts++
+		_ = json.NewEncoder(w).Encode(map[string]any{"retCode": 170137, "retMsg": "too many decimals"})
+	}))
+	defer srv.Close()
+
+	tr := newTransport(srv.URL, "", "")
+	if err := tr.publicGet(context.Background(), "/v5/test", nil, nil); err == nil {
+		t.Fatal("业务错误应上抛")
+	}
+	if attempts != 1 {
+		t.Fatalf("业务错误不应重试, 实际请求 %d 次", attempts)
 	}
 }

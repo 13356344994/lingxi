@@ -13,12 +13,12 @@ func TestIsBasisFavorableForCarry(t *testing.T) {
 		basis float64
 		want  bool
 	}{
-		{fundingCarryDirectionNegative, -0.0723, true},  // 负 carry + 负基差(perp 折价)→ 有利
-		{fundingCarryDirectionNegative, 0.05, false},     // 负 carry + 正基差 → 反向,不放宽
-		{fundingCarryDirectionPositive, 0.0723, true},    // 正 carry + 正基差(perp 溢价)→ 有利
-		{fundingCarryDirectionPositive, -0.05, false},    // 正 carry + 负基差 → 反向
-		{fundingCarryDirectionNegative, 0, false},        // 基差 0 → 不放宽
-		{fundingCarryDirection(""), -0.05, false},        // 方向未定 → 不放宽
+		{fundingCarryDirectionNegative, -0.0723, true}, // 负 carry + 负基差(perp 折价)→ 有利
+		{fundingCarryDirectionNegative, 0.05, false},   // 负 carry + 正基差 → 反向,不放宽
+		{fundingCarryDirectionPositive, 0.0723, true},  // 正 carry + 正基差(perp 溢价)→ 有利
+		{fundingCarryDirectionPositive, -0.05, false},  // 正 carry + 负基差 → 反向
+		{fundingCarryDirectionNegative, 0, false},      // 基差 0 → 不放宽
+		{fundingCarryDirection(""), -0.05, false},      // 方向未定 → 不放宽
 	}
 	for _, c := range cases {
 		if got := isBasisFavorableForCarry(c.dir, c.basis); got != c.want {
@@ -55,12 +55,12 @@ func TestEffectiveMaxScanBasisRate(t *testing.T) {
 func TestScanGateHomeusdtRepro(t *testing.T) {
 	strategy := NewDefaultFundingStrategy()
 	snap := FundingSnapshot{
-		Symbol:        "HOMEUSDT",
-		EstimatedRate: -0.00807786,
+		Symbol:          "HOMEUSDT",
+		EstimatedRate:   -0.00807786,
 		LastFundingRate: -0.00807786,
-		BasisRate:     -0.07233871,
-		Direction:     fundingCarryDirectionNegative,
-		IsStale:       false,
+		BasisRate:       -0.07233871,
+		Direction:       fundingCarryDirectionNegative,
+		IsStale:         false,
 	}
 	profile := symbolRiskProfile{MinEstimatedRateMultiplier: 1, MinNetProfitMultiplier: 1}
 
