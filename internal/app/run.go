@@ -115,6 +115,9 @@ func startLiveStack(ctx context.Context, cfg EngineConfig) error {
 	// 用于崩溃重启后自动恢复；影子模式不自动开（影子是人工冒烟，无需无人值守恢复）。默认关闭，零行为变更。
 	if !cfg.ExecutionConfig.ShadowTrading {
 		maybeAutoStartLiveTrading(ctx, controller)
+		// venues.<name>.autostart=true 的非 primary 所同样自动拉起(此前该配置被解析但从未执行,
+		// 重启后 Bybit 一直 idle、连 reconcile 都不跑,崩溃自愈对多所形同虚设)。
+		maybeAutoStartVenueTasks(ctx, orch, enabled)
 	}
 	if err := dashboard.Start(ctx); err != nil && !errors.Is(err, context.Canceled) {
 		return fmt.Errorf("Web 面板异常退出: %w", err)
@@ -154,6 +157,42 @@ func maybeAutoStartLiveTrading(ctx context.Context, controller *RuntimeControlle
 			log.Printf("自动启动实盘交易失败(可在面板手动启动): %v", err)
 		}
 	}()
+}
+
+// maybeAutoStartVenueTasks 自动拉起 venues.<name>.autostart=true 的非 primary venue 执行任务
+// (等价面板对该所点"启动")。primary(币安)由 LINGXI_AUTOSTART_LIVE 单独控制,这里跳过避免双触发。
+// 失败仅记日志,可在面板手动启动;就绪等待与 primary 同节奏。
+func maybeAutoStartVenueTasks(ctx context.Context, orch *Orchestrator, plans []VenuePlan) {
+	if orch == nil {
+		return
+	}
+	primary := orch.Primary()
+	secretPath := strings.TrimSpace(os.Getenv("LINGXI_SECRET_PATH"))
+	if secretPath == "" {
+		secretPath = "secret.yaml"
+	}
+	for _, plan := range plans {
+		if !plan.Autostart {
+			continue
+		}
+		rt, ok := orch.Get(plan.Name)
+		if !ok || rt == nil || rt == primary {
+			continue
+		}
+		name := plan.Name
+		ctrl := rt.controller
+		go func() {
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(autoStartLiveDelay):
+			}
+			log.Printf("[编排] venue=%s autostart=true:自动启动执行任务(secret=%s)", name, redactSecretPath(secretPath))
+			if err := ctrl.Start(RuntimeStartRequest{Mode: string(RuntimeModeLive), SecretPath: secretPath}); err != nil {
+				log.Printf("[编排] venue=%s 自动启动失败(可在面板手动启动): %v", name, err)
+			}
+		}()
+	}
 }
 
 // runConfigSample 输出/写出由结构体 tag 反射生成的全字段样例配置。

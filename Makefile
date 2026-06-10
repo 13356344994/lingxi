@@ -26,6 +26,9 @@ cover:
 
 build:
 	$(GO) build -ldflags "$(LDFLAGS)" -o $(BINARY) ./cmd/lingxi
+	# SELinux(Enforcing):go build 产出新 inode 会丢 bin_t 标签,systemd 将以 203/EXEC 拒绝执行;
+	# semanage 规则已持久化(fcontext /root/lingxi/lingxi → bin_t),这里每次构建后恢复标签。
+	-restorecon $(BINARY) 2>/dev/null || true
 
 vuln:
 	$(GO) run golang.org/x/vuln/cmd/govulncheck@latest ./...
