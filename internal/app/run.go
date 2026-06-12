@@ -111,6 +111,27 @@ func startLiveStack(ctx context.Context, cfg EngineConfig) error {
 	if err != nil {
 		return fmt.Errorf("创建 Web 面板失败: %w", err)
 	}
+	// 控制令牌的固定镜像目录(全局 records/):Primary 所随注册顺序漂移时主令牌文件路径会变,
+	// 镜像保证 `cat records/.dashboard_control_token` 永远是当前有效令牌。
+	dashboard.SetTokenMirrorDir(cfg.NetworkConfig.RecordDir)
+	// 重启后把新控制令牌经 Telegram 推给用户(用户明确要求;凭据与交易告警同源 secret.yaml,
+	// 未配置 Telegram 时静默跳过)。
+	if tgToken, tgChat := loadAlertingSecretsOrEmpty("secret.yaml"); tgToken != "" && tgChat != "" {
+		ac := cfg.AlertingConfig
+		ac.Enabled = true
+		ac.TelegramBotToken = tgToken
+		ac.TelegramChatID = tgChat
+		ac.MinSeverity = "info"
+		tokenDispatcher := newAlertDispatcher(ac, log.Default())
+		dashboard.SetTokenNotifier(func(token string) {
+			tokenDispatcher.NotifyTrade(Alert{
+				Level:      EventLevelInfo,
+				Title:      "面板控制令牌已更新",
+				Detail:     fmt.Sprintf("服务已重启,新控制令牌:\n%s", token),
+				OccurredAt: time.Now().UTC(),
+			})
+		})
+	}
 	// opt-in：显式开启 LINGXI_AUTOSTART_LIVE 时，面板拉起后自动触发实盘交易（等价于面板点"启动实盘"），
 	// 用于崩溃重启后自动恢复；影子模式不自动开（影子是人工冒烟，无需无人值守恢复）。默认关闭，零行为变更。
 	if !cfg.ExecutionConfig.ShadowTrading {

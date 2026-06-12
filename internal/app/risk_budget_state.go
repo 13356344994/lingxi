@@ -18,6 +18,11 @@ type EngineRiskBudgetState struct {
 	DailyLimitTriggered   bool
 	DailyLimitReason      string
 
+	// DailyRecoveryOrderCount 记录当日「恢复/清理类」下单次数(ExposureManager 收敛残腿、panic flatten 等)。
+	// 这类动作只减仓、绝不开新仓,属于风险收敛而非策略交易,因此【不计入】MaxDailyOrderCount 交易额度——
+	// 否则残腿反复重试(attempt=6/6)会把当日交易额度烧穿,让引擎启动即触发日级闸误判为「崩溃」。仅作审计可视。
+	DailyRecoveryOrderCount int
+
 	// ConsecutiveLossCycles 记录「按 funding 实收结算后真实净利为负」的连续周期数（当日维度）。
 	// 达到 RiskConfig.MaxConsecutiveLossCycles 即触发日级熔断停机，要求人工复核系统性失效。
 	ConsecutiveLossCycles int
@@ -61,6 +66,13 @@ func (s *EngineRiskBudgetState) AddDailyPnL(pnl float64) {
 
 func (s *EngineRiskBudgetState) AddDailyOrder() {
 	s.DailyOrderCount++
+}
+
+// AddDailyRecoveryOrder 记录一次恢复/清理类下单(只审计,不烧交易额度)。
+func (s *EngineRiskBudgetState) AddDailyRecoveryOrder(count int) {
+	if count > 0 {
+		s.DailyRecoveryOrderCount += count
+	}
 }
 
 func (s *EngineRiskBudgetState) AddDailyNotional(amount float64) {

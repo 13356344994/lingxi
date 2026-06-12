@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"lingxi/internal/venue"
 )
@@ -212,11 +213,13 @@ func (a *Adapter) QueryOrder(ctx context.Context, m venue.Market, s venue.Symbol
 			OrderID      string `json:"orderId"`
 			OrderLinkID  string `json:"orderLinkId"`
 			OrderStatus  string `json:"orderStatus"`
+			Side         string `json:"side"`
 			CumExecQty   string `json:"cumExecQty"`
 			AvgPrice     string `json:"avgPrice"`
 			CumExecValue string `json:"cumExecValue"`
 			CumExecFee   string `json:"cumExecFee"`
 			FeeCurrency  string `json:"feeCurrency"`
+			CreatedTime  string `json:"createdTime"`
 		} `json:"list"`
 	}
 	if err := a.t.signedGet(ctx, pathOrderRealtime, q, &res); err != nil {
@@ -226,7 +229,7 @@ func (a *Adapter) QueryOrder(ctx context.Context, m venue.Market, s venue.Symbol
 		return venue.OrderResult{Symbol: s, Market: m, ClientOrderID: clientOrderID, Status: "unknown"}, nil
 	}
 	o := res.List[0]
-	return venue.OrderResult{
+	result := venue.OrderResult{
 		Symbol:          s,
 		Market:          m,
 		ClientOrderID:   firstNonEmpty(o.OrderLinkID, clientOrderID),
@@ -238,7 +241,32 @@ func (a *Adapter) QueryOrder(ctx context.Context, m venue.Market, s venue.Symbol
 		Fee:             parseFloat(o.CumExecFee),
 		FeeAsset:        o.FeeCurrency,
 		RawCode:         o.OrderStatus,
-	}, nil
+	}
+	if ms, perr := strconv.ParseInt(strings.TrimSpace(o.CreatedTime), 10, 64); perr == nil && ms > 0 {
+		result.CreatedAt = time.UnixMilli(ms).UTC()
+	}
+	// Bybit 现货订单的 feeCurrency 实测经常返回空串,但费用归属是确定的规则:
+	// 市价 BUY 的 taker 费在 base 资产里扣,SELL 在 quote 里扣。为空时按方向补齐,
+	// 否则上层会把 base 计价的手续费(如 6.266 MBOX≈0.03U)当成 USDT 入账,盈亏失真两个数量级。
+	if m == venue.MarketSpot && strings.TrimSpace(result.FeeAsset) == "" && result.Fee > 0 {
+		if base, quote, ok := splitSymbolAssets(s); ok {
+			if strings.EqualFold(o.Side, "Buy") {
+				result.FeeAsset = base
+			} else if strings.EqualFold(o.Side, "Sell") {
+				result.FeeAsset = quote
+			}
+		}
+	}
+	return result, nil
+}
+
+// splitSymbolAssets 把统一符号(如 "MBOX-USDT")拆成 base/quote 资产名。
+func splitSymbolAssets(s venue.Symbol) (base, quote string, ok bool) {
+	parts := strings.SplitN(string(s), "-", 2)
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		return "", "", false
+	}
+	return parts[0], parts[1], true
 }
 
 // SetLeverage 设置买/卖双向杠杆(linear)。

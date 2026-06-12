@@ -72,7 +72,7 @@ func (s *bybitPositionStore) loadLocked() ([]BybitLivePosition, error) {
 		if err := json.Unmarshal(data, &out); err != nil {
 			return nil, err
 		}
-		return out, nil
+		return normalizeBybitPositions(out), nil
 	}
 	// 新格式:带信封头。校验完整性/版本后才放行(不可信状态拒绝自动接管)。
 	var env bybitPositionsEnvelope
@@ -82,7 +82,23 @@ func (s *bybitPositionStore) loadLocked() ([]BybitLivePosition, error) {
 	if err := guardStateEnvelope("Bybit 持仓台账", &env); err != nil {
 		return nil, err
 	}
-	return env.Positions, nil
+	return normalizeBybitPositions(env.Positions), nil
+}
+
+// bybitLegacyForceCloseSentinel:旧版本用 SettlementsHeld=1<<30 当「立即到期待平」哨兵,
+// 导致平仓日志/结算台账出现「持有 1073741825 次结算」「期望资金费上亿」的荒谬数字。
+const bybitLegacyForceCloseSentinel = 1 << 30
+
+// normalizeBybitPositions 把旧哨兵记录收编为显式 ForceClose 语义(加载时一次性迁移,行为不变:
+// 同样不续持、直接平,但结算次数回归真实口径 0)。
+func normalizeBybitPositions(ps []BybitLivePosition) []BybitLivePosition {
+	for i := range ps {
+		if ps[i].SettlementsHeld >= bybitLegacyForceCloseSentinel {
+			ps[i].SettlementsHeld = 0
+			ps[i].ForceClose = true
+		}
+	}
+	return ps
 }
 
 func (s *bybitPositionStore) saveLocked(ps []BybitLivePosition) error {

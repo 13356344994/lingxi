@@ -203,6 +203,35 @@ func (a *Adapter) fundingIntervalMap(ctx context.Context) map[string]int {
 	return m
 }
 
+// FetchFundingRateHistory 拉某永续标的最近 limit 条历史资金费率(新→旧)。
+// 公共接口,无需签名;用于估计费率持续性(多结算期望值开仓门槛)。
+func (a *Adapter) FetchFundingRateHistory(ctx context.Context, s venue.Symbol, limit int) ([]float64, error) {
+	raw, err := a.ToVenue(s, venue.MarketPerp)
+	if err != nil {
+		return nil, err
+	}
+	if limit <= 0 || limit > 200 {
+		limit = 200
+	}
+	q := url.Values{}
+	q.Set("category", categoryLinear)
+	q.Set("symbol", raw)
+	q.Set("limit", strconv.Itoa(limit))
+	var res struct {
+		List []struct {
+			FundingRate string `json:"fundingRate"`
+		} `json:"list"`
+	}
+	if err := a.t.publicGet(ctx, pathFundingHistory, q, &res); err != nil {
+		return nil, err
+	}
+	out := make([]float64, 0, len(res.List))
+	for _, it := range res.List {
+		out = append(out, parseFloat(it.FundingRate))
+	}
+	return out, nil
+}
+
 // FetchBookTicker 用 orderbook limit=1 取最优买卖一档(linear)。
 func (a *Adapter) FetchBookTicker(ctx context.Context, m venue.Market, s venue.Symbol) (venue.BookTicker, error) {
 	raw, _ := a.ToVenue(s, m)

@@ -111,6 +111,50 @@ func TestNoteOrderPlacedQueuesDailyRiskPersistenceAsynchronously(t *testing.T) {
 	}
 }
 
+// TestRecoveryOrdersDoNotBurnDailyBudget 钉死根因修复:ExposureManager 残腿收敛/清理类下单(recovery)
+// 只计入审计计数 DailyRecoveryOrderCount,绝不增加 DailyOrderCount,也绝不触发 MaxDailyOrderCount 日级闸。
+// 否则残腿 attempt=6/6 反复重试会烧穿当日交易额度,让引擎启动即被日级闸挡死(假崩溃)。
+func TestRecoveryOrdersDoNotBurnDailyBudget(t *testing.T) {
+	cfg := DefaultEngineConfig()
+	cfg.RiskConfig.MaxDailyOrderCount = 2
+	engine := &FundingRateSniperEngine{
+		cfg:                cfg,
+		logger:             log.Default(),
+		runtimeReporter:    newRuntimeReporter(nil),
+		dailyRiskStatePath: filepath.Join(t.TempDir(), "live_daily_risk_state.json"),
+		dailyRiskDate:      tradingDayUTC(time.Now().UTC()),
+	}
+	engine.runtimeReporter = newRuntimeReporter(engine)
+
+	recoveryCtx := withExposureManagerRequest(context.Background())
+	// 模拟残腿反复重试 10 次,远超 MaxDailyOrderCount=2。
+	for i := 0; i < 10; i++ {
+		if err := engine.noteOrderPlaced(recoveryCtx, "spot_market_buy", "ENAUSDT 残腿", 1, false); err != nil {
+			t.Fatalf("恢复类下单不应被日级闸阻断, 第 %d 次 err=%v", i, err)
+		}
+	}
+	if engine.riskBudgetState.DailyOrderCount != 0 {
+		t.Fatalf("恢复类下单不应增加交易额度 DailyOrderCount, got %d", engine.riskBudgetState.DailyOrderCount)
+	}
+	if engine.riskBudgetState.DailyRecoveryOrderCount != 10 {
+		t.Fatalf("恢复类下单应计入审计计数, want 10 got %d", engine.riskBudgetState.DailyRecoveryOrderCount)
+	}
+	if engine.riskBudgetState.DailyLimitTriggered {
+		t.Fatalf("恢复类下单不应触发日级下单闸")
+	}
+
+	// 真实交易单仍正常占用并在超限时触发日级闸。
+	if err := engine.noteOrderPlaced(context.Background(), "batch_open_futures", "n=1", 1, true); err != nil {
+		t.Fatalf("首笔交易单不应被阻断: %v", err)
+	}
+	if err := engine.noteOrderPlaced(context.Background(), "batch_open_futures", "n=1", 1, true); err != nil {
+		t.Fatalf("第二笔交易单不应被阻断: %v", err)
+	}
+	if err := engine.noteOrderPlaced(context.Background(), "batch_open_futures", "n=1", 1, true); err == nil {
+		t.Fatalf("第三笔交易单应触发 MaxDailyOrderCount=2 日级闸")
+	}
+}
+
 func TestStartDailyRiskStateWriterPersistsQueuedState(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "live_daily_risk_state.json")
 	engine := &FundingRateSniperEngine{

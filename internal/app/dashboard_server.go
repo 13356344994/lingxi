@@ -38,7 +38,19 @@ type DashboardServer struct {
 	logger       *log.Logger
 	indexTmpl    *template.Template
 	startedAt    time.Time
+	// tokenMirrorDir 是控制令牌文件的固定镜像目录(全局 records/)。Primary 所随注册顺序漂移时,
+	// 令牌会被写进 records/<primary>/ —— 路径每次重启都可能不同,用户 cat 旧路径拿到的是过期令牌。
+	// 镜像保证 `cat records/.dashboard_control_token` 永远有效。
+	tokenMirrorDir string
+	// tokenNotify 在令牌落盘后被调用(如经 Telegram 推送给用户),nil=不推送。
+	tokenNotify func(token string)
 }
+
+// SetTokenMirrorDir 设置控制令牌的固定镜像目录(启动前调用)。
+func (s *DashboardServer) SetTokenMirrorDir(dir string) { s.tokenMirrorDir = strings.TrimSpace(dir) }
+
+// SetTokenNotifier 设置令牌推送回调(启动前调用)。
+func (s *DashboardServer) SetTokenNotifier(fn func(token string)) { s.tokenNotify = fn }
 
 // DashboardSummaryResponse 表示面板一次刷新所需的聚合数据。
 type DashboardSummaryResponse struct {
@@ -146,6 +158,9 @@ func (s *DashboardServer) Start(ctx context.Context) error {
 			s.logger.Printf("Dashboard 控制令牌已写入 %s (0600,仅本机可读,可 cat 查看);指纹=%s", tokenPath, hashDashboardToken(s.controlToken))
 		} else {
 			s.logger.Printf("Dashboard 控制令牌写入文件失败(%v),请改用 cat 令牌文件;指纹=%s", err, hashDashboardToken(s.controlToken))
+		}
+		if s.tokenNotify != nil {
+			go s.tokenNotify(s.controlToken) // 异步推送(如 Telegram),绝不阻塞面板启动
 		}
 	} else {
 		s.logger.Printf("Dashboard 控制令牌未设置（控制类操作不需要令牌）")
@@ -858,15 +873,32 @@ func (s *DashboardServer) persistControlToken() (string, error) {
 		return "", fmt.Errorf("记录存储未初始化")
 	}
 	tokenPath := filepath.Join(s.store.RecordDir(), dashboardControlTokenFileName)
-	tmp := tokenPath + ".tmp"
-	if err := os.WriteFile(tmp, []byte(s.controlToken+"\n"), 0o600); err != nil {
+	if err := writeDashboardTokenFile(tokenPath, s.controlToken); err != nil {
 		return "", err
 	}
-	if err := os.Rename(tmp, tokenPath); err != nil {
-		_ = os.Remove(tmp)
-		return "", err
+	// 固定镜像:Primary 所漂移导致主路径每次重启可能不同,镜像保证固定路径永远是当前有效令牌。
+	if s.tokenMirrorDir != "" {
+		mirror := filepath.Join(s.tokenMirrorDir, dashboardControlTokenFileName)
+		if mirror != tokenPath {
+			if err := writeDashboardTokenFile(mirror, s.controlToken); err != nil {
+				s.logger.Printf("控制令牌镜像写入失败(主文件已写,仅镜像缺失): %v", err)
+			}
+		}
 	}
 	return tokenPath, nil
+}
+
+// writeDashboardTokenFile 以 0600 原子写入令牌文件。
+func writeDashboardTokenFile(path, token string) error {
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, []byte(token+"\n"), 0o600); err != nil {
+		return err
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	return nil
 }
 
 func hashDashboardToken(token string) string {

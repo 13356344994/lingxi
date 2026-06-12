@@ -286,6 +286,10 @@ func DefaultEngineConfig() EngineConfig {
 			MaxPositionNotionalUSDT: 0,
 			RollEnabled:             false,
 			MaxHoldSettlements:      1,
+			PerpLeverage:            1,
+			EVGateEnabled:           false,
+			PerpMakerFirst:          false,
+			BorrowCostHourly:        0.00003,
 		},
 	}
 	return cfg

@@ -158,8 +158,11 @@ func TestBybitProbeOrphanOwnershipAdoptsOwnOrder(t *testing.T) {
 	if !adopted.Negative {
 		t.Fatal("永续多头孤儿仓应识别为负 carry 持仓")
 	}
-	if adopted.SettlementsHeld < 1<<29 {
-		t.Fatalf("收编持仓必须不可续持(SettlementsHeld 极大), 实际 %d", adopted.SettlementsHeld)
+	if !adopted.ForceClose {
+		t.Fatal("收编持仓必须标记 ForceClose(不可续持,直接平)")
+	}
+	if adopted.SettlementsHeld != 0 {
+		t.Fatalf("收编持仓结算次数应为真实口径 0(不再用 1<<30 哨兵污染台账), 实际 %d", adopted.SettlementsHeld)
 	}
 	if !adopted.NextFundingTime.Before(time.Now().UTC()) {
 		t.Fatal("收编持仓必须立即到期待平")

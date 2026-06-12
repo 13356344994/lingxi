@@ -12,6 +12,55 @@ import (
 // account.go 实现 Bybit v5 私有只读账户(签名 GET):余额/持仓/费率/杠杆档位/key 自检。
 // 全部为只读,Stage 1 可用真实密钥活体校验,零资金风险。
 
+// CollateralCoinInfo 是统一账户里单个币种的抵押/可借状态(负 carry 借币做空的前置条件诊断)。
+type CollateralCoinInfo struct {
+	Coin             string
+	CollateralSwitch bool   // 用户抵押开关(170037 报错对应项)
+	Borrowable       bool   // 该币是否可借
+	MarginCollateral bool   // 平台是否支持该币作抵押
+	HourlyBorrowRate string // 每小时借币利率(字符串原样)
+}
+
+// FetchCollateralInfo 拉逐币抵押开关/可借状态(私有只读)。
+func (a *Adapter) FetchCollateralInfo(ctx context.Context) ([]CollateralCoinInfo, error) {
+	var res struct {
+		List []struct {
+			Currency         string `json:"currency"`
+			CollateralSwitch bool   `json:"collateralSwitch"`
+			Borrowable       bool   `json:"borrowable"`
+			MarginCollateral bool   `json:"marginCollateral"`
+			HourlyBorrowRate string `json:"hourlyBorrowRate"`
+		} `json:"list"`
+	}
+	if err := a.t.signedGet(ctx, pathCollateralInfo, nil, &res); err != nil {
+		return nil, err
+	}
+	out := make([]CollateralCoinInfo, 0, len(res.List))
+	for _, it := range res.List {
+		out = append(out, CollateralCoinInfo{
+			Coin:             it.Currency,
+			CollateralSwitch: it.CollateralSwitch,
+			Borrowable:       it.Borrowable,
+			MarginCollateral: it.MarginCollateral,
+			HourlyBorrowRate: it.HourlyBorrowRate,
+		})
+	}
+	return out, nil
+}
+
+// SetCollateralSwitch 打开/关闭某币种的抵押开关(账户设置写,不动资金)。USDT/USDC 不支持设置。
+func (a *Adapter) SetCollateralSwitch(ctx context.Context, coin string, on bool) error {
+	sw := "OFF"
+	if on {
+		sw = "ON"
+	}
+	body := struct {
+		Coin             string `json:"coin"`
+		CollateralSwitch string `json:"collateralSwitch"`
+	}{Coin: coin, CollateralSwitch: sw}
+	return a.t.signedPost(ctx, pathSetCollateral, body, nil)
+}
+
 // FetchBalances 拉统一账户(UNIFIED)余额并归一为中性 Balances。交易在 UTA 下进行,故下单/风控以此为准。
 func (a *Adapter) FetchBalances(ctx context.Context) (venue.Balances, error) {
 	return a.FetchWalletBalanceByType(ctx, "UNIFIED")
@@ -179,9 +228,27 @@ func (a *Adapter) fetchFeeRate(ctx context.Context, q url.Values) (taker, maker 
 	return parseFloat(res.List[0].TakerFeeRate), parseFloat(res.List[0].MakerFeeRate), nil
 }
 
-// MaxBorrowable:Stage 1 未接负 carry(Capabilities.SupportsNegativeCarry=false),返回 ErrUnsupported。
+// MaxBorrowable 返回某 base 资产此刻「可借入并卖出」的最大数量(UTA spot margin,负 carry 借币预检用)。
+// 用 /v5/order/spot-borrow-check(symbol=<ASSET>USDT, side=Sell)的 maxTradeQty:
+// = 现货可用余额 + min(单用户可借上限, 账户 IMR/MMR 反推可借, 平台借币池剩余额度)。
+// 本系统不囤 base 现货,maxTradeQty ≈ 纯可借量;即便含少量余额,「可卖出总量」恰是负 carry
+// 预检需要的口径(需借币卖出 qty)。借币池枯竭(170207 的根源)会直接体现为该值过小。
 func (a *Adapter) MaxBorrowable(ctx context.Context, asset string) (float64, error) {
-	return 0, venue.ErrUnsupported // TODO(Stage3)
+	base := strings.ToUpper(strings.TrimSpace(asset))
+	if base == "" {
+		return 0, fmt.Errorf("bybit MaxBorrowable: asset 为空")
+	}
+	q := url.Values{}
+	q.Set("category", categorySpot)
+	q.Set("symbol", base+"USDT")
+	q.Set("side", "Sell")
+	var res struct {
+		MaxTradeQty string `json:"maxTradeQty"`
+	}
+	if err := a.t.signedGet(ctx, pathSpotBorrowCheck, q, &res); err != nil {
+		return 0, err
+	}
+	return parseFloat(res.MaxTradeQty), nil
 }
 
 // FetchLeverageBrackets 拉 risk-limit 档位(公共接口,经签名通道也可)。

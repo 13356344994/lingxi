@@ -582,7 +582,13 @@ func (e *FundingRateSniperEngine) noteOrderPlaced(ctx context.Context, action st
 		e.emitRiskEvent(newRiskEvent("incident", RiskCategorySafety, RiskSeverityCritical, "order_precheck", "-", "daily_order_limit", int(atomic.LoadInt32(&e.executionIncidents)), e.cfg.RiskConfig.MaxExecutionIncidents, true, e.riskBudgetState.DailyLimitReason))
 		return fatalEngineError{message: e.riskBudgetState.DailyLimitReason}
 	}
-	e.riskBudgetState.DailyOrderCount += maxIntValue(count, 0)
+	if recovery {
+		// 恢复/清理类下单(ExposureManager 收敛残腿、panic flatten)只减仓不开新仓,只计审计、不烧交易日额度。
+		// 这是修掉「残腿反复重试烧穿 MaxDailyOrderCount → 引擎启动即触发日级闸假崩溃」的根因。
+		e.riskBudgetState.AddDailyRecoveryOrder(maxIntValue(count, 0))
+	} else {
+		e.riskBudgetState.DailyOrderCount += maxIntValue(count, 0)
+	}
 	e.lastOrderAt = time.Now().UTC()
 	e.lastOrderAction = strings.TrimSpace(nonEmpty(action, detail))
 	if err := e.queueDailyRiskStatePersistLocked(); err != nil {

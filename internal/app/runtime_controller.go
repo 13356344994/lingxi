@@ -244,6 +244,10 @@ type RuntimeController struct {
 	// manage 每 tick 先重试落盘,且把仍未落盘的持仓并入管理视图——即便磁盘持续故障,平仓调度照常,
 	// 绝不因记账失败让真实持仓失管。仅 Bybit 执行循环 goroutine 访问(单写者),无需额外锁。
 	bybitPendingPersist map[venue.Symbol]BybitLivePosition
+	// bybitOpenSkipUntil 是开仓黑名单:开仓被交易所以「不可交易类」错误拒绝(如 170037 该币未开通
+	// 保证金抵押设置,借不了币)的标的,在截止时间前不再尝试——否则窗口内每 30s 重试一次,
+	// 每次都白付永续开+回补两笔手续费。仅内存(重启清零,重试一次无妨)。
+	bybitOpenSkipUntil map[venue.Symbol]time.Time
 
 	mu                             sync.Mutex
 	status                         RuntimeTaskStatus

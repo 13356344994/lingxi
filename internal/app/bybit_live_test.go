@@ -255,7 +255,7 @@ func TestBybitShadowExecutorLive(t *testing.T) {
 	exec := NewBybitShadowExecutor(adp, cfg, t.Logf)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	plan, err := exec.PlanCycle(ctx)
+	plan, err := exec.PlanCycle(ctx, 0, 0)
 	if err != nil {
 		t.Fatalf("PlanCycle: %v", err)
 	}

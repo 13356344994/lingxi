@@ -138,6 +138,29 @@ func (c *RuntimeController) adjustVenueTradingCapital(mode RuntimeMode, secretPa
 	ctx, cancel := context.WithTimeout(c.rootCtx, runtimeCapitalAdjustTimeout)
 	defer cancel()
 
+	// 调仓第一步:全部平掉 + 清币归一(按用户要求只留 MNT 付手续费):
+	//   1) 台账在场持仓 → 正规平仓(两腿一起平 + 写结算流水 + 删台账);
+	//   2) 存量永续孤儿 → 市价 reduceOnly 平掉;
+	//   3) 统一账户非白名单杂币 → 现货市价清成 USDT。
+	// 任一平仓失败立即中止(绝不在有活腿时清现货)。适配器不支持交易接口时跳过。
+	var sweepReport []string
+	if sweeper, ok := mgr.(bybitSweepVenue); ok {
+		if trader, isTrader := mgr.(bybitTrader); isTrader {
+			closeReport, cerr := c.closeBybitLedgerPositionsForSweep(ctx, trader)
+			if cerr != nil {
+				return RuntimeCapitalAdjustmentResult{}, fmt.Errorf("调仓前平仓失败: %w", cerr)
+			}
+			sweepReport = append(sweepReport, closeReport...)
+		}
+		moreReport, serr := sweepBybitResidualAssetsToUSDT(ctx, sweeper, c.cfg.NetworkConfig.RecordDir, func(format string, args ...any) {
+			c.appendControllerLog("[调仓] "+format, args...)
+		})
+		if serr != nil {
+			return RuntimeCapitalAdjustmentResult{}, fmt.Errorf("调仓前清币失败: %w", serr)
+		}
+		sweepReport = append(sweepReport, moreReport...)
+	}
+
 	beforeSnaps, totalBefore, err := mgr.CaptureMovableSnapshot(ctx)
 	if err != nil {
 		return RuntimeCapitalAdjustmentResult{}, fmt.Errorf("读取调仓前快照失败: %w", err)
@@ -174,9 +197,9 @@ func (c *RuntimeController) adjustVenueTradingCapital(mode RuntimeMode, secretPa
 	}
 
 	tradingWallet := tradingTargetWallet(plan)
-	message := fmt.Sprintf("[%s] 目标交易仓位已调整为 %.2f USDT:%s=%.2f,余量留资金账户=%.2f",
+	message := fmt.Sprintf("[%s] 目标交易仓位已调整为 %.2f USDT:%s=%.2f,余量留资金账户=%.2f。%s",
 		c.venueName, targetTradingUSDT, tradingWallet, plan.Targets[venue.Wallet(tradingWallet)],
-		math.Max(totalAfter-targetTradingUSDT, 0))
+		math.Max(totalAfter-targetTradingUSDT, 0), summarizeSweepReport(sweepReport))
 
 	c.mu.Lock()
 	applyTradingCapitalTargetToConfig(&c.cfg, targetTradingUSDT)
@@ -186,6 +209,11 @@ func (c *RuntimeController) adjustVenueTradingCapital(mode RuntimeMode, secretPa
 	c.cachedCapitalSnapshotAt = time.Time{}
 	updatedConfig := runtimeRiskConfigFromEngineConfig(c.cfg)
 	c.mu.Unlock()
+
+	// 持久化分配资金覆盖:跨进程重启仍以调仓目标为准(否则进程重启回退 config.yaml 旧值)。
+	if werr := writeVenueCapitalOverride(c.cfg.NetworkConfig.RecordDir, targetTradingUSDT); werr != nil {
+		c.appendControllerLog("持久化分配资金覆盖失败(进程重启后将回退 config.yaml): %v", werr)
+	}
 
 	c.appendControllerTraceLog(c.currentRunID(), c.currentCycleID(), "%s", message)
 	return RuntimeCapitalAdjustmentResult{

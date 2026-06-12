@@ -71,6 +71,7 @@ func (e *FundingRateSniperEngine) generateSnapshotLocked() EngineSnapshot {
 			CycleOpenNotionalUsed:    e.riskBudgetState.CycleOpenNotionalUsed,
 			DailyRealizedPnL:         e.riskBudgetState.DailyRealizedPnL,
 			DailyOrderCount:          e.riskBudgetState.DailyOrderCount,
+			DailyRecoveryOrderCount:  e.riskBudgetState.DailyRecoveryOrderCount,
 			DailyOpenNotionalUsed:    e.riskBudgetState.DailyOpenNotionalUsed,
 			DailyLimitTriggered:      e.riskBudgetState.DailyLimitTriggered,
 			DailyLimitReason:         e.riskBudgetState.DailyLimitReason,

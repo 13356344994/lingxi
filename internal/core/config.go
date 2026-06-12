@@ -534,6 +534,19 @@ type BybitExecutorConfig struct {
 	// 默认 false=仅正 carry(零行为变更)。⚠️ 依赖统一账户已开通现货杠杆借币;借不到的现货卖单由执行器回补永续兜底
 	// (绝不裸腿)。首次启用务必先 testnet / 极小额验证借币空现货能成交并能买回还币。
 	EnableNegativeCarry bool `cfg:"enable_negative_carry"`
+	// PerpLeverage 永续腿杠杆(1~3,默认 1=全额保证金,零行为变更)。delta 中性下现货多腿天然对冲价格风险,
+	// 永续腿 >1x 只是降低保证金占用、放大同等资金可开的两腿名义(总资金 = 现货名义 + 永续名义/杠杆)。
+	// 统一账户全仓下现货本身是保证金抵押物,2x 强平距离仍很远;代码硬顶 3x(再高保证金收益递减、尾部风险陡增)。
+	PerpLeverage int `cfg:"perp_leverage"`
+	// EVGateEnabled 开仓门槛切换为「多结算期望值 > 0」:用历史费率估计费率维持有利的期望结算次数 N,
+	// EV = N×费率×名义 − 四腿费用(−负 carry 借币利息)。单次结算门在 taker 费率下注定为负(只能开负门交学费);
+	// EV 门让该开的开、纯送钱的不开。历史样本不足自动回退单次门。默认 false(零行为变更)。
+	EVGateEnabled bool `cfg:"ev_gate_enabled"`
+	// PerpMakerFirst 永续腿 post-only 追价优先,不成交 taker 兜底(Bybit 永续 maker 0.02% vs taker 0.055%,
+	// 每腿省 0.035%;现货 maker/taker 同费率不做)。默认 false(零行为变更)。
+	PerpMakerFirst bool `cfg:"perp_maker_first"`
+	// BorrowCostHourly 负 carry 借币的每小时利率估计(0.00003=0.003%/h≈26% APR,保守),计入净利/EV 成本侧。
+	BorrowCostHourly float64 `cfg:"borrow_cost_hourly"`
 }
 
 // ApplyProfile 根据给定的运行档案，覆写当前配置的关键风控和容量参数

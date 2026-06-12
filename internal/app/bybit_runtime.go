@@ -68,6 +68,11 @@ func bybitExecConfigFromEngine(cfg EngineConfig) BybitExecConfig {
 		SpotTakerFee:        cfg.HistoricalConfig.SpotTakerFeeRate,
 		PerpTakerFee:        cfg.HistoricalConfig.FuturesTakerFeeRate,
 		EnableNegativeCarry: bx.EnableNegativeCarry,
+		PerpLeverage:        bybitEffectiveLeverage(bx.PerpLeverage),
+		EVGateEnabled:       bx.EVGateEnabled,
+		RollEnabled:         bx.RollEnabled,
+		MaxHoldSettlements:  bx.MaxHoldSettlements,
+		BorrowHourlyRate:    bx.BorrowCostHourly,
 	}
 }
 
@@ -128,10 +133,17 @@ func (c *RuntimeController) runBybitExecutor(ctx context.Context, secretPath str
 		return "", err
 	}
 
+	// 页面调仓后的分配资金覆盖(capital_override.json)优先于 config.yaml:
+	// 调仓把账户调到 127U 而配置还是 60U 时,引擎应按 127U 跑,不让钱闲置。
+	if ov, ok := loadVenueCapitalOverride(cfg.NetworkConfig.RecordDir); ok {
+		c.appendControllerLog("分配资金按页面调仓覆盖生效: %.2f USDT(config.yaml=%.2f)", ov, cfg.AllocatedCapitalUSDT)
+		cfg.AllocatedCapitalUSDT = ov
+	}
 	execCfg := bybitExecConfigFromEngine(cfg)
 	logf := func(format string, args ...any) { c.appendControllerLog(format, args...) }
 	planner := NewBybitShadowExecutor(adapter, execCfg, logf)
 	executor := NewBybitLiveExecutor(adapter, logf, cfg.NetworkConfig.RecordDir)
+	executor.SetPerpMakerFirst(cfg.BybitExecutor.PerpMakerFirst)
 	live := cfg.BybitExecutor.LiveTradingEnabled
 	haltPaths := emergencyStopPaths(cfg)
 
@@ -384,7 +396,7 @@ func (c *RuntimeController) bybitProbeOrphanOwnership(ctx context.Context, adapt
 			RunID:           c.currentRunID(),
 			IdemPrefix:      bybitIdemPrefix(ep.Symbol, funding),
 			Negative:        ep.PositionAmt > 0, // 永续多头 = 负 carry 持仓
-			SettlementsHeld: 1 << 30,            // 不续持,直接平
+			ForceClose:      true,               // 不续持,直接平
 		}
 		return adopted, true
 	}
@@ -441,6 +453,160 @@ func bybitSpotFreeBalance(bals venue.Balances, sym venue.Symbol) float64 {
 // (异常,正常几秒内翻进),则放弃续持、转平仓,避免无限持有。资金费间隔通常 ≥1h,20min 足够容忍正常翻进延迟。
 const bybitMaxRollWait = 20 * time.Minute
 
+// bybitEffectivePositionNotionalCap 返回单标的两腿名义的有效硬顶:max(配置值, 1.6×分配资金)。
+// 配置静态值会跟页面调仓打架(60U 时代设的 100 顶,调仓到 127U 后满额两腿 ≈167 → 永远开不出单,
+// 2026-06-12 实锤空转一夜)。杠杆 ≤3x 时合法两腿名义最大 = 分配×2×lev/(lev+1) ≤ 1.5×分配,
+// 1.6 倍留滑点/取整余量;同时仍能拦住「数量算错一个数量级」的灾难单(兜底语义保留)。
+func bybitEffectivePositionNotionalCap(cfg EngineConfig) float64 {
+	capN := cfg.BybitExecutor.MaxPositionNotionalUSDT
+	if capN <= 0 {
+		return 0 // 0=不限,沿用原语义
+	}
+	if dynamic := cfg.AllocatedCapitalUSDT * 1.6; dynamic > capN {
+		return dynamic
+	}
+	return capN
+}
+
+// bybitOpenBanDuration:不可交易类开仓失败的拉黑时长。账户级设置(抵押开通)短期不会自己变,
+// 12h 足以避免整天反复撞墙烧手续费;重启清零,给人工修复后的重试留口子。
+const bybitOpenBanDuration = 12 * time.Hour
+
+// isBybitUntradableOpenError 识别「该标的当前账户不可交易」类开仓错误(重试必然再失败、只会烧费):
+// 170037 = 现货未开通保证金抵押设置(负 carry 借币空现货的前置条件缺失)。
+func isBybitUntradableOpenError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "170037") || strings.Contains(msg, "not opened collateral settings")
+}
+
+// bybitBorrowUnavailableBan:借币池借不到(170207 类)的拉黑时长。池子可能回补,不必像 170037 一拉 12h;
+// 30 分钟足以覆盖当前结算窗口、杜绝同窗 30s 一轮的重试;后续窗口由开仓前借币预检(零下单)继续把关。
+const bybitBorrowUnavailableBan = 30 * time.Minute
+
+// isBybitBorrowUnavailableError 识别「借币池当前借不到」类现货杠杆错误(短期重试大概率再失败):
+// 170207 = The loan amount of the platform is not enough.(平台借币池无可借额度)
+// 2026-06-12 HOME 实锤:此前不识别该码 → 同一窗口重试 3 次、下一小时窗口原样重演,白烧开+回补手续费。
+func isBybitBorrowUnavailableError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "170207") || strings.Contains(msg, "loan amount of the platform")
+}
+
+// bybitBorrowQuotaSource 是可选能力:查某 base 资产「可借+可卖」最大数量(*bybit.Adapter 满足;
+// 测试 fake 可不实现 → 预检自动跳过,fail-open)。
+type bybitBorrowQuotaSource interface {
+	MaxBorrowable(ctx context.Context, asset string) (float64, error)
+}
+
+// bybitBanOpen 把某标的加入开仓黑名单直到 until(取更晚者,绝不缩短已有拉黑)。仅 Bybit 管理协程访问。
+func (c *RuntimeController) bybitBanOpen(sym venue.Symbol, until time.Time) {
+	if c.bybitOpenSkipUntil == nil {
+		c.bybitOpenSkipUntil = make(map[venue.Symbol]time.Time)
+	}
+	if until.After(c.bybitOpenSkipUntil[sym]) {
+		c.bybitOpenSkipUntil[sym] = until
+	}
+}
+
+// bybitPreSettleCheckLead:结算前多久开始做「去留复核」。Bybit 预测费率在结算后重置回基准值、
+// 临近结算才收敛,因此复核必须贴近结算;150s 时预测已基本定型,且仍留足平仓执行时间,
+// 并落在开仓窗口(lead=240s)内——换仓比较时新候选恰好也在窗口里,时机对齐。
+const bybitPreSettleCheckLead = 150 * time.Second
+
+// bybitCloseAndSettle 平掉一笔在场持仓并完成全部收尾:删台账、清 pending、写统一结算流水、日志+通知。
+// settlements 是该仓累计「已收资金费次数」(结算前离场=SettlementsHeld,本期未收;结算后平仓=SettlementsHeld+1)。
+// 返回是否成功;失败保留台账,下轮重试。
+func (c *RuntimeController) bybitCloseAndSettle(
+	ctx context.Context,
+	store *bybitPositionStore,
+	executor *BybitLiveExecutor,
+	p BybitLivePosition,
+	settlements int,
+	now time.Time,
+) bool {
+	closeRes, closeErr := executor.CloseDeltaNeutral(ctx, p)
+	if closeErr != nil {
+		c.appendControllerLog("Bybit 平仓失败(保留持仓,下轮重试) %s: %v", p.Symbol, closeErr)
+		c.bybitNotifyWarn("Bybit 平仓失败", closeErr.Error(), string(p.Symbol))
+		return false
+	}
+	if rmErr := store.remove(p.Symbol); rmErr != nil {
+		c.appendControllerLog("Bybit 平仓后清记录失败 %s: %v", p.Symbol, rmErr)
+	}
+	delete(c.bybitPendingPersist, p.Symbol)
+	// 资金费 + 实现盈亏:优先用真实查流水口径;查不到则退回按开仓费率估算(并明确标注)。
+	// 估算资金费收入按 |费率| 计(正/负 carry 都是收方:正 carry 空头收正费率,负 carry 多头收负费率)。
+	fundingLine := fmt.Sprintf("估算资金费收入 ≈ %+.4f USDT(%d×%.4f%%×名义)", float64(settlements)*math.Abs(p.FundingRate)*p.PerpNotional, settlements, math.Abs(p.FundingRate)*100)
+	realizedLine := ""
+	if closeRes.FundingOK {
+		fundingLine = fmt.Sprintf("真实资金费收入 = %+.4f USDT(共 %d 次结算)", closeRes.RealFunding, settlements)
+		verdict := "赚"
+		if closeRes.RealizedPnL < 0 {
+			verdict = "赔"
+		}
+		realizedLine = fmt.Sprintf("\n【实现盈亏 = %+.4f USDT(%s)】= 价差 %+.4f + 资金费 %+.4f − 手续费 %.4f", closeRes.RealizedPnL, verdict, closeRes.PricePnL, closeRes.RealFunding, closeRes.TotalFeesUSDT)
+	}
+	openPerpLabel, openSpotLabel, closePerpLabel, closeSpotLabel := "永续空", "现货多", "永续买回", "现货卖出"
+	if p.Negative {
+		openPerpLabel, openSpotLabel, closePerpLabel, closeSpotLabel = "永续多", "借币空现货", "永续卖出", "现货买回还币"
+	}
+	closeDetail := fmt.Sprintf(
+		"%s 已平仓(持有 %d 次结算)\n开仓: %s %.2fU @%.6f(费 %.6f %s) + %s %.2fU @%.6f(费 %.6f %s)\n平仓: %s @%.6f(费 %.6f %s) + %s %.6f @%.6f(费 %.6f %s)\n%s%s",
+		p.Symbol, settlements,
+		openPerpLabel, p.PerpNotional, p.PerpEntryPrice, p.OpenPerpFee, p.OpenPerpFeeAsset,
+		openSpotLabel, p.SpotNotional, p.SpotEntryPrice, p.OpenSpotFee, p.OpenSpotFeeAsset,
+		closePerpLabel, closeRes.PerpClosePrice, closeRes.PerpCloseFee, closeRes.PerpFeeAsset,
+		closeSpotLabel, closeRes.SpotSoldQty, closeRes.SpotClosePrice, closeRes.SpotCloseFee, closeRes.SpotFeeAsset,
+		fundingLine, realizedLine)
+	c.appendControllerLog("Bybit 已平仓 %s", closeDetail)
+	c.bybitNotifyTrade("Bybit 已平仓", closeDetail, string(p.Symbol))
+	c.appendBybitSettlement(p, closeRes, settlements, now)
+	return true
+}
+
+// bybitRollSwitchFactor:续持复核时,新候选的「费率/小时」至少要达到当前持仓下期的该倍数才值得换仓。
+// 换仓要付新仓开+平费用,而续持是零边际成本,所以必须显著更肥才动;3 倍是保守的工程取值。
+const bybitRollSwitchFactor = 3.0
+
+// bybitRollSwitchReason 续持换仓判断:返回非空字符串(原因)表示应平掉当前持仓、让位给更肥的新候选。
+// 条件全部满足才换:① 新候选此刻就在开仓窗口内(平掉立即能接上,不让资金闲置等窗口);
+// ② 不是同一标的(同标的换仓纯烧手续费);③ 新候选费率/小时 ≥ 当前下期费率/小时 × bybitRollSwitchFactor;
+// ④ 新候选已通过全部既有定量/净利门(在 plan.Accepted 里)。规划失败时返回 ""(保守续持,绝不因扫描故障误平)。
+func (c *RuntimeController) bybitRollSwitchReason(
+	ctx context.Context,
+	planner *BybitShadowExecutor,
+	held BybitLivePosition,
+	heldSnap venue.FundingSnapshot,
+	now time.Time,
+	lead time.Duration,
+) string {
+	plan, err := planner.PlanCycle(ctx, 1, 0)
+	if err != nil || len(plan.Accepted) == 0 {
+		return ""
+	}
+	heldPerHour := bybitRatePerHour(heldSnap.LastFundingRate, heldSnap.IntervalHours)
+	for _, cand := range plan.Accepted {
+		if cand.Symbol == held.Symbol {
+			continue
+		}
+		if cand.NextFundingTime.IsZero() || now.Before(cand.NextFundingTime.Add(-lead)) || !now.Before(cand.NextFundingTime) {
+			continue // 不在开仓窗口内:换过去也要闲置等窗口,不如继续续持
+		}
+		candPerHour := bybitRatePerHour(cand.FundingRate, cand.IntervalHours)
+		if candPerHour <= 0 || candPerHour < heldPerHour*bybitRollSwitchFactor {
+			continue
+		}
+		return fmt.Sprintf("新候选 %s 费率/小时=%.4f%%(间隔%dh) ≥ 当前 %s 下期 %.4f%% 的 %.0f 倍且已在开仓窗口",
+			cand.Symbol, candPerHour*100, cand.IntervalHours, held.Symbol, heldPerHour*100, bybitRollSwitchFactor)
+	}
+	return ""
+}
+
 // bybitManageCycle 单轮管理:先平到期持仓,再(在结算前窗口内、未满并发上限时)扫描开新仓。
 func (c *RuntimeController) bybitManageCycle(
 	ctx context.Context,
@@ -463,33 +629,60 @@ func (c *RuntimeController) bybitManageCycle(
 	}
 	open = c.bybitFlushPendingPersist(store, open)
 
-	// 1) 到期持仓(结算后 holdAfter):滚动持有模式下先复核下期费率决定续持/等待/平仓;否则直接平(单次收割)。
+	// 1) 在场持仓管理。滚动模式的核心时序(修「续持读到重置底值」根因):
+	//    Bybit 每次结算后把下期预测费率**重置回基准 0.00125%/interval**,随后一小时才随盘口溢价收敛成真实值。
+	//    旧逻辑在「结算后 20s」复核,永远读到无信息量的正底值 → 永远续持(MBOX 实锤连付两期负费率)。
+	//    资金费只在结算瞬间收付、结算之间持有零成本,因此:
+	//    A) 去留决定挪到「下次结算前 bybitPreSettleCheckLead」——预测已收敛可信:不利→结算前离场(一分不付);
+	//       有显著更肥的窗口内候选→换仓让位(此时其它币开仓窗口也开着,时机天然对齐);
+	//    B) 结算后只做记账翻期(收次数+1、更新下期结算时间),不再做费率判断。
 	rollEnabled := cfg.BybitExecutor.RollEnabled
 	maxHold := cfg.BybitExecutor.MaxHoldSettlements
 	if maxHold <= 0 {
 		maxHold = 1
 	}
 	for _, p := range open {
-		if p.NextFundingTime.IsZero() || !now.After(p.NextFundingTime.Add(holdAfter)) {
+		if p.NextFundingTime.IsZero() {
 			continue
 		}
-		// 滚动持有:已收满本次结算的资金费;若开启滚动且未达持有上限,复核下期费率决定续持/等待/平仓。
-		// 安全闸:只在永续对冲腿确认在场(仓位健康对冲)时才考虑续持,绝不滚动裸仓。
-		if rollEnabled && p.SettlementsHeld+1 < maxHold && (!live || executor.PerpOpenQty(ctx, p.Symbol) > executionQtyTolerance) {
+		// A) 结算前复核(滚动 + live;shadow 不做真实下单,沿用 B 的拟平仓日志)。
+		if rollEnabled && live && now.Before(p.NextFundingTime) && now.After(p.NextFundingTime.Add(-bybitPreSettleCheckLead)) {
+			snap, ok, ferr := planner.FundingSnapshotFor(ctx, p.Symbol)
+			if ferr == nil && ok {
+				exitReason := ""
+				if !bybitFundingStillFavorable(snap.LastFundingRate, p.Negative) {
+					exitReason = fmt.Sprintf("下期费率=%.4f%% 已转不利,结算前离场避免倒贴", snap.LastFundingRate*100)
+				} else if sw := c.bybitRollSwitchReason(ctx, planner, p, snap, now, lead); sw != "" {
+					exitReason = "换仓让位:" + sw
+				}
+				if exitReason != "" {
+					c.appendControllerLog("Bybit 结算前离场 %s:%s", p.Symbol, exitReason)
+					// 结算前离场:本期资金费未收,settlements=已收次数(不 +1)。
+					c.bybitCloseAndSettle(ctx, store, executor, p, p.SettlementsHeld, now)
+					continue
+				}
+			}
+			continue // 费率仍有利(或快照暂不可得):穿过结算收下一笔,下轮再核
+		}
+		// B) 结算后(holdAfter 缓冲确保资金费已入账)。
+		if !now.After(p.NextFundingTime.Add(holdAfter)) {
+			continue
+		}
+		// 滚动且未达上限:记账翻期。安全闸:待平残腿(ForceClose)绝不翻期;只在永续对冲腿确认在场时翻期,绝不滚动裸仓。
+		if rollEnabled && !p.ForceClose && p.SettlementsHeld+1 < maxHold && (!live || executor.PerpOpenQty(ctx, p.Symbol) > executionQtyTolerance) {
 			snap, ok, ferr := planner.FundingSnapshotFor(ctx, p.Symbol)
 			switch {
-			case ferr != nil:
-				c.appendControllerLog("Bybit 续持复核拉取费率失败 %s(本轮按平仓处理): %v", p.Symbol, ferr)
-			case !ok || !bybitFundingStillFavorable(snap.LastFundingRate, p.Negative):
-				// 与币安滚动持有同口径:开仓后往返手续费已是沉没成本,再多持有一个结算「不额外收费」,故只要下期资金费仍对
-				// 本方向有利(正 carry:>0;负 carry:<0,边际净 carry>0)就续持收下一次;直到费率转向不利(继续持有会倒贴)才平。
-				c.appendControllerLog("Bybit 续持复核未通过 %s(下期费率转向不利,继续持有会倒贴),平仓", p.Symbol)
-			case !snap.NextFundingTime.After(now):
-				// 费率达标,但交易所 nextFundingTime 尚未翻进下一个结算(刚结算后的短暂窗口):短暂保持持仓、下一轮再复核,
-				// 既不平仓也不推进计数——避免把一笔仍健康、费率仍好的仓在结算时间翻转前误平(这正是之前「吃一次就走」的根因)。
-				// 安全上限:若结算后超过 bybitMaxRollWait 仍未翻进(交易所异常),放弃续持转平仓,避免无限持有。
+			case ferr != nil || !ok:
+				// 快照暂不可得:持有零成本,保持持仓下轮重试;超过 bybitMaxRollWait 仍不可得才放弃翻期转平仓。
 				if now.Before(p.NextFundingTime.Add(bybitMaxRollWait)) {
-					c.appendControllerLog("Bybit 续持待定 %s:下期费率=%.4f%% 达标,但 nextFundingTime 尚未翻进,保持持仓下轮复核", p.Symbol, snap.LastFundingRate*100)
+					c.appendControllerLog("Bybit 续持记账拉取费率失败 %s(保持持仓下轮重试): %v", p.Symbol, ferr)
+					continue
+				}
+				c.appendControllerLog("Bybit 续持记账超时 %s(费率快照持续不可得),转平仓", p.Symbol)
+			case !snap.NextFundingTime.After(now):
+				// 交易所 nextFundingTime 尚未翻进下一个结算(刚结算后的短暂窗口):保持持仓下轮再记账。
+				// 安全上限:超过 bybitMaxRollWait 仍未翻进(交易所异常)→ 放弃翻期转平仓,避免无限持有。
+				if now.Before(p.NextFundingTime.Add(bybitMaxRollWait)) {
 					continue
 				}
 				c.appendControllerLog("Bybit 续持超时 %s:结算后 %s 内 nextFundingTime 仍未翻进,放弃续持转平仓", p.Symbol, bybitMaxRollWait)
@@ -504,55 +697,23 @@ func (c *RuntimeController) bybitManageCycle(
 				rolled.SettlementsHeld = p.SettlementsHeld + 1
 				// 落盘失败也照常续持(内存兜底接管):此前"落盘失败按平仓处理"会把仍健康的仓提前平掉。
 				c.bybitPersistPosition(store, rolled, "续持")
-				c.appendControllerLog("Bybit 续持 %s:已收 %d 次资金费,下期费率=%.4f%% 续持到 %s(上限 %d 次)",
-					p.Symbol, rolled.SettlementsHeld, snap.LastFundingRate*100, snap.NextFundingTime.UTC().Format("15:04:05Z"), maxHold)
-				c.bybitNotifyTrade("Bybit 续持", fmt.Sprintf("已收 %d 次资金费,下期费率=%.4f%%,续持到 %s",
-					rolled.SettlementsHeld, snap.LastFundingRate*100, snap.NextFundingTime.UTC().Format("15:04:05Z")), string(p.Symbol))
+				c.appendControllerLog("Bybit 续持记账 %s:已收 %d 次资金费,翻进 %s 结算(上限 %d 次;去留在结算前复核)",
+					p.Symbol, rolled.SettlementsHeld, snap.NextFundingTime.UTC().Format("15:04:05Z"), maxHold)
+				c.bybitNotifyTrade("Bybit 续持", fmt.Sprintf("已收 %d 次资金费,翻进 %s 结算(去留将在结算前按收敛费率复核)",
+					rolled.SettlementsHeld, snap.NextFundingTime.UTC().Format("15:04:05Z")), string(p.Symbol))
 				continue
 			}
 		}
+		// 非滚动 / 满次 / 永续腿不在场 / 记账超时 → 平仓(已收完本期资金费,settlements +1)。
 		if !live {
 			c.appendControllerLog("[bybit-shadow][拟平仓] %s(结算后到期)", p.Symbol)
 			continue
 		}
-		closeRes, closeErr := executor.CloseDeltaNeutral(ctx, p)
-		if closeErr != nil {
-			c.appendControllerLog("Bybit 平仓失败(保留持仓,下轮重试) %s: %v", p.Symbol, closeErr)
-			c.bybitNotifyWarn("Bybit 平仓失败", closeErr.Error(), string(p.Symbol))
-			continue
+		settle := p.SettlementsHeld + 1
+		if p.ForceClose {
+			settle = p.SettlementsHeld // 待平残腿没有「收完本期资金费」一说,不虚增结算次数
 		}
-		if rmErr := store.remove(p.Symbol); rmErr != nil {
-			c.appendControllerLog("Bybit 平仓后清记录失败 %s: %v", p.Symbol, rmErr)
-		}
-		delete(c.bybitPendingPersist, p.Symbol)
-		settlements := p.SettlementsHeld + 1
-		// 资金费 + 实现盈亏:优先用真实查流水口径;查不到则退回按开仓费率估算(并明确标注)。
-		// 估算资金费收入按 |费率| 计(正/负 carry 都是收方:正 carry 空头收正费率,负 carry 多头收负费率)。
-		fundingLine := fmt.Sprintf("估算资金费收入 ≈ %+.4f USDT(%d×%.4f%%×名义)", float64(settlements)*math.Abs(p.FundingRate)*p.PerpNotional, settlements, math.Abs(p.FundingRate)*100)
-		realizedLine := ""
-		if closeRes.FundingOK {
-			fundingLine = fmt.Sprintf("真实资金费收入 = %+.4f USDT(共 %d 次结算)", closeRes.RealFunding, settlements)
-			verdict := "赚"
-			if closeRes.RealizedPnL < 0 {
-				verdict = "赔"
-			}
-			realizedLine = fmt.Sprintf("\n【实现盈亏 = %+.4f USDT(%s)】= 价差 %+.4f + 资金费 %+.4f − 手续费 %.4f", closeRes.RealizedPnL, verdict, closeRes.PricePnL, closeRes.RealFunding, closeRes.TotalFeesUSDT)
-		}
-		openPerpLabel, openSpotLabel, closePerpLabel, closeSpotLabel := "永续空", "现货多", "永续买回", "现货卖出"
-		if p.Negative {
-			openPerpLabel, openSpotLabel, closePerpLabel, closeSpotLabel = "永续多", "借币空现货", "永续卖出", "现货买回还币"
-		}
-		closeDetail := fmt.Sprintf(
-			"%s 已平仓(持有 %d 次结算)\n开仓: %s %.2fU @%.6f(费 %.6f %s) + %s %.2fU @%.6f(费 %.6f %s)\n平仓: %s @%.6f(费 %.6f %s) + %s %.6f @%.6f(费 %.6f %s)\n%s%s",
-			p.Symbol, settlements,
-			openPerpLabel, p.PerpNotional, p.PerpEntryPrice, p.OpenPerpFee, p.OpenPerpFeeAsset,
-			openSpotLabel, p.SpotNotional, p.SpotEntryPrice, p.OpenSpotFee, p.OpenSpotFeeAsset,
-			closePerpLabel, closeRes.PerpClosePrice, closeRes.PerpCloseFee, closeRes.PerpFeeAsset,
-			closeSpotLabel, closeRes.SpotSoldQty, closeRes.SpotClosePrice, closeRes.SpotCloseFee, closeRes.SpotFeeAsset,
-			fundingLine, realizedLine)
-		c.appendControllerLog("Bybit 已平仓 %s", closeDetail)
-		c.bybitNotifyTrade("Bybit 已平仓", closeDetail, string(p.Symbol))
-		c.appendBybitSettlement(p, closeRes, settlements, now)
+		c.bybitCloseAndSettle(ctx, store, executor, p, settle, now)
 	}
 
 	// 重新读取在场持仓(平仓可能已删除若干);内存兜底里仍未落盘的也要占并发名额。
@@ -571,8 +732,14 @@ func (c *RuntimeController) bybitManageCycle(
 		return
 	}
 
-	// 2) 扫描规划(只读),在结算前窗口内开新仓。
-	plan, err := planner.PlanCycle(ctx)
+	// 2) 扫描规划(只读),在结算前窗口内开新仓。资金按「可开槽位」均分(而非候选数),
+	// 预算扣掉在场持仓已占用的部分(现货名义 + 永续保证金),避免多槽位时双重承诺资金。
+	lev := bybitEffectiveLeverage(cfg.BybitExecutor.PerpLeverage)
+	deployedUSDT := 0.0
+	for _, p := range open {
+		deployedUSDT += p.SpotNotional + p.PerpNotional/float64(lev)
+	}
+	plan, err := planner.PlanCycle(ctx, maxConcurrent-len(open), cfg.AllocatedCapitalUSDT-deployedUSDT)
 	if err != nil {
 		c.appendControllerLog("Bybit 扫描失败: %v", err)
 		return
@@ -600,23 +767,46 @@ func (c *RuntimeController) bybitManageCycle(
 		if held[p.Symbol] {
 			continue
 		}
+		// 开仓黑名单:此前被「不可交易类」错误(170037 未开通抵押设置等)拒绝过的标的,截止前不再尝试。
+		if until, banned := c.bybitOpenSkipUntil[p.Symbol]; banned && now.Before(until) {
+			continue
+		}
 		// 仅在 [结算-lead, 结算) 窗口内开仓。
 		if p.NextFundingTime.IsZero() || now.Before(p.NextFundingTime.Add(-lead)) || !now.Before(p.NextFundingTime) {
 			continue
 		}
-		if capN := cfg.BybitExecutor.MaxPositionNotionalUSDT; capN > 0 && (p.SpotNotional+p.PerpNotional) > capN {
+		if capN := bybitEffectivePositionNotionalCap(cfg); capN > 0 && (p.SpotNotional+p.PerpNotional) > capN {
 			c.appendControllerLog("Bybit 跳过 %s:两腿名义 %.2f 超单标的上限 %.2f", p.Symbol, p.SpotNotional+p.PerpNotional, capN)
 			continue
 		}
-		// 真实余额闸:正 carry 需要 现货名义 + 永续保证金(保守按 1x 全额计);负 carry 现货腿是借币卖出
-		// (反而收 USDT),只需永续保证金。
-		requiredUSDT := p.SpotNotional + p.PerpNotional
+		// 真实余额闸:正 carry 需要 现货名义 + 永续保证金(名义/杠杆;计划缺失时保守按 1x 全额计);
+		// 负 carry 现货腿是借币卖出(反而收 USDT),只需永续保证金。
+		perpMargin := p.PerpMarginUSDT
+		if perpMargin <= 0 {
+			perpMargin = p.PerpNotional
+		}
+		requiredUSDT := p.SpotNotional + perpMargin
 		if p.Negative {
-			requiredUSDT = p.PerpNotional
+			requiredUSDT = perpMargin
 		}
 		if requiredUSDT > availUSDT {
 			c.appendControllerLog("Bybit 跳过 %s:开仓需要 ≈%.2f USDT,统一账户可用仅 %.2f(配置分配与真实余额脱节)", p.Symbol, requiredUSDT, availUSDT)
 			continue
+		}
+		// 负 carry 借币预检(R29 Bybit 版):开仓要借 base 卖出,先查「可借+可卖」总量(只读,零下单)。
+		// 不足则本结算窗口拉黑——绝不先开腿撞 170207 再回补白烧手续费(2026-06-12 HOME 实锤:两个整点
+		// 窗口各重试 3 次,还留过一次 84U 裸腿)。查询失败/能力缺失时放行(advisory,不误杀;执行器
+		// 现货腿先行兜底,失败也零敞口)。
+		if live && p.Negative {
+			if bq, ok := adapter.(bybitBorrowQuotaSource); ok {
+				if maxSellable, qerr := bq.MaxBorrowable(ctx, baseAssetOf(string(p.Symbol))); qerr == nil && maxSellable < p.BaseQty {
+					c.bybitBanOpen(p.Symbol, p.NextFundingTime)
+					c.appendControllerLog("Bybit 借币预检拦截 %s:可借+可卖 ≈%.6f < 需借卖出 %.6f,本结算窗口跳过(未下任何单)", p.Symbol, maxSellable, p.BaseQty)
+					continue
+				} else if qerr != nil {
+					c.appendControllerLog("Bybit 借币预检查询失败 %s(放行,由现货先行腿兜底): %v", p.Symbol, qerr)
+				}
+			}
 		}
 		if !live {
 			c.appendControllerLog("[bybit-shadow][拟开仓] %s 费率=%.4f%% 数量=%.6f 净利率=%.4f%%(结算 %s)",
@@ -628,11 +818,24 @@ func (c *RuntimeController) bybitManageCycle(
 		if openErr != nil {
 			// 开仓异常但已留下永续敞口(回补失败的裸腿)→ 落盘为「立即到期、不滚动」的待平持仓,交由下轮平仓清理,绝不失管。
 			if pos.BaseQty > executionQtyTolerance {
-				pos.SettlementsHeld = 1 << 30 // 远超 maxHold → 不续持,直接平
+				pos.ForceClose = true // 不续持,直接平
 				pos.NextFundingTime = now.Add(-time.Hour)
 				if c.bybitPersistPosition(store, pos, "开仓裸腿") {
 					c.appendControllerLog("Bybit 开仓异常留有永续敞口 %s(≈%.6f),已落盘待平", pos.Symbol, pos.BaseQty)
 				}
+			}
+			switch {
+			case isBybitBorrowUnavailableError(openErr):
+				// 借币池借不到:同结算窗口内绝不再试(每次重试=白下单;旧版还会白开永续又回补)。
+				until := now.Add(bybitBorrowUnavailableBan)
+				if p.NextFundingTime.After(until) {
+					until = p.NextFundingTime
+				}
+				c.bybitBanOpen(p.Symbol, until)
+				c.appendControllerLog("Bybit 拉黑开仓 %s 至 %s:借币池借不到(170207 类),期间不再重试", p.Symbol, until.UTC().Format("15:04:05Z"))
+			case isBybitUntradableOpenError(openErr):
+				c.bybitBanOpen(p.Symbol, now.Add(bybitOpenBanDuration))
+				c.appendControllerLog("Bybit 拉黑开仓 %s %s:交易所判定不可交易(%v),期间不再尝试", p.Symbol, bybitOpenBanDuration, openErr)
 			}
 			c.appendControllerLog("Bybit 开仓失败 %s: %v", p.Symbol, openErr)
 			c.bybitNotifyWarn("Bybit 开仓失败", openErr.Error(), string(p.Symbol))

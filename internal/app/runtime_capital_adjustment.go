@@ -13,7 +13,8 @@ import (
 	"lingxi/internal/venue/binance"
 )
 
-const runtimeCapitalAdjustTimeout = 30 * time.Second
+// runtimeCapitalAdjustTimeout 覆盖「清币归一(拉规则+逐币市价单)+ USDT 划转」全流程。
+const runtimeCapitalAdjustTimeout = 120 * time.Second
 
 const (
 	runtimeCapitalSnapshotCacheTTL = 15 * time.Second
@@ -266,6 +267,9 @@ func applyTradingCapitalTargetToConfig(cfg *EngineConfig, tradingCapitalUSDT flo
 	cfg.StrategyConfig.PerSymbolQuoteUSDT = perLeg
 	cfg.PerSymbolQuoteUSDT = perLeg
 	cfg.RiskConfig.MaxCycleOpenNotionalUSDT = tradingCapitalUSDT
+	// Bybit 执行器的分配资金只读这个字段——漏掉它会出现「页面调仓到 127U,电报却报分配资金=60U」
+	// (资金划转成功但引擎仍按 config.yaml 旧值跑,多余的钱永久闲置)。
+	cfg.AllocatedCapitalUSDT = tradingCapitalUSDT
 }
 
 func configuredTradingCapitalUSDT(cfg EngineConfig) float64 {
@@ -300,9 +304,30 @@ func (e *FundingRateSniperEngine) AdjustTradingCapitalUSDT(ctx context.Context, 
 	if targetTradingUSDT <= 0 {
 		return RuntimeCapitalAdjustmentResult{}, fmt.Errorf("目标交易仓位必须大于 0")
 	}
+	// 调仓第一步:清币归一——把所有非白名单杂币(保留 BNB 付手续费)市价清成 USDT,
+	// 让随后的快照与划转拿到完整的可调资金。台账有未平仓对冲时这里会硬拒绝。
+	sweepReport, err := e.sweepResidualAssetsToUSDT(ctx)
+	if err != nil {
+		return RuntimeCapitalAdjustmentResult{}, fmt.Errorf("调仓前清币失败: %w", err)
+	}
 	before, err := e.captureRuntimeCapitalSnapshot(ctx)
 	if err != nil {
 		return RuntimeCapitalAdjustmentResult{}, err
+	}
+	// 清币有真实成交/划转时,卖出所得入账存在秒级延迟(2026-06-10 实锤:ENA 卖出 38.84U 后
+	// 立刻拍快照少算了这笔,误判「可调不足」拒绝调仓)。这里轮询等待入账:总额达标即继续,
+	// 最多重试 5 次(约 7.5s)后以最后一次快照为准走原有校验。
+	for attempt := 0; attempt < 5 && sweepReportHasExecution(sweepReport) && before.TotalMovableUSDT+executionQtyTolerance < targetTradingUSDT; attempt++ {
+		select {
+		case <-ctx.Done():
+			return RuntimeCapitalAdjustmentResult{}, ctx.Err()
+		case <-time.After(1500 * time.Millisecond):
+		}
+		refreshed, rerr := e.captureRuntimeCapitalSnapshot(ctx)
+		if rerr != nil {
+			break
+		}
+		before = refreshed
 	}
 	if before.TotalMovableUSDT <= executionQtyTolerance {
 		return RuntimeCapitalAdjustmentResult{}, fmt.Errorf("当前所有账户都没有可调的 USDT 余额")
@@ -394,8 +419,8 @@ func (e *FundingRateSniperEngine) AdjustTradingCapitalUSDT(ctx context.Context, 
 		DesiredFuturesUSDT:     desiredFuturesUSDT,
 		DesiredFundingUSDT:     desiredFundingUSDT,
 	}
-	message := fmt.Sprintf("目标交易仓位已调整为 %.2f USDT：spot=%.2f，cross margin=%.2f，UM futures=%.2f，funding=%.2f",
-		appliedTradingUSDT, desiredSpotUSDT, desiredMarginUSDT, desiredFuturesUSDT, desiredFundingUSDT)
+	message := fmt.Sprintf("目标交易仓位已调整为 %.2f USDT：spot=%.2f，cross margin=%.2f，UM futures=%.2f，funding=%.2f。%s",
+		appliedTradingUSDT, desiredSpotUSDT, desiredMarginUSDT, desiredFuturesUSDT, desiredFundingUSDT, summarizeSweepReport(sweepReport))
 	return RuntimeCapitalAdjustmentResult{
 		RequestedTradingUSDT: targetTradingUSDT,
 		AppliedTradingUSDT:   appliedTradingUSDT,

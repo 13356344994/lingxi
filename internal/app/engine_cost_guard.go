@@ -15,6 +15,9 @@ import (
 // 平仓窗口等待，同包搬移、行为不变），向单文件 ≤ 800 行门禁靠拢。
 
 func (e *FundingRateSniperEngine) checkTargetCost(ctx context.Context, target *MonitoredTarget, consecutiveBreaches *int) {
+	if ctx.Err() != nil {
+		return // 监控窗口已截止:不再发 REST,也不把必然的 deadline 错误刷成日志风暴
+	}
 	if err := e.refreshTargetFundingEstimate(ctx, target, false); err != nil {
 		e.logger.Printf("监控 %s 时刷新资金费预估失败: %v", target.Candidate.Symbol, err)
 		return

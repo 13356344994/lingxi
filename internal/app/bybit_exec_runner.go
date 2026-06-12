@@ -3,8 +3,8 @@ package app
 import (
 	"context"
 	"fmt"
-	"math"
 	"sort"
+	"time"
 
 	"lingxi/internal/venue"
 )
@@ -22,11 +22,29 @@ type bybitMarketReader interface {
 	FetchTradingCostProfile(ctx context.Context, syms []venue.Symbol) (venue.CostProfile, error)
 }
 
+// bybitFundingHistorySource 是可选能力:能拉历史资金费率(EV 门槛用)。适配器满足;fake 可不实现(回退单次门)。
+type bybitFundingHistorySource interface {
+	FetchFundingRateHistory(ctx context.Context, s venue.Symbol, limit int) ([]float64, error)
+}
+
+// bybitHistCacheTTL:历史费率每个结算间隔才多一条,20 分钟缓存足够新鲜且把 API 调用降到可忽略。
+const bybitHistCacheTTL = 20 * time.Minute
+
+// bybitHistFetchLimit:72 条样本(1h 间隔=3 天,8h 间隔=24 天),对连跑统计足够。
+const bybitHistFetchLimit = 72
+
+type bybitHistCacheEntry struct {
+	rates []float64
+	at    time.Time
+}
+
 // BybitShadowExecutor 用只读行情产出 delta-neutral 开仓计划(shadow,不下单)。
+// 仅在单个管理协程内使用(histCache 无锁)。
 type BybitShadowExecutor struct {
-	market bybitMarketReader
-	cfg    BybitExecConfig
-	logf   func(format string, args ...any)
+	market    bybitMarketReader
+	cfg       BybitExecConfig
+	logf      func(format string, args ...any)
+	histCache map[venue.Symbol]bybitHistCacheEntry
 }
 
 // NewBybitShadowExecutor 构造 shadow 执行器。logf 为空时用 no-op。
@@ -34,7 +52,25 @@ func NewBybitShadowExecutor(market bybitMarketReader, cfg BybitExecConfig, logf 
 	if logf == nil {
 		logf = func(string, ...any) {}
 	}
-	return &BybitShadowExecutor{market: market, cfg: cfg, logf: logf}
+	return &BybitShadowExecutor{market: market, cfg: cfg, logf: logf, histCache: make(map[venue.Symbol]bybitHistCacheEntry)}
+}
+
+// fundingHistory 带缓存拉取某标的历史资金费率;行情源不支持或拉取失败返回 nil(调用方回退单次门)。
+func (e *BybitShadowExecutor) fundingHistory(ctx context.Context, sym venue.Symbol) []float64 {
+	src, ok := e.market.(bybitFundingHistorySource)
+	if !ok {
+		return nil
+	}
+	if entry, hit := e.histCache[sym]; hit && time.Since(entry.at) < bybitHistCacheTTL {
+		return entry.rates
+	}
+	rates, err := src.FetchFundingRateHistory(ctx, sym, bybitHistFetchLimit)
+	if err != nil {
+		e.logf("[bybit] 拉历史费率失败 %s(EV 门回退单次门): %v", sym, err)
+		return nil
+	}
+	e.histCache[sym] = bybitHistCacheEntry{rates: rates, at: time.Now()}
+	return rates
 }
 
 // BybitPlanRejection 记录一个被放弃的候选及原因(供 shadow 日志/面板解释)。
@@ -57,7 +93,10 @@ type instrumentKey struct {
 }
 
 // PlanCycle 执行一轮只读规划:拉资金费→选币→拉合约元数据/价格/费率→定量,返回计划与放弃原因。
-func (e *BybitShadowExecutor) PlanCycle(ctx context.Context) (BybitCyclePlan, error) {
+// availableSlots 是本轮真正可开的仓位数(并发上限 − 在场数;≤0 视为不限)。资金按
+// min(候选数, 可开槽位) 均分——否则 3 个候选只开 1 笔时,开出的那笔只拿到 1/3 资金,
+// 其余资金闲置(资金占用率的头号杀手)。budgetUSDT 是本轮可部署预算(≤0 退回 AllocatedUSDT)。
+func (e *BybitShadowExecutor) PlanCycle(ctx context.Context, availableSlots int, budgetUSDT float64) (BybitCyclePlan, error) {
 	snaps, err := e.market.FetchFundingSnapshot(ctx)
 	if err != nil {
 		return BybitCyclePlan{}, fmt.Errorf("拉资金费快照失败: %w", err)
@@ -122,7 +161,15 @@ func (e *BybitShadowExecutor) PlanCycle(ctx context.Context) (BybitCyclePlan, er
 		}
 	}
 
-	perCandidateUSDT := e.cfg.AllocatedUSDT / float64(len(candidates))
+	budget := budgetUSDT
+	if budget <= 0 {
+		budget = e.cfg.AllocatedUSDT
+	}
+	divisor := len(candidates)
+	if availableSlots > 0 && availableSlots < divisor {
+		divisor = availableSlots
+	}
+	perCandidateUSDT := budget / float64(divisor)
 
 	for _, c := range candidates {
 		spotInstr, hasSpot := instrByKey[instrumentKey{c.Symbol, venue.MarketSpot}]
@@ -145,15 +192,34 @@ func (e *BybitShadowExecutor) PlanCycle(ctx context.Context) (BybitCyclePlan, er
 			result.Rejected = append(result.Rejected, BybitPlanRejection{c.Symbol, "永续盘口缺失: " + perr.Error()})
 			continue
 		}
-		plan, ok, reason := planBybitDeltaNeutralOpen(c, spotPx, perpPx, spotInstr, perpInstr, perCandidateUSDT, cfg)
+		// EV 门启用且历史样本充足时,由「多结算期望值」接管开仓门槛(单次结算门在 taker 费率下
+		// 注定为负,不再适用);历史不可得/样本不足回退单次门(保守)。
+		candCfg := cfg
+		hist := []float64(nil)
+		if cfg.EVGateEnabled {
+			hist = e.fundingHistory(ctx, c.Symbol)
+			if len(hist) >= bybitEVMinSamples {
+				candCfg.MinNetProfitRate = -1 // 单次门让位,EV 门在下方接管
+			}
+		}
+		plan, ok, reason := planBybitDeltaNeutralOpen(c, spotPx, perpPx, spotInstr, perpInstr, perCandidateUSDT, candCfg)
 		if !ok {
 			result.Rejected = append(result.Rejected, BybitPlanRejection{c.Symbol, reason})
 			continue
 		}
+		if cfg.EVGateEnabled && len(hist) >= bybitEVMinSamples {
+			if ev, detail, evOK := bybitMultiSettlementEV(plan, hist, cfg); evOK && ev <= 0 {
+				result.Rejected = append(result.Rejected, BybitPlanRejection{c.Symbol, "多结算期望值为负: " + detail})
+				continue
+			} else if evOK {
+				e.logf("[bybit] %s 通过 EV 门: %s", c.Symbol, detail)
+			}
+		}
 		result.Accepted = append(result.Accepted, plan)
 	}
 	sort.Slice(result.Accepted, func(i, j int) bool {
-		return math.Abs(result.Accepted[i].FundingRate) > math.Abs(result.Accepted[j].FundingRate)
+		return bybitRatePerHour(result.Accepted[i].FundingRate, result.Accepted[i].IntervalHours) >
+			bybitRatePerHour(result.Accepted[j].FundingRate, result.Accepted[j].IntervalHours)
 	})
 	return result, nil
 }

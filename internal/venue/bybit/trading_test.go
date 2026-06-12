@@ -127,6 +127,40 @@ func TestQueryOrderParse(t *testing.T) {
 	}
 }
 
+// TestQueryOrderSpotFeeAssetInference 钉死现货 feeCurrency 为空时按方向推断计费币种:
+// Bybit 规则是市价 BUY 的 taker 费在 base 资产里扣、SELL 在 quote 里扣;feeCurrency 实测常为空串,
+// 不推断会让上层把 base 计价的手续费当 USDT 入账(盈亏失真两个数量级)。
+func TestQueryOrderSpotFeeAssetInference(t *testing.T) {
+	cases := []struct {
+		name      string
+		side      string
+		feeCur    string
+		market    venue.Market
+		wantAsset string
+	}{
+		{"现货买入费币种为空→推断为 base", "Buy", "", venue.MarketSpot, "MBOX"},
+		{"现货卖出费币种为空→推断为 quote", "Sell", "", venue.MarketSpot, "USDT"},
+		{"现货已带费币种→保持原值", "Buy", "MBOX", venue.MarketSpot, "MBOX"},
+		{"永续费币种为空→不推断", "Buy", "", venue.MarketPerp, ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			a := fakeBybit(t, map[string]string{
+				pathOrderRealtime: `{"retCode":0,"retMsg":"OK","result":{"list":[
+					{"orderId":"OID-1","orderLinkId":"CID-1","orderStatus":"Filled","side":"` + tc.side + `","cumExecQty":"6266","avgPrice":"0.00479","cumExecValue":"30.01","cumExecFee":"6.266","feeCurrency":"` + tc.feeCur + `"}
+				]}}`,
+			})
+			res, err := a.QueryOrder(context.Background(), tc.market, "MBOX-USDT", "CID-1")
+			if err != nil {
+				t.Fatalf("QueryOrder: %v", err)
+			}
+			if res.FeeAsset != tc.wantAsset {
+				t.Errorf("FeeAsset 推断错误: got %q want %q", res.FeeAsset, tc.wantAsset)
+			}
+		})
+	}
+}
+
 func TestCancelOrderSigned(t *testing.T) {
 	hit := false
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

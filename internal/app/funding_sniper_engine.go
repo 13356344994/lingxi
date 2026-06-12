@@ -908,10 +908,19 @@ func (e *FundingRateSniperEngine) warmupMarketCaches(ctx context.Context, target
 		futuresSymbols = append(futuresSymbols, target.Candidate.Symbol)
 	}
 
+	// 预热预算不超过监控窗口剩余时间的一半:监控窗口被压缩时(扫描晚启动、紧贴 :59:45 截止),
+	// 若预热吃满整个窗口,随后的补齐取价与首轮成本检查会拿到一个已过期的 ctx,REST 全部瞬间
+	// "context deadline exceeded"(07:59:45 五标的同毫秒报错实锤),监控整轮空转。
+	warmupBudget := e.cfg.StreamWarmupTimeout
+	if deadline, ok := ctx.Deadline(); ok {
+		if remain := time.Until(deadline) / 2; remain > 0 && (warmupBudget <= 0 || remain < warmupBudget) {
+			warmupBudget = remain
+		}
+	}
 	waitCtx := ctx
 	var cancel context.CancelFunc
-	if e.cfg.StreamWarmupTimeout > 0 {
-		waitCtx, cancel = context.WithTimeout(ctx, e.cfg.StreamWarmupTimeout)
+	if warmupBudget > 0 {
+		waitCtx, cancel = context.WithTimeout(ctx, warmupBudget)
 		defer cancel()
 	}
 
@@ -1070,6 +1079,10 @@ func (e *FundingRateSniperEngine) monitorWorker(ctx context.Context, target *Mon
 	defer futuresUnsubscribe()
 
 	consecutiveBreaches := 0
+	if ctx.Err() != nil {
+		// 监控窗口已耗尽(预热/补齐吃满了整个窗口):静默退出,不再用过期 ctx 发 REST 制造错误风暴。
+		return
+	}
 	e.checkTargetCost(ctx, target, &consecutiveBreaches)
 
 	for {

@@ -211,6 +211,9 @@ type OrderResult struct {
 	Fee      float64
 	FeeAsset string
 	RawCode  string
+	// CreatedAt 是订单在交易所的创建时间(解析缺失时为零值)。用于幂等确认时识别「撞上历史旧单」:
+	// 同一 (symbol, 结算窗口) 平掉后再开会复用 orderLinkId,若按旧单的成交回执确认会产生幻影持仓。
+	CreatedAt time.Time
 }
 
 // Trade 是一笔用户成交。

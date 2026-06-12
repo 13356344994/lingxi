@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"math"
 	"sort"
 	"strconv"
@@ -29,6 +30,41 @@ type BybitExecConfig struct {
 	// 默认 false=仅正 carry(零行为变更)。负 carry 依赖统一账户开通现货杠杆借币,且借不到的现货卖单会被
 	// 执行器回补永续兜底(绝不裸腿)。
 	EnableNegativeCarry bool
+	// PerpLeverage 永续腿杠杆(1~3;0 视为 1)。delta 中性下现货多腿全额抵御价格风险,永续腿用 >1x
+	// 只是降低保证金占用、放大两腿可开名义:总资金 = 现货名义 + 永续名义/杠杆。统一账户全仓下现货本身
+	// 是保证金抵押物,2x 的强平距离仍然很远;硬顶 3x(再高保证金收益递减、尾部风险陡增)。
+	PerpLeverage int
+	// EVGateEnabled=true 时,开仓门槛从「单次结算净利 ≥ MinNetProfitRate」切换为「多结算期望值 > 0」:
+	// 用历史费率估计费率维持有利的期望结算次数 N,EV = N×费率×名义 − 四腿费用(− 负 carry 借币利息)。
+	// 单次结算模型在 taker 费率下注定算出负数(被迫开负门纯交学费);滚动持有的真实经济学是多结算摊薄,
+	// EV 门槛让「该开的单开出来、纯送钱的单不开」。历史样本不足时回退单次门(保守)。
+	EVGateEnabled bool
+	// RollEnabled / MaxHoldSettlements 与运行时滚动持有配置同源,EV 估计期望结算次数时的上限。
+	RollEnabled        bool
+	MaxHoldSettlements int
+	// BorrowHourlyRate 负 carry 借币的每小时利率估计(如 0.00003=0.003%/h≈26% APR,保守取值)。
+	// 计入单次净利与 EV 的成本侧;0=不计。正 carry 不借币,不受影响。
+	BorrowHourlyRate float64
+}
+
+// bybitEffectiveLeverage 把配置杠杆规整到 [1,3]。
+func bybitEffectiveLeverage(lev int) int {
+	if lev < 1 {
+		return 1
+	}
+	if lev > 3 {
+		return 3
+	}
+	return lev
+}
+
+// bybitRatePerHour 把资金费率按结算间隔归一化为「每小时费率」。资金是按时间占用的,
+// 1h 间隔 0.03% 的标的优于 8h 间隔 0.10%(0.0125%/h)——选币与排序必须用该口径,不能用原始费率。
+func bybitRatePerHour(rate float64, intervalHours int) float64 {
+	if intervalHours <= 0 {
+		intervalHours = 8 // Bybit 默认结算间隔
+	}
+	return math.Abs(rate) / float64(intervalHours)
 }
 
 // BybitCandidate 是一个通过费率筛选的候选标的。
@@ -58,6 +94,12 @@ type BybitOpenPlan struct {
 	NextFundingTime  time.Time
 	// Negative=true 表示负 carry(多永续 + 借币做空现货);false=正 carry(空永续 + 多现货)。
 	Negative bool
+	// IntervalHours 结算间隔(小时),用于「费率/小时」口径的排序与续持换仓比较。
+	IntervalHours int
+	// PerpMarginUSDT 永续腿保证金占用(= 永续名义/杠杆;1x 即 = 名义)。开仓余额闸按它而非名义计。
+	PerpMarginUSDT float64
+	// PerpLeverage 本计划使用的永续腿杠杆(已规整到 1~3)。
+	PerpLeverage int
 }
 
 // selectBybitCandidates 过滤「|费率| ≥ 阈值」的标的,按 |费率| 降序取 TopN。纯函数。
@@ -86,9 +128,10 @@ func selectBybitCandidates(snaps []venue.FundingSnapshot, cfg BybitExecConfig) [
 		}
 	}
 	sort.Slice(out, func(i, j int) bool {
-		ai, aj := math.Abs(out[i].FundingRate), math.Abs(out[j].FundingRate)
+		ai := bybitRatePerHour(out[i].FundingRate, out[i].IntervalHours)
+		aj := bybitRatePerHour(out[j].FundingRate, out[j].IntervalHours)
 		if ai != aj {
-			return ai > aj // 按 |费率| 降序:正负 carry 同台竞争,吃最肥的
+			return ai > aj // 按「费率/小时」降序:正负 carry 同台竞争,吃单位时间最肥的(间隔归一化)
 		}
 		return out[i].Symbol < out[j].Symbol // 平手按符号稳定排序
 	})
@@ -137,7 +180,10 @@ func planBybitDeltaNeutralOpen(
 	if perCandidateUSDT <= 0 {
 		return BybitOpenPlan{}, false, "分配资金非正"
 	}
-	legUSDT := perCandidateUSDT / 2 // 现货名义≈永续名义,delta 中性,永续 1x
+	// 资金约束:现货名义 + 永续保证金(=永续名义/杠杆) = perCandidateUSDT,且两腿名义相等(delta 中性)。
+	// → 每腿名义 = 资金 × lev/(lev+1)。lev=1 退化为各半(行为不变);lev=2 时同样资金名义放大 33%。
+	lev := bybitEffectiveLeverage(cfg.PerpLeverage)
+	legUSDT := perCandidateUSDT * float64(lev) / float64(lev+1)
 
 	targetSpotQty := legUSDT / spotPrice
 	targetPerpQty := legUSDT / perpPrice
@@ -161,8 +207,17 @@ func planBybitDeltaNeutralOpen(
 	grossFunding := perpNotional * math.Abs(c.FundingRate)
 	// 开+平各一次吃单,双腿:现货 2 次 + 永续 2 次。
 	feeCost := spotNotional*cfg.SpotTakerFee*2 + perpNotional*cfg.PerpTakerFee*2
+	// 负 carry 的现货空腿要借币,持有一个结算间隔的利息计入成本(正 carry 不借币)。
+	if c.Negative && cfg.BorrowHourlyRate > 0 {
+		ih := c.IntervalHours
+		if ih <= 0 {
+			ih = 8
+		}
+		feeCost += spotNotional * cfg.BorrowHourlyRate * float64(ih)
+	}
 	netProfit := grossFunding - feeCost
-	deployed := spotNotional + perpNotional // 现货全额 + 永续 1x 保证金
+	perpMargin := perpNotional / float64(lev)
+	deployed := spotNotional + perpMargin // 现货全额 + 永续保证金(名义/杠杆)
 	netRate := 0.0
 	if deployed > 0 {
 		netRate = netProfit / deployed
@@ -183,9 +238,93 @@ func planBybitDeltaNeutralOpen(
 		EstNetProfitRate: netRate,
 		NextFundingTime:  c.NextFundingTime,
 		Negative:         c.Negative,
+		IntervalHours:    c.IntervalHours,
+		PerpMarginUSDT:   perpMargin,
+		PerpLeverage:     lev,
 	}
 	if netRate < cfg.MinNetProfitRate {
 		return plan, false, "成本后净利率低于阈值"
 	}
 	return plan, true, "ok"
+}
+
+// bybitEVMinSamples 是 EV 门槛要求的最少历史费率样本数;不足则回退单次结算门(保守:不凭少量样本下注)。
+const bybitEVMinSamples = 8
+
+// bybitFavorableRunStats 统计历史费率序列(顺序无关)中「对本方向有利」的连跑:
+// 返回 (平均连跑长度, 有利样本的平均|费率|, 有利样本数)。有利定义:正 carry 费率 ≥ floor;负 carry 费率 ≤ -floor。
+func bybitFavorableRunStats(history []float64, negative bool, floor float64) (avgRun float64, avgRate float64, favorable int) {
+	if floor <= 0 {
+		floor = 1e-9
+	}
+	isFav := func(r float64) bool {
+		if negative {
+			return r <= -floor
+		}
+		return r >= floor
+	}
+	runs, curRun := 0, 0
+	rateSum := 0.0
+	totalRunLen := 0
+	for _, r := range history {
+		if isFav(r) {
+			favorable++
+			rateSum += math.Abs(r)
+			curRun++
+			continue
+		}
+		if curRun > 0 {
+			runs++
+			totalRunLen += curRun
+			curRun = 0
+		}
+	}
+	if curRun > 0 {
+		runs++
+		totalRunLen += curRun
+	}
+	if favorable > 0 {
+		avgRate = rateSum / float64(favorable)
+	}
+	if runs > 0 {
+		avgRun = float64(totalRunLen) / float64(runs)
+	}
+	return avgRun, avgRate, favorable
+}
+
+// bybitMultiSettlementEV 计算一笔开仓计划的「多结算期望值」:
+//
+//	EV = 期望结算次数 N × 保守单次费率 × 永续名义 − 四腿费用 −(负 carry)借币利息×N
+//
+// N = min(历史有利连跑均长, 滚动持有上限);单次费率 = min(当前费率, 历史有利均值)(保守:不指望当前
+// 尖峰费率一直维持)。history 样本 < bybitEVMinSamples 时返回 ok=false,调用方回退单次门。
+func bybitMultiSettlementEV(plan BybitOpenPlan, history []float64, cfg BybitExecConfig) (ev float64, detail string, ok bool) {
+	if len(history) < bybitEVMinSamples {
+		return 0, "", false
+	}
+	avgRun, avgRate, favorable := bybitFavorableRunStats(history, plan.Negative, cfg.MinFundingRate)
+	if favorable == 0 {
+		// 历史从未有利过,当前费率大概率是一次性尖峰:按 1 次结算估。
+		avgRun = 1
+		avgRate = math.Abs(plan.FundingRate)
+	}
+	maxN := 1.0
+	if cfg.RollEnabled && cfg.MaxHoldSettlements > 1 {
+		maxN = float64(cfg.MaxHoldSettlements)
+	}
+	expN := math.Min(math.Max(avgRun, 1), maxN)
+	perRate := math.Min(math.Abs(plan.FundingRate), avgRate)
+	income := expN * perRate * plan.PerpNotional
+	cost := plan.EstFeeCost
+	if plan.Negative && cfg.BorrowHourlyRate > 0 {
+		ih := plan.IntervalHours
+		if ih <= 0 {
+			ih = 8
+		}
+		// EstFeeCost 已含 1 个间隔的利息,这里补上其余 (expN−1) 个间隔。
+		cost += plan.SpotNotional * cfg.BorrowHourlyRate * float64(ih) * (expN - 1)
+	}
+	ev = income - cost
+	detail = fmt.Sprintf("期望%.1f次×%.4f%%×%.2fU=%.4f−成本%.4f", expN, perRate*100, plan.PerpNotional, income, cost)
+	return ev, detail, true
 }

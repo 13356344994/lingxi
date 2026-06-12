@@ -23,6 +23,10 @@ func TestAdjustTradingCapitalUSDTSweepsExcessToFunding(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
+		case "/fapi/v1/time":
+			_, _ = w.Write([]byte(fmt.Sprintf(`{"serverTime":%d}`, time.Now().UnixMilli())))
+		case "/api/v3/exchangeInfo", "/fapi/v1/exchangeInfo":
+			_, _ = w.Write([]byte(`{"symbols":[]}`))
 		case "/api/v3/account":
 			_, _ = w.Write([]byte(`{"balances":[{"asset":"USDT","free":"` + formatFloat(spot) + `","locked":"0"}]}`))
 		case "/fapi/v3/account":
@@ -99,6 +103,10 @@ func TestAdjustTradingCapitalUSDTUsesFundingToTopUpTradingBuckets(t *testing.T) 
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
+		case "/fapi/v1/time":
+			_, _ = w.Write([]byte(fmt.Sprintf(`{"serverTime":%d}`, time.Now().UnixMilli())))
+		case "/api/v3/exchangeInfo", "/fapi/v1/exchangeInfo":
+			_, _ = w.Write([]byte(`{"symbols":[]}`))
 		case "/api/v3/account":
 			_, _ = w.Write([]byte(`{"balances":[{"asset":"USDT","free":"` + formatFloat(spot) + `","locked":"0"}]}`))
 		case "/fapi/v3/account":
@@ -172,6 +180,10 @@ func TestAdjustTradingCapitalUSDTRejectsInsufficientLiveBalance(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
+		case "/fapi/v1/time":
+			_, _ = w.Write([]byte(fmt.Sprintf(`{"serverTime":%d}`, time.Now().UnixMilli())))
+		case "/api/v3/exchangeInfo", "/fapi/v1/exchangeInfo":
+			_, _ = w.Write([]byte(`{"symbols":[]}`))
 		case "/api/v3/account":
 			_, _ = w.Write([]byte(`{"balances":[{"asset":"USDT","free":"` + formatFloat(spot) + `","locked":"0"}]}`))
 		case "/fapi/v3/account":

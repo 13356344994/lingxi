@@ -101,6 +101,27 @@ func TestBybitPositionStoreLegacyBareArrayPassthrough(t *testing.T) {
 	}
 }
 
+// TestBybitPositionStoreMigratesLegacySentinel 钉死旧哨兵收编:SettlementsHeld=1<<30 的旧「立即待平」
+// 记录加载时迁移为 ForceClose=true + SettlementsHeld=0,平仓日志/结算台账不再出现 1073741825 次结算。
+func TestBybitPositionStoreMigratesLegacySentinel(t *testing.T) {
+	dir := t.TempDir()
+	legacy := `[{"symbol":"HOME-USDT","base_qty":2760,"settlements_held":1073741824,"idem_prefix":"lx-legacy"}]`
+	if err := os.WriteFile(filepath.Join(dir, bybitPositionsFileName), []byte(legacy), 0o600); err != nil {
+		t.Fatalf("写 legacy 文件: %v", err)
+	}
+	store, _ := newBybitPositionStore(dir)
+	ps, err := store.load()
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if len(ps) != 1 {
+		t.Fatalf("应有 1 笔, got %d", len(ps))
+	}
+	if !ps[0].ForceClose || ps[0].SettlementsHeld != 0 {
+		t.Fatalf("旧哨兵应迁移为 ForceClose=true + SettlementsHeld=0, got %+v", ps[0])
+	}
+}
+
 // TestBybitPositionStoreRejectsTampered 钉死完整性:信封内容被外部篡改后,load 拒绝放行(不在不可信状态上自动接管)。
 func TestBybitPositionStoreRejectsTampered(t *testing.T) {
 	dir := t.TempDir()
