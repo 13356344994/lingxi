@@ -57,8 +57,8 @@ func TestParseFilters(t *testing.T) {
 
 func TestCapabilities(t *testing.T) {
 	caps := newTestAdapter().Capabilities()
-	if !caps.SupportsNegativeCarry {
-		t.Fatal("binance should support negative carry")
+	if caps.SupportsNegativeCarry {
+		t.Fatal("binance venue adapter should not claim negative carry until BorrowRepay is implemented")
 	}
 	if caps.ContractBasedPerp {
 		t.Fatal("binance USDT perp is coin-quantity, not contract-based")
@@ -70,10 +70,13 @@ func TestCapabilities(t *testing.T) {
 
 func TestPendingMethodsReturnUnsupported(t *testing.T) {
 	a := newTestAdapter()
-	if _, err := a.PlaceOrder(t.Context(), venue.OrderRequest{}); err != venue.ErrUnsupported {
-		t.Fatalf("PlaceOrder should be ErrUnsupported in P0, got %v", err)
-	}
 	if _, _, err := a.CaptureMovableSnapshot(t.Context()); err != venue.ErrUnsupported {
-		t.Fatalf("CaptureMovableSnapshot should be ErrUnsupported in P0, got %v", err)
+		t.Fatalf("CaptureMovableSnapshot should be ErrUnsupported, got %v", err)
+	}
+	if _, err := a.PlaceBatch(t.Context(), nil); err != venue.ErrUnsupported {
+		t.Fatalf("PlaceBatch should be ErrUnsupported, got %v", err)
+	}
+	if err := a.BorrowRepay(t.Context(), "USDT", 1, venue.BorrowDirBorrow); err != venue.ErrUnsupported {
+		t.Fatalf("BorrowRepay should be ErrUnsupported, got %v", err)
 	}
 }

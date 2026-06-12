@@ -82,6 +82,32 @@ func (e *FundingRateSniperEngine) writeHeartbeat(path string) {
 	}
 }
 
+// evaluateMultiVenueReadiness 判定整个进程是否就绪(多 venue 感知,纯函数可单测):
+// **任一 venue 就绪即 200**。此前 /healthz 只看主控制器(币安),Bybit 单所运行时恒 503,
+// 外部 watchdog 以「healthz 非 200」为不健康信号会持续误杀健康进程(2026-06-12 装 timer 前实测发现)。
+// 全部不就绪时,reason 汇总各所原因(venue:reason;...)供告警定位。
+func evaluateMultiVenueReadiness(samples []venueMetricSample) (bool, string) {
+	if len(samples) == 0 {
+		return false, "no_venues"
+	}
+	reasons := make([]string, 0, len(samples))
+	for _, sm := range samples {
+		ok, reason := evaluateReadiness(sm.Status)
+		if ok {
+			label := sm.Venue
+			if label == "" {
+				label = "default"
+			}
+			return true, "ok:" + label
+		}
+		if sm.Venue != "" {
+			reason = sm.Venue + ":" + reason
+		}
+		reasons = append(reasons, reason)
+	}
+	return false, strings.Join(reasons, ";")
+}
+
 // evaluateReadiness 判定引擎是否就绪(纯函数,可单测)。未运行 / 熔断 / 健康态为 failed|paused → 未就绪。
 func evaluateReadiness(status RuntimeTaskStatus) (bool, string) {
 	if !status.Running {
@@ -193,10 +219,28 @@ func (s *DashboardServer) handleLivez(w http.ResponseWriter, _ *http.Request) {
 	_, _ = w.Write([]byte("ok"))
 }
 
-// handleHealthz 就绪/健康探针:就绪 200,否则 503。返回 JSON {ready, reason, ...}。
+// handleHealthz 就绪/健康探针:就绪 200,否则 503。返回 JSON {ready, reason, venues:{...}}。
+// 多 venue 感知:任一 venue 控制器在跑且健康即 200(只跑 Bybit 时不再因币安未运行而恒 503)。
 func (s *DashboardServer) handleHealthz(w http.ResponseWriter, _ *http.Request) {
-	status := s.controllerStatus()
-	ready, reason := evaluateReadiness(status)
+	samples := s.venueMetricSamples()
+	ready, reason := evaluateMultiVenueReadiness(samples)
+	venues := make(map[string]any, len(samples))
+	for _, sm := range samples {
+		label := sm.Venue
+		if label == "" {
+			label = "default"
+		}
+		venueReady, venueReason := evaluateReadiness(sm.Status)
+		venues[label] = map[string]any{
+			"ready":                   venueReady,
+			"reason":                  venueReason,
+			"running":                 sm.Status.Running,
+			"health_status":           sm.Status.HealthStatus,
+			"health_score":            sm.Status.HealthScore,
+			"circuit_breaker_tripped": sm.Status.CircuitBreakerTripped,
+			"engine_gear":             sm.Status.EngineGear,
+		}
+	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	if ready {
 		w.WriteHeader(http.StatusOK)
@@ -204,13 +248,9 @@ func (s *DashboardServer) handleHealthz(w http.ResponseWriter, _ *http.Request) 
 		w.WriteHeader(http.StatusServiceUnavailable)
 	}
 	_ = json.NewEncoder(w).Encode(map[string]any{
-		"ready":                   ready,
-		"reason":                  reason,
-		"running":                 status.Running,
-		"health_status":           status.HealthStatus,
-		"health_score":            status.HealthScore,
-		"circuit_breaker_tripped": status.CircuitBreakerTripped,
-		"engine_gear":             status.EngineGear,
+		"ready":  ready,
+		"reason": reason,
+		"venues": venues,
 	})
 }
 

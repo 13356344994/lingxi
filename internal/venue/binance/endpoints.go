@@ -33,6 +33,11 @@ const (
 	PathFuturesCountdownCancel  = "/fapi/v1/countdownCancelAll"
 	PathFuturesListenKey        = "/fapi/v1/listenKey"
 	PathFuturesAccountV3        = "/fapi/v3/account"
+	PathFuturesBalance          = "/fapi/v2/balance"
+	PathFuturesPositionRisk     = "/fapi/v2/positionRisk"
+	PathFuturesCommissionRate   = "/fapi/v1/commissionRate"
+	PathSpotExchangeInfo        = "/api/v3/exchangeInfo"
+	PathFuturesExchangeInfo     = "/fapi/v1/exchangeInfo"
 
 	// ---- 杠杆/资产/账户 /sapi ----
 	PathMarginOrder           = "/sapi/v1/margin/order"

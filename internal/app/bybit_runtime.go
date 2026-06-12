@@ -188,6 +188,26 @@ func (c *RuntimeController) runBybitExecutor(ctx context.Context, secretPath str
 
 	c.bybitReconcileOnStart(ctx, adapter, store)
 
+	// 启动清扫(R14 的 Bybit 散户路径):set-dcp(disconnect-cancel-all)官方文档明确仅机构客户可用,
+	// 散户进程死亡时残留挂单没有交易所侧 dead-man 兜底 → 改为「进程被 systemd/watchdog 拉起后立即
+	// 撤掉本账户全部活动挂单」。放在 reconcile 之后:先按已成交仓位收编对账,再清纯挂单(撤的只是
+	// 未成交挂单,不动持仓)。暴露窗口 = 重启延迟(systemd 秒级 / watchdog 分钟级),可控。
+	if live {
+		type allCanceler interface {
+			CancelAllOrders(context.Context, venue.Market) (int, error)
+		}
+		if ac, ok := adapter.(allCanceler); ok {
+			for _, m := range []venue.Market{venue.MarketPerp, venue.MarketSpot} {
+				if n, cerr := ac.CancelAllOrders(ctx, m); cerr != nil {
+					c.appendControllerLog("Bybit 启动清扫(%s)失败,残留挂单可能仍在,请人工核对: %v", m, cerr)
+				} else if n > 0 {
+					c.appendControllerLog("Bybit 启动清扫: 已撤销 %s 残留挂单 %d 笔(上次进程退出前未成交的腿)", m, n)
+					c.bybitNotifyWarn("Bybit 启动清扫", fmt.Sprintf("已撤销 %s 残留挂单 %d 笔", m, n), "")
+				}
+			}
+		}
+	}
+
 	readyMsg := fmt.Sprintf("模式=%s 分配资金=%.2f TopN=%d 最小费率=%.4f%% 提前=%ds 持有=%ds 并发上限=%d",
 		bybitModeLabel(cfg), execCfg.AllocatedUSDT, execCfg.TopN, execCfg.MinFundingRate*100,
 		cfg.BybitExecutor.LeadSeconds, cfg.BybitExecutor.HoldAfterSeconds, c.bybitMaxConcurrent(cfg))

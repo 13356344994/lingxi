@@ -100,7 +100,7 @@ func startLiveStack(ctx context.Context, cfg EngineConfig) error {
 	} else {
 		// 多所路径:逐所构建 + 启动隔离(一所失败不连累其它所)。
 		registered := registerEnabledVenues(orch, enabled, func(p VenuePlan) (*venueRuntime, error) {
-			return buildVenueRuntime(ctx, p.Config, p.Name, log.Default())
+			return buildRegisteredVenueRuntime(ctx, p, log.Default())
 		}, log.Default())
 		if registered == 0 || orch.Primary() == nil {
 			return fmt.Errorf("所有启用的 venue 均启动失败,无可用交易所运行时")
@@ -131,6 +131,26 @@ func startLiveStack(ctx context.Context, cfg EngineConfig) error {
 				OccurredAt: time.Now().UTC(),
 			})
 		})
+	}
+	secretPath := strings.TrimSpace(os.Getenv("LINGXI_SECRET_PATH"))
+	if secretPath == "" {
+		secretPath = "secret.yaml"
+	}
+	if cfg.CrossVenueScanner.Enabled {
+		scanner := NewCrossVenueScanner(cfg, orch, secretPath, log.Default())
+		dashboard.SetCrossVenueScanner(scanner)
+		go scanner.Run(ctx)
+		if cfg.CrossVenueExecutor.Enabled {
+			exec, err := NewCrossVenueExecutor(cfg, orch, scanner, secretPath, log.Default())
+			if err != nil {
+				log.Default().Printf("[跨所执行] 构造失败,跳过: %v", err)
+			} else {
+				dashboard.SetCrossVenueExecutor(exec)
+				go exec.Run(ctx)
+			}
+		}
+	} else if cfg.CrossVenueExecutor.Enabled {
+		log.Default().Printf("[跨所执行] 已启用但扫描器未启用,跳过(需 cross_venue_scanner.enabled=true)")
 	}
 	// opt-in：显式开启 LINGXI_AUTOSTART_LIVE 时，面板拉起后自动触发实盘交易（等价于面板点"启动实盘"），
 	// 用于崩溃重启后自动恢复；影子模式不自动开（影子是人工冒烟，无需无人值守恢复）。默认关闭，零行为变更。

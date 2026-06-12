@@ -44,6 +44,10 @@ type DashboardServer struct {
 	tokenMirrorDir string
 	// tokenNotify 在令牌落盘后被调用(如经 Telegram 推送给用户),nil=不推送。
 	tokenNotify func(token string)
+	// crossVenueScanner 是 P1 跨所资金费价差扫描器(纯只读);nil=未启用。
+	crossVenueScanner *CrossVenueScanner
+	// crossVenueExecutor 是 P1 跨所 perp-perp 对冲执行引擎;nil=未启用。
+	crossVenueExecutor *CrossVenueExecutor
 }
 
 // SetTokenMirrorDir 设置控制令牌的固定镜像目录(启动前调用)。
@@ -51,6 +55,16 @@ func (s *DashboardServer) SetTokenMirrorDir(dir string) { s.tokenMirrorDir = str
 
 // SetTokenNotifier 设置令牌推送回调(启动前调用)。
 func (s *DashboardServer) SetTokenNotifier(fn func(token string)) { s.tokenNotify = fn }
+
+// SetCrossVenueScanner 注入跨所资金费扫描器(供 /api/cross-venue/funding 读取)。
+func (s *DashboardServer) SetCrossVenueScanner(scanner *CrossVenueScanner) {
+	s.crossVenueScanner = scanner
+}
+
+// SetCrossVenueExecutor 注入跨所对冲执行引擎(供 /api/cross-venue/positions 读取)。
+func (s *DashboardServer) SetCrossVenueExecutor(exec *CrossVenueExecutor) {
+	s.crossVenueExecutor = exec
+}
 
 // DashboardSummaryResponse 表示面板一次刷新所需的聚合数据。
 type DashboardSummaryResponse struct {
@@ -110,6 +124,8 @@ func (s *DashboardServer) Start(ctx context.Context) error {
 	mux.HandleFunc("/api/dashboard/summary", s.authorizeReadAPI(s.handleDashboardSummaryAPI))
 	mux.HandleFunc("/api/performance", s.authorizeReadAPI(s.handlePerformanceAPI))
 	mux.HandleFunc("/api/venues", s.authorizeReadAPI(s.handleVenuesAPI))
+	mux.HandleFunc("/api/cross-venue/funding", s.authorizeReadAPI(s.handleCrossVenueFundingAPI))
+	mux.HandleFunc("/api/cross-venue/positions", s.authorizeReadAPI(s.handleCrossVenuePositionsAPI))
 	mux.HandleFunc("/api/settlements", s.authorizeReadAPI(s.handleSettlementAPI))
 	mux.HandleFunc("/api/monitor-records", s.authorizeReadAPI(s.handleMonitorAPI))
 	mux.HandleFunc("/api/backtest-records", s.authorizeReadAPI(s.handleBacktestAPI))
@@ -956,6 +972,32 @@ func parseLimit(r *http.Request, fallback int) int {
 		return 1000
 	}
 	return limit
+}
+
+// handleCrossVenueFundingAPI 返回最新一轮跨所资金费价差扫描结果(纯只读)。
+func (s *DashboardServer) handleCrossVenueFundingAPI(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if s.crossVenueScanner == nil {
+		writeJSON(w, map[string]any{"enabled": false, "message": "跨所扫描器未启用"})
+		return
+	}
+	writeJSON(w, s.crossVenueScanner.Snapshot())
+}
+
+// handleCrossVenuePositionsAPI 返回跨所对冲持仓台账+实时状态。
+func (s *DashboardServer) handleCrossVenuePositionsAPI(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if s.crossVenueExecutor == nil {
+		writeJSON(w, map[string]any{"enabled": false, "message": "跨所执行引擎未启用"})
+		return
+	}
+	writeJSON(w, s.crossVenueExecutor.PositionsSnapshot())
 }
 
 func writeJSON(w http.ResponseWriter, payload any) {

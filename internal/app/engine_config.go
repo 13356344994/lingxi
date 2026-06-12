@@ -28,15 +28,17 @@ type SecretConfig = exchange.SecretConfig
 // 配置内核类型已迁移到 internal/core（Gate 3 解耦）。这里保留同名别名，
 // 让既有的大量引用无需改动即可继续编译。
 type (
-	EngineProfile    = core.EngineProfile
-	NetworkConfig    = core.NetworkConfig
-	StrategyConfig   = core.StrategyConfig
-	ExecutionConfig  = core.ExecutionConfig
-	RiskConfig       = core.RiskConfig
-	HistoricalConfig = core.HistoricalConfig
-	EngineConfig     = core.EngineConfig
-	PortfolioConfig  = core.PortfolioConfig
-	AlertingConfig   = core.AlertingConfig
+	EngineProfile            = core.EngineProfile
+	NetworkConfig            = core.NetworkConfig
+	StrategyConfig           = core.StrategyConfig
+	ExecutionConfig          = core.ExecutionConfig
+	RiskConfig               = core.RiskConfig
+	HistoricalConfig         = core.HistoricalConfig
+	EngineConfig             = core.EngineConfig
+	PortfolioConfig          = core.PortfolioConfig
+	AlertingConfig           = core.AlertingConfig
+	CrossVenueScannerConfig  = core.CrossVenueScannerConfig
+	CrossVenueExecutorConfig = core.CrossVenueExecutorConfig
 )
 
 const (

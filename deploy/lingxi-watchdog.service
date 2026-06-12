@@ -13,13 +13,16 @@ After=lingxi.service
 
 [Service]
 Type=oneshot
-User=lingxi
-Group=lingxi
-WorkingDirectory=/opt/lingxi
+# 与 lingxi.service 一致:实际部署在 /root/lingxi、root 运行(systemctl restart 也需要 root)。
+User=root
+Group=root
+WorkingDirectory=/root/lingxi
 Environment=LINGXI_HEALTH_URL=http://127.0.0.1:8080/healthz
-Environment=LINGXI_RECORD_DIR=/opt/lingxi/records
+Environment=LINGXI_RECORD_DIR=/root/lingxi/records
 Environment=LINGXI_STALE_THRESHOLD=90
 Environment=LINGXI_FAIL_THRESHOLD=3
 Environment=LINGXI_RESTART_CMD=systemctl restart lingxi
-# 可选告警出口:Environment=LINGXI_ALERT_WEBHOOK=https://...
-ExecStart=/opt/lingxi/deploy/watchdog.sh
+# 兜底强平开关:阶段一保持注释(只告警);零误报观察 1–2 周后再放开(见 ROADMAP §3)。
+# Environment=LINGXI_FLATTEN_ON_DEAD=1
+# 可选告警出口(钉钉/飞书/Telegram 中转):Environment=LINGXI_ALERT_WEBHOOK=https://...
+ExecStart=/root/lingxi/deploy/watchdog.sh

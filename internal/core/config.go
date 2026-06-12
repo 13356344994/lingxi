@@ -483,6 +483,20 @@ type AlertingConfig struct {
 	DispatchTimeout time.Duration `cfg:"dispatch_timeout"`
 }
 
+// CrossVenueScannerConfig 是 P1 跨所资金费价差扫描器(纯只读)的运行参数。
+type CrossVenueScannerConfig struct {
+	// Enabled 启用周期性跨所资金费扫描。默认 true;false 时不启动 goroutine。
+	Enabled bool `cfg:"enabled"`
+	// ScanIntervalMinutes 扫描周期(分钟)。默认 10。
+	ScanIntervalMinutes int `cfg:"scan_interval_minutes"`
+	// MinSpreadAPR 进入结果列表的最小年化价差(小数,0.30=30%)。默认 0.30。
+	MinSpreadAPR float64 `cfg:"min_spread_apr"`
+	// AlertSpreadAPR 触发 Telegram 告警的年化价差阈值(小数,1.0=100%)。默认 1.0。
+	AlertSpreadAPR float64 `cfg:"alert_spread_apr"`
+	// TopN 每轮保留的年化价差 Top N 机会。默认 30。
+	TopN int `cfg:"top_n"`
+}
+
 // EngineConfig 是 Funding Rate Sniper Engine 的 MVP 运行配置。
 type EngineConfig struct {
 	ActiveProfile EngineProfile `cfg:"active_profile"` // 运行偏好档位
@@ -505,6 +519,54 @@ type EngineConfig struct {
 	// 币安路径完全忽略。多所部署下由 venues.bybit.bybit_executor.* 覆盖。主安全闸 LiveTradingEnabled 默认 false
 	// → 即便启动 bybit 任务也只 shadow(规划+日志,绝不下单);置 true 才真实下单。
 	BybitExecutor BybitExecutorConfig `cfg:"bybit_executor"`
+
+	// CrossVenueScanner 是 P1 跨所资金费价差扫描器(纯只读,绝不下单)的参数。
+	CrossVenueScanner CrossVenueScannerConfig `cfg:"cross_venue_scanner"`
+
+	// CrossVenueExecutor 是 P1 跨所 perp-perp 对冲执行引擎参数(默认关闭+影子模式,绝不下单)。
+	CrossVenueExecutor CrossVenueExecutorConfig `cfg:"cross_venue_executor"`
+}
+
+// CrossVenueExecutorConfig 是跨所资金费对冲执行引擎的可调参数。
+type CrossVenueExecutorConfig struct {
+	// Enabled 启用执行引擎 goroutine。默认 false;false 时不启动。
+	Enabled bool `cfg:"enabled"`
+	// LiveTradingEnabled 主安全闸:false=影子(完整闸门+协议但不下单);true=真实下单。默认 false。
+	LiveTradingEnabled bool `cfg:"live_trading_enabled"`
+	// LoopIntervalSeconds 主循环周期(秒)。默认 60。
+	LoopIntervalSeconds int `cfg:"loop_interval_seconds"`
+	// OpenSpreadAPR 开仓最小年化价差(小数,1.5=150%)。默认 1.5。
+	OpenSpreadAPR float64 `cfg:"open_spread_apr"`
+	// CloseSpreadAPR 平仓年化价差阈值(小数,0.3=30%)。默认 0.3。
+	CloseSpreadAPR float64 `cfg:"close_spread_apr"`
+	// CloseSpreadConsecutiveRounds 价差低于平仓阈值须连续满足的轮数。默认 3。
+	CloseSpreadConsecutiveRounds int `cfg:"close_spread_consecutive_rounds"`
+	// MaxConcurrent 同时在场最大跨所持仓数。默认 2。
+	MaxConcurrent int `cfg:"max_concurrent"`
+	// MaxPositionUSDT 单腿最大名义(USDT)。默认 50。
+	MaxPositionUSDT float64 `cfg:"max_position_usdt"`
+	// MaxBookSpreadBps 两腿盘口价差上限(bps)。默认 30。
+	MaxBookSpreadBps float64 `cfg:"max_book_spread_bps"`
+	// SlippageBudgetBps IOC 限价相对对手价的滑点预算(bps)。默认 20。
+	SlippageBudgetBps float64 `cfg:"slippage_budget_bps"`
+	// MaxNakedSeconds 第二腿失败裸腿暴露上限(秒),超时须完成回滚或升级告警。默认 30。
+	MaxNakedSeconds int `cfg:"max_naked_seconds"`
+	// MinLiqDistance 强平距离下限(|mark−liq|/mark)。默认 0.15。
+	MinLiqDistance float64 `cfg:"min_liq_distance"`
+	// MaxHoldHours 最大持仓时长(小时)。默认 72。
+	MaxHoldHours int `cfg:"max_hold_hours"`
+	// MaxEffectiveLeverage 有效杠杆上限(名义/分配本金)。默认 2。
+	MaxEffectiveLeverage float64 `cfg:"max_effective_leverage"`
+	// MarginSafetyFactor 保证金安全系数(可用 USDT ≥ 名义/杠杆 × 此系数)。默认 1.5。
+	MarginSafetyFactor float64 `cfg:"margin_safety_factor"`
+	// MidPriceDeviationMax 两所中间价最大偏离(小数,0.03=3%)。默认 0.03。
+	MidPriceDeviationMax float64 `cfg:"mid_price_deviation_max"`
+	// DepthUsageRatio 名义额占头部 3 档深度比例上限。默认 0.20。
+	DepthUsageRatio float64 `cfg:"depth_usage_ratio"`
+	// SymbolCooldownHours 回滚失败后 symbol 冷却(小时)。默认 1。
+	SymbolCooldownHours int `cfg:"symbol_cooldown_hours"`
+	// DeadManCountdownSeconds okx/gate 腿 dead-man 续期间隔(秒)。默认 60。
+	DeadManCountdownSeconds int `cfg:"dead_man_countdown_seconds"`
 }
 
 // BybitExecutorConfig 是 Bybit 精简执行器的可调参数。所有阈值默认保守;LiveTradingEnabled 是真实下单的总开关。
@@ -849,6 +911,21 @@ func (cfg EngineConfig) Validate() error {
 	// R29 借币容量/利率守卫:余量率与利率上限恒非负(关闭利率上限用 0)。
 	appendIssue(cfg.RiskConfig.BorrowCapacityMinHeadroomRate >= 0, "Risk BorrowCapacityMinHeadroomRate 不能小于 0")
 	appendIssue(cfg.RiskConfig.MaxBorrowHourlyInterestRate >= 0, "Risk MaxBorrowHourlyInterestRate 不能小于 0")
+
+	if cfg.CrossVenueScanner.Enabled {
+		appendIssue(cfg.CrossVenueScanner.ScanIntervalMinutes > 0, "CrossVenueScanner ScanIntervalMinutes 必须大于 0")
+		appendIssue(cfg.CrossVenueScanner.MinSpreadAPR >= 0, "CrossVenueScanner MinSpreadAPR 不能小于 0")
+		appendIssue(cfg.CrossVenueScanner.AlertSpreadAPR >= 0, "CrossVenueScanner AlertSpreadAPR 不能小于 0")
+		appendIssue(cfg.CrossVenueScanner.TopN > 0, "CrossVenueScanner TopN 必须大于 0")
+	}
+	if cfg.CrossVenueExecutor.Enabled {
+		appendIssue(cfg.CrossVenueExecutor.LoopIntervalSeconds > 0, "CrossVenueExecutor LoopIntervalSeconds 必须大于 0")
+		appendIssue(cfg.CrossVenueExecutor.OpenSpreadAPR >= 0, "CrossVenueExecutor OpenSpreadAPR 不能小于 0")
+		appendIssue(cfg.CrossVenueExecutor.CloseSpreadAPR >= 0, "CrossVenueExecutor CloseSpreadAPR 不能小于 0")
+		appendIssue(cfg.CrossVenueExecutor.MaxConcurrent > 0, "CrossVenueExecutor MaxConcurrent 必须大于 0")
+		appendIssue(cfg.CrossVenueExecutor.MaxPositionUSDT > 0, "CrossVenueExecutor MaxPositionUSDT 必须大于 0")
+		appendIssue(cfg.CrossVenueExecutor.MaxEffectiveLeverage > 0, "CrossVenueExecutor MaxEffectiveLeverage 必须大于 0")
+	}
 
 	if len(issues) == 0 {
 		return nil

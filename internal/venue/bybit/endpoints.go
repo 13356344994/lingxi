@@ -25,6 +25,7 @@ const (
 	pathOrderCreate      = "/v5/order/create"             // 私有写:下单
 	pathOrderCreateBatch = "/v5/order/create-batch"       // 私有写:批量下单
 	pathOrderCancel      = "/v5/order/cancel"             // 私有写:撤单
+	pathOrderCancelAll   = "/v5/order/cancel-all"         // 私有写:按类目撤全部活动挂单(启动清扫,dead-man 替代)
 	pathOrderRealtime    = "/v5/order/realtime"           // 私有只读:活动订单查询
 	pathSetLeverage      = "/v5/position/set-leverage"    // 私有写:设杠杆
 	pathSwitchIsolated   = "/v5/position/switch-isolated" // 私有写:逐仓/全仓切换

@@ -2,6 +2,9 @@ package binance
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -102,29 +105,165 @@ func (a *Adapter) ServerTime(ctx context.Context) (time.Time, error) {
 	var payload struct {
 		ServerTime int64 `json:"serverTime"`
 	}
-	if err := a.client.GetJSON(ctx, a.client.FuturesBaseURL()+"/fapi/v1/time", &payload); err != nil {
+	if err := a.client.GetJSON(ctx, a.client.FuturesBaseURL()+PathFuturesTime, &payload); err != nil {
 		return time.Time{}, err
 	}
 	return msToTime(payload.ServerTime), nil
 }
 
-// 以下行情子能力当前由 internal/app 层的 WS 缓存 / 端点拼接提供,P1 再迁入本包,
-// 在此之前返回 ErrUnsupported(引擎沿用旧路径,行为不变)。
-
+// FetchBookTicker 拉最优买卖一档(bookTicker)。
 func (a *Adapter) FetchBookTicker(ctx context.Context, m venue.Market, s venue.Symbol) (venue.BookTicker, error) {
-	return venue.BookTicker{}, venue.ErrUnsupported // TODO(P1)
+	raw, err := a.ToVenue(s, m)
+	if err != nil {
+		return venue.BookTicker{}, err
+	}
+	path := PathSpotBookTicker
+	base := a.spotBaseURL()
+	if m == venue.MarketPerp {
+		path = PathFuturesBookTicker
+		base = a.futuresBaseURL()
+	}
+	var ticker struct {
+		Symbol   string `json:"symbol"`
+		BidPrice string `json:"bidPrice"`
+		BidQty   string `json:"bidQty"`
+		AskPrice string `json:"askPrice"`
+		AskQty   string `json:"askQty"`
+	}
+	if err := a.publicGet(ctx, base+path+"?symbol="+raw, &ticker); err != nil {
+		return venue.BookTicker{}, err
+	}
+	return venue.BookTicker{
+		Symbol:   s,
+		Market:   m,
+		BidPrice: parseFloat(ticker.BidPrice),
+		BidQty:   parseFloat(ticker.BidQty),
+		AskPrice: parseFloat(ticker.AskPrice),
+		AskQty:   parseFloat(ticker.AskQty),
+	}, nil
 }
 
+// FetchDepth 拉多档盘口(depth)。
 func (a *Adapter) FetchDepth(ctx context.Context, m venue.Market, s venue.Symbol, limit int) (venue.Depth, error) {
-	return venue.Depth{}, venue.ErrUnsupported // TODO(P1)
+	raw, err := a.ToVenue(s, m)
+	if err != nil {
+		return venue.Depth{}, err
+	}
+	if limit <= 0 {
+		limit = 50
+	}
+	path := PathSpotDepth
+	base := a.spotBaseURL()
+	if m == venue.MarketPerp {
+		path = PathFuturesDepth
+		base = a.futuresBaseURL()
+	}
+	var payload struct {
+		Bids [][]string `json:"bids"`
+		Asks [][]string `json:"asks"`
+	}
+	q := fmt.Sprintf("%s?symbol=%s&limit=%d", base+path, raw, limit)
+	if err := a.publicGet(ctx, q, &payload); err != nil {
+		return venue.Depth{}, err
+	}
+	depth := venue.Depth{Symbol: s, Market: m}
+	for _, lv := range payload.Bids {
+		if len(lv) >= 2 {
+			depth.Bids = append(depth.Bids, venue.DepthLevel{Price: parseFloat(lv[0]), Qty: parseFloat(lv[1])})
+		}
+	}
+	for _, lv := range payload.Asks {
+		if len(lv) >= 2 {
+			depth.Asks = append(depth.Asks, venue.DepthLevel{Price: parseFloat(lv[0]), Qty: parseFloat(lv[1])})
+		}
+	}
+	return depth, nil
 }
 
+// FetchOpenInterest 拉 U 本位永续持仓量(币数量)。
 func (a *Adapter) FetchOpenInterest(ctx context.Context, s venue.Symbol) (float64, error) {
-	return 0, venue.ErrUnsupported // TODO(P1)
+	raw, err := a.ToVenue(s, venue.MarketPerp)
+	if err != nil {
+		return 0, err
+	}
+	var payload struct {
+		OpenInterest string `json:"openInterest"`
+	}
+	if err := a.publicGet(ctx, a.futuresBaseURL()+PathFuturesOpenInterest+"?symbol="+raw, &payload); err != nil {
+		return 0, err
+	}
+	return parseFloat(payload.OpenInterest), nil
 }
 
+// FetchRecentQuoteVolume 用 klines 第 8 列(quote volume)在 window 内求和;window 向上取整到分钟。
 func (a *Adapter) FetchRecentQuoteVolume(ctx context.Context, m venue.Market, s venue.Symbol, window time.Duration) (float64, error) {
-	return 0, venue.ErrUnsupported // TODO(P1)
+	raw, err := a.ToVenue(s, m)
+	if err != nil {
+		return 0, err
+	}
+	if window <= 0 {
+		window = time.Hour
+	}
+	minutes := int(math.Ceil(window.Minutes()))
+	if minutes < 1 {
+		minutes = 1
+	}
+	interval, limit := klineIntervalForMinutes(minutes)
+	path := PathSpotKlines
+	base := a.spotBaseURL()
+	if m == venue.MarketPerp {
+		path = PathFuturesKlines
+		base = a.futuresBaseURL()
+	}
+	var rows [][]any
+	url := fmt.Sprintf("%s?symbol=%s&interval=%s&limit=%d", base+path, raw, interval, limit)
+	if err := a.publicGet(ctx, url, &rows); err != nil {
+		return 0, err
+	}
+	sum := 0.0
+	for _, row := range rows {
+		if len(row) >= 8 {
+			sum += parseAnyFloat(row[7])
+		}
+	}
+	return sum, nil
+}
+
+// klineIntervalForMinutes 选取 K 线周期与 limit,使覆盖 window 且 limit≤1000。
+func klineIntervalForMinutes(minutes int) (interval string, limit int) {
+	switch {
+	case minutes <= 60:
+		return "1m", minutes
+	case minutes <= 180:
+		limit = (minutes + 2) / 3
+		return "3m", limit
+	case minutes <= 300:
+		limit = (minutes + 4) / 5
+		return "5m", limit
+	case minutes <= 900:
+		limit = (minutes + 14) / 15
+		return "15m", limit
+	default:
+		limit = (minutes + 59) / 60
+		if limit > 1000 {
+			limit = 1000
+		}
+		return "1h", limit
+	}
+}
+
+func parseAnyFloat(v any) float64 {
+	switch typed := v.(type) {
+	case string:
+		return parseFloat(typed)
+	case float64:
+		return typed
+	case json.Number:
+		f, _ := typed.Float64()
+		return f
+	default:
+		return 0
+	}
 }
 
 func parseFilters(filters []exchange.ExchangeFilter) (tick, step, minNotional float64) {

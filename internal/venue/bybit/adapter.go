@@ -52,7 +52,7 @@ func (a *Adapter) Capabilities() venue.Capabilities {
 	return venue.Capabilities{
 		SupportsNegativeCarry:    false,          // TODO(Stage3+): 统一账户借币做空后置 true
 		FundingIntervalsHours:    []int{8, 4, 1}, // Bybit linear 常见 8h,部分 4h/1h(逐币以 instruments fundingInterval 为准)
-		HasNativeDeadMan:         false,          // TODO: set-dcp(disconnect-cancel-all)接入后置 true
+		HasNativeDeadMan:         false,          // set-dcp 仅机构客户可用(官方文档),散户走启动清扫替代(CancelAllOrders)
 		HasFeeDiscountToken:      false,
 		MaxBatchOrders:           10,    // v5 linear 批量上限
 		ContractBasedPerp:        false, // USDT 永续按币数量下单
@@ -86,7 +86,9 @@ func (a *Adapter) ReserveOrderBudget(units int) bool { return true }
 // ReleaseOrderBudget:与 ReserveOrderBudget 配对,Stage 1 无账本,空实现。
 func (a *Adapter) ReleaseOrderBudget(units int) {}
 
-// ArmDeadMansSwitch:Stage 1 未接 set-dcp,返回 ErrUnsupported(Capabilities.HasNativeDeadMan=false)。
+// ArmDeadMansSwitch:Bybit 的 set-dcp(disconnect-cancel-all)官方文档明确**仅机构客户(Ins clients)可用**,
+// 散户账户无法启用 → 永久返回 ErrUnsupported(HasNativeDeadMan=false)。
+// 散户替代路径:崩溃重启后由 bybit_runtime 启动清扫(CancelAllOrders)撤残留挂单,窗口 = 重启延迟。
 func (a *Adapter) ArmDeadMansSwitch(ctx context.Context, countdown time.Duration) error {
 	return venue.ErrUnsupported
 }

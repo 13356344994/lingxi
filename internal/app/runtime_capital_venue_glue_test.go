@@ -187,3 +187,133 @@ func TestCurrentVenueCapitalSnapshotDispatch(t *testing.T) {
 		t.Errorf("总额错误: %v", snap.TotalMovableUSDT)
 	}
 }
+
+// fakeOKXCapMgr 模拟 OKX funding↔trading 调仓(不实现 bybitSweepVenue)。
+type fakeOKXCapMgr struct {
+	trading, funding float64
+}
+
+func (f *fakeOKXCapMgr) CaptureMovableSnapshot(ctx context.Context) ([]venue.WalletSnapshot, float64, error) {
+	return []venue.WalletSnapshot{
+		{Wallet: "trading", Label: "统一交易账户", FreeUSDT: f.trading},
+		{Wallet: "funding", Label: "资金账户", FreeUSDT: f.funding},
+	}, f.trading + f.funding, nil
+}
+
+func (f *fakeOKXCapMgr) PlanAllocation(total float64, caps venue.Capabilities) venue.CapitalAllocationPlan {
+	if total < 0 {
+		total = 0
+	}
+	return venue.CapitalAllocationPlan{
+		TotalTradingUSDT: total,
+		Targets:          map[venue.Wallet]float64{"trading": total},
+		RemainderWallet:  "funding",
+	}
+}
+
+func (f *fakeOKXCapMgr) ExecuteRebalance(ctx context.Context, plan venue.CapitalAllocationPlan) ([]venue.Transfer, error) {
+	target := plan.Targets["trading"]
+	diff := target - f.trading
+	if diff > 1e-9 {
+		amt := diff
+		if amt > f.funding {
+			amt = f.funding
+		}
+		f.funding -= amt
+		f.trading += amt
+		return []venue.Transfer{{From: "funding", To: "trading", AssetUSDT: amt, VenueRef: "fake"}}, nil
+	}
+	if diff < -1e-9 {
+		amt := -diff
+		f.trading -= amt
+		f.funding += amt
+		return []venue.Transfer{{From: "trading", To: "funding", AssetUSDT: amt, VenueRef: "fake"}}, nil
+	}
+	return nil, nil
+}
+
+// fakeGateCapMgr 模拟 Gate spot↔futures 调仓(不实现 bybitSweepVenue)。
+type fakeGateCapMgr struct {
+	spot, futures float64
+}
+
+func (f *fakeGateCapMgr) CaptureMovableSnapshot(ctx context.Context) ([]venue.WalletSnapshot, float64, error) {
+	return []venue.WalletSnapshot{
+		{Wallet: "futures", Label: "USDT 永续账户", FreeUSDT: f.futures},
+		{Wallet: "spot", Label: "现货账户", FreeUSDT: f.spot},
+	}, f.spot + f.futures, nil
+}
+
+func (f *fakeGateCapMgr) PlanAllocation(total float64, caps venue.Capabilities) venue.CapitalAllocationPlan {
+	if total < 0 {
+		total = 0
+	}
+	return venue.CapitalAllocationPlan{
+		TotalTradingUSDT: total,
+		Targets:          map[venue.Wallet]float64{"futures": total},
+		RemainderWallet:  "spot",
+	}
+}
+
+func (f *fakeGateCapMgr) ExecuteRebalance(ctx context.Context, plan venue.CapitalAllocationPlan) ([]venue.Transfer, error) {
+	target := plan.Targets["futures"]
+	diff := target - f.futures
+	if diff > 1e-9 {
+		amt := diff
+		if amt > f.spot {
+			amt = f.spot
+		}
+		f.spot -= amt
+		f.futures += amt
+		return []venue.Transfer{{From: "spot", To: "futures", AssetUSDT: amt, VenueRef: "fake"}}, nil
+	}
+	if diff < -1e-9 {
+		amt := -diff
+		f.futures -= amt
+		f.spot += amt
+		return []venue.Transfer{{From: "futures", To: "spot", AssetUSDT: amt, VenueRef: "fake"}}, nil
+	}
+	return nil, nil
+}
+
+func TestAdjustVenueTradingCapitalOKXNoBybitSweep(t *testing.T) {
+	fake := &fakeOKXCapMgr{trading: 0, funding: 149.6}
+	if _, ok := any(fake).(bybitSweepVenue); ok {
+		t.Fatal("okx fake 不应实现 bybitSweepVenue")
+	}
+	c := mkVenueController(t, "okx")
+	orig := venueCapitalManagerFactory
+	venueCapitalManagerFactory = func(name, sp string) (venue.CapitalManagement, venue.Capabilities, error) {
+		return fake, venue.Capabilities{}, nil
+	}
+	defer func() { venueCapitalManagerFactory = orig }()
+
+	res, err := c.AdjustTradingCapital(RuntimeCapitalAdjustmentRequest{TargetTradingUSDT: 100, Mode: "live"})
+	if err != nil {
+		t.Fatalf("AdjustTradingCapital: %v", err)
+	}
+	if len(res.Transfers) != 1 || res.Transfers[0].From != "funding" || res.Transfers[0].To != "trading" {
+		t.Fatalf("应 funding→trading, got %+v", res.Transfers)
+	}
+}
+
+func TestAdjustVenueTradingCapitalGateNoBybitSweep(t *testing.T) {
+	fake := &fakeGateCapMgr{spot: 149.6, futures: 0}
+	if _, ok := any(fake).(bybitSweepVenue); ok {
+		t.Fatal("gate fake 不应实现 bybitSweepVenue")
+	}
+	c := mkVenueController(t, "gate")
+	orig := venueCapitalManagerFactory
+	venueCapitalManagerFactory = func(name, sp string) (venue.CapitalManagement, venue.Capabilities, error) {
+		return fake, venue.Capabilities{}, nil
+	}
+	defer func() { venueCapitalManagerFactory = orig }()
+
+	res, err := c.AdjustTradingCapital(RuntimeCapitalAdjustmentRequest{TargetTradingUSDT: 100, Mode: "live"})
+	if err != nil {
+		t.Fatalf("AdjustTradingCapital: %v", err)
+	}
+	if len(res.Transfers) != 1 || res.Transfers[0].From != "spot" || res.Transfers[0].To != "futures" {
+		t.Fatalf("应 spot→futures, got %+v", res.Transfers)
+	}
+}

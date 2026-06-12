@@ -97,14 +97,28 @@ network:
   # 监听所有网卡,通过机器 IP+端口(8080)直接访问面板,不再依赖 tailscale/本地回环。
   dashboard_addr: "0.0.0.0:8080"
 
+# P1 跨所资金费对冲执行引擎(消费扫描器机会,空高费所/多低费所 perp-perp 对冲)。
+# ⚠️ 双闸门:enabled 只启动引擎主循环;live_trading_enabled=false 时为【影子模式】——完整跑开仓闸门
+#   与执行决策但绝不下单,日志输出「[影子] 本应开仓 …」。影子空跑数天、确认决策质量后才置 true。
+cross_venue_executor:
+  enabled: true
+  live_trading_enabled: false
+
 # 多所编排（§7 / §8）。注册到此的所会出现在面板 venue 选择器里，并各自拥有独立的 RuntimeController/记录目录。
 #   - binance：主所(primary，按字母序首位)，行为与改造前逐字节一致(recordDir=records/，autostart 受全局/环境变量控制)。
 #   - bybit：已接入【独立精简执行器(B5)】——正费率 50/50 delta-neutral，跨结算收一次资金费即平，独立单写租约/
 #     急停/持仓落盘 reconcile，records/bybit/ 隔离。**主安全闸 bybit_executor.live_trading_enabled 默认 false**，
 #     即便在面板启动 bybit 任务也只【影子运行(shadow)】:扫描+规划+日志，绝不下单。确认无误后置 true 才真实下单。
 #     资金管理(调仓)照旧可用("输入总额→划入统一交易账户、余量留资金账户")。autostart=false:需在面板手动启动。
+#   - okx / gate：P1 跨所对冲的对冲腿所,现阶段仅行情/账户(适配器已接线),**不启动交易引擎**;无 autostart。
 venues:
   binance:
+    enabled: true
+  okx:
+    # P1 跨所对冲的对冲腿所:现阶段仅行情/账户,不交易(面板可见、可拉行情,Start 会被拒绝)。
+    enabled: true
+  gate:
+    # P1 跨所对冲的对冲腿所:现阶段仅行情/账户,不交易(面板可见、可拉行情,Start 会被拒绝)。
     enabled: true
   bybit:
     enabled: true

@@ -198,6 +198,30 @@ func (a *Adapter) CancelOrder(ctx context.Context, m venue.Market, s venue.Symbo
 	return a.t.signedPost(ctx, pathOrderCancel, body, nil)
 }
 
+// CancelAllOrders 撤销某类目下全部活动挂单,返回撤掉的订单数。
+// linear 必须带 symbol/baseCoin/settleCoin 之一(用 settleCoin=USDT 覆盖全部 USDT 永续);spot 不带参即撤全部普通挂单。
+// 用途:**崩溃重启后的 dead-man 替代清扫**(R14)。Bybit set-dcp(disconnect-cancel-all)官方文档明确仅
+// 机构客户(Ins clients)可用,散户进程死亡时残留挂单没有交易所侧兜底;只能在进程被 systemd/watchdog
+// 拉起后第一时间主动撤掉本账户全部挂单(拉起延迟秒级~分钟级,裸挂单暴露窗口可控)。
+func (a *Adapter) CancelAllOrders(ctx context.Context, m venue.Market) (int, error) {
+	body := struct {
+		Category   string `json:"category"`
+		SettleCoin string `json:"settleCoin,omitempty"`
+	}{Category: bybitCategory(m)}
+	if m == venue.MarketPerp {
+		body.SettleCoin = "USDT"
+	}
+	var res struct {
+		List []struct {
+			OrderID string `json:"orderId"`
+		} `json:"list"`
+	}
+	if err := a.t.signedPost(ctx, pathOrderCancelAll, body, &res); err != nil {
+		return 0, err
+	}
+	return len(res.List), nil
+}
+
 // QueryOrder 查活动订单(/v5/order/realtime),富化成交明细。
 func (a *Adapter) QueryOrder(ctx context.Context, m venue.Market, s venue.Symbol, clientOrderID string) (venue.OrderResult, error) {
 	raw, err := a.ToVenue(s, m)

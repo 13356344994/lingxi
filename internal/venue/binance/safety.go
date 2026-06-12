@@ -26,7 +26,9 @@ func (a *Adapter) Classify(err error) (category string, severity string) {
 	return "request_error", "minor" // TODO(P1): 迁入 exchange.ClassifyException 码表
 }
 
-// ArmDeadMansSwitch 当前由 app 层 dead_mans_switch.go(countdownCancelAll)实现,P1 迁入本包。
+// ArmDeadMansSwitch 保持 ErrUnsupported:币安 countdownCancelAll 必须按 symbol 武装,
+// venue 适配器无持仓/挂单上下文,无法表达「账户级兜底」语义;由 app 层 dead_mans_switch.go
+// 持有持仓列表后逐 symbol 设置。HasNativeDeadMan=true 表示交易所有该能力,非本方法已实现。
 func (a *Adapter) ArmDeadMansSwitch(ctx context.Context, countdown time.Duration) error {
-	return venue.ErrUnsupported // TODO(P1)
+	return venue.ErrUnsupported
 }

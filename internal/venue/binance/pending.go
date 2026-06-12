@@ -7,63 +7,43 @@ import (
 	"lingxi/internal/venue"
 )
 
-// pending.go 汇集「实现逻辑仍在 internal/app 层、尚未下沉到本适配器」的方法。
-// 它们当前一律返回 venue.ErrUnsupported,引擎在 P0 仍走旧的 *BinanceClient 直连路径,
-// 线上行为不变。各方法按阶段下沉:
-//   - Trading(下单/撤单/查单/设杠杆/借还/成交/资金费收入)→ P1「下沉端点知识」
-//   - Streaming(行情流 / 用户数据流 listenKey)              → P1
-//   - CapitalManagement(钱包快照 / 调仓)                    → P4(迁入 capital.go)
+// pending.go 汇集尚未下沉到本适配器的方法,一律返回 venue.ErrUnsupported。
+// 引擎在过渡期仍走 internal/app 旧路径;跨所对冲 Stage 3 起改用已实现子集。
 
-// ---- Trading(P1) ----
-
-func (a *Adapter) PlaceOrder(ctx context.Context, req venue.OrderRequest) (venue.OrderResult, error) {
-	return venue.OrderResult{}, venue.ErrUnsupported // TODO(P1)
-}
+// ---- Trading(未实现) ----
 
 func (a *Adapter) PlaceBatch(ctx context.Context, reqs []venue.OrderRequest) ([]venue.OrderResult, error) {
-	return nil, venue.ErrUnsupported // TODO(P1)
-}
-
-func (a *Adapter) CancelOrder(ctx context.Context, m venue.Market, s venue.Symbol, clientOrderID string) error {
-	return venue.ErrUnsupported // TODO(P1)
-}
-
-func (a *Adapter) QueryOrder(ctx context.Context, m venue.Market, s venue.Symbol, clientOrderID string) (venue.OrderResult, error) {
-	return venue.OrderResult{}, venue.ErrUnsupported // TODO(P1)
-}
-
-func (a *Adapter) SetLeverage(ctx context.Context, s venue.Symbol, lev int) error {
-	return venue.ErrUnsupported // TODO(P1)
-}
-
-func (a *Adapter) SetMarginMode(ctx context.Context, s venue.Symbol, mode venue.MarginMode) error {
-	return venue.ErrUnsupported // TODO(P1)
+	// 币安 batchOrders 参数复杂(同 symbol 批量/JSON 数组编码),后续单独接入。
+	return nil, venue.ErrUnsupported
 }
 
 func (a *Adapter) BorrowRepay(ctx context.Context, asset string, amt float64, dir venue.BorrowDir) error {
-	return venue.ErrUnsupported // TODO(P1)
+	// 借还币走 /sapi/v1/margin/borrow-repay,由 app 层 directional_spot_execution 持有;venue 层暂不暴露。
+	return venue.ErrUnsupported
 }
 
 func (a *Adapter) FetchRealizedFunding(ctx context.Context, s venue.Symbol, since time.Time) ([]venue.FundingIncome, error) {
-	return nil, venue.ErrUnsupported // TODO(P1)
+	// 资金费流水 /fapi/v1/income 仍由 app 层 settlement 使用;后续按需下沉。
+	return nil, venue.ErrUnsupported
 }
 
 func (a *Adapter) FetchUserTrades(ctx context.Context, m venue.Market, s venue.Symbol, since time.Time) ([]venue.Trade, error) {
-	return nil, venue.ErrUnsupported // TODO(P1)
+	// 成交明细 /fapi/v1/userTrades、/api/v3/myTrades 仍由 app 层 fees 模块使用。
+	return nil, venue.ErrUnsupported
 }
 
-// ---- Streaming(P1) ----
+// ---- Streaming(P1 后续) ----
 
 func (a *Adapter) StreamBookTicker(ctx context.Context, syms []venue.Symbol) (<-chan venue.BookTicker, error) {
-	return nil, venue.ErrUnsupported // TODO(P1)
+	return nil, venue.ErrUnsupported // TODO(P1): WS @bookTicker + listenKey 续期
 }
 
 func (a *Adapter) StreamDepth(ctx context.Context, syms []venue.Symbol) (<-chan venue.Depth, error) {
-	return nil, venue.ErrUnsupported // TODO(P1)
+	return nil, venue.ErrUnsupported // TODO(P1): WS depth
 }
 
 func (a *Adapter) StreamUserData(ctx context.Context) (<-chan venue.UserEvent, error) {
-	return nil, venue.ErrUnsupported // TODO(P1)
+	return nil, venue.ErrUnsupported // TODO(P1): user data stream listenKey
 }
 
 // ---- CapitalManagement(P4) ----

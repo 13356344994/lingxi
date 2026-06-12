@@ -112,6 +112,46 @@ func TestPlaceOrderSignedPOST(t *testing.T) {
 	}
 }
 
+// TestCancelAllOrders 钉死启动清扫的请求映射:linear 必带 settleCoin=USDT(v5 强制三选一),
+// spot 不带 settleCoin;返回撤单数 = result.list 长度。
+func TestCancelAllOrders(t *testing.T) {
+	var gotBody []byte
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotBody, _ = io.ReadAll(r.Body)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"retCode": 0, "retMsg": "OK",
+			"result": map[string]any{"list": []map[string]any{{"orderId": "O1"}, {"orderId": "O2"}}},
+		})
+	}))
+	defer srv.Close()
+	a, _ := New(venue.Config{Name: VenueName, APIKey: "K", APISecret: "S", Extra: map[string]string{"base_url": srv.URL}})
+
+	n, err := a.CancelAllOrders(context.Background(), venue.MarketPerp)
+	if err != nil || n != 2 {
+		t.Fatalf("CancelAllOrders(perp): n=%d err=%v", n, err)
+	}
+	var sentPerp struct {
+		Category   string `json:"category"`
+		SettleCoin string `json:"settleCoin"`
+	}
+	_ = json.Unmarshal(gotBody, &sentPerp)
+	if sentPerp.Category != categoryLinear || sentPerp.SettleCoin != "USDT" {
+		t.Errorf("perp 清扫应 category=linear settleCoin=USDT, got %+v", sentPerp)
+	}
+
+	if _, err := a.CancelAllOrders(context.Background(), venue.MarketSpot); err != nil {
+		t.Fatalf("CancelAllOrders(spot): %v", err)
+	}
+	var sentSpot struct {
+		Category   string `json:"category"`
+		SettleCoin string `json:"settleCoin"`
+	}
+	_ = json.Unmarshal(gotBody, &sentSpot)
+	if sentSpot.Category != categorySpot || sentSpot.SettleCoin != "" {
+		t.Errorf("spot 清扫应 category=spot 且不带 settleCoin, got %+v", sentSpot)
+	}
+}
+
 func TestQueryOrderParse(t *testing.T) {
 	a := fakeBybit(t, map[string]string{
 		pathOrderRealtime: `{"retCode":0,"retMsg":"OK","result":{"list":[

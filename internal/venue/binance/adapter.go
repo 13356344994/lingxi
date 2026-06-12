@@ -11,6 +11,9 @@
 package binance
 
 import (
+	"sync"
+	"time"
+
 	"lingxi/internal/exchange"
 	"lingxi/internal/venue"
 )
@@ -21,6 +24,10 @@ const VenueName = "binance"
 // Adapter 实现 venue.Venue,内核是现有的 *exchange.BinanceClient。
 type Adapter struct {
 	client *exchange.BinanceClient
+	// instCache 缓存 instruments 元数据(StepSize/TickSize),PlaceOrder 热路径复用,10 分钟 TTL。
+	instMu    sync.RWMutex
+	instCache map[string]instCacheEntry
+	nowFn     func() time.Time // 测试注入;nil 时用 time.Now
 }
 
 // 编译期断言:Adapter 满足完整 venue.Venue 接口。
@@ -40,7 +47,7 @@ func (a *Adapter) Name() string { return VenueName }
 // Capabilities 声明币安能力。注:SupportsCapitalRebalance 在 P4 落地 capital.go 后再置 true。
 func (a *Adapter) Capabilities() venue.Capabilities {
 	return venue.Capabilities{
-		SupportsNegativeCarry:    true, // 全仓杠杆 borrow-repay
+		SupportsNegativeCarry:    false, // 全仓杠杆 borrow-repay 未迁入 venue 层,旧引擎自有路径;迁入后再置 true
 		FundingIntervalsHours:    []int{8, 4},
 		HasNativeDeadMan:         true, // countdownCancelAll
 		HasFeeDiscountToken:      true, // BNB 抵扣

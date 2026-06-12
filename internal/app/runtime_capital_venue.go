@@ -10,6 +10,8 @@ import (
 	"lingxi/internal/venue"
 	"lingxi/internal/venue/binance"
 	"lingxi/internal/venue/bybit"
+	"lingxi/internal/venue/gate"
+	"lingxi/internal/venue/okx"
 )
 
 // runtime_capital_venue.go 让面板「调整仓位」支持非币安交易所:复用同一套 HTTP 路由(?venue=)、控制令牌与
@@ -36,6 +38,18 @@ func buildVenueCapitalManager(venueName, secretPath string) (venue.CapitalManage
 	switch strings.ToLower(strings.TrimSpace(venueName)) {
 	case bybit.VenueName:
 		adp, err := bybit.New(venue.Config{Name: bybit.VenueName, APIKey: sec.APIKey, APISecret: sec.Secret})
+		if err != nil {
+			return nil, venue.Capabilities{}, err
+		}
+		return adp, adp.Capabilities(), nil
+	case okx.VenueName:
+		adp, err := okx.New(venue.Config{Name: okx.VenueName, APIKey: sec.APIKey, APISecret: sec.Secret, Passphrase: sec.Passphrase})
+		if err != nil {
+			return nil, venue.Capabilities{}, err
+		}
+		return adp, adp.Capabilities(), nil
+	case gate.VenueName:
+		adp, err := gate.New(venue.Config{Name: gate.VenueName, APIKey: sec.APIKey, APISecret: sec.Secret})
 		if err != nil {
 			return nil, venue.Capabilities{}, err
 		}

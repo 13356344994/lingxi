@@ -28,6 +28,9 @@ CHECK_INTERVAL="${LINGXI_CHECK_INTERVAL:-30}"            # WATCHDOG_LOOP 模式�
 RESTART_COOLDOWN="${LINGXI_RESTART_COOLDOWN:-300}"       # 重启后静默秒数
 RESTART_CMD="${LINGXI_RESTART_CMD:-systemctl restart lingxi}"
 ALERT_WEBHOOK="${LINGXI_ALERT_WEBHOOK:-}"               # 可选:不健康/重启时 POST 的告警 webhook(钉钉/飞书/自建)
+# Telegram 直推:复用主程序同一份 secret.yaml 的 Telegram_Token / Telegram_Chat_ID(顶层扁平键)。
+# watchdog 的告警价值恰在「主进程已死」场景——进程内 Telegram 告警此时发不出来,只有 watchdog 能通知到手机。
+SECRET_FILE="${LINGXI_SECRET_FILE:-$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)/secret.yaml}"
 STATE_DIR="${LINGXI_WATCHDOG_STATE_DIR:-$RECORD_DIR}"
 FAIL_COUNT_FILE="$STATE_DIR/.watchdog_fail_count"
 LAST_RESTART_FILE="$STATE_DIR/.watchdog_last_restart"
@@ -43,12 +46,26 @@ FLATTEN_CMD="${LINGXI_FLATTEN_CMD:-systemctl stop lingxi; lingxi flatten watchdo
 
 log() { echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] watchdog: $*"; }
 
+# secret_value 从 secret.yaml 读顶层扁平键的值(容忍引号/行尾注释/空格)。文件缺失返回空。
+secret_value() {
+  key="$1"
+  [ -f "$SECRET_FILE" ] || { echo ""; return; }
+  sed -n "s/^${key}:[[:space:]]*//p" "$SECRET_FILE" 2>/dev/null | head -1 \
+    | sed 's/[[:space:]]*#.*$//; s/^"//; s/"$//; s/^'"'"'//; s/'"'"'$//' | tr -d ' '
+}
+
 alert() {
   msg="$1"
   log "ALERT: $msg"
   if [ -n "$ALERT_WEBHOOK" ]; then
     payload=$(printf '{"level":"critical","title":"lingxi watchdog","detail":"%s"}' "$msg")
     curl -fsS -m 5 -X POST -H 'Content-Type: application/json' -d "$payload" "$ALERT_WEBHOOK" >/dev/null 2>&1 || true
+  fi
+  tg_token=$(secret_value "Telegram_Token")
+  tg_chat=$(secret_value "Telegram_Chat_ID")
+  if [ -n "$tg_token" ] && [ -n "$tg_chat" ]; then
+    curl -fsS -m 5 -X POST "https://api.telegram.org/bot${tg_token}/sendMessage" \
+      -d chat_id="${tg_chat}" --data-urlencode text="⚠️ lingxi watchdog: $msg" >/dev/null 2>&1 || true
   fi
 }
 
@@ -115,7 +132,22 @@ maybe_flatten_naked_positions() {
   fi
 }
 
+# halt_active 返回 0 表示存在急停文件(全局 records/.halt-live 或任一 venue 子目录的 .halt-live)。
+# 急停 = 人工有意停止:引擎停转后心跳停更、/healthz 503 都是**预期状态**,看门狗绝不能在此时重启
+# (重启 + LINGXI_AUTOSTART_LIVE=1 会复活交易,且循环上演重启风暴)。删除急停文件后恢复正常监护。
+halt_active() {
+  for f in "$RECORD_DIR"/.halt-live "$RECORD_DIR"/*/.halt-live; do
+    [ -f "$f" ] && return 0
+  done
+  return 1
+}
+
 check_once() {
+  if halt_active; then
+    echo 0 >"$FAIL_COUNT_FILE"
+    log "急停文件存在(人工停止),跳过健康检查与重启"
+    return 0
+  fi
   reasons=""
   age=$(heartbeat_age)
   if [ "$age" -gt "$STALE_THRESHOLD" ]; then
