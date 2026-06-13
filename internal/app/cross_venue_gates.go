@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"lingxi/internal/venue"
+	"lingxi/internal/venue/binance"
 	"lingxi/internal/venue/bybit"
 	"lingxi/internal/venue/gate"
 	"lingxi/internal/venue/okx"
@@ -16,9 +17,10 @@ import (
 // cross_venue_gates.go 跨所开仓闸门:全部满足才动手。
 
 var crossVenueTradeableVenues = map[string]bool{
-	okx.VenueName:   true,
-	gate.VenueName:  true,
-	bybit.VenueName: true,
+	binance.VenueName: true,
+	okx.VenueName:     true,
+	gate.VenueName:    true,
+	bybit.VenueName:   true,
 }
 
 // crossVenueGateInput 是闸门评估所需的上下文。
@@ -26,6 +28,7 @@ type crossVenueGateInput struct {
 	Opp           CrossVenueOpportunity
 	Positions     []CrossVenuePosition
 	BybitHeld     func(sym venue.Symbol) bool
+	BinanceHeld   func(sym venue.Symbol) bool // 币安遗留 FundingRateSniper 台账在场
 	FundingHeld   func(sym venue.Symbol) bool // 任一 okx/gate 单所 funding 引擎台账在场
 	HaltActive    bool
 	SymbolCooling func(sym string) bool
@@ -83,6 +86,9 @@ func evaluateCrossVenueOpenGate(
 	sym := venue.Symbol(in.Opp.Symbol)
 	if in.BybitHeld != nil && in.BybitHeld(sym) {
 		return fail("symbol 已被 Bybit 单所引擎持有")
+	}
+	if in.BinanceHeld != nil && in.BinanceHeld(sym) {
+		return fail("symbol 已被 Binance 遗留引擎持有")
 	}
 	if in.FundingHeld != nil && in.FundingHeld(sym) {
 		return fail("symbol 已被 OKX/Gate 单所 funding 引擎持有")

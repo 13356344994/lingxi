@@ -16,6 +16,10 @@ import (
 // strategyControlVenues 策略总控涉及的交易所(每所独立调到同一目标总额,非分摊)。
 var strategyControlVenues = []string{binance.VenueName, bybit.VenueName, okx.VenueName, gate.VenueName}
 
+// legacyBinanceStrategyAutoStart 控制策略总控 executeStrategyStart 是否自动拉起币安遗留 FundingRateSniper。
+// 币安已接入跨所 perp-perp 对冲,默认 false 避免同所双引擎互踩;恢复单所自动交易改为 true 即可。
+const legacyBinanceStrategyAutoStart = false
+
 // StrategyCapitalRequest 策略级四所并行调仓请求。
 type StrategyCapitalRequest struct {
 	TargetUSDT float64 `json:"target_usdt"`
@@ -43,7 +47,7 @@ type StrategyCapitalResponse struct {
 	Results    []StrategyVenueCapitalResult `json:"results"`
 }
 
-// StrategyStartRequest 策略启动请求(仅 Bybit 启任务;Binance 不自动启)。
+// StrategyStartRequest 策略启动请求(跨所+Bybit/OKX/Gate funding;Binance 遗留引擎默认不自动启,见 legacyBinanceStrategyAutoStart)。
 type StrategyStartRequest struct {
 	SecretPath   string `json:"secret_path"`
 	LookbackDays int    `json:"lookback_days"`
@@ -326,9 +330,14 @@ func (s *DashboardServer) executeStrategyStart(req StrategyStartRequest) Strateg
 		steps = append(steps, step)
 	}
 
-	// ④ 启动 Binance 老引擎(已运行则跳过;preflight 失败记为 failed,不阻断其它步骤)。
+	// ④ 币安遗留 FundingRateSniper:默认跳过(币安仅经跨所参与);legacyBinanceStrategyAutoStart=true 可恢复自动启。
 	binanceStep := StrategyStepResult{Step: "binance_start"}
-	if s.orchestrator == nil {
+	if !legacyBinanceStrategyAutoStart {
+		binanceStep.Success = true
+		binanceStep.Skipped = true
+		binanceStep.Message = "Binance 遗留引擎默认不自动启动(币安经跨所参与;恢复:legacyBinanceStrategyAutoStart=true)"
+		steps = append(steps, binanceStep)
+	} else if s.orchestrator == nil {
 		binanceStep.Message = "编排器未初始化"
 		steps = append(steps, binanceStep)
 	} else if rt, ok := s.orchestrator.Get(binance.VenueName); !ok || rt == nil || rt.controller == nil {

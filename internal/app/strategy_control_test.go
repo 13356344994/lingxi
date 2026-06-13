@@ -241,16 +241,14 @@ func TestStrategyStartStopOrchestration(t *testing.T) {
 	if binanceStart == nil {
 		t.Fatalf("缺少 binance_start 步骤: %+v", startResp.Steps)
 	}
-	if binanceStart.Skipped {
-		t.Fatalf("binance_start 不应再硬编码跳过: %+v", *binanceStart)
+	if !binanceStart.Skipped {
+		t.Fatalf("binance_start 应默认跳过(币安经跨所参与): %+v", *binanceStart)
 	}
-	// 测试环境无 secret/API,preflight 失败记为 failed 但不阻断其它步骤。
-	if binanceStart.Success {
-		if !ctrls[binance.VenueName].Status().Running {
-			t.Fatal("binance_start 成功时控制器应为运行中")
-		}
-	} else if binanceStart.Message == "" {
-		t.Fatalf("binance_start 失败应带错误信息: %+v", *binanceStart)
+	if !binanceStart.Success {
+		t.Fatalf("binance_start 跳过时应标记 success: %+v", *binanceStart)
+	}
+	if ctrls[binance.VenueName].Status().Running {
+		t.Fatal("binance_start 跳过时控制器不应自动运行")
 	}
 	if !exec.OpeningsEnabled() {
 		t.Fatal("启动后跨所开仓开关应为 ON")

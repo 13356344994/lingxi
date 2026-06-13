@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"lingxi/internal/venue"
+	"lingxi/internal/venue/binance"
 	"lingxi/internal/venue/bybit"
 	"lingxi/internal/venue/gate"
 	"lingxi/internal/venue/okx"
@@ -19,9 +20,9 @@ import (
 // cross_venue_executor.go P1 跨所资金费对冲执行引擎:消费扫描器结果,空高费所/多低费所 perp-perp 对冲。
 // 默认影子模式(enabled=false / live_trading_enabled=false),绝不在未显式开启 live 时下单。
 
-const crossVenueTradeableVenueList = "okx,gate,bybit"
+const crossVenueTradeableVenueList = "binance,okx,gate,bybit"
 
-var crossVenueExecutorVenues = []string{okx.VenueName, gate.VenueName, bybit.VenueName}
+var crossVenueExecutorVenues = []string{binance.VenueName, okx.VenueName, gate.VenueName, bybit.VenueName}
 
 var crossVenueExecutorFactory = buildCrossVenueExecutorAdapters
 
@@ -211,6 +212,7 @@ func (e *CrossVenueExecutor) evaluateNewOpens(ctx context.Context, live bool) {
 			Opp:           opp,
 			Positions:     e.snapshotPositions(),
 			BybitHeld:     func(sym venue.Symbol) bool { return isBybitSymbolHeld(e.cfg.NetworkConfig.RecordDir, sym) },
+			BinanceHeld:   func(sym venue.Symbol) bool { return isBinanceSymbolHeld(e.cfg.NetworkConfig.RecordDir, sym) },
 			FundingHeld:   func(sym venue.Symbol) bool { return isFundingSymbolHeldAnyVenue(e.cfg.NetworkConfig.RecordDir, sym) },
 			HaltActive:    false,
 			SymbolCooling: e.isSymbolCooling,

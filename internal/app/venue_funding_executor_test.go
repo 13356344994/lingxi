@@ -10,7 +10,9 @@ import (
 	"testing"
 	"time"
 
+	"lingxi/internal/lifecycle"
 	"lingxi/internal/venue"
+	"lingxi/internal/venue/binance"
 	"lingxi/internal/venue/gate"
 	"lingxi/internal/venue/okx"
 )
@@ -259,7 +261,15 @@ func TestVenueFundingConflictGuards(t *testing.T) {
 	if !isFundingSymbolHeldAnyVenue(dir, sym) {
 		t.Fatal("funding held any venue")
 	}
-	// 跨所闸门
+	// 币安遗留引擎台账(BTCUSDT 形)
+	if err := writePersistedOpenHedgeState(filepath.Join(dir, liveOpenHedgesStateName), persistedOpenHedgeState{
+		Hedges: []persistedOpenHedgeEntry{{Symbol: "ETHUSDT", LifecycleState: lifecycle.StateActive}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if !isBinanceSymbolHeld(dir, venue.Symbol("ETH-USDT")) {
+		t.Fatal("binance legacy should hold ETH-USDT")
+	}
 	res := evaluateCrossVenueOpenGate(context.Background(), testCrossVenueExecutorConfig().CrossVenueExecutor, crossVenueGateDeps{}, nil, crossVenueGateInput{
 		Opp:         CrossVenueOpportunity{Symbol: "BTCUSDT", HighVenue: okx.VenueName, LowVenue: gate.VenueName, SpreadAPR: 2},
 		FundingHeld: func(s venue.Symbol) bool { return isFundingSymbolHeldAnyVenue(dir, s) },
@@ -267,6 +277,14 @@ func TestVenueFundingConflictGuards(t *testing.T) {
 	})
 	if res.OK {
 		t.Fatal("gate should reject funding-held symbol")
+	}
+	res = evaluateCrossVenueOpenGate(context.Background(), testCrossVenueExecutorConfig().CrossVenueExecutor, crossVenueGateDeps{}, nil, crossVenueGateInput{
+		Opp:         CrossVenueOpportunity{Symbol: "ETH-USDT", HighVenue: binance.VenueName, LowVenue: okx.VenueName, SpreadAPR: 2},
+		BinanceHeld: func(s venue.Symbol) bool { return isBinanceSymbolHeld(dir, s) },
+		Now:         time.Now(),
+	})
+	if res.OK {
+		t.Fatal("gate should reject binance-held symbol")
 	}
 }
 

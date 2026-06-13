@@ -389,6 +389,7 @@ func (e *FundingRateSniperEngine) openCyclePositions(ctx context.Context, wakeAt
 	emitFunnel = true
 	targets = e.filterTargetsBySymbolCooldown(targets)
 	funnel.AfterCooldown = len(targets)
+	targets = e.filterTargetsByCrossVenueConflict(targets)
 	if len(targets) == 0 {
 		e.setCurrentMonitorTargets(nil)
 		_ = e.advanceLifecycleStage(LifecycleStageCompleted, "扫描结束，没有满足条件的目标")

@@ -8,13 +8,17 @@ import (
 	"time"
 
 	"lingxi/internal/venue"
+	"lingxi/internal/venue/binance"
 	"lingxi/internal/venue/bybit"
+	"lingxi/internal/venue/gate"
 	"lingxi/internal/venue/okx"
 )
 
 // contractLegFakeVenue 模拟张本位永续:ExecutedQty 按 normalizeVenueQty 与真实 okx/gate 下单口径一致。
 type contractLegFakeVenue struct {
 	crossVenueTestVenue
+	// reportContractsInExecutedQty 模拟 gate/okx QueryOrder 在 lookupInstrument mult=1 时把张数写入 ExecutedQty。
+	reportContractsInExecutedQty bool
 }
 
 func newContractLegFakeVenue(name string, instr venue.Instrument) *contractLegFakeVenue {
@@ -24,20 +28,30 @@ func newContractLegFakeVenue(name string, instr venue.Instrument) *contractLegFa
 	return &contractLegFakeVenue{crossVenueTestVenue: *v}
 }
 
+func newContractLegFakeVenueReportingContracts(name string, instr venue.Instrument) *contractLegFakeVenue {
+	v := newContractLegFakeVenue(name, instr)
+	v.reportContractsInExecutedQty = true
+	return v
+}
+
 func vNow() time.Time {
 	return time.Date(2026, 6, 13, 12, 0, 0, 0, time.UTC)
 }
 
 func (f *contractLegFakeVenue) PlaceOrder(_ context.Context, req venue.OrderRequest) (venue.OrderResult, error) {
 	instr := f.instruments[0]
-	execQty := normalizeVenueQty(req.Qty, instr, true)
-	if execQty <= executionQtyTolerance {
+	execCoin := normalizeVenueQty(req.Qty, instr, true)
+	if execCoin <= executionQtyTolerance {
 		return venue.OrderResult{Status: "rejected", ClientOrderID: req.ClientOrderID},
 			errors.New("simulated zero contract qty")
 	}
-	amt := execQty
+	execQty := execCoin
+	if f.reportContractsInExecutedQty && instr.ContractSize > 0 {
+		execQty = execCoin / instr.ContractSize
+	}
+	amt := execCoin
 	if req.Side == venue.SideSell {
-		amt = -execQty
+		amt = -execCoin
 	}
 	f.positions = []venue.Position{{Symbol: req.Symbol, PositionAmt: amt, MarkPrice: req.Price, Leverage: 2}}
 	return venue.OrderResult{
@@ -47,6 +61,7 @@ func (f *contractLegFakeVenue) PlaceOrder(_ context.Context, req venue.OrderRequ
 		Status:        "filled",
 		ExecutedQty:   execQty,
 		AvgPrice:      req.Price,
+		CumQuoteUSDT:  execCoin * req.Price,
 	}, nil
 }
 
@@ -138,6 +153,74 @@ func TestCrossVenueOpenEqualCoinQtyMixedLegs(t *testing.T) {
 	}
 }
 
+func TestAlignCrossVenueQtyBinanceCoinContractOKX(t *testing.T) {
+	t.Parallel()
+	binanceInstr := venue.Instrument{StepSize: 1, ContractSize: 1}
+	okxInstr := venue.Instrument{StepSize: 2, ContractSize: 10}
+	qty := alignCrossVenueQty(
+		30, 1,
+		binanceInstr, okxInstr,
+		venue.Capabilities{ContractBasedPerp: false},
+		venue.Capabilities{ContractBasedPerp: true},
+	)
+	if qty != 20 {
+		t.Fatalf("alignCrossVenueQty=%v want 20 (30 币在 okx lot=2 只能下 20)", qty)
+	}
+}
+
+func TestCrossVenueOpenEqualCoinQtyBinanceOkxLegs(t *testing.T) {
+	now := vNow()
+	binanceVenue := newCrossVenueTestVenue(binance.VenueName, 0.001, 8, now)
+	binanceVenue.contractBased = false
+	binanceVenue.instruments = []venue.Instrument{{
+		Symbol: "H-USDT", Market: venue.MarketPerp, StepSize: 1, ContractSize: 1,
+	}}
+	okxInstr := venue.Instrument{
+		Symbol: "H-USDT", Market: venue.MarketPerp, StepSize: 2, ContractSize: 10, QtyUnit: "contract",
+	}
+	okxVenue := newContractLegFakeVenue(okx.VenueName, okxInstr)
+
+	cfg := testCrossVenueExecutorConfig()
+	cfg.NetworkConfig.RecordDir = t.TempDir()
+	cfg.CrossVenueExecutor.LiveTradingEnabled = true
+	e := &CrossVenueExecutor{
+		cfg:    cfg,
+		venues: map[string]venue.Venue{binance.VenueName: binanceVenue, okx.VenueName: okxVenue},
+		store:  mustCrossVenueStore(t, cfg.NetworkConfig.RecordDir),
+		logger: testCrossVenueLogger(),
+		nowFn:  func() time.Time { return now },
+	}
+	binanceInstr := binanceVenue.instruments[0]
+	qty := alignCrossVenueQty(30, 1, binanceInstr, okxInstr,
+		venue.Capabilities{ContractBasedPerp: false},
+		venue.Capabilities{ContractBasedPerp: true},
+	)
+	if qty != 20 {
+		t.Fatalf("alignCrossVenueQty=%v want 20", qty)
+	}
+	plan := crossVenueOpenPlan{
+		Opp: CrossVenueOpportunity{Symbol: "H-USDT", HighVenue: binance.VenueName, LowVenue: okx.VenueName, SpreadAPR: 2.0},
+		Gate: crossVenueGateResult{
+			NotionalUSDT: 30,
+			HighInstr:    binanceInstr,
+			LowInstr:     okxInstr,
+		},
+		Qty:        qty,
+		RefPrice:   1,
+		IdemPrefix: "qty-binance-okx",
+	}
+	pos, err := e.executeCrossVenueOpen(context.Background(), plan, true)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	if dev := qtyDeviation(pos.HighLeg.Qty, pos.LowLeg.Qty); dev > 1e-9 {
+		t.Fatalf("两腿币数量偏差=%v high=%v low=%v", dev, pos.HighLeg.Qty, pos.LowLeg.Qty)
+	}
+	if pos.HighLeg.Qty != 20 || pos.LowLeg.Qty != 20 {
+		t.Fatalf("want both legs 20 coin, got high=%v low=%v", pos.HighLeg.Qty, pos.LowLeg.Qty)
+	}
+}
+
 func TestAlignCrossVenueQtyMatchesGateOrderCoinQty(t *testing.T) {
 	t.Parallel()
 	gateInstr := venue.Instrument{StepSize: 5, ContractSize: 10}
@@ -171,4 +254,122 @@ func gateQtyToCoin(qty float64, instr venue.Instrument) (float64, error) {
 		return 0, errors.New("zero contracts")
 	}
 	return contracts * instr.ContractSize, nil
+}
+
+func TestCrossVenueLegExecutedCoinQtyContractReportsContracts(t *testing.T) {
+	t.Parallel()
+	caps := venue.Capabilities{ContractBasedPerp: true}
+	instr := venue.Instrument{StepSize: 100, ContractSize: 3.25}
+	res := venue.OrderResult{ExecutedQty: 400, AvgPrice: 0.0307}
+	got := crossVenueLegExecutedCoinQty(caps, instr, res, 1300)
+	if got != 1300 {
+		t.Fatalf("got=%v want 1300 coin (400 contracts × 3.25)", got)
+	}
+}
+
+func TestCrossVenueLegExecutedCoinQtyAlreadyCoin(t *testing.T) {
+	t.Parallel()
+	caps := venue.Capabilities{ContractBasedPerp: true}
+	instr := venue.Instrument{StepSize: 100, ContractSize: 3.25}
+	res := venue.OrderResult{ExecutedQty: 1300, AvgPrice: 0.0307}
+	got := crossVenueLegExecutedCoinQty(caps, instr, res, 1300)
+	if got != 1300 {
+		t.Fatalf("got=%v want 1300 coin", got)
+	}
+}
+
+func TestCrossVenueOpenBookQtyBybitHighGateLowReportsContracts(t *testing.T) {
+	// HOME-USDT 口径:bybit 币本位 1300, gate 适配器 ExecutedQty 误报 400 张(应为 1300 币)。
+	now := vNow()
+	bybitVenue := newCrossVenueTestVenue(bybit.VenueName, 0.001, 8, now)
+	bybitVenue.instruments = []venue.Instrument{{
+		Symbol: "HOME-USDT", Market: venue.MarketPerp, StepSize: 1, ContractSize: 1,
+	}}
+	gateInstr := venue.Instrument{
+		Symbol: "HOME-USDT", Market: venue.MarketPerp, StepSize: 100, ContractSize: 3.25, QtyUnit: "contract",
+	}
+	gateVenue := newContractLegFakeVenueReportingContracts(gate.VenueName, gateInstr)
+
+	cfg := testCrossVenueExecutorConfig()
+	cfg.NetworkConfig.RecordDir = t.TempDir()
+	cfg.CrossVenueExecutor.LiveTradingEnabled = true
+	e := &CrossVenueExecutor{
+		cfg:    cfg,
+		venues: map[string]venue.Venue{bybit.VenueName: bybitVenue, gate.VenueName: gateVenue},
+		store:  mustCrossVenueStore(t, cfg.NetworkConfig.RecordDir),
+		logger: testCrossVenueLogger(),
+		nowFn:  func() time.Time { return now },
+	}
+	refPrice := 0.0307
+	qty := float64(1300)
+	plan := crossVenueOpenPlan{
+		Opp: CrossVenueOpportunity{Symbol: "HOME-USDT", HighVenue: bybit.VenueName, LowVenue: gate.VenueName, SpreadAPR: 2.0},
+		Gate: crossVenueGateResult{
+			NotionalUSDT: 40,
+			HighInstr:    bybitVenue.instruments[0],
+			LowInstr:     gateInstr,
+		},
+		Qty:        qty,
+		RefPrice:   refPrice,
+		IdemPrefix: "home-book",
+	}
+	pos, err := e.executeCrossVenueOpen(context.Background(), plan, true)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	if pos.HighLeg.Qty != 1300 || pos.LowLeg.Qty != 1300 {
+		t.Fatalf("want both legs 1300 coin, got high=%v low=%v", pos.HighLeg.Qty, pos.LowLeg.Qty)
+	}
+	wantNotional := 1300 * refPrice
+	if math.Abs(pos.NotionalUSDT-wantNotional) > 1e-6 {
+		t.Fatalf("notional=%v want %v", pos.NotionalUSDT, wantNotional)
+	}
+}
+
+func TestCrossVenueOpenBookQtyGateHighBybitLowReportsContracts(t *testing.T) {
+	// H-USDT 口径:gate 高费腿 ExecutedQty 误报张数,gate 为 high leg,bybit 为 low leg。
+	now := vNow()
+	gateInstr := venue.Instrument{
+		Symbol: "H-USDT", Market: venue.MarketPerp, StepSize: 1, ContractSize: 877, QtyUnit: "contract",
+	}
+	gateVenue := newContractLegFakeVenueReportingContracts(gate.VenueName, gateInstr)
+	bybitVenue := newCrossVenueTestVenue(bybit.VenueName, 0.001, 8, now)
+	bybitVenue.instruments = []venue.Instrument{{
+		Symbol: "H-USDT", Market: venue.MarketPerp, StepSize: 1, ContractSize: 1,
+	}}
+
+	cfg := testCrossVenueExecutorConfig()
+	cfg.NetworkConfig.RecordDir = t.TempDir()
+	cfg.CrossVenueExecutor.LiveTradingEnabled = true
+	e := &CrossVenueExecutor{
+		cfg:    cfg,
+		venues: map[string]venue.Venue{gate.VenueName: gateVenue, bybit.VenueName: bybitVenue},
+		store:  mustCrossVenueStore(t, cfg.NetworkConfig.RecordDir),
+		logger: testCrossVenueLogger(),
+		nowFn:  func() time.Time { return now },
+	}
+	refPrice := 0.243
+	qty := float64(30)
+	plan := crossVenueOpenPlan{
+		Opp: CrossVenueOpportunity{Symbol: "H-USDT", HighVenue: gate.VenueName, LowVenue: bybit.VenueName, SpreadAPR: 2.0},
+		Gate: crossVenueGateResult{
+			NotionalUSDT: 7.3,
+			HighInstr:    gateInstr,
+			LowInstr:     bybitVenue.instruments[0],
+		},
+		Qty:        qty,
+		RefPrice:   refPrice,
+		IdemPrefix: "h-book",
+	}
+	pos, err := e.executeCrossVenueOpen(context.Background(), plan, true)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	if pos.HighLeg.Qty != 30 || pos.LowLeg.Qty != 30 {
+		t.Fatalf("want both legs 30 coin, got high=%v low=%v", pos.HighLeg.Qty, pos.LowLeg.Qty)
+	}
+	wantNotional := 30 * refPrice
+	if math.Abs(pos.NotionalUSDT-wantNotional) > 1e-6 {
+		t.Fatalf("notional=%v want %v", pos.NotionalUSDT, wantNotional)
+	}
 }

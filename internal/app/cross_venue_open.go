@@ -164,6 +164,9 @@ func (e *CrossVenueExecutor) executeCrossVenueOpen(ctx context.Context, plan cro
 			plan.Opp.Symbol, plan.Opp.HighVenue, plan.Opp.LowVenue, plan.Qty, plan.Gate.NotionalUSDT, plan.Opp.SpreadAPR*100)
 		return CrossVenuePosition{}, nil
 	}
+	highCaps := highV.Capabilities()
+	lowCaps := lowV.Capabilities()
+
 	highRes, err := e.placeCrossVenueIOC(ctx, highTrader, sym, venue.SideSell, plan.Qty, highPrice, highID, false, live)
 	if err != nil || highRes.ExecutedQty <= executionQtyTolerance {
 		return pos, fmt.Errorf("第一腿失败: %w", err)
@@ -185,7 +188,7 @@ func (e *CrossVenueExecutor) executeCrossVenueOpen(ctx context.Context, plan cro
 	lowPrice := iocLimitPrice(venue.SideBuy, lowBook, cfg.SlippageBudgetBps)
 	lowID := crossVenueLegClientID(plan.IdemPrefix, "l1")
 	hedgeQty := highRes.ExecutedQty
-	if lowCaps := lowV.Capabilities(); lowCaps.ContractBasedPerp {
+	if lowCaps.ContractBasedPerp {
 		hedgeQty = normalizeVenueQty(highRes.ExecutedQty, plan.Gate.LowInstr, true)
 		if hedgeQty <= executionQtyTolerance {
 			e.rollbackFirstLeg(ctx, plan, highTrader, sym, pos.HighLeg.Qty, live)
@@ -205,14 +208,21 @@ func (e *CrossVenueExecutor) executeCrossVenueOpen(ctx context.Context, plan cro
 		}
 		return pos, fmt.Errorf("第二腿失败: %w", lowErr)
 	}
-	pos.LowLeg.Qty = lowRes.ExecutedQty
+	highCoin := crossVenueLegExecutedCoinQty(highCaps, plan.Gate.HighInstr, highRes, 0)
+	lowCoin := crossVenueLegExecutedCoinQty(lowCaps, plan.Gate.LowInstr, lowRes, highCoin)
+	highCoin = crossVenueLegExecutedCoinQty(highCaps, plan.Gate.HighInstr, highRes, lowCoin)
+	lowCoin = crossVenueLegExecutedCoinQty(lowCaps, plan.Gate.LowInstr, lowRes, highCoin)
+	bookQty := reconcileCrossVenueOpenBookQty(highCaps, lowCaps, highCoin, lowCoin)
+	pos.HighLeg.Qty = bookQty
+	pos.LowLeg.Qty = bookQty
 	pos.LowLeg.EntryPrice = lowRes.AvgPrice
 	pos.LowLeg.OrderIDs = []string{lowID}
+	pos.NotionalUSDT = crossVenueBookNotionalUSDT(bookQty, plan.RefPrice, highRes, lowRes)
 	pos.Status = CrossVenueStatusOpen
 	pos.UpdatedAt = e.nowFn()
 	_ = e.persistPosition(pos)
 	e.notifyTrade("跨所开仓", fmt.Sprintf("%s 空%s/多%s 各≈%.6f 价差年化%.1f%%",
-		plan.Opp.Symbol, plan.Opp.HighVenue, plan.Opp.LowVenue, lowRes.ExecutedQty, plan.Opp.SpreadAPR*100), plan.Opp.Symbol)
+		plan.Opp.Symbol, plan.Opp.HighVenue, plan.Opp.LowVenue, bookQty, plan.Opp.SpreadAPR*100), plan.Opp.Symbol)
 	return pos, nil
 }
 

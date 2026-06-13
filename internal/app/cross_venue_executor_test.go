@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"lingxi/internal/lifecycle"
 	"lingxi/internal/venue"
 	"lingxi/internal/venue/binance"
 	"lingxi/internal/venue/bybit"
@@ -185,6 +186,9 @@ func testCrossVenueGateDeps(allocated float64) crossVenueGateDeps {
 		allocatedUSDT:    func(string) float64 { return allocated },
 	}
 }
+
+// nonTradeableVenueName 单测用占位所(不在 crossVenueTradeableVenues),触发子集降级路径。
+const nonTradeableVenueName = "kraken"
 
 func TestCrossVenueOpenGateGhostLeg(t *testing.T) {
 	now := time.Now().UTC().Add(time.Hour)
@@ -910,13 +914,13 @@ func newSubsetFallbackExecutor(t *testing.T, buf *bytes.Buffer, scanner *CrossVe
 	return e, high, low
 }
 
-// TestCrossVenueSubsetFallbackOpensShadow 全局最优含 binance、可交易子集内有达标对 → 降级评估,
+// TestCrossVenueSubsetFallbackOpensShadow 全局最优含不可交易所、可交易子集内有达标对 → 降级评估,
 // 影子模式走到开仓决策(且绝不下单)。
 func TestCrossVenueSubsetFallbackOpensShadow(t *testing.T) {
 	nf := time.Now().UTC().Add(time.Hour)
 	scanner := &CrossVenueScanner{lastSnapshot: CrossVenueScanSnapshot{
 		Opportunities: []CrossVenueOpportunity{{
-			Symbol: "BTC-USDT", HighVenue: binance.VenueName, LowVenue: okx.VenueName, SpreadAPR: 25,
+			Symbol: "BTC-USDT", HighVenue: nonTradeableVenueName, LowVenue: okx.VenueName, SpreadAPR: 25,
 		}},
 		FundingByVenue: map[string]map[string]CrossVenueFundingEntry{
 			// bybit 0.002/1h → 年化 17.5;okx 0.0001/8h → 年化 0.11;子集价差 ≈17.4 ≥ 1.5 达标。
@@ -939,13 +943,13 @@ func TestCrossVenueSubsetFallbackOpensShadow(t *testing.T) {
 	}
 }
 
-// TestCrossVenueSubsetFallbackBelowThresholdRejected 全局最优含 binance、子集对价差不达标 → 拒绝,
+// TestCrossVenueSubsetFallbackBelowThresholdRejected 全局最优含不可交易所、子集对价差不达标 → 拒绝,
 // 原因含子集最优价差。
 func TestCrossVenueSubsetFallbackBelowThresholdRejected(t *testing.T) {
 	nf := time.Now().UTC().Add(time.Hour)
 	scanner := &CrossVenueScanner{lastSnapshot: CrossVenueScanSnapshot{
 		Opportunities: []CrossVenueOpportunity{{
-			Symbol: "BTC-USDT", HighVenue: binance.VenueName, LowVenue: okx.VenueName, SpreadAPR: 25,
+			Symbol: "BTC-USDT", HighVenue: nonTradeableVenueName, LowVenue: okx.VenueName, SpreadAPR: 25,
 		}},
 		FundingByVenue: map[string]map[string]CrossVenueFundingEntry{
 			// 两所费率几乎相等 → 子集价差 ≈0 < 1.5 不达标。
@@ -997,12 +1001,12 @@ func TestCrossVenueSubsetFallbackInsufficientVenues(t *testing.T) {
 	nf := time.Now().UTC().Add(time.Hour)
 	scanner := &CrossVenueScanner{lastSnapshot: CrossVenueScanSnapshot{
 		Opportunities: []CrossVenueOpportunity{{
-			Symbol: "BTC-USDT", HighVenue: binance.VenueName, LowVenue: bybit.VenueName, SpreadAPR: 25,
+			Symbol: "BTC-USDT", HighVenue: nonTradeableVenueName, LowVenue: bybit.VenueName, SpreadAPR: 25,
 		}},
 		// 子集内只有 bybit 一所有该币 → 凑不出对。
 		FundingByVenue: map[string]map[string]CrossVenueFundingEntry{
-			binance.VenueName: {"BTC-USDT": {Rate: 0.01, IntervalHours: 8, NextFundingTime: nf}},
-			bybit.VenueName:   {"BTC-USDT": {Rate: 0.002, IntervalHours: 1, NextFundingTime: nf}},
+			nonTradeableVenueName: {"BTC-USDT": {Rate: 0.01, IntervalHours: 8, NextFundingTime: nf}},
+			bybit.VenueName:       {"BTC-USDT": {Rate: 0.002, IntervalHours: 1, NextFundingTime: nf}},
 		},
 	}}
 	var buf bytes.Buffer
@@ -1035,4 +1039,112 @@ func mustCrossVenueStore(t *testing.T, dir string) *crossVenuePositionStore {
 
 func testCrossVenueLogger() *log.Logger {
 	return log.New(log.Writer(), "[test] ", 0)
+}
+
+func TestCrossVenueTradeableVenuesIncludesBinance(t *testing.T) {
+	if !crossVenueTradeableVenues[binance.VenueName] {
+		t.Fatal("binance 应在 crossVenueTradeableVenues")
+	}
+	found := false
+	for _, name := range crossVenueExecutorVenues {
+		if name == binance.VenueName {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("crossVenueExecutorVenues 应含 binance")
+	}
+}
+
+func TestBinanceAdapterSatisfiesCrossVenueTrader(t *testing.T) {
+	var _ crossVenueTrader = binance.New(nil)
+}
+
+func TestCrossVenueOpenGateBinanceConflict(t *testing.T) {
+	dir := t.TempDir()
+	statePath := filepath.Join(dir, liveOpenHedgesStateName)
+	if err := writePersistedOpenHedgeState(statePath, persistedOpenHedgeState{
+		Hedges: []persistedOpenHedgeEntry{{Symbol: "BTCUSDT", LifecycleState: lifecycle.StateActive}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC().Add(time.Hour)
+	high := newCrossVenueTestVenue(binance.VenueName, 0.001, 8, now)
+	low := newCrossVenueTestVenue(okx.VenueName, 0.0001, 8, now)
+	venues := map[string]venue.Venue{binance.VenueName: high, okx.VenueName: low}
+	cfg := testCrossVenueExecutorConfig()
+	res := evaluateCrossVenueOpenGate(context.Background(), cfg.CrossVenueExecutor, testCrossVenueGateDeps(1000), venues, crossVenueGateInput{
+		Opp:         CrossVenueOpportunity{Symbol: "BTC-USDT", HighVenue: binance.VenueName, LowVenue: okx.VenueName, SpreadAPR: 2.0},
+		Now:         now,
+		BinanceHeld: func(sym venue.Symbol) bool { return isBinanceSymbolHeld(dir, sym) },
+	})
+	if res.OK {
+		t.Fatal("expected binance legacy conflict rejection")
+	}
+	if !strings.Contains(res.Reason, "Binance 遗留引擎") {
+		t.Fatalf("reason=%q", res.Reason)
+	}
+}
+
+func TestCrossVenueOpenGateBinanceOkxPair(t *testing.T) {
+	now := time.Now().UTC().Add(time.Hour)
+	nextFunding := now.Add(2 * time.Hour)
+	high := newCrossVenueTestVenue(binance.VenueName, 0.001, 8, nextFunding)
+	high.contractBased = false
+	high.book = venue.BookTicker{BidPrice: 99.99, AskPrice: 100.01, BidQty: 1000, AskQty: 1000}
+	high.instruments = []venue.Instrument{{
+		Symbol: "BTC-USDT", Market: venue.MarketPerp, StepSize: 0.001, MinNotional: 5, ContractSize: 1,
+	}}
+	low := newCrossVenueTestVenue(okx.VenueName, 0.0001, 8, nextFunding)
+	low.book = venue.BookTicker{BidPrice: 99.99, AskPrice: 100.01, BidQty: 1000, AskQty: 1000}
+	venues := map[string]venue.Venue{binance.VenueName: high, okx.VenueName: low}
+	cfg := testCrossVenueExecutorConfig()
+	res := evaluateCrossVenueOpenGate(context.Background(), cfg.CrossVenueExecutor, testCrossVenueGateDeps(1000), venues, crossVenueGateInput{
+		Opp: CrossVenueOpportunity{Symbol: "BTC-USDT", HighVenue: binance.VenueName, LowVenue: okx.VenueName, SpreadAPR: 2.0},
+		Now: now,
+	})
+	if !res.OK {
+		t.Fatalf("binance/okx 应对过闸门: %s", res.Reason)
+	}
+}
+
+func TestCrossVenueBinanceOkxDirectNoFallback(t *testing.T) {
+	nf := time.Now().UTC().Add(time.Hour)
+	scanner := &CrossVenueScanner{lastSnapshot: CrossVenueScanSnapshot{
+		Opportunities: []CrossVenueOpportunity{{
+			Symbol: "BTC-USDT", HighVenue: binance.VenueName, LowVenue: okx.VenueName, SpreadAPR: 25,
+		}},
+		FundingByVenue: map[string]map[string]CrossVenueFundingEntry{
+			binance.VenueName: {"BTC-USDT": {Rate: 0.002, IntervalHours: 1, NextFundingTime: nf}},
+			okx.VenueName:     {"BTC-USDT": {Rate: 0.0001, IntervalHours: 8, NextFundingTime: nf}},
+		},
+	}}
+	var buf bytes.Buffer
+	now := time.Now().UTC().Add(time.Hour)
+	nextFunding := now.Add(2 * time.Hour)
+	high := newCrossVenueTestVenue(binance.VenueName, 0.002, 1, nextFunding)
+	low := newCrossVenueTestVenue(okx.VenueName, 0.0001, 8, nextFunding)
+	tight := venue.BookTicker{BidPrice: 99.99, AskPrice: 100.01, BidQty: 1000, AskQty: 1000}
+	high.book = tight
+	low.book = tight
+	cfg := testCrossVenueExecutorConfig()
+	cfg.NetworkConfig.RecordDir = t.TempDir()
+	e := &CrossVenueExecutor{
+		cfg:            cfg,
+		venues:         map[string]venue.Venue{binance.VenueName: high, okx.VenueName: low},
+		store:          mustCrossVenueStore(t, cfg.NetworkConfig.RecordDir),
+		logger:         log.New(&buf, "", 0),
+		nowFn:          func() time.Time { return now },
+		symbolCooldown: map[string]time.Time{},
+		scanner:        scanner,
+	}
+	e.evaluateNewOpens(context.Background(), false)
+	logs := buf.String()
+	if strings.Contains(logs, "降级用子集对") {
+		t.Fatalf("binance 可交易时不应降级, got:\n%s", logs)
+	}
+	if !strings.Contains(logs, "[影子] 本应开仓 BTC-USDT") {
+		t.Fatalf("应直接走 binance/okx 影子开仓, got:\n%s", logs)
+	}
 }

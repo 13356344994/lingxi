@@ -63,3 +63,71 @@ func instrumentRulesFromVenue(instr venue.Instrument) SymbolTradeRules {
 func crossVenueQtyTradable(qty, refPrice float64, instr venue.Instrument) bool {
 	return isQuantityTradable(qty, refPrice, instrumentRulesFromVenue(instr))
 }
+
+// crossVenueLegExecutedCoinQty 把 OrderResult.ExecutedQty 归一化为账本用的币数量。
+// gate/okx 适配器在 lookupInstrument 失败时 mult 默认为 1,QueryOrder 可能把张数原样写入 ExecutedQty;
+// 开仓计划 plan.Gate.{High,Low}Instr 来自闸门(ContractSize 可靠),用于补全 ×ContractSize 换算。
+func crossVenueLegExecutedCoinQty(caps venue.Capabilities, instr venue.Instrument, res venue.OrderResult, peerCoinQty float64) float64 {
+	q := res.ExecutedQty
+	if q <= executionQtyTolerance {
+		return 0
+	}
+	if !caps.ContractBasedPerp || instr.ContractSize <= 0 {
+		return q
+	}
+	asCoin := normalizeVenueQty(q, instr, true)
+	asFromContracts := normalizeVenueQty(q*instr.ContractSize, instr, true)
+	if asFromContracts <= executionQtyTolerance {
+		return asCoin
+	}
+	if asCoin <= executionQtyTolerance {
+		return asFromContracts
+	}
+	if peerCoinQty > executionQtyTolerance {
+		if qtyDeviation(asCoin, peerCoinQty) <= qtyDeviation(asFromContracts, peerCoinQty) {
+			return asCoin
+		}
+		return asFromContracts
+	}
+	// 无 peer:张数通常小于 ContractSize(单张币面值),已换算的 coin 口径应明显更大。
+	if q < instr.ContractSize && asFromContracts > asCoin+executionQtyTolerance {
+		return asFromContracts
+	}
+	return asCoin
+}
+
+// reconcileCrossVenueOpenBookQty 开仓落盘时取两腿一致的币数量;优先信任币本位腿的 ExecutedQty。
+func reconcileCrossVenueOpenBookQty(highCaps, lowCaps venue.Capabilities, highCoin, lowCoin float64) float64 {
+	switch {
+	case !highCaps.ContractBasedPerp && highCoin > executionQtyTolerance:
+		return highCoin
+	case !lowCaps.ContractBasedPerp && lowCoin > executionQtyTolerance:
+		return lowCoin
+	case highCoin > executionQtyTolerance && lowCoin > executionQtyTolerance:
+		return math.Min(highCoin, lowCoin)
+	case highCoin > executionQtyTolerance:
+		return highCoin
+	case lowCoin > executionQtyTolerance:
+		return lowCoin
+	default:
+		return 0
+	}
+}
+
+// crossVenueBookNotionalUSDT 由真实成交币数量 × 参考价得到落盘名义(与两腿 qty 口径一致)。
+func crossVenueBookNotionalUSDT(bookQty, refPrice float64, highRes, lowRes venue.OrderResult) float64 {
+	if bookQty <= executionQtyTolerance {
+		return 0
+	}
+	if refPrice > 0 {
+		return bookQty * refPrice
+	}
+	px := highRes.AvgPrice
+	if px <= 0 {
+		px = lowRes.AvgPrice
+	}
+	if px <= 0 {
+		return 0
+	}
+	return bookQty * px
+}
