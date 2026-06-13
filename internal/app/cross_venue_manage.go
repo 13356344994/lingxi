@@ -2,8 +2,10 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
+	"strings"
 	"time"
 
 	"lingxi/internal/venue"
@@ -259,6 +261,17 @@ func (e *CrossVenueExecutor) currentSpreadAPR(_ context.Context, pos *CrossVenue
 	return hAPR - lAPR
 }
 
+func isDeadManUnsupportedErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, venue.ErrUnsupported) {
+		return true
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "capability unsupported") || strings.Contains(msg, "unsupported")
+}
+
 func (e *CrossVenueExecutor) armDeadMansForLegs(ctx context.Context, pos CrossVenuePosition, live bool) {
 	if !live {
 		return
@@ -272,7 +285,19 @@ func (e *CrossVenueExecutor) armDeadMansForLegs(ctx context.Context, pos CrossVe
 		if v == nil || !v.Capabilities().HasNativeDeadMan {
 			continue
 		}
+		e.mu.RLock()
+		_, skip := e.deadManUnsupportedVenues[name]
+		e.mu.RUnlock()
+		if skip {
+			continue
+		}
 		if err := v.ArmDeadMansSwitch(ctx, cd); err != nil {
+			if isDeadManUnsupportedErr(err) {
+				e.mu.Lock()
+				e.deadManUnsupportedVenues[name] = struct{}{}
+				e.mu.Unlock()
+				continue
+			}
 			e.logger.Printf("[跨所] dead-man 续期失败 venue=%s: %v", name, err)
 		}
 	}
