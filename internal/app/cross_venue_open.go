@@ -167,6 +167,19 @@ func (e *CrossVenueExecutor) executeCrossVenueOpen(ctx context.Context, plan cro
 	highCaps := highV.Capabilities()
 	lowCaps := lowV.Capabilities()
 
+	// 把两条永续腿杠杆设到 sizing 口径(MaxEffectiveLeverage),否则继承交易所账户默认高杠杆
+	// (如币安 20x)会让 estimateLiqDistance=0.9/lev 误判「强平距离不足」→ 每轮无谓减仓空转。
+	legLev := int(cfg.MaxEffectiveLeverage)
+	if legLev < 1 {
+		legLev = 2
+	}
+	if lerr := highV.SetLeverage(ctx, sym, legLev); lerr != nil && lerr != venue.ErrUnsupported {
+		e.logger.Printf("[跨所] 设高费腿杠杆失败 %s %s lev=%d: %v", plan.Opp.HighVenue, sym, legLev, lerr)
+	}
+	if lerr := lowV.SetLeverage(ctx, sym, legLev); lerr != nil && lerr != venue.ErrUnsupported {
+		e.logger.Printf("[跨所] 设低费腿杠杆失败 %s %s lev=%d: %v", plan.Opp.LowVenue, sym, legLev, lerr)
+	}
+
 	highRes, err := e.placeCrossVenueIOC(ctx, highTrader, sym, venue.SideSell, plan.Qty, highPrice, highID, false, live)
 	if err != nil || highRes.ExecutedQty <= executionQtyTolerance {
 		return pos, fmt.Errorf("第一腿失败: %w", err)

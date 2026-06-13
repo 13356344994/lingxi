@@ -204,9 +204,16 @@ func (a *Adapter) QueryOrder(ctx context.Context, m venue.Market, s venue.Symbol
 	o := rows[0]
 	executed := parseFloat(o.AccFillSz)
 	if m == venue.MarketPerp {
-		if inst, ierr := a.lookupInstrument(ctx, m, s); ierr == nil && inst.ContractSize > 0 {
-			executed *= inst.ContractSize
+		// SWAP 的 accFillSz 是「张」,必须乘 ctVal 才是币数;拉取失败绝不能静默把张数当币数留下
+		// (账本漂移根因,见 HANDOFF §3)。失败重试一次后仍不行就报错。
+		inst, ierr := a.lookupInstrument(ctx, m, s)
+		if ierr != nil || inst.ContractSize <= 0 {
+			inst, ierr = a.lookupInstrument(ctx, m, s)
 		}
+		if ierr != nil || inst.ContractSize <= 0 {
+			return venue.OrderResult{}, fmt.Errorf("okx: 取 %s ctVal 失败,拒绝把张数当币数误报(err=%v ContractSize=%v)", s, ierr, inst.ContractSize)
+		}
+		executed *= inst.ContractSize
 	}
 	result := venue.OrderResult{
 		Symbol:          s,

@@ -354,11 +354,16 @@ func (a *Adapter) QueryOrder(ctx context.Context, m venue.Market, s venue.Symbol
 }
 
 func (a *Adapter) mapFuturesOrder(ctx context.Context, s venue.Symbol, o gateFuturesOrder) (venue.OrderResult, error) {
-	inst, _ := a.lookupInstrument(ctx, venue.MarketPerp, s)
-	mult := inst.ContractSize
-	if mult <= 0 {
-		mult = 1
+	// 合约面值(quanto_multiplier)是「张→币」换算的唯一依据;拉取失败绝不能静默回退 mult=1,
+	// 否则会把张数当币数误写进 ExecutedQty(账本漂移根因,见 HANDOFF §3)。失败重试一次后仍不行就报错。
+	inst, ierr := a.lookupInstrument(ctx, venue.MarketPerp, s)
+	if ierr != nil || inst.ContractSize <= 0 {
+		inst, ierr = a.lookupInstrument(ctx, venue.MarketPerp, s)
 	}
+	if ierr != nil || inst.ContractSize <= 0 {
+		return venue.OrderResult{}, fmt.Errorf("gate: 取 %s 合约面值失败,拒绝按 mult=1 把张数误当币数(err=%v ContractSize=%v)", s, ierr, inst.ContractSize)
+	}
+	mult := inst.ContractSize
 	filledContracts := abs64(o.Size) - abs64(o.Left)
 	if filledContracts < 0 {
 		filledContracts = 0

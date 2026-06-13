@@ -86,6 +86,11 @@ func (a *Adapter) buildOrderParams(ctx context.Context, req venue.OrderRequest) 
 		if req.Price <= 0 {
 			return nil, fmt.Errorf("binance: 限价/IOC/PostOnly 单需正价格, got %v", req.Price)
 		}
+		// 价格经 tickSize 取整后若归零(瞬时坏盘口/价格 < tick),拒绝下「0 价单」(否则被
+		// binance 以 -4001 Price less than 0 拒绝,语义混淆且浪费一次裸腿窗口)。
+		if roundDownStep(req.Price, inst.TickSize) <= 0 {
+			return nil, fmt.Errorf("binance: 价格 %v 经 tickSize=%v 取整后为 0,拒绝下 0 价单", req.Price, inst.TickSize)
+		}
 		params.Set("price", formatPriceByTick(req.Price, inst.TickSize))
 		if tif != "" {
 			params.Set("timeInForce", tif)

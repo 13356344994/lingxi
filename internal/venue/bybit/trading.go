@@ -306,7 +306,14 @@ func (a *Adapter) SetLeverage(ctx context.Context, s venue.Symbol, lev int) erro
 		BuyLeverage  string `json:"buyLeverage"`
 		SellLeverage string `json:"sellLeverage"`
 	}{Category: categoryLinear, Symbol: raw, BuyLeverage: levStr, SellLeverage: levStr}
-	return a.t.signedPost(ctx, pathSetLeverage, body, nil)
+	if err := a.t.signedPost(ctx, pathSetLeverage, body, nil); err != nil {
+		// 110043 = leverage not modified(已是目标杠杆),视为成功,避免上层误报「设杠杆失败」。
+		if strings.Contains(err.Error(), "110043") {
+			return nil
+		}
+		return err
+	}
+	return nil
 }
 
 // SetMarginMode 切换逐仓/全仓(switch-isolated:tradeMode 0=cross,1=isolated)。
