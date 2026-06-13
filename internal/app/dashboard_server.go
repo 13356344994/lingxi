@@ -126,6 +126,7 @@ func (s *DashboardServer) Start(ctx context.Context) error {
 	mux.HandleFunc("/api/venues", s.authorizeReadAPI(s.handleVenuesAPI))
 	mux.HandleFunc("/api/cross-venue/funding", s.authorizeReadAPI(s.handleCrossVenueFundingAPI))
 	mux.HandleFunc("/api/cross-venue/positions", s.authorizeReadAPI(s.handleCrossVenuePositionsAPI))
+	mux.HandleFunc("/api/crossvenue/openings", s.handleCrossVenueOpeningsAPI)
 	mux.HandleFunc("/api/settlements", s.authorizeReadAPI(s.handleSettlementAPI))
 	mux.HandleFunc("/api/monitor-records", s.authorizeReadAPI(s.handleMonitorAPI))
 	mux.HandleFunc("/api/backtest-records", s.authorizeReadAPI(s.handleBacktestAPI))
@@ -1002,6 +1003,34 @@ func (s *DashboardServer) handleCrossVenuePositionsAPI(w http.ResponseWriter, r 
 		return
 	}
 	writeJSON(w, s.crossVenueExecutor.PositionsSnapshot())
+}
+
+// handleCrossVenueOpeningsAPI 切换跨所运行时开仓开关(第三道闸)。
+func (s *DashboardServer) handleCrossVenueOpeningsAPI(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if !s.authorizeRuntimeControl(w, r, "crossvenue_openings") {
+		return
+	}
+	if s.crossVenueExecutor == nil {
+		http.Error(w, "跨所执行引擎未启用", http.StatusServiceUnavailable)
+		return
+	}
+	var req struct {
+		Enabled bool `json:"enabled"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid json", http.StatusBadRequest)
+		return
+	}
+	if err := s.crossVenueExecutor.SetOpeningsEnabled(req.Enabled); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	s.auditControlAction(r, "crossvenue_openings", true, fmt.Sprintf("enabled=%v", req.Enabled))
+	writeJSON(w, map[string]any{"ok": true, "openings_enabled": req.Enabled})
 }
 
 func writeJSON(w http.ResponseWriter, payload any) {

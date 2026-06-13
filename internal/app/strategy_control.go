@@ -84,6 +84,7 @@ type StrategyCrossVenueStatus struct {
 	Live            bool   `json:"live"`
 	Mode            string `json:"mode"`
 	OpeningsEnabled bool   `json:"openings_enabled"`
+	HealthHaltVenue string `json:"health_halt_venue"`
 	ActivePositions int    `json:"active_positions"`
 }
 
@@ -485,8 +486,9 @@ func (s *DashboardServer) buildStrategyStatus() StrategyStatusResponse {
 			Enabled:         snap.Enabled,
 			Live:            snap.Live,
 			Mode:            snap.Mode,
-			OpeningsEnabled: s.crossVenueExecutor.OpeningsEnabled(),
-			ActivePositions: len(activeCrossVenuePositions(snap.Positions)),
+			OpeningsEnabled: snap.OpeningsEnabled,
+			HealthHaltVenue: snap.HealthHaltVenue,
+			ActivePositions: snap.ActivePositions,
 		}
 	} else {
 		resp.CrossVenue = StrategyCrossVenueStatus{

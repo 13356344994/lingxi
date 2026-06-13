@@ -306,6 +306,23 @@
         <div id="strategy-status-line" class="hint" style="margin:0 0 8px;font-size:13px;color:#cbd5e1;">加载策略状态…</div>
         <div id="strategy-capital-results" style="font-size:12px;"></div>
       </div>
+      <!-- 跨所对冲执行器(全局唯一):状态/开仓开关/健康闸 -->
+      <div id="cross-venue-panel" style="display:none;margin:12px 0 16px;padding:14px;background:#0f1830;border:1px solid #243049;border-radius:10px;">
+        <h3 style="margin:0 0 8px;font-size:15px;color:#e5edff;">跨所对冲执行器(全局唯一)</h3>
+        <div class="hint" style="margin-bottom:10px;">消费扫描器价差信号,在四所永续腿间 perp-perp 对冲;与下方各所单所 funding 引擎独立。</div>
+        <div class="stats" style="margin-bottom:10px;">
+          <div class="stat-card"><div class="stat-label">引擎</div><div class="stat-value" id="cv-enabled" style="font-size:16px">-</div></div>
+          <div class="stat-card"><div class="stat-label">模式</div><div class="stat-value" id="cv-mode" style="font-size:16px">-</div></div>
+          <div class="stat-card"><div class="stat-label">开仓开关</div><div class="stat-value" id="cv-openings" style="font-size:16px">-</div></div>
+          <div class="stat-card"><div class="stat-label">健康闸</div><div class="stat-value" id="cv-health-halt" style="font-size:14px">-</div></div>
+          <div class="stat-card"><div class="stat-label">在场持仓</div><div class="stat-value" id="cv-active-positions" style="font-size:16px">-</div></div>
+        </div>
+        <div class="risk-actions" style="margin:0;">
+          <button id="cv-openings-on-btn" type="button">开启跨所开仓</button>
+          <button id="cv-openings-off-btn" type="button" class="danger">关闭跨所开仓</button>
+        </div>
+        <div id="cv-status-line" class="hint" style="margin:8px 0 0;font-size:13px;color:#cbd5e1;">加载跨所状态…</div>
+      </div>
       <div class="risk-actions" style="margin:8px 0;">
         <button id="start-all-btn" type="button">全部启动(实盘)</button>
         <button id="stop-all-btn" type="button" class="danger">全部停止</button>
@@ -1712,9 +1729,79 @@
 
     function applyStrategyPanelVisibility() {
       const panel = document.getElementById("strategy-control-panel");
-      if (!panel) { return; }
+      const cvPanel = document.getElementById("cross-venue-panel");
       const showAll = selectedVenue === "all";
-      panel.style.display = showAll ? "" : "none";
+      if (panel) { panel.style.display = showAll ? "" : "none"; }
+      if (cvPanel) { cvPanel.style.display = showAll ? "" : "none"; }
+    }
+
+    function renderCrossVenuePanel(snap) {
+      const enabledEl = document.getElementById("cv-enabled");
+      const modeEl = document.getElementById("cv-mode");
+      const openingsEl = document.getElementById("cv-openings");
+      const healthEl = document.getElementById("cv-health-halt");
+      const activeEl = document.getElementById("cv-active-positions");
+      const line = document.getElementById("cv-status-line");
+      const onBtn = document.getElementById("cv-openings-on-btn");
+      const offBtn = document.getElementById("cv-openings-off-btn");
+      if (!snap || typeof snap !== "object") {
+        if (line) { line.textContent = "跨所状态读取失败"; }
+        return;
+      }
+      const enabled = !!snap.enabled;
+      const live = !!snap.live;
+      if (enabledEl) {
+        enabledEl.textContent = enabled ? (live ? "启用·实盘" : "启用·影子") : "未启用";
+        enabledEl.style.color = enabled ? (live ? "#86efac" : "#fde68a") : "#94a3b8";
+      }
+      if (modeEl) { modeEl.textContent = snap.mode || "-"; }
+      const openingsOn = !!snap.openings_enabled;
+      if (openingsEl) {
+        openingsEl.textContent = openingsOn ? "开" : "关";
+        openingsEl.style.color = openingsOn ? "#86efac" : "#fca5a5";
+      }
+      const haltVenue = String(snap.health_halt_venue || "").trim();
+      if (healthEl) {
+        if (haltVenue) {
+          healthEl.textContent = "已因 " + haltVenue + " 暂停开仓";
+          healthEl.style.color = "#fca5a5";
+        } else {
+          healthEl.textContent = "正常";
+          healthEl.style.color = "#86efac";
+        }
+      }
+      if (activeEl) { activeEl.textContent = String(Number(snap.active_positions || 0)); }
+      if (onBtn) { onBtn.disabled = !enabled || openingsOn; }
+      if (offBtn) { offBtn.disabled = !enabled || !openingsOn; }
+      if (line) {
+        const haltText = haltVenue ? (" · 健康闸暂停(" + haltVenue + ")") : "";
+        line.textContent = "enabled=" + enabled + " live=" + live + " · 开仓=" + (openingsOn ? "开" : "关") + haltText;
+      }
+    }
+
+    async function refreshCrossVenuePanel() {
+      if (selectedVenue !== "all") { return; }
+      try {
+        const snap = await loadJSON("/api/cross-venue/positions");
+        renderCrossVenuePanel(snap);
+      } catch (err) {
+        renderCrossVenuePanel(null);
+        const line = document.getElementById("cv-status-line");
+        if (line) { line.textContent = "跨所状态读取失败: " + err.message; }
+      }
+    }
+
+    async function setCrossVenueOpenings(enabled) {
+      const label = enabled ? "开启" : "关闭";
+      if (!confirm("确认" + label + "跨所运行时开仓开关?\n(在场持仓管理不受影响)")) { return; }
+      try {
+        const result = await postJSON("/api/crossvenue/openings", { enabled: enabled });
+        await refreshCrossVenuePanel();
+        await refreshStrategyStatus();
+        alert("跨所开仓开关已设为 " + (result.openings_enabled ? "开" : "关"));
+      } catch (err) {
+        alert("切换跨所开仓开关失败: " + err.message);
+      }
     }
 
     function renderStrategyStatus(st) {
@@ -1732,7 +1819,9 @@
       const cvMode = cv.live ? "实盘" : "影子";
       const openLabel = cv.openings_enabled ? "开" : "关";
       const activeN = Number(cv.active_positions || 0);
-      line.textContent = `Bybit引擎:${bybitLabel} · 跨所引擎:${cvMode} · 开仓:${openLabel} · 跨所在场:${activeN}`;
+      const haltVenue = String(cv.health_halt_venue || "").trim();
+      const haltLabel = haltVenue ? (" · 健康闸:" + haltVenue) : "";
+      line.textContent = `Bybit引擎:${bybitLabel} · 跨所引擎:${cvMode} · 开仓:${openLabel}${haltLabel} · 跨所在场:${activeN}`;
       if (hint) {
         if (cv.live) {
           hint.textContent = "跨所引擎当前为实盘模式,将按 config 真实下单。";
@@ -1825,6 +1914,8 @@
       document.getElementById("strategy-capital-btn")?.addEventListener("click", applyStrategyCapital);
       document.getElementById("strategy-start-btn")?.addEventListener("click", startStrategy);
       document.getElementById("strategy-stop-btn")?.addEventListener("click", stopStrategy);
+      document.getElementById("cv-openings-on-btn")?.addEventListener("click", () => setCrossVenueOpenings(true));
+      document.getElementById("cv-openings-off-btn")?.addEventListener("click", () => setCrossVenueOpenings(false));
       applyStrategyPanelVisibility();
     }
 
@@ -1975,7 +2066,7 @@
         titleEl.textContent = showAll ? "多所运行总览" : ("运行控制 · " + target);
       }
       applyStrategyPanelVisibility();
-      if (showAll) { refreshStrategyStatus(); }
+      if (showAll) { refreshStrategyStatus(); refreshCrossVenuePanel(); }
     }
 
     // refreshVenueOverview:仅更新每所运行徽标 / 阶段 / 模式 / 启停按钮可用态,不触碰输入框。
@@ -1995,15 +2086,21 @@
         const startBtn = document.getElementById("vstart-" + v);
         const stopBtn = document.getElementById("vstop-" + v);
         if (badge) {
-          badge.innerHTML = errMsg
-            ? `<span style="color:#fca5a5;font-size:12px;">读取失败</span>`
-            : (running
-                ? `<span style="display:inline-block;padding:2px 8px;border-radius:10px;background:#14532d;color:#86efac;font-size:12px;">运行中</span>`
-                : `<span style="display:inline-block;padding:2px 8px;border-radius:10px;background:#3f2937;color:#fca5a5;font-size:12px;">已停止</span>`);
+          if (errMsg) {
+            badge.innerHTML = `<span style="color:#fca5a5;font-size:12px;">读取失败</span>`;
+          } else if (String(v).toLowerCase() === "binance" && !running) {
+            badge.innerHTML = `<span style="display:inline-block;padding:2px 8px;border-radius:10px;background:#1e293b;color:#94a3b8;font-size:12px;">跨所腿 · 正常</span>`;
+          } else if (running) {
+            badge.innerHTML = `<span style="display:inline-block;padding:2px 8px;border-radius:10px;background:#14532d;color:#86efac;font-size:12px;">运行中</span>`;
+          } else {
+            badge.innerHTML = `<span style="display:inline-block;padding:2px 8px;border-radius:10px;background:#3f2937;color:#fca5a5;font-size:12px;">已停止</span>`;
+          }
         }
         if (statusLine) {
           if (errMsg) {
             statusLine.textContent = "读取失败: " + errMsg;
+          } else if (String(v).toLowerCase() === "binance" && !running) {
+            statusLine.textContent = "无独立单所引擎(跨所对冲仍可用) · 空闲为正常 · 模式: " + (st.mode || "-");
           } else {
             statusLine.textContent = "阶段: " + (st.current_stage || st.status || "-") + " · 模式: " + (st.mode || "-");
           }
@@ -2077,7 +2174,7 @@
       }
     }
 
-    document.getElementById("refresh-btn")?.addEventListener("click", () => { refreshDashboard(); refreshVenueOverview(); refreshStrategyStatus(); });
+    document.getElementById("refresh-btn")?.addEventListener("click", () => { refreshDashboard(); refreshVenueOverview(); refreshStrategyStatus(); refreshCrossVenuePanel(); });
     document.getElementById("start-all-btn")?.addEventListener("click", startAllVenues);
     document.getElementById("stop-all-btn")?.addEventListener("click", stopAllVenues);
     document.getElementById("save-risk-config-btn")?.addEventListener("click", saveRiskConfig);
@@ -2231,9 +2328,9 @@
       if (dashboardStarted) { return; }
       dashboardStarted = true;
       // 先加载 venue 列表(填充 knownVenues),构建多所卡片(一次),再渲染主面板与状态。
-      loadVenues().then(() => { renderVenueTabs(); buildVenueOverview(); initStrategyControl(); refreshVenueOverview(); refreshStrategyStatus(); });
+      loadVenues().then(() => { renderVenueTabs(); buildVenueOverview(); initStrategyControl(); refreshVenueOverview(); refreshStrategyStatus(); refreshCrossVenuePanel(); });
       refreshDashboard();
-      setInterval(() => { refreshDashboard(); refreshVenueOverview(); refreshStrategyStatus(); }, 5000);
+      setInterval(() => { refreshDashboard(); refreshVenueOverview(); refreshStrategyStatus(); refreshCrossVenuePanel(); }, 5000);
     }
 
     async function attemptEnter(tokenFromGate) {

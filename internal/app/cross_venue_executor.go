@@ -46,15 +46,20 @@ type CrossVenueExecutor struct {
 	openingsEnabled atomic.Bool
 	// recordDir 用于 control.json 持久化(重启维持上次选择)。
 	recordDir string
+	// healthHaltVenue 健康闸当前暂停开仓的 venue(空=正常);用于告警去抖与 API 暴露。
+	healthHaltVenue string
 }
 
 // CrossVenuePositionsAPIResponse 供面板 API 返回。
 type CrossVenuePositionsAPIResponse struct {
-	Enabled   bool                 `json:"enabled"`
-	Live      bool                 `json:"live"`
-	Mode      string               `json:"mode"`
-	Positions []CrossVenuePosition `json:"positions"`
-	UpdatedAt time.Time            `json:"updated_at"`
+	Enabled         bool                 `json:"enabled"`
+	Live            bool                 `json:"live"`
+	Mode            string               `json:"mode"`
+	OpeningsEnabled bool                 `json:"openings_enabled"`
+	HealthHaltVenue string               `json:"health_halt_venue"`
+	ActivePositions int                  `json:"active_positions"`
+	Positions       []CrossVenuePosition `json:"positions"`
+	UpdatedAt       time.Time            `json:"updated_at"`
 }
 
 // NewCrossVenueExecutor 构造执行引擎。
@@ -161,6 +166,10 @@ func (e *CrossVenueExecutor) tick(ctx context.Context, live bool) {
 		e.logger.Printf("[跨所执行] 急停生效,跳过开新仓(在场持仓仍管理)")
 	}
 	e.manageOpenPositions(ctx, live)
+
+	unhealthy := e.firstUnhealthyTradeableVenue()
+	e.syncHealthHaltAlerts(unhealthy)
+
 	if haltActive {
 		return
 	}
@@ -168,7 +177,68 @@ func (e *CrossVenueExecutor) tick(ctx context.Context, live bool) {
 		e.logger.Printf("[跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)")
 		return
 	}
+	if unhealthy != "" {
+		e.logger.Printf("[跨所执行] 健康闸: venue=%s 不健康,跳过 evaluateNewOpens(在场持仓管理照常)", unhealthy)
+		return
+	}
 	e.evaluateNewOpens(ctx, live)
+}
+
+// firstUnhealthyTradeableVenue 返回第一个不健康的跨所可交易 venue;idle/未运行不算不健康。
+func (e *CrossVenueExecutor) firstUnhealthyTradeableVenue() string {
+	if e == nil || e.orch == nil {
+		return ""
+	}
+	for _, name := range crossVenueExecutorVenues {
+		if !crossVenueTradeableVenues[name] {
+			continue
+		}
+		rt, ok := e.orch.Get(name)
+		if !ok || rt == nil || rt.controller == nil {
+			continue
+		}
+		if isCrossVenueVenueUnhealthy(rt.controller.Status()) {
+			return name
+		}
+	}
+	return ""
+}
+
+func isCrossVenueVenueUnhealthy(st RuntimeTaskStatus) bool {
+	if st.CircuitBreakerTripped {
+		return true
+	}
+	return st.Running && strings.EqualFold(strings.TrimSpace(st.HealthStatus), "failed")
+}
+
+// syncHealthHaltAlerts 仅在健康闸状态翻转时发告警(去抖,不每轮刷)。
+func (e *CrossVenueExecutor) syncHealthHaltAlerts(unhealthy string) {
+	if e == nil {
+		return
+	}
+	e.mu.Lock()
+	prev := e.healthHaltVenue
+	if prev == unhealthy {
+		e.mu.Unlock()
+		return
+	}
+	e.healthHaltVenue = unhealthy
+	e.mu.Unlock()
+
+	if unhealthy != "" && prev == "" {
+		e.notifyCritical("跨所健康闸", fmt.Sprintf("venue=%s health=failed,已暂停所有跨所新开仓;在场仓继续管理", unhealthy), "")
+	} else if unhealthy == "" && prev != "" {
+		e.notifyWarn("跨所健康闸", fmt.Sprintf("%s 恢复,跨所开仓恢复", prev), "")
+	}
+}
+
+func (e *CrossVenueExecutor) healthHaltVenueSnapshot() string {
+	if e == nil {
+		return ""
+	}
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return e.healthHaltVenue
 }
 
 func (e *CrossVenueExecutor) isHaltActive() bool {
@@ -463,11 +533,14 @@ func (e *CrossVenueExecutor) PositionsSnapshot() CrossVenuePositionsAPIResponse 
 		ps = e.snapshotPositions()
 	}
 	return CrossVenuePositionsAPIResponse{
-		Enabled:   e.cfg.CrossVenueExecutor.Enabled,
-		Live:      e.cfg.CrossVenueExecutor.LiveTradingEnabled,
-		Mode:      crossVenueExecutorModeLabel(e.cfg),
-		Positions: ps,
-		UpdatedAt: e.nowFn(),
+		Enabled:         e.cfg.CrossVenueExecutor.Enabled,
+		Live:            e.cfg.CrossVenueExecutor.LiveTradingEnabled,
+		Mode:            crossVenueExecutorModeLabel(e.cfg),
+		OpeningsEnabled: e.OpeningsEnabled(),
+		HealthHaltVenue: e.healthHaltVenueSnapshot(),
+		ActivePositions: len(activeCrossVenuePositions(ps)),
+		Positions:       ps,
+		UpdatedAt:       e.nowFn(),
 	}
 }
 
