@@ -147,6 +147,10 @@ func (s *DashboardServer) Start(ctx context.Context) error {
 	mux.HandleFunc("/api/runtime/capital", s.handleRuntimeCapitalAPI)
 	mux.HandleFunc("/api/runtime/start", s.handleRuntimeStartAPI)
 	mux.HandleFunc("/api/runtime/stop", s.handleRuntimeStopAPI)
+	mux.HandleFunc("/api/strategy/status", s.authorizeReadAPI(s.handleStrategyStatusAPI))
+	mux.HandleFunc("/api/strategy/capital", s.handleStrategyCapitalAPI)
+	mux.HandleFunc("/api/strategy/start", s.handleStrategyStartAPI)
+	mux.HandleFunc("/api/strategy/stop", s.handleStrategyStopAPI)
 	// S5-B 探针/指标(不鉴权,只暴露非敏感健康信息):供 k8s liveness/readiness 与 Prometheus 抓取。
 	mux.HandleFunc("/livez", s.handleLivez)
 	mux.HandleFunc("/healthz", s.handleHealthz)

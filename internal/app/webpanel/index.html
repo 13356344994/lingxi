@@ -289,6 +289,23 @@
     <div class="panel">
       <h2 id="venue-overview-title">多所运行总览</h2>
       <div class="hint">跟随上方「交易所」下拉:选具体交易所 → 只显示该所的启动/停止/调仓与记录;选「全部(总览)」→ 显示所有交易所。每所相互独立,可分别或同时运行。Bybit 仅支持实盘(live)模式。</div>
+      <!-- 策略总控:仅在「全部(总览)」Tab 显示,收敛多引擎为一键操作 -->
+      <div id="strategy-control-panel" style="display:none;margin:12px 0 16px;padding:14px;background:#0f1830;border:1px solid #243049;border-radius:10px;">
+        <h3 style="margin:0 0 8px;font-size:15px;color:#e5edff;">策略总控</h3>
+        <div class="hint" style="margin-bottom:10px;">一键编排 Bybit 执行引擎 + 跨所对冲引擎;细粒度 per-venue 操作仍可用下方卡片。</div>
+        <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin-bottom:10px;">
+          <div style="flex:1 1 200px;">
+            <label for="strategy-capital-input" style="display:block;font-size:12px;color:#8aa0c6;margin-bottom:4px;">每所交易仓位 (USDT)</label>
+            <input id="strategy-capital-input" type="number" min="1" step="0.01" placeholder="100" style="width:100%;box-sizing:border-box;padding:8px 10px;border-radius:8px;border:1px solid #2c3b59;background:#0b1220;color:#e5edff;">
+          </div>
+          <button id="strategy-capital-btn" type="button" class="secondary">全所调仓</button>
+          <button id="strategy-start-btn" type="button">策略启动</button>
+          <button id="strategy-stop-btn" type="button" class="danger">策略停止</button>
+        </div>
+        <div id="strategy-shadow-hint" class="hint" style="margin:0 0 8px;font-size:12px;color:#94a3b8;"></div>
+        <div id="strategy-status-line" class="hint" style="margin:0 0 8px;font-size:13px;color:#cbd5e1;">加载策略状态…</div>
+        <div id="strategy-capital-results" style="font-size:12px;"></div>
+      </div>
       <div class="risk-actions" style="margin:8px 0;">
         <button id="start-all-btn" type="button">全部启动(实盘)</button>
         <button id="stop-all-btn" type="button" class="danger">全部停止</button>
@@ -1690,6 +1707,127 @@
       return `${result.message || "仓位资金已调整"}\n请求=${Number(result.requested_trading_usdt || 0).toFixed(2)} | 实际=${Number(result.applied_trading_usdt || 0).toFixed(2)} | 单腿=${Number(result.per_leg_trading_usdt || 0).toFixed(2)}\n划转=${transferText}`;
     }
 
+    // ===== 策略总控(全部总览 Tab) =====
+    const strategyCapitalStorageKey = "lingxi-strategy-capital-usdt";
+
+    function applyStrategyPanelVisibility() {
+      const panel = document.getElementById("strategy-control-panel");
+      if (!panel) { return; }
+      const showAll = selectedVenue === "all";
+      panel.style.display = showAll ? "" : "none";
+    }
+
+    function renderStrategyStatus(st) {
+      const line = document.getElementById("strategy-status-line");
+      const hint = document.getElementById("strategy-shadow-hint");
+      if (!line) { return; }
+      if (!st || typeof st !== "object") {
+        line.textContent = "策略状态读取失败";
+        if (hint) { hint.textContent = ""; }
+        return;
+      }
+      const bybit = st.bybit || {};
+      const cv = st.cross_venue || {};
+      const bybitLabel = bybit.running ? "运行中" : "已停止";
+      const cvMode = cv.live ? "实盘" : "影子";
+      const openLabel = cv.openings_enabled ? "开" : "关";
+      const activeN = Number(cv.active_positions || 0);
+      line.textContent = `Bybit引擎:${bybitLabel} · 跨所引擎:${cvMode} · 开仓:${openLabel} · 跨所在场:${activeN}`;
+      if (hint) {
+        if (cv.live) {
+          hint.textContent = "跨所引擎当前为实盘模式,将按 config 真实下单。";
+        } else {
+          hint.textContent = "跨所引擎当前为影子模式,不会真实下单;切实盘需改 config 的 live_trading_enabled。";
+        }
+      }
+    }
+
+    function renderStrategyCapitalResults(results) {
+      const box = document.getElementById("strategy-capital-results");
+      if (!box) { return; }
+      if (!Array.isArray(results) || !results.length) {
+        box.innerHTML = "";
+        return;
+      }
+      box.innerHTML = results.map((r) => {
+        const venue = escapeHTML(r.venue || "?");
+        if (r.success) {
+          const before = r.before ? Number(r.before.total_movable_usdt || 0).toFixed(2) : "-";
+          const after = r.after ? Number(r.after.total_movable_usdt || 0).toFixed(2) : "-";
+          return `<div style="color:#86efac;margin:2px 0;">${venue} ✓ 调仓成功 (前 ${before} → 后 ${after} USDT)</div>`;
+        }
+        return `<div style="color:#fca5a5;margin:2px 0;">${venue} ✗ ${escapeHTML(r.error || "失败")}</div>`;
+      }).join("");
+    }
+
+    async function refreshStrategyStatus() {
+      if (selectedVenue !== "all") { return; }
+      try {
+        const st = await loadJSON("/api/strategy/status");
+        renderStrategyStatus(st);
+      } catch (err) {
+        renderStrategyStatus(null);
+        const line = document.getElementById("strategy-status-line");
+        if (line) { line.textContent = "策略状态读取失败: " + err.message; }
+      }
+    }
+
+    async function applyStrategyCapital() {
+      const input = document.getElementById("strategy-capital-input");
+      const target = Number(input && input.value ? input.value : "0");
+      if (!Number.isFinite(target) || target <= 0) {
+        alert("请输入大于 0 的每所交易仓位 USDT。");
+        return;
+      }
+      try {
+        const result = await postJSON("/api/strategy/capital", { target_usdt: target, secret_path: SECRET_PATH });
+        window.localStorage.setItem(strategyCapitalStorageKey, String(target));
+        renderStrategyCapitalResults(result.results || []);
+        await refreshStrategyStatus();
+        await refreshVenueOverview();
+      } catch (err) {
+        alert("全所调仓失败: " + err.message);
+      }
+    }
+
+    async function startStrategy() {
+      if (!confirm("确认执行策略启动?\n(启动 Bybit + 开启跨所开仓;Binance 不自动启动)")) { return; }
+      try {
+        const result = await postJSON("/api/strategy/start", { secret_path: SECRET_PATH, lookback_days: 30 });
+        const msgs = (result.steps || []).map((s) => `${s.step}: ${s.message}`).join("\n");
+        alert("策略启动完成:\n" + msgs);
+        await refreshStrategyStatus();
+        await refreshVenueOverview();
+        await refreshDashboard();
+      } catch (err) {
+        alert("策略启动失败: " + err.message);
+      }
+    }
+
+    async function stopStrategy() {
+      if (!confirm("确认执行策略停止?\n(停止 Bybit + 关闭跨所开仓;在场持仓继续管理)")) { return; }
+      try {
+        const result = await postJSON("/api/strategy/stop", {});
+        const msgs = (result.steps || []).map((s) => `${s.step}: ${s.message}`).join("\n");
+        alert("策略停止完成:\n" + msgs);
+        await refreshStrategyStatus();
+        await refreshVenueOverview();
+        await refreshDashboard();
+      } catch (err) {
+        alert("策略停止失败: " + err.message);
+      }
+    }
+
+    function initStrategyControl() {
+      const saved = window.localStorage.getItem(strategyCapitalStorageKey);
+      const input = document.getElementById("strategy-capital-input");
+      if (input && saved) { input.value = saved; }
+      document.getElementById("strategy-capital-btn")?.addEventListener("click", applyStrategyCapital);
+      document.getElementById("strategy-start-btn")?.addEventListener("click", startStrategy);
+      document.getElementById("strategy-stop-btn")?.addEventListener("click", stopStrategy);
+      applyStrategyPanelVisibility();
+    }
+
     // ===== 多所运行总览:每所独立的运行模式 / 回看天数 / 目标仓位 / 启停 / 调仓 =====
     let knownVenues = []; // 由 loadVenues() 填充的具名所列表(不含 all 哨兵)。
 
@@ -1836,6 +1974,8 @@
       if (titleEl) {
         titleEl.textContent = showAll ? "多所运行总览" : ("运行控制 · " + target);
       }
+      applyStrategyPanelVisibility();
+      if (showAll) { refreshStrategyStatus(); }
     }
 
     // refreshVenueOverview:仅更新每所运行徽标 / 阶段 / 模式 / 启停按钮可用态,不触碰输入框。
@@ -1937,7 +2077,7 @@
       }
     }
 
-    document.getElementById("refresh-btn")?.addEventListener("click", () => { refreshDashboard(); refreshVenueOverview(); });
+    document.getElementById("refresh-btn")?.addEventListener("click", () => { refreshDashboard(); refreshVenueOverview(); refreshStrategyStatus(); });
     document.getElementById("start-all-btn")?.addEventListener("click", startAllVenues);
     document.getElementById("stop-all-btn")?.addEventListener("click", stopAllVenues);
     document.getElementById("save-risk-config-btn")?.addEventListener("click", saveRiskConfig);
@@ -2091,9 +2231,9 @@
       if (dashboardStarted) { return; }
       dashboardStarted = true;
       // 先加载 venue 列表(填充 knownVenues),构建多所卡片(一次),再渲染主面板与状态。
-      loadVenues().then(() => { renderVenueTabs(); buildVenueOverview(); refreshVenueOverview(); });
+      loadVenues().then(() => { renderVenueTabs(); buildVenueOverview(); initStrategyControl(); refreshVenueOverview(); refreshStrategyStatus(); });
       refreshDashboard();
-      setInterval(() => { refreshDashboard(); refreshVenueOverview(); }, 5000);
+      setInterval(() => { refreshDashboard(); refreshVenueOverview(); refreshStrategyStatus(); }, 5000);
     }
 
     async function attemptEnter(tokenFromGate) {

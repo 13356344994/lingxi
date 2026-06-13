@@ -69,7 +69,10 @@ func (e *FundingRateSniperEngine) finalizeGracefulShutdown(cause error) {
 			CycleID:    cycleID,
 			Reason:     detail,
 		}})
-		e.notifyLifecycle(level, title, detail)
+		// 计划停机仅落盘/本地日志;异常退出仍推 Telegram,便于与崩溃区分。
+		if abnormal {
+			e.notifyLifecycle(level, title, detail)
+		}
 		if e.logger != nil {
 			e.logger.Printf("[shutdown] 停机收尾完成(异常退出=%t)", abnormal)
 		}

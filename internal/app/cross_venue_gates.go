@@ -26,6 +26,7 @@ type crossVenueGateInput struct {
 	Opp           CrossVenueOpportunity
 	Positions     []CrossVenuePosition
 	BybitHeld     func(sym venue.Symbol) bool
+	FundingHeld   func(sym venue.Symbol) bool // 任一 okx/gate 单所 funding 引擎台账在场
 	HaltActive    bool
 	SymbolCooling func(sym string) bool
 	Now           time.Time
@@ -82,6 +83,9 @@ func evaluateCrossVenueOpenGate(
 	sym := venue.Symbol(in.Opp.Symbol)
 	if in.BybitHeld != nil && in.BybitHeld(sym) {
 		return fail("symbol 已被 Bybit 单所引擎持有")
+	}
+	if in.FundingHeld != nil && in.FundingHeld(sym) {
+		return fail("symbol 已被 OKX/Gate 单所 funding 引擎持有")
 	}
 	for _, p := range in.Positions {
 		if p.Symbol == in.Opp.Symbol && p.Status != CrossVenueStatusClosed {

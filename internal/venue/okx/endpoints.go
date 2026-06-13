@@ -11,11 +11,12 @@ const (
 	pathOpenInterest = "/api/v5/public/open-interest"
 	pathCandles      = "/api/v5/market/candles"
 
-	pathBalance       = "/api/v5/account/balance"
-	pathPositions     = "/api/v5/account/positions"
-	pathTradeFee      = "/api/v5/account/trade-fee"
-	pathAccountConfig = "/api/v5/account/config"
-	pathSetLeverage   = "/api/v5/account/set-leverage"
+	pathBalance        = "/api/v5/account/balance"
+	pathPositions      = "/api/v5/account/positions"
+	pathTradeFee       = "/api/v5/account/trade-fee"
+	pathAccountConfig  = "/api/v5/account/config"
+	pathInterestLimits = "/api/v5/account/interest-limits" // 私有读:借币利率+剩余额度(type=2 市场借币)
+	pathSetLeverage    = "/api/v5/account/set-leverage"
 
 	pathPlaceOrder     = "/api/v5/trade/order"
 	pathCancelOrder    = "/api/v5/trade/cancel-order"

@@ -2,6 +2,7 @@ package gate
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -13,19 +14,24 @@ import (
 )
 
 func TestQtyToSignedContractSize(t *testing.T) {
-	n, err := qtyToSignedContractSize(venue.SideSell, 250, 100)
+	n, err := qtyToSignedContractSize(venue.SideSell, 250, 100, 1)
 	if err != nil {
 		t.Fatalf("qtyToSignedContractSize: %v", err)
 	}
 	if n != -2 {
 		t.Errorf("Side=Sell Qty=250 multiplier=100 → size=-2, got %d", n)
 	}
-	n2, err := qtyToSignedContractSize(venue.SideBuy, 250, 100)
+	n2, err := qtyToSignedContractSize(venue.SideBuy, 250, 100, 1)
 	if err != nil || n2 != 2 {
 		t.Errorf("Buy 250/100 → 2, got %d err=%v", n2, err)
 	}
-	if _, err := qtyToSignedContractSize(venue.SideBuy, 50, 100); err == nil {
+	if _, err := qtyToSignedContractSize(venue.SideBuy, 50, 100, 1); err == nil {
 		t.Error("向零取整为 0 应报错")
+	}
+	// lot=5 张:70 币 / mult10 = 7 张 → 5 张
+	n3, err := qtyToSignedContractSize(venue.SideBuy, 70, 10, 5)
+	if err != nil || n3 != 5 {
+		t.Fatalf("70 coin ct=10 lot=5 → 5 contracts, got %d err=%v", n3, err)
 	}
 }
 
@@ -37,9 +43,88 @@ func TestSanitizeOrderText(t *testing.T) {
 	if len(got) > 2+28 {
 		t.Errorf("t- 后应 ≤28 字符: len=%d %q", len(got), got)
 	}
+	if strings.ToLower(got) != got {
+		t.Errorf("应全小写: %q", got)
+	}
 	long := sanitizeOrderText("abcdefghijklmnopqrstuvwxyz0123456789EXTRA")
 	if len(long) > 30 {
 		t.Errorf("应截断: len=%d", len(long))
+	}
+}
+
+func TestSanitizeOrderTextCrossVenueClientID(t *testing.T) {
+	raw := "cv-HOMEUSDT-bybit-1781271403-h1"
+	got := sanitizeOrderText(raw)
+	if got == "" {
+		t.Fatal("跨所 clientOrderID 净化后不应为空")
+	}
+	if !strings.HasPrefix(got, "t-") {
+		t.Fatalf("应带 t- 前缀: %q", got)
+	}
+	if strings.ContainsAny(got, ".@:/") {
+		t.Fatalf("不应含非法字符: %q", got)
+	}
+	wantBody := "cv-homeusdt-bybit-1781271403-h1"
+	if len(wantBody) > 28 {
+		wantBody = wantBody[:28]
+	}
+	if got != "t-"+wantBody {
+		t.Fatalf("净化结果错误: got=%q want=t-%s", got, wantBody)
+	}
+}
+
+func TestSanitizeOrderTextDropsIllegalChars(t *testing.T) {
+	got := sanitizeOrderText("bad.id@value!")
+	if got != "t-badidvalue" {
+		t.Fatalf("非法字符应过滤: %q", got)
+	}
+}
+
+func TestBuildSpotOrderBodyMarketSellNoGTC(t *testing.T) {
+	a := fakeGate(t, map[string]string{})
+	body, err := a.buildSpotOrderBody(context.Background(), venue.OrderRequest{
+		Market: venue.MarketSpot, Symbol: "HOME-USDT", Side: venue.SideSell,
+		Type: venue.OrderTypeMarket, Qty: 1000,
+		ClientOrderID: "cv-HOMEUSDT-gate-1781271403-cl1",
+	})
+	if err != nil {
+		t.Fatalf("buildSpotOrderBody: %v", err)
+	}
+	if body.Type != "market" {
+		t.Fatalf("应为市价卖: %+v", body)
+	}
+	if body.TimeInForce != "" {
+		t.Fatalf("现货市价卖不得带 time_in_force: %+v", body)
+	}
+	data, err := json.Marshal(body)
+	if err != nil {
+		t.Fatalf("json.Marshal: %v", err)
+	}
+	if strings.Contains(string(data), "time_in_force") {
+		t.Fatalf("JSON 不应含 time_in_force: %s", data)
+	}
+}
+
+func TestBuildFuturesOrderBodyMarketReduceOnlyIOC(t *testing.T) {
+	a := fakeGate(t, map[string]string{
+		pathFuturesContracts + "/HOME_USDT": `{"name":"HOME_USDT","quanto_multiplier":"1","order_price_round":"0.0001","order_size_round":1}`,
+	})
+	body, err := a.buildFuturesOrderBody(context.Background(), venue.OrderRequest{
+		Market: venue.MarketPerp, Symbol: "HOME-USDT", Side: venue.SideSell,
+		Type: venue.OrderTypeMarket, Qty: 1000, ReduceOnly: true,
+		ClientOrderID: "cv-HOMEUSDT-gate-1781271403-cl1",
+	})
+	if err != nil {
+		t.Fatalf("buildFuturesOrderBody: %v", err)
+	}
+	if body.TIF != "ioc" {
+		t.Fatalf("永续市价单 tif 应为 ioc, got %q", body.TIF)
+	}
+	if body.Price != "0" {
+		t.Fatalf("永续市价单 price 应为 0, got %q", body.Price)
+	}
+	if !strings.HasPrefix(body.Text, "t-") {
+		t.Fatalf("text 应合法化: %q", body.Text)
 	}
 }
 
@@ -68,6 +153,22 @@ func TestBuildSpotOrderBodyMarketBuyIOC(t *testing.T) {
 	}
 	if body.Amount != "0.01" || body.Price != "60000" {
 		t.Errorf("amount/price 错误: %+v", body)
+	}
+}
+
+func TestBuildFuturesOrderBodySignedSizeWithLotStep(t *testing.T) {
+	a := fakeGate(t, map[string]string{
+		pathFuturesContracts + "/H_USDT": `{"name":"H_USDT","quanto_multiplier":"10","order_price_round":"0.0001","order_size_round":5}`,
+	})
+	body, err := a.buildFuturesOrderBody(context.Background(), venue.OrderRequest{
+		Market: venue.MarketPerp, Symbol: "H-USDT", Side: venue.SideBuy,
+		Type: venue.OrderTypeMarket, Qty: 70,
+	})
+	if err != nil {
+		t.Fatalf("buildFuturesOrderBody: %v", err)
+	}
+	if body.Size != 5 {
+		t.Fatalf("70 coin / mult10 lot5 → 5 contracts, got size=%d", body.Size)
 	}
 }
 

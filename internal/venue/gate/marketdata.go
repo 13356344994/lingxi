@@ -193,6 +193,7 @@ func parseFundingSnapshot(a *Adapter, c gateFuturesContract) (venue.FundingSnaps
 	}, nil
 }
 
+// gateOrderBook 是**合约** order_book 格式:档位为对象 {p,s}(s=张数整数)。
 type gateOrderBook struct {
 	ID   int64 `json:"id"`
 	Asks []struct {
@@ -203,6 +204,62 @@ type gateOrderBook struct {
 		P string `json:"p"`
 		S int64  `json:"s"`
 	} `json:"bids"`
+}
+
+// gateSpotOrderBook 是**现货** order_book 格式:档位为数组 ["价","量"](量=币数量字符串)。
+// 踩坑实录:现货与合约格式不同,共用 gateOrderBook 解析现货必报 "cannot unmarshal array"(实弹自检发现)。
+type gateSpotOrderBook struct {
+	ID   int64       `json:"id"`
+	Asks [][2]string `json:"asks"`
+	Bids [][2]string `json:"bids"`
+}
+
+// bookLevel 是两种格式归一后的档位(价格、币数量)。
+type bookLevel struct {
+	price float64
+	qty   float64
+}
+
+func (ob gateOrderBook) levels(mult float64) (asks, bids []bookLevel) {
+	for _, lv := range ob.Asks {
+		asks = append(asks, bookLevel{price: parseFloat(lv.P), qty: float64(lv.S) * mult})
+	}
+	for _, lv := range ob.Bids {
+		bids = append(bids, bookLevel{price: parseFloat(lv.P), qty: float64(lv.S) * mult})
+	}
+	return
+}
+
+func (ob gateSpotOrderBook) levels() (asks, bids []bookLevel) {
+	for _, lv := range ob.Asks {
+		asks = append(asks, bookLevel{price: parseFloat(lv[0]), qty: parseFloat(lv[1])})
+	}
+	for _, lv := range ob.Bids {
+		bids = append(bids, bookLevel{price: parseFloat(lv[0]), qty: parseFloat(lv[1])})
+	}
+	return
+}
+
+// fetchOrderBookLevels 按市场选择正确格式拉档位并归一(合约张数已×multiplier)。
+func (a *Adapter) fetchOrderBookLevels(ctx context.Context, m venue.Market, raw string, limit int, mult float64) (asks, bids []bookLevel, err error) {
+	q := url.Values{}
+	q.Set("limit", strconv.Itoa(limit))
+	if m == venue.MarketPerp {
+		q.Set("contract", raw)
+		var ob gateOrderBook
+		if err := a.t.publicGet(ctx, pathFuturesOrderBook, q, &ob); err != nil {
+			return nil, nil, err
+		}
+		asks, bids = ob.levels(mult)
+		return asks, bids, nil
+	}
+	q.Set("currency_pair", raw)
+	var ob gateSpotOrderBook
+	if err := a.t.publicGet(ctx, pathSpotOrderBook, q, &ob); err != nil {
+		return nil, nil, err
+	}
+	asks, bids = ob.levels()
+	return asks, bids, nil
 }
 
 // FetchBookTicker 用 order_book limit=1 取最优买卖一档;合约张数×quanto_multiplier 换算为币数量。
@@ -217,36 +274,18 @@ func (a *Adapter) FetchBookTicker(ctx context.Context, m venue.Market, s venue.S
 			mult = inst.ContractSize
 		}
 	}
-	var ob gateOrderBook
-	q := url.Values{}
-	q.Set("limit", "1")
-	if m == venue.MarketPerp {
-		q.Set("contract", raw)
-		if err := a.t.publicGet(ctx, pathFuturesOrderBook, q, &ob); err != nil {
-			return venue.BookTicker{}, err
-		}
-	} else {
-		q.Set("currency_pair", raw)
-		if err := a.t.publicGet(ctx, pathSpotOrderBook, q, &ob); err != nil {
-			return venue.BookTicker{}, err
-		}
+	asks, bids, err := a.fetchOrderBookLevels(ctx, m, raw, 1, mult)
+	if err != nil {
+		return venue.BookTicker{}, err
 	}
 	bt := venue.BookTicker{Symbol: s, Market: m}
-	if len(ob.Bids) > 0 {
-		bt.BidPrice = parseFloat(ob.Bids[0].P)
-		if m == venue.MarketPerp {
-			bt.BidQty = float64(ob.Bids[0].S) * mult
-		} else {
-			bt.BidQty = float64(ob.Bids[0].S)
-		}
+	if len(bids) > 0 {
+		bt.BidPrice = bids[0].price
+		bt.BidQty = bids[0].qty
 	}
-	if len(ob.Asks) > 0 {
-		bt.AskPrice = parseFloat(ob.Asks[0].P)
-		if m == venue.MarketPerp {
-			bt.AskQty = float64(ob.Asks[0].S) * mult
-		} else {
-			bt.AskQty = float64(ob.Asks[0].S)
-		}
+	if len(asks) > 0 {
+		bt.AskPrice = asks[0].price
+		bt.AskQty = asks[0].qty
 	}
 	return bt, nil
 }
@@ -266,34 +305,16 @@ func (a *Adapter) FetchDepth(ctx context.Context, m venue.Market, s venue.Symbol
 			mult = inst.ContractSize
 		}
 	}
-	q := url.Values{}
-	q.Set("limit", strconv.Itoa(limit))
-	var ob gateOrderBook
-	if m == venue.MarketPerp {
-		q.Set("contract", raw)
-		if err := a.t.publicGet(ctx, pathFuturesOrderBook, q, &ob); err != nil {
-			return venue.Depth{}, err
-		}
-	} else {
-		q.Set("currency_pair", raw)
-		if err := a.t.publicGet(ctx, pathSpotOrderBook, q, &ob); err != nil {
-			return venue.Depth{}, err
-		}
+	asks, bids, err := a.fetchOrderBookLevels(ctx, m, raw, limit, mult)
+	if err != nil {
+		return venue.Depth{}, err
 	}
 	depth := venue.Depth{Symbol: s, Market: m}
-	for _, lv := range ob.Bids {
-		qty := float64(lv.S)
-		if m == venue.MarketPerp {
-			qty *= mult
-		}
-		depth.Bids = append(depth.Bids, venue.DepthLevel{Price: parseFloat(lv.P), Qty: qty})
+	for _, lv := range bids {
+		depth.Bids = append(depth.Bids, venue.DepthLevel{Price: lv.price, Qty: lv.qty})
 	}
-	for _, lv := range ob.Asks {
-		qty := float64(lv.S)
-		if m == venue.MarketPerp {
-			qty *= mult
-		}
-		depth.Asks = append(depth.Asks, venue.DepthLevel{Price: parseFloat(lv.P), Qty: qty})
+	for _, lv := range asks {
+		depth.Asks = append(depth.Asks, venue.DepthLevel{Price: lv.price, Qty: lv.qty})
 	}
 	return depth, nil
 }

@@ -53,7 +53,8 @@ type AccountData interface {
 	FetchBalances(ctx context.Context) (Balances, error)
 	FetchPositions(ctx context.Context) ([]Position, error)
 	FetchTradingCostProfile(ctx context.Context, syms []Symbol) (CostProfile, error)
-	MaxBorrowable(ctx context.Context, asset string) (float64, error) // 不支持→ErrUnsupported
+	MaxBorrowable(ctx context.Context, asset string) (float64, error)        // 不支持→ErrUnsupported
+	FetchBorrowQuote(ctx context.Context, asset string) (BorrowQuote, error) // 不支持→ErrUnsupported
 	FetchLeverageBrackets(ctx context.Context, s Symbol) ([]LeverageBracket, error)
 	VerifyAPIKeyPosture(ctx context.Context) (KeyPosture, error)
 }
@@ -103,6 +104,7 @@ type Capabilities struct {
 	MaxBatchOrders           int
 	ContractBasedPerp        bool     // 永续是否按「张」而非「币数量」下单
 	SupportsCapitalRebalance bool     // 是否支持面板「自动调仓」
+	SupportsBorrowQuote      bool     // 是否支持借币行情只读探测(FetchBorrowQuote,跨所扫描遥测用)
 	CapitalWallets           []Wallet // 该所参与调仓的钱包集合
 }
 

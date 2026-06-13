@@ -60,6 +60,7 @@ func (a *Adapter) Capabilities() venue.Capabilities {
 		MaxBatchOrders:           1,              // PlaceBatch 未实现,单笔 PlaceOrder 可用
 		ContractBasedPerp:        true,           // USDT 永续 size 为带符号整数张数,需 quanto_multiplier 换算
 		SupportsCapitalRebalance: true,           // capital.go:spot↔futures 所内划转
+		SupportsBorrowQuote:      true,           // unified/borrowable + estimate_rate 只读探测
 		CapitalWallets:           []venue.Wallet{WalletSpot, WalletFutures},
 	}
 }

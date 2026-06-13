@@ -151,6 +151,40 @@ func (a *Adapter) MaxBorrowable(ctx context.Context, asset string) (float64, err
 	return 0, venue.ErrUnsupported
 }
 
+// FetchBorrowQuote 拉市场借币行情(只读):GET /api/v5/account/interest-limits?type=2&ccy=X
+// rate 字段为日利率,HourlyRate=rate/24;surplusLmt 为剩余可借额度(base 单位)。
+func (a *Adapter) FetchBorrowQuote(ctx context.Context, asset string) (venue.BorrowQuote, error) {
+	base := strings.ToUpper(strings.TrimSpace(asset))
+	if base == "" {
+		return venue.BorrowQuote{}, fmt.Errorf("okx FetchBorrowQuote: asset 为空")
+	}
+	q := url.Values{}
+	q.Set("type", "2")
+	q.Set("ccy", base)
+	var rows []struct {
+		Records []struct {
+			Ccy        string `json:"ccy"`
+			Rate       string `json:"rate"`
+			SurplusLmt string `json:"surplusLmt"`
+		} `json:"records"`
+	}
+	if err := a.t.signedGet(ctx, pathInterestLimits, q, &rows); err != nil {
+		return venue.BorrowQuote{}, err
+	}
+	if len(rows) == 0 || len(rows[0].Records) == 0 {
+		return venue.BorrowQuote{Asset: base}, nil
+	}
+	rec := rows[0].Records[0]
+	maxBorrow := parseFloat(rec.SurplusLmt)
+	dailyRate := parseFloat(rec.Rate)
+	return venue.BorrowQuote{
+		Asset:         base,
+		MaxBorrowable: maxBorrow,
+		HourlyRate:    dailyRate / 24.0,
+		Available:     maxBorrow > 0,
+	}, nil
+}
+
 // FetchLeverageBrackets OKX 杠杆档位公共接口未接入本适配器。
 func (a *Adapter) FetchLeverageBrackets(ctx context.Context, s venue.Symbol) ([]venue.LeverageBracket, error) {
 	return nil, venue.ErrUnsupported

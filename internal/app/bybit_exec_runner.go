@@ -134,11 +134,16 @@ func (e *BybitShadowExecutor) PlanCycle(ctx context.Context, availableSlots int,
 	// 标的数均分,不被 perp-only 标的占名额/稀释。
 	tradeableSnaps := make([]venue.FundingSnapshot, 0, len(snaps))
 	for _, s := range snaps {
-		_, hasSpot := instrByKey[instrumentKey{s.Symbol, venue.MarketSpot}]
+		spotInstr, hasSpot := instrByKey[instrumentKey{s.Symbol, venue.MarketSpot}]
 		_, hasPerp := instrByKey[instrumentKey{s.Symbol, venue.MarketPerp}]
-		if hasSpot && hasPerp {
-			tradeableSnaps = append(tradeableSnaps, s)
+		if !hasSpot || !hasPerp {
+			continue
 		}
+		if s.LastFundingRate < 0 && !spotInstr.SpotBorrowable {
+			result.Rejected = append(result.Rejected, BybitPlanRejection{s.Symbol, "现货不支持杠杆借币(marginTrading=none),负carry无法做空对冲腿"})
+			continue
+		}
+		tradeableSnaps = append(tradeableSnaps, s)
 	}
 	candidates := selectBybitCandidates(tradeableSnaps, e.cfg)
 	result.Candidates = candidates

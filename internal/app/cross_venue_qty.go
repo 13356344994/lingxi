@@ -26,17 +26,23 @@ func alignCrossVenueQty(notionalUSDT, refPrice float64, highInstr, lowInstr venu
 }
 
 // normalizeVenueQty 按 instrument 步进/合约面值向下取整(币数量口径)。
+// ContractBasedPerp 所:StepSize 为「张」步进(lotSz/OrderSizeRound),须先对张数取整再 ×ContractSize,
+// 与 okx/gate PlaceOrder 内 qty→张 换算保持一致(不可把 StepSize 当币步进,否则对齐量大于实际可成交量)。
 func normalizeVenueQty(qty float64, instr venue.Instrument, contractBased bool) float64 {
 	if qty <= 0 {
 		return 0
 	}
 	if contractBased && instr.ContractSize > 0 {
-		// 张数取整 → 币数量
-		contracts := math.Floor(qty/instr.ContractSize + 1e-12)
+		contracts := qty / instr.ContractSize
+		if instr.StepSize > 0 {
+			contracts = math.Floor(contracts/instr.StepSize+1e-12) * instr.StepSize
+		} else {
+			contracts = math.Floor(contracts + 1e-12)
+		}
 		if contracts <= 0 {
 			return 0
 		}
-		qty = contracts * instr.ContractSize
+		return contracts * instr.ContractSize
 	}
 	if instr.StepSize > 0 {
 		qty = floorToStep(qty, instr.StepSize)

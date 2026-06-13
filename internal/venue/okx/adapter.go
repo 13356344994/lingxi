@@ -61,6 +61,7 @@ func (a *Adapter) Capabilities() venue.Capabilities {
 		MaxBatchOrders:           1,              // PlaceBatch 未实现,单笔 PlaceOrder 可用
 		ContractBasedPerp:        true,           // USDT 永续 sz 单位为「张」,需 ctVal 换算
 		SupportsCapitalRebalance: true,           // capital.go:funding↔trading 所内划转
+		SupportsBorrowQuote:      true,           // interest-limits 只读探测
 		CapitalWallets:           []venue.Wallet{WalletFunding, WalletTrading},
 	}
 }

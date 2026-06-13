@@ -95,3 +95,36 @@ func TestArmDeadMansSwitchUnsupported(t *testing.T) {
 		t.Fatalf("ArmDeadMansSwitch 应 ErrUnsupported, got %v", err)
 	}
 }
+
+func TestFetchBorrowQuoteParseSuccess(t *testing.T) {
+	a := newHarness(t, func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.Contains(r.URL.Path, PathMarginCrossMarginData):
+			_, _ = w.Write([]byte(`[{"vipLevel":0,"coin":"H","borrowable":true,"dailyInterest":"0.0024"}]`))
+		case strings.Contains(r.URL.Path, PathMarginMaxBorrowable):
+			_, _ = w.Write([]byte(`{"amount":"1000","borrowLimit":"5000"}`))
+		default:
+			http.NotFound(w, r)
+		}
+	})
+	q, err := a.FetchBorrowQuote(context.Background(), "H")
+	if err != nil {
+		t.Fatalf("FetchBorrowQuote: %v", err)
+	}
+	if q.Asset != "H" || !q.Available || q.MaxBorrowable != 1000 {
+		t.Fatalf("解析错误: %+v", q)
+	}
+	wantHourly := 0.0024 / 24.0
+	if q.HourlyRate < wantHourly-1e-12 || q.HourlyRate > wantHourly+1e-12 {
+		t.Fatalf("HourlyRate=%v want=%v", q.HourlyRate, wantHourly)
+	}
+}
+
+func TestFetchBorrowQuotePropagatesError(t *testing.T) {
+	a := newHarness(t, func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "boom", http.StatusBadRequest)
+	})
+	if _, err := a.FetchBorrowQuote(context.Background(), "H"); err == nil {
+		t.Fatal("应传递上游错误")
+	}
+}

@@ -279,6 +279,8 @@ func DefaultEngineConfig() EngineConfig {
 			MinSpreadAPR:        0.30,
 			AlertSpreadAPR:      1.0,
 			TopN:                30,
+			BorrowProbeEnabled:  true,
+			BorrowProbeTopN:     10,
 		},
 		CrossVenueExecutor: CrossVenueExecutorConfig{
 			Enabled:                      false,
@@ -300,6 +302,20 @@ func DefaultEngineConfig() EngineConfig {
 			DepthUsageRatio:              0.20,
 			SymbolCooldownHours:          1,
 			DeadManCountdownSeconds:      60,
+		},
+		FundingExecutor: VenueFundingExecutorConfig{
+			LiveTradingEnabled:     false,
+			TopN:                   1,
+			MinFundingRate:         0.0005,
+			MinNetProfitRate:       0.0005,
+			LeadSeconds:            240,
+			HoldAfterSeconds:       20,
+			MaxConcurrentPositions: 1,
+			MaxPositionUSDT:        30,
+			RollEnabled:            true,
+			MaxHoldSettlements:     12,
+			EVGateEnabled:          true,
+			SlippageBudgetBps:      20,
 		},
 		BybitExecutor: BybitExecutorConfig{
 			// 主安全闸默认关闭:启动 bybit 任务也只 shadow(规划+日志,绝不下单),置 true 才真实下单。

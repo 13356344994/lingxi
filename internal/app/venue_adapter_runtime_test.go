@@ -6,10 +6,25 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
+	"lingxi/internal/venue"
 	"lingxi/internal/venue/gate"
 	"lingxi/internal/venue/okx"
 )
+
+// waitForRuntimeControllerStopped 在 Stop 之后轮询直至后台 runTask goroutine 完全退出,
+// 避免其仍向 t.TempDir 写运行日志/领域事件时触发 RemoveAll「directory not empty」。
+func waitForRuntimeControllerStopped(t *testing.T, c *RuntimeController) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for c.Status().Running && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if c.Status().Running {
+		t.Fatal("后台任务停止超时,仍在 running")
+	}
+}
 
 // TestWireVenueAdapterMissingCredentials 凭证缺失时 wire 失败,启动隔离可跳过该所(不 panic)。
 func TestWireVenueAdapterMissingCredentials(t *testing.T) {
@@ -68,8 +83,8 @@ func TestWireVenueAdapterBinanceBybitNoOp(t *testing.T) {
 	}
 }
 
-// TestRuntimeControllerStartRejectsOkxVenue 钉死安全闸:okx 调 Start 必须明确拒绝且说明原因。
-func TestRuntimeControllerStartRejectsOkxVenue(t *testing.T) {
+// TestRuntimeControllerStartAcceptsOkxFundingVenue okx Start 应启动 funding 执行器(不再「尚未接入」拒绝)。
+func TestRuntimeControllerStartAcceptsOkxFundingVenue(t *testing.T) {
 	dir := t.TempDir()
 	store, err := NewReportStore(dir)
 	if err != nil {
@@ -80,20 +95,23 @@ func TestRuntimeControllerStartRejectsOkxVenue(t *testing.T) {
 		t.Fatalf("NewRuntimeController: %v", err)
 	}
 	c.venueName = okx.VenueName
+	orig := venueFundingVenueFactory
+	venueFundingVenueFactory = func(_, _ string) (venue.Venue, error) {
+		return &fakeVenueFundingTrader{}, nil
+	}
+	defer func() { venueFundingVenueFactory = orig }()
 	err = c.Start(RuntimeStartRequest{Mode: string(RuntimeModeLive), SecretPath: "secret.yaml"})
-	if err == nil {
-		t.Fatal("okx venue Start 应被拒绝")
+	if err != nil {
+		t.Fatalf("okx Start 应接受 funding 引擎: %v", err)
 	}
-	if !strings.Contains(err.Error(), "自动交易引擎尚未接入") {
-		t.Fatalf("错误应说明引擎未接入: %v", err)
+	if err := c.Stop(); err != nil {
+		t.Fatalf("Stop: %v", err)
 	}
-	if !strings.Contains(err.Error(), okx.VenueName) {
-		t.Fatalf("错误应包含 venue 名: %v", err)
-	}
+	waitForRuntimeControllerStopped(t, c)
 }
 
-// TestRuntimeControllerStartRejectsGateVenue gate 与 okx 同闸,一并钉死。
-func TestRuntimeControllerStartRejectsGateVenue(t *testing.T) {
+// TestRuntimeControllerStartAcceptsGateFundingVenue gate 与 okx 同路径。
+func TestRuntimeControllerStartAcceptsGateFundingVenue(t *testing.T) {
 	dir := t.TempDir()
 	store, err := NewReportStore(dir)
 	if err != nil {
@@ -104,11 +122,17 @@ func TestRuntimeControllerStartRejectsGateVenue(t *testing.T) {
 		t.Fatalf("NewRuntimeController: %v", err)
 	}
 	c.venueName = gate.VenueName
+	orig := venueFundingVenueFactory
+	venueFundingVenueFactory = func(_, _ string) (venue.Venue, error) {
+		return &fakeVenueFundingTrader{}, nil
+	}
+	defer func() { venueFundingVenueFactory = orig }()
 	err = c.Start(RuntimeStartRequest{Mode: string(RuntimeModeLive), SecretPath: "secret.yaml"})
-	if err == nil {
-		t.Fatal("gate venue Start 应被拒绝")
+	if err != nil {
+		t.Fatalf("gate Start 应接受 funding 引擎: %v", err)
 	}
-	if !strings.Contains(err.Error(), "自动交易引擎尚未接入") {
-		t.Fatalf("错误应说明引擎未接入: %v", err)
+	if err := c.Stop(); err != nil {
+		t.Fatalf("Stop: %v", err)
 	}
+	waitForRuntimeControllerStopped(t, c)
 }

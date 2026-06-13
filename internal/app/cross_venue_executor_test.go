@@ -1,8 +1,10 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"net/http/httptest"
@@ -14,6 +16,7 @@ import (
 	"time"
 
 	"lingxi/internal/venue"
+	"lingxi/internal/venue/binance"
 	"lingxi/internal/venue/bybit"
 	"lingxi/internal/venue/gate"
 	"lingxi/internal/venue/okx"
@@ -31,6 +34,10 @@ type crossVenueTestVenue struct {
 	contractBased bool
 	placeCount    *int32
 	placeFailNext bool
+	// placeAlwaysErr 非空时每笔 PlaceOrder 都返回该错误(模拟 duplicate / 51169 等交易所拒单)。
+	placeAlwaysErr error
+	// placeClientIDs 记录每笔 PlaceOrder 的 client order ID(跨轮幂等回归测试用)。
+	placeClientIDs []string
 	// clearOnReduceOnly=true 时 reduce-only 单成交后清空持仓(模拟平仓真实成交);
 	// false 时持仓保持不变(模拟 IOC 没吃干净——平仓核验必须能发现)。
 	clearOnReduceOnly bool
@@ -99,6 +106,12 @@ func (f *crossVenueTestVenue) FetchPositions(context.Context) ([]venue.Position,
 
 func (f *crossVenueTestVenue) PlaceOrder(_ context.Context, req venue.OrderRequest) (venue.OrderResult, error) {
 	atomic.AddInt32(f.placeCount, 1)
+	if f.placeClientIDs != nil {
+		f.placeClientIDs = append(f.placeClientIDs, req.ClientOrderID)
+	}
+	if f.placeAlwaysErr != nil {
+		return venue.OrderResult{Status: "rejected", ClientOrderID: req.ClientOrderID}, f.placeAlwaysErr
+	}
 	if f.placeFailNext {
 		f.placeFailNext = false
 		return venue.OrderResult{Status: "rejected"}, errors.New("simulated fail")
@@ -623,6 +636,159 @@ func TestCrossVenueCloseVerifiedRemovesLedger(t *testing.T) {
 	}
 }
 
+// assertCrossVenueCloseClientIDsIncrement 断言高费腿平仓 client ID 跨轮递增且不重复(钉死 duplicate 事故)。
+func assertCrossVenueCloseClientIDsIncrement(t *testing.T, ids []string, rounds int) {
+	t.Helper()
+	if len(ids) != rounds {
+		t.Fatalf("高费腿 PlaceOrder 次数=%d want %d", len(ids), rounds)
+	}
+	seen := make(map[string]struct{}, len(ids))
+	for i, id := range ids {
+		wantSuffix := fmt.Sprintf("ch%d", i+1)
+		if !strings.Contains(id, wantSuffix) {
+			t.Fatalf("round %d: clientID=%q 应含 %q", i+1, id, wantSuffix)
+		}
+		if _, dup := seen[id]; dup {
+			t.Fatalf("round %d: 重复 clientID=%q", i+1, id)
+		}
+		seen[id] = struct{}{}
+	}
+}
+
+// seedCrossVenueClosingExecutor 构造带 closing 持仓的执行器(落盘+内存双写,模拟 manageOpenPositions 路径)。
+func seedCrossVenueClosingExecutor(t *testing.T, high, low *crossVenueTestVenue, pos CrossVenuePosition) (*CrossVenueExecutor, *crossVenuePositionStore) {
+	t.Helper()
+	cfg := testCrossVenueExecutorConfig()
+	cfg.NetworkConfig.RecordDir = t.TempDir()
+	cfg.CrossVenueExecutor.LiveTradingEnabled = true
+	store := mustCrossVenueStore(t, cfg.NetworkConfig.RecordDir)
+	if err := store.upsert(pos); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC().Add(time.Hour)
+	e := &CrossVenueExecutor{
+		cfg:       cfg,
+		venues:    map[string]venue.Venue{bybit.VenueName: high, okx.VenueName: low},
+		store:     store,
+		logger:    testCrossVenueLogger(),
+		nowFn:     func() time.Time { return now },
+		positions: []CrossVenuePosition{pos},
+	}
+	return e, store
+}
+
+// TestCrossVenueCloseRetryClientIDIncrementsViaManageLoop 跨轮经 manageOpenPositions 重试时,
+// 高费腿 client order ID 必须随 CloseAttempts 递增(ch1/ch2/ch3…),不能重复撞 duplicate。
+func TestCrossVenueCloseRetryClientIDIncrementsViaManageLoop(t *testing.T) {
+	now := time.Now().UTC().Add(time.Hour)
+	high := newCrossVenueTestVenue(bybit.VenueName, 0.001, 8, now)
+	low := newCrossVenueTestVenue(okx.VenueName, 0.0001, 8, now)
+	high.positions = []venue.Position{{Symbol: "BTC-USDT", PositionAmt: -0.5, MarkPrice: 100, Leverage: 2}}
+	low.positions = []venue.Position{{Symbol: "BTC-USDT", PositionAmt: 0.5, MarkPrice: 100, Leverage: 2}}
+	// 高费腿每轮 duplicate 拒单、所内持仓不消失 → 必须跨轮换 client ID 重试。
+	high.placeAlwaysErr = errors.New("110072 OrderLinkedID is duplicate")
+	high.clearOnReduceOnly = false
+	low.clearOnReduceOnly = false
+	high.placeClientIDs = make([]string, 0, 3)
+
+	pos := CrossVenuePosition{
+		Symbol: "BTC-USDT", HighVenue: bybit.VenueName, LowVenue: okx.VenueName,
+		Status: CrossVenueStatusClosing, CloseReason: "测试 duplicate 重试",
+		HighLeg: CrossVenueLegState{Qty: 0.5}, LowLeg: CrossVenueLegState{Qty: 0.5},
+		OpenedAt: now.Add(-time.Hour), IdemPrefix: "dup-retry",
+	}
+	e, store := seedCrossVenueClosingExecutor(t, high, low, pos)
+
+	const rounds = 3
+	for round := 1; round <= rounds; round++ {
+		e.manageOpenPositions(context.Background(), true)
+		ps, lerr := store.load()
+		if lerr != nil || len(ps) != 1 {
+			t.Fatalf("round %d: 台账必须保留, ps=%v err=%v", round, ps, lerr)
+		}
+		if ps[0].CloseAttempts != round {
+			t.Fatalf("round %d: CloseAttempts=%d want %d", round, ps[0].CloseAttempts, round)
+		}
+		mem := activeCrossVenuePositions(e.snapshotPositions())
+		if len(mem) != 1 || mem[0].CloseAttempts != round {
+			t.Fatalf("round %d: 内存台账 CloseAttempts 未同步, mem=%+v", round, mem)
+		}
+	}
+
+	assertCrossVenueCloseClientIDsIncrement(t, high.placeClientIDs, rounds)
+}
+
+// TestCrossVenueCloseLegAlreadyFlatViaFetchPositions 一腿 FetchPositions 已为 0 时视为该腿完成,
+// 不因 51169 类拒单无限重试;两腿真实持仓归零后移出台账(落盘+内存)。
+func TestCrossVenueCloseLegAlreadyFlatViaFetchPositions(t *testing.T) {
+	now := time.Now().UTC().Add(time.Hour)
+	high := newCrossVenueTestVenue(bybit.VenueName, 0.001, 8, now)
+	low := newCrossVenueTestVenue(okx.VenueName, 0.0001, 8, now)
+	high.positions = []venue.Position{{Symbol: "BTC-USDT", PositionAmt: -0.5, MarkPrice: 100, Leverage: 2}}
+	// 低费腿所内已平,但台账仍记有剩余量(线上 okx 已平、引擎不认的典型场景)。
+	low.positions = nil
+	low.placeAlwaysErr = errors.New("51169 no position to close")
+	high.clearOnReduceOnly = true
+
+	pos := CrossVenuePosition{
+		Symbol: "BTC-USDT", HighVenue: bybit.VenueName, LowVenue: okx.VenueName,
+		Status: CrossVenueStatusClosing, CloseReason: "低费腿已平",
+		HighLeg: CrossVenueLegState{Qty: 0.5}, LowLeg: CrossVenueLegState{Qty: 0.5},
+		OpenedAt: now.Add(-time.Hour), IdemPrefix: "flat-low",
+	}
+	e, store := seedCrossVenueClosingExecutor(t, high, low, pos)
+
+	e.manageOpenPositions(context.Background(), true)
+
+	if n := atomic.LoadInt32(low.placeCount); n != 1 {
+		t.Fatalf("低费腿应只尝试一次平仓(51169 后 FetchPositions=0 即完成), got %d", n)
+	}
+	ps, _ := store.load()
+	if len(ps) != 0 {
+		t.Fatalf("平干净后落盘台账应删除, got %d", len(ps))
+	}
+	if active := activeCrossVenuePositions(e.snapshotPositions()); len(active) != 0 {
+		t.Fatalf("平干净后内存台账应清空, got %d", len(active))
+	}
+	if atomic.LoadInt32(high.placeCount) == 0 {
+		t.Fatal("高费腿应成功下平仓单")
+	}
+
+	// 下轮管理循环不得再对低费腿发单。
+	e.manageOpenPositions(context.Background(), true)
+	if n := atomic.LoadInt32(low.placeCount); n != 1 {
+		t.Fatalf("低费腿不应跨轮无限重试, got %d place calls", n)
+	}
+}
+
+// TestCrossVenueCloseBothFetchPositionsZeroRemovesLedger 两腿 FetchPositions 均为 0 时一轮内收尾删台账。
+func TestCrossVenueCloseBothFetchPositionsZeroRemovesLedger(t *testing.T) {
+	now := time.Now().UTC().Add(time.Hour)
+	high := newCrossVenueTestVenue(bybit.VenueName, 0.001, 8, now)
+	low := newCrossVenueTestVenue(okx.VenueName, 0.0001, 8, now)
+	// 所内均已平,台账 leg qty 已同步为 0(authority 复核后的 closing 续平状态)。
+	pos := CrossVenuePosition{
+		Symbol: "BTC-USDT", HighVenue: bybit.VenueName, LowVenue: okx.VenueName,
+		Status: CrossVenueStatusClosing, CloseReason: "所内已全平",
+		HighLeg: CrossVenueLegState{Qty: 0}, LowLeg: CrossVenueLegState{Qty: 0},
+		OpenedAt: now.Add(-time.Hour), IdemPrefix: "both-flat",
+	}
+	e, store := seedCrossVenueClosingExecutor(t, high, low, pos)
+
+	e.manageOpenPositions(context.Background(), true)
+
+	if atomic.LoadInt32(high.placeCount) != 0 || atomic.LoadInt32(low.placeCount) != 0 {
+		t.Fatalf("FetchPositions 均为 0 时不应再下单: high=%d low=%d", *high.placeCount, *low.placeCount)
+	}
+	ps, _ := store.load()
+	if len(ps) != 0 {
+		t.Fatalf("落盘台账应删除, got %d", len(ps))
+	}
+	if active := activeCrossVenuePositions(e.snapshotPositions()); len(active) != 0 {
+		t.Fatalf("内存台账应清空, got %d", len(active))
+	}
+}
+
 // TestCrossVenueManageContinuesClosing closing 状态的持仓进管理循环走「继续平仓」分支(不走孤腿/同步性误判)。
 func TestCrossVenueManageContinuesClosing(t *testing.T) {
 	now := time.Now().UTC().Add(time.Hour)
@@ -716,6 +882,145 @@ func TestBuildCrossVenueFundingIndex(t *testing.T) {
 	}
 	if len(idx[bybit.VenueName]) != 1 {
 		t.Fatalf("空 symbol 应跳过, len=%d", len(idx[bybit.VenueName]))
+	}
+}
+
+// newSubsetFallbackExecutor 组装一个带日志缓冲的影子执行器(bybit/okx 两所 fake,闸门全可过),
+// 供降级路径集成测试复用。
+func newSubsetFallbackExecutor(t *testing.T, buf *bytes.Buffer, scanner *CrossVenueScanner) (*CrossVenueExecutor, *crossVenueTestVenue, *crossVenueTestVenue) {
+	t.Helper()
+	now := time.Now().UTC().Add(time.Hour)
+	high := newCrossVenueTestVenue(bybit.VenueName, 0.002, 1, now)
+	low := newCrossVenueTestVenue(okx.VenueName, 0.0001, 8, now)
+	// fake 默认盘口 99/101(200bps)过不了 30bps 流动性闸,这里收紧到 2bps 让闸门全可过。
+	tight := venue.BookTicker{BidPrice: 99.99, AskPrice: 100.01, BidQty: 1000, AskQty: 1000}
+	high.book = tight
+	low.book = tight
+	cfg := testCrossVenueExecutorConfig()
+	cfg.NetworkConfig.RecordDir = t.TempDir()
+	e := &CrossVenueExecutor{
+		cfg:            cfg,
+		venues:         map[string]venue.Venue{bybit.VenueName: high, okx.VenueName: low},
+		store:          mustCrossVenueStore(t, cfg.NetworkConfig.RecordDir),
+		logger:         log.New(buf, "", 0),
+		nowFn:          func() time.Time { return time.Now().UTC() },
+		symbolCooldown: map[string]time.Time{},
+		scanner:        scanner,
+	}
+	return e, high, low
+}
+
+// TestCrossVenueSubsetFallbackOpensShadow 全局最优含 binance、可交易子集内有达标对 → 降级评估,
+// 影子模式走到开仓决策(且绝不下单)。
+func TestCrossVenueSubsetFallbackOpensShadow(t *testing.T) {
+	nf := time.Now().UTC().Add(time.Hour)
+	scanner := &CrossVenueScanner{lastSnapshot: CrossVenueScanSnapshot{
+		Opportunities: []CrossVenueOpportunity{{
+			Symbol: "BTC-USDT", HighVenue: binance.VenueName, LowVenue: okx.VenueName, SpreadAPR: 25,
+		}},
+		FundingByVenue: map[string]map[string]CrossVenueFundingEntry{
+			// bybit 0.002/1h → 年化 17.5;okx 0.0001/8h → 年化 0.11;子集价差 ≈17.4 ≥ 1.5 达标。
+			bybit.VenueName: {"BTC-USDT": {Rate: 0.002, IntervalHours: 1, NextFundingTime: nf}},
+			okx.VenueName:   {"BTC-USDT": {Rate: 0.0001, IntervalHours: 8, NextFundingTime: nf}},
+		},
+	}}
+	var buf bytes.Buffer
+	e, high, low := newSubsetFallbackExecutor(t, &buf, scanner)
+	e.evaluateNewOpens(context.Background(), false)
+	logs := buf.String()
+	if !strings.Contains(logs, "降级用子集对") {
+		t.Fatalf("应打降级日志, got:\n%s", logs)
+	}
+	if !strings.Contains(logs, "[影子] 本应开仓 BTC-USDT") {
+		t.Fatalf("降级后应走到影子开仓决策, got:\n%s", logs)
+	}
+	if atomic.LoadInt32(high.placeCount) != 0 || atomic.LoadInt32(low.placeCount) != 0 {
+		t.Fatal("影子模式不得调 PlaceOrder")
+	}
+}
+
+// TestCrossVenueSubsetFallbackBelowThresholdRejected 全局最优含 binance、子集对价差不达标 → 拒绝,
+// 原因含子集最优价差。
+func TestCrossVenueSubsetFallbackBelowThresholdRejected(t *testing.T) {
+	nf := time.Now().UTC().Add(time.Hour)
+	scanner := &CrossVenueScanner{lastSnapshot: CrossVenueScanSnapshot{
+		Opportunities: []CrossVenueOpportunity{{
+			Symbol: "BTC-USDT", HighVenue: binance.VenueName, LowVenue: okx.VenueName, SpreadAPR: 25,
+		}},
+		FundingByVenue: map[string]map[string]CrossVenueFundingEntry{
+			// 两所费率几乎相等 → 子集价差 ≈0 < 1.5 不达标。
+			bybit.VenueName: {"BTC-USDT": {Rate: 0.0001, IntervalHours: 8, NextFundingTime: nf}},
+			okx.VenueName:   {"BTC-USDT": {Rate: 0.00009, IntervalHours: 8, NextFundingTime: nf}},
+		},
+	}}
+	var buf bytes.Buffer
+	e, high, low := newSubsetFallbackExecutor(t, &buf, scanner)
+	e.evaluateNewOpens(context.Background(), false)
+	logs := buf.String()
+	if !strings.Contains(logs, "子集内无达标替代") || !strings.Contains(logs, "子集最优=") {
+		t.Fatalf("拒绝原因应含子集最优价差, got:\n%s", logs)
+	}
+	if strings.Contains(logs, "[影子] 本应开仓") {
+		t.Fatalf("不达标不应走到开仓决策, got:\n%s", logs)
+	}
+	if atomic.LoadInt32(high.placeCount) != 0 || atomic.LoadInt32(low.placeCount) != 0 {
+		t.Fatal("不得下单")
+	}
+}
+
+// TestCrossVenueTradeablePairNoFallback 全局最优本就可交易 → 不触发降级路径,行为不变。
+func TestCrossVenueTradeablePairNoFallback(t *testing.T) {
+	nf := time.Now().UTC().Add(time.Hour)
+	scanner := &CrossVenueScanner{lastSnapshot: CrossVenueScanSnapshot{
+		Opportunities: []CrossVenueOpportunity{{
+			Symbol: "BTC-USDT", HighVenue: bybit.VenueName, LowVenue: okx.VenueName, SpreadAPR: 2.0,
+		}},
+		// 索引故意只给 bybit 一所:若误触发降级会因「子集不足两所」拒绝——以此钉死「可交易对不走降级」。
+		FundingByVenue: map[string]map[string]CrossVenueFundingEntry{
+			bybit.VenueName: {"BTC-USDT": {Rate: 0.002, IntervalHours: 1, NextFundingTime: nf}},
+		},
+	}}
+	var buf bytes.Buffer
+	e, _, _ := newSubsetFallbackExecutor(t, &buf, scanner)
+	e.evaluateNewOpens(context.Background(), false)
+	logs := buf.String()
+	if strings.Contains(logs, "降级用子集对") || strings.Contains(logs, "不可交易所") {
+		t.Fatalf("可交易对不应触发降级路径, got:\n%s", logs)
+	}
+	if !strings.Contains(logs, "[影子] 本应开仓 BTC-USDT") {
+		t.Fatalf("原机会应正常走闸门到影子开仓, got:\n%s", logs)
+	}
+}
+
+// TestCrossVenueSubsetFallbackInsufficientVenues 费率索引中该 symbol 可交易所覆盖不足两所 → 拒绝。
+func TestCrossVenueSubsetFallbackInsufficientVenues(t *testing.T) {
+	nf := time.Now().UTC().Add(time.Hour)
+	scanner := &CrossVenueScanner{lastSnapshot: CrossVenueScanSnapshot{
+		Opportunities: []CrossVenueOpportunity{{
+			Symbol: "BTC-USDT", HighVenue: binance.VenueName, LowVenue: bybit.VenueName, SpreadAPR: 25,
+		}},
+		// 子集内只有 bybit 一所有该币 → 凑不出对。
+		FundingByVenue: map[string]map[string]CrossVenueFundingEntry{
+			binance.VenueName: {"BTC-USDT": {Rate: 0.01, IntervalHours: 8, NextFundingTime: nf}},
+			bybit.VenueName:   {"BTC-USDT": {Rate: 0.002, IntervalHours: 1, NextFundingTime: nf}},
+		},
+	}}
+	var buf bytes.Buffer
+	e, high, low := newSubsetFallbackExecutor(t, &buf, scanner)
+	e.evaluateNewOpens(context.Background(), false)
+	logs := buf.String()
+	if !strings.Contains(logs, "子集不足两所") {
+		t.Fatalf("应按「子集不足两所」拒绝, got:\n%s", logs)
+	}
+	if strings.Contains(logs, "[影子] 本应开仓") {
+		t.Fatal("不应走到开仓决策")
+	}
+	if atomic.LoadInt32(high.placeCount) != 0 || atomic.LoadInt32(low.placeCount) != 0 {
+		t.Fatal("不得下单")
+	}
+	// 纯函数口径再钉一次:bestTradeableSubsetPair 必须返回 not-ok。
+	if _, ok := bestTradeableSubsetPair("BTC-USDT", scanner.lastSnapshot.FundingByVenue); ok {
+		t.Fatal("子集不足两所时 bestTradeableSubsetPair 应返回 not-ok")
 	}
 }
 

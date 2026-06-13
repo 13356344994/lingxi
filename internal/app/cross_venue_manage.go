@@ -63,7 +63,7 @@ func (e *CrossVenueExecutor) manageCrossVenuePosition(ctx context.Context, pos C
 	if !highOpen && !lowOpen {
 		pos.Status = CrossVenueStatusClosed
 		pos.UpdatedAt = e.nowFn()
-		_ = e.store.remove(pos.Symbol)
+		_ = e.removeCrossVenuePosition(pos.Symbol)
 		return pos, true
 	}
 

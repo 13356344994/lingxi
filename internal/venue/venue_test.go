@@ -37,6 +37,9 @@ func (s stubVenue) FetchTradingCostProfile(ctx context.Context, syms []Symbol) (
 func (s stubVenue) MaxBorrowable(ctx context.Context, asset string) (float64, error) {
 	return 0, ErrUnsupported
 }
+func (s stubVenue) FetchBorrowQuote(ctx context.Context, asset string) (BorrowQuote, error) {
+	return BorrowQuote{}, ErrUnsupported
+}
 func (s stubVenue) FetchLeverageBrackets(ctx context.Context, sym Symbol) ([]LeverageBracket, error) {
 	return nil, nil
 }

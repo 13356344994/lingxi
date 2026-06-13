@@ -3,6 +3,7 @@ package binance
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"strings"
 
 	"lingxi/internal/venue"
@@ -166,6 +167,51 @@ func (a *Adapter) FetchTradingCostProfile(ctx context.Context, syms []venue.Symb
 // MaxBorrowable 委托 client.MaxBorrowable(负 carry 借币用)。
 func (a *Adapter) MaxBorrowable(ctx context.Context, asset string) (float64, error) {
 	return a.client.MaxBorrowable(ctx, asset)
+}
+
+// FetchBorrowQuote 拉全仓杠杆借币行情(只读):GET /sapi/v1/margin/crossMarginData(vipLevel=0,日利率)
+// + GET /sapi/v1/margin/maxBorrowable(可借额度)。HourlyRate=dailyInterest/24。
+func (a *Adapter) FetchBorrowQuote(ctx context.Context, asset string) (venue.BorrowQuote, error) {
+	base := strings.ToUpper(strings.TrimSpace(asset))
+	if base == "" {
+		return venue.BorrowQuote{}, fmt.Errorf("binance FetchBorrowQuote: asset 为空")
+	}
+	q := url.Values{}
+	q.Set("vipLevel", "0")
+	q.Set("coin", base)
+	var feeRows []struct {
+		Coin          string `json:"coin"`
+		Borrowable    bool   `json:"borrowable"`
+		DailyInterest string `json:"dailyInterest"`
+	}
+	if err := a.signedGetJSON(ctx, a.spotBaseURL()+PathMarginCrossMarginData, q, &feeRows); err != nil {
+		return venue.BorrowQuote{}, err
+	}
+	borrowable := false
+	dailyRate := 0.0
+	for _, row := range feeRows {
+		if strings.EqualFold(row.Coin, base) {
+			borrowable = row.Borrowable
+			dailyRate = parseFloat(row.DailyInterest)
+			break
+		}
+	}
+	mq := url.Values{}
+	mq.Set("asset", base)
+	mq.Set("isIsolated", "FALSE")
+	var maxRow struct {
+		Amount string `json:"amount"`
+	}
+	if err := a.signedGetJSON(ctx, a.spotBaseURL()+PathMarginMaxBorrowable, mq, &maxRow); err != nil {
+		return venue.BorrowQuote{}, err
+	}
+	maxBorrow := parseFloat(maxRow.Amount)
+	return venue.BorrowQuote{
+		Asset:         base,
+		MaxBorrowable: maxBorrow,
+		HourlyRate:    dailyRate / 24.0,
+		Available:     borrowable && maxBorrow > 0,
+	}, nil
 }
 
 // FetchLeverageBrackets 尚未下沉至本包,由 app 层 engine_risk_util 直连;跨所引擎暂不需要。

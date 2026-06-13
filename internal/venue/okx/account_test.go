@@ -39,3 +39,27 @@ func TestVerifyAPIKeyPosturePermParsing(t *testing.T) {
 		})
 	}
 }
+
+func TestFetchBorrowQuoteParseSuccess(t *testing.T) {
+	a := fakeOKX(t, map[string]string{
+		pathInterestLimits: `{"code":"0","msg":"","data":[{"records":[{"ccy":"H","rate":"0.0024","surplusLmt":"888"}]}]}`,
+	})
+	q, err := a.FetchBorrowQuote(context.Background(), "H")
+	if err != nil {
+		t.Fatalf("FetchBorrowQuote: %v", err)
+	}
+	if q.Asset != "H" || !q.Available || q.MaxBorrowable != 888 {
+		t.Fatalf("解析错误: %+v", q)
+	}
+	wantHourly := 0.0024 / 24.0
+	if q.HourlyRate < wantHourly-1e-12 || q.HourlyRate > wantHourly+1e-12 {
+		t.Fatalf("HourlyRate=%v want=%v", q.HourlyRate, wantHourly)
+	}
+}
+
+func TestFetchBorrowQuotePropagatesError(t *testing.T) {
+	a := fakeOKX(t, map[string]string{})
+	if _, err := a.FetchBorrowQuote(context.Background(), "H"); err == nil {
+		t.Fatal("缺失路由应报错")
+	}
+}

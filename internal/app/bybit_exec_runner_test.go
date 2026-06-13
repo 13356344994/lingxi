@@ -66,6 +66,60 @@ func TestShadowPlanCycleAcceptsProfitable(t *testing.T) {
 	}
 }
 
+// TestShadowPlanCycleRejectsNonBorrowableNegativeCarry 钉死负 carry 前置过滤:现货 marginTrading=none 不可借
+// 的负费率币不进 tradeableSnaps(不占 top_n),可借的负费率币正常进候选。
+func TestShadowPlanCycleRejectsNonBorrowableNegativeCarry(t *testing.T) {
+	nonBorrow := venue.Symbol("H-USDT")     // |费率| 最高但现货不可借
+	borrowable := venue.Symbol("HOME-USDT") // 可借,应成为负 carry 候选
+	mkLegs := func(sym venue.Symbol, borrowable bool) []venue.Instrument {
+		return []venue.Instrument{
+			{Symbol: sym, Market: venue.MarketSpot, StepSize: 0.001, MinNotional: 5, SpotBorrowable: borrowable},
+			{Symbol: sym, Market: venue.MarketPerp, StepSize: 0.001, MinNotional: 5},
+		}
+	}
+	f := &fakeBybitMarket{
+		snaps: []venue.FundingSnapshot{
+			{Symbol: nonBorrow, LastFundingRate: -0.01, IntervalHours: 8},
+			{Symbol: borrowable, LastFundingRate: -0.008, IntervalHours: 8},
+		},
+		instr: append(mkLegs(nonBorrow, false), mkLegs(borrowable, true)...),
+		tickers: map[instrumentKey]venue.BookTicker{
+			{nonBorrow, venue.MarketSpot}:  {BidPrice: 100, AskPrice: 100},
+			{nonBorrow, venue.MarketPerp}:  {BidPrice: 100, AskPrice: 100},
+			{borrowable, venue.MarketSpot}: {BidPrice: 100, AskPrice: 100},
+			{borrowable, venue.MarketPerp}: {BidPrice: 100, AskPrice: 100},
+		},
+		cost: venue.CostProfile{SpotTaker: 0.001, FuturesTaker: 0.0006},
+	}
+	cfg := BybitExecConfig{
+		AllocatedUSDT: 4000, TopN: 3, MinFundingRate: 0.0005, MinNetProfitRate: 0.0005,
+		EnableNegativeCarry: true,
+	}
+	exec := NewBybitShadowExecutor(f, cfg, nil)
+	plan, err := exec.PlanCycle(context.Background(), 0, 0)
+	if err != nil {
+		t.Fatalf("PlanCycle: %v", err)
+	}
+	var rejectedNonBorrow bool
+	for _, r := range plan.Rejected {
+		if r.Symbol == nonBorrow {
+			rejectedNonBorrow = true
+			if r.Reason != "现货不支持杠杆借币(marginTrading=none),负carry无法做空对冲腿" {
+				t.Errorf("不可借负费率原因不符: %s", r.Reason)
+			}
+		}
+	}
+	if !rejectedNonBorrow {
+		t.Fatalf("不可借负费率币应记入 Rejected: %+v", plan.Rejected)
+	}
+	if len(plan.Accepted) != 1 || plan.Accepted[0].Symbol != borrowable {
+		t.Fatalf("可借负费率币应通过: accepted=%+v rejected=%+v", plan.Accepted, plan.Rejected)
+	}
+	if !plan.Accepted[0].Negative {
+		t.Errorf("应标记负 carry, got %+v", plan.Accepted[0])
+	}
+}
+
 func TestShadowPlanCycleRejectsMissingSpotLeg(t *testing.T) {
 	sym := venue.Symbol("PERPONLY-USDT")
 	f := &fakeBybitMarket{

@@ -57,16 +57,17 @@ func (a *Adapter) ServerTime(ctx context.Context) (time.Time, error) {
 }
 
 type okxInstrument struct {
-	InstID   string `json:"instId"`
-	InstType string `json:"instType"`
-	BaseCcy  string `json:"baseCcy"`
-	QuoteCcy string `json:"quoteCcy"`
-	State    string `json:"state"`
-	TickSz   string `json:"tickSz"`
-	LotSz    string `json:"lotSz"`
-	MinSz    string `json:"minSz"`
-	CtVal    string `json:"ctVal"`
-	CtValCcy string `json:"ctValCcy"`
+	InstID    string `json:"instId"`
+	InstType  string `json:"instType"`
+	BaseCcy   string `json:"baseCcy"`   // 仅 SPOT 有值
+	QuoteCcy  string `json:"quoteCcy"`  // 仅 SPOT 有值;SWAP 为空(踩坑实录:曾用它过滤 USDT 永续 → 全军覆没)
+	SettleCcy string `json:"settleCcy"` // SWAP 结算币;USDT 本位过滤用它
+	State     string `json:"state"`
+	TickSz    string `json:"tickSz"`
+	LotSz     string `json:"lotSz"`
+	MinSz     string `json:"minSz"`
+	CtVal     string `json:"ctVal"`
+	CtValCcy  string `json:"ctValCcy"` // SWAP 合约面值币种(=基础币)
 }
 
 // FetchInstruments 拉 SWAP(永续)+ SPOT(现货)元数据并翻译为中性 Instrument。
@@ -80,7 +81,8 @@ func (a *Adapter) FetchInstruments(ctx context.Context) ([]venue.Instrument, err
 		if !strings.EqualFold(it.State, "live") {
 			continue
 		}
-		if !strings.EqualFold(it.QuoteCcy, "USDT") {
+		// SWAP 行情 quoteCcy 为空(现货专属字段),USDT 本位必须看 settleCcy。
+		if !strings.EqualFold(it.SettleCcy, "USDT") {
 			continue // 只要 USDT 本位永续
 		}
 		canonical, _ := a.ToCanonical(it.InstID, venue.MarketPerp)
@@ -88,11 +90,18 @@ func (a *Adapter) FetchInstruments(ctx context.Context) ([]venue.Instrument, err
 		if ctVal <= 0 {
 			ctVal = 1
 		}
+		// SWAP 的 baseCcy 同样为空,基础币用 ctValCcy(合约面值币种)。
+		base := strings.ToUpper(it.CtValCcy)
+		if base == "" || base == "USD" {
+			if i := strings.IndexByte(it.InstID, '-'); i > 0 {
+				base = strings.ToUpper(it.InstID[:i])
+			}
+		}
 		out = append(out, venue.Instrument{
 			Symbol:       canonical,
 			Market:       venue.MarketPerp,
-			BaseAsset:    strings.ToUpper(it.BaseCcy),
-			QuoteAsset:   strings.ToUpper(it.QuoteCcy),
+			BaseAsset:    base,
+			QuoteAsset:   "USDT",
 			TickSize:     parseFloat(it.TickSz),
 			StepSize:     parseFloat(it.LotSz),
 			MinNotional:  0,

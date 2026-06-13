@@ -184,7 +184,16 @@ func (e *CrossVenueExecutor) executeCrossVenueOpen(ctx context.Context, plan cro
 	}
 	lowPrice := iocLimitPrice(venue.SideBuy, lowBook, cfg.SlippageBudgetBps)
 	lowID := crossVenueLegClientID(plan.IdemPrefix, "l1")
-	lowRes, lowErr := e.placeCrossVenueIOC(ctx, lowTrader, sym, venue.SideBuy, highRes.ExecutedQty, lowPrice, lowID, false, live)
+	hedgeQty := highRes.ExecutedQty
+	if lowCaps := lowV.Capabilities(); lowCaps.ContractBasedPerp {
+		hedgeQty = normalizeVenueQty(highRes.ExecutedQty, plan.Gate.LowInstr, true)
+		if hedgeQty <= executionQtyTolerance {
+			e.rollbackFirstLeg(ctx, plan, highTrader, sym, pos.HighLeg.Qty, live)
+			e.setSymbolCooldown(plan.Opp.Symbol)
+			return pos, fmt.Errorf("第二腿对冲数量经张数步进后为 0(第一腿 %.6f)", highRes.ExecutedQty)
+		}
+	}
+	lowRes, lowErr := e.placeCrossVenueIOC(ctx, lowTrader, sym, venue.SideBuy, hedgeQty, lowPrice, lowID, false, live)
 	if lowErr != nil || lowRes.ExecutedQty <= executionQtyTolerance {
 		elapsed := e.nowFn().Sub(nakedStart).Seconds()
 		e.rollbackFirstLeg(ctx, plan, highTrader, sym, pos.HighLeg.Qty, live)
@@ -258,7 +267,7 @@ func (e *CrossVenueExecutor) closeCrossVenuePosition(ctx context.Context, pos Cr
 		}
 		pos.Status = CrossVenueStatusClosed
 		pos.UpdatedAt = e.nowFn()
-		_ = e.store.remove(pos.Symbol)
+		_ = e.removeCrossVenuePosition(pos.Symbol)
 		e.notifyTrade("跨所平仓", fmt.Sprintf("%s %s", pos.Symbol, reason), pos.Symbol)
 		return nil
 	}
@@ -301,7 +310,7 @@ func (e *CrossVenueExecutor) closeCrossVenuePosition(ctx context.Context, pos Cr
 	if pos.HighLeg.Qty <= executionQtyTolerance && pos.LowLeg.Qty <= executionQtyTolerance {
 		pos.Status = CrossVenueStatusClosed
 		pos.UpdatedAt = e.nowFn()
-		_ = e.store.remove(pos.Symbol)
+		_ = e.removeCrossVenuePosition(pos.Symbol)
 		e.notifyTrade("跨所平仓", fmt.Sprintf("%s %s(第 %d 轮平仓完成)", pos.Symbol, pos.CloseReason, attempt), pos.Symbol)
 		return nil
 	}

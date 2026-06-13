@@ -54,6 +54,7 @@ func (a *Adapter) Capabilities() venue.Capabilities {
 		MaxBatchOrders:           5,
 		ContractBasedPerp:        false, // 按币数量下单
 		SupportsCapitalRebalance: false, // TODO(P4): 迁入 capital.go 后置 true
+		SupportsBorrowQuote:      true,  // crossMarginData + maxBorrowable 只读探测
 		CapitalWallets: []venue.Wallet{
 			WalletSpot, WalletUMFutures, WalletCrossMargin, WalletFunding,
 		},

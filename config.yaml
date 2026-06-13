@@ -102,7 +102,13 @@ network:
 #   与执行决策但绝不下单,日志输出「[影子] 本应开仓 …」。影子空跑数天、确认决策质量后才置 true。
 cross_venue_executor:
   enabled: true
-  live_trading_enabled: false
+  # 2026-06-12 切小额实盘:微额实弹自检(cmd/livecheck)已验证 OKX/Gate 永续+现货真实下单链路,
+  # 并修复 4 个只有实弹才能暴露的适配器 bug(见 SYSTEM_OVERVIEW.md)。首期压额:单腿 30U、并发 1。
+  live_trading_enabled: true
+  # 2026-06-13 放量:首期 30U/并发1 的实弹自检已通过(开/平/对账链路验证),压额阶段结束。
+  # 提到 60U×2 并发:跨所峰值 120U,与单所引擎合计≈340U,贴近四所总资金 400U;余额闸兜底防超订。
+  max_concurrent: 2
+  max_position_usdt: 60
 
 # 多所编排（§7 / §8）。注册到此的所会出现在面板 venue 选择器里，并各自拥有独立的 RuntimeController/记录目录。
 #   - binance：主所(primary，按字母序首位)，行为与改造前逐字节一致(recordDir=records/，autostart 受全局/环境变量控制)。
@@ -115,15 +121,27 @@ venues:
   binance:
     enabled: true
   okx:
-    # P1 跨所对冲的对冲腿所:现阶段仅行情/账户,不交易(面板可见、可拉行情,Start 会被拒绝)。
     enabled: true
+    funding_executor:
+      # 2026-06-12 实弹自检通过切实盘(起步 30U);2026-06-13 用户拍板放量到 60U(单标两腿合计上限)。
+      # ⚠️ okx 账户实有 ~100U,本档与跨所引擎(同样可能用 okx 腿)共用余额,靠余额闸防超订:
+      #    余额不足时拒开(日志「可用 USDT < 所需」),绝不硬开半腿。
+      live_trading_enabled: true
+      max_position_usdt: 60
+      lead_seconds: 240
   gate:
-    # P1 跨所对冲的对冲腿所:现阶段仅行情/账户,不交易(面板可见、可拉行情,Start 会被拒绝)。
     enabled: true
+    funding_executor:
+      # 2026-06-12 实弹自检通过切实盘(起步 30U);2026-06-13 用户拍板放量到 60U(单标两腿合计上限)。
+      # ⚠️ gate 账户实有 ~100U,与跨所引擎共用余额,靠余额闸防超订(同 okx)。
+      live_trading_enabled: true
+      max_position_usdt: 60
+      lead_seconds: 240
   bybit:
     enabled: true
-    # 重启/崩溃拉起后自动启动 Bybit 执行任务(reconcile 持仓 + 继续管理),与 LINGXI_AUTOSTART_LIVE 配套。
-    autostart: true
+    # 手动模式(用户选定 2026-06-13):重启后所有所一律 idle,不自动开仓;由策略总控「启动」一键拉起
+    # 单所 funding + 跨所套利两层。autostart=false → 崩溃/重启不自动续上交易(代价:有持仓时崩溃需人工启动恢复管理)。
+    autostart: false
     # 分配给 Bybit 策略的资金(USDT)。**这是定量基准**:0 → 定量为 0 → 永远不开仓。
     # ⚠️【数据采集】选币代码已修复为「先过滤掉无现货腿的 perp-only 标的、再取 top_n / 均分资金」,所以分配资金
     #   只会按「真正可对冲的现货标的数」均分(当前约 1~2 个),无需再为 perp-only 稀释补一大笔钱。60U 足够:

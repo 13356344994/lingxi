@@ -212,7 +212,6 @@ func (c *RuntimeController) runBybitExecutor(ctx context.Context, secretPath str
 		bybitModeLabel(cfg), execCfg.AllocatedUSDT, execCfg.TopN, execCfg.MinFundingRate*100,
 		cfg.BybitExecutor.LeadSeconds, cfg.BybitExecutor.HoldAfterSeconds, c.bybitMaxConcurrent(cfg))
 	c.appendControllerLog("Bybit 执行器已就绪:%s", readyMsg)
-	c.bybitNotifyTrade("Bybit 执行器已启动", readyMsg, "")
 
 	ticker := time.NewTicker(bybitExecTickInterval)
 	defer ticker.Stop()
@@ -232,7 +231,6 @@ func (c *RuntimeController) runBybitExecutor(ctx context.Context, secretPath str
 		select {
 		case <-ctx.Done():
 			c.appendControllerLog("Bybit 执行器已停止")
-			c.bybitNotifyTrade("Bybit 执行器已停止", "任务已手动停止", "")
 			return "Bybit 执行器已停止", ctx.Err()
 		case <-ticker.C:
 		}
@@ -376,11 +374,18 @@ func (c *RuntimeController) bybitReconcileOnStart(ctx context.Context, adapter b
 			continue
 		}
 		tracked[sym] = true // 同一 symbol 多条(双向持仓)只处理一次
-		if adopted, ok := c.bybitProbeOrphanOwnership(ctx, adapter, ep); ok {
+		if isCrossVenueSymbolHeld(c.cfg.NetworkConfig.RecordDir, sym) {
+			c.appendControllerLog("Bybit reconcile:跳过 %s(跨所台账持有中,非单所孤儿,不收编)", sym)
+			continue
+		}
+		if adopted, orderLinkID, ok := c.bybitProbeOrphanOwnership(ctx, adapter, ep); ok {
 			if c.bybitPersistPosition(store, adopted, "孤儿仓收编") {
 				c.appendControllerLog("Bybit reconcile:未登记持仓 %s(≈%.6f)确认为本机所开(orderLinkId 命中),已收编落盘待平", sym, qty)
 			}
 			c.bybitNotifyWarn("Bybit 孤儿仓已收编", fmt.Sprintf("%s 永续≈%.6f 确认为本机遗留,已自动收编待平", sym, qty), string(sym))
+			continue
+		} else if orderLinkID != "" && strings.HasPrefix(orderLinkID, crossVenueOrderPrefix) {
+			c.appendControllerLog("Bybit reconcile:跳过 %s(orderLinkId=%s 属跨所引擎所开,非单所孤儿,不收编)", sym, orderLinkID)
 			continue
 		}
 		c.appendControllerLog("Bybit reconcile:发现未登记的永续持仓 %s(≈%.6f),回查未命中本机订单,请人工核对", sym, qty)
@@ -391,9 +396,23 @@ func (c *RuntimeController) bybitReconcileOnStart(ctx context.Context, adapter b
 // bybitOrphanProbeHours 是孤儿仓归属回查的整点窗口数(Bybit 结算时刻总在整点;realtime 接口可查近期已成交单)。
 const bybitOrphanProbeHours = 48
 
+const (
+	bybitSingleVenueOrderPrefix = "lx-"
+	crossVenueOrderPrefix       = "cv-"
+)
+
+func bybitMatchedOrderLinkID(queried, returned string) string {
+	returned = strings.TrimSpace(returned)
+	if returned != "" {
+		return returned
+	}
+	return strings.TrimSpace(queried)
+}
+
 // bybitProbeOrphanOwnership 回查某未登记永续持仓是否本机所开:用确定性幂等前缀重构开仓腿
 // orderLinkId 逐整点探测,命中已成交单即返回可收编的「立即到期待平」持仓。
-func (c *RuntimeController) bybitProbeOrphanOwnership(ctx context.Context, adapter bybitFullVenue, ep venue.Position) (BybitLivePosition, bool) {
+// 第二返回值是命中的 orderLinkId(供日志);跨所 cv- 前缀或单所 lx- 以外的一律不收编。
+func (c *RuntimeController) bybitProbeOrphanOwnership(ctx context.Context, adapter bybitFullVenue, ep venue.Position) (BybitLivePosition, string, bool) {
 	now := time.Now().UTC()
 	hourTop := now.Truncate(time.Hour)
 	for h := 0; h <= bybitOrphanProbeHours; h++ {
@@ -402,6 +421,13 @@ func (c *RuntimeController) bybitProbeOrphanOwnership(ctx context.Context, adapt
 		res, err := adapter.QueryOrder(ctx, venue.MarketPerp, ep.Symbol, clientID)
 		if err != nil || res.Status != "filled" || res.ExecutedQty <= executionQtyTolerance {
 			continue
+		}
+		orderLinkID := bybitMatchedOrderLinkID(clientID, res.ClientOrderID)
+		if strings.HasPrefix(orderLinkID, crossVenueOrderPrefix) {
+			return BybitLivePosition{}, orderLinkID, false
+		}
+		if !strings.HasPrefix(orderLinkID, bybitSingleVenueOrderPrefix) {
+			return BybitLivePosition{}, orderLinkID, false
 		}
 		qty := math.Abs(ep.PositionAmt)
 		adopted := BybitLivePosition{
@@ -418,9 +444,9 @@ func (c *RuntimeController) bybitProbeOrphanOwnership(ctx context.Context, adapt
 			Negative:        ep.PositionAmt > 0, // 永续多头 = 负 carry 持仓
 			ForceClose:      true,               // 不续持,直接平
 		}
-		return adopted, true
+		return adopted, orderLinkID, true
 	}
-	return BybitLivePosition{}, false
+	return BybitLivePosition{}, "", false
 }
 
 // appendBybitSettlement 把 Bybit 平仓结果写入与币安同 schema 的结算台账(settlements.json,per-venue
@@ -719,8 +745,6 @@ func (c *RuntimeController) bybitManageCycle(
 				c.bybitPersistPosition(store, rolled, "续持")
 				c.appendControllerLog("Bybit 续持记账 %s:已收 %d 次资金费,翻进 %s 结算(上限 %d 次;去留在结算前复核)",
 					p.Symbol, rolled.SettlementsHeld, snap.NextFundingTime.UTC().Format("15:04:05Z"), maxHold)
-				c.bybitNotifyTrade("Bybit 续持", fmt.Sprintf("已收 %d 次资金费,翻进 %s 结算(去留将在结算前按收敛费率复核)",
-					rolled.SettlementsHeld, snap.NextFundingTime.UTC().Format("15:04:05Z")), string(p.Symbol))
 				continue
 			}
 		}
@@ -789,6 +813,10 @@ func (c *RuntimeController) bybitManageCycle(
 		}
 		// 开仓黑名单:此前被「不可交易类」错误(170037 未开通抵押设置等)拒绝过的标的,截止前不再尝试。
 		if until, banned := c.bybitOpenSkipUntil[p.Symbol]; banned && now.Before(until) {
+			continue
+		}
+		if isCrossVenueSymbolHeld(c.cfg.NetworkConfig.RecordDir, p.Symbol) {
+			c.appendControllerLog("Bybit 跳过 %s:跨所引擎在场持仓(同账户同币会互相净仓),本窗口让位", p.Symbol)
 			continue
 		}
 		// 仅在 [结算-lead, 结算) 窗口内开仓。
@@ -924,7 +952,7 @@ func (c *RuntimeController) bybitLogCycleDiag(
 	}
 }
 
-// bybitNotifyTrade 推送 Bybit 交易/生命周期通知(开仓/平仓/启停):info 级,不受 MinSeverity 过滤、不去重,
+// bybitNotifyTrade 推送 Bybit 交易执行通知(开仓/平仓):info 级,不受 MinSeverity 过滤、不去重,
 // 这是用户主动要的「每笔都通知」。分发器未配置 Telegram 时为 nil,nil-safe。
 func (c *RuntimeController) bybitNotifyTrade(title, detail, symbol string) {
 	if c == nil || c.bybitAlerts == nil {

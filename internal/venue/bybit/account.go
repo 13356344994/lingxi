@@ -251,6 +251,52 @@ func (a *Adapter) MaxBorrowable(ctx context.Context, asset string) (float64, err
 	return parseFloat(res.MaxTradeQty), nil
 }
 
+// FetchBorrowQuote 拉 UTA 现货保证金借币行情(只读):
+// GET /v5/account/collateral-info(逐币 borrowable + hourlyBorrowRate)
+// + GET /v5/order/spot-borrow-check(maxTradeQty 可借额度)。
+func (a *Adapter) FetchBorrowQuote(ctx context.Context, asset string) (venue.BorrowQuote, error) {
+	base := strings.ToUpper(strings.TrimSpace(asset))
+	if base == "" {
+		return venue.BorrowQuote{}, fmt.Errorf("bybit FetchBorrowQuote: asset 为空")
+	}
+	var collateral struct {
+		List []struct {
+			Currency         string `json:"currency"`
+			Borrowable       bool   `json:"borrowable"`
+			HourlyBorrowRate string `json:"hourlyBorrowRate"`
+		} `json:"list"`
+	}
+	if err := a.t.signedGet(ctx, pathCollateralInfo, nil, &collateral); err != nil {
+		return venue.BorrowQuote{}, err
+	}
+	borrowable := false
+	hourlyRate := 0.0
+	for _, it := range collateral.List {
+		if strings.EqualFold(it.Currency, base) {
+			borrowable = it.Borrowable
+			hourlyRate = parseFloat(it.HourlyBorrowRate)
+			break
+		}
+	}
+	q := url.Values{}
+	q.Set("category", categorySpot)
+	q.Set("symbol", base+"USDT")
+	q.Set("side", "Sell")
+	var chk struct {
+		MaxTradeQty string `json:"maxTradeQty"`
+	}
+	if err := a.t.signedGet(ctx, pathSpotBorrowCheck, q, &chk); err != nil {
+		return venue.BorrowQuote{}, err
+	}
+	maxBorrow := parseFloat(chk.MaxTradeQty)
+	return venue.BorrowQuote{
+		Asset:         base,
+		MaxBorrowable: maxBorrow,
+		HourlyRate:    hourlyRate,
+		Available:     borrowable && maxBorrow > 0,
+	}, nil
+}
+
 // FetchLeverageBrackets 拉 risk-limit 档位(公共接口,经签名通道也可)。
 func (a *Adapter) FetchLeverageBrackets(ctx context.Context, s venue.Symbol) ([]venue.LeverageBracket, error) {
 	raw, _ := a.ToVenue(s, venue.MarketPerp)

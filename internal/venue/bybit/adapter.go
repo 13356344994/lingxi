@@ -57,6 +57,7 @@ func (a *Adapter) Capabilities() venue.Capabilities {
 		MaxBatchOrders:           10,    // v5 linear 批量上限
 		ContractBasedPerp:        false, // USDT 永续按币数量下单
 		SupportsCapitalRebalance: true,  // capital.go:资金↔统一账户划转
+		SupportsBorrowQuote:      true,  // collateral-info + spot-borrow-check 只读探测
 		CapitalWallets:           []venue.Wallet{WalletUnified, WalletFunding},
 	}
 }

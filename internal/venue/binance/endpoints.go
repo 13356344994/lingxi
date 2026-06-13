@@ -44,6 +44,8 @@ const (
 	PathMarginAccount         = "/sapi/v1/margin/account"
 	PathMarginBorrowRepay     = "/sapi/v1/margin/borrow-repay"
 	PathMarginInterestHistory = "/sapi/v1/margin/interestHistory"
+	PathMarginCrossMarginData = "/sapi/v1/margin/crossMarginData" // USER_DATA:全仓杠杆费率(含 dailyInterest)
+	PathMarginMaxBorrowable   = "/sapi/v1/margin/maxBorrowable"   // USER_DATA:当前最大可借
 	PathAssetTransfer         = "/sapi/v1/asset/transfer"
 	PathAssetFundingAsset     = "/sapi/v1/asset/get-funding-asset"
 	PathBNBBurn               = "/sapi/v1/bnbBurn"

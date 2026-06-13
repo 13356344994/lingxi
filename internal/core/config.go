@@ -495,6 +495,10 @@ type CrossVenueScannerConfig struct {
 	AlertSpreadAPR float64 `cfg:"alert_spread_apr"`
 	// TopN 每轮保留的年化价差 Top N 机会。默认 30。
 	TopN int `cfg:"top_n"`
+	// BorrowProbeEnabled 每轮扫描后对头部机会做跨所借币可得性探测(纯只读)。默认 true。
+	BorrowProbeEnabled bool `cfg:"borrow_probe_enabled"`
+	// BorrowProbeTopN 借币探测覆盖的头部机会数(按 spread 排序)。默认 10。
+	BorrowProbeTopN int `cfg:"borrow_probe_top_n"`
 }
 
 // EngineConfig 是 Funding Rate Sniper Engine 的 MVP 运行配置。
@@ -519,6 +523,10 @@ type EngineConfig struct {
 	// 币安路径完全忽略。多所部署下由 venues.bybit.bybit_executor.* 覆盖。主安全闸 LiveTradingEnabled 默认 false
 	// → 即便启动 bybit 任务也只 shadow(规划+日志,绝不下单);置 true 才真实下单。
 	BybitExecutor BybitExecutorConfig `cfg:"bybit_executor"`
+
+	// FundingExecutor 是 OKX/Gate 单所正费率执行器参数(venue 中立,仅 okx/gate 读取)。多所部署下由
+	// venues.<okx|gate>.funding_executor.* 覆盖。LiveTradingEnabled 默认 false → 影子模式。
+	FundingExecutor VenueFundingExecutorConfig `cfg:"funding_executor"`
 
 	// CrossVenueScanner 是 P1 跨所资金费价差扫描器(纯只读,绝不下单)的参数。
 	CrossVenueScanner CrossVenueScannerConfig `cfg:"cross_venue_scanner"`
@@ -567,6 +575,34 @@ type CrossVenueExecutorConfig struct {
 	SymbolCooldownHours int `cfg:"symbol_cooldown_hours"`
 	// DeadManCountdownSeconds okx/gate 腿 dead-man 续期间隔(秒)。默认 60。
 	DeadManCountdownSeconds int `cfg:"dead_man_countdown_seconds"`
+}
+
+// VenueFundingExecutorConfig 是 OKX/Gate 单所正费率执行器参数(正 carry:空永续+买现货,跨结算持有)。
+type VenueFundingExecutorConfig struct {
+	// LiveTradingEnabled 主安全闸:false=影子(完整决策+日志,绝不下单);true=真实下单。默认 false。
+	LiveTradingEnabled bool `cfg:"live_trading_enabled"`
+	// TopN 每周期最多并发开仓标的数(正费率降序取前 N)。默认 1。
+	TopN int `cfg:"top_n"`
+	// MinFundingRate 仅做单次结算正费率 ≥ 此阈值的标的。
+	MinFundingRate float64 `cfg:"min_funding_rate"`
+	// MinNetProfitRate 成本后净利率阈值(相对部署资金),低于则放弃。
+	MinNetProfitRate float64 `cfg:"min_net_profit_rate"`
+	// LeadSeconds 结算前多少秒进入开仓窗口。
+	LeadSeconds int `cfg:"lead_seconds"`
+	// HoldAfterSeconds 结算后持有多少秒再平仓(确保资金费入账)。
+	HoldAfterSeconds int `cfg:"hold_after_seconds"`
+	// MaxConcurrentPositions 同时在场最大持仓数。默认 1。
+	MaxConcurrentPositions int `cfg:"max_concurrent_positions"`
+	// MaxPositionUSDT 单标的两腿名义上限(USDT)。默认 30。
+	MaxPositionUSDT float64 `cfg:"max_position_usdt"`
+	// RollEnabled 跨结算滚动持有(费率衰减/EV 为负才平)。默认 true。
+	RollEnabled bool `cfg:"roll_enabled"`
+	// MaxHoldSettlements 滚动持有最多跨越结算次数(含首次)。默认 12。
+	MaxHoldSettlements int `cfg:"max_hold_settlements"`
+	// EVGateEnabled 多结算期望值门(历史样本不足回退单次门)。默认 true。
+	EVGateEnabled bool `cfg:"ev_gate_enabled"`
+	// SlippageBudgetBps Gate 现货 IOC 限价相对 ask 的滑点预算(bps)。默认 20。
+	SlippageBudgetBps float64 `cfg:"slippage_budget_bps"`
 }
 
 // BybitExecutorConfig 是 Bybit 精简执行器的可调参数。所有阈值默认保守;LiveTradingEnabled 是真实下单的总开关。

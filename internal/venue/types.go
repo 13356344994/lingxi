@@ -83,6 +83,14 @@ const (
 	BorrowDirRepay
 )
 
+// BorrowQuote 是某 base 资产在某所此刻的借币行情快照(只读探测,非下单/借还)。
+type BorrowQuote struct {
+	Asset         string  // base 资产符号(大写),如 "BTC"
+	MaxBorrowable float64 // 当前最大可借数量(base 单位);借币池枯竭时为 0
+	HourlyRate    float64 // 小时借币利率(小数,0.0001=0.01%/h);由所内日利率/小时利率字段归一
+	Available     bool    // 借币池当前是否可借:平台允许借入且 MaxBorrowable>0
+}
+
 // Instrument 是一个可交易标的的元数据(现货或永续)。
 type Instrument struct {
 	Symbol         Symbol
@@ -96,6 +104,8 @@ type Instrument struct {
 	QtyPrecision   int
 	ContractSize   float64 // 永续合约面值:ContractBasedPerp 时 >0,否则 1
 	QtyUnit        string  // "coin" | "contract"
+	// SpotBorrowable 现货标的是否支持杠杆借币(可做空对冲腿);仅现货 Instrument 有意义,负 carry 前置过滤用。
+	SpotBorrowable bool
 }
 
 // FundingSnapshot 等价于币安 premiumIndex + fundingInfo 的合并视图,逐币给出实时费率与上下限。

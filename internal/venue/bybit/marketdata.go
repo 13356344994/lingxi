@@ -58,6 +58,7 @@ type bybitInstrument struct {
 	BaseCoin        string `json:"baseCoin"`
 	QuoteCoin       string `json:"quoteCoin"`
 	Status          string `json:"status"`
+	MarginTrading   string `json:"marginTrading"`   // spot: none/utaOnly/both/normalSpotOnly 等
 	FundingInterval int    `json:"fundingInterval"` // 分钟(linear)
 	PriceFilter     struct {
 		TickSize string `json:"tickSize"`
@@ -104,15 +105,16 @@ func (a *Adapter) FetchInstruments(ctx context.Context) ([]venue.Instrument, err
 				minNotional = parseFloat(it.LotSizeFilter.MinOrderAmt)
 			}
 			out = append(out, venue.Instrument{
-				Symbol:       canonical,
-				Market:       venue.MarketSpot,
-				BaseAsset:    strings.ToUpper(it.BaseCoin),
-				QuoteAsset:   strings.ToUpper(it.QuoteCoin),
-				TickSize:     parseFloat(it.PriceFilter.TickSize),
-				StepSize:     parseFloat(it.LotSizeFilter.BasePrecision),
-				MinNotional:  minNotional,
-				ContractSize: 1,
-				QtyUnit:      "coin",
+				Symbol:         canonical,
+				Market:         venue.MarketSpot,
+				BaseAsset:      strings.ToUpper(it.BaseCoin),
+				QuoteAsset:     strings.ToUpper(it.QuoteCoin),
+				TickSize:       parseFloat(it.PriceFilter.TickSize),
+				StepSize:       parseFloat(it.LotSizeFilter.BasePrecision),
+				MinNotional:    minNotional,
+				ContractSize:   1,
+				QtyUnit:        "coin",
+				SpotBorrowable: it.MarginTrading == "utaOnly" || it.MarginTrading == "both",
 			})
 		}
 	}

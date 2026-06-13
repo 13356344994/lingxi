@@ -31,14 +31,15 @@ func NewRuntimeLogStore(path string) (*RuntimeLogStore, error) {
 		return nil, fmt.Errorf("创建运行日志目录失败: %w", err)
 	}
 	now := time.Now().UTC()
-	file, err := os.OpenFile(path, os.O_CREATE, 0o644)
-	if err != nil {
-		return nil, fmt.Errorf("初始化运行日志文件失败: %w", err)
+	if err := ensureRuntimeLogBaseFile(path); err != nil {
+		return nil, err
 	}
-	_ = file.Close()
 	store := &RuntimeLogStore{path: path, currentDay: runtimeLogDay(now)}
 	if existingDay, ok := detectRuntimeLogBaseFileDay(path); ok && existingDay != "" && existingDay != store.currentDay {
 		if err := store.archiveBaseFileToDayLocked(existingDay); err != nil {
+			return nil, err
+		}
+		if err := ensureRuntimeLogBaseFile(path); err != nil {
 			return nil, err
 		}
 	}
@@ -157,6 +158,9 @@ func (s *RuntimeLogStore) reloadRecordsLocked() error {
 	for _, logPath := range paths {
 		file, err := os.Open(logPath)
 		if err != nil {
+			if os.IsNotExist(err) && logPath == s.path {
+				continue
+			}
 			return fmt.Errorf("打开运行日志失败: %w", err)
 		}
 		scanner := newRuntimeLogScanner(file)
@@ -265,13 +269,19 @@ func (s *RuntimeLogStore) rotateIfNeededLocked(now time.Time) error {
 	if err := s.archiveBaseFileToDayLocked(s.currentDay); err != nil {
 		return err
 	}
-	file, err := os.OpenFile(s.path, os.O_CREATE, 0o644)
-	if err != nil {
-		return fmt.Errorf("创建新运行日志文件失败: %w", err)
+	if err := ensureRuntimeLogBaseFile(s.path); err != nil {
+		return err
 	}
-	_ = file.Close()
 	s.currentDay = currentDay
 	return nil
+}
+
+func ensureRuntimeLogBaseFile(path string) error {
+	file, err := os.OpenFile(path, os.O_CREATE, 0o644)
+	if err != nil {
+		return fmt.Errorf("初始化运行日志文件失败: %w", err)
+	}
+	return file.Close()
 }
 
 func runtimeLogRotatedPath(basePath string, day string) string {

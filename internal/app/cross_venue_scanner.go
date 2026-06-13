@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -21,9 +22,11 @@ import (
 // 暴露到面板 API + 日志 + Telegram 告警。
 
 const (
-	crossVenueAlertCooldown  = 4 * time.Hour // 同一币-所对告警冷却,防刷屏
-	crossVenueDefaultFetchTO = 45 * time.Second
-	crossVenueOKXFetchTO     = 120 * time.Second // okx 逐币拉+全局 pacing,全量约 20–30s,留余量
+	crossVenueAlertCooldown   = 4 * time.Hour // 同一币-所对告警冷却,防刷屏
+	crossVenueDefaultFetchTO  = 45 * time.Second
+	crossVenueOKXFetchTO      = 120 * time.Second // okx 逐币拉+全局 pacing,全量约 20–30s,留余量
+	crossVenueBorrowProbeGap  = 200 * time.Millisecond
+	crossVenueBorrowProbesLog = "borrow_probes.jsonl"
 )
 
 // crossVenueNames 扫描目标所(固定四所)。
@@ -71,6 +74,16 @@ type CrossVenueFundingEntry struct {
 	NextFundingTime time.Time `json:"next_funding_time"`
 }
 
+// CrossVenueBorrowProbe 是某 symbol 在某所的一条借币可得性探测结果(只读遥测)。
+type CrossVenueBorrowProbe struct {
+	Symbol        string  `json:"symbol"`
+	Venue         string  `json:"venue"`
+	Available     bool    `json:"available"`
+	MaxBorrowable float64 `json:"max_borrowable"`
+	HourlyRateAPR float64 `json:"hourly_rate_apr"` // 由小时利率 ×8760 换算的年化
+	Err           string  `json:"error,omitempty"`
+}
+
 // CrossVenueScanSnapshot 是一轮扫描的内存快照(供 HTTP 端点读取)。
 type CrossVenueScanSnapshot struct {
 	ScannedAt        time.Time               `json:"scanned_at"`
@@ -78,6 +91,7 @@ type CrossVenueScanSnapshot struct {
 	Opportunities    []CrossVenueOpportunity `json:"opportunities"`
 	MinSpreadAPR     float64                 `json:"min_spread_apr"`
 	OpportunityCount int                     `json:"opportunity_count"`
+	BorrowProbes     []CrossVenueBorrowProbe `json:"borrow_probes,omitempty"`
 	// FundingByVenue 是每所每 symbol 的原始费率明细缓存(venue → symbol → entry)。
 	// 执行引擎的持仓管理(平仓判断/资金费记账)从这里查,绝不现场拉全量快照(OKX 一次 20–46s 会拖死主循环)。
 	// 每轮扫描整体重建后原子替换,发布后只读 → 并发安全;不序列化到 API(体积大且面板用不到)。
@@ -86,10 +100,11 @@ type CrossVenueScanSnapshot struct {
 
 // CrossVenueScanner 周期性扫描跨所资金费价差(纯只读)。
 type CrossVenueScanner struct {
-	cfg    CrossVenueScannerConfig
-	venues map[string]venue.Venue
-	logger *log.Logger
-	alerts *AlertDispatcher
+	cfg       CrossVenueScannerConfig
+	recordDir string
+	venues    map[string]venue.Venue
+	logger    *log.Logger
+	alerts    *AlertDispatcher
 
 	mu           sync.RWMutex
 	lastSnapshot CrossVenueScanSnapshot
@@ -97,6 +112,7 @@ type CrossVenueScanner struct {
 	alertMu    sync.Mutex
 	lastAlert  map[string]time.Time
 	nowFn      func() time.Time
+	sleepFn    func(time.Duration)
 	fetchVenue func(ctx context.Context, name string, adp venue.Venue) ([]venue.FundingSnapshot, error)
 }
 
@@ -106,13 +122,19 @@ func NewCrossVenueScanner(cfg EngineConfig, orch *Orchestrator, secretPath strin
 		logger = log.Default()
 	}
 	venues := crossVenueScannerFactory(orch, cfg, secretPath, logger)
+	recordDir := strings.TrimSpace(cfg.NetworkConfig.RecordDir)
+	if recordDir == "" {
+		recordDir = "records"
+	}
 	return &CrossVenueScanner{
 		cfg:        cfg.CrossVenueScanner,
+		recordDir:  recordDir,
 		venues:     venues,
 		logger:     logger,
 		alerts:     newCrossVenueAlertDispatcher(cfg.CrossVenueScanner, secretPath, logger),
 		lastAlert:  make(map[string]time.Time),
 		nowFn:      time.Now,
+		sleepFn:    time.Sleep,
 		fetchVenue: defaultFetchVenueSnapshot,
 	}
 }
@@ -276,6 +298,113 @@ func (s *CrossVenueScanner) scanOnce(ctx context.Context) {
 	for _, opp := range opps {
 		s.maybeAlert(opp)
 	}
+	if s.cfg.BorrowProbeEnabled {
+		probes := s.probeBorrowForOpportunities(ctx, start, opps)
+		s.mu.Lock()
+		s.lastSnapshot.BorrowProbes = probes
+		s.mu.Unlock()
+	}
+}
+
+// borrowProbeJSONLRecord 是 borrow_probes.jsonl 的单行落盘格式(每轮每币每所一行)。
+type borrowProbeJSONLRecord struct {
+	ScannedAt     time.Time `json:"scanned_at"`
+	Symbol        string    `json:"symbol"`
+	BaseAsset     string    `json:"base_asset"`
+	Venue         string    `json:"venue"`
+	Available     bool      `json:"available"`
+	MaxBorrowable float64   `json:"max_borrowable"`
+	HourlyRate    float64   `json:"hourly_rate"`
+	HourlyRateAPR float64   `json:"hourly_rate_apr"`
+	Err           string    `json:"error,omitempty"`
+}
+
+func (s *CrossVenueScanner) probeBorrowForOpportunities(ctx context.Context, scannedAt time.Time, opps []CrossVenueOpportunity) []CrossVenueBorrowProbe {
+	topN := s.cfg.BorrowProbeTopN
+	if topN <= 0 {
+		topN = 10
+	}
+	if len(opps) > topN {
+		opps = opps[:topN]
+	}
+	probes := make([]CrossVenueBorrowProbe, 0, len(opps)*len(crossVenueNames))
+	jsonlPath := filepath.Join(s.recordDir, crossVenueBorrowProbesLog)
+	bySymbolSummary := make(map[string][]string, len(opps))
+
+	for _, opp := range opps {
+		base := baseAssetFromCanonicalSymbol(opp.Symbol)
+		if base == "" {
+			continue
+		}
+		var parts []string
+		for _, venueName := range crossVenueNames {
+			adp, ok := s.venues[venueName]
+			if !ok || adp == nil {
+				continue
+			}
+			if !adp.Capabilities().SupportsBorrowQuote {
+				continue
+			}
+			quote, err := adp.FetchBorrowQuote(ctx, base)
+			probe := CrossVenueBorrowProbe{Symbol: opp.Symbol, Venue: venueName}
+			if err != nil {
+				if err == venue.ErrUnsupported {
+					parts = append(parts, venueName+"不支持")
+					continue
+				}
+				probe.Err = err.Error()
+				parts = append(parts, fmt.Sprintf("%s失败", venueName))
+			} else {
+				probe.Available = quote.Available
+				probe.MaxBorrowable = quote.MaxBorrowable
+				probe.HourlyRateAPR = borrowHourlyRateAPR(quote.HourlyRate)
+				if quote.Available {
+					parts = append(parts, fmt.Sprintf("%s可借(年化%.0f%%)", venueName, probe.HourlyRateAPR*100))
+				} else {
+					parts = append(parts, venueName+"不可借")
+				}
+			}
+			probes = append(probes, probe)
+			rec := borrowProbeJSONLRecord{
+				ScannedAt:     scannedAt,
+				Symbol:        opp.Symbol,
+				BaseAsset:     base,
+				Venue:         venueName,
+				Available:     probe.Available,
+				MaxBorrowable: probe.MaxBorrowable,
+				HourlyRateAPR: probe.HourlyRateAPR,
+				Err:           probe.Err,
+			}
+			if err == nil {
+				rec.HourlyRate = quote.HourlyRate
+			}
+			if werr := appendJSONLRecord(jsonlPath, rec); werr != nil {
+				s.logger.Printf("[借币探测] 落盘失败 path=%s: %v", jsonlPath, werr)
+			}
+			if s.sleepFn != nil {
+				s.sleepFn(crossVenueBorrowProbeGap)
+			}
+		}
+		if len(parts) > 0 {
+			bySymbolSummary[base] = parts
+		}
+	}
+	for base, parts := range bySymbolSummary {
+		s.logger.Printf("[借币探测] %s: %s", base, strings.Join(parts, " "))
+	}
+	return probes
+}
+
+func baseAssetFromCanonicalSymbol(sym string) string {
+	sym = strings.ToUpper(strings.TrimSpace(sym))
+	if i := strings.Index(sym, "-"); i > 0 {
+		return sym[:i]
+	}
+	return sym
+}
+
+func borrowHourlyRateAPR(hourlyRate float64) float64 {
+	return hourlyRate * 8760.0
 }
 
 func (s *CrossVenueScanner) fetchAllVenues(ctx context.Context) (map[string][]venue.FundingSnapshot, []CrossVenueVenueStatus) {
@@ -476,12 +605,15 @@ func computeCrossVenueOpportunities(byVenue map[string][]venue.FundingSnapshot, 
 }
 
 func (s *CrossVenueScanner) maybeAlert(opp CrossVenueOpportunity) {
-	if s == nil || s.alerts == nil || opp.SpreadAPR < s.cfg.AlertSpreadAPR {
+	if s == nil || s.logger == nil || opp.SpreadAPR < s.cfg.AlertSpreadAPR {
 		return
 	}
 	key := opp.Symbol + "|" + opp.HighVenue + "|" + opp.LowVenue
 	now := s.nowFn()
 	s.alertMu.Lock()
+	if s.lastAlert == nil {
+		s.lastAlert = make(map[string]time.Time)
+	}
 	if last, ok := s.lastAlert[key]; ok && now.Sub(last) < crossVenueAlertCooldown {
 		s.alertMu.Unlock()
 		return
@@ -489,16 +621,9 @@ func (s *CrossVenueScanner) maybeAlert(opp CrossVenueOpportunity) {
 	s.lastAlert[key] = now
 	s.alertMu.Unlock()
 
-	title := fmt.Sprintf("跨所资金费价差 %s", opp.Symbol)
-	detail := fmt.Sprintf("年化价差 %.1f%%\n空 %s(%.1f%%/年,间隔 %dh) 多 %s(%.1f%%/年,间隔 %dh)\n策略:空高费所、多低费所对冲(纯观测,未下单)",
+	s.logger.Printf("[跨所扫描] 价差告警(纯观测) %s 年化价差 %.1f%% 空 %s(%.1f%%/年,间隔 %dh) 多 %s(%.1f%%/年,间隔 %dh) 策略:空高费所、多低费所对冲(未下单)",
+		opp.Symbol,
 		opp.SpreadAPR*100,
 		opp.HighVenue, opp.HighAnnualizedAPR*100, opp.HighIntervalHours,
 		opp.LowVenue, opp.LowAnnualizedAPR*100, opp.LowIntervalHours)
-	s.alerts.Notify(Alert{
-		Level:      EventLevelWarning,
-		Title:      title,
-		Detail:     detail,
-		Symbol:     opp.Symbol,
-		OccurredAt: now,
-	})
 }

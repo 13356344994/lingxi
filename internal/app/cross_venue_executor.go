@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"lingxi/internal/venue"
@@ -39,6 +40,10 @@ type CrossVenueExecutor struct {
 	positions      []CrossVenuePosition
 	symbolCooldown map[string]time.Time
 	nowFn          func() time.Time
+	// openingsEnabled 是运行时开仓开关(第三道闸);OFF=跳过 evaluateNewOpens,在场持仓管理/平仓/风控照常。
+	openingsEnabled atomic.Bool
+	// recordDir 用于 control.json 持久化(重启维持上次选择)。
+	recordDir string
 }
 
 // CrossVenuePositionsAPIResponse 供面板 API 返回。
@@ -77,6 +82,16 @@ func NewCrossVenueExecutor(cfg EngineConfig, orch *Orchestrator, scanner *CrossV
 	}
 	if ps, lerr := store.load(); lerr == nil {
 		e.positions = ps
+	}
+	recordDir := strings.TrimSpace(cfg.NetworkConfig.RecordDir)
+	if recordDir == "" {
+		recordDir = "records"
+	}
+	e.recordDir = recordDir
+	if enabled, lerr := loadCrossVenueControlState(recordDir); lerr == nil {
+		e.openingsEnabled.Store(enabled)
+	} else if logger != nil {
+		logger.Printf("[跨所执行] 读取 control.json 失败,开仓开关默认关: %v", lerr)
 	}
 	return e, nil
 }
@@ -143,9 +158,14 @@ func (e *CrossVenueExecutor) tick(ctx context.Context, live bool) {
 		e.logger.Printf("[跨所执行] 急停生效,跳过开新仓(在场持仓仍管理)")
 	}
 	e.manageOpenPositions(ctx, live)
-	if !haltActive {
-		e.evaluateNewOpens(ctx, live)
+	if haltActive {
+		return
 	}
+	if !e.OpeningsEnabled() {
+		e.logger.Printf("[跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)")
+		return
+	}
+	e.evaluateNewOpens(ctx, live)
 }
 
 func (e *CrossVenueExecutor) isHaltActive() bool {
@@ -177,10 +197,21 @@ func (e *CrossVenueExecutor) evaluateNewOpens(ctx context.Context, live bool) {
 		if len(activeCrossVenuePositions(e.snapshotPositions())) >= cfg.MaxConcurrent {
 			break
 		}
+		// 全局最优腿对含不可交易所(如 binance)时不直接拒:在可交易所子集内降级重算最优对,
+		// 达标则用替代对继续走完整闸门(否则该币在子集内的真实机会会被全局最优挡住,高频误拒)。
+		resolved, downgradeReject := e.resolveTradeableOpportunity(opp, snap.FundingByVenue)
+		if downgradeReject != "" {
+			if len(rejected) < 5 {
+				rejected = append(rejected, fmt.Sprintf("%s(%s)", opp.Symbol, downgradeReject))
+			}
+			continue
+		}
+		opp = resolved
 		gateRes := evaluateCrossVenueOpenGate(ctx, cfg, deps, e.venues, crossVenueGateInput{
 			Opp:           opp,
 			Positions:     e.snapshotPositions(),
 			BybitHeld:     func(sym venue.Symbol) bool { return isBybitSymbolHeld(e.cfg.NetworkConfig.RecordDir, sym) },
+			FundingHeld:   func(sym venue.Symbol) bool { return isFundingSymbolHeldAnyVenue(e.cfg.NetworkConfig.RecordDir, sym) },
 			HaltActive:    false,
 			SymbolCooling: e.isSymbolCooling,
 			Now:           now,
@@ -222,6 +253,57 @@ func (e *CrossVenueExecutor) evaluateNewOpens(ctx context.Context, live bool) {
 	if len(rejected) > 0 {
 		e.logger.Printf("[跨所执行] 本轮闸门拒绝 %d 例(前5): %s", len(rejected), strings.Join(rejected, "; "))
 	}
+}
+
+// resolveTradeableOpportunity 处理「全局最优腿对含不可交易所」的机会(扫描器对每个 symbol 只保留
+// 跨全部四所的全局最优对,binance 覆盖 798 币,全局最优经常换成含币安的对):
+//   - 两腿都可交易 → 原样放行(零行为变更);
+//   - 含不可交易所 → 用扫描器费率索引在可交易所子集(okx/gate/bybit)内重算最优对,
+//     价差达标则返回替代机会继续走完整闸门;子集凑不出达标对才拒。
+//
+// 返回 (机会, 拒绝原因):原因为空 = 放行(机会可能已被替换);非空 = 本条机会跳过。
+func (e *CrossVenueExecutor) resolveTradeableOpportunity(opp CrossVenueOpportunity, byVenue map[string]map[string]CrossVenueFundingEntry) (CrossVenueOpportunity, string) {
+	if crossVenueTradeableVenues[opp.HighVenue] && crossVenueTradeableVenues[opp.LowVenue] {
+		return opp, ""
+	}
+	alt, ok := bestTradeableSubsetPair(opp.Symbol, byVenue)
+	if !ok {
+		return opp, fmt.Sprintf("最优对(%s/%s)含不可交易所,费率索引中可交易所子集不足两所", opp.HighVenue, opp.LowVenue)
+	}
+	if alt.SpreadAPR < e.cfg.CrossVenueExecutor.OpenSpreadAPR {
+		return opp, fmt.Sprintf("最优对(%s/%s)含不可交易所,子集内无达标替代(子集最优=%.1f%%)", opp.HighVenue, opp.LowVenue, alt.SpreadAPR*100)
+	}
+	e.logger.Printf("[跨所执行] %s 全局最优对(%s/%s)含不可交易所,降级用子集对(%s/%s, %.1f%%)",
+		opp.Symbol, opp.HighVenue, opp.LowVenue, alt.HighVenue, alt.LowVenue, alt.SpreadAPR*100)
+	return alt, ""
+}
+
+// bestTradeableSubsetPair 用扫描器费率索引对某 symbol 在可交易所子集内重算最优腿对。
+// 年化口径与扫描器完全一致:fundingAnnualizedAPR 折算 + bestPairSpread 两两取最大,不另抄算法。
+// 索引里该 symbol 覆盖不足两个可交易所时返回 not-ok(沿用现有降级语义)。
+func bestTradeableSubsetPair(sym string, byVenue map[string]map[string]CrossVenueFundingEntry) (CrossVenueOpportunity, bool) {
+	entries := make([]symbolVenueFunding, 0, len(crossVenueExecutorVenues))
+	for _, name := range crossVenueExecutorVenues {
+		entry, ok := byVenue[name][sym]
+		if !ok {
+			continue
+		}
+		interval := entry.IntervalHours
+		if interval <= 0 {
+			interval = 8
+		}
+		entries = append(entries, symbolVenueFunding{
+			Venue:           name,
+			FundingRate:     entry.Rate,
+			AnnualizedAPR:   fundingAnnualizedAPR(entry.Rate, interval),
+			IntervalHours:   interval,
+			NextFundingTime: entry.NextFundingTime,
+		})
+	}
+	if len(entries) < 2 {
+		return CrossVenueOpportunity{}, false
+	}
+	return bestPairSpread(sym, entries)
 }
 
 func upsertCrossVenuePosition(ps []CrossVenuePosition, p CrossVenuePosition) []CrossVenuePosition {
@@ -343,6 +425,25 @@ func (e *CrossVenueExecutor) persistPosition(p CrossVenuePosition) error {
 	return nil
 }
 
+// removeCrossVenuePosition 从落盘台账与内存台账同时移除(平仓收尾/reconcile orphan 必须双删,
+// 否则 manageOpenPositions 下轮仍从 snapshotPositions 读到 stale closing 持仓)。
+func (e *CrossVenueExecutor) removeCrossVenuePosition(sym string) error {
+	if err := e.store.remove(sym); err != nil {
+		e.logger.Printf("[跨所执行] 删台账失败 %s: %v", sym, err)
+		return err
+	}
+	e.mu.Lock()
+	out := make([]CrossVenuePosition, 0, len(e.positions))
+	for _, p := range e.positions {
+		if p.Symbol != sym {
+			out = append(out, p)
+		}
+	}
+	e.positions = out
+	e.mu.Unlock()
+	return nil
+}
+
 func (e *CrossVenueExecutor) snapshotPositions() []CrossVenuePosition {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
@@ -402,7 +503,7 @@ func (e *CrossVenueExecutor) notifyTrade(title, detail, sym string) {
 	if e.alerts == nil {
 		return
 	}
-	e.alerts.Notify(Alert{Level: EventLevelInfo, Title: title, Detail: detail, Symbol: sym, OccurredAt: e.nowFn()})
+	e.alerts.NotifyTrade(Alert{Level: EventLevelInfo, Title: title, Detail: detail, Symbol: sym, OccurredAt: e.nowFn()})
 }
 
 func (e *CrossVenueExecutor) notifyWarn(title, detail, sym string) {

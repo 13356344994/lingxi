@@ -139,6 +139,12 @@ func startLiveStack(ctx context.Context, cfg EngineConfig) error {
 	if cfg.CrossVenueScanner.Enabled {
 		scanner := NewCrossVenueScanner(cfg, orch, secretPath, log.Default())
 		dashboard.SetCrossVenueScanner(scanner)
+		// OKX/Gate funding 执行器选币读扫描器快照,不现场拉全量资金费。
+		for _, rt := range orch.All() {
+			if rt != nil && rt.controller != nil && isFundingExecutorVenue(rt.name) {
+				rt.controller.SetCrossVenueScanner(scanner)
+			}
+		}
 		go scanner.Run(ctx)
 		if cfg.CrossVenueExecutor.Enabled {
 			exec, err := NewCrossVenueExecutor(cfg, orch, scanner, secretPath, log.Default())

@@ -59,6 +59,7 @@ func RunConformance(t TB, v Venue, cfg ConformanceConfig) {
 	checkCapitalAllocation(t, v, caps)
 	checkErrorClassification(t, v)
 	checkUnsupportedContract(t, v, caps)
+	checkBorrowQuoteContract(t, v, caps)
 
 	if cfg.CheckOrderBudget {
 		// 预留 0 单位应为安全无副作用的探针;随后归还,确保不污染预算账本。
@@ -189,6 +190,18 @@ func checkUnsupportedContract(t TB, v Venue, caps Capabilities) {
 		if _, err := v.ExecuteRebalance(ctx, CapitalAllocationPlan{}); err != ErrUnsupported {
 			t.Errorf("conformance[%s]: 不支持自动调仓时 ExecuteRebalance 应返回 ErrUnsupported, got %v", v.Name(), err)
 		}
+	}
+}
+
+// checkBorrowQuoteContract 校验未声明 SupportsBorrowQuote 的适配器须对 FetchBorrowQuote 返回 ErrUnsupported。
+func checkBorrowQuoteContract(t TB, v Venue, caps Capabilities) {
+	t.Helper()
+	if caps.SupportsBorrowQuote {
+		return
+	}
+	ctx := context.Background()
+	if _, err := v.FetchBorrowQuote(ctx, "BTC"); err != ErrUnsupported {
+		t.Errorf("conformance[%s]: 不支持借币行情探测时 FetchBorrowQuote 应返回 ErrUnsupported, got %v", v.Name(), err)
 	}
 }
 

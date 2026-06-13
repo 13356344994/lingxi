@@ -2,7 +2,9 @@ package gate
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"math"
 	"net/url"
 	"strconv"
 	"strings"
@@ -28,29 +30,34 @@ func fmtNum(v float64) string {
 }
 
 // sanitizeOrderText 净化 Gate 客户端单号 text 字段。
-// Gate 规则:text 必须以 "t-" 开头,"t-" 之后最长 28 字符,仅字母数字/下划线/连字符/点。
-// 引擎侧 clientOrderID 常带 UUID 连字符等非法字符,须净化+截断+加前缀后再提交。
+// Gate 规则:text 必须以 "t-" 开头,"t-" 之后最长 28 字符,仅小写字母数字/下划线/连字符。
+// 引擎侧 clientOrderID(如 cv-HOMEUSDT-bybit-… )常含大写或非法字符,须净化+小写+截断+加前缀;
+// 净化后为空则返回 ""(调用方 omitempty 不传 text)。
 func sanitizeOrderText(id string) string {
 	const prefix = "t-"
 	const maxBody = 28
 	var b strings.Builder
 	for _, r := range id {
-		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') ||
-			r == '_' || r == '-' || r == '.' {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9', r == '_', r == '-':
 			b.WriteRune(r)
+		case r >= 'A' && r <= 'Z':
+			b.WriteRune(r - 'A' + 'a')
 		}
 	}
-	body := b.String()
-	body = strings.TrimPrefix(body, prefix)
+	body := strings.TrimPrefix(b.String(), prefix)
 	if len(body) > maxBody {
 		body = body[:maxBody]
+	}
+	if body == "" {
+		return ""
 	}
 	return prefix + body
 }
 
 // qtyToSignedContractSize 把币数量换算为 Gate 带符号整数张数(向零取整)。
-// Side=Sell → 负数;为 0 时报错(与 OKX 张数换算不同,Gate 无 side 字段)。
-func qtyToSignedContractSize(side venue.Side, qty, multiplier float64) (int64, error) {
+// contractStep 为 OrderSizeRound(张数步进);Side=Sell → 负数;为 0 时报错。
+func qtyToSignedContractSize(side venue.Side, qty, multiplier, contractStep float64) (int64, error) {
 	if multiplier <= 0 {
 		return 0, fmt.Errorf("gate: quanto_multiplier 无效")
 	}
@@ -58,6 +65,11 @@ func qtyToSignedContractSize(side venue.Side, qty, multiplier float64) (int64, e
 		return 0, fmt.Errorf("gate: 下单数量必须为正, got %v", qty)
 	}
 	contracts := qty / multiplier
+	if contractStep > 0 {
+		contracts = math.Floor(contracts/contractStep+1e-12) * contractStep
+	} else {
+		contracts = math.Floor(contracts + 1e-12)
+	}
 	var n int64
 	if side == venue.SideBuy {
 		n = int64(contracts)
@@ -65,7 +77,7 @@ func qtyToSignedContractSize(side venue.Side, qty, multiplier float64) (int64, e
 		n = -int64(contracts)
 	}
 	if n == 0 {
-		return 0, fmt.Errorf("gate: 换算后张数为 0(qty=%v multiplier=%v)", qty, multiplier)
+		return 0, fmt.Errorf("gate: 换算后张数为 0(qty=%v multiplier=%v step=%v)", qty, multiplier, contractStep)
 	}
 	return n, nil
 }
@@ -99,7 +111,7 @@ func (a *Adapter) buildFuturesOrderBody(ctx context.Context, req venue.OrderRequ
 	if err != nil {
 		return gateFuturesOrderBody{}, err
 	}
-	size, err := qtyToSignedContractSize(req.Side, req.Qty, inst.ContractSize)
+	size, err := qtyToSignedContractSize(req.Side, req.Qty, inst.ContractSize, inst.StepSize)
 	if err != nil {
 		return gateFuturesOrderBody{}, err
 	}
@@ -107,7 +119,9 @@ func (a *Adapter) buildFuturesOrderBody(ctx context.Context, req venue.OrderRequ
 		Contract:   raw,
 		Size:       size,
 		ReduceOnly: req.ReduceOnly,
-		Text:       sanitizeOrderText(req.ClientOrderID),
+	}
+	if txt := sanitizeOrderText(req.ClientOrderID); txt != "" {
+		body.Text = txt
 	}
 	switch req.Type {
 	case venue.OrderTypeMarket:
@@ -125,12 +139,14 @@ func (a *Adapter) buildFuturesOrderBody(ctx context.Context, req venue.OrderRequ
 		}
 		body.Price = fmtNum(req.Price)
 		body.TIF = "poc"
-	default:
+	case venue.OrderTypeLimit:
 		if req.Price <= 0 {
 			return gateFuturesOrderBody{}, fmt.Errorf("gate: 限价单需正价格, got %v", req.Price)
 		}
 		body.Price = fmtNum(req.Price)
 		body.TIF = "gtc"
+	default:
+		return gateFuturesOrderBody{}, fmt.Errorf("gate: 不支持的订单类型: %v", req.Type)
 	}
 	return body, nil
 }
@@ -147,7 +163,9 @@ func (a *Adapter) buildSpotOrderBody(ctx context.Context, req venue.OrderRequest
 		CurrencyPair: raw,
 		Side:         gateSide(req.Side),
 		Account:      "spot",
-		Text:         sanitizeOrderText(req.ClientOrderID),
+	}
+	if txt := sanitizeOrderText(req.ClientOrderID); txt != "" {
+		body.Text = txt
 	}
 	switch req.Type {
 	case venue.OrderTypeMarket:
@@ -181,7 +199,7 @@ func (a *Adapter) buildSpotOrderBody(ctx context.Context, req venue.OrderRequest
 		body.TimeInForce = "poc"
 		body.Amount = fmtNum(req.Qty)
 		body.Price = fmtNum(req.Price)
-	default:
+	case venue.OrderTypeLimit:
 		if req.Price <= 0 {
 			return gateSpotOrderBody{}, fmt.Errorf("gate: 限价单需正价格, got %v", req.Price)
 		}
@@ -189,13 +207,17 @@ func (a *Adapter) buildSpotOrderBody(ctx context.Context, req venue.OrderRequest
 		body.TimeInForce = "gtc"
 		body.Amount = fmtNum(req.Qty)
 		body.Price = fmtNum(req.Price)
+	default:
+		return gateSpotOrderBody{}, fmt.Errorf("gate: 不支持的订单类型: %v", req.Type)
 	}
 	return body, nil
 }
 
+// gateOrderAck 的 id 字段:合约回执是数字、现货回执是字符串(踩坑实录:用 int64
+// 解析现货回执会在「下单已成功后」报解析错误,引擎误判失败 → 裸腿。用 json.Number 兼容两者)。
 type gateOrderAck struct {
-	ID   int64  `json:"id"`
-	Text string `json:"text"`
+	ID   json.Number `json:"id"`
+	Text string      `json:"text"`
 }
 
 // PlaceOrder 下单(签名 POST)。返回受理回执;成交明细由 QueryOrder 拉取。
@@ -213,7 +235,7 @@ func (a *Adapter) PlaceOrder(ctx context.Context, req venue.OrderRequest) (venue
 			Symbol:          req.Symbol,
 			Market:          req.Market,
 			ClientOrderID:   firstNonEmpty(ack.Text, body.Text, req.ClientOrderID),
-			ExchangeOrderID: strconv.FormatInt(ack.ID, 10),
+			ExchangeOrderID: ack.ID.String(),
 			Status:          "new",
 		}, nil
 	}
@@ -229,7 +251,7 @@ func (a *Adapter) PlaceOrder(ctx context.Context, req venue.OrderRequest) (venue
 		Symbol:          req.Symbol,
 		Market:          req.Market,
 		ClientOrderID:   firstNonEmpty(ack.Text, body.Text, req.ClientOrderID),
-		ExchangeOrderID: strconv.FormatInt(ack.ID, 10),
+		ExchangeOrderID: ack.ID.String(),
 		Status:          "new",
 	}, nil
 }
@@ -303,17 +325,29 @@ func (a *Adapter) QueryOrder(ctx context.Context, m venue.Market, s venue.Symbol
 		}
 		return venue.OrderResult{Symbol: s, Market: m, ClientOrderID: clientOrderID, Status: "unknown"}, nil
 	}
-	for _, status := range []string{"open", "closed"} {
+	// 优先用自定义 ID 精确查单:GET /spot/orders/{t-text}。
+	// 踩坑实录:列表接口 status 只认 open/finished("closed" 会查不到任何已成交单),
+	// 导致 IOC 成交后 QueryOrder 报 unknown → 引擎误判失败、可能重复下单。
+	{
+		q := url.Values{}
+		q.Set("currency_pair", raw)
+		var row gateSpotOrder
+		if err := a.t.signedGet(ctx, pathSpotOrders+"/"+url.PathEscape(text), q, &row); err == nil && row.ID != "" {
+			return a.mapSpotOrder(s, row), nil
+		}
+	}
+	for _, status := range []string{"open", "finished"} {
 		q := url.Values{}
 		q.Set("currency_pair", raw)
 		q.Set("status", status)
-		q.Set("text", text)
 		var rows []gateSpotOrder
 		if err := a.t.signedGet(ctx, pathSpotOrders, q, &rows); err != nil {
 			return venue.OrderResult{}, err
 		}
-		if len(rows) > 0 {
-			return a.mapSpotOrder(s, rows[0]), nil
+		for _, row := range rows {
+			if row.Text == text {
+				return a.mapSpotOrder(s, row), nil
+			}
 		}
 	}
 	return venue.OrderResult{Symbol: s, Market: m, ClientOrderID: clientOrderID, Status: "unknown"}, nil

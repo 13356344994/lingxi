@@ -108,6 +108,59 @@ func TestBalancesParseSigned(t *testing.T) {
 	}
 }
 
+func TestFetchInstrumentsSpotBorrowableFromMarginTrading(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != pathInstrumentsInfo {
+			http.Error(w, "no route", http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Query().Get("category") {
+		case categoryLinear:
+			_, _ = w.Write([]byte(`{"retCode":0,"retMsg":"OK","result":{"list":[
+				{"symbol":"BTCUSDT","contractType":"LinearPerpetual","baseCoin":"BTC","quoteCoin":"USDT","status":"Trading",
+				"priceFilter":{"tickSize":"0.01"},"lotSizeFilter":{"qtyStep":"0.001","minNotionalValue":"5"}}
+			],"nextPageCursor":""}}`))
+		case "spot":
+			_, _ = w.Write([]byte(`{"retCode":0,"retMsg":"OK","result":{"list":[
+				{"symbol":"HOMEUSDT","baseCoin":"HOME","quoteCoin":"USDT","status":"Trading","marginTrading":"utaOnly",
+				"priceFilter":{"tickSize":"0.0001"},"lotSizeFilter":{"basePrecision":"0.1","minNotionalValue":"5"}},
+				{"symbol":"HUSDT","baseCoin":"H","quoteCoin":"USDT","status":"Trading","marginTrading":"none",
+				"priceFilter":{"tickSize":"0.0001"},"lotSizeFilter":{"basePrecision":"0.1","minNotionalValue":"5"}},
+				{"symbol":"BOTHUSDT","baseCoin":"BOTH","quoteCoin":"USDT","status":"Trading","marginTrading":"both",
+				"priceFilter":{"tickSize":"0.0001"},"lotSizeFilter":{"basePrecision":"0.1","minNotionalValue":"5"}}
+			],"nextPageCursor":""}}`))
+		default:
+			http.Error(w, "unknown category", http.StatusBadRequest)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	a, err := New(venue.Config{Name: VenueName, APIKey: "TESTKEY", APISecret: "TESTSECRET", Extra: map[string]string{"base_url": srv.URL}})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	instrs, err := a.FetchInstruments(context.Background())
+	if err != nil {
+		t.Fatalf("FetchInstruments: %v", err)
+	}
+	spotBorrow := map[venue.Symbol]bool{}
+	for _, in := range instrs {
+		if in.Market != venue.MarketSpot {
+			continue
+		}
+		spotBorrow[in.Symbol] = in.SpotBorrowable
+	}
+	if got, want := spotBorrow["HOME-USDT"], true; got != want {
+		t.Errorf("utaOnly 应可借: got %v want %v", got, want)
+	}
+	if got, want := spotBorrow["BOTH-USDT"], true; got != want {
+		t.Errorf("both 应可借: got %v want %v", got, want)
+	}
+	if got, want := spotBorrow["H-USDT"], false; got != want {
+		t.Errorf("none 应不可借: got %v want %v", got, want)
+	}
+}
+
 func TestPositionsSignParse(t *testing.T) {
 	a := fakeBybit(t, map[string]string{
 		pathPositionList: `{"retCode":0,"retMsg":"OK","result":{"list":[

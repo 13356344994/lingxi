@@ -91,6 +91,7 @@ func evaluateMultiVenueReadiness(samples []venueMetricSample) (bool, string) {
 		return false, "no_venues"
 	}
 	reasons := make([]string, 0, len(samples))
+	allCleanIdle := true
 	for _, sm := range samples {
 		ok, reason := evaluateReadiness(sm.Status)
 		if ok {
@@ -100,12 +101,44 @@ func evaluateMultiVenueReadiness(samples []venueMetricSample) (bool, string) {
 			}
 			return true, "ok:" + label
 		}
+		if !isCleanIdle(sm.Status) {
+			allCleanIdle = false
+		}
 		if sm.Venue != "" {
 			reason = sm.Venue + ":" + reason
 		}
 		reasons = append(reasons, reason)
 	}
+	// 没有任何所在跑,但所有所都是「干净 idle」(本进程内从未启动、无熔断/急停/日风控/健康故障)→
+	// 进程本身健康,判就绪。这样外部 watchdog 不会对 autostart=false(手动模式)的进程在用户手动启动前
+	// 空重启(healthz≠200→重启→仍 idle→再重启 的死循环)。真正的死进程仍由 watchdog 的「心跳超时」兜底;
+	// 启动后才掉线/熔断的所(StartedAt 非空或有故障)不算干净 idle,照旧 not-ready 让 watchdog 介入。
+	if allCleanIdle {
+		return true, "idle:all"
+	}
 	return false, strings.Join(reasons, ";")
+}
+
+// isCleanIdle 判定一个未运行的所是否处于「干净 idle」:本进程内从未启动过(StartedAt 空)、
+// 且无熔断/急停/日风控/失败暂停。用于把「手动模式下故意全 idle」与「启动后崩溃/熔断」区分开。
+func isCleanIdle(status RuntimeTaskStatus) bool {
+	if status.Running {
+		return false
+	}
+	if strings.TrimSpace(status.StartedAt) != "" {
+		return false // 本进程内启动过 → 现在不在跑 = 掉线/被停,非「从未启动」的干净 idle
+	}
+	if status.CircuitBreakerTripped {
+		return false
+	}
+	if strings.TrimSpace(status.EmergencyStopReason) != "" || strings.TrimSpace(status.DailyRiskLimitReason) != "" {
+		return false
+	}
+	switch strings.ToLower(strings.TrimSpace(status.HealthStatus)) {
+	case "failed", "paused":
+		return false
+	}
+	return true
 }
 
 // evaluateReadiness 判定引擎是否就绪(纯函数,可单测)。未运行 / 熔断 / 健康态为 failed|paused → 未就绪。

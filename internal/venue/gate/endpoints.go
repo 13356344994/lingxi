@@ -17,4 +17,7 @@ const (
 
 	pathWalletFee       = "/api/v4/wallet/fee"
 	pathWalletTransfers = "/api/v4/wallet/transfers" // 所内 spot↔futures 划转
+
+	pathUnifiedBorrowable   = "/api/v4/unified/borrowable"    // 私有读:统一账户最大可借
+	pathUnifiedEstimateRate = "/api/v4/unified/estimate_rate" // 私有读:统一账户预估小时借币利率
 )

@@ -2,6 +2,8 @@ package gate
 
 import (
 	"context"
+	"fmt"
+	"net/url"
 	"strings"
 
 	"lingxi/internal/venue"
@@ -129,6 +131,39 @@ func (a *Adapter) FetchTradingCostProfile(ctx context.Context, syms []venue.Symb
 // MaxBorrowable Gate 借币做空路径未接入。
 func (a *Adapter) MaxBorrowable(ctx context.Context, asset string) (float64, error) {
 	return 0, venue.ErrUnsupported
+}
+
+// FetchBorrowQuote 拉统一账户借币行情(只读):
+// GET /api/v4/unified/borrowable?currency=X(最大可借)
+// + GET /api/v4/unified/estimate_rate?currencies=X(预估小时借币利率,官方文档为 hourly rate)。
+func (a *Adapter) FetchBorrowQuote(ctx context.Context, asset string) (venue.BorrowQuote, error) {
+	base := strings.ToUpper(strings.TrimSpace(asset))
+	if base == "" {
+		return venue.BorrowQuote{}, fmt.Errorf("gate FetchBorrowQuote: asset 为空")
+	}
+	bq := url.Values{}
+	bq.Set("currency", base)
+	var borrowable struct {
+		Currency string `json:"currency"`
+		Amount   string `json:"amount"`
+	}
+	if err := a.t.signedGet(ctx, pathUnifiedBorrowable, bq, &borrowable); err != nil {
+		return venue.BorrowQuote{}, err
+	}
+	maxBorrow := parseFloat(borrowable.Amount)
+	rq := url.Values{}
+	rq.Set("currencies", base)
+	var rates map[string]string
+	if err := a.t.signedGet(ctx, pathUnifiedEstimateRate, rq, &rates); err != nil {
+		return venue.BorrowQuote{}, err
+	}
+	hourlyRate := parseFloat(rates[base])
+	return venue.BorrowQuote{
+		Asset:         base,
+		MaxBorrowable: maxBorrow,
+		HourlyRate:    hourlyRate,
+		Available:     maxBorrow > 0,
+	}, nil
 }
 
 // FetchLeverageBrackets Gate 杠杆档位公共接口未接入本适配器。

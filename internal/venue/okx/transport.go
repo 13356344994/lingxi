@@ -241,6 +241,11 @@ func (t *transport) doOnce(ctx context.Context, method, path string, query url.V
 	if env.Code != "0" {
 		// 50011 = 限频,退避后重试是安全的。
 		retryable := env.Code == "50011"
+		// 下单类接口失败时(code=1 "All operations failed"),真实原因藏在
+		// data[].sCode/sMsg 里,必须透出,否则只能看到无意义的外层提示。
+		if detail := truncate(strings.TrimSpace(string(env.Data)), 256); detail != "" && detail != "[]" && detail != "null" {
+			return retryable, fmt.Errorf("okx: code=%s msg=%q detail=%s", env.Code, env.Msg, detail)
+		}
 		return retryable, fmt.Errorf("okx: code=%s msg=%q", env.Code, env.Msg)
 	}
 	if out == nil || len(env.Data) == 0 || string(env.Data) == "[]" {

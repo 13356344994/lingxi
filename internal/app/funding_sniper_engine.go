@@ -165,8 +165,10 @@ func (e *FundingRateSniperEngine) Start(ctx context.Context) (err error) {
 	e.startDeadMansSwitch(ctx)
 	e.backfillRealizedEdge()
 
-	// 启动通知:子系统全部拉起、即将进入主循环 → 通知运营者(含 Telegram)。
-	e.notifyLifecycle(EventLevelInfo, "实盘引擎已启动", e.lifecycleStartupDetail())
+	// 启动仅写本地日志;例行启停不推 Telegram(交易/告警/控制令牌仍走 NotifyTrade/Notify)。
+	if e.logger != nil {
+		e.logger.Printf("[startup] 实盘引擎已启动: %s", e.lifecycleStartupDetail())
+	}
 
 	for {
 		if err := e.checkLiveSafetyGuards("idle"); err != nil {

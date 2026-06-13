@@ -249,6 +249,9 @@ type RuntimeController struct {
 	// 每次都白付永续开+回补两笔手续费。仅内存(重启清零,重试一次无妨)。
 	bybitOpenSkipUntil map[venue.Symbol]time.Time
 
+	// crossVenueScanner 跨所扫描器(OKX/Gate funding 执行器选币读 FundingByVenue,不现场拉全量快照)。
+	crossVenueScanner *CrossVenueScanner
+
 	mu                             sync.Mutex
 	status                         RuntimeTaskStatus
 	cancel                         context.CancelFunc
@@ -288,11 +291,10 @@ func NewRuntimeController(ctx context.Context, store *ReportStore, cfg EngineCon
 }
 
 func (c *RuntimeController) Start(req RuntimeStartRequest) error {
-	// 安全闸:Bybit 走独立的精简执行器(B5,runBybitExecutor,主闸 LiveTradingEnabled 默认 OFF=只 shadow);
-	// 其余非币安所(OKX/Gate)的交易引擎尚未接入,Start 会构造币安引擎——若误启会变成「第二个币安引擎」双开实盘,
-	// 故一律拒绝,当前仅开放资金管理(调仓)。
+	// 安全闸:Bybit → runBybitExecutor;OKX/Gate → runVenueFundingExecutor;其余非币安所仍拒绝。
 	isBybit := c.isBybitVenue()
-	if c.isNonBinanceVenue() && !isBybit {
+	isFundingVenue := c.isFundingExecutorVenue()
+	if c.isNonBinanceVenue() && !isBybit && !isFundingVenue {
 		return fmt.Errorf("venue %q 的自动交易引擎尚未接入,当前仅支持资金管理(调仓);请勿在该所启动任务", c.venueName)
 	}
 	mode := RuntimeMode(strings.TrimSpace(req.Mode))
@@ -301,6 +303,9 @@ func (c *RuntimeController) Start(req RuntimeStartRequest) error {
 	}
 	if isBybit && mode != RuntimeModeLive {
 		return fmt.Errorf("Bybit 执行器仅支持实盘(live)模式,不支持历史模拟")
+	}
+	if isFundingVenue && mode != RuntimeModeLive {
+		return fmt.Errorf("%s funding 执行器仅支持实盘(live)模式", c.venueName)
 	}
 
 	secretPath := strings.TrimSpace(req.SecretPath)
@@ -322,9 +327,8 @@ func (c *RuntimeController) Start(req RuntimeStartRequest) error {
 	cooldownUntil := strings.TrimSpace(c.status.CooldownUntil)
 	c.mu.Unlock()
 
-	// 币安实盘启动前检查是币安专属(账户/持仓 reconcile 等);Bybit 执行器有自己的启动前置(构造适配器 + 单写租约 +
-	// reconcile,见 runBybitExecutor),故跳过这套币安检查。
-	if mode == RuntimeModeLive && !isBybit {
+	// 币安实盘启动前检查是币安专属;Bybit/OKX/Gate funding 执行器有各自启动前置,跳过币安检查。
+	if mode == RuntimeModeLive && !isBybit && !isFundingVenue {
 		preflightCtx, cancel := context.WithTimeout(c.rootCtx, liveStartupCheckTimeout)
 		defer cancel()
 		if err := c.runLiveStartupChecks(preflightCtx, secretPath, taskCfg, runID, cooldownUntil); err != nil {
@@ -518,9 +522,12 @@ func (c *RuntimeController) runTask(ctx context.Context, mode RuntimeMode, secre
 
 	switch mode {
 	case RuntimeModeLive:
-		if c.isBybitVenue() {
+		switch {
+		case c.isBybitVenue():
 			message, err = c.runBybitExecutor(ctx, secretPath, cfg)
-		} else {
+		case c.isFundingExecutorVenue():
+			message, err = c.runVenueFundingExecutor(ctx, secretPath, cfg)
+		default:
 			message, err = c.runLiveEngine(ctx, secretPath, cfg)
 		}
 	case RuntimeModeMonthly:

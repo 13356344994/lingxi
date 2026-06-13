@@ -4,10 +4,13 @@ import (
 	"context"
 	"log"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"lingxi/internal/venue"
+	"lingxi/internal/venue/bybit"
+	"lingxi/internal/venue/gate"
 )
 
 // TestAppendBybitSettlementWritesUnifiedSchema 钉死 PROJECT_AUDIT C-3 修复:Bybit 平仓后
@@ -103,7 +106,8 @@ func TestAppendBybitSettlementFundingPendingFallsBackToEstimate(t *testing.T) {
 
 // stubBybitVenue 是最小 bybitFullVenue 桩:只有 QueryOrder 可注入,其余方法返回零值。
 type stubBybitVenue struct {
-	queryOrder func(m venue.Market, s venue.Symbol, clientOrderID string) (venue.OrderResult, error)
+	queryOrder     func(m venue.Market, s venue.Symbol, clientOrderID string) (venue.OrderResult, error)
+	fetchPositions func(context.Context) ([]venue.Position, error)
 }
 
 func (s *stubBybitVenue) FetchFundingSnapshot(context.Context) ([]venue.FundingSnapshot, error) {
@@ -127,7 +131,12 @@ func (s *stubBybitVenue) CancelOrder(context.Context, venue.Market, venue.Symbol
 func (s *stubBybitVenue) QueryOrder(_ context.Context, m venue.Market, sym venue.Symbol, clientOrderID string) (venue.OrderResult, error) {
 	return s.queryOrder(m, sym, clientOrderID)
 }
-func (s *stubBybitVenue) FetchPositions(context.Context) ([]venue.Position, error) { return nil, nil }
+func (s *stubBybitVenue) FetchPositions(ctx context.Context) ([]venue.Position, error) {
+	if s.fetchPositions != nil {
+		return s.fetchPositions(ctx)
+	}
+	return nil, nil
+}
 func (s *stubBybitVenue) FetchBalances(context.Context) (venue.Balances, error) {
 	return venue.Balances{}, nil
 }
@@ -149,7 +158,7 @@ func TestBybitProbeOrphanOwnershipAdoptsOwnOrder(t *testing.T) {
 		return venue.OrderResult{Status: "unknown"}, nil
 	}}
 	c := &RuntimeController{logger: log.Default()}
-	adopted, ok := c.bybitProbeOrphanOwnership(context.Background(), stub, venue.Position{
+	adopted, orderLinkID, ok := c.bybitProbeOrphanOwnership(context.Background(), stub, venue.Position{
 		Symbol: sym, PositionAmt: 5048, EntryPrice: 0.006,
 	})
 	if !ok {
@@ -170,6 +179,150 @@ func TestBybitProbeOrphanOwnershipAdoptsOwnOrder(t *testing.T) {
 	if adopted.BaseQty != 5048 || adopted.PerpEntryPrice != 0.006 {
 		t.Fatalf("收编持仓字段错误: %+v", adopted)
 	}
+	if !strings.HasPrefix(orderLinkID, "lx-") {
+		t.Fatalf("命中单所 orderLinkId 应以 lx- 开头, 实际 %q", orderLinkID)
+	}
+}
+
+// TestBybitProbeOrphanOwnershipRejectsCrossVenueOrder 跨所 cv- 前缀订单不得收编为单所孤儿仓。
+func TestBybitProbeOrphanOwnershipRejectsCrossVenueOrder(t *testing.T) {
+	cvID := "cv-HOMEUSDT-bybit-1781271403-h1"
+	stub := &stubBybitVenue{queryOrder: func(_ venue.Market, _ venue.Symbol, _ string) (venue.OrderResult, error) {
+		return venue.OrderResult{ClientOrderID: cvID, Status: "filled", ExecutedQty: 1000}, nil
+	}}
+	c := &RuntimeController{logger: log.Default()}
+	if _, orderLinkID, ok := c.bybitProbeOrphanOwnership(context.Background(), stub, venue.Position{
+		Symbol: venue.Symbol("HOME-USDT"), PositionAmt: -1000, EntryPrice: 0.01,
+	}); ok {
+		t.Fatal("cv- 前缀订单不得收编")
+	} else if orderLinkID != cvID {
+		t.Fatalf("应返回命中的 cv- orderLinkId, 实际 %q", orderLinkID)
+	}
+}
+
+// TestBybitManageCycleSkipsCrossVenueHeldSymbol 跨所台账在场时,单所 Bybit 开仓循环必须让位,避免同账户同币净仓。
+func TestBybitManageCycleSkipsCrossVenueHeldSymbol(t *testing.T) {
+	now := time.Now().UTC()
+	sym := venue.Symbol("HOME-USDT")
+	dir := t.TempDir()
+	cvStore, err := newCrossVenuePositionStore(dir)
+	if err != nil {
+		t.Fatalf("newCrossVenuePositionStore: %v", err)
+	}
+	if err := cvStore.upsert(CrossVenuePosition{
+		Symbol: "HOME-USDT", HighVenue: bybit.VenueName, LowVenue: gate.VenueName,
+		Status: CrossVenueStatusOpen, OpenedAt: now, UpdatedAt: now, IdemPrefix: "cv-test",
+	}); err != nil {
+		t.Fatalf("upsert cross venue position: %v", err)
+	}
+	if !isCrossVenueSymbolHeld(dir, sym) {
+		t.Fatal("cross venue fixture should be held")
+	}
+	store, err := newBybitPositionStore(dir)
+	if err != nil {
+		t.Fatalf("newBybitPositionStore: %v", err)
+	}
+	nextFunding := now.Add(100 * time.Second)
+	market := &fakeBybitMarket{
+		snaps: []venue.FundingSnapshot{{
+			Symbol: sym, LastFundingRate: -0.008, IntervalHours: 8, NextFundingTime: nextFunding,
+		}},
+		instr: []venue.Instrument{
+			{Symbol: sym, Market: venue.MarketSpot, StepSize: 0.001, MinNotional: 5, SpotBorrowable: true},
+			{Symbol: sym, Market: venue.MarketPerp, StepSize: 0.001, MinNotional: 5},
+		},
+		tickers: map[instrumentKey]venue.BookTicker{
+			{sym, venue.MarketSpot}: {BidPrice: 100, AskPrice: 100},
+			{sym, venue.MarketPerp}: {BidPrice: 100, AskPrice: 100},
+		},
+		cost: venue.CostProfile{SpotTaker: 0.001, FuturesTaker: 0.0006},
+	}
+	trader := newFakeBybitTrader()
+	trader.balances = venue.Balances{ByAsset: map[string]venue.Balance{"USDT": {Free: 10000}}}
+	logBuf := &strings.Builder{}
+	logs, err := NewRuntimeLogStore(filepath.Join(t.TempDir(), "runtime_events.jsonl"))
+	if err != nil {
+		t.Fatalf("NewRuntimeLogStore: %v", err)
+	}
+	cfg := DefaultEngineConfig()
+	cfg.NetworkConfig.RecordDir = dir
+	cfg.BybitExecutor.LiveTradingEnabled = true
+	cfg.BybitExecutor.EnableNegativeCarry = true
+	cfg.BybitExecutor.LeadSeconds = 240
+	cfg.AllocatedCapitalUSDT = 4000
+	c := &RuntimeController{
+		cfg:    cfg,
+		logger: log.New(logBuf, "", 0),
+		logs:   logs,
+	}
+	planner := NewBybitShadowExecutor(market, bybitExecConfigFromEngine(cfg), nil)
+	executor := newTestExecutor(trader)
+	c.bybitManageCycle(context.Background(), cfg, store, planner, executor, &fakeBybitVenue{market, trader}, true)
+	if len(trader.placed) != 0 {
+		t.Fatalf("跨所在场时不应下单, got %d orders", len(trader.placed))
+	}
+	saved, err := store.load()
+	if err != nil {
+		t.Fatalf("load bybit positions: %v", err)
+	}
+	if len(saved) != 0 {
+		t.Fatalf("不应写入单所台账, 实际 %d 笔", len(saved))
+	}
+	if !strings.Contains(logBuf.String(), "跨所引擎在场持仓") {
+		t.Fatalf("应打印跨所让位日志: %s", logBuf.String())
+	}
+}
+
+// TestBybitReconcileSkipsCrossVenueLedgerPosition 跨所台账持有中的 symbol 不得被单所 reconcile 收编。
+func TestBybitReconcileSkipsCrossVenueLedgerPosition(t *testing.T) {
+	dir := t.TempDir()
+	cvStore, err := newCrossVenuePositionStore(dir)
+	if err != nil {
+		t.Fatalf("newCrossVenuePositionStore: %v", err)
+	}
+	now := time.Now().UTC()
+	if err := cvStore.upsert(CrossVenuePosition{
+		Symbol: "HOME-USDT", HighVenue: bybit.VenueName, LowVenue: gate.VenueName,
+		Status: CrossVenueStatusOpen, OpenedAt: now, UpdatedAt: now, IdemPrefix: "cv-test",
+	}); err != nil {
+		t.Fatalf("upsert cross venue position: %v", err)
+	}
+	bybitStore, err := newBybitPositionStore(dir)
+	if err != nil {
+		t.Fatalf("newBybitPositionStore: %v", err)
+	}
+	logBuf := &strings.Builder{}
+	logs, err := NewRuntimeLogStore(filepath.Join(t.TempDir(), "runtime_events.jsonl"))
+	if err != nil {
+		t.Fatalf("NewRuntimeLogStore: %v", err)
+	}
+	c := &RuntimeController{
+		cfg:    EngineConfig{NetworkConfig: NetworkConfig{RecordDir: dir}},
+		logger: log.New(logBuf, "", 0),
+		logs:   logs,
+	}
+	adapter := &stubBybitVenue{
+		queryOrder: func(_ venue.Market, _ venue.Symbol, _ string) (venue.OrderResult, error) {
+			return venue.OrderResult{ClientOrderID: "cv-HOMEUSDT-bybit-1781271403-h1", Status: "filled", ExecutedQty: 1000}, nil
+		},
+		fetchPositions: func(context.Context) ([]venue.Position, error) {
+			return []venue.Position{{Symbol: "HOME-USDT", PositionAmt: -1000, EntryPrice: 0.01}}, nil
+		},
+	}
+	c.bybitReconcileOnStart(context.Background(), adapter, bybitStore)
+	if strings.Contains(logBuf.String(), "已收编落盘待平") {
+		t.Fatalf("跨所台账持有中不应收编: %s", logBuf.String())
+	}
+	if !strings.Contains(logBuf.String(), "跨所台账持有中,非单所孤儿,不收编") {
+		t.Fatalf("应打印跨所台账跳过日志: %s", logBuf.String())
+	}
+	saved, err := bybitStore.load()
+	if err != nil {
+		t.Fatalf("load bybit positions: %v", err)
+	}
+	if len(saved) != 0 {
+		t.Fatalf("不应写入单所台账, 实际 %d 笔", len(saved))
+	}
 }
 
 // TestBybitProbeOrphanOwnershipLeavesUnknownAlone 回查不命中(人工持仓)绝不收编。
@@ -178,7 +331,7 @@ func TestBybitProbeOrphanOwnershipLeavesUnknownAlone(t *testing.T) {
 		return venue.OrderResult{Status: "unknown"}, nil
 	}}
 	c := &RuntimeController{logger: log.Default()}
-	if _, ok := c.bybitProbeOrphanOwnership(context.Background(), stub, venue.Position{
+	if _, _, ok := c.bybitProbeOrphanOwnership(context.Background(), stub, venue.Position{
 		Symbol: venue.Symbol("BTC-USDT"), PositionAmt: -1, EntryPrice: 50000,
 	}); ok {
 		t.Fatal("回查不命中的持仓不得收编(可能是人工持仓)")

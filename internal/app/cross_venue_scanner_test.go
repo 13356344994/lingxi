@@ -1,6 +1,7 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -81,6 +82,9 @@ func (f *fakeFundingVenue) FetchTradingCostProfile(context.Context, []venue.Symb
 }
 func (f *fakeFundingVenue) MaxBorrowable(context.Context, string) (float64, error) {
 	return 0, venue.ErrUnsupported
+}
+func (f *fakeFundingVenue) FetchBorrowQuote(context.Context, string) (venue.BorrowQuote, error) {
+	return venue.BorrowQuote{}, venue.ErrUnsupported
 }
 func (f *fakeFundingVenue) FetchLeverageBrackets(context.Context, venue.Symbol) ([]venue.LeverageBracket, error) {
 	return nil, venue.ErrUnsupported
@@ -265,21 +269,10 @@ func TestCrossVenueScannerAlertCooldown(t *testing.T) {
 	t.Parallel()
 	now := time.Date(2026, 6, 12, 12, 0, 0, 0, time.UTC)
 	clock := now
-	alertCount := 0
-	done := make(chan struct{}, 2)
+	var buf bytes.Buffer
 	s := &CrossVenueScanner{
-		cfg: CrossVenueScannerConfig{AlertSpreadAPR: 0.50},
-		alerts: &AlertDispatcher{
-			minRank:  severityRank(EventLevelWarning),
-			now:      func() time.Time { return clock },
-			lastSent: make(map[string]time.Time),
-			timeout:  time.Second,
-			sinks: []AlertSink{alertSinkFunc(func(context.Context, Alert) error {
-				alertCount++
-				done <- struct{}{}
-				return nil
-			})},
-		},
+		cfg:       CrossVenueScannerConfig{AlertSpreadAPR: 0.50},
+		logger:    log.New(&buf, "", 0),
 		nowFn:     func() time.Time { return clock },
 		lastAlert: make(map[string]time.Time),
 	}
@@ -291,23 +284,13 @@ func TestCrossVenueScannerAlertCooldown(t *testing.T) {
 	}
 	s.maybeAlert(opp)
 	s.maybeAlert(opp)
-	select {
-	case <-done:
-	case <-time.After(2 * time.Second):
-		t.Fatal("first alert not dispatched")
-	}
-	if alertCount != 1 {
-		t.Fatalf("cooldown should suppress second alert: count=%d", alertCount)
+	if strings.Count(buf.String(), "[跨所扫描] 价差告警") != 1 {
+		t.Fatalf("cooldown should suppress second log: buf=%q", buf.String())
 	}
 	clock = clock.Add(5 * time.Hour)
 	s.maybeAlert(opp)
-	select {
-	case <-done:
-	case <-time.After(2 * time.Second):
-		t.Fatal("second alert after cooldown not dispatched")
-	}
-	if alertCount != 2 {
-		t.Fatalf("after 4h cooldown should alert again: count=%d", alertCount)
+	if strings.Count(buf.String(), "[跨所扫描] 价差告警") != 2 {
+		t.Fatalf("after cooldown should log again: buf=%q", buf.String())
 	}
 }
 

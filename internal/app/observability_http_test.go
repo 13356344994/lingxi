@@ -48,9 +48,24 @@ func TestEvaluateMultiVenueReadiness(t *testing.T) {
 	if ready || reason != "binance:engine_not_running;bybit:日亏熔断" {
 		t.Fatalf("全部不就绪时应汇总原因, ready=%v reason=%s", ready, reason)
 	}
-	// 无名 venue(裸 DashboardServer 回退)不加前缀,保持探针兼容。
-	if ready, reason := evaluateMultiVenueReadiness([]venueMetricSample{{Venue: "", Status: RuntimeTaskStatus{Running: false}}}); ready || reason != "engine_not_running" {
-		t.Fatalf("无名 venue 不应加前缀, ready=%v reason=%s", ready, reason)
+	// 全所「干净 idle」(手动模式/从未启动、无故障)→ 就绪 idle:all,防止 watchdog 对 autostart=false 进程空重启。
+	if ready, reason := evaluateMultiVenueReadiness([]venueMetricSample{
+		{Venue: "okx", Status: RuntimeTaskStatus{Running: false}},
+		{Venue: "gate", Status: RuntimeTaskStatus{Running: false}},
+	}); !ready || reason != "idle:all" {
+		t.Fatalf("全所干净 idle 应就绪, ready=%v reason=%s", ready, reason)
+	}
+	// 但「启动后掉线」(StartedAt 非空)不算干净 idle,且无其它所在跑 → 仍 503,交 watchdog 处理。
+	if ready, reason := evaluateMultiVenueReadiness([]venueMetricSample{
+		{Venue: "okx", Status: RuntimeTaskStatus{Running: false, StartedAt: "2026-06-13T00:00:00Z"}},
+	}); ready || reason != "okx:engine_not_running" {
+		t.Fatalf("启动后掉线不应判就绪, ready=%v reason=%s", ready, reason)
+	}
+	// 熔断的 idle 所不算干净 idle → 不就绪。
+	if ready, _ := evaluateMultiVenueReadiness([]venueMetricSample{
+		{Venue: "okx", Status: RuntimeTaskStatus{Running: false, CircuitBreakerTripped: true, CircuitBreakerReason: "日亏熔断"}},
+	}); ready {
+		t.Fatal("熔断所不应判就绪")
 	}
 }
 
@@ -166,14 +181,16 @@ func TestDashboardProbeHandlers(t *testing.T) {
 		t.Fatalf("/livez 应 200, got %d", rec.Code)
 	}
 
-	// /healthz:controller 为空 → 未运行 → 503。
+	// /healthz:controller 为空 → 零值状态 = 干净 idle(从未启动、无熔断/急停/故障)→ 200 idle:all。
+	// 这是有意策略:autostart=false 手动模式下进程健康但全 idle 时不应 503,否则外部 watchdog 会空重启;
+	// 进程真死由 watchdog 的「心跳超时」兜底。故障态(熔断/启动后掉线)→ 503 由 TestEvaluateMultiVenueReadiness 覆盖。
 	rec = httptest.NewRecorder()
 	s.handleHealthz(rec, httptest.NewRequest(http.MethodGet, "/healthz", nil))
-	if rec.Code != http.StatusServiceUnavailable {
-		t.Fatalf("未运行时 /healthz 应 503, got %d", rec.Code)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("干净 idle 时 /healthz 应 200, got %d", rec.Code)
 	}
-	if !strings.Contains(rec.Body.String(), "engine_not_running") {
-		t.Fatalf("/healthz 应给出原因, got %s", rec.Body.String())
+	if !strings.Contains(rec.Body.String(), "idle") {
+		t.Fatalf("/healthz 应标明 idle, got %s", rec.Body.String())
 	}
 
 	// /metrics 返回 Prometheus 文本。
