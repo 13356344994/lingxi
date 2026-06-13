@@ -3,11 +3,83 @@ package bybit
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"math"
 	"net/url"
 	"strings"
 
 	"lingxi/internal/venue"
 )
+
+const equityDustUSDT = 0.5
+
+var bybitEquityStableCoins = map[string]struct{}{
+	"USDT": {}, "USDC": {}, "FDUSD": {}, "DAI": {}, "TUSD": {}, "USDE": {},
+}
+
+func bookTickerMidUSDT(bt venue.BookTicker) (float64, bool) {
+	if bt.BidPrice > 0 && bt.AskPrice > 0 {
+		return (bt.BidPrice + bt.AskPrice) / 2, true
+	}
+	if bt.BidPrice > 0 {
+		return bt.BidPrice, true
+	}
+	if bt.AskPrice > 0 {
+		return bt.AskPrice, true
+	}
+	return 0, false
+}
+
+func (a *Adapter) equitySpotMidUSDT(ctx context.Context, coin string) (float64, bool) {
+	coin = strings.ToUpper(strings.TrimSpace(coin))
+	if coin == "" {
+		return 0, false
+	}
+	raw := coin + "USDT"
+	q := url.Values{}
+	q.Set("category", categorySpot)
+	q.Set("symbol", raw)
+	q.Set("limit", "1")
+	var res bybitOrderbook
+	if err := a.t.publicGet(ctx, pathOrderbook, q, &res); err != nil {
+		slog.Debug("bybit equity: spot mid unavailable", "coin", coin, "err", err)
+		return 0, false
+	}
+	bt := venue.BookTicker{Symbol: venue.Symbol(coin + "-USDT"), Market: venue.MarketSpot}
+	if len(res.Bids) > 0 && len(res.Bids[0]) >= 2 {
+		bt.BidPrice = parseFloat(res.Bids[0][0])
+	}
+	if len(res.Asks) > 0 && len(res.Asks[0]) >= 2 {
+		bt.AskPrice = parseFloat(res.Asks[0][0])
+	}
+	if mid, ok := bookTickerMidUSDT(bt); ok {
+		return mid, true
+	}
+	slog.Debug("bybit equity: spot mid empty book", "coin", coin)
+	return 0, false
+}
+
+func (a *Adapter) addNonStableEquityUSDT(ctx context.Context, total *float64, coin string, qty float64) {
+	if qty == 0 {
+		return
+	}
+	name := strings.ToUpper(strings.TrimSpace(coin))
+	if name == "" {
+		return
+	}
+	if _, ok := bybitEquityStableCoins[name]; ok {
+		return
+	}
+	price, ok := a.equitySpotMidUSDT(ctx, name)
+	if !ok {
+		return
+	}
+	value := qty * price
+	if math.Abs(value) < equityDustUSDT {
+		return
+	}
+	*total += value
+}
 
 // account.go 实现 Bybit v5 私有只读账户(签名 GET):余额/持仓/费率/杠杆档位/key 自检。
 // 全部为只读,Stage 1 可用真实密钥活体校验,零资金风险。
@@ -64,6 +136,36 @@ func (a *Adapter) SetCollateralSwitch(ctx context.Context, coin string, on bool)
 // FetchBalances 拉统一账户(UNIFIED)余额并归一为中性 Balances。交易在 UTA 下进行,故下单/风控以此为准。
 func (a *Adapter) FetchBalances(ctx context.Context) (venue.Balances, error) {
 	return a.FetchWalletBalanceByType(ctx, "UNIFIED")
+}
+
+// FetchEquityUSDT 拉账户总权益(USD):UNIFIED totalEquity(已含 UTA 全币种市值)
+// + 资金钱包稳定币 + 资金钱包非稳定币按现货 mid 折算(尽力)。
+func (a *Adapter) FetchEquityUSDT(ctx context.Context) (float64, error) {
+	q := url.Values{}
+	q.Set("accountType", "UNIFIED")
+	var res struct {
+		List []struct {
+			TotalEquity string `json:"totalEquity"`
+		} `json:"list"`
+	}
+	if err := a.t.signedGet(ctx, pathWalletBalance, q, &res); err != nil {
+		return 0, err
+	}
+	var equity float64
+	if len(res.List) > 0 {
+		equity = parseFloat(res.List[0].TotalEquity)
+	}
+	if fund, err := a.FetchFundingWalletBalance(ctx, ""); err == nil {
+		for coin, qty := range fund {
+			name := strings.ToUpper(coin)
+			if _, ok := bybitEquityStableCoins[name]; ok {
+				equity += qty
+				continue
+			}
+			a.addNonStableEquityUSDT(ctx, &equity, name, qty)
+		}
+	}
+	return equity, nil
 }
 
 // FetchWalletBalanceByType 拉指定 accountType(UNIFIED/CONTRACT)的钱包余额,归一为中性 Balances。

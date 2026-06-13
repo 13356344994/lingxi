@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -40,6 +41,44 @@ func (e *FundingRateSniperEngine) heartbeatPath() string {
 		return ""
 	}
 	return filepath.Join(dir, heartbeatFileName)
+}
+
+// startProcessHeartbeatWriter 进程级心跳:只要 lingxi 进程在跑就周期写 records/heartbeat.json,
+// 与各所 funding 引擎/跨所执行器是否启动解耦,防止「仅 cross-venue+面板在跑、各所 idle」时
+// 外部 watchdog 因心跳停更误判卡死并反复重启。
+func startProcessHeartbeatWriter(ctx context.Context, recordDir string, logger *log.Logger) {
+	dir := strings.TrimSpace(recordDir)
+	if dir == "" {
+		return
+	}
+	path := filepath.Join(dir, heartbeatFileName)
+	writeProcessHeartbeat(path, "process", logger)
+	go func() {
+		ticker := time.NewTicker(defaultHeartbeatInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				writeProcessHeartbeat(path, "process", logger)
+			}
+		}
+	}()
+}
+
+// writeProcessHeartbeat 写进程级心跳(best-effort,失败仅记日志)。
+func writeProcessHeartbeat(path, stage string, logger *log.Logger) {
+	now := time.Now().UTC()
+	payload := heartbeatPayload{
+		TS:    now.Unix(),
+		Time:  now.Format(time.RFC3339),
+		PID:   os.Getpid(),
+		Stage: stage,
+	}
+	if err := writeJSONFile(path, payload); err != nil && logger != nil {
+		logger.Printf("写进程心跳失败: %v", err)
+	}
 }
 
 // startHeartbeatWriter 启动周期心跳写入 goroutine(默认每 15s)。立即写一次再进入周期,ctx 取消即退出。

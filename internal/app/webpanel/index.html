@@ -323,6 +323,14 @@
         </div>
         <div id="cv-status-line" class="hint" style="margin:8px 0 0;font-size:13px;color:#cbd5e1;">加载跨所状态…</div>
       </div>
+      <div id="earnings-panel" style="margin:12px 0 16px;padding:14px;background:#0f1830;border:1px solid #243049;border-radius:10px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <strong style="color:#e5edff;font-size:15px;">收益总览 · 近 <span id="earnings-window">24</span> 小时</strong>
+          <button id="earnings-clear-btn" type="button" class="danger" style="font-size:12px;">清除 24h 以外记录</button>
+        </div>
+        <div class="hint" id="earnings-note" style="margin:0 0 10px;">含义:各交易所账户总权益(USD)的真实变化 = USDT 现金 + 永续持仓(保证金+未实现盈亏)+ 各钱包资产。含未实现浮动,故单所数字会随行情波动;跨所两腿的浮动会在总收益里大致对冲。运行不足 24h 按实际时长。注:充提/调仓会让数字跳变。</div>
+        <div id="earnings-grid" style="display:flex;flex-wrap:wrap;gap:10px;"></div>
+      </div>
       <div class="risk-actions" style="margin:8px 0;">
         <button id="start-all-btn" type="button">全部启动(实盘)</button>
         <button id="stop-all-btn" type="button" class="danger">全部停止</button>
@@ -2070,8 +2078,49 @@
     }
 
     // refreshVenueOverview:仅更新每所运行徽标 / 阶段 / 模式 / 启停按钮可用态,不触碰输入框。
+    async function refreshEarnings() {
+      const grid = document.getElementById("earnings-grid");
+      if (!grid) { return; }
+      let data;
+      try { data = await loadJSON("/api/earnings"); }
+      catch (err) { grid.innerHTML = `<div class="hint" style="color:#fca5a5;">读取收益失败: ${escapeHTML(err.message)}</div>`; return; }
+      const win = document.getElementById("earnings-window");
+      if (win) { win.textContent = (data.window_hours && data.window_hours < 23.95) ? (Math.max(0, data.window_hours).toFixed(1)) : "24"; }
+      const fmt = (n) => { const v = Number(n || 0); const s = v >= 0 ? "+" : ""; return s + v.toFixed(4); };
+      const color = (n) => Number(n || 0) >= 0 ? "#86efac" : "#fca5a5";
+      const venues = Array.isArray(data.venues) ? data.venues : [];
+      let cards = venues.map((ve) => `
+        <div style="flex:1 1 160px;min-width:160px;background:#0b1424;border:1px solid #1e293b;border-radius:8px;padding:10px;">
+          <div style="font-size:12px;color:#8aa0c6;margin-bottom:4px;">${escapeHTML(ve.venue)}</div>
+          <div style="font-size:18px;font-weight:600;color:${color(ve.usdt_total)};">${fmt(ve.usdt_total)} U</div>
+          <div style="font-size:11px;color:#64748b;margin-top:4px;">当前 ${Number(ve.current_equity_usdt||0).toFixed(2)} U · 基线 ${Number(ve.baseline_equity_usdt||0).toFixed(2)} U</div>
+        </div>`).join("");
+      cards += `
+        <div style="flex:1 1 160px;min-width:160px;background:#13203a;border:1px solid #2b3c5c;border-radius:8px;padding:10px;">
+          <div style="font-size:12px;color:#cbd5e1;margin-bottom:4px;">总收益</div>
+          <div style="font-size:18px;font-weight:700;color:${color(data.total_usdt)};">${fmt(data.total_usdt)} U</div>
+        </div>`;
+      grid.innerHTML = cards;
+    }
+    async function clearEarnings() {
+      if (!confirm("确认清除 24 小时以外的收益记录吗?(不影响持仓与近 24h 收益)")) { return; }
+      try {
+        const result = await postJSON(controlURL("/api/earnings/clear"), {});
+        await refreshEarnings();
+        alert(result.message || "已清除");
+      } catch (err) { alert("清除收益记录失败: " + err.message); }
+    }
+    document.getElementById("earnings-clear-btn")?.addEventListener("click", clearEarnings);
+
     async function refreshVenueOverview() {
       const venues = knownVenues.length ? knownVenues : ["binance"];
+      // 先取一次跨所执行器状态:徽标以「跨所对冲腿是否健康」为准(四家口径一致),
+      // 单所 funding 引擎运行与否仅作附加标注。health_halt_venue 命中本所=该所适配器熔断。
+      let cv = null;
+      try { cv = await loadJSON("/api/cross-venue/positions"); } catch (e) { cv = null; }
+      const cvEnabled = !!(cv && cv.enabled);
+      const haltVenue = (cv && cv.health_halt_venue) ? String(cv.health_halt_venue).toLowerCase() : "";
+      const mkBadge = (bg, fg, text) => `<span style="display:inline-block;padding:2px 8px;border-radius:10px;background:${bg};color:${fg};font-size:12px;">${text}</span>`;
       await Promise.all(venues.map(async (v) => {
         let st = {};
         let errMsg = "";
@@ -2081,26 +2130,33 @@
           errMsg = err.message;
         }
         const running = !!st.running;
+        const lower = String(v).toLowerCase();
         const badge = document.getElementById("vbadge-" + v);
         const statusLine = document.getElementById("vstatus-" + v);
         const startBtn = document.getElementById("vstart-" + v);
         const stopBtn = document.getElementById("vstop-" + v);
         if (badge) {
-          if (errMsg) {
+          if (cvEnabled) {
+            if (haltVenue === lower) {
+              badge.innerHTML = mkBadge("#3f2937", "#fca5a5", "跨所腿 · 异常(熔断)");
+            } else {
+              badge.innerHTML = mkBadge("#14532d", "#86efac", running ? "跨所腿 · 正常 · 单所运行中" : "跨所腿 · 正常");
+            }
+          } else if (errMsg) {
             badge.innerHTML = `<span style="color:#fca5a5;font-size:12px;">读取失败</span>`;
-          } else if (String(v).toLowerCase() === "binance" && !running) {
-            badge.innerHTML = `<span style="display:inline-block;padding:2px 8px;border-radius:10px;background:#1e293b;color:#94a3b8;font-size:12px;">跨所腿 · 正常</span>`;
           } else if (running) {
-            badge.innerHTML = `<span style="display:inline-block;padding:2px 8px;border-radius:10px;background:#14532d;color:#86efac;font-size:12px;">运行中</span>`;
+            badge.innerHTML = mkBadge("#14532d", "#86efac", "运行中");
           } else {
-            badge.innerHTML = `<span style="display:inline-block;padding:2px 8px;border-radius:10px;background:#3f2937;color:#fca5a5;font-size:12px;">已停止</span>`;
+            badge.innerHTML = mkBadge("#3f2937", "#fca5a5", "已停止");
           }
         }
         if (statusLine) {
-          if (errMsg) {
+          if (cvEnabled) {
+            const engineTxt = running ? "运行中" : "未启动(可选)";
+            const base = "跨所对冲腿 · 执行器在管 · 单所引擎: " + engineTxt + " · 模式: " + (st.mode || cv.mode || "-");
+            statusLine.textContent = (haltVenue === lower) ? ("⚠ 本所适配器异常,跨所开仓已全局暂停 · " + base) : base;
+          } else if (errMsg) {
             statusLine.textContent = "读取失败: " + errMsg;
-          } else if (String(v).toLowerCase() === "binance" && !running) {
-            statusLine.textContent = "无独立单所引擎(跨所对冲仍可用) · 空闲为正常 · 模式: " + (st.mode || "-");
           } else {
             statusLine.textContent = "阶段: " + (st.current_stage || st.status || "-") + " · 模式: " + (st.mode || "-");
           }
@@ -2174,7 +2230,7 @@
       }
     }
 
-    document.getElementById("refresh-btn")?.addEventListener("click", () => { refreshDashboard(); refreshVenueOverview(); refreshStrategyStatus(); refreshCrossVenuePanel(); });
+    document.getElementById("refresh-btn")?.addEventListener("click", () => { refreshDashboard(); refreshVenueOverview(); refreshStrategyStatus(); refreshCrossVenuePanel(); refreshEarnings(); });
     document.getElementById("start-all-btn")?.addEventListener("click", startAllVenues);
     document.getElementById("stop-all-btn")?.addEventListener("click", stopAllVenues);
     document.getElementById("save-risk-config-btn")?.addEventListener("click", saveRiskConfig);
@@ -2328,9 +2384,9 @@
       if (dashboardStarted) { return; }
       dashboardStarted = true;
       // 先加载 venue 列表(填充 knownVenues),构建多所卡片(一次),再渲染主面板与状态。
-      loadVenues().then(() => { renderVenueTabs(); buildVenueOverview(); initStrategyControl(); refreshVenueOverview(); refreshStrategyStatus(); refreshCrossVenuePanel(); });
+      loadVenues().then(() => { renderVenueTabs(); buildVenueOverview(); initStrategyControl(); refreshVenueOverview(); refreshStrategyStatus(); refreshCrossVenuePanel(); refreshEarnings(); });
       refreshDashboard();
-      setInterval(() => { refreshDashboard(); refreshVenueOverview(); refreshStrategyStatus(); refreshCrossVenuePanel(); }, 5000);
+      setInterval(() => { refreshDashboard(); refreshVenueOverview(); refreshStrategyStatus(); refreshCrossVenuePanel(); refreshEarnings(); }, 5000);
     }
 
     async function attemptEnter(tokenFromGate) {

@@ -3,11 +3,164 @@ package binance
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"math"
 	"net/url"
 	"strings"
 
 	"lingxi/internal/venue"
 )
+
+const equityDustUSDT = 0.5
+
+var binanceEquityStableCoins = map[string]struct{}{
+	"USDT": {}, "USDC": {}, "FDUSD": {}, "DAI": {}, "TUSD": {}, "USDE": {},
+}
+
+func binanceStableCoinTotal(asset, free, locked string) float64 {
+	name := strings.ToUpper(strings.TrimSpace(asset))
+	if name == "" {
+		return 0
+	}
+	if _, ok := binanceEquityStableCoins[name]; !ok {
+		return 0
+	}
+	return parseFloat(free) + parseFloat(locked)
+}
+
+func bookTickerMidUSDT(bt venue.BookTicker) (float64, bool) {
+	if bt.BidPrice > 0 && bt.AskPrice > 0 {
+		return (bt.BidPrice + bt.AskPrice) / 2, true
+	}
+	if bt.BidPrice > 0 {
+		return bt.BidPrice, true
+	}
+	if bt.AskPrice > 0 {
+		return bt.AskPrice, true
+	}
+	return 0, false
+}
+
+func (a *Adapter) equitySpotMidUSDT(ctx context.Context, coin string) (float64, bool) {
+	coin = strings.ToUpper(strings.TrimSpace(coin))
+	if coin == "" {
+		return 0, false
+	}
+	bt, err := a.FetchBookTicker(ctx, venue.MarketSpot, venue.Symbol(coin+"-USDT"))
+	if err != nil {
+		slog.Debug("binance equity: spot mid unavailable", "coin", coin, "err", err)
+		return 0, false
+	}
+	if mid, ok := bookTickerMidUSDT(bt); ok {
+		return mid, true
+	}
+	slog.Debug("binance equity: spot mid empty book", "coin", coin)
+	return 0, false
+}
+
+func (a *Adapter) addNonStableEquityUSDT(ctx context.Context, total *float64, coin string, qty float64) {
+	if qty == 0 {
+		return
+	}
+	name := strings.ToUpper(strings.TrimSpace(coin))
+	if name == "" {
+		return
+	}
+	if _, ok := binanceEquityStableCoins[name]; ok {
+		return
+	}
+	price, ok := a.equitySpotMidUSDT(ctx, name)
+	if !ok {
+		return
+	}
+	value := qty * price
+	if math.Abs(value) < equityDustUSDT {
+		return
+	}
+	*total += value
+}
+
+// FetchEquityUSDT 拉账户总权益(USDT):U 本位 totalMarginBalance(已含合约保证金折算)
+// + 现货/全仓杠杆/资金账户稳定币 + 非稳定币按现货 mid 折算(best-effort)。
+func (a *Adapter) FetchEquityUSDT(ctx context.Context) (float64, error) {
+	var total float64
+	var okCount int
+	var lastErr error
+
+	var futAcct struct {
+		TotalMarginBalance string `json:"totalMarginBalance"`
+	}
+	if err := a.signedGetJSON(ctx, a.futuresBaseURL()+PathFuturesAccountV2, nil, &futAcct); err != nil {
+		lastErr = err
+	} else {
+		total += parseFloat(futAcct.TotalMarginBalance)
+		okCount++
+	}
+
+	var spot struct {
+		Balances []struct {
+			Asset  string `json:"asset"`
+			Free   string `json:"free"`
+			Locked string `json:"locked"`
+		} `json:"balances"`
+	}
+	if err := a.signedGetJSON(ctx, a.spotBaseURL()+PathSpotAccount, nil, &spot); err != nil {
+		if lastErr == nil {
+			lastErr = err
+		}
+	} else {
+		for _, row := range spot.Balances {
+			total += binanceStableCoinTotal(row.Asset, row.Free, row.Locked)
+			a.addNonStableEquityUSDT(ctx, &total, row.Asset, parseFloat(row.Free)+parseFloat(row.Locked))
+		}
+		okCount++
+	}
+
+	var margin struct {
+		UserAssets []struct {
+			Asset    string `json:"asset"`
+			NetAsset string `json:"netAsset"`
+		} `json:"userAssets"`
+	}
+	if err := a.signedGetJSON(ctx, a.spotBaseURL()+PathMarginAccount, nil, &margin); err != nil {
+		if lastErr == nil {
+			lastErr = err
+		}
+	} else {
+		for _, row := range margin.UserAssets {
+			name := strings.ToUpper(strings.TrimSpace(row.Asset))
+			net := parseFloat(row.NetAsset)
+			if _, ok := binanceEquityStableCoins[name]; ok {
+				total += net
+				continue
+			}
+			a.addNonStableEquityUSDT(ctx, &total, name, net)
+		}
+		okCount++
+	}
+
+	var funding []struct {
+		Asset  string `json:"asset"`
+		Free   string `json:"free"`
+		Locked string `json:"locked"`
+	}
+	if err := a.signedPostForm(ctx, a.spotBaseURL()+PathAssetFundingAsset, nil, &funding); err != nil {
+		if lastErr == nil {
+			lastErr = err
+		}
+	} else {
+		for _, row := range funding {
+			total += binanceStableCoinTotal(row.Asset, row.Free, row.Locked)
+			a.addNonStableEquityUSDT(ctx, &total, row.Asset, parseFloat(row.Free)+parseFloat(row.Locked))
+		}
+		okCount++
+	}
+
+	if okCount == 0 {
+		return 0, lastErr
+	}
+	return total, nil
+}
 
 // FetchBalances 拉 USDT 永续钱包(fapi/v2/balance)与现货账户(/api/v3/account)并合并。
 //

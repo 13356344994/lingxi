@@ -37,11 +37,13 @@ type CrossVenueExecutor struct {
 	logger    *log.Logger
 	haltPaths []string
 
-	mu                      sync.RWMutex
-	positions               []CrossVenuePosition
-	symbolCooldown          map[string]time.Time
+	mu                       sync.RWMutex
+	earningsMu               sync.Mutex
+	equitySnapMu             sync.Mutex
+	positions                []CrossVenuePosition
+	symbolCooldown           map[string]time.Time
 	deadManUnsupportedVenues map[string]struct{} // venue 适配器声明有 dead-man 但实际 ErrUnsupported 时缓存,避免每分钟重试刷日志
-	nowFn          func() time.Time
+	nowFn                    func() time.Time
 	// openingsEnabled 是运行时开仓开关(第三道闸);OFF=跳过 evaluateNewOpens,在场持仓管理/平仓/风控照常。
 	openingsEnabled atomic.Bool
 	// recordDir 用于 control.json 持久化(重启维持上次选择)。
@@ -76,17 +78,17 @@ func NewCrossVenueExecutor(cfg EngineConfig, orch *Orchestrator, scanner *CrossV
 	}
 	venues := crossVenueExecutorFactory(orch, cfg, secretPath, logger)
 	e := &CrossVenueExecutor{
-		cfg:            cfg,
-		scanner:        scanner,
-		venues:         venues,
-		orch:           orch,
-		store:          store,
-		alerts:         newCrossVenueAlertDispatcher(cfg.CrossVenueScanner, secretPath, logger),
-		logger:         logger,
-		haltPaths:      emergencyStopPaths(cfg),
+		cfg:                      cfg,
+		scanner:                  scanner,
+		venues:                   venues,
+		orch:                     orch,
+		store:                    store,
+		alerts:                   newCrossVenueAlertDispatcher(cfg.CrossVenueScanner, secretPath, logger),
+		logger:                   logger,
+		haltPaths:                emergencyStopPaths(cfg),
 		symbolCooldown:           make(map[string]time.Time),
 		deadManUnsupportedVenues: make(map[string]struct{}),
-		nowFn:          time.Now,
+		nowFn:                    time.Now,
 	}
 	if ps, lerr := store.load(); lerr == nil {
 		e.positions = ps

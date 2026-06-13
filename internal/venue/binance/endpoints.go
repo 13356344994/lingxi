@@ -33,6 +33,7 @@ const (
 	PathFuturesCountdownCancel  = "/fapi/v1/countdownCancelAll"
 	PathFuturesListenKey        = "/fapi/v1/listenKey"
 	PathFuturesAccountV3        = "/fapi/v3/account"
+	PathFuturesAccountV2        = "/fapi/v2/account"
 	PathFuturesBalance          = "/fapi/v2/balance"
 	PathFuturesPositionRisk     = "/fapi/v2/positionRisk"
 	PathFuturesCommissionRate   = "/fapi/v1/commissionRate"

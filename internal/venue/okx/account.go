@@ -3,13 +3,104 @@ package okx
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"math"
 	"net/url"
 	"strings"
 
 	"lingxi/internal/venue"
 )
 
-// account.go 实现 OKX v5 私有只读账户(签名 GET):余额/持仓/费率。
+const equityDustUSDT = 0.5
+
+var okxEquityStableCoins = map[string]struct{}{
+	"USDT": {}, "USDC": {}, "FDUSD": {}, "DAI": {}, "TUSD": {}, "USDE": {},
+}
+
+func bookTickerMidUSDT(bt venue.BookTicker) (float64, bool) {
+	if bt.BidPrice > 0 && bt.AskPrice > 0 {
+		return (bt.BidPrice + bt.AskPrice) / 2, true
+	}
+	if bt.BidPrice > 0 {
+		return bt.BidPrice, true
+	}
+	if bt.AskPrice > 0 {
+		return bt.AskPrice, true
+	}
+	return 0, false
+}
+
+func (a *Adapter) equitySpotMidUSDT(ctx context.Context, coin string) (float64, bool) {
+	coin = strings.ToUpper(strings.TrimSpace(coin))
+	if coin == "" {
+		return 0, false
+	}
+	bt, err := a.FetchBookTicker(ctx, venue.MarketSpot, venue.Symbol(coin+"-USDT"))
+	if err != nil {
+		slog.Debug("okx equity: spot mid unavailable", "coin", coin, "err", err)
+		return 0, false
+	}
+	if mid, ok := bookTickerMidUSDT(bt); ok {
+		return mid, true
+	}
+	slog.Debug("okx equity: spot mid empty book", "coin", coin)
+	return 0, false
+}
+
+func (a *Adapter) addNonStableEquityUSDT(ctx context.Context, total *float64, coin string, qty float64) {
+	if qty == 0 {
+		return
+	}
+	name := strings.ToUpper(strings.TrimSpace(coin))
+	if name == "" {
+		return
+	}
+	if _, ok := okxEquityStableCoins[name]; ok {
+		return
+	}
+	price, ok := a.equitySpotMidUSDT(ctx, name)
+	if !ok {
+		return
+	}
+	value := qty * price
+	if math.Abs(value) < equityDustUSDT {
+		return
+	}
+	*total += value
+}
+
+// FetchEquityUSDT 拉账户总权益(USD):交易账户 totalEq(已含 UTA 全币种市值)
+// + 资金账户稳定币 + 资金账户非稳定币按现货 mid 折算(尽力)。
+func (a *Adapter) FetchEquityUSDT(ctx context.Context) (float64, error) {
+	var rows []struct {
+		TotalEq string `json:"totalEq"`
+	}
+	if err := a.t.signedGet(ctx, pathBalance, nil, &rows); err != nil {
+		return 0, err
+	}
+	var equity float64
+	if len(rows) > 0 {
+		equity = parseFloat(rows[0].TotalEq)
+	}
+	q := url.Values{}
+	var fundRows []struct {
+		Ccy       string `json:"ccy"`
+		AvailBal  string `json:"availBal"`
+		FrozenBal string `json:"frozenBal"`
+	}
+	if err := a.t.signedGet(ctx, pathAssetBalances, q, &fundRows); err == nil {
+		for _, r := range fundRows {
+			coin := strings.ToUpper(r.Ccy)
+			qty := parseFloat(r.AvailBal) + parseFloat(r.FrozenBal)
+			if _, ok := okxEquityStableCoins[coin]; ok {
+				equity += qty
+				continue
+			}
+			a.addNonStableEquityUSDT(ctx, &equity, coin, qty)
+		}
+	}
+	return equity, nil
+}
 
 // FetchBalances 拉交易账户余额并归一为中性 Balances。
 func (a *Adapter) FetchBalances(ctx context.Context) (venue.Balances, error) {

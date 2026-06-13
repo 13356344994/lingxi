@@ -78,6 +78,9 @@ func startLiveStack(ctx context.Context, cfg EngineConfig) error {
 	if err := PerformColdStartCheck(ctx, cfg); err != nil {
 		return fmt.Errorf("冷启动检查未通过，拒绝启动: %w", err)
 	}
+	// 进程级心跳:与各所引擎/跨所执行器是否启动无关,只要进程活着就写 records/heartbeat.json,
+	// 供外部 watchdog 判活(避免 cross-venue-only 形态下心跳永不更新→误重启循环)。
+	startProcessHeartbeatWriter(ctx, cfg.NetworkConfig.RecordDir, log.Default())
 
 	// P3a/P3b/P3f:用 Orchestrator 组装控制面,每所经 buildVenueRuntime 拿到独立的 (ReportStore, RuntimeController)。
 	// 无 `venues:` 段(现网 config.yaml 即如此)→ 只注册唯一 venue("binance",recordDir 沿用 records/),
@@ -153,6 +156,7 @@ func startLiveStack(ctx context.Context, cfg EngineConfig) error {
 			} else {
 				dashboard.SetCrossVenueExecutor(exec)
 				go exec.Run(ctx)
+				go exec.RunEquitySampler(ctx)
 			}
 		}
 	} else if cfg.CrossVenueExecutor.Enabled {

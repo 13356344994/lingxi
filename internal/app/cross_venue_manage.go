@@ -204,8 +204,12 @@ func (e *CrossVenueExecutor) estimateFundingAccrual(pos *CrossVenuePosition) flo
 	}
 	hHourly := hEntry.Rate / float64(hInterval)
 	lHourly := lEntry.Rate / float64(lInterval)
+	hPart := notional * hHourly * elapsedHours
+	lPart := -notional * lHourly * elapsedHours
+	pos.HighLegFundingUSDT += hPart
+	pos.LowLegFundingUSDT += lPart
 	pos.LastAccrualAt = now
-	return notional * (hHourly - lHourly) * elapsedHours
+	return hPart + lPart
 }
 
 func (e *CrossVenueExecutor) shouldCloseCrossVenue(ctx context.Context, pos *CrossVenuePosition) string {

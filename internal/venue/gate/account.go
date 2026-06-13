@@ -3,13 +3,116 @@ package gate
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"math"
 	"net/url"
 	"strings"
 
 	"lingxi/internal/venue"
 )
 
-// account.go 实现 Gate v4 私有只读账户(签名 GET):余额/持仓/费率。
+const equityDustUSDT = 0.5
+
+var gateEquityStableCoins = map[string]struct{}{
+	"USDT": {}, "USDC": {}, "FDUSD": {}, "DAI": {}, "TUSD": {}, "USDE": {},
+}
+
+func bookTickerMidUSDT(bt venue.BookTicker) (float64, bool) {
+	if bt.BidPrice > 0 && bt.AskPrice > 0 {
+		return (bt.BidPrice + bt.AskPrice) / 2, true
+	}
+	if bt.BidPrice > 0 {
+		return bt.BidPrice, true
+	}
+	if bt.AskPrice > 0 {
+		return bt.AskPrice, true
+	}
+	return 0, false
+}
+
+func (a *Adapter) equitySpotMidUSDT(ctx context.Context, coin string) (float64, bool) {
+	coin = strings.ToUpper(strings.TrimSpace(coin))
+	if coin == "" {
+		return 0, false
+	}
+	bt, err := a.FetchBookTicker(ctx, venue.MarketSpot, venue.Symbol(coin+"-USDT"))
+	if err != nil {
+		slog.Debug("gate equity: spot mid unavailable", "coin", coin, "err", err)
+		return 0, false
+	}
+	if mid, ok := bookTickerMidUSDT(bt); ok {
+		return mid, true
+	}
+	slog.Debug("gate equity: spot mid empty book", "coin", coin)
+	return 0, false
+}
+
+func (a *Adapter) addNonStableEquityUSDT(ctx context.Context, total *float64, coin string, qty float64) {
+	if qty == 0 {
+		return
+	}
+	name := strings.ToUpper(strings.TrimSpace(coin))
+	if name == "" {
+		return
+	}
+	if _, ok := gateEquityStableCoins[name]; ok {
+		return
+	}
+	price, ok := a.equitySpotMidUSDT(ctx, name)
+	if !ok {
+		return
+	}
+	value := qty * price
+	if math.Abs(value) < equityDustUSDT {
+		return
+	}
+	*total += value
+}
+
+// FetchEquityUSDT 拉账户总权益(USDT):永续 total+unrealised_pnl + 现货稳定币 + 现货非稳定币按 mid 折算。
+func (a *Adapter) FetchEquityUSDT(ctx context.Context) (float64, error) {
+	var total float64
+	var okCount int
+	var lastErr error
+
+	var futAcct struct {
+		Total         string `json:"total"`
+		UnrealisedPnl string `json:"unrealised_pnl"`
+	}
+	if err := a.t.signedGet(ctx, pathFuturesAccounts, nil, &futAcct); err != nil {
+		lastErr = err
+	} else {
+		total += parseFloat(futAcct.Total) + parseFloat(futAcct.UnrealisedPnl)
+		okCount++
+	}
+
+	var spotRows []struct {
+		Currency  string `json:"currency"`
+		Available string `json:"available"`
+		Locked    string `json:"locked"`
+	}
+	if err := a.t.signedGet(ctx, pathSpotAccounts, nil, &spotRows); err != nil {
+		if lastErr == nil {
+			lastErr = err
+		}
+	} else {
+		for _, r := range spotRows {
+			asset := strings.ToUpper(r.Currency)
+			qty := parseFloat(r.Available) + parseFloat(r.Locked)
+			if _, ok := gateEquityStableCoins[asset]; ok {
+				total += qty
+				continue
+			}
+			a.addNonStableEquityUSDT(ctx, &total, asset, qty)
+		}
+		okCount++
+	}
+
+	if okCount == 0 {
+		return 0, lastErr
+	}
+	return total, nil
+}
 
 // FetchBalances 合并 USDT 合约账户 + 现货账户余额为中性 Balances。
 func (a *Adapter) FetchBalances(ctx context.Context) (venue.Balances, error) {

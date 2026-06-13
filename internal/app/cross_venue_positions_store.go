@@ -40,19 +40,23 @@ type CrossVenueLegState struct {
 
 // CrossVenuePosition 是一笔跨所 perp-perp 对冲持仓(空高费所、多低费所)。
 type CrossVenuePosition struct {
-	Symbol            string                   `json:"symbol"`
-	HighVenue         string                   `json:"high_venue"`
-	LowVenue          string                   `json:"low_venue"`
-	HighLeg           CrossVenueLegState       `json:"high_leg"`
-	LowLeg            CrossVenueLegState       `json:"low_leg"`
-	OpenSpreadAPR     float64                  `json:"open_spread_apr"`
-	EstFundingUSDT    float64                  `json:"est_funding_usdt"`
-	Status            CrossVenuePositionStatus `json:"status"`
-	OpenedAt          time.Time                `json:"opened_at"`
-	UpdatedAt         time.Time                `json:"updated_at"`
-	CloseSpreadStreak int                      `json:"close_spread_streak,omitempty"`
-	IdemPrefix        string                   `json:"idem_prefix"`
-	NotionalUSDT      float64                  `json:"notional_usdt,omitempty"`
+	Symbol         string             `json:"symbol"`
+	HighVenue      string             `json:"high_venue"`
+	LowVenue       string             `json:"low_venue"`
+	HighLeg        CrossVenueLegState `json:"high_leg"`
+	LowLeg         CrossVenueLegState `json:"low_leg"`
+	OpenSpreadAPR  float64            `json:"open_spread_apr"`
+	EstFundingUSDT float64            `json:"est_funding_usdt"`
+	// HighLegFundingUSDT 高费腿(空头)累计收到的资金费(正);LowLegFundingUSDT 低费腿(多头)累计付出的资金费(负)。
+	// 二者之和 == EstFundingUSDT(净)。用于仪表盘「按腿归属」的每所收益展示。
+	HighLegFundingUSDT float64                  `json:"high_leg_funding_usdt,omitempty"`
+	LowLegFundingUSDT  float64                  `json:"low_leg_funding_usdt,omitempty"`
+	Status             CrossVenuePositionStatus `json:"status"`
+	OpenedAt           time.Time                `json:"opened_at"`
+	UpdatedAt          time.Time                `json:"updated_at"`
+	CloseSpreadStreak  int                      `json:"close_spread_streak,omitempty"`
+	IdemPrefix         string                   `json:"idem_prefix"`
+	NotionalUSDT       float64                  `json:"notional_usdt,omitempty"`
 	// LastAccrualAt 上次资金费记账时刻;每轮按 now−LastAccrualAt 的真实小时数折算累加(零值=自 OpenedAt 起算)。
 	LastAccrualAt time.Time `json:"last_accrual_at,omitempty"`
 	// CloseAttempts 平仓尝试轮数(IOC 未平干净时保持 closing 状态跨轮重试;≥3 轮升级 critical 告警)。

@@ -290,6 +290,7 @@ func (e *CrossVenueExecutor) closeCrossVenuePosition(ctx context.Context, pos Cr
 		}
 		pos.Status = CrossVenueStatusClosed
 		pos.UpdatedAt = e.nowFn()
+		e.appendRealizedEarning(pos)
 		_ = e.removeCrossVenuePosition(pos.Symbol)
 		e.notifyTrade("跨所平仓", fmt.Sprintf("%s %s", pos.Symbol, reason), pos.Symbol)
 		return nil
@@ -333,6 +334,7 @@ func (e *CrossVenueExecutor) closeCrossVenuePosition(ctx context.Context, pos Cr
 	if pos.HighLeg.Qty <= executionQtyTolerance && pos.LowLeg.Qty <= executionQtyTolerance {
 		pos.Status = CrossVenueStatusClosed
 		pos.UpdatedAt = e.nowFn()
+		e.appendRealizedEarning(pos)
 		_ = e.removeCrossVenuePosition(pos.Symbol)
 		e.notifyTrade("跨所平仓", fmt.Sprintf("%s %s(第 %d 轮平仓完成)", pos.Symbol, pos.CloseReason, attempt), pos.Symbol)
 		return nil

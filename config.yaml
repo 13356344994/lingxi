@@ -106,9 +106,13 @@ cross_venue_executor:
   # 并修复 4 个只有实弹才能暴露的适配器 bug(见 SYSTEM_OVERVIEW.md)。首期压额:单腿 30U、并发 1。
   live_trading_enabled: true
   # 2026-06-13 放量:首期 30U/并发1 的实弹自检已通过(开/平/对账链路验证),压额阶段结束。
-  # 提到 60U×2 并发:跨所峰值 120U,与单所引擎合计≈340U,贴近四所总资金 400U;余额闸兜底防超订。
-  max_concurrent: 2
+  # 2026-06-14 数据收集期放宽(用户拍板):并发 2→4,允许同时持更多腿采集数据;余额闸兜底防超订。
+  max_concurrent: 4
   max_position_usdt: 60
+  # 2026-06-14 降开仓价差阈值采集数据(用户拍板):默认 150% 太高,全市场最高仅 ~37%,长期开不出仓。
+  #   open=35%:当前 ~37.5% 的 STG 候选可够得着(若设 40% 反而挡掉);close=20% 留 15% 迟滞带防开平抖动。
+  open_spread_apr: 0.35
+  close_spread_apr: 0.20
 
 # 多所编排（§7 / §8）。注册到此的所会出现在面板 venue 选择器里，并各自拥有独立的 RuntimeController/记录目录。
 #   - binance：主所(primary，按字母序首位)，行为与改造前逐字节一致(recordDir=records/，autostart 受全局/环境变量控制)。

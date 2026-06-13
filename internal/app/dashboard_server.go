@@ -12,11 +12,13 @@ import (
 	"fmt"
 	"html/template"
 	"log"
+	"math"
 	"net"
 	"net/http"
 	"os"
 	"path"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -127,6 +129,8 @@ func (s *DashboardServer) Start(ctx context.Context) error {
 	mux.HandleFunc("/api/cross-venue/funding", s.authorizeReadAPI(s.handleCrossVenueFundingAPI))
 	mux.HandleFunc("/api/cross-venue/positions", s.authorizeReadAPI(s.handleCrossVenuePositionsAPI))
 	mux.HandleFunc("/api/crossvenue/openings", s.handleCrossVenueOpeningsAPI)
+	mux.HandleFunc("/api/earnings", s.authorizeReadAPI(s.handleEarningsAPI))
+	mux.HandleFunc("/api/earnings/clear", s.handleEarningsClearAPI)
 	mux.HandleFunc("/api/settlements", s.authorizeReadAPI(s.handleSettlementAPI))
 	mux.HandleFunc("/api/monitor-records", s.authorizeReadAPI(s.handleMonitorAPI))
 	mux.HandleFunc("/api/backtest-records", s.authorizeReadAPI(s.handleBacktestAPI))
@@ -1031,6 +1035,92 @@ func (s *DashboardServer) handleCrossVenueOpeningsAPI(w http.ResponseWriter, r *
 	}
 	s.auditControlAction(r, "crossvenue_openings", true, fmt.Sprintf("enabled=%v", req.Enabled))
 	writeJSON(w, map[string]any{"ok": true, "openings_enabled": req.Enabled})
+}
+
+type venueEarning struct {
+	Venue          string  `json:"venue"`
+	UsdtTotal      float64 `json:"usdt_total"`
+	CurrentEquity  float64 `json:"current_equity_usdt"`
+	BaselineEquity float64 `json:"baseline_equity_usdt"`
+}
+
+func (s *DashboardServer) handleEarningsAPI(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	now := time.Now().UTC()
+	windowStart := now.Add(-24 * time.Hour)
+
+	if s.crossVenueExecutor == nil {
+		writeJSON(w, map[string]any{
+			"basis":        "real_usdt_balance",
+			"window_hours": 0.0,
+			"generated_at": now.Format(time.RFC3339),
+			"total_usdt":   0.0,
+			"venues":       []venueEarning{},
+			"note":         "跨所执行引擎未启用,无权益快照",
+		})
+		return
+	}
+
+	deltas, currents, baselines, earliest := s.crossVenueExecutor.equityEarnings(windowStart)
+
+	var total float64
+	venues := make([]venueEarning, 0, len(currents))
+	for venueName := range currents {
+		delta := deltas[venueName]
+		current := currents[venueName]
+		baseline := baselines[venueName]
+		total += delta
+		venues = append(venues, venueEarning{
+			Venue:          venueName,
+			UsdtTotal:      delta,
+			CurrentEquity:  current,
+			BaselineEquity: baseline,
+		})
+	}
+	sort.Slice(venues, func(i, j int) bool {
+		return venues[i].Venue < venues[j].Venue
+	})
+
+	windowHours := 0.0
+	if !earliest.IsZero() {
+		windowHours = math.Min(24, now.Sub(earliest).Hours())
+		if windowHours < 0 {
+			windowHours = 0
+		}
+	}
+
+	writeJSON(w, map[string]any{
+		"basis":        "real_usdt_balance",
+		"window_hours": windowHours,
+		"generated_at": now.Format(time.RFC3339),
+		"total_usdt":   total,
+		"venues":       venues,
+	})
+}
+
+func (s *DashboardServer) handleEarningsClearAPI(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if !s.authorizeRuntimeControl(w, r, "earnings_clear") {
+		return
+	}
+	if s.crossVenueExecutor == nil {
+		writeJSON(w, map[string]any{"ok": true, "removed": 0, "message": "跨所执行引擎未启用,无快照可清"})
+		return
+	}
+	before := time.Now().UTC().Add(-24 * time.Hour)
+	removed, err := s.crossVenueExecutor.pruneEquitySnapshots(before)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	s.auditControlAction(r, "earnings_clear", true, fmt.Sprintf("removed=%d", removed))
+	writeJSON(w, map[string]any{"ok": true, "removed": removed, "message": fmt.Sprintf("已清除 %d 条 24 小时以外的权益快照", removed)})
 }
 
 func writeJSON(w http.ResponseWriter, payload any) {
