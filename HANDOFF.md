@@ -10,9 +10,10 @@
 
 | 项 | 状态 |
 |---|---|
-| 运行二进制 | 构建于 06-13 09:26 UTC(含 qty 修复 + 币安跨所集成 + healthz idle)|
-| HEAD 提交 | `a0f7821 lingxi-v10.1`(已含上述已部署内容)|
-| **未提交且未部署** | `internal/app/cross_venue_qty.go` + `cross_venue_qty_test.go`(**账本记账修复**,见 §3)|
+| 运行二进制 | 构建于 06-13 09:26 UTC(含 qty 修复 + 币安跨所集成 + healthz idle)。**早于 HEAD,未含账本修复** |
+| HEAD 提交 | `a0f7821 lingxi-v10.1`(**已含账本记账修复**:helper + 调用点,已验证可编译)|
+| **未提交** | `cross_venue_qty.go` + `cross_venue_qty_test.go` 的增量微调(+23/-11),非新功能 |
+| **未部署** | 账本修复(§3):HEAD + 未提交微调都还没编进运行二进制,重新部署即可 |
 | 急停 `.halt-live` | 无(系统正常运行)|
 | healthz | ready(任一所在跑即 200;全 idle 也 200,见 §6)|
 | 跨所在场持仓 | 2 笔:HOME-USDT、H-USDT,**真实两腿 delta 中性**,在吃资费 |
@@ -46,12 +47,12 @@
 
 ---
 
-## 3. ⚠️ 未提交 + 未部署:账本记账修复(下一步要部署)
+## 3. ⚠️ 账本记账修复:已提交进 HEAD,但运行二进制还没部署它
 
-**改动文件(已测试绿,未 commit、未部署)**:
-- `internal/app/cross_venue_qty.go`(新增 `crossVenueLegExecutedCoinQty` / `reconcileCrossVenueOpenBookQty` / `crossVenueBookNotionalUSDT`)
-- `internal/app/cross_venue_qty_test.go`(4 个新测试)
-- 调用点在 `cross_venue_open.go`(开仓落盘前归一两腿币数 + 重算名义)——**确认这个调用点改动是否也在工作区**(用 `git status` 核对;若 Composer 改了但没显示,检查)。
+**状态**:
+- helper(`crossVenueLegExecutedCoinQty` / `reconcileCrossVenueOpenBookQty` / `crossVenueBookNotionalUSDT`)+ 调用点(`cross_venue_open.go` 第 211–220 行)**已提交进 HEAD `a0f7821`,HEAD 可编译**。
+- `cross_venue_qty.go` + `cross_venue_qty_test.go` 还有**未提交的增量微调**(+23/-11),不是新功能。
+- **运行二进制(09:26)早于此修复 → 线上还没生效。重新 `go build` + 重启即部署(§5)。**
 
 **修的是什么**:`positions.json` 里 `high_leg.qty/low_leg.qty/notional_usdt` 记错(与真实持仓对不上)。**真实交易是对的,只是账本数字错**,不影响安全(平仓/风控读真实持仓)。
 

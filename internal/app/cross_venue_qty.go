@@ -97,21 +97,33 @@ func crossVenueLegExecutedCoinQty(caps venue.Capabilities, instr venue.Instrumen
 }
 
 // reconcileCrossVenueOpenBookQty 开仓落盘时取两腿一致的币数量;优先信任币本位腿的 ExecutedQty。
+// 若仅一腿为张本位且两腿解读偏差大,取张本位腿换算后的 coin(币本位腿可能跟单了误读的张数)。
 func reconcileCrossVenueOpenBookQty(highCaps, lowCaps venue.Capabilities, highCoin, lowCoin float64) float64 {
-	switch {
-	case !highCaps.ContractBasedPerp && highCoin > executionQtyTolerance:
-		return highCoin
-	case !lowCaps.ContractBasedPerp && lowCoin > executionQtyTolerance:
-		return lowCoin
-	case highCoin > executionQtyTolerance && lowCoin > executionQtyTolerance:
-		return math.Min(highCoin, lowCoin)
-	case highCoin > executionQtyTolerance:
-		return highCoin
-	case lowCoin > executionQtyTolerance:
-		return lowCoin
-	default:
+	if highCoin <= executionQtyTolerance && lowCoin <= executionQtyTolerance {
 		return 0
 	}
+	if highCoin <= executionQtyTolerance {
+		return lowCoin
+	}
+	if lowCoin <= executionQtyTolerance {
+		return highCoin
+	}
+	if qtyDeviation(highCoin, lowCoin) <= 0.05 {
+		return math.Min(highCoin, lowCoin)
+	}
+	if highCaps.ContractBasedPerp && !lowCaps.ContractBasedPerp && highCoin > lowCoin {
+		return highCoin
+	}
+	if lowCaps.ContractBasedPerp && !highCaps.ContractBasedPerp && lowCoin > highCoin {
+		return lowCoin
+	}
+	if !highCaps.ContractBasedPerp {
+		return highCoin
+	}
+	if !lowCaps.ContractBasedPerp {
+		return lowCoin
+	}
+	return math.Min(highCoin, lowCoin)
 }
 
 // crossVenueBookNotionalUSDT 由真实成交币数量 × 参考价得到落盘名义(与两腿 qty 口径一致)。

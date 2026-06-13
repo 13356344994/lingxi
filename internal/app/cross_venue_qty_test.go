@@ -327,10 +327,10 @@ func TestCrossVenueOpenBookQtyBybitHighGateLowReportsContracts(t *testing.T) {
 }
 
 func TestCrossVenueOpenBookQtyGateHighBybitLowReportsContracts(t *testing.T) {
-	// H-USDT 口径:gate 高费腿 ExecutedQty 误报张数,gate 为 high leg,bybit 为 low leg。
+	// H-USDT 口径:gate 高费腿先成交,ExecutedQty 误报张数(3 张 × 10 = 30 币);bybit 对冲跟单 3 币。
 	now := vNow()
 	gateInstr := venue.Instrument{
-		Symbol: "H-USDT", Market: venue.MarketPerp, StepSize: 1, ContractSize: 877, QtyUnit: "contract",
+		Symbol: "H-USDT", Market: venue.MarketPerp, StepSize: 1, ContractSize: 10, QtyUnit: "contract",
 	}
 	gateVenue := newContractLegFakeVenueReportingContracts(gate.VenueName, gateInstr)
 	bybitVenue := newCrossVenueTestVenue(bybit.VenueName, 0.001, 8, now)
