@@ -53,8 +53,15 @@ func (a *Adapter) CaptureMovableSnapshot(ctx context.Context) ([]venue.WalletSna
 }
 
 func (a *Adapter) PlanAllocation(totalUSDT float64, caps venue.Capabilities) venue.CapitalAllocationPlan {
-	// P4 实现:25/25/50(spot/cross_margin/um_futures),余量入 funding。当前返回空计划。
-	return venue.CapitalAllocationPlan{TotalTradingUSDT: totalUSDT, RemainderWallet: WalletFunding}
+	// 跨所永续腿:交易总额全部进 U 本位合约,余量入 funding。
+	if totalUSDT < 0 {
+		totalUSDT = 0
+	}
+	return venue.CapitalAllocationPlan{
+		TotalTradingUSDT: totalUSDT,
+		Targets:          map[venue.Wallet]float64{WalletUMFutures: totalUSDT},
+		RemainderWallet:  WalletFunding,
+	}
 }
 
 func (a *Adapter) ExecuteRebalance(ctx context.Context, plan venue.CapitalAllocationPlan) ([]venue.Transfer, error) {

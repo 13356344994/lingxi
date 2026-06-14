@@ -50,13 +50,13 @@ type crossVenueGateResult struct {
 
 // crossVenueGateDeps 是闸门所需的最小 venue 能力。
 type crossVenueGateDeps struct {
-	lookupInstrument func(ctx context.Context, v venue.Venue, sym venue.Symbol) (venue.Instrument, bool)
-	fetchBookTicker  func(ctx context.Context, v venue.Venue, sym venue.Symbol) (venue.BookTicker, error)
-	fetchDepth       func(ctx context.Context, v venue.Venue, sym venue.Symbol, limit int) (venue.Depth, error)
-	fetchFunding     func(ctx context.Context, v venue.Venue, sym venue.Symbol) (venue.FundingSnapshot, bool)
-	fetchBalanceUSDT func(ctx context.Context, v venue.Venue) (float64, error)
-	venueCaps        func(v venue.Venue) venue.Capabilities
-	allocatedUSDT    func(venueName string) float64
+	lookupInstrument       func(ctx context.Context, v venue.Venue, sym venue.Symbol) (venue.Instrument, bool)
+	fetchBookTicker        func(ctx context.Context, v venue.Venue, sym venue.Symbol) (venue.BookTicker, error)
+	fetchDepth             func(ctx context.Context, v venue.Venue, sym venue.Symbol, limit int) (venue.Depth, error)
+	fetchFunding           func(ctx context.Context, v venue.Venue, sym venue.Symbol) (venue.FundingSnapshot, bool)
+	fetchPerpAvailableUSDT func(ctx context.Context, v venue.Venue) (float64, error)
+	venueCaps              func(v venue.Venue) venue.Capabilities
+	allocatedUSDT          func(venueName string) float64
 }
 
 func evaluateCrossVenueOpenGate(
@@ -178,13 +178,19 @@ func evaluateCrossVenueOpenGate(
 		marginFactor = 1.5
 	}
 	requiredMargin := notional / levCap * marginFactor
-	highBal, _ := deps.fetchBalanceUSDT(ctx, highV)
-	lowBal, _ := deps.fetchBalanceUSDT(ctx, lowV)
+	highBal, highBalErr := deps.fetchPerpAvailableUSDT(ctx, highV)
+	if highBalErr != nil {
+		return fail(fmt.Sprintf("高费所永续可用保证金读取失败: %v", highBalErr))
+	}
+	lowBal, lowBalErr := deps.fetchPerpAvailableUSDT(ctx, lowV)
+	if lowBalErr != nil {
+		return fail(fmt.Sprintf("低费所永续可用保证金读取失败: %v", lowBalErr))
+	}
 	if highBal < requiredMargin {
-		return fail(fmt.Sprintf("高费所可用 USDT %.2f < 所需 %.2f", highBal, requiredMargin))
+		return fail(fmt.Sprintf("高费所永续可用 USDT %.2f < 所需 %.2f", highBal, requiredMargin))
 	}
 	if lowBal < requiredMargin {
-		return fail(fmt.Sprintf("低费所可用 USDT %.2f < 所需 %.2f", lowBal, requiredMargin))
+		return fail(fmt.Sprintf("低费所永续可用 USDT %.2f < 所需 %.2f", lowBal, requiredMargin))
 	}
 	highAlloc := deps.allocatedUSDT(in.Opp.HighVenue)
 	lowAlloc := deps.allocatedUSDT(in.Opp.LowVenue)
@@ -193,6 +199,10 @@ func evaluateCrossVenueOpenGate(
 	}
 	if lowAlloc > 0 && notional/lowAlloc > levCap+1e-9 {
 		return fail(fmt.Sprintf("低费所有效杠杆 %.2fx > %.2fx", notional/lowAlloc, levCap))
+	}
+
+	if evRes := evaluateCrossVenueOpenEV(cfg, in.Opp, notional); !evRes.OK {
+		return fail(evRes.Reason)
 	}
 
 	_ = deps.venueCaps // 预留 contract-based 校验
@@ -206,6 +216,89 @@ func evaluateCrossVenueOpenGate(
 		HighFundingSnap: highSnap,
 		LowFundingSnap:  lowSnap,
 	}
+}
+
+type crossVenueEVResult struct {
+	OK     bool
+	Reason string
+}
+
+// evaluateCrossVenueOpenEV 手续费感 EV 闸:只有资费能在可接受持有时长内覆盖四腿往返成本才放行。
+// 费率须来自扫描器平滑+封顶后的 Opp 字段(High/LowFundingRate);缺省(单测直调 gate)则跳过 EV。
+func evaluateCrossVenueOpenEV(cfg CrossVenueExecutorConfig, opp CrossVenueOpportunity, notional float64) crossVenueEVResult {
+	pass := func() crossVenueEVResult { return crossVenueEVResult{OK: true} }
+	failEV := func(reason string) crossVenueEVResult {
+		return crossVenueEVResult{OK: false, Reason: reason}
+	}
+	if opp.HighAnnualizedAPR == 0 && opp.LowAnnualizedAPR == 0 {
+		return pass()
+	}
+	hRate := opp.HighFundingRate
+	lRate := opp.LowFundingRate
+	hInt := opp.HighIntervalHours
+	lInt := opp.LowIntervalHours
+	if hInt <= 0 {
+		hInt = 8
+	}
+	if lInt <= 0 {
+		lInt = 8
+	}
+	hHourly := hRate / float64(hInt)
+	lHourly := lRate / float64(lInt)
+	fundingPerHour := notional * (hHourly - lHourly)
+	if fundingPerHour <= 0 {
+		return failEV(fmt.Sprintf("EV<0: fundingPerHour=%.6f USDT/h ≤0 (hRate=%.6g/%dh lRate=%.6g/%dh)",
+			fundingPerHour, hRate, hInt, lRate, lInt))
+	}
+	slipBps := cfg.EVExpectedSlippageBps
+	if slipBps <= 0 {
+		slipBps = 3
+	}
+	roundTripCost := 0.0
+	for _, legVenue := range []string{opp.HighVenue, opp.LowVenue, opp.HighVenue, opp.LowVenue} {
+		takerBps := crossVenueTakerFeeBps(cfg, legVenue)
+		roundTripCost += notional * (takerBps + slipBps) / 10000
+	}
+	breakevenHours := roundTripCost / fundingPerHour
+	maxBE := cfg.EVMaxBreakevenHours
+	if maxBE <= 0 {
+		maxBE = 24
+	}
+	if breakevenHours > maxBE {
+		return failEV(fmt.Sprintf("EV<0: breakevenHours=%.1fh > max %.0fh (fundingPerHour=%.6f roundTripCost=%.4f)",
+			breakevenHours, maxBE, fundingPerHour, roundTripCost))
+	}
+	minHold := cfg.MinHoldHours
+	if minHold <= 0 {
+		minHold = 24
+	}
+	safety := cfg.EVSafetyFactor
+	if safety <= 0 {
+		safety = 1.3
+	}
+	if fundingPerHour*minHold < roundTripCost*safety {
+		return failEV(fmt.Sprintf("EV<0: funding×hold=%.4f < cost×safety=%.4f (breakevenHours=%.1fh fundingPerHour=%.6f roundTripCost=%.4f minHold=%.0fh safety=%.2f)",
+			fundingPerHour*minHold, roundTripCost*safety, breakevenHours, fundingPerHour, roundTripCost, minHold, safety))
+	}
+	return pass()
+}
+
+func crossVenueTakerFeeBps(cfg CrossVenueExecutorConfig, venueName string) float64 {
+	venueName = strings.ToLower(strings.TrimSpace(venueName))
+	switch venueName {
+	case binance.VenueName:
+		return 5
+	case bybit.VenueName:
+		return 5.5
+	case okx.VenueName:
+		return 5
+	case gate.VenueName:
+		return 5
+	}
+	if cfg.DefaultTakerFeeBps > 0 {
+		return cfg.DefaultTakerFeeBps
+	}
+	return 6
 }
 
 func bookSpreadBps(t venue.BookTicker) float64 {
@@ -268,17 +361,7 @@ func fetchVenueFundingForSymbol(ctx context.Context, v venue.Venue, sym venue.Sy
 }
 
 func fetchVenueUSDTBalance(ctx context.Context, v venue.Venue) (float64, error) {
-	bals, err := v.FetchBalances(ctx)
-	if err != nil {
-		return 0, err
-	}
-	total := 0.0
-	for asset, b := range bals.ByAsset {
-		if strings.EqualFold(asset, "USDT") {
-			total += b.Free
-		}
-	}
-	return total, nil
+	return fetchVenuePerpAvailableUSDT(ctx, v)
 }
 
 func isBybitSymbolHeld(recordDir string, sym venue.Symbol) bool {

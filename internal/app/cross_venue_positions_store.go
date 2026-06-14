@@ -47,18 +47,21 @@ type CrossVenuePosition struct {
 	LowLeg         CrossVenueLegState `json:"low_leg"`
 	OpenSpreadAPR  float64            `json:"open_spread_apr"`
 	EstFundingUSDT float64            `json:"est_funding_usdt"`
-	// HighLegFundingUSDT 高费腿(空头)累计收到的资金费(正);LowLegFundingUSDT 低费腿(多头)累计付出的资金费(负)。
-	// 二者之和 == EstFundingUSDT(净)。用于仪表盘「按腿归属」的每所收益展示。
-	HighLegFundingUSDT float64                  `json:"high_leg_funding_usdt,omitempty"`
-	LowLegFundingUSDT  float64                  `json:"low_leg_funding_usdt,omitempty"`
-	Status             CrossVenuePositionStatus `json:"status"`
-	OpenedAt           time.Time                `json:"opened_at"`
-	UpdatedAt          time.Time                `json:"updated_at"`
-	CloseSpreadStreak  int                      `json:"close_spread_streak,omitempty"`
-	IdemPrefix         string                   `json:"idem_prefix"`
-	NotionalUSDT       float64                  `json:"notional_usdt,omitempty"`
+	// HighLegFundingUSDT 高费腿(空头)真实已结算资金费(正);LowLegFundingUSDT 低费腿(多头)真实已结算资金费(负)。
+	// 由 syncRealizedFunding 从交易所流水覆盖写入;EstFundingUSDT = 两腿真实值 + 轮间估算展示增量。
+	HighLegFundingUSDT            float64                  `json:"high_leg_funding_usdt,omitempty"`
+	LowLegFundingUSDT             float64                  `json:"low_leg_funding_usdt,omitempty"`
+	Status                        CrossVenuePositionStatus `json:"status"`
+	OpenedAt                      time.Time                `json:"opened_at"`
+	UpdatedAt                     time.Time                `json:"updated_at"`
+	CloseSpreadStreak             int                      `json:"close_spread_streak,omitempty"`
+	CloseHardNegativeSpreadStreak int                      `json:"close_hard_negative_spread_streak,omitempty"`
+	IdemPrefix                    string                   `json:"idem_prefix"`
+	NotionalUSDT                  float64                  `json:"notional_usdt,omitempty"`
 	// LastAccrualAt 上次资金费记账时刻;每轮按 now−LastAccrualAt 的真实小时数折算累加(零值=自 OpenedAt 起算)。
 	LastAccrualAt time.Time `json:"last_accrual_at,omitempty"`
+	// LastRealizedFundingAt 上次成功拉取真实结算资费的时刻;节流 RealizedFundingPollMinutes 或跨结算周期再拉。
+	LastRealizedFundingAt time.Time `json:"last_realized_funding_at,omitempty"`
 	// CloseAttempts 平仓尝试轮数(IOC 未平干净时保持 closing 状态跨轮重试;≥3 轮升级 critical 告警)。
 	CloseAttempts int `json:"close_attempts,omitempty"`
 	// CloseReason 首次触发平仓的原因(跨轮重试时沿用,日志/告警可追溯)。

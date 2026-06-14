@@ -499,6 +499,10 @@ type CrossVenueScannerConfig struct {
 	BorrowProbeEnabled bool `cfg:"borrow_probe_enabled"`
 	// BorrowProbeTopN 借币探测覆盖的头部机会数(按 spread 排序)。默认 10。
 	BorrowProbeTopN int `cfg:"borrow_probe_top_n"`
+	// FundingAPRSanityCap 单腿年化费率绝对值上限(小数,5.0=500%);超过视为尖峰/坏数据,截断后再参与价差/排序。
+	FundingAPRSanityCap float64 `cfg:"funding_apr_sanity_cap"`
+	// SpreadPersistenceScans 跨所价差须在最近 N 次扫描中持续达标(用近 N 次中位数费率);历史不足 N 次则暂不出候选。
+	SpreadPersistenceScans int `cfg:"spread_persistence_scans"`
 }
 
 // EngineConfig 是 Funding Rate Sniper Engine 的 MVP 运行配置。
@@ -549,6 +553,8 @@ type CrossVenueExecutorConfig struct {
 	CloseSpreadAPR float64 `cfg:"close_spread_apr"`
 	// CloseSpreadConsecutiveRounds 价差低于平仓阈值须连续满足的轮数。默认 3。
 	CloseSpreadConsecutiveRounds int `cfg:"close_spread_consecutive_rounds"`
+	// CloseHardNegativeSpreadAPR 价差深度转负硬止损阈值(小数,−0.5=−50%年化);连续 N 轮低于此值立即平仓,不受最小持有保护。
+	CloseHardNegativeSpreadAPR float64 `cfg:"close_hard_negative_spread_apr"`
 	// MaxConcurrent 同时在场最大跨所持仓数。默认 2。
 	MaxConcurrent int `cfg:"max_concurrent"`
 	// MaxPositionUSDT 单腿最大名义(USDT)。默认 50。
@@ -557,6 +563,9 @@ type CrossVenueExecutorConfig struct {
 	MaxBookSpreadBps float64 `cfg:"max_book_spread_bps"`
 	// SlippageBudgetBps IOC 限价相对对手价的滑点预算(bps)。默认 20。
 	SlippageBudgetBps float64 `cfg:"slippage_budget_bps"`
+	// TakerSlippageBudgetBps 吃单腿(第二腿/回滚/平仓/降风险)IOC 限价滑点预算(bps),须宽于 SlippageBudgetBps
+	// 以穿价成交;第一腿仍用 SlippageBudgetBps。0=回退与 SlippageBudgetBps 相同。默认 40。
+	TakerSlippageBudgetBps float64 `cfg:"taker_slippage_budget_bps"`
 	// MaxNakedSeconds 第二腿失败裸腿暴露上限(秒),超时须完成回滚或升级告警。默认 30。
 	MaxNakedSeconds int `cfg:"max_naked_seconds"`
 	// MinLiqDistance 强平距离下限(|mark−liq|/mark)。默认 0.15。
@@ -573,8 +582,24 @@ type CrossVenueExecutorConfig struct {
 	DepthUsageRatio float64 `cfg:"depth_usage_ratio"`
 	// SymbolCooldownHours 回滚失败后 symbol 冷却(小时)。默认 1。
 	SymbolCooldownHours int `cfg:"symbol_cooldown_hours"`
+	// PerpMarginTopUpBuffer 开仓前自动划转永续保证金时的安全系数(只补差额×buffer)。默认 1.05。
+	PerpMarginTopUpBuffer float64 `cfg:"perp_margin_top_up_buffer"`
+	// BybitAgreementCooldownHours Bybit 110126 协议未签时 symbol 冷却(小时)。默认 6。
+	BybitAgreementCooldownHours int `cfg:"bybit_agreement_cooldown_hours"`
 	// DeadManCountdownSeconds okx/gate 腿 dead-man 续期间隔(秒)。默认 60。
 	DeadManCountdownSeconds int `cfg:"dead_man_countdown_seconds"`
+	// MinHoldHours 最小预期持有时长(小时),EV 闸用作覆盖往返手续费的时间窗;持仓管理也会参考。
+	MinHoldHours float64 `cfg:"min_hold_hours"`
+	// DefaultTakerFeeBps 各所永续吃单费率(bps)未命中内置默认表时的兜底值。默认 6。
+	DefaultTakerFeeBps float64 `cfg:"default_taker_fee_bps"`
+	// EVExpectedSlippageBps EV 成本模型中每腿预期滑点(bps,非 SlippageBudget 容忍上限)。默认 3。
+	EVExpectedSlippageBps float64 `cfg:"ev_expected_slippage_bps"`
+	// EVMaxBreakevenHours 盈亏平衡持有时长上限(小时);超过则不开仓。默认 24。
+	EVMaxBreakevenHours float64 `cfg:"ev_max_breakeven_hours"`
+	// EVSafetyFactor EV 安全边际:fundingPerHour×MinHoldHours 须 ≥ roundTripCost×此系数。默认 1.3。
+	EVSafetyFactor float64 `cfg:"ev_safety_factor"`
+	// RealizedFundingPollMinutes 拉取真实结算资费的节流间隔(分钟);两次拉取之间用估算做临时展示。默认 5。
+	RealizedFundingPollMinutes int `cfg:"realized_funding_poll_minutes"`
 }
 
 // VenueFundingExecutorConfig 是 OKX/Gate 单所正费率执行器参数(正 carry:空永续+买现货,跨结算持有)。
@@ -953,6 +978,8 @@ func (cfg EngineConfig) Validate() error {
 		appendIssue(cfg.CrossVenueScanner.MinSpreadAPR >= 0, "CrossVenueScanner MinSpreadAPR 不能小于 0")
 		appendIssue(cfg.CrossVenueScanner.AlertSpreadAPR >= 0, "CrossVenueScanner AlertSpreadAPR 不能小于 0")
 		appendIssue(cfg.CrossVenueScanner.TopN > 0, "CrossVenueScanner TopN 必须大于 0")
+		appendIssue(cfg.CrossVenueScanner.FundingAPRSanityCap > 0, "CrossVenueScanner FundingAPRSanityCap 必须大于 0")
+		appendIssue(cfg.CrossVenueScanner.SpreadPersistenceScans > 0, "CrossVenueScanner SpreadPersistenceScans 必须大于 0")
 	}
 	if cfg.CrossVenueExecutor.Enabled {
 		appendIssue(cfg.CrossVenueExecutor.LoopIntervalSeconds > 0, "CrossVenueExecutor LoopIntervalSeconds 必须大于 0")
@@ -961,6 +988,12 @@ func (cfg EngineConfig) Validate() error {
 		appendIssue(cfg.CrossVenueExecutor.MaxConcurrent > 0, "CrossVenueExecutor MaxConcurrent 必须大于 0")
 		appendIssue(cfg.CrossVenueExecutor.MaxPositionUSDT > 0, "CrossVenueExecutor MaxPositionUSDT 必须大于 0")
 		appendIssue(cfg.CrossVenueExecutor.MaxEffectiveLeverage > 0, "CrossVenueExecutor MaxEffectiveLeverage 必须大于 0")
+		appendIssue(cfg.CrossVenueExecutor.MinHoldHours > 0, "CrossVenueExecutor MinHoldHours 必须大于 0")
+		appendIssue(cfg.CrossVenueExecutor.DefaultTakerFeeBps >= 0, "CrossVenueExecutor DefaultTakerFeeBps 不能小于 0")
+		appendIssue(cfg.CrossVenueExecutor.EVExpectedSlippageBps >= 0, "CrossVenueExecutor EVExpectedSlippageBps 不能小于 0")
+		appendIssue(cfg.CrossVenueExecutor.EVMaxBreakevenHours > 0, "CrossVenueExecutor EVMaxBreakevenHours 必须大于 0")
+		appendIssue(cfg.CrossVenueExecutor.EVSafetyFactor >= 1, "CrossVenueExecutor EVSafetyFactor 必须 ≥ 1")
+		appendIssue(cfg.CrossVenueExecutor.RealizedFundingPollMinutes > 0, "CrossVenueExecutor RealizedFundingPollMinutes 必须大于 0")
 	}
 
 	if len(issues) == 0 {

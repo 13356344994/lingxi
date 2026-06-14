@@ -2087,18 +2087,24 @@
       const win = document.getElementById("earnings-window");
       if (win) { win.textContent = (data.window_hours && data.window_hours < 23.95) ? (Math.max(0, data.window_hours).toFixed(1)) : "24"; }
       const fmt = (n) => { const v = Number(n || 0); const s = v >= 0 ? "+" : ""; return s + v.toFixed(4); };
+      const pct = (delta, base) => { const b = Number(base || 0); if (Math.abs(b) < 1e-9) { return "—"; } const p = Number(delta || 0) / b * 100; const s = p >= 0 ? "+" : ""; return s + p.toFixed(2) + "%"; };
       const color = (n) => Number(n || 0) >= 0 ? "#86efac" : "#fca5a5";
       const venues = Array.isArray(data.venues) ? data.venues : [];
       let cards = venues.map((ve) => `
-        <div style="flex:1 1 160px;min-width:160px;background:#0b1424;border:1px solid #1e293b;border-radius:8px;padding:10px;">
+        <div style="flex:1 1 170px;min-width:170px;background:#0b1424;border:1px solid #1e293b;border-radius:8px;padding:10px;">
           <div style="font-size:12px;color:#8aa0c6;margin-bottom:4px;">${escapeHTML(ve.venue)}</div>
-          <div style="font-size:18px;font-weight:600;color:${color(ve.usdt_total)};">${fmt(ve.usdt_total)} U</div>
-          <div style="font-size:11px;color:#64748b;margin-top:4px;">当前 ${Number(ve.current_equity_usdt||0).toFixed(2)} U · 基线 ${Number(ve.baseline_equity_usdt||0).toFixed(2)} U</div>
+          <div style="font-size:18px;font-weight:600;color:${color(ve.usdt_total)};">${fmt(ve.usdt_total)} U <span style="font-size:13px;font-weight:600;">(${pct(ve.usdt_total, ve.baseline_equity_usdt)})</span></div>
+          <div style="font-size:12px;color:#cbd5e1;margin-top:3px;">当前总额 ${Number(ve.current_equity_usdt||0).toFixed(2)} U</div>
+          <div style="font-size:11px;color:#64748b;margin-top:2px;">基线 ${Number(ve.baseline_equity_usdt||0).toFixed(2)} U</div>
         </div>`).join("");
+      const totalCurrent = venues.reduce((s, ve) => s + Number(ve.current_equity_usdt || 0), 0);
+      const totalBaseline = venues.reduce((s, ve) => s + Number(ve.baseline_equity_usdt || 0), 0);
       cards += `
-        <div style="flex:1 1 160px;min-width:160px;background:#13203a;border:1px solid #2b3c5c;border-radius:8px;padding:10px;">
-          <div style="font-size:12px;color:#cbd5e1;margin-bottom:4px;">总收益</div>
-          <div style="font-size:18px;font-weight:700;color:${color(data.total_usdt)};">${fmt(data.total_usdt)} U</div>
+        <div style="flex:1 1 170px;min-width:170px;background:#13203a;border:1px solid #2b3c5c;border-radius:8px;padding:10px;">
+          <div style="font-size:12px;color:#cbd5e1;margin-bottom:4px;">总收益(全部所)</div>
+          <div style="font-size:18px;font-weight:700;color:${color(data.total_usdt)};">${fmt(data.total_usdt)} U <span style="font-size:13px;font-weight:700;">(${pct(data.total_usdt, totalBaseline)})</span></div>
+          <div style="font-size:12px;color:#e2e8f0;margin-top:3px;">当前总额 ${totalCurrent.toFixed(2)} U</div>
+          <div style="font-size:11px;color:#64748b;margin-top:2px;">基线 ${totalBaseline.toFixed(2)} U</div>
         </div>`;
       grid.innerHTML = cards;
     }

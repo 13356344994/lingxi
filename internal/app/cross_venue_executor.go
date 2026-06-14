@@ -282,6 +282,11 @@ func (e *CrossVenueExecutor) evaluateNewOpens(ctx context.Context, live bool) {
 			continue
 		}
 		opp = resolved
+		requiredMargin := conservativeCrossVenueRequiredMargin(cfg)
+		ensureCrossVenuePerpMargin(ctx, e.logger, e.venues, opp.HighVenue, opp.LowVenue, requiredMargin)
+		if crossVenueUsesBybit(opp.HighVenue, opp.LowVenue) {
+			ensureBybitTradingAgreement(ctx, e.logger, e.venues[bybit.VenueName])
+		}
 		gateRes := evaluateCrossVenueOpenGate(ctx, cfg, deps, e.venues, crossVenueGateInput{
 			Opp:           opp,
 			Positions:     e.snapshotPositions(),
@@ -315,6 +320,9 @@ func (e *CrossVenueExecutor) evaluateNewOpens(ctx context.Context, live bool) {
 		pos, err := e.executeCrossVenueOpen(ctx, plan, live)
 		if err != nil {
 			e.logger.Printf("[跨所执行] 开仓失败 %s: %v", opp.Symbol, err)
+			if isBybitAgreementRequiredError(err) {
+				e.handleBybitAgreementOpenFailure(ctx, opp, err)
+			}
 			continue
 		}
 		// 影子模式返回空持仓(只记日志不建仓),不能把零值记录灌进内存台账/面板。
@@ -401,10 +409,10 @@ func (e *CrossVenueExecutor) gateDeps() crossVenueGateDeps {
 		fetchDepth: func(ctx context.Context, v venue.Venue, sym venue.Symbol, limit int) (venue.Depth, error) {
 			return v.FetchDepth(ctx, venue.MarketPerp, sym, limit)
 		},
-		fetchFunding:     fetchVenueFundingForSymbol,
-		fetchBalanceUSDT: fetchVenueUSDTBalance,
-		venueCaps:        func(v venue.Venue) venue.Capabilities { return v.Capabilities() },
-		allocatedUSDT:    e.allocatedUSDTForVenue,
+		fetchFunding:           fetchVenueFundingForSymbol,
+		fetchPerpAvailableUSDT: fetchVenuePerpAvailableUSDT,
+		venueCaps:              func(v venue.Venue) venue.Capabilities { return v.Capabilities() },
+		allocatedUSDT:          e.allocatedUSDTForVenue,
 	}
 }
 
@@ -554,6 +562,32 @@ func (e *CrossVenueExecutor) setSymbolCooldown(sym string) {
 	e.mu.Lock()
 	e.symbolCooldown[sym] = e.nowFn().Add(time.Duration(hours) * time.Hour)
 	e.mu.Unlock()
+}
+
+// setSymbolAgreementCooldown 对 Bybit 110126 协议未签 symbol 施加更长冷却(非永久黑名单,签完可交易)。
+func (e *CrossVenueExecutor) setSymbolAgreementCooldown(sym string) {
+	hours := e.cfg.CrossVenueExecutor.BybitAgreementCooldownHours
+	if hours <= 0 {
+		hours = 6
+	}
+	e.mu.Lock()
+	e.symbolCooldown[sym] = e.nowFn().Add(time.Duration(hours) * time.Hour)
+	e.mu.Unlock()
+}
+
+func (e *CrossVenueExecutor) handleBybitAgreementOpenFailure(ctx context.Context, opp CrossVenueOpportunity, err error) {
+	if e.venues[bybit.VenueName] != nil {
+		ensureBybitTradingAgreement(ctx, e.logger, e.venues[bybit.VenueName])
+	}
+	sym := extractBybitAgreementSymbol(err, opp)
+	e.setSymbolAgreementCooldown(sym)
+	hours := e.cfg.CrossVenueExecutor.BybitAgreementCooldownHours
+	if hours <= 0 {
+		hours = 6
+	}
+	e.notifyWarn("Bybit 合约协议",
+		fmt.Sprintf("请在 Bybit App 手动签署 %s 合约协议(retCode=110126);已冷却 %d 小时跳过", sym, hours),
+		sym)
 }
 
 // fundingFromScanner 从扫描器缓存查某所某 symbol 的费率明细(快照最旧 10 分钟,对平仓判断/记账精度足够)。

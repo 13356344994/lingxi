@@ -73,14 +73,8 @@ func (e *CrossVenueExecutor) appendRealizedEarning(pos CrossVenuePosition) {
 		_ = f.Close()
 	}
 
-	if pos.HighLegFundingUSDT != 0 || pos.LowLegFundingUSDT != 0 {
-		writeRecord(pos.HighVenue, pos.HighLegFundingUSDT)
-		writeRecord(pos.LowVenue, pos.LowLegFundingUSDT)
-		return
-	}
-	if pos.EstFundingUSDT != 0 {
-		writeRecord(pos.HighVenue, pos.EstFundingUSDT)
-	}
+	writeRecord(pos.HighVenue, pos.HighLegFundingUSDT)
+	writeRecord(pos.LowVenue, pos.LowLegFundingUSDT)
 }
 
 func (e *CrossVenueExecutor) realizedEarningsByVenue(since time.Time) map[string]float64 {

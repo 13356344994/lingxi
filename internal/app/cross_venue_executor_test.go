@@ -101,6 +101,14 @@ func (f *crossVenueTestVenue) FetchBalances(context.Context) (venue.Balances, er
 	return venue.Balances{ByAsset: map[string]venue.Balance{"USDT": {Asset: "USDT", Free: f.balanceUSDT}}}, nil
 }
 
+func (f *crossVenueTestVenue) FetchPerpAvailableUSDT(context.Context) (float64, error) {
+	return f.balanceUSDT, nil
+}
+
+func (f *crossVenueTestVenue) TopUpPerpMarginUSDT(context.Context, float64) (float64, error) {
+	return 0, nil
+}
+
 func (f *crossVenueTestVenue) FetchPositions(context.Context) ([]venue.Position, error) {
 	return f.positions, nil
 }
@@ -180,10 +188,10 @@ func testCrossVenueGateDeps(allocated float64) crossVenueGateDeps {
 		fetchDepth: func(ctx context.Context, v venue.Venue, sym venue.Symbol, limit int) (venue.Depth, error) {
 			return v.FetchDepth(ctx, venue.MarketPerp, sym, limit)
 		},
-		fetchFunding:     fetchVenueFundingForSymbol,
-		fetchBalanceUSDT: fetchVenueUSDTBalance,
-		venueCaps:        func(v venue.Venue) venue.Capabilities { return v.Capabilities() },
-		allocatedUSDT:    func(string) float64 { return allocated },
+		fetchFunding:           fetchVenueFundingForSymbol,
+		fetchPerpAvailableUSDT: fetchVenuePerpAvailableUSDT,
+		venueCaps:              func(v venue.Venue) venue.Capabilities { return v.Capabilities() },
+		allocatedUSDT:          func(string) float64 { return allocated },
 	}
 }
 

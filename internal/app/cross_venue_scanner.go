@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"math"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -52,6 +53,8 @@ type CrossVenueOpportunity struct {
 	HighAnnualizedAPR   float64   `json:"high_annualized_apr"`
 	LowAnnualizedAPR    float64   `json:"low_annualized_apr"`
 	SpreadAPR           float64   `json:"spread_apr"`
+	HighFundingRate     float64   `json:"high_funding_rate"` // 平滑+封顶后的单次结算费率(EV/排序口径)
+	LowFundingRate      float64   `json:"low_funding_rate"`
 	HighIntervalHours   int       `json:"high_interval_hours"`
 	LowIntervalHours    int       `json:"low_interval_hours"`
 	HighNextFundingTime time.Time `json:"high_next_funding_time"`
@@ -114,6 +117,10 @@ type CrossVenueScanner struct {
 	nowFn      func() time.Time
 	sleepFn    func(time.Duration)
 	fetchVenue func(ctx context.Context, name string, adp venue.Venue) ([]venue.FundingSnapshot, error)
+
+	// fundingHistory 滚动费率历史 venue → symbol → 最近若干次原始 LastFundingRate(并发:scanOnce 写,compute 读)。
+	fundingHistoryMu sync.Mutex
+	fundingHistory   map[string]map[string][]float64
 }
 
 // NewCrossVenueScanner 构造扫描器;venues 为空 map 时按 orch/secret 自建四所只读适配器。
@@ -127,15 +134,16 @@ func NewCrossVenueScanner(cfg EngineConfig, orch *Orchestrator, secretPath strin
 		recordDir = "records"
 	}
 	return &CrossVenueScanner{
-		cfg:        cfg.CrossVenueScanner,
-		recordDir:  recordDir,
-		venues:     venues,
-		logger:     logger,
-		alerts:     newCrossVenueAlertDispatcher(cfg.CrossVenueScanner, secretPath, logger),
-		lastAlert:  make(map[string]time.Time),
-		nowFn:      time.Now,
-		sleepFn:    time.Sleep,
-		fetchVenue: defaultFetchVenueSnapshot,
+		cfg:            cfg.CrossVenueScanner,
+		recordDir:      recordDir,
+		venues:         venues,
+		logger:         logger,
+		alerts:         newCrossVenueAlertDispatcher(cfg.CrossVenueScanner, secretPath, logger),
+		lastAlert:      make(map[string]time.Time),
+		nowFn:          time.Now,
+		sleepFn:        time.Sleep,
+		fetchVenue:     defaultFetchVenueSnapshot,
+		fundingHistory: make(map[string]map[string][]float64),
 	}
 }
 
@@ -267,7 +275,8 @@ func (s *CrossVenueScanner) Snapshot() CrossVenueScanSnapshot {
 func (s *CrossVenueScanner) scanOnce(ctx context.Context) {
 	start := s.nowFn()
 	snapshots, statuses := s.fetchAllVenues(ctx)
-	opps := computeCrossVenueOpportunities(snapshots, s.cfg.MinSpreadAPR, s.cfg.TopN)
+	s.recordFundingHistory(snapshots)
+	opps := s.computeCrossVenueOpportunities(snapshots)
 	snapshot := CrossVenueScanSnapshot{
 		ScannedAt:        start,
 		VenueStatuses:    statuses,
@@ -486,6 +495,79 @@ func fundingAnnualizedAPR(rate float64, intervalHours int) float64 {
 	return rate * (8760.0 / float64(intervalHours))
 }
 
+// capFundingRateByAPR 把单次结算费率按年化绝对值封顶(保留符号),防瞬时尖峰污染价差/EV。
+func capFundingRateByAPR(rate float64, intervalHours int, capAPR float64) float64 {
+	if capAPR <= 0 {
+		return rate
+	}
+	if intervalHours <= 0 {
+		intervalHours = 8
+	}
+	apr := fundingAnnualizedAPR(rate, intervalHours)
+	if math.Abs(apr) <= capAPR {
+		return rate
+	}
+	return math.Copysign(capAPR*float64(intervalHours)/8760.0, rate)
+}
+
+func medianFloat64(vals []float64) float64 {
+	if len(vals) == 0 {
+		return 0
+	}
+	cp := append([]float64(nil), vals...)
+	sort.Float64s(cp)
+	mid := len(cp) / 2
+	if len(cp)%2 == 1 {
+		return cp[mid]
+	}
+	return (cp[mid-1] + cp[mid]) / 2
+}
+
+const crossVenueFundingHistoryMax = 10
+
+func (s *CrossVenueScanner) recordFundingHistory(byVenue map[string][]venue.FundingSnapshot) {
+	if s == nil {
+		return
+	}
+	s.fundingHistoryMu.Lock()
+	defer s.fundingHistoryMu.Unlock()
+	if s.fundingHistory == nil {
+		s.fundingHistory = make(map[string]map[string][]float64)
+	}
+	for venueName, snaps := range byVenue {
+		if s.fundingHistory[venueName] == nil {
+			s.fundingHistory[venueName] = make(map[string][]float64)
+		}
+		for _, snap := range snaps {
+			sym := string(snap.Symbol)
+			if sym == "" {
+				continue
+			}
+			hist := append(s.fundingHistory[venueName][sym], snap.LastFundingRate)
+			if len(hist) > crossVenueFundingHistoryMax {
+				hist = hist[len(hist)-crossVenueFundingHistoryMax:]
+			}
+			s.fundingHistory[venueName][sym] = hist
+		}
+	}
+}
+
+func (s *CrossVenueScanner) smoothedFundingRate(venueName, sym string, current float64, window int) (float64, int) {
+	if window <= 0 {
+		window = 2
+	}
+	s.fundingHistoryMu.Lock()
+	defer s.fundingHistoryMu.Unlock()
+	hist := append([]float64(nil), s.fundingHistory[venueName][sym]...)
+	if len(hist) < window {
+		return 0, len(hist)
+	}
+	if len(hist) > window {
+		hist = hist[len(hist)-window:]
+	}
+	return medianFloat64(hist), len(hist)
+}
+
 // buildCrossVenueFundingIndex 把各所快照整理成 venue → symbol → 费率明细 的只读索引。
 // 每轮扫描整体新建(绝不原地改旧 map),发布到 lastSnapshot 后只读,保证并发安全。
 func buildCrossVenueFundingIndex(byVenue map[string][]venue.FundingSnapshot) map[string]map[string]CrossVenueFundingEntry {
@@ -512,8 +594,16 @@ func buildCrossVenueFundingIndex(byVenue map[string][]venue.FundingSnapshot) map
 	return out
 }
 
-// indexSnapshotsBySymbol 把各所快照按 canonical symbol 索引。
-func indexSnapshotsBySymbol(byVenue map[string][]venue.FundingSnapshot) map[string][]symbolVenueFunding {
+// indexSnapshotsBySymbol 把各所快照按 canonical symbol 索引(用平滑+封顶费率算年化)。
+func (s *CrossVenueScanner) indexSnapshotsBySymbol(byVenue map[string][]venue.FundingSnapshot) map[string][]symbolVenueFunding {
+	capAPR := s.cfg.FundingAPRSanityCap
+	if capAPR <= 0 {
+		capAPR = 5.0
+	}
+	window := s.cfg.SpreadPersistenceScans
+	if window <= 0 {
+		window = 1 // 零值=未配置(单测);出厂 DefaultEngineConfig 已设 2
+	}
 	out := make(map[string][]symbolVenueFunding)
 	for venueName, snaps := range byVenue {
 		for _, snap := range snaps {
@@ -525,10 +615,15 @@ func indexSnapshotsBySymbol(byVenue map[string][]venue.FundingSnapshot) map[stri
 			if interval <= 0 {
 				interval = 8
 			}
+			smoothed, samples := s.smoothedFundingRate(venueName, sym, snap.LastFundingRate, window)
+			if samples < window {
+				continue
+			}
+			rate := capFundingRateByAPR(smoothed, interval, capAPR)
 			out[sym] = append(out[sym], symbolVenueFunding{
 				Venue:           venueName,
-				FundingRate:     snap.LastFundingRate,
-				AnnualizedAPR:   fundingAnnualizedAPR(snap.LastFundingRate, interval),
+				FundingRate:     rate,
+				AnnualizedAPR:   fundingAnnualizedAPR(rate, interval),
 				IntervalHours:   interval,
 				NextFundingTime: snap.NextFundingTime,
 			})
@@ -563,6 +658,8 @@ func bestPairSpread(symbol string, entries []symbolVenueFunding) (CrossVenueOppo
 					HighAnnualizedAPR:   high.AnnualizedAPR,
 					LowAnnualizedAPR:    low.AnnualizedAPR,
 					SpreadAPR:           spread,
+					HighFundingRate:     high.FundingRate,
+					LowFundingRate:      low.FundingRate,
 					HighIntervalHours:   high.IntervalHours,
 					LowIntervalHours:    low.IntervalHours,
 					HighNextFundingTime: high.NextFundingTime,
@@ -574,12 +671,14 @@ func bestPairSpread(symbol string, entries []symbolVenueFunding) (CrossVenueOppo
 	return best, found
 }
 
-// computeCrossVenueOpportunities 聚合各所快照,计算跨所年化价差并过滤/排序/截断。
-func computeCrossVenueOpportunities(byVenue map[string][]venue.FundingSnapshot, minSpread float64, topN int) []CrossVenueOpportunity {
+// computeCrossVenueOpportunities 聚合各所快照,用近 N 次中位数+APR 封顶算价差,过滤/排序/截断。
+func (s *CrossVenueScanner) computeCrossVenueOpportunities(byVenue map[string][]venue.FundingSnapshot) []CrossVenueOpportunity {
+	minSpread := s.cfg.MinSpreadAPR
+	topN := s.cfg.TopN
 	if topN <= 0 {
 		topN = 30
 	}
-	bySymbol := indexSnapshotsBySymbol(byVenue)
+	bySymbol := s.indexSnapshotsBySymbol(byVenue)
 	opps := make([]CrossVenueOpportunity, 0, len(bySymbol))
 	for sym, entries := range bySymbol {
 		if len(entries) < 2 {
@@ -602,6 +701,61 @@ func computeCrossVenueOpportunities(byVenue map[string][]venue.FundingSnapshot, 
 		opps = opps[:topN]
 	}
 	return opps
+}
+
+// computeCrossVenueOpportunities 是无扫描器状态的包级入口(单测);不做持续性/平滑,行为与改造前一致。
+func computeCrossVenueOpportunities(byVenue map[string][]venue.FundingSnapshot, minSpread float64, topN int) []CrossVenueOpportunity {
+	if topN <= 0 {
+		topN = 30
+	}
+	bySymbol := indexSnapshotsBySymbolRaw(byVenue)
+	opps := make([]CrossVenueOpportunity, 0, len(bySymbol))
+	for sym, entries := range bySymbol {
+		if len(entries) < 2 {
+			continue
+		}
+		opp, ok := bestPairSpread(sym, entries)
+		if !ok || opp.SpreadAPR < minSpread {
+			continue
+		}
+		opp.Symbol = sym
+		opps = append(opps, opp)
+	}
+	sort.Slice(opps, func(i, j int) bool {
+		if opps[i].SpreadAPR == opps[j].SpreadAPR {
+			return opps[i].Symbol < opps[j].Symbol
+		}
+		return opps[i].SpreadAPR > opps[j].SpreadAPR
+	})
+	if len(opps) > topN {
+		opps = opps[:topN]
+	}
+	return opps
+}
+
+func indexSnapshotsBySymbolRaw(byVenue map[string][]venue.FundingSnapshot) map[string][]symbolVenueFunding {
+	out := make(map[string][]symbolVenueFunding)
+	for venueName, snaps := range byVenue {
+		for _, snap := range snaps {
+			sym := string(snap.Symbol)
+			if sym == "" {
+				continue
+			}
+			interval := snap.IntervalHours
+			if interval <= 0 {
+				interval = 8
+			}
+			rate := snap.LastFundingRate
+			out[sym] = append(out[sym], symbolVenueFunding{
+				Venue:           venueName,
+				FundingRate:     rate,
+				AnnualizedAPR:   fundingAnnualizedAPR(rate, interval),
+				IntervalHours:   interval,
+				NextFundingTime: snap.NextFundingTime,
+			})
+		}
+	}
+	return out
 }
 
 func (s *CrossVenueScanner) maybeAlert(opp CrossVenueOpportunity) {

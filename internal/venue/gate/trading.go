@@ -29,6 +29,38 @@ func fmtNum(v float64) string {
 	return strconv.FormatFloat(v, 'f', -1, 64)
 }
 
+// gatePricePrecision 从 order_price_round / tickSize 推导价格字符串小数位数。
+func gatePricePrecision(tick float64) int {
+	if tick <= 0 {
+		return 8
+	}
+	text := strconv.FormatFloat(tick, 'f', -1, 64)
+	if dot := strings.IndexByte(text, '.'); dot >= 0 {
+		return len(strings.TrimRight(text[dot+1:], "0"))
+	}
+	return 0
+}
+
+// roundGatePrice 按合约报价精度取整:买单向上(吃单穿价)、卖单向下。
+func roundGatePrice(price, tick float64, side venue.Side) float64 {
+	if tick <= 0 || price <= 0 {
+		return price
+	}
+	ratio := price / tick
+	if side == venue.SideBuy {
+		return math.Ceil(ratio-1e-12) * tick
+	}
+	return math.Floor(ratio+1e-12) * tick
+}
+
+func formatGatePrice(price, tick float64, side venue.Side) string {
+	rounded := roundGatePrice(price, tick, side)
+	if rounded <= 0 {
+		return fmtNum(price)
+	}
+	return strconv.FormatFloat(rounded, 'f', gatePricePrecision(tick), 64)
+}
+
 // sanitizeOrderText 净化 Gate 客户端单号 text 字段。
 // Gate 规则:text 必须以 "t-" 开头,"t-" 之后最长 28 字符,仅小写字母数字/下划线/连字符。
 // 引擎侧 clientOrderID(如 cv-HOMEUSDT-bybit-… )常含大写或非法字符,须净化+小写+截断+加前缀;
@@ -131,19 +163,19 @@ func (a *Adapter) buildFuturesOrderBody(ctx context.Context, req venue.OrderRequ
 		if req.Price <= 0 {
 			return gateFuturesOrderBody{}, fmt.Errorf("gate: IOC 单需正价格, got %v", req.Price)
 		}
-		body.Price = fmtNum(req.Price)
+		body.Price = formatGatePrice(req.Price, inst.TickSize, req.Side)
 		body.TIF = "ioc"
 	case venue.OrderTypePostOnly:
 		if req.Price <= 0 {
 			return gateFuturesOrderBody{}, fmt.Errorf("gate: post-only 单需正价格, got %v", req.Price)
 		}
-		body.Price = fmtNum(req.Price)
+		body.Price = formatGatePrice(req.Price, inst.TickSize, req.Side)
 		body.TIF = "poc"
 	case venue.OrderTypeLimit:
 		if req.Price <= 0 {
 			return gateFuturesOrderBody{}, fmt.Errorf("gate: 限价单需正价格, got %v", req.Price)
 		}
-		body.Price = fmtNum(req.Price)
+		body.Price = formatGatePrice(req.Price, inst.TickSize, req.Side)
 		body.TIF = "gtc"
 	default:
 		return gateFuturesOrderBody{}, fmt.Errorf("gate: 不支持的订单类型: %v", req.Type)

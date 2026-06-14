@@ -28,10 +28,11 @@ const (
 	capitalAccountFunding = "funding"
 )
 
+// 跨所对冲腿仅跑 U 本位永续:调仓时把交易总额全部放进 um_futures,余量留 funding。
 const (
-	tradingCapitalSpotRatio    = 0.25
-	tradingCapitalMarginRatio  = 0.25
-	tradingCapitalFuturesRatio = 0.50
+	tradingCapitalSpotRatio    = 0.0
+	tradingCapitalMarginRatio  = 0.0
+	tradingCapitalFuturesRatio = 1.0
 )
 
 type RuntimeCapitalAdjustmentRequest struct {
@@ -112,6 +113,14 @@ func transferTypeBetweenCapitalAccounts(from string, to string) string {
 		return "MAIN_FUNDING"
 	case from == capitalAccountFunding && to == capitalAccountSpot:
 		return "FUNDING_MAIN"
+	case from == capitalAccountFunding && to == capitalAccountFutures:
+		return "FUNDING_UMFUTURE"
+	case from == capitalAccountFutures && to == capitalAccountFunding:
+		return "UMFUTURE_FUNDING"
+	case from == capitalAccountMargin && to == capitalAccountFutures:
+		return "MARGIN_UMFUTURE"
+	case from == capitalAccountFutures && to == capitalAccountMargin:
+		return "UMFUTURE_MARGIN"
 	default:
 		return ""
 	}
@@ -232,11 +241,11 @@ func (e *FundingRateSniperEngine) transferUSDTBetweenCapitalAccounts(ctx context
 		switch transferType {
 		case "FUNDING_MAIN", "UMFUTURE_MAIN", "MARGIN_MAIN":
 			nextTo = capitalAccountSpot
-		case "MAIN_FUNDING":
+		case "MAIN_FUNDING", "UMFUTURE_FUNDING":
 			nextTo = capitalAccountFunding
-		case "MAIN_UMFUTURE":
+		case "MAIN_UMFUTURE", "FUNDING_UMFUTURE", "MARGIN_UMFUTURE":
 			nextTo = capitalAccountFutures
-		case "MAIN_MARGIN":
+		case "MAIN_MARGIN", "UMFUTURE_MARGIN":
 			nextTo = capitalAccountMargin
 		}
 		transfers = append(transfers, RuntimeCapitalTransfer{
@@ -289,8 +298,8 @@ func buildSimulationCapitalAdjustmentResult(targetTradingUSDT float64) RuntimeCa
 			DesiredFuturesUSDT:     desiredFuturesUSDT,
 			DesiredFundingUSDT:     0,
 		},
-		Message: fmt.Sprintf("历史模拟名义仓位已设置为 %.2f USDT：spot=%.2f，cross margin=%.2f，UM futures=%.2f",
-			targetTradingUSDT, desiredSpotUSDT, desiredMarginUSDT, desiredFuturesUSDT),
+		Message: fmt.Sprintf("历史模拟名义仓位已设置为 %.2f USDT：UM futures=%.2f(100%%)",
+			targetTradingUSDT, desiredFuturesUSDT),
 	}
 }
 
@@ -419,8 +428,8 @@ func (e *FundingRateSniperEngine) AdjustTradingCapitalUSDT(ctx context.Context, 
 		DesiredFuturesUSDT:     desiredFuturesUSDT,
 		DesiredFundingUSDT:     desiredFundingUSDT,
 	}
-	message := fmt.Sprintf("目标交易仓位已调整为 %.2f USDT：spot=%.2f，cross margin=%.2f，UM futures=%.2f，funding=%.2f。%s",
-		appliedTradingUSDT, desiredSpotUSDT, desiredMarginUSDT, desiredFuturesUSDT, desiredFundingUSDT, summarizeSweepReport(sweepReport))
+	message := fmt.Sprintf("目标交易仓位已调整为 %.2f USDT：UM futures=%.2f(100%%)，funding 余量=%.2f。%s",
+		appliedTradingUSDT, desiredFuturesUSDT, desiredFundingUSDT, summarizeSweepReport(sweepReport))
 	return RuntimeCapitalAdjustmentResult{
 		RequestedTradingUSDT: targetTradingUSDT,
 		AppliedTradingUSDT:   appliedTradingUSDT,

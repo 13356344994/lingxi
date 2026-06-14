@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -263,6 +264,137 @@ func parseAnyFloat(v any) float64 {
 		return f
 	default:
 		return 0
+	}
+}
+
+const instCacheTTL = 10 * time.Minute
+
+type instCacheEntry struct {
+	inst      venue.Instrument
+	expiresAt time.Time
+}
+
+func instCacheKey(m venue.Market, s venue.Symbol) string {
+	return m.String() + "/" + string(s)
+}
+
+// lookupInstrument 拉单条 instruments 元数据(PlaceOrder 精度用),带进程级 TTL 缓存。
+func (a *Adapter) lookupInstrument(ctx context.Context, m venue.Market, s venue.Symbol) (venue.Instrument, error) {
+	key := instCacheKey(m, s)
+	a.instMu.RLock()
+	if e, ok := a.instCache[key]; ok && a.now().Before(e.expiresAt) {
+		a.instMu.RUnlock()
+		return e.inst, nil
+	}
+	a.instMu.RUnlock()
+
+	inst, err := a.fetchInstrument(ctx, m, s)
+	if err != nil {
+		return venue.Instrument{}, err
+	}
+	a.instMu.Lock()
+	if a.instCache == nil {
+		a.instCache = make(map[string]instCacheEntry)
+	}
+	a.instCache[key] = instCacheEntry{inst: inst, expiresAt: a.now().Add(instCacheTTL)}
+	a.instMu.Unlock()
+	return inst, nil
+}
+
+// fetchInstrument 实拉 exchangeInfo 并匹配目标 symbol。
+// 踩坑实录:U 本位 /fapi/v1/exchangeInfo?symbol=XXX 会忽略 symbol 过滤、返回全量列表;
+// 若盲取 Symbols[0] 会拿到 BTCUSDT(tickSize=0.1) 套到 HOME 等低价币 → 价格取整归零拒单。
+func (a *Adapter) fetchInstrument(ctx context.Context, m venue.Market, s venue.Symbol) (venue.Instrument, error) {
+	raw, err := a.ToVenue(s, m)
+	if err != nil {
+		return venue.Instrument{}, err
+	}
+	if raw == "" {
+		return venue.Instrument{}, fmt.Errorf("binance: 空符号")
+	}
+	path := PathSpotExchangeInfo
+	base := a.spotBaseURL()
+	if m == venue.MarketPerp {
+		path = PathFuturesExchangeInfo
+		base = a.futuresBaseURL()
+	}
+	q := url.Values{}
+	q.Set("symbol", raw)
+	if m == venue.MarketPerp {
+		var fpayload struct {
+			Symbols []exchange.FuturesSymbol `json:"symbols"`
+		}
+		if err := a.publicGet(ctx, base+path+"?"+q.Encode(), &fpayload); err != nil {
+			return venue.Instrument{}, err
+		}
+		f, ok := findFuturesSymbol(fpayload.Symbols, raw)
+		if !ok {
+			return venue.Instrument{}, fmt.Errorf("binance: 找不到合约 symbol=%s", raw)
+		}
+		return futuresRowToInstrument(a, f), nil
+	}
+	var payload struct {
+		Symbols []exchange.SpotSymbol `json:"symbols"`
+	}
+	if err := a.publicGet(ctx, base+path+"?"+q.Encode(), &payload); err != nil {
+		return venue.Instrument{}, err
+	}
+	sp, ok := findSpotSymbol(payload.Symbols, raw)
+	if !ok {
+		return venue.Instrument{}, fmt.Errorf("binance: 找不到现货 symbol=%s", raw)
+	}
+	return spotRowToInstrument(a, sp), nil
+}
+
+func findFuturesSymbol(symbols []exchange.FuturesSymbol, raw string) (exchange.FuturesSymbol, bool) {
+	for _, f := range symbols {
+		if strings.EqualFold(f.Symbol, raw) {
+			return f, true
+		}
+	}
+	return exchange.FuturesSymbol{}, false
+}
+
+func findSpotSymbol(symbols []exchange.SpotSymbol, raw string) (exchange.SpotSymbol, bool) {
+	for _, sp := range symbols {
+		if strings.EqualFold(sp.Symbol, raw) {
+			return sp, true
+		}
+	}
+	return exchange.SpotSymbol{}, false
+}
+
+func futuresRowToInstrument(a *Adapter, f exchange.FuturesSymbol) venue.Instrument {
+	canonical, _ := a.ToCanonical(f.Symbol, venue.MarketPerp)
+	tick, step, minNotional := parseFilters(f.Filters)
+	return venue.Instrument{
+		Symbol:       canonical,
+		Market:       venue.MarketPerp,
+		BaseAsset:    strings.ToUpper(exchange.FuturesBaseAsset(f)),
+		QuoteAsset:   strings.ToUpper(f.MarginAsset),
+		TickSize:     tick,
+		StepSize:     step,
+		MinNotional:  minNotional,
+		QtyPrecision: f.QuantityPrecision,
+		ContractSize: 1,
+		QtyUnit:      "coin",
+	}
+}
+
+func spotRowToInstrument(a *Adapter, sp exchange.SpotSymbol) venue.Instrument {
+	canonical, _ := a.ToCanonical(sp.Symbol, venue.MarketSpot)
+	tick, step, minNotional := parseFilters(sp.Filters)
+	return venue.Instrument{
+		Symbol:       canonical,
+		Market:       venue.MarketSpot,
+		BaseAsset:    strings.ToUpper(sp.BaseAsset),
+		QuoteAsset:   strings.ToUpper(sp.QuoteAsset),
+		TickSize:     tick,
+		StepSize:     step,
+		MinNotional:  minNotional,
+		QtyPrecision: sp.BaseAssetPrecision,
+		ContractSize: 1,
+		QtyUnit:      "coin",
 	}
 }
 

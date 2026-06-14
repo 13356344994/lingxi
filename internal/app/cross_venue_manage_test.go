@@ -98,3 +98,134 @@ func TestArmDeadMansForLegsLogsRealFailure(t *testing.T) {
 		t.Fatalf("real renewal failure should be logged, got: %q", buf.String())
 	}
 }
+
+type realizedFundingVenue struct {
+	fakeFundingVenue
+	incomes []venue.FundingIncome
+}
+
+func (v *realizedFundingVenue) FetchRealizedFunding(_ context.Context, _ venue.Symbol, _ time.Time) ([]venue.FundingIncome, error) {
+	return v.incomes, nil
+}
+
+func TestSyncRealizedFundingOverwritesLegs(t *testing.T) {
+	t0 := time.Date(2026, 6, 14, 0, 0, 0, 0, time.UTC)
+	high := &realizedFundingVenue{
+		fakeFundingVenue: fakeFundingVenue{name: "high"},
+		incomes:          []venue.FundingIncome{{Income: 1.25}},
+	}
+	low := &realizedFundingVenue{
+		fakeFundingVenue: fakeFundingVenue{name: "low"},
+		incomes:          []venue.FundingIncome{{Income: -0.25}},
+	}
+	cfg := testCrossVenueExecutorConfig()
+	cfg.CrossVenueExecutor.RealizedFundingPollMinutes = 5
+	e := &CrossVenueExecutor{
+		cfg:    cfg,
+		venues: map[string]venue.Venue{"high": high, "low": low},
+		logger: testCrossVenueLogger(),
+		nowFn:  func() time.Time { return t0 },
+		scanner: testScannerWithFunding(map[string]map[string]CrossVenueFundingEntry{
+			"high": {"BTC-USDT": {Rate: 0.001, IntervalHours: 8}},
+			"low":  {"BTC-USDT": {Rate: 0.0001, IntervalHours: 8}},
+		}),
+	}
+	pos := CrossVenuePosition{
+		Symbol: "BTC-USDT", HighVenue: "high", LowVenue: "low",
+		NotionalUSDT: 100, OpenedAt: t0.Add(-2 * time.Hour),
+		HighLegFundingUSDT: 99, LowLegFundingUSDT: -99,
+	}
+	e.syncRealizedFunding(context.Background(), &pos)
+	if pos.HighLegFundingUSDT != 1.25 {
+		t.Fatalf("high leg want 1.25 got %.4f", pos.HighLegFundingUSDT)
+	}
+	if pos.LowLegFundingUSDT != -0.25 {
+		t.Fatalf("low leg want -0.25 got %.4f", pos.LowLegFundingUSDT)
+	}
+	if pos.LastRealizedFundingAt != t0 {
+		t.Fatalf("LastRealizedFundingAt=%v want %v", pos.LastRealizedFundingAt, t0)
+	}
+}
+
+func TestShouldCloseCrossVenueMinHoldBlocksSoftClose(t *testing.T) {
+	now := time.Date(2026, 6, 14, 1, 0, 0, 0, time.UTC)
+	cfg := testCrossVenueExecutorConfig()
+	cfg.NetworkConfig.RecordDir = t.TempDir()
+	cfg.CrossVenueExecutor.MinHoldHours = 24
+	cfg.CrossVenueExecutor.CloseSpreadConsecutiveRounds = 1
+	e := &CrossVenueExecutor{
+		cfg:   cfg,
+		store: mustCrossVenueStore(t, cfg.NetworkConfig.RecordDir),
+		nowFn: func() time.Time { return now },
+		scanner: testScannerWithFunding(map[string]map[string]CrossVenueFundingEntry{
+			"high": {"BTC-USDT": {Rate: 0.001, IntervalHours: 8}},
+			"low":  {"BTC-USDT": {Rate: 0.0008, IntervalHours: 8}},
+		}),
+		logger: testCrossVenueLogger(),
+	}
+	pos := CrossVenuePosition{
+		Symbol: "BTC-USDT", HighVenue: "high", LowVenue: "low",
+		OpenedAt: now.Add(-2 * time.Hour), NotionalUSDT: 100,
+		CloseSpreadStreak: 1,
+	}
+	if reason := e.shouldCloseCrossVenue(context.Background(), &pos); reason != "" {
+		t.Fatalf("min hold should block soft close, got reason=%q", reason)
+	}
+}
+
+func TestShouldCloseCrossVenueHardNegativeBypassesMinHold(t *testing.T) {
+	now := time.Date(2026, 6, 14, 1, 0, 0, 0, time.UTC)
+	cfg := testCrossVenueExecutorConfig()
+	cfg.NetworkConfig.RecordDir = t.TempDir()
+	cfg.CrossVenueExecutor.MinHoldHours = 24
+	cfg.CrossVenueExecutor.CloseHardNegativeSpreadAPR = -0.5
+	cfg.CrossVenueExecutor.CloseSpreadConsecutiveRounds = 1
+	e := &CrossVenueExecutor{
+		cfg:   cfg,
+		store: mustCrossVenueStore(t, cfg.NetworkConfig.RecordDir),
+		nowFn: func() time.Time { return now },
+		scanner: testScannerWithFunding(map[string]map[string]CrossVenueFundingEntry{
+			"high": {"BTC-USDT": {Rate: -0.01, IntervalHours: 8}},
+			"low":  {"BTC-USDT": {Rate: 0.02, IntervalHours: 8}},
+		}),
+	}
+	pos := CrossVenuePosition{
+		Symbol: "BTC-USDT", HighVenue: "high", LowVenue: "low",
+		OpenedAt: now.Add(-2 * time.Hour), NotionalUSDT: 100,
+		CloseHardNegativeSpreadStreak: 1,
+	}
+	reason := e.shouldCloseCrossVenue(context.Background(), &pos)
+	if reason == "" || !strings.Contains(reason, "硬止损") {
+		t.Fatalf("hard negative should close immediately, got %q", reason)
+	}
+}
+
+func TestShouldCloseCrossVenueSoftCloseAfterFundingCoversFees(t *testing.T) {
+	now := time.Date(2026, 6, 14, 1, 0, 0, 0, time.UTC)
+	cfg := testCrossVenueExecutorConfig()
+	cfg.NetworkConfig.RecordDir = t.TempDir()
+	cfg.CrossVenueExecutor.MinHoldHours = 24
+	cfg.CrossVenueExecutor.CloseSpreadConsecutiveRounds = 1
+	e := &CrossVenueExecutor{
+		cfg:   cfg,
+		store: mustCrossVenueStore(t, cfg.NetworkConfig.RecordDir),
+		nowFn: func() time.Time { return now },
+		scanner: testScannerWithFunding(map[string]map[string]CrossVenueFundingEntry{
+			"high": {"BTC-USDT": {Rate: 0.001, IntervalHours: 8}},
+			"low":  {"BTC-USDT": {Rate: 0.0008, IntervalHours: 8}},
+		}),
+	}
+	required := crossVenueRoundTripFeeUSDT(cfg.CrossVenueExecutor, &CrossVenuePosition{
+		Symbol: "BTC-USDT", HighVenue: "high", LowVenue: "low", NotionalUSDT: 100,
+	})
+	pos := CrossVenuePosition{
+		Symbol: "BTC-USDT", HighVenue: "high", LowVenue: "low",
+		OpenedAt: now.Add(-2 * time.Hour), NotionalUSDT: 100,
+		HighLegFundingUSDT: required, LowLegFundingUSDT: 0,
+		CloseSpreadStreak: 1,
+	}
+	reason := e.shouldCloseCrossVenue(context.Background(), &pos)
+	if reason == "" || strings.Contains(reason, "硬止损") {
+		t.Fatalf("funding-covered soft close should trigger, got %q", reason)
+	}
+}

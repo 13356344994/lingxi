@@ -48,6 +48,9 @@ func TestAdjustTradingCapitalUSDTSweepsExcessToFunding(t *testing.T) {
 			case "MARGIN_MAIN":
 				margin -= amount
 				spot += amount
+			case "MAIN_UMFUTURE":
+				spot -= amount
+				futures += amount
 			case "MAIN_FUNDING":
 				spot -= amount
 				funding += amount
@@ -81,14 +84,14 @@ func TestAdjustTradingCapitalUSDTSweepsExcessToFunding(t *testing.T) {
 	if got, want := len(result.Transfers), 3; got != want {
 		t.Fatalf("expected %d transfers, got %d (%+v)", want, got, result.Transfers)
 	}
-	if got := result.After.SpotFreeUSDT; got != 25 {
-		t.Fatalf("expected spot 25, got %.2f", got)
+	if got := result.After.SpotFreeUSDT; got != 0 {
+		t.Fatalf("expected spot 0, got %.2f", got)
 	}
-	if got := result.After.CrossMarginFreeUSDT; got != 25 {
-		t.Fatalf("expected cross margin 25, got %.2f", got)
+	if got := result.After.CrossMarginFreeUSDT; got != 0 {
+		t.Fatalf("expected cross margin 0, got %.2f", got)
 	}
-	if got := result.After.FuturesAvailableUSDT; got != 50 {
-		t.Fatalf("expected futures 50, got %.2f", got)
+	if got := result.After.FuturesAvailableUSDT; got != 100 {
+		t.Fatalf("expected futures 100, got %.2f", got)
 	}
 	if got := result.After.FundingFreeUSDT; got != 100 {
 		t.Fatalf("expected funding 100, got %.2f", got)
@@ -158,14 +161,14 @@ func TestAdjustTradingCapitalUSDTUsesFundingToTopUpTradingBuckets(t *testing.T) 
 	if err != nil {
 		t.Fatalf("AdjustTradingCapitalUSDT() error = %v", err)
 	}
-	if got := result.After.SpotFreeUSDT; got != 25 {
-		t.Fatalf("expected spot 25, got %.2f", got)
+	if got := result.After.SpotFreeUSDT; got != 0 {
+		t.Fatalf("expected spot 0, got %.2f", got)
 	}
-	if got := result.After.CrossMarginFreeUSDT; got != 25 {
-		t.Fatalf("expected cross margin 25, got %.2f", got)
+	if got := result.After.CrossMarginFreeUSDT; got != 0 {
+		t.Fatalf("expected cross margin 0, got %.2f", got)
 	}
-	if got := result.After.FuturesAvailableUSDT; got != 50 {
-		t.Fatalf("expected futures 50, got %.2f", got)
+	if got := result.After.FuturesAvailableUSDT; got != 100 {
+		t.Fatalf("expected futures 100, got %.2f", got)
 	}
 	if got := result.After.FundingFreeUSDT; got != 100 {
 		t.Fatalf("expected funding 100, got %.2f", got)
@@ -257,14 +260,16 @@ func TestCurrentCapitalSnapshotWithoutSecretPathStillReturnsConfiguredTargets(t 
 	if err != nil {
 		t.Fatalf("CurrentCapitalSnapshot() error = %v", err)
 	}
-	if got := snapshot.DesiredSpotUSDT; got != 30 {
-		t.Fatalf("expected desired spot 30, got %.2f", got)
+	// 币安现仅作跨所对冲永续腿:资金 100% 进 U 本位合约钱包(spot/cross_margin=0),
+	// 避免一半资金躺在合约外导致开仓 -2019 保证金不足。
+	if got := snapshot.DesiredSpotUSDT; got != 0 {
+		t.Fatalf("expected desired spot 0, got %.2f", got)
 	}
-	if got := snapshot.DesiredCrossMarginUSDT; got != 30 {
-		t.Fatalf("expected desired cross margin 30, got %.2f", got)
+	if got := snapshot.DesiredCrossMarginUSDT; got != 0 {
+		t.Fatalf("expected desired cross margin 0, got %.2f", got)
 	}
-	if got := snapshot.DesiredFuturesUSDT; got != 60 {
-		t.Fatalf("expected desired futures 60, got %.2f", got)
+	if got := snapshot.DesiredFuturesUSDT; got != 120 {
+		t.Fatalf("expected desired futures 120, got %.2f", got)
 	}
 	if got := snapshot.DesiredFundingUSDT; got != 0 {
 		t.Fatalf("expected desired funding 0, got %.2f", got)

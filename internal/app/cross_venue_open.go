@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"lingxi/internal/core"
 	"lingxi/internal/venue"
 )
 
@@ -49,6 +50,21 @@ func iocLimitPrice(side venue.Side, book venue.BookTicker, slippageBps float64) 
 		return book.AskPrice * (1 + bps)
 	}
 	return book.BidPrice * (1 - bps)
+}
+
+func crossVenueTakerSlippageBps(cfg core.CrossVenueExecutorConfig) float64 {
+	bps := cfg.TakerSlippageBudgetBps
+	if bps <= 0 {
+		bps = cfg.SlippageBudgetBps
+	}
+	if bps < cfg.SlippageBudgetBps {
+		bps = cfg.SlippageBudgetBps
+	}
+	const maxTakerSlippageBps = 100
+	if bps > maxTakerSlippageBps {
+		bps = maxTakerSlippageBps
+	}
+	return bps
 }
 
 func (e *CrossVenueExecutor) confirmCrossVenueFill(ctx context.Context, tr crossVenueTrader, sym venue.Symbol, clientID string) (venue.OrderResult, error) {
@@ -198,7 +214,7 @@ func (e *CrossVenueExecutor) executeCrossVenueOpen(ctx context.Context, plan cro
 		e.setSymbolCooldown(plan.Opp.Symbol)
 		return pos, err
 	}
-	lowPrice := iocLimitPrice(venue.SideBuy, lowBook, cfg.SlippageBudgetBps)
+	lowPrice := iocLimitPrice(venue.SideBuy, lowBook, crossVenueTakerSlippageBps(cfg))
 	lowID := crossVenueLegClientID(plan.IdemPrefix, "l1")
 	hedgeQty := highRes.ExecutedQty
 	if lowCaps.ContractBasedPerp {
@@ -248,7 +264,7 @@ func (e *CrossVenueExecutor) rollbackFirstLeg(ctx context.Context, plan crossVen
 		e.logger.Printf("[跨所] 回滚第一腿取盘口失败 %s: %v", sym, err)
 		return
 	}
-	price := iocLimitPrice(venue.SideBuy, book, e.cfg.CrossVenueExecutor.SlippageBudgetBps)
+	price := iocLimitPrice(venue.SideBuy, book, crossVenueTakerSlippageBps(e.cfg.CrossVenueExecutor))
 	id := crossVenueLegClientID(plan.IdemPrefix, "rb")
 	_, err = e.placeCrossVenueIOC(ctx, tr, sym, venue.SideBuy, qty, price, id, true, live)
 	if err != nil {
@@ -302,7 +318,7 @@ func (e *CrossVenueExecutor) closeCrossVenuePosition(ctx context.Context, pos Cr
 	if pos.HighLeg.Qty > executionQtyTolerance {
 		book, berr := highTrader.FetchBookTicker(ctx, venue.MarketPerp, sym)
 		if berr == nil {
-			price := iocLimitPrice(venue.SideBuy, book, e.cfg.CrossVenueExecutor.SlippageBudgetBps)
+			price := iocLimitPrice(venue.SideBuy, book, crossVenueTakerSlippageBps(e.cfg.CrossVenueExecutor))
 			id := crossVenueLegClientID(pos.IdemPrefix, fmt.Sprintf("ch%d", attempt))
 			if res, perr := e.placeCrossVenueIOC(ctx, highTrader, sym, venue.SideBuy, pos.HighLeg.Qty, price, id, true, live); perr == nil {
 				pos.HighLeg.Qty = math.Max(pos.HighLeg.Qty-res.ExecutedQty, 0)
@@ -314,7 +330,7 @@ func (e *CrossVenueExecutor) closeCrossVenuePosition(ctx context.Context, pos Cr
 	if pos.LowLeg.Qty > executionQtyTolerance {
 		book, berr := lowTrader.FetchBookTicker(ctx, venue.MarketPerp, sym)
 		if berr == nil {
-			price := iocLimitPrice(venue.SideSell, book, e.cfg.CrossVenueExecutor.SlippageBudgetBps)
+			price := iocLimitPrice(venue.SideSell, book, crossVenueTakerSlippageBps(e.cfg.CrossVenueExecutor))
 			id := crossVenueLegClientID(pos.IdemPrefix, fmt.Sprintf("cl%d", attempt))
 			if res, perr := e.placeCrossVenueIOC(ctx, lowTrader, sym, venue.SideSell, pos.LowLeg.Qty, price, id, true, live); perr == nil {
 				pos.LowLeg.Qty = math.Max(pos.LowLeg.Qty-res.ExecutedQty, 0)
@@ -371,8 +387,8 @@ func (e *CrossVenueExecutor) reduceCrossVenueRisk(ctx context.Context, pos Cross
 	idH := crossVenueLegClientID(pos.IdemPrefix, "rh")
 	idL := crossVenueLegClientID(pos.IdemPrefix, "rl")
 	if live {
-		_, _ = e.placeCrossVenueIOC(ctx, highTrader, sym, venue.SideBuy, halfHigh, iocLimitPrice(venue.SideBuy, bookH, e.cfg.CrossVenueExecutor.SlippageBudgetBps), idH, true, live)
-		_, _ = e.placeCrossVenueIOC(ctx, lowTrader, sym, venue.SideSell, halfLow, iocLimitPrice(venue.SideSell, bookL, e.cfg.CrossVenueExecutor.SlippageBudgetBps), idL, true, live)
+		_, _ = e.placeCrossVenueIOC(ctx, highTrader, sym, venue.SideBuy, halfHigh, iocLimitPrice(venue.SideBuy, bookH, crossVenueTakerSlippageBps(e.cfg.CrossVenueExecutor)), idH, true, live)
+		_, _ = e.placeCrossVenueIOC(ctx, lowTrader, sym, venue.SideSell, halfLow, iocLimitPrice(venue.SideSell, bookL, crossVenueTakerSlippageBps(e.cfg.CrossVenueExecutor)), idL, true, live)
 	} else {
 		e.logger.Printf("[影子] 本应同步降风险 %s 各减 50%%", pos.Symbol)
 	}

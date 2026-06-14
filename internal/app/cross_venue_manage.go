@@ -94,8 +94,10 @@ func (e *CrossVenueExecutor) manageCrossVenuePosition(ctx context.Context, pos C
 		}
 	}
 
-	// 资金费记账(估计,按真实经过时长折算)
-	pos.EstFundingUSDT += e.estimateFundingAccrual(&pos)
+	// 资金费记账:优先拉真实结算(节流),两腿权威值覆盖估算;轮间用费率估算补临时展示。
+	e.syncRealizedFunding(ctx, &pos)
+	interim := e.estimateFundingAccrual(&pos)
+	pos.EstFundingUSDT = pos.HighLegFundingUSDT + pos.LowLegFundingUSDT + interim
 	pos.UpdatedAt = e.nowFn()
 	_ = e.persistPosition(pos)
 
@@ -167,9 +169,10 @@ func (e *CrossVenueExecutor) rebalanceHedge(ctx context.Context, pos CrossVenueP
 	_ = e.persistPosition(pos)
 }
 
-// estimateFundingAccrual 估算自上次记账以来的资金费收益增量:按 now−LastAccrualAt 的**真实小时数**
+// estimateFundingAccrual 估算自上次记账以来的资金费**临时展示**增量:按 now−LastAccrualAt 的**真实小时数**
 // 折算(主循环 60s 一轮时每轮只记 1/60 小时的量,绝不按「本轮=1小时」虚高)。费率从扫描器缓存查
 // (绝不现场拉全量);缓存缺失时返回 0 且**不推进** LastAccrualAt,下轮拿到数据后把窗口补上。
+// 权威腿资费由 syncRealizedFunding 覆盖写入,本函数**不修改** HighLegFundingUSDT/LowLegFundingUSDT。
 func (e *CrossVenueExecutor) estimateFundingAccrual(pos *CrossVenuePosition) float64 {
 	if pos == nil {
 		return 0
@@ -206,10 +209,134 @@ func (e *CrossVenueExecutor) estimateFundingAccrual(pos *CrossVenuePosition) flo
 	lHourly := lEntry.Rate / float64(lInterval)
 	hPart := notional * hHourly * elapsedHours
 	lPart := -notional * lHourly * elapsedHours
-	pos.HighLegFundingUSDT += hPart
-	pos.LowLegFundingUSDT += lPart
 	pos.LastAccrualAt = now
 	return hPart + lPart
+}
+
+// syncRealizedFunding 按节流间隔拉两腿真实结算资费,覆盖写入腿字段(非叠加)。拉取失败保留上次值。
+func (e *CrossVenueExecutor) syncRealizedFunding(ctx context.Context, pos *CrossVenuePosition) {
+	if pos == nil || !e.shouldPollRealizedFunding(pos) {
+		return
+	}
+	sym := venue.Symbol(pos.Symbol)
+	since := pos.OpenedAt
+
+	highTotal, highOK := e.fetchLegRealizedFunding(ctx, pos.Symbol, pos.HighVenue, sym, since)
+	lowTotal, lowOK := e.fetchLegRealizedFunding(ctx, pos.Symbol, pos.LowVenue, sym, since)
+	if !highOK && !lowOK {
+		return
+	}
+	if highOK {
+		pos.HighLegFundingUSDT = highTotal
+	}
+	if lowOK {
+		pos.LowLegFundingUSDT = lowTotal
+	}
+	now := e.nowFn()
+	pos.LastRealizedFundingAt = now
+	pos.LastAccrualAt = now
+	if e.logger != nil {
+		e.logger.Printf("[跨所] %s 真实资费 sync: high=%.4f low=%.4f net=%.4f",
+			pos.Symbol, pos.HighLegFundingUSDT, pos.LowLegFundingUSDT,
+			pos.HighLegFundingUSDT+pos.LowLegFundingUSDT)
+	}
+}
+
+func (e *CrossVenueExecutor) shouldPollRealizedFunding(pos *CrossVenuePosition) bool {
+	cfg := e.cfg.CrossVenueExecutor
+	pollMins := cfg.RealizedFundingPollMinutes
+	if pollMins <= 0 {
+		pollMins = 5
+	}
+	now := e.nowFn()
+	last := pos.LastRealizedFundingAt
+	if last.IsZero() {
+		return true
+	}
+	elapsed := now.Sub(last)
+	if elapsed >= time.Duration(pollMins)*time.Minute {
+		return true
+	}
+	sym := venue.Symbol(pos.Symbol)
+	for _, vname := range []string{pos.HighVenue, pos.LowVenue} {
+		entry, ok := e.fundingFromScanner(vname, sym)
+		if !ok {
+			continue
+		}
+		intervalH := entry.IntervalHours
+		if intervalH <= 0 {
+			intervalH = 8
+		}
+		if elapsed >= time.Duration(intervalH)*time.Hour {
+			return true
+		}
+	}
+	return false
+}
+
+func (e *CrossVenueExecutor) fetchLegRealizedFunding(ctx context.Context, symbol, venueName string, sym venue.Symbol, since time.Time) (float64, bool) {
+	v := e.venues[venueName]
+	if v == nil {
+		return 0, false
+	}
+	incomes, err := v.FetchRealizedFunding(ctx, sym, since)
+	if err != nil {
+		if e.logger != nil {
+			e.logger.Printf("[跨所] %s venue=%s 真实资费拉取失败(保留上次值): %v", symbol, venueName, err)
+		}
+		return 0, false
+	}
+	total := 0.0
+	for _, in := range incomes {
+		total += in.Income
+	}
+	return total, true
+}
+
+// crossVenueNetRealizedFundingUSDT 返回两腿真实已结算资费净值(不含轮间估算)。
+func crossVenueNetRealizedFundingUSDT(pos *CrossVenuePosition) float64 {
+	if pos == nil {
+		return 0
+	}
+	return pos.HighLegFundingUSDT + pos.LowLegFundingUSDT
+}
+
+// crossVenueRoundTripFeeUSDT 估算四腿往返吃单手续费(开+平 × 高/低所),供最小持有保护判断。
+func crossVenueRoundTripFeeUSDT(cfg CrossVenueExecutorConfig, pos *CrossVenuePosition) float64 {
+	if pos == nil {
+		return 0
+	}
+	notional := pos.NotionalUSDT
+	if notional <= 0 {
+		notional = pos.HighLeg.Qty * pos.HighLeg.EntryPrice
+	}
+	if notional <= 0 {
+		return 0
+	}
+	cost := 0.0
+	for _, legVenue := range []string{pos.HighVenue, pos.LowVenue, pos.HighVenue, pos.LowVenue} {
+		cost += notional * crossVenueTakerFeeBps(cfg, legVenue) / 10000
+	}
+	return cost
+}
+
+// crossVenueMinHoldBlocksSoftClose 最小持有保护:未满 MinHoldHours 且真实资费未覆盖往返手续费时不因软价差回落平仓。
+func (e *CrossVenueExecutor) crossVenueMinHoldBlocksSoftClose(pos *CrossVenuePosition) bool {
+	if pos == nil {
+		return false
+	}
+	cfg := e.cfg.CrossVenueExecutor
+	minHold := cfg.MinHoldHours
+	if minHold <= 0 {
+		minHold = 24
+	}
+	holdHours := e.nowFn().Sub(pos.OpenedAt).Hours()
+	if holdHours >= minHold {
+		return false
+	}
+	realized := crossVenueNetRealizedFundingUSDT(pos)
+	required := crossVenueRoundTripFeeUSDT(cfg, pos)
+	return realized < required
 }
 
 func (e *CrossVenueExecutor) shouldCloseCrossVenue(ctx context.Context, pos *CrossVenuePosition) string {
@@ -217,25 +344,59 @@ func (e *CrossVenueExecutor) shouldCloseCrossVenue(ctx context.Context, pos *Cro
 		return ""
 	}
 	cfg := e.cfg.CrossVenueExecutor
+	now := e.nowFn()
 	maxHold := time.Duration(cfg.MaxHoldHours) * time.Hour
 	if maxHold <= 0 {
 		maxHold = 72 * time.Hour
 	}
-	if e.nowFn().Sub(pos.OpenedAt) > maxHold {
+	if now.Sub(pos.OpenedAt) > maxHold {
 		return fmt.Sprintf("持仓超过 %dh", cfg.MaxHoldHours)
 	}
+
 	spread := e.currentSpreadAPR(ctx, pos)
+	need := cfg.CloseSpreadConsecutiveRounds
+	if need <= 0 {
+		need = 3
+	}
+
+	hardNegAPR := cfg.CloseHardNegativeSpreadAPR
+	if hardNegAPR == 0 {
+		hardNegAPR = -0.5
+	}
+	if spread < hardNegAPR {
+		pos.CloseHardNegativeSpreadStreak++
+		if pos.CloseHardNegativeSpreadStreak >= need {
+			return fmt.Sprintf("价差深度转负 %.1f%% 连续 %d 轮低于 %.1f%%(硬止损)",
+				spread*100, pos.CloseHardNegativeSpreadStreak, hardNegAPR*100)
+		}
+		_ = e.persistPosition(*pos)
+	} else if pos.CloseHardNegativeSpreadStreak > 0 {
+		pos.CloseHardNegativeSpreadStreak = 0
+		_ = e.persistPosition(*pos)
+	}
+
 	closeAPR := cfg.CloseSpreadAPR
 	if closeAPR <= 0 {
 		closeAPR = 0.3
 	}
 	if spread < closeAPR {
 		pos.CloseSpreadStreak++
-		need := cfg.CloseSpreadConsecutiveRounds
-		if need <= 0 {
-			need = 3
-		}
 		if pos.CloseSpreadStreak >= need {
+			if e.crossVenueMinHoldBlocksSoftClose(pos) {
+				realized := crossVenueNetRealizedFundingUSDT(pos)
+				required := crossVenueRoundTripFeeUSDT(cfg, pos)
+				holdHours := now.Sub(pos.OpenedAt).Hours()
+				minHold := cfg.MinHoldHours
+				if minHold <= 0 {
+					minHold = 24
+				}
+				if e.logger != nil {
+					e.logger.Printf("[跨所] %s 价差回落满足平仓条件但最小持有保护中: hold=%.1fh/%.0fh spread=%.1f%% 已收资费=%.4f 需覆盖手续费=%.4f",
+						pos.Symbol, holdHours, minHold, spread*100, realized, required)
+				}
+				_ = e.persistPosition(*pos)
+				return ""
+			}
 			return fmt.Sprintf("价差年化 %.1f%% 连续 %d 轮低于 %.1f%%", spread*100, pos.CloseSpreadStreak, closeAPR*100)
 		}
 		_ = e.persistPosition(*pos)
