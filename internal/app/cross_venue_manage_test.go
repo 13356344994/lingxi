@@ -41,6 +41,54 @@ func (d *deadManArmFailVenue) ArmDeadMansSwitch(context.Context, time.Duration) 
 	return errors.New("network timeout")
 }
 
+// deadManCountVenue 声明支持 dead-man 且续期成功,统计被调用次数(验证按所节流)。
+type deadManCountVenue struct {
+	fakeFundingVenue
+	arms int
+}
+
+func (d *deadManCountVenue) Capabilities() venue.Capabilities {
+	return venue.Capabilities{HasNativeDeadMan: true}
+}
+
+func (d *deadManCountVenue) ArmDeadMansSwitch(context.Context, time.Duration) error {
+	d.arms++
+	return nil
+}
+
+// TestArmDeadMansForLegsThrottlesPerVenue:同一周期内多笔含同一所的腿只续期一次,
+// 避免账户级 cancel-all-after(OKX 限频 1次/2秒)被逐笔重复触发而 429。
+func TestArmDeadMansForLegsThrottlesPerVenue(t *testing.T) {
+	v := &deadManCountVenue{fakeFundingVenue: fakeFundingVenue{name: okx.VenueName}}
+	now := time.Now()
+	e := &CrossVenueExecutor{
+		cfg:                      testCrossVenueExecutorConfig(),
+		venues:                   map[string]venue.Venue{okx.VenueName: v},
+		logger:                   log.New(&bytes.Buffer{}, "", 0),
+		deadManUnsupportedVenues: make(map[string]struct{}),
+		deadManLastArm:           make(map[string]time.Time),
+		nowFn:                    func() time.Time { return now },
+	}
+	pos := CrossVenuePosition{HighVenue: okx.VenueName, LowVenue: okx.VenueName}
+	// 同一周期(now 不变)三笔含 okx 腿的持仓:应只真正续期一次。
+	e.armDeadMansForLegs(context.Background(), pos, true)
+	e.armDeadMansForLegs(context.Background(), pos, true)
+	e.armDeadMansForLegs(context.Background(), pos, true)
+	if v.arms != 1 {
+		t.Fatalf("同周期同所应只续期 1 次(节流),实得 %d", v.arms)
+	}
+	// 推进超过 cd/2 后应再次续期。
+	cd := time.Duration(e.cfg.CrossVenueExecutor.DeadManCountdownSeconds) * time.Second
+	if cd <= 0 {
+		cd = 60 * time.Second
+	}
+	now = now.Add(cd/2 + time.Second)
+	e.armDeadMansForLegs(context.Background(), pos, true)
+	if v.arms != 2 {
+		t.Fatalf("超过 cd/2 后应再续期一次,实得 %d", v.arms)
+	}
+}
+
 func TestIsDeadManUnsupportedErr(t *testing.T) {
 	if !isDeadManUnsupportedErr(venue.ErrUnsupported) {
 		t.Fatal("ErrUnsupported should match")

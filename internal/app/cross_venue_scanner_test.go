@@ -114,7 +114,7 @@ func (f *fakeFundingVenue) BorrowRepay(context.Context, string, float64, venue.B
 	return venue.ErrUnsupported
 }
 func (f *fakeFundingVenue) FetchRealizedFunding(context.Context, venue.Symbol, time.Time) ([]venue.FundingIncome, error) {
-	return nil, venue.ErrUnsupported
+	return nil, nil
 }
 func (f *fakeFundingVenue) FetchUserTrades(context.Context, venue.Market, venue.Symbol, time.Time) ([]venue.Trade, error) {
 	return nil, venue.ErrUnsupported
@@ -220,16 +220,17 @@ func TestCrossVenueScannerSingleVenueFailureDegrades(t *testing.T) {
 	t.Parallel()
 	now := time.Date(2026, 6, 12, 12, 0, 0, 0, time.UTC)
 	failVenue := &fakeFundingVenue{name: binance.VenueName, err: errors.New("boom")}
+	nextFunding := now.Add(2 * time.Hour)
 	okVenue := &fakeFundingVenue{
 		name: bybit.VenueName,
 		snaps: []venue.FundingSnapshot{
-			{Symbol: "X-USDT", LastFundingRate: 0.01, IntervalHours: 1},
+			{Symbol: "X-USDT", LastFundingRate: 0.0002, IntervalHours: 8, NextFundingTime: nextFunding},
 		},
 	}
 	okVenue2 := &fakeFundingVenue{
 		name: okx.VenueName,
 		snaps: []venue.FundingSnapshot{
-			{Symbol: "X-USDT", LastFundingRate: 0.001, IntervalHours: 8},
+			{Symbol: "X-USDT", LastFundingRate: 0.0001, IntervalHours: 8, NextFundingTime: nextFunding},
 		},
 	}
 	s := &CrossVenueScanner{
@@ -275,6 +276,10 @@ func TestCrossVenueScannerAlertCooldown(t *testing.T) {
 		logger:    log.New(&buf, "", 0),
 		nowFn:     func() time.Time { return clock },
 		lastAlert: make(map[string]time.Time),
+		venues: map[string]venue.Venue{
+			bybit.VenueName: &fakeFundingVenue{name: bybit.VenueName},
+			okx.VenueName:   &fakeFundingVenue{name: okx.VenueName},
+		},
 	}
 	opp := CrossVenueOpportunity{
 		Symbol:    "HOME-USDT",
@@ -364,22 +369,25 @@ func TestCrossVenueScannerConcurrentFetch(t *testing.T) {
 		order = append(order, name)
 		mu.Unlock()
 	}
+	nextFunding := time.Now().Add(2 * time.Hour)
 	slow := &fakeFundingVenue{
 		name:  okx.VenueName,
 		delay: 50 * time.Millisecond,
-		snaps: []venue.FundingSnapshot{{Symbol: "Y-USDT", LastFundingRate: 0.002, IntervalHours: 4}},
+		snaps: []venue.FundingSnapshot{{Symbol: "Y-USDT", LastFundingRate: 0.0002, IntervalHours: 8, NextFundingTime: nextFunding}},
 	}
 	fast := func(name string, rate float64) *fakeFundingVenue {
 		return &fakeFundingVenue{
-			name:  name,
-			snaps: []venue.FundingSnapshot{{Symbol: "Y-USDT", LastFundingRate: rate, IntervalHours: 8}},
+			name: name,
+			snaps: []venue.FundingSnapshot{{
+				Symbol: "Y-USDT", LastFundingRate: rate, IntervalHours: 8, NextFundingTime: nextFunding,
+			}},
 		}
 	}
 	s := &CrossVenueScanner{
 		cfg: CrossVenueScannerConfig{MinSpreadAPR: 0.01, TopN: 5},
 		venues: map[string]venue.Venue{
-			binance.VenueName: fast(binance.VenueName, 0.001),
-			bybit.VenueName:   fast(bybit.VenueName, 0.003),
+			binance.VenueName: fast(binance.VenueName, 0.0001),
+			bybit.VenueName:   fast(bybit.VenueName, 0.0002),
 			okx.VenueName:     slow,
 			gate.VenueName:    &fakeFundingVenue{name: gate.VenueName, err: errors.New("down")},
 		},

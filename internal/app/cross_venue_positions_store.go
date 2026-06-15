@@ -35,7 +35,19 @@ type CrossVenueLegState struct {
 	Side       string   `json:"side"` // buy / sell
 	Qty        float64  `json:"qty"`
 	EntryPrice float64  `json:"entry_price"`
+	ExitPrice  float64  `json:"exit_price,omitempty"` // 平仓加权均价(生命周期内累加)
+	ClosedQty  float64  `json:"closed_qty,omitempty"` // 累计平仓成交量(reduce/close 累加)
 	OrderIDs   []string `json:"order_ids,omitempty"`
+}
+
+// CrossVenueAttribution 跨所持仓生命周期内的净利润归因原始累加(随 positions.json 持久化)。
+type CrossVenueAttribution struct {
+	OpenFeesUSDT      float64 `json:"open_fees_usdt,omitempty"`
+	CloseFeesUSDT     float64 `json:"close_fees_usdt,omitempty"`
+	OpenSlippageUSDT  float64 `json:"open_slippage_usdt,omitempty"`
+	CloseSlippageUSDT float64 `json:"close_slippage_usdt,omitempty"`
+	RollbackCostUSDT  float64 `json:"rollback_cost_usdt,omitempty"`
+	RebalanceCostUSDT float64 `json:"rebalance_cost_usdt,omitempty"`
 }
 
 // CrossVenuePosition 是一笔跨所 perp-perp 对冲持仓(空高费所、多低费所)。
@@ -66,6 +78,11 @@ type CrossVenuePosition struct {
 	CloseAttempts int `json:"close_attempts,omitempty"`
 	// CloseReason 首次触发平仓的原因(跨轮重试时沿用,日志/告警可追溯)。
 	CloseReason string `json:"close_reason,omitempty"`
+	// CrossVenueAttribution 开/平/回滚/再平衡阶段的费用与滑点观测累加(供平仓结算归因)。
+	// 【关键】必须匿名内嵌(而非命名字段):命名的结构体值字段 omitempty 对 struct 无效,零值会
+	// 序列化成 "attribution":{},令旧台账(无该键)重算 state_envelope 校验和失配而拒绝自动接管在场实盘仓;
+	// 内嵌则把子字段平铺进本结构,各自 omitempty 生效,旧仓零值全省略 → 与旧文件字节一致 → 校验和匹配。
+	CrossVenueAttribution
 }
 
 // crossVenuePositionsEnvelope 是带信封头的台账。

@@ -20,6 +20,10 @@ var strategyControlVenues = []string{binance.VenueName, bybit.VenueName, okx.Ven
 // 币安已接入跨所 perp-perp 对冲,默认 false 避免同所双引擎互踩;恢复单所自动交易改为 true 即可。
 const legacyBinanceStrategyAutoStart = false
 
+// singleVenueStrategyAutoStart 控制策略总控是否自动拉起 Bybit/OKX/Gate 单所引擎。
+// 2026-06-15 起默认 false:生产只跑跨所 perp-perp,单所引擎已退役;恢复单所自动启改为 true。
+const singleVenueStrategyAutoStart = false
+
 // StrategyCapitalRequest 策略级四所并行调仓请求。
 type StrategyCapitalRequest struct {
 	TargetUSDT float64 `json:"target_usdt"`
@@ -47,7 +51,7 @@ type StrategyCapitalResponse struct {
 	Results    []StrategyVenueCapitalResult `json:"results"`
 }
 
-// StrategyStartRequest 策略启动请求(跨所+Bybit/OKX/Gate funding;Binance 遗留引擎默认不自动启,见 legacyBinanceStrategyAutoStart)。
+// StrategyStartRequest 策略启动请求(默认仅开跨所运行时开仓闸;单所引擎默认不自动启,见 singleVenueStrategyAutoStart/legacyBinanceStrategyAutoStart)。
 type StrategyStartRequest struct {
 	SecretPath   string `json:"secret_path"`
 	LookbackDays int    `json:"lookback_days"`
@@ -252,9 +256,14 @@ func (s *DashboardServer) executeStrategyStart(req StrategyStartRequest) Strateg
 		lookbackDays = 30
 	}
 
-	// ① 启动 Bybit 执行任务(已运行则跳过)。
+	// ① 启动 Bybit 执行任务(已运行则跳过);单所退役时默认 skipped。
 	bybitStep := StrategyStepResult{Step: "bybit_start"}
-	if s.orchestrator == nil {
+	if !singleVenueStrategyAutoStart {
+		bybitStep.Success = true
+		bybitStep.Skipped = true
+		bybitStep.Message = "Bybit 单所引擎默认不自动启动(仅跨所;恢复:singleVenueStrategyAutoStart=true)"
+		steps = append(steps, bybitStep)
+	} else if s.orchestrator == nil {
 		bybitStep.Message = "编排器未初始化"
 		steps = append(steps, bybitStep)
 	} else if rt, ok := s.orchestrator.Get(bybit.VenueName); !ok || rt == nil || rt.controller == nil {
@@ -292,9 +301,16 @@ func (s *DashboardServer) executeStrategyStart(req StrategyStartRequest) Strateg
 	}
 	steps = append(steps, openStep)
 
-	// ③ OKX/Gate funding 执行器(默认影子,日志标明)。
+	// ③ OKX/Gate funding 执行器(默认影子,日志标明);单所退役时默认 skipped。
 	for _, vname := range []string{okx.VenueName, gate.VenueName} {
 		step := StrategyStepResult{Step: "funding_start_" + vname}
+		if !singleVenueStrategyAutoStart {
+			step.Success = true
+			step.Skipped = true
+			step.Message = fmt.Sprintf("%s 单所 funding 引擎默认不自动启动(仅跨所;恢复:singleVenueStrategyAutoStart=true)", vname)
+			steps = append(steps, step)
+			continue
+		}
 		if s.orchestrator == nil {
 			step.Message = "编排器未初始化"
 			steps = append(steps, step)

@@ -16,6 +16,7 @@ import (
 type crossVenueTrader interface {
 	PlaceOrder(ctx context.Context, req venue.OrderRequest) (venue.OrderResult, error)
 	QueryOrder(ctx context.Context, m venue.Market, s venue.Symbol, clientOrderID string) (venue.OrderResult, error)
+	CancelOrder(ctx context.Context, m venue.Market, s venue.Symbol, clientOrderID string) error
 	FetchBookTicker(ctx context.Context, m venue.Market, s venue.Symbol) (venue.BookTicker, error)
 }
 
@@ -169,11 +170,6 @@ func (e *CrossVenueExecutor) executeCrossVenueOpen(ctx context.Context, plan cro
 		_ = e.persistPosition(pos)
 	}
 
-	highBook, err := highTrader.FetchBookTicker(ctx, venue.MarketPerp, sym)
-	if err != nil {
-		return pos, err
-	}
-	highPrice := iocLimitPrice(venue.SideSell, highBook, cfg.SlippageBudgetBps)
 	highID := crossVenueLegClientID(plan.IdemPrefix, "h1")
 	if !live {
 		e.logger.Printf("[影子] 本应开仓 %s: 空%s/多%s 各≈%.6f 名义≈%.2fU 价差年化%.1f%%",
@@ -196,10 +192,16 @@ func (e *CrossVenueExecutor) executeCrossVenueOpen(ctx context.Context, plan cro
 		e.logger.Printf("[跨所] 设低费腿杠杆失败 %s %s lev=%d: %v", plan.Opp.LowVenue, sym, legLev, lerr)
 	}
 
-	highRes, err := e.placeCrossVenueIOC(ctx, highTrader, sym, venue.SideSell, plan.Qty, highPrice, highID, false, live)
+	_, _, deadlineBudget, _ := crossVenueMakerChaseParams(cfg)
+	firstLegDeadline := e.nowFn().Add(deadlineBudget)
+	highRes, err := e.placeCrossVenueLegExec(ctx, highTrader, sym, venue.SideSell, plan.Qty, highID, false, live, false, cfg.SlippageBudgetBps, firstLegDeadline)
 	if err != nil || highRes.ExecutedQty <= executionQtyTolerance {
+		if highRes.ExecutedQty > executionQtyTolerance {
+			e.rollbackFirstLeg(ctx, plan, highTrader, sym, &pos, highRes.ExecutedQty, live)
+		}
 		return pos, fmt.Errorf("第一腿失败: %w", err)
 	}
+	e.recordCrossVenueExecution(&pos, cvExecOpenHigh, highRes, plan.Gate.HighMid)
 	pos.HighLeg.Qty = highRes.ExecutedQty
 	pos.HighLeg.EntryPrice = highRes.AvgPrice
 	pos.HighLeg.OrderIDs = []string{highID}
@@ -208,27 +210,26 @@ func (e *CrossVenueExecutor) executeCrossVenueOpen(ctx context.Context, plan cro
 	_ = e.persistPosition(pos)
 
 	nakedStart := e.nowFn()
-	lowBook, err := lowTrader.FetchBookTicker(ctx, venue.MarketPerp, sym)
-	if err != nil {
-		e.rollbackFirstLeg(ctx, plan, highTrader, sym, pos.HighLeg.Qty, live)
+	if _, err := lowTrader.FetchBookTicker(ctx, venue.MarketPerp, sym); err != nil {
+		e.rollbackFirstLeg(ctx, plan, highTrader, sym, &pos, pos.HighLeg.Qty, live)
 		e.setSymbolCooldown(plan.Opp.Symbol)
 		return pos, err
 	}
-	lowPrice := iocLimitPrice(venue.SideBuy, lowBook, crossVenueTakerSlippageBps(cfg))
 	lowID := crossVenueLegClientID(plan.IdemPrefix, "l1")
 	hedgeQty := highRes.ExecutedQty
 	if lowCaps.ContractBasedPerp {
 		hedgeQty = normalizeVenueQty(highRes.ExecutedQty, plan.Gate.LowInstr, true)
 		if hedgeQty <= executionQtyTolerance {
-			e.rollbackFirstLeg(ctx, plan, highTrader, sym, pos.HighLeg.Qty, live)
+			e.rollbackFirstLeg(ctx, plan, highTrader, sym, &pos, pos.HighLeg.Qty, live)
 			e.setSymbolCooldown(plan.Opp.Symbol)
 			return pos, fmt.Errorf("第二腿对冲数量经张数步进后为 0(第一腿 %.6f)", highRes.ExecutedQty)
 		}
 	}
-	lowRes, lowErr := e.placeCrossVenueIOC(ctx, lowTrader, sym, venue.SideBuy, hedgeQty, lowPrice, lowID, false, live)
+	secondLegDeadline := nakedStart.Add(deadlineBudget)
+	lowRes, lowErr := e.placeCrossVenueLegExec(ctx, lowTrader, sym, venue.SideBuy, hedgeQty, lowID, false, live, true, crossVenueTakerSlippageBps(cfg), secondLegDeadline)
 	if lowErr != nil || lowRes.ExecutedQty <= executionQtyTolerance {
 		elapsed := e.nowFn().Sub(nakedStart).Seconds()
-		e.rollbackFirstLeg(ctx, plan, highTrader, sym, pos.HighLeg.Qty, live)
+		e.rollbackFirstLeg(ctx, plan, highTrader, sym, &pos, pos.HighLeg.Qty, live)
 		e.setSymbolCooldown(plan.Opp.Symbol)
 		msg := fmt.Sprintf("%s 第二腿失败,已回滚第一腿(裸腿 %.0fs)", plan.Opp.Symbol, elapsed)
 		e.notifyWarn("跨所开仓回滚", msg, plan.Opp.Symbol)
@@ -237,6 +238,7 @@ func (e *CrossVenueExecutor) executeCrossVenueOpen(ctx context.Context, plan cro
 		}
 		return pos, fmt.Errorf("第二腿失败: %w", lowErr)
 	}
+	e.recordCrossVenueExecution(&pos, cvExecOpenLow, lowRes, plan.Gate.LowMid)
 	highCoin := crossVenueLegExecutedCoinQty(highCaps, plan.Gate.HighInstr, highRes, 0)
 	lowCoin := crossVenueLegExecutedCoinQty(lowCaps, plan.Gate.LowInstr, lowRes, highCoin)
 	highCoin = crossVenueLegExecutedCoinQty(highCaps, plan.Gate.HighInstr, highRes, lowCoin)
@@ -255,7 +257,7 @@ func (e *CrossVenueExecutor) executeCrossVenueOpen(ctx context.Context, plan cro
 	return pos, nil
 }
 
-func (e *CrossVenueExecutor) rollbackFirstLeg(ctx context.Context, plan crossVenueOpenPlan, tr crossVenueTrader, sym venue.Symbol, qty float64, live bool) {
+func (e *CrossVenueExecutor) rollbackFirstLeg(ctx context.Context, plan crossVenueOpenPlan, tr crossVenueTrader, sym venue.Symbol, pos *CrossVenuePosition, qty float64, live bool) {
 	if qty <= executionQtyTolerance {
 		return
 	}
@@ -264,16 +266,28 @@ func (e *CrossVenueExecutor) rollbackFirstLeg(ctx context.Context, plan crossVen
 		e.logger.Printf("[跨所] 回滚第一腿取盘口失败 %s: %v", sym, err)
 		return
 	}
-	price := iocLimitPrice(venue.SideBuy, book, crossVenueTakerSlippageBps(e.cfg.CrossVenueExecutor))
 	id := crossVenueLegClientID(plan.IdemPrefix, "rb")
-	_, err = e.placeCrossVenueIOC(ctx, tr, sym, venue.SideBuy, qty, price, id, true, live)
+	_, _, deadlineBudget, _ := crossVenueMakerChaseParams(e.cfg.CrossVenueExecutor)
+	res, err := e.placeCrossVenueLegExec(ctx, tr, sym, venue.SideBuy, qty, id, true, live, true, crossVenueTakerSlippageBps(e.cfg.CrossVenueExecutor), e.nowFn().Add(deadlineBudget))
 	if err != nil {
 		e.logger.Printf("[跨所] 回滚第一腿失败 %s: %v", sym, err)
 		e.notifyCritical("跨所回滚失败", fmt.Sprintf("%s 第一腿 reduce-only 回滚失败: %v", sym, err), string(sym))
+		return
+	}
+	if pos != nil {
+		e.recordCrossVenueExecution(pos, cvExecRollbackHigh, res, crossVenueBookMid(book))
 	}
 }
 
-// crossVenueCloseCriticalAttempts 平仓连续未完成多少轮后升级 critical 告警。
+func crossVenueCloseLegDeadline(now time.Time, cfg core.CrossVenueExecutorConfig) time.Time {
+	_, _, budget, _ := crossVenueMakerChaseParams(cfg)
+	half := budget / 2
+	if half < 3*time.Second {
+		half = 3 * time.Second
+	}
+	return now.Add(half)
+}
+
 const crossVenueCloseCriticalAttempts = 3
 
 // closeCrossVenuePosition 平仓协议。live 模式下逐腿 IOC 平仓后**核验真实成交**(ExecutedQty 对账 +
@@ -306,36 +320,37 @@ func (e *CrossVenueExecutor) closeCrossVenuePosition(ctx context.Context, pos Cr
 		}
 		pos.Status = CrossVenueStatusClosed
 		pos.UpdatedAt = e.nowFn()
-		e.appendRealizedEarning(pos)
-		_ = e.removeCrossVenuePosition(pos.Symbol)
+		e.finalizeClosedCrossVenuePosition(pos)
 		e.notifyTrade("跨所平仓", fmt.Sprintf("%s %s", pos.Symbol, reason), pos.Symbol)
 		return nil
 	}
 
 	pos.CloseAttempts++
 	attempt := pos.CloseAttempts
-	// 逐腿 reduce-only IOC,按返回的 ExecutedQty 先行对账(clientID 带轮次后缀,跨轮重试不撞幂等去重)。
+	closeDeadline := crossVenueCloseLegDeadline(e.nowFn(), e.cfg.CrossVenueExecutor)
+	takerBps := crossVenueTakerSlippageBps(e.cfg.CrossVenueExecutor)
+	// 逐腿 reduce-only,按返回的 ExecutedQty 先行对账(clientID 带轮次后缀,跨轮重试不撞幂等去重)。
 	if pos.HighLeg.Qty > executionQtyTolerance {
 		book, berr := highTrader.FetchBookTicker(ctx, venue.MarketPerp, sym)
 		if berr == nil {
-			price := iocLimitPrice(venue.SideBuy, book, crossVenueTakerSlippageBps(e.cfg.CrossVenueExecutor))
 			id := crossVenueLegClientID(pos.IdemPrefix, fmt.Sprintf("ch%d", attempt))
-			if res, perr := e.placeCrossVenueIOC(ctx, highTrader, sym, venue.SideBuy, pos.HighLeg.Qty, price, id, true, live); perr == nil {
+			if res, perr := e.placeCrossVenueLegExec(ctx, highTrader, sym, venue.SideBuy, pos.HighLeg.Qty, id, true, live, true, takerBps, closeDeadline); perr == nil {
+				e.recordCrossVenueExecution(&pos, cvExecCloseHigh, res, crossVenueBookMid(book))
 				pos.HighLeg.Qty = math.Max(pos.HighLeg.Qty-res.ExecutedQty, 0)
 			} else {
-				e.logger.Printf("[跨所] 平仓高费腿 IOC 失败 %s(下轮重试): %v", pos.Symbol, perr)
+				e.logger.Printf("[跨所] 平仓高费腿失败 %s(下轮重试): %v", pos.Symbol, perr)
 			}
 		}
 	}
 	if pos.LowLeg.Qty > executionQtyTolerance {
 		book, berr := lowTrader.FetchBookTicker(ctx, venue.MarketPerp, sym)
 		if berr == nil {
-			price := iocLimitPrice(venue.SideSell, book, crossVenueTakerSlippageBps(e.cfg.CrossVenueExecutor))
 			id := crossVenueLegClientID(pos.IdemPrefix, fmt.Sprintf("cl%d", attempt))
-			if res, perr := e.placeCrossVenueIOC(ctx, lowTrader, sym, venue.SideSell, pos.LowLeg.Qty, price, id, true, live); perr == nil {
+			if res, perr := e.placeCrossVenueLegExec(ctx, lowTrader, sym, venue.SideSell, pos.LowLeg.Qty, id, true, live, true, takerBps, closeDeadline); perr == nil {
+				e.recordCrossVenueExecution(&pos, cvExecCloseLow, res, crossVenueBookMid(book))
 				pos.LowLeg.Qty = math.Max(pos.LowLeg.Qty-res.ExecutedQty, 0)
 			} else {
-				e.logger.Printf("[跨所] 平仓低费腿 IOC 失败 %s(下轮重试): %v", pos.Symbol, perr)
+				e.logger.Printf("[跨所] 平仓低费腿失败 %s(下轮重试): %v", pos.Symbol, perr)
 			}
 		}
 	}
@@ -350,8 +365,7 @@ func (e *CrossVenueExecutor) closeCrossVenuePosition(ctx context.Context, pos Cr
 	if pos.HighLeg.Qty <= executionQtyTolerance && pos.LowLeg.Qty <= executionQtyTolerance {
 		pos.Status = CrossVenueStatusClosed
 		pos.UpdatedAt = e.nowFn()
-		e.appendRealizedEarning(pos)
-		_ = e.removeCrossVenuePosition(pos.Symbol)
+		e.finalizeClosedCrossVenuePosition(pos)
 		e.notifyTrade("跨所平仓", fmt.Sprintf("%s %s(第 %d 轮平仓完成)", pos.Symbol, pos.CloseReason, attempt), pos.Symbol)
 		return nil
 	}
@@ -386,9 +400,15 @@ func (e *CrossVenueExecutor) reduceCrossVenueRisk(ctx context.Context, pos Cross
 	bookL, _ := lowTrader.FetchBookTicker(ctx, venue.MarketPerp, sym)
 	idH := crossVenueLegClientID(pos.IdemPrefix, "rh")
 	idL := crossVenueLegClientID(pos.IdemPrefix, "rl")
+	rebalDeadline := crossVenueCloseLegDeadline(e.nowFn(), e.cfg.CrossVenueExecutor)
+	takerBps := crossVenueTakerSlippageBps(e.cfg.CrossVenueExecutor)
 	if live {
-		_, _ = e.placeCrossVenueIOC(ctx, highTrader, sym, venue.SideBuy, halfHigh, iocLimitPrice(venue.SideBuy, bookH, crossVenueTakerSlippageBps(e.cfg.CrossVenueExecutor)), idH, true, live)
-		_, _ = e.placeCrossVenueIOC(ctx, lowTrader, sym, venue.SideSell, halfLow, iocLimitPrice(venue.SideSell, bookL, crossVenueTakerSlippageBps(e.cfg.CrossVenueExecutor)), idL, true, live)
+		if res, _ := e.placeCrossVenueLegExec(ctx, highTrader, sym, venue.SideBuy, halfHigh, idH, true, live, true, takerBps, rebalDeadline); res.ExecutedQty > executionQtyTolerance {
+			e.recordCrossVenueExecution(&pos, cvExecRebalanceHigh, res, crossVenueBookMid(bookH))
+		}
+		if res, _ := e.placeCrossVenueLegExec(ctx, lowTrader, sym, venue.SideSell, halfLow, idL, true, live, true, takerBps, rebalDeadline); res.ExecutedQty > executionQtyTolerance {
+			e.recordCrossVenueExecution(&pos, cvExecRebalanceLow, res, crossVenueBookMid(bookL))
+		}
 	} else {
 		e.logger.Printf("[影子] 本应同步降风险 %s 各减 50%%", pos.Symbol)
 	}

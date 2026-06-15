@@ -28,6 +28,8 @@ const (
 	crossVenueOKXFetchTO      = 120 * time.Second // okx 逐币拉+全局 pacing,全量约 20–30s,留余量
 	crossVenueBorrowProbeGap  = 200 * time.Millisecond
 	crossVenueBorrowProbesLog = "borrow_probes.jsonl"
+	// crossVenueSpreadSanityCap 跨所年化价差绝对值上限(小数,2.0=200%);超过视为 bulk 快照/美股代币等伪信号。
+	crossVenueSpreadSanityCap = 2.0
 )
 
 // crossVenueNames 扫描目标所(固定四所)。
@@ -615,6 +617,9 @@ func (s *CrossVenueScanner) indexSnapshotsBySymbol(byVenue map[string][]venue.Fu
 			if interval <= 0 {
 				interval = 8
 			}
+			if snap.NextFundingTime.IsZero() {
+				continue
+			}
 			smoothed, samples := s.smoothedFundingRate(venueName, sym, snap.LastFundingRate, window)
 			if samples < window {
 				continue
@@ -678,6 +683,10 @@ func (s *CrossVenueScanner) computeCrossVenueOpportunities(byVenue map[string][]
 	if topN <= 0 {
 		topN = 30
 	}
+	spreadCap := crossVenueSpreadSanityCap
+	if capAPR := s.cfg.FundingAPRSanityCap; capAPR > 0 && capAPR < spreadCap {
+		spreadCap = capAPR
+	}
 	bySymbol := s.indexSnapshotsBySymbol(byVenue)
 	opps := make([]CrossVenueOpportunity, 0, len(bySymbol))
 	for sym, entries := range bySymbol {
@@ -686,6 +695,9 @@ func (s *CrossVenueScanner) computeCrossVenueOpportunities(byVenue map[string][]
 		}
 		opp, ok := bestPairSpread(sym, entries)
 		if !ok || opp.SpreadAPR < minSpread {
+			continue
+		}
+		if spreadCap > 0 && opp.SpreadAPR > spreadCap {
 			continue
 		}
 		opp.Symbol = sym
@@ -781,3 +793,4 @@ func (s *CrossVenueScanner) maybeAlert(opp CrossVenueOpportunity) {
 		opp.HighVenue, opp.HighAnnualizedAPR*100, opp.HighIntervalHours,
 		opp.LowVenue, opp.LowAnnualizedAPR*100, opp.LowIntervalHours)
 }
+

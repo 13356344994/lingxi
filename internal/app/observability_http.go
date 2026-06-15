@@ -121,6 +121,15 @@ func (e *FundingRateSniperEngine) writeHeartbeat(path string) {
 	}
 }
 
+// evaluateProcessReadiness 判定整个进程是否就绪:跨所执行器 enabled 且在跑 → 就绪;
+// 否则回退 evaluateMultiVenueReadiness(任一单所就绪 / 全所干净 idle 等既有逻辑)。
+func evaluateProcessReadiness(samples []venueMetricSample, crossVenueEnabled, crossVenueRunning bool) (bool, string) {
+	if crossVenueEnabled && crossVenueRunning {
+		return true, "ok:cross_venue"
+	}
+	return evaluateMultiVenueReadiness(samples)
+}
+
 // evaluateMultiVenueReadiness 判定整个进程是否就绪(多 venue 感知,纯函数可单测):
 // **任一 venue 就绪即 200**。此前 /healthz 只看主控制器(币安),Bybit 单所运行时恒 503,
 // 外部 watchdog 以「healthz 非 200」为不健康信号会持续误杀健康进程(2026-06-12 装 timer 前实测发现)。
@@ -291,11 +300,13 @@ func (s *DashboardServer) handleLivez(w http.ResponseWriter, _ *http.Request) {
 	_, _ = w.Write([]byte("ok"))
 }
 
-// handleHealthz 就绪/健康探针:就绪 200,否则 503。返回 JSON {ready, reason, venues:{...}}。
-// 多 venue 感知:任一 venue 控制器在跑且健康即 200(只跑 Bybit 时不再因币安未运行而恒 503)。
+// handleHealthz 就绪/健康探针:就绪 200,否则 503。返回 JSON {ready, reason, cross_venue, venues:{...}}。
+// 跨所优先:CrossVenueExecutor enabled 且在跑即 200;否则回退多 venue 感知(任一单所就绪 / 全所干净 idle)。
 func (s *DashboardServer) handleHealthz(w http.ResponseWriter, _ *http.Request) {
 	samples := s.venueMetricSamples()
-	ready, reason := evaluateMultiVenueReadiness(samples)
+	crossVenueEnabled := s.crossVenueExecutor != nil && s.crossVenueExecutor.cfg.CrossVenueExecutor.Enabled
+	crossVenueRunning := s.crossVenueExecutor != nil && s.crossVenueExecutor.IsRunning()
+	ready, reason := evaluateProcessReadiness(samples, crossVenueEnabled, crossVenueRunning)
 	venues := make(map[string]any, len(samples))
 	for _, sm := range samples {
 		label := sm.Venue
@@ -320,8 +331,12 @@ func (s *DashboardServer) handleHealthz(w http.ResponseWriter, _ *http.Request) 
 		w.WriteHeader(http.StatusServiceUnavailable)
 	}
 	_ = json.NewEncoder(w).Encode(map[string]any{
-		"ready":  ready,
+		"ready": ready,
 		"reason": reason,
+		"cross_venue": map[string]any{
+			"enabled": crossVenueEnabled,
+			"running": crossVenueRunning,
+		},
 		"venues": venues,
 	})
 }

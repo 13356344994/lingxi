@@ -322,13 +322,39 @@
           <button id="cv-openings-off-btn" type="button" class="danger">关闭跨所开仓</button>
         </div>
         <div id="cv-status-line" class="hint" style="margin:8px 0 0;font-size:13px;color:#cbd5e1;">加载跨所状态…</div>
+        <div style="margin-top:14px;">
+          <strong style="color:#e5edff;font-size:14px;">当前持仓明细</strong>
+          <div class="hint" style="margin:6px 0 8px;">在场跨所对冲单:两腿方向/数量为真实币数;资费为已累计估算(est_funding_usdt)。</div>
+          <div class="table-wrap" style="max-height:320px;">
+            <table id="cv-positions-table">
+              <thead>
+                <tr>
+                  <th>Symbol</th>
+                  <th>高费所</th>
+                  <th>低费所</th>
+                  <th>高腿</th>
+                  <th>低腿</th>
+                  <th>开仓价</th>
+                  <th>名义(U)</th>
+                  <th>开仓价差(APR)</th>
+                  <th>累计资费(U)</th>
+                  <th>持有时长</th>
+                  <th>状态</th>
+                </tr>
+              </thead>
+              <tbody id="cv-positions-tbody">
+                <tr><td colspan="11" class="empty">加载中…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
       <div id="earnings-panel" style="margin:12px 0 16px;padding:14px;background:#0f1830;border:1px solid #243049;border-radius:10px;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-          <strong style="color:#e5edff;font-size:15px;">收益总览 · 近 <span id="earnings-window">24</span> 小时</strong>
-          <button id="earnings-clear-btn" type="button" class="danger" style="font-size:12px;">清除 24h 以外记录</button>
+          <strong style="color:#e5edff;font-size:15px;">今日收益(北京时间)</strong>
+          <button id="earnings-clear-btn" type="button" class="danger" style="font-size:12px;">清除权益快照(24h外)</button>
         </div>
-        <div class="hint" id="earnings-note" style="margin:0 0 10px;">含义:各交易所账户总权益(USD)的真实变化 = USDT 现金 + 永续持仓(保证金+未实现盈亏)+ 各钱包资产。含未实现浮动,故单所数字会随行情波动;跨所两腿的浮动会在总收益里大致对冲。运行不足 24h 按实际时长。注:充提/调仓会让数字跳变。</div>
+        <div class="hint" id="earnings-note" style="margin:0 0 10px;">含义:跨所平仓已实现净利(net_pnl),按 close_time 落在<strong>当日北京时间 00:00 至此刻</strong>累加(日界=UTC 前一日 16:00)。仅统计已平仓结算,不含在场浮动。</div>
         <div id="earnings-grid" style="display:flex;flex-wrap:wrap;gap:10px;"></div>
       </div>
       <div class="risk-actions" style="margin:8px 0;">
@@ -1743,6 +1769,49 @@
       if (cvPanel) { cvPanel.style.display = showAll ? "" : "none"; }
     }
 
+    function formatHoldDuration(sec) {
+      const s = Math.max(0, Number(sec || 0));
+      if (s < 60) { return s.toFixed(0) + "s"; }
+      if (s < 3600) { return (s / 60).toFixed(1) + "m"; }
+      if (s < 86400) { return (s / 3600).toFixed(1) + "h"; }
+      return (s / 86400).toFixed(1) + "d";
+    }
+
+    function formatLeg(side, qty) {
+      const s = String(side || "-").toLowerCase();
+      const q = Number(qty || 0);
+      if (!q) { return s; }
+      return s + " " + q.toFixed(6).replace(/\.?0+$/, "");
+    }
+
+    function renderCrossVenuePositionsTable(details) {
+      const tbody = document.getElementById("cv-positions-tbody");
+      if (!tbody) { return; }
+      const rows = Array.isArray(details) ? details : [];
+      if (!rows.length) {
+        tbody.innerHTML = `<tr><td colspan="11" class="empty">暂无在场持仓</td></tr>`;
+        return;
+      }
+      const fmtPrice = (n) => { const v = Number(n || 0); return v > 0 ? v.toFixed(4) : "-"; };
+      const fmtApr = (n) => { const v = Number(n || 0); return (v * 100).toFixed(2) + "%"; };
+      const fmtUsd = (n) => { const v = Number(n || 0); const s = v >= 0 ? "+" : ""; return s + v.toFixed(4); };
+      const usdColor = (n) => Number(n || 0) >= 0 ? "#86efac" : "#fca5a5";
+      tbody.innerHTML = rows.map((p) => `
+        <tr>
+          <td>${escapeHTML(p.symbol || "-")}</td>
+          <td>${escapeHTML(p.high_venue || "-")}</td>
+          <td>${escapeHTML(p.low_venue || "-")}</td>
+          <td>${escapeHTML(formatLeg(p.high_leg_side, p.high_leg_qty))}</td>
+          <td>${escapeHTML(formatLeg(p.low_leg_side, p.low_leg_qty))}</td>
+          <td>${escapeHTML(fmtPrice(p.high_leg_entry_price))} / ${escapeHTML(fmtPrice(p.low_leg_entry_price))}</td>
+          <td>${Number(p.notional_usdt || 0).toFixed(2)}</td>
+          <td>${escapeHTML(fmtApr(p.open_spread_apr))}</td>
+          <td style="color:${usdColor(p.est_funding_usdt)};">${escapeHTML(fmtUsd(p.est_funding_usdt))}</td>
+          <td>${escapeHTML(formatHoldDuration(p.hold_duration_seconds))}</td>
+          <td><span class="pill">${escapeHTML(p.status || "-")}</span></td>
+        </tr>`).join("");
+    }
+
     function renderCrossVenuePanel(snap) {
       const enabledEl = document.getElementById("cv-enabled");
       const modeEl = document.getElementById("cv-mode");
@@ -1754,6 +1823,7 @@
       const offBtn = document.getElementById("cv-openings-off-btn");
       if (!snap || typeof snap !== "object") {
         if (line) { line.textContent = "跨所状态读取失败"; }
+        renderCrossVenuePositionsTable([]);
         return;
       }
       const enabled = !!snap.enabled;
@@ -1785,6 +1855,7 @@
         const haltText = haltVenue ? (" · 健康闸暂停(" + haltVenue + ")") : "";
         line.textContent = "enabled=" + enabled + " live=" + live + " · 开仓=" + (openingsOn ? "开" : "关") + haltText;
       }
+      renderCrossVenuePositionsTable(snap.active_position_details);
     }
 
     async function refreshCrossVenuePanel() {
@@ -2084,32 +2155,28 @@
       let data;
       try { data = await loadJSON("/api/earnings"); }
       catch (err) { grid.innerHTML = `<div class="hint" style="color:#fca5a5;">读取收益失败: ${escapeHTML(err.message)}</div>`; return; }
-      const win = document.getElementById("earnings-window");
-      if (win) { win.textContent = (data.window_hours && data.window_hours < 23.95) ? (Math.max(0, data.window_hours).toFixed(1)) : "24"; }
       const fmt = (n) => { const v = Number(n || 0); const s = v >= 0 ? "+" : ""; return s + v.toFixed(4); };
-      const pct = (delta, base) => { const b = Number(base || 0); if (Math.abs(b) < 1e-9) { return "—"; } const p = Number(delta || 0) / b * 100; const s = p >= 0 ? "+" : ""; return s + p.toFixed(2) + "%"; };
       const color = (n) => Number(n || 0) >= 0 ? "#86efac" : "#fca5a5";
-      const venues = Array.isArray(data.venues) ? data.venues : [];
-      let cards = venues.map((ve) => `
+      const dayStart = data.day_start_cst ? String(data.day_start_cst) : "-";
+      const tradeCount = Number(data.trade_count || 0);
+      const bySymbol = data.by_symbol && typeof data.by_symbol === "object" ? data.by_symbol : {};
+      const symbolCards = Object.keys(bySymbol).sort().map((sym) => `
         <div style="flex:1 1 170px;min-width:170px;background:#0b1424;border:1px solid #1e293b;border-radius:8px;padding:10px;">
-          <div style="font-size:12px;color:#8aa0c6;margin-bottom:4px;">${escapeHTML(ve.venue)}</div>
-          <div style="font-size:18px;font-weight:600;color:${color(ve.usdt_total)};">${fmt(ve.usdt_total)} U <span style="font-size:13px;font-weight:600;">(${pct(ve.usdt_total, ve.baseline_equity_usdt)})</span></div>
-          <div style="font-size:12px;color:#cbd5e1;margin-top:3px;">当前总额 ${Number(ve.current_equity_usdt||0).toFixed(2)} U</div>
-          <div style="font-size:11px;color:#64748b;margin-top:2px;">基线 ${Number(ve.baseline_equity_usdt||0).toFixed(2)} U</div>
+          <div style="font-size:12px;color:#8aa0c6;margin-bottom:4px;">${escapeHTML(sym)}</div>
+          <div style="font-size:18px;font-weight:600;color:${color(bySymbol[sym])};">${fmt(bySymbol[sym])} U</div>
         </div>`).join("");
-      const totalCurrent = venues.reduce((s, ve) => s + Number(ve.current_equity_usdt || 0), 0);
-      const totalBaseline = venues.reduce((s, ve) => s + Number(ve.baseline_equity_usdt || 0), 0);
-      cards += `
-        <div style="flex:1 1 170px;min-width:170px;background:#13203a;border:1px solid #2b3c5c;border-radius:8px;padding:10px;">
-          <div style="font-size:12px;color:#cbd5e1;margin-bottom:4px;">总收益(全部所)</div>
-          <div style="font-size:18px;font-weight:700;color:${color(data.total_usdt)};">${fmt(data.total_usdt)} U <span style="font-size:13px;font-weight:700;">(${pct(data.total_usdt, totalBaseline)})</span></div>
-          <div style="font-size:12px;color:#e2e8f0;margin-top:3px;">当前总额 ${totalCurrent.toFixed(2)} U</div>
-          <div style="font-size:11px;color:#64748b;margin-top:2px;">基线 ${totalBaseline.toFixed(2)} U</div>
+      let cards = `
+        <div style="flex:1 1 220px;min-width:220px;background:#13203a;border:1px solid #2b3c5c;border-radius:8px;padding:10px;">
+          <div style="font-size:12px;color:#cbd5e1;margin-bottom:4px;">今日已实现净利(全部)</div>
+          <div style="font-size:22px;font-weight:700;color:${color(data.total_usdt)};">${fmt(data.total_usdt)} U</div>
+          <div style="font-size:12px;color:#94a3b8;margin-top:4px;">平仓笔数 ${tradeCount}</div>
+          <div style="font-size:11px;color:#64748b;margin-top:2px;">日界起 ${escapeHTML(dayStart)}</div>
         </div>`;
+      cards += symbolCards;
       grid.innerHTML = cards;
     }
     async function clearEarnings() {
-      if (!confirm("确认清除 24 小时以外的收益记录吗?(不影响持仓与近 24h 收益)")) { return; }
+      if (!confirm("确认清除 24 小时以外的权益快照吗?(不影响今日结算收益与在场持仓)")) { return; }
       try {
         const result = await postJSON(controlURL("/api/earnings/clear"), {});
         await refreshEarnings();

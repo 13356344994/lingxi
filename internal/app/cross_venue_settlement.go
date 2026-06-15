@@ -1,0 +1,301 @@
+package app
+
+import (
+	"bufio"
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+
+	"lingxi/internal/money"
+)
+
+const crossVenueSettlementsFileName = "settlements.jsonl"
+
+// beijingCST 固定 UTC+8,不依赖服务器本地时区(生产机为 UTC)。
+var beijingCST = time.FixedZone("CST", 8*3600)
+
+// beijingCSTDayStart 返回 now 所在北京时间自然日的 00:00(带 +08:00 偏移,可转 UTC 比较)。
+func beijingCSTDayStart(now time.Time) time.Time {
+	cst := now.In(beijingCST)
+	y, m, d := cst.Date()
+	return time.Date(y, m, d, 0, 0, 0, 0, beijingCST)
+}
+
+// CrossVenueCSTDayEarnings 北京时间自然日已实现净利汇总(面板「今日收益」)。
+type CrossVenueCSTDayEarnings struct {
+	DayStartCST time.Time          `json:"day_start_cst"`
+	GeneratedAt time.Time          `json:"generated_at"`
+	TotalNetPnL float64            `json:"total_net_pnl"`
+	TradeCount  int                `json:"trade_count"`
+	BySymbol    map[string]float64 `json:"by_symbol_net_pnl"`
+}
+
+// CrossVenueSettlement 跨所 perp-perp 单仓净利润归因结算记录(平仓时写入 settlements.jsonl)。
+type CrossVenueSettlement struct {
+	OpenTime        time.Time `json:"open_time"`
+	CloseTime       time.Time `json:"close_time"`
+	Symbol          string    `json:"symbol"`
+	HighVenue       string    `json:"high_venue"`
+	LowVenue        string    `json:"low_venue"`
+	NotionalUSDT    float64   `json:"notional_usdt"`
+	HighLegFunding  float64   `json:"high_leg_funding"`
+	LowLegFunding   float64   `json:"low_leg_funding"`
+	RealizedFunding float64   `json:"realized_funding"`
+	TradePnL        float64   `json:"trade_pnl"`
+	OpenFees        float64   `json:"open_fees"`
+	CloseFees       float64   `json:"close_fees"`
+	RollbackCost    float64   `json:"rollback_cost"`
+	RebalanceCost   float64   `json:"rebalance_cost"`
+	TotalFees       float64   `json:"total_fees"`
+	OpenSlippage    float64   `json:"open_slippage"`
+	CloseSlippage   float64   `json:"close_slippage"`
+	NetPnL          float64   `json:"net_pnl"`
+	CloseReason     string    `json:"close_reason,omitempty"`
+}
+
+// CrossVenueSettlementsSummary 跨所结算汇总(只读 API 用)。
+type CrossVenueSettlementsSummary struct {
+	TotalNetPnL    float64            `json:"total_net_pnl"`
+	TotalFees      float64            `json:"total_fees"`
+	TotalFunding   float64            `json:"total_funding"`
+	ByVenueNetPnL  map[string]float64 `json:"by_venue_net_pnl"`
+	BySymbolNetPnL map[string]float64 `json:"by_symbol_net_pnl"`
+}
+
+// CrossVenueSettlementsAPIResponse GET /api/cross-venue/settlements 响应体。
+type CrossVenueSettlementsAPIResponse struct {
+	Records []CrossVenueSettlement       `json:"records"`
+	Summary CrossVenueSettlementsSummary `json:"summary"`
+	Limit   int                          `json:"limit"`
+}
+
+func (e *CrossVenueExecutor) settlementsLedgerPath() string {
+	return filepath.Join(crossVenueRecordDir(e.recordDir), crossVenueSettlementsFileName)
+}
+
+func computeCrossVenueTradePnL(pos CrossVenuePosition) float64 {
+	var total float64
+	if pos.HighLeg.ClosedQty > executionQtyTolerance && pos.HighLeg.ExitPrice > 0 {
+		total += (pos.HighLeg.EntryPrice - pos.HighLeg.ExitPrice) * pos.HighLeg.ClosedQty
+	}
+	if pos.LowLeg.ClosedQty > executionQtyTolerance && pos.LowLeg.ExitPrice > 0 {
+		total += (pos.LowLeg.ExitPrice - pos.LowLeg.EntryPrice) * pos.LowLeg.ClosedQty
+	}
+	return total
+}
+
+// buildCrossVenueSettlement 从持仓快照计算单仓结算归因。
+func buildCrossVenueSettlement(pos CrossVenuePosition, closeTime time.Time) CrossVenueSettlement {
+	attr := pos.CrossVenueAttribution
+	openFees := attr.OpenFeesUSDT
+	closeFees := attr.CloseFeesUSDT
+	totalFees := money.SumUSDT(openFees, closeFees)
+	realizedFunding := money.SumUSDT(pos.HighLegFundingUSDT, pos.LowLegFundingUSDT)
+	tradePnL := computeCrossVenueTradePnL(pos)
+
+	// 净利润口径对齐 cost_accounting.go SettlementAttribution / CycleSettlement:
+	// net_pnl = realized_funding + trade_pnl − total_fees − rollback_cost − rebalance_cost
+	// 【关键】开/平仓滑点已隐含在 trade_pnl(由实际成交价算出); OpenSlippage/CloseSlippage 是相对参考价的
+	// 执行质量量,绝不可再从 net_pnl 扣减(否则重复计数,见 cost_accounting.go 第 64-74 行注释)。
+	netPnL := money.SumUSDT(realizedFunding, tradePnL, -totalFees, -attr.RollbackCostUSDT, -attr.RebalanceCostUSDT)
+
+	return CrossVenueSettlement{
+		OpenTime:        pos.OpenedAt,
+		CloseTime:       closeTime,
+		Symbol:          pos.Symbol,
+		HighVenue:       pos.HighVenue,
+		LowVenue:        pos.LowVenue,
+		NotionalUSDT:    pos.NotionalUSDT,
+		HighLegFunding:  pos.HighLegFundingUSDT,
+		LowLegFunding:   pos.LowLegFundingUSDT,
+		RealizedFunding: realizedFunding,
+		TradePnL:        tradePnL,
+		OpenFees:        openFees,
+		CloseFees:       closeFees,
+		RollbackCost:    attr.RollbackCostUSDT,
+		RebalanceCost:   attr.RebalanceCostUSDT,
+		TotalFees:       totalFees,
+		OpenSlippage:    attr.OpenSlippageUSDT,
+		CloseSlippage:   attr.CloseSlippageUSDT,
+		NetPnL:          netPnL,
+		CloseReason:     pos.CloseReason,
+	}
+}
+
+func (e *CrossVenueExecutor) appendCrossVenueSettlement(pos CrossVenuePosition) {
+	if e == nil {
+		return
+	}
+	rec := buildCrossVenueSettlement(pos, e.nowFn())
+	data, err := json.Marshal(rec)
+	if err != nil {
+		if e.logger != nil {
+			e.logger.Printf("[跨所结算] 序列化失败 %s: %v", pos.Symbol, err)
+		}
+		return
+	}
+
+	e.settlementsMu.Lock()
+	defer e.settlementsMu.Unlock()
+
+	path := e.settlementsLedgerPath()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		if e.logger != nil {
+			e.logger.Printf("[跨所结算] 创建目录失败 path=%s: %v", path, err)
+		}
+		return
+	}
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+	if err != nil {
+		if e.logger != nil {
+			e.logger.Printf("[跨所结算] 打开台账失败 path=%s: %v", path, err)
+		}
+		return
+	}
+	if _, err := f.Write(append(data, '\n')); err != nil {
+		if e.logger != nil {
+			e.logger.Printf("[跨所结算] 写入台账失败 path=%s: %v", path, err)
+		}
+	}
+	_ = f.Close()
+
+	if e.logger != nil {
+		e.logger.Printf("[跨所结算] %s net=%.4f funding=%.4f trade=%.4f fees=%.4f rollback=%.4f rebalance=%.4f open_slip=%.4f close_slip=%.4f",
+			rec.Symbol, rec.NetPnL, rec.RealizedFunding, rec.TradePnL, rec.TotalFees,
+			rec.RollbackCost, rec.RebalanceCost, rec.OpenSlippage, rec.CloseSlippage)
+	}
+}
+
+// finalizeClosedCrossVenuePosition 平仓收尾:写资费台账 + 写结算归因 + 删持仓台账(best-effort,不影响主流程)。
+func (e *CrossVenueExecutor) finalizeClosedCrossVenuePosition(pos CrossVenuePosition) {
+	if e == nil {
+		return
+	}
+	e.appendRealizedEarning(pos)
+	e.appendCrossVenueSettlement(pos)
+	_ = e.removeCrossVenuePosition(pos.Symbol)
+}
+
+func aggregateCrossVenueSettlementsInRange(records []CrossVenueSettlement, since, until time.Time) CrossVenueCSTDayEarnings {
+	sum := CrossVenueCSTDayEarnings{
+		DayStartCST: since,
+		GeneratedAt: until,
+		BySymbol:    make(map[string]float64),
+	}
+	for _, rec := range records {
+		if rec.CloseTime.Before(since) || rec.CloseTime.After(until) {
+			continue
+		}
+		sum.TotalNetPnL = money.SumUSDT(sum.TotalNetPnL, rec.NetPnL)
+		sum.TradeCount++
+		if rec.Symbol != "" {
+			sum.BySymbol[rec.Symbol] = money.SumUSDT(sum.BySymbol[rec.Symbol], rec.NetPnL)
+		}
+	}
+	return sum
+}
+
+// TodayCSTEarnings 汇总 close_time ∈ [北京时间当日 00:00, now] 的 settlements net_pnl。
+func (e *CrossVenueExecutor) TodayCSTEarnings(now time.Time) (CrossVenueCSTDayEarnings, error) {
+	if e == nil {
+		return CrossVenueCSTDayEarnings{}, nil
+	}
+	records, err := e.loadAllCrossVenueSettlements()
+	if err != nil {
+		return CrossVenueCSTDayEarnings{}, err
+	}
+	dayStart := beijingCSTDayStart(now)
+	return aggregateCrossVenueSettlementsInRange(records, dayStart, now), nil
+}
+
+func (e *CrossVenueExecutor) loadAllCrossVenueSettlements() ([]CrossVenueSettlement, error) {
+	return e.loadCrossVenueSettlements(-1)
+}
+
+func (e *CrossVenueExecutor) loadCrossVenueSettlements(limit int) ([]CrossVenueSettlement, error) {
+	if e == nil {
+		return nil, nil
+	}
+	loadAll := limit < 0
+	if limit <= 0 && !loadAll {
+		limit = 100
+	}
+	e.settlementsMu.Lock()
+	defer e.settlementsMu.Unlock()
+
+	path := e.settlementsLedgerPath()
+	f, err := os.Open(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	defer f.Close()
+
+	var lines []string
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line != "" {
+			lines = append(lines, line)
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+	if len(lines) == 0 {
+		return nil, nil
+	}
+	start := 0
+	if !loadAll && len(lines) > limit {
+		start = len(lines) - limit
+	}
+	out := make([]CrossVenueSettlement, 0, len(lines)-start)
+	for _, line := range lines[start:] {
+		var rec CrossVenueSettlement
+		if err := json.Unmarshal([]byte(line), &rec); err != nil {
+			continue
+		}
+		out = append(out, rec)
+	}
+	return out, nil
+}
+
+func summarizeCrossVenueSettlements(records []CrossVenueSettlement) CrossVenueSettlementsSummary {
+	sum := CrossVenueSettlementsSummary{
+		ByVenueNetPnL:  make(map[string]float64),
+		BySymbolNetPnL: make(map[string]float64),
+	}
+	for _, rec := range records {
+		sum.TotalNetPnL = money.SumUSDT(sum.TotalNetPnL, rec.NetPnL)
+		sum.TotalFees = money.SumUSDT(sum.TotalFees, rec.TotalFees)
+		sum.TotalFunding = money.SumUSDT(sum.TotalFunding, rec.RealizedFunding)
+		if rec.HighVenue != "" {
+			sum.ByVenueNetPnL[rec.HighVenue] = money.SumUSDT(sum.ByVenueNetPnL[rec.HighVenue], rec.NetPnL)
+		}
+		if rec.LowVenue != "" {
+			sum.ByVenueNetPnL[rec.LowVenue] = money.SumUSDT(sum.ByVenueNetPnL[rec.LowVenue], rec.NetPnL)
+		}
+		sum.BySymbolNetPnL[rec.Symbol] = money.SumUSDT(sum.BySymbolNetPnL[rec.Symbol], rec.NetPnL)
+	}
+	return sum
+}
+
+// SettlementsSnapshot 返回最近 N 条结算 + 汇总(供 HTTP API)。
+func (e *CrossVenueExecutor) SettlementsSnapshot(limit int) (CrossVenueSettlementsAPIResponse, error) {
+	records, err := e.loadCrossVenueSettlements(limit)
+	if err != nil {
+		return CrossVenueSettlementsAPIResponse{}, err
+	}
+	if limit <= 0 {
+		limit = 100
+	}
+	return CrossVenueSettlementsAPIResponse{
+		Records: records,
+		Summary: summarizeCrossVenueSettlements(records),
+		Limit:   limit,
+	}, nil
+}

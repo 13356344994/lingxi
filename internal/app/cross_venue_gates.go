@@ -102,13 +102,16 @@ func evaluateCrossVenueOpenGate(
 		return fail("symbol 处于回滚冷却期")
 	}
 
+	// 注:不再用 FetchRealizedFunding 做开仓前置闸——binance/gate/okx 该方法未实现(返回 ErrUnsupported),
+	// 用它当闸会拒掉所有含这三所的开仓对(=几乎全部跨所机会),把策略整个搞死。
+	// 排除美股代币等伪高价差标的,改靠下面的"快照有效性"(NextFundingTime/间隔/有限 rate)+ 扫描器价差上限。
 	highSnap, ok := deps.fetchFunding(ctx, highV, sym)
-	if !ok || highSnap.NextFundingTime.IsZero() || !highSnap.NextFundingTime.After(in.Now) {
-		return fail("高费所幽灵腿:NextFundingTime 无效")
+	if !ok || !crossVenueFundingSnapshotValid(highSnap, in.Now) {
+		return fail("高费所幽灵腿:资费快照无效(缺 rate/结算间隔/NextFundingTime)")
 	}
 	lowSnap, ok := deps.fetchFunding(ctx, lowV, sym)
-	if !ok || lowSnap.NextFundingTime.IsZero() || !lowSnap.NextFundingTime.After(in.Now) {
-		return fail("低费所幽灵腿:NextFundingTime 无效")
+	if !ok || !crossVenueFundingSnapshotValid(lowSnap, in.Now) {
+		return fail("低费所幽灵腿:资费快照无效(缺 rate/结算间隔/NextFundingTime)")
 	}
 
 	highInstr, ok := deps.lookupInstrument(ctx, highV, sym)
@@ -167,6 +170,21 @@ func evaluateCrossVenueOpenGate(
 	}
 	if notional <= 0 {
 		return fail("深度容量不足")
+	}
+
+	maxSlipBps := cfg.MaxOpenSlippageBps
+	if maxSlipBps <= 0 {
+		maxSlipBps = 15
+	}
+	if slipBps, ok := estimateCrossVenueLegOpenSlippageBps(deps.fetchDepth, ctx, highV, sym, venue.SideSell, notional, highMid); !ok {
+		return fail("高费所深度不足,无法估算开仓滑点")
+	} else if slipBps > maxSlipBps {
+		return fail(fmt.Sprintf("高费所预估滑点 %.1f bps > %.0f", slipBps, maxSlipBps))
+	}
+	if slipBps, ok := estimateCrossVenueLegOpenSlippageBps(deps.fetchDepth, ctx, lowV, sym, venue.SideBuy, notional, lowMid); !ok {
+		return fail("低费所深度不足,无法估算开仓滑点")
+	} else if slipBps > maxSlipBps {
+		return fail(fmt.Sprintf("低费所预估滑点 %.1f bps > %.0f", slipBps, maxSlipBps))
 	}
 
 	levCap := cfg.MaxEffectiveLeverage
@@ -309,6 +327,93 @@ func bookSpreadBps(t venue.BookTicker) float64 {
 	return (t.AskPrice - t.BidPrice) / mid * 10000
 }
 
+const crossVenueOpenSlippageDepthLimit = 20
+
+// estimateCrossVenueLegOpenSlippageBps 按名义额模拟 taker 吃单,估算相对最优价的滑点(bps)。
+// 高费腿卖出吃 bids,低费腿买入吃 asks;深度不足以覆盖全量则 ok=false。
+func estimateCrossVenueLegOpenSlippageBps(
+	fetch func(context.Context, venue.Venue, venue.Symbol, int) (venue.Depth, error),
+	ctx context.Context,
+	v venue.Venue,
+	sym venue.Symbol,
+	side venue.Side,
+	notionalUSDT, refMid float64,
+) (float64, bool) {
+	if fetch == nil || v == nil || notionalUSDT <= 0 || refMid <= 0 {
+		return 0, false
+	}
+	depth, err := fetch(ctx, v, sym, crossVenueOpenSlippageDepthLimit)
+	if err != nil {
+		return 0, false
+	}
+	var levels []venue.DepthLevel
+	switch side {
+	case venue.SideBuy:
+		levels = depth.Asks
+	case venue.SideSell:
+		levels = depth.Bids
+	default:
+		return 0, false
+	}
+	return simulateTakerSlippageBps(side, levels, notionalUSDT, refMid)
+}
+
+// simulateTakerSlippageBps 沿订单簿档位模拟吃单,返回相对最优价的滑点(bps)。
+func simulateTakerSlippageBps(side venue.Side, levels []venue.DepthLevel, notionalUSDT, refPrice float64) (float64, bool) {
+	if refPrice <= 0 || notionalUSDT <= 0 || len(levels) == 0 {
+		return 0, false
+	}
+	bestPrice := 0.0
+	for _, lv := range levels {
+		if lv.Price > 0 && lv.Qty > 0 {
+			bestPrice = lv.Price
+			break
+		}
+	}
+	if bestPrice <= 0 {
+		return 0, false
+	}
+	qtyNeed := notionalUSDT / refPrice
+	remaining := qtyNeed
+	totalCost := 0.0
+	filledQty := 0.0
+	for _, lv := range levels {
+		if lv.Price <= 0 || lv.Qty <= 0 {
+			continue
+		}
+		take := lv.Qty
+		if take > remaining {
+			take = remaining
+		}
+		totalCost += take * lv.Price
+		filledQty += take
+		remaining -= take
+		if remaining <= 1e-12 {
+			break
+		}
+	}
+	if filledQty <= 0 {
+		return 0, false
+	}
+	if remaining > 1e-9 {
+		return math.MaxFloat64, false
+	}
+	avgPrice := totalCost / filledQty
+	var slipBps float64
+	switch side {
+	case venue.SideBuy:
+		slipBps = (avgPrice - bestPrice) / bestPrice * 10000
+	case venue.SideSell:
+		slipBps = (bestPrice - avgPrice) / bestPrice * 10000
+	default:
+		return 0, false
+	}
+	if slipBps < 0 {
+		slipBps = 0
+	}
+	return slipBps, true
+}
+
 func depthCapacityUSDT(
 	fetch func(context.Context, venue.Venue, venue.Symbol, int) (venue.Depth, error),
 	ctx context.Context,
@@ -345,6 +450,20 @@ func lookupVenueInstrument(ctx context.Context, v venue.Venue, sym venue.Symbol)
 		}
 	}
 	return venue.Instrument{}, false
+}
+
+// crossVenueFundingSnapshotValid 校验 bulk 快照里该 symbol 的 rate/结算间隔/下次结算时刻可用于 carry 判断。
+func crossVenueFundingSnapshotValid(snap venue.FundingSnapshot, now time.Time) bool {
+	if snap.NextFundingTime.IsZero() || !snap.NextFundingTime.After(now) {
+		return false
+	}
+	if snap.IntervalHours <= 0 {
+		return false
+	}
+	if math.IsNaN(snap.LastFundingRate) || math.IsInf(snap.LastFundingRate, 0) {
+		return false
+	}
+	return true
 }
 
 func fetchVenueFundingForSymbol(ctx context.Context, v venue.Venue, sym venue.Symbol) (venue.FundingSnapshot, bool) {

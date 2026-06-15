@@ -69,6 +69,59 @@ func TestEvaluateMultiVenueReadiness(t *testing.T) {
 	}
 }
 
+// TestEvaluateProcessReadinessCrossVenueRunning 单所全 idle 但跨所执行器在跑 → 就绪。
+func TestEvaluateProcessReadinessCrossVenueRunning(t *testing.T) {
+	samples := []venueMetricSample{
+		{Venue: "binance", Status: RuntimeTaskStatus{Running: false, StartedAt: "2026-06-13T00:00:00Z"}},
+		{Venue: "bybit", Status: RuntimeTaskStatus{Running: false, StartedAt: "2026-06-13T00:00:00Z"}},
+	}
+	ready, reason := evaluateProcessReadiness(samples, true, true)
+	if !ready || reason != "ok:cross_venue" {
+		t.Fatalf("跨所运行时应就绪, ready=%v reason=%s", ready, reason)
+	}
+	ready, reason = evaluateProcessReadiness(samples, true, false)
+	if ready || reason != "binance:engine_not_running;bybit:engine_not_running" {
+		t.Fatalf("跨所未运行时应回退 venue 判定, ready=%v reason=%s", ready, reason)
+	}
+}
+
+// TestHealthzCrossVenueRunningAllVenuesIdle 四所 idle(含曾启动掉线)但跨所执行器在跑 → healthz 200。
+func TestHealthzCrossVenueRunningAllVenuesIdle(t *testing.T) {
+	orch := NewOrchestrator()
+	names := []string{"binance", "bybit", "okx", "gate"}
+	for _, name := range names {
+		dir := t.TempDir()
+		store, err := NewReportStore(dir)
+		if err != nil {
+			t.Fatalf("NewReportStore(%s): %v", name, err)
+		}
+		ctrl, err := NewRuntimeController(context.Background(), store, DefaultEngineConfig(), nil)
+		if err != nil {
+			t.Fatalf("NewRuntimeController(%s): %v", name, err)
+		}
+		ctrl.venueName = name
+		ctrl.mu.Lock()
+		ctrl.status = RuntimeTaskStatus{Running: false, StartedAt: "2026-06-13T00:00:00Z"}
+		ctrl.mu.Unlock()
+		orch.Register(&venueRuntime{name: name, controller: ctrl})
+	}
+	cfg := testCrossVenueExecutorConfig()
+	exec, err := NewCrossVenueExecutor(cfg, orch, nil, "", nil)
+	if err != nil {
+		t.Fatalf("NewCrossVenueExecutor: %v", err)
+	}
+	exec.running.Store(true)
+	s := &DashboardServer{orchestrator: orch, crossVenueExecutor: exec, startedAt: time.Now()}
+	rec := httptest.NewRecorder()
+	s.handleHealthz(rec, httptest.NewRequest(http.MethodGet, "/healthz", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("跨所运行时应 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"ready":true`) || !strings.Contains(rec.Body.String(), `"running":true`) {
+		t.Fatalf("响应应 ready=true 且 cross_venue.running=true: %s", rec.Body.String())
+	}
+}
+
 // TestHealthzFourVenuesOnlyBybitRunning 四所注册、仅 bybit 运行时 healthz 仍 200(idle 的 okx/gate 不拖垮探针)。
 func TestHealthzFourVenuesOnlyBybitRunning(t *testing.T) {
 	orch := NewOrchestrator()

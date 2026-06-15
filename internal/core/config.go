@@ -524,12 +524,11 @@ type EngineConfig struct {
 	AlertingConfig   `cfg:"alerting"`
 
 	// BybitExecutor 是 Bybit 精简执行器(Approach B:正费率 50/50 delta-neutral)的参数,仅 bybit 所读取,
-	// 币安路径完全忽略。多所部署下由 venues.bybit.bybit_executor.* 覆盖。主安全闸 LiveTradingEnabled 默认 false
-	// → 即便启动 bybit 任务也只 shadow(规划+日志,绝不下单);置 true 才真实下单。
+	// 币安路径完全忽略。**2026-06-15 起单所引擎已退役**,策略总控默认不再自动启动;配置保留供回滚/对照。
 	BybitExecutor BybitExecutorConfig `cfg:"bybit_executor"`
 
-	// FundingExecutor 是 OKX/Gate 单所正费率执行器参数(venue 中立,仅 okx/gate 读取)。多所部署下由
-	// venues.<okx|gate>.funding_executor.* 覆盖。LiveTradingEnabled 默认 false → 影子模式。
+	// FundingExecutor 是 OKX/Gate 单所正费率执行器参数(venue 中立,仅 okx/gate 读取)。
+	// **2026-06-15 起单所引擎已退役**,策略总控默认不再自动启动;配置保留供回滚/对照。
 	FundingExecutor VenueFundingExecutorConfig `cfg:"funding_executor"`
 
 	// CrossVenueScanner 是 P1 跨所资金费价差扫描器(纯只读,绝不下单)的参数。
@@ -561,6 +560,8 @@ type CrossVenueExecutorConfig struct {
 	MaxPositionUSDT float64 `cfg:"max_position_usdt"`
 	// MaxBookSpreadBps 两腿盘口价差上限(bps)。默认 30。
 	MaxBookSpreadBps float64 `cfg:"max_book_spread_bps"`
+	// MaxOpenSlippageBps 开仓前按 max_position_usdt 模拟吃单,任一腿预估滑点超此阈值则拒开。默认 15。
+	MaxOpenSlippageBps float64 `cfg:"max_open_slippage_bps"`
 	// SlippageBudgetBps IOC 限价相对对手价的滑点预算(bps)。默认 20。
 	SlippageBudgetBps float64 `cfg:"slippage_budget_bps"`
 	// TakerSlippageBudgetBps 吃单腿(第二腿/回滚/平仓/降风险)IOC 限价滑点预算(bps),须宽于 SlippageBudgetBps
@@ -600,6 +601,14 @@ type CrossVenueExecutorConfig struct {
 	EVSafetyFactor float64 `cfg:"ev_safety_factor"`
 	// RealizedFundingPollMinutes 拉取真实结算资费的节流间隔(分钟);两次拉取之间用估算做临时展示。默认 5。
 	RealizedFundingPollMinutes int `cfg:"realized_funding_poll_minutes"`
+	// MakerFirst 永续腿 post-only 追价优先;false=回退纯 IOC(零行为变更开关)。默认 true。
+	MakerFirst bool `cfg:"maker_first"`
+	// MakerChaseRounds post-only 追价最多轮数(每轮撤旧挂新贴最优被动价)。默认 6。
+	MakerChaseRounds int `cfg:"maker_chase_rounds"`
+	// MakerChaseIntervalMs 每轮 maker 挂单等待成交时长(毫秒)。默认 1500。
+	MakerChaseIntervalMs int `cfg:"maker_chase_interval_ms"`
+	// MakerDeadlineSeconds 单腿 maker 追价总预算(秒);第一腿超时放弃开仓,第二腿/平仓超时 taker 兜底。默认 12。
+	MakerDeadlineSeconds int `cfg:"maker_deadline_seconds"`
 }
 
 // VenueFundingExecutorConfig 是 OKX/Gate 单所正费率执行器参数(正 carry:空永续+买现货,跨结算持有)。

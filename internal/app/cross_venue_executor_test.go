@@ -42,6 +42,16 @@ type crossVenueTestVenue struct {
 	// clearOnReduceOnly=true 时 reduce-only 单成交后清空持仓(模拟平仓真实成交);
 	// false 时持仓保持不变(模拟 IOC 没吃干净——平仓核验必须能发现)。
 	clearOnReduceOnly bool
+	// makerPostOnlyNeverFill=true 时 post-only 单永不成交(用于 maker 追价测试)。
+	makerPostOnlyNeverFill bool
+	// makerFillOnRound 指定第几轮 post-only 成交(0=按默认规则)。
+	makerFillOnRound int
+	// takerAlwaysFail 强制 taker(IOC) 兜底失败。
+	takerAlwaysFail bool
+	// canceledIDs 记录撤单 client ID。
+	canceledIDs []string
+	// openOrders 跟踪挂单状态(QueryOrder 用)。
+	openOrders map[string]venue.OrderResult
 }
 
 func newCrossVenueTestVenue(name string, rate float64, interval int, nextFunding time.Time) *crossVenueTestVenue {
@@ -74,6 +84,7 @@ func newCrossVenueTestVenue(name string, rate float64, interval int, nextFunding
 			QtyUnit:      "coin",
 		}},
 		placeCount: &pc,
+		openOrders: make(map[string]venue.OrderResult),
 	}
 }
 
@@ -125,10 +136,29 @@ func (f *crossVenueTestVenue) PlaceOrder(_ context.Context, req venue.OrderReque
 		f.placeFailNext = false
 		return venue.OrderResult{Status: "rejected"}, errors.New("simulated fail")
 	}
+	if req.Type == venue.OrderTypePostOnly {
+		round := 0
+		if strings.Contains(req.ClientOrderID, "-m") {
+			fmt.Sscanf(req.ClientOrderID[strings.LastIndex(req.ClientOrderID, "-m")+2:], "%d", &round)
+		}
+		if f.makerPostOnlyNeverFill || (f.makerFillOnRound > 0 && round != f.makerFillOnRound) {
+			if f.openOrders == nil {
+				f.openOrders = make(map[string]venue.OrderResult)
+			}
+			f.openOrders[req.ClientOrderID] = venue.OrderResult{
+				Symbol: req.Symbol, Market: req.Market, ClientOrderID: req.ClientOrderID,
+				Status: "new", ExecutedQty: 0, AvgPrice: req.Price,
+			}
+			return f.openOrders[req.ClientOrderID], nil
+		}
+	}
+	if req.Type == venue.OrderTypeIOC && f.takerAlwaysFail {
+		return venue.OrderResult{Status: "canceled", ClientOrderID: req.ClientOrderID}, errors.New("taker fail")
+	}
 	if req.ReduceOnly && f.clearOnReduceOnly {
 		f.positions = nil
 	}
-	return venue.OrderResult{
+	res := venue.OrderResult{
 		Symbol:        req.Symbol,
 		Market:        req.Market,
 		ClientOrderID: req.ClientOrderID,
@@ -136,14 +166,38 @@ func (f *crossVenueTestVenue) PlaceOrder(_ context.Context, req venue.OrderReque
 		ExecutedQty:   req.Qty,
 		AvgPrice:      req.Price,
 		CumQuoteUSDT:  req.Qty * req.Price,
-	}, nil
+	}
+	if f.openOrders != nil {
+		f.openOrders[req.ClientOrderID] = res
+	}
+	return res, nil
+}
+
+func (f *crossVenueTestVenue) CancelOrder(_ context.Context, _ venue.Market, _ venue.Symbol, clientOrderID string) error {
+	f.canceledIDs = append(f.canceledIDs, clientOrderID)
+	if f.openOrders != nil {
+		if o, ok := f.openOrders[clientOrderID]; ok {
+			o.Status = "canceled"
+			f.openOrders[clientOrderID] = o
+		}
+	}
+	return nil
 }
 
 func (f *crossVenueTestVenue) QueryOrder(_ context.Context, _ venue.Market, _ venue.Symbol, clientOrderID string) (venue.OrderResult, error) {
-	return venue.OrderResult{Status: "filled", ExecutedQty: 0.5, ClientOrderID: clientOrderID}, nil
+	if f.openOrders != nil {
+		if o, ok := f.openOrders[clientOrderID]; ok {
+			return o, nil
+		}
+	}
+	return venue.OrderResult{Status: "unknown", ExecutedQty: 0, ClientOrderID: clientOrderID}, nil
 }
 
 func (f *crossVenueTestVenue) ArmDeadMansSwitch(context.Context, time.Duration) error { return nil }
+
+func (f *crossVenueTestVenue) FetchRealizedFunding(context.Context, venue.Symbol, time.Time) ([]venue.FundingIncome, error) {
+	return nil, nil
+}
 
 var _ venue.Venue = (*crossVenueTestVenue)(nil)
 
@@ -168,6 +222,7 @@ func testCrossVenueExecutorConfig() EngineConfig {
 		MidPriceDeviationMax:         0.03,
 		DepthUsageRatio:              0.20,
 		SymbolCooldownHours:          1,
+		MakerFirst:                   false, // 既有单测钉死纯 IOC 语义;maker 场景见 TestCrossVenueMaker*
 	}
 	cfg.CrossVenueScanner.Enabled = true
 	cfg.AllocatedCapitalUSDT = 1000
@@ -1154,5 +1209,138 @@ func TestCrossVenueBinanceOkxDirectNoFallback(t *testing.T) {
 	}
 	if !strings.Contains(logs, "[影子] 本应开仓 BTC-USDT") {
 		t.Fatalf("应直接走 binance/okx 影子开仓, got:\n%s", logs)
+	}
+}
+
+func testCrossVenueMakerExecutorConfig() EngineConfig {
+	cfg := testCrossVenueExecutorConfig()
+	cfg.CrossVenueExecutor.MakerFirst = true
+	cfg.CrossVenueExecutor.MakerChaseRounds = 3
+	cfg.CrossVenueExecutor.MakerChaseIntervalMs = 20
+	cfg.CrossVenueExecutor.MakerDeadlineSeconds = 15
+	cfg.CrossVenueExecutor.LiveTradingEnabled = true
+	return cfg
+}
+
+func newCrossVenueMakerOpenExecutor(t *testing.T, high, low *crossVenueTestVenue) *CrossVenueExecutor {
+	t.Helper()
+	cfg := testCrossVenueMakerExecutorConfig()
+	cfg.NetworkConfig.RecordDir = t.TempDir()
+	return &CrossVenueExecutor{
+		cfg:            cfg,
+		venues:         map[string]venue.Venue{bybit.VenueName: high, okx.VenueName: low},
+		store:          mustCrossVenueStore(t, cfg.NetworkConfig.RecordDir),
+		logger:         testCrossVenueLogger(),
+		nowFn:          time.Now,
+		symbolCooldown: map[string]time.Time{},
+	}
+}
+
+func testCrossVenueOpenPlan() crossVenueOpenPlan {
+	return crossVenueOpenPlan{
+		Opp:        CrossVenueOpportunity{Symbol: "BTC-USDT", HighVenue: bybit.VenueName, LowVenue: okx.VenueName, SpreadAPR: 2.0},
+		Gate:       crossVenueGateResult{NotionalUSDT: 50, HighMid: 100, LowMid: 100},
+		Qty:        0.5,
+		IdemPrefix: "mk-test",
+	}
+}
+
+// TestCrossVenueMakerFirstLegAbortNoPosition 第一腿 maker 不成交 → 撤单放弃,低费腿不下单。
+func TestCrossVenueMakerFirstLegAbortNoPosition(t *testing.T) {
+	now := time.Now().UTC().Add(time.Hour)
+	high := newCrossVenueTestVenue(bybit.VenueName, 0.001, 8, now)
+	high.makerPostOnlyNeverFill = true
+	low := newCrossVenueTestVenue(okx.VenueName, 0.0001, 8, now)
+	e := newCrossVenueMakerOpenExecutor(t, high, low)
+	_, err := e.executeCrossVenueOpen(context.Background(), testCrossVenueOpenPlan(), true)
+	if err == nil {
+		t.Fatal("expected first leg maker abort")
+	}
+	if atomic.LoadInt32(low.placeCount) != 0 {
+		t.Fatalf("低费腿不应下单, got %d", *low.placeCount)
+	}
+	if len(high.canceledIDs) == 0 {
+		t.Fatal("maker 未成交应撤单")
+	}
+}
+
+// TestCrossVenueMakerSecondLegTakerFallback 第一腿 maker 成交 + 第二腿 maker 不成交 → taker 兜底闭合。
+func TestCrossVenueMakerSecondLegTakerFallback(t *testing.T) {
+	now := time.Now().UTC().Add(time.Hour)
+	high := newCrossVenueTestVenue(bybit.VenueName, 0.001, 8, now)
+	low := newCrossVenueTestVenue(okx.VenueName, 0.0001, 8, now)
+	low.makerPostOnlyNeverFill = true
+	low.placeClientIDs = make([]string, 0, 8)
+	e := newCrossVenueMakerOpenExecutor(t, high, low)
+	pos, err := e.executeCrossVenueOpen(context.Background(), testCrossVenueOpenPlan(), true)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	if pos.Status != CrossVenueStatusOpen {
+		t.Fatalf("status=%s", pos.Status)
+	}
+	var hasMaker, hasTaker bool
+	for _, id := range low.placeClientIDs {
+		if strings.Contains(id, "-m") {
+			hasMaker = true
+		}
+		if strings.Contains(id, "-tk") {
+			hasTaker = true
+		}
+	}
+	if !hasMaker || !hasTaker {
+		t.Fatalf("第二腿应 maker 后 taker 兜底, ids=%v", low.placeClientIDs)
+	}
+}
+
+// TestCrossVenueMakerSecondLegTakerFailRollback 第二腿 maker+taker 均失败 → 回滚第一腿。
+func TestCrossVenueMakerSecondLegTakerFailRollback(t *testing.T) {
+	now := time.Now().UTC().Add(time.Hour)
+	high := newCrossVenueTestVenue(bybit.VenueName, 0.001, 8, now)
+	low := newCrossVenueTestVenue(okx.VenueName, 0.0001, 8, now)
+	low.makerPostOnlyNeverFill = true
+	low.takerAlwaysFail = true
+	e := newCrossVenueMakerOpenExecutor(t, high, low)
+	_, err := e.executeCrossVenueOpen(context.Background(), testCrossVenueOpenPlan(), true)
+	if err == nil {
+		t.Fatal("expected rollback path")
+	}
+	if n := atomic.LoadInt32(high.placeCount); n < 2 {
+		t.Fatalf("应回滚第一腿, high places=%d", n)
+	}
+	if !e.isSymbolCooling("BTC-USDT") {
+		t.Fatal("expected cooldown after rollback")
+	}
+}
+
+// TestCrossVenueMakerFirstDisabledUsesIOC maker_first=false 时走纯 IOC(每腿一次下单)。
+func TestCrossVenueMakerFirstDisabledUsesIOC(t *testing.T) {
+	now := time.Now().UTC().Add(time.Hour)
+	high := newCrossVenueTestVenue(bybit.VenueName, 0.001, 8, now)
+	low := newCrossVenueTestVenue(okx.VenueName, 0.0001, 8, now)
+	high.placeClientIDs = make([]string, 0, 4)
+	low.placeClientIDs = make([]string, 0, 4)
+	cfg := testCrossVenueMakerExecutorConfig()
+	cfg.CrossVenueExecutor.MakerFirst = false
+	cfg.NetworkConfig.RecordDir = t.TempDir()
+	e := &CrossVenueExecutor{
+		cfg:            cfg,
+		venues:         map[string]venue.Venue{bybit.VenueName: high, okx.VenueName: low},
+		store:          mustCrossVenueStore(t, cfg.NetworkConfig.RecordDir),
+		logger:         testCrossVenueLogger(),
+		nowFn:          func() time.Time { return now },
+		symbolCooldown: map[string]time.Time{},
+	}
+	_, err := e.executeCrossVenueOpen(context.Background(), testCrossVenueOpenPlan(), true)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	if atomic.LoadInt32(high.placeCount) != 1 || atomic.LoadInt32(low.placeCount) != 1 {
+		t.Fatalf("IOC 模式每腿应只下一单: high=%d low=%d", *high.placeCount, *low.placeCount)
+	}
+	for _, id := range append(high.placeClientIDs, low.placeClientIDs...) {
+		if strings.Contains(id, "-m") {
+			t.Fatalf("不应出现 maker 单: %s", id)
+		}
 	}
 }

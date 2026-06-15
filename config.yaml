@@ -113,14 +113,19 @@ cross_venue_executor:
   #   open=35%:当前 ~37.5% 的 STG 候选可够得着(若设 40% 反而挡掉);close=20% 留 15% 迟滞带防开平抖动。
   open_spread_apr: 0.35
   close_spread_apr: 0.20
+  # maker 优先(post-only 追价):第一腿未成交零风险放弃;第二腿/平仓/回滚 maker 不成交 taker 兜底。
+  maker_first: true
+  maker_chase_rounds: 6
+  maker_chase_interval_ms: 1500
+  maker_deadline_seconds: 12
 
 # 多所编排（§7 / §8）。注册到此的所会出现在面板 venue 选择器里，并各自拥有独立的 RuntimeController/记录目录。
-#   - binance：主所(primary，按字母序首位)，行为与改造前逐字节一致(recordDir=records/，autostart 受全局/环境变量控制)。
-#   - bybit：已接入【独立精简执行器(B5)】——正费率 50/50 delta-neutral，跨结算收一次资金费即平，独立单写租约/
-#     急停/持仓落盘 reconcile，records/bybit/ 隔离。**主安全闸 bybit_executor.live_trading_enabled 默认 false**，
-#     即便在面板启动 bybit 任务也只【影子运行(shadow)】:扫描+规划+日志，绝不下单。确认无误后置 true 才真实下单。
-#     资金管理(调仓)照旧可用("输入总额→划入统一交易账户、余量留资金账户")。autostart=false:需在面板手动启动。
-#   - okx / gate：P1 跨所对冲的对冲腿所,现阶段仅行情/账户(适配器已接线),**不启动交易引擎**;无 autostart。
+# ⚠️ 2026-06-15 起生产形态【仅跨所 perp-perp】:策略总控「启动」只开 cross_venue 运行时开仓闸,
+#   Bybit/OKX/Gate/Binance 单所引擎默认不自动拉起(代码 singleVenueStrategyAutoStart=false)。
+#   下列 venues.* 单所配置保留供回滚/对照,勿删;跨所引擎仍经四所适配器下单/读余额。
+#   - binance：主所(primary),跨所对冲腿之一;遗留 FundingRateSniper 单所引擎已退役。
+#   - bybit：跨所对冲腿之一;独立精简执行器(B5)单所路径已退役(配置保留)。
+#   - okx / gate：跨所对冲腿;单所 funding 执行器已退役(配置保留)。
 venues:
   binance:
     enabled: true
@@ -143,8 +148,7 @@ venues:
       lead_seconds: 240
   bybit:
     enabled: true
-    # 手动模式(用户选定 2026-06-13):重启后所有所一律 idle,不自动开仓;由策略总控「启动」一键拉起
-    # 单所 funding + 跨所套利两层。autostart=false → 崩溃/重启不自动续上交易(代价:有持仓时崩溃需人工启动恢复管理)。
+    # 手动模式:重启后所有所 idle;策略总控「启动」仅开跨所开仓闸(单所引擎已退役,2026-06-15)。
     autostart: false
     # 分配给 Bybit 策略的资金(USDT)。**这是定量基准**:0 → 定量为 0 → 永远不开仓。
     # ⚠️【数据采集】选币代码已修复为「先过滤掉无现货腿的 perp-only 标的、再取 top_n / 均分资金」,所以分配资金

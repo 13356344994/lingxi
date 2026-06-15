@@ -213,8 +213,8 @@ func TestStrategyStartStopOrchestration(t *testing.T) {
 	if len(startResp.Steps) < 5 {
 		t.Fatalf("start steps: %+v", startResp.Steps)
 	}
-	if startResp.Steps[0].Step != "bybit_start" || !startResp.Steps[0].Success {
-		t.Fatalf("bybit_start 应成功: %+v", startResp.Steps[0])
+	if startResp.Steps[0].Step != "bybit_start" || !startResp.Steps[0].Success || !startResp.Steps[0].Skipped {
+		t.Fatalf("bybit_start 应默认跳过: %+v", startResp.Steps[0])
 	}
 	if startResp.Steps[1].Step != "cross_venue_openings_on" || !startResp.Steps[1].Success {
 		t.Fatalf("openings_on 应成功: %+v", startResp.Steps[1])
@@ -222,13 +222,13 @@ func TestStrategyStartStopOrchestration(t *testing.T) {
 	for _, want := range []string{"funding_start_okx", "funding_start_gate"} {
 		found := false
 		for _, st := range startResp.Steps {
-			if st.Step == want && st.Success {
+			if st.Step == want && st.Success && st.Skipped {
 				found = true
 				break
 			}
 		}
 		if !found {
-			t.Fatalf("缺少成功的 %s 步骤: %+v", want, startResp.Steps)
+			t.Fatalf("缺少默认跳过的 %s 步骤: %+v", want, startResp.Steps)
 		}
 	}
 	var binanceStart *StrategyStepResult
@@ -253,14 +253,19 @@ func TestStrategyStartStopOrchestration(t *testing.T) {
 	if !exec.OpeningsEnabled() {
 		t.Fatal("启动后跨所开仓开关应为 ON")
 	}
-	if !ctrls[bybit.VenueName].Status().Running {
-		t.Fatal("Bybit 控制器应为运行中")
+	if ctrls[bybit.VenueName].Status().Running {
+		t.Fatal("单所退役后 Bybit 控制器不应自动运行")
+	}
+	for _, name := range []string{okx.VenueName, gate.VenueName} {
+		if ctrls[name].Status().Running {
+			t.Fatalf("%s 单所 funding 控制器不应自动运行", name)
+		}
 	}
 
-	// 再次启动应跳过 bybit
+	// 再次启动应仍跳过 bybit
 	startAgain := s.executeStrategyStart(StrategyStartRequest{})
 	if !startAgain.Steps[0].Skipped {
-		t.Fatalf("已运行 Bybit 应 skipped: %+v", startAgain.Steps[0])
+		t.Fatalf("Bybit 单所退役后应 skipped: %+v", startAgain.Steps[0])
 	}
 
 	stopResp := s.executeStrategyStop()
@@ -282,12 +287,8 @@ func TestStrategyStartStopOrchestration(t *testing.T) {
 	if exec.OpeningsEnabled() {
 		t.Fatal("停止后跨所开仓开关应为 OFF")
 	}
-	deadline := time.Now().Add(2 * time.Second)
-	for ctrls[bybit.VenueName].Status().Running && time.Now().Before(deadline) {
-		time.Sleep(50 * time.Millisecond)
-	}
 	if ctrls[bybit.VenueName].Status().Running {
-		t.Fatal("Bybit 停止后不应再 running")
+		t.Fatal("Bybit 停止后不应 running(单所未启动过)")
 	}
 }
 

@@ -39,13 +39,22 @@ type CrossVenueExecutor struct {
 
 	mu                       sync.RWMutex
 	earningsMu               sync.Mutex
+	settlementsMu            sync.Mutex
 	equitySnapMu             sync.Mutex
 	positions                []CrossVenuePosition
 	symbolCooldown           map[string]time.Time
 	deadManUnsupportedVenues map[string]struct{} // venue 适配器声明有 dead-man 但实际 ErrUnsupported 时缓存,避免每分钟重试刷日志
-	nowFn                    func() time.Time
+	// deadManLastArm 记录每所上次成功续期 dead-man 的时刻。dead-man(如 OKX cancel-all-after)是账户级操作
+	// 且限频严格(OKX 1次/2秒),而管理是逐笔持仓循环——多笔含同一所的腿会在同一周期内重复续期触发 429。
+	// 按所节流(每 cd/2 最多一次)即可:一次成功续期已重置整账户倒计时,同周期其余同所腿跳过。
+	deadManLastArm map[string]time.Time
+	// realFundingLogLast 节流管理循环「真实资费拉取失败」日志(每 symbol+venue 一次/30min)。
+	realFundingLogLast map[string]time.Time
+	nowFn              func() time.Time
 	// openingsEnabled 是运行时开仓开关(第三道闸);OFF=跳过 evaluateNewOpens,在场持仓管理/平仓/风控照常。
 	openingsEnabled atomic.Bool
+	// running 标记 Run 主循环是否在跑(healthz 就绪判定用)。
+	running atomic.Bool
 	// recordDir 用于 control.json 持久化(重启维持上次选择)。
 	recordDir string
 	// healthHaltVenue 健康闸当前暂停开仓的 venue(空=正常);用于告警去抖与 API 暴露。
@@ -54,14 +63,63 @@ type CrossVenueExecutor struct {
 
 // CrossVenuePositionsAPIResponse 供面板 API 返回。
 type CrossVenuePositionsAPIResponse struct {
-	Enabled         bool                 `json:"enabled"`
-	Live            bool                 `json:"live"`
-	Mode            string               `json:"mode"`
-	OpeningsEnabled bool                 `json:"openings_enabled"`
-	HealthHaltVenue string               `json:"health_halt_venue"`
-	ActivePositions int                  `json:"active_positions"`
-	Positions       []CrossVenuePosition `json:"positions"`
-	UpdatedAt       time.Time            `json:"updated_at"`
+	Enabled               bool                       `json:"enabled"`
+	Live                  bool                       `json:"live"`
+	Mode                  string                     `json:"mode"`
+	OpeningsEnabled       bool                       `json:"openings_enabled"`
+	HealthHaltVenue       string                     `json:"health_halt_venue"`
+	ActivePositions       int                        `json:"active_positions"`
+	ActivePositionDetails []CrossVenuePositionDetail `json:"active_position_details"`
+	Positions             []CrossVenuePosition       `json:"positions"`
+	UpdatedAt             time.Time                  `json:"updated_at"`
+}
+
+// CrossVenuePositionDetail 面板持仓明细行(由在场持仓派生,含持有时长等展示字段)。
+type CrossVenuePositionDetail struct {
+	Symbol            string    `json:"symbol"`
+	HighVenue         string    `json:"high_venue"`
+	LowVenue          string    `json:"low_venue"`
+	HighLegSide       string    `json:"high_leg_side"`
+	HighLegQty        float64   `json:"high_leg_qty"`
+	HighLegEntryPrice float64   `json:"high_leg_entry_price"`
+	LowLegSide        string    `json:"low_leg_side"`
+	LowLegQty         float64   `json:"low_leg_qty"`
+	LowLegEntryPrice  float64   `json:"low_leg_entry_price"`
+	NotionalUSDT      float64   `json:"notional_usdt"`
+	OpenSpreadAPR     float64   `json:"open_spread_apr"`
+	EstFundingUSDT    float64   `json:"est_funding_usdt"`
+	HoldDurationSec   float64   `json:"hold_duration_seconds"`
+	Status            string    `json:"status"`
+	OpenedAt          time.Time `json:"opened_at"`
+}
+
+func buildCrossVenuePositionDetails(ps []CrossVenuePosition, now time.Time) []CrossVenuePositionDetail {
+	active := activeCrossVenuePositions(ps)
+	out := make([]CrossVenuePositionDetail, 0, len(active))
+	for _, p := range active {
+		holdSec := 0.0
+		if !p.OpenedAt.IsZero() && !now.Before(p.OpenedAt) {
+			holdSec = now.Sub(p.OpenedAt).Seconds()
+		}
+		out = append(out, CrossVenuePositionDetail{
+			Symbol:            p.Symbol,
+			HighVenue:         p.HighVenue,
+			LowVenue:          p.LowVenue,
+			HighLegSide:       p.HighLeg.Side,
+			HighLegQty:        p.HighLeg.Qty,
+			HighLegEntryPrice: p.HighLeg.EntryPrice,
+			LowLegSide:        p.LowLeg.Side,
+			LowLegQty:         p.LowLeg.Qty,
+			LowLegEntryPrice:  p.LowLeg.EntryPrice,
+			NotionalUSDT:      p.NotionalUSDT,
+			OpenSpreadAPR:     p.OpenSpreadAPR,
+			EstFundingUSDT:    p.EstFundingUSDT,
+			HoldDurationSec:   holdSec,
+			Status:            string(p.Status),
+			OpenedAt:          p.OpenedAt,
+		})
+	}
+	return out
 }
 
 // NewCrossVenueExecutor 构造执行引擎。
@@ -88,6 +146,8 @@ func NewCrossVenueExecutor(cfg EngineConfig, orch *Orchestrator, scanner *CrossV
 		haltPaths:                emergencyStopPaths(cfg),
 		symbolCooldown:           make(map[string]time.Time),
 		deadManUnsupportedVenues: make(map[string]struct{}),
+		deadManLastArm:           make(map[string]time.Time),
+		realFundingLogLast:       make(map[string]time.Time),
 		nowFn:                    time.Now,
 	}
 	if ps, lerr := store.load(); lerr == nil {
@@ -132,11 +192,21 @@ func crossVenueExecutorModeLabel(cfg EngineConfig) string {
 	return "影子(shadow,不下单)"
 }
 
+// IsRunning 报告跨所执行器主循环是否在跑(Enabled=false 或未启动时为 false)。
+func (e *CrossVenueExecutor) IsRunning() bool {
+	if e == nil {
+		return false
+	}
+	return e.running.Load()
+}
+
 // Run 启动主循环;ctx 取消即退出。
 func (e *CrossVenueExecutor) Run(ctx context.Context) {
 	if e == nil || !e.cfg.CrossVenueExecutor.Enabled {
 		return
 	}
+	e.running.Store(true)
+	defer e.running.Store(false)
 	interval := time.Duration(e.cfg.CrossVenueExecutor.LoopIntervalSeconds) * time.Second
 	if interval <= 0 {
 		interval = 60 * time.Second
@@ -461,8 +531,9 @@ func (e *CrossVenueExecutor) reconcileOnStart(ctx context.Context) {
 		switch {
 		case !hOpen && !lOpen:
 			e.logger.Printf("[跨所执行] reconcile:%s 两所均无持仓,orphan 清除台账", p.Symbol)
-			p.Status = CrossVenueStatusOrphanSingleLeg
-			_ = e.store.remove(p.Symbol)
+			p.Status = CrossVenueStatusClosed
+			p.CloseReason = "reconcile_orphan"
+			e.finalizeClosedCrossVenuePosition(p)
 			e.notifyWarn("跨所 orphan", fmt.Sprintf("%s 台账有但两所均无持仓", p.Symbol), p.Symbol)
 		case hOpen != lOpen:
 			p.Status = CrossVenueStatusOrphanSingleLeg
@@ -543,14 +614,15 @@ func (e *CrossVenueExecutor) PositionsSnapshot() CrossVenuePositionsAPIResponse 
 		ps = e.snapshotPositions()
 	}
 	return CrossVenuePositionsAPIResponse{
-		Enabled:         e.cfg.CrossVenueExecutor.Enabled,
-		Live:            e.cfg.CrossVenueExecutor.LiveTradingEnabled,
-		Mode:            crossVenueExecutorModeLabel(e.cfg),
-		OpeningsEnabled: e.OpeningsEnabled(),
-		HealthHaltVenue: e.healthHaltVenueSnapshot(),
-		ActivePositions: len(activeCrossVenuePositions(ps)),
-		Positions:       ps,
-		UpdatedAt:       e.nowFn(),
+		Enabled:               e.cfg.CrossVenueExecutor.Enabled,
+		Live:                  e.cfg.CrossVenueExecutor.LiveTradingEnabled,
+		Mode:                  crossVenueExecutorModeLabel(e.cfg),
+		OpeningsEnabled:       e.OpeningsEnabled(),
+		HealthHaltVenue:       e.healthHaltVenueSnapshot(),
+		ActivePositions:       len(activeCrossVenuePositions(ps)),
+		ActivePositionDetails: buildCrossVenuePositionDetails(ps, e.nowFn()),
+		Positions:             ps,
+		UpdatedAt:             e.nowFn(),
 	}
 }
 

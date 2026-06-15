@@ -12,13 +12,11 @@ import (
 	"fmt"
 	"html/template"
 	"log"
-	"math"
 	"net"
 	"net/http"
 	"os"
 	"path"
 	"path/filepath"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -128,6 +126,7 @@ func (s *DashboardServer) Start(ctx context.Context) error {
 	mux.HandleFunc("/api/venues", s.authorizeReadAPI(s.handleVenuesAPI))
 	mux.HandleFunc("/api/cross-venue/funding", s.authorizeReadAPI(s.handleCrossVenueFundingAPI))
 	mux.HandleFunc("/api/cross-venue/positions", s.authorizeReadAPI(s.handleCrossVenuePositionsAPI))
+	mux.HandleFunc("/api/cross-venue/settlements", s.authorizeReadAPI(s.handleCrossVenueSettlementsAPI))
 	mux.HandleFunc("/api/crossvenue/openings", s.handleCrossVenueOpeningsAPI)
 	mux.HandleFunc("/api/earnings", s.authorizeReadAPI(s.handleEarningsAPI))
 	mux.HandleFunc("/api/earnings/clear", s.handleEarningsClearAPI)
@@ -1009,6 +1008,25 @@ func (s *DashboardServer) handleCrossVenuePositionsAPI(w http.ResponseWriter, r 
 	writeJSON(w, s.crossVenueExecutor.PositionsSnapshot())
 }
 
+// handleCrossVenueSettlementsAPI 返回跨所 perp-perp 单仓净利润归因结算记录 + 汇总。
+func (s *DashboardServer) handleCrossVenueSettlementsAPI(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if s.crossVenueExecutor == nil {
+		writeJSON(w, map[string]any{"enabled": false, "message": "跨所执行引擎未启用"})
+		return
+	}
+	limit := parseLimit(r, 100)
+	resp, err := s.crossVenueExecutor.SettlementsSnapshot(limit)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, resp)
+}
+
 // handleCrossVenueOpeningsAPI 切换跨所运行时开仓开关(第三道闸)。
 func (s *DashboardServer) handleCrossVenueOpeningsAPI(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -1037,67 +1055,41 @@ func (s *DashboardServer) handleCrossVenueOpeningsAPI(w http.ResponseWriter, r *
 	writeJSON(w, map[string]any{"ok": true, "openings_enabled": req.Enabled})
 }
 
-type venueEarning struct {
-	Venue          string  `json:"venue"`
-	UsdtTotal      float64 `json:"usdt_total"`
-	CurrentEquity  float64 `json:"current_equity_usdt"`
-	BaselineEquity float64 `json:"baseline_equity_usdt"`
-}
-
 func (s *DashboardServer) handleEarningsAPI(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 	now := time.Now().UTC()
-	windowStart := now.Add(-24 * time.Hour)
 
 	if s.crossVenueExecutor == nil {
 		writeJSON(w, map[string]any{
-			"basis":        "real_usdt_balance",
-			"window_hours": 0.0,
-			"generated_at": now.Format(time.RFC3339),
-			"total_usdt":   0.0,
-			"venues":       []venueEarning{},
-			"note":         "跨所执行引擎未启用,无权益快照",
+			"basis":         "settlements_net_pnl",
+			"window":        "beijing_cst_day",
+			"day_start_cst": beijingCSTDayStart(now).Format(time.RFC3339),
+			"generated_at":  now.Format(time.RFC3339),
+			"total_usdt":    0.0,
+			"trade_count":   0,
+			"by_symbol":     map[string]float64{},
+			"note":          "跨所执行引擎未启用,无结算记录",
 		})
 		return
 	}
 
-	deltas, currents, baselines, earliest := s.crossVenueExecutor.equityEarnings(windowStart)
-
-	var total float64
-	venues := make([]venueEarning, 0, len(currents))
-	for venueName := range currents {
-		delta := deltas[venueName]
-		current := currents[venueName]
-		baseline := baselines[venueName]
-		total += delta
-		venues = append(venues, venueEarning{
-			Venue:          venueName,
-			UsdtTotal:      delta,
-			CurrentEquity:  current,
-			BaselineEquity: baseline,
-		})
-	}
-	sort.Slice(venues, func(i, j int) bool {
-		return venues[i].Venue < venues[j].Venue
-	})
-
-	windowHours := 0.0
-	if !earliest.IsZero() {
-		windowHours = math.Min(24, now.Sub(earliest).Hours())
-		if windowHours < 0 {
-			windowHours = 0
-		}
+	earnings, err := s.crossVenueExecutor.TodayCSTEarnings(now)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	writeJSON(w, map[string]any{
-		"basis":        "real_usdt_balance",
-		"window_hours": windowHours,
-		"generated_at": now.Format(time.RFC3339),
-		"total_usdt":   total,
-		"venues":       venues,
+		"basis":         "settlements_net_pnl",
+		"window":        "beijing_cst_day",
+		"day_start_cst": earnings.DayStartCST.Format(time.RFC3339),
+		"generated_at":  earnings.GeneratedAt.Format(time.RFC3339),
+		"total_usdt":    earnings.TotalNetPnL,
+		"trade_count":   earnings.TradeCount,
+		"by_symbol":     earnings.BySymbol,
 	})
 }
 

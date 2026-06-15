@@ -294,6 +294,7 @@ func DefaultEngineConfig() EngineConfig {
 			MaxConcurrent:                2,
 			MaxPositionUSDT:              50,
 			MaxBookSpreadBps:             30,
+			MaxOpenSlippageBps:           15,
 			SlippageBudgetBps:            20,
 			TakerSlippageBudgetBps:       40,
 			MaxNakedSeconds:              30,
@@ -314,6 +315,10 @@ func DefaultEngineConfig() EngineConfig {
 			EVSafetyFactor:               1.3,
 			CloseHardNegativeSpreadAPR:   -0.5,
 			RealizedFundingPollMinutes:   5,
+			MakerFirst:                   true,
+			MakerChaseRounds:             6,
+			MakerChaseIntervalMs:         1500,
+			MakerDeadlineSeconds:         12,
 		},
 		FundingExecutor: VenueFundingExecutorConfig{
 			LiveTradingEnabled:     false,

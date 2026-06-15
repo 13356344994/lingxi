@@ -65,7 +65,7 @@ func (e *CrossVenueExecutor) manageCrossVenuePosition(ctx context.Context, pos C
 	if !highOpen && !lowOpen {
 		pos.Status = CrossVenueStatusClosed
 		pos.UpdatedAt = e.nowFn()
-		_ = e.removeCrossVenuePosition(pos.Symbol)
+		e.finalizeClosedCrossVenuePosition(pos)
 		return pos, true
 	}
 
@@ -118,13 +118,18 @@ func (e *CrossVenueExecutor) handleOrphanLeg(ctx context.Context, pos CrossVenue
 	pos.UpdatedAt = e.nowFn()
 	_ = e.persistPosition(pos)
 	sym := venue.Symbol(pos.Symbol)
+	orphDeadline := crossVenueCloseLegDeadline(e.nowFn(), e.cfg.CrossVenueExecutor)
+	takerBps := crossVenueTakerSlippageBps(e.cfg.CrossVenueExecutor)
 	if highOpen && !lowOpen {
 		tr, _ := e.venues[pos.HighVenue].(crossVenueTrader)
 		if tr != nil {
 			qty := absQty(highAmt)
 			book, _ := tr.FetchBookTicker(ctx, venue.MarketPerp, sym)
 			if live {
-				_, _ = e.placeCrossVenueIOC(ctx, tr, sym, venue.SideBuy, qty, iocLimitPrice(venue.SideBuy, book, e.cfg.CrossVenueExecutor.SlippageBudgetBps), crossVenueLegClientID(pos.IdemPrefix, "oh"), true, live)
+				if res, _ := e.placeCrossVenueLegExec(ctx, tr, sym, venue.SideBuy, qty, crossVenueLegClientID(pos.IdemPrefix, "oh"), true, live, true, takerBps, orphDeadline); res.ExecutedQty > executionQtyTolerance {
+					e.recordCrossVenueExecution(&pos, cvExecOrphanCloseHigh, res, crossVenueBookMid(book))
+					_ = e.persistPosition(pos)
+				}
 			}
 		}
 	} else if lowOpen && !highOpen {
@@ -133,7 +138,10 @@ func (e *CrossVenueExecutor) handleOrphanLeg(ctx context.Context, pos CrossVenue
 			qty := absQty(lowAmt)
 			book, _ := tr.FetchBookTicker(ctx, venue.MarketPerp, sym)
 			if live {
-				_, _ = e.placeCrossVenueIOC(ctx, tr, sym, venue.SideSell, qty, iocLimitPrice(venue.SideSell, book, e.cfg.CrossVenueExecutor.SlippageBudgetBps), crossVenueLegClientID(pos.IdemPrefix, "ol"), true, live)
+				if res, _ := e.placeCrossVenueLegExec(ctx, tr, sym, venue.SideSell, qty, crossVenueLegClientID(pos.IdemPrefix, "ol"), true, live, true, takerBps, orphDeadline); res.ExecutedQty > executionQtyTolerance {
+					e.recordCrossVenueExecution(&pos, cvExecOrphanCloseLow, res, crossVenueBookMid(book))
+					_ = e.persistPosition(pos)
+				}
 			}
 		}
 	}
@@ -148,12 +156,16 @@ func (e *CrossVenueExecutor) rebalanceHedge(ctx context.Context, pos CrossVenueP
 		return
 	}
 	// 选风险小的方向:减大腿
+	rebalDeadline := crossVenueCloseLegDeadline(e.nowFn(), e.cfg.CrossVenueExecutor)
+	takerBps := crossVenueTakerSlippageBps(e.cfg.CrossVenueExecutor)
 	if hAbs > lAbs {
 		delta := hAbs - lAbs
 		tr, _ := e.venues[pos.HighVenue].(crossVenueTrader)
 		if tr != nil && live {
 			book, _ := tr.FetchBookTicker(ctx, venue.MarketPerp, sym)
-			_, _ = e.placeCrossVenueIOC(ctx, tr, sym, venue.SideBuy, delta, iocLimitPrice(venue.SideBuy, book, e.cfg.CrossVenueExecutor.SlippageBudgetBps), crossVenueLegClientID(pos.IdemPrefix, "bh"), true, live)
+			if res, _ := e.placeCrossVenueLegExec(ctx, tr, sym, venue.SideBuy, delta, crossVenueLegClientID(pos.IdemPrefix, "bh"), true, live, true, takerBps, rebalDeadline); res.ExecutedQty > executionQtyTolerance {
+				e.recordCrossVenueExecution(&pos, cvExecRebalanceHigh, res, crossVenueBookMid(book))
+			}
 		}
 		pos.HighLeg.Qty = lAbs
 	} else {
@@ -161,7 +173,9 @@ func (e *CrossVenueExecutor) rebalanceHedge(ctx context.Context, pos CrossVenueP
 		tr, _ := e.venues[pos.LowVenue].(crossVenueTrader)
 		if tr != nil && live {
 			book, _ := tr.FetchBookTicker(ctx, venue.MarketPerp, sym)
-			_, _ = e.placeCrossVenueIOC(ctx, tr, sym, venue.SideSell, delta, iocLimitPrice(venue.SideSell, book, e.cfg.CrossVenueExecutor.SlippageBudgetBps), crossVenueLegClientID(pos.IdemPrefix, "bl"), true, live)
+			if res, _ := e.placeCrossVenueLegExec(ctx, tr, sym, venue.SideSell, delta, crossVenueLegClientID(pos.IdemPrefix, "bl"), true, live, true, takerBps, rebalDeadline); res.ExecutedQty > executionQtyTolerance {
+				e.recordCrossVenueExecution(&pos, cvExecRebalanceLow, res, crossVenueBookMid(book))
+			}
 		}
 		pos.LowLeg.Qty = hAbs
 	}
@@ -281,9 +295,7 @@ func (e *CrossVenueExecutor) fetchLegRealizedFunding(ctx context.Context, symbol
 	}
 	incomes, err := v.FetchRealizedFunding(ctx, sym, since)
 	if err != nil {
-		if e.logger != nil {
-			e.logger.Printf("[跨所] %s venue=%s 真实资费拉取失败(保留上次值): %v", symbol, venueName, err)
-		}
+		e.logRealFundingFetchFailed(symbol, venueName, err)
 		return 0, false
 	}
 	total := 0.0
@@ -291,6 +303,28 @@ func (e *CrossVenueExecutor) fetchLegRealizedFunding(ctx context.Context, symbol
 		total += in.Income
 	}
 	return total, true
+}
+
+const crossVenueRealFundingLogThrottle = 30 * time.Minute
+
+func (e *CrossVenueExecutor) logRealFundingFetchFailed(symbol, venueName string, err error) {
+	if e.logger == nil {
+		return
+	}
+	key := symbol + "|" + venueName
+	now := e.nowFn()
+	e.mu.Lock()
+	if e.realFundingLogLast == nil {
+		e.realFundingLogLast = make(map[string]time.Time)
+	}
+	last := e.realFundingLogLast[key]
+	if !last.IsZero() && now.Sub(last) < crossVenueRealFundingLogThrottle {
+		e.mu.Unlock()
+		return
+	}
+	e.realFundingLogLast[key] = now
+	e.mu.Unlock()
+	e.logger.Printf("[跨所] %s venue=%s 真实资费拉取失败(保留上次值): %v", symbol, venueName, err)
 }
 
 // crossVenueNetRealizedFundingUSDT 返回两腿真实已结算资费净值(不含轮间估算)。
@@ -445,6 +479,10 @@ func (e *CrossVenueExecutor) armDeadMansForLegs(ctx context.Context, pos CrossVe
 	if cd <= 0 {
 		cd = 60 * time.Second
 	}
+	now := time.Now()
+	if e.nowFn != nil {
+		now = e.nowFn()
+	}
 	for _, name := range []string{pos.HighVenue, pos.LowVenue} {
 		v := e.venues[name]
 		if v == nil || !v.Capabilities().HasNativeDeadMan {
@@ -452,8 +490,14 @@ func (e *CrossVenueExecutor) armDeadMansForLegs(ctx context.Context, pos CrossVe
 		}
 		e.mu.RLock()
 		_, skip := e.deadManUnsupportedVenues[name]
+		lastArm := e.deadManLastArm[name]
 		e.mu.RUnlock()
 		if skip {
+			continue
+		}
+		// 按所节流:一次成功续期已重置整账户倒计时(cd),同周期其余同所腿无需重复(否则撞 OKX 1次/2秒限频)。
+		// 阈值取 cd/2,保证每个管理周期(≈cd)仍会续期一次、不让倒计时逼近到期。
+		if !lastArm.IsZero() && now.Sub(lastArm) < cd/2 {
 			continue
 		}
 		if err := v.ArmDeadMansSwitch(ctx, cd); err != nil {
@@ -464,6 +508,13 @@ func (e *CrossVenueExecutor) armDeadMansForLegs(ctx context.Context, pos CrossVe
 				continue
 			}
 			e.logger.Printf("[跨所] dead-man 续期失败 venue=%s: %v", name, err)
+			continue
 		}
+		e.mu.Lock()
+		if e.deadManLastArm == nil {
+			e.deadManLastArm = make(map[string]time.Time)
+		}
+		e.deadManLastArm[name] = now
+		e.mu.Unlock()
 	}
 }
