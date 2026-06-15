@@ -19,6 +19,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -48,6 +49,9 @@ type DashboardServer struct {
 	crossVenueScanner *CrossVenueScanner
 	// crossVenueExecutor 是 P1 跨所 perp-perp 对冲执行引擎;nil=未启用。
 	crossVenueExecutor *CrossVenueExecutor
+	// venueEquityCache 缓存各所总权益拉取结果,避免面板 5s 轮询触发交易所限频。
+	venueEquityCacheMu sync.Mutex
+	venueEquityCache   map[string]venueEquityCacheEntry
 }
 
 // SetTokenMirrorDir 设置控制令牌的固定镜像目录(启动前调用)。

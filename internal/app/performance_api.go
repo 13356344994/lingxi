@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strings"
@@ -111,6 +112,7 @@ type VenuesResponse struct {
 // VenueFinancialSnapshot 单所资金快照(实时)与今日收益(北京时间自然日,跨所结算按腿归因)。
 type VenueFinancialSnapshot struct {
 	CapitalUSDT      float64 `json:"capital_usdt"`
+	EquityUSDT       float64 `json:"equity_usdt"`
 	TodayEarningUSDT float64 `json:"today_earning_usdt"`
 	CapitalError     string  `json:"capital_error,omitempty"`
 }
@@ -118,14 +120,16 @@ type VenueFinancialSnapshot struct {
 // VenuesFinancialTotal 全部注册所的资金与今日收益合计。
 type VenuesFinancialTotal struct {
 	CapitalUSDT      float64 `json:"capital_usdt"`
+	EquityUSDT       float64 `json:"equity_usdt"`
 	TodayEarningUSDT float64 `json:"today_earning_usdt"`
 }
 
-// buildVenuesFinancialSnapshot 聚合各所可调 USDT 余额(实时快照)与跨所结算今日按腿归因收益。
+// buildVenuesFinancialSnapshot 聚合各所可调 USDT 余额(实时快照)、总权益(余额+浮盈亏)与跨所结算今日按腿归因收益。
 func (s *DashboardServer) buildVenuesFinancialSnapshot(now time.Time) (map[string]VenueFinancialSnapshot, VenuesFinancialTotal, time.Time) {
 	dayStart := beijingCSTDayStart(now)
 	byVenue := make(map[string]VenueFinancialSnapshot)
 	total := VenuesFinancialTotal{}
+	ctx := context.Background()
 
 	var venueEarnings map[string]float64
 	if s != nil && s.crossVenueExecutor != nil {
@@ -150,6 +154,16 @@ func (s *DashboardServer) buildVenuesFinancialSnapshot(now time.Time) (map[strin
 				}
 			} else {
 				entry.CapitalError = fmt.Sprintf("venue %q 控制器未就绪", rt.name)
+			}
+			if eq, err := s.fetchVenueEquityUSDT(ctx, rt); err != nil {
+				if entry.CapitalError != "" {
+					entry.CapitalError += "; " + err.Error()
+				} else {
+					entry.CapitalError = err.Error()
+				}
+			} else {
+				entry.EquityUSDT = eq
+				total.EquityUSDT = money.SumUSDT(total.EquityUSDT, eq)
 			}
 			if venueEarnings != nil {
 				entry.TodayEarningUSDT = venueEarnings[rt.name]

@@ -354,7 +354,7 @@
           <strong style="color:#e5edff;font-size:15px;">今日收益(北京时间)</strong>
           <button id="earnings-clear-btn" type="button" class="danger" style="font-size:12px;">清除权益快照(24h外)</button>
         </div>
-        <div class="hint" id="earnings-note" style="margin:0 0 10px;">含义:跨所平仓已实现净利(net_pnl),按 close_time 落在<strong>当日北京时间 00:00 至此刻</strong>累加;各所数字为跨所结算按 high/low 腿归因(手续费/TradePnL/回滚/再平衡均摊到两腿)。资金为各所实时可调 USDT 快照。仅统计已平仓结算,不含在场浮动。</div>
+        <div class="hint" id="earnings-note" style="margin:0 0 10px;">含义:跨所平仓已实现净利(net_pnl),按 close_time 落在<strong>当日北京时间 00:00 至此刻</strong>累加;各所数字为跨所结算按 high/low 腿归因(手续费/TradePnL/回滚/再平衡均摊到两腿)。<strong>可动用资金</strong>为各所实时空闲 USDT 快照;<strong>全部资金(总权益)</strong>含占用保证金与非 USDT 资产折算及持仓浮盈亏。仅统计已平仓结算,不含在场浮动。</div>
         <div id="earnings-grid" style="display:flex;flex-wrap:wrap;gap:10px;"></div>
       </div>
       <div class="risk-actions" style="margin:8px 0;">
@@ -2164,17 +2164,20 @@
       const totalBlock = data.total && typeof data.total === "object" ? data.total : {};
       const totalEarn = totalBlock.today_earning_usdt != null ? totalBlock.today_earning_usdt : data.total_usdt;
       const totalCap = totalBlock.capital_usdt;
+      const totalEq = totalBlock.equity_usdt;
       const byVenue = data.by_venue && typeof data.by_venue === "object" ? data.by_venue : {};
       const venueNames = Object.keys(byVenue).sort();
       const venueCards = venueNames.map((v) => {
         const row = byVenue[v] || {};
         const earn = row.today_earning_usdt;
         const cap = row.capital_usdt;
+        const eq = row.equity_usdt;
         const capErr = row.capital_error ? `<div style="font-size:11px;color:#fca5a5;margin-top:2px;">${escapeHTML(row.capital_error)}</div>` : "";
         return `
         <div style="flex:1 1 170px;min-width:170px;background:#0b1424;border:1px solid #1e293b;border-radius:8px;padding:10px;">
           <div style="font-size:12px;color:#8aa0c6;margin-bottom:4px;">${escapeHTML(v)}</div>
-          <div style="font-size:12px;color:#94a3b8;margin-bottom:2px;">资金 ${fmtCap(cap)} U</div>
+          <div style="font-size:12px;color:#94a3b8;margin-bottom:2px;">可动用 ${fmtCap(cap)} U</div>
+          <div style="font-size:12px;color:#94a3b8;margin-bottom:2px;">全部资金(总权益) ${fmtCap(eq)} U</div>
           <div style="font-size:18px;font-weight:600;color:${color(earn)};">今日 ${fmt(earn)} U</div>
           ${capErr}
         </div>`;
@@ -2182,7 +2185,8 @@
       let cards = `
         <div style="flex:1 1 240px;min-width:240px;background:#13203a;border:1px solid #2b3c5c;border-radius:8px;padding:10px;">
           <div style="font-size:12px;color:#cbd5e1;margin-bottom:4px;">合计(全部交易所)</div>
-          <div style="font-size:12px;color:#94a3b8;margin-bottom:2px;">总资金 ${fmtCap(totalCap)} U</div>
+          <div style="font-size:12px;color:#94a3b8;margin-bottom:2px;">可动用 ${fmtCap(totalCap)} U</div>
+          <div style="font-size:12px;color:#94a3b8;margin-bottom:2px;">全部资金(总权益) ${fmtCap(totalEq)} U</div>
           <div style="font-size:22px;font-weight:700;color:${color(totalEarn)};">今日 ${fmt(totalEarn)} U</div>
           <div style="font-size:12px;color:#94a3b8;margin-top:4px;">平仓笔数 ${tradeCount}</div>
           <div style="font-size:11px;color:#64748b;margin-top:2px;">日界起 ${escapeHTML(dayStart)}</div>
@@ -2202,12 +2206,13 @@
         const row = (byVenue && byVenue[v]) ? byVenue[v] : {};
         const earn = row.today_earning_usdt;
         const cap = row.capital_usdt;
+        const eq = row.equity_usdt;
         const err = row.capital_error ? ` · ${row.capital_error}` : "";
-        el.textContent = `资金 ${fmtCap(cap)} U · 今日(北京) ${fmt(earn)} U${err}`;
+        el.textContent = `可动用 ${fmtCap(cap)} U · 全部资金(总权益) ${fmtCap(eq)} U · 今日(北京) ${fmt(earn)} U${err}`;
       });
       const totalEl = document.getElementById("vfin-total");
       if (totalEl && totalBlock) {
-        totalEl.textContent = `总资金 ${fmtCap(totalBlock.capital_usdt)} U · 今日(北京) ${fmt(totalBlock.today_earning_usdt)} U`;
+        totalEl.textContent = `可动用 ${fmtCap(totalBlock.capital_usdt)} U · 全部资金(总权益) ${fmtCap(totalBlock.equity_usdt)} U · 今日(北京) ${fmt(totalBlock.today_earning_usdt)} U`;
       }
     }
     async function clearEarnings() {
