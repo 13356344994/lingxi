@@ -1061,16 +1061,19 @@ func (s *DashboardServer) handleEarningsAPI(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	now := time.Now().UTC()
+	byVenue, total, dayStart := s.buildVenuesFinancialSnapshot(now)
 
 	if s.crossVenueExecutor == nil {
 		writeJSON(w, map[string]any{
 			"basis":         "settlements_net_pnl",
 			"window":        "beijing_cst_day",
-			"day_start_cst": beijingCSTDayStart(now).Format(time.RFC3339),
+			"day_start_cst": dayStart.Format(time.RFC3339),
 			"generated_at":  now.Format(time.RFC3339),
-			"total_usdt":    0.0,
+			"total_usdt":    total.TodayEarningUSDT,
 			"trade_count":   0,
 			"by_symbol":     map[string]float64{},
+			"by_venue":      byVenue,
+			"total":         total,
 			"note":          "跨所执行引擎未启用,无结算记录",
 		})
 		return
@@ -1090,6 +1093,8 @@ func (s *DashboardServer) handleEarningsAPI(w http.ResponseWriter, r *http.Reque
 		"total_usdt":    earnings.TotalNetPnL,
 		"trade_count":   earnings.TradeCount,
 		"by_symbol":     earnings.BySymbol,
+		"by_venue":      byVenue,
+		"total":         total,
 	})
 }
 

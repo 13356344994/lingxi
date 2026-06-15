@@ -1,11 +1,13 @@
 package app
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
 
 	"lingxi/internal/metrics"
+	"lingxi/internal/money"
 )
 
 // performance_api.go 落地 §9 绩效指标的读 API(P3f.3)。数据管道:读该所(或 venue=all 组合)的 settlements,
@@ -99,8 +101,63 @@ func computePerformanceForTargets(targets []*venueRuntime, benchmark []float64) 
 
 // VenuesResponse 列出已注册的所与缺省所,供面板渲染 venue 选择器/Tab。
 type VenuesResponse struct {
-	Venues  []string `json:"venues"`
-	Primary string   `json:"primary"`
+	Venues      []string                          `json:"venues"`
+	Primary     string                            `json:"primary"`
+	ByVenue     map[string]VenueFinancialSnapshot `json:"by_venue,omitempty"`
+	Total       VenuesFinancialTotal              `json:"total,omitempty"`
+	DayStartCST string                            `json:"day_start_cst,omitempty"`
+}
+
+// VenueFinancialSnapshot 单所资金快照(实时)与今日收益(北京时间自然日,跨所结算按腿归因)。
+type VenueFinancialSnapshot struct {
+	CapitalUSDT      float64 `json:"capital_usdt"`
+	TodayEarningUSDT float64 `json:"today_earning_usdt"`
+	CapitalError     string  `json:"capital_error,omitempty"`
+}
+
+// VenuesFinancialTotal 全部注册所的资金与今日收益合计。
+type VenuesFinancialTotal struct {
+	CapitalUSDT      float64 `json:"capital_usdt"`
+	TodayEarningUSDT float64 `json:"today_earning_usdt"`
+}
+
+// buildVenuesFinancialSnapshot 聚合各所可调 USDT 余额(实时快照)与跨所结算今日按腿归因收益。
+func (s *DashboardServer) buildVenuesFinancialSnapshot(now time.Time) (map[string]VenueFinancialSnapshot, VenuesFinancialTotal, time.Time) {
+	dayStart := beijingCSTDayStart(now)
+	byVenue := make(map[string]VenueFinancialSnapshot)
+	total := VenuesFinancialTotal{}
+
+	var venueEarnings map[string]float64
+	if s != nil && s.crossVenueExecutor != nil {
+		if earnings, err := s.crossVenueExecutor.TodayCSTEarningsByVenue(now); err == nil {
+			venueEarnings = earnings.ByVenue
+			total.TodayEarningUSDT = earnings.TotalNetPnL
+		}
+	}
+
+	if s != nil && s.orchestrator != nil {
+		for _, rt := range s.orchestrator.All() {
+			if rt == nil || rt.name == "" {
+				continue
+			}
+			entry := VenueFinancialSnapshot{}
+			if rt.controller != nil {
+				if snap, err := rt.controller.CurrentCapitalSnapshot(); err != nil {
+					entry.CapitalError = err.Error()
+				} else {
+					entry.CapitalUSDT = snap.TotalMovableUSDT
+					total.CapitalUSDT = money.SumUSDT(total.CapitalUSDT, entry.CapitalUSDT)
+				}
+			} else {
+				entry.CapitalError = fmt.Sprintf("venue %q 控制器未就绪", rt.name)
+			}
+			if venueEarnings != nil {
+				entry.TodayEarningUSDT = venueEarnings[rt.name]
+			}
+			byVenue[rt.name] = entry
+		}
+	}
+	return byVenue, total, dayStart
 }
 
 // handleVenuesAPI 返回编排器已注册的 venue 列表(注册序)与缺省所,供前端构建 venue 选择器。
@@ -115,6 +172,13 @@ func (s *DashboardServer) handleVenuesAPI(w http.ResponseWriter, _ *http.Request
 		if primary := s.orchestrator.Primary(); primary != nil {
 			resp.Primary = primary.name
 		}
+	}
+	now := time.Now().UTC()
+	byVenue, total, dayStart := s.buildVenuesFinancialSnapshot(now)
+	if len(byVenue) > 0 {
+		resp.ByVenue = byVenue
+		resp.Total = total
+		resp.DayStartCST = dayStart.Format(time.RFC3339)
 	}
 	writeJSON(w, resp)
 }

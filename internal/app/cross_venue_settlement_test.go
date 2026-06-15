@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"lingxi/internal/money"
 	"lingxi/internal/venue"
 )
 
@@ -46,6 +47,76 @@ func TestAggregateCrossVenueSettlementsCSTDayBoundary(t *testing.T) {
 	}
 	if _, ok := sum.BySymbol["A-USDT"]; ok {
 		t.Fatalf("yesterday record must be excluded")
+	}
+}
+
+func TestAggregateCrossVenueSettlementsByVenueInRange(t *testing.T) {
+	now := time.Date(2026, 6, 15, 2, 30, 0, 0, time.UTC)
+	dayStart := beijingCSTDayStart(now)
+
+	records := []CrossVenueSettlement{
+		// 昨日 → 不计
+		{
+			Symbol: "OLD-USDT", HighVenue: "binance", LowVenue: "gate",
+			CloseTime: dayStart.Add(-time.Minute), NetPnL: 99,
+			HighLegFunding: 1, LowLegFunding: 1, TotalFees: 0.1,
+		},
+		// 今日 binance/gate: net = funding(2+3) + trade(1) - fees(0.4) - rollback(0.2) - rebalance(0.4) = 5.0
+		{
+			Symbol: "BTC-USDT", HighVenue: "binance", LowVenue: "gate",
+			CloseTime: dayStart.Add(30 * time.Minute),
+			HighLegFunding: 2, LowLegFunding: 3, TradePnL: 1,
+			TotalFees: 0.4, RollbackCost: 0.2, RebalanceCost: 0.4, NetPnL: 5.0,
+		},
+		// 今日 okx/bybit: net = 0.5 + (-0.1) + 0 - 0.2 = 0.2
+		{
+			Symbol: "ETH-USDT", HighVenue: "okx", LowVenue: "bybit",
+			CloseTime: dayStart.Add(2 * time.Hour),
+			HighLegFunding: 0.5, LowLegFunding: -0.1, TotalFees: 0.2, NetPnL: 0.2,
+		},
+		// 未来 → 不计
+		{
+			Symbol: "FUT-USDT", HighVenue: "binance", LowVenue: "gate",
+			CloseTime: now.Add(time.Hour), NetPnL: 50,
+		},
+	}
+
+	sum := aggregateCrossVenueSettlementsByVenueInRange(records, dayStart, now)
+	if sum.TradeCount != 2 {
+		t.Fatalf("trade_count=%d want 2", sum.TradeCount)
+	}
+	wantTotal := 5.2
+	if math.Abs(sum.TotalNetPnL-wantTotal) > 1e-9 {
+		t.Fatalf("total_net_pnl=%v want %v", sum.TotalNetPnL, wantTotal)
+	}
+
+	// binance high leg: 2 + (1 - 0.4 - 0.2 - 0.4)/2 = 2 + 0 = 2.0
+	wantBinance := 2.0
+	if math.Abs(sum.ByVenue["binance"]-wantBinance) > 1e-9 {
+		t.Fatalf("binance=%v want %v", sum.ByVenue["binance"], wantBinance)
+	}
+	// gate low leg: 3 + 0 = 3.0
+	wantGate := 3.0
+	if math.Abs(sum.ByVenue["gate"]-wantGate) > 1e-9 {
+		t.Fatalf("gate=%v want %v", sum.ByVenue["gate"], wantGate)
+	}
+	// okx: 0.5 + (0 - 0.2)/2 = 0.4
+	wantOKX := 0.4
+	if math.Abs(sum.ByVenue["okx"]-wantOKX) > 1e-9 {
+		t.Fatalf("okx=%v want %v", sum.ByVenue["okx"], wantOKX)
+	}
+	// bybit: -0.1 + (-0.1) = -0.2
+	wantBybit := -0.2
+	if math.Abs(sum.ByVenue["bybit"]-wantBybit) > 1e-9 {
+		t.Fatalf("bybit=%v want %v", sum.ByVenue["bybit"], wantBybit)
+	}
+
+	venueSum := 0.0
+	for _, v := range sum.ByVenue {
+		venueSum = money.SumUSDT(venueSum, v)
+	}
+	if math.Abs(venueSum-wantTotal) > 1e-9 {
+		t.Fatalf("by_venue sum=%v want total=%v (attribution must conserve net_pnl)", venueSum, wantTotal)
 	}
 }
 

@@ -32,6 +32,15 @@ type CrossVenueCSTDayEarnings struct {
 	BySymbol    map[string]float64 `json:"by_symbol_net_pnl"`
 }
 
+// CrossVenueCSTDayVenueEarnings 北京时间自然日按交易所(跨所结算腿)归因的已实现净利。
+type CrossVenueCSTDayVenueEarnings struct {
+	DayStartCST time.Time          `json:"day_start_cst"`
+	GeneratedAt time.Time          `json:"generated_at"`
+	TotalNetPnL float64            `json:"total_net_pnl"`
+	TradeCount  int                `json:"trade_count"`
+	ByVenue     map[string]float64 `json:"by_venue_net_pnl"`
+}
+
 // CrossVenueSettlement 跨所 perp-perp 单仓净利润归因结算记录(平仓时写入 settlements.jsonl)。
 type CrossVenueSettlement struct {
 	OpenTime        time.Time `json:"open_time"`
@@ -178,6 +187,45 @@ func (e *CrossVenueExecutor) finalizeClosedCrossVenuePosition(pos CrossVenuePosi
 	_ = e.removeCrossVenuePosition(pos.Symbol)
 }
 
+// attributeCrossVenueSettlementToVenues 把单笔跨所结算按 high/low 腿归因到交易所。
+//
+// 口径(与 net_pnl 严格守恒,Σ两腿 = net_pnl):
+//   - 各腿先取 leg_funding;
+//   - total_fees / rollback_cost / rebalance_cost / trade_pnl 在结算记录中无法逐腿拆账,均摊到两腿;
+//   - 即 high = high_leg_funding + trade_pnl/2 − fees/2 − rollback/2 − rebalance/2, low 对称。
+func attributeCrossVenueSettlementToVenues(rec CrossVenueSettlement) (highVenue, lowVenue string, highPnL, lowPnL float64) {
+	highVenue = rec.HighVenue
+	lowVenue = rec.LowVenue
+	half := 0.5
+	shared := money.SumUSDT(rec.TradePnL*half, -rec.TotalFees*half, -rec.RollbackCost*half, -rec.RebalanceCost*half)
+	highPnL = money.SumUSDT(rec.HighLegFunding, shared)
+	lowPnL = money.SumUSDT(rec.LowLegFunding, shared)
+	return highVenue, lowVenue, highPnL, lowPnL
+}
+
+func aggregateCrossVenueSettlementsByVenueInRange(records []CrossVenueSettlement, since, until time.Time) CrossVenueCSTDayVenueEarnings {
+	sum := CrossVenueCSTDayVenueEarnings{
+		DayStartCST: since,
+		GeneratedAt: until,
+		ByVenue:     make(map[string]float64),
+	}
+	for _, rec := range records {
+		if rec.CloseTime.Before(since) || rec.CloseTime.After(until) {
+			continue
+		}
+		sum.TotalNetPnL = money.SumUSDT(sum.TotalNetPnL, rec.NetPnL)
+		sum.TradeCount++
+		highVenue, lowVenue, highPnL, lowPnL := attributeCrossVenueSettlementToVenues(rec)
+		if highVenue != "" {
+			sum.ByVenue[highVenue] = money.SumUSDT(sum.ByVenue[highVenue], highPnL)
+		}
+		if lowVenue != "" {
+			sum.ByVenue[lowVenue] = money.SumUSDT(sum.ByVenue[lowVenue], lowPnL)
+		}
+	}
+	return sum
+}
+
 func aggregateCrossVenueSettlementsInRange(records []CrossVenueSettlement, since, until time.Time) CrossVenueCSTDayEarnings {
 	sum := CrossVenueCSTDayEarnings{
 		DayStartCST: since,
@@ -208,6 +256,19 @@ func (e *CrossVenueExecutor) TodayCSTEarnings(now time.Time) (CrossVenueCSTDayEa
 	}
 	dayStart := beijingCSTDayStart(now)
 	return aggregateCrossVenueSettlementsInRange(records, dayStart, now), nil
+}
+
+// TodayCSTEarningsByVenue 汇总 close_time ∈ [北京时间当日 00:00, now] 的 settlements,按 high/low 腿归因到所。
+func (e *CrossVenueExecutor) TodayCSTEarningsByVenue(now time.Time) (CrossVenueCSTDayVenueEarnings, error) {
+	if e == nil {
+		return CrossVenueCSTDayVenueEarnings{}, nil
+	}
+	records, err := e.loadAllCrossVenueSettlements()
+	if err != nil {
+		return CrossVenueCSTDayVenueEarnings{}, err
+	}
+	dayStart := beijingCSTDayStart(now)
+	return aggregateCrossVenueSettlementsByVenueInRange(records, dayStart, now), nil
 }
 
 func (e *CrossVenueExecutor) loadAllCrossVenueSettlements() ([]CrossVenueSettlement, error) {
