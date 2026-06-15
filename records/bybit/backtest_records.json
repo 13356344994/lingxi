@@ -1,0 +1,44 @@
+[
+  {
+    "recorded_at": "2026-05-20T08:00:00Z",
+    "scenario": "FundingReplayDemo",
+    "symbol": "BTCUSDT",
+    "period": "2026-05-01~2026-05-20",
+    "trades": 12,
+    "win_rate": "0.7500",
+    "funding_income": "18.4200",
+    "trading_pnl": "6.3100",
+    "total_fees": "4.1200",
+    "net_pnl": "20.6100",
+    "max_drawdown": "-3.2000",
+    "notes": "示例回测记录 用于演示面板与CSV字段"
+  },
+  {
+    "recorded_at": "2026-05-21T08:00:00Z",
+    "scenario": "FundingReplayDemo",
+    "symbol": "ETHUSDT",
+    "period": "2026-05-01~2026-05-20",
+    "trades": 15,
+    "win_rate": "0.6667",
+    "funding_income": "15.8700",
+    "trading_pnl": "4.9200",
+    "total_fees": "3.7800",
+    "net_pnl": "16.9900",
+    "max_drawdown": "-4.1500",
+    "notes": "示例回测记录 用于后续真实回测器替换"
+  },
+  {
+    "recorded_at": "2026-05-22T08:00:00Z",
+    "scenario": "FundingReplayStress",
+    "symbol": "SOLUSDT",
+    "period": "2026-05-10~2026-05-22",
+    "trades": 9,
+    "win_rate": "0.5556",
+    "funding_income": "7.4500",
+    "trading_pnl": "-1.1800",
+    "total_fees": "2.2400",
+    "net_pnl": "4.0300",
+    "max_drawdown": "-5.9200",
+    "notes": "压力场景样例 用于观察高波动下回撤"
+  }
+]

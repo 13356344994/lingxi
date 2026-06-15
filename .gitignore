@@ -17,8 +17,8 @@ config.local.yaml
 config.local.json
 
 # Generated records and caches
-records/
-.gocache/
-.cache/
+# records/
+# .gocache/
+# .cache/
 
 # Go build/test artifacts

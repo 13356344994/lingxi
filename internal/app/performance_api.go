@@ -111,20 +111,32 @@ type VenuesResponse struct {
 
 // VenueFinancialSnapshot 单所资金快照(实时)与今日收益(北京时间自然日,跨所结算按腿归因)。
 type VenueFinancialSnapshot struct {
-	CapitalUSDT      float64 `json:"capital_usdt"`
-	EquityUSDT       float64 `json:"equity_usdt"`
-	TodayEarningUSDT float64 `json:"today_earning_usdt"`
-	CapitalError     string  `json:"capital_error,omitempty"`
+	CapitalUSDT       float64 `json:"capital_usdt"`
+	EquityUSDT        float64 `json:"equity_usdt"`
+	UnrealizedPnLUSDT float64 `json:"unrealized_pnl_usdt"`
+	TodayEarningUSDT  float64 `json:"today_earning_usdt"`
+	TodayReturnRate   float64 `json:"today_return_rate"`
+	CapitalError      string  `json:"capital_error,omitempty"`
 }
 
 // VenuesFinancialTotal 全部注册所的资金与今日收益合计。
 type VenuesFinancialTotal struct {
-	CapitalUSDT      float64 `json:"capital_usdt"`
-	EquityUSDT       float64 `json:"equity_usdt"`
-	TodayEarningUSDT float64 `json:"today_earning_usdt"`
+	CapitalUSDT       float64 `json:"capital_usdt"`
+	EquityUSDT        float64 `json:"equity_usdt"`
+	UnrealizedPnLUSDT float64 `json:"unrealized_pnl_usdt"`
+	TodayEarningUSDT  float64 `json:"today_earning_usdt"`
+	TodayReturnRate   float64 `json:"today_return_rate"`
 }
 
-// buildVenuesFinancialSnapshot 聚合各所可调 USDT 余额(实时快照)、总权益(余额+浮盈亏)与跨所结算今日按腿归因收益。
+// todayReturnRate 今日收益率 = today_earning_usdt / equity_usdt;equity≤0 时返回 0 避免除零。
+func todayReturnRate(earningUSDT, equityUSDT float64) float64 {
+	if equityUSDT <= 0 {
+		return 0
+	}
+	return earningUSDT / equityUSDT
+}
+
+// buildVenuesFinancialSnapshot 聚合各所可调 USDT 余额(实时快照)、钱包总额(本金,不含浮盈亏)与跨所结算今日按腿归因收益。
 func (s *DashboardServer) buildVenuesFinancialSnapshot(now time.Time) (map[string]VenueFinancialSnapshot, VenuesFinancialTotal, time.Time) {
 	dayStart := beijingCSTDayStart(now)
 	byVenue := make(map[string]VenueFinancialSnapshot)
@@ -155,22 +167,26 @@ func (s *DashboardServer) buildVenuesFinancialSnapshot(now time.Time) (map[strin
 			} else {
 				entry.CapitalError = fmt.Sprintf("venue %q 控制器未就绪", rt.name)
 			}
-			if eq, err := s.fetchVenueEquityUSDT(ctx, rt); err != nil {
+			if snap, err := s.fetchVenueEquitySnapshot(ctx, rt); err != nil {
 				if entry.CapitalError != "" {
 					entry.CapitalError += "; " + err.Error()
 				} else {
 					entry.CapitalError = err.Error()
 				}
 			} else {
-				entry.EquityUSDT = eq
-				total.EquityUSDT = money.SumUSDT(total.EquityUSDT, eq)
+				entry.EquityUSDT = snap.WalletUSDT
+				entry.UnrealizedPnLUSDT = snap.UnrealizedPnLUSDT
+				total.EquityUSDT = money.SumUSDT(total.EquityUSDT, snap.WalletUSDT)
+				total.UnrealizedPnLUSDT = money.SumUSDT(total.UnrealizedPnLUSDT, snap.UnrealizedPnLUSDT)
 			}
 			if venueEarnings != nil {
 				entry.TodayEarningUSDT = venueEarnings[rt.name]
 			}
+			entry.TodayReturnRate = todayReturnRate(entry.TodayEarningUSDT, entry.EquityUSDT)
 			byVenue[rt.name] = entry
 		}
 	}
+	total.TodayReturnRate = todayReturnRate(total.TodayEarningUSDT, total.EquityUSDT)
 	return byVenue, total, dayStart
 }
 

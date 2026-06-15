@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "checksum": "95f55a5f9c9dbc7aa518d4c114e8702670f08fbff5edbea759f66c8bcce49845",
+  "updated_at": "2026-06-12T14:08:40Z",
+  "positions": [
+    {
+      "symbol": "HOME-USDT",
+      "high_venue": "bybit",
+      "low_venue": "gate",
+      "high_leg": {
+        "venue": "bybit",
+        "side": "sell",
+        "qty": 1000,
+        "entry_price": 0.029225,
+        "order_ids": [
+          "cv-HOMEUSDT-bybit-1781271403-h1"
+        ]
+      },
+      "low_leg": {
+        "venue": "gate",
+        "side": "buy",
+        "qty": 1000,
+        "entry_price": 0.02843,
+        "order_ids": [
+          "cv-HOMEUSDT-bybit-1781271403-l1"
+        ]
+      },
+      "open_spread_apr": 30.2361036,
+      "est_funding_usdt": 0.046144022971669904,
+      "status": "open",
+      "opened_at": "2026-06-12T13:36:43.43281001Z",
+      "updated_at": "2026-06-12T14:08:40.499308007Z",
+      "idem_prefix": "cv-HOMEUSDT-bybit-1781271403",
+      "notional_usdt": 30,
+      "last_accrual_at": "2026-06-12T14:08:40.499305813Z"
+    }
+  ]
+}

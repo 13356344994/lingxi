@@ -1,0 +1,32 @@
+[
+  {
+    "run_id": "live-20260613T045329Z-38f2cb95",
+    "cycle_id": "lx-HOMEUSDT-1781233200",
+    "recorded_at": "2026-06-13T04:53:33Z",
+    "funding_time": "2026-06-13T03:53:29Z",
+    "close_executed_at": "2026-06-13T04:53:32Z",
+    "targets": 1,
+    "funding_income": "-0.0468518",
+    "expected_funding_income": "0",
+    "funding_income_diff": "-0.0468518",
+    "funding_income_pending": false,
+    "funding_settled_at": "2026-06-13T04:53:32Z",
+    "spot_trading_pnl": "0",
+    "futures_trading_pnl": "-0.11220000000000015",
+    "total_fees": "0.02838193",
+    "total_borrow_costs": "0",
+    "net_pnl": "-0.18743373000000013",
+    "snapshot_net_pnl": "-0.18743373000000013",
+    "residual_spot_value": "0",
+    "spot_usdt_delta": "0",
+    "futures_usdt_delta": "0",
+    "has_alert": false,
+    "alerts": "",
+    "total_open_slippage_usdt": "0",
+    "total_close_slippage_usdt": "0",
+    "total_recovery_friction_usdt": "0",
+    "net_pnl_after_frictions": "0",
+    "expected_total_fees": "0",
+    "cycle_notional_usdt": "102.9826"
+  }
+]

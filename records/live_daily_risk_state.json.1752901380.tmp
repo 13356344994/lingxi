@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "checksum": "e640d5bc9a64e51e7e03602f888245869f75f1754c8297639cfee0ba6db71896",
+  "trading_day": "2026-06-13",
+  "realized_pnl": 0,
+  "order_count": 0,
+  "open_notional_usdt": 0,
+  "consecutive_losses": 0,
+  "updated_at": "2026-06-13T04:53:15Z"
+}

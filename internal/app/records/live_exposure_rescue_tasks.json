@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "checksum": "184d281a92f8a06ad6e4e964d4c841c1fd943cd516be40d355ddd889204c78bf",
+  "updated_at": "2026-06-15T08:44:31Z",
+  "tasks": [
+    {
+      "Mode": "open",
+      "Phase": "parallel_open_spot_unknown",
+      "Direction": "",
+      "Symbol": "BTCUSDT",
+      "Pair": "BTCUSDT",
+      "SpotBaseAsset": "BTC",
+      "SpotBasePrecision": 3,
+      "SpotReferencePrice": 100,
+      "InitialHedgeQty": 0,
+      "SpotClientOrderID": "sopen-btcusdt-66825808810",
+      "FuturesClientOrderID": "fopen-test",
+      "KnownSpotExecutedQty": 0,
+      "KnownFuturesExecutedQty": 1,
+      "Attempts": 2
+    }
+  ]
+}
