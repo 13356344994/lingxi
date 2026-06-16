@@ -49,18 +49,42 @@ type symbolVenueFunding struct {
 
 // CrossVenueOpportunity 是一条跨所资金费价差机会(策略:空高费所、多低费所)。
 type CrossVenueOpportunity struct {
-	Symbol              string    `json:"symbol"`
-	HighVenue           string    `json:"high_venue"`
-	LowVenue            string    `json:"low_venue"`
-	HighAnnualizedAPR   float64   `json:"high_annualized_apr"`
-	LowAnnualizedAPR    float64   `json:"low_annualized_apr"`
-	SpreadAPR           float64   `json:"spread_apr"`
-	HighFundingRate     float64   `json:"high_funding_rate"` // 平滑+封顶后的单次结算费率(EV/排序口径)
-	LowFundingRate      float64   `json:"low_funding_rate"`
-	HighIntervalHours   int       `json:"high_interval_hours"`
-	LowIntervalHours    int       `json:"low_interval_hours"`
-	HighNextFundingTime time.Time `json:"high_next_funding_time"`
-	LowNextFundingTime  time.Time `json:"low_next_funding_time"`
+	Symbol                string    `json:"symbol"`
+	HighVenue             string    `json:"high_venue"`
+	LowVenue              string    `json:"low_venue"`
+	SnapshotID            string    `json:"snapshot_id,omitempty"`
+	SnapshotTime          time.Time `json:"snapshot_time,omitempty"`
+	FreshnessAgeSeconds   float64   `json:"freshness_age_seconds,omitempty"`
+	HighAnnualizedAPR     float64   `json:"high_annualized_apr"`
+	LowAnnualizedAPR      float64   `json:"low_annualized_apr"`
+	SpreadAPR             float64   `json:"spread_apr"`
+	ComparableWindowHours float64   `json:"comparable_window_hours,omitempty"`
+	ExpectedHoldHours     float64   `json:"expected_hold_hours,omitempty"`
+	SpreadEV              float64   `json:"spread_ev,omitempty"`
+	OpenCost              float64   `json:"open_cost,omitempty"`
+	CloseCost             float64   `json:"close_cost,omitempty"`
+	ExpectedSlippage      float64   `json:"expected_slippage,omitempty"`
+	ObservableRiskCost    float64   `json:"observable_risk_cost,omitempty"`
+	PolicyBuffer          float64   `json:"policy_buffer,omitempty"`
+	NetEV                 float64   `json:"net_ev,omitempty"`
+	CapitalEfficiencyEV   float64   `json:"capital_efficiency_ev,omitempty"`
+	RiskAdjustedEVPerHour float64   `json:"risk_adjusted_ev_per_hour,omitempty"`
+	HighFundingRate       float64   `json:"high_funding_rate"` // 平滑+封顶后的单次结算费率(EV/排序口径)
+	LowFundingRate        float64   `json:"low_funding_rate"`
+	HighIntervalHours     int       `json:"high_interval_hours"`
+	LowIntervalHours      int       `json:"low_interval_hours"`
+	HighNextFundingTime   time.Time `json:"high_next_funding_time"`
+	LowNextFundingTime    time.Time `json:"low_next_funding_time"`
+	HistoryQualityScore   float64   `json:"history_quality_score,omitempty"`
+	LiquidityScore        float64   `json:"liquidity_score,omitempty"`
+	StabilityScore        float64   `json:"stability_score,omitempty"`
+	ExecutionScore        float64   `json:"execution_score,omitempty"`
+	RecoveryQualityScore  float64   `json:"recovery_quality_score,omitempty"`
+	RankScore             float64   `json:"rank_score,omitempty"`
+	SizeMultiplier        float64   `json:"size_multiplier,omitempty"`
+	TradableNotional      float64   `json:"tradable_notional,omitempty"`
+	TradableQty           float64   `json:"tradable_qty,omitempty"`
+	NoTradeReason         string    `json:"no_trade_reason,omitempty"`
 }
 
 // CrossVenueVenueStatus 记录单所本轮拉取结果。
@@ -91,6 +115,7 @@ type CrossVenueBorrowProbe struct {
 
 // CrossVenueScanSnapshot 是一轮扫描的内存快照(供 HTTP 端点读取)。
 type CrossVenueScanSnapshot struct {
+	SnapshotID       string                  `json:"snapshot_id,omitempty"`
 	ScannedAt        time.Time               `json:"scanned_at"`
 	VenueStatuses    []CrossVenueVenueStatus `json:"venue_statuses"`
 	Opportunities    []CrossVenueOpportunity `json:"opportunities"`
@@ -106,6 +131,7 @@ type CrossVenueScanSnapshot struct {
 // CrossVenueScanner 周期性扫描跨所资金费价差(纯只读)。
 type CrossVenueScanner struct {
 	cfg       CrossVenueScannerConfig
+	execCfg   CrossVenueExecutorConfig
 	recordDir string
 	venues    map[string]venue.Venue
 	logger    *log.Logger
@@ -137,6 +163,7 @@ func NewCrossVenueScanner(cfg EngineConfig, orch *Orchestrator, secretPath strin
 	}
 	return &CrossVenueScanner{
 		cfg:            cfg.CrossVenueScanner,
+		execCfg:        cfg.CrossVenueExecutor,
 		recordDir:      recordDir,
 		venues:         venues,
 		logger:         logger,
@@ -279,7 +306,14 @@ func (s *CrossVenueScanner) scanOnce(ctx context.Context) {
 	snapshots, statuses := s.fetchAllVenues(ctx)
 	s.recordFundingHistory(snapshots)
 	opps := s.computeCrossVenueOpportunities(snapshots)
+	snapshotID := crossVenueSnapshotID(start)
+	for i := range opps {
+		opps[i].SnapshotID = snapshotID
+		opps[i].SnapshotTime = start
+		opps[i].FreshnessAgeSeconds = crossVenueSnapshotAgeSeconds(start, start)
+	}
 	snapshot := CrossVenueScanSnapshot{
+		SnapshotID:       snapshotID,
 		ScannedAt:        start,
 		VenueStatuses:    statuses,
 		Opportunities:    opps,
@@ -290,6 +324,7 @@ func (s *CrossVenueScanner) scanOnce(ctx context.Context) {
 	s.mu.Lock()
 	s.lastSnapshot = snapshot
 	s.mu.Unlock()
+	s.appendScanSnapshot(snapshot)
 
 	okCount := 0
 	for _, st := range statuses {
@@ -570,6 +605,15 @@ func (s *CrossVenueScanner) smoothedFundingRate(venueName, sym string, current f
 	return medianFloat64(hist), len(hist)
 }
 
+func (s *CrossVenueScanner) fundingHistorySampleCount(venueName, sym string) int {
+	if s == nil {
+		return 0
+	}
+	s.fundingHistoryMu.Lock()
+	defer s.fundingHistoryMu.Unlock()
+	return len(s.fundingHistory[venueName][sym])
+}
+
 // buildCrossVenueFundingIndex 把各所快照整理成 venue → symbol → 费率明细 的只读索引。
 // 每轮扫描整体新建(绝不原地改旧 map),发布到 lastSnapshot 后只读,保证并发安全。
 func buildCrossVenueFundingIndex(byVenue map[string][]venue.FundingSnapshot) map[string]map[string]CrossVenueFundingEntry {
@@ -700,14 +744,20 @@ func (s *CrossVenueScanner) computeCrossVenueOpportunities(byVenue map[string][]
 		if spreadCap > 0 && opp.SpreadAPR > spreadCap {
 			continue
 		}
+		highSamples := s.fundingHistorySampleCount(opp.HighVenue, sym)
+		lowSamples := s.fundingHistorySampleCount(opp.LowVenue, sym)
+		opp.HistoryQualityScore = crossVenueHistoryQualityScore(minInt(highSamples, lowSamples), s.cfg.SpreadPersistenceScans)
 		opp.Symbol = sym
+		opp.TradableNotional = s.execCfg.MaxPositionUSDT
+		opp = crossVenueEstimateOpportunityMetrics(s.execCfg, opp, s.nowFn())
 		opps = append(opps, opp)
 	}
+	crossVenueFinalizeOpportunityRanking(opps)
 	sort.Slice(opps, func(i, j int) bool {
-		if opps[i].SpreadAPR == opps[j].SpreadAPR {
+		if opps[i].RankScore == opps[j].RankScore {
 			return opps[i].Symbol < opps[j].Symbol
 		}
-		return opps[i].SpreadAPR > opps[j].SpreadAPR
+		return opps[i].RankScore > opps[j].RankScore
 	})
 	if len(opps) > topN {
 		opps = opps[:topN]
@@ -731,13 +781,16 @@ func computeCrossVenueOpportunities(byVenue map[string][]venue.FundingSnapshot, 
 			continue
 		}
 		opp.Symbol = sym
+		opp.TradableNotional = 50
+		opp = crossVenueEstimateOpportunityMetrics(CrossVenueExecutorConfig{MaxPositionUSDT: 50, MaxEffectiveLeverage: 2, MarginSafetyFactor: 1.5, EVExpectedSlippageBps: 3}, opp, time.Now().UTC())
 		opps = append(opps, opp)
 	}
+	crossVenueFinalizeOpportunityRanking(opps)
 	sort.Slice(opps, func(i, j int) bool {
-		if opps[i].SpreadAPR == opps[j].SpreadAPR {
+		if opps[i].RankScore == opps[j].RankScore {
 			return opps[i].Symbol < opps[j].Symbol
 		}
-		return opps[i].SpreadAPR > opps[j].SpreadAPR
+		return opps[i].RankScore > opps[j].RankScore
 	})
 	if len(opps) > topN {
 		opps = opps[:topN]
@@ -793,4 +846,3 @@ func (s *CrossVenueScanner) maybeAlert(opp CrossVenueOpportunity) {
 		opp.HighVenue, opp.HighAnnualizedAPR*100, opp.HighIntervalHours,
 		opp.LowVenue, opp.LowAnnualizedAPR*100, opp.LowIntervalHours)
 }
-

@@ -131,6 +131,7 @@ func (s *DashboardServer) Start(ctx context.Context) error {
 	mux.HandleFunc("/api/cross-venue/funding", s.authorizeReadAPI(s.handleCrossVenueFundingAPI))
 	mux.HandleFunc("/api/cross-venue/positions", s.authorizeReadAPI(s.handleCrossVenuePositionsAPI))
 	mux.HandleFunc("/api/cross-venue/settlements", s.authorizeReadAPI(s.handleCrossVenueSettlementsAPI))
+	mux.HandleFunc("/api/cross-venue/validation", s.authorizeReadAPI(s.handleCrossVenueValidationAPI))
 	mux.HandleFunc("/api/crossvenue/openings", s.handleCrossVenueOpeningsAPI)
 	mux.HandleFunc("/api/earnings", s.authorizeReadAPI(s.handleEarningsAPI))
 	mux.HandleFunc("/api/earnings/clear", s.handleEarningsClearAPI)
@@ -986,6 +987,18 @@ func parseLimit(r *http.Request, fallback int) int {
 	return limit
 }
 
+func parsePositiveFloatQuery(r *http.Request, key string, fallback float64) float64 {
+	text := strings.TrimSpace(r.URL.Query().Get(key))
+	if text == "" {
+		return fallback
+	}
+	v, err := strconv.ParseFloat(text, 64)
+	if err != nil || v <= 0 {
+		return fallback
+	}
+	return v
+}
+
 // handleCrossVenueFundingAPI 返回最新一轮跨所资金费价差扫描结果(纯只读)。
 func (s *DashboardServer) handleCrossVenueFundingAPI(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
@@ -1024,6 +1037,24 @@ func (s *DashboardServer) handleCrossVenueSettlementsAPI(w http.ResponseWriter, 
 	}
 	limit := parseLimit(r, 100)
 	resp, err := s.crossVenueExecutor.SettlementsSnapshot(limit)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, resp)
+}
+
+func (s *DashboardServer) handleCrossVenueValidationAPI(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if s.crossVenueExecutor == nil {
+		writeJSON(w, map[string]any{"enabled": false, "message": "跨所执行引擎未启用"})
+		return
+	}
+	windowHours := parsePositiveFloatQuery(r, "window_hours", 24)
+	resp, err := s.crossVenueExecutor.ValidationSnapshot(time.Duration(windowHours * float64(time.Hour)))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

@@ -43,25 +43,37 @@ type CrossVenueCSTDayVenueEarnings struct {
 
 // CrossVenueSettlement 跨所 perp-perp 单仓净利润归因结算记录(平仓时写入 settlements.jsonl)。
 type CrossVenueSettlement struct {
-	OpenTime        time.Time `json:"open_time"`
-	CloseTime       time.Time `json:"close_time"`
-	Symbol          string    `json:"symbol"`
-	HighVenue       string    `json:"high_venue"`
-	LowVenue        string    `json:"low_venue"`
-	NotionalUSDT    float64   `json:"notional_usdt"`
-	HighLegFunding  float64   `json:"high_leg_funding"`
-	LowLegFunding   float64   `json:"low_leg_funding"`
-	RealizedFunding float64   `json:"realized_funding"`
-	TradePnL        float64   `json:"trade_pnl"`
-	OpenFees        float64   `json:"open_fees"`
-	CloseFees       float64   `json:"close_fees"`
-	RollbackCost    float64   `json:"rollback_cost"`
-	RebalanceCost   float64   `json:"rebalance_cost"`
-	TotalFees       float64   `json:"total_fees"`
-	OpenSlippage    float64   `json:"open_slippage"`
-	CloseSlippage   float64   `json:"close_slippage"`
-	NetPnL          float64   `json:"net_pnl"`
-	CloseReason     string    `json:"close_reason,omitempty"`
+	SettlementID            string    `json:"settlement_id,omitempty"`
+	PositionKey             string    `json:"position_key,omitempty"`
+	EntryDecisionCycleID    string    `json:"entry_decision_cycle_id,omitempty"`
+	EntrySnapshotID         string    `json:"entry_snapshot_id,omitempty"`
+	EntryOpenMode           string    `json:"entry_open_mode,omitempty"`
+	UsedFallback            bool      `json:"used_fallback,omitempty"`
+	CurrentSnapshotID       string    `json:"current_snapshot_id,omitempty"`
+	SwitchSequence          string    `json:"switch_sequence,omitempty"`
+	SwitchExit              bool      `json:"switch_exit,omitempty"`
+	OpenTime                time.Time `json:"open_time"`
+	CloseTime               time.Time `json:"close_time"`
+	Symbol                  string    `json:"symbol"`
+	HighVenue               string    `json:"high_venue"`
+	LowVenue                string    `json:"low_venue"`
+	NotionalUSDT            float64   `json:"notional_usdt"`
+	HighLegFunding          float64   `json:"high_leg_funding"`
+	LowLegFunding           float64   `json:"low_leg_funding"`
+	EstimatedFunding        float64   `json:"estimated_funding,omitempty"`
+	RealizedFunding         float64   `json:"realized_funding"`
+	RealizedFundingComplete bool      `json:"realized_funding_complete,omitempty"`
+	FundingTruthStatus      string    `json:"funding_truth_status,omitempty"`
+	TradePnL                float64   `json:"trade_pnl"`
+	OpenFees                float64   `json:"open_fees"`
+	CloseFees               float64   `json:"close_fees"`
+	RollbackCost            float64   `json:"rollback_cost"`
+	RebalanceCost           float64   `json:"rebalance_cost"`
+	TotalFees               float64   `json:"total_fees"`
+	OpenSlippage            float64   `json:"open_slippage"`
+	CloseSlippage           float64   `json:"close_slippage"`
+	NetPnL                  float64   `json:"net_pnl"`
+	CloseReason             string    `json:"close_reason,omitempty"`
 }
 
 // CrossVenueSettlementsSummary 跨所结算汇总(只读 API 用)。
@@ -111,26 +123,53 @@ func buildCrossVenueSettlement(pos CrossVenuePosition, closeTime time.Time) Cros
 	netPnL := money.SumUSDT(realizedFunding, tradePnL, -totalFees, -attr.RollbackCostUSDT, -attr.RebalanceCostUSDT)
 
 	return CrossVenueSettlement{
-		OpenTime:        pos.OpenedAt,
-		CloseTime:       closeTime,
-		Symbol:          pos.Symbol,
-		HighVenue:       pos.HighVenue,
-		LowVenue:        pos.LowVenue,
-		NotionalUSDT:    pos.NotionalUSDT,
-		HighLegFunding:  pos.HighLegFundingUSDT,
-		LowLegFunding:   pos.LowLegFundingUSDT,
-		RealizedFunding: realizedFunding,
-		TradePnL:        tradePnL,
-		OpenFees:        openFees,
-		CloseFees:       closeFees,
-		RollbackCost:    attr.RollbackCostUSDT,
-		RebalanceCost:   attr.RebalanceCostUSDT,
-		TotalFees:       totalFees,
-		OpenSlippage:    attr.OpenSlippageUSDT,
-		CloseSlippage:   attr.CloseSlippageUSDT,
-		NetPnL:          netPnL,
-		CloseReason:     pos.CloseReason,
+		SettlementID:            crossVenueSettlementID(pos),
+		PositionKey:             crossVenuePositionKey(pos),
+		EntryDecisionCycleID:    pos.EntryDecisionCycleID,
+		EntrySnapshotID:         pos.EntrySnapshotID,
+		EntryOpenMode:           pos.EntryOpenMode,
+		UsedFallback:            pos.UsedFallback,
+		CurrentSnapshotID:       pos.CurrentSnapshotID,
+		SwitchSequence:          pos.PendingSwitchSequence,
+		SwitchExit:              crossVenuePositionIsSwitchExit(pos),
+		OpenTime:                pos.OpenedAt,
+		CloseTime:               closeTime,
+		Symbol:                  pos.Symbol,
+		HighVenue:               pos.HighVenue,
+		LowVenue:                pos.LowVenue,
+		NotionalUSDT:            pos.NotionalUSDT,
+		HighLegFunding:          pos.HighLegFundingUSDT,
+		LowLegFunding:           pos.LowLegFundingUSDT,
+		EstimatedFunding:        pos.EstFundingUSDT,
+		RealizedFunding:         realizedFunding,
+		RealizedFundingComplete: pos.RealizedFundingComplete,
+		FundingTruthStatus:      pos.FundingTruthStatus,
+		TradePnL:                tradePnL,
+		OpenFees:                openFees,
+		CloseFees:               closeFees,
+		RollbackCost:            attr.RollbackCostUSDT,
+		RebalanceCost:           attr.RebalanceCostUSDT,
+		TotalFees:               totalFees,
+		OpenSlippage:            attr.OpenSlippageUSDT,
+		CloseSlippage:           attr.CloseSlippageUSDT,
+		NetPnL:                  netPnL,
+		CloseReason:             pos.CloseReason,
 	}
+}
+
+func crossVenuePositionIsSwitchExit(pos CrossVenuePosition) bool {
+	if strings.TrimSpace(pos.PendingSwitchSequence) != "" {
+		return true
+	}
+	reason := strings.TrimSpace(pos.CloseReason)
+	return strings.Contains(reason, "换仓")
+}
+
+func crossVenueSettlementID(pos CrossVenuePosition) string {
+	if strings.TrimSpace(pos.IdemPrefix) != "" {
+		return pos.IdemPrefix
+	}
+	return pos.Symbol + "|" + pos.OpenedAt.UTC().Format(time.RFC3339Nano)
 }
 
 func (e *CrossVenueExecutor) appendCrossVenueSettlement(pos CrossVenuePosition) {
@@ -150,31 +189,63 @@ func (e *CrossVenueExecutor) appendCrossVenueSettlement(pos CrossVenuePosition) 
 	defer e.settlementsMu.Unlock()
 
 	path := e.settlementsLedgerPath()
+	if settlementExists(path, rec.SettlementID) {
+		return
+	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		if e.logger != nil {
 			e.logger.Printf("[跨所结算] 创建目录失败 path=%s: %v", path, err)
 		}
 		return
 	}
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
-	if err != nil {
-		if e.logger != nil {
-			e.logger.Printf("[跨所结算] 打开台账失败 path=%s: %v", path, err)
+	for attempt := 1; attempt <= 3; attempt++ {
+		f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+		if err != nil {
+			if e.logger != nil {
+				e.logger.Printf("[跨所结算] 打开台账失败 path=%s: %v", path, err)
+			}
+			return
 		}
-		return
-	}
-	if _, err := f.Write(append(data, '\n')); err != nil {
-		if e.logger != nil {
-			e.logger.Printf("[跨所结算] 写入台账失败 path=%s: %v", path, err)
+		if _, err := f.Write(append(data, '\n')); err == nil {
+			_ = f.Close()
+			break
+		} else if e.logger != nil {
+			e.logger.Printf("[跨所结算] 写入台账失败 attempt=%d path=%s: %v", attempt, path, err)
 		}
+		_ = f.Close()
 	}
-	_ = f.Close()
 
 	if e.logger != nil {
 		e.logger.Printf("[跨所结算] %s net=%.4f funding=%.4f trade=%.4f fees=%.4f rollback=%.4f rebalance=%.4f open_slip=%.4f close_slip=%.4f",
 			rec.Symbol, rec.NetPnL, rec.RealizedFunding, rec.TradePnL, rec.TotalFees,
 			rec.RollbackCost, rec.RebalanceCost, rec.OpenSlippage, rec.CloseSlippage)
 	}
+}
+
+func settlementExists(path, settlementID string) bool {
+	if settlementID == "" {
+		return false
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+		var rec CrossVenueSettlement
+		if json.Unmarshal([]byte(line), &rec) == nil && rec.SettlementID == settlementID {
+			return true
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return false
+	}
+	return false
 }
 
 // finalizeClosedCrossVenuePosition 平仓收尾:写资费台账 + 写结算归因 + 删持仓台账(best-effort,不影响主流程)。
@@ -184,7 +255,7 @@ func (e *CrossVenueExecutor) finalizeClosedCrossVenuePosition(pos CrossVenuePosi
 	}
 	e.appendRealizedEarning(pos)
 	e.appendCrossVenueSettlement(pos)
-	_ = e.removeCrossVenuePosition(pos.Symbol)
+	_ = e.removeCrossVenuePosition(pos)
 }
 
 // attributeCrossVenueSettlementToVenues 把单笔跨所结算按 high/low 腿归因到交易所。
@@ -334,11 +405,12 @@ func summarizeCrossVenueSettlements(records []CrossVenueSettlement) CrossVenueSe
 		sum.TotalNetPnL = money.SumUSDT(sum.TotalNetPnL, rec.NetPnL)
 		sum.TotalFees = money.SumUSDT(sum.TotalFees, rec.TotalFees)
 		sum.TotalFunding = money.SumUSDT(sum.TotalFunding, rec.RealizedFunding)
-		if rec.HighVenue != "" {
-			sum.ByVenueNetPnL[rec.HighVenue] = money.SumUSDT(sum.ByVenueNetPnL[rec.HighVenue], rec.NetPnL)
+		highVenue, lowVenue, highPnL, lowPnL := attributeCrossVenueSettlementToVenues(rec)
+		if highVenue != "" {
+			sum.ByVenueNetPnL[highVenue] = money.SumUSDT(sum.ByVenueNetPnL[highVenue], highPnL)
 		}
-		if rec.LowVenue != "" {
-			sum.ByVenueNetPnL[rec.LowVenue] = money.SumUSDT(sum.ByVenueNetPnL[rec.LowVenue], rec.NetPnL)
+		if lowVenue != "" {
+			sum.ByVenueNetPnL[lowVenue] = money.SumUSDT(sum.ByVenueNetPnL[lowVenue], lowPnL)
 		}
 		sum.BySymbolNetPnL[rec.Symbol] = money.SumUSDT(sum.BySymbolNetPnL[rec.Symbol], rec.NetPnL)
 	}

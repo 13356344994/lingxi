@@ -41,6 +41,9 @@ func (e *CrossVenueExecutor) manageCrossVenuePosition(ctx context.Context, pos C
 	// closing 续平分支:上一轮平仓未完成(IOC 没吃干净)的持仓,直接重试平仓直到两腿都清零,
 	// 不再走开仓期风控(孤腿/同步性都是「在场对冲」语义,半平状态会误判)。
 	if pos.Status == CrossVenueStatusClosing {
+		if crossVenueHasPendingSwitch(pos) && pos.TransitionState != "partial_switch" {
+			e.markCrossVenuePositionPartialSwitch(&pos, "续平 pending switch")
+		}
 		err := e.closeCrossVenuePosition(ctx, pos, live, nonEmpty(pos.CloseReason, "继续平仓"))
 		return pos, err == nil
 	}
@@ -56,6 +59,10 @@ func (e *CrossVenueExecutor) manageCrossVenuePosition(ctx context.Context, pos C
 	lowAmt := perpPositionQty(lowPos, sym)
 	highOpen := absQty(highAmt) > executionQtyTolerance
 	lowOpen := absQty(lowAmt) > executionQtyTolerance
+
+	if crossVenueIsOpeningStatus(pos.Status) && (crossVenueIsNewOpenPhase(pos.PartialSwitchPhase) || pos.PendingSwitchSequence != "") {
+		return e.manageCrossVenueOpeningContinuation(ctx, pos, highOpen, lowOpen, highAmt, lowAmt, live)
+	}
 
 	// 孤腿检测
 	if highOpen != lowOpen {
@@ -98,6 +105,8 @@ func (e *CrossVenueExecutor) manageCrossVenuePosition(ctx context.Context, pos C
 	e.syncRealizedFunding(ctx, &pos)
 	interim := e.estimateFundingAccrual(&pos)
 	pos.EstFundingUSDT = pos.HighLegFundingUSDT + pos.LowLegFundingUSDT + interim
+	pos.EstimatedFundingUSDT = interim
+	e.refreshCurrentPositionMetrics(&pos)
 	pos.UpdatedAt = e.nowFn()
 	_ = e.persistPosition(pos)
 
@@ -111,6 +120,215 @@ func (e *CrossVenueExecutor) manageCrossVenuePosition(ctx context.Context, pos C
 		return pos, true
 	}
 	return pos, false
+}
+
+func (e *CrossVenueExecutor) manageCrossVenueOpeningContinuation(ctx context.Context, pos CrossVenuePosition, highOpen, lowOpen bool, highAmt, lowAmt float64, live bool) (CrossVenuePosition, bool) {
+	now := e.nowFn()
+	intent, hasIntent := e.switchIntentForTarget(pos.Symbol, pos.HighVenue, pos.LowVenue, now)
+	if crossVenueIsStagedSwitch(pos.PendingSwitchSequence) && crossVenueIsStagedWaitPhase(pos.PartialSwitchPhase) {
+		switch {
+		case !highOpen && !lowOpen:
+			pos.Status = CrossVenueStatusClosed
+			pos.CloseReason = nonEmpty(pos.CloseReason, "open_new_retry")
+			pos.RecoveryAction = crossVenueRecoveryActionObserve
+			pos.PartialSwitchPhase = "open_new_retry"
+			pos.UpdatedAt = now
+			if hasIntent {
+				_ = e.updateSwitchIntentAttempt(intent.Symbol, intent.TargetHighVenue, intent.TargetLowVenue, "open_new_retry", "staged switch target disappeared, waiting retry")
+			}
+			e.finalizeClosedCrossVenuePosition(pos)
+			return pos, true
+		case highOpen && !lowOpen:
+			if hasIntent && crossVenueStagedSwitchReadyForSecondLeg(intent) {
+				pos.PartialSwitchPhase = "open_new_second_leg"
+				pos.TransitionState = "open"
+				pos.UpdatedAt = now
+				return e.continueCrossVenueOpeningSecondLeg(ctx, pos, highAmt, live, intent, hasIntent)
+			}
+			pos.Status = CrossVenueStatusOpeningSecondLeg
+			pos.TransitionState = "staged"
+			pos.UpdatedAt = now
+			_ = e.persistPosition(pos)
+			return pos, true
+		case highOpen && lowOpen:
+			pos.Status = CrossVenueStatusOpen
+			pos.TransitionState = "hold"
+			pos.RecoveryAction = crossVenueRecoveryActionObserve
+			pos.PartialSwitchPhase = "consumed"
+			pos.UpdatedAt = now
+			_ = e.persistPosition(pos)
+			if hasIntent {
+				_ = e.updateSwitchIntentAttempt(intent.Symbol, intent.TargetHighVenue, intent.TargetLowVenue, "consumed", "staged switch target fully live")
+				_ = e.removeSwitchIntent(intent.Symbol, intent.TargetHighVenue, intent.TargetLowVenue)
+			}
+			return pos, true
+		default:
+			pos.Status = CrossVenueStatusOrphanSingleLeg
+			pos.TransitionState = "recover"
+			pos.RecoveryAction = crossVenueRecoveryActionFlatten
+			pos.PartialSwitchPhase = "rollback_new"
+			pos.CloseReason = nonEmpty(pos.CloseReason, "rollback_new")
+			pos.UpdatedAt = now
+			if hasIntent {
+				_ = e.updateSwitchIntentAttempt(intent.Symbol, intent.TargetHighVenue, intent.TargetLowVenue, "rollback_new", "staged switch target became unhedged, flattening")
+			}
+			e.handleOrphanLeg(ctx, pos, highOpen, lowOpen, live, highAmt, lowAmt)
+			return pos, true
+		}
+	}
+	switch {
+	case !highOpen && !lowOpen:
+		pos.Status = CrossVenueStatusClosed
+		pos.CloseReason = nonEmpty(pos.CloseReason, "open_new_retry")
+		pos.RecoveryAction = crossVenueRecoveryActionObserve
+		pos.PartialSwitchPhase = "open_new_retry"
+		pos.UpdatedAt = now
+		if hasIntent {
+			_ = e.updateSwitchIntentAttempt(intent.Symbol, intent.TargetHighVenue, intent.TargetLowVenue, "open_new_retry", "runtime opening target disappeared, waiting retry")
+		}
+		e.finalizeClosedCrossVenuePosition(pos)
+		return pos, true
+	case crossVenueCanPromoteToSecondLegContinuation(pos.Status, pos.PartialSwitchPhase, highOpen, lowOpen):
+		pos.Status = CrossVenueStatusOpeningSecondLeg
+		pos.TransitionState = "open"
+		pos.RecoveryAction = crossVenueRecoveryActionObserve
+		pos.PartialSwitchPhase = "open_new_second_leg"
+		pos.UpdatedAt = now
+		if hasIntent {
+			_ = e.updateSwitchIntentAttempt(intent.Symbol, intent.TargetHighVenue, intent.TargetLowVenue, "open_new_second_leg", "runtime promoted target to second-leg continuation")
+		}
+		return e.continueCrossVenueOpeningSecondLeg(ctx, pos, highAmt, live, intent, hasIntent)
+	case highOpen && !lowOpen && strings.TrimSpace(pos.PartialSwitchPhase) == "open_new_second_leg":
+		return e.continueCrossVenueOpeningSecondLeg(ctx, pos, highAmt, live, intent, hasIntent)
+	case highOpen && lowOpen:
+		pos.Status = CrossVenueStatusOpen
+		pos.TransitionState = "hold"
+		pos.RecoveryAction = crossVenueRecoveryActionObserve
+		pos.PartialSwitchPhase = "consumed"
+		pos.UpdatedAt = now
+		_ = e.persistPosition(pos)
+		if hasIntent {
+			_ = e.updateSwitchIntentAttempt(intent.Symbol, intent.TargetHighVenue, intent.TargetLowVenue, "consumed", "runtime confirmed target position live")
+			_ = e.removeSwitchIntent(intent.Symbol, intent.TargetHighVenue, intent.TargetLowVenue)
+		}
+		return pos, true
+	default:
+		pos.Status = CrossVenueStatusOrphanSingleLeg
+		pos.TransitionState = "recover"
+		pos.RecoveryAction = crossVenueRecoveryActionFlatten
+		pos.PartialSwitchPhase = "rollback_new"
+		pos.CloseReason = nonEmpty(pos.CloseReason, "rollback_new")
+		pos.UpdatedAt = now
+		if hasIntent {
+			_ = e.updateSwitchIntentAttempt(intent.Symbol, intent.TargetHighVenue, intent.TargetLowVenue, "rollback_new", "runtime opening target unhedged, flattening")
+		}
+		e.handleOrphanLeg(ctx, pos, highOpen, lowOpen, live, highAmt, lowAmt)
+		return pos, true
+	}
+}
+
+func (e *CrossVenueExecutor) continueCrossVenueOpeningSecondLeg(ctx context.Context, pos CrossVenuePosition, highAmt float64, live bool, intent crossVenueSwitchIntent, hasIntent bool) (CrossVenuePosition, bool) {
+	now := e.nowFn()
+	sym := venue.Symbol(pos.Symbol)
+	lowV := e.venues[pos.LowVenue]
+	highV := e.venues[pos.HighVenue]
+	lowTrader, _ := lowV.(crossVenueTrader)
+	if lowV == nil || highV == nil || lowTrader == nil {
+		pos.Status = CrossVenueStatusOrphanSingleLeg
+		pos.TransitionState = "recover"
+		pos.RecoveryAction = crossVenueRecoveryActionFlatten
+		pos.PartialSwitchPhase = "rollback_new"
+		pos.CloseReason = nonEmpty(pos.CloseReason, "rollback_new")
+		pos.UpdatedAt = now
+		if hasIntent {
+			_ = e.updateSwitchIntentAttempt(intent.Symbol, intent.TargetHighVenue, intent.TargetLowVenue, "rollback_new", "runtime continuation missing trader, flattening")
+		}
+		e.handleOrphanLeg(ctx, pos, true, false, live, highAmt, 0)
+		return pos, true
+	}
+	lowInstr, ok := lookupVenueInstrument(ctx, lowV, sym)
+	if !ok {
+		pos.Status = CrossVenueStatusOrphanSingleLeg
+		pos.TransitionState = "recover"
+		pos.RecoveryAction = crossVenueRecoveryActionFlatten
+		pos.PartialSwitchPhase = "rollback_new"
+		pos.CloseReason = nonEmpty(pos.CloseReason, "rollback_new")
+		pos.UpdatedAt = now
+		if hasIntent {
+			_ = e.updateSwitchIntentAttempt(intent.Symbol, intent.TargetHighVenue, intent.TargetLowVenue, "rollback_new", "runtime continuation missing instrument, flattening")
+		}
+		e.handleOrphanLeg(ctx, pos, true, false, live, highAmt, 0)
+		return pos, true
+	}
+	lowCaps := lowV.Capabilities()
+	highCaps := highV.Capabilities()
+	hedgeQty := absQty(highAmt)
+	if lowCaps.ContractBasedPerp {
+		hedgeQty = normalizeVenueQty(hedgeQty, lowInstr, true)
+	}
+	if hedgeQty <= executionQtyTolerance {
+		pos.Status = CrossVenueStatusOrphanSingleLeg
+		pos.TransitionState = "recover"
+		pos.RecoveryAction = crossVenueRecoveryActionFlatten
+		pos.PartialSwitchPhase = "rollback_new"
+		pos.CloseReason = nonEmpty(pos.CloseReason, "rollback_new")
+		pos.UpdatedAt = now
+		if hasIntent {
+			_ = e.updateSwitchIntentAttempt(intent.Symbol, intent.TargetHighVenue, intent.TargetLowVenue, "rollback_new", "runtime continuation normalized hedge qty to zero")
+		}
+		e.handleOrphanLeg(ctx, pos, true, false, live, highAmt, 0)
+		return pos, true
+	}
+	_, _, deadlineBudget, _ := crossVenueMakerChaseParams(e.cfg.CrossVenueExecutor)
+	lowID := crossVenueLegClientID(pos.IdemPrefix, fmt.Sprintf("l2%d", now.Unix()))
+	if hasIntent {
+		_ = e.updateSwitchIntentAttempt(intent.Symbol, intent.TargetHighVenue, intent.TargetLowVenue, "open_new_second_leg", "runtime continuation retrying second leg")
+	}
+	lowRes, err := e.placeCrossVenueLegExec(ctx, lowTrader, sym, venue.SideBuy, hedgeQty, lowID, false, live, true, crossVenueTakerSlippageBps(e.cfg.CrossVenueExecutor), now.Add(deadlineBudget))
+	if err != nil || lowRes.ExecutedQty <= executionQtyTolerance {
+		pos.Status = CrossVenueStatusOrphanSingleLeg
+		pos.TransitionState = "recover"
+		pos.RecoveryAction = crossVenueRecoveryActionFlatten
+		pos.PartialSwitchPhase = "rollback_new"
+		pos.CloseReason = nonEmpty(pos.CloseReason, "rollback_new")
+		pos.UpdatedAt = now
+		if hasIntent {
+			_ = e.updateSwitchIntentAttempt(intent.Symbol, intent.TargetHighVenue, intent.TargetLowVenue, "rollback_new", "runtime continuation second leg failed, flattening")
+		}
+		e.handleOrphanLeg(ctx, pos, true, false, live, highAmt, 0)
+		return pos, true
+	}
+	book, _ := lowTrader.FetchBookTicker(ctx, venue.MarketPerp, sym)
+	e.recordCrossVenueExecution(&pos, cvExecOpenLow, lowRes, crossVenueBookMid(book))
+	highCoin := absQty(pos.HighLeg.Qty)
+	if highCoin <= executionQtyTolerance {
+		highCoin = absQty(highAmt)
+	}
+	lowCoin := crossVenueLegExecutedCoinQty(lowCaps, lowInstr, lowRes, highCoin)
+	bookQty := reconcileCrossVenueOpenBookQty(highCaps, lowCaps, highCoin, lowCoin)
+	pos.HighLeg.Qty = bookQty
+	pos.LowLeg.Qty = bookQty
+	pos.LowLeg.EntryPrice = lowRes.AvgPrice
+	pos.LowLeg.OrderIDs = append(pos.LowLeg.OrderIDs, lowID)
+	if pos.NotionalUSDT <= 0 {
+		refPrice := pos.HighLeg.EntryPrice
+		if refPrice <= 0 {
+			refPrice = lowRes.AvgPrice
+		}
+		pos.NotionalUSDT = bookQty * refPrice
+	}
+	pos.Status = CrossVenueStatusOpen
+	pos.TransitionState = "hold"
+	pos.RecoveryAction = crossVenueRecoveryActionObserve
+	pos.PartialSwitchPhase = "consumed"
+	pos.UpdatedAt = now
+	_ = e.persistPosition(pos)
+	e.recordCrossVenueTransition(pos, string(CrossVenueStatusOpeningSecondLeg), string(CrossVenueStatusOpen), "运行期续做第二腿完成")
+	if hasIntent {
+		_ = e.updateSwitchIntentAttempt(intent.Symbol, intent.TargetHighVenue, intent.TargetLowVenue, "consumed", "runtime continuation completed second leg")
+		_ = e.removeSwitchIntent(intent.Symbol, intent.TargetHighVenue, intent.TargetLowVenue)
+	}
+	return pos, true
 }
 
 func (e *CrossVenueExecutor) handleOrphanLeg(ctx context.Context, pos CrossVenuePosition, highOpen, lowOpen, live bool, highAmt, lowAmt float64) {
@@ -238,6 +456,8 @@ func (e *CrossVenueExecutor) syncRealizedFunding(ctx context.Context, pos *Cross
 	highTotal, highOK := e.fetchLegRealizedFunding(ctx, pos.Symbol, pos.HighVenue, sym, since)
 	lowTotal, lowOK := e.fetchLegRealizedFunding(ctx, pos.Symbol, pos.LowVenue, sym, since)
 	if !highOK && !lowOK {
+		pos.RealizedFundingComplete = false
+		pos.FundingTruthStatus = "missing"
 		return
 	}
 	if highOK {
@@ -246,6 +466,15 @@ func (e *CrossVenueExecutor) syncRealizedFunding(ctx context.Context, pos *Cross
 	if lowOK {
 		pos.LowLegFundingUSDT = lowTotal
 	}
+	pos.RealizedFundingComplete = highOK && lowOK
+	switch {
+	case highOK && lowOK:
+		pos.FundingTruthStatus = "complete"
+	case highOK || lowOK:
+		pos.FundingTruthStatus = "partial"
+	default:
+		pos.FundingTruthStatus = "missing"
+	}
 	now := e.nowFn()
 	pos.LastRealizedFundingAt = now
 	pos.LastAccrualAt = now
@@ -253,6 +482,59 @@ func (e *CrossVenueExecutor) syncRealizedFunding(ctx context.Context, pos *Cross
 		e.logger.Printf("[跨所] %s 真实资费 sync: high=%.4f low=%.4f net=%.4f",
 			pos.Symbol, pos.HighLegFundingUSDT, pos.LowLegFundingUSDT,
 			pos.HighLegFundingUSDT+pos.LowLegFundingUSDT)
+	}
+}
+
+func (e *CrossVenueExecutor) refreshCurrentPositionMetrics(pos *CrossVenuePosition) {
+	if e == nil || pos == nil {
+		return
+	}
+	now := e.nowFn()
+	pos.DecisionCycleID = crossVenueDecisionCycleID(now)
+	snap := CrossVenueScanSnapshot{}
+	if e.scanner != nil {
+		snap = e.scanner.Snapshot()
+		pos.CurrentSnapshotID = snap.SnapshotID
+		pos.FreshnessAgeSeconds = crossVenueSnapshotAgeSeconds(snap.ScannedAt, now)
+	}
+	sym := venue.Symbol(pos.Symbol)
+	if hEntry, ok := e.fundingFromScanner(pos.HighVenue, sym); ok {
+		pos.HighFundingRate = hEntry.Rate
+		pos.HighIntervalHours = hEntry.IntervalHours
+		pos.HighNextFundingTime = hEntry.NextFundingTime
+	}
+	if lEntry, ok := e.fundingFromScanner(pos.LowVenue, sym); ok {
+		pos.LowFundingRate = lEntry.Rate
+		pos.LowIntervalHours = lEntry.IntervalHours
+		pos.LowNextFundingTime = lEntry.NextFundingTime
+	}
+	pos.CurrentComparableWindowHours = crossVenueComparableWindowHours(now, pos.HighNextFundingTime, pos.LowNextFundingTime)
+	if pos.RecoveryQualityScore <= 0 {
+		pos.RecoveryQualityScore = crossVenueRecoveryQualityForPair(pos.HighVenue, pos.LowVenue)
+	}
+	if pos.ExecutionScore <= 0 {
+		pos.ExecutionScore = crossVenueExecutionScore(crossVenueExpectedSlippageUSDT(e.cfg.CrossVenueExecutor, crossVenuePositionNotionalUSDT(pos), 2), crossVenuePositionNotionalUSDT(pos))
+	}
+	futureEV, capEff, riskAdj, exitCost, switchCost, comparable, riskScore := crossVenueComputeCurrentFutureEV(e.cfg.CrossVenueExecutor, pos)
+	pos.CurrentFutureEV = futureEV
+	pos.CurrentCapitalEfficiencyEV = capEff
+	pos.CurrentRiskAdjustedEVPerHour = riskAdj
+	pos.EstimatedExitCost = exitCost
+	pos.EstimatedSwitchCost = switchCost
+	pos.CurrentComparableWindowHours = comparable
+	pos.CurrentRiskScore = riskScore
+	if pos.Priority == 0 {
+		pos.Priority = pos.RankScore
+	}
+	if pos.TransitionState == "" {
+		pos.TransitionState = "hold"
+	}
+	if pos.FundingTruthStatus == "" {
+		if pos.RealizedFundingComplete {
+			pos.FundingTruthStatus = "complete"
+		} else {
+			pos.FundingTruthStatus = "estimated"
+		}
 	}
 }
 
@@ -397,12 +679,28 @@ func (e *CrossVenueExecutor) shouldCloseCrossVenue(ctx context.Context, pos *Cro
 	}
 	cfg := e.cfg.CrossVenueExecutor
 	now := e.nowFn()
+	e.refreshCurrentPositionMetrics(pos)
 	maxHold := time.Duration(cfg.MaxHoldHours) * time.Hour
 	if maxHold <= 0 {
 		maxHold = 72 * time.Hour
 	}
 	if now.Sub(pos.OpenedAt) > maxHold {
 		return fmt.Sprintf("持仓超过 %dh", cfg.MaxHoldHours)
+	}
+	if pos.FreshnessAgeSeconds > crossVenueMaxCompareAgeSeconds(cfg, e.cfg.CrossVenueScanner.MaxSnapshotAgeSeconds) {
+		return ""
+	}
+	if !crossVenueCompareAllowed(cfg, pos, now) {
+		return ""
+	}
+	if pos.CurrentComparableWindowHours > 0 && pos.CurrentComparableWindowHours < crossVenueMinComparableWindowHours(cfg) {
+		return ""
+	}
+	if pos.CurrentComparableWindowHours >= crossVenueMinComparableWindowHours(cfg) && pos.CurrentFutureEV <= 0 {
+		return fmt.Sprintf("未来净值<=0(%.4f)", pos.CurrentFutureEV)
+	}
+	if reason := e.crossVenueSwitchCloseReason(pos); reason != "" {
+		return reason
 	}
 
 	spread := e.currentSpreadAPR(ctx, pos)
@@ -459,6 +757,137 @@ func (e *CrossVenueExecutor) shouldCloseCrossVenue(ctx context.Context, pos *Cro
 		}
 	}
 	return ""
+}
+
+func crossVenueSwitchBufferUSDT(cfg CrossVenueExecutorConfig) float64 {
+	if cfg.SwitchBufferUSDT > 0 {
+		return cfg.SwitchBufferUSDT
+	}
+	return 0.5
+}
+
+func crossVenueSwitchCooldown(cfg CrossVenueExecutorConfig) time.Duration {
+	if cfg.SwitchCooldownSeconds > 0 {
+		return time.Duration(cfg.SwitchCooldownSeconds) * time.Second
+	}
+	return 5 * time.Minute
+}
+
+func crossVenueActiveSwitchCount(ps []CrossVenuePosition) int {
+	n := 0
+	for _, p := range activeCrossVenuePositions(ps) {
+		if crossVenueHasPendingSwitch(p) || p.TransitionState == "switch_pending" || p.TransitionState == "partial_switch" {
+			n++
+		}
+	}
+	return n
+}
+
+func crossVenuePostFundingCooldown(cfg CrossVenueExecutorConfig) time.Duration {
+	if cfg.PostFundingCooldownSeconds > 0 {
+		return time.Duration(cfg.PostFundingCooldownSeconds) * time.Second
+	}
+	return 3 * time.Minute
+}
+
+func (e *CrossVenueExecutor) crossVenueSwitchCloseReason(pos *CrossVenuePosition) string {
+	if e == nil || pos == nil || e.scanner == nil {
+		return ""
+	}
+	now := e.nowFn()
+	if crossVenueHasPendingSwitch(*pos) {
+		if crossVenueSwitchSequenceNeedsTargetFirst(pos.PendingSwitchSequence) {
+			if crossVenueHasActivePositionTarget(e.snapshotPositions(), pos.Symbol, pos.PendingSwitchHighVenue, pos.PendingSwitchLowVenue, crossVenuePositionKey(*pos)) {
+				return nonEmpty(pos.PendingSwitchReason, "open_then_close target live")
+			}
+			return ""
+		}
+		return nonEmpty(pos.PendingSwitchReason, "pending switch")
+	}
+	if !pos.SwitchCooldownUntil.IsZero() && now.Before(pos.SwitchCooldownUntil) {
+		return ""
+	}
+	cfg := e.cfg.CrossVenueExecutor
+	if cfg.MinHoldHours > 0 && now.Sub(pos.OpenedAt).Hours() < cfg.MinHoldHours {
+		return ""
+	}
+	if crossVenueActiveSwitchCount(e.snapshotPositions()) >= crossVenueSwitchesAllowedPerCycle(cfg) {
+		return ""
+	}
+	snap := e.scanner.Snapshot()
+	if !e.snapshotFreshEnough(snap.ScannedAt) {
+		return ""
+	}
+	buffer := crossVenueSwitchBufferUSDT(cfg)
+	bestGain := 0.0
+	best := CrossVenueOpportunity{}
+	for _, raw := range snap.Opportunities {
+		opp := e.enrichOpportunityFromSnapshot(raw, snap, now)
+		if opp.Symbol == pos.Symbol && opp.HighVenue == pos.HighVenue && opp.LowVenue == pos.LowVenue {
+			continue
+		}
+		if opp.NetEV <= 0 {
+			continue
+		}
+		if opp.ComparableWindowHours < crossVenueMinComparableWindowHours(cfg) {
+			continue
+		}
+		if crossVenuePostFundingCooldownActive(now, opp.HighNextFundingTime, opp.HighIntervalHours, crossVenuePostFundingCooldown(cfg)) {
+			continue
+		}
+		if crossVenuePostFundingCooldownActive(now, opp.LowNextFundingTime, opp.LowIntervalHours, crossVenuePostFundingCooldown(cfg)) {
+			continue
+		}
+		gain := opp.NetEV - pos.CurrentFutureEV - pos.EstimatedSwitchCost
+		if gain > bestGain {
+			bestGain = gain
+			best = opp
+		}
+	}
+	if bestGain <= buffer {
+		return ""
+	}
+	sequence := crossVenueChooseSwitchSequence(cfg, pos, best)
+	reason := fmt.Sprintf("更优候选触发换仓 %s/%s gain=%.4f new_ev=%.4f old_ev=%.4f", best.HighVenue, best.LowVenue, bestGain, best.NetEV, pos.CurrentFutureEV)
+	pos.PendingSwitchDecisionCycleID = crossVenueDecisionCycleID(now)
+	pos.PendingSwitchSnapshotID = best.SnapshotID
+	pos.PendingSwitchHighVenue = best.HighVenue
+	pos.PendingSwitchLowVenue = best.LowVenue
+	pos.PendingSwitchSequence = sequence
+	pos.PendingSwitchReason = reason
+	pos.PendingSwitchExpectedGainUSDT = bestGain
+	pos.PartialSwitchPhase = "pending"
+	pos.SwitchCooldownUntil = now.Add(crossVenueSwitchCooldown(cfg))
+	pos.ChurnStreak++
+	pos.TransitionState = "switch_pending"
+	pos.Priority = best.RankScore
+	_ = e.upsertSwitchIntent(crossVenueSwitchIntent{
+		Symbol:             pos.Symbol,
+		FromHighVenue:      pos.HighVenue,
+		FromLowVenue:       pos.LowVenue,
+		TargetHighVenue:    best.HighVenue,
+		TargetLowVenue:     best.LowVenue,
+		DecisionCycleID:    pos.PendingSwitchDecisionCycleID,
+		SnapshotID:         best.SnapshotID,
+		SwitchSequence:     sequence,
+		PartialSwitchPhase: "pending",
+		Reason:             reason,
+		ExpectedGainUSDT:   bestGain,
+		TargetNetEV:        best.NetEV,
+		TargetRankScore:    best.RankScore,
+		TargetNotionalUSDT: best.TradableNotional,
+		TargetSizeMult:     best.SizeMultiplier,
+		CreatedAt:          now,
+		ExpiresAt:          crossVenueSwitchIntentExpiry(now),
+	})
+	_ = e.persistPosition(*pos)
+	if crossVenueSwitchSequenceNeedsTargetFirst(sequence) {
+		if crossVenueIsStagedSwitch(sequence) {
+			pos.PartialSwitchPhase = "pending"
+		}
+		return ""
+	}
+	return reason
 }
 
 // currentSpreadAPR 从扫描器缓存(最旧 10 分钟)计算当前跨所年化价差;缓存缺失沿用降级语义返回 0,

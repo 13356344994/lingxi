@@ -276,6 +276,7 @@ func DefaultEngineConfig() EngineConfig {
 		CrossVenueScanner: CrossVenueScannerConfig{
 			Enabled:                true,
 			ScanIntervalMinutes:    10,
+			MaxSnapshotAgeSeconds:  720,
 			MinSpreadAPR:           0.30,
 			AlertSpreadAPR:         1.0,
 			TopN:                   30,
@@ -319,6 +320,14 @@ func DefaultEngineConfig() EngineConfig {
 			MakerChaseRounds:             6,
 			MakerChaseIntervalMs:         1500,
 			MakerDeadlineSeconds:         12,
+			MinComparableWindowHours:     0.25,
+			PostFundingCooldownSeconds:   180,
+			MaxCompareAgeSeconds:         900,
+			SwitchBufferUSDT:             0.5,
+			SwitchCooldownSeconds:        300,
+			SwitchSequence:               "close_then_open",
+			MaxSwitchesPerCycle:          1,
+			UntrackedExposureAction:      "halt",
 		},
 		FundingExecutor: VenueFundingExecutorConfig{
 			LiveTradingEnabled:     false,

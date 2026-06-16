@@ -277,3 +277,32 @@ func TestShouldCloseCrossVenueSoftCloseAfterFundingCoversFees(t *testing.T) {
 		t.Fatalf("funding-covered soft close should trigger, got %q", reason)
 	}
 }
+
+func TestRefreshCurrentPositionMetricsPopulatesFutureEV(t *testing.T) {
+	now := time.Date(2026, 6, 16, 0, 0, 0, 0, time.UTC)
+	e := &CrossVenueExecutor{
+		cfg:   testCrossVenueExecutorConfig(),
+		nowFn: func() time.Time { return now },
+		scanner: testScannerWithFunding(map[string]map[string]CrossVenueFundingEntry{
+			"high": {"BTC-USDT": {Rate: 0.001, IntervalHours: 8, NextFundingTime: now.Add(4 * time.Hour)}},
+			"low":  {"BTC-USDT": {Rate: 0.0001, IntervalHours: 8, NextFundingTime: now.Add(4 * time.Hour)}},
+		}),
+	}
+	e.scanner.lastSnapshot.SnapshotID = "snap-1"
+	e.scanner.lastSnapshot.ScannedAt = now.Add(-time.Minute)
+	pos := CrossVenuePosition{
+		Symbol: "BTC-USDT", HighVenue: "high", LowVenue: "low",
+		NotionalUSDT: 100, OpenedAt: now.Add(-time.Hour),
+		ExecutionScore: 0.8, RecoveryQualityScore: 0.7,
+	}
+	e.refreshCurrentPositionMetrics(&pos)
+	if pos.CurrentSnapshotID != "snap-1" {
+		t.Fatalf("current_snapshot_id=%q", pos.CurrentSnapshotID)
+	}
+	if pos.CurrentComparableWindowHours <= 0 {
+		t.Fatalf("comparable window not populated: %+v", pos)
+	}
+	if pos.CurrentFutureEV == 0 {
+		t.Fatalf("future EV should be populated: %+v", pos)
+	}
+}

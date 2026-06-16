@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"math"
 	"net/http"
@@ -232,6 +233,36 @@ func testCrossVenueExecutorConfig() EngineConfig {
 	cfg.CrossVenueScanner.Enabled = true
 	cfg.AllocatedCapitalUSDT = 1000
 	return cfg
+}
+
+func TestCrossVenueGateDepsUsesScannerFundingCache(t *testing.T) {
+	now := time.Date(2026, 6, 16, 0, 0, 0, 0, time.UTC)
+	v := &fakeFundingVenue{name: okx.VenueName}
+	e := &CrossVenueExecutor{
+		cfg: DefaultEngineConfig(),
+		venues: map[string]venue.Venue{
+			okx.VenueName: v,
+		},
+	}
+	snap := CrossVenueScanSnapshot{
+		SnapshotID: "snap-1",
+		ScannedAt:  now,
+		FundingByVenue: map[string]map[string]CrossVenueFundingEntry{
+			okx.VenueName: {
+				"BTC-USDT": {Rate: 0.0002, IntervalHours: 8, NextFundingTime: now.Add(2 * time.Hour)},
+			},
+		},
+	}
+	got, ok := e.gateDeps(snap).fetchFunding(context.Background(), v, "BTC-USDT")
+	if !ok {
+		t.Fatal("expected funding from scanner cache")
+	}
+	if got.LastFundingRate != 0.0002 || got.IntervalHours != 8 {
+		t.Fatalf("unexpected funding snapshot: %+v", got)
+	}
+	if v.called != 0 {
+		t.Fatalf("venue funding fetch should not be called, got %d", v.called)
+	}
 }
 
 // testScannerWithFunding 构造一个只带费率缓存的扫描器(执行引擎管理循环从这里查,不触网)。
@@ -517,6 +548,924 @@ func TestCrossVenueReconcileOnStart(t *testing.T) {
 	}
 }
 
+func TestCrossVenueReconcileOnStartImportUntrackedPair(t *testing.T) {
+	dir := t.TempDir()
+	store := mustCrossVenueStore(t, dir)
+	now := time.Now().UTC().Add(time.Hour)
+	high := newCrossVenueTestVenue(bybit.VenueName, 0.001, 8, now.Add(2*time.Hour))
+	low := newCrossVenueTestVenue(okx.VenueName, 0.0001, 8, now.Add(2*time.Hour))
+	high.positions = []venue.Position{{Symbol: "BTC-USDT", PositionAmt: -0.5, MarkPrice: 100, EntryPrice: 100}}
+	low.positions = []venue.Position{{Symbol: "BTC-USDT", PositionAmt: 0.5, MarkPrice: 100, EntryPrice: 100}}
+	cfg := testCrossVenueExecutorConfig()
+	cfg.NetworkConfig.RecordDir = dir
+	cfg.CrossVenueExecutor.UntrackedExposureAction = "import"
+	e := &CrossVenueExecutor{
+		cfg:       cfg,
+		venues:    map[string]venue.Venue{bybit.VenueName: high, okx.VenueName: low},
+		store:     store,
+		logger:    testCrossVenueLogger(),
+		nowFn:     func() time.Time { return now },
+		recordDir: dir,
+	}
+	e.reconcileOnStart(context.Background())
+	ps, err := store.load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ps) != 1 {
+		t.Fatalf("expected 1 imported position, got %d", len(ps))
+	}
+	if ps[0].RecoveryAction != crossVenueRecoveryActionImport || ps[0].TransitionState != "import" {
+		t.Fatalf("unexpected imported state: %+v", ps[0])
+	}
+	if ps[0].HighVenue != bybit.VenueName || ps[0].LowVenue != okx.VenueName {
+		t.Fatalf("unexpected imported venues: %+v", ps[0])
+	}
+}
+
+func TestCrossVenueReconcileOnStartFlattenUntrackedPair(t *testing.T) {
+	dir := t.TempDir()
+	store := mustCrossVenueStore(t, dir)
+	now := time.Now().UTC().Add(time.Hour)
+	high := newCrossVenueTestVenue(bybit.VenueName, 0.001, 8, now.Add(2*time.Hour))
+	low := newCrossVenueTestVenue(okx.VenueName, 0.0001, 8, now.Add(2*time.Hour))
+	high.positions = []venue.Position{{Symbol: "BTC-USDT", PositionAmt: -0.5, MarkPrice: 100, EntryPrice: 100}}
+	low.positions = []venue.Position{{Symbol: "BTC-USDT", PositionAmt: 0.5, MarkPrice: 100, EntryPrice: 100}}
+	high.clearOnReduceOnly = true
+	low.clearOnReduceOnly = true
+	cfg := testCrossVenueExecutorConfig()
+	cfg.NetworkConfig.RecordDir = dir
+	cfg.CrossVenueExecutor.UntrackedExposureAction = "flatten"
+	cfg.CrossVenueExecutor.LiveTradingEnabled = true
+	e := &CrossVenueExecutor{
+		cfg:       cfg,
+		venues:    map[string]venue.Venue{bybit.VenueName: high, okx.VenueName: low},
+		store:     store,
+		logger:    testCrossVenueLogger(),
+		nowFn:     func() time.Time { return now },
+		recordDir: dir,
+	}
+	e.reconcileOnStart(context.Background())
+	ps, err := store.load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ps) != 0 {
+		t.Fatalf("flatten should remove ledger, got %d", len(ps))
+	}
+	if atomic.LoadInt32(high.placeCount) == 0 || atomic.LoadInt32(low.placeCount) == 0 {
+		t.Fatalf("flatten should place close orders: high=%d low=%d", *high.placeCount, *low.placeCount)
+	}
+}
+
+func TestCrossVenueReconcileOnStartHaltUntrackedPair(t *testing.T) {
+	dir := t.TempDir()
+	store := mustCrossVenueStore(t, dir)
+	now := time.Now().UTC().Add(time.Hour)
+	high := newCrossVenueTestVenue(bybit.VenueName, 0.001, 8, now.Add(2*time.Hour))
+	low := newCrossVenueTestVenue(okx.VenueName, 0.0001, 8, now.Add(2*time.Hour))
+	high.positions = []venue.Position{{Symbol: "BTC-USDT", PositionAmt: -0.5, MarkPrice: 100}}
+	low.positions = []venue.Position{{Symbol: "BTC-USDT", PositionAmt: 0.5, MarkPrice: 100}}
+	cfg := testCrossVenueExecutorConfig()
+	cfg.NetworkConfig.RecordDir = dir
+	cfg.CrossVenueExecutor.UntrackedExposureAction = "halt"
+	e := &CrossVenueExecutor{
+		cfg:       cfg,
+		venues:    map[string]venue.Venue{bybit.VenueName: high, okx.VenueName: low},
+		store:     store,
+		logger:    testCrossVenueLogger(),
+		nowFn:     func() time.Time { return now },
+		recordDir: dir,
+	}
+	e.openingsEnabled.Store(true)
+	e.reconcileOnStart(context.Background())
+	if e.OpeningsEnabled() {
+		t.Fatal("halt branch should disable openings")
+	}
+}
+
+func TestCrossVenueShouldCloseForBetterSwitchCandidate(t *testing.T) {
+	now := time.Now().UTC()
+	cfg := testCrossVenueExecutorConfig()
+	cfg.NetworkConfig.RecordDir = t.TempDir()
+	cfg.CrossVenueExecutor.SwitchBufferUSDT = 0.1
+	cfg.CrossVenueExecutor.MinHoldHours = 1
+	cfg.CrossVenueExecutor.PostFundingCooldownSeconds = 0
+	cfg.CrossVenueScanner.MaxSnapshotAgeSeconds = 720
+	scanner := &CrossVenueScanner{lastSnapshot: CrossVenueScanSnapshot{
+		SnapshotID: "snap-switch",
+		ScannedAt:  now,
+		Opportunities: []CrossVenueOpportunity{{
+			Symbol: "ETH-USDT", HighVenue: gate.VenueName, LowVenue: okx.VenueName, SpreadAPR: 30,
+			HighFundingRate: 0.05, LowFundingRate: 0.0, HighIntervalHours: 8, LowIntervalHours: 8,
+			HighNextFundingTime: now.Add(4 * time.Hour), LowNextFundingTime: now.Add(4 * time.Hour), TradableNotional: 50,
+		}},
+		FundingByVenue: map[string]map[string]CrossVenueFundingEntry{
+			bybit.VenueName: {"BTC-USDT": {Rate: 0.02, IntervalHours: 8, NextFundingTime: now.Add(4 * time.Hour)}},
+			okx.VenueName: {
+				"BTC-USDT": {Rate: 0.0, IntervalHours: 8, NextFundingTime: now.Add(4 * time.Hour)},
+				"ETH-USDT": {Rate: 0.0, IntervalHours: 8, NextFundingTime: now.Add(4 * time.Hour)},
+			},
+			gate.VenueName: {"ETH-USDT": {Rate: 0.05, IntervalHours: 8, NextFundingTime: now.Add(4 * time.Hour)}},
+		},
+	}}
+	e := &CrossVenueExecutor{
+		cfg:       cfg,
+		scanner:   scanner,
+		store:     mustCrossVenueStore(t, cfg.NetworkConfig.RecordDir),
+		logger:    testCrossVenueLogger(),
+		nowFn:     func() time.Time { return now },
+		recordDir: cfg.NetworkConfig.RecordDir,
+	}
+	pos := CrossVenuePosition{
+		Symbol: "BTC-USDT", HighVenue: bybit.VenueName, LowVenue: okx.VenueName,
+		Status: CrossVenueStatusOpen, OpenedAt: now.Add(-2 * time.Hour), NotionalUSDT: 50,
+		HighLeg: CrossVenueLegState{Qty: 0.5, EntryPrice: 100}, LowLeg: CrossVenueLegState{Qty: 0.5, EntryPrice: 100},
+		RecoveryQualityScore: 0.9, ExecutionScore: 0.9,
+	}
+	reason := e.shouldCloseCrossVenue(context.Background(), &pos)
+	if !strings.Contains(reason, "更优候选触发换仓") {
+		t.Fatalf("expected switch close reason, got %q", reason)
+	}
+	if pos.SwitchCooldownUntil.IsZero() || pos.TransitionState != "switch_pending" || pos.ChurnStreak != 1 {
+		t.Fatalf("switch state not updated: %+v", pos)
+	}
+	if pos.PendingSwitchHighVenue != gate.VenueName || pos.PendingSwitchLowVenue != okx.VenueName || pos.PendingSwitchExpectedGainUSDT <= 0 {
+		t.Fatalf("pending switch fields not populated: %+v", pos)
+	}
+	if pos.PendingSwitchSequence != crossVenueSwitchSequenceCloseThenOpen || pos.PartialSwitchPhase != "pending" {
+		t.Fatalf("pending switch sequence/phase not populated: %+v", pos)
+	}
+	intents := e.activeSwitchIntents(now)
+	if len(intents) != 1 {
+		t.Fatalf("expected 1 switch intent, got %d", len(intents))
+	}
+	if intents[0].TargetHighVenue != gate.VenueName || intents[0].TargetLowVenue != okx.VenueName {
+		t.Fatalf("unexpected switch intent: %+v", intents[0])
+	}
+	if intents[0].SwitchSequence != crossVenueSwitchSequenceCloseThenOpen || intents[0].PartialSwitchPhase != "pending" {
+		t.Fatalf("unexpected switch intent sequence/phase: %+v", intents[0])
+	}
+}
+
+func TestCrossVenueEvaluateNewOpensPrioritizesPendingSwitchIntent(t *testing.T) {
+	now := time.Now().UTC()
+	cfg := testCrossVenueExecutorConfig()
+	cfg.NetworkConfig.RecordDir = t.TempDir()
+	cfg.CrossVenueExecutor.LiveTradingEnabled = true
+	cfg.CrossVenueExecutor.MaxConcurrent = 1
+	cfg.CrossVenueScanner.MaxSnapshotAgeSeconds = 720
+	tight := venue.BookTicker{BidPrice: 99.99, AskPrice: 100.01, BidQty: 1000, AskQty: 1000}
+	bybitV := newCrossVenueTestVenue(bybit.VenueName, 0.05, 8, now.Add(4*time.Hour))
+	okxV := newCrossVenueTestVenue(okx.VenueName, 0.0, 8, now.Add(4*time.Hour))
+	gateV := newCrossVenueTestVenue(gate.VenueName, 0.04, 8, now.Add(4*time.Hour))
+	bybitV.book, okxV.book, gateV.book = tight, tight, tight
+	store := mustCrossVenueStore(t, cfg.NetworkConfig.RecordDir)
+	e := &CrossVenueExecutor{
+		cfg: cfg,
+		venues: map[string]venue.Venue{
+			bybit.VenueName: bybitV,
+			okx.VenueName:   okxV,
+			gate.VenueName:  gateV,
+		},
+		store:     store,
+		logger:    testCrossVenueLogger(),
+		nowFn:     func() time.Time { return now },
+		recordDir: cfg.NetworkConfig.RecordDir,
+	}
+	intent := crossVenueSwitchIntent{
+		Symbol:             "BTC-USDT",
+		FromHighVenue:      bybit.VenueName,
+		FromLowVenue:       okx.VenueName,
+		TargetHighVenue:    gate.VenueName,
+		TargetLowVenue:     okx.VenueName,
+		DecisionCycleID:    "cvcycle-test",
+		SnapshotID:         "snap-intent",
+		SwitchSequence:     crossVenueSwitchSequenceCloseThenOpen,
+		PartialSwitchPhase: "open_new",
+		Reason:             "switch-intent",
+		CreatedAt:          now,
+		ExpiresAt:          now.Add(30 * time.Minute),
+	}
+	if err := e.upsertSwitchIntent(intent); err != nil {
+		t.Fatal(err)
+	}
+	bybitOpp := makeTestOpenOpportunity(cfg.CrossVenueExecutor, now, "BTC-USDT", bybit.VenueName, okx.VenueName, 0.05, 0.0, 20, 0.90, 0.90, 0.40, 0.90)
+	gateOpp := makeTestOpenOpportunity(cfg.CrossVenueExecutor, now, "BTC-USDT", gate.VenueName, okx.VenueName, 0.04, 0.0, 20, 0.70, 0.70, 0.40, 0.80)
+	e.scanner = &CrossVenueScanner{lastSnapshot: CrossVenueScanSnapshot{
+		SnapshotID:    "snap-open",
+		ScannedAt:     now,
+		Opportunities: []CrossVenueOpportunity{bybitOpp, gateOpp},
+		FundingByVenue: map[string]map[string]CrossVenueFundingEntry{
+			bybit.VenueName: {"BTC-USDT": {Rate: 0.05, IntervalHours: 8, NextFundingTime: now.Add(4 * time.Hour)}},
+			gate.VenueName:  {"BTC-USDT": {Rate: 0.04, IntervalHours: 8, NextFundingTime: now.Add(4 * time.Hour)}},
+			okx.VenueName:   {"BTC-USDT": {Rate: 0.0, IntervalHours: 8, NextFundingTime: now.Add(4 * time.Hour)}},
+		},
+	}}
+	e.evaluateNewOpens(context.Background(), true)
+	ps, err := store.load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ps) != 1 {
+		t.Fatalf("expected 1 opened position, got %d", len(ps))
+	}
+	if ps[0].HighVenue != gate.VenueName || ps[0].LowVenue != okx.VenueName {
+		t.Fatalf("switch intent should prioritize gate/okx, got %+v", ps[0])
+	}
+	if intents := e.activeSwitchIntents(now); len(intents) != 0 {
+		t.Fatalf("switch intent should be consumed after open, got %+v", intents)
+	}
+}
+
+func TestCrossVenueEvaluateNewOpensBlocksFreshOpensWhileSwitchRetryPending(t *testing.T) {
+	now := time.Now().UTC()
+	cfg := testCrossVenueExecutorConfig()
+	cfg.NetworkConfig.RecordDir = t.TempDir()
+	cfg.CrossVenueExecutor.LiveTradingEnabled = true
+	cfg.CrossVenueExecutor.MaxConcurrent = 1
+	cfg.CrossVenueScanner.MaxSnapshotAgeSeconds = 720
+	tight := venue.BookTicker{BidPrice: 99.99, AskPrice: 100.01, BidQty: 1000, AskQty: 1000}
+	bybitV := newCrossVenueTestVenue(bybit.VenueName, 0.05, 8, now.Add(4*time.Hour))
+	okxV := newCrossVenueTestVenue(okx.VenueName, 0.0, 8, now.Add(4*time.Hour))
+	gateV := newCrossVenueTestVenue(gate.VenueName, 0.04, 8, now.Add(4*time.Hour))
+	bybitV.book, okxV.book, gateV.book = tight, tight, tight
+	store := mustCrossVenueStore(t, cfg.NetworkConfig.RecordDir)
+	e := &CrossVenueExecutor{
+		cfg: cfg,
+		venues: map[string]venue.Venue{
+			bybit.VenueName: bybitV,
+			okx.VenueName:   okxV,
+			gate.VenueName:  gateV,
+		},
+		store:     store,
+		logger:    testCrossVenueLogger(),
+		nowFn:     func() time.Time { return now },
+		recordDir: cfg.NetworkConfig.RecordDir,
+	}
+	intent := crossVenueSwitchIntent{
+		Symbol:             "BTC-USDT",
+		FromHighVenue:      bybit.VenueName,
+		FromLowVenue:       okx.VenueName,
+		TargetHighVenue:    gate.VenueName,
+		TargetLowVenue:     okx.VenueName,
+		DecisionCycleID:    "cvcycle-retry",
+		SnapshotID:         "snap-retry",
+		SwitchSequence:     crossVenueSwitchSequenceCloseThenOpen,
+		PartialSwitchPhase: "open_new_retry",
+		Reason:             "switch retry pending",
+		CreatedAt:          now,
+		ExpiresAt:          now.Add(30 * time.Minute),
+	}
+	if err := e.upsertSwitchIntent(intent); err != nil {
+		t.Fatal(err)
+	}
+	// 只给一个无关的新机会,不提供 pending switch 目标,执行器应阻止 fresh open。
+	ethOpp := makeTestOpenOpportunity(cfg.CrossVenueExecutor, now, "ETH-USDT", bybit.VenueName, okx.VenueName, 0.05, 0.0, 20, 0.95, 0.95, 0.95, 0.95)
+	e.scanner = &CrossVenueScanner{lastSnapshot: CrossVenueScanSnapshot{
+		SnapshotID:    "snap-open",
+		ScannedAt:     now,
+		Opportunities: []CrossVenueOpportunity{ethOpp},
+		FundingByVenue: map[string]map[string]CrossVenueFundingEntry{
+			bybit.VenueName: {"ETH-USDT": {Rate: 0.05, IntervalHours: 8, NextFundingTime: now.Add(4 * time.Hour)}},
+			okx.VenueName:   {"ETH-USDT": {Rate: 0.0, IntervalHours: 8, NextFundingTime: now.Add(4 * time.Hour)}},
+		},
+	}}
+	e.evaluateNewOpens(context.Background(), true)
+	ps, err := store.load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ps) != 0 {
+		t.Fatalf("should not open fresh positions while switch retry pending, got %+v", ps)
+	}
+	intents := e.activeSwitchIntents(now)
+	if len(intents) != 1 || intents[0].PartialSwitchPhase != "open_new_retry" {
+		t.Fatalf("pending retry intent should remain active, got %+v", intents)
+	}
+}
+
+func TestCrossVenueClosePositionPromotesSwitchIntentToOpenNew(t *testing.T) {
+	now := time.Now().UTC()
+	cfg := testCrossVenueExecutorConfig()
+	cfg.NetworkConfig.RecordDir = t.TempDir()
+	cfg.CrossVenueExecutor.LiveTradingEnabled = true
+	high := newCrossVenueTestVenue(bybit.VenueName, 0.02, 8, now.Add(4*time.Hour))
+	low := newCrossVenueTestVenue(okx.VenueName, 0.0, 8, now.Add(4*time.Hour))
+	high.clearOnReduceOnly = true
+	low.clearOnReduceOnly = true
+	high.positions = []venue.Position{{Symbol: "BTC-USDT", PositionAmt: -0.5, MarkPrice: 100, EntryPrice: 100}}
+	low.positions = []venue.Position{{Symbol: "BTC-USDT", PositionAmt: 0.5, MarkPrice: 100, EntryPrice: 100}}
+	e := &CrossVenueExecutor{
+		cfg:       cfg,
+		venues:    map[string]venue.Venue{bybit.VenueName: high, okx.VenueName: low},
+		store:     mustCrossVenueStore(t, cfg.NetworkConfig.RecordDir),
+		logger:    testCrossVenueLogger(),
+		nowFn:     func() time.Time { return now },
+		recordDir: cfg.NetworkConfig.RecordDir,
+	}
+	intent := crossVenueSwitchIntent{
+		Symbol:             "BTC-USDT",
+		FromHighVenue:      bybit.VenueName,
+		FromLowVenue:       okx.VenueName,
+		TargetHighVenue:    gate.VenueName,
+		TargetLowVenue:     okx.VenueName,
+		SwitchSequence:     crossVenueSwitchSequenceCloseThenOpen,
+		PartialSwitchPhase: "close_old",
+		CreatedAt:          now,
+		ExpiresAt:          now.Add(30 * time.Minute),
+	}
+	if err := e.upsertSwitchIntent(intent); err != nil {
+		t.Fatal(err)
+	}
+	pos := CrossVenuePosition{
+		Symbol:                 "BTC-USDT",
+		HighVenue:              bybit.VenueName,
+		LowVenue:               okx.VenueName,
+		Status:                 CrossVenueStatusClosing,
+		OpenedAt:               now.Add(-time.Hour),
+		UpdatedAt:              now,
+		IdemPrefix:             "close-then-open",
+		CloseReason:            "switch close",
+		HighLeg:                CrossVenueLegState{Venue: bybit.VenueName, Side: "sell", Qty: 0.5, EntryPrice: 100},
+		LowLeg:                 CrossVenueLegState{Venue: okx.VenueName, Side: "buy", Qty: 0.5, EntryPrice: 100},
+		PendingSwitchHighVenue: gate.VenueName,
+		PendingSwitchLowVenue:  okx.VenueName,
+		PendingSwitchSequence:  crossVenueSwitchSequenceCloseThenOpen,
+		PartialSwitchPhase:     "close_old",
+	}
+	if err := e.closeCrossVenuePosition(context.Background(), pos, true, pos.CloseReason); err != nil {
+		t.Fatal(err)
+	}
+	intents := e.activeSwitchIntents(now)
+	if len(intents) != 1 {
+		t.Fatalf("expected one promoted switch intent, got %d", len(intents))
+	}
+	if intents[0].PartialSwitchPhase != "open_new" {
+		t.Fatalf("expected switch intent promoted to open_new, got %+v", intents[0])
+	}
+}
+
+func TestCrossVenueClosePositionKeepsPartialSwitchState(t *testing.T) {
+	now := time.Now().UTC()
+	cfg := testCrossVenueExecutorConfig()
+	cfg.NetworkConfig.RecordDir = t.TempDir()
+	cfg.CrossVenueExecutor.LiveTradingEnabled = true
+	high := newCrossVenueTestVenue(bybit.VenueName, 0.02, 8, now.Add(4*time.Hour))
+	low := newCrossVenueTestVenue(okx.VenueName, 0.0, 8, now.Add(4*time.Hour))
+	high.positions = []venue.Position{{Symbol: "BTC-USDT", PositionAmt: -0.5, MarkPrice: 100, EntryPrice: 100}}
+	low.positions = []venue.Position{{Symbol: "BTC-USDT", PositionAmt: 0.5, MarkPrice: 100, EntryPrice: 100}}
+	e := &CrossVenueExecutor{
+		cfg:       cfg,
+		venues:    map[string]venue.Venue{bybit.VenueName: high, okx.VenueName: low},
+		store:     mustCrossVenueStore(t, cfg.NetworkConfig.RecordDir),
+		logger:    testCrossVenueLogger(),
+		nowFn:     func() time.Time { return now },
+		recordDir: cfg.NetworkConfig.RecordDir,
+	}
+	pos := CrossVenuePosition{
+		Symbol:                        "BTC-USDT",
+		HighVenue:                     bybit.VenueName,
+		LowVenue:                      okx.VenueName,
+		Status:                        CrossVenueStatusClosing,
+		OpenedAt:                      now.Add(-time.Hour),
+		UpdatedAt:                     now,
+		IdemPrefix:                    "partial-switch",
+		CloseReason:                   "switch close",
+		HighLeg:                       CrossVenueLegState{Venue: bybit.VenueName, Side: "sell", Qty: 0.5, EntryPrice: 100},
+		LowLeg:                        CrossVenueLegState{Venue: okx.VenueName, Side: "buy", Qty: 0.5, EntryPrice: 100},
+		PendingSwitchHighVenue:        gate.VenueName,
+		PendingSwitchLowVenue:         okx.VenueName,
+		PendingSwitchReason:           "switch to gate/okx",
+		PendingSwitchExpectedGainUSDT: 1.2,
+	}
+	if err := e.store.upsert(pos); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.closeCrossVenuePosition(context.Background(), pos, true, pos.CloseReason); err == nil {
+		t.Fatal("expected partial switch close to remain unfinished")
+	}
+	ps, err := e.store.load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ps) != 1 {
+		t.Fatalf("expected position kept for retry, got %d", len(ps))
+	}
+	if ps[0].TransitionState != "partial_switch" || ps[0].RecoveryAction != crossVenueRecoveryActionFlatten || ps[0].Status != CrossVenueStatusClosing {
+		t.Fatalf("unexpected partial switch recovery state: %+v", ps[0])
+	}
+	if ps[0].PartialSwitchPhase != "close_old" || ps[0].PendingSwitchSequence != crossVenueSwitchSequenceCloseThenOpen {
+		t.Fatalf("unexpected partial switch phase/sequence after unfinished close: %+v", ps[0])
+	}
+}
+
+func TestCrossVenueReconcileOnStartRecoversPendingSwitch(t *testing.T) {
+	dir := t.TempDir()
+	store := mustCrossVenueStore(t, dir)
+	now := time.Now().UTC()
+	pos := CrossVenuePosition{
+		Symbol:                        "BTC-USDT",
+		HighVenue:                     bybit.VenueName,
+		LowVenue:                      okx.VenueName,
+		Status:                        CrossVenueStatusOpen,
+		OpenedAt:                      now.Add(-2 * time.Hour),
+		UpdatedAt:                     now,
+		IdemPrefix:                    "reconcile-switch",
+		HighLeg:                       CrossVenueLegState{Venue: bybit.VenueName, Side: "sell", Qty: 0.5, EntryPrice: 100},
+		LowLeg:                        CrossVenueLegState{Venue: okx.VenueName, Side: "buy", Qty: 0.5, EntryPrice: 100},
+		PendingSwitchHighVenue:        gate.VenueName,
+		PendingSwitchLowVenue:         okx.VenueName,
+		PendingSwitchReason:           "pending switch recovery",
+		PendingSwitchExpectedGainUSDT: 0.8,
+	}
+	if err := store.upsert(pos); err != nil {
+		t.Fatal(err)
+	}
+	high := newCrossVenueTestVenue(bybit.VenueName, 0.02, 8, now.Add(4*time.Hour))
+	low := newCrossVenueTestVenue(okx.VenueName, 0.0, 8, now.Add(4*time.Hour))
+	high.positions = []venue.Position{{Symbol: "BTC-USDT", PositionAmt: -0.5, MarkPrice: 100, EntryPrice: 100}}
+	low.positions = []venue.Position{{Symbol: "BTC-USDT", PositionAmt: 0.5, MarkPrice: 100, EntryPrice: 100}}
+	cfg := testCrossVenueExecutorConfig()
+	cfg.NetworkConfig.RecordDir = dir
+	e := &CrossVenueExecutor{
+		cfg:       cfg,
+		venues:    map[string]venue.Venue{bybit.VenueName: high, okx.VenueName: low},
+		store:     store,
+		logger:    testCrossVenueLogger(),
+		nowFn:     func() time.Time { return now },
+		recordDir: dir,
+	}
+	e.reconcileOnStart(context.Background())
+	ps, err := store.load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ps) != 1 {
+		t.Fatalf("expected recovered position, got %d", len(ps))
+	}
+	if ps[0].Status != CrossVenueStatusClosing || ps[0].TransitionState != "partial_switch" || ps[0].RecoveryAction != crossVenueRecoveryActionFlatten {
+		t.Fatalf("unexpected recovered pending switch state: %+v", ps[0])
+	}
+	if ps[0].PartialSwitchPhase != "close_old" || ps[0].PendingSwitchSequence != crossVenueSwitchSequenceCloseThenOpen {
+		t.Fatalf("pending switch should recover into close_old phase: %+v", ps[0])
+	}
+}
+
+func TestCrossVenueReconcileOnStartPromotesUnhedgedSwitchTargetToSecondLegContinuation(t *testing.T) {
+	dir := t.TempDir()
+	store := mustCrossVenueStore(t, dir)
+	now := time.Now().UTC()
+	pos := CrossVenuePosition{
+		Symbol:             "BTC-USDT",
+		HighVenue:          gate.VenueName,
+		LowVenue:           okx.VenueName,
+		Status:             CrossVenueStatusOpeningSecondLeg,
+		TransitionState:    "open",
+		OpenedAt:           now.Add(-10 * time.Minute),
+		UpdatedAt:          now,
+		IdemPrefix:         "reconcile-target-open",
+		HighLeg:            CrossVenueLegState{Venue: gate.VenueName, Side: "sell", Qty: 0.5, EntryPrice: 100},
+		LowLeg:             CrossVenueLegState{Venue: okx.VenueName, Side: "buy", Qty: 0.5, EntryPrice: 100},
+		PartialSwitchPhase: "open_new_second_leg",
+	}
+	if err := store.upsert(pos); err != nil {
+		t.Fatal(err)
+	}
+	cfg := testCrossVenueExecutorConfig()
+	cfg.NetworkConfig.RecordDir = dir
+	high := newCrossVenueTestVenue(gate.VenueName, 0.02, 8, now.Add(4*time.Hour))
+	low := newCrossVenueTestVenue(okx.VenueName, 0.0, 8, now.Add(4*time.Hour))
+	high.positions = []venue.Position{{Symbol: "BTC-USDT", PositionAmt: -0.5, MarkPrice: 100, EntryPrice: 100}}
+	low.positions = nil
+	e := &CrossVenueExecutor{
+		cfg:       cfg,
+		venues:    map[string]venue.Venue{gate.VenueName: high, okx.VenueName: low},
+		store:     store,
+		logger:    testCrossVenueLogger(),
+		nowFn:     func() time.Time { return now },
+		recordDir: dir,
+	}
+	intent := crossVenueSwitchIntent{
+		Symbol:             "BTC-USDT",
+		FromHighVenue:      bybit.VenueName,
+		FromLowVenue:       okx.VenueName,
+		TargetHighVenue:    gate.VenueName,
+		TargetLowVenue:     okx.VenueName,
+		SwitchSequence:     crossVenueSwitchSequenceCloseThenOpen,
+		PartialSwitchPhase: "open_new_second_leg",
+		Reason:             "switch target opening",
+		CreatedAt:          now,
+		ExpiresAt:          now.Add(30 * time.Minute),
+	}
+	if err := e.upsertSwitchIntent(intent); err != nil {
+		t.Fatal(err)
+	}
+	e.reconcileOnStart(context.Background())
+	ps, err := store.load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ps) != 1 {
+		t.Fatalf("expected recovered opening position, got %d", len(ps))
+	}
+	if ps[0].Status != CrossVenueStatusOpeningSecondLeg || ps[0].TransitionState != "open" || ps[0].RecoveryAction != crossVenueRecoveryActionObserve {
+		t.Fatalf("unexpected recovered switch target state: %+v", ps[0])
+	}
+	if ps[0].PartialSwitchPhase != "open_new_second_leg" {
+		t.Fatalf("expected open_new_second_leg phase, got %+v", ps[0])
+	}
+	intents := e.activeSwitchIntents(now)
+	if len(intents) != 1 || intents[0].PartialSwitchPhase != "open_new_second_leg" {
+		t.Fatalf("intent should move to open_new_second_leg, got %+v", intents)
+	}
+}
+
+func TestCrossVenueReconcileOnStartConfirmsLiveSwitchTarget(t *testing.T) {
+	dir := t.TempDir()
+	store := mustCrossVenueStore(t, dir)
+	now := time.Now().UTC()
+	pos := CrossVenuePosition{
+		Symbol:             "BTC-USDT",
+		HighVenue:          gate.VenueName,
+		LowVenue:           okx.VenueName,
+		Status:             CrossVenueStatusOpeningSecondLeg,
+		TransitionState:    "open",
+		OpenedAt:           now.Add(-10 * time.Minute),
+		UpdatedAt:          now,
+		IdemPrefix:         "reconcile-target-live",
+		HighLeg:            CrossVenueLegState{Venue: gate.VenueName, Side: "sell", Qty: 0.5, EntryPrice: 100},
+		LowLeg:             CrossVenueLegState{Venue: okx.VenueName, Side: "buy", Qty: 0.5, EntryPrice: 100},
+		PartialSwitchPhase: "open_new_second_leg",
+	}
+	if err := store.upsert(pos); err != nil {
+		t.Fatal(err)
+	}
+	cfg := testCrossVenueExecutorConfig()
+	cfg.NetworkConfig.RecordDir = dir
+	high := newCrossVenueTestVenue(gate.VenueName, 0.02, 8, now.Add(4*time.Hour))
+	low := newCrossVenueTestVenue(okx.VenueName, 0.0, 8, now.Add(4*time.Hour))
+	high.positions = []venue.Position{{Symbol: "BTC-USDT", PositionAmt: -0.5, MarkPrice: 100, EntryPrice: 100}}
+	low.positions = []venue.Position{{Symbol: "BTC-USDT", PositionAmt: 0.5, MarkPrice: 100, EntryPrice: 100}}
+	e := &CrossVenueExecutor{
+		cfg:       cfg,
+		venues:    map[string]venue.Venue{gate.VenueName: high, okx.VenueName: low},
+		store:     store,
+		logger:    testCrossVenueLogger(),
+		nowFn:     func() time.Time { return now },
+		recordDir: dir,
+	}
+	intent := crossVenueSwitchIntent{
+		Symbol:             "BTC-USDT",
+		FromHighVenue:      bybit.VenueName,
+		FromLowVenue:       okx.VenueName,
+		TargetHighVenue:    gate.VenueName,
+		TargetLowVenue:     okx.VenueName,
+		SwitchSequence:     crossVenueSwitchSequenceCloseThenOpen,
+		PartialSwitchPhase: "open_new_second_leg",
+		Reason:             "switch target opening",
+		CreatedAt:          now,
+		ExpiresAt:          now.Add(30 * time.Minute),
+	}
+	if err := e.upsertSwitchIntent(intent); err != nil {
+		t.Fatal(err)
+	}
+	e.reconcileOnStart(context.Background())
+	ps, err := store.load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ps) != 1 {
+		t.Fatalf("expected live switch target position, got %d", len(ps))
+	}
+	if ps[0].Status != CrossVenueStatusOpen || ps[0].TransitionState != "hold" || ps[0].RecoveryAction != crossVenueRecoveryActionObserve {
+		t.Fatalf("unexpected confirmed switch target state: %+v", ps[0])
+	}
+	if ps[0].PartialSwitchPhase != "consumed" {
+		t.Fatalf("expected consumed phase, got %+v", ps[0])
+	}
+	if intents := e.activeSwitchIntents(now); len(intents) != 0 {
+		t.Fatalf("switch intent should be consumed after reconcile confirmation, got %+v", intents)
+	}
+}
+
+func TestCrossVenueReconcileOnStartPromotesFirstLegToSecondLegContinuation(t *testing.T) {
+	dir := t.TempDir()
+	store := mustCrossVenueStore(t, dir)
+	now := time.Now().UTC()
+	pos := CrossVenuePosition{
+		Symbol:                "BTC-USDT",
+		HighVenue:             gate.VenueName,
+		LowVenue:              okx.VenueName,
+		Status:                CrossVenueStatusOpeningFirstLeg,
+		TransitionState:       "open",
+		OpenedAt:              now.Add(-10 * time.Minute),
+		UpdatedAt:             now,
+		IdemPrefix:            "reconcile-promote-second-leg",
+		HighLeg:               CrossVenueLegState{Venue: gate.VenueName, Side: "sell", Qty: 0.5, EntryPrice: 100},
+		LowLeg:                CrossVenueLegState{Venue: okx.VenueName, Side: "buy"},
+		PendingSwitchSequence: crossVenueSwitchSequenceCloseThenOpen,
+		PartialSwitchPhase:    "open_new_first_leg",
+	}
+	if err := store.upsert(pos); err != nil {
+		t.Fatal(err)
+	}
+	cfg := testCrossVenueExecutorConfig()
+	cfg.NetworkConfig.RecordDir = dir
+	high := newCrossVenueTestVenue(gate.VenueName, 0.02, 8, now.Add(4*time.Hour))
+	low := newCrossVenueTestVenue(okx.VenueName, 0.0, 8, now.Add(4*time.Hour))
+	high.positions = []venue.Position{{Symbol: "BTC-USDT", PositionAmt: -0.5, MarkPrice: 100, EntryPrice: 100}}
+	low.positions = nil
+	e := &CrossVenueExecutor{
+		cfg:       cfg,
+		venues:    map[string]venue.Venue{gate.VenueName: high, okx.VenueName: low},
+		store:     store,
+		logger:    testCrossVenueLogger(),
+		nowFn:     func() time.Time { return now },
+		recordDir: dir,
+	}
+	intent := crossVenueSwitchIntent{
+		Symbol:             "BTC-USDT",
+		FromHighVenue:      bybit.VenueName,
+		FromLowVenue:       okx.VenueName,
+		TargetHighVenue:    gate.VenueName,
+		TargetLowVenue:     okx.VenueName,
+		SwitchSequence:     crossVenueSwitchSequenceCloseThenOpen,
+		PartialSwitchPhase: "open_new_first_leg",
+		CreatedAt:          now,
+		ExpiresAt:          now.Add(30 * time.Minute),
+	}
+	if err := e.upsertSwitchIntent(intent); err != nil {
+		t.Fatal(err)
+	}
+	e.reconcileOnStart(context.Background())
+	ps, err := store.load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ps) != 1 {
+		t.Fatalf("expected promoted position, got %d", len(ps))
+	}
+	if ps[0].Status != CrossVenueStatusOpeningSecondLeg || ps[0].PartialSwitchPhase != "open_new_second_leg" {
+		t.Fatalf("expected promotion to second-leg continuation, got %+v", ps[0])
+	}
+	intents := e.activeSwitchIntents(now)
+	if len(intents) != 1 || intents[0].PartialSwitchPhase != "open_new_second_leg" {
+		t.Fatalf("intent should be promoted to open_new_second_leg, got %+v", intents)
+	}
+}
+
+func TestManageCrossVenuePositionConfirmsOpeningSwitchTarget(t *testing.T) {
+	dir := t.TempDir()
+	store := mustCrossVenueStore(t, dir)
+	now := time.Now().UTC()
+	pos := CrossVenuePosition{
+		Symbol:                "BTC-USDT",
+		HighVenue:             gate.VenueName,
+		LowVenue:              okx.VenueName,
+		Status:                CrossVenueStatusOpeningSecondLeg,
+		TransitionState:       "open",
+		OpenedAt:              now.Add(-10 * time.Minute),
+		UpdatedAt:             now,
+		IdemPrefix:            "runtime-target-live",
+		HighLeg:               CrossVenueLegState{Venue: gate.VenueName, Side: "sell", Qty: 0.5, EntryPrice: 100},
+		LowLeg:                CrossVenueLegState{Venue: okx.VenueName, Side: "buy", Qty: 0.5, EntryPrice: 100},
+		PendingSwitchSequence: crossVenueSwitchSequenceCloseThenOpen,
+		PartialSwitchPhase:    "open_new_second_leg",
+	}
+	if err := store.upsert(pos); err != nil {
+		t.Fatal(err)
+	}
+	cfg := testCrossVenueExecutorConfig()
+	cfg.NetworkConfig.RecordDir = dir
+	high := newCrossVenueTestVenue(gate.VenueName, 0.02, 8, now.Add(4*time.Hour))
+	low := newCrossVenueTestVenue(okx.VenueName, 0.0, 8, now.Add(4*time.Hour))
+	high.positions = []venue.Position{{Symbol: "BTC-USDT", PositionAmt: -0.5, MarkPrice: 100, EntryPrice: 100}}
+	low.positions = []venue.Position{{Symbol: "BTC-USDT", PositionAmt: 0.5, MarkPrice: 100, EntryPrice: 100}}
+	e := &CrossVenueExecutor{
+		cfg:       cfg,
+		venues:    map[string]venue.Venue{gate.VenueName: high, okx.VenueName: low},
+		store:     store,
+		logger:    testCrossVenueLogger(),
+		nowFn:     func() time.Time { return now },
+		recordDir: dir,
+	}
+	intent := crossVenueSwitchIntent{
+		Symbol:             "BTC-USDT",
+		FromHighVenue:      bybit.VenueName,
+		FromLowVenue:       okx.VenueName,
+		TargetHighVenue:    gate.VenueName,
+		TargetLowVenue:     okx.VenueName,
+		SwitchSequence:     crossVenueSwitchSequenceCloseThenOpen,
+		PartialSwitchPhase: "open_new_second_leg",
+		CreatedAt:          now,
+		ExpiresAt:          now.Add(30 * time.Minute),
+	}
+	if err := e.upsertSwitchIntent(intent); err != nil {
+		t.Fatal(err)
+	}
+	got, changed := e.manageCrossVenuePosition(context.Background(), pos, true)
+	if !changed {
+		t.Fatal("expected opening continuation to be handled")
+	}
+	if got.Status != CrossVenueStatusOpen || got.TransitionState != "hold" || got.PartialSwitchPhase != "consumed" {
+		t.Fatalf("unexpected managed target position: %+v", got)
+	}
+	if intents := e.activeSwitchIntents(now); len(intents) != 0 {
+		t.Fatalf("switch intent should be consumed after runtime confirmation, got %+v", intents)
+	}
+}
+
+func TestManageCrossVenuePositionContinuesOpeningSecondLeg(t *testing.T) {
+	dir := t.TempDir()
+	store := mustCrossVenueStore(t, dir)
+	now := time.Now().UTC()
+	pos := CrossVenuePosition{
+		Symbol:                "BTC-USDT",
+		HighVenue:             gate.VenueName,
+		LowVenue:              okx.VenueName,
+		Status:                CrossVenueStatusOpeningSecondLeg,
+		TransitionState:       "open",
+		OpenedAt:              now.Add(-10 * time.Minute),
+		UpdatedAt:             now,
+		IdemPrefix:            "runtime-target-continue",
+		HighLeg:               CrossVenueLegState{Venue: gate.VenueName, Side: "sell", Qty: 0.5, EntryPrice: 100},
+		LowLeg:                CrossVenueLegState{Venue: okx.VenueName, Side: "buy"},
+		PendingSwitchSequence: crossVenueSwitchSequenceCloseThenOpen,
+		PartialSwitchPhase:    "open_new_second_leg",
+	}
+	if err := store.upsert(pos); err != nil {
+		t.Fatal(err)
+	}
+	cfg := testCrossVenueExecutorConfig()
+	cfg.NetworkConfig.RecordDir = dir
+	high := newCrossVenueTestVenue(gate.VenueName, 0.02, 8, now.Add(4*time.Hour))
+	low := newCrossVenueTestVenue(okx.VenueName, 0.0, 8, now.Add(4*time.Hour))
+	high.positions = []venue.Position{{Symbol: "BTC-USDT", PositionAmt: -0.5, MarkPrice: 100, EntryPrice: 100}}
+	low.positions = nil
+	e := &CrossVenueExecutor{
+		cfg:       cfg,
+		venues:    map[string]venue.Venue{gate.VenueName: high, okx.VenueName: low},
+		store:     store,
+		logger:    testCrossVenueLogger(),
+		nowFn:     func() time.Time { return now },
+		recordDir: dir,
+	}
+	intent := crossVenueSwitchIntent{
+		Symbol:             "BTC-USDT",
+		FromHighVenue:      bybit.VenueName,
+		FromLowVenue:       okx.VenueName,
+		TargetHighVenue:    gate.VenueName,
+		TargetLowVenue:     okx.VenueName,
+		SwitchSequence:     crossVenueSwitchSequenceCloseThenOpen,
+		PartialSwitchPhase: "open_new_second_leg",
+		CreatedAt:          now,
+		ExpiresAt:          now.Add(30 * time.Minute),
+	}
+	if err := e.upsertSwitchIntent(intent); err != nil {
+		t.Fatal(err)
+	}
+	got, changed := e.manageCrossVenuePosition(context.Background(), pos, true)
+	if !changed {
+		t.Fatal("expected opening second leg continuation to be handled")
+	}
+	if got.Status != CrossVenueStatusOpen || got.TransitionState != "hold" || got.PartialSwitchPhase != "consumed" {
+		t.Fatalf("unexpected continued target position: %+v", got)
+	}
+	if got.LowLeg.Qty <= 0 || got.LowLeg.EntryPrice <= 0 {
+		t.Fatalf("expected second leg to be filled, got %+v", got)
+	}
+	if intents := e.activeSwitchIntents(now); len(intents) != 0 {
+		t.Fatalf("switch intent should be consumed after continuation success, got %+v", intents)
+	}
+}
+
+func TestManageCrossVenuePositionPromotesFirstLegAndContinuesSecondLeg(t *testing.T) {
+	dir := t.TempDir()
+	store := mustCrossVenueStore(t, dir)
+	now := time.Now().UTC()
+	pos := CrossVenuePosition{
+		Symbol:                "BTC-USDT",
+		HighVenue:             gate.VenueName,
+		LowVenue:              okx.VenueName,
+		Status:                CrossVenueStatusOpeningFirstLeg,
+		TransitionState:       "open",
+		OpenedAt:              now.Add(-10 * time.Minute),
+		UpdatedAt:             now,
+		IdemPrefix:            "runtime-promote-second-leg",
+		HighLeg:               CrossVenueLegState{Venue: gate.VenueName, Side: "sell", Qty: 0.5, EntryPrice: 100},
+		LowLeg:                CrossVenueLegState{Venue: okx.VenueName, Side: "buy"},
+		PendingSwitchSequence: crossVenueSwitchSequenceCloseThenOpen,
+		PartialSwitchPhase:    "open_new_first_leg",
+	}
+	if err := store.upsert(pos); err != nil {
+		t.Fatal(err)
+	}
+	cfg := testCrossVenueExecutorConfig()
+	cfg.NetworkConfig.RecordDir = dir
+	high := newCrossVenueTestVenue(gate.VenueName, 0.02, 8, now.Add(4*time.Hour))
+	low := newCrossVenueTestVenue(okx.VenueName, 0.0, 8, now.Add(4*time.Hour))
+	high.positions = []venue.Position{{Symbol: "BTC-USDT", PositionAmt: -0.5, MarkPrice: 100, EntryPrice: 100}}
+	low.positions = nil
+	e := &CrossVenueExecutor{
+		cfg:       cfg,
+		venues:    map[string]venue.Venue{gate.VenueName: high, okx.VenueName: low},
+		store:     store,
+		logger:    testCrossVenueLogger(),
+		nowFn:     func() time.Time { return now },
+		recordDir: dir,
+	}
+	intent := crossVenueSwitchIntent{
+		Symbol:             "BTC-USDT",
+		FromHighVenue:      bybit.VenueName,
+		FromLowVenue:       okx.VenueName,
+		TargetHighVenue:    gate.VenueName,
+		TargetLowVenue:     okx.VenueName,
+		SwitchSequence:     crossVenueSwitchSequenceCloseThenOpen,
+		PartialSwitchPhase: "open_new_first_leg",
+		CreatedAt:          now,
+		ExpiresAt:          now.Add(30 * time.Minute),
+	}
+	if err := e.upsertSwitchIntent(intent); err != nil {
+		t.Fatal(err)
+	}
+	got, changed := e.manageCrossVenuePosition(context.Background(), pos, true)
+	if !changed {
+		t.Fatal("expected first-leg continuation to be handled")
+	}
+	if got.Status != CrossVenueStatusOpen || got.PartialSwitchPhase != "consumed" || got.LowLeg.Qty <= 0 {
+		t.Fatalf("expected promotion then second-leg continuation success, got %+v", got)
+	}
+	if intents := e.activeSwitchIntents(now); len(intents) != 0 {
+		t.Fatalf("switch intent should be consumed after promoted continuation success, got %+v", intents)
+	}
+}
+
+func TestManageCrossVenuePositionRollsBackUnhedgedOpeningSwitchTarget(t *testing.T) {
+	dir := t.TempDir()
+	store := mustCrossVenueStore(t, dir)
+	now := time.Now().UTC()
+	pos := CrossVenuePosition{
+		Symbol:                "BTC-USDT",
+		HighVenue:             gate.VenueName,
+		LowVenue:              okx.VenueName,
+		Status:                CrossVenueStatusOpeningSecondLeg,
+		TransitionState:       "open",
+		OpenedAt:              now.Add(-10 * time.Minute),
+		UpdatedAt:             now,
+		IdemPrefix:            "runtime-target-unhedged",
+		HighLeg:               CrossVenueLegState{Venue: gate.VenueName, Side: "sell", Qty: 0.5, EntryPrice: 100},
+		LowLeg:                CrossVenueLegState{Venue: okx.VenueName, Side: "buy", Qty: 0.5, EntryPrice: 100},
+		PendingSwitchSequence: crossVenueSwitchSequenceCloseThenOpen,
+		PartialSwitchPhase:    "open_new_second_leg",
+	}
+	if err := store.upsert(pos); err != nil {
+		t.Fatal(err)
+	}
+	cfg := testCrossVenueExecutorConfig()
+	cfg.NetworkConfig.RecordDir = dir
+	high := newCrossVenueTestVenue(gate.VenueName, 0.02, 8, now.Add(4*time.Hour))
+	low := newCrossVenueTestVenue(okx.VenueName, 0.0, 8, now.Add(4*time.Hour))
+	low.makerPostOnlyNeverFill = true
+	low.takerAlwaysFail = true
+	high.clearOnReduceOnly = true
+	high.positions = []venue.Position{{Symbol: "BTC-USDT", PositionAmt: -0.5, MarkPrice: 100, EntryPrice: 100}}
+	low.positions = nil
+	e := &CrossVenueExecutor{
+		cfg:       cfg,
+		venues:    map[string]venue.Venue{gate.VenueName: high, okx.VenueName: low},
+		store:     store,
+		logger:    testCrossVenueLogger(),
+		nowFn:     func() time.Time { return now },
+		recordDir: dir,
+	}
+	intent := crossVenueSwitchIntent{
+		Symbol:             "BTC-USDT",
+		FromHighVenue:      bybit.VenueName,
+		FromLowVenue:       okx.VenueName,
+		TargetHighVenue:    gate.VenueName,
+		TargetLowVenue:     okx.VenueName,
+		SwitchSequence:     crossVenueSwitchSequenceCloseThenOpen,
+		PartialSwitchPhase: "open_new_second_leg",
+		CreatedAt:          now,
+		ExpiresAt:          now.Add(30 * time.Minute),
+	}
+	if err := e.upsertSwitchIntent(intent); err != nil {
+		t.Fatal(err)
+	}
+	got, changed := e.manageCrossVenuePosition(context.Background(), pos, true)
+	if !changed {
+		t.Fatal("expected unhedged opening continuation to be handled")
+	}
+	if got.Status != CrossVenueStatusOrphanSingleLeg || got.TransitionState != "recover" || got.PartialSwitchPhase != "rollback_new" {
+		t.Fatalf("unexpected rollback target position: %+v", got)
+	}
+	intents := e.activeSwitchIntents(now)
+	if len(intents) != 1 || intents[0].PartialSwitchPhase != "rollback_new" {
+		t.Fatalf("switch intent should enter rollback_new, got %+v", intents)
+	}
+}
+
 func TestCrossVenueHaltStopsOpenOnly(t *testing.T) {
 	dir := t.TempDir()
 	haltPath := filepath.Join(dir, ".halt-live")
@@ -555,11 +1504,27 @@ func TestHandleCrossVenuePositionsAPI(t *testing.T) {
 			HighLeg:      CrossVenueLegState{Side: "sell", Qty: 0.5, EntryPrice: 2500},
 			LowLeg:       CrossVenueLegState{Side: "buy", Qty: 0.5, EntryPrice: 2498},
 			NotionalUSDT: 1250, EstFundingUSDT: 2.5,
-			CrossVenueAttribution: CrossVenueAttribution{OpenFeesUSDT: 0.2},
-			OpenedAt:              opened,
+			EstimatedSwitchCost:    3.2,
+			TransitionState:        "partial_switch",
+			PendingSwitchHighVenue: "gate",
+			PendingSwitchLowVenue:  "okx",
+			PendingSwitchSequence:  crossVenueSwitchSequenceCloseThenOpen,
+			PartialSwitchPhase:     "open_new_second_leg",
+			CrossVenueAttribution:  CrossVenueAttribution{OpenFeesUSDT: 0.2},
+			OpenedAt:               opened,
 		},
 	}); err != nil {
 		t.Fatal(err)
+	}
+	exec.lastCycle = CrossVenueCycleExplain{
+		DecisionCycleID: "cvcycle-test",
+		SnapshotID:      "cvsnap-test",
+		OpenSummary:     "未开新仓",
+		SwitchSummary:   "pending=1 partial=1 orphan=0 transitioning=1",
+		FallbackSummary: "无 acceptable fallback",
+		NoTradeReasonsTop: []CrossVenueReasonCount{
+			{Reason: "execution<0.50", Count: 2},
+		},
 	}
 	dashboard := &DashboardServer{crossVenueExecutor: exec}
 	req := httptest.NewRequest(http.MethodGet, "/api/cross-venue/positions", nil)
@@ -575,6 +1540,15 @@ func TestHandleCrossVenuePositionsAPI(t *testing.T) {
 	if len(resp.ActivePositionDetails) != 1 {
 		t.Fatalf("details=%d want 1", len(resp.ActivePositionDetails))
 	}
+	if resp.PendingSwitches != 1 || resp.PartialSwitches != 1 || resp.TransitioningPositions != 1 {
+		t.Fatalf("unexpected transition metrics: %+v", resp)
+	}
+	if math.Abs(resp.TransitionHeadroomUSDT-3.2) > 1e-9 {
+		t.Fatalf("transition_headroom_usdt=%v want 3.2", resp.TransitionHeadroomUSDT)
+	}
+	if resp.LastCycle.DecisionCycleID != "cvcycle-test" || len(resp.LastCycle.NoTradeReasonsTop) != 1 {
+		t.Fatalf("unexpected last_cycle: %+v", resp.LastCycle)
+	}
 	d := resp.ActivePositionDetails[0]
 	if math.Abs(d.OpenFeesUSDT-0.2) > 1e-9 {
 		t.Fatalf("open_fees_usdt=%v want 0.2", d.OpenFeesUSDT)
@@ -588,6 +1562,452 @@ func TestHandleCrossVenuePositionsAPI(t *testing.T) {
 	wantNet := 2.5 - 0.2 - wantEstClose
 	if math.Abs(d.NetUSDT-wantNet) > 1e-9 {
 		t.Fatalf("net_usdt=%v want %v", d.NetUSDT, wantNet)
+	}
+	if d.PendingSwitchTo != "gate/okx" || d.PendingSwitchSeq != crossVenueSwitchSequenceCloseThenOpen || d.PartialSwitchPhase != "open_new_second_leg" {
+		t.Fatalf("unexpected detail transition info: %+v", d)
+	}
+}
+
+func TestCrossVenueValidationSnapshot(t *testing.T) {
+	dir := t.TempDir()
+	now := time.Date(2026, 6, 16, 12, 0, 0, 0, time.UTC)
+	e := &CrossVenueExecutor{
+		cfg:       testCrossVenueExecutorConfig(),
+		store:     mustCrossVenueStore(t, dir),
+		nowFn:     func() time.Time { return now },
+		recordDir: dir,
+	}
+	if err := os.MkdirAll(crossVenueRecordDir(dir), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	settlements := []CrossVenueSettlement{
+		{
+			SettlementID: "s1", Symbol: "BTC-USDT", CloseTime: now.Add(-2 * time.Hour),
+			EntrySnapshotID: "snap-btc", HighVenue: "bybit", LowVenue: "okx", NotionalUSDT: 50,
+			NetPnL: 5.5, RollbackCost: 0.4, RebalanceCost: 0.1,
+			RealizedFunding: 1.5, TotalFees: 0.3, OpenSlippage: 0.1, CloseSlippage: 0.2,
+			UsedFallback: true, SwitchExit: true, SwitchSequence: crossVenueSwitchSequenceCloseThenOpen,
+		},
+		{
+			SettlementID: "s2", Symbol: "ETH-USDT", CloseTime: now.Add(-90 * time.Minute),
+			EntrySnapshotID: "snap-eth", HighVenue: "binance", LowVenue: "gate", NotionalUSDT: 40,
+			NetPnL: 2.0, RollbackCost: 0.2, RebalanceCost: 0.0,
+			RealizedFunding: 0.5, TotalFees: 0.1, OpenSlippage: 0.05, CloseSlippage: 0.05,
+		},
+		{
+			SettlementID: "old", Symbol: "OLD-USDT", CloseTime: now.Add(-48 * time.Hour),
+			NetPnL: 100,
+		},
+	}
+	var settlementLines []string
+	for _, rec := range settlements {
+		data, _ := json.Marshal(rec)
+		settlementLines = append(settlementLines, string(data))
+	}
+	if err := os.WriteFile(filepath.Join(crossVenueRecordDir(dir), crossVenueSettlementsFileName), []byte(strings.Join(settlementLines, "\n")+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cycles := []CrossVenueCycleExplain{
+		{
+			DecisionCycleID: "c1", DecisionTime: now.Add(-30 * time.Minute), SnapshotID: "snap-btc", HaltReason: "snapshot_too_old",
+			NoTradeReasonsTop: []CrossVenueReasonCount{{Reason: "execution<0.50", Count: 2}},
+		},
+		{
+			DecisionCycleID: "c2", DecisionTime: now.Add(-20 * time.Minute), HaltReason: "openings_disabled",
+			NoTradeReasonsTop: []CrossVenueReasonCount{{Reason: "execution<0.50", Count: 1}, {Reason: "liquidity<0.35", Count: 1}},
+		},
+	}
+	var cycleLines []string
+	for _, rec := range cycles {
+		data, _ := json.Marshal(rec)
+		cycleLines = append(cycleLines, string(data))
+	}
+	if err := os.WriteFile(filepath.Join(crossVenueRecordDir(dir), crossVenueCycleLogFileName), []byte(strings.Join(cycleLines, "\n")+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	scans := []crossVenueScanLogRecord{
+		{
+			SnapshotID:      "snap-btc",
+			ScannedAt:       now.Add(-3 * time.Hour),
+			MaxConcurrent:   2,
+			MaxPositionUSDT: 50,
+			Opportunities: []CrossVenueOpportunity{
+				{Symbol: "BTC-USDT", HighVenue: "binance", LowVenue: "okx", NetEV: 4.2, RankScore: 0.95, TradableNotional: 60},
+				{Symbol: "BTC-USDT", HighVenue: "bybit", LowVenue: "okx", NetEV: 3.0, RankScore: 0.80, TradableNotional: 55},
+			},
+		},
+		{
+			SnapshotID:      "snap-eth",
+			ScannedAt:       now.Add(-2 * time.Hour),
+			MaxConcurrent:   2,
+			MaxPositionUSDT: 50,
+			Opportunities: []CrossVenueOpportunity{
+				{Symbol: "ETH-USDT", HighVenue: "binance", LowVenue: "gate", NetEV: 2.5, RankScore: 0.90, TradableNotional: 45},
+				{Symbol: "ETH-USDT", HighVenue: "bybit", LowVenue: "okx", NetEV: 2.2, RankScore: 0.70, TradableNotional: 45},
+			},
+		},
+		{
+			SnapshotID:      "snap-sol",
+			ScannedAt:       now.Add(-60 * time.Minute),
+			MaxConcurrent:   2,
+			MaxPositionUSDT: 50,
+			Opportunities: []CrossVenueOpportunity{
+				{Symbol: "SOL-USDT", HighVenue: "gate", LowVenue: "okx", NetEV: 1.8, RankScore: 0.85, TradableNotional: 35},
+				{Symbol: "XRP-USDT", HighVenue: "binance", LowVenue: "okx", NetEV: 1.4, RankScore: 0.80, TradableNotional: 30},
+			},
+		},
+	}
+	var scanLines []string
+	for _, rec := range scans {
+		data, _ := json.Marshal(rec)
+		scanLines = append(scanLines, string(data))
+	}
+	if err := os.WriteFile(filepath.Join(crossVenueRecordDir(dir), crossVenueScanLogFileName), []byte(strings.Join(scanLines, "\n")+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got, err := e.ValidationSnapshot(24 * time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.TradeCount != 2 || math.Abs(got.RotationRealizedNetPnL-7.5) > 1e-9 {
+		t.Fatalf("snapshot=%+v", got)
+	}
+	if got.SwitchTradeCount != 1 || math.Abs(got.SwitchDrag-0.5) > 1e-9 {
+		t.Fatalf("switch aggregation mismatch: %+v", got)
+	}
+	if math.Abs(got.FundingAlpha-2.0) > 1e-9 || math.Abs(got.ExecutionDrag-0.8) > 1e-9 || math.Abs(got.FreshnessDrag-4.2) > 1e-9 {
+		t.Fatalf("attribution aggregation mismatch: %+v", got)
+	}
+	if got.FallbackTradeCount != 1 || math.Abs(got.FallbackNetPnL-5.5) > 1e-9 {
+		t.Fatalf("fallback aggregation mismatch: %+v", got)
+	}
+	if got.ScanSnapshotCount != 3 || got.ShadowMatchedTrades != 2 {
+		t.Fatalf("shadow coverage mismatch: %+v", got)
+	}
+	if !got.SameOpportunitySetReady || !got.SameCostModelReady || !got.SameRiskBudgetReady {
+		t.Fatalf("validation readiness mismatch: %+v", got)
+	}
+	if math.Abs(got.SelectionDrag-1.2) > 1e-9 || math.Abs(got.FallbackDilution-1.2) > 1e-9 {
+		t.Fatalf("selection drag mismatch: %+v", got)
+	}
+	if got.ShadowPortfolio.MatchedTrades != 2 || math.Abs(got.ShadowPortfolio.ChosenReplayNetEV-5.5) > 1e-9 || math.Abs(got.ShadowPortfolio.BaselineReplayNetEV-6.7) > 1e-9 {
+		t.Fatalf("shadow portfolio mismatch: %+v", got.ShadowPortfolio)
+	}
+	if len(got.ShadowPortfolio.Records) != 2 || got.ShadowPortfolio.Records[0].Symbol != "BTC-USDT" {
+		t.Fatalf("shadow portfolio records mismatch: %+v", got.ShadowPortfolio.Records)
+	}
+	if !got.CounterfactualReplay.SameOpportunitySetReady || !got.CounterfactualReplay.SameCostModelReady || !got.CounterfactualReplay.SameRiskBudgetReady {
+		t.Fatalf("counterfactual replay readiness mismatch: %+v", got.CounterfactualReplay)
+	}
+	if got.CounterfactualReplay.MatchedTrades != 2 || got.CounterfactualReplay.BaselineTradeCount != 2 || got.CounterfactualReplay.MissingSnapshotTrades != 0 || got.CounterfactualReplay.MissingChosenTrades != 0 {
+		t.Fatalf("counterfactual replay mismatch: %+v", got.CounterfactualReplay)
+	}
+	if len(got.CounterfactualReplay.Records) != 2 || got.CounterfactualReplay.Records[0].BaselinePair != "binance/okx" {
+		t.Fatalf("counterfactual replay records mismatch: %+v", got.CounterfactualReplay.Records)
+	}
+	if !got.BaselinePortfolioReplay.SameOpportunitySetReady || !got.BaselinePortfolioReplay.SameCostModelReady || !got.BaselinePortfolioReplay.SameRiskBudgetReady {
+		t.Fatalf("baseline portfolio replay readiness mismatch: %+v", got.BaselinePortfolioReplay)
+	}
+	if got.BaselinePortfolioReplay.SnapshotCount != 2 || got.BaselinePortfolioReplay.MatchedSnapshotCount != 2 || got.BaselinePortfolioReplay.MissingSnapshotTradeCount != 0 {
+		t.Fatalf("baseline portfolio replay snapshot coverage mismatch: %+v", got.BaselinePortfolioReplay)
+	}
+	if got.BaselinePortfolioReplay.ChosenTradeCount != 2 || got.BaselinePortfolioReplay.BaselineTradeCount != 2 {
+		t.Fatalf("baseline portfolio replay trade counts mismatch: %+v", got.BaselinePortfolioReplay)
+	}
+	if math.Abs(got.BaselinePortfolioReplay.ChosenReplayNetEV-5.5) > 1e-9 || math.Abs(got.BaselinePortfolioReplay.BaselineReplayNetEV-6.7) > 1e-9 {
+		t.Fatalf("baseline portfolio replay ev mismatch: %+v", got.BaselinePortfolioReplay)
+	}
+	if len(got.BaselinePortfolioReplay.Records) != 2 || got.BaselinePortfolioReplay.Records[0].SnapshotID != "snap-btc" {
+		t.Fatalf("baseline portfolio replay records mismatch: %+v", got.BaselinePortfolioReplay.Records)
+	}
+	if len(got.BaselinePortfolioReplay.Records[0].BaselinePairs) != 1 || got.BaselinePortfolioReplay.Records[0].BaselinePairs[0] != "binance/okx" {
+		t.Fatalf("baseline portfolio replay baseline pairs mismatch: %+v", got.BaselinePortfolioReplay.Records[0])
+	}
+	if !got.RollingBaselineReplay.SameOpportunitySetReady || !got.RollingBaselineReplay.SameCostModelReady || !got.RollingBaselineReplay.SameRiskBudgetReady {
+		t.Fatalf("rolling baseline replay readiness mismatch: %+v", got.RollingBaselineReplay)
+	}
+	if got.RollingBaselineReplay.SnapshotCount != 3 || got.RollingBaselineReplay.ChosenSnapshotCount != 2 || got.RollingBaselineReplay.BaselineSnapshotCount != 3 || got.RollingBaselineReplay.MissedOpenSnapshots != 1 {
+		t.Fatalf("rolling baseline replay coverage mismatch: %+v", got.RollingBaselineReplay)
+	}
+	if math.Abs(got.RollingBaselineReplay.ChosenReplayNetEV-5.5) > 1e-9 || math.Abs(got.RollingBaselineReplay.BaselineReplayNetEV-9.9) > 1e-9 {
+		t.Fatalf("rolling baseline replay ev mismatch: %+v", got.RollingBaselineReplay)
+	}
+	if len(got.RollingBaselineReplay.Records) != 3 || got.RollingBaselineReplay.Records[2].SnapshotID != "snap-sol" {
+		t.Fatalf("rolling baseline replay records mismatch: %+v", got.RollingBaselineReplay.Records)
+	}
+	if got.RollingBaselineReplay.Records[2].ChosenTradeCount != 0 || got.RollingBaselineReplay.Records[2].BaselineTradeCount != 2 {
+		t.Fatalf("rolling baseline replay missed-open record mismatch: %+v", got.RollingBaselineReplay.Records[2])
+	}
+	if math.Abs(got.RollingBaselineReplay.Records[2].CumulativeBaselineReplayNetEV-9.9) > 1e-9 {
+		t.Fatalf("rolling baseline replay cumulative mismatch: %+v", got.RollingBaselineReplay.Records[2])
+	}
+	if got.FreshnessSkipCycles != 1 || got.OpeningsDisabledCycles != 1 {
+		t.Fatalf("cycle aggregation mismatch: %+v", got)
+	}
+	if len(got.NoTradeReasonsTop) == 0 || got.NoTradeReasonsTop[0].Reason != "execution<0.50" || got.NoTradeReasonsTop[0].Count != 3 {
+		t.Fatalf("reason aggregation mismatch: %+v", got.NoTradeReasonsTop)
+	}
+}
+
+func TestCrossVenuePositionStoreUsesPositionKey(t *testing.T) {
+	store := mustCrossVenueStore(t, t.TempDir())
+	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
+	p1 := CrossVenuePosition{
+		Symbol: "BTC-USDT", HighVenue: bybit.VenueName, LowVenue: okx.VenueName,
+		IdemPrefix: "cv-btc-bybit-1", OpenedAt: now, Status: CrossVenueStatusOpen,
+	}
+	p2 := CrossVenuePosition{
+		Symbol: "BTC-USDT", HighVenue: gate.VenueName, LowVenue: okx.VenueName,
+		IdemPrefix: "cv-btc-gate-2", OpenedAt: now.Add(time.Second), Status: CrossVenueStatusOpen,
+	}
+	if err := store.upsert(p1); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.upsert(p2); err != nil {
+		t.Fatal(err)
+	}
+	ps, err := store.load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ps) != 2 {
+		t.Fatalf("expected 2 positions, got %d: %+v", len(ps), ps)
+	}
+	if crossVenuePositionKey(ps[0]) == crossVenuePositionKey(ps[1]) {
+		t.Fatalf("expected distinct position keys: %+v", ps)
+	}
+}
+
+func TestCrossVenueOpenGateAllowsSwitchTargetWithExistingSymbol(t *testing.T) {
+	now := time.Now().UTC().Add(time.Hour)
+	high := newCrossVenueTestVenue(bybit.VenueName, 0.001, 8, now)
+	low := newCrossVenueTestVenue(okx.VenueName, 0.0001, 8, now)
+	tight := venue.BookTicker{BidPrice: 99.99, AskPrice: 100.01, BidQty: 1000, AskQty: 1000}
+	high.book = tight
+	low.book = tight
+	venues := map[string]venue.Venue{bybit.VenueName: high, okx.VenueName: low}
+	cfg := testCrossVenueExecutorConfig()
+	deps := testCrossVenueGateDeps(100)
+	deps.fetchFunding = func(context.Context, venue.Venue, venue.Symbol) (venue.FundingSnapshot, bool) {
+		return venue.FundingSnapshot{Symbol: "BTC-USDT", LastFundingRate: 0.001, IntervalHours: 8, NextFundingTime: now.Add(time.Hour)}, true
+	}
+	input := crossVenueGateInput{
+		Opp: CrossVenueOpportunity{Symbol: "BTC-USDT", HighVenue: bybit.VenueName, LowVenue: okx.VenueName, SpreadAPR: 2.0},
+		Positions: []CrossVenuePosition{{
+			Symbol: "BTC-USDT", HighVenue: gate.VenueName, LowVenue: okx.VenueName, Status: CrossVenueStatusOpen,
+		}},
+		Now: now,
+	}
+	blocked := evaluateCrossVenueOpenGate(context.Background(), cfg.CrossVenueExecutor, deps, venues, input)
+	if blocked.OK {
+		t.Fatal("expected existing symbol to block without switch target allowance")
+	}
+	input.AllowExistingSymbol = true
+	allowed := evaluateCrossVenueOpenGate(context.Background(), cfg.CrossVenueExecutor, deps, venues, input)
+	if !allowed.OK {
+		t.Fatalf("expected switch target to pass existing symbol gate, got %+v", allowed)
+	}
+}
+
+func TestCrossVenueSwitchCloseReasonWaitsForOpenThenCloseTarget(t *testing.T) {
+	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
+	cfg := testCrossVenueExecutorConfig()
+	cfg.CrossVenueExecutor.SwitchSequence = crossVenueSwitchSequenceOpenThenClose
+	cfg.CrossVenueExecutor.MaxSwitchesPerCycle = 1
+	dir := t.TempDir()
+	e := &CrossVenueExecutor{
+		cfg:       cfg,
+		nowFn:     func() time.Time { return now },
+		logger:    log.New(io.Discard, "", 0),
+		store:     mustCrossVenueStore(t, dir),
+		recordDir: dir,
+		scanner: &CrossVenueScanner{
+			lastSnapshot: CrossVenueScanSnapshot{
+				SnapshotID: "snap-switch",
+				ScannedAt:  now,
+			},
+		},
+	}
+	pos := CrossVenuePosition{
+		Symbol: "BTC-USDT", HighVenue: bybit.VenueName, LowVenue: okx.VenueName,
+		OpenedAt: now.Add(-48 * time.Hour), CurrentFutureEV: 1.0, EstimatedSwitchCost: 0.2,
+		RecoveryQualityScore: 0.95, PendingSwitchSequence: crossVenueSwitchSequenceOpenThenClose,
+		PendingSwitchHighVenue: gate.VenueName, PendingSwitchLowVenue: okx.VenueName,
+		PendingSwitchReason: "wait target live", Status: CrossVenueStatusOpen,
+		IdemPrefix: "cv-btc-old", CurrentComparableWindowHours: 1,
+	}
+	if reason := e.crossVenueSwitchCloseReason(&pos); reason != "" {
+		t.Fatalf("expected open_then_close to wait for target, got %q", reason)
+	}
+	target := CrossVenuePosition{
+		Symbol: "BTC-USDT", HighVenue: gate.VenueName, LowVenue: okx.VenueName,
+		IdemPrefix: "cv-btc-new", OpenedAt: now, Status: CrossVenueStatusOpen,
+	}
+	e.positions = []CrossVenuePosition{pos, target}
+	if reason := e.crossVenueSwitchCloseReason(&pos); reason == "" {
+		t.Fatalf("expected close reason once target is live, got empty reason")
+	}
+}
+
+func TestExecuteCrossVenueOpenStagesSecondLegUntilOldClosed(t *testing.T) {
+	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
+	dir := t.TempDir()
+	high := newCrossVenueTestVenue(bybit.VenueName, 0.001, 8, now.Add(time.Hour))
+	low := newCrossVenueTestVenue(okx.VenueName, 0.0001, 8, now.Add(time.Hour))
+	cfg := testCrossVenueExecutorConfig()
+	cfg.NetworkConfig.RecordDir = dir
+	e := &CrossVenueExecutor{
+		cfg:       cfg,
+		venues:    map[string]venue.Venue{bybit.VenueName: high, okx.VenueName: low},
+		store:     mustCrossVenueStore(t, dir),
+		logger:    testCrossVenueLogger(),
+		nowFn:     func() time.Time { return now },
+		recordDir: dir,
+	}
+	intent := crossVenueSwitchIntent{
+		Symbol:             "BTC-USDT",
+		TargetHighVenue:    bybit.VenueName,
+		TargetLowVenue:     okx.VenueName,
+		SwitchSequence:     crossVenueSwitchSequenceStagedSwitch,
+		PartialSwitchPhase: "pending",
+		CreatedAt:          now,
+		ExpiresAt:          now.Add(time.Hour),
+	}
+	if err := e.upsertSwitchIntent(intent); err != nil {
+		t.Fatal(err)
+	}
+	plan := crossVenueOpenPlan{
+		Opp: CrossVenueOpportunity{
+			Symbol: "BTC-USDT", HighVenue: bybit.VenueName, LowVenue: okx.VenueName,
+			SpreadAPR: 2.0, ComparableWindowHours: 1, HighFundingRate: 0.001, LowFundingRate: 0.0001,
+			HighIntervalHours: 8, LowIntervalHours: 8, HighNextFundingTime: now.Add(time.Hour), LowNextFundingTime: now.Add(time.Hour),
+		},
+		Gate:            crossVenueGateResult{NotionalUSDT: 50, HighMid: 100, LowMid: 100, HighInstr: high.instruments[0], LowInstr: low.instruments[0]},
+		Qty:             0.5,
+		RefPrice:        100,
+		IdemPrefix:      "stage-open",
+		DecisionCycleID: "cycle-stage",
+		SnapshotID:      "snap-stage",
+		SwitchIntent:    &intent,
+		SelectionMode:   crossVenueOpenStrict,
+	}
+	pos, err := e.executeCrossVenueOpen(context.Background(), plan, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pos.PartialSwitchPhase != "staged_close_old" || pos.TransitionState != "staged" || pos.Status != CrossVenueStatusOpeningSecondLeg {
+		t.Fatalf("expected staged wait state, got %+v", pos)
+	}
+	if got := atomic.LoadInt32(high.placeCount); got != 1 {
+		t.Fatalf("expected high leg to be opened once, got %d", got)
+	}
+	if got := atomic.LoadInt32(low.placeCount); got != 0 {
+		t.Fatalf("expected low leg to wait, got %d", got)
+	}
+	intents, err := e.loadSwitchIntents()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(intents) != 1 || intents[0].PartialSwitchPhase != "close_old" {
+		t.Fatalf("expected intent to move into close_old, got %+v", intents)
+	}
+}
+
+func TestManageCrossVenuePositionContinuesStagedSwitchAfterOldClose(t *testing.T) {
+	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
+	dir := t.TempDir()
+	high := newCrossVenueTestVenue(bybit.VenueName, 0.001, 8, now.Add(time.Hour))
+	low := newCrossVenueTestVenue(okx.VenueName, 0.0001, 8, now.Add(time.Hour))
+	high.positions = []venue.Position{{Symbol: "BTC-USDT", PositionAmt: -0.5, EntryPrice: 100, MarkPrice: 100}}
+	cfg := testCrossVenueExecutorConfig()
+	cfg.NetworkConfig.RecordDir = dir
+	e := &CrossVenueExecutor{
+		cfg:       cfg,
+		venues:    map[string]venue.Venue{bybit.VenueName: high, okx.VenueName: low},
+		store:     mustCrossVenueStore(t, dir),
+		logger:    testCrossVenueLogger(),
+		nowFn:     func() time.Time { return now },
+		recordDir: dir,
+	}
+	intent := crossVenueSwitchIntent{
+		Symbol:             "BTC-USDT",
+		TargetHighVenue:    bybit.VenueName,
+		TargetLowVenue:     okx.VenueName,
+		SwitchSequence:     crossVenueSwitchSequenceStagedSwitch,
+		PartialSwitchPhase: "close_old",
+		CreatedAt:          now,
+		ExpiresAt:          now.Add(time.Hour),
+	}
+	if err := e.upsertSwitchIntent(intent); err != nil {
+		t.Fatal(err)
+	}
+	pos := CrossVenuePosition{
+		Symbol:                "BTC-USDT",
+		HighVenue:             bybit.VenueName,
+		LowVenue:              okx.VenueName,
+		Status:                CrossVenueStatusOpeningSecondLeg,
+		HighLeg:               CrossVenueLegState{Venue: bybit.VenueName, Side: "sell", Qty: 0.5, EntryPrice: 100},
+		LowLeg:                CrossVenueLegState{Venue: okx.VenueName, Side: "buy"},
+		OpenedAt:              now,
+		UpdatedAt:             now,
+		IdemPrefix:            "stage-target",
+		PendingSwitchSequence: crossVenueSwitchSequenceStagedSwitch,
+		PartialSwitchPhase:    "staged_close_old",
+		TransitionState:       "staged",
+	}
+	got, _ := e.manageCrossVenuePosition(context.Background(), pos, true)
+	if got.PartialSwitchPhase != "staged_close_old" || got.TransitionState != "staged" {
+		t.Fatalf("expected staged wait to remain before old close, got %+v", got)
+	}
+	if got := atomic.LoadInt32(low.placeCount); got != 0 {
+		t.Fatalf("expected no second-leg order before old close, got %d", got)
+	}
+	if err := e.updateSwitchIntentAttempt(intent.Symbol, intent.TargetHighVenue, intent.TargetLowVenue, "open_new", "old closed"); err != nil {
+		t.Fatal(err)
+	}
+	got, _ = e.manageCrossVenuePosition(context.Background(), got, true)
+	if got.Status != CrossVenueStatusOpen || got.PartialSwitchPhase != "consumed" || got.TransitionState != "hold" {
+		t.Fatalf("expected staged switch to finish second leg after old close, got %+v", got)
+	}
+	if got := atomic.LoadInt32(low.placeCount); got != 1 {
+		t.Fatalf("expected one second-leg order after old close, got %d", got)
+	}
+}
+
+func TestHandleCrossVenueValidationAPI(t *testing.T) {
+	cfg := testCrossVenueExecutorConfig()
+	cfg.NetworkConfig.RecordDir = t.TempDir()
+	now := time.Date(2026, 6, 16, 12, 0, 0, 0, time.UTC)
+	exec := &CrossVenueExecutor{
+		cfg:       cfg,
+		store:     mustCrossVenueStore(t, cfg.NetworkConfig.RecordDir),
+		nowFn:     func() time.Time { return now },
+		recordDir: cfg.NetworkConfig.RecordDir,
+	}
+	if err := os.MkdirAll(crossVenueRecordDir(cfg.NetworkConfig.RecordDir), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	settlement := CrossVenueSettlement{
+		SettlementID: "api", Symbol: "BTC-USDT", CloseTime: now.Add(-time.Hour),
+		NetPnL: 3, RollbackCost: 0.2, RebalanceCost: 0.1, SwitchExit: true,
+	}
+	data, _ := json.Marshal(settlement)
+	if err := os.WriteFile(filepath.Join(crossVenueRecordDir(cfg.NetworkConfig.RecordDir), crossVenueSettlementsFileName), append(data, '\n'), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	dashboard := &DashboardServer{crossVenueExecutor: exec}
+	req := httptest.NewRequest(http.MethodGet, "/api/cross-venue/validation?window_hours=24", nil)
+	rec := httptest.NewRecorder()
+	dashboard.handleCrossVenueValidationAPI(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	var resp CrossVenueValidationSnapshot
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if resp.TradeCount != 1 || math.Abs(resp.BaselineApproxNetPnL-3.3) > 1e-9 {
+		t.Fatalf("resp=%+v", resp)
 	}
 }
 
@@ -1022,6 +2442,34 @@ func newSubsetFallbackExecutor(t *testing.T, buf *bytes.Buffer, scanner *CrossVe
 	return e, high, low
 }
 
+func makeTestOpenOpportunity(cfg CrossVenueExecutorConfig, now time.Time, symbol, highVenue, lowVenue string, highRate, lowRate float64, tradableNotional float64, history, liquidity, stability, execution float64) CrossVenueOpportunity {
+	opp := CrossVenueOpportunity{
+		Symbol:              symbol,
+		HighVenue:           highVenue,
+		LowVenue:            lowVenue,
+		SpreadAPR:           2.0,
+		HighFundingRate:     highRate,
+		LowFundingRate:      lowRate,
+		HighIntervalHours:   8,
+		LowIntervalHours:    8,
+		HighNextFundingTime: now.Add(4 * time.Hour),
+		LowNextFundingTime:  now.Add(4 * time.Hour),
+		TradableNotional:    tradableNotional,
+		HistoryQualityScore: history,
+		LiquidityScore:      liquidity,
+		StabilityScore:      stability,
+		ExecutionScore:      execution,
+	}
+	opp = crossVenueEstimateOpportunityMetrics(cfg, opp, now)
+	opp.HistoryQualityScore = history
+	opp.LiquidityScore = liquidity
+	opp.StabilityScore = stability
+	opp.ExecutionScore = execution
+	ranked := []CrossVenueOpportunity{opp}
+	crossVenueFinalizeOpportunityRanking(ranked)
+	return ranked[0]
+}
+
 // TestCrossVenueSubsetFallbackOpensShadow 全局最优含不可交易所、可交易子集内有达标对 → 降级评估,
 // 影子模式走到开仓决策(且绝不下单)。
 func TestCrossVenueSubsetFallbackOpensShadow(t *testing.T) {
@@ -1031,9 +2479,9 @@ func TestCrossVenueSubsetFallbackOpensShadow(t *testing.T) {
 			Symbol: "BTC-USDT", HighVenue: nonTradeableVenueName, LowVenue: okx.VenueName, SpreadAPR: 25,
 		}},
 		FundingByVenue: map[string]map[string]CrossVenueFundingEntry{
-			// bybit 0.002/1h → 年化 17.5;okx 0.0001/8h → 年化 0.11;子集价差 ≈17.4 ≥ 1.5 达标。
-			bybit.VenueName: {"BTC-USDT": {Rate: 0.002, IntervalHours: 1, NextFundingTime: nf}},
-			okx.VenueName:   {"BTC-USDT": {Rate: 0.0001, IntervalHours: 8, NextFundingTime: nf}},
+			// 新版按 NetEV 决策，不只看 spreadAPR；这里用足够强的 funding 差确保子集替代对为正 EV。
+			bybit.VenueName: {"BTC-USDT": {Rate: 0.05, IntervalHours: 8, NextFundingTime: nf}},
+			okx.VenueName:   {"BTC-USDT": {Rate: 0.0, IntervalHours: 8, NextFundingTime: nf}},
 		},
 	}}
 	var buf bytes.Buffer
@@ -1082,18 +2530,21 @@ func TestCrossVenueSubsetFallbackBelowThresholdRejected(t *testing.T) {
 
 // TestCrossVenueTradeablePairNoFallback 全局最优本就可交易 → 不触发降级路径,行为不变。
 func TestCrossVenueTradeablePairNoFallback(t *testing.T) {
-	nf := time.Now().UTC().Add(time.Hour)
+	now := time.Now().UTC()
+	nf := now.Add(2 * time.Hour)
 	scanner := &CrossVenueScanner{lastSnapshot: CrossVenueScanSnapshot{
 		Opportunities: []CrossVenueOpportunity{{
 			Symbol: "BTC-USDT", HighVenue: bybit.VenueName, LowVenue: okx.VenueName, SpreadAPR: 2.0,
 		}},
-		// 索引故意只给 bybit 一所:若误触发降级会因「子集不足两所」拒绝——以此钉死「可交易对不走降级」。
+		// 可交易对必须直接使用原机会,不应触发「含不可交易所才会走」的子集降级路径。
 		FundingByVenue: map[string]map[string]CrossVenueFundingEntry{
 			bybit.VenueName: {"BTC-USDT": {Rate: 0.002, IntervalHours: 1, NextFundingTime: nf}},
+			okx.VenueName:   {"BTC-USDT": {Rate: 0.0001, IntervalHours: 8, NextFundingTime: nf}},
 		},
 	}}
 	var buf bytes.Buffer
 	e, _, _ := newSubsetFallbackExecutor(t, &buf, scanner)
+	e.nowFn = func() time.Time { return now }
 	e.evaluateNewOpens(context.Background(), false)
 	logs := buf.String()
 	if strings.Contains(logs, "降级用子集对") || strings.Contains(logs, "不可交易所") {
@@ -1218,42 +2669,164 @@ func TestCrossVenueOpenGateBinanceOkxPair(t *testing.T) {
 }
 
 func TestCrossVenueBinanceOkxDirectNoFallback(t *testing.T) {
-	nf := time.Now().UTC().Add(time.Hour)
-	scanner := &CrossVenueScanner{lastSnapshot: CrossVenueScanSnapshot{
-		Opportunities: []CrossVenueOpportunity{{
-			Symbol: "BTC-USDT", HighVenue: binance.VenueName, LowVenue: okx.VenueName, SpreadAPR: 25,
-		}},
-		FundingByVenue: map[string]map[string]CrossVenueFundingEntry{
-			binance.VenueName: {"BTC-USDT": {Rate: 0.002, IntervalHours: 1, NextFundingTime: nf}},
-			okx.VenueName:     {"BTC-USDT": {Rate: 0.0001, IntervalHours: 8, NextFundingTime: nf}},
-		},
-	}}
-	var buf bytes.Buffer
-	now := time.Now().UTC().Add(time.Hour)
-	nextFunding := now.Add(2 * time.Hour)
-	high := newCrossVenueTestVenue(binance.VenueName, 0.002, 1, nextFunding)
-	low := newCrossVenueTestVenue(okx.VenueName, 0.0001, 8, nextFunding)
-	tight := venue.BookTicker{BidPrice: 99.99, AskPrice: 100.01, BidQty: 1000, AskQty: 1000}
-	high.book = tight
-	low.book = tight
+	now := time.Now().UTC()
+	nf := now.Add(2 * time.Hour)
+	opp := CrossVenueOpportunity{
+		Symbol:                "BTC-USDT",
+		HighVenue:             binance.VenueName,
+		LowVenue:              okx.VenueName,
+		SnapshotID:            "snap-binance-okx",
+		SnapshotTime:          now,
+		FreshnessAgeSeconds:   0,
+		SpreadAPR:             25,
+		ComparableWindowHours: 2,
+		ExpectedHoldHours:     2,
+		NetEV:                 5,
+		CapitalEfficiencyEV:   1,
+		RiskAdjustedEVPerHour: 1,
+		HighFundingRate:       0.002,
+		LowFundingRate:        0.0001,
+		HighIntervalHours:     1,
+		LowIntervalHours:      8,
+		HighNextFundingTime:   nf,
+		LowNextFundingTime:    nf,
+		HistoryQualityScore:   0.80,
+		LiquidityScore:        0.80,
+		StabilityScore:        0.80,
+		ExecutionScore:        0.90,
+		RecoveryQualityScore:  0.60,
+		RankScore:             95,
+		SizeMultiplier:        1,
+		TradableNotional:      20,
+	}
 	cfg := testCrossVenueExecutorConfig()
-	cfg.NetworkConfig.RecordDir = t.TempDir()
 	e := &CrossVenueExecutor{
-		cfg:            cfg,
-		venues:         map[string]venue.Venue{binance.VenueName: high, okx.VenueName: low},
-		store:          mustCrossVenueStore(t, cfg.NetworkConfig.RecordDir),
-		logger:         log.New(&buf, "", 0),
-		nowFn:          func() time.Time { return now },
-		symbolCooldown: map[string]time.Time{},
-		scanner:        scanner,
+		cfg:    cfg,
+		logger: testCrossVenueLogger(),
+		nowFn:  func() time.Time { return now },
 	}
-	e.evaluateNewOpens(context.Background(), false)
-	logs := buf.String()
-	if strings.Contains(logs, "降级用子集对") {
-		t.Fatalf("binance 可交易时不应降级, got:\n%s", logs)
+	got, reject := e.resolveTradeableOpportunity(opp, map[string]map[string]CrossVenueFundingEntry{
+		binance.VenueName: {"BTC-USDT": {Rate: 0.002, IntervalHours: 1, NextFundingTime: nf}},
+		okx.VenueName:     {"BTC-USDT": {Rate: 0.0001, IntervalHours: 8, NextFundingTime: nf}},
+	})
+	if reject != "" {
+		t.Fatalf("binance/okx 可交易机会不应被降级拒绝: %s", reject)
 	}
-	if !strings.Contains(logs, "[影子] 本应开仓 BTC-USDT") {
-		t.Fatalf("应直接走 binance/okx 影子开仓, got:\n%s", logs)
+	if got.HighVenue != binance.VenueName || got.LowVenue != okx.VenueName {
+		t.Fatalf("binance/okx 可交易机会不应被替换, got=%+v", got)
+	}
+}
+
+func TestCrossVenueAcceptableFallbackOpensShadow(t *testing.T) {
+	now := time.Now().UTC()
+	opp := CrossVenueOpportunity{
+		Symbol:                "BTC-USDT",
+		HighVenue:             bybit.VenueName,
+		LowVenue:              okx.VenueName,
+		SnapshotID:            "snap-fallback",
+		SnapshotTime:          now,
+		FreshnessAgeSeconds:   0,
+		SpreadAPR:             2.0,
+		ComparableWindowHours: 4,
+		ExpectedHoldHours:     4,
+		NetEV:                 2,
+		CapitalEfficiencyEV:   0.5,
+		RiskAdjustedEVPerHour: 0.5,
+		HighFundingRate:       0.05,
+		LowFundingRate:        0.0,
+		HighIntervalHours:     8,
+		LowIntervalHours:      8,
+		HighNextFundingTime:   now.Add(4 * time.Hour),
+		LowNextFundingTime:    now.Add(4 * time.Hour),
+		HistoryQualityScore:   0.45,
+		LiquidityScore:        0.45,
+		StabilityScore:        0.45,
+		ExecutionScore:        0.70,
+		RecoveryQualityScore:  0.65,
+		RankScore:             70,
+		SizeMultiplier:        1,
+		TradableNotional:      20,
+	}
+	mode, reject := crossVenueSelectOpenMode(opp, false)
+	if reject != "" || mode != crossVenueOpenFallback {
+		t.Fatalf("expected acceptable fallback, mode=%s reject=%q opp=%+v", mode, reject, opp)
+	}
+	got := crossVenueApplyAcceptableFallback(opp)
+	if got.TradableNotional != 10 {
+		t.Fatalf("fallback should cap notional to 10U, got %+v", got)
+	}
+	if got.NoTradeReason != "acceptable_fallback" {
+		t.Fatalf("fallback should mark no-trade reason, got %+v", got)
+	}
+}
+
+func TestCrossVenueStrictCandidateBlocksFallback(t *testing.T) {
+	now := time.Now().UTC()
+	strict := CrossVenueOpportunity{
+		Symbol:                "BTC-USDT",
+		HighVenue:             bybit.VenueName,
+		LowVenue:              okx.VenueName,
+		SnapshotID:            "snap-strict",
+		SnapshotTime:          now,
+		FreshnessAgeSeconds:   0,
+		SpreadAPR:             2.0,
+		ComparableWindowHours: 4,
+		ExpectedHoldHours:     4,
+		NetEV:                 3,
+		CapitalEfficiencyEV:   0.7,
+		RiskAdjustedEVPerHour: 0.7,
+		HighFundingRate:       0.05,
+		LowFundingRate:        0.0,
+		HighIntervalHours:     8,
+		LowIntervalHours:      8,
+		HighNextFundingTime:   now.Add(4 * time.Hour),
+		LowNextFundingTime:    now.Add(4 * time.Hour),
+		HistoryQualityScore:   0.80,
+		LiquidityScore:        0.80,
+		StabilityScore:        0.80,
+		ExecutionScore:        0.90,
+		RecoveryQualityScore:  0.65,
+		RankScore:             95,
+		SizeMultiplier:        1,
+		TradableNotional:      20,
+	}
+	fallback := CrossVenueOpportunity{
+		Symbol:                "ETH-USDT",
+		HighVenue:             bybit.VenueName,
+		LowVenue:              okx.VenueName,
+		SnapshotID:            "snap-strict",
+		SnapshotTime:          now,
+		FreshnessAgeSeconds:   0,
+		SpreadAPR:             2.0,
+		ComparableWindowHours: 4,
+		ExpectedHoldHours:     4,
+		NetEV:                 2,
+		CapitalEfficiencyEV:   0.5,
+		RiskAdjustedEVPerHour: 0.5,
+		HighFundingRate:       0.05,
+		LowFundingRate:        0.0,
+		HighIntervalHours:     8,
+		LowIntervalHours:      8,
+		HighNextFundingTime:   now.Add(4 * time.Hour),
+		LowNextFundingTime:    now.Add(4 * time.Hour),
+		HistoryQualityScore:   0.45,
+		LiquidityScore:        0.45,
+		StabilityScore:        0.45,
+		ExecutionScore:        0.70,
+		RecoveryQualityScore:  0.65,
+		RankScore:             70,
+		SizeMultiplier:        1,
+		TradableNotional:      20,
+	}
+	if mode, reject := crossVenueSelectOpenMode(strict, false); mode != crossVenueOpenStrict || reject != "" {
+		t.Fatalf("strict candidate should remain strict, mode=%s reject=%q opp=%+v", mode, reject, strict)
+	}
+	mode, reject := crossVenueSelectOpenMode(fallback, true)
+	if mode != crossVenueOpenReject {
+		t.Fatalf("fallback should be blocked when strict exists, mode=%s reject=%q opp=%+v", mode, reject, fallback)
+	}
+	if reject != "存在更高质量 strict 候选,跳过软补位" {
+		t.Fatalf("unexpected fallback rejection reason: %q", reject)
 	}
 }
 
@@ -1355,6 +2928,43 @@ func TestCrossVenueMakerSecondLegTakerFailRollback(t *testing.T) {
 	}
 	if !e.isSymbolCooling("BTC-USDT") {
 		t.Fatal("expected cooldown after rollback")
+	}
+}
+
+func TestCrossVenueSwitchIntentOpenRetryAfterRollback(t *testing.T) {
+	now := time.Now().UTC().Add(time.Hour)
+	high := newCrossVenueTestVenue(bybit.VenueName, 0.001, 8, now)
+	low := newCrossVenueTestVenue(okx.VenueName, 0.0001, 8, now)
+	low.makerPostOnlyNeverFill = true
+	low.takerAlwaysFail = true
+	e := newCrossVenueMakerOpenExecutor(t, high, low)
+	intent := crossVenueSwitchIntent{
+		Symbol:             "BTC-USDT",
+		FromHighVenue:      bybit.VenueName,
+		FromLowVenue:       gate.VenueName,
+		TargetHighVenue:    bybit.VenueName,
+		TargetLowVenue:     okx.VenueName,
+		SwitchSequence:     crossVenueSwitchSequenceCloseThenOpen,
+		PartialSwitchPhase: "open_new",
+		Reason:             "switch target open retry",
+		CreatedAt:          now,
+		ExpiresAt:          now.Add(30 * time.Minute),
+	}
+	if err := e.upsertSwitchIntent(intent); err != nil {
+		t.Fatal(err)
+	}
+	plan := testCrossVenueOpenPlan()
+	plan.SwitchIntent = &intent
+	_, err := e.executeCrossVenueOpen(context.Background(), plan, true)
+	if err == nil {
+		t.Fatal("expected rollback path")
+	}
+	intents := e.activeSwitchIntents(now)
+	if len(intents) != 1 {
+		t.Fatalf("expected switch intent retained for retry, got %+v", intents)
+	}
+	if intents[0].PartialSwitchPhase != "open_new_retry" {
+		t.Fatalf("expected switch intent retry phase, got %+v", intents[0])
 	}
 }
 

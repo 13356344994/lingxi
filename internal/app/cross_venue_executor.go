@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"math"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -59,41 +61,90 @@ type CrossVenueExecutor struct {
 	recordDir string
 	// healthHaltVenue 健康闸当前暂停开仓的 venue(空=正常);用于告警去抖与 API 暴露。
 	healthHaltVenue string
+	lastCycle       CrossVenueCycleExplain
+}
+
+type crossVenueUntrackedLeg struct {
+	Venue      string
+	Symbol     string
+	Qty        float64
+	MarkPrice  float64
+	EntryPrice float64
+}
+
+type crossVenuePreparedOpenCandidate struct {
+	Opp          CrossVenueOpportunity
+	Gate         crossVenueGateResult
+	GateReject   string
+	SwitchIntent *crossVenueSwitchIntent
 }
 
 // CrossVenuePositionsAPIResponse 供面板 API 返回。
 type CrossVenuePositionsAPIResponse struct {
-	Enabled               bool                       `json:"enabled"`
-	Live                  bool                       `json:"live"`
-	Mode                  string                     `json:"mode"`
-	OpeningsEnabled       bool                       `json:"openings_enabled"`
-	HealthHaltVenue       string                     `json:"health_halt_venue"`
-	ActivePositions       int                        `json:"active_positions"`
-	ActivePositionDetails []CrossVenuePositionDetail `json:"active_position_details"`
-	Positions             []CrossVenuePosition       `json:"positions"`
-	UpdatedAt             time.Time                  `json:"updated_at"`
+	Enabled                bool                       `json:"enabled"`
+	Live                   bool                       `json:"live"`
+	Mode                   string                     `json:"mode"`
+	OpeningsEnabled        bool                       `json:"openings_enabled"`
+	HealthHaltVenue        string                     `json:"health_halt_venue"`
+	ActivePositions        int                        `json:"active_positions"`
+	PendingSwitches        int                        `json:"pending_switches"`
+	PartialSwitches        int                        `json:"partial_switches"`
+	OrphanPositions        int                        `json:"orphan_positions"`
+	TransitioningPositions int                        `json:"transitioning_positions"`
+	TransitionHeadroomUSDT float64                    `json:"transition_headroom_usdt"`
+	LastCycle              CrossVenueCycleExplain     `json:"last_cycle"`
+	ActivePositionDetails  []CrossVenuePositionDetail `json:"active_position_details"`
+	Positions              []CrossVenuePosition       `json:"positions"`
+	UpdatedAt              time.Time                  `json:"updated_at"`
+}
+
+type CrossVenueReasonCount struct {
+	Reason string `json:"reason"`
+	Count  int    `json:"count"`
+}
+
+type CrossVenueCycleExplain struct {
+	DecisionCycleID   string                  `json:"decision_cycle_id,omitempty"`
+	SnapshotID        string                  `json:"snapshot_id,omitempty"`
+	DecisionTime      time.Time               `json:"decision_time,omitempty"`
+	CycleReason       string                  `json:"cycle_reason,omitempty"`
+	OpenSummary       string                  `json:"open_summary,omitempty"`
+	SwitchSummary     string                  `json:"switch_summary,omitempty"`
+	FallbackSummary   string                  `json:"fallback_summary,omitempty"`
+	HaltReason        string                  `json:"halt_reason,omitempty"`
+	NoTradeReasonsTop []CrossVenueReasonCount `json:"no_trade_reasons_top,omitempty"`
 }
 
 // CrossVenuePositionDetail 面板持仓明细行(由在场持仓派生,含持有时长等展示字段)。
 type CrossVenuePositionDetail struct {
-	Symbol            string    `json:"symbol"`
-	HighVenue         string    `json:"high_venue"`
-	LowVenue          string    `json:"low_venue"`
-	HighLegSide       string    `json:"high_leg_side"`
-	HighLegQty        float64   `json:"high_leg_qty"`
-	HighLegEntryPrice float64   `json:"high_leg_entry_price"`
-	LowLegSide        string    `json:"low_leg_side"`
-	LowLegQty         float64   `json:"low_leg_qty"`
-	LowLegEntryPrice  float64   `json:"low_leg_entry_price"`
-	NotionalUSDT      float64   `json:"notional_usdt"`
-	OpenSpreadAPR     float64   `json:"open_spread_apr"`
-	EstFundingUSDT    float64   `json:"est_funding_usdt"`
-	OpenFeesUSDT      float64   `json:"open_fees_usdt"`
-	EstCloseFeesUSDT  float64   `json:"est_close_fees_usdt"`
-	NetUSDT           float64   `json:"net_usdt"`
-	HoldDurationSec   float64   `json:"hold_duration_seconds"`
-	Status            string    `json:"status"`
-	OpenedAt          time.Time `json:"opened_at"`
+	Symbol             string    `json:"symbol"`
+	HighVenue          string    `json:"high_venue"`
+	LowVenue           string    `json:"low_venue"`
+	HighLegSide        string    `json:"high_leg_side"`
+	HighLegQty         float64   `json:"high_leg_qty"`
+	HighLegEntryPrice  float64   `json:"high_leg_entry_price"`
+	LowLegSide         string    `json:"low_leg_side"`
+	LowLegQty          float64   `json:"low_leg_qty"`
+	LowLegEntryPrice   float64   `json:"low_leg_entry_price"`
+	NotionalUSDT       float64   `json:"notional_usdt"`
+	OpenSpreadAPR      float64   `json:"open_spread_apr"`
+	EstFundingUSDT     float64   `json:"est_funding_usdt"`
+	OpenFeesUSDT       float64   `json:"open_fees_usdt"`
+	EstCloseFeesUSDT   float64   `json:"est_close_fees_usdt"`
+	NetUSDT            float64   `json:"net_usdt"`
+	CurrentFutureEV    float64   `json:"current_future_ev,omitempty"`
+	FreshnessAgeSec    float64   `json:"freshness_age_seconds,omitempty"`
+	DecisionCycleID    string    `json:"decision_cycle_id,omitempty"`
+	CurrentSnapshotID  string    `json:"current_snapshot_id,omitempty"`
+	TransitionState    string    `json:"transition_state,omitempty"`
+	RecoveryAction     string    `json:"recovery_action,omitempty"`
+	PendingSwitchTo    string    `json:"pending_switch_to,omitempty"`
+	PendingSwitchGain  float64   `json:"pending_switch_expected_gain_usdt,omitempty"`
+	PendingSwitchSeq   string    `json:"pending_switch_sequence,omitempty"`
+	PartialSwitchPhase string    `json:"partial_switch_phase,omitempty"`
+	HoldDurationSec    float64   `json:"hold_duration_seconds"`
+	Status             string    `json:"status"`
+	OpenedAt           time.Time `json:"opened_at"`
 }
 
 func buildCrossVenuePositionDetails(cfg CrossVenueExecutorConfig, ps []CrossVenuePosition, now time.Time) []CrossVenuePositionDetail {
@@ -107,27 +158,95 @@ func buildCrossVenuePositionDetails(cfg CrossVenueExecutorConfig, ps []CrossVenu
 		openFees := p.OpenFeesUSDT
 		estCloseFees := crossVenueEstCloseFeeUSDT(cfg, &p)
 		out = append(out, CrossVenuePositionDetail{
-			Symbol:            p.Symbol,
-			HighVenue:         p.HighVenue,
-			LowVenue:          p.LowVenue,
-			HighLegSide:       p.HighLeg.Side,
-			HighLegQty:        p.HighLeg.Qty,
-			HighLegEntryPrice: p.HighLeg.EntryPrice,
-			LowLegSide:        p.LowLeg.Side,
-			LowLegQty:         p.LowLeg.Qty,
-			LowLegEntryPrice:  p.LowLeg.EntryPrice,
-			NotionalUSDT:      p.NotionalUSDT,
-			OpenSpreadAPR:     p.OpenSpreadAPR,
-			EstFundingUSDT:    p.EstFundingUSDT,
-			OpenFeesUSDT:      openFees,
-			EstCloseFeesUSDT:  estCloseFees,
-			NetUSDT:           p.EstFundingUSDT - openFees - estCloseFees,
-			HoldDurationSec:   holdSec,
-			Status:            string(p.Status),
-			OpenedAt:          p.OpenedAt,
+			Symbol:             p.Symbol,
+			HighVenue:          p.HighVenue,
+			LowVenue:           p.LowVenue,
+			HighLegSide:        p.HighLeg.Side,
+			HighLegQty:         p.HighLeg.Qty,
+			HighLegEntryPrice:  p.HighLeg.EntryPrice,
+			LowLegSide:         p.LowLeg.Side,
+			LowLegQty:          p.LowLeg.Qty,
+			LowLegEntryPrice:   p.LowLeg.EntryPrice,
+			NotionalUSDT:       p.NotionalUSDT,
+			OpenSpreadAPR:      p.OpenSpreadAPR,
+			EstFundingUSDT:     p.EstFundingUSDT,
+			OpenFeesUSDT:       openFees,
+			EstCloseFeesUSDT:   estCloseFees,
+			NetUSDT:            p.EstFundingUSDT - openFees - estCloseFees,
+			CurrentFutureEV:    p.CurrentFutureEV,
+			FreshnessAgeSec:    p.FreshnessAgeSeconds,
+			DecisionCycleID:    p.DecisionCycleID,
+			CurrentSnapshotID:  p.CurrentSnapshotID,
+			TransitionState:    p.TransitionState,
+			RecoveryAction:     p.RecoveryAction,
+			PendingSwitchTo:    crossVenuePendingSwitchTarget(p),
+			PendingSwitchGain:  p.PendingSwitchExpectedGainUSDT,
+			PendingSwitchSeq:   p.PendingSwitchSequence,
+			PartialSwitchPhase: p.PartialSwitchPhase,
+			HoldDurationSec:    holdSec,
+			Status:             string(p.Status),
+			OpenedAt:           p.OpenedAt,
 		})
 	}
 	return out
+}
+
+func buildCrossVenueReasonCounts(reasons []string, limit int) []CrossVenueReasonCount {
+	if limit <= 0 {
+		limit = 5
+	}
+	counts := make(map[string]int)
+	for _, reason := range reasons {
+		reason = strings.TrimSpace(reason)
+		if reason == "" {
+			continue
+		}
+		counts[reason]++
+	}
+	if len(counts) == 0 {
+		return nil
+	}
+	out := make([]CrossVenueReasonCount, 0, len(counts))
+	for reason, count := range counts {
+		out = append(out, CrossVenueReasonCount{Reason: reason, Count: count})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Count == out[j].Count {
+			return out[i].Reason < out[j].Reason
+		}
+		return out[i].Count > out[j].Count
+	})
+	if len(out) > limit {
+		out = out[:limit]
+	}
+	return out
+}
+
+func crossVenueTransitionMetrics(ps []CrossVenuePosition) (pending, partial, orphan, transitioning int, headroom float64) {
+	for _, p := range activeCrossVenuePositions(ps) {
+		if crossVenueHasPendingSwitch(p) || p.TransitionState == "switch_pending" {
+			pending++
+		}
+		if p.TransitionState == "partial_switch" {
+			partial++
+		}
+		if p.Status == CrossVenueStatusOrphanSingleLeg {
+			orphan++
+		}
+		if strings.TrimSpace(p.TransitionState) != "" && p.TransitionState != "hold" {
+			transitioning++
+			headroom += math.Max(0, p.EstimatedSwitchCost)
+		}
+	}
+	return pending, partial, orphan, transitioning, headroom
+}
+
+func crossVenueExplainSwitchSummary(ps []CrossVenuePosition) string {
+	pending, partial, orphan, transitioning, _ := crossVenueTransitionMetrics(ps)
+	if pending == 0 && partial == 0 && orphan == 0 && transitioning == 0 {
+		return "无待执行换仓/恢复"
+	}
+	return fmt.Sprintf("pending=%d partial=%d orphan=%d transitioning=%d", pending, partial, orphan, transitioning)
 }
 
 // NewCrossVenueExecutor 构造执行引擎。
@@ -241,6 +360,19 @@ func (e *CrossVenueExecutor) Run(ctx context.Context) {
 }
 
 func (e *CrossVenueExecutor) tick(ctx context.Context, live bool) {
+	now := e.nowFn()
+	cycleID := crossVenueDecisionCycleID(now)
+	snap := CrossVenueScanSnapshot{}
+	if e.scanner != nil {
+		snap = e.scanner.Snapshot()
+	}
+	baseExplain := CrossVenueCycleExplain{
+		DecisionCycleID: cycleID,
+		SnapshotID:      snap.SnapshotID,
+		DecisionTime:    now,
+		CycleReason:     "scheduled_tick",
+		SwitchSummary:   crossVenueExplainSwitchSummary(e.snapshotPositions()),
+	}
 	haltActive := e.isHaltActive()
 	if haltActive {
 		e.logger.Printf("[跨所执行] 急停生效,跳过开新仓(在场持仓仍管理)")
@@ -251,14 +383,23 @@ func (e *CrossVenueExecutor) tick(ctx context.Context, live bool) {
 	e.syncHealthHaltAlerts(unhealthy)
 
 	if haltActive {
+		baseExplain.HaltReason = "halt_active"
+		baseExplain.OpenSummary = "急停生效,仅管理在场仓"
+		e.setLastCycle(baseExplain)
 		return
 	}
 	if !e.OpeningsEnabled() {
 		e.logger.Printf("[跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)")
+		baseExplain.HaltReason = "openings_disabled"
+		baseExplain.OpenSummary = "运行时开仓开关关闭"
+		e.setLastCycle(baseExplain)
 		return
 	}
 	if unhealthy != "" {
 		e.logger.Printf("[跨所执行] 健康闸: venue=%s 不健康,跳过 evaluateNewOpens(在场持仓管理照常)", unhealthy)
+		baseExplain.HaltReason = "health_halt:" + unhealthy
+		baseExplain.OpenSummary = fmt.Sprintf("venue=%s 不健康,跳过新开仓", unhealthy)
+		e.setLastCycle(baseExplain)
 		return
 	}
 	e.evaluateNewOpens(ctx, live)
@@ -335,52 +476,128 @@ func (e *CrossVenueExecutor) manageOpenPositions(ctx context.Context, live bool)
 func (e *CrossVenueExecutor) evaluateNewOpens(ctx context.Context, live bool) {
 	cfg := e.cfg.CrossVenueExecutor
 	active := activeCrossVenuePositions(e.snapshotPositions())
-	if len(active) >= cfg.MaxConcurrent {
+	now := e.nowFn()
+	cycleID := crossVenueDecisionCycleID(now)
+	explain := CrossVenueCycleExplain{
+		DecisionCycleID: cycleID,
+		DecisionTime:    now,
+		CycleReason:     "scheduled_tick",
+		SwitchSummary:   crossVenueExplainSwitchSummary(e.snapshotPositions()),
+	}
+	activeSwitchIntents := e.activeSwitchIntents(now)
+	concurrentLimit := cfg.MaxConcurrent + crossVenueTransitionHeadroomSlots(activeSwitchIntents)
+	if len(active) >= concurrentLimit {
+		explain.OpenSummary = fmt.Sprintf("active=%d 已达并发上限=%d", len(active), cfg.MaxConcurrent)
+		explain.HaltReason = "max_concurrent_reached"
+		e.setLastCycle(explain)
 		return
 	}
 	if e.scanner == nil {
+		explain.OpenSummary = "scanner 未注入"
+		explain.HaltReason = "scanner_missing"
+		e.setLastCycle(explain)
 		return
 	}
 	snap := e.scanner.Snapshot()
-	deps := e.gateDeps()
-	now := e.nowFn()
+	explain.SnapshotID = snap.SnapshotID
+	if !e.snapshotFreshEnough(snap.ScannedAt) {
+		e.logger.Printf("[跨所执行] scanner 快照过旧 age=%.0fs,跳过开新仓", crossVenueSnapshotAgeSeconds(snap.ScannedAt, e.nowFn()))
+		explain.OpenSummary = fmt.Sprintf("snapshot 过旧 age=%.0fs", crossVenueSnapshotAgeSeconds(snap.ScannedAt, now))
+		explain.HaltReason = "snapshot_too_old"
+		e.setLastCycle(explain)
+		return
+	}
+	deps := e.gateDeps(snap)
 	// 拒绝原因汇总(每轮一行,最多列前 5 条):影子观察期必须能看到「为什么不开」,否则空跑无法验证决策质量。
 	var rejected []string
-	for _, opp := range snap.Opportunities {
-		if len(activeCrossVenuePositions(e.snapshotPositions())) >= cfg.MaxConcurrent {
-			break
-		}
-		// 全局最优腿对含不可交易所(如 binance)时不直接拒:在可交易所子集内降级重算最优对,
-		// 达标则用替代对继续走完整闸门(否则该币在子集内的真实机会会被全局最优挡住,高频误拒)。
+	var rawRejectReasons []string
+	var opened []string
+	var fallbackUsed []string
+	resolvedOpps := make([]CrossVenueOpportunity, 0, len(snap.Opportunities))
+	for _, raw := range snap.Opportunities {
+		opp := e.enrichOpportunityFromSnapshot(raw, snap, now)
 		resolved, downgradeReject := e.resolveTradeableOpportunity(opp, snap.FundingByVenue)
 		if downgradeReject != "" {
+			rawRejectReasons = append(rawRejectReasons, downgradeReject)
 			if len(rejected) < 5 {
 				rejected = append(rejected, fmt.Sprintf("%s(%s)", opp.Symbol, downgradeReject))
 			}
 			continue
 		}
-		opp = resolved
+		resolved = e.enrichOpportunityFromSnapshot(resolved, snap, now)
+		resolvedOpps = append(resolvedOpps, resolved)
+	}
+	resolvedOpps = prioritizeCrossVenueOpportunitiesForSwitches(resolvedOpps, activeSwitchIntents)
+	resolvedOpps = filterCrossVenueOpportunitiesForSwitchContinuation(resolvedOpps, activeSwitchIntents)
+	prepared := make([]crossVenuePreparedOpenCandidate, 0, len(resolvedOpps))
+	hasStrictCandidate := false
+	for _, opp := range resolvedOpps {
+		var switchIntent *crossVenueSwitchIntent
+		allowExistingSymbol := false
+		if intent, ok := e.switchIntentForOpportunity(opp, now); ok {
+			intentCopy := intent
+			switchIntent = &intentCopy
+			allowExistingSymbol = crossVenueSwitchSequenceNeedsTargetFirst(intent.SwitchSequence)
+		}
 		requiredMargin := conservativeCrossVenueRequiredMargin(cfg)
 		ensureCrossVenuePerpMargin(ctx, e.logger, e.venues, opp.HighVenue, opp.LowVenue, requiredMargin)
 		if crossVenueUsesBybit(opp.HighVenue, opp.LowVenue) {
 			ensureBybitTradingAgreement(ctx, e.logger, e.venues[bybit.VenueName])
 		}
 		gateRes := evaluateCrossVenueOpenGate(ctx, cfg, deps, e.venues, crossVenueGateInput{
-			Opp:           opp,
-			Positions:     e.snapshotPositions(),
-			BybitHeld:     func(sym venue.Symbol) bool { return isBybitSymbolHeld(e.cfg.NetworkConfig.RecordDir, sym) },
-			BinanceHeld:   func(sym venue.Symbol) bool { return isBinanceSymbolHeld(e.cfg.NetworkConfig.RecordDir, sym) },
-			FundingHeld:   func(sym venue.Symbol) bool { return isFundingSymbolHeldAnyVenue(e.cfg.NetworkConfig.RecordDir, sym) },
-			HaltActive:    false,
-			SymbolCooling: e.isSymbolCooling,
-			Now:           now,
+			Opp:                 opp,
+			Positions:           e.snapshotPositions(),
+			AllowExistingSymbol: allowExistingSymbol,
+			BybitHeld:           func(sym venue.Symbol) bool { return isBybitSymbolHeld(e.cfg.NetworkConfig.RecordDir, sym) },
+			BinanceHeld:         func(sym venue.Symbol) bool { return isBinanceSymbolHeld(e.cfg.NetworkConfig.RecordDir, sym) },
+			FundingHeld:         func(sym venue.Symbol) bool { return isFundingSymbolHeldAnyVenue(e.cfg.NetworkConfig.RecordDir, sym) },
+			HaltActive:          false,
+			SymbolCooling:       e.isSymbolCooling,
+			Now:                 now,
 		})
+		candidate := crossVenuePreparedOpenCandidate{Opp: opp, Gate: gateRes, SwitchIntent: switchIntent}
 		if !gateRes.OK {
+			candidate.GateReject = gateRes.Reason
+			rawRejectReasons = append(rawRejectReasons, gateRes.Reason)
+		} else if crossVenueOpportunityIsStrict(opp) {
+			hasStrictCandidate = true
+		}
+		prepared = append(prepared, candidate)
+	}
+	for _, candidate := range prepared {
+		if len(activeCrossVenuePositions(e.snapshotPositions())) >= concurrentLimit {
+			break
+		}
+		opp := candidate.Opp
+		if candidate.GateReject != "" {
 			if len(rejected) < 5 {
-				rejected = append(rejected, fmt.Sprintf("%s(%s)", opp.Symbol, gateRes.Reason))
+				rejected = append(rejected, fmt.Sprintf("%s(%s)", opp.Symbol, candidate.GateReject))
 			}
 			continue
 		}
+		mode, selectReject := crossVenueSelectOpenMode(opp, hasStrictCandidate)
+		if crossVenueOpportunityMatchesAnySwitchIntent(opp, activeSwitchIntents) {
+			if crossVenueOpportunityIsRecoverableSwitchTarget(opp) {
+				mode, selectReject = crossVenueOpenStrict, ""
+			} else {
+				mode, selectReject = crossVenueOpenReject, "pending switch 目标已失效"
+			}
+		}
+		if mode == crossVenueOpenReject {
+			rawRejectReasons = append(rawRejectReasons, selectReject)
+			if len(rejected) < 5 {
+				rejected = append(rejected, fmt.Sprintf("%s(%s)", opp.Symbol, selectReject))
+			}
+			continue
+		}
+		if mode == crossVenueOpenFallback {
+			opp = crossVenueApplyAcceptableFallback(opp)
+			fallbackUsed = append(fallbackUsed, opp.Symbol)
+			e.logger.Printf("[跨所执行] %s 使用 acceptable fallback: rank=%.2f size=%.2f notional=%.2f",
+				opp.Symbol, opp.RankScore, opp.SizeMultiplier, opp.TradableNotional)
+		}
+		gateRes := candidate.Gate
+		gateRes = crossVenueCapGateNotional(gateRes, opp)
 		highCaps := e.venues[opp.HighVenue].Capabilities()
 		lowCaps := e.venues[opp.LowVenue].Capabilities()
 		refPrice := (gateRes.HighMid + gateRes.LowMid) / 2
@@ -388,12 +605,21 @@ func (e *CrossVenueExecutor) evaluateNewOpens(ctx context.Context, live bool) {
 		if !crossVenueQtyTradable(qty, refPrice, gateRes.HighInstr) {
 			continue
 		}
+		switchIntent := candidate.SwitchIntent
 		plan := crossVenueOpenPlan{
-			Opp:        opp,
-			Gate:       gateRes,
-			Qty:        qty,
-			RefPrice:   refPrice,
-			IdemPrefix: crossVenueIdemPrefix(venue.Symbol(opp.Symbol), opp.HighVenue),
+			Opp:             opp,
+			Gate:            gateRes,
+			Qty:             qty,
+			RefPrice:        refPrice,
+			IdemPrefix:      crossVenueIdemPrefix(venue.Symbol(opp.Symbol), opp.HighVenue),
+			DecisionCycleID: cycleID,
+			SnapshotID:      snap.SnapshotID,
+			SnapshotTime:    snap.ScannedAt,
+			SwitchIntent:    switchIntent,
+			SelectionMode:   mode,
+		}
+		if switchIntent != nil {
+			_ = e.updateSwitchIntentPhase(switchIntent.Symbol, switchIntent.TargetHighVenue, switchIntent.TargetLowVenue, "open_new")
 		}
 		pos, err := e.executeCrossVenueOpen(ctx, plan, live)
 		if err != nil {
@@ -405,7 +631,15 @@ func (e *CrossVenueExecutor) evaluateNewOpens(ctx context.Context, live bool) {
 		}
 		// 影子模式返回空持仓(只记日志不建仓),不能把零值记录灌进内存台账/面板。
 		if pos.Symbol == "" {
+			opened = append(opened, opp.Symbol+"(shadow)")
+			if switchIntent == nil || crossVenueSwitchTargetOpenCompleted(pos) {
+				_ = e.removeSwitchIntent(opp.Symbol, opp.HighVenue, opp.LowVenue)
+			}
 			continue
+		}
+		opened = append(opened, pos.Symbol)
+		if switchIntent == nil || crossVenueSwitchTargetOpenCompleted(pos) {
+			_ = e.removeSwitchIntent(opp.Symbol, opp.HighVenue, opp.LowVenue)
 		}
 		e.mu.Lock()
 		e.positions = upsertCrossVenuePosition(e.positions, pos)
@@ -415,6 +649,21 @@ func (e *CrossVenueExecutor) evaluateNewOpens(ctx context.Context, live bool) {
 	if len(rejected) > 0 {
 		e.logger.Printf("[跨所执行] 本轮闸门拒绝 %d 例(前5): %s", len(rejected), strings.Join(rejected, "; "))
 	}
+	switch {
+	case len(opened) > 0:
+		explain.OpenSummary = "opened: " + strings.Join(opened, ",")
+	default:
+		explain.OpenSummary = "未开新仓"
+	}
+	if len(fallbackUsed) > 0 {
+		explain.FallbackSummary = "acceptable_fallback: " + strings.Join(fallbackUsed, ",")
+	} else if len(rawRejectReasons) > 0 {
+		explain.FallbackSummary = "无 acceptable fallback"
+	} else {
+		explain.FallbackSummary = "none"
+	}
+	explain.NoTradeReasonsTop = buildCrossVenueReasonCounts(rawRejectReasons, 5)
+	e.setLastCycle(explain)
 }
 
 // resolveTradeableOpportunity 处理「全局最优腿对含不可交易所」的机会(扫描器对每个 symbol 只保留
@@ -438,6 +687,55 @@ func (e *CrossVenueExecutor) resolveTradeableOpportunity(opp CrossVenueOpportuni
 	e.logger.Printf("[跨所执行] %s 全局最优对(%s/%s)含不可交易所,降级用子集对(%s/%s, %.1f%%)",
 		opp.Symbol, opp.HighVenue, opp.LowVenue, alt.HighVenue, alt.LowVenue, alt.SpreadAPR*100)
 	return alt, ""
+}
+
+// enrichOpportunityFromSnapshot 为执行层兼容旧版/手工构造的机会快照:
+// 只要 FundingByVenue 里有真值,就补齐 funding metadata、lineage 与派生 EV 指标,
+// 避免旧测试或外部注入机会因缺 NextFundingTime/Interval 被误判为幽灵腿。
+func (e *CrossVenueExecutor) enrichOpportunityFromSnapshot(opp CrossVenueOpportunity, snap CrossVenueScanSnapshot, now time.Time) CrossVenueOpportunity {
+	if opp.Symbol == "" {
+		return opp
+	}
+	if opp.SnapshotID == "" {
+		opp.SnapshotID = snap.SnapshotID
+	}
+	if opp.SnapshotTime.IsZero() {
+		opp.SnapshotTime = snap.ScannedAt
+	}
+	if opp.FreshnessAgeSeconds <= 0 && !snap.ScannedAt.IsZero() {
+		opp.FreshnessAgeSeconds = crossVenueSnapshotAgeSeconds(snap.ScannedAt, now)
+	}
+	if entry, ok := snap.FundingByVenue[opp.HighVenue][opp.Symbol]; ok {
+		opp.HighFundingRate = entry.Rate
+		if entry.IntervalHours > 0 {
+			opp.HighIntervalHours = entry.IntervalHours
+		}
+		if !entry.NextFundingTime.IsZero() {
+			opp.HighNextFundingTime = entry.NextFundingTime
+		}
+		if opp.HighAnnualizedAPR == 0 && opp.HighIntervalHours > 0 {
+			opp.HighAnnualizedAPR = fundingAnnualizedAPR(opp.HighFundingRate, opp.HighIntervalHours)
+		}
+	}
+	if entry, ok := snap.FundingByVenue[opp.LowVenue][opp.Symbol]; ok {
+		opp.LowFundingRate = entry.Rate
+		if entry.IntervalHours > 0 {
+			opp.LowIntervalHours = entry.IntervalHours
+		}
+		if !entry.NextFundingTime.IsZero() {
+			opp.LowNextFundingTime = entry.NextFundingTime
+		}
+		if opp.LowAnnualizedAPR == 0 && opp.LowIntervalHours > 0 {
+			opp.LowAnnualizedAPR = fundingAnnualizedAPR(opp.LowFundingRate, opp.LowIntervalHours)
+		}
+	}
+	if opp.ComparableWindowHours <= 0 || opp.ExpectedHoldHours <= 0 || opp.NetEV == 0 || opp.RankScore == 0 {
+		opp = crossVenueEstimateOpportunityMetrics(e.cfg.CrossVenueExecutor, opp, now)
+		ranked := []CrossVenueOpportunity{opp}
+		crossVenueFinalizeOpportunityRanking(ranked)
+		opp = ranked[0]
+	}
+	return opp
 }
 
 // bestTradeableSubsetPair 用扫描器费率索引对某 symbol 在可交易所子集内重算最优腿对。
@@ -469,8 +767,9 @@ func bestTradeableSubsetPair(sym string, byVenue map[string]map[string]CrossVenu
 }
 
 func upsertCrossVenuePosition(ps []CrossVenuePosition, p CrossVenuePosition) []CrossVenuePosition {
+	crossVenueEnsurePositionKey(&p)
 	for i := range ps {
-		if ps[i].Symbol == p.Symbol {
+		if crossVenueSamePosition(ps[i], p) {
 			ps[i] = p
 			return ps
 		}
@@ -478,7 +777,7 @@ func upsertCrossVenuePosition(ps []CrossVenuePosition, p CrossVenuePosition) []C
 	return append(ps, p)
 }
 
-func (e *CrossVenueExecutor) gateDeps() crossVenueGateDeps {
+func (e *CrossVenueExecutor) gateDeps(snap CrossVenueScanSnapshot) crossVenueGateDeps {
 	return crossVenueGateDeps{
 		lookupInstrument: lookupVenueInstrument,
 		fetchBookTicker: func(ctx context.Context, v venue.Venue, sym venue.Symbol) (venue.BookTicker, error) {
@@ -487,11 +786,56 @@ func (e *CrossVenueExecutor) gateDeps() crossVenueGateDeps {
 		fetchDepth: func(ctx context.Context, v venue.Venue, sym venue.Symbol, limit int) (venue.Depth, error) {
 			return v.FetchDepth(ctx, venue.MarketPerp, sym, limit)
 		},
-		fetchFunding:           fetchVenueFundingForSymbol,
+		fetchFunding: func(ctx context.Context, v venue.Venue, sym venue.Symbol) (venue.FundingSnapshot, bool) {
+			_ = ctx
+			return e.fetchFundingFromSnapshot(v, sym, snap)
+		},
 		fetchPerpAvailableUSDT: fetchVenuePerpAvailableUSDT,
 		venueCaps:              func(v venue.Venue) venue.Capabilities { return v.Capabilities() },
 		allocatedUSDT:          e.allocatedUSDTForVenue,
 	}
+}
+
+func (e *CrossVenueExecutor) snapshotFreshEnough(scannedAt time.Time) bool {
+	maxAge := e.cfg.CrossVenueScanner.MaxSnapshotAgeSeconds
+	if maxAge <= 0 {
+		maxAge = 720
+	}
+	return crossVenueSnapshotAgeSeconds(scannedAt, e.nowFn()) <= float64(maxAge)
+}
+
+func (e *CrossVenueExecutor) fetchFundingFromSnapshot(v venue.Venue, sym venue.Symbol, snap CrossVenueScanSnapshot) (venue.FundingSnapshot, bool) {
+	if v == nil {
+		return venue.FundingSnapshot{}, false
+	}
+	name := strings.ToLower(strings.TrimSpace(v.Name()))
+	if name == "" {
+		switch vv := v.(type) {
+		case interface{ Name() string }:
+			name = strings.ToLower(strings.TrimSpace(vv.Name()))
+		}
+	}
+	if name == "" {
+		for venueName, adp := range e.venues {
+			if adp == v {
+				name = venueName
+				break
+			}
+		}
+	}
+	if name == "" {
+		return venue.FundingSnapshot{}, false
+	}
+	entry, ok := snap.FundingByVenue[name][string(sym)]
+	if !ok {
+		return venue.FundingSnapshot{}, false
+	}
+	return venue.FundingSnapshot{
+		Symbol:          sym,
+		LastFundingRate: entry.Rate,
+		IntervalHours:   entry.IntervalHours,
+		NextFundingTime: entry.NextFundingTime,
+	}, true
 }
 
 func (e *CrossVenueExecutor) allocatedUSDTForVenue(venueName string) float64 {
@@ -515,43 +859,22 @@ func (e *CrossVenueExecutor) reconcileOnStart(ctx context.Context) {
 	}
 	active := activeCrossVenuePositions(ps)
 	if len(active) == 0 {
-		return
+		ps = nil
 	}
-	e.logger.Printf("[跨所执行] reconcile: %d 笔落盘持仓", len(active))
-	for _, p := range active {
-		highV := e.venues[p.HighVenue]
-		lowV := e.venues[p.LowVenue]
-		if highV == nil || lowV == nil {
-			e.logger.Printf("[跨所执行] reconcile:%s venue 未就绪,保留台账", p.Symbol)
-			continue
-		}
-		highPos, errH := highV.FetchPositions(ctx)
-		lowPos, errL := lowV.FetchPositions(ctx)
-		if errH != nil || errL != nil {
-			e.logger.Printf("[跨所执行] reconcile:%s 拉持仓失败,保留台账", p.Symbol)
-			continue
-		}
-		sym := venue.Symbol(p.Symbol)
-		hAmt := perpPositionQty(highPos, sym)
-		lAmt := perpPositionQty(lowPos, sym)
-		hOpen := absQty(hAmt) > executionQtyTolerance
-		lOpen := absQty(lAmt) > executionQtyTolerance
-		switch {
-		case !hOpen && !lOpen:
-			e.logger.Printf("[跨所执行] reconcile:%s 两所均无持仓,orphan 清除台账", p.Symbol)
-			p.Status = CrossVenueStatusClosed
-			p.CloseReason = "reconcile_orphan"
-			e.finalizeClosedCrossVenuePosition(p)
-			e.notifyWarn("跨所 orphan", fmt.Sprintf("%s 台账有但两所均无持仓", p.Symbol), p.Symbol)
-		case hOpen != lOpen:
-			p.Status = CrossVenueStatusOrphanSingleLeg
-			_ = e.persistPosition(p)
-			e.notifyCritical("跨所 reconcile 孤腿", fmt.Sprintf("%s 台账与所内不一致", p.Symbol), p.Symbol)
-		default:
-			e.logger.Printf("[跨所执行] reconcile:%s 恢复监控", p.Symbol)
+	if len(active) > 0 {
+		e.logger.Printf("[跨所执行] reconcile: %d 笔落盘持仓", len(active))
+		for _, p := range active {
+			highV := e.venues[p.HighVenue]
+			lowV := e.venues[p.LowVenue]
+			if highV == nil || lowV == nil {
+				e.logger.Printf("[跨所执行] reconcile:%s venue 未就绪,保留台账", p.Symbol)
+				continue
+			}
+			e.reconcileTrackedPositionOnStart(ctx, p, highV, lowV)
 		}
 	}
-	// 所内有但台账没有 → 只告警,绝不自动收编
+	// 所内有但台账没有 → 进入显式 import/flatten/halt 分支。
+	untrackedBySymbol := make(map[string][]crossVenueUntrackedLeg)
 	for _, name := range crossVenueExecutorVenues {
 		v := e.venues[name]
 		if v == nil {
@@ -565,19 +888,155 @@ func (e *CrossVenueExecutor) reconcileOnStart(ctx context.Context) {
 			if absQty(ep.PositionAmt) <= executionQtyTolerance {
 				continue
 			}
-			if _, tracked := crossVenuePositionBySymbol(ps, ep.Symbol); tracked {
+			if crossVenueHasTrackedLeg(ps, name, ep.Symbol) {
 				continue
 			}
-			// 可能是 bybit 单所或其他,仅当 symbol 在跨所机会对时才告警
 			e.logger.Printf("[跨所执行] reconcile: venue=%s 未登记持仓 %s≈%.6f,请人工核对", name, ep.Symbol, ep.PositionAmt)
+			untrackedBySymbol[string(ep.Symbol)] = append(untrackedBySymbol[string(ep.Symbol)], crossVenueUntrackedLeg{
+				Venue:      name,
+				Symbol:     string(ep.Symbol),
+				Qty:        ep.PositionAmt,
+				MarkPrice:  ep.MarkPrice,
+				EntryPrice: ep.EntryPrice,
+			})
 		}
+	}
+	if len(untrackedBySymbol) > 0 {
+		action := crossVenueUntrackedExposureAction(e.cfg.CrossVenueExecutor)
+		if !e.handleUntrackedExposureOnStart(ctx, action, untrackedBySymbol) {
+			_ = e.SetOpeningsEnabled(false)
+			e.notifyCritical("跨所冷启动接管", "检测到未登记真实持仓,已关闭跨所开仓直到人工确认", "")
+		}
+	}
+	if latest, lerr := e.store.load(); lerr == nil {
+		ps = latest
 	}
 	e.mu.Lock()
 	e.positions = ps
 	e.mu.Unlock()
 }
 
+func crossVenueUntrackedExposureAction(cfg CrossVenueExecutorConfig) string {
+	action := strings.ToLower(strings.TrimSpace(cfg.UntrackedExposureAction))
+	switch action {
+	case crossVenueRecoveryActionImport, crossVenueRecoveryActionFlatten, crossVenueRecoveryActionHalt:
+		return action
+	default:
+		return crossVenueRecoveryActionHalt
+	}
+}
+
+func (e *CrossVenueExecutor) handleUntrackedExposureOnStart(ctx context.Context, action string, bySymbol map[string][]crossVenueUntrackedLeg) bool {
+	if e == nil || len(bySymbol) == 0 {
+		return true
+	}
+	cycleID := crossVenueDecisionCycleID(e.nowFn())
+	allHandled := true
+	for symbol, legs := range bySymbol {
+		pos, ok := e.buildUntrackedImportedPosition(symbol, legs, cycleID)
+		if !ok {
+			allHandled = false
+			continue
+		}
+		switch action {
+		case crossVenueRecoveryActionImport:
+			pos.TransitionState = "import"
+			pos.RecoveryAction = crossVenueRecoveryActionImport
+			if err := e.store.upsert(pos); err != nil {
+				allHandled = false
+				continue
+			}
+			e.recordCrossVenueTransition(pos, "", "import", "冷启动导入未登记真实持仓")
+			e.notifyWarn("跨所冷启动导入", symbol+" 已导入 SSOT，后续按在场仓管理", symbol)
+		case crossVenueRecoveryActionFlatten:
+			if !e.cfg.CrossVenueExecutor.LiveTradingEnabled {
+				allHandled = false
+				continue
+			}
+			pos.TransitionState = "flatten"
+			pos.RecoveryAction = crossVenueRecoveryActionFlatten
+			if err := e.store.upsert(pos); err != nil {
+				allHandled = false
+				continue
+			}
+			e.recordCrossVenueTransition(pos, "", "flatten", "冷启动对未登记真实持仓执行 flatten")
+			if err := e.closeCrossVenuePosition(ctx, pos, true, "冷启动 flatten 未登记真实持仓"); err != nil {
+				allHandled = false
+				continue
+			}
+			e.notifyWarn("跨所冷启动 flatten", symbol+" 已执行平仓收敛", symbol)
+		default:
+			allHandled = false
+			e.recordCrossVenueTransition(pos, "", "halt", "冷启动发现未登记真实持仓")
+		}
+	}
+	return allHandled && action != crossVenueRecoveryActionHalt
+}
+
+func (e *CrossVenueExecutor) buildUntrackedImportedPosition(symbol string, legs []crossVenueUntrackedLeg, cycleID string) (CrossVenuePosition, bool) {
+	if len(legs) != 2 {
+		return CrossVenuePosition{}, false
+	}
+	var high, low *crossVenueUntrackedLeg
+	for i := range legs {
+		if legs[i].Qty < -executionQtyTolerance {
+			if high != nil {
+				return CrossVenuePosition{}, false
+			}
+			high = &legs[i]
+		}
+		if legs[i].Qty > executionQtyTolerance {
+			if low != nil {
+				return CrossVenuePosition{}, false
+			}
+			low = &legs[i]
+		}
+	}
+	if high == nil || low == nil {
+		return CrossVenuePosition{}, false
+	}
+	now := e.nowFn()
+	highPrice := high.EntryPrice
+	if highPrice <= 0 {
+		highPrice = high.MarkPrice
+	}
+	lowPrice := low.EntryPrice
+	if lowPrice <= 0 {
+		lowPrice = low.MarkPrice
+	}
+	pos := CrossVenuePosition{
+		Symbol:               symbol,
+		HighVenue:            high.Venue,
+		LowVenue:             low.Venue,
+		DecisionCycleID:      cycleID,
+		EntryDecisionCycleID: cycleID,
+		Status:               CrossVenueStatusOpen,
+		OpenedAt:             now,
+		UpdatedAt:            now,
+		IdemPrefix:           crossVenueIdemPrefix(venue.Symbol(symbol), high.Venue),
+		HighLeg: CrossVenueLegState{
+			Venue:      high.Venue,
+			Side:       "sell",
+			Qty:        absQty(high.Qty),
+			EntryPrice: highPrice,
+		},
+		LowLeg: CrossVenueLegState{
+			Venue:      low.Venue,
+			Side:       "buy",
+			Qty:        absQty(low.Qty),
+			EntryPrice: lowPrice,
+		},
+	}
+	pos.NotionalUSDT = math.Min(absQty(high.Qty)*highPrice, absQty(low.Qty)*lowPrice)
+	if pos.NotionalUSDT <= 0 {
+		pos.NotionalUSDT = math.Min(absQty(high.Qty), absQty(low.Qty)) * maxFloat64(highPrice, lowPrice)
+	}
+	e.refreshCurrentPositionMetrics(&pos)
+	return pos, true
+}
+
 func (e *CrossVenueExecutor) persistPosition(p CrossVenuePosition) error {
+	crossVenueEnsurePositionKey(&p)
 	if err := e.store.upsert(p); err != nil {
 		e.logger.Printf("[跨所执行] 落盘失败 %s: %v", p.Symbol, err)
 		return err
@@ -590,15 +1049,16 @@ func (e *CrossVenueExecutor) persistPosition(p CrossVenuePosition) error {
 
 // removeCrossVenuePosition 从落盘台账与内存台账同时移除(平仓收尾/reconcile orphan 必须双删,
 // 否则 manageOpenPositions 下轮仍从 snapshotPositions 读到 stale closing 持仓)。
-func (e *CrossVenueExecutor) removeCrossVenuePosition(sym string) error {
-	if err := e.store.remove(sym); err != nil {
-		e.logger.Printf("[跨所执行] 删台账失败 %s: %v", sym, err)
+func (e *CrossVenueExecutor) removeCrossVenuePosition(pos CrossVenuePosition) error {
+	key := crossVenuePositionKey(pos)
+	if err := e.store.remove(key); err != nil {
+		e.logger.Printf("[跨所执行] 删台账失败 %s key=%s: %v", pos.Symbol, key, err)
 		return err
 	}
 	e.mu.Lock()
 	out := make([]CrossVenuePosition, 0, len(e.positions))
 	for _, p := range e.positions {
-		if p.Symbol != sym {
+		if crossVenuePositionKey(p) != key {
 			out = append(out, p)
 		}
 	}
@@ -621,17 +1081,43 @@ func (e *CrossVenueExecutor) PositionsSnapshot() CrossVenuePositionsAPIResponse 
 	if ps == nil {
 		ps = e.snapshotPositions()
 	}
+	pending, partial, orphan, transitioning, headroom := crossVenueTransitionMetrics(ps)
 	return CrossVenuePositionsAPIResponse{
-		Enabled:               e.cfg.CrossVenueExecutor.Enabled,
-		Live:                  e.cfg.CrossVenueExecutor.LiveTradingEnabled,
-		Mode:                  crossVenueExecutorModeLabel(e.cfg),
-		OpeningsEnabled:       e.OpeningsEnabled(),
-		HealthHaltVenue:       e.healthHaltVenueSnapshot(),
-		ActivePositions:       len(activeCrossVenuePositions(ps)),
-		ActivePositionDetails: buildCrossVenuePositionDetails(e.cfg.CrossVenueExecutor, ps, e.nowFn()),
-		Positions:             ps,
-		UpdatedAt:             e.nowFn(),
+		Enabled:                e.cfg.CrossVenueExecutor.Enabled,
+		Live:                   e.cfg.CrossVenueExecutor.LiveTradingEnabled,
+		Mode:                   crossVenueExecutorModeLabel(e.cfg),
+		OpeningsEnabled:        e.OpeningsEnabled(),
+		HealthHaltVenue:        e.healthHaltVenueSnapshot(),
+		ActivePositions:        len(activeCrossVenuePositions(ps)),
+		PendingSwitches:        pending,
+		PartialSwitches:        partial,
+		OrphanPositions:        orphan,
+		TransitioningPositions: transitioning,
+		TransitionHeadroomUSDT: headroom,
+		LastCycle:              e.lastCycleSnapshot(),
+		ActivePositionDetails:  buildCrossVenuePositionDetails(e.cfg.CrossVenueExecutor, ps, e.nowFn()),
+		Positions:              ps,
+		UpdatedAt:              e.nowFn(),
 	}
+}
+
+func (e *CrossVenueExecutor) setLastCycle(explain CrossVenueCycleExplain) {
+	if e == nil {
+		return
+	}
+	e.mu.Lock()
+	e.lastCycle = explain
+	e.mu.Unlock()
+	e.appendCycleExplain(explain)
+}
+
+func (e *CrossVenueExecutor) lastCycleSnapshot() CrossVenueCycleExplain {
+	if e == nil {
+		return CrossVenueCycleExplain{}
+	}
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return e.lastCycle
 }
 
 func (e *CrossVenueExecutor) setSymbolCooldown(sym string) {

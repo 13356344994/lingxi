@@ -3,6 +3,7 @@ package app
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -52,17 +53,62 @@ type CrossVenueAttribution struct {
 
 // CrossVenuePosition 是一笔跨所 perp-perp 对冲持仓(空高费所、多低费所)。
 type CrossVenuePosition struct {
-	Symbol         string             `json:"symbol"`
-	HighVenue      string             `json:"high_venue"`
-	LowVenue       string             `json:"low_venue"`
-	HighLeg        CrossVenueLegState `json:"high_leg"`
-	LowLeg         CrossVenueLegState `json:"low_leg"`
-	OpenSpreadAPR  float64            `json:"open_spread_apr"`
-	EstFundingUSDT float64            `json:"est_funding_usdt"`
+	PositionKey          string             `json:"position_key,omitempty"`
+	Symbol               string             `json:"symbol"`
+	HighVenue            string             `json:"high_venue"`
+	LowVenue             string             `json:"low_venue"`
+	HighLeg              CrossVenueLegState `json:"high_leg"`
+	LowLeg               CrossVenueLegState `json:"low_leg"`
+	DecisionCycleID      string             `json:"decision_cycle_id,omitempty"`
+	EntryDecisionCycleID string             `json:"entry_decision_cycle_id,omitempty"`
+	EntrySnapshotID      string             `json:"entry_snapshot_id,omitempty"`
+	CurrentSnapshotID    string             `json:"current_snapshot_id,omitempty"`
+	OpenSpreadAPR        float64            `json:"open_spread_apr"`
+	EstFundingUSDT       float64            `json:"est_funding_usdt"`
+	EstimatedFundingUSDT float64            `json:"estimated_funding_usdt,omitempty"`
 	// HighLegFundingUSDT 高费腿(空头)真实已结算资金费(正);LowLegFundingUSDT 低费腿(多头)真实已结算资金费(负)。
 	// 由 syncRealizedFunding 从交易所流水覆盖写入;EstFundingUSDT = 两腿真实值 + 轮间估算展示增量。
 	HighLegFundingUSDT            float64                  `json:"high_leg_funding_usdt,omitempty"`
 	LowLegFundingUSDT             float64                  `json:"low_leg_funding_usdt,omitempty"`
+	RealizedFundingComplete       bool                     `json:"realized_funding_complete,omitempty"`
+	FundingTruthStatus            string                   `json:"funding_truth_status,omitempty"`
+	HighFundingRate               float64                  `json:"high_funding_rate,omitempty"`
+	LowFundingRate                float64                  `json:"low_funding_rate,omitempty"`
+	HighIntervalHours             int                      `json:"high_interval_hours,omitempty"`
+	LowIntervalHours              int                      `json:"low_interval_hours,omitempty"`
+	HighNextFundingTime           time.Time                `json:"high_next_funding_time,omitempty"`
+	LowNextFundingTime            time.Time                `json:"low_next_funding_time,omitempty"`
+	CurrentComparableWindowHours  float64                  `json:"current_comparable_window_hours,omitempty"`
+	CurrentFutureEV               float64                  `json:"current_future_ev,omitempty"`
+	CurrentCapitalEfficiencyEV    float64                  `json:"current_capital_efficiency_ev,omitempty"`
+	CurrentRiskAdjustedEVPerHour  float64                  `json:"current_risk_adjusted_ev_per_hour,omitempty"`
+	CurrentRiskScore              float64                  `json:"current_risk_score,omitempty"`
+	EstimatedExitCost             float64                  `json:"estimated_exit_cost,omitempty"`
+	EstimatedSwitchCost           float64                  `json:"estimated_switch_cost,omitempty"`
+	FreshnessAgeSeconds           float64                  `json:"freshness_age_seconds,omitempty"`
+	HistoryQualityScore           float64                  `json:"history_quality_score,omitempty"`
+	LiquidityScore                float64                  `json:"liquidity_score,omitempty"`
+	StabilityScore                float64                  `json:"stability_score,omitempty"`
+	ExecutionScore                float64                  `json:"execution_score,omitempty"`
+	RecoveryQualityScore          float64                  `json:"recovery_quality_score,omitempty"`
+	RankScore                     float64                  `json:"rank_score,omitempty"`
+	SizeMultiplier                float64                  `json:"size_multiplier,omitempty"`
+	EntryOpenMode                 string                   `json:"entry_open_mode,omitempty"`
+	UsedFallback                  bool                     `json:"used_fallback,omitempty"`
+	ChurnStreak                   int                      `json:"churn_streak,omitempty"`
+	CloseFailStreak               int                      `json:"close_fail_streak,omitempty"`
+	SwitchCooldownUntil           time.Time                `json:"switch_cooldown_until,omitempty"`
+	PendingSwitchDecisionCycleID  string                   `json:"pending_switch_decision_cycle_id,omitempty"`
+	PendingSwitchSnapshotID       string                   `json:"pending_switch_snapshot_id,omitempty"`
+	PendingSwitchHighVenue        string                   `json:"pending_switch_high_venue,omitempty"`
+	PendingSwitchLowVenue         string                   `json:"pending_switch_low_venue,omitempty"`
+	PendingSwitchSequence         string                   `json:"pending_switch_sequence,omitempty"`
+	PendingSwitchReason           string                   `json:"pending_switch_reason,omitempty"`
+	PendingSwitchExpectedGainUSDT float64                  `json:"pending_switch_expected_gain_usdt,omitempty"`
+	PartialSwitchPhase            string                   `json:"partial_switch_phase,omitempty"`
+	TransitionState               string                   `json:"transition_state,omitempty"`
+	Priority                      float64                  `json:"priority,omitempty"`
+	RecoveryAction                string                   `json:"recovery_action,omitempty"`
 	Status                        CrossVenuePositionStatus `json:"status"`
 	OpenedAt                      time.Time                `json:"opened_at"`
 	UpdatedAt                     time.Time                `json:"updated_at"`
@@ -142,6 +188,7 @@ func (s *crossVenuePositionStore) loadLocked() ([]CrossVenuePosition, error) {
 		if err := json.Unmarshal(data, &out); err != nil {
 			return nil, err
 		}
+		normalizeCrossVenuePositions(out)
 		return out, nil
 	}
 	var env crossVenuePositionsEnvelope
@@ -151,10 +198,12 @@ func (s *crossVenuePositionStore) loadLocked() ([]CrossVenuePosition, error) {
 	if err := guardStateEnvelope("跨所持仓台账", &env); err != nil {
 		return nil, err
 	}
+	normalizeCrossVenuePositions(env.Positions)
 	return env.Positions, nil
 }
 
 func (s *crossVenuePositionStore) saveLocked(ps []CrossVenuePosition) error {
+	normalizeCrossVenuePositions(ps)
 	env := crossVenuePositionsEnvelope{
 		UpdatedAt: time.Now().UTC().Format(time.RFC3339),
 		Positions: ps,
@@ -197,13 +246,14 @@ func (s *crossVenuePositionStore) saveAll(ps []CrossVenuePosition) error {
 func (s *crossVenuePositionStore) upsert(p CrossVenuePosition) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	crossVenueEnsurePositionKey(&p)
 	ps, err := s.loadLocked()
 	if err != nil {
 		return err
 	}
 	found := false
 	for i := range ps {
-		if ps[i].Symbol == p.Symbol {
+		if crossVenueSamePosition(ps[i], p) {
 			ps[i] = p
 			found = true
 			break
@@ -215,7 +265,7 @@ func (s *crossVenuePositionStore) upsert(p CrossVenuePosition) error {
 	return s.saveLocked(ps)
 }
 
-func (s *crossVenuePositionStore) remove(sym string) error {
+func (s *crossVenuePositionStore) remove(positionKey string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	ps, err := s.loadLocked()
@@ -223,8 +273,9 @@ func (s *crossVenuePositionStore) remove(sym string) error {
 		return err
 	}
 	out := make([]CrossVenuePosition, 0, len(ps))
+	positionKey = strings.TrimSpace(positionKey)
 	for _, p := range ps {
-		if p.Symbol != sym {
+		if crossVenuePositionKey(p) != positionKey {
 			out = append(out, p)
 		}
 	}
@@ -249,4 +300,80 @@ func crossVenuePositionBySymbol(ps []CrossVenuePosition, sym venue.Symbol) (Cros
 		}
 	}
 	return CrossVenuePosition{}, false
+}
+
+func normalizeCrossVenuePositions(ps []CrossVenuePosition) {
+	for i := range ps {
+		crossVenueEnsurePositionKey(&ps[i])
+	}
+}
+
+func crossVenueEnsurePositionKey(pos *CrossVenuePosition) {
+	if pos == nil {
+		return
+	}
+	if strings.TrimSpace(pos.PositionKey) != "" {
+		pos.PositionKey = strings.TrimSpace(pos.PositionKey)
+		return
+	}
+	pos.PositionKey = crossVenueDerivePositionKey(*pos)
+}
+
+func crossVenuePositionKey(pos CrossVenuePosition) string {
+	if key := strings.TrimSpace(pos.PositionKey); key != "" {
+		return key
+	}
+	return crossVenueDerivePositionKey(pos)
+}
+
+func crossVenueDerivePositionKey(pos CrossVenuePosition) string {
+	symbol := strings.TrimSpace(pos.Symbol)
+	if symbol == "" {
+		return ""
+	}
+	if idem := strings.TrimSpace(pos.IdemPrefix); idem != "" {
+		return symbol + "|" + idem
+	}
+	if !pos.OpenedAt.IsZero() {
+		return fmt.Sprintf("%s|%s|%s|%d", symbol, strings.TrimSpace(pos.HighVenue), strings.TrimSpace(pos.LowVenue), pos.OpenedAt.UTC().UnixNano())
+	}
+	if cycleID := strings.TrimSpace(pos.EntryDecisionCycleID); cycleID != "" {
+		return symbol + "|" + strings.TrimSpace(pos.HighVenue) + "|" + strings.TrimSpace(pos.LowVenue) + "|" + cycleID
+	}
+	return symbol + "|" + strings.TrimSpace(pos.HighVenue) + "|" + strings.TrimSpace(pos.LowVenue)
+}
+
+func crossVenueSamePosition(a, b CrossVenuePosition) bool {
+	return crossVenuePositionKey(a) == crossVenuePositionKey(b)
+}
+
+func crossVenueHasTrackedLeg(ps []CrossVenuePosition, venueName string, sym venue.Symbol) bool {
+	wantSymbol := string(sym)
+	wantVenue := strings.TrimSpace(venueName)
+	for _, p := range activeCrossVenuePositions(ps) {
+		if p.Symbol != wantSymbol {
+			continue
+		}
+		if strings.TrimSpace(p.HighVenue) == wantVenue || strings.TrimSpace(p.LowVenue) == wantVenue {
+			return true
+		}
+	}
+	return false
+}
+
+func crossVenueHasActivePositionTarget(ps []CrossVenuePosition, symbol, highVenue, lowVenue, excludeKey string) bool {
+	excludeKey = strings.TrimSpace(excludeKey)
+	for _, p := range activeCrossVenuePositions(ps) {
+		if excludeKey != "" && crossVenuePositionKey(p) == excludeKey {
+			continue
+		}
+		if !strings.EqualFold(p.Symbol, symbol) {
+			continue
+		}
+		if !strings.EqualFold(p.HighVenue, highVenue) || !strings.EqualFold(p.LowVenue, lowVenue) {
+			continue
+		}
+		return true
+	}
+	return false
 }

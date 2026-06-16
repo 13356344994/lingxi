@@ -1,0 +1,14 @@
+[
+  {
+    "symbol": "BTC-USDT",
+    "from_high_venue": "bybit",
+    "from_low_venue": "gate",
+    "target_high_venue": "bybit",
+    "target_low_venue": "okx",
+    "switch_sequence": "close_then_open",
+    "partial_switch_phase": "open_new_retry",
+    "reason": "switch rollback complete, waiting retry",
+    "created_at": "2026-06-16T19:20:08.342422Z",
+    "expires_at": "2026-06-16T19:50:08.342422Z"
+  }
+]

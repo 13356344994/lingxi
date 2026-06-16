@@ -351,6 +351,192 @@
             </table>
           </div>
         </div>
+        <div style="margin-top:16px;">
+          <strong style="color:#e5edff;font-size:14px;">Validation / Replay</strong>
+          <div class="hint" id="cv-validation-line" style="margin:6px 0 8px;">加载 validation 回放中…</div>
+          <div class="stats" style="margin-bottom:10px;">
+            <div class="stat-card"><div class="stat-label">窗口交易数</div><div class="stat-value" id="cvv-trade-count" style="font-size:18px">-</div></div>
+            <div class="stat-card"><div class="stat-label">已实现净利(U)</div><div class="stat-value" id="cvv-rotation-pnl" style="font-size:18px">-</div></div>
+            <div class="stat-card"><div class="stat-label">Funding Alpha(U)</div><div class="stat-value" id="cvv-funding-alpha" style="font-size:18px">-</div></div>
+            <div class="stat-card"><div class="stat-label">Execution Drag(U)</div><div class="stat-value" id="cvv-execution-drag" style="font-size:18px">-</div></div>
+            <div class="stat-card"><div class="stat-label">Switch Drag(U)</div><div class="stat-value" id="cvv-switch-drag" style="font-size:18px">-</div></div>
+            <div class="stat-card"><div class="stat-label">Recovery Loss(U)</div><div class="stat-value" id="cvv-recovery-loss" style="font-size:18px">-</div></div>
+            <div class="stat-card"><div class="stat-label">Fallback Dilution(U)</div><div class="stat-value" id="cvv-fallback-dilution" style="font-size:18px">-</div></div>
+            <div class="stat-card"><div class="stat-label">Selection Drag(U)</div><div class="stat-value" id="cvv-selection-drag" style="font-size:18px">-</div></div>
+            <div class="stat-card"><div class="stat-label">Freshness Drag(U)</div><div class="stat-value" id="cvv-freshness-drag" style="font-size:18px">-</div></div>
+            <div class="stat-card"><div class="stat-label">Shadow Matched</div><div class="stat-value" id="cvv-shadow-matched" style="font-size:18px">-</div></div>
+            <div class="stat-card"><div class="stat-label">Rolling Baseline Gap(U)</div><div class="stat-value" id="cvv-rolling-gap" style="font-size:18px">-</div></div>
+            <div class="stat-card"><div class="stat-label">漏开 Snapshot</div><div class="stat-value" id="cvv-missed-open" style="font-size:18px">-</div></div>
+          </div>
+          <div class="status-grid" style="margin:0 0 10px;">
+            <div class="stat-card">
+              <div class="stat-label">Replay Readiness</div>
+              <div id="cvv-readiness" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
+                <span class="pill">机会集 -</span>
+                <span class="pill">成本模型 -</span>
+                <span class="pill">风险预算 -</span>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">方法说明</div>
+              <div id="cvv-methodology" class="hint" style="margin:8px 0 0;">-</div>
+            </div>
+          </div>
+          <div class="stats" style="margin:0 0 10px;">
+            <div class="stat-card">
+              <div class="stat-label">轮动 vs 基线</div>
+              <div class="stat-value" id="cvv-overview-edge" style="font-size:18px">-</div>
+              <div class="stat-subvalue" id="cvv-overview-edge-sub">-</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">主要拖累</div>
+              <div class="stat-value" id="cvv-overview-drag" style="font-size:18px">-</div>
+              <div class="stat-subvalue" id="cvv-overview-drag-sub">-</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">机会兑现度</div>
+              <div class="stat-value" id="cvv-overview-conversion" style="font-size:18px">-</div>
+              <div class="stat-subvalue" id="cvv-overview-conversion-sub">-</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">样本可信度</div>
+              <div class="stat-value" id="cvv-overview-confidence" style="font-size:18px">-</div>
+              <div class="stat-subvalue" id="cvv-overview-confidence-sub">-</div>
+            </div>
+          </div>
+          <div class="status-grid" style="margin:0 0 10px;">
+            <div class="stat-card">
+              <div class="stat-label">Validation Verdicts</div>
+              <div id="cvv-overview-tags" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
+                <span class="pill">加载中</span>
+              </div>
+            </div>
+          </div>
+          <div class="form-grid" style="margin:0 0 10px;">
+            <div>
+              <label for="cv-filter-snapshot">Snapshot 过滤</label>
+              <input id="cv-filter-snapshot" type="text" placeholder="如 snap-btc">
+            </div>
+            <div>
+              <label for="cv-filter-symbol">Symbol 过滤</label>
+              <input id="cv-filter-symbol" type="text" placeholder="如 BTC-USDT">
+            </div>
+            <div>
+              <label for="cv-filter-limit">明细上限</label>
+              <select id="cv-filter-limit">
+                <option value="10">10</option>
+                <option value="20" selected>20</option>
+                <option value="50">50</option>
+              </select>
+            </div>
+            <div style="display:flex;align-items:flex-end;gap:10px;">
+              <button id="cv-filter-reset-btn" type="button" class="secondary">清空过滤</button>
+              <button id="cv-toggle-details-btn" type="button" class="secondary">全部折叠</button>
+            </div>
+          </div>
+          <details id="cv-shadow-section" open style="margin-top:12px;">
+            <summary style="cursor:pointer;color:#e5edff;font-size:13px;font-weight:600;">Shadow Portfolio</summary>
+            <div class="table-wrap" style="max-height:220px;margin-top:6px;">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Symbol</th>
+                    <th>Chosen Pair</th>
+                    <th>Baseline Pair</th>
+                    <th>Chosen EV</th>
+                    <th>Baseline EV</th>
+                    <th>Gap</th>
+                    <th>Realized PnL</th>
+                    <th>Fallback</th>
+                  </tr>
+                </thead>
+                <tbody id="cv-shadow-tbody">
+                  <tr><td colspan="8" class="empty">加载中…</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </details>
+          <details id="cv-counterfactual-section" open style="margin-top:12px;">
+            <summary style="cursor:pointer;color:#e5edff;font-size:13px;font-weight:600;">Counterfactual Replay</summary>
+            <div class="table-wrap" style="max-height:220px;margin-top:6px;">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Snapshot</th>
+                    <th>Symbol</th>
+                    <th>Chosen Pair</th>
+                    <th>Baseline Pair</th>
+                    <th>Chosen EV</th>
+                    <th>Baseline EV</th>
+                    <th>Drag</th>
+                    <th>Budget</th>
+                  </tr>
+                </thead>
+                <tbody id="cv-counterfactual-tbody">
+                  <tr><td colspan="8" class="empty">加载中…</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </details>
+          <details id="cv-baseline-section" open style="margin-top:12px;">
+            <summary style="cursor:pointer;color:#e5edff;font-size:13px;font-weight:600;">Baseline Portfolio Replay</summary>
+            <div class="table-wrap" style="max-height:220px;margin-top:6px;">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Snapshot</th>
+                    <th>Chosen Trades</th>
+                    <th>Baseline Trades</th>
+                    <th>Chosen EV</th>
+                    <th>Baseline EV</th>
+                    <th>Chosen Pairs</th>
+                    <th>Baseline Pairs</th>
+                  </tr>
+                </thead>
+                <tbody id="cv-baseline-portfolio-tbody">
+                  <tr><td colspan="7" class="empty">加载中…</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </details>
+          <details id="cv-rolling-section" open style="margin-top:12px;">
+            <summary style="cursor:pointer;color:#e5edff;font-size:13px;font-weight:600;">Rolling Baseline Replay</summary>
+            <div class="hint" id="cv-rolling-chart-line" style="margin:6px 0 8px;">显示窗口内 chosen/baseline 累计 replay EV 时间序列。</div>
+            <div class="status-grid" style="margin:0 0 10px;">
+              <div class="stat-card">
+                <div class="stat-label">滚动回放总结</div>
+                <div class="stat-subvalue" id="cv-rolling-summary">-</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-label">逐轮 Gap 总结</div>
+                <div class="stat-subvalue" id="cv-gap-summary">-</div>
+              </div>
+            </div>
+            <svg id="cv-rolling-baseline-chart" viewBox="0 0 900 240" preserveAspectRatio="none" style="width:100%;height:240px;background:#0b1220;border-radius:8px;margin-bottom:8px;"></svg>
+            <div class="hint" id="cv-gap-chart-line" style="margin:6px 0 8px;">显示每个 snapshot 上 baseline - chosen 的逐轮 gap。</div>
+            <svg id="cv-rolling-gap-chart" viewBox="0 0 900 180" preserveAspectRatio="none" style="width:100%;height:180px;background:#0b1220;border-radius:8px;margin-bottom:8px;"></svg>
+            <div class="table-wrap" style="max-height:240px;margin-top:6px;">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Snapshot</th>
+                    <th>Chosen Trades</th>
+                    <th>Baseline Trades</th>
+                    <th>Chosen EV</th>
+                    <th>Baseline EV</th>
+                    <th>Cumulative Chosen</th>
+                    <th>Cumulative Baseline</th>
+                    <th>Chosen Pairs</th>
+                    <th>Baseline Pairs</th>
+                  </tr>
+                </thead>
+                <tbody id="cv-rolling-baseline-tbody">
+                  <tr><td colspan="9" class="empty">加载中…</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </details>
+        </div>
       </div>
       <div id="earnings-panel" style="margin:12px 0 16px;padding:14px;background:#0f1830;border:1px solid #243049;border-radius:10px;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
@@ -1819,6 +2005,414 @@
         </tr>`).join("");
     }
 
+    function formatValidationMoney(value) {
+      const num = Number(value || 0);
+      if (!Number.isFinite(num)) { return "-"; }
+      return num.toFixed(2);
+    }
+
+    function formatValidationTime(value) {
+      const text = String(value || "").trim();
+      if (!text) { return "-"; }
+      if (text.indexOf("T") > 0) {
+        return text.replace("T", " ").replace("Z", " UTC");
+      }
+      return text;
+    }
+
+    function formatValidationList(values) {
+      if (!Array.isArray(values) || !values.length) { return "-"; }
+      return values.join(" | ");
+    }
+
+    let currentCrossVenueValidationSnapshot = null;
+    let currentCrossVenueValidationError = "";
+
+    function getCrossVenueValidationFilters() {
+      const snapshotNeedle = String(document.getElementById("cv-filter-snapshot")?.value || "").trim().toLowerCase();
+      const symbolNeedle = String(document.getElementById("cv-filter-symbol")?.value || "").trim().toLowerCase();
+      const detailLimit = Math.max(1, Number(document.getElementById("cv-filter-limit")?.value || 20));
+      return { snapshotNeedle, symbolNeedle, detailLimit };
+    }
+
+    function matchesValidationSnapshot(record, snapshotNeedle) {
+      if (!snapshotNeedle) { return true; }
+      const haystacks = [
+        record?.snapshot_id,
+        record?.entry_snapshot_id,
+        record?.settlement_id,
+        record?.snapshot_time,
+      ].map((v) => String(v || "").toLowerCase());
+      return haystacks.some((v) => v.includes(snapshotNeedle));
+    }
+
+    function matchesValidationSymbol(record, symbolNeedle) {
+      if (!symbolNeedle) { return true; }
+      const haystacks = [
+        record?.symbol,
+        ...(Array.isArray(record?.chosen_pairs) ? record.chosen_pairs : []),
+        ...(Array.isArray(record?.baseline_pairs) ? record.baseline_pairs : []),
+        record?.chosen_pair,
+        record?.baseline_pair,
+      ].map((v) => String(v || "").toLowerCase());
+      return haystacks.some((v) => v.includes(symbolNeedle));
+    }
+
+    function applyCrossVenueValidationFilters(snapshot) {
+      const data = snapshot && typeof snapshot === "object" ? JSON.parse(JSON.stringify(snapshot)) : null;
+      if (!data) { return null; }
+      const { snapshotNeedle, symbolNeedle } = getCrossVenueValidationFilters();
+      const predicate = (record) => matchesValidationSnapshot(record, snapshotNeedle) && matchesValidationSymbol(record, symbolNeedle);
+      if (data.shadow_portfolio?.records) {
+        data.shadow_portfolio.records = data.shadow_portfolio.records.filter(predicate);
+      }
+      if (data.counterfactual_replay?.records) {
+        data.counterfactual_replay.records = data.counterfactual_replay.records.filter(predicate);
+      }
+      if (data.baseline_portfolio_replay?.records) {
+        data.baseline_portfolio_replay.records = data.baseline_portfolio_replay.records.filter(predicate);
+      }
+      if (data.rolling_baseline_replay?.records) {
+        data.rolling_baseline_replay.records = data.rolling_baseline_replay.records.filter(predicate);
+      }
+      return data;
+    }
+
+    function rerenderCrossVenueValidationFromCache() {
+      renderCrossVenueValidation(currentCrossVenueValidationSnapshot, currentCrossVenueValidationError);
+    }
+
+    function resetCrossVenueValidationFilters() {
+      const snapshotInput = document.getElementById("cv-filter-snapshot");
+      const symbolInput = document.getElementById("cv-filter-symbol");
+      const limitSelect = document.getElementById("cv-filter-limit");
+      if (snapshotInput) { snapshotInput.value = ""; }
+      if (symbolInput) { symbolInput.value = ""; }
+      if (limitSelect) { limitSelect.value = "20"; }
+      rerenderCrossVenueValidationFromCache();
+    }
+
+    function toggleCrossVenueValidationSections() {
+      const sections = [
+        document.getElementById("cv-shadow-section"),
+        document.getElementById("cv-counterfactual-section"),
+        document.getElementById("cv-baseline-section"),
+        document.getElementById("cv-rolling-section"),
+      ].filter(Boolean);
+      const shouldOpen = sections.some((section) => !section.open);
+      sections.forEach((section) => { section.open = shouldOpen; });
+      const btn = document.getElementById("cv-toggle-details-btn");
+      if (btn) { btn.textContent = shouldOpen ? "全部折叠" : "全部展开"; }
+    }
+
+    function initCrossVenueValidationControls() {
+      document.getElementById("cv-filter-snapshot")?.addEventListener("input", rerenderCrossVenueValidationFromCache);
+      document.getElementById("cv-filter-symbol")?.addEventListener("input", rerenderCrossVenueValidationFromCache);
+      document.getElementById("cv-filter-limit")?.addEventListener("change", rerenderCrossVenueValidationFromCache);
+      document.getElementById("cv-filter-reset-btn")?.addEventListener("click", resetCrossVenueValidationFilters);
+      document.getElementById("cv-toggle-details-btn")?.addEventListener("click", toggleCrossVenueValidationSections);
+    }
+
+    function renderValidationTableBody(tbodyId, columns, rows, emptyText) {
+      const tbody = document.getElementById(tbodyId);
+      if (!tbody) { return; }
+      if (!Array.isArray(rows) || !rows.length) {
+        tbody.innerHTML = `<tr><td colspan="${columns}" class="empty">${escapeHTML(emptyText)}</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = rows.join("");
+    }
+
+    function renderValidationOverview(data) {
+      const setText = (id, value) => {
+        const el = document.getElementById(id);
+        if (el) { el.textContent = value; }
+      };
+      const tagsEl = document.getElementById("cvv-overview-tags");
+      if (!data || typeof data !== "object") {
+        setText("cvv-overview-edge", "-");
+        setText("cvv-overview-edge-sub", "-");
+        setText("cvv-overview-drag", "-");
+        setText("cvv-overview-drag-sub", "-");
+        setText("cvv-overview-conversion", "-");
+        setText("cvv-overview-conversion-sub", "-");
+        setText("cvv-overview-confidence", "-");
+        setText("cvv-overview-confidence-sub", "-");
+        if (tagsEl) { tagsEl.innerHTML = `<span class="pill">无数据</span>`; }
+        return;
+      }
+      const chosenReplay = Number(data.rolling_baseline_replay?.chosen_replay_net_ev || 0);
+      const baselineReplay = Number(data.rolling_baseline_replay?.baseline_replay_net_ev || 0);
+      const edgeGap = chosenReplay - baselineReplay;
+      const dragCandidates = [
+        { label: "selection", value: Number(data.selection_drag || 0) },
+        { label: "execution", value: Number(data.execution_drag || 0) },
+        { label: "switch", value: Number(data.switch_drag || 0) },
+        { label: "freshness", value: Number(data.freshness_drag || 0) },
+        { label: "recovery", value: Number(data.recovery_loss || 0) },
+        { label: "fallback", value: Number(data.fallback_dilution || 0) },
+      ].sort((a, b) => b.value - a.value);
+      const topDrag = dragCandidates[0];
+      const tradeCount = Number(data.trade_count || 0);
+      const matched = Number(data.shadow_matched_trades || 0);
+      const missed = Number(data.rolling_baseline_replay?.missed_open_snapshots || 0);
+      const conversionRate = tradeCount > 0 ? matched / tradeCount : 0;
+      const readinessCount = [data.same_opportunity_set_ready, data.same_cost_model_ready, data.same_risk_budget_ready].filter(Boolean).length;
+      const confidenceLabel = readinessCount === 3 && matched >= 2 ? "高" : (readinessCount >= 2 ? "中" : "低");
+      const confidenceSub = `readiness=${readinessCount}/3 | matched=${matched} | scans=${Number(data.scan_snapshot_count || 0)}`;
+      const verdicts = [];
+      verdicts.push({
+        text: edgeGap >= 0 ? "轮动跑赢基线" : "轮动落后基线",
+        className: edgeGap >= 0 ? "low" : "high",
+      });
+      if (topDrag && topDrag.value > 0) {
+        verdicts.push({
+          text: `主要拖累:${topDrag.label}`,
+          className: topDrag.label === "selection" || topDrag.label === "freshness" ? "high" : "medium",
+        });
+      }
+      verdicts.push({
+        text: missed > 0 ? `漏开:${missed}` : "漏开受控",
+        className: missed > 0 ? "medium" : "low",
+      });
+      verdicts.push({
+        text: confidenceLabel === "高" ? "样本可信" : (confidenceLabel === "中" ? "样本可用" : "样本偏弱"),
+        className: confidenceLabel === "高" ? "low" : (confidenceLabel === "中" ? "medium" : "high"),
+      });
+
+      setText("cvv-overview-edge", edgeGap >= 0 ? "领先" : "落后");
+      setText("cvv-overview-edge-sub", `chosen=${formatValidationMoney(chosenReplay)} U | baseline=${formatValidationMoney(baselineReplay)} U | gap=${edgeGap >= 0 ? "+" : ""}${formatValidationMoney(edgeGap)} U`);
+      setText("cvv-overview-drag", topDrag && topDrag.value > 0 ? topDrag.label : "无明显拖累");
+      setText("cvv-overview-drag-sub", topDrag ? `${topDrag.label}=${formatValidationMoney(topDrag.value)} U` : "-");
+      setText("cvv-overview-conversion", tradeCount > 0 ? `${(conversionRate * 100).toFixed(0)}%` : "-");
+      setText("cvv-overview-conversion-sub", `matched=${matched} / trades=${tradeCount} | missed_open=${missed}`);
+      setText("cvv-overview-confidence", confidenceLabel);
+      setText("cvv-overview-confidence-sub", confidenceSub);
+      if (tagsEl) {
+        tagsEl.innerHTML = verdicts.map((item) => `<span class="pill ${item.className}">${escapeHTML(item.text)}</span>`).join("");
+      }
+    }
+
+    function renderRollingBaselineChart(records) {
+      const svg = document.getElementById("cv-rolling-baseline-chart");
+      const summary = document.getElementById("cv-rolling-summary");
+      const line = document.getElementById("cv-rolling-chart-line");
+      if (!svg) { return; }
+      const rows = Array.isArray(records) ? records : [];
+      const W = 900, H = 240, padX = 32, padY = 28;
+      if (!rows.length) {
+        svg.innerHTML = `<text x="${W / 2}" y="${H / 2}" fill="#64748b" font-size="14" text-anchor="middle">暂无 rolling baseline replay 数据</text>`;
+        if (summary) { summary.textContent = "-"; }
+        if (line) { line.textContent = "显示窗口内 chosen/baseline 累计 replay EV 时间序列。"; }
+        return;
+      }
+      const chosen = rows.map((item) => Number(item.cumulative_chosen_replay_net_ev || 0));
+      const baseline = rows.map((item) => Number(item.cumulative_baseline_replay_net_ev || 0));
+      const all = chosen.concat(baseline);
+      const minV = Math.min(...all, 0);
+      const maxV = Math.max(...all, 0);
+      const span = maxV - minV || 1;
+      const x = (idx) => padX + ((W - 2 * padX) * (rows.length === 1 ? 0.5 : idx / (rows.length - 1)));
+      const y = (value) => H - padY - ((value - minV) / span) * (H - 2 * padY);
+      const pathFor = (values) => values.map((v, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)} ${y(v).toFixed(1)}`).join(" ");
+      const chosenPath = pathFor(chosen);
+      const baselinePath = pathFor(baseline);
+      const zeroY = y(0);
+      const finalChosen = chosen[chosen.length - 1];
+      const finalBaseline = baseline[baseline.length - 1];
+      const gap = finalBaseline - finalChosen;
+      const lastX = x(rows.length - 1);
+      const lastChosenY = y(finalChosen);
+      const lastBaselineY = y(finalBaseline);
+      const labels = rows.length <= 12
+        ? rows.map((item, i) => `<text x="${x(i).toFixed(1)}" y="${(H - 8).toFixed(1)}" fill="#64748b" font-size="10" text-anchor="middle">${escapeHTML(String(item.snapshot_id || i + 1).slice(0, 10))}</text>`).join("")
+        : "";
+      svg.innerHTML =
+        `<line x1="${padX}" y1="${zeroY.toFixed(1)}" x2="${W - padX}" y2="${zeroY.toFixed(1)}" stroke="#334155" stroke-width="1"></line>` +
+        `<path d="${baselinePath}" fill="none" stroke="#fbbf24" stroke-width="2.5"></path>` +
+        `<path d="${chosenPath}" fill="none" stroke="#38bdf8" stroke-width="2.5"></path>` +
+        `<circle cx="${lastX.toFixed(1)}" cy="${lastBaselineY.toFixed(1)}" r="3.5" fill="#fbbf24"></circle>` +
+        `<circle cx="${lastX.toFixed(1)}" cy="${lastChosenY.toFixed(1)}" r="3.5" fill="#38bdf8"></circle>` +
+        `<text x="${padX}" y="16" fill="#38bdf8" font-size="11">Chosen ${formatValidationMoney(finalChosen)} U</text>` +
+        `<text x="${W - padX}" y="16" fill="#fbbf24" font-size="11" text-anchor="end">Baseline ${formatValidationMoney(finalBaseline)} U</text>` +
+        `<text x="${W / 2}" y="16" fill="${gap >= 0 ? "#fca5a5" : "#86efac"}" font-size="11" text-anchor="middle">Gap ${gap >= 0 ? "+" : ""}${formatValidationMoney(gap)} U</text>` +
+        labels;
+      if (summary) {
+        summary.textContent = `chosen=${formatValidationMoney(finalChosen)} U | baseline=${formatValidationMoney(finalBaseline)} U | gap=${gap >= 0 ? "+" : ""}${formatValidationMoney(gap)} U | snapshots=${rows.length}`;
+      }
+      if (line) {
+        line.textContent = `蓝线=chosen 累计 replay EV, 金线=baseline 累计 replay EV, 最终 gap=${gap >= 0 ? "+" : ""}${formatValidationMoney(gap)} U`;
+      }
+    }
+
+    function renderRollingGapChart(records) {
+      const svg = document.getElementById("cv-rolling-gap-chart");
+      const summary = document.getElementById("cv-gap-summary");
+      const line = document.getElementById("cv-gap-chart-line");
+      if (!svg) { return; }
+      const rows = Array.isArray(records) ? records : [];
+      const W = 900, H = 180, padX = 32, padY = 24;
+      if (!rows.length) {
+        svg.innerHTML = `<text x="${W / 2}" y="${H / 2}" fill="#64748b" font-size="14" text-anchor="middle">暂无 per-snapshot gap 数据</text>`;
+        if (summary) { summary.textContent = "-"; }
+        if (line) { line.textContent = "显示每个 snapshot 上 baseline - chosen 的逐轮 gap。"; }
+        return;
+      }
+      const gaps = rows.map((item) => Number(item.baseline_snapshot_replay_net_ev || 0) - Number(item.chosen_snapshot_replay_net_ev || 0));
+      const maxAbs = Math.max(...gaps.map((v) => Math.abs(v)), 0.001);
+      const innerW = W - 2 * padX;
+      const zeroY = H / 2;
+      const barWidth = Math.max(8, Math.min(28, innerW / Math.max(rows.length * 1.8, 1)));
+      const step = rows.length <= 1 ? 0 : innerW / (rows.length - 1);
+      const labels = rows.length <= 14
+        ? rows.map((item, i) => `<text x="${(padX + (rows.length === 1 ? innerW / 2 : step * i)).toFixed(1)}" y="${(H - 6).toFixed(1)}" fill="#64748b" font-size="10" text-anchor="middle">${escapeHTML(String(item.snapshot_id || i + 1).slice(0, 10))}</text>`).join("")
+        : "";
+      const bars = gaps.map((gap, i) => {
+        const cx = padX + (rows.length === 1 ? innerW / 2 : step * i);
+        const height = Math.max(2, (Math.abs(gap) / maxAbs) * ((H - 2 * padY) / 2));
+        const y = gap >= 0 ? zeroY - height : zeroY;
+        const color = gap >= 0 ? "#ef4444" : "#22c55e";
+        return `<rect x="${(cx - barWidth / 2).toFixed(1)}" y="${y.toFixed(1)}" width="${barWidth.toFixed(1)}" height="${height.toFixed(1)}" fill="${color}" opacity="0.85"></rect>`;
+      }).join("");
+      const positiveCount = gaps.filter((v) => v > 1e-9).length;
+      const negativeCount = gaps.filter((v) => v < -1e-9).length;
+      const flatCount = gaps.length - positiveCount - negativeCount;
+      const worstPositive = Math.max(...gaps, 0);
+      const bestNegative = Math.min(...gaps, 0);
+      svg.innerHTML =
+        `<line x1="${padX}" y1="${zeroY.toFixed(1)}" x2="${(W - padX).toFixed(1)}" y2="${zeroY.toFixed(1)}" stroke="#334155" stroke-width="1"></line>` +
+        `<text x="${padX}" y="14" fill="#fca5a5" font-size="11">正值: baseline 优于 chosen</text>` +
+        `<text x="${W - padX}" y="14" fill="#86efac" font-size="11" text-anchor="end">负值: chosen 优于 baseline</text>` +
+        bars +
+        labels;
+      if (summary) {
+        summary.textContent = `baseline更优=${positiveCount} | chosen反超=${negativeCount} | 持平=${flatCount} | worst=+${formatValidationMoney(worstPositive)} U | best=${formatValidationMoney(bestNegative)} U`;
+      }
+      if (line) {
+        line.textContent = `逐轮 gap = baseline_snapshot_replay_ev - chosen_snapshot_replay_ev，正值代表该轮 baseline 更优。`;
+      }
+    }
+
+    function renderCrossVenueValidation(snapshot, errorText) {
+      const line = document.getElementById("cv-validation-line");
+      const methodology = document.getElementById("cvv-methodology");
+      const readiness = document.getElementById("cvv-readiness");
+      currentCrossVenueValidationSnapshot = snapshot && typeof snapshot === "object" ? snapshot : null;
+      currentCrossVenueValidationError = String(errorText || "");
+      const data = applyCrossVenueValidationFilters(currentCrossVenueValidationSnapshot);
+      const { detailLimit, snapshotNeedle, symbolNeedle } = getCrossVenueValidationFilters();
+      const setText = (id, value) => {
+        const el = document.getElementById(id);
+        if (el) { el.textContent = value; }
+      };
+      if (!data) {
+        if (line) { line.textContent = errorText || "validation 回放读取失败"; }
+        if (methodology) { methodology.textContent = "-"; }
+        if (readiness) {
+          readiness.innerHTML = `<span class="pill false">机会集 否</span><span class="pill false">成本模型 否</span><span class="pill false">风险预算 否</span>`;
+        }
+        renderValidationOverview(null);
+        setText("cvv-trade-count", "-");
+        setText("cvv-rotation-pnl", "-");
+        setText("cvv-funding-alpha", "-");
+        setText("cvv-execution-drag", "-");
+        setText("cvv-switch-drag", "-");
+        setText("cvv-recovery-loss", "-");
+        setText("cvv-fallback-dilution", "-");
+        setText("cvv-selection-drag", "-");
+        setText("cvv-freshness-drag", "-");
+        setText("cvv-shadow-matched", "-");
+        setText("cvv-rolling-gap", "-");
+        setText("cvv-missed-open", "-");
+        renderRollingBaselineChart([]);
+        renderRollingGapChart([]);
+        renderValidationTableBody("cv-shadow-tbody", 8, [], "暂无 shadow portfolio 记录");
+        renderValidationTableBody("cv-counterfactual-tbody", 8, [], "暂无 counterfactual replay 记录");
+        renderValidationTableBody("cv-baseline-portfolio-tbody", 7, [], "暂无 baseline portfolio replay 记录");
+        renderValidationTableBody("cv-rolling-baseline-tbody", 9, [], "暂无 rolling baseline replay 记录");
+        return;
+      }
+      const rollingGap = Number(data.rolling_baseline_replay?.baseline_replay_net_ev || 0) - Number(data.rolling_baseline_replay?.chosen_replay_net_ev || 0);
+      if (line) {
+        const filterText = (snapshotNeedle || symbolNeedle)
+          ? ` | filter=${snapshotNeedle || "*"} / ${symbolNeedle || "*"}`
+          : "";
+        line.textContent = `窗口 ${formatValidationTime(data.window_start)} -> ${formatValidationTime(data.window_end)} | scans=${Number(data.scan_snapshot_count || 0)} | trades=${Number(data.trade_count || 0)}${filterText}`;
+      }
+      if (methodology) {
+        methodology.textContent = Array.isArray(data.methodology) && data.methodology.length ? data.methodology.slice(-3).join(" ; ") : "-";
+      }
+      if (readiness) {
+        readiness.innerHTML = `
+          <span class="pill ${data.same_opportunity_set_ready ? "true" : "false"}">机会集 ${data.same_opportunity_set_ready ? "就绪" : "缺失"}</span>
+          <span class="pill ${data.same_cost_model_ready ? "true" : "false"}">成本模型 ${data.same_cost_model_ready ? "就绪" : "缺失"}</span>
+          <span class="pill ${data.same_risk_budget_ready ? "true" : "false"}">风险预算 ${data.same_risk_budget_ready ? "就绪" : "缺失"}</span>`;
+      }
+      renderValidationOverview(data);
+      setText("cvv-trade-count", String(Number(data.trade_count || 0)));
+      setText("cvv-rotation-pnl", formatValidationMoney(data.rotation_realized_net_pnl));
+      setText("cvv-funding-alpha", formatValidationMoney(data.funding_alpha));
+      setText("cvv-execution-drag", formatValidationMoney(data.execution_drag));
+      setText("cvv-switch-drag", formatValidationMoney(data.switch_drag));
+      setText("cvv-recovery-loss", formatValidationMoney(data.recovery_loss));
+      setText("cvv-fallback-dilution", formatValidationMoney(data.fallback_dilution));
+      setText("cvv-selection-drag", formatValidationMoney(data.selection_drag));
+      setText("cvv-freshness-drag", formatValidationMoney(data.freshness_drag));
+      setText("cvv-shadow-matched", String(Number(data.shadow_matched_trades || 0)));
+      setText("cvv-rolling-gap", formatValidationMoney(rollingGap));
+      setText("cvv-missed-open", String(Number(data.rolling_baseline_replay?.missed_open_snapshots || 0)));
+      renderRollingBaselineChart(data.rolling_baseline_replay?.records || []);
+      renderRollingGapChart(data.rolling_baseline_replay?.records || []);
+
+      renderValidationTableBody("cv-shadow-tbody", 8, (data.shadow_portfolio?.records || []).slice(0, detailLimit).map((item) => `
+        <tr>
+          <td>${escapeHTML(item.symbol || "-")}</td>
+          <td>${escapeHTML((item.chosen_high_venue || "-") + "/" + (item.chosen_low_venue || "-"))}</td>
+          <td>${escapeHTML((item.baseline_high_venue || "-") + "/" + (item.baseline_low_venue || "-"))}</td>
+          <td>${formatValidationMoney(item.chosen_net_ev)}</td>
+          <td>${formatValidationMoney(item.baseline_net_ev)}</td>
+          <td>${formatValidationMoney(item.net_ev_gap)}</td>
+          <td>${formatValidationMoney(item.realized_net_pnl)}</td>
+          <td><span class="pill ${item.used_fallback ? "medium" : "low"}">${item.used_fallback ? "fallback" : "strict"}</span></td>
+        </tr>`), "暂无匹配当前过滤条件的 shadow portfolio 记录");
+
+      renderValidationTableBody("cv-counterfactual-tbody", 8, (data.counterfactual_replay?.records || []).slice(0, detailLimit).map((item) => `
+        <tr>
+          <td>${escapeHTML(formatValidationTime(item.snapshot_time || item.entry_snapshot_id))}</td>
+          <td>${escapeHTML(item.symbol || "-")}</td>
+          <td>${escapeHTML(item.chosen_pair || "-")}</td>
+          <td>${escapeHTML(item.baseline_pair || "-")}</td>
+          <td>${formatValidationMoney(item.chosen_net_ev)}</td>
+          <td>${formatValidationMoney(item.baseline_net_ev)}</td>
+          <td>${formatValidationMoney(item.selection_drag)}</td>
+          <td>${escapeHTML(String(Number(item.max_concurrent || 0)))} / ${formatValidationMoney(item.max_position_usdt)}</td>
+        </tr>`), "暂无匹配当前过滤条件的 counterfactual replay 记录");
+
+      renderValidationTableBody("cv-baseline-portfolio-tbody", 7, (data.baseline_portfolio_replay?.records || []).slice(0, detailLimit).map((item) => `
+        <tr>
+          <td>${escapeHTML(item.snapshot_id || formatValidationTime(item.snapshot_time))}</td>
+          <td>${escapeHTML(String(Number(item.chosen_trade_count || 0)))}</td>
+          <td>${escapeHTML(String(Number(item.baseline_trade_count || 0)))}</td>
+          <td>${formatValidationMoney(item.chosen_replay_net_ev)}</td>
+          <td>${formatValidationMoney(item.baseline_portfolio_net_ev)}</td>
+          <td>${escapeHTML(formatValidationList(item.chosen_pairs))}</td>
+          <td>${escapeHTML(formatValidationList(item.baseline_pairs))}</td>
+        </tr>`), "暂无匹配当前过滤条件的 baseline portfolio replay 记录");
+
+      renderValidationTableBody("cv-rolling-baseline-tbody", 9, (data.rolling_baseline_replay?.records || []).slice(0, Math.max(detailLimit, 12)).map((item) => `
+        <tr>
+          <td>${escapeHTML(item.snapshot_id || formatValidationTime(item.snapshot_time))}</td>
+          <td>${escapeHTML(String(Number(item.chosen_trade_count || 0)))}</td>
+          <td>${escapeHTML(String(Number(item.baseline_trade_count || 0)))}</td>
+          <td>${formatValidationMoney(item.chosen_snapshot_replay_net_ev)}</td>
+          <td>${formatValidationMoney(item.baseline_snapshot_replay_net_ev)}</td>
+          <td>${formatValidationMoney(item.cumulative_chosen_replay_net_ev)}</td>
+          <td>${formatValidationMoney(item.cumulative_baseline_replay_net_ev)}</td>
+          <td>${escapeHTML(formatValidationList(item.chosen_pairs))}</td>
+          <td>${escapeHTML(formatValidationList(item.baseline_pairs))}</td>
+        </tr>`), "暂无匹配当前过滤条件的 rolling baseline replay 记录");
+    }
+
     function renderCrossVenuePanel(snap) {
       const enabledEl = document.getElementById("cv-enabled");
       const modeEl = document.getElementById("cv-mode");
@@ -1867,13 +2461,21 @@
 
     async function refreshCrossVenuePanel() {
       if (selectedVenue !== "all") { return; }
-      try {
-        const snap = await loadJSON("/api/cross-venue/positions");
-        renderCrossVenuePanel(snap);
-      } catch (err) {
+      const [positionsResult, validationResult] = await Promise.allSettled([
+        loadJSON("/api/cross-venue/positions"),
+        loadJSON("/api/cross-venue/validation?window_hours=72"),
+      ]);
+      if (positionsResult.status === "fulfilled") {
+        renderCrossVenuePanel(positionsResult.value);
+      } else {
         renderCrossVenuePanel(null);
         const line = document.getElementById("cv-status-line");
-        if (line) { line.textContent = "跨所状态读取失败: " + err.message; }
+        if (line) { line.textContent = "跨所状态读取失败: " + positionsResult.reason.message; }
+      }
+      if (validationResult.status === "fulfilled") {
+        renderCrossVenueValidation(validationResult.value, "");
+      } else {
+        renderCrossVenueValidation(null, "validation 回放读取失败: " + validationResult.reason.message);
       }
     }
 
@@ -2517,6 +3119,7 @@
       hideGate();
       if (dashboardStarted) { return; }
       dashboardStarted = true;
+      initCrossVenueValidationControls();
       // 先加载 venue 列表(填充 knownVenues),构建多所卡片(一次),再渲染主面板与状态。
       loadVenues().then(() => { renderVenueTabs(); buildVenueOverview(); initStrategyControl(); refreshVenueOverview(); refreshStrategyStatus(); refreshCrossVenuePanel(); refreshEarnings(); });
       refreshDashboard();

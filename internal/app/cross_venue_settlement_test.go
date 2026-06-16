@@ -275,6 +275,57 @@ func TestBuildCrossVenueSettlement_NetPnLDoesNotDoubleCountSlippage(t *testing.T
 	}
 }
 
+func TestSummarizeCrossVenueSettlementsUsesVenueAttribution(t *testing.T) {
+	records := []CrossVenueSettlement{
+		{
+			Symbol: "BTC-USDT", HighVenue: "binance", LowVenue: "gate",
+			HighLegFunding: 2, LowLegFunding: 3, TradePnL: 1,
+			TotalFees: 0.4, RollbackCost: 0.2, RebalanceCost: 0.4, NetPnL: 5.0,
+		},
+	}
+	sum := summarizeCrossVenueSettlements(records)
+	if math.Abs(sum.TotalNetPnL-5.0) > 1e-9 {
+		t.Fatalf("total=%v", sum.TotalNetPnL)
+	}
+	if math.Abs(sum.ByVenueNetPnL["binance"]-2.0) > 1e-9 {
+		t.Fatalf("binance attribution=%v want 2.0", sum.ByVenueNetPnL["binance"])
+	}
+	if math.Abs(sum.ByVenueNetPnL["gate"]-3.0) > 1e-9 {
+		t.Fatalf("gate attribution=%v want 3.0", sum.ByVenueNetPnL["gate"])
+	}
+}
+
+func TestAppendCrossVenueSettlementIsIdempotent(t *testing.T) {
+	dir := t.TempDir()
+	now := time.Date(2026, 6, 16, 0, 0, 0, 0, time.UTC)
+	e := &CrossVenueExecutor{
+		recordDir: dir,
+		nowFn:     func() time.Time { return now },
+		logger:    testCrossVenueLogger(),
+	}
+	pos := CrossVenuePosition{
+		Symbol:               "BTC-USDT",
+		HighVenue:            "okx",
+		LowVenue:             "gate",
+		OpenedAt:             now.Add(-time.Hour),
+		IdemPrefix:           "cv-btc-okx-1",
+		NotionalUSDT:         100,
+		HighLegFundingUSDT:   1,
+		LowLegFundingUSDT:    -0.2,
+		RealizedFundingComplete: true,
+		FundingTruthStatus:   "complete",
+	}
+	e.appendCrossVenueSettlement(pos)
+	e.appendCrossVenueSettlement(pos)
+	records, err := e.loadAllCrossVenueSettlements()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(records) != 1 {
+		t.Fatalf("expected 1 settlement, got %d", len(records))
+	}
+}
+
 func TestBuildCrossVenueSettlement_RollbackCost(t *testing.T) {
 	// 第一腿空 entry=100,回滚 buy=102(价涨,空腿真亏 2),开仓费 0.05、回滚费 0.05。
 	// 价格亏损 (100-102)*1=-2 由 trade_pnl 承载;rollback_cost 只记回滚手续费 0.05,不得再含价格 PnL

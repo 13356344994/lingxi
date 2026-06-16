@@ -266,6 +266,48 @@ func TestCrossVenueScannerSingleVenueFailureDegrades(t *testing.T) {
 	}
 }
 
+func TestCrossVenueScannerAnnotatesSnapshotLineageAndMetrics(t *testing.T) {
+	now := time.Date(2026, 6, 16, 0, 0, 0, 0, time.UTC)
+	nextFunding := now.Add(4 * time.Hour)
+	s := &CrossVenueScanner{
+		cfg: CrossVenueScannerConfig{
+			Enabled:                true,
+			MinSpreadAPR:           0.01,
+			TopN:                   5,
+			SpreadPersistenceScans: 1,
+		},
+		execCfg: CrossVenueExecutorConfig{
+			MaxPositionUSDT:       60,
+			MaxEffectiveLeverage: 2,
+			MarginSafetyFactor:   1.5,
+			EVExpectedSlippageBps: 3,
+		},
+		nowFn:          func() time.Time { return now },
+		logger:         log.New(&bytes.Buffer{}, "", 0),
+		fundingHistory: make(map[string]map[string][]float64),
+		venues: map[string]venue.Venue{
+			binance.VenueName: &fakeFundingVenue{name: binance.VenueName, snaps: []venue.FundingSnapshot{{Symbol: "BTC-USDT", LastFundingRate: 0.001, IntervalHours: 8, NextFundingTime: nextFunding}}},
+			okx.VenueName:     &fakeFundingVenue{name: okx.VenueName, snaps: []venue.FundingSnapshot{{Symbol: "BTC-USDT", LastFundingRate: 0.0001, IntervalHours: 8, NextFundingTime: nextFunding}}},
+		},
+		fetchVenue: defaultFetchVenueSnapshot,
+	}
+	s.scanOnce(context.Background())
+	snap := s.Snapshot()
+	if snap.SnapshotID == "" {
+		t.Fatal("snapshot_id should be populated")
+	}
+	if len(snap.Opportunities) != 1 {
+		t.Fatalf("expected 1 opportunity, got %d", len(snap.Opportunities))
+	}
+	opp := snap.Opportunities[0]
+	if opp.SnapshotID != snap.SnapshotID {
+		t.Fatalf("opp snapshot_id=%q want %q", opp.SnapshotID, snap.SnapshotID)
+	}
+	if opp.ComparableWindowHours <= 0 || opp.RankScore <= 0 {
+		t.Fatalf("opp metrics not populated: %+v", opp)
+	}
+}
+
 func TestCrossVenueScannerAlertCooldown(t *testing.T) {
 	t.Parallel()
 	now := time.Date(2026, 6, 12, 12, 0, 0, 0, time.UTC)

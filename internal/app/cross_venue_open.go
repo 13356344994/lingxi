@@ -25,11 +25,16 @@ const crossVenueConfirmPoll = 400 * time.Millisecond
 
 // crossVenueOpenPlan 是通过闸门后的开仓计划。
 type crossVenueOpenPlan struct {
-	Opp        CrossVenueOpportunity
-	Gate       crossVenueGateResult
-	Qty        float64
-	RefPrice   float64
-	IdemPrefix string
+	Opp             CrossVenueOpportunity
+	Gate            crossVenueGateResult
+	Qty             float64
+	RefPrice        float64
+	IdemPrefix      string
+	DecisionCycleID string
+	SnapshotID      string
+	SnapshotTime    time.Time
+	SwitchIntent    *crossVenueSwitchIntent
+	SelectionMode   crossVenueOpenSelectionMode
 }
 
 func crossVenueIdemPrefix(sym venue.Symbol, highVenue string) string {
@@ -152,20 +157,58 @@ func (e *CrossVenueExecutor) executeCrossVenueOpen(ctx context.Context, plan cro
 	if highTrader == nil || lowTrader == nil {
 		return CrossVenuePosition{}, fmt.Errorf("venue 不满足交易接口")
 	}
+	if plan.SwitchIntent != nil {
+		_ = e.updateSwitchIntentAttempt(plan.SwitchIntent.Symbol, plan.SwitchIntent.TargetHighVenue, plan.SwitchIntent.TargetLowVenue, "open_new_first_leg", "switch open attempt")
+	}
 
 	pos := CrossVenuePosition{
-		Symbol:        plan.Opp.Symbol,
-		HighVenue:     plan.Opp.HighVenue,
-		LowVenue:      plan.Opp.LowVenue,
-		OpenSpreadAPR: plan.Opp.SpreadAPR,
-		Status:        CrossVenueStatusOpeningFirstLeg,
-		OpenedAt:      e.nowFn(),
-		UpdatedAt:     e.nowFn(),
-		IdemPrefix:    plan.IdemPrefix,
-		NotionalUSDT:  plan.Gate.NotionalUSDT,
-		HighLeg:       CrossVenueLegState{Venue: plan.Opp.HighVenue, Side: "sell"},
-		LowLeg:        CrossVenueLegState{Venue: plan.Opp.LowVenue, Side: "buy"},
+		Symbol:               plan.Opp.Symbol,
+		HighVenue:            plan.Opp.HighVenue,
+		LowVenue:             plan.Opp.LowVenue,
+		DecisionCycleID:      plan.DecisionCycleID,
+		EntryDecisionCycleID: plan.DecisionCycleID,
+		EntrySnapshotID:      plan.SnapshotID,
+		CurrentSnapshotID:    plan.SnapshotID,
+		OpenSpreadAPR:        plan.Opp.SpreadAPR,
+		EstimatedFundingUSDT: plan.Opp.SpreadEV,
+		HighFundingRate:      plan.Opp.HighFundingRate,
+		LowFundingRate:       plan.Opp.LowFundingRate,
+		HighIntervalHours:    plan.Opp.HighIntervalHours,
+		LowIntervalHours:     plan.Opp.LowIntervalHours,
+		HighNextFundingTime:  plan.Opp.HighNextFundingTime,
+		LowNextFundingTime:   plan.Opp.LowNextFundingTime,
+		FreshnessAgeSeconds:  plan.Opp.FreshnessAgeSeconds,
+		HistoryQualityScore:  plan.Opp.HistoryQualityScore,
+		LiquidityScore:       plan.Opp.LiquidityScore,
+		StabilityScore:       plan.Opp.StabilityScore,
+		ExecutionScore:       plan.Opp.ExecutionScore,
+		RecoveryQualityScore: plan.Opp.RecoveryQualityScore,
+		RankScore:            plan.Opp.RankScore,
+		SizeMultiplier:       plan.Opp.SizeMultiplier,
+		EntryOpenMode:        string(plan.SelectionMode),
+		UsedFallback:         plan.SelectionMode == crossVenueOpenFallback,
+		Priority:             plan.Opp.RankScore,
+		TransitionState:      "open",
+		Status:               CrossVenueStatusOpeningFirstLeg,
+		OpenedAt:             e.nowFn(),
+		UpdatedAt:            e.nowFn(),
+		IdemPrefix:           plan.IdemPrefix,
+		NotionalUSDT:         plan.Gate.NotionalUSDT,
+		HighLeg:              CrossVenueLegState{Venue: plan.Opp.HighVenue, Side: "sell"},
+		LowLeg:               CrossVenueLegState{Venue: plan.Opp.LowVenue, Side: "buy"},
 	}
+	if plan.SwitchIntent != nil {
+		pos.PendingSwitchSequence = nonEmpty(plan.SwitchIntent.SwitchSequence, crossVenueSwitchSequenceCloseThenOpen)
+		pos.PartialSwitchPhase = "open_new_first_leg"
+	}
+	pos.CurrentComparableWindowHours = plan.Opp.ComparableWindowHours
+	pos.CurrentFutureEV = plan.Opp.NetEV
+	pos.CurrentCapitalEfficiencyEV = plan.Opp.CapitalEfficiencyEV
+	pos.CurrentRiskAdjustedEVPerHour = plan.Opp.RiskAdjustedEVPerHour
+	pos.CurrentRiskScore = clamp01(1 - (plan.Opp.ExecutionScore+plan.Opp.RecoveryQualityScore)/2)
+	pos.EstimatedExitCost = plan.Opp.CloseCost + crossVenueExpectedSlippageUSDT(cfg, pos.NotionalUSDT, 2)
+	pos.EstimatedSwitchCost = pos.EstimatedExitCost + plan.Opp.OpenCost + crossVenueExpectedSlippageUSDT(cfg, pos.NotionalUSDT, 2)
+	e.recordCrossVenueTransition(pos, "", string(CrossVenueStatusOpeningFirstLeg), "开仓计划已创建")
 	if live {
 		_ = e.persistPosition(pos)
 	}
@@ -197,7 +240,13 @@ func (e *CrossVenueExecutor) executeCrossVenueOpen(ctx context.Context, plan cro
 	highRes, err := e.placeCrossVenueLegExec(ctx, highTrader, sym, venue.SideSell, plan.Qty, highID, false, live, false, cfg.SlippageBudgetBps, firstLegDeadline)
 	if err != nil || highRes.ExecutedQty <= executionQtyTolerance {
 		if highRes.ExecutedQty > executionQtyTolerance {
+			if plan.SwitchIntent != nil {
+				_ = e.updateSwitchIntentAttempt(plan.SwitchIntent.Symbol, plan.SwitchIntent.TargetHighVenue, plan.SwitchIntent.TargetLowVenue, "rollback_new", "switch first leg partial fill, rolling back")
+			}
 			e.rollbackFirstLeg(ctx, plan, highTrader, sym, &pos, highRes.ExecutedQty, live)
+		}
+		if plan.SwitchIntent != nil {
+			_ = e.updateSwitchIntentAttempt(plan.SwitchIntent.Symbol, plan.SwitchIntent.TargetHighVenue, plan.SwitchIntent.TargetLowVenue, "open_new_retry", "switch first leg failed")
 		}
 		return pos, fmt.Errorf("第一腿失败: %w", err)
 	}
@@ -207,11 +256,33 @@ func (e *CrossVenueExecutor) executeCrossVenueOpen(ctx context.Context, plan cro
 	pos.HighLeg.OrderIDs = []string{highID}
 	pos.Status = CrossVenueStatusOpeningSecondLeg
 	pos.UpdatedAt = e.nowFn()
+	if plan.SwitchIntent != nil {
+		pos.PartialSwitchPhase = "open_new_second_leg"
+	}
+	if plan.SwitchIntent != nil {
+		_ = e.updateSwitchIntentAttempt(plan.SwitchIntent.Symbol, plan.SwitchIntent.TargetHighVenue, plan.SwitchIntent.TargetLowVenue, "open_new_second_leg", "switch first leg filled")
+	}
+	e.recordCrossVenueTransition(pos, string(CrossVenueStatusOpeningFirstLeg), string(CrossVenueStatusOpeningSecondLeg), "第一腿成交")
 	_ = e.persistPosition(pos)
+	if plan.SwitchIntent != nil && crossVenueIsStagedSwitch(plan.SwitchIntent.SwitchSequence) {
+		pos.PartialSwitchPhase = "staged_close_old"
+		pos.TransitionState = "staged"
+		pos.UpdatedAt = e.nowFn()
+		_ = e.persistPosition(pos)
+		_ = e.updateSwitchIntentAttempt(plan.SwitchIntent.Symbol, plan.SwitchIntent.TargetHighVenue, plan.SwitchIntent.TargetLowVenue, "close_old", "staged switch target first leg live, waiting old position close")
+		e.recordCrossVenueTransition(pos, string(CrossVenueStatusOpeningSecondLeg), "staged_wait_close_old", "staged switch 第一腿已开,等待旧仓 close_old")
+		return pos, nil
+	}
 
 	nakedStart := e.nowFn()
 	if _, err := lowTrader.FetchBookTicker(ctx, venue.MarketPerp, sym); err != nil {
+		if plan.SwitchIntent != nil {
+			_ = e.updateSwitchIntentAttempt(plan.SwitchIntent.Symbol, plan.SwitchIntent.TargetHighVenue, plan.SwitchIntent.TargetLowVenue, "rollback_new", "switch second leg precheck failed")
+		}
 		e.rollbackFirstLeg(ctx, plan, highTrader, sym, &pos, pos.HighLeg.Qty, live)
+		if plan.SwitchIntent != nil {
+			_ = e.updateSwitchIntentAttempt(plan.SwitchIntent.Symbol, plan.SwitchIntent.TargetHighVenue, plan.SwitchIntent.TargetLowVenue, "open_new_retry", "switch second leg precheck failed")
+		}
 		e.setSymbolCooldown(plan.Opp.Symbol)
 		return pos, err
 	}
@@ -220,7 +291,13 @@ func (e *CrossVenueExecutor) executeCrossVenueOpen(ctx context.Context, plan cro
 	if lowCaps.ContractBasedPerp {
 		hedgeQty = normalizeVenueQty(highRes.ExecutedQty, plan.Gate.LowInstr, true)
 		if hedgeQty <= executionQtyTolerance {
+			if plan.SwitchIntent != nil {
+				_ = e.updateSwitchIntentAttempt(plan.SwitchIntent.Symbol, plan.SwitchIntent.TargetHighVenue, plan.SwitchIntent.TargetLowVenue, "rollback_new", "switch hedge qty normalized to zero")
+			}
 			e.rollbackFirstLeg(ctx, plan, highTrader, sym, &pos, pos.HighLeg.Qty, live)
+			if plan.SwitchIntent != nil {
+				_ = e.updateSwitchIntentAttempt(plan.SwitchIntent.Symbol, plan.SwitchIntent.TargetHighVenue, plan.SwitchIntent.TargetLowVenue, "open_new_retry", "switch hedge qty normalized to zero")
+			}
 			e.setSymbolCooldown(plan.Opp.Symbol)
 			return pos, fmt.Errorf("第二腿对冲数量经张数步进后为 0(第一腿 %.6f)", highRes.ExecutedQty)
 		}
@@ -229,7 +306,13 @@ func (e *CrossVenueExecutor) executeCrossVenueOpen(ctx context.Context, plan cro
 	lowRes, lowErr := e.placeCrossVenueLegExec(ctx, lowTrader, sym, venue.SideBuy, hedgeQty, lowID, false, live, true, crossVenueTakerSlippageBps(cfg), secondLegDeadline)
 	if lowErr != nil || lowRes.ExecutedQty <= executionQtyTolerance {
 		elapsed := e.nowFn().Sub(nakedStart).Seconds()
+		if plan.SwitchIntent != nil {
+			_ = e.updateSwitchIntentAttempt(plan.SwitchIntent.Symbol, plan.SwitchIntent.TargetHighVenue, plan.SwitchIntent.TargetLowVenue, "rollback_new", "switch second leg failed, rolling back")
+		}
 		e.rollbackFirstLeg(ctx, plan, highTrader, sym, &pos, pos.HighLeg.Qty, live)
+		if plan.SwitchIntent != nil {
+			_ = e.updateSwitchIntentAttempt(plan.SwitchIntent.Symbol, plan.SwitchIntent.TargetHighVenue, plan.SwitchIntent.TargetLowVenue, "open_new_retry", "switch rollback complete, waiting retry")
+		}
 		e.setSymbolCooldown(plan.Opp.Symbol)
 		msg := fmt.Sprintf("%s 第二腿失败,已回滚第一腿(裸腿 %.0fs)", plan.Opp.Symbol, elapsed)
 		e.notifyWarn("跨所开仓回滚", msg, plan.Opp.Symbol)
@@ -250,7 +333,15 @@ func (e *CrossVenueExecutor) executeCrossVenueOpen(ctx context.Context, plan cro
 	pos.LowLeg.OrderIDs = []string{lowID}
 	pos.NotionalUSDT = crossVenueBookNotionalUSDT(bookQty, plan.RefPrice, highRes, lowRes)
 	pos.Status = CrossVenueStatusOpen
+	pos.TransitionState = "hold"
 	pos.UpdatedAt = e.nowFn()
+	if plan.SwitchIntent != nil {
+		pos.PartialSwitchPhase = "consumed"
+	}
+	if plan.SwitchIntent != nil {
+		_ = e.updateSwitchIntentAttempt(plan.SwitchIntent.Symbol, plan.SwitchIntent.TargetHighVenue, plan.SwitchIntent.TargetLowVenue, "consumed", "switch target opened")
+	}
+	e.recordCrossVenueTransition(pos, string(CrossVenueStatusOpeningSecondLeg), string(CrossVenueStatusOpen), "双腿开仓完成")
 	_ = e.persistPosition(pos)
 	e.notifyTrade("跨所开仓", fmt.Sprintf("%s 空%s/多%s 各≈%.6f 价差年化%.1f%%",
 		plan.Opp.Symbol, plan.Opp.HighVenue, plan.Opp.LowVenue, bookQty, plan.Opp.SpreadAPR*100), plan.Opp.Symbol)
@@ -284,11 +375,17 @@ func (e *CrossVenueExecutor) rollbackFirstLeg(ctx context.Context, plan crossVen
 // 重试(manageCrossVenuePosition 的 closing 分支);CloseAttempts 驱动递进滑点/穿价兜底;≥3 轮 critical 告警(退避)。
 // 影子模式无真仓,记日志后直接收尾删台账(行为不变)。
 func (e *CrossVenueExecutor) closeCrossVenuePosition(ctx context.Context, pos CrossVenuePosition, live bool, reason string) error {
+	fromStatus := pos.Status
 	pos.Status = CrossVenueStatusClosing
 	if pos.CloseReason == "" {
 		pos.CloseReason = reason
 	}
 	pos.UpdatedAt = e.nowFn()
+	pos.TransitionState = "close"
+	if crossVenueHasPendingSwitch(pos) && (pos.PartialSwitchPhase == "" || pos.PartialSwitchPhase == "pending") {
+		pos.PartialSwitchPhase = "close_old"
+	}
+	e.recordCrossVenueTransition(pos, string(fromStatus), string(CrossVenueStatusClosing), reason)
 	_ = e.persistPosition(pos)
 	sym := venue.Symbol(pos.Symbol)
 	highV := e.venues[pos.HighVenue]
@@ -309,6 +406,7 @@ func (e *CrossVenueExecutor) closeCrossVenuePosition(ctx context.Context, pos Cr
 		}
 		pos.Status = CrossVenueStatusClosed
 		pos.UpdatedAt = e.nowFn()
+		e.recordCrossVenueTransition(pos, string(CrossVenueStatusClosing), string(CrossVenueStatusClosed), reason)
 		e.finalizeClosedCrossVenuePosition(pos)
 		e.notifyTrade("跨所平仓", fmt.Sprintf("%s %s", pos.Symbol, reason), pos.Symbol)
 		return nil
@@ -349,8 +447,13 @@ func (e *CrossVenueExecutor) closeCrossVenuePosition(ctx context.Context, pos Cr
 	}
 
 	if pos.HighLeg.Qty <= executionQtyTolerance && pos.LowLeg.Qty <= executionQtyTolerance {
+		if crossVenueHasPendingSwitch(pos) {
+			pos.PartialSwitchPhase = "closed_old"
+			_ = e.updateSwitchIntentPhase(pos.Symbol, pos.PendingSwitchHighVenue, pos.PendingSwitchLowVenue, "open_new")
+		}
 		pos.Status = CrossVenueStatusClosed
 		pos.UpdatedAt = e.nowFn()
+		e.recordCrossVenueTransition(pos, string(CrossVenueStatusClosing), string(CrossVenueStatusClosed), pos.CloseReason)
 		e.finalizeClosedCrossVenuePosition(pos)
 		e.notifyTrade("跨所平仓", fmt.Sprintf("%s %s(第 %d 轮平仓完成)", pos.Symbol, pos.CloseReason, attempt), pos.Symbol)
 		return nil
@@ -358,7 +461,12 @@ func (e *CrossVenueExecutor) closeCrossVenuePosition(ctx context.Context, pos Cr
 
 	// 未平干净:保持 closing、保留台账,下轮主循环重试。
 	pos.UpdatedAt = e.nowFn()
-	_ = e.persistPosition(pos)
+	if crossVenueHasPendingSwitch(pos) {
+		e.markCrossVenuePositionPartialSwitch(&pos, "pending switch 未完成,进入 partial switch 恢复")
+	} else {
+		pos.TransitionState = "close"
+		_ = e.persistPosition(pos)
+	}
 	e.logger.Printf("[跨所] 平仓未完成 %s(第 %d 轮): 高费腿剩 %.6f 低费腿剩 %.6f,保留台账下轮重试",
 		pos.Symbol, attempt, pos.HighLeg.Qty, pos.LowLeg.Qty)
 	if crossVenueCloseCriticalShouldAlert(attempt) {

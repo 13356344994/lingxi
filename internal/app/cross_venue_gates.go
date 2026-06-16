@@ -27,6 +27,7 @@ var crossVenueTradeableVenues = map[string]bool{
 type crossVenueGateInput struct {
 	Opp           CrossVenueOpportunity
 	Positions     []CrossVenuePosition
+	AllowExistingSymbol bool
 	BybitHeld     func(sym venue.Symbol) bool
 	BinanceHeld   func(sym venue.Symbol) bool // 币安遗留 FundingRateSniper 台账在场
 	FundingHeld   func(sym venue.Symbol) bool // 任一 okx/gate 单所 funding 引擎台账在场
@@ -94,6 +95,9 @@ func evaluateCrossVenueOpenGate(
 		return fail("symbol 已被 OKX/Gate 单所 funding 引擎持有")
 	}
 	for _, p := range in.Positions {
+		if in.AllowExistingSymbol {
+			continue
+		}
 		if p.Symbol == in.Opp.Symbol && p.Status != CrossVenueStatusClosed {
 			return fail("symbol 已有在场跨所持仓")
 		}

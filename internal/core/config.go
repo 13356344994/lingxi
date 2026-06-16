@@ -489,6 +489,8 @@ type CrossVenueScannerConfig struct {
 	Enabled bool `cfg:"enabled"`
 	// ScanIntervalMinutes 扫描周期(分钟)。默认 10。
 	ScanIntervalMinutes int `cfg:"scan_interval_minutes"`
+	// MaxSnapshotAgeSeconds 执行层允许消费的最大 scanner 快照年龄(秒);超过则只管理在场仓,不再开新仓。默认 720。
+	MaxSnapshotAgeSeconds int `cfg:"max_snapshot_age_seconds"`
 	// MinSpreadAPR 进入结果列表的最小年化价差(小数,0.30=30%)。默认 0.30。
 	MinSpreadAPR float64 `cfg:"min_spread_apr"`
 	// AlertSpreadAPR 触发 Telegram 告警的年化价差阈值(小数,1.0=100%)。默认 1.0。
@@ -609,6 +611,22 @@ type CrossVenueExecutorConfig struct {
 	MakerChaseIntervalMs int `cfg:"maker_chase_interval_ms"`
 	// MakerDeadlineSeconds 单腿 maker 追价总预算(秒);第一腿超时放弃开仓,第二腿/平仓超时 taker 兜底。默认 12。
 	MakerDeadlineSeconds int `cfg:"maker_deadline_seconds"`
+	// MinComparableWindowHours old/new EV 比较的最短共同可比窗口(小时);低于此阈值时禁止软换仓/软平仓比较。默认 0.25(15m)。
+	MinComparableWindowHours float64 `cfg:"min_comparable_window_hours"`
+	// PostFundingCooldownSeconds funding 边界后冷静期(秒);冷静期内不做基于短窗口噪声的软比较。默认 180。
+	PostFundingCooldownSeconds int `cfg:"post_funding_cooldown_seconds"`
+	// MaxCompareAgeSeconds 当前持仓 future EV/soft-close 比较可接受的最大快照年龄(秒)。默认 900。
+	MaxCompareAgeSeconds int `cfg:"max_compare_age_seconds"`
+	// SwitchBufferUSDT old/new compare 时要求新机会多出来的最小净收益缓冲(USDT);低于该值不触发换仓。默认 0.5。
+	SwitchBufferUSDT float64 `cfg:"switch_buffer_usdt"`
+	// SwitchCooldownSeconds 同一持仓触发换仓比较后的冷静期(秒);冷静期内不重复发起软换仓。默认 300。
+	SwitchCooldownSeconds int `cfg:"switch_cooldown_seconds"`
+	// SwitchSequence 默认换仓顺序:close_then_open/open_then_close/staged_switch。默认 close_then_open。
+	SwitchSequence string `cfg:"switch_sequence"`
+	// MaxSwitchesPerCycle 每轮最多允许触发的换仓数;超过则保留原仓。默认 1。
+	MaxSwitchesPerCycle int `cfg:"max_switches_per_cycle"`
+	// UntrackedExposureAction 冷启动发现未登记真实仓位时的显式分支:halt/import/flatten。默认 halt。
+	UntrackedExposureAction string `cfg:"untracked_exposure_action"`
 }
 
 // VenueFundingExecutorConfig 是 OKX/Gate 单所正费率执行器参数(正 carry:空永续+买现货,跨结算持有)。
