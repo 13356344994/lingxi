@@ -335,8 +335,7 @@ func crossVenueNetRealizedFundingUSDT(pos *CrossVenuePosition) float64 {
 	return pos.HighLegFundingUSDT + pos.LowLegFundingUSDT
 }
 
-// crossVenueRoundTripFeeUSDT 估算四腿往返吃单手续费(开+平 × 高/低所),供最小持有保护判断。
-func crossVenueRoundTripFeeUSDT(cfg CrossVenueExecutorConfig, pos *CrossVenuePosition) float64 {
+func crossVenuePositionNotionalUSDT(pos *CrossVenuePosition) float64 {
 	if pos == nil {
 		return 0
 	}
@@ -344,6 +343,25 @@ func crossVenueRoundTripFeeUSDT(cfg CrossVenueExecutorConfig, pos *CrossVenuePos
 	if notional <= 0 {
 		notional = pos.HighLeg.Qty * pos.HighLeg.EntryPrice
 	}
+	return notional
+}
+
+// crossVenueEstCloseFeeUSDT 估算平仓两腿吃单手续费(高所+低所各一次),供面板展示。
+func crossVenueEstCloseFeeUSDT(cfg CrossVenueExecutorConfig, pos *CrossVenuePosition) float64 {
+	notional := crossVenuePositionNotionalUSDT(pos)
+	if notional <= 0 {
+		return 0
+	}
+	cost := 0.0
+	for _, legVenue := range []string{pos.HighVenue, pos.LowVenue} {
+		cost += notional * crossVenueTakerFeeBps(cfg, legVenue) / 10000
+	}
+	return cost
+}
+
+// crossVenueRoundTripFeeUSDT 估算四腿往返吃单手续费(开+平 × 高/低所),供最小持有保护判断。
+func crossVenueRoundTripFeeUSDT(cfg CrossVenueExecutorConfig, pos *CrossVenuePosition) float64 {
+	notional := crossVenuePositionNotionalUSDT(pos)
 	if notional <= 0 {
 		return 0
 	}

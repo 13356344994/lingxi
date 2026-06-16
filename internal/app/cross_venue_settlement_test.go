@@ -64,14 +64,14 @@ func TestAggregateCrossVenueSettlementsByVenueInRange(t *testing.T) {
 		// 今日 binance/gate: net = funding(2+3) + trade(1) - fees(0.4) - rollback(0.2) - rebalance(0.4) = 5.0
 		{
 			Symbol: "BTC-USDT", HighVenue: "binance", LowVenue: "gate",
-			CloseTime: dayStart.Add(30 * time.Minute),
+			CloseTime:      dayStart.Add(30 * time.Minute),
 			HighLegFunding: 2, LowLegFunding: 3, TradePnL: 1,
 			TotalFees: 0.4, RollbackCost: 0.2, RebalanceCost: 0.4, NetPnL: 5.0,
 		},
 		// 今日 okx/bybit: net = 0.5 + (-0.1) + 0 - 0.2 = 0.2
 		{
 			Symbol: "ETH-USDT", HighVenue: "okx", LowVenue: "bybit",
-			CloseTime: dayStart.Add(2 * time.Hour),
+			CloseTime:      dayStart.Add(2 * time.Hour),
 			HighLegFunding: 0.5, LowLegFunding: -0.1, TotalFees: 0.2, NetPnL: 0.2,
 		},
 		// 未来 → 不计
@@ -162,24 +162,60 @@ func TestTodayCSTEarningsFromLedger(t *testing.T) {
 func TestBuildCrossVenuePositionDetails(t *testing.T) {
 	opened := time.Date(2026, 6, 15, 0, 0, 0, 0, time.UTC)
 	now := opened.Add(90 * time.Minute)
+	cfg := testCrossVenueExecutorConfig().CrossVenueExecutor
 	ps := []CrossVenuePosition{
 		{Symbol: "BTC-USDT", Status: CrossVenueStatusClosed},
 		{
 			Symbol: "ETH-USDT", Status: CrossVenueStatusOpen,
 			HighVenue: "bybit", LowVenue: "okx",
-			HighLeg: CrossVenueLegState{Side: "sell", Qty: 0.5, EntryPrice: 2500},
-			LowLeg:  CrossVenueLegState{Side: "buy", Qty: 0.5, EntryPrice: 2498},
+			HighLeg:      CrossVenueLegState{Side: "sell", Qty: 0.5, EntryPrice: 2500},
+			LowLeg:       CrossVenueLegState{Side: "buy", Qty: 0.5, EntryPrice: 2498},
 			NotionalUSDT: 1250, OpenSpreadAPR: 0.42, EstFundingUSDT: 1.23,
-			OpenedAt: opened,
+			CrossVenueAttribution: CrossVenueAttribution{OpenFeesUSDT: 0.15},
+			OpenedAt:              opened,
 		},
 	}
-	details := buildCrossVenuePositionDetails(ps, now)
+	details := buildCrossVenuePositionDetails(cfg, ps, now)
 	if len(details) != 1 {
 		t.Fatalf("details=%d want 1 active", len(details))
 	}
 	d := details[0]
 	if d.Symbol != "ETH-USDT" || d.HighLegQty != 0.5 || d.HoldDurationSec != 5400 {
 		t.Fatalf("detail=%+v", d)
+	}
+	if math.Abs(d.OpenFeesUSDT-0.15) > 1e-9 {
+		t.Fatalf("open_fees_usdt=%v want 0.15", d.OpenFeesUSDT)
+	}
+	wantEstClose := crossVenueEstCloseFeeUSDT(cfg, &ps[1])
+	if math.Abs(d.EstCloseFeesUSDT-wantEstClose) > 1e-9 {
+		t.Fatalf("est_close_fees_usdt=%v want %v", d.EstCloseFeesUSDT, wantEstClose)
+	}
+	wantNet := 1.23 - 0.15 - wantEstClose
+	if math.Abs(d.NetUSDT-wantNet) > 1e-9 {
+		t.Fatalf("net_usdt=%v want %v", d.NetUSDT, wantNet)
+	}
+}
+
+func TestCrossVenueEstCloseFeeUSDT(t *testing.T) {
+	cfg := testCrossVenueExecutorConfig().CrossVenueExecutor
+	pos := &CrossVenuePosition{
+		HighVenue: "bybit", LowVenue: "okx",
+		NotionalUSDT: 1000,
+	}
+	got := crossVenueEstCloseFeeUSDT(cfg, pos)
+	want := 1000*(5.5/10000) + 1000*(5.0/10000)
+	if math.Abs(got-want) > 1e-9 {
+		t.Fatalf("est_close=%v want %v", got, want)
+	}
+	pos.NotionalUSDT = 0
+	pos.HighLeg = CrossVenueLegState{Qty: 2, EntryPrice: 500}
+	got = crossVenueEstCloseFeeUSDT(cfg, pos)
+	want = 1000*(5.5/10000) + 1000*(5.0/10000)
+	if math.Abs(got-want) > 1e-9 {
+		t.Fatalf("fallback notional est_close=%v want %v", got, want)
+	}
+	if crossVenueEstCloseFeeUSDT(cfg, nil) != 0 {
+		t.Fatal("nil pos should be 0")
 	}
 }
 

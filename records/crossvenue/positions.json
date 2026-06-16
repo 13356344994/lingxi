@@ -1,154 +1,287 @@
 {
   "schema_version": 1,
-  "checksum": "f601ceb10ebcc64652ae361ce1ef0fd9aae43105c6937e1bbb308fc3d1f3ebd3",
-  "updated_at": "2026-06-15T10:00:08Z",
+  "checksum": "611f833bbc2f87810dd2d07a1dbb52cf714e0cbed0a10b407079099a53060f3e",
+  "updated_at": "2026-06-16T09:55:24Z",
   "positions": [
     {
-      "symbol": "ARM-USDT",
+      "symbol": "RAVE-USDT",
+      "high_venue": "gate",
+      "low_venue": "binance",
+      "high_leg": {
+        "venue": "gate",
+        "side": "sell",
+        "qty": 190,
+        "entry_price": 0.309,
+        "order_ids": [
+          "cv-RAVEUSDT-gate-1781523855-h1"
+        ]
+      },
+      "low_leg": {
+        "venue": "binance",
+        "side": "buy",
+        "qty": 190,
+        "entry_price": 0.3095,
+        "order_ids": [
+          "cv-RAVEUSDT-gate-1781523855-l1"
+        ]
+      },
+      "open_spread_apr": 1.8856009499999997,
+      "est_funding_usdt": 0.00004457893440816597,
+      "status": "open",
+      "opened_at": "2026-06-15T11:44:15.182647927Z",
+      "updated_at": "2026-06-16T09:55:23.116872569Z",
+      "idem_prefix": "cv-RAVEUSDT-gate-1781523855",
+      "notional_usdt": 58.762249999999995,
+      "last_accrual_at": "2026-06-16T09:55:23.116870827Z",
+      "last_realized_funding_at": "0001-01-01T00:00:00Z",
+      "open_slippage_usdt": 0.009499999999998954
+    },
+    {
+      "symbol": "USELESS-USDT",
       "high_venue": "bybit",
       "low_venue": "okx",
       "high_leg": {
         "venue": "bybit",
         "side": "sell",
-        "qty": 0.14,
-        "entry_price": 401.14,
+        "qty": 640,
+        "entry_price": 0.07944,
         "order_ids": [
-          "cv-ARMUSDT-bybit-1781482102-h1"
+          "cv-USELESSUSDT-bybit-1781540488-h1"
         ]
       },
       "low_leg": {
         "venue": "okx",
         "side": "buy",
-        "qty": 0.14,
-        "entry_price": 402.27142857142854,
+        "qty": 640,
+        "entry_price": 0.07954593750000012,
         "order_ids": [
-          "cv-ARMUSDT-bybit-1781482102-l1"
+          "cv-USELESSUSDT-bybit-1781540488-l1"
         ]
       },
-      "open_spread_apr": 4.70949645,
-      "est_funding_usdt": 0.014706114957711694,
-      "high_leg_funding_usdt": 0.014713,
+      "open_spread_apr": 1.9304193000000003,
+      "est_funding_usdt": 0.009624319999999999,
+      "high_leg_funding_usdt": 0.009624319999999999,
       "status": "open",
-      "opened_at": "2026-06-15T00:08:22.927486341Z",
-      "updated_at": "2026-06-15T10:00:06.621419437Z",
-      "close_spread_streak": 53,
-      "idem_prefix": "cv-ARMUSDT-bybit-1781482102",
-      "notional_usdt": 56.243249999999996,
-      "last_accrual_at": "2026-06-15T10:00:06.621419196Z",
-      "last_realized_funding_at": "2026-06-15T09:58:06.564607152Z",
-      "open_fees_usdt": 0.04388369,
-      "open_slippage_usdt": -0.04289999999999965
+      "opened_at": "2026-06-15T16:21:28.982132091Z",
+      "updated_at": "2026-06-16T09:55:23.286916789Z",
+      "close_spread_streak": 789,
+      "idem_prefix": "cv-USELESSUSDT-bybit-1781540488",
+      "notional_usdt": 50.787200000000006,
+      "last_accrual_at": "2026-06-16T09:55:23.286916478Z",
+      "last_realized_funding_at": "2026-06-16T09:51:23.342539806Z",
+      "open_fees_usdt": 0.04292898,
+      "open_slippage_usdt": -0.09340000000007898
     },
     {
-      "symbol": "AMAT-USDT",
+      "symbol": "EVAA-USDT",
+      "high_venue": "bybit",
+      "low_venue": "gate",
+      "high_leg": {
+        "venue": "bybit",
+        "side": "sell",
+        "qty": 21,
+        "entry_price": 1.1223,
+        "order_ids": [
+          "cv-EVAAUSDT-bybit-1781542522-h1"
+        ]
+      },
+      "low_leg": {
+        "venue": "gate",
+        "side": "buy",
+        "qty": 21,
+        "entry_price": 1.1234,
+        "order_ids": [
+          "cv-EVAAUSDT-bybit-1781542522-l1"
+        ]
+      },
+      "open_spread_apr": 1.63721115,
+      "est_funding_usdt": 0.03598112,
+      "high_leg_funding_usdt": 0.03598112,
+      "status": "open",
+      "opened_at": "2026-06-15T16:55:22.149946634Z",
+      "updated_at": "2026-06-16T09:55:23.466215304Z",
+      "close_spread_streak": 324,
+      "idem_prefix": "cv-EVAAUSDT-bybit-1781542522",
+      "notional_usdt": 23.5683,
+      "last_accrual_at": "2026-06-16T09:55:23.466215014Z",
+      "last_realized_funding_at": "2026-06-16T09:51:23.590941468Z",
+      "open_fees_usdt": 0.00942732,
+      "open_slippage_usdt": -0.025199999999997225
+    },
+    {
+      "symbol": "FOLKS-USDT",
       "high_venue": "bybit",
       "low_venue": "binance",
       "high_leg": {
         "venue": "bybit",
         "side": "sell",
-        "qty": 0.02,
-        "entry_price": 591.25,
+        "qty": 5.9,
+        "entry_price": 1.9682,
         "order_ids": [
-          "cv-AMATUSDT-bybit-1781482110-h1"
+          "cv-FOLKSUSDT-bybit-1781555014-h1"
         ]
       },
       "low_leg": {
         "venue": "binance",
         "side": "buy",
-        "qty": 0.02,
-        "entry_price": 591.99,
+        "qty": 5.9,
+        "entry_price": 1.972,
         "order_ids": [
-          "cv-AMATUSDT-bybit-1781482110-l1"
+          "cv-FOLKSUSDT-bybit-1781555014-l1"
         ]
       },
-      "open_spread_apr": 4.5960435,
-      "est_funding_usdt": 0.01292817,
-      "high_leg_funding_usdt": 0.01292817,
+      "open_spread_apr": 1.8964962,
+      "est_funding_usdt": 0.012223414709019493,
+      "high_leg_funding_usdt": 0.01222488,
       "status": "open",
-      "opened_at": "2026-06-15T00:08:30.332492853Z",
-      "updated_at": "2026-06-15T10:00:06.792984814Z",
-      "close_spread_streak": 33,
-      "idem_prefix": "cv-AMATUSDT-bybit-1781482110",
-      "notional_usdt": 11.813900000000002,
-      "last_accrual_at": "2026-06-15T10:00:06.792984514Z",
-      "last_realized_funding_at": "2026-06-15T09:58:06.818007792Z",
-      "open_fees_usdt": 0.003311,
-      "open_slippage_usdt": -0.015
+      "opened_at": "2026-06-15T20:23:34.51835152Z",
+      "updated_at": "2026-06-16T09:55:23.575655482Z",
+      "close_spread_streak": 367,
+      "idem_prefix": "cv-FOLKSUSDT-bybit-1781555014",
+      "notional_usdt": 11.613265,
+      "last_accrual_at": "2026-06-16T09:55:23.575655181Z",
+      "last_realized_funding_at": "2026-06-16T09:51:23.778447307Z",
+      "open_fees_usdt": 0.00464496,
+      "open_slippage_usdt": -0.014750000000000998
     },
     {
-      "symbol": "RIVN-USDT",
-      "high_venue": "gate",
-      "low_venue": "binance",
+      "symbol": "BEAT-USDT",
+      "high_venue": "bybit",
+      "low_venue": "okx",
       "high_leg": {
-        "venue": "gate",
+        "venue": "bybit",
         "side": "sell",
-        "qty": 2.6,
-        "entry_price": 16.968692307692,
-        "exit_price": 16.968692307691995,
-        "closed_qty": 280.79999999999984,
+        "qty": 10,
+        "entry_price": 3.921,
         "order_ids": [
-          "cv-RIVNUSDT-gate-1781482128-h1"
+          "cv-BEATUSDT-bybit-1781587768-h1"
         ]
       },
       "low_leg": {
-        "venue": "binance",
+        "venue": "okx",
         "side": "buy",
-        "qty": 0,
-        "entry_price": 17.1297692,
-        "exit_price": 17.0848462,
-        "closed_qty": 2.6,
+        "qty": 10,
+        "entry_price": 3.9284,
         "order_ids": [
-          "cv-RIVNUSDT-gate-1781482128-l1"
+          "cv-BEATUSDT-bybit-1781587768-l1"
         ]
       },
-      "open_spread_apr": 4.1040600000000005,
-      "est_funding_usdt": -0.0000710636611883144,
-      "status": "closing",
-      "opened_at": "2026-06-15T00:08:48.168599309Z",
-      "updated_at": "2026-06-15T10:00:08.541190409Z",
-      "close_spread_streak": 2,
-      "close_hard_negative_spread_streak": 3,
-      "idem_prefix": "cv-RIVNUSDT-gate-1781482128",
-      "notional_usdt": 44.3027,
-      "last_accrual_at": "2026-06-15T08:13:16.529107507Z",
-      "last_realized_funding_at": "0001-01-01T00:00:00Z",
-      "close_attempts": 108,
-      "close_reason": "价差深度转负 -84.4% 连续 3 轮低于 -50.0%(硬止损)",
-      "open_slippage_usdt": -0.26019992000079883,
-      "close_slippage_usdt": 24.384300120086777
+      "open_spread_apr": 1.7595249227205703,
+      "est_funding_usdt": 0.00182115,
+      "high_leg_funding_usdt": 0.00182115,
+      "status": "open",
+      "opened_at": "2026-06-16T05:29:28.787290823Z",
+      "updated_at": "2026-06-16T09:55:23.873777887Z",
+      "close_spread_streak": 46,
+      "idem_prefix": "cv-BEATUSDT-bybit-1781587768",
+      "notional_usdt": 39.226,
+      "last_accrual_at": "2026-06-16T09:55:23.873777586Z",
+      "last_realized_funding_at": "2026-06-16T09:51:24.094837617Z",
+      "open_fees_usdt": 0.0235408,
+      "open_slippage_usdt": 0.0070000000000014495
     },
     {
-      "symbol": "SIREN-USDT",
-      "high_venue": "gate",
+      "symbol": "LRC-USDT",
+      "high_venue": "okx",
+      "low_venue": "bybit",
+      "high_leg": {
+        "venue": "okx",
+        "side": "sell",
+        "qty": 3820,
+        "entry_price": 0.01389,
+        "order_ids": [
+          "cv-LRCUSDT-okx-1781591837-h1"
+        ]
+      },
+      "low_leg": {
+        "venue": "bybit",
+        "side": "buy",
+        "qty": 3820,
+        "entry_price": 0.01388343,
+        "order_ids": [
+          "cv-LRCUSDT-okx-1781591837-l1"
+        ]
+      },
+      "open_spread_apr": 1.986335475,
+      "est_funding_usdt": 0.05899818,
+      "low_leg_funding_usdt": 0.05899818,
+      "status": "open",
+      "opened_at": "2026-06-16T06:37:17.194051236Z",
+      "updated_at": "2026-06-16T09:55:24.026808623Z",
+      "close_spread_streak": 95,
+      "idem_prefix": "cv-LRCUSDT-okx-1781591837",
+      "notional_usdt": 52.9834,
+      "last_accrual_at": "2026-06-16T09:55:24.026808382Z",
+      "last_realized_funding_at": "2026-06-16T09:51:24.327721157Z",
+      "open_fees_usdt": 0.03978107,
+      "open_slippage_usdt": -0.0895026000000052
+    },
+    {
+      "symbol": "BR-USDT",
+      "high_venue": "binance",
+      "low_venue": "gate",
+      "high_leg": {
+        "venue": "binance",
+        "side": "sell",
+        "qty": 160,
+        "entry_price": 0.16916,
+        "order_ids": [
+          "cv-BRUSDT-binance-1781600869-h1"
+        ]
+      },
+      "low_leg": {
+        "venue": "gate",
+        "side": "buy",
+        "qty": 160,
+        "entry_price": 0.16864,
+        "order_ids": [
+          "cv-BRUSDT-binance-1781600869-l1"
+        ]
+      },
+      "open_spread_apr": 1.76858925,
+      "est_funding_usdt": 0.00007569321712000113,
+      "status": "open",
+      "opened_at": "2026-06-16T09:07:49.730932598Z",
+      "updated_at": "2026-06-16T09:55:24.06171423Z",
+      "idem_prefix": "cv-BRUSDT-binance-1781600869",
+      "notional_usdt": 27.061999999999998,
+      "last_accrual_at": "2026-06-16T09:55:24.061712908Z",
+      "last_realized_funding_at": "0001-01-01T00:00:00Z",
+      "open_slippage_usdt": 0.036000000000000476
+    },
+    {
+      "symbol": "VELVET-USDT",
+      "high_venue": "bybit",
       "low_venue": "binance",
       "high_leg": {
-        "venue": "gate",
+        "venue": "bybit",
         "side": "sell",
-        "qty": 1000,
-        "entry_price": 0.05585,
+        "qty": 80,
+        "entry_price": 0.4394,
         "order_ids": [
-          "cv-SIRENUSDT-gate-1781511084-h1"
+          "cv-VELVETUSDT-bybit-1781602061-h1"
         ]
       },
       "low_leg": {
         "venue": "binance",
         "side": "buy",
-        "qty": 1000,
-        "entry_price": 0.0555,
+        "qty": 80,
+        "entry_price": 0.4399,
         "order_ids": [
-          "cv-SIRENUSDT-gate-1781511084-l1"
+          "cv-VELVETUSDT-bybit-1781602061-l1"
         ]
       },
-      "open_spread_apr": 1.90162085,
-      "est_funding_usdt": 0.0007010561006252746,
+      "open_spread_apr": 1.91446515,
+      "est_funding_usdt": 0.00010403699548934359,
       "status": "open",
-      "opened_at": "2026-06-15T08:11:24.816083204Z",
-      "updated_at": "2026-06-15T10:00:08.575571702Z",
-      "idem_prefix": "cv-SIRENUSDT-gate-1781511084",
-      "notional_usdt": 55.715,
-      "last_accrual_at": "2026-06-15T10:00:08.5755691Z",
-      "last_realized_funding_at": "0001-01-01T00:00:00Z",
-      "open_slippage_usdt": 0.21999999999999797
+      "opened_at": "2026-06-16T09:27:41.964387471Z",
+      "updated_at": "2026-06-16T09:55:24.296001343Z",
+      "idem_prefix": "cv-VELVETUSDT-bybit-1781602061",
+      "notional_usdt": 35.0992,
+      "last_accrual_at": "2026-06-16T09:55:24.296001033Z",
+      "last_realized_funding_at": "2026-06-16T09:51:24.545044855Z",
+      "open_fees_usdt": 0.0140608,
+      "open_slippage_usdt": -0.038400000000002876
     }
   ]
 }

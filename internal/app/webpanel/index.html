@@ -324,7 +324,7 @@
         <div id="cv-status-line" class="hint" style="margin:8px 0 0;font-size:13px;color:#cbd5e1;">加载跨所状态…</div>
         <div style="margin-top:14px;">
           <strong style="color:#e5edff;font-size:14px;">当前持仓明细</strong>
-          <div class="hint" style="margin:6px 0 8px;">在场跨所对冲单:两腿方向/数量为真实币数;资费为已累计估算(est_funding_usdt)。</div>
+          <div class="hint" style="margin:6px 0 8px;">在场跨所对冲单:两腿方向/数量为真实币数;资费为已累计估算(est_funding_usdt);净额=累计资费−开仓费−预计平仓费(两腿 taker)。</div>
           <div class="table-wrap" style="max-height:320px;">
             <table id="cv-positions-table">
               <thead>
@@ -338,12 +338,15 @@
                   <th>名义(U)</th>
                   <th>开仓价差(APR)</th>
                   <th>累计资费(U)</th>
+                  <th>开仓费(U)</th>
+                  <th>预计平仓费(U)</th>
+                  <th>净额(U)</th>
                   <th>持有时长</th>
                   <th>状态</th>
                 </tr>
               </thead>
               <tbody id="cv-positions-tbody">
-                <tr><td colspan="11" class="empty">加载中…</td></tr>
+                <tr><td colspan="14" class="empty">加载中…</td></tr>
               </tbody>
             </table>
           </div>
@@ -1788,8 +1791,9 @@
       const tbody = document.getElementById("cv-positions-tbody");
       if (!tbody) { return; }
       const rows = Array.isArray(details) ? details : [];
+      const fmtFeeUsd = (n) => { const v = Number(n || 0); return v.toFixed(4); };
       if (!rows.length) {
-        tbody.innerHTML = `<tr><td colspan="11" class="empty">暂无在场持仓</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="14" class="empty">暂无在场持仓</td></tr>`;
         return;
       }
       const fmtPrice = (n) => { const v = Number(n || 0); return v > 0 ? v.toFixed(4) : "-"; };
@@ -1807,6 +1811,9 @@
           <td>${Number(p.notional_usdt || 0).toFixed(2)}</td>
           <td>${escapeHTML(fmtApr(p.open_spread_apr))}</td>
           <td style="color:${usdColor(p.est_funding_usdt)};">${escapeHTML(fmtUsd(p.est_funding_usdt))}</td>
+          <td>${escapeHTML(fmtFeeUsd(p.open_fees_usdt))}</td>
+          <td>${escapeHTML(fmtFeeUsd(p.est_close_fees_usdt))}</td>
+          <td style="color:${usdColor(p.net_usdt)};">${escapeHTML(fmtUsd(p.net_usdt))}</td>
           <td>${escapeHTML(formatHoldDuration(p.hold_duration_seconds))}</td>
           <td><span class="pill">${escapeHTML(p.status || "-")}</span></td>
         </tr>`).join("");

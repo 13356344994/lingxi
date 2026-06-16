@@ -88,12 +88,15 @@ type CrossVenuePositionDetail struct {
 	NotionalUSDT      float64   `json:"notional_usdt"`
 	OpenSpreadAPR     float64   `json:"open_spread_apr"`
 	EstFundingUSDT    float64   `json:"est_funding_usdt"`
+	OpenFeesUSDT      float64   `json:"open_fees_usdt"`
+	EstCloseFeesUSDT  float64   `json:"est_close_fees_usdt"`
+	NetUSDT           float64   `json:"net_usdt"`
 	HoldDurationSec   float64   `json:"hold_duration_seconds"`
 	Status            string    `json:"status"`
 	OpenedAt          time.Time `json:"opened_at"`
 }
 
-func buildCrossVenuePositionDetails(ps []CrossVenuePosition, now time.Time) []CrossVenuePositionDetail {
+func buildCrossVenuePositionDetails(cfg CrossVenueExecutorConfig, ps []CrossVenuePosition, now time.Time) []CrossVenuePositionDetail {
 	active := activeCrossVenuePositions(ps)
 	out := make([]CrossVenuePositionDetail, 0, len(active))
 	for _, p := range active {
@@ -101,6 +104,8 @@ func buildCrossVenuePositionDetails(ps []CrossVenuePosition, now time.Time) []Cr
 		if !p.OpenedAt.IsZero() && !now.Before(p.OpenedAt) {
 			holdSec = now.Sub(p.OpenedAt).Seconds()
 		}
+		openFees := p.OpenFeesUSDT
+		estCloseFees := crossVenueEstCloseFeeUSDT(cfg, &p)
 		out = append(out, CrossVenuePositionDetail{
 			Symbol:            p.Symbol,
 			HighVenue:         p.HighVenue,
@@ -114,6 +119,9 @@ func buildCrossVenuePositionDetails(ps []CrossVenuePosition, now time.Time) []Cr
 			NotionalUSDT:      p.NotionalUSDT,
 			OpenSpreadAPR:     p.OpenSpreadAPR,
 			EstFundingUSDT:    p.EstFundingUSDT,
+			OpenFeesUSDT:      openFees,
+			EstCloseFeesUSDT:  estCloseFees,
+			NetUSDT:           p.EstFundingUSDT - openFees - estCloseFees,
 			HoldDurationSec:   holdSec,
 			Status:            string(p.Status),
 			OpenedAt:          p.OpenedAt,
@@ -620,7 +628,7 @@ func (e *CrossVenueExecutor) PositionsSnapshot() CrossVenuePositionsAPIResponse 
 		OpeningsEnabled:       e.OpeningsEnabled(),
 		HealthHaltVenue:       e.healthHaltVenueSnapshot(),
 		ActivePositions:       len(activeCrossVenuePositions(ps)),
-		ActivePositionDetails: buildCrossVenuePositionDetails(ps, e.nowFn()),
+		ActivePositionDetails: buildCrossVenuePositionDetails(e.cfg.CrossVenueExecutor, ps, e.nowFn()),
 		Positions:             ps,
 		UpdatedAt:             e.nowFn(),
 	}

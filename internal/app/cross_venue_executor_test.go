@@ -3,9 +3,11 @@ package app
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -39,6 +41,8 @@ type crossVenueTestVenue struct {
 	placeAlwaysErr error
 	// placeClientIDs 记录每笔 PlaceOrder 的 client order ID(跨轮幂等回归测试用)。
 	placeClientIDs []string
+	// placeRequests 记录每笔 PlaceOrder 请求(平仓 qty/限价回归测试用)。
+	placeRequests []venue.OrderRequest
 	// clearOnReduceOnly=true 时 reduce-only 单成交后清空持仓(模拟平仓真实成交);
 	// false 时持仓保持不变(模拟 IOC 没吃干净——平仓核验必须能发现)。
 	clearOnReduceOnly bool
@@ -129,6 +133,7 @@ func (f *crossVenueTestVenue) PlaceOrder(_ context.Context, req venue.OrderReque
 	if f.placeClientIDs != nil {
 		f.placeClientIDs = append(f.placeClientIDs, req.ClientOrderID)
 	}
+	f.placeRequests = append(f.placeRequests, req)
 	if f.placeAlwaysErr != nil {
 		return venue.OrderResult{Status: "rejected", ClientOrderID: req.ClientOrderID}, f.placeAlwaysErr
 	}
@@ -536,13 +541,53 @@ func TestCrossVenueHaltStopsOpenOnly(t *testing.T) {
 func TestHandleCrossVenuePositionsAPI(t *testing.T) {
 	cfg := testCrossVenueExecutorConfig()
 	cfg.NetworkConfig.RecordDir = t.TempDir()
-	exec := &CrossVenueExecutor{cfg: cfg, store: mustCrossVenueStore(t, cfg.NetworkConfig.RecordDir), nowFn: time.Now}
+	opened := time.Date(2026, 6, 15, 0, 0, 0, 0, time.UTC)
+	now := opened.Add(2 * time.Hour)
+	exec := &CrossVenueExecutor{
+		cfg:   cfg,
+		store: mustCrossVenueStore(t, cfg.NetworkConfig.RecordDir),
+		nowFn: func() time.Time { return now },
+	}
+	if err := exec.store.saveAll([]CrossVenuePosition{
+		{
+			Symbol: "ETH-USDT", Status: CrossVenueStatusOpen,
+			HighVenue: "bybit", LowVenue: "okx",
+			HighLeg:      CrossVenueLegState{Side: "sell", Qty: 0.5, EntryPrice: 2500},
+			LowLeg:       CrossVenueLegState{Side: "buy", Qty: 0.5, EntryPrice: 2498},
+			NotionalUSDT: 1250, EstFundingUSDT: 2.5,
+			CrossVenueAttribution: CrossVenueAttribution{OpenFeesUSDT: 0.2},
+			OpenedAt:              opened,
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
 	dashboard := &DashboardServer{crossVenueExecutor: exec}
 	req := httptest.NewRequest(http.MethodGet, "/api/cross-venue/positions", nil)
 	rec := httptest.NewRecorder()
 	dashboard.handleCrossVenuePositionsAPI(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status=%d", rec.Code)
+	}
+	var resp CrossVenuePositionsAPIResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.ActivePositionDetails) != 1 {
+		t.Fatalf("details=%d want 1", len(resp.ActivePositionDetails))
+	}
+	d := resp.ActivePositionDetails[0]
+	if math.Abs(d.OpenFeesUSDT-0.2) > 1e-9 {
+		t.Fatalf("open_fees_usdt=%v want 0.2", d.OpenFeesUSDT)
+	}
+	wantEstClose := crossVenueEstCloseFeeUSDT(cfg.CrossVenueExecutor, &CrossVenuePosition{
+		HighVenue: "bybit", LowVenue: "okx", NotionalUSDT: 1250,
+	})
+	if math.Abs(d.EstCloseFeesUSDT-wantEstClose) > 1e-9 {
+		t.Fatalf("est_close_fees_usdt=%v want %v", d.EstCloseFeesUSDT, wantEstClose)
+	}
+	wantNet := 2.5 - 0.2 - wantEstClose
+	if math.Abs(d.NetUSDT-wantNet) > 1e-9 {
+		t.Fatalf("net_usdt=%v want %v", d.NetUSDT, wantNet)
 	}
 }
 
@@ -786,7 +831,7 @@ func TestCrossVenueCloseRetryClientIDIncrementsViaManageLoop(t *testing.T) {
 }
 
 // TestCrossVenueCloseLegAlreadyFlatViaFetchPositions 一腿 FetchPositions 已为 0 时视为该腿完成,
-// 不因 51169 类拒单无限重试;两腿真实持仓归零后移出台账(落盘+内存)。
+// 下单前同步所内持仓,不因台账残留或 51169 类拒单无限重试;两腿真实持仓归零后移出台账。
 func TestCrossVenueCloseLegAlreadyFlatViaFetchPositions(t *testing.T) {
 	now := time.Now().UTC().Add(time.Hour)
 	high := newCrossVenueTestVenue(bybit.VenueName, 0.001, 8, now)
@@ -807,8 +852,8 @@ func TestCrossVenueCloseLegAlreadyFlatViaFetchPositions(t *testing.T) {
 
 	e.manageOpenPositions(context.Background(), true)
 
-	if n := atomic.LoadInt32(low.placeCount); n != 1 {
-		t.Fatalf("低费腿应只尝试一次平仓(51169 后 FetchPositions=0 即完成), got %d", n)
+	if n := atomic.LoadInt32(low.placeCount); n != 0 {
+		t.Fatalf("低费腿所内已平时不应再下单(FetchPositions 同步), got %d", n)
 	}
 	ps, _ := store.load()
 	if len(ps) != 0 {
@@ -823,7 +868,7 @@ func TestCrossVenueCloseLegAlreadyFlatViaFetchPositions(t *testing.T) {
 
 	// 下轮管理循环不得再对低费腿发单。
 	e.manageOpenPositions(context.Background(), true)
-	if n := atomic.LoadInt32(low.placeCount); n != 1 {
+	if n := atomic.LoadInt32(low.placeCount); n != 0 {
 		t.Fatalf("低费腿不应跨轮无限重试, got %d place calls", n)
 	}
 }

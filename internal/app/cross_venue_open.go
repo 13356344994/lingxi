@@ -279,20 +279,9 @@ func (e *CrossVenueExecutor) rollbackFirstLeg(ctx context.Context, plan crossVen
 	}
 }
 
-func crossVenueCloseLegDeadline(now time.Time, cfg core.CrossVenueExecutorConfig) time.Time {
-	_, _, budget, _ := crossVenueMakerChaseParams(cfg)
-	half := budget / 2
-	if half < 3*time.Second {
-		half = 3 * time.Second
-	}
-	return now.Add(half)
-}
-
-const crossVenueCloseCriticalAttempts = 3
-
 // closeCrossVenuePosition 平仓协议。live 模式下逐腿 IOC 平仓后**核验真实成交**(ExecutedQty 对账 +
 // FetchPositions 复核):任一腿未平干净 → 保持 closing 状态、更新剩余 Qty、**不删台账**,下轮主循环
-// 重试(manageCrossVenuePosition 的 closing 分支);连续 ≥3 轮平不掉升级 critical 告警。
+// 重试(manageCrossVenuePosition 的 closing 分支);CloseAttempts 驱动递进滑点/穿价兜底;≥3 轮 critical 告警(退避)。
 // 影子模式无真仓,记日志后直接收尾删台账(行为不变)。
 func (e *CrossVenueExecutor) closeCrossVenuePosition(ctx context.Context, pos CrossVenuePosition, live bool, reason string) error {
 	pos.Status = CrossVenueStatusClosing
@@ -328,30 +317,27 @@ func (e *CrossVenueExecutor) closeCrossVenuePosition(ctx context.Context, pos Cr
 	pos.CloseAttempts++
 	attempt := pos.CloseAttempts
 	closeDeadline := crossVenueCloseLegDeadline(e.nowFn(), e.cfg.CrossVenueExecutor)
-	takerBps := crossVenueTakerSlippageBps(e.cfg.CrossVenueExecutor)
+	baseTakerBps := crossVenueTakerSlippageBps(e.cfg.CrossVenueExecutor)
+	// 下单前以交易所真实持仓为准(reduce-only 绝不超过剩余量)。
+	e.syncCrossVenueCloseLegQtyFromExchange(ctx, highV, sym, &pos.HighLeg.Qty)
+	e.syncCrossVenueCloseLegQtyFromExchange(ctx, lowV, sym, &pos.LowLeg.Qty)
 	// 逐腿 reduce-only,按返回的 ExecutedQty 先行对账(clientID 带轮次后缀,跨轮重试不撞幂等去重)。
 	if pos.HighLeg.Qty > executionQtyTolerance {
-		book, berr := highTrader.FetchBookTicker(ctx, venue.MarketPerp, sym)
-		if berr == nil {
-			id := crossVenueLegClientID(pos.IdemPrefix, fmt.Sprintf("ch%d", attempt))
-			if res, perr := e.placeCrossVenueLegExec(ctx, highTrader, sym, venue.SideBuy, pos.HighLeg.Qty, id, true, live, true, takerBps, closeDeadline); perr == nil {
-				e.recordCrossVenueExecution(&pos, cvExecCloseHigh, res, crossVenueBookMid(book))
-				pos.HighLeg.Qty = math.Max(pos.HighLeg.Qty-res.ExecutedQty, 0)
-			} else {
-				e.logger.Printf("[跨所] 平仓高费腿失败 %s(下轮重试): %v", pos.Symbol, perr)
-			}
+		id := crossVenueLegClientID(pos.IdemPrefix, fmt.Sprintf("ch%d", attempt))
+		if res, book, perr := e.placeCrossVenueCloseLeg(ctx, highTrader, sym, venue.SideBuy, pos.HighLeg.Qty, id, live, attempt, baseTakerBps, closeDeadline); perr == nil {
+			e.recordCrossVenueExecution(&pos, cvExecCloseHigh, res, crossVenueCloseSlippageRefMid(book))
+			pos.HighLeg.Qty = math.Max(pos.HighLeg.Qty-res.ExecutedQty, 0)
+		} else {
+			e.logger.Printf("[跨所] 平仓高费腿失败 %s(第 %d 轮,下轮重试): %v", pos.Symbol, attempt, perr)
 		}
 	}
 	if pos.LowLeg.Qty > executionQtyTolerance {
-		book, berr := lowTrader.FetchBookTicker(ctx, venue.MarketPerp, sym)
-		if berr == nil {
-			id := crossVenueLegClientID(pos.IdemPrefix, fmt.Sprintf("cl%d", attempt))
-			if res, perr := e.placeCrossVenueLegExec(ctx, lowTrader, sym, venue.SideSell, pos.LowLeg.Qty, id, true, live, true, takerBps, closeDeadline); perr == nil {
-				e.recordCrossVenueExecution(&pos, cvExecCloseLow, res, crossVenueBookMid(book))
-				pos.LowLeg.Qty = math.Max(pos.LowLeg.Qty-res.ExecutedQty, 0)
-			} else {
-				e.logger.Printf("[跨所] 平仓低费腿失败 %s(下轮重试): %v", pos.Symbol, perr)
-			}
+		id := crossVenueLegClientID(pos.IdemPrefix, fmt.Sprintf("cl%d", attempt))
+		if res, book, perr := e.placeCrossVenueCloseLeg(ctx, lowTrader, sym, venue.SideSell, pos.LowLeg.Qty, id, live, attempt, baseTakerBps, closeDeadline); perr == nil {
+			e.recordCrossVenueExecution(&pos, cvExecCloseLow, res, crossVenueCloseSlippageRefMid(book))
+			pos.LowLeg.Qty = math.Max(pos.LowLeg.Qty-res.ExecutedQty, 0)
+		} else {
+			e.logger.Printf("[跨所] 平仓低费腿失败 %s(第 %d 轮,下轮重试): %v", pos.Symbol, attempt, perr)
 		}
 	}
 	// 权威复核:以交易所真实仓位为准刷新剩余量(IOC 回执可能不完整;拉失败保留本地对账值,保守)。
@@ -375,7 +361,7 @@ func (e *CrossVenueExecutor) closeCrossVenuePosition(ctx context.Context, pos Cr
 	_ = e.persistPosition(pos)
 	e.logger.Printf("[跨所] 平仓未完成 %s(第 %d 轮): 高费腿剩 %.6f 低费腿剩 %.6f,保留台账下轮重试",
 		pos.Symbol, attempt, pos.HighLeg.Qty, pos.LowLeg.Qty)
-	if attempt >= crossVenueCloseCriticalAttempts {
+	if crossVenueCloseCriticalShouldAlert(attempt) {
 		e.notifyCritical("跨所平仓持续失败",
 			fmt.Sprintf("%s 已连续 %d 轮平不掉(高费腿剩 %.6f / 低费腿剩 %.6f),请人工核对", pos.Symbol, attempt, pos.HighLeg.Qty, pos.LowLeg.Qty),
 			pos.Symbol)

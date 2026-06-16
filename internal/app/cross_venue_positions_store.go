@@ -74,7 +74,7 @@ type CrossVenuePosition struct {
 	LastAccrualAt time.Time `json:"last_accrual_at,omitempty"`
 	// LastRealizedFundingAt 上次成功拉取真实结算资费的时刻;节流 RealizedFundingPollMinutes 或跨结算周期再拉。
 	LastRealizedFundingAt time.Time `json:"last_realized_funding_at,omitempty"`
-	// CloseAttempts 平仓尝试轮数(IOC 未平干净时保持 closing 状态跨轮重试;≥3 轮升级 critical 告警)。
+	// CloseAttempts 平仓尝试轮数(IOC 未平干净时保持 closing 状态跨轮重试;≥3 轮起 critical 告警,退避推送)。
 	CloseAttempts int `json:"close_attempts,omitempty"`
 	// CloseReason 首次触发平仓的原因(跨轮重试时沿用,日志/告警可追溯)。
 	CloseReason string `json:"close_reason,omitempty"`
