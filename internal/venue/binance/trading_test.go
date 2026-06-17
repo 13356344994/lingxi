@@ -252,3 +252,156 @@ func TestBinanceOrderTypeTIF(t *testing.T) {
 		t.Fatalf("IOC 映射错误: %s %s %v", typ, tif, err)
 	}
 }
+
+func TestBorrowRepaySignedPOST(t *testing.T) {
+	cases := []struct {
+		name   string
+		dir    venue.BorrowDir
+		wantTy string
+	}{
+		{"borrow", venue.BorrowDirBorrow, "BORROW"},
+		{"repay", venue.BorrowDirRepay, "REPAY"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			var path, asset, amount, typ, isolated string
+			a := newHarness(t, func(w http.ResponseWriter, r *http.Request) {
+				path = r.URL.Path
+				q := r.URL.Query()
+				asset = q.Get("asset")
+				amount = q.Get("amount")
+				typ = q.Get("type")
+				isolated = q.Get("isIsolated")
+				_, _ = w.Write([]byte(`{"tranId":12345}`))
+			})
+			if err := a.BorrowRepay(context.Background(), "btc", 1.5, c.dir); err != nil {
+				t.Fatalf("BorrowRepay: %v", err)
+			}
+			if path != PathMarginBorrowRepay || asset != "BTC" || amount != "1.5" || typ != c.wantTy || isolated != "FALSE" {
+				t.Fatalf("参数错误 path=%s asset=%s amount=%s type=%s isolated=%s", path, asset, amount, typ, isolated)
+			}
+		})
+	}
+}
+
+func TestBorrowRepayZeroAmountSkipsRequest(t *testing.T) {
+	called := false
+	a := newHarness(t, func(w http.ResponseWriter, r *http.Request) { called = true })
+	if err := a.BorrowRepay(context.Background(), "USDT", 0, venue.BorrowDirBorrow); err != nil {
+		t.Fatalf("BorrowRepay(0): %v", err)
+	}
+	if called {
+		t.Fatal("amt=0 不应发 HTTP 请求")
+	}
+}
+
+func TestPlaceOrderMarginSpotBorrowSellUsesMarginEndpoint(t *testing.T) {
+	var path string
+	var q url.Values
+	a := newHarness(t, func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "exchangeInfo") {
+			_, _ = w.Write([]byte(futuresExchangeInfoJSON()))
+			return
+		}
+		path = r.URL.Path
+		q = r.URL.Query()
+		_, _ = w.Write([]byte(`{"orderId":1,"clientOrderId":"cid","status":"NEW"}`))
+	})
+	_, err := a.PlaceOrder(context.Background(), venue.OrderRequest{
+		Market: venue.MarketSpot, Symbol: "BTC-USDT", Side: venue.SideSell,
+		Type: venue.OrderTypeMarket, Qty: 0.01, MarginEffect: venue.MarginEffectBorrow,
+	})
+	if err != nil {
+		t.Fatalf("PlaceOrder: %v", err)
+	}
+	if path != PathMarginOrder {
+		t.Fatalf("endpoint=%q want %q", path, PathMarginOrder)
+	}
+	if q.Get("isIsolated") != "FALSE" || q.Get("sideEffectType") != "AUTO_BORROW_REPAY" {
+		t.Fatalf("margin params wrong isolated=%q sideEffect=%q", q.Get("isIsolated"), q.Get("sideEffectType"))
+	}
+}
+
+func TestPlaceOrderMarginSpotRepayBuyUsesAutoRepay(t *testing.T) {
+	var q url.Values
+	a := newHarness(t, func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "exchangeInfo") {
+			_, _ = w.Write([]byte(futuresExchangeInfoJSON()))
+			return
+		}
+		q = r.URL.Query()
+		_, _ = w.Write([]byte(`{"orderId":2,"clientOrderId":"cid2","status":"NEW"}`))
+	})
+	_, err := a.PlaceOrder(context.Background(), venue.OrderRequest{
+		Market: venue.MarketSpot, Symbol: "BTC-USDT", Side: venue.SideBuy,
+		Type: venue.OrderTypeMarket, Qty: 0.01, MarginEffect: venue.MarginEffectRepay,
+	})
+	if err != nil {
+		t.Fatalf("PlaceOrder: %v", err)
+	}
+	if q.Get("sideEffectType") != "AUTO_REPAY" {
+		t.Fatalf("sideEffectType=%q want AUTO_REPAY", q.Get("sideEffectType"))
+	}
+}
+
+func TestPlaceOrderMarginSpotBorrowBuyUsesMarginBuy(t *testing.T) {
+	var q url.Values
+	a := newHarness(t, func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "exchangeInfo") {
+			_, _ = w.Write([]byte(futuresExchangeInfoJSON()))
+			return
+		}
+		q = r.URL.Query()
+		_, _ = w.Write([]byte(`{"orderId":3,"clientOrderId":"cid3","status":"NEW"}`))
+	})
+	_, err := a.PlaceOrder(context.Background(), venue.OrderRequest{
+		Market: venue.MarketSpot, Symbol: "BTC-USDT", Side: venue.SideBuy,
+		Type: venue.OrderTypeMarket, Qty: 0.01, MarginEffect: venue.MarginEffectBorrow,
+	})
+	if err != nil {
+		t.Fatalf("PlaceOrder: %v", err)
+	}
+	if q.Get("sideEffectType") != "MARGIN_BUY" {
+		t.Fatalf("sideEffectType=%q want MARGIN_BUY", q.Get("sideEffectType"))
+	}
+}
+
+func TestPlaceOrderSpotNoneMarginUsesSpotEndpoint(t *testing.T) {
+	var path string
+	var q url.Values
+	a := newHarness(t, func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "exchangeInfo") {
+			_, _ = w.Write([]byte(futuresExchangeInfoJSON()))
+			return
+		}
+		path = r.URL.Path
+		q = r.URL.Query()
+		_, _ = w.Write([]byte(`{"orderId":4,"clientOrderId":"cid4","status":"NEW"}`))
+	})
+	_, err := a.PlaceOrder(context.Background(), venue.OrderRequest{
+		Market: venue.MarketSpot, Symbol: "BTC-USDT", Side: venue.SideBuy,
+		Type: venue.OrderTypeMarket, Qty: 0.01, MarginEffect: venue.MarginEffectNone,
+	})
+	if err != nil {
+		t.Fatalf("PlaceOrder: %v", err)
+	}
+	if path != PathSpotOrder {
+		t.Fatalf("endpoint=%q want %q", path, PathSpotOrder)
+	}
+	if q.Get("sideEffectType") != "" || q.Get("isIsolated") != "" {
+		t.Fatalf("普通现货单不应带 margin 参数 sideEffect=%q isolated=%q", q.Get("sideEffectType"), q.Get("isIsolated"))
+	}
+}
+
+func TestBuildOrderParamsRejectsPerpMarginEffect(t *testing.T) {
+	a := newHarness(t, func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(futuresExchangeInfoJSON()))
+	})
+	_, err := a.buildOrderParams(context.Background(), venue.OrderRequest{
+		Market: venue.MarketPerp, Symbol: "BTC-USDT", Side: venue.SideBuy,
+		Type: venue.OrderTypeMarket, Qty: 0.01, MarginEffect: venue.MarginEffectBorrow,
+	})
+	if err == nil {
+		t.Fatal("永续单带 MarginEffect 应报错")
+	}
+}

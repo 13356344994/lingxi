@@ -291,21 +291,15 @@ func NewRuntimeController(ctx context.Context, store *ReportStore, cfg EngineCon
 }
 
 func (c *RuntimeController) Start(req RuntimeStartRequest) error {
-	// 安全闸:Bybit → runBybitExecutor;OKX/Gate → runVenueFundingExecutor;其余非币安所仍拒绝。
-	isBybit := c.isBybitVenue()
-	isFundingVenue := c.isFundingExecutorVenue()
-	if c.isNonBinanceVenue() && !isBybit && !isFundingVenue {
-		return fmt.Errorf("venue %q 的自动交易引擎尚未接入,当前仅支持资金管理(调仓);请勿在该所启动任务", c.venueName)
-	}
 	mode := RuntimeMode(strings.TrimSpace(req.Mode))
 	if mode != RuntimeModeLive && mode != RuntimeModeMonthly {
 		return fmt.Errorf("不支持的运行模式: %s", req.Mode)
 	}
-	if isBybit && mode != RuntimeModeLive {
-		return fmt.Errorf("Bybit 执行器仅支持实盘(live)模式,不支持历史模拟")
-	}
-	if isFundingVenue && mode != RuntimeModeLive {
-		return fmt.Errorf("%s funding 执行器仅支持实盘(live)模式", c.venueName)
+	// 单所实盘引擎已退役(de-wire 2026-06-17):binance FundingRateSniper / bybit 精简执行器 /
+	// okx·gate funding 执行器均已从装配链摘除,实盘统一经跨所 perp-perp 执行器(CrossVenueExecutor)。
+	// per-venue 控制器仅保留历史模拟(monthly)与资金管理(调仓);如需回滚单所引擎请从 git 历史恢复。
+	if mode == RuntimeModeLive {
+		return fmt.Errorf("单所实盘引擎已退役(de-wired):实盘统一经跨所执行器,不再经 per-venue 控制器启动单所引擎")
 	}
 
 	secretPath := strings.TrimSpace(req.SecretPath)
@@ -324,18 +318,7 @@ func (c *RuntimeController) Start(req RuntimeStartRequest) error {
 		return fmt.Errorf("已有后台任务正在运行，请先停止当前任务")
 	}
 	taskCfg := c.cfg
-	cooldownUntil := strings.TrimSpace(c.status.CooldownUntil)
 	c.mu.Unlock()
-
-	// 币安实盘启动前检查是币安专属;Bybit/OKX/Gate funding 执行器有各自启动前置,跳过币安检查。
-	if mode == RuntimeModeLive && !isBybit && !isFundingVenue {
-		preflightCtx, cancel := context.WithTimeout(c.rootCtx, liveStartupCheckTimeout)
-		defer cancel()
-		if err := c.runLiveStartupChecks(preflightCtx, secretPath, taskCfg, runID, cooldownUntil); err != nil {
-			c.appendControllerTraceLog(runID, "", "实盘启动前检查失败: %v", err)
-			return err
-		}
-	}
 
 	c.mu.Lock()
 	if c.status.Running {
@@ -522,14 +505,9 @@ func (c *RuntimeController) runTask(ctx context.Context, mode RuntimeMode, secre
 
 	switch mode {
 	case RuntimeModeLive:
-		switch {
-		case c.isBybitVenue():
-			message, err = c.runBybitExecutor(ctx, secretPath, cfg)
-		case c.isFundingExecutorVenue():
-			message, err = c.runVenueFundingExecutor(ctx, secretPath, cfg)
-		default:
-			message, err = c.runLiveEngine(ctx, secretPath, cfg)
-		}
+		// 单所实盘引擎已退役(de-wire 2026-06-17):runTask 不再分发到 runBybitExecutor/
+		// runVenueFundingExecutor/runLiveEngine。Start() 已在入口拦截 live,此处仅为兜底(理论不可达)。
+		err = fmt.Errorf("单所实盘引擎已退役(de-wired):实盘统一经跨所执行器")
 	case RuntimeModeMonthly:
 		message, err = c.runMonthlySimulation(ctx, secretPath, lookbackDays, cfg)
 	default:

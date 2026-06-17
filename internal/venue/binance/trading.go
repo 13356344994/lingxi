@@ -48,6 +48,45 @@ func (a *Adapter) orderEndpoint(m venue.Market) string {
 	return a.futuresBaseURL() + PathFuturesOrder
 }
 
+func (a *Adapter) placeOrderEndpoint(req venue.OrderRequest) string {
+	if req.Market == venue.MarketSpot && isMarginSpotOrder(req) {
+		return a.spotBaseURL() + PathMarginOrder
+	}
+	return a.orderEndpoint(req.Market)
+}
+
+// isMarginSpotOrder 判定是否走全仓杠杆现货单(/sapi/v1/margin/order)。
+func isMarginSpotOrder(req venue.OrderRequest) bool {
+	return req.Market == venue.MarketSpot &&
+		(req.MarginEffect == venue.MarginEffectBorrow || req.MarginEffect == venue.MarginEffectRepay)
+}
+
+// marginSpotSideEffectType 映射中性 MarginEffect+Side 到币安 sideEffectType。
+func marginSpotSideEffectType(req venue.OrderRequest) (string, error) {
+	switch req.MarginEffect {
+	case venue.MarginEffectRepay:
+		return "AUTO_REPAY", nil
+	case venue.MarginEffectBorrow:
+		if req.Side == venue.SideBuy {
+			return "MARGIN_BUY", nil
+		}
+		return "AUTO_BORROW_REPAY", nil
+	default:
+		return "", fmt.Errorf("binance: 非保证金现货单不应调用 marginSpotSideEffectType")
+	}
+}
+
+// applyMarginSpotOrderParams 为全仓杠杆现货单追加 isIsolated/sideEffectType。
+func applyMarginSpotOrderParams(params url.Values, req venue.OrderRequest) error {
+	sideEffect, err := marginSpotSideEffectType(req)
+	if err != nil {
+		return err
+	}
+	params.Set("isIsolated", "FALSE")
+	params.Set("sideEffectType", sideEffect)
+	return nil
+}
+
 // buildOrderParams 把中性 OrderRequest 翻译成币安下单 query 参数(纯函数路径,便于单测)。
 func (a *Adapter) buildOrderParams(ctx context.Context, req venue.OrderRequest) (url.Values, error) {
 	raw, err := a.ToVenue(req.Symbol, req.Market)
@@ -102,6 +141,14 @@ func (a *Adapter) buildOrderParams(ctx context.Context, req venue.OrderRequest) 
 	if req.ClientOrderID != "" {
 		params.Set("newClientOrderId", sanitizeClientOrderID(req.ClientOrderID))
 	}
+	if req.Market == venue.MarketPerp && req.MarginEffect != venue.MarginEffectNone {
+		return nil, fmt.Errorf("binance: 永续单不支持 MarginEffect=%v", req.MarginEffect)
+	}
+	if isMarginSpotOrder(req) {
+		if err := applyMarginSpotOrderParams(params, req); err != nil {
+			return nil, err
+		}
+	}
 	return params, nil
 }
 
@@ -125,7 +172,7 @@ func (a *Adapter) PlaceOrder(ctx context.Context, req venue.OrderRequest) (venue
 	if err != nil {
 		return venue.OrderResult{}, err
 	}
-	endpoint := a.orderEndpoint(req.Market)
+	endpoint := a.placeOrderEndpoint(req)
 	if req.Market == venue.MarketPerp {
 		var ack futuresOrderAck
 		if err := a.signedPostForm(ctx, endpoint, params, &ack); err != nil {

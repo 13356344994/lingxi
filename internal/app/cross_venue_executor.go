@@ -334,6 +334,7 @@ func (e *CrossVenueExecutor) Run(ctx context.Context) {
 	}
 	e.running.Store(true)
 	defer e.running.Store(false)
+	go e.runUnifiedShadowPipeline(ctx)
 	interval := time.Duration(e.cfg.CrossVenueExecutor.LoopIntervalSeconds) * time.Second
 	if interval <= 0 {
 		interval = 60 * time.Second
@@ -1242,6 +1243,48 @@ func (e *CrossVenueExecutor) notifyCritical(title, detail, sym string) {
 		return
 	}
 	e.alerts.Notify(Alert{Level: EventLevelCritical, Title: title, Detail: detail, Symbol: sym, OccurredAt: e.nowFn()})
+}
+
+// CloseAllPositions 一键全平:载入在场台账,FetchPositions 对账后只平真实存在的腿;纯合成记录仅清台账不下单。
+func (e *CrossVenueExecutor) CloseAllPositions(ctx context.Context, live bool) (closed int, errs []error) {
+	if e == nil || e.store == nil {
+		return 0, nil
+	}
+	ps, err := e.store.load()
+	if err != nil {
+		return 0, []error{err}
+	}
+	for _, pos := range activeCrossVenuePositions(ps) {
+		highV := e.venues[pos.HighVenue]
+		lowV := e.venues[pos.LowVenue]
+		if highV == nil || lowV == nil {
+			errs = append(errs, fmt.Errorf("%s: venue 未就绪", pos.Symbol))
+			continue
+		}
+		sym := venue.Symbol(pos.Symbol)
+		hPos, errH := highV.FetchPositions(ctx)
+		lPos, errL := lowV.FetchPositions(ctx)
+		if errH != nil || errL != nil {
+			errs = append(errs, fmt.Errorf("%s: 拉持仓失败", pos.Symbol))
+			continue
+		}
+		hOpen := absQty(perpPositionQty(hPos, sym)) > executionQtyTolerance
+		lOpen := absQty(perpPositionQty(lPos, sym)) > executionQtyTolerance
+		if !hOpen && !lOpen {
+			pos.Status = CrossVenueStatusClosed
+			pos.CloseReason = "flatten_all_orphan"
+			pos.RecoveryAction = crossVenueRecoveryActionObserve
+			e.finalizeClosedCrossVenuePosition(pos)
+			closed++
+			continue
+		}
+		if cerr := e.closeCrossVenuePosition(ctx, pos, live, "flatten_all"); cerr != nil {
+			errs = append(errs, cerr)
+		} else {
+			closed++
+		}
+	}
+	return closed, errs
 }
 
 // crossVenueExecutorRecordDir 返回跨所台账目录(测试/文档用)。

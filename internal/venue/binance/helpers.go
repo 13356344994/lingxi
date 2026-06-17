@@ -114,3 +114,14 @@ func isMarginTypeNoChange(err error) bool {
 	msg := strings.ToLower(err.Error())
 	return strings.Contains(msg, "no need to change margin type") || strings.Contains(msg, "-4046")
 }
+
+// formatRequestAmount 格式化借还币数量(与 app 层 formatRequestAmount 口径一致,最多 12 位小数)。
+func formatRequestAmount(value float64) string {
+	text := strconv.FormatFloat(value, 'f', 12, 64)
+	text = strings.TrimRight(text, "0")
+	text = strings.TrimRight(text, ".")
+	if text == "" {
+		return "0"
+	}
+	return text
+}

@@ -2,6 +2,9 @@ package binance
 
 import (
 	"context"
+	"fmt"
+	"net/url"
+	"strings"
 	"time"
 
 	"lingxi/internal/venue"
@@ -18,8 +21,37 @@ func (a *Adapter) PlaceBatch(ctx context.Context, reqs []venue.OrderRequest) ([]
 }
 
 func (a *Adapter) BorrowRepay(ctx context.Context, asset string, amt float64, dir venue.BorrowDir) error {
-	// 借还币走 /sapi/v1/margin/borrow-repay,由 app 层 directional_spot_execution 持有;venue 层暂不暴露。
-	return venue.ErrUnsupported
+	if amt <= 0 {
+		return nil
+	}
+	asset = strings.ToUpper(strings.TrimSpace(asset))
+	if asset == "" {
+		return fmt.Errorf("binance BorrowRepay: asset 为空")
+	}
+	var action string
+	switch dir {
+	case venue.BorrowDirBorrow:
+		action = "BORROW"
+	case venue.BorrowDirRepay:
+		action = "REPAY"
+	default:
+		return fmt.Errorf("binance BorrowRepay: 未知方向 %v", dir)
+	}
+	params := url.Values{}
+	params.Set("asset", asset)
+	params.Set("isIsolated", "FALSE")
+	params.Set("amount", formatRequestAmount(amt))
+	params.Set("type", action)
+	var payload struct {
+		TranID int64 `json:"tranId"`
+	}
+	if err := a.signedPostForm(ctx, a.spotBaseURL()+PathMarginBorrowRepay, params, &payload); err != nil {
+		return err
+	}
+	if payload.TranID == 0 {
+		return fmt.Errorf("binance BorrowRepay: %s 回执缺少 tranId", strings.ToLower(action))
+	}
+	return nil
 }
 
 func (a *Adapter) FetchRealizedFunding(ctx context.Context, s venue.Symbol, since time.Time) ([]venue.FundingIncome, error) {

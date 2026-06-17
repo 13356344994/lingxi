@@ -6,9 +6,11 @@ import (
 )
 
 const (
-	UnifiedStrategyPerpPerp             = "perp_perp"
-	UnifiedStrategySingleVenueSpotPerp  = "single_venue_spot_perp"
-	UnifiedStrategyCrossVenueSpotPerp     = "cross_venue_spot_perp"
+	UnifiedStrategyPerpPerp              = "perp_perp"
+	UnifiedStrategySingleVenueSpotPerp   = "single_venue_spot_perp"
+	UnifiedStrategyCrossVenueSpotPerp    = "cross_venue_spot_perp"
+	UnifiedStrategySingleVenuePerpSpot   = "single_venue_perp_spot"
+	UnifiedStrategyCrossVenuePerpSpot    = "cross_venue_perp_spot"
 )
 
 // UnifiedOpportunityLeg 是统一机会结构的一条交易腿。

@@ -329,6 +329,20 @@ func DefaultEngineConfig() EngineConfig {
 			MaxSwitchesPerCycle:          1,
 			UntrackedExposureAction:      "halt",
 		},
+		CapitalAllocator: CapitalAllocatorConfig{
+			Enabled:                   false,
+			Mode:                      "shadow",
+			MaxTotalCapitalUsageRatio: 0.2,
+			MaxDailyLossUSDT:          0.3,
+		},
+		DataCollection: DataCollectionConfig{
+			Enabled:                       false,
+			Mode:                          "shadow",
+			StrategyType:                  "",
+			MaxPositions:                  1,
+			MaxNotionalUSDT:               10,
+			MaxExpectedLossUSDTPerTrade:   0.03,
+		},
 		FundingExecutor: VenueFundingExecutorConfig{
 			LiveTradingEnabled:     false,
 			TopN:                   1,

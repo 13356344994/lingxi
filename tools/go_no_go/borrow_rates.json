@@ -1,0 +1,2057 @@
+{
+  "0G": {
+    "daily_rate": 0.0017874,
+    "annual_pct": 65.24,
+    "borrow_limit": 33000.0
+  },
+  "1000CAT": {
+    "daily_rate": 0.00148444,
+    "annual_pct": 54.18,
+    "borrow_limit": 1700000.0
+  },
+  "1000CHEEMS": {
+    "daily_rate": 0.0011891,
+    "annual_pct": 43.4,
+    "borrow_limit": 16000000.0
+  },
+  "1000SATS": {
+    "daily_rate": 0.00033447,
+    "annual_pct": 12.21,
+    "borrow_limit": 530000000.0
+  },
+  "1INCH": {
+    "daily_rate": 0.00065776,
+    "annual_pct": 24.01,
+    "borrow_limit": 48000.0
+  },
+  "1MBABYDOGE": {
+    "daily_rate": 0.00157692,
+    "annual_pct": 57.56,
+    "borrow_limit": 21000000.0
+  },
+  "2Z": {
+    "daily_rate": 0.00163503,
+    "annual_pct": 59.68,
+    "borrow_limit": 130000.0
+  },
+  "A": {
+    "daily_rate": 0.00056831,
+    "annual_pct": 20.74,
+    "borrow_limit": 81000.0
+  },
+  "AAVE": {
+    "daily_rate": 0.00013879,
+    "annual_pct": 5.07,
+    "borrow_limit": 3600.0
+  },
+  "ACE": {
+    "daily_rate": 0.0007821,
+    "annual_pct": 28.55,
+    "borrow_limit": 51000.0
+  },
+  "ACH": {
+    "daily_rate": 0.00061653,
+    "annual_pct": 22.5,
+    "borrow_limit": 850000.0
+  },
+  "ACM": {
+    "daily_rate": 0.00153768,
+    "annual_pct": 56.13,
+    "borrow_limit": 10000.0
+  },
+  "ACT": {
+    "daily_rate": 0.00092521,
+    "annual_pct": 33.77,
+    "borrow_limit": 470000.0
+  },
+  "ACX": {
+    "daily_rate": 0.00160658,
+    "annual_pct": 58.64,
+    "borrow_limit": 69000.0
+  },
+  "ADA": {
+    "daily_rate": 0.00014258,
+    "annual_pct": 5.2,
+    "borrow_limit": 1300000.0
+  },
+  "ADX": {
+    "daily_rate": 0.00185365,
+    "annual_pct": 67.66,
+    "borrow_limit": 150000.0
+  },
+  "AEVO": {
+    "daily_rate": 0.00033074,
+    "annual_pct": 12.07,
+    "borrow_limit": 180000.0
+  },
+  "AGLD": {
+    "daily_rate": 0.00155634,
+    "annual_pct": 56.81,
+    "borrow_limit": 10000.0
+  },
+  "AIGENSYN": {
+    "daily_rate": 0.00125145,
+    "annual_pct": 45.68,
+    "borrow_limit": 350000.0
+  },
+  "AIXBT": {
+    "daily_rate": 0.00193879,
+    "annual_pct": 70.77,
+    "borrow_limit": 240000.0
+  },
+  "ALGO": {
+    "daily_rate": 0.00017311,
+    "annual_pct": 6.32,
+    "borrow_limit": 340000.0
+  },
+  "ALICE": {
+    "daily_rate": 0.00129413,
+    "annual_pct": 47.24,
+    "borrow_limit": 63000.0
+  },
+  "ALLO": {
+    "daily_rate": 0.00238368,
+    "annual_pct": 87.0,
+    "borrow_limit": 27000.0
+  },
+  "ALPINE": {
+    "daily_rate": 0.00135511,
+    "annual_pct": 49.46,
+    "borrow_limit": 8800.0
+  },
+  "ALT": {
+    "daily_rate": 0.00152093,
+    "annual_pct": 55.51,
+    "borrow_limit": 980000.0
+  },
+  "AMP": {
+    "daily_rate": 0.00238281,
+    "annual_pct": 86.97,
+    "borrow_limit": 6100000.0
+  },
+  "ANIME": {
+    "daily_rate": 0.00176729,
+    "annual_pct": 64.51,
+    "borrow_limit": 680000.0
+  },
+  "ANKR": {
+    "daily_rate": 0.0012909,
+    "annual_pct": 47.12,
+    "borrow_limit": 790000.0
+  },
+  "APE": {
+    "daily_rate": 0.00038858,
+    "annual_pct": 14.18,
+    "borrow_limit": 76000.0
+  },
+  "API3": {
+    "daily_rate": 0.00203215,
+    "annual_pct": 74.17,
+    "borrow_limit": 20000.0
+  },
+  "APT": {
+    "daily_rate": 0.00015985,
+    "annual_pct": 5.83,
+    "borrow_limit": 14000.0
+  },
+  "AR": {
+    "daily_rate": 3.184e-05,
+    "annual_pct": 1.16,
+    "borrow_limit": 4800.0
+  },
+  "ARB": {
+    "daily_rate": 7.569e-05,
+    "annual_pct": 2.76,
+    "borrow_limit": 580000.0
+  },
+  "ARK": {
+    "daily_rate": 0.0023338,
+    "annual_pct": 85.18,
+    "borrow_limit": 13000.0
+  },
+  "ARKM": {
+    "daily_rate": 0.00037179,
+    "annual_pct": 13.57,
+    "borrow_limit": 75000.0
+  },
+  "ARPA": {
+    "daily_rate": 0.00088335,
+    "annual_pct": 32.24,
+    "borrow_limit": 260000.0
+  },
+  "ASR": {
+    "daily_rate": 0.00144418,
+    "annual_pct": 52.71,
+    "borrow_limit": 4000.0
+  },
+  "ASTER": {
+    "daily_rate": 0.00116139,
+    "annual_pct": 42.39,
+    "borrow_limit": 15000.0
+  },
+  "ASTR": {
+    "daily_rate": 0.00142848,
+    "annual_pct": 52.14,
+    "borrow_limit": 1000000.0
+  },
+  "AT": {
+    "daily_rate": 0.00162754,
+    "annual_pct": 59.41,
+    "borrow_limit": 24000.0
+  },
+  "ATM": {
+    "daily_rate": 0.00178713,
+    "annual_pct": 65.23,
+    "borrow_limit": 2900.0
+  },
+  "ATOM": {
+    "daily_rate": 0.00014949,
+    "annual_pct": 5.46,
+    "borrow_limit": 18000.0
+  },
+  "AUCTION": {
+    "daily_rate": 0.00126248,
+    "annual_pct": 46.08,
+    "borrow_limit": 880.0
+  },
+  "AUDIO": {
+    "daily_rate": 0.00149204,
+    "annual_pct": 54.46,
+    "borrow_limit": 210000.0
+  },
+  "AVA": {
+    "daily_rate": 0.00099799,
+    "annual_pct": 36.43,
+    "borrow_limit": 20000.0
+  },
+  "AVAX": {
+    "daily_rate": 0.00010492,
+    "annual_pct": 3.83,
+    "borrow_limit": 36000.0
+  },
+  "AVNT": {
+    "daily_rate": 0.00219801,
+    "annual_pct": 80.23,
+    "borrow_limit": 86000.0
+  },
+  "AWE": {
+    "daily_rate": 0.00162819,
+    "annual_pct": 59.43,
+    "borrow_limit": 69000.0
+  },
+  "AXL": {
+    "daily_rate": 0.0016816,
+    "annual_pct": 61.38,
+    "borrow_limit": 80000.0
+  },
+  "AXS": {
+    "daily_rate": 0.00068927,
+    "annual_pct": 25.16,
+    "borrow_limit": 10000.0
+  },
+  "BABY": {
+    "daily_rate": 0.00252491,
+    "annual_pct": 92.16,
+    "borrow_limit": 560000.0
+  },
+  "BANANA": {
+    "daily_rate": 0.00150621,
+    "annual_pct": 54.98,
+    "borrow_limit": 890.0
+  },
+  "BANANAS31": {
+    "daily_rate": 0.00183639,
+    "annual_pct": 67.03,
+    "borrow_limit": 570000.0
+  },
+  "BAND": {
+    "daily_rate": 0.00085993,
+    "annual_pct": 31.39,
+    "borrow_limit": 9400.0
+  },
+  "BANK": {
+    "daily_rate": 0.00186885,
+    "annual_pct": 68.21,
+    "borrow_limit": 190000.0
+  },
+  "BARD": {
+    "daily_rate": 0.00167221,
+    "annual_pct": 61.04,
+    "borrow_limit": 42000.0
+  },
+  "BAT": {
+    "daily_rate": 0.0008596,
+    "annual_pct": 31.38,
+    "borrow_limit": 57000.0
+  },
+  "BB": {
+    "daily_rate": 0.00074731,
+    "annual_pct": 27.28,
+    "borrow_limit": 420000.0
+  },
+  "BCH": {
+    "daily_rate": 0.00055219,
+    "annual_pct": 20.15,
+    "borrow_limit": 230.0
+  },
+  "BEAMX": {
+    "daily_rate": 0.00121619,
+    "annual_pct": 44.39,
+    "borrow_limit": 3800000.0
+  },
+  "BEL": {
+    "daily_rate": 0.001359,
+    "annual_pct": 49.6,
+    "borrow_limit": 31000.0
+  },
+  "BERA": {
+    "daily_rate": 0.00259871,
+    "annual_pct": 94.85,
+    "borrow_limit": 37000.0
+  },
+  "BFUSD": {
+    "daily_rate": 0.0,
+    "annual_pct": 0.0,
+    "borrow_limit": 0.0
+  },
+  "BICO": {
+    "daily_rate": 0.00083089,
+    "annual_pct": 30.33,
+    "borrow_limit": 150000.0
+  },
+  "BIGTIME": {
+    "daily_rate": 0.00281052,
+    "annual_pct": 102.58,
+    "borrow_limit": 340000.0
+  },
+  "BIO": {
+    "daily_rate": 0.0022641,
+    "annual_pct": 82.64,
+    "borrow_limit": 230000.0
+  },
+  "BLUR": {
+    "daily_rate": 0.0005436,
+    "annual_pct": 19.84,
+    "borrow_limit": 160000.0
+  },
+  "BMT": {
+    "daily_rate": 0.0015574,
+    "annual_pct": 56.85,
+    "borrow_limit": 210000.0
+  },
+  "BNB": {
+    "daily_rate": 8.437e-05,
+    "annual_pct": 3.08,
+    "borrow_limit": 400.0
+  },
+  "BNSOL": {
+    "daily_rate": 0.00547944,
+    "annual_pct": 200.0,
+    "borrow_limit": 0.0
+  },
+  "BNT": {
+    "daily_rate": 0.00164744,
+    "annual_pct": 60.13,
+    "borrow_limit": 5300.0
+  },
+  "BOME": {
+    "daily_rate": 0.00029349,
+    "annual_pct": 10.71,
+    "borrow_limit": 22000000.0
+  },
+  "BONK": {
+    "daily_rate": 0.00030622,
+    "annual_pct": 11.18,
+    "borrow_limit": 10000000000.0
+  },
+  "BREV": {
+    "daily_rate": 0.00181561,
+    "annual_pct": 66.27,
+    "borrow_limit": 58000.0
+  },
+  "BROCCOLI714": {
+    "daily_rate": 0.0010731,
+    "annual_pct": 39.17,
+    "borrow_limit": 380000.0
+  },
+  "BTC": {
+    "daily_rate": 1.07e-05,
+    "annual_pct": 0.39,
+    "borrow_limit": 100.0
+  },
+  "BTTC": {
+    "daily_rate": 0.00137073,
+    "annual_pct": 50.03,
+    "borrow_limit": 9600000000.0
+  },
+  "C": {
+    "daily_rate": 0.00202009,
+    "annual_pct": 73.73,
+    "borrow_limit": 100000.0
+  },
+  "C98": {
+    "daily_rate": 0.00029577,
+    "annual_pct": 10.8,
+    "borrow_limit": 290000.0
+  },
+  "CAKE": {
+    "daily_rate": 0.00029049,
+    "annual_pct": 10.6,
+    "borrow_limit": 7200.0
+  },
+  "CATI": {
+    "daily_rate": 0.00168047,
+    "annual_pct": 61.34,
+    "borrow_limit": 100000.0
+  },
+  "CELO": {
+    "daily_rate": 0.00170185,
+    "annual_pct": 62.12,
+    "borrow_limit": 57000.0
+  },
+  "CELR": {
+    "daily_rate": 0.00113115,
+    "annual_pct": 41.29,
+    "borrow_limit": 1600000.0
+  },
+  "CETUS": {
+    "daily_rate": 0.00083157,
+    "annual_pct": 30.35,
+    "borrow_limit": 140000.0
+  },
+  "CFG": {
+    "daily_rate": 0.00194256,
+    "annual_pct": 70.9,
+    "borrow_limit": 45000.0
+  },
+  "CFX": {
+    "daily_rate": 7.752e-05,
+    "annual_pct": 2.83,
+    "borrow_limit": 210000.0
+  },
+  "CGPT": {
+    "daily_rate": 0.0009838,
+    "annual_pct": 35.91,
+    "borrow_limit": 350000.0
+  },
+  "CHIP": {
+    "daily_rate": 0.00188929,
+    "annual_pct": 68.96,
+    "borrow_limit": 260000.0
+  },
+  "CHR": {
+    "daily_rate": 0.0009963,
+    "annual_pct": 36.36,
+    "borrow_limit": 160000.0
+  },
+  "CHZ": {
+    "daily_rate": 0.00088256,
+    "annual_pct": 32.21,
+    "borrow_limit": 380000.0
+  },
+  "CITY": {
+    "daily_rate": 0.0019377,
+    "annual_pct": 70.73,
+    "borrow_limit": 7800.0
+  },
+  "CKB": {
+    "daily_rate": 0.00104884,
+    "annual_pct": 38.28,
+    "borrow_limit": 2700000.0
+  },
+  "COMP": {
+    "daily_rate": 0.00128636,
+    "annual_pct": 46.95,
+    "borrow_limit": 550.0
+  },
+  "COOKIE": {
+    "daily_rate": 0.00230497,
+    "annual_pct": 84.13,
+    "borrow_limit": 260000.0
+  },
+  "COTI": {
+    "daily_rate": 0.0006066,
+    "annual_pct": 22.14,
+    "borrow_limit": 270000.0
+  },
+  "COW": {
+    "daily_rate": 0.00129005,
+    "annual_pct": 47.09,
+    "borrow_limit": 19000.0
+  },
+  "CRV": {
+    "daily_rate": 0.00029015,
+    "annual_pct": 10.59,
+    "borrow_limit": 42000.0
+  },
+  "CTK": {
+    "daily_rate": 0.0015208,
+    "annual_pct": 55.51,
+    "borrow_limit": 18000.0
+  },
+  "CTSI": {
+    "daily_rate": 0.00184793,
+    "annual_pct": 67.45,
+    "borrow_limit": 100000.0
+  },
+  "CVC": {
+    "daily_rate": 0.00135767,
+    "annual_pct": 49.55,
+    "borrow_limit": 140000.0
+  },
+  "CVX": {
+    "daily_rate": 0.0008268,
+    "annual_pct": 30.18,
+    "borrow_limit": 2700.0
+  },
+  "CYBER": {
+    "daily_rate": 0.0013946,
+    "annual_pct": 50.9,
+    "borrow_limit": 13000.0
+  },
+  "DASH": {
+    "daily_rate": 0.00063803,
+    "annual_pct": 23.29,
+    "borrow_limit": 260.0
+  },
+  "DCR": {
+    "daily_rate": 0.00193769,
+    "annual_pct": 70.73,
+    "borrow_limit": 210.0
+  },
+  "DEXE": {
+    "daily_rate": 0.00175583,
+    "annual_pct": 64.09,
+    "borrow_limit": 240.0
+  },
+  "DIA": {
+    "daily_rate": 0.00073092,
+    "annual_pct": 26.68,
+    "borrow_limit": 19000.0
+  },
+  "DODO": {
+    "daily_rate": 0.0010671,
+    "annual_pct": 38.95,
+    "borrow_limit": 310000.0
+  },
+  "DOGE": {
+    "daily_rate": 0.00010099,
+    "annual_pct": 3.69,
+    "borrow_limit": 4800000.0
+  },
+  "DOGS": {
+    "daily_rate": 0.00052301,
+    "annual_pct": 19.09,
+    "borrow_limit": 100000000.0
+  },
+  "DOLO": {
+    "daily_rate": 0.0015372,
+    "annual_pct": 56.11,
+    "borrow_limit": 170000.0
+  },
+  "DOT": {
+    "daily_rate": 0.00012775,
+    "annual_pct": 4.66,
+    "borrow_limit": 50000.0
+  },
+  "DUSK": {
+    "daily_rate": 0.00129656,
+    "annual_pct": 47.32,
+    "borrow_limit": 27000.0
+  },
+  "DYDX": {
+    "daily_rate": 7.479e-05,
+    "annual_pct": 2.73,
+    "borrow_limit": 51000.0
+  },
+  "DYM": {
+    "daily_rate": 0.00250895,
+    "annual_pct": 91.58,
+    "borrow_limit": 340000.0
+  },
+  "EDEN": {
+    "daily_rate": 0.00171902,
+    "annual_pct": 62.74,
+    "borrow_limit": 160000.0
+  },
+  "EDU": {
+    "daily_rate": 0.00202269,
+    "annual_pct": 73.83,
+    "borrow_limit": 200000.0
+  },
+  "EGLD": {
+    "daily_rate": 0.00066688,
+    "annual_pct": 24.34,
+    "borrow_limit": 1200.0
+  },
+  "EIGEN": {
+    "daily_rate": 0.00054733,
+    "annual_pct": 19.98,
+    "borrow_limit": 49000.0
+  },
+  "ENA": {
+    "daily_rate": 0.00080507,
+    "annual_pct": 29.39,
+    "borrow_limit": 590000.0
+  },
+  "ENJ": {
+    "daily_rate": 0.00148666,
+    "annual_pct": 54.26,
+    "borrow_limit": 190000.0
+  },
+  "ENS": {
+    "daily_rate": 0.00012318,
+    "annual_pct": 4.5,
+    "borrow_limit": 2900.0
+  },
+  "ENSO": {
+    "daily_rate": 0.00174767,
+    "annual_pct": 63.79,
+    "borrow_limit": 15000.0
+  },
+  "EPIC": {
+    "daily_rate": 0.00196173,
+    "annual_pct": 71.6,
+    "borrow_limit": 19000.0
+  },
+  "ERA": {
+    "daily_rate": 0.00204997,
+    "annual_pct": 74.82,
+    "borrow_limit": 82000.0
+  },
+  "ESP": {
+    "daily_rate": 0.00547944,
+    "annual_pct": 200.0,
+    "borrow_limit": 120000.0
+  },
+  "ETC": {
+    "daily_rate": 4.148e-05,
+    "annual_pct": 1.51,
+    "borrow_limit": 6400.0
+  },
+  "ETH": {
+    "daily_rate": 5.893e-05,
+    "annual_pct": 2.15,
+    "borrow_limit": 2000.0
+  },
+  "ETHFI": {
+    "daily_rate": 0.00038848,
+    "annual_pct": 14.18,
+    "borrow_limit": 30000.0
+  },
+  "EUL": {
+    "daily_rate": 0.00179239,
+    "annual_pct": 65.42,
+    "borrow_limit": 5100.0
+  },
+  "EURI": {
+    "daily_rate": 0.00013178,
+    "annual_pct": 4.81,
+    "borrow_limit": 10000.0
+  },
+  "F": {
+    "daily_rate": 0.0027955,
+    "annual_pct": 102.04,
+    "borrow_limit": 810000.0
+  },
+  "FDUSD": {
+    "daily_rate": 0.0008268,
+    "annual_pct": 30.18,
+    "borrow_limit": 250000.0
+  },
+  "FET": {
+    "daily_rate": 0.00027731,
+    "annual_pct": 10.12,
+    "borrow_limit": 230000.0
+  },
+  "FF": {
+    "daily_rate": 0.00144436,
+    "annual_pct": 52.72,
+    "borrow_limit": 110000.0
+  },
+  "FIDA": {
+    "daily_rate": 0.00245713,
+    "annual_pct": 89.69,
+    "borrow_limit": 180000.0
+  },
+  "FIL": {
+    "daily_rate": 0.00011166,
+    "annual_pct": 4.08,
+    "borrow_limit": 62000.0
+  },
+  "FLOKI": {
+    "daily_rate": 0.00082382,
+    "annual_pct": 30.07,
+    "borrow_limit": 390000000.0
+  },
+  "FLOW": {
+    "daily_rate": 0.00034497,
+    "annual_pct": 12.59,
+    "borrow_limit": 170000.0
+  },
+  "FLUX": {
+    "daily_rate": 0.00125752,
+    "annual_pct": 45.9,
+    "borrow_limit": 73000.0
+  },
+  "FOGO": {
+    "daily_rate": 0.00166095,
+    "annual_pct": 60.62,
+    "borrow_limit": 440000.0
+  },
+  "FORM": {
+    "daily_rate": 0.00073764,
+    "annual_pct": 26.92,
+    "borrow_limit": 28000.0
+  },
+  "FRAX": {
+    "daily_rate": 0.00138364,
+    "annual_pct": 50.5,
+    "borrow_limit": 6900.0
+  },
+  "FTT": {
+    "daily_rate": 0.00031859,
+    "annual_pct": 11.63,
+    "borrow_limit": 11000.0
+  },
+  "G": {
+    "daily_rate": 0.00096557,
+    "annual_pct": 35.24,
+    "borrow_limit": 1100000.0
+  },
+  "GALA": {
+    "daily_rate": 0.00018771,
+    "annual_pct": 6.85,
+    "borrow_limit": 3600000.0
+  },
+  "GAS": {
+    "daily_rate": 0.00100945,
+    "annual_pct": 36.84,
+    "borrow_limit": 2600.0
+  },
+  "GENIUS": {
+    "daily_rate": 0.00061864,
+    "annual_pct": 22.58,
+    "borrow_limit": 20000.0
+  },
+  "GIGGLE": {
+    "daily_rate": 0.00129843,
+    "annual_pct": 47.39,
+    "borrow_limit": 340.0
+  },
+  "GLM": {
+    "daily_rate": 0.00131433,
+    "annual_pct": 47.97,
+    "borrow_limit": 22000.0
+  },
+  "GLMR": {
+    "daily_rate": 0.00146759,
+    "annual_pct": 53.57,
+    "borrow_limit": 130000.0
+  },
+  "GMT": {
+    "daily_rate": 0.00131801,
+    "annual_pct": 48.11,
+    "borrow_limit": 920000.0
+  },
+  "GMX": {
+    "daily_rate": 0.00161099,
+    "annual_pct": 58.8,
+    "borrow_limit": 350.0
+  },
+  "GNO": {
+    "daily_rate": 0.00185282,
+    "annual_pct": 67.63,
+    "borrow_limit": 10.0
+  },
+  "GNS": {
+    "daily_rate": 0.00176867,
+    "annual_pct": 64.56,
+    "borrow_limit": 5000.0
+  },
+  "GPS": {
+    "daily_rate": 0.00141095,
+    "annual_pct": 51.5,
+    "borrow_limit": 1200000.0
+  },
+  "GRT": {
+    "daily_rate": 9.357e-05,
+    "annual_pct": 3.42,
+    "borrow_limit": 270000.0
+  },
+  "GTC": {
+    "daily_rate": 0.00239171,
+    "annual_pct": 87.3,
+    "borrow_limit": 36000.0
+  },
+  "GUN": {
+    "daily_rate": 0.00178882,
+    "annual_pct": 65.29,
+    "borrow_limit": 1300000.0
+  },
+  "HAEDAL": {
+    "daily_rate": 0.00180023,
+    "annual_pct": 65.71,
+    "borrow_limit": 310000.0
+  },
+  "HBAR": {
+    "daily_rate": 3.815e-05,
+    "annual_pct": 1.39,
+    "borrow_limit": 3000000.0
+  },
+  "HEI": {
+    "daily_rate": 0.0015228,
+    "annual_pct": 55.58,
+    "borrow_limit": 55000.0
+  },
+  "HEMI": {
+    "daily_rate": 0.00192011,
+    "annual_pct": 70.08,
+    "borrow_limit": 930000.0
+  },
+  "HFT": {
+    "daily_rate": 0.00172899,
+    "annual_pct": 63.11,
+    "borrow_limit": 420000.0
+  },
+  "HIVE": {
+    "daily_rate": 0.00186902,
+    "annual_pct": 68.22,
+    "borrow_limit": 51000.0
+  },
+  "HMSTR": {
+    "daily_rate": 0.00136244,
+    "annual_pct": 49.73,
+    "borrow_limit": 39000000.0
+  },
+  "HOLO": {
+    "daily_rate": 0.00162853,
+    "annual_pct": 59.44,
+    "borrow_limit": 130000.0
+  },
+  "HOME": {
+    "daily_rate": 0.00263213,
+    "annual_pct": 96.07,
+    "borrow_limit": 340000.0
+  },
+  "HOT": {
+    "daily_rate": 0.00028838,
+    "annual_pct": 10.53,
+    "borrow_limit": 7700000.0
+  },
+  "HUMA": {
+    "daily_rate": 0.00133444,
+    "annual_pct": 48.71,
+    "borrow_limit": 410000.0
+  },
+  "HYPER": {
+    "daily_rate": 0.00081339,
+    "annual_pct": 29.69,
+    "borrow_limit": 110000.0
+  },
+  "ICP": {
+    "daily_rate": 0.0007018,
+    "annual_pct": 25.62,
+    "borrow_limit": 3900.0
+  },
+  "ICX": {
+    "daily_rate": 0.00190123,
+    "annual_pct": 69.39,
+    "borrow_limit": 67000.0
+  },
+  "ID": {
+    "daily_rate": 0.00367652,
+    "annual_pct": 134.19,
+    "borrow_limit": 350000.0
+  },
+  "ILV": {
+    "daily_rate": 0.00080712,
+    "annual_pct": 29.46,
+    "borrow_limit": 780.0
+  },
+  "IMX": {
+    "daily_rate": 0.00112026,
+    "annual_pct": 40.89,
+    "borrow_limit": 63000.0
+  },
+  "INIT": {
+    "daily_rate": 0.00191923,
+    "annual_pct": 70.05,
+    "borrow_limit": 160000.0
+  },
+  "INJ": {
+    "daily_rate": 0.00022199,
+    "annual_pct": 8.1,
+    "borrow_limit": 1900.0
+  },
+  "IO": {
+    "daily_rate": 0.00128725,
+    "annual_pct": 46.98,
+    "borrow_limit": 55000.0
+  },
+  "IOST": {
+    "daily_rate": 0.00148854,
+    "annual_pct": 54.33,
+    "borrow_limit": 1900000.0
+  },
+  "IOTA": {
+    "daily_rate": 0.00031165,
+    "annual_pct": 11.38,
+    "borrow_limit": 210000.0
+  },
+  "IOTX": {
+    "daily_rate": 0.00089727,
+    "annual_pct": 32.75,
+    "borrow_limit": 940000.0
+  },
+  "JASMY": {
+    "daily_rate": 0.00074822,
+    "annual_pct": 27.31,
+    "borrow_limit": 1800000.0
+  },
+  "JOE": {
+    "daily_rate": 0.00128331,
+    "annual_pct": 46.84,
+    "borrow_limit": 66000.0
+  },
+  "JST": {
+    "daily_rate": 0.00107535,
+    "annual_pct": 39.25,
+    "borrow_limit": 120000.0
+  },
+  "JTO": {
+    "daily_rate": 0.0008144,
+    "annual_pct": 29.73,
+    "borrow_limit": 17000.0
+  },
+  "JUP": {
+    "daily_rate": 0.00072306,
+    "annual_pct": 26.39,
+    "borrow_limit": 55000.0
+  },
+  "JUV": {
+    "daily_rate": 0.00112796,
+    "annual_pct": 41.17,
+    "borrow_limit": 8300.0
+  },
+  "KAIA": {
+    "daily_rate": 0.00045516,
+    "annual_pct": 16.61,
+    "borrow_limit": 250000.0
+  },
+  "KAITO": {
+    "daily_rate": 0.00185273,
+    "annual_pct": 67.62,
+    "borrow_limit": 21000.0
+  },
+  "KAT": {
+    "daily_rate": 0.00205425,
+    "annual_pct": 74.98,
+    "borrow_limit": 1700000.0
+  },
+  "KAVA": {
+    "daily_rate": 0.00159808,
+    "annual_pct": 58.33,
+    "borrow_limit": 120000.0
+  },
+  "KERNEL": {
+    "daily_rate": 0.00265885,
+    "annual_pct": 97.05,
+    "borrow_limit": 61000.0
+  },
+  "KITE": {
+    "daily_rate": 0.00137678,
+    "annual_pct": 50.25,
+    "borrow_limit": 51000.0
+  },
+  "KMNO": {
+    "daily_rate": 0.00178102,
+    "annual_pct": 65.01,
+    "borrow_limit": 310000.0
+  },
+  "KNC": {
+    "daily_rate": 0.00203746,
+    "annual_pct": 74.37,
+    "borrow_limit": 19000.0
+  },
+  "KSM": {
+    "daily_rate": 0.0009804,
+    "annual_pct": 35.78,
+    "borrow_limit": 1000.0
+  },
+  "LA": {
+    "daily_rate": 0.00184918,
+    "annual_pct": 67.5,
+    "borrow_limit": 87000.0
+  },
+  "LAYER": {
+    "daily_rate": 0.00163231,
+    "annual_pct": 59.58,
+    "borrow_limit": 84000.0
+  },
+  "LAZIO": {
+    "daily_rate": 0.00128246,
+    "annual_pct": 46.81,
+    "borrow_limit": 4600.0
+  },
+  "LDO": {
+    "daily_rate": 8.618e-05,
+    "annual_pct": 3.15,
+    "borrow_limit": 79000.0
+  },
+  "LINEA": {
+    "daily_rate": 0.00118449,
+    "annual_pct": 43.23,
+    "borrow_limit": 3800000.0
+  },
+  "LINK": {
+    "daily_rate": 2.28e-05,
+    "annual_pct": 0.83,
+    "borrow_limit": 30000.0
+  },
+  "LISTA": {
+    "daily_rate": 0.00114558,
+    "annual_pct": 41.81,
+    "borrow_limit": 48000.0
+  },
+  "LPT": {
+    "daily_rate": 0.00129655,
+    "annual_pct": 47.32,
+    "borrow_limit": 3400.0
+  },
+  "LQTY": {
+    "daily_rate": 0.00178402,
+    "annual_pct": 65.12,
+    "borrow_limit": 13000.0
+  },
+  "LSK": {
+    "daily_rate": 0.00170382,
+    "annual_pct": 62.19,
+    "borrow_limit": 31000.0
+  },
+  "LTC": {
+    "daily_rate": 7.576e-05,
+    "annual_pct": 2.77,
+    "borrow_limit": 5500.0
+  },
+  "LUMIA": {
+    "daily_rate": 0.00124296,
+    "annual_pct": 45.37,
+    "borrow_limit": 36000.0
+  },
+  "LUNA": {
+    "daily_rate": 0.00119102,
+    "annual_pct": 43.47,
+    "borrow_limit": 110000.0
+  },
+  "LUNC": {
+    "daily_rate": 5.365e-05,
+    "annual_pct": 1.96,
+    "borrow_limit": 130000000.0
+  },
+  "MAGIC": {
+    "daily_rate": 0.00136623,
+    "annual_pct": 49.87,
+    "borrow_limit": 70000.0
+  },
+  "MANA": {
+    "daily_rate": 0.0001899,
+    "annual_pct": 6.93,
+    "borrow_limit": 49000.0
+  },
+  "MANTA": {
+    "daily_rate": 0.00158578,
+    "annual_pct": 57.88,
+    "borrow_limit": 99000.0
+  },
+  "MANTRA": {
+    "daily_rate": 0.00162335,
+    "annual_pct": 59.25,
+    "borrow_limit": 670000.0
+  },
+  "MASK": {
+    "daily_rate": 0.0015363,
+    "annual_pct": 56.07,
+    "borrow_limit": 12000.0
+  },
+  "MAV": {
+    "daily_rate": 0.00101282,
+    "annual_pct": 36.97,
+    "borrow_limit": 260000.0
+  },
+  "MBL": {
+    "daily_rate": 0.0026296,
+    "annual_pct": 95.98,
+    "borrow_limit": 9700000.0
+  },
+  "ME": {
+    "daily_rate": 0.00230918,
+    "annual_pct": 84.29,
+    "borrow_limit": 100000.0
+  },
+  "MEGA": {
+    "daily_rate": 0.00217305,
+    "annual_pct": 79.32,
+    "borrow_limit": 150000.0
+  },
+  "MEME": {
+    "daily_rate": 0.00142324,
+    "annual_pct": 51.95,
+    "borrow_limit": 10000000.0
+  },
+  "MET": {
+    "daily_rate": 0.00180293,
+    "annual_pct": 65.81,
+    "borrow_limit": 40000.0
+  },
+  "METIS": {
+    "daily_rate": 0.00097781,
+    "annual_pct": 35.69,
+    "borrow_limit": 1200.0
+  },
+  "MINA": {
+    "daily_rate": 0.00119131,
+    "annual_pct": 43.48,
+    "borrow_limit": 95000.0
+  },
+  "MIRA": {
+    "daily_rate": 0.00253704,
+    "annual_pct": 92.6,
+    "borrow_limit": 170000.0
+  },
+  "MITO": {
+    "daily_rate": 0.00269211,
+    "annual_pct": 98.26,
+    "borrow_limit": 140000.0
+  },
+  "MMT": {
+    "daily_rate": 0.00172503,
+    "annual_pct": 62.96,
+    "borrow_limit": 30000.0
+  },
+  "MORPHO": {
+    "daily_rate": 0.00132094,
+    "annual_pct": 48.21,
+    "borrow_limit": 5000.0
+  },
+  "MOVE": {
+    "daily_rate": 0.00184847,
+    "annual_pct": 67.47,
+    "borrow_limit": 580000.0
+  },
+  "MOVR": {
+    "daily_rate": 0.00160225,
+    "annual_pct": 58.48,
+    "borrow_limit": 4100.0
+  },
+  "MTL": {
+    "daily_rate": 0.00258865,
+    "annual_pct": 94.49,
+    "borrow_limit": 11000.0
+  },
+  "MUBARAK": {
+    "daily_rate": 0.00069248,
+    "annual_pct": 25.28,
+    "borrow_limit": 530000.0
+  },
+  "NEAR": {
+    "daily_rate": 0.00023473,
+    "annual_pct": 8.57,
+    "borrow_limit": 110000.0
+  },
+  "NEIRO": {
+    "daily_rate": 0.00032665,
+    "annual_pct": 11.92,
+    "borrow_limit": 140000000.0
+  },
+  "NEO": {
+    "daily_rate": 0.00064665,
+    "annual_pct": 23.6,
+    "borrow_limit": 2300.0
+  },
+  "NEWT": {
+    "daily_rate": 0.0027676,
+    "annual_pct": 101.02,
+    "borrow_limit": 140000.0
+  },
+  "NEXO": {
+    "daily_rate": 0.001338,
+    "annual_pct": 48.84,
+    "borrow_limit": 6800.0
+  },
+  "NFP": {
+    "daily_rate": 0.00112919,
+    "annual_pct": 41.22,
+    "borrow_limit": 270000.0
+  },
+  "NIGHT": {
+    "daily_rate": 0.00113805,
+    "annual_pct": 41.54,
+    "borrow_limit": 310000.0
+  },
+  "NIL": {
+    "daily_rate": 0.00164677,
+    "annual_pct": 60.11,
+    "borrow_limit": 240000.0
+  },
+  "NMR": {
+    "daily_rate": 0.00138676,
+    "annual_pct": 50.62,
+    "borrow_limit": 490.0
+  },
+  "NOM": {
+    "daily_rate": 0.00264052,
+    "annual_pct": 96.38,
+    "borrow_limit": 5400000.0
+  },
+  "NOT": {
+    "daily_rate": 0.00031166,
+    "annual_pct": 11.38,
+    "borrow_limit": 18000000.0
+  },
+  "NXPC": {
+    "daily_rate": 0.00129601,
+    "annual_pct": 47.3,
+    "borrow_limit": 27000.0
+  },
+  "OG": {
+    "daily_rate": 0.00084999,
+    "annual_pct": 31.02,
+    "borrow_limit": 2200.0
+  },
+  "OGN": {
+    "daily_rate": 0.0011458,
+    "annual_pct": 41.82,
+    "borrow_limit": 100000.0
+  },
+  "ONDO": {
+    "daily_rate": 0.00058443,
+    "annual_pct": 21.33,
+    "borrow_limit": 130000.0
+  },
+  "ONE": {
+    "daily_rate": 0.00032017,
+    "annual_pct": 11.69,
+    "borrow_limit": 1500000.0
+  },
+  "ONG": {
+    "daily_rate": 0.00163407,
+    "annual_pct": 59.64,
+    "borrow_limit": 87000.0
+  },
+  "ONT": {
+    "daily_rate": 0.00177232,
+    "annual_pct": 64.69,
+    "borrow_limit": 150000.0
+  },
+  "OP": {
+    "daily_rate": 0.00017642,
+    "annual_pct": 6.44,
+    "borrow_limit": 460000.0
+  },
+  "OPEN": {
+    "daily_rate": 0.00176702,
+    "annual_pct": 64.5,
+    "borrow_limit": 40000.0
+  },
+  "OPG": {
+    "daily_rate": 0.00169396,
+    "annual_pct": 61.83,
+    "borrow_limit": 26000.0
+  },
+  "OPN": {
+    "daily_rate": 0.001673,
+    "annual_pct": 61.06,
+    "borrow_limit": 110000.0
+  },
+  "ORCA": {
+    "daily_rate": 0.00194108,
+    "annual_pct": 70.85,
+    "borrow_limit": 5800.0
+  },
+  "ORDI": {
+    "daily_rate": 0.00029616,
+    "annual_pct": 10.81,
+    "borrow_limit": 2900.0
+  },
+  "OSMO": {
+    "daily_rate": 0.00227295,
+    "annual_pct": 82.96,
+    "borrow_limit": 37000.0
+  },
+  "PARTI": {
+    "daily_rate": 0.00123512,
+    "annual_pct": 45.08,
+    "borrow_limit": 130000.0
+  },
+  "PAXG": {
+    "daily_rate": 3.401e-05,
+    "annual_pct": 1.24,
+    "borrow_limit": 10.0
+  },
+  "PENDLE": {
+    "daily_rate": 0.00014911,
+    "annual_pct": 5.44,
+    "borrow_limit": 36000.0
+  },
+  "PENGU": {
+    "daily_rate": 0.00146765,
+    "annual_pct": 53.57,
+    "borrow_limit": 1400000.0
+  },
+  "PEOPLE": {
+    "daily_rate": 0.00122777,
+    "annual_pct": 44.81,
+    "borrow_limit": 790000.0
+  },
+  "PEPE": {
+    "daily_rate": 7.824e-05,
+    "annual_pct": 2.86,
+    "borrow_limit": 17000000000.0
+  },
+  "PHA": {
+    "daily_rate": 0.00121681,
+    "annual_pct": 44.41,
+    "borrow_limit": 270000.0
+  },
+  "PIXEL": {
+    "daily_rate": 0.00157264,
+    "annual_pct": 57.4,
+    "borrow_limit": 1300000.0
+  },
+  "PLUME": {
+    "daily_rate": 0.00154569,
+    "annual_pct": 56.42,
+    "borrow_limit": 920000.0
+  },
+  "PNUT": {
+    "daily_rate": 0.00073964,
+    "annual_pct": 27.0,
+    "borrow_limit": 210000.0
+  },
+  "POL": {
+    "daily_rate": 0.00035449,
+    "annual_pct": 12.94,
+    "borrow_limit": 640000.0
+  },
+  "POLYX": {
+    "daily_rate": 0.00225398,
+    "annual_pct": 82.27,
+    "borrow_limit": 190000.0
+  },
+  "POND": {
+    "daily_rate": 0.00165839,
+    "annual_pct": 60.53,
+    "borrow_limit": 840000.0
+  },
+  "PORTAL": {
+    "daily_rate": 0.0030204,
+    "annual_pct": 110.24,
+    "borrow_limit": 340000.0
+  },
+  "PORTO": {
+    "daily_rate": 0.00154228,
+    "annual_pct": 56.29,
+    "borrow_limit": 2500.0
+  },
+  "POWR": {
+    "daily_rate": 0.00234613,
+    "annual_pct": 85.63,
+    "borrow_limit": 28000.0
+  },
+  "PROM": {
+    "daily_rate": 0.00186638,
+    "annual_pct": 68.12,
+    "borrow_limit": 1900.0
+  },
+  "PROVE": {
+    "daily_rate": 0.00237728,
+    "annual_pct": 86.77,
+    "borrow_limit": 49000.0
+  },
+  "PSG": {
+    "daily_rate": 0.00205393,
+    "annual_pct": 74.97,
+    "borrow_limit": 5900.0
+  },
+  "PUMP": {
+    "daily_rate": 0.00124159,
+    "annual_pct": 45.32,
+    "borrow_limit": 6300000.0
+  },
+  "PUNDIX": {
+    "daily_rate": 0.00277128,
+    "annual_pct": 101.15,
+    "borrow_limit": 21000.0
+  },
+  "PYR": {
+    "daily_rate": 0.0010558,
+    "annual_pct": 38.54,
+    "borrow_limit": 14000.0
+  },
+  "PYTH": {
+    "daily_rate": 0.000301,
+    "annual_pct": 10.99,
+    "borrow_limit": 250000.0
+  },
+  "QI": {
+    "daily_rate": 0.00047465,
+    "annual_pct": 17.32,
+    "borrow_limit": 1500000.0
+  },
+  "QKC": {
+    "daily_rate": 0.00209881,
+    "annual_pct": 76.61,
+    "borrow_limit": 490000.0
+  },
+  "QNT": {
+    "daily_rate": 0.00027846,
+    "annual_pct": 10.16,
+    "borrow_limit": 70.0
+  },
+  "QTUM": {
+    "daily_rate": 0.00138951,
+    "annual_pct": 50.72,
+    "borrow_limit": 2900.0
+  },
+  "RAD": {
+    "daily_rate": 0.00180334,
+    "annual_pct": 65.82,
+    "borrow_limit": 18000.0
+  },
+  "RARE": {
+    "daily_rate": 0.00168218,
+    "annual_pct": 61.4,
+    "borrow_limit": 330000.0
+  },
+  "RAY": {
+    "daily_rate": 0.00154629,
+    "annual_pct": 56.44,
+    "borrow_limit": 12000.0
+  },
+  "RED": {
+    "daily_rate": 0.00182667,
+    "annual_pct": 66.67,
+    "borrow_limit": 82000.0
+  },
+  "RENDER": {
+    "daily_rate": 0.00029939,
+    "annual_pct": 10.93,
+    "borrow_limit": 27000.0
+  },
+  "REQ": {
+    "daily_rate": 0.00190215,
+    "annual_pct": 69.43,
+    "borrow_limit": 48000.0
+  },
+  "RESOLV": {
+    "daily_rate": 0.00202635,
+    "annual_pct": 73.96,
+    "borrow_limit": 340000.0
+  },
+  "REZ": {
+    "daily_rate": 0.00156679,
+    "annual_pct": 57.19,
+    "borrow_limit": 1100000.0
+  },
+  "RIF": {
+    "daily_rate": 0.00228076,
+    "annual_pct": 83.25,
+    "borrow_limit": 77000.0
+  },
+  "RLC": {
+    "daily_rate": 0.00108516,
+    "annual_pct": 39.61,
+    "borrow_limit": 6600.0
+  },
+  "RLUSD": {
+    "daily_rate": 9.224e-05,
+    "annual_pct": 3.37,
+    "borrow_limit": 500000.0
+  },
+  "ROBO": {
+    "daily_rate": 0.001488,
+    "annual_pct": 54.31,
+    "borrow_limit": 510000.0
+  },
+  "RONIN": {
+    "daily_rate": 0.00232783,
+    "annual_pct": 84.97,
+    "borrow_limit": 42000.0
+  },
+  "ROSE": {
+    "daily_rate": 0.00030604,
+    "annual_pct": 11.17,
+    "borrow_limit": 1500000.0
+  },
+  "RPL": {
+    "daily_rate": 0.00202373,
+    "annual_pct": 73.87,
+    "borrow_limit": 590.0
+  },
+  "RSR": {
+    "daily_rate": 0.00036016,
+    "annual_pct": 13.15,
+    "borrow_limit": 4300000.0
+  },
+  "RUNE": {
+    "daily_rate": 0.00069336,
+    "annual_pct": 25.31,
+    "borrow_limit": 25000.0
+  },
+  "RVN": {
+    "daily_rate": 0.00117723,
+    "annual_pct": 42.97,
+    "borrow_limit": 850000.0
+  },
+  "S": {
+    "daily_rate": 0.00041408,
+    "annual_pct": 15.11,
+    "borrow_limit": 300000.0
+  },
+  "SAGA": {
+    "daily_rate": 0.0020419,
+    "annual_pct": 74.53,
+    "borrow_limit": 590000.0
+  },
+  "SAHARA": {
+    "daily_rate": 0.0016156,
+    "annual_pct": 58.97,
+    "borrow_limit": 660000.0
+  },
+  "SAND": {
+    "daily_rate": 0.00022938,
+    "annual_pct": 8.37,
+    "borrow_limit": 130000.0
+  },
+  "SANTOS": {
+    "daily_rate": 0.00132157,
+    "annual_pct": 48.24,
+    "borrow_limit": 4100.0
+  },
+  "SAPIEN": {
+    "daily_rate": 0.00190373,
+    "annual_pct": 69.49,
+    "borrow_limit": 96000.0
+  },
+  "SC": {
+    "daily_rate": 0.00032203,
+    "annual_pct": 11.75,
+    "borrow_limit": 1400000.0
+  },
+  "SCR": {
+    "daily_rate": 0.00123409,
+    "annual_pct": 45.04,
+    "borrow_limit": 150000.0
+  },
+  "SCRT": {
+    "daily_rate": 0.00126588,
+    "annual_pct": 46.2,
+    "borrow_limit": 39000.0
+  },
+  "SEI": {
+    "daily_rate": 0.00082309,
+    "annual_pct": 30.04,
+    "borrow_limit": 180000.0
+  },
+  "SENT": {
+    "daily_rate": 0.00330677,
+    "annual_pct": 120.7,
+    "borrow_limit": 640000.0
+  },
+  "SFP": {
+    "daily_rate": 0.0007847,
+    "annual_pct": 28.64,
+    "borrow_limit": 7600.0
+  },
+  "SHELL": {
+    "daily_rate": 0.00206715,
+    "annual_pct": 75.45,
+    "borrow_limit": 120000.0
+  },
+  "SHIB": {
+    "daily_rate": 2.356e-05,
+    "annual_pct": 0.86,
+    "borrow_limit": 9900000000.0
+  },
+  "SIGN": {
+    "daily_rate": 0.00141954,
+    "annual_pct": 51.81,
+    "borrow_limit": 290000.0
+  },
+  "SKL": {
+    "daily_rate": 0.00085671,
+    "annual_pct": 31.27,
+    "borrow_limit": 980000.0
+  },
+  "SKY": {
+    "daily_rate": 0.00148429,
+    "annual_pct": 54.18,
+    "borrow_limit": 170000.0
+  },
+  "SLP": {
+    "daily_rate": 0.00046763,
+    "annual_pct": 17.07,
+    "borrow_limit": 4500000.0
+  },
+  "SNX": {
+    "daily_rate": 0.00037059,
+    "annual_pct": 13.53,
+    "borrow_limit": 18000.0
+  },
+  "SOL": {
+    "daily_rate": 0.00015934,
+    "annual_pct": 5.82,
+    "borrow_limit": 30000.0
+  },
+  "SOLV": {
+    "daily_rate": 0.00034605,
+    "annual_pct": 12.63,
+    "borrow_limit": 1500000.0
+  },
+  "SOMI": {
+    "daily_rate": 0.00178174,
+    "annual_pct": 65.03,
+    "borrow_limit": 87000.0
+  },
+  "SOPH": {
+    "daily_rate": 0.00217514,
+    "annual_pct": 79.39,
+    "borrow_limit": 810000.0
+  },
+  "SPELL": {
+    "daily_rate": 0.00173007,
+    "annual_pct": 63.15,
+    "borrow_limit": 11000000.0
+  },
+  "SPK": {
+    "daily_rate": 0.00142275,
+    "annual_pct": 51.93,
+    "borrow_limit": 490000.0
+  },
+  "SSV": {
+    "daily_rate": 0.00033549,
+    "annual_pct": 12.25,
+    "borrow_limit": 1300.0
+  },
+  "STEEM": {
+    "daily_rate": 0.00205454,
+    "annual_pct": 74.99,
+    "borrow_limit": 140000.0
+  },
+  "STG": {
+    "daily_rate": 0.00237119,
+    "annual_pct": 86.55,
+    "borrow_limit": 20000.0
+  },
+  "STO": {
+    "daily_rate": 0.0046863,
+    "annual_pct": 171.05,
+    "borrow_limit": 95000.0
+  },
+  "STORJ": {
+    "daily_rate": 0.00159936,
+    "annual_pct": 58.38,
+    "borrow_limit": 28000.0
+  },
+  "STRAX": {
+    "daily_rate": 0.00438441,
+    "annual_pct": 160.03,
+    "borrow_limit": 1000000.0
+  },
+  "STRK": {
+    "daily_rate": 0.00143551,
+    "annual_pct": 52.4,
+    "borrow_limit": 270000.0
+  },
+  "STX": {
+    "daily_rate": 0.0001493,
+    "annual_pct": 5.45,
+    "borrow_limit": 42000.0
+  },
+  "SUI": {
+    "daily_rate": 4.915e-05,
+    "annual_pct": 1.79,
+    "borrow_limit": 310000.0
+  },
+  "SUN": {
+    "daily_rate": 0.00105945,
+    "annual_pct": 38.67,
+    "borrow_limit": 580000.0
+  },
+  "SUPER": {
+    "daily_rate": 0.00121501,
+    "annual_pct": 44.35,
+    "borrow_limit": 100000.0
+  },
+  "SUSHI": {
+    "daily_rate": 0.00032914,
+    "annual_pct": 12.01,
+    "borrow_limit": 28000.0
+  },
+  "SXT": {
+    "daily_rate": 0.00126124,
+    "annual_pct": 46.04,
+    "borrow_limit": 1000000.0
+  },
+  "SYN": {
+    "daily_rate": 0.00281265,
+    "annual_pct": 102.66,
+    "borrow_limit": 50000.0
+  },
+  "SYRUP": {
+    "daily_rate": 0.00097097,
+    "annual_pct": 35.44,
+    "borrow_limit": 69000.0
+  },
+  "T": {
+    "daily_rate": 0.00156465,
+    "annual_pct": 57.11,
+    "borrow_limit": 640000.0
+  },
+  "TAO": {
+    "daily_rate": 0.00015177,
+    "annual_pct": 5.54,
+    "borrow_limit": 30.0
+  },
+  "TFUEL": {
+    "daily_rate": 0.0018675,
+    "annual_pct": 68.16,
+    "borrow_limit": 210000.0
+  },
+  "THE": {
+    "daily_rate": 0.00100169,
+    "annual_pct": 36.56,
+    "borrow_limit": 50000.0
+  },
+  "THETA": {
+    "daily_rate": 0.00013878,
+    "annual_pct": 5.07,
+    "borrow_limit": 39000.0
+  },
+  "TIA": {
+    "daily_rate": 0.00084696,
+    "annual_pct": 30.91,
+    "borrow_limit": 28000.0
+  },
+  "TKO": {
+    "daily_rate": 0.00032558,
+    "annual_pct": 11.88,
+    "borrow_limit": 31000.0
+  },
+  "TLM": {
+    "daily_rate": 0.00179061,
+    "annual_pct": 65.36,
+    "borrow_limit": 2800000.0
+  },
+  "TNSR": {
+    "daily_rate": 0.00149825,
+    "annual_pct": 54.69,
+    "borrow_limit": 190000.0
+  },
+  "TON": {
+    "daily_rate": 0.00121341,
+    "annual_pct": 44.29,
+    "borrow_limit": 28000.0
+  },
+  "TOWNS": {
+    "daily_rate": 0.00168933,
+    "annual_pct": 61.66,
+    "borrow_limit": 1600000.0
+  },
+  "TRB": {
+    "daily_rate": 0.0008087,
+    "annual_pct": 29.52,
+    "borrow_limit": 620.0
+  },
+  "TREE": {
+    "daily_rate": 0.00260263,
+    "annual_pct": 95.0,
+    "borrow_limit": 100000.0
+  },
+  "TRUMP": {
+    "daily_rate": 0.00088947,
+    "annual_pct": 32.47,
+    "borrow_limit": 4800.0
+  },
+  "TRX": {
+    "daily_rate": 0.00028901,
+    "annual_pct": 10.55,
+    "borrow_limit": 150000.0
+  },
+  "TST": {
+    "daily_rate": 0.00345824,
+    "annual_pct": 126.23,
+    "borrow_limit": 180000.0
+  },
+  "TURBO": {
+    "daily_rate": 0.00135439,
+    "annual_pct": 49.44,
+    "borrow_limit": 2700000.0
+  },
+  "TURTLE": {
+    "daily_rate": 0.00195067,
+    "annual_pct": 71.2,
+    "borrow_limit": 87000.0
+  },
+  "TUT": {
+    "daily_rate": 0.00162215,
+    "annual_pct": 59.21,
+    "borrow_limit": 380000.0
+  },
+  "TWT": {
+    "daily_rate": 0.00026913,
+    "annual_pct": 9.82,
+    "borrow_limit": 14000.0
+  },
+  "U": {
+    "daily_rate": 5.309e-05,
+    "annual_pct": 1.94,
+    "borrow_limit": 500000.0
+  },
+  "UMA": {
+    "daily_rate": 0.0008906,
+    "annual_pct": 32.51,
+    "borrow_limit": 6000.0
+  },
+  "UNI": {
+    "daily_rate": 0.00011014,
+    "annual_pct": 4.02,
+    "borrow_limit": 19000.0
+  },
+  "USD1": {
+    "daily_rate": 0.00030432,
+    "annual_pct": 11.11,
+    "borrow_limit": 1000000.0
+  },
+  "USDC": {
+    "daily_rate": 0.00010397,
+    "annual_pct": 3.79,
+    "borrow_limit": 500000.0
+  },
+  "USDE": {
+    "daily_rate": 0.0,
+    "annual_pct": 0.0,
+    "borrow_limit": 0.0
+  },
+  "USDP": {
+    "daily_rate": 0.00122895,
+    "annual_pct": 44.86,
+    "borrow_limit": 0.0
+  },
+  "USDS": {
+    "daily_rate": 0.00017712,
+    "annual_pct": 6.46,
+    "borrow_limit": 250000.0
+  },
+  "USDT": {
+    "daily_rate": 9.29e-05,
+    "annual_pct": 3.39,
+    "borrow_limit": 500000.0
+  },
+  "USTC": {
+    "daily_rate": 0.00095102,
+    "annual_pct": 34.71,
+    "borrow_limit": 630000.0
+  },
+  "USUAL": {
+    "daily_rate": 0.0007498,
+    "annual_pct": 27.37,
+    "borrow_limit": 650000.0
+  },
+  "VANA": {
+    "daily_rate": 0.00132394,
+    "annual_pct": 48.32,
+    "borrow_limit": 7400.0
+  },
+  "VANRY": {
+    "daily_rate": 0.00172368,
+    "annual_pct": 62.91,
+    "borrow_limit": 650000.0
+  },
+  "VELODROME": {
+    "daily_rate": 0.00199539,
+    "annual_pct": 72.83,
+    "borrow_limit": 130000.0
+  },
+  "VET": {
+    "daily_rate": 2.932e-05,
+    "annual_pct": 1.07,
+    "borrow_limit": 700000.0
+  },
+  "VIC": {
+    "daily_rate": 0.00199762,
+    "annual_pct": 72.91,
+    "borrow_limit": 78000.0
+  },
+  "VIRTUAL": {
+    "daily_rate": 0.00145159,
+    "annual_pct": 52.98,
+    "borrow_limit": 77000.0
+  },
+  "VTHO": {
+    "daily_rate": 0.00068592,
+    "annual_pct": 25.04,
+    "borrow_limit": 15000000.0
+  },
+  "W": {
+    "daily_rate": 0.0003992,
+    "annual_pct": 14.57,
+    "borrow_limit": 990000.0
+  },
+  "WAL": {
+    "daily_rate": 0.00193711,
+    "annual_pct": 70.7,
+    "borrow_limit": 140000.0
+  },
+  "WAXP": {
+    "daily_rate": 0.0025156,
+    "annual_pct": 91.82,
+    "borrow_limit": 490000.0
+  },
+  "WBETH": {
+    "daily_rate": 0.00547944,
+    "annual_pct": 200.0,
+    "borrow_limit": 0.0
+  },
+  "WCT": {
+    "daily_rate": 0.0017742,
+    "annual_pct": 64.76,
+    "borrow_limit": 200000.0
+  },
+  "WIF": {
+    "daily_rate": 0.00131516,
+    "annual_pct": 48.0,
+    "borrow_limit": 60000.0
+  },
+  "WIN": {
+    "daily_rate": 0.00012028,
+    "annual_pct": 4.39,
+    "borrow_limit": 100000000.0
+  },
+  "WLD": {
+    "daily_rate": 0.00035859,
+    "annual_pct": 13.09,
+    "borrow_limit": 19000.0
+  },
+  "WLFI": {
+    "daily_rate": 0.00107885,
+    "annual_pct": 39.38,
+    "borrow_limit": 4100000.0
+  },
+  "WOO": {
+    "daily_rate": 0.00113476,
+    "annual_pct": 41.42,
+    "borrow_limit": 150000.0
+  },
+  "XAI": {
+    "daily_rate": 0.00149813,
+    "annual_pct": 54.68,
+    "borrow_limit": 630000.0
+  },
+  "XAUT": {
+    "daily_rate": 0.00069464,
+    "annual_pct": 25.35,
+    "borrow_limit": 10.0
+  },
+  "XEC": {
+    "daily_rate": 0.00051346,
+    "annual_pct": 18.74,
+    "borrow_limit": 290000000.0
+  },
+  "XLM": {
+    "daily_rate": 0.0001833,
+    "annual_pct": 6.69,
+    "borrow_limit": 260000.0
+  },
+  "XPL": {
+    "daily_rate": 0.00146586,
+    "annual_pct": 53.5,
+    "borrow_limit": 110000.0
+  },
+  "XRP": {
+    "daily_rate": 0.00010231,
+    "annual_pct": 3.73,
+    "borrow_limit": 730000.0
+  },
+  "XTZ": {
+    "daily_rate": 0.00136041,
+    "annual_pct": 49.65,
+    "borrow_limit": 30000.0
+  },
+  "XVS": {
+    "daily_rate": 0.00106937,
+    "annual_pct": 39.03,
+    "borrow_limit": 810.0
+  },
+  "YB": {
+    "daily_rate": 0.00178843,
+    "annual_pct": 65.28,
+    "borrow_limit": 20000.0
+  },
+  "YFI": {
+    "daily_rate": 0.000342,
+    "annual_pct": 12.48,
+    "borrow_limit": 1.0
+  },
+  "YGG": {
+    "daily_rate": 0.00037449,
+    "annual_pct": 13.67,
+    "borrow_limit": 88000.0
+  },
+  "ZAMA": {
+    "daily_rate": 0.00317784,
+    "annual_pct": 115.99,
+    "borrow_limit": 310000.0
+  },
+  "ZBT": {
+    "daily_rate": 0.00259086,
+    "annual_pct": 94.57,
+    "borrow_limit": 86000.0
+  },
+  "ZEC": {
+    "daily_rate": 0.0012289,
+    "annual_pct": 44.85,
+    "borrow_limit": 100.0
+  },
+  "ZEN": {
+    "daily_rate": 0.00055164,
+    "annual_pct": 20.13,
+    "borrow_limit": 2100.0
+  },
+  "ZIL": {
+    "daily_rate": 0.00092812,
+    "annual_pct": 33.88,
+    "borrow_limit": 880000.0
+  },
+  "ZK": {
+    "daily_rate": 0.00154886,
+    "annual_pct": 56.53,
+    "borrow_limit": 840000.0
+  },
+  "ZKC": {
+    "daily_rate": 0.00214662,
+    "annual_pct": 78.35,
+    "borrow_limit": 150000.0
+  },
+  "ZKP": {
+    "daily_rate": 0.00223728,
+    "annual_pct": 81.66,
+    "borrow_limit": 100000.0
+  },
+  "ZRO": {
+    "daily_rate": 0.00117625,
+    "annual_pct": 42.93,
+    "borrow_limit": 10000.0
+  },
+  "ZRX": {
+    "daily_rate": 0.00154976,
+    "annual_pct": 56.57,
+    "borrow_limit": 25000.0
+  },
+  "\u5e01\u5b89\u4eba\u751f": {
+    "daily_rate": 0.00129302,
+    "annual_pct": 47.2,
+    "borrow_limit": 15000.0
+  }
+}

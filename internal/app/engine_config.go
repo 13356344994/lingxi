@@ -39,6 +39,8 @@ type (
 	AlertingConfig           = core.AlertingConfig
 	CrossVenueScannerConfig  = core.CrossVenueScannerConfig
 	CrossVenueExecutorConfig = core.CrossVenueExecutorConfig
+	CapitalAllocatorConfig   = core.CapitalAllocatorConfig
+	DataCollectionConfig     = core.DataCollectionConfig
 )
 
 const (

@@ -1,0 +1,398 @@
+package app
+
+import (
+	"bufio"
+	"encoding/json"
+	"math"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
+	"lingxi/internal/venue/bybit"
+)
+
+func testSingleVenuePerpSpotScanInput(now time.Time) SingleVenuePerpSpotScanInput {
+	exec := testCrossVenueExecutorConfig().CrossVenueExecutor
+	cfg := DefaultSingleVenuePerpSpotScannerConfig(exec)
+	nextFunding := now.Add(2 * time.Hour)
+
+	return SingleVenuePerpSpotScanInput{
+		SnapshotID: "svps-snap-test",
+		Now:        now,
+		Symbols:    []string{"BTC-USDT", "ETH-USDT"},
+		Venues:     []string{bybit.VenueName},
+		FundingByVenue: map[string]map[string]SingleVenuePerpSpotFundingSnap{
+			bybit.VenueName: {
+				"BTC-USDT": {
+					Rate:            -0.0003,
+					IntervalHours:   8,
+					NextFundingTime: nextFunding,
+					SpikeThreshold:  0.00025,
+				},
+				"ETH-USDT": {
+					Rate:            -0.0002,
+					IntervalHours:   8,
+					NextFundingTime: nextFunding,
+					SpikeThreshold:  0.00015,
+				},
+			},
+		},
+		MarketsByVenue: map[string]map[string]SingleVenuePerpSpotMarketSnap{
+			bybit.VenueName: {
+				"BTC-USDT": {
+					SpotMid:       100000,
+					PerpMid:       100050,
+					SpotDepthUSDT: 5000,
+					PerpDepthUSDT: 5000,
+					HasSpot:       true,
+					HasPerp:       true,
+				},
+				"ETH-USDT": {
+					SpotMid:       3000,
+					PerpMid:       3006,
+					SpotDepthUSDT: 5000,
+					PerpDepthUSDT: 5000,
+					HasSpot:       true,
+					HasPerp:       true,
+				},
+			},
+		},
+		AvailableUSDTByVenue: map[string]float64{
+			bybit.VenueName: 500,
+		},
+		BorrowDailyRateByAsset: map[string]float64{
+			"BTC": 0.0001,
+			"ETH": 0.00012,
+		},
+		BorrowLimitUSDTByAsset: map[string]float64{
+			"BTC": 100000,
+			"ETH": 100000,
+		},
+		Config: cfg,
+	}
+}
+
+func TestScanSingleVenuePerpSpotOpportunitiesHappyPath(t *testing.T) {
+	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
+	in := testSingleVenuePerpSpotScanInput(now)
+	opps := ScanSingleVenuePerpSpotOpportunities(in)
+
+	if len(opps) != 2 {
+		t.Fatalf("opportunities = %d, want 2", len(opps))
+	}
+	for _, opp := range opps {
+		if opp.StrategyType != UnifiedStrategySingleVenuePerpSpot {
+			t.Fatalf("strategy_type = %q", opp.StrategyType)
+		}
+		if len(opp.Legs) != 2 {
+			t.Fatalf("legs = %d", len(opp.Legs))
+		}
+		if opp.Legs[0].Venue != bybit.VenueName || opp.Legs[1].Venue != bybit.VenueName {
+			t.Fatalf("both legs must be same venue, got %+v", opp.Legs)
+		}
+		if opp.Legs[0].Market != "perp" || opp.Legs[0].Side != "long" {
+			t.Fatalf("perp leg = %+v", opp.Legs[0])
+		}
+		if opp.Legs[1].Market != "spot" || opp.Legs[1].Side != "short" {
+			t.Fatalf("spot leg = %+v", opp.Legs[1])
+		}
+		if opp.ExpectedFundingUSDT <= 0 {
+			t.Fatalf("expected_funding_usdt = %.6f, want >0", opp.ExpectedFundingUSDT)
+		}
+		if opp.ExpectedBorrowCostUSDT <= 0 {
+			t.Fatalf("expected_borrow_cost_usdt = %.6f, want >0", opp.ExpectedBorrowCostUSDT)
+		}
+		perpMargin := crossVenueSpotPerpPerpMarginRequired(singleVenuePerpSpotAsCrossVenueConfig(in.Config), opp.Legs[0].Notional)
+		wantCapital := opp.Legs[1].Notional + perpMargin
+		if opp.CapitalRequiredByVenue[bybit.VenueName] != wantCapital {
+			t.Fatalf("capital = %.4f, want spot_margin(%.2f)+perp_margin(%.4f)=%.4f",
+				opp.CapitalRequiredByVenue[bybit.VenueName], opp.Legs[1].Notional, perpMargin, wantCapital)
+		}
+		if opp.RequiresRebalance {
+			t.Fatalf("unexpected requires_rebalance with sufficient funds")
+		}
+	}
+}
+
+func TestScanSingleVenuePerpSpotRequiresRebalanceWhenFundsShort(t *testing.T) {
+	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
+	in := testSingleVenuePerpSpotScanInput(now)
+	in.AvailableUSDTByVenue[bybit.VenueName] = 50
+
+	opps := ScanSingleVenuePerpSpotOpportunities(in)
+	if len(opps) == 0 {
+		t.Fatal("expected opportunities even when rebalance required")
+	}
+	opp := opps[0]
+	if !opp.RequiresRebalance {
+		t.Fatal("expected requires_rebalance=true")
+	}
+	if opp.ExpectedRollbackCostUSDT <= 0 {
+		t.Fatalf("rebalance penalty = %.4f, want >0", opp.ExpectedRollbackCostUSDT)
+	}
+	foundReason := false
+	for _, r := range opp.RejectReasons {
+		if r == "requires_rebalance" {
+			foundReason = true
+		}
+	}
+	if !foundReason {
+		t.Fatalf("reject_reasons = %#v, want requires_rebalance", opp.RejectReasons)
+	}
+}
+
+func TestScanSingleVenuePerpSpotRecordsPositiveFundingReject(t *testing.T) {
+	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
+	in := testSingleVenuePerpSpotScanInput(now)
+	in.FundingByVenue[bybit.VenueName]["BTC-USDT"] = SingleVenuePerpSpotFundingSnap{
+		Rate:            0.0002,
+		IntervalHours:   8,
+		NextFundingTime: now.Add(2 * time.Hour),
+		SpikeThreshold:  0.0001,
+	}
+	opps := ScanSingleVenuePerpSpotOpportunities(in)
+	btc := findSingleVenuePerpSpotOpp(opps, "BTC-USDT")
+	if btc == nil {
+		t.Fatal("expected rejected row for positive funding")
+	}
+	if !containsPerpSpotReject(btc.RejectReasons, singleVenuePerpSpotRejectPositiveFunding) {
+		t.Fatalf("reject_reasons = %#v, want %q", btc.RejectReasons, singleVenuePerpSpotRejectPositiveFunding)
+	}
+	if len(btc.Legs) != 0 {
+		t.Fatal("positive funding should not produce legs")
+	}
+}
+
+func TestScanSingleVenuePerpSpotRecordsNotBorrowableReject(t *testing.T) {
+	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
+	in := testSingleVenuePerpSpotScanInput(now)
+	delete(in.BorrowDailyRateByAsset, "BTC")
+	opps := ScanSingleVenuePerpSpotOpportunities(in)
+	btc := findSingleVenuePerpSpotOpp(opps, "BTC-USDT")
+	if btc == nil {
+		t.Fatal("expected rejected row for not borrowable asset")
+	}
+	if !containsPerpSpotReject(btc.RejectReasons, singleVenuePerpSpotRejectNotBorrowable) {
+		t.Fatalf("reject_reasons = %#v, want %q", btc.RejectReasons, singleVenuePerpSpotRejectNotBorrowable)
+	}
+}
+
+func TestScanSingleVenuePerpSpotRecordsBorrowOverLimitReject(t *testing.T) {
+	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
+	in := testSingleVenuePerpSpotScanInput(now)
+	in.BorrowLimitUSDTByAsset["BTC"] = 10
+	opps := ScanSingleVenuePerpSpotOpportunities(in)
+	btc := findSingleVenuePerpSpotOpp(opps, "BTC-USDT")
+	if btc == nil {
+		t.Fatal("expected opportunity row for borrow over limit")
+	}
+	if !containsPerpSpotReject(btc.RejectReasons, singleVenuePerpSpotRejectBorrowOverLimit) {
+		t.Fatalf("reject_reasons = %#v, want %q", btc.RejectReasons, singleVenuePerpSpotRejectBorrowOverLimit)
+	}
+}
+
+func TestScanSingleVenuePerpSpotRecordsNoSpotMarketReject(t *testing.T) {
+	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
+	in := testSingleVenuePerpSpotScanInput(now)
+	in.MarketsByVenue[bybit.VenueName]["BTC-USDT"] = SingleVenuePerpSpotMarketSnap{
+		SpotMid:       0,
+		PerpMid:       100050,
+		SpotDepthUSDT: 5000,
+		PerpDepthUSDT: 5000,
+		HasSpot:       false,
+		HasPerp:       true,
+	}
+	opps := ScanSingleVenuePerpSpotOpportunities(in)
+	btc := findSingleVenuePerpSpotOpp(opps, "BTC-USDT")
+	if btc == nil {
+		t.Fatal("expected rejected row for missing spot market")
+	}
+	if !containsPerpSpotReject(btc.RejectReasons, singleVenuePerpSpotRejectNoSpotMarket) {
+		t.Fatalf("reject_reasons = %#v, want %q", btc.RejectReasons, singleVenuePerpSpotRejectNoSpotMarket)
+	}
+}
+
+func TestScanSingleVenuePerpSpotExcludesMidDeviationTooLarge(t *testing.T) {
+	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
+	in := testSingleVenuePerpSpotScanInput(now)
+	in.MarketsByVenue[bybit.VenueName]["BTC-USDT"] = SingleVenuePerpSpotMarketSnap{
+		SpotMid:       100000,
+		PerpMid:       105000,
+		SpotDepthUSDT: 5000,
+		PerpDepthUSDT: 5000,
+		HasSpot:       true,
+		HasPerp:       true,
+	}
+	opps := ScanSingleVenuePerpSpotOpportunities(in)
+	if findSingleVenuePerpSpotOpp(opps, "BTC-USDT") != nil {
+		t.Fatal("expected no opportunity for large mid deviation")
+	}
+}
+
+func TestScanSingleVenuePerpSpotRecordsInsufficientDepthReject(t *testing.T) {
+	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
+	in := testSingleVenuePerpSpotScanInput(now)
+	in.MarketsByVenue[bybit.VenueName]["BTC-USDT"] = SingleVenuePerpSpotMarketSnap{
+		SpotMid:       100000,
+		PerpMid:       100050,
+		SpotDepthUSDT: 10,
+		PerpDepthUSDT: 5000,
+		HasSpot:       true,
+		HasPerp:       true,
+	}
+	opps := ScanSingleVenuePerpSpotOpportunities(in)
+	btc := findSingleVenuePerpSpotOpp(opps, "BTC-USDT")
+	if btc == nil {
+		t.Fatal("expected rejected row for insufficient depth")
+	}
+	if !containsPerpSpotReject(btc.RejectReasons, singleVenuePerpSpotRejectInsufficientDepth) {
+		t.Fatalf("reject_reasons = %#v, want %q", btc.RejectReasons, singleVenuePerpSpotRejectInsufficientDepth)
+	}
+}
+
+func TestScanSingleVenuePerpSpotRecordsMarginStressReject(t *testing.T) {
+	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
+	in := testSingleVenuePerpSpotScanInput(now)
+	in.Config.Exec.MaxEffectiveLeverage = 20
+	in.Config.PerpWalletBufferRatio = 0.01
+	in.Config.PerpMaintenanceMarginRate = 0.05
+	opps := ScanSingleVenuePerpSpotOpportunities(in)
+	if len(opps) != 2 {
+		t.Fatalf("opportunities = %d, want 2 rejected rows", len(opps))
+	}
+	for _, opp := range opps {
+		if !containsPerpSpotReject(opp.RejectReasons, singleVenuePerpSpotRejectMarginStress) {
+			t.Fatalf("reject_reasons = %#v, want %q", opp.RejectReasons, singleVenuePerpSpotRejectMarginStress)
+		}
+	}
+}
+
+func TestScanSingleVenuePerpSpotBasisAndNetEV(t *testing.T) {
+	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
+	in := testSingleVenuePerpSpotScanInput(now)
+	in.MarketsByVenue[bybit.VenueName]["BTC-USDT"] = SingleVenuePerpSpotMarketSnap{
+		SpotMid:       100000,
+		PerpMid:       100200,
+		SpotDepthUSDT: 5000,
+		PerpDepthUSDT: 5000,
+		HasSpot:       true,
+		HasPerp:       true,
+	}
+	opps := ScanSingleVenuePerpSpotOpportunities(in)
+	btc := findSingleVenuePerpSpotOpp(opps, "BTC-USDT")
+	if btc == nil {
+		t.Fatal("missing BTC opportunity")
+	}
+	spotPerpEntryBasis := crossVenueSpotPerpEntryBasisUSDT(100000, 100200, btc.Legs[0].Notional)
+	if spotPerpEntryBasis <= 0 {
+		t.Fatalf("spot-perp entry basis = %.4f, want >0 for perp premium", spotPerpEntryBasis)
+	}
+	cvCfg := singleVenuePerpSpotAsCrossVenueConfig(in.Config)
+	expectedBasis := -crossVenueSpotPerpExpectedBasisPnL(spotPerpEntryBasis, btc.Legs[0].Notional, cvCfg)
+	if expectedBasis >= 0 {
+		t.Fatalf("perp-spot basis pnl = %.4f, want <0 when perp premium", expectedBasis)
+	}
+	reconstructed := btc.ExpectedFundingUSDT + expectedBasis - btc.ExpectedOpenCostUSDT - btc.ExpectedCloseCostUSDT - btc.ExpectedSlippageUSDT - btc.ExpectedBorrowCostUSDT - btc.ExpectedRollbackCostUSDT
+	if math.Abs(btc.ExpectedNetEVUSDT-reconstructed) > 1e-6 {
+		t.Fatalf("net_ev = %.6f, reconstructed = %.6f", btc.ExpectedNetEVUSDT, reconstructed)
+	}
+}
+
+func TestPerpSpotBorrowCostUSDT(t *testing.T) {
+	got := perpSpotBorrowCostUSDT("BTC", 100, 24, map[string]float64{"BTC": 0.001})
+	want := 100 * 0.001 * 1.0
+	if math.Abs(got-want) > 1e-9 {
+		t.Fatalf("borrow cost = %.6f, want %.6f", got, want)
+	}
+}
+
+func TestAppendSingleVenuePerpSpotShadowCandidatesWritesJSONL(t *testing.T) {
+	dir := t.TempDir()
+	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
+	in := testSingleVenuePerpSpotScanInput(now)
+	in.AvailableUSDTByVenue[bybit.VenueName] = 50
+	opps := ScanSingleVenuePerpSpotOpportunities(in)
+	if len(opps) == 0 {
+		t.Fatal("expected at least one opportunity")
+	}
+
+	execCfg := testCrossVenueExecutorConfig().CrossVenueExecutor
+	AppendSingleVenuePerpSpotShadowCandidates(dir, "svps-cycle-test", execCfg, opps)
+
+	path := filepath.Join(opportunitiesRecordDir(dir), unifiedCandidatesLogFileName)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read log: %v", err)
+	}
+	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+	if len(lines) != len(opps) {
+		t.Fatalf("lines = %d, want %d", len(lines), len(opps))
+	}
+	var rec UnifiedCandidateLogRecord
+	if err := json.Unmarshal([]byte(lines[0]), &rec); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if rec.StrategyType != UnifiedStrategySingleVenuePerpSpot {
+		t.Fatalf("strategy_type = %q", rec.StrategyType)
+	}
+	if rec.WouldExecute {
+		t.Fatal("shadow candidates must have would_execute=false")
+	}
+}
+
+func TestScanSingleVenuePerpSpotDoesNotMutateInput(t *testing.T) {
+	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
+	in := testSingleVenuePerpSpotScanInput(now)
+	beforeFunding := in.FundingByVenue[bybit.VenueName]["BTC-USDT"]
+	beforeMarket := in.MarketsByVenue[bybit.VenueName]["BTC-USDT"]
+	_ = ScanSingleVenuePerpSpotOpportunities(in)
+	if in.FundingByVenue[bybit.VenueName]["BTC-USDT"] != beforeFunding {
+		t.Fatal("scanner mutated funding input")
+	}
+	if in.MarketsByVenue[bybit.VenueName]["BTC-USDT"] != beforeMarket {
+		t.Fatal("scanner mutated market input")
+	}
+}
+
+func TestScanSingleVenuePerpSpotAppendMultipleLines(t *testing.T) {
+	dir := t.TempDir()
+	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
+	in := testSingleVenuePerpSpotScanInput(now)
+	opps := ScanSingleVenuePerpSpotOpportunities(in)
+	AppendSingleVenuePerpSpotShadowCandidates(dir, "cycle", testCrossVenueExecutorConfig().CrossVenueExecutor, opps)
+
+	path := filepath.Join(opportunitiesRecordDir(dir), unifiedCandidatesLogFileName)
+	f, err := os.Open(path)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	defer f.Close()
+	sc := bufio.NewScanner(f)
+	count := 0
+	for sc.Scan() {
+		count++
+	}
+	if count != len(opps) {
+		t.Fatalf("lines = %d, want %d", count, len(opps))
+	}
+}
+
+func findSingleVenuePerpSpotOpp(opps []UnifiedOpportunity, symbol string) *UnifiedOpportunity {
+	for i := range opps {
+		if opps[i].Symbol == symbol {
+			return &opps[i]
+		}
+	}
+	return nil
+}
+
+func containsPerpSpotReject(reasons []string, want string) bool {
+	for _, r := range reasons {
+		if r == want {
+			return true
+		}
+	}
+	return false
+}

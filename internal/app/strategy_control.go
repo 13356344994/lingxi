@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -73,6 +74,21 @@ type StrategyStartResponse struct {
 // StrategyStopResponse 策略停止聚合响应。
 type StrategyStopResponse struct {
 	Steps []StrategyStepResult `json:"steps"`
+}
+
+// StrategyFlattenResult 单策略全平结果。
+type StrategyFlattenResult struct {
+	Strategy string   `json:"strategy"`
+	Closed   int      `json:"closed"`
+	Errors   []string `json:"errors,omitempty"`
+	Skipped  bool     `json:"skipped,omitempty"`
+	Message  string   `json:"message,omitempty"`
+}
+
+// StrategyFlattenAllResponse 五策略一键全平聚合响应。
+type StrategyFlattenAllResponse struct {
+	Results     []StrategyFlattenResult `json:"results"`
+	TotalClosed int                     `json:"total_closed"`
 }
 
 // StrategyBybitStatus Bybit 执行引擎运行态。
@@ -196,6 +212,112 @@ func (s *DashboardServer) handleStrategyStopAPI(w http.ResponseWriter, r *http.R
 	}
 	s.auditControlAction(r, "strategy_stop", false, "策略停止部分步骤失败")
 	writeJSON(w, resp)
+}
+
+func (s *DashboardServer) handleStrategyFlattenAllAPI(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if !s.authorizeRuntimeControl(w, r, "flatten_all") {
+		return
+	}
+	resp := s.executeStrategyFlattenAll(r.Context())
+	allOK := true
+	for _, result := range resp.Results {
+		if len(result.Errors) > 0 {
+			allOK = false
+			break
+		}
+	}
+	if allOK {
+		s.auditControlAction(r, "flatten_all", true, fmt.Sprintf("全平完成 closed=%d", resp.TotalClosed))
+	} else {
+		s.auditControlAction(r, "flatten_all", false, fmt.Sprintf("全平部分失败 closed=%d", resp.TotalClosed))
+	}
+	writeJSON(w, resp)
+}
+
+func (s *DashboardServer) executeStrategyFlattenAll(ctx context.Context) StrategyFlattenAllResponse {
+	var results []StrategyFlattenResult
+	totalClosed := 0
+
+	if s.crossVenueExecutor != nil {
+		closed, errs := s.crossVenueExecutor.CloseAllPositions(ctx, true)
+		r := StrategyFlattenResult{Strategy: "cross_venue_perp_perp", Closed: closed}
+		for _, e := range errs {
+			r.Errors = append(r.Errors, e.Error())
+		}
+		if closed == 0 && len(errs) == 0 {
+			r.Message = "无在场持仓"
+		}
+		results = append(results, r)
+		totalClosed += closed
+	} else {
+		results = append(results, StrategyFlattenResult{Strategy: "cross_venue_perp_perp", Skipped: true, Message: "未启用"})
+	}
+
+	if s.svspExec != nil {
+		closed, errs := s.svspExec.CloseAllPositions(ctx, true)
+		r := StrategyFlattenResult{Strategy: "single_venue_spot_perp", Closed: closed}
+		for _, e := range errs {
+			r.Errors = append(r.Errors, e.Error())
+		}
+		if closed == 0 && len(errs) == 0 {
+			r.Message = "无在场持仓"
+		}
+		results = append(results, r)
+		totalClosed += closed
+	} else {
+		results = append(results, StrategyFlattenResult{Strategy: "single_venue_spot_perp", Skipped: true, Message: "未启用"})
+	}
+
+	if s.cvspExec != nil {
+		closed, errs := s.cvspExec.CloseAllPositions(ctx, true)
+		r := StrategyFlattenResult{Strategy: "cross_venue_spot_perp", Closed: closed}
+		for _, e := range errs {
+			r.Errors = append(r.Errors, e.Error())
+		}
+		if closed == 0 && len(errs) == 0 {
+			r.Message = "无在场持仓"
+		}
+		results = append(results, r)
+		totalClosed += closed
+	} else {
+		results = append(results, StrategyFlattenResult{Strategy: "cross_venue_spot_perp", Skipped: true, Message: "未启用"})
+	}
+
+	if s.svpsExec != nil {
+		closed, errs := s.svpsExec.CloseAllPositions(ctx, true)
+		r := StrategyFlattenResult{Strategy: "single_venue_perp_spot", Closed: closed}
+		for _, e := range errs {
+			r.Errors = append(r.Errors, e.Error())
+		}
+		if closed == 0 && len(errs) == 0 {
+			r.Message = "无在场持仓"
+		}
+		results = append(results, r)
+		totalClosed += closed
+	} else {
+		results = append(results, StrategyFlattenResult{Strategy: "single_venue_perp_spot", Skipped: true, Message: "未启用"})
+	}
+
+	if s.cvpsExec != nil {
+		closed, errs := s.cvpsExec.CloseAllPositions(ctx, true)
+		r := StrategyFlattenResult{Strategy: "cross_venue_perp_spot", Closed: closed}
+		for _, e := range errs {
+			r.Errors = append(r.Errors, e.Error())
+		}
+		if closed == 0 && len(errs) == 0 {
+			r.Message = "无在场持仓"
+		}
+		results = append(results, r)
+		totalClosed += closed
+	} else {
+		results = append(results, StrategyFlattenResult{Strategy: "cross_venue_perp_spot", Skipped: true, Message: "未启用"})
+	}
+
+	return StrategyFlattenAllResponse{Results: results, TotalClosed: totalClosed}
 }
 
 func (s *DashboardServer) executeStrategyCapital(req StrategyCapitalRequest) StrategyCapitalResponse {

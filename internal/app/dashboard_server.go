@@ -50,6 +50,11 @@ type DashboardServer struct {
 	crossVenueScanner *CrossVenueScanner
 	// crossVenueExecutor 是 P1 跨所 perp-perp 对冲执行引擎;nil=未启用。
 	crossVenueExecutor *CrossVenueExecutor
+	// 五策略统一轮动的四个执行器(供一键全平仓 flatten-all 使用);nil=未启用 unified_rotation。
+	svspExec *SingleVenueSpotPerpExecutor
+	cvspExec *CrossVenueSpotPerpExecutor
+	svpsExec *SingleVenuePerpSpotExecutor
+	cvpsExec *CrossVenuePerpSpotExecutor
 	// venueEquityCache 缓存各所钱包总额/浮盈亏拉取结果,避免面板 5s 轮询触发交易所限频。
 	venueEquityCacheMu sync.Mutex
 	venueEquityCache   map[string]venueEquityCacheEntry
@@ -69,6 +74,14 @@ func (s *DashboardServer) SetCrossVenueScanner(scanner *CrossVenueScanner) {
 // SetCrossVenueExecutor 注入跨所对冲执行引擎(供 /api/cross-venue/positions 读取)。
 func (s *DashboardServer) SetCrossVenueExecutor(exec *CrossVenueExecutor) {
 	s.crossVenueExecutor = exec
+}
+
+// SetRotationExecutors 注入五策略统一轮动的四个执行器(供一键全平仓 /api/strategy/flatten-all 使用)。
+func (s *DashboardServer) SetRotationExecutors(svsp *SingleVenueSpotPerpExecutor, cvsp *CrossVenueSpotPerpExecutor, svps *SingleVenuePerpSpotExecutor, cvps *CrossVenuePerpSpotExecutor) {
+	s.svspExec = svsp
+	s.cvspExec = cvsp
+	s.svpsExec = svps
+	s.cvpsExec = cvps
 }
 
 // DashboardSummaryResponse 表示面板一次刷新所需的聚合数据。
@@ -168,6 +181,7 @@ func (s *DashboardServer) Start(ctx context.Context) error {
 	mux.HandleFunc("/api/strategy/capital", s.handleStrategyCapitalAPI)
 	mux.HandleFunc("/api/strategy/start", s.handleStrategyStartAPI)
 	mux.HandleFunc("/api/strategy/stop", s.handleStrategyStopAPI)
+	mux.HandleFunc("/api/strategy/flatten-all", s.handleStrategyFlattenAllAPI)
 	// S5-B 探针/指标(不鉴权,只暴露非敏感健康信息):供 k8s liveness/readiness 与 Prometheus 抓取。
 	mux.HandleFunc("/livez", s.handleLivez)
 	mux.HandleFunc("/healthz", s.handleHealthz)

@@ -47,7 +47,7 @@ func (a *Adapter) Name() string { return VenueName }
 // Capabilities 声明币安能力。注:SupportsCapitalRebalance 在 P4 落地 capital.go 后再置 true。
 func (a *Adapter) Capabilities() venue.Capabilities {
 	return venue.Capabilities{
-		SupportsNegativeCarry:    false, // 全仓杠杆 borrow-repay 未迁入 venue 层,旧引擎自有路径;迁入后再置 true
+		SupportsNegativeCarry:    true, // 全仓杠杆 borrow-repay + 保证金现货单已迁入 venue 层
 		FundingIntervalsHours:    []int{8, 4},
 		HasNativeDeadMan:         true, // countdownCancelAll
 		HasFeeDiscountToken:      true, // BNB 抵扣

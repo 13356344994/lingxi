@@ -109,7 +109,6 @@ func startLiveStack(ctx context.Context, cfg EngineConfig) error {
 			return fmt.Errorf("所有启用的 venue 均启动失败,无可用交易所运行时")
 		}
 	}
-	controller := orch.Primary().controller
 	dashboard, err := NewDashboardServer(cfg.NetworkConfig.DashboardAddr, orch, log.Default())
 	if err != nil {
 		return fmt.Errorf("创建 Web 面板失败: %w", err)
@@ -159,17 +158,28 @@ func startLiveStack(ctx context.Context, cfg EngineConfig) error {
 				go exec.RunEquitySampler(ctx)
 			}
 		}
+		// 五策略统一轮动 runner(默认关闭;unified_rotation.enabled=true 才启动,
+		// live_trading_enabled=false 时全程影子:不下单、不真划转)。perp-perp 仍走上方独立执行器。
+		if cfg.UnifiedRotation.Enabled {
+			rotVenues := buildCrossVenueExecutorAdapters(orch, cfg, secretPath, log.Default())
+			rd := cfg.NetworkConfig.RecordDir
+			svsp := NewSingleVenueSpotPerpExecutor(cfg, rotVenues, rd, log.Default())
+			cvsp := NewCrossVenueSpotPerpExecutor(cfg, rotVenues, rd, log.Default())
+			svps := NewSingleVenuePerpSpotExecutor(cfg, rotVenues, rd, log.Default())
+			cvps := NewCrossVenuePerpSpotExecutor(cfg, rotVenues, rd, log.Default())
+			runner := NewUnifiedRotationRunner(
+				cfg.CrossVenueExecutor, DefaultRotationConfig(), DefaultCapitalRouterConfig(),
+				svsp, cvsp, svps, cvps, scanner, rotVenues, rd, log.Default(),
+			)
+			dashboard.SetRotationExecutors(svsp, cvsp, svps, cvps)
+			log.Default().Printf("[统一轮动] runner 启动 (live=%v)", cfg.UnifiedRotation.LiveTradingEnabled)
+			go runner.Run(ctx, cfg.UnifiedRotation.LiveTradingEnabled)
+		}
 	} else if cfg.CrossVenueExecutor.Enabled {
 		log.Default().Printf("[跨所执行] 已启用但扫描器未启用,跳过(需 cross_venue_scanner.enabled=true)")
 	}
-	// opt-in：显式开启 LINGXI_AUTOSTART_LIVE 时，面板拉起后自动触发实盘交易（等价于面板点"启动实盘"），
-	// 用于崩溃重启后自动恢复；影子模式不自动开（影子是人工冒烟，无需无人值守恢复）。默认关闭，零行为变更。
-	if !cfg.ExecutionConfig.ShadowTrading {
-		maybeAutoStartLiveTrading(ctx, controller)
-		// venues.<name>.autostart=true 的非 primary 所同样自动拉起(此前该配置被解析但从未执行,
-		// 重启后 Bybit 一直 idle、连 reconcile 都不跑,崩溃自愈对多所形同虚设)。
-		maybeAutoStartVenueTasks(ctx, orch, enabled)
-	}
+	// 单所实盘引擎已退役(de-wire 2026-06-17):此处原有的 maybeAutoStartLiveTrading /
+	// maybeAutoStartVenueTasks 单所自启已从装配链摘除,实盘统一经跨所执行器(上方 CrossVenueExecutor)。
 	if err := dashboard.Start(ctx); err != nil && !errors.Is(err, context.Canceled) {
 		return fmt.Errorf("Web 面板异常退出: %w", err)
 	}

@@ -246,6 +246,196 @@
       color: #fff;
       font-weight: 600;
     }
+
+    /* === Dashboard layout refresh === */
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0,0,0,0);
+      white-space: nowrap;
+      border: 0;
+    }
+    .dash-header {
+      margin-bottom: 8px;
+    }
+    .dash-header-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+    .dash-header h1 {
+      font-size: clamp(1.25rem, 3vw, 1.75rem);
+      margin-bottom: 4px;
+    }
+    .dash-version {
+      margin: 0;
+    }
+    .dash-readonly-note {
+      margin: 0 0 10px;
+    }
+    .toolbar-compact {
+      margin-bottom: 0;
+    }
+    .toolbar-downloads {
+      margin: 8px 0 0;
+    }
+    .section {
+      margin-bottom: 24px;
+    }
+    .section-head {
+      margin-bottom: 14px;
+    }
+    .section-title {
+      font-size: 1.15rem;
+      margin: 0 0 6px;
+      color: #f1f5f9;
+    }
+    .section-title-muted {
+      color: #94a3b8;
+      font-size: 1rem;
+    }
+    .section-desc {
+      margin: 0;
+    }
+    .section-overview .earnings-hero {
+      background: linear-gradient(135deg, #0f1a33 0%, #111827 55%, #0b1220 100%);
+      border: 1px solid #334155;
+      border-radius: 14px;
+      padding: 18px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+    }
+    .section-overview #earnings-grid {
+      gap: 12px !important;
+    }
+    .sub-panel {
+      margin: 14px 0;
+      padding: 14px;
+      background: #0f1830;
+      border: 1px solid #243049;
+      border-radius: 10px;
+    }
+    .ops-group {
+      margin: 16px 0;
+      padding: 14px;
+      background: #0b1220;
+      border: 1px solid #1e293b;
+      border-radius: 10px;
+    }
+    .ops-group-label {
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: #64748b;
+      margin-bottom: 10px;
+    }
+    .ops-group-venues #venue-overview {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .positions-block {
+      margin-top: 16px;
+      padding-top: 14px;
+      border-top: 1px solid #243049;
+    }
+    .positions-block > strong,
+    .positions-block .hint:first-of-type {
+      display: block;
+    }
+    .fold-panel {
+      background: #111827;
+      border: 1px solid #334155;
+      border-radius: 10px;
+      margin-bottom: 10px;
+      overflow: hidden;
+    }
+    .fold-panel > summary {
+      cursor: pointer;
+      padding: 12px 16px;
+      font-weight: 600;
+      font-size: 14px;
+      color: #cbd5e1;
+      list-style: none;
+      user-select: none;
+    }
+    .fold-panel > summary::-webkit-details-marker {
+      display: none;
+    }
+    .fold-panel > summary::before {
+      content: "▸ ";
+      color: #64748b;
+    }
+    .fold-panel[open] > summary::before {
+      content: "▾ ";
+      color: #93c5fd;
+    }
+    .fold-panel[open] > summary {
+      border-bottom: 1px solid #1e293b;
+      color: #e2e8f0;
+    }
+    .fold-body {
+      padding: 14px 16px 16px;
+    }
+    .fold-nested {
+      margin-top: 12px;
+      background: #0b1220;
+      border-color: #1e293b;
+    }
+    .fold-toolbar {
+      margin-top: 8px;
+      background: transparent;
+      border-style: dashed;
+    }
+    .fold-toolbar > summary {
+      font-weight: 500;
+      font-size: 13px;
+      color: #94a3b8;
+    }
+    .fold-summary-meta {
+      font-weight: normal;
+      margin-left: 6px;
+    }
+    .panel-inner .hint:first-child {
+      margin-top: 0;
+    }
+    .panel-inner .status-grid .stat-value {
+      font-size: 14px !important;
+      word-break: break-word;
+      white-space: normal;
+    }
+    .sub-block {
+      margin-top: 12px;
+    }
+    @media (max-width: 640px) {
+      .container {
+        padding: 14px;
+      }
+      .dash-header-top {
+        flex-direction: column;
+      }
+      .toolbar a, .toolbar button {
+        font-size: 12px;
+        padding: 8px 10px;
+      }
+      .wb-bar {
+        padding: 10px 12px;
+      }
+      .stat-value {
+        font-size: 18px;
+      }
+      th, td {
+        font-size: 12px;
+        padding: 8px 6px;
+      }
+    }
   </style>
 </head>
 <body>
@@ -261,37 +451,67 @@
         style="margin-top:16px;width:100%;padding:11px 12px;border:none;border-radius:8px;background:#2563eb;color:#fff;font-size:14px;font-weight:600;cursor:pointer;">进入面板</button>
     </div>
   </div>
-  <div class="container">
-    <h1>Funding Rate Sniper Dashboard</h1>
-    <div class="hint">构建信息：{{.VersionSummary}}</div>
-    <!-- 交易所工作台:顶部选交易所 → 下方整页(启停/调仓/绩效/账户/记录)都只看这一个所。 -->
-    <div class="wb-bar">
-      <span class="wb-title" id="workbench-title">选择交易所</span>
-      <div class="wb-tabs" id="venue-tabs"></div>
-    </div>
-    <div class="hint">系统已处于【读保护模式】。所有自动化配置由 EngineGear 与 EngineProfile 后台自动接管。仅开放安全监控和必要的人工介入入口。</div>
-    <div id="load-error-banner" style="display:none;margin:8px 0;padding:10px 14px;border-radius:8px;background:#3a1212;border:1px solid #ef4444;color:#fca5a5;font-size:13px;"></div>
-    <div class="toolbar">
-      <button id="refresh-btn" type="button">刷新面板</button>
-      <label for="venue-select" style="margin-left:8px;display:none;">交易所</label>
-      <select id="venue-select" title="选择查看的交易所(含「全部(总览)」聚合)" style="display:none;"></select>
-      <a href="{{.SettlementCSV}}" target="_blank" rel="noopener noreferrer">下载结算 JSON</a>
-      <a href="{{.MonitorCSV}}" target="_blank" rel="noopener noreferrer">下载监控 JSONL</a>
-      <a href="{{.BacktestCSV}}" target="_blank" rel="noopener noreferrer">下载回测 JSON</a>
-      <a href="{{.ResidualCSV}}" target="_blank" rel="noopener noreferrer">下载残腿 JSON</a>
-      <a href="{{.ExecutionCSV}}" target="_blank" rel="noopener noreferrer">下载执行事故 JSONL</a>
-      <a href="{{.DomainEventCSV}}" target="_blank" rel="noopener noreferrer">下载协议事件 JSONL</a>
-      <a href="{{.MonthlySimulationCSV}}" target="_blank" rel="noopener noreferrer">下载历史模拟日志 JSON</a>
-      <a href="{{.RuntimeEventLog}}" target="_blank" rel="noopener noreferrer">下载运行日志</a>
-      <a href="{{.ControlAuditLog}}" target="_blank" rel="noopener noreferrer">下载控制审计 JSONL</a>
-    </div>
 
-    <div class="panel">
-      <h2 id="venue-overview-title">多所运行总览</h2>
-      <div class="hint">跟随上方「交易所」下拉:选具体交易所 → 只显示该所的启动/停止/调仓与记录;选「全部(总览)」→ 显示所有交易所。每所相互独立,可分别或同时运行。Bybit 仅支持实盘(live)模式。</div>
-      <!-- 策略总控:仅在「全部(总览)」Tab 显示,收敛多引擎为一键操作 -->
-      <div id="strategy-control-panel" style="display:none;margin:12px 0 16px;padding:14px;background:#0f1830;border:1px solid #243049;border-radius:10px;">
-        <h3 style="margin:0 0 8px;font-size:15px;color:#e5edff;">策略总控</h3>
+  <div class="container">
+    <header class="dash-header">
+      <div class="dash-header-top">
+        <div>
+          <h1>Funding Rate Sniper Dashboard</h1>
+          <div class="hint dash-version">构建信息：{{.VersionSummary}}</div>
+        </div>
+        <div class="toolbar toolbar-compact">
+          <button id="refresh-btn" type="button">刷新面板</button>
+          <label for="venue-select" class="sr-only">交易所</label>
+          <select id="venue-select" title="选择查看的交易所(含「全部(总览)」聚合)" style="display:none;"></select>
+        </div>
+      </div>
+      <div class="wb-bar">
+        <span class="wb-title" id="workbench-title">选择交易所</span>
+        <div class="wb-tabs" id="venue-tabs"></div>
+      </div>
+      <div class="hint dash-readonly-note">系统已处于【读保护模式】。所有自动化配置由 EngineGear 与 EngineProfile 后台自动接管。仅开放安全监控和必要的人工介入入口。</div>
+      <div id="load-error-banner" style="display:none;margin:8px 0;padding:10px 14px;border-radius:8px;background:#3a1212;border:1px solid #ef4444;color:#fca5a5;font-size:13px;"></div>
+      <details class="fold-panel fold-toolbar">
+        <summary>数据导出</summary>
+        <div class="toolbar toolbar-downloads">
+          <a href="{{.SettlementCSV}}" target="_blank" rel="noopener noreferrer">下载结算 JSON</a>
+          <a href="{{.MonitorCSV}}" target="_blank" rel="noopener noreferrer">下载监控 JSONL</a>
+          <a href="{{.BacktestCSV}}" target="_blank" rel="noopener noreferrer">下载回测 JSON</a>
+          <a href="{{.ResidualCSV}}" target="_blank" rel="noopener noreferrer">下载残腿 JSON</a>
+          <a href="{{.ExecutionCSV}}" target="_blank" rel="noopener noreferrer">下载执行事故 JSONL</a>
+          <a href="{{.DomainEventCSV}}" target="_blank" rel="noopener noreferrer">下载协议事件 JSONL</a>
+          <a href="{{.MonthlySimulationCSV}}" target="_blank" rel="noopener noreferrer">下载历史模拟日志 JSON</a>
+          <a href="{{.RuntimeEventLog}}" target="_blank" rel="noopener noreferrer">下载运行日志</a>
+          <a href="{{.ControlAuditLog}}" target="_blank" rel="noopener noreferrer">下载控制审计 JSONL</a>
+        </div>
+      </details>
+    </header>
+
+    <!-- 1. 总览区 -->
+    <section class="section section-overview" aria-label="总览">
+      <div class="section-head">
+        <h2 class="section-title">收益总览</h2>
+        <p class="hint section-desc">今日收益与收益率（北京时间），各交易所卡片由 <code>/api/earnings</code> 实时填充。</p>
+      </div>
+      <div id="earnings-panel" class="earnings-hero">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <strong style="color:#e5edff;font-size:15px;">今日收益(北京时间)</strong>
+          <button id="earnings-clear-btn" type="button" class="danger" style="font-size:12px;">清除权益快照(24h外)</button>
+        </div>
+        <div class="hint" id="earnings-note" style="margin:0 0 10px;">含义:<strong>今日收益</strong>=各所账户总值相对<strong>北京时间当日 00:00 后首条权益快照</strong>的真实变化(含在场持仓、手续费、资费、开平仓全部影响);<strong>收益率</strong>=今日收益÷日初基准账户总值。<strong>可动用资金</strong>为各所实时可调 USDT;<strong>全部资金</strong>为钱包本金(含占用保证金与非 USDT 折算,不含持仓浮盈亏)。API 另附 <code>settlements_net_pnl</code> 供对照(仅已平仓单仓归因,与账户真实变化常不一致)。</div>
+        <div id="earnings-grid" style="display:flex;flex-wrap:wrap;gap:10px;"></div>
+      </div>
+    </section>
+
+    <!-- 2. 操作区 -->
+    <section class="section section-operations panel" aria-label="操作">
+      <div class="section-head">
+        <h2 class="section-title" id="venue-overview-title">多所运行总览</h2>
+        <p class="hint section-desc">调仓、启停、开仓开关与按所控制。选「全部(总览)」可一键策略总控；选单一交易所则只显示该所卡片。</p>
+      </div>
+      <div id="strategy-control-panel" class="sub-panel" style="display:none;">
+        <div class="ops-group-label">策略总控</div>
+        <h3 style="margin:0 0 8px;font-size:15px;color:#e5edff;">一键编排</h3>
         <div class="hint" style="margin-bottom:10px;">一键编排 Bybit 执行引擎 + 跨所对冲引擎;细粒度 per-venue 操作仍可用下方卡片。</div>
         <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin-bottom:10px;">
           <div style="flex:1 1 200px;">
@@ -301,13 +521,22 @@
           <button id="strategy-capital-btn" type="button" class="secondary">全所调仓</button>
           <button id="strategy-start-btn" type="button">策略启动</button>
           <button id="strategy-stop-btn" type="button" class="danger">策略停止</button>
+          <button id="strategy-flatten-all-btn" type="button" class="danger">⚠️ 一键全平仓</button>
         </div>
         <div id="strategy-shadow-hint" class="hint" style="margin:0 0 8px;font-size:12px;color:#94a3b8;"></div>
         <div id="strategy-status-line" class="hint" style="margin:0 0 8px;font-size:13px;color:#cbd5e1;">加载策略状态…</div>
         <div id="strategy-capital-results" style="font-size:12px;"></div>
       </div>
-      <!-- 跨所对冲执行器(全局唯一):状态/开仓开关/健康闸 -->
-      <div id="cross-venue-panel" style="display:none;margin:12px 0 16px;padding:14px;background:#0f1830;border:1px solid #243049;border-radius:10px;">
+
+      <div class="ops-group ops-group-global">
+        <div class="ops-group-label">批量操作</div>
+        <div class="risk-actions">
+          <button id="start-all-btn" type="button">全部启动(实盘)</button>
+          <button id="stop-all-btn" type="button" class="danger">全部停止</button>
+        </div>
+      </div>
+
+      <div id="cross-venue-panel" class="sub-panel" style="display:none;">
         <h3 style="margin:0 0 8px;font-size:15px;color:#e5edff;">跨所对冲执行器(全局唯一)</h3>
         <div class="hint" style="margin-bottom:10px;">消费扫描器价差信号,在四所永续腿间 perp-perp 对冲;与下方各所单所 funding 引擎独立。</div>
         <div class="stats" style="margin-bottom:10px;">
@@ -322,8 +551,11 @@
           <button id="cv-openings-off-btn" type="button" class="danger">关闭跨所开仓</button>
         </div>
         <div id="cv-status-line" class="hint" style="margin:8px 0 0;font-size:13px;color:#cbd5e1;">加载跨所状态…</div>
-        <div style="margin-top:14px;">
-          <strong style="color:#e5edff;font-size:14px;">当前持仓明细</strong>
+
+        <div class="positions-block">
+          <div class="ops-group-label">当前持仓</div>
+          <div style="margin-top:8px;">
+          <strong style="color:#e5edff;font-size:14px;">跨所对冲持仓明细</strong>
           <div class="hint" style="margin:6px 0 8px;">在场跨所对冲单:两腿方向/数量为真实币数;资费为已累计估算(est_funding_usdt);净额=累计资费−开仓费−预计平仓费(两腿 taker)。</div>
           <div class="table-wrap" style="max-height:320px;">
             <table id="cv-positions-table">
@@ -351,7 +583,12 @@
             </table>
           </div>
         </div>
-        <div style="margin-top:16px;">
+        </div>
+
+        <details class="fold-panel fold-nested">
+          <summary>跨所校验 / 回放</summary>
+          <div class="fold-body">
+<div style="margin-top:16px;">
           <strong style="color:#e5edff;font-size:14px;">校验 / 回放</strong>
           <div class="hint" id="cv-validation-line" style="margin:6px 0 8px;">加载校验回放中…</div>
           <div class="stats" style="margin-bottom:10px;">
@@ -434,7 +671,7 @@
               <button id="cv-toggle-details-btn" type="button" class="secondary">全部折叠</button>
             </div>
           </div>
-          <details id="cv-shadow-section" open style="margin-top:12px;">
+          <details id="cv-shadow-section" style="margin-top:12px;">
             <summary style="cursor:pointer;color:#e5edff;font-size:13px;font-weight:600;">影子组合</summary>
             <div class="table-wrap" style="max-height:220px;margin-top:6px;">
               <table>
@@ -456,7 +693,7 @@
               </table>
             </div>
           </details>
-          <details id="cv-counterfactual-section" open style="margin-top:12px;">
+          <details id="cv-counterfactual-section" style="margin-top:12px;">
             <summary style="cursor:pointer;color:#e5edff;font-size:13px;font-weight:600;">反事实回放</summary>
             <div class="table-wrap" style="max-height:220px;margin-top:6px;">
               <table>
@@ -478,7 +715,7 @@
               </table>
             </div>
           </details>
-          <details id="cv-baseline-section" open style="margin-top:12px;">
+          <details id="cv-baseline-section" style="margin-top:12px;">
             <summary style="cursor:pointer;color:#e5edff;font-size:13px;font-weight:600;">基线组合回放</summary>
             <div class="table-wrap" style="max-height:220px;margin-top:6px;">
               <table>
@@ -499,7 +736,7 @@
               </table>
             </div>
           </details>
-          <details id="cv-rolling-section" open style="margin-top:12px;">
+          <details id="cv-rolling-section" style="margin-top:12px;">
             <summary style="cursor:pointer;color:#e5edff;font-size:13px;font-weight:600;">滚动基线回放</summary>
             <div class="hint" id="cv-rolling-chart-line" style="margin:6px 0 8px;">显示窗口内实际/基线累计 replay EV 时间序列。</div>
             <div class="status-grid" style="margin:0 0 10px;">
@@ -537,25 +774,31 @@
             </div>
           </details>
         </div>
+          </div>
+        </details>
       </div>
-      <div id="earnings-panel" style="margin:12px 0 16px;padding:14px;background:#0f1830;border:1px solid #243049;border-radius:10px;">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-          <strong style="color:#e5edff;font-size:15px;">今日收益(北京时间)</strong>
-          <button id="earnings-clear-btn" type="button" class="danger" style="font-size:12px;">清除权益快照(24h外)</button>
-        </div>
-        <div class="hint" id="earnings-note" style="margin:0 0 10px;">含义:<strong>今日收益</strong>=各所账户总值相对<strong>北京时间当日 00:00 后首条权益快照</strong>的真实变化(含在场持仓、手续费、资费、开平仓全部影响);<strong>收益率</strong>=今日收益÷日初基准账户总值。<strong>可动用资金</strong>为各所实时可调 USDT;<strong>全部资金</strong>为钱包本金(含占用保证金与非 USDT 折算,不含持仓浮盈亏)。API 另附 <code>settlements_net_pnl</code> 供对照(仅已平仓单仓归因,与账户真实变化常不一致)。</div>
-        <div id="earnings-grid" style="display:flex;flex-wrap:wrap;gap:10px;"></div>
-      </div>
-      <div class="risk-actions" style="margin:8px 0;">
-        <button id="start-all-btn" type="button">全部启动(实盘)</button>
-        <button id="stop-all-btn" type="button" class="danger">全部停止</button>
-      </div>
-      <div id="venue-overview" style="display:flex;flex-wrap:wrap;gap:12px;"></div>
-    </div>
 
-    <div class="panel">
-      <h2>绩效指标 <span id="performance-venue-label" class="hint" style="font-weight:normal;"></span></h2>
-      <div class="hint" id="performance-note">上方「今日收益」按跨所结算 close_time 的<strong>北京时间自然日</strong>口径;本区绩效序列仍按单所 settlements 的 UTC 日聚合(历史兼容),分母为该所分配本金(allocated_capital_usdt)。小样本下重点看最大回撤 / 索提诺 / 胜率。基准为 BTC 现货日 K(Alpha/Beta)。</div>
+      <div class="ops-group ops-group-venues">
+        <div class="ops-group-label">按交易所</div>
+        <div id="venue-overview" style="display:flex;flex-wrap:wrap;gap:12px;"></div>
+      </div>
+    </section>
+
+    <!-- 3. 当前持仓区 (跨所持仓表在 cross-venue-panel 内，随总览 Tab 显示) -->
+    <!-- 注: cv-positions-table 位于 #cross-venue-panel .positions-block -->
+
+    
+    <!-- 4. 指标/明细区 (默认折叠) -->
+    <section class="section section-details" aria-label="指标与明细">
+      <div class="section-head">
+        <h2 class="section-title section-title-muted">指标与明细</h2>
+        <p class="hint section-desc">绩效、运行态、事件流与历史记录。默认折叠，需要时再展开。</p>
+      </div>
+
+      <details class="fold-panel">
+        <summary>绩效指标 <span id="performance-venue-label" class="hint fold-summary-meta"></span></summary>
+        <div class="fold-body panel-inner">
+          <div class="hint" id="performance-note">上方「今日收益」按跨所结算 close_time 的<strong>北京时间自然日</strong>口径;本区绩效序列仍按单所 settlements 的 UTC 日聚合(历史兼容),分母为该所分配本金(allocated_capital_usdt)。小样本下重点看最大回撤 / 索提诺 / 胜率。基准为 BTC 现货日 K(Alpha/Beta)。</div>
       <div class="stats" id="performance-cards">
         <div class="stat-card"><div class="stat-label">总收益率</div><div class="stat-value" id="perf-total-return">-</div></div>
         <div class="stat-card"><div class="stat-label">年化收益</div><div class="stat-value" id="perf-annualized">-</div></div>
@@ -572,11 +815,14 @@
         <div class="hint">权益曲线(蓝)与水下回撤(红,自前缀高水位)</div>
         <svg id="equity-chart" viewBox="0 0 800 220" preserveAspectRatio="none" style="width:100%;height:220px;background:#0b1220;border-radius:8px;"></svg>
       </div>
-    </div>
+    
+        </div>
+      </details>
 
-    <div class="panel">
-      <h2>人工接管与安全控制台</h2>
-      <div class="hint">启动 / 停止 / 调仓已按交易所拆分到上方「多所运行总览」按所操作。此处仅保留全局危险操作与账户余额观测;控制令牌在进入页面时输入,无需在此重复填写。</div>
+      <details class="fold-panel">
+        <summary>运行状态与安全控制台</summary>
+        <div class="fold-body panel-inner">
+          <div class="hint">启动 / 停止 / 调仓已按交易所拆分到上方「多所运行总览」按所操作。此处仅保留全局危险操作与账户余额观测;控制令牌在进入页面时输入,无需在此重复填写。</div>
       <div class="risk-actions" style="margin-top:0;">
         <button id="clear-all-records-btn" type="button" class="danger">一键删除所有日志和记录</button>
       </div>
@@ -799,21 +1045,24 @@
           <div class="stat-value" id="runtime-daily-notional" style="font-size:14px">0.00 / -</div>
         </div>
       </div>
-      <div class="panel" style="margin-top:12px; margin-bottom:0;">
+      <div class="sub-block">
         <h2 style="font-size:18px;">最近统一事件流</h2>
         <div class="hint">这里优先展示 runtime 最近收到的统一结构化事件，包含协议事件和已桥接的关键风险事件。</div>
         <div id="runtime-domain-events" class="log-list"></div>
       </div>
-      <div class="panel" style="margin-top:12px; margin-bottom:0;">
+      <div class="sub-block">
         <h2 style="font-size:18px;">最近执行事件</h2>
         <div class="hint">这里保留兼容视图，主要展示旧执行事故流，方便和统一事件流对照排查。</div>
         <div id="runtime-execution-events" class="log-list"></div>
       </div>
-    </div>
+    
+        </div>
+      </details>
 
-    <div class="panel">
-      <h2>在线风控参数</h2>
-      <div class="hint">系统已处于【读保护模式】。参数仅供只读查看。所有改动必须通过修改底层配置和重启引擎来完成，以此保证配置的单一真相源。</div>
+      <details class="fold-panel">
+        <summary>在线风控参数</summary>
+        <div class="fold-body panel-inner">
+          <div class="hint">系统已处于【读保护模式】。参数仅供只读查看。所有改动必须通过修改底层配置和重启引擎来完成，以此保证配置的单一真相源。</div>
       <div class="form-grid">
         <div>
           <label for="risk-per-symbol-quote">单标的名义资金 (USDT)</label>
@@ -936,11 +1185,14 @@
         <button id="tighten-risk-25-btn" type="button" class="secondary" disabled>一键收紧 25%</button>
       </div>
       <div class="hint" id="risk-config-message">由于系统已切换至读保护模式，面板风险参数均已锁定只读，不再允许通过 Web 面板修改。如需修改，请修改配置文件后重启系统。</div>
-    </div>
+    
+        </div>
+      </details>
 
-    <div class="panel">
-      <h2>统一事件主视图</h2>
-      <div class="hint">这里优先展示统一事件流的主表：协议事件、风险事件桥接，以及仍未完成语义迁移的 legacy execution 兼容项都会合流到这里。</div>
+      <details class="fold-panel">
+        <summary>统一事件主视图</summary>
+        <div class="fold-body panel-inner">
+          <div class="hint">这里优先展示统一事件流的主表：协议事件、风险事件桥接，以及仍未完成语义迁移的 legacy execution 兼容项都会合流到这里。</div>
       <div class="table-wrap">
         <table id="unified-event-table">
           <thead>
@@ -957,11 +1209,14 @@
           <tbody></tbody>
         </table>
       </div>
-    </div>
+    
+        </div>
+      </details>
 
-    <div class="panel">
-      <h2>兼容执行事故原始流</h2>
-      <div class="hint">这里保留 legacy execution 原始记录，主要用于对照排查迁移期问题，不再是 dashboard 的主事件表。</div>
+      <details class="fold-panel">
+        <summary>兼容执行事故原始流</summary>
+        <div class="fold-body panel-inner">
+          <div class="hint">这里保留 legacy execution 原始记录，主要用于对照排查迁移期问题，不再是 dashboard 的主事件表。</div>
       <div class="table-wrap">
         <table id="execution-table">
           <thead>
@@ -979,11 +1234,14 @@
           <tbody></tbody>
         </table>
       </div>
-    </div>
+    
+        </div>
+      </details>
 
-    <div class="panel">
-      <h2>原始协议事件流</h2>
-      <div class="hint">这里保留 protocol/domain 原始事件，方便和统一主视图交叉核对。</div>
+      <details class="fold-panel">
+        <summary>原始协议事件流</summary>
+        <div class="fold-body panel-inner">
+          <div class="hint">这里保留 protocol/domain 原始事件，方便和统一主视图交叉核对。</div>
       <div class="table-wrap">
         <table id="domain-event-table">
           <thead>
@@ -1000,17 +1258,23 @@
           <tbody></tbody>
         </table>
       </div>
-    </div>
+    
+        </div>
+      </details>
 
-    <div class="panel">
-      <h2>后台运行日志</h2>
-      <div class="hint">这里展示最近 200 条且只保留近 12 小时的后台日志；过期日志会在后台自动清理，不影响程序运行。</div>
+      <details class="fold-panel">
+        <summary>后台运行日志</summary>
+        <div class="fold-body panel-inner">
+          <div class="hint">这里展示最近 200 条且只保留近 12 小时的后台日志；过期日志会在后台自动清理，不影响程序运行。</div>
       <div id="runtime-log-list" class="log-list"></div>
-    </div>
+    
+        </div>
+      </details>
 
-    <div class="panel">
-      <h2>回测总览</h2>
-      <div class="hint">快速查看当前回测成功结果与残腿风险的总体分布。</div>
+      <details class="fold-panel">
+        <summary>回测总览</summary>
+        <div class="fold-body panel-inner">
+          <div class="hint">快速查看当前回测成功结果与残腿风险的总体分布。</div>
       <div class="stats">
         <div class="stat-card">
           <div class="stat-label">回测汇总条数</div>
@@ -1029,11 +1293,14 @@
           <div class="stat-value" id="overview-residual-rate">0%</div>
         </div>
       </div>
-    </div>
+    
+        </div>
+      </details>
 
-    <div class="panel">
-      <h2>结算记录</h2>
-      <div class="hint">最近 200 条结算记录，优先用于运行记录和后续导出的 JSON 对照。</div>
+      <details class="fold-panel">
+        <summary>结算记录</summary>
+        <div class="fold-body panel-inner">
+          <div class="hint">最近 200 条结算记录，优先用于运行记录和后续导出的 JSON 对照。</div>
       <div class="table-wrap">
         <table id="settlement-table">
           <thead>
@@ -1053,11 +1320,14 @@
           <tbody></tbody>
         </table>
       </div>
-    </div>
+    
+        </div>
+      </details>
 
-    <div class="panel">
-      <h2>监控摘要</h2>
-      <div class="hint">最近 200 条目标监控结果，可直接看到 watching / observing / healthy / invalidated 状态。</div>
+      <details class="fold-panel">
+        <summary>监控摘要</summary>
+        <div class="fold-body panel-inner">
+          <div class="hint">最近 200 条目标监控结果，可直接看到 watching / observing / healthy / invalidated 状态。</div>
       <div class="table-wrap">
         <table id="monitor-table">
           <thead>
@@ -1085,11 +1355,14 @@
           <tbody></tbody>
         </table>
       </div>
-    </div>
+    
+        </div>
+      </details>
 
-    <div class="panel">
-      <h2>回测记录</h2>
-      <div class="hint">当前会优先展示 `backtest/` 目录提供的示例回测记录，后续真实回测器也可以复用同一份 JSON 结构。</div>
+      <details class="fold-panel">
+        <summary>回测记录</summary>
+        <div class="fold-body panel-inner">
+          <div class="hint">当前会优先展示 `backtest/` 目录提供的示例回测记录，后续真实回测器也可以复用同一份 JSON 结构。</div>
       <div class="table-wrap">
         <table id="backtest-table">
           <thead>
@@ -1111,11 +1384,14 @@
           <tbody></tbody>
         </table>
       </div>
-    </div>
+    
+        </div>
+      </details>
 
-    <div class="panel">
-      <h2>残腿风险记录</h2>
-      <div class="hint">展示 timeline 回放里出现的先合约后现货失败、双腿数量不一致、平仓腿失败等异常。</div>
+      <details class="fold-panel">
+        <summary>残腿风险记录</summary>
+        <div class="fold-body panel-inner">
+          <div class="hint">展示 timeline 回放里出现的先合约后现货失败、双腿数量不一致、平仓腿失败等异常。</div>
       <div class="stats">
         <div class="stat-card">
           <div class="stat-label">残腿次数</div>
@@ -1166,11 +1442,14 @@
           <tbody></tbody>
         </table>
       </div>
-    </div>
+    
+        </div>
+      </details>
 
-    <div class="panel">
-      <h2>按场景聚合</h2>
-      <div class="hint">按 `scenario` 聚合残腿风险次数、平均残差和最坏应急损益，方便比较不同回放场景的稳定性。</div>
+      <details class="fold-panel">
+        <summary>按场景聚合</summary>
+        <div class="fold-body panel-inner">
+          <div class="hint">按 `scenario` 聚合残腿风险次数、平均残差和最坏应急损益，方便比较不同回放场景的稳定性。</div>
       <div class="table-wrap">
         <table id="scenario-table">
           <thead>
@@ -1185,7 +1464,11 @@
           <tbody></tbody>
         </table>
       </div>
-    </div>
+    
+        </div>
+      </details>
+
+    </section>
   </div>
 
   <script>
@@ -2642,6 +2925,28 @@
       }
     }
 
+    async function flattenAllStrategy() {
+      if (!confirm("确认平掉所有交易所的全部持仓？此操作会真实下单平仓")) { return; }
+      try {
+        const result = await postJSON("/api/strategy/flatten-all", {});
+        const lines = (result.results || []).map((r) => {
+          const errs = (r.errors || []).join("; ");
+          let line = `${r.strategy}: closed=${r.closed}`;
+          if (r.skipped) { line += " (跳过)"; }
+          if (r.message) { line += " " + r.message; }
+          if (errs) { line += " 错误:" + errs; }
+          return line;
+        });
+        const total = result.total_closed ?? 0;
+        alert("一键全平仓完成:\n合计 closed=" + total + "\n" + lines.join("\n"));
+        await refreshStrategyStatus();
+        await refreshVenueOverview();
+        await refreshDashboard();
+      } catch (err) {
+        alert("一键全平仓失败: " + err.message);
+      }
+    }
+
     function initStrategyControl() {
       const saved = window.localStorage.getItem(strategyCapitalStorageKey);
       const input = document.getElementById("strategy-capital-input");
@@ -2649,6 +2954,7 @@
       document.getElementById("strategy-capital-btn")?.addEventListener("click", applyStrategyCapital);
       document.getElementById("strategy-start-btn")?.addEventListener("click", startStrategy);
       document.getElementById("strategy-stop-btn")?.addEventListener("click", stopStrategy);
+      document.getElementById("strategy-flatten-all-btn")?.addEventListener("click", flattenAllStrategy);
       document.getElementById("cv-openings-on-btn")?.addEventListener("click", () => setCrossVenueOpenings(true));
       document.getElementById("cv-openings-off-btn")?.addEventListener("click", () => setCrossVenueOpenings(false));
       applyStrategyPanelVisibility();

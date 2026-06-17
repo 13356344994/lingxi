@@ -538,6 +538,15 @@ type EngineConfig struct {
 
 	// CrossVenueExecutor 是 P1 跨所 perp-perp 对冲执行引擎参数(默认关闭+影子模式,绝不下单)。
 	CrossVenueExecutor CrossVenueExecutorConfig `cfg:"cross_venue_executor"`
+
+	// CapitalAllocator 是跨策略资本分配器参数(默认关闭+影子模式)。
+	CapitalAllocator CapitalAllocatorConfig `cfg:"capital_allocator"`
+
+	// DataCollection 是数据收集策略参数(默认关闭+影子模式)。
+	DataCollection DataCollectionConfig `cfg:"data_collection"`
+
+	// UnifiedRotation 是五策略统一轮动 runner 开关(默认关闭+影子;live_trading_enabled=true 才真下单)。
+	UnifiedRotation UnifiedRotationConfig `cfg:"unified_rotation"`
 }
 
 // CrossVenueExecutorConfig 是跨所资金费对冲执行引擎的可调参数。
@@ -627,6 +636,42 @@ type CrossVenueExecutorConfig struct {
 	MaxSwitchesPerCycle int `cfg:"max_switches_per_cycle"`
 	// UntrackedExposureAction 冷启动发现未登记真实仓位时的显式分支:halt/import/flatten。默认 halt。
 	UntrackedExposureAction string `cfg:"untracked_exposure_action"`
+}
+
+// CapitalAllocatorConfig 是跨策略资本分配器的可调参数(默认关闭+影子模式)。
+type CapitalAllocatorConfig struct {
+	// Enabled 启用资本分配器 goroutine。默认 false;false 时不启动。
+	Enabled bool `cfg:"enabled"`
+	// Mode 运行模式:shadow|profit|data_collection。默认 shadow。
+	Mode string `cfg:"mode"`
+	// MaxTotalCapitalUsageRatio 全策略合计资本占用上限(相对分配本金,小数)。默认 0.2。
+	MaxTotalCapitalUsageRatio float64 `cfg:"max_total_capital_usage_ratio"`
+	// MaxDailyLossUSDT 日亏损熔断上限(USDT)。默认 0.3。
+	MaxDailyLossUSDT float64 `cfg:"max_daily_loss_usdt"`
+}
+
+// DataCollectionConfig 是数据收集策略的可调参数(默认关闭+影子模式)。
+type DataCollectionConfig struct {
+	// Enabled 启用数据收集策略 goroutine。默认 false;false 时不启动。
+	Enabled bool `cfg:"enabled"`
+	// Mode 运行模式:shadow|data_collection|profit。默认 shadow。
+	Mode string `cfg:"mode"`
+	// StrategyType 数据收集策略类型标识。默认空。
+	StrategyType string `cfg:"strategy_type"`
+	// MaxPositions 同时在场最大持仓数。默认 1。
+	MaxPositions int `cfg:"max_positions"`
+	// MaxNotionalUSDT 单策略最大名义(USDT)。默认 10。
+	MaxNotionalUSDT float64 `cfg:"max_notional_usdt"`
+	// MaxExpectedLossUSDTPerTrade 单笔预期亏损上限(USDT)。默认 0.03。
+	MaxExpectedLossUSDTPerTrade float64 `cfg:"max_expected_loss_usdt_per_trade"`
+}
+
+// UnifiedRotationConfig 是五策略统一轮动 runner 的开关(默认关闭+影子)。
+type UnifiedRotationConfig struct {
+	// Enabled 启用统一轮动 runner goroutine。默认 false;false 时不启动。
+	Enabled bool `cfg:"enabled"`
+	// LiveTradingEnabled 主安全闸:false=影子(完整决策+资金路由计划但不下单/不真划转);true=真实下单。默认 false。
+	LiveTradingEnabled bool `cfg:"live_trading_enabled"`
 }
 
 // VenueFundingExecutorConfig 是 OKX/Gate 单所正费率执行器参数(正 carry:空永续+买现货,跨结算持有)。
@@ -1021,6 +1066,26 @@ func (cfg EngineConfig) Validate() error {
 		appendIssue(cfg.CrossVenueExecutor.EVMaxBreakevenHours > 0, "CrossVenueExecutor EVMaxBreakevenHours 必须大于 0")
 		appendIssue(cfg.CrossVenueExecutor.EVSafetyFactor >= 1, "CrossVenueExecutor EVSafetyFactor 必须 ≥ 1")
 		appendIssue(cfg.CrossVenueExecutor.RealizedFundingPollMinutes > 0, "CrossVenueExecutor RealizedFundingPollMinutes 必须大于 0")
+	}
+	if cfg.CapitalAllocator.Enabled {
+		appendIssue(cfg.CapitalAllocator.MaxTotalCapitalUsageRatio > 0 && cfg.CapitalAllocator.MaxTotalCapitalUsageRatio <= 1,
+			"CapitalAllocator MaxTotalCapitalUsageRatio 必须在 (0, 1] 之间")
+		appendIssue(cfg.CapitalAllocator.MaxDailyLossUSDT >= 0, "CapitalAllocator MaxDailyLossUSDT 不能小于 0")
+		switch strings.TrimSpace(cfg.CapitalAllocator.Mode) {
+		case "shadow", "profit", "data_collection":
+		default:
+			appendIssue(false, "CapitalAllocator Mode 必须是 shadow|profit|data_collection 之一")
+		}
+	}
+	if cfg.DataCollection.Enabled {
+		appendIssue(cfg.DataCollection.MaxPositions >= 1, "DataCollection MaxPositions 必须 ≥ 1")
+		appendIssue(cfg.DataCollection.MaxNotionalUSDT > 0, "DataCollection MaxNotionalUSDT 必须大于 0")
+		appendIssue(cfg.DataCollection.MaxExpectedLossUSDTPerTrade >= 0, "DataCollection MaxExpectedLossUSDTPerTrade 不能小于 0")
+		switch strings.TrimSpace(cfg.DataCollection.Mode) {
+		case "shadow", "data_collection", "profit":
+		default:
+			appendIssue(false, "DataCollection Mode 必须是 shadow|data_collection|profit 之一")
+		}
 	}
 
 	if len(issues) == 0 {

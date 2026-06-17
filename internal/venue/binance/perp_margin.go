@@ -131,6 +131,40 @@ func (a *Adapter) fetchCrossMarginFreeUSDT(ctx context.Context) (float64, error)
 	return 0, nil
 }
 
+// TransferWallet 在所内 spot/futures/margin 钱包之间划转 USDT(币安 universal transfer)。
+// from/to 取 "spot"/"futures"/"margin";金额≤0 为 no-op。
+func (a *Adapter) TransferWallet(ctx context.Context, from, to string, amountUSDT float64) error {
+	if amountUSDT <= 0 {
+		return nil
+	}
+	transferType, err := walletTransferType(from, to)
+	if err != nil {
+		return err
+	}
+	return a.transferUSDT(ctx, transferType, amountUSDT)
+}
+
+func walletTransferType(from, to string) (string, error) {
+	from = strings.ToLower(strings.TrimSpace(from))
+	to = strings.ToLower(strings.TrimSpace(to))
+	switch {
+	case from == "spot" && to == "futures":
+		return "MAIN_UMFUTURE", nil
+	case from == "futures" && to == "spot":
+		return "UMFUTURE_MAIN", nil
+	case from == "spot" && to == "margin":
+		return "MAIN_MARGIN", nil
+	case from == "margin" && to == "spot":
+		return "MARGIN_MAIN", nil
+	case from == "margin" && to == "futures":
+		return "MARGIN_UMFUTURE", nil
+	case from == "futures" && to == "margin":
+		return "UMFUTURE_MARGIN", nil
+	default:
+		return "", fmt.Errorf("binance TransferWallet: unsupported %s -> %s", from, to)
+	}
+}
+
 func (a *Adapter) transferUSDT(ctx context.Context, transferType string, amount float64) error {
 	if amount <= 0 {
 		return nil
