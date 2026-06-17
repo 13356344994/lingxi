@@ -101,9 +101,9 @@ func TestContinuationScoreExcludesSunkOpenCost(t *testing.T) {
 		HoldingRiskUSDT:       1,
 	}
 	got := continuationScore(pos, inputs)
-	want := (15.0 - 2.0 - 1.0) / 100.0
+	want := (15.0 - 1.0) / 100.0
 	if math.Abs(got-want) > 1e-9 {
-		t.Fatalf("continuation score = %v, want %v", got, want)
+		t.Fatalf("continuation score = %v, want %v (close excluded from hold baseline)", got, want)
 	}
 }
 
@@ -210,5 +210,90 @@ func TestDecideRotationOpensRemainingCapital(t *testing.T) {
 	}
 	if plan.Actions[0].Kind != RotationActionOpen || plan.Actions[0].OpportunityID != "open-a" {
 		t.Fatalf("expected best open first, got %+v", plan.Actions[0])
+	}
+}
+
+func TestDecideRotationSwitchDoesNotDoubleChargeOpenCost(t *testing.T) {
+	held := HeldPosition{
+		OpportunityID:          "held-btc",
+		StrategyType:           UnifiedStrategyPerpPerp,
+		Symbol:                 "BTC",
+		CapitalRequiredByVenue: map[string]float64{"binance": 50, "bybit": 50},
+	}
+	heldInputs := map[string]ContinuationInputs{
+		"held-btc": {
+			ExpectedFundingUSDT:   6,
+			ExpectedCloseCostUSDT: 2,
+			HoldingRiskUSDT:       1,
+		},
+	}
+	newOpp := testRotationOpp("new-eth", UnifiedStrategySingleVenueSpotPerp, "ETH", 10, 100)
+	newOpp.ExpectedOpenCostUSDT = 4
+
+	plan := DecideRotation(
+		[]HeldPosition{held},
+		heldInputs,
+		[]UnifiedOpportunity{newOpp},
+		map[string]float64{"binance": 200, "bybit": 200},
+		DefaultRotationConfig(),
+	)
+	if len(plan.Actions) != 1 || plan.Actions[0].Kind != RotationActionSwitch {
+		t.Fatalf("expected SWITCH (open cost already in netEV), got %+v", plan.Actions)
+	}
+	if plan.Actions[0].SwitchCostUSDT != 2 {
+		t.Fatalf("switch cost = %.4f, want 2 (held close only, no openCost double-charge)", plan.Actions[0].SwitchCostUSDT)
+	}
+}
+
+func TestDecideRotationSwitchCandidateNotReused(t *testing.T) {
+	heldA := HeldPosition{
+		OpportunityID:          "held-a",
+		StrategyType:           UnifiedStrategyPerpPerp,
+		Symbol:                 "BTC",
+		CapitalRequiredByVenue: map[string]float64{"binance": 50, "bybit": 50},
+	}
+	heldB := HeldPosition{
+		OpportunityID:          "held-b",
+		StrategyType:           UnifiedStrategyPerpPerp,
+		Symbol:                 "ETH",
+		CapitalRequiredByVenue: map[string]float64{"binance": 50, "bybit": 50},
+	}
+	inputs := map[string]ContinuationInputs{
+		"held-a": {ExpectedFundingUSDT: 2, ExpectedCloseCostUSDT: 2, HoldingRiskUSDT: 1},
+		"held-b": {ExpectedFundingUSDT: 2, ExpectedCloseCostUSDT: 2, HoldingRiskUSDT: 1},
+	}
+	best := testRotationOpp("best-new", UnifiedStrategySingleVenueSpotPerp, "SOL", 40, 100)
+
+	plan := DecideRotation(
+		[]HeldPosition{heldA, heldB},
+		inputs,
+		[]UnifiedOpportunity{best},
+		map[string]float64{"binance": 300, "bybit": 300},
+		DefaultRotationConfig(),
+	)
+
+	switchCount := 0
+	replaceIDs := map[string]int{}
+	for _, act := range plan.Actions {
+		if act.Kind == RotationActionSwitch {
+			switchCount++
+			replaceIDs[act.ReplaceOpportunityID]++
+		}
+	}
+	if switchCount != 1 {
+		t.Fatalf("expected exactly 1 SWITCH, got %d actions=%+v", switchCount, plan.Actions)
+	}
+	if replaceIDs["best-new"] != 1 {
+		t.Fatalf("best-new chosen %d times, want 1", replaceIDs["best-new"])
+	}
+}
+
+func TestRotationComparableWindowScoreDeductsHoldingRisk(t *testing.T) {
+	opp := testRotationOpp("x", UnifiedStrategySingleVenueSpotPerp, "BTC", 20, 100)
+	opp.RiskScore = 1.0
+	got := rotationComparableWindowScore(opp)
+	want := (20.0 - 1.0) / 100.0
+	if math.Abs(got-want) > 1e-9 {
+		t.Fatalf("comparable score = %v, want %v", got, want)
 	}
 }

@@ -1,19 +1,25 @@
 # lingxi 项目评估总览（Project Evaluation Overview）
 
 > 面向**第三方项目评估**的自包含说明：项目做了什么、由哪几部分组成、每部分用到什么技术、工程成熟度与已知局限。
-> 细节口径以代码与 `README.md` 为准；本文件是导览与评估索引。
+> 细节口径以代码与 `HANDOFF_20260617.md` 为准；本文件是导览与评估索引。
+> **最后更新：2026-06-18**
 
 ---
 
 ## 一、一句话定位
 
-`lingxi` 是一个用 **Go** 写的**资金费率套利交易系统**:**Binance 全引擎(单体)+ Bybit 独立精简执行器 + Orchestrator 多所编排**,覆盖「机会筛选 → 对冲开仓 → 持仓监控 → 资金费结算 → 平仓 → 对账」的完整闭环,并自带本地 Web 控制面板(venue 切换)、历史回测与多档运行模式。多所架构详见 `MULTI_VENUE_REFACTOR.md`。
+`lingxi` 是一个用 **Go** 写的**资金费率套利交易系统**：**四所跨所 perp-perp 实盘（~440U）** + **五策略统一轮动系统（shadow，已部署主循环）** + 遗留 Binance 单体引擎（已 de-wire）+ 多所适配层。覆盖「机会筛选 → 对冲开仓 → 持仓监控 → 资金费结算 → 平仓 → 对账」闭环，并自带本地 Web 控制面板。
 
 ### 策略本质：delta 中性的资金费率套利（funding carry）
+
+**生产形态（2026-06-18）**：
+
+1. **旧路径 — 跨所 perp-perp（live）**：空高费所 + 多低费所，delta 中性，~440U，独立执行器 `cross_venue_executor`。
+2. **新路径 — 五策略统一轮动（shadow）**：每 60s 扫描五类结构（perp-perp、同/跨所 spot-perp 正费率、同/跨所 perp-spot 负费率），按本窗口净 USDT/占用资金排序，续持/换仓决策，四执行器 + 资金路由。默认不下真单。
+
 - **正向 carry**：现货买入 + 合约做空，吃**正**资金费率。
-- **负向 carry**：全仓杠杆**借币做空现货** + 合约做多，吃**负**资金费率（含借币利息成本）。
-- 当前配置为**跨周期滚动持有**：吃完一次后在结算前复核下期边际净 carry，>0 续持、≤0 才平；组合上限 10 个币、无名义顶（实际只受可用资金约束）。
-- 边际极薄：单周期对冲往返盈亏平衡线 ≈ `费用 + 两腿价差 + 最低净利` ≈ 0.0055（默认值，可配置覆盖）。
+- **负向 carry**：全仓杠杆**借币做空现货** + 合约做多，吃**负**资金费率（含借币利息；币安 `BorrowRepay` 已接入 venue 层）。
+- 离线经济数据 **NO-GO**（正费率净年化约 −58%/−60%，负费率扣借币约 −53%）；见 `tools/go_no_go/RESULT.md`。**不得用离线数字粉饰 live 预期。**
 
 ---
 
@@ -57,9 +63,11 @@
 
 ### 3.1 入口与编排
 - `cmd/lingxi/main.go`：进程入口薄壳，信号处理 + 根 context。
-- `internal/app/run.go`：按运行模式（实盘 / 回测 / 对账 / 影子）装配依赖。
-- `internal/app/funding_sniper_engine.go`（约 1081 行，最大文件）：主引擎编排核心（扫描→评估→开仓→监控→结算→平仓总调度）。
-- `internal/app/orchestrator.go` + `internal/app/bybit_runtime.go`：多所编排与 Bybit 执行循环（独立 `records/bybit/` 记录目录）。
+- `internal/app/run.go`：按运行模式装配依赖；**五策略 runner**（`unified_rotation_runner.go`）与跨所执行器并行；单所引擎已 de-wire。
+- `internal/app/unified_rotation_runner.go`：统一轮动主循环（扫描→候选→决策→资金路由→四执行器）。
+- `internal/app/cross_venue_*.go`：跨所 perp-perp 执行器（当前 **live** 主路径之一）。
+- `internal/app/funding_sniper_engine.go`：Binance 遗留单体引擎（已退役自启）。
+- `internal/app/orchestrator.go` + `bybit_runtime.go`：多所编排。
 - `internal/app/runtime_controller.go`：运行期控制器（启停、参数热调整、控制审计）。
 - **技术**：Go context 取消传播、`sync.Once`/atomic/多把分域锁、`defer` 优雅停机 + panic 恢复转受控关停。
 
@@ -169,30 +177,26 @@
 - 文档诚实度高：`README.md` 用「以代码现实为准」的姿态逐条标注「文档承诺 > 代码现实」的缺口，并给出严重度分级（🔴致命/🟠重大/🟡一般）与优化路线图。
 - CI 完整：fmt → vet → test → race → cover → build → govulncheck。
 
-**已知局限（节选高严重度,2026-06 校订后口径）**
-- ✅ R2/R4/R11/R12/R17/R20/R24 已修复（强平距离闸、atomic 时钟偏移、config.yaml、首错取消、真 YAML、Run 返回 error、配置自动绑定），详见 README §十二。
-- ⚠️ R3：强平/ADL 检测代码已写,但被币安 WS 字段解析 bug 打断,当前实际不生效（见 `PROJECT_AUDIT.md` C-1）。
-- 🔴 R14：单体进程无热备/外部 Kill Switch，物理断连即裸奔（放大资金前的最大黑天鹅）。
-- 🔴 R26：API Key 硬化（关提现权限 + IP 白名单）未由代码强制。
-- 🟠 R13/R15：缺 TWAP/VWAP/冰山等平滑执行；回测微观失真、纸面阈值偏乐观。
-- 🟡 R10/R21：上帝对象、引擎状态面过大（结构性债,仍真实存在）。
-- 🟠 新发现问题以 `PROJECT_AUDIT.md`（2026-06-10 审计）为准:WS 字段覆盖(C-1)、domain_events 压缩失效(C-2)、Bybit 数据/健壮性缺口(C-3~C-6)等。
+**已知局限（节选高严重度,2026-06-18 口径）**
+- **经济数据 NO-GO**：离线正/负费率结构净年化大幅为负；实盘 perp-perp 181 笔资金费约 1.6U（`tools/go_no_go/RESULT.md`）。
+- **新五策略未 live 验证**：四执行器仅 fake 单测；canary 前须子账户隔离 + shadow 观察。
+- ⚠️ R3：强平/ADL 检测被 WS 字段解析 bug 打断（见历史审计）。
+- 🔴 R14：单体进程无热备；物理断连风险仍在。
+- 🔴 R26：API Key 硬化未由代码强制。
+- 完整风险清单见 `README.md` §十二；交接见 `HANDOFF_20260617.md`。
 
-> 说明：部分上述条目（如 R7 撞限相关）已在近期迭代中部分缓解，详见 `README.md` 第十二节与本文件 §七。
-
-**成熟度自评**：README 自评现状 ≈ **6.8 / 10**（工程素养 A 级，短板在「安全姿态」与「文档=现实」），并给出通往 9.6 的 P0~P5 路线图。
+**成熟度自评**：工程实现已达统一轮动 shadow 部署；**盈利性与 canary 就绪度未验证**。勿按 README 旧 6.8/9.6 路线图分数对外承诺。
 
 ---
 
 ## 九、评估者 5 分钟速览路径
 
-1. 读 `README.md` §一~§五（定位、架构、流程）与 §十二（已知风险与局限，**最诚实的部分**）。
-2. 看 `internal/core/defaults.go`：所有策略/风控默认闸值的单一来源。
-3. 看 `internal/app/funding_sniper_engine.go`：主循环编排骨架。
-4. 看 `internal/money/`：定点记账，判断金融正确性姿态。
-5. 看 `internal/exchange/client.go`：网络治理（限频/回退/used-weight）。
-6. 跑 `make check`（fmt+vet+test+build）与 `make race`。
-7. 部署/运维看 `deploy/RUNBOOK.md`；多所架构看 `MULTI_VENUE_REFACTOR.md`；最新问题清单看 `PROJECT_AUDIT.md`。
+1. 读 `HANDOFF_20260617.md`（**当前生产态与 canary 清单**）。
+2. 读 `PERP_PERP_REVIEW_20260617.md` 末尾「实现进度与审计状态」。
+3. 读 `tools/go_no_go/RESULT.md`（**NO-GO 数据结论**）。
+4. 看 `internal/app/unified_rotation_runner.go` + `unified_rotation.go`（新主循环）。
+5. 看 `internal/app/cross_venue_executor.go`（旧 live perp-perp）。
+6. 跑 `make check`；部署/运维看 `deploy/RUNBOOK.md`。
 
 ---
 
@@ -200,12 +204,12 @@
 
 | 用途 | 路径 |
 |---|---|
-| 项目说明（最权威、最详尽） | `README.md` |
-| 部署运维 | `deploy/RUNBOOK.md`(旧 `DEPLOY_HANDOFF.md` 因快照严重过时已删除) |
-| 优化计划 | `IMPROVEMENT_PLAN.md` |
-| 事故运行手册 | `deploy/RUNBOOK.md` |
-| 进程入口 | `cmd/lingxi/main.go` |
-| 主引擎 | `internal/app/funding_sniper_engine.go` |
+| **交接（当前权威）** | `HANDOFF_20260617.md` |
+| Master 方案 + 实现状态 | `PERP_PERP_REVIEW_20260617.md` |
+| 项目说明（Binance 遗留引擎详述） | `README.md` |
+| go/no-go 数据 | `tools/go_no_go/RESULT.md` |
+| 统一轮动主循环 | `internal/app/unified_rotation_runner.go` |
+| 跨所 perp-perp（live） | `internal/app/cross_venue_*.go` |
 | 配置默认值 | `internal/core/defaults.go` |
 | 用户配置覆盖 | `config.yaml` |
 | 网络客户端 | `internal/exchange/client.go` |

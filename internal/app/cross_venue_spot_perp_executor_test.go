@@ -311,7 +311,7 @@ func TestCrossVenueSpotPerpReconcileOrphanLeg(t *testing.T) {
 	_ = e.persistPosition(pos)
 	perp.positions = []venue.Position{{Symbol: "BTC-USDT", PositionAmt: -0.01, EntryPrice: 100}}
 
-	e.reconcileOnStart(context.Background())
+	e.reconcileOnStart(context.Background(), true)
 	var sawRollback bool
 	for _, req := range perp.placeRequests {
 		if req.ReduceOnly && req.Side == venue.SideBuy {
@@ -320,5 +320,38 @@ func TestCrossVenueSpotPerpReconcileOrphanLeg(t *testing.T) {
 	}
 	if !sawRollback {
 		t.Fatal("reconcile should flatten orphan perp leg")
+	}
+}
+
+func TestCrossVenueSpotPerpReconcileIgnoresUntrackedPerpPerpPosition(t *testing.T) {
+	dir := t.TempDir()
+	spot := newCVSPTestVenue(binance.VenueName)
+	perp := newCVSPTestVenue(bybit.VenueName)
+	e := testCVSPExecutor(t, dir, spot, perp)
+	e.cfg.CrossVenueExecutor.LiveTradingEnabled = true
+	perp.positions = []venue.Position{{Symbol: "BTC-USDT", PositionAmt: -0.004, EntryPrice: 110000}}
+
+	e.reconcileOnStart(context.Background(), true)
+	if atomic.LoadInt32(spot.placeCount)+atomic.LoadInt32(perp.placeCount) != 0 {
+		t.Fatal("reconcile must not flatten untracked perp-perp position")
+	}
+}
+
+func TestCrossVenueSpotPerpCloseSkipsWhenMeasuredZero(t *testing.T) {
+	dir := t.TempDir()
+	spot := newCVSPTestVenue(binance.VenueName)
+	perp := newCVSPTestVenue(bybit.VenueName)
+	e := testCVSPExecutor(t, dir, spot, perp)
+	pos := CrossVenueSpotPerpPosition{
+		Symbol: "BTC-USDT", SpotVenue: binance.VenueName, PerpVenue: bybit.VenueName,
+		Status: CVSPStatusOpen, OpenedAt: e.nowFn(), IdemPrefix: "zero-measured",
+		SpotLeg: CrossVenueSpotPerpLegState{Venue: binance.VenueName, Market: "spot", Side: "buy", Qty: 0.01},
+		PerpLeg: CrossVenueSpotPerpLegState{Venue: bybit.VenueName, Market: "perp", Side: "short", Qty: 0.01},
+	}
+	if err := e.closePosition(context.Background(), pos, true, "zero"); err == nil {
+		t.Fatal("expected close to skip when measured qty is zero")
+	}
+	if atomic.LoadInt32(spot.placeCount)+atomic.LoadInt32(perp.placeCount) != 0 {
+		t.Fatal("measured=0 must not place blind flatten orders")
 	}
 }

@@ -68,7 +68,9 @@
       const errEl = document.getElementById('error');
       errEl.textContent = '';
       try {
-        const res = await fetch('/api/unified/leaderboard?limit=50');
+        const res = await fetch('/api/unified/leaderboard?limit=50', {
+          headers: { 'X-Dashboard-Token': (window.localStorage.getItem('lingxi-dashboard-token') || '') }
+        });
         if (!res.ok) throw new Error(await res.text());
         const data = await res.json();
         document.getElementById('meta').innerHTML =

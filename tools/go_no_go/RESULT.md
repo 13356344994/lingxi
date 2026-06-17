@@ -118,6 +118,37 @@ _Capacity assumption (v0): capital split equally across all loaded symbols; no d
 
 ## Recommendation
 
-**Stop allocator / multi-executor build.** Archive as research tool.
+**NO-GO** for positive-funding cash-and-carry at commercial scale. Archive scripts as research tools.
 
-Mainstream coins' current-regime single-venue positive-funding cash-and-carry edge is too thin after conservative costs (fees, slippage, basis, turnover) to justify building a unified funding opportunity system.
+Mainstream coins' edge is too thin after conservative costs. User still chose to build the **shadow** unified five-strategy rotation system — do not reinterpret this verdict as GO.
+
+---
+
+## Extended analyses (same cost model, offline)
+
+Run date: 2026-06-18. Scripts: `analyze_broad.py`, `analyze_neg_carry_net.py`. Data: `data_broad/` (65 coins, ~180d), `borrow_rates.json`.
+
+### Broad positive carry (`analyze_broad.py`)
+
+- Coins: **65** (spot + perp dual-listed on Binance)
+- Positive net edge (selective hold): **7/65** (11%)
+- Equal-weight ALL coins net ann: **−59.85%**
+- Equal-weight ONLY-positive (hindsight cherry-pick): **44.37%** (n=7) — still below +45% GO bar
+- Liquidity tiers (avg net ann): thin −55.2%, mid −46.1%, liquid −69.8%
+- Best liquid names (UNI/LINK class) remain **negative** after costs
+
+### Negative carry net (`analyze_neg_carry_net.py`)
+
+- Borrowable: **64/65** (XVG not borrowable)
+- Net-positive incl. basis, borrowable: **10/64**
+- Clear +45% GO threshold, borrowable: **5/64** → SENTUSDT, BARDUSDT, ALLOUSDT, HOMEUSDT, CHIPUSDT (micro-caps)
+- Equal-weight net ann (borrowable, incl. basis): **−53.03%**
+- Borrow limits often **$1k–$50k** USD — far below commercial scale; VIP0 borrow rates are point-in-time
+
+### Live perp-perp sample (factual, not from scripts)
+
+- **181** settled trades, cumulative funding income ≈ **1.6 USDT**
+
+### Unified conclusion
+
+All three offline structures (narrow positive, broad positive, negative net) fail the +45% occupied-capital bar at portfolio level. Perp-perp live funding income is negligible at current scale. **Honest expectation: do not deploy new structures live for profit until canary proves otherwise.**

@@ -379,9 +379,11 @@ func markUnfundableOpportunities(
 	working VenueWalletBalances,
 	crossSuggestions []CrossVenueRebalanceSuggestion,
 ) []string {
-	inflowByVenue := map[string]float64{}
+	crossInflowVenues := map[string]struct{}{}
 	for _, s := range crossSuggestions {
-		inflowByVenue[s.ToVenue] += s.AmountUSDT
+		if s.ToVenue != "" && s.AmountUSDT > capitalRouterEpsilon {
+			crossInflowVenues[s.ToVenue] = struct{}{}
+		}
 	}
 
 	available := cloneVenueWalletBalances(working)
@@ -389,7 +391,7 @@ func markUnfundableOpportunities(
 
 	for _, opp := range chosen {
 		reqByVenue := perOpp[opp.ID]
-		reason := opportunityFundingGapReason(reqByVenue, available, inflowByVenue)
+		reason := opportunityFundingGapReason(reqByVenue, available, crossInflowVenues)
 		if reason == "" {
 			consumeOpportunityFunding(reqByVenue, available)
 			continue
@@ -402,17 +404,16 @@ func markUnfundableOpportunities(
 func opportunityFundingGapReason(
 	reqByVenue map[string]venueWalletRequirements,
 	available VenueWalletBalances,
-	inflowByVenue map[string]float64,
+	crossInflowVenues map[string]struct{},
 ) string {
 	for venue, walletReq := range reqByVenue {
+		if _, needsCross := crossInflowVenues[venue]; needsCross {
+			return fmt.Sprintf("requires cross-venue rebalance to %s (not auto-funded)", venue)
+		}
 		wallets := available[venue]
 		if wallets == nil {
 			wallets = map[WalletKind]float64{}
 		}
-		venueTotalNeed := venueTotalRequired(walletReq)
-		venueTotalHave := venueTotalBalance(wallets)
-		venueShortfall := capitalRouterMax(0, venueTotalNeed-venueTotalHave)
-		crossCover := capitalRouterMin(inflowByVenue[venue], venueShortfall)
 
 		for _, wallet := range capitalRouterWalletKinds {
 			need := walletReq[wallet]
@@ -423,10 +424,7 @@ func opportunityFundingGapReason(
 			if have+capitalRouterEpsilon >= need {
 				continue
 			}
-			shortfall := need - have
-			if shortfall-crossCover > capitalRouterEpsilon {
-				return fmt.Sprintf("insufficient %s/%s USDT (need %.4f, have %.4f, cross-venue cover %.4f)", venue, wallet, need, have, crossCover)
-			}
+			return fmt.Sprintf("insufficient %s/%s USDT (need %.4f, have %.4f)", venue, wallet, need, have)
 		}
 	}
 	return ""

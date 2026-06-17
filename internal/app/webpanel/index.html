@@ -414,6 +414,191 @@
     .sub-block {
       margin-top: 12px;
     }
+    .rotation-hero-card {
+      margin: 0 0 18px;
+      padding: 18px 20px;
+      background: linear-gradient(135deg, #0f2447 0%, #13203a 50%, #0b1628 100%);
+      border: 1px solid #3b82f6;
+      border-radius: 14px;
+      box-shadow: 0 8px 32px rgba(37, 99, 235, 0.18);
+    }
+    .rotation-hero-card.live-mode {
+      border-color: #dc2626;
+      box-shadow: 0 8px 32px rgba(220, 38, 38, 0.22);
+      background: linear-gradient(135deg, #2a1215 0%, #1a1528 50%, #0b1220 100%);
+    }
+    .rotation-hero-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+    .rotation-hero-eyebrow {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #60a5fa;
+      margin-bottom: 4px;
+    }
+    .rotation-hero-card.live-mode .rotation-hero-eyebrow {
+      color: #f87171;
+    }
+    .rotation-hero-title {
+      margin: 0 0 6px;
+      font-size: 1.25rem;
+      color: #f1f5f9;
+    }
+    .rotation-hero-desc {
+      margin: 0;
+      font-size: 13px;
+    }
+    .rotation-leaderboard-link {
+      display: inline-flex;
+      align-items: center;
+      padding: 8px 14px;
+      border-radius: 8px;
+      background: #1e3a5f;
+      border: 1px solid #3b82f6;
+      color: #93c5fd;
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+    .rotation-leaderboard-link:hover {
+      background: #2563eb;
+      color: #fff;
+      border-color: #2563eb;
+    }
+    .rotation-hero-actions {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+    .rotation-toggle-btn {
+      border: 0;
+      background: #2563eb;
+      color: #fff;
+      padding: 12px 22px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 15px;
+      font-weight: 600;
+    }
+    .rotation-toggle-btn.danger {
+      background: #b91c1c;
+    }
+    .rotation-toggle-btn:hover {
+      filter: brightness(1.08);
+    }
+    .rotation-mode-wrap {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .rotation-mode-label {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+      font-size: 14px;
+      color: #cbd5e1;
+      margin: 0;
+    }
+    .rotation-mode-switch {
+      position: relative;
+      display: inline-block;
+      width: 48px;
+      height: 26px;
+    }
+    .rotation-mode-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+      position: absolute;
+    }
+    .rotation-mode-track {
+      position: absolute;
+      inset: 0;
+      background: #334155;
+      border-radius: 999px;
+      transition: background 0.15s ease;
+    }
+    .rotation-mode-thumb {
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 20px;
+      height: 20px;
+      background: #e2e8f0;
+      border-radius: 50%;
+      transition: transform 0.15s ease;
+    }
+    .rotation-mode-switch input:checked + .rotation-mode-track {
+      background: #dc2626;
+    }
+    .rotation-mode-switch input:checked + .rotation-mode-track .rotation-mode-thumb {
+      transform: translateX(22px);
+    }
+    .rotation-mode-text {
+      font-weight: 600;
+      min-width: 5.5em;
+    }
+    .rotation-mode-text.live-warn {
+      color: #fca5a5;
+    }
+    .rotation-status-grid {
+      margin-bottom: 12px;
+    }
+    .rotation-subgrid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+    .rotation-candidates-box,
+    .rotation-actions-box {
+      background: rgba(11, 18, 32, 0.65);
+      border: 1px solid #1e293b;
+      border-radius: 10px;
+      padding: 12px 14px;
+    }
+    .rotation-sub-label {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: #64748b;
+      margin-bottom: 8px;
+    }
+    .rotation-candidates-row,
+    .rotation-actions-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px 18px;
+      font-size: 13px;
+      color: #94a3b8;
+    }
+    .rotation-candidates-row strong,
+    .rotation-actions-row strong {
+      color: #e2e8f0;
+      font-size: 15px;
+      margin-left: 4px;
+    }
+    .rotation-error-line {
+      margin-top: 10px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      background: rgba(127, 29, 29, 0.35);
+      border: 1px solid #991b1b;
+      color: #fca5a5;
+      font-size: 13px;
+    }
     @media (max-width: 640px) {
       .container {
         padding: 14px;
@@ -474,15 +659,15 @@
       <details class="fold-panel fold-toolbar">
         <summary>数据导出</summary>
         <div class="toolbar toolbar-downloads">
-          <a href="{{.SettlementCSV}}" target="_blank" rel="noopener noreferrer">下载结算 JSON</a>
-          <a href="{{.MonitorCSV}}" target="_blank" rel="noopener noreferrer">下载监控 JSONL</a>
-          <a href="{{.BacktestCSV}}" target="_blank" rel="noopener noreferrer">下载回测 JSON</a>
-          <a href="{{.ResidualCSV}}" target="_blank" rel="noopener noreferrer">下载残腿 JSON</a>
-          <a href="{{.ExecutionCSV}}" target="_blank" rel="noopener noreferrer">下载执行事故 JSONL</a>
-          <a href="{{.DomainEventCSV}}" target="_blank" rel="noopener noreferrer">下载协议事件 JSONL</a>
-          <a href="{{.MonthlySimulationCSV}}" target="_blank" rel="noopener noreferrer">下载历史模拟日志 JSON</a>
-          <a href="{{.RuntimeEventLog}}" target="_blank" rel="noopener noreferrer">下载运行日志</a>
-          <a href="{{.ControlAuditLog}}" target="_blank" rel="noopener noreferrer">下载控制审计 JSONL</a>
+          <button type="button" class="record-download-btn" data-download-url="{{.SettlementCSV}}">下载结算 JSON</button>
+          <button type="button" class="record-download-btn" data-download-url="{{.MonitorCSV}}">下载监控 JSONL</button>
+          <button type="button" class="record-download-btn" data-download-url="{{.BacktestCSV}}">下载回测 JSON</button>
+          <button type="button" class="record-download-btn" data-download-url="{{.ResidualCSV}}">下载残腿 JSON</button>
+          <button type="button" class="record-download-btn" data-download-url="{{.ExecutionCSV}}">下载执行事故 JSONL</button>
+          <button type="button" class="record-download-btn" data-download-url="{{.DomainEventCSV}}">下载协议事件 JSONL</button>
+          <button type="button" class="record-download-btn" data-download-url="{{.MonthlySimulationCSV}}">下载历史模拟日志 JSON</button>
+          <button type="button" class="record-download-btn" data-download-url="{{.RuntimeEventLog}}">下载运行日志</button>
+          <button type="button" class="record-download-btn" data-download-url="{{.ControlAuditLog}}">下载控制审计 JSONL</button>
         </div>
       </details>
     </header>
@@ -506,26 +691,106 @@
     <!-- 2. 操作区 -->
     <section class="section section-operations panel" aria-label="操作">
       <div class="section-head">
-        <h2 class="section-title" id="venue-overview-title">多所运行总览</h2>
-        <p class="hint section-desc">调仓、启停、开仓开关与按所控制。选「全部(总览)」可一键策略总控；选单一交易所则只显示该所卡片。</p>
+        <h2 class="section-title" id="venue-overview-title">操作</h2>
+        <p class="hint section-desc">以五策略统一轮动为主入口；调仓与紧急平仓常驻上方。旧 perp-perp / 批量 / 按所控制收在「高级」折叠区。</p>
       </div>
-      <div id="strategy-control-panel" class="sub-panel" style="display:none;">
-        <div class="ops-group-label">策略总控</div>
-        <h3 style="margin:0 0 8px;font-size:15px;color:#e5edff;">一键编排</h3>
-        <div class="hint" style="margin-bottom:10px;">一键编排 Bybit 执行引擎 + 跨所对冲引擎;细粒度 per-venue 操作仍可用下方卡片。</div>
-        <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin-bottom:10px;">
+
+      <div id="rotation-main-card" class="rotation-hero-card">
+        <div class="rotation-hero-top">
+          <div>
+            <div class="rotation-hero-eyebrow">主控制</div>
+            <h3 class="rotation-hero-title">五策略统一轮动</h3>
+            <p class="hint rotation-hero-desc">SVSP · CVSP · SVPS · CVPS · Total 五类候选自动轮动执行。</p>
+          </div>
+          <a href="/unified/leaderboard" class="rotation-leaderboard-link">查看机会排行榜 →</a>
+        </div>
+        <div class="rotation-hero-actions">
+          <button id="rotation-toggle-btn" type="button" class="rotation-toggle-btn">▶ 启动五策略轮动</button>
+          <div class="rotation-mode-wrap">
+            <label class="rotation-mode-label" for="rotation-live-toggle">
+              <span>模式</span>
+              <span class="rotation-mode-switch">
+                <input id="rotation-live-toggle" type="checkbox">
+                <span class="rotation-mode-track"><span class="rotation-mode-thumb"></span></span>
+              </span>
+              <span id="rotation-mode-text" class="rotation-mode-text">Shadow</span>
+            </label>
+          </div>
+        </div>
+        <div class="rotation-status-grid stats">
+          <div class="stat-card"><div class="stat-label">运行</div><div class="stat-value" id="rot-active-pill" style="font-size:16px">-</div></div>
+          <div class="stat-card"><div class="stat-label">模式</div><div class="stat-value" id="rot-mode-pill" style="font-size:16px">-</div></div>
+          <div class="stat-card"><div class="stat-label">上轮时间</div><div class="stat-value" id="rot-last-cycle" style="font-size:14px">-</div></div>
+          <div class="stat-card"><div class="stat-label">轮询间隔</div><div class="stat-value" id="rot-interval" style="font-size:16px">-</div></div>
+          <div class="stat-card"><div class="stat-label">快照 ID</div><div class="stat-value" id="rot-snapshot-id" style="font-size:12px;word-break:break-all;white-space:normal">-</div></div>
+          <div class="stat-card"><div class="stat-label">持仓数</div><div class="stat-value" id="rot-held" style="font-size:18px">-</div></div>
+          <div class="stat-card"><div class="stat-label">实盘托管持仓数</div><div class="stat-value" id="rot-real-held-managed" style="font-size:18px">-</div></div>
+        </div>
+        <div class="rotation-subgrid">
+          <div class="rotation-candidates-box">
+            <div class="rotation-sub-label">候选数</div>
+            <div class="rotation-candidates-row">
+              <span>SVSP<strong id="rot-cand-svsp">-</strong></span>
+              <span>CVSP<strong id="rot-cand-cvsp">-</strong></span>
+              <span>SVPS<strong id="rot-cand-svps">-</strong></span>
+              <span>CVPS<strong id="rot-cand-cvps">-</strong></span>
+              <span>Total<strong id="rot-cand-total">-</strong></span>
+            </div>
+          </div>
+          <div class="rotation-actions-box">
+            <div class="rotation-sub-label">上轮动作</div>
+            <div class="rotation-actions-row">
+              <span>开<strong id="rot-act-open">-</strong></span>
+              <span>平<strong id="rot-act-close">-</strong></span>
+              <span>换<strong id="rot-act-switch">-</strong></span>
+              <span>持<strong id="rot-act-hold">-</strong></span>
+            </div>
+          </div>
+        </div>
+        <div id="rotation-last-error" class="rotation-error-line" style="display:none;"></div>
+      </div>
+
+      <div class="ops-group ops-group-capital">
+        <div class="ops-group-label">调仓</div>
+        <div class="hint" style="margin-bottom:10px;">设置每所交易仓位并一次性调整四所 USDT 分布。</div>
+        <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;">
           <div style="flex:1 1 200px;">
             <label for="strategy-capital-input" style="display:block;font-size:12px;color:#8aa0c6;margin-bottom:4px;">每所交易仓位 (USDT)</label>
             <input id="strategy-capital-input" type="number" min="1" step="0.01" placeholder="100" style="width:100%;box-sizing:border-box;padding:8px 10px;border-radius:8px;border:1px solid #2c3b59;background:#0b1220;color:#e5edff;">
           </div>
           <button id="strategy-capital-btn" type="button" class="secondary">全所调仓</button>
+        </div>
+        <div id="strategy-capital-results" style="font-size:12px;margin-top:8px;"></div>
+      </div>
+
+      <div class="ops-group ops-group-flatten">
+        <div class="ops-group-label">紧急操作</div>
+        <button id="strategy-flatten-all-btn" type="button" class="danger">⚠️ 一键全平仓</button>
+        <div class="hint" style="margin-top:8px;">平掉所有交易所的全部持仓，会真实下单。</div>
+      </div>
+
+      <div class="ops-group ops-group-legacy-stop">
+        <div class="ops-group-label">旧 perp-perp 停闸</div>
+        <div class="risk-actions">
+          <button id="legacy-perp-openings-off-btn" type="button" class="danger">关闭跨所开仓闸</button>
+          <button id="legacy-perp-strategy-stop-btn" type="button" class="danger">策略停止</button>
+        </div>
+        <div class="hint" style="margin-top:8px;">任意 Tab 均可触达;停止开新仓,在场持仓继续管理直至平掉。</div>
+      </div>
+
+      <details class="fold-panel" id="legacy-perp-fold">
+        <summary>高级 · 旧 perp-perp 控制</summary>
+        <div class="fold-body">
+      <div id="strategy-control-panel" class="sub-panel" style="display:none;">
+        <div class="ops-group-label">策略总控</div>
+        <h3 style="margin:0 0 8px;font-size:15px;color:#e5edff;">一键编排</h3>
+        <div class="hint" style="margin-bottom:10px;">一键编排 Bybit 执行引擎 + 跨所对冲引擎;细粒度 per-venue 操作仍可用下方卡片。</div>
+        <div class="risk-actions" style="margin-bottom:10px;">
           <button id="strategy-start-btn" type="button">策略启动</button>
           <button id="strategy-stop-btn" type="button" class="danger">策略停止</button>
-          <button id="strategy-flatten-all-btn" type="button" class="danger">⚠️ 一键全平仓</button>
         </div>
         <div id="strategy-shadow-hint" class="hint" style="margin:0 0 8px;font-size:12px;color:#94a3b8;"></div>
         <div id="strategy-status-line" class="hint" style="margin:0 0 8px;font-size:13px;color:#cbd5e1;">加载策略状态…</div>
-        <div id="strategy-capital-results" style="font-size:12px;"></div>
       </div>
 
       <div class="ops-group ops-group-global">
@@ -782,6 +1047,8 @@
         <div class="ops-group-label">按交易所</div>
         <div id="venue-overview" style="display:flex;flex-wrap:wrap;gap:12px;"></div>
       </div>
+        </div>
+      </details>
     </section>
 
     <!-- 3. 当前持仓区 (跨所持仓表在 cross-venue-panel 内，随总览 Tab 显示) -->
@@ -1573,6 +1840,36 @@
       return window.localStorage.getItem(dashboardTokenStorageKey) || "";
     }
 
+    async function downloadRecordFile(url) {
+      const href = String(url || "").trim();
+      if (!href) { return; }
+      try {
+        const res = await fetch(href, { headers: { "X-Dashboard-Token": getControlToken() } });
+        if (!res.ok) {
+          throw new Error(await res.text());
+        }
+        const blob = await res.blob();
+        const filename = decodeURIComponent((href.split("/").pop() || "download").split("?")[0]);
+        const objUrl = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = objUrl;
+        a.download = filename;
+        a.style.display = "none";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(objUrl);
+      } catch (err) {
+        alert("下载失败: " + err.message);
+      }
+    }
+
+    function initRecordDownloads() {
+      document.querySelectorAll(".record-download-btn").forEach((btn) => {
+        btn.addEventListener("click", () => downloadRecordFile(btn.getAttribute("data-download-url")));
+      });
+    }
+
     function renderEmpty(tableBody, text) {
       const colSpan = tableBody.closest("table").querySelectorAll("thead th").length || 12;
       tableBody.innerHTML = `<tr><td class="empty" colspan="${colSpan}">${text}</td></tr>`;
@@ -2252,8 +2549,206 @@
       return `${result.message || "仓位资金已调整"}\n请求=${Number(result.requested_trading_usdt || 0).toFixed(2)} | 实际=${Number(result.applied_trading_usdt || 0).toFixed(2)} | 单腿=${Number(result.per_leg_trading_usdt || 0).toFixed(2)}\n划转=${transferText}`;
     }
 
+    // ===== 五策略统一轮动 =====
+    let lastRotationStatus = null;
+    let rotationLiveToggleBusy = false;
+
+    function renderRotationStatus(st) {
+      lastRotationStatus = st && typeof st === "object" ? st : null;
+      const card = document.getElementById("rotation-main-card");
+      const toggleBtn = document.getElementById("rotation-toggle-btn");
+      const liveToggle = document.getElementById("rotation-live-toggle");
+      const modeText = document.getElementById("rotation-mode-text");
+      const errEl = document.getElementById("rotation-last-error");
+      const setText = (id, text) => {
+        const el = document.getElementById(id);
+        if (el) { el.textContent = text; }
+      };
+      const mkPill = (on, onLabel, offLabel) => `<span class="pill ${on ? "true" : "false"}">${on ? onLabel : offLabel}</span>`;
+
+      if (!st || typeof st !== "object") {
+        if (toggleBtn) {
+          toggleBtn.textContent = "▶ 启动五策略轮动";
+          toggleBtn.classList.remove("danger");
+        }
+        if (card) { card.classList.remove("live-mode"); }
+        if (liveToggle && !rotationLiveToggleBusy) { liveToggle.checked = false; }
+        if (modeText) {
+          modeText.textContent = "Shadow";
+          modeText.classList.remove("live-warn");
+        }
+        setText("rot-active-pill", "-");
+        setText("rot-mode-pill", "-");
+        setText("rot-last-cycle", "-");
+        setText("rot-interval", "-");
+        setText("rot-snapshot-id", "-");
+        setText("rot-held", "-");
+        setText("rot-real-held-managed", "-");
+        ["svsp", "cvsp", "svps", "cvps", "total"].forEach((k) => setText("rot-cand-" + k, "-"));
+        ["open", "close", "switch", "hold"].forEach((k) => setText("rot-act-" + k, "-"));
+        if (errEl) {
+          errEl.style.display = "none";
+          errEl.textContent = "";
+        }
+        return;
+      }
+
+      const active = !!st.active;
+      const live = !!st.live;
+      const candidates = st.candidates && typeof st.candidates === "object" ? st.candidates : {};
+      const actions = st.actions && typeof st.actions === "object" ? st.actions : {};
+
+      if (toggleBtn) {
+        toggleBtn.textContent = active ? "⏸ 停止五策略轮动" : "▶ 启动五策略轮动";
+        toggleBtn.classList.toggle("danger", active);
+      }
+      if (card) { card.classList.toggle("live-mode", live); }
+      if (liveToggle && !rotationLiveToggleBusy) { liveToggle.checked = live; }
+      if (modeText) {
+        modeText.textContent = live ? "Live (实盘)" : "Shadow (影子)";
+        modeText.classList.toggle("live-warn", live);
+      }
+
+      const activePill = document.getElementById("rot-active-pill");
+      if (activePill) { activePill.innerHTML = mkPill(active, "运行中", "已停止"); }
+      const modePill = document.getElementById("rot-mode-pill");
+      if (modePill) {
+        modePill.innerHTML = live
+          ? `<span class="pill high">Live 实盘</span>`
+          : `<span class="pill low">Shadow 影子</span>`;
+      }
+
+      setText("rot-last-cycle", st.last_cycle_at ? formatTimeUTC8(st.last_cycle_at) : "-");
+      setText("rot-interval", Number(st.interval_seconds || 0) > 0 ? (st.interval_seconds + "s") : "-");
+      setText("rot-snapshot-id", st.last_snapshot_id ? String(st.last_snapshot_id) : "-");
+      setText("rot-held", String(st.held != null ? st.held : "-"));
+      setText("rot-real-held-managed", String(st.real_held_managed != null ? st.real_held_managed : "-"));
+      setText("rot-cand-svsp", String(candidates.svsp != null ? candidates.svsp : 0));
+      setText("rot-cand-cvsp", String(candidates.cvsp != null ? candidates.cvsp : 0));
+      setText("rot-cand-svps", String(candidates.svps != null ? candidates.svps : 0));
+      setText("rot-cand-cvps", String(candidates.cvps != null ? candidates.cvps : 0));
+      setText("rot-cand-total", String(candidates.total != null ? candidates.total : 0));
+      setText("rot-act-open", String(actions.open != null ? actions.open : 0));
+      setText("rot-act-close", String(actions.close != null ? actions.close : 0));
+      setText("rot-act-switch", String(actions.switch != null ? actions.switch : 0));
+      setText("rot-act-hold", String(actions.hold != null ? actions.hold : 0));
+
+      const lastErr = String(st.last_error || "").trim();
+      if (errEl) {
+        if (lastErr) {
+          errEl.style.display = "";
+          errEl.textContent = "最近错误: " + lastErr;
+        } else {
+          errEl.style.display = "none";
+          errEl.textContent = "";
+        }
+      }
+    }
+
+    async function refreshRotationStatus() {
+      try {
+        const st = await loadJSON("/api/rotation/status");
+        renderRotationStatus(st);
+      } catch (err) {
+        renderRotationStatus(null);
+        const errEl = document.getElementById("rotation-last-error");
+        if (errEl) {
+          errEl.style.display = "";
+          errEl.textContent = "状态读取失败: " + err.message;
+        }
+      }
+    }
+
+    async function toggleRotation() {
+      const active = !!(lastRotationStatus && lastRotationStatus.active);
+      if (!active) {
+        const live = !!(lastRotationStatus && lastRotationStatus.live);
+        const liveHint = live ? "当前为 Live 模式,将真实下单(含借币)。" : "Shadow 模式下不会真实下单。";
+        if (!confirm("确认启动五策略轮动?\n" + liveHint)) { return; }
+      }
+      try {
+        if (active) {
+          await postJSON("/api/rotation/stop", {});
+        } else {
+          await postJSON("/api/rotation/start", {});
+        }
+        await refreshRotationStatus();
+        await refreshDashboard();
+      } catch (err) {
+        alert((active ? "停止" : "启动") + "五策略轮动失败: " + err.message);
+      }
+    }
+
+    async function setRotationLiveMode(wantLive) {
+      if (wantLive && !confirm("确认切到实盘?五策略会真实下单(含借币),建议先调仓四所各~10U")) {
+        return false;
+      }
+      rotationLiveToggleBusy = true;
+      try {
+        const body = { live: wantLive };
+        if (wantLive) { body.confirm = "LIVE"; }
+        await postJSON("/api/rotation/mode", body);
+        await refreshRotationStatus();
+        return true;
+      } catch (err) {
+        alert("切换模式失败: " + err.message);
+        await refreshRotationStatus();
+        return false;
+      } finally {
+        rotationLiveToggleBusy = false;
+      }
+    }
+
+    function initRotationControl() {
+      document.getElementById("rotation-toggle-btn")?.addEventListener("click", toggleRotation);
+      const liveToggle = document.getElementById("rotation-live-toggle");
+      liveToggle?.addEventListener("change", async () => {
+        const wantLive = !!liveToggle.checked;
+        const prevLive = !!(lastRotationStatus && lastRotationStatus.live);
+        if (wantLive === prevLive) { return; }
+        const ok = await setRotationLiveMode(wantLive);
+        if (!ok) {
+          rotationLiveToggleBusy = true;
+          liveToggle.checked = prevLive;
+          rotationLiveToggleBusy = false;
+        }
+      });
+    }
+
     // ===== 策略总控(全部总览 Tab) =====
     const strategyCapitalStorageKey = "lingxi-strategy-capital-usdt";
+    let strategyVenueCapitals = {};
+    let lastEarningsByVenue = {};
+    let lastEarningsTotalBlock = {};
+
+    function formatCapitalTriple(snap) {
+      if (!snap || typeof snap !== "object") { return "-"; }
+      const trading = Number(snap.trading_usdt || 0).toFixed(2);
+      const reserve = Number(snap.reserve_usdt || 0).toFixed(2);
+      const total = Number(snap.total_movable_usdt || 0).toFixed(2);
+      return `交易 ${trading} / 储备 ${reserve} / 合计 ${total}`;
+    }
+
+    function formatVenueCapitalBreakdown(vc) {
+      if (!vc || typeof vc !== "object" || vc.error) { return ""; }
+      const trading = Number(vc.trading_usdt || 0).toFixed(2);
+      const reserve = Number(vc.reserve_usdt || 0).toFixed(2);
+      const total = Number(vc.total_movable_usdt || 0).toFixed(2);
+      return `可调 交易 ${trading} / 储备 ${reserve} / 合计 ${total} U`;
+    }
+
+    function sumStrategyVenueCapitals() {
+      let trading = 0;
+      let reserve = 0;
+      let total = 0;
+      Object.values(strategyVenueCapitals).forEach((vc) => {
+        if (!vc || vc.error) { return; }
+        trading += Number(vc.trading_usdt || 0);
+        reserve += Number(vc.reserve_usdt || 0);
+        total += Number(vc.total_movable_usdt || 0);
+      });
+      return { trading, reserve, total };
+    }
 
     function applyStrategyPanelVisibility() {
       const panel = document.getElementById("strategy-control-panel");
@@ -2847,6 +3342,11 @@
           hint.textContent = "跨所引擎当前为影子模式,不会真实下单;切实盘需改 config 的 live_trading_enabled。";
         }
       }
+      strategyVenueCapitals = {};
+      (st.venue_capitals || []).forEach((vc) => {
+        if (vc && vc.venue) { strategyVenueCapitals[vc.venue] = vc; }
+      });
+      updateVenueCardFinancials(lastEarningsByVenue, lastEarningsTotalBlock);
     }
 
     function renderStrategyCapitalResults(results) {
@@ -2859,8 +3359,8 @@
       box.innerHTML = results.map((r) => {
         const venue = escapeHTML(r.venue || "?");
         if (r.success) {
-          const before = r.before ? Number(r.before.total_movable_usdt || 0).toFixed(2) : "-";
-          const after = r.after ? Number(r.after.total_movable_usdt || 0).toFixed(2) : "-";
+          const before = formatCapitalTriple(r.before);
+          const after = formatCapitalTriple(r.after);
           return `<div style="color:#86efac;margin:2px 0;">${venue} ✓ 调仓成功 (前 ${before} → 后 ${after} USDT)</div>`;
         }
         return `<div style="color:#fca5a5;margin:2px 0;">${venue} ✗ ${escapeHTML(r.error || "失败")}</div>`;
@@ -2886,6 +3386,7 @@
         alert("请输入大于 0 的每所交易仓位 USDT。");
         return;
       }
+      if (!confirm("确认对四所全部应用交易仓位 " + target.toFixed(2) + " USDT?\n将触发各所资金划转与仓位调整。")) { return; }
       try {
         const result = await postJSON("/api/strategy/capital", { target_usdt: target, secret_path: SECRET_PATH });
         window.localStorage.setItem(strategyCapitalStorageKey, String(target));
@@ -2898,7 +3399,7 @@
     }
 
     async function startStrategy() {
-      if (!confirm("确认执行策略启动?\n(启动 Bybit + 开启跨所开仓;Binance 不自动启动)")) { return; }
+      if (!confirm("确认开启跨所 perp-perp 开仓闸?\n(单所引擎已退役,不会启动;在场持仓照常管理)")) { return; }
       try {
         const result = await postJSON("/api/strategy/start", { secret_path: SECRET_PATH, lookback_days: 30 });
         const msgs = (result.steps || []).map((s) => `${s.step}: ${s.message}`).join("\n");
@@ -2912,7 +3413,7 @@
     }
 
     async function stopStrategy() {
-      if (!confirm("确认执行策略停止?\n(停止 Bybit + 关闭跨所开仓;在场持仓继续管理)")) { return; }
+      if (!confirm("确认关闭跨所 perp-perp 开仓闸?\n(停止开新仓;在场持仓继续管理直至平掉)")) { return; }
       try {
         const result = await postJSON("/api/strategy/stop", {});
         const msgs = (result.steps || []).map((s) => `${s.step}: ${s.message}`).join("\n");
@@ -2928,7 +3429,7 @@
     async function flattenAllStrategy() {
       if (!confirm("确认平掉所有交易所的全部持仓？此操作会真实下单平仓")) { return; }
       try {
-        const result = await postJSON("/api/strategy/flatten-all", {});
+        const result = await postJSON("/api/strategy/flatten-all", { confirm: "FLATTEN" });
         const lines = (result.results || []).map((r) => {
           const errs = (r.errors || []).join("; ");
           let line = `${r.strategy}: closed=${r.closed}`;
@@ -2955,6 +3456,8 @@
       document.getElementById("strategy-start-btn")?.addEventListener("click", startStrategy);
       document.getElementById("strategy-stop-btn")?.addEventListener("click", stopStrategy);
       document.getElementById("strategy-flatten-all-btn")?.addEventListener("click", flattenAllStrategy);
+      document.getElementById("legacy-perp-openings-off-btn")?.addEventListener("click", () => setCrossVenueOpenings(false));
+      document.getElementById("legacy-perp-strategy-stop-btn")?.addEventListener("click", stopStrategy);
       document.getElementById("cv-openings-on-btn")?.addEventListener("click", () => setCrossVenueOpenings(true));
       document.getElementById("cv-openings-off-btn")?.addEventListener("click", () => setCrossVenueOpenings(false));
       applyStrategyPanelVisibility();
@@ -2977,6 +3480,11 @@
     }
 
     async function startVenue(venue) {
+      const mode = venueStartMode(venue);
+      const venueLabel = venue || "默认所";
+      if (mode === "live") {
+        if (!confirm("确认启动 " + venueLabel + " 实盘引擎?\n将真实下单,请确认目标仓位与风控参数。")) { return; }
+      } else if (!confirm("确认启动 " + venueLabel + " 历史模拟?\n不会真实下单,将拉取历史数据进行回测。")) { return; }
       const lb = document.getElementById("vlookback-" + venue);
       const lookbackDays = Number(lb && lb.value ? lb.value : "30");
       await postJSON(controlURLForVenue("/api/runtime/start", venue), {
@@ -2998,6 +3506,8 @@
         if (msg) { msg.textContent = "请输入大于 0 的目标交易仓位 USDT。"; }
         return;
       }
+      const venueLabel = venue || "默认所";
+      if (!confirm("确认对 " + venueLabel + " 应用交易仓位 " + target.toFixed(2) + " USDT?\n将触发资金划转与仓位调整。")) { return; }
       try {
         const result = await postJSON(controlURLForVenue("/api/runtime/capital", venue), { target_trading_usdt: target });
         window.localStorage.setItem(capitalStorageKeyFor(venue), String(target));
@@ -3011,6 +3521,7 @@
     }
 
     async function startAllVenues() {
+      if (!confirm("确认启动所有交易所?\n各所将按卡片所选模式运行(含实盘),请确认目标仓位与风控参数。")) { return; }
       const targets = knownVenues.length ? knownVenues : [""];
       const errs = [];
       for (const v of targets) {
@@ -3129,6 +3640,8 @@
       const totalCap = totalBlock.capital_usdt;
       const totalEq = totalBlock.equity_usdt;
       const byVenue = data.by_venue && typeof data.by_venue === "object" ? data.by_venue : {};
+      lastEarningsByVenue = byVenue;
+      lastEarningsTotalBlock = totalBlock;
       const venueNames = Object.keys(byVenue).sort();
       const venueCards = venueNames.map((v) => {
         const row = byVenue[v] || {};
@@ -3137,23 +3650,29 @@
         const eq = row.equity_usdt;
         const upnl = row.unrealized_pnl_usdt;
         const ret = row.today_return_rate;
+        const capBreak = formatVenueCapitalBreakdown(strategyVenueCapitals[v]);
+        const capLine = capBreak || `可动用 ${fmtCap(cap)} U`;
         const upnlLine = upnl != null && Math.abs(Number(upnl)) > 1e-6
           ? `<div style="font-size:11px;color:#64748b;margin-top:2px;">浮动盈亏 ${fmt(upnl)} U</div>` : "";
         const capErr = row.capital_error ? `<div style="font-size:11px;color:#fca5a5;margin-top:2px;">${escapeHTML(row.capital_error)}</div>` : "";
         return `
         <div style="flex:1 1 170px;min-width:170px;background:#0b1424;border:1px solid #1e293b;border-radius:8px;padding:10px;">
           <div style="font-size:12px;color:#8aa0c6;margin-bottom:4px;">${escapeHTML(v)}</div>
-          <div style="font-size:12px;color:#94a3b8;margin-bottom:2px;">可动用 ${fmtCap(cap)} U</div>
+          <div style="font-size:12px;color:#94a3b8;margin-bottom:2px;">${capLine}</div>
           <div style="font-size:12px;color:#94a3b8;margin-bottom:2px;">全部资金 ${fmtCap(eq)} U</div>
           <div style="font-size:18px;font-weight:600;color:${color(earn)};">今日 ${fmt(earn)} U · 收益率 ${fmtPct(ret)}</div>
           ${upnlLine}
           ${capErr}
         </div>`;
       }).join("");
+      const sumCaps = sumStrategyVenueCapitals();
+      const totalCapLine = sumCaps.total > 0
+        ? `可调 交易 ${fmtCap(sumCaps.trading)} / 储备 ${fmtCap(sumCaps.reserve)} / 合计 ${fmtCap(sumCaps.total)} U`
+        : `可动用 ${fmtCap(totalCap)} U`;
       let cards = `
         <div style="flex:1 1 240px;min-width:240px;background:#13203a;border:1px solid #2b3c5c;border-radius:8px;padding:10px;">
           <div style="font-size:12px;color:#cbd5e1;margin-bottom:4px;">合计(全部交易所)</div>
-          <div style="font-size:12px;color:#94a3b8;margin-bottom:2px;">可动用 ${fmtCap(totalCap)} U</div>
+          <div style="font-size:12px;color:#94a3b8;margin-bottom:2px;">${totalCapLine}</div>
           <div style="font-size:12px;color:#94a3b8;margin-bottom:2px;">全部资金 ${fmtCap(totalEq)} U</div>
           <div style="font-size:22px;font-weight:700;color:${color(totalEarn)};">今日 ${fmt(totalEarn)} U · 收益率 ${fmtPct(totalBlock.today_return_rate)}</div>
           ${totalBlock.unrealized_pnl_usdt != null && Math.abs(Number(totalBlock.unrealized_pnl_usdt)) > 1e-6
@@ -3180,15 +3699,21 @@
         const eq = row.equity_usdt;
         const upnl = row.unrealized_pnl_usdt;
         const ret = row.today_return_rate;
+        const capBreak = formatVenueCapitalBreakdown(strategyVenueCapitals[v]);
+        const capText = capBreak ? capBreak + " · " : `可动用 ${fmtCap(cap)} U · `;
         const upnlText = upnl != null && Math.abs(Number(upnl)) > 1e-6 ? ` · 浮动盈亏 ${fmt(upnl)} U` : "";
         const err = row.capital_error ? ` · ${row.capital_error}` : "";
-        el.textContent = `可动用 ${fmtCap(cap)} U · 全部资金 ${fmtCap(eq)} U · 今日(北京) ${fmt(earn)} U · 收益率 ${fmtPct(ret)}${upnlText}${err}`;
+        el.textContent = `${capText}全部资金 ${fmtCap(eq)} U · 今日(北京) ${fmt(earn)} U · 收益率 ${fmtPct(ret)}${upnlText}${err}`;
       });
       const totalEl = document.getElementById("vfin-total");
       if (totalEl && totalBlock) {
+        const sumCaps = sumStrategyVenueCapitals();
+        const capText = sumCaps.total > 0
+          ? `可调 交易 ${fmtCap(sumCaps.trading)} / 储备 ${fmtCap(sumCaps.reserve)} / 合计 ${fmtCap(sumCaps.total)} U · `
+          : `可动用 ${fmtCap(totalBlock.capital_usdt)} U · `;
         const upnlText = totalBlock.unrealized_pnl_usdt != null && Math.abs(Number(totalBlock.unrealized_pnl_usdt)) > 1e-6
           ? ` · 浮动盈亏 ${fmt(totalBlock.unrealized_pnl_usdt)} U` : "";
-        totalEl.textContent = `可动用 ${fmtCap(totalBlock.capital_usdt)} U · 全部资金 ${fmtCap(totalBlock.equity_usdt)} U · 今日(北京) ${fmt(totalBlock.today_earning_usdt)} U · 收益率 ${fmtPct(totalBlock.today_return_rate)}${upnlText}`;
+        totalEl.textContent = `${capText}全部资金 ${fmtCap(totalBlock.equity_usdt)} U · 今日(北京) ${fmt(totalBlock.today_earning_usdt)} U · 收益率 ${fmtPct(totalBlock.today_return_rate)}${upnlText}`;
       }
     }
     async function clearEarnings() {
@@ -3319,7 +3844,7 @@
       }
     }
 
-    document.getElementById("refresh-btn")?.addEventListener("click", () => { refreshDashboard(); refreshVenueOverview(); refreshStrategyStatus(); refreshCrossVenuePanel(); refreshEarnings(); });
+    document.getElementById("refresh-btn")?.addEventListener("click", () => { refreshDashboard(); refreshVenueOverview(); refreshStrategyStatus(); refreshCrossVenuePanel(); refreshEarnings(); refreshRotationStatus(); });
     document.getElementById("start-all-btn")?.addEventListener("click", startAllVenues);
     document.getElementById("stop-all-btn")?.addEventListener("click", stopAllVenues);
     document.getElementById("save-risk-config-btn")?.addEventListener("click", saveRiskConfig);
@@ -3474,9 +3999,10 @@
       dashboardStarted = true;
       initCrossVenueValidationControls();
       // 先加载 venue 列表(填充 knownVenues),构建多所卡片(一次),再渲染主面板与状态。
-      loadVenues().then(() => { renderVenueTabs(); buildVenueOverview(); initStrategyControl(); refreshVenueOverview(); refreshStrategyStatus(); refreshCrossVenuePanel(); refreshEarnings(); });
+      loadVenues().then(() => { renderVenueTabs(); buildVenueOverview(); initRecordDownloads(); initRotationControl(); initStrategyControl(); refreshVenueOverview(); refreshStrategyStatus(); refreshCrossVenuePanel(); refreshEarnings(); refreshRotationStatus(); });
       refreshDashboard();
       setInterval(() => { refreshDashboard(); refreshVenueOverview(); refreshStrategyStatus(); refreshCrossVenuePanel(); refreshEarnings(); }, 5000);
+      setInterval(() => { refreshRotationStatus(); }, 8000);
     }
 
     async function attemptEnter(tokenFromGate) {

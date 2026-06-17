@@ -55,6 +55,8 @@ type DashboardServer struct {
 	cvspExec *CrossVenueSpotPerpExecutor
 	svpsExec *SingleVenuePerpSpotExecutor
 	cvpsExec *CrossVenuePerpSpotExecutor
+	// rotationRunner 是五策略统一轮动 runner; nil=未注入。
+	rotationRunner *UnifiedRotationRunner
 	// venueEquityCache 缓存各所钱包总额/浮盈亏拉取结果,避免面板 5s 轮询触发交易所限频。
 	venueEquityCacheMu sync.Mutex
 	venueEquityCache   map[string]venueEquityCacheEntry
@@ -82,6 +84,11 @@ func (s *DashboardServer) SetRotationExecutors(svsp *SingleVenueSpotPerpExecutor
 	s.cvspExec = cvsp
 	s.svpsExec = svps
 	s.cvpsExec = cvps
+}
+
+// SetRotationRunner 注入五策略统一轮动 runner(供 /api/rotation/* 读取与控制)。
+func (s *DashboardServer) SetRotationRunner(r *UnifiedRotationRunner) {
+	s.rotationRunner = r
 }
 
 // DashboardSummaryResponse 表示面板一次刷新所需的聚合数据。
@@ -182,6 +189,10 @@ func (s *DashboardServer) Start(ctx context.Context) error {
 	mux.HandleFunc("/api/strategy/start", s.handleStrategyStartAPI)
 	mux.HandleFunc("/api/strategy/stop", s.handleStrategyStopAPI)
 	mux.HandleFunc("/api/strategy/flatten-all", s.handleStrategyFlattenAllAPI)
+	mux.HandleFunc("/api/rotation/status", s.authorizeReadAPI(s.handleRotationStatusAPI))
+	mux.HandleFunc("/api/rotation/start", s.handleRotationStartAPI)
+	mux.HandleFunc("/api/rotation/stop", s.handleRotationStopAPI)
+	mux.HandleFunc("/api/rotation/mode", s.handleRotationModeAPI)
 	// S5-B 探针/指标(不鉴权,只暴露非敏感健康信息):供 k8s liveness/readiness 与 Prometheus 抓取。
 	mux.HandleFunc("/livez", s.handleLivez)
 	mux.HandleFunc("/healthz", s.handleHealthz)
@@ -1232,6 +1243,97 @@ func (s *DashboardServer) handleUnifiedLeaderboardPage(w http.ResponseWriter, r 
 	if err := s.unifiedLeaderboardTmpl.Execute(w, nil); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
+}
+
+// RotationModeRequest 轮动 shadow/live 切换请求;切 live 时 confirm 须为 LIVE。
+type RotationModeRequest struct {
+	Live    bool   `json:"live"`
+	Confirm string `json:"confirm"`
+}
+
+func (s *DashboardServer) rotationStatusOrEmpty() RotationStatus {
+	if s == nil || s.rotationRunner == nil {
+		return emptyRotationStatus()
+	}
+	return s.rotationRunner.Status()
+}
+
+func (s *DashboardServer) handleRotationStatusAPI(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	writeJSON(w, s.rotationStatusOrEmpty())
+}
+
+func (s *DashboardServer) handleRotationStartAPI(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if !s.authorizeRuntimeControl(w, r, "rotation_start") {
+		return
+	}
+	if s.rotationRunner == nil {
+		s.auditControlAction(r, "rotation_start", false, "统一轮动 runner 未注入")
+		http.Error(w, "统一轮动 runner 未注入", http.StatusBadRequest)
+		return
+	}
+	s.rotationRunner.SetActive(true)
+	s.auditControlAction(r, "rotation_start", true, "统一轮动已启动")
+	writeJSON(w, s.rotationRunner.Status())
+}
+
+func (s *DashboardServer) handleRotationStopAPI(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if !s.authorizeRuntimeControl(w, r, "rotation_stop") {
+		return
+	}
+	if s.rotationRunner == nil {
+		s.auditControlAction(r, "rotation_stop", false, "统一轮动 runner 未注入")
+		http.Error(w, "统一轮动 runner 未注入", http.StatusBadRequest)
+		return
+	}
+	s.rotationRunner.SetActive(false)
+	s.auditControlAction(r, "rotation_stop", true, "统一轮动已暂停")
+	writeJSON(w, s.rotationRunner.Status())
+}
+
+func (s *DashboardServer) handleRotationModeAPI(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if !s.authorizeRuntimeControl(w, r, "rotation_mode") {
+		return
+	}
+	if s.rotationRunner == nil {
+		s.auditControlAction(r, "rotation_mode", false, "统一轮动 runner 未注入")
+		http.Error(w, "统一轮动 runner 未注入", http.StatusBadRequest)
+		return
+	}
+	var req RotationModeRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		s.auditControlAction(r, "rotation_mode", false, fmt.Sprintf("解析轮动模式参数失败: %v", err))
+		http.Error(w, fmt.Sprintf("解析轮动模式参数失败: %v", err), http.StatusBadRequest)
+		return
+	}
+	if req.Live && strings.TrimSpace(req.Confirm) != "LIVE" {
+		const msg = "切到实盘须显式确认:请带 confirm=LIVE"
+		s.auditControlAction(r, "rotation_mode", false, msg)
+		http.Error(w, msg, http.StatusBadRequest)
+		return
+	}
+	s.rotationRunner.SetLive(req.Live)
+	mode := "shadow"
+	if req.Live {
+		mode = "live"
+	}
+	s.auditControlAction(r, "rotation_mode", true, fmt.Sprintf("统一轮动模式=%s", mode))
+	writeJSON(w, s.rotationRunner.Status())
 }
 
 func writeJSON(w http.ResponseWriter, payload any) {

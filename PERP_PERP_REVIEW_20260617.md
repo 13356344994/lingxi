@@ -1022,14 +1022,88 @@ v2 第一阶段成功不是赚多少钱，而是**小仓实盘轮动跑通且账
 
 阶段 -1 离线数据已留档（见附录），供决策参考，但不阻塞建设。
 
-唯一下一步：**建统一 Opportunity + allocator + 续持/换仓逻辑，小仓起步实盘轮动**；执行器按就绪顺序接入，纳入后同等竞争。
+**当前下一步（2026-06-18）**：统一 Opportunity + 轮动决策 + 四执行器 + runner **已建成并在 shadow 运行**；旧 perp-perp live 并行。下一里程碑是 **canary 前置清单**（见 `HANDOFF_20260617.md` §5）——子账户隔离、面板 live 二次确认、真实接口首笔验证；**不是**重复建骨架。
+
+## 实现进度与审计状态（2026-06-18）
+
+> 接手 agent 速览：细节见 `HANDOFF_20260617.md`。本节标注 master 方案相对代码现实的实现/审计/风险状态。
+
+### 已实现（代码已接线、主循环在跑）
+
+| 能力 | 状态 | 关键文件 |
+|---|---|---|
+| 统一机会 `UnifiedOpportunity` + 五类 `strategy_type` | ✅ | `unified_opportunity.go` |
+| 五类扫描器（perp-perp 映射 + 同/跨所 spot-perp 正费率 + 同/跨所 perp-spot 负费率） | ✅ | `*_scanner.go`；负费率经币安 `BorrowRepay` + `SupportsNegativeCarry` |
+| 候选诊断日志 | ✅ | `unified_candidates_log.go` → `records/opportunities/unified_candidates.jsonl` |
+| 轮动决策（本窗口净 USDT/占用资金排序、贪心、续持≠开仓口径 HOLD/SWITCH/CLOSE） | ✅ | `unified_rotation.go` |
+| 资金路由（决策 + 所内真划转；跨所 shadow 建议） | ✅ | `capital_router.go`、`capital_router_exec.go` |
+| 四执行器（single/cross × spot-perp/perp-spot） | ✅ 代码+fake 单测 | `*_executor.go` |
+| 主循环 runner（60s、snapshot 触发、reconcile 启动一次 + 每轮 manage） | ✅ shadow 在跑 | `unified_rotation_runner.go` |
+| 面板「五策略轮动」主控卡 | ✅ | `dashboard_server.go` + webpanel |
+| 状态持久化 | ✅ | `rotation_control.json` |
+| 配置开关 | ✅ | `unified_rotation`、`capital_allocator`、`data_collection`（后两者默认 off/shadow） |
+| 单所旧引擎 de-wire | ✅ | `run.go`、`strategy_control.go` |
+| 排行榜 API（只读） | ✅ 早期 | `unified_leaderboard.go` |
+
+### 已审计并修复
+
+- **执行层**：借币空现货敞口可见；第二腿部分成交回滚；平仓用交易所实测量；margin 单查单 endpoint；借币限额；回滚验净。
+- **决策层**：SWITCH 不重复扣费；同候选不重复换；跨所缺口进 Unfundable；纳入 perp-perp；钱包按腿映射；续持/开仓同口径；buffer。
+- **安全（关键）**：reconcile **不再 flatten 未登记持仓**（防误平 perp-perp live 仓）；reconcile/manage 下单**服从 runner shadow/live**。
+- **账本/HEI**：张→币归一化、ledgerrecon 工具（阶段 0.5 地基）。
+
+### 已部署运行态
+
+- 进程已重启到新二进制。
+- **新五策略默认 shadow**（`unified_rotation.live_trading_enabled=false`，`rotation_control.json` `live=false`）。
+- **旧跨所 perp-perp ~440U 仍独立 live**，不受新开关影响。
+
+### 未实现 / 未达标（相对 master 成功标准）
+
+| 项 | 状态 |
+|---|---|
+| 小额 canary 实盘 | ❌ 未开始 |
+| 新执行器真实交易所接口验证 | ❌ 仅 fake 单测 |
+| 面板切 live 二次确认硬闸 | ❌ |
+| `/records` 独立下载令牌 | ❌ |
+| config 构造器默认 `active=false` + defaults 块 | ❌ |
+| 子账户现货腿隔离（spot-perp 测量） | ⚠️ 已知缺口 |
+| 可信 settlement replay（任务 5 第二步） | ⚠️ 部分（ledgerrecon 有，完整 replay 未闭环） |
+| 离线统一模拟器（任务 5.5） | ❌ |
+| Data collection 模式实盘校准 | ❌ 配置在，未跑 |
+
+### 已知风险（必须诚实）
+
+1. **经济数据 NO-GO** 不变——正费率 −58%/−60%、负费率净 −53%、perp-perp 181 笔仅 1.6U 资金费（见附录）。
+2. 新执行器**从未触过真实交易所**；canary 前须隔离子账户 + shadow 观察 + 盯首笔。
+3. 与 perp-perp live 并行时，任何重启/切 live 都可能影响 ~440U 实盘——需用户明确点头。
+4. spot-perp 在子账户有自有现货时，敞口测量可能误判（隔离未做完）。
+
+### 任务编号对照（master §「给 Composer 的实现任务」）
+
+| 任务 | 状态 |
+|---|---|
+| 1 统一 Opportunity | ✅ |
+| 2 候选诊断日志 | ✅ |
+| 3 排行榜 API/面板 | ✅（只读；主控卡另建） |
+| 4 Data Collection Mode | ✅ 配置；❌ 未实盘校准 |
+| 5 账本对账 | ✅ 工具+HEI 修；⚠️ replay 未全闭环 |
+| 5.5 离线统一模拟器 | ❌ |
+| 5.6 阶段-1 go/no-go | ✅ 见附录 + `tools/go_no_go/` |
+| 6 统一资金分配器 + 续持/换仓 | ✅ → `unified_rotation.go` + runner |
+| 执行器层（五类） | ✅ 代码；❌ 未 live 验证 |
+| 资金路由/再平衡 | ✅ 所内真划转；跨所 shadow |
+
+---
 
 ## 附录：阶段-1 实测数据记录（事实留档）
 
 以下为 v1 研究阶段已跑完的离线 go/no-go 与实盘采样结果，客观留档，**不加「所以应该停」的结论**——决策权在用户。
 
-1. **正费率 cash-and-carry（spot-perp）**：主流币与中小币扣保守成本后，离线净年化约 **−58% / −60%**。
-2. **负费率 perp-spot**：扣借币成本后离线净年化约 **−53%**；仅 **5 个微盘币**过线。
+1. **正费率 cash-and-carry（spot-perp）**
+   - 窄样本 10 主流币 90 天（`analyze.py`）：按占用资金净年化约 **−58%**。
+   - 宽样本 65 币 180 天（`analyze_broad.py`）：等权净年化约 **−59.85%**；UNI/LINK 等流动性较好币种仍为负。
+2. **负费率 perp-spot**：扣借币成本后（`analyze_neg_carry_net.py`）等权净年化约 **−53%**；仅 **5 个微盘币**（SENT/BARD/ALLO/HOME/CHIP）过 +45% 线。
 3. **实盘 perp-perp**：已跑 **181 笔**，累计资金费收入约 **1.6 USDT**。
 
-以上数据来自阶段 -1 独立脚本与既有实盘样本，成本假设与 regime 切分口径见 v1 研究记录。v2 仍选择直接建设轮动系统，用户可据此自行判断是否调整资金规模、结构范围或风控阈值。
+以上数据来自 `tools/go_no_go/` 独立脚本与既有实盘样本。v2 仍选择建设 shadow 轮动系统；用户可据此自行判断是否调整资金规模、结构范围或风控阈值。**不得用离线正收益粉饰 live 预期。**

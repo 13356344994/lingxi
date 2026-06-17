@@ -343,6 +343,10 @@ func DefaultEngineConfig() EngineConfig {
 			MaxNotionalUSDT:               10,
 			MaxExpectedLossUSDTPerTrade:   0.03,
 		},
+		UnifiedRotation: UnifiedRotationConfig{
+			Enabled:            false,
+			LiveTradingEnabled: false,
+		},
 		FundingExecutor: VenueFundingExecutorConfig{
 			LiveTradingEnabled:     false,
 			TopN:                   1,

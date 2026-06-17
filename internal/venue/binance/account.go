@@ -217,6 +217,27 @@ func (a *Adapter) FetchBalances(ctx context.Context) (venue.Balances, error) {
 		}
 		mergeBalance(bal.ByAsset, asset, free, locked, 0)
 	}
+
+	// 全仓杠杆 netAsset:负值=借币空头,须并入否则 perp-spot 穿仓不可见。
+	var margin struct {
+		UserAssets []struct {
+			Asset    string `json:"asset"`
+			NetAsset string `json:"netAsset"`
+		} `json:"userAssets"`
+	}
+	if err := a.signedGetJSON(ctx, a.spotBaseURL()+PathMarginAccount, nil, &margin); err == nil {
+		for _, row := range margin.UserAssets {
+			asset := strings.ToUpper(strings.TrimSpace(row.Asset))
+			if asset == "" {
+				continue
+			}
+			net := parseFloat(row.NetAsset)
+			if net == 0 {
+				continue
+			}
+			mergeBalance(bal.ByAsset, asset, net, 0, 0)
+		}
+	}
 	return bal, nil
 }
 

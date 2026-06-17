@@ -119,9 +119,25 @@ func unifiedWindowScore(opp UnifiedOpportunity) float64 {
 	return opp.ExpectedNetEVUSDT / totalCapital
 }
 
-// continuationNetUSDT 计算续持净收益(不含沉没的开仓成本与入场基差)。
+// continuationNetUSDT 计算续持净收益(下一窗口 funding − borrow − holdingRisk; close 仅在换仓边际扣)。
 func continuationNetUSDT(in ContinuationInputs) float64 {
-	return in.ExpectedFundingUSDT - in.ExpectedCloseCostUSDT - in.HoldingRiskUSDT - in.ExpectedBorrowCostUSDT
+	return in.ExpectedFundingUSDT - in.HoldingRiskUSDT - in.ExpectedBorrowCostUSDT
+}
+
+func rotationHoldingRiskUSDT(opp UnifiedOpportunity, totalCapital float64) float64 {
+	if totalCapital <= 0 || opp.RiskScore <= 0 {
+		return 0
+	}
+	return opp.RiskScore * totalCapital * 0.01
+}
+
+// rotationComparableWindowScore 与续持分同口径: netEV − holdingRisk,不含 close(已在 netEV)与 openCost(已在 netEV)。
+func rotationComparableWindowScore(opp UnifiedOpportunity) float64 {
+	totalCapital := unifiedOpportunityTotalCapital(opp)
+	if totalCapital <= 0 {
+		return 0
+	}
+	return (opp.ExpectedNetEVUSDT - rotationHoldingRiskUSDT(opp, totalCapital)) / totalCapital
 }
 
 // continuationScore 返回续持净 / 占用资金(不做年化)。
@@ -193,7 +209,7 @@ func rotationSortedPositiveCandidates(candidates []UnifiedOpportunity) []Unified
 		}
 	}
 	sort.SliceStable(positive, func(i, j int) bool {
-		return unifiedWindowScore(positive[i]) > unifiedWindowScore(positive[j])
+		return rotationComparableWindowScore(positive[i]) > rotationComparableWindowScore(positive[j])
 	})
 	return positive
 }
@@ -210,7 +226,7 @@ func planUnifiedRotationOpensFrom(candidates []UnifiedOpportunity, available map
 		if !ok {
 			continue
 		}
-		score := unifiedWindowScore(opp)
+		score := rotationComparableWindowScore(opp)
 		rotationDeductOpportunityCapital(funds, opp)
 		openCount++
 		actions = append(actions, RotationAction{
@@ -237,7 +253,7 @@ func rotationBestReplaceCandidate(
 	available map[string]float64,
 	cfg RotationConfig,
 	openCount int,
-	exclude map[string]struct{},
+	alreadyChosen map[string]struct{},
 ) (UnifiedOpportunity, float64, bool) {
 	bestScore := -1.0
 	var best UnifiedOpportunity
@@ -249,8 +265,8 @@ func rotationBestReplaceCandidate(
 		if opp.ID == held.OpportunityID {
 			continue
 		}
-		if exclude != nil {
-			if _, ok := exclude[opp.ID]; ok {
+		if alreadyChosen != nil {
+			if _, ok := alreadyChosen[opp.ID]; ok {
 				continue
 			}
 		}
@@ -258,7 +274,7 @@ func rotationBestReplaceCandidate(
 		if !ok {
 			continue
 		}
-		score := unifiedWindowScore(opp)
+		score := rotationComparableWindowScore(opp)
 		if !found || score > bestScore {
 			best = opp
 			bestScore = score
@@ -268,8 +284,9 @@ func rotationBestReplaceCandidate(
 	return best, bestScore, found
 }
 
-func rotationSwitchCostUSDT(heldCloseCost, newOpenCost float64) float64 {
-	return heldCloseCost + newOpenCost
+// rotationSwitchMarginalCostUSDT 换仓边际成本: 平旧 close + 开新 slippage/rollback(openCost 已在 netEV)。
+func rotationSwitchMarginalCostUSDT(heldCloseCostUSDT float64, newOpp UnifiedOpportunity) float64 {
+	return heldCloseCostUSDT + newOpp.ExpectedSlippageUSDT + newOpp.ExpectedRollbackCostUSDT
 }
 
 // DecideRotation 生成跨窗口 HOLD/CLOSE/SWITCH/OPEN shadow 计划(纯函数,不执行下单)。
@@ -315,7 +332,17 @@ func DecideRotation(
 
 		replaceFunds := cloneVenueCapitalMap(funds)
 		rotationAddCapitalMap(replaceFunds, pos.CapitalRequiredByVenue)
-		best, openScore, found := rotationBestReplaceCandidate(pos, candidates, replaceFunds, cfg, openCount, heldIDs)
+		alreadyChosen := make(map[string]struct{}, len(chosen)+len(rejectedReplace)+1)
+		for id := range chosen {
+			alreadyChosen[id] = struct{}{}
+		}
+		for id := range rejectedReplace {
+			alreadyChosen[id] = struct{}{}
+		}
+		for id := range heldIDs {
+			alreadyChosen[id] = struct{}{}
+		}
+		best, openScore, found := rotationBestReplaceCandidate(pos, candidates, replaceFunds, cfg, openCount, alreadyChosen)
 		if !found {
 			plan.Actions = append(plan.Actions, RotationAction{
 				Kind:                   RotationActionHold,
@@ -330,7 +357,7 @@ func DecideRotation(
 			continue
 		}
 
-		switchCost := rotationSwitchCostUSDT(inputs.ExpectedCloseCostUSDT, best.ExpectedOpenCostUSDT)
+		switchCost := rotationSwitchMarginalCostUSDT(inputs.ExpectedCloseCostUSDT, best)
 		switchCostPerUnit := 0.0
 		if heldCapital > 0 {
 			switchCostPerUnit = switchCost / heldCapital

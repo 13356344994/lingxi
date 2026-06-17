@@ -86,8 +86,11 @@ func TestPlanCapitalRoutingCrossVenueSuggestionOnly(t *testing.T) {
 	if s.AmountUSDT < 85-capitalRouterEpsilon || s.AmountUSDT > 85+capitalRouterEpsilon {
 		t.Fatalf("suggestion amount = %.4f, want ~85 (okx need 100, have 15)", s.AmountUSDT)
 	}
-	if len(plan.Unfundable) != 0 {
-		t.Fatalf("unfundable = %#v, want none (cross-venue covers okx gap)", plan.Unfundable)
+	if len(plan.Unfundable) != 1 {
+		t.Fatalf("unfundable = %#v, want one (cross-venue gap not auto-funded)", plan.Unfundable)
+	}
+	if !strings.Contains(plan.Unfundable[0], "cv-spot-perp-1") {
+		t.Fatalf("unfundable entry = %q", plan.Unfundable[0])
 	}
 }
 
@@ -251,7 +254,7 @@ func TestPlanCapitalRoutingTableDriven(t *testing.T) {
 			cfg:            DefaultCapitalRouterConfig(),
 			wantWithin:     0,
 			wantCross:      1,
-			wantUnfundable: 0,
+			wantUnfundable: 1,
 			checkCrossFirst: func(t *testing.T, s CrossVenueRebalanceSuggestion) {
 				if s.FromVenue != "binance" || s.ToVenue != "gate" {
 					t.Fatalf("suggestion = %+v", s)

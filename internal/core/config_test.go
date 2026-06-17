@@ -195,6 +195,16 @@ func TestPortfolioConfigDefaultsValid(t *testing.T) {
 	}
 }
 
+func TestUnifiedRotationDefaults(t *testing.T) {
+	cfg := DefaultEngineConfig()
+	if cfg.UnifiedRotation.Enabled {
+		t.Fatal("UnifiedRotation.Enabled 默认应为 false")
+	}
+	if cfg.UnifiedRotation.LiveTradingEnabled {
+		t.Fatal("UnifiedRotation.LiveTradingEnabled 默认应为 false")
+	}
+}
+
 // TestPortfolioConfigValidationGates 钉死 Portfolio 校验的「恒检非负 + 启用时门控」语义。
 func TestPortfolioConfigValidationGates(t *testing.T) {
 	// 滞后带 < 1.0 恒拒（防 churn 下界）。

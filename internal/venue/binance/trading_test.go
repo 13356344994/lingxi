@@ -214,6 +214,48 @@ func TestCancelOrderDelete(t *testing.T) {
 	}
 }
 
+func TestQueryOrderMarginSpotUsesMarginEndpoint(t *testing.T) {
+	var paths []string
+	a := newHarness(t, func(w http.ResponseWriter, r *http.Request) {
+		paths = append(paths, r.URL.Path)
+		if strings.Contains(r.URL.Path, PathSpotOrder) {
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`{"code":-2013,"msg":"Order does not exist."}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"orderId":9,"clientOrderId":"m1","status":"FILLED","executedQty":"0.5","cummulativeQuoteQty":"30000","transactTime":1700000000000}`))
+	})
+	res, err := a.QueryOrder(context.Background(), venue.MarketSpot, "BTC-USDT", "m1")
+	if err != nil {
+		t.Fatalf("QueryOrder: %v", err)
+	}
+	if len(paths) < 2 || paths[1] != PathMarginOrder {
+		t.Fatalf("保证金现货查单应 fallback 到 %s, paths=%v", PathMarginOrder, paths)
+	}
+	if res.Status != "filled" || res.ExecutedQty != 0.5 {
+		t.Fatalf("解析错误: %+v", res)
+	}
+}
+
+func TestCancelOrderMarginSpotUsesMarginEndpoint(t *testing.T) {
+	var paths []string
+	a := newHarness(t, func(w http.ResponseWriter, r *http.Request) {
+		paths = append(paths, r.URL.Path)
+		if strings.Contains(r.URL.Path, PathSpotOrder) {
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`{"code":-2013,"msg":"Order does not exist."}`))
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	})
+	if err := a.CancelOrder(context.Background(), venue.MarketSpot, "BTC-USDT", "m-cancel"); err != nil {
+		t.Fatalf("CancelOrder: %v", err)
+	}
+	if len(paths) < 2 || paths[1] != PathMarginOrder {
+		t.Fatalf("保证金现货撤单应 fallback 到 %s, paths=%v", PathMarginOrder, paths)
+	}
+}
+
 func TestNormalizeVenueOrderStatus(t *testing.T) {
 	if normalizeVenueOrderStatus("NEW") != "new" || normalizeVenueOrderStatus("CANCELED") != "canceled" {
 		t.Fatal("状态归一错误")

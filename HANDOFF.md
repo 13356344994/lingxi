@@ -1,5 +1,7 @@
 # Lingxi 交接文档(给接手 agent)
 
+> ⚠️ **本文档已过时（2026-06-13）**。当前权威交接请读 **`HANDOFF_20260617.md`**。下文仅作旧跨所 perp-perp 时代的历史参考。
+
 > 最后更新:2026-06-13 ~18:05 (UTC+8) / 10:05 UTC
 > 项目:`/root/lingxi`,Go 单进程 + systemd(`lingxi` 服务)+ 外部看门狗(`lingxi-watchdog.timer`)
 > 四交易所资金费率套利:binance / bybit / okx / gate,每所约 100U,总 ~400U

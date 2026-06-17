@@ -27,9 +27,11 @@ type svspTestVenue struct {
 	positions     []venue.Position
 	placeCount    *int32
 	placeRequests []venue.OrderRequest
-	spotFailNext  bool
-	perpFailNext  bool
-	clearOnClose  bool
+	spotFailNext         bool
+	perpFailNext         bool
+	perpPartialFillNext  bool
+	perpPartialFillRatio float64
+	clearOnClose         bool
 	fundingIncome []venue.FundingIncome
 }
 
@@ -79,6 +81,15 @@ func (f *svspTestVenue) PlaceOrder(_ context.Context, req venue.OrderRequest) (v
 		f.perpFailNext = false
 		return venue.OrderResult{Status: "rejected"}, errors.New("simulated perp fail")
 	}
+	execQty := req.Qty
+	if req.Market == venue.MarketPerp && f.perpPartialFillNext {
+		f.perpPartialFillNext = false
+		ratio := f.perpPartialFillRatio
+		if ratio <= 0 {
+			ratio = 0.5
+		}
+		execQty = req.Qty * ratio
+	}
 	base := baseAssetFromCanonicalSymbol(string(req.Symbol))
 	switch req.Market {
 	case venue.MarketSpot:
@@ -96,13 +107,13 @@ func (f *svspTestVenue) PlaceOrder(_ context.Context, req venue.OrderRequest) (v
 			if req.ReduceOnly && f.clearOnClose {
 				f.positions = nil
 			} else {
-				f.positions = []venue.Position{{Symbol: req.Symbol, PositionAmt: -req.Qty, EntryPrice: req.Price, MarkPrice: req.Price, Leverage: 2}}
+				f.positions = []venue.Position{{Symbol: req.Symbol, PositionAmt: -execQty, EntryPrice: req.Price, MarkPrice: req.Price, Leverage: 2}}
 			}
 		case venue.SideBuy:
 			if req.ReduceOnly && f.clearOnClose {
 				f.positions = nil
 			} else {
-				f.positions = []venue.Position{{Symbol: req.Symbol, PositionAmt: req.Qty, EntryPrice: req.Price, MarkPrice: req.Price, Leverage: 2}}
+				f.positions = []venue.Position{{Symbol: req.Symbol, PositionAmt: execQty, EntryPrice: req.Price, MarkPrice: req.Price, Leverage: 2}}
 			}
 		}
 	}
@@ -111,7 +122,7 @@ func (f *svspTestVenue) PlaceOrder(_ context.Context, req venue.OrderRequest) (v
 		Market:        req.Market,
 		ClientOrderID: req.ClientOrderID,
 		Status:        "filled",
-		ExecutedQty:   req.Qty,
+		ExecutedQty:   execQty,
 		AvgPrice:      req.Price,
 		CumQuoteUSDT:  req.Qty * req.Price,
 	}, nil
@@ -306,7 +317,7 @@ func TestSVSPReconcileOrphanSpotLeg(t *testing.T) {
 	e.store = store
 	e.nowFn = func() time.Time { return now }
 
-	e.reconcileOnStart(context.Background())
+	e.reconcileOnStart(context.Background(), true)
 	if atomic.LoadInt32(v.placeCount) < 1 {
 		t.Fatal("expected orphan flatten order")
 	}
@@ -395,5 +406,94 @@ func TestSVSPShadowCloseNoPlaceOrder(t *testing.T) {
 	}
 	if atomic.LoadInt32(v.placeCount) != 0 {
 		t.Fatal("shadow close must not PlaceOrder")
+	}
+}
+
+func TestSVSPPerpPartialFillTriggersRollback(t *testing.T) {
+	now := time.Now().UTC()
+	v := newSVSPTestVenue(binance.VenueName)
+	v.perpPartialFillNext = true
+	v.perpPartialFillRatio = 0.4
+	dir := t.TempDir()
+	e := NewSingleVenueSpotPerpExecutor(testSVSPExecutorConfig(), map[string]venue.Venue{binance.VenueName: v}, dir, testSVSPLogger())
+	e.nowFn = func() time.Time { return now }
+
+	_, err := e.executeOpen(context.Background(), testSVSPOpportunity(binance.VenueName, 0.5), true)
+	if err == nil {
+		t.Fatal("expected partial perp fill to fail open")
+	}
+	if v.spotBalances["BTC"] > executionQtyTolerance {
+		t.Fatalf("partial fill must rollback spot, BTC=%.6f", v.spotBalances["BTC"])
+	}
+}
+
+func TestSVSPCloseUsesLedgerCappedNotAccountTotal(t *testing.T) {
+	now := time.Now().UTC()
+	v := newSVSPTestVenue(binance.VenueName)
+	v.spotBalances["BTC"] = 2.0
+	v.positions = []venue.Position{{Symbol: "BTC-USDT", PositionAmt: -0.5, MarkPrice: 100, EntryPrice: 100, Leverage: 2}}
+	dir := t.TempDir()
+	e := NewSingleVenueSpotPerpExecutor(testSVSPExecutorConfig(), map[string]venue.Venue{binance.VenueName: v}, dir, testSVSPLogger())
+	e.nowFn = func() time.Time { return now }
+
+	pos := SingleVenueSpotPerpPosition{
+		Symbol: "BTC-USDT", Venue: binance.VenueName,
+		Status: SVSPStatusOpen, OpenedAt: now, IdemPrefix: "cap-close",
+		SpotLeg: SingleVenueSpotPerpLegState{Market: "spot", Side: "buy", Qty: 0.5, EntryPrice: 100},
+		PerpLeg: SingleVenueSpotPerpLegState{Market: "perp", Side: "short", Qty: 0.5, EntryPrice: 100},
+	}
+	if err := e.closePosition(context.Background(), pos, true, "cap"); err == nil {
+		t.Fatal("expected close incomplete when account holds extra user spot beyond ledger")
+	}
+	var spotSellQty float64
+	for _, req := range v.placeRequests {
+		if req.Market == venue.MarketSpot && req.Side == venue.SideSell {
+			spotSellQty = req.Qty
+		}
+	}
+	if spotSellQty > 0.5+executionQtyTolerance || spotSellQty < 0.5-executionQtyTolerance {
+		t.Fatalf("close must sell ledger-capped qty≈0.5, got %.6f", spotSellQty)
+	}
+	if v.spotBalances["BTC"] < 1.5-executionQtyTolerance {
+		t.Fatalf("user-owned spot beyond ledger must remain, BTC=%.6f", v.spotBalances["BTC"])
+	}
+}
+
+func TestSVSPReconcileIgnoresUntrackedPerpPerpPosition(t *testing.T) {
+	now := time.Now().UTC()
+	v := newSVSPTestVenue(binance.VenueName)
+	// 模拟 perp-perp 440U 永续仓: 账户有永续空, 但本策略台账为空。
+	v.positions = []venue.Position{{Symbol: "BTC-USDT", PositionAmt: -0.004, MarkPrice: 110000, EntryPrice: 110000, Leverage: 2}}
+	dir := t.TempDir()
+	cfg := testSVSPExecutorConfig()
+	cfg.CrossVenueExecutor.LiveTradingEnabled = true
+	e := NewSingleVenueSpotPerpExecutor(cfg, map[string]venue.Venue{binance.VenueName: v}, dir, testSVSPLogger())
+	e.nowFn = func() time.Time { return now }
+
+	e.reconcileOnStart(context.Background(), true)
+	if atomic.LoadInt32(v.placeCount) != 0 {
+		t.Fatalf("reconcile must not flatten untracked perp-perp position, got %d orders", atomic.LoadInt32(v.placeCount))
+	}
+}
+
+func TestSVSPCloseSkipsWhenMeasuredZero(t *testing.T) {
+	now := time.Now().UTC()
+	v := newSVSPTestVenue(binance.VenueName)
+	// 台账有仓, 交易所无实测腿。
+	dir := t.TempDir()
+	e := NewSingleVenueSpotPerpExecutor(testSVSPExecutorConfig(), map[string]venue.Venue{binance.VenueName: v}, dir, testSVSPLogger())
+	e.nowFn = func() time.Time { return now }
+
+	pos := SingleVenueSpotPerpPosition{
+		Symbol: "BTC-USDT", Venue: binance.VenueName,
+		Status: SVSPStatusOpen, OpenedAt: now, IdemPrefix: "zero-measured",
+		SpotLeg: SingleVenueSpotPerpLegState{Market: "spot", Side: "buy", Qty: 0.5, EntryPrice: 100},
+		PerpLeg: SingleVenueSpotPerpLegState{Market: "perp", Side: "short", Qty: 0.5, EntryPrice: 100},
+	}
+	if err := e.closePosition(context.Background(), pos, true, "zero"); err == nil {
+		t.Fatal("expected close to skip when measured qty is zero")
+	}
+	if atomic.LoadInt32(v.placeCount) != 0 {
+		t.Fatalf("measured=0 must not place blind flatten orders, got %d", atomic.LoadInt32(v.placeCount))
 	}
 }

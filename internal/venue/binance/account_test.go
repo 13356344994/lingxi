@@ -41,6 +41,29 @@ func TestFetchBalancesMergeSpotAndFutures(t *testing.T) {
 	}
 }
 
+func TestFetchBalancesMergesMarginNetAssetShort(t *testing.T) {
+	a := newHarness(t, func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.Contains(r.URL.Path, PathFuturesBalance):
+			_, _ = w.Write([]byte(`[{"asset":"USDT","balance":"1000","availableBalance":"1000","crossWalletBalance":"1000"}]`))
+		case strings.Contains(r.URL.Path, PathSpotAccount):
+			_, _ = w.Write([]byte(`{"balances":[{"asset":"USDT","free":"1000","locked":"0"}]}`))
+		case strings.Contains(r.URL.Path, PathMarginAccount):
+			_, _ = w.Write([]byte(`{"userAssets":[{"asset":"BTC","netAsset":"-0.25"},{"asset":"USDT","netAsset":"500"}]}`))
+		default:
+			http.NotFound(w, r)
+		}
+	})
+	bal, err := a.FetchBalances(context.Background())
+	if err != nil {
+		t.Fatalf("FetchBalances: %v", err)
+	}
+	btc := bal.ByAsset["BTC"]
+	if btc.Free != -0.25 {
+		t.Fatalf("margin 借币空头应并入 BTC free=-0.25, got %.4f", btc.Free)
+	}
+}
+
 func TestFetchPositionsFiltersZeroAndParsesShort(t *testing.T) {
 	a := newHarness(t, func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`[

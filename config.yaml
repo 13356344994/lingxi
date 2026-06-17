@@ -121,6 +121,15 @@ cross_venue_executor:
   maker_chase_interval_ms: 1500
   maker_deadline_seconds: 12
 
+# 五策略统一资金费轮动 runner（2026-06-18 新增）。enabled=true 启动 runner;
+# live_trading_enabled=false=影子(完整决策+资金路由计划,但不下单/不真划转,只出 [影子] 日志)。
+# 首次部署:enabled=true + live_trading_enabled=false 跑影子看决策日志;确认无误后再
+# 改 live_trading_enabled=true 配合面板调仓四所各 ~10U 做 canary 小额实盘。
+# perp-perp 仍走上方 cross_venue_executor 独立执行器,不受本开关影响。
+unified_rotation:
+  enabled: true
+  live_trading_enabled: false
+
 # 多所编排（§7 / §8）。注册到此的所会出现在面板 venue 选择器里，并各自拥有独立的 RuntimeController/记录目录。
 # ⚠️ 2026-06-15 起生产形态【仅跨所 perp-perp】:策略总控「启动」只开 cross_venue 运行时开仓闸,
 #   Bybit/OKX/Gate/Binance 单所引擎默认不自动拉起(代码 singleVenueStrategyAutoStart=false)。

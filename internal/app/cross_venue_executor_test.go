@@ -270,6 +270,17 @@ func testScannerWithFunding(byVenue map[string]map[string]CrossVenueFundingEntry
 	return &CrossVenueScanner{lastSnapshot: CrossVenueScanSnapshot{FundingByVenue: byVenue}}
 }
 
+func testBaselinePortfolioRecordBySnapshotID(t *testing.T, records []CrossVenueBaselinePortfolioReplayRecord, snapshotID string) CrossVenueBaselinePortfolioReplayRecord {
+	t.Helper()
+	for _, rec := range records {
+		if rec.SnapshotID == snapshotID {
+			return rec
+		}
+	}
+	t.Fatalf("baseline portfolio record %q not found in %+v", snapshotID, records)
+	return CrossVenueBaselinePortfolioReplayRecord{}
+}
+
 func testCrossVenueGateDeps(allocated float64) crossVenueGateDeps {
 	return crossVenueGateDeps{
 		lookupInstrument: lookupVenueInstrument,
@@ -1571,8 +1582,10 @@ func TestHandleCrossVenuePositionsAPI(t *testing.T) {
 func TestCrossVenueValidationSnapshot(t *testing.T) {
 	dir := t.TempDir()
 	now := time.Date(2026, 6, 16, 12, 0, 0, 0, time.UTC)
+	cfg := testCrossVenueExecutorConfig()
+	cfg.NetworkConfig.RecordDir = dir
 	e := &CrossVenueExecutor{
-		cfg:       testCrossVenueExecutorConfig(),
+		cfg:       cfg,
 		store:     mustCrossVenueStore(t, dir),
 		nowFn:     func() time.Time { return now },
 		recordDir: dir,
@@ -1720,11 +1733,12 @@ func TestCrossVenueValidationSnapshot(t *testing.T) {
 	if math.Abs(got.BaselinePortfolioReplay.ChosenReplayNetEV-5.5) > 1e-9 || math.Abs(got.BaselinePortfolioReplay.BaselineReplayNetEV-6.7) > 1e-9 {
 		t.Fatalf("baseline portfolio replay ev mismatch: %+v", got.BaselinePortfolioReplay)
 	}
-	if len(got.BaselinePortfolioReplay.Records) != 2 || got.BaselinePortfolioReplay.Records[0].SnapshotID != "snap-btc" {
+	if len(got.BaselinePortfolioReplay.Records) != 2 {
 		t.Fatalf("baseline portfolio replay records mismatch: %+v", got.BaselinePortfolioReplay.Records)
 	}
-	if len(got.BaselinePortfolioReplay.Records[0].BaselinePairs) != 1 || got.BaselinePortfolioReplay.Records[0].BaselinePairs[0] != "binance/okx" {
-		t.Fatalf("baseline portfolio replay baseline pairs mismatch: %+v", got.BaselinePortfolioReplay.Records[0])
+	snapBTC := testBaselinePortfolioRecordBySnapshotID(t, got.BaselinePortfolioReplay.Records, "snap-btc")
+	if len(snapBTC.BaselinePairs) != 1 || snapBTC.BaselinePairs[0] != "binance/okx" {
+		t.Fatalf("baseline portfolio replay baseline pairs mismatch: %+v", snapBTC)
 	}
 	if !got.RollingBaselineReplay.SameOpportunitySetReady || !got.RollingBaselineReplay.SameCostModelReady || !got.RollingBaselineReplay.SameRiskBudgetReady {
 		t.Fatalf("rolling baseline replay readiness mismatch: %+v", got.RollingBaselineReplay)

@@ -218,6 +218,7 @@ func TestComputeCrossVenueOpportunitiesFilterAndTopN(t *testing.T) {
 
 func TestCrossVenueScannerSingleVenueFailureDegrades(t *testing.T) {
 	t.Parallel()
+	dir := t.TempDir()
 	now := time.Date(2026, 6, 12, 12, 0, 0, 0, time.UTC)
 	failVenue := &fakeFundingVenue{name: binance.VenueName, err: errors.New("boom")}
 	nextFunding := now.Add(2 * time.Hour)
@@ -239,6 +240,7 @@ func TestCrossVenueScannerSingleVenueFailureDegrades(t *testing.T) {
 			MinSpreadAPR: 0.01,
 			TopN:         10,
 		},
+		recordDir: dir,
 		venues: map[string]venue.Venue{
 			binance.VenueName: failVenue,
 			bybit.VenueName:   okVenue,
@@ -267,6 +269,7 @@ func TestCrossVenueScannerSingleVenueFailureDegrades(t *testing.T) {
 }
 
 func TestCrossVenueScannerAnnotatesSnapshotLineageAndMetrics(t *testing.T) {
+	dir := t.TempDir()
 	now := time.Date(2026, 6, 16, 0, 0, 0, 0, time.UTC)
 	nextFunding := now.Add(4 * time.Hour)
 	s := &CrossVenueScanner{
@@ -282,6 +285,7 @@ func TestCrossVenueScannerAnnotatesSnapshotLineageAndMetrics(t *testing.T) {
 			MarginSafetyFactor:   1.5,
 			EVExpectedSlippageBps: 3,
 		},
+		recordDir:      dir,
 		nowFn:          func() time.Time { return now },
 		logger:         log.New(&bytes.Buffer{}, "", 0),
 		fundingHistory: make(map[string]map[string][]float64),
@@ -404,6 +408,7 @@ var _ venue.Venue = (*fakeFundingVenue)(nil)
 // TestCrossVenueScannerConcurrentFetch 四所并发拉取互不阻塞(单所慢/失败不影响其它所)。
 func TestCrossVenueScannerConcurrentFetch(t *testing.T) {
 	t.Parallel()
+	dir := t.TempDir()
 	var mu sync.Mutex
 	order := make([]string, 0, 4)
 	record := func(name string) {
@@ -426,7 +431,8 @@ func TestCrossVenueScannerConcurrentFetch(t *testing.T) {
 		}
 	}
 	s := &CrossVenueScanner{
-		cfg: CrossVenueScannerConfig{MinSpreadAPR: 0.01, TopN: 5},
+		cfg:       CrossVenueScannerConfig{MinSpreadAPR: 0.01, TopN: 5},
+		recordDir: dir,
 		venues: map[string]venue.Venue{
 			binance.VenueName: fast(binance.VenueName, 0.0001),
 			bybit.VenueName:   fast(bybit.VenueName, 0.0002),

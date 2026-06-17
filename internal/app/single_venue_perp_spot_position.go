@@ -4,11 +4,14 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"time"
+
+	"lingxi/internal/venue"
 )
 
 // single_venue_perp_spot_position.go 同所 perp-spot 负费率持仓台账(records/single_venue_perp_spot/)。
@@ -306,4 +309,59 @@ type SingleVenuePerpSpotSettlement struct {
 	TotalFees       float64   `json:"total_fees"`
 	NetPnL          float64   `json:"net_pnl"`
 	CloseReason     string    `json:"close_reason,omitempty"`
+}
+
+// --- 四执行器共享的开/平/回滚安全辅助 ---
+
+const rollbackVerifyBackoff = 30 * time.Second
+
+// hedgeLegFullyFilled 第二腿须满足 ExecutedQty >= hedgeQty-ε。
+func hedgeLegFullyFilled(executedQty, hedgeQty float64) bool {
+	return executedQty+executionQtyTolerance >= hedgeQty
+}
+
+// ledgerCappedCloseQty 平仓数量 = min(台账开仓累计, 交易所实测),避免卖掉用户自有现货。
+// 实测为 0 或缺失时返回 0(调用方告警并跳过,禁止盲平)。
+func ledgerCappedCloseQty(ledgerQty, measuredQty float64) float64 {
+	if ledgerQty <= executionQtyTolerance {
+		return 0
+	}
+	if measuredQty <= executionQtyTolerance {
+		return 0
+	}
+	return math.Min(ledgerQty, measuredQty)
+}
+
+// marginShortQtyFromBalance 从余额读借币空头(负 netAsset)。
+func marginShortQtyFromBalance(bals venue.Balances, baseAsset string) float64 {
+	if bals.ByAsset == nil {
+		return 0
+	}
+	b := bals.ByAsset[strings.ToUpper(strings.TrimSpace(baseAsset))]
+	net := b.Free + b.Locked
+	if net < -executionQtyTolerance {
+		return -net
+	}
+	return 0
+}
+
+// spotLongQtyFromBalance 读现货多头持仓(正余额)。
+func spotLongQtyFromBalance(bals venue.Balances, baseAsset string) float64 {
+	if bals.ByAsset == nil {
+		return 0
+	}
+	b := bals.ByAsset[strings.ToUpper(strings.TrimSpace(baseAsset))]
+	net := b.Free + b.Locked
+	if net > executionQtyTolerance {
+		return net
+	}
+	return 0
+}
+
+func orderStatusIsUnknown(res venue.OrderResult) bool {
+	return strings.EqualFold(strings.TrimSpace(res.Status), "unknown")
+}
+
+func crossVenueLegMismatch(aQty, bQty float64) float64 {
+	return math.Abs(aQty - bQty)
 }

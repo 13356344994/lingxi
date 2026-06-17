@@ -336,7 +336,7 @@ func TestStrategyFlattenAllAPI(t *testing.T) {
 		controlToken:       "test-secret",
 	}
 
-	req := httptest.NewRequest(http.MethodPost, "/api/strategy/flatten-all", bytes.NewReader([]byte("{}")))
+	req := httptest.NewRequest(http.MethodPost, "/api/strategy/flatten-all", bytes.NewReader([]byte(`{"confirm":"FLATTEN"}`)))
 	req.RemoteAddr = "127.0.0.1:12345"
 	req.Header.Set("X-Dashboard-Token", "test-secret")
 	rec := httptest.NewRecorder()
@@ -356,5 +356,17 @@ func TestStrategyFlattenAllAPI(t *testing.T) {
 	}
 	if atomic.LoadInt32(high.placeCount)+atomic.LoadInt32(low.placeCount)+atomic.LoadInt32(svspV.placeCount) != 0 {
 		t.Fatal("synthetic positions must not trigger orders")
+	}
+}
+
+func TestStrategyFlattenAllAPI_RequiresConfirm(t *testing.T) {
+	s := &DashboardServer{controlToken: "test-secret"}
+	req := httptest.NewRequest(http.MethodPost, "/api/strategy/flatten-all", bytes.NewReader([]byte("{}")))
+	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("X-Dashboard-Token", "test-secret")
+	rec := httptest.NewRecorder()
+	s.handleStrategyFlattenAllAPI(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d want 400 body=%s", rec.Code, rec.Body.String())
 	}
 }

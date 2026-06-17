@@ -33,6 +33,8 @@ type StrategyCapitalRequest struct {
 
 // StrategyCapitalSnapshotSummary 调仓前后摘要(面板展示用)。
 type StrategyCapitalSnapshotSummary struct {
+	TradingUSDT      float64 `json:"trading_usdt"`
+	ReserveUSDT      float64 `json:"reserve_usdt"`
 	TotalMovableUSDT float64 `json:"total_movable_usdt"`
 }
 
@@ -111,6 +113,8 @@ type StrategyCrossVenueStatus struct {
 // StrategyVenueCapitalCache 各所可调余额缓存(来自 CurrentCapitalSnapshot)。
 type StrategyVenueCapitalCache struct {
 	Venue            string  `json:"venue"`
+	TradingUSDT      float64 `json:"trading_usdt"`
+	ReserveUSDT      float64 `json:"reserve_usdt"`
 	TotalMovableUSDT float64 `json:"total_movable_usdt"`
 	Error            string  `json:"error,omitempty"`
 }
@@ -122,8 +126,27 @@ type StrategyStatusResponse struct {
 	VenueCapitals []StrategyVenueCapitalCache `json:"venue_capitals"`
 }
 
+func strategyCapitalBreakdown(s RuntimeCapitalSnapshot) (trading, reserve float64) {
+	trading = s.SpotFreeUSDT + s.FuturesAvailableUSDT + s.CrossMarginFreeUSDT
+	reserve = s.FundingFreeUSDT
+	if trading == 0 {
+		if reserve > 0 && s.TotalMovableUSDT >= reserve {
+			trading = s.TotalMovableUSDT - reserve
+		} else {
+			trading = s.TotalMovableUSDT
+			reserve = 0
+		}
+	}
+	return trading, reserve
+}
+
 func strategyCapitalSummary(s RuntimeCapitalSnapshot) StrategyCapitalSnapshotSummary {
-	return StrategyCapitalSnapshotSummary{TotalMovableUSDT: s.TotalMovableUSDT}
+	trading, reserve := strategyCapitalBreakdown(s)
+	return StrategyCapitalSnapshotSummary{
+		TradingUSDT:      trading,
+		ReserveUSDT:      reserve,
+		TotalMovableUSDT: s.TotalMovableUSDT,
+	}
 }
 
 func (s *DashboardServer) handleStrategyStatusAPI(w http.ResponseWriter, r *http.Request) {
@@ -214,12 +237,30 @@ func (s *DashboardServer) handleStrategyStopAPI(w http.ResponseWriter, r *http.R
 	writeJSON(w, resp)
 }
 
+// StrategyFlattenAllRequest 一键全平仓请求;confirm 须为 FLATTEN 才执行。
+type StrategyFlattenAllRequest struct {
+	Confirm string `json:"confirm"`
+}
+
 func (s *DashboardServer) handleStrategyFlattenAllAPI(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 	if !s.authorizeRuntimeControl(w, r, "flatten_all") {
+		return
+	}
+	var req StrategyFlattenAllRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		const msg = "flatten_all 须显式确认:请带 confirm=FLATTEN"
+		s.auditControlAction(r, "flatten_all", false, msg)
+		http.Error(w, msg, http.StatusBadRequest)
+		return
+	}
+	if strings.TrimSpace(req.Confirm) != "FLATTEN" {
+		const msg = "flatten_all 为毁灭性操作,须显式确认:请带 confirm=FLATTEN"
+		s.auditControlAction(r, "flatten_all", false, msg)
+		http.Error(w, msg, http.StatusBadRequest)
 		return
 	}
 	resp := s.executeStrategyFlattenAll(r.Context())
@@ -610,6 +651,7 @@ func (s *DashboardServer) buildStrategyStatus() StrategyStatusResponse {
 				if snap, err := rt.controller.CurrentCapitalSnapshot(); err != nil {
 					entry.Error = err.Error()
 				} else {
+					entry.TradingUSDT, entry.ReserveUSDT = strategyCapitalBreakdown(snap)
 					entry.TotalMovableUSDT = snap.TotalMovableUSDT
 				}
 			} else {

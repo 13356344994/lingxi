@@ -21,6 +21,7 @@ type cvpsTestVenue struct {
 	fakeFundingVenue
 	name                  string
 	supportsNegativeCarry bool
+	maxBorrowable         float64
 	bookSpot              venue.BookTicker
 	bookPerp              venue.BookTicker
 	balances              map[string]float64
@@ -31,6 +32,8 @@ type cvpsTestVenue struct {
 	placeRequests           []venue.OrderRequest
 	placeFailSpot           bool
 	placeFailNext           bool
+	perpPartialFillNext     bool
+	perpPartialFillRatio    float64
 	clearOnReduceOnly       bool
 }
 
@@ -41,6 +44,7 @@ func newCVPSTestVenue(name string, supportsBorrow bool) *cvpsTestVenue {
 		fakeFundingVenue:      fakeFundingVenue{name: name},
 		name:                  name,
 		supportsNegativeCarry: supportsBorrow,
+		maxBorrowable:         1000,
 		bookSpot: venue.BookTicker{
 			BidPrice: 99, AskPrice: 100, BidQty: 1000, AskQty: 1000,
 		},
@@ -59,6 +63,13 @@ func (f *cvpsTestVenue) Name() string { return f.name }
 
 func (f *cvpsTestVenue) Capabilities() venue.Capabilities {
 	return venue.Capabilities{SupportsNegativeCarry: f.supportsNegativeCarry}
+}
+
+func (f *cvpsTestVenue) MaxBorrowable(_ context.Context, _ string) (float64, error) {
+	if f.maxBorrowable <= 0 {
+		return 1000, nil
+	}
+	return f.maxBorrowable, nil
 }
 
 func (f *cvpsTestVenue) FetchBookTicker(_ context.Context, m venue.Market, _ venue.Symbol) (venue.BookTicker, error) {
@@ -111,12 +122,21 @@ func (f *cvpsTestVenue) PlaceOrder(_ context.Context, req venue.OrderRequest) (v
 		return venue.OrderResult{Status: "rejected"}, errors.New("borrow unsupported")
 	}
 
+	execQty := req.Qty
+	if req.Market == venue.MarketPerp && f.perpPartialFillNext {
+		f.perpPartialFillNext = false
+		ratio := f.perpPartialFillRatio
+		if ratio <= 0 {
+			ratio = 0.5
+		}
+		execQty = req.Qty * ratio
+	}
 	base := "BTC"
 	switch req.Market {
 	case venue.MarketPerp:
 		if req.Side == venue.SideBuy && !req.ReduceOnly {
 			f.positions = []venue.Position{{
-				Symbol: req.Symbol, PositionAmt: req.Qty, EntryPrice: req.Price,
+				Symbol: req.Symbol, PositionAmt: execQty, EntryPrice: req.Price,
 			}}
 		}
 		if req.ReduceOnly && req.Side == venue.SideSell && f.clearOnReduceOnly {
@@ -138,7 +158,7 @@ func (f *cvpsTestVenue) PlaceOrder(_ context.Context, req venue.OrderRequest) (v
 		Market:        req.Market,
 		ClientOrderID: req.ClientOrderID,
 		Status:        "filled",
-		ExecutedQty:   req.Qty,
+		ExecutedQty:   execQty,
 		AvgPrice:      req.Price,
 		CumQuoteUSDT:  req.Qty * req.Price,
 	}, nil
@@ -367,7 +387,7 @@ func TestCrossVenuePerpSpotReconcileOrphanLeg(t *testing.T) {
 	_ = e.persistPosition(pos)
 	perp.positions = []venue.Position{{Symbol: "BTC-USDT", PositionAmt: 0.01, EntryPrice: 100}}
 
-	e.reconcileOnStart(context.Background())
+	e.reconcileOnStart(context.Background(), true)
 	var sawFlatten bool
 	for _, req := range perp.placeRequests {
 		if req.ReduceOnly && req.Side == venue.SideSell {
@@ -376,5 +396,71 @@ func TestCrossVenuePerpSpotReconcileOrphanLeg(t *testing.T) {
 	}
 	if !sawFlatten {
 		t.Fatal("reconcile should flatten orphan perp leg")
+	}
+}
+
+func TestCrossVenuePerpSpotReconcileIgnoresUntrackedPerpPerpPosition(t *testing.T) {
+	dir := t.TempDir()
+	spot := newCVPSTestVenue(binance.VenueName, true)
+	perp := newCVPSTestVenue(bybit.VenueName, false)
+	e := testCVPSExecutor(t, dir, spot, perp)
+	e.cfg.CrossVenueExecutor.LiveTradingEnabled = true
+	perp.positions = []venue.Position{{Symbol: "BTC-USDT", PositionAmt: 0.004, EntryPrice: 110000}}
+
+	e.reconcileOnStart(context.Background(), true)
+	if atomic.LoadInt32(spot.placeCount)+atomic.LoadInt32(perp.placeCount) != 0 {
+		t.Fatal("reconcile must not flatten untracked perp-perp position")
+	}
+}
+
+func TestCrossVenuePerpSpotCloseSkipsWhenMeasuredZero(t *testing.T) {
+	dir := t.TempDir()
+	spot := newCVPSTestVenue(binance.VenueName, true)
+	perp := newCVPSTestVenue(bybit.VenueName, false)
+	e := testCVPSExecutor(t, dir, spot, perp)
+	pos := CrossVenuePerpSpotPosition{
+		Symbol: "BTC-USDT", SpotVenue: binance.VenueName, PerpVenue: bybit.VenueName,
+		Status: CVPSStatusOpen, OpenedAt: e.nowFn(), IdemPrefix: "zero-measured",
+		SpotLeg: CrossVenuePerpSpotLegState{Venue: binance.VenueName, Market: "spot", Side: "short", Qty: 0.01},
+		PerpLeg: CrossVenuePerpSpotLegState{Venue: bybit.VenueName, Market: "perp", Side: "long", Qty: 0.01},
+	}
+	if err := e.closePosition(context.Background(), pos, true, "zero"); err == nil {
+		t.Fatal("expected close to skip when measured qty is zero")
+	}
+	if atomic.LoadInt32(spot.placeCount)+atomic.LoadInt32(perp.placeCount) != 0 {
+		t.Fatal("measured=0 must not place blind flatten orders")
+	}
+}
+
+func TestCrossVenuePerpSpotBorrowLimitExceededSkipsOpen(t *testing.T) {
+	dir := t.TempDir()
+	spot := newCVPSTestVenue(binance.VenueName, true)
+	spot.maxBorrowable = 0.1
+	perp := newCVPSTestVenue(bybit.VenueName, false)
+	e := testCVPSExecutor(t, dir, spot, perp)
+
+	_, err := e.executeOpen(context.Background(), testCVPSOpportunity(binance.VenueName, bybit.VenueName, 0.5), true)
+	if err == nil || !strings.Contains(err.Error(), "借币额度不足") {
+		t.Fatalf("expected borrow limit rejection, got %v", err)
+	}
+	if atomic.LoadInt32(spot.placeCount) != 0 {
+		t.Fatal("borrow limit exceeded must not place orders")
+	}
+}
+
+func TestCrossVenuePerpSpotPerpPartialFillTriggersRollback(t *testing.T) {
+	dir := t.TempDir()
+	spot := newCVPSTestVenue(binance.VenueName, true)
+	perp := newCVPSTestVenue(bybit.VenueName, false)
+	perp.perpPartialFillNext = true
+	perp.perpPartialFillRatio = 0.4
+	e := testCVPSExecutor(t, dir, spot, perp)
+
+	_, err := e.executeOpen(context.Background(), testCVPSOpportunity(binance.VenueName, bybit.VenueName, 0.5), true)
+	if err == nil {
+		t.Fatal("expected partial perp fill to fail open")
+	}
+	if spot.borrowedBase["BTC"] > executionQtyTolerance {
+		t.Fatalf("partial fill must rollback borrow, got %.6f", spot.borrowedBase["BTC"])
 	}
 }

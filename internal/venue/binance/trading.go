@@ -48,6 +48,18 @@ func (a *Adapter) orderEndpoint(m venue.Market) string {
 	return a.futuresBaseURL() + PathFuturesOrder
 }
 
+func (a *Adapter) marginOrderEndpoint() string {
+	return a.spotBaseURL() + PathMarginOrder
+}
+
+func isSpotOrderNotFound(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "-2013") || strings.Contains(msg, "order does not exist")
+}
+
 func (a *Adapter) placeOrderEndpoint(req venue.OrderRequest) string {
 	if req.Market == venue.MarketSpot && isMarginSpotOrder(req) {
 		return a.spotBaseURL() + PathMarginOrder
@@ -201,7 +213,7 @@ func (a *Adapter) PlaceOrder(ctx context.Context, req venue.OrderRequest) (venue
 	}, nil
 }
 
-// CancelOrder 按 origClientOrderId 撤单(DELETE)。
+// CancelOrder 按 origClientOrderId 撤单(DELETE)。保证金现货单走 PathMarginOrder。
 func (a *Adapter) CancelOrder(ctx context.Context, m venue.Market, s venue.Symbol, clientOrderID string) error {
 	raw, err := a.ToVenue(s, m)
 	if err != nil {
@@ -210,11 +222,25 @@ func (a *Adapter) CancelOrder(ctx context.Context, m venue.Market, s venue.Symbo
 	params := url.Values{}
 	params.Set("symbol", raw)
 	params.Set("origClientOrderId", clientOrderID)
-	_, err = a.signedRequest(ctx, http.MethodDelete, a.orderEndpoint(m), params)
+	if m != venue.MarketSpot {
+		_, err = a.signedRequest(ctx, http.MethodDelete, a.orderEndpoint(m), params)
+		return err
+	}
+	if err := a.cancelSpotOrderAt(ctx, a.orderEndpoint(m), params); err == nil {
+		return nil
+	} else if !isSpotOrderNotFound(err) {
+		return err
+	}
+	_, err = a.signedRequest(ctx, http.MethodDelete, a.marginOrderEndpoint(), params)
 	return err
 }
 
-// QueryOrder 按 origClientOrderId 查单,富化成交明细。
+func (a *Adapter) cancelSpotOrderAt(ctx context.Context, endpoint string, params url.Values) error {
+	_, err := a.signedRequest(ctx, http.MethodDelete, endpoint, params)
+	return err
+}
+
+// QueryOrder 按 origClientOrderId 查单,富化成交明细。保证金现货单走 PathMarginOrder。
 func (a *Adapter) QueryOrder(ctx context.Context, m venue.Market, s venue.Symbol, clientOrderID string) (venue.OrderResult, error) {
 	raw, err := a.ToVenue(s, m)
 	if err != nil {
@@ -223,12 +249,27 @@ func (a *Adapter) QueryOrder(ctx context.Context, m venue.Market, s venue.Symbol
 	params := url.Values{}
 	params.Set("symbol", raw)
 	params.Set("origClientOrderId", clientOrderID)
-	body, err := a.signedRequest(ctx, http.MethodGet, a.orderEndpoint(m), params)
-	if err != nil {
+	if m == venue.MarketPerp {
+		body, err := a.signedRequest(ctx, http.MethodGet, a.orderEndpoint(m), params)
+		if err != nil {
+			return venue.OrderResult{}, err
+		}
+		return a.parseFuturesQueryOrder(body, s, m, clientOrderID)
+	}
+	res, err := a.querySpotOrderAt(ctx, a.orderEndpoint(m), params, s, m, clientOrderID)
+	if err == nil {
+		return res, nil
+	}
+	if !isSpotOrderNotFound(err) {
 		return venue.OrderResult{}, err
 	}
-	if m == venue.MarketPerp {
-		return a.parseFuturesQueryOrder(body, s, m, clientOrderID)
+	return a.querySpotOrderAt(ctx, a.marginOrderEndpoint(), params, s, m, clientOrderID)
+}
+
+func (a *Adapter) querySpotOrderAt(ctx context.Context, endpoint string, params url.Values, s venue.Symbol, m venue.Market, clientOrderID string) (venue.OrderResult, error) {
+	body, err := a.signedRequest(ctx, http.MethodGet, endpoint, params)
+	if err != nil {
+		return venue.OrderResult{}, err
 	}
 	return a.parseSpotQueryOrder(body, s, m, clientOrderID)
 }
