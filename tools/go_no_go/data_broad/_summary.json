@@ -1,0 +1,457 @@
+{
+  "IDUSDT": {
+    "pts": 669,
+    "pos_pct": 43.0,
+    "avg_apr_pct": -63.46,
+    "vol_m": 72.6,
+    "spot_pts": 540
+  },
+  "SPELLUSDT": {
+    "pts": 540,
+    "pos_pct": 60.6,
+    "avg_apr_pct": -21.08,
+    "vol_m": 7.2,
+    "spot_pts": 540
+  },
+  "BNTUSDT": {
+    "pts": 540,
+    "pos_pct": 67.6,
+    "avg_apr_pct": -2.68,
+    "vol_m": 0.6,
+    "spot_pts": 540
+  },
+  "ORCAUSDT": {
+    "pts": 1000,
+    "pos_pct": 35.0,
+    "avg_apr_pct": -56.21,
+    "vol_m": 18.2,
+    "spot_pts": 540
+  },
+  "HOMEUSDT": {
+    "pts": 1000,
+    "pos_pct": 80.9,
+    "avg_apr_pct": -11.09,
+    "vol_m": 25.0,
+    "spot_pts": 540
+  },
+  "SAHARAUSDT": {
+    "pts": 1000,
+    "pos_pct": 36.3,
+    "avg_apr_pct": -64.35,
+    "vol_m": 10.2,
+    "spot_pts": 540
+  },
+  "PORTALUSDT": {
+    "pts": 1000,
+    "pos_pct": 90.9,
+    "avg_apr_pct": -2.23,
+    "vol_m": 72.9,
+    "spot_pts": 540
+  },
+  "FIDAUSDT": {
+    "pts": 1000,
+    "pos_pct": 65.4,
+    "avg_apr_pct": -20.19,
+    "vol_m": 7.8,
+    "spot_pts": 540
+  },
+  "XVGUSDT": {
+    "pts": 540,
+    "pos_pct": 81.7,
+    "avg_apr_pct": 6.82,
+    "vol_m": 1.6,
+    "spot_pts": 540
+  },
+  "SYNUSDT": {
+    "pts": 1000,
+    "pos_pct": 79.5,
+    "avg_apr_pct": -11.73,
+    "vol_m": 11.4,
+    "spot_pts": 540
+  },
+  "CHZUSDT": {
+    "pts": 540,
+    "pos_pct": 70.9,
+    "avg_apr_pct": 0.77,
+    "vol_m": 21.4,
+    "spot_pts": 540
+  },
+  "LQTYUSDT": {
+    "pts": 540,
+    "pos_pct": 79.3,
+    "avg_apr_pct": 3.95,
+    "vol_m": 3.6,
+    "spot_pts": 540
+  },
+  "HEIUSDT": {
+    "pts": 1000,
+    "pos_pct": 96.4,
+    "avg_apr_pct": 4.46,
+    "vol_m": 6.0,
+    "spot_pts": 540
+  },
+  "XVSUSDT": {
+    "pts": 540,
+    "pos_pct": 69.1,
+    "avg_apr_pct": -8.02,
+    "vol_m": 0.9,
+    "spot_pts": 540
+  },
+  "VIRTUALUSDT": {
+    "pts": 1000,
+    "pos_pct": 42.0,
+    "avg_apr_pct": -4.9,
+    "vol_m": 21.0,
+    "spot_pts": 540
+  },
+  "MIRAUSDT": {
+    "pts": 1000,
+    "pos_pct": 66.3,
+    "avg_apr_pct": -8.83,
+    "vol_m": 3.6,
+    "spot_pts": 540
+  },
+  "MANTRAUSDT": {
+    "pts": 632,
+    "pos_pct": 51.9,
+    "avg_apr_pct": -42.04,
+    "vol_m": 3.4,
+    "spot_pts": 316
+  },
+  "INJUSDT": {
+    "pts": 540,
+    "pos_pct": 37.6,
+    "avg_apr_pct": -17.59,
+    "vol_m": 64.4,
+    "spot_pts": 540
+  },
+  "APTUSDT": {
+    "pts": 540,
+    "pos_pct": 32.4,
+    "avg_apr_pct": -10.85,
+    "vol_m": 28.5,
+    "spot_pts": 540
+  },
+  "BCHUSDT": {
+    "pts": 540,
+    "pos_pct": 43.7,
+    "avg_apr_pct": -5.24,
+    "vol_m": 103.9,
+    "spot_pts": 540
+  },
+  "VICUSDT": {
+    "pts": 1000,
+    "pos_pct": 93.4,
+    "avg_apr_pct": -6.3,
+    "vol_m": 7.5,
+    "spot_pts": 540
+  },
+  "HIVEUSDT": {
+    "pts": 1000,
+    "pos_pct": 61.6,
+    "avg_apr_pct": -23.13,
+    "vol_m": 2.3,
+    "spot_pts": 540
+  },
+  "BARDUSDT": {
+    "pts": 1000,
+    "pos_pct": 41.4,
+    "avg_apr_pct": -87.97,
+    "vol_m": 2.2,
+    "spot_pts": 540
+  },
+  "AXLUSDT": {
+    "pts": 1000,
+    "pos_pct": 36.5,
+    "avg_apr_pct": -39.91,
+    "vol_m": 4.2,
+    "spot_pts": 540
+  },
+  "GTCUSDT": {
+    "pts": 540,
+    "pos_pct": 75.7,
+    "avg_apr_pct": -6.1,
+    "vol_m": 1.5,
+    "spot_pts": 540
+  },
+  "ZECUSDT": {
+    "pts": 540,
+    "pos_pct": 51.9,
+    "avg_apr_pct": -6.66,
+    "vol_m": 1112.0,
+    "spot_pts": 540
+  },
+  "CHIPUSDT": {
+    "pts": 374,
+    "pos_pct": 29.1,
+    "avg_apr_pct": -54.51,
+    "vol_m": 19.5,
+    "spot_pts": 172
+  },
+  "1INCHUSDT": {
+    "pts": 540,
+    "pos_pct": 69.3,
+    "avg_apr_pct": 1.81,
+    "vol_m": 2.8,
+    "spot_pts": 540
+  },
+  "ACHUSDT": {
+    "pts": 540,
+    "pos_pct": 57.8,
+    "avg_apr_pct": -3.15,
+    "vol_m": 1.9,
+    "spot_pts": 540
+  },
+  "ALGOUSDT": {
+    "pts": 540,
+    "pos_pct": 57.4,
+    "avg_apr_pct": -1.62,
+    "vol_m": 20.1,
+    "spot_pts": 540
+  },
+  "ARBUSDT": {
+    "pts": 540,
+    "pos_pct": 64.8,
+    "avg_apr_pct": 2.31,
+    "vol_m": 26.9,
+    "spot_pts": 540
+  },
+  "ARUSDT": {
+    "pts": 540,
+    "pos_pct": 66.3,
+    "avg_apr_pct": 2.06,
+    "vol_m": 6.8,
+    "spot_pts": 540
+  },
+  "ASTRUSDT": {
+    "pts": 540,
+    "pos_pct": 57.6,
+    "avg_apr_pct": -16.63,
+    "vol_m": 1.6,
+    "spot_pts": 540
+  },
+  "BANDUSDT": {
+    "pts": 540,
+    "pos_pct": 80.9,
+    "avg_apr_pct": 4.54,
+    "vol_m": 0.8,
+    "spot_pts": 540
+  },
+  "BATUSDT": {
+    "pts": 540,
+    "pos_pct": 67.2,
+    "avg_apr_pct": 0.33,
+    "vol_m": 1.5,
+    "spot_pts": 540
+  },
+  "BTCUSDT": {
+    "pts": 540,
+    "pos_pct": 62.2,
+    "avg_apr_pct": 1.32,
+    "vol_m": 8375.9,
+    "spot_pts": 540
+  },
+  "ETHUSDT": {
+    "pts": 540,
+    "pos_pct": 59.4,
+    "avg_apr_pct": 0.65,
+    "vol_m": 7728.0,
+    "spot_pts": 540
+  },
+  "SOLUSDT": {
+    "pts": 540,
+    "pos_pct": 44.4,
+    "avg_apr_pct": -3.03,
+    "vol_m": 1383.2,
+    "spot_pts": 540
+  },
+  "WLDUSDT": {
+    "pts": 540,
+    "pos_pct": 48.0,
+    "avg_apr_pct": -9.77,
+    "vol_m": 672.5,
+    "spot_pts": 540
+  },
+  "XRPUSDT": {
+    "pts": 540,
+    "pos_pct": 42.6,
+    "avg_apr_pct": -1.75,
+    "vol_m": 530.0,
+    "spot_pts": 540
+  },
+  "UNIUSDT": {
+    "pts": 540,
+    "pos_pct": 70.7,
+    "avg_apr_pct": 3.04,
+    "vol_m": 524.3,
+    "spot_pts": 540
+  },
+  "DOGEUSDT": {
+    "pts": 540,
+    "pos_pct": 59.6,
+    "avg_apr_pct": 1.36,
+    "vol_m": 288.9,
+    "spot_pts": 540
+  },
+  "BNBUSDT": {
+    "pts": 540,
+    "pos_pct": 34.1,
+    "avg_apr_pct": 1.82,
+    "vol_m": 271.0,
+    "spot_pts": 540
+  },
+  "ASTERUSDT": {
+    "pts": 1000,
+    "pos_pct": 73.2,
+    "avg_apr_pct": 1.73,
+    "vol_m": 238.7,
+    "spot_pts": 540
+  },
+  "NEARUSDT": {
+    "pts": 540,
+    "pos_pct": 68.9,
+    "avg_apr_pct": 2.83,
+    "vol_m": 225.3,
+    "spot_pts": 540
+  },
+  "TAOUSDT": {
+    "pts": 1000,
+    "pos_pct": 54.9,
+    "avg_apr_pct": -3.68,
+    "vol_m": 206.6,
+    "spot_pts": 540
+  },
+  "XLMUSDT": {
+    "pts": 540,
+    "pos_pct": 53.1,
+    "avg_apr_pct": -2.03,
+    "vol_m": 198.4,
+    "spot_pts": 540
+  },
+  "ADAUSDT": {
+    "pts": 540,
+    "pos_pct": 57.8,
+    "avg_apr_pct": 0.72,
+    "vol_m": 185.6,
+    "spot_pts": 540
+  },
+  "JTOUSDT": {
+    "pts": 1000,
+    "pos_pct": 30.7,
+    "avg_apr_pct": -27.35,
+    "vol_m": 147.7,
+    "spot_pts": 540
+  },
+  "SUIUSDT": {
+    "pts": 540,
+    "pos_pct": 65.9,
+    "avg_apr_pct": 2.18,
+    "vol_m": 138.9,
+    "spot_pts": 540
+  },
+  "ENAUSDT": {
+    "pts": 1000,
+    "pos_pct": 66.4,
+    "avg_apr_pct": 0.75,
+    "vol_m": 134.6,
+    "spot_pts": 540
+  },
+  "FILUSDT": {
+    "pts": 540,
+    "pos_pct": 53.9,
+    "avg_apr_pct": -2.68,
+    "vol_m": 126.8,
+    "spot_pts": 540
+  },
+  "XPLUSDT": {
+    "pts": 1000,
+    "pos_pct": 82.1,
+    "avg_apr_pct": 2.99,
+    "vol_m": 119.9,
+    "spot_pts": 540
+  },
+  "ONDOUSDT": {
+    "pts": 1000,
+    "pos_pct": 58.3,
+    "avg_apr_pct": -0.42,
+    "vol_m": 93.7,
+    "spot_pts": 540
+  },
+  "SENTUSDT": {
+    "pts": 1000,
+    "pos_pct": 25.0,
+    "avg_apr_pct": -129.86,
+    "vol_m": 88.7,
+    "spot_pts": 439
+  },
+  "LINKUSDT": {
+    "pts": 540,
+    "pos_pct": 74.4,
+    "avg_apr_pct": 3.93,
+    "vol_m": 85.2,
+    "spot_pts": 540
+  },
+  "AVAXUSDT": {
+    "pts": 540,
+    "pos_pct": 55.0,
+    "avg_apr_pct": -0.45,
+    "vol_m": 82.6,
+    "spot_pts": 540
+  },
+  "TRUMPUSDT": {
+    "pts": 1000,
+    "pos_pct": 16.2,
+    "avg_apr_pct": -18.45,
+    "vol_m": 81.0,
+    "spot_pts": 540
+  },
+  "STGUSDT": {
+    "pts": 629,
+    "pos_pct": 51.5,
+    "avg_apr_pct": -64.24,
+    "vol_m": 79.4,
+    "spot_pts": 540
+  },
+  "AAVEUSDT": {
+    "pts": 540,
+    "pos_pct": 65.6,
+    "avg_apr_pct": 1.37,
+    "vol_m": 71.3,
+    "spot_pts": 540
+  },
+  "DOTUSDT": {
+    "pts": 540,
+    "pos_pct": 47.4,
+    "avg_apr_pct": -9.25,
+    "vol_m": 58.9,
+    "spot_pts": 540
+  },
+  "LTCUSDT": {
+    "pts": 540,
+    "pos_pct": 62.6,
+    "avg_apr_pct": 2.13,
+    "vol_m": 50.5,
+    "spot_pts": 540
+  },
+  "ALLOUSDT": {
+    "pts": 1000,
+    "pos_pct": 94.0,
+    "avg_apr_pct": 4.23,
+    "vol_m": 49.0,
+    "spot_pts": 540
+  },
+  "TONUSDT": {
+    "pts": 1000,
+    "pos_pct": 47.9,
+    "avg_apr_pct": -2.76,
+    "vol_m": 48.4,
+    "spot_pts": 540
+  },
+  "TIAUSDT": {
+    "pts": 1000,
+    "pos_pct": 64.9,
+    "avg_apr_pct": 1.12,
+    "vol_m": 47.7,
+    "spot_pts": 540
+  }
+}

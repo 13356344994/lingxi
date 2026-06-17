@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"log"
 	"strings"
 
@@ -74,13 +75,125 @@ func slippageIsBuyForPhase(phase crossVenueExecPhase) bool {
 	}
 }
 
+func crossVenueExecPhaseNeedsQtyNorm(phase crossVenueExecPhase) bool {
+	switch phase {
+	case cvExecCloseHigh, cvExecCloseLow, cvExecOrphanCloseHigh, cvExecOrphanCloseLow,
+		cvExecRollbackHigh, cvExecRebalanceHigh, cvExecRebalanceLow:
+		return true
+	default:
+		return false
+	}
+}
+
+func crossVenueLegVenueForPhase(pos CrossVenuePosition, phase crossVenueExecPhase) string {
+	switch phase {
+	case cvExecCloseHigh, cvExecOrphanCloseHigh, cvExecRollbackHigh, cvExecRebalanceHigh:
+		return pos.HighVenue
+	case cvExecCloseLow, cvExecOrphanCloseLow, cvExecRebalanceLow:
+		return pos.LowVenue
+	default:
+		return ""
+	}
+}
+
+func crossVenuePeerBookQtyForPhase(pos CrossVenuePosition, phase crossVenueExecPhase) float64 {
+	switch phase {
+	case cvExecCloseHigh, cvExecOrphanCloseHigh, cvExecRollbackHigh, cvExecRebalanceHigh:
+		if pos.LowLeg.Qty > executionQtyTolerance {
+			return pos.LowLeg.Qty
+		}
+		return pos.HighLeg.Qty
+	case cvExecCloseLow, cvExecOrphanCloseLow, cvExecRebalanceLow:
+		if pos.HighLeg.Qty > executionQtyTolerance {
+			return pos.HighLeg.Qty
+		}
+		return pos.LowLeg.Qty
+	default:
+		return 0
+	}
+}
+
+// normalizeCrossVenueCloseExecutedQty 把平仓/回滚/再平衡成交的 ExecutedQty 归一化为币数量(与开仓侧 crossVenueLegExecutedCoinQty 对称)。
+// gate/okx 张本位所 lookupInstrument 失败时标记 attribution_incomplete,禁止把张数当币数。
+func (e *CrossVenueExecutor) normalizeCrossVenueCloseExecutedQty(ctx context.Context, pos *CrossVenuePosition, phase crossVenueExecPhase, res venue.OrderResult) float64 {
+	if pos == nil || res.ExecutedQty <= executionQtyTolerance {
+		return 0
+	}
+	venueName := crossVenueLegVenueForPhase(*pos, phase)
+	if venueName == "" {
+		return res.ExecutedQty
+	}
+	v := e.venueByName(venueName)
+	if v == nil {
+		return res.ExecutedQty
+	}
+	caps := v.Capabilities()
+	sym := venue.Symbol(pos.Symbol)
+	instr, ok := lookupVenueInstrument(ctx, v, sym)
+	if caps.ContractBasedPerp {
+		if !ok || instr.ContractSize <= 0 {
+			pos.AttributionIncomplete = true
+			if e.logger != nil {
+				e.logger.Printf("[跨所归因] ContractSize lookup 失败 symbol=%s venue=%s phase=%s,标记 attribution_incomplete",
+					pos.Symbol, venueName, phase)
+			}
+			return 0
+		}
+	}
+	peerQty := crossVenuePeerBookQtyForPhase(*pos, phase)
+	coinQty := crossVenueLegExecutedCoinQty(caps, instr, res, peerQty)
+	if coinQty <= executionQtyTolerance && peerQty > executionQtyTolerance {
+		pos.AttributionIncomplete = true
+		if e.logger != nil {
+			e.logger.Printf("[跨所归因] 成交量归一化失败 symbol=%s venue=%s phase=%s raw=%.6f peer=%.6f",
+				pos.Symbol, venueName, phase, res.ExecutedQty, peerQty)
+		}
+		return 0
+	}
+	return coinQty
+}
+
+func (e *CrossVenueExecutor) venueByName(name string) venue.Venue {
+	if e == nil || e.venues == nil {
+		return nil
+	}
+	if v, ok := e.venues[name]; ok {
+		return v
+	}
+	needle := strings.ToLower(strings.TrimSpace(name))
+	for k, v := range e.venues {
+		if strings.ToLower(strings.TrimSpace(k)) == needle {
+			return v
+		}
+	}
+	return nil
+}
+
 // recordCrossVenueExecution 在 placeCrossVenueIOC 成交后累加归因原始数据(费用/滑点/平仓价/回滚成本)。
-func (e *CrossVenueExecutor) recordCrossVenueExecution(pos *CrossVenuePosition, phase crossVenueExecPhase, res venue.OrderResult, refMid float64) {
+// 返回账本口径的成交币数量(平仓/回滚/再平衡相位对 gate/okx 做张→币归一化;开仓相位返回原始 ExecutedQty)。
+func (e *CrossVenueExecutor) recordCrossVenueExecution(ctx context.Context, pos *CrossVenuePosition, phase crossVenueExecPhase, res venue.OrderResult, refMid float64) float64 {
 	if e == nil || pos == nil || res.ExecutedQty <= executionQtyTolerance {
-		return
+		return 0
+	}
+	execQty := res.ExecutedQty
+	if crossVenueExecPhaseNeedsQtyNorm(phase) {
+		execQty = e.normalizeCrossVenueCloseExecutedQty(ctx, pos, phase, res)
+		if execQty <= executionQtyTolerance {
+			// 成交量不可信时不累加 ClosedQty,但仍记录费用/滑点观测。
+			feeUSDT := crossVenueFeeToUSDT(res.Fee, res.FeeAsset, res.AvgPrice, e.logger)
+			switch phase {
+			case cvExecCloseHigh, cvExecCloseLow, cvExecOrphanCloseHigh, cvExecOrphanCloseLow:
+				pos.CloseFeesUSDT += feeUSDT
+			case cvExecRollbackHigh:
+				pos.RollbackCostUSDT += feeUSDT
+			case cvExecRebalanceHigh, cvExecRebalanceLow:
+				pos.RebalanceCostUSDT += feeUSDT
+			}
+			return 0
+		}
 	}
 	feeUSDT := crossVenueFeeToUSDT(res.Fee, res.FeeAsset, res.AvgPrice, e.logger)
-	slip := CalculateSlippage(refMid, res.AvgPrice, res.ExecutedQty, slippageIsBuyForPhase(phase))
+	slip := CalculateSlippage(refMid, res.AvgPrice, execQty, slippageIsBuyForPhase(phase))
 
 	switch phase {
 	case cvExecOpenHigh, cvExecOpenLow:
@@ -91,25 +204,21 @@ func (e *CrossVenueExecutor) recordCrossVenueExecution(pos *CrossVenuePosition, 
 		pos.CloseSlippageUSDT += slip
 		switch phase {
 		case cvExecCloseHigh, cvExecOrphanCloseHigh:
-			accumulateCrossVenueLegClose(&pos.HighLeg, res.ExecutedQty, res.AvgPrice)
+			accumulateCrossVenueLegClose(&pos.HighLeg, execQty, res.AvgPrice)
 		case cvExecCloseLow, cvExecOrphanCloseLow:
-			accumulateCrossVenueLegClose(&pos.LowLeg, res.ExecutedQty, res.AvgPrice)
+			accumulateCrossVenueLegClose(&pos.LowLeg, execQty, res.AvgPrice)
 		}
 	case cvExecRollbackHigh:
-		// 回滚成本 = 回滚单手续费(仅手续费)。第一腿(空)从开到回滚的价格 PnL 不在此累加:
-		// accumulateCrossVenueLegClose 会把 ExitPrice/ClosedQty 填进 HighLeg,价格 PnL 由
-		// computeCrossVenueTradePnL 以 (entry−exit)×qty 统一计入 trade_pnl(口径与 rebalance 一致)。
-		// 【关键】若此处再把 pricePnL 计进 rollback_cost,会与 trade_pnl 重复计数(net_pnl 里 +pricePnL
-		// 与 −pricePnL 抵消,真实裸腿盈亏被抹掉),见 cost_accounting.go 第 64-74 行同款"勿重复计数"说明。
 		pos.RollbackCostUSDT += feeUSDT
-		accumulateCrossVenueLegClose(&pos.HighLeg, res.ExecutedQty, res.AvgPrice)
+		accumulateCrossVenueLegClose(&pos.HighLeg, execQty, res.AvgPrice)
 	case cvExecRebalanceHigh, cvExecRebalanceLow:
 		pos.RebalanceCostUSDT += feeUSDT
 		switch phase {
 		case cvExecRebalanceHigh:
-			accumulateCrossVenueLegClose(&pos.HighLeg, res.ExecutedQty, res.AvgPrice)
+			accumulateCrossVenueLegClose(&pos.HighLeg, execQty, res.AvgPrice)
 		case cvExecRebalanceLow:
-			accumulateCrossVenueLegClose(&pos.LowLeg, res.ExecutedQty, res.AvgPrice)
+			accumulateCrossVenueLegClose(&pos.LowLeg, execQty, res.AvgPrice)
 		}
 	}
+	return execQty
 }

@@ -135,7 +135,11 @@ type CrossVenueValidationSnapshot struct {
 	HealthHaltCycles          int                      `json:"health_halt_cycles"`
 	OpeningsDisabledCycles    int                      `json:"openings_disabled_cycles"`
 	ScanSnapshotCount         int                      `json:"scan_snapshot_count"`
+	ScanSnapshotTotalCount    int                      `json:"scan_snapshot_total_count"`
 	ShadowMatchedTrades       int                      `json:"shadow_matched_trades"`
+	EntrySnapshotLinkedTrades int                    `json:"entry_snapshot_linked_trades"`
+	MissingEntrySnapshotTrades int                   `json:"missing_entry_snapshot_trades"`
+	ReplayReady               bool                     `json:"replay_ready"`
 	SameOpportunitySetReady   bool                     `json:"same_opportunity_set_ready"`
 	SameCostModelReady        bool                     `json:"same_cost_model_ready"`
 	SameRiskBudgetReady       bool                     `json:"same_risk_budget_ready"`
@@ -152,7 +156,15 @@ func (e *CrossVenueExecutor) ValidationSnapshot(window time.Duration) (CrossVenu
 	if window <= 0 {
 		window = 24 * time.Hour
 	}
-	since := now.Add(-window)
+	return e.ValidationSnapshotSince(now.Add(-window), now)
+}
+
+// ValidationSnapshotSince 汇总 [since, until] 窗口内的结算真值与 scan snapshot 回放对照。
+func (e *CrossVenueExecutor) ValidationSnapshotSince(since, until time.Time) (CrossVenueValidationSnapshot, error) {
+	now := until
+	if now.IsZero() {
+		now = e.nowFn()
+	}
 	settlements, err := e.loadAllCrossVenueSettlements()
 	if err != nil {
 		return CrossVenueValidationSnapshot{}, err
@@ -161,32 +173,31 @@ func (e *CrossVenueExecutor) ValidationSnapshot(window time.Duration) (CrossVenu
 	if err != nil {
 		return CrossVenueValidationSnapshot{}, err
 	}
-	scans, err := loadCrossVenueScanSnapshots(e.recordDir, since)
+	allScans, err := loadCrossVenueScanSnapshots(e.recordDir, time.Time{})
 	if err != nil {
 		return CrossVenueValidationSnapshot{}, err
+	}
+	scans := filterCrossVenueScanSnapshotsSince(allScans, since)
+	windowHours := now.Sub(since).Hours()
+	if windowHours < 0 {
+		windowHours = 0
 	}
 	out := CrossVenueValidationSnapshot{
 		GeneratedAt: now,
 		WindowStart: since,
 		WindowEnd:   now,
-		WindowHours: window.Hours(),
+		WindowHours: windowHours,
 		Methodology: []string{
-			"rotation_realized_net_pnl 使用 settlements.jsonl 真值净利润汇总",
-			"baseline_approx_net_pnl = rotation_realized_net_pnl + switch_drag",
-			"switch_drag 近似取 switch exit 上的 rollback_cost + rebalance_cost",
-			"recovery_loss 取全部 settlement 的 rollback_cost + rebalance_cost",
-			"selection_drag/fallback_dilution 来自 entry_snapshot_id 对应的同轮 scan snapshot 回放",
-			"shadow_portfolio 把每笔真实成交与同轮最佳机会做逐笔并列,输出 chosen/baseline replay EV",
-			"counterfactual_replay 复用同一 entry_snapshot_id、同一机会集、同一 max_concurrent/max_position 预算做基线回放",
-			"baseline_portfolio_replay 按 snapshot 聚合同轮真实成交,并在同一预算下选出 baseline 组合做组合级 EV 对照",
-			"rolling_baseline_replay 按时间顺序遍历整个窗口的 scan snapshots,连续累计 chosen/baseline 组合 replay EV",
-			"funding_alpha 汇总 realized_funding, execution_drag 汇总 fees+open_slippage+close_slippage",
-			"freshness_drag 近似取因 snapshot_too_old 被跳过的周期上可见最佳机会 NetEV",
-			"freshness/停开统计来自 cycle explain 日志",
+			"已实现净利=窗口内 settlements.jsonl 的 net_pnl 真值汇总(与今日收益面板口径一致时用北京日界)",
+			"回放对照需 settlement 能关联 scan_snapshots(优先 entry_snapshot_id,次选 current_snapshot_id,再按开仓时刻就近匹配)",
+			"execution_drag=手续费+不利滑点(仅计正值滑点,价格改善不计为负 drag)",
+			"selection_drag=同轮 baseline 最佳 NetEV − 实际 chosen NetEV(仅 replay 链路就绪时有效)",
+			"replay_ready=窗口内至少一笔 settlement 能在 scan snapshot 中匹配实际成交机会,且快照含 opportunities",
 		},
 	}
 	out.ScanSnapshotCount = len(scans)
-	out.SameOpportunitySetReady = len(scans) > 0
+	out.ScanSnapshotTotalCount = len(allScans)
+	out.SameOpportunitySetReady = crossVenueValidationHasOpportunities(allScans)
 	out.SameCostModelReady = len(scans) > 0
 	out.SameRiskBudgetReady = crossVenueValidationHasRiskBudget(scans)
 	out.CounterfactualReplay.SameOpportunitySetReady = out.SameOpportunitySetReady
@@ -199,26 +210,30 @@ func (e *CrossVenueExecutor) ValidationSnapshot(window time.Duration) (CrossVenu
 	out.RollingBaselineReplay.SameCostModelReady = out.SameCostModelReady
 	out.RollingBaselineReplay.SameRiskBudgetReady = out.SameRiskBudgetReady
 	reasonCounts := make(map[string]int)
-	scanByID := make(map[string]crossVenueScanLogRecord, len(scans))
+	scanByID := make(map[string]crossVenueScanLogRecord, len(allScans))
 	settlementsBySnapshot := make(map[string][]CrossVenueSettlement)
-	for _, rec := range scans {
+	for _, rec := range allScans {
 		snapshotID := strings.TrimSpace(rec.SnapshotID)
 		if snapshotID == "" {
 			continue
 		}
 		scanByID[snapshotID] = rec
 	}
+	orderedAllScans := append([]crossVenueScanLogRecord(nil), allScans...)
+	sort.Slice(orderedAllScans, func(i, j int) bool {
+		if orderedAllScans[i].ScannedAt.Equal(orderedAllScans[j].ScannedAt) {
+			return orderedAllScans[i].SnapshotID < orderedAllScans[j].SnapshotID
+		}
+		return orderedAllScans[i].ScannedAt.Before(orderedAllScans[j].ScannedAt)
+	})
 	for _, rec := range settlements {
 		if rec.CloseTime.Before(since) || rec.CloseTime.After(now) {
 			continue
 		}
-		if snapshotID := strings.TrimSpace(rec.EntrySnapshotID); snapshotID != "" {
-			settlementsBySnapshot[snapshotID] = append(settlementsBySnapshot[snapshotID], rec)
-		}
 		out.TradeCount++
 		out.RotationRealizedNetPnL = money.SumUSDT(out.RotationRealizedNetPnL, rec.NetPnL)
 		out.FundingAlpha = money.SumUSDT(out.FundingAlpha, rec.RealizedFunding)
-		out.ExecutionDrag = money.SumUSDT(out.ExecutionDrag, rec.TotalFees, rec.OpenSlippage, rec.CloseSlippage)
+		out.ExecutionDrag = money.SumUSDT(out.ExecutionDrag, crossVenueExecutionDragUSDT(rec))
 		recoveryLoss := money.SumUSDT(rec.RollbackCost, rec.RebalanceCost)
 		out.RecoveryLoss = money.SumUSDT(out.RecoveryLoss, recoveryLoss)
 		if rec.UsedFallback {
@@ -229,12 +244,15 @@ func (e *CrossVenueExecutor) ValidationSnapshot(window time.Duration) (CrossVenu
 			out.SwitchTradeCount++
 			out.SwitchDrag = money.SumUSDT(out.SwitchDrag, recoveryLoss)
 		}
-		if scanRec, ok := scanByID[strings.TrimSpace(rec.EntrySnapshotID)]; ok {
+		scanRec, linkedSnapshotID, linked := crossVenueResolveSettlementEntrySnapshot(rec, scanByID, orderedAllScans)
+		if linked {
+			out.EntrySnapshotLinkedTrades++
+			settlementsBySnapshot[linkedSnapshotID] = append(settlementsBySnapshot[linkedSnapshotID], rec)
 			chosen, chosenOK := crossVenueFindLoggedOpportunity(scanRec.Opportunities, rec)
 			best, bestOK := crossVenueBestLoggedOpportunity(scanRec.Opportunities, rec.NotionalUSDT)
 			replayRec := CrossVenueCounterfactualReplayRecord{
 				SettlementID:    rec.SettlementID,
-				EntrySnapshotID: rec.EntrySnapshotID,
+				EntrySnapshotID: linkedSnapshotID,
 				SnapshotTime:    scanRec.ScannedAt,
 				Symbol:          rec.Symbol,
 				NotionalUSDT:    rec.NotionalUSDT,
@@ -289,9 +307,11 @@ func (e *CrossVenueExecutor) ValidationSnapshot(window time.Duration) (CrossVenu
 			}
 			out.CounterfactualReplay.Records = append(out.CounterfactualReplay.Records, replayRec)
 		} else {
+			out.MissingEntrySnapshotTrades++
 			out.CounterfactualReplay.MissingSnapshotTrades++
 		}
 	}
+	out.ReplayReady = out.ShadowMatchedTrades > 0 && out.SameOpportunitySetReady
 	for snapshotID, grouped := range settlementsBySnapshot {
 		scanRec, ok := scanByID[snapshotID]
 		if !ok {
@@ -417,6 +437,15 @@ func crossVenueValidationHasRiskBudget(scans []crossVenueScanLogRecord) bool {
 	return false
 }
 
+func crossVenueValidationHasOpportunities(scans []crossVenueScanLogRecord) bool {
+	for _, rec := range scans {
+		if len(rec.Opportunities) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
 func crossVenueFindLoggedOpportunity(opps []CrossVenueOpportunity, settlement CrossVenueSettlement) (CrossVenueOpportunity, bool) {
 	for _, opp := range opps {
 		if opp.Symbol != settlement.Symbol {
@@ -498,4 +527,75 @@ func crossVenueReplayPortfolioOpportunities(opps []CrossVenueOpportunity, maxCon
 		}
 	}
 	return out
+}
+
+func filterCrossVenueScanSnapshotsSince(scans []crossVenueScanLogRecord, since time.Time) []crossVenueScanLogRecord {
+	if since.IsZero() {
+		return append([]crossVenueScanLogRecord(nil), scans...)
+	}
+	out := make([]crossVenueScanLogRecord, 0, len(scans))
+	for _, rec := range scans {
+		if !rec.ScannedAt.Before(since) {
+			out = append(out, rec)
+		}
+	}
+	return out
+}
+
+func crossVenueExecutionDragUSDT(rec CrossVenueSettlement) float64 {
+	drag := rec.TotalFees
+	if rec.OpenSlippage > 0 {
+		drag = money.SumUSDT(drag, rec.OpenSlippage)
+	}
+	if rec.CloseSlippage > 0 {
+		drag = money.SumUSDT(drag, rec.CloseSlippage)
+	}
+	return drag
+}
+
+func crossVenueScanMatchesSettlement(scan crossVenueScanLogRecord, settlement CrossVenueSettlement) bool {
+	for _, opp := range scan.Opportunities {
+		if opp.Symbol != settlement.Symbol {
+			continue
+		}
+		if opp.HighVenue != settlement.HighVenue || opp.LowVenue != settlement.LowVenue {
+			continue
+		}
+		return true
+	}
+	return false
+}
+
+// crossVenueResolveSettlementEntrySnapshot 为 settlement 关联开仓时的 scan snapshot。
+// 顺序: entry_snapshot_id → current_snapshot_id → 开仓时刻前最近且 symbol/venue 匹配的快照。
+func crossVenueResolveSettlementEntrySnapshot(
+	settlement CrossVenueSettlement,
+	scanByID map[string]crossVenueScanLogRecord,
+	orderedScans []crossVenueScanLogRecord,
+) (crossVenueScanLogRecord, string, bool) {
+	if id := strings.TrimSpace(settlement.EntrySnapshotID); id != "" {
+		if rec, ok := scanByID[id]; ok {
+			return rec, id, true
+		}
+	}
+	if id := strings.TrimSpace(settlement.CurrentSnapshotID); id != "" {
+		if rec, ok := scanByID[id]; ok {
+			return rec, id, true
+		}
+	}
+	anchor := settlement.OpenTime
+	if anchor.IsZero() {
+		anchor = settlement.CloseTime
+	}
+	for i := len(orderedScans) - 1; i >= 0; i-- {
+		rec := orderedScans[i]
+		if rec.ScannedAt.After(anchor) {
+			continue
+		}
+		if !crossVenueScanMatchesSettlement(rec, settlement) {
+			continue
+		}
+		return rec, strings.TrimSpace(rec.SnapshotID), true
+	}
+	return crossVenueScanLogRecord{}, "", false
 }

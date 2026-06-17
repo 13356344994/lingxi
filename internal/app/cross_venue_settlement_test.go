@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"encoding/json"
 	"math"
 	"os"
@@ -370,7 +371,7 @@ func TestRecordCrossVenueExecution_RollbackAccumulates(t *testing.T) {
 		Fee:         0.1,
 		FeeAsset:    "USDT",
 	}
-	e.recordCrossVenueExecution(&pos, cvExecRollbackHigh, res, 100)
+	e.recordCrossVenueExecution(context.Background(), &pos, cvExecRollbackHigh, res, 100)
 	// rollback_cost 只记回滚手续费(价格 PnL 走 trade_pnl,避免重复计数)
 	wantRollback := 0.1
 	if math.Abs(pos.RollbackCostUSDT-wantRollback) > 1e-9 {

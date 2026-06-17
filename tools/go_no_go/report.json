@@ -1,0 +1,1096 @@
+{
+  "version": "v0-offline",
+  "strategy": "single_venue_spot_perp_positive_carry",
+  "venue": "binance",
+  "run_at_utc": "2026-06-17T13:38:12.903809+00:00",
+  "lookback_days": 90,
+  "hold_rule_primary": "selective: hold iff previous 8h settlement funding rate > 0; enter/exit at settlement boundaries with full round-trip costs",
+  "hold_rule_compare": "always: hold entire window, one open+close cycle",
+  "occupied_capital_ratio": 1.6,
+  "cost_assumptions": {
+    "spot_taker_bps": 10.0,
+    "perp_taker_bps": 5.0,
+    "slippage_bps_per_leg": 5.0,
+    "round_trip_cost_bps": 50.0,
+    "spike_haircut": "50% of |rate| above per-symbol 90-day p90 |rate|"
+  },
+  "symbols_loaded": [
+    "BTCUSDT",
+    "ETHUSDT",
+    "SOLUSDT",
+    "BNBUSDT",
+    "XRPUSDT",
+    "DOGEUSDT",
+    "ADAUSDT",
+    "AVAXUSDT",
+    "LINKUSDT",
+    "SUIUSDT"
+  ],
+  "data_issues": [],
+  "per_symbol_selective": [
+    {
+      "symbol": "BTCUSDT",
+      "hold_rule": "selective",
+      "days": 89.66666663194444,
+      "settlements_total": 270,
+      "settlements_held": 151,
+      "position_cycles": 35,
+      "raw_funding_bps": 37.229599999999984,
+      "effective_funding_bps": 36.188914999999994,
+      "basis_pnl_bps": -674.5660650948848,
+      "fee_cost_bps": 1050.0,
+      "slippage_cost_bps": 700.0,
+      "total_cost_bps": 1750.0,
+      "net_return_bps": -2388.377150094885,
+      "net_annualized_pct": -60.7637774248752,
+      "qualifies": false,
+      "spike_p90_abs_rate": 7.457299999999999e-05,
+      "liquidation_at_shock": {
+        "20%": false,
+        "30%": false
+      }
+    },
+    {
+      "symbol": "ETHUSDT",
+      "hold_rule": "selective",
+      "days": 89.66666663194444,
+      "settlements_total": 270,
+      "settlements_held": 150,
+      "position_cycles": 31,
+      "raw_funding_bps": 46.949899999999985,
+      "effective_funding_bps": 46.279994999999985,
+      "basis_pnl_bps": -95.39436560660144,
+      "fee_cost_bps": 930.0,
+      "slippage_cost_bps": 620.0,
+      "total_cost_bps": 1550.0,
+      "net_return_bps": -1599.1143706066014,
+      "net_annualized_pct": -40.68378802259042,
+      "qualifies": false,
+      "spike_p90_abs_rate": 8.657899999999999e-05,
+      "liquidation_at_shock": {
+        "20%": false,
+        "30%": false
+      }
+    },
+    {
+      "symbol": "SOLUSDT",
+      "hold_rule": "selective",
+      "days": 89.66666663194444,
+      "settlements_total": 270,
+      "settlements_held": 112,
+      "position_cycles": 43,
+      "raw_funding_bps": 16.05950000000001,
+      "effective_funding_bps": 16.87653000000001,
+      "basis_pnl_bps": 341.3830297112918,
+      "fee_cost_bps": 1290.0,
+      "slippage_cost_bps": 860.0,
+      "total_cost_bps": 2150.0,
+      "net_return_bps": -1791.7404402887082,
+      "net_annualized_pct": -45.58447450919788,
+      "qualifies": false,
+      "spike_p90_abs_rate": 0.000141491,
+      "liquidation_at_shock": {
+        "20%": false,
+        "30%": false
+      }
+    },
+    {
+      "symbol": "BNBUSDT",
+      "hold_rule": "selective",
+      "days": 89.66666663194444,
+      "settlements_total": 270,
+      "settlements_held": 119,
+      "position_cycles": 44,
+      "raw_funding_bps": 38.277100000000004,
+      "effective_funding_bps": 35.870755,
+      "basis_pnl_bps": 953.643125988315,
+      "fee_cost_bps": 1320.0,
+      "slippage_cost_bps": 880.0,
+      "total_cost_bps": 2200.0,
+      "net_return_bps": -1210.4861190116849,
+      "net_annualized_pct": -30.796521859457954,
+      "qualifies": false,
+      "spike_p90_abs_rate": 7.350899999999999e-05,
+      "liquidation_at_shock": {
+        "20%": false,
+        "30%": false
+      }
+    },
+    {
+      "symbol": "XRPUSDT",
+      "hold_rule": "selective",
+      "days": 89.66666663194444,
+      "settlements_total": 270,
+      "settlements_held": 119,
+      "position_cycles": 51,
+      "raw_funding_bps": 11.263700000000009,
+      "effective_funding_bps": 11.500150000000005,
+      "basis_pnl_bps": 188.65681992336403,
+      "fee_cost_bps": 1530.0,
+      "slippage_cost_bps": 1020.0,
+      "total_cost_bps": 2550.0,
+      "net_return_bps": -2349.843030076636,
+      "net_annualized_pct": -59.783413543919764,
+      "qualifies": false,
+      "spike_p90_abs_rate": 0.0001,
+      "liquidation_at_shock": {
+        "20%": false,
+        "30%": false
+      }
+    },
+    {
+      "symbol": "DOGEUSDT",
+      "hold_rule": "selective",
+      "days": 89.66666663194444,
+      "settlements_total": 270,
+      "settlements_held": 177,
+      "position_cycles": 45,
+      "raw_funding_bps": 67.17739999999999,
+      "effective_funding_bps": 67.42705,
+      "basis_pnl_bps": -122.00743570963039,
+      "fee_cost_bps": 1350.0,
+      "slippage_cost_bps": 900.0,
+      "total_cost_bps": 2250.0,
+      "net_return_bps": -2304.5803857096303,
+      "net_annualized_pct": -58.63186624835601,
+      "qualifies": false,
+      "spike_p90_abs_rate": 0.0001,
+      "liquidation_at_shock": {
+        "20%": false,
+        "30%": false
+      }
+    },
+    {
+      "symbol": "ADAUSDT",
+      "hold_rule": "selective",
+      "days": 89.66666663194444,
+      "settlements_total": 270,
+      "settlements_held": 155,
+      "position_cycles": 53,
+      "raw_funding_bps": 50.11220000000001,
+      "effective_funding_bps": 52.154240000000016,
+      "basis_pnl_bps": -123.62208259301084,
+      "fee_cost_bps": 1590.0,
+      "slippage_cost_bps": 1060.0,
+      "total_cost_bps": 2650.0,
+      "net_return_bps": -2721.467842593011,
+      "net_annualized_pct": -69.23808756490045,
+      "qualifies": false,
+      "spike_p90_abs_rate": 0.000117206,
+      "liquidation_at_shock": {
+        "20%": false,
+        "30%": false
+      }
+    },
+    {
+      "symbol": "AVAXUSDT",
+      "hold_rule": "selective",
+      "days": 89.66666663194444,
+      "settlements_total": 270,
+      "settlements_held": 166,
+      "position_cycles": 47,
+      "raw_funding_bps": 49.70979999999998,
+      "effective_funding_bps": 53.37119999999999,
+      "basis_pnl_bps": 1136.351145116554,
+      "fee_cost_bps": 1410.0,
+      "slippage_cost_bps": 940.0,
+      "total_cost_bps": 2350.0,
+      "net_return_bps": -1160.2776548834458,
+      "net_annualized_pct": -29.519145738600344,
+      "qualifies": false,
+      "spike_p90_abs_rate": 0.0001,
+      "liquidation_at_shock": {
+        "20%": false,
+        "30%": false
+      }
+    },
+    {
+      "symbol": "LINKUSDT",
+      "hold_rule": "selective",
+      "days": 89.66666663194444,
+      "settlements_total": 270,
+      "settlements_held": 205,
+      "position_cycles": 43,
+      "raw_funding_bps": 81.3873,
+      "effective_funding_bps": 83.07349999999998,
+      "basis_pnl_bps": -524.9142165503483,
+      "fee_cost_bps": 1290.0,
+      "slippage_cost_bps": 860.0,
+      "total_cost_bps": 2150.0,
+      "net_return_bps": -2591.8407165503486,
+      "net_annualized_pct": -65.94018554185955,
+      "qualifies": false,
+      "spike_p90_abs_rate": 0.0001,
+      "liquidation_at_shock": {
+        "20%": false,
+        "30%": false
+      }
+    },
+    {
+      "symbol": "SUIUSDT",
+      "hold_rule": "selective",
+      "days": 89.66666663194444,
+      "settlements_total": 270,
+      "settlements_held": 179,
+      "position_cycles": 54,
+      "raw_funding_bps": 47.3467,
+      "effective_funding_bps": 47.189649999999986,
+      "basis_pnl_bps": -2116.0456214435158,
+      "fee_cost_bps": 1620.0,
+      "slippage_cost_bps": 1080.0,
+      "total_cost_bps": 2700.0,
+      "net_return_bps": -4768.855971443516,
+      "net_annualized_pct": -121.32660991525927,
+      "qualifies": false,
+      "spike_p90_abs_rate": 9.692e-05,
+      "liquidation_at_shock": {
+        "20%": false,
+        "30%": false
+      }
+    }
+  ],
+  "per_symbol_always_hold": [
+    {
+      "symbol": "BTCUSDT",
+      "hold_rule": "always",
+      "days": 89.66666663194444,
+      "settlements_total": 270,
+      "settlements_held": 270,
+      "position_cycles": 1,
+      "raw_funding_bps": 10.247000000000002,
+      "effective_funding_bps": 9.879284999999994,
+      "basis_pnl_bps": -155.2239467020966,
+      "fee_cost_bps": 30.0,
+      "slippage_cost_bps": 20.0,
+      "total_cost_bps": 50.0,
+      "net_return_bps": -195.34466170209663,
+      "net_annualized_pct": -4.969851409075898,
+      "qualifies": false,
+      "spike_p90_abs_rate": 7.457299999999999e-05,
+      "liquidation_at_shock": {
+        "20%": false,
+        "30%": false
+      }
+    },
+    {
+      "symbol": "ETHUSDT",
+      "hold_rule": "always",
+      "days": 89.66666663194444,
+      "settlements_total": 270,
+      "settlements_held": 270,
+      "position_cycles": 1,
+      "raw_funding_bps": 10.6233,
+      "effective_funding_bps": 12.831444999999995,
+      "basis_pnl_bps": -240.21606346837365,
+      "fee_cost_bps": 30.0,
+      "slippage_cost_bps": 20.0,
+      "total_cost_bps": 50.0,
+      "net_return_bps": -277.3846184683737,
+      "net_annualized_pct": -7.057066852706481,
+      "qualifies": false,
+      "spike_p90_abs_rate": 8.657899999999999e-05,
+      "liquidation_at_shock": {
+        "20%": false,
+        "30%": false
+      }
+    },
+    {
+      "symbol": "SOLUSDT",
+      "hold_rule": "always",
+      "days": 89.66666663194444,
+      "settlements_total": 270,
+      "settlements_held": 270,
+      "position_cycles": 1,
+      "raw_funding_bps": -68.3587,
+      "effective_funding_bps": -56.819385000000025,
+      "basis_pnl_bps": -278.2646610160899,
+      "fee_cost_bps": 30.0,
+      "slippage_cost_bps": 20.0,
+      "total_cost_bps": 50.0,
+      "net_return_bps": -385.0840460160899,
+      "net_annualized_pct": -9.797096434732886,
+      "qualifies": false,
+      "spike_p90_abs_rate": 0.000141491,
+      "liquidation_at_shock": {
+        "20%": false,
+        "30%": false
+      }
+    },
+    {
+      "symbol": "BNBUSDT",
+      "hold_rule": "always",
+      "days": 89.66666663194444,
+      "settlements_total": 270,
+      "settlements_held": 270,
+      "position_cycles": 1,
+      "raw_funding_bps": 56.81460000000001,
+      "effective_funding_bps": 53.14692500000002,
+      "basis_pnl_bps": 26.888199211165805,
+      "fee_cost_bps": 30.0,
+      "slippage_cost_bps": 20.0,
+      "total_cost_bps": 50.0,
+      "net_return_bps": 30.035124211165822,
+      "net_annualized_pct": 0.7641371055753299,
+      "qualifies": true,
+      "spike_p90_abs_rate": 7.350899999999999e-05,
+      "liquidation_at_shock": {
+        "20%": false,
+        "30%": false
+      }
+    },
+    {
+      "symbol": "XRPUSDT",
+      "hold_rule": "always",
+      "days": 89.66666663194444,
+      "settlements_total": 270,
+      "settlements_held": 270,
+      "position_cycles": 1,
+      "raw_funding_bps": -26.32310000000001,
+      "effective_funding_bps": -22.3611,
+      "basis_pnl_bps": -171.6893393175256,
+      "fee_cost_bps": 30.0,
+      "slippage_cost_bps": 20.0,
+      "total_cost_bps": 50.0,
+      "net_return_bps": -244.0504393175256,
+      "net_annualized_pct": -6.208997006416677,
+      "qualifies": false,
+      "spike_p90_abs_rate": 0.0001,
+      "liquidation_at_shock": {
+        "20%": false,
+        "30%": false
+      }
+    },
+    {
+      "symbol": "DOGEUSDT",
+      "hold_rule": "always",
+      "days": 89.66666663194444,
+      "settlements_total": 270,
+      "settlements_held": 270,
+      "position_cycles": 1,
+      "raw_funding_bps": 67.62710000000001,
+      "effective_funding_bps": 68.0656,
+      "basis_pnl_bps": -159.26144897710827,
+      "fee_cost_bps": 30.0,
+      "slippage_cost_bps": 20.0,
+      "total_cost_bps": 50.0,
+      "net_return_bps": -141.19584897710826,
+      "net_annualized_pct": -3.592227107105111,
+      "qualifies": false,
+      "spike_p90_abs_rate": 0.0001,
+      "liquidation_at_shock": {
+        "20%": false,
+        "30%": false
+      }
+    },
+    {
+      "symbol": "ADAUSDT",
+      "hold_rule": "always",
+      "days": 89.66666663194444,
+      "settlements_total": 270,
+      "settlements_held": 270,
+      "position_cycles": 1,
+      "raw_funding_bps": 21.62429999999998,
+      "effective_funding_bps": 30.877789999999965,
+      "basis_pnl_bps": -232.61499318189325,
+      "fee_cost_bps": 30.0,
+      "slippage_cost_bps": 20.0,
+      "total_cost_bps": 50.0,
+      "net_return_bps": -251.73720318189328,
+      "net_annualized_pct": -6.404559423580758,
+      "qualifies": false,
+      "spike_p90_abs_rate": 0.000117206,
+      "liquidation_at_shock": {
+        "20%": false,
+        "30%": false
+      }
+    },
+    {
+      "symbol": "AVAXUSDT",
+      "hold_rule": "always",
+      "days": 89.66666663194444,
+      "settlements_total": 270,
+      "settlements_held": 270,
+      "position_cycles": 1,
+      "raw_funding_bps": 37.297699999999956,
+      "effective_funding_bps": 45.304649999999945,
+      "basis_pnl_bps": -184.2133250231248,
+      "fee_cost_bps": 30.0,
+      "slippage_cost_bps": 20.0,
+      "total_cost_bps": 50.0,
+      "net_return_bps": -188.90867502312486,
+      "net_annualized_pct": -4.806110576915045,
+      "qualifies": false,
+      "spike_p90_abs_rate": 0.0001,
+      "liquidation_at_shock": {
+        "20%": false,
+        "30%": false
+      }
+    },
+    {
+      "symbol": "LINKUSDT",
+      "hold_rule": "always",
+      "days": 89.66666663194444,
+      "settlements_total": 270,
+      "settlements_held": 270,
+      "position_cycles": 1,
+      "raw_funding_bps": 96.40080000000002,
+      "effective_funding_bps": 98.32860000000004,
+      "basis_pnl_bps": -256.84131428899803,
+      "fee_cost_bps": 30.0,
+      "slippage_cost_bps": 20.0,
+      "total_cost_bps": 50.0,
+      "net_return_bps": -208.51271428899798,
+      "net_annualized_pct": -5.3048657582450565,
+      "qualifies": false,
+      "spike_p90_abs_rate": 0.0001,
+      "liquidation_at_shock": {
+        "20%": false,
+        "30%": false
+      }
+    },
+    {
+      "symbol": "SUIUSDT",
+      "hold_rule": "always",
+      "days": 89.66666663194444,
+      "settlements_total": 270,
+      "settlements_held": 270,
+      "position_cycles": 1,
+      "raw_funding_bps": 52.63480000000002,
+      "effective_funding_bps": 53.09299999999998,
+      "basis_pnl_bps": -225.50198355075324,
+      "fee_cost_bps": 30.0,
+      "slippage_cost_bps": 20.0,
+      "total_cost_bps": 50.0,
+      "net_return_bps": -222.40898355075325,
+      "net_annualized_pct": -5.658406995408495,
+      "qualifies": false,
+      "spike_p90_abs_rate": 9.692e-05,
+      "liquidation_at_shock": {
+        "20%": false,
+        "30%": false
+      }
+    }
+  ],
+  "qualifying_symbols": [],
+  "portfolio_commercial": {
+    "weighted_net_annualized_pct": -58.22678703690169,
+    "expected_net_usdt_year": -2561.9786296236744,
+    "notional_per_symbol": 275.0,
+    "edge_contributions": [
+      {
+        "symbol": "BTCUSDT",
+        "edge_share_pct": 0.0,
+        "net_annualized_pct": -60.7637774248752,
+        "net_return_bps": -2388.377150094885
+      },
+      {
+        "symbol": "ETHUSDT",
+        "edge_share_pct": 0.0,
+        "net_annualized_pct": -40.68378802259042,
+        "net_return_bps": -1599.1143706066014
+      },
+      {
+        "symbol": "SOLUSDT",
+        "edge_share_pct": 0.0,
+        "net_annualized_pct": -45.58447450919788,
+        "net_return_bps": -1791.7404402887082
+      },
+      {
+        "symbol": "BNBUSDT",
+        "edge_share_pct": 0.0,
+        "net_annualized_pct": -30.796521859457954,
+        "net_return_bps": -1210.4861190116849
+      },
+      {
+        "symbol": "XRPUSDT",
+        "edge_share_pct": 0.0,
+        "net_annualized_pct": -59.783413543919764,
+        "net_return_bps": -2349.843030076636
+      },
+      {
+        "symbol": "DOGEUSDT",
+        "edge_share_pct": 0.0,
+        "net_annualized_pct": -58.63186624835601,
+        "net_return_bps": -2304.5803857096303
+      },
+      {
+        "symbol": "ADAUSDT",
+        "edge_share_pct": 0.0,
+        "net_annualized_pct": -69.23808756490045,
+        "net_return_bps": -2721.467842593011
+      },
+      {
+        "symbol": "AVAXUSDT",
+        "edge_share_pct": 0.0,
+        "net_annualized_pct": -29.519145738600344,
+        "net_return_bps": -1160.2776548834458
+      },
+      {
+        "symbol": "LINKUSDT",
+        "edge_share_pct": 0.0,
+        "net_annualized_pct": -65.94018554185955,
+        "net_return_bps": -2591.8407165503486
+      },
+      {
+        "symbol": "SUIUSDT",
+        "edge_share_pct": 0.0,
+        "net_annualized_pct": -121.32660991525927,
+        "net_return_bps": -4768.855971443516
+      }
+    ],
+    "top2_contribution_pct": 0.0,
+    "qualifying_count": 0
+  },
+  "capital_tiers": {
+    "440": {
+      "weighted_net_annualized_pct": -58.22678703690169,
+      "expected_net_usdt_year": -256.1978629623674,
+      "notional_per_symbol": 27.5,
+      "edge_contributions": [
+        {
+          "symbol": "BTCUSDT",
+          "edge_share_pct": 0.0,
+          "net_annualized_pct": -60.7637774248752,
+          "net_return_bps": -2388.377150094885
+        },
+        {
+          "symbol": "ETHUSDT",
+          "edge_share_pct": 0.0,
+          "net_annualized_pct": -40.68378802259042,
+          "net_return_bps": -1599.1143706066014
+        },
+        {
+          "symbol": "SOLUSDT",
+          "edge_share_pct": 0.0,
+          "net_annualized_pct": -45.58447450919788,
+          "net_return_bps": -1791.7404402887082
+        },
+        {
+          "symbol": "BNBUSDT",
+          "edge_share_pct": 0.0,
+          "net_annualized_pct": -30.796521859457954,
+          "net_return_bps": -1210.4861190116849
+        },
+        {
+          "symbol": "XRPUSDT",
+          "edge_share_pct": 0.0,
+          "net_annualized_pct": -59.783413543919764,
+          "net_return_bps": -2349.843030076636
+        },
+        {
+          "symbol": "DOGEUSDT",
+          "edge_share_pct": 0.0,
+          "net_annualized_pct": -58.63186624835601,
+          "net_return_bps": -2304.5803857096303
+        },
+        {
+          "symbol": "ADAUSDT",
+          "edge_share_pct": 0.0,
+          "net_annualized_pct": -69.23808756490045,
+          "net_return_bps": -2721.467842593011
+        },
+        {
+          "symbol": "AVAXUSDT",
+          "edge_share_pct": 0.0,
+          "net_annualized_pct": -29.519145738600344,
+          "net_return_bps": -1160.2776548834458
+        },
+        {
+          "symbol": "LINKUSDT",
+          "edge_share_pct": 0.0,
+          "net_annualized_pct": -65.94018554185955,
+          "net_return_bps": -2591.8407165503486
+        },
+        {
+          "symbol": "SUIUSDT",
+          "edge_share_pct": 0.0,
+          "net_annualized_pct": -121.32660991525927,
+          "net_return_bps": -4768.855971443516
+        }
+      ],
+      "top2_contribution_pct": 0.0,
+      "qualifying_count": 0
+    },
+    "2200": {
+      "weighted_net_annualized_pct": -58.22678703690169,
+      "expected_net_usdt_year": -1280.9893148118372,
+      "notional_per_symbol": 137.5,
+      "edge_contributions": [
+        {
+          "symbol": "BTCUSDT",
+          "edge_share_pct": 0.0,
+          "net_annualized_pct": -60.7637774248752,
+          "net_return_bps": -2388.377150094885
+        },
+        {
+          "symbol": "ETHUSDT",
+          "edge_share_pct": 0.0,
+          "net_annualized_pct": -40.68378802259042,
+          "net_return_bps": -1599.1143706066014
+        },
+        {
+          "symbol": "SOLUSDT",
+          "edge_share_pct": 0.0,
+          "net_annualized_pct": -45.58447450919788,
+          "net_return_bps": -1791.7404402887082
+        },
+        {
+          "symbol": "BNBUSDT",
+          "edge_share_pct": 0.0,
+          "net_annualized_pct": -30.796521859457954,
+          "net_return_bps": -1210.4861190116849
+        },
+        {
+          "symbol": "XRPUSDT",
+          "edge_share_pct": 0.0,
+          "net_annualized_pct": -59.783413543919764,
+          "net_return_bps": -2349.843030076636
+        },
+        {
+          "symbol": "DOGEUSDT",
+          "edge_share_pct": 0.0,
+          "net_annualized_pct": -58.63186624835601,
+          "net_return_bps": -2304.5803857096303
+        },
+        {
+          "symbol": "ADAUSDT",
+          "edge_share_pct": 0.0,
+          "net_annualized_pct": -69.23808756490045,
+          "net_return_bps": -2721.467842593011
+        },
+        {
+          "symbol": "AVAXUSDT",
+          "edge_share_pct": 0.0,
+          "net_annualized_pct": -29.519145738600344,
+          "net_return_bps": -1160.2776548834458
+        },
+        {
+          "symbol": "LINKUSDT",
+          "edge_share_pct": 0.0,
+          "net_annualized_pct": -65.94018554185955,
+          "net_return_bps": -2591.8407165503486
+        },
+        {
+          "symbol": "SUIUSDT",
+          "edge_share_pct": 0.0,
+          "net_annualized_pct": -121.32660991525927,
+          "net_return_bps": -4768.855971443516
+        }
+      ],
+      "top2_contribution_pct": 0.0,
+      "qualifying_count": 0
+    },
+    "4400": {
+      "weighted_net_annualized_pct": -58.22678703690169,
+      "expected_net_usdt_year": -2561.9786296236744,
+      "notional_per_symbol": 275.0,
+      "edge_contributions": [
+        {
+          "symbol": "BTCUSDT",
+          "edge_share_pct": 0.0,
+          "net_annualized_pct": -60.7637774248752,
+          "net_return_bps": -2388.377150094885
+        },
+        {
+          "symbol": "ETHUSDT",
+          "edge_share_pct": 0.0,
+          "net_annualized_pct": -40.68378802259042,
+          "net_return_bps": -1599.1143706066014
+        },
+        {
+          "symbol": "SOLUSDT",
+          "edge_share_pct": 0.0,
+          "net_annualized_pct": -45.58447450919788,
+          "net_return_bps": -1791.7404402887082
+        },
+        {
+          "symbol": "BNBUSDT",
+          "edge_share_pct": 0.0,
+          "net_annualized_pct": -30.796521859457954,
+          "net_return_bps": -1210.4861190116849
+        },
+        {
+          "symbol": "XRPUSDT",
+          "edge_share_pct": 0.0,
+          "net_annualized_pct": -59.783413543919764,
+          "net_return_bps": -2349.843030076636
+        },
+        {
+          "symbol": "DOGEUSDT",
+          "edge_share_pct": 0.0,
+          "net_annualized_pct": -58.63186624835601,
+          "net_return_bps": -2304.5803857096303
+        },
+        {
+          "symbol": "ADAUSDT",
+          "edge_share_pct": 0.0,
+          "net_annualized_pct": -69.23808756490045,
+          "net_return_bps": -2721.467842593011
+        },
+        {
+          "symbol": "AVAXUSDT",
+          "edge_share_pct": 0.0,
+          "net_annualized_pct": -29.519145738600344,
+          "net_return_bps": -1160.2776548834458
+        },
+        {
+          "symbol": "LINKUSDT",
+          "edge_share_pct": 0.0,
+          "net_annualized_pct": -65.94018554185955,
+          "net_return_bps": -2591.8407165503486
+        },
+        {
+          "symbol": "SUIUSDT",
+          "edge_share_pct": 0.0,
+          "net_annualized_pct": -121.32660991525927,
+          "net_return_bps": -4768.855971443516
+        }
+      ],
+      "top2_contribution_pct": 0.0,
+      "qualifying_count": 0
+    }
+  },
+  "sensitivity": [
+    {
+      "spot_fee_delta_bps": -5.0,
+      "slippage_bps": 0.0,
+      "weighted_net_annualized_pct": -24.186127172418775,
+      "expected_net_usdt_year": -1064.1895955864263
+    },
+    {
+      "spot_fee_delta_bps": -5.0,
+      "slippage_bps": 2.0,
+      "weighted_net_annualized_pct": -33.26363646961422,
+      "expected_net_usdt_year": -1463.6000046630256
+    },
+    {
+      "spot_fee_delta_bps": -5.0,
+      "slippage_bps": 5.0,
+      "weighted_net_annualized_pct": -46.87990041540738,
+      "expected_net_usdt_year": -2062.7156182779254
+    },
+    {
+      "spot_fee_delta_bps": -5.0,
+      "slippage_bps": 10.0,
+      "weighted_net_annualized_pct": -69.57367365839598,
+      "expected_net_usdt_year": -3061.2416409694233
+    },
+    {
+      "spot_fee_delta_bps": 0.0,
+      "slippage_bps": 0.0,
+      "weighted_net_annualized_pct": -35.53301379391308,
+      "expected_net_usdt_year": -1563.4526069321755
+    },
+    {
+      "spot_fee_delta_bps": 0.0,
+      "slippage_bps": 2.0,
+      "weighted_net_annualized_pct": -44.61052309110853,
+      "expected_net_usdt_year": -1962.863016008775
+    },
+    {
+      "spot_fee_delta_bps": 0.0,
+      "slippage_bps": 5.0,
+      "weighted_net_annualized_pct": -58.22678703690169,
+      "expected_net_usdt_year": -2561.9786296236744
+    },
+    {
+      "spot_fee_delta_bps": 0.0,
+      "slippage_bps": 10.0,
+      "weighted_net_annualized_pct": -80.92056027989031,
+      "expected_net_usdt_year": -3560.5046523151727
+    },
+    {
+      "spot_fee_delta_bps": 5.0,
+      "slippage_bps": 0.0,
+      "weighted_net_annualized_pct": -46.87990041540738,
+      "expected_net_usdt_year": -2062.7156182779254
+    },
+    {
+      "spot_fee_delta_bps": 5.0,
+      "slippage_bps": 2.0,
+      "weighted_net_annualized_pct": -55.957409712602825,
+      "expected_net_usdt_year": -2462.126027354524
+    },
+    {
+      "spot_fee_delta_bps": 5.0,
+      "slippage_bps": 5.0,
+      "weighted_net_annualized_pct": -69.57367365839598,
+      "expected_net_usdt_year": -3061.2416409694233
+    },
+    {
+      "spot_fee_delta_bps": 5.0,
+      "slippage_bps": 10.0,
+      "weighted_net_annualized_pct": -92.2674469013846,
+      "expected_net_usdt_year": -4059.7676636609226
+    }
+  ],
+  "regimes": {
+    "early_30d": {
+      "window_start_ms": 1773936000003,
+      "window_end_ms": 1776528000003,
+      "weighted_net_annualized_pct": -80.81927335064366,
+      "expected_net_usdt_year": -3556.048027428321,
+      "qualifying_count": 1,
+      "stable": false,
+      "per_symbol": [
+        {
+          "symbol": "LINKUSDT",
+          "net_annualized_pct": 5.2520210995962895,
+          "net_return_bps": 69.06767465447751
+        },
+        {
+          "symbol": "DOGEUSDT",
+          "net_annualized_pct": -15.929911031598984,
+          "net_return_bps": -209.4892407210291
+        },
+        {
+          "symbol": "BNBUSDT",
+          "net_annualized_pct": -22.191863168341214,
+          "net_return_bps": -291.83820023219096
+        },
+        {
+          "symbol": "XRPUSDT",
+          "net_annualized_pct": -54.237007663953285,
+          "net_return_bps": -713.2537985908467
+        },
+        {
+          "symbol": "SOLUSDT",
+          "net_annualized_pct": -63.85223572137967,
+          "net_return_bps": -839.7006331722952
+        },
+        {
+          "symbol": "BTCUSDT",
+          "net_annualized_pct": -86.77558565206755,
+          "net_return_bps": -1141.1583853365414
+        },
+        {
+          "symbol": "ETHUSDT",
+          "net_annualized_pct": -98.55337259245451,
+          "net_return_bps": -1296.04435040072
+        },
+        {
+          "symbol": "AVAXUSDT",
+          "net_annualized_pct": -117.51311861218984,
+          "net_return_bps": -1545.37799639907
+        },
+        {
+          "symbol": "ADAUSDT",
+          "net_annualized_pct": -130.88400235165324,
+          "net_return_bps": -1721.2142755090472
+        },
+        {
+          "symbol": "SUIUSDT",
+          "net_annualized_pct": -223.5076578123944,
+          "net_return_bps": -2939.2787842679013
+        }
+      ]
+    },
+    "middle_30d": {
+      "window_start_ms": 1776528000003,
+      "window_end_ms": 1779120000003,
+      "weighted_net_annualized_pct": -73.7065366066659,
+      "expected_net_usdt_year": -3243.0876106933,
+      "qualifying_count": 1,
+      "stable": false,
+      "per_symbol": [
+        {
+          "symbol": "AVAXUSDT",
+          "net_annualized_pct": 47.47541165594693,
+          "net_return_bps": 610.4600877769249
+        },
+        {
+          "symbol": "ETHUSDT",
+          "net_annualized_pct": -21.654629872080005,
+          "net_return_bps": -278.44492109487345
+        },
+        {
+          "symbol": "BNBUSDT",
+          "net_annualized_pct": -42.846998699270905,
+          "net_return_bps": -550.9458828180223
+        },
+        {
+          "symbol": "SOLUSDT",
+          "net_annualized_pct": -59.259982010498945,
+          "net_return_bps": -761.9913668564614
+        },
+        {
+          "symbol": "BTCUSDT",
+          "net_annualized_pct": -94.03090625008348,
+          "net_return_bps": -1209.0914703207081
+        },
+        {
+          "symbol": "XRPUSDT",
+          "net_annualized_pct": -96.22253189592325,
+          "net_return_bps": -1237.272373602374
+        },
+        {
+          "symbol": "SUIUSDT",
+          "net_annualized_pct": -103.50062779284748,
+          "net_return_bps": -1330.8573875098562
+        },
+        {
+          "symbol": "DOGEUSDT",
+          "net_annualized_pct": -115.21988354481532,
+          "net_return_bps": -1481.5488222018262
+        },
+        {
+          "symbol": "LINKUSDT",
+          "net_annualized_pct": -116.58243242608944,
+          "net_return_bps": -1499.0690854423187
+        },
+        {
+          "symbol": "ADAUSDT",
+          "net_annualized_pct": -135.22278523099726,
+          "net_return_bps": -1738.7550831529147
+        }
+      ]
+    },
+    "recent_30d": {
+      "window_start_ms": 1779120000003,
+      "window_end_ms": 1781683200000,
+      "weighted_net_annualized_pct": -34.379036556921974,
+      "expected_net_usdt_year": -1512.6776085045667,
+      "qualifying_count": 1,
+      "stable": false,
+      "per_symbol": [
+        {
+          "symbol": "ADAUSDT",
+          "net_annualized_pct": 46.343799884742374,
+          "net_return_bps": 602.6810123803402
+        },
+        {
+          "symbol": "BTCUSDT",
+          "net_annualized_pct": -15.335539661599226,
+          "net_return_bps": -199.43204035140718
+        },
+        {
+          "symbol": "ETHUSDT",
+          "net_annualized_pct": -18.643212171415662,
+          "net_return_bps": -242.44688638899112
+        },
+        {
+          "symbol": "AVAXUSDT",
+          "net_annualized_pct": -27.985260499462623,
+          "net_return_bps": -363.9361720767417
+        },
+        {
+          "symbol": "SOLUSDT",
+          "net_annualized_pct": -30.2062605138268,
+          "net_return_bps": -392.8193137371742
+        },
+        {
+          "symbol": "BNBUSDT",
+          "net_annualized_pct": -38.20330202704756,
+          "net_return_bps": -496.81736929632274
+        },
+        {
+          "symbol": "XRPUSDT",
+          "net_annualized_pct": -39.15126910767613,
+          "net_return_bps": -509.14526992763354
+        },
+        {
+          "symbol": "DOGEUSDT",
+          "net_annualized_pct": -52.42837934312693,
+          "net_return_bps": -681.8083285910924
+        },
+        {
+          "symbol": "SUIUSDT",
+          "net_annualized_pct": -59.726549817253584,
+          "net_return_bps": -776.7178694748785
+        },
+        {
+          "symbol": "LINKUSDT",
+          "net_annualized_pct": -108.45439231255352,
+          "net_return_bps": -1410.4023217471154
+        }
+      ]
+    }
+  },
+  "spot_plus_5bps": {
+    "weighted_net_annualized_pct": -69.57367365839598,
+    "expected_net_usdt_year": -3061.2416409694233,
+    "notional_per_symbol": 275.0,
+    "edge_contributions": [
+      {
+        "symbol": "BTCUSDT",
+        "edge_share_pct": 0.0,
+        "net_annualized_pct": -69.66828486326759,
+        "net_return_bps": -2738.377150094885
+      },
+      {
+        "symbol": "ETHUSDT",
+        "edge_share_pct": 0.0,
+        "net_annualized_pct": -48.570637468023676,
+        "net_return_bps": -1909.1143706066014
+      },
+      {
+        "symbol": "SOLUSDT",
+        "edge_share_pct": 0.0,
+        "net_annualized_pct": -56.524297933508514,
+        "net_return_bps": -2221.740440288708
+      },
+      {
+        "symbol": "BNBUSDT",
+        "edge_share_pct": 0.0,
+        "net_annualized_pct": -41.99075978200838,
+        "net_return_bps": -1650.4861190116849
+      },
+      {
+        "symbol": "XRPUSDT",
+        "edge_share_pct": 0.0,
+        "net_annualized_pct": -72.75855295414867,
+        "net_return_bps": -2859.843030076636
+      },
+      {
+        "symbol": "DOGEUSDT",
+        "edge_share_pct": 0.0,
+        "net_annualized_pct": -70.08051866914622,
+        "net_return_bps": -2754.5803857096303
+      },
+      {
+        "symbol": "ADAUSDT",
+        "edge_share_pct": 0.0,
+        "net_annualized_pct": -82.72205597160892,
+        "net_return_bps": -3251.467842593011
+      },
+      {
+        "symbol": "AVAXUSDT",
+        "edge_share_pct": 0.0,
+        "net_annualized_pct": -41.476627155870126,
+        "net_return_bps": -1630.2776548834458
+      },
+      {
+        "symbol": "LINKUSDT",
+        "edge_share_pct": 0.0,
+        "net_annualized_pct": -76.8800089661702,
+        "net_return_bps": -3021.8407165503486
+      },
+      {
+        "symbol": "SUIUSDT",
+        "edge_share_pct": 0.0,
+        "net_annualized_pct": -135.06499282020755,
+        "net_return_bps": -5308.855971443516
+      }
+    ],
+    "top2_contribution_pct": 0.0,
+    "qualifying_count": 0
+  },
+  "go_checks": {
+    "net_annual_gte_45pct": false,
+    "min_5_qualifying": false,
+    "spot_plus_5bps_not_negative": false,
+    "no_liquidation_at_shock": true,
+    "not_top2_dominated": true,
+    "commercial_scale": false,
+    "three_regimes_stable": false
+  },
+  "failed_checks": [
+    "net_annual_gte_45pct",
+    "min_5_qualifying",
+    "spot_plus_5bps_not_negative",
+    "commercial_scale",
+    "three_regimes_stable"
+  ],
+  "verdict": "NO-GO",
+  "verdict_reason": "Mainstream coin cash-and-carry edge too thin after conservative costs; failed: net_annual_gte_45pct, min_5_qualifying, spot_plus_5bps_not_negative, commercial_scale, three_regimes_stable."
+}

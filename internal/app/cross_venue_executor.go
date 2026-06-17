@@ -513,12 +513,18 @@ func (e *CrossVenueExecutor) evaluateNewOpens(ctx context.Context, live bool) {
 	var rawRejectReasons []string
 	var opened []string
 	var fallbackUsed []string
+	unifiedTraceByKey := make(map[string]*crossVenueUnifiedCandidateTrace, len(snap.Opportunities))
 	resolvedOpps := make([]CrossVenueOpportunity, 0, len(snap.Opportunities))
 	for _, raw := range snap.Opportunities {
 		opp := e.enrichOpportunityFromSnapshot(raw, snap, now)
 		resolved, downgradeReject := e.resolveTradeableOpportunity(opp, snap.FundingByVenue)
 		if downgradeReject != "" {
 			rawRejectReasons = append(rawRejectReasons, downgradeReject)
+			key := crossVenueUnifiedCandidateKey(opp)
+			unifiedTraceByKey[key] = &crossVenueUnifiedCandidateTrace{
+				Opp:           opp,
+				RejectReasons: []string{downgradeReject},
+			}
 			if len(rejected) < 5 {
 				rejected = append(rejected, fmt.Sprintf("%s(%s)", opp.Symbol, downgradeReject))
 			}
@@ -562,10 +568,23 @@ func (e *CrossVenueExecutor) evaluateNewOpens(ctx context.Context, live bool) {
 		} else if crossVenueOpportunityIsStrict(opp) {
 			hasStrictCandidate = true
 		}
+		trace := &crossVenueUnifiedCandidateTrace{
+			Opp:             opp,
+			Gate:            gateRes,
+			HasGateNotional: gateRes.OK,
+		}
+		if candidate.GateReject != "" {
+			trace.RejectReasons = []string{candidate.GateReject}
+		}
+		unifiedTraceByKey[crossVenueUnifiedCandidateKey(opp)] = trace
 		prepared = append(prepared, candidate)
 	}
 	for _, candidate := range prepared {
+		trace := unifiedTraceByKey[crossVenueUnifiedCandidateKey(candidate.Opp)]
 		if len(activeCrossVenuePositions(e.snapshotPositions())) >= concurrentLimit {
+			if trace != nil {
+				trace.RejectReasons = append(trace.RejectReasons, "max_concurrent_reached")
+			}
 			break
 		}
 		opp := candidate.Opp
@@ -585,6 +604,9 @@ func (e *CrossVenueExecutor) evaluateNewOpens(ctx context.Context, live bool) {
 		}
 		if mode == crossVenueOpenReject {
 			rawRejectReasons = append(rawRejectReasons, selectReject)
+			if trace != nil && selectReject != "" {
+				trace.RejectReasons = append(trace.RejectReasons, selectReject)
+			}
 			if len(rejected) < 5 {
 				rejected = append(rejected, fmt.Sprintf("%s(%s)", opp.Symbol, selectReject))
 			}
@@ -603,6 +625,9 @@ func (e *CrossVenueExecutor) evaluateNewOpens(ctx context.Context, live bool) {
 		refPrice := (gateRes.HighMid + gateRes.LowMid) / 2
 		qty := alignCrossVenueQty(gateRes.NotionalUSDT, refPrice, gateRes.HighInstr, gateRes.LowInstr, highCaps, lowCaps)
 		if !crossVenueQtyTradable(qty, refPrice, gateRes.HighInstr) {
+			if trace != nil {
+				trace.RejectReasons = append(trace.RejectReasons, "qty_not_tradable")
+			}
 			continue
 		}
 		switchIntent := candidate.SwitchIntent
@@ -624,10 +649,20 @@ func (e *CrossVenueExecutor) evaluateNewOpens(ctx context.Context, live bool) {
 		pos, err := e.executeCrossVenueOpen(ctx, plan, live)
 		if err != nil {
 			e.logger.Printf("[跨所执行] 开仓失败 %s: %v", opp.Symbol, err)
+			if trace != nil {
+				trace.RejectReasons = append(trace.RejectReasons, "open_failed")
+			}
 			if isBybitAgreementRequiredError(err) {
 				e.handleBybitAgreementOpenFailure(ctx, opp, err)
 			}
 			continue
+		}
+		if trace != nil {
+			trace.WouldExecute = true
+			trace.NotionalUSDT = gateRes.NotionalUSDT
+			trace.Opp = opp
+			trace.Gate = gateRes
+			trace.HasGateNotional = true
 		}
 		// 影子模式返回空持仓(只记日志不建仓),不能把零值记录灌进内存台账/面板。
 		if pos.Symbol == "" {
@@ -663,6 +698,16 @@ func (e *CrossVenueExecutor) evaluateNewOpens(ctx context.Context, live bool) {
 		explain.FallbackSummary = "none"
 	}
 	explain.NoTradeReasonsTop = buildCrossVenueReasonCounts(rawRejectReasons, 5)
+	if len(unifiedTraceByKey) > 0 {
+		unifiedTraces := make([]crossVenueUnifiedCandidateTrace, 0, len(unifiedTraceByKey))
+		for _, trace := range unifiedTraceByKey {
+			if trace == nil {
+				continue
+			}
+			unifiedTraces = append(unifiedTraces, *trace)
+		}
+		e.appendUnifiedCandidateLogs(cycleID, cfg, unifiedTraces)
+	}
 	e.setLastCycle(explain)
 }
 

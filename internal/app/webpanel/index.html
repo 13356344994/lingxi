@@ -352,25 +352,25 @@
           </div>
         </div>
         <div style="margin-top:16px;">
-          <strong style="color:#e5edff;font-size:14px;">Validation / Replay</strong>
-          <div class="hint" id="cv-validation-line" style="margin:6px 0 8px;">加载 validation 回放中…</div>
+          <strong style="color:#e5edff;font-size:14px;">校验 / 回放</strong>
+          <div class="hint" id="cv-validation-line" style="margin:6px 0 8px;">加载校验回放中…</div>
           <div class="stats" style="margin-bottom:10px;">
             <div class="stat-card"><div class="stat-label">窗口交易数</div><div class="stat-value" id="cvv-trade-count" style="font-size:18px">-</div></div>
             <div class="stat-card"><div class="stat-label">已实现净利(U)</div><div class="stat-value" id="cvv-rotation-pnl" style="font-size:18px">-</div></div>
-            <div class="stat-card"><div class="stat-label">Funding Alpha(U)</div><div class="stat-value" id="cvv-funding-alpha" style="font-size:18px">-</div></div>
-            <div class="stat-card"><div class="stat-label">Execution Drag(U)</div><div class="stat-value" id="cvv-execution-drag" style="font-size:18px">-</div></div>
-            <div class="stat-card"><div class="stat-label">Switch Drag(U)</div><div class="stat-value" id="cvv-switch-drag" style="font-size:18px">-</div></div>
-            <div class="stat-card"><div class="stat-label">Recovery Loss(U)</div><div class="stat-value" id="cvv-recovery-loss" style="font-size:18px">-</div></div>
-            <div class="stat-card"><div class="stat-label">Fallback Dilution(U)</div><div class="stat-value" id="cvv-fallback-dilution" style="font-size:18px">-</div></div>
-            <div class="stat-card"><div class="stat-label">Selection Drag(U)</div><div class="stat-value" id="cvv-selection-drag" style="font-size:18px">-</div></div>
-            <div class="stat-card"><div class="stat-label">Freshness Drag(U)</div><div class="stat-value" id="cvv-freshness-drag" style="font-size:18px">-</div></div>
-            <div class="stat-card"><div class="stat-label">Shadow Matched</div><div class="stat-value" id="cvv-shadow-matched" style="font-size:18px">-</div></div>
-            <div class="stat-card"><div class="stat-label">Rolling Baseline Gap(U)</div><div class="stat-value" id="cvv-rolling-gap" style="font-size:18px">-</div></div>
-            <div class="stat-card"><div class="stat-label">漏开 Snapshot</div><div class="stat-value" id="cvv-missed-open" style="font-size:18px">-</div></div>
+            <div class="stat-card"><div class="stat-label">资费收益(U)</div><div class="stat-value" id="cvv-funding-alpha" style="font-size:18px">-</div></div>
+            <div class="stat-card"><div class="stat-label">执行损耗(U)</div><div class="stat-value" id="cvv-execution-drag" style="font-size:18px">-</div></div>
+            <div class="stat-card"><div class="stat-label">换腿损耗(U)</div><div class="stat-value" id="cvv-switch-drag" style="font-size:18px">-</div></div>
+            <div class="stat-card"><div class="stat-label">恢复损耗(U)</div><div class="stat-value" id="cvv-recovery-loss" style="font-size:18px">-</div></div>
+            <div class="stat-card"><div class="stat-label">兜底稀释(U)</div><div class="stat-value" id="cvv-fallback-dilution" style="font-size:18px">-</div></div>
+            <div class="stat-card"><div class="stat-label">选币拖累(U)</div><div class="stat-value" id="cvv-selection-drag" style="font-size:18px">-</div></div>
+            <div class="stat-card"><div class="stat-label">快照滞后拖累(U)</div><div class="stat-value" id="cvv-freshness-drag" style="font-size:18px">-</div></div>
+            <div class="stat-card"><div class="stat-label">影子匹配笔数</div><div class="stat-value" id="cvv-shadow-matched" style="font-size:18px">-</div></div>
+            <div class="stat-card"><div class="stat-label">滚动基线差距(U)</div><div class="stat-value" id="cvv-rolling-gap" style="font-size:18px">-</div></div>
+            <div class="stat-card"><div class="stat-label">漏开快照数</div><div class="stat-value" id="cvv-missed-open" style="font-size:18px">-</div></div>
           </div>
           <div class="status-grid" style="margin:0 0 10px;">
             <div class="stat-card">
-              <div class="stat-label">Replay Readiness</div>
+              <div class="stat-label">回放就绪度</div>
               <div id="cvv-readiness" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
                 <span class="pill">机会集 -</span>
                 <span class="pill">成本模型 -</span>
@@ -406,7 +406,7 @@
           </div>
           <div class="status-grid" style="margin:0 0 10px;">
             <div class="stat-card">
-              <div class="stat-label">Validation Verdicts</div>
+              <div class="stat-label">校验结论</div>
               <div id="cvv-overview-tags" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
                 <span class="pill">加载中</span>
               </div>
@@ -414,11 +414,11 @@
           </div>
           <div class="form-grid" style="margin:0 0 10px;">
             <div>
-              <label for="cv-filter-snapshot">Snapshot 过滤</label>
+              <label for="cv-filter-snapshot">快照过滤</label>
               <input id="cv-filter-snapshot" type="text" placeholder="如 snap-btc">
             </div>
             <div>
-              <label for="cv-filter-symbol">Symbol 过滤</label>
+              <label for="cv-filter-symbol">交易对过滤</label>
               <input id="cv-filter-symbol" type="text" placeholder="如 BTC-USDT">
             </div>
             <div>
@@ -435,19 +435,19 @@
             </div>
           </div>
           <details id="cv-shadow-section" open style="margin-top:12px;">
-            <summary style="cursor:pointer;color:#e5edff;font-size:13px;font-weight:600;">Shadow Portfolio</summary>
+            <summary style="cursor:pointer;color:#e5edff;font-size:13px;font-weight:600;">影子组合</summary>
             <div class="table-wrap" style="max-height:220px;margin-top:6px;">
               <table>
                 <thead>
                   <tr>
-                    <th>Symbol</th>
-                    <th>Chosen Pair</th>
-                    <th>Baseline Pair</th>
-                    <th>Chosen EV</th>
-                    <th>Baseline EV</th>
-                    <th>Gap</th>
-                    <th>Realized PnL</th>
-                    <th>Fallback</th>
+                    <th>交易对</th>
+                    <th>实际腿</th>
+                    <th>基线腿</th>
+                    <th>实际 EV</th>
+                    <th>基线 EV</th>
+                    <th>差距</th>
+                    <th>已实现净利</th>
+                    <th>兜底</th>
                   </tr>
                 </thead>
                 <tbody id="cv-shadow-tbody">
@@ -457,19 +457,19 @@
             </div>
           </details>
           <details id="cv-counterfactual-section" open style="margin-top:12px;">
-            <summary style="cursor:pointer;color:#e5edff;font-size:13px;font-weight:600;">Counterfactual Replay</summary>
+            <summary style="cursor:pointer;color:#e5edff;font-size:13px;font-weight:600;">反事实回放</summary>
             <div class="table-wrap" style="max-height:220px;margin-top:6px;">
               <table>
                 <thead>
                   <tr>
-                    <th>Snapshot</th>
-                    <th>Symbol</th>
-                    <th>Chosen Pair</th>
-                    <th>Baseline Pair</th>
-                    <th>Chosen EV</th>
-                    <th>Baseline EV</th>
-                    <th>Drag</th>
-                    <th>Budget</th>
+                    <th>快照</th>
+                    <th>交易对</th>
+                    <th>实际腿</th>
+                    <th>基线腿</th>
+                    <th>实际 EV</th>
+                    <th>基线 EV</th>
+                    <th>选币拖累</th>
+                    <th>风险预算</th>
                   </tr>
                 </thead>
                 <tbody id="cv-counterfactual-tbody">
@@ -479,18 +479,18 @@
             </div>
           </details>
           <details id="cv-baseline-section" open style="margin-top:12px;">
-            <summary style="cursor:pointer;color:#e5edff;font-size:13px;font-weight:600;">Baseline Portfolio Replay</summary>
+            <summary style="cursor:pointer;color:#e5edff;font-size:13px;font-weight:600;">基线组合回放</summary>
             <div class="table-wrap" style="max-height:220px;margin-top:6px;">
               <table>
                 <thead>
                   <tr>
-                    <th>Snapshot</th>
-                    <th>Chosen Trades</th>
-                    <th>Baseline Trades</th>
-                    <th>Chosen EV</th>
-                    <th>Baseline EV</th>
-                    <th>Chosen Pairs</th>
-                    <th>Baseline Pairs</th>
+                    <th>快照</th>
+                    <th>实际笔数</th>
+                    <th>基线笔数</th>
+                    <th>实际 EV</th>
+                    <th>基线 EV</th>
+                    <th>实际腿</th>
+                    <th>基线腿</th>
                   </tr>
                 </thead>
                 <tbody id="cv-baseline-portfolio-tbody">
@@ -500,8 +500,8 @@
             </div>
           </details>
           <details id="cv-rolling-section" open style="margin-top:12px;">
-            <summary style="cursor:pointer;color:#e5edff;font-size:13px;font-weight:600;">Rolling Baseline Replay</summary>
-            <div class="hint" id="cv-rolling-chart-line" style="margin:6px 0 8px;">显示窗口内 chosen/baseline 累计 replay EV 时间序列。</div>
+            <summary style="cursor:pointer;color:#e5edff;font-size:13px;font-weight:600;">滚动基线回放</summary>
+            <div class="hint" id="cv-rolling-chart-line" style="margin:6px 0 8px;">显示窗口内实际/基线累计 replay EV 时间序列。</div>
             <div class="status-grid" style="margin:0 0 10px;">
               <div class="stat-card">
                 <div class="stat-label">滚动回放总结</div>
@@ -513,21 +513,21 @@
               </div>
             </div>
             <svg id="cv-rolling-baseline-chart" viewBox="0 0 900 240" preserveAspectRatio="none" style="width:100%;height:240px;background:#0b1220;border-radius:8px;margin-bottom:8px;"></svg>
-            <div class="hint" id="cv-gap-chart-line" style="margin:6px 0 8px;">显示每个 snapshot 上 baseline - chosen 的逐轮 gap。</div>
+            <div class="hint" id="cv-gap-chart-line" style="margin:6px 0 8px;">显示每个快照上基线 − 实际的逐轮差距。</div>
             <svg id="cv-rolling-gap-chart" viewBox="0 0 900 180" preserveAspectRatio="none" style="width:100%;height:180px;background:#0b1220;border-radius:8px;margin-bottom:8px;"></svg>
             <div class="table-wrap" style="max-height:240px;margin-top:6px;">
               <table>
                 <thead>
                   <tr>
-                    <th>Snapshot</th>
-                    <th>Chosen Trades</th>
-                    <th>Baseline Trades</th>
-                    <th>Chosen EV</th>
-                    <th>Baseline EV</th>
-                    <th>Cumulative Chosen</th>
-                    <th>Cumulative Baseline</th>
-                    <th>Chosen Pairs</th>
-                    <th>Baseline Pairs</th>
+                    <th>快照</th>
+                    <th>实际笔数</th>
+                    <th>基线笔数</th>
+                    <th>实际 EV</th>
+                    <th>基线 EV</th>
+                    <th>累计实际 EV</th>
+                    <th>累计基线 EV</th>
+                    <th>实际腿</th>
+                    <th>基线腿</th>
                   </tr>
                 </thead>
                 <tbody id="cv-rolling-baseline-tbody">
@@ -543,7 +543,7 @@
           <strong style="color:#e5edff;font-size:15px;">今日收益(北京时间)</strong>
           <button id="earnings-clear-btn" type="button" class="danger" style="font-size:12px;">清除权益快照(24h外)</button>
         </div>
-        <div class="hint" id="earnings-note" style="margin:0 0 10px;">含义:跨所平仓已实现净利(net_pnl),按 close_time 落在<strong>当日北京时间 00:00 至此刻</strong>累加;各所数字为跨所结算按 high/low 腿归因(手续费/TradePnL/回滚/再平衡均摊到两腿)。<strong>可动用资金</strong>为各所实时空闲 USDT 快照;<strong>全部资金</strong>为钱包本金(含占用保证金与非 USDT 折算,不含持仓浮盈亏);<strong>浮动盈亏</strong>单独展示。仅统计已平仓结算,不含在场浮动。</div>
+        <div class="hint" id="earnings-note" style="margin:0 0 10px;">含义:<strong>今日收益</strong>=各所账户总值相对<strong>北京时间当日 00:00 后首条权益快照</strong>的真实变化(含在场持仓、手续费、资费、开平仓全部影响);<strong>收益率</strong>=今日收益÷日初基准账户总值。<strong>可动用资金</strong>为各所实时可调 USDT;<strong>全部资金</strong>为钱包本金(含占用保证金与非 USDT 折算,不含持仓浮盈亏)。API 另附 <code>settlements_net_pnl</code> 供对照(仅已平仓单仓归因,与账户真实变化常不一致)。</div>
         <div id="earnings-grid" style="display:flex;flex-wrap:wrap;gap:10px;"></div>
       </div>
       <div class="risk-actions" style="margin:8px 0;">
@@ -1198,6 +1198,28 @@
     let selectedVenue = window.localStorage.getItem(venueStorageKey) || "";
     let primaryVenue = ""; // 由 /api/venues 填充,用于 clear-all 的 confirm 默认值
 
+    // formatTimeUTC8 将 ISO/RFC3339 时间格式化为北京时间(UTC+8);非时间字符串原样返回。
+    function formatTimeUTC8(value, opts) {
+      const withSuffix = !opts || opts.withSuffix !== false;
+      const text = String(value ?? "").trim();
+      if (!text) { return "-"; }
+      const d = new Date(text);
+      if (Number.isNaN(d.getTime())) { return text; }
+      const parts = new Intl.DateTimeFormat("zh-CN", {
+        timeZone: "Asia/Shanghai",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: false,
+      }).formatToParts(d);
+      const pick = (type) => parts.find((part) => part.type === type)?.value || "00";
+      const formatted = `${pick("year")}-${pick("month")}-${pick("day")} ${pick("hour")}:${pick("minute")}:${pick("second")}`;
+      return withSuffix ? `${formatted} (UTC+8)` : formatted;
+    }
+
     // controlURL 给控制类(写)接口拼接 venue 选择器;缺省走 Primary。
     function controlURL(path) {
       return path + venueQuery("?");
@@ -1309,9 +1331,9 @@
         return actionText;
       }
       if (!actionText) {
-        return timeText;
+        return formatTimeUTC8(timeText);
       }
-      return `${timeText} | ${actionText}`;
+      return `${formatTimeUTC8(timeText)} | ${actionText}`;
     }
 
     function formatBudgetValue(value) {
@@ -1334,7 +1356,7 @@
       document.getElementById("runtime-status").textContent = status.status || "idle";
       document.getElementById("runtime-stage").textContent = status.primary_stage || status.lifecycle_stage || status.stage_lifecycle_projection || status.current_stage || "-";
       document.getElementById("runtime-stage-reason").textContent = status.primary_stage_reason || status.lifecycle_reason || status.stage_reason || "-";
-      document.getElementById("runtime-stage-transitioned").textContent = status.primary_stage_transitioned_at || status.lifecycle_transitioned_at || status.stage_transitioned_at || "-";
+      document.getElementById("runtime-stage-transitioned").textContent = formatTimeUTC8(status.primary_stage_transitioned_at || status.lifecycle_transitioned_at || status.stage_transitioned_at || "");
       document.getElementById("runtime-health-status").textContent = status.health_status || "unknown";
       document.getElementById("runtime-health-summary").textContent = status.health_summary || "-";
       document.getElementById("runtime-can-continue").textContent = status.can_continue ? "可以" : "不可以";
@@ -1347,8 +1369,8 @@
       document.getElementById("runtime-stage-alignment").textContent = `${status.stage_lifecycle_projection || "-"} | ${status.stage_lifecycle_alignment || "-"}`;
       document.getElementById("runtime-last-domain-event").textContent = status.last_domain_event || "-";
       document.getElementById("runtime-symbol-cooldowns").textContent = formatRuntimeList(status.cooled_symbols || []);
-      document.getElementById("runtime-started").textContent = status.started_at || "-";
-      document.getElementById("runtime-finished").textContent = status.finished_at || "-";
+      document.getElementById("runtime-started").textContent = formatTimeUTC8(status.started_at || "");
+      document.getElementById("runtime-finished").textContent = formatTimeUTC8(status.finished_at || "");
       document.getElementById("runtime-message").textContent = status.last_message || "-";
       document.getElementById("runtime-error").textContent = status.last_error || "-";
       document.getElementById("runtime-incident-count").textContent = `${Number(status.execution_incident_count || 0)} / ${Number(status.execution_incident_limit || 0)}`;
@@ -1358,7 +1380,7 @@
       document.getElementById("runtime-platform-errors").textContent = String(Number(status.platform_request_errors || 0));
       document.getElementById("runtime-recovery-count").textContent = String(Number(status.recovery_action_count || 0));
       document.getElementById("runtime-circuit-reason").textContent = status.circuit_breaker_reason || "-";
-      document.getElementById("runtime-cooldown-until").textContent = status.cooldown_until || "-";
+      document.getElementById("runtime-cooldown-until").textContent = formatTimeUTC8(status.cooldown_until || "");
       document.getElementById("runtime-positions").textContent = formatRuntimeList(status.current_positions || []);
       document.getElementById("runtime-monitor-targets").textContent = formatRuntimeList(status.current_monitor_targets || []);
       document.getElementById("runtime-last-order").textContent = formatRuntimeTimestampAction(status.last_order_at, status.last_order_action);
@@ -1472,7 +1494,7 @@
       }
       container.innerHTML = records.slice().reverse().map((item) => `
         <div class="log-item">
-          <div class="log-meta">${escapeHTML(item.recorded_at)} | ${escapeHTML(item.level)} | ${escapeHTML(item.category || "-")} | ${escapeHTML(item.severity || "-")} | ${escapeHTML(item.phase)} | ${escapeHTML(item.action)}</div>
+          <div class="log-meta">${escapeHTML(formatTimeUTC8(item.recorded_at))} | ${escapeHTML(item.level)} | ${escapeHTML(item.category || "-")} | ${escapeHTML(item.severity || "-")} | ${escapeHTML(item.phase)} | ${escapeHTML(item.action)}</div>
           <div>${escapeHTML(item.symbol || "-")} | count=${Number(item.incident_count || 0)} / ${Number(item.incident_limit || 0)} | fatal=${Boolean(item.fatal)} | ${escapeHTML(item.detail || "-")}</div>
         </div>
       `).join("");
@@ -1486,7 +1508,7 @@
       }
       container.innerHTML = records.slice().reverse().map((item) => `
         <div class="log-item">
-          <div class="log-meta">${escapeHTML(item.occurred_at || "-")} | ${escapeHTML(item.type || "-")} | ${escapeHTML(item.protocol || "-")} | ${escapeHTML(item.stage || "-")}</div>
+          <div class="log-meta">${escapeHTML(formatTimeUTC8(item.occurred_at || ""))} | ${escapeHTML(item.type || "-")} | ${escapeHTML(item.protocol || "-")} | ${escapeHTML(item.stage || "-")}</div>
           <div>${escapeHTML(item.reason || "-")} | success=${Boolean(item.successful)} | run=${escapeHTML(item.run_id || "-")}</div>
         </div>
       `).join("");
@@ -1500,7 +1522,7 @@
       }
       container.innerHTML = records.slice().reverse().map((item) => `
         <div class="log-item">
-          <div class="log-meta">${escapeHTML(item.recorded_at)} | ${escapeHTML(item.source)}</div>
+          <div class="log-meta">${escapeHTML(formatTimeUTC8(item.recorded_at))} | ${escapeHTML(item.source)}</div>
           <div>${escapeHTML(item.message)}</div>
         </div>
       `).join("");
@@ -1585,7 +1607,7 @@
       }
       tbody.innerHTML = records.map((item) => `
         <tr>
-          <td>${item.recorded_at}</td>
+          <td>${escapeHTML(formatTimeUTC8(item.recorded_at))}</td>
           <td><span class="pill ${item.severity === "critical" ? "high" : "low"}">${item.level} / ${item.category || "-"}</span></td>
           <td>${item.phase}</td>
           <td>${item.symbol}</td>
@@ -1605,7 +1627,7 @@
       }
       tbody.innerHTML = records.map((item) => `
         <tr>
-          <td>${item.occurred_at || "-"}</td>
+          <td>${escapeHTML(formatTimeUTC8(item.occurred_at || ""))}</td>
           <td><span class="pill ${item.source === "domain" ? "low" : "high"}">${item.source || "-"}</span></td>
           <td>${item.type || "-"}</td>
           <td>${item.protocol || "-"}</td>
@@ -1624,7 +1646,7 @@
       }
       tbody.innerHTML = records.map((item) => `
         <tr>
-          <td>${item.occurred_at || "-"}</td>
+          <td>${escapeHTML(formatTimeUTC8(item.occurred_at || ""))}</td>
           <td><span class="pill ${item.level === "critical" ? "high" : "low"}">${item.type || "-"}</span></td>
           <td>${item.protocol || "-"}</td>
           <td>${item.stage || "-"}</td>
@@ -1643,9 +1665,9 @@
       }
       tbody.innerHTML = records.map((item) => `
         <tr>
-          <td>${item.recorded_at}</td>
-          <td>${item.funding_time}</td>
-          <td>${item.close_executed_at}</td>
+          <td>${escapeHTML(formatTimeUTC8(item.recorded_at))}</td>
+          <td>${escapeHTML(formatTimeUTC8(item.funding_time))}</td>
+          <td>${escapeHTML(formatTimeUTC8(item.close_executed_at))}</td>
           <td>${item.targets}</td>
           <td>${item.funding_income}</td>
           <td>${item.expected_funding_income}</td>
@@ -1665,9 +1687,9 @@
       }
       tbody.innerHTML = records.map((item) => `
         <tr>
-          <td>${item.recorded_at}</td>
-          <td>${item.monitor_stop_at}</td>
-          <td>${item.funding_time}</td>
+          <td>${escapeHTML(formatTimeUTC8(item.recorded_at))}</td>
+          <td>${escapeHTML(formatTimeUTC8(item.monitor_stop_at))}</td>
+          <td>${escapeHTML(formatTimeUTC8(item.funding_time))}</td>
           <td>${item.symbol}</td>
           <td>${item.state}</td>
           <td><span class="pill ${item.valid}">${item.valid}</span></td>
@@ -1695,7 +1717,7 @@
       }
       tbody.innerHTML = records.map((item) => `
         <tr>
-          <td>${item.recorded_at}</td>
+          <td>${escapeHTML(formatTimeUTC8(item.recorded_at))}</td>
           <td>${item.scenario}</td>
           <td>${item.symbol}</td>
           <td>${item.period}</td>
@@ -1759,11 +1781,11 @@
       }
       tbody.innerHTML = records.map((item) => `
         <tr>
-          <td>${item.recorded_at}</td>
+          <td>${escapeHTML(formatTimeUTC8(item.recorded_at))}</td>
           <td>${item.scenario}</td>
           <td>${item.symbol}</td>
           <td>${item.phase}</td>
-          <td>${item.event_time}</td>
+          <td>${escapeHTML(formatTimeUTC8(item.event_time))}</td>
           <td>${item.monitor_state}</td>
           <td><span class="pill ${item.futures_leg_ok}">${item.futures_leg_ok}</span></td>
           <td><span class="pill ${item.spot_leg_ok}">${item.spot_leg_ok}</span></td>
@@ -2012,12 +2034,7 @@
     }
 
     function formatValidationTime(value) {
-      const text = String(value || "").trim();
-      if (!text) { return "-"; }
-      if (text.indexOf("T") > 0) {
-        return text.replace("T", " ").replace("Z", " UTC");
-      }
-      return text;
+      return formatTimeUTC8(value);
     }
 
     function formatValidationList(values) {
@@ -2141,34 +2158,53 @@
         if (tagsEl) { tagsEl.innerHTML = `<span class="pill">无数据</span>`; }
         return;
       }
+      const replayReady = Boolean(data.replay_ready);
+      const realizedPnL = Number(data.rotation_realized_net_pnl || 0);
+      const baselineApprox = Number(data.baseline_approx_net_pnl || 0);
       const chosenReplay = Number(data.rolling_baseline_replay?.chosen_replay_net_ev || 0);
       const baselineReplay = Number(data.rolling_baseline_replay?.baseline_replay_net_ev || 0);
-      const edgeGap = chosenReplay - baselineReplay;
+      const edgeGap = replayReady
+        ? (chosenReplay - baselineReplay)
+        : (realizedPnL - baselineApprox);
       const dragCandidates = [
-        { label: "selection", value: Number(data.selection_drag || 0) },
-        { label: "execution", value: Number(data.execution_drag || 0) },
-        { label: "switch", value: Number(data.switch_drag || 0) },
-        { label: "freshness", value: Number(data.freshness_drag || 0) },
-        { label: "recovery", value: Number(data.recovery_loss || 0) },
-        { label: "fallback", value: Number(data.fallback_dilution || 0) },
+        { label: "选币拖累", value: Number(data.selection_drag || 0) },
+        { label: "执行损耗", value: Number(data.execution_drag || 0) },
+        { label: "换腿损耗", value: Number(data.switch_drag || 0) },
+        { label: "快照滞后", value: Number(data.freshness_drag || 0) },
+        { label: "恢复损耗", value: Number(data.recovery_loss || 0) },
+        { label: "兜底稀释", value: Number(data.fallback_dilution || 0) },
       ].sort((a, b) => b.value - a.value);
       const topDrag = dragCandidates[0];
       const tradeCount = Number(data.trade_count || 0);
       const matched = Number(data.shadow_matched_trades || 0);
+      const linked = Number(data.entry_snapshot_linked_trades || 0);
+      const missingLink = Number(data.missing_entry_snapshot_trades || 0);
       const missed = Number(data.rolling_baseline_replay?.missed_open_snapshots || 0);
       const conversionRate = tradeCount > 0 ? matched / tradeCount : 0;
       const readinessCount = [data.same_opportunity_set_ready, data.same_cost_model_ready, data.same_risk_budget_ready].filter(Boolean).length;
-      const confidenceLabel = readinessCount === 3 && matched >= 2 ? "高" : (readinessCount >= 2 ? "中" : "低");
-      const confidenceSub = `readiness=${readinessCount}/3 | matched=${matched} | scans=${Number(data.scan_snapshot_count || 0)}`;
+      let confidenceLabel = "低";
+      if (replayReady && readinessCount === 3 && matched >= 2) {
+        confidenceLabel = "高";
+      } else if (replayReady && readinessCount >= 2) {
+        confidenceLabel = "中";
+      } else if (!replayReady && tradeCount > 0) {
+        confidenceLabel = "中";
+      }
+      const confidenceSub = replayReady
+        ? `就绪度=${readinessCount}/3 | 影子匹配=${matched} | 窗口快照=${Number(data.scan_snapshot_count || 0)}`
+        : `回放未就绪 | 已关联=${linked} | 缺失快照=${missingLink} | 总快照=${Number(data.scan_snapshot_total_count || 0)}`;
       const verdicts = [];
+      if (!replayReady) {
+        verdicts.push({ text: "回放链路未就绪", className: "high" });
+      }
       verdicts.push({
-        text: edgeGap >= 0 ? "轮动跑赢基线" : "轮动落后基线",
+        text: edgeGap >= 0 ? "实际跑赢基线" : "实际落后基线",
         className: edgeGap >= 0 ? "low" : "high",
       });
       if (topDrag && topDrag.value > 0) {
         verdicts.push({
           text: `主要拖累:${topDrag.label}`,
-          className: topDrag.label === "selection" || topDrag.label === "freshness" ? "high" : "medium",
+          className: topDrag.label === "选币拖累" || topDrag.label === "快照滞后" ? "high" : "medium",
         });
       }
       verdicts.push({
@@ -2181,11 +2217,17 @@
       });
 
       setText("cvv-overview-edge", edgeGap >= 0 ? "领先" : "落后");
-      setText("cvv-overview-edge-sub", `chosen=${formatValidationMoney(chosenReplay)} U | baseline=${formatValidationMoney(baselineReplay)} U | gap=${edgeGap >= 0 ? "+" : ""}${formatValidationMoney(edgeGap)} U`);
+      if (replayReady) {
+        setText("cvv-overview-edge-sub", `实际=${formatValidationMoney(chosenReplay)} U | 基线=${formatValidationMoney(baselineReplay)} U | 差距=${edgeGap >= 0 ? "+" : ""}${formatValidationMoney(edgeGap)} U`);
+      } else {
+        setText("cvv-overview-edge-sub", `已实现=${formatValidationMoney(realizedPnL)} U | 基线近似=${formatValidationMoney(baselineApprox)} U | 差距=${edgeGap >= 0 ? "+" : ""}${formatValidationMoney(edgeGap)} U`);
+      }
       setText("cvv-overview-drag", topDrag && topDrag.value > 0 ? topDrag.label : "无明显拖累");
-      setText("cvv-overview-drag-sub", topDrag ? `${topDrag.label}=${formatValidationMoney(topDrag.value)} U` : "-");
+      setText("cvv-overview-drag-sub", topDrag && topDrag.value > 0 ? `${topDrag.label}=${formatValidationMoney(topDrag.value)} U` : "-");
       setText("cvv-overview-conversion", tradeCount > 0 ? `${(conversionRate * 100).toFixed(0)}%` : "-");
-      setText("cvv-overview-conversion-sub", `matched=${matched} / trades=${tradeCount} | missed_open=${missed}`);
+      setText("cvv-overview-conversion-sub", replayReady
+        ? `影子匹配=${matched} / 交易=${tradeCount} | 漏开=${missed}`
+        : `快照关联=${linked} / 交易=${tradeCount} | 缺失=${missingLink}`);
       setText("cvv-overview-confidence", confidenceLabel);
       setText("cvv-overview-confidence-sub", confidenceSub);
       if (tagsEl) {
@@ -2201,9 +2243,9 @@
       const rows = Array.isArray(records) ? records : [];
       const W = 900, H = 240, padX = 32, padY = 28;
       if (!rows.length) {
-        svg.innerHTML = `<text x="${W / 2}" y="${H / 2}" fill="#64748b" font-size="14" text-anchor="middle">暂无 rolling baseline replay 数据</text>`;
+        svg.innerHTML = `<text x="${W / 2}" y="${H / 2}" fill="#64748b" font-size="14" text-anchor="middle">暂无滚动基线回放数据</text>`;
         if (summary) { summary.textContent = "-"; }
-        if (line) { line.textContent = "显示窗口内 chosen/baseline 累计 replay EV 时间序列。"; }
+        if (line) { line.textContent = "显示窗口内实际/基线累计 replay EV 时间序列。"; }
         return;
       }
       const chosen = rows.map((item) => Number(item.cumulative_chosen_replay_net_ev || 0));
@@ -2233,15 +2275,15 @@
         `<path d="${chosenPath}" fill="none" stroke="#38bdf8" stroke-width="2.5"></path>` +
         `<circle cx="${lastX.toFixed(1)}" cy="${lastBaselineY.toFixed(1)}" r="3.5" fill="#fbbf24"></circle>` +
         `<circle cx="${lastX.toFixed(1)}" cy="${lastChosenY.toFixed(1)}" r="3.5" fill="#38bdf8"></circle>` +
-        `<text x="${padX}" y="16" fill="#38bdf8" font-size="11">Chosen ${formatValidationMoney(finalChosen)} U</text>` +
-        `<text x="${W - padX}" y="16" fill="#fbbf24" font-size="11" text-anchor="end">Baseline ${formatValidationMoney(finalBaseline)} U</text>` +
-        `<text x="${W / 2}" y="16" fill="${gap >= 0 ? "#fca5a5" : "#86efac"}" font-size="11" text-anchor="middle">Gap ${gap >= 0 ? "+" : ""}${formatValidationMoney(gap)} U</text>` +
+        `<text x="${padX}" y="16" fill="#38bdf8" font-size="11">实际 ${formatValidationMoney(finalChosen)} U</text>` +
+        `<text x="${W - padX}" y="16" fill="#fbbf24" font-size="11" text-anchor="end">基线 ${formatValidationMoney(finalBaseline)} U</text>` +
+        `<text x="${W / 2}" y="16" fill="${gap >= 0 ? "#fca5a5" : "#86efac"}" font-size="11" text-anchor="middle">差距 ${gap >= 0 ? "+" : ""}${formatValidationMoney(gap)} U</text>` +
         labels;
       if (summary) {
-        summary.textContent = `chosen=${formatValidationMoney(finalChosen)} U | baseline=${formatValidationMoney(finalBaseline)} U | gap=${gap >= 0 ? "+" : ""}${formatValidationMoney(gap)} U | snapshots=${rows.length}`;
+        summary.textContent = `实际=${formatValidationMoney(finalChosen)} U | 基线=${formatValidationMoney(finalBaseline)} U | 差距=${gap >= 0 ? "+" : ""}${formatValidationMoney(gap)} U | 快照=${rows.length}`;
       }
       if (line) {
-        line.textContent = `蓝线=chosen 累计 replay EV, 金线=baseline 累计 replay EV, 最终 gap=${gap >= 0 ? "+" : ""}${formatValidationMoney(gap)} U`;
+        line.textContent = `蓝线=实际累计 replay EV, 金线=基线累计 replay EV, 最终差距=${gap >= 0 ? "+" : ""}${formatValidationMoney(gap)} U`;
       }
     }
 
@@ -2253,9 +2295,9 @@
       const rows = Array.isArray(records) ? records : [];
       const W = 900, H = 180, padX = 32, padY = 24;
       if (!rows.length) {
-        svg.innerHTML = `<text x="${W / 2}" y="${H / 2}" fill="#64748b" font-size="14" text-anchor="middle">暂无 per-snapshot gap 数据</text>`;
+        svg.innerHTML = `<text x="${W / 2}" y="${H / 2}" fill="#64748b" font-size="14" text-anchor="middle">暂无逐轮差距数据</text>`;
         if (summary) { summary.textContent = "-"; }
-        if (line) { line.textContent = "显示每个 snapshot 上 baseline - chosen 的逐轮 gap。"; }
+        if (line) { line.textContent = "显示每个快照上基线 − 实际的逐轮差距。"; }
         return;
       }
       const gaps = rows.map((item) => Number(item.baseline_snapshot_replay_net_ev || 0) - Number(item.chosen_snapshot_replay_net_ev || 0));
@@ -2281,15 +2323,15 @@
       const bestNegative = Math.min(...gaps, 0);
       svg.innerHTML =
         `<line x1="${padX}" y1="${zeroY.toFixed(1)}" x2="${(W - padX).toFixed(1)}" y2="${zeroY.toFixed(1)}" stroke="#334155" stroke-width="1"></line>` +
-        `<text x="${padX}" y="14" fill="#fca5a5" font-size="11">正值: baseline 优于 chosen</text>` +
-        `<text x="${W - padX}" y="14" fill="#86efac" font-size="11" text-anchor="end">负值: chosen 优于 baseline</text>` +
+        `<text x="${padX}" y="14" fill="#fca5a5" font-size="11">正值: 基线优于实际</text>` +
+        `<text x="${W - padX}" y="14" fill="#86efac" font-size="11" text-anchor="end">负值: 实际优于基线</text>` +
         bars +
         labels;
       if (summary) {
-        summary.textContent = `baseline更优=${positiveCount} | chosen反超=${negativeCount} | 持平=${flatCount} | worst=+${formatValidationMoney(worstPositive)} U | best=${formatValidationMoney(bestNegative)} U`;
+        summary.textContent = `基线更优=${positiveCount} | 实际反超=${negativeCount} | 持平=${flatCount} | 最大正值=+${formatValidationMoney(worstPositive)} U | 最大负值=${formatValidationMoney(bestNegative)} U`;
       }
       if (line) {
-        line.textContent = `逐轮 gap = baseline_snapshot_replay_ev - chosen_snapshot_replay_ev，正值代表该轮 baseline 更优。`;
+        line.textContent = `逐轮差距 = 基线快照 EV − 实际快照 EV，正值代表该轮基线更优。`;
       }
     }
 
@@ -2306,7 +2348,7 @@
         if (el) { el.textContent = value; }
       };
       if (!data) {
-        if (line) { line.textContent = errorText || "validation 回放读取失败"; }
+        if (line) { line.textContent = errorText || "校验回放读取失败"; }
         if (methodology) { methodology.textContent = "-"; }
         if (readiness) {
           readiness.innerHTML = `<span class="pill false">机会集 否</span><span class="pill false">成本模型 否</span><span class="pill false">风险预算 否</span>`;
@@ -2326,24 +2368,29 @@
         setText("cvv-missed-open", "-");
         renderRollingBaselineChart([]);
         renderRollingGapChart([]);
-        renderValidationTableBody("cv-shadow-tbody", 8, [], "暂无 shadow portfolio 记录");
-        renderValidationTableBody("cv-counterfactual-tbody", 8, [], "暂无 counterfactual replay 记录");
-        renderValidationTableBody("cv-baseline-portfolio-tbody", 7, [], "暂无 baseline portfolio replay 记录");
-        renderValidationTableBody("cv-rolling-baseline-tbody", 9, [], "暂无 rolling baseline replay 记录");
+        renderValidationTableBody("cv-shadow-tbody", 8, [], "暂无影子组合记录");
+        renderValidationTableBody("cv-counterfactual-tbody", 8, [], "暂无反事实回放记录");
+        renderValidationTableBody("cv-baseline-portfolio-tbody", 7, [], "暂无基线组合回放记录");
+        renderValidationTableBody("cv-rolling-baseline-tbody", 9, [], "暂无滚动基线回放记录");
         return;
       }
       const rollingGap = Number(data.rolling_baseline_replay?.baseline_replay_net_ev || 0) - Number(data.rolling_baseline_replay?.chosen_replay_net_ev || 0);
       if (line) {
         const filterText = (snapshotNeedle || symbolNeedle)
-          ? ` | filter=${snapshotNeedle || "*"} / ${symbolNeedle || "*"}`
+          ? ` | 过滤=${snapshotNeedle || "*"} / ${symbolNeedle || "*"}`
           : "";
-        line.textContent = `窗口 ${formatValidationTime(data.window_start)} -> ${formatValidationTime(data.window_end)} | scans=${Number(data.scan_snapshot_count || 0)} | trades=${Number(data.trade_count || 0)}${filterText}`;
+        const replayTag = data.replay_ready ? "回放就绪" : "回放未就绪";
+        const linkText = `关联=${Number(data.entry_snapshot_linked_trades || 0)} 缺失=${Number(data.missing_entry_snapshot_trades || 0)}`;
+        line.textContent = `北京日窗口 ${formatValidationTime(data.window_start)} → ${formatValidationTime(data.window_end)} | ${replayTag} | ${linkText} | 窗口快照=${Number(data.scan_snapshot_count || 0)}/${Number(data.scan_snapshot_total_count || 0)} | 交易=${Number(data.trade_count || 0)}${filterText}`;
       }
       if (methodology) {
-        methodology.textContent = Array.isArray(data.methodology) && data.methodology.length ? data.methodology.slice(-3).join(" ; ") : "-";
+        methodology.textContent = Array.isArray(data.methodology) && data.methodology.length ? data.methodology.join("；") : "-";
       }
       if (readiness) {
+        const replayPill = data.replay_ready ? "true" : "false";
+        const replayText = data.replay_ready ? "就绪" : "未就绪";
         readiness.innerHTML = `
+          <span class="pill ${replayPill}">回放链路 ${replayText}</span>
           <span class="pill ${data.same_opportunity_set_ready ? "true" : "false"}">机会集 ${data.same_opportunity_set_ready ? "就绪" : "缺失"}</span>
           <span class="pill ${data.same_cost_model_ready ? "true" : "false"}">成本模型 ${data.same_cost_model_ready ? "就绪" : "缺失"}</span>
           <span class="pill ${data.same_risk_budget_ready ? "true" : "false"}">风险预算 ${data.same_risk_budget_ready ? "就绪" : "缺失"}</span>`;
@@ -2373,8 +2420,8 @@
           <td>${formatValidationMoney(item.baseline_net_ev)}</td>
           <td>${formatValidationMoney(item.net_ev_gap)}</td>
           <td>${formatValidationMoney(item.realized_net_pnl)}</td>
-          <td><span class="pill ${item.used_fallback ? "medium" : "low"}">${item.used_fallback ? "fallback" : "strict"}</span></td>
-        </tr>`), "暂无匹配当前过滤条件的 shadow portfolio 记录");
+          <td><span class="pill ${item.used_fallback ? "medium" : "low"}">${item.used_fallback ? "兜底" : "严格"}</span></td>
+        </tr>`), "暂无匹配当前过滤条件的影子组合记录");
 
       renderValidationTableBody("cv-counterfactual-tbody", 8, (data.counterfactual_replay?.records || []).slice(0, detailLimit).map((item) => `
         <tr>
@@ -2386,7 +2433,7 @@
           <td>${formatValidationMoney(item.baseline_net_ev)}</td>
           <td>${formatValidationMoney(item.selection_drag)}</td>
           <td>${escapeHTML(String(Number(item.max_concurrent || 0)))} / ${formatValidationMoney(item.max_position_usdt)}</td>
-        </tr>`), "暂无匹配当前过滤条件的 counterfactual replay 记录");
+        </tr>`), "暂无匹配当前过滤条件的反事实回放记录");
 
       renderValidationTableBody("cv-baseline-portfolio-tbody", 7, (data.baseline_portfolio_replay?.records || []).slice(0, detailLimit).map((item) => `
         <tr>
@@ -2397,7 +2444,7 @@
           <td>${formatValidationMoney(item.baseline_portfolio_net_ev)}</td>
           <td>${escapeHTML(formatValidationList(item.chosen_pairs))}</td>
           <td>${escapeHTML(formatValidationList(item.baseline_pairs))}</td>
-        </tr>`), "暂无匹配当前过滤条件的 baseline portfolio replay 记录");
+        </tr>`), "暂无匹配当前过滤条件的基线组合回放记录");
 
       renderValidationTableBody("cv-rolling-baseline-tbody", 9, (data.rolling_baseline_replay?.records || []).slice(0, Math.max(detailLimit, 12)).map((item) => `
         <tr>
@@ -2463,7 +2510,7 @@
       if (selectedVenue !== "all") { return; }
       const [positionsResult, validationResult] = await Promise.allSettled([
         loadJSON("/api/cross-venue/positions"),
-        loadJSON("/api/cross-venue/validation?window_hours=72"),
+        loadJSON("/api/cross-venue/validation?window=beijing_day"),
       ]);
       if (positionsResult.status === "fulfilled") {
         renderCrossVenuePanel(positionsResult.value);
@@ -2475,7 +2522,7 @@
       if (validationResult.status === "fulfilled") {
         renderCrossVenueValidation(validationResult.value, "");
       } else {
-        renderCrossVenueValidation(null, "validation 回放读取失败: " + validationResult.reason.message);
+        renderCrossVenueValidation(null, "校验回放读取失败: " + validationResult.reason.message);
       }
     }
 

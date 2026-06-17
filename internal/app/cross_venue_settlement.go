@@ -63,7 +63,8 @@ type CrossVenueSettlement struct {
 	EstimatedFunding        float64   `json:"estimated_funding,omitempty"`
 	RealizedFunding         float64   `json:"realized_funding"`
 	RealizedFundingComplete bool      `json:"realized_funding_complete,omitempty"`
-	FundingTruthStatus      string    `json:"funding_truth_status,omitempty"`
+	FundingTruthStatus      string    `json:"funding_truth_status"`
+	AttributionIncomplete   bool      `json:"attribution_incomplete,omitempty"`
 	TradePnL                float64   `json:"trade_pnl"`
 	OpenFees                float64   `json:"open_fees"`
 	CloseFees               float64   `json:"close_fees"`
@@ -122,6 +123,11 @@ func buildCrossVenueSettlement(pos CrossVenuePosition, closeTime time.Time) Cros
 	// 执行质量量,绝不可再从 net_pnl 扣减(否则重复计数,见 cost_accounting.go 第 64-74 行注释)。
 	netPnL := money.SumUSDT(realizedFunding, tradePnL, -totalFees, -attr.RollbackCostUSDT, -attr.RebalanceCostUSDT)
 
+	fundingStatus := strings.TrimSpace(pos.FundingTruthStatus)
+	if fundingStatus == "" {
+		fundingStatus = "unknown"
+	}
+
 	return CrossVenueSettlement{
 		SettlementID:            crossVenueSettlementID(pos),
 		PositionKey:             crossVenuePositionKey(pos),
@@ -143,7 +149,8 @@ func buildCrossVenueSettlement(pos CrossVenuePosition, closeTime time.Time) Cros
 		EstimatedFunding:        pos.EstFundingUSDT,
 		RealizedFunding:         realizedFunding,
 		RealizedFundingComplete: pos.RealizedFundingComplete,
-		FundingTruthStatus:      pos.FundingTruthStatus,
+		FundingTruthStatus:      fundingStatus,
+		AttributionIncomplete:   pos.AttributionIncomplete,
 		TradePnL:                tradePnL,
 		OpenFees:                openFees,
 		CloseFees:               closeFees,

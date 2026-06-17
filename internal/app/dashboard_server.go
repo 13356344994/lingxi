@@ -37,8 +37,9 @@ type DashboardServer struct {
 	auditStore   *DashboardAuditStore
 	controlToken string
 	logger       *log.Logger
-	indexTmpl    *template.Template
-	startedAt    time.Time
+	indexTmpl              *template.Template
+	unifiedLeaderboardTmpl *template.Template
+	startedAt              time.Time
 	// tokenMirrorDir 是控制令牌文件的固定镜像目录(全局 records/)。Primary 所随注册顺序漂移时,
 	// 令牌会被写进 records/<primary>/ —— 路径每次重启都可能不同,用户 cat 旧路径拿到的是过期令牌。
 	// 镜像保证 `cat records/.dashboard_control_token` 永远有效。
@@ -104,6 +105,10 @@ func NewDashboardServer(addr string, orch *Orchestrator, logger *log.Logger) (*D
 	if err != nil {
 		return nil, fmt.Errorf("解析 Web 面板模板失败: %w", err)
 	}
+	unifiedLeaderboardTmpl, err := template.ParseFS(webPanelFS, "webpanel/unified_leaderboard.html")
+	if err != nil {
+		return nil, fmt.Errorf("解析统一机会排行榜模板失败: %w", err)
+	}
 	auditStore, err := NewDashboardAuditStore(filepath.Join(store.RecordDir(), dashboardAuditLogJSONLName))
 	if err != nil {
 		return nil, err
@@ -116,8 +121,9 @@ func NewDashboardServer(addr string, orch *Orchestrator, logger *log.Logger) (*D
 		auditStore:   auditStore,
 		controlToken: randomDashboardToken(),
 		logger:       logger,
-		indexTmpl:    indexTmpl,
-		startedAt:    time.Now(),
+		indexTmpl:              indexTmpl,
+		unifiedLeaderboardTmpl: unifiedLeaderboardTmpl,
+		startedAt:              time.Now(),
 	}, nil
 }
 
@@ -144,6 +150,8 @@ func (s *DashboardServer) Start(ctx context.Context) error {
 	mux.HandleFunc("/api/runtime/status", s.authorizeReadAPI(s.handleRuntimeStatusAPI))
 	mux.HandleFunc("/api/runtime/logs", s.authorizeReadAPI(s.handleRuntimeLogsAPI))
 	mux.HandleFunc("/api/unified-events", s.authorizeReadAPI(s.handleUnifiedEventsAPI))
+	mux.HandleFunc("/api/unified/leaderboard", s.authorizeReadAPI(s.handleUnifiedLeaderboardAPI))
+	mux.HandleFunc("/unified/leaderboard", s.handleUnifiedLeaderboardPage)
 	mux.HandleFunc("/api/execution-incidents", s.authorizeReadAPI(s.handleExecutionIncidentsAPI))
 	mux.HandleFunc("/api/domain-events", s.authorizeReadAPI(s.handleDomainEventsAPI))
 	mux.HandleFunc("/api/runtime/config", s.authorizeReadAPI(s.handleRuntimeConfigAPI))
@@ -1053,8 +1061,17 @@ func (s *DashboardServer) handleCrossVenueValidationAPI(w http.ResponseWriter, r
 		writeJSON(w, map[string]any{"enabled": false, "message": "跨所执行引擎未启用"})
 		return
 	}
-	windowHours := parsePositiveFloatQuery(r, "window_hours", 24)
-	resp, err := s.crossVenueExecutor.ValidationSnapshot(time.Duration(windowHours * float64(time.Hour)))
+	window := strings.TrimSpace(r.URL.Query().Get("window"))
+	var resp CrossVenueValidationSnapshot
+	var err error
+	switch strings.ToLower(window) {
+	case "beijing_day", "today_cst", "today":
+		now := time.Now()
+		resp, err = s.crossVenueExecutor.ValidationSnapshotSince(beijingCSTDayStart(now), now)
+	default:
+		windowHours := parsePositiveFloatQuery(r, "window_hours", 24)
+		resp, err = s.crossVenueExecutor.ValidationSnapshot(time.Duration(windowHours * float64(time.Hour)))
+	}
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -1100,7 +1117,7 @@ func (s *DashboardServer) handleEarningsAPI(w http.ResponseWriter, r *http.Reque
 
 	if s.crossVenueExecutor == nil {
 		writeJSON(w, map[string]any{
-			"basis":         "settlements_net_pnl",
+			"basis":         "equity_snapshot_delta",
 			"window":        "beijing_cst_day",
 			"day_start_cst": dayStart.Format(time.RFC3339),
 			"generated_at":  now.Format(time.RFC3339),
@@ -1109,27 +1126,28 @@ func (s *DashboardServer) handleEarningsAPI(w http.ResponseWriter, r *http.Reque
 			"by_symbol":     map[string]float64{},
 			"by_venue":      byVenue,
 			"total":         total,
-			"note":          "跨所执行引擎未启用,无结算记录",
+			"note":          "跨所执行引擎未启用,无权益快照",
 		})
 		return
 	}
 
-	earnings, err := s.crossVenueExecutor.TodayCSTEarnings(now)
+	settlements, err := s.crossVenueExecutor.TodayCSTEarnings(now)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	writeJSON(w, map[string]any{
-		"basis":         "settlements_net_pnl",
-		"window":        "beijing_cst_day",
-		"day_start_cst": earnings.DayStartCST.Format(time.RFC3339),
-		"generated_at":  earnings.GeneratedAt.Format(time.RFC3339),
-		"total_usdt":    earnings.TotalNetPnL,
-		"trade_count":   earnings.TradeCount,
-		"by_symbol":     earnings.BySymbol,
-		"by_venue":      byVenue,
-		"total":         total,
+		"basis":                "equity_snapshot_delta",
+		"window":               "beijing_cst_day",
+		"day_start_cst":        dayStart.Format(time.RFC3339),
+		"generated_at":         now.Format(time.RFC3339),
+		"total_usdt":           total.TodayEarningUSDT,
+		"settlements_net_pnl":  settlements.TotalNetPnL,
+		"trade_count":          settlements.TradeCount,
+		"by_symbol_settlement": settlements.BySymbol,
+		"by_venue":             byVenue,
+		"total":                total,
 	})
 }
 
@@ -1153,6 +1171,53 @@ func (s *DashboardServer) handleEarningsClearAPI(w http.ResponseWriter, r *http.
 	}
 	s.auditControlAction(r, "earnings_clear", true, fmt.Sprintf("removed=%d", removed))
 	writeJSON(w, map[string]any{"ok": true, "removed": removed, "message": fmt.Sprintf("已清除 %d 条 24 小时以外的权益快照", removed)})
+}
+
+func (s *DashboardServer) resolveUnifiedCandidatesLogPath() string {
+	if s.crossVenueExecutor != nil {
+		return s.crossVenueExecutor.UnifiedCandidatesLogPath()
+	}
+	base := s.store.RecordDir()
+	candidatesPath := UnifiedCandidatesLogPath(base)
+	if _, err := os.Stat(candidatesPath); err == nil {
+		return candidatesPath
+	}
+	parent := filepath.Dir(base)
+	if parent != base && parent != "" && parent != "." {
+		return UnifiedCandidatesLogPath(parent)
+	}
+	return candidatesPath
+}
+
+func (s *DashboardServer) handleUnifiedLeaderboardAPI(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	limit := parseLimit(r, 50)
+	resp, err := LoadUnifiedLeaderboard(s.resolveUnifiedCandidatesLogPath(), limit)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, resp)
+}
+
+func (s *DashboardServer) handleUnifiedLeaderboardPage(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if s.unifiedLeaderboardTmpl == nil {
+		http.Error(w, "页面模板未加载", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+	w.Header().Set("Pragma", "no-cache")
+	w.Header().Set("Expires", "0")
+	if err := s.unifiedLeaderboardTmpl.Execute(w, nil); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
 
 func writeJSON(w http.ResponseWriter, payload any) {

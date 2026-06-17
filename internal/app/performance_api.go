@@ -128,15 +128,16 @@ type VenuesFinancialTotal struct {
 	TodayReturnRate   float64 `json:"today_return_rate"`
 }
 
-// todayReturnRate 今日收益率 = today_earning_usdt / equity_usdt;equity≤0 时返回 0 避免除零。
-func todayReturnRate(earningUSDT, equityUSDT float64) float64 {
-	if equityUSDT <= 0 {
+// todayReturnRate 今日收益率 = 今日真实资金变化 / 日初基准账户总值;基准≤0 时返回 0 避免除零。
+func todayReturnRate(earningUSDT, baselineUSDT float64) float64 {
+	if baselineUSDT <= 0 {
 		return 0
 	}
-	return earningUSDT / equityUSDT
+	return earningUSDT / baselineUSDT
 }
 
-// buildVenuesFinancialSnapshot 聚合各所可调 USDT 余额(实时快照)、钱包总额(本金,不含浮盈亏)与跨所结算今日按腿归因收益。
+// buildVenuesFinancialSnapshot 聚合各所可调 USDT 余额(实时快照)、钱包总额(本金,不含浮盈亏)与
+// 今日真实账户总值变化(equity_snapshots 日界 delta,非 settlements 已实现净利)。
 func (s *DashboardServer) buildVenuesFinancialSnapshot(now time.Time) (map[string]VenueFinancialSnapshot, VenuesFinancialTotal, time.Time) {
 	dayStart := beijingCSTDayStart(now)
 	byVenue := make(map[string]VenueFinancialSnapshot)
@@ -144,10 +145,16 @@ func (s *DashboardServer) buildVenuesFinancialSnapshot(now time.Time) (map[strin
 	ctx := context.Background()
 
 	var venueEarnings map[string]float64
+	var venueBaselines map[string]float64
 	if s != nil && s.crossVenueExecutor != nil {
-		if earnings, err := s.crossVenueExecutor.TodayCSTEarningsByVenue(now); err == nil {
-			venueEarnings = earnings.ByVenue
-			total.TodayEarningUSDT = earnings.TotalNetPnL
+		deltas, _, baselines, snapDayStart, _ := s.crossVenueExecutor.TodayCSTEquityDeltas(now)
+		if !snapDayStart.IsZero() {
+			dayStart = snapDayStart
+		}
+		venueEarnings = deltas
+		venueBaselines = baselines
+		for _, delta := range deltas {
+			total.TodayEarningUSDT = money.SumUSDT(total.TodayEarningUSDT, delta)
 		}
 	}
 
@@ -182,11 +189,23 @@ func (s *DashboardServer) buildVenuesFinancialSnapshot(now time.Time) (map[strin
 			if venueEarnings != nil {
 				entry.TodayEarningUSDT = venueEarnings[rt.name]
 			}
-			entry.TodayReturnRate = todayReturnRate(entry.TodayEarningUSDT, entry.EquityUSDT)
+			baseline := entry.EquityUSDT
+			if venueBaselines != nil {
+				if b, ok := venueBaselines[rt.name]; ok && b > 0 {
+					baseline = b
+				}
+			}
+			entry.TodayReturnRate = todayReturnRate(entry.TodayEarningUSDT, baseline)
 			byVenue[rt.name] = entry
 		}
 	}
-	total.TodayReturnRate = todayReturnRate(total.TodayEarningUSDT, total.EquityUSDT)
+	totalBaseline := total.EquityUSDT - total.TodayEarningUSDT
+	if totalBaseline <= 0 && venueBaselines != nil {
+		for _, b := range venueBaselines {
+			totalBaseline = money.SumUSDT(totalBaseline, b)
+		}
+	}
+	total.TodayReturnRate = todayReturnRate(total.TodayEarningUSDT, totalBaseline)
 	return byVenue, total, dayStart
 }
 

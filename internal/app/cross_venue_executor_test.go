@@ -1684,6 +1684,9 @@ func TestCrossVenueValidationSnapshot(t *testing.T) {
 	if got.ScanSnapshotCount != 3 || got.ShadowMatchedTrades != 2 {
 		t.Fatalf("shadow coverage mismatch: %+v", got)
 	}
+	if !got.ReplayReady || got.EntrySnapshotLinkedTrades != 2 || got.MissingEntrySnapshotTrades != 0 || got.ScanSnapshotTotalCount != 3 {
+		t.Fatalf("replay readiness mismatch: %+v", got)
+	}
 	if !got.SameOpportunitySetReady || !got.SameCostModelReady || !got.SameRiskBudgetReady {
 		t.Fatalf("validation readiness mismatch: %+v", got)
 	}
@@ -1746,6 +1749,75 @@ func TestCrossVenueValidationSnapshot(t *testing.T) {
 	}
 	if len(got.NoTradeReasonsTop) == 0 || got.NoTradeReasonsTop[0].Reason != "execution<0.50" || got.NoTradeReasonsTop[0].Count != 3 {
 		t.Fatalf("reason aggregation mismatch: %+v", got.NoTradeReasonsTop)
+	}
+}
+
+func TestCrossVenueValidationSnapshotFallback(t *testing.T) {
+	dir := t.TempDir()
+	now := time.Date(2026, 6, 16, 12, 0, 0, 0, time.UTC)
+	e := &CrossVenueExecutor{
+		cfg:       testCrossVenueExecutorConfig(),
+		store:     mustCrossVenueStore(t, dir),
+		nowFn:     func() time.Time { return now },
+		recordDir: dir,
+	}
+	if err := os.MkdirAll(crossVenueRecordDir(dir), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	openTime := now.Add(-2 * time.Hour)
+	settlements := []CrossVenueSettlement{
+		{
+			SettlementID: "via-current", Symbol: "BTC-USDT", OpenTime: openTime, CloseTime: now.Add(-time.Hour),
+			CurrentSnapshotID: "snap-btc", HighVenue: "bybit", LowVenue: "okx", NotionalUSDT: 50,
+			NetPnL: 1, TotalFees: 0.2, OpenSlippage: -0.1, CloseSlippage: 0.05,
+		},
+		{
+			SettlementID: "via-nearest", Symbol: "ETH-USDT", OpenTime: openTime, CloseTime: now.Add(-30 * time.Minute),
+			HighVenue: "binance", LowVenue: "gate", NotionalUSDT: 40, NetPnL: 2,
+		},
+	}
+	var settlementLines []string
+	for _, rec := range settlements {
+		data, _ := json.Marshal(rec)
+		settlementLines = append(settlementLines, string(data))
+	}
+	if err := os.WriteFile(filepath.Join(crossVenueRecordDir(dir), crossVenueSettlementsFileName), []byte(strings.Join(settlementLines, "\n")+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	scans := []crossVenueScanLogRecord{
+		{
+			SnapshotID: "snap-btc", ScannedAt: openTime.Add(-10 * time.Minute), MaxConcurrent: 2,
+			Opportunities: []CrossVenueOpportunity{
+				{Symbol: "BTC-USDT", HighVenue: "bybit", LowVenue: "okx", NetEV: 3.0, RankScore: 0.9},
+			},
+		},
+		{
+			SnapshotID: "snap-eth", ScannedAt: openTime.Add(-5 * time.Minute), MaxConcurrent: 2,
+			Opportunities: []CrossVenueOpportunity{
+				{Symbol: "ETH-USDT", HighVenue: "binance", LowVenue: "gate", NetEV: 2.5, RankScore: 0.9},
+			},
+		},
+	}
+	var scanLines []string
+	for _, rec := range scans {
+		data, _ := json.Marshal(rec)
+		scanLines = append(scanLines, string(data))
+	}
+	if err := os.WriteFile(filepath.Join(crossVenueRecordDir(dir), crossVenueScanLogFileName), []byte(strings.Join(scanLines, "\n")+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got, err := e.ValidationSnapshot(24 * time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.TradeCount != 2 || got.EntrySnapshotLinkedTrades != 2 || got.MissingEntrySnapshotTrades != 0 || !got.ReplayReady {
+		t.Fatalf("fallback linkage mismatch: %+v", got)
+	}
+	if math.Abs(got.ExecutionDrag-0.25) > 1e-9 {
+		t.Fatalf("execution drag should ignore negative slippage, got=%v", got.ExecutionDrag)
+	}
+	if got.ShadowMatchedTrades != 2 {
+		t.Fatalf("shadow matched mismatch: %+v", got)
 	}
 }
 

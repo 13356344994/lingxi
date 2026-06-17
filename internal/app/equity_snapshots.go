@@ -126,6 +126,14 @@ func (e *CrossVenueExecutor) RunEquitySampler(ctx context.Context) {
 	}
 }
 
+// TodayCSTEquityDeltas 按北京时间自然日界,用 equity_snapshots 计算各所账户总值相对日初的真实变化。
+// 返回值: deltas(今日变化)、currents(当前快照)、baselines(日界后首条快照)、dayStart、earliestBaselineTS。
+func (e *CrossVenueExecutor) TodayCSTEquityDeltas(now time.Time) (deltas, currents, baselines map[string]float64, dayStart, earliestBaseline time.Time) {
+	dayStart = beijingCSTDayStart(now)
+	deltas, currents, baselines, earliestBaseline = e.equityEarnings(dayStart)
+	return deltas, currents, baselines, dayStart, earliestBaseline
+}
+
 func (e *CrossVenueExecutor) equityEarnings(windowStart time.Time) (deltas, currents, baselines map[string]float64, earliest time.Time) {
 	deltas = make(map[string]float64)
 	currents = make(map[string]float64)

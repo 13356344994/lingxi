@@ -124,6 +124,8 @@ type CrossVenuePosition struct {
 	CloseAttempts int `json:"close_attempts,omitempty"`
 	// CloseReason 首次触发平仓的原因(跨轮重试时沿用,日志/告警可追溯)。
 	CloseReason string `json:"close_reason,omitempty"`
+	// AttributionIncomplete 平仓/回滚/再平衡成交量无法可靠归一化为币数量(如 gate/okx ContractSize lookup 失败)。
+	AttributionIncomplete bool `json:"attribution_incomplete,omitempty"`
 	// CrossVenueAttribution 开/平/回滚/再平衡阶段的费用与滑点观测累加(供平仓结算归因)。
 	// 【关键】必须匿名内嵌(而非命名字段):命名的结构体值字段 omitempty 对 struct 无效,零值会
 	// 序列化成 "attribution":{},令旧台账(无该键)重算 state_envelope 校验和失配而拒绝自动接管在场实盘仓;

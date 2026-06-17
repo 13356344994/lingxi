@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>统一机会排行榜</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 0; background: #0f172a; color: #e2e8f0; }
+    .container { max-width: 1400px; margin: 0 auto; padding: 24px; }
+    h1 { margin: 0 0 8px 0; }
+    .meta { color: #94a3b8; margin-bottom: 20px; font-size: 14px; }
+    .toolbar { margin-bottom: 16px; }
+    .toolbar a { color: #93c5fd; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 24px; }
+    th, td { border: 1px solid #334155; padding: 8px 10px; text-align: left; vertical-align: top; }
+    th { background: #1e293b; position: sticky; top: 0; }
+    tr:nth-child(even) { background: #111827; }
+    .ok { color: #4ade80; }
+    .no { color: #f87171; }
+    .section { margin-top: 28px; }
+    .pill { display: inline-block; background: #334155; border-radius: 999px; padding: 2px 8px; margin: 2px 4px 2px 0; font-size: 12px; }
+    pre { white-space: pre-wrap; word-break: break-word; margin: 0; }
+    .error { color: #fca5a5; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>统一机会排行榜（只读）</h1>
+    <div class="meta" id="meta">加载中…</div>
+    <div class="toolbar"><a href="/">← 返回主面板</a> · <button id="refresh">刷新</button></div>
+    <div id="error" class="error"></div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>策略</th>
+          <th>Symbol</th>
+          <th>交易所</th>
+          <th>净EV (USDT)</th>
+          <th>资本效率</th>
+          <th>占用资金</th>
+          <th>排名说明</th>
+          <th>可执行</th>
+          <th>拒绝原因</th>
+        </tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+
+    <div class="section">
+      <h2>风险闸 Top 拒绝原因</h2>
+      <div id="reject-top"></div>
+    </div>
+    <div class="section">
+      <h2>交易所资金不足 Top</h2>
+      <div id="capital-top"></div>
+    </div>
+  </div>
+  <script>
+    function fmt(n, d) { return (n == null || Number.isNaN(n)) ? '—' : Number(n).toFixed(d ?? 4); }
+    function esc(s) { const d = document.createElement('div'); d.textContent = s ?? ''; return d.innerHTML; }
+    function renderCapital(map) {
+      if (!map) return '—';
+      return Object.entries(map).map(([k,v]) => esc(k)+': '+fmt(v,2)).join('<br>');
+    }
+    async function load() {
+      const errEl = document.getElementById('error');
+      errEl.textContent = '';
+      try {
+        const res = await fetch('/api/unified/leaderboard?limit=50');
+        if (!res.ok) throw new Error(await res.text());
+        const data = await res.json();
+        document.getElementById('meta').innerHTML =
+          'cycle: <strong>'+esc(data.cycle_id || '—')+'</strong> · '+
+          '候选 '+data.total_candidates+' · 可执行 '+data.would_execute_count+' · '+
+          esc(data.generated_at)+'<br>数据源: '+esc(data.source_path);
+        const tbody = document.getElementById('rows');
+        tbody.innerHTML = '';
+        (data.opportunities || []).forEach(o => {
+          const tr = document.createElement('tr');
+          tr.innerHTML =
+            '<td>'+o.rank+'</td>'+
+            '<td>'+esc(o.strategy_type)+'</td>'+
+            '<td>'+esc(o.symbol)+'</td>'+
+            '<td>'+(o.venues||[]).map(v=>'<span class="pill">'+esc(v)+'</span>').join('')+'</td>'+
+            '<td>'+fmt(o.expected_net_ev_usdt,4)+'</td>'+
+            '<td>'+fmt(o.primary_sort_key,6)+'</td>'+
+            '<td>'+renderCapital(o.capital_required_by_venue)+'</td>'+
+            '<td><pre>'+esc(o.rank_reason)+'</pre></td>'+
+            '<td class="'+(o.would_execute?'ok':'no')+'">'+(o.would_execute?'是':'否')+'</td>'+
+            '<td><pre>'+esc((o.reject_reasons||[]).join('\\n') || '—')+'</pre></td>';
+          tbody.appendChild(tr);
+        });
+        document.getElementById('reject-top').innerHTML = (data.reject_reasons_top||[]).length
+          ? '<table><tr><th>原因</th><th>次数</th></tr>'+
+            data.reject_reasons_top.map(r=>'<tr><td>'+esc(r.reason)+'</td><td>'+r.count+'</td></tr>').join('')+
+            '</table>'
+          : '<em>无</em>';
+        document.getElementById('capital-top').innerHTML = (data.venue_capital_insufficient_top||[]).length
+          ? '<table><tr><th>交易所</th><th>次数</th></tr>'+
+            data.venue_capital_insufficient_top.map(r=>'<tr><td>'+esc(r.venue)+'</td><td>'+r.count+'</td></tr>').join('')+
+            '</table>'
+          : '<em>无</em>';
+      } catch (e) {
+        errEl.textContent = '加载失败: '+e.message;
+      }
+    }
+    document.getElementById('refresh').addEventListener('click', load);
+    load();
+  </script>
+</body>
+</html>

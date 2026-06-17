@@ -1,0 +1,72 @@
+{
+  "BTCUSDT": {
+    "funding_points": 270,
+    "positive_pct": 55.9,
+    "avg_rate_per_8h": 3.7951851851851856e-06,
+    "avg_apr_pct": 0.42,
+    "spot_points": 270
+  },
+  "ETHUSDT": {
+    "funding_points": 270,
+    "positive_pct": 55.9,
+    "avg_rate_per_8h": 3.934555555555556e-06,
+    "avg_apr_pct": 0.43,
+    "spot_points": 270
+  },
+  "SOLUSDT": {
+    "funding_points": 270,
+    "positive_pct": 41.5,
+    "avg_rate_per_8h": -2.5318037037037036e-05,
+    "avg_apr_pct": -2.77,
+    "spot_points": 270
+  },
+  "BNBUSDT": {
+    "funding_points": 270,
+    "positive_pct": 44.4,
+    "avg_rate_per_8h": 2.104244444444445e-05,
+    "avg_apr_pct": 2.3,
+    "spot_points": 270
+  },
+  "XRPUSDT": {
+    "funding_points": 270,
+    "positive_pct": 44.1,
+    "avg_rate_per_8h": -9.7492962962963e-06,
+    "avg_apr_pct": -1.07,
+    "spot_points": 270
+  },
+  "DOGEUSDT": {
+    "funding_points": 270,
+    "positive_pct": 65.9,
+    "avg_rate_per_8h": 2.5047074074074076e-05,
+    "avg_apr_pct": 2.74,
+    "spot_points": 270
+  },
+  "ADAUSDT": {
+    "funding_points": 270,
+    "positive_pct": 57.8,
+    "avg_rate_per_8h": 8.008999999999994e-06,
+    "avg_apr_pct": 0.88,
+    "spot_points": 270
+  },
+  "AVAXUSDT": {
+    "funding_points": 270,
+    "positive_pct": 61.9,
+    "avg_rate_per_8h": 1.3813962962962948e-05,
+    "avg_apr_pct": 1.51,
+    "spot_points": 270
+  },
+  "LINKUSDT": {
+    "funding_points": 270,
+    "positive_pct": 76.3,
+    "avg_rate_per_8h": 3.570400000000001e-05,
+    "avg_apr_pct": 3.91,
+    "spot_points": 270
+  },
+  "SUIUSDT": {
+    "funding_points": 270,
+    "positive_pct": 66.7,
+    "avg_rate_per_8h": 1.9494370370370376e-05,
+    "avg_apr_pct": 2.13,
+    "spot_points": 270
+  }
+}

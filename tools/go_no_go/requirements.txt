@@ -1,0 +1,2 @@
+# No third-party packages required.
+# This tool uses Python 3.10+ standard library only (json, pathlib, dataclasses, statistics).
