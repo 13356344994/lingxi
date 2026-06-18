@@ -708,11 +708,12 @@
           <table class="data-table" id="rotation-open-table">
             <thead>
               <tr>
-                <th>Symbol</th><th>策略</th><th>状态</th><th>腿(所/方向/量/入场)</th>
-                <th>名义(U)</th><th>开仓费</th><th>预计平仓费</th><th>已累计资费</th><th>预期净EV</th><th>持有时长</th>
+                <th>Symbol</th><th>策略</th><th>状态</th>
+                <th>现货腿</th><th>永续腿</th>
+                <th>名义(U)</th><th>已累计资费</th><th>手续费(开+预计平)</th><th>总盈亏(U)</th><th>盈亏比例</th><th>预期净EV</th><th>持有时长</th>
               </tr>
             </thead>
-            <tbody id="rotation-open-tbody"><tr><td colspan="10" class="hint">加载中…</td></tr></tbody>
+            <tbody id="rotation-open-tbody"><tr><td colspan="12" class="hint">加载中…</td></tr></tbody>
           </table>
         </div>
         <h3 style="font-size:14px;color:#cbd5e1;margin:0 0 8px;">历史 / 已平仓 (开→平→换)</h3>
@@ -720,10 +721,10 @@
           <table class="data-table" id="rotation-closed-table">
             <thead>
               <tr>
-                <th>Symbol</th><th>策略</th><th>所</th><th>开→平</th><th>已实现净利</th><th>资费</th><th>开+平费</th><th>原因</th><th>持有时长</th>
+                <th>Symbol</th><th>策略</th><th>所</th><th>开→平</th><th>已实现净利</th><th>盈亏比例</th><th>资费</th><th>开+平费</th><th>原因</th><th>持有时长</th>
               </tr>
             </thead>
-            <tbody id="rotation-closed-tbody"><tr><td colspan="9" class="hint">加载中…</td></tr></tbody>
+            <tbody id="rotation-closed-tbody"><tr><td colspan="10" class="hint">加载中…</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -3621,6 +3622,48 @@
       return map[String(code || "").toLowerCase()] || String(code || "-");
     }
 
+    function pnlColor(n) {
+      return Number(n || 0) >= 0 ? "#86efac" : "#fca5a5";
+    }
+
+    function fmtPnL(n, digits) {
+      if (n == null || !Number.isFinite(Number(n))) return "-";
+      const v = Number(n);
+      const s = v >= 0 ? "+" : "";
+      return s + v.toFixed(digits == null ? 4 : digits);
+    }
+
+    function fmtPctRatio(ratio) {
+      if (ratio == null || !Number.isFinite(Number(ratio))) return "-";
+      const v = Number(ratio) * 100;
+      const s = v >= 0 ? "+" : "";
+      return s + v.toFixed(2) + "%";
+    }
+
+    function marketTypeLabel(t) {
+      const v = String(t || "").toLowerCase();
+      if (v === "perp") return "永续";
+      if (v === "spot") return "现货";
+      return v || "-";
+    }
+
+    function formatRotationLegCell(leg) {
+      if (!leg) return "-";
+      const venue = leg.venue || "-";
+      const type = marketTypeLabel(leg.market_type);
+      const entry = Number(leg.entry_price || 0).toFixed(4);
+      const cur = leg.price_unavailable ? "N/A" : (leg.current_price > 0 ? Number(leg.current_price).toFixed(4) : "-");
+      const legPnL = leg.leg_unrealized_pnl_usdt;
+      const pnlHtml = legPnL == null
+        ? '<span class="hint">-</span>'
+        : `<span style="color:${pnlColor(legPnL)}">${fmtPnL(legPnL)}</span>`;
+      return `<div style="font-size:11px;line-height:1.45;white-space:normal;min-width:140px;">
+        <div>${escapeHTML(venue)} · ${escapeHTML(type)} · ${escapeHTML(leg.side || "-")}</div>
+        <div>开 ${entry} → 现 ${escapeHTML(cur)}</div>
+        <div>盈亏 ${pnlHtml} U</div>
+      </div>`;
+    }
+
     function formatLegsRow(spotLeg, perpLeg) {
       const fmtLeg = (leg) => {
         if (!leg) return "-";
@@ -3642,43 +3685,52 @@
           loadJSON("/api/rotation/positions?status=open"),
           loadJSON("/api/rotation/settlements?limit=50"),
         ]);
-        const openRows = (openResp.positions || []).map((p) => `
+        const openRows = (openResp.positions || []).map((p) => {
+          const totalFees = Number(p.total_fees_usdt != null ? p.total_fees_usdt : (Number(p.open_fees_usdt || 0) + Number(p.expected_close_fees_usdt || 0)));
+          const totalPnL = p.total_pnl_usdt;
+          return `
           <tr>
             <td>${escapeHTML(p.symbol || "-")}</td>
             <td>${escapeHTML(strategyLabel(p.strategy_type))}</td>
             <td>${escapeHTML(p.status || "-")}</td>
-            <td style="font-size:11px;white-space:normal;max-width:280px;">${escapeHTML(formatLegsRow(p.spot_leg, p.perp_leg))}</td>
+            <td>${formatRotationLegCell(p.spot_leg)}</td>
+            <td>${formatRotationLegCell(p.perp_leg)}</td>
             <td>${Number(p.notional_usdt || 0).toFixed(2)}</td>
-            <td>${Number(p.open_fees_usdt || 0).toFixed(4)}</td>
-            <td>${Number(p.expected_close_fees_usdt || 0).toFixed(4)}</td>
             <td>${Number(p.accrued_funding_usdt || 0).toFixed(4)}</td>
+            <td>${totalFees.toFixed(4)}</td>
+            <td style="color:${pnlColor(totalPnL)}">${fmtPnL(totalPnL)}</td>
+            <td style="color:${pnlColor(totalPnL)}">${fmtPctRatio(p.pnl_ratio)}</td>
             <td>${Number(p.expected_net_ev_usdt || 0).toFixed(4)}</td>
             <td>${formatHoldDuration(p.hold_duration_sec)}</td>
-          </tr>`).join("");
-        openBody.innerHTML = openRows || `<tr><td colspan="10" class="hint">暂无 OPEN 持仓</td></tr>`;
+          </tr>`;
+        }).join("");
+        openBody.innerHTML = openRows || `<tr><td colspan="12" class="hint">暂无 OPEN 持仓</td></tr>`;
 
         const closedRows = (closedResp.settlements || []).map((s) => {
           const fees = Number(s.open_fees || 0) + Number(s.close_fees || 0);
           const venues = Array.isArray(s.venues) ? s.venues.join("+") : "-";
           const openT = s.open_time ? String(s.open_time).replace("T", " ").slice(0, 19) : "-";
           const closeT = s.close_time ? String(s.close_time).replace("T", " ").slice(0, 19) : "-";
+          const netPnL = Number(s.net_pnl || 0);
+          const pnlRatio = s.pnl_ratio != null ? s.pnl_ratio : (Number(s.notional_usdt || 0) > 0 ? netPnL / Number(s.notional_usdt) : null);
           return `
           <tr>
             <td>${escapeHTML(s.symbol || "-")}</td>
             <td>${escapeHTML(strategyLabel(s.strategy_type))}</td>
             <td>${escapeHTML(venues)}</td>
             <td style="font-size:11px;">${escapeHTML(openT)} → ${escapeHTML(closeT)}</td>
-            <td style="color:${Number(s.net_pnl || 0) >= 0 ? "#86efac" : "#fca5a5"}">${Number(s.net_pnl || 0).toFixed(4)}</td>
+            <td style="color:${pnlColor(netPnL)}">${netPnL.toFixed(4)}</td>
+            <td style="color:${pnlColor(netPnL)}">${fmtPctRatio(pnlRatio)}</td>
             <td>${Number(s.realized_funding || 0).toFixed(4)}</td>
             <td>${fees.toFixed(4)}</td>
             <td>${escapeHTML(s.close_reason || (s.switch_exit ? "switch" : "-"))}</td>
             <td>${formatHoldDuration(s.hold_duration_sec)}</td>
           </tr>`;
         }).join("");
-        closedBody.innerHTML = closedRows || `<tr><td colspan="9" class="hint">暂无历史结算</td></tr>`;
+        closedBody.innerHTML = closedRows || `<tr><td colspan="10" class="hint">暂无历史结算</td></tr>`;
       } catch (err) {
-        openBody.innerHTML = `<tr><td colspan="10" class="hint" style="color:#fca5a5;">加载失败: ${escapeHTML(err.message)}</td></tr>`;
-        closedBody.innerHTML = `<tr><td colspan="9" class="hint" style="color:#fca5a5;">加载失败</td></tr>`;
+        openBody.innerHTML = `<tr><td colspan="12" class="hint" style="color:#fca5a5;">加载失败: ${escapeHTML(err.message)}</td></tr>`;
+        closedBody.innerHTML = `<tr><td colspan="10" class="hint" style="color:#fca5a5;">加载失败</td></tr>`;
       }
     }
 

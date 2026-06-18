@@ -68,6 +68,32 @@ func defaultUnifiedShadowFetchMarketsByVenue(ctx context.Context, venues map[str
 	return out
 }
 
+func unifiedShadowFetchLegMidPrice(ctx context.Context, v venue.Venue, marketType string, sym string) (float64, bool) {
+	sym = strings.TrimSpace(sym)
+	if v == nil || sym == "" {
+		return 0, false
+	}
+	if ctx.Err() != nil {
+		return 0, false
+	}
+	var market venue.Market
+	switch strings.ToLower(strings.TrimSpace(marketType)) {
+	case "perp", "swap", "futures":
+		market = venue.MarketPerp
+	default:
+		market = venue.MarketSpot
+	}
+	bt, err := v.FetchBookTicker(ctx, market, venue.Symbol(sym))
+	if err != nil {
+		return 0, false
+	}
+	mid := (bt.BidPrice + bt.AskPrice) / 2
+	if mid <= 0 {
+		return 0, false
+	}
+	return mid, true
+}
+
 func unifiedShadowFetchOneSymbolMarket(ctx context.Context, v venue.Venue, sym string) (CrossVenueSpotPerpMarketSnap, bool) {
 	sym = strings.TrimSpace(sym)
 	if sym == "" {

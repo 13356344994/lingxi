@@ -27887,3 +27887,902 @@ ceb59db3f11fada5b48f60ddc85314a2 | cycle=
 2026/06/18 10:27:51 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
 2026/06/18 10:27:51 [统一轮动] 安全管理: strategy=single_venue_perp_spot
 2026/06/18 10:27:51 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 10:28:50 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 10:28:50 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 10:28:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 10:28:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 10:28:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 10:28:55 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 10:29:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 10:29:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 10:29:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 10:29:57 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 10:29:57 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 10:29:57 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 10:30:19 [统一轮动] 扫描完成 snapshot=cvsnap-20260618T102147.920900812 funding_symbols=150 candidates=1024 (svsp=379 cvsp=111 svps=381 cvps=120 perp_perp=30)
+2026/06/18 10:30:19 [统一轮动] 决策完成: held=1 candidates=1024 actions=1 live=true
+2026/06/18 10:30:19 [统一轮动] HOLD cross_venue_spot_perp BEL-USDT reason=hold continuation_score=-0.000541 >= adjusted_open_score=-0.004865
+2026/06/18 10:30:50 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 10:30:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 10:30:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 10:30:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 10:30:50 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 10:30:50 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 10:31:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 10:31:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 10:31:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 10:31:55 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 10:31:55 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 10:31:55 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 10:32:36 [跨所扫描] 完成: venues_ok=4/4 opportunities=30 elapsed=48.517s
+2026/06/18 10:32:36 [跨所扫描] 机会 SPY-USDT spread=34.9% high=binance(34.9%) low=bybit(0.0%)
+2026/06/18 10:32:36 [跨所扫描] 机会 ARM-USDT spread=38.7% high=bybit(38.7%) low=binance(0.0%)
+2026/06/18 10:32:36 [跨所扫描] 机会 AAPL-USDT spread=34.4% high=binance(34.4%) low=bybit(0.0%)
+2026/06/18 10:32:36 [跨所扫描] 机会 ZEC-USDT spread=34.9% high=bybit(10.9%) low=binance(-23.9%)
+2026/06/18 10:32:36 [跨所扫描] 机会 NBIS-USDT spread=49.0% high=binance(49.0%) low=bybit(0.0%)
+2026/06/18 10:32:36 [跨所扫描] 机会 BABA-USDT spread=43.6% high=binance(48.8%) low=bybit(5.2%)
+2026/06/18 10:32:36 [跨所扫描] 机会 META-USDT spread=38.8% high=binance(38.8%) low=bybit(0.0%)
+2026/06/18 10:32:36 [跨所扫描] 机会 SAMSUNG-USDT spread=63.7% high=bybit(63.7%) low=binance(0.0%)
+2026/06/18 10:32:36 [跨所扫描] 机会 ARB-USDT spread=31.8% high=bybit(10.9%) low=binance(-20.8%)
+2026/06/18 10:32:36 [跨所扫描] 机会 WDC-USDT spread=32.9% high=bybit(32.9%) low=binance(0.0%)
+2026/06/18 10:32:36 [跨所扫描] 机会 AXTI-USDT spread=62.3% high=okx(62.3%) low=bybit(0.0%)
+2026/06/18 10:32:36 [跨所扫描] 机会 APT-USDT spread=30.2% high=bybit(6.3%) low=gate(-23.9%)
+2026/06/18 10:32:36 [跨所扫描] 机会 MSFT-USDT spread=92.0% high=bybit(102.9%) low=gate(10.9%)
+2026/06/18 10:32:36 [跨所扫描] 机会 CRCL-USDT spread=70.4% high=bybit(84.2%) low=okx(13.8%)
+2026/06/18 10:32:36 [跨所扫描] 机会 ENS-USDT spread=33.9% high=gate(10.9%) low=bybit(-23.0%)
+2026/06/18 10:32:36 [跨所扫描] 机会 MERL-USDT spread=38.9% high=gate(10.9%) low=bybit(-28.0%)
+2026/06/18 10:32:36 [跨所扫描] 机会 SPCX-USDT spread=32.7% high=gate(70.8%) low=bybit(38.1%)
+2026/06/18 10:32:36 [跨所扫描] 机会 INTC-USDT spread=101.6% high=okx(111.4%) low=bybit(9.8%)
+2026/06/18 10:32:36 [跨所扫描] 机会 AGLD-USDT spread=64.0% high=gate(10.9%) low=bybit(-53.0%)
+2026/06/18 10:32:36 [跨所扫描] 机会 EWY-USDT spread=31.3% high=gate(10.9%) low=bybit(-20.4%)
+2026/06/18 10:32:36 [跨所扫描] 机会 ARPA-USDT spread=37.0% high=gate(10.9%) low=bybit(-26.0%)
+2026/06/18 10:32:36 [跨所扫描] 机会 ICP-USDT spread=30.2% high=gate(7.1%) low=bybit(-23.1%)
+2026/06/18 10:32:36 [跨所扫描] 机会 SEI-USDT spread=47.7% high=gate(10.9%) low=bybit(-36.8%)
+2026/06/18 10:32:36 [跨所扫描] 机会 CRWV-USDT spread=36.1% high=bybit(36.1%) low=okx(0.0%)
+2026/06/18 10:32:36 [跨所扫描] 机会 RLC-USDT spread=53.1% high=binance(10.9%) low=gate(-42.1%)
+2026/06/18 10:32:36 [跨所扫描] 机会 KNC-USDT spread=123.9% high=binance(10.9%) low=gate(-112.9%)
+2026/06/18 10:32:36 [跨所扫描] 机会 HD-USDT spread=60.0% high=gate(10.9%) low=binance(-49.0%)
+2026/06/18 10:32:36 [跨所扫描] 机会 SKHYNIX-USDT spread=145.7% high=okx(149.9%) low=binance(4.1%)
+2026/06/18 10:32:36 [跨所扫描] 机会 COHR-USDT spread=95.1% high=binance(98.0%) low=okx(2.9%)
+2026/06/18 10:32:36 [跨所扫描] 机会 XVS-USDT spread=59.2% high=gate(10.1%) low=binance(-49.0%)
+2026/06/18 10:32:36 [跨所扫描] 价差告警(纯观测) INTC-USDT 年化价差 101.6% 空 okx(111.4%/年,间隔 8h) 多 bybit(9.8%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/18 10:32:36 [跨所扫描] 价差告警(纯观测) KNC-USDT 年化价差 123.9% 空 binance(10.9%/年,间隔 8h) 多 gate(-112.9%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/18 10:32:46 [借币探测] ESPORTS: binance不可借 bybit失败 okx失败
+2026/06/18 10:32:46 [借币探测] ARM: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/18 10:32:46 [借币探测] AAPL: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/18 10:32:46 [借币探测] WDC: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/18 10:32:46 [借币探测] META: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/18 10:32:46 [借币探测] SAMSUNG: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/18 10:32:46 [借币探测] SPY: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/18 10:32:46 [借币探测] ARB: binance不可借(缓存) bybit可借(缓存,年化3%) okx可借(缓存,年化1%) gate失败
+2026/06/18 10:32:46 [借币探测] NBIS: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/18 10:32:46 [借币探测] BABA: binance不可借 bybit失败 okx失败 gate失败
+2026/06/18 10:32:46 [借币探测] ZEC: binance不可借 bybit失败 okx可借(年化1%) gate失败
+2026/06/18 10:32:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 10:32:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 10:32:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 10:32:57 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 10:32:57 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 10:32:57 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 10:33:19 [统一轮动] 扫描完成 snapshot=cvsnap-20260618T102147.920900812 funding_symbols=150 candidates=1025 (svsp=380 cvsp=111 svps=382 cvps=119 perp_perp=30)
+2026/06/18 10:33:19 [统一轮动] 决策完成: held=1 candidates=1025 actions=1 live=true
+2026/06/18 10:33:19 [统一轮动] HOLD cross_venue_spot_perp BEL-USDT reason=hold continuation_score=-0.000541 >= adjusted_open_score=-0.004919
+2026/06/18 10:33:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 10:33:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 10:33:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 10:33:50 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 10:33:50 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 10:33:50 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 10:34:50 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 10:34:50 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 10:34:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 10:34:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 10:34:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 10:34:53 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 10:35:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 10:35:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 10:35:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 10:35:58 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 10:35:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 10:35:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 10:36:18 [统一轮动] 扫描完成 snapshot=cvsnap-20260618T103147.920971669 funding_symbols=150 candidates=1022 (svsp=377 cvsp=113 svps=380 cvps=119 perp_perp=30)
+2026/06/18 10:36:18 [统一轮动] 决策完成: held=1 candidates=1022 actions=1 live=true
+2026/06/18 10:36:18 [统一轮动] HOLD cross_venue_spot_perp BEL-USDT reason=hold continuation_score=-0.000541 >= adjusted_open_score=-0.004472
+2026/06/18 10:36:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 10:36:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 10:36:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 10:36:50 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 10:36:50 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 10:36:50 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 10:37:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 10:37:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 10:37:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 10:37:54 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 10:37:54 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 10:37:54 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 10:38:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 10:38:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 10:38:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 10:38:58 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 10:38:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 10:38:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 10:39:18 [统一轮动] 扫描完成 snapshot=cvsnap-20260618T103147.920971669 funding_symbols=150 candidates=1023 (svsp=377 cvsp=114 svps=380 cvps=119 perp_perp=30)
+2026/06/18 10:39:18 [统一轮动] 决策完成: held=1 candidates=1023 actions=1 live=true
+2026/06/18 10:39:18 [统一轮动] HOLD cross_venue_spot_perp BEL-USDT reason=hold continuation_score=-0.000541 >= adjusted_open_score=-0.004965
+2026/06/18 10:39:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 10:39:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 10:39:50 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 10:39:50 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 10:39:50 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 10:39:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 10:40:50 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 10:40:50 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 10:40:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 10:40:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 10:40:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 10:40:53 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 10:41:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 10:41:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 10:41:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 10:41:58 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 10:41:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 10:41:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 10:42:18 [统一轮动] 扫描完成 snapshot=cvsnap-20260618T103147.920971669 funding_symbols=150 candidates=1021 (svsp=376 cvsp=114 svps=379 cvps=119 perp_perp=30)
+2026/06/18 10:42:18 [统一轮动] 决策完成: held=1 candidates=1021 actions=1 live=true
+2026/06/18 10:42:18 [统一轮动] HOLD cross_venue_spot_perp BEL-USDT reason=hold continuation_score=-0.000541 >= adjusted_open_score=-0.004853
+2026/06/18 10:42:36 [跨所扫描] 完成: venues_ok=4/4 opportunities=30 elapsed=48.498s
+2026/06/18 10:42:36 [跨所扫描] 机会 NBIS-USDT spread=44.8% high=binance(44.8%) low=bybit(0.0%)
+2026/06/18 10:42:36 [跨所扫描] 机会 ZEC-USDT spread=34.0% high=bybit(10.9%) low=binance(-23.1%)
+2026/06/18 10:42:36 [跨所扫描] 机会 META-USDT spread=43.6% high=binance(47.2%) low=bybit(3.5%)
+2026/06/18 10:42:36 [跨所扫描] 机会 SPY-USDT spread=35.3% high=binance(35.3%) low=bybit(0.0%)
+2026/06/18 10:42:36 [跨所扫描] 机会 BABA-USDT spread=40.8% high=binance(53.8%) low=bybit(13.0%)
+2026/06/18 10:42:36 [跨所扫描] 机会 AAPL-USDT spread=30.8% high=binance(30.8%) low=bybit(0.0%)
+2026/06/18 10:42:36 [跨所扫描] 机会 SAMSUNG-USDT spread=57.3% high=bybit(57.3%) low=binance(0.0%)
+2026/06/18 10:42:36 [跨所扫描] 机会 ARB-USDT spread=30.6% high=bybit(10.9%) low=binance(-19.7%)
+2026/06/18 10:42:36 [跨所扫描] 机会 ARPA-USDT spread=53.1% high=gate(10.9%) low=bybit(-42.2%)
+2026/06/18 10:42:36 [跨所扫描] 机会 CORE-USDT spread=35.7% high=gate(10.9%) low=bybit(-24.8%)
+2026/06/18 10:42:36 [跨所扫描] 机会 CRO-USDT spread=30.7% high=okx(10.9%) low=bybit(-19.7%)
+2026/06/18 10:42:36 [跨所扫描] 机会 SPCX-USDT spread=35.3% high=gate(69.0%) low=bybit(33.8%)
+2026/06/18 10:42:36 [跨所扫描] 机会 EWY-USDT spread=40.6% high=gate(10.9%) low=bybit(-29.6%)
+2026/06/18 10:42:36 [跨所扫描] 机会 ENS-USDT spread=33.8% high=gate(10.9%) low=bybit(-22.9%)
+2026/06/18 10:42:36 [跨所扫描] 机会 AGLD-USDT spread=51.8% high=gate(10.9%) low=bybit(-40.9%)
+2026/06/18 10:42:36 [跨所扫描] 机会 AXTI-USDT spread=66.6% high=okx(66.6%) low=bybit(0.0%)
+2026/06/18 10:42:36 [跨所扫描] 机会 SEI-USDT spread=47.4% high=gate(10.9%) low=bybit(-36.4%)
+2026/06/18 10:42:36 [跨所扫描] 机会 INTC-USDT spread=104.5% high=okx(111.9%) low=bybit(7.4%)
+2026/06/18 10:42:36 [跨所扫描] 机会 KSM-USDT spread=32.4% high=bybit(10.9%) low=gate(-21.4%)
+2026/06/18 10:42:36 [跨所扫描] 机会 APT-USDT spread=32.0% high=bybit(10.1%) low=gate(-21.9%)
+2026/06/18 10:42:36 [跨所扫描] 机会 CRWV-USDT spread=40.5% high=bybit(40.5%) low=okx(0.0%)
+2026/06/18 10:42:36 [跨所扫描] 机会 MSFT-USDT spread=100.9% high=bybit(111.9%) low=gate(10.9%)
+2026/06/18 10:42:36 [跨所扫描] 机会 MERL-USDT spread=43.1% high=gate(10.9%) low=bybit(-32.2%)
+2026/06/18 10:42:36 [跨所扫描] 机会 ICP-USDT spread=31.8% high=gate(8.3%) low=bybit(-23.5%)
+2026/06/18 10:42:36 [跨所扫描] 机会 CRCL-USDT spread=66.3% high=bybit(81.3%) low=okx(15.1%)
+2026/06/18 10:42:36 [跨所扫描] 机会 QNTX-USDT spread=131.8% high=binance(131.9%) low=gate(0.1%)
+2026/06/18 10:42:36 [跨所扫描] 机会 ADBE-USDT spread=50.9% high=binance(61.9%) low=gate(10.9%)
+2026/06/18 10:42:36 [跨所扫描] 机会 SKHYNIX-USDT spread=150.5% high=okx(151.1%) low=binance(0.6%)
+2026/06/18 10:42:36 [跨所扫描] 机会 ASML-USDT spread=77.5% high=binance(88.4%) low=gate(10.9%)
+2026/06/18 10:42:36 [跨所扫描] 机会 SOXL-USDT spread=50.1% high=okx(50.1%) low=binance(0.0%)
+2026/06/18 10:42:36 [跨所扫描] 价差告警(纯观测) MSFT-USDT 年化价差 100.9% 空 bybit(111.9%/年,间隔 8h) 多 gate(10.9%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/18 10:42:36 [跨所扫描] 价差告警(纯观测) QNTX-USDT 年化价差 131.8% 空 binance(131.9%/年,间隔 8h) 多 gate(0.1%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/18 10:42:45 [借币探测] AAPL: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/18 10:42:45 [借币探测] NBIS: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/18 10:42:45 [借币探测] ZEC: binance不可借(缓存) bybit失败 okx可借(缓存,年化1%) gate失败
+2026/06/18 10:42:45 [借币探测] META: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/18 10:42:45 [借币探测] ARPA: binance失败 bybit失败 okx失败
+2026/06/18 10:42:45 [借币探测] SAMSUNG: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/18 10:42:45 [借币探测] BABA: binance不可借(缓存) bybit失败 okx失败 gate失败
+2026/06/18 10:42:45 [借币探测] ESPORTS: binance不可借(缓存)
+2026/06/18 10:42:45 [借币探测] ARB: binance不可借 bybit可借(年化3%) okx可借(年化1%) gate失败
+2026/06/18 10:42:45 [借币探测] SPY: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/18 10:42:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 10:42:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 10:42:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 10:42:50 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 10:42:50 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 10:42:50 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 10:43:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 10:43:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 10:43:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 10:43:56 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 10:43:56 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 10:43:56 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 10:44:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 10:44:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 10:44:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 10:44:58 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 10:44:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 10:44:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 10:45:28 [统一轮动] 扫描完成 snapshot=cvsnap-20260618T104147.921009478 funding_symbols=150 candidates=1023 (svsp=373 cvsp=121 svps=377 cvps=118 perp_perp=30)
+2026/06/18 10:45:28 [统一轮动] 决策完成: held=1 candidates=1023 actions=1 live=true
+2026/06/18 10:45:28 [统一轮动] HOLD cross_venue_spot_perp BEL-USDT reason=hold continuation_score=-0.000541 >= adjusted_open_score=-0.004790
+2026/06/18 10:45:50 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 10:45:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 10:45:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 10:45:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 10:45:50 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 10:45:50 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 10:46:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 10:46:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 10:46:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 10:46:56 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 10:46:56 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 10:46:56 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 10:47:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 10:47:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 10:47:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 10:48:00 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 10:48:00 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 10:48:00 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 10:48:28 [统一轮动] 扫描完成 snapshot=cvsnap-20260618T104147.921009478 funding_symbols=150 candidates=1024 (svsp=374 cvsp=121 svps=377 cvps=118 perp_perp=30)
+2026/06/18 10:48:28 [统一轮动] 决策完成: held=1 candidates=1024 actions=1 live=true
+2026/06/18 10:48:28 [统一轮动] HOLD cross_venue_spot_perp BEL-USDT reason=hold continuation_score=-0.000541 >= adjusted_open_score=-0.005006
+2026/06/18 10:48:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 10:48:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 10:48:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 10:48:50 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 10:48:50 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 10:48:50 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 10:49:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 10:49:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 10:49:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 10:49:56 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 10:49:56 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 10:49:56 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 10:50:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 10:50:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 10:50:53 [delist-guard] 已刷新 binance instrument 状态: total=4389 non_trading=2354
+2026/06/18 10:50:53 [delist-guard] 已刷新 okx instrument 状态: total=1635 non_trading=3
+2026/06/18 10:50:53 [delist-guard] 已刷新 gate instrument 状态: total=2812 non_trading=3
+2026/06/18 10:50:53 [delist-guard] 已刷新 bybit instrument 状态: total=1255 non_trading=0
+2026/06/18 10:50:53 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 10:51:01 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 10:51:01 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 10:51:01 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 10:51:28 [统一轮动] 扫描完成 snapshot=cvsnap-20260618T104147.921009478 funding_symbols=150 candidates=1020 (svsp=374 cvsp=120 svps=375 cvps=118 perp_perp=30)
+2026/06/18 10:51:28 [统一轮动] 决策完成: held=1 candidates=1020 actions=1 live=true
+2026/06/18 10:51:28 [统一轮动] HOLD cross_venue_spot_perp BEL-USDT reason=hold continuation_score=-0.000541 >= adjusted_open_score=-0.005049
+2026/06/18 10:51:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 10:51:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 10:51:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 10:51:50 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 10:51:50 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 10:51:50 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 10:52:36 [跨所扫描] 完成: venues_ok=4/4 opportunities=30 elapsed=48.497s
+2026/06/18 10:52:36 [跨所扫描] 机会 SAMSUNG-USDT spread=51.2% high=bybit(51.2%) low=binance(0.0%)
+2026/06/18 10:52:36 [跨所扫描] 机会 NBIS-USDT spread=38.6% high=binance(38.6%) low=bybit(0.0%)
+2026/06/18 10:52:36 [跨所扫描] 机会 BE-USDT spread=48.1% high=binance(48.1%) low=bybit(0.0%)
+2026/06/18 10:52:36 [跨所扫描] 机会 META-USDT spread=43.5% high=binance(50.8%) low=bybit(7.4%)
+2026/06/18 10:52:36 [跨所扫描] 机会 SPY-USDT spread=35.3% high=binance(35.3%) low=bybit(0.0%)
+2026/06/18 10:52:36 [跨所扫描] 机会 ZEC-USDT spread=33.4% high=bybit(10.9%) low=binance(-22.4%)
+2026/06/18 10:52:36 [跨所扫描] 机会 AXTI-USDT spread=68.2% high=okx(68.2%) low=bybit(0.0%)
+2026/06/18 10:52:36 [跨所扫描] 机会 INTC-USDT spread=105.4% high=okx(111.8%) low=bybit(6.4%)
+2026/06/18 10:52:36 [跨所扫描] 机会 ICP-USDT spread=34.4% high=gate(9.9%) low=bybit(-24.5%)
+2026/06/18 10:52:36 [跨所扫描] 机会 CORE-USDT spread=42.4% high=gate(10.9%) low=bybit(-31.4%)
+2026/06/18 10:52:36 [跨所扫描] 机会 AGLD-USDT spread=43.4% high=gate(10.9%) low=bybit(-32.4%)
+2026/06/18 10:52:36 [跨所扫描] 机会 MSFT-USDT spread=95.6% high=bybit(106.6%) low=gate(10.9%)
+2026/06/18 10:52:36 [跨所扫描] 机会 SEI-USDT spread=45.7% high=gate(10.9%) low=bybit(-34.8%)
+2026/06/18 10:52:36 [跨所扫描] 机会 ALICE-USDT spread=51.9% high=gate(10.9%) low=bybit(-41.0%)
+2026/06/18 10:52:36 [跨所扫描] 机会 MERL-USDT spread=44.9% high=gate(10.9%) low=bybit(-34.0%)
+2026/06/18 10:52:36 [跨所扫描] 机会 EWY-USDT spread=39.3% high=gate(10.9%) low=bybit(-28.3%)
+2026/06/18 10:52:36 [跨所扫描] 机会 CRWV-USDT spread=45.2% high=bybit(45.2%) low=okx(0.0%)
+2026/06/18 10:52:36 [跨所扫描] 机会 CRCL-USDT spread=60.4% high=bybit(76.0%) low=okx(15.7%)
+2026/06/18 10:52:36 [跨所扫描] 机会 MRVL-USDT spread=60.4% high=gate(61.3%) low=bybit(0.9%)
+2026/06/18 10:52:36 [跨所扫描] 机会 ARPA-USDT spread=69.6% high=gate(10.8%) low=bybit(-58.7%)
+2026/06/18 10:52:36 [跨所扫描] 机会 ENS-USDT spread=32.3% high=gate(10.9%) low=bybit(-21.4%)
+2026/06/18 10:52:36 [跨所扫描] 机会 CRO-USDT spread=32.4% high=okx(10.9%) low=bybit(-21.4%)
+2026/06/18 10:52:36 [跨所扫描] 机会 COIN-USDT spread=40.3% high=okx(0.0%) low=bybit(-40.3%)
+2026/06/18 10:52:36 [跨所扫描] 机会 APT-USDT spread=30.9% high=bybit(10.9%) low=gate(-20.0%)
+2026/06/18 10:52:36 [跨所扫描] 机会 SPCX-USDT spread=36.0% high=gate(68.4%) low=bybit(32.4%)
+2026/06/18 10:52:36 [跨所扫描] 机会 KNC-USDT spread=153.6% high=binance(10.9%) low=gate(-142.7%)
+2026/06/18 10:52:36 [跨所扫描] 机会 BMNR-USDT spread=155.9% high=binance(166.8%) low=gate(10.9%)
+2026/06/18 10:52:36 [跨所扫描] 机会 COHR-USDT spread=106.1% high=binance(107.6%) low=okx(1.5%)
+2026/06/18 10:52:36 [跨所扫描] 机会 RIVN-USDT spread=115.7% high=okx(115.7%) low=binance(0.0%)
+2026/06/18 10:52:36 [跨所扫描] 机会 BABA-USDT spread=42.3% high=binance(58.0%) low=gate(15.7%)
+2026/06/18 10:52:36 [跨所扫描] 价差告警(纯观测) COHR-USDT 年化价差 106.1% 空 binance(107.6%/年,间隔 8h) 多 okx(1.5%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/18 10:52:45 [借币探测] INTC: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/18 10:52:45 [借币探测] ICP: binance不可借 bybit可借(年化3%) okx可借(年化1%) gate失败
+2026/06/18 10:52:45 [借币探测] META: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/18 10:52:45 [借币探测] SAMSUNG: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/18 10:52:45 [借币探测] BE: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/18 10:52:45 [借币探测] NBIS: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/18 10:52:45 [借币探测] AXTI: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/18 10:52:45 [借币探测] SPY: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/18 10:52:45 [借币探测] ZEC: binance不可借 bybit失败 okx可借(年化1%) gate失败
+2026/06/18 10:52:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 10:52:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 10:52:56 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 10:52:56 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 10:52:56 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 10:52:56 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 10:53:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 10:53:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 10:53:57 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 10:53:57 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 10:53:57 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 10:53:57 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 10:54:25 [统一轮动] 扫描完成 snapshot=cvsnap-20260618T104147.921009478 funding_symbols=150 candidates=1019 (svsp=372 cvsp=121 svps=375 cvps=118 perp_perp=30)
+2026/06/18 10:54:25 [统一轮动] 决策完成: held=1 candidates=1019 actions=1 live=true
+2026/06/18 10:54:25 [统一轮动] HOLD cross_venue_spot_perp BEL-USDT reason=hold continuation_score=-0.000541 >= adjusted_open_score=-0.004886
+2026/06/18 10:54:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 10:54:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 10:54:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 10:54:50 [跨所spot-perp] 残余 dust ≈$0.0076 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 10:54:50 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 10:54:50 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 10:55:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 10:55:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 10:55:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 10:55:56 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 10:55:56 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 10:55:56 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 10:56:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 10:56:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 10:56:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 10:56:57 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 10:56:57 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 10:56:57 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 10:57:18 [统一轮动] 扫描完成 snapshot=cvsnap-20260618T105147.923994289 funding_symbols=150 candidates=1033 (svsp=376 cvsp=118 svps=380 cvps=126 perp_perp=30)
+2026/06/18 10:57:18 [统一轮动] 决策完成: held=1 candidates=1033 actions=1 live=true
+2026/06/18 10:57:18 [统一轮动] HOLD cross_venue_spot_perp BEL-USDT reason=hold continuation_score=-0.000541 >= adjusted_open_score=-0.004504
+2026/06/18 10:57:50 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 10:57:50 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 10:57:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 10:57:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 10:57:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 10:57:50 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 10:58:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 10:58:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 10:58:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 10:58:59 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 10:58:59 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 10:58:59 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 10:59:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 10:59:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 10:59:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 10:59:56 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 10:59:56 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 10:59:56 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 11:00:18 [统一轮动] 扫描完成 snapshot=cvsnap-20260618T105147.923994289 funding_symbols=150 candidates=1036 (svsp=378 cvsp=117 svps=380 cvps=128 perp_perp=30)
+2026/06/18 11:00:18 [统一轮动] 决策完成: held=1 candidates=1036 actions=1 live=true
+2026/06/18 11:00:18 [统一轮动] HOLD cross_venue_spot_perp BEL-USDT reason=hold continuation_score=-0.000541 >= adjusted_open_score=-0.004482
+2026/06/18 11:00:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 11:00:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 11:00:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 11:00:50 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 11:00:50 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 11:00:50 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 11:01:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 11:01:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 11:01:56 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 11:01:56 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 11:01:56 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 11:01:56 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 11:02:36 [跨所扫描] 完成: venues_ok=4/4 opportunities=30 elapsed=48.493s
+2026/06/18 11:02:36 [跨所扫描] 机会 META-USDT spread=44.0% high=binance(48.5%) low=bybit(4.5%)
+2026/06/18 11:02:36 [跨所扫描] 机会 ZEC-USDT spread=33.0% high=bybit(10.9%) low=binance(-22.0%)
+2026/06/18 11:02:36 [跨所扫描] 机会 SNDK-USDT spread=31.8% high=binance(31.8%) low=bybit(0.0%)
+2026/06/18 11:02:36 [跨所扫描] 机会 NBIS-USDT spread=33.8% high=binance(33.8%) low=bybit(0.0%)
+2026/06/18 11:02:36 [跨所扫描] 机会 BE-USDT spread=46.7% high=binance(46.7%) low=bybit(0.0%)
+2026/06/18 11:02:36 [跨所扫描] 机会 SPY-USDT spread=35.6% high=binance(35.6%) low=bybit(0.0%)
+2026/06/18 11:02:36 [跨所扫描] 机会 SAMSUNG-USDT spread=45.8% high=bybit(45.8%) low=binance(0.0%)
+2026/06/18 11:02:36 [跨所扫描] 机会 SPCX-USDT spread=36.2% high=gate(71.3%) low=bybit(35.0%)
+2026/06/18 11:02:36 [跨所扫描] 机会 SEI-USDT spread=43.1% high=gate(10.9%) low=bybit(-32.1%)
+2026/06/18 11:02:36 [跨所扫描] 机会 CRCL-USDT spread=63.4% high=bybit(82.3%) low=okx(18.9%)
+2026/06/18 11:02:36 [跨所扫描] 机会 COIN-USDT spread=38.7% high=okx(0.0%) low=bybit(-38.7%)
+2026/06/18 11:02:36 [跨所扫描] 机会 AXTI-USDT spread=73.7% high=okx(73.7%) low=bybit(0.0%)
+2026/06/18 11:02:36 [跨所扫描] 机会 MSFT-USDT spread=80.9% high=bybit(91.9%) low=gate(10.9%)
+2026/06/18 11:02:36 [跨所扫描] 机会 CRWV-USDT spread=48.0% high=bybit(48.0%) low=okx(0.0%)
+2026/06/18 11:02:36 [跨所扫描] 机会 CRO-USDT spread=31.3% high=okx(10.9%) low=bybit(-20.3%)
+2026/06/18 11:02:36 [跨所扫描] 机会 ARPA-USDT spread=79.6% high=gate(10.8%) low=bybit(-68.8%)
+2026/06/18 11:02:36 [跨所扫描] 机会 CORE-USDT spread=45.7% high=gate(10.9%) low=bybit(-34.7%)
+2026/06/18 11:02:36 [跨所扫描] 机会 ARB-USDT spread=31.1% high=bybit(10.9%) low=gate(-20.1%)
+2026/06/18 11:02:36 [跨所扫描] 机会 INTC-USDT spread=102.7% high=okx(113.2%) low=bybit(10.4%)
+2026/06/18 11:02:36 [跨所扫描] 机会 ICP-USDT spread=35.6% high=gate(10.8%) low=bybit(-24.8%)
+2026/06/18 11:02:36 [跨所扫描] 机会 AGLD-USDT spread=37.5% high=okx(10.9%) low=bybit(-26.6%)
+2026/06/18 11:02:36 [跨所扫描] 机会 MRVL-USDT spread=48.9% high=gate(48.9%) low=bybit(0.0%)
+2026/06/18 11:02:36 [跨所扫描] 机会 LQTY-USDT spread=36.3% high=bybit(10.9%) low=okx(-25.3%)
+2026/06/18 11:02:36 [跨所扫描] 机会 USAR-USDT spread=35.1% high=gate(10.9%) low=binance(-24.2%)
+2026/06/18 11:02:36 [跨所扫描] 机会 RIVN-USDT spread=148.1% high=okx(148.1%) low=binance(0.0%)
+2026/06/18 11:02:36 [跨所扫描] 机会 AAOI-USDT spread=90.6% high=binance(101.5%) low=gate(10.9%)
+2026/06/18 11:02:36 [跨所扫描] 机会 ASML-USDT spread=77.1% high=binance(88.0%) low=gate(10.9%)
+2026/06/18 11:02:36 [跨所扫描] 机会 JOE-USDT spread=34.0% high=gate(10.9%) low=binance(-23.0%)
+2026/06/18 11:02:36 [跨所扫描] 机会 HD-USDT spread=79.8% high=gate(10.9%) low=binance(-68.8%)
+2026/06/18 11:02:36 [跨所扫描] 机会 SOXL-USDT spread=46.4% high=okx(46.4%) low=binance(0.0%)
+2026/06/18 11:02:44 [借币探测] SPCX: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/18 11:02:44 [借币探测] META: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/18 11:02:44 [借币探测] SPY: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/18 11:02:44 [借币探测] ZEC: binance不可借(缓存) bybit失败 okx可借(缓存,年化1%) gate失败
+2026/06/18 11:02:44 [借币探测] SAMSUNG: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/18 11:02:44 [借币探测] SNDK: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/18 11:02:44 [借币探测] BE: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/18 11:02:44 [借币探测] NBIS: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/18 11:02:44 [借币探测] SEI: binance不可借 bybit可借(年化48%) okx可借(年化15%) gate失败
+2026/06/18 11:02:50 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 11:02:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 11:02:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 11:02:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 11:02:57 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 11:02:57 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 11:03:18 [统一轮动] 扫描完成 snapshot=cvsnap-20260618T105147.923994289 funding_symbols=150 candidates=1034 (svsp=376 cvsp=119 svps=379 cvps=127 perp_perp=30)
+2026/06/18 11:03:18 [统一轮动] 决策完成: held=1 candidates=1034 actions=1 live=true
+2026/06/18 11:03:18 [统一轮动] HOLD cross_venue_spot_perp BEL-USDT reason=hold continuation_score=-0.000541 >= adjusted_open_score=-0.004640
+2026/06/18 11:03:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 11:03:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 11:03:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 11:03:50 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 11:03:50 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 11:03:50 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 11:04:50 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 11:04:50 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 11:04:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 11:04:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 11:04:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 11:04:55 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 11:05:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 11:05:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 11:05:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 11:05:57 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 11:05:57 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 11:05:57 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 11:06:25 [统一轮动] 扫描完成 snapshot=cvsnap-20260618T110147.921412097 funding_symbols=150 candidates=1004 (svsp=369 cvsp=109 svps=374 cvps=119 perp_perp=30)
+2026/06/18 11:06:25 [统一轮动] 决策完成: held=1 candidates=1004 actions=1 live=true
+2026/06/18 11:06:25 [统一轮动] HOLD cross_venue_spot_perp BEL-USDT reason=hold continuation_score=-0.000541 >= adjusted_open_score=-0.005066
+2026/06/18 11:06:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 11:06:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 11:06:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 11:06:50 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 11:06:50 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 11:06:50 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 11:07:50 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 11:07:50 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 11:07:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 11:07:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 11:07:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 11:07:55 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 11:08:50 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 11:08:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 11:08:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 11:08:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 11:08:57 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 11:08:57 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 11:09:25 [统一轮动] 扫描完成 snapshot=cvsnap-20260618T110147.921412097 funding_symbols=150 candidates=1000 (svsp=368 cvsp=109 svps=373 cvps=117 perp_perp=30)
+2026/06/18 11:09:25 [统一轮动] 决策完成: held=1 candidates=1000 actions=1 live=true
+2026/06/18 11:09:25 [统一轮动] HOLD cross_venue_spot_perp BEL-USDT reason=hold continuation_score=-0.000541 >= adjusted_open_score=-0.004926
+2026/06/18 11:09:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 11:09:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 11:09:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 11:09:50 [跨所spot-perp] 残余 dust ≈$0.0076 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 11:09:50 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 11:09:50 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 11:10:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 11:10:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 11:10:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 11:10:55 [跨所spot-perp] 残余 dust ≈$0.0076 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 11:10:55 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 11:10:55 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 11:11:50 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 11:11:50 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 11:11:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 11:11:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 11:11:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 11:11:57 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 11:12:25 [统一轮动] 扫描完成 snapshot=cvsnap-20260618T110147.921412097 funding_symbols=150 candidates=1004 (svsp=369 cvsp=109 svps=374 cvps=119 perp_perp=30)
+2026/06/18 11:12:25 [统一轮动] 决策完成: held=1 candidates=1004 actions=1 live=true
+2026/06/18 11:12:25 [统一轮动] HOLD cross_venue_spot_perp BEL-USDT reason=hold continuation_score=-0.000541 >= adjusted_open_score=-0.004722
+2026/06/18 11:12:36 [跨所扫描] 完成: venues_ok=4/4 opportunities=30 elapsed=48.496s
+2026/06/18 11:12:36 [跨所扫描] 机会 SPY-USDT spread=35.9% high=binance(35.9%) low=bybit(0.0%)
+2026/06/18 11:12:36 [跨所扫描] 机会 BE-USDT spread=47.7% high=binance(47.7%) low=bybit(0.0%)
+2026/06/18 11:12:36 [跨所扫描] 机会 ZEC-USDT spread=32.6% high=bybit(10.9%) low=binance(-21.7%)
+2026/06/18 11:12:36 [跨所扫描] 机会 AGLD-USDT spread=34.7% high=binance(10.9%) low=bybit(-23.8%)
+2026/06/18 11:12:36 [跨所扫描] 机会 SNDK-USDT spread=33.8% high=binance(33.8%) low=bybit(0.0%)
+2026/06/18 11:12:36 [跨所扫描] 机会 SAMSUNG-USDT spread=44.0% high=bybit(44.0%) low=binance(0.0%)
+2026/06/18 11:12:36 [跨所扫描] 机会 META-USDT spread=44.9% high=binance(45.6%) low=bybit(0.7%)
+2026/06/18 11:12:36 [跨所扫描] 机会 NBIS-USDT spread=34.1% high=binance(34.1%) low=bybit(0.0%)
+2026/06/18 11:12:36 [跨所扫描] 机会 ICP-USDT spread=36.4% high=gate(10.7%) low=bybit(-25.7%)
+2026/06/18 11:12:36 [跨所扫描] 机会 ARB-USDT spread=32.8% high=bybit(10.9%) low=gate(-21.9%)
+2026/06/18 11:12:36 [跨所扫描] 机会 CRCL-USDT spread=66.9% high=bybit(88.4%) low=okx(21.5%)
+2026/06/18 11:12:36 [跨所扫描] 机会 MSFT-USDT spread=67.5% high=bybit(78.4%) low=gate(10.9%)
+2026/06/18 11:12:36 [跨所扫描] 机会 SEI-USDT spread=40.2% high=gate(10.9%) low=bybit(-29.2%)
+2026/06/18 11:12:36 [跨所扫描] 机会 GMT-USDT spread=40.5% high=bybit(10.9%) low=gate(-29.6%)
+2026/06/18 11:12:36 [跨所扫描] 机会 AXTI-USDT spread=78.6% high=okx(78.6%) low=bybit(0.0%)
+2026/06/18 11:12:36 [跨所扫描] 机会 CORE-USDT spread=47.3% high=okx(10.9%) low=bybit(-36.3%)
+2026/06/18 11:12:36 [跨所扫描] 机会 LQTY-USDT spread=37.5% high=bybit(10.9%) low=okx(-26.6%)
+2026/06/18 11:12:36 [跨所扫描] 机会 ARPA-USDT spread=86.0% high=gate(10.9%) low=bybit(-75.0%)
+2026/06/18 11:12:36 [跨所扫描] 机会 INTC-USDT spread=100.5% high=okx(114.3%) low=bybit(13.7%)
+2026/06/18 11:12:36 [跨所扫描] 机会 MRVL-USDT spread=41.2% high=gate(41.2%) low=bybit(0.0%)
+2026/06/18 11:12:36 [跨所扫描] 机会 CRWV-USDT spread=51.4% high=bybit(51.4%) low=okx(0.0%)
+2026/06/18 11:12:36 [跨所扫描] 机会 C98-USDT spread=114.2% high=bybit(10.7%) low=gate(-103.5%)
+2026/06/18 11:12:36 [跨所扫描] 机会 ASML-USDT spread=75.9% high=binance(86.8%) low=gate(10.9%)
+2026/06/18 11:12:36 [跨所扫描] 机会 GLW-USDT spread=108.6% high=binance(119.6%) low=gate(10.9%)
+2026/06/18 11:12:36 [跨所扫描] 机会 KNC-USDT spread=127.5% high=binance(10.9%) low=gate(-116.6%)
+2026/06/18 11:12:36 [跨所扫描] 机会 BMNR-USDT spread=153.5% high=binance(164.4%) low=gate(10.9%)
+2026/06/18 11:12:36 [跨所扫描] 机会 AVGO-USDT spread=38.3% high=binance(49.2%) low=gate(10.9%)
+2026/06/18 11:12:36 [跨所扫描] 机会 USAR-USDT spread=38.1% high=gate(10.9%) low=binance(-27.2%)
+2026/06/18 11:12:36 [跨所扫描] 机会 RLC-USDT spread=77.9% high=binance(1.9%) low=gate(-76.0%)
+2026/06/18 11:12:36 [跨所扫描] 机会 RIVN-USDT spread=154.6% high=okx(154.6%) low=binance(0.0%)
+2026/06/18 11:12:36 [跨所扫描] 价差告警(纯观测) C98-USDT 年化价差 114.2% 空 bybit(10.7%/年,间隔 8h) 多 gate(-103.5%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/18 11:12:36 [跨所扫描] 价差告警(纯观测) GLW-USDT 年化价差 108.6% 空 binance(119.6%/年,间隔 8h) 多 gate(10.9%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/18 11:12:45 [借币探测] META: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/18 11:12:45 [借币探测] BE: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/18 11:12:45 [借币探测] PORTAL: binance失败 bybit不可借 okx失败
+2026/06/18 11:12:45 [借币探测] NBIS: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/18 11:12:45 [借币探测] ICP: binance不可借(缓存) bybit可借(缓存,年化3%) okx可借(缓存,年化1%) gate失败
+2026/06/18 11:12:45 [借币探测] AGLD: binance失败 bybit可借(年化15%) okx可借(年化21%) gate失败
+2026/06/18 11:12:45 [借币探测] SNDK: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/18 11:12:45 [借币探测] SPY: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/18 11:12:45 [借币探测] ZEC: binance不可借(缓存) bybit失败 okx可借(缓存,年化1%) gate失败
+2026/06/18 11:12:45 [借币探测] ARB: binance不可借 bybit可借(年化3%) okx可借(年化1%) gate失败
+2026/06/18 11:12:45 [借币探测] ESPORTS: binance不可借 bybit失败 okx失败 gate失败
+2026/06/18 11:12:45 [借币探测] SAMSUNG: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/18 11:12:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 11:12:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 11:12:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 11:12:50 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 11:12:50 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 11:12:50 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 11:13:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 11:13:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 11:13:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 11:13:57 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 11:13:57 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 11:13:57 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 11:14:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 11:14:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 11:14:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 11:14:55 [跨所spot-perp] 残余 dust ≈$0.0076 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 11:14:55 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 11:14:55 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 11:15:39 [统一轮动] 扫描完成 snapshot=cvsnap-20260618T111147.920879246 funding_symbols=150 candidates=1000 (svsp=367 cvsp=106 svps=370 cvps=124 perp_perp=30)
+2026/06/18 11:15:39 [统一轮动] 决策完成: held=1 candidates=1000 actions=1 live=true
+2026/06/18 11:15:39 [统一轮动] HOLD cross_venue_spot_perp BEL-USDT reason=hold continuation_score=-0.000541 >= adjusted_open_score=-0.004229
+2026/06/18 11:15:50 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 11:15:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 11:15:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 11:15:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 11:15:50 [跨所spot-perp] 残余 dust ≈$0.0076 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 11:15:50 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 11:16:50 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 11:16:50 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 11:16:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 11:16:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 11:16:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 11:16:58 [跨所spot-perp] 残余 dust ≈$0.0076 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 11:17:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 11:17:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 11:17:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 11:17:55 [跨所spot-perp] 残余 dust ≈$0.0076 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 11:17:55 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 11:17:55 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 11:18:39 [统一轮动] 扫描完成 snapshot=cvsnap-20260618T111147.920879246 funding_symbols=150 candidates=995 (svsp=366 cvsp=105 svps=369 cvps=122 perp_perp=30)
+2026/06/18 11:18:39 [统一轮动] 决策完成: held=1 candidates=995 actions=1 live=true
+2026/06/18 11:18:39 [统一轮动] HOLD cross_venue_spot_perp BEL-USDT reason=hold continuation_score=-0.000541 >= adjusted_open_score=-0.004081
+2026/06/18 11:18:50 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 11:18:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 11:18:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 11:18:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 11:18:50 [跨所spot-perp] 残余 dust ≈$0.0076 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 11:18:50 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 11:19:50 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 11:19:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 11:19:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 11:19:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 11:19:58 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 11:19:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 11:20:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 11:20:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 11:20:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 11:20:55 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 11:20:55 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 11:20:55 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 11:21:39 [统一轮动] 扫描完成 snapshot=cvsnap-20260618T111147.920879246 funding_symbols=150 candidates=995 (svsp=366 cvsp=105 svps=369 cvps=122 perp_perp=30)
+2026/06/18 11:21:39 [统一轮动] 决策完成: held=1 candidates=995 actions=1 live=true
+2026/06/18 11:21:39 [统一轮动] HOLD cross_venue_spot_perp BEL-USDT reason=hold continuation_score=-0.000541 >= adjusted_open_score=-0.004456
+2026/06/18 11:21:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 11:21:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 11:21:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 11:21:50 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 11:21:50 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 11:21:50 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 11:22:36 [跨所扫描] 完成: venues_ok=4/4 opportunities=30 elapsed=48.492s
+2026/06/18 11:22:36 [跨所扫描] 机会 AMAT-USDT spread=39.9% high=binance(12.4%) low=bybit(-27.5%)
+2026/06/18 11:22:36 [跨所扫描] 机会 NBIS-USDT spread=34.9% high=binance(34.9%) low=bybit(0.0%)
+2026/06/18 11:22:36 [跨所扫描] 机会 ZEC-USDT spread=32.2% high=bybit(10.9%) low=binance(-21.3%)
+2026/06/18 11:22:36 [跨所扫描] 机会 META-USDT spread=43.5% high=binance(43.5%) low=bybit(0.0%)
+2026/06/18 11:22:36 [跨所扫描] 机会 SAMSUNG-USDT spread=43.3% high=bybit(43.3%) low=binance(0.0%)
+2026/06/18 11:22:36 [跨所扫描] 机会 SNDK-USDT spread=32.8% high=binance(32.8%) low=bybit(0.0%)
+2026/06/18 11:22:36 [跨所扫描] 机会 SPY-USDT spread=35.7% high=binance(35.7%) low=bybit(0.0%)
+2026/06/18 11:22:36 [跨所扫描] 机会 BE-USDT spread=51.5% high=binance(51.5%) low=bybit(0.0%)
+2026/06/18 11:22:36 [跨所扫描] 机会 ICP-USDT spread=37.5% high=gate(10.5%) low=bybit(-27.0%)
+2026/06/18 11:22:36 [跨所扫描] 机会 AXTI-USDT spread=79.6% high=okx(79.6%) low=bybit(0.0%)
+2026/06/18 11:22:36 [跨所扫描] 机会 DUSK-USDT spread=36.3% high=gate(10.9%) low=bybit(-25.3%)
+2026/06/18 11:22:36 [跨所扫描] 机会 CORE-USDT spread=47.0% high=gate(10.9%) low=bybit(-36.0%)
+2026/06/18 11:22:36 [跨所扫描] 机会 ARB-USDT spread=35.6% high=bybit(10.9%) low=gate(-24.7%)
+2026/06/18 11:22:36 [跨所扫描] 机会 C98-USDT spread=136.1% high=bybit(10.7%) low=gate(-125.4%)
+2026/06/18 11:22:36 [跨所扫描] 机会 MERL-USDT spread=40.4% high=gate(10.9%) low=bybit(-29.4%)
+2026/06/18 11:22:36 [跨所扫描] 机会 GMT-USDT spread=51.6% high=bybit(10.9%) low=gate(-40.7%)
+2026/06/18 11:22:36 [跨所扫描] 机会 MSFT-USDT spread=59.5% high=bybit(70.4%) low=gate(10.9%)
+2026/06/18 11:22:36 [跨所扫描] 机会 INTC-USDT spread=98.8% high=okx(112.9%) low=bybit(14.1%)
+2026/06/18 11:22:36 [跨所扫描] 机会 GMX-USDT spread=31.5% high=gate(-8.7%) low=bybit(-40.2%)
+2026/06/18 11:22:36 [跨所扫描] 机会 CRWV-USDT spread=54.2% high=bybit(54.2%) low=okx(0.0%)
+2026/06/18 11:22:36 [跨所扫描] 机会 ALICE-USDT spread=51.5% high=gate(10.9%) low=bybit(-40.6%)
+2026/06/18 11:22:36 [跨所扫描] 机会 SEI-USDT spread=37.2% high=gate(10.9%) low=bybit(-26.2%)
+2026/06/18 11:22:36 [跨所扫描] 机会 ARPA-USDT spread=94.8% high=gate(10.3%) low=bybit(-84.5%)
+2026/06/18 11:22:36 [跨所扫描] 机会 HFT-USDT spread=31.0% high=gate(10.9%) low=bybit(-20.0%)
+2026/06/18 11:22:36 [跨所扫描] 机会 MRVL-USDT spread=39.7% high=gate(39.7%) low=bybit(0.0%)
+2026/06/18 11:22:36 [跨所扫描] 机会 AGLD-USDT spread=39.5% high=gate(10.9%) low=bybit(-28.5%)
+2026/06/18 11:22:36 [跨所扫描] 机会 COHR-USDT spread=108.1% high=binance(108.6%) low=okx(0.5%)
+2026/06/18 11:22:36 [跨所扫描] 机会 JOE-USDT spread=46.4% high=gate(10.9%) low=binance(-35.5%)
+2026/06/18 11:22:36 [跨所扫描] 机会 HD-USDT spread=79.5% high=gate(10.9%) low=binance(-68.6%)
+2026/06/18 11:22:36 [跨所扫描] 机会 RIVN-USDT spread=128.8% high=okx(128.8%) low=binance(0.0%)
+2026/06/18 11:22:45 [借币探测] AMAT: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/18 11:22:45 [借币探测] NBIS: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/18 11:22:45 [借币探测] META: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/18 11:22:45 [借币探测] SPY: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/18 11:22:45 [借币探测] ICP: binance不可借 bybit可借(年化3%) okx可借(年化1%) gate失败
+2026/06/18 11:22:45 [借币探测] ESPORTS: binance不可借(缓存)
+2026/06/18 11:22:45 [借币探测] SNDK: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/18 11:22:45 [借币探测] SAMSUNG: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/18 11:22:45 [借币探测] PORTAL: bybit不可借(缓存)
+2026/06/18 11:22:45 [借币探测] BE: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/18 11:22:45 [借币探测] ZEC: binance不可借 bybit失败 okx可借(年化1%) gate失败
+2026/06/18 11:22:45 [借币探测] AXTI: binance不可借 bybit失败
+2026/06/18 11:22:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 11:22:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 11:22:57 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 11:22:57 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 11:22:57 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 11:22:57 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 11:23:50 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 11:23:50 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 11:23:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 11:23:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 11:23:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 11:23:55 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 11:24:39 [统一轮动] 扫描完成 snapshot=cvsnap-20260618T111147.920879246 funding_symbols=150 candidates=992 (svsp=365 cvsp=104 svps=369 cvps=121 perp_perp=30)
+2026/06/18 11:24:39 [统一轮动] 决策完成: held=1 candidates=992 actions=1 live=true
+2026/06/18 11:24:39 [统一轮动] HOLD cross_venue_spot_perp BEL-USDT reason=hold continuation_score=-0.000541 >= adjusted_open_score=-0.004647
+2026/06/18 11:24:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 11:24:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 11:24:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 11:24:50 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 11:24:50 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 11:24:50 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 11:25:50 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 11:25:50 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 11:25:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 11:25:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 11:25:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 11:25:56 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 11:26:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 11:26:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 11:26:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 11:26:53 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 11:26:53 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 11:26:53 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 11:27:35 [统一轮动] 扫描完成 snapshot=cvsnap-20260618T112147.920901795 funding_symbols=150 candidates=1005 (svsp=369 cvsp=102 svps=374 cvps=126 perp_perp=30)
+2026/06/18 11:27:35 [统一轮动] 决策完成: held=1 candidates=1005 actions=1 live=true
+2026/06/18 11:27:35 [统一轮动] HOLD cross_venue_spot_perp BEL-USDT reason=hold continuation_score=-0.000541 >= adjusted_open_score=-0.004725
+2026/06/18 11:27:50 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 11:27:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 11:27:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 11:27:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 11:27:50 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 11:27:51 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 11:28:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 11:28:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 11:28:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 11:28:56 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 11:28:56 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 11:28:56 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+[FundingRateSniper] 2026/06/18 11:29:42.694146 [time] 签名请求触发 -1021(时钟漂移),重同步服务器时间后重试一次: https://fapi.binance.com/fapi/v3/account
+[FundingRateSniper] 2026/06/18 11:29:42.694371 [time] 签名请求触发 -1021(时钟漂移),重同步服务器时间后重试一次: https://fapi.binance.com/fapi/v3/account
+[FundingRateSniper] 2026/06/18 11:29:42.695568 [time] 签名请求触发 -1021(时钟漂移),重同步服务器时间后重试一次: https://fapi.binance.com/fapi/v3/account
+2026/06/18 11:29:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 11:29:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 11:29:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 11:29:53 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 11:29:53 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 11:29:53 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 11:30:36 [统一轮动] 扫描完成 snapshot=cvsnap-20260618T112147.920901795 funding_symbols=150 candidates=1004 (svsp=369 cvsp=102 svps=373 cvps=126 perp_perp=30)
+2026/06/18 11:30:36 [统一轮动] 决策完成: held=1 candidates=1004 actions=1 live=true
+2026/06/18 11:30:36 [统一轮动] HOLD cross_venue_spot_perp BEL-USDT reason=hold continuation_score=-0.000541 >= adjusted_open_score=-0.004269
+2026/06/18 11:30:50 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 11:30:50 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 11:30:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 11:30:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 11:30:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 11:30:51 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 11:31:50 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 11:31:50 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 11:31:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 11:31:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 11:31:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 11:31:56 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 11:32:36 [跨所扫描] 完成: venues_ok=4/4 opportunities=30 elapsed=48.496s
+2026/06/18 11:32:36 [跨所扫描] 机会 BE-USDT spread=53.1% high=binance(53.1%) low=bybit(0.0%)
+2026/06/18 11:32:36 [跨所扫描] 机会 SPY-USDT spread=35.3% high=binance(35.3%) low=bybit(0.0%)
+2026/06/18 11:32:36 [跨所扫描] 机会 ZEC-USDT spread=31.5% high=bybit(10.9%) low=binance(-20.5%)
+2026/06/18 11:32:36 [跨所扫描] 机会 AMAT-USDT spread=43.9% high=binance(16.7%) low=bybit(-27.2%)
+2026/06/18 11:32:36 [跨所扫描] 机会 NBIS-USDT spread=34.0% high=binance(34.0%) low=bybit(0.0%)
+2026/06/18 11:32:36 [跨所扫描] 机会 META-USDT spread=42.2% high=binance(42.2%) low=bybit(0.0%)
+2026/06/18 11:32:36 [跨所扫描] 机会 BABA-USDT spread=47.9% high=binance(54.4%) low=bybit(6.5%)
+2026/06/18 11:32:36 [跨所扫描] 机会 C98-USDT spread=158.5% high=bybit(10.9%) low=gate(-147.6%)
+2026/06/18 11:32:36 [跨所扫描] 机会 SEI-USDT spread=34.5% high=gate(10.9%) low=bybit(-23.5%)
+2026/06/18 11:32:36 [跨所扫描] 机会 AXTI-USDT spread=82.4% high=okx(82.4%) low=bybit(0.0%)
+2026/06/18 11:32:36 [跨所扫描] 机会 ICP-USDT spread=38.4% high=gate(10.1%) low=bybit(-28.3%)
+2026/06/18 11:32:36 [跨所扫描] 机会 MTL-USDT spread=38.9% high=bybit(10.9%) low=gate(-27.9%)
+2026/06/18 11:32:36 [跨所扫描] 机会 SAMSUNG-USDT spread=42.5% high=bybit(40.1%) low=okx(-2.4%)
+2026/06/18 11:32:36 [跨所扫描] 机会 HFT-USDT spread=35.0% high=gate(10.9%) low=bybit(-24.1%)
+2026/06/18 11:32:36 [跨所扫描] 机会 MERL-USDT spread=40.8% high=gate(10.9%) low=bybit(-29.9%)
+2026/06/18 11:32:36 [跨所扫描] 机会 GMX-USDT spread=37.4% high=gate(-5.4%) low=bybit(-42.8%)
+2026/06/18 11:32:36 [跨所扫描] 机会 AGLD-USDT spread=41.2% high=gate(10.9%) low=bybit(-30.2%)
+2026/06/18 11:32:36 [跨所扫描] 机会 CORE-USDT spread=46.3% high=gate(10.9%) low=bybit(-35.4%)
+2026/06/18 11:32:36 [跨所扫描] 机会 MSFT-USDT spread=55.9% high=bybit(66.8%) low=gate(10.9%)
+2026/06/18 11:32:36 [跨所扫描] 机会 1INCH-USDT spread=30.2% high=gate(10.9%) low=bybit(-19.2%)
+2026/06/18 11:32:36 [跨所扫描] 机会 MRVL-USDT spread=43.1% high=gate(43.1%) low=bybit(0.0%)
+2026/06/18 11:32:36 [跨所扫描] 机会 ARB-USDT spread=38.7% high=bybit(10.9%) low=gate(-27.7%)
+2026/06/18 11:32:36 [跨所扫描] 机会 GMT-USDT spread=63.6% high=bybit(10.9%) low=gate(-52.7%)
+2026/06/18 11:32:36 [跨所扫描] 机会 ALICE-USDT spread=50.4% high=gate(10.9%) low=bybit(-39.4%)
+2026/06/18 11:32:36 [跨所扫描] 机会 INTC-USDT spread=97.2% high=okx(110.0%) low=bybit(12.8%)
+2026/06/18 11:32:36 [跨所扫描] 机会 DUSK-USDT spread=41.7% high=gate(10.4%) low=bybit(-31.3%)
+2026/06/18 11:32:36 [跨所扫描] 机会 ARPA-USDT spread=94.5% high=gate(5.3%) low=bybit(-89.3%)
+2026/06/18 11:32:36 [跨所扫描] 机会 KSM-USDT spread=33.6% high=bybit(10.9%) low=gate(-22.7%)
+2026/06/18 11:32:36 [跨所扫描] 机会 CRWV-USDT spread=52.3% high=bybit(53.2%) low=okx(0.9%)
+2026/06/18 11:32:36 [跨所扫描] 机会 BMNR-USDT spread=145.6% high=binance(156.5%) low=gate(10.9%)
+2026/06/18 11:32:45 [借币探测] NBIS: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/18 11:32:45 [借币探测] BABA: binance不可借 bybit失败 okx失败 gate失败
+2026/06/18 11:32:45 [借币探测] BE: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/18 11:32:45 [借币探测] C98: binance失败 bybit不可借 okx失败 gate失败
+2026/06/18 11:32:45 [借币探测] SEI: binance不可借 bybit可借(年化48%) okx可借(年化15%) gate失败
+2026/06/18 11:32:45 [借币探测] AXTI: binance不可借(缓存)
+2026/06/18 11:32:45 [借币探测] SPY: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/18 11:32:45 [借币探测] ZEC: binance不可借(缓存) bybit失败 okx可借(缓存,年化1%) gate失败
+2026/06/18 11:32:45 [借币探测] META: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/18 11:32:45 [借币探测] AMAT: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/18 11:32:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 11:32:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 11:32:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 11:32:53 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 11:32:53 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 11:32:53 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 11:33:35 [统一轮动] 扫描完成 snapshot=cvsnap-20260618T112147.920901795 funding_symbols=150 candidates=1003 (svsp=369 cvsp=102 svps=373 cvps=125 perp_perp=30)
+2026/06/18 11:33:35 [统一轮动] 决策完成: held=1 candidates=1003 actions=1 live=true
+2026/06/18 11:33:35 [统一轮动] HOLD cross_venue_spot_perp BEL-USDT reason=hold continuation_score=-0.000541 >= adjusted_open_score=-0.005384
+2026/06/18 11:33:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 11:33:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 11:33:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 11:33:50 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 11:33:50 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 11:33:50 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 11:34:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 11:34:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 11:34:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 11:34:56 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 11:34:56 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 11:34:56 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 11:35:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 11:35:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 11:35:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 11:35:56 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 11:35:56 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 11:35:56 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 11:36:38 [统一轮动] 扫描完成 snapshot=cvsnap-20260618T113147.921561191 funding_symbols=150 candidates=982 (svsp=364 cvsp=95 svps=365 cvps=124 perp_perp=30)
+2026/06/18 11:36:38 [统一轮动] 决策完成: held=1 candidates=982 actions=1 live=true
+2026/06/18 11:36:38 [统一轮动] HOLD cross_venue_spot_perp BEL-USDT reason=hold_no_replace_candidate continuation_score=-0.000541
+2026/06/18 11:36:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 11:36:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 11:36:50 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 11:36:51 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 11:36:51 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 11:36:51 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 11:37:50 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 11:37:50 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 11:37:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 11:37:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 11:37:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 11:37:56 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 11:38:50 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 11:38:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 11:38:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 11:38:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 11:38:56 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 11:38:56 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 11:39:39 [统一轮动] 扫描完成 snapshot=cvsnap-20260618T113147.921561191 funding_symbols=150 candidates=984 (svsp=365 cvsp=95 svps=367 cvps=123 perp_perp=30)
+2026/06/18 11:39:39 [统一轮动] 决策完成: held=1 candidates=984 actions=1 live=true
+2026/06/18 11:39:39 [统一轮动] HOLD cross_venue_spot_perp BEL-USDT reason=hold continuation_score=-0.000541 >= adjusted_open_score=-0.005538
+2026/06/18 11:39:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 11:39:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 11:39:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 11:39:50 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 11:39:50 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 11:39:50 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 11:40:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 11:40:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 11:40:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 11:40:59 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 11:40:59 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 11:40:59 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 11:41:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 11:41:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 11:41:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 11:41:56 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 11:41:56 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 11:41:56 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 11:42:36 [跨所扫描] 完成: venues_ok=4/4 opportunities=30 elapsed=48.494s
+2026/06/18 11:42:36 [跨所扫描] 机会 SPY-USDT spread=35.0% high=binance(35.0%) low=bybit(0.0%)
+2026/06/18 11:42:36 [跨所扫描] 机会 BE-USDT spread=51.8% high=binance(51.8%) low=bybit(0.0%)
+2026/06/18 11:42:36 [跨所扫描] 机会 HOOD-USDT spread=49.8% high=binance(49.8%) low=bybit(0.0%)
+2026/06/18 11:42:36 [跨所扫描] 机会 ZEC-USDT spread=30.6% high=bybit(10.9%) low=binance(-19.7%)
+2026/06/18 11:42:36 [跨所扫描] 机会 NBIS-USDT spread=35.3% high=binance(35.3%) low=bybit(0.0%)
+2026/06/18 11:42:36 [跨所扫描] 机会 BABA-USDT spread=48.4% high=binance(50.2%) low=bybit(1.8%)
+2026/06/18 11:42:36 [跨所扫描] 机会 ARPA-USDT spread=86.4% high=binance(-1.3%) low=bybit(-87.7%)
+2026/06/18 11:42:36 [跨所扫描] 机会 AMAT-USDT spread=32.3% high=binance(19.2%) low=bybit(-13.1%)
+2026/06/18 11:42:36 [跨所扫描] 机会 META-USDT spread=42.2% high=binance(42.2%) low=bybit(0.0%)
+2026/06/18 11:42:36 [跨所扫描] 机会 ALICE-USDT spread=49.4% high=gate(10.9%) low=bybit(-38.4%)
+2026/06/18 11:42:36 [跨所扫描] 机会 AXTI-USDT spread=87.6% high=okx(87.6%) low=bybit(0.0%)
+2026/06/18 11:42:36 [跨所扫描] 机会 INTC-USDT spread=96.7% high=okx(107.1%) low=bybit(10.3%)
+2026/06/18 11:42:36 [跨所扫描] 机会 CRWV-USDT spread=46.3% high=bybit(47.4%) low=okx(1.1%)
+2026/06/18 11:42:36 [跨所扫描] 机会 KNC-USDT spread=115.7% high=bybit(10.9%) low=gate(-104.8%)
+2026/06/18 11:42:36 [跨所扫描] 机会 GMX-USDT spread=39.2% high=gate(-4.8%) low=bybit(-43.9%)
+2026/06/18 11:42:36 [跨所扫描] 机会 C98-USDT spread=164.1% high=bybit(10.9%) low=gate(-153.1%)
+2026/06/18 11:42:36 [跨所扫描] 机会 HFT-USDT spread=34.2% high=gate(10.9%) low=bybit(-23.2%)
+2026/06/18 11:42:36 [跨所扫描] 机会 SOXL-USDT spread=45.1% high=okx(45.4%) low=bybit(0.3%)
+2026/06/18 11:42:36 [跨所扫描] 机会 SEI-USDT spread=32.5% high=gate(10.9%) low=bybit(-21.6%)
+2026/06/18 11:42:36 [跨所扫描] 机会 KSM-USDT spread=40.2% high=bybit(10.9%) low=gate(-29.3%)
+2026/06/18 11:42:36 [跨所扫描] 机会 MSFT-USDT spread=53.1% high=bybit(64.0%) low=gate(10.9%)
+2026/06/18 11:42:36 [跨所扫描] 机会 ARB-USDT spread=41.3% high=bybit(10.9%) low=gate(-30.4%)
+2026/06/18 11:42:36 [跨所扫描] 机会 SAMSUNG-USDT spread=44.4% high=bybit(38.2%) low=okx(-6.2%)
+2026/06/18 11:42:36 [跨所扫描] 机会 CORE-USDT spread=49.0% high=gate(10.9%) low=bybit(-38.0%)
+2026/06/18 11:42:36 [跨所扫描] 机会 MRVL-USDT spread=46.8% high=gate(46.8%) low=bybit(0.0%)
+2026/06/18 11:42:36 [跨所扫描] 机会 MTL-USDT spread=48.5% high=bybit(10.9%) low=gate(-37.6%)
+2026/06/18 11:42:36 [跨所扫描] 机会 AGLD-USDT spread=40.8% high=gate(10.9%) low=bybit(-29.9%)
+2026/06/18 11:42:36 [跨所扫描] 机会 GMT-USDT spread=81.7% high=bybit(10.9%) low=gate(-70.8%)
+2026/06/18 11:42:36 [跨所扫描] 机会 DUSK-USDT spread=35.3% high=gate(6.4%) low=bybit(-28.9%)
+2026/06/18 11:42:36 [跨所扫描] 机会 ICP-USDT spread=39.0% high=gate(10.3%) low=bybit(-28.7%)
+2026/06/18 11:42:36 [跨所扫描] 价差告警(纯观测) KNC-USDT 年化价差 115.7% 空 bybit(10.9%/年,间隔 8h) 多 gate(-104.8%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/18 11:42:39 [统一轮动] 扫描完成 snapshot=cvsnap-20260618T113147.921561191 funding_symbols=150 candidates=986 (svsp=366 cvsp=95 svps=368 cvps=123 perp_perp=30)
+2026/06/18 11:42:39 [统一轮动] 决策完成: held=1 candidates=986 actions=1 live=true
+2026/06/18 11:42:39 [统一轮动] HOLD cross_venue_spot_perp BEL-USDT reason=hold continuation_score=-0.000541 >= adjusted_open_score=-0.005478
+2026/06/18 11:42:45 [借币探测] ALICE: binance失败
+2026/06/18 11:42:45 [借币探测] C98: bybit不可借(缓存)
+2026/06/18 11:42:45 [借币探测] NBIS: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/18 11:42:45 [借币探测] ZEC: binance不可借 bybit失败 okx可借(年化1%) gate失败
+2026/06/18 11:42:45 [借币探测] HOOD: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/18 11:42:45 [借币探测] BABA: binance不可借(缓存) bybit失败 okx失败 gate失败
+2026/06/18 11:42:45 [借币探测] META: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/18 11:42:45 [借币探测] BE: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/18 11:42:45 [借币探测] AMAT: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/18 11:42:45 [借币探测] ARPA: binance失败 bybit失败 okx失败 gate失败
+2026/06/18 11:42:45 [借币探测] SPY: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/18 11:42:50 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 11:42:50 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 11:42:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 11:42:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 11:42:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 11:42:51 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 11:43:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 11:43:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 11:43:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 11:43:56 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 11:43:56 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 11:43:56 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 11:44:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 11:44:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 11:44:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 11:44:55 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 11:44:55 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 11:44:55 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 11:45:28 [统一轮动] 扫描完成 snapshot=cvsnap-20260618T114147.921851871 funding_symbols=150 candidates=997 (svsp=365 cvsp=101 svps=368 cvps=129 perp_perp=30)
+2026/06/18 11:45:28 [统一轮动] 决策完成: held=1 candidates=997 actions=1 live=true
+2026/06/18 11:45:28 [统一轮动] HOLD cross_venue_spot_perp BEL-USDT reason=hold continuation_score=-0.000541 >= adjusted_open_score=-0.005465
+2026/06/18 11:45:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 11:45:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 11:45:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 11:45:50 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT
+2026/06/18 11:45:50 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 11:45:50 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 11:46:50 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 11:46:50 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 11:46:50 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 11:46:50 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 11:46:50 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 11:46:58 [跨所spot-perp] 残余 dust ≈$0.0075 低于最小可平,标记已平,保留零头 BEL-USDT

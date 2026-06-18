@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"encoding/json"
 	"math"
 	"net/http"
@@ -9,6 +10,9 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"lingxi/internal/venue"
+	"lingxi/internal/venue/binance"
 )
 
 func writeSettlementLine(t *testing.T, path string, v any) {
@@ -158,6 +162,145 @@ func TestRotationPositionViewNormalization(t *testing.T) {
 	if cvps.Status != "dust-closed" {
 		t.Fatalf("cvps status=%q want dust-closed", cvps.Status)
 	}
+	if cvps.SpotLeg.MarketType != "spot" || cvps.PerpLeg.MarketType != "perp" {
+		t.Fatalf("market_type spot=%q perp=%q", cvps.SpotLeg.MarketType, cvps.PerpLeg.MarketType)
+	}
+}
+
+func TestRotationLegUnrealizedPnLMath(t *testing.T) {
+	tests := []struct {
+		name  string
+		side  string
+		qty   float64
+		entry float64
+		cur   float64
+		want  float64
+	}{
+		{"spot_long_up", "buy", 2, 100, 105, 10},
+		{"spot_long_down", "long", 2, 100, 95, -10},
+		{"perp_short_up", "short", 3, 50, 48, 6},
+		{"perp_short_down", "short", 3, 50, 52, -6},
+		{"spot_short_up", "sell", 1, 20, 18, 2},
+		{"perp_long_up", "long", 4, 10, 11, 4},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := rotationLegUnrealizedPnLUSDT(tc.side, tc.qty, tc.entry, tc.cur)
+			if math.Abs(got-tc.want) > 1e-9 {
+				t.Fatalf("pnl=%v want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestRotationPositionTotalPnLAndRatio(t *testing.T) {
+	spotPnL := rotationLegUnrealizedPnLUSDT("buy", 1, 100, 101)    // +1
+	perpPnL := rotationLegUnrealizedPnLUSDT("short", 1, 100, 99.5) // +0.5
+	accrued := 0.2
+	openFees := 0.08
+	closeFees := 0.08
+	total := rotationPositionTotalPnLUSDT(spotPnL, perpPnL, accrued, openFees, closeFees)
+	wantTotal := 1.54
+	if math.Abs(total-wantTotal) > 1e-9 {
+		t.Fatalf("total=%v want %v", total, wantTotal)
+	}
+	ratioPtr := rotationPositionPnLRatio(total, 100)
+	if ratioPtr == nil {
+		t.Fatal("ratio nil")
+	}
+	if math.Abs(*ratioPtr-0.0154) > 1e-9 {
+		t.Fatalf("ratio=%v want 0.0154", *ratioPtr)
+	}
+}
+
+func TestSettlementViewPnLRatio(t *testing.T) {
+	view := settlementViewFromRecord(strategySettlementRecord{
+		NetPnL: 2.5, NotionalUSDT: 100,
+	})
+	if math.Abs(view.PnLRatio-0.025) > 1e-9 {
+		t.Fatalf("pnl_ratio=%v want 0.025", view.PnLRatio)
+	}
+}
+
+type rotationPriceTestVenue struct {
+	fakeFundingVenue
+	spotMid float64
+	perpMid float64
+}
+
+func (v *rotationPriceTestVenue) FetchBookTicker(_ context.Context, m venue.Market, _ venue.Symbol) (venue.BookTicker, error) {
+	mid := v.spotMid
+	if m == venue.MarketPerp {
+		mid = v.perpMid
+	}
+	if mid <= 0 {
+		return venue.BookTicker{}, venue.ErrUnsupported
+	}
+	return venue.BookTicker{BidPrice: mid - 0.5, AskPrice: mid + 0.5}, nil
+}
+
+func TestEnrichOpenRotationPositionViewsWithLivePrices(t *testing.T) {
+	venues := map[string]venue.Venue{
+		binance.VenueName: &rotationPriceTestVenue{
+			fakeFundingVenue: fakeFundingVenue{name: binance.VenueName},
+			spotMid:          102,
+			perpMid:          101,
+		},
+	}
+	view := RotationPositionView{
+		Symbol:                "BTC-USDT",
+		Status:                "open",
+		NotionalUSDT:          100,
+		OpenFeesUSDT:          0.08,
+		ExpectedCloseFeesUSDT: 0.08,
+		AccruedFundingUSDT:    0.12,
+		SpotLeg:               rotationSpotLegView(binance.VenueName, "spot", "buy", 1, 100, 0, nil),
+		PerpLeg:               rotationPerpLegView(binance.VenueName, "perp", "short", 1, 100, 0, nil),
+	}
+	enrichOneRotationPositionWithLivePrices(context.Background(), venues, &view)
+	if view.SpotLeg.PriceUnavailable || view.PerpLeg.PriceUnavailable {
+		t.Fatalf("price unavailable spot=%v perp=%v", view.SpotLeg.PriceUnavailable, view.PerpLeg.PriceUnavailable)
+	}
+	if view.SpotLeg.CurrentPrice != 102 || view.PerpLeg.CurrentPrice != 101 {
+		t.Fatalf("prices spot=%v perp=%v", view.SpotLeg.CurrentPrice, view.PerpLeg.CurrentPrice)
+	}
+	if view.TotalPnLUSDT == nil {
+		t.Fatal("total pnl nil")
+	}
+	wantSpot := 2.0
+	wantPerp := -1.0
+	if math.Abs(*view.SpotLeg.LegUnrealizedPnLUSDT-wantSpot) > 1e-9 {
+		t.Fatalf("spot leg pnl=%v want %v", *view.SpotLeg.LegUnrealizedPnLUSDT, wantSpot)
+	}
+	if math.Abs(*view.PerpLeg.LegUnrealizedPnLUSDT-wantPerp) > 1e-9 {
+		t.Fatalf("perp leg pnl=%v want %v", *view.PerpLeg.LegUnrealizedPnLUSDT, wantPerp)
+	}
+	wantTotal := rotationPositionTotalPnLUSDT(wantSpot, wantPerp, 0.12, 0.08, 0.08)
+	if math.Abs(*view.TotalPnLUSDT-wantTotal) > 1e-9 {
+		t.Fatalf("total=%v want %v", *view.TotalPnLUSDT, wantTotal)
+	}
+	if view.PnLRatio == nil || math.Abs(*view.PnLRatio-wantTotal/100) > 1e-9 {
+		t.Fatalf("ratio=%v want %v", view.PnLRatio, wantTotal/100)
+	}
+}
+
+func TestEnrichRotationPositionFailSoftOnMissingPrice(t *testing.T) {
+	view := RotationPositionView{
+		Symbol:  "ETH-USDT",
+		Status:  "open",
+		SpotLeg: rotationSpotLegView(binance.VenueName, "spot", "buy", 1, 50, 0, nil),
+		PerpLeg: rotationPerpLegView(binance.VenueName, "perp", "short", 1, 50, 0, nil),
+	}
+	enrichOneRotationPositionWithLivePrices(context.Background(), map[string]venue.Venue{}, &view)
+	if !view.PriceUnavailable {
+		t.Fatal("expected price_unavailable")
+	}
+	if view.SpotLeg.LegUnrealizedPnLUSDT != nil || view.PerpLeg.LegUnrealizedPnLUSDT != nil {
+		t.Fatalf("leg pnl should be omitted: spot=%v perp=%v", view.SpotLeg.LegUnrealizedPnLUSDT, view.PerpLeg.LegUnrealizedPnLUSDT)
+	}
+	if view.TotalPnLUSDT != nil {
+		t.Fatalf("total pnl should be omitted when prices missing: %v", view.TotalPnLUSDT)
+	}
 }
 
 func TestEarningsAPIReturnsRotationBasedRealizedPnL(t *testing.T) {
@@ -208,12 +351,20 @@ func TestEarningsAPIReturnsRotationBasedRealizedPnL(t *testing.T) {
 
 func TestRotationPositionsAPIHandler(t *testing.T) {
 	execCfg := EngineConfig{CrossVenueExecutor: CrossVenueExecutorConfig{DefaultTakerFeeBps: 4}}
-	svsp := NewSingleVenueSpotPerpExecutor(execCfg, nil, t.TempDir(), nil)
+	venues := map[string]venue.Venue{
+		binance.VenueName: &rotationPriceTestVenue{
+			fakeFundingVenue: fakeFundingVenue{name: binance.VenueName},
+			spotMid:          100,
+			perpMid:          100,
+		},
+	}
+	svsp := NewSingleVenueSpotPerpExecutor(execCfg, venues, t.TempDir(), nil)
 	_ = svsp.persistPosition(SingleVenueSpotPerpPosition{
 		Symbol: "BTC-USDT", Venue: "binance", Status: SVSPStatusOpen,
 		SpotLeg:      SingleVenueSpotPerpLegState{Market: "spot", Side: "buy", Qty: 1, EntryPrice: 100},
 		PerpLeg:      SingleVenueSpotPerpLegState{Market: "perp", Side: "short", Qty: 1, EntryPrice: 100},
 		NotionalUSDT: 100, OpenedAt: time.Now().UTC(), IdemPrefix: "test",
+		SingleVenueSpotPerpAttribution: SingleVenueSpotPerpAttribution{OpenFeesUSDT: 0.08},
 	})
 	s := &DashboardServer{svspExec: svsp}
 	req := httptest.NewRequest(http.MethodGet, "/api/rotation/positions?status=open", nil)
@@ -228,5 +379,12 @@ func TestRotationPositionsAPIHandler(t *testing.T) {
 	}
 	if resp.Count != 1 || resp.Positions[0].Symbol != "BTC-USDT" {
 		t.Fatalf("resp=%+v", resp)
+	}
+	pos := resp.Positions[0]
+	if pos.SpotLeg.MarketType != "spot" || pos.PerpLeg.MarketType != "perp" {
+		t.Fatalf("market types spot=%q perp=%q", pos.SpotLeg.MarketType, pos.PerpLeg.MarketType)
+	}
+	if pos.TotalPnLUSDT == nil {
+		t.Fatal("expected total_pnl_usdt")
 	}
 }

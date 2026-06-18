@@ -1,26 +1,35 @@
 package app
 
 import (
+	"context"
 	"net/http"
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"lingxi/internal/money"
+	"lingxi/internal/venue"
 )
 
 // rotation_positions_api.go 四轮动策略持仓/结算只读视图,供 /api/rotation/positions 与 /api/rotation/settlements。
 
+const rotationPositionPriceFetchTimeout = 3 * time.Second
+
 // RotationPositionLegView 统一描述一条腿。
 type RotationPositionLegView struct {
-	Venue      string   `json:"venue"`
-	Market     string   `json:"market"`
-	Side       string   `json:"side"`
-	Qty        float64  `json:"qty"`
-	EntryPrice float64  `json:"entry_price"`
-	ExitPrice  float64  `json:"exit_price,omitempty"`
-	OrderIDs   []string `json:"order_ids,omitempty"`
+	Venue                string   `json:"venue"`
+	Market               string   `json:"market"`
+	MarketType           string   `json:"market_type"` // spot / perp
+	Side                 string   `json:"side"`
+	Qty                  float64  `json:"qty"`
+	EntryPrice           float64  `json:"entry_price"`
+	CurrentPrice         float64  `json:"current_price,omitempty"`
+	LegUnrealizedPnLUSDT *float64 `json:"leg_unrealized_pnl_usdt,omitempty"`
+	PriceUnavailable     bool     `json:"price_unavailable,omitempty"`
+	ExitPrice            float64  `json:"exit_price,omitempty"`
+	OrderIDs             []string `json:"order_ids,omitempty"`
 }
 
 // RotationPositionView 四轮动策略持仓的统一视图。
@@ -41,6 +50,11 @@ type RotationPositionView struct {
 	ExpectedNetEVUSDT     float64                 `json:"expected_net_ev_usdt"`
 	ExpectedFundingUSDT   float64                 `json:"expected_funding_usdt"`
 	AccruedFundingUSDT    float64                 `json:"accrued_funding_usdt"`
+	TotalFeesUSDT         float64                 `json:"total_fees_usdt"`
+	TotalPnLUSDT          *float64                `json:"total_pnl_usdt,omitempty"`
+	PnLRatio              *float64                `json:"pnl_ratio,omitempty"`
+	OccupiedCapitalUSDT   float64                 `json:"occupied_capital_usdt,omitempty"`
+	PriceUnavailable      bool                    `json:"price_unavailable,omitempty"`
 	OpenedAt              time.Time               `json:"opened_at"`
 	UpdatedAt             time.Time               `json:"updated_at,omitempty"`
 	ClosedAt              time.Time               `json:"closed_at,omitempty"`
@@ -66,6 +80,7 @@ type RotationSettlementView struct {
 	OpenFees        float64   `json:"open_fees"`
 	CloseFees       float64   `json:"close_fees"`
 	TotalFees       float64   `json:"total_fees"`
+	PnLRatio        float64   `json:"pnl_ratio,omitempty"`
 	BorrowCost      float64   `json:"borrow_cost,omitempty"`
 	RollbackCost    float64   `json:"rollback_cost,omitempty"`
 	CloseReason     string    `json:"close_reason,omitempty"`
@@ -146,8 +161,8 @@ func viewFromSVSP(pos SingleVenueSpotPerpPosition, execCfg CrossVenueExecutorCon
 		Symbol:                pos.Symbol,
 		Venues:                venues,
 		Status:                normalizeRotationStatus(string(pos.Status), pos.CloseReason, pos.TransitionState),
-		SpotLeg:               RotationPositionLegView{Venue: pos.Venue, Market: pos.SpotLeg.Market, Side: pos.SpotLeg.Side, Qty: pos.SpotLeg.Qty, EntryPrice: pos.SpotLeg.EntryPrice, ExitPrice: pos.SpotLeg.ExitPrice, OrderIDs: pos.SpotLeg.OrderIDs},
-		PerpLeg:               RotationPositionLegView{Venue: pos.Venue, Market: pos.PerpLeg.Market, Side: pos.PerpLeg.Side, Qty: pos.PerpLeg.Qty, EntryPrice: pos.PerpLeg.EntryPrice, ExitPrice: pos.PerpLeg.ExitPrice, OrderIDs: pos.PerpLeg.OrderIDs},
+		SpotLeg:               rotationSpotLegView(pos.Venue, pos.SpotLeg.Market, pos.SpotLeg.Side, pos.SpotLeg.Qty, pos.SpotLeg.EntryPrice, pos.SpotLeg.ExitPrice, pos.SpotLeg.OrderIDs),
+		PerpLeg:               rotationPerpLegView(pos.Venue, pos.PerpLeg.Market, pos.PerpLeg.Side, pos.PerpLeg.Qty, pos.PerpLeg.EntryPrice, pos.PerpLeg.ExitPrice, pos.PerpLeg.OrderIDs),
 		NotionalUSDT:          pos.NotionalUSDT,
 		OpenFeesUSDT:          pos.OpenFeesUSDT,
 		RealizedCloseFeesUSDT: pos.CloseFeesUSDT,
@@ -174,8 +189,8 @@ func viewFromCVSP(pos CrossVenueSpotPerpPosition, execCfg CrossVenueExecutorConf
 		Symbol:                pos.Symbol,
 		Venues:                uniqueNonEmptyStrings(pos.SpotVenue, pos.PerpVenue),
 		Status:                normalizeRotationStatus(string(pos.Status), pos.CloseReason, pos.TransitionState),
-		SpotLeg:               RotationPositionLegView{Venue: pos.SpotVenue, Market: pos.SpotLeg.Market, Side: pos.SpotLeg.Side, Qty: pos.SpotLeg.Qty, EntryPrice: pos.SpotLeg.EntryPrice, ExitPrice: pos.SpotLeg.ExitPrice, OrderIDs: pos.SpotLeg.OrderIDs},
-		PerpLeg:               RotationPositionLegView{Venue: pos.PerpVenue, Market: pos.PerpLeg.Market, Side: pos.PerpLeg.Side, Qty: pos.PerpLeg.Qty, EntryPrice: pos.PerpLeg.EntryPrice, ExitPrice: pos.PerpLeg.ExitPrice, OrderIDs: pos.PerpLeg.OrderIDs},
+		SpotLeg:               rotationSpotLegView(pos.SpotVenue, pos.SpotLeg.Market, pos.SpotLeg.Side, pos.SpotLeg.Qty, pos.SpotLeg.EntryPrice, pos.SpotLeg.ExitPrice, pos.SpotLeg.OrderIDs),
+		PerpLeg:               rotationPerpLegView(pos.PerpVenue, pos.PerpLeg.Market, pos.PerpLeg.Side, pos.PerpLeg.Qty, pos.PerpLeg.EntryPrice, pos.PerpLeg.ExitPrice, pos.PerpLeg.OrderIDs),
 		NotionalUSDT:          pos.NotionalUSDT,
 		OpenFeesUSDT:          pos.OpenFeesUSDT,
 		RealizedCloseFeesUSDT: pos.CloseFeesUSDT,
@@ -203,8 +218,8 @@ func viewFromSVPS(pos SingleVenuePerpSpotPosition, execCfg CrossVenueExecutorCon
 		Symbol:                pos.Symbol,
 		Venues:                venues,
 		Status:                normalizeRotationStatus(string(pos.Status), pos.CloseReason, pos.TransitionState),
-		SpotLeg:               RotationPositionLegView{Venue: pos.Venue, Market: pos.SpotLeg.Market, Side: pos.SpotLeg.Side, Qty: pos.SpotLeg.Qty, EntryPrice: pos.SpotLeg.EntryPrice, ExitPrice: pos.SpotLeg.ExitPrice, OrderIDs: pos.SpotLeg.OrderIDs},
-		PerpLeg:               RotationPositionLegView{Venue: pos.Venue, Market: pos.PerpLeg.Market, Side: pos.PerpLeg.Side, Qty: pos.PerpLeg.Qty, EntryPrice: pos.PerpLeg.EntryPrice, ExitPrice: pos.PerpLeg.ExitPrice, OrderIDs: pos.PerpLeg.OrderIDs},
+		SpotLeg:               rotationSpotLegView(pos.Venue, pos.SpotLeg.Market, pos.SpotLeg.Side, pos.SpotLeg.Qty, pos.SpotLeg.EntryPrice, pos.SpotLeg.ExitPrice, pos.SpotLeg.OrderIDs),
+		PerpLeg:               rotationPerpLegView(pos.Venue, pos.PerpLeg.Market, pos.PerpLeg.Side, pos.PerpLeg.Qty, pos.PerpLeg.EntryPrice, pos.PerpLeg.ExitPrice, pos.PerpLeg.OrderIDs),
 		NotionalUSDT:          pos.NotionalUSDT,
 		OpenFeesUSDT:          pos.OpenFeesUSDT,
 		RealizedCloseFeesUSDT: pos.CloseFeesUSDT,
@@ -231,8 +246,8 @@ func viewFromCVPS(pos CrossVenuePerpSpotPosition, execCfg CrossVenueExecutorConf
 		Symbol:                pos.Symbol,
 		Venues:                uniqueNonEmptyStrings(pos.SpotVenue, pos.PerpVenue),
 		Status:                normalizeRotationStatus(string(pos.Status), pos.CloseReason, pos.TransitionState),
-		SpotLeg:               RotationPositionLegView{Venue: pos.SpotVenue, Market: pos.SpotLeg.Market, Side: pos.SpotLeg.Side, Qty: pos.SpotLeg.Qty, EntryPrice: pos.SpotLeg.EntryPrice, ExitPrice: pos.SpotLeg.ExitPrice, OrderIDs: pos.SpotLeg.OrderIDs},
-		PerpLeg:               RotationPositionLegView{Venue: pos.PerpVenue, Market: pos.PerpLeg.Market, Side: pos.PerpLeg.Side, Qty: pos.PerpLeg.Qty, EntryPrice: pos.PerpLeg.EntryPrice, ExitPrice: pos.PerpLeg.ExitPrice, OrderIDs: pos.PerpLeg.OrderIDs},
+		SpotLeg:               rotationSpotLegView(pos.SpotVenue, pos.SpotLeg.Market, pos.SpotLeg.Side, pos.SpotLeg.Qty, pos.SpotLeg.EntryPrice, pos.SpotLeg.ExitPrice, pos.SpotLeg.OrderIDs),
+		PerpLeg:               rotationPerpLegView(pos.PerpVenue, pos.PerpLeg.Market, pos.PerpLeg.Side, pos.PerpLeg.Qty, pos.PerpLeg.EntryPrice, pos.PerpLeg.ExitPrice, pos.PerpLeg.OrderIDs),
 		NotionalUSDT:          pos.NotionalUSDT,
 		OpenFeesUSDT:          pos.OpenFeesUSDT,
 		RealizedCloseFeesUSDT: pos.CloseFeesUSDT,
@@ -273,7 +288,182 @@ func settlementViewFromRecord(rec strategySettlementRecord) RotationSettlementVi
 		SwitchSequence:  rec.SwitchSequence,
 		HoldDurationSec: holdDurationSec(rec.OpenTime, rec.CloseTime),
 	}
+	if rec.NotionalUSDT > 0 {
+		view.PnLRatio = rec.NetPnL / rec.NotionalUSDT
+	}
 	return view
+}
+
+func rotationSpotLegView(venueName, market, side string, qty, entryPrice, exitPrice float64, orderIDs []string) RotationPositionLegView {
+	return rotationPositionLegView(venueName, market, "spot", side, qty, entryPrice, exitPrice, orderIDs)
+}
+
+func rotationPerpLegView(venueName, market, side string, qty, entryPrice, exitPrice float64, orderIDs []string) RotationPositionLegView {
+	return rotationPositionLegView(venueName, market, "perp", side, qty, entryPrice, exitPrice, orderIDs)
+}
+
+func rotationPositionLegView(venueName, market, marketType, side string, qty, entryPrice, exitPrice float64, orderIDs []string) RotationPositionLegView {
+	return RotationPositionLegView{
+		Venue:      venueName,
+		Market:     market,
+		MarketType: marketType,
+		Side:       side,
+		Qty:        qty,
+		EntryPrice: entryPrice,
+		ExitPrice:  exitPrice,
+		OrderIDs:   orderIDs,
+	}
+}
+
+func rotationLegUnrealizedPnLUSDT(side string, qty, entryPrice, currentPrice float64) float64 {
+	if qty <= 0 || entryPrice <= 0 || currentPrice <= 0 {
+		return 0
+	}
+	switch strings.ToLower(strings.TrimSpace(side)) {
+	case "buy", "long":
+		return (currentPrice - entryPrice) * qty
+	case "sell", "short":
+		return (entryPrice - currentPrice) * qty
+	default:
+		return 0
+	}
+}
+
+func rotationPositionOccupiedCapital(notional float64) float64 {
+	if notional > 0 {
+		return notional
+	}
+	return 0
+}
+
+func rotationPositionTotalPnLUSDT(spotPnL, perpPnL, accruedFunding, openFees, expectedCloseFees float64) float64 {
+	return money.SumUSDT(spotPnL, perpPnL, accruedFunding, -openFees, -expectedCloseFees)
+}
+
+func rotationPositionPnLRatio(totalPnL, occupiedCapital float64) *float64 {
+	if occupiedCapital <= 0 {
+		return nil
+	}
+	ratio := totalPnL / occupiedCapital
+	return &ratio
+}
+
+func isOpenRotationPositionForPricing(status string) bool {
+	status = strings.ToLower(strings.TrimSpace(status))
+	return status == "open" || strings.Contains(status, "opening") || status == "closing" || status == "orphan"
+}
+
+func rotationPositionNeedsLivePrices(statusFilter string) bool {
+	switch strings.ToLower(strings.TrimSpace(statusFilter)) {
+	case "", "all", "open":
+		return true
+	default:
+		return false
+	}
+}
+
+func collectRotationDisplayVenues(s *DashboardServer) map[string]venue.Venue {
+	out := make(map[string]venue.Venue)
+	if s == nil {
+		return out
+	}
+	mergeVenueMap := func(src map[string]venue.Venue) {
+		for name, v := range src {
+			if v == nil {
+				continue
+			}
+			key := strings.ToLower(strings.TrimSpace(name))
+			if key == "" || out[key] != nil {
+				continue
+			}
+			out[key] = v
+		}
+	}
+	if s.crossVenueExecutor != nil {
+		mergeVenueMap(s.crossVenueExecutor.venues)
+	}
+	if s.svspExec != nil {
+		mergeVenueMap(s.svspExec.venues)
+	}
+	if s.cvspExec != nil {
+		mergeVenueMap(s.cvspExec.venues)
+	}
+	if s.svpsExec != nil {
+		mergeVenueMap(s.svpsExec.venues)
+	}
+	if s.cvpsExec != nil {
+		mergeVenueMap(s.cvpsExec.venues)
+	}
+	if s.orchestrator != nil {
+		for _, name := range crossVenueNames {
+			key := strings.ToLower(strings.TrimSpace(name))
+			if out[key] != nil {
+				continue
+			}
+			if adp := crossVenueAdapterFromOrchestrator(s.orchestrator, name); adp != nil {
+				out[key] = adp
+			}
+		}
+	}
+	return out
+}
+
+func enrichOpenRotationPositionViewsWithLivePrices(ctx context.Context, s *DashboardServer, views []RotationPositionView) {
+	venues := collectRotationDisplayVenues(s)
+	if len(venues) == 0 {
+		return
+	}
+	for i := range views {
+		if !isOpenRotationPositionForPricing(views[i].Status) {
+			continue
+		}
+		enrichOneRotationPositionWithLivePrices(ctx, venues, &views[i])
+	}
+}
+
+func enrichOneRotationPositionWithLivePrices(ctx context.Context, venues map[string]venue.Venue, view *RotationPositionView) {
+	if view == nil {
+		return
+	}
+	view.TotalFeesUSDT = money.SumUSDT(view.OpenFeesUSDT, view.ExpectedCloseFeesUSDT)
+	view.OccupiedCapitalUSDT = rotationPositionOccupiedCapital(view.NotionalUSDT)
+
+	var wg sync.WaitGroup
+	enrichLeg := func(leg *RotationPositionLegView) {
+		if leg == nil {
+			return
+		}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			v := venues[strings.ToLower(strings.TrimSpace(leg.Venue))]
+			mid, ok := unifiedShadowFetchLegMidPrice(ctx, v, leg.MarketType, view.Symbol)
+			if !ok {
+				leg.PriceUnavailable = true
+				view.PriceUnavailable = true
+				return
+			}
+			leg.CurrentPrice = mid
+			pnl := rotationLegUnrealizedPnLUSDT(leg.Side, leg.Qty, leg.EntryPrice, mid)
+			leg.LegUnrealizedPnLUSDT = &pnl
+		}()
+	}
+	enrichLeg(&view.SpotLeg)
+	enrichLeg(&view.PerpLeg)
+	wg.Wait()
+
+	if view.SpotLeg.LegUnrealizedPnLUSDT == nil || view.PerpLeg.LegUnrealizedPnLUSDT == nil {
+		return
+	}
+	total := rotationPositionTotalPnLUSDT(
+		*view.SpotLeg.LegUnrealizedPnLUSDT,
+		*view.PerpLeg.LegUnrealizedPnLUSDT,
+		view.AccruedFundingUSDT,
+		view.OpenFeesUSDT,
+		view.ExpectedCloseFeesUSDT,
+	)
+	view.TotalPnLUSDT = &total
+	view.PnLRatio = rotationPositionPnLRatio(total, view.OccupiedCapitalUSDT)
 }
 
 func buildRotationPositionViews(s *DashboardServer, execCfg CrossVenueExecutorConfig, statusFilter, strategyFilter string) []RotationPositionView {
@@ -352,6 +542,11 @@ func (s *DashboardServer) handleRotationPositionsAPI(w http.ResponseWriter, r *h
 			}
 		}
 		views = filtered
+	}
+	if rotationPositionNeedsLivePrices(statusFilter) {
+		ctx, cancel := context.WithTimeout(r.Context(), rotationPositionPriceFetchTimeout)
+		defer cancel()
+		enrichOpenRotationPositionViewsWithLivePrices(ctx, s, views)
 	}
 	writeJSON(w, RotationPositionsAPIResponse{
 		GeneratedAt: time.Now().UTC(),
