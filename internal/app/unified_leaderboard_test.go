@@ -57,6 +57,73 @@ func TestReadUnifiedCandidatesJSONLMissingFile(t *testing.T) {
 	}
 }
 
+func TestBuildUnifiedLeaderboardTieredRanking(t *testing.T) {
+	cycle := "cvsnap-tier-test"
+	records := []UnifiedCandidateLogRecord{
+		// Tier 3 degenerate — would sort above negative EV without tiering.
+		{CycleID: cycle, StrategyType: UnifiedStrategySingleVenueSpotPerp, Symbol: "ZZZ-USDT",
+			RejectReasons: []string{"no_spot_market"}},
+		{CycleID: cycle, StrategyType: UnifiedStrategySingleVenueSpotPerp, Symbol: "AAA-USDT",
+			RejectReasons: []string{"not_borrowable"}},
+		// Tier 2 evaluated near-miss with negative EV.
+		{CycleID: cycle, StrategyType: UnifiedStrategyPerpPerp, Symbol: "NEAR-USDT", Venues: []string{"bybit", "okx"},
+			ExpectedNetEVUSDT: -0.15, CapitalEfficiencyScore: -0.002, WouldExecute: false,
+			RejectReasons: []string{"EV<0"}, CapitalRequiredByVenue: map[string]float64{"bybit": 45, "okx": 45}},
+		{CycleID: cycle, StrategyType: UnifiedStrategyPerpPerp, Symbol: "GOOD-USDT", Venues: []string{"bybit", "okx"},
+			ExpectedNetEVUSDT: 0.08, CapitalEfficiencyScore: 0.004, WouldExecute: false,
+			RejectReasons: []string{"execution<0.50"}, CapitalRequiredByVenue: map[string]float64{"bybit": 20, "okx": 20}, NotionalUSDT: 50},
+		// Tier 1 executable.
+		{CycleID: cycle, StrategyType: UnifiedStrategyPerpPerp, Symbol: "EXEC-USDT", Venues: []string{"bybit", "okx"},
+			ExpectedNetEVUSDT: 0.05, CapitalEfficiencyScore: 0.001, WouldExecute: true,
+			CapitalRequiredByVenue: map[string]float64{"bybit": 10, "okx": 10}, NotionalUSDT: 30},
+	}
+	resp := BuildUnifiedLeaderboard(records, 0)
+	if len(resp.Opportunities) != 5 {
+		t.Fatalf("opportunities = %d, want 5", len(resp.Opportunities))
+	}
+
+	got := make([]string, len(resp.Opportunities))
+	for i, o := range resp.Opportunities {
+		got[i] = o.Symbol
+	}
+	want := []string{"EXEC-USDT", "GOOD-USDT", "NEAR-USDT", "AAA-USDT", "ZZZ-USDT"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("rank order = %v, want %v", got, want)
+	}
+	if !resp.Opportunities[0].WouldExecute {
+		t.Fatal("top row should be executable")
+	}
+	if resp.Opportunities[2].ExpectedNetEVUSDT >= 0 {
+		t.Fatalf("tier-2 negative near-miss = %+v", resp.Opportunities[2])
+	}
+	if resp.Opportunities[3].ExpectedNetEVUSDT != 0 || resp.Opportunities[4].ExpectedNetEVUSDT != 0 {
+		t.Fatalf("degenerate rows should have zero EV: %+v, %+v", resp.Opportunities[3], resp.Opportunities[4])
+	}
+}
+
+func TestUnifiedCandidateTierHelpers(t *testing.T) {
+	if unifiedCandidateTier(UnifiedCandidateLogRecord{WouldExecute: true}) != 1 {
+		t.Fatal("executable should be tier 1")
+	}
+	eval := UnifiedCandidateLogRecord{
+		ExpectedNetEVUSDT:      -0.1,
+		CapitalRequiredByVenue: map[string]float64{"bybit": 10},
+	}
+	if unifiedCandidateTier(eval) != 2 {
+		t.Fatal("evaluated near-miss should be tier 2")
+	}
+	degen := UnifiedCandidateLogRecord{RejectReasons: []string{"no_spot_market"}}
+	if unifiedCandidateTier(degen) != 3 {
+		t.Fatal("degenerate reject should be tier 3")
+	}
+	if unifiedCandidateEvaluated(degen) {
+		t.Fatal("degenerate should not be evaluated")
+	}
+	if !unifiedCandidateEvaluated(UnifiedCandidateLogRecord{NotionalUSDT: 1}) {
+		t.Fatal("notional>0 should count as evaluated")
+	}
+}
+
 func TestBuildUnifiedLeaderboardSortsByPrimaryKey(t *testing.T) {
 	cycle := "cvcycle-test"
 	records := []UnifiedCandidateLogRecord{
@@ -79,11 +146,19 @@ func TestBuildUnifiedLeaderboardSortsByPrimaryKey(t *testing.T) {
 	if len(resp.Opportunities) != 2 {
 		t.Fatalf("opportunities = %d, want 2", len(resp.Opportunities))
 	}
-	if resp.Opportunities[0].Symbol != "BBB-USDT" || resp.Opportunities[0].Rank != 1 {
+	// 分层排序:可执行(would_execute)候选优先于"已评估近失"候选,即使后者主排序键更高。
+	// AAA 可执行(tier1)→ 排名第 1;BBB 仅近失(tier2)→ 排名第 2。
+	if resp.Opportunities[0].Symbol != "AAA-USDT" || resp.Opportunities[0].Rank != 1 {
 		t.Fatalf("top opportunity = %+v", resp.Opportunities[0])
 	}
-	if resp.Opportunities[0].PrimarySortKey != 0.005 {
+	if !resp.Opportunities[0].WouldExecute {
+		t.Fatalf("top opportunity should be executable: %+v", resp.Opportunities[0])
+	}
+	if resp.Opportunities[0].PrimarySortKey != 0.001 {
 		t.Fatalf("primary_sort_key = %.6f", resp.Opportunities[0].PrimarySortKey)
+	}
+	if resp.Opportunities[1].Symbol != "BBB-USDT" {
+		t.Fatalf("second opportunity = %+v", resp.Opportunities[1])
 	}
 	if resp.Opportunities[0].RankReason == "" {
 		t.Fatal("expected rank_reason")
@@ -157,8 +232,8 @@ func TestDashboardUnifiedLeaderboardAPI(t *testing.T) {
 
 func TestUnifiedPrimarySortKeyFallback(t *testing.T) {
 	rec := UnifiedCandidateLogRecord{
-		ExpectedNetEVUSDT:        0.10,
-		CapitalEfficiencyScore:   0,
+		ExpectedNetEVUSDT:      0.10,
+		CapitalEfficiencyScore: 0,
 		CapitalRequiredByVenue: map[string]float64{"bybit": 25, "okx": 25},
 	}
 	got := unifiedPrimarySortKey(rec)

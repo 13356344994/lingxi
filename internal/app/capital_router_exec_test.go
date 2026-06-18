@@ -53,12 +53,12 @@ func TestExecuteCapitalRoutingLiveCallsTransfers(t *testing.T) {
 		"binance": binanceFake,
 	}
 
-	executed, errs := ExecuteCapitalRouting(context.Background(), plan, venues, true, testCapitalRouterExecLogger(&bytes.Buffer{}))
-	if len(errs) != 0 {
-		t.Fatalf("errs = %#v, want none", errs)
+	result := ExecuteCapitalRouting(context.Background(), plan, venues, true, testCapitalRouterExecLogger(&bytes.Buffer{}))
+	if len(result.Errs) != 0 {
+		t.Fatalf("errs = %#v, want none", result.Errs)
 	}
-	if executed != 2 {
-		t.Fatalf("executed = %d, want 2", executed)
+	if result.Executed != 2 {
+		t.Fatalf("executed = %d, want 2", result.Executed)
 	}
 	if len(fake.calls) != 1 || fake.calls[0].from != "futures" || fake.calls[0].to != "spot" || fake.calls[0].amount != 80 {
 		t.Fatalf("bybit calls = %+v", fake.calls)
@@ -77,12 +77,12 @@ func TestExecuteCapitalRoutingShadowNoRealCalls(t *testing.T) {
 		},
 	}
 	var buf bytes.Buffer
-	executed, errs := ExecuteCapitalRouting(context.Background(), plan, map[string]venue.Venue{"bybit": fake}, false, testCapitalRouterExecLogger(&buf))
-	if len(errs) != 0 {
-		t.Fatalf("errs = %#v, want none", errs)
+	result := ExecuteCapitalRouting(context.Background(), plan, map[string]venue.Venue{"bybit": fake}, false, testCapitalRouterExecLogger(&buf))
+	if len(result.Errs) != 0 {
+		t.Fatalf("errs = %#v, want none", result.Errs)
 	}
-	if executed != 0 {
-		t.Fatalf("executed = %d, want 0 in shadow mode", executed)
+	if result.Executed != 0 {
+		t.Fatalf("executed = %d, want 0 in shadow mode", result.Executed)
 	}
 	if len(fake.calls) != 0 {
 		t.Fatalf("shadow mode should not call TransferWallet, got %+v", fake.calls)
@@ -102,12 +102,12 @@ func TestExecuteCapitalRoutingCrossVenueNeverTransfers(t *testing.T) {
 		},
 	}
 	var buf bytes.Buffer
-	executed, errs := ExecuteCapitalRouting(context.Background(), plan, map[string]venue.Venue{"gate": fake}, true, testCapitalRouterExecLogger(&buf))
-	if len(errs) != 0 {
-		t.Fatalf("errs = %#v, want none", errs)
+	result := ExecuteCapitalRouting(context.Background(), plan, map[string]venue.Venue{"gate": fake}, true, testCapitalRouterExecLogger(&buf))
+	if len(result.Errs) != 0 {
+		t.Fatalf("errs = %#v, want none", result.Errs)
 	}
-	if executed != 0 {
-		t.Fatalf("executed = %d, want 0", executed)
+	if result.Executed != 0 {
+		t.Fatalf("executed = %d, want 0", result.Executed)
 	}
 	if len(fake.calls) != 0 {
 		t.Fatalf("cross-venue suggestions must not trigger transfers, got %+v", fake.calls)
@@ -122,22 +122,25 @@ func TestExecuteCapitalRoutingUnsupportedVenueRecordsError(t *testing.T) {
 	t.Parallel()
 	plan := CapitalRoutingPlan{
 		WithinVenueTransfers: []WalletTransfer{
-			{Venue: "okx", From: WalletKindSpot, To: WalletKindFutures, AmountUSDT: 10, Reason: "test"},
+			{Venue: "okx", From: WalletKindSpot, To: WalletKindFutures, AmountUSDT: 10, Reason: "test", OpportunityIDs: []string{"opp-1"}},
 		},
 	}
 	venues := map[string]venue.Venue{
 		"okx": &fakeFundingVenue{name: "okx"},
 	}
 
-	executed, errs := ExecuteCapitalRouting(context.Background(), plan, venues, true, testCapitalRouterExecLogger(&bytes.Buffer{}))
-	if executed != 0 {
-		t.Fatalf("executed = %d, want 0", executed)
+	result := ExecuteCapitalRouting(context.Background(), plan, venues, true, testCapitalRouterExecLogger(&bytes.Buffer{}))
+	if result.Executed != 0 {
+		t.Fatalf("executed = %d, want 0", result.Executed)
 	}
-	if len(errs) != 1 {
-		t.Fatalf("errs = %#v, want 1", errs)
+	if len(result.Errs) != 1 {
+		t.Fatalf("errs = %#v, want 1", result.Errs)
 	}
-	if !strings.Contains(errs[0].Error(), "does not support wallet transfer") {
-		t.Fatalf("err = %v", errs[0])
+	if !strings.Contains(result.Errs[0].Error(), "does not support wallet transfer") {
+		t.Fatalf("err = %v", result.Errs[0])
+	}
+	if len(result.FailedTransferOpportunityIDs) != 1 || result.FailedTransferOpportunityIDs[0] != "opp-1" {
+		t.Fatalf("failed opp IDs = %v, want [opp-1]", result.FailedTransferOpportunityIDs)
 	}
 }
 
@@ -265,16 +268,19 @@ func TestExecuteCapitalRoutingCollectsErrorsWithoutStopping(t *testing.T) {
 	plan := CapitalRoutingPlan{
 		WithinVenueTransfers: []WalletTransfer{
 			{Venue: "ok", From: WalletKindSpot, To: WalletKindFutures, AmountUSDT: 1, Reason: "a"},
-			{Venue: "fail", From: WalletKindSpot, To: WalletKindFutures, AmountUSDT: 2, Reason: "b"},
-			{Venue: "missing", From: WalletKindSpot, To: WalletKindFutures, AmountUSDT: 3, Reason: "c"},
+			{Venue: "fail", From: WalletKindSpot, To: WalletKindFutures, AmountUSDT: 2, Reason: "b", OpportunityIDs: []string{"blocked-opp"}},
+			{Venue: "missing", From: WalletKindSpot, To: WalletKindFutures, AmountUSDT: 3, Reason: "c", OpportunityIDs: []string{"missing-opp"}},
 		},
 	}
 	venues := map[string]venue.Venue{"ok": okVenue, "fail": failVenue}
-	executed, errs := ExecuteCapitalRouting(context.Background(), plan, venues, true, log.New(io.Discard, "", 0))
-	if executed != 1 {
-		t.Fatalf("executed = %d, want 1", executed)
+	result := ExecuteCapitalRouting(context.Background(), plan, venues, true, log.New(io.Discard, "", 0))
+	if result.Executed != 1 {
+		t.Fatalf("executed = %d, want 1", result.Executed)
 	}
-	if len(errs) != 2 {
-		t.Fatalf("errs = %#v, want 2", errs)
+	if len(result.Errs) != 2 {
+		t.Fatalf("errs = %#v, want 2", result.Errs)
+	}
+	if len(result.FailedTransferOpportunityIDs) != 2 {
+		t.Fatalf("failed opp IDs = %v, want 2 entries", result.FailedTransferOpportunityIDs)
 	}
 }

@@ -687,6 +687,23 @@ func (e *SingleVenuePerpSpotExecutor) handleOrphanLeg(
 	spotOpen, perpOpen, live bool,
 	spotShort, perpLong float64,
 ) {
+	decision := evaluateNegativeCarryOrphan(ctx, e.execCfg(), e.venues, pos.Symbol, pos.Venue, pos.Venue, spotOpen, perpOpen, spotShort, perpLong, pos.PerpLeg.EntryPrice)
+	if decision.IsDustOrphan {
+		v := e.venues[pos.Venue]
+		tr, _ := v.(singleVenuePerpSpotTrader)
+		sym := venue.Symbol(pos.Symbol)
+		takerBps := svpsTakerSlippageBps(e.execCfg())
+		if live && tr != nil && perpOpen {
+			qty := ledgerCappedCloseQty(pos.PerpLeg.Qty, perpLong)
+			_, _ = e.placeSVPSLegIOC(ctx, tr, venue.MarketPerp, sym, venue.SideSell, qty, svpsLegClientID(pos.IdemPrefix, "dust"), true, venue.MarginEffectNone, live, takerBps)
+		}
+		pos.Status = SVPSStatusClosed
+		pos.CloseReason = appendDustCloseReason(nonEmpty(pos.CloseReason, "dust_orphan"), decision.RemainingNotionalUSDT)
+		pos.UpdatedAt = e.nowFn()
+		logDustOrphanClosed(e.logger, "同所perp-spot", pos.Symbol, decision.RemainingNotionalUSDT)
+		e.finalizeClosedPosition(pos)
+		return
+	}
 	pos.Status = SVPSStatusOrphan
 	pos.UpdatedAt = e.nowFn()
 	_ = e.persistPosition(pos)
@@ -846,6 +863,23 @@ func (e *SingleVenuePerpSpotExecutor) closePosition(ctx context.Context, pos Sin
 		pos.UpdatedAt = e.nowFn()
 		_ = e.persistPosition(pos)
 		return fmt.Errorf("平仓跳过: %s 实测为0,保留台账待下轮", pos.Symbol)
+	}
+
+	spotOpen := spotShort > executionQtyTolerance
+	perpOpen := perpLong > executionQtyTolerance
+	if dust := evaluateNegativeCarryOrphan(ctx, e.execCfg(), e.venues, pos.Symbol, pos.Venue, pos.Venue, spotOpen, perpOpen, spotShort, perpLong, pos.PerpLeg.EntryPrice); dust.IsDustOrphan {
+		if live && perpOpen {
+			id := svpsLegClientID(pos.IdemPrefix, "dust")
+			qty := ledgerCappedCloseQty(pos.PerpLeg.Qty, perpLong)
+			_, _ = e.placeSVPSLegIOC(ctx, tr, venue.MarketPerp, sym, venue.SideSell, qty, id, true, venue.MarginEffectNone, live, takerBps)
+		}
+		e.syncRealizedFunding(ctx, &pos)
+		pos.Status = SVPSStatusClosed
+		pos.CloseReason = appendDustCloseReason(nonEmpty(pos.CloseReason, reason), dust.RemainingNotionalUSDT)
+		pos.UpdatedAt = e.nowFn()
+		logDustOrphanClosed(e.logger, "同所perp-spot", pos.Symbol, dust.RemainingNotionalUSDT)
+		e.finalizeClosedPosition(pos)
+		return nil
 	}
 
 	pos.UpdatedAt = e.nowFn()
@@ -1113,4 +1147,49 @@ func (e *SingleVenuePerpSpotExecutor) ReconcileOnStart(ctx context.Context, live
 // ManageOpenPositions 管理所有在场持仓(统一轮动 runner 调用)。
 func (e *SingleVenuePerpSpotExecutor) ManageOpenPositions(ctx context.Context, live bool) {
 	e.manageOpenPositions(ctx, live)
+}
+
+// ListActivePositions 返回非 closed 状态的持仓(只读,供面板/API)。
+func (e *SingleVenuePerpSpotExecutor) ListActivePositions() []SingleVenuePerpSpotPosition {
+	if e == nil {
+		return nil
+	}
+	ps, err := e.store.load()
+	if err != nil || ps == nil {
+		ps = e.snapshotPositions()
+	}
+	return activeSingleVenuePerpSpotPositions(ps)
+}
+
+// ListAllPositions 返回台账全部持仓(只读)。
+func (e *SingleVenuePerpSpotExecutor) ListAllPositions() []SingleVenuePerpSpotPosition {
+	if e == nil {
+		return nil
+	}
+	ps, err := e.store.load()
+	if err != nil || ps == nil {
+		return e.snapshotPositions()
+	}
+	return ps
+}
+
+func (e *SingleVenuePerpSpotExecutor) listPositionsForAPI(statusFilter string) []SingleVenuePerpSpotPosition {
+	switch strings.ToLower(strings.TrimSpace(statusFilter)) {
+	case "closed":
+		return nil
+	case "all":
+		return e.ListAllPositions()
+	default:
+		return e.ListActivePositions()
+	}
+}
+
+// ListRecentSettlements 读取 settlements.jsonl 尾部记录(只读)。
+func (e *SingleVenuePerpSpotExecutor) ListRecentSettlements(limit int) ([]SingleVenuePerpSpotSettlement, error) {
+	if e == nil {
+		return nil, nil
+	}
+	e.settlementsMu.Lock()
+	defer e.settlementsMu.Unlock()
+	return loadTailJSONLFile[SingleVenuePerpSpotSettlement](e.settlementsPath(), time.Time{}, limit)
 }

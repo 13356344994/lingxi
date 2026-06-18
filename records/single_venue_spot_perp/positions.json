@@ -1,0 +1,123 @@
+{
+  "schema_version": 1,
+  "checksum": "7e7dcc51d8cfa1ff1732c8f32872cf0594cfae36b87f2f9a87932a26310398a0",
+  "updated_at": "2026-06-18T08:12:58Z",
+  "positions": [
+    {
+      "position_key": "BTW-USDT|bybit|svsp-BTWUSDT-bybit-1781770010",
+      "symbol": "BTW-USDT",
+      "venue": "bybit",
+      "spot_leg": {
+        "market": "spot",
+        "side": "buy",
+        "qty": 0,
+        "entry_price": 0
+      },
+      "perp_leg": {
+        "market": "perp",
+        "side": "short",
+        "qty": 0,
+        "entry_price": 0
+      },
+      "opportunity_id": "single_venue_spot_perp:BTW-USDT:bybit+bybit:cvsnap-20260618T080153.912659796",
+      "open_expected_net_ev": 0.00606840504375214,
+      "expected_hold_hours": 3.968357594501111,
+      "next_funding_time": "0001-01-01T00:00:00Z",
+      "last_funding_sync_at": "0001-01-01T00:00:00Z",
+      "notional_usdt": 20.179183189189185,
+      "status": "closed",
+      "transition_state": "open",
+      "idem_prefix": "svsp-BTWUSDT-bybit-1781770010",
+      "opened_at": "2026-06-18T08:06:50.154306412Z",
+      "updated_at": "2026-06-18T08:06:58.341141889Z",
+      "close_reason": "open_retry"
+    },
+    {
+      "position_key": "BTW-USDT|bybit|svsp-BTWUSDT-bybit-1781770130",
+      "symbol": "BTW-USDT",
+      "venue": "bybit",
+      "spot_leg": {
+        "market": "spot",
+        "side": "buy",
+        "qty": 0,
+        "entry_price": 0
+      },
+      "perp_leg": {
+        "market": "perp",
+        "side": "short",
+        "qty": 0,
+        "entry_price": 0
+      },
+      "opportunity_id": "single_venue_spot_perp:BTW-USDT:bybit+bybit:cvsnap-20260618T080153.912659796",
+      "open_expected_net_ev": 0.006069578419710033,
+      "expected_hold_hours": 3.968357594501111,
+      "next_funding_time": "0001-01-01T00:00:00Z",
+      "last_funding_sync_at": "0001-01-01T00:00:00Z",
+      "notional_usdt": 20.183085,
+      "status": "closed",
+      "transition_state": "open",
+      "idem_prefix": "svsp-BTWUSDT-bybit-1781770130",
+      "opened_at": "2026-06-18T08:08:50.755375805Z",
+      "updated_at": "2026-06-18T08:08:58.342722947Z",
+      "close_reason": "open_retry"
+    },
+    {
+      "position_key": "BTW-USDT|bybit|svsp-BTWUSDT-bybit-1781770250",
+      "symbol": "BTW-USDT",
+      "venue": "bybit",
+      "spot_leg": {
+        "market": "spot",
+        "side": "buy",
+        "qty": 0,
+        "entry_price": 0
+      },
+      "perp_leg": {
+        "market": "perp",
+        "side": "short",
+        "qty": 0,
+        "entry_price": 0
+      },
+      "opportunity_id": "single_venue_spot_perp:BTW-USDT:bybit+bybit:cvsnap-20260618T080153.912659796",
+      "open_expected_net_ev": 0.006070683630024231,
+      "expected_hold_hours": 3.968357594501111,
+      "next_funding_time": "0001-01-01T00:00:00Z",
+      "last_funding_sync_at": "0001-01-01T00:00:00Z",
+      "notional_usdt": 20.18676014054054,
+      "status": "closed",
+      "transition_state": "open",
+      "idem_prefix": "svsp-BTWUSDT-bybit-1781770250",
+      "opened_at": "2026-06-18T08:10:50.794123893Z",
+      "updated_at": "2026-06-18T08:10:58.340427204Z",
+      "close_reason": "open_retry"
+    },
+    {
+      "position_key": "BTW-USDT|bybit|svsp-BTWUSDT-bybit-1781770370",
+      "symbol": "BTW-USDT",
+      "venue": "bybit",
+      "spot_leg": {
+        "market": "spot",
+        "side": "buy",
+        "qty": 0,
+        "entry_price": 0
+      },
+      "perp_leg": {
+        "market": "perp",
+        "side": "short",
+        "qty": 0,
+        "entry_price": 0
+      },
+      "opportunity_id": "single_venue_spot_perp:BTW-USDT:bybit+bybit:cvsnap-20260618T080153.912659796",
+      "open_expected_net_ev": 0.006071244152402861,
+      "expected_hold_hours": 3.968357594501111,
+      "next_funding_time": "0001-01-01T00:00:00Z",
+      "last_funding_sync_at": "0001-01-01T00:00:00Z",
+      "notional_usdt": 20.188624037837837,
+      "status": "closed",
+      "transition_state": "open",
+      "idem_prefix": "svsp-BTWUSDT-bybit-1781770370",
+      "opened_at": "2026-06-18T08:12:50.576054026Z",
+      "updated_at": "2026-06-18T08:12:58.341033775Z",
+      "close_reason": "open_retry"
+    }
+  ]
+}

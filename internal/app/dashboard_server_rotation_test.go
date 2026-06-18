@@ -20,14 +20,14 @@ func TestRotationStatusAPI_NilRunner(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &st); err != nil {
 		t.Fatalf("json: %v", err)
 	}
-	if st.Active || st.Live {
+	if st.Active {
 		t.Fatalf("nil runner should return inactive status: %+v", st)
 	}
 }
 
 func TestRotationControlAPI_RequiresRunner(t *testing.T) {
 	s := &DashboardServer{}
-	body, _ := json.Marshal(RotationModeRequest{Live: true, Confirm: "LIVE"})
+	startBody, _ := json.Marshal(RotationStartRequest{Confirm: "LIVE"})
 	for _, tc := range []struct {
 		name    string
 		method  string
@@ -35,9 +35,8 @@ func TestRotationControlAPI_RequiresRunner(t *testing.T) {
 		body    []byte
 		handler func(http.ResponseWriter, *http.Request)
 	}{
-		{"start", http.MethodPost, "/api/rotation/start", nil, s.handleRotationStartAPI},
+		{"start", http.MethodPost, "/api/rotation/start", startBody, s.handleRotationStartAPI},
 		{"stop", http.MethodPost, "/api/rotation/stop", nil, s.handleRotationStopAPI},
-		{"mode", http.MethodPost, "/api/rotation/mode", body, s.handleRotationModeAPI},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var reader *bytes.Reader
@@ -57,13 +56,31 @@ func TestRotationControlAPI_RequiresRunner(t *testing.T) {
 	}
 }
 
+func TestRotationStartAPI_RequiresConfirm(t *testing.T) {
+	runner := testUnifiedRotationRunnerWithFakes(t)
+	runner.SetActive(false)
+	s := &DashboardServer{rotationRunner: runner}
+
+	body, _ := json.Marshal(RotationStartRequest{})
+	req := httptest.NewRequest(http.MethodPost, "/api/rotation/start", bytes.NewReader(body))
+	req.RemoteAddr = "127.0.0.1:12345"
+	rec := httptest.NewRecorder()
+	s.handleRotationStartAPI(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d want 400 body=%s", rec.Code, rec.Body.String())
+	}
+	if runner.Status().Active {
+		t.Fatal("start must not activate without confirm=LIVE")
+	}
+}
+
 func TestRotationControlAPI_WithRunner(t *testing.T) {
 	runner := testUnifiedRotationRunnerWithFakes(t)
 	runner.SetActive(false)
-	runner.SetLive(false)
 	s := &DashboardServer{rotationRunner: runner}
 
-	req := httptest.NewRequest(http.MethodPost, "/api/rotation/start", nil)
+	body, _ := json.Marshal(RotationStartRequest{Confirm: "LIVE"})
+	req := httptest.NewRequest(http.MethodPost, "/api/rotation/start", bytes.NewReader(body))
 	req.RemoteAddr = "127.0.0.1:12345"
 	rec := httptest.NewRecorder()
 	s.handleRotationStartAPI(rec, req)
@@ -78,21 +95,6 @@ func TestRotationControlAPI_WithRunner(t *testing.T) {
 		t.Fatalf("start should set active=true: %+v", st)
 	}
 
-	body, _ := json.Marshal(RotationModeRequest{Live: true, Confirm: "LIVE"})
-	req = httptest.NewRequest(http.MethodPost, "/api/rotation/mode", bytes.NewReader(body))
-	req.RemoteAddr = "127.0.0.1:12345"
-	rec = httptest.NewRecorder()
-	s.handleRotationModeAPI(rec, req)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("mode status=%d body=%s", rec.Code, rec.Body.String())
-	}
-	if err := json.Unmarshal(rec.Body.Bytes(), &st); err != nil {
-		t.Fatalf("json: %v", err)
-	}
-	if !st.Live {
-		t.Fatalf("mode should set live=true: %+v", st)
-	}
-
 	req = httptest.NewRequest(http.MethodPost, "/api/rotation/stop", nil)
 	req.RemoteAddr = "127.0.0.1:12345"
 	rec = httptest.NewRecorder()
@@ -105,23 +107,5 @@ func TestRotationControlAPI_WithRunner(t *testing.T) {
 	}
 	if st.Active {
 		t.Fatalf("stop should set active=false: %+v", st)
-	}
-}
-
-func TestRotationModeAPI_LiveRequiresConfirm(t *testing.T) {
-	runner := testUnifiedRotationRunnerWithFakes(t)
-	runner.SetLive(false)
-	s := &DashboardServer{rotationRunner: runner}
-
-	body, _ := json.Marshal(RotationModeRequest{Live: true})
-	req := httptest.NewRequest(http.MethodPost, "/api/rotation/mode", bytes.NewReader(body))
-	req.RemoteAddr = "127.0.0.1:12345"
-	rec := httptest.NewRecorder()
-	s.handleRotationModeAPI(rec, req)
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("status=%d want 400 body=%s", rec.Code, rec.Body.String())
-	}
-	if runner.Status().Live {
-		t.Fatal("live mode must not change without confirm")
 	}
 }

@@ -123,36 +123,35 @@ func TestScanCrossVenueSpotPerpRequiresRebalanceWhenVenueShort(t *testing.T) {
 	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
 	in := testCrossVenueSpotPerpScanInput(now)
 	in.AvailableUSDTByVenue[binance.VenueName] = 500
-	in.AvailableUSDTByVenue[bybit.VenueName] = 5
+	in.AvailableUSDTByVenue[bybit.VenueName] = 3
 
 	opps := ScanCrossVenueSpotPerpOpportunities(in)
-	if len(opps) != 2 {
-		t.Fatalf("opportunities = %d, want 2", len(opps))
-	}
-	var rebalanceOpp *UnifiedOpportunity
-	for i := range opps {
-		if opps[i].Legs[0].Venue == binance.VenueName {
-			rebalanceOpp = &opps[i]
-			break
+	for _, opp := range opps {
+		if len(opp.Legs) < 2 {
+			continue
+		}
+		if opp.Legs[0].Venue == binance.VenueName {
+			t.Fatalf("expected no binance spot opportunity when perp venue cannot support 5U floor, got %+v", opp)
 		}
 	}
-	if rebalanceOpp == nil {
-		t.Fatal("missing binance spot + bybit perp opportunity")
+}
+
+func TestCrossVenueSpotPerpRequiresRebalanceHelper(t *testing.T) {
+	cfg := DefaultCrossVenueSpotPerpScannerConfig(testCrossVenueExecutorConfig().CrossVenueExecutor)
+	available := map[string]float64{binance.VenueName: 10, bybit.VenueName: 100}
+	if !crossVenueSpotPerpRequiresRebalance(binance.VenueName, bybit.VenueName, 50, 10, available, cfg) {
+		t.Fatal("expected requires_rebalance when spot cash exceeds available")
 	}
-	if !rebalanceOpp.RequiresRebalance {
-		t.Fatal("expected requires_rebalance=true")
+	if crossVenueSpotPerpRequiresRebalance(binance.VenueName, bybit.VenueName, 5, 4, available, cfg) {
+		t.Fatal("unexpected requires_rebalance when capital covers legs")
 	}
-	if rebalanceOpp.ExpectedRollbackCostUSDT <= 0 {
-		t.Fatalf("rebalance penalty = %.4f, want >0", rebalanceOpp.ExpectedRollbackCostUSDT)
-	}
-	foundReason := false
-	for _, r := range rebalanceOpp.RejectReasons {
-		if r == "requires_rebalance" {
-			foundReason = true
-		}
-	}
-	if !foundReason {
-		t.Fatalf("reject_reasons = %#v, want requires_rebalance", rebalanceOpp.RejectReasons)
+}
+
+func TestCrossVenueSpotPerpEffectiveFundingRateNoHistoryFallback(t *testing.T) {
+	got := crossVenueSpotPerpEffectiveFundingRate(0.001, 0, 0.5)
+	want := 0.0005
+	if math.Abs(got-want) > 1e-12 {
+		t.Fatalf("no-history effective rate = %.8f, want %.8f", got, want)
 	}
 }
 
@@ -301,18 +300,18 @@ func TestScanCrossVenueSpotPerpExampleOutputSample(t *testing.T) {
 	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
 	in := testCrossVenueSpotPerpScanInput(now)
 	in.AvailableUSDTByVenue[binance.VenueName] = 500
-	in.AvailableUSDTByVenue[bybit.VenueName] = 5
+	in.AvailableUSDTByVenue[bybit.VenueName] = 20
 	opps := ScanCrossVenueSpotPerpOpportunities(in)
 
 	var sample UnifiedOpportunity
 	for _, opp := range opps {
-		if opp.Legs[0].Venue == binance.VenueName && opp.RequiresRebalance {
+		if opp.Legs[0].Venue == binance.VenueName && !opp.RequiresRebalance {
 			sample = opp
 			break
 		}
 	}
 	if sample.ID == "" {
-		t.Fatal("missing requires_rebalance sample")
+		t.Fatal("missing capital-sized sample opportunity")
 	}
 
 	t.Logf("sample opportunity id=%s symbol=%s requires_rebalance=%v net_ev=%.4f funding=%.4f basis_rollback=%.4f capital=%+v legs=%+v reject=%v",
@@ -322,6 +321,10 @@ func TestScanCrossVenueSpotPerpExampleOutputSample(t *testing.T) {
 
 	if sample.ID != "cross_venue_spot_perp:BTC-USDT:binance+bybit:cvsp-snap-test" {
 		t.Fatalf("id = %q", sample.ID)
+	}
+	perpMargin := crossVenueSpotPerpPerpMarginRequired(in.Config, sample.Legs[1].Notional)
+	if perpMargin > in.AvailableUSDTByVenue[bybit.VenueName]+1e-9 {
+		t.Fatalf("perp margin %.4f should fit %.2fU available", perpMargin, in.AvailableUSDTByVenue[bybit.VenueName])
 	}
 }
 

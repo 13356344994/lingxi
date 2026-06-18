@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"lingxi/internal/exchange"
 	"lingxi/internal/venue"
 )
 
@@ -79,9 +80,6 @@ func (a *Adapter) FetchInstruments(ctx context.Context) ([]venue.Instrument, err
 		return nil, err
 	}
 	for _, c := range contracts {
-		if c.InDelisting {
-			continue
-		}
 		if !strings.HasSuffix(strings.ToUpper(c.Name), "_USDT") {
 			continue
 		}
@@ -94,24 +92,27 @@ func (a *Adapter) FetchInstruments(ctx context.Context) ([]venue.Instrument, err
 		if stepContracts <= 0 {
 			stepContracts = 1
 		}
+		rawStatus := "tradable"
+		if c.InDelisting {
+			rawStatus = "in_delisting"
+		}
 		out = append(out, venue.Instrument{
-			Symbol:       canonical,
-			Market:       venue.MarketPerp,
-			BaseAsset:    strings.ToUpper(strings.TrimSuffix(c.Name, "_USDT")),
-			QuoteAsset:   "USDT",
-			TickSize:     parseFloat(c.OrderPriceRound),
-			StepSize:     stepContracts,
-			MinNotional:  0,
-			ContractSize: mult,
-			QtyUnit:      "contract",
+			Symbol:           canonical,
+			Market:           venue.MarketPerp,
+			BaseAsset:        strings.ToUpper(strings.TrimSuffix(c.Name, "_USDT")),
+			QuoteAsset:       "USDT",
+			TickSize:         parseFloat(c.OrderPriceRound),
+			StepSize:         stepContracts,
+			MinNotional:      0,
+			ContractSize:     mult,
+			QtyUnit:          "contract",
+			RawTradingStatus: rawStatus,
+			NonTrading:       c.InDelisting,
 		})
 	}
 	var pairs []gateSpotPair
 	if err := a.t.publicGet(ctx, pathSpotCurrencyPairs, nil, &pairs); err == nil {
 		for _, p := range pairs {
-			if !strings.EqualFold(p.TradeStatus, "tradable") {
-				continue
-			}
 			if !strings.EqualFold(p.Quote, "USDT") {
 				continue
 			}
@@ -121,15 +122,17 @@ func (a *Adapter) FetchInstruments(ctx context.Context) ([]venue.Instrument, err
 				step = parseFloat(p.MinBaseAmount)
 			}
 			out = append(out, venue.Instrument{
-				Symbol:       canonical,
-				Market:       venue.MarketSpot,
-				BaseAsset:    strings.ToUpper(p.Base),
-				QuoteAsset:   strings.ToUpper(p.Quote),
-				TickSize:     math.Pow10(-p.Precision),
-				StepSize:     step,
-				MinNotional:  parseFloat(p.MinQuoteAmount),
-				ContractSize: 1,
-				QtyUnit:      "coin",
+				Symbol:           canonical,
+				Market:           venue.MarketSpot,
+				BaseAsset:        strings.ToUpper(p.Base),
+				QuoteAsset:       strings.ToUpper(p.Quote),
+				TickSize:         math.Pow10(-p.Precision),
+				StepSize:         step,
+				MinNotional:      parseFloat(p.MinQuoteAmount),
+				ContractSize:     1,
+				QtyUnit:          "coin",
+				RawTradingStatus: p.TradeStatus,
+				NonTrading:       exchange.ExplicitNonTradingGateSpotStatus(p.TradeStatus),
 			})
 		}
 	}
@@ -393,15 +396,21 @@ func (a *Adapter) fetchInstrument(ctx context.Context, m venue.Market, s venue.S
 		if step <= 0 {
 			step = 1
 		}
+		rawStatus := "tradable"
+		if c.InDelisting {
+			rawStatus = "in_delisting"
+		}
 		return venue.Instrument{
-			Symbol:       canonical,
-			Market:       venue.MarketPerp,
-			BaseAsset:    strings.ToUpper(strings.TrimSuffix(c.Name, "_USDT")),
-			QuoteAsset:   "USDT",
-			TickSize:     parseFloat(c.OrderPriceRound),
-			StepSize:     step,
-			ContractSize: mult,
-			QtyUnit:      "contract",
+			Symbol:           canonical,
+			Market:           venue.MarketPerp,
+			BaseAsset:        strings.ToUpper(strings.TrimSuffix(c.Name, "_USDT")),
+			QuoteAsset:       "USDT",
+			TickSize:         parseFloat(c.OrderPriceRound),
+			StepSize:         step,
+			ContractSize:     mult,
+			QtyUnit:          "contract",
+			RawTradingStatus: rawStatus,
+			NonTrading:       c.InDelisting,
 		}, nil
 	}
 	q := url.Values{}
@@ -417,14 +426,16 @@ func (a *Adapter) fetchInstrument(ctx context.Context, m venue.Market, s venue.S
 	canonical, _ := a.ToCanonical(p.ID, venue.MarketSpot)
 	step := math.Pow10(-p.AmountPrecision)
 	return venue.Instrument{
-		Symbol:       canonical,
-		Market:       venue.MarketSpot,
-		BaseAsset:    strings.ToUpper(p.Base),
-		QuoteAsset:   strings.ToUpper(p.Quote),
-		TickSize:     math.Pow10(-p.Precision),
-		StepSize:     step,
-		ContractSize: 1,
-		QtyUnit:      "coin",
+		Symbol:           canonical,
+		Market:           venue.MarketSpot,
+		BaseAsset:        strings.ToUpper(p.Base),
+		QuoteAsset:       strings.ToUpper(p.Quote),
+		TickSize:         math.Pow10(-p.Precision),
+		StepSize:         step,
+		ContractSize:     1,
+		QtyUnit:          "coin",
+		RawTradingStatus: p.TradeStatus,
+		NonTrading:       exchange.ExplicitNonTradingGateSpotStatus(p.TradeStatus),
 	}, nil
 }
 

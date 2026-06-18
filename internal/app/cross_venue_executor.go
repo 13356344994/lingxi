@@ -334,7 +334,6 @@ func (e *CrossVenueExecutor) Run(ctx context.Context) {
 	}
 	e.running.Store(true)
 	defer e.running.Store(false)
-	go e.runUnifiedShadowPipeline(ctx)
 	interval := time.Duration(e.cfg.CrossVenueExecutor.LoopIntervalSeconds) * time.Second
 	if interval <= 0 {
 		interval = 60 * time.Second

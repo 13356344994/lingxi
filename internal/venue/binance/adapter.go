@@ -58,5 +58,6 @@ func (a *Adapter) Capabilities() venue.Capabilities {
 		CapitalWallets: []venue.Wallet{
 			WalletSpot, WalletUMFutures, WalletCrossMargin, WalletFunding,
 		},
+		UnifiedWallet: false, // spot / UM / cross-margin 分仓,需 TransferWallet
 	}
 }

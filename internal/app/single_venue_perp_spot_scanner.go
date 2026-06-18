@@ -13,8 +13,8 @@ const (
 	singleVenuePerpSpotRejectNoSpotMarket      = "no_spot_market"
 	singleVenuePerpSpotRejectInsufficientDepth = "insufficient_depth"
 	singleVenuePerpSpotRejectMarginStress      = "margin_stress_liquidation"
-	singleVenuePerpSpotRejectNotBorrowable       = "not_borrowable"
-	singleVenuePerpSpotRejectBorrowOverLimit     = "borrow_over_limit"
+	singleVenuePerpSpotRejectNotBorrowable     = "not_borrowable"
+	singleVenuePerpSpotRejectBorrowOverLimit   = "borrow_over_limit"
 )
 
 // single_venue_perp_spot_scanner.go 单所 perp-spot 负 carry 扫描器(纯函数, shadow-only, 不接入实盘 tick)。
@@ -128,7 +128,7 @@ func AppendSingleVenuePerpSpotShadowCandidates(recordDir, cycleID string, execCf
 	path := filepath.Join(opportunitiesRecordDir(base), unifiedCandidatesLogFileName)
 	for _, opp := range opps {
 		notional := singleVenuePerpSpotLegNotional(opp)
-		rec := unifiedCandidateLogFromOpportunity(execCfg, cycleID, opp, false, notional)
+		rec := unifiedCandidateLogFromOpportunity(execCfg, cycleID, opp, len(opp.RejectReasons) == 0, notional)
 		_ = appendJSONLRecord(path, rec)
 	}
 }
@@ -234,7 +234,10 @@ func buildSingleVenuePerpSpotOpportunity(
 		return UnifiedOpportunity{}, false
 	}
 
-	notional := crossVenueSpotPerpTradableNotional(cvCfg, mkt, mkt)
+	notional := crossVenueSpotPerpTradableNotionalForSingleVenue(
+		cvCfg, mkt, mkt, venueName, available,
+		func(v string) float64 { return singleVenuePerpSpotVenueReserve(v, cfg) },
+	)
 	if notional <= 0 {
 		return singleVenuePerpSpotRejectedOpportunity(snapshotID, symbol, venueName, singleVenuePerpSpotRejectInsufficientDepth), true
 	}
@@ -293,9 +296,6 @@ func buildSingleVenuePerpSpotOpportunity(
 	}
 
 	rejectReasons := make([]string, 0)
-	if fund.SpikeThreshold <= 0 {
-		rejectReasons = append(rejectReasons, "insufficient_funding_history")
-	}
 	if perpSpotBorrowOverLimit(baseAsset, notional, borrowLimitUSDTByAsset) {
 		rejectReasons = append(rejectReasons, singleVenuePerpSpotRejectBorrowOverLimit)
 	}

@@ -106,6 +106,13 @@ type Instrument struct {
 	QtyUnit        string  // "coin" | "contract"
 	// SpotBorrowable 现货标的是否支持杠杆借币(可做空对冲腿);仅现货 Instrument 有意义,负 carry 前置过滤用。
 	SpotBorrowable bool
+	// RawTradingStatus 是交易所原生交易状态字符串(各所字段名/取值不同,仅诊断用)。
+	RawTradingStatus string
+	// NonTrading 为 true 表示交易所已明确标记为下市/交割/暂停/关闭等非正常可交易状态。
+	// 与「不在 instruments 列表」不同:仅在有明确 bad status 时置 true,供 delist guard 保守拦截。
+	NonTrading bool
+	// DeliveryTime 是交割/下市/结算时间(解析缺失时为零值)。
+	DeliveryTime time.Time
 }
 
 // FundingSnapshot 等价于币安 premiumIndex + fundingInfo 的合并视图,逐币给出实时费率与上下限。

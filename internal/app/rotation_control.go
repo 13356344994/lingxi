@@ -12,7 +12,7 @@ const rotationControlFileName = "rotation_control.json"
 
 type rotationControlState struct {
 	Active    bool   `json:"active"`
-	Live      bool   `json:"live"`
+	Live      bool   `json:"live,omitempty"` // legacy; ignored on load (rotation is live when active)
 	UpdatedAt string `json:"updated_at"`
 }
 
@@ -36,7 +36,7 @@ func loadRotationControlState(recordDir string) (rotationControlState, bool, err
 	return st, true, nil
 }
 
-func saveRotationControlState(recordDir string, active, live bool) error {
+func saveRotationControlState(recordDir string, active bool) error {
 	dir := strings.TrimSpace(recordDir)
 	if dir == "" {
 		return nil
@@ -47,7 +47,6 @@ func saveRotationControlState(recordDir string, active, live bool) error {
 	path := rotationControlFilePath(dir)
 	if err := writeJSONFile(path, rotationControlState{
 		Active:    active,
-		Live:      live,
 		UpdatedAt: time.Now().UTC().Format(time.RFC3339),
 	}); err != nil {
 		return err

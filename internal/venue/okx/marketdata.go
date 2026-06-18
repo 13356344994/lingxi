@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"lingxi/internal/exchange"
 	"lingxi/internal/venue"
 )
 
@@ -78,9 +79,6 @@ func (a *Adapter) FetchInstruments(ctx context.Context) ([]venue.Instrument, err
 		return nil, err
 	}
 	for _, it := range swap {
-		if !strings.EqualFold(it.State, "live") {
-			continue
-		}
 		// SWAP 行情 quoteCcy 为空(现货专属字段),USDT 本位必须看 settleCcy。
 		if !strings.EqualFold(it.SettleCcy, "USDT") {
 			continue // 只要 USDT 本位永续
@@ -98,34 +96,35 @@ func (a *Adapter) FetchInstruments(ctx context.Context) ([]venue.Instrument, err
 			}
 		}
 		out = append(out, venue.Instrument{
-			Symbol:       canonical,
-			Market:       venue.MarketPerp,
-			BaseAsset:    base,
-			QuoteAsset:   "USDT",
-			TickSize:     parseFloat(it.TickSz),
-			StepSize:     parseFloat(it.LotSz),
-			MinNotional:  0,
-			ContractSize: ctVal,
-			QtyUnit:      "contract",
+			Symbol:           canonical,
+			Market:           venue.MarketPerp,
+			BaseAsset:        base,
+			QuoteAsset:       "USDT",
+			TickSize:         parseFloat(it.TickSz),
+			StepSize:         parseFloat(it.LotSz),
+			MinNotional:      0,
+			ContractSize:     ctVal,
+			QtyUnit:          "contract",
+			RawTradingStatus: it.State,
+			NonTrading:       exchange.ExplicitNonTradingOKXState(it.State),
 		})
 	}
 	// 现货失败不致命,仅跳过。
 	if spot, spotErr := a.fetchInstrumentsByType(ctx, instTypeSpot); spotErr == nil {
 		for _, it := range spot {
-			if !strings.EqualFold(it.State, "live") {
-				continue
-			}
 			canonical, _ := a.ToCanonical(it.InstID, venue.MarketSpot)
 			out = append(out, venue.Instrument{
-				Symbol:       canonical,
-				Market:       venue.MarketSpot,
-				BaseAsset:    strings.ToUpper(it.BaseCcy),
-				QuoteAsset:   strings.ToUpper(it.QuoteCcy),
-				TickSize:     parseFloat(it.TickSz),
-				StepSize:     parseFloat(it.LotSz),
-				MinNotional:  0,
-				ContractSize: 1,
-				QtyUnit:      "coin",
+				Symbol:           canonical,
+				Market:           venue.MarketSpot,
+				BaseAsset:        strings.ToUpper(it.BaseCcy),
+				QuoteAsset:       strings.ToUpper(it.QuoteCcy),
+				TickSize:         parseFloat(it.TickSz),
+				StepSize:         parseFloat(it.LotSz),
+				MinNotional:      0,
+				ContractSize:     1,
+				QtyUnit:          "coin",
+				RawTradingStatus: it.State,
+				NonTrading:       exchange.ExplicitNonTradingOKXState(it.State),
 			})
 		}
 	}
@@ -451,13 +450,15 @@ func (a *Adapter) fetchInstrument(ctx context.Context, m venue.Market, s venue.S
 	}
 	canonical, _ := a.ToCanonical(it.InstID, m)
 	return venue.Instrument{
-		Symbol:       canonical,
-		Market:       m,
-		BaseAsset:    strings.ToUpper(it.BaseCcy),
-		QuoteAsset:   strings.ToUpper(it.QuoteCcy),
-		TickSize:     parseFloat(it.TickSz),
-		StepSize:     parseFloat(it.LotSz),
-		ContractSize: ctVal,
-		QtyUnit:      qtyUnit,
+		Symbol:           canonical,
+		Market:           m,
+		BaseAsset:        strings.ToUpper(it.BaseCcy),
+		QuoteAsset:       strings.ToUpper(it.QuoteCcy),
+		TickSize:         parseFloat(it.TickSz),
+		StepSize:         parseFloat(it.LotSz),
+		ContractSize:     ctVal,
+		QtyUnit:          qtyUnit,
+		RawTradingStatus: it.State,
+		NonTrading:       exchange.ExplicitNonTradingOKXState(it.State),
 	}, nil
 }

@@ -623,6 +623,22 @@ func (e *CrossVenuePerpSpotExecutor) closePosition(ctx context.Context, pos Cros
 		return fmt.Errorf("平仓跳过: %s 实测为0,保留台账待下轮", pos.Symbol)
 	}
 
+	spotOpen := spotShort > executionQtyTolerance
+	perpOpen := perpLong > executionQtyTolerance
+	if dust := evaluateNegativeCarryOrphan(ctx, e.cfg.CrossVenueExecutor, e.venues, pos.Symbol, pos.SpotVenue, pos.PerpVenue, spotOpen, perpOpen, spotShort, perpLong, pos.PerpLeg.EntryPrice); dust.IsDustOrphan {
+		if live && perpOpen {
+			id := cvpsLegClientID(pos.IdemPrefix, "dust")
+			qty := ledgerCappedCloseQty(pos.PerpLeg.Qty, perpLong)
+			_, _ = e.placePerpSpotLegExec(ctx, perpTrader, venue.MarketPerp, sym, venue.SideSell, qty, id, true, venue.MarginEffectNone, live)
+		}
+		pos.Status = CVPSStatusClosed
+		pos.CloseReason = appendDustCloseReason(nonEmpty(pos.CloseReason, reason), dust.RemainingNotionalUSDT)
+		pos.UpdatedAt = e.nowFn()
+		logDustOrphanClosed(e.logger, "跨所perp-spot", pos.Symbol, dust.RemainingNotionalUSDT)
+		e.finalizeClosedPosition(pos)
+		return nil
+	}
+
 	pos.UpdatedAt = e.nowFn()
 	_ = e.persistPosition(pos)
 	return fmt.Errorf("平仓未完成: %s 第 %d 轮仍有剩余腿", pos.Symbol, attempt)
@@ -737,6 +753,23 @@ func (e *CrossVenuePerpSpotExecutor) estimateFundingAccrual(pos *CrossVenuePerpS
 }
 
 func (e *CrossVenuePerpSpotExecutor) handleOrphanLeg(ctx context.Context, pos CrossVenuePerpSpotPosition, spotOpen, perpOpen, live bool, spotShort, perpLong float64) {
+	decision := evaluateNegativeCarryOrphan(ctx, e.cfg.CrossVenueExecutor, e.venues, pos.Symbol, pos.SpotVenue, pos.PerpVenue, spotOpen, perpOpen, spotShort, perpLong, pos.PerpLeg.EntryPrice)
+	if decision.IsDustOrphan {
+		sym := venue.Symbol(pos.Symbol)
+		if live && perpOpen {
+			if tr, ok := e.venues[pos.PerpVenue].(cvpsTrader); ok {
+				id := cvpsLegClientID(pos.IdemPrefix, "dust")
+				qty := ledgerCappedCloseQty(pos.PerpLeg.Qty, perpLong)
+				_, _ = e.placePerpSpotLegExec(ctx, tr, venue.MarketPerp, sym, venue.SideSell, qty, id, true, venue.MarginEffectNone, live)
+			}
+		}
+		pos.Status = CVPSStatusClosed
+		pos.CloseReason = appendDustCloseReason(nonEmpty(pos.CloseReason, "dust_orphan"), decision.RemainingNotionalUSDT)
+		pos.UpdatedAt = e.nowFn()
+		logDustOrphanClosed(e.logger, "跨所perp-spot", pos.Symbol, decision.RemainingNotionalUSDT)
+		e.finalizeClosedPosition(pos)
+		return
+	}
 	pos.Status = CVPSStatusOrphanSingleLeg
 	pos.UpdatedAt = e.nowFn()
 	_ = e.persistPosition(pos)
@@ -950,4 +983,47 @@ func (e *CrossVenuePerpSpotExecutor) ReconcileOnStart(ctx context.Context, live 
 // ManageOpenPositions 管理所有在场持仓(统一轮动 runner 调用)。
 func (e *CrossVenuePerpSpotExecutor) ManageOpenPositions(ctx context.Context, live bool) {
 	e.manageOpenPositions(ctx, live)
+}
+
+// ListActivePositions 返回非 closed 状态的持仓(只读,供面板/API)。
+func (e *CrossVenuePerpSpotExecutor) ListActivePositions() []CrossVenuePerpSpotPosition {
+	if e == nil {
+		return nil
+	}
+	ps, err := e.store.load()
+	if err != nil || ps == nil {
+		ps = e.snapshotPositions()
+	}
+	return activeCrossVenuePerpSpotPositions(ps)
+}
+
+// ListAllPositions 返回台账全部持仓(只读)。
+func (e *CrossVenuePerpSpotExecutor) ListAllPositions() []CrossVenuePerpSpotPosition {
+	if e == nil {
+		return nil
+	}
+	ps, err := e.store.load()
+	if err != nil || ps == nil {
+		return e.snapshotPositions()
+	}
+	return ps
+}
+
+func (e *CrossVenuePerpSpotExecutor) listPositionsForAPI(statusFilter string) []CrossVenuePerpSpotPosition {
+	switch strings.ToLower(strings.TrimSpace(statusFilter)) {
+	case "closed":
+		return nil
+	case "all":
+		return e.ListAllPositions()
+	default:
+		return e.ListActivePositions()
+	}
+}
+
+// ListRecentSettlements 读取 settlements.jsonl 尾部记录(只读)。
+func (e *CrossVenuePerpSpotExecutor) ListRecentSettlements(limit int) ([]CrossVenuePerpSpotSettlement, error) {
+	if e == nil {
+		return nil, nil
+	}
+	return loadTailJSONLFile[CrossVenuePerpSpotSettlement](e.SettlementsPath(), time.Time{}, limit)
 }

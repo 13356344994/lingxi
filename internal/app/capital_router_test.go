@@ -4,9 +4,22 @@ import (
 	"strings"
 	"testing"
 
+	"lingxi/internal/venue/binance"
 	"lingxi/internal/venue/bybit"
+	"lingxi/internal/venue/gate"
 	"lingxi/internal/venue/okx"
 )
+
+func defaultCapitalRouterConfigForTests() CapitalRouterConfig {
+	cfg := DefaultCapitalRouterConfig()
+	cfg.UnifiedWalletVenues = map[string]bool{
+		binance.VenueName: false,
+		bybit.VenueName:   true,
+		okx.VenueName:     true,
+		gate.VenueName:    true,
+	}
+	return cfg
+}
 
 func TestPlanCapitalRoutingWithinVenueRebalance(t *testing.T) {
 	opp := UnifiedOpportunity{
@@ -14,32 +27,70 @@ func TestPlanCapitalRoutingWithinVenueRebalance(t *testing.T) {
 		StrategyType: UnifiedStrategySingleVenueSpotPerp,
 		Symbol:       "BTC-USDT",
 		Legs: []UnifiedOpportunityLeg{
-			{Venue: bybit.VenueName, Market: "spot", Side: "buy", Notional: 100},
-			{Venue: bybit.VenueName, Market: "perp", Side: "short", Notional: 100},
+			{Venue: binance.VenueName, Market: "spot", Side: "buy", Notional: 100},
+			{Venue: binance.VenueName, Market: "perp", Side: "short", Notional: 100},
 		},
-		CapitalRequiredByVenue: map[string]float64{bybit.VenueName: 75},
+		CapitalRequiredByVenue: map[string]float64{binance.VenueName: 75},
 	}
 	balances := VenueWalletBalances{
-		bybit.VenueName: {
+		binance.VenueName: {
 			WalletKindSpot:    20,
 			WalletKindFutures: 200,
 		},
 	}
 
-	plan := PlanCapitalRouting([]UnifiedOpportunity{opp}, balances, DefaultCapitalRouterConfig())
+	plan := PlanCapitalRouting([]UnifiedOpportunity{opp}, balances, defaultCapitalRouterConfigForTests())
 
 	if len(plan.WithinVenueTransfers) != 1 {
 		t.Fatalf("within-venue transfers = %d, want 1: %+v", len(plan.WithinVenueTransfers), plan.WithinVenueTransfers)
 	}
 	tr := plan.WithinVenueTransfers[0]
-	if tr.Venue != bybit.VenueName || tr.From != WalletKindFutures || tr.To != WalletKindSpot || tr.AmountUSDT != 80 {
-		t.Fatalf("transfer = %+v, want bybit futures->spot 80", tr)
+	if tr.Venue != binance.VenueName || tr.From != WalletKindFutures || tr.To != WalletKindSpot || tr.AmountUSDT != 80 {
+		t.Fatalf("transfer = %+v, want binance futures->spot 80", tr)
+	}
+	if len(tr.OpportunityIDs) != 1 || tr.OpportunityIDs[0] != "sv-spot-perp-1" {
+		t.Fatalf("transfer opportunity IDs = %v, want [sv-spot-perp-1]", tr.OpportunityIDs)
 	}
 	if len(plan.CrossVenueSuggestions) != 0 {
 		t.Fatalf("cross-venue suggestions = %+v, want none", plan.CrossVenueSuggestions)
 	}
 	if len(plan.Unfundable) != 0 {
 		t.Fatalf("unfundable = %#v, want none", plan.Unfundable)
+	}
+}
+
+func TestPlanCapitalRoutingUnifiedVenueNoWithinVenueTransfer(t *testing.T) {
+	opp := UnifiedOpportunity{
+		ID:           "cv-gate-binance",
+		StrategyType: UnifiedStrategyCrossVenueSpotPerp,
+		Symbol:       "PHA-USDT",
+		Legs: []UnifiedOpportunityLeg{
+			{Venue: gate.VenueName, Market: "spot", Side: "buy", Notional: 100},
+			{Venue: binance.VenueName, Market: "perp", Side: "short", Notional: 100},
+		},
+		CapitalRequiredByVenue: map[string]float64{
+			gate.VenueName:    100,
+			binance.VenueName: 75,
+		},
+	}
+	balances := VenueWalletBalances{
+		gate.VenueName: {
+			WalletKindSpot: 200,
+		},
+		binance.VenueName: {
+			WalletKindFutures: 200,
+		},
+	}
+
+	plan := PlanCapitalRouting([]UnifiedOpportunity{opp}, balances, defaultCapitalRouterConfigForTests())
+
+	for _, tr := range plan.WithinVenueTransfers {
+		if tr.Venue == gate.VenueName {
+			t.Fatalf("unified gate should not plan within-venue transfer, got %+v", tr)
+		}
+	}
+	if len(plan.Unfundable) != 0 {
+		t.Fatalf("unfundable = %#v, want none (gate unified pool covers spot leg)", plan.Unfundable)
 	}
 }
 
@@ -68,13 +119,10 @@ func TestPlanCapitalRoutingCrossVenueSuggestionOnly(t *testing.T) {
 		},
 	}
 
-	plan := PlanCapitalRouting([]UnifiedOpportunity{opp}, balances, DefaultCapitalRouterConfig())
+	plan := PlanCapitalRouting([]UnifiedOpportunity{opp}, balances, defaultCapitalRouterConfigForTests())
 
-	if len(plan.WithinVenueTransfers) != 1 {
-		t.Fatalf("within-venue transfers = %+v, want one partial okx futures->spot", plan.WithinVenueTransfers)
-	}
-	if plan.WithinVenueTransfers[0].Venue != okx.VenueName || plan.WithinVenueTransfers[0].AmountUSDT != 5 {
-		t.Fatalf("partial within-venue = %+v, want okx futures->spot 5", plan.WithinVenueTransfers[0])
+	if len(plan.WithinVenueTransfers) != 0 {
+		t.Fatalf("within-venue transfers = %+v, want none for unified okx/bybit", plan.WithinVenueTransfers)
 	}
 	if len(plan.CrossVenueSuggestions) != 1 {
 		t.Fatalf("cross-venue suggestions = %d, want 1: %+v", len(plan.CrossVenueSuggestions), plan.CrossVenueSuggestions)
@@ -84,7 +132,7 @@ func TestPlanCapitalRoutingCrossVenueSuggestionOnly(t *testing.T) {
 		t.Fatalf("suggestion = %+v, want bybit -> okx", s)
 	}
 	if s.AmountUSDT < 85-capitalRouterEpsilon || s.AmountUSDT > 85+capitalRouterEpsilon {
-		t.Fatalf("suggestion amount = %.4f, want ~85 (okx need 100, have 15)", s.AmountUSDT)
+		t.Fatalf("suggestion amount = %.4f, want ~85 (okx need 100, have 15 unified)", s.AmountUSDT)
 	}
 	if len(plan.Unfundable) != 1 {
 		t.Fatalf("unfundable = %#v, want one (cross-venue gap not auto-funded)", plan.Unfundable)
@@ -100,19 +148,19 @@ func TestPlanCapitalRoutingRespectsReserve(t *testing.T) {
 		StrategyType: UnifiedStrategySingleVenueSpotPerp,
 		Symbol:       "SOL-USDT",
 		Legs: []UnifiedOpportunityLeg{
-			{Venue: bybit.VenueName, Market: "spot", Side: "buy", Notional: 50},
-			{Venue: bybit.VenueName, Market: "perp", Side: "short", Notional: 100},
+			{Venue: binance.VenueName, Market: "spot", Side: "buy", Notional: 50},
+			{Venue: binance.VenueName, Market: "perp", Side: "short", Notional: 100},
 		},
-		CapitalRequiredByVenue: map[string]float64{bybit.VenueName: 75},
+		CapitalRequiredByVenue: map[string]float64{binance.VenueName: 75},
 	}
 	balances := VenueWalletBalances{
-		bybit.VenueName: {
+		binance.VenueName: {
 			WalletKindSpot:    10,
 			WalletKindFutures: 120,
 		},
 	}
-	cfg := DefaultCapitalRouterConfig()
-	cfg.ReserveUSDTByVenue = map[string]float64{bybit.VenueName: 30}
+	cfg := defaultCapitalRouterConfigForTests()
+	cfg.ReserveUSDTByVenue = map[string]float64{binance.VenueName: 30}
 
 	plan := PlanCapitalRouting([]UnifiedOpportunity{opp}, balances, cfg)
 
@@ -157,7 +205,7 @@ func TestPlanCapitalRoutingUnfundableWhenCrossVenueInsufficient(t *testing.T) {
 		},
 	}
 
-	plan := PlanCapitalRouting([]UnifiedOpportunity{opp}, balances, DefaultCapitalRouterConfig())
+	plan := PlanCapitalRouting([]UnifiedOpportunity{opp}, balances, defaultCapitalRouterConfigForTests())
 
 	if len(plan.CrossVenueSuggestions) != 1 {
 		t.Fatalf("cross-venue suggestions = %+v, want one partial suggestion", plan.CrossVenueSuggestions)
@@ -179,19 +227,19 @@ func TestPlanCapitalRoutingPerpSpotMarginWalletMapping(t *testing.T) {
 		StrategyType: UnifiedStrategySingleVenuePerpSpot,
 		Symbol:       "DOGE-USDT",
 		Legs: []UnifiedOpportunityLeg{
-			{Venue: bybit.VenueName, Market: "perp", Side: "long", Notional: 100},
-			{Venue: bybit.VenueName, Market: "spot", Side: "short", Notional: 100},
+			{Venue: binance.VenueName, Market: "perp", Side: "long", Notional: 100},
+			{Venue: binance.VenueName, Market: "spot", Side: "short", Notional: 100},
 		},
-		CapitalRequiredByVenue: map[string]float64{bybit.VenueName: 75},
+		CapitalRequiredByVenue: map[string]float64{binance.VenueName: 75},
 	}
 	balances := VenueWalletBalances{
-		bybit.VenueName: {
+		binance.VenueName: {
 			WalletKindFutures: 200,
 			WalletKindMargin:  5,
 		},
 	}
 
-	plan := PlanCapitalRouting([]UnifiedOpportunity{opp}, balances, DefaultCapitalRouterConfig())
+	plan := PlanCapitalRouting([]UnifiedOpportunity{opp}, balances, defaultCapitalRouterConfigForTests())
 
 	if len(plan.WithinVenueTransfers) != 1 {
 		t.Fatalf("within-venue transfers = %+v, want one", plan.WithinVenueTransfers)
@@ -227,7 +275,7 @@ func TestPlanCapitalRoutingTableDriven(t *testing.T) {
 			balances: VenueWalletBalances{
 				"binance": {WalletKindSpot: 10, WalletKindFutures: 100},
 			},
-			cfg:            DefaultCapitalRouterConfig(),
+			cfg:            defaultCapitalRouterConfigForTests(),
 			wantWithin:     1,
 			wantCross:      0,
 			wantUnfundable: 0,
@@ -251,7 +299,7 @@ func TestPlanCapitalRoutingTableDriven(t *testing.T) {
 				"gate":    {WalletKindSpot: 20},
 				"binance": {WalletKindFutures: 140},
 			},
-			cfg:            DefaultCapitalRouterConfig(),
+			cfg:            defaultCapitalRouterConfigForTests(),
 			wantWithin:     0,
 			wantCross:      1,
 			wantUnfundable: 1,

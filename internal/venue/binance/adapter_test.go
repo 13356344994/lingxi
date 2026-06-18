@@ -66,6 +66,9 @@ func TestCapabilities(t *testing.T) {
 	if len(caps.CapitalWallets) != 4 {
 		t.Fatalf("expected 4 binance wallets, got %d", len(caps.CapitalWallets))
 	}
+	if caps.UnifiedWallet {
+		t.Fatal("binance should use separate wallets (UnifiedWallet=false)")
+	}
 }
 
 func TestPendingMethodsReturnUnsupported(t *testing.T) {

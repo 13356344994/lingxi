@@ -3,6 +3,9 @@ package app
 import (
 	"fmt"
 	"sort"
+	"time"
+
+	"lingxi/internal/core"
 )
 
 const (
@@ -14,19 +17,37 @@ const (
 
 // RotationConfig 是统一资金费轮动 shadow 计划的限额与保留金配置。
 type RotationConfig struct {
-	MaxConcurrent        int                `json:"max_concurrent"`
-	MaxPositionUSDT      float64            `json:"max_position_usdt"`
-	ReserveUSDTByVenue   map[string]float64 `json:"reserve_usdt_by_venue"`
-	DefaultReserveUSDT   float64            `json:"default_reserve_usdt"`
+	MaxConcurrent      int                `json:"max_concurrent"`
+	MaxPositionUSDT    float64            `json:"max_position_usdt"`
+	ReserveUSDTByVenue map[string]float64 `json:"reserve_usdt_by_venue"`
+	DefaultReserveUSDT float64            `json:"default_reserve_usdt"`
+	// ContinuationCloseThreshold 续持分须低于 −此阈值才允许软 CLOSE(过滤边际负分 fee churn)。默认 0.001。
+	ContinuationCloseThreshold float64 `json:"continuation_close_threshold"`
+	// ContinuationMinHoldSeconds 开仓后至少持有此秒数才允许续持分软 CLOSE。默认 3600。
+	ContinuationMinHoldSeconds int `json:"continuation_min_hold_seconds"`
 }
 
 // DefaultRotationConfig 返回 v1 保守默认轮动配置。
 func DefaultRotationConfig() RotationConfig {
 	return RotationConfig{
-		MaxConcurrent:      3,
-		MaxPositionUSDT:    500,
-		DefaultReserveUSDT: 10,
+		MaxConcurrent:              3,
+		MaxPositionUSDT:            500,
+		DefaultReserveUSDT:         10,
+		ContinuationCloseThreshold: 0.001,
+		ContinuationMinHoldSeconds: 3600,
 	}
+}
+
+// RotationConfigFromUnified 用 unified_rotation 配置覆盖轮动默认(零值保留默认)。
+func RotationConfigFromUnified(ur core.UnifiedRotationConfig) RotationConfig {
+	cfg := DefaultRotationConfig()
+	if ur.ContinuationCloseThreshold > 0 {
+		cfg.ContinuationCloseThreshold = ur.ContinuationCloseThreshold
+	}
+	if ur.ContinuationMinHoldSeconds > 0 {
+		cfg.ContinuationMinHoldSeconds = ur.ContinuationMinHoldSeconds
+	}
+	return cfg
 }
 
 // HeldPosition 是当前持仓的最小语义，用于跨窗口续持决策。
@@ -35,6 +56,7 @@ type HeldPosition struct {
 	StrategyType           string             `json:"strategy_type"`
 	Symbol                 string             `json:"symbol"`
 	CapitalRequiredByVenue map[string]float64 `json:"capital_required_by_venue"`
+	OpenedAt               time.Time          `json:"opened_at,omitempty"`
 }
 
 // ContinuationInputs 是下一结算窗口续持口径的纯函数输入(由调用方提供)。
@@ -76,6 +98,12 @@ func normalizeRotationConfig(cfg RotationConfig) RotationConfig {
 	}
 	if cfg.DefaultReserveUSDT <= 0 && len(cfg.ReserveUSDTByVenue) == 0 {
 		cfg.DefaultReserveUSDT = def.DefaultReserveUSDT
+	}
+	if cfg.ContinuationCloseThreshold <= 0 {
+		cfg.ContinuationCloseThreshold = def.ContinuationCloseThreshold
+	}
+	if cfg.ContinuationMinHoldSeconds <= 0 {
+		cfg.ContinuationMinHoldSeconds = def.ContinuationMinHoldSeconds
 	}
 	return cfg
 }
@@ -289,6 +317,27 @@ func rotationSwitchMarginalCostUSDT(heldCloseCostUSDT float64, newOpp UnifiedOpp
 	return heldCloseCostUSDT + newOpp.ExpectedSlippageUSDT + newOpp.ExpectedRollbackCostUSDT
 }
 
+// rotationShouldContinuationClose 判断是否因续持边际转负而软 CLOSE(含 hysteresis/min-hold/关仓费对比)。
+func rotationShouldContinuationClose(pos HeldPosition, inputs ContinuationInputs, cfg RotationConfig, now time.Time) (bool, string) {
+	contNet := continuationNetUSDT(inputs)
+	contScore := continuationScore(pos, inputs)
+	closeCost := inputs.ExpectedCloseCostUSDT
+	if closeCost <= 0 {
+		closeCost = 0.01
+	}
+	if contNet >= -closeCost {
+		return false, ""
+	}
+	if contScore >= -cfg.ContinuationCloseThreshold {
+		return false, ""
+	}
+	minHold := time.Duration(cfg.ContinuationMinHoldSeconds) * time.Second
+	if !pos.OpenedAt.IsZero() && minHold > 0 && now.Sub(pos.OpenedAt) < minHold {
+		return false, ""
+	}
+	return true, fmt.Sprintf("continuation_net=%.4f<-close_cost=%.4f score=%.6f", contNet, closeCost, contScore)
+}
+
 // DecideRotation 生成跨窗口 HOLD/CLOSE/SWITCH/OPEN shadow 计划(纯函数,不执行下单)。
 func DecideRotation(
 	held []HeldPosition,
@@ -296,6 +345,17 @@ func DecideRotation(
 	candidates []UnifiedOpportunity,
 	available map[string]float64,
 	cfg RotationConfig,
+) RotationPlan {
+	return decideRotationAt(held, heldInputs, candidates, available, cfg, time.Now())
+}
+
+func decideRotationAt(
+	held []HeldPosition,
+	heldInputs map[string]ContinuationInputs,
+	candidates []UnifiedOpportunity,
+	available map[string]float64,
+	cfg RotationConfig,
+	now time.Time,
 ) RotationPlan {
 	cfg = normalizeRotationConfig(cfg)
 	funds := cloneVenueCapitalMap(available)
@@ -315,14 +375,14 @@ func DecideRotation(
 		contScore := continuationScore(pos, inputs)
 		heldCapital := unifiedOpportunityTotalCapitalFromMap(pos.CapitalRequiredByVenue)
 
-		if contScore < 0 {
+		if closeOK, closeReason := rotationShouldContinuationClose(pos, inputs, cfg, now); closeOK {
 			plan.Actions = append(plan.Actions, RotationAction{
 				Kind:                   RotationActionClose,
 				OpportunityID:          pos.OpportunityID,
 				StrategyType:           pos.StrategyType,
 				Symbol:                 pos.Symbol,
 				Score:                  contScore,
-				Reason:                 fmt.Sprintf("continuation_score<0 (%.6f)", contScore),
+				Reason:                 closeReason,
 				CapitalRequiredByVenue: cloneVenueCapitalFromOpportunity(pos.CapitalRequiredByVenue),
 			})
 			rotationAddCapitalMap(funds, pos.CapitalRequiredByVenue)

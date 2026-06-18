@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"lingxi/internal/venue"
 )
 
 const capitalRouterEpsilon = 1e-9
@@ -28,6 +30,9 @@ type CapitalRouterConfig struct {
 	MarginSafetyFactor float64            // 默认 1.5
 	ReserveUSDTByVenue map[string]float64 // 每所不可动用保留金
 	DefaultReserveUSDT float64
+	// UnifiedWalletVenues 标记统一账户所(venue→true):现货/永续/杠杆共用单池,不规划所内划转。
+	// 由 CapitalRouterConfigWithVenues 从 venue.Capabilities().UnifiedWallet 填充;单测可显式设置。
+	UnifiedWalletVenues map[string]bool
 }
 
 // DefaultCapitalRouterConfig 返回默认资金路由配置。
@@ -42,10 +47,11 @@ func DefaultCapitalRouterConfig() CapitalRouterConfig {
 
 // WalletTransfer 所内钱包划转（安全、秒到）。
 type WalletTransfer struct {
-	Venue      string
-	From, To   WalletKind
-	AmountUSDT float64
-	Reason     string
+	Venue          string
+	From, To       WalletKind
+	AmountUSDT     float64
+	Reason         string
+	OpportunityIDs []string // 依赖此划转备资的机会 ID;执行失败时阻断对应 OPEN
 }
 
 // CrossVenueRebalanceSuggestion 跨所缺口建议（仅建议，不执行）。
@@ -69,22 +75,47 @@ func PlanCapitalRouting(chosen []UnifiedOpportunity, balances VenueWalletBalance
 
 	working := cloneVenueWalletBalances(balances)
 	lockVenueReserves(working, cfg)
+	preTransfer := cloneVenueWalletBalances(working)
 
 	var transfers []WalletTransfer
 	for venue, req := range aggregated {
+		if cfg.isUnifiedVenue(venue) {
+			continue
+		}
 		transfers = append(transfers, planWithinVenueTransfers(venue, req, working[venue])...)
 	}
+	attachTransferOpportunityIDs(chosen, perOpp, preTransfer, transfers, cfg)
 	sortWalletTransfers(transfers)
 	applyWithinVenueTransfers(working, transfers)
 
 	crossSuggestions := planCrossVenueSuggestions(aggregated, working)
-	unfundable := markUnfundableOpportunities(chosen, perOpp, working, crossSuggestions)
+	unfundable := markUnfundableOpportunities(chosen, perOpp, working, crossSuggestions, cfg)
 
 	return CapitalRoutingPlan{
 		WithinVenueTransfers:  transfers,
 		CrossVenueSuggestions: crossSuggestions,
 		Unfundable:            unfundable,
 	}
+}
+
+// UnifiedWalletVenuesFromVenues 从已注册 venue 适配器提取 UnifiedWallet 能力。
+func UnifiedWalletVenuesFromVenues(venues map[string]venue.Venue) map[string]bool {
+	out := map[string]bool{}
+	for name, v := range venues {
+		if v == nil {
+			continue
+		}
+		if v.Capabilities().UnifiedWallet {
+			out[name] = true
+		}
+	}
+	return out
+}
+
+// CapitalRouterConfigWithVenues 将 venue 能力合并进资金路由配置(统一账户标记等)。
+func CapitalRouterConfigWithVenues(cfg CapitalRouterConfig, venues map[string]venue.Venue) CapitalRouterConfig {
+	cfg.UnifiedWalletVenues = UnifiedWalletVenuesFromVenues(venues)
+	return normalizeCapitalRouterConfig(cfg)
 }
 
 func normalizeCapitalRouterConfig(cfg CapitalRouterConfig) CapitalRouterConfig {
@@ -98,6 +129,18 @@ func normalizeCapitalRouterConfig(cfg CapitalRouterConfig) CapitalRouterConfig {
 		cfg.ReserveUSDTByVenue = map[string]float64{}
 	}
 	return cfg
+}
+
+func (cfg CapitalRouterConfig) isUnifiedVenue(venue string) bool {
+	if cfg.UnifiedWalletVenues != nil {
+		return cfg.UnifiedWalletVenues[venue]
+	}
+	switch venue {
+	case "bybit", "okx", "gate":
+		return true
+	default:
+		return false
+	}
 }
 
 func (cfg CapitalRouterConfig) venueReserveUSDT(venue string) float64 {
@@ -294,6 +337,53 @@ func planWithinVenueTransfers(venue string, required venueWalletRequirements, wa
 	return transfers
 }
 
+func attachTransferOpportunityIDs(
+	chosen []UnifiedOpportunity,
+	perOpp map[string]map[string]venueWalletRequirements,
+	preTransfer VenueWalletBalances,
+	transfers []WalletTransfer,
+	cfg CapitalRouterConfig,
+) {
+	if len(transfers) == 0 {
+		return
+	}
+	for i := range transfers {
+		tr := &transfers[i]
+		if cfg.isUnifiedVenue(tr.Venue) {
+			continue
+		}
+		wallets := preTransfer[tr.Venue]
+		if wallets == nil {
+			wallets = map[WalletKind]float64{}
+		}
+		seen := map[string]struct{}{}
+		for _, opp := range chosen {
+			reqByVenue := perOpp[opp.ID]
+			if reqByVenue == nil {
+				continue
+			}
+			req := reqByVenue[tr.Venue]
+			if req == nil {
+				continue
+			}
+			need := req[tr.To]
+			if need <= capitalRouterEpsilon {
+				continue
+			}
+			have := capitalRouterMax(0, wallets[tr.To])
+			if have+capitalRouterEpsilon >= need {
+				continue
+			}
+			if _, ok := seen[opp.ID]; ok {
+				continue
+			}
+			seen[opp.ID] = struct{}{}
+			tr.OpportunityIDs = append(tr.OpportunityIDs, opp.ID)
+		}
+		sort.Strings(tr.OpportunityIDs)
+	}
+}
+
 func applyWithinVenueTransfers(working VenueWalletBalances, transfers []WalletTransfer) {
 	for _, tr := range transfers {
 		if working[tr.Venue] == nil {
@@ -378,6 +468,7 @@ func markUnfundableOpportunities(
 	perOpp map[string]map[string]venueWalletRequirements,
 	working VenueWalletBalances,
 	crossSuggestions []CrossVenueRebalanceSuggestion,
+	cfg CapitalRouterConfig,
 ) []string {
 	crossInflowVenues := map[string]struct{}{}
 	for _, s := range crossSuggestions {
@@ -391,9 +482,9 @@ func markUnfundableOpportunities(
 
 	for _, opp := range chosen {
 		reqByVenue := perOpp[opp.ID]
-		reason := opportunityFundingGapReason(reqByVenue, available, crossInflowVenues)
+		reason := opportunityFundingGapReason(reqByVenue, available, crossInflowVenues, cfg)
 		if reason == "" {
-			consumeOpportunityFunding(reqByVenue, available)
+			consumeOpportunityFunding(reqByVenue, available, cfg)
 			continue
 		}
 		unfundable = append(unfundable, opp.ID+": "+reason)
@@ -405,6 +496,7 @@ func opportunityFundingGapReason(
 	reqByVenue map[string]venueWalletRequirements,
 	available VenueWalletBalances,
 	crossInflowVenues map[string]struct{},
+	cfg CapitalRouterConfig,
 ) string {
 	for venue, walletReq := range reqByVenue {
 		if _, needsCross := crossInflowVenues[venue]; needsCross {
@@ -413,6 +505,18 @@ func opportunityFundingGapReason(
 		wallets := available[venue]
 		if wallets == nil {
 			wallets = map[WalletKind]float64{}
+		}
+
+		if cfg.isUnifiedVenue(venue) {
+			totalNeed := venueTotalRequired(walletReq)
+			if totalNeed <= capitalRouterEpsilon {
+				continue
+			}
+			totalHave := venueTotalBalance(wallets)
+			if totalHave+capitalRouterEpsilon >= totalNeed {
+				continue
+			}
+			return fmt.Sprintf("insufficient %s unified USDT (need %.4f, have %.4f)", venue, totalNeed, totalHave)
 		}
 
 		for _, wallet := range capitalRouterWalletKinds {
@@ -430,14 +534,33 @@ func opportunityFundingGapReason(
 	return ""
 }
 
-func consumeOpportunityFunding(reqByVenue map[string]venueWalletRequirements, available VenueWalletBalances) {
+func consumeOpportunityFunding(reqByVenue map[string]venueWalletRequirements, available VenueWalletBalances, cfg CapitalRouterConfig) {
 	for venue, walletReq := range reqByVenue {
 		if available[venue] == nil {
 			available[venue] = map[WalletKind]float64{}
 		}
+		if cfg.isUnifiedVenue(venue) {
+			deductUnifiedPool(available[venue], venueTotalRequired(walletReq))
+			continue
+		}
 		for wallet, need := range walletReq {
 			available[venue][wallet] -= need
 		}
+	}
+}
+
+func deductUnifiedPool(wallets map[WalletKind]float64, amount float64) {
+	if amount <= capitalRouterEpsilon {
+		return
+	}
+	remaining := amount
+	for _, wallet := range capitalRouterWalletKinds {
+		if remaining <= capitalRouterEpsilon {
+			return
+		}
+		take := capitalRouterMin(remaining, capitalRouterMax(0, wallets[wallet]))
+		wallets[wallet] -= take
+		remaining -= take
 	}
 }
 

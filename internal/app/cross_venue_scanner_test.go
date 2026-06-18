@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -22,16 +23,25 @@ import (
 
 // fakeFundingVenue 是单测用的 venue.Venue 桩,只定制 FetchFundingSnapshot。
 type fakeFundingVenue struct {
-	name   string
-	snaps  []venue.FundingSnapshot
-	err    error
-	delay  time.Duration
-	called int
+	name         string
+	snaps        []venue.FundingSnapshot
+	err          error
+	delay        time.Duration
+	called       int
+	capsOverride *venue.Capabilities // 可选覆盖
 }
 
 func (f *fakeFundingVenue) Name() string { return f.name }
 func (f *fakeFundingVenue) Capabilities() venue.Capabilities {
-	return venue.Capabilities{}
+	if f.capsOverride != nil {
+		return *f.capsOverride
+	}
+	caps := venue.Capabilities{}
+	switch f.name {
+	case bybit.VenueName, okx.VenueName, gate.VenueName:
+		caps.UnifiedWallet = true
+	}
+	return caps
 }
 func (f *fakeFundingVenue) ToVenue(c venue.Symbol, m venue.Market) (string, error) {
 	return string(c), nil
@@ -281,8 +291,8 @@ func TestCrossVenueScannerAnnotatesSnapshotLineageAndMetrics(t *testing.T) {
 		},
 		execCfg: CrossVenueExecutorConfig{
 			MaxPositionUSDT:       60,
-			MaxEffectiveLeverage: 2,
-			MarginSafetyFactor:   1.5,
+			MaxEffectiveLeverage:  2,
+			MarginSafetyFactor:    1.5,
 			EVExpectedSlippageBps: 3,
 		},
 		recordDir:      dir,
@@ -449,5 +459,219 @@ func TestCrossVenueScannerConcurrentFetch(t *testing.T) {
 	s.scanOnce(context.Background())
 	if len(s.Snapshot().Opportunities) == 0 {
 		t.Fatal("expected opportunities from bybit/okx/binance")
+	}
+}
+
+func TestCrossVenueScannerPopulatesFundingSpikeThreshold(t *testing.T) {
+	now := time.Date(2026, 6, 16, 0, 0, 0, 0, time.UTC)
+	nextFunding := now.Add(4 * time.Hour)
+	s := &CrossVenueScanner{
+		cfg: CrossVenueScannerConfig{
+			Enabled:                true,
+			MinSpreadAPR:           0.01,
+			SpreadPersistenceScans: 1,
+		},
+		execCfg: CrossVenueExecutorConfig{MaxPositionUSDT: 60},
+		nowFn:   func() time.Time { return now },
+		logger:  log.New(&bytes.Buffer{}, "", 0),
+		fundingHistory: map[string]map[string][]float64{
+			bybit.VenueName: {
+				"BTC-USDT": {0.0001, 0.0003, 0.0002, 0.0004},
+			},
+		},
+		venues: map[string]venue.Venue{
+			bybit.VenueName: &fakeFundingVenue{name: bybit.VenueName, snaps: []venue.FundingSnapshot{
+				{Symbol: "BTC-USDT", LastFundingRate: 0.0005, IntervalHours: 8, NextFundingTime: nextFunding},
+			}},
+			okx.VenueName: &fakeFundingVenue{name: okx.VenueName, snaps: []venue.FundingSnapshot{
+				{Symbol: "BTC-USDT", LastFundingRate: 0.0001, IntervalHours: 8, NextFundingTime: nextFunding},
+			}},
+		},
+		fetchVenue: defaultFetchVenueSnapshot,
+	}
+	s.scanOnce(context.Background())
+	entry := s.Snapshot().FundingByVenue[bybit.VenueName]["BTC-USDT"]
+	wantP90 := absRatePercentile([]float64{0.0001, 0.0003, 0.0002, 0.0004, 0.0005}, 90)
+	if math.Abs(entry.SpikeThreshold-wantP90) > 1e-12 {
+		t.Fatalf("spike_threshold = %.8f, want %.8f", entry.SpikeThreshold, wantP90)
+	}
+}
+
+func TestAbsRatePercentileRequiresTwoSamples(t *testing.T) {
+	if got := absRatePercentile([]float64{0.001}, 90); got != 0 {
+		t.Fatalf("single sample p90 = %.8f, want 0", got)
+	}
+}
+
+func TestSelectNegativeFundingProbeSymbols(t *testing.T) {
+	t.Parallel()
+	funding := map[string]map[string]CrossVenueFundingEntry{
+		binance.VenueName: {
+			"AAA-USDT": {Rate: -0.003},
+			"BBB-USDT": {Rate: 0.001},
+			"CCC-USDT": {Rate: -0.001},
+		},
+		bybit.VenueName: {
+			"AAA-USDT": {Rate: -0.002},
+			"CCC-USDT": {Rate: -0.004},
+		},
+	}
+	got := selectNegativeFundingProbeSymbols(funding, 2)
+	if len(got) != 2 {
+		t.Fatalf("len = %d, want 2", len(got))
+	}
+	if got[0] != "CCC-USDT" || got[1] != "AAA-USDT" {
+		t.Fatalf("order = %#v, want [CCC-USDT AAA-USDT]", got)
+	}
+}
+
+func TestCrossVenueBorrowProbeCacheTTL(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 6, 18, 12, 0, 0, 0, time.UTC)
+	var cache crossVenueBorrowProbeCache
+	probe := CrossVenueBorrowProbe{Symbol: "BTC-USDT", Venue: binance.VenueName, Available: true, HourlyRateAPR: 0.5}
+	cache.put(binance.VenueName, "BTC", probe, now)
+	if _, ok := cache.get(binance.VenueName, "BTC", now.Add(5*time.Minute)); !ok {
+		t.Fatal("expected cache hit within TTL")
+	}
+	if _, ok := cache.get(binance.VenueName, "BTC", now.Add(crossVenueBorrowProbeCacheTTL-time.Second)); !ok {
+		t.Fatal("expected cache hit just before TTL")
+	}
+	if _, ok := cache.get(binance.VenueName, "BTC", now.Add(crossVenueBorrowProbeCacheTTL)); ok {
+		t.Fatal("expected cache miss at TTL boundary")
+	}
+	valid := cache.allValid(now.Add(crossVenueBorrowProbeCacheTTL + time.Second))
+	if len(valid) != 0 {
+		t.Fatalf("allValid after expiry = %d, want 0", len(valid))
+	}
+}
+
+type fakeBorrowQuoteVenue struct {
+	fakeFundingVenue
+	quotes map[string]venue.BorrowQuote
+	calls  int
+}
+
+func (f *fakeBorrowQuoteVenue) Capabilities() venue.Capabilities {
+	return venue.Capabilities{SupportsBorrowQuote: true}
+}
+
+func (f *fakeBorrowQuoteVenue) FetchBorrowQuote(_ context.Context, asset string) (venue.BorrowQuote, error) {
+	f.calls++
+	asset = strings.ToUpper(strings.TrimSpace(asset))
+	if q, ok := f.quotes[asset]; ok {
+		return q, nil
+	}
+	return venue.BorrowQuote{Asset: asset, Available: false}, nil
+}
+
+func TestCrossVenueScannerProbesNegativeFundingSymbols(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	now := time.Date(2026, 6, 18, 12, 0, 0, 0, time.UTC)
+	nextFunding := now.Add(2 * time.Hour)
+	borrowVenue := &fakeBorrowQuoteVenue{
+		fakeFundingVenue: fakeFundingVenue{name: binance.VenueName},
+		quotes: map[string]venue.BorrowQuote{
+			"NEG": {Asset: "NEG", Available: true, MaxBorrowable: 500, HourlyRate: 0.0001},
+		},
+	}
+	s := &CrossVenueScanner{
+		cfg: CrossVenueScannerConfig{
+			Enabled:                   true,
+			BorrowProbeEnabled:        true,
+			BorrowProbeTopN:           1,
+			BorrowProbeFundingTopK:    5,
+			BorrowProbeMaxLivePerScan: 10,
+		},
+		recordDir: dir,
+		logger:    log.New(&bytes.Buffer{}, "", 0),
+		nowFn:     func() time.Time { return now },
+		sleepFn:   func(time.Duration) {},
+		venues: map[string]venue.Venue{
+			binance.VenueName: borrowVenue,
+		},
+		fetchVenue: func(_ context.Context, name string, adp venue.Venue) ([]venue.FundingSnapshot, error) {
+			if name == binance.VenueName {
+				return []venue.FundingSnapshot{
+					{Symbol: "SPREAD-USDT", LastFundingRate: 0.01, IntervalHours: 8, NextFundingTime: nextFunding},
+					{Symbol: "NEG-USDT", LastFundingRate: -0.005, IntervalHours: 8, NextFundingTime: nextFunding},
+				}, nil
+			}
+			return []venue.FundingSnapshot{
+				{Symbol: "SPREAD-USDT", LastFundingRate: 0.0001, IntervalHours: 8, NextFundingTime: nextFunding},
+				{Symbol: "NEG-USDT", LastFundingRate: -0.004, IntervalHours: 8, NextFundingTime: nextFunding},
+			}, nil
+		},
+	}
+	s.scanOnce(context.Background())
+	snap := s.Snapshot()
+	if len(snap.BorrowProbes) == 0 {
+		t.Fatal("expected borrow probes")
+	}
+	daily, limits := rotationBorrowMapsFromProbes(snap.BorrowProbes)
+	if daily["NEG"] <= 0 {
+		t.Fatalf("NEG daily rate = %v, want >0", daily["NEG"])
+	}
+	if limits["NEG"] != 500 {
+		t.Fatalf("NEG limit = %v, want 500", limits["NEG"])
+	}
+}
+
+func TestCrossVenueScannerBorrowProbeRespectsLiveBudgetAndCache(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 6, 18, 12, 0, 0, 0, time.UTC)
+	borrowVenue := &fakeBorrowQuoteVenue{
+		fakeFundingVenue: fakeFundingVenue{name: binance.VenueName},
+		quotes: map[string]venue.BorrowQuote{
+			"A": {Asset: "A", Available: true, MaxBorrowable: 1, HourlyRate: 0.0001},
+			"B": {Asset: "B", Available: true, MaxBorrowable: 2, HourlyRate: 0.0001},
+			"C": {Asset: "C", Available: true, MaxBorrowable: 3, HourlyRate: 0.0001},
+		},
+	}
+	s := &CrossVenueScanner{
+		cfg: CrossVenueScannerConfig{
+			BorrowProbeFundingTopK:    3,
+			BorrowProbeMaxLivePerScan: 1,
+		},
+		logger:  log.New(&bytes.Buffer{}, "", 0),
+		nowFn:   func() time.Time { return now },
+		sleepFn: func(time.Duration) {},
+		venues:  map[string]venue.Venue{binance.VenueName: borrowVenue},
+	}
+	funding := map[string]map[string]CrossVenueFundingEntry{
+		binance.VenueName: {
+			"A-USDT": {Rate: -0.003},
+			"B-USDT": {Rate: -0.002},
+			"C-USDT": {Rate: -0.001},
+		},
+	}
+	probes1 := s.probeBorrowForOpportunities(context.Background(), now, nil, funding)
+	if borrowVenue.calls != 1 {
+		t.Fatalf("first scan live calls = %d, want 1", borrowVenue.calls)
+	}
+	if len(probes1) != 1 {
+		t.Fatalf("first scan probes = %d, want 1", len(probes1))
+	}
+	probes2 := s.probeBorrowForOpportunities(context.Background(), now, nil, funding)
+	if borrowVenue.calls != 2 {
+		t.Fatalf("second scan live calls = %d, want 2", borrowVenue.calls)
+	}
+	if len(probes2) != 2 {
+		t.Fatalf("second scan probes = %d, want 2", len(probes2))
+	}
+	probes3 := s.probeBorrowForOpportunities(context.Background(), now, nil, funding)
+	if borrowVenue.calls != 3 {
+		t.Fatalf("third scan live calls = %d, want 3", borrowVenue.calls)
+	}
+	if len(probes3) != 3 {
+		t.Fatalf("third scan probes = %d, want 3", len(probes3))
+	}
+	probes4 := s.probeBorrowForOpportunities(context.Background(), now, nil, funding)
+	if borrowVenue.calls != 3 {
+		t.Fatalf("fourth scan live calls = %d, want 3 (all cached)", borrowVenue.calls)
+	}
+	if len(probes4) != 3 {
+		t.Fatalf("fourth scan probes = %d, want 3", len(probes4))
 	}
 }

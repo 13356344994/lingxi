@@ -31,12 +31,12 @@ type DashboardServer struct {
 	addr string
 	// orchestrator 持有所有 venue 运行时(P3a)。store/controller 是 Primary() 的快捷引用,使现有 handler
 	// 保持走缺省所、路由零变化;P3 后续 handler 改按 ?venue= 经 orchestrator 路由。
-	orchestrator *Orchestrator
-	store        *ReportStore
-	controller   *RuntimeController
-	auditStore   *DashboardAuditStore
-	controlToken string
-	logger       *log.Logger
+	orchestrator           *Orchestrator
+	store                  *ReportStore
+	controller             *RuntimeController
+	auditStore             *DashboardAuditStore
+	controlToken           string
+	logger                 *log.Logger
 	indexTmpl              *template.Template
 	unifiedLeaderboardTmpl *template.Template
 	startedAt              time.Time
@@ -134,13 +134,13 @@ func NewDashboardServer(addr string, orch *Orchestrator, logger *log.Logger) (*D
 		return nil, err
 	}
 	return &DashboardServer{
-		addr:         addr,
-		orchestrator: orch,
-		store:        store,
-		controller:   controller,
-		auditStore:   auditStore,
-		controlToken: randomDashboardToken(),
-		logger:       logger,
+		addr:                   addr,
+		orchestrator:           orch,
+		store:                  store,
+		controller:             controller,
+		auditStore:             auditStore,
+		controlToken:           randomDashboardToken(),
+		logger:                 logger,
 		indexTmpl:              indexTmpl,
 		unifiedLeaderboardTmpl: unifiedLeaderboardTmpl,
 		startedAt:              time.Now(),
@@ -190,9 +190,10 @@ func (s *DashboardServer) Start(ctx context.Context) error {
 	mux.HandleFunc("/api/strategy/stop", s.handleStrategyStopAPI)
 	mux.HandleFunc("/api/strategy/flatten-all", s.handleStrategyFlattenAllAPI)
 	mux.HandleFunc("/api/rotation/status", s.authorizeReadAPI(s.handleRotationStatusAPI))
+	mux.HandleFunc("/api/rotation/positions", s.authorizeReadAPI(s.handleRotationPositionsAPI))
+	mux.HandleFunc("/api/rotation/settlements", s.authorizeReadAPI(s.handleRotationSettlementsAPI))
 	mux.HandleFunc("/api/rotation/start", s.handleRotationStartAPI)
 	mux.HandleFunc("/api/rotation/stop", s.handleRotationStopAPI)
-	mux.HandleFunc("/api/rotation/mode", s.handleRotationModeAPI)
 	// S5-B 探针/指标(不鉴权,只暴露非敏感健康信息):供 k8s liveness/readiness 与 Prometheus 抓取。
 	mux.HandleFunc("/livez", s.handleLivez)
 	mux.HandleFunc("/healthz", s.handleHealthz)
@@ -1140,40 +1141,38 @@ func (s *DashboardServer) handleEarningsAPI(w http.ResponseWriter, r *http.Reque
 	now := time.Now().UTC()
 	byVenue, total, dayStart := s.buildVenuesFinancialSnapshot(now)
 
-	if s.crossVenueExecutor == nil {
-		writeJSON(w, map[string]any{
-			"basis":         "equity_snapshot_delta",
-			"window":        "beijing_cst_day",
-			"day_start_cst": dayStart.Format(time.RFC3339),
-			"generated_at":  now.Format(time.RFC3339),
-			"total_usdt":    total.TodayEarningUSDT,
-			"trade_count":   0,
-			"by_symbol":     map[string]float64{},
-			"by_venue":      byVenue,
-			"total":         total,
-			"note":          "跨所执行引擎未启用,无权益快照",
-		})
-		return
-	}
+	pnlSummary, pnlErr := TodayCSTStrategyPnL(s, now)
+	allTimeSummary, _ := AllTimeStrategyPnL(s, now)
+	openAccruedFunding := sumOpenAccruedFundingUSDT(s)
+	accountEquityDelta := total.TodayEarningUSDT
 
-	settlements, err := s.crossVenueExecutor.TodayCSTEarnings(now)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+	resp := map[string]any{
+		"basis":                      "settlement_ledger_realized_pnl",
+		"window":                     "beijing_cst_day",
+		"day_start_cst":              dayStart.Format(time.RFC3339),
+		"generated_at":               now.Format(time.RFC3339),
+		"realized_pnl_usdt":          pnlSummary.TotalNetPnL,
+		"open_accrued_funding_usdt":  openAccruedFunding,
+		"account_equity_delta_usdt":  accountEquityDelta,
+		"all_time_realized_pnl_usdt": allTimeSummary.TotalNetPnL,
+		"trade_count":                pnlSummary.TradeCount,
+		"total_funding_usdt":         pnlSummary.TotalFunding,
+		"total_fees_usdt":            pnlSummary.TotalFees,
+		"by_strategy":                pnlSummary.ByStrategy,
+		"by_symbol":                  pnlSummary.BySymbol,
+		"by_venue_settlement":        pnlSummary.ByVenue,
+		"by_venue":                   byVenue,
+		"total":                      total,
 	}
-
-	writeJSON(w, map[string]any{
-		"basis":                "equity_snapshot_delta",
-		"window":               "beijing_cst_day",
-		"day_start_cst":        dayStart.Format(time.RFC3339),
-		"generated_at":         now.Format(time.RFC3339),
-		"total_usdt":           total.TodayEarningUSDT,
-		"settlements_net_pnl":  settlements.TotalNetPnL,
-		"trade_count":          settlements.TradeCount,
-		"by_symbol_settlement": settlements.BySymbol,
-		"by_venue":             byVenue,
-		"total":                total,
-	})
+	if pnlErr != nil {
+		resp["pnl_error"] = pnlErr.Error()
+	}
+	if s.crossVenueExecutor != nil {
+		if legacy, err := s.crossVenueExecutor.TodayCSTEarnings(now); err == nil {
+			resp["perp_perp_settlements_net_pnl"] = legacy.TotalNetPnL
+		}
+	}
+	writeJSON(w, resp)
 }
 
 func (s *DashboardServer) handleEarningsClearAPI(w http.ResponseWriter, r *http.Request) {
@@ -1245,9 +1244,8 @@ func (s *DashboardServer) handleUnifiedLeaderboardPage(w http.ResponseWriter, r 
 	}
 }
 
-// RotationModeRequest 轮动 shadow/live 切换请求;切 live 时 confirm 须为 LIVE。
-type RotationModeRequest struct {
-	Live    bool   `json:"live"`
+// RotationStartRequest 启动统一轮动;须 confirm=LIVE 才允许实盘下单。
+type RotationStartRequest struct {
 	Confirm string `json:"confirm"`
 }
 
@@ -1279,8 +1277,20 @@ func (s *DashboardServer) handleRotationStartAPI(w http.ResponseWriter, r *http.
 		http.Error(w, "统一轮动 runner 未注入", http.StatusBadRequest)
 		return
 	}
+	var req RotationStartRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		s.auditControlAction(r, "rotation_start", false, fmt.Sprintf("解析启动参数失败: %v", err))
+		http.Error(w, fmt.Sprintf("解析启动参数失败: %v", err), http.StatusBadRequest)
+		return
+	}
+	if strings.TrimSpace(req.Confirm) != "LIVE" {
+		const msg = "启动实盘轮动须显式确认:请带 confirm=LIVE"
+		s.auditControlAction(r, "rotation_start", false, msg)
+		http.Error(w, msg, http.StatusBadRequest)
+		return
+	}
 	s.rotationRunner.SetActive(true)
-	s.auditControlAction(r, "rotation_start", true, "统一轮动已启动")
+	s.auditControlAction(r, "rotation_start", true, "统一轮动已启动(实盘)")
 	writeJSON(w, s.rotationRunner.Status())
 }
 
@@ -1299,40 +1309,6 @@ func (s *DashboardServer) handleRotationStopAPI(w http.ResponseWriter, r *http.R
 	}
 	s.rotationRunner.SetActive(false)
 	s.auditControlAction(r, "rotation_stop", true, "统一轮动已暂停")
-	writeJSON(w, s.rotationRunner.Status())
-}
-
-func (s *DashboardServer) handleRotationModeAPI(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	if !s.authorizeRuntimeControl(w, r, "rotation_mode") {
-		return
-	}
-	if s.rotationRunner == nil {
-		s.auditControlAction(r, "rotation_mode", false, "统一轮动 runner 未注入")
-		http.Error(w, "统一轮动 runner 未注入", http.StatusBadRequest)
-		return
-	}
-	var req RotationModeRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		s.auditControlAction(r, "rotation_mode", false, fmt.Sprintf("解析轮动模式参数失败: %v", err))
-		http.Error(w, fmt.Sprintf("解析轮动模式参数失败: %v", err), http.StatusBadRequest)
-		return
-	}
-	if req.Live && strings.TrimSpace(req.Confirm) != "LIVE" {
-		const msg = "切到实盘须显式确认:请带 confirm=LIVE"
-		s.auditControlAction(r, "rotation_mode", false, msg)
-		http.Error(w, msg, http.StatusBadRequest)
-		return
-	}
-	s.rotationRunner.SetLive(req.Live)
-	mode := "shadow"
-	if req.Live {
-		mode = "live"
-	}
-	s.auditControlAction(r, "rotation_mode", true, fmt.Sprintf("统一轮动模式=%s", mode))
 	writeJSON(w, s.rotationRunner.Status())
 }
 

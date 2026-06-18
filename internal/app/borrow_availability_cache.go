@@ -2,6 +2,7 @@ package app
 
 import (
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -21,6 +22,92 @@ import (
 // borrowUnavailableCacheTTL 是「确定性借不到」的缓存有效期。资金费每 1h/4h/8h 结算一次,20 分钟内
 // 复扫会跳过该资产、把名额让给可执行候选;过期后重新探测,池子回补即可恢复。
 const borrowUnavailableCacheTTL = 20 * time.Minute
+
+// crossVenueBorrowProbeCacheTTL 跨所扫描借币探测结果缓存 TTL。
+// 与 borrowUnavailableCacheTTL 对齐:资金费每 1h/4h/8h 结算,20 分钟内复扫跳过重复 I/O,
+// 借币池回补后 TTL 过期自动重探。
+const crossVenueBorrowProbeCacheTTL = 20 * time.Minute
+
+type crossVenueBorrowProbeCacheKey struct {
+	venue string
+	asset string
+}
+
+type crossVenueBorrowProbeCacheEntry struct {
+	probe    CrossVenueBorrowProbe
+	cachedAt time.Time
+}
+
+// crossVenueBorrowProbeCache 缓存跨所扫描器的 FetchBorrowQuote 结果(venue+base 粒度)。
+// 纯内存、带 TTL;命中时不触网,供每轮 scan 在 bounded live 预算内渐进覆盖负 carry 候选。
+type crossVenueBorrowProbeCache struct {
+	mu      sync.Mutex
+	entries map[crossVenueBorrowProbeCacheKey]crossVenueBorrowProbeCacheEntry
+}
+
+func (c *crossVenueBorrowProbeCache) get(venue, asset string, now time.Time) (CrossVenueBorrowProbe, bool) {
+	if c == nil {
+		return CrossVenueBorrowProbe{}, false
+	}
+	venue = strings.ToLower(strings.TrimSpace(venue))
+	asset = strings.ToUpper(strings.TrimSpace(asset))
+	if venue == "" || asset == "" {
+		return CrossVenueBorrowProbe{}, false
+	}
+	key := crossVenueBorrowProbeCacheKey{venue: venue, asset: asset}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.entries == nil {
+		return CrossVenueBorrowProbe{}, false
+	}
+	ent, ok := c.entries[key]
+	if !ok {
+		return CrossVenueBorrowProbe{}, false
+	}
+	if now.Sub(ent.cachedAt) >= crossVenueBorrowProbeCacheTTL {
+		delete(c.entries, key)
+		return CrossVenueBorrowProbe{}, false
+	}
+	return ent.probe, true
+}
+
+func (c *crossVenueBorrowProbeCache) put(venue, asset string, probe CrossVenueBorrowProbe, now time.Time) {
+	if c == nil {
+		return
+	}
+	venue = strings.ToLower(strings.TrimSpace(venue))
+	asset = strings.ToUpper(strings.TrimSpace(asset))
+	if venue == "" || asset == "" {
+		return
+	}
+	key := crossVenueBorrowProbeCacheKey{venue: venue, asset: asset}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.entries == nil {
+		c.entries = make(map[crossVenueBorrowProbeCacheKey]crossVenueBorrowProbeCacheEntry)
+	}
+	c.entries[key] = crossVenueBorrowProbeCacheEntry{probe: probe, cachedAt: now}
+}
+
+func (c *crossVenueBorrowProbeCache) allValid(now time.Time) []CrossVenueBorrowProbe {
+	if c == nil {
+		return nil
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if len(c.entries) == 0 {
+		return nil
+	}
+	out := make([]CrossVenueBorrowProbe, 0, len(c.entries))
+	for key, ent := range c.entries {
+		if now.Sub(ent.cachedAt) >= crossVenueBorrowProbeCacheTTL {
+			delete(c.entries, key)
+			continue
+		}
+		out = append(out, ent.probe)
+	}
+	return out
+}
 
 // markBorrowAssetUnavailable 记录某 base 资产此刻确定性借不到(TTL 内海选阶段跳过)。资产名空则忽略。
 // 由 R29 queryMaxBorrowable 命中确定性借不到错误时调用。线程安全(自取 platformRiskMu)。

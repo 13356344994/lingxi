@@ -27,6 +27,9 @@ func TestPlanAllocationGate(t *testing.T) {
 	if !caps.SupportsCapitalRebalance || len(caps.CapitalWallets) != 2 {
 		t.Errorf("能力声明不符: %+v", caps)
 	}
+	if !caps.UnifiedWallet {
+		t.Error("gate should declare UnifiedWallet=true")
+	}
 }
 
 func capitalFakeGate(t *testing.T, spotUSDT, futuresUSDT string) (*Adapter, *[]map[string]any) {

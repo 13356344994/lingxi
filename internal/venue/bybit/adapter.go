@@ -59,6 +59,7 @@ func (a *Adapter) Capabilities() venue.Capabilities {
 		SupportsCapitalRebalance: true,  // capital.go:资金↔统一账户划转
 		SupportsBorrowQuote:      true,  // collateral-info + spot-borrow-check 只读探测
 		CapitalWallets:           []venue.Wallet{WalletUnified, WalletFunding},
+		UnifiedWallet:            true, // 统一账户:现货与永续共用可用 USDT
 	}
 }
 

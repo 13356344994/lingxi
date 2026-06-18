@@ -9,10 +9,10 @@ import (
 )
 
 const (
-	singleVenueSpotPerpRejectNegativeFunding     = "negative_funding_v1_not_supported"
-	singleVenueSpotPerpRejectNoSpotMarket        = "no_spot_market"
-	singleVenueSpotPerpRejectInsufficientDepth   = "insufficient_depth"
-	singleVenueSpotPerpRejectMarginStress        = "margin_stress_liquidation"
+	singleVenueSpotPerpRejectNegativeFunding   = "negative_funding_v1_not_supported"
+	singleVenueSpotPerpRejectNoSpotMarket      = "no_spot_market"
+	singleVenueSpotPerpRejectInsufficientDepth = "insufficient_depth"
+	singleVenueSpotPerpRejectMarginStress      = "margin_stress_liquidation"
 )
 
 // single_venue_spot_perp_scanner.go 单所 spot-perp 正 carry 扫描器(纯函数, shadow-only, 不接入实盘 tick)。
@@ -122,7 +122,7 @@ func AppendSingleVenueSpotPerpShadowCandidates(recordDir, cycleID string, execCf
 	path := filepath.Join(opportunitiesRecordDir(base), unifiedCandidatesLogFileName)
 	for _, opp := range opps {
 		notional := singleVenueSpotPerpLegNotional(opp)
-		rec := unifiedCandidateLogFromOpportunity(execCfg, cycleID, opp, false, notional)
+		rec := unifiedCandidateLogFromOpportunity(execCfg, cycleID, opp, len(opp.RejectReasons) == 0, notional)
 		_ = appendJSONLRecord(path, rec)
 	}
 }
@@ -222,7 +222,10 @@ func buildSingleVenueSpotPerpOpportunity(
 		return UnifiedOpportunity{}, false
 	}
 
-	notional := crossVenueSpotPerpTradableNotional(cvCfg, mkt, mkt)
+	notional := crossVenueSpotPerpTradableNotionalForSingleVenue(
+		cvCfg, mkt, mkt, venueName, available,
+		func(v string) float64 { return singleVenueSpotPerpVenueReserve(v, cfg) },
+	)
 	if notional <= 0 {
 		return singleVenueSpotPerpRejectedOpportunity(snapshotID, symbol, venueName, singleVenueSpotPerpRejectInsufficientDepth), true
 	}
@@ -278,9 +281,6 @@ func buildSingleVenueSpotPerpOpportunity(
 	}
 
 	rejectReasons := make([]string, 0)
-	if fund.SpikeThreshold <= 0 {
-		rejectReasons = append(rejectReasons, "insufficient_funding_history")
-	}
 	if requiresRebalance {
 		rejectReasons = append(rejectReasons, "requires_rebalance")
 	}

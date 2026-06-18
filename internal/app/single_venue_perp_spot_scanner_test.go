@@ -119,27 +119,24 @@ func TestScanSingleVenuePerpSpotOpportunitiesHappyPath(t *testing.T) {
 func TestScanSingleVenuePerpSpotRequiresRebalanceWhenFundsShort(t *testing.T) {
 	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
 	in := testSingleVenuePerpSpotScanInput(now)
-	in.AvailableUSDTByVenue[bybit.VenueName] = 50
+	in.AvailableUSDTByVenue[bybit.VenueName] = 3
 
 	opps := ScanSingleVenuePerpSpotOpportunities(in)
-	if len(opps) == 0 {
-		t.Fatal("expected opportunities even when rebalance required")
-	}
-	opp := opps[0]
-	if !opp.RequiresRebalance {
-		t.Fatal("expected requires_rebalance=true")
-	}
-	if opp.ExpectedRollbackCostUSDT <= 0 {
-		t.Fatalf("rebalance penalty = %.4f, want >0", opp.ExpectedRollbackCostUSDT)
-	}
-	foundReason := false
-	for _, r := range opp.RejectReasons {
-		if r == "requires_rebalance" {
-			foundReason = true
+	for _, opp := range opps {
+		if len(opp.Legs) > 0 {
+			t.Fatalf("expected no tradable opportunities when capital cannot support 5U floor, got %+v", opp)
 		}
 	}
-	if !foundReason {
-		t.Fatalf("reject_reasons = %#v, want requires_rebalance", opp.RejectReasons)
+}
+
+func TestSingleVenuePerpSpotRequiresRebalanceHelper(t *testing.T) {
+	cfg := DefaultSingleVenuePerpSpotScannerConfig(testCrossVenueExecutorConfig().CrossVenueExecutor)
+	available := map[string]float64{bybit.VenueName: 20}
+	if !singleVenuePerpSpotRequiresRebalance(bybit.VenueName, 30, 10, available, cfg) {
+		t.Fatal("expected requires_rebalance when total required exceeds available")
+	}
+	if singleVenuePerpSpotRequiresRebalance(bybit.VenueName, 5, 4, available, cfg) {
+		t.Fatal("unexpected requires_rebalance when capital covers legs")
 	}
 }
 

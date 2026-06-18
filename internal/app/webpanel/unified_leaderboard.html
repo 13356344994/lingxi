@@ -20,7 +20,8 @@
     .section { margin-top: 28px; }
     .pill { display: inline-block; background: #334155; border-radius: 999px; padding: 2px 8px; margin: 2px 4px 2px 0; font-size: 12px; }
     pre { white-space: pre-wrap; word-break: break-word; margin: 0; }
-    .error { color: #fca5a5; }
+    tr.degenerate { opacity: 0.55; }
+    tr.near-miss td:nth-child(5) { color: #fbbf24; }
   </style>
 </head>
 <body>
@@ -38,7 +39,8 @@
           <th>Symbol</th>
           <th>交易所</th>
           <th>净EV (USDT)</th>
-          <th>资本效率</th>
+          <th>名义 (USDT)</th>
+          <th>排序键</th>
           <th>占用资金</th>
           <th>排名说明</th>
           <th>可执行</th>
@@ -81,12 +83,18 @@
         tbody.innerHTML = '';
         (data.opportunities || []).forEach(o => {
           const tr = document.createElement('tr');
+          const hasEval = (o.notional_usdt > 0) ||
+            (o.expected_net_ev_usdt != null && o.expected_net_ev_usdt !== 0) ||
+            (o.capital_required_by_venue && Object.values(o.capital_required_by_venue).some(v => v > 0));
+          if (!o.would_execute && !hasEval) tr.className = 'degenerate';
+          else if (!o.would_execute && hasEval) tr.className = 'near-miss';
           tr.innerHTML =
             '<td>'+o.rank+'</td>'+
             '<td>'+esc(o.strategy_type)+'</td>'+
             '<td>'+esc(o.symbol)+'</td>'+
             '<td>'+(o.venues||[]).map(v=>'<span class="pill">'+esc(v)+'</span>').join('')+'</td>'+
             '<td>'+fmt(o.expected_net_ev_usdt,4)+'</td>'+
+            '<td>'+fmt(o.notional_usdt,2)+'</td>'+
             '<td>'+fmt(o.primary_sort_key,6)+'</td>'+
             '<td>'+renderCapital(o.capital_required_by_venue)+'</td>'+
             '<td><pre>'+esc(o.rank_reason)+'</pre></td>'+

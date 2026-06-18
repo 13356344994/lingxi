@@ -676,15 +676,56 @@
     <section class="section section-overview" aria-label="总览">
       <div class="section-head">
         <h2 class="section-title">收益总览</h2>
-        <p class="hint section-desc">今日收益与收益率（北京时间），各交易所卡片由 <code>/api/earnings</code> 实时填充。</p>
+        <p class="hint section-desc">今日<strong>已实现收益</strong>来自五策略结算台账(北京时间);下方另列账户净值变动(含转账)作对照。</p>
       </div>
       <div id="earnings-panel" class="earnings-hero">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-          <strong style="color:#e5edff;font-size:15px;">今日收益(北京时间)</strong>
+          <strong style="color:#e5edff;font-size:15px;">今日已实现收益(北京时间)</strong>
           <button id="earnings-clear-btn" type="button" class="danger" style="font-size:12px;">清除权益快照(24h外)</button>
         </div>
-        <div class="hint" id="earnings-note" style="margin:0 0 10px;">含义:<strong>今日收益</strong>=各所账户总值相对<strong>北京时间当日 00:00 后首条权益快照</strong>的真实变化(含在场持仓、手续费、资费、开平仓全部影响);<strong>收益率</strong>=今日收益÷日初基准账户总值。<strong>可动用资金</strong>为各所实时可调 USDT;<strong>全部资金</strong>为钱包本金(含占用保证金与非 USDT 折算,不含持仓浮盈亏)。API 另附 <code>settlements_net_pnl</code> 供对照(仅已平仓单仓归因,与账户真实变化常不一致)。</div>
+        <div class="hint" id="earnings-note" style="margin:0 0 10px;">含义:<strong>今日已实现收益</strong>=五策略 settlements.jsonl 在<strong>北京时间当日 00:00 后 close_time</strong>的 net_pnl 汇总(含 perp-perp + 四轮动);<strong>持仓中(未实现)</strong>=当前 OPEN 持仓已累计资金费;<strong>账户净值变动(含转账)</strong>=各所账户总值相对日初权益快照的变化(含充值/提币/调仓,非纯交易收益)。</div>
+        <div id="earnings-realized-hero" style="margin:0 0 10px;padding:10px;background:#13203a;border:1px solid #2b3c5c;border-radius:8px;">
+          <div style="font-size:12px;color:#94a3b8;">已实现(今日) · 持仓中(未实现) · 账户净值变动(含转账)</div>
+          <div style="display:flex;flex-wrap:wrap;gap:16px;margin-top:6px;">
+            <div><span style="font-size:12px;color:#8aa0c6;">已实现</span> <strong id="earnings-realized-total" style="font-size:20px;color:#86efac;">-</strong></div>
+            <div><span style="font-size:12px;color:#8aa0c6;">持仓中(未实现)</span> <strong id="earnings-unrealized-funding" style="font-size:18px;color:#cbd5e1;">-</strong></div>
+            <div><span style="font-size:12px;color:#8aa0c6;">账户净值变动</span> <strong id="earnings-equity-delta" style="font-size:18px;color:#94a3b8;">-</strong></div>
+          </div>
+        </div>
         <div id="earnings-grid" style="display:flex;flex-wrap:wrap;gap:10px;"></div>
+      </div>
+    </section>
+
+    <!-- 1b. 轮动持仓区 -->
+    <section class="section section-rotation-positions" aria-label="轮动持仓">
+      <div class="section-head">
+        <h2 class="section-title">轮动持仓</h2>
+        <p class="hint section-desc">四轮动策略(SVSP/CVSP/SVPS/CVPS)当前持仓与历史结算,数据来自 <code>/api/rotation/positions</code> 与 <code>/api/rotation/settlements</code>。</p>
+      </div>
+      <div class="panel-inner">
+        <h3 style="font-size:14px;color:#cbd5e1;margin:0 0 8px;">当前持仓 (OPEN)</h3>
+        <div class="table-wrap" style="overflow-x:auto;margin-bottom:16px;">
+          <table class="data-table" id="rotation-open-table">
+            <thead>
+              <tr>
+                <th>Symbol</th><th>策略</th><th>状态</th><th>腿(所/方向/量/入场)</th>
+                <th>名义(U)</th><th>开仓费</th><th>预计平仓费</th><th>已累计资费</th><th>预期净EV</th><th>持有时长</th>
+              </tr>
+            </thead>
+            <tbody id="rotation-open-tbody"><tr><td colspan="10" class="hint">加载中…</td></tr></tbody>
+          </table>
+        </div>
+        <h3 style="font-size:14px;color:#cbd5e1;margin:0 0 8px;">历史 / 已平仓 (开→平→换)</h3>
+        <div class="table-wrap" style="overflow-x:auto;">
+          <table class="data-table" id="rotation-closed-table">
+            <thead>
+              <tr>
+                <th>Symbol</th><th>策略</th><th>所</th><th>开→平</th><th>已实现净利</th><th>资费</th><th>开+平费</th><th>原因</th><th>持有时长</th>
+              </tr>
+            </thead>
+            <tbody id="rotation-closed-tbody"><tr><td colspan="9" class="hint">加载中…</td></tr></tbody>
+          </table>
+        </div>
       </div>
     </section>
 
@@ -706,20 +747,9 @@
         </div>
         <div class="rotation-hero-actions">
           <button id="rotation-toggle-btn" type="button" class="rotation-toggle-btn">▶ 启动五策略轮动</button>
-          <div class="rotation-mode-wrap">
-            <label class="rotation-mode-label" for="rotation-live-toggle">
-              <span>模式</span>
-              <span class="rotation-mode-switch">
-                <input id="rotation-live-toggle" type="checkbox">
-                <span class="rotation-mode-track"><span class="rotation-mode-thumb"></span></span>
-              </span>
-              <span id="rotation-mode-text" class="rotation-mode-text">Shadow</span>
-            </label>
-          </div>
         </div>
         <div class="rotation-status-grid stats">
           <div class="stat-card"><div class="stat-label">运行</div><div class="stat-value" id="rot-active-pill" style="font-size:16px">-</div></div>
-          <div class="stat-card"><div class="stat-label">模式</div><div class="stat-value" id="rot-mode-pill" style="font-size:16px">-</div></div>
           <div class="stat-card"><div class="stat-label">上轮时间</div><div class="stat-value" id="rot-last-cycle" style="font-size:14px">-</div></div>
           <div class="stat-card"><div class="stat-label">轮询间隔</div><div class="stat-value" id="rot-interval" style="font-size:16px">-</div></div>
           <div class="stat-card"><div class="stat-label">快照 ID</div><div class="stat-value" id="rot-snapshot-id" style="font-size:12px;word-break:break-all;white-space:normal">-</div></div>
@@ -1065,7 +1095,7 @@
       <details class="fold-panel">
         <summary>绩效指标 <span id="performance-venue-label" class="hint fold-summary-meta"></span></summary>
         <div class="fold-body panel-inner">
-          <div class="hint" id="performance-note">上方「今日收益」按跨所结算 close_time 的<strong>北京时间自然日</strong>口径;本区绩效序列仍按单所 settlements 的 UTC 日聚合(历史兼容),分母为该所分配本金(allocated_capital_usdt)。小样本下重点看最大回撤 / 索提诺 / 胜率。基准为 BTC 现货日 K(Alpha/Beta)。</div>
+          <div class="hint" id="performance-note">默认按五策略合并 settlements.jsonl、<strong>北京时间自然日</strong>聚合日收益序列(与上方已实现收益口径一致);加 <code>?legacy=1</code> 可回退旧单所 ReportStore(UTC 日)。分母为分配本金。小样本下重点看最大回撤 / 索提诺 / 胜率。基准为 BTC 现货日 K(Alpha/Beta)。</div>
       <div class="stats" id="performance-cards">
         <div class="stat-card"><div class="stat-label">总收益率</div><div class="stat-value" id="perf-total-return">-</div></div>
         <div class="stat-card"><div class="stat-label">年化收益</div><div class="stat-value" id="perf-annualized">-</div></div>
@@ -2551,14 +2581,11 @@
 
     // ===== 五策略统一轮动 =====
     let lastRotationStatus = null;
-    let rotationLiveToggleBusy = false;
 
     function renderRotationStatus(st) {
       lastRotationStatus = st && typeof st === "object" ? st : null;
       const card = document.getElementById("rotation-main-card");
       const toggleBtn = document.getElementById("rotation-toggle-btn");
-      const liveToggle = document.getElementById("rotation-live-toggle");
-      const modeText = document.getElementById("rotation-mode-text");
       const errEl = document.getElementById("rotation-last-error");
       const setText = (id, text) => {
         const el = document.getElementById(id);
@@ -2572,13 +2599,7 @@
           toggleBtn.classList.remove("danger");
         }
         if (card) { card.classList.remove("live-mode"); }
-        if (liveToggle && !rotationLiveToggleBusy) { liveToggle.checked = false; }
-        if (modeText) {
-          modeText.textContent = "Shadow";
-          modeText.classList.remove("live-warn");
-        }
         setText("rot-active-pill", "-");
-        setText("rot-mode-pill", "-");
         setText("rot-last-cycle", "-");
         setText("rot-interval", "-");
         setText("rot-snapshot-id", "-");
@@ -2594,7 +2615,6 @@
       }
 
       const active = !!st.active;
-      const live = !!st.live;
       const candidates = st.candidates && typeof st.candidates === "object" ? st.candidates : {};
       const actions = st.actions && typeof st.actions === "object" ? st.actions : {};
 
@@ -2602,20 +2622,13 @@
         toggleBtn.textContent = active ? "⏸ 停止五策略轮动" : "▶ 启动五策略轮动";
         toggleBtn.classList.toggle("danger", active);
       }
-      if (card) { card.classList.toggle("live-mode", live); }
-      if (liveToggle && !rotationLiveToggleBusy) { liveToggle.checked = live; }
-      if (modeText) {
-        modeText.textContent = live ? "Live (实盘)" : "Shadow (影子)";
-        modeText.classList.toggle("live-warn", live);
-      }
+      if (card) { card.classList.toggle("live-mode", active); }
 
       const activePill = document.getElementById("rot-active-pill");
-      if (activePill) { activePill.innerHTML = mkPill(active, "运行中", "已停止"); }
-      const modePill = document.getElementById("rot-mode-pill");
-      if (modePill) {
-        modePill.innerHTML = live
-          ? `<span class="pill high">Live 实盘</span>`
-          : `<span class="pill low">Shadow 影子</span>`;
+      if (activePill) {
+        activePill.innerHTML = active
+          ? `<span class="pill high">运行中 · 实盘</span>`
+          : mkPill(false, "运行中", "已停止");
       }
 
       setText("rot-last-cycle", st.last_cycle_at ? formatTimeUTC8(st.last_cycle_at) : "-");
@@ -2662,15 +2675,13 @@
     async function toggleRotation() {
       const active = !!(lastRotationStatus && lastRotationStatus.active);
       if (!active) {
-        const live = !!(lastRotationStatus && lastRotationStatus.live);
-        const liveHint = live ? "当前为 Live 模式,将真实下单(含借币)。" : "Shadow 模式下不会真实下单。";
-        if (!confirm("确认启动五策略轮动?\n" + liveHint)) { return; }
+        if (!confirm("确认启动五策略轮动?\n启动后将真实下单(含借币),建议先调仓四所各~10U")) { return; }
       }
       try {
         if (active) {
           await postJSON("/api/rotation/stop", {});
         } else {
-          await postJSON("/api/rotation/start", {});
+          await postJSON("/api/rotation/start", { confirm: "LIVE" });
         }
         await refreshRotationStatus();
         await refreshDashboard();
@@ -2679,46 +2690,15 @@
       }
     }
 
-    async function setRotationLiveMode(wantLive) {
-      if (wantLive && !confirm("确认切到实盘?五策略会真实下单(含借币),建议先调仓四所各~10U")) {
-        return false;
-      }
-      rotationLiveToggleBusy = true;
-      try {
-        const body = { live: wantLive };
-        if (wantLive) { body.confirm = "LIVE"; }
-        await postJSON("/api/rotation/mode", body);
-        await refreshRotationStatus();
-        return true;
-      } catch (err) {
-        alert("切换模式失败: " + err.message);
-        await refreshRotationStatus();
-        return false;
-      } finally {
-        rotationLiveToggleBusy = false;
-      }
-    }
-
     function initRotationControl() {
       document.getElementById("rotation-toggle-btn")?.addEventListener("click", toggleRotation);
-      const liveToggle = document.getElementById("rotation-live-toggle");
-      liveToggle?.addEventListener("change", async () => {
-        const wantLive = !!liveToggle.checked;
-        const prevLive = !!(lastRotationStatus && lastRotationStatus.live);
-        if (wantLive === prevLive) { return; }
-        const ok = await setRotationLiveMode(wantLive);
-        if (!ok) {
-          rotationLiveToggleBusy = true;
-          liveToggle.checked = prevLive;
-          rotationLiveToggleBusy = false;
-        }
-      });
     }
 
     // ===== 策略总控(全部总览 Tab) =====
     const strategyCapitalStorageKey = "lingxi-strategy-capital-usdt";
     let strategyVenueCapitals = {};
     let lastEarningsByVenue = {};
+    let lastRealizedPnLUSDT = 0;
     let lastEarningsTotalBlock = {};
 
     function formatCapitalTriple(snap) {
@@ -2937,7 +2917,7 @@
         return;
       }
       const replayReady = Boolean(data.replay_ready);
-      const realizedPnL = Number(data.rotation_realized_net_pnl || 0);
+      const realizedPnL = Number(data.perp_perp_realized_net_pnl ?? data.rotation_realized_net_pnl ?? 0);
       const baselineApprox = Number(data.baseline_approx_net_pnl || 0);
       const chosenReplay = Number(data.rolling_baseline_replay?.chosen_replay_net_ev || 0);
       const baselineReplay = Number(data.rolling_baseline_replay?.baseline_replay_net_ev || 0);
@@ -3175,7 +3155,7 @@
       }
       renderValidationOverview(data);
       setText("cvv-trade-count", String(Number(data.trade_count || 0)));
-      setText("cvv-rotation-pnl", formatValidationMoney(data.rotation_realized_net_pnl));
+      setText("cvv-rotation-pnl", formatValidationMoney(data.perp_perp_realized_net_pnl ?? data.rotation_realized_net_pnl));
       setText("cvv-funding-alpha", formatValidationMoney(data.funding_alpha));
       setText("cvv-execution-drag", formatValidationMoney(data.execution_drag));
       setText("cvv-switch-drag", formatValidationMoney(data.switch_drag));
@@ -3622,6 +3602,86 @@
       if (showAll) { refreshStrategyStatus(); refreshCrossVenuePanel(); }
     }
 
+    function formatHoldDuration(sec) {
+      const s = Number(sec || 0);
+      if (!Number.isFinite(s) || s <= 0) return "-";
+      if (s < 3600) return Math.round(s / 60) + "m";
+      if (s < 86400) return (s / 3600).toFixed(1) + "h";
+      return (s / 86400).toFixed(1) + "d";
+    }
+
+    function strategyLabel(code) {
+      const map = {
+        single_venue_spot_perp: "SVSP",
+        cross_venue_spot_perp: "CVSP",
+        single_venue_perp_spot: "SVPS",
+        cross_venue_perp_spot: "CVPS",
+        perp_perp: "PP",
+      };
+      return map[String(code || "").toLowerCase()] || String(code || "-");
+    }
+
+    function formatLegsRow(spotLeg, perpLeg) {
+      const fmtLeg = (leg) => {
+        if (!leg) return "-";
+        const v = leg.venue || "-";
+        const side = leg.side || "-";
+        const qty = Number(leg.qty || 0).toFixed(4);
+        const px = Number(leg.entry_price || 0).toFixed(4);
+        return `${v}/${leg.market || "-"} ${side} ${qty}@${px}`;
+      };
+      return `${fmtLeg(spotLeg)} · ${fmtLeg(perpLeg)}`;
+    }
+
+    async function refreshRotationPositions() {
+      const openBody = document.getElementById("rotation-open-tbody");
+      const closedBody = document.getElementById("rotation-closed-tbody");
+      if (!openBody || !closedBody) return;
+      try {
+        const [openResp, closedResp] = await Promise.all([
+          loadJSON("/api/rotation/positions?status=open"),
+          loadJSON("/api/rotation/settlements?limit=50"),
+        ]);
+        const openRows = (openResp.positions || []).map((p) => `
+          <tr>
+            <td>${escapeHTML(p.symbol || "-")}</td>
+            <td>${escapeHTML(strategyLabel(p.strategy_type))}</td>
+            <td>${escapeHTML(p.status || "-")}</td>
+            <td style="font-size:11px;white-space:normal;max-width:280px;">${escapeHTML(formatLegsRow(p.spot_leg, p.perp_leg))}</td>
+            <td>${Number(p.notional_usdt || 0).toFixed(2)}</td>
+            <td>${Number(p.open_fees_usdt || 0).toFixed(4)}</td>
+            <td>${Number(p.expected_close_fees_usdt || 0).toFixed(4)}</td>
+            <td>${Number(p.accrued_funding_usdt || 0).toFixed(4)}</td>
+            <td>${Number(p.expected_net_ev_usdt || 0).toFixed(4)}</td>
+            <td>${formatHoldDuration(p.hold_duration_sec)}</td>
+          </tr>`).join("");
+        openBody.innerHTML = openRows || `<tr><td colspan="10" class="hint">暂无 OPEN 持仓</td></tr>`;
+
+        const closedRows = (closedResp.settlements || []).map((s) => {
+          const fees = Number(s.open_fees || 0) + Number(s.close_fees || 0);
+          const venues = Array.isArray(s.venues) ? s.venues.join("+") : "-";
+          const openT = s.open_time ? String(s.open_time).replace("T", " ").slice(0, 19) : "-";
+          const closeT = s.close_time ? String(s.close_time).replace("T", " ").slice(0, 19) : "-";
+          return `
+          <tr>
+            <td>${escapeHTML(s.symbol || "-")}</td>
+            <td>${escapeHTML(strategyLabel(s.strategy_type))}</td>
+            <td>${escapeHTML(venues)}</td>
+            <td style="font-size:11px;">${escapeHTML(openT)} → ${escapeHTML(closeT)}</td>
+            <td style="color:${Number(s.net_pnl || 0) >= 0 ? "#86efac" : "#fca5a5"}">${Number(s.net_pnl || 0).toFixed(4)}</td>
+            <td>${Number(s.realized_funding || 0).toFixed(4)}</td>
+            <td>${fees.toFixed(4)}</td>
+            <td>${escapeHTML(s.close_reason || (s.switch_exit ? "switch" : "-"))}</td>
+            <td>${formatHoldDuration(s.hold_duration_sec)}</td>
+          </tr>`;
+        }).join("");
+        closedBody.innerHTML = closedRows || `<tr><td colspan="9" class="hint">暂无历史结算</td></tr>`;
+      } catch (err) {
+        openBody.innerHTML = `<tr><td colspan="10" class="hint" style="color:#fca5a5;">加载失败: ${escapeHTML(err.message)}</td></tr>`;
+        closedBody.innerHTML = `<tr><td colspan="9" class="hint" style="color:#fca5a5;">加载失败</td></tr>`;
+      }
+    }
+
     // refreshVenueOverview:仅更新每所运行徽标 / 阶段 / 模式 / 启停按钮可用态,不触碰输入框。
     async function refreshEarnings() {
       const grid = document.getElementById("earnings-grid");
@@ -3635,6 +3695,9 @@
       const color = (n) => Number(n || 0) >= 0 ? "#86efac" : "#fca5a5";
       const dayStart = data.day_start_cst ? String(data.day_start_cst) : "-";
       const tradeCount = Number(data.trade_count || 0);
+      const realizedPnL = data.realized_pnl_usdt != null ? data.realized_pnl_usdt : data.total_usdt;
+      const openFunding = Number(data.open_accrued_funding_usdt || 0);
+      const equityDelta = data.account_equity_delta_usdt != null ? data.account_equity_delta_usdt : (data.total && data.total.today_earning_usdt);
       const totalBlock = data.total && typeof data.total === "object" ? data.total : {};
       const totalEarn = totalBlock.today_earning_usdt != null ? totalBlock.today_earning_usdt : data.total_usdt;
       const totalCap = totalBlock.capital_usdt;
@@ -3642,6 +3705,19 @@
       const byVenue = data.by_venue && typeof data.by_venue === "object" ? data.by_venue : {};
       lastEarningsByVenue = byVenue;
       lastEarningsTotalBlock = totalBlock;
+      lastRealizedPnLUSDT = Number(realizedPnL || 0);
+      const realizedEl = document.getElementById("earnings-realized-total");
+      const unrealEl = document.getElementById("earnings-unrealized-funding");
+      const equityEl = document.getElementById("earnings-equity-delta");
+      if (realizedEl) {
+        realizedEl.textContent = fmt(realizedPnL) + " U";
+        realizedEl.style.color = color(realizedPnL);
+      }
+      if (unrealEl) unrealEl.textContent = fmt(openFunding) + " U";
+      if (equityEl) {
+        equityEl.textContent = fmt(equityDelta) + " U";
+        equityEl.style.color = color(equityDelta);
+      }
       const venueNames = Object.keys(byVenue).sort();
       const venueCards = venueNames.map((v) => {
         const row = byVenue[v] || {};
@@ -3660,7 +3736,7 @@
           <div style="font-size:12px;color:#8aa0c6;margin-bottom:4px;">${escapeHTML(v)}</div>
           <div style="font-size:12px;color:#94a3b8;margin-bottom:2px;">${capLine}</div>
           <div style="font-size:12px;color:#94a3b8;margin-bottom:2px;">全部资金 ${fmtCap(eq)} U</div>
-          <div style="font-size:18px;font-weight:600;color:${color(earn)};">今日 ${fmt(earn)} U · 收益率 ${fmtPct(ret)}</div>
+          <div style="font-size:18px;font-weight:600;color:${color(earn)};">账户净值 ${fmt(earn)} U · 收益率 ${fmtPct(ret)}</div>
           ${upnlLine}
           ${capErr}
         </div>`;
@@ -3674,9 +3750,8 @@
           <div style="font-size:12px;color:#cbd5e1;margin-bottom:4px;">合计(全部交易所)</div>
           <div style="font-size:12px;color:#94a3b8;margin-bottom:2px;">${totalCapLine}</div>
           <div style="font-size:12px;color:#94a3b8;margin-bottom:2px;">全部资金 ${fmtCap(totalEq)} U</div>
-          <div style="font-size:22px;font-weight:700;color:${color(totalEarn)};">今日 ${fmt(totalEarn)} U · 收益率 ${fmtPct(totalBlock.today_return_rate)}</div>
-          ${totalBlock.unrealized_pnl_usdt != null && Math.abs(Number(totalBlock.unrealized_pnl_usdt)) > 1e-6
-            ? `<div style="font-size:11px;color:#64748b;margin-top:2px;">浮动盈亏 ${fmt(totalBlock.unrealized_pnl_usdt)} U</div>` : ""}
+          <div style="font-size:22px;font-weight:700;color:${color(realizedPnL)};">已实现 ${fmt(realizedPnL)} U</div>
+          <div style="font-size:12px;color:#94a3b8;margin-top:4px;">持仓中(未实现) ${fmt(openFunding)} U · 账户净值变动 ${fmt(equityDelta)} U</div>
           <div style="font-size:12px;color:#94a3b8;margin-top:4px;">平仓笔数 ${tradeCount}</div>
           <div style="font-size:11px;color:#64748b;margin-top:2px;">日界起 ${escapeHTML(dayStart)}</div>
         </div>`;
@@ -3703,7 +3778,7 @@
         const capText = capBreak ? capBreak + " · " : `可动用 ${fmtCap(cap)} U · `;
         const upnlText = upnl != null && Math.abs(Number(upnl)) > 1e-6 ? ` · 浮动盈亏 ${fmt(upnl)} U` : "";
         const err = row.capital_error ? ` · ${row.capital_error}` : "";
-        el.textContent = `${capText}全部资金 ${fmtCap(eq)} U · 今日(北京) ${fmt(earn)} U · 收益率 ${fmtPct(ret)}${upnlText}${err}`;
+        el.textContent = `${capText}全部资金 ${fmtCap(eq)} U · 账户净值变动 ${fmt(earn)} U · 收益率 ${fmtPct(ret)}${upnlText}${err}`;
       });
       const totalEl = document.getElementById("vfin-total");
       if (totalEl && totalBlock) {
@@ -3713,7 +3788,7 @@
           : `可动用 ${fmtCap(totalBlock.capital_usdt)} U · `;
         const upnlText = totalBlock.unrealized_pnl_usdt != null && Math.abs(Number(totalBlock.unrealized_pnl_usdt)) > 1e-6
           ? ` · 浮动盈亏 ${fmt(totalBlock.unrealized_pnl_usdt)} U` : "";
-        totalEl.textContent = `${capText}全部资金 ${fmtCap(totalBlock.equity_usdt)} U · 今日(北京) ${fmt(totalBlock.today_earning_usdt)} U · 收益率 ${fmtPct(totalBlock.today_return_rate)}${upnlText}`;
+        totalEl.textContent = `${capText}全部资金 ${fmtCap(totalBlock.equity_usdt)} U · 已实现(北京) ${fmt(lastRealizedPnLUSDT)} U · 账户净值变动 ${fmt(totalBlock.today_earning_usdt)} U · 收益率 ${fmtPct(totalBlock.today_return_rate)}${upnlText}`;
       }
     }
     async function clearEarnings() {
@@ -3844,7 +3919,7 @@
       }
     }
 
-    document.getElementById("refresh-btn")?.addEventListener("click", () => { refreshDashboard(); refreshVenueOverview(); refreshStrategyStatus(); refreshCrossVenuePanel(); refreshEarnings(); refreshRotationStatus(); });
+    document.getElementById("refresh-btn")?.addEventListener("click", () => { refreshDashboard(); refreshVenueOverview(); refreshStrategyStatus(); refreshCrossVenuePanel(); refreshEarnings(); refreshRotationStatus(); refreshRotationPositions(); });
     document.getElementById("start-all-btn")?.addEventListener("click", startAllVenues);
     document.getElementById("stop-all-btn")?.addEventListener("click", stopAllVenues);
     document.getElementById("save-risk-config-btn")?.addEventListener("click", saveRiskConfig);
@@ -3999,9 +4074,9 @@
       dashboardStarted = true;
       initCrossVenueValidationControls();
       // 先加载 venue 列表(填充 knownVenues),构建多所卡片(一次),再渲染主面板与状态。
-      loadVenues().then(() => { renderVenueTabs(); buildVenueOverview(); initRecordDownloads(); initRotationControl(); initStrategyControl(); refreshVenueOverview(); refreshStrategyStatus(); refreshCrossVenuePanel(); refreshEarnings(); refreshRotationStatus(); });
+      loadVenues().then(() => { renderVenueTabs(); buildVenueOverview(); initRecordDownloads(); initRotationControl(); initStrategyControl(); refreshVenueOverview(); refreshStrategyStatus(); refreshCrossVenuePanel(); refreshEarnings(); refreshRotationStatus(); refreshRotationPositions(); });
       refreshDashboard();
-      setInterval(() => { refreshDashboard(); refreshVenueOverview(); refreshStrategyStatus(); refreshCrossVenuePanel(); refreshEarnings(); }, 5000);
+      setInterval(() => { refreshDashboard(); refreshVenueOverview(); refreshStrategyStatus(); refreshCrossVenuePanel(); refreshEarnings(); refreshRotationPositions(); }, 5000);
       setInterval(() => { refreshRotationStatus(); }, 8000);
     }
 

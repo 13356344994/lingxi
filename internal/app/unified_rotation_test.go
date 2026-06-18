@@ -3,6 +3,7 @@ package app
 import (
 	"math"
 	"testing"
+	"time"
 )
 
 func testRotationOpp(id, strategy, symbol string, netEV, capital float64, venues ...string) UnifiedOpportunity {
@@ -168,29 +169,92 @@ func TestDecideRotationSwitchWhenNewOpportunityWins(t *testing.T) {
 }
 
 func TestDecideRotationCloseWhenContinuationNegative(t *testing.T) {
+	now := time.Date(2026, 6, 18, 12, 0, 0, 0, time.UTC)
 	held := HeldPosition{
 		OpportunityID:          "held-btc",
 		StrategyType:           UnifiedStrategyPerpPerp,
 		Symbol:                 "BTC",
 		CapitalRequiredByVenue: map[string]float64{"binance": 50, "bybit": 50},
+		OpenedAt:               now.Add(-2 * time.Hour),
 	}
 	heldInputs := map[string]ContinuationInputs{
 		"held-btc": {
-			ExpectedFundingUSDT:   1,
-			ExpectedCloseCostUSDT: 5,
-			HoldingRiskUSDT:       2,
+			ExpectedFundingUSDT:   0,
+			ExpectedCloseCostUSDT: 2,
+			HoldingRiskUSDT:       10,
 		},
 	}
 
-	plan := DecideRotation(
+	plan := decideRotationAt(
 		[]HeldPosition{held},
 		heldInputs,
 		nil,
 		map[string]float64{"binance": 200, "bybit": 200},
 		DefaultRotationConfig(),
+		now,
 	)
 	if len(plan.Actions) != 1 || plan.Actions[0].Kind != RotationActionClose {
 		t.Fatalf("expected CLOSE, got %+v", plan.Actions)
+	}
+}
+
+func TestDecideRotationMarginalNegativeHoldsFreshPosition(t *testing.T) {
+	now := time.Date(2026, 6, 18, 12, 0, 0, 0, time.UTC)
+	held := HeldPosition{
+		OpportunityID:          "held-pha",
+		StrategyType:           UnifiedStrategyCrossVenueSpotPerp,
+		Symbol:                 "PHA-USDT",
+		CapitalRequiredByVenue: map[string]float64{"gate": 40, "binance": 40},
+		OpenedAt:               now.Add(-30 * time.Second),
+	}
+	heldInputs := map[string]ContinuationInputs{
+		"held-pha": {
+			ExpectedFundingUSDT:   -0.043,
+			ExpectedCloseCostUSDT: 2,
+			HoldingRiskUSDT:       0,
+		},
+	}
+
+	plan := decideRotationAt(
+		[]HeldPosition{held},
+		heldInputs,
+		nil,
+		map[string]float64{"gate": 200, "binance": 200},
+		DefaultRotationConfig(),
+		now,
+	)
+	if len(plan.Actions) != 1 || plan.Actions[0].Kind != RotationActionHold {
+		t.Fatalf("expected HOLD for marginal negative fresh position, got %+v", plan.Actions)
+	}
+}
+
+func TestDecideRotationStrongNegativeClosesAfterMinHold(t *testing.T) {
+	now := time.Date(2026, 6, 18, 12, 0, 0, 0, time.UTC)
+	held := HeldPosition{
+		OpportunityID:          "held-pha",
+		StrategyType:           UnifiedStrategyCrossVenueSpotPerp,
+		Symbol:                 "PHA-USDT",
+		CapitalRequiredByVenue: map[string]float64{"gate": 40, "binance": 40},
+		OpenedAt:               now.Add(-2 * time.Hour),
+	}
+	heldInputs := map[string]ContinuationInputs{
+		"held-pha": {
+			ExpectedFundingUSDT:   0,
+			ExpectedCloseCostUSDT: 2,
+			HoldingRiskUSDT:       10,
+		},
+	}
+
+	plan := decideRotationAt(
+		[]HeldPosition{held},
+		heldInputs,
+		nil,
+		map[string]float64{"gate": 200, "binance": 200},
+		DefaultRotationConfig(),
+		now,
+	)
+	if len(plan.Actions) != 1 || plan.Actions[0].Kind != RotationActionClose {
+		t.Fatalf("expected CLOSE for strong negative after min hold, got %+v", plan.Actions)
 	}
 }
 

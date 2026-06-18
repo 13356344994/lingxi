@@ -238,12 +238,26 @@ func (s *DashboardServer) handlePerformanceAPI(w http.ResponseWriter, r *http.Re
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
-	returns, days, capital, err := portfolioReturns(targets)
+	venueLabel := venueParam(r)
+	if venueLabel == "" {
+		if primary := s.orchestrator.Primary(); primary != nil {
+			venueLabel = primary.name
+		}
+	}
+
+	useLegacy := strings.TrimSpace(r.URL.Query().Get("legacy")) == "1"
+	var returns []float64
+	var days []string
+	var capital float64
+	if useLegacy {
+		returns, days, capital, err = portfolioReturns(targets)
+	} else {
+		returns, days, capital, err = mergedStrategyPortfolioReturns(s, venueLabel)
+	}
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	// 尽力而为拉 BTC 现货日 K 基准(§9.1);失败 → nil → BenchmarkMissing,不影响其它指标。
 	benchmark := s.fetchBenchmarkReturns(r.Context(), days)
 	m := metrics.ComputePerformance(metrics.PerformanceInputs{
 		Returns:          returns,
@@ -251,11 +265,5 @@ func (s *DashboardServer) handlePerformanceAPI(w http.ResponseWriter, r *http.Re
 		AllocatedCapital: capital,
 	})
 	equity := metrics.EquityCurve(days, returns, capital)
-	label := venueParam(r)
-	if label == "" {
-		if primary := s.orchestrator.Primary(); primary != nil {
-			label = primary.name
-		}
-	}
-	writeJSON(w, PerformanceResponse{Venue: label, Metrics: m, Equity: equity})
+	writeJSON(w, PerformanceResponse{Venue: venueLabel, Metrics: m, Equity: equity})
 }

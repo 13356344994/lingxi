@@ -101,6 +101,7 @@ type CrossVenueFundingEntry struct {
 	Rate            float64   `json:"rate"`
 	IntervalHours   int       `json:"interval_hours"`
 	NextFundingTime time.Time `json:"next_funding_time"`
+	SpikeThreshold  float64   `json:"spike_threshold,omitempty"`
 }
 
 // CrossVenueBorrowProbe 是某 symbol 在某所的一条借币可得性探测结果(只读遥测)。
@@ -139,6 +140,8 @@ type CrossVenueScanner struct {
 
 	mu           sync.RWMutex
 	lastSnapshot CrossVenueScanSnapshot
+
+	borrowProbeCache crossVenueBorrowProbeCache
 
 	alertMu    sync.Mutex
 	lastAlert  map[string]time.Time
@@ -312,6 +315,13 @@ func (s *CrossVenueScanner) scanOnce(ctx context.Context) {
 		opps[i].SnapshotTime = start
 		opps[i].FreshnessAgeSeconds = crossVenueSnapshotAgeSeconds(start, start)
 	}
+	fundingByVenue := buildCrossVenueFundingIndex(snapshots)
+	for venueName, bySym := range fundingByVenue {
+		for sym, entry := range bySym {
+			entry.SpikeThreshold = s.fundingSpikeThreshold(venueName, sym)
+			bySym[sym] = entry
+		}
+	}
 	snapshot := CrossVenueScanSnapshot{
 		SnapshotID:       snapshotID,
 		ScannedAt:        start,
@@ -319,7 +329,7 @@ func (s *CrossVenueScanner) scanOnce(ctx context.Context) {
 		Opportunities:    opps,
 		MinSpreadAPR:     s.cfg.MinSpreadAPR,
 		OpportunityCount: len(opps),
-		FundingByVenue:   buildCrossVenueFundingIndex(snapshots),
+		FundingByVenue:   fundingByVenue,
 	}
 	s.mu.Lock()
 	s.lastSnapshot = snapshot
@@ -345,7 +355,7 @@ func (s *CrossVenueScanner) scanOnce(ctx context.Context) {
 		s.maybeAlert(opp)
 	}
 	if s.cfg.BorrowProbeEnabled {
-		probes := s.probeBorrowForOpportunities(ctx, start, opps)
+		probes := s.probeBorrowForOpportunities(ctx, start, opps, fundingByVenue)
 		s.mu.Lock()
 		s.lastSnapshot.BorrowProbes = probes
 		s.mu.Unlock()
@@ -365,7 +375,12 @@ type borrowProbeJSONLRecord struct {
 	Err           string    `json:"error,omitempty"`
 }
 
-func (s *CrossVenueScanner) probeBorrowForOpportunities(ctx context.Context, scannedAt time.Time, opps []CrossVenueOpportunity) []CrossVenueBorrowProbe {
+func (s *CrossVenueScanner) probeBorrowForOpportunities(
+	ctx context.Context,
+	scannedAt time.Time,
+	opps []CrossVenueOpportunity,
+	fundingByVenue map[string]map[string]CrossVenueFundingEntry,
+) []CrossVenueBorrowProbe {
 	topN := s.cfg.BorrowProbeTopN
 	if topN <= 0 {
 		topN = 10
@@ -373,17 +388,34 @@ func (s *CrossVenueScanner) probeBorrowForOpportunities(ctx context.Context, sca
 	if len(opps) > topN {
 		opps = opps[:topN]
 	}
-	probes := make([]CrossVenueBorrowProbe, 0, len(opps)*len(crossVenueNames))
-	jsonlPath := filepath.Join(s.recordDir, crossVenueBorrowProbesLog)
-	bySymbolSummary := make(map[string][]string, len(opps))
+	fundingTopK := s.cfg.BorrowProbeFundingTopK
+	if fundingTopK <= 0 {
+		fundingTopK = 60
+	}
+	maxLive := s.cfg.BorrowProbeMaxLivePerScan
+	if maxLive <= 0 {
+		maxLive = 30
+	}
 
-	for _, opp := range opps {
-		base := baseAssetFromCanonicalSymbol(opp.Symbol)
+	symbols := borrowProbeTargetSymbols(opps, selectNegativeFundingProbeSymbols(fundingByVenue, fundingTopK))
+	jsonlPath := filepath.Join(s.recordDir, crossVenueBorrowProbesLog)
+	bySymbolSummary := make(map[string][]string, len(symbols))
+	seen := make(map[string]CrossVenueBorrowProbe, len(symbols)*len(crossVenueNames))
+	liveUsed := 0
+
+	for _, sym := range symbols {
+		if ctx.Err() != nil {
+			break
+		}
+		base := baseAssetFromCanonicalSymbol(sym)
 		if base == "" {
 			continue
 		}
 		var parts []string
 		for _, venueName := range crossVenueNames {
+			if ctx.Err() != nil {
+				break
+			}
 			adp, ok := s.venues[venueName]
 			if !ok || adp == nil {
 				continue
@@ -391,54 +423,187 @@ func (s *CrossVenueScanner) probeBorrowForOpportunities(ctx context.Context, sca
 			if !adp.Capabilities().SupportsBorrowQuote {
 				continue
 			}
-			quote, err := adp.FetchBorrowQuote(ctx, base)
-			probe := CrossVenueBorrowProbe{Symbol: opp.Symbol, Venue: venueName}
-			if err != nil {
-				if err == venue.ErrUnsupported {
-					parts = append(parts, venueName+"不支持")
-					continue
-				}
-				probe.Err = err.Error()
-				parts = append(parts, fmt.Sprintf("%s失败", venueName))
+			probeKey := sym + "|" + venueName
+			if _, done := seen[probeKey]; done {
+				continue
+			}
+
+			probe := CrossVenueBorrowProbe{Symbol: sym, Venue: venueName}
+			fromCache := false
+			if cached, ok := s.borrowProbeCache.get(venueName, base, scannedAt); ok {
+				probe = cached
+				probe.Symbol = sym
+				fromCache = true
+			} else if liveUsed >= maxLive {
+				continue
 			} else {
-				probe.Available = quote.Available
-				probe.MaxBorrowable = quote.MaxBorrowable
-				probe.HourlyRateAPR = borrowHourlyRateAPR(quote.HourlyRate)
-				if quote.Available {
-					parts = append(parts, fmt.Sprintf("%s可借(年化%.0f%%)", venueName, probe.HourlyRateAPR*100))
+				quote, err := adp.FetchBorrowQuote(ctx, base)
+				if err != nil {
+					if err == venue.ErrUnsupported {
+						parts = append(parts, venueName+"不支持")
+						continue
+					}
+					probe.Err = err.Error()
+					parts = append(parts, fmt.Sprintf("%s失败", venueName))
+					rec := borrowProbeJSONLRecord{
+						ScannedAt: scannedAt,
+						Symbol:    sym,
+						BaseAsset: base,
+						Venue:     venueName,
+						Err:       probe.Err,
+					}
+					if werr := appendJSONLRecord(jsonlPath, rec); werr != nil {
+						s.logger.Printf("[借币探测] 落盘失败 path=%s: %v", jsonlPath, werr)
+					}
 				} else {
-					parts = append(parts, venueName+"不可借")
+					probe.Available = quote.Available
+					probe.MaxBorrowable = quote.MaxBorrowable
+					probe.HourlyRateAPR = borrowHourlyRateAPR(quote.HourlyRate)
+					if quote.Available {
+						parts = append(parts, fmt.Sprintf("%s可借(年化%.0f%%)", venueName, probe.HourlyRateAPR*100))
+					} else {
+						parts = append(parts, venueName+"不可借")
+					}
+					rec := borrowProbeJSONLRecord{
+						ScannedAt:     scannedAt,
+						Symbol:        sym,
+						BaseAsset:     base,
+						Venue:         venueName,
+						Available:     probe.Available,
+						MaxBorrowable: probe.MaxBorrowable,
+						HourlyRateAPR: probe.HourlyRateAPR,
+						HourlyRate:    quote.HourlyRate,
+					}
+					if werr := appendJSONLRecord(jsonlPath, rec); werr != nil {
+						s.logger.Printf("[借币探测] 落盘失败 path=%s: %v", jsonlPath, werr)
+					}
+				}
+				liveUsed++
+				if probe.Err == "" {
+					s.borrowProbeCache.put(venueName, base, probe, scannedAt)
+				}
+				if s.sleepFn != nil {
+					s.sleepFn(crossVenueBorrowProbeGap)
 				}
 			}
-			probes = append(probes, probe)
-			rec := borrowProbeJSONLRecord{
-				ScannedAt:     scannedAt,
-				Symbol:        opp.Symbol,
-				BaseAsset:     base,
-				Venue:         venueName,
-				Available:     probe.Available,
-				MaxBorrowable: probe.MaxBorrowable,
-				HourlyRateAPR: probe.HourlyRateAPR,
-				Err:           probe.Err,
-			}
-			if err == nil {
-				rec.HourlyRate = quote.HourlyRate
-			}
-			if werr := appendJSONLRecord(jsonlPath, rec); werr != nil {
-				s.logger.Printf("[借币探测] 落盘失败 path=%s: %v", jsonlPath, werr)
-			}
-			if s.sleepFn != nil {
-				s.sleepFn(crossVenueBorrowProbeGap)
+			seen[probeKey] = probe
+			if fromCache {
+				if probe.Available {
+					parts = append(parts, fmt.Sprintf("%s可借(缓存,年化%.0f%%)", venueName, probe.HourlyRateAPR*100))
+				} else if probe.Err != "" {
+					parts = append(parts, fmt.Sprintf("%s失败(缓存)", venueName))
+				} else {
+					parts = append(parts, venueName+"不可借(缓存)")
+				}
 			}
 		}
 		if len(parts) > 0 {
 			bySymbolSummary[base] = parts
 		}
 	}
+	for _, cached := range s.borrowProbeCache.allValid(scannedAt) {
+		sym := canonicalSymbolFromBaseAsset(cached.Symbol, fundingByVenue)
+		if sym == "" {
+			sym = cached.Symbol
+		}
+		probeKey := sym + "|" + cached.Venue
+		if _, ok := seen[probeKey]; ok {
+			continue
+		}
+		probe := cached
+		probe.Symbol = sym
+		seen[probeKey] = probe
+	}
+	probes := make([]CrossVenueBorrowProbe, 0, len(seen))
+	for _, probe := range seen {
+		probes = append(probes, probe)
+	}
+	sort.Slice(probes, func(i, j int) bool {
+		if probes[i].Symbol != probes[j].Symbol {
+			return probes[i].Symbol < probes[j].Symbol
+		}
+		return probes[i].Venue < probes[j].Venue
+	})
 	for base, parts := range bySymbolSummary {
 		s.logger.Printf("[借币探测] %s: %s", base, strings.Join(parts, " "))
 	}
 	return probes
+}
+
+func borrowProbeTargetSymbols(opps []CrossVenueOpportunity, negativeFunding []string) []string {
+	seen := make(map[string]struct{}, len(opps)+len(negativeFunding))
+	out := make([]string, 0, len(opps)+len(negativeFunding))
+	add := func(sym string) {
+		sym = strings.ToUpper(strings.TrimSpace(sym))
+		if sym == "" {
+			return
+		}
+		if _, ok := seen[sym]; ok {
+			return
+		}
+		seen[sym] = struct{}{}
+		out = append(out, sym)
+	}
+	for _, opp := range opps {
+		add(opp.Symbol)
+	}
+	for _, sym := range negativeFunding {
+		add(sym)
+	}
+	return out
+}
+
+func selectNegativeFundingProbeSymbols(fundingByVenue map[string]map[string]CrossVenueFundingEntry, topK int) []string {
+	if topK <= 0 || len(fundingByVenue) == 0 {
+		return nil
+	}
+	minRateBySym := make(map[string]float64)
+	for _, bySym := range fundingByVenue {
+		for sym, entry := range bySym {
+			if entry.Rate >= 0 {
+				continue
+			}
+			if cur, ok := minRateBySym[sym]; !ok || entry.Rate < cur {
+				minRateBySym[sym] = entry.Rate
+			}
+		}
+	}
+	if len(minRateBySym) == 0 {
+		return nil
+	}
+	syms := make([]string, 0, len(minRateBySym))
+	for sym := range minRateBySym {
+		syms = append(syms, sym)
+	}
+	sort.Slice(syms, func(i, j int) bool {
+		ri, rj := minRateBySym[syms[i]], minRateBySym[syms[j]]
+		if ri != rj {
+			return ri < rj
+		}
+		return syms[i] < syms[j]
+	})
+	if len(syms) > topK {
+		syms = syms[:topK]
+	}
+	return syms
+}
+
+func canonicalSymbolFromBaseAsset(symbolOrBase string, fundingByVenue map[string]map[string]CrossVenueFundingEntry) string {
+	sym := strings.ToUpper(strings.TrimSpace(symbolOrBase))
+	if sym == "" {
+		return ""
+	}
+	if strings.Contains(sym, "-") {
+		return sym
+	}
+	for _, bySym := range fundingByVenue {
+		for candidate := range bySym {
+			if baseAssetFromCanonicalSymbol(candidate) == sym {
+				return candidate
+			}
+		}
+	}
+	return sym + "-USDT"
 }
 
 func baseAssetFromCanonicalSymbol(sym string) string {
@@ -612,6 +777,42 @@ func (s *CrossVenueScanner) fundingHistorySampleCount(venueName, sym string) int
 	s.fundingHistoryMu.Lock()
 	defer s.fundingHistoryMu.Unlock()
 	return len(s.fundingHistory[venueName][sym])
+}
+
+// fundingSpikeThreshold 返回 venue/symbol 滚动 |rate| 历史的 p90; 样本不足 2 时返回 0(不做尖峰裁剪)。
+func (s *CrossVenueScanner) fundingSpikeThreshold(venue, sym string) float64 {
+	if s == nil {
+		return 0
+	}
+	s.fundingHistoryMu.Lock()
+	hist := append([]float64(nil), s.fundingHistory[venue][sym]...)
+	s.fundingHistoryMu.Unlock()
+	return absRatePercentile(hist, 90)
+}
+
+func absRatePercentile(rates []float64, pct float64) float64 {
+	if len(rates) < 2 {
+		return 0
+	}
+	abs := make([]float64, len(rates))
+	for i, r := range rates {
+		abs[i] = math.Abs(r)
+	}
+	sort.Float64s(abs)
+	if pct <= 0 {
+		return abs[0]
+	}
+	if pct >= 100 {
+		return abs[len(abs)-1]
+	}
+	rank := (pct / 100.0) * float64(len(abs)-1)
+	lo := int(rank)
+	hi := lo + 1
+	if hi >= len(abs) {
+		return abs[lo]
+	}
+	weight := rank - float64(lo)
+	return abs[lo]*(1-weight) + abs[hi]*weight
 }
 
 // buildCrossVenueFundingIndex 把各所快照整理成 venue → symbol → 费率明细 的只读索引。

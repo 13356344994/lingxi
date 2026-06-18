@@ -158,8 +158,8 @@ func startLiveStack(ctx context.Context, cfg EngineConfig) error {
 				go exec.RunEquitySampler(ctx)
 			}
 		}
-		// 五策略统一轮动 runner:常驻构造(便于面板启停/切换 shadow-live),初始 active/live 由 config 决定。
-		// active=false 时 Run 循环空转不执行;live=false 时全程影子(不下单/不真划转)。perp-perp 仍走上方独立执行器。
+		// 五策略统一轮动 runner:常驻构造(便于面板 START/STOP),初始 active 由 config + rotation_control.json 决定。
+		// active=false 时不下新单,仍 reconcile/manage;active=true 即实盘。perp-perp 仍走上方独立执行器。
 		{
 			rotVenues := buildCrossVenueExecutorAdapters(orch, cfg, secretPath, log.Default())
 			rd := cfg.NetworkConfig.RecordDir
@@ -168,15 +168,16 @@ func startLiveStack(ctx context.Context, cfg EngineConfig) error {
 			svps := NewSingleVenuePerpSpotExecutor(cfg, rotVenues, rd, log.Default())
 			cvps := NewCrossVenuePerpSpotExecutor(cfg, rotVenues, rd, log.Default())
 			runner := NewUnifiedRotationRunner(
-				cfg.CrossVenueExecutor, DefaultRotationConfig(), DefaultCapitalRouterConfig(),
+				cfg.CrossVenueExecutor, RotationConfigFromUnified(cfg.UnifiedRotation), DefaultCapitalRouterConfig(),
 				svsp, cvsp, svps, cvps, scanner, rotVenues, rd, log.Default(),
+				DelistGuardConfigFromUnifiedRotation(cfg.UnifiedRotation),
 			)
-			// 初始 active/live:先用 config 默认,若 rotation_control.json 存在则以持久化状态为准(面板切换重启保留)。
-			runner.InitState(cfg.UnifiedRotation.Enabled, cfg.UnifiedRotation.LiveTradingEnabled)
+			defaultActive := cfg.UnifiedRotation.Enabled && cfg.UnifiedRotation.LiveTradingEnabled
+			runner.InitState(defaultActive)
 			dashboard.SetRotationExecutors(svsp, cvsp, svps, cvps)
 			dashboard.SetRotationRunner(runner)
-			log.Default().Printf("[统一轮动] runner 常驻 (config 默认 active=%v live=%v;持久化状态优先)", cfg.UnifiedRotation.Enabled, cfg.UnifiedRotation.LiveTradingEnabled)
-			go runner.Run(ctx, false)
+			log.Default().Printf("[统一轮动] runner 常驻 (config 默认 active=%v;持久化 active 优先)", defaultActive)
+			go runner.Run(ctx)
 		}
 	} else if cfg.CrossVenueExecutor.Enabled {
 		log.Default().Printf("[跨所执行] 已启用但扫描器未启用,跳过(需 cross_venue_scanner.enabled=true)")

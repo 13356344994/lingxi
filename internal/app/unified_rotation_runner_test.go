@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -18,14 +19,14 @@ import (
 )
 
 type fakeRotationExecutor struct {
-	strategyType   string
-	opens          []UnifiedOpportunity
-	closes         []string
-	liveOpens      int32
-	verifiedCloses int32
-	held           []rotationHeldRecord
-	reconcileCalls int32
-	manageCalls    int32
+	strategyType      string
+	opens             []UnifiedOpportunity
+	closes            []string
+	liveOpens         int32
+	verifiedCloses    int32
+	held              []rotationHeldRecord
+	reconcileCalls    int32
+	manageCalls       int32
 	lastReconcileLive bool
 	lastManageLive    bool
 }
@@ -144,8 +145,8 @@ func TestUnifiedRotationRunner_DispatchOpenRoutesByStrategy(t *testing.T) {
 	if len(cvps.opens) != 1 || cvps.opens[0].ID != "open-cvps" {
 		t.Fatalf("cvps opens = %+v, want open-cvps", cvps.opens)
 	}
-	if svsp.liveOpens != 0 || cvsp.liveOpens != 0 || svps.liveOpens != 0 || cvps.liveOpens != 0 {
-		t.Fatalf("shadow mode should not live-open: svsp=%d cvsp=%d svps=%d cvps=%d",
+	if svsp.liveOpens != 1 || cvsp.liveOpens != 1 || svps.liveOpens != 1 || cvps.liveOpens != 1 {
+		t.Fatalf("active runner should live-open: svsp=%d cvsp=%d svps=%d cvps=%d",
 			svsp.liveOpens, cvsp.liveOpens, svps.liveOpens, cvps.liveOpens)
 	}
 }
@@ -189,26 +190,24 @@ func TestUnifiedRotationRunner_DispatchCloseAndSwitch(t *testing.T) {
 	if svsp.verifiedCloses != 2 {
 		t.Fatalf("shadow mode should still verified-close, got %d", svsp.verifiedCloses)
 	}
-	if cvsp.liveOpens != 0 {
-		t.Fatalf("shadow mode should not live open, got %d", cvsp.liveOpens)
+	if cvsp.liveOpens != 1 {
+		t.Fatalf("active runner should live-open switch target, got %d", cvsp.liveOpens)
 	}
 }
 
-func TestUnifiedRotationRunner_ShadowModeNoLiveTransfer(t *testing.T) {
+func TestUnifiedRotationRunner_StoppedNoLiveTransfer(t *testing.T) {
 	svsp := &fakeRotationExecutor{strategyType: UnifiedStrategySingleVenueSpotPerp}
 	r := testUnifiedRotationRunnerWithFakes(t, svsp)
+	r.SetActive(false)
 	r.venues = map[string]venue.Venue{
-		bybit.VenueName: &rotationTransferCountVenue{fakeFundingVenue: fakeFundingVenue{name: bybit.VenueName}},
+		binance.VenueName: &rotationTransferCountVenue{fakeFundingVenue: fakeFundingVenue{name: binance.VenueName}},
 	}
 
 	opp := testRotationCandidate("open-svsp", UnifiedStrategySingleVenueSpotPerp, "BTC-USDT", 10,
-		map[string]float64{bybit.VenueName: 20})
+		map[string]float64{binance.VenueName: 20})
 	opp.Legs = []UnifiedOpportunityLeg{
-		{Venue: bybit.VenueName, Market: "spot", Side: "buy", Notional: 20},
-		{Venue: bybit.VenueName, Market: "perp", Side: "short", Notional: 20},
-	}
-	balances := VenueWalletBalances{
-		bybit.VenueName: {WalletKindFutures: 200, WalletKindSpot: 0},
+		{Venue: binance.VenueName, Market: "spot", Side: "buy", Notional: 20},
+		{Venue: binance.VenueName, Market: "perp", Side: "short", Notional: 20},
 	}
 	plan := RotationPlan{Actions: []RotationAction{
 		{Kind: RotationActionOpen, OpportunityID: "open-svsp", StrategyType: UnifiedStrategySingleVenueSpotPerp, Symbol: "BTC-USDT"},
@@ -217,26 +216,30 @@ func TestUnifiedRotationRunner_ShadowModeNoLiveTransfer(t *testing.T) {
 		return plan
 	}
 
-	r.runOnceDecisionAndDispatch(context.Background(), []UnifiedOpportunity{opp}, map[string]float64{bybit.VenueName: 200}, nil, nil)
+	r.runOnceDecisionAndDispatch(context.Background(), []UnifiedOpportunity{opp}, map[string]float64{binance.VenueName: 200}, nil, nil)
 
-	v := r.venues[bybit.VenueName].(*rotationTransferCountVenue)
+	v := r.venues[binance.VenueName].(*rotationTransferCountVenue)
 	if v.transferCount != 0 {
-		t.Fatalf("shadow mode transferCount = %d, want 0", v.transferCount)
+		t.Fatalf("stopped runner transferCount = %d, want 0", v.transferCount)
 	}
 	if len(svsp.opens) != 1 {
-		t.Fatalf("expected shadow open dispatch, got %d", len(svsp.opens))
+		t.Fatalf("expected open dispatch, got %d", len(svsp.opens))
 	}
 	if svsp.liveOpens != 0 {
-		t.Fatalf("shadow mode liveOpens = %d, want 0", svsp.liveOpens)
+		t.Fatalf("stopped runner liveOpens = %d, want 0", svsp.liveOpens)
 	}
 
-	routingPlan := PlanCapitalRouting([]UnifiedOpportunity{opp}, balances, DefaultCapitalRouterConfig())
-	if len(routingPlan.WithinVenueTransfers) == 0 {
-		t.Fatal("expected within-venue transfer in routing plan for sanity check")
+	balances := VenueWalletBalances{
+		binance.VenueName: {WalletKindFutures: 200, WalletKindSpot: 0},
 	}
-	executed, _ := ExecuteCapitalRouting(context.Background(), routingPlan, r.venues, false, r.logger)
-	if executed != 0 {
-		t.Fatalf("shadow ExecuteCapitalRouting executed = %d, want 0", executed)
+	cfg := defaultCapitalRouterConfigForTests()
+	routingPlan := PlanCapitalRouting([]UnifiedOpportunity{opp}, balances, cfg)
+	if len(routingPlan.WithinVenueTransfers) == 0 {
+		t.Fatal("expected within-venue transfer in routing plan for binance sanity check")
+	}
+	execResult := ExecuteCapitalRouting(context.Background(), routingPlan, r.venues, false, r.logger)
+	if execResult.Executed != 0 {
+		t.Fatalf("shadow ExecuteCapitalRouting executed = %d, want 0", execResult.Executed)
 	}
 	if v.transferCount != 0 {
 		t.Fatalf("shadow ExecuteCapitalRouting should not call TransferWallet")
@@ -253,14 +256,26 @@ func (v *rotationTransferCountVenue) TransferWallet(context.Context, string, str
 	return nil
 }
 
-func TestUnifiedRotationRunner_RunOnceSkipsDuplicateSnapshot(t *testing.T) {
+type rotationFailingTransferVenue struct {
+	rotationTransferCountVenue
+}
+
+func (v *rotationFailingTransferVenue) TransferWallet(ctx context.Context, from, to string, amount float64) error {
+	v.rotationTransferCountVenue.TransferWallet(ctx, from, to, amount)
+	return fmt.Errorf("transfer rejected")
+}
+
+func TestUnifiedRotationRunner_RunOnceReevaluatesDuplicateSnapshot(t *testing.T) {
 	svsp := &fakeRotationExecutor{strategyType: UnifiedStrategySingleVenueSpotPerp}
 	r := testUnifiedRotationRunnerWithFakes(t, svsp)
+	now := time.Date(2026, 6, 18, 12, 0, 0, 0, time.UTC)
+	r.nowFn = func() time.Time { return now }
 	r.scanner = &CrossVenueScanner{
-		lastSnapshot: CrossVenueScanSnapshot{SnapshotID: "snap-dup", ScannedAt: time.Now().UTC()},
+		lastSnapshot: CrossVenueScanSnapshot{SnapshotID: "snap-dup", ScannedAt: now.Add(-5 * time.Minute)},
 	}
+	var scanCalls int32
 	r.scanCandidatesFn = func(ctx context.Context, snap CrossVenueScanSnapshot) ([]UnifiedOpportunity, map[string]float64, error) {
-		svsp.opens = append(svsp.opens, UnifiedOpportunity{ID: snap.SnapshotID})
+		atomic.AddInt32(&scanCalls, 1)
 		return nil, map[string]float64{binance.VenueName: 100}, nil
 	}
 
@@ -270,12 +285,92 @@ func TestUnifiedRotationRunner_RunOnceSkipsDuplicateSnapshot(t *testing.T) {
 	if err := r.runOnce(context.Background()); err != nil {
 		t.Fatalf("runOnce duplicate: %v", err)
 	}
-	if len(svsp.opens) != 1 {
-		t.Fatalf("scan calls = %d, want 1 (duplicate snapshot skipped)", len(svsp.opens))
+	if scanCalls != 2 {
+		t.Fatalf("scanCalls = %d, want 2 (same snapshot ID re-evaluated each tick)", scanCalls)
+	}
+	if r.lastSnapshotID != "snap-dup" {
+		t.Fatalf("lastSnapshotID = %q, want snap-dup", r.lastSnapshotID)
 	}
 }
 
+func TestUnifiedRotationRunner_RunOnceSkipsStaleSnapshot(t *testing.T) {
+	r := testUnifiedRotationRunnerWithFakes(t)
+	now := time.Date(2026, 6, 18, 12, 0, 0, 0, time.UTC)
+	r.nowFn = func() time.Time { return now }
+	r.scanner = &CrossVenueScanner{
+		lastSnapshot: CrossVenueScanSnapshot{
+			SnapshotID: "snap-stale",
+			ScannedAt:  now.Add(-31 * time.Minute),
+		},
+	}
+	var scanCalls int32
+	r.scanCandidatesFn = func(ctx context.Context, snap CrossVenueScanSnapshot) ([]UnifiedOpportunity, map[string]float64, error) {
+		atomic.AddInt32(&scanCalls, 1)
+		return nil, map[string]float64{binance.VenueName: 100}, nil
+	}
+
+	if err := r.runOnce(context.Background()); err != nil {
+		t.Fatalf("runOnce: %v", err)
+	}
+	if scanCalls != 0 {
+		t.Fatalf("scanCalls = %d, want 0 for stale snapshot", scanCalls)
+	}
+	st := r.Status()
+	if !strings.Contains(st.LastError, "stale") {
+		t.Fatalf("LastError = %q, want stale skip reason", st.LastError)
+	}
+	if r.lastSnapshotID != "" {
+		t.Fatalf("lastSnapshotID = %q, want empty (stale cycle skipped before update)", r.lastSnapshotID)
+	}
+}
+
+func TestUnifiedRotationRunner_RunOnceProceedsWithZeroOrFreshScannedAt(t *testing.T) {
+	now := time.Date(2026, 6, 18, 12, 0, 0, 0, time.UTC)
+
+	t.Run("zero ScannedAt", func(t *testing.T) {
+		r := testUnifiedRotationRunnerWithFakes(t)
+		r.nowFn = func() time.Time { return now }
+		r.scanner = &CrossVenueScanner{
+			lastSnapshot: CrossVenueScanSnapshot{SnapshotID: "snap-zero-age"},
+		}
+		var scanCalls int32
+		r.scanCandidatesFn = func(ctx context.Context, snap CrossVenueScanSnapshot) ([]UnifiedOpportunity, map[string]float64, error) {
+			atomic.AddInt32(&scanCalls, 1)
+			return nil, map[string]float64{binance.VenueName: 100}, nil
+		}
+		if err := r.runOnce(context.Background()); err != nil {
+			t.Fatalf("runOnce: %v", err)
+		}
+		if scanCalls != 1 {
+			t.Fatalf("scanCalls = %d, want 1 for zero ScannedAt", scanCalls)
+		}
+	})
+
+	t.Run("fresh ScannedAt", func(t *testing.T) {
+		r := testUnifiedRotationRunnerWithFakes(t)
+		r.nowFn = func() time.Time { return now }
+		r.scanner = &CrossVenueScanner{
+			lastSnapshot: CrossVenueScanSnapshot{
+				SnapshotID: "snap-fresh",
+				ScannedAt:  now.Add(-29 * time.Minute),
+			},
+		}
+		var scanCalls int32
+		r.scanCandidatesFn = func(ctx context.Context, snap CrossVenueScanSnapshot) ([]UnifiedOpportunity, map[string]float64, error) {
+			atomic.AddInt32(&scanCalls, 1)
+			return nil, map[string]float64{binance.VenueName: 100}, nil
+		}
+		if err := r.runOnce(context.Background()); err != nil {
+			t.Fatalf("runOnce: %v", err)
+		}
+		if scanCalls != 1 {
+			t.Fatalf("scanCalls = %d, want 1 for fresh snapshot", scanCalls)
+		}
+	})
+}
+
 func TestUnifiedRotationRunner_DecideRotationIntegration(t *testing.T) {
+	openedAt := time.Now().Add(-2 * time.Hour)
 	svsp := &fakeRotationExecutor{
 		strategyType: UnifiedStrategySingleVenueSpotPerp,
 		held: []rotationHeldRecord{{
@@ -284,10 +379,12 @@ func TestUnifiedRotationRunner_DecideRotationIntegration(t *testing.T) {
 				StrategyType:           UnifiedStrategySingleVenueSpotPerp,
 				Symbol:                 "BTC-USDT",
 				CapitalRequiredByVenue: map[string]float64{binance.VenueName: 80},
+				OpenedAt:               openedAt,
 			},
 			ContinuationInputs: ContinuationInputs{
-				ExpectedFundingUSDT:   1,
-				ExpectedCloseCostUSDT: 5,
+				ExpectedFundingUSDT:   0,
+				ExpectedCloseCostUSDT: 2,
+				HoldingRiskUSDT:       10,
 			},
 		}},
 	}
@@ -301,7 +398,7 @@ func TestUnifiedRotationRunner_DecideRotationIntegration(t *testing.T) {
 	r.scanCandidatesFn = func(ctx context.Context, snap CrossVenueScanSnapshot) ([]UnifiedOpportunity, map[string]float64, error) {
 		return []UnifiedOpportunity{newOpp}, available, nil
 	}
-	r.scanner = &CrossVenueScanner{lastSnapshot: CrossVenueScanSnapshot{SnapshotID: "snap-int", ScannedAt: time.Now().UTC()}}
+	r.scanner = &CrossVenueScanner{lastSnapshot: CrossVenueScanSnapshot{SnapshotID: "snap-int", ScannedAt: r.nowFn().UTC()}}
 	if err := r.runOnce(context.Background()); err != nil {
 		t.Fatalf("runOnce: %v", err)
 	}
@@ -534,7 +631,7 @@ func TestUnifiedRotationRunner_SetActiveSkipsRunCycle(t *testing.T) {
 		atomic.AddInt32(&decideCalls, 1)
 		return RotationPlan{}
 	}
-	r.scanner = &CrossVenueScanner{lastSnapshot: CrossVenueScanSnapshot{SnapshotID: "snap-active", ScannedAt: time.Now().UTC()}}
+	r.scanner = &CrossVenueScanner{lastSnapshot: CrossVenueScanSnapshot{SnapshotID: "snap-active", ScannedAt: r.nowFn().UTC()}}
 
 	r.SetActive(false)
 	r.runCycle(context.Background())
@@ -550,6 +647,7 @@ func TestUnifiedRotationRunner_SetActiveSkipsRunCycle(t *testing.T) {
 
 	r.SetActive(true)
 	r.runCycle(context.Background())
+	waitForRotationAsyncScan(t, &scanCalls, &decideCalls, 1, 1)
 	if scanCalls != 1 {
 		t.Fatalf("active runCycle scanCalls = %d, want 1", scanCalls)
 	}
@@ -561,29 +659,117 @@ func TestUnifiedRotationRunner_SetActiveSkipsRunCycle(t *testing.T) {
 	}
 }
 
-func TestUnifiedRotationRunner_ReconcileManageUseRunnerLive(t *testing.T) {
+func waitForRotationAsyncScan(t *testing.T, scanCalls, decideCalls *int32, wantScan, wantDecide int32) {
+	t.Helper()
+	deadline := time.Now().Add(500 * time.Millisecond)
+	for time.Now().Before(deadline) {
+		if atomic.LoadInt32(scanCalls) >= wantScan && atomic.LoadInt32(decideCalls) >= wantDecide {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatalf("async scan did not complete: scanCalls=%d want>=%d decideCalls=%d want>=%d",
+		atomic.LoadInt32(scanCalls), wantScan, atomic.LoadInt32(decideCalls), wantDecide)
+}
+
+func TestUnifiedRotationRunner_RunCycleSkipsScanWhenInProgress(t *testing.T) {
 	svsp := &fakeRotationExecutor{strategyType: UnifiedStrategySingleVenueSpotPerp}
 	r := testUnifiedRotationRunnerWithFakes(t, svsp)
-	r.SetLive(false)
+	var scanCalls int32
+	scanStarted := make(chan struct{})
+	scanRelease := make(chan struct{})
+	r.scanCandidatesFn = func(ctx context.Context, snap CrossVenueScanSnapshot) ([]UnifiedOpportunity, map[string]float64, error) {
+		atomic.AddInt32(&scanCalls, 1)
+		close(scanStarted)
+		<-scanRelease
+		return nil, map[string]float64{binance.VenueName: 100}, nil
+	}
+	r.decideRotationFn = func([]HeldPosition, map[string]ContinuationInputs, []UnifiedOpportunity, map[string]float64) RotationPlan {
+		return RotationPlan{}
+	}
+	r.scanner = &CrossVenueScanner{lastSnapshot: CrossVenueScanSnapshot{SnapshotID: "snap-block", ScannedAt: r.nowFn().UTC()}}
+
+	r.runCycle(context.Background())
+	select {
+	case <-scanStarted:
+	case <-time.After(200 * time.Millisecond):
+		t.Fatal("first async scan did not start")
+	}
+	r.runCycle(context.Background())
+	if atomic.LoadInt32(&scanCalls) != 1 {
+		t.Fatalf("scanCalls = %d, want 1 (second tick must skip while scan in progress)", scanCalls)
+	}
+	if svsp.manageCalls != 2 {
+		t.Fatalf("manageCalls = %d, want 2 (manage must run each tick)", svsp.manageCalls)
+	}
+	close(scanRelease)
+	waitForRotationAsyncScan(t, &scanCalls, new(int32), 1, 0)
+}
+
+func TestRotationScanFilterSymbols(t *testing.T) {
+	funding := map[string]map[string]CrossVenueSpotPerpFundingSnap{
+		binance.VenueName: {},
+		bybit.VenueName:   {},
+	}
+	for i := 0; i < 200; i++ {
+		sym := fmt.Sprintf("SYM%03d-USDT", i)
+		rate := 0.0001 + float64(i)*0.000001 // 0.0001 .. 0.000299
+		funding[binance.VenueName][sym] = CrossVenueSpotPerpFundingSnap{Rate: rate}
+		funding[bybit.VenueName][sym] = CrossVenueSpotPerpFundingSnap{Rate: -rate * 0.5}
+	}
+	funding[binance.VenueName]["LOW-USDT"] = CrossVenueSpotPerpFundingSnap{Rate: 0.00001}
+	funding[bybit.VenueName]["LOW-USDT"] = CrossVenueSpotPerpFundingSnap{Rate: -0.00001}
+
+	got := rotationScanFilterSymbols(funding)
+	if len(got) != rotationScanMaxSymbols {
+		t.Fatalf("len = %d, want %d", len(got), rotationScanMaxSymbols)
+	}
+	for _, sym := range got {
+		if sym == "LOW-USDT" {
+			t.Fatal("LOW-USDT below floor must be excluded")
+		}
+	}
+	if got[0] != "SYM199-USDT" {
+		t.Fatalf("first symbol = %q, want SYM199-USDT (highest max|rate|)", got[0])
+	}
+	if got[1] != "SYM198-USDT" {
+		t.Fatalf("second symbol = %q, want SYM198-USDT", got[1])
+	}
+	tieFunding := map[string]map[string]CrossVenueSpotPerpFundingSnap{
+		binance.VenueName: {
+			"TIE-B-USDT": {Rate: 0.0005},
+			"TIE-A-USDT": {Rate: 0.0005},
+		},
+	}
+	tieGot := rotationScanFilterSymbols(tieFunding)
+	if len(tieGot) != 2 || tieGot[0] != "TIE-A-USDT" || tieGot[1] != "TIE-B-USDT" {
+		t.Fatalf("tie-break order = %v, want [TIE-A-USDT TIE-B-USDT]", tieGot)
+	}
+}
+
+func TestUnifiedRotationRunner_ReconcileManageUseRunnerActive(t *testing.T) {
+	svsp := &fakeRotationExecutor{strategyType: UnifiedStrategySingleVenueSpotPerp}
+	r := testUnifiedRotationRunnerWithFakes(t, svsp)
+	r.SetActive(false)
 
 	r.runReconcileAll(context.Background())
 	if svsp.lastReconcileLive {
-		t.Fatal("shadow runner must pass live=false to reconcile")
+		t.Fatal("stopped runner must pass live=false to reconcile")
 	}
 
 	r.runManageAll(context.Background())
 	if svsp.lastManageLive {
-		t.Fatal("shadow runner must pass live=false to manage")
+		t.Fatal("stopped runner must pass live=false to manage")
 	}
 
-	r.SetLive(true)
+	r.SetActive(true)
 	r.runReconcileAll(context.Background())
 	if !svsp.lastReconcileLive {
-		t.Fatal("live runner must pass live=true to reconcile")
+		t.Fatal("active runner must pass live=true to reconcile")
 	}
 	r.runManageAll(context.Background())
 	if !svsp.lastManageLive {
-		t.Fatal("live runner must pass live=true to manage")
+		t.Fatal("active runner must pass live=true to manage")
 	}
 }
 
@@ -601,11 +787,11 @@ func TestUnifiedRotationRunner_ShadowReconcileDoesNotFlattenUntracked(t *testing
 	if b := bindSingleVenueSpotPerpRotationExecutor(svspExec); b != nil {
 		r.bindings[b.strategyType] = b
 	}
-	r.SetLive(false)
+	r.SetActive(false)
 	r.runReconcileAll(context.Background())
 
 	if atomic.LoadInt32(v.placeCount) != 0 {
-		t.Fatalf("shadow reconcile must not flatten untracked position, got %d orders", atomic.LoadInt32(v.placeCount))
+		t.Fatalf("stopped reconcile must not flatten untracked position, got %d orders", atomic.LoadInt32(v.placeCount))
 	}
 }
 
@@ -621,7 +807,7 @@ func TestUnifiedRotationRunner_RunReconcileOnStart(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	go r.Run(ctx, false)
+	go r.Run(ctx)
 	deadline := time.Now().Add(300 * time.Millisecond)
 	for time.Now().Before(deadline) {
 		if atomic.LoadInt32(&svsp.reconcileCalls) == 1 {
@@ -645,7 +831,7 @@ func TestUnifiedRotationRunner_RunCycleCallsManageEachBinding(t *testing.T) {
 	svps := &fakeRotationExecutor{strategyType: UnifiedStrategySingleVenuePerpSpot}
 	cvps := &fakeRotationExecutor{strategyType: UnifiedStrategyCrossVenuePerpSpot}
 	r := testUnifiedRotationRunnerWithFakes(t, svsp, cvsp, svps, cvps)
-	r.scanner = &CrossVenueScanner{lastSnapshot: CrossVenueScanSnapshot{SnapshotID: "snap-manage", ScannedAt: time.Now().UTC()}}
+	r.scanner = &CrossVenueScanner{lastSnapshot: CrossVenueScanSnapshot{SnapshotID: "snap-manage", ScannedAt: r.nowFn().UTC()}}
 	r.scanCandidatesFn = func(context.Context, CrossVenueScanSnapshot) ([]UnifiedOpportunity, map[string]float64, error) {
 		return nil, map[string]float64{binance.VenueName: 100}, nil
 	}
@@ -658,7 +844,7 @@ func TestUnifiedRotationRunner_RunCycleCallsManageEachBinding(t *testing.T) {
 	}
 }
 
-func TestUnifiedRotationRunner_SetLiveAffectsDispatch(t *testing.T) {
+func TestUnifiedRotationRunner_ActiveAffectsDispatch(t *testing.T) {
 	svsp := &fakeRotationExecutor{strategyType: UnifiedStrategySingleVenueSpotPerp}
 	r := testUnifiedRotationRunnerWithFakes(t, svsp)
 	opp := testRotationCandidate("open-svsp", UnifiedStrategySingleVenueSpotPerp, "BTC-USDT", 10, map[string]float64{binance.VenueName: 50})
@@ -669,16 +855,16 @@ func TestUnifiedRotationRunner_SetLiveAffectsDispatch(t *testing.T) {
 		return plan
 	}
 
-	r.SetLive(false)
+	r.SetActive(false)
 	r.runOnceDecisionAndDispatch(context.Background(), []UnifiedOpportunity{opp}, map[string]float64{binance.VenueName: 500}, nil, nil)
 	if svsp.liveOpens != 0 {
-		t.Fatalf("shadow liveOpens = %d, want 0", svsp.liveOpens)
+		t.Fatalf("stopped liveOpens = %d, want 0", svsp.liveOpens)
 	}
 
-	r.SetLive(true)
+	r.SetActive(true)
 	r.runOnceDecisionAndDispatch(context.Background(), []UnifiedOpportunity{opp}, map[string]float64{binance.VenueName: 500}, nil, nil)
 	if svsp.liveOpens != 1 {
-		t.Fatalf("live liveOpens = %d, want 1", svsp.liveOpens)
+		t.Fatalf("active liveOpens = %d, want 1", svsp.liveOpens)
 	}
 }
 
@@ -701,13 +887,12 @@ func TestUnifiedRotationRunner_StatusReflectsLastCycle(t *testing.T) {
 		}}
 	}
 
-	r.SetLive(true)
 	if err := r.runOnce(context.Background()); err != nil {
 		t.Fatalf("runOnce: %v", err)
 	}
 	st := r.Status()
-	if !st.Active || !st.Live {
-		t.Fatalf("status active/live = %v/%v, want true/true", st.Active, st.Live)
+	if !st.Active {
+		t.Fatalf("status active = %v, want true", st.Active)
 	}
 	if st.LastSnapshotID != "snap-status" {
 		t.Fatalf("LastSnapshotID = %q", st.LastSnapshotID)
@@ -728,25 +913,21 @@ func TestUnifiedRotationRunner_InitStateFromControlFile(t *testing.T) {
 	r := testUnifiedRotationRunnerWithFakes(t)
 	r.recordDir = dir
 
-	r.SetLive(true)
 	r.SetActive(true)
 
 	r2 := testUnifiedRotationRunnerWithFakes(t)
 	r2.recordDir = dir
-	r2.InitState(false, false)
+	r2.InitState(false)
 
 	if !r2.active.Load() {
 		t.Fatal("active should come from control file (true)")
-	}
-	if !r2.live.Load() {
-		t.Fatal("live should come from control file (true)")
 	}
 
 	st, ok, err := loadRotationControlState(dir)
 	if err != nil || !ok {
 		t.Fatalf("load control: ok=%v err=%v", ok, err)
 	}
-	if !st.Active || !st.Live || st.UpdatedAt == "" {
+	if !st.Active || st.UpdatedAt == "" {
 		t.Fatalf("control file = %+v", st)
 	}
 	info, err := os.Stat(rotationControlFilePath(dir))
@@ -762,40 +943,39 @@ func TestUnifiedRotationRunner_InitStateDefaultsWithoutFile(t *testing.T) {
 	dir := t.TempDir()
 	r := testUnifiedRotationRunnerWithFakes(t)
 	r.recordDir = dir
-	r.InitState(true, false)
+	r.InitState(true)
 
 	if !r.active.Load() {
 		t.Fatal("active should use default true")
 	}
-	if r.live.Load() {
-		t.Fatal("live should use default false")
-	}
 }
 
-func TestUnifiedRotationRunner_RunUsesInitStateNotLiveParam(t *testing.T) {
-	dir := t.TempDir()
-	r := testUnifiedRotationRunnerWithFakes(t)
-	r.recordDir = dir
-	r.InitState(true, true)
+func TestUnifiedRotationRunner_StopHaltsOpensManageStillRuns(t *testing.T) {
+	svsp := &fakeRotationExecutor{strategyType: UnifiedStrategySingleVenueSpotPerp}
+	r := testUnifiedRotationRunnerWithFakes(t, svsp)
+	r.SetActive(false)
+	r.scanner = &CrossVenueScanner{lastSnapshot: CrossVenueScanSnapshot{SnapshotID: "snap-stop", ScannedAt: r.nowFn().UTC()}}
 	r.scanCandidatesFn = func(context.Context, CrossVenueScanSnapshot) ([]UnifiedOpportunity, map[string]float64, error) {
-		return nil, map[string]float64{}, nil
+		return []UnifiedOpportunity{
+			testRotationCandidate("open-svsp", UnifiedStrategySingleVenueSpotPerp, "BTC-USDT", 10, map[string]float64{binance.VenueName: 50}),
+		}, map[string]float64{binance.VenueName: 500}, nil
 	}
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go r.Run(ctx, false)
-	deadline := time.Now().Add(500 * time.Millisecond)
-	for time.Now().Before(deadline) {
-		if r.Status().Live {
-			cancel()
-			return
-		}
-		time.Sleep(10 * time.Millisecond)
+	r.decideRotationFn = func([]HeldPosition, map[string]ContinuationInputs, []UnifiedOpportunity, map[string]float64) RotationPlan {
+		return RotationPlan{Actions: []RotationAction{
+			{Kind: RotationActionOpen, OpportunityID: "open-svsp", StrategyType: UnifiedStrategySingleVenueSpotPerp, Symbol: "BTC-USDT"},
+		}}
 	}
-	cancel()
-	t.Fatal("Run(false) should not override InitState live=true")
+
+	r.runCycle(context.Background())
+	if svsp.manageCalls != 1 {
+		t.Fatalf("manageCalls = %d, want 1 while stopped", svsp.manageCalls)
+	}
+	if len(svsp.opens) != 0 {
+		t.Fatalf("opens = %d, want 0 while stopped", len(svsp.opens))
+	}
 }
 
-func TestUnifiedRotationRunner_ShadowCloseRealHeldVerified(t *testing.T) {
+func TestUnifiedRotationRunner_StoppedCloseRealHeldVerified(t *testing.T) {
 	now := time.Now().UTC()
 	v := newSVSPTestVenue(binance.VenueName)
 	dir := t.TempDir()
@@ -814,7 +994,7 @@ func TestUnifiedRotationRunner_ShadowCloseRealHeldVerified(t *testing.T) {
 	if b := bindSingleVenueSpotPerpRotationExecutor(svspExec); b != nil {
 		r.bindings[b.strategyType] = b
 	}
-	r.SetLive(false)
+	r.SetActive(false)
 
 	plan := RotationPlan{Actions: []RotationAction{
 		{Kind: RotationActionClose, OpportunityID: "syn-opp", StrategyType: UnifiedStrategySingleVenueSpotPerp, Symbol: "BTC-USDT", Reason: "test"},
@@ -832,7 +1012,7 @@ func TestUnifiedRotationRunner_ShadowCloseRealHeldVerified(t *testing.T) {
 		t.Fatal("synthetic ledger should be cleared")
 	}
 
-	// 真实持仓: shadow 下 CLOSE 仍应下单
+	// 真实持仓: stopped 下 CLOSE 仍应下单(CloseOnePositionVerified 强制 verify-real)
 	v.spotBalances["BTC"] = 0.5
 	v.positions = []venue.Position{{Symbol: "BTC-USDT", PositionAmt: -0.5, MarkPrice: 100, EntryPrice: 100, Leverage: 2}}
 	_ = svspExec.persistPosition(SingleVenueSpotPerpPosition{
@@ -850,10 +1030,11 @@ func TestUnifiedRotationRunner_ShadowCloseRealHeldVerified(t *testing.T) {
 	r.runOnceDecisionAndDispatch(context.Background(), nil, map[string]float64{binance.VenueName: 500}, nil, nil)
 
 	if atomic.LoadInt32(v.placeCount) < 2 {
-		t.Fatalf("real close in shadow mode should place orders, got %d", atomic.LoadInt32(v.placeCount))
+		t.Fatalf("real close while stopped should place orders, got %d", atomic.LoadInt32(v.placeCount))
 	}
 
-	// OPEN 在 shadow 下不下真单
+	// OPEN 在 stopped 下不下真单
+	r.SetActive(false)
 	openOpp := testRotationCandidate("open-new", UnifiedStrategySingleVenueSpotPerp, "ETH-USDT", 10, map[string]float64{binance.VenueName: 50})
 	plan = RotationPlan{Actions: []RotationAction{
 		{Kind: RotationActionOpen, OpportunityID: "open-new", StrategyType: UnifiedStrategySingleVenueSpotPerp, Symbol: "ETH-USDT"},
@@ -864,11 +1045,11 @@ func TestUnifiedRotationRunner_ShadowCloseRealHeldVerified(t *testing.T) {
 	placesBefore := atomic.LoadInt32(v.placeCount)
 	r.runOnceDecisionAndDispatch(context.Background(), []UnifiedOpportunity{openOpp}, map[string]float64{binance.VenueName: 500}, nil, nil)
 	if atomic.LoadInt32(v.placeCount) != placesBefore {
-		t.Fatalf("shadow OPEN must not place orders")
+		t.Fatalf("stopped OPEN must not place orders")
 	}
 }
 
-func TestUnifiedRotationRunner_ShadowStatusReportsRealHeld(t *testing.T) {
+func TestUnifiedRotationRunner_StatusReportsRealHeldWhenStopped(t *testing.T) {
 	now := time.Now().UTC()
 	v := newSVSPTestVenue(binance.VenueName)
 	v.spotBalances["BTC"] = 0.5
@@ -884,21 +1065,21 @@ func TestUnifiedRotationRunner_ShadowStatusReportsRealHeld(t *testing.T) {
 	})
 
 	r := &UnifiedRotationRunner{
-		bindings: map[string]*rotationExecutorBinding{},
-		logger:   log.New(io.Discard, "", 0),
+		bindings:  map[string]*rotationExecutorBinding{},
+		logger:    log.New(io.Discard, "", 0),
 		recordDir: dir,
 	}
 	if b := bindSingleVenueSpotPerpRotationExecutor(svspExec); b != nil {
 		r.bindings[b.strategyType] = b
 	}
-	r.InitState(true, false)
+	r.InitState(false)
 
 	st := r.Status()
 	if st.RealHeldManaged != 1 {
 		t.Fatalf("RealHeldManaged = %d, want 1", st.RealHeldManaged)
 	}
-	if st.Live {
-		t.Fatal("should be shadow mode")
+	if st.Active {
+		t.Fatal("should be stopped")
 	}
 }
 
@@ -968,15 +1149,16 @@ func TestRotationWalletBalancesFromAvailableSplitsSpotPerp(t *testing.T) {
 		OpportunityID: "held-svsp",
 		StrategyType:  UnifiedStrategySingleVenueSpotPerp,
 		CapitalRequiredByVenue: map[string]float64{
-			bybit.VenueName: 100 + rotationPerpMarginWithBuffer(execCfg, 100),
+			binance.VenueName: 100 + rotationPerpMarginWithBuffer(execCfg, 100),
 		},
 	}}
 	balances := rotationWalletBalancesFromAvailable(
-		map[string]float64{bybit.VenueName: 0},
+		map[string]float64{binance.VenueName: 0},
 		held,
 		execCfg,
+		map[string]venue.Venue{binance.VenueName: &fakeFundingVenue{name: binance.VenueName}},
 	)
-	w := balances[bybit.VenueName]
+	w := balances[binance.VenueName]
 	if w[WalletKindSpot] <= 0 {
 		t.Fatalf("spot wallet = %.4f, want >0 for spot-perp held", w[WalletKindSpot])
 	}
@@ -985,6 +1167,67 @@ func TestRotationWalletBalancesFromAvailableSplitsSpotPerp(t *testing.T) {
 	}
 	if w[WalletKindSpot]+w[WalletKindFutures] < 100 {
 		t.Fatalf("total split = %.4f, want ~held total", w[WalletKindSpot]+w[WalletKindFutures])
+	}
+}
+
+func TestRotationWalletBalancesFromAvailableUnifiedVenueSinglePool(t *testing.T) {
+	execCfg := testCrossVenueExecutorConfig().CrossVenueExecutor
+	held := []HeldPosition{{
+		OpportunityID: "held-svsp",
+		StrategyType:  UnifiedStrategySingleVenueSpotPerp,
+		CapitalRequiredByVenue: map[string]float64{
+			bybit.VenueName: 100 + rotationPerpMarginWithBuffer(execCfg, 100),
+		},
+	}}
+	balances := rotationWalletBalancesFromAvailable(
+		map[string]float64{bybit.VenueName: 0},
+		held,
+		execCfg,
+		map[string]venue.Venue{bybit.VenueName: &fakeFundingVenue{name: bybit.VenueName}},
+	)
+	w := balances[bybit.VenueName]
+	if w[WalletKindSpot] <= 0 {
+		t.Fatalf("spot wallet = %.4f, want >0 unified pool", w[WalletKindSpot])
+	}
+	if w[WalletKindFutures] != 0 {
+		t.Fatalf("futures wallet = %.4f, want 0 for unified venue", w[WalletKindFutures])
+	}
+}
+
+func TestUnifiedRotationRunner_LiveTransferFailureBlocksOpen(t *testing.T) {
+	svsp := &fakeRotationExecutor{strategyType: UnifiedStrategySingleVenueSpotPerp}
+	r := testUnifiedRotationRunnerWithFakes(t, svsp)
+	r.SetActive(true)
+	r.venues = map[string]venue.Venue{
+		binance.VenueName: &rotationFailingTransferVenue{
+			rotationTransferCountVenue: rotationTransferCountVenue{fakeFundingVenue: fakeFundingVenue{name: binance.VenueName}},
+		},
+	}
+
+	opp := testRotationCandidate("open-svsp", UnifiedStrategySingleVenueSpotPerp, "BTC-USDT", 10,
+		map[string]float64{binance.VenueName: 20})
+	opp.Legs = []UnifiedOpportunityLeg{
+		{Venue: binance.VenueName, Market: "spot", Side: "buy", Notional: 20},
+		{Venue: binance.VenueName, Market: "perp", Side: "short", Notional: 20},
+	}
+	plan := RotationPlan{Actions: []RotationAction{
+		{Kind: RotationActionOpen, OpportunityID: "open-svsp", StrategyType: UnifiedStrategySingleVenueSpotPerp, Symbol: "BTC-USDT"},
+	}}
+	r.decideRotationFn = func([]HeldPosition, map[string]ContinuationInputs, []UnifiedOpportunity, map[string]float64) RotationPlan {
+		return plan
+	}
+
+	r.runOnceDecisionAndDispatch(context.Background(), []UnifiedOpportunity{opp}, map[string]float64{binance.VenueName: 200}, nil, nil)
+
+	if len(svsp.opens) != 0 {
+		t.Fatalf("opens = %+v, want none after failed required transfer", svsp.opens)
+	}
+	if svsp.liveOpens != 0 {
+		t.Fatalf("liveOpens = %d, want 0", svsp.liveOpens)
+	}
+	v := r.venues[binance.VenueName].(*rotationFailingTransferVenue)
+	if v.transferCount != 1 {
+		t.Fatalf("transferCount = %d, want 1 attempted transfer", v.transferCount)
 	}
 }
 
@@ -1010,11 +1253,9 @@ func TestNewUnifiedRotationRunner_DefaultActiveFalse(t *testing.T) {
 		DefaultCapitalRouterConfig(),
 		nil, nil, nil, nil,
 		nil, nil, "", log.New(io.Discard, "", 0),
+		DefaultDelistGuardConfig(),
 	)
 	if r.active.Load() {
 		t.Fatal("constructor default active should be false")
-	}
-	if r.live.Load() {
-		t.Fatal("constructor default live should be false")
 	}
 }

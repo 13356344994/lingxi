@@ -25,32 +25,37 @@ func (a *Adapter) FetchInstruments(ctx context.Context) ([]venue.Instrument, err
 		canonical, _ := a.ToCanonical(s.Symbol, venue.MarketSpot)
 		tick, step, minNotional := parseFilters(s.Filters)
 		out = append(out, venue.Instrument{
-			Symbol:       canonical,
-			Market:       venue.MarketSpot,
-			BaseAsset:    strings.ToUpper(s.BaseAsset),
-			QuoteAsset:   strings.ToUpper(s.QuoteAsset),
-			TickSize:     tick,
-			StepSize:     step,
-			MinNotional:  minNotional,
-			QtyPrecision: s.BaseAssetPrecision,
-			ContractSize: 1,
-			QtyUnit:      "coin",
+			Symbol:           canonical,
+			Market:           venue.MarketSpot,
+			BaseAsset:        strings.ToUpper(s.BaseAsset),
+			QuoteAsset:       strings.ToUpper(s.QuoteAsset),
+			TickSize:         tick,
+			StepSize:         step,
+			MinNotional:      minNotional,
+			QtyPrecision:     s.BaseAssetPrecision,
+			ContractSize:     1,
+			QtyUnit:          "coin",
+			RawTradingStatus: s.Status,
+			NonTrading:       exchange.ExplicitNonTradingSpotStatus(s.Status),
 		})
 	}
 	for _, f := range futures {
 		canonical, _ := a.ToCanonical(f.Symbol, venue.MarketPerp)
 		tick, step, minNotional := parseFilters(f.Filters)
 		out = append(out, venue.Instrument{
-			Symbol:       canonical,
-			Market:       venue.MarketPerp,
-			BaseAsset:    strings.ToUpper(exchange.FuturesBaseAsset(f)),
-			QuoteAsset:   strings.ToUpper(f.MarginAsset),
-			TickSize:     tick,
-			StepSize:     step,
-			MinNotional:  minNotional,
-			QtyPrecision: f.QuantityPrecision,
-			ContractSize: 1, // 币安 USDT 永续按币数量,合约面值视作 1
-			QtyUnit:      "coin",
+			Symbol:           canonical,
+			Market:           venue.MarketPerp,
+			BaseAsset:        strings.ToUpper(exchange.FuturesBaseAsset(f)),
+			QuoteAsset:       strings.ToUpper(f.MarginAsset),
+			TickSize:         tick,
+			StepSize:         step,
+			MinNotional:      minNotional,
+			QtyPrecision:     f.QuantityPrecision,
+			ContractSize:     1, // 币安 USDT 永续按币数量,合约面值视作 1
+			QtyUnit:          "coin",
+			RawTradingStatus: strings.TrimSpace(f.Status + "/" + f.ContractStatus),
+			NonTrading:       exchange.ExplicitNonTradingFuturesStatus(f.Status, f.ContractStatus),
+			DeliveryTime:     msToTime(f.DeliveryDate),
 		})
 	}
 	return out, nil
@@ -368,16 +373,19 @@ func futuresRowToInstrument(a *Adapter, f exchange.FuturesSymbol) venue.Instrume
 	canonical, _ := a.ToCanonical(f.Symbol, venue.MarketPerp)
 	tick, step, minNotional := parseFilters(f.Filters)
 	return venue.Instrument{
-		Symbol:       canonical,
-		Market:       venue.MarketPerp,
-		BaseAsset:    strings.ToUpper(exchange.FuturesBaseAsset(f)),
-		QuoteAsset:   strings.ToUpper(f.MarginAsset),
-		TickSize:     tick,
-		StepSize:     step,
-		MinNotional:  minNotional,
-		QtyPrecision: f.QuantityPrecision,
-		ContractSize: 1,
-		QtyUnit:      "coin",
+		Symbol:           canonical,
+		Market:           venue.MarketPerp,
+		BaseAsset:        strings.ToUpper(exchange.FuturesBaseAsset(f)),
+		QuoteAsset:       strings.ToUpper(f.MarginAsset),
+		TickSize:         tick,
+		StepSize:         step,
+		MinNotional:      minNotional,
+		QtyPrecision:     f.QuantityPrecision,
+		ContractSize:     1,
+		QtyUnit:          "coin",
+		RawTradingStatus: strings.TrimSpace(f.Status + "/" + f.ContractStatus),
+		NonTrading:       exchange.ExplicitNonTradingFuturesStatus(f.Status, f.ContractStatus),
+		DeliveryTime:     msToTime(f.DeliveryDate),
 	}
 }
 
@@ -385,16 +393,18 @@ func spotRowToInstrument(a *Adapter, sp exchange.SpotSymbol) venue.Instrument {
 	canonical, _ := a.ToCanonical(sp.Symbol, venue.MarketSpot)
 	tick, step, minNotional := parseFilters(sp.Filters)
 	return venue.Instrument{
-		Symbol:       canonical,
-		Market:       venue.MarketSpot,
-		BaseAsset:    strings.ToUpper(sp.BaseAsset),
-		QuoteAsset:   strings.ToUpper(sp.QuoteAsset),
-		TickSize:     tick,
-		StepSize:     step,
-		MinNotional:  minNotional,
-		QtyPrecision: sp.BaseAssetPrecision,
-		ContractSize: 1,
-		QtyUnit:      "coin",
+		Symbol:           canonical,
+		Market:           venue.MarketSpot,
+		BaseAsset:        strings.ToUpper(sp.BaseAsset),
+		QuoteAsset:       strings.ToUpper(sp.QuoteAsset),
+		TickSize:         tick,
+		StepSize:         step,
+		MinNotional:      minNotional,
+		QtyPrecision:     sp.BaseAssetPrecision,
+		ContractSize:     1,
+		QtyUnit:          "coin",
+		RawTradingStatus: sp.Status,
+		NonTrading:       exchange.ExplicitNonTradingSpotStatus(sp.Status),
 	}
 }
 

@@ -18,11 +18,11 @@ import (
 // cvspTestVenue 是跨所 spot-perp 执行器单测用的 fake venue.Venue。
 type cvspTestVenue struct {
 	fakeFundingVenue
-	name            string
-	bookSpot        venue.BookTicker
-	bookPerp        venue.BookTicker
-	balances        map[string]float64
-	positions       []venue.Position
+	name              string
+	bookSpot          venue.BookTicker
+	bookPerp          venue.BookTicker
+	balances          map[string]float64
+	positions         []venue.Position
 	placeCount        *int32
 	placeRequests     []venue.OrderRequest
 	placeFailSpot     bool
@@ -41,8 +41,8 @@ func newCVSPTestVenue(name string) *cvspTestVenue {
 		bookPerp: venue.BookTicker{
 			BidPrice: 99.5, AskPrice: 100.5, BidQty: 1000, AskQty: 1000,
 		},
-		balances:  map[string]float64{"USDT": 10000},
-		placeCount: &pc,
+		balances:          map[string]float64{"USDT": 10000},
+		placeCount:        &pc,
 		clearOnReduceOnly: true,
 	}
 }
@@ -149,9 +149,9 @@ func testCVSPExecutor(t *testing.T, dir string, spotV, perpV *cvspTestVenue) *Cr
 func testCVSPOpportunity(spotVenue, perpVenue string, qty float64) UnifiedOpportunity {
 	notional := qty * 100
 	return UnifiedOpportunity{
-		ID:             "cross_venue_spot_perp:BTC-USDT:" + spotVenue + "+" + perpVenue + ":test",
-		StrategyType:   UnifiedStrategyCrossVenueSpotPerp,
-		Symbol:         "BTC-USDT",
+		ID:                "cross_venue_spot_perp:BTC-USDT:" + spotVenue + "+" + perpVenue + ":test",
+		StrategyType:      UnifiedStrategyCrossVenueSpotPerp,
+		Symbol:            "BTC-USDT",
 		ExpectedNetEVUSDT: 1.5,
 		ExpectedHoldHours: 8,
 		Legs: []UnifiedOpportunityLeg{
@@ -298,15 +298,15 @@ func TestCrossVenueSpotPerpReconcileOrphanLeg(t *testing.T) {
 	e.cfg.CrossVenueExecutor.LiveTradingEnabled = true
 
 	pos := CrossVenueSpotPerpPosition{
-		Symbol:    "BTC-USDT",
-		SpotVenue: binance.VenueName,
-		PerpVenue: bybit.VenueName,
-		Status:    CVSPStatusOpen,
-		OpenedAt:  e.nowFn(),
-		UpdatedAt: e.nowFn(),
+		Symbol:     "BTC-USDT",
+		SpotVenue:  binance.VenueName,
+		PerpVenue:  bybit.VenueName,
+		Status:     CVSPStatusOpen,
+		OpenedAt:   e.nowFn(),
+		UpdatedAt:  e.nowFn(),
 		IdemPrefix: "cvsp-test",
-		SpotLeg:   CrossVenueSpotPerpLegState{Venue: binance.VenueName, Market: "spot", Side: "buy", Qty: 0.01},
-		PerpLeg:   CrossVenueSpotPerpLegState{Venue: bybit.VenueName, Market: "perp", Side: "short", Qty: 0.01},
+		SpotLeg:    CrossVenueSpotPerpLegState{Venue: binance.VenueName, Market: "spot", Side: "buy", Qty: 0.01},
+		PerpLeg:    CrossVenueSpotPerpLegState{Venue: bybit.VenueName, Market: "perp", Side: "short", Qty: 0.01},
 	}
 	_ = e.persistPosition(pos)
 	perp.positions = []venue.Position{{Symbol: "BTC-USDT", PositionAmt: -0.01, EntryPrice: 100}}
@@ -353,5 +353,73 @@ func TestCrossVenueSpotPerpCloseSkipsWhenMeasuredZero(t *testing.T) {
 	}
 	if atomic.LoadInt32(spot.placeCount)+atomic.LoadInt32(perp.placeCount) != 0 {
 		t.Fatal("measured=0 must not place blind flatten orders")
+	}
+}
+
+func TestCrossVenueSpotPerpDustOrphanClosesAndFreesSlot(t *testing.T) {
+	dir := t.TempDir()
+	spot := newCVSPTestVenue(binance.VenueName)
+	perp := newCVSPTestVenue(bybit.VenueName)
+	spot.bookSpot = venue.BookTicker{BidPrice: 0.039, AskPrice: 0.041, BidQty: 1000, AskQty: 1000}
+	e := testCVSPExecutor(t, dir, spot, perp)
+	e.cfg.CrossVenueExecutor.DustCloseThresholdUSDT = 1.0
+	e.cfg.CrossVenueExecutor.LiveTradingEnabled = true
+
+	pos := CrossVenueSpotPerpPosition{
+		Symbol:        "PHA-USDT",
+		SpotVenue:     binance.VenueName,
+		PerpVenue:     bybit.VenueName,
+		Status:        CVSPStatusClosing,
+		OpportunityID: "cvsp-pha-test",
+		OpenedAt:      e.nowFn().Add(-time.Hour),
+		UpdatedAt:     e.nowFn(),
+		IdemPrefix:    "cvsp-pha",
+		CloseReason:   "continuation_score<0",
+		SpotLeg:       CrossVenueSpotPerpLegState{Venue: binance.VenueName, Market: "spot", Side: "buy", Qty: 1.01, EntryPrice: 0.04},
+		PerpLeg:       CrossVenueSpotPerpLegState{Venue: bybit.VenueName, Market: "perp", Side: "short", Qty: 0.01},
+	}
+	spot.balances["PHA"] = 1.01
+	perp.positions = nil
+	_ = e.persistPosition(pos)
+
+	if err := e.closePosition(context.Background(), pos, true, "rotation close"); err != nil {
+		t.Fatalf("dust orphan close: %v", err)
+	}
+	if len(e.Positions()) != 0 {
+		t.Fatalf("expected position removed after dust close, got %d", len(e.Positions()))
+	}
+	if e.CountRealHeldPositions(context.Background()) != 0 {
+		t.Fatal("dust-closed position must not occupy real held slot")
+	}
+}
+
+func TestCrossVenueSpotPerpNakedPerpOrphanStillCritical(t *testing.T) {
+	dir := t.TempDir()
+	spot := newCVSPTestVenue(binance.VenueName)
+	perp := newCVSPTestVenue(bybit.VenueName)
+	e := testCVSPExecutor(t, dir, spot, perp)
+	e.cfg.CrossVenueExecutor.LiveTradingEnabled = true
+
+	pos := CrossVenueSpotPerpPosition{
+		Symbol:     "PHA-USDT",
+		SpotVenue:  binance.VenueName,
+		PerpVenue:  bybit.VenueName,
+		Status:     CVSPStatusOpen,
+		OpenedAt:   e.nowFn(),
+		UpdatedAt:  e.nowFn(),
+		IdemPrefix: "cvsp-naked",
+		SpotLeg:    CrossVenueSpotPerpLegState{Venue: binance.VenueName, Market: "spot", Side: "buy", Qty: 10, EntryPrice: 0.04},
+		PerpLeg:    CrossVenueSpotPerpLegState{Venue: bybit.VenueName, Market: "perp", Side: "short", Qty: 10, EntryPrice: 0.04},
+	}
+	perp.positions = []venue.Position{{Symbol: "PHA-USDT", PositionAmt: -10, EntryPrice: 0.04}}
+	_ = e.persistPosition(pos)
+
+	_, _ = e.managePosition(context.Background(), pos, true)
+	remaining := e.Positions()
+	if len(remaining) != 1 {
+		t.Fatalf("naked perp orphan must stay active, got %d positions", len(remaining))
+	}
+	if remaining[0].Status != CVSPStatusOrphanSingleLeg {
+		t.Fatalf("expected orphan_single_leg, got %s", remaining[0].Status)
 	}
 }

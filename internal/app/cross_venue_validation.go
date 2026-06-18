@@ -9,54 +9,54 @@ import (
 )
 
 type CrossVenueShadowPortfolioTrade struct {
-	SettlementID     string  `json:"settlement_id,omitempty"`
-	PositionKey      string  `json:"position_key,omitempty"`
-	EntrySnapshotID  string  `json:"entry_snapshot_id,omitempty"`
-	Symbol           string  `json:"symbol"`
-	ChosenHighVenue  string  `json:"chosen_high_venue,omitempty"`
-	ChosenLowVenue   string  `json:"chosen_low_venue,omitempty"`
-	BaselineHighVenue string `json:"baseline_high_venue,omitempty"`
-	BaselineLowVenue  string `json:"baseline_low_venue,omitempty"`
-	NotionalUSDT     float64 `json:"notional_usdt,omitempty"`
-	RealizedNetPnL   float64 `json:"realized_net_pnl"`
-	ChosenNetEV      float64 `json:"chosen_net_ev,omitempty"`
-	BaselineNetEV    float64 `json:"baseline_net_ev,omitempty"`
-	NetEVGap         float64 `json:"net_ev_gap,omitempty"`
-	UsedFallback     bool    `json:"used_fallback,omitempty"`
+	SettlementID      string  `json:"settlement_id,omitempty"`
+	PositionKey       string  `json:"position_key,omitempty"`
+	EntrySnapshotID   string  `json:"entry_snapshot_id,omitempty"`
+	Symbol            string  `json:"symbol"`
+	ChosenHighVenue   string  `json:"chosen_high_venue,omitempty"`
+	ChosenLowVenue    string  `json:"chosen_low_venue,omitempty"`
+	BaselineHighVenue string  `json:"baseline_high_venue,omitempty"`
+	BaselineLowVenue  string  `json:"baseline_low_venue,omitempty"`
+	NotionalUSDT      float64 `json:"notional_usdt,omitempty"`
+	RealizedNetPnL    float64 `json:"realized_net_pnl"`
+	ChosenNetEV       float64 `json:"chosen_net_ev,omitempty"`
+	BaselineNetEV     float64 `json:"baseline_net_ev,omitempty"`
+	NetEVGap          float64 `json:"net_ev_gap,omitempty"`
+	UsedFallback      bool    `json:"used_fallback,omitempty"`
 }
 
 type CrossVenueShadowPortfolioSnapshot struct {
-	MatchedTrades       int                             `json:"matched_trades"`
-	ChosenReplayNetEV   float64                         `json:"chosen_replay_net_ev"`
-	BaselineReplayNetEV float64                         `json:"baseline_replay_net_ev"`
+	MatchedTrades       int                              `json:"matched_trades"`
+	ChosenReplayNetEV   float64                          `json:"chosen_replay_net_ev"`
+	BaselineReplayNetEV float64                          `json:"baseline_replay_net_ev"`
 	Records             []CrossVenueShadowPortfolioTrade `json:"records,omitempty"`
 }
 
 type CrossVenueCounterfactualReplayRecord struct {
-	SettlementID            string    `json:"settlement_id,omitempty"`
-	EntrySnapshotID         string    `json:"entry_snapshot_id,omitempty"`
-	SnapshotTime            time.Time `json:"snapshot_time"`
-	Symbol                  string    `json:"symbol"`
-	NotionalUSDT            float64   `json:"notional_usdt,omitempty"`
-	MaxConcurrent           int       `json:"max_concurrent,omitempty"`
-	MaxPositionUSDT         float64   `json:"max_position_usdt,omitempty"`
-	ChosenFound             bool      `json:"chosen_found"`
-	BaselineFound           bool      `json:"baseline_found"`
-	ChosenNetEV             float64   `json:"chosen_net_ev,omitempty"`
-	BaselineNetEV           float64   `json:"baseline_net_ev,omitempty"`
-	ChosenPair              string    `json:"chosen_pair,omitempty"`
-	BaselinePair            string    `json:"baseline_pair,omitempty"`
-	SelectionDrag           float64   `json:"selection_drag,omitempty"`
+	SettlementID    string    `json:"settlement_id,omitempty"`
+	EntrySnapshotID string    `json:"entry_snapshot_id,omitempty"`
+	SnapshotTime    time.Time `json:"snapshot_time"`
+	Symbol          string    `json:"symbol"`
+	NotionalUSDT    float64   `json:"notional_usdt,omitempty"`
+	MaxConcurrent   int       `json:"max_concurrent,omitempty"`
+	MaxPositionUSDT float64   `json:"max_position_usdt,omitempty"`
+	ChosenFound     bool      `json:"chosen_found"`
+	BaselineFound   bool      `json:"baseline_found"`
+	ChosenNetEV     float64   `json:"chosen_net_ev,omitempty"`
+	BaselineNetEV   float64   `json:"baseline_net_ev,omitempty"`
+	ChosenPair      string    `json:"chosen_pair,omitempty"`
+	BaselinePair    string    `json:"baseline_pair,omitempty"`
+	SelectionDrag   float64   `json:"selection_drag,omitempty"`
 }
 
 type CrossVenueCounterfactualReplaySnapshot struct {
-	SameOpportunitySetReady bool                              `json:"same_opportunity_set_ready"`
-	SameCostModelReady      bool                              `json:"same_cost_model_ready"`
-	SameRiskBudgetReady     bool                              `json:"same_risk_budget_ready"`
-	MatchedTrades           int                               `json:"matched_trades"`
-	MissingSnapshotTrades   int                               `json:"missing_snapshot_trades"`
-	MissingChosenTrades     int                               `json:"missing_chosen_trades"`
-	BaselineTradeCount      int                               `json:"baseline_trade_count"`
+	SameOpportunitySetReady bool                                   `json:"same_opportunity_set_ready"`
+	SameCostModelReady      bool                                   `json:"same_cost_model_ready"`
+	SameRiskBudgetReady     bool                                   `json:"same_risk_budget_ready"`
+	MatchedTrades           int                                    `json:"matched_trades"`
+	MissingSnapshotTrades   int                                    `json:"missing_snapshot_trades"`
+	MissingChosenTrades     int                                    `json:"missing_chosen_trades"`
+	BaselineTradeCount      int                                    `json:"baseline_trade_count"`
 	Records                 []CrossVenueCounterfactualReplayRecord `json:"records,omitempty"`
 }
 
@@ -74,81 +74,81 @@ type CrossVenueBaselinePortfolioReplayRecord struct {
 }
 
 type CrossVenueBaselinePortfolioReplaySnapshot struct {
-	SameOpportunitySetReady   bool                                    `json:"same_opportunity_set_ready"`
-	SameCostModelReady        bool                                    `json:"same_cost_model_ready"`
-	SameRiskBudgetReady       bool                                    `json:"same_risk_budget_ready"`
-	SnapshotCount             int                                     `json:"snapshot_count"`
-	MatchedSnapshotCount      int                                     `json:"matched_snapshot_count"`
-	MissingSnapshotTradeCount int                                     `json:"missing_snapshot_trade_count"`
-	ChosenTradeCount          int                                     `json:"chosen_trade_count"`
-	BaselineTradeCount        int                                     `json:"baseline_trade_count"`
-	ChosenReplayNetEV         float64                                 `json:"chosen_replay_net_ev"`
-	BaselineReplayNetEV       float64                                 `json:"baseline_replay_net_ev"`
+	SameOpportunitySetReady   bool                                      `json:"same_opportunity_set_ready"`
+	SameCostModelReady        bool                                      `json:"same_cost_model_ready"`
+	SameRiskBudgetReady       bool                                      `json:"same_risk_budget_ready"`
+	SnapshotCount             int                                       `json:"snapshot_count"`
+	MatchedSnapshotCount      int                                       `json:"matched_snapshot_count"`
+	MissingSnapshotTradeCount int                                       `json:"missing_snapshot_trade_count"`
+	ChosenTradeCount          int                                       `json:"chosen_trade_count"`
+	BaselineTradeCount        int                                       `json:"baseline_trade_count"`
+	ChosenReplayNetEV         float64                                   `json:"chosen_replay_net_ev"`
+	BaselineReplayNetEV       float64                                   `json:"baseline_replay_net_ev"`
 	Records                   []CrossVenueBaselinePortfolioReplayRecord `json:"records,omitempty"`
 }
 
 type CrossVenueRollingBaselineReplayRecord struct {
-	SnapshotID                  string    `json:"snapshot_id,omitempty"`
-	SnapshotTime                time.Time `json:"snapshot_time"`
-	ChosenTradeCount            int       `json:"chosen_trade_count"`
-	ChosenSnapshotReplayNetEV   float64   `json:"chosen_snapshot_replay_net_ev"`
-	BaselineTradeCount          int       `json:"baseline_trade_count"`
-	BaselineSnapshotReplayNetEV float64   `json:"baseline_snapshot_replay_net_ev"`
-	CumulativeChosenReplayNetEV float64   `json:"cumulative_chosen_replay_net_ev"`
-	CumulativeBaselineReplayNetEV float64 `json:"cumulative_baseline_replay_net_ev"`
-	ChosenPairs                 []string  `json:"chosen_pairs,omitempty"`
-	BaselinePairs               []string  `json:"baseline_pairs,omitempty"`
+	SnapshotID                    string    `json:"snapshot_id,omitempty"`
+	SnapshotTime                  time.Time `json:"snapshot_time"`
+	ChosenTradeCount              int       `json:"chosen_trade_count"`
+	ChosenSnapshotReplayNetEV     float64   `json:"chosen_snapshot_replay_net_ev"`
+	BaselineTradeCount            int       `json:"baseline_trade_count"`
+	BaselineSnapshotReplayNetEV   float64   `json:"baseline_snapshot_replay_net_ev"`
+	CumulativeChosenReplayNetEV   float64   `json:"cumulative_chosen_replay_net_ev"`
+	CumulativeBaselineReplayNetEV float64   `json:"cumulative_baseline_replay_net_ev"`
+	ChosenPairs                   []string  `json:"chosen_pairs,omitempty"`
+	BaselinePairs                 []string  `json:"baseline_pairs,omitempty"`
 }
 
 type CrossVenueRollingBaselineReplaySnapshot struct {
-	SameOpportunitySetReady bool                                 `json:"same_opportunity_set_ready"`
-	SameCostModelReady      bool                                 `json:"same_cost_model_ready"`
-	SameRiskBudgetReady     bool                                 `json:"same_risk_budget_ready"`
-	SnapshotCount           int                                  `json:"snapshot_count"`
-	ChosenSnapshotCount     int                                  `json:"chosen_snapshot_count"`
-	BaselineSnapshotCount   int                                  `json:"baseline_snapshot_count"`
-	MissedOpenSnapshots     int                                  `json:"missed_open_snapshots"`
-	ChosenReplayNetEV       float64                              `json:"chosen_replay_net_ev"`
-	BaselineReplayNetEV     float64                              `json:"baseline_replay_net_ev"`
+	SameOpportunitySetReady bool                                    `json:"same_opportunity_set_ready"`
+	SameCostModelReady      bool                                    `json:"same_cost_model_ready"`
+	SameRiskBudgetReady     bool                                    `json:"same_risk_budget_ready"`
+	SnapshotCount           int                                     `json:"snapshot_count"`
+	ChosenSnapshotCount     int                                     `json:"chosen_snapshot_count"`
+	BaselineSnapshotCount   int                                     `json:"baseline_snapshot_count"`
+	MissedOpenSnapshots     int                                     `json:"missed_open_snapshots"`
+	ChosenReplayNetEV       float64                                 `json:"chosen_replay_net_ev"`
+	BaselineReplayNetEV     float64                                 `json:"baseline_replay_net_ev"`
 	Records                 []CrossVenueRollingBaselineReplayRecord `json:"records,omitempty"`
 }
 
 type CrossVenueValidationSnapshot struct {
-	GeneratedAt               time.Time                `json:"generated_at"`
-	WindowStart               time.Time                `json:"window_start"`
-	WindowEnd                 time.Time                `json:"window_end"`
-	WindowHours               float64                  `json:"window_hours"`
-	RotationRealizedNetPnL    float64                  `json:"rotation_realized_net_pnl"`
-	BaselineApproxNetPnL      float64                  `json:"baseline_approx_net_pnl"`
-	TradeCount                int                      `json:"trade_count"`
-	SwitchTradeCount          int                      `json:"switch_trade_count"`
-	SwitchDrag                float64                  `json:"switch_drag"`
-	RecoveryLoss              float64                  `json:"recovery_loss"`
-	FallbackTradeCount        int                      `json:"fallback_trade_count"`
-	FallbackNetPnL            float64                  `json:"fallback_net_pnl"`
-	FallbackDilution          float64                  `json:"fallback_dilution"`
-	SelectionDrag             float64                  `json:"selection_drag"`
-	FundingAlpha              float64                  `json:"funding_alpha"`
-	ExecutionDrag             float64                  `json:"execution_drag"`
-	FreshnessDrag             float64                  `json:"freshness_drag"`
-	FreshnessSkipCycles       int                      `json:"freshness_skip_cycles"`
-	HealthHaltCycles          int                      `json:"health_halt_cycles"`
-	OpeningsDisabledCycles    int                      `json:"openings_disabled_cycles"`
-	ScanSnapshotCount         int                      `json:"scan_snapshot_count"`
-	ScanSnapshotTotalCount    int                      `json:"scan_snapshot_total_count"`
-	ShadowMatchedTrades       int                      `json:"shadow_matched_trades"`
-	EntrySnapshotLinkedTrades int                    `json:"entry_snapshot_linked_trades"`
-	MissingEntrySnapshotTrades int                   `json:"missing_entry_snapshot_trades"`
-	ReplayReady               bool                     `json:"replay_ready"`
-	SameOpportunitySetReady   bool                     `json:"same_opportunity_set_ready"`
-	SameCostModelReady        bool                     `json:"same_cost_model_ready"`
-	SameRiskBudgetReady       bool                     `json:"same_risk_budget_ready"`
-	ShadowPortfolio           CrossVenueShadowPortfolioSnapshot      `json:"shadow_portfolio"`
-	CounterfactualReplay      CrossVenueCounterfactualReplaySnapshot `json:"counterfactual_replay"`
-	BaselinePortfolioReplay   CrossVenueBaselinePortfolioReplaySnapshot `json:"baseline_portfolio_replay"`
-	RollingBaselineReplay     CrossVenueRollingBaselineReplaySnapshot `json:"rolling_baseline_replay"`
-	NoTradeReasonsTop         []CrossVenueReasonCount  `json:"no_trade_reasons_top,omitempty"`
-	Methodology               []string                 `json:"methodology,omitempty"`
+	GeneratedAt                time.Time                                 `json:"generated_at"`
+	WindowStart                time.Time                                 `json:"window_start"`
+	WindowEnd                  time.Time                                 `json:"window_end"`
+	WindowHours                float64                                   `json:"window_hours"`
+	PerpPerpRealizedNetPnL     float64                                   `json:"perp_perp_realized_net_pnl"`
+	BaselineApproxNetPnL       float64                                   `json:"baseline_approx_net_pnl"`
+	TradeCount                 int                                       `json:"trade_count"`
+	SwitchTradeCount           int                                       `json:"switch_trade_count"`
+	SwitchDrag                 float64                                   `json:"switch_drag"`
+	RecoveryLoss               float64                                   `json:"recovery_loss"`
+	FallbackTradeCount         int                                       `json:"fallback_trade_count"`
+	FallbackNetPnL             float64                                   `json:"fallback_net_pnl"`
+	FallbackDilution           float64                                   `json:"fallback_dilution"`
+	SelectionDrag              float64                                   `json:"selection_drag"`
+	FundingAlpha               float64                                   `json:"funding_alpha"`
+	ExecutionDrag              float64                                   `json:"execution_drag"`
+	FreshnessDrag              float64                                   `json:"freshness_drag"`
+	FreshnessSkipCycles        int                                       `json:"freshness_skip_cycles"`
+	HealthHaltCycles           int                                       `json:"health_halt_cycles"`
+	OpeningsDisabledCycles     int                                       `json:"openings_disabled_cycles"`
+	ScanSnapshotCount          int                                       `json:"scan_snapshot_count"`
+	ScanSnapshotTotalCount     int                                       `json:"scan_snapshot_total_count"`
+	ShadowMatchedTrades        int                                       `json:"shadow_matched_trades"`
+	EntrySnapshotLinkedTrades  int                                       `json:"entry_snapshot_linked_trades"`
+	MissingEntrySnapshotTrades int                                       `json:"missing_entry_snapshot_trades"`
+	ReplayReady                bool                                      `json:"replay_ready"`
+	SameOpportunitySetReady    bool                                      `json:"same_opportunity_set_ready"`
+	SameCostModelReady         bool                                      `json:"same_cost_model_ready"`
+	SameRiskBudgetReady        bool                                      `json:"same_risk_budget_ready"`
+	ShadowPortfolio            CrossVenueShadowPortfolioSnapshot         `json:"shadow_portfolio"`
+	CounterfactualReplay       CrossVenueCounterfactualReplaySnapshot    `json:"counterfactual_replay"`
+	BaselinePortfolioReplay    CrossVenueBaselinePortfolioReplaySnapshot `json:"baseline_portfolio_replay"`
+	RollingBaselineReplay      CrossVenueRollingBaselineReplaySnapshot   `json:"rolling_baseline_replay"`
+	NoTradeReasonsTop          []CrossVenueReasonCount                   `json:"no_trade_reasons_top,omitempty"`
+	Methodology                []string                                  `json:"methodology,omitempty"`
 }
 
 func (e *CrossVenueExecutor) ValidationSnapshot(window time.Duration) (CrossVenueValidationSnapshot, error) {
@@ -188,7 +188,7 @@ func (e *CrossVenueExecutor) ValidationSnapshotSince(since, until time.Time) (Cr
 		WindowEnd:   now,
 		WindowHours: windowHours,
 		Methodology: []string{
-			"已实现净利=窗口内 settlements.jsonl 的 net_pnl 真值汇总(与今日收益面板口径一致时用北京日界)",
+			"已实现净利=窗口内 crossvenue/settlements.jsonl(perp-perp)的 net_pnl 真值汇总(与今日收益面板口径一致时用北京日界)",
 			"回放对照需 settlement 能关联 scan_snapshots(优先 entry_snapshot_id,次选 current_snapshot_id,再按开仓时刻就近匹配)",
 			"execution_drag=手续费+不利滑点(仅计正值滑点,价格改善不计为负 drag)",
 			"selection_drag=同轮 baseline 最佳 NetEV − 实际 chosen NetEV(仅 replay 链路就绪时有效)",
@@ -231,7 +231,7 @@ func (e *CrossVenueExecutor) ValidationSnapshotSince(since, until time.Time) (Cr
 			continue
 		}
 		out.TradeCount++
-		out.RotationRealizedNetPnL = money.SumUSDT(out.RotationRealizedNetPnL, rec.NetPnL)
+		out.PerpPerpRealizedNetPnL = money.SumUSDT(out.PerpPerpRealizedNetPnL, rec.NetPnL)
 		out.FundingAlpha = money.SumUSDT(out.FundingAlpha, rec.RealizedFunding)
 		out.ExecutionDrag = money.SumUSDT(out.ExecutionDrag, crossVenueExecutionDragUSDT(rec))
 		recoveryLoss := money.SumUSDT(rec.RollbackCost, rec.RebalanceCost)
@@ -388,7 +388,7 @@ func (e *CrossVenueExecutor) ValidationSnapshotSince(since, until time.Time) (Cr
 		record.CumulativeBaselineReplayNetEV = out.RollingBaselineReplay.BaselineReplayNetEV
 		out.RollingBaselineReplay.Records = append(out.RollingBaselineReplay.Records, record)
 	}
-	out.BaselineApproxNetPnL = money.SumUSDT(out.RotationRealizedNetPnL, out.SwitchDrag)
+	out.BaselineApproxNetPnL = money.SumUSDT(out.PerpPerpRealizedNetPnL, out.SwitchDrag)
 	for _, cycle := range cycles {
 		switch {
 		case cycle.HaltReason == "snapshot_too_old":

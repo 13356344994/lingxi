@@ -30,6 +30,7 @@ type FuturesSymbol struct {
 	Symbol            string           `json:"symbol"`
 	Pair              string           `json:"pair"`
 	Status            string           `json:"status"`
+	ContractStatus    string           `json:"contractStatus"`
 	ContractType      string           `json:"contractType"`
 	DeliveryDate      int64            `json:"deliveryDate"`
 	MarginAsset       string           `json:"marginAsset"`
@@ -226,6 +227,71 @@ func HasUpcomingFuturesDelist(symbol FuturesSymbol, now time.Time) bool {
 		return false
 	}
 	return symbol.DeliveryDate <= now.AddDate(1, 0, 0).UnixMilli()
+}
+
+// ExplicitNonTradingSpotStatus 报告现货 exchangeInfo status 是否明确表示不可交易(非 TRADING)。
+func ExplicitNonTradingSpotStatus(status string) bool {
+	switch strings.ToUpper(strings.TrimSpace(status)) {
+	case "", "TRADING":
+		return false
+	default:
+		return true
+	}
+}
+
+// ExplicitNonTradingFuturesStatus 报告 U 本位合约 status/contractStatus 是否明确表示不可交易。
+// 仅对交易所给出的非 TRADING / 交割中状态返回 true;未知/空值返回 false(fail-open)。
+func ExplicitNonTradingFuturesStatus(status, contractStatus string) bool {
+	switch strings.ToUpper(strings.TrimSpace(status)) {
+	case "", "TRADING":
+		// continue to contractStatus
+	default:
+		return true
+	}
+	switch strings.ToUpper(strings.TrimSpace(contractStatus)) {
+	case "", "TRADING", "PENDING_TRADING":
+		return false
+	case "PRE_DELIVERING", "DELIVERING", "SETTLING", "CLOSE":
+		return true
+	default:
+		return false
+	}
+}
+
+// ExplicitNonTradingOKXState 报告 OKX instruments state 是否明确表示不可交易(live 以外)。
+func ExplicitNonTradingOKXState(state string) bool {
+	switch strings.ToLower(strings.TrimSpace(state)) {
+	case "", "live":
+		return false
+	case "suspend", "expired", "preopen":
+		return true
+	default:
+		return false
+	}
+}
+
+// ExplicitNonTradingBybitStatus 报告 Bybit instruments status 是否明确表示不可交易。
+func ExplicitNonTradingBybitStatus(status string) bool {
+	switch strings.ToUpper(strings.TrimSpace(status)) {
+	case "", "TRADING":
+		return false
+	case "DELIVERING", "CLOSED", "SETTLING", "PRE_LAUNCH":
+		return true
+	default:
+		return false
+	}
+}
+
+// ExplicitNonTradingGateSpotStatus 报告 Gate 现货 trade_status 是否明确表示不可交易。
+func ExplicitNonTradingGateSpotStatus(tradeStatus string) bool {
+	switch strings.ToLower(strings.TrimSpace(tradeStatus)) {
+	case "", "tradable":
+		return false
+	case "untradable", "buyable", "sellable":
+		return true
+	default:
+		return false
+	}
 }
 
 // IsValidExchangeSymbol 报告 symbol 是否仅由大写字母与数字组成（基本格式校验）。

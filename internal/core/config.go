@@ -501,6 +501,10 @@ type CrossVenueScannerConfig struct {
 	BorrowProbeEnabled bool `cfg:"borrow_probe_enabled"`
 	// BorrowProbeTopN 借币探测覆盖的头部机会数(按 spread 排序)。默认 10。
 	BorrowProbeTopN int `cfg:"borrow_probe_top_n"`
+	// BorrowProbeFundingTopK 额外探测负资金费 symbol 数(按最负排序),供 perp-spot 轮动扫描。默认 60。
+	BorrowProbeFundingTopK int `cfg:"borrow_probe_funding_top_k"`
+	// BorrowProbeMaxLivePerScan 每轮扫描最大 live FetchBorrowQuote 次数(缓存命中不计)。默认 30。
+	BorrowProbeMaxLivePerScan int `cfg:"borrow_probe_max_live_per_scan"`
 	// FundingAPRSanityCap 单腿年化费率绝对值上限(小数,5.0=500%);超过视为尖峰/坏数据,截断后再参与价差/排序。
 	FundingAPRSanityCap float64 `cfg:"funding_apr_sanity_cap"`
 	// SpreadPersistenceScans 跨所价差须在最近 N 次扫描中持续达标(用近 N 次中位数费率);历史不足 N 次则暂不出候选。
@@ -545,7 +549,7 @@ type EngineConfig struct {
 	// DataCollection 是数据收集策略参数(默认关闭+影子模式)。
 	DataCollection DataCollectionConfig `cfg:"data_collection"`
 
-	// UnifiedRotation 是五策略统一轮动 runner 开关(默认关闭+影子;live_trading_enabled=true 才真下单)。
+	// UnifiedRotation 是五策略统一轮动 runner 开关(默认关闭;面板 START+confirm=LIVE 后 active 即实盘)。
 	UnifiedRotation UnifiedRotationConfig `cfg:"unified_rotation"`
 }
 
@@ -636,6 +640,9 @@ type CrossVenueExecutorConfig struct {
 	MaxSwitchesPerCycle int `cfg:"max_switches_per_cycle"`
 	// UntrackedExposureAction 冷启动发现未登记真实仓位时的显式分支:halt/import/flatten。默认 halt。
 	UntrackedExposureAction string `cfg:"untracked_exposure_action"`
+	// DustCloseThresholdUSDT 风险腿已平时,残余非风险腿名义低于此值(且低于交易所 minNotional 若可得)视为 dust,
+	// 标记已平并释放并发槽,不再无限重试。默认 1.0 USDT。
+	DustCloseThresholdUSDT float64 `cfg:"dust_close_threshold_usdt"`
 }
 
 // CapitalAllocatorConfig 是跨策略资本分配器的可调参数(默认关闭+影子模式)。
@@ -666,12 +673,21 @@ type DataCollectionConfig struct {
 	MaxExpectedLossUSDTPerTrade float64 `cfg:"max_expected_loss_usdt_per_trade"`
 }
 
-// UnifiedRotationConfig 是五策略统一轮动 runner 的开关(默认关闭+影子)。
+// UnifiedRotationConfig 是五策略统一轮动 runner 的开关(默认关闭;active 即实盘,面板 START 须 confirm=LIVE)。
 type UnifiedRotationConfig struct {
 	// Enabled 启用统一轮动 runner goroutine。默认 false;false 时不启动。
 	Enabled bool `cfg:"enabled"`
-	// LiveTradingEnabled 主安全闸:false=影子(完整决策+资金路由计划但不下单/不真划转);true=真实下单。默认 false。
+	// LiveTradingEnabled 部署期安全闸:与 enabled 同时为 true 时,无 rotation_control.json 才默认 active=true。
+	// 运行时启停由面板 START/STOP 与 rotation_control.json 的 active 控制;不再单独 shadow/live 切换。
 	LiveTradingEnabled bool `cfg:"live_trading_enabled"`
+	// DelistGuardEnabled 启用下市/非交易状态守卫:拦截新开仓并对在场持仓主动平仓。默认 true。
+	DelistGuardEnabled bool `cfg:"delist_guard_enabled"`
+	// DelistStatusCacheTTL 是各 venue instrument 交易状态缓存 TTL。默认 1h。
+	DelistStatusCacheTTL time.Duration `cfg:"delist_status_cache_ttl"`
+	// ContinuationCloseThreshold 续持分(净/占用资金)须低于 −此阈值才允许软 CLOSE;过滤边际负分 churn。默认 0.001。
+	ContinuationCloseThreshold float64 `cfg:"continuation_close_threshold"`
+	// ContinuationMinHoldSeconds 开仓后至少持有此秒数才允许续持分触发的软 CLOSE;风险类平仓不受限。默认 3600。
+	ContinuationMinHoldSeconds int `cfg:"continuation_min_hold_seconds"`
 }
 
 // VenueFundingExecutorConfig 是 OKX/Gate 单所正费率执行器参数(正 carry:空永续+买现货,跨结算持有)。

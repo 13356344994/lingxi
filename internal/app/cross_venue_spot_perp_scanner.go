@@ -9,6 +9,7 @@ import (
 )
 
 const (
+	crossVenueSpotPerpMinTradableNotionalUSDT    = 5.0
 	crossVenueSpotPerpDefaultSpotFeeBps          = 10.0
 	crossVenueSpotPerpDefaultPeakFundingHaircut  = 0.50
 	crossVenueSpotPerpDefaultBasisConvergence    = 0.50
@@ -42,33 +43,33 @@ type CrossVenueSpotPerpMarketSnap struct {
 type CrossVenueSpotPerpScannerConfig struct {
 	Exec CrossVenueExecutorConfig `json:"exec"`
 
-	SpotTakerFeeBps          float64 `json:"spot_taker_fee_bps"`
-	PeakFundingHaircut       float64 `json:"peak_funding_haircut"`
-	BasisConvergenceFraction float64 `json:"basis_convergence_fraction"`
-	BasisWideningStressBps   float64 `json:"basis_widening_stress_bps"`
-	RebalanceTransferCostBps float64 `json:"rebalance_transfer_cost_bps"`
-	RebalanceLatencyHours    float64 `json:"rebalance_latency_hours"`
-	PerpMaintenanceMarginRate float64 `json:"perp_maintenance_margin_rate"`
-	PerpWalletBufferRatio    float64 `json:"perp_wallet_buffer_ratio"`
-	ReserveUSDTByVenue       map[string]float64 `json:"reserve_usdt_by_venue,omitempty"`
-	DefaultReserveUSDT       float64 `json:"default_reserve_usdt"`
-	ExpectedHoldHours        float64 `json:"expected_hold_hours"`
-	PriceShockPcts           []float64 `json:"price_shock_pcts"`
+	SpotTakerFeeBps           float64            `json:"spot_taker_fee_bps"`
+	PeakFundingHaircut        float64            `json:"peak_funding_haircut"`
+	BasisConvergenceFraction  float64            `json:"basis_convergence_fraction"`
+	BasisWideningStressBps    float64            `json:"basis_widening_stress_bps"`
+	RebalanceTransferCostBps  float64            `json:"rebalance_transfer_cost_bps"`
+	RebalanceLatencyHours     float64            `json:"rebalance_latency_hours"`
+	PerpMaintenanceMarginRate float64            `json:"perp_maintenance_margin_rate"`
+	PerpWalletBufferRatio     float64            `json:"perp_wallet_buffer_ratio"`
+	ReserveUSDTByVenue        map[string]float64 `json:"reserve_usdt_by_venue,omitempty"`
+	DefaultReserveUSDT        float64            `json:"default_reserve_usdt"`
+	ExpectedHoldHours         float64            `json:"expected_hold_hours"`
+	PriceShockPcts            []float64          `json:"price_shock_pcts"`
 }
 
 // DefaultCrossVenueSpotPerpScannerConfig 返回 v1 保守默认(对齐 go_no_go 口径)。
 func DefaultCrossVenueSpotPerpScannerConfig(exec CrossVenueExecutorConfig) CrossVenueSpotPerpScannerConfig {
 	return CrossVenueSpotPerpScannerConfig{
-		Exec:                     exec,
-		SpotTakerFeeBps:          crossVenueSpotPerpDefaultSpotFeeBps,
-		PeakFundingHaircut:       crossVenueSpotPerpDefaultPeakFundingHaircut,
-		BasisConvergenceFraction: crossVenueSpotPerpDefaultBasisConvergence,
-		BasisWideningStressBps:   crossVenueSpotPerpDefaultBasisWidenStressBps,
-		RebalanceTransferCostBps: crossVenueSpotPerpDefaultRebalanceCostBps,
-		RebalanceLatencyHours:    crossVenueSpotPerpDefaultRebalanceLatencyH,
+		Exec:                      exec,
+		SpotTakerFeeBps:           crossVenueSpotPerpDefaultSpotFeeBps,
+		PeakFundingHaircut:        crossVenueSpotPerpDefaultPeakFundingHaircut,
+		BasisConvergenceFraction:  crossVenueSpotPerpDefaultBasisConvergence,
+		BasisWideningStressBps:    crossVenueSpotPerpDefaultBasisWidenStressBps,
+		RebalanceTransferCostBps:  crossVenueSpotPerpDefaultRebalanceCostBps,
+		RebalanceLatencyHours:     crossVenueSpotPerpDefaultRebalanceLatencyH,
 		PerpMaintenanceMarginRate: crossVenueSpotPerpDefaultPerpMaintMarginRate,
-		PerpWalletBufferRatio:    crossVenueSpotPerpDefaultPerpWalletBuffer,
-		PriceShockPcts:           []float64{0.20, 0.30},
+		PerpWalletBufferRatio:     crossVenueSpotPerpDefaultPerpWalletBuffer,
+		PriceShockPcts:            []float64{0.20, 0.30},
 	}
 }
 
@@ -146,7 +147,7 @@ func AppendCrossVenueSpotPerpShadowCandidates(recordDir, cycleID string, execCfg
 	path := filepath.Join(opportunitiesRecordDir(base), unifiedCandidatesLogFileName)
 	for _, opp := range opps {
 		notional := crossVenueSpotPerpLegNotional(opp)
-		rec := unifiedCandidateLogFromOpportunity(execCfg, cycleID, opp, false, notional)
+		rec := unifiedCandidateLogFromOpportunity(execCfg, cycleID, opp, len(opp.RejectReasons) == 0, notional)
 		_ = appendJSONLRecord(path, rec)
 	}
 }
@@ -292,7 +293,10 @@ func buildCrossVenueSpotPerpOpportunity(
 		return UnifiedOpportunity{}, false
 	}
 
-	notional := crossVenueSpotPerpTradableNotional(cfg, spotMkt, perpMkt)
+	notional := crossVenueSpotPerpTradableNotionalForCrossVenue(
+		cfg, spotMkt, perpMkt, spotVenue, perpVenue, available,
+		func(v string) float64 { return crossVenueSpotPerpVenueReserve(v, cfg) },
+	)
 	if notional <= 0 {
 		return UnifiedOpportunity{}, false
 	}
@@ -352,9 +356,6 @@ func buildCrossVenueSpotPerpOpportunity(
 	}
 
 	rejectReasons := make([]string, 0)
-	if fund.SpikeThreshold <= 0 {
-		rejectReasons = append(rejectReasons, "insufficient_funding_history")
-	}
 	if requiresRebalance {
 		rejectReasons = append(rejectReasons, "requires_rebalance")
 	}
@@ -363,7 +364,7 @@ func buildCrossVenueSpotPerpOpportunity(
 	}
 
 	return UnifiedOpportunity{
-		ID: unifiedOpportunityID(UnifiedStrategyCrossVenueSpotPerp, symbol, snapshotID, spotVenue, perpVenue),
+		ID:           unifiedOpportunityID(UnifiedStrategyCrossVenueSpotPerp, symbol, snapshotID, spotVenue, perpVenue),
 		StrategyType: UnifiedStrategyCrossVenueSpotPerp,
 		Symbol:       symbol,
 		Legs: []UnifiedOpportunityLeg{
@@ -417,6 +418,65 @@ func crossVenueSpotPerpTradableNotional(cfg CrossVenueSpotPerpScannerConfig, spo
 	return maxNotional
 }
 
+func crossVenueSpotPerpPerpMarginCoefficient(cfg CrossVenueSpotPerpScannerConfig) float64 {
+	lev := cfg.Exec.MaxEffectiveLeverage
+	if lev <= 0 {
+		lev = 2
+	}
+	marginFactor := cfg.Exec.MarginSafetyFactor
+	if marginFactor <= 0 {
+		marginFactor = 1.5
+	}
+	return 1/lev*marginFactor + cfg.PerpWalletBufferRatio
+}
+
+func crossVenueSpotPerpTradableNotionalForCrossVenue(
+	cfg CrossVenueSpotPerpScannerConfig,
+	spotMkt, perpMkt CrossVenueSpotPerpMarketSnap,
+	spotVenue, perpVenue string,
+	available map[string]float64,
+	venueReserve func(string) float64,
+) float64 {
+	base := crossVenueSpotPerpTradableNotional(cfg, spotMkt, perpMkt)
+	if base <= 0 {
+		return 0
+	}
+	perpCoeff := crossVenueSpotPerpPerpMarginCoefficient(cfg)
+	spotAvail := math.Max(available[spotVenue]-venueReserve(spotVenue), 0)
+	perpAvail := math.Max(available[perpVenue]-venueReserve(perpVenue), 0)
+	cap := math.Min(base, spotAvail)
+	if perpCoeff > 0 {
+		cap = math.Min(cap, perpAvail/perpCoeff)
+	}
+	if cap+1e-9 < crossVenueSpotPerpMinTradableNotionalUSDT {
+		return 0
+	}
+	return cap
+}
+
+func crossVenueSpotPerpTradableNotionalForSingleVenue(
+	cfg CrossVenueSpotPerpScannerConfig,
+	spotMkt, perpMkt CrossVenueSpotPerpMarketSnap,
+	venueName string,
+	available map[string]float64,
+	venueReserve func(string) float64,
+) float64 {
+	base := crossVenueSpotPerpTradableNotional(cfg, spotMkt, perpMkt)
+	if base <= 0 {
+		return 0
+	}
+	coeff := 1 + crossVenueSpotPerpPerpMarginCoefficient(cfg)
+	if coeff <= 0 {
+		return 0
+	}
+	avail := math.Max(available[venueName]-venueReserve(venueName), 0)
+	cap := math.Min(base, avail/coeff)
+	if cap+1e-9 < crossVenueSpotPerpMinTradableNotionalUSDT {
+		return 0
+	}
+	return cap
+}
+
 func crossVenueSpotPerpExpectedHoldHours(now time.Time, fund CrossVenueSpotPerpFundingSnap) float64 {
 	window := crossVenueComparableWindowHours(now, fund.NextFundingTime, fund.NextFundingTime)
 	if window > 0 {
@@ -456,7 +516,7 @@ func crossVenueSpotPerpEffectiveFundingRate(rate, spikeThreshold, peakHaircut fl
 		return 0
 	}
 	if spikeThreshold <= 0 {
-		return rate
+		return rate * peakHaircut
 	}
 	if rate <= spikeThreshold {
 		return rate

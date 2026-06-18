@@ -25,6 +25,9 @@ func TestPlanAllocationBybit(t *testing.T) {
 	if plan.RemainderWallet != WalletFunding {
 		t.Errorf("余量钱包应为 funding, got %v", plan.RemainderWallet)
 	}
+	if !caps.UnifiedWallet {
+		t.Error("bybit should declare UnifiedWallet=true")
+	}
 	// 负数夹到 0
 	if p := a.PlanAllocation(-5, caps); p.TotalTradingUSDT != 0 {
 		t.Errorf("负总额应夹到 0, got %v", p.TotalTradingUSDT)

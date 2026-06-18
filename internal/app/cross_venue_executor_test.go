@@ -1682,7 +1682,7 @@ func TestCrossVenueValidationSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.TradeCount != 2 || math.Abs(got.RotationRealizedNetPnL-7.5) > 1e-9 {
+	if got.TradeCount != 2 || math.Abs(got.PerpPerpRealizedNetPnL-7.5) > 1e-9 {
 		t.Fatalf("snapshot=%+v", got)
 	}
 	if got.SwitchTradeCount != 1 || math.Abs(got.SwitchDrag-0.5) > 1e-9 {

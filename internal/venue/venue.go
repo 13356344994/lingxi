@@ -106,6 +106,10 @@ type Capabilities struct {
 	SupportsCapitalRebalance bool     // 是否支持面板「自动调仓」
 	SupportsBorrowQuote      bool     // 是否支持借币行情只读探测(FetchBorrowQuote,跨所扫描遥测用)
 	CapitalWallets           []Wallet // 该所参与调仓的钱包集合
+	// UnifiedWallet 为 true 表示现货/永续/杠杆共用同一可用 USDT 池(统一账户),
+	// 无需也不可能在所内 spot↔futures 划转;资金路由应把余额视为单池备资。
+	// 仅分仓所(如币安 spot/UM/margin 分离且实现 TransferWallet)置 false。
+	UnifiedWallet bool
 }
 
 // VenueError 是适配器把所内错误码归一化后的中性错误(供 Safety.Classify / 重试判定)。

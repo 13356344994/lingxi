@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"lingxi/internal/exchange"
 	"lingxi/internal/venue"
 )
 
@@ -85,15 +86,17 @@ func (a *Adapter) FetchInstruments(ctx context.Context) ([]venue.Instrument, err
 		}
 		canonical, _ := a.ToCanonical(it.Symbol, venue.MarketPerp)
 		out = append(out, venue.Instrument{
-			Symbol:       canonical,
-			Market:       venue.MarketPerp,
-			BaseAsset:    strings.ToUpper(it.BaseCoin),
-			QuoteAsset:   strings.ToUpper(it.QuoteCoin),
-			TickSize:     parseFloat(it.PriceFilter.TickSize),
-			StepSize:     parseFloat(it.LotSizeFilter.QtyStep),
-			MinNotional:  parseFloat(it.LotSizeFilter.MinNotionalVal),
-			ContractSize: 1, // USDT 永续按币数量
-			QtyUnit:      "coin",
+			Symbol:           canonical,
+			Market:           venue.MarketPerp,
+			BaseAsset:        strings.ToUpper(it.BaseCoin),
+			QuoteAsset:       strings.ToUpper(it.QuoteCoin),
+			TickSize:         parseFloat(it.PriceFilter.TickSize),
+			StepSize:         parseFloat(it.LotSizeFilter.QtyStep),
+			MinNotional:      parseFloat(it.LotSizeFilter.MinNotionalVal),
+			ContractSize:     1, // USDT 永续按币数量
+			QtyUnit:          "coin",
+			RawTradingStatus: it.Status,
+			NonTrading:       exchange.ExplicitNonTradingBybitStatus(it.Status),
 		})
 	}
 	// 现货失败不致命(Stage 1 验证以永续为主),仅记录性跳过。
@@ -105,16 +108,18 @@ func (a *Adapter) FetchInstruments(ctx context.Context) ([]venue.Instrument, err
 				minNotional = parseFloat(it.LotSizeFilter.MinOrderAmt)
 			}
 			out = append(out, venue.Instrument{
-				Symbol:         canonical,
-				Market:         venue.MarketSpot,
-				BaseAsset:      strings.ToUpper(it.BaseCoin),
-				QuoteAsset:     strings.ToUpper(it.QuoteCoin),
-				TickSize:       parseFloat(it.PriceFilter.TickSize),
-				StepSize:       parseFloat(it.LotSizeFilter.BasePrecision),
-				MinNotional:    minNotional,
-				ContractSize:   1,
-				QtyUnit:        "coin",
-				SpotBorrowable: it.MarginTrading == "utaOnly" || it.MarginTrading == "both",
+				Symbol:           canonical,
+				Market:           venue.MarketSpot,
+				BaseAsset:        strings.ToUpper(it.BaseCoin),
+				QuoteAsset:       strings.ToUpper(it.QuoteCoin),
+				TickSize:         parseFloat(it.PriceFilter.TickSize),
+				StepSize:         parseFloat(it.LotSizeFilter.BasePrecision),
+				MinNotional:      minNotional,
+				ContractSize:     1,
+				QtyUnit:          "coin",
+				SpotBorrowable:   it.MarginTrading == "utaOnly" || it.MarginTrading == "both",
+				RawTradingStatus: it.Status,
+				NonTrading:       exchange.ExplicitNonTradingBybitStatus(it.Status),
 			})
 		}
 	}

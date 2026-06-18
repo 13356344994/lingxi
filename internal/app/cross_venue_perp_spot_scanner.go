@@ -13,8 +13,8 @@ const (
 	crossVenuePerpSpotRejectNoSpotMarket      = "no_spot_market"
 	crossVenuePerpSpotRejectInsufficientDepth = "insufficient_depth"
 	crossVenuePerpSpotRejectMarginStress      = "margin_stress_liquidation"
-	crossVenuePerpSpotRejectNotBorrowable       = "not_borrowable"
-	crossVenuePerpSpotRejectBorrowOverLimit     = "borrow_over_limit"
+	crossVenuePerpSpotRejectNotBorrowable     = "not_borrowable"
+	crossVenuePerpSpotRejectBorrowOverLimit   = "borrow_over_limit"
 )
 
 // CrossVenuePerpSpotFundingSnap 是某所某 symbol 的永续资金费快照(扫描输入)。
@@ -134,7 +134,7 @@ func AppendCrossVenuePerpSpotShadowCandidates(recordDir, cycleID string, execCfg
 	path := filepath.Join(opportunitiesRecordDir(base), unifiedCandidatesLogFileName)
 	for _, opp := range opps {
 		notional := crossVenuePerpSpotLegNotional(opp)
-		rec := unifiedCandidateLogFromOpportunity(execCfg, cycleID, opp, false, notional)
+		rec := unifiedCandidateLogFromOpportunity(execCfg, cycleID, opp, len(opp.RejectReasons) == 0, notional)
 		_ = appendJSONLRecord(path, rec)
 	}
 }
@@ -266,7 +266,10 @@ func buildCrossVenuePerpSpotOpportunity(
 		return UnifiedOpportunity{}, false
 	}
 
-	notional := crossVenueSpotPerpTradableNotional(cvCfg, spotMkt, perpMkt)
+	notional := crossVenueSpotPerpTradableNotionalForCrossVenue(
+		cvCfg, spotMkt, perpMkt, spotVenue, perpVenue, available,
+		func(v string) float64 { return crossVenuePerpSpotVenueReserve(v, cfg) },
+	)
 	if notional <= 0 {
 		return crossVenuePerpSpotRejectedOpportunity(snapshotID, symbol, perpVenue, spotVenue, crossVenuePerpSpotRejectInsufficientDepth), true
 	}
@@ -327,9 +330,6 @@ func buildCrossVenuePerpSpotOpportunity(
 	}
 
 	rejectReasons := make([]string, 0)
-	if fund.SpikeThreshold <= 0 {
-		rejectReasons = append(rejectReasons, "insufficient_funding_history")
-	}
 	if perpSpotBorrowOverLimit(baseAsset, notional, borrowLimitUSDTByAsset) {
 		rejectReasons = append(rejectReasons, crossVenuePerpSpotRejectBorrowOverLimit)
 	}

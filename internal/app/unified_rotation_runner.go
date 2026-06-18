@@ -13,11 +13,18 @@ import (
 	"lingxi/internal/venue"
 )
 
-// unified_rotation_runner.go 统一轮动 runner: 扫描 → 留换决策 → 资金路由 → 四执行器派发(默认 shadow)。
+const (
+	rotationSnapshotMaxAge        = 30 * time.Minute
+	rotationScanMinAbsFundingRate = 0.00005 // 0.5 bps per funding interval
+	rotationScanMaxSymbols        = 150
+)
+
+// unified_rotation_runner.go 统一轮动 runner: 扫描 → 留换决策 → 资金路由 → 四执行器派发(active 即实盘)。
 
 type rotationHeldRecord struct {
 	HeldPosition
 	ContinuationInputs
+	delistLegs []rotationDelistLeg
 }
 
 type rotationExecutorBinding struct {
@@ -49,16 +56,15 @@ type RotationActionCounts struct {
 
 // RotationStatus 统一轮动运行时快照(JSON 友好)。
 type RotationStatus struct {
-	Active            bool                    `json:"active"`
-	Live              bool                    `json:"live"`
-	IntervalSeconds   int                     `json:"interval_seconds"`
-	LastCycleAt       string                  `json:"last_cycle_at"`
-	LastSnapshotID    string                  `json:"last_snapshot_id"`
-	Candidates        RotationCandidateCounts `json:"candidates"`
-	Held              int                     `json:"held"`
-	RealHeldManaged   int                     `json:"real_held_managed"`
-	Actions           RotationActionCounts    `json:"actions"`
-	LastError         string                  `json:"last_error"`
+	Active          bool                    `json:"active"`
+	IntervalSeconds int                     `json:"interval_seconds"`
+	LastCycleAt     string                  `json:"last_cycle_at"`
+	LastSnapshotID  string                  `json:"last_snapshot_id"`
+	Candidates      RotationCandidateCounts `json:"candidates"`
+	Held            int                     `json:"held"`
+	RealHeldManaged int                     `json:"real_held_managed"`
+	Actions         RotationActionCounts    `json:"actions"`
+	LastError       string                  `json:"last_error"`
 }
 
 // UnifiedRotationRunner 串联五类扫描候选、轮动决策、资金路由与四 spot/perp-spot 执行器。
@@ -77,20 +83,23 @@ type UnifiedRotationRunner struct {
 
 	includePerpPerpCandidates bool
 
-	fetchDeps unifiedShadowPipelineFetchDeps
+	fetchDeps   unifiedShadowPipelineFetchDeps
+	delistGuard *DelistGuard
 
 	scanCandidatesFn func(ctx context.Context, snap CrossVenueScanSnapshot) ([]UnifiedOpportunity, map[string]float64, error)
 	decideRotationFn func(held []HeldPosition, heldInputs map[string]ContinuationInputs, candidates []UnifiedOpportunity, available map[string]float64) RotationPlan
 
 	lastSnapshotID string
 
-	active atomic.Bool
-	live   atomic.Bool
+	active   atomic.Bool
+	scanning atomic.Bool
 
-	statusMu        sync.RWMutex
-	status          RotationStatus
-	lastPausedLogMu sync.Mutex
-	lastPausedLogAt time.Time
+	statusMu               sync.RWMutex
+	status                 RotationStatus
+	lastPausedLogMu        sync.Mutex
+	lastPausedLogAt        time.Time
+	lastStaleSnapshotLogMu sync.Mutex
+	lastStaleSnapshotLogAt time.Time
 }
 
 // NewUnifiedRotationRunner 构造统一轮动 runner; 四执行器与 scanner 由调用方注入。
@@ -106,6 +115,7 @@ func NewUnifiedRotationRunner(
 	venues map[string]venue.Venue,
 	recordDir string,
 	logger *log.Logger,
+	delistCfg DelistGuardConfig,
 ) *UnifiedRotationRunner {
 	if logger == nil {
 		logger = log.Default()
@@ -124,6 +134,7 @@ func NewUnifiedRotationRunner(
 		rotationCfg:      rotationCfg,
 		capitalRouterCfg: capitalRouterCfg,
 	}
+	r.delistGuard = NewDelistGuard(venues, delistCfg, logger)
 	r.includePerpPerpCandidates = true
 	if b := bindSingleVenueSpotPerpRotationExecutor(svsp); b != nil {
 		r.bindings[b.strategyType] = b
@@ -141,48 +152,37 @@ func NewUnifiedRotationRunner(
 	return r
 }
 
-// InitState 按默认 active/live 初始化;若 rotation_control.json 存在则用文件值覆盖(只读不回写)。
-func (r *UnifiedRotationRunner) InitState(defaultActive, defaultLive bool) {
+// InitState 按默认 active 初始化;若 rotation_control.json 存在则用文件 active 覆盖(legacy live 字段忽略)。
+func (r *UnifiedRotationRunner) InitState(defaultActive bool) {
 	if r == nil {
 		return
 	}
 	r.active.Store(defaultActive)
-	r.live.Store(defaultLive)
 	if r.recordDir == "" {
 		return
 	}
 	st, ok, err := loadRotationControlState(r.recordDir)
 	if err != nil && r.logger != nil {
-		r.logger.Printf("[统一轮动] 读取 rotation_control.json 失败,使用默认 active=%v live=%v: %v",
-			defaultActive, defaultLive, err)
+		r.logger.Printf("[统一轮动] 读取 rotation_control.json 失败,使用默认 active=%v: %v",
+			defaultActive, err)
 		return
 	}
 	if !ok {
 		return
 	}
 	r.active.Store(st.Active)
-	r.live.Store(st.Live)
 }
 
-// SetActive 运行时启停轮动执行(线程安全);状态变更落盘 rotation_control.json。
+// SetActive 运行时启停轮动执行(线程安全);active=true 即实盘下单,状态变更落盘 rotation_control.json。
 func (r *UnifiedRotationRunner) SetActive(on bool) {
 	if r == nil {
 		return
 	}
 	r.active.Store(on)
-	_ = saveRotationControlState(r.recordDir, on, r.live.Load())
+	_ = saveRotationControlState(r.recordDir, on)
 }
 
-// SetLive 运行时切换 shadow/live(线程安全);状态变更落盘 rotation_control.json。
-func (r *UnifiedRotationRunner) SetLive(live bool) {
-	if r == nil {
-		return
-	}
-	r.live.Store(live)
-	_ = saveRotationControlState(r.recordDir, r.active.Load(), live)
-}
-
-// Status 返回最近一次 runOnce 快照与当前 active/live(线程安全)。
+// Status 返回最近一次 runOnce 快照与当前 active(线程安全)。
 func (r *UnifiedRotationRunner) Status() RotationStatus {
 	if r == nil {
 		return emptyRotationStatus()
@@ -191,7 +191,6 @@ func (r *UnifiedRotationRunner) Status() RotationStatus {
 	st := r.status
 	r.statusMu.RUnlock()
 	st.Active = r.active.Load()
-	st.Live = r.live.Load()
 	st.IntervalSeconds = int(r.tickerInterval().Seconds())
 	st.RealHeldManaged = r.countRealHeldPositions(context.Background())
 	return st
@@ -200,15 +199,15 @@ func (r *UnifiedRotationRunner) Status() RotationStatus {
 func emptyRotationStatus() RotationStatus {
 	return RotationStatus{
 		Active: false,
-		Live:   false,
 	}
 }
 
+// isLive 统一轮动 active 即实盘;暂停时不下新单,但 reconcile/manage/verified-close 仍按 live 语义派发。
 func (r *UnifiedRotationRunner) isLive() bool {
 	if r == nil {
 		return false
 	}
-	return r.live.Load()
+	return r.active.Load()
 }
 
 func (r *UnifiedRotationRunner) commitStatus(update RotationStatus) {
@@ -220,26 +219,15 @@ func (r *UnifiedRotationRunner) commitStatus(update RotationStatus) {
 	r.statusMu.Unlock()
 }
 
-// Run 按 ticker 周期驱动 runOnce。
-// live 入参已废弃(保留签名以兼容 run.go 编译); active/live 由 InitState/SetActive/SetLive 控制。
-func (r *UnifiedRotationRunner) Run(ctx context.Context, live bool) {
+// Run 按 ticker 周期驱动 runOnce; active 由 InitState/SetActive 控制。
+func (r *UnifiedRotationRunner) Run(ctx context.Context) {
 	if r == nil {
 		return
 	}
-	_ = live
 	active := r.active.Load()
-	isLive := r.isLive()
-	if !isLive && r.logger != nil {
-		realHeld := r.countRealHeldPositions(ctx)
-		if realHeld > 0 {
-			r.logger.Printf("[统一轮动] 已启动 shadow 模式: 不开新仓,仍管理 %d 笔真实持仓", realHeld)
-		} else {
-			r.logger.Printf("[统一轮动] 已启动 shadow 模式: 不下真单、不执行所内划转")
-		}
-	}
 	interval := r.tickerInterval()
 	if r.logger != nil {
-		r.logger.Printf("[统一轮动] 周期 interval=%s live=%v active=%v", interval, isLive, active)
+		r.logger.Printf("[统一轮动] 周期 interval=%s active=%v", interval, active)
 	}
 	r.runReconcileAll(ctx)
 	ticker := time.NewTicker(interval)
@@ -262,13 +250,20 @@ func (r *UnifiedRotationRunner) runCycle(ctx context.Context) {
 	if r == nil {
 		return
 	}
-	// 暂停时仍管理在场真仓; manage 服从 runner.isLive()(shadow 下只读对账,verify-real 平仓走 closeVerifiedFn)。
+	// 暂停时仍管理在场真仓; verified-close 走 closeVerifiedFn(交易所真仓时仍下单)。
 	r.runManageAll(ctx)
 	if !r.active.Load() {
 		r.maybeLogPaused()
 		return
 	}
-	r.runOnceSafe(ctx)
+	// 扫描/decision 可能耗时数分钟; 异步执行以免阻塞 60s 安全管理循环。
+	if !r.scanning.CompareAndSwap(false, true) {
+		return
+	}
+	go func() {
+		defer r.scanning.Store(false)
+		r.runOnceSafe(ctx)
+	}()
 }
 
 // runReconcileAll 启动时对各执行器调一次 reconcileOnStart,恢复在场真仓与断腿状态。
@@ -321,6 +316,10 @@ func (r *UnifiedRotationRunner) runManageBinding(ctx context.Context, binding *r
 		r.logger.Printf("[统一轮动] 安全管理: strategy=%s", binding.strategyType)
 	}
 	binding.manageFn(ctx, r.isLive())
+	if r.delistGuard != nil {
+		r.delistGuard.Refresh(ctx)
+		r.delistGuard.manageBindingDelistCloses(ctx, binding, r.isLive())
+	}
 }
 
 func (r *UnifiedRotationRunner) maybeLogPaused() {
@@ -340,6 +339,28 @@ func (r *UnifiedRotationRunner) maybeLogPaused() {
 
 func (r *UnifiedRotationRunner) tickerInterval() time.Duration {
 	return 60 * time.Second
+}
+
+func (r *UnifiedRotationRunner) snapshotStale(scannedAt, now time.Time) bool {
+	if scannedAt.IsZero() {
+		return false
+	}
+	return now.Sub(scannedAt.UTC()) > rotationSnapshotMaxAge
+}
+
+func (r *UnifiedRotationRunner) maybeLogStaleSnapshot(scannedAt, now time.Time) {
+	if r == nil || r.logger == nil {
+		return
+	}
+	r.lastStaleSnapshotLogMu.Lock()
+	defer r.lastStaleSnapshotLogMu.Unlock()
+	interval := r.tickerInterval()
+	if !r.lastStaleSnapshotLogAt.IsZero() && now.Sub(r.lastStaleSnapshotLogAt) < interval {
+		return
+	}
+	age := crossVenueSnapshotAgeSeconds(scannedAt, now)
+	r.logger.Printf("[统一轮动] scanner 快照过旧 age=%.0fs, 跳过本轮", age)
+	r.lastStaleSnapshotLogAt = now
 }
 
 func (r *UnifiedRotationRunner) runOnceSafe(ctx context.Context) {
@@ -367,7 +388,6 @@ func (r *UnifiedRotationRunner) runOnce(ctx context.Context) error {
 	}
 	defer func() {
 		statusUpdate.Active = r.active.Load()
-		statusUpdate.Live = r.isLive()
 		statusUpdate.IntervalSeconds = int(r.tickerInterval().Seconds())
 		r.commitStatus(statusUpdate)
 	}()
@@ -381,7 +401,10 @@ func (r *UnifiedRotationRunner) runOnce(ctx context.Context) error {
 	if snapshotID == "" {
 		return nil
 	}
-	if snapshotID == r.lastSnapshotID {
+	if r.snapshotStale(snap.ScannedAt, cycleAt) {
+		age := crossVenueSnapshotAgeSeconds(snap.ScannedAt, cycleAt)
+		statusUpdate.LastError = fmt.Sprintf("scanner snapshot stale: age=%.0fs > max=%.0fs", age, rotationSnapshotMaxAge.Seconds())
+		r.maybeLogStaleSnapshot(snap.ScannedAt, cycleAt)
 		return nil
 	}
 	r.lastSnapshotID = snapshotID
@@ -395,9 +418,6 @@ func (r *UnifiedRotationRunner) runOnce(ctx context.Context) error {
 	held, heldInputs := r.collectHeldPositions(candidates)
 	statusUpdate.Held = len(held)
 	statusUpdate.RealHeldManaged = r.countRealHeldPositions(ctx)
-	if !r.isLive() && statusUpdate.RealHeldManaged > 0 && r.logger != nil {
-		r.logger.Printf("[统一轮动] shadow 模式: 仍在管理 %d 笔真实持仓", statusUpdate.RealHeldManaged)
-	}
 	freeAvailable := rotationFreeAvailableUSDT(available, held)
 	plan := r.runOnceDecisionAndDispatch(ctx, candidates, freeAvailable, held, heldInputs)
 	statusUpdate.Actions = countRotationActions(plan)
@@ -431,22 +451,29 @@ func (r *UnifiedRotationRunner) runOnceDecisionAndDispatch(
 	candidatesByID := indexUnifiedOpportunitiesByID(candidates)
 	toFund := rotationOpportunitiesToFund(plan, candidatesByID)
 	if len(toFund) > 0 {
-		balances := rotationWalletBalancesFromAvailable(available, held, r.execCfg)
-		routingPlan := PlanCapitalRouting(toFund, balances, r.capitalRouterCfg)
+		balances := rotationWalletBalancesFromAvailable(available, held, r.execCfg, r.venues)
+		routerCfg := CapitalRouterConfigWithVenues(r.capitalRouterCfg, r.venues)
+		routingPlan := PlanCapitalRouting(toFund, balances, routerCfg)
 		if r.logger != nil && len(routingPlan.WithinVenueTransfers) > 0 {
 			r.logger.Printf("[统一轮动] 资金路由: %d 笔所内划转 live=%v", len(routingPlan.WithinVenueTransfers), live)
 		}
-		executed, errs := ExecuteCapitalRouting(ctx, routingPlan, r.venues, live, r.logger)
+		execResult := ExecuteCapitalRouting(ctx, routingPlan, r.venues, live, r.logger)
 		if r.logger != nil {
-			r.logger.Printf("[统一轮动] 资金路由执行: executed=%d errs=%d live=%v", executed, len(errs), live)
-		}
-		for _, e := range errs {
-			if r.logger != nil {
-				r.logger.Printf("[统一轮动] 资金路由错误(已吞掉): %v", e)
-			}
+			r.logger.Printf("[统一轮动] 资金路由执行: executed=%d errs=%d live=%v", execResult.Executed, len(execResult.Errs), live)
 		}
 		unfundable := rotationUnfundableSet(routingPlan.Unfundable)
-		if len(unfundable) > 0 && r.logger != nil {
+		for _, e := range execResult.Errs {
+			if r.logger != nil {
+				r.logger.Printf("[统一轮动] 资金路由错误(阻断相关开仓): %v", e)
+			}
+		}
+		for _, id := range execResult.FailedTransferOpportunityIDs {
+			unfundable[id] = struct{}{}
+		}
+		if len(execResult.FailedTransferOpportunityIDs) > 0 && r.logger != nil {
+			r.logger.Printf("[统一轮动] 划转失败阻断开仓: %v", execResult.FailedTransferOpportunityIDs)
+		}
+		if len(routingPlan.Unfundable) > 0 && r.logger != nil {
 			r.logger.Printf("[统一轮动] 无法备资机会: %v", routingPlan.Unfundable)
 		}
 		r.dispatchRotationPlan(ctx, live, plan, candidatesByID, unfundable)
@@ -502,6 +529,49 @@ func (r *UnifiedRotationRunner) decideRotation(
 	return DecideRotation(held, heldInputs, candidates, available, r.rotationCfg)
 }
 
+// rotationScanFilterSymbols 从 funding 快照中筛出 max|rate| 达标的 symbol, 按 max|rate| 降序取前 rotationScanMaxSymbols 个。
+func rotationScanFilterSymbols(fundingByVenue map[string]map[string]CrossVenueSpotPerpFundingSnap) []string {
+	allSymbols := crossVenueSpotPerpCollectSymbols(fundingByVenue, nil)
+	if len(allSymbols) == 0 {
+		return nil
+	}
+	maxAbsBySym := make(map[string]float64, len(allSymbols))
+	for _, sym := range allSymbols {
+		maxAbs := 0.0
+		for _, bySym := range fundingByVenue {
+			entry, ok := bySym[sym]
+			if !ok {
+				continue
+			}
+			abs := entry.Rate
+			if abs < 0 {
+				abs = -abs
+			}
+			if abs > maxAbs {
+				maxAbs = abs
+			}
+		}
+		if maxAbs >= rotationScanMinAbsFundingRate {
+			maxAbsBySym[sym] = maxAbs
+		}
+	}
+	filtered := make([]string, 0, len(maxAbsBySym))
+	for sym := range maxAbsBySym {
+		filtered = append(filtered, sym)
+	}
+	sort.Slice(filtered, func(i, j int) bool {
+		ri, rj := maxAbsBySym[filtered[i]], maxAbsBySym[filtered[j]]
+		if ri != rj {
+			return ri > rj
+		}
+		return filtered[i] < filtered[j]
+	})
+	if len(filtered) > rotationScanMaxSymbols {
+		filtered = filtered[:rotationScanMaxSymbols]
+	}
+	return filtered
+}
+
 func (r *UnifiedRotationRunner) scanRotationCandidates(ctx context.Context, snap CrossVenueScanSnapshot) ([]UnifiedOpportunity, map[string]float64, error) {
 	if r != nil && r.scanCandidatesFn != nil {
 		return r.scanCandidatesFn(ctx, snap)
@@ -535,10 +605,25 @@ func (r *UnifiedRotationRunner) defaultScanRotationCandidates(ctx context.Contex
 	}
 
 	fundingByVenue := unifiedShadowFundingByVenueFromSnapshot(snap.FundingByVenue)
-	symbols := crossVenueSpotPerpCollectSymbols(fundingByVenue, nil)
+	symbols := rotationScanFilterSymbols(fundingByVenue)
+	if r.delistGuard != nil {
+		r.delistGuard.Refresh(ctx)
+	}
 	marketsByVenue := deps.fetchMarkets(ctx, r.venues, symbols)
 	availableUSDTByVenue := deps.fetchAvailableUSDT(ctx, r.venues, crossVenueExecutorVenues)
 	borrowDaily, borrowLimits := rotationBorrowMapsFromProbes(snap.BorrowProbes)
+
+	// 扫描器 sizing 必须扣掉与 allocator(rotationCanOpenOpportunity)一致的每所储备金,否则
+	// 扫描器会把仓位撑到 100% 可用资金,而 allocator 留 reserve 后就再也无法注资 → 净正候选永远开不出来。
+	// 这里给扫描器一份"扣掉储备金后的可用"用于定量;返回给 allocator 的仍是全额(allocator 自行扣储备)。
+	scannerAvailableUSDT := make(map[string]float64, len(availableUSDTByVenue))
+	for venueName, amt := range availableUSDTByVenue {
+		eff := amt - rotationReserveUSDT(r.rotationCfg, venueName)
+		if eff < 0 {
+			eff = 0
+		}
+		scannerAvailableUSDT[venueName] = eff
+	}
 
 	singleSpotPerp := ScanSingleVenueSpotPerpOpportunities(SingleVenueSpotPerpScanInput{
 		SnapshotID:           snapshotID,
@@ -547,7 +632,7 @@ func (r *UnifiedRotationRunner) defaultScanRotationCandidates(ctx context.Contex
 		Venues:               crossVenueExecutorVenues,
 		FundingByVenue:       fundingByVenue,
 		MarketsByVenue:       marketsByVenue,
-		AvailableUSDTByVenue: availableUSDTByVenue,
+		AvailableUSDTByVenue: scannerAvailableUSDT,
 		Config:               DefaultSingleVenueSpotPerpScannerConfig(r.execCfg),
 	})
 	crossSpotPerp := ScanCrossVenueSpotPerpOpportunities(CrossVenueSpotPerpScanInput{
@@ -556,7 +641,7 @@ func (r *UnifiedRotationRunner) defaultScanRotationCandidates(ctx context.Contex
 		Symbols:              symbols,
 		FundingByVenue:       fundingByVenue,
 		MarketsByVenue:       marketsByVenue,
-		AvailableUSDTByVenue: availableUSDTByVenue,
+		AvailableUSDTByVenue: scannerAvailableUSDT,
 		Config:               DefaultCrossVenueSpotPerpScannerConfig(r.execCfg),
 	})
 	singlePerpSpot := ScanSingleVenuePerpSpotOpportunities(SingleVenuePerpSpotScanInput{
@@ -566,7 +651,7 @@ func (r *UnifiedRotationRunner) defaultScanRotationCandidates(ctx context.Contex
 		Venues:                 crossVenueExecutorVenues,
 		FundingByVenue:         fundingByVenue,
 		MarketsByVenue:         marketsByVenue,
-		AvailableUSDTByVenue:   availableUSDTByVenue,
+		AvailableUSDTByVenue:   scannerAvailableUSDT,
 		BorrowDailyRateByAsset: borrowDaily,
 		BorrowLimitUSDTByAsset: borrowLimits,
 		Config:                 DefaultSingleVenuePerpSpotScannerConfig(r.execCfg),
@@ -577,7 +662,7 @@ func (r *UnifiedRotationRunner) defaultScanRotationCandidates(ctx context.Contex
 		Symbols:                symbols,
 		FundingByVenue:         fundingByVenue,
 		MarketsByVenue:         marketsByVenue,
-		AvailableUSDTByVenue:   availableUSDTByVenue,
+		AvailableUSDTByVenue:   scannerAvailableUSDT,
 		BorrowDailyRateByAsset: borrowDaily,
 		BorrowLimitUSDTByAsset: borrowLimits,
 		Config:                 DefaultCrossVenuePerpSpotScannerConfig(r.execCfg),
@@ -588,6 +673,10 @@ func (r *UnifiedRotationRunner) defaultScanRotationCandidates(ctx context.Contex
 	candidates = append(candidates, crossSpotPerp...)
 	candidates = append(candidates, singlePerpSpot...)
 	candidates = append(candidates, crossPerpSpot...)
+	if r.delistGuard != nil {
+		candidates = appendDelistRejectedCandidates(r.delistGuard, snapshotID, symbols, candidates)
+		candidates = applyDelistOpenGateToCandidates(r.delistGuard, candidates)
+	}
 
 	if r.includePerpPerpCandidates {
 		for _, opp := range snap.Opportunities {
@@ -710,8 +799,8 @@ func (r *UnifiedRotationRunner) closeHeldVerified(ctx context.Context, strategyT
 		return fmt.Errorf("无执行器绑定 strategy_type=%s", strategyType)
 	}
 	if r.logger != nil {
-		r.logger.Printf("[统一轮动] CLOSE(verified) %s %s shadow=%v reason=%s",
-			strategyType, symbol, !r.isLive(), reason)
+		r.logger.Printf("[统一轮动] CLOSE(verified) %s %s reason=%s",
+			strategyType, symbol, reason)
 	}
 	return binding.closeVerifiedFn(ctx, opportunityID, symbol, reason)
 }
@@ -885,8 +974,13 @@ func collectSingleVenueSpotPerpHeldRecords(ps []SingleVenueSpotPerpPosition, exe
 				StrategyType:           UnifiedStrategySingleVenueSpotPerp,
 				Symbol:                 p.Symbol,
 				CapitalRequiredByVenue: capital,
+				OpenedAt:               p.OpenedAt,
 			},
 			ContinuationInputs: rotationContinuationFromPosition(p.EstFundingUSDT, p.NotionalUSDT, execCfg, false),
+			delistLegs: []rotationDelistLeg{
+				{Venue: p.Venue, Market: venue.MarketSpot},
+				{Venue: p.Venue, Market: venue.MarketPerp},
+			},
 		})
 	}
 	return out
@@ -905,8 +999,13 @@ func collectCrossVenueSpotPerpHeldRecords(ps []CrossVenueSpotPerpPosition, execC
 				StrategyType:           UnifiedStrategyCrossVenueSpotPerp,
 				Symbol:                 p.Symbol,
 				CapitalRequiredByVenue: capital,
+				OpenedAt:               p.OpenedAt,
 			},
 			ContinuationInputs: rotationContinuationFromPosition(p.EstFundingUSDT, p.NotionalUSDT, execCfg, false),
+			delistLegs: []rotationDelistLeg{
+				{Venue: p.SpotVenue, Market: venue.MarketSpot},
+				{Venue: p.PerpVenue, Market: venue.MarketPerp},
+			},
 		})
 	}
 	return out
@@ -925,8 +1024,13 @@ func collectSingleVenuePerpSpotHeldRecords(ps []SingleVenuePerpSpotPosition, exe
 				StrategyType:           UnifiedStrategySingleVenuePerpSpot,
 				Symbol:                 p.Symbol,
 				CapitalRequiredByVenue: capital,
+				OpenedAt:               p.OpenedAt,
 			},
 			ContinuationInputs: rotationContinuationFromPosition(p.EstFundingUSDT, p.NotionalUSDT, execCfg, true),
+			delistLegs: []rotationDelistLeg{
+				{Venue: p.Venue, Market: venue.MarketSpot},
+				{Venue: p.Venue, Market: venue.MarketPerp},
+			},
 		})
 	}
 	return out
@@ -945,8 +1049,13 @@ func collectCrossVenuePerpSpotHeldRecords(ps []CrossVenuePerpSpotPosition, execC
 				StrategyType:           UnifiedStrategyCrossVenuePerpSpot,
 				Symbol:                 p.Symbol,
 				CapitalRequiredByVenue: capital,
+				OpenedAt:               p.OpenedAt,
 			},
 			ContinuationInputs: rotationContinuationFromPosition(p.EstFundingUSDT, p.NotionalUSDT, execCfg, true),
+			delistLegs: []rotationDelistLeg{
+				{Venue: p.SpotVenue, Market: venue.MarketSpot},
+				{Venue: p.PerpVenue, Market: venue.MarketPerp},
+			},
 		})
 	}
 	return out
@@ -1131,7 +1240,8 @@ func rotationAssignCrossVenueWalletSplit(out map[string]venueWalletRequirements,
 	out[perpVenue.venue] = perpReq
 }
 
-func rotationWalletBalancesFromAvailable(fetched map[string]float64, held []HeldPosition, execCfg CrossVenueExecutorConfig) VenueWalletBalances {
+func rotationWalletBalancesFromAvailable(fetched map[string]float64, held []HeldPosition, execCfg CrossVenueExecutorConfig, venues map[string]venue.Venue) VenueWalletBalances {
+	unified := UnifiedWalletVenuesFromVenues(venues)
 	totals := cloneVenueCapitalMap(fetched)
 	for _, pos := range held {
 		rotationAddCapitalMap(totals, pos.CapitalRequiredByVenue)
@@ -1152,6 +1262,10 @@ func rotationWalletBalancesFromAvailable(fetched map[string]float64, held []Held
 	out := VenueWalletBalances{}
 	for venue, total := range totals {
 		if total <= 0 {
+			continue
+		}
+		if unified[venue] {
+			out[venue] = map[WalletKind]float64{WalletKindSpot: total}
 			continue
 		}
 		needs := walletNeed[venue]
