@@ -97,17 +97,45 @@ health_ok() {
   [ "$code" = "200" ]
 }
 
-# ledger_has_hedges 返回 0 表示本地未平仓台账存在且含裸仓(空台账时引擎会删文件,故文件在即视为有内容,再核对 symbol 字段)。
-# 多 venue:币安主台账之外,也核对各 venue 子目录的 bybit_positions.json,任一有仓即视为有敞口。
+# ledger_has_hedges 返回 0 表示本地未平仓台账存在且含在场仓。
+# 覆盖:legacy live_open_hedges.json、五类策略 positions.json、各 venue bybit_positions.json。
+# 未覆盖:venue funding_positions.json 等单所专用台账(与 flatten CLI 范围一致,见 emergency_flatten.go)。
 ledger_has_hedges() {
   if [ -f "$OPEN_HEDGES_FILE" ] && grep -q '"symbol"' "$OPEN_HEDGES_FILE" 2>/dev/null; then
     return 0
   fi
+  for f in \
+    "$RECORD_DIR/crossvenue/positions.json" \
+    "$RECORD_DIR/single_venue_spot_perp/positions.json" \
+    "$RECORD_DIR/cross_venue_spot_perp/positions.json" \
+    "$RECORD_DIR/single_venue_perp_spot/positions.json" \
+    "$RECORD_DIR/cross_venue_perp_spot/positions.json"
+  do
+    if strategy_positions_file_has_active "$f"; then
+      return 0
+    fi
+  done
   for f in "$RECORD_DIR"/*/bybit_positions.json "$RECORD_DIR"/bybit_positions.json; do
     [ -f "$f" ] || continue
     if grep -q '"symbol"' "$f" 2>/dev/null; then return 0; fi
   done
   return 1
+}
+
+# strategy_positions_file_has_active 判断五类策略 positions.json 是否含非 closed 持仓。
+strategy_positions_file_has_active() {
+  f="$1"
+  [ -f "$f" ] || return 1
+  if command -v jq >/dev/null 2>&1; then
+    jq -e '
+      (if type == "array" then . elif .positions then .positions else [] end)
+      | map(select((.status // "") != "closed" and (.symbol // "") != ""))
+      | length > 0
+    ' "$f" >/dev/null 2>&1
+    return $?
+  fi
+  grep -q '"symbol"' "$f" 2>/dev/null || return 1
+  grep -E '"status"[[:space:]]*:[[:space:]]*"(open|opening_|closing|orphan)' "$f" >/dev/null 2>&1
 }
 
 # maybe_flatten_naked_positions 在「确认主进程已死 + 台账有裸仓 + 开关开启」时,于重启前触发一次应急强平兜底。

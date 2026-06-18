@@ -227,6 +227,7 @@ func (e *CrossVenueExecutor) appendCrossVenueSettlement(pos CrossVenuePosition) 
 			rec.Symbol, rec.NetPnL, rec.RealizedFunding, rec.TradePnL, rec.TotalFees,
 			rec.RollbackCost, rec.RebalanceCost, rec.OpenSlippage, rec.CloseSlippage)
 	}
+	appendAttributionRealizedBestEffort(e.recordDir, realizedRecordFromCrossVenueSettlement(rec))
 }
 
 func settlementExists(path, settlementID string) bool {
@@ -256,8 +257,8 @@ func settlementExists(path, settlementID string) bool {
 }
 
 // finalizeClosedCrossVenuePosition 平仓收尾:写资费台账 + 写结算归因 + 删持仓台账(best-effort,不影响主流程)。
-func (e *CrossVenueExecutor) finalizeClosedCrossVenuePosition(pos CrossVenuePosition) {
-	if e == nil {
+func (e *CrossVenueExecutor) finalizeClosedCrossVenuePosition(pos CrossVenuePosition, live bool) {
+	if e == nil || !realLedgerWritesAllowed(live) {
 		return
 	}
 	e.appendRealizedEarning(pos)

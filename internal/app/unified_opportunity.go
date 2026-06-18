@@ -6,11 +6,11 @@ import (
 )
 
 const (
-	UnifiedStrategyPerpPerp              = "perp_perp"
-	UnifiedStrategySingleVenueSpotPerp   = "single_venue_spot_perp"
-	UnifiedStrategyCrossVenueSpotPerp    = "cross_venue_spot_perp"
-	UnifiedStrategySingleVenuePerpSpot   = "single_venue_perp_spot"
-	UnifiedStrategyCrossVenuePerpSpot    = "cross_venue_perp_spot"
+	UnifiedStrategyPerpPerp            = "perp_perp"
+	UnifiedStrategySingleVenueSpotPerp = "single_venue_spot_perp"
+	UnifiedStrategyCrossVenueSpotPerp  = "cross_venue_spot_perp"
+	UnifiedStrategySingleVenuePerpSpot = "single_venue_perp_spot"
+	UnifiedStrategyCrossVenuePerpSpot  = "cross_venue_perp_spot"
 )
 
 // UnifiedOpportunityLeg 是统一机会结构的一条交易腿。
@@ -24,26 +24,29 @@ type UnifiedOpportunityLeg struct {
 
 // UnifiedOpportunity 是三类资金费机会的统一语义结构(shadow/组合层用,不改变现有 CrossVenueOpportunity)。
 type UnifiedOpportunity struct {
-	ID                       string             `json:"id"`
-	StrategyType             string             `json:"strategy_type"`
-	Symbol                   string             `json:"symbol"`
+	ID                       string                  `json:"id"`
+	StrategyType             string                  `json:"strategy_type"`
+	Symbol                   string                  `json:"symbol"`
 	Legs                     []UnifiedOpportunityLeg `json:"legs"`
-	ExpectedFundingUSDT      float64            `json:"expected_funding_usdt"`
-	ExpectedOpenCostUSDT     float64            `json:"expected_open_cost_usdt"`
-	ExpectedCloseCostUSDT    float64            `json:"expected_close_cost_usdt"`
-	ExpectedSlippageUSDT     float64            `json:"expected_slippage_usdt"`
-	ExpectedBorrowCostUSDT   float64            `json:"expected_borrow_cost_usdt"`
-	ExpectedRollbackCostUSDT float64            `json:"expected_rollback_cost_usdt"`
-	ExpectedNetEVUSDT        float64            `json:"expected_net_ev_usdt"`
-	ExpectedHoldHours        float64            `json:"expected_hold_hours"`
-	CapitalRequiredByVenue   map[string]float64 `json:"capital_required_by_venue"`
-	RiskScore                float64            `json:"risk_score"`
-	ExecutionScore           float64            `json:"execution_score"`
-	LiquidityScore           float64            `json:"liquidity_score"`
-	DataQualityScore         float64            `json:"data_quality_score"`
-	CapitalEfficiencyScore   float64            `json:"capital_efficiency_score"`
-	RejectReasons            []string           `json:"reject_reasons"`
-	RequiresRebalance        bool               `json:"requires_rebalance,omitempty"`
+	ExpectedFundingUSDT      float64                 `json:"expected_funding_usdt"`
+	ExpectedOpenCostUSDT     float64                 `json:"expected_open_cost_usdt"`
+	ExpectedCloseCostUSDT    float64                 `json:"expected_close_cost_usdt"`
+	ExpectedSlippageUSDT     float64                 `json:"expected_slippage_usdt"`
+	ExpectedBorrowCostUSDT   float64                 `json:"expected_borrow_cost_usdt"`
+	ExpectedRollbackCostUSDT float64                 `json:"expected_rollback_cost_usdt"`
+	ExpectedNetEVUSDT        float64                 `json:"expected_net_ev_usdt"`
+	ExpectedHoldHours        float64                 `json:"expected_hold_hours"`
+	CapitalRequiredByVenue   map[string]float64      `json:"capital_required_by_venue"`
+	RiskScore                float64                 `json:"risk_score"`
+	ExecutionScore           float64                 `json:"execution_score"`
+	LiquidityScore           float64                 `json:"liquidity_score"`
+	DataQualityScore         float64                 `json:"data_quality_score"`
+	CapitalEfficiencyScore   float64                 `json:"capital_efficiency_score"`
+	RejectReasons            []string                `json:"reject_reasons"`
+	RequiresRebalance        bool                    `json:"requires_rebalance,omitempty"`
+	// CandidateOnly 为 true 时仅作候选对比展示，不由统一轮动 OPEN/SWITCH 执行(路线 A: perp-perp)。
+	// 零值 false 表示可执行，避免误伤未标记的四类 carry 候选(Go bool 零值为 false，故不用 CanExecute)。
+	CandidateOnly bool `json:"candidate_only,omitempty"`
 }
 
 func unifiedOpportunityID(strategyType, symbol, snapshotID, highVenue, lowVenue string) string {
@@ -103,9 +106,9 @@ func UnifiedOpportunityFromCrossVenue(cfg CrossVenueExecutorConfig, opp CrossVen
 		reasons = append(reasons, opp.NoTradeReason)
 	}
 	return UnifiedOpportunity{
-		ID:                   unifiedOpportunityID(UnifiedStrategyPerpPerp, opp.Symbol, opp.SnapshotID, opp.HighVenue, opp.LowVenue),
-		StrategyType:         UnifiedStrategyPerpPerp,
-		Symbol:               opp.Symbol,
+		ID:           unifiedOpportunityID(UnifiedStrategyPerpPerp, opp.Symbol, opp.SnapshotID, opp.HighVenue, opp.LowVenue),
+		StrategyType: UnifiedStrategyPerpPerp,
+		Symbol:       opp.Symbol,
 		Legs: []UnifiedOpportunityLeg{
 			{Venue: opp.HighVenue, Market: "perp", Side: "short", Qty: qty, Notional: notionalUSDT},
 			{Venue: opp.LowVenue, Market: "perp", Side: "long", Qty: qty, Notional: notionalUSDT},

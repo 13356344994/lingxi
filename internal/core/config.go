@@ -130,7 +130,10 @@ type StrategyConfig struct {
 	MonitorInterval          time.Duration `cfg:"monitor_interval"`
 	MonitorStopLead          time.Duration `cfg:"monitor_stop_lead"`
 	LiveFundingDirectionMode string        `cfg:"live_funding_direction_mode"`
-	MinEstimatedFundingRate  float64       `cfg:"min_estimated_funding_rate"`
+	// StrategyMode 统一策略运行模式(见 core.StrategyMode):collect_data(默认)/canary_profit/profit_seeking。
+	// 驱动 RunMode 真钱规模、归因 run_mode 标签与成本闸严格度(ApplyStrategyModeToEconomics)。
+	StrategyMode            string  `cfg:"strategy_mode"`
+	MinEstimatedFundingRate float64 `cfg:"min_estimated_funding_rate"`
 	// PositiveMinEstimatedFundingRate 是「正 carry(短永续+买现货,免借币)」专用的海选地板线,与负 carry
 	// 解耦:正 carry 无借币利息、无可借性风险,理应用更低门槛。>0 时正 carry 走此值,负 carry 仍走
 	// MinEstimatedFundingRate;0=关闭(正负共用 MinEstimatedFundingRate,行为不变)。无论取何值,都仍被
@@ -206,10 +209,8 @@ type ExecutionConfig struct {
 	FuturesSTPMode                  string        `cfg:"futures_stp_mode"`
 	FuturesMarginType               string        `cfg:"futures_margin_type"`
 	FuturesLeverage                 int           `cfg:"futures_leverage"`
-	// ShadowTrading 为 true 时进入「影子(只读冒烟)」模式：引擎照常对接真实行情与账户、照常完成扫描/评估/
-	// 决策，但任何会改变交易所状态或动用资金的签名请求(下单/撤单/改杠杆/划转/借还币等一切非 GET)都会在
-	// 唯一咽喉点 signedRequest 被硬拦截、绝不触达交易所，只把下单意图落日志。用于实盘前抓灾难性 bug
-	// (下错方向/异常数量/失控循环)，而非校准经济阈值。默认 false。
+	// shadow_trading 为 true 时启用开发冒烟子命令(lingxi shadow):signedRequest 硬拦截一切非 GET,
+	// 用于实盘前抓灾难性 bug,**不是**生产运行模式。生产三态见 core.RunMode(OFF/CANARY_LIVE/LIVE)。
 	ShadowTrading bool `cfg:"shadow_trading"`
 	// --- S8-B 执行切片（TWAP/冰山，R13）。默认关闭：单发(现有行为)零变更。启用后,单腿名义超过
 	// SliceThresholdNotionalUSDT 的开仓按 TWAP 等分切片(每片 ≤ MaxSliceNotionalUSDT、间隔 SliceIntervalMs、
@@ -255,8 +256,10 @@ type RiskConfig struct {
 	PlatformCriticalCooldown      time.Duration `cfg:"platform_critical_cooldown"`
 	MaxRecoveryActionsPerCycle    int           `cfg:"max_recovery_actions_per_cycle"`
 	MaxDailyLossUSDT              float64       `cfg:"max_daily_loss_usdt"`
-	MaxDailyOrderCount            int           `cfg:"max_daily_order_count"`
-	MaxDailyOpenNotionalUSDT      float64       `cfg:"max_daily_open_notional_usdt"`
+	// MaxDailyLossPct 日亏硬停占真实现金权益比例;>0 时有效阈值=max(MaxDailyLossUSDT, pct×RealEquityTotalUSDT);0=仅 USDT。
+	MaxDailyLossPct          float64 `cfg:"max_daily_loss_pct"`
+	MaxDailyOrderCount       int     `cfg:"max_daily_order_count"`
+	MaxDailyOpenNotionalUSDT float64 `cfg:"max_daily_open_notional_usdt"`
 	// MaxConsecutiveLossCycles 是实盘连续亏损熔断阈值：当「按 funding 实收结算后的真实净利」连续为负的
 	// 周期数达到该值时，触发日级熔断、停止继续开仓，要求人工复核。0 表示关闭该维度。它对应回测里的
 	// MaxConsecutiveLosses，把同一条系统性失效保护从回测补齐到实盘，且只会停机（fail-safe），不会下新单。
@@ -266,6 +269,26 @@ type RiskConfig struct {
 	// 的盲区——日亏每个 UTC 日清零，抓不住「每天小亏、跨日慢性失血」累计掏空账户的情形。回撤额完全由已落盘
 	// 结算记录回放得出，无需权益基线、不依赖现货 mark-to-market，重启后可重算复原。0 表示关闭该维度。
 	MaxAccountDrawdownUSDT float64 `cfg:"max_account_drawdown_usdt"`
+	// MaxAccountDrawdownPct settlements 累计回撤占峰值权益比例;>0 时有效阈值=max(USDT, pct×RealEquityPeakUSDT);0=仅 USDT。
+	MaxAccountDrawdownPct float64 `cfg:"max_account_drawdown_pct"`
+	// MaxStrategyCumulativeLossUSDT 单策略累计已实现净亏硬停阈值(USDT):任一策略 settlements 累计净利
+	// ≤ -该值时触发一级硬停(停新开仓,在场仓继续 manage)。0 表示关闭。默认 35(见 defaults.go)。
+	MaxStrategyCumulativeLossUSDT float64 `cfg:"max_strategy_cumulative_loss_usdt"`
+	// MaxStrategyCumulativeLossPct 单策略累计净亏占当前权益比例;>0 时有效阈值=max(USDT, pct×RealEquityTotalUSDT);0=仅 USDT。
+	MaxStrategyCumulativeLossPct float64 `cfg:"max_strategy_cumulative_loss_pct"`
+	// MaxAccountOpenNotionalUSDT 账户级在场总名义硬停上限(USDT):五策略 open notional 之和 ≥ 该值时
+	// 触发一级硬停(非破坏性)。0 表示关闭。默认 1200(见 defaults.go)。
+	MaxAccountOpenNotionalUSDT float64 `cfg:"max_account_open_notional_usdt"`
+	// MaxGrossLeverage 在场总名义相对真实现金权益的总杠杆倍数;>0 时有效上限=max(USDT, leverage×RealEquityTotalUSDT)。
+	MaxGrossLeverage float64 `cfg:"max_gross_leverage"`
+	// AutoFlattenOnHardDrawdownEnabled 二级自动全平(opt-in):仅当 equity_snapshots 真实现金权益自高水位
+	// 回撤 ≥ AutoFlattenAccountDrawdownUSDT 时 halt+flatten。默认 false(零行为变更)。
+	AutoFlattenOnHardDrawdownEnabled bool `cfg:"auto_flatten_on_hard_drawdown_enabled"`
+	// AutoFlattenAccountDrawdownUSDT 二级自动全平阈值(USDT):须明显高于 MaxAccountDrawdownUSDT;
+	// 仅基于 equity_snapshots 真实现金回撤,不用 settlements(避免 HEI 类假亏误触发)。0 表示关闭。默认 150。
+	AutoFlattenAccountDrawdownUSDT float64 `cfg:"auto_flatten_account_drawdown_usdt"`
+	// AutoFlattenAccountDrawdownPct 二级全平占真实现金峰值权益比例;>0 时有效阈值=max(USDT, pct×RealEquityPeakUSDT);0=仅 USDT。
+	AutoFlattenAccountDrawdownPct float64 `cfg:"auto_flatten_account_drawdown_pct"`
 	// HedgeImbalanceAbortUSDT / HedgeImbalanceAbortRate 是 Gate 4 关键不变量守卫的阈值：
 	// 当 |现货腿名义 − 合约腿名义| 的绝对值(USDT)或相对比例超过阈值时立即熔断，防止裸敞口。
 	// 默认 0 表示该维度不启用（不改变既有行为，opt-in）。
@@ -557,7 +580,7 @@ type EngineConfig struct {
 type CrossVenueExecutorConfig struct {
 	// Enabled 启用执行引擎 goroutine。默认 false;false 时不启动。
 	Enabled bool `cfg:"enabled"`
-	// LiveTradingEnabled 主安全闸:false=影子(完整闸门+协议但不下单);true=真实下单。默认 false。
+	// LiveTradingEnabled 主安全闸:false=OFF(完整闸门+协议但不下单);true=真钱(LIVE/CANARY)。默认 false。
 	LiveTradingEnabled bool `cfg:"live_trading_enabled"`
 	// LoopIntervalSeconds 主循环周期(秒)。默认 60。
 	LoopIntervalSeconds int `cfg:"loop_interval_seconds"`
@@ -577,8 +600,14 @@ type CrossVenueExecutorConfig struct {
 	MaxBookSpreadBps float64 `cfg:"max_book_spread_bps"`
 	// MaxOpenSlippageBps 开仓前按 max_position_usdt 模拟吃单,任一腿预估滑点超此阈值则拒开。默认 15。
 	MaxOpenSlippageBps float64 `cfg:"max_open_slippage_bps"`
-	// SlippageBudgetBps IOC 限价相对对手价的滑点预算(bps)。默认 20。
+	// SlippageBudgetBps 滑点统一基准(bps):sizing/gate/EV 回退/IOC 第一腿均由此派生。默认 20;0=legacy(退回各独立常量)。
 	SlippageBudgetBps float64 `cfg:"slippage_budget_bps"`
+	// SlippageGateFactor 开仓 gate 拒开阈值 = SlippageBudgetBps×此系数。默认 0.75(20→15bps)。
+	SlippageGateFactor float64 `cfg:"slippage_gate_factor"`
+	// SlippageExecutionSafetyFactor 执行吃单 IOC = SlippageBudgetBps×此系数(须≥1,硬顶 100bps)。默认 2(20→40bps)。
+	SlippageExecutionSafetyFactor float64 `cfg:"slippage_execution_safety_factor"`
+	// SlippageCloseMaxMultiplier 平仓阶梯穿价上限 = SlippageBudgetBps×此系数。默认 12.5(20→250bps)。
+	SlippageCloseMaxMultiplier float64 `cfg:"slippage_close_max_multiplier"`
 	// TakerSlippageBudgetBps 吃单腿(第二腿/回滚/平仓/降风险)IOC 限价滑点预算(bps),须宽于 SlippageBudgetBps
 	// 以穿价成交;第一腿仍用 SlippageBudgetBps。0=回退与 SlippageBudgetBps 相同。默认 40。
 	TakerSlippageBudgetBps float64 `cfg:"taker_slippage_budget_bps"`
@@ -596,6 +625,12 @@ type CrossVenueExecutorConfig struct {
 	MidPriceDeviationMax float64 `cfg:"mid_price_deviation_max"`
 	// DepthUsageRatio 名义额占头部 3 档深度比例上限。默认 0.20。
 	DepthUsageRatio float64 `cfg:"depth_usage_ratio"`
+	// SizingMaxSlippageBps 流动性自适应单仓:沿盘口吃单滑点预算(bps),与 depth 项共同约束名义上限。默认 20;0=关闭(退化为旧 depth_usage_ratio)。
+	SizingMaxSlippageBps float64 `cfg:"sizing_max_slippage_bps"`
+	// SizingMaxParticipationPct24h 流动性自适应单仓:≤ participation × 24h 成交量(USDT)。默认 0.01(1%);0=关闭。
+	SizingMaxParticipationPct24h float64 `cfg:"sizing_max_participation_pct_24h"`
+	// SizingConservativeNoDepthFactor 无深度/24h 量等流动性数据时单仓名义 = max_position × 此系数(宁可少开也不盲满额);1.0=legacy 满额;默认 0.25。
+	SizingConservativeNoDepthFactor float64 `cfg:"sizing_conservative_no_depth_factor"`
 	// SymbolCooldownHours 回滚失败后 symbol 冷却(小时)。默认 1。
 	SymbolCooldownHours int `cfg:"symbol_cooldown_hours"`
 	// PerpMarginTopUpBuffer 开仓前自动划转永续保证金时的安全系数(只补差额×buffer)。默认 1.05。
@@ -688,6 +723,12 @@ type UnifiedRotationConfig struct {
 	ContinuationCloseThreshold float64 `cfg:"continuation_close_threshold"`
 	// ContinuationMinHoldSeconds 开仓后至少持有此秒数才允许续持分触发的软 CLOSE;风险类平仓不受限。默认 3600。
 	ContinuationMinHoldSeconds int `cfg:"continuation_min_hold_seconds"`
+	// TotalDeployableUSDT 全局可部署资金上限(USDT);0=不单独设限,仅用账户可用合计−储备作为预算基数。
+	TotalDeployableUSDT float64 `cfg:"total_deployable_usdt"`
+	// TotalDeployablePct 全局可部署预算占真实现金权益比例;>0 且 equity>0 时有效上限=pct×RealEquityTotalUSDT;否则退回 USDT。
+	TotalDeployablePct float64 `cfg:"total_deployable_pct"`
+	// MaxStrategyCapitalUsagePct 单策略占用占全局可部署预算的比例上限;0=不限。
+	MaxStrategyCapitalUsagePct float64 `cfg:"max_strategy_capital_usage_pct"`
 }
 
 // VenueFundingExecutorConfig 是 OKX/Gate 单所正费率执行器参数(正 carry:空永续+买现货,跨结算持有)。
@@ -720,7 +761,7 @@ type VenueFundingExecutorConfig struct {
 
 // BybitExecutorConfig 是 Bybit 精简执行器的可调参数。所有阈值默认保守;LiveTradingEnabled 是真实下单的总开关。
 type BybitExecutorConfig struct {
-	// LiveTradingEnabled 主安全闸:false=shadow(只规划+日志,绝不下单);true=真实下单。默认 false。
+	// LiveTradingEnabled 主安全闸:false=OFF(只规划+日志,绝不下单);true=真钱。默认 false。
 	LiveTradingEnabled bool `cfg:"live_trading_enabled"`
 	// TopN 每周期最多并发开仓的标的数(正费率降序取前 N)。默认 1(最保守,先验证单标的闭环)。
 	TopN int `cfg:"top_n"`
@@ -877,6 +918,7 @@ func (cfg EngineConfig) Validate() error {
 	appendIssue(cfg.StrategyConfig.MonitorStopLead > 0, "MonitorStopLead 必须大于 0")
 	appendIssue(cfg.StrategyConfig.MonitorStopLead < cfg.StrategyConfig.ScanWindow, "MonitorStopLead 必须小于 ScanWindow")
 	appendIssue(isValidCoreLiveFundingDirectionMode(cfg.StrategyConfig.LiveFundingDirectionMode), "LiveFundingDirectionMode 必须是 positive_only、negative_only 或 both")
+	appendIssue(IsValidStrategyMode(cfg.StrategyConfig.StrategyMode), "StrategyMode 必须是 collect_data、canary_profit 或 profit_seeking")
 	appendIssue(cfg.StrategyConfig.MinEstimatedFundingRate > 0, "MinEstimatedFundingRate 必须大于 0")
 	appendIssue(cfg.StrategyConfig.MaxEstimatedFundingRate > cfg.StrategyConfig.MinEstimatedFundingRate, "MaxEstimatedFundingRate 必须大于 MinEstimatedFundingRate")
 	appendIssue(cfg.StrategyConfig.MaxFundingRateJump > 0, "MaxFundingRateJump 必须大于 0")
@@ -924,6 +966,11 @@ func (cfg EngineConfig) Validate() error {
 	}
 	appendIssue(cfg.RiskConfig.MaxConsecutiveLossCycles >= 0, "MaxConsecutiveLossCycles 不能小于 0（0 表示关闭连续亏损熔断）")
 	appendIssue(cfg.RiskConfig.MaxAccountDrawdownUSDT >= 0, "MaxAccountDrawdownUSDT 不能小于 0（0 表示关闭账户级回撤熔断）")
+	appendIssue(cfg.RiskConfig.MaxDailyLossPct >= 0, "MaxDailyLossPct 不能小于 0（0 表示仅使用 MaxDailyLossUSDT）")
+	appendIssue(cfg.RiskConfig.MaxAccountDrawdownPct >= 0, "MaxAccountDrawdownPct 不能小于 0")
+	appendIssue(cfg.RiskConfig.MaxStrategyCumulativeLossPct >= 0, "MaxStrategyCumulativeLossPct 不能小于 0")
+	appendIssue(cfg.RiskConfig.MaxGrossLeverage >= 0, "MaxGrossLeverage 不能小于 0（0 表示仅使用 MaxAccountOpenNotionalUSDT）")
+	appendIssue(cfg.RiskConfig.AutoFlattenAccountDrawdownPct >= 0, "AutoFlattenAccountDrawdownPct 不能小于 0")
 
 	appendIssue(cfg.RiskConfig.MinNetProfitRate > 0, "MinNetProfitRate 必须大于 0")
 	appendIssue(cfg.RiskConfig.ImmediateInvalidateRate > 0, "ImmediateInvalidateRate 必须大于 0")

@@ -1,0 +1,783 @@
+package app
+
+import (
+	"bufio"
+	"context"
+	"encoding/json"
+	"fmt"
+	"log"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+	"sync/atomic"
+	"time"
+
+	"lingxi/internal/money"
+)
+
+const (
+	accountRiskWatchFileName = "account_risk_watch.json"
+	accountRiskWatchInterval = 60 * time.Second
+
+	// defaultMaxStrategyCumulativeLossUSDT 单策略累计净亏一级硬停默认(数百 U 账户;可被 RiskConfig 覆盖)。
+	defaultMaxStrategyCumulativeLossUSDT = 35.0
+	// defaultMaxAccountOpenNotionalUSDT 在场总名义一级硬停默认(略低于 MaxDailyOpenNotionalUSDT 1500)。
+	defaultMaxAccountOpenNotionalUSDT = 1200.0
+	// defaultAutoFlattenAccountDrawdownUSDT 二级自动全平默认:明显高于一级 MaxAccountDrawdownUSDT(60)。
+	defaultAutoFlattenAccountDrawdownUSDT = 150.0
+)
+
+// accountRiskSnapshot 单次观测的账户级风险视图。
+type accountRiskSnapshot struct {
+	ObservedAt             time.Time          `json:"observed_at"`
+	DayStartCST            time.Time          `json:"day_start_cst"`
+	DailyRealizedPnLUSDT   float64            `json:"daily_realized_pnl_usdt"`
+	DailyEquityDeltaUSDT   float64            `json:"daily_equity_delta_usdt"`
+	VenueEquityDeltas      map[string]float64 `json:"venue_equity_deltas,omitempty"`
+	CumulativeRealizedPnL  float64            `json:"cumulative_realized_pnl_usdt"`
+	RealizedPnLPeakUSDT    float64            `json:"realized_pnl_peak_usdt"`
+	AccountDrawdownUSDT    float64            `json:"account_drawdown_usdt"`
+	StrategyNetPnL         map[string]float64 `json:"strategy_net_pnl,omitempty"`
+	RealEquityTotalUSDT    float64            `json:"real_equity_total_usdt"`
+	RealEquityPeakUSDT     float64            `json:"real_equity_peak_usdt"`
+	RealEquityDrawdownUSDT float64            `json:"real_equity_drawdown_usdt"`
+	OpenPositionCount      int                `json:"open_position_count"`
+	OpenNotionalUSDT       float64            `json:"open_notional_usdt"`
+	PositionsByStrategy    map[string]int     `json:"positions_by_strategy,omitempty"`
+}
+
+// accountRiskThresholdResult 阈值判定结果(Stage A 告警 + Stage B 硬停输入)。
+type accountRiskThresholdResult struct {
+	DailyLossBreached bool   `json:"daily_loss_breached"`
+	DailyLossReason   string `json:"daily_loss_reason,omitempty"`
+	DrawdownBreached  bool   `json:"drawdown_breached"`
+	DrawdownReason    string `json:"drawdown_reason,omitempty"`
+	AnyBreached       bool   `json:"any_breached"`
+}
+
+// accountHardHaltIntent 一级硬停判定(纯函数输出,无副作用;非破坏性,仅停新开仓)。
+type accountHardHaltIntent struct {
+	ShouldHalt            bool     `json:"should_halt"`
+	Reasons               []string `json:"reasons,omitempty"`
+	DailyLossBreached     bool     `json:"daily_loss_breached"`
+	SettlementDrawdownHit bool     `json:"settlement_drawdown_hit"`
+	StrategyLossBreached  bool     `json:"strategy_loss_breached"`
+	OpenNotionalBreached  bool     `json:"open_notional_breached"`
+}
+
+// accountAutoFlattenIntent 二级自动全平判定(纯函数;仅认 equity_snapshots 真实现金回撤)。
+type accountAutoFlattenIntent struct {
+	ShouldFlatten bool   `json:"should_flatten"`
+	Reason        string `json:"reason,omitempty"`
+}
+
+// persistedAccountRiskWatch 观测快照持久化(records/account_risk_watch.json)。
+type persistedAccountRiskWatch struct {
+	Wired                  bool                       `json:"wired"`
+	UpdatedAt              time.Time                  `json:"updated_at"`
+	Snapshot               accountRiskSnapshot        `json:"snapshot"`
+	Thresholds             accountRiskThresholdResult `json:"thresholds"`
+	HardHalt               accountHardHaltIntent      `json:"hard_halt"`
+	AutoFlatten            accountAutoFlattenIntent   `json:"auto_flatten"`
+	MaxDailyLossUSDT       float64                    `json:"max_daily_loss_usdt"`
+	MaxAccountDrawdownUSDT float64                    `json:"max_account_drawdown_usdt"`
+}
+
+// accountRiskWatcher 账户级风险 watcher:Stage B 一级硬停 + 二级 opt-in 自动全平。
+type accountRiskWatcher struct {
+	cfg       EngineConfig
+	recordDir string
+	alerts    *AlertDispatcher
+	logger    *log.Logger
+	nowFn     func() time.Time
+
+	crossVenue *CrossVenueExecutor
+	svsp       *SingleVenueSpotPerpExecutor
+	cvsp       *CrossVenueSpotPerpExecutor
+	svps       *SingleVenuePerpSpotExecutor
+	cvps       *CrossVenuePerpSpotExecutor
+
+	settlementFn func() ([]strategySettlementRecord, error)
+	equityFn     func(now time.Time) (total float64, byVenue map[string]float64)
+	positionFn   func() accountRiskPositionSummary
+	realEquityFn func(recordDir string) (current, peak, drawdown float64)
+	notifyFn     func(title, detail string)
+
+	// Stage B 执行依赖(生产由 newAccountRiskWatcher 绑定;单测注入 mock)。
+	haltFn              func(reason string) error
+	setRotationActiveFn func(on bool)
+	flattenFn           func(ctx context.Context) error
+	autoFlattenDone     atomic.Bool
+}
+
+type accountRiskPositionSummary struct {
+	TotalCount   int
+	OpenNotional float64
+	ByStrategy   map[string]int
+}
+
+type accountRiskWatchConfig struct {
+	Cfg            EngineConfig
+	RecordDir      string
+	Logger         *log.Logger
+	ControlPlane   *ControlPlane
+	RotationRunner *UnifiedRotationRunner
+	CrossVenue     *CrossVenueExecutor
+	SVSP           *SingleVenueSpotPerpExecutor
+	CVSP           *CrossVenueSpotPerpExecutor
+	SVPS           *SingleVenuePerpSpotExecutor
+	CVPS           *CrossVenuePerpSpotExecutor
+}
+
+func newAccountRiskWatcher(c accountRiskWatchConfig) *accountRiskWatcher {
+	logger := c.Logger
+	if logger == nil {
+		logger = log.Default()
+	}
+	w := &accountRiskWatcher{
+		cfg:        c.Cfg,
+		recordDir:  strings.TrimSpace(c.RecordDir),
+		alerts:     newAlertDispatcher(c.Cfg.AlertingConfig, logger),
+		logger:     logger,
+		nowFn:      time.Now,
+		crossVenue: c.CrossVenue,
+		svsp:       c.SVSP,
+		cvsp:       c.CVSP,
+		svps:       c.SVPS,
+		cvps:       c.CVPS,
+	}
+	w.bindDefaultSources()
+	w.bindDefaultActions(c)
+	return w
+}
+
+func (w *accountRiskWatcher) bindDefaultSources() {
+	if w == nil {
+		return
+	}
+	w.settlementFn = func() ([]strategySettlementRecord, error) {
+		return loadStrategySettlementRecordsFromDir(w.recordDir)
+	}
+	w.equityFn = func(now time.Time) (float64, map[string]float64) {
+		if w.crossVenue != nil {
+			deltas, _, _, _, _ := w.crossVenue.TodayCSTEquityDeltas(now)
+			var total float64
+			for _, d := range deltas {
+				total = money.SumUSDT(total, d)
+			}
+			return total, deltas
+		}
+		total, byVenue := readEquitySnapshotTotalDelta(w.recordDir, beijingCSTDayStart(now))
+		return total, byVenue
+	}
+	w.realEquityFn = computeRealEquityWaterMark
+	w.positionFn = w.collectPositionSummary
+	w.notifyFn = w.emitCriticalAlert
+}
+
+func (w *accountRiskWatcher) bindDefaultActions(c accountRiskWatchConfig) {
+	if w == nil {
+		return
+	}
+	if c.ControlPlane != nil {
+		cp := c.ControlPlane
+		w.haltFn = func(reason string) error {
+			return cp.SetGlobalHalt(true)
+		}
+	}
+	if c.RotationRunner != nil {
+		runner := c.RotationRunner
+		w.setRotationActiveFn = runner.SetActive
+	}
+	deps := strategyFlattenDeps{
+		CrossVenue: c.CrossVenue,
+		SVSP:       c.SVSP,
+		CVSP:       c.CVSP,
+		SVPS:       c.SVPS,
+		CVPS:       c.CVPS,
+	}
+	w.flattenFn = func(ctx context.Context) error {
+		flattenAllStrategyPositions(ctx, deps)
+		return nil
+	}
+}
+
+func startAccountRiskWatcher(ctx context.Context, c accountRiskWatchConfig) {
+	w := newAccountRiskWatcher(c)
+	if w.logger != nil {
+		w.logger.Printf("[账户风控] 已启动: interval=%s (Stage B:一级硬停默认启用,二级 flatten opt-in 默认关闭)",
+			accountRiskWatchInterval)
+	}
+	w.tickOnce()
+	ticker := time.NewTicker(accountRiskWatchInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			w.tickOnce()
+		}
+	}
+}
+
+func (w *accountRiskWatcher) tickOnce() {
+	if w == nil {
+		return
+	}
+	now := w.nowFn().UTC()
+	snap := w.buildSnapshot(now)
+	thresholds := evaluateAccountRiskThresholds(snap, w.cfg.RiskConfig)
+	haltIntent := evaluateAccountHardHaltIntent(snap, w.cfg.RiskConfig)
+	flattenIntent := evaluateAccountAutoFlattenIntent(snap, w.cfg.RiskConfig)
+	w.persistObservation(snap, thresholds, haltIntent, flattenIntent)
+
+	manualRecoveryHint := "需人工确认后通过面板 START 或清除 global_halt 解除(不自动解除)"
+
+	if haltIntent.ShouldHalt {
+		detail := strings.Join(haltIntent.Reasons, "; ") + " [Stage B:一级硬停,已停新开仓,在场仓继续 manage; " + manualRecoveryHint + "]"
+		if w.haltFn != nil {
+			if err := w.haltFn(detail); err != nil && w.logger != nil {
+				w.logger.Printf("[账户风控] SetGlobalHalt 失败: %v", err)
+			}
+		}
+		w.notifyFn("账户级硬停(一级)", detail)
+	} else if thresholds.AnyBreached {
+		for _, intent := range accountRiskAlertIntents(thresholds) {
+			w.notifyFn(intent.Title, intent.Detail)
+		}
+	}
+
+	if flattenIntent.ShouldFlatten && w.flattenFn != nil && !w.autoFlattenDone.Load() {
+		detail := flattenIntent.Reason + " [Stage B:二级自动全平; " + manualRecoveryHint + "]"
+		if w.haltFn != nil {
+			if err := w.haltFn(detail); err != nil && w.logger != nil {
+				w.logger.Printf("[账户风控] flatten 前 SetGlobalHalt 失败: %v", err)
+			}
+		}
+		if w.setRotationActiveFn != nil {
+			w.setRotationActiveFn(false)
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer cancel()
+		if err := w.flattenFn(ctx); err != nil {
+			if w.logger != nil {
+				w.logger.Printf("[账户风控] 自动全平失败: %v", err)
+			}
+			w.notifyFn("账户级自动全平失败(二级)", detail+" err="+err.Error())
+			return
+		}
+		w.autoFlattenDone.Store(true)
+		if w.logger != nil {
+			w.logger.Printf("[critical][账户风控] 二级自动全平已触发(幂等,后续 tick 不再重复 flatten)")
+		}
+		w.notifyFn("账户级自动全平(二级)", detail)
+		return
+	}
+
+	if !haltIntent.ShouldHalt && !thresholds.AnyBreached && !flattenIntent.ShouldFlatten && w.logger != nil {
+		w.logger.Printf("[账户风控] OK daily_equity_delta=%.4f daily_realized=%.4f settlement_dd=%.4f real_equity_dd=%.4f positions=%d notional=%.2f",
+			snap.DailyEquityDeltaUSDT, snap.DailyRealizedPnLUSDT, snap.AccountDrawdownUSDT, snap.RealEquityDrawdownUSDT,
+			snap.OpenPositionCount, snap.OpenNotionalUSDT)
+	}
+}
+
+func (w *accountRiskWatcher) buildSnapshot(now time.Time) accountRiskSnapshot {
+	dayStart := beijingCSTDayStart(now)
+	records, _ := w.settlementFn()
+	daily := aggregateStrategySettlementsInRange(records, dayStart, now)
+	allTime := aggregateStrategySettlementsInRange(records, time.Time{}, now)
+	equityDelta, venueDeltas := w.equityFn(now)
+	cumulative, peak, drawdown := computeRealizedPnLWaterMark(records)
+	pos := w.positionFn()
+	realCurrent, realPeak, realDrawdown := w.realEquityFn(w.recordDir)
+
+	return accountRiskSnapshot{
+		ObservedAt:             now,
+		DayStartCST:            dayStart,
+		DailyRealizedPnLUSDT:   daily.TotalNetPnL,
+		DailyEquityDeltaUSDT:   equityDelta,
+		VenueEquityDeltas:      venueDeltas,
+		CumulativeRealizedPnL:  cumulative,
+		RealizedPnLPeakUSDT:    peak,
+		AccountDrawdownUSDT:    drawdown,
+		StrategyNetPnL:         allTime.ByStrategy,
+		RealEquityTotalUSDT:    realCurrent,
+		RealEquityPeakUSDT:     realPeak,
+		RealEquityDrawdownUSDT: realDrawdown,
+		OpenPositionCount:      pos.TotalCount,
+		OpenNotionalUSDT:       pos.OpenNotional,
+		PositionsByStrategy:    pos.ByStrategy,
+	}
+}
+
+// evaluateAccountRiskThresholds 纯函数:对比 RiskConfig 阈值,产出 Stage A 告警意图(无副作用)。
+func evaluateAccountRiskThresholds(snap accountRiskSnapshot, cfg RiskConfig) accountRiskThresholdResult {
+	var res accountRiskThresholdResult
+	lossLimit := effectiveMaxDailyLossUSDT(cfg, snap.RealEquityTotalUSDT)
+	if lossLimit > 0 && snap.DailyEquityDeltaUSDT <= -lossLimit {
+		res.DailyLossBreached = true
+		res.DailyLossReason = fmt.Sprintf(
+			"当日权益变化 %.4f USDT 已超过阈值 %.4f USDT(已实现 %.4f,持仓 %d 名义 %.2f)",
+			snap.DailyEquityDeltaUSDT, lossLimit, snap.DailyRealizedPnLUSDT,
+			snap.OpenPositionCount, snap.OpenNotionalUSDT,
+		)
+	}
+	drawdownLimit := effectiveMaxAccountDrawdownUSDT(cfg, snap.RealEquityPeakUSDT)
+	if drawdownLimit > 0 && snap.AccountDrawdownUSDT >= drawdownLimit {
+		res.DrawdownBreached = true
+		res.DrawdownReason = fmt.Sprintf(
+			"settlements 累计净利回撤 %.4f USDT 已达到阈值 %.4f USDT(自高水位 %.4f 累计 %.4f)",
+			snap.AccountDrawdownUSDT, drawdownLimit, snap.RealizedPnLPeakUSDT, snap.CumulativeRealizedPnL,
+		)
+	}
+	res.AnyBreached = res.DailyLossBreached || res.DrawdownBreached
+	return res
+}
+
+// evaluateAccountHardHaltIntent 纯函数:一级硬停判定(非破坏性;任一条件触发即 ShouldHalt)。
+func evaluateAccountHardHaltIntent(snap accountRiskSnapshot, cfg RiskConfig) accountHardHaltIntent {
+	var intent accountHardHaltIntent
+
+	lossLimit := effectiveMaxDailyLossUSDT(cfg, snap.RealEquityTotalUSDT)
+	if lossLimit > 0 && snap.DailyEquityDeltaUSDT <= -lossLimit {
+		intent.DailyLossBreached = true
+		intent.Reasons = append(intent.Reasons, fmt.Sprintf(
+			"日权益回撤 %.4f ≥ MaxDailyLossUSDT %.4f", -snap.DailyEquityDeltaUSDT, lossLimit))
+	}
+
+	drawdownLimit := effectiveMaxAccountDrawdownUSDT(cfg, snap.RealEquityPeakUSDT)
+	if drawdownLimit > 0 && snap.AccountDrawdownUSDT >= drawdownLimit {
+		intent.SettlementDrawdownHit = true
+		intent.Reasons = append(intent.Reasons, fmt.Sprintf(
+			"settlements 回撤 %.4f ≥ MaxAccountDrawdownUSDT %.4f", snap.AccountDrawdownUSDT, drawdownLimit))
+	}
+
+	strategyLimit := effectiveMaxStrategyCumulativeLossUSDT(cfg, snap.RealEquityTotalUSDT)
+	if strategyLimit > 0 {
+		for strategy, pnl := range snap.StrategyNetPnL {
+			if pnl <= -strategyLimit {
+				intent.StrategyLossBreached = true
+				intent.Reasons = append(intent.Reasons, fmt.Sprintf(
+					"策略 %s 累计净利 %.4f ≤ -MaxStrategyCumulativeLossUSDT %.4f", strategy, pnl, strategyLimit))
+			}
+		}
+	}
+
+	notionalLimit := effectiveMaxAccountOpenNotionalUSDT(cfg, snap.RealEquityTotalUSDT)
+	if notionalLimit > 0 && snap.OpenNotionalUSDT >= notionalLimit {
+		intent.OpenNotionalBreached = true
+		intent.Reasons = append(intent.Reasons, fmt.Sprintf(
+			"在场名义 %.4f ≥ MaxAccountOpenNotionalUSDT %.4f", snap.OpenNotionalUSDT, notionalLimit))
+	}
+
+	intent.ShouldHalt = len(intent.Reasons) > 0
+	return intent
+}
+
+// evaluateAccountAutoFlattenIntent 纯函数:二级自动全平(opt-in + 高阈值 + 仅认 equity_snapshots 真实现金回撤)。
+func evaluateAccountAutoFlattenIntent(snap accountRiskSnapshot, cfg RiskConfig) accountAutoFlattenIntent {
+	if !cfg.AutoFlattenOnHardDrawdownEnabled {
+		return accountAutoFlattenIntent{}
+	}
+	limit := effectiveAutoFlattenAccountDrawdownUSDT(cfg, snap.RealEquityPeakUSDT)
+	if limit <= 0 || snap.RealEquityDrawdownUSDT < limit {
+		return accountAutoFlattenIntent{}
+	}
+	return accountAutoFlattenIntent{
+		ShouldFlatten: true,
+		Reason: fmt.Sprintf(
+			"真实现金权益回撤 %.4f USDT ≥ AutoFlattenAccountDrawdownUSDT %.4f (current=%.4f peak=%.4f;不用 settlements)",
+			snap.RealEquityDrawdownUSDT, limit, snap.RealEquityTotalUSDT, snap.RealEquityPeakUSDT),
+	}
+}
+
+type accountRiskAlertIntent struct {
+	Title  string
+	Detail string
+}
+
+func accountRiskAlertIntents(result accountRiskThresholdResult) []accountRiskAlertIntent {
+	if !result.AnyBreached {
+		return nil
+	}
+	var out []accountRiskAlertIntent
+	if result.DailyLossBreached {
+		out = append(out, accountRiskAlertIntent{
+			Title:  "账户日亏阈值(观测)",
+			Detail: result.DailyLossReason + " [未绑定 haltFn 时仅告警]",
+		})
+	}
+	if result.DrawdownBreached {
+		out = append(out, accountRiskAlertIntent{
+			Title:  "账户回撤阈值(观测)",
+			Detail: result.DrawdownReason + " [未绑定 haltFn 时仅告警]",
+		})
+	}
+	return out
+}
+
+// computeRealEquityWaterMark 从 equity_snapshots 回放各所 USDT 现金总和,得当前/峰值/回撤(真实现金口径)。
+func computeRealEquityWaterMark(recordDir string) (current, peak, drawdown float64) {
+	path := filepath.Join(crossVenueRecordDir(recordDir), equitySnapshotsFileName)
+	f, err := os.Open(path)
+	if err != nil {
+		return 0, 0, 0
+	}
+	defer f.Close()
+
+	type tsTotal struct {
+		ts    time.Time
+		total float64
+	}
+	byTS := make(map[string]float64)
+	var tsOrder []string
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+		var rec equitySnapshotRecord
+		if err := json.Unmarshal([]byte(line), &rec); err != nil {
+			continue
+		}
+		if _, ok := byTS[rec.TS]; !ok {
+			tsOrder = append(tsOrder, rec.TS)
+		}
+		byTS[rec.TS] = money.SumUSDT(byTS[rec.TS], rec.CashUSDT)
+	}
+	if len(tsOrder) == 0 {
+		return 0, 0, 0
+	}
+	sort.Strings(tsOrder)
+	for _, tsStr := range tsOrder {
+		total := byTS[tsStr]
+		if total > peak {
+			peak = total
+		}
+		current = total
+	}
+	drawdown = money.SumUSDT(peak, -current)
+	if drawdown < 0 {
+		drawdown = 0
+	}
+	return current, peak, drawdown
+}
+
+// computeRealizedPnLWaterMark 按 close_time 回放五策略已实现净利,得累计/高水位/回撤(settlements 口径,一级 halt 用)。
+func computeRealizedPnLWaterMark(records []strategySettlementRecord) (cumulative, peak, drawdown float64) {
+	if len(records) == 0 {
+		return 0, 0, 0
+	}
+	sorted := append([]strategySettlementRecord(nil), records...)
+	sort.Slice(sorted, func(i, j int) bool {
+		if sorted[i].CloseTime.Equal(sorted[j].CloseTime) {
+			return sorted[i].SettlementID < sorted[j].SettlementID
+		}
+		return sorted[i].CloseTime.Before(sorted[j].CloseTime)
+	})
+	for _, rec := range sorted {
+		if rec.CloseTime.IsZero() || !isTrustedStrategySettlementRecord(rec) {
+			// 排除 untrusted_legacy(如 HEI trade_pnl 幻觉),避免误触发 settlements 回撤一级 halt。
+			continue
+		}
+		cumulative = money.SumUSDT(cumulative, rec.NetPnL)
+		if cumulative > peak {
+			peak = cumulative
+		}
+	}
+	drawdown = money.SumUSDT(peak, -cumulative)
+	if drawdown < 0 {
+		drawdown = 0
+	}
+	return cumulative, peak, drawdown
+}
+
+func readEquitySnapshotTotalDelta(recordDir string, windowStart time.Time) (total float64, byVenue map[string]float64) {
+	byVenue = make(map[string]float64)
+	path := filepath.Join(crossVenueRecordDir(recordDir), equitySnapshotsFileName)
+	f, err := os.Open(path)
+	if err != nil {
+		return 0, byVenue
+	}
+	defer f.Close()
+
+	currents := make(map[string]float64)
+	baselines := make(map[string]float64)
+	latestTS := make(map[string]time.Time)
+	baselineTS := make(map[string]time.Time)
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+		var rec equitySnapshotRecord
+		if err := json.Unmarshal([]byte(line), &rec); err != nil {
+			continue
+		}
+		ts, err := time.Parse(time.RFC3339, rec.TS)
+		if err != nil {
+			continue
+		}
+		venueName := rec.Venue
+		if prev, ok := latestTS[venueName]; !ok || !ts.Before(prev) {
+			currents[venueName] = rec.CashUSDT
+			latestTS[venueName] = ts
+		}
+		if !ts.Before(windowStart) {
+			if prev, ok := baselineTS[venueName]; !ok || ts.Before(prev) {
+				baselines[venueName] = rec.CashUSDT
+				baselineTS[venueName] = ts
+			}
+		}
+	}
+	for venueName, current := range currents {
+		baseline, ok := baselines[venueName]
+		if !ok {
+			baseline = current
+		}
+		delta := current - baseline
+		byVenue[venueName] = delta
+		total = money.SumUSDT(total, delta)
+	}
+	return total, byVenue
+}
+
+func loadStrategySettlementRecordsFromDir(recordDir string) ([]strategySettlementRecord, error) {
+	dir := strings.TrimSpace(recordDir)
+	if dir == "" {
+		dir = "records"
+	}
+	var out []strategySettlementRecord
+
+	perpRecs, err := loadTailJSONLFile[CrossVenueSettlement](filepath.Join(crossVenueRecordDir(dir), crossVenueSettlementsFileName), time.Time{}, 0)
+	if err != nil {
+		return nil, err
+	}
+	for _, rec := range perpRecs {
+		out = append(out, crossVenueSettlementToRecord(rec))
+	}
+
+	svspRecs, err := loadTailJSONLFile[SingleVenueSpotPerpSettlement](filepath.Join(singleVenueSpotPerpRecordDir(dir), svspSettlementsLogName), time.Time{}, 0)
+	if err != nil {
+		return nil, err
+	}
+	for _, rec := range svspRecs {
+		out = append(out, svspSettlementToRecord(rec))
+	}
+
+	cvspRecs, err := loadTailJSONLFile[CrossVenueSpotPerpSettlement](filepath.Join(crossVenueSpotPerpRecordDir(dir), crossVenueSpotPerpSettlementsFile), time.Time{}, 0)
+	if err != nil {
+		return nil, err
+	}
+	for _, rec := range cvspRecs {
+		out = append(out, cvspSettlementToRecord(rec))
+	}
+
+	svpsRecs, err := loadTailJSONLFile[SingleVenuePerpSpotSettlement](filepath.Join(singleVenuePerpSpotRecordDir(dir), svpsSettlementsLogName), time.Time{}, 0)
+	if err != nil {
+		return nil, err
+	}
+	for _, rec := range svpsRecs {
+		out = append(out, svpsSettlementToRecord(rec))
+	}
+
+	cvpsRecs, err := loadTailJSONLFile[CrossVenuePerpSpotSettlement](filepath.Join(crossVenuePerpSpotRecordDir(dir), crossVenuePerpSpotSettlementsFile), time.Time{}, 0)
+	if err != nil {
+		return nil, err
+	}
+	for _, rec := range cvpsRecs {
+		out = append(out, cvpsSettlementToRecord(rec))
+	}
+
+	return out, nil
+}
+
+type strategyFlattenDeps struct {
+	CrossVenue *CrossVenueExecutor
+	SVSP       *SingleVenueSpotPerpExecutor
+	CVSP       *CrossVenueSpotPerpExecutor
+	SVPS       *SingleVenuePerpSpotExecutor
+	CVPS       *CrossVenuePerpSpotExecutor
+}
+
+// flattenAllStrategyPositions 五策略 CloseAllPositions(ctx,true) 等价入口(供二级 flatten 与单测注入)。
+func flattenAllStrategyPositions(ctx context.Context, d strategyFlattenDeps) int {
+	return flattenStrategyPositionsReport(ctx, d, true).TotalClosed
+}
+
+// flattenStrategyPositionsReport 对五策略各调用 CloseAllPositions 并汇总结果(供 flatten CLI / Dashboard / 账户风控复用)。
+func flattenStrategyPositionsReport(ctx context.Context, d strategyFlattenDeps, live bool) StrategyFlattenAllResponse {
+	var results []StrategyFlattenResult
+	totalClosed := 0
+
+	if d.CrossVenue != nil {
+		closed, errs := d.CrossVenue.CloseAllPositions(ctx, live)
+		r := StrategyFlattenResult{Strategy: "cross_venue_perp_perp", Closed: closed}
+		for _, e := range errs {
+			r.Errors = append(r.Errors, e.Error())
+		}
+		if closed == 0 && len(errs) == 0 {
+			r.Message = "无在场持仓"
+		}
+		results = append(results, r)
+		totalClosed += closed
+	} else {
+		results = append(results, StrategyFlattenResult{Strategy: "cross_venue_perp_perp", Skipped: true, Message: "未启用"})
+	}
+
+	if d.SVSP != nil {
+		closed, errs := d.SVSP.CloseAllPositions(ctx, live)
+		r := StrategyFlattenResult{Strategy: "single_venue_spot_perp", Closed: closed}
+		for _, e := range errs {
+			r.Errors = append(r.Errors, e.Error())
+		}
+		if closed == 0 && len(errs) == 0 {
+			r.Message = "无在场持仓"
+		}
+		results = append(results, r)
+		totalClosed += closed
+	} else {
+		results = append(results, StrategyFlattenResult{Strategy: "single_venue_spot_perp", Skipped: true, Message: "未启用"})
+	}
+
+	if d.CVSP != nil {
+		closed, errs := d.CVSP.CloseAllPositions(ctx, live)
+		r := StrategyFlattenResult{Strategy: "cross_venue_spot_perp", Closed: closed}
+		for _, e := range errs {
+			r.Errors = append(r.Errors, e.Error())
+		}
+		if closed == 0 && len(errs) == 0 {
+			r.Message = "无在场持仓"
+		}
+		results = append(results, r)
+		totalClosed += closed
+	} else {
+		results = append(results, StrategyFlattenResult{Strategy: "cross_venue_spot_perp", Skipped: true, Message: "未启用"})
+	}
+
+	if d.SVPS != nil {
+		closed, errs := d.SVPS.CloseAllPositions(ctx, live)
+		r := StrategyFlattenResult{Strategy: "single_venue_perp_spot", Closed: closed}
+		for _, e := range errs {
+			r.Errors = append(r.Errors, e.Error())
+		}
+		if closed == 0 && len(errs) == 0 {
+			r.Message = "无在场持仓"
+		}
+		results = append(results, r)
+		totalClosed += closed
+	} else {
+		results = append(results, StrategyFlattenResult{Strategy: "single_venue_perp_spot", Skipped: true, Message: "未启用"})
+	}
+
+	if d.CVPS != nil {
+		closed, errs := d.CVPS.CloseAllPositions(ctx, live)
+		r := StrategyFlattenResult{Strategy: "cross_venue_perp_spot", Closed: closed}
+		for _, e := range errs {
+			r.Errors = append(r.Errors, e.Error())
+		}
+		if closed == 0 && len(errs) == 0 {
+			r.Message = "无在场持仓"
+		}
+		results = append(results, r)
+		totalClosed += closed
+	} else {
+		results = append(results, StrategyFlattenResult{Strategy: "cross_venue_perp_spot", Skipped: true, Message: "未启用"})
+	}
+
+	return StrategyFlattenAllResponse{Results: results, TotalClosed: totalClosed}
+}
+
+func (w *accountRiskWatcher) collectPositionSummary() accountRiskPositionSummary {
+	var summary accountRiskPositionSummary
+	summary.ByStrategy = make(map[string]int)
+	if w == nil {
+		return summary
+	}
+	if w.crossVenue != nil {
+		snap := w.crossVenue.PositionsSnapshot()
+		summary.ByStrategy["cross_venue_perp_perp"] = snap.ActivePositions
+		summary.TotalCount += snap.ActivePositions
+		for _, p := range activeCrossVenuePositions(snap.Positions) {
+			summary.OpenNotional = money.SumUSDT(summary.OpenNotional, p.NotionalUSDT)
+		}
+	}
+	if w.svsp != nil {
+		active := w.svsp.ListActivePositions()
+		summary.ByStrategy["single_venue_spot_perp"] = len(active)
+		summary.TotalCount += len(active)
+		for _, p := range active {
+			summary.OpenNotional = money.SumUSDT(summary.OpenNotional, p.NotionalUSDT)
+		}
+	}
+	if w.cvsp != nil {
+		active := w.cvsp.ListActivePositions()
+		summary.ByStrategy["cross_venue_spot_perp"] = len(active)
+		summary.TotalCount += len(active)
+		for _, p := range active {
+			summary.OpenNotional = money.SumUSDT(summary.OpenNotional, p.NotionalUSDT)
+		}
+	}
+	if w.svps != nil {
+		active := w.svps.ListActivePositions()
+		summary.ByStrategy["single_venue_perp_spot"] = len(active)
+		summary.TotalCount += len(active)
+		for _, p := range active {
+			summary.OpenNotional = money.SumUSDT(summary.OpenNotional, p.NotionalUSDT)
+		}
+	}
+	if w.cvps != nil {
+		active := w.cvps.ListActivePositions()
+		summary.ByStrategy["cross_venue_perp_spot"] = len(active)
+		summary.TotalCount += len(active)
+		for _, p := range active {
+			summary.OpenNotional = money.SumUSDT(summary.OpenNotional, p.NotionalUSDT)
+		}
+	}
+	return summary
+}
+
+func (w *accountRiskWatcher) emitCriticalAlert(title, detail string) {
+	if w.logger != nil {
+		w.logger.Printf("[critical][账户风控] %s: %s", title, detail)
+	}
+	if w.alerts != nil {
+		w.alerts.Notify(Alert{
+			Level:      EventLevelCritical,
+			Title:      title,
+			Detail:     detail,
+			OccurredAt: w.nowFn().UTC(),
+		})
+	}
+}
+
+func (w *accountRiskWatcher) persistObservation(snap accountRiskSnapshot, thresholds accountRiskThresholdResult, halt accountHardHaltIntent, flatten accountAutoFlattenIntent) {
+	dir := strings.TrimSpace(w.recordDir)
+	if dir == "" {
+		return
+	}
+	path := filepath.Join(dir, accountRiskWatchFileName)
+	payload := persistedAccountRiskWatch{
+		Wired:                  true,
+		UpdatedAt:              w.nowFn().UTC(),
+		Snapshot:               snap,
+		Thresholds:             thresholds,
+		HardHalt:               halt,
+		AutoFlatten:            flatten,
+		MaxDailyLossUSDT:       w.cfg.RiskConfig.MaxDailyLossUSDT,
+		MaxAccountDrawdownUSDT: w.cfg.RiskConfig.MaxAccountDrawdownUSDT,
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		if w.logger != nil {
+			w.logger.Printf("[账户风控] 创建目录失败: %v", err)
+		}
+		return
+	}
+	if err := writeJSONFile(path, payload); err != nil && w.logger != nil {
+		w.logger.Printf("[账户风控] 写入观测快照失败: %v", err)
+	}
+}

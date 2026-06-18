@@ -308,7 +308,7 @@ func (s *CrossVenueScanner) scanOnce(ctx context.Context) {
 	start := s.nowFn()
 	snapshots, statuses := s.fetchAllVenues(ctx)
 	s.recordFundingHistory(snapshots)
-	opps := s.computeCrossVenueOpportunities(snapshots)
+	opps := s.computeCrossVenueOpportunities(ctx, snapshots)
 	snapshotID := crossVenueSnapshotID(start)
 	for i := range opps {
 		opps[i].SnapshotID = snapshotID
@@ -922,7 +922,7 @@ func bestPairSpread(symbol string, entries []symbolVenueFunding) (CrossVenueOppo
 }
 
 // computeCrossVenueOpportunities 聚合各所快照,用近 N 次中位数+APR 封顶算价差,过滤/排序/截断。
-func (s *CrossVenueScanner) computeCrossVenueOpportunities(byVenue map[string][]venue.FundingSnapshot) []CrossVenueOpportunity {
+func (s *CrossVenueScanner) computeCrossVenueOpportunities(ctx context.Context, byVenue map[string][]venue.FundingSnapshot) []CrossVenueOpportunity {
 	minSpread := s.cfg.MinSpreadAPR
 	topN := s.cfg.TopN
 	if topN <= 0 {
@@ -949,7 +949,7 @@ func (s *CrossVenueScanner) computeCrossVenueOpportunities(byVenue map[string][]
 		lowSamples := s.fundingHistorySampleCount(opp.LowVenue, sym)
 		opp.HistoryQualityScore = crossVenueHistoryQualityScore(minInt(highSamples, lowSamples), s.cfg.SpreadPersistenceScans)
 		opp.Symbol = sym
-		opp.TradableNotional = s.execCfg.MaxPositionUSDT
+		opp.TradableNotional = crossVenuePerpPerpScanTradableNotional(ctx, s.execCfg, s.venues, opp.HighVenue, opp.LowVenue, sym)
 		opp = crossVenueEstimateOpportunityMetrics(s.execCfg, opp, s.nowFn())
 		opps = append(opps, opp)
 	}

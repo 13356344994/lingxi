@@ -123,6 +123,7 @@ type StrategyVenueCapitalCache struct {
 type StrategyStatusResponse struct {
 	Bybit         StrategyBybitStatus         `json:"bybit"`
 	CrossVenue    StrategyCrossVenueStatus    `json:"cross_venue"`
+	ControlPlane  ControlPlaneStatusView      `json:"control_plane"`
 	VenueCapitals []StrategyVenueCapitalCache `json:"venue_capitals"`
 }
 
@@ -280,85 +281,13 @@ func (s *DashboardServer) handleStrategyFlattenAllAPI(w http.ResponseWriter, r *
 }
 
 func (s *DashboardServer) executeStrategyFlattenAll(ctx context.Context) StrategyFlattenAllResponse {
-	var results []StrategyFlattenResult
-	totalClosed := 0
-
-	if s.crossVenueExecutor != nil {
-		closed, errs := s.crossVenueExecutor.CloseAllPositions(ctx, true)
-		r := StrategyFlattenResult{Strategy: "cross_venue_perp_perp", Closed: closed}
-		for _, e := range errs {
-			r.Errors = append(r.Errors, e.Error())
-		}
-		if closed == 0 && len(errs) == 0 {
-			r.Message = "无在场持仓"
-		}
-		results = append(results, r)
-		totalClosed += closed
-	} else {
-		results = append(results, StrategyFlattenResult{Strategy: "cross_venue_perp_perp", Skipped: true, Message: "未启用"})
-	}
-
-	if s.svspExec != nil {
-		closed, errs := s.svspExec.CloseAllPositions(ctx, true)
-		r := StrategyFlattenResult{Strategy: "single_venue_spot_perp", Closed: closed}
-		for _, e := range errs {
-			r.Errors = append(r.Errors, e.Error())
-		}
-		if closed == 0 && len(errs) == 0 {
-			r.Message = "无在场持仓"
-		}
-		results = append(results, r)
-		totalClosed += closed
-	} else {
-		results = append(results, StrategyFlattenResult{Strategy: "single_venue_spot_perp", Skipped: true, Message: "未启用"})
-	}
-
-	if s.cvspExec != nil {
-		closed, errs := s.cvspExec.CloseAllPositions(ctx, true)
-		r := StrategyFlattenResult{Strategy: "cross_venue_spot_perp", Closed: closed}
-		for _, e := range errs {
-			r.Errors = append(r.Errors, e.Error())
-		}
-		if closed == 0 && len(errs) == 0 {
-			r.Message = "无在场持仓"
-		}
-		results = append(results, r)
-		totalClosed += closed
-	} else {
-		results = append(results, StrategyFlattenResult{Strategy: "cross_venue_spot_perp", Skipped: true, Message: "未启用"})
-	}
-
-	if s.svpsExec != nil {
-		closed, errs := s.svpsExec.CloseAllPositions(ctx, true)
-		r := StrategyFlattenResult{Strategy: "single_venue_perp_spot", Closed: closed}
-		for _, e := range errs {
-			r.Errors = append(r.Errors, e.Error())
-		}
-		if closed == 0 && len(errs) == 0 {
-			r.Message = "无在场持仓"
-		}
-		results = append(results, r)
-		totalClosed += closed
-	} else {
-		results = append(results, StrategyFlattenResult{Strategy: "single_venue_perp_spot", Skipped: true, Message: "未启用"})
-	}
-
-	if s.cvpsExec != nil {
-		closed, errs := s.cvpsExec.CloseAllPositions(ctx, true)
-		r := StrategyFlattenResult{Strategy: "cross_venue_perp_spot", Closed: closed}
-		for _, e := range errs {
-			r.Errors = append(r.Errors, e.Error())
-		}
-		if closed == 0 && len(errs) == 0 {
-			r.Message = "无在场持仓"
-		}
-		results = append(results, r)
-		totalClosed += closed
-	} else {
-		results = append(results, StrategyFlattenResult{Strategy: "cross_venue_perp_spot", Skipped: true, Message: "未启用"})
-	}
-
-	return StrategyFlattenAllResponse{Results: results, TotalClosed: totalClosed}
+	return flattenStrategyPositionsReport(ctx, strategyFlattenDeps{
+		CrossVenue: s.crossVenueExecutor,
+		SVSP:       s.svspExec,
+		CVSP:       s.cvspExec,
+		SVPS:       s.svpsExec,
+		CVPS:       s.cvpsExec,
+	}, true)
 }
 
 func (s *DashboardServer) executeStrategyCapital(req StrategyCapitalRequest) StrategyCapitalResponse {
@@ -418,6 +347,20 @@ func (s *DashboardServer) executeStrategyStart(req StrategyStartRequest) Strateg
 	if lookbackDays <= 0 {
 		lookbackDays = 30
 	}
+
+	// ⓪ 解除控制面 global_halt(与既有开仓开关/单所启停并行)。
+	haltStep := StrategyStepResult{Step: "control_plane_global_halt_off"}
+	if s.controlPlane == nil {
+		haltStep.Success = true
+		haltStep.Skipped = true
+		haltStep.Message = "控制面未注入,跳过"
+	} else if err := s.controlPlane.SetGlobalHalt(false); err != nil {
+		haltStep.Message = err.Error()
+	} else {
+		haltStep.Success = true
+		haltStep.Message = "控制面 global_halt 已解除"
+	}
+	steps = append(steps, haltStep)
 
 	// ① 启动 Bybit 执行任务(已运行则跳过);单所退役时默认 skipped。
 	bybitStep := StrategyStepResult{Step: "bybit_start"}
@@ -504,7 +447,7 @@ func (s *DashboardServer) executeStrategyStart(req StrategyStartRequest) Strateg
 			if live {
 				step.Message = fmt.Sprintf("%s funding 执行器已启动(实盘)", vname)
 			} else {
-				step.Message = fmt.Sprintf("%s funding 执行器已启动(影子模式,不下单)", vname)
+				step.Message = fmt.Sprintf("%s funding 执行器已启动(OFF,不下单)", vname)
 			}
 		}
 		steps = append(steps, step)
@@ -546,6 +489,20 @@ func (s *DashboardServer) executeStrategyStart(req StrategyStartRequest) Strateg
 
 func (s *DashboardServer) executeStrategyStop() StrategyStopResponse {
 	var steps []StrategyStepResult
+
+	// ⓪ 控制面 global_halt 总闸(附加层,manage/verified-close 仍按各自语义)。
+	haltStep := StrategyStepResult{Step: "control_plane_global_halt_on"}
+	if s.controlPlane == nil {
+		haltStep.Success = true
+		haltStep.Skipped = true
+		haltStep.Message = "控制面未注入,跳过"
+	} else if err := s.controlPlane.SetGlobalHalt(true); err != nil {
+		haltStep.Message = err.Error()
+	} else {
+		haltStep.Success = true
+		haltStep.Message = "控制面 global_halt 已生效(禁止一切新开仓)"
+	}
+	steps = append(steps, haltStep)
 
 	// ① 停止 Bybit(在场持仓走既有停止语义:停开仓不停管理)。
 	bybitStep := StrategyStepResult{Step: "bybit_stop"}
@@ -675,5 +632,27 @@ func (s *DashboardServer) buildStrategyStatus() StrategyStatusResponse {
 			Mode: "未注入",
 		}
 	}
+	resp.ControlPlane = s.buildControlPlaneStatusView()
 	return resp
+}
+
+func (s *DashboardServer) buildControlPlaneStatusView() ControlPlaneStatusView {
+	perpConfigLive := false
+	perpOpeningsOn := false
+	perpHealthHalt := false
+	if s != nil && s.crossVenueExecutor != nil {
+		snap := s.crossVenueExecutor.PositionsSnapshot()
+		perpConfigLive = snap.Live
+		perpOpeningsOn = snap.OpeningsEnabled
+		perpHealthHalt = strings.TrimSpace(snap.HealthHaltVenue) != ""
+	}
+	rotationActive := false
+	if s != nil && s.rotationRunner != nil {
+		rotationActive = s.rotationRunner.Status().Active
+	}
+	var cp *ControlPlane
+	if s != nil {
+		cp = s.controlPlane
+	}
+	return cp.BuildStatusView(perpConfigLive, perpOpeningsOn, rotationActive, perpHealthHalt)
 }

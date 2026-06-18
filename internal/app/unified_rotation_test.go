@@ -4,6 +4,8 @@ import (
 	"math"
 	"testing"
 	"time"
+
+	"lingxi/internal/core"
 )
 
 func testRotationOpp(id, strategy, symbol string, netEV, capital float64, venues ...string) UnifiedOpportunity {
@@ -32,6 +34,43 @@ func testRotationOpp(id, strategy, symbol string, netEV, capital float64, venues
 		Legs: []UnifiedOpportunityLeg{
 			{Venue: legVenue, Notional: capital},
 		},
+	}
+}
+
+func TestRotationConfigFromUnifiedInheritsExecMaxPosition(t *testing.T) {
+	exec := CrossVenueExecutorConfig{MaxPositionUSDT: 150}
+	cfg := RotationConfigFromUnified(core.UnifiedRotationConfig{}, exec)
+	if math.Abs(cfg.MaxPositionUSDT-150) > 1e-9 {
+		t.Fatalf("rotation max_position=%.2f want 150 from exec", cfg.MaxPositionUSDT)
+	}
+	if def := DefaultRotationConfig(); def.MaxPositionUSDT != 0 {
+		t.Fatalf("DefaultRotationConfig max_position=%.2f want 0 (no independent default)", def.MaxPositionUSDT)
+	}
+}
+
+func TestRotationCanOpenRejectsAboveExecMaxPosition(t *testing.T) {
+	execCfg := CrossVenueExecutorConfig{MaxPositionUSDT: 150}
+	rotCfg := RotationConfigFromUnified(core.UnifiedRotationConfig{}, execCfg)
+	rotCfg.MaxConcurrent = 3
+	rotCfg.DefaultReserveUSDT = 0
+
+	// 构造 scanner 会放行(TradableNotional=150)但 leg 名义 160 超过 exec/rotation 闸的场景。
+	opp := testRotationOpp("big", UnifiedStrategyPerpPerp, "BTC", 10, 320, "binance", "bybit")
+	opp.Legs = []UnifiedOpportunityLeg{
+		{Venue: "binance", Notional: 160},
+		{Venue: "bybit", Notional: 160},
+	}
+	available := map[string]float64{"binance": 500, "bybit": 500}
+
+	ok, reason := rotationCanOpenOpportunity(opp, available, rotCfg, 0, nil)
+	if ok || reason != "max_position_usdt_exceeded" {
+		t.Fatalf("exec-aligned rotation should reject notional>150: ok=%v reason=%q", ok, reason)
+	}
+
+	legacyCfg := RotationConfig{MaxConcurrent: 3, MaxPositionUSDT: 500, DefaultReserveUSDT: 0}
+	okLegacy, _ := rotationCanOpenOpportunity(opp, available, legacyCfg, 0, nil)
+	if !okLegacy {
+		t.Fatal("legacy rotation max_position=500 would incorrectly allow scanner-sized opp")
 	}
 }
 
@@ -192,6 +231,7 @@ func TestDecideRotationCloseWhenContinuationNegative(t *testing.T) {
 		map[string]float64{"binance": 200, "bybit": 200},
 		DefaultRotationConfig(),
 		now,
+		0,
 	)
 	if len(plan.Actions) != 1 || plan.Actions[0].Kind != RotationActionClose {
 		t.Fatalf("expected CLOSE, got %+v", plan.Actions)
@@ -222,6 +262,7 @@ func TestDecideRotationMarginalNegativeHoldsFreshPosition(t *testing.T) {
 		map[string]float64{"gate": 200, "binance": 200},
 		DefaultRotationConfig(),
 		now,
+		0,
 	)
 	if len(plan.Actions) != 1 || plan.Actions[0].Kind != RotationActionHold {
 		t.Fatalf("expected HOLD for marginal negative fresh position, got %+v", plan.Actions)
@@ -252,6 +293,7 @@ func TestDecideRotationStrongNegativeClosesAfterMinHold(t *testing.T) {
 		map[string]float64{"gate": 200, "binance": 200},
 		DefaultRotationConfig(),
 		now,
+		0,
 	)
 	if len(plan.Actions) != 1 || plan.Actions[0].Kind != RotationActionClose {
 		t.Fatalf("expected CLOSE for strong negative after min hold, got %+v", plan.Actions)
@@ -359,5 +401,363 @@ func TestRotationComparableWindowScoreDeductsHoldingRisk(t *testing.T) {
 	want := (20.0 - 1.0) / 100.0
 	if math.Abs(got-want) > 1e-9 {
 		t.Fatalf("comparable score = %v, want %v", got, want)
+	}
+}
+
+func TestPlanUnifiedRotationOpensSkipsCandidateOnly(t *testing.T) {
+	perpPerp := testRotationOpp("pp-best", UnifiedStrategyPerpPerp, "BTC", 50, 100)
+	perpPerp.CandidateOnly = true
+	carry := testRotationOpp("carry-eth", UnifiedStrategySingleVenueSpotPerp, "ETH", 10, 100)
+
+	actions := PlanUnifiedRotationOpens(
+		[]UnifiedOpportunity{perpPerp, carry},
+		map[string]float64{"binance": 200, "bybit": 200},
+		DefaultRotationConfig(),
+	)
+	if len(actions) != 1 {
+		t.Fatalf("expected 1 OPEN (carry only), got %d: %+v", len(actions), actions)
+	}
+	if actions[0].OpportunityID != "carry-eth" {
+		t.Fatalf("expected carry open, got %s", actions[0].OpportunityID)
+	}
+	for _, act := range actions {
+		if act.StrategyType == UnifiedStrategyPerpPerp {
+			t.Fatalf("perp-perp candidate_only must not OPEN: %+v", act)
+		}
+	}
+}
+
+func TestDecideRotationHoldWhenCandidateOnlyBeatsSwitch(t *testing.T) {
+	held := HeldPosition{
+		OpportunityID:          "held-svsp",
+		StrategyType:           UnifiedStrategySingleVenueSpotPerp,
+		Symbol:                 "BTC",
+		CapitalRequiredByVenue: map[string]float64{"binance": 50},
+	}
+	heldInputs := map[string]ContinuationInputs{
+		"held-svsp": {
+			ExpectedFundingUSDT:   4,
+			ExpectedCloseCostUSDT: 2,
+			HoldingRiskUSDT:       1,
+		},
+	}
+	perpPerp := testRotationOpp("pp-best", UnifiedStrategyPerpPerp, "ETH", 50, 100)
+	perpPerp.CandidateOnly = true
+
+	plan := DecideRotation(
+		[]HeldPosition{held},
+		heldInputs,
+		[]UnifiedOpportunity{perpPerp},
+		map[string]float64{"binance": 200},
+		DefaultRotationConfig(),
+	)
+	if len(plan.Actions) != 1 || plan.Actions[0].Kind != RotationActionHold {
+		t.Fatalf("expected HOLD (no SWITCH to candidate_only), got %+v", plan.Actions)
+	}
+	for _, act := range plan.Actions {
+		if act.Kind == RotationActionSwitch && act.ReplaceStrategyType == UnifiedStrategyPerpPerp {
+			t.Fatalf("must not SWITCH to perp-perp candidate_only: %+v", act)
+		}
+	}
+}
+
+func TestPlanUnifiedRotationOpensCandidateOnlyDoesNotConsumeConcurrentSlot(t *testing.T) {
+	cfg := RotationConfig{
+		MaxConcurrent:      1,
+		MaxPositionUSDT:    1000,
+		DefaultReserveUSDT: 0,
+	}
+	perpPerp := testRotationOpp("pp-blocker", UnifiedStrategyPerpPerp, "BTC", 100, 80, "binance", "bybit")
+	perpPerp.CandidateOnly = true
+	carry := testRotationOpp("carry-sol", UnifiedStrategyCrossVenueSpotPerp, "SOL", 8, 80, "binance", "bybit")
+
+	actions := PlanUnifiedRotationOpens(
+		[]UnifiedOpportunity{perpPerp, carry},
+		map[string]float64{"binance": 100, "bybit": 100},
+		cfg,
+	)
+	if len(actions) != 1 {
+		t.Fatalf("expected carry to fill sole slot, got %d: %+v", len(actions), actions)
+	}
+	if actions[0].OpportunityID != "carry-sol" {
+		t.Fatalf("expected carry-sol open, got %s", actions[0].OpportunityID)
+	}
+}
+
+func TestRotationCanOpenBlocksHardRejectReason(t *testing.T) {
+	opp := testRotationOpp("bad", UnifiedStrategySingleVenuePerpSpot, "BTC", 20, 100, "bybit")
+	opp.RejectReasons = []string{singleVenuePerpSpotRejectBorrowOverLimit}
+
+	ok, reason := rotationCanOpenOpportunity(
+		opp,
+		map[string]float64{"bybit": 200},
+		DefaultRotationConfig(),
+		0,
+		nil,
+	)
+	if ok {
+		t.Fatal("expected hard reject to block open")
+	}
+	if reason != "reject:"+singleVenuePerpSpotRejectBorrowOverLimit {
+		t.Fatalf("reason = %q, want reject:%s", reason, singleVenuePerpSpotRejectBorrowOverLimit)
+	}
+}
+
+func TestPlanUnifiedRotationOpensSkipsHardRejectEvenWithPositiveNetEV(t *testing.T) {
+	bad := testRotationOpp("bad-borrow", UnifiedStrategySingleVenuePerpSpot, "BTC", 25, 100, "bybit")
+	bad.RejectReasons = []string{singleVenuePerpSpotRejectBorrowOverLimit}
+	good := testRotationOpp("good-carry", UnifiedStrategySingleVenueSpotPerp, "ETH", 10, 100, "binance")
+
+	actions := PlanUnifiedRotationOpens(
+		[]UnifiedOpportunity{bad, good},
+		map[string]float64{"bybit": 200, "binance": 200},
+		DefaultRotationConfig(),
+	)
+	if len(actions) != 1 {
+		t.Fatalf("expected 1 open (good only), got %d: %+v", len(actions), actions)
+	}
+	if actions[0].OpportunityID != "good-carry" {
+		t.Fatalf("expected good-carry open, got %s", actions[0].OpportunityID)
+	}
+}
+
+func TestDecideRotationSwitchSkipsHardRejectCandidate(t *testing.T) {
+	held := HeldPosition{
+		OpportunityID:          "held-btc",
+		StrategyType:           UnifiedStrategyPerpPerp,
+		Symbol:                 "BTC",
+		CapitalRequiredByVenue: map[string]float64{"binance": 50, "bybit": 50},
+	}
+	heldInputs := map[string]ContinuationInputs{
+		"held-btc": {
+			ExpectedFundingUSDT:   2,
+			ExpectedCloseCostUSDT: 2,
+			HoldingRiskUSDT:       1,
+		},
+	}
+	badReplace := testRotationOpp("bad-replace", UnifiedStrategyCrossVenuePerpSpot, "ETH", 40, 100, "binance", "bybit")
+	badReplace.RejectReasons = []string{crossVenuePerpSpotRejectMarginStress}
+
+	plan := DecideRotation(
+		[]HeldPosition{held},
+		heldInputs,
+		[]UnifiedOpportunity{badReplace},
+		map[string]float64{"binance": 300, "bybit": 300},
+		DefaultRotationConfig(),
+	)
+	if len(plan.Actions) != 1 || plan.Actions[0].Kind != RotationActionHold {
+		t.Fatalf("expected HOLD (no SWITCH to hard-reject), got %+v", plan.Actions)
+	}
+}
+
+func TestRotationCanOpenBlocksRequiresRebalanceWhenUnfundable(t *testing.T) {
+	opp := testRotationOpp("rebal-short", UnifiedStrategyCrossVenueSpotPerp, "SOL", 15, 100, "binance", "bybit")
+	opp.RequiresRebalance = true
+	opp.RejectReasons = []string{"requires_rebalance"}
+
+	ok, reason := rotationCanOpenOpportunity(
+		opp,
+		map[string]float64{"binance": 10, "bybit": 200},
+		RotationConfig{MaxConcurrent: 3, MaxPositionUSDT: 500, DefaultReserveUSDT: 0},
+		0,
+		nil,
+	)
+	if ok {
+		t.Fatal("expected requires_rebalance unfundable to block open")
+	}
+	if reason != "requires_rebalance_unfundable" {
+		t.Fatalf("reason = %q, want requires_rebalance_unfundable", reason)
+	}
+}
+
+func TestRotationCanOpenAllowsRequiresRebalanceWhenFunded(t *testing.T) {
+	opp := testRotationOpp("rebal-ok", UnifiedStrategySingleVenueSpotPerp, "BTC", 12, 80, "binance")
+	opp.RequiresRebalance = true
+	opp.RejectReasons = []string{"requires_rebalance"}
+
+	ok, reason := rotationCanOpenOpportunity(
+		opp,
+		map[string]float64{"binance": 200},
+		DefaultRotationConfig(),
+		0,
+		nil,
+	)
+	if !ok {
+		t.Fatalf("expected funded requires_rebalance candidate to open, reason=%q", reason)
+	}
+}
+
+func TestDecideRotationCarryStrategiesRegression(t *testing.T) {
+	available := map[string]float64{"binance": 500, "bybit": 500}
+	cfg := RotationConfig{MaxConcurrent: 4, MaxPositionUSDT: 500, DefaultReserveUSDT: 0}
+
+	svsp := testRotationOpp("open-svsp", UnifiedStrategySingleVenueSpotPerp, "BTC", 12, 50, "binance")
+	cvsp := testRotationOpp("open-cvsp", UnifiedStrategyCrossVenueSpotPerp, "ETH", 11, 50, "binance", "bybit")
+	svps := testRotationOpp("open-svps", UnifiedStrategySingleVenuePerpSpot, "SOL", 10, 50, "bybit")
+	cvps := testRotationOpp("open-cvps", UnifiedStrategyCrossVenuePerpSpot, "AVAX", 9, 50, "binance", "bybit")
+
+	plan := DecideRotation(nil, nil, []UnifiedOpportunity{cvps, svps, cvsp, svsp}, available, cfg)
+	openIDs := map[string]struct{}{}
+	for _, act := range plan.Actions {
+		if act.Kind != RotationActionOpen {
+			t.Fatalf("expected only OPEN actions, got %+v", act)
+		}
+		openIDs[act.OpportunityID] = struct{}{}
+	}
+	if len(openIDs) != 4 {
+		t.Fatalf("expected 4 carry opens, got %d: %+v", len(openIDs), plan.Actions)
+	}
+
+	held := HeldPosition{
+		OpportunityID:          "held-svsp",
+		StrategyType:           UnifiedStrategySingleVenueSpotPerp,
+		Symbol:                 "BTC",
+		CapitalRequiredByVenue: map[string]float64{"binance": 50},
+	}
+	heldInputs := map[string]ContinuationInputs{
+		"held-svsp": {ExpectedFundingUSDT: 2, ExpectedCloseCostUSDT: 2, HoldingRiskUSDT: 1},
+	}
+	replace := testRotationOpp("replace-cvsp", UnifiedStrategyCrossVenueSpotPerp, "ETH", 30, 50, "binance", "bybit")
+	switchPlan := DecideRotation([]HeldPosition{held}, heldInputs, []UnifiedOpportunity{replace}, available, cfg)
+	if len(switchPlan.Actions) != 1 || switchPlan.Actions[0].Kind != RotationActionSwitch {
+		t.Fatalf("expected carry SWITCH regression, got %+v", switchPlan.Actions)
+	}
+	if switchPlan.Actions[0].ReplaceOpportunityID != "replace-cvsp" {
+		t.Fatalf("expected switch to replace-cvsp, got %s", switchPlan.Actions[0].ReplaceOpportunityID)
+	}
+}
+
+func rotationBudgetTestCfg(totalDeployable float64, strategyPct float64) RotationConfig {
+	return RotationConfig{
+		MaxConcurrent:              10,
+		MaxPositionUSDT:            500,
+		DefaultReserveUSDT:         0,
+		TotalDeployableUSDT:        totalDeployable,
+		MaxStrategyCapitalUsagePct: strategyPct,
+	}
+}
+
+func TestRotationGlobalBudgetAllowsMultipleStrategies(t *testing.T) {
+	cfg := rotationBudgetTestCfg(500, 0)
+	available := map[string]float64{"binance": 300, "bybit": 300}
+	svsp := testRotationOpp("open-svsp", UnifiedStrategySingleVenueSpotPerp, "BTC", 12, 50, "binance")
+	cvsp := testRotationOpp("open-cvsp", UnifiedStrategyCrossVenueSpotPerp, "ETH", 11, 50, "binance", "bybit")
+
+	plan := DecideRotation(nil, nil, []UnifiedOpportunity{cvsp, svsp}, available, cfg)
+	if len(plan.Actions) != 2 {
+		t.Fatalf("expected 2 OPEN under sufficient global budget, got %+v", plan.Actions)
+	}
+}
+
+func TestRotationGlobalBudgetExceededBlocksLaterCandidates(t *testing.T) {
+	cfg := rotationBudgetTestCfg(120, 0)
+	available := map[string]float64{"binance": 200, "bybit": 200}
+	a := testRotationOpp("open-a", UnifiedStrategySingleVenueSpotPerp, "BTC", 12, 50, "binance")
+	b := testRotationOpp("open-b", UnifiedStrategyCrossVenueSpotPerp, "ETH", 11, 50, "binance", "bybit")
+	c := testRotationOpp("open-c", UnifiedStrategySingleVenuePerpSpot, "SOL", 10, 50, "bybit")
+
+	plan := DecideRotation(nil, nil, []UnifiedOpportunity{c, b, a}, available, cfg)
+	openCount := 0
+	for _, act := range plan.Actions {
+		if act.Kind == RotationActionOpen {
+			openCount++
+		}
+	}
+	if openCount != 2 {
+		t.Fatalf("expected 2 OPEN under global budget 120, got %d: %+v", openCount, plan.Actions)
+	}
+
+	budget := newRotationBudgetState(available, nil, cfg, 0)
+	budget.addOpportunity(a)
+	budget.addOpportunity(b)
+	ok, reason := rotationCanOpenOpportunity(c, available, cfg, 2, &budget)
+	if ok {
+		t.Fatal("expected third candidate blocked by global budget")
+	}
+	if reason != "global_budget_exceeded" {
+		t.Fatalf("reason = %q, want global_budget_exceeded", reason)
+	}
+}
+
+func TestRotationStrategyCapExceededBlocksSameStrategy(t *testing.T) {
+	cfg := rotationBudgetTestCfg(200, 0.40) // 单策略上限 80 USDT
+	available := map[string]float64{"binance": 300, "bybit": 300}
+	svsp1 := testRotationOpp("svsp1", UnifiedStrategySingleVenueSpotPerp, "BTC", 12, 50, "binance")
+	svsp2 := testRotationOpp("svsp2", UnifiedStrategySingleVenueSpotPerp, "ETH", 11, 50, "binance")
+	cvsp1 := testRotationOpp("cvsp1", UnifiedStrategyCrossVenueSpotPerp, "SOL", 10, 50, "binance", "bybit")
+
+	plan := DecideRotation(nil, nil, []UnifiedOpportunity{svsp2, cvsp1, svsp1}, available, cfg)
+	openByStrategy := map[string]int{}
+	for _, act := range plan.Actions {
+		if act.Kind == RotationActionOpen {
+			openByStrategy[act.StrategyType]++
+		}
+	}
+	if openByStrategy[UnifiedStrategySingleVenueSpotPerp] != 1 {
+		t.Fatalf("expected 1 SVSP open under strategy cap, got %+v", openByStrategy)
+	}
+	if openByStrategy[UnifiedStrategyCrossVenueSpotPerp] != 1 {
+		t.Fatalf("expected CVSP still opens with remaining budget, got %+v", openByStrategy)
+	}
+
+	budget := newRotationBudgetState(available, nil, cfg, 0)
+	budget.addOpportunity(svsp1)
+	ok, reason := rotationCanOpenOpportunity(svsp2, available, cfg, 1, &budget)
+	if ok {
+		t.Fatal("expected second SVSP blocked by strategy cap")
+	}
+	if reason != "strategy_cap_exceeded" {
+		t.Fatalf("reason = %q, want strategy_cap_exceeded", reason)
+	}
+}
+
+func TestRotationGlobalBudgetIncludesPerpPerpHeld(t *testing.T) {
+	cfg := rotationBudgetTestCfg(100, 0)
+	held := HeldPosition{
+		OpportunityID:          "pp-held",
+		StrategyType:           UnifiedStrategyPerpPerp,
+		Symbol:                 "BTC",
+		CapitalRequiredByVenue: map[string]float64{"binance": 40, "bybit": 40},
+	}
+	heldInputs := map[string]ContinuationInputs{
+		"pp-held": {ExpectedFundingUSDT: 5, ExpectedCloseCostUSDT: 2, HoldingRiskUSDT: 1},
+	}
+	freeAvailable := map[string]float64{"binance": 60, "bybit": 60}
+	blockOpp := testRotationOpp("open-block", UnifiedStrategySingleVenueSpotPerp, "ETH", 12, 30, "binance")
+
+	plan := DecideRotation([]HeldPosition{held}, heldInputs, []UnifiedOpportunity{blockOpp}, freeAvailable, cfg)
+	for _, act := range plan.Actions {
+		if act.Kind == RotationActionOpen {
+			t.Fatalf("expected no OPEN: perp-perp held consumes global budget, got %+v", act)
+		}
+	}
+
+	budget := newRotationBudgetState(freeAvailable, []HeldPosition{held}, cfg, 0)
+	ok, reason := rotationCanOpenOpportunity(blockOpp, freeAvailable, cfg, 1, &budget)
+	if ok {
+		t.Fatal("expected OPEN blocked when held+new exceeds global budget")
+	}
+	if reason != "global_budget_exceeded" {
+		t.Fatalf("reason = %q, want global_budget_exceeded", reason)
+	}
+
+	allowOpp := testRotationOpp("open-ok", UnifiedStrategySingleVenueSpotPerp, "SOL", 10, 15, "binance")
+	ok, reason = rotationCanOpenOpportunity(allowOpp, freeAvailable, cfg, 1, &budget)
+	if !ok {
+		t.Fatalf("expected smaller open within remaining budget, reason=%q", reason)
+	}
+}
+
+func TestRotationBudgetZeroDegeneratesToLegacyBehavior(t *testing.T) {
+	cfg := RotationConfig{MaxConcurrent: 4, MaxPositionUSDT: 500, DefaultReserveUSDT: 0}
+	available := map[string]float64{"binance": 500, "bybit": 500}
+	svsp := testRotationOpp("open-svsp", UnifiedStrategySingleVenueSpotPerp, "BTC", 12, 50, "binance")
+	cvsp := testRotationOpp("open-cvsp", UnifiedStrategyCrossVenueSpotPerp, "ETH", 11, 50, "binance", "bybit")
+	svps := testRotationOpp("open-svps", UnifiedStrategySingleVenuePerpSpot, "SOL", 10, 50, "bybit")
+	cvps := testRotationOpp("open-cvps", UnifiedStrategyCrossVenuePerpSpot, "AVAX", 9, 50, "binance", "bybit")
+
+	plan := DecideRotation(nil, nil, []UnifiedOpportunity{cvps, svps, cvsp, svsp}, available, cfg)
+	if len(plan.Actions) != 4 {
+		t.Fatalf("expected 4 OPEN with budget disabled, got %+v", plan.Actions)
 	}
 }

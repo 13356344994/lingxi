@@ -213,11 +213,14 @@ func TestStrategyStartStopOrchestration(t *testing.T) {
 	if len(startResp.Steps) < 5 {
 		t.Fatalf("start steps: %+v", startResp.Steps)
 	}
-	if startResp.Steps[0].Step != "bybit_start" || !startResp.Steps[0].Success || !startResp.Steps[0].Skipped {
-		t.Fatalf("bybit_start 应默认跳过: %+v", startResp.Steps[0])
+	if startResp.Steps[0].Step != "control_plane_global_halt_off" || !startResp.Steps[0].Success {
+		t.Fatalf("control_plane_global_halt_off 应成功: %+v", startResp.Steps[0])
 	}
-	if startResp.Steps[1].Step != "cross_venue_openings_on" || !startResp.Steps[1].Success {
-		t.Fatalf("openings_on 应成功: %+v", startResp.Steps[1])
+	if startResp.Steps[1].Step != "bybit_start" || !startResp.Steps[1].Success || !startResp.Steps[1].Skipped {
+		t.Fatalf("bybit_start 应默认跳过: %+v", startResp.Steps[1])
+	}
+	if startResp.Steps[2].Step != "cross_venue_openings_on" || !startResp.Steps[2].Success {
+		t.Fatalf("openings_on 应成功: %+v", startResp.Steps[2])
 	}
 	for _, want := range []string{"funding_start_okx", "funding_start_gate"} {
 		found := false
@@ -264,25 +267,35 @@ func TestStrategyStartStopOrchestration(t *testing.T) {
 
 	// 再次启动应仍跳过 bybit
 	startAgain := s.executeStrategyStart(StrategyStartRequest{})
-	if !startAgain.Steps[0].Skipped {
-		t.Fatalf("Bybit 单所退役后应 skipped: %+v", startAgain.Steps[0])
+	var bybitAgain *StrategyStepResult
+	for i := range startAgain.Steps {
+		if startAgain.Steps[i].Step == "bybit_start" {
+			bybitAgain = &startAgain.Steps[i]
+			break
+		}
+	}
+	if bybitAgain == nil || !bybitAgain.Skipped {
+		t.Fatalf("Bybit 单所退役后应 skipped: %+v", startAgain.Steps)
 	}
 
 	stopResp := s.executeStrategyStop()
-	if len(stopResp.Steps) < 2 {
+	if len(stopResp.Steps) < 3 {
 		t.Fatalf("stop steps: %+v", stopResp.Steps)
 	}
-	if stopResp.Steps[0].Step != "bybit_stop" || !stopResp.Steps[0].Success {
-		t.Fatalf("bybit_stop 应成功: %+v", stopResp.Steps[0])
+	if stopResp.Steps[0].Step != "control_plane_global_halt_on" || !stopResp.Steps[0].Success {
+		t.Fatalf("control_plane_global_halt_on 应成功: %+v", stopResp.Steps[0])
 	}
-	if stopResp.Steps[1].Step != "binance_stop" {
-		t.Fatalf("第二步应为 binance_stop: %+v", stopResp.Steps[1])
+	if stopResp.Steps[1].Step != "bybit_stop" || !stopResp.Steps[1].Success {
+		t.Fatalf("bybit_stop 应成功: %+v", stopResp.Steps[1])
 	}
-	if !stopResp.Steps[1].Skipped && !stopResp.Steps[1].Success {
-		t.Fatalf("binance_stop 应成功或跳过: %+v", stopResp.Steps[1])
+	if stopResp.Steps[2].Step != "binance_stop" {
+		t.Fatalf("第三步应为 binance_stop: %+v", stopResp.Steps[2])
 	}
-	if stopResp.Steps[2].Step != "cross_venue_openings_off" || !stopResp.Steps[2].Success {
-		t.Fatalf("openings_off 应成功: %+v", stopResp.Steps[2])
+	if !stopResp.Steps[2].Skipped && !stopResp.Steps[2].Success {
+		t.Fatalf("binance_stop 应成功或跳过: %+v", stopResp.Steps[2])
+	}
+	if stopResp.Steps[3].Step != "cross_venue_openings_off" || !stopResp.Steps[3].Success {
+		t.Fatalf("openings_off 应成功: %+v", stopResp.Steps[3])
 	}
 	if exec.OpeningsEnabled() {
 		t.Fatal("停止后跨所开仓开关应为 OFF")

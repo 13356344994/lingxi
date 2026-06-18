@@ -25,7 +25,7 @@ func TestCrossVenueCloseSlippageBpsEscalatesWithCap(t *testing.T) {
 		{211, 250},
 	}
 	for _, tc := range cases {
-		got := crossVenueCloseSlippageBps(base, tc.attempt)
+		got := crossVenueCloseSlippageBps(base, tc.attempt, crossVenueCloseMaxSlippageBpsLegacy)
 		if math.Abs(got-tc.want) > 1e-9 {
 			t.Fatalf("attempt=%d bps=%v want %v", tc.attempt, got, tc.want)
 		}
@@ -36,7 +36,7 @@ func TestCrossVenueCloseIocLimitPriceEscalatesThenPierce(t *testing.T) {
 	book := venue.BookTicker{BidPrice: 99, AskPrice: 101}
 	base := 40.0
 
-	p1, pierce := crossVenueCloseIocLimitPrice(venue.SideBuy, book, base, 1)
+	p1, pierce := crossVenueCloseIocLimitPrice(venue.SideBuy, book, base, 1, crossVenueCloseMaxSlippageBpsLegacy)
 	if pierce {
 		t.Fatal("attempt 1 should not pierce")
 	}
@@ -45,7 +45,7 @@ func TestCrossVenueCloseIocLimitPriceEscalatesThenPierce(t *testing.T) {
 		t.Fatalf("attempt 1 price=%v want %v", p1, want1)
 	}
 
-	p3, pierce := crossVenueCloseIocLimitPrice(venue.SideBuy, book, base, 3)
+	p3, pierce := crossVenueCloseIocLimitPrice(venue.SideBuy, book, base, 3, crossVenueCloseMaxSlippageBpsLegacy)
 	if pierce {
 		t.Fatal("attempt 3 should not pierce")
 	}
@@ -54,7 +54,7 @@ func TestCrossVenueCloseIocLimitPriceEscalatesThenPierce(t *testing.T) {
 		t.Fatalf("attempt 3 price=%v want %v", p3, want3)
 	}
 
-	p8, pierce := crossVenueCloseIocLimitPrice(venue.SideBuy, book, base, 8)
+	p8, pierce := crossVenueCloseIocLimitPrice(venue.SideBuy, book, base, 8, crossVenueCloseMaxSlippageBpsLegacy)
 	if !pierce {
 		t.Fatal("attempt 8 should pierce")
 	}
@@ -62,7 +62,7 @@ func TestCrossVenueCloseIocLimitPriceEscalatesThenPierce(t *testing.T) {
 		t.Fatalf("pierce buy price=%v want %v", p8, 101*crossVenueClosePierceBuyMultiplier)
 	}
 
-	ps, pierce := crossVenueCloseIocLimitPrice(venue.SideSell, book, base, 8)
+	ps, pierce := crossVenueCloseIocLimitPrice(venue.SideSell, book, base, 8, crossVenueCloseMaxSlippageBpsLegacy)
 	if !pierce {
 		t.Fatal("attempt 8 sell should pierce")
 	}

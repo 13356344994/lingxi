@@ -205,7 +205,7 @@ func (c *RuntimeController) venueFundingManageCycle(
 			snap, ok := planner.FundingSnapshotFor(p.Symbol)
 			if ok && snap.NextFundingTime.After(now) {
 				if !live {
-					c.appendControllerLog("[影子][%s][拟续持] %s 下期费率=%.4f%%", vname, p.Symbol, snap.LastFundingRate*100)
+					c.appendControllerLog("[dry-run][%s][拟续持] %s 下期费率=%.4f%%", vname, p.Symbol, snap.LastFundingRate*100)
 					continue
 				}
 				rolled := p
@@ -218,7 +218,7 @@ func (c *RuntimeController) venueFundingManageCycle(
 			}
 		}
 		if !live {
-			c.appendControllerLog("[影子][%s][拟平仓] %s", vname, p.Symbol)
+			c.appendControllerLog("[dry-run][%s][拟平仓] %s", vname, p.Symbol)
 			continue
 		}
 		settle := p.SettlementsHeld + 1
@@ -275,7 +275,7 @@ func (c *RuntimeController) venueFundingManageCycle(
 			continue
 		}
 		if !live {
-			c.appendControllerLog("[影子][%s] 本应开仓 %s 费率=%.4f%% 数量=%.6f 净利率=%.4f%% 结算=%s",
+			c.appendControllerLog("[dry-run][%s] 本应开仓 %s 费率=%.4f%% 数量=%.6f 净利率=%.4f%% 结算=%s",
 				vname, p.Symbol, p.FundingRate*100, p.BaseQty, p.EstNetProfitRate*100, p.NextFundingTime.Format(time.RFC3339))
 			continue
 		}
@@ -341,7 +341,7 @@ func (c *RuntimeController) setVenueFundingStatus(open []VenueFundingPosition, m
 	}
 	c.status.CurrentPositions = syms
 	c.status.CurrentTargets = len(syms)
-	modeNote := "影子"
+	modeNote := "OFF"
 	if live {
 		modeNote = "实盘"
 	}

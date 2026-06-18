@@ -675,3 +675,97 @@ func TestCrossVenueScannerBorrowProbeRespectsLiveBudgetAndCache(t *testing.T) {
 		t.Fatalf("fourth scan probes = %d, want 3", len(probes4))
 	}
 }
+
+func TestCrossVenueScannerComputeOpportunitiesLiquidityAdaptiveNotional(t *testing.T) {
+	thinDepth := venue.Depth{
+		Asks: []venue.DepthLevel{{Price: 100, Qty: 0.05}},
+		Bids: []venue.DepthLevel{{Price: 100, Qty: 0.05}},
+	}
+	now := time.Date(2026, 6, 19, 12, 0, 0, 0, time.UTC)
+	nextFunding := now.Add(2 * time.Hour)
+	s := &CrossVenueScanner{
+		cfg: CrossVenueScannerConfig{MinSpreadAPR: 0.01, TopN: 5},
+		execCfg: CrossVenueExecutorConfig{
+			MaxPositionUSDT:       150,
+			SizingMaxSlippageBps:  20,
+			DefaultTakerFeeBps:    1,
+			EVExpectedSlippageBps: 1,
+		},
+		venues: map[string]venue.Venue{
+			binance.VenueName: &scannerPerpDepthVenue{fakeFundingVenue: fakeFundingVenue{name: binance.VenueName}, depth: thinDepth},
+			bybit.VenueName:   &scannerPerpDepthVenue{fakeFundingVenue: fakeFundingVenue{name: bybit.VenueName}, depth: thinDepth},
+		},
+		nowFn:          func() time.Time { return now },
+		fundingHistory: make(map[string]map[string][]float64),
+	}
+	byVenue := map[string][]venue.FundingSnapshot{
+		binance.VenueName: {
+			{Symbol: "BTC-USDT", LastFundingRate: 0.001, IntervalHours: 8, NextFundingTime: nextFunding},
+		},
+		bybit.VenueName: {
+			{Symbol: "BTC-USDT", LastFundingRate: 0.0001, IntervalHours: 8, NextFundingTime: nextFunding},
+		},
+	}
+	s.recordFundingHistory(byVenue)
+	opps := s.computeCrossVenueOpportunities(context.Background(), byVenue)
+	if len(opps) != 1 {
+		t.Fatalf("opps = %d, want 1", len(opps))
+	}
+	raw := crossVenuePerpPerpScanTradableNotional(context.Background(), s.execCfg, s.venues, opps[0].HighVenue, opps[0].LowVenue, opps[0].Symbol)
+	if raw <= 0 {
+		t.Fatalf("raw TradableNotional=%.2f want >0 on thin depth", raw)
+	}
+	if raw >= 150 {
+		t.Fatalf("raw TradableNotional=%.2f want <150 (liquidity capped, not full max_position)", raw)
+	}
+}
+
+func TestCrossVenueScannerComputeOpportunitiesNoDepthConservative(t *testing.T) {
+	now := time.Date(2026, 6, 19, 12, 0, 0, 0, time.UTC)
+	nextFunding := now.Add(2 * time.Hour)
+	s := &CrossVenueScanner{
+		cfg: CrossVenueScannerConfig{MinSpreadAPR: 0.01, TopN: 5},
+		execCfg: CrossVenueExecutorConfig{
+			MaxPositionUSDT:       150,
+			SizingMaxSlippageBps:  20,
+			DefaultTakerFeeBps:    1,
+			EVExpectedSlippageBps: 1,
+		},
+		venues: map[string]venue.Venue{
+			binance.VenueName: &fakeFundingVenue{name: binance.VenueName},
+			bybit.VenueName:   &fakeFundingVenue{name: bybit.VenueName},
+		},
+		nowFn:          func() time.Time { return now },
+		fundingHistory: make(map[string]map[string][]float64),
+	}
+	byVenue := map[string][]venue.FundingSnapshot{
+		binance.VenueName: {
+			{Symbol: "BTC-USDT", LastFundingRate: 0.001, IntervalHours: 8, NextFundingTime: nextFunding},
+		},
+		bybit.VenueName: {
+			{Symbol: "BTC-USDT", LastFundingRate: 0.0001, IntervalHours: 8, NextFundingTime: nextFunding},
+		},
+	}
+	s.recordFundingHistory(byVenue)
+	opps := s.computeCrossVenueOpportunities(context.Background(), byVenue)
+	if len(opps) != 1 {
+		t.Fatalf("opps = %d, want 1", len(opps))
+	}
+	// finalize 前应为 150×0.25;排名后可能按 SizeMultiplier 缩放,但须显著低于满额 150。
+	raw := crossVenuePerpPerpScanTradableNotional(context.Background(), s.execCfg, s.venues, opps[0].HighVenue, opps[0].LowVenue, opps[0].Symbol)
+	if math.Abs(raw-37.5) > 1e-9 {
+		t.Fatalf("no-depth raw TradableNotional=%.2f want 37.5 (150×0.25)", raw)
+	}
+	if opps[0].TradableNotional >= 150 {
+		t.Fatalf("ranked TradableNotional=%.2f want <150 when net_ev>0 path applies", opps[0].TradableNotional)
+	}
+}
+
+type scannerPerpDepthVenue struct {
+	fakeFundingVenue
+	depth venue.Depth
+}
+
+func (v *scannerPerpDepthVenue) FetchDepth(context.Context, venue.Market, venue.Symbol, int) (venue.Depth, error) {
+	return v.depth, nil
+}

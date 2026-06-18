@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "checksum": "8f191155ec303eb494599e4c06de7c3b115d8ffbfabd7b58a248979c0dcc81ed",
-  "updated_at": "2026-06-18T11:46:58Z",
+  "checksum": "5429380d31ecad54fcdce48553d0f14d13c0099761502e3fab581878b07cfd87",
+  "updated_at": "2026-06-18T13:02:58Z",
   "positions": [
     {
       "position_key": "H-USDT|cvsp-HUSDT-bybit-1781761588",
@@ -266,41 +266,175 @@
       "last_accrual_at": "0001-01-01T00:00:00Z"
     },
     {
-      "position_key": "BEL-USDT|cvsp-BELUSDT-gate-1781776464",
-      "symbol": "BEL-USDT",
-      "spot_venue": "binance",
-      "perp_venue": "gate",
+      "position_key": "BSB-USDT|cvsp-BSBUSDT-binance-1781783796",
+      "symbol": "BSB-USDT",
+      "spot_venue": "bybit",
+      "perp_venue": "binance",
       "spot_leg": {
-        "venue": "binance",
+        "venue": "bybit",
         "market": "spot",
         "side": "buy",
-        "qty": 200,
-        "entry_price": 0,
-        "order_ids": [
-          "cvsp-BELUSDT-gate-1781776464-s1"
-        ]
+        "qty": 0,
+        "entry_price": 0
       },
       "perp_leg": {
-        "venue": "gate",
+        "venue": "binance",
         "market": "perp",
         "side": "short",
-        "qty": 200,
-        "entry_price": 0.09581,
+        "qty": 40,
+        "entry_price": 0.58096,
         "order_ids": [
-          "cvsp-BELUSDT-gate-1781776464-p1"
+          "cvsp-BSBUSDT-binance-1781783796-p1"
         ]
       },
-      "opportunity_id": "cross_venue_spot_perp:BEL-USDT:binance+gate:cvsnap-20260618T095050.412017461",
-      "expected_funding_usdt": 0.031025785107135,
-      "expected_net_ev_usdt": 0.030171679899488386,
-      "expected_hold_hours": 6.152663328483055,
-      "status": "open",
-      "transition_state": "hold",
-      "idem_prefix": "cvsp-BELUSDT-gate-1781776464",
-      "notional_usdt": 19.16946871,
-      "opened_at": "2026-06-18T09:54:24.635241865Z",
-      "updated_at": "2026-06-18T10:04:50.47651989Z",
+      "opportunity_id": "cross_venue_spot_perp:BSB-USDT:bybit+binance:cvsnap-20260618T115257.865783841",
+      "expected_funding_usdt": 0.004573411764705882,
+      "expected_net_ev_usdt": 0.02638540344240589,
+      "expected_hold_hours": 0.11725950448861111,
+      "status": "closed",
+      "transition_state": "open",
+      "idem_prefix": "cvsp-BSBUSDT-binance-1781783796",
+      "notional_usdt": 23.529411764705884,
+      "opened_at": "2026-06-18T11:56:36.482758589Z",
+      "updated_at": "2026-06-18T11:56:58.654170805Z",
+      "last_accrual_at": "0001-01-01T00:00:00Z",
+      "rollback_cost_usdt": 0.023248472
+    },
+    {
+      "position_key": "BTW-USDT|cvsp-BTWUSDT-binance-1781784670",
+      "symbol": "BTW-USDT",
+      "spot_venue": "bybit",
+      "perp_venue": "binance",
+      "spot_leg": {
+        "venue": "bybit",
+        "market": "spot",
+        "side": "buy",
+        "qty": 0,
+        "entry_price": 0
+      },
+      "perp_leg": {
+        "venue": "binance",
+        "market": "perp",
+        "side": "short",
+        "qty": 0,
+        "entry_price": 0
+      },
+      "opportunity_id": "cross_venue_spot_perp:BTW-USDT:bybit+binance:cvsnap-20260618T120355.274111383",
+      "expected_funding_usdt": 0.020646258661326237,
+      "expected_net_ev_usdt": 0.006336395527865617,
+      "expected_hold_hours": 3.934646080171389,
+      "status": "closed",
+      "transition_state": "open",
+      "idem_prefix": "cvsp-BTWUSDT-binance-1781784670",
+      "notional_usdt": 23.490219541176472,
+      "opened_at": "2026-06-18T12:11:10.767954407Z",
+      "updated_at": "2026-06-18T12:11:58.833823065Z",
       "last_accrual_at": "0001-01-01T00:00:00Z"
+    },
+    {
+      "position_key": "HEI-USDT|cvsp-HEIUSDT-binance-1781785044",
+      "symbol": "HEI-USDT",
+      "spot_venue": "bybit",
+      "perp_venue": "binance",
+      "spot_leg": {
+        "venue": "bybit",
+        "market": "spot",
+        "side": "buy",
+        "qty": 0,
+        "entry_price": 0
+      },
+      "perp_leg": {
+        "venue": "binance",
+        "market": "perp",
+        "side": "short",
+        "qty": 266.6,
+        "entry_price": 0.08867,
+        "order_ids": [
+          "cvsp-HEIUSDT-binance-1781785044-p1"
+        ]
+      },
+      "opportunity_id": "cross_venue_spot_perp:HEI-USDT:bybit+binance:cvsnap-20260618T121355.273820805",
+      "expected_funding_usdt": 0.0011745109770588237,
+      "expected_net_ev_usdt": 0.04105635761015415,
+      "expected_hold_hours": 3.7679794942208336,
+      "status": "closed",
+      "transition_state": "open",
+      "idem_prefix": "cvsp-HEIUSDT-binance-1781785044",
+      "notional_usdt": 23.490219541176472,
+      "opened_at": "2026-06-18T12:17:24.83500186Z",
+      "updated_at": "2026-06-18T12:17:58.901375332Z",
+      "last_accrual_at": "0001-01-01T00:00:00Z",
+      "rollback_cost_usdt": 0.023646860140000003
+    },
+    {
+      "position_key": "AKE-USDT|cvsp-AKEUSDT-binance-1781786837",
+      "symbol": "AKE-USDT",
+      "spot_venue": "bybit",
+      "perp_venue": "binance",
+      "spot_leg": {
+        "venue": "bybit",
+        "market": "spot",
+        "side": "buy",
+        "qty": 0,
+        "entry_price": 0
+      },
+      "perp_leg": {
+        "venue": "binance",
+        "market": "perp",
+        "side": "short",
+        "qty": 31884,
+        "entry_price": 0.0003684,
+        "order_ids": [
+          "cvsp-AKEUSDT-binance-1781786837-p1"
+        ]
+      },
+      "opportunity_id": "cross_venue_spot_perp:AKE-USDT:bybit+binance:cvsnap-20260618T124355.273813924",
+      "expected_funding_usdt": 0.0034449993367665,
+      "expected_net_ev_usdt": 0.01423824873583639,
+      "expected_hold_hours": 3.2679794961322224,
+      "status": "closed",
+      "transition_state": "open",
+      "idem_prefix": "cvsp-AKEUSDT-binance-1781786837",
+      "notional_usdt": 11.6889594,
+      "opened_at": "2026-06-18T12:47:17.411092765Z",
+      "updated_at": "2026-06-18T12:47:58.970712244Z",
+      "last_accrual_at": "0001-01-01T00:00:00Z",
+      "rollback_cost_usdt": 0.0117620076
+    },
+    {
+      "position_key": "SIREN-USDT|cvsp-SIRENUSDT-binance-1781787729",
+      "symbol": "SIREN-USDT",
+      "spot_venue": "bybit",
+      "perp_venue": "binance",
+      "spot_leg": {
+        "venue": "bybit",
+        "market": "spot",
+        "side": "buy",
+        "qty": 0,
+        "entry_price": 0
+      },
+      "perp_leg": {
+        "venue": "binance",
+        "market": "perp",
+        "side": "short",
+        "qty": 252,
+        "entry_price": 0.04635,
+        "order_ids": [
+          "cvsp-SIRENUSDT-binance-1781787729-p1"
+        ]
+      },
+      "opportunity_id": "cross_venue_spot_perp:SIREN-USDT:bybit+binance:cvsnap-20260618T125355.273815462",
+      "expected_funding_usdt": 0.010422198761853177,
+      "expected_net_ev_usdt": 0.003108354601776114,
+      "expected_hold_hours": 3.101312829038333,
+      "status": "closed",
+      "transition_state": "open",
+      "idem_prefix": "cvsp-SIRENUSDT-binance-1781787729",
+      "notional_usdt": 11.656375835294117,
+      "opened_at": "2026-06-18T13:02:09.681794531Z",
+      "updated_at": "2026-06-18T13:02:58.84103946Z",
+      "last_accrual_at": "0001-01-01T00:00:00Z",
+      "rollback_cost_usdt": 0.0116788896
     }
   ]
 }

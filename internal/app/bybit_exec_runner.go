@@ -257,13 +257,13 @@ func (e *BybitShadowExecutor) midPrice(ctx context.Context, m venue.Market, s ve
 
 // LogShadowPlan 把一轮规划结果打印为人类可读 shadow 日志(不下单)。
 func (e *BybitShadowExecutor) LogShadowPlan(plan BybitCyclePlan) {
-	e.logf("[bybit-shadow] 候选=%d 通过=%d 放弃=%d", len(plan.Candidates), len(plan.Accepted), len(plan.Rejected))
+	e.logf("[dry-run] 候选=%d 通过=%d 放弃=%d", len(plan.Candidates), len(plan.Accepted), len(plan.Rejected))
 	for _, p := range plan.Accepted {
-		e.logf("[bybit-shadow][拟开仓] %s 费率=%.4f%% 数量=%.6f 现货名义=%.2f 永续名义=%.2f 预计毛资金费=%.4f 费用=%.4f 净利=%.4f 净利率=%.4f%%",
+		e.logf("[dry-run][拟开仓] %s 费率=%.4f%% 数量=%.6f 现货名义=%.2f 永续名义=%.2f 预计毛资金费=%.4f 费用=%.4f 净利=%.4f 净利率=%.4f%%",
 			p.Symbol, p.FundingRate*100, p.BaseQty, p.SpotNotional, p.PerpNotional,
 			p.EstGrossFunding, p.EstFeeCost, p.EstNetProfit, p.EstNetProfitRate*100)
 	}
 	for _, r := range plan.Rejected {
-		e.logf("[bybit-shadow][放弃] %s: %s", r.Symbol, r.Reason)
+		e.logf("[dry-run][放弃] %s: %s", r.Symbol, r.Reason)
 	}
 }

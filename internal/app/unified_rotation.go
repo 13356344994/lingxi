@@ -3,6 +3,7 @@ package app
 import (
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"lingxi/internal/core"
@@ -21,6 +22,12 @@ type RotationConfig struct {
 	MaxPositionUSDT    float64            `json:"max_position_usdt"`
 	ReserveUSDTByVenue map[string]float64 `json:"reserve_usdt_by_venue"`
 	DefaultReserveUSDT float64            `json:"default_reserve_usdt"`
+	// TotalDeployableUSDT 全局可部署资金上限(USDT);0=不单独设限,仅用账户可用合计−储备作为预算基数。
+	TotalDeployableUSDT float64 `json:"total_deployable_usdt"`
+	// TotalDeployablePct 全局可部署预算占真实现金权益比例;>0 且 equity>0 时有效上限=pct×equity。
+	TotalDeployablePct float64 `json:"total_deployable_pct"`
+	// MaxStrategyCapitalUsagePct 单策略占用占全局可部署预算的比例上限;0=不限。
+	MaxStrategyCapitalUsagePct float64 `json:"max_strategy_capital_usage_pct"`
 	// ContinuationCloseThreshold 续持分须低于 −此阈值才允许软 CLOSE(过滤边际负分 fee churn)。默认 0.001。
 	ContinuationCloseThreshold float64 `json:"continuation_close_threshold"`
 	// ContinuationMinHoldSeconds 开仓后至少持有此秒数才允许续持分软 CLOSE。默认 3600。
@@ -31,21 +38,33 @@ type RotationConfig struct {
 func DefaultRotationConfig() RotationConfig {
 	return RotationConfig{
 		MaxConcurrent:              3,
-		MaxPositionUSDT:            500,
+		MaxPositionUSDT:            0, // 由 CrossVenueExecutorConfig 注入;勿独立默认 500
 		DefaultReserveUSDT:         10,
 		ContinuationCloseThreshold: 0.001,
 		ContinuationMinHoldSeconds: 3600,
 	}
 }
 
-// RotationConfigFromUnified 用 unified_rotation 配置覆盖轮动默认(零值保留默认)。
-func RotationConfigFromUnified(ur core.UnifiedRotationConfig) RotationConfig {
+// RotationConfigFromUnified 用 unified_rotation + 执行层限额组装轮动配置(单仓上限与 exec 对齐)。
+func RotationConfigFromUnified(ur core.UnifiedRotationConfig, exec CrossVenueExecutorConfig) RotationConfig {
 	cfg := DefaultRotationConfig()
+	if exec.MaxPositionUSDT > 0 {
+		cfg.MaxPositionUSDT = exec.MaxPositionUSDT
+	}
 	if ur.ContinuationCloseThreshold > 0 {
 		cfg.ContinuationCloseThreshold = ur.ContinuationCloseThreshold
 	}
 	if ur.ContinuationMinHoldSeconds > 0 {
 		cfg.ContinuationMinHoldSeconds = ur.ContinuationMinHoldSeconds
+	}
+	if ur.TotalDeployableUSDT > 0 {
+		cfg.TotalDeployableUSDT = ur.TotalDeployableUSDT
+	}
+	if ur.TotalDeployablePct > 0 {
+		cfg.TotalDeployablePct = ur.TotalDeployablePct
+	}
+	if ur.MaxStrategyCapitalUsagePct > 0 {
+		cfg.MaxStrategyCapitalUsagePct = ur.MaxStrategyCapitalUsagePct
 	}
 	return cfg
 }
@@ -93,9 +112,7 @@ func normalizeRotationConfig(cfg RotationConfig) RotationConfig {
 	if cfg.MaxConcurrent <= 0 {
 		cfg.MaxConcurrent = def.MaxConcurrent
 	}
-	if cfg.MaxPositionUSDT <= 0 {
-		cfg.MaxPositionUSDT = def.MaxPositionUSDT
-	}
+	// MaxPositionUSDT 须由 RotationConfigFromUnified(exec) 注入;零值表示不单独设单仓闸。
 	if cfg.DefaultReserveUSDT <= 0 && len(cfg.ReserveUSDTByVenue) == 0 {
 		cfg.DefaultReserveUSDT = def.DefaultReserveUSDT
 	}
@@ -187,7 +204,142 @@ func unifiedOpportunityTotalCapitalFromMap(capital map[string]float64) float64 {
 	return total
 }
 
-func rotationCanOpenOpportunity(opp UnifiedOpportunity, available map[string]float64, cfg RotationConfig, openCount int) (bool, string) {
+// rotationScannerSoftRejectReasons 是 scanner 侧软标记: 决策层另有等价检查, 不单独阻断 OPEN。
+var rotationScannerSoftRejectReasons = map[string]struct{}{
+	"requires_rebalance": {},
+	"net_ev<=0":          {},
+}
+
+// rotationFirstHardRejectReason 返回候选上第一个 scanner 硬 reject 原因(无则空串)。
+func rotationFirstHardRejectReason(opp UnifiedOpportunity) string {
+	for _, reason := range opp.RejectReasons {
+		reason = strings.TrimSpace(reason)
+		if reason == "" {
+			continue
+		}
+		if _, soft := rotationScannerSoftRejectReasons[reason]; soft {
+			continue
+		}
+		return reason
+	}
+	return ""
+}
+
+// rotationBudgetState 跟踪跨策略全局/单策略资金占用(held + 本轮已选 open/switch)。
+type rotationBudgetState struct {
+	totalLimitUSDT    float64
+	strategyLimitUSDT float64
+	globalUsedUSDT    float64
+	usedByStrategy    map[string]float64
+}
+
+func rotationBudgetEnabled(cfg RotationConfig) bool {
+	return cfg.TotalDeployableUSDT > 0 || cfg.TotalDeployablePct > 0 || cfg.MaxStrategyCapitalUsagePct > 0
+}
+
+func rotationComputeDeployableBase(freeAvailable map[string]float64, held []HeldPosition, cfg RotationConfig) float64 {
+	total := 0.0
+	for venue := range freeAvailable {
+		if eff := rotationEffectiveAvailable(freeAvailable, cfg, venue); eff > 0 {
+			total += eff
+		}
+	}
+	for _, pos := range held {
+		total += unifiedOpportunityTotalCapitalFromMap(pos.CapitalRequiredByVenue)
+	}
+	return total
+}
+
+func newRotationBudgetState(freeAvailable map[string]float64, held []HeldPosition, cfg RotationConfig, equityUSDT float64) rotationBudgetState {
+	st := rotationBudgetState{usedByStrategy: make(map[string]float64)}
+	if !rotationBudgetEnabled(cfg) {
+		return st
+	}
+	st.totalLimitUSDT = rotationComputeDeployableBase(freeAvailable, held, cfg)
+	deployableCap := effectiveTotalDeployableUSDT(cfg.TotalDeployableUSDT, cfg.TotalDeployablePct, equityUSDT)
+	if deployableCap > 0 && deployableCap < st.totalLimitUSDT {
+		st.totalLimitUSDT = deployableCap
+	}
+	if cfg.MaxStrategyCapitalUsagePct > 0 {
+		st.strategyLimitUSDT = st.totalLimitUSDT * cfg.MaxStrategyCapitalUsagePct
+	}
+	for _, pos := range held {
+		st.addHeld(pos)
+	}
+	return st
+}
+
+func (st *rotationBudgetState) addHeld(pos HeldPosition) {
+	if st.totalLimitUSDT <= 0 {
+		return
+	}
+	capital := unifiedOpportunityTotalCapitalFromMap(pos.CapitalRequiredByVenue)
+	st.globalUsedUSDT += capital
+	st.usedByStrategy[pos.StrategyType] += capital
+}
+
+func (st *rotationBudgetState) releaseHeld(pos HeldPosition) {
+	if st.totalLimitUSDT <= 0 {
+		return
+	}
+	capital := unifiedOpportunityTotalCapitalFromMap(pos.CapitalRequiredByVenue)
+	st.globalUsedUSDT -= capital
+	if st.globalUsedUSDT < 0 {
+		st.globalUsedUSDT = 0
+	}
+	st.usedByStrategy[pos.StrategyType] -= capital
+	if st.usedByStrategy[pos.StrategyType] < 0 {
+		st.usedByStrategy[pos.StrategyType] = 0
+	}
+}
+
+func (st *rotationBudgetState) addOpportunity(opp UnifiedOpportunity) {
+	if st.totalLimitUSDT <= 0 {
+		return
+	}
+	capital := unifiedOpportunityTotalCapital(opp)
+	st.globalUsedUSDT += capital
+	st.usedByStrategy[opp.StrategyType] += capital
+}
+
+func (st rotationBudgetState) cloneForReplace(pos HeldPosition) rotationBudgetState {
+	out := rotationBudgetState{
+		totalLimitUSDT:    st.totalLimitUSDT,
+		strategyLimitUSDT: st.strategyLimitUSDT,
+		globalUsedUSDT:    st.globalUsedUSDT,
+		usedByStrategy:    make(map[string]float64, len(st.usedByStrategy)),
+	}
+	for k, v := range st.usedByStrategy {
+		out.usedByStrategy[k] = v
+	}
+	out.releaseHeld(pos)
+	return out
+}
+
+func rotationBudgetBlockReason(st *rotationBudgetState, opp UnifiedOpportunity) string {
+	if st == nil || st.totalLimitUSDT <= 0 {
+		return ""
+	}
+	need := unifiedOpportunityTotalCapital(opp)
+	if need <= 0 {
+		return ""
+	}
+	if st.globalUsedUSDT+need > st.totalLimitUSDT+1e-9 {
+		return "global_budget_exceeded"
+	}
+	if st.strategyLimitUSDT > 0 && st.usedByStrategy[opp.StrategyType]+need > st.strategyLimitUSDT+1e-9 {
+		return "strategy_cap_exceeded"
+	}
+	return ""
+}
+
+func rotationCanOpenOpportunity(opp UnifiedOpportunity, available map[string]float64, cfg RotationConfig, openCount int, budget *rotationBudgetState) (bool, string) {
+	if opp.CandidateOnly {
+		return false, "candidate_only"
+	}
+	if hardReject := rotationFirstHardRejectReason(opp); hardReject != "" {
+		return false, fmt.Sprintf("reject:%s", hardReject)
+	}
 	if opp.ExpectedNetEVUSDT <= 0 {
 		return false, "net_ev<=0"
 	}
@@ -207,8 +359,14 @@ func rotationCanOpenOpportunity(opp UnifiedOpportunity, available map[string]flo
 			continue
 		}
 		if rotationEffectiveAvailable(available, cfg, venue)+1e-9 < need {
+			if opp.RequiresRebalance {
+				return false, "requires_rebalance_unfundable"
+			}
 			return false, fmt.Sprintf("venue_balance_insufficient:%s", venue)
 		}
+	}
+	if reason := rotationBudgetBlockReason(budget, opp); reason != "" {
+		return false, reason
 	}
 	return true, ""
 }
@@ -242,7 +400,7 @@ func rotationSortedPositiveCandidates(candidates []UnifiedOpportunity) []Unified
 	return positive
 }
 
-func planUnifiedRotationOpensFrom(candidates []UnifiedOpportunity, available map[string]float64, cfg RotationConfig, startOpenCount int) []RotationAction {
+func planUnifiedRotationOpensFrom(candidates []UnifiedOpportunity, available map[string]float64, cfg RotationConfig, startOpenCount int, budget rotationBudgetState) []RotationAction {
 	cfg = normalizeRotationConfig(cfg)
 	funds := cloneVenueCapitalMap(available)
 	sorted := rotationSortedPositiveCandidates(candidates)
@@ -250,12 +408,13 @@ func planUnifiedRotationOpensFrom(candidates []UnifiedOpportunity, available map
 	actions := make([]RotationAction, 0, len(sorted))
 	openCount := startOpenCount
 	for _, opp := range sorted {
-		ok, _ := rotationCanOpenOpportunity(opp, funds, cfg, openCount)
+		ok, _ := rotationCanOpenOpportunity(opp, funds, cfg, openCount, &budget)
 		if !ok {
 			continue
 		}
 		score := rotationComparableWindowScore(opp)
 		rotationDeductOpportunityCapital(funds, opp)
+		budget.addOpportunity(opp)
 		openCount++
 		actions = append(actions, RotationAction{
 			Kind:                   RotationActionOpen,
@@ -271,8 +430,13 @@ func planUnifiedRotationOpensFrom(candidates []UnifiedOpportunity, available map
 }
 
 // PlanUnifiedRotationOpens 对开仓侧做 shadow 贪心分配(纯函数,不执行下单)。
-func PlanUnifiedRotationOpens(candidates []UnifiedOpportunity, available map[string]float64, cfg RotationConfig) []RotationAction {
-	return planUnifiedRotationOpensFrom(candidates, available, cfg, 0)
+func PlanUnifiedRotationOpens(candidates []UnifiedOpportunity, available map[string]float64, cfg RotationConfig, equityUSDT ...float64) []RotationAction {
+	equity := 0.0
+	if len(equityUSDT) > 0 {
+		equity = equityUSDT[0]
+	}
+	budget := newRotationBudgetState(available, nil, cfg, equity)
+	return planUnifiedRotationOpensFrom(candidates, available, cfg, 0, budget)
 }
 
 func rotationBestReplaceCandidate(
@@ -282,6 +446,7 @@ func rotationBestReplaceCandidate(
 	cfg RotationConfig,
 	openCount int,
 	alreadyChosen map[string]struct{},
+	budget *rotationBudgetState,
 ) (UnifiedOpportunity, float64, bool) {
 	bestScore := -1.0
 	var best UnifiedOpportunity
@@ -298,7 +463,7 @@ func rotationBestReplaceCandidate(
 				continue
 			}
 		}
-		ok, _ := rotationCanOpenOpportunity(opp, available, cfg, openCount)
+		ok, _ := rotationCanOpenOpportunity(opp, available, cfg, openCount, budget)
 		if !ok {
 			continue
 		}
@@ -345,8 +510,13 @@ func DecideRotation(
 	candidates []UnifiedOpportunity,
 	available map[string]float64,
 	cfg RotationConfig,
+	equityUSDT ...float64,
 ) RotationPlan {
-	return decideRotationAt(held, heldInputs, candidates, available, cfg, time.Now())
+	equity := 0.0
+	if len(equityUSDT) > 0 {
+		equity = equityUSDT[0]
+	}
+	return decideRotationAt(held, heldInputs, candidates, available, cfg, time.Now(), equity)
 }
 
 func decideRotationAt(
@@ -356,9 +526,11 @@ func decideRotationAt(
 	available map[string]float64,
 	cfg RotationConfig,
 	now time.Time,
+	equityUSDT float64,
 ) RotationPlan {
 	cfg = normalizeRotationConfig(cfg)
 	funds := cloneVenueCapitalMap(available)
+	budget := newRotationBudgetState(available, held, cfg, equityUSDT)
 
 	plan := RotationPlan{}
 	openCount := len(held)
@@ -386,12 +558,14 @@ func decideRotationAt(
 				CapitalRequiredByVenue: cloneVenueCapitalFromOpportunity(pos.CapitalRequiredByVenue),
 			})
 			rotationAddCapitalMap(funds, pos.CapitalRequiredByVenue)
+			budget.releaseHeld(pos)
 			openCount--
 			continue
 		}
 
 		replaceFunds := cloneVenueCapitalMap(funds)
 		rotationAddCapitalMap(replaceFunds, pos.CapitalRequiredByVenue)
+		replaceBudget := budget.cloneForReplace(pos)
 		alreadyChosen := make(map[string]struct{}, len(chosen)+len(rejectedReplace)+1)
 		for id := range chosen {
 			alreadyChosen[id] = struct{}{}
@@ -402,7 +576,7 @@ func decideRotationAt(
 		for id := range heldIDs {
 			alreadyChosen[id] = struct{}{}
 		}
-		best, openScore, found := rotationBestReplaceCandidate(pos, candidates, replaceFunds, cfg, openCount, alreadyChosen)
+		best, openScore, found := rotationBestReplaceCandidate(pos, candidates, replaceFunds, cfg, openCount, alreadyChosen, &replaceBudget)
 		if !found {
 			plan.Actions = append(plan.Actions, RotationAction{
 				Kind:                   RotationActionHold,
@@ -460,6 +634,8 @@ func decideRotationAt(
 		})
 		rotationAddCapitalMap(funds, pos.CapitalRequiredByVenue)
 		rotationDeductOpportunityCapital(funds, best)
+		budget.releaseHeld(pos)
+		budget.addOpportunity(best)
 		chosen[best.ID] = struct{}{}
 	}
 
@@ -484,7 +660,7 @@ func decideRotationAt(
 			currentOpenCount++
 		}
 	}
-	plan.Actions = append(plan.Actions, planUnifiedRotationOpensFrom(remaining, funds, cfg, currentOpenCount)...)
+	plan.Actions = append(plan.Actions, planUnifiedRotationOpensFrom(remaining, funds, cfg, currentOpenCount, budget)...)
 
 	return plan
 }

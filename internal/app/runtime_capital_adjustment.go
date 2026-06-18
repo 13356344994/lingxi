@@ -219,24 +219,33 @@ func (e *FundingRateSniperEngine) captureRuntimeCapitalSnapshot(ctx context.Cont
 	return snapshot, nil
 }
 
-func (e *FundingRateSniperEngine) transferUSDTBetweenCapitalAccounts(ctx context.Context, from string, to string, amount float64) ([]RuntimeCapitalTransfer, error) {
+func (e *FundingRateSniperEngine) transferUSDTBetweenCapitalAccounts(ctx context.Context, from string, to string, amount float64) ([]RuntimeCapitalTransfer, float64, error) {
 	amount = math.Floor(maxFloat(amount, 0)*1e8) / 1e8
 	if amount <= executionQtyTolerance || strings.TrimSpace(from) == strings.TrimSpace(to) {
-		return nil, nil
+		return nil, 0, nil
 	}
 	plan := directOrHubTransferPlan(from, to)
 	if len(plan) == 0 {
-		return nil, fmt.Errorf("不支持的 USDT 划转路径: %s -> %s", from, to)
+		return nil, 0, fmt.Errorf("不支持的 USDT 划转路径: %s -> %s", from, to)
 	}
 	transfers := make([]RuntimeCapitalTransfer, 0, len(plan))
 	currentFrom := from
-	for _, transferType := range plan {
+	var movedFromSource float64
+	for hopIndex, transferType := range plan {
 		if strings.TrimSpace(transferType) == "" {
-			return transfers, fmt.Errorf("USDT 划转路径不完整: %s -> %s", from, to)
+			return transfers, movedFromSource, fmt.Errorf("USDT 划转路径不完整: %s -> %s", from, to)
 		}
-		if err := e.transferAssetBetweenAccounts(ctx, transferType, "USDT", amount); err != nil {
-			return transfers, err
+		actual, err := e.transferAssetBetweenAccounts(ctx, transferType, "USDT", amount)
+		if err != nil {
+			return transfers, movedFromSource, err
 		}
+		if actual <= executionQtyTolerance {
+			break
+		}
+		if hopIndex == 0 {
+			movedFromSource = actual
+		}
+		amount = actual
 		nextTo := to
 		switch transferType {
 		case "FUNDING_MAIN", "UMFUTURE_MAIN", "MARGIN_MAIN":
@@ -252,11 +261,11 @@ func (e *FundingRateSniperEngine) transferUSDTBetweenCapitalAccounts(ctx context
 			From:         currentFrom,
 			To:           nextTo,
 			TransferType: transferType,
-			AmountUSDT:   amount,
+			AmountUSDT:   actual,
 		})
 		currentFrom = nextTo
 	}
-	return transfers, nil
+	return transfers, movedFromSource, nil
 }
 
 func tradingCapitalTargets(totalTradingUSDT float64) (spotUSDT float64, marginUSDT float64, futuresUSDT float64) {
@@ -367,12 +376,15 @@ func (e *FundingRateSniperEngine) AdjustTradingCapitalUSDT(ctx context.Context, 
 		if amount <= executionQtyTolerance {
 			return nil
 		}
-		transfers, err := e.transferUSDTBetweenCapitalAccounts(ctx, from, to, amount)
+		transfers, actualMoved, err := e.transferUSDTBetweenCapitalAccounts(ctx, from, to, amount)
 		if err != nil {
 			return err
 		}
-		current[from] -= amount
-		current[to] += amount
+		if actualMoved <= executionQtyTolerance {
+			return nil
+		}
+		current[from] -= actualMoved
+		current[to] += actualMoved
 		allTransfers = append(allTransfers, transfers...)
 		return nil
 	}

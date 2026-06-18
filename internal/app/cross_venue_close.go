@@ -12,7 +12,6 @@ import (
 const (
 	crossVenueCloseCriticalAttempts     = 3
 	crossVenueClosePierceAfterAttempts  = 8
-	crossVenueCloseMaxSlippageBps       = 250.0
 	crossVenueClosePierceBuyMultiplier  = 5.0
 	crossVenueClosePierceSellMultiplier = 0.2
 )
@@ -20,28 +19,31 @@ const (
 // crossVenueCloseCriticalAlertMilestones 达到 critical 阈值后的告警里程碑:首报 + 指数退避续报。
 var crossVenueCloseCriticalAlertMilestones = []int{3, 10, 30, 100}
 
-// crossVenueCloseSlippageBps 按 CloseAttempts 阶梯放大平仓 IOC 滑点预算(base→2x→4x…),上限 crossVenueCloseMaxSlippageBps。
-func crossVenueCloseSlippageBps(baseBps float64, closeAttempts int) float64 {
+// crossVenueCloseSlippageBps 按 CloseAttempts 阶梯放大平仓 IOC 滑点预算(base→2x→4x…),上限 maxBps(锚定 SlippageBudgetBps×close_max_multiplier)。
+func crossVenueCloseSlippageBps(baseBps float64, closeAttempts int, maxBps float64) float64 {
 	if closeAttempts <= 0 {
 		closeAttempts = 1
 	}
 	if baseBps <= 0 {
-		baseBps = 40
+		baseBps = defaultTakerSlippageBudgetBps
+	}
+	if maxBps <= 0 {
+		maxBps = crossVenueCloseMaxSlippageBpsLegacy
 	}
 	mult := math.Pow(2, float64(closeAttempts-1))
 	bps := baseBps * mult
-	if bps > crossVenueCloseMaxSlippageBps {
-		return crossVenueCloseMaxSlippageBps
+	if bps > maxBps {
+		return maxBps
 	}
 	return bps
 }
 
 // crossVenueCloseIocLimitPrice 平仓 IOC 限价:随 CloseAttempts 递进放宽;≥ pierce 阈值后穿价兜底(marketable reduce-only)。
-func crossVenueCloseIocLimitPrice(side venue.Side, book venue.BookTicker, baseBps float64, closeAttempts int) (price float64, pierce bool) {
+func crossVenueCloseIocLimitPrice(side venue.Side, book venue.BookTicker, baseBps float64, closeAttempts int, maxBps float64) (price float64, pierce bool) {
 	if closeAttempts >= crossVenueClosePierceAfterAttempts {
 		return crossVenueClosePierceLimitPrice(side, book), true
 	}
-	bps := crossVenueCloseSlippageBps(baseBps, closeAttempts)
+	bps := crossVenueCloseSlippageBps(baseBps, closeAttempts, maxBps)
 	return iocLimitPrice(side, book, bps), false
 }
 
@@ -123,10 +125,11 @@ func (e *CrossVenueExecutor) placeCrossVenueCloseLeg(
 	if err != nil {
 		return venue.OrderResult{}, book, err
 	}
-	limitPrice, pierce := crossVenueCloseIocLimitPrice(side, book, baseBps, closeAttempts)
 	cfg := e.cfg.CrossVenueExecutor
+	closeMaxBps := crossVenueResolvedCloseMaxSlippageBps(cfg)
+	limitPrice, pierce := crossVenueCloseIocLimitPrice(side, book, baseBps, closeAttempts, closeMaxBps)
 	if closeAttempts == 1 && cfg.MakerFirst && live && !pierce {
-		slipBps := crossVenueCloseSlippageBps(baseBps, closeAttempts)
+		slipBps := crossVenueCloseSlippageBps(baseBps, closeAttempts, closeMaxBps)
 		res, err := e.placeCrossVenueLegExec(ctx, tr, sym, side, qty, clientID, true, live, true, slipBps, deadline)
 		return res, book, err
 	}

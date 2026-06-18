@@ -142,7 +142,7 @@ func TestArmDeadMansForLegsLogsRealFailure(t *testing.T) {
 
 	e.armDeadMansForLegs(context.Background(), pos, true)
 
-	if !strings.Contains(buf.String(), "dead-man 续期失败") {
+	if !strings.Contains(buf.String(), "[dead-man] 续期失败") {
 		t.Fatalf("real renewal failure should be logged, got: %q", buf.String())
 	}
 }

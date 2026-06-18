@@ -50,7 +50,7 @@ func (e *CrossVenueExecutor) reconcileOpeningPositionOnStart(ctx context.Context
 			p.CloseReason = nonEmpty(p.CloseReason, "reconcile_opening_empty")
 			p.RecoveryAction = crossVenueRecoveryActionObserve
 			p.PartialSwitchPhase = "open_new_retry"
-			e.finalizeClosedCrossVenuePosition(p)
+			e.finalizeClosedCrossVenuePosition(p, true)
 			if hasIntent {
 				_ = e.updateSwitchIntentAttempt(intent.Symbol, intent.TargetHighVenue, intent.TargetLowVenue, "open_new_retry", "reconcile staged target empty, waiting retry")
 			}
@@ -106,7 +106,7 @@ func (e *CrossVenueExecutor) reconcileOpeningPositionOnStart(ctx context.Context
 		p.CloseReason = nonEmpty(p.CloseReason, "reconcile_opening_empty")
 		p.RecoveryAction = crossVenueRecoveryActionObserve
 		p.PartialSwitchPhase = nonEmpty(p.PartialSwitchPhase, "open_new_retry")
-		e.finalizeClosedCrossVenuePosition(p)
+		e.finalizeClosedCrossVenuePosition(p, true)
 		if hasIntent {
 			_ = e.updateSwitchIntentAttempt(intent.Symbol, intent.TargetHighVenue, intent.TargetLowVenue, "open_new_retry", "reconcile opening position empty, waiting retry")
 		}
@@ -177,7 +177,7 @@ func (e *CrossVenueExecutor) reconcileTrackedPositionOnStart(ctx context.Context
 		p.Status = CrossVenueStatusClosed
 		p.CloseReason = "reconcile_orphan"
 		p.RecoveryAction = crossVenueRecoveryActionObserve
-		e.finalizeClosedCrossVenuePosition(p)
+		e.finalizeClosedCrossVenuePosition(p, true)
 		e.notifyWarn("跨所 orphan", fmt.Sprintf("%s 台账有但两所均无持仓", p.Symbol), p.Symbol)
 	case hOpen != lOpen:
 		p.Status = CrossVenueStatusOrphanSingleLeg

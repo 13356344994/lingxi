@@ -348,9 +348,51 @@ func (a *Adapter) FetchOpenInterest(ctx context.Context, s venue.Symbol) (float6
 	return float64(c.PositionSize) * mult, nil
 }
 
-// FetchRecentQuoteVolume Gate K 线成交额聚合尚未接入。
+// FetchRecentQuoteVolume 用 tickers 端点取 24h USDT 报价量。
+// spot: quote_volume(计价货币=USDT);futures: volume_24h_settle(USDT 结算货币成交额)。
+// 若 settle 缺失,回退 volume_24h_quote,再回退 volume_24h_base×last。
 func (a *Adapter) FetchRecentQuoteVolume(ctx context.Context, m venue.Market, s venue.Symbol, window time.Duration) (float64, error) {
-	return 0, venue.ErrUnsupported
+	raw, err := a.ToVenue(s, m)
+	if err != nil {
+		return 0, err
+	}
+	if m == venue.MarketPerp {
+		q := url.Values{}
+		q.Set("contract", raw)
+		var rows []struct {
+			Volume24hSettle string `json:"volume_24h_settle"`
+			Volume24hQuote  string `json:"volume_24h_quote"`
+			Volume24hBase   string `json:"volume_24h_base"`
+			Last            string `json:"last"`
+		}
+		if err := a.t.publicGet(ctx, pathFuturesTickers, q, &rows); err != nil {
+			return 0, err
+		}
+		if len(rows) == 0 {
+			return 0, fmt.Errorf("gate: futures ticker 空响应 contract=%s", raw)
+		}
+		row := rows[0]
+		vol := parseFloat(row.Volume24hSettle)
+		if vol <= 0 {
+			vol = parseFloat(row.Volume24hQuote)
+		}
+		if vol <= 0 {
+			vol = parseFloat(row.Volume24hBase) * parseFloat(row.Last)
+		}
+		return vol, nil
+	}
+	q := url.Values{}
+	q.Set("currency_pair", raw)
+	var rows []struct {
+		QuoteVolume string `json:"quote_volume"`
+	}
+	if err := a.t.publicGet(ctx, pathSpotTickers, q, &rows); err != nil {
+		return 0, err
+	}
+	if len(rows) == 0 {
+		return 0, fmt.Errorf("gate: spot ticker 空响应 currency_pair=%s", raw)
+	}
+	return parseFloat(rows[0].QuoteVolume), nil
 }
 
 // lookupInstrument 拉单条合约/现货元数据(PlaceOrder/盘口换算用),带进程级 TTL 缓存。

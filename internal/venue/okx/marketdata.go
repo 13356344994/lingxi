@@ -382,9 +382,40 @@ func (a *Adapter) FetchOpenInterest(ctx context.Context, s venue.Symbol) (float6
 	return contracts * ctVal, nil
 }
 
-// FetchRecentQuoteVolume 未实现:OKX K 线成交额聚合尚未接入。
+// FetchRecentQuoteVolume 用 /api/v5/market/ticker 取 24h 计价货币成交量(USDT 报价量)。
+// 优先 volCcy24h(计价/结算货币口径;USDT 本位 spot/SWAP 即 USDT 成交额)。
+// 若 volCcy24h 缺失或为 0 且为永续,回退 vol24h(张)×ctVal×last 换算 USDT。
+// window 由调用方传入(流动性 sizing 固定 24h);ticker 端点本身为滚动 24h 统计。
 func (a *Adapter) FetchRecentQuoteVolume(ctx context.Context, m venue.Market, s venue.Symbol, window time.Duration) (float64, error) {
-	return 0, venue.ErrUnsupported
+	raw, err := a.ToVenue(s, m)
+	if err != nil {
+		return 0, err
+	}
+	q := url.Values{}
+	q.Set("instId", raw)
+	var rows []struct {
+		VolCcy24h string `json:"volCcy24h"`
+		Vol24h    string `json:"vol24h"`
+		Last      string `json:"last"`
+	}
+	if err := a.t.publicGet(ctx, pathTicker, q, &rows); err != nil {
+		return 0, err
+	}
+	if len(rows) == 0 {
+		return 0, fmt.Errorf("okx: ticker 空响应 instId=%s", raw)
+	}
+	vol := parseFloat(rows[0].VolCcy24h)
+	if vol <= 0 && m == venue.MarketPerp {
+		// 少数 SWAP volCcy24h 可能非 USDT 口径;用 张×面值×last 换算为 USDT 报价量。
+		contracts := parseFloat(rows[0].Vol24h)
+		last := parseFloat(rows[0].Last)
+		ctVal := 1.0
+		if inst, ierr := a.lookupInstrument(ctx, m, s); ierr == nil && inst.ContractSize > 0 {
+			ctVal = inst.ContractSize
+		}
+		vol = contracts * ctVal * last
+	}
+	return vol, nil
 }
 
 // instCacheTTL:ctVal/lotSz/tickSz 是合约定义,上线后几乎不变(改面值等于换合约),

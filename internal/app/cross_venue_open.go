@@ -59,18 +59,7 @@ func iocLimitPrice(side venue.Side, book venue.BookTicker, slippageBps float64) 
 }
 
 func crossVenueTakerSlippageBps(cfg core.CrossVenueExecutorConfig) float64 {
-	bps := cfg.TakerSlippageBudgetBps
-	if bps <= 0 {
-		bps = cfg.SlippageBudgetBps
-	}
-	if bps < cfg.SlippageBudgetBps {
-		bps = cfg.SlippageBudgetBps
-	}
-	const maxTakerSlippageBps = 100
-	if bps > maxTakerSlippageBps {
-		bps = maxTakerSlippageBps
-	}
-	return bps
+	return crossVenueResolvedTakerSlippageBps(cfg)
 }
 
 func (e *CrossVenueExecutor) confirmCrossVenueFill(ctx context.Context, tr crossVenueTrader, sym venue.Symbol, clientID string) (venue.OrderResult, error) {
@@ -215,8 +204,12 @@ func (e *CrossVenueExecutor) executeCrossVenueOpen(ctx context.Context, plan cro
 
 	highID := crossVenueLegClientID(plan.IdemPrefix, "h1")
 	if !live {
-		e.logger.Printf("[影子] 本应开仓 %s: 空%s/多%s 各≈%.6f 名义≈%.2fU 价差年化%.1f%%",
-			plan.Opp.Symbol, plan.Opp.HighVenue, plan.Opp.LowVenue, plan.Qty, plan.Gate.NotionalUSDT, plan.Opp.SpreadAPR*100)
+		logDryRunOpen(e.logger, "跨所perp-perp", plan.Opp.Symbol,
+			fmt.Sprintf("空%s/多%s 各≈%.6f 名义≈%.2fU 价差年化%.1f%%",
+				plan.Opp.HighVenue, plan.Opp.LowVenue, plan.Qty, plan.Gate.NotionalUSDT, plan.Opp.SpreadAPR*100))
+		appendDryRunEvent(e.recordDir, "cvpp_open", map[string]any{
+			"symbol": plan.Opp.Symbol, "high": plan.Opp.HighVenue, "low": plan.Opp.LowVenue, "qty": plan.Qty,
+		})
 		return CrossVenuePosition{}, nil
 	}
 	highCaps := highV.Capabilities()
@@ -237,7 +230,19 @@ func (e *CrossVenueExecutor) executeCrossVenueOpen(ctx context.Context, plan cro
 
 	_, _, deadlineBudget, _ := crossVenueMakerChaseParams(cfg)
 	firstLegDeadline := e.nowFn().Add(deadlineBudget)
-	highRes, err := e.placeCrossVenueLegExec(ctx, highTrader, sym, venue.SideSell, plan.Qty, highID, false, live, false, cfg.SlippageBudgetBps, firstLegDeadline)
+	highRes, err := e.placeCrossVenueLegExec(ctx, highTrader, sym, venue.SideSell, plan.Qty, highID, false, live, false, crossVenueResolvedIOCSlippageBps(cfg), firstLegDeadline)
+	if orderStatusIsUnknown(highRes) || isUnknownOrderStateError(err) {
+		if highRes.ExecutedQty > executionQtyTolerance {
+			pos.HighLeg.Qty = highRes.ExecutedQty
+			pos.HighLeg.EntryPrice = highRes.AvgPrice
+			pos.HighLeg.OrderIDs = []string{highID}
+			pos.Status = CrossVenueStatusOpeningSecondLeg
+		}
+		pos.UpdatedAt = e.nowFn()
+		_ = e.persistPosition(pos)
+		e.notifyCritical("跨所查单未知", fmt.Sprintf("%s 第一腿查单失败,禁止自动回滚", plan.Opp.Symbol), plan.Opp.Symbol)
+		return pos, fmt.Errorf("第一腿状态未知,禁止自动回滚: %w", err)
+	}
 	if err != nil || highRes.ExecutedQty <= executionQtyTolerance {
 		if highRes.ExecutedQty > executionQtyTolerance {
 			if plan.SwitchIntent != nil {
@@ -304,6 +309,12 @@ func (e *CrossVenueExecutor) executeCrossVenueOpen(ctx context.Context, plan cro
 	}
 	secondLegDeadline := nakedStart.Add(deadlineBudget)
 	lowRes, lowErr := e.placeCrossVenueLegExec(ctx, lowTrader, sym, venue.SideBuy, hedgeQty, lowID, false, live, true, crossVenueTakerSlippageBps(cfg), secondLegDeadline)
+	if orderStatusIsUnknown(lowRes) || isUnknownOrderStateError(lowErr) {
+		pos.UpdatedAt = e.nowFn()
+		_ = e.persistPosition(pos)
+		e.notifyCritical("跨所查单未知", fmt.Sprintf("%s 第二腿查单失败,禁止自动回滚", plan.Opp.Symbol), plan.Opp.Symbol)
+		return pos, fmt.Errorf("第二腿状态未知,禁止自动回滚: %w", lowErr)
+	}
 	if lowErr != nil || lowRes.ExecutedQty <= executionQtyTolerance {
 		elapsed := e.nowFn().Sub(nakedStart).Seconds()
 		if plan.SwitchIntent != nil {
@@ -375,6 +386,16 @@ func (e *CrossVenueExecutor) rollbackFirstLeg(ctx context.Context, plan crossVen
 // 重试(manageCrossVenuePosition 的 closing 分支);CloseAttempts 驱动递进滑点/穿价兜底;≥3 轮 critical 告警(退避)。
 // 影子模式无真仓,记日志后直接收尾删台账(行为不变)。
 func (e *CrossVenueExecutor) closeCrossVenuePosition(ctx context.Context, pos CrossVenuePosition, live bool, reason string) error {
+	if !live {
+		if pos.HighLeg.Qty > executionQtyTolerance {
+			e.logger.Printf("[dry-run] 本应平仓 %s 高费腿 %s 买回 %.6f 原因:%s", pos.Symbol, pos.HighVenue, pos.HighLeg.Qty, reason)
+		}
+		if pos.LowLeg.Qty > executionQtyTolerance {
+			e.logger.Printf("[dry-run] 本应平仓 %s 低费腿 %s 卖出 %.6f 原因:%s", pos.Symbol, pos.LowVenue, pos.LowLeg.Qty, reason)
+		}
+		appendDryRunEvent(e.recordDir, "cvpp_close", map[string]any{"symbol": pos.Symbol, "reason": reason})
+		return nil
+	}
 	fromStatus := pos.Status
 	pos.Status = CrossVenueStatusClosing
 	if pos.CloseReason == "" {
@@ -394,22 +415,6 @@ func (e *CrossVenueExecutor) closeCrossVenuePosition(ctx context.Context, pos Cr
 	lowTrader, _ := lowV.(crossVenueTrader)
 	if highTrader == nil || lowTrader == nil {
 		return fmt.Errorf("venue 交易接口缺失")
-	}
-
-	if !live {
-		// 影子:没有真仓,日志后直接收尾。
-		if pos.HighLeg.Qty > executionQtyTolerance {
-			e.logger.Printf("[影子] 本应平仓 %s 高费腿 %s 买回 %.6f 原因:%s", pos.Symbol, pos.HighVenue, pos.HighLeg.Qty, reason)
-		}
-		if pos.LowLeg.Qty > executionQtyTolerance {
-			e.logger.Printf("[影子] 本应平仓 %s 低费腿 %s 卖出 %.6f 原因:%s", pos.Symbol, pos.LowVenue, pos.LowLeg.Qty, reason)
-		}
-		pos.Status = CrossVenueStatusClosed
-		pos.UpdatedAt = e.nowFn()
-		e.recordCrossVenueTransition(pos, string(CrossVenueStatusClosing), string(CrossVenueStatusClosed), reason)
-		e.finalizeClosedCrossVenuePosition(pos)
-		e.notifyTrade("跨所平仓", fmt.Sprintf("%s %s", pos.Symbol, reason), pos.Symbol)
-		return nil
 	}
 
 	pos.CloseAttempts++
@@ -454,7 +459,7 @@ func (e *CrossVenueExecutor) closeCrossVenuePosition(ctx context.Context, pos Cr
 		pos.Status = CrossVenueStatusClosed
 		pos.UpdatedAt = e.nowFn()
 		e.recordCrossVenueTransition(pos, string(CrossVenueStatusClosing), string(CrossVenueStatusClosed), pos.CloseReason)
-		e.finalizeClosedCrossVenuePosition(pos)
+		e.finalizeClosedCrossVenuePosition(pos, live)
 		e.notifyTrade("跨所平仓", fmt.Sprintf("%s %s(第 %d 轮平仓完成)", pos.Symbol, pos.CloseReason, attempt), pos.Symbol)
 		return nil
 	}

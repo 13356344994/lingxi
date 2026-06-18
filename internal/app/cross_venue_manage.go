@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"math"
 	"strings"
+	"sync"
 	"time"
 
 	"lingxi/internal/venue"
@@ -30,6 +32,12 @@ func estimateLiqDistance(pos venue.Position) float64 {
 }
 
 func (e *CrossVenueExecutor) manageCrossVenuePosition(ctx context.Context, pos CrossVenuePosition, live bool) (CrossVenuePosition, bool) {
+	if !live {
+		if reason := e.shouldCloseCrossVenue(ctx, &pos); reason != "" {
+			logDryRunClose(e.logger, "跨所perp-perp", pos.Symbol, reason)
+		}
+		return pos, false
+	}
 	cfg := e.cfg.CrossVenueExecutor
 	sym := venue.Symbol(pos.Symbol)
 	highV := e.venues[pos.HighVenue]
@@ -72,7 +80,7 @@ func (e *CrossVenueExecutor) manageCrossVenuePosition(ctx context.Context, pos C
 	if !highOpen && !lowOpen {
 		pos.Status = CrossVenueStatusClosed
 		pos.UpdatedAt = e.nowFn()
-		e.finalizeClosedCrossVenuePosition(pos)
+		e.finalizeClosedCrossVenuePosition(pos, live)
 		return pos, true
 	}
 
@@ -136,7 +144,7 @@ func (e *CrossVenueExecutor) manageCrossVenueOpeningContinuation(ctx context.Con
 			if hasIntent {
 				_ = e.updateSwitchIntentAttempt(intent.Symbol, intent.TargetHighVenue, intent.TargetLowVenue, "open_new_retry", "staged switch target disappeared, waiting retry")
 			}
-			e.finalizeClosedCrossVenuePosition(pos)
+			e.finalizeClosedCrossVenuePosition(pos, live)
 			return pos, true
 		case highOpen && !lowOpen:
 			if hasIntent && crossVenueStagedSwitchReadyForSecondLeg(intent) {
@@ -186,7 +194,7 @@ func (e *CrossVenueExecutor) manageCrossVenueOpeningContinuation(ctx context.Con
 		if hasIntent {
 			_ = e.updateSwitchIntentAttempt(intent.Symbol, intent.TargetHighVenue, intent.TargetLowVenue, "open_new_retry", "runtime opening target disappeared, waiting retry")
 		}
-		e.finalizeClosedCrossVenuePosition(pos)
+		e.finalizeClosedCrossVenuePosition(pos, live)
 		return pos, true
 	case crossVenueCanPromoteToSecondLegContinuation(pos.Status, pos.PartialSwitchPhase, highOpen, lowOpen):
 		pos.Status = CrossVenueStatusOpeningSecondLeg
@@ -794,6 +802,10 @@ func (e *CrossVenueExecutor) crossVenueSwitchCloseReason(pos *CrossVenuePosition
 	if e == nil || pos == nil || e.scanner == nil {
 		return ""
 	}
+	// 统一 runner 接管跨策略换仓;仅保留已在途 staged/pending switch 续跑,不再主动触发内部换对。
+	if e.RotationManaged() && !crossVenueHasPendingSwitch(*pos) {
+		return ""
+	}
 	now := e.nowFn()
 	if crossVenueHasPendingSwitch(*pos) {
 		if crossVenueSwitchSequenceNeedsTargetFirst(pos.PendingSwitchSequence) {
@@ -919,26 +931,49 @@ func isDeadManUnsupportedErr(err error) bool {
 }
 
 func (e *CrossVenueExecutor) armDeadMansForLegs(ctx context.Context, pos CrossVenuePosition, live bool) {
+	armDeadMansForVenueNames(
+		ctx, e.cfg, e.venues, e.logger, e.nowFn,
+		&e.mu, e.deadManUnsupportedVenues, e.deadManLastArm,
+		[]string{pos.HighVenue, pos.LowVenue}, live,
+	)
+}
+
+// armDeadMansForVenueNames 为指定 venue 续期 dead-man(账户级 cancel-all-after);不支持的所静默跳过。
+func armDeadMansForVenueNames(
+	ctx context.Context,
+	cfg EngineConfig,
+	venues map[string]venue.Venue,
+	logger *log.Logger,
+	nowFn func() time.Time,
+	mu *sync.RWMutex,
+	deadManUnsupportedVenues map[string]struct{},
+	deadManLastArm map[string]time.Time,
+	venueNames []string,
+	live bool,
+) {
 	if !live {
 		return
 	}
-	cd := time.Duration(e.cfg.CrossVenueExecutor.DeadManCountdownSeconds) * time.Second
+	cd := time.Duration(cfg.CrossVenueExecutor.DeadManCountdownSeconds) * time.Second
 	if cd <= 0 {
 		cd = 60 * time.Second
 	}
 	now := time.Now()
-	if e.nowFn != nil {
-		now = e.nowFn()
+	if nowFn != nil {
+		now = nowFn()
 	}
-	for _, name := range []string{pos.HighVenue, pos.LowVenue} {
-		v := e.venues[name]
+	for _, name := range venueNames {
+		if strings.TrimSpace(name) == "" {
+			continue
+		}
+		v := venues[name]
 		if v == nil || !v.Capabilities().HasNativeDeadMan {
 			continue
 		}
-		e.mu.RLock()
-		_, skip := e.deadManUnsupportedVenues[name]
-		lastArm := e.deadManLastArm[name]
-		e.mu.RUnlock()
+		mu.RLock()
+		_, skip := deadManUnsupportedVenues[name]
+		lastArm := deadManLastArm[name]
+		mu.RUnlock()
 		if skip {
 			continue
 		}
@@ -949,19 +984,21 @@ func (e *CrossVenueExecutor) armDeadMansForLegs(ctx context.Context, pos CrossVe
 		}
 		if err := v.ArmDeadMansSwitch(ctx, cd); err != nil {
 			if isDeadManUnsupportedErr(err) {
-				e.mu.Lock()
-				e.deadManUnsupportedVenues[name] = struct{}{}
-				e.mu.Unlock()
+				mu.Lock()
+				deadManUnsupportedVenues[name] = struct{}{}
+				mu.Unlock()
 				continue
 			}
-			e.logger.Printf("[跨所] dead-man 续期失败 venue=%s: %v", name, err)
+			if logger != nil {
+				logger.Printf("[dead-man] 续期失败 venue=%s: %v", name, err)
+			}
 			continue
 		}
-		e.mu.Lock()
-		if e.deadManLastArm == nil {
-			e.deadManLastArm = make(map[string]time.Time)
+		mu.Lock()
+		if deadManLastArm == nil {
+			deadManLastArm = make(map[string]time.Time)
 		}
-		e.deadManLastArm[name] = now
-		e.mu.Unlock()
+		deadManLastArm[name] = now
+		mu.Unlock()
 	}
 }

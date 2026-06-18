@@ -254,3 +254,54 @@ func TestPositionsSignParse(t *testing.T) {
 		t.Errorf("杠杆解析错误: %v", pos[0].Leverage)
 	}
 }
+
+func TestFetchRecentQuoteVolumeSpot(t *testing.T) {
+	a := fakeOKX(t, map[string]string{
+		pathTicker: `{"code":"0","msg":"","data":[{"instId":"BTC-USDT","volCcy24h":"1234567890.5","vol24h":"20000","last":"60000"}]}`,
+	})
+	vol, err := a.FetchRecentQuoteVolume(context.Background(), venue.MarketSpot, "BTC-USDT", 24*time.Hour)
+	if err != nil || vol != 1234567890.5 {
+		t.Fatalf("spot volCcy24h 解析错误 vol=%v err=%v", vol, err)
+	}
+}
+
+func TestFetchRecentQuoteVolumePerp(t *testing.T) {
+	a := fakeOKX(t, map[string]string{
+		pathTicker: `{"code":"0","msg":"","data":[{"instId":"BTC-USDT-SWAP","volCcy24h":"9876543210","vol24h":"100000","last":"60000"}]}`,
+	})
+	vol, err := a.FetchRecentQuoteVolume(context.Background(), venue.MarketPerp, "BTC-USDT", 24*time.Hour)
+	if err != nil || vol != 9876543210 {
+		t.Fatalf("永续 volCcy24h(USDT) 解析错误 vol=%v err=%v", vol, err)
+	}
+}
+
+// TestFetchRecentQuoteVolumePerpFallback 钉死 volCcy24h 缺失时 张×ctVal×last 回退换算。
+func TestFetchRecentQuoteVolumePerpFallback(t *testing.T) {
+	a := fakeOKX(t, map[string]string{
+		pathTicker:      `{"code":"0","msg":"","data":[{"instId":"BTC-USDT-SWAP","volCcy24h":"0","vol24h":"1000","last":"60000"}]}`,
+		pathInstruments: `{"code":"0","msg":"","data":[{"instId":"BTC-USDT-SWAP","instType":"SWAP","state":"live","tickSz":"0.1","lotSz":"1","ctVal":"0.01","ctValCcy":"BTC"}]}`,
+	})
+	vol, err := a.FetchRecentQuoteVolume(context.Background(), venue.MarketPerp, "BTC-USDT", 24*time.Hour)
+	want := 1000.0 * 0.01 * 60000 // 600000 USDT
+	if err != nil || vol != want {
+		t.Fatalf("永续回退换算错误 vol=%v want=%v err=%v", vol, want, err)
+	}
+}
+
+func TestFetchRecentQuoteVolumeHTTPError(t *testing.T) {
+	a := fakeOKX(t, map[string]string{})
+	_, err := a.FetchRecentQuoteVolume(context.Background(), venue.MarketSpot, "BTC-USDT", 24*time.Hour)
+	if err == nil {
+		t.Fatal("HTTP 404 应返回 error")
+	}
+}
+
+func TestFetchRecentQuoteVolumeEmptyResponse(t *testing.T) {
+	a := fakeOKX(t, map[string]string{
+		pathTicker: `{"code":"0","msg":"","data":[]}`,
+	})
+	_, err := a.FetchRecentQuoteVolume(context.Background(), venue.MarketSpot, "BTC-USDT", 24*time.Hour)
+	if err == nil {
+		t.Fatal("空 data 应返回 error")
+	}
+}

@@ -53,6 +53,8 @@ type crossVenueTestVenue struct {
 	makerFillOnRound int
 	// takerAlwaysFail 强制 taker(IOC) 兜底失败。
 	takerAlwaysFail bool
+	// unknownNext 下一笔 PlaceOrder 返回 unknown 态(模拟查单失败/状态不明)。
+	unknownNext bool
 	// canceledIDs 记录撤单 client ID。
 	canceledIDs []string
 	// openOrders 跟踪挂单状态(QueryOrder 用)。
@@ -141,6 +143,17 @@ func (f *crossVenueTestVenue) PlaceOrder(_ context.Context, req venue.OrderReque
 	if f.placeFailNext {
 		f.placeFailNext = false
 		return venue.OrderResult{Status: "rejected"}, errors.New("simulated fail")
+	}
+	if f.unknownNext {
+		f.unknownNext = false
+		return venue.OrderResult{
+			Symbol:        req.Symbol,
+			Market:        req.Market,
+			ClientOrderID: req.ClientOrderID,
+			Status:        "unknown",
+			ExecutedQty:   req.Qty,
+			AvgPrice:      req.Price,
+		}, errors.New("simulated unknown")
 	}
 	if req.Type == venue.OrderTypePostOnly {
 		round := 0
@@ -428,6 +441,103 @@ func TestCrossVenueSecondLegFailRollback(t *testing.T) {
 	}
 }
 
+func newCrossVenueOpenTestExecutor(t *testing.T, high, low *crossVenueTestVenue, sink *recordingAlertSink) *CrossVenueExecutor {
+	t.Helper()
+	now := time.Now().UTC().Add(time.Hour)
+	cfg := testCrossVenueExecutorConfig()
+	cfg.NetworkConfig.RecordDir = t.TempDir()
+	cfg.CrossVenueExecutor.LiveTradingEnabled = true
+	e := &CrossVenueExecutor{
+		cfg:            cfg,
+		venues:         map[string]venue.Venue{bybit.VenueName: high, okx.VenueName: low},
+		store:          mustCrossVenueStore(t, cfg.NetworkConfig.RecordDir),
+		logger:         testCrossVenueLogger(),
+		nowFn:          func() time.Time { return now },
+		symbolCooldown: map[string]time.Time{},
+	}
+	if sink != nil {
+		e.alerts = &AlertDispatcher{
+			sinks:    []AlertSink{sink},
+			minRank:  severityRank(EventLevelInfo),
+			timeout:  time.Second,
+			now:      time.Now,
+			lastSent: map[string]time.Time{},
+		}
+	}
+	return e
+}
+
+func TestCrossVenueSecondLegUnknownBlocksRollback(t *testing.T) {
+	now := time.Now().UTC().Add(time.Hour)
+	high := newCrossVenueTestVenue(bybit.VenueName, 0.001, 8, now)
+	low := newCrossVenueTestVenue(okx.VenueName, 0.0001, 8, now)
+	low.unknownNext = true
+	sink := &recordingAlertSink{}
+	e := newCrossVenueOpenTestExecutor(t, high, low, sink)
+	plan := crossVenueOpenPlan{
+		Opp:        CrossVenueOpportunity{Symbol: "BTC-USDT", HighVenue: bybit.VenueName, LowVenue: okx.VenueName, SpreadAPR: 2.0},
+		Gate:       crossVenueGateResult{NotionalUSDT: 50, HighMid: 100, LowMid: 100},
+		Qty:        0.5,
+		IdemPrefix: "test-unknown-l2",
+	}
+	pos, err := e.executeCrossVenueOpen(context.Background(), plan, true)
+	if err == nil || !strings.Contains(err.Error(), "禁止自动回滚") {
+		t.Fatalf("expected second-leg unknown to block rollback, got pos=%+v err=%v", pos, err)
+	}
+	if atomic.LoadInt32(high.placeCount) != 1 {
+		t.Fatalf("rollback must not run on unknown second leg, high places=%d", atomic.LoadInt32(high.placeCount))
+	}
+	if pos.Status != CrossVenueStatusOpeningSecondLeg {
+		t.Fatalf("expected opening_second_leg for reconcile, got %s", pos.Status)
+	}
+	if pos.HighLeg.Qty <= executionQtyTolerance {
+		t.Fatalf("expected first leg qty retained, got %.6f", pos.HighLeg.Qty)
+	}
+	titles := sink.waitTitles(t, 1)
+	if len(titles) == 0 || !strings.Contains(titles[0], "查单未知") {
+		t.Fatalf("expected critical alert, got %v", titles)
+	}
+	ps, _ := e.store.load()
+	if len(ps) != 1 || ps[0].Status != CrossVenueStatusOpeningSecondLeg {
+		t.Fatalf("expected persisted opening position, got %+v", ps)
+	}
+	if e.isSymbolCooling("BTC-USDT") {
+		t.Fatal("unknown path must not set cooldown (no rollback attempted)")
+	}
+}
+
+func TestCrossVenueFirstLegUnknownBlocksRollback(t *testing.T) {
+	now := time.Now().UTC().Add(time.Hour)
+	high := newCrossVenueTestVenue(bybit.VenueName, 0.001, 8, now)
+	low := newCrossVenueTestVenue(okx.VenueName, 0.0001, 8, now)
+	high.unknownNext = true
+	sink := &recordingAlertSink{}
+	e := newCrossVenueOpenTestExecutor(t, high, low, sink)
+	plan := crossVenueOpenPlan{
+		Opp:        CrossVenueOpportunity{Symbol: "BTC-USDT", HighVenue: bybit.VenueName, LowVenue: okx.VenueName, SpreadAPR: 2.0},
+		Gate:       crossVenueGateResult{NotionalUSDT: 50, HighMid: 100, LowMid: 100},
+		Qty:        0.5,
+		IdemPrefix: "test-unknown-l1",
+	}
+	pos, err := e.executeCrossVenueOpen(context.Background(), plan, true)
+	if err == nil || !strings.Contains(err.Error(), "禁止自动回滚") {
+		t.Fatalf("expected first-leg unknown to block rollback, got pos=%+v err=%v", pos, err)
+	}
+	if atomic.LoadInt32(high.placeCount) != 1 {
+		t.Fatalf("first-leg unknown must not trigger reduce-only rollback, high places=%d", atomic.LoadInt32(high.placeCount))
+	}
+	if atomic.LoadInt32(low.placeCount) != 0 {
+		t.Fatalf("second leg must not be attempted, low places=%d", atomic.LoadInt32(low.placeCount))
+	}
+	if pos.HighLeg.Qty <= executionQtyTolerance {
+		t.Fatalf("expected first leg qty recorded for reconcile, got %.6f", pos.HighLeg.Qty)
+	}
+	titles := sink.waitTitles(t, 1)
+	if len(titles) == 0 || !strings.Contains(titles[0], "查单未知") {
+		t.Fatalf("expected critical alert, got %v", titles)
+	}
+}
+
 func TestCrossVenueOrphanLegDetection(t *testing.T) {
 	now := time.Now().UTC().Add(time.Hour)
 	high := newCrossVenueTestVenue(bybit.VenueName, 0.001, 8, now)
@@ -662,6 +772,8 @@ func TestCrossVenueShouldCloseForBetterSwitchCandidate(t *testing.T) {
 	cfg.CrossVenueExecutor.SwitchBufferUSDT = 0.1
 	cfg.CrossVenueExecutor.MinHoldHours = 1
 	cfg.CrossVenueExecutor.PostFundingCooldownSeconds = 0
+	cfg.CrossVenueExecutor.SlippageBudgetBps = 0
+	cfg.CrossVenueExecutor.EVExpectedSlippageBps = 3
 	cfg.CrossVenueScanner.MaxSnapshotAgeSeconds = 720
 	scanner := &CrossVenueScanner{lastSnapshot: CrossVenueScanSnapshot{
 		SnapshotID: "snap-switch",
@@ -2446,8 +2558,8 @@ func TestCrossVenueManageContinuesClosing(t *testing.T) {
 	}
 }
 
-// TestCrossVenueShadowCloseRemovesLedgerNoOrder 影子模式平仓行为不变:直接删台账、绝不下单。
-func TestCrossVenueShadowCloseRemovesLedgerNoOrder(t *testing.T) {
+// TestCrossVenueDryRunCloseNoLedgerWrite dry-run 平仓只记日志,不删台账、绝不下单。
+func TestCrossVenueDryRunCloseNoLedgerWrite(t *testing.T) {
 	now := time.Now().UTC().Add(time.Hour)
 	high := newCrossVenueTestVenue(bybit.VenueName, 0.001, 8, now)
 	low := newCrossVenueTestVenue(okx.VenueName, 0.0001, 8, now)
@@ -2467,15 +2579,15 @@ func TestCrossVenueShadowCloseRemovesLedgerNoOrder(t *testing.T) {
 		OpenedAt: now.Add(-time.Hour), IdemPrefix: "shadow",
 	}
 	_ = store.upsert(pos)
-	if err := e.closeCrossVenuePosition(context.Background(), pos, false, "影子平仓"); err != nil {
+	if err := e.closeCrossVenuePosition(context.Background(), pos, false, "dry-run"); err != nil {
 		t.Fatal(err)
 	}
 	if atomic.LoadInt32(high.placeCount) != 0 || atomic.LoadInt32(low.placeCount) != 0 {
-		t.Fatal("影子模式不得调 PlaceOrder")
+		t.Fatal("dry-run 不得调 PlaceOrder")
 	}
 	ps, _ := store.load()
-	if len(ps) != 0 {
-		t.Fatalf("影子平仓后台账应删除, got %d", len(ps))
+	if len(ps) != 1 {
+		t.Fatalf("dry-run 平仓不得删真实台账, got %d", len(ps))
 	}
 }
 
@@ -2516,6 +2628,8 @@ func newSubsetFallbackExecutor(t *testing.T, buf *bytes.Buffer, scanner *CrossVe
 	low.book = tight
 	cfg := testCrossVenueExecutorConfig()
 	cfg.NetworkConfig.RecordDir = t.TempDir()
+	cfg.CrossVenueExecutor.SlippageBudgetBps = 0
+	cfg.CrossVenueExecutor.EVExpectedSlippageBps = 3
 	e := &CrossVenueExecutor{
 		cfg:            cfg,
 		venues:         map[string]venue.Venue{bybit.VenueName: high, okx.VenueName: low},
@@ -2524,6 +2638,7 @@ func newSubsetFallbackExecutor(t *testing.T, buf *bytes.Buffer, scanner *CrossVe
 		nowFn:          func() time.Time { return time.Now().UTC() },
 		symbolCooldown: map[string]time.Time{},
 		scanner:        scanner,
+		recordDir:      cfg.NetworkConfig.RecordDir,
 	}
 	return e, high, low
 }
@@ -2577,8 +2692,8 @@ func TestCrossVenueSubsetFallbackOpensShadow(t *testing.T) {
 	if !strings.Contains(logs, "降级用子集对") {
 		t.Fatalf("应打降级日志, got:\n%s", logs)
 	}
-	if !strings.Contains(logs, "[影子] 本应开仓 BTC-USDT") {
-		t.Fatalf("降级后应走到影子开仓决策, got:\n%s", logs)
+	if !strings.Contains(logs, "[dry-run] 本应开仓 跨所perp-perp BTC-USDT") {
+		t.Fatalf("降级后应走到 dry-run 开仓决策, got:\n%s", logs)
 	}
 	if atomic.LoadInt32(high.placeCount) != 0 || atomic.LoadInt32(low.placeCount) != 0 {
 		t.Fatal("影子模式不得调 PlaceOrder")
@@ -2606,7 +2721,7 @@ func TestCrossVenueSubsetFallbackBelowThresholdRejected(t *testing.T) {
 	if !strings.Contains(logs, "子集内无达标替代") || !strings.Contains(logs, "子集最优=") {
 		t.Fatalf("拒绝原因应含子集最优价差, got:\n%s", logs)
 	}
-	if strings.Contains(logs, "[影子] 本应开仓") {
+	if strings.Contains(logs, "[dry-run] 本应开仓") {
 		t.Fatalf("不达标不应走到开仓决策, got:\n%s", logs)
 	}
 	if atomic.LoadInt32(high.placeCount) != 0 || atomic.LoadInt32(low.placeCount) != 0 {
@@ -2636,8 +2751,8 @@ func TestCrossVenueTradeablePairNoFallback(t *testing.T) {
 	if strings.Contains(logs, "降级用子集对") || strings.Contains(logs, "不可交易所") {
 		t.Fatalf("可交易对不应触发降级路径, got:\n%s", logs)
 	}
-	if !strings.Contains(logs, "[影子] 本应开仓 BTC-USDT") {
-		t.Fatalf("原机会应正常走闸门到影子开仓, got:\n%s", logs)
+	if !strings.Contains(logs, "[dry-run] 本应开仓 跨所perp-perp BTC-USDT") {
+		t.Fatalf("原机会应正常走闸门到 dry-run 开仓, got:\n%s", logs)
 	}
 }
 

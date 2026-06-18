@@ -36,21 +36,27 @@ type strategySettlementRecord struct {
 	CloseReason     string    `json:"close_reason,omitempty"`
 	SwitchExit      bool      `json:"switch_exit,omitempty"`
 	SwitchSequence  string    `json:"switch_sequence,omitempty"`
+	// 以下字段仅消费侧可信判据用(见 settlement_trust.go),不写入账本。
+	FundingTruthStatus    string
+	AttributionIncomplete bool
+	TradePnL              float64
 }
 
 // StrategyPnLSummary 汇总一段 close_time 窗口内的已实现损益。
 type StrategyPnLSummary struct {
-	DayStartCST  time.Time          `json:"day_start_cst,omitempty"`
-	GeneratedAt  time.Time          `json:"generated_at"`
-	WindowStart  time.Time          `json:"window_start,omitempty"`
-	WindowEnd    time.Time          `json:"window_end,omitempty"`
-	TotalNetPnL  float64            `json:"total_net_pnl"`
-	TotalFunding float64            `json:"total_funding"`
-	TotalFees    float64            `json:"total_fees"`
-	TradeCount   int                `json:"trade_count"`
-	ByStrategy   map[string]float64 `json:"by_strategy_net_pnl"`
-	BySymbol     map[string]float64 `json:"by_symbol_net_pnl"`
-	ByVenue      map[string]float64 `json:"by_venue_net_pnl"`
+	DayStartCST         time.Time          `json:"day_start_cst,omitempty"`
+	GeneratedAt         time.Time          `json:"generated_at"`
+	WindowStart         time.Time          `json:"window_start,omitempty"`
+	WindowEnd           time.Time          `json:"window_end,omitempty"`
+	TotalNetPnL         float64            `json:"total_net_pnl"`     // 可信净盈亏(头条)
+	UntrustedNetPnL     float64            `json:"untrusted_net_pnl"` // legacy/幻觉样本,单独展示
+	TotalFunding        float64            `json:"total_funding"`
+	TotalFees           float64            `json:"total_fees"`
+	TradeCount          int                `json:"trade_count"` // 可信样本笔数
+	UntrustedTradeCount int                `json:"untrusted_trade_count"`
+	ByStrategy          map[string]float64 `json:"by_strategy_net_pnl"`
+	BySymbol            map[string]float64 `json:"by_symbol_net_pnl"`
+	ByVenue             map[string]float64 `json:"by_venue_net_pnl"`
 }
 
 // cstDayKey 返回北京时间自然日的 YYYY-MM-DD 键(绩效序列用,与 earnings 日界一致)。
@@ -157,23 +163,26 @@ func crossVenueSettlementToRecord(rec CrossVenueSettlement) strategySettlementRe
 		venues = append(venues, v)
 	}
 	return strategySettlementRecord{
-		StrategyType:    UnifiedStrategyPerpPerp,
-		SettlementID:    rec.SettlementID,
-		PositionKey:     rec.PositionKey,
-		OpenTime:        rec.OpenTime,
-		CloseTime:       rec.CloseTime,
-		Symbol:          rec.Symbol,
-		Venues:          venues,
-		NotionalUSDT:    rec.NotionalUSDT,
-		NetPnL:          rec.NetPnL,
-		RealizedFunding: rec.RealizedFunding,
-		OpenFees:        rec.OpenFees,
-		CloseFees:       rec.CloseFees,
-		TotalFees:       rec.TotalFees,
-		RollbackCost:    rec.RollbackCost,
-		CloseReason:     rec.CloseReason,
-		SwitchExit:      rec.SwitchExit,
-		SwitchSequence:  rec.SwitchSequence,
+		StrategyType:          UnifiedStrategyPerpPerp,
+		SettlementID:          rec.SettlementID,
+		PositionKey:           rec.PositionKey,
+		OpenTime:              rec.OpenTime,
+		CloseTime:             rec.CloseTime,
+		Symbol:                rec.Symbol,
+		Venues:                venues,
+		NotionalUSDT:          rec.NotionalUSDT,
+		NetPnL:                rec.NetPnL,
+		RealizedFunding:       rec.RealizedFunding,
+		OpenFees:              rec.OpenFees,
+		CloseFees:             rec.CloseFees,
+		TotalFees:             rec.TotalFees,
+		RollbackCost:          rec.RollbackCost,
+		CloseReason:           rec.CloseReason,
+		SwitchExit:            rec.SwitchExit,
+		SwitchSequence:        rec.SwitchSequence,
+		FundingTruthStatus:    rec.FundingTruthStatus,
+		AttributionIncomplete: rec.AttributionIncomplete,
+		TradePnL:              rec.TradePnL,
 	}
 }
 
@@ -200,6 +209,7 @@ func svspSettlementToRecord(rec SingleVenueSpotPerpSettlement) strategySettlemen
 		TotalFees:       rec.TotalFees,
 		RollbackCost:    rec.RollbackCost,
 		CloseReason:     rec.CloseReason,
+		TradePnL:        rec.TradePnL,
 	}
 }
 
@@ -249,6 +259,7 @@ func svpsSettlementToRecord(rec SingleVenuePerpSpotSettlement) strategySettlemen
 		BorrowCost:      rec.BorrowCost,
 		RollbackCost:    rec.RollbackCost,
 		CloseReason:     rec.CloseReason,
+		TradePnL:        rec.TradePnL,
 	}
 }
 
@@ -391,6 +402,12 @@ func aggregateStrategySettlementsInRange(records []strategySettlementRecord, sin
 		if !until.IsZero() && rec.CloseTime.After(until) {
 			continue
 		}
+		// 消费侧分桶:untrusted_legacy 不计入可信净盈亏/绩效维度,仅累加 Untrusted* 字段。
+		if !isTrustedStrategySettlementRecord(rec) {
+			sum.UntrustedNetPnL = money.SumUSDT(sum.UntrustedNetPnL, rec.NetPnL)
+			sum.UntrustedTradeCount++
+			continue
+		}
 		sum.TotalNetPnL = money.SumUSDT(sum.TotalNetPnL, rec.NetPnL)
 		sum.TotalFunding = money.SumUSDT(sum.TotalFunding, rec.RealizedFunding)
 		sum.TotalFees = money.SumUSDT(sum.TotalFees, rec.TotalFees)
@@ -440,7 +457,7 @@ func AllTimeStrategyPnL(s *DashboardServer, now time.Time) (StrategyPnLSummary, 
 func strategyRecordsDailyPnLCST(records []strategySettlementRecord) []metrics.DailyPnL {
 	byDay := make(map[string]float64)
 	for _, rec := range records {
-		if rec.CloseTime.IsZero() {
+		if rec.CloseTime.IsZero() || !isTrustedStrategySettlementRecord(rec) {
 			continue
 		}
 		day := cstDayKey(rec.CloseTime)

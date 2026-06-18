@@ -790,29 +790,93 @@ func (e *FundingRateSniperEngine) invalidateFuturesAccountStateCache() {
 	e.futuresAccountStateMu.Unlock()
 }
 
-func (e *FundingRateSniperEngine) transferAssetBetweenAccounts(ctx context.Context, transferType string, asset string, amount float64) error {
+const crossMarginTransferSafetyFactor = 0.999
+
+func isCrossMarginTransferOut(transferType string) bool {
+	switch strings.TrimSpace(transferType) {
+	case "MARGIN_MAIN", "MARGIN_UMFUTURE":
+		return true
+	default:
+		return false
+	}
+}
+
+func capCrossMarginTransferAmount(requested float64, maxTransferable float64) float64 {
+	requested = math.Floor(maxFloat(requested, 0)*1e8) / 1e8
+	maxTransferable = maxFloat(maxTransferable, 0)
+	if maxTransferable <= executionQtyTolerance {
+		return 0
+	}
+	if requested <= maxTransferable {
+		return requested
+	}
+	safeMax := maxTransferable * crossMarginTransferSafetyFactor
+	actual := math.Min(requested, safeMax)
+	return math.Floor(maxFloat(actual, 0)*1e8) / 1e8
+}
+
+func (e *FundingRateSniperEngine) fetchCrossMarginMaxTransferableUSDT(ctx context.Context, asset string) (float64, error) {
+	params := url.Values{}
+	params.Set("asset", strings.ToUpper(strings.TrimSpace(asset)))
+	body, err := e.signedRequest(ctx, http.MethodGet, e.client.SpotBaseURL()+binance.PathMarginMaxTransferable, params)
+	if err != nil {
+		return 0, err
+	}
+	var payload struct {
+		Amount string `json:"amount"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return 0, fmt.Errorf("解析全仓最大可转出额失败: %w", err)
+	}
+	return maxFloat(parseFloat(payload.Amount), 0), nil
+}
+
+func (e *FundingRateSniperEngine) transferAssetBetweenAccounts(ctx context.Context, transferType string, asset string, amount float64) (float64, error) {
+	amount = math.Floor(maxFloat(amount, 0)*1e8) / 1e8
 	if amount <= executionQtyTolerance {
-		return nil
+		return 0, nil
+	}
+	transferType = strings.TrimSpace(transferType)
+	asset = strings.ToUpper(strings.TrimSpace(asset))
+	actual := amount
+	if isCrossMarginTransferOut(transferType) && strings.EqualFold(asset, "USDT") {
+		maxTransferable, err := e.fetchCrossMarginMaxTransferableUSDT(ctx, asset)
+		if err != nil {
+			if e.logger != nil {
+				e.logger.Printf("WARN: 查询全仓 %s 最大可转出额失败，跳过 %s 转出(requested=%.8f): %v", asset, transferType, amount, err)
+			}
+			return 0, nil
+		}
+		actual = capCrossMarginTransferAmount(amount, maxTransferable)
+		if actual <= executionQtyTolerance {
+			if e.logger != nil {
+				e.logger.Printf("WARN: 全仓 %s 最大可转出额≈0(max=%.8f)，跳过 %s 转出(requested=%.8f)", asset, maxTransferable, transferType, amount)
+			}
+			return 0, nil
+		}
+		if actual+executionQtyTolerance < amount && e.logger != nil {
+			e.logger.Printf("WARN: 全仓 %s 可转出受限 max=%.8f requested=%.8f actual=%.8f，剩余未归拢", asset, maxTransferable, amount, actual)
+		}
 	}
 	params := url.Values{}
 	params.Set("type", transferType)
-	params.Set("asset", strings.ToUpper(strings.TrimSpace(asset)))
-	params.Set("amount", formatRequestAmount(amount))
+	params.Set("asset", asset)
+	params.Set("amount", formatRequestAmount(actual))
 
 	body, err := e.signedRequest(ctx, http.MethodPost, e.client.SpotBaseURL()+binance.PathAssetTransfer, params)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	var payload struct {
 		TranID int64 `json:"tranId"`
 	}
 	if err := json.Unmarshal(body, &payload); err != nil {
-		return fmt.Errorf("解析账户划转回执失败: %w", err)
+		return 0, fmt.Errorf("解析账户划转回执失败: %w", err)
 	}
 	if payload.TranID == 0 {
-		return fmt.Errorf("账户划转回执缺少 tranId")
+		return 0, fmt.Errorf("账户划转回执缺少 tranId")
 	}
-	return nil
+	return actual, nil
 }
 
 func (e *FundingRateSniperEngine) fetchCrossMarginAccountState(ctx context.Context) (CrossMarginAccountState, error) {

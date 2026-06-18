@@ -173,3 +173,51 @@ func TestFetchInstrumentsContractMetadata(t *testing.T) {
 		t.Errorf("现货元数据错误: %+v", spot)
 	}
 }
+
+func TestFetchRecentQuoteVolumeSpot(t *testing.T) {
+	a := fakeGate(t, map[string]string{
+		pathSpotTickers: `[{"currency_pair":"BTC_USDT","quote_volume":"5555555.55"}]`,
+	})
+	vol, err := a.FetchRecentQuoteVolume(context.Background(), venue.MarketSpot, "BTC-USDT", 24*time.Hour)
+	if err != nil || vol != 5555555.55 {
+		t.Fatalf("spot quote_volume 解析错误 vol=%v err=%v", vol, err)
+	}
+}
+
+func TestFetchRecentQuoteVolumePerp(t *testing.T) {
+	a := fakeGate(t, map[string]string{
+		pathFuturesTickers: `[{"contract":"BTC_USDT","volume_24h_settle":"8888888","volume_24h_quote":"7777777","volume_24h_base":"150","last":"60000"}]`,
+	})
+	vol, err := a.FetchRecentQuoteVolume(context.Background(), venue.MarketPerp, "BTC-USDT", 24*time.Hour)
+	if err != nil || vol != 8888888 {
+		t.Fatalf("永续 volume_24h_settle(USDT) 解析错误 vol=%v err=%v", vol, err)
+	}
+}
+
+func TestFetchRecentQuoteVolumePerpFallback(t *testing.T) {
+	a := fakeGate(t, map[string]string{
+		pathFuturesTickers: `[{"contract":"BTC_USDT","volume_24h_settle":"","volume_24h_quote":"6666666","last":"60000"}]`,
+	})
+	vol, err := a.FetchRecentQuoteVolume(context.Background(), venue.MarketPerp, "BTC-USDT", 24*time.Hour)
+	if err != nil || vol != 6666666 {
+		t.Fatalf("永续 volume_24h_quote 回退错误 vol=%v err=%v", vol, err)
+	}
+}
+
+func TestFetchRecentQuoteVolumeHTTPError(t *testing.T) {
+	a := fakeGate(t, map[string]string{})
+	_, err := a.FetchRecentQuoteVolume(context.Background(), venue.MarketSpot, "BTC-USDT", 24*time.Hour)
+	if err == nil {
+		t.Fatal("HTTP 404 应返回 error")
+	}
+}
+
+func TestFetchRecentQuoteVolumeEmptyResponse(t *testing.T) {
+	a := fakeGate(t, map[string]string{
+		pathSpotTickers: `[]`,
+	})
+	_, err := a.FetchRecentQuoteVolume(context.Background(), venue.MarketSpot, "BTC-USDT", 24*time.Hour)
+	if err == nil {
+		t.Fatal("空响应应返回 error")
+	}
+}

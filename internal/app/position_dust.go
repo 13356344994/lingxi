@@ -2,9 +2,12 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
+	"path/filepath"
 	"strings"
+	"time"
 
 	"lingxi/internal/venue"
 )
@@ -107,24 +110,36 @@ func evaluatePositiveCarryOrphan(
 	return d
 }
 
-// evaluateNegativeCarryOrphan 负 carry(现货空/借 + 永续多):现货空为风险腿,永续残余可为 dust。
+// evaluateNegativeCarryOrphan 负 carry(现货空/借 + 永续多):永续残余可为 dust;
+// 现货空孤腿若名义低于 minNotional 亦视为 dust(交易所下不出还币单,应收口而非无限重试)。
 func evaluateNegativeCarryOrphan(
 	ctx context.Context,
 	cfg CrossVenueExecutorConfig,
 	venues map[string]venue.Venue,
 	symbol, spotVenue, perpVenue string,
 	spotOpen, perpOpen bool,
-	spotShort, perpLong, perpEntryPrice float64,
+	spotShort, perpLong, spotEntryPrice, perpEntryPrice float64,
 ) dustOrphanDecision {
 	if spotOpen == perpOpen {
 		return dustOrphanDecision{}
 	}
 	d := dustOrphanDecision{IsOrphan: true}
+	sym := venue.Symbol(symbol)
+
 	if spotOpen && !perpOpen {
-		d.NakedRisk = true
+		spotV := venues[spotVenue]
+		notional := legNotionalUSDT(ctx, spotV, sym, venue.MarketSpot, spotShort, spotEntryPrice)
+		minN := venueInstrumentMinNotional(ctx, spotV, symbol, venue.MarketSpot)
+		threshold := effectiveDustThresholdUSDT(cfg, minN)
+		d.RemainingNotionalUSDT = notional
+		if notional > 0 && notional < threshold {
+			d.IsDustOrphan = true
+		} else {
+			d.NakedRisk = true
+		}
 		return d
 	}
-	sym := venue.Symbol(symbol)
+
 	perpV := venues[perpVenue]
 	notional := legNotionalUSDT(ctx, perpV, sym, venue.MarketPerp, perpLong, perpEntryPrice)
 	minN := venueInstrumentMinNotional(ctx, perpV, symbol, venue.MarketPerp)
@@ -136,6 +151,83 @@ func evaluateNegativeCarryOrphan(
 		d.NakedRisk = true
 	}
 	return d
+}
+
+// isNotionalFilterError 识别交易所 minNotional 拒单(-1013 NOTIONAL filter)。
+func isNotionalFilterError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToUpper(err.Error())
+	if !strings.Contains(msg, "NOTIONAL") {
+		return false
+	}
+	var ve *venue.VenueError
+	if errors.As(err, &ve) && ve.RawCode == "-1013" {
+		return true
+	}
+	return strings.Contains(msg, "-1013") || strings.Contains(msg, "FILTER FAILURE")
+}
+
+// negativeCarryDustFromNotionalReject 平仓回 -1013 NOTIONAL 时补判 dust(与 evaluate 口径一致)。
+func negativeCarryDustFromNotionalReject(
+	ctx context.Context,
+	cfg CrossVenueExecutorConfig,
+	venues map[string]venue.Venue,
+	symbol, spotVenue, perpVenue string,
+	spotOpen, perpOpen bool,
+	spotShort, perpLong, spotEntryPrice, perpEntryPrice float64,
+) dustOrphanDecision {
+	return evaluateNegativeCarryOrphan(ctx, cfg, venues, symbol, spotVenue, perpVenue, spotOpen, perpOpen, spotShort, perpLong, spotEntryPrice, perpEntryPrice)
+}
+
+type marginBorrowRepayer interface {
+	BorrowRepay(ctx context.Context, asset string, amt float64, dir venue.BorrowDir) error
+}
+
+// bestEffortRepayMarginBorrow 对借币空头 dust 尝试 margin 直接还币(不经买卖);失败静默跳过。
+func bestEffortRepayMarginBorrow(ctx context.Context, v venue.Venue, symbol string, qty float64) {
+	if v == nil || qty <= executionQtyTolerance {
+		return
+	}
+	repayer, ok := v.(marginBorrowRepayer)
+	if !ok {
+		return
+	}
+	asset := baseAssetFromCanonicalSymbol(symbol)
+	_ = repayer.BorrowRepay(ctx, asset, qty, venue.BorrowDirRepay)
+}
+
+func negativeCarryDustResidualQty(spotOpen, perpOpen bool, spotShort, perpLong float64) float64 {
+	switch {
+	case spotOpen && !perpOpen:
+		return spotShort
+	case perpOpen && !spotOpen:
+		return perpLong
+	default:
+		return 0
+	}
+}
+
+// appendCarryDustLedgerBestEffort 把 carry 执行器 dust 残腿记入 dust_ledger.json(失败静默)。
+func appendCarryDustLedgerBestEffort(recordDir, phase, symbol, asset string, qty, notionalUSDT float64, reason string) {
+	if strings.TrimSpace(recordDir) == "" || qty <= executionQtyTolerance {
+		return
+	}
+	path := filepath.Join(strings.TrimSpace(recordDir), "dust_ledger.json")
+	records, _ := readJSONFile[DustLedgerRecord](path)
+	record := DustLedgerRecord{
+		RecordedAt:   time.Now().UTC().Format(time.RFC3339),
+		Phase:        phase,
+		Symbol:       symbol,
+		Pair:         symbol,
+		Asset:        asset,
+		Quantity:     formatFloat(qty),
+		NotionalUSDT: formatFloat(maxFloat(notionalUSDT, 0)),
+		Reason:       reason,
+	}
+	records = append(records, record)
+	_ = writeJSONFile(path, records)
 }
 
 func logDustOrphanClosed(logger *log.Logger, strategyLabel, symbol string, notional float64) {

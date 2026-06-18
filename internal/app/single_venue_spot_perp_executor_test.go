@@ -21,18 +21,19 @@ import (
 // svspTestVenue 是同所 spot-perp 单测用 fake venue(支持 spot+perp 两条腿)。
 type svspTestVenue struct {
 	fakeFundingVenue
-	book          venue.BookTicker
-	balanceUSDT   float64
-	spotBalances  map[string]float64
-	positions     []venue.Position
-	placeCount    *int32
-	placeRequests []venue.OrderRequest
+	book                 venue.BookTicker
+	balanceUSDT          float64
+	spotBalances         map[string]float64
+	positions            []venue.Position
+	placeCount           *int32
+	placeRequests        []venue.OrderRequest
 	spotFailNext         bool
+	spotUnknownNext      bool
 	perpFailNext         bool
 	perpPartialFillNext  bool
 	perpPartialFillRatio float64
 	clearOnClose         bool
-	fundingIncome []venue.FundingIncome
+	fundingIncome        []venue.FundingIncome
 }
 
 func newSVSPTestVenue(name string) *svspTestVenue {
@@ -76,6 +77,18 @@ func (f *svspTestVenue) PlaceOrder(_ context.Context, req venue.OrderRequest) (v
 	if req.Market == venue.MarketSpot && f.spotFailNext {
 		f.spotFailNext = false
 		return venue.OrderResult{Status: "rejected"}, errors.New("simulated spot fail")
+	}
+	if req.Market == venue.MarketSpot && f.spotUnknownNext {
+		f.spotUnknownNext = false
+		base := baseAssetFromCanonicalSymbol(string(req.Symbol))
+		if req.Side == venue.SideBuy {
+			f.spotBalances[base] += req.Qty
+			f.balanceUSDT -= req.Qty * req.Price
+		}
+		return venue.OrderResult{
+			Symbol: req.Symbol, Market: req.Market, ClientOrderID: req.ClientOrderID,
+			Status: "unknown", ExecutedQty: req.Qty, AvgPrice: req.Price,
+		}, errors.New("simulated spot unknown")
 	}
 	if req.Market == venue.MarketPerp && f.perpFailNext {
 		f.perpFailNext = false
@@ -154,13 +167,13 @@ var _ venue.Venue = (*svspTestVenue)(nil)
 func testSVSPExecutorConfig() EngineConfig {
 	cfg := DefaultEngineConfig()
 	cfg.CrossVenueExecutor = CrossVenueExecutorConfig{
-		Enabled:              true,
-		LiveTradingEnabled:   false,
-		SlippageBudgetBps:    20,
+		Enabled:                true,
+		LiveTradingEnabled:     false,
+		SlippageBudgetBps:      20,
 		TakerSlippageBudgetBps: 40,
-		MaxHoldHours:         72,
-		MaxNakedSeconds:      30,
-		MakerFirst:           false,
+		MaxHoldHours:           72,
+		MaxNakedSeconds:        30,
+		MakerFirst:             false,
 	}
 	return cfg
 }
@@ -180,11 +193,11 @@ func mustSVSPStore(t *testing.T, dir string) *singleVenueSpotPerpPositionStore {
 
 func testSVSPOpportunity(venueName string, qty float64) UnifiedOpportunity {
 	return UnifiedOpportunity{
-		ID:                  "svsp-test-1",
-		StrategyType:        UnifiedStrategySingleVenueSpotPerp,
-		Symbol:              "BTC-USDT",
-		ExpectedNetEVUSDT:   1.5,
-		ExpectedHoldHours:   8,
+		ID:                "svsp-test-1",
+		StrategyType:      UnifiedStrategySingleVenueSpotPerp,
+		Symbol:            "BTC-USDT",
+		ExpectedNetEVUSDT: 1.5,
+		ExpectedHoldHours: 8,
 		Legs: []UnifiedOpportunityLeg{
 			{Venue: venueName, Market: "spot", Side: "buy", Qty: qty, Notional: qty * 100},
 			{Venue: venueName, Market: "perp", Side: "short", Qty: qty, Notional: qty * 100},
@@ -201,14 +214,15 @@ func TestSVSPShadowModeNoPlaceOrder(t *testing.T) {
 
 	pos, err := e.executeOpen(context.Background(), testSVSPOpportunity(binance.VenueName, 0.5), false)
 	if err != nil {
-		t.Fatalf("shadow open: %v", err)
+		t.Fatalf("dry-run open: %v", err)
 	}
-	if pos.Status != SVSPStatusOpen {
-		t.Fatalf("status=%s want open", pos.Status)
+	if pos.Symbol != "" {
+		t.Fatalf("dry-run must not synthesize position, got %+v", pos)
 	}
 	if atomic.LoadInt32(v.placeCount) != 0 {
-		t.Fatalf("shadow must not PlaceOrder, got %d", *v.placeCount)
+		t.Fatalf("dry-run must not PlaceOrder, got %d", *v.placeCount)
 	}
+	assertRealLedgerUntouched(t, dir, "singlevenuespotperp/positions.json")
 }
 
 func TestSVSPLiveOpenBothLegsCorrect(t *testing.T) {
@@ -336,8 +350,8 @@ func TestSVSPCloseRecordsSettlement(t *testing.T) {
 	pos := SingleVenueSpotPerpPosition{
 		Symbol: "BTC-USDT", Venue: binance.VenueName,
 		Status: SVSPStatusOpen, OpenedAt: now.Add(-10 * time.Hour), IdemPrefix: "close-test",
-		SpotLeg: SingleVenueSpotPerpLegState{Market: "spot", Side: "buy", Qty: 0.5, EntryPrice: 100},
-		PerpLeg: SingleVenueSpotPerpLegState{Market: "perp", Side: "short", Qty: 0.5, EntryPrice: 100},
+		SpotLeg:      SingleVenueSpotPerpLegState{Market: "spot", Side: "buy", Qty: 0.5, EntryPrice: 100},
+		PerpLeg:      SingleVenueSpotPerpLegState{Market: "perp", Side: "short", Qty: 0.5, EntryPrice: 100},
 		NotionalUSDT: 50, OpenExpectedNetEV: 1.0, ExpectedHoldHours: 8,
 	}
 	if err := e.persistPosition(pos); err != nil {
@@ -476,6 +490,111 @@ func TestSVSPReconcileIgnoresUntrackedPerpPerpPosition(t *testing.T) {
 	}
 }
 
+func TestSVSPFirstLegUnknownBlocksRollback(t *testing.T) {
+	now := time.Now().UTC()
+	v := newSVSPTestVenue(binance.VenueName)
+	v.spotUnknownNext = true
+	dir := t.TempDir()
+	e := NewSingleVenueSpotPerpExecutor(testSVSPExecutorConfig(), map[string]venue.Venue{binance.VenueName: v}, dir, testSVSPLogger())
+	e.nowFn = func() time.Time { return now }
+
+	pos, err := e.executeOpen(context.Background(), testSVSPOpportunity(binance.VenueName, 0.5), true)
+	if err == nil || !strings.Contains(err.Error(), "禁止自动回滚") {
+		t.Fatalf("expected first-leg unknown to block rollback, got pos=%+v err=%v", pos, err)
+	}
+	for _, req := range v.placeRequests {
+		if req.Market == venue.MarketPerp {
+			t.Fatal("first-leg unknown must not attempt perp hedge")
+		}
+		if req.Market == venue.MarketSpot && req.Side == venue.SideSell {
+			t.Fatal("first-leg unknown must not rollback spot")
+		}
+	}
+	loaded := e.ListActivePositions()
+	if len(loaded) != 1 {
+		t.Fatalf("expected position retained for reconcile, got %d", len(loaded))
+	}
+	if loaded[0].SpotLeg.Qty <= executionQtyTolerance {
+		t.Fatalf("expected partial first leg qty recorded, got %.6f", loaded[0].SpotLeg.Qty)
+	}
+}
+
+func TestSVSPFirstLegExplicitFailRollback(t *testing.T) {
+	now := time.Now().UTC()
+	v := newSVSPTestVenue(binance.VenueName)
+	v.spotFailNext = true
+	dir := t.TempDir()
+	e := NewSingleVenueSpotPerpExecutor(testSVSPExecutorConfig(), map[string]venue.Venue{binance.VenueName: v}, dir, testSVSPLogger())
+	e.nowFn = func() time.Time { return now }
+
+	_, err := e.executeOpen(context.Background(), testSVSPOpportunity(binance.VenueName, 0.5), true)
+	if err == nil {
+		t.Fatal("expected first-leg explicit failure")
+	}
+	for _, req := range v.placeRequests {
+		if req.Market == venue.MarketPerp {
+			t.Fatal("explicit first-leg failure must not attempt perp hedge")
+		}
+	}
+}
+
+type svspDeadManVenue struct {
+	*svspTestVenue
+	arms int
+}
+
+func (v *svspDeadManVenue) Capabilities() venue.Capabilities {
+	return venue.Capabilities{HasNativeDeadMan: true}
+}
+
+func (v *svspDeadManVenue) ArmDeadMansSwitch(context.Context, time.Duration) error {
+	v.arms++
+	return nil
+}
+
+func TestSVSPManageOpenArmsDeadManForPerpVenue(t *testing.T) {
+	now := time.Now().UTC()
+	base := newSVSPTestVenue(binance.VenueName)
+	v := &svspDeadManVenue{svspTestVenue: base}
+	v.spotBalances["BTC"] = 0.5
+	v.positions = []venue.Position{{Symbol: "BTC-USDT", PositionAmt: -0.5, EntryPrice: 100, MarkPrice: 100, Leverage: 2}}
+	dir := t.TempDir()
+	e := NewSingleVenueSpotPerpExecutor(testSVSPExecutorConfig(), map[string]venue.Venue{binance.VenueName: v}, dir, testSVSPLogger())
+	e.nowFn = func() time.Time { return now }
+
+	pos := SingleVenueSpotPerpPosition{
+		Symbol: "BTC-USDT", Venue: binance.VenueName,
+		Status: SVSPStatusOpen, OpenedAt: now, UpdatedAt: now, IdemPrefix: "svsp-deadman",
+		SpotLeg: SingleVenueSpotPerpLegState{Market: "spot", Side: "buy", Qty: 0.5, EntryPrice: 100},
+		PerpLeg: SingleVenueSpotPerpLegState{Market: "perp", Side: "short", Qty: 0.5, EntryPrice: 100},
+	}
+	if err := e.persistPosition(pos); err != nil {
+		t.Fatalf("seed position: %v", err)
+	}
+	_, _ = e.managePosition(context.Background(), pos, true)
+	if v.arms != 1 {
+		t.Fatalf("expected dead-man arm once for perp venue, got %d", v.arms)
+	}
+}
+
+func TestSVSPManageOpenSkipsUnsupportedDeadManVenue(t *testing.T) {
+	now := time.Now().UTC()
+	v := newSVSPTestVenue(binance.VenueName)
+	v.spotBalances["BTC"] = 0.5
+	v.positions = []venue.Position{{Symbol: "BTC-USDT", PositionAmt: -0.5, EntryPrice: 100, MarkPrice: 100, Leverage: 2}}
+	dir := t.TempDir()
+	e := NewSingleVenueSpotPerpExecutor(testSVSPExecutorConfig(), map[string]venue.Venue{binance.VenueName: v}, dir, testSVSPLogger())
+	e.nowFn = func() time.Time { return now }
+
+	pos := SingleVenueSpotPerpPosition{
+		Symbol: "BTC-USDT", Venue: binance.VenueName,
+		Status: SVSPStatusOpen, OpenedAt: now, UpdatedAt: now, IdemPrefix: "svsp-no-deadman",
+		SpotLeg: SingleVenueSpotPerpLegState{Market: "spot", Side: "buy", Qty: 0.5, EntryPrice: 100},
+		PerpLeg: SingleVenueSpotPerpLegState{Market: "perp", Side: "short", Qty: 0.5, EntryPrice: 100},
+	}
+	_, _ = e.managePosition(context.Background(), pos, true)
+}
+
 func TestSVSPCloseSkipsWhenMeasuredZero(t *testing.T) {
 	now := time.Now().UTC()
 	v := newSVSPTestVenue(binance.VenueName)
@@ -495,5 +614,79 @@ func TestSVSPCloseSkipsWhenMeasuredZero(t *testing.T) {
 	}
 	if atomic.LoadInt32(v.placeCount) != 0 {
 		t.Fatalf("measured=0 must not place blind flatten orders, got %d", atomic.LoadInt32(v.placeCount))
+	}
+}
+
+func TestSingleVenueSpotPerpManageOpenNoResurrectAfterFinalize(t *testing.T) {
+	ctx := context.Background()
+	now := time.Date(2026, 6, 18, 12, 0, 0, 0, time.UTC)
+
+	t.Run("dust_orphan", func(t *testing.T) {
+		dir := t.TempDir()
+		v := newSVSPTestVenue(binance.VenueName)
+		v.book = venue.BookTicker{BidPrice: 0.039, AskPrice: 0.041, BidQty: 1000, AskQty: 1000}
+		cfg := testSVSPExecutorConfig()
+		cfg.CrossVenueExecutor.DustCloseThresholdUSDT = 1.0
+		e := NewSingleVenueSpotPerpExecutor(cfg, map[string]venue.Venue{binance.VenueName: v}, dir, testSVSPLogger())
+		e.nowFn = func() time.Time { return now }
+
+		pos := SingleVenueSpotPerpPosition{
+			Symbol: "PHA-USDT", Venue: binance.VenueName,
+			Status: SVSPStatusOpen, OpenedAt: now, UpdatedAt: now, IdemPrefix: "svsp-dust-resurrect",
+			SpotLeg: SingleVenueSpotPerpLegState{Market: "spot", Side: "buy", Qty: 0.1875, EntryPrice: 0.04},
+			PerpLeg: SingleVenueSpotPerpLegState{Market: "perp", Side: "short", Qty: 0.01},
+		}
+		v.spotBalances["PHA"] = 0.1875
+		if err := e.persistPosition(pos); err != nil {
+			t.Fatalf("seed position: %v", err)
+		}
+
+		assertSVSPManageOpenFinalizeOnce(t, e, ctx)
+	})
+
+	t.Run("both_legs_flat", func(t *testing.T) {
+		dir := t.TempDir()
+		v := newSVSPTestVenue(binance.VenueName)
+		e := NewSingleVenueSpotPerpExecutor(testSVSPExecutorConfig(), map[string]venue.Venue{binance.VenueName: v}, dir, testSVSPLogger())
+		e.nowFn = func() time.Time { return now }
+
+		pos := SingleVenueSpotPerpPosition{
+			Symbol: "BTC-USDT", Venue: binance.VenueName,
+			Status: SVSPStatusOpen, OpenedAt: now, UpdatedAt: now, IdemPrefix: "svsp-flat-resurrect",
+			SpotLeg: SingleVenueSpotPerpLegState{Market: "spot", Side: "buy", Qty: 0.5, EntryPrice: 100},
+			PerpLeg: SingleVenueSpotPerpLegState{Market: "perp", Side: "short", Qty: 0.5, EntryPrice: 100},
+		}
+		if err := e.persistPosition(pos); err != nil {
+			t.Fatalf("seed position: %v", err)
+		}
+
+		assertSVSPManageOpenFinalizeOnce(t, e, ctx)
+	})
+}
+
+func assertSVSPManageOpenFinalizeOnce(t *testing.T, e *SingleVenueSpotPerpExecutor, ctx context.Context) {
+	t.Helper()
+	e.manageOpenPositions(ctx, true)
+	if len(e.ListActivePositions()) != 0 {
+		t.Fatalf("round1: active position must be removed, got %d", len(e.ListActivePositions()))
+	}
+	settlements, err := e.ListRecentSettlements(0)
+	if err != nil {
+		t.Fatalf("round1 settlements: %v", err)
+	}
+	if len(settlements) != 1 {
+		t.Fatalf("round1: expected 1 settlement, got %d", len(settlements))
+	}
+
+	e.manageOpenPositions(ctx, true)
+	if len(e.ListActivePositions()) != 0 {
+		t.Fatalf("round2: position resurrected, got %d active", len(e.ListActivePositions()))
+	}
+	settlements2, err := e.ListRecentSettlements(0)
+	if err != nil {
+		t.Fatalf("round2 settlements: %v", err)
+	}
+	if len(settlements2) != 1 {
+		t.Fatalf("round2: duplicate settlement churn, got %d", len(settlements2))
 	}
 }

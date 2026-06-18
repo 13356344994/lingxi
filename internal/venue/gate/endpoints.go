@@ -4,11 +4,13 @@ package gate
 const (
 	pathSpotTime          = "/api/v4/spot/time"
 	pathSpotCurrencyPairs = "/api/v4/spot/currency_pairs"
+	pathSpotTickers       = "/api/v4/spot/tickers"
 	pathSpotOrderBook     = "/api/v4/spot/order_book"
 	pathSpotAccounts      = "/api/v4/spot/accounts"
 	pathSpotOrders        = "/api/v4/spot/orders"
 
 	pathFuturesContracts          = "/api/v4/futures/usdt/contracts"
+	pathFuturesTickers            = "/api/v4/futures/usdt/tickers"
 	pathFuturesOrderBook          = "/api/v4/futures/usdt/order_book"
 	pathFuturesAccounts           = "/api/v4/futures/usdt/accounts"
 	pathFuturesPositions          = "/api/v4/futures/usdt/positions"

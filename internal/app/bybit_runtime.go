@@ -97,7 +97,7 @@ func bybitModeLabel(cfg EngineConfig) string {
 	if cfg.BybitExecutor.LiveTradingEnabled {
 		return "实盘下单"
 	}
-	return "影子(shadow,不下单)"
+	return "OFF(不下单)"
 }
 
 // bybitIdemPrefix 由 (symbol, 结算时刻) 派生确定性幂等前缀,**不含 runID** → 跨重启稳定,重试不会重复成交。
@@ -734,7 +734,7 @@ func (c *RuntimeController) bybitManageCycle(
 				c.appendControllerLog("Bybit 续持超时 %s:结算后 %s 内 nextFundingTime 仍未翻进,放弃续持转平仓", p.Symbol, bybitMaxRollWait)
 			default:
 				if !live {
-					c.appendControllerLog("[bybit-shadow][拟续持] %s 下期费率=%.4f%% 续持到 %s", p.Symbol, snap.LastFundingRate*100, snap.NextFundingTime.Format(time.RFC3339))
+					c.appendControllerLog("[dry-run][拟续持] %s 下期费率=%.4f%% 续持到 %s", p.Symbol, snap.LastFundingRate*100, snap.NextFundingTime.Format(time.RFC3339))
 					continue
 				}
 				rolled := p
@@ -750,7 +750,7 @@ func (c *RuntimeController) bybitManageCycle(
 		}
 		// 非滚动 / 满次 / 永续腿不在场 / 记账超时 → 平仓(已收完本期资金费,settlements +1)。
 		if !live {
-			c.appendControllerLog("[bybit-shadow][拟平仓] %s(结算后到期)", p.Symbol)
+			c.appendControllerLog("[dry-run][拟平仓] %s(结算后到期)", p.Symbol)
 			continue
 		}
 		settle := p.SettlementsHeld + 1
@@ -857,7 +857,7 @@ func (c *RuntimeController) bybitManageCycle(
 			}
 		}
 		if !live {
-			c.appendControllerLog("[bybit-shadow][拟开仓] %s 费率=%.4f%% 数量=%.6f 净利率=%.4f%%(结算 %s)",
+			c.appendControllerLog("[dry-run] 本应开仓 %s 费率=%.4f%% 数量=%.6f 净利率=%.4f%%(结算 %s)",
 				p.Symbol, p.FundingRate*100, p.BaseQty, p.EstNetProfitRate*100, p.NextFundingTime.Format(time.RFC3339))
 			continue
 		}

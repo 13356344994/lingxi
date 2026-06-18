@@ -20,7 +20,7 @@ import (
 )
 
 // cross_venue_executor.go P1 跨所资金费对冲执行引擎:消费扫描器结果,空高费所/多低费所 perp-perp 对冲。
-// 默认影子模式(enabled=false / live_trading_enabled=false),绝不在未显式开启 live 时下单。
+// 默认 OFF 模式(enabled=false / live_trading_enabled=false),绝不在未显式开启 live 时下单。
 
 const crossVenueTradeableVenueList = "binance,okx,gate,bybit"
 
@@ -55,6 +55,8 @@ type CrossVenueExecutor struct {
 	nowFn              func() time.Time
 	// openingsEnabled 是运行时开仓开关(第三道闸);OFF=跳过 evaluateNewOpens,在场持仓管理/平仓/风控照常。
 	openingsEnabled atomic.Bool
+	// rotationManaged 为 true 时统一轮动 runner 接管 open/manage/reconcile,本引擎 tick 不再独立调度(防双循环)。
+	rotationManaged atomic.Bool
 	// running 标记 Run 主循环是否在跑(healthz 就绪判定用)。
 	running atomic.Bool
 	// recordDir 用于 control.json 持久化(重启维持上次选择)。
@@ -62,6 +64,8 @@ type CrossVenueExecutor struct {
 	// healthHaltVenue 健康闸当前暂停开仓的 venue(空=正常);用于告警去抖与 API 暴露。
 	healthHaltVenue string
 	lastCycle       CrossVenueCycleExplain
+	// controlPlane 统一控制面附加闸(nil=仅沿用 .halt-live / openings 等既有语义)。
+	controlPlane *ControlPlane
 }
 
 type crossVenueUntrackedLeg struct {
@@ -293,6 +297,14 @@ func NewCrossVenueExecutor(cfg EngineConfig, orch *Orchestrator, scanner *CrossV
 	return e, nil
 }
 
+// SetControlPlane 注入统一控制面(启动装配时调用)。
+func (e *CrossVenueExecutor) SetControlPlane(cp *ControlPlane) {
+	if e == nil {
+		return
+	}
+	e.controlPlane = cp
+}
+
 func buildCrossVenueExecutorAdapters(orch *Orchestrator, cfg EngineConfig, secretPath string, logger *log.Logger) map[string]venue.Venue {
 	out := make(map[string]venue.Venue, len(crossVenueExecutorVenues))
 	for _, name := range crossVenueExecutorVenues {
@@ -316,7 +328,7 @@ func crossVenueExecutorModeLabel(cfg EngineConfig) string {
 	if cfg.CrossVenueExecutor.LiveTradingEnabled {
 		return "实盘下单"
 	}
-	return "影子(shadow,不下单)"
+	return "OFF(不下单)"
 }
 
 // IsRunning 报告跨所执行器主循环是否在跑(Enabled=false 或未启动时为 false)。
@@ -343,7 +355,13 @@ func (e *CrossVenueExecutor) Run(ctx context.Context) {
 	e.logger.Printf("[跨所执行] 已启动: interval=%s open_spread=%.0f%% max_concurrent=%d max_position=%.0fU",
 		interval, e.cfg.CrossVenueExecutor.OpenSpreadAPR*100, e.cfg.CrossVenueExecutor.MaxConcurrent, e.cfg.CrossVenueExecutor.MaxPositionUSDT)
 
-	e.reconcileOnStart(ctx)
+	// rotation 模式下 reconcile 由统一 runner runReconcileAll 派发,避免双调用。
+	if !e.RotationManaged() {
+		// rotationManaged 时 reconcile 由统一 runner 派发,避免与 runner.runReconcileAll 双调用。
+		if !e.RotationManaged() {
+			e.reconcileOnStart(ctx)
+		}
+	}
 
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -373,11 +391,22 @@ func (e *CrossVenueExecutor) tick(ctx context.Context, live bool) {
 		CycleReason:     "scheduled_tick",
 		SwitchSummary:   crossVenueExplainSwitchSummary(e.snapshotPositions()),
 	}
+	// 统一轮动 runner 已绑定:本 tick 仅同步健康闸,open/manage 由 runner 派发(杜绝双重开仓/双重 manage)。
+	if e.RotationManaged() {
+		unhealthy := e.firstUnhealthyTradeableVenue()
+		e.syncHealthHaltAlerts(unhealthy)
+		baseExplain.HaltReason = "rotation_managed"
+		baseExplain.OpenSummary = "统一轮动 runner 接管 open/manage"
+		e.setLastCycle(baseExplain)
+		return
+	}
 	haltActive := e.isHaltActive()
 	if haltActive {
 		e.logger.Printf("[跨所执行] 急停生效,跳过开新仓(在场持仓仍管理)")
 	}
-	e.manageOpenPositions(ctx, live)
+	if e.controlPlane == nil || e.controlPlane.AllowManageOrders() {
+		e.manageOpenPositions(ctx, live)
+	}
 
 	unhealthy := e.firstUnhealthyTradeableVenue()
 	e.syncHealthHaltAlerts(unhealthy)
@@ -385,6 +414,20 @@ func (e *CrossVenueExecutor) tick(ctx context.Context, live bool) {
 	if haltActive {
 		baseExplain.HaltReason = "halt_active"
 		baseExplain.OpenSummary = "急停生效,仅管理在场仓"
+		e.setLastCycle(baseExplain)
+		return
+	}
+	if e.controlPlane != nil && !e.controlPlane.AllowNewOpens() {
+		e.logger.Printf("[跨所执行] 控制面 allow_new_opens=false,跳过 evaluateNewOpens")
+		baseExplain.HaltReason = "control_plane_new_opens_disabled"
+		baseExplain.OpenSummary = "控制面禁止新开仓"
+		e.setLastCycle(baseExplain)
+		return
+	}
+	if e.controlPlane != nil && !e.controlPlane.PerpPerpLiveEnabled() {
+		e.logger.Printf("[跨所执行] 控制面 perp_perp_live_enabled=false,跳过 evaluateNewOpens")
+		baseExplain.HaltReason = "control_plane_perp_perp_disabled"
+		baseExplain.OpenSummary = "控制面 perp-perp 策略闸关闭"
 		e.setLastCycle(baseExplain)
 		return
 	}
@@ -463,6 +506,9 @@ func (e *CrossVenueExecutor) healthHaltVenueSnapshot() string {
 }
 
 func (e *CrossVenueExecutor) isHaltActive() bool {
+	if e.controlPlane != nil {
+		return e.controlPlane.IsGlobalHaltActive()
+	}
 	return ensureEmergencyStopsClear(e.haltPaths) != nil
 }
 
@@ -679,6 +725,8 @@ func (e *CrossVenueExecutor) evaluateNewOpens(ctx context.Context, live bool) {
 		e.mu.Lock()
 		e.positions = upsertCrossVenuePosition(e.positions, pos)
 		e.mu.Unlock()
+		unified := UnifiedOpportunityFromCrossVenue(cfg, opp, nil, gateRes.NotionalUSDT, refPrice)
+		appendAttributionPredictionBestEffort(e.recordDir, predictionRecordFromOpportunity(unified, pos.OpenedAt))
 		active = append(active, pos)
 	}
 	if len(rejected) > 0 {
@@ -1273,7 +1321,7 @@ func (e *CrossVenueExecutor) CloseAllPositions(ctx context.Context, live bool) (
 			pos.Status = CrossVenueStatusClosed
 			pos.CloseReason = "flatten_all_orphan"
 			pos.RecoveryAction = crossVenueRecoveryActionObserve
-			e.finalizeClosedCrossVenuePosition(pos)
+			e.finalizeClosedCrossVenuePosition(pos, live)
 			closed++
 			continue
 		}

@@ -13,6 +13,8 @@ import (
 
 	"lingxi/internal/venue"
 	"lingxi/internal/venue/binance"
+	"lingxi/internal/venue/bybit"
+	"lingxi/internal/venue/okx"
 )
 
 func writeSettlementLine(t *testing.T, path string, v any) {
@@ -33,7 +35,7 @@ func writeSettlementLine(t *testing.T, path string, v any) {
 
 func TestAggregateStrategySettlementsCSTDayAndAllTime(t *testing.T) {
 	dir := t.TempDir()
-	now := time.Date(2026, 6, 15, 2, 30, 0, 0, time.UTC)
+	now := time.Date(2026, 6, 19, 2, 30, 0, 0, time.UTC)
 	dayStart := beijingCSTDayStart(now)
 
 	svspPath := filepath.Join(singleVenueSpotPerpRecordDir(dir), svspSettlementsLogName)
@@ -68,7 +70,8 @@ func TestAggregateStrategySettlementsCSTDayAndAllTime(t *testing.T) {
 	writeSettlementLine(t, perpPath, CrossVenueSettlement{
 		Symbol: "AVAX-USDT", HighVenue: "okx", LowVenue: "gate",
 		OpenTime: dayStart, CloseTime: dayStart.Add(time.Hour),
-		NetPnL: -0.5, RealizedFunding: 0.1, OpenFees: 0.1, CloseFees: 0.1, TotalFees: 0.2,
+		FundingTruthStatus: "complete",
+		NetPnL:             -0.5, RealizedFunding: 0.1, OpenFees: 0.1, CloseFees: 0.1, TotalFees: 0.2,
 	})
 
 	s := &DashboardServer{store: mustTestReportStore(t, dir)}
@@ -386,5 +389,148 @@ func TestRotationPositionsAPIHandler(t *testing.T) {
 	}
 	if pos.TotalPnLUSDT == nil {
 		t.Fatal("expected total_pnl_usdt")
+	}
+}
+
+func TestViewFromCrossVenuePerpPerp(t *testing.T) {
+	execCfg := CrossVenueExecutorConfig{DefaultTakerFeeBps: 4}
+	now := time.Now().UTC()
+	opened := now.Add(-90 * time.Minute)
+	pos := CrossVenuePosition{
+		Symbol: "ETH-USDT", HighVenue: bybit.VenueName, LowVenue: okx.VenueName,
+		Status:       CrossVenueStatusOpen,
+		HighLeg:      CrossVenueLegState{Side: "sell", Qty: 0.5, EntryPrice: 2500},
+		LowLeg:       CrossVenueLegState{Side: "buy", Qty: 0.5, EntryPrice: 2498},
+		NotionalUSDT: 1250, EstFundingUSDT: 2.5, CurrentFutureEV: 1.8,
+		HighLegFundingUSDT: 0.3, LowLegFundingUSDT: -0.1,
+		CrossVenueAttribution: CrossVenueAttribution{OpenFeesUSDT: 0.2},
+		OpenedAt:              opened,
+	}
+	view := viewFromCrossVenuePerpPerp(pos, execCfg, now)
+	if view.StrategyType != UnifiedStrategyPerpPerp {
+		t.Fatalf("strategy_type=%q want %q", view.StrategyType, UnifiedStrategyPerpPerp)
+	}
+	if len(view.Venues) != 2 || view.Venues[0] != bybit.VenueName || view.Venues[1] != okx.VenueName {
+		t.Fatalf("venues=%v", view.Venues)
+	}
+	if view.SpotLeg.MarketType != "perp" || view.PerpLeg.MarketType != "perp" {
+		t.Fatalf("leg market types spot=%q perp=%q", view.SpotLeg.MarketType, view.PerpLeg.MarketType)
+	}
+	if view.SpotLeg.Venue != bybit.VenueName || view.PerpLeg.Venue != okx.VenueName {
+		t.Fatalf("leg venues spot=%q perp=%q", view.SpotLeg.Venue, view.PerpLeg.Venue)
+	}
+	if view.SpotLeg.Side != "sell" || view.PerpLeg.Side != "buy" {
+		t.Fatalf("leg sides spot=%q perp=%q", view.SpotLeg.Side, view.PerpLeg.Side)
+	}
+	if math.Abs(view.NotionalUSDT-1250) > 1e-9 {
+		t.Fatalf("notional=%v want 1250", view.NotionalUSDT)
+	}
+	if math.Abs(view.OpenFeesUSDT-0.2) > 1e-9 || math.Abs(view.AccruedFundingUSDT-0.2) > 1e-9 {
+		t.Fatalf("fees/funding=%+v", view)
+	}
+	if view.Status != "open" || view.OpportunityID == "" {
+		t.Fatalf("status=%q opp=%q", view.Status, view.OpportunityID)
+	}
+}
+
+func TestBuildRotationPositionViewsIncludesPerpPerp(t *testing.T) {
+	execCfg := EngineConfig{CrossVenueExecutor: CrossVenueExecutorConfig{DefaultTakerFeeBps: 4}}
+	cfg := testCrossVenueExecutorConfig()
+	cfg.NetworkConfig.RecordDir = t.TempDir()
+	opened := time.Now().UTC().Add(-time.Hour)
+	cvExec := &CrossVenueExecutor{
+		cfg:   cfg,
+		store: mustCrossVenueStore(t, cfg.NetworkConfig.RecordDir),
+		nowFn: func() time.Time { return time.Now().UTC() },
+	}
+	if err := cvExec.store.saveAll([]CrossVenuePosition{{
+		Symbol: "ETH-USDT", Status: CrossVenueStatusOpen,
+		HighVenue: bybit.VenueName, LowVenue: okx.VenueName,
+		HighLeg:      CrossVenueLegState{Side: "sell", Qty: 0.5, EntryPrice: 2500},
+		LowLeg:       CrossVenueLegState{Side: "buy", Qty: 0.5, EntryPrice: 2498},
+		NotionalUSDT: 1250, OpenedAt: opened,
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	svsp := NewSingleVenueSpotPerpExecutor(execCfg, map[string]venue.Venue{
+		binance.VenueName: &rotationPriceTestVenue{fakeFundingVenue: fakeFundingVenue{name: binance.VenueName}, spotMid: 100, perpMid: 100},
+	}, t.TempDir(), nil)
+	_ = svsp.persistPosition(SingleVenueSpotPerpPosition{
+		Symbol: "BTC-USDT", Venue: binance.VenueName, Status: SVSPStatusOpen,
+		SpotLeg:      SingleVenueSpotPerpLegState{Market: "spot", Side: "buy", Qty: 1, EntryPrice: 100},
+		PerpLeg:      SingleVenueSpotPerpLegState{Market: "perp", Side: "short", Qty: 1, EntryPrice: 100},
+		NotionalUSDT: 100, OpenedAt: opened, IdemPrefix: "test",
+	})
+	s := &DashboardServer{svspExec: svsp, crossVenueExecutor: cvExec}
+	views := buildRotationPositionViews(s, execCfg.CrossVenueExecutor, "open", "")
+	if len(views) != 2 {
+		t.Fatalf("views=%d want 2: %+v", len(views), views)
+	}
+	byStrategy := map[string]RotationPositionView{}
+	for _, v := range views {
+		byStrategy[v.StrategyType] = v
+	}
+	if _, ok := byStrategy[UnifiedStrategySingleVenueSpotPerp]; !ok {
+		t.Fatalf("missing carry: %+v", byStrategy)
+	}
+	pp, ok := byStrategy[UnifiedStrategyPerpPerp]
+	if !ok {
+		t.Fatalf("missing perp-perp: %+v", byStrategy)
+	}
+	if pp.Symbol != "ETH-USDT" || math.Abs(pp.NotionalUSDT-1250) > 1e-9 {
+		t.Fatalf("perp-perp view=%+v", pp)
+	}
+	if pp.SpotLeg.MarketType != "perp" || pp.PerpLeg.MarketType != "perp" {
+		t.Fatalf("perp-perp leg types spot=%q perp=%q", pp.SpotLeg.MarketType, pp.PerpLeg.MarketType)
+	}
+}
+
+func TestBuildRotationPositionViewsWithoutPerpPerp(t *testing.T) {
+	execCfg := CrossVenueExecutorConfig{DefaultTakerFeeBps: 4}
+	s := &DashboardServer{}
+	views := buildRotationPositionViews(s, execCfg, "open", "")
+	if views != nil {
+		t.Fatalf("expected nil/empty views, got %+v", views)
+	}
+}
+
+func TestRotationPositionsAPIIncludesPerpPerp(t *testing.T) {
+	cfg := testCrossVenueExecutorConfig()
+	cfg.NetworkConfig.RecordDir = t.TempDir()
+	opened := time.Now().UTC().Add(-30 * time.Minute)
+	cvExec := &CrossVenueExecutor{
+		cfg:   cfg,
+		store: mustCrossVenueStore(t, cfg.NetworkConfig.RecordDir),
+		nowFn: func() time.Time { return time.Now().UTC() },
+	}
+	if err := cvExec.store.saveAll([]CrossVenuePosition{{
+		Symbol: "SOL-USDT", Status: CrossVenueStatusOpen,
+		HighVenue: bybit.VenueName, LowVenue: okx.VenueName,
+		HighLeg:      CrossVenueLegState{Side: "sell", Qty: 10, EntryPrice: 20},
+		LowLeg:       CrossVenueLegState{Side: "buy", Qty: 10, EntryPrice: 19.9},
+		NotionalUSDT: 200, OpenedAt: opened,
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	s := &DashboardServer{crossVenueExecutor: cvExec}
+	req := httptest.NewRequest(http.MethodGet, "/api/rotation/positions?status=open", nil)
+	rec := httptest.NewRecorder()
+	s.handleRotationPositionsAPI(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	var resp RotationPositionsAPIResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if resp.Count != 1 || len(resp.Positions) != 1 {
+		t.Fatalf("count=%d positions=%d", resp.Count, len(resp.Positions))
+	}
+	pos := resp.Positions[0]
+	if pos.StrategyType != UnifiedStrategyPerpPerp || pos.Symbol != "SOL-USDT" {
+		t.Fatalf("position=%+v", pos)
+	}
+	if len(pos.Venues) != 2 || pos.SpotLeg.MarketType != "perp" || pos.PerpLeg.MarketType != "perp" {
+		t.Fatalf("venues=%v spot_type=%q perp_type=%q", pos.Venues, pos.SpotLeg.MarketType, pos.PerpLeg.MarketType)
 	}
 }

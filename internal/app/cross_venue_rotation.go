@@ -143,10 +143,7 @@ func crossVenueExpectedSlippageUSDT(cfg CrossVenueExecutorConfig, notional float
 	if notional <= 0 || legs <= 0 {
 		return 0
 	}
-	bps := cfg.EVExpectedSlippageBps
-	if bps <= 0 {
-		bps = 3
-	}
+	bps := crossVenueEVSlippageFallbackBpsPerLeg(cfg)
 	return float64(legs) * notional * bps / 10000
 }
 
@@ -228,7 +225,7 @@ func crossVenueObservableRiskCost(notional, freshnessAgeSeconds, comparableWindo
 	freshnessPenalty := notional * clamp01(freshnessAgeSeconds/900) * 0.0005
 	windowPenalty := 0.0
 	if comparableWindowHours > 0 && comparableWindowHours < 1 {
-		windowPenalty = notional * (1-comparableWindowHours) * 0.0005
+		windowPenalty = notional * (1 - comparableWindowHours) * 0.0005
 	}
 	recoveryPenalty := notional * clamp01(1-recoveryQuality) * 0.0007
 	return freshnessPenalty + windowPenalty + recoveryPenalty

@@ -6,6 +6,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"lingxi/internal/venue"
 )
 
 const (
@@ -37,6 +39,12 @@ type CrossVenueSpotPerpMarketSnap struct {
 	PerpDepthUSDT float64 `json:"perp_depth_usdt"`
 	HasSpot       bool    `json:"has_spot"`
 	HasPerp       bool    `json:"has_perp"`
+	// SpotDepth/PerpDepth 决策期二次拉取的完整盘口(可选);为空时流动性自适应仅依赖 24h 量项。
+	SpotDepth *venue.Depth `json:"spot_depth,omitempty"`
+	PerpDepth *venue.Depth `json:"perp_depth,omitempty"`
+	// Volume24hSpotUSDT/Volume24hPerpUSDT 24h 成交额(USDT);无数据时参与率项跳过。
+	Volume24hSpotUSDT float64 `json:"volume_24h_spot_usdt,omitempty"`
+	Volume24hPerpUSDT float64 `json:"volume_24h_perp_usdt,omitempty"`
 }
 
 // CrossVenueSpotPerpScannerConfig 跨所 spot-perp 扫描器成本与风控参数(v1 保守默认)。
@@ -326,7 +334,7 @@ func buildCrossVenueSpotPerpOpportunity(
 
 	openCost := crossVenueSpotPerpOpenCostUSDT(cfg, spotVenue, perpVenue, notional)
 	closeCost := openCost
-	slippage := crossVenueSpotPerpSlippageUSDT(cfg, notional)
+	slippage := crossVenueSpotPerpSlippageUSDT(cfg, notional, spotMkt, perpMkt)
 
 	spotCashRequired := notional
 	perpMarginRequired := crossVenueSpotPerpPerpMarginRequired(cfg, notional)
@@ -398,19 +406,36 @@ func crossVenueSpotPerpTradableNotional(cfg CrossVenueSpotPerpScannerConfig, spo
 	if maxNotional <= 0 {
 		maxNotional = 50
 	}
-	if spotMkt.SpotDepthUSDT > 0 {
-		cap := spotMkt.SpotDepthUSDT * cfg.Exec.DepthUsageRatio
-		if cap+1e-9 < maxNotional {
-			return 0
-		}
-		maxNotional = math.Min(maxNotional, cap)
+	liqCap := crossVenueSpotPerpLiquidityNotionalCap(cfg.Exec, spotMkt, perpMkt)
+	if cfg.Exec.SizingMaxSlippageBps > 0 || cfg.Exec.SizingMaxParticipationPct24h > 0 {
+		maxNotional = applyLiquiditySizingCap(maxNotional, liqCap, resolvedSizingConservativeNoDepthFactor(cfg.Exec))
+	} else {
+		maxNotional = applyLiquidityCapToMaxPosition(maxNotional, liqCap)
 	}
-	if perpMkt.PerpDepthUSDT > 0 {
-		cap := perpMkt.PerpDepthUSDT * cfg.Exec.DepthUsageRatio
-		if cap+1e-9 < cfg.Exec.MaxPositionUSDT {
-			return 0
+	// sizing_max_slippage_bps=0 时保留旧 depth_usage_ratio 硬闸(回归兼容)。
+	if cfg.Exec.SizingMaxSlippageBps <= 0 {
+		if spotMkt.SpotDepthUSDT > 0 {
+			ratio := cfg.Exec.DepthUsageRatio
+			if ratio <= 0 {
+				ratio = 0.20
+			}
+			cap := spotMkt.SpotDepthUSDT * ratio
+			if cap+1e-9 < cfg.Exec.MaxPositionUSDT {
+				return 0
+			}
+			maxNotional = math.Min(maxNotional, cap)
 		}
-		maxNotional = math.Min(maxNotional, cap)
+		if perpMkt.PerpDepthUSDT > 0 {
+			ratio := cfg.Exec.DepthUsageRatio
+			if ratio <= 0 {
+				ratio = 0.20
+			}
+			cap := perpMkt.PerpDepthUSDT * ratio
+			if cap+1e-9 < cfg.Exec.MaxPositionUSDT {
+				return 0
+			}
+			maxNotional = math.Min(maxNotional, cap)
+		}
 	}
 	if maxNotional <= 0 {
 		return 0
@@ -548,7 +573,11 @@ func crossVenueSpotPerpOpenCostUSDT(cfg CrossVenueSpotPerpScannerConfig, spotVen
 	return notional * (spotFee + perpFee) / 10000
 }
 
-func crossVenueSpotPerpSlippageUSDT(cfg CrossVenueSpotPerpScannerConfig, notional float64) float64 {
+func crossVenueSpotPerpSlippageUSDT(cfg CrossVenueSpotPerpScannerConfig, notional float64, spotMkt, perpMkt CrossVenueSpotPerpMarketSnap) float64 {
+	legs := crossVenueSpotPerpEVSlippageLegs(spotMkt, perpMkt)
+	if len(legs) > 0 && (spotMkt.SpotDepth != nil || perpMkt.PerpDepth != nil) {
+		return crossVenueExpectedSlippageUSDTWithLegs(cfg.Exec, notional, legs)
+	}
 	return crossVenueExpectedSlippageUSDT(cfg.Exec, notional, 4)
 }
 

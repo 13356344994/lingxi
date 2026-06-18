@@ -57,6 +57,8 @@ type DashboardServer struct {
 	cvpsExec *CrossVenuePerpSpotExecutor
 	// rotationRunner 是五策略统一轮动 runner; nil=未注入。
 	rotationRunner *UnifiedRotationRunner
+	// controlPlane 统一控制面; nil=未注入(测试/旧路径)。
+	controlPlane *ControlPlane
 	// venueEquityCache 缓存各所钱包总额/浮盈亏拉取结果,避免面板 5s 轮询触发交易所限频。
 	venueEquityCacheMu sync.Mutex
 	venueEquityCache   map[string]venueEquityCacheEntry
@@ -89,6 +91,11 @@ func (s *DashboardServer) SetRotationExecutors(svsp *SingleVenueSpotPerpExecutor
 // SetRotationRunner 注入五策略统一轮动 runner(供 /api/rotation/* 读取与控制)。
 func (s *DashboardServer) SetRotationRunner(r *UnifiedRotationRunner) {
 	s.rotationRunner = r
+}
+
+// SetControlPlane 注入统一控制面(供 STOP/START 与 status 展示)。
+func (s *DashboardServer) SetControlPlane(cp *ControlPlane) {
+	s.controlPlane = cp
 }
 
 // DashboardSummaryResponse 表示面板一次刷新所需的聚合数据。
@@ -190,6 +197,7 @@ func (s *DashboardServer) Start(ctx context.Context) error {
 	mux.HandleFunc("/api/strategy/stop", s.handleStrategyStopAPI)
 	mux.HandleFunc("/api/strategy/flatten-all", s.handleStrategyFlattenAllAPI)
 	mux.HandleFunc("/api/rotation/status", s.authorizeReadAPI(s.handleRotationStatusAPI))
+	mux.HandleFunc("/api/rotation/capital-snapshot", s.authorizeReadAPI(s.handleRotationCapitalSnapshotAPI))
 	mux.HandleFunc("/api/rotation/positions", s.authorizeReadAPI(s.handleRotationPositionsAPI))
 	mux.HandleFunc("/api/rotation/settlements", s.authorizeReadAPI(s.handleRotationSettlementsAPI))
 	mux.HandleFunc("/api/rotation/start", s.handleRotationStartAPI)
@@ -1147,22 +1155,25 @@ func (s *DashboardServer) handleEarningsAPI(w http.ResponseWriter, r *http.Reque
 	accountEquityDelta := total.TodayEarningUSDT
 
 	resp := map[string]any{
-		"basis":                      "settlement_ledger_realized_pnl",
-		"window":                     "beijing_cst_day",
-		"day_start_cst":              dayStart.Format(time.RFC3339),
-		"generated_at":               now.Format(time.RFC3339),
-		"realized_pnl_usdt":          pnlSummary.TotalNetPnL,
-		"open_accrued_funding_usdt":  openAccruedFunding,
-		"account_equity_delta_usdt":  accountEquityDelta,
-		"all_time_realized_pnl_usdt": allTimeSummary.TotalNetPnL,
-		"trade_count":                pnlSummary.TradeCount,
-		"total_funding_usdt":         pnlSummary.TotalFunding,
-		"total_fees_usdt":            pnlSummary.TotalFees,
-		"by_strategy":                pnlSummary.ByStrategy,
-		"by_symbol":                  pnlSummary.BySymbol,
-		"by_venue_settlement":        pnlSummary.ByVenue,
-		"by_venue":                   byVenue,
-		"total":                      total,
+		"basis":                       "settlement_ledger_realized_pnl",
+		"window":                      "beijing_cst_day",
+		"day_start_cst":               dayStart.Format(time.RFC3339),
+		"generated_at":                now.Format(time.RFC3339),
+		"realized_pnl_usdt":           pnlSummary.TotalNetPnL,
+		"untrusted_realized_pnl_usdt": pnlSummary.UntrustedNetPnL,
+		"open_accrued_funding_usdt":   openAccruedFunding,
+		"account_equity_delta_usdt":   accountEquityDelta,
+		"all_time_realized_pnl_usdt":  allTimeSummary.TotalNetPnL,
+		"all_time_untrusted_pnl_usdt": allTimeSummary.UntrustedNetPnL,
+		"trade_count":                 pnlSummary.TradeCount,
+		"untrusted_trade_count":       pnlSummary.UntrustedTradeCount,
+		"total_funding_usdt":          pnlSummary.TotalFunding,
+		"total_fees_usdt":             pnlSummary.TotalFees,
+		"by_strategy":                 pnlSummary.ByStrategy,
+		"by_symbol":                   pnlSummary.BySymbol,
+		"by_venue_settlement":         pnlSummary.ByVenue,
+		"by_venue":                    byVenue,
+		"total":                       total,
 	}
 	if pnlErr != nil {
 		resp["pnl_error"] = pnlErr.Error()
@@ -1262,6 +1273,18 @@ func (s *DashboardServer) handleRotationStatusAPI(w http.ResponseWriter, r *http
 		return
 	}
 	writeJSON(w, s.rotationStatusOrEmpty())
+}
+
+func (s *DashboardServer) handleRotationCapitalSnapshotAPI(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if s.rotationRunner == nil {
+		writeJSON(w, UnifiedCapitalSnapshot{})
+		return
+	}
+	writeJSON(w, s.rotationRunner.CapitalSnapshotReadOnly(r.Context()))
 }
 
 func (s *DashboardServer) handleRotationStartAPI(w http.ResponseWriter, r *http.Request) {

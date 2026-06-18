@@ -488,14 +488,16 @@ func (e *FundingRateSniperEngine) ensureUSDTFundingBalancesForOpen(ctx context.C
 			return nil
 		}
 		e.logger.Printf("模块四开仓前自动平衡 USDT，从 UM futures 转到 spot，amount=%.6f", transferAmount)
-		return e.transferAssetBetweenAccounts(ctx, "UMFUTURE_MAIN", "USDT", transferAmount)
+		_, err := e.transferAssetBetweenAccounts(ctx, "UMFUTURE_MAIN", "USDT", transferAmount)
+		return err
 	case futuresAvailableUSDT+transferEpsilon < perAccountTarget && spotUSDT > perAccountTarget+transferEpsilon:
 		transferAmount := math.Min(perAccountTarget-futuresAvailableUSDT, spotUSDT-perAccountTarget)
 		if transferAmount <= transferEpsilon {
 			return nil
 		}
 		e.logger.Printf("模块四开仓前自动平衡 USDT，从 spot 转到 UM futures，amount=%.6f", transferAmount)
-		return e.transferAssetBetweenAccounts(ctx, "MAIN_UMFUTURE", "USDT", transferAmount)
+		_, err := e.transferAssetBetweenAccounts(ctx, "MAIN_UMFUTURE", "USDT", transferAmount)
+		return err
 	default:
 		return nil
 	}

@@ -254,7 +254,7 @@ func buildSingleVenueSpotPerpOpportunity(
 
 	openCost := singleVenueSpotPerpOpenCostUSDT(cfg, venueName, notional)
 	closeCost := openCost
-	slippage := crossVenueSpotPerpSlippageUSDT(cvCfg, notional)
+	slippage := crossVenueSpotPerpSlippageUSDT(cvCfg, notional, mkt, mkt)
 
 	spotCashRequired := notional
 	perpMarginRequired := crossVenueSpotPerpPerpMarginRequired(cvCfg, notional)

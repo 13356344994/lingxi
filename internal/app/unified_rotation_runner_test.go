@@ -29,6 +29,8 @@ type fakeRotationExecutor struct {
 	manageCalls       int32
 	lastReconcileLive bool
 	lastManageLive    bool
+	closeErr          error
+	openErr           error
 }
 
 func (f *fakeRotationExecutor) binding() *rotationExecutorBinding {
@@ -38,6 +40,9 @@ func (f *fakeRotationExecutor) binding() *rotationExecutorBinding {
 	return &rotationExecutorBinding{
 		strategyType: f.strategyType,
 		openFn: func(ctx context.Context, opp UnifiedOpportunity, live bool) error {
+			if f.openErr != nil {
+				return f.openErr
+			}
 			f.opens = append(f.opens, opp)
 			if live {
 				atomic.AddInt32(&f.liveOpens, 1)
@@ -45,6 +50,9 @@ func (f *fakeRotationExecutor) binding() *rotationExecutorBinding {
 			return nil
 		},
 		closeVerifiedFn: func(ctx context.Context, opportunityID, symbol, reason string) error {
+			if f.closeErr != nil {
+				return f.closeErr
+			}
 			f.closes = append(f.closes, opportunityID)
 			atomic.AddInt32(&f.verifiedCloses, 1)
 			return nil
@@ -192,6 +200,147 @@ func TestUnifiedRotationRunner_DispatchCloseAndSwitch(t *testing.T) {
 	}
 	if cvsp.liveOpens != 1 {
 		t.Fatalf("active runner should live-open switch target, got %d", cvsp.liveOpens)
+	}
+}
+
+func testRotationSwitchPlan() (RotationPlan, UnifiedOpportunity) {
+	newOpp := testRotationCandidate("open-new", UnifiedStrategyCrossVenueSpotPerp, "ETH-USDT", 20,
+		map[string]float64{binance.VenueName: 40, bybit.VenueName: 40})
+	plan := RotationPlan{Actions: []RotationAction{{
+		Kind:                 RotationActionSwitch,
+		OpportunityID:        "held-old",
+		StrategyType:         UnifiedStrategySingleVenueSpotPerp,
+		Symbol:               "BTC-USDT",
+		ReplaceOpportunityID: "open-new",
+		ReplaceStrategyType:  UnifiedStrategyCrossVenueSpotPerp,
+		ReplaceSymbol:        "ETH-USDT",
+		Reason:               "test switch",
+	}}}
+	return plan, newOpp
+}
+
+func readRotationSwitchDomainEvents(t *testing.T, recordDir string) []DomainEvent {
+	t.Helper()
+	path := filepath.Join(recordDir, domainEventJSONLName)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read domain events: %v", err)
+	}
+	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+	events := make([]DomainEvent, 0, len(lines))
+	for _, line := range lines {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		var event DomainEvent
+		if err := json.Unmarshal([]byte(line), &event); err != nil {
+			t.Fatalf("unmarshal domain event: %v", err)
+		}
+		events = append(events, event)
+	}
+	return events
+}
+
+func TestUnifiedRotationRunner_SwitchAbortedOnCloseFailed(t *testing.T) {
+	svsp := &fakeRotationExecutor{
+		strategyType: UnifiedStrategySingleVenueSpotPerp,
+		closeErr:     fmt.Errorf("close rejected"),
+	}
+	cvsp := &fakeRotationExecutor{strategyType: UnifiedStrategyCrossVenueSpotPerp}
+	dir := t.TempDir()
+	r := testUnifiedRotationRunnerWithFakes(t, svsp, cvsp)
+	r.recordDir = dir
+
+	plan, newOpp := testRotationSwitchPlan()
+	r.decideRotationFn = func([]HeldPosition, map[string]ContinuationInputs, []UnifiedOpportunity, map[string]float64) RotationPlan {
+		return plan
+	}
+
+	r.runOnceDecisionAndDispatch(context.Background(), []UnifiedOpportunity{newOpp},
+		map[string]float64{binance.VenueName: 500, bybit.VenueName: 500}, nil, nil)
+
+	if len(svsp.closes) != 0 {
+		t.Fatalf("close should not succeed, closes = %v", svsp.closes)
+	}
+	if len(cvsp.opens) != 0 {
+		t.Fatalf("open must not be called after close failure, opens = %+v", cvsp.opens)
+	}
+	events := readRotationSwitchDomainEvents(t, dir)
+	if len(events) != 1 {
+		t.Fatalf("domain events = %+v, want 1", events)
+	}
+	if events[0].Type != rotationSwitchAbortedCloseFailed {
+		t.Fatalf("event type = %q, want %q", events[0].Type, rotationSwitchAbortedCloseFailed)
+	}
+	if !strings.Contains(events[0].Reason, "held-old") || !strings.Contains(events[0].Reason, "close rejected") {
+		t.Fatalf("event reason = %q", events[0].Reason)
+	}
+}
+
+func TestUnifiedRotationRunner_SwitchFailedOpenRecorded(t *testing.T) {
+	svsp := &fakeRotationExecutor{strategyType: UnifiedStrategySingleVenueSpotPerp}
+	cvsp := &fakeRotationExecutor{
+		strategyType: UnifiedStrategyCrossVenueSpotPerp,
+		openErr:      fmt.Errorf("open rejected"),
+	}
+	dir := t.TempDir()
+	r := testUnifiedRotationRunnerWithFakes(t, svsp, cvsp)
+	r.recordDir = dir
+
+	plan, newOpp := testRotationSwitchPlan()
+	r.decideRotationFn = func([]HeldPosition, map[string]ContinuationInputs, []UnifiedOpportunity, map[string]float64) RotationPlan {
+		return plan
+	}
+
+	r.runOnceDecisionAndDispatch(context.Background(), []UnifiedOpportunity{newOpp},
+		map[string]float64{binance.VenueName: 500, bybit.VenueName: 500}, nil, nil)
+
+	if len(svsp.closes) != 1 || svsp.closes[0] != "held-old" {
+		t.Fatalf("svsp closes = %v, want [held-old]", svsp.closes)
+	}
+	if len(cvsp.opens) != 0 {
+		t.Fatalf("open failed, should not record success, opens = %+v", cvsp.opens)
+	}
+	events := readRotationSwitchDomainEvents(t, dir)
+	if len(events) != 1 {
+		t.Fatalf("domain events = %+v, want 1", events)
+	}
+	if events[0].Type != rotationSwitchFailedOpen {
+		t.Fatalf("event type = %q, want %q", events[0].Type, rotationSwitchFailedOpen)
+	}
+	if events[0].Level != EventLevelCritical {
+		t.Fatalf("event level = %q, want critical", events[0].Level)
+	}
+	if !strings.Contains(events[0].Reason, "held-old") || !strings.Contains(events[0].Reason, "open rejected") {
+		t.Fatalf("event reason = %q", events[0].Reason)
+	}
+}
+
+func TestUnifiedRotationRunner_SwitchFailedOpenUnfundableRecorded(t *testing.T) {
+	svsp := &fakeRotationExecutor{strategyType: UnifiedStrategySingleVenueSpotPerp}
+	cvsp := &fakeRotationExecutor{strategyType: UnifiedStrategyCrossVenueSpotPerp}
+	dir := t.TempDir()
+	r := testUnifiedRotationRunnerWithFakes(t, svsp, cvsp)
+	r.recordDir = dir
+	r.active.Store(true)
+
+	plan, newOpp := testRotationSwitchPlan()
+	unfundable := map[string]struct{}{"open-new": {}}
+	r.dispatchRotationPlan(context.Background(), true, plan,
+		map[string]UnifiedOpportunity{"open-new": newOpp}, unfundable)
+
+	if len(svsp.closes) != 1 {
+		t.Fatalf("close should succeed before unfundable skip, closes = %v", svsp.closes)
+	}
+	if len(cvsp.opens) != 0 {
+		t.Fatalf("unfundable must skip open, opens = %+v", cvsp.opens)
+	}
+	events := readRotationSwitchDomainEvents(t, dir)
+	if len(events) != 1 || events[0].Type != rotationSwitchFailedOpen {
+		t.Fatalf("domain events = %+v, want switch_failed_open", events)
+	}
+	if !strings.Contains(events[0].Reason, "无法备资") {
+		t.Fatalf("event reason = %q", events[0].Reason)
 	}
 }
 
@@ -754,12 +903,12 @@ func TestUnifiedRotationRunner_ReconcileManageUseRunnerActive(t *testing.T) {
 
 	r.runReconcileAll(context.Background())
 	if svsp.lastReconcileLive {
-		t.Fatal("stopped runner must pass live=false to reconcile")
+		t.Fatal("stopped runner must pass live=false to reconcile (仍绑定 active)")
 	}
 
 	r.runManageAll(context.Background())
-	if svsp.lastManageLive {
-		t.Fatal("stopped runner must pass live=false to manage")
+	if !svsp.lastManageLive {
+		t.Fatal("stopped runner must pass live=true to manage (与 active 解耦)")
 	}
 
 	r.SetActive(true)
@@ -1122,6 +1271,10 @@ func TestDefaultScanRotationCandidatesIncludesPerpPerp(t *testing.T) {
 	for _, c := range candidates {
 		if c.StrategyType == UnifiedStrategyPerpPerp {
 			found = true
+			// 无 binding 时仍为 CandidateOnly(仅对比);有 binding 时可执行。
+			if !c.CandidateOnly {
+				t.Fatal("perp-perp candidate should be CandidateOnly without executor binding")
+			}
 			break
 		}
 	}
@@ -1251,11 +1404,166 @@ func TestNewUnifiedRotationRunner_DefaultActiveFalse(t *testing.T) {
 		CrossVenueExecutorConfig{},
 		DefaultRotationConfig(),
 		DefaultCapitalRouterConfig(),
-		nil, nil, nil, nil,
+		nil, nil, nil, nil, nil,
 		nil, nil, "", log.New(io.Discard, "", 0),
 		DefaultDelistGuardConfig(),
 	)
 	if r.active.Load() {
 		t.Fatal("constructor default active should be false")
+	}
+}
+
+func TestUnifiedRotationRunner_StoppedManageLiveWithControlPlane(t *testing.T) {
+	svsp := &fakeRotationExecutor{strategyType: UnifiedStrategySingleVenueSpotPerp}
+	r := testUnifiedRotationRunnerWithFakes(t, svsp)
+	dir := t.TempDir()
+	cp := NewControlPlane(dir, nil, nil)
+	r.SetControlPlane(cp)
+	r.SetActive(false)
+
+	r.runManageAll(context.Background())
+	if !svsp.lastManageLive {
+		t.Fatal("paused + rotation_live_enabled + allow_manage_orders → manage live=true")
+	}
+	if svsp.manageCalls != 1 {
+		t.Fatalf("manageCalls = %d, want 1", svsp.manageCalls)
+	}
+
+	// 新开仓路径仍被 active 闸住
+	r.scanner = &CrossVenueScanner{lastSnapshot: CrossVenueScanSnapshot{SnapshotID: "snap-cp-stop", ScannedAt: r.nowFn().UTC()}}
+	var scanCalls int32
+	r.scanCandidatesFn = func(context.Context, CrossVenueScanSnapshot) ([]UnifiedOpportunity, map[string]float64, error) {
+		atomic.AddInt32(&scanCalls, 1)
+		return []UnifiedOpportunity{
+			testRotationCandidate("open-svsp", UnifiedStrategySingleVenueSpotPerp, "BTC-USDT", 10, map[string]float64{binance.VenueName: 50}),
+		}, map[string]float64{binance.VenueName: 500}, nil
+	}
+	r.decideRotationFn = func([]HeldPosition, map[string]ContinuationInputs, []UnifiedOpportunity, map[string]float64) RotationPlan {
+		return RotationPlan{Actions: []RotationAction{
+			{Kind: RotationActionOpen, OpportunityID: "open-svsp", StrategyType: UnifiedStrategySingleVenueSpotPerp, Symbol: "BTC-USDT"},
+		}}
+	}
+	r.runCycle(context.Background())
+	if scanCalls != 0 {
+		t.Fatalf("paused runCycle scanCalls = %d, want 0", scanCalls)
+	}
+	if len(svsp.opens) != 0 {
+		t.Fatalf("paused must not open, got %d opens", len(svsp.opens))
+	}
+}
+
+func TestUnifiedRotationRunner_RotationOffManageShadow(t *testing.T) {
+	svsp := &fakeRotationExecutor{strategyType: UnifiedStrategySingleVenueSpotPerp}
+	r := testUnifiedRotationRunnerWithFakes(t, svsp)
+	dir := t.TempDir()
+	cp := NewControlPlane(dir, nil, nil)
+	if err := cp.setPersisted(func(st *ControlPlanePersistedState) {
+		st.RotationLiveEnabled = false
+	}); err != nil {
+		t.Fatal(err)
+	}
+	r.SetControlPlane(cp)
+	r.SetActive(true)
+
+	r.runManageAll(context.Background())
+	if svsp.lastManageLive {
+		t.Fatal("rotation_live_enabled=false (OFF) → manage live=false")
+	}
+}
+
+func TestUnifiedRotationRunner_ActiveOpenAndManageBothLive(t *testing.T) {
+	svsp := &fakeRotationExecutor{strategyType: UnifiedStrategySingleVenueSpotPerp}
+	r := testUnifiedRotationRunnerWithFakes(t, svsp)
+	dir := t.TempDir()
+	cp := NewControlPlane(dir, nil, nil)
+	r.SetControlPlane(cp)
+	r.SetActive(true)
+
+	r.runManageAll(context.Background())
+	if !svsp.lastManageLive {
+		t.Fatal("active + default control plane → manage live=true")
+	}
+
+	opp := testRotationCandidate("open-svsp", UnifiedStrategySingleVenueSpotPerp, "BTC-USDT", 10, map[string]float64{binance.VenueName: 50})
+	plan := RotationPlan{Actions: []RotationAction{
+		{Kind: RotationActionOpen, OpportunityID: "open-svsp", StrategyType: UnifiedStrategySingleVenueSpotPerp, Symbol: "BTC-USDT"},
+	}}
+	r.decideRotationFn = func([]HeldPosition, map[string]ContinuationInputs, []UnifiedOpportunity, map[string]float64) RotationPlan {
+		return plan
+	}
+	r.runOnceDecisionAndDispatch(context.Background(), []UnifiedOpportunity{opp}, map[string]float64{binance.VenueName: 500}, nil, nil)
+	if svsp.liveOpens != 1 {
+		t.Fatalf("active open liveOpens = %d, want 1", svsp.liveOpens)
+	}
+}
+
+func TestUnifiedRotationRunner_PausedVerifiedCloseStillLive(t *testing.T) {
+	svsp := &fakeRotationExecutor{strategyType: UnifiedStrategySingleVenueSpotPerp}
+	r := testUnifiedRotationRunnerWithFakes(t, svsp)
+	dir := t.TempDir()
+	cp := NewControlPlane(dir, nil, nil)
+	r.SetControlPlane(cp)
+	r.SetActive(false)
+
+	plan := RotationPlan{Actions: []RotationAction{
+		{Kind: RotationActionClose, OpportunityID: "held-close", StrategyType: UnifiedStrategySingleVenueSpotPerp, Symbol: "BTC-USDT", Reason: "paused close"},
+	}}
+	r.decideRotationFn = func([]HeldPosition, map[string]ContinuationInputs, []UnifiedOpportunity, map[string]float64) RotationPlan {
+		return plan
+	}
+	r.runOnceDecisionAndDispatch(context.Background(), nil, map[string]float64{binance.VenueName: 500}, nil, nil)
+
+	if svsp.verifiedCloses != 1 {
+		t.Fatalf("paused + closeLive → verified close still dispatched, got %d", svsp.verifiedCloses)
+	}
+	if len(svsp.closes) != 1 || svsp.closes[0] != "held-close" {
+		t.Fatalf("closes = %v", svsp.closes)
+	}
+}
+
+func TestUnifiedRotationRunner_RotationOffSkipsVerifiedClose(t *testing.T) {
+	svsp := &fakeRotationExecutor{strategyType: UnifiedStrategySingleVenueSpotPerp}
+	r := testUnifiedRotationRunnerWithFakes(t, svsp)
+	dir := t.TempDir()
+	cp := NewControlPlane(dir, nil, nil)
+	if err := cp.setPersisted(func(st *ControlPlanePersistedState) {
+		st.RotationLiveEnabled = false
+	}); err != nil {
+		t.Fatal(err)
+	}
+	r.SetControlPlane(cp)
+	r.SetActive(true)
+
+	plan := RotationPlan{Actions: []RotationAction{
+		{Kind: RotationActionClose, OpportunityID: "held-close", StrategyType: UnifiedStrategySingleVenueSpotPerp, Symbol: "BTC-USDT", Reason: "off close"},
+	}}
+	r.decideRotationFn = func([]HeldPosition, map[string]ContinuationInputs, []UnifiedOpportunity, map[string]float64) RotationPlan {
+		return plan
+	}
+	r.runOnceDecisionAndDispatch(context.Background(), nil, map[string]float64{binance.VenueName: 500}, nil, nil)
+
+	if svsp.verifiedCloses != 0 {
+		t.Fatalf("rotation OFF must skip verified close, got %d", svsp.verifiedCloses)
+	}
+}
+
+func TestUnifiedRotationRunner_NilControlPlaneManageLiveWhenStopped(t *testing.T) {
+	svsp := &fakeRotationExecutor{strategyType: UnifiedStrategySingleVenueSpotPerp}
+	r := testUnifiedRotationRunnerWithFakes(t, svsp)
+	r.SetActive(false)
+
+	if !r.manageLive() {
+		t.Fatal("nil control_plane: manageLive should be true (策略已部署即真钱)")
+	}
+	if !r.closeLive() {
+		t.Fatal("nil control_plane: closeLive should be true")
+	}
+	if r.openLive() {
+		t.Fatal("nil control_plane: openLive should be false when active=false")
+	}
+
+	r.runManageAll(context.Background())
+	if !svsp.lastManageLive {
+		t.Fatal("nil control_plane stopped: manage must receive live=true")
 	}
 }

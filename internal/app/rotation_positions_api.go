@@ -13,7 +13,7 @@ import (
 	"lingxi/internal/venue"
 )
 
-// rotation_positions_api.go 四轮动策略持仓/结算只读视图,供 /api/rotation/positions 与 /api/rotation/settlements。
+// rotation_positions_api.go 五轮动策略持仓/结算只读视图,供 /api/rotation/positions 与 /api/rotation/settlements。
 
 const rotationPositionPriceFetchTimeout = 3 * time.Second
 
@@ -32,7 +32,7 @@ type RotationPositionLegView struct {
 	OrderIDs             []string `json:"order_ids,omitempty"`
 }
 
-// RotationPositionView 四轮动策略持仓的统一视图。
+// RotationPositionView 五轮动策略持仓的统一视图。
 type RotationPositionView struct {
 	StrategyType          string                  `json:"strategy_type"`
 	PositionKey           string                  `json:"position_key,omitempty"`
@@ -64,7 +64,7 @@ type RotationPositionView struct {
 	HoldDurationSec       float64                 `json:"hold_duration_sec,omitempty"`
 }
 
-// RotationSettlementView 四轮动策略结算的统一视图(历史/已平仓)。
+// RotationSettlementView 五轮动策略结算的统一视图(历史/已平仓)。
 type RotationSettlementView struct {
 	StrategyType    string    `json:"strategy_type"`
 	SettlementID    string    `json:"settlement_id,omitempty"`
@@ -262,6 +262,68 @@ func viewFromCVPS(pos CrossVenuePerpSpotPosition, execCfg CrossVenueExecutorConf
 		TransitionState:       pos.TransitionState,
 		SwitchLineage:         rotationSwitchLineage(pos.CloseReason, pos.TransitionState),
 		HoldDurationSec:       holdDurationSec(pos.OpenedAt, now),
+	}
+}
+
+// viewFromCrossVenuePerpPerp 把 CrossVenueExecutor 在场 perp-perp 持仓映射为统一 rotation 视图。
+// spot_leg/perp_leg 槽位均填永续腿(高费所空腿→spot_leg,低费所多腿→perp_leg),与 carry 四策略同 JSON 结构。
+func viewFromCrossVenuePerpPerp(pos CrossVenuePosition, execCfg CrossVenueExecutorConfig, now time.Time) RotationPositionView {
+	notional := crossVenuePositionNotionalUSDT(&pos)
+	cont := rotationContinuationFromPosition(pos.EstFundingUSDT, notional, execCfg, false)
+	estCloseFees := crossVenueEstCloseFeeUSDT(execCfg, &pos)
+	return RotationPositionView{
+		StrategyType:          UnifiedStrategyPerpPerp,
+		PositionKey:           crossVenuePositionKey(pos),
+		OpportunityID:         crossVenuePositionOpportunityID(pos),
+		Symbol:                pos.Symbol,
+		Venues:                uniqueNonEmptyStrings(pos.HighVenue, pos.LowVenue),
+		Status:                normalizeRotationStatus(string(pos.Status), pos.CloseReason, pos.TransitionState),
+		SpotLeg:               crossVenuePerpLegView(pos.HighVenue, pos.HighLeg),
+		PerpLeg:               crossVenuePerpLegView(pos.LowVenue, pos.LowLeg),
+		NotionalUSDT:          notional,
+		OpenFeesUSDT:          pos.OpenFeesUSDT,
+		RealizedCloseFeesUSDT: pos.CloseFeesUSDT,
+		ExpectedCloseFeesUSDT: estCloseFees,
+		ExpectedCloseCostUSDT: cont.ExpectedCloseCostUSDT,
+		ExpectedNetEVUSDT:     pos.CurrentFutureEV,
+		ExpectedFundingUSDT:   pos.EstFundingUSDT,
+		AccruedFundingUSDT:    money.SumUSDT(pos.HighLegFundingUSDT, pos.LowLegFundingUSDT),
+		OpenedAt:              pos.OpenedAt,
+		UpdatedAt:             pos.UpdatedAt,
+		CloseReason:           pos.CloseReason,
+		TransitionState:       pos.TransitionState,
+		SwitchLineage:         rotationSwitchLineage(pos.CloseReason, pos.TransitionState),
+		HoldDurationSec:       holdDurationSec(pos.OpenedAt, now),
+	}
+}
+
+func crossVenuePerpLegView(venueName string, leg CrossVenueLegState) RotationPositionLegView {
+	v := strings.TrimSpace(venueName)
+	if v == "" {
+		v = strings.TrimSpace(leg.Venue)
+	}
+	return rotationPerpLegView(v, "perp", leg.Side, leg.Qty, leg.EntryPrice, leg.ExitPrice, leg.OrderIDs)
+}
+
+// listCrossVenuePositionsForAPI 按 status 过滤跨所 perp-perp 台账(只读,供 rotation positions 聚合)。
+func listCrossVenuePositionsForAPI(e *CrossVenueExecutor, statusFilter string) []CrossVenuePosition {
+	if e == nil {
+		return nil
+	}
+	ps := e.PositionsSnapshot().Positions
+	switch strings.ToLower(strings.TrimSpace(statusFilter)) {
+	case "closed":
+		out := make([]CrossVenuePosition, 0)
+		for _, p := range ps {
+			if p.Status == CrossVenueStatusClosed {
+				out = append(out, p)
+			}
+		}
+		return out
+	case "all":
+		return ps
+	default:
+		return activeCrossVenuePositions(ps)
 	}
 }
 
@@ -488,6 +550,11 @@ func buildRotationPositionViews(s *DashboardServer, execCfg CrossVenueExecutorCo
 	if s.cvpsExec != nil && strategyMatches(strategyFilter, UnifiedStrategyCrossVenuePerpSpot) {
 		for _, pos := range s.cvpsExec.listPositionsForAPI(statusFilter) {
 			out = append(out, viewFromCVPS(pos, execCfg, now))
+		}
+	}
+	if s.crossVenueExecutor != nil && strategyMatches(strategyFilter, UnifiedStrategyPerpPerp) {
+		for _, pos := range listCrossVenuePositionsForAPI(s.crossVenueExecutor, statusFilter) {
+			out = append(out, viewFromCrossVenuePerpPerp(pos, execCfg, now))
 		}
 	}
 

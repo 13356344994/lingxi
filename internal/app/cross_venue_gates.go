@@ -25,15 +25,15 @@ var crossVenueTradeableVenues = map[string]bool{
 
 // crossVenueGateInput 是闸门评估所需的上下文。
 type crossVenueGateInput struct {
-	Opp           CrossVenueOpportunity
-	Positions     []CrossVenuePosition
+	Opp                 CrossVenueOpportunity
+	Positions           []CrossVenuePosition
 	AllowExistingSymbol bool
-	BybitHeld     func(sym venue.Symbol) bool
-	BinanceHeld   func(sym venue.Symbol) bool // 币安遗留 FundingRateSniper 台账在场
-	FundingHeld   func(sym venue.Symbol) bool // 任一 okx/gate 单所 funding 引擎台账在场
-	HaltActive    bool
-	SymbolCooling func(sym string) bool
-	Now           time.Time
+	BybitHeld           func(sym venue.Symbol) bool
+	BinanceHeld         func(sym venue.Symbol) bool // 币安遗留 FundingRateSniper 台账在场
+	FundingHeld         func(sym venue.Symbol) bool // 任一 okx/gate 单所 funding 引擎台账在场
+	HaltActive          bool
+	SymbolCooling       func(sym string) bool
+	Now                 time.Time
 }
 
 // crossVenueGateResult 是闸门评估结果。
@@ -164,22 +164,25 @@ func evaluateCrossVenueOpenGate(
 	if notional <= 0 {
 		notional = 50
 	}
-	capHigh := depthCapacityUSDT(deps.fetchDepth, ctx, highV, sym, cfg.DepthUsageRatio)
-	capLow := depthCapacityUSDT(deps.fetchDepth, ctx, lowV, sym, cfg.DepthUsageRatio)
-	if capHigh > 0 && capHigh < notional {
-		notional = capHigh
-	}
-	if capLow > 0 && capLow < notional {
-		notional = capLow
+	if cfg.SizingMaxSlippageBps > 0 || cfg.SizingMaxParticipationPct24h > 0 {
+		if liqCap := crossVenueGateLiquidityNotionalCap(ctx, cfg, deps, highV, lowV, sym); liqCap < math.MaxFloat64 {
+			notional = math.Min(notional, liqCap)
+		}
+	} else {
+		capHigh := depthCapacityUSDT(deps.fetchDepth, ctx, highV, sym, cfg.DepthUsageRatio)
+		capLow := depthCapacityUSDT(deps.fetchDepth, ctx, lowV, sym, cfg.DepthUsageRatio)
+		if capHigh > 0 && capHigh < notional {
+			notional = capHigh
+		}
+		if capLow > 0 && capLow < notional {
+			notional = capLow
+		}
 	}
 	if notional <= 0 {
 		return fail("深度容量不足")
 	}
 
-	maxSlipBps := cfg.MaxOpenSlippageBps
-	if maxSlipBps <= 0 {
-		maxSlipBps = 15
-	}
+	maxSlipBps := crossVenueResolvedMaxOpenSlippageBps(cfg)
 	if slipBps, ok := estimateCrossVenueLegOpenSlippageBps(deps.fetchDepth, ctx, highV, sym, venue.SideSell, notional, highMid); !ok {
 		return fail("高费所深度不足,无法估算开仓滑点")
 	} else if slipBps > maxSlipBps {
@@ -223,7 +226,8 @@ func evaluateCrossVenueOpenGate(
 		return fail(fmt.Sprintf("低费所有效杠杆 %.2fx > %.2fx", notional/lowAlloc, levCap))
 	}
 
-	if evRes := evaluateCrossVenueOpenEV(cfg, in.Opp, notional); !evRes.OK {
+	evLegs := crossVenuePerpPerpEVSlippageLegs(deps.fetchDepth, ctx, highV, lowV, sym, highMid, lowMid)
+	if evRes := evaluateCrossVenueOpenEV(cfg, in.Opp, notional, evLegs); !evRes.OK {
 		return fail(evRes.Reason)
 	}
 
@@ -247,7 +251,7 @@ type crossVenueEVResult struct {
 
 // evaluateCrossVenueOpenEV 手续费感 EV 闸:只有资费能在可接受持有时长内覆盖四腿往返成本才放行。
 // 费率须来自扫描器平滑+封顶后的 Opp 字段(High/LowFundingRate);缺省(单测直调 gate)则跳过 EV。
-func evaluateCrossVenueOpenEV(cfg CrossVenueExecutorConfig, opp CrossVenueOpportunity, notional float64) crossVenueEVResult {
+func evaluateCrossVenueOpenEV(cfg CrossVenueExecutorConfig, opp CrossVenueOpportunity, notional float64, evLegs []crossVenueEVSlippageLeg) crossVenueEVResult {
 	pass := func() crossVenueEVResult { return crossVenueEVResult{OK: true} }
 	failEV := func(reason string) crossVenueEVResult {
 		return crossVenueEVResult{OK: false, Reason: reason}
@@ -272,13 +276,14 @@ func evaluateCrossVenueOpenEV(cfg CrossVenueExecutorConfig, opp CrossVenueOpport
 		return failEV(fmt.Sprintf("EV<0: fundingPerHour=%.6f USDT/h ≤0 (hRate=%.6g/%dh lRate=%.6g/%dh)",
 			fundingPerHour, hRate, hInt, lRate, lInt))
 	}
-	slipBps := cfg.EVExpectedSlippageBps
-	if slipBps <= 0 {
-		slipBps = 3
-	}
 	roundTripCost := 0.0
-	for _, legVenue := range []string{opp.HighVenue, opp.LowVenue, opp.HighVenue, opp.LowVenue} {
+	legVenues := []string{opp.HighVenue, opp.LowVenue, opp.HighVenue, opp.LowVenue}
+	for i, legVenue := range legVenues {
 		takerBps := crossVenueTakerFeeBps(cfg, legVenue)
+		slipBps := crossVenueEVSlippageFallbackBpsPerLeg(cfg)
+		if len(evLegs) > i {
+			slipBps = crossVenueEVSlippageBpsPerLeg(cfg, notional, evLegs[i])
+		}
 		roundTripCost += notional * (takerBps + slipBps) / 10000
 	}
 	breakevenHours := roundTripCost / fundingPerHour

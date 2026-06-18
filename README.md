@@ -1,8 +1,8 @@
 # lingxi
 
-`lingxi` 是一个资金费率套利交易系统：**四所跨所 perp-perp 实盘** + **五策略统一轮动系统（shadow）** + 遗留 Binance 单所引擎（已 de-wire）+ Bybit/OKX/Gate 单所执行器（面板高级区保留）。涵盖机会筛选、执行风控、历史模拟和本地面板观测。
+`lingxi` 是一个资金费率套利交易系统：**四所跨所 perp-perp 实盘** + **五策略统一轮动系统** + 遗留 Binance 单所引擎（已 de-wire）+ Bybit/OKX/Gate 单所执行器（面板高级区保留）。涵盖机会筛选、执行风控、历史模拟和本地面板观测。
 
-> **当前运行态（2026-06-18）**：旧跨所 perp-perp ~440U **live**；新五策略轮动 **shadow**（`unified_rotation` + `records/rotation_control.json`）。交接文档见 `HANDOFF_20260617.md`；master 方案见 `PERP_PERP_REVIEW_20260617.md`。离线经济数据 **NO-GO**（`tools/go_no_go/RESULT.md`）。
+> **当前运行态（2026-06-18）**：旧跨所 perp-perp ~440U **LIVE**；新五策略轮动默认 **OFF**（`unified_rotation` + `records/control_plane.json` 的 `rotation_live_enabled`）。运行三态：**OFF**（不下真单、不写真实台账）/ **CANARY_LIVE** / **LIVE**。交接文档见 `HANDOFF_20260617.md`；master 方案见 `PERP_PERP_REVIEW_20260617.md`。离线经济数据 **NO-GO**（`tools/go_no_go/RESULT.md`）。
 
 > 本 README 主体仍描述 Binance 遗留引擎架构；**生产主路径以交接文档为准**。凡是 README 承诺但代码尚未实现 / 默认关闭的能力，都在「已知风险与局限」一节明确标注。
 
@@ -86,7 +86,7 @@
 
 ## 三、当前能力
 - **跨所 perp-perp 实盘**（`cross_venue_executor`，四所 ~440U，独立 live）
-- **五策略统一轮动**（`unified_rotation_runner`，60s 主循环；默认 shadow；面板「五策略轮动」主控卡）
+- **五策略统一轮动**（`unified_rotation_runner`，60s 主循环；默认 OFF；面板「五策略轮动」主控卡 + `control_plane.json`）
 - 实盘运行入口和 Web Dashboard（venue 切换、`/api/venues`、`/api/unified/leaderboard`）
 - 多所编排：`orchestrator.go` + `internal/venue/`（Binance/Bybit/OKX/Gate 适配器）
 - 单所旧引擎已从 `run.go` de-wire；面板高级区保留旧 perp-perp/批量/按所控制

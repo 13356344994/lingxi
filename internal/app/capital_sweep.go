@@ -172,7 +172,7 @@ func (e *FundingRateSniperEngine) sweepResidualAssetsToUSDT(ctx context.Context)
 			continue
 		}
 		line := ""
-		if err := e.transferAssetBetweenAccounts(ctx, "FUNDING_MAIN", name, qty); err != nil {
+		if _, err := e.transferAssetBetweenAccounts(ctx, "FUNDING_MAIN", name, qty); err != nil {
 			if strings.Contains(err.Error(), "-1102") {
 				// 交易所按资产精度拒绝该划转(典型:PEPE 等粉尘资产),价值可忽略,降级为跳过。
 				line = fmt.Sprintf("跳过 funding/%s:交易所拒绝粉尘划转(%.8f,精度/最小额不满足),忽略", name, qty)

@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "checksum": "6bebf6fbba476d49976bd6af9275d23d7880f04c7ebd51c374961afe256a28da",
+  "updated_at": "2026-06-18T23:16:58Z",
+  "positions": [
+    {
+      "position_key": "FLUX-USDT|binance|svps-FLUXUSDT-binance-1781788458",
+      "symbol": "FLUX-USDT",
+      "venue": "binance",
+      "spot_leg": {
+        "market": "spot",
+        "side": "short",
+        "qty": 104.59,
+        "entry_price": 0,
+        "order_ids": [
+          "svps-FLUXUSDT-binance-1781788458-s1"
+        ]
+      },
+      "perp_leg": {
+        "market": "perp",
+        "side": "long",
+        "qty": 0,
+        "entry_price": 0
+      },
+      "opportunity_id": "single_venue_perp_spot:FLUX-USDT:binance+binance:cvsnap-20260618T130355.274617865",
+      "open_expected_net_ev": 0.0005031975005283608,
+      "expected_hold_hours": 2.9346459394819444,
+      "next_funding_time": "0001-01-01T00:00:00Z",
+      "last_funding_sync_at": "0001-01-01T00:00:00Z",
+      "notional_usdt": 5.350021572972972,
+      "status": "closing",
+      "transition_state": "close",
+      "idem_prefix": "svps-FLUXUSDT-binance-1781788458",
+      "opened_at": "2026-06-18T13:14:18.111184599Z",
+      "updated_at": "2026-06-18T17:39:14.017620025Z",
+      "close_reason": "flatten_all",
+      "close_attempts": 3
+    }
+  ]
+}

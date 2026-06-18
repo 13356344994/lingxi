@@ -62,10 +62,12 @@ type CrossVenuePosition struct {
 	DecisionCycleID      string             `json:"decision_cycle_id,omitempty"`
 	EntryDecisionCycleID string             `json:"entry_decision_cycle_id,omitempty"`
 	EntrySnapshotID      string             `json:"entry_snapshot_id,omitempty"`
-	CurrentSnapshotID    string             `json:"current_snapshot_id,omitempty"`
-	OpenSpreadAPR        float64            `json:"open_spread_apr"`
-	EstFundingUSDT       float64            `json:"est_funding_usdt"`
-	EstimatedFundingUSDT float64            `json:"estimated_funding_usdt,omitempty"`
+	// OpportunityID 统一轮动机会 ID(开仓时写入);旧台账无此字段时由 crossVenuePositionOpportunityID 稳定派生。
+	OpportunityID        string  `json:"opportunity_id,omitempty"`
+	CurrentSnapshotID    string  `json:"current_snapshot_id,omitempty"`
+	OpenSpreadAPR        float64 `json:"open_spread_apr"`
+	EstFundingUSDT       float64 `json:"est_funding_usdt"`
+	EstimatedFundingUSDT float64 `json:"estimated_funding_usdt,omitempty"`
 	// HighLegFundingUSDT 高费腿(空头)真实已结算资金费(正);LowLegFundingUSDT 低费腿(多头)真实已结算资金费(负)。
 	// 由 syncRealizedFunding 从交易所流水覆盖写入;EstFundingUSDT = 两腿真实值 + 轮间估算展示增量。
 	HighLegFundingUSDT            float64                  `json:"high_leg_funding_usdt,omitempty"`

@@ -251,7 +251,7 @@ func venueFundingModeLabel(cfg EngineConfig) string {
 	if cfg.FundingExecutor.LiveTradingEnabled {
 		return "实盘下单"
 	}
-	return "影子(shadow,不下单)"
+	return "OFF(不下单)"
 }
 
 func venueFundingIdemPrefix(sym venue.Symbol, funding time.Time) string {

@@ -2,6 +2,24 @@ package core
 
 import "time"
 
+// ReferenceAccountEquityUSDT 反推 % 风控默认的基准权益(≈当前生产账户规模);equity=435 时有效阈值 ≈ 固定 USDT 默认。
+const ReferenceAccountEquityUSDT = 435.0
+
+const (
+	// DefaultMaxDailyLossPct 日亏硬停占当前权益比例(25U@435≈5.7%;生产 40U@435≈9.2% 由 YAML floor 覆盖)。
+	DefaultMaxDailyLossPct = 25.0 / ReferenceAccountEquityUSDT
+	// DefaultMaxAccountDrawdownPct settlements 回撤占峰值权益(60U@435≈13.8%;生产 90U 由 floor 覆盖)。
+	DefaultMaxAccountDrawdownPct = 60.0 / ReferenceAccountEquityUSDT
+	// DefaultMaxStrategyCumulativeLossPct 单策略累计净亏占当前权益(30U@435≈7%;dev floor 35 仍生效)。
+	DefaultMaxStrategyCumulativeLossPct = 30.0 / ReferenceAccountEquityUSDT
+	// DefaultMaxGrossLeverage 在场总名义总杠杆倍数(5×@435≈2175U,对齐生产 open_notional≈2200)。
+	DefaultMaxGrossLeverage = 5.0
+	// DefaultAutoFlattenAccountDrawdownPct 二级全平占峰值权益(150U@435≈34.5%)。
+	DefaultAutoFlattenAccountDrawdownPct = 150.0 / ReferenceAccountEquityUSDT
+	// DefaultTotalDeployablePct 全局可部署预算=100% 真实现金权益。
+	DefaultTotalDeployablePct = 1.0
+)
+
 // DefaultEngineConfig 返回标准档的默认运行配置。
 //
 // 默认值属于配置内核，集中在 core，供 package main 与 internal/exchange
@@ -42,6 +60,8 @@ func DefaultEngineConfig() EngineConfig {
 			// both：正向(现货持有+合约做空，吃正费率)与负向(全仓杠杆借币做空现货+合约做多，吃负费率)
 			// 两种 carry 都开。负向 carry 依赖已开通且可借币的全仓杠杆账户，并会产生借币利息。
 			LiveFundingDirectionMode: "both",
+			// 默认 collect_data:放松经济闸采真实成交数据;切 profit_seeking 须显式改 strategy_mode。
+			StrategyMode: string(StrategyModeCollectData),
 			// 单周期对冲往返的真实盈亏平衡线：FeeReserveRate(0.0030)+ExitSpreadReserveRate(0.0005)+
 			// MinNetProfitRate(0.0020)=0.0055。低于此值的预估资金费率开仓注定亏损或被监控期净利门拒绝，
 			// 故地板线下沉到与成本自洽的 0.0055，而非掩盖真实成本的 0.0025。
@@ -136,10 +156,20 @@ func DefaultEngineConfig() EngineConfig {
 			PlatformCriticalCooldown:      30 * time.Minute,
 			MaxRecoveryActionsPerCycle:    3,
 			MaxDailyLossUSDT:              25.0,
+			MaxDailyLossPct:               DefaultMaxDailyLossPct,
 			MaxDailyOrderCount:            40,
 			MaxDailyOpenNotionalUSDT:      1500.0,
 			MaxConsecutiveLossCycles:      3,
 			MaxAccountDrawdownUSDT:        60.0,
+			MaxAccountDrawdownPct:         DefaultMaxAccountDrawdownPct,
+			// 账户级硬风控 Stage B 一级/二级默认(数百 U 账户尺度;可在 YAML 覆盖):
+			MaxStrategyCumulativeLossUSDT:    35.0,
+			MaxStrategyCumulativeLossPct:     DefaultMaxStrategyCumulativeLossPct,
+			MaxAccountOpenNotionalUSDT:       1200.0,
+			MaxGrossLeverage:                 DefaultMaxGrossLeverage,
+			AutoFlattenOnHardDrawdownEnabled: false,
+			AutoFlattenAccountDrawdownUSDT:   150.0,
+			AutoFlattenAccountDrawdownPct:    DefaultAutoFlattenAccountDrawdownPct,
 			// HedgeImbalanceAbortRate 默认开启「相对偏离」维度的关键不变量守卫(Gate 4)：两腿名义偏离
 			// 超过较大腿的 10% 即熔断。该比例尺度无关，在「数百 U → 100k」全资金区间一致有效，不会像
 			// 绝对额阈值那样随资金规模失真。10% 足以容忍正常开仓的步进取整 / 基差，又能抓住「某腿半成交
@@ -288,49 +318,52 @@ func DefaultEngineConfig() EngineConfig {
 			SpreadPersistenceScans:    2,
 		},
 		CrossVenueExecutor: CrossVenueExecutorConfig{
-			Enabled:                      false,
-			LiveTradingEnabled:           false,
-			LoopIntervalSeconds:          60,
-			OpenSpreadAPR:                1.5,
-			CloseSpreadAPR:               0.3,
-			CloseSpreadConsecutiveRounds: 3,
-			MaxConcurrent:                2,
-			MaxPositionUSDT:              50,
-			MaxBookSpreadBps:             30,
-			MaxOpenSlippageBps:           15,
-			SlippageBudgetBps:            20,
-			TakerSlippageBudgetBps:       40,
-			MaxNakedSeconds:              30,
-			MinLiqDistance:               0.15,
-			MaxHoldHours:                 72,
-			MaxEffectiveLeverage:         2,
-			MarginSafetyFactor:           1.5,
-			MidPriceDeviationMax:         0.03,
-			DepthUsageRatio:              0.20,
-			SymbolCooldownHours:          1,
-			PerpMarginTopUpBuffer:        1.05,
-			BybitAgreementCooldownHours:  6,
-			DeadManCountdownSeconds:      60,
-			MinHoldHours:                 24,
-			DefaultTakerFeeBps:           6,
-			EVExpectedSlippageBps:        3,
-			EVMaxBreakevenHours:          24,
-			EVSafetyFactor:               1.3,
-			CloseHardNegativeSpreadAPR:   -0.5,
-			RealizedFundingPollMinutes:   5,
-			MakerFirst:                   true,
-			MakerChaseRounds:             6,
-			MakerChaseIntervalMs:         1500,
-			MakerDeadlineSeconds:         12,
-			MinComparableWindowHours:     0.25,
-			PostFundingCooldownSeconds:   180,
-			MaxCompareAgeSeconds:         900,
-			SwitchBufferUSDT:             0.5,
-			SwitchCooldownSeconds:        300,
-			SwitchSequence:               "close_then_open",
-			MaxSwitchesPerCycle:          1,
-			UntrackedExposureAction:      "halt",
-			DustCloseThresholdUSDT:       1.0,
+			Enabled:                         false,
+			LiveTradingEnabled:              false,
+			LoopIntervalSeconds:             60,
+			OpenSpreadAPR:                   1.5,
+			CloseSpreadAPR:                  0.3,
+			CloseSpreadConsecutiveRounds:    3,
+			MaxConcurrent:                   2,
+			MaxPositionUSDT:                 50,
+			MaxBookSpreadBps:                30,
+			MaxOpenSlippageBps:              15,
+			SlippageBudgetBps:               20,
+			TakerSlippageBudgetBps:          40,
+			MaxNakedSeconds:                 30,
+			MinLiqDistance:                  0.15,
+			MaxHoldHours:                    72,
+			MaxEffectiveLeverage:            2,
+			MarginSafetyFactor:              1.5,
+			MidPriceDeviationMax:            0.03,
+			DepthUsageRatio:                 0.20,
+			SizingMaxSlippageBps:            20,
+			SizingMaxParticipationPct24h:    0.01,
+			SizingConservativeNoDepthFactor: 0.25,
+			SymbolCooldownHours:             1,
+			PerpMarginTopUpBuffer:           1.05,
+			BybitAgreementCooldownHours:     6,
+			DeadManCountdownSeconds:         60,
+			MinHoldHours:                    24,
+			DefaultTakerFeeBps:              6,
+			EVExpectedSlippageBps:           3,
+			EVMaxBreakevenHours:             24,
+			EVSafetyFactor:                  1.3,
+			CloseHardNegativeSpreadAPR:      -0.5,
+			RealizedFundingPollMinutes:      5,
+			MakerFirst:                      true,
+			MakerChaseRounds:                6,
+			MakerChaseIntervalMs:            1500,
+			MakerDeadlineSeconds:            12,
+			MinComparableWindowHours:        0.25,
+			PostFundingCooldownSeconds:      180,
+			MaxCompareAgeSeconds:            900,
+			SwitchBufferUSDT:                0.5,
+			SwitchCooldownSeconds:           300,
+			SwitchSequence:                  "close_then_open",
+			MaxSwitchesPerCycle:             1,
+			UntrackedExposureAction:         "halt",
+			DustCloseThresholdUSDT:          1.0,
 		},
 		CapitalAllocator: CapitalAllocatorConfig{
 			Enabled:                   false,
@@ -353,6 +386,7 @@ func DefaultEngineConfig() EngineConfig {
 			DelistStatusCacheTTL:       time.Hour,
 			ContinuationCloseThreshold: 0.001,
 			ContinuationMinHoldSeconds: 3600,
+			TotalDeployablePct:         DefaultTotalDeployablePct,
 		},
 		FundingExecutor: VenueFundingExecutorConfig{
 			LiveTradingEnabled:     false,

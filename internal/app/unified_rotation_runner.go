@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -17,6 +18,12 @@ const (
 	rotationSnapshotMaxAge        = 30 * time.Minute
 	rotationScanMinAbsFundingRate = 0.00005 // 0.5 bps per funding interval
 	rotationScanMaxSymbols        = 150
+	// rotationScanDepthFetchMaxSymbols funding 粗筛后二次拉深度上限;深度 API 成本高,仅对决策候选前 N 个拉取。
+	rotationScanDepthFetchMaxSymbols = 50
+
+	// 统一轮动 SWITCH 事务性失败事件类型(domain_events.jsonl Type 字段,可检索)。
+	rotationSwitchAbortedCloseFailed EventType = "switch_aborted_close_failed"
+	rotationSwitchFailedOpen         EventType = "switch_failed_open"
 )
 
 // unified_rotation_runner.go 统一轮动 runner: 扫描 → 留换决策 → 资金路由 → 四执行器派发(active 即实盘)。
@@ -39,11 +46,12 @@ type rotationExecutorBinding struct {
 
 // RotationCandidateCounts 五策略候选数量(JSON 友好)。
 type RotationCandidateCounts struct {
-	SVSP  int `json:"svsp"`
-	CVSP  int `json:"cvsp"`
-	SVPS  int `json:"svps"`
-	CVPS  int `json:"cvps"`
-	Total int `json:"total"`
+	SVSP     int `json:"svsp"`
+	CVSP     int `json:"cvsp"`
+	SVPS     int `json:"svps"`
+	CVPS     int `json:"cvps"`
+	PerpPerp int `json:"perp_perp"`
+	Total    int `json:"total"`
 }
 
 // RotationActionCounts 本轮轮动动作计数(JSON 友好)。
@@ -100,9 +108,65 @@ type UnifiedRotationRunner struct {
 	lastPausedLogAt        time.Time
 	lastStaleSnapshotLogMu sync.Mutex
 	lastStaleSnapshotLogAt time.Time
+
+	lastCapitalSnapshotMu sync.RWMutex
+	lastCapitalSnapshot   rotationCapitalSnapshotContext
+	// controlPlane 统一控制面附加闸(nil=仅沿用 active 等既有语义)。
+	controlPlane *ControlPlane
 }
 
-// NewUnifiedRotationRunner 构造统一轮动 runner; 四执行器与 scanner 由调用方注入。
+// rotationCapitalSnapshotContext 最近一轮资金路由只读上下文(供 capital snapshot API)。
+type rotationCapitalSnapshotContext struct {
+	pending     []UnifiedOpportunity
+	routingPlan CapitalRoutingPlan
+}
+
+func (r *UnifiedRotationRunner) storeLastCapitalSnapshotContext(pending []UnifiedOpportunity, plan CapitalRoutingPlan) {
+	if r == nil {
+		return
+	}
+	r.lastCapitalSnapshotMu.Lock()
+	r.lastCapitalSnapshot = rotationCapitalSnapshotContext{
+		pending:     append([]UnifiedOpportunity(nil), pending...),
+		routingPlan: plan,
+	}
+	r.lastCapitalSnapshotMu.Unlock()
+}
+
+// CapitalSnapshotReadOnly 拉取当前余额与持仓并聚合资金快照;不触发划转/下单/平仓。
+func (r *UnifiedRotationRunner) CapitalSnapshotReadOnly(ctx context.Context) UnifiedCapitalSnapshot {
+	if r == nil {
+		return UnifiedCapitalSnapshot{}
+	}
+	deps := r.fetchDeps
+	if deps.fetchAvailableUSDT == nil {
+		deps.fetchAvailableUSDT = defaultUnifiedShadowFetchAvailableUSDTByVenue
+	}
+	fetched := deps.fetchAvailableUSDT(ctx, r.venues, crossVenueExecutorVenues)
+	held, _ := r.collectHeldPositions(nil)
+
+	r.lastCapitalSnapshotMu.RLock()
+	ctxSnap := r.lastCapitalSnapshot
+	r.lastCapitalSnapshotMu.RUnlock()
+
+	routerCfg := CapitalRouterConfigWithVenues(r.capitalRouterCfg, r.venues)
+	nowFn := r.nowFn
+	if nowFn == nil {
+		nowFn = time.Now
+	}
+	return BuildUnifiedCapitalSnapshot(CapitalSnapshotInput{
+		FetchedByVenue:       fetched,
+		Held:                 held,
+		PendingOpportunities: ctxSnap.pending,
+		RoutingPlan:          ctxSnap.routingPlan,
+		RouterCfg:            routerCfg,
+		ExecCfg:              r.execCfg,
+		Venues:               r.venues,
+		GeneratedAt:          nowFn().UTC(),
+	})
+}
+
+// NewUnifiedRotationRunner 构造统一轮动 runner; 五执行器与 scanner 由调用方注入(perp-perp 可为 nil)。
 func NewUnifiedRotationRunner(
 	execCfg CrossVenueExecutorConfig,
 	rotationCfg RotationConfig,
@@ -111,6 +175,7 @@ func NewUnifiedRotationRunner(
 	cvsp *CrossVenueSpotPerpExecutor,
 	svps *SingleVenuePerpSpotExecutor,
 	cvps *CrossVenuePerpSpotExecutor,
+	cvpp *CrossVenueExecutor,
 	scanner *CrossVenueScanner,
 	venues map[string]venue.Venue,
 	recordDir string,
@@ -148,8 +213,19 @@ func NewUnifiedRotationRunner(
 	if b := bindCrossVenuePerpSpotRotationExecutor(cvps); b != nil {
 		r.bindings[b.strategyType] = b
 	}
+	if b := bindCrossVenuePerpPerpRotationExecutor(cvpp); b != nil {
+		r.bindings[b.strategyType] = b
+	}
 	r.active.Store(false)
 	return r
+}
+
+// SetControlPlane 注入统一控制面(启动装配时调用)。
+func (r *UnifiedRotationRunner) SetControlPlane(cp *ControlPlane) {
+	if r == nil {
+		return
+	}
+	r.controlPlane = cp
 }
 
 // InitState 按默认 active 初始化;若 rotation_control.json 存在则用文件 active 覆盖(legacy live 字段忽略)。
@@ -202,12 +278,61 @@ func emptyRotationStatus() RotationStatus {
 	}
 }
 
-// isLive 统一轮动 active 即实盘;暂停时不下新单,但 reconcile/manage/verified-close 仍按 live 语义派发。
+// isLive 启动 reconcile 是否真钱(仍绑定 active;冷启动 shadow 不 flatten 未登记仓)。
 func (r *UnifiedRotationRunner) isLive() bool {
 	if r == nil {
 		return false
 	}
 	return r.active.Load()
+}
+
+// openLive 新开仓/资金路由是否真钱(active + 控制面闸;与 manage 解耦)。
+func (r *UnifiedRotationRunner) openLive() bool {
+	if r == nil || !r.active.Load() {
+		return false
+	}
+	if r.controlPlane == nil {
+		return true
+	}
+	if r.controlPlane.IsGlobalHaltActive() {
+		return false
+	}
+	if !r.controlPlane.AllowNewOpens() {
+		return false
+	}
+	if !r.controlPlane.RotationLiveEnabled() {
+		return false
+	}
+	return true
+}
+
+// manageLive 在场仓安全管理是否真钱(与 active 解耦;OFF 模式或 manage 闸关闭则 shadow)。
+func (r *UnifiedRotationRunner) manageLive() bool {
+	if r == nil {
+		return false
+	}
+	if r.controlPlane == nil {
+		// 无控制面(测试/旧路径):策略已部署即真钱,不因 STOP 误走 shadow manage。
+		return true
+	}
+	if !r.controlPlane.RotationLiveEnabled() {
+		return false
+	}
+	return r.controlPlane.AllowManageOrders()
+}
+
+// closeLive 轮动 verified-close 是否真钱(与 active 解耦;OFF 模式或 close 闸关闭则跳过)。
+func (r *UnifiedRotationRunner) closeLive() bool {
+	if r == nil {
+		return false
+	}
+	if r.controlPlane == nil {
+		return true
+	}
+	if !r.controlPlane.RotationLiveEnabled() {
+		return false
+	}
+	return r.controlPlane.AllowVerifiedCloses()
 }
 
 func (r *UnifiedRotationRunner) commitStatus(update RotationStatus) {
@@ -256,6 +381,16 @@ func (r *UnifiedRotationRunner) runCycle(ctx context.Context) {
 		r.maybeLogPaused()
 		return
 	}
+	if r.controlPlane != nil && r.controlPlane.IsGlobalHaltActive() {
+		r.maybeLogControlPlaneHalt()
+		return
+	}
+	if r.controlPlane != nil && !r.controlPlane.AllowNewOpens() {
+		return
+	}
+	if r.controlPlane != nil && !r.controlPlane.RotationLiveEnabled() {
+		return
+	}
 	// 扫描/decision 可能耗时数分钟; 异步执行以免阻塞 60s 安全管理循环。
 	if !r.scanning.CompareAndSwap(false, true) {
 		return
@@ -298,6 +433,9 @@ func (r *UnifiedRotationRunner) runManageAll(ctx context.Context) {
 	if r == nil {
 		return
 	}
+	if r.controlPlane != nil && !r.controlPlane.AllowManageOrders() {
+		return
+	}
 	for _, binding := range r.bindings {
 		if binding == nil || binding.manageFn == nil {
 			continue
@@ -315,10 +453,10 @@ func (r *UnifiedRotationRunner) runManageBinding(ctx context.Context, binding *r
 	if r.logger != nil {
 		r.logger.Printf("[统一轮动] 安全管理: strategy=%s", binding.strategyType)
 	}
-	binding.manageFn(ctx, r.isLive())
+	binding.manageFn(ctx, r.manageLive())
 	if r.delistGuard != nil {
 		r.delistGuard.Refresh(ctx)
-		r.delistGuard.manageBindingDelistCloses(ctx, binding, r.isLive())
+		r.delistGuard.manageBindingDelistCloses(ctx, binding, r.manageLive())
 	}
 }
 
@@ -334,6 +472,21 @@ func (r *UnifiedRotationRunner) maybeLogPaused() {
 		return
 	}
 	r.logger.Printf("[统一轮动] 已暂停(active=false)")
+	r.lastPausedLogAt = now
+}
+
+func (r *UnifiedRotationRunner) maybeLogControlPlaneHalt() {
+	if r == nil || r.logger == nil {
+		return
+	}
+	r.lastPausedLogMu.Lock()
+	defer r.lastPausedLogMu.Unlock()
+	now := time.Now()
+	interval := r.tickerInterval()
+	if !r.lastPausedLogAt.IsZero() && now.Sub(r.lastPausedLogAt) < interval {
+		return
+	}
+	r.logger.Printf("[统一轮动] 控制面 global_halt 生效,跳过新开仓(在场持仓管理照常)")
 	r.lastPausedLogAt = now
 }
 
@@ -441,7 +594,7 @@ func (r *UnifiedRotationRunner) runOnceDecisionAndDispatch(
 		}
 	}()
 
-	live := r.isLive()
+	live := r.openLive()
 	plan := r.decideRotation(held, heldInputs, candidates, available)
 	if r.logger != nil {
 		r.logger.Printf("[统一轮动] 决策完成: held=%d candidates=%d actions=%d live=%v",
@@ -454,6 +607,7 @@ func (r *UnifiedRotationRunner) runOnceDecisionAndDispatch(
 		balances := rotationWalletBalancesFromAvailable(available, held, r.execCfg, r.venues)
 		routerCfg := CapitalRouterConfigWithVenues(r.capitalRouterCfg, r.venues)
 		routingPlan := PlanCapitalRouting(toFund, balances, routerCfg)
+		r.storeLastCapitalSnapshotContext(toFund, routingPlan)
 		if r.logger != nil && len(routingPlan.WithinVenueTransfers) > 0 {
 			r.logger.Printf("[统一轮动] 资金路由: %d 笔所内划转 live=%v", len(routingPlan.WithinVenueTransfers), live)
 		}
@@ -479,6 +633,7 @@ func (r *UnifiedRotationRunner) runOnceDecisionAndDispatch(
 		r.dispatchRotationPlan(ctx, live, plan, candidatesByID, unfundable)
 		return plan
 	}
+	r.storeLastCapitalSnapshotContext(nil, CapitalRoutingPlan{})
 	r.dispatchRotationPlan(ctx, live, plan, candidatesByID, nil)
 	return plan
 }
@@ -495,6 +650,8 @@ func countRotationCandidates(candidates []UnifiedOpportunity) RotationCandidateC
 			counts.SVPS++
 		case UnifiedStrategyCrossVenuePerpSpot:
 			counts.CVPS++
+		case UnifiedStrategyPerpPerp:
+			counts.PerpPerp++
 		}
 	}
 	return counts
@@ -526,7 +683,12 @@ func (r *UnifiedRotationRunner) decideRotation(
 	if r != nil && r.decideRotationFn != nil {
 		return r.decideRotationFn(held, heldInputs, candidates, available)
 	}
-	return DecideRotation(held, heldInputs, candidates, available, r.rotationCfg)
+	equityUSDT := 0.0
+	if r != nil && strings.TrimSpace(r.recordDir) != "" {
+		current, _, _ := computeRealEquityWaterMark(r.recordDir)
+		equityUSDT = current
+	}
+	return DecideRotation(held, heldInputs, candidates, available, r.rotationCfg, equityUSDT)
 }
 
 // rotationScanFilterSymbols 从 funding 快照中筛出 max|rate| 达标的 symbol, 按 max|rate| 降序取前 rotationScanMaxSymbols 个。
@@ -610,6 +772,8 @@ func (r *UnifiedRotationRunner) defaultScanRotationCandidates(ctx context.Contex
 		r.delistGuard.Refresh(ctx)
 	}
 	marketsByVenue := deps.fetchMarkets(ctx, r.venues, symbols)
+	// 决策期流动性自适应:对粗筛 symbol 二次拉深度/24h 量,填 MarketSnap.Depth/Volume 字段。
+	unifiedShadowEnrichMarketsWithDepthVolume(ctx, r.venues, marketsByVenue, symbols)
 	availableUSDTByVenue := deps.fetchAvailableUSDT(ctx, r.venues, crossVenueExecutorVenues)
 	borrowDaily, borrowLimits := rotationBorrowMapsFromProbes(snap.BorrowProbes)
 
@@ -684,6 +848,10 @@ func (r *UnifiedRotationRunner) defaultScanRotationCandidates(ctx context.Contex
 				UnifiedOpportunityFromCrossVenue(r.execCfg, opp, nil, 0, 0),
 				r.execCfg,
 			)
+			// 无 perp-perp binding 时仅作候选对比;有 binding 时可由统一 runner OPEN/SWITCH。
+			if r.bindingForStrategy(UnifiedStrategyPerpPerp) == nil {
+				unified.CandidateOnly = true
+			}
 			candidates = append(candidates, unified)
 		}
 	}
@@ -745,22 +913,47 @@ func (r *UnifiedRotationRunner) dispatchRotationPlan(
 				r.logger.Printf("[统一轮动] HOLD %s %s reason=%s", act.StrategyType, act.Symbol, act.Reason)
 			}
 		case RotationActionClose:
+			if !r.closeLive() {
+				continue
+			}
 			if err := r.closeHeldVerified(ctx, act.StrategyType, act.OpportunityID, act.Symbol, act.Reason); err != nil && r.logger != nil {
 				r.logger.Printf("[统一轮动] CLOSE 失败(已吞掉) %s: %v", act.OpportunityID, err)
 			}
 		case RotationActionSwitch:
-			if err := r.closeHeldVerified(ctx, act.StrategyType, act.OpportunityID, act.Symbol, act.Reason); err != nil && r.logger != nil {
-				r.logger.Printf("[统一轮动] SWITCH 平旧失败(已吞掉) %s: %v", act.OpportunityID, err)
+			if !r.closeLive() {
+				continue
 			}
-			if _, skip := unfundable[act.ReplaceOpportunityID]; skip {
+			// 事务性换仓: 平旧失败则中止,禁止开新;平旧成功但开新失败须显式落盘(旧仓已平、新仓未开)。
+			if err := r.closeHeldVerified(ctx, act.StrategyType, act.OpportunityID, act.Symbol, act.Reason); err != nil {
+				r.recordRotationSwitchIncident(act, rotationSwitchAbortedCloseFailed, err.Error())
 				if r.logger != nil {
-					r.logger.Printf("[统一轮动] SWITCH 跳过开新(无法备资) %s", act.ReplaceOpportunityID)
+					r.logger.Printf("[统一轮动] SWITCH 中止(平旧失败) %s symbol=%s: %v",
+						act.OpportunityID, act.Symbol, err)
 				}
 				continue
 			}
-			if opp, ok := candidatesByID[act.ReplaceOpportunityID]; ok {
-				if err := r.openOpportunity(ctx, act.ReplaceStrategyType, opp, live); err != nil && r.logger != nil {
-					r.logger.Printf("[统一轮动] SWITCH 开新失败(已吞掉) %s: %v", act.ReplaceOpportunityID, err)
+			if _, skip := unfundable[act.ReplaceOpportunityID]; skip {
+				r.recordRotationSwitchIncident(act, rotationSwitchFailedOpen, "无法备资")
+				if r.logger != nil {
+					r.logger.Printf("[统一轮动] SWITCH 开新失败(旧仓已平,无法备资) old=%s replace=%s symbol=%s",
+						act.OpportunityID, act.ReplaceOpportunityID, act.Symbol)
+				}
+				continue
+			}
+			opp, ok := candidatesByID[act.ReplaceOpportunityID]
+			if !ok {
+				r.recordRotationSwitchIncident(act, rotationSwitchFailedOpen, "候选缺失")
+				if r.logger != nil {
+					r.logger.Printf("[统一轮动] SWITCH 开新失败(旧仓已平,候选缺失) old=%s replace=%s",
+						act.OpportunityID, act.ReplaceOpportunityID)
+				}
+				continue
+			}
+			if err := r.openOpportunity(ctx, act.ReplaceStrategyType, opp, live); err != nil {
+				r.recordRotationSwitchIncident(act, rotationSwitchFailedOpen, err.Error())
+				if r.logger != nil {
+					r.logger.Printf("[统一轮动] SWITCH 开新失败(旧仓已平) old=%s replace=%s symbol=%s: %v",
+						act.OpportunityID, act.ReplaceOpportunityID, act.ReplaceSymbol, err)
 				}
 			}
 		case RotationActionOpen:
@@ -782,15 +975,54 @@ func (r *UnifiedRotationRunner) dispatchRotationPlan(
 func (r *UnifiedRotationRunner) openOpportunity(ctx context.Context, strategyType string, opp UnifiedOpportunity, live bool) error {
 	binding := r.bindingForStrategy(strategyType)
 	if binding == nil || binding.openFn == nil {
+		// 防御兜底: 决策层应已通过 CandidateOnly 排除不可执行候选，正常流程不应走到此处。
 		if r.logger != nil {
-			r.logger.Printf("[统一轮动] OPEN 跳过(无执行器绑定) %s strategy_type=%s", opp.ID, strategyType)
+			r.logger.Printf("[统一轮动] OPEN 防御跳过(无执行器绑定) %s strategy_type=%s", opp.ID, strategyType)
 		}
 		return nil
 	}
 	if r.logger != nil {
 		r.logger.Printf("[统一轮动] OPEN %s %s live=%v", strategyType, opp.Symbol, live)
 	}
-	return binding.openFn(ctx, opp, live)
+	if err := binding.openFn(ctx, opp, live); err != nil {
+		return err
+	}
+	appendAttributionPredictionBestEffort(r.recordDir, predictionRecordFromOpportunity(opp, time.Now().UTC()))
+	return nil
+}
+
+// recordRotationSwitchIncident 把 SWITCH 事务失败写入 domain_events.jsonl(失败静默,不阻断轮动)。
+func (r *UnifiedRotationRunner) recordRotationSwitchIncident(act RotationAction, kind EventType, detail string) {
+	if r == nil {
+		return
+	}
+	now := time.Now().UTC()
+	if r.nowFn != nil {
+		now = r.nowFn().UTC()
+	}
+	level := EventLevelWarning
+	if kind == rotationSwitchFailedOpen {
+		level = EventLevelCritical
+	}
+	if r.logger != nil {
+		r.logger.Printf("[统一轮动] SWITCH 事件 kind=%s old=%s replace=%s old_symbol=%s replace_symbol=%s detail=%s",
+			kind, act.OpportunityID, act.ReplaceOpportunityID, act.Symbol, act.ReplaceSymbol, detail)
+	}
+	if strings.TrimSpace(r.recordDir) == "" {
+		return
+	}
+	event := DomainEvent{
+		Type:       kind,
+		Level:      level,
+		OccurredAt: now,
+		CycleID:    strings.TrimSpace(r.lastSnapshotID),
+		Protocol:   "unified_rotation.switch",
+		Successful: false,
+		Reason: fmt.Sprintf("old=%s replace=%s old_symbol=%s replace_symbol=%s strategy=%s replace_strategy=%s detail=%s",
+			act.OpportunityID, act.ReplaceOpportunityID, act.Symbol, act.ReplaceSymbol,
+			act.StrategyType, act.ReplaceStrategyType, strings.TrimSpace(detail)),
+	}
+	_ = appendJSONLRecord(filepath.Join(r.recordDir, domainEventJSONLName), event)
 }
 
 func (r *UnifiedRotationRunner) closeHeldVerified(ctx context.Context, strategyType, opportunityID, symbol, reason string) error {
@@ -923,6 +1155,61 @@ func bindCrossVenuePerpSpotRotationExecutor(e *CrossVenuePerpSpotExecutor) *rota
 		},
 		manageFn: e.ManageOpenPositions,
 	}
+}
+
+func bindCrossVenuePerpPerpRotationExecutor(e *CrossVenueExecutor) *rotationExecutorBinding {
+	if e == nil {
+		return nil
+	}
+	return &rotationExecutorBinding{
+		strategyType: UnifiedStrategyPerpPerp,
+		openFn: func(ctx context.Context, opp UnifiedOpportunity, live bool) error {
+			_, err := e.executeOpen(ctx, opp, live)
+			return err
+		},
+		closeVerifiedFn: func(ctx context.Context, opportunityID, symbol, reason string) error {
+			return e.CloseOnePositionVerified(ctx, opportunityID, symbol, reason)
+		},
+		realHeldCountFn: e.CountRealHeldPositions,
+		heldFn: func() []rotationHeldRecord {
+			return collectCrossVenueHeldRecords(e.snapshotPositions(), e.cfg.CrossVenueExecutor)
+		},
+		reconcileFn: func(ctx context.Context, live bool) {
+			e.ReconcileOnStart(ctx, live)
+		},
+		manageFn: e.ManageOpenPositions,
+	}
+}
+
+func collectCrossVenueHeldRecords(ps []CrossVenuePosition, execCfg CrossVenueExecutorConfig) []rotationHeldRecord {
+	out := make([]rotationHeldRecord, 0)
+	for _, p := range activeCrossVenuePositions(ps) {
+		oppID := crossVenuePositionOpportunityID(p)
+		if strings.TrimSpace(oppID) == "" {
+			continue
+		}
+		notional := crossVenuePositionNotionalUSDT(&p)
+		margin := rotationPerpMarginWithBuffer(execCfg, notional)
+		capital := map[string]float64{
+			p.HighVenue: margin,
+			p.LowVenue:  margin,
+		}
+		out = append(out, rotationHeldRecord{
+			HeldPosition: HeldPosition{
+				OpportunityID:          oppID,
+				StrategyType:           UnifiedStrategyPerpPerp,
+				Symbol:                 p.Symbol,
+				CapitalRequiredByVenue: capital,
+				OpenedAt:               p.OpenedAt,
+			},
+			ContinuationInputs: rotationContinuationFromPosition(p.EstFundingUSDT, notional, execCfg, false),
+			delistLegs: []rotationDelistLeg{
+				{Venue: p.HighVenue, Market: venue.MarketPerp},
+				{Venue: p.LowVenue, Market: venue.MarketPerp},
+			},
+		})
+	}
+	return out
 }
 
 func findSingleVenueSpotPerpHeldByOpportunityID(ps []SingleVenueSpotPerpPosition, opportunityID, symbol string) (SingleVenueSpotPerpPosition, bool) {

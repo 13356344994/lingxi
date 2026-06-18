@@ -23,6 +23,12 @@ const autoStartLiveDelay = 3 * time.Second
 // （单写租约 single_writer_lease 已保证不会双开）。
 const autoStartLiveEnv = "LINGXI_AUTOSTART_LIVE"
 
+// crossVenueScannerRunHook / unifiedRotationRunHook 供单测注入,验证抢锁失败时不启动交易循环。
+var (
+	crossVenueScannerRunHook = func(s *CrossVenueScanner, ctx context.Context) { s.Run(ctx) }
+	unifiedRotationRunHook   = func(r *UnifiedRotationRunner, ctx context.Context) { r.Run(ctx) }
+)
+
 // Run 是应用编排入口：进程级信号处理由调用方（cmd/lingxi）负责，本函数仅依据命令行参数选择
 // 实盘/回测模式并完成依赖装配，并把失败以 error 上抛由 main 决定退出策略（R20：编排层不再 log.Fatalf，
 // 便于宿主复用、集成测试与 supervisor 接管）。
@@ -56,14 +62,14 @@ func Run(ctx context.Context) error {
 		return fmt.Errorf("加载主配置失败: %w", err)
 	}
 
-	// shadow 是影子(只读冒烟)子命令：照常对接真实行情/账户、照常决策，但任何会动用资金或改变交易所
-	// 状态的签名请求都会在 signedRequest 咽喉点被硬拦截、绝不触达交易所，只把意图落日志。用于实盘前抓
-	// 灾难性 bug，而非校准阈值。这里强制把开关打开，避免依赖配置文件遗漏。
+	// shadow 是开发冒烟子命令(lingxi shadow):signedRequest 硬拦截非 GET,绝不触达交易所。
+	// 生产运行三态为 OFF / CANARY_LIVE / LIVE(见 core.RunMode 与控制面 rotation_live_enabled)。
 	if len(os.Args) > 1 && os.Args[1] == "shadow" {
 		cfg.ExecutionConfig.ShadowTrading = true
 		log.Printf("============================================================")
-		log.Printf("  SHADOW MODE 已启用：不会有任何真实订单/资金动作触达交易所")
-		log.Printf("  所有下单意图将以 SHADOW_BLOCKED 日志行记录，供人工核查")
+		log.Printf("  DEV SMOKE (lingxi shadow): 签名请求硬拦截,零交易所副作用")
+		log.Printf("  所有下单意图将以 SHADOW_BLOCKED 日志行记录,供人工核查")
+		log.Printf("  这不是生产运行模式;生产请用 OFF/CANARY_LIVE/LIVE 三态")
 		log.Printf("============================================================")
 	}
 
@@ -71,8 +77,8 @@ func Run(ctx context.Context) error {
 }
 
 // startLiveStack 装配并启动实盘技术栈(冷启动检查 → 记录存储 → 后台控制器 → Web 面板)。
-// 实盘与影子模式共用同一套装配，唯一差别是 cfg.ExecutionConfig.ShadowTrading：影子模式下引擎跑的
-// 是完全相同的真实流程，只是签名下单在咽喉点被拦截，从而保证「真实输入 + 零真实副作用」。
+// 运行三态 OFF/CANARY_LIVE/LIVE 由控制面 rotation_live_enabled + 部署闸决定;lingxi shadow 子命令
+// 仅用于开发冒烟(硬拦截签名请求),不是生产模式。
 // 失败以 error 上抛（context.Canceled 视为正常退出，返回 nil）。
 func startLiveStack(ctx context.Context, cfg EngineConfig) error {
 	if err := PerformColdStartCheck(ctx, cfg); err != nil {
@@ -116,6 +122,8 @@ func startLiveStack(ctx context.Context, cfg EngineConfig) error {
 	// 控制令牌的固定镜像目录(全局 records/):Primary 所随注册顺序漂移时主令牌文件路径会变,
 	// 镜像保证 `cat records/.dashboard_control_token` 永远是当前有效令牌。
 	dashboard.SetTokenMirrorDir(cfg.NetworkConfig.RecordDir)
+	controlPlane := NewControlPlane(cfg.NetworkConfig.RecordDir, emergencyStopPaths(cfg), log.Default())
+	dashboard.SetControlPlane(controlPlane)
 	// 重启后把新控制令牌经 Telegram 推给用户(用户明确要求;凭据与交易告警同源 secret.yaml,
 	// 未配置 Telegram 时静默跳过)。
 	if tgToken, tgChat := loadAlertingSecretsOrEmpty("secret.yaml"); tgToken != "" && tgChat != "" {
@@ -139,6 +147,15 @@ func startLiveStack(ctx context.Context, cfg EngineConfig) error {
 		secretPath = "secret.yaml"
 	}
 	if cfg.CrossVenueScanner.Enabled {
+		// S7-A:真钱交易循环(scanner+executor / unified_rotation)启动前抢单写租约,防双开双写同一账户。
+		// flock 随进程退出由内核释放;与 emergency_flatten 共用 .lingxi-live.lock(主进程存活时 flatten 抢锁失败)。
+		liveLease, leaseErr := acquireLiveStackSingleWriterLease(cfg)
+		if leaseErr != nil {
+			return leaseErr
+		}
+		if liveLease != nil {
+			defer func() { _ = liveLease.Release() }()
+		}
 		scanner := NewCrossVenueScanner(cfg, orch, secretPath, log.Default())
 		dashboard.SetCrossVenueScanner(scanner)
 		// OKX/Gate funding 执行器选币读扫描器快照,不现场拉全量资金费。
@@ -147,38 +164,62 @@ func startLiveStack(ctx context.Context, cfg EngineConfig) error {
 				rt.controller.SetCrossVenueScanner(scanner)
 			}
 		}
-		go scanner.Run(ctx)
+		go crossVenueScannerRunHook(scanner, ctx)
+		var crossVenueExec *CrossVenueExecutor
 		if cfg.CrossVenueExecutor.Enabled {
 			exec, err := NewCrossVenueExecutor(cfg, orch, scanner, secretPath, log.Default())
 			if err != nil {
 				log.Default().Printf("[跨所执行] 构造失败,跳过: %v", err)
 			} else {
+				crossVenueExec = exec
+				exec.SetControlPlane(controlPlane)
 				dashboard.SetCrossVenueExecutor(exec)
-				go exec.Run(ctx)
+				// 路线 B: open/manage/reconcile 仅由统一 runner 驱动;停 Run 主循环防双循环,reconcile 经 runner 派发。
+				exec.SetRotationManaged(true)
+				_ = exec.SetOpeningsEnabled(false)
 				go exec.RunEquitySampler(ctx)
 			}
 		}
 		// 五策略统一轮动 runner:常驻构造(便于面板 START/STOP),初始 active 由 config + rotation_control.json 决定。
-		// active=false 时不下新单,仍 reconcile/manage;active=true 即实盘。perp-perp 仍走上方独立执行器。
+		// active=false 时不下新单,仍 reconcile/manage;active=true 即实盘。perp-perp 经 CrossVenueExecutor binding 同台择优。
+		var svspExec *SingleVenueSpotPerpExecutor
+		var cvspExec *CrossVenueSpotPerpExecutor
+		var svpsExec *SingleVenuePerpSpotExecutor
+		var cvpsExec *CrossVenuePerpSpotExecutor
+		var rotationRunner *UnifiedRotationRunner
 		{
 			rotVenues := buildCrossVenueExecutorAdapters(orch, cfg, secretPath, log.Default())
 			rd := cfg.NetworkConfig.RecordDir
-			svsp := NewSingleVenueSpotPerpExecutor(cfg, rotVenues, rd, log.Default())
-			cvsp := NewCrossVenueSpotPerpExecutor(cfg, rotVenues, rd, log.Default())
-			svps := NewSingleVenuePerpSpotExecutor(cfg, rotVenues, rd, log.Default())
-			cvps := NewCrossVenuePerpSpotExecutor(cfg, rotVenues, rd, log.Default())
-			runner := NewUnifiedRotationRunner(
-				cfg.CrossVenueExecutor, RotationConfigFromUnified(cfg.UnifiedRotation), DefaultCapitalRouterConfig(),
-				svsp, cvsp, svps, cvps, scanner, rotVenues, rd, log.Default(),
+			svspExec = NewSingleVenueSpotPerpExecutor(cfg, rotVenues, rd, log.Default())
+			cvspExec = NewCrossVenueSpotPerpExecutor(cfg, rotVenues, rd, log.Default())
+			svpsExec = NewSingleVenuePerpSpotExecutor(cfg, rotVenues, rd, log.Default())
+			cvpsExec = NewCrossVenuePerpSpotExecutor(cfg, rotVenues, rd, log.Default())
+			rotationRunner = NewUnifiedRotationRunner(
+				cfg.CrossVenueExecutor, RotationConfigFromUnified(cfg.UnifiedRotation, cfg.CrossVenueExecutor), DefaultCapitalRouterConfig(),
+				svspExec, cvspExec, svpsExec, cvpsExec, crossVenueExec, scanner, rotVenues, rd, log.Default(),
 				DelistGuardConfigFromUnifiedRotation(cfg.UnifiedRotation),
 			)
 			defaultActive := cfg.UnifiedRotation.Enabled && cfg.UnifiedRotation.LiveTradingEnabled
-			runner.InitState(defaultActive)
-			dashboard.SetRotationExecutors(svsp, cvsp, svps, cvps)
-			dashboard.SetRotationRunner(runner)
+			rotationRunner.InitState(defaultActive)
+			rotationRunner.SetControlPlane(controlPlane)
+			dashboard.SetRotationExecutors(svspExec, cvspExec, svpsExec, cvpsExec)
+			dashboard.SetRotationRunner(rotationRunner)
 			log.Default().Printf("[统一轮动] runner 常驻 (config 默认 active=%v;持久化 active 优先)", defaultActive)
-			go runner.Run(ctx)
+			go unifiedRotationRunHook(rotationRunner, ctx)
 		}
+		// Stage B 账户级硬风控:一级硬停默认启用(非破坏性);二级 flatten opt-in 默认关闭。
+		go startAccountRiskWatcher(ctx, accountRiskWatchConfig{
+			Cfg:            cfg,
+			RecordDir:      cfg.NetworkConfig.RecordDir,
+			Logger:         log.Default(),
+			ControlPlane:   controlPlane,
+			RotationRunner: rotationRunner,
+			CrossVenue:     crossVenueExec,
+			SVSP:           svspExec,
+			CVSP:           cvspExec,
+			SVPS:           svpsExec,
+			CVPS:           cvpsExec,
+		})
 	} else if cfg.CrossVenueExecutor.Enabled {
 		log.Default().Printf("[跨所执行] 已启用但扫描器未启用,跳过(需 cross_venue_scanner.enabled=true)")
 	}
