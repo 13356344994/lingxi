@@ -295,7 +295,7 @@ func (e *CrossVenueExecutor) continueCrossVenueOpeningSecondLeg(ctx context.Cont
 	if hasIntent {
 		_ = e.updateSwitchIntentAttempt(intent.Symbol, intent.TargetHighVenue, intent.TargetLowVenue, "open_new_second_leg", "runtime continuation retrying second leg")
 	}
-	lowRes, err := e.placeCrossVenueLegExec(ctx, lowTrader, sym, venue.SideBuy, hedgeQty, lowID, false, live, true, crossVenueTakerSlippageBps(e.cfg.CrossVenueExecutor), now.Add(deadlineBudget))
+	lowRes, err := e.placeCrossVenueLegExec(ctx, lowTrader, sym, venue.SideBuy, hedgeQty, lowID, false, live, true, crossVenueTakerSlippageBps(e.cfg.CrossVenueExecutor), now.Add(deadlineBudget), lowInstr, lowCaps.ContractBasedPerp)
 	if err != nil || lowRes.ExecutedQty <= executionQtyTolerance {
 		pos.Status = CrossVenueStatusOrphanSingleLeg
 		pos.TransitionState = "recover"
@@ -354,8 +354,9 @@ func (e *CrossVenueExecutor) handleOrphanLeg(ctx context.Context, pos CrossVenue
 		if tr != nil {
 			qty := absQty(highAmt)
 			book, _ := tr.FetchBookTicker(ctx, venue.MarketPerp, sym)
+			highInstr := e.lookupPerpInstrument(ctx, pos.HighVenue, sym)
 			if live {
-				if res, _ := e.placeCrossVenueLegExec(ctx, tr, sym, venue.SideBuy, qty, crossVenueLegClientID(pos.IdemPrefix, "oh"), true, live, true, takerBps, orphDeadline); res.ExecutedQty > executionQtyTolerance {
+				if res, _ := e.placeCrossVenueLegExec(ctx, tr, sym, venue.SideBuy, qty, crossVenueLegClientID(pos.IdemPrefix, "oh"), true, live, true, takerBps, orphDeadline, highInstr, e.venues[pos.HighVenue].Capabilities().ContractBasedPerp); res.ExecutedQty > executionQtyTolerance {
 					e.recordCrossVenueExecution(ctx, &pos, cvExecOrphanCloseHigh, res, crossVenueBookMid(book))
 					_ = e.persistPosition(pos)
 				}
@@ -366,8 +367,9 @@ func (e *CrossVenueExecutor) handleOrphanLeg(ctx context.Context, pos CrossVenue
 		if tr != nil {
 			qty := absQty(lowAmt)
 			book, _ := tr.FetchBookTicker(ctx, venue.MarketPerp, sym)
+			lowInstr := e.lookupPerpInstrument(ctx, pos.LowVenue, sym)
 			if live {
-				if res, _ := e.placeCrossVenueLegExec(ctx, tr, sym, venue.SideSell, qty, crossVenueLegClientID(pos.IdemPrefix, "ol"), true, live, true, takerBps, orphDeadline); res.ExecutedQty > executionQtyTolerance {
+				if res, _ := e.placeCrossVenueLegExec(ctx, tr, sym, venue.SideSell, qty, crossVenueLegClientID(pos.IdemPrefix, "ol"), true, live, true, takerBps, orphDeadline, lowInstr, e.venues[pos.LowVenue].Capabilities().ContractBasedPerp); res.ExecutedQty > executionQtyTolerance {
 					e.recordCrossVenueExecution(ctx, &pos, cvExecOrphanCloseLow, res, crossVenueBookMid(book))
 					_ = e.persistPosition(pos)
 				}
@@ -392,7 +394,8 @@ func (e *CrossVenueExecutor) rebalanceHedge(ctx context.Context, pos CrossVenueP
 		tr, _ := e.venues[pos.HighVenue].(crossVenueTrader)
 		if tr != nil && live {
 			book, _ := tr.FetchBookTicker(ctx, venue.MarketPerp, sym)
-			if res, _ := e.placeCrossVenueLegExec(ctx, tr, sym, venue.SideBuy, delta, crossVenueLegClientID(pos.IdemPrefix, "bh"), true, live, true, takerBps, rebalDeadline); res.ExecutedQty > executionQtyTolerance {
+			highInstr := e.lookupPerpInstrument(ctx, pos.HighVenue, sym)
+			if res, _ := e.placeCrossVenueLegExec(ctx, tr, sym, venue.SideBuy, delta, crossVenueLegClientID(pos.IdemPrefix, "bh"), true, live, true, takerBps, rebalDeadline, highInstr, e.venues[pos.HighVenue].Capabilities().ContractBasedPerp); res.ExecutedQty > executionQtyTolerance {
 				e.recordCrossVenueExecution(ctx, &pos, cvExecRebalanceHigh, res, crossVenueBookMid(book))
 			}
 		}
@@ -402,7 +405,8 @@ func (e *CrossVenueExecutor) rebalanceHedge(ctx context.Context, pos CrossVenueP
 		tr, _ := e.venues[pos.LowVenue].(crossVenueTrader)
 		if tr != nil && live {
 			book, _ := tr.FetchBookTicker(ctx, venue.MarketPerp, sym)
-			if res, _ := e.placeCrossVenueLegExec(ctx, tr, sym, venue.SideSell, delta, crossVenueLegClientID(pos.IdemPrefix, "bl"), true, live, true, takerBps, rebalDeadline); res.ExecutedQty > executionQtyTolerance {
+			lowInstr := e.lookupPerpInstrument(ctx, pos.LowVenue, sym)
+			if res, _ := e.placeCrossVenueLegExec(ctx, tr, sym, venue.SideSell, delta, crossVenueLegClientID(pos.IdemPrefix, "bl"), true, live, true, takerBps, rebalDeadline, lowInstr, e.venues[pos.LowVenue].Capabilities().ContractBasedPerp); res.ExecutedQty > executionQtyTolerance {
 				e.recordCrossVenueExecution(ctx, &pos, cvExecRebalanceLow, res, crossVenueBookMid(book))
 			}
 		}

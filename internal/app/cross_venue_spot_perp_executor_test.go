@@ -647,3 +647,36 @@ func TestCrossVenueSpotPerpAccrualIntervalFallback8(t *testing.T) {
 		t.Fatalf("fallback 8h accrual=%v want %v", got, want)
 	}
 }
+
+func TestDecideRotationExcludesCVSPRollbackBlocked(t *testing.T) {
+	now := time.Now().UTC()
+	e := &CrossVenueSpotPerpExecutor{
+		nowFn:           func() time.Time { return now },
+		rollbackBlocked: make(map[string]time.Time),
+	}
+	e.blockSymbolNewOpen("BEL-USDT")
+	if !e.OpenBlockedForSymbol("BEL-USDT") {
+		t.Fatal("expected rollback block active for BEL-USDT")
+	}
+
+	blocked := RotationOpenBlocked(func(strategyType, symbol string) bool {
+		return strategyType == UnifiedStrategyCrossVenueSpotPerp && e.OpenBlockedForSymbol(symbol)
+	})
+	bel := testRotationOpp("bel", UnifiedStrategyCrossVenueSpotPerp, "BEL-USDT", 30, 100, "bybit", "gate")
+	eth := testRotationOpp("eth", UnifiedStrategyCrossVenueSpotPerp, "ETH-USDT", 15, 100, "bybit", "gate")
+	available := map[string]float64{"bybit": 500, "gate": 500}
+
+	plan := DecideRotationWithBlocked(nil, nil, []UnifiedOpportunity{bel, eth}, available, DefaultRotationConfig(), blocked)
+	var opens []RotationAction
+	for _, act := range plan.Actions {
+		if act.Kind == RotationActionOpen {
+			opens = append(opens, act)
+		}
+	}
+	if len(opens) != 1 {
+		t.Fatalf("expected 1 OPEN (ETH only), got %d: %+v", len(opens), plan.Actions)
+	}
+	if opens[0].Symbol != "ETH-USDT" {
+		t.Fatalf("OPEN symbol = %q, want ETH-USDT", opens[0].Symbol)
+	}
+}

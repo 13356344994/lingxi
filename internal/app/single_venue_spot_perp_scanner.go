@@ -85,6 +85,7 @@ func ScanSingleVenueSpotPerpOpportunities(in SingleVenueSpotPerpScanInput) []Uni
 	}
 
 	out := make([]UnifiedOpportunity, 0)
+	drops := newScannerInstrumentDropLog()
 	for _, venueName := range venues {
 		for _, sym := range symbols {
 			sym = strings.TrimSpace(sym)
@@ -93,7 +94,7 @@ func ScanSingleVenueSpotPerpOpportunities(in SingleVenueSpotPerpScanInput) []Uni
 			}
 			opp, ok := buildSingleVenueSpotPerpOpportunity(
 				in.SnapshotID, now, sym, venueName,
-				in.FundingByVenue, in.MarketsByVenue, in.AvailableUSDTByVenue, cfg,
+				in.FundingByVenue, in.MarketsByVenue, in.AvailableUSDTByVenue, cfg, drops,
 			)
 			if ok {
 				out = append(out, opp)
@@ -193,6 +194,7 @@ func buildSingleVenueSpotPerpOpportunity(
 	markets map[string]map[string]SingleVenueSpotPerpMarketSnap,
 	available map[string]float64,
 	cfg SingleVenueSpotPerpScannerConfig,
+	drops *scannerInstrumentDropLog,
 ) (UnifiedOpportunity, bool) {
 	cvCfg := singleVenueSpotPerpAsCrossVenueConfig(cfg)
 
@@ -214,6 +216,14 @@ func buildSingleVenueSpotPerpOpportunity(
 		return singleVenueSpotPerpRejectedOpportunity(snapshotID, symbol, venueName, singleVenueSpotPerpRejectNoSpotMarket), true
 	}
 	if !mkt.HasPerp || mkt.PerpMid <= 0 {
+		return UnifiedOpportunity{}, false
+	}
+	if !scannerBothLegsInstrumentValid(mkt, mkt) {
+		if !scannerMarketLegInstrumentValid(mkt.SpotTickSize, mkt.SpotStepSize) {
+			drops.skip("svsp", symbol, venueName, "现货")
+		} else {
+			drops.skip("svsp", symbol, venueName, "永续")
+		}
 		return UnifiedOpportunity{}, false
 	}
 
@@ -290,14 +300,16 @@ func buildSingleVenueSpotPerpOpportunity(
 
 	refPrice := (mkt.SpotMid + mkt.PerpMid) / 2
 	qty := notional / refPrice
+	spotLegInstr := legInstrumentFields(mkt.SpotTickSize, mkt.SpotStepSize, mkt.SpotMinNotional)
+	perpLegInstr := legInstrumentFields(mkt.PerpTickSize, mkt.PerpStepSize, mkt.PerpMinNotional)
 
 	return UnifiedOpportunity{
 		ID:           unifiedOpportunityID(UnifiedStrategySingleVenueSpotPerp, symbol, snapshotID, venueName, venueName),
 		StrategyType: UnifiedStrategySingleVenueSpotPerp,
 		Symbol:       symbol,
 		Legs: []UnifiedOpportunityLeg{
-			{Venue: venueName, Market: "spot", Side: "buy", Qty: qty, Notional: notional},
-			{Venue: venueName, Market: "perp", Side: "short", Qty: qty, Notional: notional},
+			{Venue: venueName, Market: "spot", Side: "buy", Qty: qty, Notional: notional, TickSize: spotLegInstr.tick, StepSize: spotLegInstr.step, MinNotional: spotLegInstr.minNotional},
+			{Venue: venueName, Market: "perp", Side: "short", Qty: qty, Notional: notional, TickSize: perpLegInstr.tick, StepSize: perpLegInstr.step, MinNotional: perpLegInstr.minNotional},
 		},
 		ExpectedFundingUSDT:      expectedFunding,
 		ExpectedOpenCostUSDT:     openCost,

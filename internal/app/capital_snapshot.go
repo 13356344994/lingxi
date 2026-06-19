@@ -83,7 +83,7 @@ func BuildUnifiedCapitalSnapshot(in CapitalSnapshotInput) UnifiedCapitalSnapshot
 		in.RouterCfg.UnifiedWalletVenues = unified
 	}
 
-	gross := rotationWalletBalancesFromAvailable(in.FetchedByVenue, in.Held, in.ExecCfg, in.Venues)
+	gross := rotationWalletBalancesFromAvailable(in.FetchedByVenue, in.Held, in.ExecCfg, in.Venues, in.PendingOpportunities)
 	reserved := allocateVenueReservedUSDT(gross, in.RouterCfg)
 	occupied := aggregateOccupiedByStrategy(in.Held, in.ExecCfg)
 

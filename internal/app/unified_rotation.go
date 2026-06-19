@@ -397,7 +397,20 @@ func rotationBudgetBlockReason(st *rotationBudgetState, opp UnifiedOpportunity) 
 	return ""
 }
 
-func rotationCanOpenOpportunity(opp UnifiedOpportunity, available map[string]float64, cfg RotationConfig, openCount int, budget *rotationBudgetState) (bool, string) {
+// RotationOpenBlocked 决策层用于排除暂不可开的 (strategy,symbol)。
+type RotationOpenBlocked func(strategyType, symbol string) bool
+
+func rotationOpportunityOpenBlocked(opp UnifiedOpportunity, blocked RotationOpenBlocked) bool {
+	if blocked == nil {
+		return false
+	}
+	return blocked(opp.StrategyType, opp.Symbol)
+}
+
+func rotationCanOpenOpportunity(opp UnifiedOpportunity, available map[string]float64, cfg RotationConfig, openCount int, budget *rotationBudgetState, blocked RotationOpenBlocked) (bool, string) {
+	if rotationOpportunityOpenBlocked(opp, blocked) {
+		return false, "open_blocked"
+	}
 	if opp.CandidateOnly {
 		return false, "candidate_only"
 	}
@@ -464,7 +477,7 @@ func rotationSortedPositiveCandidates(candidates []UnifiedOpportunity) []Unified
 	return positive
 }
 
-func planUnifiedRotationOpensFrom(candidates []UnifiedOpportunity, available map[string]float64, cfg RotationConfig, startOpenCount int, budget rotationBudgetState) []RotationAction {
+func planUnifiedRotationOpensFrom(candidates []UnifiedOpportunity, available map[string]float64, cfg RotationConfig, startOpenCount int, budget rotationBudgetState, blocked RotationOpenBlocked) []RotationAction {
 	cfg = normalizeRotationConfig(cfg)
 	funds := cloneVenueCapitalMap(available)
 	sorted := rotationSortedPositiveCandidates(candidates)
@@ -472,7 +485,7 @@ func planUnifiedRotationOpensFrom(candidates []UnifiedOpportunity, available map
 	actions := make([]RotationAction, 0, len(sorted))
 	openCount := startOpenCount
 	for _, opp := range sorted {
-		ok, _ := rotationCanOpenOpportunity(opp, funds, cfg, openCount, &budget)
+		ok, _ := rotationCanOpenOpportunity(opp, funds, cfg, openCount, &budget, blocked)
 		if !ok {
 			continue
 		}
@@ -495,12 +508,16 @@ func planUnifiedRotationOpensFrom(candidates []UnifiedOpportunity, available map
 
 // PlanUnifiedRotationOpens 对开仓侧做 贪心分配(纯函数,不执行下单)。
 func PlanUnifiedRotationOpens(candidates []UnifiedOpportunity, available map[string]float64, cfg RotationConfig, equityUSDT ...float64) []RotationAction {
+	return PlanUnifiedRotationOpensWithBlocked(candidates, available, cfg, nil, equityUSDT...)
+}
+
+func PlanUnifiedRotationOpensWithBlocked(candidates []UnifiedOpportunity, available map[string]float64, cfg RotationConfig, blocked RotationOpenBlocked, equityUSDT ...float64) []RotationAction {
 	equity := 0.0
 	if len(equityUSDT) > 0 {
 		equity = equityUSDT[0]
 	}
 	budget := newRotationBudgetState(available, nil, cfg, equity)
-	return planUnifiedRotationOpensFrom(candidates, available, cfg, 0, budget)
+	return planUnifiedRotationOpensFrom(candidates, available, cfg, 0, budget, blocked)
 }
 
 func rotationBestReplaceCandidate(
@@ -511,6 +528,7 @@ func rotationBestReplaceCandidate(
 	openCount int,
 	alreadyChosen map[string]struct{},
 	budget *rotationBudgetState,
+	blocked RotationOpenBlocked,
 ) (UnifiedOpportunity, float64, bool) {
 	bestScore := -1.0
 	var best UnifiedOpportunity
@@ -527,7 +545,7 @@ func rotationBestReplaceCandidate(
 				continue
 			}
 		}
-		ok, _ := rotationCanOpenOpportunity(opp, available, cfg, openCount, budget)
+		ok, _ := rotationCanOpenOpportunity(opp, available, cfg, openCount, budget, blocked)
 		if !ok {
 			continue
 		}
@@ -594,11 +612,23 @@ func DecideRotation(
 	cfg RotationConfig,
 	equityUSDT ...float64,
 ) RotationPlan {
+	return DecideRotationWithBlocked(held, heldInputs, candidates, available, cfg, nil, equityUSDT...)
+}
+
+func DecideRotationWithBlocked(
+	held []HeldPosition,
+	heldInputs map[string]ContinuationInputs,
+	candidates []UnifiedOpportunity,
+	available map[string]float64,
+	cfg RotationConfig,
+	blocked RotationOpenBlocked,
+	equityUSDT ...float64,
+) RotationPlan {
 	equity := 0.0
 	if len(equityUSDT) > 0 {
 		equity = equityUSDT[0]
 	}
-	return decideRotationAt(held, heldInputs, candidates, available, cfg, time.Now(), equity)
+	return decideRotationAt(held, heldInputs, candidates, available, cfg, time.Now(), equity, blocked)
 }
 
 func decideRotationAt(
@@ -609,6 +639,7 @@ func decideRotationAt(
 	cfg RotationConfig,
 	now time.Time,
 	equityUSDT float64,
+	blocked RotationOpenBlocked,
 ) RotationPlan {
 	cfg = normalizeRotationConfig(cfg)
 	funds := cloneVenueCapitalMap(available)
@@ -658,7 +689,7 @@ func decideRotationAt(
 		for id := range heldIDs {
 			alreadyChosen[id] = struct{}{}
 		}
-		best, openScore, found := rotationBestReplaceCandidate(pos, candidates, replaceFunds, cfg, openCount, alreadyChosen, &replaceBudget)
+		best, openScore, found := rotationBestReplaceCandidate(pos, candidates, replaceFunds, cfg, openCount, alreadyChosen, &replaceBudget, blocked)
 		if !found {
 			plan.Actions = append(plan.Actions, RotationAction{
 				Kind:                   RotationActionHold,
@@ -742,7 +773,7 @@ func decideRotationAt(
 			currentOpenCount++
 		}
 	}
-	plan.Actions = append(plan.Actions, planUnifiedRotationOpensFrom(remaining, funds, cfg, currentOpenCount, budget)...)
+	plan.Actions = append(plan.Actions, planUnifiedRotationOpensFrom(remaining, funds, cfg, currentOpenCount, budget, blocked)...)
 
 	return plan
 }

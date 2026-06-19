@@ -45,6 +45,7 @@ type CrossVenueExecutor struct {
 	equitySnapMu             sync.Mutex
 	positions                []CrossVenuePosition
 	symbolCooldown           map[string]time.Time
+	openQuarantine           *openFailureQuarantine
 	deadManUnsupportedVenues map[string]struct{} // venue 适配器声明有 dead-man 但实际 ErrUnsupported 时缓存,避免每分钟重试刷日志
 	// deadManLastArm 记录每所上次成功续期 dead-man 的时刻。dead-man(如 OKX cancel-all-after)是账户级操作
 	// 且限频严格(OKX 1次/2秒),而管理是逐笔持仓循环——多笔含同一所的腿会在同一周期内重复续期触发 429。
@@ -278,6 +279,7 @@ func NewCrossVenueExecutor(cfg EngineConfig, orch *Orchestrator, scanner *CrossV
 		logger:                   logger,
 		haltPaths:                emergencyStopPaths(cfg),
 		symbolCooldown:           make(map[string]time.Time),
+		openQuarantine:           newOpenFailureQuarantine(time.Now),
 		deadManUnsupportedVenues: make(map[string]struct{}),
 		deadManLastArm:           make(map[string]time.Time),
 		realFundingLogLast:       make(map[string]time.Time),
@@ -1234,6 +1236,25 @@ func (e *CrossVenueExecutor) isSymbolCooling(sym string) bool {
 	until, ok := e.symbolCooldown[sym]
 	e.mu.RUnlock()
 	return ok && e.nowFn().Before(until)
+}
+
+// OpenBlockedForSymbol 决策层查询:冷却/回滚隔离/连续失败隔离。
+func (e *CrossVenueExecutor) OpenBlockedForSymbol(symbol string) bool {
+	if e == nil {
+		return false
+	}
+	return e.isSymbolCooling(symbol) || e.openQuarantine.isQuarantined(symbol)
+}
+
+func (e *CrossVenueExecutor) recordOpenOutcome(symbol string, success bool) {
+	if e == nil {
+		return
+	}
+	if success {
+		e.openQuarantine.recordOpenSuccess(symbol)
+		return
+	}
+	e.openQuarantine.recordOpenFailure(symbol)
 }
 
 func (e *CrossVenueExecutor) notifyTrade(title, detail, sym string) {

@@ -1,7 +1,7 @@
 {
-  "schema_version": 1,
-  "checksum": "5429380d31ecad54fcdce48553d0f14d13c0099761502e3fab581878b07cfd87",
-  "updated_at": "2026-06-18T13:02:58Z",
+  "schema_version": 2,
+  "checksum": "ec39b199ef65db6060db86583a4e525780288af376d0a76fb6ba6bbf7ba7007d",
+  "updated_at": "2026-06-19T05:55:45Z",
   "positions": [
     {
       "position_key": "H-USDT|cvsp-HUSDT-bybit-1781761588",
@@ -26,13 +26,16 @@
       "expected_funding_usdt": 0.006892926248568861,
       "expected_net_ev_usdt": 0.034026803486071046,
       "expected_hold_hours": 0.3336149931811111,
+      "perp_interval_hours": 8,
+      "perp_next_funding_time": "0001-01-01T00:00:00Z",
       "status": "closed",
       "transition_state": "open",
       "idem_prefix": "cvsp-HUSDT-bybit-1781761588",
       "notional_usdt": 37.249999992266,
       "opened_at": "2026-06-18T05:46:28.080798707Z",
       "updated_at": "2026-06-18T05:46:59.281431825Z",
-      "last_accrual_at": "0001-01-01T00:00:00Z"
+      "last_accrual_at": "0001-01-01T00:00:00Z",
+      "last_hedge_rebalance_at": "0001-01-01T00:00:00Z"
     },
     {
       "position_key": "YB-USDT|cvsp-YBUSDT-bybit-1781763032",
@@ -57,13 +60,16 @@
       "expected_funding_usdt": 0.018537090000000003,
       "expected_net_ev_usdt": 0.0641484049847143,
       "expected_hold_hours": 1.9844914984497222,
+      "perp_interval_hours": 8,
+      "perp_next_funding_time": "0001-01-01T00:00:00Z",
       "status": "closed",
       "transition_state": "open",
       "idem_prefix": "cvsp-YBUSDT-bybit-1781763032",
       "notional_usdt": 37.25,
       "opened_at": "2026-06-18T06:10:32.590125651Z",
       "updated_at": "2026-06-18T06:10:59.490546456Z",
-      "last_accrual_at": "0001-01-01T00:00:00Z"
+      "last_accrual_at": "0001-01-01T00:00:00Z",
+      "last_hedge_rebalance_at": "0001-01-01T00:00:00Z"
     },
     {
       "position_key": "H-USDT|cvsp-HUSDT-bybit-1781764632",
@@ -88,13 +94,16 @@
       "expected_funding_usdt": 0.08059372748326679,
       "expected_net_ev_usdt": 0.0013225765792965402,
       "expected_hold_hours": 0.43782088141805553,
+      "perp_interval_hours": 8,
+      "perp_next_funding_time": "0001-01-01T00:00:00Z",
       "status": "closed",
       "transition_state": "open",
       "idem_prefix": "cvsp-HUSDT-bybit-1781764632",
       "notional_usdt": 37.249999992266,
       "opened_at": "2026-06-18T06:37:12.26963858Z",
       "updated_at": "2026-06-18T06:37:48.070370382Z",
-      "last_accrual_at": "0001-01-01T00:00:00Z"
+      "last_accrual_at": "0001-01-01T00:00:00Z",
+      "last_hedge_rebalance_at": "0001-01-01T00:00:00Z"
     },
     {
       "position_key": "BAN-USDT|cvsp-BANUSDT-binance-1781764992",
@@ -122,6 +131,8 @@
       "expected_funding_usdt": 0.0155907497852568,
       "expected_net_ev_usdt": 0.044825942643153545,
       "expected_hold_hours": 1.4378208814180555,
+      "perp_interval_hours": 8,
+      "perp_next_funding_time": "0001-01-01T00:00:00Z",
       "status": "closed",
       "transition_state": "open",
       "idem_prefix": "cvsp-BANUSDT-binance-1781764992",
@@ -129,6 +140,7 @@
       "opened_at": "2026-06-18T06:43:12.031929506Z",
       "updated_at": "2026-06-18T06:44:48.333792536Z",
       "last_accrual_at": "0001-01-01T00:00:00Z",
+      "last_hedge_rebalance_at": "0001-01-01T00:00:00Z",
       "rollback_cost_usdt": 0.0380385
     },
     {
@@ -154,13 +166,16 @@
       "expected_funding_usdt": 0.08059372748326679,
       "expected_net_ev_usdt": 0.029382025572686134,
       "expected_hold_hours": 0.43782088141805553,
+      "perp_interval_hours": 8,
+      "perp_next_funding_time": "0001-01-01T00:00:00Z",
       "status": "closed",
       "transition_state": "open",
       "idem_prefix": "cvsp-HUSDT-bybit-1781765173",
       "notional_usdt": 37.249999992266,
       "opened_at": "2026-06-18T06:46:13.31554075Z",
       "updated_at": "2026-06-18T06:46:48.244048646Z",
-      "last_accrual_at": "0001-01-01T00:00:00Z"
+      "last_accrual_at": "0001-01-01T00:00:00Z",
+      "last_hedge_rebalance_at": "0001-01-01T00:00:00Z"
     },
     {
       "position_key": "BSB-USDT|cvsp-BSBUSDT-binance-1781765712",
@@ -188,6 +203,8 @@
       "expected_funding_usdt": 0.014692979969403807,
       "expected_net_ev_usdt": 0.011815613555024446,
       "expected_hold_hours": 1.2711542505852778,
+      "perp_interval_hours": 8,
+      "perp_next_funding_time": "0001-01-01T00:00:00Z",
       "status": "closed",
       "transition_state": "open",
       "idem_prefix": "cvsp-BSBUSDT-binance-1781765712",
@@ -195,6 +212,7 @@
       "opened_at": "2026-06-18T06:55:12.82547171Z",
       "updated_at": "2026-06-18T06:55:48.119593873Z",
       "last_accrual_at": "0001-01-01T00:00:00Z",
+      "last_hedge_rebalance_at": "0001-01-01T00:00:00Z",
       "rollback_cost_usdt": 0.03696714
     },
     {
@@ -220,13 +238,16 @@
       "expected_funding_usdt": 0.0157823489114362,
       "expected_net_ev_usdt": 0.22206791904885168,
       "expected_hold_hours": 1.1044874329611112,
+      "perp_interval_hours": 8,
+      "perp_next_funding_time": "0001-01-01T00:00:00Z",
       "status": "closed",
       "transition_state": "open",
       "idem_prefix": "cvsp-CLOUSDT-binance-1781765902",
       "notional_usdt": 37.33788098,
       "opened_at": "2026-06-18T06:58:22.835809544Z",
       "updated_at": "2026-06-18T06:58:48.171979163Z",
-      "last_accrual_at": "0001-01-01T00:00:00Z"
+      "last_accrual_at": "0001-01-01T00:00:00Z",
+      "last_hedge_rebalance_at": "0001-01-01T00:00:00Z"
     },
     {
       "position_key": "BEL-USDT|cvsp-BELUSDT-gate-1781766268",
@@ -257,13 +278,16 @@
       "expected_funding_usdt": 0.010783966631695,
       "expected_net_ev_usdt": 0.07567465346309651,
       "expected_hold_hours": 0.9840600951047223,
+      "perp_interval_hours": 8,
+      "perp_next_funding_time": "0001-01-01T00:00:00Z",
       "status": "closed",
       "transition_state": "hold",
       "idem_prefix": "cvsp-BELUSDT-gate-1781766268",
       "notional_usdt": 40.92586957,
       "opened_at": "2026-06-18T07:04:28.420483821Z",
       "updated_at": "2026-06-18T09:04:20.60354018Z",
-      "last_accrual_at": "0001-01-01T00:00:00Z"
+      "last_accrual_at": "0001-01-01T00:00:00Z",
+      "last_hedge_rebalance_at": "0001-01-01T00:00:00Z"
     },
     {
       "position_key": "BSB-USDT|cvsp-BSBUSDT-binance-1781783796",
@@ -291,6 +315,8 @@
       "expected_funding_usdt": 0.004573411764705882,
       "expected_net_ev_usdt": 0.02638540344240589,
       "expected_hold_hours": 0.11725950448861111,
+      "perp_interval_hours": 8,
+      "perp_next_funding_time": "0001-01-01T00:00:00Z",
       "status": "closed",
       "transition_state": "open",
       "idem_prefix": "cvsp-BSBUSDT-binance-1781783796",
@@ -298,6 +324,7 @@
       "opened_at": "2026-06-18T11:56:36.482758589Z",
       "updated_at": "2026-06-18T11:56:58.654170805Z",
       "last_accrual_at": "0001-01-01T00:00:00Z",
+      "last_hedge_rebalance_at": "0001-01-01T00:00:00Z",
       "rollback_cost_usdt": 0.023248472
     },
     {
@@ -323,13 +350,16 @@
       "expected_funding_usdt": 0.020646258661326237,
       "expected_net_ev_usdt": 0.006336395527865617,
       "expected_hold_hours": 3.934646080171389,
+      "perp_interval_hours": 8,
+      "perp_next_funding_time": "0001-01-01T00:00:00Z",
       "status": "closed",
       "transition_state": "open",
       "idem_prefix": "cvsp-BTWUSDT-binance-1781784670",
       "notional_usdt": 23.490219541176472,
       "opened_at": "2026-06-18T12:11:10.767954407Z",
       "updated_at": "2026-06-18T12:11:58.833823065Z",
-      "last_accrual_at": "0001-01-01T00:00:00Z"
+      "last_accrual_at": "0001-01-01T00:00:00Z",
+      "last_hedge_rebalance_at": "0001-01-01T00:00:00Z"
     },
     {
       "position_key": "HEI-USDT|cvsp-HEIUSDT-binance-1781785044",
@@ -357,6 +387,8 @@
       "expected_funding_usdt": 0.0011745109770588237,
       "expected_net_ev_usdt": 0.04105635761015415,
       "expected_hold_hours": 3.7679794942208336,
+      "perp_interval_hours": 8,
+      "perp_next_funding_time": "0001-01-01T00:00:00Z",
       "status": "closed",
       "transition_state": "open",
       "idem_prefix": "cvsp-HEIUSDT-binance-1781785044",
@@ -364,6 +396,7 @@
       "opened_at": "2026-06-18T12:17:24.83500186Z",
       "updated_at": "2026-06-18T12:17:58.901375332Z",
       "last_accrual_at": "0001-01-01T00:00:00Z",
+      "last_hedge_rebalance_at": "0001-01-01T00:00:00Z",
       "rollback_cost_usdt": 0.023646860140000003
     },
     {
@@ -392,6 +425,8 @@
       "expected_funding_usdt": 0.0034449993367665,
       "expected_net_ev_usdt": 0.01423824873583639,
       "expected_hold_hours": 3.2679794961322224,
+      "perp_interval_hours": 8,
+      "perp_next_funding_time": "0001-01-01T00:00:00Z",
       "status": "closed",
       "transition_state": "open",
       "idem_prefix": "cvsp-AKEUSDT-binance-1781786837",
@@ -399,6 +434,7 @@
       "opened_at": "2026-06-18T12:47:17.411092765Z",
       "updated_at": "2026-06-18T12:47:58.970712244Z",
       "last_accrual_at": "0001-01-01T00:00:00Z",
+      "last_hedge_rebalance_at": "0001-01-01T00:00:00Z",
       "rollback_cost_usdt": 0.0117620076
     },
     {
@@ -427,6 +463,8 @@
       "expected_funding_usdt": 0.010422198761853177,
       "expected_net_ev_usdt": 0.003108354601776114,
       "expected_hold_hours": 3.101312829038333,
+      "perp_interval_hours": 8,
+      "perp_next_funding_time": "0001-01-01T00:00:00Z",
       "status": "closed",
       "transition_state": "open",
       "idem_prefix": "cvsp-SIRENUSDT-binance-1781787729",
@@ -434,7 +472,50 @@
       "opened_at": "2026-06-18T13:02:09.681794531Z",
       "updated_at": "2026-06-18T13:02:58.84103946Z",
       "last_accrual_at": "0001-01-01T00:00:00Z",
+      "last_hedge_rebalance_at": "0001-01-01T00:00:00Z",
       "rollback_cost_usdt": 0.0116788896
+    },
+    {
+      "position_key": "BEL-USDT|cvsp-BELUSDT-gate-1781848487",
+      "symbol": "BEL-USDT",
+      "spot_venue": "bybit",
+      "perp_venue": "gate",
+      "spot_leg": {
+        "venue": "bybit",
+        "market": "spot",
+        "side": "buy",
+        "qty": 59,
+        "entry_price": 0.10611,
+        "order_ids": [
+          "cvsp-BELUSDT-gate-1781848487-s1"
+        ]
+      },
+      "perp_leg": {
+        "venue": "gate",
+        "market": "perp",
+        "side": "short",
+        "qty": 0,
+        "entry_price": 0.10414,
+        "order_ids": [
+          "cvsp-BELUSDT-gate-1781848487-p1"
+        ]
+      },
+      "opportunity_id": "cross_venue_spot_perp:BEL-USDT:bybit+gate:cvsnap-20260619T054214.023509587",
+      "expected_funding_usdt": 0.02131377820237505,
+      "expected_net_ev_usdt": 0.0017301538695995156,
+      "expected_hold_hours": 2.296104580670278,
+      "perp_funding_rate": 0.002458,
+      "perp_interval_hours": 8,
+      "perp_next_funding_time": "2026-06-19T08:00:00Z",
+      "est_funding_usdt": 0.00008140101128302306,
+      "status": "open",
+      "transition_state": "hold",
+      "idem_prefix": "cvsp-BELUSDT-gate-1781848487",
+      "notional_usdt": 16.45851598639,
+      "opened_at": "2026-06-19T05:54:47.814708303Z",
+      "updated_at": "2026-06-19T05:55:45.764214183Z",
+      "last_accrual_at": "2026-06-19T05:55:45.764214023Z",
+      "last_hedge_rebalance_at": "2026-06-19T05:55:14.340282309Z"
     }
   ]
 }

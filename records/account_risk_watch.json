@@ -1,0 +1,53 @@
+{
+  "wired": true,
+  "updated_at": "2026-06-19T05:55:44.532297099Z",
+  "snapshot": {
+    "observed_at": "2026-06-19T05:55:44.488840909Z",
+    "day_start_cst": "2026-06-19T00:00:00+08:00",
+    "daily_realized_pnl_usdt": -0.07621,
+    "daily_equity_delta_usdt": -0.002831,
+    "venue_equity_deltas": {
+      "binance": 0.019094201800015753,
+      "bybit": 0.09663047999998753,
+      "gate": -0.1335503412919934,
+      "okx": 0.014995010029892342
+    },
+    "cumulative_realized_pnl_usdt": -0.221552,
+    "realized_pnl_peak_usdt": 0,
+    "account_drawdown_usdt": 0.221552,
+    "strategy_net_pnl": {
+      "cross_venue_spot_perp": -0.221552,
+      "single_venue_perp_spot": 0,
+      "single_venue_spot_perp": 0
+    },
+    "real_equity_total_usdt": 435.48967,
+    "real_equity_peak_usdt": 454.902493,
+    "real_equity_drawdown_usdt": 19.412823,
+    "open_position_count": 1,
+    "open_notional_usdt": 16.458516,
+    "positions_by_strategy": {
+      "cross_venue_perp_perp": 0,
+      "cross_venue_perp_spot": 0,
+      "cross_venue_spot_perp": 1,
+      "single_venue_perp_spot": 0,
+      "single_venue_spot_perp": 0
+    }
+  },
+  "thresholds": {
+    "daily_loss_breached": false,
+    "drawdown_breached": false,
+    "any_breached": false
+  },
+  "hard_halt": {
+    "should_halt": false,
+    "daily_loss_breached": false,
+    "settlement_drawdown_hit": false,
+    "strategy_loss_breached": false,
+    "open_notional_breached": false
+  },
+  "auto_flatten": {
+    "should_flatten": false
+  },
+  "max_daily_loss_usdt": 40,
+  "max_account_drawdown_usdt": 90
+}

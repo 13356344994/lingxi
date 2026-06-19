@@ -84,13 +84,14 @@ func ScanCrossVenuePerpSpotOpportunities(in CrossVenuePerpSpotScanInput) []Unifi
 	}
 
 	out := make([]UnifiedOpportunity, 0)
+	drops := newScannerInstrumentDropLog()
 	for _, sym := range symbols {
 		sym = strings.TrimSpace(sym)
 		if sym == "" {
 			continue
 		}
-		spotVenues := crossVenuePerpSpotSpotShortVenues(in.MarketsByVenue, sym)
-		perpVenues := crossVenuePerpSpotNegativePerpVenues(in.FundingByVenue, in.MarketsByVenue, sym)
+		spotVenues := crossVenuePerpSpotSpotShortVenues(in.MarketsByVenue, sym, drops)
+		perpVenues := crossVenuePerpSpotNegativePerpVenues(in.FundingByVenue, in.MarketsByVenue, sym, drops)
 		if len(spotVenues) == 0 || len(perpVenues) == 0 {
 			continue
 		}
@@ -180,11 +181,14 @@ func crossVenuePerpSpotCollectSymbols(
 	return crossVenueSpotPerpCollectSymbols(funding, markets)
 }
 
-func crossVenuePerpSpotSpotShortVenues(markets map[string]map[string]CrossVenuePerpSpotMarketSnap, sym string) []string {
+func crossVenuePerpSpotSpotShortVenues(markets map[string]map[string]CrossVenuePerpSpotMarketSnap, sym string, drops *scannerInstrumentDropLog) []string {
 	out := make([]string, 0)
 	for venueName, bySym := range markets {
 		m, ok := bySym[sym]
-		if !ok || !m.HasSpot || m.SpotMid <= 0 {
+		if !ok {
+			continue
+		}
+		if !scannerSpotLegEligible(m, "cvps", sym, venueName, drops) {
 			continue
 		}
 		out = append(out, venueName)
@@ -202,6 +206,7 @@ func crossVenuePerpSpotNegativePerpVenues(
 	funding map[string]map[string]CrossVenuePerpSpotFundingSnap,
 	markets map[string]map[string]CrossVenuePerpSpotMarketSnap,
 	sym string,
+	drops *scannerInstrumentDropLog,
 ) []crossVenuePerpSpotPerpCandidate {
 	out := make([]crossVenuePerpSpotPerpCandidate, 0)
 	for venueName, bySym := range funding {
@@ -210,7 +215,10 @@ func crossVenuePerpSpotNegativePerpVenues(
 			continue
 		}
 		mkt, ok := markets[venueName][sym]
-		if !ok || !mkt.HasPerp || mkt.PerpMid <= 0 {
+		if !ok {
+			continue
+		}
+		if !scannerPerpLegEligible(mkt, "cvps", sym, venueName, drops) {
 			continue
 		}
 		out = append(out, crossVenuePerpSpotPerpCandidate{venue: venueName, rate: fund.Rate})
@@ -253,6 +261,9 @@ func buildCrossVenuePerpSpotOpportunity(
 		return crossVenuePerpSpotRejectedOpportunity(snapshotID, symbol, perpVenue, spotVenue, crossVenuePerpSpotRejectNoSpotMarket), true
 	}
 	if !perpMkt.HasPerp || perpMkt.PerpMid <= 0 {
+		return UnifiedOpportunity{}, false
+	}
+	if !scannerBothLegsInstrumentValid(spotMkt, perpMkt) {
 		return UnifiedOpportunity{}, false
 	}
 
@@ -318,6 +329,9 @@ func buildCrossVenuePerpSpotOpportunity(
 	refPrice := (spotMkt.SpotMid + perpMkt.PerpMid) / 2
 	qty := notional / refPrice
 
+	perpLegInstr := legInstrumentFields(perpMkt.PerpTickSize, perpMkt.PerpStepSize, perpMkt.PerpMinNotional)
+	spotLegInstr := legInstrumentFields(spotMkt.SpotTickSize, spotMkt.SpotStepSize, spotMkt.SpotMinNotional)
+
 	dataQuality := crossVenueSpotPerpDataQualityScore(fund)
 	executionScore := crossVenueExecutionScore(slippage, notional)
 	liquidityScore := crossVenueSpotPerpLiquidityScore(spotMkt, perpMkt, notional, holdHours)
@@ -345,8 +359,8 @@ func buildCrossVenuePerpSpotOpportunity(
 		StrategyType: UnifiedStrategyCrossVenuePerpSpot,
 		Symbol:       symbol,
 		Legs: []UnifiedOpportunityLeg{
-			{Venue: perpVenue, Market: "perp", Side: "long", Qty: qty, Notional: notional},
-			{Venue: spotVenue, Market: "spot", Side: "short", Qty: qty, Notional: notional},
+			{Venue: perpVenue, Market: "perp", Side: "long", Qty: qty, Notional: notional, TickSize: perpLegInstr.tick, StepSize: perpLegInstr.step, MinNotional: perpLegInstr.minNotional},
+			{Venue: spotVenue, Market: "spot", Side: "short", Qty: qty, Notional: notional, TickSize: spotLegInstr.tick, StepSize: spotLegInstr.step, MinNotional: spotLegInstr.minNotional},
 		},
 		ExpectedFundingUSDT:      expectedFunding,
 		ExpectedOpenCostUSDT:     openCost,

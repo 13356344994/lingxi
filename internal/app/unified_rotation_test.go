@@ -62,13 +62,13 @@ func TestRotationCanOpenRejectsAboveExecMaxPosition(t *testing.T) {
 	}
 	available := map[string]float64{"binance": 500, "bybit": 500}
 
-	ok, reason := rotationCanOpenOpportunity(opp, available, rotCfg, 0, nil)
+	ok, reason := rotationCanOpenOpportunity(opp, available, rotCfg, 0, nil, nil)
 	if ok || reason != "max_position_usdt_exceeded" {
 		t.Fatalf("exec-aligned rotation should reject notional>150: ok=%v reason=%q", ok, reason)
 	}
 
 	legacyCfg := RotationConfig{MaxConcurrent: 3, MaxPositionUSDT: 500, DefaultReserveUSDT: 0}
-	okLegacy, _ := rotationCanOpenOpportunity(opp, available, legacyCfg, 0, nil)
+	okLegacy, _ := rotationCanOpenOpportunity(opp, available, legacyCfg, 0, nil, nil)
 	if !okLegacy {
 		t.Fatal("legacy rotation max_position=500 would incorrectly allow scanner-sized opp")
 	}
@@ -232,6 +232,7 @@ func TestDecideRotationCloseWhenContinuationNegative(t *testing.T) {
 		DefaultRotationConfig(),
 		now,
 		0,
+		nil,
 	)
 	if len(plan.Actions) != 1 || plan.Actions[0].Kind != RotationActionClose {
 		t.Fatalf("expected CLOSE, got %+v", plan.Actions)
@@ -263,6 +264,7 @@ func TestDecideRotationMarginalNegativeHoldsFreshPosition(t *testing.T) {
 		DefaultRotationConfig(),
 		now,
 		0,
+		nil,
 	)
 	if len(plan.Actions) != 1 || plan.Actions[0].Kind != RotationActionHold {
 		t.Fatalf("expected HOLD for marginal negative fresh position, got %+v", plan.Actions)
@@ -294,6 +296,7 @@ func TestDecideRotationStrongNegativeClosesAfterMinHold(t *testing.T) {
 		DefaultRotationConfig(),
 		now,
 		0,
+		nil,
 	)
 	if len(plan.Actions) != 1 || plan.Actions[0].Kind != RotationActionClose {
 		t.Fatalf("expected CLOSE for strong negative after min hold, got %+v", plan.Actions)
@@ -494,12 +497,53 @@ func TestRotationCanOpenBlocksHardRejectReason(t *testing.T) {
 		DefaultRotationConfig(),
 		0,
 		nil,
+		nil,
 	)
 	if ok {
 		t.Fatal("expected hard reject to block open")
 	}
 	if reason != "reject:"+singleVenuePerpSpotRejectBorrowOverLimit {
 		t.Fatalf("reason = %q, want reject:%s", reason, singleVenuePerpSpotRejectBorrowOverLimit)
+	}
+}
+
+func TestRotationCanOpenBlocksOpenBlockedSymbol(t *testing.T) {
+	opp := testRotationOpp("bel", UnifiedStrategyCrossVenueSpotPerp, "BEL", 20, 100, "bybit", "gate")
+	blocked := RotationOpenBlocked(func(strategyType, symbol string) bool {
+		return strategyType == UnifiedStrategyCrossVenueSpotPerp && symbol == "BEL"
+	})
+
+	ok, reason := rotationCanOpenOpportunity(opp, map[string]float64{"bybit": 200, "gate": 200}, DefaultRotationConfig(), 0, nil, blocked)
+	if ok {
+		t.Fatal("expected open_blocked to prevent open")
+	}
+	if reason != "open_blocked" {
+		t.Fatalf("reason = %q, want open_blocked", reason)
+	}
+}
+
+func TestDecideRotationExcludesOpenBlockedSymbol(t *testing.T) {
+	blocked := testRotationOpp("bel-blocked", UnifiedStrategyCrossVenueSpotPerp, "BEL", 30, 100, "bybit", "gate")
+	alt := testRotationOpp("eth-open", UnifiedStrategyCrossVenueSpotPerp, "ETH", 15, 100, "bybit", "gate")
+	available := map[string]float64{"bybit": 500, "gate": 500}
+	cfg := DefaultRotationConfig()
+
+	blockedFn := RotationOpenBlocked(func(strategyType, symbol string) bool {
+		return strategyType == UnifiedStrategyCrossVenueSpotPerp && symbol == "BEL"
+	})
+
+	plan := DecideRotationWithBlocked(nil, nil, []UnifiedOpportunity{blocked, alt}, available, cfg, blockedFn)
+	var opens []RotationAction
+	for _, act := range plan.Actions {
+		if act.Kind == RotationActionOpen {
+			opens = append(opens, act)
+		}
+	}
+	if len(opens) != 1 {
+		t.Fatalf("expected 1 OPEN (ETH only), got %d: %+v", len(opens), plan.Actions)
+	}
+	if opens[0].Symbol != "ETH" {
+		t.Fatalf("OPEN symbol = %q, want ETH", opens[0].Symbol)
 	}
 }
 
@@ -561,6 +605,7 @@ func TestRotationCanOpenBlocksRequiresRebalanceWhenUnfundable(t *testing.T) {
 		RotationConfig{MaxConcurrent: 3, MaxPositionUSDT: 500, DefaultReserveUSDT: 0},
 		0,
 		nil,
+		nil,
 	)
 	if ok {
 		t.Fatal("expected requires_rebalance unfundable to block open")
@@ -580,6 +625,7 @@ func TestRotationCanOpenAllowsRequiresRebalanceWhenFunded(t *testing.T) {
 		map[string]float64{"binance": 200},
 		DefaultRotationConfig(),
 		0,
+		nil,
 		nil,
 	)
 	if !ok {
@@ -670,7 +716,7 @@ func TestRotationGlobalBudgetExceededBlocksLaterCandidates(t *testing.T) {
 	budget := newRotationBudgetState(available, nil, cfg, 0)
 	budget.addOpportunity(a)
 	budget.addOpportunity(b)
-	ok, reason := rotationCanOpenOpportunity(c, available, cfg, 2, &budget)
+	ok, reason := rotationCanOpenOpportunity(c, available, cfg, 2, &budget, nil)
 	if ok {
 		t.Fatal("expected third candidate blocked by global budget")
 	}
@@ -702,7 +748,7 @@ func TestRotationStrategyCapExceededBlocksSameStrategy(t *testing.T) {
 
 	budget := newRotationBudgetState(available, nil, cfg, 0)
 	budget.addOpportunity(svsp1)
-	ok, reason := rotationCanOpenOpportunity(svsp2, available, cfg, 1, &budget)
+	ok, reason := rotationCanOpenOpportunity(svsp2, available, cfg, 1, &budget, nil)
 	if ok {
 		t.Fatal("expected second SVSP blocked by strategy cap")
 	}
@@ -733,7 +779,7 @@ func TestRotationGlobalBudgetIncludesPerpPerpHeld(t *testing.T) {
 	}
 
 	budget := newRotationBudgetState(freeAvailable, []HeldPosition{held}, cfg, 0)
-	ok, reason := rotationCanOpenOpportunity(blockOpp, freeAvailable, cfg, 1, &budget)
+	ok, reason := rotationCanOpenOpportunity(blockOpp, freeAvailable, cfg, 1, &budget, nil)
 	if ok {
 		t.Fatal("expected OPEN blocked when held+new exceeds global budget")
 	}
@@ -742,7 +788,7 @@ func TestRotationGlobalBudgetIncludesPerpPerpHeld(t *testing.T) {
 	}
 
 	allowOpp := testRotationOpp("open-ok", UnifiedStrategySingleVenueSpotPerp, "SOL", 10, 15, "binance")
-	ok, reason = rotationCanOpenOpportunity(allowOpp, freeAvailable, cfg, 1, &budget)
+	ok, reason = rotationCanOpenOpportunity(allowOpp, freeAvailable, cfg, 1, &budget, nil)
 	if !ok {
 		t.Fatalf("expected smaller open within remaining budget, reason=%q", reason)
 	}
@@ -793,6 +839,7 @@ func TestRotationContinuationUsesWindowFundingNotCumulative(t *testing.T) {
 		DefaultRotationConfig(),
 		now,
 		0,
+		nil,
 	)
 	if len(plan.Actions) != 1 || plan.Actions[0].Kind != RotationActionSwitch {
 		t.Fatalf("expected SWITCH (window口径续持分低于候选), got %+v", plan.Actions)
@@ -810,6 +857,7 @@ func TestRotationContinuationUsesWindowFundingNotCumulative(t *testing.T) {
 		DefaultRotationConfig(),
 		now,
 		0,
+		nil,
 	)
 	if len(stalePlan.Actions) != 1 || stalePlan.Actions[0].Kind != RotationActionHold {
 		t.Fatalf("cumulative funding should incorrectly HOLD, got %+v", stalePlan.Actions)

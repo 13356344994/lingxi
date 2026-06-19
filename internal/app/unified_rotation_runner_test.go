@@ -572,14 +572,14 @@ func TestUnifiedRotationRunner_ScanCandidatesOffline(t *testing.T) {
 		rotationCfg: DefaultRotationConfig(),
 		fetchDeps: unifiedMarketPipelineFetchDeps{
 			fetchMarkets: func(context.Context, map[string]venue.Venue, []string) map[string]map[string]CrossVenueSpotPerpMarketSnap {
-				return map[string]map[string]CrossVenueSpotPerpMarketSnap{
+				return scannerTestInstrumentMetaMarkets(map[string]map[string]CrossVenueSpotPerpMarketSnap{
 					bybit.VenueName: {
 						"BTC-USDT": {SpotMid: 100000, PerpMid: 100050, SpotDepthUSDT: 5000, PerpDepthUSDT: 5000, HasSpot: true, HasPerp: true},
 					},
 					binance.VenueName: {
 						"BTC-USDT": {SpotMid: 100010, PerpMid: 100080, SpotDepthUSDT: 5000, PerpDepthUSDT: 5000, HasSpot: true, HasPerp: true},
 					},
-				}
+				})
 			},
 			fetchAvailableUSDT: func(context.Context, map[string]venue.Venue, []string) map[string]float64 {
 				return map[string]float64{binance.VenueName: 200, bybit.VenueName: 200}
@@ -671,14 +671,14 @@ func TestUnifiedRotationRunner_RunOnceWritesCandidates(t *testing.T) {
 		scanner:     &CrossVenueScanner{lastSnapshot: snap},
 		fetchDeps: unifiedMarketPipelineFetchDeps{
 			fetchMarkets: func(context.Context, map[string]venue.Venue, []string) map[string]map[string]CrossVenueSpotPerpMarketSnap {
-				return map[string]map[string]CrossVenueSpotPerpMarketSnap{
+				return scannerTestInstrumentMetaMarkets(map[string]map[string]CrossVenueSpotPerpMarketSnap{
 					bybit.VenueName: {
 						"BTC-USDT": {SpotMid: 100000, PerpMid: 100050, SpotDepthUSDT: 5000, PerpDepthUSDT: 5000, HasSpot: true, HasPerp: true},
 					},
 					binance.VenueName: {
 						"BTC-USDT": {SpotMid: 100010, PerpMid: 100080, SpotDepthUSDT: 5000, PerpDepthUSDT: 5000, HasSpot: true, HasPerp: true},
 					},
-				}
+				})
 			},
 			fetchAvailableUSDT: func(context.Context, map[string]venue.Venue, []string) map[string]float64 {
 				return map[string]float64{binance.VenueName: 200, bybit.VenueName: 200}
@@ -1332,6 +1332,7 @@ func TestRotationWalletBalancesFromAvailableSplitsSpotPerp(t *testing.T) {
 		held,
 		execCfg,
 		map[string]venue.Venue{binance.VenueName: &fakeFundingVenue{name: binance.VenueName}},
+		nil,
 	)
 	w := balances[binance.VenueName]
 	if w[WalletKindSpot] <= 0 {
@@ -1359,6 +1360,7 @@ func TestRotationWalletBalancesFromAvailableUnifiedVenueSinglePool(t *testing.T)
 		held,
 		execCfg,
 		map[string]venue.Venue{bybit.VenueName: &fakeFundingVenue{name: bybit.VenueName}},
+		nil,
 	)
 	w := balances[bybit.VenueName]
 	if w[WalletKindSpot] <= 0 {

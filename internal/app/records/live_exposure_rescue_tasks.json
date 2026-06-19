@@ -1,7 +1,7 @@
 {
-  "schema_version": 1,
-  "checksum": "8ca54a71f4be059452e3a0b13efc5dfa6b736af507158ed1e2edbc3d0e6e9873",
-  "updated_at": "2026-06-19T03:36:16Z",
+  "schema_version": 2,
+  "checksum": "cdbd58fff35da4f3c7cb3e6aa0c3a9701d4476ef0590e9d8793426a22d23a2c1",
+  "updated_at": "2026-06-19T05:41:49Z",
   "tasks": [
     {
       "Mode": "open",
@@ -13,7 +13,7 @@
       "SpotBasePrecision": 3,
       "SpotReferencePrice": 100,
       "InitialHedgeQty": 0,
-      "SpotClientOrderID": "sopen-btcusdt-171730575478",
+      "SpotClientOrderID": "sopen-btcusdt-704689777340",
       "FuturesClientOrderID": "fopen-test",
       "KnownSpotExecutedQty": 0,
       "KnownFuturesExecutedQty": 1,

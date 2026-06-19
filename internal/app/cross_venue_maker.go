@@ -73,6 +73,8 @@ func (e *CrossVenueExecutor) placeCrossVenueLegExec(
 	allowTakerFallback bool,
 	takerSlippageBps float64,
 	deadline time.Time,
+	instr venue.Instrument,
+	contractBased bool,
 ) (venue.OrderResult, error) {
 	cfg := e.cfg.CrossVenueExecutor
 	if !cfg.MakerFirst || !live {
@@ -81,7 +83,7 @@ func (e *CrossVenueExecutor) placeCrossVenueLegExec(
 			return venue.OrderResult{}, err
 		}
 		price := iocLimitPrice(side, book, takerSlippageBps)
-		return e.placeCrossVenueIOC(ctx, tr, sym, side, qty, price, clientID, reduceOnly, live)
+		return e.placeCrossVenueIOC(ctx, tr, sym, side, qty, price, clientID, reduceOnly, live, instr, contractBased)
 	}
 
 	rounds, interval, _, takerBuf := crossVenueMakerChaseParams(cfg)
@@ -110,6 +112,7 @@ func (e *CrossVenueExecutor) placeCrossVenueLegExec(
 			break
 		}
 		price := makerPassivePrice(side, book)
+		price, remaining = quantizeOrderPriceQty(price, remaining, side, instr, contractBased, e.logger, string(sym))
 		makerID := crossVenueLegClientID(clientID, fmt.Sprintf("m%d", attempt))
 		if placed, perr := tr.PlaceOrder(ctx, venue.OrderRequest{
 			Market:        venue.MarketPerp,
@@ -192,8 +195,9 @@ func (e *CrossVenueExecutor) placeCrossVenueLegExec(
 		return venue.OrderResult{}, err
 	}
 	takerPrice := iocLimitPrice(side, book, takerSlippageBps)
+	takerPrice, remaining = quantizeOrderPriceQty(takerPrice, remaining, side, instr, contractBased, e.logger, string(sym))
 	takerID := crossVenueLegClientID(clientID, "tk")
-	takerRes, terr := e.placeCrossVenueIOC(ctx, tr, sym, side, remaining, takerPrice, takerID, reduceOnly, live)
+	takerRes, terr := e.placeCrossVenueIOC(ctx, tr, sym, side, remaining, takerPrice, takerID, reduceOnly, live, instr, contractBased)
 	if terr != nil {
 		if acc.ExecutedQty > executionQtyTolerance {
 			return acc, fmt.Errorf("maker 部分成交 %.6f 后 taker 兜底失败: %w", acc.ExecutedQty, terr)

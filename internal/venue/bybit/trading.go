@@ -3,11 +3,13 @@ package bybit
 import (
 	"context"
 	"fmt"
+	"log"
 	"net/url"
 	"strconv"
 	"strings"
 	"time"
 
+	"lingxi/internal/execution"
 	"lingxi/internal/venue"
 )
 
@@ -73,7 +75,7 @@ type bybitCreateOrderBody struct {
 }
 
 // buildCreateBody 把中性 OrderRequest 翻译成 Bybit 下单体(纯函数,便于单测)。
-func (a *Adapter) buildCreateBody(req venue.OrderRequest) (bybitCreateOrderBody, error) {
+func (a *Adapter) buildCreateBody(ctx context.Context, req venue.OrderRequest) (bybitCreateOrderBody, error) {
 	raw, err := a.ToVenue(req.Symbol, req.Market)
 	if err != nil {
 		return bybitCreateOrderBody{}, err
@@ -85,21 +87,45 @@ func (a *Adapter) buildCreateBody(req venue.OrderRequest) (bybitCreateOrderBody,
 		return bybitCreateOrderBody{}, fmt.Errorf("bybit: 下单数量必须为正, got %v", req.Qty)
 	}
 	orderType, tif := bybitOrderTypeTIF(req.Type)
+	qty := req.Qty
+	price := req.Price
+	instr, hasInstr := a.lookupInstrumentOptional(ctx, req.Market, req.Symbol)
+	if hasInstr && instr.StepSize > 0 {
+		qty = execution.FloorToStep(qty, instr.StepSize)
+		if qty <= 0 {
+			return bybitCreateOrderBody{}, fmt.Errorf("bybit: 数量经 step=%v 取整后为 0", instr.StepSize)
+		}
+	} else if ctx != nil {
+		log.Printf("[bybit] WARN instrument cache miss symbol=%s market=%s,数量未量化", req.Symbol, req.Market)
+	}
+	qtyStr := fmtNum(qty)
+	if hasInstr && instr.StepSize > 0 {
+		qtyStr = formatBybitQty(qty, instr.StepSize)
+	}
 	body := bybitCreateOrderBody{
 		Category:    bybitCategory(req.Market),
 		Symbol:      raw,
 		Side:        bybitSide(req.Side),
 		OrderType:   orderType,
-		Qty:         fmtNum(req.Qty),
+		Qty:         qtyStr,
 		TimeInForce: tif,
 		OrderLinkID: req.ClientOrderID,
 		ReduceOnly:  req.ReduceOnly,
 	}
 	if orderType == "Limit" {
-		if req.Price <= 0 {
-			return bybitCreateOrderBody{}, fmt.Errorf("bybit: 限价/IOC 单需正价格, got %v", req.Price)
+		if price <= 0 {
+			return bybitCreateOrderBody{}, fmt.Errorf("bybit: 限价/IOC 单需正价格, got %v", price)
 		}
-		body.Price = fmtNum(req.Price)
+		if hasInstr && instr.TickSize > 0 {
+			price = quantizePriceForSide(price, instr.TickSize, req.Side)
+			body.Price = formatBybitPrice(price, instr.TickSize)
+		} else if hasInstr {
+			log.Printf("[bybit] WARN 缺 tickSize symbol=%s market=%s price=%v 未量化", req.Symbol, req.Market, price)
+			body.Price = fmtNum(price)
+		} else {
+			log.Printf("[bybit] WARN instrument cache miss symbol=%s market=%s price=%v 未量化", req.Symbol, req.Market, price)
+			body.Price = fmtNum(price)
+		}
 	}
 	// 现货市价单按币数量计:显式 marketUnit=baseCoin,与中性 Qty(币数量)对齐。
 	if req.Market == venue.MarketSpot && orderType == "Market" {
@@ -120,7 +146,7 @@ type bybitOrderAck struct {
 
 // PlaceOrder 下单(签名 POST)。返回受理回执:Status=new + 交易所/客户端单号;成交明细由 QueryOrder 拉取。
 func (a *Adapter) PlaceOrder(ctx context.Context, req venue.OrderRequest) (venue.OrderResult, error) {
-	body, err := a.buildCreateBody(req)
+	body, err := a.buildCreateBody(ctx, req)
 	if err != nil {
 		return venue.OrderResult{}, err
 	}
@@ -149,7 +175,7 @@ func (a *Adapter) PlaceBatch(ctx context.Context, reqs []venue.OrderRequest) ([]
 		if bybitCategory(r.Market) != category {
 			return nil, fmt.Errorf("bybit: 批量下单要求同 category(混合 spot/linear 不支持)")
 		}
-		b, err := a.buildCreateBody(r)
+		b, err := a.buildCreateBody(ctx, r)
 		if err != nil {
 			return nil, err
 		}

@@ -39,7 +39,7 @@ func testSingleVenueSpotPerpScanInput(now time.Time) SingleVenueSpotPerpScanInpu
 				},
 			},
 		},
-		MarketsByVenue: map[string]map[string]SingleVenueSpotPerpMarketSnap{
+		MarketsByVenue: scannerTestInstrumentMetaMarkets(map[string]map[string]SingleVenueSpotPerpMarketSnap{
 			bybit.VenueName: {
 				"BTC-USDT": {
 					SpotMid:       100000,
@@ -58,7 +58,7 @@ func testSingleVenueSpotPerpScanInput(now time.Time) SingleVenueSpotPerpScanInpu
 					HasPerp:       true,
 				},
 			},
-		},
+		}),
 		AvailableUSDTByVenue: map[string]float64{
 			bybit.VenueName: 500,
 		},
@@ -165,14 +165,14 @@ func TestScanSingleVenueSpotPerpRecordsNegativeFundingReject(t *testing.T) {
 func TestScanSingleVenueSpotPerpRecordsNoSpotMarketReject(t *testing.T) {
 	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
 	in := testSingleVenueSpotPerpScanInput(now)
-	in.MarketsByVenue[bybit.VenueName]["BTC-USDT"] = SingleVenueSpotPerpMarketSnap{
+	in.MarketsByVenue[bybit.VenueName]["BTC-USDT"] = scannerTestInstrumentMeta(SingleVenueSpotPerpMarketSnap{
 		SpotMid:       0,
 		PerpMid:       100050,
 		SpotDepthUSDT: 5000,
 		PerpDepthUSDT: 5000,
 		HasSpot:       false,
 		HasPerp:       true,
-	}
+	})
 	opps := ScanSingleVenueSpotPerpOpportunities(in)
 	btc := findSingleVenueSpotPerpOpp(opps, "BTC-USDT")
 	if btc == nil {
@@ -186,14 +186,14 @@ func TestScanSingleVenueSpotPerpRecordsNoSpotMarketReject(t *testing.T) {
 func TestScanSingleVenueSpotPerpExcludesMidDeviationTooLarge(t *testing.T) {
 	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
 	in := testSingleVenueSpotPerpScanInput(now)
-	in.MarketsByVenue[bybit.VenueName]["BTC-USDT"] = SingleVenueSpotPerpMarketSnap{
+	in.MarketsByVenue[bybit.VenueName]["BTC-USDT"] = scannerTestInstrumentMeta(SingleVenueSpotPerpMarketSnap{
 		SpotMid:       100000,
 		PerpMid:       105000,
 		SpotDepthUSDT: 5000,
 		PerpDepthUSDT: 5000,
 		HasSpot:       true,
 		HasPerp:       true,
-	}
+	})
 	opps := ScanSingleVenueSpotPerpOpportunities(in)
 	if findSingleVenueSpotPerpOpp(opps, "BTC-USDT") != nil {
 		t.Fatal("expected no opportunity for large mid deviation")
@@ -203,14 +203,14 @@ func TestScanSingleVenueSpotPerpExcludesMidDeviationTooLarge(t *testing.T) {
 func TestScanSingleVenueSpotPerpRecordsInsufficientDepthReject(t *testing.T) {
 	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
 	in := testSingleVenueSpotPerpScanInput(now)
-	in.MarketsByVenue[bybit.VenueName]["BTC-USDT"] = SingleVenueSpotPerpMarketSnap{
+	in.MarketsByVenue[bybit.VenueName]["BTC-USDT"] = scannerTestInstrumentMeta(SingleVenueSpotPerpMarketSnap{
 		SpotMid:       100000,
 		PerpMid:       100050,
 		SpotDepthUSDT: 10,
 		PerpDepthUSDT: 5000,
 		HasSpot:       true,
 		HasPerp:       true,
-	}
+	})
 	opps := ScanSingleVenueSpotPerpOpportunities(in)
 	btc := findSingleVenueSpotPerpOpp(opps, "BTC-USDT")
 	if btc == nil {
@@ -279,14 +279,14 @@ func TestSingleVenueSpotPerpPerpWalletLiquidated(t *testing.T) {
 func TestScanSingleVenueSpotPerpBasisAndNetEV(t *testing.T) {
 	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
 	in := testSingleVenueSpotPerpScanInput(now)
-	in.MarketsByVenue[bybit.VenueName]["BTC-USDT"] = SingleVenueSpotPerpMarketSnap{
+	in.MarketsByVenue[bybit.VenueName]["BTC-USDT"] = scannerTestInstrumentMeta(SingleVenueSpotPerpMarketSnap{
 		SpotMid:       100000,
 		PerpMid:       100200,
 		SpotDepthUSDT: 5000,
 		PerpDepthUSDT: 5000,
 		HasSpot:       true,
 		HasPerp:       true,
-	}
+	})
 	opps := ScanSingleVenueSpotPerpOpportunities(in)
 	btc := findSingleVenueSpotPerpOpp(opps, "BTC-USDT")
 	if btc == nil {

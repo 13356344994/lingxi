@@ -37,6 +37,7 @@ type rotationHeldRecord struct {
 type rotationExecutorBinding struct {
 	strategyType    string
 	openFn          func(ctx context.Context, opp UnifiedOpportunity, live bool) error
+	openBlockedFn   func(symbol string) bool
 	closeVerifiedFn func(ctx context.Context, opportunityID, symbol, reason string) error
 	realHeldCountFn func(ctx context.Context) int
 	heldFn          func() []rotationHeldRecord
@@ -605,7 +606,7 @@ func (r *UnifiedRotationRunner) runOnceDecisionAndDispatch(
 	candidatesByID := indexUnifiedOpportunitiesByID(candidates)
 	toFund := rotationOpportunitiesToFund(plan, candidatesByID)
 	if len(toFund) > 0 {
-		balances := rotationWalletBalancesFromAvailable(available, held, r.execCfg, r.venues)
+		balances := rotationWalletBalancesFromAvailable(available, held, r.execCfg, r.venues, nil)
 		routerCfg := CapitalRouterConfigWithVenues(r.capitalRouterCfg, r.venues)
 		routingPlan := PlanCapitalRouting(toFund, balances, routerCfg)
 		r.storeLastCapitalSnapshotContext(toFund, routingPlan)
@@ -689,7 +690,20 @@ func (r *UnifiedRotationRunner) decideRotation(
 		current, _, _ := computeRealEquityWaterMark(r.recordDir)
 		equityUSDT = current
 	}
-	return DecideRotation(held, heldInputs, candidates, available, r.rotationCfg, equityUSDT)
+	return DecideRotationWithBlocked(held, heldInputs, candidates, available, r.rotationCfg, r.rotationOpenBlockedPredicate(), equityUSDT)
+}
+
+func (r *UnifiedRotationRunner) rotationOpenBlockedPredicate() RotationOpenBlocked {
+	if r == nil {
+		return nil
+	}
+	return func(strategyType, symbol string) bool {
+		b := r.bindingForStrategy(strategyType)
+		if b == nil || b.openBlockedFn == nil {
+			return false
+		}
+		return b.openBlockedFn(symbol)
+	}
 }
 
 // rotationScanFilterSymbols 从 funding 快照中筛出 max|rate/h| 达标的 symbol, 按 per-hour 降序取前 rotationScanMaxSymbols 个。
@@ -1095,6 +1109,9 @@ func bindCrossVenueSpotPerpRotationExecutor(e *CrossVenueSpotPerpExecutor) *rota
 	}
 	return &rotationExecutorBinding{
 		strategyType: UnifiedStrategyCrossVenueSpotPerp,
+		openBlockedFn: func(symbol string) bool {
+			return e.OpenBlockedForSymbol(symbol)
+		},
 		openFn: func(ctx context.Context, opp UnifiedOpportunity, live bool) error {
 			_, err := e.executeOpen(ctx, opp, live)
 			return err
@@ -1143,6 +1160,9 @@ func bindCrossVenuePerpSpotRotationExecutor(e *CrossVenuePerpSpotExecutor) *rota
 	}
 	return &rotationExecutorBinding{
 		strategyType: UnifiedStrategyCrossVenuePerpSpot,
+		openBlockedFn: func(symbol string) bool {
+			return e.OpenBlockedForSymbol(symbol)
+		},
 		openFn: func(ctx context.Context, opp UnifiedOpportunity, live bool) error {
 			_, err := e.executeOpen(ctx, opp, live)
 			return err
@@ -1167,6 +1187,9 @@ func bindCrossVenuePerpPerpRotationExecutor(e *CrossVenueExecutor) *rotationExec
 	}
 	return &rotationExecutorBinding{
 		strategyType: UnifiedStrategyPerpPerp,
+		openBlockedFn: func(symbol string) bool {
+			return e.OpenBlockedForSymbol(symbol)
+		},
 		openFn: func(ctx context.Context, opp UnifiedOpportunity, live bool) error {
 			_, err := e.executeOpen(ctx, opp, live)
 			return err
@@ -1565,7 +1588,7 @@ func rotationAssignCrossVenueWalletSplit(out map[string]venueWalletRequirements,
 	out[perpVenue.venue] = perpReq
 }
 
-func rotationWalletBalancesFromAvailable(fetched map[string]float64, held []HeldPosition, execCfg CrossVenueExecutorConfig, venues map[string]venue.Venue) VenueWalletBalances {
+func rotationWalletBalancesFromAvailable(fetched map[string]float64, held []HeldPosition, execCfg CrossVenueExecutorConfig, venues map[string]venue.Venue, pending []UnifiedOpportunity) VenueWalletBalances {
 	unified := UnifiedWalletVenuesFromVenues(venues)
 	totals := cloneVenueCapitalMap(fetched)
 	for _, pos := range held {
@@ -1575,6 +1598,17 @@ func rotationWalletBalancesFromAvailable(fetched map[string]float64, held []Held
 	walletNeed := map[string]venueWalletRequirements{}
 	for _, pos := range held {
 		for venue, wallets := range rotationHeldWalletRequirements(pos, execCfg) {
+			if walletNeed[venue] == nil {
+				walletNeed[venue] = venueWalletRequirements{}
+			}
+			for w, amt := range wallets {
+				addWalletRequirement(walletNeed[venue], w, amt)
+			}
+		}
+	}
+	for _, opp := range pending {
+		reqByVenue := aggregateOpportunityRequirements(opp, DefaultCapitalRouterConfig())
+		for venue, wallets := range reqByVenue {
 			if walletNeed[venue] == nil {
 				walletNeed[venue] = venueWalletRequirements{}
 			}

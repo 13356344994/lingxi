@@ -41,7 +41,7 @@ func testCrossVenuePerpSpotScanInput(now time.Time) CrossVenuePerpSpotScanInput 
 				},
 			},
 		},
-		MarketsByVenue: map[string]map[string]CrossVenuePerpSpotMarketSnap{
+		MarketsByVenue: scannerTestInstrumentMetaMarkets(map[string]map[string]CrossVenuePerpSpotMarketSnap{
 			binance.VenueName: {
 				"BTC-USDT": {
 					SpotMid:       100000,
@@ -72,7 +72,7 @@ func testCrossVenuePerpSpotScanInput(now time.Time) CrossVenuePerpSpotScanInput 
 					HasPerp:       true,
 				},
 			},
-		},
+		}),
 		AvailableUSDTByVenue: map[string]float64{
 			binance.VenueName: 200,
 			bybit.VenueName:   200,
@@ -195,14 +195,14 @@ func TestScanCrossVenuePerpSpotRecordsNotBorrowableReject(t *testing.T) {
 func TestScanCrossVenuePerpSpotExcludesMidDeviationTooLarge(t *testing.T) {
 	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
 	in := testCrossVenuePerpSpotScanInput(now)
-	in.MarketsByVenue[bybit.VenueName]["BTC-USDT"] = CrossVenuePerpSpotMarketSnap{
+	in.MarketsByVenue[bybit.VenueName]["BTC-USDT"] = scannerTestInstrumentMeta(CrossVenuePerpSpotMarketSnap{
 		SpotMid:       100000,
 		PerpMid:       105000,
 		SpotDepthUSDT: 5000,
 		PerpDepthUSDT: 5000,
 		HasSpot:       true,
 		HasPerp:       true,
-	}
+	})
 	opps := ScanCrossVenuePerpSpotOpportunities(in)
 	for _, opp := range opps {
 		if opp.Legs[1].Venue == binance.VenueName {
@@ -214,14 +214,14 @@ func TestScanCrossVenuePerpSpotExcludesMidDeviationTooLarge(t *testing.T) {
 func TestScanCrossVenuePerpSpotExcludesInsufficientDepth(t *testing.T) {
 	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
 	in := testCrossVenuePerpSpotScanInput(now)
-	in.MarketsByVenue[binance.VenueName]["BTC-USDT"] = CrossVenuePerpSpotMarketSnap{
+	in.MarketsByVenue[binance.VenueName]["BTC-USDT"] = scannerTestInstrumentMeta(CrossVenuePerpSpotMarketSnap{
 		SpotMid:       100000,
 		PerpMid:       100050,
 		SpotDepthUSDT: 10,
 		PerpDepthUSDT: 5000,
 		HasSpot:       true,
 		HasPerp:       true,
-	}
+	})
 	opps := ScanCrossVenuePerpSpotOpportunities(in)
 	for _, opp := range opps {
 		if len(opp.Legs) >= 2 && opp.Legs[1].Venue == binance.VenueName {
@@ -257,22 +257,22 @@ func TestScanCrossVenuePerpSpotExcludesMarginStressLiquidation(t *testing.T) {
 func TestScanCrossVenuePerpSpotBasisAndNetEV(t *testing.T) {
 	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
 	in := testCrossVenuePerpSpotScanInput(now)
-	in.MarketsByVenue[binance.VenueName]["BTC-USDT"] = CrossVenuePerpSpotMarketSnap{
+	in.MarketsByVenue[binance.VenueName]["BTC-USDT"] = scannerTestInstrumentMeta(CrossVenuePerpSpotMarketSnap{
 		SpotMid:       100000,
 		PerpMid:       100050,
 		SpotDepthUSDT: 5000,
 		PerpDepthUSDT: 5000,
 		HasSpot:       true,
 		HasPerp:       true,
-	}
-	in.MarketsByVenue[bybit.VenueName]["BTC-USDT"] = CrossVenuePerpSpotMarketSnap{
+	})
+	in.MarketsByVenue[bybit.VenueName]["BTC-USDT"] = scannerTestInstrumentMeta(CrossVenuePerpSpotMarketSnap{
 		SpotMid:       100010,
 		PerpMid:       100200,
 		SpotDepthUSDT: 5000,
 		PerpDepthUSDT: 5000,
 		HasSpot:       true,
 		HasPerp:       true,
-	}
+	})
 	opps := ScanCrossVenuePerpSpotOpportunities(in)
 	if len(opps) == 0 {
 		t.Fatal("expected opportunities")

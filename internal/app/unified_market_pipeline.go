@@ -127,6 +127,7 @@ func unifiedMarketFetchVenueMarkets(ctx context.Context, v venue.Venue, symbols 
 	if len(symbols) == 0 {
 		return nil
 	}
+	instrBySymMarket := unifiedMarketIndexInstruments(ctx, v)
 	workers := unifiedMarketFetchConcurrency
 	if workers <= 0 {
 		workers = 1
@@ -150,6 +151,7 @@ func unifiedMarketFetchVenueMarkets(ctx context.Context, v venue.Venue, symbols 
 				if !ok {
 					continue
 				}
+				unifiedMarketApplyInstrumentMeta(&mkt, sym, instrBySymMarket)
 				bySymMu.Lock()
 				bySym[sym] = mkt
 				bySymMu.Unlock()
@@ -168,6 +170,49 @@ func unifiedMarketFetchVenueMarkets(ctx context.Context, v venue.Venue, symbols 
 	}()
 	wg.Wait()
 	return bySym
+}
+
+func unifiedMarketCanonicalSymbol(sym string) string {
+	return strings.ToUpper(strings.TrimSpace(sym))
+}
+
+func unifiedMarketIndexInstruments(ctx context.Context, v venue.Venue) map[string]map[venue.Market]venue.Instrument {
+	out := make(map[string]map[venue.Market]venue.Instrument)
+	if v == nil {
+		return out
+	}
+	instrs, err := v.FetchInstruments(ctx)
+	if err != nil {
+		return out
+	}
+	for _, in := range instrs {
+		sym := unifiedMarketCanonicalSymbol(string(in.Symbol))
+		if out[sym] == nil {
+			out[sym] = make(map[venue.Market]venue.Instrument)
+		}
+		out[sym][in.Market] = in
+	}
+	return out
+}
+
+func unifiedMarketApplyInstrumentMeta(mkt *CrossVenueSpotPerpMarketSnap, sym string, instrBySymMarket map[string]map[venue.Market]venue.Instrument) {
+	if mkt == nil {
+		return
+	}
+	byMkt := instrBySymMarket[unifiedMarketCanonicalSymbol(sym)]
+	if len(byMkt) == 0 {
+		return
+	}
+	if spot, ok := byMkt[venue.MarketSpot]; ok {
+		mkt.SpotTickSize = spot.TickSize
+		mkt.SpotStepSize = spot.StepSize
+		mkt.SpotMinNotional = spot.MinNotional
+	}
+	if perp, ok := byMkt[venue.MarketPerp]; ok {
+		mkt.PerpTickSize = perp.TickSize
+		mkt.PerpStepSize = perp.StepSize
+		mkt.PerpMinNotional = perp.MinNotional
+	}
 }
 
 // unifiedMarketDepthFetchSymbols 从粗筛 symbol 列表截取二次拉深度子集(限流)。

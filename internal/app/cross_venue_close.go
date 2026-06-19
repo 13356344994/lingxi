@@ -120,6 +120,8 @@ func (e *CrossVenueExecutor) placeCrossVenueCloseLeg(
 	closeAttempts int,
 	baseBps float64,
 	deadline time.Time,
+	instr venue.Instrument,
+	contractBased bool,
 ) (venue.OrderResult, venue.BookTicker, error) {
 	book, err := tr.FetchBookTicker(ctx, venue.MarketPerp, sym)
 	if err != nil {
@@ -130,10 +132,10 @@ func (e *CrossVenueExecutor) placeCrossVenueCloseLeg(
 	limitPrice, pierce := crossVenueCloseIocLimitPrice(side, book, baseBps, closeAttempts, closeMaxBps)
 	if closeAttempts == 1 && cfg.MakerFirst && live && !pierce {
 		slipBps := crossVenueCloseSlippageBps(baseBps, closeAttempts, closeMaxBps)
-		res, err := e.placeCrossVenueLegExec(ctx, tr, sym, side, qty, clientID, true, live, true, slipBps, deadline)
+		res, err := e.placeCrossVenueLegExec(ctx, tr, sym, side, qty, clientID, true, live, true, slipBps, deadline, instr, contractBased)
 		return res, book, err
 	}
-	res, err := e.placeCrossVenueIOC(ctx, tr, sym, side, qty, limitPrice, clientID, true, live)
+	res, err := e.placeCrossVenueIOC(ctx, tr, sym, side, qty, limitPrice, clientID, true, live, instr, contractBased)
 	return res, book, err
 }
 

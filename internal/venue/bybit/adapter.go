@@ -8,6 +8,7 @@ package bybit
 import (
 	"context"
 	"strings"
+	"sync"
 	"time"
 
 	"lingxi/internal/venue"
@@ -19,6 +20,12 @@ const VenueName = "bybit"
 // Adapter 实现 venue.Venue,内核是自包含的 Bybit v5 REST transport。
 type Adapter struct {
 	t *transport
+
+	instMu              sync.RWMutex
+	instCache           map[string]instCacheEntry
+	instCategoryAt      map[string]time.Time
+	instRefreshInFlight map[string]bool
+	nowFn               func() time.Time // 测试注入;nil 时用 time.Now
 }
 
 // 编译期断言:Adapter 满足完整 venue.Venue 接口。

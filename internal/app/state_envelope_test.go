@@ -87,12 +87,37 @@ func TestStateEnvelopeVersionAhead(t *testing.T) {
 	}
 }
 
+// TestStateEnvelopeSchemaOlder 钉死良性 schema 演进:文件版本低于本进程(旧版本写出),
+// 即便新序列化下 checksum 不一致,也应分级为 schema_older 并允许自动接管(不误判为损坏)。
+func TestStateEnvelopeSchemaOlder(t *testing.T) {
+	if liveStateSchemaVersion < 2 {
+		t.Skip("需要 liveStateSchemaVersion >= 2 才能构造更旧版本")
+	}
+	state := &persistedDailyRiskState{TradingDay: "2026-06-05", RealizedPnL: -1.25}
+	if err := stampStateEnvelope(state); err != nil {
+		t.Fatalf("stamp failed: %v", err)
+	}
+	// 模拟旧版本写出的文件:版本号更低,且内容(checksum)按旧序列化口径——这里直接降版本号即可触发不一致。
+	state.SchemaVersion = liveStateSchemaVersion - 1
+	status, err := classifyStateEnvelope(state)
+	if err != nil {
+		t.Fatalf("classify failed: %v", err)
+	}
+	if status != stateEnvelopeSchemaOlder {
+		t.Fatalf("older-version file should classify schema_older, got %s", status)
+	}
+	if err := guardStateEnvelope("日级风控状态", state); err != nil {
+		t.Fatalf("schema_older state should pass guard (benign evolution), got %v", err)
+	}
+}
+
 func TestStateEnvelopeAutoRecoverable(t *testing.T) {
 	cases := map[stateEnvelopeStatus]bool{
 		stateEnvelopeLegacy:           true,
 		stateEnvelopeOK:               true,
 		stateEnvelopeChecksumMismatch: false,
 		stateEnvelopeVersionAhead:     false,
+		stateEnvelopeSchemaOlder:      true,
 	}
 	for status, want := range cases {
 		if got := stateEnvelopeAutoRecoverable(status); got != want {

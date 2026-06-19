@@ -297,9 +297,9 @@ func TestUnifiedRotationRunner_ScanCandidatesLiquidityAdaptiveDepth(t *testing.T
 					bySym := make(map[string]CrossVenueSpotPerpMarketSnap)
 					for _, sym := range symbols {
 						if _, err := v.FetchBookTicker(context.Background(), venue.MarketSpot, venue.Symbol(sym)); err == nil {
-							bySym[sym] = CrossVenueSpotPerpMarketSnap{
+							bySym[sym] = scannerTestInstrumentMeta(CrossVenueSpotPerpMarketSnap{
 								SpotMid: 100000, PerpMid: 100050, HasSpot: true, HasPerp: true,
-							}
+							})
 						}
 					}
 					out[venueName] = bySym
@@ -342,5 +342,25 @@ func TestUnifiedRotationRunner_ScanCandidatesLiquidityAdaptiveDepth(t *testing.T
 	}
 	if len(cvsp.Legs) == 0 || cvsp.Legs[0].Notional >= 50 {
 		t.Fatalf("thin book carry notional=%.2f want <50", cvsp.Legs[0].Notional)
+	}
+}
+
+func TestUnifiedMarketApplyInstrumentMetaCanonicalKey(t *testing.T) {
+	instrBySym := map[string]map[venue.Market]venue.Instrument{
+		"BEL-USDT": {
+			venue.MarketSpot: {TickSize: 0.0001, StepSize: 0.01, MinNotional: 5},
+			venue.MarketPerp: {TickSize: 0.0001, StepSize: 0.1, MinNotional: 5},
+		},
+	}
+	mkt := CrossVenueSpotPerpMarketSnap{}
+	unifiedMarketApplyInstrumentMeta(&mkt, "bel-usdt", instrBySym)
+	if mkt.SpotTickSize != 0.0001 {
+		t.Fatalf("SpotTickSize = %v, want 0.0001", mkt.SpotTickSize)
+	}
+	if mkt.SpotStepSize != 0.01 {
+		t.Fatalf("SpotStepSize = %v, want 0.01", mkt.SpotStepSize)
+	}
+	if mkt.PerpTickSize != 0.0001 {
+		t.Fatalf("PerpTickSize = %v, want 0.0001", mkt.PerpTickSize)
 	}
 }

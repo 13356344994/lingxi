@@ -17,8 +17,14 @@ import (
 // 向后兼容:旧文件没有这两个字段,反序列化得到零值(version=0、checksum="")即判为 legacy,按既有行为放行,
 // 不改变当前任何控制流(零行为变更)。
 
-// liveStateSchemaVersion 是 live 台账的当前 schema 版本。结构发生不兼容变更时递增。
-const liveStateSchemaVersion = 1
+// liveStateSchemaVersion 是 live 台账的当前 schema 版本。结构发生(影响序列化的)字段变更时递增。
+//
+// v1 → v2:为统一轮动/路线B 给持仓结构新增字段(opportunity_id / expected_hold_hours /
+// next_funding_time / last_funding_sync_at 等)。这类「加字段」改动会改变整体 JSON 序列化字节,
+// 使旧版本写出的文件在新序列化下 checksum 必然不一致——历史上这会被误判为 checksum_mismatch 而拒绝接管,
+// 导致每次带结构变更的部署都会 brick 掉旧台账。现通过 schema_version 升级 + 「旧版本良性演进」分级解决
+// (见 classifyStateEnvelope:version < 当前 视同 legacy 信任并在下次落盘 re-stamp)。
+const liveStateSchemaVersion = 2
 
 // checksummableState 是带信封头(版本 + 校验和)的可落盘台账。
 type checksummableState interface {
@@ -65,6 +71,9 @@ const (
 	stateEnvelopeChecksumMismatch
 	// stateEnvelopeVersionAhead 文件版本高于本进程支持(疑似被新版本写过,降级运行不应自动接管)。
 	stateEnvelopeVersionAhead
+	// stateEnvelopeSchemaOlder 文件版本低于本进程支持(旧版本写出的良性演进:本进程结构已新增/调整字段,
+	// 旧内容在新序列化下 checksum 必然不一致)。与 legacy 同等信任,可自动接管,接管后在下次落盘 re-stamp 升级。
+	stateEnvelopeSchemaOlder
 )
 
 func (s stateEnvelopeStatus) String() string {
@@ -77,6 +86,8 @@ func (s stateEnvelopeStatus) String() string {
 		return "checksum_mismatch"
 	case stateEnvelopeVersionAhead:
 		return "version_ahead"
+	case stateEnvelopeSchemaOlder:
+		return "schema_older"
 	default:
 		return "unknown"
 	}
@@ -92,6 +103,12 @@ func classifyStateEnvelope(s checksummableState) (stateEnvelopeStatus, error) {
 	if version > liveStateSchemaVersion {
 		return stateEnvelopeVersionAhead, nil
 	}
+	// 文件 schema 版本低于本进程:旧版本写出的良性演进。本进程结构相对旧版本已新增/调整字段,
+	// 旧内容在新序列化下 checksum 必然不一致——不据此判损坏,与 legacy(version=0)同等信任接管,
+	// 接管后在下次落盘 re-stamp 升级到当前版本。corruption 检测仍对「同版本 checksum 不符」保留。
+	if version > 0 && version < liveStateSchemaVersion {
+		return stateEnvelopeSchemaOlder, nil
+	}
 	expected, err := computeStateChecksum(s)
 	if err != nil {
 		return stateEnvelopeOK, err
@@ -103,10 +120,11 @@ func classifyStateEnvelope(s checksummableState) (stateEnvelopeStatus, error) {
 }
 
 // stateEnvelopeAutoRecoverable 报告某分级是否允许「自动接管」(沿用既有恢复逻辑)。
-// legacy(旧文件)与 ok(版本兼容且校验和匹配)可自动接管;checksum_mismatch(损坏/篡改)与
-// version_ahead(被更新版本写过)不可信,必须人工确认,绝不在不可信状态上自动恢复。
+// legacy(旧文件)、ok(版本兼容且校验和匹配)、schema_older(旧版本写出的良性演进)可自动接管;
+// checksum_mismatch(同版本损坏/篡改)与 version_ahead(被更新版本写过)不可信,必须人工确认,
+// 绝不在不可信状态上自动恢复。
 func stateEnvelopeAutoRecoverable(status stateEnvelopeStatus) bool {
-	return status == stateEnvelopeLegacy || status == stateEnvelopeOK
+	return status == stateEnvelopeLegacy || status == stateEnvelopeOK || status == stateEnvelopeSchemaOlder
 }
 
 // guardStateEnvelope 是恢复契约(M-S1.2)的统一闸:对已反序列化的台账信封做完整性/版本分级,

@@ -42,7 +42,7 @@ func TestBuildCreateBodyMappings(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			b, err := a.buildCreateBody(c.req)
+			b, err := a.buildCreateBody(context.Background(), c.req)
 			if err != nil {
 				t.Fatalf("buildCreateBody: %v", err)
 			}
@@ -56,10 +56,10 @@ func TestBuildCreateBodyMappings(t *testing.T) {
 
 func TestBuildCreateBodyRejectsBadInput(t *testing.T) {
 	a := &Adapter{}
-	if _, err := a.buildCreateBody(venue.OrderRequest{Market: venue.MarketPerp, Symbol: "BTC-USDT", Type: venue.OrderTypeMarket, Qty: 0}); err == nil {
+	if _, err := a.buildCreateBody(context.Background(), venue.OrderRequest{Market: venue.MarketPerp, Symbol: "BTC-USDT", Type: venue.OrderTypeMarket, Qty: 0}); err == nil {
 		t.Error("数量为 0 应报错")
 	}
-	if _, err := a.buildCreateBody(venue.OrderRequest{Market: venue.MarketPerp, Symbol: "BTC-USDT", Type: venue.OrderTypeIOC, Qty: 1, Price: 0}); err == nil {
+	if _, err := a.buildCreateBody(context.Background(), venue.OrderRequest{Market: venue.MarketPerp, Symbol: "BTC-USDT", Type: venue.OrderTypeIOC, Qty: 1, Price: 0}); err == nil {
 		t.Error("限价单缺价格应报错")
 	}
 }

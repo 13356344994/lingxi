@@ -45,6 +45,13 @@ type CrossVenueSpotPerpMarketSnap struct {
 	// Volume24hSpotUSDT/Volume24hPerpUSDT 24h 成交额(USDT);无数据时参与率项跳过。
 	Volume24hSpotUSDT float64 `json:"volume_24h_spot_usdt,omitempty"`
 	Volume24hPerpUSDT float64 `json:"volume_24h_perp_usdt,omitempty"`
+	// 扫描期 instruments 元数据(供执行层量化,非热路径拉取)。
+	SpotTickSize    float64 `json:"spot_tick_size,omitempty"`
+	SpotStepSize    float64 `json:"spot_step_size,omitempty"`
+	SpotMinNotional float64 `json:"spot_min_notional,omitempty"`
+	PerpTickSize    float64 `json:"perp_tick_size,omitempty"`
+	PerpStepSize    float64 `json:"perp_step_size,omitempty"`
+	PerpMinNotional float64 `json:"perp_min_notional,omitempty"`
 }
 
 // CrossVenueSpotPerpScannerConfig 跨所 spot-perp 扫描器成本与风控参数(v1 保守默认)。
@@ -106,13 +113,14 @@ func ScanCrossVenueSpotPerpOpportunities(in CrossVenueSpotPerpScanInput) []Unifi
 	}
 
 	out := make([]UnifiedOpportunity, 0)
+	drops := newScannerInstrumentDropLog()
 	for _, sym := range symbols {
 		sym = strings.TrimSpace(sym)
 		if sym == "" {
 			continue
 		}
-		spotVenues := crossVenueSpotPerpSpotBuyVenues(in.MarketsByVenue, sym)
-		perpVenues := crossVenueSpotPerpPositivePerpVenues(in.FundingByVenue, in.MarketsByVenue, sym)
+		spotVenues := crossVenueSpotPerpSpotBuyVenues(in.MarketsByVenue, sym, drops)
+		perpVenues := crossVenueSpotPerpPositivePerpVenues(in.FundingByVenue, in.MarketsByVenue, sym, drops)
 		if len(spotVenues) == 0 || len(perpVenues) == 0 {
 			continue
 		}
@@ -229,11 +237,14 @@ func crossVenueSpotPerpCollectSymbols(funding map[string]map[string]CrossVenueSp
 	return out
 }
 
-func crossVenueSpotPerpSpotBuyVenues(markets map[string]map[string]CrossVenueSpotPerpMarketSnap, sym string) []string {
+func crossVenueSpotPerpSpotBuyVenues(markets map[string]map[string]CrossVenueSpotPerpMarketSnap, sym string, drops *scannerInstrumentDropLog) []string {
 	out := make([]string, 0)
 	for venueName, bySym := range markets {
 		m, ok := bySym[sym]
-		if !ok || !m.HasSpot || m.SpotMid <= 0 {
+		if !ok {
+			continue
+		}
+		if !scannerSpotLegEligible(m, "cvsp", sym, venueName, drops) {
 			continue
 		}
 		out = append(out, venueName)
@@ -251,6 +262,7 @@ func crossVenueSpotPerpPositivePerpVenues(
 	funding map[string]map[string]CrossVenueSpotPerpFundingSnap,
 	markets map[string]map[string]CrossVenueSpotPerpMarketSnap,
 	sym string,
+	drops *scannerInstrumentDropLog,
 ) []crossVenueSpotPerpPerpCandidate {
 	out := make([]crossVenueSpotPerpPerpCandidate, 0)
 	for venueName, bySym := range funding {
@@ -259,7 +271,10 @@ func crossVenueSpotPerpPositivePerpVenues(
 			continue
 		}
 		mkt, ok := markets[venueName][sym]
-		if !ok || !mkt.HasPerp || mkt.PerpMid <= 0 {
+		if !ok {
+			continue
+		}
+		if !scannerPerpLegEligible(mkt, "cvsp", sym, venueName, drops) {
 			continue
 		}
 		out = append(out, crossVenueSpotPerpPerpCandidate{venue: venueName, rate: fund.Rate})
@@ -293,6 +308,9 @@ func buildCrossVenueSpotPerpOpportunity(
 	fund := funding[perpVenue][symbol]
 
 	if !spotMkt.HasSpot || spotMkt.SpotMid <= 0 || !perpMkt.HasPerp || perpMkt.PerpMid <= 0 || fund.Rate <= 0 {
+		return UnifiedOpportunity{}, false
+	}
+	if !scannerBothLegsInstrumentValid(spotMkt, perpMkt) {
 		return UnifiedOpportunity{}, false
 	}
 
@@ -352,6 +370,9 @@ func buildCrossVenueSpotPerpOpportunity(
 	refPrice := (spotMkt.SpotMid + perpMkt.PerpMid) / 2
 	qty := notional / refPrice
 
+	spotLegInstr := legInstrumentFields(spotMkt.SpotTickSize, spotMkt.SpotStepSize, spotMkt.SpotMinNotional)
+	perpLegInstr := legInstrumentFields(perpMkt.PerpTickSize, perpMkt.PerpStepSize, perpMkt.PerpMinNotional)
+
 	dataQuality := crossVenueSpotPerpDataQualityScore(fund)
 	executionScore := crossVenueExecutionScore(slippage, notional)
 	liquidityScore := crossVenueSpotPerpLiquidityScore(spotMkt, perpMkt, notional, holdHours)
@@ -376,8 +397,8 @@ func buildCrossVenueSpotPerpOpportunity(
 		StrategyType: UnifiedStrategyCrossVenueSpotPerp,
 		Symbol:       symbol,
 		Legs: []UnifiedOpportunityLeg{
-			{Venue: spotVenue, Market: "spot", Side: "buy", Qty: qty, Notional: notional},
-			{Venue: perpVenue, Market: "perp", Side: "short", Qty: qty, Notional: notional},
+			{Venue: spotVenue, Market: "spot", Side: "buy", Qty: qty, Notional: notional, TickSize: spotLegInstr.tick, StepSize: spotLegInstr.step, MinNotional: spotLegInstr.minNotional},
+			{Venue: perpVenue, Market: "perp", Side: "short", Qty: qty, Notional: notional, TickSize: perpLegInstr.tick, StepSize: perpLegInstr.step, MinNotional: perpLegInstr.minNotional},
 		},
 		ExpectedFundingUSDT:      expectedFunding,
 		ExpectedOpenCostUSDT:     openCost,

@@ -23,6 +23,7 @@ func TestPlaceCrossVenueLegExecMakerImmediateFill(t *testing.T) {
 	res, err := e.placeCrossVenueLegExec(
 		context.Background(), high, "BTC-USDT", venue.SideSell, 0.5, "dbg-h1", false, true, false,
 		cfg.CrossVenueExecutor.SlippageBudgetBps, time.Now().Add(time.Second),
+		venue.Instrument{TickSize: 0.1, StepSize: 0.001}, false,
 	)
 	if err != nil {
 		t.Fatalf("leg exec: %v", err)

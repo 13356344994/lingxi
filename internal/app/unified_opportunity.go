@@ -15,11 +15,14 @@ const (
 
 // UnifiedOpportunityLeg 是统一机会结构的一条交易腿。
 type UnifiedOpportunityLeg struct {
-	Venue    string  `json:"venue"`
-	Market   string  `json:"market"`
-	Side     string  `json:"side"`
-	Qty      float64 `json:"qty"`
-	Notional float64 `json:"notional"`
+	Venue       string  `json:"venue"`
+	Market      string  `json:"market"`
+	Side        string  `json:"side"`
+	Qty         float64 `json:"qty"`
+	Notional    float64 `json:"notional"`
+	TickSize    float64 `json:"tick_size,omitempty"`
+	StepSize    float64 `json:"step_size,omitempty"`
+	MinNotional float64 `json:"min_notional,omitempty"`
 }
 
 // UnifiedOpportunity 是三类资金费机会的统一语义结构(组合层用,不改变现有 CrossVenueOpportunity)。

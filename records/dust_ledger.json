@@ -1,1 +1,26 @@
-[]
+[
+  {
+    "run_id": "",
+    "cycle_id": "",
+    "recorded_at": "2026-06-19T03:57:01Z",
+    "phase": "svps_dust_orphan",
+    "symbol": "FLUX-USDT",
+    "pair": "FLUX-USDT",
+    "asset": "FLUX",
+    "quantity": "0.10459",
+    "notional_usdt": "0.0052138115",
+    "reason": "dust_orphan"
+  },
+  {
+    "run_id": "",
+    "cycle_id": "",
+    "recorded_at": "2026-06-19T03:57:03Z",
+    "phase": "svps_dust_close",
+    "symbol": "FLUX-USDT",
+    "pair": "FLUX-USDT",
+    "asset": "FLUX",
+    "quantity": "0.10459",
+    "notional_usdt": "0.0052138115",
+    "reason": "flatten_all"
+  }
+]
