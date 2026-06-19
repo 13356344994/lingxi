@@ -73,7 +73,7 @@ func evaluateCrossVenueOpenGate(
 	if in.HaltActive {
 		return fail("急停(.halt-live)生效,禁止开新仓")
 	}
-	if in.Opp.SpreadAPR < cfg.OpenSpreadAPR {
+	if cfg.OpenSpreadAPR > 0 && in.Opp.SpreadAPR < cfg.OpenSpreadAPR {
 		return fail(fmt.Sprintf("价差年化 %.1f%% < 开仓阈值 %.1f%%", in.Opp.SpreadAPR*100, cfg.OpenSpreadAPR*100))
 	}
 	if !crossVenueTradeableVenues[in.Opp.HighVenue] || !crossVenueTradeableVenues[in.Opp.LowVenue] {
@@ -227,7 +227,17 @@ func evaluateCrossVenueOpenGate(
 	}
 
 	evLegs := crossVenuePerpPerpEVSlippageLegs(deps.fetchDepth, ctx, highV, lowV, sym, highMid, lowMid)
-	if evRes := evaluateCrossVenueOpenEV(cfg, in.Opp, notional, evLegs); !evRes.OK {
+	holdHours := crossVenueComparableWindowHours(in.Now, highSnap.NextFundingTime, lowSnap.NextFundingTime)
+	evOpp := in.Opp
+	if evOpp.HighNextFundingTime.IsZero() {
+		evOpp.HighNextFundingTime = highSnap.NextFundingTime
+		evOpp.HighIntervalHours = highSnap.IntervalHours
+	}
+	if evOpp.LowNextFundingTime.IsZero() {
+		evOpp.LowNextFundingTime = lowSnap.NextFundingTime
+		evOpp.LowIntervalHours = lowSnap.IntervalHours
+	}
+	if evRes := evaluateCrossVenueOpenEV(cfg, evOpp, notional, evLegs, in.Now, holdHours); !evRes.OK {
 		return fail(evRes.Reason)
 	}
 
@@ -249,63 +259,52 @@ type crossVenueEVResult struct {
 	Reason string
 }
 
-// evaluateCrossVenueOpenEV 手续费感 EV 闸:只有资费能在可接受持有时长内覆盖四腿往返成本才放行。
-// 费率须来自扫描器平滑+封顶后的 Opp 字段(High/LowFundingRate);缺省(单测直调 gate)则跳过 EV。
-func evaluateCrossVenueOpenEV(cfg CrossVenueExecutorConfig, opp CrossVenueOpportunity, notional float64, evLegs []crossVenueEVSlippageLeg) crossVenueEVResult {
+// evaluateCrossVenueOpenEV 短持净收益闸:至下次结算窗口内 funding 结算收入须覆盖四腿往返成本+风险/策略缓冲。
+// 费率须来自扫描器平滑+封顶后的 Opp 字段;缺省(单测直调 gate 且无结算窗口)则跳过 EV。
+func evaluateCrossVenueOpenEV(cfg CrossVenueExecutorConfig, opp CrossVenueOpportunity, notional float64, evLegs []crossVenueEVSlippageLeg, now time.Time, holdHours float64) crossVenueEVResult {
 	pass := func() crossVenueEVResult { return crossVenueEVResult{OK: true} }
 	failEV := func(reason string) crossVenueEVResult {
 		return crossVenueEVResult{OK: false, Reason: reason}
 	}
-	if opp.HighAnnualizedAPR == 0 && opp.LowAnnualizedAPR == 0 {
+	if holdHours <= 0 {
+		holdHours = opp.ComparableWindowHours
+	}
+	if holdHours <= 0 {
+		holdHours = opp.ExpectedHoldHours
+	}
+	if holdHours <= 0 {
+		if opp.HighAnnualizedAPR == 0 && opp.LowAnnualizedAPR == 0 {
+			return pass()
+		}
+		return failEV("EV<0: hold window ≤0 (no funding settlement before exit)")
+	}
+	if opp.HighFundingRate == 0 && opp.LowFundingRate == 0 {
 		return pass()
 	}
-	hRate := opp.HighFundingRate
-	lRate := opp.LowFundingRate
-	hInt := opp.HighIntervalHours
-	lInt := opp.LowIntervalHours
-	if hInt <= 0 {
-		hInt = 8
+	expectedFunding := crossVenueExpectedFundingOverHold(now, holdHours, notional, opp)
+	if expectedFunding <= 0 {
+		return failEV(fmt.Sprintf("EV<0: expectedFunding=%.6f USDT ≤0 over hold=%.2fh", expectedFunding, holdHours))
 	}
-	if lInt <= 0 {
-		lInt = 8
-	}
-	hHourly := hRate / float64(hInt)
-	lHourly := lRate / float64(lInt)
-	fundingPerHour := notional * (hHourly - lHourly)
-	if fundingPerHour <= 0 {
-		return failEV(fmt.Sprintf("EV<0: fundingPerHour=%.6f USDT/h ≤0 (hRate=%.6g/%dh lRate=%.6g/%dh)",
-			fundingPerHour, hRate, hInt, lRate, lInt))
-	}
-	roundTripCost := 0.0
+	openCost := crossVenueExpectedOpenCostUSDT(cfg, opp, notional)
+	closeCost := crossVenueExpectedCloseCostUSDT(cfg, opp, notional)
+	roundTripSlippage := 0.0
 	legVenues := []string{opp.HighVenue, opp.LowVenue, opp.HighVenue, opp.LowVenue}
-	for i, legVenue := range legVenues {
-		takerBps := crossVenueTakerFeeBps(cfg, legVenue)
+	for i := range legVenues {
 		slipBps := crossVenueEVSlippageFallbackBpsPerLeg(cfg)
 		if len(evLegs) > i {
 			slipBps = crossVenueEVSlippageBpsPerLeg(cfg, notional, evLegs[i])
 		}
-		roundTripCost += notional * (takerBps + slipBps) / 10000
+		roundTripSlippage += notional * slipBps / 10000
 	}
-	breakevenHours := roundTripCost / fundingPerHour
-	maxBE := cfg.EVMaxBreakevenHours
-	if maxBE <= 0 {
-		maxBE = 24
-	}
-	if breakevenHours > maxBE {
-		return failEV(fmt.Sprintf("EV<0: breakevenHours=%.1fh > max %.0fh (fundingPerHour=%.6f roundTripCost=%.4f)",
-			breakevenHours, maxBE, fundingPerHour, roundTripCost))
-	}
-	minHold := cfg.MinHoldHours
-	if minHold <= 0 {
-		minHold = 24
-	}
-	safety := cfg.EVSafetyFactor
-	if safety <= 0 {
-		safety = 1.3
-	}
-	if fundingPerHour*minHold < roundTripCost*safety {
-		return failEV(fmt.Sprintf("EV<0: funding×hold=%.4f < cost×safety=%.4f (breakevenHours=%.1fh fundingPerHour=%.6f roundTripCost=%.4f minHold=%.0fh safety=%.2f)",
-			fundingPerHour*minHold, roundTripCost*safety, breakevenHours, fundingPerHour, roundTripCost, minHold, safety))
+	roundTripCost := openCost + closeCost + roundTripSlippage
+	recoveryQuality := crossVenueRecoveryQualityForPair(opp.HighVenue, opp.LowVenue)
+	observableRiskCost := crossVenueObservableRiskCost(notional, opp.FreshnessAgeSeconds, holdHours, recoveryQuality)
+	policyBuffer := crossVenuePolicyBuffer(openCost, closeCost)
+	netProfit := expectedFunding - roundTripCost - observableRiskCost - policyBuffer
+	minProfit := crossVenueMinNetProfitUSDT(cfg)
+	if netProfit <= minProfit+1e-9 {
+		return failEV(fmt.Sprintf("EV<0: netProfit=%.4f ≤ min %.4f USDT (funding=%.4f cost=%.4f hold=%.2fh)",
+			netProfit, minProfit, expectedFunding, roundTripCost+observableRiskCost+policyBuffer, holdHours))
 	}
 	return pass()
 }

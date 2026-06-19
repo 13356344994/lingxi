@@ -740,7 +740,7 @@ func (e *CrossVenueExecutor) resolveTradeableOpportunity(opp CrossVenueOpportuni
 	if !ok {
 		return opp, fmt.Sprintf("最优对(%s/%s)含不可交易所,费率索引中可交易所子集不足两所", opp.HighVenue, opp.LowVenue)
 	}
-	if alt.SpreadAPR < e.cfg.CrossVenueExecutor.OpenSpreadAPR {
+	if alt.SpreadAPR < e.cfg.CrossVenueExecutor.OpenSpreadAPR && e.cfg.CrossVenueExecutor.OpenSpreadAPR > 0 {
 		return opp, fmt.Sprintf("最优对(%s/%s)含不可交易所,子集内无达标替代(子集最优=%.1f%%)", opp.HighVenue, opp.LowVenue, alt.SpreadAPR*100)
 	}
 	e.logger.Printf("[跨所执行] %s 全局最优对(%s/%s)含不可交易所,降级用子集对(%s/%s, %.1f%%)",

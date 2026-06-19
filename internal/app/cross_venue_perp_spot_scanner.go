@@ -67,6 +67,9 @@ type CrossVenuePerpSpotScanInput struct {
 	AvailableUSDTByVenue   map[string]float64
 	BorrowDailyRateByAsset map[string]float64
 	BorrowLimitUSDTByAsset map[string]float64
+	BorrowKnownAvailable   *BorrowKnownAvailableRegistry
+	BorrowDefaultDailyRateWhenUnknown float64
+	BorrowDisabledVenues   map[string]struct{}
 	Config                 CrossVenuePerpSpotScannerConfig
 	FundingRateVolPerHourByVenue map[string]map[string]float64
 }
@@ -91,7 +94,7 @@ func ScanCrossVenuePerpSpotOpportunities(in CrossVenuePerpSpotScanInput) []Unifi
 		if sym == "" {
 			continue
 		}
-		spotVenues := crossVenuePerpSpotSpotShortVenues(in.MarketsByVenue, sym, drops)
+		spotVenues := crossVenuePerpSpotSpotShortVenues(in.MarketsByVenue, sym, in.BorrowDisabledVenues, drops)
 		perpVenues := crossVenuePerpSpotNegativePerpVenues(in.FundingByVenue, in.MarketsByVenue, sym, drops)
 		if len(spotVenues) == 0 || len(perpVenues) == 0 {
 			continue
@@ -107,7 +110,10 @@ func ScanCrossVenuePerpSpotOpportunities(in CrossVenuePerpSpotScanInput) []Unifi
 			opp, ok := buildCrossVenuePerpSpotOpportunity(
 				in.SnapshotID, now, sym, bestPerpVenue, spotVenue,
 				in.FundingByVenue, in.MarketsByVenue, in.AvailableUSDTByVenue,
-				in.BorrowDailyRateByAsset, in.BorrowLimitUSDTByAsset, cfg,
+				in.BorrowDailyRateByAsset, in.BorrowLimitUSDTByAsset,
+				in.BorrowKnownAvailable, in.BorrowDefaultDailyRateWhenUnknown,
+				in.BorrowDisabledVenues,
+				cfg,
 				in.FundingRateVolPerHourByVenue,
 			)
 			if ok {
@@ -183,9 +189,12 @@ func crossVenuePerpSpotCollectSymbols(
 	return crossVenueSpotPerpCollectSymbols(funding, markets)
 }
 
-func crossVenuePerpSpotSpotShortVenues(markets map[string]map[string]CrossVenuePerpSpotMarketSnap, sym string, drops *scannerInstrumentDropLog) []string {
+func crossVenuePerpSpotSpotShortVenues(markets map[string]map[string]CrossVenuePerpSpotMarketSnap, sym string, borrowDisabled map[string]struct{}, drops *scannerInstrumentDropLog) []string {
 	out := make([]string, 0)
 	for venueName, bySym := range markets {
+		if _, disabled := borrowDisabled[strings.ToLower(strings.TrimSpace(venueName))]; disabled {
+			continue
+		}
 		m, ok := bySym[sym]
 		if !ok {
 			continue
@@ -248,6 +257,9 @@ func buildCrossVenuePerpSpotOpportunity(
 	markets map[string]map[string]CrossVenuePerpSpotMarketSnap,
 	available map[string]float64,
 	borrowDailyRateByAsset, borrowLimitUSDTByAsset map[string]float64,
+	borrowKnown *BorrowKnownAvailableRegistry,
+	borrowDefaultDailyRateWhenUnknown float64,
+	borrowDisabled map[string]struct{},
 	cfg CrossVenuePerpSpotScannerConfig,
 	fundingVolByVenue map[string]map[string]float64,
 ) (UnifiedOpportunity, bool) {
@@ -258,10 +270,10 @@ func buildCrossVenuePerpSpotOpportunity(
 	fund := funding[perpVenue][symbol]
 
 	if fund.Rate >= 0 {
-		return crossVenuePerpSpotRejectedOpportunity(snapshotID, symbol, perpVenue, spotVenue, crossVenuePerpSpotRejectPositiveFunding), true
+		return crossVenuePerpSpotRejectedOpportunity(snapshotID, symbol, perpVenue, spotVenue, crossVenuePerpSpotRejectPositiveFunding, fund, now, fund.Rate), true
 	}
 	if !spotMkt.HasSpot || spotMkt.SpotMid <= 0 {
-		return crossVenuePerpSpotRejectedOpportunity(snapshotID, symbol, perpVenue, spotVenue, crossVenuePerpSpotRejectNoSpotMarket), true
+		return crossVenuePerpSpotRejectedOpportunity(snapshotID, symbol, perpVenue, spotVenue, crossVenuePerpSpotRejectNoSpotMarket, fund, now, -fund.Rate), true
 	}
 	if !perpMkt.HasPerp || perpMkt.PerpMid <= 0 {
 		return UnifiedOpportunity{}, false
@@ -271,8 +283,8 @@ func buildCrossVenuePerpSpotOpportunity(
 	}
 
 	baseAsset := baseAssetFromCanonicalSymbol(symbol)
-	if !perpSpotAssetBorrowable(baseAsset, borrowDailyRateByAsset) {
-		return crossVenuePerpSpotRejectedOpportunity(snapshotID, symbol, perpVenue, spotVenue, crossVenuePerpSpotRejectNotBorrowable), true
+	if !perpSpotAssetBorrowable(spotVenue, baseAsset, borrowKnown, borrowDisabled, now) {
+		return crossVenuePerpSpotRejectedOpportunity(snapshotID, symbol, perpVenue, spotVenue, crossVenuePerpSpotRejectNotBorrowable, fund, now, -fund.Rate), true
 	}
 
 	midDev := math.Abs(perpMkt.PerpMid/spotMkt.SpotMid - 1)
@@ -285,10 +297,10 @@ func buildCrossVenuePerpSpotOpportunity(
 		func(v string) float64 { return crossVenuePerpSpotVenueReserve(v, cfg) },
 	)
 	if notional <= 0 {
-		return crossVenuePerpSpotRejectedOpportunity(snapshotID, symbol, perpVenue, spotVenue, crossVenuePerpSpotRejectInsufficientDepth), true
+		return crossVenuePerpSpotRejectedOpportunity(snapshotID, symbol, perpVenue, spotVenue, crossVenuePerpSpotRejectInsufficientDepth, fund, now, -fund.Rate), true
 	}
 	if crossVenueSpotPerpPerpLiquidatedAtShock(cvCfg, notional) {
-		return crossVenuePerpSpotRejectedOpportunity(snapshotID, symbol, perpVenue, spotVenue, crossVenuePerpSpotRejectMarginStress), true
+		return crossVenuePerpSpotRejectedOpportunity(snapshotID, symbol, perpVenue, spotVenue, crossVenuePerpSpotRejectMarginStress, fund, now, -fund.Rate), true
 	}
 
 	holdHours := cfg.ExpectedHoldHours
@@ -312,7 +324,7 @@ func buildCrossVenuePerpSpotOpportunity(
 	openCost := crossVenuePerpSpotOpenCostUSDT(cfg, spotVenue, perpVenue, notional)
 	closeCost := openCost
 	slippage := crossVenueSpotPerpSlippageUSDT(cvCfg, notional, spotMkt, perpMkt)
-	borrowCost := perpSpotBorrowCostUSDT(baseAsset, notional, holdHours, borrowDailyRateByAsset)
+	borrowCost := perpSpotBorrowCostUSDT(baseAsset, notional, holdHours, borrowDailyRateByAsset, borrowDefaultDailyRateWhenUnknown)
 
 	vol, volOK := carryFundingVolFromMap(fundingVolByVenue, perpVenue, symbol)
 	if ok, _ := carryScannerFundingEntryEligible(now, fund, holdHours, notional, effectiveRate, expectedBasisPnL, openCost+borrowCost, slippage, cfg.Exec.FundingEntryGate(), vol, volOK); !ok {
@@ -331,7 +343,7 @@ func buildCrossVenuePerpSpotOpportunity(
 	openCost = crossVenuePerpSpotOpenCostUSDT(cfg, spotVenue, perpVenue, notional)
 	closeCost = openCost
 	slippage = crossVenueSpotPerpSlippageUSDT(cvCfg, notional, spotMkt, perpMkt)
-	borrowCost = perpSpotBorrowCostUSDT(baseAsset, notional, holdHours, borrowDailyRateByAsset)
+	borrowCost = perpSpotBorrowCostUSDT(baseAsset, notional, holdHours, borrowDailyRateByAsset, borrowDefaultDailyRateWhenUnknown)
 
 	spotMarginRequired := notional
 	perpMarginRequired := crossVenueSpotPerpPerpMarginRequired(cvCfg, notional)
@@ -374,7 +386,7 @@ func buildCrossVenuePerpSpotOpportunity(
 		rejectReasons = append(rejectReasons, "net_ev<=0")
 	}
 
-	return UnifiedOpportunity{
+	opp := UnifiedOpportunity{
 		ID:           unifiedOpportunityID(UnifiedStrategyCrossVenuePerpSpot, symbol, snapshotID, perpVenue, spotVenue),
 		StrategyType: UnifiedStrategyCrossVenuePerpSpot,
 		Symbol:       symbol,
@@ -401,7 +413,9 @@ func buildCrossVenuePerpSpotOpportunity(
 		CapitalEfficiencyScore: capitalEfficiency,
 		RejectReasons:          rejectReasons,
 		RequiresRebalance:      requiresRebalance,
-	}, true
+	}
+	applyUnifiedFundingSnapDisplay(&opp, fund, now, -fund.Rate)
+	return opp, true
 }
 
 func crossVenuePerpSpotAsCrossVenueConfig(cfg CrossVenuePerpSpotScannerConfig) CrossVenueSpotPerpScannerConfig {
@@ -461,15 +475,10 @@ func crossVenuePerpSpotRiskScore(cfg CrossVenuePerpSpotScannerConfig, requiresRe
 	return clamp01(risk)
 }
 
-func crossVenuePerpSpotRejectedOpportunity(snapshotID, symbol, perpVenue, spotVenue, reason string) UnifiedOpportunity {
-	return UnifiedOpportunity{
-		ID:               unifiedOpportunityID(UnifiedStrategyCrossVenuePerpSpot, symbol, snapshotID, perpVenue, spotVenue),
-		StrategyType:     UnifiedStrategyCrossVenuePerpSpot,
-		Symbol:           symbol,
-		RejectReasons:    []string{reason},
-		RiskScore:        1,
-		DataQualityScore: 0,
-	}
+func crossVenuePerpSpotRejectedOpportunity(snapshotID, symbol, perpVenue, spotVenue, reason string, fund CrossVenueSpotPerpFundingSnap, now time.Time, displayRate float64) UnifiedOpportunity {
+	return unifiedRejectedOpportunityWithFunding(
+		UnifiedStrategyCrossVenuePerpSpot, snapshotID, symbol, perpVenue, spotVenue, reason, fund, now, displayRate,
+	)
 }
 
 func crossVenuePerpSpotLegNotional(opp UnifiedOpportunity) float64 {

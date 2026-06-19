@@ -127,6 +127,37 @@ func crossVenueExpectedFundingPerHour(notional float64, highRate float64, highIn
 	return notional * ((highRate / float64(highInt)) - (lowRate / float64(lowInt)))
 }
 
+// crossVenueExpectedFundingOverHold 按短持窗口内实际 funding 结算次数估算跨所 spread 收入(非 24h 线性外推)。
+func crossVenueExpectedFundingOverHold(now time.Time, holdHours float64, notional float64, opp CrossVenueOpportunity) float64 {
+	if notional <= 0 {
+		return 0
+	}
+	if holdHours <= 0 {
+		holdHours = crossVenueComparableWindowHours(now, opp.HighNextFundingTime, opp.LowNextFundingTime)
+	}
+	if holdHours <= 0 {
+		return 0
+	}
+	highInt := opp.HighIntervalHours
+	if highInt <= 0 {
+		highInt = 8
+	}
+	lowInt := opp.LowIntervalHours
+	if lowInt <= 0 {
+		lowInt = 8
+	}
+	highSettlements := crossVenueSpotPerpFundingSettlementCount(now, holdHours, highInt, opp.HighNextFundingTime)
+	lowSettlements := crossVenueSpotPerpFundingSettlementCount(now, holdHours, lowInt, opp.LowNextFundingTime)
+	return notional*opp.HighFundingRate*float64(highSettlements) - notional*opp.LowFundingRate*float64(lowSettlements)
+}
+
+func crossVenueMinNetProfitUSDT(cfg CrossVenueExecutorConfig) float64 {
+	if cfg.MinNetProfitUSDT < 0 {
+		return 0
+	}
+	return cfg.MinNetProfitUSDT
+}
+
 func crossVenueExpectedOpenCostUSDT(cfg CrossVenueExecutorConfig, opp CrossVenueOpportunity, notional float64) float64 {
 	if notional <= 0 {
 		return 0
@@ -299,8 +330,7 @@ func crossVenueEstimateOpportunityMetrics(cfg CrossVenueExecutorConfig, opp Cros
 		notional = 50
 	}
 	windowHours := crossVenueComparableWindowHours(now, opp.HighNextFundingTime, opp.LowNextFundingTime)
-	fundingPerHour := crossVenueExpectedFundingPerHour(notional, opp.HighFundingRate, opp.HighIntervalHours, opp.LowFundingRate, opp.LowIntervalHours)
-	spreadEV := fundingPerHour * windowHours
+	spreadEV := crossVenueExpectedFundingOverHold(now, windowHours, notional, opp)
 	openCost := crossVenueExpectedOpenCostUSDT(cfg, opp, notional)
 	closeCost := crossVenueExpectedCloseCostUSDT(cfg, opp, notional)
 	expectedSlippage := crossVenueExpectedSlippageUSDT(cfg, notional, 4)
@@ -346,7 +376,7 @@ func crossVenueEstimateOpportunityMetrics(cfg CrossVenueExecutorConfig, opp Cros
 		riskWeight := maxFloat64(1, 1+(1-executionScore)+(1-recoveryQuality))
 		opp.RiskAdjustedEVPerHour = netEV / windowHours / riskWeight
 	}
-	if opp.NetEV <= 0 {
+	if opp.NetEV <= crossVenueMinNetProfitUSDT(cfg) {
 		opp.NoTradeReason = "net_ev<=0"
 	}
 	if opp.TradableNotional <= 0 {
@@ -356,40 +386,17 @@ func crossVenueEstimateOpportunityMetrics(cfg CrossVenueExecutorConfig, opp Cros
 }
 
 func crossVenueFinalizeOpportunityRanking(cfg CrossVenueExecutorConfig, opps []CrossVenueOpportunity) {
-	maxNetEV := 0.0
-	maxCapEff := 0.0
-	maxRiskAdj := 0.0
-	for _, opp := range opps {
-		if opp.NetEV > maxNetEV {
-			maxNetEV = opp.NetEV
-		}
-		if opp.CapitalEfficiencyEV > maxCapEff {
-			maxCapEff = opp.CapitalEfficiencyEV
-		}
-		if opp.RiskAdjustedEVPerHour > maxRiskAdj {
-			maxRiskAdj = opp.RiskAdjustedEVPerHour
-		}
-	}
 	floor := cfg.LowConfidenceSizeFloorFraction
 	for i := range opps {
-		netNorm := 0.0
-		if maxNetEV > 0 {
-			netNorm = clamp01(opps[i].NetEV / maxNetEV)
-		}
-		capNorm := 0.0
-		if maxCapEff > 0 {
-			capNorm = clamp01(opps[i].CapitalEfficiencyEV / maxCapEff)
-		}
-		riskNorm := 0.0
-		if maxRiskAdj > 0 {
-			riskNorm = clamp01(opps[i].RiskAdjustedEVPerHour / maxRiskAdj)
-		}
-		quality := (opps[i].HistoryQualityScore + opps[i].LiquidityScore + opps[i].StabilityScore + opps[i].ExecutionScore + opps[i].RecoveryQualityScore) / 5
-		opps[i].RankScore = 100 * (0.35*netNorm + 0.25*capNorm + 0.20*riskNorm + 0.20*quality)
+		opps[i].RankScore = opps[i].NetEV
 		confMult := crossVenueConfidenceSizeMultiplier(floor, opps[i].HistoryQualityScore, opps[i].StabilityScore)
+		capNorm := 0.0
+		if opps[i].CapitalEfficiencyEV > 0 {
+			capNorm = clamp01(opps[i].CapitalEfficiencyEV)
+		}
 		baseMult := clamp01((capNorm + opps[i].ExecutionScore + opps[i].LiquidityScore + opps[i].RecoveryQualityScore) / 4)
 		opps[i].SizeMultiplier = clamp01(baseMult * confMult)
-		if opps[i].NetEV <= 0 {
+		if opps[i].NetEV <= crossVenueMinNetProfitUSDT(cfg) {
 			opps[i].SizeMultiplier = 0
 		}
 		opps[i].TradableNotional *= opps[i].SizeMultiplier

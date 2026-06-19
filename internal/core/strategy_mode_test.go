@@ -100,6 +100,7 @@ func TestApplyStrategyModeToEconomicsCanaryProfitPreservesRelaxed(t *testing.T) 
 
 func TestApplyStrategyModeToEconomicsProfitSeekingForcesHonestGate(t *testing.T) {
 	cfg := relaxedCollectDataConfig()
+	wantOpenSpread := cfg.CrossVenueExecutor.OpenSpreadAPR
 	collectBE := breakEvenFromConfig(cfg)
 	ApplyStrategyModeToEconomics(&cfg, StrategyModeProfitSeeking)
 	if !cfg.StrategyConfig.AutoDeriveFeeReserveEnabled {
@@ -117,8 +118,8 @@ func TestApplyStrategyModeToEconomicsProfitSeekingForcesHonestGate(t *testing.T)
 	if math.Abs(cfg.StrategyConfig.FavorableBasisMaxRate-defaultMaxScanBasisRate) > 1e-12 {
 		t.Fatalf("favorable_basis_max_rate=%.6f want %.6f", cfg.StrategyConfig.FavorableBasisMaxRate, defaultMaxScanBasisRate)
 	}
-	if math.Abs(cfg.CrossVenueExecutor.OpenSpreadAPR-defaultOpenSpreadAPR) > 1e-12 {
-		t.Fatalf("open_spread_apr=%.6f want %.6f", cfg.CrossVenueExecutor.OpenSpreadAPR, defaultOpenSpreadAPR)
+	if math.Abs(cfg.CrossVenueExecutor.OpenSpreadAPR-wantOpenSpread) > 1e-12 {
+		t.Fatalf("profit_seeking 不应再强制 open_spread_apr, got %.6f want %.6f", cfg.CrossVenueExecutor.OpenSpreadAPR, wantOpenSpread)
 	}
 	profitBE := breakEvenFromConfig(cfg)
 	if profitBE <= collectBE {

@@ -3,6 +3,7 @@ package app
 import (
 	"fmt"
 	"strings"
+	"time"
 )
 
 const (
@@ -50,6 +51,66 @@ type UnifiedOpportunity struct {
 	// CandidateOnly 为 true 时仅作候选对比展示，不由统一轮动 OPEN/SWITCH 执行(路线 A: perp-perp)。
 	// 零值 false 表示可执行，避免误伤未标记的四类 carry 候选(Go bool 零值为 false，故不用 CanExecute)。
 	CandidateOnly bool `json:"candidate_only,omitempty"`
+	// 以下字段供排行榜/诊断展示(扫描器从 live snap 透传,不参与闸门/EV 决策)。
+	RawFundingRate       float64 `json:"raw_funding_rate,omitempty"`
+	FundingRatePerHour   float64 `json:"funding_rate_per_hour,omitempty"`
+	FundingAPR           float64 `json:"funding_apr,omitempty"`
+	SpreadAPR            float64 `json:"spread_apr,omitempty"`
+	HighFundingRate      float64 `json:"high_funding_rate,omitempty"`
+	LowFundingRate       float64 `json:"low_funding_rate,omitempty"`
+	FundingIntervalHours int     `json:"funding_interval_hours,omitempty"`
+	NextFundingTime      string  `json:"next_funding_time,omitempty"`
+	HighNextFundingTime  string  `json:"high_next_funding_time,omitempty"`
+	LowNextFundingTime   string  `json:"low_next_funding_time,omitempty"`
+}
+
+func applyUnifiedFundingSnapDisplay(opp *UnifiedOpportunity, fund CrossVenueSpotPerpFundingSnap, now time.Time, rawRate float64) {
+	if opp == nil {
+		return
+	}
+	if rawRate == 0 {
+		return
+	}
+	opp.RawFundingRate = rawRate
+	ih := fund.IntervalHours
+	if ih <= 0 {
+		ih = 8
+	}
+	opp.FundingIntervalHours = ih
+	opp.FundingRatePerHour = rawRate / float64(ih)
+	opp.FundingAPR = fundingAnnualizedAPR(rawRate, ih)
+	if !fund.NextFundingTime.IsZero() {
+		opp.NextFundingTime = fund.NextFundingTime.UTC().Format(time.RFC3339)
+	}
+	_ = now
+}
+
+func applyUnifiedCrossVenueDisplay(opp *UnifiedOpportunity, cv CrossVenueOpportunity) {
+	if opp == nil {
+		return
+	}
+	opp.SpreadAPR = cv.SpreadAPR
+	opp.HighFundingRate = cv.HighFundingRate
+	opp.LowFundingRate = cv.LowFundingRate
+	opp.FundingAPR = cv.SpreadAPR
+	ih := cv.HighIntervalHours
+	if ih <= 0 {
+		ih = cv.LowIntervalHours
+	}
+	if ih <= 0 {
+		ih = 8
+	}
+	opp.FundingIntervalHours = ih
+	if cv.HighIntervalHours > 0 && cv.HighFundingRate != 0 {
+		opp.FundingRatePerHour = cv.HighFundingRate / float64(cv.HighIntervalHours)
+	}
+	if !cv.HighNextFundingTime.IsZero() {
+		opp.HighNextFundingTime = cv.HighNextFundingTime.UTC().Format(time.RFC3339)
+		opp.NextFundingTime = opp.HighNextFundingTime
+	}
+	if !cv.LowNextFundingTime.IsZero() {
+		opp.LowNextFundingTime = cv.LowNextFundingTime.UTC().Format(time.RFC3339)
+	}
 }
 
 func unifiedOpportunityID(strategyType, symbol, snapshotID, highVenue, lowVenue string) string {
@@ -93,6 +154,15 @@ func crossVenueLegQty(notional, refPrice, tradableQty float64) float64 {
 	return 0
 }
 
+func opportunityHasTradableLegs(opp UnifiedOpportunity) bool {
+	for _, leg := range opp.Legs {
+		if leg.Notional > 0 {
+			return true
+		}
+	}
+	return false
+}
+
 // UnifiedOpportunityFromCrossVenue 把现有 CrossVenueOpportunity 映射为 UnifiedOpportunity(strategy_type=perp_perp)。
 // 不修改输入 opp,仅做字段映射与派生。
 func UnifiedOpportunityFromCrossVenue(cfg CrossVenueExecutorConfig, opp CrossVenueOpportunity, rejectReasons []string, notionalUSDT, refPrice float64) UnifiedOpportunity {
@@ -108,7 +178,7 @@ func UnifiedOpportunityFromCrossVenue(cfg CrossVenueExecutorConfig, opp CrossVen
 	if opp.NoTradeReason != "" && len(reasons) == 0 {
 		reasons = append(reasons, opp.NoTradeReason)
 	}
-	return UnifiedOpportunity{
+	out := UnifiedOpportunity{
 		ID:           unifiedOpportunityID(UnifiedStrategyPerpPerp, opp.Symbol, opp.SnapshotID, opp.HighVenue, opp.LowVenue),
 		StrategyType: UnifiedStrategyPerpPerp,
 		Symbol:       opp.Symbol,
@@ -135,4 +205,6 @@ func UnifiedOpportunityFromCrossVenue(cfg CrossVenueExecutorConfig, opp CrossVen
 		CapitalEfficiencyScore: opp.CapitalEfficiencyEV,
 		RejectReasons:          reasons,
 	}
+	applyUnifiedCrossVenueDisplay(&out, opp)
+	return out
 }

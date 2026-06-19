@@ -17,10 +17,6 @@ func (e *CrossVenueExecutor) SetRotationManaged(managed bool) {
 		return
 	}
 	e.rotationManaged.Store(managed)
-	if managed {
-		// 统一 runner 接管开仓;关闭独立 evaluateNewOpens 路径(双保险,与 tick 早退配合)。
-		_ = e.SetOpeningsEnabled(false)
-	}
 }
 
 // RotationManaged 报告是否由统一轮动 runner 接管 open/manage/reconcile。

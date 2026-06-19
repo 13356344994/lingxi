@@ -172,7 +172,7 @@ func TestCrossVenueGateLiquidityAdaptiveSizing(t *testing.T) {
 	res := evaluateCrossVenueOpenGate(context.Background(), cfg, testCrossVenueGateDeps(1000), venues, crossVenueGateInput{
 		Opp: CrossVenueOpportunity{
 			Symbol: "BTC-USDT", HighVenue: binance.VenueName, LowVenue: okx.VenueName,
-			SpreadAPR: 2.0, HighFundingRate: 0.001, LowFundingRate: 0.0001,
+			SpreadAPR: 2.0, HighFundingRate: 0.008, LowFundingRate: 0.0001,
 			HighIntervalHours: 8, LowIntervalHours: 8,
 		},
 		Now: now,

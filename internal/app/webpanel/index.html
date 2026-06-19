@@ -732,9 +732,9 @@
           <span id="cp-rotation-mode" class="cp-chip off">轮动 -</span>
         </div>
         <div class="mode-badges" id="mode-badges-row">
-          <span id="cp-strategy-mode" class="cp-chip off">strategy_mode -</span>
-          <span id="cp-perp-run-mode" class="cp-chip off">PP RunMode -</span>
-          <span id="cp-rotation-run-mode" class="cp-chip off">轮动 RunMode -</span>
+          <span id="cp-strategy-mode" class="cp-chip off">策略模式 -</span>
+          <span id="cp-perp-run-mode" class="cp-chip off">PP 运行模式 -</span>
+          <span id="cp-rotation-run-mode" class="cp-chip off">轮动运行模式 -</span>
         </div>
         <div class="hint" id="control-plane-generated-at" style="margin:6px 0 0;font-size:11px;"></div>
       </div>
@@ -794,7 +794,7 @@
           <table class="data-table" id="rotation-open-table">
             <thead>
               <tr>
-                <th>Symbol</th><th title="carry 为 SVSP/CVSP/SVPS/CVPS; PP 为 perp-perp">策略</th><th>状态</th>
+                <th>交易对</th><th title="carry: 同所/跨所 现货-永续 或 永续-现货; PP: 跨所永续-永续">策略</th><th>状态</th>
                 <th title="carry 为现货腿; PP 为高费永续腿">高费腿</th><th title="carry 为永续腿; PP 为低费永续腿">低费腿</th>
                 <th>名义(U)</th><th>已累计资费</th><th>手续费(开+预计平)</th><th>总盈亏(U)</th><th>盈亏比例</th><th>预期净EV</th><th>持有时长</th>
               </tr>
@@ -807,7 +807,7 @@
           <table class="data-table" id="rotation-closed-table">
             <thead>
               <tr>
-                <th>Symbol</th><th>策略</th><th>所</th><th>开→平</th><th>已实现净利</th><th>盈亏比例</th><th>资费</th><th>开+平费</th><th>原因</th><th>持有时长</th>
+                <th>交易对</th><th>策略</th><th>所</th><th>开→平</th><th>已实现净利</th><th>盈亏比例</th><th>资费</th><th>开+平费</th><th>原因</th><th>持有时长</th>
               </tr>
             </thead>
             <tbody id="rotation-closed-tbody"><tr><td colspan="10" class="hint">加载中…</td></tr></tbody>
@@ -888,7 +888,7 @@
 
       <div class="ops-group ops-group-capital-snapshot">
         <div class="ops-group-label">资金快照</div>
-        <div class="hint" style="margin-bottom:8px;">各所 wallet free/reserved/策略占用 + 无法备资 + 跨所调仓建议(只读)。</div>
+        <div class="hint" style="margin-bottom:8px;">各所钱包可用/预留/策略占用 + 无法备资 + 跨所调仓建议(只读)。</div>
         <div id="capital-snapshot-panel" class="capital-snapshot-panel">
           <div class="capital-snapshot-meta" id="capital-snapshot-generated-at">加载中…</div>
           <div id="capital-snapshot-content" class="hint">加载资金快照…</div>
@@ -1199,31 +1199,31 @@
       <div class="status-grid" id="capital-wallets-dynamic" style="display:none"></div>
       <div class="status-grid" id="capital-wallets-legacy">
         <div class="stat-card">
-          <div class="stat-label">Spot U</div>
+          <div class="stat-label">现货 U</div>
           <div class="stat-value" id="capital-spot-usdt" style="font-size:18px">-</div>
           <div class="stat-subvalue" id="capital-spot-target">目标: -</div>
           <div class="stat-subvalue" id="capital-spot-delta">差额: -</div>
         </div>
         <div class="stat-card">
-          <div class="stat-label">Cross Margin U</div>
+          <div class="stat-label">全仓杠杆 U</div>
           <div class="stat-value" id="capital-margin-usdt" style="font-size:18px">-</div>
           <div class="stat-subvalue" id="capital-margin-target">目标: -</div>
           <div class="stat-subvalue" id="capital-margin-delta">差额: -</div>
         </div>
         <div class="stat-card">
-          <div class="stat-label">UM Futures U</div>
+          <div class="stat-label">U本位合约 U</div>
           <div class="stat-value" id="capital-futures-usdt" style="font-size:18px">-</div>
           <div class="stat-subvalue" id="capital-futures-target">目标: -</div>
           <div class="stat-subvalue" id="capital-futures-delta">差额: -</div>
         </div>
         <div class="stat-card">
-          <div class="stat-label">Funding U</div>
+          <div class="stat-label">资金账户 U</div>
           <div class="stat-value" id="capital-funding-usdt" style="font-size:18px">-</div>
           <div class="stat-subvalue" id="capital-funding-target">目标: -</div>
           <div class="stat-subvalue" id="capital-funding-delta">差额: -</div>
         </div>
         <div class="stat-card">
-          <div class="stat-label">Total U</div>
+          <div class="stat-label">合计 U</div>
           <div class="stat-value" id="capital-total-usdt" style="font-size:18px">-</div>
           <div class="stat-subvalue" id="capital-total-target">目标: -</div>
           <div class="stat-subvalue" id="capital-total-delta">差额: -</div>
@@ -1233,19 +1233,19 @@
       <div class="status-grid">
         <div class="stat-card">
           <div class="stat-label">当前模式</div>
-          <div class="stat-value" id="runtime-mode">idle</div>
+          <div class="stat-value" id="runtime-mode">空闲</div>
         </div>
         <div class="stat-card">
-          <div class="stat-label">Run ID</div>
+          <div class="stat-label">运行 ID</div>
           <div class="stat-value" id="runtime-run-id" style="font-size:14px">-</div>
         </div>
         <div class="stat-card">
-          <div class="stat-label">Cycle ID</div>
+          <div class="stat-label">周期 ID</div>
           <div class="stat-value" id="runtime-cycle-id" style="font-size:14px">-</div>
         </div>
         <div class="stat-card">
           <div class="stat-label">运行状态</div>
-          <div class="stat-value" id="runtime-status">idle</div>
+          <div class="stat-value" id="runtime-status">空闲</div>
         </div>
         <div class="stat-card">
           <div class="stat-label">主阶段</div>
@@ -1285,7 +1285,7 @@
       <div class="status-grid">
         <div class="stat-card">
           <div class="stat-label">当前健康度</div>
-          <div class="stat-value" id="runtime-health-status" style="font-size:16px">healthy</div>
+          <div class="stat-value" id="runtime-health-status" style="font-size:16px">健康</div>
         </div>
         <div class="stat-card">
           <div class="stat-label">主阶段更新时间</div>
@@ -1332,7 +1332,7 @@
           <div class="stat-value" id="runtime-last-domain-event" style="font-size:16px">-</div>
         </div>
         <div class="stat-card">
-          <div class="stat-label">Symbol 冷却列表</div>
+          <div class="stat-label">交易对冷却列表</div>
           <div class="stat-value" id="runtime-symbol-cooldowns" style="font-size:16px">-</div>
         </div>
       </div>
@@ -1509,7 +1509,7 @@
           <div class="field-note">执行模型参数，只读展示；如需修改请改配置文件并重启。</div>
         </div>
         <div>
-          <label for="risk-symbol-cooldown">symbol 异常冷却时间</label>
+          <label for="risk-symbol-cooldown">交易对异常冷却时间</label>
           <input id="risk-symbol-cooldown" type="text" value="10m" placeholder="1m / 10m / 30m" disabled>
           <div class="field-note">系统已处于【读保护模式】，仅支持只读展示。</div>
         </div>
@@ -1593,7 +1593,7 @@
               <th>记录时间</th>
               <th>级别</th>
               <th>阶段</th>
-              <th>Symbol</th>
+              <th>交易对</th>
               <th>动作</th>
               <th>事故计数</th>
               <th>熔断</th>
@@ -1621,7 +1621,7 @@
               <th>生命周期</th>
               <th>成功</th>
               <th>原因</th>
-              <th>RunID</th>
+              <th>运行 ID</th>
             </tr>
           </thead>
           <tbody></tbody>
@@ -1696,7 +1696,7 @@
       <details class="fold-panel">
         <summary>监控摘要</summary>
         <div class="fold-body panel-inner">
-          <div class="hint">最近 200 条目标监控结果，可直接看到 watching / observing / healthy / invalidated 状态。</div>
+          <div class="hint">最近 200 条目标监控结果，可直接看到观察中 / 采样中 / 健康 / 已作废 状态。</div>
       <div class="table-wrap">
         <table id="monitor-table">
           <thead>
@@ -1704,17 +1704,17 @@
               <th>记录时间</th>
               <th>监控截止</th>
               <th>资金费时间</th>
-              <th>Symbol</th>
-              <th>State</th>
+              <th>交易对</th>
+              <th>状态</th>
               <th>有效</th>
-              <th>Breach</th>
+              <th>突破次数</th>
               <th>预估费率</th>
               <th>基差</th>
               <th>净收益</th>
-              <th>Spread</th>
+              <th>价差</th>
               <th>深度比率</th>
-              <th>Spot 可见深度</th>
-              <th>Futures 可见深度</th>
+              <th>现货可见深度</th>
+              <th>合约可见深度</th>
               <th>风险分类</th>
               <th>风险动作</th>
               <th>风险细节</th>
@@ -1738,7 +1738,7 @@
             <tr>
               <th>记录时间</th>
               <th>场景</th>
-              <th>Symbol</th>
+              <th>交易对</th>
               <th>周期</th>
               <th>交易数</th>
               <th>胜率</th>
@@ -1793,7 +1793,7 @@
             <tr>
               <th>记录时间</th>
               <th>场景</th>
-              <th>Symbol</th>
+              <th>交易对</th>
               <th>阶段</th>
               <th>事件时间</th>
               <th>状态</th>
@@ -1986,12 +1986,123 @@
         .replaceAll("'", "&#39;");
     }
 
+    // UI 展示层: 英文 code → 中文标签(不改底层 JSON/逻辑)
+    const STRATEGY_TYPE_LABELS = {
+      single_venue_spot_perp: "同所 现货-永续",
+      cross_venue_spot_perp: "跨所 现货-永续",
+      single_venue_perp_spot: "同所 永续-现货",
+      cross_venue_perp_spot: "跨所 永续-现货",
+      perp_perp: "跨所 永续-永续(PP)",
+    };
+
+    const REJECT_REASON_LABELS = {
+      not_borrowable: "借不到币",
+      no_spot_market: "无现货盘",
+      insufficient_depth: "深度不足",
+      positive_funding_v1_not_supported: "费率方向不匹配该策略",
+      negative_funding_v1_not_supported: "费率方向不匹配该策略",
+      funding_entry_window_not_reached: "未到结算进场窗",
+      first_funding_window_ev_negative: "首窗EV为负",
+      "net_ev<=0": "净EV≤0",
+      "risk_adjusted_net_ev<=0": "风险调整后净EV≤0",
+      requires_rebalance: "需调仓",
+      open_blocked: "该标的暂禁开",
+      candidate_only: "仅候选不可执行",
+      borrow_over_limit: "借币超限",
+      margin_stress_liquidation: "保证金压力/强平风险",
+      delisting: "下市/非交易",
+      max_concurrent_reached: "已达最大并发持仓",
+      qty_not_tradable: "数量不可交易",
+      open_failed: "开仓失败",
+      execution_score_below_min: "执行分低于下限",
+      "expected_hold_hours<=0": "预期持有时间为0",
+      "capital_required<=0": "所需资金为0",
+      expected_loss_above_limit: "预期亏损超限",
+      notional_too_small: "名义过小",
+      acceptable_fallback: "软补位候选",
+      "(no reject reason recorded)": "（未记录拒绝原因）",
+    };
+
+    function strategyLabel(code) {
+      const key = String(code || "").toLowerCase();
+      return STRATEGY_TYPE_LABELS[key] || String(code || "-");
+    }
+
+    function rejectReasonLabel(raw) {
+      const text = String(raw ?? "").trim();
+      if (!text) { return "—"; }
+      if (REJECT_REASON_LABELS[text]) { return REJECT_REASON_LABELS[text]; }
+      if (text.startsWith("reject:")) { return "拒绝：" + rejectReasonLabel(text.slice(7)); }
+      if (text.startsWith("EV<0")) { return text.replace(/^EV<0:?/, "EV<0："); }
+      if (text.startsWith("execution<")) { return "执行分低于" + text.slice("execution<".length); }
+      if (text.startsWith("recovery<")) { return "恢复质量低于" + text.slice("recovery<".length); }
+      if (text.startsWith("liquidity<")) { return "流动性低于" + text.slice("liquidity<".length); }
+      if (/[\u4e00-\u9fff]/.test(text)) { return text; }
+      return text;
+    }
+
+    function rejectReasonsLabel(list) {
+      if (!Array.isArray(list) || !list.length) { return "—"; }
+      return list.map(rejectReasonLabel).join("\n");
+    }
+
+    function boolLabel(v) {
+      if (v === true || v === "true") { return "是"; }
+      if (v === false || v === "false") { return "否"; }
+      return String(v ?? "-");
+    }
+
+    function formatRuntimeStatusText(v) {
+      const key = String(v || "").toLowerCase();
+      const map = {
+        idle: "空闲",
+        running: "运行中",
+        stopped: "已停止",
+        healthy: "健康",
+        unhealthy: "异常",
+        unknown: "未知",
+        watching: "观察中",
+        observing: "采样中",
+        invalidated: "已作废",
+        open: "持仓中",
+        closed: "已平",
+      };
+      return map[key] || String(v || "-");
+    }
+
+    function formatControlPlaneMode(v) {
+      const key = String(v || "").toUpperCase();
+      const map = {
+        OFF: "关",
+        LIVE: "实盘",
+        CANARY_LIVE: "灰度实盘",
+        CANARY: "灰度",
+        HALT: "停机",
+        PAUSED: "暂停",
+      };
+      if (map[key]) { return map[key]; }
+      const lower = String(v || "").toLowerCase();
+      const lowerMap = {
+        canary_profit: "灰度·逐利",
+        profit_seeking: "逐利",
+        collect_data: "采数",
+      };
+      return lowerMap[lower] || String(v || "-");
+    }
+
+    function formatCloseReason(reason, switchExit) {
+      const r = String(reason || "").trim().toLowerCase();
+      if (r === "switch" || switchExit) { return "换仓"; }
+      if (r === "flatten_all_orphan") { return "全平孤儿腿"; }
+      return reason ? rejectReasonLabel(reason) : "-";
+    }
+
     function formatRuntimeMode(status) {
       if ((status.mode || "") === "live") {
         return "实盘引擎";
       }
       if ((status.mode || "") !== "monthly") {
-        return status.mode || "idle";
+        return formatRuntimeStatusText(status.mode || "idle");
       }
       return "历史模拟";
     }
@@ -2035,11 +2146,11 @@
       document.getElementById("runtime-mode").textContent = formatRuntimeMode(status);
       document.getElementById("runtime-run-id").textContent = status.run_id || "-";
       document.getElementById("runtime-cycle-id").textContent = status.current_cycle_id || "-";
-      document.getElementById("runtime-status").textContent = status.status || "idle";
+      document.getElementById("runtime-status").textContent = formatRuntimeStatusText(status.status || "idle");
       document.getElementById("runtime-stage").textContent = status.primary_stage || status.lifecycle_stage || status.stage_lifecycle_projection || status.current_stage || "-";
       document.getElementById("runtime-stage-reason").textContent = status.primary_stage_reason || status.lifecycle_reason || status.stage_reason || "-";
       document.getElementById("runtime-stage-transitioned").textContent = formatTimeUTC8(status.primary_stage_transitioned_at || status.lifecycle_transitioned_at || status.stage_transitioned_at || "");
-      document.getElementById("runtime-health-status").textContent = status.health_status || "unknown";
+      document.getElementById("runtime-health-status").textContent = formatRuntimeStatusText(status.health_status || "unknown");
       document.getElementById("runtime-health-summary").textContent = status.health_summary || "-";
       document.getElementById("runtime-can-continue").textContent = status.can_continue ? "可以" : "不可以";
       document.getElementById("runtime-consecutive-rejects").textContent = String(Number(status.consecutive_rejects || 0));
@@ -2128,7 +2239,7 @@
       const totalDelta = formatCapitalDelta(total, totalTarget);
       cards.push(`
         <div class="stat-card">
-          <div class="stat-label">Total U</div>
+          <div class="stat-label">合计 U</div>
           <div class="stat-value" style="font-size:18px">${formatCapitalValue(total)}</div>
           <div class="stat-subvalue">目标: ${formatCapitalValue(totalTarget)}</div>
           <div class="stat-subvalue${totalDelta.className ? " " + totalDelta.className : ""}">差额: ${totalDelta.text}</div>
@@ -2177,7 +2288,7 @@
       container.innerHTML = records.slice().reverse().map((item) => `
         <div class="log-item">
           <div class="log-meta">${escapeHTML(formatTimeUTC8(item.recorded_at))} | ${escapeHTML(item.level)} | ${escapeHTML(item.category || "-")} | ${escapeHTML(item.severity || "-")} | ${escapeHTML(item.phase)} | ${escapeHTML(item.action)}</div>
-          <div>${escapeHTML(item.symbol || "-")} | count=${Number(item.incident_count || 0)} / ${Number(item.incident_limit || 0)} | fatal=${Boolean(item.fatal)} | ${escapeHTML(item.detail || "-")}</div>
+          <div>${escapeHTML(item.symbol || "-")} | 事故=${Number(item.incident_count || 0)} / ${Number(item.incident_limit || 0)} | 致命=${boolLabel(item.fatal)} | ${escapeHTML(item.detail || "-")}</div>
         </div>
       `).join("");
     }
@@ -2191,7 +2302,7 @@
       container.innerHTML = records.slice().reverse().map((item) => `
         <div class="log-item">
           <div class="log-meta">${escapeHTML(formatTimeUTC8(item.occurred_at || ""))} | ${escapeHTML(item.type || "-")} | ${escapeHTML(item.protocol || "-")} | ${escapeHTML(item.stage || "-")}</div>
-          <div>${escapeHTML(item.reason || "-")} | success=${Boolean(item.successful)} | run=${escapeHTML(item.run_id || "-")}</div>
+          <div>${escapeHTML(item.reason || "-")} | 成功=${boolLabel(item.successful)} | 运行=${escapeHTML(item.run_id || "-")}</div>
         </div>
       `).join("");
     }
@@ -2295,7 +2406,7 @@
           <td>${item.symbol}</td>
           <td>${item.action} | ${item.severity || "-"}</td>
           <td>${item.incident_count} / ${item.incident_limit}</td>
-          <td><span class="pill ${item.fatal ? "high" : "low"}">${item.fatal}</span></td>
+          <td><span class="pill ${item.fatal ? "high" : "low"}">${boolLabel(item.fatal)}</span></td>
           <td>${item.detail || "-"}</td>
         </tr>
       `).join("");
@@ -2314,7 +2425,7 @@
           <td>${item.type || "-"}</td>
           <td>${item.protocol || "-"}</td>
           <td>${item.stage || "-"}</td>
-          <td><span class="pill ${item.successful ? "low" : "high"}">${item.successful}</span></td>
+          <td><span class="pill ${item.successful ? "low" : "high"}">${boolLabel(item.successful)}</span></td>
           <td>${item.reason || "-"}${item.symbol ? ` | ${item.symbol}` : ""}</td>
         </tr>
       `).join("");
@@ -2332,7 +2443,7 @@
           <td><span class="pill ${item.level === "critical" ? "high" : "low"}">${item.type || "-"}</span></td>
           <td>${item.protocol || "-"}</td>
           <td>${item.stage || "-"}</td>
-          <td><span class="pill ${item.successful ? "low" : "high"}">${item.successful}</span></td>
+          <td><span class="pill ${item.successful ? "low" : "high"}">${boolLabel(item.successful)}</span></td>
           <td>${item.reason || "-"}</td>
           <td>${item.run_id || "-"}</td>
         </tr>
@@ -2373,8 +2484,8 @@
           <td>${escapeHTML(formatTimeUTC8(item.monitor_stop_at))}</td>
           <td>${escapeHTML(formatTimeUTC8(item.funding_time))}</td>
           <td>${item.symbol}</td>
-          <td>${item.state}</td>
-          <td><span class="pill ${item.valid}">${item.valid}</span></td>
+          <td>${formatRuntimeStatusText(item.state)}</td>
+          <td><span class="pill ${item.valid}">${boolLabel(item.valid)}</span></td>
           <td>${item.breach_count}</td>
           <td>${item.estimated_rate}</td>
           <td>${item.basis_rate}</td>
@@ -2836,10 +2947,10 @@
 
     function formatStrategyModeLabel(raw) {
       const m = String(raw || "").toLowerCase();
-      if (m === "canary_profit") { return "CANARY_LIVE · canary_profit"; }
-      if (m === "profit_seeking") { return "LIVE · profit_seeking"; }
-      if (m === "collect_data") { return "LIVE · collect_data"; }
-      return raw || "-";
+      if (m === "canary_profit") { return "灰度实盘 · 逐利"; }
+      if (m === "profit_seeking") { return "实盘 · 逐利"; }
+      if (m === "collect_data") { return "实盘 · 采数"; }
+      return formatControlPlaneMode(raw);
     }
 
     function setCpChip(id, text, cls) {
@@ -2873,11 +2984,11 @@
       setCpChip("cp-allow-closes", "验关 " + (cp.allow_verified_closes ? "允许" : "禁止"), cp.allow_verified_closes ? "allow-true" : "allow-false");
       const ppMode = String(cp.perp_perp_mode || "OFF");
       const rotMode = String(cp.rotation_mode || "OFF");
-      setCpChip("cp-perp-mode", "PP " + ppMode + (cp.perp_perp_can_open ? " · 可开" : " · 不可开"), cpChipClassForMode(ppMode));
-      setCpChip("cp-rotation-mode", "轮动 " + rotMode + (cp.rotation_can_open ? " · 可开" : " · 不可开"), cpChipClassForMode(rotMode));
-      setCpChip("cp-strategy-mode", formatStrategyModeLabel(cp.strategy_mode), cpChipClassForMode(cp.strategy_mode === "canary_profit" ? "CANARY_LIVE" : (cp.strategy_mode ? "LIVE" : "OFF")));
-      setCpChip("cp-perp-run-mode", "PP RunMode " + (cp.perp_perp_run_mode || "OFF"), cpChipClassForMode(cp.perp_perp_run_mode));
-      setCpChip("cp-rotation-run-mode", "轮动 RunMode " + (cp.rotation_run_mode || "OFF"), cpChipClassForMode(cp.rotation_run_mode));
+      setCpChip("cp-perp-mode", "PP " + formatControlPlaneMode(ppMode) + (cp.perp_perp_can_open ? " · 可开" : " · 不可开"), cpChipClassForMode(ppMode));
+      setCpChip("cp-rotation-mode", "轮动 " + formatControlPlaneMode(rotMode) + (cp.rotation_can_open ? " · 可开" : " · 不可开"), cpChipClassForMode(rotMode));
+      setCpChip("cp-strategy-mode", "策略模式 " + formatStrategyModeLabel(cp.strategy_mode), cpChipClassForMode(cp.strategy_mode === "canary_profit" ? "CANARY_LIVE" : (cp.strategy_mode ? "LIVE" : "OFF")));
+      setCpChip("cp-perp-run-mode", "PP 运行模式 " + formatControlPlaneMode(cp.perp_perp_run_mode || "OFF"), cpChipClassForMode(cp.perp_perp_run_mode));
+      setCpChip("cp-rotation-run-mode", "轮动运行模式 " + formatControlPlaneMode(cp.rotation_run_mode || "OFF"), cpChipClassForMode(cp.rotation_run_mode));
       const genEl = document.getElementById("control-plane-generated-at");
       if (genEl) { genEl.textContent = "控制面快照于刷新时读取 /api/strategy/status"; }
     }
@@ -3317,7 +3428,7 @@
           <td>${formatValidationMoney(item.cumulative_baseline_replay_net_ev)}</td>
           <td>${escapeHTML(formatValidationList(item.chosen_pairs))}</td>
           <td>${escapeHTML(formatValidationList(item.baseline_pairs))}</td>
-        </tr>`), "暂无匹配当前过滤条件的 rolling baseline replay 记录");
+        </tr>`), "暂无匹配当前过滤条件的滚动基线回放记录");
     }
 
     function renderCrossVenuePanel(snap) {
@@ -3341,10 +3452,10 @@
           enabledEl.textContent = "未启用";
           enabledEl.style.color = "#94a3b8";
         } else if (live) {
-          enabledEl.textContent = "启用 · LIVE";
+          enabledEl.textContent = "启用 · 实盘";
           enabledEl.style.color = "#86efac";
         } else {
-          enabledEl.textContent = "启用 · OFF(未 live)";
+          enabledEl.textContent = "启用 · 关(未实盘)";
           enabledEl.style.color = "#fde68a";
         }
       }
@@ -3369,7 +3480,7 @@
       if (offBtn) { offBtn.disabled = !enabled || !openingsOn; }
       if (line) {
         const haltText = haltVenue ? (" · 健康闸暂停(" + haltVenue + ")") : "";
-        line.textContent = "enabled=" + enabled + " live=" + live + " · 开仓=" + (openingsOn ? "开" : "关") + haltText;
+        line.textContent = "启用=" + boolLabel(enabled) + " 实盘=" + boolLabel(live) + " · 开仓=" + (openingsOn ? "开" : "关") + haltText;
       }
       renderCrossVenuePositionsTable(snap.active_position_details);
     }
@@ -3419,7 +3530,7 @@
       const bybit = st.bybit || {};
       const cv = st.cross_venue || {};
       const bybitLabel = bybit.running ? "运行中" : "已停止";
-      const cvRunLabel = cv.live ? "LIVE" : "OFF(未启用 live)";
+      const cvRunLabel = cv.live ? "实盘" : "关(未启用实盘)";
       const openLabel = cv.openings_enabled ? "开" : "关";
       const activeN = Number(cv.active_positions || 0);
       const haltVenue = String(cv.health_halt_venue || "").trim();
@@ -3427,9 +3538,9 @@
       line.textContent = `Bybit引擎:${bybitLabel} · 跨所引擎:${cvRunLabel} · 开仓:${openLabel}${haltLabel} · 跨所在场:${activeN}`;
       if (hint) {
         if (cv.live) {
-          hint.textContent = "跨所 perp-perp 引擎 config 已启用 live;是否可开新仓见顶部控制面(PP 模式/can_open)。";
+          hint.textContent = "跨所 perp-perp 引擎 config 已启用实盘;是否可开新仓见顶部控制面(PP 模式/可开)。";
         } else {
-          hint.textContent = "跨所引擎当前 OFF / 未启用 live,不会真实下单;仅管理已在场持仓(若有)。切实盘需 config live_trading_enabled。";
+          hint.textContent = "跨所引擎当前关 / 未启用实盘,不会真实下单;仅管理已在场持仓(若有)。切实盘需 config live_trading_enabled。";
         }
       }
       strategyVenueCapitals = {};
@@ -3479,7 +3590,7 @@
       try {
         const snap = await loadJSON("/api/rotation/capital-snapshot");
         if (meta) {
-          meta.textContent = snap.generated_at ? ("generated_at " + formatTimeUTC8(snap.generated_at)) : "generated_at -";
+          meta.textContent = snap.generated_at ? ("生成于 " + formatTimeUTC8(snap.generated_at)) : "生成于 -";
         }
         const venues = Array.isArray(snap.venues) ? snap.venues : [];
         const unfundable = Array.isArray(snap.unfundable) ? snap.unfundable : [];
@@ -3496,12 +3607,12 @@
               const occ = w.occupied_by_strategy && typeof w.occupied_by_strategy === "object"
                 ? Object.entries(w.occupied_by_strategy).map(([k, val]) => `${k}:${Number(val || 0).toFixed(2)}`).join(", ")
                 : "-";
-              return `<div style="font-size:11px;color:#94a3b8;">${escapeHTML(String(w.wallet || "?"))} free ${Number(w.free_usdt || 0).toFixed(2)} / reserved ${Number(w.reserved_usdt || 0).toFixed(2)} U · 占用 ${escapeHTML(occ)}</div>`;
+              return `<div style="font-size:11px;color:#94a3b8;">${escapeHTML(String(w.wallet || "?"))} 可用 ${Number(w.free_usdt || 0).toFixed(2)} / 预留 ${Number(w.reserved_usdt || 0).toFixed(2)} U · 占用 ${escapeHTML(occ)}</div>`;
             }).join("");
             html += `<div style="flex:1 1 220px;min-width:220px;background:#0b1424;border:1px solid #1e293b;border-radius:8px;padding:10px;">
               <div style="font-size:13px;font-weight:600;color:#e5edff;margin-bottom:4px;">${escapeHTML(v.venue || "?")} ${v.unified_wallet ? "(统一钱包)" : ""}</div>
               <div style="font-size:12px;color:#cbd5e1;margin-bottom:4px;">合计 ${Number(v.total_usdt || 0).toFixed(2)} U</div>
-              ${walletLines || '<div class="hint">无 wallet 明细</div>'}
+              ${walletLines || '<div class="hint">无钱包明细</div>'}
             </div>`;
           });
           html += `</div>`;
@@ -3512,7 +3623,7 @@
         if (unfundable.length) {
           html += `<div style="margin:8px 0;padding:8px;border-radius:8px;border:1px solid #991b1b;background:#3f1212;font-size:12px;color:#fca5a5;"><strong>无法备资 ${unfundable.length} 条</strong><ul style="margin:6px 0 0;padding-left:18px;">`;
           unfundable.slice(0, 8).forEach((u) => {
-            html += `<li>${escapeHTML(u.strategy_type || "?")} ${escapeHTML(u.symbol || u.opportunity_id || "-")}: ${escapeHTML(u.reason || "-")}${u.shortfall_usdt ? (" · 缺口 " + Number(u.shortfall_usdt).toFixed(2) + " U") : ""}</li>`;
+            html += `<li>${escapeHTML(strategyLabel(u.strategy_type))} ${escapeHTML(u.symbol || u.opportunity_id || "-")}: ${escapeHTML(rejectReasonLabel(u.reason || "-"))}${u.shortfall_usdt ? (" · 缺口 " + Number(u.shortfall_usdt).toFixed(2) + " U") : ""}</li>`;
           });
           html += `</ul></div>`;
         }
@@ -3785,20 +3896,9 @@
     function formatHoldDuration(sec) {
       const s = Number(sec || 0);
       if (!Number.isFinite(s) || s <= 0) return "-";
-      if (s < 3600) return Math.round(s / 60) + "m";
-      if (s < 86400) return (s / 3600).toFixed(1) + "h";
-      return (s / 86400).toFixed(1) + "d";
-    }
-
-    function strategyLabel(code) {
-      const map = {
-        single_venue_spot_perp: "SVSP",
-        cross_venue_spot_perp: "CVSP",
-        single_venue_perp_spot: "SVPS",
-        cross_venue_perp_spot: "CVPS",
-        perp_perp: "PP",
-      };
-      return map[String(code || "").toLowerCase()] || String(code || "-");
+      if (s < 3600) return Math.round(s / 60) + "分";
+      if (s < 86400) return (s / 3600).toFixed(1) + "时";
+      return (s / 86400).toFixed(1) + "天";
     }
 
     function pnlColor(n) {
@@ -3871,7 +3971,7 @@
           <tr>
             <td>${escapeHTML(p.symbol || "-")}</td>
             <td>${escapeHTML(strategyLabel(p.strategy_type))}</td>
-            <td>${escapeHTML(p.status || "-")}</td>
+            <td>${escapeHTML(formatRuntimeStatusText(p.status))}</td>
             <td>${formatRotationLegCell(p.spot_leg)}</td>
             <td>${formatRotationLegCell(p.perp_leg)}</td>
             <td>${Number(p.notional_usdt || 0).toFixed(2)}</td>
@@ -3883,7 +3983,7 @@
             <td>${formatHoldDuration(p.hold_duration_sec)}</td>
           </tr>`;
         }).join("");
-        openBody.innerHTML = openRows || `<tr><td colspan="12" class="hint">暂无 OPEN 持仓</td></tr>`;
+        openBody.innerHTML = openRows || `<tr><td colspan="12" class="hint">暂无持仓中(OPEN)记录</td></tr>`;
 
         const closedRows = (closedResp.settlements || []).map((s) => {
           const fees = Number(s.open_fees || 0) + Number(s.close_fees || 0);
@@ -3902,7 +4002,7 @@
             <td style="color:${pnlColor(netPnL)}">${fmtPctRatio(pnlRatio)}</td>
             <td>${Number(s.realized_funding || 0).toFixed(4)}</td>
             <td>${fees.toFixed(4)}</td>
-            <td>${escapeHTML(s.close_reason || (s.switch_exit ? "switch" : "-"))}</td>
+            <td>${escapeHTML(formatCloseReason(s.close_reason, s.switch_exit))}</td>
             <td>${formatHoldDuration(s.hold_duration_sec)}</td>
           </tr>`;
         }).join("");
@@ -3910,7 +4010,7 @@
         const genEl = document.getElementById("rotation-positions-generated-at");
         if (genEl) {
           const ts = openResp.generated_at || closedResp.generated_at;
-          genEl.textContent = ts ? ("generated_at " + formatTimeUTC8(ts)) : "";
+          genEl.textContent = ts ? ("生成于 " + formatTimeUTC8(ts)) : "";
         }
       } catch (err) {
         openBody.innerHTML = `<tr><td colspan="12" class="hint" style="color:#fca5a5;">加载失败: ${escapeHTML(err.message)}</td></tr>`;
@@ -3966,7 +4066,7 @@
         untrustedWarnEl.style.display = (untrustedPnL !== 0 || untrustedCount > 0) ? "" : "none";
       }
       if (earningsGenEl) {
-        earningsGenEl.textContent = data.generated_at ? ("generated_at " + formatTimeUTC8(data.generated_at)) : "";
+        earningsGenEl.textContent = data.generated_at ? ("生成于 " + formatTimeUTC8(data.generated_at)) : "";
       }
       if (unrealEl) unrealEl.textContent = fmt(openFunding) + " U";
       if (equityEl) {

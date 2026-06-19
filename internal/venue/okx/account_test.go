@@ -42,6 +42,7 @@ func TestVerifyAPIKeyPosturePermParsing(t *testing.T) {
 
 func TestFetchBorrowQuoteParseSuccess(t *testing.T) {
 	a := fakeOKX(t, map[string]string{
+		pathInstruments:    `{"code":"0","msg":"","data":[{"instId":"H-USDT","instType":"SPOT","baseCcy":"H","quoteCcy":"USDT","state":"live","tickSz":"0.0001","lotSz":"0.1","minSz":"0.1"}]}`,
 		pathInterestLimits: `{"code":"0","msg":"","data":[{"records":[{"ccy":"H","rate":"0.0024","surplusLmt":"888"}]}]}`,
 	})
 	q, err := a.FetchBorrowQuote(context.Background(), "H")
@@ -54,6 +55,33 @@ func TestFetchBorrowQuoteParseSuccess(t *testing.T) {
 	wantHourly := 0.0024 / 24.0
 	if q.HourlyRate < wantHourly-1e-12 || q.HourlyRate > wantHourly+1e-12 {
 		t.Fatalf("HourlyRate=%v want=%v", q.HourlyRate, wantHourly)
+	}
+}
+
+func TestFetchBorrowQuoteResolveBorrowCcyFromCanonicalSymbol(t *testing.T) {
+	a := fakeOKX(t, map[string]string{
+		pathInstruments:    `{"code":"0","msg":"","data":[{"instId":"ARB-USDT","instType":"SPOT","baseCcy":"ARB","quoteCcy":"USDT","state":"live","tickSz":"0.0001","lotSz":"0.1","minSz":"0.1"}]}`,
+		pathInterestLimits: `{"code":"0","msg":"","data":[{"records":[{"ccy":"ARB","rate":"0.0012","surplusLmt":"12000"}]}]}`,
+	})
+	q, err := a.FetchBorrowQuote(context.Background(), "ARB-USDT")
+	if err != nil {
+		t.Fatalf("FetchBorrowQuote: %v", err)
+	}
+	if q.Asset != "ARB" || !q.Available || q.MaxBorrowable != 12000 {
+		t.Fatalf("canonical symbol mapping: %+v", q)
+	}
+}
+
+func TestResolveBorrowCcyUsesPerpCtValCcyWhenSpotMissing(t *testing.T) {
+	a := fakeOKX(t, map[string]string{
+		pathInstruments: `{"code":"0","msg":"","data":[{"instId":"JUP-USDT-SWAP","instType":"SWAP","baseCcy":"","quoteCcy":"","settleCcy":"USDT","state":"live","tickSz":"0.0001","lotSz":"1","minSz":"1","ctVal":"1","ctValCcy":"JUP"}]}`,
+	})
+	ccy, err := a.resolveBorrowCcy(context.Background(), "JUP")
+	if err != nil {
+		t.Fatalf("resolveBorrowCcy: %v", err)
+	}
+	if ccy != "JUP" {
+		t.Fatalf("ccy = %q want JUP", ccy)
 	}
 }
 

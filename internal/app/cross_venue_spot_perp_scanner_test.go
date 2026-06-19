@@ -119,7 +119,7 @@ func TestScanCrossVenueSpotPerpRequiresRebalanceWhenVenueShort(t *testing.T) {
 
 	opps := ScanCrossVenueSpotPerpOpportunities(in)
 	for _, opp := range opps {
-		if len(opp.Legs) < 2 {
+		if !opportunityHasTradableLegs(opp) {
 			continue
 		}
 		if opp.Legs[0].Venue == binance.VenueName {

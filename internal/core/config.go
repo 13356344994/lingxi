@@ -42,6 +42,41 @@ func capitalRampScheduleValid(s string) bool {
 	return seen
 }
 
+// ParseVenueList 解析逗号分隔 venue 名列表(小写归一、去空白)。空串返回 nil。
+func ParseVenueList(spec string) map[string]struct{} {
+	spec = strings.TrimSpace(spec)
+	if spec == "" {
+		return nil
+	}
+	out := make(map[string]struct{})
+	for _, part := range strings.Split(spec, ",") {
+		v := strings.ToLower(strings.TrimSpace(part))
+		if v == "" {
+			continue
+		}
+		out[v] = struct{}{}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// BorrowDisabledSet 返回 BorrowDisabledVenues 解析后的集合。
+func (c CrossVenueScannerConfig) BorrowDisabledSet() map[string]struct{} {
+	return ParseVenueList(c.BorrowDisabledVenues)
+}
+
+// VenueBorrowCapable 报告 venue 是否允许借币探测与 perp-spot short-spot(不在 disabled 列表中)。
+func (c CrossVenueScannerConfig) VenueBorrowCapable(venue string) bool {
+	venue = strings.ToLower(strings.TrimSpace(venue))
+	if venue == "" {
+		return false
+	}
+	_, disabled := c.BorrowDisabledSet()[venue]
+	return !disabled
+}
+
 // ParseClusterMap 解析 R30 板块/相关性簇映射(PortfolioConfig.ClusterMap)。格式:分号分隔的「簇名=资产,资产,...」组,
 // 如 "MAJORS=BTC,ETH;MEMES=DOGE,SHIB"。返回 base 资产(大写)→ 簇名(大写)的映射。空串返回空 map(不报错)。
 // 同一资产被映射到多个簇视为非法(防歧义)。簇名或资产为空、缺 '=' 视为非法。
@@ -523,7 +558,7 @@ type CrossVenueScannerConfig struct {
 	ScanIntervalMinutes int `cfg:"scan_interval_minutes"`
 	// MaxSnapshotAgeSeconds 执行层允许消费的最大 scanner 快照年龄(秒);超过则只管理在场仓,不再开新仓。默认 720。
 	MaxSnapshotAgeSeconds int `cfg:"max_snapshot_age_seconds"`
-	// MinSpreadAPR 进入结果列表的最小年化价差(小数,0.30=30%)。默认 0.30。
+	// MinSpreadAPR 进入结果列表的最小年化价差(小数,0.05=5%);仅作 listing 噪声过滤,开仓决策靠净收益闸。默认 0.05。
 	MinSpreadAPR float64 `cfg:"min_spread_apr"`
 	// AlertSpreadAPR 触发 Telegram 告警的年化价差阈值(小数,1.0=100%)。默认 1.0。
 	AlertSpreadAPR float64 `cfg:"alert_spread_apr"`
@@ -537,6 +572,13 @@ type CrossVenueScannerConfig struct {
 	BorrowProbeFundingTopK int `cfg:"borrow_probe_funding_top_k"`
 	// BorrowProbeMaxLivePerScan 每轮扫描最大 live FetchBorrowQuote 次数(缓存命中不计)。默认 30。
 	BorrowProbeMaxLivePerScan int `cfg:"borrow_probe_max_live_per_scan"`
+	// BorrowKnownFreshnessHours 借币探测 confirmed-available 记忆窗口(小时);供 perp-spot not_borrowable 闸。默认 24。
+	BorrowKnownFreshnessHours float64 `cfg:"borrow_known_freshness_hours"`
+	// BorrowDefaultDailyRateWhenUnknown 借币可得但缺利率样本时的保守日利率(仅 EV 成本口径)。默认 0.001。
+	BorrowDefaultDailyRateWhenUnknown float64 `cfg:"borrow_default_daily_rate_when_unknown"`
+	// BorrowDisabledVenues 逗号分隔、禁止借币/short-spot 的 venue 列表(借币探测与 perp-spot 空现货均跳过)。
+	// 默认 "gate"(单币种保证金账户无统一账户借币);留空表示全部 venue 可借。
+	BorrowDisabledVenues string `cfg:"borrow_disabled_venues"`
 	// FundingAPRSanityCap 单腿年化费率绝对值上限(小数,5.0=500%);超过视为尖峰/坏数据,截断后再参与价差/排序。
 	FundingAPRSanityCap float64 `cfg:"funding_apr_sanity_cap"`
 	// SpreadPersistenceScans 费率历史样本窗口(用于 HistoryQualityScore 软信号;不再作为存在性硬闸)。
@@ -593,7 +635,7 @@ type CrossVenueExecutorConfig struct {
 	LiveTradingEnabled bool `cfg:"live_trading_enabled"`
 	// LoopIntervalSeconds 主循环周期(秒)。默认 60。
 	LoopIntervalSeconds int `cfg:"loop_interval_seconds"`
-	// OpenSpreadAPR 开仓最小年化价差(小数,1.5=150%)。默认 1.5。
+	// OpenSpreadAPR 可选年化价差 listing 下限(小数);≤0 时 bypass,开仓由 MinNetProfitUSDT 净收益闸决定。默认 0。
 	OpenSpreadAPR float64 `cfg:"open_spread_apr"`
 	// CloseSpreadAPR 平仓年化价差阈值(小数,0.3=30%)。默认 0.3。
 	CloseSpreadAPR float64 `cfg:"close_spread_apr"`
@@ -657,8 +699,10 @@ type CrossVenueExecutorConfig struct {
 	EVExpectedSlippageBps float64 `cfg:"ev_expected_slippage_bps"`
 	// EVMaxBreakevenHours 盈亏平衡持有时长上限(小时);超过则不开仓。默认 24。
 	EVMaxBreakevenHours float64 `cfg:"ev_max_breakeven_hours"`
-	// EVSafetyFactor EV 安全边际:fundingPerHour×MinHoldHours 须 ≥ roundTripCost×此系数。默认 1.3。
+	// EVSafetyFactor 已废弃(旧 24h-hold EV 闸);保留配置兼容,开仓 EV 改用 MinNetProfitUSDT。默认 1.3。
 	EVSafetyFactor float64 `cfg:"ev_safety_factor"`
+	// MinNetProfitUSDT 短持窗口(至下次结算)预期净收益(USDT)下限;≤0 表示任意净正即可。默认 0。
+	MinNetProfitUSDT float64 `cfg:"min_net_profit_usdt"`
 	// RealizedFundingPollMinutes 拉取真实结算资费的节流间隔(分钟);两次拉取之间用估算做临时展示。默认 5。
 	RealizedFundingPollMinutes int `cfg:"realized_funding_poll_minutes"`
 	// MakerFirst 永续腿 post-only 追价优先;false=回退纯 IOC(零行为变更开关)。默认 true。
@@ -683,6 +727,9 @@ type CrossVenueExecutorConfig struct {
 	SwitchSequence string `cfg:"switch_sequence"`
 	// MaxSwitchesPerCycle 每轮最多允许触发的换仓数;超过则保留原仓。默认 1。
 	MaxSwitchesPerCycle int `cfg:"max_switches_per_cycle"`
+	// PerpPerpOpeningsDefaultEnabled 路线 B live-stack 启动时跨所 perp-perp 运行时开仓开关默认值;
+	// reconcile 发现未登记真实持仓时仍会强制关(安全优先)。默认 true。
+	PerpPerpOpeningsDefaultEnabled bool `cfg:"perp_perp_openings_default_enabled"`
 	// UntrackedExposureAction 冷启动发现未登记真实仓位时的显式分支:halt/import/flatten。默认 halt。
 	UntrackedExposureAction string `cfg:"untracked_exposure_action"`
 	// DustCloseThresholdUSDT 风险腿已平时,残余非风险腿名义低于此值(且低于交易所 minNotional 若可得)视为 dust,
@@ -1178,8 +1225,7 @@ func (cfg EngineConfig) Validate() error {
 		appendIssue(cfg.CrossVenueExecutor.MinHoldHours > 0, "CrossVenueExecutor MinHoldHours 必须大于 0")
 		appendIssue(cfg.CrossVenueExecutor.DefaultTakerFeeBps >= 0, "CrossVenueExecutor DefaultTakerFeeBps 不能小于 0")
 		appendIssue(cfg.CrossVenueExecutor.EVExpectedSlippageBps >= 0, "CrossVenueExecutor EVExpectedSlippageBps 不能小于 0")
-		appendIssue(cfg.CrossVenueExecutor.EVMaxBreakevenHours > 0, "CrossVenueExecutor EVMaxBreakevenHours 必须大于 0")
-		appendIssue(cfg.CrossVenueExecutor.EVSafetyFactor >= 1, "CrossVenueExecutor EVSafetyFactor 必须 ≥ 1")
+		appendIssue(cfg.CrossVenueExecutor.MinNetProfitUSDT >= 0, "CrossVenueExecutor MinNetProfitUSDT 不能小于 0")
 		appendIssue(cfg.CrossVenueExecutor.RealizedFundingPollMinutes > 0, "CrossVenueExecutor RealizedFundingPollMinutes 必须大于 0")
 	}
 	if cfg.CapitalAllocator.Enabled {

@@ -32,6 +32,8 @@ type RotationConfig struct {
 	ContinuationCloseThreshold float64 `json:"continuation_close_threshold"`
 	// ContinuationMinHoldSeconds 开仓后至少持有此秒数才允许续持分软 CLOSE。默认 3600。
 	ContinuationMinHoldSeconds int `json:"continuation_min_hold_seconds"`
+	// MinNetProfitUSDT 开仓预期净收益下限(USDT);由 CrossVenueExecutor 注入。默认 0。
+	MinNetProfitUSDT float64 `json:"min_net_profit_usdt"`
 }
 
 // DefaultRotationConfig 返回 v1 保守默认轮动配置。
@@ -66,6 +68,7 @@ func RotationConfigFromUnified(ur core.UnifiedRotationConfig, exec CrossVenueExe
 	if ur.MaxStrategyCapitalUsagePct > 0 {
 		cfg.MaxStrategyCapitalUsagePct = ur.MaxStrategyCapitalUsagePct
 	}
+	cfg.MinNetProfitUSDT = crossVenueMinNetProfitUSDT(exec)
 	return cfg
 }
 
@@ -407,6 +410,13 @@ func rotationOpportunityOpenBlocked(opp UnifiedOpportunity, blocked RotationOpen
 	return blocked(opp.StrategyType, opp.Symbol)
 }
 
+func rotationMinNetProfitUSDT(cfg RotationConfig) float64 {
+	if cfg.MinNetProfitUSDT < 0 {
+		return 0
+	}
+	return cfg.MinNetProfitUSDT
+}
+
 func rotationCanOpenOpportunity(opp UnifiedOpportunity, available map[string]float64, cfg RotationConfig, openCount int, budget *rotationBudgetState, blocked RotationOpenBlocked) (bool, string) {
 	if rotationOpportunityOpenBlocked(opp, blocked) {
 		return false, "open_blocked"
@@ -417,7 +427,7 @@ func rotationCanOpenOpportunity(opp UnifiedOpportunity, available map[string]flo
 	if hardReject := rotationFirstHardRejectReason(opp); hardReject != "" {
 		return false, fmt.Sprintf("reject:%s", hardReject)
 	}
-	if opp.ExpectedNetEVUSDT <= 0 {
+	if opp.ExpectedNetEVUSDT <= rotationMinNetProfitUSDT(cfg) {
 		return false, "net_ev<=0"
 	}
 	if openCount >= cfg.MaxConcurrent {
@@ -464,15 +474,19 @@ func rotationAddCapitalMap(available map[string]float64, capital map[string]floa
 	}
 }
 
-func rotationSortedPositiveCandidates(candidates []UnifiedOpportunity) []UnifiedOpportunity {
+func rotationSortedPositiveCandidates(candidates []UnifiedOpportunity, cfg RotationConfig) []UnifiedOpportunity {
+	minProfit := rotationMinNetProfitUSDT(cfg)
 	positive := make([]UnifiedOpportunity, 0, len(candidates))
 	for _, opp := range candidates {
-		if opp.ExpectedNetEVUSDT > 0 {
+		if opp.ExpectedNetEVUSDT > minProfit {
 			positive = append(positive, opp)
 		}
 	}
 	sort.SliceStable(positive, func(i, j int) bool {
-		return rotationComparableWindowScore(positive[i]) > rotationComparableWindowScore(positive[j])
+		if positive[i].ExpectedNetEVUSDT == positive[j].ExpectedNetEVUSDT {
+			return positive[i].Symbol < positive[j].Symbol
+		}
+		return positive[i].ExpectedNetEVUSDT > positive[j].ExpectedNetEVUSDT
 	})
 	return positive
 }
@@ -480,7 +494,7 @@ func rotationSortedPositiveCandidates(candidates []UnifiedOpportunity) []Unified
 func planUnifiedRotationOpensFrom(candidates []UnifiedOpportunity, available map[string]float64, cfg RotationConfig, startOpenCount int, budget rotationBudgetState, blocked RotationOpenBlocked) []RotationAction {
 	cfg = normalizeRotationConfig(cfg)
 	funds := cloneVenueCapitalMap(available)
-	sorted := rotationSortedPositiveCandidates(candidates)
+	sorted := rotationSortedPositiveCandidates(candidates, cfg)
 
 	actions := make([]RotationAction, 0, len(sorted))
 	openCount := startOpenCount
@@ -489,7 +503,7 @@ func planUnifiedRotationOpensFrom(candidates []UnifiedOpportunity, available map
 		if !ok {
 			continue
 		}
-		score := rotationComparableWindowScore(opp)
+		score := opp.ExpectedNetEVUSDT
 		rotationDeductOpportunityCapital(funds, opp)
 		budget.addOpportunity(opp)
 		openCount++
@@ -534,7 +548,7 @@ func rotationBestReplaceCandidate(
 	var best UnifiedOpportunity
 	found := false
 	for _, opp := range candidates {
-		if opp.ExpectedNetEVUSDT <= 0 {
+		if opp.ExpectedNetEVUSDT <= rotationMinNetProfitUSDT(cfg) {
 			continue
 		}
 		if opp.ID == held.OpportunityID {

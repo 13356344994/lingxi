@@ -143,6 +143,7 @@ type CrossVenueScanner struct {
 	lastSnapshot CrossVenueScanSnapshot
 
 	borrowProbeCache crossVenueBorrowProbeCache
+	borrowKnown      *BorrowKnownAvailableRegistry
 
 	alertMu    sync.Mutex
 	lastAlert  map[string]time.Time
@@ -155,6 +156,31 @@ type CrossVenueScanner struct {
 	fundingHistory   map[string]map[string][]float64
 }
 
+// crossVenueBorrowKnownFreshness 返回借币 known-available 记忆窗口(来自 scanner 配置)。
+func crossVenueBorrowKnownFreshness(cfg CrossVenueScannerConfig) time.Duration {
+	h := cfg.BorrowKnownFreshnessHours
+	if h <= 0 {
+		h = 24
+	}
+	return time.Duration(h * float64(time.Hour))
+}
+
+// crossVenueBorrowDefaultDailyRateWhenUnknown 返回缺利率样本时的保守借币日利率(EV 口径)。
+func crossVenueBorrowDefaultDailyRateWhenUnknown(cfg CrossVenueScannerConfig) float64 {
+	if cfg.BorrowDefaultDailyRateWhenUnknown > 0 {
+		return cfg.BorrowDefaultDailyRateWhenUnknown
+	}
+	return 0.001
+}
+
+// BorrowKnownRegistry 返回 accumulated known-borrowable 集(线程安全只读 consult)。
+func (s *CrossVenueScanner) BorrowKnownRegistry() *BorrowKnownAvailableRegistry {
+	if s == nil {
+		return nil
+	}
+	return s.borrowKnown
+}
+
 // NewCrossVenueScanner 构造扫描器;venues 为空 map 时按 orch/secret 自建四所只读适配器。
 func NewCrossVenueScanner(cfg EngineConfig, orch *Orchestrator, secretPath string, logger *log.Logger) *CrossVenueScanner {
 	if logger == nil {
@@ -164,6 +190,13 @@ func NewCrossVenueScanner(cfg EngineConfig, orch *Orchestrator, secretPath strin
 	recordDir := strings.TrimSpace(cfg.NetworkConfig.RecordDir)
 	if recordDir == "" {
 		recordDir = "records"
+	}
+	borrowKnown := NewBorrowKnownAvailableRegistry(crossVenueBorrowKnownFreshness(cfg.CrossVenueScanner))
+	if err := borrowKnown.SeedFromBorrowProbesJSONL(recordDir, time.Now().UTC()); err != nil && logger != nil {
+		logger.Printf("[借币记忆] 暖启动 borrow_probes.jsonl 失败(将仅从 live 探测累积): %v", err)
+	} else if logger != nil && borrowKnown.CountFresh(time.Now().UTC()) > 0 {
+		logger.Printf("[借币记忆] 暖启动 %d 条 venue+asset confirmed-available (freshness=%v)",
+			borrowKnown.CountFresh(time.Now().UTC()), borrowKnown.Freshness())
 	}
 	return &CrossVenueScanner{
 		cfg:            cfg.CrossVenueScanner,
@@ -177,6 +210,7 @@ func NewCrossVenueScanner(cfg EngineConfig, orch *Orchestrator, secretPath strin
 		sleepFn:        time.Sleep,
 		fetchVenue:     defaultFetchVenueSnapshot,
 		fundingHistory: make(map[string]map[string][]float64),
+		borrowKnown:    borrowKnown,
 	}
 }
 
@@ -418,6 +452,9 @@ func (s *CrossVenueScanner) probeBorrowForOpportunities(
 			if ctx.Err() != nil {
 				break
 			}
+			if !s.cfg.VenueBorrowCapable(venueName) {
+				continue
+			}
 			adp, ok := s.venues[venueName]
 			if !ok || adp == nil {
 				continue
@@ -504,6 +541,9 @@ func (s *CrossVenueScanner) probeBorrowForOpportunities(
 		}
 	}
 	for _, cached := range s.borrowProbeCache.allValid(scannedAt) {
+		if !s.cfg.VenueBorrowCapable(cached.Venue) {
+			continue
+		}
 		sym := canonicalSymbolFromBaseAsset(cached.Symbol, fundingByVenue)
 		if sym == "" {
 			sym = cached.Symbol
@@ -528,6 +568,9 @@ func (s *CrossVenueScanner) probeBorrowForOpportunities(
 	})
 	for base, parts := range bySymbolSummary {
 		s.logger.Printf("[借币探测] %s: %s", base, strings.Join(parts, " "))
+	}
+	if s.borrowKnown != nil {
+		s.borrowKnown.ObserveProbes(probes, scannedAt)
 	}
 	return probes
 }

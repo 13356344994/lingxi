@@ -207,6 +207,41 @@ func TestUnifiedRotationDefaults(t *testing.T) {
 	}
 }
 
+func TestCrossVenueExecutorPerpPerpOpeningsDefaultEnabled(t *testing.T) {
+	cfg := DefaultEngineConfig()
+	if !cfg.CrossVenueExecutor.PerpPerpOpeningsDefaultEnabled {
+		t.Fatal("PerpPerpOpeningsDefaultEnabled 默认应为 true")
+	}
+}
+
+func TestDefaultBorrowDisabledVenuesGateOnly(t *testing.T) {
+	cfg := DefaultEngineConfig()
+	if cfg.CrossVenueScanner.BorrowDisabledVenues != "gate" {
+		t.Fatalf("BorrowDisabledVenues = %q, want gate", cfg.CrossVenueScanner.BorrowDisabledVenues)
+	}
+	if !cfg.CrossVenueScanner.VenueBorrowCapable("binance") {
+		t.Fatal("binance should be borrow-capable by default")
+	}
+	if cfg.CrossVenueScanner.VenueBorrowCapable("gate") {
+		t.Fatal("gate should be borrow-disabled by default")
+	}
+}
+
+func TestParseVenueListAndBorrowCapableToggle(t *testing.T) {
+	set := ParseVenueList(" gate , OKX ")
+	if _, ok := set["gate"]; !ok || len(set) != 2 {
+		t.Fatalf("ParseVenueList = %#v", set)
+	}
+	cfg := CrossVenueScannerConfig{BorrowDisabledVenues: "gate"}
+	if cfg.VenueBorrowCapable("gate") {
+		t.Fatal("gate should be disabled")
+	}
+	cfg.BorrowDisabledVenues = ""
+	if !cfg.VenueBorrowCapable("gate") {
+		t.Fatal("empty disabled list should re-enable gate borrow")
+	}
+}
+
 // TestPortfolioConfigValidationGates 钉死 Portfolio 校验的「恒检非负 + 启用时门控」语义。
 func TestPortfolioConfigValidationGates(t *testing.T) {
 	// 滞后带 < 1.0 恒拒（防 churn 下界）。

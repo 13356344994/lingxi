@@ -317,8 +317,11 @@ func TestCrossVenueScannerAnnotatesSnapshotLineageAndMetrics(t *testing.T) {
 	if opp.SnapshotID != snap.SnapshotID {
 		t.Fatalf("opp snapshot_id=%q want %q", opp.SnapshotID, snap.SnapshotID)
 	}
-	if opp.ComparableWindowHours <= 0 || opp.RankScore <= 0 {
-		t.Fatalf("opp metrics not populated: %+v", opp)
+	if opp.ComparableWindowHours <= 0 {
+		t.Fatalf("opp comparable window not populated: %+v", opp)
+	}
+	if math.Abs(opp.RankScore-opp.NetEV) > 1e-9 {
+		t.Fatalf("RankScore should equal NetEV, got rank=%.6f net=%.6f opp=%+v", opp.RankScore, opp.NetEV, opp)
 	}
 }
 

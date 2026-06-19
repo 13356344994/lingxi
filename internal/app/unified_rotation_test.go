@@ -922,7 +922,7 @@ func TestRotationContinuationBorrowCostUsesProbeRate(t *testing.T) {
 	// 日利率 1% → 24h borrow = 100U, 远高于旧固定 3U (notional×0.0003)。
 	daily := map[string]float64{"BTC": 0.01}
 	got := rotationContinuationBorrowCostUSDT(notional, true, "BTC", holdHours, daily)
-	want := perpSpotBorrowCostUSDT("BTC", notional, holdHours, daily)
+	want := perpSpotBorrowCostUSDT("BTC", notional, holdHours, daily, 0)
 	if math.Abs(got-want) > 1e-9 || got <= notional*rotationContinuationBorrowFallbackDailyRate {
 		t.Fatalf("probe borrow=%v want %v (> fallback %v)", got, want, notional*rotationContinuationBorrowFallbackDailyRate)
 	}

@@ -69,6 +69,10 @@ func testSingleVenuePerpSpotScanInput(now time.Time) SingleVenuePerpSpotScanInpu
 			"BTC": 100000,
 			"ETH": 100000,
 		},
+		BorrowKnownAvailable: testBorrowKnownRegistry(now,
+			CrossVenueBorrowProbe{Symbol: "BTC-USDT", Venue: bybit.VenueName, Available: true},
+			CrossVenueBorrowProbe{Symbol: "ETH-USDT", Venue: bybit.VenueName, Available: true},
+		),
 		Config:                       cfg,
 		FundingRateVolPerHourByVenue: map[string]map[string]float64{
 			bybit.VenueName: {
@@ -128,7 +132,7 @@ func TestScanSingleVenuePerpSpotRequiresRebalanceWhenFundsShort(t *testing.T) {
 
 	opps := ScanSingleVenuePerpSpotOpportunities(in)
 	for _, opp := range opps {
-		if len(opp.Legs) > 0 {
+		if opportunityHasTradableLegs(opp) {
 			t.Fatalf("expected no tradable opportunities when capital cannot support 5U floor, got %+v", opp)
 		}
 	}
@@ -162,15 +166,18 @@ func TestScanSingleVenuePerpSpotRecordsPositiveFundingReject(t *testing.T) {
 	if !containsPerpSpotReject(btc.RejectReasons, singleVenuePerpSpotRejectPositiveFunding) {
 		t.Fatalf("reject_reasons = %#v, want %q", btc.RejectReasons, singleVenuePerpSpotRejectPositiveFunding)
 	}
-	if len(btc.Legs) != 0 {
-		t.Fatal("positive funding should not produce legs")
+	if btc.RawFundingRate <= 0 {
+		t.Fatalf("positive funding reject should carry raw rate, got %.8f", btc.RawFundingRate)
 	}
 }
 
 func TestScanSingleVenuePerpSpotRecordsNotBorrowableReject(t *testing.T) {
 	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
 	in := testSingleVenuePerpSpotScanInput(now)
-	delete(in.BorrowDailyRateByAsset, "BTC")
+	reg := testBorrowKnownRegistry(now,
+		CrossVenueBorrowProbe{Symbol: "ETH-USDT", Venue: bybit.VenueName, Available: true},
+	)
+	in.BorrowKnownAvailable = reg
 	opps := ScanSingleVenuePerpSpotOpportunities(in)
 	btc := findSingleVenuePerpSpotOpp(opps, "BTC-USDT")
 	if btc == nil {
@@ -303,7 +310,7 @@ func TestScanSingleVenuePerpSpotBasisAndNetEV(t *testing.T) {
 }
 
 func TestPerpSpotBorrowCostUSDT(t *testing.T) {
-	got := perpSpotBorrowCostUSDT("BTC", 100, 24, map[string]float64{"BTC": 0.001})
+	got := perpSpotBorrowCostUSDT("BTC", 100, 24, map[string]float64{"BTC": 0.001}, 0)
 	want := 100 * 0.001 * 1.0
 	if math.Abs(got-want) > 1e-9 {
 		t.Fatalf("borrow cost = %.6f, want %.6f", got, want)

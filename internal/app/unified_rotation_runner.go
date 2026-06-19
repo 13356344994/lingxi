@@ -807,6 +807,17 @@ func (r *UnifiedRotationRunner) defaultScanRotationCandidates(ctx context.Contex
 	unifiedMarketEnrichMarketsWithDepthVolume(ctx, r.venues, marketsByVenue, symbols)
 	availableUSDTByVenue := deps.fetchAvailableUSDT(ctx, r.venues, crossVenueExecutorVenues)
 	borrowDaily, borrowLimits := rotationBorrowMapsFromProbes(snap.BorrowProbes)
+	var borrowKnown *BorrowKnownAvailableRegistry
+	borrowDefaultDaily := 0.001
+	borrowDisabled := CrossVenueScannerConfig{}.BorrowDisabledSet()
+	if r.scanner != nil {
+		borrowKnown = r.scanner.BorrowKnownRegistry()
+		borrowDefaultDaily = crossVenueBorrowDefaultDailyRateWhenUnknown(r.scanner.cfg)
+		borrowDisabled = r.scanner.cfg.BorrowDisabledSet()
+	}
+	if borrowKnown != nil {
+		borrowKnown.ObserveProbes(snap.BorrowProbes, now)
+	}
 
 	// 扫描器 sizing 必须扣掉与 allocator(rotationCanOpenOpportunity)一致的每所储备金,否则
 	// 扫描器会把仓位撑到 100% 可用资金,而 allocator 留 reserve 后就再也无法注资 → 净正候选永远开不出来。
@@ -861,9 +872,12 @@ func (r *UnifiedRotationRunner) defaultScanRotationCandidates(ctx context.Contex
 		FundingByVenue:               fundingByVenue,
 		MarketsByVenue:               marketsByVenue,
 		AvailableUSDTByVenue:         scannerAvailableUSDT,
-		BorrowDailyRateByAsset:       borrowDaily,
-		BorrowLimitUSDTByAsset:       borrowLimits,
-		Config:                       DefaultSingleVenuePerpSpotScannerConfig(r.execCfg),
+		BorrowDailyRateByAsset:            borrowDaily,
+		BorrowLimitUSDTByAsset:            borrowLimits,
+		BorrowKnownAvailable:              borrowKnown,
+		BorrowDefaultDailyRateWhenUnknown: borrowDefaultDaily,
+		BorrowDisabledVenues:              borrowDisabled,
+		Config:                            DefaultSingleVenuePerpSpotScannerConfig(r.execCfg),
 		FundingRateVolPerHourByVenue: fundingVolByVenue,
 	})
 	crossPerpSpot := ScanCrossVenuePerpSpotOpportunities(CrossVenuePerpSpotScanInput{
@@ -873,9 +887,12 @@ func (r *UnifiedRotationRunner) defaultScanRotationCandidates(ctx context.Contex
 		FundingByVenue:               fundingByVenue,
 		MarketsByVenue:               marketsByVenue,
 		AvailableUSDTByVenue:         scannerAvailableUSDT,
-		BorrowDailyRateByAsset:       borrowDaily,
-		BorrowLimitUSDTByAsset:       borrowLimits,
-		Config:                       DefaultCrossVenuePerpSpotScannerConfig(r.execCfg),
+		BorrowDailyRateByAsset:            borrowDaily,
+		BorrowLimitUSDTByAsset:            borrowLimits,
+		BorrowKnownAvailable:              borrowKnown,
+		BorrowDefaultDailyRateWhenUnknown: borrowDefaultDaily,
+		BorrowDisabledVenues:              borrowDisabled,
+		Config:                            DefaultCrossVenuePerpSpotScannerConfig(r.execCfg),
 		FundingRateVolPerHourByVenue: fundingVolByVenue,
 	})
 
@@ -1719,7 +1736,7 @@ func rotationContinuationBorrowCostUSDT(notional float64, negativeCarry bool, ba
 		return 0
 	}
 	if borrowDailyByAsset != nil && holdHours > 0 {
-		if cost := perpSpotBorrowCostUSDT(baseAsset, notional, holdHours, borrowDailyByAsset); cost > 0 {
+		if cost := perpSpotBorrowCostUSDT(baseAsset, notional, holdHours, borrowDailyByAsset, 0); cost > 0 {
 			return cost
 		}
 	}
@@ -1809,6 +1826,8 @@ func rotationBorrowMapsFromProbes(probes []CrossVenueBorrowProbe) (dailyRates ma
 		}
 		if p.HourlyRateAPR > 0 {
 			dailyRates[base] = p.HourlyRateAPR / 365.0
+		} else {
+			dailyRates[base] = 0
 		}
 		if p.MaxBorrowable > 0 {
 			if cur, ok := limits[base]; !ok || p.MaxBorrowable > cur {

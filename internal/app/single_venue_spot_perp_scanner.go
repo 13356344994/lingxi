@@ -213,10 +213,10 @@ func buildSingleVenueSpotPerpOpportunity(
 	}
 
 	if fund.Rate <= 0 {
-		return singleVenueSpotPerpRejectedOpportunity(snapshotID, symbol, venueName, singleVenueSpotPerpRejectNegativeFunding), true
+		return singleVenueSpotPerpRejectedOpportunity(snapshotID, symbol, venueName, singleVenueSpotPerpRejectNegativeFunding, fund, now, 0), true
 	}
 	if !mkt.HasSpot || mkt.SpotMid <= 0 {
-		return singleVenueSpotPerpRejectedOpportunity(snapshotID, symbol, venueName, singleVenueSpotPerpRejectNoSpotMarket), true
+		return singleVenueSpotPerpRejectedOpportunity(snapshotID, symbol, venueName, singleVenueSpotPerpRejectNoSpotMarket, fund, now, fund.Rate), true
 	}
 	if !mkt.HasPerp || mkt.PerpMid <= 0 {
 		return UnifiedOpportunity{}, false
@@ -240,10 +240,10 @@ func buildSingleVenueSpotPerpOpportunity(
 		func(v string) float64 { return singleVenueSpotPerpVenueReserve(v, cfg) },
 	)
 	if notional <= 0 {
-		return singleVenueSpotPerpRejectedOpportunity(snapshotID, symbol, venueName, singleVenueSpotPerpRejectInsufficientDepth), true
+		return singleVenueSpotPerpRejectedOpportunity(snapshotID, symbol, venueName, singleVenueSpotPerpRejectInsufficientDepth, fund, now, fund.Rate), true
 	}
 	if crossVenueSpotPerpPerpLiquidatedAtShock(cvCfg, notional) {
-		return singleVenueSpotPerpRejectedOpportunity(snapshotID, symbol, venueName, singleVenueSpotPerpRejectMarginStress), true
+		return singleVenueSpotPerpRejectedOpportunity(snapshotID, symbol, venueName, singleVenueSpotPerpRejectMarginStress, fund, now, fund.Rate), true
 	}
 
 	holdHours := cfg.ExpectedHoldHours
@@ -323,7 +323,7 @@ func buildSingleVenueSpotPerpOpportunity(
 	spotLegInstr := legInstrumentFields(mkt.SpotTickSize, mkt.SpotStepSize, mkt.SpotMinNotional)
 	perpLegInstr := legInstrumentFields(mkt.PerpTickSize, mkt.PerpStepSize, mkt.PerpMinNotional)
 
-	return UnifiedOpportunity{
+	opp := UnifiedOpportunity{
 		ID:           unifiedOpportunityID(UnifiedStrategySingleVenueSpotPerp, symbol, snapshotID, venueName, venueName),
 		StrategyType: UnifiedStrategySingleVenueSpotPerp,
 		Symbol:       symbol,
@@ -349,7 +349,13 @@ func buildSingleVenueSpotPerpOpportunity(
 		CapitalEfficiencyScore: capitalEfficiency,
 		RejectReasons:          rejectReasons,
 		RequiresRebalance:      requiresRebalance,
-	}, true
+	}
+	return singleVenueSpotPerpFinalizeOpportunity(opp, fund, now), true
+}
+
+func singleVenueSpotPerpFinalizeOpportunity(opp UnifiedOpportunity, fund CrossVenueSpotPerpFundingSnap, now time.Time) UnifiedOpportunity {
+	applyUnifiedFundingSnapDisplay(&opp, fund, now, fund.Rate)
+	return opp
 }
 
 func singleVenueSpotPerpAsCrossVenueConfig(cfg SingleVenueSpotPerpScannerConfig) CrossVenueSpotPerpScannerConfig {
@@ -408,15 +414,10 @@ func singleVenueSpotPerpRiskScore(cfg SingleVenueSpotPerpScannerConfig, requires
 	return clamp01(risk)
 }
 
-func singleVenueSpotPerpRejectedOpportunity(snapshotID, symbol, venueName, reason string) UnifiedOpportunity {
-	return UnifiedOpportunity{
-		ID:               unifiedOpportunityID(UnifiedStrategySingleVenueSpotPerp, symbol, snapshotID, venueName, venueName),
-		StrategyType:     UnifiedStrategySingleVenueSpotPerp,
-		Symbol:           symbol,
-		RejectReasons:    []string{reason},
-		RiskScore:        1,
-		DataQualityScore: 0,
-	}
+func singleVenueSpotPerpRejectedOpportunity(snapshotID, symbol, venueName, reason string, fund CrossVenueSpotPerpFundingSnap, now time.Time, displayRate float64) UnifiedOpportunity {
+	return unifiedRejectedOpportunityWithFunding(
+		UnifiedStrategySingleVenueSpotPerp, snapshotID, symbol, venueName, venueName, reason, fund, now, displayRate,
+	)
 }
 
 func singleVenueSpotPerpLegNotional(opp UnifiedOpportunity) float64 {

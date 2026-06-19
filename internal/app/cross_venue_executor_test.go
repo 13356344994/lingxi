@@ -249,6 +249,7 @@ func testCrossVenueExecutorConfig() EngineConfig {
 	cfg.CrossVenueExecutor.CarryFundingEntryVolRefPerHour = defExec.CarryFundingEntryVolRefPerHour
 	cfg.CrossVenueExecutor.CarryFundingEntryFloorMinutes = defExec.CarryFundingEntryFloorMinutes
 	cfg.CrossVenueExecutor.CarryFundingEntryVolLookbackScans = defExec.CarryFundingEntryVolLookbackScans
+	cfg.CrossVenueExecutor.PerpPerpOpeningsDefaultEnabled = defExec.PerpPerpOpeningsDefaultEnabled
 	cfg.CrossVenueScanner.Enabled = true
 	cfg.AllocatedCapitalUSDT = 1000
 	return cfg
@@ -2706,8 +2707,7 @@ func TestCrossVenueSubsetFallbackOpensOff(t *testing.T) {
 	}
 }
 
-// TestCrossVenueSubsetFallbackBelowThresholdRejected 全局最优含不可交易所、子集对价差不达标 → 拒绝,
-// 原因含子集最优价差。
+// TestCrossVenueSubsetFallbackBelowThresholdRejected 全局最优含不可交易所、子集对净收益≤0 → 拒绝。
 func TestCrossVenueSubsetFallbackBelowThresholdRejected(t *testing.T) {
 	nf := time.Now().UTC().Add(time.Hour)
 	scanner := &CrossVenueScanner{lastSnapshot: CrossVenueScanSnapshot{
@@ -2715,17 +2715,20 @@ func TestCrossVenueSubsetFallbackBelowThresholdRejected(t *testing.T) {
 			Symbol: "BTC-USDT", HighVenue: nonTradeableVenueName, LowVenue: okx.VenueName, SpreadAPR: 25,
 		}},
 		FundingByVenue: map[string]map[string]CrossVenueFundingEntry{
-			// 两所费率几乎相等 → 子集价差 ≈0 < 1.5 不达标。
+			// 两所费率几乎相等 → 子集净收益 ≤0。
 			bybit.VenueName: {"BTC-USDT": {Rate: 0.0001, IntervalHours: 8, NextFundingTime: nf}},
 			okx.VenueName:   {"BTC-USDT": {Rate: 0.00009, IntervalHours: 8, NextFundingTime: nf}},
 		},
 	}}
 	var buf bytes.Buffer
 	e, high, low := newSubsetFallbackExecutor(t, &buf, scanner)
+	cfg := e.cfg
+	cfg.CrossVenueExecutor.OpenSpreadAPR = 0
+	e.cfg = cfg
 	e.evaluateNewOpens(context.Background(), false)
 	logs := buf.String()
-	if !strings.Contains(logs, "子集内无达标替代") || !strings.Contains(logs, "子集最优=") {
-		t.Fatalf("拒绝原因应含子集最优价差, got:\n%s", logs)
+	if !strings.Contains(logs, "EV<0") && !strings.Contains(logs, "netProfit") {
+		t.Fatalf("拒绝原因应含净收益闸, got:\n%s", logs)
 	}
 	if strings.Contains(logs, "[dry-run] 本应开仓") {
 		t.Fatalf("不达标不应走到开仓决策, got:\n%s", logs)
@@ -2745,7 +2748,7 @@ func TestCrossVenueTradeablePairNoFallback(t *testing.T) {
 		}},
 		// 可交易对必须直接使用原机会,不应触发「含不可交易所才会走」的子集降级路径。
 		FundingByVenue: map[string]map[string]CrossVenueFundingEntry{
-			bybit.VenueName: {"BTC-USDT": {Rate: 0.002, IntervalHours: 1, NextFundingTime: nf}},
+			bybit.VenueName: {"BTC-USDT": {Rate: 0.008, IntervalHours: 1, NextFundingTime: nf}},
 			okx.VenueName:   {"BTC-USDT": {Rate: 0.0001, IntervalHours: 8, NextFundingTime: nf}},
 		},
 	}}

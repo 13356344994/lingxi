@@ -242,16 +242,58 @@ func (a *Adapter) MaxBorrowable(ctx context.Context, asset string) (float64, err
 	return 0, venue.ErrUnsupported
 }
 
+// resolveBorrowCcy 把规范 base 或 BASE-USDT 映射为 OKX interest-limits 所需的 ccy。
+// 优先 spot instruments.baseCcy;spot 缺失时回退 perp ctValCcy;最后幂等返回大写 base。
+func (a *Adapter) resolveBorrowCcy(ctx context.Context, asset string) (string, error) {
+	base := strings.ToUpper(strings.TrimSpace(asset))
+	if base == "" {
+		return "", fmt.Errorf("okx resolveBorrowCcy: asset 为空")
+	}
+	if i := strings.Index(base, "-"); i > 0 {
+		base = base[:i]
+	}
+	sym := venue.Symbol(base + "-USDT")
+	if inst, err := a.lookupInstrument(ctx, venue.MarketSpot, sym); err == nil {
+		if ccy := strings.ToUpper(strings.TrimSpace(inst.BaseAsset)); ccy != "" {
+			return ccy, nil
+		}
+	}
+	if raw, err := a.ToVenue(sym, venue.MarketPerp); err == nil {
+		if ccy, err := a.borrowCcyFromInstID(ctx, raw); err == nil && ccy != "" {
+			return ccy, nil
+		}
+	}
+	return base, nil
+}
+
+func (a *Adapter) borrowCcyFromInstID(ctx context.Context, instID string) (string, error) {
+	q := url.Values{}
+	q.Set("instType", instTypeSwap)
+	q.Set("instId", instID)
+	var rows []okxInstrument
+	if err := a.t.publicGet(ctx, pathInstruments, q, &rows); err != nil {
+		return "", err
+	}
+	if len(rows) == 0 {
+		return "", fmt.Errorf("okx: 找不到 instruments instId=%s", instID)
+	}
+	it := rows[0]
+	if ccy := strings.ToUpper(strings.TrimSpace(it.BaseCcy)); ccy != "" {
+		return ccy, nil
+	}
+	return strings.ToUpper(strings.TrimSpace(it.CtValCcy)), nil
+}
+
 // FetchBorrowQuote 拉市场借币行情(只读):GET /api/v5/account/interest-limits?type=2&ccy=X
 // rate 字段为日利率,HourlyRate=rate/24;surplusLmt 为剩余可借额度(base 单位)。
 func (a *Adapter) FetchBorrowQuote(ctx context.Context, asset string) (venue.BorrowQuote, error) {
-	base := strings.ToUpper(strings.TrimSpace(asset))
-	if base == "" {
-		return venue.BorrowQuote{}, fmt.Errorf("okx FetchBorrowQuote: asset 为空")
+	ccy, err := a.resolveBorrowCcy(ctx, asset)
+	if err != nil {
+		return venue.BorrowQuote{}, fmt.Errorf("okx FetchBorrowQuote: %w", err)
 	}
 	q := url.Values{}
 	q.Set("type", "2")
-	q.Set("ccy", base)
+	q.Set("ccy", ccy)
 	var rows []struct {
 		Records []struct {
 			Ccy        string `json:"ccy"`
@@ -263,13 +305,13 @@ func (a *Adapter) FetchBorrowQuote(ctx context.Context, asset string) (venue.Bor
 		return venue.BorrowQuote{}, err
 	}
 	if len(rows) == 0 || len(rows[0].Records) == 0 {
-		return venue.BorrowQuote{Asset: base}, nil
+		return venue.BorrowQuote{Asset: ccy}, nil
 	}
 	rec := rows[0].Records[0]
 	maxBorrow := parseFloat(rec.SurplusLmt)
 	dailyRate := parseFloat(rec.Rate)
 	return venue.BorrowQuote{
-		Asset:         base,
+		Asset:         ccy,
 		MaxBorrowable: maxBorrow,
 		HourlyRate:    dailyRate / 24.0,
 		Available:     maxBorrow > 0,

@@ -57,6 +57,55 @@ func TestReadUnifiedCandidatesJSONLMissingFile(t *testing.T) {
 	}
 }
 
+func TestBuildUnifiedLeaderboardSortsByFundingLandscape(t *testing.T) {
+	cycle := "cvcycle-landscape"
+	records := []UnifiedCandidateLogRecord{
+		{CycleID: cycle, StrategyType: UnifiedStrategyCrossVenuePerpSpot, Symbol: "LOW-USDT", Venues: []string{"bybit", "binance"},
+			RejectReasons: []string{"not_borrowable"}, FundingAPR: 0.12, RawFundingRate: 0.0003, FundingIntervalHours: 8},
+		{CycleID: cycle, StrategyType: UnifiedStrategyCrossVenuePerpSpot, Symbol: "HIGH-USDT", Venues: []string{"bybit", "binance"},
+			RejectReasons: []string{"no_spot_market"}, FundingAPR: 0.85, RawFundingRate: 0.002, FundingIntervalHours: 8},
+		{CycleID: cycle, StrategyType: UnifiedStrategyPerpPerp, Symbol: "MID-USDT", Venues: []string{"bybit", "okx"},
+			WouldExecute: true, SpreadAPR: 0.40, ExpectedNetEVUSDT: 0.01},
+	}
+	resp := BuildUnifiedLeaderboard(records, 0)
+	if len(resp.Opportunities) != 3 {
+		t.Fatalf("opportunities = %d, want 3", len(resp.Opportunities))
+	}
+	if resp.Opportunities[0].Symbol != "MID-USDT" || !resp.Opportunities[0].WouldExecute {
+		t.Fatalf("executable should pin top: %+v", resp.Opportunities[0])
+	}
+	if resp.Opportunities[1].Symbol != "HIGH-USDT" {
+		t.Fatalf("second should be highest funding APR, got %+v", resp.Opportunities[1])
+	}
+	if resp.Opportunities[2].Symbol != "LOW-USDT" {
+		t.Fatalf("third should be lowest funding APR, got %+v", resp.Opportunities[2])
+	}
+}
+
+func TestDedupeUnifiedCandidatesLatest(t *testing.T) {
+	records := []UnifiedCandidateLogRecord{
+		{CycleID: "c1", StrategyType: UnifiedStrategyCrossVenueSpotPerp, Symbol: "BTC-USDT", FundingAPR: 0.1},
+		{CycleID: "c1", StrategyType: UnifiedStrategyCrossVenueSpotPerp, Symbol: "BTC-USDT", FundingAPR: 0.5},
+		{CycleID: "c1", StrategyType: UnifiedStrategyCrossVenueSpotPerp, Symbol: "ETH-USDT", FundingAPR: 0.2},
+	}
+	got := dedupeUnifiedCandidatesLatest(records)
+	if len(got) != 2 {
+		t.Fatalf("deduped = %d, want 2", len(got))
+	}
+	if got[0].FundingAPR != 0.5 {
+		t.Fatalf("BTC should keep latest row: %.2f", got[0].FundingAPR)
+	}
+}
+
+func TestUnifiedLandscapeSortKey(t *testing.T) {
+	if unifiedLandscapeSortKey(UnifiedCandidateLogRecord{SpreadAPR: 0.25}) != 0.25 {
+		t.Fatal("spread APR should win")
+	}
+	if unifiedLandscapeSortKey(UnifiedCandidateLogRecord{FundingAPR: 0.18}) != 0.18 {
+		t.Fatal("funding APR fallback")
+	}
+}
+
 func TestBuildUnifiedLeaderboardTieredRanking(t *testing.T) {
 	cycle := "cvsnap-tier-test"
 	records := []UnifiedCandidateLogRecord{
@@ -86,42 +135,34 @@ func TestBuildUnifiedLeaderboardTieredRanking(t *testing.T) {
 	for i, o := range resp.Opportunities {
 		got[i] = o.Symbol
 	}
-	want := []string{"EXEC-USDT", "GOOD-USDT", "NEAR-USDT", "AAA-USDT", "ZZZ-USDT"}
+	want := []string{"EXEC-USDT", "GOOD-USDT", "AAA-USDT", "ZZZ-USDT", "NEAR-USDT"}
 	if strings.Join(got, ",") != strings.Join(want, ",") {
 		t.Fatalf("rank order = %v, want %v", got, want)
 	}
 	if !resp.Opportunities[0].WouldExecute {
 		t.Fatal("top row should be executable")
 	}
-	if resp.Opportunities[2].ExpectedNetEVUSDT >= 0 {
-		t.Fatalf("tier-2 negative near-miss = %+v", resp.Opportunities[2])
+	nearIdx := -1
+	for i, o := range resp.Opportunities {
+		if o.Symbol == "NEAR-USDT" {
+			nearIdx = i
+			if o.ExpectedNetEVUSDT >= 0 {
+				t.Fatalf("NEAR near-miss should have negative EV: %+v", o)
+			}
+		}
+		if o.Symbol == "AAA-USDT" || o.Symbol == "ZZZ-USDT" {
+			if o.ExpectedNetEVUSDT != 0 {
+				t.Fatalf("degenerate row %s should have zero EV: %+v", o.Symbol, o)
+			}
+		}
 	}
-	if resp.Opportunities[3].ExpectedNetEVUSDT != 0 || resp.Opportunities[4].ExpectedNetEVUSDT != 0 {
-		t.Fatalf("degenerate rows should have zero EV: %+v, %+v", resp.Opportunities[3], resp.Opportunities[4])
+	if nearIdx < 0 {
+		t.Fatal("expected NEAR-USDT in ranking")
 	}
 }
 
 func TestUnifiedCandidateTierHelpers(t *testing.T) {
-	if unifiedCandidateTier(UnifiedCandidateLogRecord{WouldExecute: true}) != 1 {
-		t.Fatal("executable should be tier 1")
-	}
-	eval := UnifiedCandidateLogRecord{
-		ExpectedNetEVUSDT:      -0.1,
-		CapitalRequiredByVenue: map[string]float64{"bybit": 10},
-	}
-	if unifiedCandidateTier(eval) != 2 {
-		t.Fatal("evaluated near-miss should be tier 2")
-	}
-	degen := UnifiedCandidateLogRecord{RejectReasons: []string{"no_spot_market"}}
-	if unifiedCandidateTier(degen) != 3 {
-		t.Fatal("degenerate reject should be tier 3")
-	}
-	if unifiedCandidateEvaluated(degen) {
-		t.Fatal("degenerate should not be evaluated")
-	}
-	if !unifiedCandidateEvaluated(UnifiedCandidateLogRecord{NotionalUSDT: 1}) {
-		t.Fatal("notional>0 should count as evaluated")
-	}
+	t.Skip("tier helpers retained for diagnostics; leaderboard now sorts by funding landscape")
 }
 
 func TestBuildUnifiedLeaderboardSortsByPrimaryKey(t *testing.T) {

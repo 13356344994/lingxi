@@ -112,7 +112,7 @@ func TestScanSingleVenueSpotPerpRequiresRebalanceWhenFundsShort(t *testing.T) {
 
 	opps := ScanSingleVenueSpotPerpOpportunities(in)
 	for _, opp := range opps {
-		if len(opp.Legs) > 0 {
+		if opportunityHasTradableLegs(opp) {
 			t.Fatalf("expected no tradable opportunities when capital cannot support 5U floor, got %+v", opp)
 		}
 	}
@@ -154,8 +154,8 @@ func TestScanSingleVenueSpotPerpRecordsNegativeFundingReject(t *testing.T) {
 	if !containsReject(btc.RejectReasons, singleVenueSpotPerpRejectNegativeFunding) {
 		t.Fatalf("reject_reasons = %#v, want %q", btc.RejectReasons, singleVenueSpotPerpRejectNegativeFunding)
 	}
-	if len(btc.Legs) != 0 {
-		t.Fatal("negative funding should not produce legs")
+	if btc.RawFundingRate != 0 {
+		t.Fatalf("expected no raw funding rate for negative funding reject, got %.8f", btc.RawFundingRate)
 	}
 }
 
@@ -216,8 +216,8 @@ func TestScanSingleVenueSpotPerpRecordsInsufficientDepthReject(t *testing.T) {
 	if !containsReject(btc.RejectReasons, singleVenueSpotPerpRejectInsufficientDepth) {
 		t.Fatalf("reject_reasons = %#v, want %q", btc.RejectReasons, singleVenueSpotPerpRejectInsufficientDepth)
 	}
-	if len(btc.Legs) != 0 {
-		t.Fatal("insufficient depth should not produce legs")
+	if btc.RawFundingRate <= 0 {
+		t.Fatalf("rejected row should still carry raw funding for leaderboard, got %.8f", btc.RawFundingRate)
 	}
 }
 

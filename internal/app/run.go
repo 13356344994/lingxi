@@ -156,7 +156,7 @@ func startLiveStack(ctx context.Context, cfg EngineConfig) error {
 				dashboard.SetCrossVenueExecutor(exec)
 				// 路线 B: open/manage/reconcile 仅由统一 runner 驱动;停 Run 主循环防双循环,reconcile 经 runner 派发。
 				exec.SetRotationManaged(true)
-				_ = exec.SetOpeningsEnabled(false)
+				_ = exec.SetOpeningsEnabled(cfg.CrossVenueExecutor.PerpPerpOpeningsDefaultEnabled)
 				go exec.RunEquitySampler(ctx)
 			}
 		}

@@ -69,6 +69,9 @@ type SingleVenuePerpSpotScanInput struct {
 	AvailableUSDTByVenue   map[string]float64
 	BorrowDailyRateByAsset map[string]float64
 	BorrowLimitUSDTByAsset map[string]float64
+	BorrowKnownAvailable   *BorrowKnownAvailableRegistry
+	BorrowDefaultDailyRateWhenUnknown float64
+	BorrowDisabledVenues   map[string]struct{}
 	Config                 SingleVenuePerpSpotScannerConfig
 	FundingRateVolPerHourByVenue map[string]map[string]float64
 }
@@ -91,7 +94,11 @@ func ScanSingleVenuePerpSpotOpportunities(in SingleVenuePerpSpotScanInput) []Uni
 	}
 
 	out := make([]UnifiedOpportunity, 0)
+	borrowDisabled := in.BorrowDisabledVenues
 	for _, venueName := range venues {
+		if _, disabled := borrowDisabled[strings.ToLower(strings.TrimSpace(venueName))]; disabled {
+			continue
+		}
 		for _, sym := range symbols {
 			sym = strings.TrimSpace(sym)
 			if sym == "" {
@@ -100,7 +107,10 @@ func ScanSingleVenuePerpSpotOpportunities(in SingleVenuePerpSpotScanInput) []Uni
 			opp, ok := buildSingleVenuePerpSpotOpportunity(
 				in.SnapshotID, now, sym, venueName,
 				in.FundingByVenue, in.MarketsByVenue, in.AvailableUSDTByVenue,
-				in.BorrowDailyRateByAsset, in.BorrowLimitUSDTByAsset, cfg,
+				in.BorrowDailyRateByAsset, in.BorrowLimitUSDTByAsset,
+				in.BorrowKnownAvailable, in.BorrowDefaultDailyRateWhenUnknown,
+				in.BorrowDisabledVenues,
+				cfg,
 				in.FundingRateVolPerHourByVenue,
 			)
 			if ok {
@@ -201,6 +211,9 @@ func buildSingleVenuePerpSpotOpportunity(
 	markets map[string]map[string]SingleVenuePerpSpotMarketSnap,
 	available map[string]float64,
 	borrowDailyRateByAsset, borrowLimitUSDTByAsset map[string]float64,
+	borrowKnown *BorrowKnownAvailableRegistry,
+	borrowDefaultDailyRateWhenUnknown float64,
+	borrowDisabled map[string]struct{},
 	cfg SingleVenuePerpSpotScannerConfig,
 	fundingVolByVenue map[string]map[string]float64,
 ) (UnifiedOpportunity, bool) {
@@ -218,18 +231,18 @@ func buildSingleVenuePerpSpotOpportunity(
 	}
 
 	if fund.Rate >= 0 {
-		return singleVenuePerpSpotRejectedOpportunity(snapshotID, symbol, venueName, singleVenuePerpSpotRejectPositiveFunding), true
+		return singleVenuePerpSpotRejectedOpportunity(snapshotID, symbol, venueName, singleVenuePerpSpotRejectPositiveFunding, fund, now, fund.Rate), true
 	}
 	if !mkt.HasSpot || mkt.SpotMid <= 0 {
-		return singleVenuePerpSpotRejectedOpportunity(snapshotID, symbol, venueName, singleVenuePerpSpotRejectNoSpotMarket), true
+		return singleVenuePerpSpotRejectedOpportunity(snapshotID, symbol, venueName, singleVenuePerpSpotRejectNoSpotMarket, fund, now, -fund.Rate), true
 	}
 	if !mkt.HasPerp || mkt.PerpMid <= 0 {
 		return UnifiedOpportunity{}, false
 	}
 
 	baseAsset := baseAssetFromCanonicalSymbol(symbol)
-	if !perpSpotAssetBorrowable(baseAsset, borrowDailyRateByAsset) {
-		return singleVenuePerpSpotRejectedOpportunity(snapshotID, symbol, venueName, singleVenuePerpSpotRejectNotBorrowable), true
+	if !perpSpotAssetBorrowable(venueName, baseAsset, borrowKnown, borrowDisabled, now) {
+		return singleVenuePerpSpotRejectedOpportunity(snapshotID, symbol, venueName, singleVenuePerpSpotRejectNotBorrowable, fund, now, -fund.Rate), true
 	}
 
 	midDev := math.Abs(mkt.PerpMid/mkt.SpotMid - 1)
@@ -242,10 +255,10 @@ func buildSingleVenuePerpSpotOpportunity(
 		func(v string) float64 { return singleVenuePerpSpotVenueReserve(v, cfg) },
 	)
 	if notional <= 0 {
-		return singleVenuePerpSpotRejectedOpportunity(snapshotID, symbol, venueName, singleVenuePerpSpotRejectInsufficientDepth), true
+		return singleVenuePerpSpotRejectedOpportunity(snapshotID, symbol, venueName, singleVenuePerpSpotRejectInsufficientDepth, fund, now, -fund.Rate), true
 	}
 	if crossVenueSpotPerpPerpLiquidatedAtShock(cvCfg, notional) {
-		return singleVenuePerpSpotRejectedOpportunity(snapshotID, symbol, venueName, singleVenuePerpSpotRejectMarginStress), true
+		return singleVenuePerpSpotRejectedOpportunity(snapshotID, symbol, venueName, singleVenuePerpSpotRejectMarginStress, fund, now, -fund.Rate), true
 	}
 
 	holdHours := cfg.ExpectedHoldHours
@@ -270,7 +283,7 @@ func buildSingleVenuePerpSpotOpportunity(
 	openCost := singleVenuePerpSpotOpenCostUSDT(cfg, venueName, notional)
 	closeCost := openCost
 	slippage := crossVenueSpotPerpSlippageUSDT(cvCfg, notional, mkt, mkt)
-	borrowCost := perpSpotBorrowCostUSDT(baseAsset, notional, holdHours, borrowDailyRateByAsset)
+	borrowCost := perpSpotBorrowCostUSDT(baseAsset, notional, holdHours, borrowDailyRateByAsset, borrowDefaultDailyRateWhenUnknown)
 
 	vol, volOK := carryFundingVolFromMap(fundingVolByVenue, venueName, symbol)
 	if ok, _ := carryScannerFundingEntryEligible(now, fund, holdHours, notional, effectiveRate, expectedBasisPnL, openCost+borrowCost, slippage, cfg.Exec.FundingEntryGate(), vol, volOK); !ok {
@@ -289,7 +302,7 @@ func buildSingleVenuePerpSpotOpportunity(
 	openCost = singleVenuePerpSpotOpenCostUSDT(cfg, venueName, notional)
 	closeCost = openCost
 	slippage = crossVenueSpotPerpSlippageUSDT(cvCfg, notional, mkt, mkt)
-	borrowCost = perpSpotBorrowCostUSDT(baseAsset, notional, holdHours, borrowDailyRateByAsset)
+	borrowCost = perpSpotBorrowCostUSDT(baseAsset, notional, holdHours, borrowDailyRateByAsset, borrowDefaultDailyRateWhenUnknown)
 
 	spotMarginRequired := notional
 	perpMarginRequired := crossVenueSpotPerpPerpMarginRequired(cvCfg, notional)
@@ -329,7 +342,7 @@ func buildSingleVenuePerpSpotOpportunity(
 	refPrice := (mkt.SpotMid + mkt.PerpMid) / 2
 	qty := notional / refPrice
 
-	return UnifiedOpportunity{
+	opp := UnifiedOpportunity{
 		ID:           unifiedOpportunityID(UnifiedStrategySingleVenuePerpSpot, symbol, snapshotID, venueName, venueName),
 		StrategyType: UnifiedStrategySingleVenuePerpSpot,
 		Symbol:       symbol,
@@ -355,7 +368,9 @@ func buildSingleVenuePerpSpotOpportunity(
 		CapitalEfficiencyScore: capitalEfficiency,
 		RejectReasons:          rejectReasons,
 		RequiresRebalance:      requiresRebalance,
-	}, true
+	}
+	applyUnifiedFundingSnapDisplay(&opp, fund, now, -fund.Rate)
+	return opp, true
 }
 
 func singleVenuePerpSpotAsCrossVenueConfig(cfg SingleVenuePerpSpotScannerConfig) CrossVenueSpotPerpScannerConfig {
@@ -414,15 +429,10 @@ func singleVenuePerpSpotRiskScore(cfg SingleVenuePerpSpotScannerConfig, requires
 	return clamp01(risk)
 }
 
-func singleVenuePerpSpotRejectedOpportunity(snapshotID, symbol, venueName, reason string) UnifiedOpportunity {
-	return UnifiedOpportunity{
-		ID:               unifiedOpportunityID(UnifiedStrategySingleVenuePerpSpot, symbol, snapshotID, venueName, venueName),
-		StrategyType:     UnifiedStrategySingleVenuePerpSpot,
-		Symbol:           symbol,
-		RejectReasons:    []string{reason},
-		RiskScore:        1,
-		DataQualityScore: 0,
-	}
+func singleVenuePerpSpotRejectedOpportunity(snapshotID, symbol, venueName, reason string, fund CrossVenueSpotPerpFundingSnap, now time.Time, displayRate float64) UnifiedOpportunity {
+	return unifiedRejectedOpportunityWithFunding(
+		UnifiedStrategySingleVenuePerpSpot, snapshotID, symbol, venueName, venueName, reason, fund, now, displayRate,
+	)
 }
 
 func singleVenuePerpSpotLegNotional(opp UnifiedOpportunity) float64 {
@@ -434,15 +444,6 @@ func singleVenuePerpSpotLegNotional(opp UnifiedOpportunity) float64 {
 	return 0
 }
 
-func perpSpotAssetBorrowable(baseAsset string, borrowDailyRateByAsset map[string]float64) bool {
-	baseAsset = strings.ToUpper(strings.TrimSpace(baseAsset))
-	if baseAsset == "" || borrowDailyRateByAsset == nil {
-		return false
-	}
-	rate, ok := borrowDailyRateByAsset[baseAsset]
-	return ok && rate > 0
-}
-
 func perpSpotBorrowOverLimit(baseAsset string, notional float64, borrowLimitUSDTByAsset map[string]float64) bool {
 	if borrowLimitUSDTByAsset == nil || notional <= 0 {
 		return false
@@ -450,17 +451,4 @@ func perpSpotBorrowOverLimit(baseAsset string, notional float64, borrowLimitUSDT
 	baseAsset = strings.ToUpper(strings.TrimSpace(baseAsset))
 	limit, ok := borrowLimitUSDTByAsset[baseAsset]
 	return ok && limit > 0 && notional > limit+1e-9
-}
-
-func perpSpotBorrowCostUSDT(baseAsset string, notional, holdHours float64, borrowDailyRateByAsset map[string]float64) float64 {
-	if notional <= 0 || holdHours <= 0 || borrowDailyRateByAsset == nil {
-		return 0
-	}
-	baseAsset = strings.ToUpper(strings.TrimSpace(baseAsset))
-	dailyRate, ok := borrowDailyRateByAsset[baseAsset]
-	if !ok || dailyRate <= 0 {
-		return 0
-	}
-	holdDays := holdHours / 24.0
-	return notional * dailyRate * holdDays
 }

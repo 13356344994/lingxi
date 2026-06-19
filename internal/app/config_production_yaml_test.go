@@ -83,9 +83,6 @@ func TestLoadProductionConfigYAML(t *testing.T) {
 	if math.Abs(cfg.StrategyConfig.MaxScanBasisRate-0.0015) > 1e-12 {
 		t.Fatalf("profit_seeking strategy.max_scan_basis_rate = %.6f want 0.0015", cfg.StrategyConfig.MaxScanBasisRate)
 	}
-	if math.Abs(cfg.CrossVenueExecutor.OpenSpreadAPR-1.5) > 1e-12 {
-		t.Fatalf("profit_seeking cross_venue_executor.open_spread_apr = %.4f want 1.5", cfg.CrossVenueExecutor.OpenSpreadAPR)
-	}
 }
 
 // findRepoRoot 从测试包目录向上查找含 go.mod 的仓库根。

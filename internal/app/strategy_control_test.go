@@ -55,6 +55,79 @@ func TestCrossVenueExecutorReloadsControlStateOnConstruct(t *testing.T) {
 	}
 }
 
+func TestCrossVenueRouteBStartupOpeningsDefaultEnabled(t *testing.T) {
+	dir := t.TempDir()
+	cfg := testCrossVenueExecutorConfig()
+	cfg.NetworkConfig.RecordDir = dir
+	cfg.CrossVenueExecutor.PerpPerpOpeningsDefaultEnabled = true
+	e, err := NewCrossVenueExecutor(cfg, nil, nil, "", nil)
+	if err != nil {
+		t.Fatalf("NewCrossVenueExecutor: %v", err)
+	}
+	e.SetRotationManaged(true)
+	if err := e.SetOpeningsEnabled(cfg.CrossVenueExecutor.PerpPerpOpeningsDefaultEnabled); err != nil {
+		t.Fatalf("SetOpeningsEnabled: %v", err)
+	}
+	if !e.OpeningsEnabled() {
+		t.Fatal("route B startup should leave perp-perp openings enabled when config default is true")
+	}
+	enabled, err := loadCrossVenueControlState(dir)
+	if err != nil || !enabled {
+		t.Fatalf("control.json should persist enabled=true: enabled=%v err=%v", enabled, err)
+	}
+}
+
+func TestCrossVenueRouteBStartupOpeningsConfigFalse(t *testing.T) {
+	dir := t.TempDir()
+	cfg := testCrossVenueExecutorConfig()
+	cfg.NetworkConfig.RecordDir = dir
+	cfg.CrossVenueExecutor.PerpPerpOpeningsDefaultEnabled = false
+	e, err := NewCrossVenueExecutor(cfg, nil, nil, "", nil)
+	if err != nil {
+		t.Fatalf("NewCrossVenueExecutor: %v", err)
+	}
+	e.SetRotationManaged(true)
+	if err := e.SetOpeningsEnabled(cfg.CrossVenueExecutor.PerpPerpOpeningsDefaultEnabled); err != nil {
+		t.Fatalf("SetOpeningsEnabled: %v", err)
+	}
+	if e.OpeningsEnabled() {
+		t.Fatal("route B startup should leave perp-perp openings disabled when config default is false")
+	}
+}
+
+func TestCrossVenueRouteBStartupUntrackedPositionOverridesDefaultEnabled(t *testing.T) {
+	dir := t.TempDir()
+	store := mustCrossVenueStore(t, dir)
+	now := time.Now().UTC().Add(time.Hour)
+	high := newCrossVenueTestVenue(bybit.VenueName, 0.001, 8, now.Add(2*time.Hour))
+	low := newCrossVenueTestVenue(okx.VenueName, 0.0001, 8, now.Add(2*time.Hour))
+	high.positions = []venue.Position{{Symbol: "BTC-USDT", PositionAmt: -0.5, MarkPrice: 100}}
+	low.positions = []venue.Position{{Symbol: "BTC-USDT", PositionAmt: 0.5, MarkPrice: 100}}
+	cfg := testCrossVenueExecutorConfig()
+	cfg.NetworkConfig.RecordDir = dir
+	cfg.CrossVenueExecutor.PerpPerpOpeningsDefaultEnabled = true
+	cfg.CrossVenueExecutor.UntrackedExposureAction = "halt"
+	e := &CrossVenueExecutor{
+		cfg:       cfg,
+		venues:    map[string]venue.Venue{bybit.VenueName: high, okx.VenueName: low},
+		store:     store,
+		logger:    testCrossVenueLogger(),
+		nowFn:     func() time.Time { return now },
+		recordDir: dir,
+	}
+	e.SetRotationManaged(true)
+	if err := e.SetOpeningsEnabled(cfg.CrossVenueExecutor.PerpPerpOpeningsDefaultEnabled); err != nil {
+		t.Fatalf("SetOpeningsEnabled: %v", err)
+	}
+	if !e.OpeningsEnabled() {
+		t.Fatal("startup should enable openings before reconcile")
+	}
+	e.reconcileOnStart(context.Background())
+	if e.OpeningsEnabled() {
+		t.Fatal("untracked position latch should override default-enabled startup")
+	}
+}
+
 func TestCrossVenueOpeningsDisabledSkipsEvaluateNewOpens(t *testing.T) {
 	now := time.Now().UTC().Add(time.Hour)
 	high := newCrossVenueTestVenue(bybit.VenueName, 0.001, 8, now)

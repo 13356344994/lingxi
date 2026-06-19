@@ -284,7 +284,7 @@ func appendDelistRejectedCandidates(
 				continue
 			}
 			seen[id] = struct{}{}
-			out = append(out, singleVenueSpotPerpRejectedOpportunity(snapshotID, sym, venueName, rotationRejectDelisting))
+			out = append(out, singleVenueSpotPerpRejectedOpportunity(snapshotID, sym, venueName, rotationRejectDelisting, CrossVenueSpotPerpFundingSnap{}, time.Now().UTC(), 0))
 		}
 	}
 	return out

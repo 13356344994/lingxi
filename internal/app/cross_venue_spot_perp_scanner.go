@@ -415,7 +415,7 @@ func buildCrossVenueSpotPerpOpportunity(
 		rejectReasons = append(rejectReasons, "net_ev<=0")
 	}
 
-	return UnifiedOpportunity{
+	opp := UnifiedOpportunity{
 		ID:           unifiedOpportunityID(UnifiedStrategyCrossVenueSpotPerp, symbol, snapshotID, spotVenue, perpVenue),
 		StrategyType: UnifiedStrategyCrossVenueSpotPerp,
 		Symbol:       symbol,
@@ -442,7 +442,9 @@ func buildCrossVenueSpotPerpOpportunity(
 		CapitalEfficiencyScore: capitalEfficiency,
 		RejectReasons:          rejectReasons,
 		RequiresRebalance:      requiresRebalance,
-	}, true
+	}
+	applyUnifiedFundingSnapDisplay(&opp, fund, now, fund.Rate)
+	return opp, true
 }
 
 func crossVenueSpotPerpTradableNotional(cfg CrossVenueSpotPerpScannerConfig, spotMkt, perpMkt CrossVenueSpotPerpMarketSnap) float64 {

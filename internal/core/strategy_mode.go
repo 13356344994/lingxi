@@ -18,11 +18,8 @@ const (
 // profitSeeking 诚实成本闸下限(与 defaults.go RiskConfig.MinNetProfitRate 出厂默认对齐)。
 const profitSeekingMinNetProfitRate = 0.0020
 
-// defaultMaxScanBasisRate / defaultOpenSpreadAPR 为 profit_seeking 收回的扫描/跨所价差闸默认量级。
-const (
-	defaultMaxScanBasisRate = 0.0015
-	defaultOpenSpreadAPR    = 1.5
-)
+// defaultMaxScanBasisRate 为 profit_seeking 收回的扫描 basis 闸默认量级。
+const defaultMaxScanBasisRate = 0.0015
 
 // ParseStrategyMode 解析配置字符串;空串或未识别时回退 collect_data(保持现状默认)。
 func ParseStrategyMode(raw string) StrategyMode {
@@ -73,8 +70,5 @@ func ApplyStrategyModeToEconomics(cfg *EngineConfig, mode StrategyMode) {
 	}
 	if cfg.StrategyConfig.FavorableBasisMaxRate > defaultMaxScanBasisRate {
 		cfg.StrategyConfig.FavorableBasisMaxRate = defaultMaxScanBasisRate
-	}
-	if cfg.CrossVenueExecutor.OpenSpreadAPR < defaultOpenSpreadAPR {
-		cfg.CrossVenueExecutor.OpenSpreadAPR = defaultOpenSpreadAPR
 	}
 }

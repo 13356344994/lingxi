@@ -18,13 +18,26 @@ type UnifiedLeaderboardEntry struct {
 	Symbol                 string             `json:"symbol"`
 	Venues                 []string           `json:"venues"`
 	ExpectedNetEVUSDT      float64            `json:"expected_net_ev_usdt"`
+	ExpectedFundingUSDT    float64            `json:"expected_funding_usdt,omitempty"`
 	CapitalRequiredByVenue map[string]float64 `json:"capital_required_by_venue"`
 	CapitalEfficiencyScore float64            `json:"capital_efficiency_score"`
+	LandscapeSortKey       float64            `json:"landscape_sort_key"`
 	PrimarySortKey         float64            `json:"primary_sort_key"`
 	RankReason             string             `json:"rank_reason"`
 	WouldExecute           bool               `json:"would_execute"`
 	RejectReasons          []string           `json:"reject_reasons"`
 	NotionalUSDT           float64            `json:"notional_usdt,omitempty"`
+	RawFundingRate         float64            `json:"raw_funding_rate,omitempty"`
+	FundingRatePerHour     float64            `json:"funding_rate_per_hour,omitempty"`
+	FundingAPR             float64            `json:"funding_apr,omitempty"`
+	SpreadAPR              float64            `json:"spread_apr,omitempty"`
+	HighFundingRate        float64            `json:"high_funding_rate,omitempty"`
+	LowFundingRate         float64            `json:"low_funding_rate,omitempty"`
+	FundingIntervalHours   int                `json:"funding_interval_hours,omitempty"`
+	NextFundingTime        string             `json:"next_funding_time,omitempty"`
+	HighNextFundingTime    string             `json:"high_next_funding_time,omitempty"`
+	LowNextFundingTime     string             `json:"low_next_funding_time,omitempty"`
+	MinutesUntilFunding    float64            `json:"minutes_until_funding,omitempty"`
 }
 
 // UnifiedReasonCount 统计 reject_reason 出现次数。
@@ -122,6 +135,26 @@ func filterUnifiedCandidatesByCycle(records []UnifiedCandidateLogRecord, cycleID
 	return out
 }
 
+func dedupeUnifiedCandidatesLatest(records []UnifiedCandidateLogRecord) []UnifiedCandidateLogRecord {
+	if len(records) == 0 {
+		return records
+	}
+	lastIdx := make(map[string]int, len(records))
+	for i, rec := range records {
+		key := rec.StrategyType + "|" + rec.Symbol
+		lastIdx[key] = i
+	}
+	out := make([]UnifiedCandidateLogRecord, 0, len(lastIdx))
+	for i, rec := range records {
+		key := rec.StrategyType + "|" + rec.Symbol
+		if lastIdx[key] != i {
+			continue
+		}
+		out = append(out, rec)
+	}
+	return out
+}
+
 func sumCapitalRequired(m map[string]float64) float64 {
 	total := 0.0
 	for _, v := range m {
@@ -132,39 +165,7 @@ func sumCapitalRequired(m map[string]float64) float64 {
 	return total
 }
 
-func hasCapitalRequired(m map[string]float64) bool {
-	for _, v := range m {
-		if v > 0 {
-			return true
-		}
-	}
-	return false
-}
-
-// unifiedCandidateEvaluated 表示候选曾进入规模/EV 评估（非退化拒绝）。
-func unifiedCandidateEvaluated(rec UnifiedCandidateLogRecord) bool {
-	if rec.NotionalUSDT > 0 {
-		return true
-	}
-	if hasCapitalRequired(rec.CapitalRequiredByVenue) {
-		return true
-	}
-	return rec.ExpectedNetEVUSDT != 0
-}
-
-// unifiedCandidateTier 排行榜分层：1=可执行，2=已评估近失，3=退化拒绝。
-func unifiedCandidateTier(rec UnifiedCandidateLogRecord) int {
-	if rec.WouldExecute {
-		return 1
-	}
-	if unifiedCandidateEvaluated(rec) {
-		return 2
-	}
-	return 3
-}
-
-// unifiedPrimarySortKey 主排序键 = 风险调整后净EV / (占用资金 × 预计持有小时)。
-// JSONL 已落盘 capital_efficiency_score；缺失时用 expected_net_ev / 总占用资金 近似。
+// unifiedPrimarySortKey 保留 EV/资本效率排序键(次排序/兼容字段)。
 func unifiedPrimarySortKey(rec UnifiedCandidateLogRecord) float64 {
 	if rec.CapitalEfficiencyScore != 0 {
 		return rec.CapitalEfficiencyScore
@@ -176,26 +177,30 @@ func unifiedPrimarySortKey(rec UnifiedCandidateLogRecord) float64 {
 	return rec.ExpectedNetEVUSDT / totalCapital
 }
 
-func unifiedTierLabel(tier int) string {
-	switch tier {
-	case 1:
-		return "可执行"
-	case 2:
-		return "已评估近失"
-	default:
-		return "退化拒绝"
-	}
-}
-
-func buildUnifiedRankReason(rank int, rec UnifiedCandidateLogRecord, sortKey float64, tier int) string {
-	totalCapital := sumCapitalRequired(rec.CapitalRequiredByVenue)
+func buildUnifiedRankReason(rank int, rec UnifiedCandidateLogRecord, landscapeKey float64, now time.Time) string {
 	venueList := strings.Join(rec.Venues, "+")
 	if venueList == "" {
 		venueList = "—"
 	}
+	fundingLabel := "费率 APR"
+	fundingVal := rec.FundingAPR
+	if rec.SpreadAPR > 0 {
+		fundingLabel = "价差 APR"
+		fundingVal = rec.SpreadAPR
+	}
+	mins := unifiedMinutesUntilFunding(rec.NextFundingTime, now)
+	settlePart := ""
+	if mins > 0 {
+		settlePart = fmt.Sprintf("，距结算 %.0f min", mins)
+	}
+	execLabel := "不可执行"
+	if rec.WouldExecute {
+		execLabel = "可执行"
+	}
 	return fmt.Sprintf(
-		"排名第 %d（%s）：主排序键 %.6f USDT/(USDT·h)（= 风险调整后净EV %.4f / 占用资金 %.2f USDT）；%s @ %s，预计净EV %.4f USDT，名义 %.2f USDT",
-		rank, unifiedTierLabel(tier), sortKey, rec.ExpectedNetEVUSDT, totalCapital, rec.Symbol, venueList, rec.ExpectedNetEVUSDT, rec.NotionalUSDT,
+		"排名第 %d（%s）：%s %.2f%%；%s @ %s，预计净EV %.4f USDT，预计资金费 %.4f USDT，名义 %.2f USDT%s",
+		rank, execLabel, fundingLabel, fundingVal*100, rec.Symbol, venueList,
+		rec.ExpectedNetEVUSDT, rec.ExpectedFundingUSDT, rec.NotionalUSDT, settlePart,
 	)
 }
 
@@ -319,15 +324,59 @@ func topUnifiedReasonCounts(counts map[string]int, topN int) []UnifiedReasonCoun
 }
 
 type unifiedCandidateSortable struct {
-	rec      UnifiedCandidateLogRecord
-	sortKey  float64
-	original int
+	rec           UnifiedCandidateLogRecord
+	landscapeKey  float64
+	primaryKey    float64
+	original      int
+}
+
+func leaderboardEntryFromRecord(rec UnifiedCandidateLogRecord, rank int, landscapeKey float64, now time.Time) UnifiedLeaderboardEntry {
+	rejectReasons := rec.RejectReasons
+	if rejectReasons == nil {
+		rejectReasons = []string{}
+	}
+	capital := rec.CapitalRequiredByVenue
+	if capital == nil {
+		capital = map[string]float64{}
+	}
+	venues := rec.Venues
+	if venues == nil {
+		venues = []string{}
+	}
+	return UnifiedLeaderboardEntry{
+		Rank:                   rank,
+		StrategyType:           rec.StrategyType,
+		Symbol:                 rec.Symbol,
+		Venues:                 venues,
+		ExpectedNetEVUSDT:      rec.ExpectedNetEVUSDT,
+		ExpectedFundingUSDT:    rec.ExpectedFundingUSDT,
+		CapitalRequiredByVenue: capital,
+		CapitalEfficiencyScore: rec.CapitalEfficiencyScore,
+		LandscapeSortKey:       landscapeKey,
+		PrimarySortKey:         unifiedPrimarySortKey(rec),
+		RankReason:             buildUnifiedRankReason(rank, rec, landscapeKey, now),
+		WouldExecute:           rec.WouldExecute,
+		RejectReasons:          rejectReasons,
+		NotionalUSDT:           rec.NotionalUSDT,
+		RawFundingRate:         rec.RawFundingRate,
+		FundingRatePerHour:     rec.FundingRatePerHour,
+		FundingAPR:             rec.FundingAPR,
+		SpreadAPR:              rec.SpreadAPR,
+		HighFundingRate:        rec.HighFundingRate,
+		LowFundingRate:         rec.LowFundingRate,
+		FundingIntervalHours:   rec.FundingIntervalHours,
+		NextFundingTime:        rec.NextFundingTime,
+		HighNextFundingTime:    rec.HighNextFundingTime,
+		LowNextFundingTime:     rec.LowNextFundingTime,
+		MinutesUntilFunding:    unifiedMinutesUntilFunding(rec.NextFundingTime, now),
+	}
 }
 
 // BuildUnifiedLeaderboard 从全部 JSONL 记录中取最近 cycle_id 的候选并排序。
 func BuildUnifiedLeaderboard(records []UnifiedCandidateLogRecord, topN int) UnifiedLeaderboardResponse {
+	now := time.Now().UTC()
 	resp := UnifiedLeaderboardResponse{
-		GeneratedAt: time.Now().UTC().Format(time.RFC3339),
+		GeneratedAt: now.Format(time.RFC3339),
 	}
 	if len(records) == 0 {
 		resp.Note = "暂无 unified candidates 记录"
@@ -335,6 +384,7 @@ func BuildUnifiedLeaderboard(records []UnifiedCandidateLogRecord, topN int) Unif
 	}
 	cycleID := latestUnifiedCycleID(records)
 	cycleRecords := filterUnifiedCandidatesByCycle(records, cycleID)
+	cycleRecords = dedupeUnifiedCandidatesLatest(cycleRecords)
 	if len(cycleRecords) == 0 {
 		resp.Note = "最近 cycle 无候选记录"
 		return resp
@@ -345,31 +395,27 @@ func BuildUnifiedLeaderboard(records []UnifiedCandidateLogRecord, topN int) Unif
 	sortable := make([]unifiedCandidateSortable, len(cycleRecords))
 	for i, rec := range cycleRecords {
 		sortable[i] = unifiedCandidateSortable{
-			rec:      rec,
-			sortKey:  unifiedPrimarySortKey(rec),
-			original: i,
+			rec:          rec,
+			landscapeKey: unifiedLandscapeSortKey(rec),
+			primaryKey:   unifiedPrimarySortKey(rec),
+			original:     i,
 		}
 		if rec.WouldExecute {
 			resp.WouldExecuteCount++
 		}
 	}
 	sort.SliceStable(sortable, func(i, j int) bool {
-		ti := unifiedCandidateTier(sortable[i].rec)
-		tj := unifiedCandidateTier(sortable[j].rec)
-		if ti != tj {
-			return ti < tj
+		if sortable[i].rec.WouldExecute != sortable[j].rec.WouldExecute {
+			return sortable[i].rec.WouldExecute
 		}
-		if ti == 3 {
-			if sortable[i].rec.Symbol != sortable[j].rec.Symbol {
-				return sortable[i].rec.Symbol < sortable[j].rec.Symbol
-			}
-			return sortable[i].original < sortable[j].original
-		}
-		if sortable[i].sortKey != sortable[j].sortKey {
-			return sortable[i].sortKey > sortable[j].sortKey
+		if sortable[i].landscapeKey != sortable[j].landscapeKey {
+			return sortable[i].landscapeKey > sortable[j].landscapeKey
 		}
 		if sortable[i].rec.ExpectedNetEVUSDT != sortable[j].rec.ExpectedNetEVUSDT {
 			return sortable[i].rec.ExpectedNetEVUSDT > sortable[j].rec.ExpectedNetEVUSDT
+		}
+		if sortable[i].rec.Symbol != sortable[j].rec.Symbol {
+			return sortable[i].rec.Symbol < sortable[j].rec.Symbol
 		}
 		return sortable[i].original < sortable[j].original
 	})
@@ -383,34 +429,7 @@ func BuildUnifiedLeaderboard(records []UnifiedCandidateLogRecord, topN int) Unif
 
 	resp.Opportunities = make([]UnifiedLeaderboardEntry, 0, len(sortable))
 	for i, item := range sortable {
-		rec := item.rec
-		rejectReasons := rec.RejectReasons
-		if rejectReasons == nil {
-			rejectReasons = []string{}
-		}
-		capital := rec.CapitalRequiredByVenue
-		if capital == nil {
-			capital = map[string]float64{}
-		}
-		venues := rec.Venues
-		if venues == nil {
-			venues = []string{}
-		}
-		tier := unifiedCandidateTier(rec)
-		resp.Opportunities = append(resp.Opportunities, UnifiedLeaderboardEntry{
-			Rank:                   i + 1,
-			StrategyType:           rec.StrategyType,
-			Symbol:                 rec.Symbol,
-			Venues:                 venues,
-			ExpectedNetEVUSDT:      rec.ExpectedNetEVUSDT,
-			CapitalRequiredByVenue: capital,
-			CapitalEfficiencyScore: rec.CapitalEfficiencyScore,
-			PrimarySortKey:         item.sortKey,
-			RankReason:             buildUnifiedRankReason(i+1, rec, item.sortKey, tier),
-			WouldExecute:           rec.WouldExecute,
-			RejectReasons:          rejectReasons,
-			NotionalUSDT:           rec.NotionalUSDT,
-		})
+		resp.Opportunities = append(resp.Opportunities, leaderboardEntryFromRecord(item.rec, i+1, item.landscapeKey, now))
 	}
 	resp.RejectReasonsTop = buildUnifiedReasonCounts(cycleRecords, 15)
 	resp.VenueCapitalInsufficient = buildVenueCapitalInsufficientTop(cycleRecords, 10)

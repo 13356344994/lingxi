@@ -79,6 +79,10 @@ func testCrossVenuePerpSpotScanInput(now time.Time) CrossVenuePerpSpotScanInput 
 		BorrowLimitUSDTByAsset: map[string]float64{
 			"BTC": 100000,
 		},
+		BorrowKnownAvailable: testBorrowKnownRegistry(now,
+			CrossVenueBorrowProbe{Symbol: "BTC-USDT", Venue: binance.VenueName, Available: true},
+			CrossVenueBorrowProbe{Symbol: "BTC-USDT", Venue: "okx", Available: true},
+		),
 		Config:                       cfg,
 		FundingRateVolPerHourByVenue: scannerTestCarryLowFundingVol(bybit.VenueName, "BTC-USDT"),
 	}
@@ -132,7 +136,7 @@ func TestScanCrossVenuePerpSpotRequiresRebalanceWhenVenueShort(t *testing.T) {
 
 	opps := ScanCrossVenuePerpSpotOpportunities(in)
 	for _, opp := range opps {
-		if len(opp.Legs) < 2 {
+		if !opportunityHasTradableLegs(opp) {
 			continue
 		}
 		if opp.Legs[1].Venue == binance.VenueName {
@@ -176,6 +180,7 @@ func TestScanCrossVenuePerpSpotExcludesPositiveFunding(t *testing.T) {
 func TestScanCrossVenuePerpSpotRecordsNotBorrowableReject(t *testing.T) {
 	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
 	in := testCrossVenuePerpSpotScanInput(now)
+	in.BorrowKnownAvailable = NewBorrowKnownAvailableRegistry(24 * time.Hour)
 	in.BorrowDailyRateByAsset = map[string]float64{}
 	opps := ScanCrossVenuePerpSpotOpportunities(in)
 	if len(opps) != 2 {
@@ -220,7 +225,7 @@ func TestScanCrossVenuePerpSpotExcludesInsufficientDepth(t *testing.T) {
 	})
 	opps := ScanCrossVenuePerpSpotOpportunities(in)
 	for _, opp := range opps {
-		if len(opp.Legs) >= 2 && opp.Legs[1].Venue == binance.VenueName {
+		if opportunityHasTradableLegs(opp) && len(opp.Legs) >= 2 && opp.Legs[1].Venue == binance.VenueName {
 			t.Fatalf("unexpected tradable opportunity with insufficient depth: notional=%.2f", opp.Legs[1].Notional)
 		}
 	}
