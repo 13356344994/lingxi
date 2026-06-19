@@ -22,21 +22,21 @@ const (
 
 // LedgerReconReport 账本对账只读分析报告。
 type LedgerReconReport struct {
-	GeneratedAt              time.Time                    `json:"generated_at"`
-	SettlementsPath          string                       `json:"settlements_path"`
-	EquitySnapshotsPath      string                       `json:"equity_snapshots_path"`
-	TotalSettlements         int                          `json:"total_settlements"`
-	TotalNetPnL              float64                      `json:"total_net_pnl"`
-	TotalNetPnLExclAbnormal  float64                      `json:"total_net_pnl_excl_abnormal"`
-	EquityTotalStart         float64                      `json:"equity_total_start"`
-	EquityTotalEnd           float64                      `json:"equity_total_end"`
-	EquityTotalDelta         float64                      `json:"equity_total_delta"`
-	Daily                    []LedgerReconDailyRow        `json:"daily"`
-	AbnormalPnL              []LedgerReconAbnormalRecord  `json:"abnormal_pnl"`
-	FundingTruthStatusCounts map[string]int               `json:"funding_truth_status_counts"`
-	Coverage                 LedgerReconCoverage          `json:"coverage"`
-	ToleranceBps             float64                      `json:"tolerance_bps"`
-	LargePnLThresholdUSDT    float64                      `json:"large_pnl_threshold_usdt"`
+	GeneratedAt              time.Time                   `json:"generated_at"`
+	SettlementsPath          string                      `json:"settlements_path"`
+	EquitySnapshotsPath      string                      `json:"equity_snapshots_path"`
+	TotalSettlements         int                         `json:"total_settlements"`
+	TotalNetPnL              float64                     `json:"total_net_pnl"`
+	TotalNetPnLExclAbnormal  float64                     `json:"total_net_pnl_excl_abnormal"`
+	EquityTotalStart         float64                     `json:"equity_total_start"`
+	EquityTotalEnd           float64                     `json:"equity_total_end"`
+	EquityTotalDelta         float64                     `json:"equity_total_delta"`
+	Daily                    []LedgerReconDailyRow       `json:"daily"`
+	AbnormalPnL              []LedgerReconAbnormalRecord `json:"abnormal_pnl"`
+	FundingTruthStatusCounts map[string]int              `json:"funding_truth_status_counts"`
+	Coverage                 LedgerReconCoverage         `json:"coverage"`
+	ToleranceBps             float64                     `json:"tolerance_bps"`
+	LargePnLThresholdUSDT    float64                     `json:"large_pnl_threshold_usdt"`
 }
 
 type LedgerReconDailyRow struct {

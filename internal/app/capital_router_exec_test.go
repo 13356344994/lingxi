@@ -68,12 +68,12 @@ func TestExecuteCapitalRoutingLiveCallsTransfers(t *testing.T) {
 	}
 }
 
-func TestExecuteCapitalRoutingShadowNoRealCalls(t *testing.T) {
+func TestExecuteCapitalRoutingOffNoRealCalls(t *testing.T) {
 	t.Parallel()
 	fake := &fakeWalletTransferVenue{fakeFundingVenue: fakeFundingVenue{name: "bybit"}}
 	plan := CapitalRoutingPlan{
 		WithinVenueTransfers: []WalletTransfer{
-			{Venue: "bybit", From: WalletKindFutures, To: WalletKindSpot, AmountUSDT: 80, Reason: "shadow-test"},
+			{Venue: "bybit", From: WalletKindFutures, To: WalletKindSpot, AmountUSDT: 80, Reason: "dry-run-test"},
 		},
 	}
 	var buf bytes.Buffer
@@ -82,14 +82,14 @@ func TestExecuteCapitalRoutingShadowNoRealCalls(t *testing.T) {
 		t.Fatalf("errs = %#v, want none", result.Errs)
 	}
 	if result.Executed != 0 {
-		t.Fatalf("executed = %d, want 0 in shadow mode", result.Executed)
+		t.Fatalf("executed = %d, want 0 in OFF mode", result.Executed)
 	}
 	if len(fake.calls) != 0 {
-		t.Fatalf("shadow mode should not call TransferWallet, got %+v", fake.calls)
+		t.Fatalf("OFF mode should not call TransferWallet, got %+v", fake.calls)
 	}
 	logged := buf.String()
-	if !strings.Contains(logged, "[影子]") || !strings.Contains(logged, "bybit") || !strings.Contains(logged, "futures→spot") || !strings.Contains(logged, "80.0000") {
-		t.Fatalf("shadow log = %q", logged)
+	if !strings.Contains(logged, "[dry-run]") || !strings.Contains(logged, "bybit") || !strings.Contains(logged, "futures→spot") || !strings.Contains(logged, "80.0000") {
+		t.Fatalf("dry-run log = %q", logged)
 	}
 }
 

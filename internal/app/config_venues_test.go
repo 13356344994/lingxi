@@ -79,7 +79,7 @@ venues:
     strategy:
       min_estimated_funding_rate: 0.0034
     execution:
-      shadow_trading: true
+      use_protected_ioc: true
   okx:
     enabled: false
     allocated_capital_usdt: 300
@@ -104,8 +104,8 @@ venues:
 	if math.Abs(b.Config.StrategyConfig.MinEstimatedFundingRate-0.0034) > 1e-12 {
 		t.Fatalf("binance strategy 覆盖应为 0.0034, got %v", b.Config.StrategyConfig.MinEstimatedFundingRate)
 	}
-	if !b.Config.ExecutionConfig.ShadowTrading {
-		t.Fatalf("binance execution.shadow_trading 覆盖应为 true")
+	if !b.Config.ExecutionConfig.UseProtectedIOC {
+		t.Fatalf("binance execution.use_protected_ioc 覆盖应为 true")
 	}
 	if string(b.Config.ActiveProfile) != "research" {
 		t.Fatalf("binance active_profile 覆盖应为 research, got %s", b.Config.ActiveProfile)

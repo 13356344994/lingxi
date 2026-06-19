@@ -259,7 +259,7 @@ func TestCrossVenueSpotPerpPerpWalletLiquidated(t *testing.T) {
 	}
 }
 
-func TestAppendCrossVenueSpotPerpShadowCandidatesWritesJSONL(t *testing.T) {
+func TestAppendCrossVenueSpotPerpCandidatesWritesJSONL(t *testing.T) {
 	dir := t.TempDir()
 	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
 	in := testCrossVenueSpotPerpScanInput(now)
@@ -270,7 +270,7 @@ func TestAppendCrossVenueSpotPerpShadowCandidatesWritesJSONL(t *testing.T) {
 	}
 
 	execCfg := testCrossVenueExecutorConfig().CrossVenueExecutor
-	AppendCrossVenueSpotPerpShadowCandidates(dir, "cvsp-cycle-test", execCfg, opps)
+	AppendCrossVenueSpotPerpCandidates(dir, "cvsp-cycle-test", execCfg, opps)
 
 	path := filepath.Join(opportunitiesRecordDir(dir), unifiedCandidatesLogFileName)
 	data, err := os.ReadFile(path)
@@ -292,7 +292,7 @@ func TestAppendCrossVenueSpotPerpShadowCandidatesWritesJSONL(t *testing.T) {
 		t.Fatalf("cycle_id = %q", rec.CycleID)
 	}
 	if rec.WouldExecute {
-		t.Fatal("shadow candidates must have would_execute=false")
+		t.Fatal("plan candidates must have would_execute=false")
 	}
 }
 
@@ -371,7 +371,7 @@ func TestScanCrossVenueSpotPerpAppendMultipleLines(t *testing.T) {
 	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
 	in := testCrossVenueSpotPerpScanInput(now)
 	opps := ScanCrossVenueSpotPerpOpportunities(in)
-	AppendCrossVenueSpotPerpShadowCandidates(dir, "cycle", testCrossVenueExecutorConfig().CrossVenueExecutor, opps)
+	AppendCrossVenueSpotPerpCandidates(dir, "cycle", testCrossVenueExecutorConfig().CrossVenueExecutor, opps)
 
 	path := filepath.Join(opportunitiesRecordDir(dir), unifiedCandidatesLogFileName)
 	f, err := os.Open(path)

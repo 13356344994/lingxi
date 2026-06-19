@@ -761,3 +761,169 @@ func TestRotationBudgetZeroDegeneratesToLegacyBehavior(t *testing.T) {
 		t.Fatalf("expected 4 OPEN with budget disabled, got %+v", plan.Actions)
 	}
 }
+
+func TestRotationContinuationUsesWindowFundingNotCumulative(t *testing.T) {
+	now := time.Date(2026, 6, 19, 10, 0, 0, 0, time.UTC)
+	nextFunding := now.Add(2 * time.Hour)
+	held := HeldPosition{
+		OpportunityID:          "held-long",
+		StrategyType:           UnifiedStrategyCrossVenueSpotPerp,
+		Symbol:                 "OLD-USDT",
+		CapitalRequiredByVenue: map[string]float64{"binance": 50, "bybit": 50},
+		OpenedAt:               now.Add(-72 * time.Hour),
+		NextFundingTime:        nextFunding,
+	}
+	// 累计 funding 很大(旧口径会虚高续持分),下一窗口仅 2U。
+	windowFunding := rotationSpotPerpWindowFundingUSDT(1000, 0.001, 8, nextFunding, now, false)
+	if windowFunding <= 0 || windowFunding >= 100 {
+		t.Fatalf("window funding=%v want small positive window EV", windowFunding)
+	}
+	heldInputs := map[string]ContinuationInputs{
+		"held-long": rotationContinuationFromPosition(windowFunding, 1000, CrossVenueExecutorConfig{}, false, rotationContinuationOpts{}),
+	}
+	newOpp := testRotationOpp("new-hot", UnifiedStrategyCrossVenueSpotPerp, "NEW-USDT", 25, 100, "binance", "bybit")
+	newOpp.ExpectedFundingUSDT = 25
+	newOpp.ExpectedOpenCostUSDT = 1
+
+	plan := decideRotationAt(
+		[]HeldPosition{held},
+		heldInputs,
+		[]UnifiedOpportunity{newOpp},
+		map[string]float64{"binance": 500, "bybit": 500},
+		DefaultRotationConfig(),
+		now,
+		0,
+	)
+	if len(plan.Actions) != 1 || plan.Actions[0].Kind != RotationActionSwitch {
+		t.Fatalf("expected SWITCH (window口径续持分低于候选), got %+v", plan.Actions)
+	}
+
+	// 若误用累计值 500U,会 HOLD。
+	staleInputs := map[string]ContinuationInputs{
+		"held-long": rotationContinuationFromPosition(500, 1000, CrossVenueExecutorConfig{}, false, rotationContinuationOpts{}),
+	}
+	stalePlan := decideRotationAt(
+		[]HeldPosition{held},
+		staleInputs,
+		[]UnifiedOpportunity{newOpp},
+		map[string]float64{"binance": 500, "bybit": 500},
+		DefaultRotationConfig(),
+		now,
+		0,
+	)
+	if len(stalePlan.Actions) != 1 || stalePlan.Actions[0].Kind != RotationActionHold {
+		t.Fatalf("cumulative funding should incorrectly HOLD, got %+v", stalePlan.Actions)
+	}
+}
+
+func TestRotationSpotPerpWindowFundingMatchesCandidateSettlements(t *testing.T) {
+	now := time.Date(2026, 6, 19, 10, 0, 0, 0, time.UTC)
+	nextFunding := now.Add(3 * time.Hour)
+	notional := 2000.0
+	rate := 0.0004
+	got := rotationSpotPerpWindowFundingUSDT(notional, rate, 4, nextFunding, now, false)
+	settlements := crossVenueSpotPerpFundingSettlementCount(now, 3, 4, nextFunding)
+	want := notional * rate * float64(settlements)
+	if math.Abs(got-want) > 1e-9 {
+		t.Fatalf("window funding=%v want %v (settlements=%d)", got, want, settlements)
+	}
+}
+
+func TestRotationContinuationMinHoldUsesNextFunding(t *testing.T) {
+	now := time.Date(2026, 6, 19, 10, 0, 0, 0, time.UTC)
+	pos := HeldPosition{
+		OpenedAt:        now.Add(-30 * time.Minute),
+		NextFundingTime: now.Add(4 * time.Hour),
+	}
+	cfg := DefaultRotationConfig()
+	cfg.ContinuationMinHoldSeconds = 3600
+	if rotationContinuationMinHoldSatisfied(pos, cfg, now) {
+		t.Fatal("should block soft close before first funding when funding wait > min hold")
+	}
+	pos.OpenedAt = now.Add(-2 * time.Hour)
+	pos.NextFundingTime = now.Add(-30 * time.Minute)
+	if !rotationContinuationMinHoldSatisfied(pos, cfg, now) {
+		t.Fatal("should allow after passing first funding and fixed min hold")
+	}
+}
+
+func TestCollectCrossVenueSpotPerpHeldRecordsIntervalFallback8(t *testing.T) {
+	execCfg := CrossVenueExecutorConfig{DefaultTakerFeeBps: 4}
+	ps := []CrossVenueSpotPerpPosition{{
+		OpportunityID:   "cvsp-old",
+		Symbol:          "BTC-USDT",
+		SpotVenue:       "binance",
+		PerpVenue:       "bybit",
+		NotionalUSDT:    100,
+		PerpFundingRate: 0.001,
+		Status:          CVSPStatusOpen,
+		OpenedAt:        time.Now().UTC().Add(-time.Hour),
+	}}
+	recs := collectCrossVenueSpotPerpHeldRecords(ps, execCfg)
+	if len(recs) != 1 {
+		t.Fatalf("records=%d want 1", len(recs))
+	}
+	if recs[0].ExpectedFundingUSDT < 0 {
+		t.Fatalf("continuation funding should not panic with missing interval, got %v", recs[0].ExpectedFundingUSDT)
+	}
+}
+
+func TestRotationContinuationBorrowCostUsesProbeRate(t *testing.T) {
+	notional := 10_000.0
+	holdHours := 24.0
+	// 日利率 1% → 24h borrow = 100U, 远高于旧固定 3U (notional×0.0003)。
+	daily := map[string]float64{"BTC": 0.01}
+	got := rotationContinuationBorrowCostUSDT(notional, true, "BTC", holdHours, daily)
+	want := perpSpotBorrowCostUSDT("BTC", notional, holdHours, daily)
+	if math.Abs(got-want) > 1e-9 || got <= notional*rotationContinuationBorrowFallbackDailyRate {
+		t.Fatalf("probe borrow=%v want %v (> fallback %v)", got, want, notional*rotationContinuationBorrowFallbackDailyRate)
+	}
+}
+
+func TestRotationContinuationBorrowCostFallbackWithoutProbe(t *testing.T) {
+	notional := 10_000.0
+	got := rotationContinuationBorrowCostUSDT(notional, true, "BTC", 24, nil)
+	want := notional * rotationContinuationBorrowFallbackDailyRate
+	if math.Abs(got-want) > 1e-9 {
+		t.Fatalf("fallback borrow=%v want %v", got, want)
+	}
+	gotEmpty := rotationContinuationBorrowCostUSDT(notional, true, "ETH", 24, map[string]float64{})
+	if math.Abs(gotEmpty-want) > 1e-9 {
+		t.Fatalf("missing asset fallback=%v want %v", gotEmpty, want)
+	}
+}
+
+func TestHoldingRiskUSDTUnifiedAcrossPaths(t *testing.T) {
+	const riskScore = 0.5
+	const capital = 2000.0
+	want := riskScore * capital * rotationHoldingRiskPerScoreUnit
+
+	opp := testRotationOpp("x", UnifiedStrategySingleVenueSpotPerp, "BTC", 10, capital)
+	opp.RiskScore = riskScore
+
+	if got := holdingRiskUSDT(riskScore, capital); math.Abs(got-want) > 1e-9 {
+		t.Fatalf("holdingRiskUSDT=%v want %v", got, want)
+	}
+	if got := rotationHoldingRiskUSDT(opp, capital); math.Abs(got-want) > 1e-9 {
+		t.Fatalf("rotationHoldingRiskUSDT=%v want %v", got, want)
+	}
+	if got := unifiedOpportunityRiskAdjustedNetEV(opp, capital); math.Abs((opp.ExpectedNetEVUSDT-got)-want) > 1e-9 {
+		t.Fatalf("allocator riskAdj deduction=%v want %v", opp.ExpectedNetEVUSDT-got, want)
+	}
+
+	cont := rotationContinuationFromPosition(0, capital, CrossVenueExecutorConfig{}, false, rotationContinuationOpts{
+		riskScore: riskScore,
+	})
+	if math.Abs(cont.HoldingRiskUSDT-want) > 1e-9 {
+		t.Fatalf("continuation holdingRisk=%v want %v", cont.HoldingRiskUSDT, want)
+	}
+}
+
+func TestRotationContinuationDefaultHoldingRiskBackwardCompat(t *testing.T) {
+	notional := 1000.0
+	cont := rotationContinuationFromPosition(0, notional, CrossVenueExecutorConfig{}, false, rotationContinuationOpts{})
+	want := notional * 0.001 // 旧口径: notional×0.001 = riskScore0.1 × notional × 1%
+	if math.Abs(cont.HoldingRiskUSDT-want) > 1e-9 {
+		t.Fatalf("default holdingRisk=%v want %v", cont.HoldingRiskUSDT, want)
+	}
+}

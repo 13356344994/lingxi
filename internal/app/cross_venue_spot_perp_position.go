@@ -55,6 +55,8 @@ type CrossVenueSpotPerpPosition struct {
 	ExpectedNetEVUSDT    float64                          `json:"expected_net_ev_usdt,omitempty"`
 	ExpectedHoldHours    float64                          `json:"expected_hold_hours,omitempty"`
 	PerpFundingRate      float64                          `json:"perp_funding_rate,omitempty"`
+	PerpIntervalHours    int                              `json:"perp_interval_hours,omitempty"`
+	PerpNextFundingTime  time.Time                        `json:"perp_next_funding_time,omitempty"`
 	PerpLegFundingUSDT   float64                          `json:"perp_leg_funding_usdt,omitempty"`
 	EstFundingUSDT       float64                          `json:"est_funding_usdt,omitempty"`
 	Status               CrossVenueSpotPerpPositionStatus `json:"status"`
@@ -66,6 +68,7 @@ type CrossVenueSpotPerpPosition struct {
 	LastAccrualAt        time.Time                        `json:"last_accrual_at,omitempty"`
 	CloseReason          string                           `json:"close_reason,omitempty"`
 	CloseAttempts        int                              `json:"close_attempts,omitempty"`
+	LastHedgeRebalanceAt time.Time                        `json:"last_hedge_rebalance_at,omitempty"`
 	OpenFeesUSDT         float64                          `json:"open_fees_usdt,omitempty"`
 	CloseFeesUSDT        float64                          `json:"close_fees_usdt,omitempty"`
 	RollbackCostUSDT     float64                          `json:"rollback_cost_usdt,omitempty"`
@@ -73,23 +76,23 @@ type CrossVenueSpotPerpPosition struct {
 
 // CrossVenueSpotPerpSettlement 是单仓平仓结算记录。
 type CrossVenueSpotPerpSettlement struct {
-	SettlementID        string    `json:"settlement_id,omitempty"`
-	PositionKey         string    `json:"position_key,omitempty"`
-	OpportunityID       string    `json:"opportunity_id,omitempty"`
-	OpenTime            time.Time `json:"open_time"`
-	CloseTime           time.Time `json:"close_time"`
-	Symbol              string    `json:"symbol"`
-	SpotVenue           string    `json:"spot_venue"`
-	PerpVenue           string    `json:"perp_venue"`
-	NotionalUSDT        float64   `json:"notional_usdt"`
-	PerpLegFunding      float64   `json:"perp_leg_funding"`
-	RealizedFunding     float64   `json:"realized_funding"`
-	OpenFees            float64   `json:"open_fees"`
-	CloseFees           float64   `json:"close_fees"`
-	RollbackCost        float64   `json:"rollback_cost"`
-	TotalFees           float64   `json:"total_fees"`
-	NetPnL              float64   `json:"net_pnl"`
-	CloseReason         string    `json:"close_reason,omitempty"`
+	SettlementID    string    `json:"settlement_id,omitempty"`
+	PositionKey     string    `json:"position_key,omitempty"`
+	OpportunityID   string    `json:"opportunity_id,omitempty"`
+	OpenTime        time.Time `json:"open_time"`
+	CloseTime       time.Time `json:"close_time"`
+	Symbol          string    `json:"symbol"`
+	SpotVenue       string    `json:"spot_venue"`
+	PerpVenue       string    `json:"perp_venue"`
+	NotionalUSDT    float64   `json:"notional_usdt"`
+	PerpLegFunding  float64   `json:"perp_leg_funding"`
+	RealizedFunding float64   `json:"realized_funding"`
+	OpenFees        float64   `json:"open_fees"`
+	CloseFees       float64   `json:"close_fees"`
+	RollbackCost    float64   `json:"rollback_cost"`
+	TotalFees       float64   `json:"total_fees"`
+	NetPnL          float64   `json:"net_pnl"`
+	CloseReason     string    `json:"close_reason,omitempty"`
 }
 
 type crossVenueSpotPerpPositionsEnvelope struct {
@@ -272,6 +275,9 @@ func activeCrossVenueSpotPerpPositions(ps []CrossVenueSpotPerpPosition) []CrossV
 func normalizeCrossVenueSpotPerpPositions(ps []CrossVenueSpotPerpPosition) {
 	for i := range ps {
 		cvspEnsurePositionKey(&ps[i])
+		if ps[i].PerpIntervalHours <= 0 {
+			ps[i].PerpIntervalHours = 8
+		}
 	}
 }
 

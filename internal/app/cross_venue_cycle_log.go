@@ -68,4 +68,3 @@ func (e *CrossVenueExecutor) loadCycleExplains(since time.Time) ([]CrossVenueCyc
 	}
 	return out, nil
 }
-

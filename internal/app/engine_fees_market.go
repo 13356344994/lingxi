@@ -264,12 +264,6 @@ func resolveSpotNetBaseQuantity(order SpotOrderResponse, baseAsset string) float
 }
 
 func (e *FundingRateSniperEngine) signedRequest(ctx context.Context, method string, endpoint string, params url.Values) ([]byte, error) {
-	// 影子模式硬拦截：这是所有签名请求的唯一咽喉点，在此挡住一切非 GET 调用即可保证「绝无真实订单/
-	// 资金动作漏出」——无论引擎走开仓/平仓/恢复/划转哪条路径。只读 GET 放行以获取真实行情与账户状态。
-	if shadowShouldBlockSignedRequest(e.cfg.ExecutionConfig.ShadowTrading, method) {
-		e.noteShadowBlocked(method, endpoint, params)
-		return nil, shadowBlockedError{method: strings.ToUpper(strings.TrimSpace(method)), endpoint: strings.TrimSpace(endpoint)}
-	}
 	gateway := e.ensureBinanceGateway()
 	if gateway == nil {
 		return nil, fmt.Errorf("binance gateway 未初始化")

@@ -22,7 +22,7 @@ type UnifiedOpportunityLeg struct {
 	Notional float64 `json:"notional"`
 }
 
-// UnifiedOpportunity 是三类资金费机会的统一语义结构(shadow/组合层用,不改变现有 CrossVenueOpportunity)。
+// UnifiedOpportunity 是三类资金费机会的统一语义结构(组合层用,不改变现有 CrossVenueOpportunity)。
 type UnifiedOpportunity struct {
 	ID                       string                  `json:"id"`
 	StrategyType             string                  `json:"strategy_type"`

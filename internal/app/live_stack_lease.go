@@ -6,12 +6,8 @@ import "fmt"
 var liveStackLeaseAcquire = acquireSingleWriterLease
 
 // requiresLiveSingleWriterLease 判断当前装配是否会触达真钱交易循环,需独占单写租约。
-// lingxi shadow 子命令开启 ShadowTrading,signedRequest 硬拦截非 GET,不下真单,不强制租约。
 // 纯面板或 cross_venue_scanner 只读扫描(未启用 executor 且未启用 unified_rotation)也不强制。
 func requiresLiveSingleWriterLease(cfg EngineConfig) bool {
-	if cfg.ExecutionConfig.ShadowTrading {
-		return false
-	}
 	if cfg.CrossVenueScanner.Enabled && cfg.CrossVenueExecutor.Enabled {
 		return true
 	}

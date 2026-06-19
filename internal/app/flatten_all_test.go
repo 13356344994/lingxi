@@ -218,7 +218,7 @@ func TestCVSPCloseAllPositionsRealExposure(t *testing.T) {
 	cfg.CrossVenueExecutor.LiveTradingEnabled = true
 	e := NewCrossVenueSpotPerpExecutor(cfg, map[string]venue.Venue{
 		binance.VenueName: spot,
-		bybit.VenueName: perp,
+		bybit.VenueName:   perp,
 	}, dir, nil)
 	e.nowFn = func() time.Time { return time.Date(2026, 6, 18, 12, 0, 0, 0, time.UTC) }
 	_ = e.persistPosition(CrossVenueSpotPerpPosition{
@@ -274,7 +274,7 @@ func TestCVPSCloseAllPositionsRealExposure(t *testing.T) {
 	cfg.CrossVenueExecutor.LiveTradingEnabled = true
 	e := NewCrossVenuePerpSpotExecutor(cfg, map[string]venue.Venue{
 		binance.VenueName: spot,
-		bybit.VenueName: perp,
+		bybit.VenueName:   perp,
 	}, dir, nil)
 	e.nowFn = func() time.Time { return time.Date(2026, 6, 18, 12, 0, 0, 0, time.UTC) }
 	_ = e.persistPosition(CrossVenuePerpSpotPosition{

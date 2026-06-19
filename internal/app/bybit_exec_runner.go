@@ -9,12 +9,12 @@ import (
 	"lingxi/internal/venue"
 )
 
-// bybit_exec_runner.go 是精简 Bybit 执行器的 **shadow 运行核心**(B2):扫描→选币→定量→产出意图计划。
+// bybit_exec_runner.go 是精简 Bybit 执行器的 **规划运行核心**(B2):扫描→选币→定量→产出意图计划。
 // 它**只读**行情/账户,产出 BybitOpenPlan 与放弃原因,**绝不下单**。实盘下单(B3)另起 live 路径并门控。
 //
 // 依赖最小只读接口 bybitMarketReader(venue.Venue 天然满足),便于离线用 fake 单测,且从类型上杜绝误发单。
 
-// bybitMarketReader 是 shadow 规划所需的最小只读能力子集。
+// bybitMarketReader 是 周期规划所需的最小只读能力子集。
 type bybitMarketReader interface {
 	FetchFundingSnapshot(ctx context.Context) ([]venue.FundingSnapshot, error)
 	FetchInstruments(ctx context.Context) ([]venue.Instrument, error)
@@ -38,25 +38,25 @@ type bybitHistCacheEntry struct {
 	at    time.Time
 }
 
-// BybitShadowExecutor 用只读行情产出 delta-neutral 开仓计划(shadow,不下单)。
+// BybitCyclePlanner 用只读行情产出 delta-neutral 开仓计划(OFF,不下单)。
 // 仅在单个管理协程内使用(histCache 无锁)。
-type BybitShadowExecutor struct {
+type BybitCyclePlanner struct {
 	market    bybitMarketReader
 	cfg       BybitExecConfig
 	logf      func(format string, args ...any)
 	histCache map[venue.Symbol]bybitHistCacheEntry
 }
 
-// NewBybitShadowExecutor 构造 shadow 执行器。logf 为空时用 no-op。
-func NewBybitShadowExecutor(market bybitMarketReader, cfg BybitExecConfig, logf func(string, ...any)) *BybitShadowExecutor {
+// NewBybitCyclePlanner 构造 周期规划器。logf 为空时用 no-op。
+func NewBybitCyclePlanner(market bybitMarketReader, cfg BybitExecConfig, logf func(string, ...any)) *BybitCyclePlanner {
 	if logf == nil {
 		logf = func(string, ...any) {}
 	}
-	return &BybitShadowExecutor{market: market, cfg: cfg, logf: logf, histCache: make(map[venue.Symbol]bybitHistCacheEntry)}
+	return &BybitCyclePlanner{market: market, cfg: cfg, logf: logf, histCache: make(map[venue.Symbol]bybitHistCacheEntry)}
 }
 
 // fundingHistory 带缓存拉取某标的历史资金费率;行情源不支持或拉取失败返回 nil(调用方回退单次门)。
-func (e *BybitShadowExecutor) fundingHistory(ctx context.Context, sym venue.Symbol) []float64 {
+func (e *BybitCyclePlanner) fundingHistory(ctx context.Context, sym venue.Symbol) []float64 {
 	src, ok := e.market.(bybitFundingHistorySource)
 	if !ok {
 		return nil
@@ -73,13 +73,13 @@ func (e *BybitShadowExecutor) fundingHistory(ctx context.Context, sym venue.Symb
 	return rates
 }
 
-// BybitPlanRejection 记录一个被放弃的候选及原因(供 shadow 日志/面板解释)。
+// BybitPlanRejection 记录一个被放弃的候选及原因(供 规划日志/面板解释)。
 type BybitPlanRejection struct {
 	Symbol venue.Symbol
 	Reason string
 }
 
-// BybitCyclePlan 是一轮 shadow 规划结果。
+// BybitCyclePlan 是一轮 周期规划结果。
 type BybitCyclePlan struct {
 	Accepted   []BybitOpenPlan
 	Rejected   []BybitPlanRejection
@@ -96,7 +96,7 @@ type instrumentKey struct {
 // availableSlots 是本轮真正可开的仓位数(并发上限 − 在场数;≤0 视为不限)。资金按
 // min(候选数, 可开槽位) 均分——否则 3 个候选只开 1 笔时,开出的那笔只拿到 1/3 资金,
 // 其余资金闲置(资金占用率的头号杀手)。budgetUSDT 是本轮可部署预算(≤0 退回 AllocatedUSDT)。
-func (e *BybitShadowExecutor) PlanCycle(ctx context.Context, availableSlots int, budgetUSDT float64) (BybitCyclePlan, error) {
+func (e *BybitCyclePlanner) PlanCycle(ctx context.Context, availableSlots int, budgetUSDT float64) (BybitCyclePlan, error) {
 	snaps, err := e.market.FetchFundingSnapshot(ctx)
 	if err != nil {
 		return BybitCyclePlan{}, fmt.Errorf("拉资金费快照失败: %w", err)
@@ -230,7 +230,7 @@ func (e *BybitShadowExecutor) PlanCycle(ctx context.Context, availableSlots int,
 }
 
 // FundingSnapshotFor 拉取并返回某标的当前资金费快照(供滚动持有在结算后复核下期费率)。找不到则 ok=false。
-func (e *BybitShadowExecutor) FundingSnapshotFor(ctx context.Context, sym venue.Symbol) (venue.FundingSnapshot, bool, error) {
+func (e *BybitCyclePlanner) FundingSnapshotFor(ctx context.Context, sym venue.Symbol) (venue.FundingSnapshot, bool, error) {
 	snaps, err := e.market.FetchFundingSnapshot(ctx)
 	if err != nil {
 		return venue.FundingSnapshot{}, false, err
@@ -244,7 +244,7 @@ func (e *BybitShadowExecutor) FundingSnapshotFor(ctx context.Context, sym venue.
 }
 
 // midPrice 取某市场某符号的盘口中价(bid/ask 任一缺失则报错)。
-func (e *BybitShadowExecutor) midPrice(ctx context.Context, m venue.Market, s venue.Symbol) (float64, error) {
+func (e *BybitCyclePlanner) midPrice(ctx context.Context, m venue.Market, s venue.Symbol) (float64, error) {
 	bt, err := e.market.FetchBookTicker(ctx, m, s)
 	if err != nil {
 		return 0, err
@@ -255,8 +255,8 @@ func (e *BybitShadowExecutor) midPrice(ctx context.Context, m venue.Market, s ve
 	return (bt.BidPrice + bt.AskPrice) / 2, nil
 }
 
-// LogShadowPlan 把一轮规划结果打印为人类可读 shadow 日志(不下单)。
-func (e *BybitShadowExecutor) LogShadowPlan(plan BybitCyclePlan) {
+// LogCyclePlan 把一轮规划结果打印为人类可读 规划日志(不下单)。
+func (e *BybitCyclePlanner) LogCyclePlan(plan BybitCyclePlan) {
 	e.logf("[dry-run] 候选=%d 通过=%d 放弃=%d", len(plan.Candidates), len(plan.Accepted), len(plan.Rejected))
 	for _, p := range plan.Accepted {
 		e.logf("[dry-run][拟开仓] %s 费率=%.4f%% 数量=%.6f 现货名义=%.2f 永续名义=%.2f 预计毛资金费=%.4f 费用=%.4f 净利=%.4f 净利率=%.4f%%",

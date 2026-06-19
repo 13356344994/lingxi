@@ -59,7 +59,7 @@ func mergeCrossVenueOrderResults(a, b venue.OrderResult) venue.OrderResult {
 	return out
 }
 
-// placeCrossVenueLegExec 统一腿执行入口:maker_first=false 或影子模式走纯 IOC;
+// placeCrossVenueLegExec 统一腿执行入口:maker_first=false 或OFF 模式走纯 IOC;
 // maker_first=true 时 post-only 追价,allowTakerFallback 控制是否 IOC 兜底(第一腿开仓为 false)。
 func (e *CrossVenueExecutor) placeCrossVenueLegExec(
 	ctx context.Context,

@@ -20,7 +20,7 @@ type CapitalRoutingExecResult struct {
 }
 
 // ExecuteCapitalRouting 执行资金路由计划中的所内划转;跨所建议仅记录日志,绝不执行。
-// live==false 时只打影子日志,不调用任何划转接口。
+// live==false 时只打 dry-run 日志,不调用任何划转接口。
 func ExecuteCapitalRouting(ctx context.Context, plan CapitalRoutingPlan, venues map[string]venue.Venue, live bool, logger *log.Logger) CapitalRoutingExecResult {
 	if logger == nil {
 		logger = log.Default()
@@ -46,7 +46,7 @@ func ExecuteCapitalRouting(ctx context.Context, plan CapitalRoutingPlan, venues 
 		from := string(tr.From)
 		to := string(tr.To)
 		if !live {
-			logger.Printf("[影子] 本应划转 venue=%s %s→%s 金额=%.4f 原因=%s", tr.Venue, from, to, tr.AmountUSDT, tr.Reason)
+			logger.Printf("[dry-run] 本应划转 venue=%s %s→%s 金额=%.4f 原因=%s", tr.Venue, from, to, tr.AmountUSDT, tr.Reason)
 			continue
 		}
 		v, ok := venues[tr.Venue]

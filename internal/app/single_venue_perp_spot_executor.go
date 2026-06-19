@@ -17,7 +17,7 @@ import (
 	"lingxi/internal/venue"
 )
 
-// single_venue_perp_spot_executor.go 同所 perp-spot 负费率执行器(多永续+借币空现货, shadow 起步, live 闸透传)。
+// single_venue_perp_spot_executor.go 同所 perp-spot 负费率执行器(多永续+借币空现货, OFF 起步, live 闸透传)。
 // 强平缓冲:空现货在逼空/强平场景下亏损可能穿仓,执行器保守杠杆并优先平现货腿。
 
 const (
@@ -370,6 +370,28 @@ func (e *SingleVenuePerpSpotExecutor) placeSVPSLegIOC(
 	return e.placeSVPSIOC(ctx, tr, mkt, sym, side, qty, price, clientID, reduceOnly, marginEffect, live)
 }
 
+// placeSVPSCloseLegIOC 平仓专用腿:按 CloseAttempts 阶梯放宽滑点,≥阈值后穿价兜底。
+func (e *SingleVenuePerpSpotExecutor) placeSVPSCloseLegIOC(
+	ctx context.Context,
+	tr singleVenuePerpSpotTrader,
+	mkt venue.Market,
+	sym venue.Symbol,
+	side venue.Side,
+	qty float64,
+	clientID string,
+	reduceOnly bool,
+	marginEffect venue.MarginEffect,
+	live bool,
+	closeAttempts int,
+) (venue.OrderResult, error) {
+	book, err := tr.FetchBookTicker(ctx, mkt, sym)
+	if err != nil {
+		return venue.OrderResult{}, err
+	}
+	price, _ := carryCloseIocLimitPrice(e.execCfg(), side, book, closeAttempts)
+	return e.placeSVPSIOC(ctx, tr, mkt, sym, side, qty, price, clientID, reduceOnly, marginEffect, live)
+}
+
 // executeOpen 腿1借币空现货→腿2多永续;腿2失败回滚腿1(买回现货+还币)。
 func (e *SingleVenuePerpSpotExecutor) executeOpen(ctx context.Context, opp UnifiedOpportunity, live bool) (SingleVenuePerpSpotPosition, error) {
 	venueName, qty, notional, err := parseSingleVenuePerpSpotOpportunity(opp)
@@ -632,6 +654,10 @@ func (e *SingleVenuePerpSpotExecutor) managePosition(ctx context.Context, pos Si
 	}
 
 	e.syncRealizedFunding(ctx, &pos)
+	dev := qtyDeviation(spotShort, perpLong)
+	if carryShouldRebalanceHedge(dev, pos.LastHedgeRebalanceAt, e.nowFn()) {
+		e.rebalanceSVPSHedge(ctx, &pos, spotShort, perpLong, live)
+	}
 	pos.UpdatedAt = e.nowFn()
 	_ = e.persistPosition(pos)
 
@@ -700,6 +726,46 @@ func (e *SingleVenuePerpSpotExecutor) manageOpeningContinuation(
 	default:
 		e.handleOrphanLeg(ctx, pos, spotOpen, perpOpen, live, spotShort, perpLong)
 		return pos, false
+	}
+}
+
+func (e *SingleVenuePerpSpotExecutor) rebalanceSVPSHedge(ctx context.Context, pos *SingleVenuePerpSpotPosition, spotShort, perpLong float64, live bool) {
+	if pos == nil {
+		return
+	}
+	reduceSpot, reducePerp, delta := carryNegativeRebalancePlan(spotShort, perpLong)
+	if delta <= executionQtyTolerance {
+		return
+	}
+	v := e.venues[pos.Venue]
+	tr, ok := v.(singleVenuePerpSpotTrader)
+	if !ok || tr == nil {
+		return
+	}
+	sym := venue.Symbol(pos.Symbol)
+	takerBps := svpsTakerSlippageBps(e.execCfg())
+	now := e.nowFn()
+	if reduceSpot && live {
+		id := svpsLegClientID(pos.IdemPrefix, "rb-s")
+		if res, _ := e.placeSVPSLegIOC(ctx, tr, venue.MarketSpot, sym, venue.SideBuy, delta, id, false, venue.MarginEffectRepay, live, takerBps); res.ExecutedQty > executionQtyTolerance {
+			pos.SpotLeg.Qty = math.Max(pos.SpotLeg.Qty-res.ExecutedQty, 0)
+		}
+	} else if reducePerp && live {
+		id := svpsLegClientID(pos.IdemPrefix, "rb-p")
+		if res, _ := e.placeSVPSLegIOC(ctx, tr, venue.MarketPerp, sym, venue.SideSell, delta, id, true, venue.MarginEffectNone, live, takerBps); res.ExecutedQty > executionQtyTolerance {
+			pos.PerpLeg.Qty = math.Max(pos.PerpLeg.Qty-res.ExecutedQty, 0)
+		}
+	}
+	pos.LastHedgeRebalanceAt = now
+	pos.UpdatedAt = now
+	_ = e.persistPosition(*pos)
+	if e.logger != nil {
+		leg := "永续"
+		if reduceSpot {
+			leg = "现货"
+		}
+		e.logger.Printf("[同所perp-spot] %s 对冲再平衡:偏差%.1f%% 减%s %.6f",
+			pos.Symbol, qtyDeviation(spotShort, perpLong)*100, leg, delta)
 	}
 }
 
@@ -837,7 +903,6 @@ func (e *SingleVenuePerpSpotExecutor) closePosition(ctx context.Context, pos Sin
 
 	pos.CloseAttempts++
 	attempt := pos.CloseAttempts
-	takerBps := svpsTakerSlippageBps(e.execCfg())
 
 	spotShort, perpLong, ferr := e.fetchLegState(ctx, v, sym)
 	closeSpotQty := 0.0
@@ -858,7 +923,7 @@ func (e *SingleVenuePerpSpotExecutor) closePosition(ctx context.Context, pos Sin
 	var spotCloseErr error
 	if closeSpotQty > executionQtyTolerance {
 		id := svpsLegClientID(pos.IdemPrefix, fmt.Sprintf("cs%d", attempt))
-		if res, err := e.placeSVPSLegIOC(ctx, tr, venue.MarketSpot, sym, venue.SideBuy, closeSpotQty, id, false, venue.MarginEffectRepay, live, takerBps); err == nil {
+		if res, err := e.placeSVPSCloseLegIOC(ctx, tr, venue.MarketSpot, sym, venue.SideBuy, closeSpotQty, id, false, venue.MarginEffectRepay, live, attempt); err == nil {
 			pos.SpotLeg.Qty = math.Max(pos.SpotLeg.Qty-res.ExecutedQty, 0)
 			pos.CloseFeesUSDT += res.Fee
 		} else {
@@ -868,7 +933,7 @@ func (e *SingleVenuePerpSpotExecutor) closePosition(ctx context.Context, pos Sin
 	}
 	if closePerpQty > executionQtyTolerance {
 		id := svpsLegClientID(pos.IdemPrefix, fmt.Sprintf("cp%d", attempt))
-		if res, err := e.placeSVPSLegIOC(ctx, tr, venue.MarketPerp, sym, venue.SideSell, closePerpQty, id, true, venue.MarginEffectNone, live, takerBps); err == nil {
+		if res, err := e.placeSVPSCloseLegIOC(ctx, tr, venue.MarketPerp, sym, venue.SideSell, closePerpQty, id, true, venue.MarginEffectNone, live, attempt); err == nil {
 			pos.PerpLeg.Qty = math.Max(pos.PerpLeg.Qty-res.ExecutedQty, 0)
 			pos.CloseFeesUSDT += res.Fee
 		} else {
@@ -904,7 +969,7 @@ func (e *SingleVenuePerpSpotExecutor) closePosition(ctx context.Context, pos Sin
 			} else if perpOpen {
 				id := svpsLegClientID(pos.IdemPrefix, "dust")
 				qty := ledgerCappedCloseQty(pos.PerpLeg.Qty, perpLong)
-				_, _ = e.placeSVPSLegIOC(ctx, tr, venue.MarketPerp, sym, venue.SideSell, qty, id, true, venue.MarginEffectNone, live, takerBps)
+				_, _ = e.placeSVPSCloseLegIOC(ctx, tr, venue.MarketPerp, sym, venue.SideSell, qty, id, true, venue.MarginEffectNone, live, attempt)
 			}
 		}
 		dustQty := negativeCarryDustResidualQty(spotOpen, perpOpen, spotShort, perpLong)
@@ -1095,7 +1160,7 @@ func (e *SingleVenuePerpSpotExecutor) CountRealHeldPositions(ctx context.Context
 	return count
 }
 
-// CloseAllPositions 一键全平:FetchBalances/FetchPositions 对账后只平真实腿;shadow 合成记录仅清台账。
+// CloseAllPositions 一键全平:FetchBalances/FetchPositions 对账后只平真实腿;dry-run 合成记录仅清台账。
 func (e *SingleVenuePerpSpotExecutor) CloseAllPositions(ctx context.Context, live bool) (closed int, errs []error) {
 	if e == nil || e.store == nil {
 		return 0, nil

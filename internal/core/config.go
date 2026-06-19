@@ -209,9 +209,6 @@ type ExecutionConfig struct {
 	FuturesSTPMode                  string        `cfg:"futures_stp_mode"`
 	FuturesMarginType               string        `cfg:"futures_margin_type"`
 	FuturesLeverage                 int           `cfg:"futures_leverage"`
-	// shadow_trading 为 true 时启用开发冒烟子命令(lingxi shadow):signedRequest 硬拦截一切非 GET,
-	// 用于实盘前抓灾难性 bug,**不是**生产运行模式。生产三态见 core.RunMode(OFF/CANARY_LIVE/LIVE)。
-	ShadowTrading bool `cfg:"shadow_trading"`
 	// --- S8-B 执行切片（TWAP/冰山，R13）。默认关闭：单发(现有行为)零变更。启用后,单腿名义超过
 	// SliceThresholdNotionalUSDT 的开仓按 TWAP 等分切片(每片 ≤ MaxSliceNotionalUSDT、间隔 SliceIntervalMs、
 	// 不超过 MaxSlices 片),平滑大单冲击。规划是纯函数(planExecutionSlices),已单测;实盘双腿 lockstep 执行
@@ -251,6 +248,8 @@ type RiskConfig struct {
 	ProtectedIOCMaxUnfilledRatio  float64       `cfg:"protected_ioc_max_unfilled_ratio"`
 	ProtectedIOCMaxCancelRate     float64       `cfg:"protected_ioc_max_cancel_rate"`
 	SymbolAbnormalCooldown        time.Duration `cfg:"symbol_abnormal_cooldown"`
+	SymbolMinorCooldown           time.Duration `cfg:"symbol_minor_cooldown"`
+	SymbolCriticalCooldown        time.Duration `cfg:"symbol_critical_cooldown"`
 	PlatformMinorCooldown         time.Duration `cfg:"platform_minor_cooldown"`
 	PlatformAbnormalCooldown      time.Duration `cfg:"platform_abnormal_cooldown"`
 	PlatformCriticalCooldown      time.Duration `cfg:"platform_critical_cooldown"`
@@ -339,6 +338,16 @@ type RiskConfig struct {
 	// 配默认 2x 杠杆时实际距离约 49%，永不触发；只有当杠杆被调高到安全距离不足时才作为防爆刹车。
 	// 0 表示关闭该维度。
 	MinLiquidationDistanceRate float64 `cfg:"min_liquidation_distance_rate"`
+	// MinLiqDistanceVolScaleEnabled 启用后 minDist = base × volMultiplier(来自 SymbolVolatilityMultiplier hook)。
+	// 默认 false(opt-in);未接入 vol 管道时行为与 base 相同。
+	MinLiqDistanceVolScaleEnabled bool `cfg:"min_liq_distance_vol_scale_enabled"`
+	// MinLiqDistanceVolScaleFactor vol 倍数附加系数;启用 vol 缩放时对 hook 返回值再乘此系数。默认 1.0。
+	MinLiqDistanceVolScaleFactor float64 `cfg:"min_liq_distance_vol_scale_factor"`
+	// RiskBudgetScaleEnabled 开启后 MaxExecutionIncidents 等固定次数预算随托管持仓数线性放大:
+	// budget = base + RiskBudgetScalePerOpenPosition × len(activeOpenHedges)。默认 false(≈原固定值)。
+	RiskBudgetScaleEnabled bool `cfg:"risk_budget_scale_enabled"`
+	// RiskBudgetScalePerOpenPosition 每多一个托管持仓追加的预算次数;仅 RiskBudgetScaleEnabled 时生效。
+	RiskBudgetScalePerOpenPosition int `cfg:"risk_budget_scale_per_open_position"`
 	// MaxFundingSettlementAttempts / MaxFundingSettlementAge 是 R34「pending funding 处置」阈值(S5-E):
 	// 资金费异步结算重试达 MaxFundingSettlementAttempts 次,或自创建挂起超过 MaxFundingSettlementAge 仍未到账,
 	// 即升级为 critical 告警 + 停止静默重试(待人工确认),并把该 cycle 从连亏/回撤口径隔离(回退平仓时已记入的
@@ -563,13 +572,13 @@ type EngineConfig struct {
 	// CrossVenueScanner 是 P1 跨所资金费价差扫描器(纯只读,绝不下单)的参数。
 	CrossVenueScanner CrossVenueScannerConfig `cfg:"cross_venue_scanner"`
 
-	// CrossVenueExecutor 是 P1 跨所 perp-perp 对冲执行引擎参数(默认关闭+影子模式,绝不下单)。
+	// CrossVenueExecutor 是 P1 跨所 perp-perp 对冲执行引擎参数(默认关闭+OFF 模式,绝不下单)。
 	CrossVenueExecutor CrossVenueExecutorConfig `cfg:"cross_venue_executor"`
 
-	// CapitalAllocator 是跨策略资本分配器参数(默认关闭+影子模式)。
+	// CapitalAllocator 是跨策略资本分配器参数(默认关闭+OFF 模式)。
 	CapitalAllocator CapitalAllocatorConfig `cfg:"capital_allocator"`
 
-	// DataCollection 是数据收集策略参数(默认关闭+影子模式)。
+	// DataCollection 是数据收集策略参数(默认关闭+OFF 模式)。
 	DataCollection DataCollectionConfig `cfg:"data_collection"`
 
 	// UnifiedRotation 是五策略统一轮动 runner 开关(默认关闭;面板 START+confirm=LIVE 后 active 即实盘)。
@@ -613,7 +622,8 @@ type CrossVenueExecutorConfig struct {
 	TakerSlippageBudgetBps float64 `cfg:"taker_slippage_budget_bps"`
 	// MaxNakedSeconds 第二腿失败裸腿暴露上限(秒),超时须完成回滚或升级告警。默认 30。
 	MaxNakedSeconds int `cfg:"max_naked_seconds"`
-	// MinLiqDistance 强平距离下限(|mark−liq|/mark)。默认 0.15。
+	// MinLiqDistance 强平距离下限(|mark−liq|/mark)。已废弃:请用 risk.min_liquidation_distance_rate;
+	// 仅当后者为 0 时作 YAML 兼容回退。默认 0.15。
 	MinLiqDistance float64 `cfg:"min_liq_distance"`
 	// MaxHoldHours 最大持仓时长(小时)。默认 72。
 	MaxHoldHours int `cfg:"max_hold_hours"`
@@ -680,11 +690,11 @@ type CrossVenueExecutorConfig struct {
 	DustCloseThresholdUSDT float64 `cfg:"dust_close_threshold_usdt"`
 }
 
-// CapitalAllocatorConfig 是跨策略资本分配器的可调参数(默认关闭+影子模式)。
+// CapitalAllocatorConfig 是跨策略资本分配器的可调参数(默认关闭+OFF 模式)。
 type CapitalAllocatorConfig struct {
 	// Enabled 启用资本分配器 goroutine。默认 false;false 时不启动。
 	Enabled bool `cfg:"enabled"`
-	// Mode 运行模式:shadow|profit|data_collection。默认 shadow。
+	// Mode 运行模式:plan|profit|data_collection。默认 plan。
 	Mode string `cfg:"mode"`
 	// MaxTotalCapitalUsageRatio 全策略合计资本占用上限(相对分配本金,小数)。默认 0.2。
 	MaxTotalCapitalUsageRatio float64 `cfg:"max_total_capital_usage_ratio"`
@@ -692,11 +702,11 @@ type CapitalAllocatorConfig struct {
 	MaxDailyLossUSDT float64 `cfg:"max_daily_loss_usdt"`
 }
 
-// DataCollectionConfig 是数据收集策略的可调参数(默认关闭+影子模式)。
+// DataCollectionConfig 是数据收集策略的可调参数(默认关闭+OFF 模式)。
 type DataCollectionConfig struct {
 	// Enabled 启用数据收集策略 goroutine。默认 false;false 时不启动。
 	Enabled bool `cfg:"enabled"`
-	// Mode 运行模式:shadow|data_collection|profit。默认 shadow。
+	// Mode 运行模式:plan|data_collection|profit。默认 plan。
 	Mode string `cfg:"mode"`
 	// StrategyType 数据收集策略类型标识。默认空。
 	StrategyType string `cfg:"strategy_type"`
@@ -713,7 +723,7 @@ type UnifiedRotationConfig struct {
 	// Enabled 启用统一轮动 runner goroutine。默认 false;false 时不启动。
 	Enabled bool `cfg:"enabled"`
 	// LiveTradingEnabled 部署期安全闸:与 enabled 同时为 true 时,无 rotation_control.json 才默认 active=true。
-	// 运行时启停由面板 START/STOP 与 rotation_control.json 的 active 控制;不再单独 shadow/live 切换。
+	// 运行时启停由面板 START/STOP 与 rotation_control.json 的 active 控制;不再单独 OFF/LIVE 切换。
 	LiveTradingEnabled bool `cfg:"live_trading_enabled"`
 	// DelistGuardEnabled 启用下市/非交易状态守卫:拦截新开仓并对在场持仓主动平仓。默认 true。
 	DelistGuardEnabled bool `cfg:"delist_guard_enabled"`
@@ -733,7 +743,7 @@ type UnifiedRotationConfig struct {
 
 // VenueFundingExecutorConfig 是 OKX/Gate 单所正费率执行器参数(正 carry:空永续+买现货,跨结算持有)。
 type VenueFundingExecutorConfig struct {
-	// LiveTradingEnabled 主安全闸:false=影子(完整决策+日志,绝不下单);true=真实下单。默认 false。
+	// LiveTradingEnabled 主安全闸:false=OFF(完整决策+日志,绝不下单);true=真实下单。默认 false。
 	LiveTradingEnabled bool `cfg:"live_trading_enabled"`
 	// TopN 每周期最多并发开仓标的数(正费率降序取前 N)。默认 1。
 	TopN int `cfg:"top_n"`
@@ -993,6 +1003,10 @@ func (cfg EngineConfig) Validate() error {
 	appendIssue(cfg.RiskConfig.ProtectedIOCMaxUnfilledRatio > 0 && cfg.RiskConfig.ProtectedIOCMaxUnfilledRatio <= 1, "ProtectedIOCMaxUnfilledRatio 必须在 (0, 1] 之间")
 	appendIssue(cfg.RiskConfig.ProtectedIOCMaxCancelRate > 0 && cfg.RiskConfig.ProtectedIOCMaxCancelRate <= 1, "ProtectedIOCMaxCancelRate 必须在 (0, 1] 之间")
 	appendIssue(cfg.RiskConfig.SymbolAbnormalCooldown > 0, "SymbolAbnormalCooldown 必须大于 0")
+	appendIssue(cfg.RiskConfig.SymbolMinorCooldown > 0, "SymbolMinorCooldown 必须大于 0")
+	appendIssue(cfg.RiskConfig.SymbolCriticalCooldown > 0, "SymbolCriticalCooldown 必须大于 0")
+	appendIssue(cfg.RiskConfig.SymbolMinorCooldown <= cfg.RiskConfig.SymbolAbnormalCooldown, "SymbolMinorCooldown 不能大于 SymbolAbnormalCooldown")
+	appendIssue(cfg.RiskConfig.SymbolCriticalCooldown >= cfg.RiskConfig.SymbolAbnormalCooldown, "SymbolCriticalCooldown 不能小于 SymbolAbnormalCooldown")
 	appendIssue(cfg.RiskConfig.PlatformMinorCooldown > 0, "PlatformMinorCooldown 必须大于 0")
 	appendIssue(cfg.RiskConfig.PlatformAbnormalCooldown > 0, "PlatformAbnormalCooldown 必须大于 0")
 	appendIssue(cfg.RiskConfig.PlatformCriticalCooldown > 0, "PlatformCriticalCooldown 必须大于 0")
@@ -1135,9 +1149,9 @@ func (cfg EngineConfig) Validate() error {
 			"CapitalAllocator MaxTotalCapitalUsageRatio 必须在 (0, 1] 之间")
 		appendIssue(cfg.CapitalAllocator.MaxDailyLossUSDT >= 0, "CapitalAllocator MaxDailyLossUSDT 不能小于 0")
 		switch strings.TrimSpace(cfg.CapitalAllocator.Mode) {
-		case "shadow", "profit", "data_collection":
+		case "plan", "profit", "data_collection":
 		default:
-			appendIssue(false, "CapitalAllocator Mode 必须是 shadow|profit|data_collection 之一")
+			appendIssue(false, "CapitalAllocator Mode 必须是 plan|profit|data_collection 之一")
 		}
 	}
 	if cfg.DataCollection.Enabled {
@@ -1145,9 +1159,9 @@ func (cfg EngineConfig) Validate() error {
 		appendIssue(cfg.DataCollection.MaxNotionalUSDT > 0, "DataCollection MaxNotionalUSDT 必须大于 0")
 		appendIssue(cfg.DataCollection.MaxExpectedLossUSDTPerTrade >= 0, "DataCollection MaxExpectedLossUSDTPerTrade 不能小于 0")
 		switch strings.TrimSpace(cfg.DataCollection.Mode) {
-		case "shadow", "data_collection", "profit":
+		case "plan", "data_collection", "profit":
 		default:
-			appendIssue(false, "DataCollection Mode 必须是 shadow|data_collection|profit 之一")
+			appendIssue(false, "DataCollection Mode 必须是 plan|data_collection|profit 之一")
 		}
 	}
 

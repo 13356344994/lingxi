@@ -56,6 +56,8 @@ type CrossVenuePerpSpotPosition struct {
 	ExpectedNetEVUSDT    float64                          `json:"expected_net_ev_usdt,omitempty"`
 	ExpectedHoldHours    float64                          `json:"expected_hold_hours,omitempty"`
 	PerpFundingRate      float64                          `json:"perp_funding_rate,omitempty"`
+	PerpIntervalHours    int                              `json:"perp_interval_hours,omitempty"`
+	PerpNextFundingTime  time.Time                        `json:"perp_next_funding_time,omitempty"`
 	PerpLegFundingUSDT   float64                          `json:"perp_leg_funding_usdt,omitempty"`
 	EstFundingUSDT       float64                          `json:"est_funding_usdt,omitempty"`
 	Status               CrossVenuePerpSpotPositionStatus `json:"status"`
@@ -67,6 +69,7 @@ type CrossVenuePerpSpotPosition struct {
 	LastAccrualAt        time.Time                        `json:"last_accrual_at,omitempty"`
 	CloseReason          string                           `json:"close_reason,omitempty"`
 	CloseAttempts        int                              `json:"close_attempts,omitempty"`
+	LastHedgeRebalanceAt time.Time                        `json:"last_hedge_rebalance_at,omitempty"`
 	OpenFeesUSDT         float64                          `json:"open_fees_usdt,omitempty"`
 	CloseFeesUSDT        float64                          `json:"close_fees_usdt,omitempty"`
 	RollbackCostUSDT     float64                          `json:"rollback_cost_usdt,omitempty"`
@@ -275,6 +278,9 @@ func activeCrossVenuePerpSpotPositions(ps []CrossVenuePerpSpotPosition) []CrossV
 func normalizeCrossVenuePerpSpotPositions(ps []CrossVenuePerpSpotPosition) {
 	for i := range ps {
 		cvpsEnsurePositionKey(&ps[i])
+		if ps[i].PerpIntervalHours <= 0 {
+			ps[i].PerpIntervalHours = 8
+		}
 	}
 }
 

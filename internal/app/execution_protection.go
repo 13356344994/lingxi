@@ -66,7 +66,7 @@ func isFlattenIntent(ctx context.Context) bool {
 // tickerStaleRESTRefreshAllowed 判定本次取价在「缓存有票但已陈旧」时是否允许回退 REST 现拉真·当前价。
 // 仅平仓（withFlattenIntent）与残腿救援（withExposureManagerRequest）这类「必须拿到价才能收敛」的动作允许；
 // 开仓 / 监控路径维持原「缓存陈旧即报失效」的严格语义（开仓由 PreOpenTickerRESTRefresh 主动补鲜兜底）。
-// cache-only 模式（影子 / 安全期）由各 fetch 函数单独硬挡，本判定不绕过它。
+// cache-only 模式（OFF / 安全期）由各 fetch 函数单独硬挡，本判定不绕过它。
 func tickerStaleRESTRefreshAllowed(ctx context.Context) bool {
 	return isFlattenIntent(ctx) || isExposureManagerRequest(ctx)
 }

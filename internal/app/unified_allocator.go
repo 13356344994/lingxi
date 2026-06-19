@@ -9,7 +9,7 @@ import (
 
 const unifiedAllocatorPlanLogFileName = "allocator_plan.jsonl"
 
-// UnifiedAllocatorConfig 是 shadow 贪心分配器的风险与质量限额(v1 保守默认)。
+// UnifiedAllocatorConfig 是 贪心分配器的风险与质量限额(v1 保守默认)。
 type UnifiedAllocatorConfig struct {
 	// MaxGlobalCapitalUsagePct 全局资金使用率上限(相对 TotalCapitalUSDT)。
 	MaxGlobalCapitalUsagePct float64 `json:"max_global_capital_usage_pct"`
@@ -23,11 +23,11 @@ type UnifiedAllocatorConfig struct {
 	MaxConcurrentPlans int `json:"max_concurrent_plans"`
 	// MinExecutionScore 低于此值直接拒绝。
 	MinExecutionScore float64 `json:"min_execution_score"`
-	// MinLiquidityScoreProfit 低于此值不允许进入 profit 真实计划(仅 shadow)。
+	// MinLiquidityScoreProfit 低于此值不允许进入 profit 真实计划(仅 plan)。
 	MinLiquidityScoreProfit float64 `json:"min_liquidity_score_profit"`
-	// MinDataQualityScoreProfit 低于此值不允许进入 profit 真实计划(仅 shadow)。
+	// MinDataQualityScoreProfit 低于此值不允许进入 profit 真实计划(仅 plan)。
 	MinDataQualityScoreProfit float64 `json:"min_data_quality_score_profit"`
-	// AllowPerpPerpRealAllocation profit mode v1 默认 false: perp_perp 只标 shadow。
+	// AllowPerpPerpRealAllocation profit mode v1 默认 false: perp_perp 只标 plan。
 	AllowPerpPerpRealAllocation bool `json:"allow_perp_perp_real_allocation"`
 }
 
@@ -46,37 +46,37 @@ func DefaultUnifiedAllocatorConfig() UnifiedAllocatorConfig {
 	}
 }
 
-// UnifiedAllocatorInput 是单轮 shadow 贪心分配输入。
+// UnifiedAllocatorInput 是单轮 贪心分配输入。
 type UnifiedAllocatorInput struct {
-	CycleID               string
-	Opportunities         []UnifiedOpportunity
-	AvailableUSDTByVenue  map[string]float64
-	TotalCapitalUSDT      float64
-	Config                UnifiedAllocatorConfig
-	RecordDir             string
-	Now                   time.Time
+	CycleID              string
+	Opportunities        []UnifiedOpportunity
+	AvailableUSDTByVenue map[string]float64
+	TotalCapitalUSDT     float64
+	Config               UnifiedAllocatorConfig
+	RecordDir            string
+	Now                  time.Time
 }
 
-// UnifiedAllocatorRealPlanItem 是本轮选中的理论真实执行计划条目(shadow-only,不驱动下单)。
+// UnifiedAllocatorRealPlanItem 是本轮选中的理论真实执行计划条目(plan-only,不驱动下单)。
 type UnifiedAllocatorRealPlanItem struct {
-	Rank                 int                `json:"rank"`
-	OpportunityID        string             `json:"opportunity_id"`
-	StrategyType         string             `json:"strategy_type"`
-	Symbol               string             `json:"symbol"`
-	CapitalRequiredUSDT  float64            `json:"capital_required_usdt"`
-	CapitalByVenue       map[string]float64 `json:"capital_by_venue"`
-	RiskAdjustedNetEV    float64            `json:"risk_adjusted_net_ev_usdt"`
-	PrimarySortKey       float64            `json:"primary_sort_key"`
-	ExpectedNetEVUSDT    float64            `json:"expected_net_ev_usdt"`
-	ExpectedHoldHours    float64            `json:"expected_hold_hours"`
-}
-
-// UnifiedAllocatorShadowRebalanceItem 是需要再平衡或仅 shadow 观察的机会。
-type UnifiedAllocatorShadowRebalanceItem struct {
+	Rank                int                `json:"rank"`
 	OpportunityID       string             `json:"opportunity_id"`
 	StrategyType        string             `json:"strategy_type"`
 	Symbol              string             `json:"symbol"`
-	ShadowKind          string             `json:"shadow_kind"`
+	CapitalRequiredUSDT float64            `json:"capital_required_usdt"`
+	CapitalByVenue      map[string]float64 `json:"capital_by_venue"`
+	RiskAdjustedNetEV   float64            `json:"risk_adjusted_net_ev_usdt"`
+	PrimarySortKey      float64            `json:"primary_sort_key"`
+	ExpectedNetEVUSDT   float64            `json:"expected_net_ev_usdt"`
+	ExpectedHoldHours   float64            `json:"expected_hold_hours"`
+}
+
+// UnifiedAllocatorPlanSuggestionItem 是需要再平衡或仅 计划观察的机会。
+type UnifiedAllocatorPlanSuggestionItem struct {
+	OpportunityID       string             `json:"opportunity_id"`
+	StrategyType        string             `json:"strategy_type"`
+	Symbol              string             `json:"symbol"`
+	PlanKind            string             `json:"plan_kind"`
 	Reason              string             `json:"reason"`
 	CapitalRequiredUSDT float64            `json:"capital_required_usdt"`
 	CapitalByVenue      map[string]float64 `json:"capital_by_venue"`
@@ -95,39 +95,39 @@ type UnifiedAllocatorSkippedItem struct {
 
 // UnifiedAllocatorSummary 汇总本轮分配结果。
 type UnifiedAllocatorSummary struct {
-	TotalOpportunities      int     `json:"total_opportunities"`
-	SelectedRealPlans       int     `json:"selected_real_plans"`
-	ShadowRebalanceCount    int     `json:"shadow_rebalance_count"`
-	SkippedCount            int     `json:"skipped_count"`
-	AllocatedCapitalUSDT    float64 `json:"allocated_capital_usdt"`
-	GlobalCapitalUsagePct   float64 `json:"global_capital_usage_pct"`
-	GlobalCapitalLimitPct   float64 `json:"global_capital_limit_pct"`
+	TotalOpportunities    int     `json:"total_opportunities"`
+	SelectedRealPlans     int     `json:"selected_real_plans"`
+	PlanSuggestionCount   int     `json:"plan_suggestion_count"`
+	SkippedCount          int     `json:"skipped_count"`
+	AllocatedCapitalUSDT  float64 `json:"allocated_capital_usdt"`
+	GlobalCapitalUsagePct float64 `json:"global_capital_usage_pct"`
+	GlobalCapitalLimitPct float64 `json:"global_capital_limit_pct"`
 }
 
-// UnifiedAllocatorPlan 是单轮 shadow 贪心分配输出。
+// UnifiedAllocatorPlan 是单轮 贪心分配输出。
 type UnifiedAllocatorPlan struct {
-	CycleID                    string                              `json:"cycle_id"`
-	GeneratedAt                time.Time                           `json:"generated_at"`
-	RealPlans                  []UnifiedAllocatorRealPlanItem      `json:"real_plans"`
-	ShadowRebalanceSuggestions []UnifiedAllocatorShadowRebalanceItem `json:"shadow_rebalance_suggestions"`
-	Skipped                    []UnifiedAllocatorSkippedItem       `json:"skipped"`
-	Summary                    UnifiedAllocatorSummary             `json:"summary"`
+	CycleID         string                               `json:"cycle_id"`
+	GeneratedAt     time.Time                            `json:"generated_at"`
+	RealPlans       []UnifiedAllocatorRealPlanItem       `json:"real_plans"`
+	PlanSuggestions []UnifiedAllocatorPlanSuggestionItem `json:"plan_suggestions"`
+	Skipped         []UnifiedAllocatorSkippedItem        `json:"skipped"`
+	Summary         UnifiedAllocatorSummary              `json:"summary"`
 }
 
 const (
-	unifiedAllocatorShadowKindStrategy  = "strategy_shadow"
-	unifiedAllocatorShadowKindRebalance = "rebalance_required"
+	unifiedAllocatorPlanKindStrategy  = "strategy_plan"
+	unifiedAllocatorPlanKindRebalance = "rebalance_required"
 )
 
 type unifiedAllocatorEval struct {
-	opp                 UnifiedOpportunity
-	riskAdjustedNetEV   float64
-	totalCapital        float64
-	primarySortKey      float64
-	hardRejectReasons   []string
-	profitShadowReasons []string
-	deficitByVenue      map[string]float64
-	localFundsOK        bool
+	opp               UnifiedOpportunity
+	riskAdjustedNetEV float64
+	totalCapital      float64
+	primarySortKey    float64
+	hardRejectReasons []string
+	profitPlanReasons []string
+	deficitByVenue    map[string]float64
+	localFundsOK      bool
 }
 
 func unifiedAllocatorPlanLogPath(recordDir string) string {
@@ -149,9 +149,8 @@ func unifiedOpportunityTotalCapital(opp UnifiedOpportunity) float64 {
 }
 
 func unifiedOpportunityRiskAdjustedNetEV(opp UnifiedOpportunity, totalCapital float64) float64 {
-	// v1: ExpectedNetEVUSDT 已含主要成本; 再用 RiskScore 扣持仓尾部风险代理。
-	holdingRiskCost := totalCapital * clamp01(opp.RiskScore)
-	return opp.ExpectedNetEVUSDT - holdingRiskCost
+	// v1: ExpectedNetEVUSDT 已含主要成本; 再用 RiskScore 扣持仓尾部风险代理(与轮动 comparable/续持同口径)。
+	return opp.ExpectedNetEVUSDT - holdingRiskUSDT(opp.RiskScore, totalCapital)
 }
 
 func unifiedOpportunityPrimarySortKey(riskAdjustedNetEV, totalCapital, holdHours float64) float64 {
@@ -224,13 +223,13 @@ func evaluateUnifiedOpportunityForAllocator(opp UnifiedOpportunity, cfg UnifiedA
 	}
 
 	if opp.StrategyType == UnifiedStrategyPerpPerp && !cfg.AllowPerpPerpRealAllocation {
-		eval.profitShadowReasons = append(eval.profitShadowReasons, "perp_perp_profit_mode_v1_shadow")
+		eval.profitPlanReasons = append(eval.profitPlanReasons, "perp_perp_profit_mode_v1_plan")
 	}
 	if opp.LiquidityScore < cfg.MinLiquidityScoreProfit {
-		eval.profitShadowReasons = append(eval.profitShadowReasons, "liquidity_below_profit_min")
+		eval.profitPlanReasons = append(eval.profitPlanReasons, "liquidity_below_profit_min")
 	}
 	if opp.DataQualityScore < cfg.MinDataQualityScoreProfit {
-		eval.profitShadowReasons = append(eval.profitShadowReasons, "data_quality_below_profit_min")
+		eval.profitPlanReasons = append(eval.profitPlanReasons, "data_quality_below_profit_min")
 	}
 
 	deficit := make(map[string]float64)
@@ -271,8 +270,8 @@ func cloneVenueCapitalFromOpportunity(in map[string]float64) map[string]float64 
 	return out
 }
 
-// RunUnifiedShadowAllocator 对统一机会做 shadow 贪心分配(纯函数;可选 best-effort 写盘)。
-func RunUnifiedShadowAllocator(in UnifiedAllocatorInput) UnifiedAllocatorPlan {
+// RunUnifiedAllocator 对统一机会做 贪心分配(纯函数;可选 best-effort 写盘)。
+func RunUnifiedAllocator(in UnifiedAllocatorInput) UnifiedAllocatorPlan {
 	cfg := normalizeUnifiedAllocatorConfig(in.Config)
 	now := in.Now
 	if now.IsZero() {
@@ -324,42 +323,42 @@ func RunUnifiedShadowAllocator(in UnifiedAllocatorInput) UnifiedAllocatorPlan {
 			continue
 		}
 
-		shadowReason := ""
-		shadowKind := ""
-		if len(eval.profitShadowReasons) > 0 {
-			shadowKind = unifiedAllocatorShadowKindStrategy
-			shadowReason = strings.Join(eval.profitShadowReasons, ";")
+		planReason := ""
+		planKind := ""
+		if len(eval.profitPlanReasons) > 0 {
+			planKind = unifiedAllocatorPlanKindStrategy
+			planReason = strings.Join(eval.profitPlanReasons, ";")
 		}
 		if !eval.localFundsOK {
-			if shadowKind == "" {
-				shadowKind = unifiedAllocatorShadowKindRebalance
+			if planKind == "" {
+				planKind = unifiedAllocatorPlanKindRebalance
 			}
 			rebalanceReason := "local_funds_insufficient"
-			if shadowReason != "" {
-				shadowReason += ";" + rebalanceReason
+			if planReason != "" {
+				planReason += ";" + rebalanceReason
 			} else {
-				shadowReason = rebalanceReason
-				if shadowKind == unifiedAllocatorShadowKindStrategy {
-					// 同时缺本地资金: 仍标 rebalance,但保留 strategy shadow 语义。
-					shadowKind = unifiedAllocatorShadowKindRebalance
+				planReason = rebalanceReason
+				if planKind == unifiedAllocatorPlanKindStrategy {
+					// 同时缺本地资金: 仍标 rebalance,但保留 strategy plan 语义。
+					planKind = unifiedAllocatorPlanKindRebalance
 				}
 			}
 		}
 
-		if shadowKind != "" || !eval.localFundsOK || len(eval.profitShadowReasons) > 0 {
-			plan.ShadowRebalanceSuggestions = append(plan.ShadowRebalanceSuggestions, UnifiedAllocatorShadowRebalanceItem{
+		if planKind != "" || !eval.localFundsOK || len(eval.profitPlanReasons) > 0 {
+			plan.PlanSuggestions = append(plan.PlanSuggestions, UnifiedAllocatorPlanSuggestionItem{
 				OpportunityID:       opp.ID,
 				StrategyType:        opp.StrategyType,
 				Symbol:              opp.Symbol,
-				ShadowKind:          shadowKind,
-				Reason:              shadowReason,
+				PlanKind:            planKind,
+				Reason:              planReason,
 				CapitalRequiredUSDT: eval.totalCapital,
 				CapitalByVenue:      cloneVenueCapitalFromOpportunity(opp.CapitalRequiredByVenue),
 				DeficitByVenue:      cloneVenueCapitalFromOpportunity(eval.deficitByVenue),
 				PrimarySortKey:      eval.primarySortKey,
 				RiskAdjustedNetEV:   eval.riskAdjustedNetEV,
 			})
-			if shadowKind != "" {
+			if planKind != "" {
 				continue
 			}
 		}
@@ -444,7 +443,7 @@ func RunUnifiedShadowAllocator(in UnifiedAllocatorInput) UnifiedAllocatorPlan {
 	}
 
 	plan.Summary.SelectedRealPlans = len(plan.RealPlans)
-	plan.Summary.ShadowRebalanceCount = len(plan.ShadowRebalanceSuggestions)
+	plan.Summary.PlanSuggestionCount = len(plan.PlanSuggestions)
 	plan.Summary.SkippedCount = len(plan.Skipped)
 	plan.Summary.AllocatedCapitalUSDT = usedGlobal
 	if totalCapital > 0 {

@@ -16,7 +16,7 @@ import (
 
 const (
 	rotationSnapshotMaxAge        = 30 * time.Minute
-	rotationScanMinAbsFundingRate = 0.00005 // 0.5 bps per funding interval
+	rotationScanMinAbsFundingRate = 0.00005 // 0.5 bps per 8h-interval 基准;粗筛按 per-hour 归一比较
 	rotationScanMaxSymbols        = 150
 	// rotationScanDepthFetchMaxSymbols funding 粗筛后二次拉深度上限;深度 API 成本高,仅对决策候选前 N 个拉取。
 	rotationScanDepthFetchMaxSymbols = 50
@@ -91,7 +91,7 @@ type UnifiedRotationRunner struct {
 
 	includePerpPerpCandidates bool
 
-	fetchDeps   unifiedShadowPipelineFetchDeps
+	fetchDeps   unifiedMarketPipelineFetchDeps
 	delistGuard *DelistGuard
 
 	scanCandidatesFn func(ctx context.Context, snap CrossVenueScanSnapshot) ([]UnifiedOpportunity, map[string]float64, error)
@@ -140,10 +140,10 @@ func (r *UnifiedRotationRunner) CapitalSnapshotReadOnly(ctx context.Context) Uni
 	}
 	deps := r.fetchDeps
 	if deps.fetchAvailableUSDT == nil {
-		deps.fetchAvailableUSDT = defaultUnifiedShadowFetchAvailableUSDTByVenue
+		deps.fetchAvailableUSDT = defaultUnifiedMarketFetchAvailableUSDTByVenue
 	}
 	fetched := deps.fetchAvailableUSDT(ctx, r.venues, crossVenueExecutorVenues)
-	held, _ := r.collectHeldPositions(nil)
+	held, _ := r.collectHeldPositions(nil, nil)
 
 	r.lastCapitalSnapshotMu.RLock()
 	ctxSnap := r.lastCapitalSnapshot
@@ -278,7 +278,7 @@ func emptyRotationStatus() RotationStatus {
 	}
 }
 
-// isLive 启动 reconcile 是否真钱(仍绑定 active;冷启动 shadow 不 flatten 未登记仓)。
+// isLive 启动 reconcile 是否真钱(仍绑定 active;冷启动 OFF 不 flatten 未登记仓)。
 func (r *UnifiedRotationRunner) isLive() bool {
 	if r == nil {
 		return false
@@ -306,13 +306,13 @@ func (r *UnifiedRotationRunner) openLive() bool {
 	return true
 }
 
-// manageLive 在场仓安全管理是否真钱(与 active 解耦;OFF 模式或 manage 闸关闭则 shadow)。
+// manageLive 在场仓安全管理是否真钱(与 active 解耦;OFF 模式或 manage 闸关闭则 OFF)。
 func (r *UnifiedRotationRunner) manageLive() bool {
 	if r == nil {
 		return false
 	}
 	if r.controlPlane == nil {
-		// 无控制面(测试/旧路径):策略已部署即真钱,不因 STOP 误走 shadow manage。
+		// 无控制面(测试/旧路径):策略已部署即真钱,不因 STOP 误走 OFF manage。
 		return true
 	}
 	if !r.controlPlane.RotationLiveEnabled() {
@@ -568,7 +568,8 @@ func (r *UnifiedRotationRunner) runOnce(ctx context.Context) error {
 		return err
 	}
 	statusUpdate.Candidates = countRotationCandidates(candidates)
-	held, heldInputs := r.collectHeldPositions(candidates)
+	borrowDaily, _ := rotationBorrowMapsFromProbes(snap.BorrowProbes)
+	held, heldInputs := r.collectHeldPositions(candidates, borrowDaily)
 	statusUpdate.Held = len(held)
 	statusUpdate.RealHeldManaged = r.countRealHeldPositions(ctx)
 	freeAvailable := rotationFreeAvailableUSDT(available, held)
@@ -691,38 +692,36 @@ func (r *UnifiedRotationRunner) decideRotation(
 	return DecideRotation(held, heldInputs, candidates, available, r.rotationCfg, equityUSDT)
 }
 
-// rotationScanFilterSymbols 从 funding 快照中筛出 max|rate| 达标的 symbol, 按 max|rate| 降序取前 rotationScanMaxSymbols 个。
+// rotationScanFilterSymbols 从 funding 快照中筛出 max|rate/h| 达标的 symbol, 按 per-hour 降序取前 rotationScanMaxSymbols 个。
 func rotationScanFilterSymbols(fundingByVenue map[string]map[string]CrossVenueSpotPerpFundingSnap) []string {
 	allSymbols := crossVenueSpotPerpCollectSymbols(fundingByVenue, nil)
 	if len(allSymbols) == 0 {
 		return nil
 	}
-	maxAbsBySym := make(map[string]float64, len(allSymbols))
+	minPerHour := rotationFundingRatePerHour(rotationScanMinAbsFundingRate, 8)
+	maxPerHourBySym := make(map[string]float64, len(allSymbols))
 	for _, sym := range allSymbols {
-		maxAbs := 0.0
+		maxPerHour := 0.0
 		for _, bySym := range fundingByVenue {
 			entry, ok := bySym[sym]
 			if !ok {
 				continue
 			}
-			abs := entry.Rate
-			if abs < 0 {
-				abs = -abs
-			}
-			if abs > maxAbs {
-				maxAbs = abs
+			perHour := rotationFundingRatePerHour(entry.Rate, entry.IntervalHours)
+			if perHour > maxPerHour {
+				maxPerHour = perHour
 			}
 		}
-		if maxAbs >= rotationScanMinAbsFundingRate {
-			maxAbsBySym[sym] = maxAbs
+		if maxPerHour >= minPerHour {
+			maxPerHourBySym[sym] = maxPerHour
 		}
 	}
-	filtered := make([]string, 0, len(maxAbsBySym))
-	for sym := range maxAbsBySym {
+	filtered := make([]string, 0, len(maxPerHourBySym))
+	for sym := range maxPerHourBySym {
 		filtered = append(filtered, sym)
 	}
 	sort.Slice(filtered, func(i, j int) bool {
-		ri, rj := maxAbsBySym[filtered[i]], maxAbsBySym[filtered[j]]
+		ri, rj := maxPerHourBySym[filtered[i]], maxPerHourBySym[filtered[j]]
 		if ri != rj {
 			return ri > rj
 		}
@@ -744,10 +743,10 @@ func (r *UnifiedRotationRunner) scanRotationCandidates(ctx context.Context, snap
 func (r *UnifiedRotationRunner) defaultScanRotationCandidates(ctx context.Context, snap CrossVenueScanSnapshot) ([]UnifiedOpportunity, map[string]float64, error) {
 	deps := r.fetchDeps
 	if deps.fetchMarkets == nil {
-		deps.fetchMarkets = defaultUnifiedShadowFetchMarketsByVenue
+		deps.fetchMarkets = defaultUnifiedMarketFetchMarketsByVenue
 	}
 	if deps.fetchAvailableUSDT == nil {
-		deps.fetchAvailableUSDT = defaultUnifiedShadowFetchAvailableUSDTByVenue
+		deps.fetchAvailableUSDT = defaultUnifiedMarketFetchAvailableUSDTByVenue
 	}
 
 	now := time.Now().UTC()
@@ -766,14 +765,14 @@ func (r *UnifiedRotationRunner) defaultScanRotationCandidates(ctx context.Contex
 		writeCycleID = crossVenueDecisionCycleID(now)
 	}
 
-	fundingByVenue := unifiedShadowFundingByVenueFromSnapshot(snap.FundingByVenue)
+	fundingByVenue := unifiedMarketFundingByVenueFromSnapshot(snap.FundingByVenue)
 	symbols := rotationScanFilterSymbols(fundingByVenue)
 	if r.delistGuard != nil {
 		r.delistGuard.Refresh(ctx)
 	}
 	marketsByVenue := deps.fetchMarkets(ctx, r.venues, symbols)
 	// 决策期流动性自适应:对粗筛 symbol 二次拉深度/24h 量,填 MarketSnap.Depth/Volume 字段。
-	unifiedShadowEnrichMarketsWithDepthVolume(ctx, r.venues, marketsByVenue, symbols)
+	unifiedMarketEnrichMarketsWithDepthVolume(ctx, r.venues, marketsByVenue, symbols)
 	availableUSDTByVenue := deps.fetchAvailableUSDT(ctx, r.venues, crossVenueExecutorVenues)
 	borrowDaily, borrowLimits := rotationBorrowMapsFromProbes(snap.BorrowProbes)
 
@@ -857,10 +856,10 @@ func (r *UnifiedRotationRunner) defaultScanRotationCandidates(ctx context.Contex
 	}
 
 	if strings.TrimSpace(r.recordDir) != "" {
-		AppendSingleVenueSpotPerpShadowCandidates(r.recordDir, writeCycleID, r.execCfg, singleSpotPerp)
-		AppendCrossVenueSpotPerpShadowCandidates(r.recordDir, writeCycleID, r.execCfg, crossSpotPerp)
-		AppendSingleVenuePerpSpotShadowCandidates(r.recordDir, writeCycleID, r.execCfg, singlePerpSpot)
-		AppendCrossVenuePerpSpotShadowCandidates(r.recordDir, writeCycleID, r.execCfg, crossPerpSpot)
+		AppendSingleVenueSpotPerpCandidates(r.recordDir, writeCycleID, r.execCfg, singleSpotPerp)
+		AppendCrossVenueSpotPerpCandidates(r.recordDir, writeCycleID, r.execCfg, crossSpotPerp)
+		AppendSingleVenuePerpSpotCandidates(r.recordDir, writeCycleID, r.execCfg, singlePerpSpot)
+		AppendCrossVenuePerpSpotCandidates(r.recordDir, writeCycleID, r.execCfg, crossPerpSpot)
 	}
 
 	if r.logger != nil {
@@ -874,10 +873,14 @@ func (r *UnifiedRotationRunner) defaultScanRotationCandidates(ctx context.Contex
 	return candidates, availableUSDTByVenue, nil
 }
 
-func (r *UnifiedRotationRunner) collectHeldPositions(candidates []UnifiedOpportunity) ([]HeldPosition, map[string]ContinuationInputs) {
+func (r *UnifiedRotationRunner) collectHeldPositions(candidates []UnifiedOpportunity, borrowDailyByAsset map[string]float64) ([]HeldPosition, map[string]ContinuationInputs) {
 	held := make([]HeldPosition, 0)
 	inputs := map[string]ContinuationInputs{}
 	candidatesByID := indexUnifiedOpportunitiesByID(candidates)
+	now := time.Now().UTC()
+	if r != nil && r.nowFn != nil {
+		now = r.nowFn().UTC()
+	}
 
 	for _, binding := range r.bindings {
 		if binding == nil || binding.heldFn == nil {
@@ -888,10 +891,11 @@ func (r *UnifiedRotationRunner) collectHeldPositions(candidates []UnifiedOpportu
 			if strings.TrimSpace(pos.OpportunityID) == "" {
 				continue
 			}
-			cont := rec.ContinuationInputs
-			if cont == (ContinuationInputs{}) {
-				cont = rotationContinuationFromCandidate(pos, candidatesByID[pos.OpportunityID], r.execCfg)
-			}
+			notional := rotationContinuationNotionalFromCloseCost(rec.ExpectedCloseCostUSDT, r.execCfg)
+			cont := rotationBuildContinuationInputs(
+				pos, rec.ContinuationInputs, candidatesByID[pos.OpportunityID],
+				r.execCfg, borrowDailyByAsset, now, notional,
+			)
 			held = append(held, pos)
 			inputs[pos.OpportunityID] = cont
 		}
@@ -1183,6 +1187,7 @@ func bindCrossVenuePerpPerpRotationExecutor(e *CrossVenueExecutor) *rotationExec
 
 func collectCrossVenueHeldRecords(ps []CrossVenuePosition, execCfg CrossVenueExecutorConfig) []rotationHeldRecord {
 	out := make([]rotationHeldRecord, 0)
+	now := time.Now().UTC()
 	for _, p := range activeCrossVenuePositions(ps) {
 		oppID := crossVenuePositionOpportunityID(p)
 		if strings.TrimSpace(oppID) == "" {
@@ -1194,6 +1199,10 @@ func collectCrossVenueHeldRecords(ps []CrossVenuePosition, execCfg CrossVenueExe
 			p.HighVenue: margin,
 			p.LowVenue:  margin,
 		}
+		windowFunding := rotationPerpPerpWindowFundingUSDT(
+			notional, p.HighFundingRate, p.HighIntervalHours, p.LowFundingRate, p.LowIntervalHours,
+			p.HighNextFundingTime, p.LowNextFundingTime, now,
+		)
 		out = append(out, rotationHeldRecord{
 			HeldPosition: HeldPosition{
 				OpportunityID:          oppID,
@@ -1201,8 +1210,9 @@ func collectCrossVenueHeldRecords(ps []CrossVenuePosition, execCfg CrossVenueExe
 				Symbol:                 p.Symbol,
 				CapitalRequiredByVenue: capital,
 				OpenedAt:               p.OpenedAt,
+				NextFundingTime:        minTime(p.HighNextFundingTime, p.LowNextFundingTime),
 			},
-			ContinuationInputs: rotationContinuationFromPosition(p.EstFundingUSDT, notional, execCfg, false),
+			ContinuationInputs: rotationContinuationFromPosition(windowFunding, notional, execCfg, false, rotationContinuationOpts{}),
 			delistLegs: []rotationDelistLeg{
 				{Venue: p.HighVenue, Market: venue.MarketPerp},
 				{Venue: p.LowVenue, Market: venue.MarketPerp},
@@ -1250,11 +1260,17 @@ func findCrossVenuePerpSpotHeldByOpportunityID(ps []CrossVenuePerpSpotPosition, 
 
 func collectSingleVenueSpotPerpHeldRecords(ps []SingleVenueSpotPerpPosition, execCfg CrossVenueExecutorConfig) []rotationHeldRecord {
 	out := make([]rotationHeldRecord, 0)
+	now := time.Now().UTC()
 	for _, p := range activeSingleVenueSpotPerpPositions(ps) {
 		if strings.TrimSpace(p.OpportunityID) == "" {
 			continue
 		}
 		capital := estimateSingleVenueSpotPerpCapital(p, execCfg)
+		interval := p.FundingIntervalHours
+		if interval <= 0 {
+			interval = 8
+		}
+		windowFunding := rotationSpotPerpWindowFundingUSDT(p.NotionalUSDT, p.OpenFundingRate, interval, p.NextFundingTime, now, false)
 		out = append(out, rotationHeldRecord{
 			HeldPosition: HeldPosition{
 				OpportunityID:          p.OpportunityID,
@@ -1262,8 +1278,9 @@ func collectSingleVenueSpotPerpHeldRecords(ps []SingleVenueSpotPerpPosition, exe
 				Symbol:                 p.Symbol,
 				CapitalRequiredByVenue: capital,
 				OpenedAt:               p.OpenedAt,
+				NextFundingTime:        p.NextFundingTime,
 			},
-			ContinuationInputs: rotationContinuationFromPosition(p.EstFundingUSDT, p.NotionalUSDT, execCfg, false),
+			ContinuationInputs: rotationContinuationFromPosition(windowFunding, p.NotionalUSDT, execCfg, false, rotationContinuationOpts{baseAsset: baseAssetFromCanonicalSymbol(p.Symbol)}),
 			delistLegs: []rotationDelistLeg{
 				{Venue: p.Venue, Market: venue.MarketSpot},
 				{Venue: p.Venue, Market: venue.MarketPerp},
@@ -1275,11 +1292,17 @@ func collectSingleVenueSpotPerpHeldRecords(ps []SingleVenueSpotPerpPosition, exe
 
 func collectCrossVenueSpotPerpHeldRecords(ps []CrossVenueSpotPerpPosition, execCfg CrossVenueExecutorConfig) []rotationHeldRecord {
 	out := make([]rotationHeldRecord, 0)
+	now := time.Now().UTC()
 	for _, p := range activeCrossVenueSpotPerpPositions(ps) {
 		if strings.TrimSpace(p.OpportunityID) == "" {
 			continue
 		}
 		capital := estimateCrossVenueSpotPerpCapital(p, execCfg)
+		interval := p.PerpIntervalHours
+		if interval <= 0 {
+			interval = 8
+		}
+		windowFunding := rotationSpotPerpWindowFundingUSDT(p.NotionalUSDT, p.PerpFundingRate, interval, p.PerpNextFundingTime, now, false)
 		out = append(out, rotationHeldRecord{
 			HeldPosition: HeldPosition{
 				OpportunityID:          p.OpportunityID,
@@ -1287,8 +1310,9 @@ func collectCrossVenueSpotPerpHeldRecords(ps []CrossVenueSpotPerpPosition, execC
 				Symbol:                 p.Symbol,
 				CapitalRequiredByVenue: capital,
 				OpenedAt:               p.OpenedAt,
+				NextFundingTime:        p.PerpNextFundingTime,
 			},
-			ContinuationInputs: rotationContinuationFromPosition(p.EstFundingUSDT, p.NotionalUSDT, execCfg, false),
+			ContinuationInputs: rotationContinuationFromPosition(windowFunding, p.NotionalUSDT, execCfg, false, rotationContinuationOpts{baseAsset: baseAssetFromCanonicalSymbol(p.Symbol)}),
 			delistLegs: []rotationDelistLeg{
 				{Venue: p.SpotVenue, Market: venue.MarketSpot},
 				{Venue: p.PerpVenue, Market: venue.MarketPerp},
@@ -1300,11 +1324,17 @@ func collectCrossVenueSpotPerpHeldRecords(ps []CrossVenueSpotPerpPosition, execC
 
 func collectSingleVenuePerpSpotHeldRecords(ps []SingleVenuePerpSpotPosition, execCfg CrossVenueExecutorConfig) []rotationHeldRecord {
 	out := make([]rotationHeldRecord, 0)
+	now := time.Now().UTC()
 	for _, p := range activeSingleVenuePerpSpotPositions(ps) {
 		if strings.TrimSpace(p.OpportunityID) == "" {
 			continue
 		}
 		capital := estimateSingleVenuePerpSpotCapital(p, execCfg)
+		interval := p.FundingIntervalHours
+		if interval <= 0 {
+			interval = 8
+		}
+		windowFunding := rotationSpotPerpWindowFundingUSDT(p.NotionalUSDT, p.OpenFundingRate, interval, p.NextFundingTime, now, true)
 		out = append(out, rotationHeldRecord{
 			HeldPosition: HeldPosition{
 				OpportunityID:          p.OpportunityID,
@@ -1312,8 +1342,9 @@ func collectSingleVenuePerpSpotHeldRecords(ps []SingleVenuePerpSpotPosition, exe
 				Symbol:                 p.Symbol,
 				CapitalRequiredByVenue: capital,
 				OpenedAt:               p.OpenedAt,
+				NextFundingTime:        p.NextFundingTime,
 			},
-			ContinuationInputs: rotationContinuationFromPosition(p.EstFundingUSDT, p.NotionalUSDT, execCfg, true),
+			ContinuationInputs: rotationContinuationFromPosition(windowFunding, p.NotionalUSDT, execCfg, true, rotationContinuationOpts{baseAsset: baseAssetFromCanonicalSymbol(p.Symbol)}),
 			delistLegs: []rotationDelistLeg{
 				{Venue: p.Venue, Market: venue.MarketSpot},
 				{Venue: p.Venue, Market: venue.MarketPerp},
@@ -1325,11 +1356,17 @@ func collectSingleVenuePerpSpotHeldRecords(ps []SingleVenuePerpSpotPosition, exe
 
 func collectCrossVenuePerpSpotHeldRecords(ps []CrossVenuePerpSpotPosition, execCfg CrossVenueExecutorConfig) []rotationHeldRecord {
 	out := make([]rotationHeldRecord, 0)
+	now := time.Now().UTC()
 	for _, p := range activeCrossVenuePerpSpotPositions(ps) {
 		if strings.TrimSpace(p.OpportunityID) == "" {
 			continue
 		}
 		capital := estimateCrossVenuePerpSpotCapital(p, execCfg)
+		interval := p.PerpIntervalHours
+		if interval <= 0 {
+			interval = 8
+		}
+		windowFunding := rotationSpotPerpWindowFundingUSDT(p.NotionalUSDT, p.PerpFundingRate, interval, p.PerpNextFundingTime, now, true)
 		out = append(out, rotationHeldRecord{
 			HeldPosition: HeldPosition{
 				OpportunityID:          p.OpportunityID,
@@ -1337,8 +1374,9 @@ func collectCrossVenuePerpSpotHeldRecords(ps []CrossVenuePerpSpotPosition, execC
 				Symbol:                 p.Symbol,
 				CapitalRequiredByVenue: capital,
 				OpenedAt:               p.OpenedAt,
+				NextFundingTime:        p.PerpNextFundingTime,
 			},
-			ContinuationInputs: rotationContinuationFromPosition(p.EstFundingUSDT, p.NotionalUSDT, execCfg, true),
+			ContinuationInputs: rotationContinuationFromPosition(windowFunding, p.NotionalUSDT, execCfg, true, rotationContinuationOpts{baseAsset: baseAssetFromCanonicalSymbol(p.Symbol)}),
 			delistLegs: []rotationDelistLeg{
 				{Venue: p.SpotVenue, Market: venue.MarketSpot},
 				{Venue: p.PerpVenue, Market: venue.MarketPerp},
@@ -1573,25 +1611,94 @@ func rotationWalletBalancesFromAvailable(fetched map[string]float64, held []Held
 	return out
 }
 
-func rotationContinuationFromCandidate(pos HeldPosition, cand UnifiedOpportunity, execCfg CrossVenueExecutorConfig) ContinuationInputs {
+func rotationContinuationNotionalFromCloseCost(closeCost float64, execCfg CrossVenueExecutorConfig) float64 {
+	if closeCost <= 0 {
+		return 0
+	}
+	feeBps := execCfg.DefaultTakerFeeBps
+	if feeBps <= 0 {
+		feeBps = 4
+	}
+	denom := feeBps / 10000 * 2
+	if denom <= 0 {
+		return 0
+	}
+	return closeCost / denom
+}
+
+// rotationContinuationOpts 续持经济系数可选参数(零值=默认/回退)。
+type rotationContinuationOpts struct {
+	riskScore          float64
+	totalCapital       float64
+	baseAsset          string
+	borrowDailyByAsset map[string]float64
+	holdHours          float64
+}
+
+func rotationContinuationWindowHours(pos HeldPosition, now time.Time) float64 {
+	if pos.NextFundingTime.IsZero() {
+		return 24
+	}
+	h := crossVenueComparableWindowHours(now, pos.NextFundingTime, pos.NextFundingTime)
+	if h <= 0 {
+		return 24
+	}
+	return h
+}
+
+func rotationContinuationBorrowCostUSDT(notional float64, negativeCarry bool, baseAsset string, holdHours float64, borrowDailyByAsset map[string]float64) float64 {
+	if !negativeCarry || notional <= 0 {
+		return 0
+	}
+	if borrowDailyByAsset != nil && holdHours > 0 {
+		if cost := perpSpotBorrowCostUSDT(baseAsset, notional, holdHours, borrowDailyByAsset); cost > 0 {
+			return cost
+		}
+	}
+	return notional * rotationContinuationBorrowFallbackDailyRate
+}
+
+func rotationBuildContinuationInputs(
+	pos HeldPosition,
+	base ContinuationInputs,
+	cand UnifiedOpportunity,
+	execCfg CrossVenueExecutorConfig,
+	borrowDailyByAsset map[string]float64,
+	now time.Time,
+	notionalOverride float64,
+) ContinuationInputs {
+	negativeCarry := pos.StrategyType == UnifiedStrategySingleVenuePerpSpot || pos.StrategyType == UnifiedStrategyCrossVenuePerpSpot
+	totalCapital := unifiedOpportunityTotalCapitalFromMap(pos.CapitalRequiredByVenue)
+	notional := notionalOverride
+	if notional <= 0 {
+		notional = totalCapital
+	}
+	holdHours := rotationContinuationWindowHours(pos, now)
+	baseAsset := baseAssetFromCanonicalSymbol(pos.Symbol)
+
 	if strings.TrimSpace(cand.ID) != "" {
-		totalCapital := unifiedOpportunityTotalCapitalFromMap(pos.CapitalRequiredByVenue)
-		holdingRisk := 0.0
-		if totalCapital > 0 && cand.RiskScore > 0 {
-			holdingRisk = cand.RiskScore * totalCapital * 0.01
+		borrowCost := 0.0
+		if negativeCarry {
+			borrowCost = rotationContinuationBorrowCostUSDT(notional, true, baseAsset, holdHours, borrowDailyByAsset)
 		}
 		return ContinuationInputs{
 			ExpectedFundingUSDT:    cand.ExpectedFundingUSDT,
 			ExpectedCloseCostUSDT:  cand.ExpectedCloseCostUSDT,
-			HoldingRiskUSDT:        holdingRisk,
-			ExpectedBorrowCostUSDT: cand.ExpectedBorrowCostUSDT,
+			HoldingRiskUSDT:        holdingRiskUSDT(cand.RiskScore, totalCapital),
+			ExpectedBorrowCostUSDT: borrowCost,
 		}
 	}
-	notional := unifiedOpportunityTotalCapitalFromMap(pos.CapitalRequiredByVenue)
-	return rotationContinuationFromPosition(0, notional, execCfg, pos.StrategyType == UnifiedStrategySingleVenuePerpSpot || pos.StrategyType == UnifiedStrategyCrossVenuePerpSpot)
+
+	opts := rotationContinuationOpts{
+		totalCapital:       totalCapital,
+		baseAsset:          baseAsset,
+		borrowDailyByAsset: borrowDailyByAsset,
+		holdHours:          holdHours,
+	}
+	return rotationContinuationFromPosition(base.ExpectedFundingUSDT, notional, execCfg, negativeCarry, opts)
 }
 
-func rotationContinuationFromPosition(estFunding, notional float64, execCfg CrossVenueExecutorConfig, negativeCarry bool) ContinuationInputs {
+func rotationContinuationFromPosition(windowFundingUSDT, notional float64, execCfg CrossVenueExecutorConfig, negativeCarry bool, opts rotationContinuationOpts) ContinuationInputs {
 	closeCost := 0.0
 	if notional > 0 {
 		feeBps := execCfg.DefaultTakerFeeBps
@@ -1600,14 +1707,23 @@ func rotationContinuationFromPosition(estFunding, notional float64, execCfg Cros
 		}
 		closeCost = notional * feeBps / 10000 * 2
 	}
-	borrowCost := 0.0
-	if negativeCarry && notional > 0 {
-		borrowCost = notional * 0.0003
+	capital := opts.totalCapital
+	if capital <= 0 {
+		capital = notional
 	}
+	riskScore := opts.riskScore
+	if riskScore <= 0 {
+		riskScore = rotationContinuationDefaultRiskScore
+	}
+	holdHours := opts.holdHours
+	if holdHours <= 0 {
+		holdHours = 24
+	}
+	borrowCost := rotationContinuationBorrowCostUSDT(notional, negativeCarry, opts.baseAsset, holdHours, opts.borrowDailyByAsset)
 	return ContinuationInputs{
-		ExpectedFundingUSDT:    estFunding,
+		ExpectedFundingUSDT:    windowFundingUSDT,
 		ExpectedCloseCostUSDT:  closeCost,
-		HoldingRiskUSDT:        notional * 0.001,
+		HoldingRiskUSDT:        holdingRiskUSDT(riskScore, capital),
 		ExpectedBorrowCostUSDT: borrowCost,
 	}
 }

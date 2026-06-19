@@ -26,11 +26,11 @@ func okxPerpOrderCoinQty(qty, ctVal, lotSz float64) (float64, error) {
 func TestPerpCoinToContractRoundTrip(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
-		name   string
-		qty    float64
-		ctVal  float64
-		lotSz  float64
-		wantSz string
+		name     string
+		qty      float64
+		ctVal    float64
+		lotSz    float64
+		wantSz   string
 		wantCoin float64
 	}{
 		{"HOME lot1", 250, 100, 1, "2", 200},

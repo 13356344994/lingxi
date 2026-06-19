@@ -255,7 +255,7 @@ func TestBybitManageCycleSkipsCrossVenueHeldSymbol(t *testing.T) {
 		logger: log.New(logBuf, "", 0),
 		logs:   logs,
 	}
-	planner := NewBybitShadowExecutor(market, bybitExecConfigFromEngine(cfg), nil)
+	planner := NewBybitCyclePlanner(market, bybitExecConfigFromEngine(cfg), nil)
 	executor := newTestExecutor(trader)
 	c.bybitManageCycle(context.Background(), cfg, store, planner, executor, &fakeBybitVenue{market, trader}, true)
 	if len(trader.placed) != 0 {

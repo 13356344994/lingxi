@@ -17,15 +17,6 @@ func TestRequiresLiveSingleWriterLease(t *testing.T) {
 		want bool
 	}{
 		{
-			name: "shadow 跳过租约",
-			mut: func(c *EngineConfig) {
-				c.ExecutionConfig.ShadowTrading = true
-				c.CrossVenueExecutor.Enabled = true
-				c.UnifiedRotation.Enabled = true
-			},
-			want: false,
-		},
-		{
 			name: "仅扫描器不强制",
 			mut: func(c *EngineConfig) {
 				c.CrossVenueExecutor.Enabled = false
@@ -102,15 +93,15 @@ func TestAcquireLiveStackSingleWriterLeaseSuccessAndRelease(t *testing.T) {
 func TestAcquireLiveStackSingleWriterLeaseSkipsWhenNotRequired(t *testing.T) {
 	dir := t.TempDir()
 	cfg := liveStackLeaseTestConfig(dir)
-	cfg.ExecutionConfig.ShadowTrading = true
-	cfg.CrossVenueExecutor.Enabled = true
+	cfg.CrossVenueExecutor.Enabled = false
+	cfg.UnifiedRotation.Enabled = false
 
 	lease, err := acquireLiveStackSingleWriterLease(cfg)
 	if err != nil {
-		t.Fatalf("shadow 模式不应因租约失败: %v", err)
+		t.Fatalf("只读扫描装配不应因租约失败: %v", err)
 	}
 	if lease != nil {
-		t.Fatal("shadow 模式应跳过租约")
+		t.Fatal("只读扫描装配应跳过租约")
 	}
 }
 

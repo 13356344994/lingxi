@@ -160,7 +160,7 @@ func TestVenueFundingLeadWindow(t *testing.T) {
 	}
 }
 
-func TestVenueFundingShadowPlaceOrderZero(t *testing.T) {
+func TestVenueFundingOffPlaceOrderZero(t *testing.T) {
 	fake := &fakeVenueFundingTrader{
 		balances:    venue.Balances{ByAsset: map[string]venue.Balance{"USDT": {Free: 100}}},
 		instruments: testFundingInstruments("BTCUSDT"),
@@ -187,9 +187,9 @@ func TestVenueFundingShadowPlaceOrderZero(t *testing.T) {
 		t.Fatalf("expected accepted plan, rejected=%v", plan.Rejected)
 	}
 	liveExec := NewVenueFundingLiveExecutor(fake, okx.VenueName, 20, nil)
-	// 影子:不调用 OpenDeltaNeutral
+	// OFF:不调用 OpenDeltaNeutral
 	if fake.placeCount != 0 {
-		t.Fatalf("shadow should not place orders, got %d", fake.placeCount)
+		t.Fatalf("OFF mode should not place orders, got %d", fake.placeCount)
 	}
 	_ = liveExec
 }
@@ -340,7 +340,7 @@ func TestVenueFundingHaltSkipsOpenOnly(t *testing.T) {
 	rc.venueName = okx.VenueName
 	rc.venueFundingManageCycle(context.Background(), cfg, store, planner, liveExec, fake, false, true)
 	if fake.placeCount != 0 {
-		t.Fatalf("halt+shadow should not place orders, count=%d", fake.placeCount)
+		t.Fatalf("halt+OFF mode should not place orders, count=%d", fake.placeCount)
 	}
 }
 

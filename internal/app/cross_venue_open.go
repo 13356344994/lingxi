@@ -384,7 +384,7 @@ func (e *CrossVenueExecutor) rollbackFirstLeg(ctx context.Context, plan crossVen
 // closeCrossVenuePosition 平仓协议。live 模式下逐腿 IOC 平仓后**核验真实成交**(ExecutedQty 对账 +
 // FetchPositions 复核):任一腿未平干净 → 保持 closing 状态、更新剩余 Qty、**不删台账**,下轮主循环
 // 重试(manageCrossVenuePosition 的 closing 分支);CloseAttempts 驱动递进滑点/穿价兜底;≥3 轮 critical 告警(退避)。
-// 影子模式无真仓,记日志后直接收尾删台账(行为不变)。
+// OFF 模式无真仓,记日志后直接收尾删台账(行为不变)。
 func (e *CrossVenueExecutor) closeCrossVenuePosition(ctx context.Context, pos CrossVenuePosition, live bool, reason string) error {
 	if !live {
 		if pos.HighLeg.Qty > executionQtyTolerance {
@@ -509,7 +509,7 @@ func (e *CrossVenueExecutor) reduceCrossVenueRisk(ctx context.Context, pos Cross
 			e.recordCrossVenueExecution(ctx, &pos, cvExecRebalanceLow, res, crossVenueBookMid(bookL))
 		}
 	} else {
-		e.logger.Printf("[影子] 本应同步降风险 %s 各减 50%%", pos.Symbol)
+		e.logger.Printf("[dry-run] 本应同步降风险 %s 各减 50%%", pos.Symbol)
 	}
 	pos.HighLeg.Qty -= halfHigh
 	pos.LowLeg.Qty -= halfLow

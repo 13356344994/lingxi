@@ -15,9 +15,9 @@ import (
 //   - 五类策略持仓台账: crossvenue / single_venue_spot_perp / cross_venue_spot_perp /
 //     single_venue_perp_spot / cross_venue_perp_spot 的 positions.json → 各执行器 CloseAllPositions
 //
-// 用法: lingxi flatten [reason] [shadow]
-//   reason  可选,写入告警文案区分触发来源(默认「外部看门狗/人工触发」)。
-//   shadow  可选,置为 "shadow"/"dry-run" 时只预演不真正下单(signedRequest 咽喉点拦截),用于演练。
+// 用法: lingxi flatten [reason] [dry-run]
+//   reason   可选,写入告警文案区分触发来源(默认「外部看门狗/人工触发」)。
+//   dry-run  可选,置为 "dry-run"/"--dry-run" 时只预演不真正下单(执行器 live=false),用于演练。
 //
 // 安全前提:必须在确认主进程**确已退出**后触发,避免与存活主进程并发平仓。外部看门狗应先判活(心跳文件年龄
 // + /healthz)再触发;单写租约(S7-A)亦保证不会与新拉起的实例并发动用同一账户。
@@ -40,15 +40,14 @@ func runEmergencyFlatten(ctx context.Context) error {
 		switch strings.ToLower(strings.TrimSpace(arg)) {
 		case "":
 			// 跳过空参
-		case "shadow", "dry-run", "--dry-run":
+		case "dry-run", "--dry-run":
 			dryRun = true
 		default:
 			reason = strings.TrimSpace(arg)
 		}
 	}
 	if dryRun {
-		cfg.ExecutionConfig.ShadowTrading = true
-		log.Printf("[flatten] SHADOW 预演:决策照常、任何真实下单将在咽喉点被拦截,不会触达交易所")
+		log.Printf("[flatten] dry-run 预演:决策照常、执行器 live=false,不会触达交易所下单")
 	}
 	engine, err := NewFundingRateSniperEngineWithConfig("secret.yaml", cfg)
 	if err != nil {
@@ -63,7 +62,7 @@ func (e *FundingRateSniperEngine) emergencyFlatten(ctx context.Context, reason s
 	e.runCtx = ctx
 	// 安全互锁:真实强平前抢单写租约(S7-A)。若主进程仍存活(持有 flock),这里会失败 → 拒绝强平,避免与存活进程
 	// 并发平仓(双平/撞单)。主进程确已退出时 flock 由内核自动释放,抢锁成功后再执行,期间持锁、结束释放。
-	// 预演(shadow)不下真实单、无并发风险,跳过互锁以便在主进程存活时也能预览将强平的裸仓。
+	// 预演(dry-run)不下真实单、无并发风险,跳过互锁以便在主进程存活时也能预览将强平的裸仓。
 	if !dryRun {
 		lease, leaseErr := acquireSingleWriterLease(e.cfg.NetworkConfig.RecordDir)
 		if leaseErr != nil {

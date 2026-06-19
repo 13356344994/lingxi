@@ -66,6 +66,8 @@ type CrossVenueExecutor struct {
 	lastCycle       CrossVenueCycleExplain
 	// controlPlane 统一控制面附加闸(nil=仅沿用 .halt-live / openings 等既有语义)。
 	controlPlane *ControlPlane
+	// symbolVolMultiplier 可选 vol hook;nil 时不做 vol 缩放(见 risk_liq_distance.go)。
+	symbolVolMultiplier SymbolVolatilityMultiplier
 }
 
 type crossVenueUntrackedLeg struct {
@@ -554,7 +556,7 @@ func (e *CrossVenueExecutor) evaluateNewOpens(ctx context.Context, live bool) {
 		return
 	}
 	deps := e.gateDeps(snap)
-	// 拒绝原因汇总(每轮一行,最多列前 5 条):影子观察期必须能看到「为什么不开」,否则空跑无法验证决策质量。
+	// 拒绝原因汇总(每轮一行,最多列前 5 条):OFF 观察期必须能看到「为什么不开」,否则空跑无法验证决策质量。
 	var rejected []string
 	var rawRejectReasons []string
 	var opened []string
@@ -710,9 +712,9 @@ func (e *CrossVenueExecutor) evaluateNewOpens(ctx context.Context, live bool) {
 			trace.Gate = gateRes
 			trace.HasGateNotional = true
 		}
-		// 影子模式返回空持仓(只记日志不建仓),不能把零值记录灌进内存台账/面板。
+		// OFF 模式返回空持仓(只记日志不建仓),不能把零值记录灌进内存台账/面板。
 		if pos.Symbol == "" {
-			opened = append(opened, opp.Symbol+"(shadow)")
+			opened = append(opened, opp.Symbol+"(OFF)")
 			if switchIntent == nil || crossVenueSwitchTargetOpenCompleted(pos) {
 				_ = e.removeSwitchIntent(opp.Symbol, opp.HighVenue, opp.LowVenue)
 			}
@@ -1214,23 +1216,24 @@ func (e *CrossVenueExecutor) lastCycleSnapshot() CrossVenueCycleExplain {
 }
 
 func (e *CrossVenueExecutor) setSymbolCooldown(sym string) {
-	hours := e.cfg.CrossVenueExecutor.SymbolCooldownHours
-	if hours <= 0 {
-		hours = 1
+	e.setSymbolCooldownWithSeverity(sym, "execution", "major")
+}
+
+func (e *CrossVenueExecutor) setSymbolCooldownWithSeverity(sym, category, severity string) {
+	if strings.TrimSpace(sym) == "" {
+		return
 	}
+	d := CrossVenueSymbolCooldownForCategory(e.cfg.RiskConfig, e.cfg.CrossVenueExecutor, category, severity)
 	e.mu.Lock()
-	e.symbolCooldown[sym] = e.nowFn().Add(time.Duration(hours) * time.Hour)
+	e.symbolCooldown[sym] = e.nowFn().Add(d)
 	e.mu.Unlock()
 }
 
 // setSymbolAgreementCooldown 对 Bybit 110126 协议未签 symbol 施加更长冷却(非永久黑名单,签完可交易)。
 func (e *CrossVenueExecutor) setSymbolAgreementCooldown(sym string) {
-	hours := e.cfg.CrossVenueExecutor.BybitAgreementCooldownHours
-	if hours <= 0 {
-		hours = 6
-	}
+	d := CrossVenueSymbolCooldownForCategory(e.cfg.RiskConfig, e.cfg.CrossVenueExecutor, "bybit_agreement", "major")
 	e.mu.Lock()
-	e.symbolCooldown[sym] = e.nowFn().Add(time.Duration(hours) * time.Hour)
+	e.symbolCooldown[sym] = e.nowFn().Add(d)
 	e.mu.Unlock()
 }
 

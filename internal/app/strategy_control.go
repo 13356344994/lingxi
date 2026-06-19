@@ -407,7 +407,7 @@ func (s *DashboardServer) executeStrategyStart(req StrategyStartRequest) Strateg
 	}
 	steps = append(steps, openStep)
 
-	// ③ OKX/Gate funding 执行器(默认影子,日志标明);单所退役时默认 skipped。
+	// ③ OKX/Gate funding 执行器(默认 OFF,日志标明);单所退役时默认 skipped。
 	for _, vname := range []string{okx.VenueName, gate.VenueName} {
 		step := StrategyStepResult{Step: "funding_start_" + vname}
 		if !singleVenueStrategyAutoStart {

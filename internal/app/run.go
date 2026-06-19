@@ -62,23 +62,11 @@ func Run(ctx context.Context) error {
 		return fmt.Errorf("加载主配置失败: %w", err)
 	}
 
-	// shadow 是开发冒烟子命令(lingxi shadow):signedRequest 硬拦截非 GET,绝不触达交易所。
-	// 生产运行三态为 OFF / CANARY_LIVE / LIVE(见 core.RunMode 与控制面 rotation_live_enabled)。
-	if len(os.Args) > 1 && os.Args[1] == "shadow" {
-		cfg.ExecutionConfig.ShadowTrading = true
-		log.Printf("============================================================")
-		log.Printf("  DEV SMOKE (lingxi shadow): 签名请求硬拦截,零交易所副作用")
-		log.Printf("  所有下单意图将以 SHADOW_BLOCKED 日志行记录,供人工核查")
-		log.Printf("  这不是生产运行模式;生产请用 OFF/CANARY_LIVE/LIVE 三态")
-		log.Printf("============================================================")
-	}
-
 	return startLiveStack(ctx, cfg)
 }
 
 // startLiveStack 装配并启动实盘技术栈(冷启动检查 → 记录存储 → 后台控制器 → Web 面板)。
-// 运行三态 OFF/CANARY_LIVE/LIVE 由控制面 rotation_live_enabled + 部署闸决定;lingxi shadow 子命令
-// 仅用于开发冒烟(硬拦截签名请求),不是生产模式。
+// 运行三态 OFF/CANARY_LIVE/LIVE 由控制面 rotation_live_enabled + 部署闸决定。
 // 失败以 error 上抛（context.Canceled 视为正常退出，返回 nil）。
 func startLiveStack(ctx context.Context, cfg EngineConfig) error {
 	if err := PerformColdStartCheck(ctx, cfg); err != nil {

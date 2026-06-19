@@ -14,7 +14,7 @@ import (
 
 // venue_adapter_runtime.go 把 P1 跨所对冲腿所(okx/gate)的 venue.Venue 适配器接线进编排层:
 // 注册时按 secret.yaml 构造适配器并挂到 venueRuntime.venueAdapter,供面板可见、凭证注入、拉行情/账户。
-// 交易由 runtime_controller 的 funding 执行器在 Start 时按需构造适配器并启动(默认影子模式)。
+// 交易由 runtime_controller 的 funding 执行器在 Start 时按需构造适配器并启动(默认 OFF模式)。
 
 // venuesRequiringAdapter 注册时必须成功注入 venueAdapter 的所;凭证缺失 → 启动隔离跳过该所。
 var venuesRequiringAdapter = map[string]bool{

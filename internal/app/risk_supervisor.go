@@ -103,11 +103,11 @@ func (s *RiskSupervisor) SnapshotLocked() RiskSnapshot {
 		LastRecoveryAt:             engine.lastRecoveryAt,
 		LastRecoveryAction:         engine.lastRecoveryAction,
 		LastUncertainOrder:         engine.lastUncertainOrder,
-		RemainingIncidentBudget:    remainingRiskBudget(engine.cfg.RiskConfig.MaxExecutionIncidents, int(atomic.LoadInt32(&engine.executionIncidents))),
-		RemainingRecoveryBudget:    remainingRiskBudget(engine.cfg.RiskConfig.MaxRecoveryActionsPerCycle, engine.recoveryActionsThisCycle),
+		RemainingIncidentBudget:    remainingRiskBudget(engine.effectiveMaxExecutionIncidentsLocked(), int(atomic.LoadInt32(&engine.executionIncidents))),
+		RemainingRecoveryBudget:    remainingRiskBudget(engine.effectiveMaxRecoveryActionsPerCycleLocked(), engine.recoveryActionsThisCycle),
 		RemainingUncertaintyBudget: remainingRiskBudget(engine.cfg.RiskConfig.MaxOrderUncertaintyPerCycle, engine.orderUncertaintyCount),
-		RemainingRejectBudget:      remainingRiskBudget(engine.cfg.RiskConfig.MaxConsecutivePlatformRejects, engine.platformRejectsThisCycle),
-		RemainingErrorBudget:       remainingRiskBudget(engine.cfg.RiskConfig.MaxConsecutiveRequestErrors, engine.requestErrorsThisCycle),
+		RemainingRejectBudget:      remainingRiskBudget(engine.effectiveMaxConsecutivePlatformRejectsLocked(), engine.platformRejectsThisCycle),
+		RemainingErrorBudget:       remainingRiskBudget(engine.effectiveMaxConsecutiveRequestErrorsLocked(), engine.requestErrorsThisCycle),
 		ProtectedIOC: ProtectedIOCStatsSnapshot{
 			Attempts:         attempts,
 			Canceled:         canceled,
@@ -201,13 +201,15 @@ func (s *RiskSupervisor) notePlatformRequestResultMode(endpoint string, err erro
 
 	requestErrors := engine.consecutiveRequestErrors
 	rejects := engine.consecutivePlatformRejects
+	maxRejects := engine.effectiveMaxConsecutivePlatformRejectsLocked()
+	maxErrors := engine.effectiveMaxConsecutiveRequestErrorsLocked()
 	engine.runtimeReporter.EmitLocked(EngineStage(""))
 	engine.platformRiskMu.Unlock()
 
-	if engine.cfg.RiskConfig.MaxConsecutivePlatformRejects > 0 && rejects >= engine.cfg.RiskConfig.MaxConsecutivePlatformRejects {
+	if maxRejects > 0 && rejects >= maxRejects {
 		return s.TripPlatformFuse(category, severity, fmt.Sprintf("平台连续拒绝请求，endpoint=%s consecutive_rejects=%d err=%v", endpoint, rejects, err))
 	}
-	if engine.cfg.RiskConfig.MaxConsecutiveRequestErrors > 0 && requestErrors >= engine.cfg.RiskConfig.MaxConsecutiveRequestErrors {
+	if maxErrors > 0 && requestErrors >= maxErrors {
 		return s.TripPlatformFuse(category, severity, fmt.Sprintf("平台连续异常请求过多，endpoint=%s consecutive_errors=%d err=%v", endpoint, requestErrors, err))
 	}
 	return nil
@@ -218,12 +220,14 @@ func (s *RiskSupervisor) NoteRecoveryAction(phase string, symbol string, action 
 	engine.platformRiskMu.Lock()
 	engine.riskBudgetState.AddRecoveryAction()
 	recoveryActions := engine.riskBudgetState.RecoveryActionsThisCycle
+	maxRecovery := engine.effectiveMaxRecoveryActionsPerCycleLocked()
+	maxIncidents := engine.effectiveMaxExecutionIncidentsLocked()
 	engine.platformState.RecordException("recovery_action", "major", fmt.Sprintf("phase=%s symbol=%s action=%s detail=%s", phase, nonEmpty(symbol, "-"), action, nonEmpty(detail, "-")))
 	engine.runtimeReporter.EmitLocked(EngineStage(""))
 	engine.platformRiskMu.Unlock()
-	engine.emitRiskEvent(newRiskEvent("action", RiskCategoryRecovery, RiskSeverityWarning, nonEmpty(phase, "recovery"), symbol, nonEmpty(action, "recover"), int(atomic.LoadInt32(&engine.executionIncidents)), engine.cfg.RiskConfig.MaxExecutionIncidents, false, detail).WithEventType(EventTypeRecoveryEscalated))
+	engine.emitRiskEvent(newRiskEvent("action", RiskCategoryRecovery, RiskSeverityWarning, nonEmpty(phase, "recovery"), symbol, nonEmpty(action, "recover"), int(atomic.LoadInt32(&engine.executionIncidents)), maxIncidents, false, detail).WithEventType(EventTypeRecoveryEscalated))
 
-	if engine.cfg.RiskConfig.MaxRecoveryActionsPerCycle > 0 && recoveryActions > engine.cfg.RiskConfig.MaxRecoveryActionsPerCycle {
+	if maxRecovery > 0 && recoveryActions > maxRecovery {
 		return s.TripPlatformFuse("recovery_action", "critical", fmt.Sprintf("单轮恢复动作过多，phase=%s symbol=%s action=%s count=%d detail=%s", phase, nonEmpty(symbol, "-"), action, recoveryActions, nonEmpty(detail, "-")))
 	}
 	return nil
@@ -243,7 +247,7 @@ func (s *RiskSupervisor) NoteRescueAction(phase string, symbol string, action st
 	engine.platformState.RecordException("exposure_rescue", "major", fmt.Sprintf("phase=%s symbol=%s action=%s detail=%s", phase, nonEmpty(symbol, "-"), action, nonEmpty(detail, "-")))
 	engine.runtimeReporter.EmitLocked(EngineStage(""))
 	engine.platformRiskMu.Unlock()
-	engine.emitRiskEvent(newRiskEvent("action", RiskCategoryRecovery, RiskSeverityWarning, nonEmpty(phase, "rescue"), symbol, nonEmpty(action, "rescue"), int(atomic.LoadInt32(&engine.executionIncidents)), engine.cfg.RiskConfig.MaxExecutionIncidents, false, detail).WithEventType(EventTypeRecoveryEscalated))
+	engine.emitRiskEvent(newRiskEvent("action", RiskCategoryRecovery, RiskSeverityWarning, nonEmpty(phase, "rescue"), symbol, nonEmpty(action, "rescue"), int(atomic.LoadInt32(&engine.executionIncidents)), engine.effectiveMaxExecutionIncidents(), false, detail).WithEventType(EventTypeRecoveryEscalated))
 }
 
 func (s *RiskSupervisor) TripPlatformFuse(category string, severity string, reason string) error {
@@ -264,7 +268,7 @@ func (s *RiskSupervisor) TripPlatformFuse(category string, severity string, reas
 	engine.platformRiskMu.Unlock()
 
 	engine.logger.Printf("%s", message)
-	engine.emitRiskEvent(newRiskEvent("incident", RiskCategoryPlatform, RiskSeverityCritical, "platform_fuse", "-", "trip", int(atomic.LoadInt32(&engine.executionIncidents)), engine.cfg.RiskConfig.MaxExecutionIncidents, true, reason).WithEventType(EventTypeFuseTripped))
+	engine.emitRiskEvent(newRiskEvent("incident", RiskCategoryPlatform, RiskSeverityCritical, "platform_fuse", "-", "trip", int(atomic.LoadInt32(&engine.executionIncidents)), engine.effectiveMaxExecutionIncidents(), true, reason).WithEventType(EventTypeFuseTripped))
 	return platformFuseError{message: message}
 }
 
@@ -389,10 +393,14 @@ func (s *RiskSupervisor) ListActiveSymbolCooldownsLocked() []string {
 
 func (s *RiskSupervisor) SetSymbolCooldown(symbol string, category string, severity string, reason string) {
 	engine := s.engine
-	if strings.TrimSpace(symbol) == "" || engine.cfg.RiskConfig.SymbolAbnormalCooldown <= 0 {
+	if strings.TrimSpace(symbol) == "" {
 		return
 	}
-	until := time.Now().UTC().Add(engine.cfg.RiskConfig.SymbolAbnormalCooldown)
+	cooldown := SymbolCooldownForSeverity(engine.cfg.RiskConfig, severity)
+	if cooldown <= 0 {
+		return
+	}
+	until := time.Now().UTC().Add(cooldown)
 	engine.platformRiskMu.Lock()
 	engine.symbolCooldowns[symbol] = symbolCooldownState{
 		Category: strings.TrimSpace(category),
@@ -403,7 +411,7 @@ func (s *RiskSupervisor) SetSymbolCooldown(symbol string, category string, sever
 	engine.platformState.RecordException(category, severity, reason)
 	engine.runtimeReporter.EmitLocked(EngineStage(""))
 	engine.platformRiskMu.Unlock()
-	engine.emitRiskEvent(newRiskEvent("action", RiskCategoryPlatform, nonEmpty(strings.TrimSpace(severity), RiskSeverityInfo), "symbol_cooldown", symbol, "set", int(atomic.LoadInt32(&engine.executionIncidents)), engine.cfg.RiskConfig.MaxExecutionIncidents, false, fmt.Sprintf("until=%s reason=%s", until.Format(time.RFC3339), nonEmpty(reason, "-"))).WithEventType(EventTypeSymbolCooldownSet))
+	engine.emitRiskEvent(newRiskEvent("action", RiskCategoryPlatform, nonEmpty(strings.TrimSpace(severity), RiskSeverityInfo), "symbol_cooldown", symbol, "set", int(atomic.LoadInt32(&engine.executionIncidents)), engine.effectiveMaxExecutionIncidents(), false, fmt.Sprintf("until=%s reason=%s", until.Format(time.RFC3339), nonEmpty(reason, "-"))).WithEventType(EventTypeSymbolCooldownSet))
 }
 
 func (s *RiskSupervisor) FilterTargetsBySymbolCooldown(targets []*MonitoredTarget) []*MonitoredTarget {
@@ -455,7 +463,7 @@ func (s *RiskSupervisor) NoteOrderUncertainty(symbol string, action string, deta
 	engine.lastUncertainOrder = strings.TrimSpace(fmt.Sprintf("%s | %s | %s", nonEmpty(symbol, "-"), nonEmpty(action, "uncertain"), nonEmpty(detail, "-")))
 	engine.runtimeReporter.EmitLocked(EngineStage(""))
 	engine.platformRiskMu.Unlock()
-	engine.emitRiskEvent(newRiskEvent("action", RiskCategoryOrderUncertain, RiskSeverityCritical, "order_uncertain", symbol, action, int(atomic.LoadInt32(&engine.executionIncidents)), engine.cfg.RiskConfig.MaxExecutionIncidents, false, detail).WithEventType(EventTypeOrderUncertain))
+	engine.emitRiskEvent(newRiskEvent("action", RiskCategoryOrderUncertain, RiskSeverityCritical, "order_uncertain", symbol, action, int(atomic.LoadInt32(&engine.executionIncidents)), engine.effectiveMaxExecutionIncidents(), false, detail).WithEventType(EventTypeOrderUncertain))
 	if recoveryActions > 0 {
 		if err := s.TripPlatformFuse("order_uncertain", "critical", fmt.Sprintf("回补后再次出现不确定成交，symbol=%s action=%s detail=%s", nonEmpty(symbol, "-"), nonEmpty(action, "uncertain"), nonEmpty(detail, "-"))); err != nil {
 			engine.logger.Printf("平台级风控已触发: %v", err)

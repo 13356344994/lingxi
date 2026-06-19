@@ -12,7 +12,7 @@ func TestBindConfigAssignsAllScalarKinds(t *testing.T) {
 		"network.max_idle_conns":         "77",   // int
 		"execution.recv_window":          "9000", // int64
 		"risk.min_margin_level":          "1.5",  // float
-		"execution.shadow_trading":       "true", // bool
+		"execution.use_protected_ioc":    "true", // bool
 		"network.dashboard_addr":         ":9999",
 		"active_profile":                 "research", // top-level string
 		"strategy.per_symbol_quote_usdt": "42.5",
@@ -32,7 +32,7 @@ func TestBindConfigAssignsAllScalarKinds(t *testing.T) {
 	if cfg.RiskConfig.MinMarginLevel != 1.5 {
 		t.Fatalf("float not bound, got %v", cfg.RiskConfig.MinMarginLevel)
 	}
-	if !cfg.ExecutionConfig.ShadowTrading {
+	if !cfg.ExecutionConfig.UseProtectedIOC {
 		t.Fatal("bool not bound")
 	}
 	if cfg.NetworkConfig.DashboardAddr != ":9999" {

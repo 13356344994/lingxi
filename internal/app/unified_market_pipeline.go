@@ -9,22 +9,22 @@ import (
 )
 
 const (
-	unifiedShadowMarketFetchConcurrency = 8
-	unifiedShadowDepthFetchConcurrency  = 8
+	unifiedMarketFetchConcurrency      = 8
+	unifiedMarketDepthFetchConcurrency = 8
 )
 
-// unified_shadow_pipeline.go 统一轮动扫描辅助: 按 venue 拉取 spot/perp 行情与可用 USDT(供 defaultScanRotationCandidates 使用)。
+// unified_market_pipeline.go 统一轮动扫描辅助: 按 venue 拉取 spot/perp 行情与可用 USDT(供 defaultScanRotationCandidates 使用)。
 
-type unifiedShadowFetchMarketsFn func(ctx context.Context, venues map[string]venue.Venue, symbols []string) map[string]map[string]CrossVenueSpotPerpMarketSnap
+type unifiedMarketFetchMarketsFn func(ctx context.Context, venues map[string]venue.Venue, symbols []string) map[string]map[string]CrossVenueSpotPerpMarketSnap
 
-type unifiedShadowFetchAvailableUSDTFn func(ctx context.Context, venues map[string]venue.Venue, venueNames []string) map[string]float64
+type unifiedMarketFetchAvailableUSDTFn func(ctx context.Context, venues map[string]venue.Venue, venueNames []string) map[string]float64
 
-type unifiedShadowPipelineFetchDeps struct {
-	fetchMarkets       unifiedShadowFetchMarketsFn
-	fetchAvailableUSDT unifiedShadowFetchAvailableUSDTFn
+type unifiedMarketPipelineFetchDeps struct {
+	fetchMarkets       unifiedMarketFetchMarketsFn
+	fetchAvailableUSDT unifiedMarketFetchAvailableUSDTFn
 }
 
-func unifiedShadowFundingByVenueFromSnapshot(src map[string]map[string]CrossVenueFundingEntry) map[string]map[string]CrossVenueSpotPerpFundingSnap {
+func unifiedMarketFundingByVenueFromSnapshot(src map[string]map[string]CrossVenueFundingEntry) map[string]map[string]CrossVenueSpotPerpFundingSnap {
 	if len(src) == 0 {
 		return nil
 	}
@@ -47,7 +47,7 @@ func unifiedShadowFundingByVenueFromSnapshot(src map[string]map[string]CrossVenu
 	return out
 }
 
-func defaultUnifiedShadowFetchMarketsByVenue(ctx context.Context, venues map[string]venue.Venue, symbols []string) map[string]map[string]CrossVenueSpotPerpMarketSnap {
+func defaultUnifiedMarketFetchMarketsByVenue(ctx context.Context, venues map[string]venue.Venue, symbols []string) map[string]map[string]CrossVenueSpotPerpMarketSnap {
 	out := make(map[string]map[string]CrossVenueSpotPerpMarketSnap)
 	var outMu sync.Mutex
 	var wg sync.WaitGroup
@@ -58,7 +58,7 @@ func defaultUnifiedShadowFetchMarketsByVenue(ctx context.Context, venues map[str
 		wg.Add(1)
 		go func(venueName string, v venue.Venue) {
 			defer wg.Done()
-			bySym := unifiedShadowFetchVenueMarkets(ctx, v, symbols)
+			bySym := unifiedMarketFetchVenueMarkets(ctx, v, symbols)
 			if len(bySym) == 0 {
 				return
 			}
@@ -71,7 +71,7 @@ func defaultUnifiedShadowFetchMarketsByVenue(ctx context.Context, venues map[str
 	return out
 }
 
-func unifiedShadowFetchLegMidPrice(ctx context.Context, v venue.Venue, marketType string, sym string) (float64, bool) {
+func unifiedMarketFetchLegMidPrice(ctx context.Context, v venue.Venue, marketType string, sym string) (float64, bool) {
 	sym = strings.TrimSpace(sym)
 	if v == nil || sym == "" {
 		return 0, false
@@ -97,7 +97,7 @@ func unifiedShadowFetchLegMidPrice(ctx context.Context, v venue.Venue, marketTyp
 	return mid, true
 }
 
-func unifiedShadowFetchOneSymbolMarket(ctx context.Context, v venue.Venue, sym string) (CrossVenueSpotPerpMarketSnap, bool) {
+func unifiedMarketFetchOneSymbolMarket(ctx context.Context, v venue.Venue, sym string) (CrossVenueSpotPerpMarketSnap, bool) {
 	sym = strings.TrimSpace(sym)
 	if sym == "" {
 		return CrossVenueSpotPerpMarketSnap{}, false
@@ -123,11 +123,11 @@ func unifiedShadowFetchOneSymbolMarket(ctx context.Context, v venue.Venue, sym s
 	return mkt, true
 }
 
-func unifiedShadowFetchVenueMarkets(ctx context.Context, v venue.Venue, symbols []string) map[string]CrossVenueSpotPerpMarketSnap {
+func unifiedMarketFetchVenueMarkets(ctx context.Context, v venue.Venue, symbols []string) map[string]CrossVenueSpotPerpMarketSnap {
 	if len(symbols) == 0 {
 		return nil
 	}
-	workers := unifiedShadowMarketFetchConcurrency
+	workers := unifiedMarketFetchConcurrency
 	if workers <= 0 {
 		workers = 1
 	}
@@ -146,7 +146,7 @@ func unifiedShadowFetchVenueMarkets(ctx context.Context, v venue.Venue, symbols 
 				if ctx.Err() != nil {
 					return
 				}
-				mkt, ok := unifiedShadowFetchOneSymbolMarket(ctx, v, sym)
+				mkt, ok := unifiedMarketFetchOneSymbolMarket(ctx, v, sym)
 				if !ok {
 					continue
 				}
@@ -170,22 +170,22 @@ func unifiedShadowFetchVenueMarkets(ctx context.Context, v venue.Venue, symbols 
 	return bySym
 }
 
-// unifiedShadowDepthFetchSymbols 从粗筛 symbol 列表截取二次拉深度子集(限流)。
-func unifiedShadowDepthFetchSymbols(symbols []string) []string {
+// unifiedMarketDepthFetchSymbols 从粗筛 symbol 列表截取二次拉深度子集(限流)。
+func unifiedMarketDepthFetchSymbols(symbols []string) []string {
 	if len(symbols) <= rotationScanDepthFetchMaxSymbols {
 		return symbols
 	}
 	return symbols[:rotationScanDepthFetchMaxSymbols]
 }
 
-// unifiedShadowEnrichMarketsWithDepthVolume 对决策候选二次拉深度与 24h 量,填入 MarketSnap;失败/不支持则留空(不阻断扫描)。
-func unifiedShadowEnrichMarketsWithDepthVolume(
+// unifiedMarketEnrichMarketsWithDepthVolume 对决策候选二次拉深度与 24h 量,填入 MarketSnap;失败/不支持则留空(不阻断扫描)。
+func unifiedMarketEnrichMarketsWithDepthVolume(
 	ctx context.Context,
 	venues map[string]venue.Venue,
 	marketsByVenue map[string]map[string]CrossVenueSpotPerpMarketSnap,
 	symbols []string,
 ) {
-	symbols = unifiedShadowDepthFetchSymbols(symbols)
+	symbols = unifiedMarketDepthFetchSymbols(symbols)
 	if len(symbols) == 0 || len(marketsByVenue) == 0 {
 		return
 	}
@@ -201,13 +201,13 @@ func unifiedShadowEnrichMarketsWithDepthVolume(
 		wg.Add(1)
 		go func(v venue.Venue, bySym map[string]CrossVenueSpotPerpMarketSnap) {
 			defer wg.Done()
-			unifiedShadowEnrichVenueMarketsDepthVolume(ctx, v, bySym, symbols)
+			unifiedMarketEnrichVenueMarketsDepthVolume(ctx, v, bySym, symbols)
 		}(v, bySym)
 	}
 	wg.Wait()
 }
 
-func unifiedShadowEnrichVenueMarketsDepthVolume(
+func unifiedMarketEnrichVenueMarketsDepthVolume(
 	ctx context.Context,
 	v venue.Venue,
 	bySym map[string]CrossVenueSpotPerpMarketSnap,
@@ -216,7 +216,7 @@ func unifiedShadowEnrichVenueMarketsDepthVolume(
 	if len(symbols) == 0 {
 		return
 	}
-	workers := unifiedShadowDepthFetchConcurrency
+	workers := unifiedMarketDepthFetchConcurrency
 	if workers <= 0 {
 		workers = 1
 	}
@@ -238,7 +238,7 @@ func unifiedShadowEnrichVenueMarketsDepthVolume(
 				if !ok {
 					continue
 				}
-				unifiedShadowEnrichOneMarketDepthVolume(ctx, v, sym, &mkt)
+				unifiedMarketEnrichOneMarketDepthVolume(ctx, v, sym, &mkt)
 				bySymMu.Lock()
 				bySym[sym] = mkt
 				bySymMu.Unlock()
@@ -258,7 +258,7 @@ func unifiedShadowEnrichVenueMarketsDepthVolume(
 	wg.Wait()
 }
 
-func unifiedShadowEnrichOneMarketDepthVolume(ctx context.Context, v venue.Venue, sym string, mkt *CrossVenueSpotPerpMarketSnap) {
+func unifiedMarketEnrichOneMarketDepthVolume(ctx context.Context, v venue.Venue, sym string, mkt *CrossVenueSpotPerpMarketSnap) {
 	if v == nil || mkt == nil {
 		return
 	}
@@ -285,7 +285,7 @@ func unifiedShadowEnrichOneMarketDepthVolume(ctx context.Context, v venue.Venue,
 	}
 }
 
-func defaultUnifiedShadowFetchAvailableUSDTByVenue(ctx context.Context, venues map[string]venue.Venue, venueNames []string) map[string]float64 {
+func defaultUnifiedMarketFetchAvailableUSDTByVenue(ctx context.Context, venues map[string]venue.Venue, venueNames []string) map[string]float64 {
 	out := make(map[string]float64, len(venueNames))
 	for _, venueName := range venueNames {
 		v := venues[venueName]

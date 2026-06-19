@@ -15,7 +15,7 @@ import (
 	"lingxi/internal/venue/bybit"
 )
 
-func TestDefaultUnifiedShadowFetchMarketsByVenueConcurrent(t *testing.T) {
+func TestDefaultUnifiedMarketFetchMarketsByVenueConcurrent(t *testing.T) {
 	var peak int32
 	var active int32
 	v := &concurrentCountingVenue{
@@ -36,7 +36,7 @@ func TestDefaultUnifiedShadowFetchMarketsByVenueConcurrent(t *testing.T) {
 	for i := 0; i < 32; i++ {
 		symbols = append(symbols, fmt.Sprintf("SYM%02d-USDT", i))
 	}
-	got := defaultUnifiedShadowFetchMarketsByVenue(context.Background(), map[string]venue.Venue{
+	got := defaultUnifiedMarketFetchMarketsByVenue(context.Background(), map[string]venue.Venue{
 		binance.VenueName: v,
 	}, symbols)
 	if len(got[binance.VenueName]) != len(symbols) {
@@ -45,8 +45,8 @@ func TestDefaultUnifiedShadowFetchMarketsByVenueConcurrent(t *testing.T) {
 	if peak < 2 {
 		t.Fatalf("peak concurrent fetches = %d, want >= 2 (worker pool active)", peak)
 	}
-	if peak > unifiedShadowMarketFetchConcurrency {
-		t.Fatalf("peak concurrent fetches = %d, want <= %d", peak, unifiedShadowMarketFetchConcurrency)
+	if peak > unifiedMarketFetchConcurrency {
+		t.Fatalf("peak concurrent fetches = %d, want <= %d", peak, unifiedMarketFetchConcurrency)
 	}
 }
 
@@ -122,7 +122,7 @@ func (v *depthTrackingVenue) FetchRecentQuoteVolume(_ context.Context, m venue.M
 	return 0, venue.ErrUnsupported
 }
 
-func TestUnifiedShadowEnrichMarketsDepthVolumeFillsFields(t *testing.T) {
+func TestUnifiedMarketEnrichMarketsDepthVolumeFillsFields(t *testing.T) {
 	thinDepth := venue.Depth{
 		Asks: []venue.DepthLevel{{Price: 100, Qty: 0.05}, {Price: 100.5, Qty: 100}},
 		Bids: []venue.DepthLevel{{Price: 100, Qty: 0.05}, {Price: 95, Qty: 100}},
@@ -154,7 +154,7 @@ func TestUnifiedShadowEnrichMarketsDepthVolumeFillsFields(t *testing.T) {
 			"DEEP-USDT": {SpotMid: 100, PerpMid: 100, HasSpot: true, HasPerp: true},
 		},
 	}
-	unifiedShadowEnrichMarketsWithDepthVolume(context.Background(), venues, markets, []string{"THIN-USDT", "DEEP-USDT"})
+	unifiedMarketEnrichMarketsWithDepthVolume(context.Background(), venues, markets, []string{"THIN-USDT", "DEEP-USDT"})
 
 	thin := markets[binance.VenueName]["THIN-USDT"]
 	if thin.SpotDepth == nil || thin.PerpDepth == nil {
@@ -185,7 +185,7 @@ func TestUnifiedShadowEnrichMarketsDepthVolumeFillsFields(t *testing.T) {
 	}
 }
 
-func TestUnifiedShadowEnrichMarketsDepthVolumeOnlyTopN(t *testing.T) {
+func TestUnifiedMarketEnrichMarketsDepthVolumeOnlyTopN(t *testing.T) {
 	v := &depthTrackingVenue{
 		fakeFundingVenue: fakeFundingVenue{name: binance.VenueName},
 		depthCallsBySym:  make(map[string]int),
@@ -199,7 +199,7 @@ func TestUnifiedShadowEnrichMarketsDepthVolumeOnlyTopN(t *testing.T) {
 		bySym[sym] = CrossVenueSpotPerpMarketSnap{SpotMid: 100, PerpMid: 100, HasSpot: true, HasPerp: true}
 	}
 	markets := map[string]map[string]CrossVenueSpotPerpMarketSnap{binance.VenueName: bySym}
-	unifiedShadowEnrichMarketsWithDepthVolume(context.Background(), venues, markets, symbols)
+	unifiedMarketEnrichMarketsWithDepthVolume(context.Background(), venues, markets, symbols)
 
 	if v.depthCallsBySym[symbols[0]] == 0 {
 		t.Fatalf("expected depth fetch for first symbol %s", symbols[0])
@@ -212,7 +212,7 @@ func TestUnifiedShadowEnrichMarketsDepthVolumeOnlyTopN(t *testing.T) {
 	}
 }
 
-func TestUnifiedShadowEnrichMarketsDepthVolumeFetchFailureDegrades(t *testing.T) {
+func TestUnifiedMarketEnrichMarketsDepthVolumeFetchFailureDegrades(t *testing.T) {
 	v := &depthTrackingVenue{
 		fakeFundingVenue: fakeFundingVenue{name: binance.VenueName},
 		depthErrBySym: map[string]error{
@@ -227,7 +227,7 @@ func TestUnifiedShadowEnrichMarketsDepthVolumeFetchFailureDegrades(t *testing.T)
 			"FAIL-USDT": {SpotMid: 100, PerpMid: 100, HasSpot: true, HasPerp: true},
 		},
 	}
-	unifiedShadowEnrichMarketsWithDepthVolume(context.Background(), venues, markets, []string{"FAIL-USDT"})
+	unifiedMarketEnrichMarketsWithDepthVolume(context.Background(), venues, markets, []string{"FAIL-USDT"})
 
 	mkt := markets[binance.VenueName]["FAIL-USDT"]
 	if mkt.SpotDepth != nil || mkt.PerpDepth != nil {
@@ -290,7 +290,7 @@ func TestUnifiedRotationRunner_ScanCandidatesLiquidityAdaptiveDepth(t *testing.T
 			return cfg
 		}(),
 		rotationCfg: DefaultRotationConfig(),
-		fetchDeps: unifiedShadowPipelineFetchDeps{
+		fetchDeps: unifiedMarketPipelineFetchDeps{
 			fetchMarkets: func(_ context.Context, venues map[string]venue.Venue, symbols []string) map[string]map[string]CrossVenueSpotPerpMarketSnap {
 				out := make(map[string]map[string]CrossVenueSpotPerpMarketSnap)
 				for venueName, v := range venues {

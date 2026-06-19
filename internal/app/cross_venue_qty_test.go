@@ -72,7 +72,7 @@ func TestNormalizeVenueQtyMatchesOKXContractStep(t *testing.T) {
 		qty  float64
 		want float64
 	}{
-		{30, 20},  // 修复前错误地得到 30,与 okx 实际 20 张(2×lot)不符
+		{30, 20}, // 修复前错误地得到 30,与 okx 实际 20 张(2×lot)不符
 		{70, 60},
 		{50, 40},
 		{20, 20},

@@ -77,7 +77,7 @@ type BybitCandidate struct {
 	Negative bool
 }
 
-// BybitOpenPlan 是一笔 delta-neutral 开仓计划(纯计算产物,供 shadow 打印或实盘下单)。
+// BybitOpenPlan 是一笔 delta-neutral 开仓计划(纯计算产物,供 规划打印或实盘下单)。
 type BybitOpenPlan struct {
 	Symbol           venue.Symbol
 	BaseQty          float64 // 两腿共同的币数量(delta 中性)
@@ -166,7 +166,7 @@ func decimalsForStep(step float64) int {
 
 // planBybitDeltaNeutralOpen 为单个候选计算 50/50 delta-neutral 开仓计划。
 // perCandidateUSDT 为分给本标的的资金(现货名义 + 永续保证金各半)。
-// 返回 (计划, 是否可下单, 原因)。原因用于 shadow 日志解释放弃。
+// 返回 (计划, 是否可下单, 原因)。原因用于 规划日志解释放弃。
 func planBybitDeltaNeutralOpen(
 	c BybitCandidate,
 	spotPrice, perpPrice float64,

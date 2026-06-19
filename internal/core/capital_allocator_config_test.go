@@ -11,8 +11,8 @@ func TestCapitalAllocatorAndDataCollectionDefaults(t *testing.T) {
 	if cfg.CapitalAllocator.Enabled {
 		t.Fatal("CapitalAllocator.Enabled 默认应为 false")
 	}
-	if cfg.CapitalAllocator.Mode != "shadow" {
-		t.Fatalf("CapitalAllocator.Mode 默认应为 shadow, got %q", cfg.CapitalAllocator.Mode)
+	if cfg.CapitalAllocator.Mode != "plan" {
+		t.Fatalf("CapitalAllocator.Mode 默认应为 plan, got %q", cfg.CapitalAllocator.Mode)
 	}
 	if cfg.CapitalAllocator.MaxTotalCapitalUsageRatio != 0.2 {
 		t.Fatalf("CapitalAllocator.MaxTotalCapitalUsageRatio 默认应为 0.2, got %v", cfg.CapitalAllocator.MaxTotalCapitalUsageRatio)
@@ -24,8 +24,8 @@ func TestCapitalAllocatorAndDataCollectionDefaults(t *testing.T) {
 	if cfg.DataCollection.Enabled {
 		t.Fatal("DataCollection.Enabled 默认应为 false")
 	}
-	if cfg.DataCollection.Mode != "shadow" {
-		t.Fatalf("DataCollection.Mode 默认应为 shadow, got %q", cfg.DataCollection.Mode)
+	if cfg.DataCollection.Mode != "plan" {
+		t.Fatalf("DataCollection.Mode 默认应为 plan, got %q", cfg.DataCollection.Mode)
 	}
 	if cfg.DataCollection.StrategyType != "" {
 		t.Fatalf("DataCollection.StrategyType 默认应为空, got %q", cfg.DataCollection.StrategyType)
@@ -44,15 +44,15 @@ func TestCapitalAllocatorAndDataCollectionDefaults(t *testing.T) {
 func TestCapitalAllocatorAndDataCollectionBindConfig(t *testing.T) {
 	cfg := DefaultEngineConfig()
 	values := map[string]string{
-		"capital_allocator.enabled":                    "true",
-		"capital_allocator.mode":                         "profit",
-		"capital_allocator.max_total_capital_usage_ratio": "0.35",
-		"capital_allocator.max_daily_loss_usdt":        "0.5",
-		"data_collection.enabled":                      "true",
-		"data_collection.mode":                         "data_collection",
-		"data_collection.strategy_type":                "perp_probe",
-		"data_collection.max_positions":                "3",
-		"data_collection.max_notional_usdt":            "25",
+		"capital_allocator.enabled":                        "true",
+		"capital_allocator.mode":                           "profit",
+		"capital_allocator.max_total_capital_usage_ratio":  "0.35",
+		"capital_allocator.max_daily_loss_usdt":            "0.5",
+		"data_collection.enabled":                          "true",
+		"data_collection.mode":                             "data_collection",
+		"data_collection.strategy_type":                    "perp_probe",
+		"data_collection.max_positions":                    "3",
+		"data_collection.max_notional_usdt":                "25",
 		"data_collection.max_expected_loss_usdt_per_trade": "0.05",
 	}
 	if err := BindConfig(&cfg, values, false); err != nil {

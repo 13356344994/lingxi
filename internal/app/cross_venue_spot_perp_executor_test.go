@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -173,7 +174,7 @@ func testCVSPOpportunity(spotVenue, perpVenue string, qty float64) UnifiedOpport
 	}
 }
 
-func TestCrossVenueSpotPerpShadowOpenNoOrders(t *testing.T) {
+func TestCrossVenueSpotPerpOffOpenNoOrders(t *testing.T) {
 	dir := t.TempDir()
 	spot := newCVSPTestVenue(binance.VenueName)
 	perp := newCVSPTestVenue(bybit.VenueName)
@@ -609,5 +610,40 @@ func assertCVSPManageOpenFinalizeOnce(t *testing.T, e *CrossVenueSpotPerpExecuto
 	}
 	if len(settlements2) != 1 {
 		t.Fatalf("round2: duplicate settlement churn, got %d", len(settlements2))
+	}
+}
+
+func TestCrossVenueSpotPerpEstimateFundingAccrualInterval4h(t *testing.T) {
+	now := time.Date(2026, 6, 19, 12, 0, 0, 0, time.UTC)
+	e := &CrossVenueSpotPerpExecutor{nowFn: func() time.Time { return now }}
+	pos := &CrossVenueSpotPerpPosition{
+		NotionalUSDT:      1000,
+		PerpFundingRate:   0.0008,
+		PerpIntervalHours: 4,
+		EstFundingUSDT:    0,
+		OpenedAt:          now.Add(-4 * time.Hour),
+		LastAccrualAt:     now.Add(-4 * time.Hour),
+	}
+	got := e.estimateFundingAccrual(pos)
+	legacy := 1000.0 * 0.0008 * 4 / 8
+	if math.Abs(got-legacy*2) > 1e-9 {
+		t.Fatalf("4h accrual=%v want 2x legacy /8=%v", got, legacy*2)
+	}
+}
+
+func TestCrossVenueSpotPerpAccrualIntervalFallback8(t *testing.T) {
+	now := time.Date(2026, 6, 19, 12, 0, 0, 0, time.UTC)
+	e := &CrossVenueSpotPerpExecutor{nowFn: func() time.Time { return now }}
+	pos := &CrossVenueSpotPerpPosition{
+		NotionalUSDT:    800,
+		PerpFundingRate: 0.001,
+		EstFundingUSDT:  0,
+		OpenedAt:        now.Add(-8 * time.Hour),
+		LastAccrualAt:   now.Add(-8 * time.Hour),
+	}
+	got := e.estimateFundingAccrual(pos)
+	want := 800.0 * 0.001
+	if math.Abs(got-want) > 1e-9 {
+		t.Fatalf("fallback 8h accrual=%v want %v", got, want)
 	}
 }

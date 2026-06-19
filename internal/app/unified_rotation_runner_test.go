@@ -196,7 +196,7 @@ func TestUnifiedRotationRunner_DispatchCloseAndSwitch(t *testing.T) {
 		t.Fatalf("cvsp opens = %+v, want open-new", cvsp.opens)
 	}
 	if svsp.verifiedCloses != 2 {
-		t.Fatalf("shadow mode should still verified-close, got %d", svsp.verifiedCloses)
+		t.Fatalf("OFF mode should still verified-close, got %d", svsp.verifiedCloses)
 	}
 	if cvsp.liveOpens != 1 {
 		t.Fatalf("active runner should live-open switch target, got %d", cvsp.liveOpens)
@@ -388,10 +388,10 @@ func TestUnifiedRotationRunner_StoppedNoLiveTransfer(t *testing.T) {
 	}
 	execResult := ExecuteCapitalRouting(context.Background(), routingPlan, r.venues, false, r.logger)
 	if execResult.Executed != 0 {
-		t.Fatalf("shadow ExecuteCapitalRouting executed = %d, want 0", execResult.Executed)
+		t.Fatalf("OFF ExecuteCapitalRouting executed = %d, want 0", execResult.Executed)
 	}
 	if v.transferCount != 0 {
-		t.Fatalf("shadow ExecuteCapitalRouting should not call TransferWallet")
+		t.Fatalf("OFF ExecuteCapitalRouting should not call TransferWallet")
 	}
 }
 
@@ -570,7 +570,7 @@ func TestUnifiedRotationRunner_ScanCandidatesOffline(t *testing.T) {
 		recordDir:   dir,
 		execCfg:     testCrossVenueExecutorConfig().CrossVenueExecutor,
 		rotationCfg: DefaultRotationConfig(),
-		fetchDeps: unifiedShadowPipelineFetchDeps{
+		fetchDeps: unifiedMarketPipelineFetchDeps{
 			fetchMarkets: func(context.Context, map[string]venue.Venue, []string) map[string]map[string]CrossVenueSpotPerpMarketSnap {
 				return map[string]map[string]CrossVenueSpotPerpMarketSnap{
 					bybit.VenueName: {
@@ -669,7 +669,7 @@ func TestUnifiedRotationRunner_RunOnceWritesCandidates(t *testing.T) {
 		execCfg:     testCrossVenueExecutorConfig().CrossVenueExecutor,
 		rotationCfg: DefaultRotationConfig(),
 		scanner:     &CrossVenueScanner{lastSnapshot: snap},
-		fetchDeps: unifiedShadowPipelineFetchDeps{
+		fetchDeps: unifiedMarketPipelineFetchDeps{
 			fetchMarkets: func(context.Context, map[string]venue.Venue, []string) map[string]map[string]CrossVenueSpotPerpMarketSnap {
 				return map[string]map[string]CrossVenueSpotPerpMarketSnap{
 					bybit.VenueName: {
@@ -896,6 +896,28 @@ func TestRotationScanFilterSymbols(t *testing.T) {
 	}
 }
 
+func TestRotationScanFilterSymbolsIntervalNormalized(t *testing.T) {
+	sameRate := 0.0002
+	funding := map[string]map[string]CrossVenueSpotPerpFundingSnap{
+		binance.VenueName: {
+			"H1-USDT": {Rate: sameRate, IntervalHours: 1},
+			"H8-USDT": {Rate: sameRate, IntervalHours: 8},
+		},
+	}
+	got := rotationScanFilterSymbols(funding)
+	if len(got) != 2 {
+		t.Fatalf("len=%d want 2", len(got))
+	}
+	if got[0] != "H1-USDT" {
+		t.Fatalf("1h coin should rank first on per-hour basis, got %v", got)
+	}
+	perHour1h := rotationFundingRatePerHour(sameRate, 1)
+	perHour8h := rotationFundingRatePerHour(sameRate, 8)
+	if perHour1h <= perHour8h {
+		t.Fatalf("1h per-hour=%v should exceed 8h per-hour=%v", perHour1h, perHour8h)
+	}
+}
+
 func TestUnifiedRotationRunner_ReconcileManageUseRunnerActive(t *testing.T) {
 	svsp := &fakeRotationExecutor{strategyType: UnifiedStrategySingleVenueSpotPerp}
 	r := testUnifiedRotationRunnerWithFakes(t, svsp)
@@ -922,7 +944,7 @@ func TestUnifiedRotationRunner_ReconcileManageUseRunnerActive(t *testing.T) {
 	}
 }
 
-func TestUnifiedRotationRunner_ShadowReconcileDoesNotFlattenUntracked(t *testing.T) {
+func TestUnifiedRotationRunner_OffReconcileDoesNotFlattenUntracked(t *testing.T) {
 	now := time.Now().UTC()
 	v := newSVSPTestVenue(binance.VenueName)
 	v.positions = []venue.Position{{Symbol: "BTC-USDT", PositionAmt: -0.004, MarkPrice: 110000, EntryPrice: 110000, Leverage: 2}}
@@ -1240,7 +1262,7 @@ func TestDefaultScanRotationCandidatesIncludesPerpPerp(t *testing.T) {
 		nowFn:                     func() time.Time { return now },
 		execCfg:                   testCrossVenueExecutorConfig().CrossVenueExecutor,
 		includePerpPerpCandidates: true,
-		fetchDeps: unifiedShadowPipelineFetchDeps{
+		fetchDeps: unifiedMarketPipelineFetchDeps{
 			fetchMarkets: func(context.Context, map[string]venue.Venue, []string) map[string]map[string]CrossVenueSpotPerpMarketSnap {
 				return map[string]map[string]CrossVenueSpotPerpMarketSnap{}
 			},
@@ -1452,7 +1474,7 @@ func TestUnifiedRotationRunner_StoppedManageLiveWithControlPlane(t *testing.T) {
 	}
 }
 
-func TestUnifiedRotationRunner_RotationOffManageShadow(t *testing.T) {
+func TestUnifiedRotationRunner_RotationOffManageDryRun(t *testing.T) {
 	svsp := &fakeRotationExecutor{strategyType: UnifiedStrategySingleVenueSpotPerp}
 	r := testUnifiedRotationRunnerWithFakes(t, svsp)
 	dir := t.TempDir()

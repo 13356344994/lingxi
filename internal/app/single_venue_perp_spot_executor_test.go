@@ -285,7 +285,7 @@ func TestSVPSUnsupportedBorrowVenueSkipped(t *testing.T) {
 	}
 }
 
-func TestSVPSShadowModeNoPlaceOrder(t *testing.T) {
+func TestSVPSOffModeNoPlaceOrder(t *testing.T) {
 	now := time.Now().UTC()
 	v := newSVPSTestVenue(binance.VenueName, true)
 	dir := t.TempDir()
@@ -472,7 +472,7 @@ func TestSVPSExecutorLoadsPersistedPositions(t *testing.T) {
 	}
 }
 
-func TestSVPSShadowCloseNoPlaceOrder(t *testing.T) {
+func TestSVPSOffCloseNoPlaceOrder(t *testing.T) {
 	now := time.Now().UTC()
 	v := newSVPSTestVenue(binance.VenueName, true)
 	dir := t.TempDir()
@@ -480,14 +480,14 @@ func TestSVPSShadowCloseNoPlaceOrder(t *testing.T) {
 	e.nowFn = func() time.Time { return now }
 	pos := SingleVenuePerpSpotPosition{
 		Symbol: "BTC-USDT", Venue: binance.VenueName,
-		Status: SVPSStatusOpen, OpenedAt: now, IdemPrefix: "shadow-close",
+		Status: SVPSStatusOpen, OpenedAt: now, IdemPrefix: "off-close",
 		SpotLeg: SingleVenuePerpSpotLegState{Qty: 0.5}, PerpLeg: SingleVenuePerpSpotLegState{Qty: 0.5},
 	}
-	if err := e.closePosition(context.Background(), pos, false, "shadow"); err != nil {
+	if err := e.closePosition(context.Background(), pos, false, "off"); err != nil {
 		t.Fatal(err)
 	}
 	if atomic.LoadInt32(v.placeCount) != 0 {
-		t.Fatal("shadow close must not PlaceOrder")
+		t.Fatal("OFF close must not PlaceOrder")
 	}
 }
 
@@ -898,5 +898,64 @@ func TestSVPSSpotShortAboveMinNotionalStillRetriesClose(t *testing.T) {
 	}
 	if atomic.LoadInt32(v.borrowRepayCount) != 0 {
 		t.Fatal("above-minNotional must not direct-repay without close fill")
+	}
+}
+
+func TestSVPSCloseRetryUsesEscalatedLimitPrice(t *testing.T) {
+	now := time.Now().UTC()
+	v := newSVPSTestVenue(binance.VenueName, true)
+	v.borrowedBase["BTC"] = 0.5
+	v.positions = []venue.Position{{Symbol: "BTC-USDT", PositionAmt: 0.5, MarkPrice: 100, EntryPrice: 100, Leverage: 2}}
+	v.clearOnClose = false
+	dir := t.TempDir()
+	cfg := testSVPSExecutorConfig()
+	cfg.CrossVenueExecutor.TakerSlippageBudgetBps = 40
+	cfg.CrossVenueExecutor.LiveTradingEnabled = true
+	e := NewSingleVenuePerpSpotExecutor(cfg, map[string]venue.Venue{binance.VenueName: v}, dir, testSVPSLogger())
+	e.nowFn = func() time.Time { return now }
+
+	pos := SingleVenuePerpSpotPosition{
+		Symbol: "BTC-USDT", Venue: binance.VenueName,
+		Status: SVPSStatusClosing, CloseReason: "escalate", CloseAttempts: 2,
+		SpotLeg: SingleVenuePerpSpotLegState{Qty: 0.5}, PerpLeg: SingleVenuePerpSpotLegState{Qty: 0.5},
+		OpenedAt: now.Add(-time.Hour), IdemPrefix: "esc",
+	}
+	_ = e.closePosition(context.Background(), pos, true, "escalate")
+	var lastPerpSell float64
+	for _, req := range v.placeRequests {
+		if req.Market == venue.MarketPerp && req.Side == venue.SideSell && req.ReduceOnly {
+			lastPerpSell = req.Price
+		}
+	}
+	want := 99 * (1 - 160.0/10000)
+	if math.Abs(lastPerpSell-want) > 1e-6 {
+		t.Fatalf("attempt 3 perp sell limit=%v want %v", lastPerpSell, want)
+	}
+}
+
+func TestSVPSManageRebalanceOnImbalance(t *testing.T) {
+	now := time.Now().UTC()
+	v := newSVPSTestVenue(binance.VenueName, true)
+	v.borrowedBase["BTC"] = 0.6
+	v.positions = []venue.Position{{Symbol: "BTC-USDT", PositionAmt: 0.5, MarkPrice: 100, EntryPrice: 100, Leverage: 2}}
+	dir := t.TempDir()
+	cfg := testSVPSExecutorConfig()
+	cfg.CrossVenueExecutor.LiveTradingEnabled = true
+	e := NewSingleVenuePerpSpotExecutor(cfg, map[string]venue.Venue{binance.VenueName: v}, dir, testSVPSLogger())
+	e.nowFn = func() time.Time { return now }
+	pos := SingleVenuePerpSpotPosition{
+		Symbol: "BTC-USDT", Venue: binance.VenueName,
+		Status: SVPSStatusOpen, OpenedAt: now.Add(-time.Hour), IdemPrefix: "rb",
+		SpotLeg: SingleVenuePerpSpotLegState{Qty: 0.6}, PerpLeg: SingleVenuePerpSpotLegState{Qty: 0.5},
+	}
+	_, _ = e.managePosition(context.Background(), pos, true)
+	var spotBuyQty float64
+	for _, req := range v.placeRequests {
+		if req.Market == venue.MarketSpot && req.Side == venue.SideBuy {
+			spotBuyQty = req.Qty
+		}
+	}
+	if math.Abs(spotBuyQty-0.1) > 1e-9 {
+		t.Fatalf("expected spot rebalance buy 0.1, got %.6f", spotBuyQty)
 	}
 }

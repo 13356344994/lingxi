@@ -183,7 +183,7 @@ func (e *FundingRateSniperEngine) processPendingFundingSettlement(record Pending
 		}
 	}
 
-	// M-S3.0 观测:资金费到账后 NetPnL 已变,重算完整净利影子口径并落观测行(纯观测,零行为变更)。
+	// M-S3.0 观测:资金费到账后 NetPnL 已变,重算完整净利观测口径并落观测行(纯观测,零行为变更)。
 	updated.applyFrictionObservation()
 	e.logFrictionObservation(updated, "funding_settled")
 

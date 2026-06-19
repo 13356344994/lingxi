@@ -610,12 +610,8 @@ func (e *FundingRateSniperEngine) notifyLifecycle(level EventLevel, title, detai
 
 // lifecycleStartupDetail 组装一条启动通知文案(版本/模式/档位/滚动持有/恢复的活跃对冲数)。
 func (e *FundingRateSniperEngine) lifecycleStartupDetail() string {
-	mode := "实盘"
-	if e.cfg.ExecutionConfig.ShadowTrading {
-		mode = "影子(只读冒烟)"
-	}
-	return fmt.Sprintf("模式=%s 档位=%s 滚动持有=%t 恢复活跃对冲=%d 版本=%s",
-		mode, e.cfg.ActiveProfile, e.cfg.PortfolioConfig.EnableRollingHold,
+	return fmt.Sprintf("模式=实盘 档位=%s 滚动持有=%t 恢复活跃对冲=%d 版本=%s",
+		e.cfg.ActiveProfile, e.cfg.PortfolioConfig.EnableRollingHold,
 		len(e.snapshotActiveOpenHedges()), buildVersionSummary())
 }
 

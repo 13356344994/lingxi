@@ -23,7 +23,7 @@ func (e *CrossVenueExecutor) unifiedCandidatesLogPath() string {
 	return filepath.Join(opportunitiesRecordDir(base), unifiedCandidatesLogFileName)
 }
 
-// UnifiedCandidateLogRecord 是候选级诊断日志的单行 JSONL 格式(shadow-only)。
+// UnifiedCandidateLogRecord 是候选级诊断日志的单行 JSONL 格式(plan-only)。
 type UnifiedCandidateLogRecord struct {
 	CycleID                string             `json:"cycle_id"`
 	StrategyType           string             `json:"strategy_type"`
@@ -62,11 +62,11 @@ func unifiedCandidateLogFromOpportunity(cfg CrossVenueExecutorConfig, cycleID st
 }
 
 type crossVenueUnifiedCandidateTrace struct {
-	Opp            CrossVenueOpportunity
-	Gate           crossVenueGateResult
-	RejectReasons  []string
-	WouldExecute   bool
-	NotionalUSDT   float64
+	Opp             CrossVenueOpportunity
+	Gate            crossVenueGateResult
+	RejectReasons   []string
+	WouldExecute    bool
+	NotionalUSDT    float64
 	HasGateNotional bool
 }
 
@@ -74,7 +74,7 @@ func crossVenueUnifiedCandidateKey(opp CrossVenueOpportunity) string {
 	return opp.Symbol + "|" + opp.HighVenue + "|" + opp.LowVenue
 }
 
-// appendUnifiedCandidateLogs best-effort 写入本轮所有候选诊断(shadow);写盘失败吞掉,不影响主循环。
+// appendUnifiedCandidateLogs best-effort 写入本轮所有候选诊断(plan);写盘失败吞掉,不影响主循环。
 func (e *CrossVenueExecutor) appendUnifiedCandidateLogs(cycleID string, cfg CrossVenueExecutorConfig, traces []crossVenueUnifiedCandidateTrace) {
 	if e == nil || strings.TrimSpace(cycleID) == "" || len(traces) == 0 {
 		return

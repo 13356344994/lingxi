@@ -151,6 +151,8 @@ func DefaultEngineConfig() EngineConfig {
 			ProtectedIOCMaxUnfilledRatio:  0.40,
 			ProtectedIOCMaxCancelRate:     0.30,
 			SymbolAbnormalCooldown:        10 * time.Minute,
+			SymbolMinorCooldown:           5 * time.Minute,
+			SymbolCriticalCooldown:        30 * time.Minute,
 			PlatformMinorCooldown:         5 * time.Minute,
 			PlatformAbnormalCooldown:      15 * time.Minute,
 			PlatformCriticalCooldown:      30 * time.Minute,
@@ -197,7 +199,11 @@ func DefaultEngineConfig() EngineConfig {
 			ConflictingPremiumSignGuardEnabled: true,
 			// MinLiquidationDistanceRate 默认 0.15：配默认 2x 杠杆时合约腿实际强平距离约 49%，远高于该阈值、
 			// 永不触发（零行为变更）；它只在杠杆被调高、安全距离不足时作为开仓前防爆刹车。
-			MinLiquidationDistanceRate: 0.15,
+			MinLiquidationDistanceRate:     0.15,
+			MinLiqDistanceVolScaleEnabled:  false,
+			MinLiqDistanceVolScaleFactor:   1.0,
+			RiskBudgetScaleEnabled:         false,
+			RiskBudgetScalePerOpenPosition: 1,
 			// R34 pending funding 处置默认开启,阈值取宽松值(正常运行永不触发,只兜住真正卡死的周期):
 			// 重试 30 次或挂起 12h 仍未到账 → critical 升级 + 停重试 + cycle 隔离。
 			MaxFundingSettlementAttempts: 30,
@@ -367,13 +373,13 @@ func DefaultEngineConfig() EngineConfig {
 		},
 		CapitalAllocator: CapitalAllocatorConfig{
 			Enabled:                   false,
-			Mode:                      "shadow",
+			Mode:                      "plan",
 			MaxTotalCapitalUsageRatio: 0.2,
 			MaxDailyLossUSDT:          0.3,
 		},
 		DataCollection: DataCollectionConfig{
 			Enabled:                     false,
-			Mode:                        "shadow",
+			Mode:                        "plan",
 			StrategyType:                "",
 			MaxPositions:                1,
 			MaxNotionalUSDT:             10,
@@ -403,7 +409,7 @@ func DefaultEngineConfig() EngineConfig {
 			SlippageBudgetBps:      20,
 		},
 		BybitExecutor: BybitExecutorConfig{
-			// 主安全闸默认关闭:启动 bybit 任务也只 shadow(规划+日志,绝不下单),置 true 才真实下单。
+			// 主安全闸默认关闭:启动 bybit 任务也只 OFF(规划+日志,绝不下单),置 true 才真实下单。
 			LiveTradingEnabled: false,
 			// 最保守起步:单标的、正费率 ≥0.05%、成本后净利率 ≥0.05%、结算前 60s 开、结算后 20s 平、最多 1 个并发持仓。
 			TopN:                    1,

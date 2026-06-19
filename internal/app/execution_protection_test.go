@@ -159,7 +159,7 @@ func TestFetchBookTickerStaleCacheFallsBackToRESTOnFlattenIntent(t *testing.T) {
 		t.Fatalf("救援意图下陈旧现货应回退 REST，却失败: %v", err)
 	}
 
-	// cache-only 模式（影子 / 安全期）：即便有 flatten 意图也不得 REST，硬挡。
+	// cache-only 模式（OFF / 安全期）：即便有 flatten 意图也不得 REST，硬挡。
 	cacheOnly := newEngine()
 	cacheOnly.setBookTickerCacheOnlyUntil(time.Now().UTC().Add(time.Minute))
 	if _, err := cacheOnly.fetchSpotBookTicker(withFlattenIntent(context.Background()), "TAOUSDT"); err == nil {

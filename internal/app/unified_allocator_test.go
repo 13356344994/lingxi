@@ -2,6 +2,7 @@ package app
 
 import (
 	"encoding/json"
+	"math"
 	"os"
 	"path/filepath"
 	"testing"
@@ -36,7 +37,7 @@ func TestUnifiedOpportunityPrimarySortKeyOrdersDescending(t *testing.T) {
 	}
 
 	dir := t.TempDir()
-	plan := RunUnifiedShadowAllocator(UnifiedAllocatorInput{
+	plan := RunUnifiedAllocator(UnifiedAllocatorInput{
 		CycleID: "test-sort",
 		Opportunities: []UnifiedOpportunity{
 			opps[0],
@@ -46,10 +47,10 @@ func TestUnifiedOpportunityPrimarySortKeyOrdersDescending(t *testing.T) {
 		AvailableUSDTByVenue: map[string]float64{bybit.VenueName: 1000},
 		TotalCapitalUSDT:     1000,
 		Config: UnifiedAllocatorConfig{
-			MaxGlobalCapitalUsagePct:   1.0,
-			MaxStrategyCapitalUsagePct: 1.0,
-			MaxSymbolCapitalUsagePct:   1.0,
-			MaxConcurrentPlans:         3,
+			MaxGlobalCapitalUsagePct:       1.0,
+			MaxStrategyCapitalUsagePct:     1.0,
+			MaxSymbolCapitalUsagePct:       1.0,
+			MaxConcurrentPlans:             3,
 			MaxSingleTradeExpectedLossUSDT: 100,
 		},
 		RecordDir: dir,
@@ -72,7 +73,7 @@ func TestUnifiedOpportunityPrimarySortKeyOrdersDescending(t *testing.T) {
 	}
 }
 
-func TestUnifiedShadowAllocatorSkipsInsufficientVenueBalance(t *testing.T) {
+func TestUnifiedAllocatorSkipsInsufficientVenueBalance(t *testing.T) {
 	opp := testUnifiedAllocatorOpportunity(
 		"spot-perp-1",
 		UnifiedStrategySingleVenueSpotPerp,
@@ -80,7 +81,7 @@ func TestUnifiedShadowAllocatorSkipsInsufficientVenueBalance(t *testing.T) {
 		1.0, 4, 80, 0.005, 0.8, 0.8, 0.8,
 		map[string]float64{bybit.VenueName: 80},
 	)
-	plan := RunUnifiedShadowAllocator(UnifiedAllocatorInput{
+	plan := RunUnifiedAllocator(UnifiedAllocatorInput{
 		CycleID:              "test-balance",
 		Opportunities:        []UnifiedOpportunity{opp},
 		AvailableUSDTByVenue: map[string]float64{bybit.VenueName: 50},
@@ -91,19 +92,19 @@ func TestUnifiedShadowAllocatorSkipsInsufficientVenueBalance(t *testing.T) {
 	if len(plan.RealPlans) != 0 {
 		t.Fatalf("real plans = %d, want 0", len(plan.RealPlans))
 	}
-	if len(plan.ShadowRebalanceSuggestions) != 1 {
-		t.Fatalf("shadow suggestions = %d, want 1", len(plan.ShadowRebalanceSuggestions))
+	if len(plan.PlanSuggestions) != 1 {
+		t.Fatalf("plan suggestions = %d, want 1", len(plan.PlanSuggestions))
 	}
-	sh := plan.ShadowRebalanceSuggestions[0]
-	if sh.ShadowKind != unifiedAllocatorShadowKindRebalance {
-		t.Fatalf("shadow kind = %q, want %q", sh.ShadowKind, unifiedAllocatorShadowKindRebalance)
+	sh := plan.PlanSuggestions[0]
+	if sh.PlanKind != unifiedAllocatorPlanKindRebalance {
+		t.Fatalf("plan kind = %q, want %q", sh.PlanKind, unifiedAllocatorPlanKindRebalance)
 	}
 	if sh.DeficitByVenue[bybit.VenueName] != 30 {
 		t.Fatalf("deficit = %.2f, want 30", sh.DeficitByVenue[bybit.VenueName])
 	}
 }
 
-func TestUnifiedShadowAllocatorPerpPerpGoesToShadowNotRealPlan(t *testing.T) {
+func TestUnifiedAllocatorPerpPerpGoesToPlanNotRealPlan(t *testing.T) {
 	opp := testUnifiedAllocatorOpportunity(
 		"pp-1",
 		UnifiedStrategyPerpPerp,
@@ -111,8 +112,8 @@ func TestUnifiedShadowAllocatorPerpPerpGoesToShadowNotRealPlan(t *testing.T) {
 		2.0, 4, 20, 0.05, 0.8, 0.8, 0.8,
 		map[string]float64{bybit.VenueName: 10, okx.VenueName: 10},
 	)
-	plan := RunUnifiedShadowAllocator(UnifiedAllocatorInput{
-		CycleID:              "test-perp-shadow",
+	plan := RunUnifiedAllocator(UnifiedAllocatorInput{
+		CycleID:              "test-perp-plan",
 		Opportunities:        []UnifiedOpportunity{opp},
 		AvailableUSDTByVenue: map[string]float64{bybit.VenueName: 100, okx.VenueName: 100},
 		TotalCapitalUSDT:     200,
@@ -122,15 +123,15 @@ func TestUnifiedShadowAllocatorPerpPerpGoesToShadowNotRealPlan(t *testing.T) {
 	if len(plan.RealPlans) != 0 {
 		t.Fatalf("real plans = %d, want 0", len(plan.RealPlans))
 	}
-	if len(plan.ShadowRebalanceSuggestions) != 1 {
-		t.Fatalf("shadow suggestions = %d, want 1", len(plan.ShadowRebalanceSuggestions))
+	if len(plan.PlanSuggestions) != 1 {
+		t.Fatalf("plan suggestions = %d, want 1", len(plan.PlanSuggestions))
 	}
-	if plan.ShadowRebalanceSuggestions[0].ShadowKind != unifiedAllocatorShadowKindStrategy {
-		t.Fatalf("shadow kind = %q", plan.ShadowRebalanceSuggestions[0].ShadowKind)
+	if plan.PlanSuggestions[0].PlanKind != unifiedAllocatorPlanKindStrategy {
+		t.Fatalf("plan kind = %q", plan.PlanSuggestions[0].PlanKind)
 	}
 }
 
-func TestUnifiedShadowAllocatorCrossVenueRebalanceShadowWhenOneVenueShort(t *testing.T) {
+func TestUnifiedAllocatorCrossVenueRebalancePlanWhenOneVenueShort(t *testing.T) {
 	opp := testUnifiedAllocatorOpportunity(
 		"cross-spot-perp",
 		UnifiedStrategyCrossVenueSpotPerp,
@@ -138,7 +139,7 @@ func TestUnifiedShadowAllocatorCrossVenueRebalanceShadowWhenOneVenueShort(t *tes
 		1.5, 4, 40, 0.005, 0.8, 0.8, 0.8,
 		map[string]float64{bybit.VenueName: 20, okx.VenueName: 20},
 	)
-	plan := RunUnifiedShadowAllocator(UnifiedAllocatorInput{
+	plan := RunUnifiedAllocator(UnifiedAllocatorInput{
 		CycleID:              "test-cross-rebalance",
 		Opportunities:        []UnifiedOpportunity{opp},
 		AvailableUSDTByVenue: map[string]float64{bybit.VenueName: 50, okx.VenueName: 5},
@@ -149,15 +150,15 @@ func TestUnifiedShadowAllocatorCrossVenueRebalanceShadowWhenOneVenueShort(t *tes
 	if len(plan.RealPlans) != 0 {
 		t.Fatalf("real plans = %d, want 0", len(plan.RealPlans))
 	}
-	if len(plan.ShadowRebalanceSuggestions) != 1 {
-		t.Fatalf("shadow = %d, want 1", len(plan.ShadowRebalanceSuggestions))
+	if len(plan.PlanSuggestions) != 1 {
+		t.Fatalf("plan suggestions = %d, want 1", len(plan.PlanSuggestions))
 	}
-	if plan.ShadowRebalanceSuggestions[0].DeficitByVenue[okx.VenueName] != 15 {
-		t.Fatalf("okx deficit = %.2f, want 15", plan.ShadowRebalanceSuggestions[0].DeficitByVenue[okx.VenueName])
+	if plan.PlanSuggestions[0].DeficitByVenue[okx.VenueName] != 15 {
+		t.Fatalf("okx deficit = %.2f, want 15", plan.PlanSuggestions[0].DeficitByVenue[okx.VenueName])
 	}
 }
 
-func TestUnifiedShadowAllocatorRiskLimitsEnforced(t *testing.T) {
+func TestUnifiedAllocatorRiskLimitsEnforced(t *testing.T) {
 	cfg := DefaultUnifiedAllocatorConfig()
 	cfg.MaxGlobalCapitalUsagePct = 0.20
 	cfg.MaxStrategyCapitalUsagePct = 0.20
@@ -172,7 +173,7 @@ func TestUnifiedShadowAllocatorRiskLimitsEnforced(t *testing.T) {
 			map[string]float64{bybit.VenueName: cap},
 		)
 	}
-	plan := RunUnifiedShadowAllocator(UnifiedAllocatorInput{
+	plan := RunUnifiedAllocator(UnifiedAllocatorInput{
 		CycleID: "test-risk",
 		Opportunities: []UnifiedOpportunity{
 			makeOpp("a", "BTC-USDT", 15),
@@ -203,7 +204,7 @@ func TestUnifiedShadowAllocatorRiskLimitsEnforced(t *testing.T) {
 	}
 }
 
-func TestUnifiedShadowAllocatorHardGateRejectsNonPositiveNetEV(t *testing.T) {
+func TestUnifiedAllocatorHardGateRejectsNonPositiveNetEV(t *testing.T) {
 	opp := testUnifiedAllocatorOpportunity(
 		"bad-ev",
 		UnifiedStrategySingleVenueSpotPerp,
@@ -211,7 +212,7 @@ func TestUnifiedShadowAllocatorHardGateRejectsNonPositiveNetEV(t *testing.T) {
 		-0.1, 4, 10, 0.05, 0.8, 0.8, 0.8,
 		map[string]float64{bybit.VenueName: 10},
 	)
-	plan := RunUnifiedShadowAllocator(UnifiedAllocatorInput{
+	plan := RunUnifiedAllocator(UnifiedAllocatorInput{
 		CycleID:              "test-hard-gate",
 		Opportunities:        []UnifiedOpportunity{opp},
 		AvailableUSDTByVenue: map[string]float64{bybit.VenueName: 100},
@@ -226,7 +227,7 @@ func TestUnifiedShadowAllocatorHardGateRejectsNonPositiveNetEV(t *testing.T) {
 	}
 }
 
-func TestUnifiedShadowAllocatorWritesPlanJSONL(t *testing.T) {
+func TestUnifiedAllocatorWritesPlanJSONL(t *testing.T) {
 	dir := t.TempDir()
 	opp := testUnifiedAllocatorOpportunity(
 		"write-1",
@@ -235,7 +236,7 @@ func TestUnifiedShadowAllocatorWritesPlanJSONL(t *testing.T) {
 		1.0, 2, 10, 0.02, 0.8, 0.8, 0.8,
 		map[string]float64{bybit.VenueName: 10},
 	)
-	_ = RunUnifiedShadowAllocator(UnifiedAllocatorInput{
+	_ = RunUnifiedAllocator(UnifiedAllocatorInput{
 		CycleID:              "test-write",
 		Opportunities:        []UnifiedOpportunity{opp},
 		AvailableUSDTByVenue: map[string]float64{bybit.VenueName: 100},
@@ -270,17 +271,18 @@ func TestUnifiedOpportunityRiskAdjustedNetEVAndSortKey(t *testing.T) {
 	)
 	total := unifiedOpportunityTotalCapital(opp)
 	riskAdj := unifiedOpportunityRiskAdjustedNetEV(opp, total)
-	if riskAdj != 0.0 {
-		t.Fatalf("riskAdj = %.4f, want 0 (1.0 - 10*0.10)", riskAdj)
+	if math.Abs(riskAdj-0.99) > 1e-9 {
+		t.Fatalf("riskAdj = %.4f, want 0.99 (1.0 - 10*0.10*0.01)", riskAdj)
 	}
 	key := unifiedOpportunityPrimarySortKey(riskAdj, total, opp.ExpectedHoldHours)
-	if key != 0 {
-		t.Fatalf("sort key = %.6f, want 0 for non-positive riskAdj", key)
+	wantKey := 0.99 / (total * opp.ExpectedHoldHours)
+	if math.Abs(key-wantKey) > 1e-9 {
+		t.Fatalf("sort key = %.6f, want %.6f", key, wantKey)
 	}
 }
 
-func TestUnifiedShadowAllocatorDemoOutputShape(t *testing.T) {
-	plan := RunUnifiedShadowAllocator(UnifiedAllocatorInput{
+func TestUnifiedAllocatorDemoOutputShape(t *testing.T) {
+	plan := RunUnifiedAllocator(UnifiedAllocatorInput{
 		CycleID: "demo-cycle",
 		Opportunities: []UnifiedOpportunity{
 			testUnifiedAllocatorOpportunity(
@@ -311,7 +313,7 @@ func TestUnifiedShadowAllocatorDemoOutputShape(t *testing.T) {
 	if len(plan.RealPlans) != 1 {
 		t.Fatalf("real plans = %d, want 1", len(plan.RealPlans))
 	}
-	if len(plan.ShadowRebalanceSuggestions) != 1 {
-		t.Fatalf("shadow = %d, want 1", len(plan.ShadowRebalanceSuggestions))
+	if len(plan.PlanSuggestions) != 1 {
+		t.Fatalf("plan suggestions = %d, want 1", len(plan.PlanSuggestions))
 	}
 }

@@ -37212,3 +37212,2583 @@ ceb59db3f11fada5b48f60ddc85314a2 | cycle=
 2026/06/18 23:16:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
 2026/06/18 23:16:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
 2026/06/18 23:16:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 23:17:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 23:17:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 23:17:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 23:17:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 23:17:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 23:17:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/18 23:17:58 [统一轮动] 已暂停(active=false)
+2026/06/18 23:18:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 23:18:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 23:18:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 23:18:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 23:18:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/18 23:18:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 23:18:58 [统一轮动] 已暂停(active=false)
+2026/06/18 23:19:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 23:19:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 23:19:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/18 23:19:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 23:19:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 23:19:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 23:19:58 [统一轮动] 已暂停(active=false)
+2026/06/18 23:20:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 23:20:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 23:20:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 23:20:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 23:20:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/18 23:20:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 23:21:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 23:21:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 23:21:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 23:21:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 23:21:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/18 23:21:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 23:21:58 [统一轮动] 已暂停(active=false)
+2026/06/18 23:22:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 23:22:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 23:22:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 23:22:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 23:22:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/18 23:22:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 23:22:58 [统一轮动] 已暂停(active=false)
+2026/06/18 23:23:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 23:23:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 23:23:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/18 23:23:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 23:23:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 23:23:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 23:23:58 [统一轮动] 已暂停(active=false)
+2026/06/18 23:24:43 [跨所扫描] 完成: venues_ok=4/4 opportunities=30 elapsed=48.503s
+2026/06/18 23:24:43 [跨所扫描] 机会 INTC-USDT spread=36.0% high=binance(40.1%) low=bybit(4.1%)
+2026/06/18 23:24:43 [跨所扫描] 机会 MRVL-USDT spread=35.1% high=binance(35.1%) low=bybit(0.0%)
+2026/06/18 23:24:43 [跨所扫描] 机会 FIDA-USDT spread=54.5% high=binance(-133.2%) low=bybit(-187.7%)
+2026/06/18 23:24:43 [跨所扫描] 机会 HOOD-USDT spread=86.5% high=binance(88.4%) low=bybit(1.9%)
+2026/06/18 23:24:43 [跨所扫描] 机会 AXL-USDT spread=35.4% high=bybit(10.9%) low=binance(-24.4%)
+2026/06/18 23:24:43 [跨所扫描] 机会 USELESS-USDT spread=42.3% high=bybit(53.2%) low=binance(10.9%)
+2026/06/18 23:24:43 [跨所扫描] 机会 AVNT-USDT spread=66.9% high=binance(10.9%) low=bybit(-55.9%)
+2026/06/18 23:24:43 [跨所扫描] 机会 PORTAL-USDT spread=48.1% high=bybit(-35.5%) low=binance(-83.5%)
+2026/06/18 23:24:43 [跨所扫描] 机会 BIRB-USDT spread=54.0% high=binance(10.9%) low=bybit(-43.0%)
+2026/06/18 23:24:43 [跨所扫描] 机会 MYX-USDT spread=70.8% high=bybit(84.7%) low=binance(13.9%)
+2026/06/18 23:24:43 [跨所扫描] 机会 ONDO-USDT spread=33.7% high=bybit(10.9%) low=binance(-22.8%)
+2026/06/18 23:24:43 [跨所扫描] 机会 ID-USDT spread=49.7% high=binance(-95.9%) low=bybit(-145.5%)
+2026/06/18 23:24:43 [跨所扫描] 机会 KERNEL-USDT spread=39.2% high=bybit(5.7%) low=binance(-33.5%)
+2026/06/18 23:24:43 [跨所扫描] 机会 WAL-USDT spread=40.3% high=binance(10.9%) low=bybit(-29.4%)
+2026/06/18 23:24:43 [跨所扫描] 机会 PHAROS-USDT spread=83.1% high=binance(10.0%) low=bybit(-73.1%)
+2026/06/18 23:24:43 [跨所扫描] 机会 CYBER-USDT spread=66.6% high=binance(-9.5%) low=bybit(-76.1%)
+2026/06/18 23:24:43 [跨所扫描] 机会 KNC-USDT spread=41.8% high=bybit(10.9%) low=binance(-30.8%)
+2026/06/18 23:24:43 [跨所扫描] 机会 PUMPBTC-USDT spread=64.4% high=binance(75.4%) low=bybit(10.9%)
+2026/06/18 23:24:43 [跨所扫描] 机会 CLANKER-USDT spread=46.9% high=binance(57.9%) low=bybit(10.9%)
+2026/06/18 23:24:43 [跨所扫描] 机会 BRETT-USDT spread=60.4% high=binance(10.9%) low=bybit(-49.5%)
+2026/06/18 23:24:43 [跨所扫描] 机会 TSM-USDT spread=47.6% high=binance(47.6%) low=bybit(0.0%)
+2026/06/18 23:24:43 [跨所扫描] 机会 ORCA-USDT spread=49.3% high=binance(-44.9%) low=bybit(-94.2%)
+2026/06/18 23:24:43 [跨所扫描] 机会 CRCL-USDT spread=36.6% high=binance(67.6%) low=bybit(31.0%)
+2026/06/18 23:24:43 [跨所扫描] 机会 RPL-USDT spread=115.1% high=binance(-14.3%) low=bybit(-129.4%)
+2026/06/18 23:24:43 [跨所扫描] 机会 XCN-USDT spread=69.8% high=binance(0.0%) low=bybit(-69.8%)
+2026/06/18 23:24:43 [跨所扫描] 机会 BARD-USDT spread=31.7% high=bybit(6.9%) low=gate(-24.9%)
+2026/06/18 23:24:43 [跨所扫描] 机会 HAEDAL-USDT spread=40.3% high=gate(10.9%) low=bybit(-29.4%)
+2026/06/18 23:24:43 [跨所扫描] 机会 XAI-USDT spread=33.8% high=gate(10.9%) low=bybit(-22.9%)
+2026/06/18 23:24:43 [跨所扫描] 机会 PENDLE-USDT spread=36.7% high=okx(10.9%) low=bybit(-25.7%)
+2026/06/18 23:24:43 [跨所扫描] 机会 LRC-USDT spread=57.6% high=gate(10.9%) low=bybit(-46.6%)
+2026/06/18 23:24:43 [跨所扫描] 价差告警(纯观测) RPL-USDT 年化价差 115.1% 空 binance(-14.3%/年,间隔 4h) 多 bybit(-129.4%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/18 23:24:52 [借币探测] FIDA: binance失败 bybit不可借 okx失败 gate失败
+2026/06/18 23:24:52 [借币探测] AVNT: binance失败 bybit可借(年化4%) okx可借(年化1%) gate失败
+2026/06/18 23:24:52 [借币探测] USELESS: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/18 23:24:52 [借币探测] SPACE: binance不可借(缓存) okx不可借(缓存)
+2026/06/18 23:24:52 [借币探测] INTC: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/18 23:24:52 [借币探测] HOOD: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/18 23:24:52 [借币探测] PORTAL: binance失败 bybit不可借 okx失败 gate失败
+2026/06/18 23:24:52 [借币探测] CYBER: binance可借(缓存,年化77%) bybit可借(缓存,年化97%)
+2026/06/18 23:24:52 [借币探测] AXL: binance失败 bybit可借(缓存,年化47%) okx失败 gate失败
+2026/06/18 23:24:52 [借币探测] MRVL: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/18 23:24:52 [借币探测] BIRB: binance不可借(缓存) bybit不可借(缓存) okx失败 gate失败
+2026/06/18 23:24:52 [借币探测] MYX: binance不可借
+2026/06/18 23:24:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 23:24:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 23:24:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 23:24:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 23:24:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/18 23:24:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 23:24:58 [统一轮动] 已暂停(active=false)
+2026/06/18 23:25:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 23:25:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 23:25:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/18 23:25:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 23:25:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 23:25:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 23:26:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 23:26:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 23:26:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 23:26:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 23:26:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/18 23:26:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 23:26:58 [统一轮动] 已暂停(active=false)
+2026/06/18 23:27:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 23:27:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 23:27:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 23:27:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 23:27:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/18 23:27:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 23:27:58 [统一轮动] 已暂停(active=false)
+2026/06/18 23:28:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 23:28:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 23:28:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 23:28:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 23:28:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/18 23:28:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 23:28:58 [统一轮动] 已暂停(active=false)
+2026/06/18 23:29:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 23:29:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 23:29:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 23:29:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 23:29:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/18 23:29:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 23:30:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 23:30:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 23:30:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 23:30:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 23:30:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/18 23:30:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 23:30:58 [统一轮动] 已暂停(active=false)
+2026/06/18 23:31:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 23:31:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 23:31:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/18 23:31:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 23:31:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 23:31:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 23:32:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 23:32:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 23:32:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 23:32:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 23:32:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 23:32:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/18 23:32:58 [统一轮动] 已暂停(active=false)
+2026/06/18 23:33:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 23:33:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 23:33:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 23:33:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 23:33:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/18 23:33:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 23:33:58 [统一轮动] 已暂停(active=false)
+2026/06/18 23:34:43 [跨所扫描] 完成: venues_ok=4/4 opportunities=30 elapsed=48.504s
+2026/06/18 23:34:43 [跨所扫描] 机会 ID-USDT spread=47.6% high=binance(-95.3%) low=bybit(-142.9%)
+2026/06/18 23:34:43 [跨所扫描] 机会 WAL-USDT spread=33.4% high=binance(10.9%) low=bybit(-22.4%)
+2026/06/18 23:34:43 [跨所扫描] 机会 INTC-USDT spread=35.8% high=binance(40.6%) low=bybit(4.8%)
+2026/06/18 23:34:43 [跨所扫描] 机会 KERNEL-USDT spread=39.2% high=bybit(10.7%) low=binance(-28.5%)
+2026/06/18 23:34:43 [跨所扫描] 机会 BIRB-USDT spread=48.3% high=binance(10.9%) low=bybit(-37.3%)
+2026/06/18 23:34:43 [跨所扫描] 机会 MYX-USDT spread=75.8% high=bybit(87.5%) low=binance(11.8%)
+2026/06/18 23:34:43 [跨所扫描] 机会 HOOD-USDT spread=85.2% high=binance(88.7%) low=bybit(3.5%)
+2026/06/18 23:34:43 [跨所扫描] 机会 ORCA-USDT spread=45.5% high=binance(-45.1%) low=bybit(-90.6%)
+2026/06/18 23:34:43 [跨所扫描] 机会 KNC-USDT spread=46.3% high=bybit(10.9%) low=binance(-35.4%)
+2026/06/18 23:34:43 [跨所扫描] 机会 CYBER-USDT spread=60.3% high=binance(-9.5%) low=bybit(-69.8%)
+2026/06/18 23:34:43 [跨所扫描] 机会 PUMPBTC-USDT spread=59.9% high=binance(70.9%) low=bybit(10.9%)
+2026/06/18 23:34:43 [跨所扫描] 机会 AVNT-USDT spread=66.2% high=binance(10.9%) low=bybit(-55.2%)
+2026/06/18 23:34:43 [跨所扫描] 机会 ONDO-USDT spread=32.5% high=bybit(10.9%) low=binance(-21.5%)
+2026/06/18 23:34:43 [跨所扫描] 机会 TSM-USDT spread=47.7% high=binance(47.7%) low=bybit(0.0%)
+2026/06/18 23:34:43 [跨所扫描] 机会 PHAROS-USDT spread=96.2% high=binance(10.2%) low=bybit(-86.0%)
+2026/06/18 23:34:43 [跨所扫描] 机会 USELESS-USDT spread=33.1% high=bybit(44.0%) low=binance(10.9%)
+2026/06/18 23:34:43 [跨所扫描] 机会 BMNR-USDT spread=33.8% high=binance(33.8%) low=bybit(0.0%)
+2026/06/18 23:34:43 [跨所扫描] 机会 PORTAL-USDT spread=47.5% high=bybit(-28.7%) low=binance(-76.2%)
+2026/06/18 23:34:43 [跨所扫描] 机会 FIDA-USDT spread=53.5% high=binance(-135.2%) low=bybit(-188.6%)
+2026/06/18 23:34:43 [跨所扫描] 机会 RPL-USDT spread=141.4% high=binance(-26.3%) low=bybit(-167.7%)
+2026/06/18 23:34:43 [跨所扫描] 机会 BRETT-USDT spread=65.4% high=binance(10.0%) low=bybit(-55.4%)
+2026/06/18 23:34:43 [跨所扫描] 机会 CRCL-USDT spread=36.6% high=binance(68.9%) low=bybit(32.3%)
+2026/06/18 23:34:43 [跨所扫描] 机会 BABA-USDT spread=32.6% high=binance(32.6%) low=bybit(0.0%)
+2026/06/18 23:34:43 [跨所扫描] 机会 AXL-USDT spread=34.8% high=bybit(10.9%) low=binance(-23.8%)
+2026/06/18 23:34:43 [跨所扫描] 机会 MRVL-USDT spread=37.5% high=binance(37.5%) low=bybit(0.0%)
+2026/06/18 23:34:43 [跨所扫描] 机会 CLANKER-USDT spread=34.5% high=binance(45.5%) low=bybit(10.9%)
+2026/06/18 23:34:43 [跨所扫描] 机会 OPG-USDT spread=64.4% high=gate(-81.8%) low=bybit(-146.2%)
+2026/06/18 23:34:43 [跨所扫描] 机会 FLUX-USDT spread=108.7% high=bybit(-11.3%) low=gate(-120.0%)
+2026/06/18 23:34:43 [跨所扫描] 机会 MOCA-USDT spread=65.1% high=gate(10.9%) low=bybit(-54.1%)
+2026/06/18 23:34:43 [跨所扫描] 机会 MIRA-USDT spread=45.4% high=gate(-38.9%) low=bybit(-84.3%)
+2026/06/18 23:34:52 [借币探测] BIRB: binance不可借(缓存) bybit不可借(缓存) okx失败 gate失败
+2026/06/18 23:34:52 [借币探测] INTC: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/18 23:34:52 [借币探测] ORCA: binance失败 bybit失败 okx失败 gate失败
+2026/06/18 23:34:52 [借币探测] FIDA: bybit不可借(缓存)
+2026/06/18 23:34:52 [借币探测] ID: binance失败 bybit不可借 okx不可借 gate失败
+2026/06/18 23:34:52 [借币探测] KNC: binance可借(年化77%) bybit失败 okx不可借 gate失败
+2026/06/18 23:34:52 [借币探测] WAL: binance失败 bybit可借(年化93%) okx不可借 gate失败
+2026/06/18 23:34:52 [借币探测] MYX: binance不可借(缓存) bybit失败 okx失败 gate失败
+2026/06/18 23:34:52 [借币探测] PORTAL: bybit不可借(缓存)
+2026/06/18 23:34:52 [借币探测] KERNEL: binance失败 bybit失败 okx失败 gate失败
+2026/06/18 23:34:52 [借币探测] CYBER: binance可借(缓存,年化77%) bybit可借(缓存,年化97%) okx失败
+2026/06/18 23:34:52 [借币探测] SPACE: binance不可借(缓存) okx不可借(缓存)
+2026/06/18 23:34:52 [借币探测] HOOD: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/18 23:34:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 23:34:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 23:34:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 23:34:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/18 23:34:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 23:34:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 23:34:58 [统一轮动] 已暂停(active=false)
+2026/06/18 23:35:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 23:35:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 23:35:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 23:35:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 23:35:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/18 23:35:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 23:36:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 23:36:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 23:36:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 23:36:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 23:36:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/18 23:36:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 23:36:58 [统一轮动] 已暂停(active=false)
+2026/06/18 23:37:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 23:37:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 23:37:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 23:37:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/18 23:37:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 23:37:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 23:38:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 23:38:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 23:38:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 23:38:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 23:38:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/18 23:38:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 23:38:58 [统一轮动] 已暂停(active=false)
+2026/06/18 23:39:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 23:39:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 23:39:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 23:39:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 23:39:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/18 23:39:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 23:40:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 23:40:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 23:40:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 23:40:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 23:40:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/18 23:40:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 23:40:58 [统一轮动] 已暂停(active=false)
+2026/06/18 23:41:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 23:41:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 23:41:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 23:41:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 23:41:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/18 23:41:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 23:41:58 [统一轮动] 已暂停(active=false)
+2026/06/18 23:42:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 23:42:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 23:42:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 23:42:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 23:42:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/18 23:42:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 23:43:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 23:43:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 23:43:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 23:43:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 23:43:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/18 23:43:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 23:43:58 [统一轮动] 已暂停(active=false)
+2026/06/18 23:44:43 [跨所扫描] 完成: venues_ok=4/4 opportunities=30 elapsed=48.495s
+2026/06/18 23:44:43 [跨所扫描] 机会 HOOD-USDT spread=83.7% high=binance(90.7%) low=bybit(7.1%)
+2026/06/18 23:44:43 [跨所扫描] 机会 BABA-USDT spread=35.4% high=binance(35.4%) low=bybit(0.0%)
+2026/06/18 23:44:43 [跨所扫描] 机会 AVNT-USDT spread=64.6% high=binance(10.9%) low=bybit(-53.6%)
+2026/06/18 23:44:43 [跨所扫描] 机会 PORTAL-USDT spread=49.1% high=bybit(-19.6%) low=binance(-68.7%)
+2026/06/18 23:44:43 [跨所扫描] 机会 FIDA-USDT spread=56.9% high=binance(-141.3%) low=bybit(-198.2%)
+2026/06/18 23:44:43 [跨所扫描] 机会 CRCL-USDT spread=37.0% high=binance(70.2%) low=bybit(33.2%)
+2026/06/18 23:44:43 [跨所扫描] 机会 KERNEL-USDT spread=34.9% high=bybit(10.9%) low=binance(-23.9%)
+2026/06/18 23:44:43 [跨所扫描] 机会 STABLE-USDT spread=73.4% high=binance(-142.3%) low=bybit(-215.7%)
+2026/06/18 23:44:43 [跨所扫描] 机会 BMNR-USDT spread=41.8% high=binance(41.8%) low=bybit(0.0%)
+2026/06/18 23:44:43 [跨所扫描] 机会 BRETT-USDT spread=66.4% high=binance(9.7%) low=bybit(-56.7%)
+2026/06/18 23:44:43 [跨所扫描] 机会 ID-USDT spread=43.3% high=binance(-100.0%) low=bybit(-143.4%)
+2026/06/18 23:44:43 [跨所扫描] 机会 MYX-USDT spread=69.5% high=bybit(80.4%) low=binance(10.9%)
+2026/06/18 23:44:43 [跨所扫描] 机会 KNC-USDT spread=45.8% high=bybit(10.9%) low=binance(-34.8%)
+2026/06/18 23:44:43 [跨所扫描] 机会 ORCA-USDT spread=45.9% high=binance(-47.7%) low=bybit(-93.6%)
+2026/06/18 23:44:43 [跨所扫描] 机会 PHAROS-USDT spread=111.0% high=binance(10.9%) low=bybit(-100.0%)
+2026/06/18 23:44:43 [跨所扫描] 机会 LYN-USDT spread=30.2% high=binance(41.1%) low=bybit(10.9%)
+2026/06/18 23:44:43 [跨所扫描] 机会 RPL-USDT spread=140.3% high=binance(-24.1%) low=bybit(-164.3%)
+2026/06/18 23:44:43 [跨所扫描] 机会 BIRB-USDT spread=47.5% high=binance(10.9%) low=bybit(-36.6%)
+2026/06/18 23:44:43 [跨所扫描] 机会 PUMPBTC-USDT spread=65.4% high=binance(76.4%) low=bybit(10.9%)
+2026/06/18 23:44:43 [跨所扫描] 机会 CYBER-USDT spread=51.3% high=binance(-6.0%) low=bybit(-57.3%)
+2026/06/18 23:44:43 [跨所扫描] 机会 USELESS-USDT spread=35.8% high=bybit(46.7%) low=binance(10.9%)
+2026/06/18 23:44:43 [跨所扫描] 机会 MRVL-USDT spread=41.0% high=binance(41.0%) low=bybit(0.0%)
+2026/06/18 23:44:43 [跨所扫描] 机会 TSM-USDT spread=48.5% high=binance(48.5%) low=bybit(0.0%)
+2026/06/18 23:44:43 [跨所扫描] 机会 INTC-USDT spread=35.7% high=binance(41.5%) low=bybit(5.8%)
+2026/06/18 23:44:43 [跨所扫描] 机会 OGN-USDT spread=62.0% high=bybit(10.9%) low=gate(-51.0%)
+2026/06/18 23:44:43 [跨所扫描] 机会 PTB-USDT spread=161.4% high=gate(172.4%) low=bybit(10.9%)
+2026/06/18 23:44:43 [跨所扫描] 机会 ATH-USDT spread=31.8% high=gate(10.9%) low=bybit(-20.8%)
+2026/06/18 23:44:43 [跨所扫描] 机会 PENDLE-USDT spread=35.7% high=okx(10.9%) low=bybit(-24.7%)
+2026/06/18 23:44:43 [跨所扫描] 机会 COHR-USDT spread=101.4% high=bybit(101.4%) low=okx(0.0%)
+2026/06/18 23:44:43 [跨所扫描] 机会 C-USDT spread=30.9% high=bybit(10.9%) low=gate(-19.9%)
+2026/06/18 23:44:43 [跨所扫描] 价差告警(纯观测) PHAROS-USDT 年化价差 111.0% 空 binance(10.9%/年,间隔 4h) 多 bybit(-100.0%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/18 23:44:43 [跨所扫描] 价差告警(纯观测) PTB-USDT 年化价差 161.4% 空 gate(172.4%/年,间隔 4h) 多 bybit(10.9%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/18 23:44:52 [借币探测] BABA: binance不可借 bybit失败 okx失败 gate失败
+2026/06/18 23:44:52 [借币探测] KNC: binance可借(缓存,年化77%) okx不可借(缓存)
+2026/06/18 23:44:52 [借币探测] KERNEL: binance失败 bybit失败 okx失败 gate失败
+2026/06/18 23:44:52 [借币探测] ID: bybit不可借(缓存) okx不可借(缓存)
+2026/06/18 23:44:52 [借币探测] STABLE: binance不可借 bybit不可借
+2026/06/18 23:44:52 [借币探测] CRCL: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/18 23:44:52 [借币探测] FIDA: binance失败 bybit不可借 okx失败 gate失败
+2026/06/18 23:44:52 [借币探测] PORTAL: binance失败 bybit不可借 okx失败 gate失败
+2026/06/18 23:44:52 [借币探测] HOOD: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/18 23:44:52 [借币探测] AVNT: binance失败 bybit可借(年化4%) okx可借(年化1%) gate失败
+2026/06/18 23:44:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 23:44:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 23:44:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/18 23:44:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 23:44:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 23:44:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 23:44:58 [统一轮动] 已暂停(active=false)
+2026/06/18 23:45:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 23:45:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 23:45:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 23:45:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 23:45:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/18 23:45:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 23:46:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 23:46:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 23:46:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 23:46:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 23:46:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 23:46:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/18 23:46:58 [统一轮动] 已暂停(active=false)
+2026/06/18 23:47:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 23:47:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 23:47:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 23:47:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 23:47:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 23:47:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/18 23:48:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 23:48:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 23:48:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 23:48:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 23:48:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/18 23:48:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 23:48:58 [统一轮动] 已暂停(active=false)
+2026/06/18 23:49:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 23:49:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 23:49:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 23:49:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 23:49:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/18 23:49:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 23:49:58 [统一轮动] 已暂停(active=false)
+2026/06/18 23:50:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 23:50:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 23:50:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 23:50:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 23:50:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/18 23:50:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 23:51:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 23:51:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 23:51:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 23:51:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 23:51:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/18 23:51:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 23:51:58 [统一轮动] 已暂停(active=false)
+2026/06/18 23:52:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 23:52:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 23:52:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 23:52:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 23:52:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/18 23:52:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 23:53:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 23:53:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 23:53:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/18 23:53:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 23:53:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 23:53:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 23:53:58 [统一轮动] 已暂停(active=false)
+2026/06/18 23:54:43 [跨所扫描] 完成: venues_ok=4/4 opportunities=30 elapsed=48.494s
+2026/06/18 23:54:43 [跨所扫描] 机会 LYN-USDT spread=30.4% high=binance(41.3%) low=bybit(10.9%)
+2026/06/18 23:54:43 [跨所扫描] 机会 BABA-USDT spread=37.9% high=binance(37.9%) low=bybit(0.0%)
+2026/06/18 23:54:43 [跨所扫描] 机会 BRETT-USDT spread=68.4% high=binance(10.7%) low=bybit(-57.8%)
+2026/06/18 23:54:43 [跨所扫描] 机会 STABLE-USDT spread=91.3% high=binance(-142.6%) low=bybit(-233.8%)
+2026/06/18 23:54:43 [跨所扫描] 机会 CRCL-USDT spread=36.7% high=binance(68.3%) low=bybit(31.6%)
+2026/06/18 23:54:43 [跨所扫描] 机会 PHAROS-USDT spread=126.0% high=binance(10.9%) low=bybit(-115.0%)
+2026/06/18 23:54:43 [跨所扫描] 机会 BIRB-USDT spread=43.4% high=binance(10.9%) low=bybit(-32.5%)
+2026/06/18 23:54:43 [跨所扫描] 机会 HOOD-USDT spread=82.3% high=binance(93.4%) low=bybit(11.2%)
+2026/06/18 23:54:43 [跨所扫描] 机会 PUMPBTC-USDT spread=72.2% high=binance(83.1%) low=bybit(10.9%)
+2026/06/18 23:54:43 [跨所扫描] 机会 TSM-USDT spread=50.0% high=binance(50.0%) low=bybit(0.0%)
+2026/06/18 23:54:43 [跨所扫描] 机会 MYX-USDT spread=60.8% high=bybit(71.7%) low=binance(10.9%)
+2026/06/18 23:54:43 [跨所扫描] 机会 RPL-USDT spread=133.8% high=binance(-19.6%) low=bybit(-153.4%)
+2026/06/18 23:54:43 [跨所扫描] 机会 MRVL-USDT spread=46.2% high=binance(46.2%) low=bybit(0.0%)
+2026/06/18 23:54:43 [跨所扫描] 机会 US-USDT spread=197.4% high=bybit(221.9%) low=binance(24.5%)
+2026/06/18 23:54:43 [跨所扫描] 机会 KERNEL-USDT spread=31.7% high=bybit(10.9%) low=binance(-20.8%)
+2026/06/18 23:54:43 [跨所扫描] 机会 AVNT-USDT spread=63.8% high=binance(10.9%) low=bybit(-52.8%)
+2026/06/18 23:54:43 [跨所扫描] 机会 FIDA-USDT spread=58.8% high=binance(-150.5%) low=bybit(-209.3%)
+2026/06/18 23:54:43 [跨所扫描] 机会 ORCA-USDT spread=45.5% high=binance(-52.0%) low=bybit(-97.5%)
+2026/06/18 23:54:43 [跨所扫描] 机会 PORTAL-USDT spread=51.3% high=bybit(-11.6%) low=binance(-62.9%)
+2026/06/18 23:54:43 [跨所扫描] 机会 BMNR-USDT spread=53.3% high=binance(53.3%) low=bybit(0.0%)
+2026/06/18 23:54:43 [跨所扫描] 机会 SNDK-USDT spread=30.1% high=binance(30.1%) low=bybit(0.0%)
+2026/06/18 23:54:43 [跨所扫描] 机会 ID-USDT spread=40.2% high=binance(-104.2%) low=bybit(-144.4%)
+2026/06/18 23:54:43 [跨所扫描] 机会 CYBER-USDT spread=52.1% high=binance(-3.4%) low=bybit(-55.5%)
+2026/06/18 23:54:43 [跨所扫描] 机会 USELESS-USDT spread=41.0% high=bybit(52.0%) low=binance(10.9%)
+2026/06/18 23:54:43 [跨所扫描] 机会 KNC-USDT spread=42.7% high=bybit(10.9%) low=binance(-31.8%)
+2026/06/18 23:54:43 [跨所扫描] 机会 INTC-USDT spread=35.8% high=binance(42.7%) low=bybit(6.9%)
+2026/06/18 23:54:43 [跨所扫描] 机会 LLY-USDT spread=33.4% high=binance(33.4%) low=bybit(0.0%)
+2026/06/18 23:54:43 [跨所扫描] 机会 FOLKS-USDT spread=85.5% high=gate(96.5%) low=bybit(10.9%)
+2026/06/18 23:54:43 [跨所扫描] 机会 IOST-USDT spread=63.4% high=gate(10.9%) low=bybit(-52.4%)
+2026/06/18 23:54:43 [跨所扫描] 机会 ATH-USDT spread=30.1% high=gate(10.9%) low=bybit(-19.1%)
+2026/06/18 23:54:52 [借币探测] BRETT: binance不可借 bybit可借(年化10%) okx不可借 gate失败
+2026/06/18 23:54:52 [借币探测] PUMPBTC: binance不可借 bybit不可借 okx失败 gate失败
+2026/06/18 23:54:52 [借币探测] PORTAL: bybit不可借(缓存)
+2026/06/18 23:54:52 [借币探测] STABLE: binance不可借(缓存) bybit不可借(缓存) okx不可借 gate失败
+2026/06/18 23:54:52 [借币探测] TSM: binance不可借
+2026/06/18 23:54:52 [借币探测] CRCL: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/18 23:54:52 [借币探测] HOOD: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/18 23:54:52 [借币探测] LYN: binance不可借 bybit失败 okx失败 gate失败
+2026/06/18 23:54:52 [借币探测] PHAROS: binance不可借 bybit失败 okx失败 gate失败
+2026/06/18 23:54:52 [借币探测] BIRB: binance不可借 bybit不可借 okx失败 gate失败
+2026/06/18 23:54:52 [借币探测] FIDA: bybit不可借(缓存)
+2026/06/18 23:54:52 [借币探测] BABA: binance不可借(缓存) bybit失败 okx失败 gate失败
+2026/06/18 23:54:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 23:54:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 23:54:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/18 23:54:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 23:54:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 23:54:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 23:55:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 23:55:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 23:55:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 23:55:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 23:55:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/18 23:55:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 23:55:58 [统一轮动] 已暂停(active=false)
+2026/06/18 23:56:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 23:56:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 23:56:58 [delist-guard] 已刷新 binance instrument 状态: total=4393 non_trading=2354
+2026/06/18 23:56:59 [delist-guard] 已刷新 okx instrument 状态: total=1635 non_trading=0
+2026/06/18 23:56:59 [delist-guard] 已刷新 gate instrument 状态: total=2813 non_trading=2
+2026/06/18 23:56:59 [delist-guard] 已刷新 bybit instrument 状态: total=1256 non_trading=0
+2026/06/18 23:56:59 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 23:56:59 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 23:56:59 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/18 23:56:59 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 23:56:59 [统一轮动] 已暂停(active=false)
+2026/06/18 23:57:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 23:57:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 23:57:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 23:57:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 23:57:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/18 23:57:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 23:58:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 23:58:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 23:58:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/18 23:58:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 23:58:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 23:58:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 23:58:58 [统一轮动] 已暂停(active=false)
+2026/06/18 23:59:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/18 23:59:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/18 23:59:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/18 23:59:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/18 23:59:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/18 23:59:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/18 23:59:58 [统一轮动] 已暂停(active=false)
+2026/06/19 00:00:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 00:00:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 00:00:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 00:00:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 00:00:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 00:00:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 00:00:58 [统一轮动] 已暂停(active=false)
+2026/06/19 00:01:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 00:01:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 00:01:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 00:01:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 00:01:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 00:01:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 00:02:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 00:02:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 00:02:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 00:02:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 00:02:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 00:02:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 00:02:58 [统一轮动] 已暂停(active=false)
+2026/06/19 00:03:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 00:03:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 00:03:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 00:03:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 00:03:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 00:03:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 00:04:43 [跨所扫描] 完成: venues_ok=4/4 opportunities=30 elapsed=48.504s
+2026/06/19 00:04:43 [跨所扫描] 机会 SOXL-USDT spread=46.7% high=bybit(46.7%) low=binance(0.0%)
+2026/06/19 00:04:43 [跨所扫描] 机会 HOOD-USDT spread=76.6% high=binance(94.9%) low=bybit(18.3%)
+2026/06/19 00:04:43 [跨所扫描] 机会 MAV-USDT spread=120.7% high=binance(10.9%) low=bybit(-109.7%)
+2026/06/19 00:04:43 [跨所扫描] 机会 NBIS-USDT spread=55.9% high=bybit(55.9%) low=binance(0.0%)
+2026/06/19 00:04:43 [跨所扫描] 机会 BMNR-USDT spread=64.4% high=binance(64.4%) low=bybit(0.0%)
+2026/06/19 00:04:43 [跨所扫描] 机会 RLC-USDT spread=47.9% high=binance(6.4%) low=bybit(-41.4%)
+2026/06/19 00:04:43 [跨所扫描] 机会 LLY-USDT spread=35.7% high=binance(35.7%) low=bybit(0.0%)
+2026/06/19 00:04:43 [跨所扫描] 机会 AAOI-USDT spread=107.6% high=binance(143.3%) low=bybit(35.7%)
+2026/06/19 00:04:43 [跨所扫描] 机会 XVS-USDT spread=179.6% high=binance(-26.6%) low=bybit(-206.2%)
+2026/06/19 00:04:43 [跨所扫描] 机会 TSLA-USDT spread=98.8% high=binance(-3.0%) low=bybit(-101.8%)
+2026/06/19 00:04:43 [跨所扫描] 机会 TSM-USDT spread=51.1% high=binance(51.1%) low=bybit(0.0%)
+2026/06/19 00:04:43 [跨所扫描] 机会 BAT-USDT spread=38.6% high=binance(-7.2%) low=bybit(-45.9%)
+2026/06/19 00:04:43 [跨所扫描] 机会 BABA-USDT spread=97.6% high=bybit(139.8%) low=binance(42.2%)
+2026/06/19 00:04:43 [跨所扫描] 机会 CRCL-USDT spread=49.1% high=binance(64.1%) low=bybit(15.1%)
+2026/06/19 00:04:43 [跨所扫描] 机会 INTC-USDT spread=166.8% high=bybit(209.2%) low=okx(42.4%)
+2026/06/19 00:04:43 [跨所扫描] 机会 MU-USDT spread=52.8% high=bybit(63.7%) low=gate(10.9%)
+2026/06/19 00:04:43 [跨所扫描] 机会 ENS-USDT spread=45.3% high=gate(10.9%) low=bybit(-34.4%)
+2026/06/19 00:04:43 [跨所扫描] 机会 GOOGL-USDT spread=39.2% high=bybit(60.3%) low=okx(21.0%)
+2026/06/19 00:04:43 [跨所扫描] 机会 SNX-USDT spread=67.5% high=gate(10.9%) low=bybit(-56.6%)
+2026/06/19 00:04:43 [跨所扫描] 机会 ARPA-USDT spread=92.1% high=gate(10.9%) low=bybit(-81.2%)
+2026/06/19 00:04:43 [跨所扫描] 机会 ROSE-USDT spread=137.4% high=gate(10.9%) low=bybit(-126.5%)
+2026/06/19 00:04:43 [跨所扫描] 机会 SSV-USDT spread=30.2% high=gate(10.9%) low=bybit(-19.3%)
+2026/06/19 00:04:43 [跨所扫描] 机会 CFX-USDT spread=66.5% high=bybit(10.9%) low=gate(-55.5%)
+2026/06/19 00:04:43 [跨所扫描] 机会 WAVES-USDT spread=70.5% high=bybit(9.7%) low=gate(-60.8%)
+2026/06/19 00:04:43 [跨所扫描] 机会 C98-USDT spread=32.5% high=gate(18.5%) low=bybit(-14.0%)
+2026/06/19 00:04:43 [跨所扫描] 机会 WOO-USDT spread=40.6% high=gate(10.9%) low=bybit(-29.7%)
+2026/06/19 00:04:43 [跨所扫描] 机会 NEO-USDT spread=36.9% high=gate(10.9%) low=bybit(-26.0%)
+2026/06/19 00:04:43 [跨所扫描] 机会 1INCH-USDT spread=47.2% high=okx(10.9%) low=bybit(-36.2%)
+2026/06/19 00:04:43 [跨所扫描] 机会 AMAT-USDT spread=144.7% high=gate(10.9%) low=bybit(-133.7%)
+2026/06/19 00:04:43 [跨所扫描] 机会 HIGH-USDT spread=103.7% high=gate(10.9%) low=bybit(-92.8%)
+2026/06/19 00:04:43 [跨所扫描] 价差告警(纯观测) MAV-USDT 年化价差 120.7% 空 binance(10.9%/年,间隔 8h) 多 bybit(-109.7%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/19 00:04:43 [跨所扫描] 价差告警(纯观测) AAOI-USDT 年化价差 107.6% 空 binance(143.3%/年,间隔 8h) 多 bybit(35.7%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/19 00:04:43 [跨所扫描] 价差告警(纯观测) XVS-USDT 年化价差 179.6% 空 binance(-26.6%/年,间隔 8h) 多 bybit(-206.2%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/19 00:04:43 [跨所扫描] 价差告警(纯观测) INTC-USDT 年化价差 166.8% 空 bybit(209.2%/年,间隔 8h) 多 okx(42.4%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/19 00:04:43 [跨所扫描] 价差告警(纯观测) ROSE-USDT 年化价差 137.4% 空 gate(10.9%/年,间隔 8h) 多 bybit(-126.5%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/19 00:04:43 [跨所扫描] 价差告警(纯观测) AMAT-USDT 年化价差 144.7% 空 gate(10.9%/年,间隔 8h) 多 bybit(-133.7%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/19 00:04:43 [跨所扫描] 价差告警(纯观测) HIGH-USDT 年化价差 103.7% 空 gate(10.9%/年,间隔 8h) 多 bybit(-92.8%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/19 00:04:52 [借币探测] NBIS: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/19 00:04:52 [借币探测] FIDA: bybit不可借(缓存)
+2026/06/19 00:04:52 [借币探测] SOXL: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/19 00:04:52 [借币探测] BMNR: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/19 00:04:52 [借币探测] HOOD: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/19 00:04:52 [借币探测] STABLE: binance不可借(缓存) bybit不可借(缓存) okx不可借(缓存)
+2026/06/19 00:04:52 [借币探测] MAV: binance失败 bybit失败 okx失败 gate失败
+2026/06/19 00:04:52 [借币探测] AAOI: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/19 00:04:52 [借币探测] RLC: binance可借(年化40%) bybit失败 okx失败 gate失败
+2026/06/19 00:04:52 [借币探测] LLY: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/19 00:04:52 [借币探测] PHAROS: binance不可借(缓存)
+2026/06/19 00:04:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 00:04:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 00:04:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 00:04:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 00:04:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 00:04:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 00:04:58 [统一轮动] 已暂停(active=false)
+2026/06/19 00:05:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 00:05:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 00:05:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 00:05:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 00:05:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 00:05:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 00:05:58 [统一轮动] 已暂停(active=false)
+2026/06/19 00:06:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 00:06:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 00:06:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 00:06:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 00:06:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 00:06:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 00:06:58 [统一轮动] 已暂停(active=false)
+2026/06/19 00:07:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 00:07:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 00:07:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 00:07:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 00:07:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 00:07:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 00:07:58 [统一轮动] 已暂停(active=false)
+2026/06/19 00:08:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 00:08:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 00:08:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 00:08:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 00:08:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 00:08:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 00:09:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 00:09:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 00:09:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 00:09:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 00:09:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 00:09:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 00:09:58 [统一轮动] 已暂停(active=false)
+2026/06/19 00:10:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 00:10:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 00:10:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 00:10:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 00:10:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 00:10:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 00:10:58 [统一轮动] 已暂停(active=false)
+2026/06/19 00:11:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 00:11:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 00:11:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 00:11:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 00:11:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 00:11:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 00:12:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 00:12:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 00:12:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 00:12:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 00:12:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 00:12:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 00:12:58 [统一轮动] 已暂停(active=false)
+2026/06/19 00:13:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 00:13:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 00:13:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 00:13:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 00:13:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 00:13:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 00:14:43 [跨所扫描] 完成: venues_ok=4/4 opportunities=30 elapsed=48.535s
+2026/06/19 00:14:43 [跨所扫描] 机会 COIN-USDT spread=42.7% high=bybit(42.7%) low=binance(0.0%)
+2026/06/19 00:14:43 [跨所扫描] 机会 NBIS-USDT spread=55.9% high=bybit(55.9%) low=binance(0.0%)
+2026/06/19 00:14:43 [跨所扫描] 机会 SSV-USDT spread=51.4% high=binance(10.9%) low=bybit(-40.4%)
+2026/06/19 00:14:43 [跨所扫描] 机会 AGLD-USDT spread=35.5% high=binance(10.9%) low=bybit(-24.6%)
+2026/06/19 00:14:43 [跨所扫描] 机会 CRCL-USDT spread=72.5% high=binance(57.3%) low=bybit(-15.2%)
+2026/06/19 00:14:43 [跨所扫描] 机会 MAV-USDT spread=117.9% high=binance(10.9%) low=bybit(-107.0%)
+2026/06/19 00:14:43 [跨所扫描] 机会 BMNR-USDT spread=74.7% high=binance(74.7%) low=bybit(0.0%)
+2026/06/19 00:14:43 [跨所扫描] 机会 QQQ-USDT spread=51.7% high=binance(51.7%) low=bybit(0.0%)
+2026/06/19 00:14:43 [跨所扫描] 机会 IOTA-USDT spread=37.6% high=binance(10.9%) low=bybit(-26.7%)
+2026/06/19 00:14:43 [跨所扫描] 机会 1000XEC-USDT spread=65.5% high=binance(10.9%) low=bybit(-54.6%)
+2026/06/19 00:14:43 [跨所扫描] 机会 BAND-USDT spread=175.9% high=binance(10.9%) low=bybit(-164.9%)
+2026/06/19 00:14:43 [跨所扫描] 机会 TSLA-USDT spread=167.0% high=binance(-9.8%) low=bybit(-176.9%)
+2026/06/19 00:14:43 [跨所扫描] 机会 HFT-USDT spread=60.2% high=binance(10.9%) low=bybit(-49.3%)
+2026/06/19 00:14:43 [跨所扫描] 机会 SAMSUNG-USDT spread=119.4% high=bybit(119.4%) low=binance(0.0%)
+2026/06/19 00:14:43 [跨所扫描] 机会 SNX-USDT spread=67.5% high=binance(10.9%) low=bybit(-56.6%)
+2026/06/19 00:14:43 [跨所扫描] 机会 BAT-USDT spread=56.6% high=binance(-7.0%) low=bybit(-63.6%)
+2026/06/19 00:14:43 [跨所扫描] 机会 ARM-USDT spread=52.8% high=binance(31.0%) low=bybit(-21.8%)
+2026/06/19 00:14:43 [跨所扫描] 机会 BABA-USDT spread=127.5% high=bybit(173.4%) low=binance(45.8%)
+2026/06/19 00:14:43 [跨所扫描] 机会 WOO-USDT spread=50.9% high=binance(10.9%) low=bybit(-39.9%)
+2026/06/19 00:14:43 [跨所扫描] 机会 1000LUNC-USDT spread=52.1% high=binance(-9.7%) low=bybit(-61.7%)
+2026/06/19 00:14:43 [跨所扫描] 机会 RKLB-USDT spread=55.1% high=binance(25.6%) low=bybit(-29.5%)
+2026/06/19 00:14:43 [跨所扫描] 机会 QCOM-USDT spread=170.6% high=bybit(199.7%) low=gate(29.2%)
+2026/06/19 00:14:43 [跨所扫描] 机会 UNI-USDT spread=37.4% high=gate(10.9%) low=bybit(-26.5%)
+2026/06/19 00:14:43 [跨所扫描] 机会 CELO-USDT spread=66.0% high=gate(10.9%) low=bybit(-55.0%)
+2026/06/19 00:14:43 [跨所扫描] 机会 IOTX-USDT spread=44.6% high=gate(10.9%) low=bybit(-33.6%)
+2026/06/19 00:14:43 [跨所扫描] 机会 MU-USDT spread=42.6% high=bybit(53.6%) low=gate(10.9%)
+2026/06/19 00:14:43 [跨所扫描] 机会 HNT-USDT spread=35.0% high=gate(10.9%) low=bybit(-24.1%)
+2026/06/19 00:14:43 [跨所扫描] 机会 PENDLE-USDT spread=35.5% high=okx(10.9%) low=bybit(-24.5%)
+2026/06/19 00:14:43 [跨所扫描] 机会 COHR-USDT spread=176.7% high=bybit(177.5%) low=okx(0.8%)
+2026/06/19 00:14:43 [跨所扫描] 机会 LRC-USDT spread=92.3% high=okx(10.9%) low=bybit(-81.4%)
+2026/06/19 00:14:43 [跨所扫描] 价差告警(纯观测) BAND-USDT 年化价差 175.9% 空 binance(10.9%/年,间隔 8h) 多 bybit(-164.9%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/19 00:14:43 [跨所扫描] 价差告警(纯观测) TSLA-USDT 年化价差 167.0% 空 binance(-9.8%/年,间隔 8h) 多 bybit(-176.9%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/19 00:14:43 [跨所扫描] 价差告警(纯观测) SAMSUNG-USDT 年化价差 119.4% 空 bybit(119.4%/年,间隔 8h) 多 binance(0.0%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/19 00:14:43 [跨所扫描] 价差告警(纯观测) BABA-USDT 年化价差 127.5% 空 bybit(173.4%/年,间隔 8h) 多 binance(45.8%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/19 00:14:43 [跨所扫描] 价差告警(纯观测) QCOM-USDT 年化价差 170.6% 空 bybit(199.7%/年,间隔 8h) 多 gate(29.2%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/19 00:14:54 [借币探测] COIN: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/19 00:14:54 [借币探测] AGLD: binance失败 bybit可借(年化15%) okx可借(年化22%) gate失败
+2026/06/19 00:14:54 [借币探测] SSV: binance可借(年化16%) bybit可借(年化15%) okx可借(年化18%) gate失败
+2026/06/19 00:14:54 [借币探测] QQQ: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/19 00:14:54 [借币探测] NBIS: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/19 00:14:54 [借币探测] MAV: binance失败 bybit失败 okx失败 gate失败
+2026/06/19 00:14:54 [借币探测] IOTA: binance可借(年化12%) bybit失败
+2026/06/19 00:14:54 [借币探测] BMNR: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/19 00:14:54 [借币探测] CRCL: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/19 00:14:54 [借币探测] SOXL: binance不可借(缓存) okx不可借(缓存)
+2026/06/19 00:14:54 [借币探测] RLC: binance可借(缓存,年化40%)
+2026/06/19 00:14:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 00:14:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 00:14:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 00:14:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 00:14:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 00:14:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 00:14:58 [统一轮动] 已暂停(active=false)
+2026/06/19 00:15:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 00:15:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 00:15:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 00:15:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 00:15:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 00:15:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 00:16:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 00:16:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 00:16:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 00:16:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 00:16:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 00:16:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 00:16:58 [统一轮动] 已暂停(active=false)
+2026/06/19 00:17:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 00:17:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 00:17:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 00:17:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 00:17:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 00:17:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 00:17:58 [统一轮动] 已暂停(active=false)
+2026/06/19 00:18:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 00:18:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 00:18:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 00:18:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 00:18:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 00:18:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 00:19:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 00:19:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 00:19:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 00:19:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 00:19:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 00:19:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 00:19:58 [统一轮动] 已暂停(active=false)
+2026/06/19 00:20:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 00:20:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 00:20:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 00:20:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 00:20:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 00:20:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 00:20:58 [统一轮动] 已暂停(active=false)
+2026/06/19 00:21:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 00:21:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 00:21:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 00:21:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 00:21:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 00:21:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 00:21:58 [统一轮动] 已暂停(active=false)
+2026/06/19 00:22:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 00:22:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 00:22:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 00:22:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 00:22:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 00:22:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 00:23:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 00:23:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 00:23:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 00:23:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 00:23:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 00:23:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 00:23:58 [统一轮动] 已暂停(active=false)
+2026/06/19 00:24:43 [跨所扫描] 完成: venues_ok=4/4 opportunities=30 elapsed=48.49s
+2026/06/19 00:24:43 [跨所扫描] 机会 TSLA-USDT spread=86.7% high=binance(-17.3%) low=bybit(-104.0%)
+2026/06/19 00:24:43 [跨所扫描] 机会 HOOD-USDT spread=72.4% high=binance(93.1%) low=bybit(20.7%)
+2026/06/19 00:24:43 [跨所扫描] 机会 SAMSUNG-USDT spread=120.4% high=bybit(120.4%) low=binance(0.0%)
+2026/06/19 00:24:43 [跨所扫描] 机会 ARM-USDT spread=57.8% high=binance(19.4%) low=bybit(-38.4%)
+2026/06/19 00:24:43 [跨所扫描] 机会 RKLB-USDT spread=112.0% high=binance(11.3%) low=bybit(-100.7%)
+2026/06/19 00:24:43 [跨所扫描] 机会 CRCL-USDT spread=63.4% high=binance(47.8%) low=bybit(-15.6%)
+2026/06/19 00:24:43 [跨所扫描] 机会 1000XEC-USDT spread=131.4% high=binance(10.9%) low=bybit(-120.5%)
+2026/06/19 00:24:43 [跨所扫描] 机会 MU-USDT spread=47.2% high=binance(46.4%) low=bybit(-0.8%)
+2026/06/19 00:24:43 [跨所扫描] 机会 XVS-USDT spread=148.3% high=binance(-36.9%) low=bybit(-185.2%)
+2026/06/19 00:24:43 [跨所扫描] 机会 BMNR-USDT spread=81.6% high=binance(81.6%) low=bybit(0.0%)
+2026/06/19 00:24:43 [跨所扫描] 机会 AAOI-USDT spread=107.7% high=gate(175.9%) low=bybit(68.2%)
+2026/06/19 00:24:43 [跨所扫描] 机会 QCOM-USDT spread=95.7% high=bybit(106.6%) low=gate(10.9%)
+2026/06/19 00:24:43 [跨所扫描] 机会 BAND-USDT spread=179.5% high=gate(10.9%) low=bybit(-168.5%)
+2026/06/19 00:24:43 [跨所扫描] 机会 ROSE-USDT spread=190.2% high=gate(10.9%) low=bybit(-179.3%)
+2026/06/19 00:24:43 [跨所扫描] 机会 EWJ-USDT spread=79.0% high=okx(38.5%) low=bybit(-40.5%)
+2026/06/19 00:24:43 [跨所扫描] 机会 CRO-USDT spread=60.9% high=bybit(10.9%) low=gate(-50.0%)
+2026/06/19 00:24:43 [跨所扫描] 机会 AVGO-USDT spread=58.2% high=gate(10.9%) low=bybit(-47.2%)
+2026/06/19 00:24:43 [跨所扫描] 机会 COHR-USDT spread=132.7% high=bybit(133.5%) low=okx(0.8%)
+2026/06/19 00:24:43 [跨所扫描] 机会 IWM-USDT spread=173.5% high=okx(0.0%) low=bybit(-173.5%)
+2026/06/19 00:24:43 [跨所扫描] 机会 INTC-USDT spread=106.0% high=okx(34.4%) low=bybit(-71.7%)
+2026/06/19 00:24:43 [跨所扫描] 机会 C98-USDT spread=49.8% high=gate(10.9%) low=bybit(-38.8%)
+2026/06/19 00:24:43 [跨所扫描] 机会 TSM-USDT spread=117.2% high=bybit(128.1%) low=gate(10.9%)
+2026/06/19 00:24:43 [跨所扫描] 机会 ICX-USDT spread=40.3% high=okx(10.9%) low=bybit(-29.4%)
+2026/06/19 00:24:43 [跨所扫描] 机会 ADA-USDT spread=34.1% high=okx(10.9%) low=bybit(-23.2%)
+2026/06/19 00:24:43 [跨所扫描] 机会 ARPA-USDT spread=61.1% high=gate(10.9%) low=bybit(-50.1%)
+2026/06/19 00:24:43 [跨所扫描] 机会 RLC-USDT spread=101.8% high=gate(10.9%) low=bybit(-90.9%)
+2026/06/19 00:24:43 [跨所扫描] 机会 GALA-USDT spread=30.4% high=okx(10.9%) low=bybit(-19.5%)
+2026/06/19 00:24:43 [跨所扫描] 机会 ASTS-USDT spread=179.5% high=gate(3.6%) low=bybit(-176.0%)
+2026/06/19 00:24:43 [跨所扫描] 机会 LRC-USDT spread=140.7% high=okx(10.9%) low=bybit(-129.7%)
+2026/06/19 00:24:43 [跨所扫描] 机会 PENDLE-USDT spread=45.9% high=okx(10.9%) low=bybit(-35.0%)
+2026/06/19 00:24:43 [跨所扫描] 价差告警(纯观测) RKLB-USDT 年化价差 112.0% 空 binance(11.3%/年,间隔 8h) 多 bybit(-100.7%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/19 00:24:43 [跨所扫描] 价差告警(纯观测) 1000XEC-USDT 年化价差 131.4% 空 binance(10.9%/年,间隔 8h) 多 bybit(-120.5%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/19 00:24:43 [跨所扫描] 价差告警(纯观测) AAOI-USDT 年化价差 107.7% 空 gate(175.9%/年,间隔 8h) 多 bybit(68.2%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/19 00:24:43 [跨所扫描] 价差告警(纯观测) BAND-USDT 年化价差 179.5% 空 gate(10.9%/年,间隔 8h) 多 bybit(-168.5%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/19 00:24:43 [跨所扫描] 价差告警(纯观测) IWM-USDT 年化价差 173.5% 空 okx(0.0%/年,间隔 8h) 多 bybit(-173.5%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/19 00:24:43 [跨所扫描] 价差告警(纯观测) INTC-USDT 年化价差 106.0% 空 okx(34.4%/年,间隔 8h) 多 bybit(-71.7%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/19 00:24:43 [跨所扫描] 价差告警(纯观测) TSM-USDT 年化价差 117.2% 空 bybit(128.1%/年,间隔 8h) 多 gate(10.9%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/19 00:24:43 [跨所扫描] 价差告警(纯观测) RLC-USDT 年化价差 101.8% 空 gate(10.9%/年,间隔 8h) 多 bybit(-90.9%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/19 00:24:43 [跨所扫描] 价差告警(纯观测) ASTS-USDT 年化价差 179.5% 空 gate(3.6%/年,间隔 8h) 多 bybit(-176.0%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/19 00:24:43 [跨所扫描] 价差告警(纯观测) LRC-USDT 年化价差 140.7% 空 okx(10.9%/年,间隔 4h) 多 bybit(-129.7%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/19 00:24:52 [借币探测] 1000XEC: binance不可借 bybit失败 okx失败 gate失败
+2026/06/19 00:24:52 [借币探测] BMNR: binance不可借(缓存) okx不可借(缓存)
+2026/06/19 00:24:52 [借币探测] MU: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/19 00:24:52 [借币探测] SAMSUNG: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/19 00:24:52 [借币探测] ARM: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/19 00:24:52 [借币探测] CRCL: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/19 00:24:52 [借币探测] TSLA: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/19 00:24:52 [借币探测] SOXL: binance不可借(缓存) okx不可借(缓存)
+2026/06/19 00:24:52 [借币探测] RKLB: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/19 00:24:52 [借币探测] HOOD: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/19 00:24:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 00:24:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 00:24:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 00:24:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 00:24:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 00:24:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 00:25:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 00:25:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 00:25:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 00:25:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 00:25:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 00:25:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 00:25:58 [统一轮动] 已暂停(active=false)
+2026/06/19 00:26:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 00:26:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 00:26:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 00:26:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 00:26:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 00:26:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 00:27:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 00:27:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 00:27:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 00:27:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 00:27:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 00:27:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 00:27:58 [统一轮动] 已暂停(active=false)
+2026/06/19 00:28:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 00:28:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 00:28:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 00:28:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 00:28:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 00:28:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 00:28:58 [统一轮动] 已暂停(active=false)
+2026/06/19 00:29:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 00:29:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 00:29:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 00:29:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 00:29:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 00:29:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 00:30:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 00:30:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 00:30:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 00:30:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 00:30:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 00:30:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 00:30:58 [统一轮动] 已暂停(active=false)
+2026/06/19 00:31:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 00:31:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 00:31:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 00:31:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 00:31:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 00:31:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 00:32:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 00:32:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 00:32:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 00:32:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 00:32:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 00:32:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 00:32:58 [统一轮动] 已暂停(active=false)
+2026/06/19 00:33:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 00:33:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 00:33:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 00:33:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 00:33:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 00:33:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 00:34:43 [跨所扫描] 完成: venues_ok=4/4 opportunities=30 elapsed=48.499s
+2026/06/19 00:34:43 [跨所扫描] 机会 COIN-USDT spread=74.3% high=bybit(74.3%) low=binance(0.0%)
+2026/06/19 00:34:43 [跨所扫描] 机会 HOOD-USDT spread=84.6% high=binance(84.6%) low=bybit(0.0%)
+2026/06/19 00:34:43 [跨所扫描] 机会 BMNR-USDT spread=88.0% high=binance(88.0%) low=bybit(0.0%)
+2026/06/19 00:34:43 [跨所扫描] 机会 MU-USDT spread=42.3% high=binance(41.5%) low=bybit(-0.8%)
+2026/06/19 00:34:43 [跨所扫描] 机会 QQQ-USDT spread=40.0% high=binance(40.0%) low=bybit(0.0%)
+2026/06/19 00:34:43 [跨所扫描] 机会 MRVL-USDT spread=72.2% high=binance(63.5%) low=bybit(-8.8%)
+2026/06/19 00:34:43 [跨所扫描] 机会 BAND-USDT spread=99.3% high=binance(10.9%) low=bybit(-88.3%)
+2026/06/19 00:34:43 [跨所扫描] 机会 AAOI-USDT spread=125.8% high=binance(192.0%) low=bybit(66.2%)
+2026/06/19 00:34:43 [跨所扫描] 机会 KNC-USDT spread=34.8% high=bybit(10.9%) low=binance(-23.9%)
+2026/06/19 00:34:43 [跨所扫描] 机会 XVS-USDT spread=55.4% high=binance(-38.2%) low=bybit(-93.6%)
+2026/06/19 00:34:43 [跨所扫描] 机会 QNTX-USDT spread=70.9% high=bybit(70.9%) low=binance(0.0%)
+2026/06/19 00:34:43 [跨所扫描] 机会 1000XEC-USDT spread=103.5% high=binance(10.9%) low=bybit(-92.6%)
+2026/06/19 00:34:43 [跨所扫描] 机会 ROSE-USDT spread=169.3% high=binance(10.9%) low=bybit(-158.4%)
+2026/06/19 00:34:43 [跨所扫描] 机会 SAMSUNG-USDT spread=123.4% high=bybit(129.2%) low=binance(5.8%)
+2026/06/19 00:34:43 [跨所扫描] 机会 LLY-USDT spread=31.3% high=binance(31.3%) low=bybit(0.0%)
+2026/06/19 00:34:43 [跨所扫描] 机会 CORE-USDT spread=32.4% high=bybit(10.9%) low=okx(-21.4%)
+2026/06/19 00:34:43 [跨所扫描] 机会 CFX-USDT spread=40.6% high=bybit(10.9%) low=gate(-29.7%)
+2026/06/19 00:34:43 [跨所扫描] 机会 LRC-USDT spread=131.2% high=okx(10.9%) low=bybit(-120.3%)
+2026/06/19 00:34:43 [跨所扫描] 机会 QCOM-USDT spread=107.3% high=bybit(118.2%) low=gate(10.9%)
+2026/06/19 00:34:43 [跨所扫描] 机会 DYDX-USDT spread=35.1% high=okx(10.9%) low=bybit(-24.2%)
+2026/06/19 00:34:43 [跨所扫描] 机会 1INCH-USDT spread=44.8% high=okx(10.9%) low=bybit(-33.9%)
+2026/06/19 00:34:43 [跨所扫描] 机会 EGLD-USDT spread=38.7% high=gate(8.5%) low=bybit(-30.2%)
+2026/06/19 00:34:43 [跨所扫描] 机会 INTC-USDT spread=127.3% high=okx(25.2%) low=bybit(-102.0%)
+2026/06/19 00:34:43 [跨所扫描] 机会 HIGH-USDT spread=109.2% high=gate(10.7%) low=bybit(-98.5%)
+2026/06/19 00:34:43 [跨所扫描] 机会 CRO-USDT spread=51.7% high=bybit(10.9%) low=gate(-40.8%)
+2026/06/19 00:34:43 [跨所扫描] 机会 COHR-USDT spread=108.3% high=bybit(108.3%) low=okx(0.0%)
+2026/06/19 00:34:43 [跨所扫描] 机会 MSFT-USDT spread=56.9% high=bybit(67.8%) low=gate(10.9%)
+2026/06/19 00:34:43 [跨所扫描] 机会 EWJ-USDT spread=168.4% high=okx(24.3%) low=bybit(-144.0%)
+2026/06/19 00:34:43 [跨所扫描] 机会 RKLB-USDT spread=146.5% high=gate(10.9%) low=bybit(-135.5%)
+2026/06/19 00:34:43 [跨所扫描] 机会 TSM-USDT spread=128.2% high=bybit(139.2%) low=gate(10.9%)
+2026/06/19 00:34:43 [跨所扫描] 价差告警(纯观测) ROSE-USDT 年化价差 169.3% 空 binance(10.9%/年,间隔 8h) 多 bybit(-158.4%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/19 00:34:43 [跨所扫描] 价差告警(纯观测) EWJ-USDT 年化价差 168.4% 空 okx(24.3%/年,间隔 8h) 多 bybit(-144.0%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/19 00:34:43 [跨所扫描] 价差告警(纯观测) RKLB-USDT 年化价差 146.5% 空 gate(10.9%/年,间隔 8h) 多 bybit(-135.5%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/19 00:34:53 [借币探测] COIN: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/19 00:34:53 [借币探测] RKLB: binance不可借(缓存) okx不可借(缓存)
+2026/06/19 00:34:53 [借币探测] MRVL: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/19 00:34:53 [借币探测] 1000XEC: binance不可借(缓存)
+2026/06/19 00:34:53 [借币探测] AAOI: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/19 00:34:53 [借币探测] QQQ: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/19 00:34:53 [借币探测] XVS: binance失败 bybit失败
+2026/06/19 00:34:53 [借币探测] ARM: binance不可借(缓存) okx不可借(缓存)
+2026/06/19 00:34:53 [借币探测] BAND: binance可借(年化31%) bybit失败 okx不可借 gate失败
+2026/06/19 00:34:53 [借币探测] KNC: binance可借(年化77%) bybit失败 okx不可借 gate失败
+2026/06/19 00:34:53 [借币探测] BMNR: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/19 00:34:53 [借币探测] HOOD: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/19 00:34:53 [借币探测] MU: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/19 00:34:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 00:34:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 00:34:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 00:34:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 00:34:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 00:34:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 00:34:58 [统一轮动] 已暂停(active=false)
+2026/06/19 00:35:16 http: superfluous response.WriteHeader call from lingxi/internal/app.(*DashboardServer).handleIndex (dashboard_server.go:271)
+2026/06/19 00:35:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 00:35:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 00:35:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 00:35:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 00:35:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 00:35:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 00:36:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 00:36:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 00:36:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 00:36:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 00:36:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 00:36:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 00:36:58 [统一轮动] 已暂停(active=false)
+2026/06/19 00:37:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 00:37:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 00:37:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 00:37:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 00:37:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 00:37:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 00:37:58 [统一轮动] 已暂停(active=false)
+2026/06/19 00:38:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 00:38:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 00:38:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 00:38:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 00:38:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 00:38:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 00:38:58 [统一轮动] 已暂停(active=false)
+2026/06/19 00:39:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 00:39:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 00:39:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 00:39:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 00:39:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 00:39:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 00:40:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 00:40:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 00:40:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 00:40:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 00:40:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 00:40:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 00:40:58 [统一轮动] 已暂停(active=false)
+2026/06/19 00:41:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 00:41:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 00:41:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 00:41:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 00:41:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 00:41:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 00:41:58 [统一轮动] 已暂停(active=false)
+2026/06/19 00:42:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 00:42:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 00:42:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 00:42:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 00:42:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 00:42:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 00:43:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 00:43:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 00:43:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 00:43:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 00:43:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 00:43:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 00:43:58 [统一轮动] 已暂停(active=false)
+2026/06/19 00:44:43 [跨所扫描] 完成: venues_ok=4/4 opportunities=30 elapsed=48.5s
+2026/06/19 00:44:43 [跨所扫描] 机会 KNC-USDT spread=36.3% high=bybit(10.9%) low=binance(-25.3%)
+2026/06/19 00:44:43 [跨所扫描] 机会 MRVL-USDT spread=63.4% high=binance(63.4%) low=bybit(0.0%)
+2026/06/19 00:44:43 [跨所扫描] 机会 MU-USDT spread=41.9% high=binance(41.9%) low=bybit(0.0%)
+2026/06/19 00:44:43 [跨所扫描] 机会 AAOI-USDT spread=153.5% high=binance(201.2%) low=bybit(47.7%)
+2026/06/19 00:44:43 [跨所扫描] 机会 QNTX-USDT spread=145.6% high=bybit(145.6%) low=binance(0.0%)
+2026/06/19 00:44:43 [跨所扫描] 机会 HOOD-USDT spread=72.7% high=binance(72.7%) low=bybit(0.0%)
+2026/06/19 00:44:43 [跨所扫描] 机会 QQQ-USDT spread=35.2% high=binance(35.2%) low=bybit(0.0%)
+2026/06/19 00:44:43 [跨所扫描] 机会 BABA-USDT spread=40.1% high=binance(40.1%) low=bybit(0.0%)
+2026/06/19 00:44:43 [跨所扫描] 机会 BMNR-USDT spread=87.6% high=binance(97.1%) low=bybit(9.4%)
+2026/06/19 00:44:43 [跨所扫描] 机会 1000XEC-USDT spread=63.4% high=binance(10.9%) low=bybit(-52.4%)
+2026/06/19 00:44:43 [跨所扫描] 机会 SAMSUNG-USDT spread=110.4% high=bybit(131.9%) low=binance(21.4%)
+2026/06/19 00:44:43 [跨所扫描] 机会 ROSE-USDT spread=157.4% high=gate(10.9%) low=bybit(-146.5%)
+2026/06/19 00:44:43 [跨所扫描] 机会 TLM-USDT spread=43.3% high=bybit(54.2%) low=gate(10.9%)
+2026/06/19 00:44:43 [跨所扫描] 机会 COIN-USDT spread=113.1% high=bybit(113.1%) low=okx(0.0%)
+2026/06/19 00:44:43 [跨所扫描] 机会 COHR-USDT spread=78.4% high=bybit(78.4%) low=okx(0.0%)
+2026/06/19 00:44:43 [跨所扫描] 机会 EWJ-USDT spread=142.9% high=okx(16.6%) low=bybit(-126.3%)
+2026/06/19 00:44:43 [跨所扫描] 机会 LITE-USDT spread=33.4% high=gate(33.4%) low=bybit(0.0%)
+2026/06/19 00:44:43 [跨所扫描] 机会 NEO-USDT spread=30.9% high=okx(10.9%) low=bybit(-20.0%)
+2026/06/19 00:44:43 [跨所扫描] 机会 HIGH-USDT spread=163.7% high=gate(10.7%) low=bybit(-153.0%)
+2026/06/19 00:44:43 [跨所扫描] 机会 DYDX-USDT spread=31.6% high=okx(10.9%) low=bybit(-20.6%)
+2026/06/19 00:44:43 [跨所扫描] 机会 EWT-USDT spread=34.9% high=okx(34.9%) low=bybit(0.0%)
+2026/06/19 00:44:43 [跨所扫描] 机会 YFI-USDT spread=34.9% high=gate(10.9%) low=bybit(-24.0%)
+2026/06/19 00:44:43 [跨所扫描] 机会 CFX-USDT spread=46.7% high=bybit(10.9%) low=gate(-35.8%)
+2026/06/19 00:44:43 [跨所扫描] 机会 RKLB-USDT spread=111.1% high=gate(10.9%) low=bybit(-100.2%)
+2026/06/19 00:44:43 [跨所扫描] 机会 AVGO-USDT spread=32.5% high=gate(10.9%) low=bybit(-21.6%)
+2026/06/19 00:44:43 [跨所扫描] 机会 INTC-USDT spread=106.7% high=okx(18.0%) low=bybit(-88.7%)
+2026/06/19 00:44:43 [跨所扫描] 机会 TSM-USDT spread=152.7% high=bybit(163.6%) low=gate(10.9%)
+2026/06/19 00:44:43 [跨所扫描] 机会 CRCL-USDT spread=37.0% high=bybit(65.4%) low=okx(28.3%)
+2026/06/19 00:44:43 [跨所扫描] 机会 RLC-USDT spread=37.6% high=gate(10.9%) low=bybit(-26.6%)
+2026/06/19 00:44:43 [跨所扫描] 机会 AMAT-USDT spread=99.9% high=gate(10.9%) low=bybit(-88.9%)
+2026/06/19 00:44:43 [跨所扫描] 价差告警(纯观测) QNTX-USDT 年化价差 145.6% 空 bybit(145.6%/年,间隔 8h) 多 binance(0.0%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/19 00:44:43 [跨所扫描] 价差告警(纯观测) COIN-USDT 年化价差 113.1% 空 bybit(113.1%/年,间隔 8h) 多 okx(0.0%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/19 00:44:53 [借币探测] MU: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/19 00:44:53 [借币探测] QNTX: binance不可借 bybit失败 okx失败 gate失败
+2026/06/19 00:44:53 [借币探测] KNC: binance可借(缓存,年化77%) bybit失败 okx不可借(缓存) gate失败
+2026/06/19 00:44:53 [借币探测] MRVL: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/19 00:44:53 [借币探测] QQQ: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/19 00:44:53 [借币探测] HOOD: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/19 00:44:53 [借币探测] BMNR: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/19 00:44:53 [借币探测] 1000XEC: binance不可借 bybit失败
+2026/06/19 00:44:53 [借币探测] AAOI: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/19 00:44:53 [借币探测] BABA: binance不可借 bybit失败 okx失败 gate失败
+2026/06/19 00:44:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 00:44:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 00:44:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 00:44:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 00:44:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 00:44:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 00:44:58 [统一轮动] 已暂停(active=false)
+2026/06/19 00:45:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 00:45:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 00:45:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 00:45:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 00:45:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 00:45:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 00:45:58 [统一轮动] 已暂停(active=false)
+2026/06/19 00:46:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 00:46:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 00:46:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 00:46:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 00:46:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 00:46:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 00:46:58 [统一轮动] 已暂停(active=false)
+2026/06/19 00:47:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 00:47:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 00:47:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 00:47:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 00:47:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 00:47:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 00:48:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 00:48:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 00:48:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 00:48:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 00:48:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 00:48:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 00:48:58 [统一轮动] 已暂停(active=false)
+2026/06/19 00:49:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 00:49:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 00:49:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 00:49:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 00:49:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 00:49:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 00:49:58 [统一轮动] 已暂停(active=false)
+2026/06/19 00:50:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 00:50:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 00:50:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 00:50:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 00:50:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 00:50:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 00:51:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 00:51:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 00:51:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 00:51:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 00:51:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 00:51:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 00:51:58 [统一轮动] 已暂停(active=false)
+2026/06/19 00:52:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 00:52:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 00:52:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 00:52:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 00:52:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 00:52:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 00:52:58 [统一轮动] 已暂停(active=false)
+2026/06/19 00:53:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 00:53:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 00:53:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 00:53:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 00:53:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 00:53:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 00:54:43 [跨所扫描] 完成: venues_ok=4/4 opportunities=30 elapsed=48.498s
+2026/06/19 00:54:43 [跨所扫描] 机会 1000XEC-USDT spread=41.7% high=binance(10.9%) low=bybit(-30.8%)
+2026/06/19 00:54:43 [跨所扫描] 机会 HOOD-USDT spread=61.1% high=binance(61.1%) low=bybit(0.0%)
+2026/06/19 00:54:43 [跨所扫描] 机会 MRVL-USDT spread=54.6% high=binance(63.3%) low=bybit(8.6%)
+2026/06/19 00:54:43 [跨所扫描] 机会 QQQ-USDT spread=30.7% high=binance(30.7%) low=bybit(0.0%)
+2026/06/19 00:54:43 [跨所扫描] 机会 NBIS-USDT spread=54.2% high=bybit(54.2%) low=binance(0.0%)
+2026/06/19 00:54:43 [跨所扫描] 机会 QNTX-USDT spread=146.1% high=bybit(146.1%) low=binance(0.0%)
+2026/06/19 00:54:43 [跨所扫描] 机会 MU-USDT spread=37.5% high=binance(37.5%) low=bybit(0.0%)
+2026/06/19 00:54:43 [跨所扫描] 机会 AAOI-USDT spread=175.3% high=binance(204.6%) low=bybit(29.3%)
+2026/06/19 00:54:43 [跨所扫描] 机会 COIN-USDT spread=140.6% high=bybit(140.6%) low=binance(0.0%)
+2026/06/19 00:54:43 [跨所扫描] 机会 BABA-USDT spread=34.1% high=binance(34.1%) low=bybit(0.0%)
+2026/06/19 00:54:43 [跨所扫描] 机会 CBRS-USDT spread=35.3% high=binance(35.3%) low=bybit(0.0%)
+2026/06/19 00:54:43 [跨所扫描] 机会 HIGH-USDT spread=71.9% high=gate(10.9%) low=bybit(-60.9%)
+2026/06/19 00:54:43 [跨所扫描] 机会 EWY-USDT spread=138.9% high=gate(10.9%) low=bybit(-128.0%)
+2026/06/19 00:54:43 [跨所扫描] 机会 INTC-USDT spread=61.7% high=okx(16.2%) low=bybit(-45.5%)
+2026/06/19 00:54:43 [跨所扫描] 机会 SPCX-USDT spread=61.9% high=bybit(61.9%) low=okx(0.0%)
+2026/06/19 00:54:43 [跨所扫描] 机会 RKLB-USDT spread=53.0% high=gate(10.9%) low=bybit(-42.1%)
+2026/06/19 00:54:43 [跨所扫描] 机会 EGLD-USDT spread=51.2% high=gate(10.9%) low=bybit(-40.3%)
+2026/06/19 00:54:43 [跨所扫描] 机会 CRO-USDT spread=43.7% high=bybit(10.9%) low=gate(-32.7%)
+2026/06/19 00:54:43 [跨所扫描] 机会 SOXL-USDT spread=187.1% high=okx(0.0%) low=bybit(-187.1%)
+2026/06/19 00:54:43 [跨所扫描] 机会 LRC-USDT spread=98.9% high=gate(10.9%) low=bybit(-88.0%)
+2026/06/19 00:54:43 [跨所扫描] 机会 SKL-USDT spread=79.6% high=bybit(90.5%) low=gate(10.9%)
+2026/06/19 00:54:43 [跨所扫描] 机会 1INCH-USDT spread=60.1% high=okx(10.9%) low=bybit(-49.1%)
+2026/06/19 00:54:43 [跨所扫描] 机会 CRCL-USDT spread=62.9% high=bybit(95.9%) low=okx(33.0%)
+2026/06/19 00:54:43 [跨所扫描] 机会 CFX-USDT spread=68.1% high=bybit(10.9%) low=gate(-57.2%)
+2026/06/19 00:54:43 [跨所扫描] 机会 BE-USDT spread=44.3% high=bybit(57.6%) low=gate(13.3%)
+2026/06/19 00:54:43 [跨所扫描] 机会 QCOM-USDT spread=95.4% high=bybit(106.4%) low=gate(10.9%)
+2026/06/19 00:54:43 [跨所扫描] 机会 EWT-USDT spread=33.0% high=okx(33.0%) low=bybit(0.0%)
+2026/06/19 00:54:43 [跨所扫描] 机会 BNT-USDT spread=31.7% high=gate(10.9%) low=bybit(-20.8%)
+2026/06/19 00:54:43 [跨所扫描] 机会 NEO-USDT spread=39.1% high=gate(10.9%) low=bybit(-28.2%)
+2026/06/19 00:54:43 [跨所扫描] 机会 HFT-USDT spread=124.9% high=gate(10.9%) low=bybit(-113.9%)
+2026/06/19 00:54:43 [跨所扫描] 价差告警(纯观测) COIN-USDT 年化价差 140.6% 空 bybit(140.6%/年,间隔 8h) 多 binance(0.0%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/19 00:54:43 [跨所扫描] 价差告警(纯观测) EWY-USDT 年化价差 138.9% 空 gate(10.9%/年,间隔 8h) 多 bybit(-128.0%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/19 00:54:43 [跨所扫描] 价差告警(纯观测) SOXL-USDT 年化价差 187.1% 空 okx(0.0%/年,间隔 8h) 多 bybit(-187.1%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/19 00:54:43 [跨所扫描] 价差告警(纯观测) HFT-USDT 年化价差 124.9% 空 gate(10.9%/年,间隔 8h) 多 bybit(-113.9%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/19 00:54:52 [借币探测] 1000XEC: binance不可借(缓存) bybit失败 okx失败 gate失败
+2026/06/19 00:54:52 [借币探测] QQQ: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/19 00:54:52 [借币探测] NBIS: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/19 00:54:52 [借币探测] QNTX: binance不可借(缓存) bybit失败 okx失败 gate失败
+2026/06/19 00:54:52 [借币探测] MU: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/19 00:54:52 [借币探测] TRUST: binance不可借 bybit失败 okx不可借
+2026/06/19 00:54:52 [借币探测] HOOD: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/19 00:54:52 [借币探测] COIN: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/19 00:54:52 [借币探测] BABA: binance不可借(缓存) bybit失败 okx失败 gate失败
+2026/06/19 00:54:52 [借币探测] MRVL: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/19 00:54:52 [借币探测] AAOI: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/19 00:54:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 00:54:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 00:54:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 00:54:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 00:54:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 00:54:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 00:54:58 [统一轮动] 已暂停(active=false)
+2026/06/19 00:55:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 00:55:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 00:55:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 00:55:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 00:55:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 00:55:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 00:56:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 00:56:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 00:56:58 [delist-guard] 已刷新 binance instrument 状态: total=4393 non_trading=2354
+2026/06/19 00:56:59 [delist-guard] 已刷新 okx instrument 状态: total=1635 non_trading=0
+2026/06/19 00:56:59 [delist-guard] 已刷新 gate instrument 状态: total=2813 non_trading=2
+2026/06/19 00:56:59 [delist-guard] 已刷新 bybit instrument 状态: total=1256 non_trading=0
+2026/06/19 00:56:59 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 00:56:59 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 00:56:59 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 00:56:59 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 00:56:59 [统一轮动] 已暂停(active=false)
+2026/06/19 00:57:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 00:57:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 00:57:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 00:57:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 00:57:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 00:57:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 00:58:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 00:58:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 00:58:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 00:58:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 00:58:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 00:58:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 00:58:58 [统一轮动] 已暂停(active=false)
+2026/06/19 00:59:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 00:59:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 00:59:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 00:59:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 00:59:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 00:59:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 00:59:58 [统一轮动] 已暂停(active=false)
+2026/06/19 01:00:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 01:00:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 01:00:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 01:00:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 01:00:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 01:00:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 01:01:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 01:01:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 01:01:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 01:01:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 01:01:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 01:01:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 01:01:58 [统一轮动] 已暂停(active=false)
+2026/06/19 01:02:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 01:02:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 01:02:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 01:02:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 01:02:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 01:02:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 01:03:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 01:03:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 01:03:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 01:03:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 01:03:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 01:03:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 01:03:58 [统一轮动] 已暂停(active=false)
+2026/06/19 01:04:43 [跨所扫描] 完成: venues_ok=4/4 opportunities=30 elapsed=48.488s
+2026/06/19 01:04:43 [跨所扫描] 机会 CBRS-USDT spread=41.6% high=binance(41.6%) low=bybit(0.0%)
+2026/06/19 01:04:43 [跨所扫描] 机会 AAOI-USDT spread=191.3% high=binance(204.8%) low=bybit(13.6%)
+2026/06/19 01:04:43 [跨所扫描] 机会 YFI-USDT spread=43.6% high=binance(-6.5%) low=bybit(-50.2%)
+2026/06/19 01:04:43 [跨所扫描] 机会 HOOD-USDT spread=52.5% high=binance(52.5%) low=bybit(0.0%)
+2026/06/19 01:04:43 [跨所扫描] 机会 QNTX-USDT spread=132.7% high=bybit(132.7%) low=binance(0.0%)
+2026/06/19 01:04:43 [跨所扫描] 机会 MU-USDT spread=30.8% high=binance(30.8%) low=bybit(0.0%)
+2026/06/19 01:04:43 [跨所扫描] 机会 COIN-USDT spread=132.0% high=bybit(132.0%) low=binance(0.0%)
+2026/06/19 01:04:43 [跨所扫描] 机会 NBIS-USDT spread=113.6% high=bybit(113.6%) low=binance(0.0%)
+2026/06/19 01:04:43 [跨所扫描] 机会 SAMSUNG-USDT spread=84.1% high=bybit(150.4%) low=binance(66.3%)
+2026/06/19 01:04:43 [跨所扫描] 机会 CFX-USDT spread=69.8% high=bybit(10.9%) low=gate(-58.8%)
+2026/06/19 01:04:43 [跨所扫描] 机会 EGLD-USDT spread=55.8% high=okx(3.5%) low=bybit(-52.3%)
+2026/06/19 01:04:43 [跨所扫描] 机会 GRT-USDT spread=37.4% high=bybit(10.9%) low=gate(-26.4%)
+2026/06/19 01:04:43 [跨所扫描] 机会 EWT-USDT spread=30.5% high=okx(30.5%) low=bybit(0.0%)
+2026/06/19 01:04:43 [跨所扫描] 机会 SOXL-USDT spread=109.7% high=okx(0.0%) low=bybit(-109.7%)
+2026/06/19 01:04:43 [跨所扫描] 机会 CRO-USDT spread=38.3% high=bybit(10.9%) low=gate(-27.3%)
+2026/06/19 01:04:43 [跨所扫描] 机会 CRCL-USDT spread=56.8% high=bybit(92.6%) low=okx(35.9%)
+2026/06/19 01:04:43 [跨所扫描] 机会 SKL-USDT spread=116.0% high=bybit(126.9%) low=gate(10.9%)
+2026/06/19 01:04:43 [跨所扫描] 机会 LITE-USDT spread=57.9% high=gate(57.9%) low=bybit(0.0%)
+2026/06/19 01:04:43 [跨所扫描] 机会 WDC-USDT spread=192.1% high=bybit(198.6%) low=okx(6.5%)
+2026/06/19 01:04:43 [跨所扫描] 机会 ROSE-USDT spread=162.9% high=gate(10.9%) low=bybit(-151.9%)
+2026/06/19 01:04:43 [跨所扫描] 机会 XVS-USDT spread=95.9% high=bybit(-26.3%) low=gate(-122.2%)
+2026/06/19 01:04:43 [跨所扫描] 机会 BE-USDT spread=144.4% high=bybit(191.0%) low=okx(46.6%)
+2026/06/19 01:04:43 [跨所扫描] 机会 HFT-USDT spread=160.4% high=gate(10.9%) low=bybit(-149.5%)
+2026/06/19 01:04:43 [跨所扫描] 机会 ARM-USDT spread=37.4% high=gate(10.9%) low=bybit(-26.5%)
+2026/06/19 01:04:43 [跨所扫描] 机会 BNT-USDT spread=53.8% high=gate(10.9%) low=bybit(-42.8%)
+2026/06/19 01:04:43 [跨所扫描] 机会 LRC-USDT spread=101.6% high=gate(10.9%) low=bybit(-90.6%)
+2026/06/19 01:04:43 [跨所扫描] 机会 NEO-USDT spread=40.3% high=gate(10.9%) low=bybit(-29.4%)
+2026/06/19 01:04:43 [跨所扫描] 机会 ARPA-USDT spread=32.8% high=gate(10.9%) low=bybit(-21.9%)
+2026/06/19 01:04:43 [跨所扫描] 机会 EWJ-USDT spread=34.8% high=okx(12.6%) low=bybit(-22.2%)
+2026/06/19 01:04:43 [跨所扫描] 机会 SPCX-USDT spread=57.5% high=bybit(57.5%) low=okx(0.0%)
+2026/06/19 01:04:43 [跨所扫描] 价差告警(纯观测) NBIS-USDT 年化价差 113.6% 空 bybit(113.6%/年,间隔 8h) 多 binance(0.0%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/19 01:04:43 [跨所扫描] 价差告警(纯观测) SKL-USDT 年化价差 116.0% 空 bybit(126.9%/年,间隔 8h) 多 gate(10.9%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/19 01:04:43 [跨所扫描] 价差告警(纯观测) WDC-USDT 年化价差 192.1% 空 bybit(198.6%/年,间隔 8h) 多 okx(6.5%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/19 01:04:43 [跨所扫描] 价差告警(纯观测) BE-USDT 年化价差 144.4% 空 bybit(191.0%/年,间隔 8h) 多 okx(46.6%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/19 01:04:43 [跨所扫描] 价差告警(纯观测) LRC-USDT 年化价差 101.6% 空 gate(10.9%/年,间隔 8h) 多 bybit(-90.6%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/19 01:04:52 [借币探测] SAMSUNG: binance不可借 bybit失败
+2026/06/19 01:04:52 [借币探测] COIN: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/19 01:04:52 [借币探测] TRUST: binance不可借(缓存) okx不可借(缓存)
+2026/06/19 01:04:52 [借币探测] AAOI: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/19 01:04:52 [借币探测] MU: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/19 01:04:52 [借币探测] CBRS: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/19 01:04:52 [借币探测] QNTX: binance不可借 bybit失败 okx失败 gate失败
+2026/06/19 01:04:52 [借币探测] YFI: binance失败 bybit可借(年化19%) okx可借(年化9%) gate失败
+2026/06/19 01:04:52 [借币探测] NBIS: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/19 01:04:52 [借币探测] HOOD: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/19 01:04:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 01:04:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 01:04:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 01:04:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 01:04:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 01:04:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 01:04:58 [统一轮动] 已暂停(active=false)
+2026/06/19 01:05:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 01:05:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 01:05:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 01:05:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 01:05:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 01:05:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 01:06:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 01:06:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 01:06:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 01:06:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 01:06:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 01:06:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 01:06:58 [统一轮动] 已暂停(active=false)
+2026/06/19 01:07:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 01:07:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 01:07:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 01:07:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 01:07:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 01:07:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 01:08:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 01:08:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 01:08:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 01:08:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 01:08:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 01:08:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 01:08:58 [统一轮动] 已暂停(active=false)
+2026/06/19 01:09:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 01:09:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 01:09:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 01:09:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 01:09:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 01:09:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 01:10:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 01:10:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 01:10:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 01:10:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 01:10:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 01:10:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 01:10:58 [统一轮动] 已暂停(active=false)
+2026/06/19 01:11:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 01:11:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 01:11:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 01:11:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 01:11:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 01:11:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 01:12:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 01:12:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 01:12:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 01:12:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 01:12:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 01:12:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 01:12:58 [统一轮动] 已暂停(active=false)
+2026/06/19 01:13:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 01:13:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 01:13:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 01:13:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 01:13:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 01:13:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 01:13:58 [统一轮动] 已暂停(active=false)
+2026/06/19 01:14:43 [跨所扫描] 完成: venues_ok=4/4 opportunities=30 elapsed=48.549s
+2026/06/19 01:14:43 [跨所扫描] 机会 ARPA-USDT spread=43.7% high=binance(10.9%) low=bybit(-32.8%)
+2026/06/19 01:14:43 [跨所扫描] 机会 MSTR-USDT spread=68.9% high=bybit(68.9%) low=binance(0.0%)
+2026/06/19 01:14:43 [跨所扫描] 机会 NBIS-USDT spread=125.3% high=bybit(125.3%) low=binance(0.0%)
+2026/06/19 01:14:43 [跨所扫描] 机会 QNTX-USDT spread=103.6% high=bybit(103.6%) low=binance(0.0%)
+2026/06/19 01:14:43 [跨所扫描] 机会 HFT-USDT spread=164.0% high=binance(10.9%) low=bybit(-153.1%)
+2026/06/19 01:14:43 [跨所扫描] 机会 HOOD-USDT spread=45.2% high=binance(45.2%) low=bybit(0.0%)
+2026/06/19 01:14:43 [跨所扫描] 机会 COIN-USDT spread=102.8% high=bybit(102.8%) low=binance(0.0%)
+2026/06/19 01:14:43 [跨所扫描] 机会 YFI-USDT spread=56.6% high=binance(-8.3%) low=bybit(-64.9%)
+2026/06/19 01:14:43 [跨所扫描] 机会 CBRS-USDT spread=38.8% high=binance(38.8%) low=bybit(0.0%)
+2026/06/19 01:14:43 [跨所扫描] 机会 SAMSUNG-USDT spread=86.6% high=bybit(193.4%) low=binance(106.9%)
+2026/06/19 01:14:43 [跨所扫描] 机会 AAOI-USDT spread=197.6% high=binance(200.7%) low=bybit(3.1%)
+2026/06/19 01:14:43 [跨所扫描] 机会 KNC-USDT spread=40.3% high=bybit(10.9%) low=binance(-29.4%)
+2026/06/19 01:14:43 [跨所扫描] 机会 CRCL-USDT spread=42.8% high=bybit(78.9%) low=okx(36.1%)
+2026/06/19 01:14:43 [跨所扫描] 机会 TSM-USDT spread=130.9% high=bybit(141.9%) low=gate(10.9%)
+2026/06/19 01:14:43 [跨所扫描] 机会 NEO-USDT spread=44.6% high=okx(10.9%) low=bybit(-33.7%)
+2026/06/19 01:14:43 [跨所扫描] 机会 LRC-USDT spread=107.9% high=okx(10.9%) low=bybit(-96.9%)
+2026/06/19 01:14:43 [跨所扫描] 机会 CORE-USDT spread=31.1% high=bybit(10.9%) low=okx(-20.2%)
+2026/06/19 01:14:43 [跨所扫描] 机会 GRT-USDT spread=38.7% high=bybit(10.9%) low=gate(-27.7%)
+2026/06/19 01:14:43 [跨所扫描] 机会 CFX-USDT spread=58.5% high=bybit(10.9%) low=gate(-47.5%)
+2026/06/19 01:14:43 [跨所扫描] 机会 EGLD-USDT spread=63.1% high=okx(-0.2%) low=bybit(-63.3%)
+2026/06/19 01:14:43 [跨所扫描] 机会 SPCX-USDT spread=41.4% high=bybit(41.4%) low=okx(0.0%)
+2026/06/19 01:14:43 [跨所扫描] 机会 CRO-USDT spread=31.7% high=bybit(10.9%) low=gate(-20.8%)
+2026/06/19 01:14:43 [跨所扫描] 机会 BNT-USDT spread=70.4% high=gate(10.9%) low=bybit(-59.5%)
+2026/06/19 01:14:43 [跨所扫描] 机会 EWT-USDT spread=33.9% high=okx(33.9%) low=bybit(0.0%)
+2026/06/19 01:14:43 [跨所扫描] 机会 ROSE-USDT spread=156.2% high=gate(10.9%) low=bybit(-145.3%)
+2026/06/19 01:14:43 [跨所扫描] 机会 SOXL-USDT spread=90.4% high=okx(0.0%) low=bybit(-90.4%)
+2026/06/19 01:14:43 [跨所扫描] 机会 BMNR-USDT spread=93.6% high=binance(98.5%) low=okx(4.9%)
+2026/06/19 01:14:43 [跨所扫描] 机会 MTL-USDT spread=186.8% high=gate(197.7%) low=binance(10.9%)
+2026/06/19 01:14:43 [跨所扫描] 机会 BEL-USDT spread=166.9% high=gate(177.9%) low=binance(10.9%)
+2026/06/19 01:14:43 [跨所扫描] 机会 XVS-USDT spread=119.0% high=binance(-33.3%) low=gate(-152.4%)
+2026/06/19 01:14:43 [跨所扫描] 价差告警(纯观测) HFT-USDT 年化价差 164.0% 空 binance(10.9%/年,间隔 8h) 多 bybit(-153.1%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/19 01:14:43 [跨所扫描] 价差告警(纯观测) MTL-USDT 年化价差 186.8% 空 gate(197.7%/年,间隔 8h) 多 binance(10.9%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/19 01:14:43 [跨所扫描] 价差告警(纯观测) BEL-USDT 年化价差 166.9% 空 gate(177.9%/年,间隔 8h) 多 binance(10.9%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/19 01:14:43 [跨所扫描] 价差告警(纯观测) XVS-USDT 年化价差 119.0% 空 binance(-33.3%/年,间隔 8h) 多 gate(-152.4%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/19 01:14:52 [借币探测] MSTR: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/19 01:14:52 [借币探测] TRUST: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/19 01:14:52 [借币探测] NBIS: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/19 01:14:52 [借币探测] ARPA: binance失败 bybit失败 okx失败 gate失败
+2026/06/19 01:14:52 [借币探测] COIN: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/19 01:14:52 [借币探测] QNTX: binance不可借(缓存) bybit失败 okx失败 gate失败
+2026/06/19 01:14:52 [借币探测] SAMSUNG: binance不可借(缓存) bybit失败 okx不可借 gate失败
+2026/06/19 01:14:52 [借币探测] YFI: binance失败 bybit可借(缓存,年化19%) okx可借(缓存,年化9%) gate失败
+2026/06/19 01:14:52 [借币探测] CBRS: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/19 01:14:52 [借币探测] HFT: binance可借(年化56%) bybit可借(年化49%) okx失败 gate失败
+2026/06/19 01:14:52 [借币探测] HOOD: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/19 01:14:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 01:14:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 01:14:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 01:14:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 01:14:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 01:14:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 01:15:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 01:15:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 01:15:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 01:15:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 01:15:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 01:15:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 01:15:58 [统一轮动] 已暂停(active=false)
+2026/06/19 01:16:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 01:16:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 01:16:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 01:16:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 01:16:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 01:16:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 01:17:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 01:17:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 01:17:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 01:17:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 01:17:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 01:17:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 01:17:58 [统一轮动] 已暂停(active=false)
+2026/06/19 01:18:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 01:18:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 01:18:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 01:18:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 01:18:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 01:18:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 01:18:58 [统一轮动] 已暂停(active=false)
+2026/06/19 01:19:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 01:19:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 01:19:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 01:19:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 01:19:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 01:19:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 01:20:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 01:20:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 01:20:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 01:20:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 01:20:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 01:20:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 01:20:58 [统一轮动] 已暂停(active=false)
+2026/06/19 01:21:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 01:21:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 01:21:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 01:21:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 01:21:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 01:21:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 01:22:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 01:22:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 01:22:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 01:22:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 01:22:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 01:22:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 01:22:58 [统一轮动] 已暂停(active=false)
+2026/06/19 01:23:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 01:23:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 01:23:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 01:23:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 01:23:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 01:23:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 01:23:58 [统一轮动] 已暂停(active=false)
+2026/06/19 01:24:43 [跨所扫描] 完成: venues_ok=4/4 opportunities=30 elapsed=48.487s
+2026/06/19 01:24:43 [跨所扫描] 机会 HOOD-USDT spread=38.9% high=binance(38.9%) low=bybit(0.0%)
+2026/06/19 01:24:43 [跨所扫描] 机会 PLTR-USDT spread=30.7% high=bybit(42.9%) low=binance(12.2%)
+2026/06/19 01:24:43 [跨所扫描] 机会 NBIS-USDT spread=103.4% high=bybit(103.4%) low=binance(0.0%)
+2026/06/19 01:24:43 [跨所扫描] 机会 COIN-USDT spread=78.0% high=bybit(78.0%) low=binance(0.0%)
+2026/06/19 01:24:43 [跨所扫描] 机会 EWY-USDT spread=32.2% high=bybit(11.8%) low=binance(-20.4%)
+2026/06/19 01:24:43 [跨所扫描] 机会 QNTX-USDT spread=88.2% high=bybit(88.2%) low=binance(0.0%)
+2026/06/19 01:24:43 [跨所扫描] 机会 AAOI-USDT spread=194.3% high=binance(197.8%) low=bybit(3.4%)
+2026/06/19 01:24:43 [跨所扫描] 机会 ARPA-USDT spread=33.2% high=gate(10.9%) low=bybit(-22.2%)
+2026/06/19 01:24:43 [跨所扫描] 机会 LRC-USDT spread=105.4% high=gate(10.9%) low=bybit(-94.4%)
+2026/06/19 01:24:43 [跨所扫描] 机会 EGLD-USDT spread=53.2% high=okx(-1.0%) low=bybit(-54.1%)
+2026/06/19 01:24:43 [跨所扫描] 机会 GRT-USDT spread=35.8% high=bybit(10.9%) low=gate(-24.9%)
+2026/06/19 01:24:43 [跨所扫描] 机会 SPCX-USDT spread=30.6% high=bybit(30.6%) low=okx(0.0%)
+2026/06/19 01:24:43 [跨所扫描] 机会 CRCL-USDT spread=36.2% high=bybit(72.6%) low=okx(36.4%)
+2026/06/19 01:24:43 [跨所扫描] 机会 BNT-USDT spread=70.3% high=gate(10.9%) low=bybit(-59.4%)
+2026/06/19 01:24:43 [跨所扫描] 机会 SAMSUNG-USDT spread=101.2% high=bybit(249.2%) low=gate(148.0%)
+2026/06/19 01:24:43 [跨所扫描] 机会 SKL-USDT spread=97.3% high=bybit(108.2%) low=gate(10.9%)
+2026/06/19 01:24:43 [跨所扫描] 机会 VET-USDT spread=32.0% high=gate(10.9%) low=bybit(-21.1%)
+2026/06/19 01:24:43 [跨所扫描] 机会 NEO-USDT spread=43.7% high=gate(10.9%) low=bybit(-32.7%)
+2026/06/19 01:24:43 [跨所扫描] 机会 MSTR-USDT spread=162.6% high=bybit(162.6%) low=okx(0.0%)
+2026/06/19 01:24:43 [跨所扫描] 机会 HFT-USDT spread=141.9% high=gate(10.9%) low=bybit(-131.0%)
+2026/06/19 01:24:43 [跨所扫描] 机会 EWT-USDT spread=43.4% high=okx(43.4%) low=bybit(0.0%)
+2026/06/19 01:24:43 [跨所扫描] 机会 ROSE-USDT spread=151.6% high=gate(10.9%) low=bybit(-140.6%)
+2026/06/19 01:24:43 [跨所扫描] 机会 MSFT-USDT spread=35.2% high=okx(43.4%) low=bybit(8.2%)
+2026/06/19 01:24:43 [跨所扫描] 机会 SOXL-USDT spread=92.5% high=okx(0.0%) low=bybit(-92.5%)
+2026/06/19 01:24:43 [跨所扫描] 机会 CFX-USDT spread=43.6% high=bybit(10.9%) low=gate(-32.7%)
+2026/06/19 01:24:43 [跨所扫描] 机会 QCOM-USDT spread=66.7% high=binance(77.7%) low=gate(10.9%)
+2026/06/19 01:24:43 [跨所扫描] 机会 RIVN-USDT spread=51.8% high=binance(55.7%) low=okx(3.9%)
+2026/06/19 01:24:43 [跨所扫描] 机会 EBAY-USDT spread=106.2% high=binance(117.2%) low=gate(10.9%)
+2026/06/19 01:24:43 [跨所扫描] 机会 BX-USDT spread=76.4% high=binance(87.3%) low=gate(10.9%)
+2026/06/19 01:24:43 [跨所扫描] 机会 BMNR-USDT spread=91.5% high=binance(94.3%) low=okx(2.8%)
+2026/06/19 01:24:43 [跨所扫描] 价差告警(纯观测) SAMSUNG-USDT 年化价差 101.2% 空 bybit(249.2%/年,间隔 8h) 多 gate(148.0%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/19 01:24:43 [跨所扫描] 价差告警(纯观测) MSTR-USDT 年化价差 162.6% 空 bybit(162.6%/年,间隔 8h) 多 okx(0.0%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/19 01:24:43 [跨所扫描] 价差告警(纯观测) EBAY-USDT 年化价差 106.2% 空 binance(117.2%/年,间隔 8h) 多 gate(10.9%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/19 01:24:52 [借币探测] PLTR: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/19 01:24:52 [借币探测] HOOD: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/19 01:24:52 [借币探测] ARPA: binance失败 bybit失败
+2026/06/19 01:24:52 [借币探测] QNTX: binance不可借 bybit失败 okx失败 gate失败
+2026/06/19 01:24:52 [借币探测] EWY: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/19 01:24:52 [借币探测] AAOI: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/19 01:24:52 [借币探测] COIN: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/19 01:24:52 [借币探测] HFT: binance可借(缓存,年化56%) bybit可借(缓存,年化49%)
+2026/06/19 01:24:52 [借币探测] NBIS: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/19 01:24:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 01:24:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 01:24:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 01:24:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 01:24:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 01:24:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 01:24:58 [统一轮动] 已暂停(active=false)
+2026/06/19 01:25:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 01:25:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 01:25:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 01:25:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 01:25:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 01:25:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 01:26:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 01:26:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 01:26:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 01:26:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 01:26:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 01:26:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 01:26:58 [统一轮动] 已暂停(active=false)
+2026/06/19 01:27:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 01:27:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 01:27:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 01:27:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 01:27:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 01:27:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 01:28:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 01:28:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 01:28:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 01:28:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 01:28:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 01:28:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 01:28:58 [统一轮动] 已暂停(active=false)
+2026/06/19 01:29:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 01:29:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 01:29:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 01:29:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 01:29:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 01:29:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 01:29:58 [统一轮动] 已暂停(active=false)
+2026/06/19 01:30:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 01:30:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 01:30:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 01:30:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 01:30:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 01:30:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 01:30:58 [统一轮动] 已暂停(active=false)
+2026/06/19 01:31:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 01:31:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 01:31:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 01:31:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 01:31:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 01:31:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 01:31:58 [统一轮动] 已暂停(active=false)
+2026/06/19 01:32:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 01:32:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 01:32:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 01:32:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 01:32:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 01:32:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 01:33:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 01:33:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 01:33:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 01:33:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 01:33:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 01:33:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 01:33:58 [统一轮动] 已暂停(active=false)
+2026/06/19 01:34:43 [跨所扫描] 完成: venues_ok=4/4 opportunities=30 elapsed=48.496s
+2026/06/19 01:34:43 [跨所扫描] 机会 HOOD-USDT spread=33.5% high=binance(33.5%) low=bybit(0.0%)
+2026/06/19 01:34:43 [跨所扫描] 机会 NBIS-USDT spread=69.4% high=bybit(69.4%) low=binance(0.0%)
+2026/06/19 01:34:43 [跨所扫描] 机会 YFI-USDT spread=42.0% high=binance(-11.5%) low=bybit(-53.6%)
+2026/06/19 01:34:43 [跨所扫描] 机会 AAOI-USDT spread=191.3% high=binance(202.1%) low=bybit(10.7%)
+2026/06/19 01:34:43 [跨所扫描] 机会 EWY-USDT spread=52.7% high=bybit(43.8%) low=binance(-9.0%)
+2026/06/19 01:34:43 [跨所扫描] 机会 COIN-USDT spread=45.7% high=bybit(45.7%) low=binance(0.0%)
+2026/06/19 01:34:43 [跨所扫描] 机会 QCOM-USDT spread=65.0% high=binance(73.1%) low=bybit(8.0%)
+2026/06/19 01:34:43 [跨所扫描] 机会 NEO-USDT spread=40.5% high=gate(10.9%) low=bybit(-29.5%)
+2026/06/19 01:34:43 [跨所扫描] 机会 GRT-USDT spread=33.0% high=bybit(10.9%) low=gate(-22.0%)
+2026/06/19 01:34:43 [跨所扫描] 机会 LRC-USDT spread=102.3% high=gate(10.9%) low=bybit(-91.3%)
+2026/06/19 01:34:43 [跨所扫描] 机会 SAMSUNG-USDT spread=147.7% high=bybit(293.4%) low=gate(145.7%)
+2026/06/19 01:34:43 [跨所扫描] 机会 IOTX-USDT spread=31.7% high=bybit(10.9%) low=gate(-20.8%)
+2026/06/19 01:34:43 [跨所扫描] 机会 ARPA-USDT spread=37.1% high=gate(10.9%) low=bybit(-26.2%)
+2026/06/19 01:34:43 [跨所扫描] 机会 ALICE-USDT spread=34.9% high=gate(10.9%) low=bybit(-23.9%)
+2026/06/19 01:34:43 [跨所扫描] 机会 CFX-USDT spread=32.1% high=bybit(10.9%) low=gate(-21.2%)
+2026/06/19 01:34:43 [跨所扫描] 机会 MSFT-USDT spread=38.6% high=okx(38.6%) low=bybit(0.0%)
+2026/06/19 01:34:43 [跨所扫描] 机会 TSM-USDT spread=69.1% high=okx(69.1%) low=bybit(0.0%)
+2026/06/19 01:34:43 [跨所扫描] 机会 MSTR-USDT spread=165.3% high=bybit(165.3%) low=okx(0.0%)
+2026/06/19 01:34:43 [跨所扫描] 机会 ROSE-USDT spread=155.1% high=gate(10.9%) low=bybit(-144.1%)
+2026/06/19 01:34:43 [跨所扫描] 机会 SPCX-USDT spread=32.0% high=bybit(28.4%) low=gate(-3.6%)
+2026/06/19 01:34:43 [跨所扫描] 机会 LLY-USDT spread=58.5% high=bybit(58.5%) low=okx(0.0%)
+2026/06/19 01:34:43 [跨所扫描] 机会 SKL-USDT spread=67.3% high=bybit(78.2%) low=gate(10.9%)
+2026/06/19 01:34:43 [跨所扫描] 机会 ARM-USDT spread=47.7% high=gate(10.9%) low=bybit(-36.8%)
+2026/06/19 01:34:43 [跨所扫描] 机会 BNT-USDT spread=70.2% high=gate(10.9%) low=bybit(-59.2%)
+2026/06/19 01:34:43 [跨所扫描] 机会 QNTX-USDT spread=102.9% high=bybit(103.0%) low=gate(0.1%)
+2026/06/19 01:34:43 [跨所扫描] 机会 HFT-USDT spread=148.1% high=gate(10.9%) low=bybit(-137.1%)
+2026/06/19 01:34:43 [跨所扫描] 机会 MAV-USDT spread=31.0% high=gate(10.9%) low=bybit(-20.1%)
+2026/06/19 01:34:43 [跨所扫描] 机会 VET-USDT spread=39.6% high=gate(10.9%) low=bybit(-28.7%)
+2026/06/19 01:34:43 [跨所扫描] 机会 EWT-USDT spread=50.9% high=okx(50.9%) low=bybit(0.0%)
+2026/06/19 01:34:43 [跨所扫描] 机会 AMAT-USDT spread=43.0% high=gate(10.9%) low=bybit(-32.0%)
+2026/06/19 01:34:43 [跨所扫描] 价差告警(纯观测) QNTX-USDT 年化价差 102.9% 空 bybit(103.0%/年,间隔 8h) 多 gate(0.1%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/19 01:34:52 [借币探测] AAOI: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/19 01:34:52 [借币探测] NBIS: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/19 01:34:52 [借币探测] QCOM: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/19 01:34:52 [借币探测] GRT: binance可借(年化6%) bybit可借(年化8%) okx可借(年化22%) gate失败
+2026/06/19 01:34:52 [借币探测] HOOD: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/19 01:34:52 [借币探测] YFI: binance失败 bybit可借(年化19%) okx可借(年化9%) gate失败
+2026/06/19 01:34:52 [借币探测] NEO: binance可借(年化28%) bybit失败 okx可借(年化17%) gate失败
+2026/06/19 01:34:52 [借币探测] LRC: binance不可借 bybit不可借 okx可借(年化15%) gate失败
+2026/06/19 01:34:52 [借币探测] EWY: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/19 01:34:52 [借币探测] COIN: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/19 01:34:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 01:34:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 01:34:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 01:34:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 01:34:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 01:34:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 01:34:58 [统一轮动] 已暂停(active=false)
+2026/06/19 01:35:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 01:35:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 01:35:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 01:35:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 01:35:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 01:35:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 01:35:58 [统一轮动] 已暂停(active=false)
+2026/06/19 01:36:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 01:36:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 01:36:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 01:36:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 01:36:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 01:36:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 01:37:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 01:37:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 01:37:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 01:37:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 01:37:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 01:37:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 01:37:58 [统一轮动] 已暂停(active=false)
+2026/06/19 01:38:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 01:38:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 01:38:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 01:38:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 01:38:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 01:38:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 01:38:58 [统一轮动] 已暂停(active=false)
+2026/06/19 01:39:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 01:39:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 01:39:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 01:39:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 01:39:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 01:39:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 01:39:58 [统一轮动] 已暂停(active=false)
+2026/06/19 01:40:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 01:40:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 01:40:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 01:40:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 01:40:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 01:40:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 01:40:58 [统一轮动] 已暂停(active=false)
+2026/06/19 01:41:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 01:41:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 01:41:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 01:41:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 01:41:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 01:41:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 01:42:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 01:42:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 01:42:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 01:42:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 01:42:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 01:42:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 01:42:58 [统一轮动] 已暂停(active=false)
+2026/06/19 01:43:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 01:43:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 01:43:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 01:43:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 01:43:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 01:43:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 01:43:58 [统一轮动] 已暂停(active=false)
+2026/06/19 01:44:43 [跨所扫描] 完成: venues_ok=4/4 opportunities=30 elapsed=48.539s
+2026/06/19 01:44:43 [跨所扫描] 机会 CRCL-USDT spread=30.0% high=binance(55.8%) low=bybit(25.8%)
+2026/06/19 01:44:43 [跨所扫描] 机会 YFI-USDT spread=46.1% high=binance(-13.2%) low=bybit(-59.3%)
+2026/06/19 01:44:43 [跨所扫描] 机会 EWY-USDT spread=66.2% high=bybit(65.3%) low=binance(-0.9%)
+2026/06/19 01:44:43 [跨所扫描] 机会 QCOM-USDT spread=67.0% high=binance(68.6%) low=bybit(1.7%)
+2026/06/19 01:44:43 [跨所扫描] 机会 AAOI-USDT spread=189.4% high=binance(204.9%) low=bybit(15.5%)
+2026/06/19 01:44:43 [跨所扫描] 机会 INTC-USDT spread=102.4% high=bybit(150.3%) low=binance(47.8%)
+2026/06/19 01:44:43 [跨所扫描] 机会 AMAT-USDT spread=61.6% high=gate(10.9%) low=bybit(-50.6%)
+2026/06/19 01:44:43 [跨所扫描] 机会 ROSE-USDT spread=160.9% high=gate(10.9%) low=bybit(-150.0%)
+2026/06/19 01:44:43 [跨所扫描] 机会 NEO-USDT spread=44.0% high=gate(10.9%) low=bybit(-33.0%)
+2026/06/19 01:44:43 [跨所扫描] 机会 EWT-USDT spread=55.4% high=okx(55.4%) low=bybit(0.0%)
+2026/06/19 01:44:43 [跨所扫描] 机会 BNT-USDT spread=68.9% high=gate(10.9%) low=bybit(-58.0%)
+2026/06/19 01:44:43 [跨所扫描] 机会 SKL-USDT spread=56.1% high=bybit(67.1%) low=gate(10.9%)
+2026/06/19 01:44:43 [跨所扫描] 机会 GRT-USDT spread=35.9% high=bybit(10.9%) low=gate(-25.0%)
+2026/06/19 01:44:43 [跨所扫描] 机会 QNTX-USDT spread=115.1% high=bybit(115.2%) low=gate(0.1%)
+2026/06/19 01:44:43 [跨所扫描] 机会 C98-USDT spread=33.1% high=gate(10.9%) low=bybit(-22.2%)
+2026/06/19 01:44:43 [跨所扫描] 机会 MAV-USDT spread=32.9% high=gate(10.9%) low=bybit(-21.9%)
+2026/06/19 01:44:43 [跨所扫描] 机会 AXTI-USDT spread=129.2% high=okx(219.2%) low=bybit(89.9%)
+2026/06/19 01:44:43 [跨所扫描] 机会 VET-USDT spread=40.2% high=gate(10.9%) low=bybit(-29.3%)
+2026/06/19 01:44:43 [跨所扫描] 机会 SAMSUNG-USDT spread=164.1% high=bybit(311.9%) low=gate(147.8%)
+2026/06/19 01:44:43 [跨所扫描] 机会 LRC-USDT spread=109.0% high=gate(10.9%) low=bybit(-98.1%)
+2026/06/19 01:44:43 [跨所扫描] 机会 MSFT-USDT spread=34.0% high=okx(34.0%) low=bybit(0.0%)
+2026/06/19 01:44:43 [跨所扫描] 机会 ARM-USDT spread=88.4% high=gate(10.9%) low=bybit(-77.4%)
+2026/06/19 01:44:43 [跨所扫描] 机会 HFT-USDT spread=166.9% high=gate(10.9%) low=bybit(-156.0%)
+2026/06/19 01:44:43 [跨所扫描] 机会 SPCX-USDT spread=33.7% high=bybit(24.3%) low=gate(-9.4%)
+2026/06/19 01:44:43 [跨所扫描] 机会 IOTX-USDT spread=60.3% high=bybit(10.9%) low=gate(-49.4%)
+2026/06/19 01:44:43 [跨所扫描] 机会 ALICE-USDT spread=44.8% high=gate(10.9%) low=bybit(-33.9%)
+2026/06/19 01:44:43 [跨所扫描] 机会 ARPA-USDT spread=43.6% high=gate(10.9%) low=bybit(-32.6%)
+2026/06/19 01:44:43 [跨所扫描] 机会 TSM-USDT spread=59.8% high=okx(59.8%) low=bybit(0.0%)
+2026/06/19 01:44:43 [跨所扫描] 机会 MSTR-USDT spread=97.4% high=bybit(97.4%) low=okx(0.0%)
+2026/06/19 01:44:43 [跨所扫描] 机会 LLY-USDT spread=82.1% high=bybit(82.1%) low=okx(0.0%)
+2026/06/19 01:44:43 [跨所扫描] 价差告警(纯观测) INTC-USDT 年化价差 102.4% 空 bybit(150.3%/年,间隔 8h) 多 binance(47.8%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/19 01:44:43 [跨所扫描] 价差告警(纯观测) AXTI-USDT 年化价差 129.2% 空 okx(219.2%/年,间隔 8h) 多 bybit(89.9%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/19 01:44:53 [借币探测] ROSE: binance可借(年化15%) bybit可借(年化15%) okx失败 gate失败
+2026/06/19 01:44:53 [借币探测] NEO: binance可借(缓存,年化28%) bybit失败 okx可借(缓存,年化17%) gate失败
+2026/06/19 01:44:53 [借币探测] EWT: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/19 01:44:53 [借币探测] LRC: binance不可借(缓存) bybit不可借(缓存) okx可借(缓存,年化15%)
+2026/06/19 01:44:53 [借币探测] YFI: binance失败 bybit可借(缓存,年化19%) okx可借(缓存,年化9%) gate失败
+2026/06/19 01:44:53 [借币探测] AAOI: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/19 01:44:53 [借币探测] CRCL: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/19 01:44:53 [借币探测] EWY: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/19 01:44:53 [借币探测] AMAT: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/19 01:44:53 [借币探测] QCOM: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/19 01:44:53 [借币探测] INTC: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/19 01:44:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 01:44:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 01:44:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 01:44:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 01:44:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 01:44:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 01:45:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 01:45:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 01:45:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 01:45:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 01:45:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 01:45:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 01:45:58 [统一轮动] 已暂停(active=false)
+2026/06/19 01:46:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 01:46:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 01:46:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 01:46:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 01:46:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 01:46:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 01:46:58 [统一轮动] 已暂停(active=false)
+2026/06/19 01:47:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 01:47:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 01:47:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 01:47:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 01:47:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 01:47:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 01:47:58 [统一轮动] 已暂停(active=false)
+2026/06/19 01:48:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 01:48:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 01:48:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 01:48:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 01:48:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 01:48:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 01:49:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 01:49:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 01:49:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 01:49:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 01:49:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 01:49:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 01:49:58 [统一轮动] 已暂停(active=false)
+2026/06/19 01:50:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 01:50:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 01:50:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 01:50:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 01:50:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 01:50:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 01:50:58 [统一轮动] 已暂停(active=false)
+2026/06/19 01:51:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 01:51:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 01:51:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 01:51:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 01:51:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 01:51:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 01:52:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 01:52:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 01:52:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 01:52:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 01:52:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 01:52:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 01:52:58 [统一轮动] 已暂停(active=false)
+2026/06/19 01:53:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 01:53:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 01:53:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 01:53:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 01:53:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 01:53:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 01:54:43 [跨所扫描] 完成: venues_ok=4/4 opportunities=30 elapsed=48.495s
+2026/06/19 01:54:43 [跨所扫描] 机会 QCOM-USDT spread=62.7% high=binance(62.7%) low=bybit(0.0%)
+2026/06/19 01:54:43 [跨所扫描] 机会 CRCL-USDT spread=44.5% high=binance(49.0%) low=bybit(4.5%)
+2026/06/19 01:54:43 [跨所扫描] 机会 EWY-USDT spread=51.3% high=bybit(51.3%) low=binance(0.0%)
+2026/06/19 01:54:43 [跨所扫描] 机会 ASTS-USDT spread=97.1% high=bybit(0.0%) low=binance(-97.1%)
+2026/06/19 01:54:43 [跨所扫描] 机会 YFI-USDT spread=44.2% high=binance(-12.5%) low=bybit(-56.7%)
+2026/06/19 01:54:43 [跨所扫描] 机会 AAOI-USDT spread=188.0% high=binance(200.7%) low=bybit(12.7%)
+2026/06/19 01:54:43 [跨所扫描] 机会 MSTR-USDT spread=34.8% high=bybit(34.8%) low=binance(0.0%)
+2026/06/19 01:54:43 [跨所扫描] 机会 QNTX-USDT spread=110.4% high=bybit(110.5%) low=gate(0.1%)
+2026/06/19 01:54:43 [跨所扫描] 机会 LRC-USDT spread=111.5% high=gate(10.9%) low=bybit(-100.6%)
+2026/06/19 01:54:43 [跨所扫描] 机会 VET-USDT spread=31.2% high=gate(10.9%) low=bybit(-20.3%)
+2026/06/19 01:54:43 [跨所扫描] 机会 ARPA-USDT spread=37.4% high=gate(10.9%) low=bybit(-26.5%)
+2026/06/19 01:54:43 [跨所扫描] 机会 CRO-USDT spread=31.2% high=bybit(10.9%) low=gate(-20.2%)
+2026/06/19 01:54:43 [跨所扫描] 机会 INTC-USDT spread=199.5% high=bybit(281.4%) low=gate(81.9%)
+2026/06/19 01:54:43 [跨所扫描] 机会 BNT-USDT spread=58.9% high=gate(10.9%) low=bybit(-47.9%)
+2026/06/19 01:54:43 [跨所扫描] 机会 HFT-USDT spread=155.2% high=gate(10.9%) low=bybit(-144.3%)
+2026/06/19 01:54:43 [跨所扫描] 机会 AMAT-USDT spread=50.5% high=gate(10.9%) low=bybit(-39.6%)
+2026/06/19 01:54:43 [跨所扫描] 机会 SPCX-USDT spread=40.0% high=bybit(20.4%) low=gate(-19.5%)
+2026/06/19 01:54:43 [跨所扫描] 机会 LLY-USDT spread=85.9% high=bybit(85.9%) low=okx(0.0%)
+2026/06/19 01:54:43 [跨所扫描] 机会 AXTI-USDT spread=133.3% high=okx(213.3%) low=bybit(80.1%)
+2026/06/19 01:54:43 [跨所扫描] 机会 ARM-USDT spread=123.6% high=gate(10.9%) low=bybit(-112.6%)
+2026/06/19 01:54:43 [跨所扫描] 机会 SKL-USDT spread=57.7% high=bybit(68.6%) low=gate(10.9%)
+2026/06/19 01:54:43 [跨所扫描] 机会 IOTX-USDT spread=87.4% high=bybit(10.9%) low=gate(-76.4%)
+2026/06/19 01:54:43 [跨所扫描] 机会 EWT-USDT spread=59.1% high=okx(59.1%) low=bybit(0.0%)
+2026/06/19 01:54:43 [跨所扫描] 机会 SAMSUNG-USDT spread=154.5% high=bybit(309.4%) low=gate(154.9%)
+2026/06/19 01:54:43 [跨所扫描] 机会 GRT-USDT spread=31.8% high=bybit(10.9%) low=gate(-20.9%)
+2026/06/19 01:54:43 [跨所扫描] 机会 ALICE-USDT spread=39.2% high=gate(10.9%) low=bybit(-28.3%)
+2026/06/19 01:54:43 [跨所扫描] 机会 NEO-USDT spread=50.0% high=gate(10.9%) low=bybit(-39.0%)
+2026/06/19 01:54:43 [跨所扫描] 机会 ROSE-USDT spread=150.9% high=gate(10.9%) low=bybit(-139.9%)
+2026/06/19 01:54:43 [跨所扫描] 机会 TSM-USDT spread=52.8% high=okx(52.7%) low=bybit(-0.1%)
+2026/06/19 01:54:43 [跨所扫描] 机会 HYUNDAI-USDT spread=32.7% high=okx(32.7%) low=binance(0.0%)
+2026/06/19 01:54:43 [跨所扫描] 价差告警(纯观测) INTC-USDT 年化价差 199.5% 空 bybit(281.4%/年,间隔 8h) 多 gate(81.9%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/19 01:54:43 [跨所扫描] 价差告警(纯观测) ARM-USDT 年化价差 123.6% 空 gate(10.9%/年,间隔 8h) 多 bybit(-112.6%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/19 01:54:52 [借币探测] ASTS: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/19 01:54:52 [借币探测] EWY: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/19 01:54:52 [借币探测] AAOI: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/19 01:54:52 [借币探测] QCOM: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/19 01:54:52 [借币探测] ROSE: binance可借(缓存,年化15%) bybit可借(缓存,年化15%)
+2026/06/19 01:54:52 [借币探测] CRCL: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/19 01:54:52 [借币探测] YFI: binance失败 bybit可借(年化19%) okx可借(年化9%) gate失败
+2026/06/19 01:54:52 [借币探测] QNTX: binance不可借 bybit失败 okx失败 gate失败
+2026/06/19 01:54:52 [借币探测] AMAT: binance不可借(缓存) okx不可借(缓存)
+2026/06/19 01:54:52 [借币探测] MSTR: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/19 01:54:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 01:54:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 01:54:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 01:54:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 01:54:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 01:54:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 01:54:58 [统一轮动] 已暂停(active=false)
+2026/06/19 01:55:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 01:55:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 01:55:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 01:55:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 01:55:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 01:55:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 01:56:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 01:56:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 01:56:58 [delist-guard] 已刷新 okx instrument 状态: total=1637 non_trading=2
+2026/06/19 01:56:58 [delist-guard] 已刷新 gate instrument 状态: total=2813 non_trading=2
+2026/06/19 01:56:59 [delist-guard] 已刷新 bybit instrument 状态: total=1256 non_trading=0
+2026/06/19 01:56:59 [delist-guard] 已刷新 binance instrument 状态: total=4393 non_trading=2354
+2026/06/19 01:56:59 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 01:56:59 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 01:56:59 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 01:56:59 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 01:56:59 [统一轮动] 已暂停(active=false)
+2026/06/19 01:57:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 01:57:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 01:57:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 01:57:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 01:57:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 01:57:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 01:58:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 01:58:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 01:58:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 01:58:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 01:58:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 01:58:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 01:58:58 [统一轮动] 已暂停(active=false)
+2026/06/19 01:59:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 01:59:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 01:59:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 01:59:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 01:59:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 01:59:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 02:00:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 02:00:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 02:00:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 02:00:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 02:00:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 02:00:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 02:00:58 [统一轮动] 已暂停(active=false)
+2026/06/19 02:01:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 02:01:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 02:01:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 02:01:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 02:01:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 02:01:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 02:01:58 [统一轮动] 已暂停(active=false)
+2026/06/19 02:02:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 02:02:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 02:02:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 02:02:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 02:02:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 02:02:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 02:02:58 [统一轮动] 已暂停(active=false)
+2026/06/19 02:03:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 02:03:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 02:03:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 02:03:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 02:03:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 02:03:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 02:03:58 [统一轮动] 已暂停(active=false)
+2026/06/19 02:04:43 [跨所扫描] 完成: venues_ok=4/4 opportunities=30 elapsed=48.5s
+2026/06/19 02:04:43 [跨所扫描] 机会 CRCL-USDT spread=39.8% high=binance(48.0%) low=bybit(8.3%)
+2026/06/19 02:04:43 [跨所扫描] 机会 AAPL-USDT spread=45.9% high=binance(0.0%) low=bybit(-45.9%)
+2026/06/19 02:04:43 [跨所扫描] 机会 AAOI-USDT spread=188.5% high=binance(193.7%) low=bybit(5.2%)
+2026/06/19 02:04:43 [跨所扫描] 机会 QCOM-USDT spread=54.2% high=binance(54.2%) low=bybit(0.0%)
+2026/06/19 02:04:43 [跨所扫描] 机会 YFI-USDT spread=38.0% high=binance(-10.3%) low=bybit(-48.3%)
+2026/06/19 02:04:43 [跨所扫描] 机会 HYUNDAI-USDT spread=43.5% high=okx(43.6%) low=bybit(0.1%)
+2026/06/19 02:04:43 [跨所扫描] 机会 BNT-USDT spread=45.6% high=gate(10.9%) low=bybit(-34.6%)
+2026/06/19 02:04:43 [跨所扫描] 机会 AXTI-USDT spread=137.6% high=okx(206.3%) low=bybit(68.7%)
+2026/06/19 02:04:43 [跨所扫描] 机会 MU-USDT spread=49.2% high=gate(10.9%) low=bybit(-38.2%)
+2026/06/19 02:04:43 [跨所扫描] 机会 ARM-USDT spread=152.0% high=gate(10.9%) low=bybit(-141.1%)
+2026/06/19 02:04:43 [跨所扫描] 机会 AMAT-USDT spread=46.5% high=gate(10.9%) low=bybit(-35.5%)
+2026/06/19 02:04:43 [跨所扫描] 机会 IOTX-USDT spread=93.5% high=bybit(10.9%) low=gate(-82.5%)
+2026/06/19 02:04:43 [跨所扫描] 机会 CRO-USDT spread=33.1% high=bybit(10.9%) low=gate(-22.2%)
+2026/06/19 02:04:43 [跨所扫描] 机会 NEO-USDT spread=47.9% high=gate(10.9%) low=bybit(-36.9%)
+2026/06/19 02:04:43 [跨所扫描] 机会 SKL-USDT spread=58.0% high=bybit(68.9%) low=gate(10.9%)
+2026/06/19 02:04:43 [跨所扫描] 机会 TSM-USDT spread=49.9% high=okx(47.4%) low=bybit(-2.5%)
+2026/06/19 02:04:43 [跨所扫描] 机会 LRC-USDT spread=100.2% high=gate(10.9%) low=bybit(-89.2%)
+2026/06/19 02:04:43 [跨所扫描] 机会 ROSE-USDT spread=132.5% high=gate(10.9%) low=bybit(-121.6%)
+2026/06/19 02:04:43 [跨所扫描] 机会 HFT-USDT spread=126.4% high=gate(10.9%) low=bybit(-115.4%)
+2026/06/19 02:04:43 [跨所扫描] 机会 SPCX-USDT spread=35.6% high=bybit(28.5%) low=gate(-7.1%)
+2026/06/19 02:04:43 [跨所扫描] 机会 LLY-USDT spread=50.6% high=bybit(50.6%) low=okx(0.0%)
+2026/06/19 02:04:43 [跨所扫描] 机会 EWT-USDT spread=62.5% high=okx(62.5%) low=bybit(0.0%)
+2026/06/19 02:04:43 [跨所扫描] 机会 QNTX-USDT spread=95.8% high=bybit(95.9%) low=gate(0.1%)
+2026/06/19 02:04:43 [跨所扫描] 机会 RIVN-USDT spread=42.5% high=binance(42.5%) low=okx(0.0%)
+2026/06/19 02:04:43 [跨所扫描] 机会 USAR-USDT spread=30.8% high=binance(30.8%) low=okx(0.0%)
+2026/06/19 02:04:43 [跨所扫描] 机会 EBAY-USDT spread=81.6% high=binance(92.6%) low=gate(10.9%)
+2026/06/19 02:04:43 [跨所扫描] 机会 URNM-USDT spread=81.5% high=gate(10.9%) low=binance(-70.5%)
+2026/06/19 02:04:43 [跨所扫描] 机会 BX-USDT spread=59.5% high=binance(65.5%) low=okx(6.0%)
+2026/06/19 02:04:43 [跨所扫描] 机会 MTL-USDT spread=30.2% high=gate(41.1%) low=binance(10.9%)
+2026/06/19 02:04:43 [跨所扫描] 机会 UVXY-USDT spread=132.3% high=binance(-34.3%) low=gate(-166.6%)
+2026/06/19 02:04:43 [跨所扫描] 价差告警(纯观测) UVXY-USDT 年化价差 132.3% 空 binance(-34.3%/年,间隔 8h) 多 gate(-166.6%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/19 02:04:52 [借币探测] YFI: binance失败 bybit可借(缓存,年化19%) okx可借(缓存,年化9%) gate失败
+2026/06/19 02:04:52 [借币探测] ASTS: binance不可借(缓存) okx不可借(缓存)
+2026/06/19 02:04:52 [借币探测] AXTI: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/19 02:04:52 [借币探测] QCOM: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/19 02:04:52 [借币探测] MU: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/19 02:04:52 [借币探测] HYUNDAI: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/19 02:04:52 [借币探测] CRCL: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/19 02:04:52 [借币探测] AAPL: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/19 02:04:52 [借币探测] AAOI: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/19 02:04:52 [借币探测] BNT: binance失败 bybit失败 okx不可借 gate失败
+2026/06/19 02:04:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 02:04:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 02:04:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 02:04:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 02:04:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 02:04:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 02:04:58 [统一轮动] 已暂停(active=false)
+2026/06/19 02:05:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 02:05:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 02:05:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 02:05:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 02:05:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 02:05:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 02:06:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 02:06:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 02:06:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 02:06:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 02:06:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 02:06:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 02:06:58 [统一轮动] 已暂停(active=false)
+2026/06/19 02:07:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 02:07:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 02:07:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 02:07:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 02:07:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 02:07:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 02:08:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 02:08:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 02:08:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 02:08:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 02:08:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 02:08:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 02:08:58 [统一轮动] 已暂停(active=false)
+2026/06/19 02:09:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 02:09:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 02:09:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 02:09:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 02:09:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 02:09:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 02:09:58 [统一轮动] 已暂停(active=false)
+2026/06/19 02:10:16 http: superfluous response.WriteHeader call from lingxi/internal/app.(*DashboardServer).handleIndex (dashboard_server.go:271)
+2026/06/19 02:10:27 http: superfluous response.WriteHeader call from lingxi/internal/app.(*DashboardServer).handleIndex (dashboard_server.go:271)
+2026/06/19 02:10:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 02:10:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 02:10:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 02:10:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 02:10:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 02:10:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 02:10:58 [统一轮动] 已暂停(active=false)
+2026/06/19 02:11:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 02:11:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 02:11:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 02:11:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 02:11:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 02:11:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 02:12:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 02:12:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 02:12:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 02:12:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 02:12:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 02:12:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 02:12:58 [统一轮动] 已暂停(active=false)
+2026/06/19 02:13:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 02:13:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 02:13:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 02:13:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 02:13:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 02:13:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 02:13:58 [统一轮动] 已暂停(active=false)
+2026/06/19 02:14:43 [跨所扫描] 完成: venues_ok=4/4 opportunities=30 elapsed=48.492s
+2026/06/19 02:14:43 [跨所扫描] 机会 CRCL-USDT spread=37.5% high=binance(46.2%) low=bybit(8.7%)
+2026/06/19 02:14:43 [跨所扫描] 机会 BMNR-USDT spread=67.0% high=binance(67.0%) low=bybit(0.0%)
+2026/06/19 02:14:43 [跨所扫描] 机会 CBRS-USDT spread=32.3% high=binance(32.3%) low=bybit(0.0%)
+2026/06/19 02:14:43 [跨所扫描] 机会 AAOI-USDT spread=184.9% high=binance(185.6%) low=bybit(0.8%)
+2026/06/19 02:14:43 [跨所扫描] 机会 AAPL-USDT spread=52.6% high=binance(0.0%) low=bybit(-52.6%)
+2026/06/19 02:14:43 [跨所扫描] 机会 EWT-USDT spread=63.9% high=okx(63.9%) low=bybit(0.0%)
+2026/06/19 02:14:43 [跨所扫描] 机会 YFI-USDT spread=45.4% high=gate(-4.6%) low=bybit(-50.0%)
+2026/06/19 02:14:43 [跨所扫描] 机会 SKL-USDT spread=44.9% high=bybit(55.9%) low=gate(10.9%)
+2026/06/19 02:14:43 [跨所扫描] 机会 ARM-USDT spread=169.0% high=gate(10.9%) low=bybit(-158.1%)
+2026/06/19 02:14:43 [跨所扫描] 机会 AMAT-USDT spread=51.0% high=gate(10.9%) low=bybit(-40.1%)
+2026/06/19 02:14:43 [跨所扫描] 机会 MU-USDT spread=101.1% high=gate(2.3%) low=bybit(-98.8%)
+2026/06/19 02:14:43 [跨所扫描] 机会 CRO-USDT spread=33.9% high=bybit(10.9%) low=gate(-22.9%)
+2026/06/19 02:14:43 [跨所扫描] 机会 HYUNDAI-USDT spread=50.9% high=okx(52.8%) low=bybit(2.0%)
+2026/06/19 02:14:43 [跨所扫描] 机会 ROSE-USDT spread=119.1% high=gate(10.9%) low=bybit(-108.1%)
+2026/06/19 02:14:43 [跨所扫描] 机会 LRC-USDT spread=87.3% high=gate(10.9%) low=bybit(-76.4%)
+2026/06/19 02:14:43 [跨所扫描] 机会 TSM-USDT spread=64.6% high=okx(34.6%) low=bybit(-30.0%)
+2026/06/19 02:14:43 [跨所扫描] 机会 HFT-USDT spread=106.8% high=gate(10.9%) low=bybit(-95.9%)
+2026/06/19 02:14:43 [跨所扫描] 机会 QNTX-USDT spread=79.5% high=bybit(79.6%) low=gate(0.1%)
+2026/06/19 02:14:43 [跨所扫描] 机会 QCOM-USDT spread=44.5% high=okx(44.5%) low=bybit(0.0%)
+2026/06/19 02:14:43 [跨所扫描] 机会 NEO-USDT spread=41.3% high=gate(10.9%) low=bybit(-30.4%)
+2026/06/19 02:14:43 [跨所扫描] 机会 IOTX-USDT spread=87.8% high=bybit(10.9%) low=gate(-76.9%)
+2026/06/19 02:14:43 [跨所扫描] 机会 SPCX-USDT spread=41.1% high=bybit(43.6%) low=okx(2.5%)
+2026/06/19 02:14:43 [跨所扫描] 机会 IOTA-USDT spread=30.9% high=gate(10.9%) low=bybit(-20.0%)
+2026/06/19 02:14:43 [跨所扫描] 机会 AXTI-USDT spread=140.4% high=okx(197.3%) low=bybit(56.9%)
+2026/06/19 02:14:43 [跨所扫描] 机会 SAMSUNG-USDT spread=178.3% high=binance(338.6%) low=gate(160.4%)
+2026/06/19 02:14:43 [跨所扫描] 机会 BX-USDT spread=56.4% high=binance(60.0%) low=okx(3.6%)
+2026/06/19 02:14:43 [跨所扫描] 机会 XVS-USDT spread=135.1% high=binance(-54.2%) low=gate(-189.3%)
+2026/06/19 02:14:43 [跨所扫描] 机会 URNM-USDT spread=77.1% high=gate(10.9%) low=binance(-66.1%)
+2026/06/19 02:14:43 [跨所扫描] 机会 UVXY-USDT spread=124.6% high=binance(-31.7%) low=gate(-156.3%)
+2026/06/19 02:14:43 [跨所扫描] 机会 MINA-USDT spread=41.8% high=binance(10.9%) low=okx(-30.9%)
+2026/06/19 02:14:43 [跨所扫描] 价差告警(纯观测) MU-USDT 年化价差 101.1% 空 gate(2.3%/年,间隔 8h) 多 bybit(-98.8%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/19 02:14:43 [跨所扫描] 价差告警(纯观测) SAMSUNG-USDT 年化价差 178.3% 空 binance(338.6%/年,间隔 8h) 多 gate(160.4%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/19 02:14:52 [借币探测] ARM: binance不可借 bybit失败
+2026/06/19 02:14:52 [借币探测] MU: binance不可借(缓存) okx不可借(缓存)
+2026/06/19 02:14:52 [借币探测] AAOI: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/19 02:14:52 [借币探测] AAPL: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/19 02:14:52 [借币探测] BMNR: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/19 02:14:52 [借币探测] SKL: binance失败 bybit失败 okx不可借 gate失败
+2026/06/19 02:14:52 [借币探测] CRCL: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/19 02:14:52 [借币探测] EWT: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/19 02:14:52 [借币探测] YFI: binance失败 bybit可借(年化19%) okx可借(年化9%) gate失败
+2026/06/19 02:14:52 [借币探测] CBRS: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/19 02:14:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 02:14:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 02:14:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 02:14:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 02:14:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 02:14:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 02:15:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 02:15:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 02:15:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 02:15:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 02:15:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 02:15:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 02:15:58 [统一轮动] 已暂停(active=false)
+2026/06/19 02:16:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 02:16:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 02:16:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 02:16:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 02:16:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 02:16:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 02:16:58 [统一轮动] 已暂停(active=false)
+2026/06/19 02:17:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 02:17:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 02:17:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 02:17:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 02:17:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 02:17:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 02:17:58 [统一轮动] 已暂停(active=false)
+2026/06/19 02:18:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 02:18:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 02:18:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 02:18:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 02:18:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 02:18:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 02:19:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 02:19:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 02:19:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 02:19:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 02:19:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 02:19:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 02:19:58 [统一轮动] 已暂停(active=false)
+2026/06/19 02:20:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 02:20:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 02:20:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 02:20:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 02:20:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 02:20:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 02:20:58 [统一轮动] 已暂停(active=false)
+2026/06/19 02:21:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 02:21:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 02:21:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 02:21:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 02:21:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 02:21:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 02:22:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 02:22:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 02:22:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 02:22:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 02:22:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 02:22:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 02:22:58 [统一轮动] 已暂停(active=false)
+2026/06/19 02:23:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 02:23:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 02:23:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 02:23:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 02:23:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 02:23:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 02:24:43 [跨所扫描] 完成: venues_ok=4/4 opportunities=30 elapsed=48.499s
+2026/06/19 02:24:43 [跨所扫描] 机会 AAPL-USDT spread=44.9% high=binance(0.0%) low=bybit(-44.9%)
+2026/06/19 02:24:43 [跨所扫描] 机会 CBRS-USDT spread=34.1% high=binance(34.1%) low=bybit(0.0%)
+2026/06/19 02:24:43 [跨所扫描] 机会 ARPA-USDT spread=51.1% high=binance(10.9%) low=bybit(-40.2%)
+2026/06/19 02:24:43 [跨所扫描] 机会 KNC-USDT spread=40.6% high=bybit(10.9%) low=binance(-29.7%)
+2026/06/19 02:24:43 [跨所扫描] 机会 AAOI-USDT spread=176.3% high=binance(176.3%) low=bybit(0.0%)
+2026/06/19 02:24:43 [跨所扫描] 机会 CRCL-USDT spread=35.6% high=binance(38.6%) low=bybit(3.0%)
+2026/06/19 02:24:43 [跨所扫描] 机会 HFT-USDT spread=107.3% high=binance(10.9%) low=bybit(-96.3%)
+2026/06/19 02:24:43 [跨所扫描] 机会 BMNR-USDT spread=62.4% high=binance(62.4%) low=bybit(0.0%)
+2026/06/19 02:24:43 [跨所扫描] 机会 QNTX-USDT spread=64.1% high=bybit(64.1%) low=binance(0.0%)
+2026/06/19 02:24:43 [跨所扫描] 机会 SPCX-USDT spread=45.7% high=bybit(50.2%) low=okx(4.5%)
+2026/06/19 02:24:43 [跨所扫描] 机会 LRC-USDT spread=90.3% high=okx(10.9%) low=bybit(-79.4%)
+2026/06/19 02:24:43 [跨所扫描] 机会 AMAT-USDT spread=60.0% high=gate(10.9%) low=bybit(-49.0%)
+2026/06/19 02:24:43 [跨所扫描] 机会 ROSE-USDT spread=120.0% high=gate(10.9%) low=bybit(-109.0%)
+2026/06/19 02:24:43 [跨所扫描] 机会 WDC-USDT spread=155.3% high=bybit(155.3%) low=okx(0.0%)
+2026/06/19 02:24:43 [跨所扫描] 机会 GRT-USDT spread=35.2% high=bybit(10.9%) low=gate(-24.3%)
+2026/06/19 02:24:43 [跨所扫描] 机会 AXTI-USDT spread=137.9% high=okx(187.4%) low=bybit(49.6%)
+2026/06/19 02:24:43 [跨所扫描] 机会 VET-USDT spread=31.2% high=gate(10.7%) low=bybit(-20.5%)
+2026/06/19 02:24:43 [跨所扫描] 机会 LITE-USDT spread=36.4% high=gate(36.4%) low=bybit(0.0%)
+2026/06/19 02:24:43 [跨所扫描] 机会 MU-USDT spread=171.8% high=okx(0.0%) low=bybit(-171.8%)
+2026/06/19 02:24:43 [跨所扫描] 机会 QCOM-USDT spread=40.2% high=okx(40.2%) low=bybit(0.0%)
+2026/06/19 02:24:43 [跨所扫描] 机会 EWT-USDT spread=61.9% high=okx(61.9%) low=bybit(0.0%)
+2026/06/19 02:24:43 [跨所扫描] 机会 ARM-USDT spread=151.4% high=gate(8.0%) low=bybit(-143.4%)
+2026/06/19 02:24:43 [跨所扫描] 机会 HYUNDAI-USDT spread=51.2% high=okx(53.1%) low=bybit(1.9%)
+2026/06/19 02:24:43 [跨所扫描] 机会 TSM-USDT spread=84.7% high=okx(16.7%) low=bybit(-67.9%)
+2026/06/19 02:24:43 [跨所扫描] 机会 IOTX-USDT spread=90.5% high=bybit(10.9%) low=gate(-79.6%)
+2026/06/19 02:24:43 [跨所扫描] 机会 NEO-USDT spread=39.9% high=okx(10.9%) low=bybit(-29.0%)
+2026/06/19 02:24:43 [跨所扫描] 机会 IOTA-USDT spread=37.1% high=okx(10.9%) low=bybit(-26.1%)
+2026/06/19 02:24:43 [跨所扫描] 机会 CRO-USDT spread=32.5% high=bybit(10.9%) low=gate(-21.6%)
+2026/06/19 02:24:43 [跨所扫描] 机会 EWY-USDT spread=94.2% high=gate(10.9%) low=bybit(-83.3%)
+2026/06/19 02:24:43 [跨所扫描] 机会 YFI-USDT spread=53.4% high=gate(-0.7%) low=bybit(-54.1%)
+2026/06/19 02:24:43 [跨所扫描] 价差告警(纯观测) MU-USDT 年化价差 171.8% 空 okx(0.0%/年,间隔 8h) 多 bybit(-171.8%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/19 02:24:52 [借币探测] CBRS: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/19 02:24:52 [借币探测] KNC: binance可借(年化77%) bybit失败 okx不可借 gate失败
+2026/06/19 02:24:52 [借币探测] YFI: bybit可借(缓存,年化19%) okx可借(缓存,年化9%)
+2026/06/19 02:24:52 [借币探测] CRCL: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/19 02:24:52 [借币探测] BMNR: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/19 02:24:52 [借币探测] HFT: binance可借(年化58%) bybit可借(年化49%) okx失败 gate失败
+2026/06/19 02:24:52 [借币探测] QNTX: binance不可借 bybit失败 okx失败 gate失败
+2026/06/19 02:24:52 [借币探测] AAOI: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/19 02:24:52 [借币探测] ARPA: binance失败 bybit失败 okx失败 gate失败
+2026/06/19 02:24:52 [借币探测] AAPL: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/19 02:24:52 [借币探测] ARM: binance不可借(缓存)
+2026/06/19 02:24:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 02:24:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 02:24:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 02:24:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 02:24:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 02:24:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 02:24:58 [统一轮动] 已暂停(active=false)
+2026/06/19 02:25:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 02:25:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 02:25:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 02:25:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 02:25:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 02:25:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 02:26:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 02:26:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 02:26:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 02:26:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 02:26:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 02:26:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 02:26:58 [统一轮动] 已暂停(active=false)
+2026/06/19 02:27:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 02:27:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 02:27:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 02:27:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 02:27:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 02:27:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 02:27:58 [统一轮动] 已暂停(active=false)
+2026/06/19 02:28:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 02:28:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 02:28:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 02:28:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 02:28:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 02:28:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 02:29:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 02:29:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 02:29:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 02:29:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 02:29:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 02:29:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 02:29:58 [统一轮动] 已暂停(active=false)
+2026/06/19 02:30:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 02:30:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 02:30:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 02:30:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 02:30:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 02:30:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 02:30:58 [统一轮动] 已暂停(active=false)
+2026/06/19 02:31:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 02:31:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 02:31:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 02:31:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 02:31:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 02:31:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 02:31:58 [统一轮动] 已暂停(active=false)
+2026/06/19 02:32:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 02:32:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 02:32:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 02:32:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 02:32:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 02:32:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 02:33:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 02:33:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 02:33:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 02:33:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 02:33:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 02:33:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 02:33:58 [统一轮动] 已暂停(active=false)
+2026/06/19 02:34:43 [跨所扫描] 完成: venues_ok=4/4 opportunities=30 elapsed=48.488s
+2026/06/19 02:34:43 [跨所扫描] 机会 BMNR-USDT spread=55.8% high=binance(55.8%) low=bybit(0.0%)
+2026/06/19 02:34:43 [跨所扫描] 机会 1000LUNC-USDT spread=34.0% high=binance(-12.2%) low=bybit(-46.2%)
+2026/06/19 02:34:43 [跨所扫描] 机会 AAOI-USDT spread=166.9% high=binance(166.9%) low=bybit(0.0%)
+2026/06/19 02:34:43 [跨所扫描] 机会 QNTX-USDT spread=49.6% high=bybit(49.6%) low=binance(0.0%)
+2026/06/19 02:34:43 [跨所扫描] 机会 KNC-USDT spread=44.7% high=bybit(10.9%) low=binance(-33.7%)
+2026/06/19 02:34:43 [跨所扫描] 机会 AAPL-USDT spread=30.1% high=binance(0.0%) low=bybit(-30.1%)
+2026/06/19 02:34:43 [跨所扫描] 机会 CBRS-USDT spread=33.0% high=binance(33.0%) low=bybit(0.0%)
+2026/06/19 02:34:43 [跨所扫描] 机会 SPCX-USDT spread=45.1% high=bybit(48.9%) low=okx(3.8%)
+2026/06/19 02:34:43 [跨所扫描] 机会 NEO-USDT spread=41.3% high=gate(10.9%) low=bybit(-30.3%)
+2026/06/19 02:34:43 [跨所扫描] 机会 ARM-USDT spread=137.9% high=gate(4.3%) low=bybit(-133.6%)
+2026/06/19 02:34:43 [跨所扫描] 机会 EWY-USDT spread=140.1% high=gate(10.9%) low=bybit(-129.1%)
+2026/06/19 02:34:43 [跨所扫描] 机会 LRC-USDT spread=96.9% high=gate(10.9%) low=bybit(-86.0%)
+2026/06/19 02:34:43 [跨所扫描] 机会 MAV-USDT spread=30.6% high=gate(10.9%) low=bybit(-19.7%)
+2026/06/19 02:34:43 [跨所扫描] 机会 CRO-USDT spread=34.4% high=bybit(10.9%) low=gate(-23.5%)
+2026/06/19 02:34:43 [跨所扫描] 机会 IOTA-USDT spread=38.2% high=gate(10.9%) low=bybit(-27.2%)
+2026/06/19 02:34:43 [跨所扫描] 机会 THETA-USDT spread=32.1% high=bybit(10.9%) low=gate(-21.1%)
+2026/06/19 02:34:43 [跨所扫描] 机会 ROSE-USDT spread=119.3% high=gate(10.9%) low=bybit(-108.3%)
+2026/06/19 02:34:43 [跨所扫描] 机会 YFI-USDT spread=53.5% high=gate(-1.1%) low=bybit(-54.6%)
+2026/06/19 02:34:43 [跨所扫描] 机会 HYUNDAI-USDT spread=50.3% high=okx(50.3%) low=bybit(0.0%)
+2026/06/19 02:34:43 [跨所扫描] 机会 TSM-USDT spread=90.7% high=gate(10.9%) low=bybit(-79.7%)
+2026/06/19 02:34:43 [跨所扫描] 机会 QCOM-USDT spread=37.0% high=okx(37.0%) low=bybit(0.0%)
+2026/06/19 02:34:43 [跨所扫描] 机会 AMAT-USDT spread=61.2% high=gate(10.9%) low=bybit(-50.3%)
+2026/06/19 02:34:43 [跨所扫描] 机会 ALICE-USDT spread=52.7% high=gate(10.9%) low=bybit(-41.8%)
+2026/06/19 02:34:43 [跨所扫描] 机会 GRT-USDT spread=36.6% high=bybit(10.9%) low=gate(-25.7%)
+2026/06/19 02:34:43 [跨所扫描] 机会 ARPA-USDT spread=82.2% high=gate(10.9%) low=bybit(-71.2%)
+2026/06/19 02:34:43 [跨所扫描] 机会 LITE-USDT spread=34.2% high=gate(34.2%) low=bybit(0.0%)
+2026/06/19 02:34:43 [跨所扫描] 机会 EWT-USDT spread=58.8% high=okx(58.8%) low=bybit(0.0%)
+2026/06/19 02:34:43 [跨所扫描] 机会 AGLD-USDT spread=40.5% high=gate(10.9%) low=bybit(-29.6%)
+2026/06/19 02:34:43 [跨所扫描] 机会 WDC-USDT spread=116.0% high=bybit(116.0%) low=okx(0.0%)
+2026/06/19 02:34:43 [跨所扫描] 机会 AXTI-USDT spread=131.1% high=okx(177.2%) low=bybit(46.1%)
+2026/06/19 02:34:53 [借币探测] SPCX: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/19 02:34:53 [借币探测] BMNR: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/19 02:34:53 [借币探测] AAOI: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/19 02:34:53 [借币探测] KNC: binance可借(缓存,年化77%) bybit失败 okx不可借(缓存) gate失败
+2026/06/19 02:34:53 [借币探测] IWM: binance不可借 bybit失败
+2026/06/19 02:34:53 [借币探测] CBRS: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/19 02:34:53 [借币探测] 1000LUNC: binance不可借 bybit失败 okx失败 gate失败
+2026/06/19 02:34:53 [借币探测] AAPL: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/19 02:34:53 [借币探测] HFT: binance可借(缓存,年化58%) bybit可借(缓存,年化49%)
+2026/06/19 02:34:53 [借币探测] YFI: bybit可借(缓存,年化19%) okx可借(缓存,年化9%)
+2026/06/19 02:34:53 [借币探测] ARM: binance不可借(缓存) bybit失败 okx不可借 gate失败
+2026/06/19 02:34:53 [借币探测] QNTX: binance不可借(缓存) bybit失败 okx失败 gate失败
+2026/06/19 02:34:53 [借币探测] NEO: binance可借(年化28%) bybit失败 okx可借(年化17%) gate失败
+2026/06/19 02:34:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 02:34:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 02:34:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 02:34:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 02:34:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 02:34:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 02:34:58 [统一轮动] 已暂停(active=false)
+2026/06/19 02:35:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 02:35:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 02:35:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 02:35:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 02:35:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 02:35:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 02:36:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 02:36:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 02:36:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 02:36:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 02:36:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 02:36:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 02:36:58 [统一轮动] 已暂停(active=false)
+2026/06/19 02:37:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 02:37:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 02:37:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 02:37:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 02:37:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 02:37:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 02:38:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 02:38:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 02:38:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 02:38:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 02:38:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 02:38:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 02:38:58 [统一轮动] 已暂停(active=false)
+2026/06/19 02:39:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 02:39:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 02:39:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 02:39:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 02:39:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 02:39:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 02:39:58 [统一轮动] 已暂停(active=false)
+2026/06/19 02:40:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 02:40:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 02:40:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 02:40:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 02:40:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 02:40:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 02:41:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 02:41:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 02:41:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 02:41:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 02:41:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 02:41:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 02:41:58 [统一轮动] 已暂停(active=false)
+2026/06/19 02:42:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 02:42:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 02:42:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 02:42:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 02:42:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 02:42:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 02:42:58 [统一轮动] 已暂停(active=false)
+2026/06/19 02:43:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 02:43:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 02:43:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 02:43:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 02:43:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 02:43:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 02:43:58 [统一轮动] 已暂停(active=false)
+2026/06/19 02:44:43 [跨所扫描] 完成: venues_ok=4/4 opportunities=30 elapsed=48.494s
+2026/06/19 02:44:43 [跨所扫描] 机会 1000LUNC-USDT spread=33.1% high=binance(-12.5%) low=bybit(-45.6%)
+2026/06/19 02:44:43 [跨所扫描] 机会 AAOI-USDT spread=158.5% high=binance(158.5%) low=bybit(0.0%)
+2026/06/19 02:44:43 [跨所扫描] 机会 ASTS-USDT spread=100.5% high=bybit(24.8%) low=binance(-75.7%)
+2026/06/19 02:44:43 [跨所扫描] 机会 BMNR-USDT spread=49.8% high=binance(49.8%) low=bybit(0.0%)
+2026/06/19 02:44:43 [跨所扫描] 机会 KNC-USDT spread=50.1% high=bybit(10.9%) low=binance(-39.1%)
+2026/06/19 02:44:43 [跨所扫描] 机会 QNTX-USDT spread=41.4% high=bybit(41.4%) low=binance(0.0%)
+2026/06/19 02:44:43 [跨所扫描] 机会 TSM-USDT spread=86.6% high=gate(10.9%) low=bybit(-75.6%)
+2026/06/19 02:44:43 [跨所扫描] 机会 LITE-USDT spread=37.8% high=gate(37.8%) low=bybit(0.0%)
+2026/06/19 02:44:43 [跨所扫描] 机会 THETA-USDT spread=46.9% high=bybit(10.9%) low=gate(-35.9%)
+2026/06/19 02:44:43 [跨所扫描] 机会 LRC-USDT spread=94.0% high=gate(10.9%) low=bybit(-83.0%)
+2026/06/19 02:44:43 [跨所扫描] 机会 ALICE-USDT spread=61.7% high=gate(10.9%) low=bybit(-50.8%)
+2026/06/19 02:44:43 [跨所扫描] 机会 XVS-USDT spread=113.3% high=bybit(-47.7%) low=gate(-161.0%)
+2026/06/19 02:44:43 [跨所扫描] 机会 ARM-USDT spread=124.2% high=gate(3.6%) low=bybit(-120.6%)
+2026/06/19 02:44:43 [跨所扫描] 机会 MAV-USDT spread=40.9% high=gate(10.9%) low=bybit(-29.9%)
+2026/06/19 02:44:43 [跨所扫描] 机会 EWY-USDT spread=146.2% high=gate(10.9%) low=bybit(-135.3%)
+2026/06/19 02:44:43 [跨所扫描] 机会 AXTI-USDT spread=129.2% high=okx(168.1%) low=bybit(38.9%)
+2026/06/19 02:44:43 [跨所扫描] 机会 ROSE-USDT spread=106.5% high=gate(10.9%) low=bybit(-95.6%)
+2026/06/19 02:44:43 [跨所扫描] 机会 HYUNDAI-USDT spread=46.7% high=okx(46.7%) low=bybit(0.0%)
+2026/06/19 02:44:43 [跨所扫描] 机会 AGLD-USDT spread=40.4% high=gate(10.9%) low=bybit(-29.5%)
+2026/06/19 02:44:43 [跨所扫描] 机会 HFT-USDT spread=109.7% high=gate(10.9%) low=bybit(-98.7%)
+2026/06/19 02:44:43 [跨所扫描] 机会 YFI-USDT spread=53.9% high=gate(1.0%) low=bybit(-52.9%)
+2026/06/19 02:44:43 [跨所扫描] 机会 QCOM-USDT spread=35.5% high=okx(37.9%) low=bybit(2.3%)
+2026/06/19 02:44:43 [跨所扫描] 机会 EWT-USDT spread=56.0% high=okx(56.0%) low=bybit(0.0%)
+2026/06/19 02:44:43 [跨所扫描] 机会 IOTA-USDT spread=36.0% high=gate(10.9%) low=bybit(-25.1%)
+2026/06/19 02:44:43 [跨所扫描] 机会 WDC-USDT spread=95.5% high=bybit(95.5%) low=okx(0.0%)
+2026/06/19 02:44:43 [跨所扫描] 机会 IOTX-USDT spread=79.7% high=bybit(10.9%) low=gate(-68.7%)
+2026/06/19 02:44:43 [跨所扫描] 机会 LLY-USDT spread=30.1% high=gate(10.9%) low=bybit(-19.1%)
+2026/06/19 02:44:43 [跨所扫描] 机会 MU-USDT spread=161.3% high=okx(-10.9%) low=bybit(-172.2%)
+2026/06/19 02:44:43 [跨所扫描] 机会 NEO-USDT spread=42.0% high=gate(10.9%) low=bybit(-31.1%)
+2026/06/19 02:44:43 [跨所扫描] 机会 GRT-USDT spread=31.1% high=bybit(10.9%) low=gate(-20.1%)
+2026/06/19 02:44:43 [跨所扫描] 价差告警(纯观测) ASTS-USDT 年化价差 100.5% 空 bybit(24.8%/年,间隔 8h) 多 binance(-75.7%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/19 02:44:43 [跨所扫描] 价差告警(纯观测) XVS-USDT 年化价差 113.3% 空 bybit(-47.7%/年,间隔 8h) 多 gate(-161.0%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/19 02:44:52 [借币探测] 1000LUNC: binance不可借(缓存) bybit失败 okx失败 gate失败
+2026/06/19 02:44:52 [借币探测] KNC: binance可借(缓存,年化77%) bybit失败 okx不可借(缓存) gate失败
+2026/06/19 02:44:52 [借币探测] HFT: binance可借(缓存,年化58%) bybit可借(缓存,年化49%)
+2026/06/19 02:44:52 [借币探测] ASTS: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/19 02:44:52 [借币探测] QNTX: binance不可借(缓存) bybit失败 okx失败 gate失败
+2026/06/19 02:44:52 [借币探测] THETA: binance可借(年化5%) bybit可借(年化6%)
+2026/06/19 02:44:52 [借币探测] BMNR: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/19 02:44:52 [借币探测] AAOI: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/19 02:44:52 [借币探测] ARM: okx不可借(缓存)
+2026/06/19 02:44:52 [借币探测] TSM: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/19 02:44:52 [借币探测] LITE: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/19 02:44:52 [借币探测] IWM: binance不可借(缓存)
+2026/06/19 02:44:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 02:44:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 02:44:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 02:44:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 02:44:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 02:44:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 02:45:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 02:45:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 02:45:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 02:45:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 02:45:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 02:45:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 02:45:58 [统一轮动] 已暂停(active=false)
+2026/06/19 02:46:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 02:46:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 02:46:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 02:46:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 02:46:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 02:46:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 02:47:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 02:47:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 02:47:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 02:47:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 02:47:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 02:47:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 02:47:58 [统一轮动] 已暂停(active=false)
+2026/06/19 02:48:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 02:48:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 02:48:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 02:48:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 02:48:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 02:48:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 02:49:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 02:49:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 02:49:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 02:49:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 02:49:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 02:49:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 02:49:58 [统一轮动] 已暂停(active=false)
+2026/06/19 02:50:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 02:50:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 02:50:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 02:50:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 02:50:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 02:50:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 02:51:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 02:51:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 02:51:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 02:51:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 02:51:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 02:51:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 02:51:58 [统一轮动] 已暂停(active=false)
+2026/06/19 02:52:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 02:52:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 02:52:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 02:52:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 02:52:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 02:52:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 02:53:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 02:53:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 02:53:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 02:53:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 02:53:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 02:53:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 02:53:58 [统一轮动] 已暂停(active=false)
+2026/06/19 02:54:43 [跨所扫描] 完成: venues_ok=4/4 opportunities=30 elapsed=48.505s
+2026/06/19 02:54:43 [跨所扫描] 机会 1000LUNC-USDT spread=32.0% high=binance(-12.9%) low=bybit(-44.9%)
+2026/06/19 02:54:43 [跨所扫描] 机会 BNT-USDT spread=46.5% high=bybit(-2.9%) low=binance(-49.4%)
+2026/06/19 02:54:43 [跨所扫描] 机会 BMNR-USDT spread=39.6% high=binance(39.6%) low=bybit(0.0%)
+2026/06/19 02:54:43 [跨所扫描] 机会 QNTX-USDT spread=39.5% high=bybit(39.5%) low=binance(0.0%)
+2026/06/19 02:54:43 [跨所扫描] 机会 RKLB-USDT spread=36.2% high=bybit(36.2%) low=binance(0.0%)
+2026/06/19 02:54:43 [跨所扫描] 机会 AAOI-USDT spread=148.7% high=binance(148.7%) low=bybit(0.0%)
+2026/06/19 02:54:43 [跨所扫描] 机会 ASTS-USDT spread=124.5% high=bybit(59.3%) low=binance(-65.2%)
+2026/06/19 02:54:43 [跨所扫描] 机会 KNC-USDT spread=55.4% high=bybit(10.9%) low=binance(-44.5%)
+2026/06/19 02:54:43 [跨所扫描] 机会 SPCX-USDT spread=42.6% high=bybit(53.5%) low=gate(10.9%)
+2026/06/19 02:54:43 [跨所扫描] 机会 WDC-USDT spread=78.8% high=bybit(78.8%) low=okx(0.0%)
+2026/06/19 02:54:43 [跨所扫描] 机会 BLUR-USDT spread=32.3% high=bybit(-32.3%) low=okx(-64.5%)
+2026/06/19 02:54:43 [跨所扫描] 机会 EWY-USDT spread=125.7% high=gate(10.9%) low=bybit(-114.7%)
+2026/06/19 02:54:43 [跨所扫描] 机会 ROSE-USDT spread=100.2% high=gate(10.9%) low=bybit(-89.3%)
+2026/06/19 02:54:43 [跨所扫描] 机会 HFT-USDT spread=97.5% high=gate(10.9%) low=bybit(-86.5%)
+2026/06/19 02:54:43 [跨所扫描] 机会 LRC-USDT spread=93.7% high=gate(10.9%) low=bybit(-82.8%)
+2026/06/19 02:54:43 [跨所扫描] 机会 LITE-USDT spread=40.9% high=gate(40.9%) low=bybit(0.0%)
+2026/06/19 02:54:43 [跨所扫描] 机会 TSM-USDT spread=78.1% high=gate(10.9%) low=bybit(-67.2%)
+2026/06/19 02:54:43 [跨所扫描] 机会 XVS-USDT spread=100.8% high=bybit(-36.1%) low=gate(-136.9%)
+2026/06/19 02:54:43 [跨所扫描] 机会 AXTI-USDT spread=126.4% high=okx(160.0%) low=bybit(33.5%)
+2026/06/19 02:54:43 [跨所扫描] 机会 IOTX-USDT spread=66.5% high=bybit(10.9%) low=gate(-55.6%)
+2026/06/19 02:54:43 [跨所扫描] 机会 MU-USDT spread=127.4% high=gate(-9.3%) low=bybit(-136.7%)
+2026/06/19 02:54:43 [跨所扫描] 机会 AMAT-USDT spread=38.4% high=gate(10.9%) low=bybit(-27.5%)
+2026/06/19 02:54:43 [跨所扫描] 机会 ARPA-USDT spread=95.2% high=gate(10.9%) low=bybit(-84.2%)
+2026/06/19 02:54:43 [跨所扫描] 机会 PEOPLE-USDT spread=83.3% high=bybit(10.9%) low=gate(-72.3%)
+2026/06/19 02:54:43 [跨所扫描] 机会 THETA-USDT spread=59.4% high=bybit(10.9%) low=okx(-48.5%)
+2026/06/19 02:54:43 [跨所扫描] 机会 HYUNDAI-USDT spread=44.5% high=okx(44.5%) low=bybit(0.0%)
+2026/06/19 02:54:43 [跨所扫描] 机会 CRO-USDT spread=33.6% high=bybit(10.9%) low=gate(-22.7%)
+2026/06/19 02:54:43 [跨所扫描] 机会 LLY-USDT spread=44.4% high=gate(10.9%) low=bybit(-33.5%)
+2026/06/19 02:54:43 [跨所扫描] 机会 EWT-USDT spread=53.1% high=okx(53.1%) low=bybit(0.0%)
+2026/06/19 02:54:43 [跨所扫描] 机会 MAV-USDT spread=41.8% high=gate(10.9%) low=bybit(-30.8%)
+2026/06/19 02:54:52 [借币探测] THETA: binance可借(缓存,年化5%) bybit可借(缓存,年化6%)
+2026/06/19 02:54:52 [借币探测] 1000LUNC: binance不可借 bybit失败 okx失败 gate失败
+2026/06/19 02:54:52 [借币探测] BMNR: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/19 02:54:52 [借币探测] AAOI: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/19 02:54:52 [借币探测] ASTS: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/19 02:54:52 [借币探测] QNTX: binance不可借 bybit失败 okx失败 gate失败
+2026/06/19 02:54:52 [借币探测] BNT: binance失败 bybit失败 okx不可借 gate失败
+2026/06/19 02:54:52 [借币探测] KNC: binance可借(年化77%) bybit失败 okx不可借 gate失败
+2026/06/19 02:54:52 [借币探测] TSM: binance不可借(缓存) okx不可借(缓存)
+2026/06/19 02:54:52 [借币探测] RKLB: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/19 02:54:52 [借币探测] SPCX: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/19 02:54:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 02:54:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 02:54:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 02:54:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 02:54:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 02:54:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 02:55:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 02:55:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 02:55:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 02:55:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 02:55:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 02:55:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 02:55:58 [统一轮动] 已暂停(active=false)
+2026/06/19 02:56:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 02:56:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 02:56:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 02:56:58 [delist-guard] 已刷新 gate instrument 状态: total=2813 non_trading=2
+2026/06/19 02:56:58 [delist-guard] 已刷新 bybit instrument 状态: total=1256 non_trading=0
+2026/06/19 02:56:59 [delist-guard] 已刷新 binance instrument 状态: total=4393 non_trading=2354
+2026/06/19 02:56:59 [delist-guard] 已刷新 okx instrument 状态: total=1637 non_trading=2
+2026/06/19 02:56:59 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 02:56:59 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 02:56:59 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 02:56:59 [统一轮动] 已暂停(active=false)
+2026/06/19 02:57:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 02:57:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 02:57:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 02:57:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 02:57:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 02:57:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 02:58:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 02:58:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 02:58:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 02:58:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 02:58:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 02:58:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 02:58:58 [统一轮动] 已暂停(active=false)
+2026/06/19 02:59:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 02:59:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 02:59:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 02:59:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 02:59:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 02:59:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 02:59:58 [统一轮动] 已暂停(active=false)
+2026/06/19 03:00:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 03:00:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 03:00:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 03:00:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 03:00:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 03:00:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 03:01:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 03:01:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 03:01:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 03:01:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 03:01:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 03:01:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 03:01:58 [统一轮动] 已暂停(active=false)
+2026/06/19 03:02:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 03:02:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 03:02:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 03:02:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 03:02:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 03:02:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 03:02:58 [统一轮动] 已暂停(active=false)
+2026/06/19 03:03:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 03:03:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 03:03:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 03:03:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 03:03:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 03:03:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 03:04:43 [跨所扫描] 完成: venues_ok=4/4 opportunities=30 elapsed=48.488s
+2026/06/19 03:04:43 [跨所扫描] 机会 1000LUNC-USDT spread=31.9% high=binance(-12.3%) low=bybit(-44.1%)
+2026/06/19 03:04:43 [跨所扫描] 机会 KNC-USDT spread=56.3% high=bybit(10.9%) low=binance(-45.3%)
+2026/06/19 03:04:43 [跨所扫描] 机会 AAOI-USDT spread=137.0% high=binance(137.0%) low=bybit(0.0%)
+2026/06/19 03:04:43 [跨所扫描] 机会 BNT-USDT spread=55.2% high=bybit(2.3%) low=binance(-52.9%)
+2026/06/19 03:04:43 [跨所扫描] 机会 RKLB-USDT spread=37.1% high=bybit(37.1%) low=binance(0.0%)
+2026/06/19 03:04:43 [跨所扫描] 机会 ASTS-USDT spread=159.1% high=bybit(102.0%) low=binance(-57.1%)
+2026/06/19 03:04:43 [跨所扫描] 机会 QNTX-USDT spread=45.2% high=bybit(45.2%) low=binance(0.0%)
+2026/06/19 03:04:43 [跨所扫描] 机会 MU-USDT spread=106.0% high=gate(-3.8%) low=bybit(-109.8%)
+2026/06/19 03:04:43 [跨所扫描] 机会 YFI-USDT spread=38.6% high=gate(2.3%) low=bybit(-36.3%)
+2026/06/19 03:04:43 [跨所扫描] 机会 EWY-USDT spread=95.0% high=gate(10.9%) low=bybit(-84.1%)
+2026/06/19 03:04:43 [跨所扫描] 机会 IOTA-USDT spread=31.1% high=okx(10.9%) low=bybit(-20.1%)
+2026/06/19 03:04:43 [跨所扫描] 机会 LRC-USDT spread=89.2% high=gate(10.9%) low=bybit(-78.3%)
+2026/06/19 03:04:43 [跨所扫描] 机会 EWT-USDT spread=50.1% high=okx(50.1%) low=bybit(0.0%)
+2026/06/19 03:04:43 [跨所扫描] 机会 ALICE-USDT spread=61.0% high=gate(10.9%) low=bybit(-50.1%)
+2026/06/19 03:04:43 [跨所扫描] 机会 HYUNDAI-USDT spread=50.7% high=okx(50.7%) low=bybit(0.0%)
+2026/06/19 03:04:43 [跨所扫描] 机会 SPCX-USDT spread=51.1% high=bybit(62.1%) low=gate(10.9%)
+2026/06/19 03:04:43 [跨所扫描] 机会 ROSE-USDT spread=98.7% high=gate(10.9%) low=bybit(-87.8%)
+2026/06/19 03:04:43 [跨所扫描] 机会 LLY-USDT spread=54.9% high=gate(10.9%) low=bybit(-43.9%)
+2026/06/19 03:04:43 [跨所扫描] 机会 HFT-USDT spread=92.8% high=gate(10.9%) low=bybit(-81.8%)
+2026/06/19 03:04:43 [跨所扫描] 机会 LITE-USDT spread=42.7% high=gate(42.7%) low=bybit(0.0%)
+2026/06/19 03:04:43 [跨所扫描] 机会 THETA-USDT spread=64.3% high=bybit(10.9%) low=okx(-53.4%)
+2026/06/19 03:04:43 [跨所扫描] 机会 IOTX-USDT spread=55.2% high=bybit(10.9%) low=gate(-44.3%)
+2026/06/19 03:04:43 [跨所扫描] 机会 MAV-USDT spread=45.8% high=gate(10.9%) low=bybit(-34.8%)
+2026/06/19 03:04:43 [跨所扫描] 机会 TSM-USDT spread=62.7% high=gate(10.9%) low=bybit(-51.8%)
+2026/06/19 03:04:43 [跨所扫描] 机会 ARPA-USDT spread=82.1% high=gate(10.9%) low=bybit(-71.2%)
+2026/06/19 03:04:43 [跨所扫描] 机会 ARM-USDT spread=52.0% high=gate(9.0%) low=bybit(-42.9%)
+2026/06/19 03:04:43 [跨所扫描] 机会 WAVES-USDT spread=31.6% high=bybit(4.7%) low=gate(-26.9%)
+2026/06/19 03:04:43 [跨所扫描] 机会 QCOM-USDT spread=81.8% high=bybit(92.8%) low=gate(10.9%)
+2026/06/19 03:04:43 [跨所扫描] 机会 AXTI-USDT spread=118.8% high=okx(150.2%) low=bybit(31.3%)
+2026/06/19 03:04:43 [跨所扫描] 机会 CRO-USDT spread=32.8% high=bybit(10.9%) low=gate(-21.9%)
+2026/06/19 03:04:52 [借币探测] AAOI: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/19 03:04:52 [借币探测] ASTS: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/19 03:04:52 [借币探测] QNTX: binance不可借(缓存) bybit失败 okx失败 gate失败
+2026/06/19 03:04:52 [借币探测] MU: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/19 03:04:52 [借币探测] THETA: binance可借(缓存,年化5%) bybit可借(缓存,年化6%)
+2026/06/19 03:04:52 [借币探测] RKLB: binance不可借(缓存) bybit失败 okx不可借(缓存) gate失败
+2026/06/19 03:04:52 [借币探测] KNC: binance可借(缓存,年化77%) bybit失败 okx不可借(缓存) gate失败
+2026/06/19 03:04:52 [借币探测] YFI: binance失败 bybit可借(年化19%) okx可借(年化9%) gate失败
+2026/06/19 03:04:52 [借币探测] 1000LUNC: binance不可借(缓存) bybit失败 okx失败 gate失败
+2026/06/19 03:04:52 [借币探测] BNT: binance失败 bybit失败 okx不可借(缓存) gate失败
+2026/06/19 03:04:52 [借币探测] EWY: binance不可借 bybit失败 okx不可借 gate失败
+2026/06/19 03:04:52 [借币探测] IWM: binance不可借
+2026/06/19 03:04:52 [借币探测] TSM: binance不可借(缓存) okx不可借(缓存)
+2026/06/19 03:04:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 03:04:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 03:04:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 03:04:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 03:04:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 03:04:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 03:04:58 [统一轮动] 已暂停(active=false)
+2026/06/19 03:05:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 03:05:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 03:05:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 03:05:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 03:05:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 03:05:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 03:05:58 [统一轮动] 已暂停(active=false)
+2026/06/19 03:06:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 03:06:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 03:06:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 03:06:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 03:06:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 03:06:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 03:07:58 [跨所执行] 运行时开仓开关已关闭,跳过 evaluateNewOpens(在场持仓管理照常)
+2026/06/19 03:07:58 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/19 03:07:58 [影子] 本应平仓 FLUX-USDT 买回现货还币 104.590000 原因:flatten_all
+2026/06/19 03:07:58 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/19 03:07:58 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/19 03:07:58 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/19 03:07:58 [统一轮动] 已暂停(active=false)

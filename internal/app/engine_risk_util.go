@@ -598,10 +598,10 @@ func (e *FundingRateSniperEngine) healthStatusLocked() (string, string, bool) {
 	if e.platformState.FuseTripped {
 		return "paused", nonEmpty(e.platformState.FuseReason, "平台异常，当前轮应暂停"), false
 	}
-	if remainingRiskBudget(e.cfg.RiskConfig.MaxExecutionIncidents, int(atomic.LoadInt32(&e.executionIncidents))) == 0 {
+	if remainingRiskBudget(e.effectiveMaxExecutionIncidentsLocked(), int(atomic.LoadInt32(&e.executionIncidents))) == 0 {
 		return "paused", "执行事故预算已耗尽，当前轮不应继续扩张", false
 	}
-	if remainingRiskBudget(e.cfg.RiskConfig.MaxRecoveryActionsPerCycle, e.recoveryActionsThisCycle) == 0 {
+	if remainingRiskBudget(e.effectiveMaxRecoveryActionsPerCycleLocked(), e.recoveryActionsThisCycle) == 0 {
 		return "paused", "回补预算已耗尽，当前轮不应继续扩张", false
 	}
 	if remainingRiskBudget(e.cfg.RiskConfig.MaxOrderUncertaintyPerCycle, e.orderUncertaintyCount) == 0 {
@@ -621,10 +621,10 @@ func (e *FundingRateSniperEngine) healthStatusLocked() (string, string, bool) {
 			return "degraded", fmt.Sprintf("保护 IOC 撤单/过期率 %.2f%% 已接近阈值 %.2f%%", protectedIOCCancelRate*100, e.cfg.RiskConfig.ProtectedIOCMaxCancelRate*100), true
 		}
 	}
-	if e.consecutivePlatformRejects >= maxIntValue(1, e.cfg.RiskConfig.MaxConsecutivePlatformRejects-1) && e.cfg.RiskConfig.MaxConsecutivePlatformRejects > 1 {
+	if e.consecutivePlatformRejects >= maxIntValue(1, e.effectiveMaxConsecutivePlatformRejectsLocked()-1) && e.effectiveMaxConsecutivePlatformRejectsLocked() > 1 {
 		return "degraded", "平台已接近连续拒单阈值，应谨慎继续", true
 	}
-	if e.consecutiveRequestErrors >= maxIntValue(1, e.cfg.RiskConfig.MaxConsecutiveRequestErrors-1) && e.cfg.RiskConfig.MaxConsecutiveRequestErrors > 1 {
+	if e.consecutiveRequestErrors >= maxIntValue(1, e.effectiveMaxConsecutiveRequestErrorsLocked()-1) && e.effectiveMaxConsecutiveRequestErrorsLocked() > 1 {
 		return "degraded", "平台异常请求接近阈值，应谨慎继续", true
 	}
 	if e.orderUncertaintyCount > 0 || e.recoveryActionsThisCycle > 0 {

@@ -379,7 +379,7 @@ func TestAlignCrossVenueQtyContractBased(t *testing.T) {
 	}
 }
 
-func TestCrossVenueShadowModeNoPlaceOrder(t *testing.T) {
+func TestCrossVenueOffModeNoPlaceOrder(t *testing.T) {
 	now := time.Now().UTC().Add(time.Hour)
 	high := newCrossVenueTestVenue(bybit.VenueName, 0.001, 8, now)
 	low := newCrossVenueTestVenue(okx.VenueName, 0.0001, 8, now)
@@ -400,10 +400,10 @@ func TestCrossVenueShadowModeNoPlaceOrder(t *testing.T) {
 	}
 	_, err := e.executeCrossVenueOpen(context.Background(), plan, false)
 	if err != nil {
-		t.Fatalf("shadow open: %v", err)
+		t.Fatalf("OFF open: %v", err)
 	}
 	if atomic.LoadInt32(high.placeCount) != 0 || atomic.LoadInt32(low.placeCount) != 0 {
-		t.Fatalf("shadow mode must not PlaceOrder: high=%d low=%d", *high.placeCount, *low.placeCount)
+		t.Fatalf("OFF mode must not PlaceOrder: high=%d low=%d", *high.placeCount, *low.placeCount)
 	}
 }
 
@@ -1806,8 +1806,8 @@ func TestCrossVenueValidationSnapshot(t *testing.T) {
 	if got.FallbackTradeCount != 1 || math.Abs(got.FallbackNetPnL-5.5) > 1e-9 {
 		t.Fatalf("fallback aggregation mismatch: %+v", got)
 	}
-	if got.ScanSnapshotCount != 3 || got.ShadowMatchedTrades != 2 {
-		t.Fatalf("shadow coverage mismatch: %+v", got)
+	if got.ScanSnapshotCount != 3 || got.ReplayMatchedTrades != 2 {
+		t.Fatalf("replay coverage mismatch: %+v", got)
 	}
 	if !got.ReplayReady || got.EntrySnapshotLinkedTrades != 2 || got.MissingEntrySnapshotTrades != 0 || got.ScanSnapshotTotalCount != 3 {
 		t.Fatalf("replay readiness mismatch: %+v", got)
@@ -1818,11 +1818,11 @@ func TestCrossVenueValidationSnapshot(t *testing.T) {
 	if math.Abs(got.SelectionDrag-1.2) > 1e-9 || math.Abs(got.FallbackDilution-1.2) > 1e-9 {
 		t.Fatalf("selection drag mismatch: %+v", got)
 	}
-	if got.ShadowPortfolio.MatchedTrades != 2 || math.Abs(got.ShadowPortfolio.ChosenReplayNetEV-5.5) > 1e-9 || math.Abs(got.ShadowPortfolio.BaselineReplayNetEV-6.7) > 1e-9 {
-		t.Fatalf("shadow portfolio mismatch: %+v", got.ShadowPortfolio)
+	if got.ReplayPortfolio.MatchedTrades != 2 || math.Abs(got.ReplayPortfolio.ChosenReplayNetEV-5.5) > 1e-9 || math.Abs(got.ReplayPortfolio.BaselineReplayNetEV-6.7) > 1e-9 {
+		t.Fatalf("replay portfolio mismatch: %+v", got.ReplayPortfolio)
 	}
-	if len(got.ShadowPortfolio.Records) != 2 || got.ShadowPortfolio.Records[0].Symbol != "BTC-USDT" {
-		t.Fatalf("shadow portfolio records mismatch: %+v", got.ShadowPortfolio.Records)
+	if len(got.ReplayPortfolio.Records) != 2 || got.ReplayPortfolio.Records[0].Symbol != "BTC-USDT" {
+		t.Fatalf("replay portfolio records mismatch: %+v", got.ReplayPortfolio.Records)
 	}
 	if !got.CounterfactualReplay.SameOpportunitySetReady || !got.CounterfactualReplay.SameCostModelReady || !got.CounterfactualReplay.SameRiskBudgetReady {
 		t.Fatalf("counterfactual replay readiness mismatch: %+v", got.CounterfactualReplay)
@@ -1942,8 +1942,8 @@ func TestCrossVenueValidationSnapshotFallback(t *testing.T) {
 	if math.Abs(got.ExecutionDrag-0.25) > 1e-9 {
 		t.Fatalf("execution drag should ignore negative slippage, got=%v", got.ExecutionDrag)
 	}
-	if got.ShadowMatchedTrades != 2 {
-		t.Fatalf("shadow matched mismatch: %+v", got)
+	if got.ReplayMatchedTrades != 2 {
+		t.Fatalf("replay matched mismatch: %+v", got)
 	}
 }
 
@@ -2576,7 +2576,7 @@ func TestCrossVenueDryRunCloseNoLedgerWrite(t *testing.T) {
 	pos := CrossVenuePosition{
 		Symbol: "BTC-USDT", HighVenue: bybit.VenueName, LowVenue: okx.VenueName,
 		Status: CrossVenueStatusOpen, HighLeg: CrossVenueLegState{Qty: 0.5}, LowLeg: CrossVenueLegState{Qty: 0.5},
-		OpenedAt: now.Add(-time.Hour), IdemPrefix: "shadow",
+		OpenedAt: now.Add(-time.Hour), IdemPrefix: "off",
 	}
 	_ = store.upsert(pos)
 	if err := e.closeCrossVenuePosition(context.Background(), pos, false, "dry-run"); err != nil {
@@ -2615,7 +2615,7 @@ func TestBuildCrossVenueFundingIndex(t *testing.T) {
 	}
 }
 
-// newSubsetFallbackExecutor 组装一个带日志缓冲的影子执行器(bybit/okx 两所 fake,闸门全可过),
+// newSubsetFallbackExecutor 组装一个带日志缓冲的OFF 执行器(bybit/okx 两所 fake,闸门全可过),
 // 供降级路径集成测试复用。
 func newSubsetFallbackExecutor(t *testing.T, buf *bytes.Buffer, scanner *CrossVenueScanner) (*CrossVenueExecutor, *crossVenueTestVenue, *crossVenueTestVenue) {
 	t.Helper()
@@ -2671,9 +2671,9 @@ func makeTestOpenOpportunity(cfg CrossVenueExecutorConfig, now time.Time, symbol
 	return ranked[0]
 }
 
-// TestCrossVenueSubsetFallbackOpensShadow 全局最优含不可交易所、可交易子集内有达标对 → 降级评估,
-// 影子模式走到开仓决策(且绝不下单)。
-func TestCrossVenueSubsetFallbackOpensShadow(t *testing.T) {
+// TestCrossVenueSubsetFallbackOpensOff 全局最优含不可交易所、可交易子集内有达标对 → 降级评估,
+// OFF 模式走到开仓决策(且绝不下单)。
+func TestCrossVenueSubsetFallbackOpensOff(t *testing.T) {
 	nf := time.Now().UTC().Add(time.Hour)
 	scanner := &CrossVenueScanner{lastSnapshot: CrossVenueScanSnapshot{
 		Opportunities: []CrossVenueOpportunity{{
@@ -2696,7 +2696,7 @@ func TestCrossVenueSubsetFallbackOpensShadow(t *testing.T) {
 		t.Fatalf("降级后应走到 dry-run 开仓决策, got:\n%s", logs)
 	}
 	if atomic.LoadInt32(high.placeCount) != 0 || atomic.LoadInt32(low.placeCount) != 0 {
-		t.Fatal("影子模式不得调 PlaceOrder")
+		t.Fatal("OFF 模式不得调 PlaceOrder")
 	}
 }
 
@@ -2776,7 +2776,7 @@ func TestCrossVenueSubsetFallbackInsufficientVenues(t *testing.T) {
 	if !strings.Contains(logs, "子集不足两所") {
 		t.Fatalf("应按「子集不足两所」拒绝, got:\n%s", logs)
 	}
-	if strings.Contains(logs, "[影子] 本应开仓") {
+	if strings.Contains(logs, "[dry-run] 本应开仓") {
 		t.Fatal("不应走到开仓决策")
 	}
 	if atomic.LoadInt32(high.placeCount) != 0 || atomic.LoadInt32(low.placeCount) != 0 {
@@ -2918,7 +2918,7 @@ func TestCrossVenueBinanceOkxDirectNoFallback(t *testing.T) {
 	}
 }
 
-func TestCrossVenueAcceptableFallbackOpensShadow(t *testing.T) {
+func TestCrossVenueAcceptableFallbackOpensOff(t *testing.T) {
 	now := time.Now().UTC()
 	opp := CrossVenueOpportunity{
 		Symbol:                "BTC-USDT",

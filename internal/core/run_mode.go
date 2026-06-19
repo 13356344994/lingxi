@@ -2,7 +2,7 @@ package core
 
 import "strings"
 
-// RunMode 是规范的三态运行模式,取代把 shadow 当生产态的用法。
+// RunMode 是规范的三态运行模式,取代把 旧模式当生产态的用法。
 //
 //   - OFF: 不开仓、manage 不下真单、不写真实 position/settlement 台账
 //   - CANARY_LIVE: 真钱(规模/采数据标记与 LIVE 区分,后续任务用)

@@ -235,7 +235,7 @@ func TestCrossVenuePerpSpotUnsupportedBorrowSkipped(t *testing.T) {
 	}
 }
 
-func TestCrossVenuePerpSpotShadowOpenNoOrders(t *testing.T) {
+func TestCrossVenuePerpSpotOffOpenNoOrders(t *testing.T) {
 	dir := t.TempDir()
 	spot := newCVPSTestVenue(binance.VenueName, true)
 	perp := newCVPSTestVenue(bybit.VenueName, false)
@@ -649,5 +649,64 @@ func assertCVPSManageOpenFinalizeOnce(t *testing.T, e *CrossVenuePerpSpotExecuto
 	}
 	if len(settlements2) != 1 {
 		t.Fatalf("round2: duplicate settlement churn, got %d", len(settlements2))
+	}
+}
+
+func TestCVPSCloseRetryUsesEscalatedLimitPrice(t *testing.T) {
+	dir := t.TempDir()
+	spot := newCVPSTestVenue(binance.VenueName, true)
+	perp := newCVPSTestVenue(bybit.VenueName, false)
+	spot.borrowedBase["BTC"] = 0.5
+	perp.positions = []venue.Position{{Symbol: "BTC-USDT", PositionAmt: 0.5, MarkPrice: 100, EntryPrice: 100, Leverage: 2}}
+	perp.clearOnReduceOnly = false
+	e := testCVPSExecutor(t, dir, spot, perp)
+	cfg := e.cfg
+	cfg.CrossVenueExecutor.TakerSlippageBudgetBps = 40
+	cfg.CrossVenueExecutor.LiveTradingEnabled = true
+	e.cfg = cfg
+
+	pos := CrossVenuePerpSpotPosition{
+		Symbol: "BTC-USDT", SpotVenue: binance.VenueName, PerpVenue: bybit.VenueName,
+		Status: CVPSStatusClosing, CloseReason: "escalate", CloseAttempts: 2,
+		SpotLeg: CrossVenuePerpSpotLegState{Qty: 0.5}, PerpLeg: CrossVenuePerpSpotLegState{Qty: 0.5},
+		OpenedAt: e.nowFn().Add(-time.Hour), IdemPrefix: "esc",
+	}
+	_ = e.closePosition(context.Background(), pos, true, "escalate")
+	var lastPerpSell float64
+	for _, req := range perp.placeRequests {
+		if req.Market == venue.MarketPerp && req.Side == venue.SideSell && req.ReduceOnly {
+			lastPerpSell = req.Price
+		}
+	}
+	want := 99.5 * (1 - 160.0/10000)
+	if math.Abs(lastPerpSell-want) > 1e-6 {
+		t.Fatalf("attempt 3 perp sell limit=%v want %v", lastPerpSell, want)
+	}
+}
+
+func TestCVPSManageRebalanceOnImbalance(t *testing.T) {
+	dir := t.TempDir()
+	spot := newCVPSTestVenue(binance.VenueName, true)
+	perp := newCVPSTestVenue(bybit.VenueName, false)
+	spot.borrowedBase["BTC"] = 0.6
+	perp.positions = []venue.Position{{Symbol: "BTC-USDT", PositionAmt: 0.5, MarkPrice: 100, EntryPrice: 100, Leverage: 2}}
+	e := testCVPSExecutor(t, dir, spot, perp)
+	cfg := e.cfg
+	cfg.CrossVenueExecutor.LiveTradingEnabled = true
+	e.cfg = cfg
+	pos := CrossVenuePerpSpotPosition{
+		Symbol: "BTC-USDT", SpotVenue: binance.VenueName, PerpVenue: bybit.VenueName,
+		Status: CVPSStatusOpen, OpenedAt: e.nowFn().Add(-time.Hour), IdemPrefix: "rb",
+		SpotLeg: CrossVenuePerpSpotLegState{Qty: 0.6}, PerpLeg: CrossVenuePerpSpotLegState{Qty: 0.5},
+	}
+	_, _ = e.managePosition(context.Background(), pos, true)
+	var spotBuyQty float64
+	for _, req := range spot.placeRequests {
+		if req.Market == venue.MarketSpot && req.Side == venue.SideBuy {
+			spotBuyQty = req.Qty
+		}
+	}
+	if math.Abs(spotBuyQty-0.1) > 1e-9 {
+		t.Fatalf("expected spot rebalance buy 0.1, got %.6f", spotBuyQty)
 	}
 }

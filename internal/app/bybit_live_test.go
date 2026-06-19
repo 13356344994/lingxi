@@ -233,12 +233,12 @@ func TestBybitAllocateCapitalLive(t *testing.T) {
 	t.Logf("[划转后] 可调总额=%.4f USDT(应与划转前一致,仅在账户间移动)", totalAfter)
 }
 
-// TestBybitShadowExecutorLive 用真实 Bybit 公共行情跑一轮 shadow 规划(B2 端到端,**只读、不下单**)。
+// TestBybitCyclePlannerLive 用真实 Bybit 公共行情跑一轮 周期规划(B2 端到端,**只读、不下单**)。
 // 用公共行情即可(无需签名),验证选币→定量→净利估算在真实数据上自洽。
-// 运行:BYBIT_LIVE=1 go test ./internal/app -run TestBybitShadowExecutorLive -v
-func TestBybitShadowExecutorLive(t *testing.T) {
+// 运行:BYBIT_LIVE=1 go test ./internal/app -run TestBybitCyclePlannerLive -v
+func TestBybitCyclePlannerLive(t *testing.T) {
 	if os.Getenv("BYBIT_LIVE") != "1" {
-		t.Skip("设置 BYBIT_LIVE=1 运行 Bybit shadow 活体规划")
+		t.Skip("设置 BYBIT_LIVE=1 运行 Bybit 周期规划活体测试")
 	}
 	adp, err := bybit.New(venue.Config{Name: bybit.VenueName}) // 公共行情无需密钥
 	if err != nil {
@@ -252,13 +252,13 @@ func TestBybitShadowExecutorLive(t *testing.T) {
 		SpotTakerFee:     0.001, // 兜底静态费率(若 FetchTradingCostProfile 无签名失败)
 		PerpTakerFee:     0.00055,
 	}
-	exec := NewBybitShadowExecutor(adp, cfg, t.Logf)
+	exec := NewBybitCyclePlanner(adp, cfg, t.Logf)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	plan, err := exec.PlanCycle(ctx, 0, 0)
 	if err != nil {
 		t.Fatalf("PlanCycle: %v", err)
 	}
-	exec.LogShadowPlan(plan)
-	t.Logf("[shadow-live] 候选=%d 通过=%d 放弃=%d", len(plan.Candidates), len(plan.Accepted), len(plan.Rejected))
+	exec.LogCyclePlan(plan)
+	t.Logf("[plan-live] 候选=%d 通过=%d 放弃=%d", len(plan.Candidates), len(plan.Accepted), len(plan.Rejected))
 }

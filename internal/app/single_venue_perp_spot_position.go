@@ -54,28 +54,29 @@ type SingleVenuePerpSpotAttribution struct {
 // SingleVenuePerpSpotPosition 是一笔同所多永续+借币空现货负费率持仓。
 // 注意:空现货在逼空/强平场景下亏损可能穿仓,执行器保守杠杆并优先平现货腿。
 type SingleVenuePerpSpotPosition struct {
-	PositionKey          string                        `json:"position_key,omitempty"`
-	Symbol               string                        `json:"symbol"`
-	Venue                string                        `json:"venue"`
-	SpotLeg              SingleVenuePerpSpotLegState   `json:"spot_leg"`
-	PerpLeg              SingleVenuePerpSpotLegState   `json:"perp_leg"`
-	OpportunityID        string                        `json:"opportunity_id,omitempty"`
-	OpenExpectedNetEV    float64                       `json:"open_expected_net_ev,omitempty"`
-	ExpectedHoldHours    float64                       `json:"expected_hold_hours,omitempty"`
-	OpenFundingRate      float64                       `json:"open_funding_rate,omitempty"`
-	FundingIntervalHours int                           `json:"funding_interval_hours,omitempty"`
-	NextFundingTime      time.Time                     `json:"next_funding_time,omitempty"`
-	RealizedFundingUSDT  float64                       `json:"realized_funding_usdt,omitempty"`
-	EstFundingUSDT       float64                       `json:"est_funding_usdt,omitempty"`
-	LastFundingSyncAt    time.Time                     `json:"last_funding_sync_at,omitempty"`
-	NotionalUSDT         float64                       `json:"notional_usdt,omitempty"`
-	Status               SingleVenuePerpSpotStatus     `json:"status"`
-	TransitionState      string                        `json:"transition_state,omitempty"`
-	IdemPrefix           string                        `json:"idem_prefix"`
-	OpenedAt             time.Time                     `json:"opened_at"`
-	UpdatedAt            time.Time                     `json:"updated_at"`
-	CloseReason          string                        `json:"close_reason,omitempty"`
-	CloseAttempts        int                           `json:"close_attempts,omitempty"`
+	PositionKey          string                      `json:"position_key,omitempty"`
+	Symbol               string                      `json:"symbol"`
+	Venue                string                      `json:"venue"`
+	SpotLeg              SingleVenuePerpSpotLegState `json:"spot_leg"`
+	PerpLeg              SingleVenuePerpSpotLegState `json:"perp_leg"`
+	OpportunityID        string                      `json:"opportunity_id,omitempty"`
+	OpenExpectedNetEV    float64                     `json:"open_expected_net_ev,omitempty"`
+	ExpectedHoldHours    float64                     `json:"expected_hold_hours,omitempty"`
+	OpenFundingRate      float64                     `json:"open_funding_rate,omitempty"`
+	FundingIntervalHours int                         `json:"funding_interval_hours,omitempty"`
+	NextFundingTime      time.Time                   `json:"next_funding_time,omitempty"`
+	RealizedFundingUSDT  float64                     `json:"realized_funding_usdt,omitempty"`
+	EstFundingUSDT       float64                     `json:"est_funding_usdt,omitempty"`
+	LastFundingSyncAt    time.Time                   `json:"last_funding_sync_at,omitempty"`
+	NotionalUSDT         float64                     `json:"notional_usdt,omitempty"`
+	Status               SingleVenuePerpSpotStatus   `json:"status"`
+	TransitionState      string                      `json:"transition_state,omitempty"`
+	IdemPrefix           string                      `json:"idem_prefix"`
+	OpenedAt             time.Time                   `json:"opened_at"`
+	UpdatedAt            time.Time                   `json:"updated_at"`
+	CloseReason          string                      `json:"close_reason,omitempty"`
+	CloseAttempts        int                         `json:"close_attempts,omitempty"`
+	LastHedgeRebalanceAt time.Time                   `json:"last_hedge_rebalance_at,omitempty"`
 	SingleVenuePerpSpotAttribution
 }
 

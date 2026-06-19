@@ -92,7 +92,7 @@ type CrossVenueSpotPerpScanInput struct {
 	Config               CrossVenueSpotPerpScannerConfig
 }
 
-// ScanCrossVenueSpotPerpOpportunities 扫描跨所 spot-perp 机会(纯函数, shadow-only)。
+// ScanCrossVenueSpotPerpOpportunities 扫描跨所 spot-perp 机会(纯函数, plan-only)。
 // v1: 仅正费率 carry(A 所买现货 + B 所空永续), 不借币、不做空现货。
 func ScanCrossVenueSpotPerpOpportunities(in CrossVenueSpotPerpScanInput) []UnifiedOpportunity {
 	cfg := normalizeCrossVenueSpotPerpScannerConfig(in.Config)
@@ -143,8 +143,8 @@ func ScanCrossVenueSpotPerpOpportunities(in CrossVenueSpotPerpScanInput) []Unifi
 	return out
 }
 
-// AppendCrossVenueSpotPerpShadowCandidates best-effort 写入 records/opportunities/unified_candidates.jsonl(shadow-only)。
-func AppendCrossVenueSpotPerpShadowCandidates(recordDir, cycleID string, execCfg CrossVenueExecutorConfig, opps []UnifiedOpportunity) {
+// AppendCrossVenueSpotPerpCandidates best-effort 写入 records/opportunities/unified_candidates.jsonl(plan-only)。
+func AppendCrossVenueSpotPerpCandidates(recordDir, cycleID string, execCfg CrossVenueExecutorConfig, opps []UnifiedOpportunity) {
 	if strings.TrimSpace(cycleID) == "" || len(opps) == 0 {
 		return
 	}

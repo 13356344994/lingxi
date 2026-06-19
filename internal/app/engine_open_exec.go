@@ -170,7 +170,7 @@ func (e *FundingRateSniperEngine) buildOpenSequencePlan(ctx context.Context, tar
 		)
 		// 开仓前强平距离安全闸（R2）：合约腿入场价到强平价的可承受逆向幅度低于阈值则跳过该候选、不开仓。
 		// 仅冷却该 symbol（non-fatal），不触发平台熔断——与上方 leverage bracket 拒绝同一处置语义。
-		if minDistance := e.cfg.RiskConfig.MinLiquidationDistanceRate; minDistance > 0 {
+		if minDistance := EffectiveMinLiquidationDistance(e.cfg.RiskConfig, e.cfg.CrossVenueExecutor, target.Candidate.Symbol, 0); minDistance > 0 {
 			distance := assessment.liquidationDistanceRate()
 			if distance < minDistance {
 				detail := fmt.Sprintf(
@@ -589,10 +589,10 @@ func (e *FundingRateSniperEngine) recordExecutionIncident(phase string, symbol s
 	count := atomic.AddInt32(&e.executionIncidents, 1)
 	message := fmt.Sprintf("执行事故，phase=%s symbol=%s count=%d detail=%s", nonEmpty(phase, "unknown"), nonEmpty(symbol, "-"), count, nonEmpty(detail, "-"))
 	e.logger.Print(message)
-	fatal := e.cfg.RiskConfig.MaxExecutionIncidents > 0 && int(count) >= e.cfg.RiskConfig.MaxExecutionIncidents
-	e.emitRiskEvent(newRiskEvent("incident", RiskCategoryExecution, RiskSeverityWarning, phase, symbol, "incident", int(count), e.cfg.RiskConfig.MaxExecutionIncidents, fatal, detail))
+	fatal := e.effectiveMaxExecutionIncidents() > 0 && int(count) >= e.effectiveMaxExecutionIncidents()
+	e.emitRiskEvent(newRiskEvent("incident", RiskCategoryExecution, RiskSeverityWarning, phase, symbol, "incident", int(count), e.effectiveMaxExecutionIncidents(), fatal, detail))
 	if fatal {
-		return fatalEngineError{message: fmt.Sprintf("执行事故次数达到熔断阈值(%d)，已停止引擎: %s", e.cfg.RiskConfig.MaxExecutionIncidents, message)}
+		return fatalEngineError{message: fmt.Sprintf("执行事故次数达到熔断阈值(%d)，已停止引擎: %s", e.effectiveMaxExecutionIncidents(), message)}
 	}
 	return nil
 }
@@ -615,7 +615,7 @@ func (e *FundingRateSniperEngine) recordExecutionAction(phase string, symbol str
 	if strings.Contains(phase, "recovery") {
 		category = RiskCategoryRecovery
 	}
-	e.emitRiskEvent(newRiskEvent("action", category, RiskSeverityInfo, phase, symbol, action, int(atomic.LoadInt32(&e.executionIncidents)), e.cfg.RiskConfig.MaxExecutionIncidents, false, detail))
+	e.emitRiskEvent(newRiskEvent("action", category, RiskSeverityInfo, phase, symbol, action, int(atomic.LoadInt32(&e.executionIncidents)), e.effectiveMaxExecutionIncidents(), false, detail))
 	if strings.Contains(phase, "recovery") {
 		e.noteRecoveryStatus(symbol, action, detail)
 		if err := e.noteRecoveryAction(phase, symbol, action, detail); err != nil {

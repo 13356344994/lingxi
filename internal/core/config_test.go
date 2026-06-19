@@ -100,6 +100,8 @@ func sampleValidConfig() EngineConfig {
 			ProtectedIOCMaxUnfilledRatio:  0.40,
 			ProtectedIOCMaxCancelRate:     0.30,
 			SymbolAbnormalCooldown:        10 * time.Minute,
+			SymbolMinorCooldown:           5 * time.Minute,
+			SymbolCriticalCooldown:        30 * time.Minute,
 			PlatformMinorCooldown:         5 * time.Minute,
 			PlatformAbnormalCooldown:      15 * time.Minute,
 			PlatformCriticalCooldown:      30 * time.Minute,

@@ -13,20 +13,20 @@ import (
 	"lingxi/internal/venue/bybit"
 )
 
-// bybit_runtime.go 是 Bybit 执行器的 **生命周期编排(B5)**:把 shadow planner(B2)+ live executor(B3)+ 持仓
+// bybit_runtime.go 是 Bybit 执行器的 **生命周期编排(B5)**:把 cycle planner(B2)+ live executor(B3)+ 持仓
 // 落盘/reconcile 接成一个受控的后台循环,挂到 per-venue RuntimeController 上。
 //
 // 安全模型(逐条对齐币安实盘):
 //   - **单写租约**:records/bybit/.lingxi-live.lock,防同账户双开。
 //   - **双级急停**:每 tick 检查全局 + 本所 .halt-live,任一存在即停。
-//   - **主安全闸**:cfg.BybitExecutor.LiveTradingEnabled=false(默认)→ 只 shadow(规划+日志,绝不下单);
-//       置 true 才真实下单。即便启动任务,默认也只是「影子运行」,零下单风险。
+//   - **主安全闸**:cfg.BybitExecutor.LiveTradingEnabled=false(默认)→ 只 OFF(规划+日志,绝不下单);
+//       置 true 才真实下单。即便启动任务,默认也只是「OFF 运行」,零下单风险。
 //   - **崩溃恢复**:启动先 reconcile 落盘持仓 vs 交易所真实仓位,绝不留裸腿、绝不误平。
 //   - **窗口化开仓**:仅在结算前 LeadSeconds 窗口内开,结算后 HoldAfterSeconds 平,跨结算收一次资金费即走。
 
 const bybitExecTickInterval = 30 * time.Second // 扫描/持仓管理 tick 间隔
 
-// bybitFullVenue 是 live 执行器 + shadow planner 共同需要的读写能力(*bybit.Adapter 天然满足)。
+// bybitFullVenue 是 live 执行器 + cycle planner 共同需要的读写能力(*bybit.Adapter 天然满足)。
 type bybitFullVenue interface {
 	bybitMarketReader
 	bybitTrader
@@ -141,7 +141,7 @@ func (c *RuntimeController) runBybitExecutor(ctx context.Context, secretPath str
 	}
 	execCfg := bybitExecConfigFromEngine(cfg)
 	logf := func(format string, args ...any) { c.appendControllerLog(format, args...) }
-	planner := NewBybitShadowExecutor(adapter, execCfg, logf)
+	planner := NewBybitCyclePlanner(adapter, execCfg, logf)
 	executor := NewBybitLiveExecutor(adapter, logf, cfg.NetworkConfig.RecordDir)
 	executor.SetPerpMakerFirst(cfg.BybitExecutor.PerpMakerFirst)
 	live := cfg.BybitExecutor.LiveTradingEnabled
@@ -625,7 +625,7 @@ const bybitRollSwitchFactor = 3.0
 // ④ 新候选已通过全部既有定量/净利门(在 plan.Accepted 里)。规划失败时返回 ""(保守续持,绝不因扫描故障误平)。
 func (c *RuntimeController) bybitRollSwitchReason(
 	ctx context.Context,
-	planner *BybitShadowExecutor,
+	planner *BybitCyclePlanner,
 	held BybitLivePosition,
 	heldSnap venue.FundingSnapshot,
 	now time.Time,
@@ -658,7 +658,7 @@ func (c *RuntimeController) bybitManageCycle(
 	ctx context.Context,
 	cfg EngineConfig,
 	store *bybitPositionStore,
-	planner *BybitShadowExecutor,
+	planner *BybitCyclePlanner,
 	executor *BybitLiveExecutor,
 	adapter bybitFullVenue,
 	live bool,
@@ -691,7 +691,7 @@ func (c *RuntimeController) bybitManageCycle(
 		if p.NextFundingTime.IsZero() {
 			continue
 		}
-		// A) 结算前复核(滚动 + live;shadow 不做真实下单,沿用 B 的拟平仓日志)。
+		// A) 结算前复核(滚动 + live;OFF 不做真实下单,沿用 B 的拟平仓日志)。
 		if rollEnabled && live && now.Before(p.NextFundingTime) && now.After(p.NextFundingTime.Add(-bybitPreSettleCheckLead)) {
 			snap, ok, ferr := planner.FundingSnapshotFor(ctx, p.Symbol)
 			if ferr == nil && ok {
@@ -788,7 +788,7 @@ func (c *RuntimeController) bybitManageCycle(
 		c.appendControllerLog("Bybit 扫描失败: %v", err)
 		return
 	}
-	// 实盘可见性:live 模式整轮原本静默(shadow 才有 LogShadowPlan),导致"就绪后再无动静"无法判因。
+	// 实盘可见性:live 模式整轮原本静默(OFF 才有 LogCyclePlan),导致"就绪后再无动静"无法判因。
 	// 这里补一段每轮诊断:候选/通过/放弃数 + 放弃原因 + Top 候选距开仓窗口还有多久,纯日志、不改交易决策。
 	if live {
 		c.bybitLogCycleDiag(now, lead, plan, held, maxConcurrent, len(open), cfg)

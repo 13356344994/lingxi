@@ -305,16 +305,16 @@ func TestAppendCrossVenueSettlementIsIdempotent(t *testing.T) {
 		logger:    testCrossVenueLogger(),
 	}
 	pos := CrossVenuePosition{
-		Symbol:               "BTC-USDT",
-		HighVenue:            "okx",
-		LowVenue:             "gate",
-		OpenedAt:             now.Add(-time.Hour),
-		IdemPrefix:           "cv-btc-okx-1",
-		NotionalUSDT:         100,
-		HighLegFundingUSDT:   1,
-		LowLegFundingUSDT:    -0.2,
+		Symbol:                  "BTC-USDT",
+		HighVenue:               "okx",
+		LowVenue:                "gate",
+		OpenedAt:                now.Add(-time.Hour),
+		IdemPrefix:              "cv-btc-okx-1",
+		NotionalUSDT:            100,
+		HighLegFundingUSDT:      1,
+		LowLegFundingUSDT:       -0.2,
 		RealizedFundingComplete: true,
-		FundingTruthStatus:   "complete",
+		FundingTruthStatus:      "complete",
 	}
 	e.appendCrossVenueSettlement(pos)
 	e.appendCrossVenueSettlement(pos)

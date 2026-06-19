@@ -147,7 +147,7 @@ func TestCrossVenuePositionOpportunityIDFallback(t *testing.T) {
 	}
 }
 
-func TestCrossVenueExecuteOpenFromUnifiedOpportunityShadow(t *testing.T) {
+func TestCrossVenueExecuteOpenFromUnifiedOpportunityOff(t *testing.T) {
 	now := time.Date(2026, 6, 18, 12, 0, 0, 0, time.UTC).Add(time.Hour)
 	high := newCrossVenueTestVenue(bybit.VenueName, 0.001, 8, now)
 	low := newCrossVenueTestVenue(okx.VenueName, 0.0001, 8, now)
@@ -363,9 +363,9 @@ func TestUnifiedRotationRunnerPerpPerpCandidateExecutableWithBinding(t *testing.
 		rotationCfg:               DefaultRotationConfig(),
 		execCfg:                   e.cfg.CrossVenueExecutor,
 		includePerpPerpCandidates: true,
-		fetchDeps: unifiedShadowPipelineFetchDeps{
-			fetchMarkets:       defaultUnifiedShadowFetchMarketsByVenue,
-			fetchAvailableUSDT: defaultUnifiedShadowFetchAvailableUSDTByVenue,
+		fetchDeps: unifiedMarketPipelineFetchDeps{
+			fetchMarkets:       defaultUnifiedMarketFetchMarketsByVenue,
+			fetchAvailableUSDT: defaultUnifiedMarketFetchAvailableUSDTByVenue,
 		},
 	}
 	if b := bindCrossVenuePerpPerpRotationExecutor(e); b != nil {

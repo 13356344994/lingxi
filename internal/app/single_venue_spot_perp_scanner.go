@@ -15,7 +15,7 @@ const (
 	singleVenueSpotPerpRejectMarginStress      = "margin_stress_liquidation"
 )
 
-// single_venue_spot_perp_scanner.go 单所 spot-perp 正 carry 扫描器(纯函数, shadow-only, 不接入实盘 tick)。
+// single_venue_spot_perp_scanner.go 单所 spot-perp 正 carry 扫描器(纯函数, plan-only, 不接入实盘 tick)。
 
 // SingleVenueSpotPerpFundingSnap 是某所某 symbol 的永续资金费快照(扫描输入)。
 type SingleVenueSpotPerpFundingSnap = CrossVenueSpotPerpFundingSnap
@@ -67,7 +67,7 @@ type SingleVenueSpotPerpScanInput struct {
 	Config               SingleVenueSpotPerpScannerConfig
 }
 
-// ScanSingleVenueSpotPerpOpportunities 扫描单所 spot-perp 机会(纯函数, shadow-only)。
+// ScanSingleVenueSpotPerpOpportunities 扫描单所 spot-perp 机会(纯函数, plan-only)。
 // v1: 仅正费率 carry(同所买现货 + 2x 空永续), 不借币、不做空现货。
 func ScanSingleVenueSpotPerpOpportunities(in SingleVenueSpotPerpScanInput) []UnifiedOpportunity {
 	cfg := normalizeSingleVenueSpotPerpScannerConfig(in.Config)
@@ -110,8 +110,8 @@ func ScanSingleVenueSpotPerpOpportunities(in SingleVenueSpotPerpScanInput) []Uni
 	return out
 }
 
-// AppendSingleVenueSpotPerpShadowCandidates best-effort 写入 records/opportunities/unified_candidates.jsonl(shadow-only)。
-func AppendSingleVenueSpotPerpShadowCandidates(recordDir, cycleID string, execCfg CrossVenueExecutorConfig, opps []UnifiedOpportunity) {
+// AppendSingleVenueSpotPerpCandidates best-effort 写入 records/opportunities/unified_candidates.jsonl(plan-only)。
+func AppendSingleVenueSpotPerpCandidates(recordDir, cycleID string, execCfg CrossVenueExecutorConfig, opps []UnifiedOpportunity) {
 	if strings.TrimSpace(cycleID) == "" || len(opps) == 0 {
 		return
 	}

@@ -14,7 +14,7 @@ import (
 	"lingxi/internal/venue"
 )
 
-// cross_venue_spot_perp_executor.go 跨所 spot-perp 正费率执行器(shadow 起步, live 闸透传)。
+// cross_venue_spot_perp_executor.go 跨所 spot-perp 正费率执行器(OFF 起步, live 闸透传)。
 
 const (
 	cvspConfirmTimeout = 8 * time.Second
@@ -47,7 +47,7 @@ type CrossVenueSpotPerpExecutor struct {
 	rollbackBlocked   map[string]time.Time
 }
 
-// NewCrossVenueSpotPerpExecutor 构造执行引擎;默认 shadow,不下真单。
+// NewCrossVenueSpotPerpExecutor 构造执行引擎;默认 plan,不下真单。
 func NewCrossVenueSpotPerpExecutor(cfg EngineConfig, venues map[string]venue.Venue, recordDir string, logger *log.Logger) *CrossVenueSpotPerpExecutor {
 	if logger == nil {
 		logger = log.Default()
@@ -330,6 +330,27 @@ func (e *CrossVenueSpotPerpExecutor) placeSpotPerpLegExec(
 	return e.placeSpotPerpIOC(ctx, tr, mkt, sym, side, qty, price, clientID, reduceOnly, live)
 }
 
+// placeCVSPCloseLegExec 平仓专用腿:按 CloseAttempts 阶梯放宽滑点,≥阈值后穿价兜底。
+func (e *CrossVenueSpotPerpExecutor) placeCVSPCloseLegExec(
+	ctx context.Context,
+	tr cvspTrader,
+	mkt venue.Market,
+	sym venue.Symbol,
+	side venue.Side,
+	qty float64,
+	clientID string,
+	reduceOnly bool,
+	live bool,
+	closeAttempts int,
+) (venue.OrderResult, error) {
+	book, err := tr.FetchBookTicker(ctx, mkt, sym)
+	if err != nil {
+		return venue.OrderResult{}, err
+	}
+	price, _ := carryCloseIocLimitPrice(e.cfg.CrossVenueExecutor, side, book, closeAttempts)
+	return e.placeSpotPerpIOC(ctx, tr, mkt, sym, side, qty, price, clientID, reduceOnly, live)
+}
+
 // executeOpen 先开 B 所空永续,再开 A 所买现货;第二腿失败回滚第一腿。
 func (e *CrossVenueSpotPerpExecutor) executeOpen(ctx context.Context, opp UnifiedOpportunity, live bool) (CrossVenueSpotPerpPosition, error) {
 	spotVenue, perpVenue, qty, notional, err := parseCrossVenueSpotPerpLegs(opp)
@@ -557,13 +578,13 @@ func (e *CrossVenueSpotPerpExecutor) closePosition(ctx context.Context, pos Cros
 	}
 	if closePerpQty > executionQtyTolerance {
 		id := cvspLegClientID(pos.IdemPrefix, fmt.Sprintf("cp%d", attempt))
-		if res, err := e.placeSpotPerpLegExec(ctx, perpTrader, venue.MarketPerp, sym, venue.SideBuy, closePerpQty, id, true, live); err == nil {
+		if res, err := e.placeCVSPCloseLegExec(ctx, perpTrader, venue.MarketPerp, sym, venue.SideBuy, closePerpQty, id, true, live, attempt); err == nil {
 			pos.PerpLeg.Qty = math.Max(pos.PerpLeg.Qty-res.ExecutedQty, 0)
 		}
 	}
 	if closeSpotQty > executionQtyTolerance {
 		id := cvspLegClientID(pos.IdemPrefix, fmt.Sprintf("cs%d", attempt))
-		if res, err := e.placeSpotPerpLegExec(ctx, spotTrader, venue.MarketSpot, sym, venue.SideSell, closeSpotQty, id, false, live); err == nil {
+		if res, err := e.placeCVSPCloseLegExec(ctx, spotTrader, venue.MarketSpot, sym, venue.SideSell, closeSpotQty, id, false, live, attempt); err == nil {
 			pos.SpotLeg.Qty = math.Max(pos.SpotLeg.Qty-res.ExecutedQty, 0)
 		}
 	}
@@ -597,7 +618,7 @@ func (e *CrossVenueSpotPerpExecutor) closePosition(ctx context.Context, pos Cros
 		if live && spotOpen {
 			id := cvspLegClientID(pos.IdemPrefix, "dust")
 			qty := ledgerCappedCloseQty(pos.SpotLeg.Qty, spotQty)
-			_, _ = e.placeSpotPerpLegExec(ctx, spotTrader, venue.MarketSpot, sym, venue.SideSell, qty, id, false, live)
+			_, _ = e.placeCVSPCloseLegExec(ctx, spotTrader, venue.MarketSpot, sym, venue.SideSell, qty, id, false, live, attempt)
 		}
 		pos.Status = CVSPStatusClosed
 		pos.CloseReason = appendDustCloseReason(nonEmpty(pos.CloseReason, reason), dust.RemainingNotionalUSDT)
@@ -690,6 +711,11 @@ func (e *CrossVenueSpotPerpExecutor) managePosition(ctx context.Context, pos Cro
 		return pos, false
 	}
 
+	e.syncPerpFundingMeta(ctx, &pos)
+	dev := qtyDeviation(spotQty, perpQty)
+	if carryShouldRebalanceHedge(dev, pos.LastHedgeRebalanceAt, e.nowFn()) {
+		e.rebalanceCVSPHedge(ctx, &pos, spotQty, perpQty, live)
+	}
 	pos.EstFundingUSDT = e.estimateFundingAccrual(&pos)
 	pos.UpdatedAt = e.nowFn()
 	_ = e.persistPosition(pos)
@@ -714,6 +740,37 @@ func (e *CrossVenueSpotPerpExecutor) manageOpenPositions(ctx context.Context, li
 	}
 }
 
+func (e *CrossVenueSpotPerpExecutor) syncPerpFundingMeta(ctx context.Context, pos *CrossVenueSpotPerpPosition) {
+	if pos == nil {
+		return
+	}
+	if pos.PerpIntervalHours <= 0 {
+		pos.PerpIntervalHours = 8
+	}
+	perpV := e.venues[pos.PerpVenue]
+	if perpV == nil {
+		return
+	}
+	snaps, err := perpV.FetchFundingSnapshot(ctx)
+	if err != nil {
+		return
+	}
+	sym := venue.Symbol(pos.Symbol)
+	for _, snap := range snaps {
+		if snap.Symbol != sym {
+			continue
+		}
+		pos.PerpFundingRate = snap.LastFundingRate
+		if snap.IntervalHours > 0 {
+			pos.PerpIntervalHours = snap.IntervalHours
+		}
+		if !snap.NextFundingTime.IsZero() {
+			pos.PerpNextFundingTime = snap.NextFundingTime
+		}
+		return
+	}
+}
+
 func (e *CrossVenueSpotPerpExecutor) estimateFundingAccrual(pos *CrossVenueSpotPerpPosition) float64 {
 	if pos == nil {
 		return 0
@@ -731,9 +788,46 @@ func (e *CrossVenueSpotPerpExecutor) estimateFundingAccrual(pos *CrossVenueSpotP
 	if notional <= 0 {
 		notional = pos.PerpLeg.Qty * pos.PerpLeg.EntryPrice
 	}
-	delta := notional * pos.PerpFundingRate * elapsedHours / 8
+	interval := pos.PerpIntervalHours
+	if interval <= 0 {
+		interval = 8
+	}
+	hourlyRate := pos.PerpFundingRate / float64(interval)
+	delta := notional * hourlyRate * elapsedHours
 	pos.LastAccrualAt = now
 	return pos.EstFundingUSDT + delta
+}
+
+func (e *CrossVenueSpotPerpExecutor) rebalanceCVSPHedge(ctx context.Context, pos *CrossVenueSpotPerpPosition, spotQty, perpQty float64, live bool) {
+	if pos == nil {
+		return
+	}
+	reduceSpot, delta := carryPositiveRebalancePlan(spotQty, perpQty)
+	if delta <= executionQtyTolerance {
+		return
+	}
+	sym := venue.Symbol(pos.Symbol)
+	now := e.nowFn()
+	if reduceSpot {
+		if tr, ok := e.venues[pos.SpotVenue].(cvspTrader); ok && live {
+			id := cvspLegClientID(pos.IdemPrefix, "rb-s")
+			if res, _ := e.placeSpotPerpLegExec(ctx, tr, venue.MarketSpot, sym, venue.SideSell, delta, id, false, live); res.ExecutedQty > executionQtyTolerance {
+				pos.SpotLeg.Qty = math.Max(pos.SpotLeg.Qty-res.ExecutedQty, 0)
+			}
+		}
+	} else if tr, ok := e.venues[pos.PerpVenue].(cvspTrader); ok && live {
+		id := cvspLegClientID(pos.IdemPrefix, "rb-p")
+		if res, _ := e.placeSpotPerpLegExec(ctx, tr, venue.MarketPerp, sym, venue.SideBuy, delta, id, true, live); res.ExecutedQty > executionQtyTolerance {
+			pos.PerpLeg.Qty = math.Max(pos.PerpLeg.Qty-res.ExecutedQty, 0)
+		}
+	}
+	pos.LastHedgeRebalanceAt = now
+	pos.UpdatedAt = now
+	_ = e.persistPosition(*pos)
+	if e.logger != nil {
+		e.logger.Printf("[跨所spot-perp] %s 对冲再平衡:偏差%.1f%% 减%s %.6f",
+			pos.Symbol, qtyDeviation(spotQty, perpQty)*100, map[bool]string{true: "现货", false: "永续"}[reduceSpot], delta)
+	}
 }
 
 func (e *CrossVenueSpotPerpExecutor) handleOrphanLeg(ctx context.Context, pos CrossVenueSpotPerpPosition, spotOpen, perpOpen, live bool, spotQty, perpQty float64) {

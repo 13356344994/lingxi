@@ -38,7 +38,6 @@ func (e *CrossVenueExecutor) manageCrossVenuePosition(ctx context.Context, pos C
 		}
 		return pos, false
 	}
-	cfg := e.cfg.CrossVenueExecutor
 	sym := venue.Symbol(pos.Symbol)
 	highV := e.venues[pos.HighVenue]
 	lowV := e.venues[pos.LowVenue]
@@ -91,10 +90,14 @@ func (e *CrossVenueExecutor) manageCrossVenuePosition(ctx context.Context, pos C
 		e.notifyWarn("跨所对冲偏差", fmt.Sprintf("%s 两腿数量偏差 %.1f%%", pos.Symbol, dev*100), pos.Symbol)
 	}
 
-	// 强平距离
-	minDist := cfg.MinLiqDistance
+	// 强平距离(单一来源: risk.min_liquidation_distance_rate,见 risk_liq_distance.go)
+	volMult := 0.0
+	if e.symbolVolMultiplier != nil {
+		volMult = e.symbolVolMultiplier(pos.Symbol)
+	}
+	minDist := EffectiveMinLiquidationDistance(e.cfg.RiskConfig, e.cfg.CrossVenueExecutor, pos.Symbol, volMult)
 	if minDist <= 0 {
-		minDist = 0.15
+		minDist = defaultMinLiquidationDistanceRate
 	}
 	for _, p := range highPos {
 		if p.Symbol == sym && estimateLiqDistance(p) < minDist {

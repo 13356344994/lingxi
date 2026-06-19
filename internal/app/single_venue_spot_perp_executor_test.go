@@ -205,7 +205,7 @@ func testSVSPOpportunity(venueName string, qty float64) UnifiedOpportunity {
 	}
 }
 
-func TestSVSPShadowModeNoPlaceOrder(t *testing.T) {
+func TestSVSPOOffModeNoPlaceOrder(t *testing.T) {
 	now := time.Now().UTC()
 	v := newSVSPTestVenue(binance.VenueName)
 	dir := t.TempDir()
@@ -404,7 +404,7 @@ func TestSVSPExecutorLoadsPersistedPositions(t *testing.T) {
 	}
 }
 
-func TestSVSPShadowCloseNoPlaceOrder(t *testing.T) {
+func TestSVSPOOffCloseNoPlaceOrder(t *testing.T) {
 	now := time.Now().UTC()
 	v := newSVSPTestVenue(binance.VenueName)
 	dir := t.TempDir()
@@ -412,14 +412,14 @@ func TestSVSPShadowCloseNoPlaceOrder(t *testing.T) {
 	e.nowFn = func() time.Time { return now }
 	pos := SingleVenueSpotPerpPosition{
 		Symbol: "BTC-USDT", Venue: binance.VenueName,
-		Status: SVSPStatusOpen, OpenedAt: now, IdemPrefix: "shadow-close",
+		Status: SVSPStatusOpen, OpenedAt: now, IdemPrefix: "off-close",
 		SpotLeg: SingleVenueSpotPerpLegState{Qty: 0.5}, PerpLeg: SingleVenueSpotPerpLegState{Qty: 0.5},
 	}
-	if err := e.closePosition(context.Background(), pos, false, "shadow"); err != nil {
+	if err := e.closePosition(context.Background(), pos, false, "off"); err != nil {
 		t.Fatal(err)
 	}
 	if atomic.LoadInt32(v.placeCount) != 0 {
-		t.Fatal("shadow close must not PlaceOrder")
+		t.Fatal("OFF close must not PlaceOrder")
 	}
 }
 

@@ -32,7 +32,7 @@ func (f *fakeBybitMarket) FetchTradingCostProfile(ctx context.Context, syms []ve
 	return f.cost, nil
 }
 
-func TestShadowPlanCycleAcceptsProfitable(t *testing.T) {
+func TestPlanCycleAcceptsProfitable(t *testing.T) {
 	sym := venue.Symbol("AAA-USDT")
 	f := &fakeBybitMarket{
 		snaps: []venue.FundingSnapshot{
@@ -50,7 +50,7 @@ func TestShadowPlanCycleAcceptsProfitable(t *testing.T) {
 		cost: venue.CostProfile{SpotTaker: 0.001, FuturesTaker: 0.0006},
 	}
 	cfg := BybitExecConfig{AllocatedUSDT: 4000, TopN: 3, MinFundingRate: 0.0005, MinNetProfitRate: 0.0005}
-	exec := NewBybitShadowExecutor(f, cfg, nil)
+	exec := NewBybitCyclePlanner(f, cfg, nil)
 	plan, err := exec.PlanCycle(context.Background(), 0, 0)
 	if err != nil {
 		t.Fatalf("PlanCycle: %v", err)
@@ -66,9 +66,9 @@ func TestShadowPlanCycleAcceptsProfitable(t *testing.T) {
 	}
 }
 
-// TestShadowPlanCycleRejectsNonBorrowableNegativeCarry 钉死负 carry 前置过滤:现货 marginTrading=none 不可借
+// TestPlanCycleRejectsNonBorrowableNegativeCarry 钉死负 carry 前置过滤:现货 marginTrading=none 不可借
 // 的负费率币不进 tradeableSnaps(不占 top_n),可借的负费率币正常进候选。
-func TestShadowPlanCycleRejectsNonBorrowableNegativeCarry(t *testing.T) {
+func TestPlanCycleRejectsNonBorrowableNegativeCarry(t *testing.T) {
 	nonBorrow := venue.Symbol("H-USDT")     // |费率| 最高但现货不可借
 	borrowable := venue.Symbol("HOME-USDT") // 可借,应成为负 carry 候选
 	mkLegs := func(sym venue.Symbol, borrowable bool) []venue.Instrument {
@@ -95,7 +95,7 @@ func TestShadowPlanCycleRejectsNonBorrowableNegativeCarry(t *testing.T) {
 		AllocatedUSDT: 4000, TopN: 3, MinFundingRate: 0.0005, MinNetProfitRate: 0.0005,
 		EnableNegativeCarry: true,
 	}
-	exec := NewBybitShadowExecutor(f, cfg, nil)
+	exec := NewBybitCyclePlanner(f, cfg, nil)
 	plan, err := exec.PlanCycle(context.Background(), 0, 0)
 	if err != nil {
 		t.Fatalf("PlanCycle: %v", err)
@@ -120,7 +120,7 @@ func TestShadowPlanCycleRejectsNonBorrowableNegativeCarry(t *testing.T) {
 	}
 }
 
-func TestShadowPlanCycleRejectsMissingSpotLeg(t *testing.T) {
+func TestPlanCycleRejectsMissingSpotLeg(t *testing.T) {
 	sym := venue.Symbol("PERPONLY-USDT")
 	f := &fakeBybitMarket{
 		snaps: []venue.FundingSnapshot{{Symbol: sym, LastFundingRate: 0.01, IntervalHours: 8}},
@@ -133,7 +133,7 @@ func TestShadowPlanCycleRejectsMissingSpotLeg(t *testing.T) {
 		cost: venue.CostProfile{SpotTaker: 0.001, FuturesTaker: 0.0006},
 	}
 	cfg := BybitExecConfig{AllocatedUSDT: 4000, TopN: 3, MinFundingRate: 0.0005, MinNetProfitRate: 0.0005}
-	exec := NewBybitShadowExecutor(f, cfg, nil)
+	exec := NewBybitCyclePlanner(f, cfg, nil)
 	plan, err := exec.PlanCycle(context.Background(), 0, 0)
 	if err != nil {
 		t.Fatalf("PlanCycle: %v", err)
@@ -173,7 +173,7 @@ func TestPlanCycleDividesBySlotsNotCandidates(t *testing.T) {
 		cost: venue.CostProfile{SpotTaker: 0.001, FuturesTaker: 0.0006},
 	}
 	cfg := BybitExecConfig{AllocatedUSDT: 60, TopN: 3, MinFundingRate: 0.0002, MinNetProfitRate: -0.005}
-	exec := NewBybitShadowExecutor(f, cfg, nil)
+	exec := NewBybitCyclePlanner(f, cfg, nil)
 
 	// 1 个槽位:最优候选拿满 60(每腿 30),而不是被 2 个候选稀释成 30(每腿 15)。
 	plan, err := exec.PlanCycle(context.Background(), 1, 0)
@@ -235,11 +235,11 @@ func TestPlanBybitLeverageSizing(t *testing.T) {
 	}
 }
 
-func TestShadowPlanCycleNoCandidates(t *testing.T) {
+func TestPlanCycleNoCandidates(t *testing.T) {
 	f := &fakeBybitMarket{
 		snaps: []venue.FundingSnapshot{{Symbol: "X-USDT", LastFundingRate: -0.01}},
 	}
-	exec := NewBybitShadowExecutor(f, BybitExecConfig{AllocatedUSDT: 1000, MinFundingRate: 0.0005}, nil)
+	exec := NewBybitCyclePlanner(f, BybitExecConfig{AllocatedUSDT: 1000, MinFundingRate: 0.0005}, nil)
 	plan, err := exec.PlanCycle(context.Background(), 0, 0)
 	if err != nil {
 		t.Fatalf("PlanCycle: %v", err)
@@ -294,7 +294,7 @@ func TestPlanCycleEVGate(t *testing.T) {
 	for i := range sticky {
 		sticky[i] = 0.003
 	}
-	plan, err := NewBybitShadowExecutor(mk(sticky), cfg, nil).PlanCycle(context.Background(), 1, 0)
+	plan, err := NewBybitCyclePlanner(mk(sticky), cfg, nil).PlanCycle(context.Background(), 1, 0)
 	if err != nil {
 		t.Fatalf("PlanCycle: %v", err)
 	}
@@ -305,7 +305,7 @@ func TestPlanCycleEVGate(t *testing.T) {
 	// ② 一次性尖峰:历史其余全 0 → 期望 1 次×0.003×30=0.09 < 费 0.093 → 拒绝。
 	spike := make([]float64, 24)
 	spike[0] = 0.003
-	plan, err = NewBybitShadowExecutor(mk(spike), cfg, nil).PlanCycle(context.Background(), 1, 0)
+	plan, err = NewBybitCyclePlanner(mk(spike), cfg, nil).PlanCycle(context.Background(), 1, 0)
 	if err != nil {
 		t.Fatalf("PlanCycle: %v", err)
 	}
@@ -380,7 +380,7 @@ func TestBybitManageCyclePreSettleExit(t *testing.T) {
 		cfg.BybitExecutor.RollEnabled = true
 		cfg.BybitExecutor.MaxHoldSettlements = 12
 		cfg.BybitExecutor.LeadSeconds = 240
-		planner := NewBybitShadowExecutor(market, bybitExecConfigFromEngine(cfg), nil)
+		planner := NewBybitCyclePlanner(market, bybitExecConfigFromEngine(cfg), nil)
 		executor := newTestExecutor(trader)
 		c.bybitManageCycle(context.Background(), cfg, store, planner, executor, &fakeBybitVenue{market, trader}, true)
 		left, err := store.load()
@@ -442,17 +442,17 @@ func TestBybitRollSwitchReason(t *testing.T) {
 	c := &RuntimeController{}
 
 	// ① 肥候选在窗口内(0.20%/h ≥ 0.00125%/h × 3)→ 应换仓。
-	planner := NewBybitShadowExecutor(mkMarket("FAT-USDT", now.Add(10*time.Minute)), cfg, nil)
+	planner := NewBybitCyclePlanner(mkMarket("FAT-USDT", now.Add(10*time.Minute)), cfg, nil)
 	if reason := c.bybitRollSwitchReason(context.Background(), planner, held, heldSnap, now, lead); reason == "" {
 		t.Fatalf("窗口内的显著更肥候选应触发换仓")
 	}
 	// ② 同一标的不换。
-	planner = NewBybitShadowExecutor(mkMarket("MBOX-USDT", now.Add(10*time.Minute)), cfg, nil)
+	planner = NewBybitCyclePlanner(mkMarket("MBOX-USDT", now.Add(10*time.Minute)), cfg, nil)
 	if reason := c.bybitRollSwitchReason(context.Background(), planner, held, heldSnap, now, lead); reason != "" {
 		t.Fatalf("同标的不应换仓: %s", reason)
 	}
 	// ③ 不在开仓窗口(结算还有 2h,lead=30min)不换。
-	planner = NewBybitShadowExecutor(mkMarket("FAT-USDT", now.Add(2*time.Hour)), cfg, nil)
+	planner = NewBybitCyclePlanner(mkMarket("FAT-USDT", now.Add(2*time.Hour)), cfg, nil)
 	if reason := c.bybitRollSwitchReason(context.Background(), planner, held, heldSnap, now, lead); reason != "" {
 		t.Fatalf("窗口外候选不应换仓: %s", reason)
 	}

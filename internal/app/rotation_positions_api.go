@@ -152,7 +152,7 @@ func holdDurationSec(opened, ref time.Time) float64 {
 }
 
 func viewFromSVSP(pos SingleVenueSpotPerpPosition, execCfg CrossVenueExecutorConfig, now time.Time) RotationPositionView {
-	cont := rotationContinuationFromPosition(pos.EstFundingUSDT, pos.NotionalUSDT, execCfg, false)
+	cont := rotationContinuationFromPosition(pos.EstFundingUSDT, pos.NotionalUSDT, execCfg, false, rotationContinuationOpts{baseAsset: baseAssetFromCanonicalSymbol(pos.Symbol)})
 	venues := uniqueNonEmptyStrings(pos.Venue)
 	return RotationPositionView{
 		StrategyType:          UnifiedStrategySingleVenueSpotPerp,
@@ -181,7 +181,7 @@ func viewFromSVSP(pos SingleVenueSpotPerpPosition, execCfg CrossVenueExecutorCon
 }
 
 func viewFromCVSP(pos CrossVenueSpotPerpPosition, execCfg CrossVenueExecutorConfig, now time.Time) RotationPositionView {
-	cont := rotationContinuationFromPosition(pos.EstFundingUSDT, pos.NotionalUSDT, execCfg, false)
+	cont := rotationContinuationFromPosition(pos.EstFundingUSDT, pos.NotionalUSDT, execCfg, false, rotationContinuationOpts{baseAsset: baseAssetFromCanonicalSymbol(pos.Symbol)})
 	return RotationPositionView{
 		StrategyType:          UnifiedStrategyCrossVenueSpotPerp,
 		PositionKey:           cvspPositionKey(pos),
@@ -209,7 +209,7 @@ func viewFromCVSP(pos CrossVenueSpotPerpPosition, execCfg CrossVenueExecutorConf
 }
 
 func viewFromSVPS(pos SingleVenuePerpSpotPosition, execCfg CrossVenueExecutorConfig, now time.Time) RotationPositionView {
-	cont := rotationContinuationFromPosition(pos.EstFundingUSDT, pos.NotionalUSDT, execCfg, true)
+	cont := rotationContinuationFromPosition(pos.EstFundingUSDT, pos.NotionalUSDT, execCfg, true, rotationContinuationOpts{baseAsset: baseAssetFromCanonicalSymbol(pos.Symbol)})
 	venues := uniqueNonEmptyStrings(pos.Venue)
 	return RotationPositionView{
 		StrategyType:          UnifiedStrategySingleVenuePerpSpot,
@@ -238,7 +238,7 @@ func viewFromSVPS(pos SingleVenuePerpSpotPosition, execCfg CrossVenueExecutorCon
 }
 
 func viewFromCVPS(pos CrossVenuePerpSpotPosition, execCfg CrossVenueExecutorConfig, now time.Time) RotationPositionView {
-	cont := rotationContinuationFromPosition(pos.EstFundingUSDT, pos.NotionalUSDT, execCfg, true)
+	cont := rotationContinuationFromPosition(pos.EstFundingUSDT, pos.NotionalUSDT, execCfg, true, rotationContinuationOpts{baseAsset: baseAssetFromCanonicalSymbol(pos.Symbol)})
 	return RotationPositionView{
 		StrategyType:          UnifiedStrategyCrossVenuePerpSpot,
 		PositionKey:           cvpsPositionKey(pos),
@@ -269,7 +269,7 @@ func viewFromCVPS(pos CrossVenuePerpSpotPosition, execCfg CrossVenueExecutorConf
 // spot_leg/perp_leg 槽位均填永续腿(高费所空腿→spot_leg,低费所多腿→perp_leg),与 carry 四策略同 JSON 结构。
 func viewFromCrossVenuePerpPerp(pos CrossVenuePosition, execCfg CrossVenueExecutorConfig, now time.Time) RotationPositionView {
 	notional := crossVenuePositionNotionalUSDT(&pos)
-	cont := rotationContinuationFromPosition(pos.EstFundingUSDT, notional, execCfg, false)
+	cont := rotationContinuationFromPosition(pos.EstFundingUSDT, notional, execCfg, false, rotationContinuationOpts{baseAsset: baseAssetFromCanonicalSymbol(pos.Symbol)})
 	estCloseFees := crossVenueEstCloseFeeUSDT(execCfg, &pos)
 	return RotationPositionView{
 		StrategyType:          UnifiedStrategyPerpPerp,
@@ -499,7 +499,7 @@ func enrichOneRotationPositionWithLivePrices(ctx context.Context, venues map[str
 		go func() {
 			defer wg.Done()
 			v := venues[strings.ToLower(strings.TrimSpace(leg.Venue))]
-			mid, ok := unifiedShadowFetchLegMidPrice(ctx, v, leg.MarketType, view.Symbol)
+			mid, ok := unifiedMarketFetchLegMidPrice(ctx, v, leg.MarketType, view.Symbol)
 			if !ok {
 				leg.PriceUnavailable = true
 				view.PriceUnavailable = true

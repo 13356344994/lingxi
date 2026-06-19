@@ -331,7 +331,7 @@ func (s *DashboardServer) handleHealthz(w http.ResponseWriter, _ *http.Request) 
 		w.WriteHeader(http.StatusServiceUnavailable)
 	}
 	_ = json.NewEncoder(w).Encode(map[string]any{
-		"ready": ready,
+		"ready":  ready,
 		"reason": reason,
 		"cross_venue": map[string]any{
 			"enabled": crossVenueEnabled,

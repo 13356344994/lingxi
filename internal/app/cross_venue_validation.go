@@ -8,7 +8,7 @@ import (
 	"lingxi/internal/money"
 )
 
-type CrossVenueShadowPortfolioTrade struct {
+type CrossVenueReplayPortfolioTrade struct {
 	SettlementID      string  `json:"settlement_id,omitempty"`
 	PositionKey       string  `json:"position_key,omitempty"`
 	EntrySnapshotID   string  `json:"entry_snapshot_id,omitempty"`
@@ -25,11 +25,11 @@ type CrossVenueShadowPortfolioTrade struct {
 	UsedFallback      bool    `json:"used_fallback,omitempty"`
 }
 
-type CrossVenueShadowPortfolioSnapshot struct {
+type CrossVenueReplayPortfolioSnapshot struct {
 	MatchedTrades       int                              `json:"matched_trades"`
 	ChosenReplayNetEV   float64                          `json:"chosen_replay_net_ev"`
 	BaselineReplayNetEV float64                          `json:"baseline_replay_net_ev"`
-	Records             []CrossVenueShadowPortfolioTrade `json:"records,omitempty"`
+	Records             []CrossVenueReplayPortfolioTrade `json:"records,omitempty"`
 }
 
 type CrossVenueCounterfactualReplayRecord struct {
@@ -136,14 +136,14 @@ type CrossVenueValidationSnapshot struct {
 	OpeningsDisabledCycles     int                                       `json:"openings_disabled_cycles"`
 	ScanSnapshotCount          int                                       `json:"scan_snapshot_count"`
 	ScanSnapshotTotalCount     int                                       `json:"scan_snapshot_total_count"`
-	ShadowMatchedTrades        int                                       `json:"shadow_matched_trades"`
+	ReplayMatchedTrades        int                                       `json:"replay_matched_trades"`
 	EntrySnapshotLinkedTrades  int                                       `json:"entry_snapshot_linked_trades"`
 	MissingEntrySnapshotTrades int                                       `json:"missing_entry_snapshot_trades"`
 	ReplayReady                bool                                      `json:"replay_ready"`
 	SameOpportunitySetReady    bool                                      `json:"same_opportunity_set_ready"`
 	SameCostModelReady         bool                                      `json:"same_cost_model_ready"`
 	SameRiskBudgetReady        bool                                      `json:"same_risk_budget_ready"`
-	ShadowPortfolio            CrossVenueShadowPortfolioSnapshot         `json:"shadow_portfolio"`
+	ReplayPortfolio            CrossVenueReplayPortfolioSnapshot         `json:"replay_portfolio"`
 	CounterfactualReplay       CrossVenueCounterfactualReplaySnapshot    `json:"counterfactual_replay"`
 	BaselinePortfolioReplay    CrossVenueBaselinePortfolioReplaySnapshot `json:"baseline_portfolio_replay"`
 	RollingBaselineReplay      CrossVenueRollingBaselineReplaySnapshot   `json:"rolling_baseline_replay"`
@@ -264,7 +264,7 @@ func (e *CrossVenueExecutor) ValidationSnapshotSince(since, until time.Time) (Cr
 			if chosenOK {
 				replayRec.ChosenNetEV = chosen.NetEV
 				replayRec.ChosenPair = chosen.HighVenue + "/" + chosen.LowVenue
-				out.ShadowPortfolio.ChosenReplayNetEV = money.SumUSDT(out.ShadowPortfolio.ChosenReplayNetEV, chosen.NetEV)
+				out.ReplayPortfolio.ChosenReplayNetEV = money.SumUSDT(out.ReplayPortfolio.ChosenReplayNetEV, chosen.NetEV)
 				out.CounterfactualReplay.MatchedTrades++
 			} else {
 				out.CounterfactualReplay.MissingChosenTrades++
@@ -272,12 +272,12 @@ func (e *CrossVenueExecutor) ValidationSnapshotSince(since, until time.Time) (Cr
 			if bestOK {
 				replayRec.BaselineNetEV = best.NetEV
 				replayRec.BaselinePair = best.HighVenue + "/" + best.LowVenue
-				out.ShadowPortfolio.BaselineReplayNetEV = money.SumUSDT(out.ShadowPortfolio.BaselineReplayNetEV, best.NetEV)
+				out.ReplayPortfolio.BaselineReplayNetEV = money.SumUSDT(out.ReplayPortfolio.BaselineReplayNetEV, best.NetEV)
 				out.CounterfactualReplay.BaselineTradeCount++
 			}
 			if chosenOK {
-				out.ShadowMatchedTrades++
-				out.ShadowPortfolio.MatchedTrades++
+				out.ReplayMatchedTrades++
+				out.ReplayPortfolio.MatchedTrades++
 			}
 			if chosenOK && bestOK {
 				drag := best.NetEV - chosen.NetEV
@@ -288,7 +288,7 @@ func (e *CrossVenueExecutor) ValidationSnapshotSince(since, until time.Time) (Cr
 						out.FallbackDilution = money.SumUSDT(out.FallbackDilution, drag)
 					}
 				}
-				out.ShadowPortfolio.Records = append(out.ShadowPortfolio.Records, CrossVenueShadowPortfolioTrade{
+				out.ReplayPortfolio.Records = append(out.ReplayPortfolio.Records, CrossVenueReplayPortfolioTrade{
 					SettlementID:      rec.SettlementID,
 					PositionKey:       rec.PositionKey,
 					EntrySnapshotID:   rec.EntrySnapshotID,
@@ -311,7 +311,7 @@ func (e *CrossVenueExecutor) ValidationSnapshotSince(since, until time.Time) (Cr
 			out.CounterfactualReplay.MissingSnapshotTrades++
 		}
 	}
-	out.ReplayReady = out.ShadowMatchedTrades > 0 && out.SameOpportunitySetReady
+	out.ReplayReady = out.ReplayMatchedTrades > 0 && out.SameOpportunitySetReady
 	for snapshotID, grouped := range settlementsBySnapshot {
 		scanRec, ok := scanByID[snapshotID]
 		if !ok {

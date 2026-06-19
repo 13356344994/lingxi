@@ -16,7 +16,7 @@ const (
 	RotationActionOpen   = "OPEN"
 )
 
-// RotationConfig 是统一资金费轮动 shadow 计划的限额与保留金配置。
+// RotationConfig 是统一资金费轮动 计划的限额与保留金配置。
 type RotationConfig struct {
 	MaxConcurrent      int                `json:"max_concurrent"`
 	MaxPositionUSDT    float64            `json:"max_position_usdt"`
@@ -76,6 +76,8 @@ type HeldPosition struct {
 	Symbol                 string             `json:"symbol"`
 	CapitalRequiredByVenue map[string]float64 `json:"capital_required_by_venue"`
 	OpenedAt               time.Time          `json:"opened_at,omitempty"`
+	// NextFundingTime 最近一侧永续下次结算时刻;续持 min-hold 参考距结算剩余时间。
+	NextFundingTime time.Time `json:"next_funding_time,omitempty"`
 }
 
 // ContinuationInputs 是下一结算窗口续持口径的纯函数输入(由调用方提供)。
@@ -86,7 +88,7 @@ type ContinuationInputs struct {
 	ExpectedBorrowCostUSDT float64 `json:"expected_borrow_cost_usdt"`
 }
 
-// RotationAction 是单条 shadow 轮动动作(不驱动下单)。
+// RotationAction 是单条 轮动动作(不驱动下单)。
 type RotationAction struct {
 	Kind                   string             `json:"kind"`
 	OpportunityID          string             `json:"opportunity_id"`
@@ -102,7 +104,7 @@ type RotationAction struct {
 	CapitalRequiredByVenue map[string]float64 `json:"capital_required_by_venue,omitempty"`
 }
 
-// RotationPlan 是单轮 shadow 轮动计划输出。
+// RotationPlan 是单轮 轮动计划输出。
 type RotationPlan struct {
 	Actions []RotationAction `json:"actions"`
 }
@@ -164,16 +166,78 @@ func unifiedWindowScore(opp UnifiedOpportunity) float64 {
 	return opp.ExpectedNetEVUSDT / totalCapital
 }
 
+// rotationFundingRatePerHour 把 per-interval 绝对费率归一化为每小时(粗筛/排序/续持窗口折算共用)。
+func rotationFundingRatePerHour(rate float64, intervalHours int) float64 {
+	if intervalHours <= 0 {
+		intervalHours = 8
+	}
+	abs := rate
+	if abs < 0 {
+		abs = -abs
+	}
+	return abs / float64(intervalHours)
+}
+
+// rotationSpotPerpWindowFundingUSDT 正/负 carry spot-perp 下一可比窗口 funding(与 scanner 候选同口径)。
+func rotationSpotPerpWindowFundingUSDT(notional, rate float64, intervalHours int, nextFunding, now time.Time, negativeCarry bool) float64 {
+	if notional <= 0 {
+		return 0
+	}
+	effectiveRate := rate
+	if negativeCarry {
+		if rate >= 0 {
+			return 0
+		}
+		effectiveRate = -rate
+	} else if rate <= 0 {
+		return 0
+	}
+	if intervalHours <= 0 {
+		intervalHours = 8
+	}
+	windowHours := crossVenueComparableWindowHours(now, nextFunding, nextFunding)
+	if windowHours <= 0 {
+		windowHours = float64(intervalHours)
+	}
+	settlements := crossVenueSpotPerpFundingSettlementCount(now, windowHours, intervalHours, nextFunding)
+	return notional * effectiveRate * float64(settlements)
+}
+
+// rotationPerpPerpWindowFundingUSDT perp-perp 下一可比窗口 spread funding(对齐 crossVenueComputeCurrentFutureEV)。
+func rotationPerpPerpWindowFundingUSDT(notional, highRate float64, highInt int, lowRate float64, lowInt int, highNext, lowNext, now time.Time) float64 {
+	windowHours := crossVenueComparableWindowHours(now, highNext, lowNext)
+	if windowHours <= 0 {
+		return 0
+	}
+	fundingPerHour := crossVenueExpectedFundingPerHour(notional, highRate, highInt, lowRate, lowInt)
+	return fundingPerHour * windowHours
+}
+
+const (
+	// rotationHoldingRiskPerScoreUnit 持仓尾部风险代理系数: riskScore∈[0,1] × capital × 1%。
+	// 候选 comparable 分、续持 holdingRisk、allocator 风险调整 netEV 三处共用此口径。
+	rotationHoldingRiskPerScoreUnit = 0.01
+	// rotationContinuationDefaultRiskScore 无匹配候选时续持默认风险分(等价旧 notional×0.001)。
+	rotationContinuationDefaultRiskScore = 0.1
+	// rotationContinuationBorrowFallbackDailyRate 无借币探测时续持 borrow 回退日利率(3bps/日)。
+	rotationContinuationBorrowFallbackDailyRate = 0.0003
+)
+
+// holdingRiskUSDT 统一持仓尾部风险扣减(USDT): clamp01(riskScore) × capital × rotationHoldingRiskPerScoreUnit。
+func holdingRiskUSDT(riskScore, capital float64) float64 {
+	if capital <= 0 || riskScore <= 0 {
+		return 0
+	}
+	return clamp01(riskScore) * capital * rotationHoldingRiskPerScoreUnit
+}
+
 // continuationNetUSDT 计算续持净收益(下一窗口 funding − borrow − holdingRisk; close 仅在换仓边际扣)。
 func continuationNetUSDT(in ContinuationInputs) float64 {
 	return in.ExpectedFundingUSDT - in.HoldingRiskUSDT - in.ExpectedBorrowCostUSDT
 }
 
 func rotationHoldingRiskUSDT(opp UnifiedOpportunity, totalCapital float64) float64 {
-	if totalCapital <= 0 || opp.RiskScore <= 0 {
-		return 0
-	}
-	return opp.RiskScore * totalCapital * 0.01
+	return holdingRiskUSDT(opp.RiskScore, totalCapital)
 }
 
 // rotationComparableWindowScore 与续持分同口径: netEV − holdingRisk,不含 close(已在 netEV)与 openCost(已在 netEV)。
@@ -429,7 +493,7 @@ func planUnifiedRotationOpensFrom(candidates []UnifiedOpportunity, available map
 	return actions
 }
 
-// PlanUnifiedRotationOpens 对开仓侧做 shadow 贪心分配(纯函数,不执行下单)。
+// PlanUnifiedRotationOpens 对开仓侧做 贪心分配(纯函数,不执行下单)。
 func PlanUnifiedRotationOpens(candidates []UnifiedOpportunity, available map[string]float64, cfg RotationConfig, equityUSDT ...float64) []RotationAction {
 	equity := 0.0
 	if len(equityUSDT) > 0 {
@@ -482,6 +546,25 @@ func rotationSwitchMarginalCostUSDT(heldCloseCostUSDT float64, newOpp UnifiedOpp
 	return heldCloseCostUSDT + newOpp.ExpectedSlippageUSDT + newOpp.ExpectedRollbackCostUSDT
 }
 
+// rotationContinuationMinHoldSatisfied 续持软 CLOSE 的 min-hold: 固定秒数与「持至下次 funding」取较大者。
+func rotationContinuationMinHoldSatisfied(pos HeldPosition, cfg RotationConfig, now time.Time) bool {
+	if pos.OpenedAt.IsZero() {
+		return true
+	}
+	minHold := time.Duration(cfg.ContinuationMinHoldSeconds) * time.Second
+	if minHold <= 0 {
+		return true
+	}
+	required := minHold
+	if !pos.NextFundingTime.IsZero() && pos.NextFundingTime.After(pos.OpenedAt) {
+		untilFunding := pos.NextFundingTime.Sub(pos.OpenedAt)
+		if untilFunding > required {
+			required = untilFunding
+		}
+	}
+	return !now.Before(pos.OpenedAt.Add(required))
+}
+
 // rotationShouldContinuationClose 判断是否因续持边际转负而软 CLOSE(含 hysteresis/min-hold/关仓费对比)。
 func rotationShouldContinuationClose(pos HeldPosition, inputs ContinuationInputs, cfg RotationConfig, now time.Time) (bool, string) {
 	contNet := continuationNetUSDT(inputs)
@@ -496,14 +579,13 @@ func rotationShouldContinuationClose(pos HeldPosition, inputs ContinuationInputs
 	if contScore >= -cfg.ContinuationCloseThreshold {
 		return false, ""
 	}
-	minHold := time.Duration(cfg.ContinuationMinHoldSeconds) * time.Second
-	if !pos.OpenedAt.IsZero() && minHold > 0 && now.Sub(pos.OpenedAt) < minHold {
+	if !rotationContinuationMinHoldSatisfied(pos, cfg, now) {
 		return false, ""
 	}
 	return true, fmt.Sprintf("continuation_net=%.4f<-close_cost=%.4f score=%.6f", contNet, closeCost, contScore)
 }
 
-// DecideRotation 生成跨窗口 HOLD/CLOSE/SWITCH/OPEN shadow 计划(纯函数,不执行下单)。
+// DecideRotation 生成跨窗口 HOLD/CLOSE/SWITCH/OPEN 计划(纯函数,不执行下单)。
 func DecideRotation(
 	held []HeldPosition,
 	heldInputs map[string]ContinuationInputs,

@@ -17,7 +17,7 @@ import (
 	"lingxi/internal/venue"
 )
 
-// single_venue_spot_perp_executor.go 同所 spot-perp 正费率执行器(shadow 起步, live 闸透传)。
+// single_venue_spot_perp_executor.go 同所 spot-perp 正费率执行器(OFF 起步, live 闸透传)。
 
 const (
 	svspConfirmTimeout     = 8 * time.Second
@@ -287,7 +287,7 @@ func (e *SingleVenueSpotPerpExecutor) confirmFill(
 	}
 }
 
-// placeSVSPOC IOC 下单;!live 时返回合成成交且绝不调用 PlaceOrder(照 cross_venue IOC shadow 分支)。
+// placeSVSPOC IOC 下单;!live 时返回合成成交且绝不调用 PlaceOrder(照 cross_venue IOC dry-run 分支)。
 func (e *SingleVenueSpotPerpExecutor) placeSVSPOC(
 	ctx context.Context,
 	tr singleVenueSpotPerpTrader,
@@ -350,6 +350,27 @@ func (e *SingleVenueSpotPerpExecutor) placeSVSPLegIOC(
 		return venue.OrderResult{}, err
 	}
 	price := iocLimitPrice(side, book, slippageBps)
+	return e.placeSVSPOC(ctx, tr, mkt, sym, side, qty, price, clientID, reduceOnly, live)
+}
+
+// placeSVSPCloseLegIOC 平仓专用腿:按 CloseAttempts 阶梯放宽滑点,≥阈值后穿价兜底。
+func (e *SingleVenueSpotPerpExecutor) placeSVSPCloseLegIOC(
+	ctx context.Context,
+	tr singleVenueSpotPerpTrader,
+	mkt venue.Market,
+	sym venue.Symbol,
+	side venue.Side,
+	qty float64,
+	clientID string,
+	reduceOnly bool,
+	live bool,
+	closeAttempts int,
+) (venue.OrderResult, error) {
+	book, err := tr.FetchBookTicker(ctx, mkt, sym)
+	if err != nil {
+		return venue.OrderResult{}, err
+	}
+	price, _ := carryCloseIocLimitPrice(e.execCfg(), side, book, closeAttempts)
 	return e.placeSVSPOC(ctx, tr, mkt, sym, side, qty, price, clientID, reduceOnly, live)
 }
 
@@ -597,6 +618,10 @@ func (e *SingleVenueSpotPerpExecutor) managePosition(ctx context.Context, pos Si
 	}
 
 	e.syncRealizedFunding(ctx, &pos)
+	dev := qtyDeviation(spotQty, absQty(perpAmt))
+	if carryShouldRebalanceHedge(dev, pos.LastHedgeRebalanceAt, e.nowFn()) {
+		e.rebalanceSVSPHedge(ctx, &pos, spotQty, absQty(perpAmt), live)
+	}
 	pos.UpdatedAt = e.nowFn()
 	_ = e.persistPosition(pos)
 
@@ -665,6 +690,44 @@ func (e *SingleVenueSpotPerpExecutor) manageOpeningContinuation(
 	default:
 		e.handleOrphanLeg(ctx, pos, spotOpen, perpOpen, live, spotQty, perpAmt)
 		return pos, false
+	}
+}
+
+func (e *SingleVenueSpotPerpExecutor) rebalanceSVSPHedge(ctx context.Context, pos *SingleVenueSpotPerpPosition, spotQty, perpQty float64, live bool) {
+	if pos == nil {
+		return
+	}
+	reduceSpot, delta := carryPositiveRebalancePlan(spotQty, perpQty)
+	if delta <= executionQtyTolerance {
+		return
+	}
+	v := e.venues[pos.Venue]
+	tr, ok := v.(singleVenueSpotPerpTrader)
+	if !ok || tr == nil {
+		return
+	}
+	sym := venue.Symbol(pos.Symbol)
+	takerBps := svspTakerSlippageBps(e.execCfg())
+	now := e.nowFn()
+	if reduceSpot {
+		if live {
+			id := svspLegClientID(pos.IdemPrefix, "rb-s")
+			if res, _ := e.placeSVSPLegIOC(ctx, tr, venue.MarketSpot, sym, venue.SideSell, delta, id, false, live, takerBps); res.ExecutedQty > executionQtyTolerance {
+				pos.SpotLeg.Qty = math.Max(pos.SpotLeg.Qty-res.ExecutedQty, 0)
+			}
+		}
+	} else if live {
+		id := svspLegClientID(pos.IdemPrefix, "rb-p")
+		if res, _ := e.placeSVSPLegIOC(ctx, tr, venue.MarketPerp, sym, venue.SideBuy, delta, id, true, live, takerBps); res.ExecutedQty > executionQtyTolerance {
+			pos.PerpLeg.Qty = math.Max(pos.PerpLeg.Qty-res.ExecutedQty, 0)
+		}
+	}
+	pos.LastHedgeRebalanceAt = now
+	pos.UpdatedAt = now
+	_ = e.persistPosition(*pos)
+	if e.logger != nil {
+		e.logger.Printf("[同所spot-perp] %s 对冲再平衡:偏差%.1f%% 减%s %.6f",
+			pos.Symbol, qtyDeviation(spotQty, perpQty)*100, map[bool]string{true: "现货", false: "永续"}[reduceSpot], delta)
 	}
 }
 
@@ -796,7 +859,6 @@ func (e *SingleVenueSpotPerpExecutor) closePosition(ctx context.Context, pos Sin
 
 	pos.CloseAttempts++
 	attempt := pos.CloseAttempts
-	takerBps := svspTakerSlippageBps(e.execCfg())
 
 	spotQty, perpAmt, ferr := e.fetchLegState(ctx, v, sym)
 	closeSpotQty := 0.0
@@ -815,7 +877,7 @@ func (e *SingleVenueSpotPerpExecutor) closePosition(ctx context.Context, pos Sin
 	}
 	if closeSpotQty > executionQtyTolerance {
 		id := svspLegClientID(pos.IdemPrefix, fmt.Sprintf("cs%d", attempt))
-		if res, err := e.placeSVSPLegIOC(ctx, tr, venue.MarketSpot, sym, venue.SideSell, closeSpotQty, id, false, live, takerBps); err == nil {
+		if res, err := e.placeSVSPCloseLegIOC(ctx, tr, venue.MarketSpot, sym, venue.SideSell, closeSpotQty, id, false, live, attempt); err == nil {
 			pos.SpotLeg.Qty = math.Max(pos.SpotLeg.Qty-res.ExecutedQty, 0)
 			pos.CloseFeesUSDT += res.Fee
 		} else {
@@ -824,7 +886,7 @@ func (e *SingleVenueSpotPerpExecutor) closePosition(ctx context.Context, pos Sin
 	}
 	if closePerpQty > executionQtyTolerance {
 		id := svspLegClientID(pos.IdemPrefix, fmt.Sprintf("cp%d", attempt))
-		if res, err := e.placeSVSPLegIOC(ctx, tr, venue.MarketPerp, sym, venue.SideBuy, closePerpQty, id, true, live, takerBps); err == nil {
+		if res, err := e.placeSVSPCloseLegIOC(ctx, tr, venue.MarketPerp, sym, venue.SideBuy, closePerpQty, id, true, live, attempt); err == nil {
 			pos.PerpLeg.Qty = math.Max(pos.PerpLeg.Qty-res.ExecutedQty, 0)
 			pos.CloseFeesUSDT += res.Fee
 		} else {
@@ -853,7 +915,7 @@ func (e *SingleVenueSpotPerpExecutor) closePosition(ctx context.Context, pos Sin
 		if live && spotOpen {
 			id := svspLegClientID(pos.IdemPrefix, "dust")
 			qty := ledgerCappedCloseQty(pos.SpotLeg.Qty, spotQty)
-			_, _ = e.placeSVSPLegIOC(ctx, tr, venue.MarketSpot, sym, venue.SideSell, qty, id, false, live, takerBps)
+			_, _ = e.placeSVSPCloseLegIOC(ctx, tr, venue.MarketSpot, sym, venue.SideSell, qty, id, false, live, attempt)
 		}
 		e.syncRealizedFunding(ctx, &pos)
 		pos.Status = SVSPStatusClosed
@@ -1040,7 +1102,7 @@ func (e *SingleVenueSpotPerpExecutor) CountRealHeldPositions(ctx context.Context
 	return count
 }
 
-// CloseAllPositions 一键全平:FetchBalances/FetchPositions 对账后只平真实腿;shadow 合成记录仅清台账。
+// CloseAllPositions 一键全平:FetchBalances/FetchPositions 对账后只平真实腿;dry-run 合成记录仅清台账。
 func (e *SingleVenueSpotPerpExecutor) CloseAllPositions(ctx context.Context, live bool) (closed int, errs []error) {
 	if e == nil || e.store == nil {
 		return 0, nil
