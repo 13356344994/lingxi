@@ -818,7 +818,8 @@ func TestRotationContinuationUsesWindowFundingNotCumulative(t *testing.T) {
 		Symbol:                 "OLD-USDT",
 		CapitalRequiredByVenue: map[string]float64{"binance": 50, "bybit": 50},
 		OpenedAt:               now.Add(-72 * time.Hour),
-		NextFundingTime:        nextFunding,
+		// 已过首次结算,使 SWITCH min-hold(延至结算)不阻断;续持 window funding 仍用 future nextFunding 计算。
+		NextFundingTime: now.Add(-30 * time.Minute),
 	}
 	// 累计 funding 很大(旧口径会虚高续持分),下一窗口仅 2U。
 	windowFunding := rotationSpotPerpWindowFundingUSDT(1000, 0.001, 8, nextFunding, now, false)
@@ -993,8 +994,8 @@ func TestRotationOpenSortsByYieldNotAbsoluteEV(t *testing.T) {
 func TestRotationMinOpenNotionalRejectsThinCandidates(t *testing.T) {
 	cfg := DefaultRotationConfig()
 	cfg.DefaultReserveUSDT = 0
-	thin := testRotationOpp("thin", UnifiedStrategyCrossVenueSpotPerp, "BEL-USDT", 5, 10, "binance", "gate")
-	thin.Legs = []UnifiedOpportunityLeg{{Venue: "binance", Notional: 8}, {Venue: "gate", Notional: 8}}
+	thin := testRotationOpp("thin", UnifiedStrategyCrossVenueSpotPerp, "BEL-USDT", 5, 6, "binance", "gate")
+	thin.Legs = []UnifiedOpportunityLeg{{Venue: "binance", Notional: 3}, {Venue: "gate", Notional: 3}}
 	okOpp := testRotationOpp("ok", UnifiedStrategyCrossVenueSpotPerp, "ETH-USDT", 4, 50, "binance", "gate")
 	okOpp.Legs = []UnifiedOpportunityLeg{{Venue: "binance", Notional: 50}, {Venue: "gate", Notional: 50}}
 	actions := PlanUnifiedRotationOpens([]UnifiedOpportunity{thin, okOpp}, map[string]float64{"binance": 200, "gate": 200}, cfg)
@@ -1014,6 +1015,57 @@ func TestRotationOpenCooldownBlocksCandidate(t *testing.T) {
 	ok, reason := rotationCanOpenOpportunity(opp, map[string]float64{"binance": 200, "gate": 200}, cfg, 0, nil, nil)
 	if ok || reason != "open_cooldown" {
 		t.Fatalf("cooldown: ok=%v reason=%q", ok, reason)
+	}
+}
+
+func TestDefaultRotationConfigMinOpenNotional(t *testing.T) {
+	cfg := DefaultRotationConfig()
+	if math.Abs(cfg.MinOpenNotionalUSDT-5) > 1e-9 {
+		t.Fatalf("MinOpenNotionalUSDT = %.2f, want 5", cfg.MinOpenNotionalUSDT)
+	}
+}
+
+func TestRotationSwitchMinHoldExtendsToNextFunding(t *testing.T) {
+	now := time.Date(2026, 6, 19, 10, 0, 0, 0, time.UTC)
+	cfg := DefaultRotationConfig()
+	cfg.ContinuationMinHoldSeconds = 3600
+
+	pos := HeldPosition{
+		OpenedAt:        now.Add(-90 * time.Minute),
+		NextFundingTime: now.Add(30 * time.Minute),
+	}
+	if rotationSwitchMinHoldSatisfied(pos, cfg, now) {
+		t.Fatal("SWITCH should stay blocked until first funding when open→funding > fixed min hold")
+	}
+
+	pos.OpenedAt = now.Add(-2 * time.Hour)
+	pos.NextFundingTime = now.Add(-30 * time.Minute)
+	if !rotationSwitchMinHoldSatisfied(pos, cfg, now) {
+		t.Fatal("SWITCH should allow after fixed min hold and first funding passed")
+	}
+
+	posZeroFunding := HeldPosition{OpenedAt: now.Add(-30 * time.Minute)}
+	if rotationSwitchMinHoldSatisfied(posZeroFunding, cfg, now) {
+		t.Fatal("zero NextFundingTime should fall back to fixed min hold only")
+	}
+}
+
+func TestDecideRotationSwitchBlockedByMinHoldNearFunding(t *testing.T) {
+	now := time.Date(2026, 6, 19, 10, 0, 0, 0, time.UTC)
+	held := HeldPosition{
+		OpportunityID: "held-btc", StrategyType: UnifiedStrategyPerpPerp, Symbol: "BTC-USDT",
+		CapitalRequiredByVenue: map[string]float64{"binance": 50, "bybit": 50},
+		OpenedAt: now.Add(-90 * time.Minute), NextFundingTime: now.Add(30 * time.Minute),
+	}
+	heldInputs := map[string]ContinuationInputs{"held-btc": {ExpectedFundingUSDT: 1, ExpectedCloseCostUSDT: 2}}
+	newOpp := testRotationOpp("new-eth", UnifiedStrategySingleVenueSpotPerp, "ETH-USDT", 30, 100)
+	plan := decideRotationAt([]HeldPosition{held}, heldInputs, []UnifiedOpportunity{newOpp},
+		map[string]float64{"binance": 200, "bybit": 200}, DefaultRotationConfig(), now, 0, nil)
+	if len(plan.Actions) != 1 || plan.Actions[0].Kind != RotationActionHold {
+		t.Fatalf("expected HOLD near funding, got %+v", plan.Actions)
+	}
+	if !strings.Contains(plan.Actions[0].Reason, "hold_switch_min_hold") {
+		t.Fatalf("reason=%q", plan.Actions[0].Reason)
 	}
 }
 

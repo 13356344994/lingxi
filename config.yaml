@@ -20,7 +20,8 @@ risk:
   max_account_drawdown_usdt: 90
   max_strategy_cumulative_loss_usdt: 30
   max_account_open_notional_usdt: 2200
-  auto_flatten_on_hard_drawdown_enabled: false
+  # 用户 2026-06-20 拍板:启用二级 auto-flatten(真实现金权益回撤≥阈值→全平);重启后生效。
+  auto_flatten_on_hard_drawdown_enabled: true
   # 【对齐真实余额,O-5】单周期开仓名义上限:与 per_symbol_quote_usdt×2 同步(60),币安 ~99U 余额 preflight 对照。
   max_cycle_open_notional_usdt: 60
   # 硬约束 immediate_invalidate_rate < min_net_profit_rate;profit_seeking 加载后 min_net 抬至 ≥0.002(默认 0.002)。

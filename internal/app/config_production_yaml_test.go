@@ -55,8 +55,9 @@ func TestLoadProductionConfigYAML(t *testing.T) {
 	if math.Abs(cfg.RiskConfig.MaxAccountOpenNotionalUSDT-2200) > 1e-9 {
 		t.Fatalf("risk.max_account_open_notional_usdt = %.2f want 2200", cfg.RiskConfig.MaxAccountOpenNotionalUSDT)
 	}
-	if cfg.RiskConfig.AutoFlattenOnHardDrawdownEnabled {
-		t.Fatal("risk.auto_flatten_on_hard_drawdown_enabled = true want false")
+	// 用户 2026-06-20 拍板:启用击穿硬回撤自动平仓(P1-8)。
+	if !cfg.RiskConfig.AutoFlattenOnHardDrawdownEnabled {
+		t.Fatal("risk.auto_flatten_on_hard_drawdown_enabled = false want true")
 	}
 
 	// cross_venue_executor 杠杆/名义

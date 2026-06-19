@@ -702,7 +702,9 @@ func (e *SingleVenueSpotPerpExecutor) managePosition(ctx context.Context, pos Si
 	e.armDeadManForPerpVenue(ctx, pos.Venue, live)
 
 	if reason := e.shouldClosePosition(ctx, &pos); reason != "" {
-		_ = e.closePosition(ctx, pos, live, reason)
+		if carryIsHardStopCloseReason(reason) || !carryShouldDeferEVWeakClose(e.nowFn(), pos.NextFundingTime, reason) {
+			_ = e.closePosition(ctx, pos, live, reason)
+		}
 		return pos, false
 	}
 	return pos, false
@@ -835,6 +837,9 @@ func (e *SingleVenueSpotPerpExecutor) handleOrphanLeg(
 	spotQty, perpAmt float64,
 ) {
 	decision := evaluatePositiveCarryOrphan(ctx, e.execCfg(), e.venues, pos.Symbol, pos.Venue, pos.Venue, spotOpen, perpOpen, spotQty, absQty(perpAmt), pos.SpotLeg.EntryPrice)
+	if pos.NextFundingTime.IsZero() {
+		e.syncFundingMeta(ctx, &pos)
+	}
 	if decision.IsDustOrphan && carryDeferDustOrphanDecision(e.nowFn(), pos.NextFundingTime, decision) {
 		pos.UpdatedAt = e.nowFn()
 		_ = e.persistPosition(pos)
@@ -948,9 +953,12 @@ func (e *SingleVenueSpotPerpExecutor) syncRealizedFunding(ctx context.Context, p
 	pos.LastFundingSyncAt = now
 }
 
-func (e *SingleVenueSpotPerpExecutor) shouldClosePosition(_ context.Context, pos *SingleVenueSpotPerpPosition) string {
+func (e *SingleVenueSpotPerpExecutor) shouldClosePosition(ctx context.Context, pos *SingleVenueSpotPerpPosition) string {
 	if pos == nil {
 		return ""
+	}
+	if reason := carryHardStopCloseReason(ctx, e.venues, true, pos.Symbol, pos.Venue, pos.Venue, pos.SpotLeg.EntryPrice, pos.PerpLeg.EntryPrice); reason != "" {
+		return reason
 	}
 	cfg := e.execCfg()
 	now := e.nowFn()
@@ -1001,7 +1009,9 @@ func (e *SingleVenueSpotPerpExecutor) closePosition(ctx context.Context, pos Sin
 
 	pos.CloseAttempts++
 	attempt := pos.CloseAttempts
-
+	if pos.NextFundingTime.IsZero() {
+		e.syncFundingMeta(ctx, &pos)
+	}
 	spotQty, perpAmt, ferr := e.fetchLegState(ctx, v, sym)
 	closeSpotQty := 0.0
 	closePerpQty := 0.0
@@ -1311,10 +1321,48 @@ func (e *SingleVenueSpotPerpExecutor) reconcileOnStart(ctx context.Context, live
 			e.reconcileTrackedPositionOnStart(ctx, p, v, live)
 		}
 	}
+	e.reconcileUntrackedExposureOnStart(ctx, ps, live)
 	if latest, lerr := e.store.load(); lerr == nil {
 		ps = latest
 	}
 	e.setPositions(ps)
+}
+
+func (e *SingleVenueSpotPerpExecutor) reconcileUntrackedExposureOnStart(ctx context.Context, ps []SingleVenueSpotPerpPosition, live bool) {
+	untracked := carryScanUntrackedSVSPLegs(ctx, e.recordDir, e.venues, ps)
+	if len(untracked) == 0 {
+		return
+	}
+	action := crossVenueUntrackedExposureAction(e.execCfg())
+	for _, leg := range untracked {
+		e.logger.Printf("[同所spot-perp] reconcile: venue=%s 未登记 %s %s≈%.6f", leg.Venue, leg.Market, leg.Symbol, leg.Qty)
+	}
+	switch action {
+	case crossVenueRecoveryActionFlatten:
+		if !e.execCfg().LiveTradingEnabled {
+			e.notifyCritical("同所spot-perp冷启动", "检测到未登记真实持仓,flatten 需 live", "")
+			return
+		}
+		for _, leg := range untracked {
+			e.flattenUntrackedLeg(ctx, leg, live)
+		}
+		e.notifyCritical("同所spot-perp冷启动 flatten", fmt.Sprintf("已对 %d 条未登记腿执行 flatten", len(untracked)), "")
+	default:
+		e.notifyCritical("同所spot-perp冷启动", fmt.Sprintf("检测到 %d 条未登记真实持仓,已 halt 待人工确认", len(untracked)), "")
+	}
+}
+
+func (e *SingleVenueSpotPerpExecutor) flattenUntrackedLeg(ctx context.Context, leg carryUntrackedLeg, live bool) {
+	if !live || leg.Qty <= executionQtyTolerance {
+		return
+	}
+	v := e.venues[leg.Venue]
+	tr, ok := v.(singleVenueSpotPerpTrader)
+	if !ok || tr == nil {
+		return
+	}
+	id := fmt.Sprintf("svsp-reconcile-flat-%s-%d", leg.Symbol, e.nowFn().UnixNano())
+	_, _ = e.placeSVSPLegIOC(ctx, tr, leg.Market, venue.Symbol(leg.Symbol), leg.Side, leg.Qty, id, leg.ReduceOnly, live, svspTakerSlippageBps(e.execCfg()))
 }
 
 func (e *SingleVenueSpotPerpExecutor) reconcileTrackedPositionOnStart(ctx context.Context, pos SingleVenueSpotPerpPosition, v venue.Venue, live bool) {

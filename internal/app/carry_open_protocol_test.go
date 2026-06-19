@@ -12,6 +12,36 @@ import (
 	"lingxi/internal/venue/binance"
 )
 
+// defaultCarryTestInstruments 供 carry 执行器单测 fake venue 使用,使 P1-6 预检可验证对齐。
+func defaultCarryTestInstruments() []venue.Instrument {
+	mk := func(sym string, spotStep, perpStep float64) []venue.Instrument {
+		s := venue.Symbol(sym)
+		return []venue.Instrument{
+			{Symbol: s, Market: venue.MarketSpot, StepSize: spotStep, TickSize: 0.01, MinNotional: 5},
+			{Symbol: s, Market: venue.MarketPerp, StepSize: perpStep, TickSize: 0.01, MinNotional: 5},
+		}
+	}
+	var out []venue.Instrument
+	for _, row := range []struct {
+		sym               string
+		spotStep, perpStep float64
+	}{
+		{"BTC-USDT", 0.001, 0.001},
+		{"ETH-USDT", 0.001, 0.001},
+		{"BEL-USDT", 1, 0.001},
+		{"FLUX-USDT", 0.001, 0.001},
+		{"PHA-USDT", 0.0001, 0.0001},
+	} {
+		out = append(out, mk(row.sym, row.spotStep, row.perpStep)...)
+	}
+	return out
+}
+
+// carryTestPastFundingTime 使 dust orphan 测试在 P2-5 保守 defer 下仍可 finalize。
+func carryTestPastFundingTime(now time.Time) time.Time {
+	return now.Add(-time.Hour)
+}
+
 func testCarryFundingEntryGate() CarryFundingEntryGateConfig {
 	return normalizeCarryFundingEntryGateConfig(CarryFundingEntryGateConfig{})
 }
@@ -44,6 +74,48 @@ func TestCarryPreflightSpotPerpOpenAlignRejectsMisalignedQty(t *testing.T) {
 	_, err := carryPreflightSpotPerpOpenAlign(5, 100, venue.Instrument{StepSize: 1, MinNotional: 5}, venue.Instrument{StepSize: 2, ContractSize: 10, MinNotional: 5}, venue.Capabilities{}, venue.Capabilities{ContractBasedPerp: true})
 	if err == nil || !strings.Contains(err.Error(), carryOpenRejectLegQtyMisalign) {
 		t.Fatalf("expected misalign skip, got %v", err)
+	}
+}
+
+func TestCarryPreflightSpotPerpOpenAlignRejectsUnverifiableContractPerp(t *testing.T) {
+	t.Parallel()
+	perpCaps := venue.Capabilities{ContractBasedPerp: true}
+	_, err := carryPreflightSpotPerpOpenAlign(10, 100, venue.Instrument{}, venue.Instrument{}, venue.Capabilities{}, perpCaps)
+	if err == nil || !strings.Contains(err.Error(), carryOpenRejectLegQtyUnverifiable) {
+		t.Fatalf("expected unverifiable reject, got %v", err)
+	}
+}
+
+func TestCarryDeferCloseUntilFundingSettlementZeroDefers(t *testing.T) {
+	now := time.Date(2026, 6, 20, 12, 0, 0, 0, time.UTC)
+	if !carryDeferCloseUntilFundingSettlement(now, time.Time{}) {
+		t.Fatal("zero nextFunding should conservative defer")
+	}
+}
+
+func TestCarryHardStopCloseReasonBasisWiden(t *testing.T) {
+	ctx := context.Background()
+	spot := newCVSPTestVenue("binance")
+	perp := newCVSPTestVenue("bybit")
+	spot.bookSpot = venue.BookTicker{BidPrice: 100, AskPrice: 100}
+	perp.bookPerp = venue.BookTicker{BidPrice: 103, AskPrice: 103}
+	perp.positions = []venue.Position{{Symbol: "BTC-USDT", PositionAmt: -1, MarkPrice: 103, Leverage: 5}}
+	venues := map[string]venue.Venue{"binance": spot, "bybit": perp}
+	reason := carryHardStopCloseReason(ctx, venues, true, "BTC-USDT", "binance", "bybit", 100, 100)
+	if reason == "" || !carryIsHardStopCloseReason(reason) {
+		t.Fatalf("expected basis hard stop, got %q", reason)
+	}
+}
+
+func TestCarryHardStopCloseReasonLiqDistance(t *testing.T) {
+	ctx := context.Background()
+	v := newSVSPTestVenue("binance")
+	v.book = venue.BookTicker{BidPrice: 100, AskPrice: 100}
+	v.positions = []venue.Position{{Symbol: "BTC-USDT", PositionAmt: -1, MarkPrice: 100, EntryPrice: 100, Leverage: 20}}
+	venues := map[string]venue.Venue{"binance": v}
+	reason := carryHardStopCloseReason(ctx, venues, true, "BTC-USDT", "binance", "binance", 100, 100)
+	if reason == "" || !strings.Contains(reason, "强平距离") {
+		t.Fatalf("expected liq hard stop, got %q", reason)
 	}
 }
 

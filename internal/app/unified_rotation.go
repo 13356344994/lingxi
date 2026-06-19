@@ -34,7 +34,7 @@ type RotationConfig struct {
 	ContinuationMinHoldSeconds int `json:"continuation_min_hold_seconds"`
 	// MinNetProfitUSDT 开仓预期净收益下限(USDT);由 CrossVenueExecutor 注入。默认 0。
 	MinNetProfitUSDT float64 `json:"min_net_profit_usdt"`
-	// MinOpenNotionalUSDT 候选可成交名义下限(USDT);低于此值丢弃,避免薄仓占并发槽。默认 20。
+	// MinOpenNotionalUSDT 候选可成交名义下限(USDT);低于此值丢弃,避免薄仓占并发槽。默认 5。
 	MinOpenNotionalUSDT float64 `json:"min_open_notional_usdt"`
 	// OpenFailCooldownSeconds 同一 (strategy,symbol,venue-pair) 开仓失败后冷却秒数。默认 900(15 分钟)。
 	OpenFailCooldownSeconds int `json:"open_fail_cooldown_seconds"`
@@ -50,7 +50,7 @@ func DefaultRotationConfig() RotationConfig {
 		DefaultReserveUSDT:         10,
 		ContinuationCloseThreshold: 0.001,
 		ContinuationMinHoldSeconds: 3600,
-		MinOpenNotionalUSDT:        20,
+		MinOpenNotionalUSDT:        5,
 		OpenFailCooldownSeconds:    900,
 	}
 }
@@ -633,8 +633,8 @@ func rotationContinuationMinHoldSatisfied(pos HeldPosition, cfg RotationConfig, 
 	return !now.Before(pos.OpenedAt.Add(required))
 }
 
-// rotationSwitchMinHoldSatisfied 仅防止"刚开仓就被换"的 churn:从 OpenedAt 起固定 ContinuationMinHoldSeconds。
-// 与 soft-CLOSE 的 min-hold 不同——不延长到 NextFundingTime,否则会冻结临近结算的老仓、阻碍正常轮动。
+// rotationSwitchMinHoldSatisfied 防止"刚开仓就被换"的 churn:固定 ContinuationMinHoldSeconds 与「持至下次 funding」取较大者(与 soft-CLOSE 同口径)。
+// OpenedAt/NextFundingTime 零值时安全回退(零值 OpenedAt 视为已满足;无 NextFundingTime 则仅固定秒数)。
 func rotationSwitchMinHoldSatisfied(pos HeldPosition, cfg RotationConfig, now time.Time) bool {
 	if pos.OpenedAt.IsZero() {
 		return true
@@ -643,7 +643,14 @@ func rotationSwitchMinHoldSatisfied(pos HeldPosition, cfg RotationConfig, now ti
 	if minHold <= 0 {
 		return true
 	}
-	return !now.Before(pos.OpenedAt.Add(minHold))
+	required := minHold
+	if !pos.NextFundingTime.IsZero() && pos.NextFundingTime.After(pos.OpenedAt) {
+		untilFunding := pos.NextFundingTime.Sub(pos.OpenedAt)
+		if untilFunding > required {
+			required = untilFunding
+		}
+	}
+	return !now.Before(pos.OpenedAt.Add(required))
 }
 
 // rotationShouldContinuationClose 判断是否因续持边际转负而软 CLOSE(含 hysteresis/min-hold/关仓费对比)。

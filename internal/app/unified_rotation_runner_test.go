@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -31,6 +32,7 @@ type fakeRotationExecutor struct {
 	lastManageLive    bool
 	closeErr          error
 	openErr           error
+	onOpen            func()
 }
 
 func (f *fakeRotationExecutor) binding() *rotationExecutorBinding {
@@ -42,6 +44,9 @@ func (f *fakeRotationExecutor) binding() *rotationExecutorBinding {
 		openFn: func(ctx context.Context, opp UnifiedOpportunity, live bool) error {
 			if f.openErr != nil {
 				return f.openErr
+			}
+			if f.onOpen != nil {
+				f.onOpen()
 			}
 			f.opens = append(f.opens, opp)
 			if live {
@@ -326,7 +331,7 @@ func TestUnifiedRotationRunner_SwitchFailedOpenUnfundableRecorded(t *testing.T) 
 
 	plan, newOpp := testRotationSwitchPlan()
 	unfundable := map[string]struct{}{"open-new": {}}
-	r.dispatchRotationPlan(context.Background(), true, plan,
+	r.dispatchRotationPlan(context.Background(), plan,
 		map[string]UnifiedOpportunity{"open-new": newOpp}, unfundable)
 
 	if len(svsp.closes) != 1 {
@@ -369,10 +374,10 @@ func TestUnifiedRotationRunner_StoppedNoLiveTransfer(t *testing.T) {
 
 	v := r.venues[binance.VenueName].(*rotationTransferCountVenue)
 	if v.transferCount != 0 {
-		t.Fatalf("stopped runner transferCount = %d, want 0", v.transferCount)
+		t.Fatalf("stopped runner transferCount = %d, want 0 (P2-10: openLive 复查跳过资金路由)", v.transferCount)
 	}
-	if len(svsp.opens) != 1 {
-		t.Fatalf("expected open dispatch, got %d", len(svsp.opens))
+	if len(svsp.opens) != 0 {
+		t.Fatalf("stopped runner should skip OPEN dispatch (openLive=false), got %d", len(svsp.opens))
 	}
 	if svsp.liveOpens != 0 {
 		t.Fatalf("stopped runner liveOpens = %d, want 0", svsp.liveOpens)
@@ -872,7 +877,7 @@ func TestRotationScanFilterSymbols(t *testing.T) {
 		binance.VenueName: {},
 		bybit.VenueName:   {},
 	}
-	for i := 0; i < 200; i++ {
+	for i := 0; i < 300; i++ {
 		sym := fmt.Sprintf("SYM%03d-USDT", i)
 		rate := 0.0001 + float64(i)*0.000001 // 0.0001 .. 0.000299
 		funding[binance.VenueName][sym] = CrossVenueSpotPerpFundingSnap{Rate: rate}
@@ -881,20 +886,20 @@ func TestRotationScanFilterSymbols(t *testing.T) {
 	funding[binance.VenueName]["LOW-USDT"] = CrossVenueSpotPerpFundingSnap{Rate: 0.00001}
 	funding[bybit.VenueName]["LOW-USDT"] = CrossVenueSpotPerpFundingSnap{Rate: -0.00001}
 
-	got := rotationScanFilterSymbols(funding)
-	if len(got) != rotationScanMaxSymbols {
-		t.Fatalf("len = %d, want %d", len(got), rotationScanMaxSymbols)
+	got := rotationScanFilterSymbols(funding, nil)
+	if len(got) != rotationScanMaxSymbolsFundingOnly {
+		t.Fatalf("len = %d, want %d (funding-only fallback cap)", len(got), rotationScanMaxSymbolsFundingOnly)
 	}
 	for _, sym := range got {
 		if sym == "LOW-USDT" {
 			t.Fatal("LOW-USDT below floor must be excluded")
 		}
 	}
-	if got[0] != "SYM199-USDT" {
-		t.Fatalf("first symbol = %q, want SYM199-USDT (highest max|rate|)", got[0])
+	if got[0] != "SYM299-USDT" {
+		t.Fatalf("first symbol = %q, want SYM299-USDT (highest max|rate|)", got[0])
 	}
-	if got[1] != "SYM198-USDT" {
-		t.Fatalf("second symbol = %q, want SYM198-USDT", got[1])
+	if got[1] != "SYM298-USDT" {
+		t.Fatalf("second symbol = %q, want SYM298-USDT", got[1])
 	}
 	tieFunding := map[string]map[string]CrossVenueSpotPerpFundingSnap{
 		binance.VenueName: {
@@ -902,7 +907,7 @@ func TestRotationScanFilterSymbols(t *testing.T) {
 			"TIE-A-USDT": {Rate: 0.0005},
 		},
 	}
-	tieGot := rotationScanFilterSymbols(tieFunding)
+	tieGot := rotationScanFilterSymbols(tieFunding, nil)
 	if len(tieGot) != 2 || tieGot[0] != "TIE-A-USDT" || tieGot[1] != "TIE-B-USDT" {
 		t.Fatalf("tie-break order = %v, want [TIE-A-USDT TIE-B-USDT]", tieGot)
 	}
@@ -916,7 +921,7 @@ func TestRotationScanFilterSymbolsIntervalNormalized(t *testing.T) {
 			"H8-USDT": {Rate: sameRate, IntervalHours: 8},
 		},
 	}
-	got := rotationScanFilterSymbols(funding)
+	got := rotationScanFilterSymbols(funding, nil)
 	if len(got) != 2 {
 		t.Fatalf("len=%d want 2", len(got))
 	}
@@ -1638,5 +1643,107 @@ func TestRotationScanDepthFetchMaxSymbolsMatchesScanCap(t *testing.T) {
 	}
 	if rotationScanDepthFetchMaxSymbols != rotationScanMaxSymbols {
 		t.Fatalf("depth cap=%d != scan cap=%d", rotationScanDepthFetchMaxSymbols, rotationScanMaxSymbols)
+	}
+}
+
+func TestRotationScanFilterSymbolsCompositePrefersLiquidity(t *testing.T) {
+	rate := 0.0002
+	funding := map[string]map[string]CrossVenueSpotPerpFundingSnap{
+		binance.VenueName: {
+			"HIGH-FUND-USDT": {Rate: rate},
+			"MID-FUND-USDT":  {Rate: rate * 0.5},
+		},
+	}
+	markets := map[string]map[string]CrossVenueSpotPerpMarketSnap{
+		binance.VenueName: {
+			"HIGH-FUND-USDT": {Volume24hSpotUSDT: 1e4, Volume24hPerpUSDT: 1e4},
+			"MID-FUND-USDT":  {Volume24hSpotUSDT: 1e9, Volume24hPerpUSDT: 1e9},
+		},
+	}
+	got := rotationScanFilterSymbols(funding, markets)
+	if len(got) != 2 {
+		t.Fatalf("len=%d want 2", len(got))
+	}
+	if got[0] != "MID-FUND-USDT" {
+		t.Fatalf("composite should rank mid funding + high liquidity first, got %v", got)
+	}
+	if rotationScanLiquidityProxyUSDT(markets, "MID-FUND-USDT") != 1e9 {
+		t.Fatalf("liquidity proxy should use min(spot,perp) 24h volume")
+	}
+}
+
+func TestUnifiedRotationRunner_SkipsCapitalRoutingOnHaltRecheck(t *testing.T) {
+	svsp := &fakeRotationExecutor{strategyType: UnifiedStrategySingleVenueSpotPerp}
+	dir := t.TempDir()
+	cp := NewControlPlane(dir, nil, nil)
+	if err := cp.SetGlobalHalt(true); err != nil {
+		t.Fatal(err)
+	}
+	r := testUnifiedRotationRunnerWithFakes(t, svsp)
+	r.SetControlPlane(cp)
+	r.active.Store(true)
+
+	opp := testRotationCandidate("open-svsp", UnifiedStrategySingleVenueSpotPerp, "BTC-USDT", 10, map[string]float64{binance.VenueName: 50})
+	plan := RotationPlan{Actions: []RotationAction{
+		{Kind: RotationActionOpen, OpportunityID: "open-svsp", StrategyType: UnifiedStrategySingleVenueSpotPerp, Symbol: "BTC-USDT"},
+	}}
+	r.decideRotationFn = func([]HeldPosition, map[string]ContinuationInputs, []UnifiedOpportunity, map[string]float64) RotationPlan {
+		return plan
+	}
+	r.runOnceDecisionAndDispatch(context.Background(), []UnifiedOpportunity{opp}, map[string]float64{binance.VenueName: 500}, nil, nil)
+	if len(svsp.opens) != 0 {
+		t.Fatalf("halt recheck should skip opens, got %d", len(svsp.opens))
+	}
+}
+
+func TestUnifiedRotationRunner_HaltMidDispatchStopsSubsequentOpens(t *testing.T) {
+	svsp := &fakeRotationExecutor{strategyType: UnifiedStrategySingleVenueSpotPerp}
+	dir := t.TempDir()
+	cp := NewControlPlane(dir, nil, nil)
+	r := testUnifiedRotationRunnerWithFakes(t, svsp)
+	r.SetControlPlane(cp)
+	r.active.Store(true)
+
+	var haltOnce sync.Once
+	svsp.onOpen = func() {
+		haltOnce.Do(func() { _ = cp.SetGlobalHalt(true) })
+	}
+
+	candidates := []UnifiedOpportunity{
+		testRotationCandidate("open-a", UnifiedStrategySingleVenueSpotPerp, "BTC-USDT", 10, map[string]float64{binance.VenueName: 50}),
+		testRotationCandidate("open-b", UnifiedStrategySingleVenueSpotPerp, "ETH-USDT", 10, map[string]float64{binance.VenueName: 50}),
+	}
+	plan := RotationPlan{Actions: []RotationAction{
+		{Kind: RotationActionOpen, OpportunityID: "open-a", StrategyType: UnifiedStrategySingleVenueSpotPerp, Symbol: "BTC-USDT"},
+		{Kind: RotationActionOpen, OpportunityID: "open-b", StrategyType: UnifiedStrategySingleVenueSpotPerp, Symbol: "ETH-USDT"},
+	}}
+	r.decideRotationFn = func([]HeldPosition, map[string]ContinuationInputs, []UnifiedOpportunity, map[string]float64) RotationPlan {
+		return plan
+	}
+	r.runOnceDecisionAndDispatch(context.Background(), candidates, map[string]float64{binance.VenueName: 500}, nil, nil)
+	if len(svsp.opens) != 1 {
+		t.Fatalf("second open should be blocked by mid-dispatch halt recheck, opens=%d", len(svsp.opens))
+	}
+}
+
+func TestUnifiedRotationRunner_ConsecutiveZeroCVSPCVPSMajorAlert(t *testing.T) {
+	buf := &strings.Builder{}
+	r := testUnifiedRotationRunnerWithFakes(t)
+	r.logger = log.New(buf, "", 0)
+	for i := 0; i < rotationZeroCVSPCVPSAlertThreshold; i++ {
+		r.trackConsecutiveZeroCVSPCVPS(RotationCandidateCounts{CVSP: 0, CVPS: 0, SVSP: 1})
+	}
+	if !strings.Contains(buf.String(), "MAJOR") || !strings.Contains(buf.String(), "cvsp=0") {
+		t.Fatalf("expected throttled major alert, got: %s", buf.String())
+	}
+	before := buf.String()
+	r.trackConsecutiveZeroCVSPCVPS(RotationCandidateCounts{CVSP: 0, CVPS: 0})
+	if buf.String() != before {
+		t.Fatal("alert should be throttled within ticker interval")
+	}
+	r.trackConsecutiveZeroCVSPCVPS(RotationCandidateCounts{CVSP: 1, CVPS: 0})
+	r.trackConsecutiveZeroCVSPCVPS(RotationCandidateCounts{CVSP: 0, CVPS: 0})
+	if strings.Count(buf.String(), "MAJOR") != 1 {
+		t.Fatalf("streak reset should suppress repeat until threshold again, log=%s", buf.String())
 	}
 }

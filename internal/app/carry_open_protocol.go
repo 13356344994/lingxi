@@ -15,6 +15,9 @@ const (
 	carryScannerRejectFundingWindowNotReached = "funding_entry_window_not_reached"
 	carryScannerRejectFirstWindowEV           = "first_funding_window_ev_negative"
 	carryOpenRejectLegQtyMisalign             = "carry_open_leg_qty_misalign"
+	carryOpenRejectLegQtyUnverifiable         = "carry_open_leg_qty_unverifiable"
+	carryHardStopAdverseBasisWidenRate        = 0.02
+	carryHardStopMinLiqDistanceRate           = 0.15
 )
 
 // carryTwoLegMatch 两腿开仓成交对齐结果(leg1 为先开腿,leg2 为对冲腿)。
@@ -216,7 +219,8 @@ func carryPreflightSpotPerpOpenAlign(
 		if openQty <= executionQtyTolerance {
 			return 0, fmt.Errorf("%s: openQty=%.8f refPrice=%.8f", carryOpenRejectLegQtyMisalign, openQty, refPrice)
 		}
-		return openQty, nil
+		return 0, fmt.Errorf("%s: openQty=%.8f refPrice=%.8f contractBased=%v contractSize=%.8f",
+			carryOpenRejectLegQtyUnverifiable, openQty, refPrice, perpCaps.ContractBasedPerp, perpInstr.ContractSize)
 	}
 	aligned := carryAlignSpotPerpOpenQty(openQty, refPrice, spotInstr, perpInstr, spotCaps, perpCaps)
 	if aligned <= executionQtyTolerance {
@@ -241,9 +245,102 @@ func carrySingleVenueOpenQtyAlign(qty, refPrice float64, spotInstr, perpInstr ve
 
 func carryDeferCloseUntilFundingSettlement(now, nextFunding time.Time) bool {
 	if nextFunding.IsZero() {
-		return false
+		return true
 	}
 	return now.Before(nextFunding)
+}
+
+func carryIsHardStopCloseReason(reason string) bool {
+	return strings.Contains(reason, "硬止损")
+}
+
+func carryBasisRate(spotMid, perpMid float64) float64 {
+	if spotMid <= 0 {
+		return 0
+	}
+	return perpMid/spotMid - 1
+}
+
+func carryAdverseBasisWidenRate(positiveCarry bool, openSpotPx, openPerpPx, curSpotMid, curPerpMid float64) float64 {
+	openRate := carryBasisRate(openSpotPx, openPerpPx)
+	curRate := carryBasisRate(curSpotMid, curPerpMid)
+	if positiveCarry {
+		return curRate - openRate
+	}
+	return openRate - curRate
+}
+
+func carryBookMid(ctx context.Context, v venue.Venue, m venue.Market, sym venue.Symbol) float64 {
+	if v == nil {
+		return 0
+	}
+	bt, err := v.FetchBookTicker(ctx, m, sym)
+	if err != nil {
+		return 0
+	}
+	if bt.BidPrice > 0 && bt.AskPrice > 0 {
+		return (bt.BidPrice + bt.AskPrice) / 2
+	}
+	if bt.AskPrice > 0 {
+		return bt.AskPrice
+	}
+	if bt.BidPrice > 0 {
+		return bt.BidPrice
+	}
+	return 0
+}
+
+func carryPerpPositionForSymbol(positions []venue.Position, sym venue.Symbol) (venue.Position, bool) {
+	for _, p := range positions {
+		if venueSymbolsMatch(p.Symbol, sym) && absQty(p.PositionAmt) > executionQtyTolerance {
+			return p, true
+		}
+	}
+	return venue.Position{}, false
+}
+
+func carryHardStopCloseReason(
+	ctx context.Context,
+	venues map[string]venue.Venue,
+	positiveCarry bool,
+	symbol, spotVenue, perpVenue string,
+	spotEntry, perpEntry float64,
+) string {
+	if symbol == "" || perpVenue == "" {
+		return ""
+	}
+	sym := venue.Symbol(symbol)
+	spotV := venues[spotVenue]
+	perpV := venues[perpVenue]
+	curSpot := spotEntry
+	if spotV != nil {
+		if mid := carryBookMid(ctx, spotV, venue.MarketSpot, sym); mid > 0 {
+			curSpot = mid
+		}
+	}
+	curPerp := perpEntry
+	if perpV != nil {
+		if mid := carryBookMid(ctx, perpV, venue.MarketPerp, sym); mid > 0 {
+			curPerp = mid
+		}
+	}
+	if spotEntry > 0 && perpEntry > 0 && curSpot > 0 && curPerp > 0 {
+		widen := carryAdverseBasisWidenRate(positiveCarry, spotEntry, perpEntry, curSpot, curPerp)
+		if widen > carryHardStopAdverseBasisWidenRate {
+			return fmt.Sprintf("基差不利走阔 %.2f%%>%.2f%%(硬止损)", widen*100, carryHardStopAdverseBasisWidenRate*100)
+		}
+	}
+	if perpV != nil {
+		pp, err := perpV.FetchPositions(ctx)
+		if err == nil {
+			if ep, ok := carryPerpPositionForSymbol(pp, sym); ok {
+				if dist := estimateLiqDistance(ep); dist < carryHardStopMinLiqDistanceRate {
+					return fmt.Sprintf("永续强平距离 %.1f%%<%.1f%%(硬止损)", dist*100, carryHardStopMinLiqDistanceRate*100)
+				}
+			}
+		}
+	}
+	return ""
 }
 
 func carryShouldDeferDustOrphanClose(now, nextFunding time.Time) bool {

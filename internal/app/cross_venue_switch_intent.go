@@ -6,10 +6,31 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 )
 
 const crossVenueSwitchIntentsFileName = "switch_intents.json"
+
+var (
+	switchIntentsFileLocksMu sync.Mutex
+	switchIntentsFileLocks   = make(map[string]*sync.Mutex)
+)
+
+func switchIntentsFileLock(path string) *sync.Mutex {
+	switchIntentsFileLocksMu.Lock()
+	defer switchIntentsFileLocksMu.Unlock()
+	if m, ok := switchIntentsFileLocks[path]; ok {
+		return m
+	}
+	m := &sync.Mutex{}
+	switchIntentsFileLocks[path] = m
+	return m
+}
+
+func (e *CrossVenueExecutor) switchIntentsLock() *sync.Mutex {
+	return switchIntentsFileLock(e.switchIntentsPath())
+}
 
 type crossVenueSwitchIntent struct {
 	Symbol             string    `json:"symbol"`
@@ -35,7 +56,7 @@ func (e *CrossVenueExecutor) switchIntentsPath() string {
 	return filepath.Join(crossVenueRecordDir(e.recordDir), crossVenueSwitchIntentsFileName)
 }
 
-func (e *CrossVenueExecutor) loadSwitchIntents() ([]crossVenueSwitchIntent, error) {
+func (e *CrossVenueExecutor) loadSwitchIntentsUnlocked() ([]crossVenueSwitchIntent, error) {
 	path := e.switchIntentsPath()
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -54,12 +75,30 @@ func (e *CrossVenueExecutor) loadSwitchIntents() ([]crossVenueSwitchIntent, erro
 	return intents, nil
 }
 
-func (e *CrossVenueExecutor) saveSwitchIntents(intents []crossVenueSwitchIntent) error {
+func (e *CrossVenueExecutor) loadSwitchIntents() ([]crossVenueSwitchIntent, error) {
+	mu := e.switchIntentsLock()
+	mu.Lock()
+	defer mu.Unlock()
+	return e.loadSwitchIntentsUnlocked()
+}
+
+func (e *CrossVenueExecutor) saveSwitchIntentsUnlocked(intents []crossVenueSwitchIntent) error {
 	return writeJSONFile(e.switchIntentsPath(), intents)
 }
 
+func (e *CrossVenueExecutor) saveSwitchIntents(intents []crossVenueSwitchIntent) error {
+	mu := e.switchIntentsLock()
+	mu.Lock()
+	defer mu.Unlock()
+	return e.saveSwitchIntentsUnlocked(intents)
+}
+
 func (e *CrossVenueExecutor) upsertSwitchIntent(intent crossVenueSwitchIntent) error {
-	intents, err := e.loadSwitchIntents()
+	mu := e.switchIntentsLock()
+	mu.Lock()
+	defer mu.Unlock()
+
+	intents, err := e.loadSwitchIntentsUnlocked()
 	if err != nil {
 		return err
 	}
@@ -76,11 +115,15 @@ func (e *CrossVenueExecutor) upsertSwitchIntent(intent crossVenueSwitchIntent) e
 	if !replaced {
 		out = append(out, intent)
 	}
-	return e.saveSwitchIntents(out)
+	return e.saveSwitchIntentsUnlocked(out)
 }
 
 func (e *CrossVenueExecutor) updateSwitchIntentPhase(symbol, targetHighVenue, targetLowVenue, phase string) error {
-	intents, err := e.loadSwitchIntents()
+	mu := e.switchIntentsLock()
+	mu.Lock()
+	defer mu.Unlock()
+
+	intents, err := e.loadSwitchIntentsUnlocked()
 	if err != nil {
 		return err
 	}
@@ -94,11 +137,15 @@ func (e *CrossVenueExecutor) updateSwitchIntentPhase(symbol, targetHighVenue, ta
 	if !changed {
 		return nil
 	}
-	return e.saveSwitchIntents(intents)
+	return e.saveSwitchIntentsUnlocked(intents)
 }
 
 func (e *CrossVenueExecutor) updateSwitchIntentAttempt(symbol, targetHighVenue, targetLowVenue, phase, reason string) error {
-	intents, err := e.loadSwitchIntents()
+	mu := e.switchIntentsLock()
+	mu.Lock()
+	defer mu.Unlock()
+
+	intents, err := e.loadSwitchIntentsUnlocked()
 	if err != nil {
 		return err
 	}
@@ -115,7 +162,7 @@ func (e *CrossVenueExecutor) updateSwitchIntentAttempt(symbol, targetHighVenue, 
 	if !changed {
 		return nil
 	}
-	return e.saveSwitchIntents(intents)
+	return e.saveSwitchIntentsUnlocked(intents)
 }
 
 func (e *CrossVenueExecutor) switchIntentForOpportunity(opp CrossVenueOpportunity, now time.Time) (crossVenueSwitchIntent, bool) {
@@ -139,7 +186,11 @@ func (e *CrossVenueExecutor) switchIntentForTarget(symbol, targetHighVenue, targ
 }
 
 func (e *CrossVenueExecutor) removeSwitchIntent(symbol, targetHighVenue, targetLowVenue string) error {
-	intents, err := e.loadSwitchIntents()
+	mu := e.switchIntentsLock()
+	mu.Lock()
+	defer mu.Unlock()
+
+	intents, err := e.loadSwitchIntentsUnlocked()
 	if err != nil {
 		return err
 	}
@@ -150,11 +201,15 @@ func (e *CrossVenueExecutor) removeSwitchIntent(symbol, targetHighVenue, targetL
 		}
 		out = append(out, intent)
 	}
-	return e.saveSwitchIntents(out)
+	return e.saveSwitchIntentsUnlocked(out)
 }
 
 func (e *CrossVenueExecutor) activeSwitchIntents(now time.Time) []crossVenueSwitchIntent {
-	intents, err := e.loadSwitchIntents()
+	mu := e.switchIntentsLock()
+	mu.Lock()
+	defer mu.Unlock()
+
+	intents, err := e.loadSwitchIntentsUnlocked()
 	if err != nil {
 		if e.logger != nil {
 			e.logger.Printf("[跨所执行] 读取 switch intents 失败: %v", err)
@@ -171,7 +226,7 @@ func (e *CrossVenueExecutor) activeSwitchIntents(now time.Time) []crossVenueSwit
 		out = append(out, intent)
 	}
 	if changed {
-		_ = e.saveSwitchIntents(out)
+		_ = e.saveSwitchIntentsUnlocked(out)
 	}
 	return out
 }

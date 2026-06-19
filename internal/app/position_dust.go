@@ -17,7 +17,7 @@ const defaultDustCloseThresholdUSDT = 1.0
 // dustCloseDeferUntilFunding 在下次资金费结算前返回 true, 表示应推迟 dust_orphan 名义平仓。
 func dustCloseDeferUntilFunding(now, nextFunding time.Time) bool {
 	if nextFunding.IsZero() {
-		return false
+		return true
 	}
 	return now.Before(nextFunding)
 }
@@ -34,7 +34,7 @@ func carryDeferDustOrphanDecision(now, nextFunding time.Time, decision dustOrpha
 // 须已过 NextFundingTime, 且至少 sync 过一次(LastFundingSyncAt >= NextFundingTime)。
 func carryEVWeakFundingCloseAllowed(now, nextFunding, lastFundingSync time.Time) bool {
 	if nextFunding.IsZero() {
-		return true
+		return false
 	}
 	if now.Before(nextFunding) {
 		return false
@@ -274,4 +274,195 @@ func appendDustCloseReason(base string, notional float64) string {
 		return suffix
 	}
 	return base + ";" + suffix
+}
+
+type carryUntrackedLeg struct {
+	Venue      string
+	Symbol     string
+	Market     venue.Market
+	Qty        float64
+	Side       venue.Side
+	ReduceOnly bool
+}
+
+func carryPerpLegOwnedByPerpPerp(recordDir, venueName string, sym venue.Symbol) bool {
+	recordDir = strings.TrimSpace(recordDir)
+	if recordDir == "" {
+		return false
+	}
+	store, err := newCrossVenuePositionStore(recordDir)
+	if err != nil {
+		return false
+	}
+	ps, err := store.load()
+	if err != nil {
+		return false
+	}
+	return crossVenueHasTrackedLeg(ps, venueName, sym)
+}
+
+func carryPerpLegSkipUntrackedScan(recordDir, venueName string, sym venue.Symbol, selfTracked bool) bool {
+	if selfTracked {
+		return true
+	}
+	if carryStrategyOwnsPerpLeg(recordDir, venueName, sym) {
+		return true
+	}
+	return carryPerpLegOwnedByPerpPerp(recordDir, venueName, sym)
+}
+
+func carryScanUntrackedSVSPLegs(ctx context.Context, recordDir string, venues map[string]venue.Venue, ps []SingleVenueSpotPerpPosition) []carryUntrackedLeg {
+	var out []carryUntrackedLeg
+	for name, v := range venues {
+		if v == nil {
+			continue
+		}
+		positions, err := v.FetchPositions(ctx)
+		if err == nil {
+			for _, ep := range positions {
+				if ep.PositionAmt >= -executionQtyTolerance {
+					continue
+				}
+				sym := canonicalTradingSymbol(string(ep.Symbol))
+				if sym == "" || carryPerpLegSkipUntrackedScan(recordDir, name, ep.Symbol, svspHasTrackedSymbolVenue(ps, name, sym)) {
+					continue
+				}
+				out = append(out, carryUntrackedLeg{Venue: name, Symbol: sym, Market: venue.MarketPerp, Qty: absQty(ep.PositionAmt), Side: venue.SideBuy, ReduceOnly: true})
+			}
+		}
+		bal, err := v.FetchBalances(ctx)
+		if err != nil {
+			continue
+		}
+		for asset, b := range bal.ByAsset {
+			if strings.EqualFold(asset, "USDT") || b.Free <= executionQtyTolerance {
+				continue
+			}
+			sym := canonicalTradingSymbol(asset + "-USDT")
+			if sym == "" || svspHasTrackedSymbolVenue(ps, name, sym) {
+				continue
+			}
+			out = append(out, carryUntrackedLeg{Venue: name, Symbol: sym, Market: venue.MarketSpot, Qty: b.Free, Side: venue.SideSell, ReduceOnly: false})
+		}
+	}
+	return out
+}
+
+func carryScanUntrackedSVPSLegs(ctx context.Context, recordDir string, venues map[string]venue.Venue, ps []SingleVenuePerpSpotPosition) []carryUntrackedLeg {
+	var out []carryUntrackedLeg
+	for name, v := range venues {
+		if v == nil {
+			continue
+		}
+		positions, err := v.FetchPositions(ctx)
+		if err == nil {
+			for _, ep := range positions {
+				if ep.PositionAmt <= executionQtyTolerance {
+					continue
+				}
+				sym := canonicalTradingSymbol(string(ep.Symbol))
+				if sym == "" || carryPerpLegSkipUntrackedScan(recordDir, name, ep.Symbol, svpsHasTrackedSymbolVenue(ps, name, sym)) {
+					continue
+				}
+				out = append(out, carryUntrackedLeg{Venue: name, Symbol: sym, Market: venue.MarketPerp, Qty: ep.PositionAmt, Side: venue.SideSell, ReduceOnly: true})
+			}
+		}
+		bal, err := v.FetchBalances(ctx)
+		if err != nil {
+			continue
+		}
+		for asset := range bal.ByAsset {
+			if strings.EqualFold(asset, "USDT") {
+				continue
+			}
+			short := marginShortQtyFromBalance(bal, asset)
+			if short <= executionQtyTolerance {
+				continue
+			}
+			sym := canonicalTradingSymbol(asset + "-USDT")
+			if sym == "" || svpsHasTrackedSymbolVenue(ps, name, sym) {
+				continue
+			}
+			out = append(out, carryUntrackedLeg{Venue: name, Symbol: sym, Market: venue.MarketSpot, Qty: short, Side: venue.SideBuy, ReduceOnly: false})
+		}
+	}
+	return out
+}
+
+func carryScanUntrackedCVSPLegs(ctx context.Context, recordDir string, venues map[string]venue.Venue, ps []CrossVenueSpotPerpPosition) []carryUntrackedLeg {
+	var out []carryUntrackedLeg
+	for name, v := range venues {
+		if v == nil {
+			continue
+		}
+		positions, err := v.FetchPositions(ctx)
+		if err == nil {
+			for _, ep := range positions {
+				if ep.PositionAmt >= -executionQtyTolerance {
+					continue
+				}
+				sym := canonicalTradingSymbol(string(ep.Symbol))
+				if sym == "" || carryPerpLegSkipUntrackedScan(recordDir, name, ep.Symbol, cvspHasTrackedLeg(ps, name, sym)) {
+					continue
+				}
+				out = append(out, carryUntrackedLeg{Venue: name, Symbol: sym, Market: venue.MarketPerp, Qty: absQty(ep.PositionAmt), Side: venue.SideBuy, ReduceOnly: true})
+			}
+		}
+		bal, err := v.FetchBalances(ctx)
+		if err != nil {
+			continue
+		}
+		for asset, b := range bal.ByAsset {
+			if strings.EqualFold(asset, "USDT") || b.Free <= executionQtyTolerance {
+				continue
+			}
+			sym := canonicalTradingSymbol(asset + "-USDT")
+			if sym == "" || cvspHasTrackedLeg(ps, name, sym) {
+				continue
+			}
+			out = append(out, carryUntrackedLeg{Venue: name, Symbol: sym, Market: venue.MarketSpot, Qty: b.Free, Side: venue.SideSell, ReduceOnly: false})
+		}
+	}
+	return out
+}
+
+func carryScanUntrackedCVPSLegs(ctx context.Context, recordDir string, venues map[string]venue.Venue, ps []CrossVenuePerpSpotPosition) []carryUntrackedLeg {
+	var out []carryUntrackedLeg
+	for name, v := range venues {
+		if v == nil {
+			continue
+		}
+		positions, err := v.FetchPositions(ctx)
+		if err == nil {
+			for _, ep := range positions {
+				if ep.PositionAmt <= executionQtyTolerance {
+					continue
+				}
+				sym := canonicalTradingSymbol(string(ep.Symbol))
+				if sym == "" || carryPerpLegSkipUntrackedScan(recordDir, name, ep.Symbol, cvpsHasTrackedLeg(ps, name, sym)) {
+					continue
+				}
+				out = append(out, carryUntrackedLeg{Venue: name, Symbol: sym, Market: venue.MarketPerp, Qty: ep.PositionAmt, Side: venue.SideSell, ReduceOnly: true})
+			}
+		}
+		bal, err := v.FetchBalances(ctx)
+		if err != nil {
+			continue
+		}
+		for asset := range bal.ByAsset {
+			if strings.EqualFold(asset, "USDT") {
+				continue
+			}
+			short := marginShortQtyFromBalance(bal, asset)
+			if short <= executionQtyTolerance {
+				continue
+			}
+			sym := canonicalTradingSymbol(asset + "-USDT")
+			if sym == "" || cvpsHasTrackedLeg(ps, name, sym) {
+				continue
+			}
+			out = append(out, carryUntrackedLeg{Venue: name, Symbol: sym, Market: venue.MarketSpot, Qty: short, Side: venue.SideBuy, ReduceOnly: false})
+		}
+	}
+	return out
 }

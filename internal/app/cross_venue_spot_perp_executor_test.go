@@ -32,6 +32,7 @@ type cvspTestVenue struct {
 	placeFailNext     bool
 	perpUnknownNext   bool
 	clearOnReduceOnly bool
+	instruments       []venue.Instrument
 }
 
 func newCVSPTestVenue(name string) *cvspTestVenue {
@@ -48,6 +49,7 @@ func newCVSPTestVenue(name string) *cvspTestVenue {
 		balances:          map[string]float64{"USDT": 10000},
 		placeCount:        &pc,
 		clearOnReduceOnly: true,
+		instruments:       defaultCarryTestInstruments(),
 	}
 }
 
@@ -74,6 +76,13 @@ func (f *cvspTestVenue) FetchBalances(context.Context) (venue.Balances, error) {
 
 func (f *cvspTestVenue) FetchPositions(context.Context) ([]venue.Position, error) {
 	return f.positions, nil
+}
+
+func (f *cvspTestVenue) FetchInstruments(context.Context) ([]venue.Instrument, error) {
+	if len(f.instruments) == 0 {
+		return defaultCarryTestInstruments(), nil
+	}
+	return f.instruments, nil
 }
 
 func (f *cvspTestVenue) PlaceOrder(_ context.Context, req venue.OrderRequest) (venue.OrderResult, error) {
@@ -193,7 +202,7 @@ func TestCrossVenueSpotPerpOffOpenNoOrders(t *testing.T) {
 	perp := newCVSPTestVenue(bybit.VenueName)
 	e := testCVSPExecutor(t, dir, spot, perp)
 
-	pos, err := e.executeOpen(context.Background(), testCVSPOpportunity(binance.VenueName, bybit.VenueName, 0.01), false)
+	pos, err := e.executeOpen(context.Background(), testCVSPOpportunity(binance.VenueName, bybit.VenueName, 0.5), false)
 	if err != nil {
 		t.Fatalf("executeOpen dry-run: %v", err)
 	}
@@ -212,7 +221,7 @@ func TestCrossVenueSpotPerpLiveOpenBothLegs(t *testing.T) {
 	perp := newCVSPTestVenue(bybit.VenueName)
 	e := testCVSPExecutor(t, dir, spot, perp)
 
-	_, err := e.executeOpen(context.Background(), testCVSPOpportunity(binance.VenueName, bybit.VenueName, 0.01), true)
+	_, err := e.executeOpen(context.Background(), testCVSPOpportunity(binance.VenueName, bybit.VenueName, 0.5), true)
 	if err != nil {
 		t.Fatalf("executeOpen live: %v", err)
 	}
@@ -242,7 +251,7 @@ func TestCrossVenueSpotPerpLiveOpenSecondLegFailRollback(t *testing.T) {
 	perp := newCVSPTestVenue(bybit.VenueName)
 	e := testCVSPExecutor(t, dir, spot, perp)
 
-	_, err := e.executeOpen(context.Background(), testCVSPOpportunity(binance.VenueName, bybit.VenueName, 0.01), true)
+	_, err := e.executeOpen(context.Background(), testCVSPOpportunity(binance.VenueName, bybit.VenueName, 0.5), true)
 	if err == nil {
 		t.Fatal("expected second leg failure")
 	}
@@ -264,7 +273,7 @@ func TestCrossVenueSpotPerpFirstLegUnknownBlocksRollback(t *testing.T) {
 	perp.perpUnknownNext = true
 	e := testCVSPExecutor(t, dir, spot, perp)
 
-	pos, err := e.executeOpen(context.Background(), testCVSPOpportunity(binance.VenueName, bybit.VenueName, 0.01), true)
+	pos, err := e.executeOpen(context.Background(), testCVSPOpportunity(binance.VenueName, bybit.VenueName, 0.5), true)
 	if err == nil || !strings.Contains(err.Error(), "禁止自动回滚") {
 		t.Fatalf("expected first-leg unknown to block rollback, got pos=%+v err=%v", pos, err)
 	}
@@ -292,7 +301,7 @@ func TestCrossVenueSpotPerpFirstLegExplicitFailNoSecondLeg(t *testing.T) {
 	perp.placeFailNext = true
 	e := testCVSPExecutor(t, dir, spot, perp)
 
-	_, err := e.executeOpen(context.Background(), testCVSPOpportunity(binance.VenueName, bybit.VenueName, 0.01), true)
+	_, err := e.executeOpen(context.Background(), testCVSPOpportunity(binance.VenueName, bybit.VenueName, 0.5), true)
 	if err == nil {
 		t.Fatal("expected first-leg explicit failure")
 	}
@@ -367,7 +376,7 @@ func TestCrossVenueSpotPerpPositionPersistLoad(t *testing.T) {
 	perp := newCVSPTestVenue(bybit.VenueName)
 	e := testCVSPExecutor(t, dir, spot, perp)
 
-	pos, err := e.executeOpen(context.Background(), testCVSPOpportunity(binance.VenueName, bybit.VenueName, 0.01), true)
+	pos, err := e.executeOpen(context.Background(), testCVSPOpportunity(binance.VenueName, bybit.VenueName, 0.5), true)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -391,7 +400,7 @@ func TestCrossVenueSpotPerpCloseSettlement(t *testing.T) {
 	perp := newCVSPTestVenue(bybit.VenueName)
 	e := testCVSPExecutor(t, dir, spot, perp)
 
-	pos, err := e.executeOpen(context.Background(), testCVSPOpportunity(binance.VenueName, bybit.VenueName, 0.01), true)
+	pos, err := e.executeOpen(context.Background(), testCVSPOpportunity(binance.VenueName, bybit.VenueName, 0.5), true)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -451,6 +460,26 @@ func TestCrossVenueSpotPerpReconcileOrphanLeg(t *testing.T) {
 	}
 }
 
+func TestCrossVenueSpotPerpReconcileUntrackedPerpFlatten(t *testing.T) {
+	dir := t.TempDir()
+	spot := newCVSPTestVenue(binance.VenueName)
+	perp := newCVSPTestVenue(bybit.VenueName)
+	e := testCVSPExecutor(t, dir, spot, perp)
+	e.cfg.CrossVenueExecutor.LiveTradingEnabled = true
+	e.cfg.CrossVenueExecutor.UntrackedExposureAction = "flatten"
+	perp.positions = []venue.Position{{Symbol: "BTC-USDT", PositionAmt: -0.01, EntryPrice: 100}}
+	e.reconcileOnStart(context.Background(), true)
+	var sawClose bool
+	for _, req := range perp.placeRequests {
+		if req.ReduceOnly && req.Side == venue.SideBuy {
+			sawClose = true
+		}
+	}
+	if !sawClose {
+		t.Fatal("expected untracked perp flatten on reconcile")
+	}
+}
+
 func TestCrossVenueSpotPerpReconcileIgnoresUntrackedPerpPerpPosition(t *testing.T) {
 	dir := t.TempDir()
 	spot := newCVSPTestVenue(binance.VenueName)
@@ -503,6 +532,7 @@ func TestCrossVenueSpotPerpDustOrphanClosesAndFreesSlot(t *testing.T) {
 		UpdatedAt:     e.nowFn(),
 		IdemPrefix:    "cvsp-pha",
 		CloseReason:   "continuation_score<0",
+		PerpNextFundingTime: carryTestPastFundingTime(e.nowFn()),
 		SpotLeg:       CrossVenueSpotPerpLegState{Venue: binance.VenueName, Market: "spot", Side: "buy", Qty: 1.01, EntryPrice: 0.04},
 		PerpLeg:       CrossVenueSpotPerpLegState{Venue: bybit.VenueName, Market: "perp", Side: "short", Qty: 0.01},
 	}
@@ -567,6 +597,7 @@ func TestCrossVenueSpotPerpManageOpenNoResurrectAfterFinalize(t *testing.T) {
 		pos := CrossVenueSpotPerpPosition{
 			Symbol: "PHA-USDT", SpotVenue: binance.VenueName, PerpVenue: bybit.VenueName,
 			Status: CVSPStatusOpen, OpenedAt: now, UpdatedAt: now, IdemPrefix: "cvsp-dust-resurrect",
+			PerpNextFundingTime: carryTestPastFundingTime(now),
 			SpotLeg: CrossVenueSpotPerpLegState{Venue: binance.VenueName, Market: "spot", Side: "buy", Qty: 0.1875, EntryPrice: 0.04},
 			PerpLeg: CrossVenueSpotPerpLegState{Venue: bybit.VenueName, Market: "perp", Side: "short", Qty: 0.01},
 		}

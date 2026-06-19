@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -179,5 +180,116 @@ func TestPositionsSignParse(t *testing.T) {
 	}
 	if pos[0].Leverage != 3 {
 		t.Errorf("杠杆解析错误: %v", pos[0].Leverage)
+	}
+}
+
+func TestFetchInstrumentsSpotFailurePropagates(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != pathInstrumentsInfo {
+			http.Error(w, "no route", http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Query().Get("category") {
+		case categoryLinear:
+			_, _ = w.Write([]byte(`{"retCode":0,"retMsg":"OK","result":{"list":[
+				{"symbol":"BTCUSDT","contractType":"LinearPerpetual","baseCoin":"BTC","quoteCoin":"USDT","status":"Trading",
+				"priceFilter":{"tickSize":"0.01"},"lotSizeFilter":{"qtyStep":"0.001","minNotionalValue":"5"}}
+			],"nextPageCursor":""}}`))
+		case categorySpot:
+			_, _ = w.Write([]byte(`{"retCode":10001,"retMsg":"spot unavailable","result":{}}`))
+		default:
+			http.Error(w, "unknown category", http.StatusBadRequest)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	a, err := New(venue.Config{Name: VenueName, APIKey: "TESTKEY", APISecret: "TESTSECRET", Extra: map[string]string{"base_url": srv.URL}})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	_, err = a.FetchInstruments(context.Background())
+	if err == nil {
+		t.Fatal("spot 拉取失败应返回 error")
+	}
+	if !strings.Contains(err.Error(), "spot instruments-info") {
+		t.Errorf("error 应提及 spot instruments-info: %v", err)
+	}
+}
+
+func TestFetchBookTickerCategoryByMarket(t *testing.T) {
+	var gotCategory string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != pathOrderbook {
+			http.Error(w, "no route", http.StatusNotFound)
+			return
+		}
+		gotCategory = r.URL.Query().Get("category")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"retCode":0,"retMsg":"OK","result":{"s":"BTCUSDT","b":[["59999.5","2.5"]],"a":[["60000.5","1.2"]],"ts":1700000000000,"u":1}}`))
+	}))
+	t.Cleanup(srv.Close)
+	a, err := New(venue.Config{Name: VenueName, APIKey: "TESTKEY", APISecret: "TESTSECRET", Extra: map[string]string{"base_url": srv.URL}})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	gotCategory = ""
+	if _, err := a.FetchBookTicker(context.Background(), venue.MarketPerp, "BTC-USDT"); err != nil {
+		t.Fatalf("FetchBookTicker perp: %v", err)
+	}
+	if gotCategory != categoryLinear {
+		t.Errorf("MarketPerp category=%q want %q", gotCategory, categoryLinear)
+	}
+
+	gotCategory = ""
+	if _, err := a.FetchBookTicker(context.Background(), venue.MarketSpot, "BTC-USDT"); err != nil {
+		t.Fatalf("FetchBookTicker spot: %v", err)
+	}
+	if gotCategory != categorySpot {
+		t.Errorf("MarketSpot category=%q want %q", gotCategory, categorySpot)
+	}
+}
+
+func TestFetchInstrumentsSpotStepSize(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != pathInstrumentsInfo {
+			http.Error(w, "no route", http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Query().Get("category") {
+		case categoryLinear:
+			_, _ = w.Write([]byte(`{"retCode":0,"retMsg":"OK","result":{"list":[],"nextPageCursor":""}}`))
+		case categorySpot:
+			_, _ = w.Write([]byte(`{"retCode":0,"retMsg":"OK","result":{"list":[
+				{"symbol":"QTYUSDT","baseCoin":"QTY","quoteCoin":"USDT","status":"Trading","marginTrading":"none",
+				"priceFilter":{"tickSize":"0.01"},"lotSizeFilter":{"qtyStep":"0.001","basePrecision":"0.1","minNotionalValue":"5"}},
+				{"symbol":"BASEUSDT","baseCoin":"BASE","quoteCoin":"USDT","status":"Trading","marginTrading":"none",
+				"priceFilter":{"tickSize":"0.0001"},"lotSizeFilter":{"basePrecision":"0.1","minNotionalValue":"5"}}
+			],"nextPageCursor":""}}`))
+		default:
+			http.Error(w, "unknown category", http.StatusBadRequest)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	a, err := New(venue.Config{Name: VenueName, APIKey: "TESTKEY", APISecret: "TESTSECRET", Extra: map[string]string{"base_url": srv.URL}})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	instrs, err := a.FetchInstruments(context.Background())
+	if err != nil {
+		t.Fatalf("FetchInstruments: %v", err)
+	}
+	spotStep := map[venue.Symbol]float64{}
+	for _, in := range instrs {
+		if in.Market == venue.MarketSpot {
+			spotStep[in.Symbol] = in.StepSize
+		}
+	}
+	if got, want := spotStep["QTY-USDT"], 0.001; got != want {
+		t.Errorf("qtyStep 优先: got %v want %v", got, want)
+	}
+	if got, want := spotStep["BASE-USDT"], 0.1; got != want {
+		t.Errorf("basePrecision 回退: got %v want %v", got, want)
 	}
 }

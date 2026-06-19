@@ -99,8 +99,8 @@ func TestDustCloseDeferUntilFunding(t *testing.T) {
 	if dustCloseDeferUntilFunding(after, next) {
 		t.Fatal("should not defer after settlement")
 	}
-	if dustCloseDeferUntilFunding(before, time.Time{}) {
-		t.Fatal("zero nextFunding should not defer")
+	if !dustCloseDeferUntilFunding(before, time.Time{}) {
+		t.Fatal("zero nextFunding should conservative defer")
 	}
 }
 
@@ -130,7 +130,7 @@ func TestCarryEVWeakFundingCloseAllowed(t *testing.T) {
 		{"after funding no sync", next.Add(time.Hour), next, time.Time{}, false},
 		{"after funding stale sync", next.Add(time.Hour), next, next.Add(-time.Minute), false},
 		{"after funding post-sync", next.Add(time.Hour), next, next.Add(time.Minute), true},
-		{"zero next funding", next.Add(-time.Hour), time.Time{}, time.Time{}, true},
+		{"zero next funding", next.Add(-time.Hour), time.Time{}, time.Time{}, false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -138,6 +138,31 @@ func TestCarryEVWeakFundingCloseAllowed(t *testing.T) {
 				t.Fatalf("got %v want %v", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestCarryScanUntrackedSVSPPerpLeg(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	v := newSVSPTestVenue("binance")
+	v.positions = []venue.Position{{Symbol: "BTC-USDT", PositionAmt: -0.5, MarkPrice: 100, EntryPrice: 100, Leverage: 2}}
+	legs := carryScanUntrackedSVSPLegs(ctx, dir, map[string]venue.Venue{"binance": v}, nil)
+	if len(legs) != 1 || legs[0].Market != venue.MarketPerp {
+		t.Fatalf("expected 1 untracked perp leg, got %+v", legs)
+	}
+	store, err := newSingleVenueSpotPerpPositionStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	_ = store.upsert(SingleVenueSpotPerpPosition{
+		Symbol: "BTC-USDT", Venue: "binance", Status: SVSPStatusOpen,
+		OpenedAt: now, UpdatedAt: now, IdemPrefix: "tracked",
+	})
+	ps, _ := store.load()
+	legs2 := carryScanUntrackedSVSPLegs(ctx, dir, map[string]venue.Venue{"binance": v}, ps)
+	if len(legs2) != 0 {
+		t.Fatalf("tracked symbol should be skipped, got %+v", legs2)
 	}
 }
 

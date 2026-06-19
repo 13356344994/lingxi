@@ -150,8 +150,8 @@ func (a *Adapter) refreshInstrumentCategory(ctx context.Context, category string
 			minNotional = parseFloat(it.LotSizeFilter.MinOrderAmt)
 		}
 		step := parseFloat(it.LotSizeFilter.QtyStep)
-		if mkt == venue.MarketSpot && step == 0 {
-			step = parseFloat(it.LotSizeFilter.BasePrecision)
+		if mkt == venue.MarketSpot {
+			step = spotLotStepSize(it.LotSizeFilter.QtyStep, it.LotSizeFilter.BasePrecision)
 		}
 		a.instCache[key] = instCacheEntry{
 			inst: venue.Instrument{

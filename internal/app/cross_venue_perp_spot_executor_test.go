@@ -37,6 +37,7 @@ type cvpsTestVenue struct {
 	perpPartialFillNext   bool
 	perpPartialFillRatio  float64
 	clearOnReduceOnly     bool
+	instruments           []venue.Instrument
 }
 
 func newCVPSTestVenue(name string, supportsBorrow bool) *cvpsTestVenue {
@@ -58,6 +59,7 @@ func newCVPSTestVenue(name string, supportsBorrow bool) *cvpsTestVenue {
 		placeCount:        &pc,
 		borrowRepayCount:  &br,
 		clearOnReduceOnly: true,
+		instruments:       defaultCarryTestInstruments(),
 	}
 }
 
@@ -96,6 +98,13 @@ func (f *cvpsTestVenue) FetchBalances(context.Context) (venue.Balances, error) {
 
 func (f *cvpsTestVenue) FetchPositions(context.Context) ([]venue.Position, error) {
 	return f.positions, nil
+}
+
+func (f *cvpsTestVenue) FetchInstruments(context.Context) ([]venue.Instrument, error) {
+	if len(f.instruments) == 0 {
+		return defaultCarryTestInstruments(), nil
+	}
+	return f.instruments, nil
 }
 
 func (f *cvpsTestVenue) BorrowRepay(_ context.Context, asset string, amt float64, dir venue.BorrowDir) error {
@@ -238,7 +247,7 @@ func TestCrossVenuePerpSpotUnsupportedBorrowSkipped(t *testing.T) {
 	perp := newCVPSTestVenue(bybit.VenueName, false)
 	e := testCVPSExecutor(t, dir, spot, perp)
 
-	_, err := e.executeOpen(context.Background(), testCVPSOpportunity(binance.VenueName, bybit.VenueName, 0.01), true)
+	_, err := e.executeOpen(context.Background(), testCVPSOpportunity(binance.VenueName, bybit.VenueName, 0.5), true)
 	if err == nil {
 		t.Fatal("expected unsupported borrow venue to be rejected")
 	}
@@ -253,7 +262,7 @@ func TestCrossVenuePerpSpotOffOpenNoOrders(t *testing.T) {
 	perp := newCVPSTestVenue(bybit.VenueName, false)
 	e := testCVPSExecutor(t, dir, spot, perp)
 
-	pos, err := e.executeOpen(context.Background(), testCVPSOpportunity(binance.VenueName, bybit.VenueName, 0.01), false)
+	pos, err := e.executeOpen(context.Background(), testCVPSOpportunity(binance.VenueName, bybit.VenueName, 0.5), false)
 	if err != nil {
 		t.Fatalf("executeOpen dry-run: %v", err)
 	}
@@ -272,7 +281,7 @@ func TestCrossVenuePerpSpotLiveOpenBothLegs(t *testing.T) {
 	perp := newCVPSTestVenue(bybit.VenueName, false)
 	e := testCVPSExecutor(t, dir, spot, perp)
 
-	_, err := e.executeOpen(context.Background(), testCVPSOpportunity(binance.VenueName, bybit.VenueName, 0.01), true)
+	_, err := e.executeOpen(context.Background(), testCVPSOpportunity(binance.VenueName, bybit.VenueName, 0.5), true)
 	if err != nil {
 		t.Fatalf("executeOpen live: %v", err)
 	}
@@ -303,7 +312,7 @@ func TestCrossVenuePerpSpotLiveOpenSecondLegFailRollback(t *testing.T) {
 	perp.placeFailNext = true
 	e := testCVPSExecutor(t, dir, spot, perp)
 
-	_, err := e.executeOpen(context.Background(), testCVPSOpportunity(binance.VenueName, bybit.VenueName, 0.01), true)
+	_, err := e.executeOpen(context.Background(), testCVPSOpportunity(binance.VenueName, bybit.VenueName, 0.5), true)
 	if err == nil {
 		t.Fatal("expected second leg failure")
 	}
@@ -328,7 +337,7 @@ func TestCrossVenuePerpSpotFirstLegUnknownBlocksRollback(t *testing.T) {
 	perp := newCVPSTestVenue(bybit.VenueName, false)
 	e := testCVPSExecutor(t, dir, spot, perp)
 
-	pos, err := e.executeOpen(context.Background(), testCVPSOpportunity(binance.VenueName, bybit.VenueName, 0.01), true)
+	pos, err := e.executeOpen(context.Background(), testCVPSOpportunity(binance.VenueName, bybit.VenueName, 0.5), true)
 	if err == nil || !strings.Contains(err.Error(), "禁止自动回滚") {
 		t.Fatalf("expected first-leg unknown to block rollback, got pos=%+v err=%v", pos, err)
 	}
@@ -356,7 +365,7 @@ func TestCrossVenuePerpSpotFirstLegExplicitFailNoSecondLeg(t *testing.T) {
 	perp := newCVPSTestVenue(bybit.VenueName, false)
 	e := testCVPSExecutor(t, dir, spot, perp)
 
-	_, err := e.executeOpen(context.Background(), testCVPSOpportunity(binance.VenueName, bybit.VenueName, 0.01), true)
+	_, err := e.executeOpen(context.Background(), testCVPSOpportunity(binance.VenueName, bybit.VenueName, 0.5), true)
 	if err == nil {
 		t.Fatal("expected first-leg explicit failure")
 	}
@@ -431,7 +440,7 @@ func TestCrossVenuePerpSpotPositionPersistLoad(t *testing.T) {
 	perp := newCVPSTestVenue(bybit.VenueName, false)
 	e := testCVPSExecutor(t, dir, spot, perp)
 
-	pos, err := e.executeOpen(context.Background(), testCVPSOpportunity(binance.VenueName, bybit.VenueName, 0.01), true)
+	pos, err := e.executeOpen(context.Background(), testCVPSOpportunity(binance.VenueName, bybit.VenueName, 0.5), true)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -455,7 +464,7 @@ func TestCrossVenuePerpSpotCloseSettlement(t *testing.T) {
 	perp := newCVPSTestVenue(bybit.VenueName, false)
 	e := testCVPSExecutor(t, dir, spot, perp)
 
-	pos, err := e.executeOpen(context.Background(), testCVPSOpportunity(binance.VenueName, bybit.VenueName, 0.01), true)
+	pos, err := e.executeOpen(context.Background(), testCVPSOpportunity(binance.VenueName, bybit.VenueName, 0.5), true)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -507,11 +516,12 @@ func TestCrossVenuePerpSpotReconcileOrphanLeg(t *testing.T) {
 		OpenedAt:   e.nowFn(),
 		UpdatedAt:  e.nowFn(),
 		IdemPrefix: "cvps-test",
-		SpotLeg:    CrossVenuePerpSpotLegState{Venue: binance.VenueName, Market: "spot", Side: "short", Qty: 0.01},
-		PerpLeg:    CrossVenuePerpSpotLegState{Venue: bybit.VenueName, Market: "perp", Side: "long", Qty: 0.01},
+		PerpNextFundingTime: carryTestPastFundingTime(e.nowFn()),
+		SpotLeg:    CrossVenuePerpSpotLegState{Venue: binance.VenueName, Market: "spot", Side: "short", Qty: 0.5, EntryPrice: 100},
+		PerpLeg:    CrossVenuePerpSpotLegState{Venue: bybit.VenueName, Market: "perp", Side: "long", Qty: 0.5, EntryPrice: 100},
 	}
 	_ = e.persistPosition(pos)
-	perp.positions = []venue.Position{{Symbol: "BTC-USDT", PositionAmt: 0.01, EntryPrice: 100}}
+	perp.positions = []venue.Position{{Symbol: "BTC-USDT", PositionAmt: 0.5, EntryPrice: 100}}
 
 	e.reconcileOnStart(context.Background(), true)
 	var sawFlatten bool
@@ -616,6 +626,7 @@ func TestCrossVenuePerpSpotManageOpenNoResurrectAfterFinalize(t *testing.T) {
 		pos := CrossVenuePerpSpotPosition{
 			Symbol: "BTC-USDT", SpotVenue: binance.VenueName, PerpVenue: bybit.VenueName,
 			Status: CVPSStatusOpen, OpenedAt: now, UpdatedAt: now, IdemPrefix: "cvps-dust-resurrect",
+			PerpNextFundingTime: carryTestPastFundingTime(now),
 			SpotLeg: CrossVenuePerpSpotLegState{Venue: binance.VenueName, Market: "spot", Side: "short", Qty: 0.5, EntryPrice: 100},
 			PerpLeg: CrossVenuePerpSpotLegState{Venue: bybit.VenueName, Market: "perp", Side: "long", Qty: 0.00008, EntryPrice: 100},
 		}
@@ -701,8 +712,9 @@ func TestCVPSCloseRetryUsesEscalatedLimitPrice(t *testing.T) {
 		}
 	}
 	want := 99.5 * (1 - 160.0/10000)
-	if math.Abs(lastPerpSell-want) > 1e-6 {
-		t.Fatalf("attempt 3 perp sell limit=%v want %v", lastPerpSell, want)
+	// 价格按 tick(0.01) 量化(sell 向下取整),容忍一个 tick 的偏差。
+	if math.Abs(lastPerpSell-want) > 0.01+1e-9 {
+		t.Fatalf("attempt 3 perp sell limit=%v want ~%v(±1 tick)", lastPerpSell, want)
 	}
 }
 

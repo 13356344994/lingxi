@@ -674,7 +674,9 @@ func (e *CrossVenueSpotPerpExecutor) closePosition(ctx context.Context, pos Cros
 
 	pos.CloseAttempts++
 	attempt := pos.CloseAttempts
-
+	if pos.PerpNextFundingTime.IsZero() {
+		e.syncPerpFundingMeta(ctx, &pos)
+	}
 	spotQty := 0.0
 	perpQty := 0.0
 	spotFetchErr := error(nil)
@@ -789,9 +791,12 @@ func cvspSpotHoldingQty(bal venue.Balances, symbol string) float64 {
 	return spotLongQtyFromBalance(bal, base)
 }
 
-func (e *CrossVenueSpotPerpExecutor) shouldClose(pos *CrossVenueSpotPerpPosition) string {
+func (e *CrossVenueSpotPerpExecutor) shouldClose(ctx context.Context, pos *CrossVenueSpotPerpPosition) string {
 	if pos == nil {
 		return ""
+	}
+	if reason := carryHardStopCloseReason(ctx, e.venues, true, pos.Symbol, pos.SpotVenue, pos.PerpVenue, pos.SpotLeg.EntryPrice, pos.PerpLeg.EntryPrice); reason != "" {
+		return reason
 	}
 	cfg := e.cfg.CrossVenueExecutor
 	now := e.nowFn()
@@ -811,7 +816,7 @@ func (e *CrossVenueSpotPerpExecutor) shouldClose(pos *CrossVenueSpotPerpPosition
 
 func (e *CrossVenueSpotPerpExecutor) managePosition(ctx context.Context, pos CrossVenueSpotPerpPosition, live bool) (CrossVenueSpotPerpPosition, bool) {
 	if !live {
-		if reason := e.shouldClose(&pos); reason != "" {
+		if reason := e.shouldClose(ctx, &pos); reason != "" {
 			logDryRunClose(e.logger, "跨所spot-perp", pos.Symbol, reason)
 		}
 		return pos, false
@@ -862,8 +867,8 @@ func (e *CrossVenueSpotPerpExecutor) managePosition(ctx context.Context, pos Cro
 	// dead-man 续期(永续腿所在所, okx/gate 等)
 	e.armDeadManForPerpVenue(ctx, pos.PerpVenue, live)
 
-	if reason := e.shouldClose(&pos); reason != "" {
-		if !carryShouldDeferEVWeakClose(e.nowFn(), pos.PerpNextFundingTime, reason) {
+	if reason := e.shouldClose(ctx, &pos); reason != "" {
+		if carryIsHardStopCloseReason(reason) || !carryShouldDeferEVWeakClose(e.nowFn(), pos.PerpNextFundingTime, reason) {
 			_ = e.closePosition(ctx, pos, live, reason)
 		}
 		return pos, false
@@ -976,6 +981,9 @@ func (e *CrossVenueSpotPerpExecutor) rebalanceCVSPHedge(ctx context.Context, pos
 
 func (e *CrossVenueSpotPerpExecutor) handleOrphanLeg(ctx context.Context, pos CrossVenueSpotPerpPosition, spotOpen, perpOpen, live bool, spotQty, perpQty float64) {
 	decision := evaluatePositiveCarryOrphan(ctx, e.cfg.CrossVenueExecutor, e.venues, pos.Symbol, pos.SpotVenue, pos.PerpVenue, spotOpen, perpOpen, spotQty, perpQty, pos.SpotLeg.EntryPrice)
+	if pos.PerpNextFundingTime.IsZero() {
+		e.syncPerpFundingMeta(ctx, &pos)
+	}
 	sym := venue.Symbol(pos.Symbol)
 	spotInstr := e.lookupLegInstrument(ctx, pos.SpotVenue, sym, venue.MarketSpot)
 	perpInstr := e.lookupLegInstrument(ctx, pos.PerpVenue, sym, venue.MarketPerp)
@@ -1151,6 +1159,8 @@ func (e *CrossVenueSpotPerpExecutor) reconcileOnStart(ctx context.Context, live 
 		}
 	}
 
+	e.reconcileUntrackedExposureOnStart(ctx, ps, live)
+
 	for _, p := range activeCrossVenueSpotPerpPositions(ps) {
 		if p.Status == CVSPStatusOpeningFirstLeg || p.Status == CVSPStatusOpeningSecondLeg {
 			e.logger.Printf("[跨所spot-perp] reconcile: %s 处于中间态 %s,尝试恢复", p.Symbol, p.Status)
@@ -1166,6 +1176,46 @@ func (e *CrossVenueSpotPerpExecutor) reconcileOnStart(ctx context.Context, live 
 	e.mu.Lock()
 	e.positions = ps
 	e.mu.Unlock()
+}
+
+func (e *CrossVenueSpotPerpExecutor) reconcileUntrackedExposureOnStart(ctx context.Context, ps []CrossVenueSpotPerpPosition, live bool) {
+	untracked := carryScanUntrackedCVSPLegs(ctx, e.recordDir, e.venues, ps)
+	if len(untracked) == 0 {
+		return
+	}
+	action := crossVenueUntrackedExposureAction(e.cfg.CrossVenueExecutor)
+	for _, leg := range untracked {
+		e.logger.Printf("[跨所spot-perp] reconcile: venue=%s 未登记 %s %s≈%.6f", leg.Venue, leg.Market, leg.Symbol, leg.Qty)
+	}
+	switch action {
+	case crossVenueRecoveryActionFlatten:
+		if !e.cfg.CrossVenueExecutor.LiveTradingEnabled {
+			e.notifyCritical("跨所spot-perp冷启动", "检测到未登记真实持仓,flatten 需 live", "")
+			return
+		}
+		for _, leg := range untracked {
+			e.flattenUntrackedLeg(ctx, leg, live)
+		}
+		e.notifyCritical("跨所spot-perp冷启动 flatten", fmt.Sprintf("已对 %d 条未登记腿执行 flatten", len(untracked)), "")
+	default:
+		e.notifyCritical("跨所spot-perp冷启动", fmt.Sprintf("检测到 %d 条未登记真实持仓,已 halt 待人工确认", len(untracked)), "")
+	}
+}
+
+func (e *CrossVenueSpotPerpExecutor) flattenUntrackedLeg(ctx context.Context, leg carryUntrackedLeg, live bool) {
+	if !live || leg.Qty <= executionQtyTolerance {
+		return
+	}
+	v := e.venues[leg.Venue]
+	tr, ok := v.(cvspTrader)
+	if !ok || tr == nil {
+		return
+	}
+	sym := venue.Symbol(leg.Symbol)
+	instr := e.lookupLegInstrument(ctx, leg.Venue, sym, leg.Market)
+	contractBased := leg.Market == venue.MarketPerp && v.Capabilities().ContractBasedPerp
+	id := fmt.Sprintf("cvsp-reconcile-flat-%s-%d", leg.Symbol, e.nowFn().UnixNano())
+	_, _ = e.placeSpotPerpLegExec(ctx, tr, leg.Market, sym, leg.Side, leg.Qty, id, leg.ReduceOnly, live, instr, contractBased)
 }
 
 func (e *CrossVenueSpotPerpExecutor) reconcileTrackedPosition(ctx context.Context, pos CrossVenueSpotPerpPosition, live bool) {

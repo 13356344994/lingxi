@@ -15,6 +15,33 @@ import (
 // Gate 对冲腿在永续侧;「托管式分配」= 把交易总额放进 futures、余量留 spot。
 // 写动作(wallet/transfers)需 API key 开划转权限;绝不触发提币/跨所接口。
 
+// TransferWallet 在所内 spot/futures 钱包之间划转 USDT(Gate wallet/transfers)。
+// from/to 取 "spot"/"futures";金额≤0 为 no-op。
+func (a *Adapter) TransferWallet(ctx context.Context, from, to string, amountUSDT float64) error {
+	if amountUSDT <= 0 {
+		return nil
+	}
+	fromW, toW, err := gateWalletTransferDirection(from, to)
+	if err != nil {
+		return err
+	}
+	_, err = a.transferUSDT(ctx, fromW, toW, amountUSDT)
+	return err
+}
+
+func gateWalletTransferDirection(from, to string) (venue.Wallet, venue.Wallet, error) {
+	from = strings.ToLower(strings.TrimSpace(from))
+	to = strings.ToLower(strings.TrimSpace(to))
+	switch {
+	case from == "spot" && to == "futures":
+		return WalletSpot, WalletFutures, nil
+	case from == "futures" && to == "spot":
+		return WalletFutures, WalletSpot, nil
+	default:
+		return "", "", fmt.Errorf("gate TransferWallet: unsupported %s -> %s", from, to)
+	}
+}
+
 // gateTransferWallet 把中性 Wallet 映射成 Gate wallet/transfers 的 from/to。
 func gateTransferWallet(w venue.Wallet) (string, error) {
 	switch w {

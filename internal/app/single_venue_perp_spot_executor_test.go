@@ -40,6 +40,7 @@ type svpsTestVenue struct {
 	perpPartialFillRatio   float64
 	clearOnClose           bool
 	fundingIncome          []venue.FundingIncome
+	instruments            []venue.Instrument
 }
 
 func newSVPSTestVenue(name string, supportsBorrow bool) *svpsTestVenue {
@@ -61,6 +62,7 @@ func newSVPSTestVenue(name string, supportsBorrow bool) *svpsTestVenue {
 		placeCount:       &pc,
 		borrowRepayCount: &br,
 		clearOnClose:     true,
+		instruments:      defaultCarryTestInstruments(),
 	}
 }
 
@@ -111,13 +113,17 @@ func (f *svpsTestVenue) BorrowRepay(_ context.Context, asset string, amt float64
 }
 
 func (f *svpsTestVenue) FetchInstruments(_ context.Context) ([]venue.Instrument, error) {
-	if f.spotMinNotional <= 0 {
-		return nil, venue.ErrUnsupported
+	if f.spotMinNotional > 0 {
+		return []venue.Instrument{
+			{Symbol: venue.Symbol("FLUX-USDT"), Market: venue.MarketSpot, StepSize: 0.001, TickSize: 0.01, MinNotional: f.spotMinNotional},
+			{Symbol: venue.Symbol("BTC-USDT"), Market: venue.MarketSpot, StepSize: 0.001, TickSize: 0.01, MinNotional: f.spotMinNotional},
+			{Symbol: venue.Symbol("BTC-USDT"), Market: venue.MarketPerp, StepSize: 0.001, TickSize: 0.01, MinNotional: f.spotMinNotional},
+		}, nil
 	}
-	return []venue.Instrument{
-		{Symbol: venue.Symbol("FLUX-USDT"), Market: venue.MarketSpot, MinNotional: f.spotMinNotional},
-		{Symbol: venue.Symbol("BTC-USDT"), Market: venue.MarketSpot, MinNotional: f.spotMinNotional},
-	}, nil
+	if len(f.instruments) == 0 {
+		return defaultCarryTestInstruments(), nil
+	}
+	return f.instruments, nil
 }
 
 func (f *svpsTestVenue) PlaceOrder(_ context.Context, req venue.OrderRequest) (venue.OrderResult, error) {
@@ -729,6 +735,7 @@ func TestSingleVenuePerpSpotManageOpenNoResurrectAfterFinalize(t *testing.T) {
 		pos := SingleVenuePerpSpotPosition{
 			Symbol: "BTC-USDT", Venue: binance.VenueName,
 			Status: SVPSStatusOpen, OpenedAt: now, UpdatedAt: now, IdemPrefix: "svps-dust-resurrect",
+			NextFundingTime: carryTestPastFundingTime(now),
 			SpotLeg: SingleVenuePerpSpotLegState{Market: "spot", Side: "short", Qty: 0.5, EntryPrice: 100},
 			PerpLeg: SingleVenuePerpSpotLegState{Market: "perp", Side: "long", Qty: 0.00008, EntryPrice: 100},
 		}
@@ -811,6 +818,7 @@ func TestSVPSSpotShortDustOrphanFinalizesWithRepay(t *testing.T) {
 	pos := SingleVenuePerpSpotPosition{
 		Symbol: "FLUX-USDT", Venue: binance.VenueName,
 		Status: SVPSStatusOpen, OpenedAt: now, UpdatedAt: now, IdemPrefix: "svps-flux-dust",
+		NextFundingTime: carryTestPastFundingTime(now),
 		SpotLeg: SingleVenuePerpSpotLegState{Market: "spot", Side: "short", Qty: 0.10459, EntryPrice: 0.048},
 		PerpLeg: SingleVenuePerpSpotLegState{Market: "perp", Side: "long", Qty: 0.5, EntryPrice: 0.048},
 	}
@@ -862,6 +870,7 @@ func TestSVPSCloseSpotShortNotionalRejectDustFinalizes(t *testing.T) {
 	pos := SingleVenuePerpSpotPosition{
 		Symbol: "FLUX-USDT", Venue: binance.VenueName,
 		Status: SVPSStatusClosing, OpenedAt: now, UpdatedAt: now, IdemPrefix: "svps-flux-notional",
+		NextFundingTime: carryTestPastFundingTime(now),
 		SpotLeg: SingleVenuePerpSpotLegState{Market: "spot", Side: "short", Qty: 0.10459, EntryPrice: 0.048},
 		PerpLeg: SingleVenuePerpSpotLegState{Market: "perp", Side: "long", Qty: 0.5, EntryPrice: 0.048},
 	}

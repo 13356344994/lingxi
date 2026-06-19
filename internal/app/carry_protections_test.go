@@ -165,8 +165,9 @@ func TestCVSPCloseRetryUsesEscalatedLimitPrice(t *testing.T) {
 		}
 	}
 	want := 100.5 * (1 + 160.0/10000)
-	if math.Abs(lastPerpBuy-want) > 1e-6 {
-		t.Fatalf("attempt 3 perp buy limit=%v want %v", lastPerpBuy, want)
+	// 价格按 tick(0.01) 量化(buy 向上取整),容忍一个 tick 的偏差。
+	if math.Abs(lastPerpBuy-want) > 0.01+1e-9 {
+		t.Fatalf("attempt 3 perp buy limit=%v want ~%v(±1 tick)", lastPerpBuy, want)
 	}
 }
 

@@ -73,6 +73,15 @@ type bybitInstrument struct {
 	} `json:"lotSizeFilter"`
 }
 
+// spotLotStepSize 解析现货数量步长:优先 qtyStep,为 0 时回退 basePrecision(与 instrument_cache 一致)。
+func spotLotStepSize(qtyStep, basePrecision string) float64 {
+	step := parseFloat(qtyStep)
+	if step == 0 {
+		step = parseFloat(basePrecision)
+	}
+	return step
+}
+
 // FetchInstruments 拉 linear(永续)+ spot(现货)元数据并翻译为中性 Instrument(带游标分页)。
 func (a *Adapter) FetchInstruments(ctx context.Context) ([]venue.Instrument, error) {
 	out := make([]venue.Instrument, 0, 1024)
@@ -99,29 +108,30 @@ func (a *Adapter) FetchInstruments(ctx context.Context) ([]venue.Instrument, err
 			NonTrading:       exchange.ExplicitNonTradingBybitStatus(it.Status),
 		})
 	}
-	// 现货失败不致命(Stage 1 验证以永续为主),仅记录性跳过。
-	if spot, spotErr := a.fetchInstrumentCategory(ctx, "spot"); spotErr == nil {
-		for _, it := range spot {
-			canonical, _ := a.ToCanonical(it.Symbol, venue.MarketSpot)
-			minNotional := parseFloat(it.LotSizeFilter.MinNotionalVal)
-			if minNotional == 0 {
-				minNotional = parseFloat(it.LotSizeFilter.MinOrderAmt)
-			}
-			out = append(out, venue.Instrument{
-				Symbol:           canonical,
-				Market:           venue.MarketSpot,
-				BaseAsset:        strings.ToUpper(it.BaseCoin),
-				QuoteAsset:       strings.ToUpper(it.QuoteCoin),
-				TickSize:         parseFloat(it.PriceFilter.TickSize),
-				StepSize:         parseFloat(it.LotSizeFilter.BasePrecision),
-				MinNotional:      minNotional,
-				ContractSize:     1,
-				QtyUnit:          "coin",
-				SpotBorrowable:   it.MarginTrading == "utaOnly" || it.MarginTrading == "both",
-				RawTradingStatus: it.Status,
-				NonTrading:       exchange.ExplicitNonTradingBybitStatus(it.Status),
-			})
+	spot, spotErr := a.fetchInstrumentCategory(ctx, categorySpot)
+	if spotErr != nil {
+		return nil, fmt.Errorf("bybit: spot instruments-info: %w", spotErr)
+	}
+	for _, it := range spot {
+		canonical, _ := a.ToCanonical(it.Symbol, venue.MarketSpot)
+		minNotional := parseFloat(it.LotSizeFilter.MinNotionalVal)
+		if minNotional == 0 {
+			minNotional = parseFloat(it.LotSizeFilter.MinOrderAmt)
 		}
+		out = append(out, venue.Instrument{
+			Symbol:           canonical,
+			Market:           venue.MarketSpot,
+			BaseAsset:        strings.ToUpper(it.BaseCoin),
+			QuoteAsset:       strings.ToUpper(it.QuoteCoin),
+			TickSize:         parseFloat(it.PriceFilter.TickSize),
+			StepSize:         spotLotStepSize(it.LotSizeFilter.QtyStep, it.LotSizeFilter.BasePrecision),
+			MinNotional:      minNotional,
+			ContractSize:     1,
+			QtyUnit:          "coin",
+			SpotBorrowable:   it.MarginTrading == "utaOnly" || it.MarginTrading == "both",
+			RawTradingStatus: it.Status,
+			NonTrading:       exchange.ExplicitNonTradingBybitStatus(it.Status),
+		})
 	}
 	return out, nil
 }
@@ -239,11 +249,11 @@ func (a *Adapter) FetchFundingRateHistory(ctx context.Context, s venue.Symbol, l
 	return out, nil
 }
 
-// FetchBookTicker 用 orderbook limit=1 取最优买卖一档(linear)。
+// FetchBookTicker 用 orderbook limit=1 取最优买卖一档(按 market 选 spot/linear category)。
 func (a *Adapter) FetchBookTicker(ctx context.Context, m venue.Market, s venue.Symbol) (venue.BookTicker, error) {
 	raw, _ := a.ToVenue(s, m)
 	q := url.Values{}
-	q.Set("category", categoryLinear)
+	q.Set("category", bybitInstCategory(m))
 	q.Set("symbol", raw)
 	q.Set("limit", "1")
 	var res bybitOrderbook

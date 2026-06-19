@@ -16,6 +16,7 @@ import (
 
 	"lingxi/internal/venue"
 	"lingxi/internal/venue/binance"
+	"lingxi/internal/venue/okx"
 )
 
 // svspTestVenue 是同所 spot-perp 单测用 fake venue(支持 spot+perp 两条腿)。
@@ -52,6 +53,7 @@ func newSVSPTestVenue(name string) *svspTestVenue {
 		spotBalances: make(map[string]float64),
 		placeCount:   &pc,
 		clearOnClose: true,
+		instruments:  defaultCarryTestInstruments(),
 	}
 }
 
@@ -166,7 +168,7 @@ func (f *svspTestVenue) FetchRealizedFunding(context.Context, venue.Symbol, time
 
 func (f *svspTestVenue) FetchInstruments(context.Context) ([]venue.Instrument, error) {
 	if len(f.instruments) == 0 {
-		return nil, venue.ErrUnsupported
+		return defaultCarryTestInstruments(), nil
 	}
 	return f.instruments, nil
 }
@@ -236,6 +238,14 @@ func testSVSPOpportunityWithInstruments(venueName string, qty float64, stepSize,
 	return opp
 }
 
+func withSVSPDefaultInstruments(v *svspTestVenue) *svspTestVenue {
+	v.instruments = []venue.Instrument{
+		{Symbol: "BTC-USDT", Market: venue.MarketSpot, StepSize: 0.001, MinNotional: 5, TickSize: 0.01},
+		{Symbol: "BTC-USDT", Market: venue.MarketPerp, StepSize: 0.001, MinNotional: 5, TickSize: 0.01},
+	}
+	return v
+}
+
 func TestSVSPOOffModeNoPlaceOrder(t *testing.T) {
 	now := time.Now().UTC()
 	v := newSVSPTestVenue(binance.VenueName)
@@ -258,7 +268,7 @@ func TestSVSPOOffModeNoPlaceOrder(t *testing.T) {
 
 func TestSVSPLiveOpenBothLegsCorrect(t *testing.T) {
 	now := time.Now().UTC()
-	v := newSVSPTestVenue(binance.VenueName)
+	v := withSVSPDefaultInstruments(newSVSPTestVenue(binance.VenueName))
 	dir := t.TempDir()
 	e := NewSingleVenueSpotPerpExecutor(testSVSPExecutorConfig(), map[string]venue.Venue{binance.VenueName: v}, dir, testSVSPLogger())
 	e.nowFn = func() time.Time { return now }
@@ -295,7 +305,7 @@ func TestSVSPLiveOpenBothLegsCorrect(t *testing.T) {
 
 func TestSVSPPerpLegFailRollbackSpot(t *testing.T) {
 	now := time.Now().UTC()
-	v := newSVSPTestVenue(binance.VenueName)
+	v := withSVSPDefaultInstruments(newSVSPTestVenue(binance.VenueName))
 	v.perpFailNext = true
 	dir := t.TempDir()
 	e := NewSingleVenueSpotPerpExecutor(testSVSPExecutorConfig(), map[string]venue.Venue{binance.VenueName: v}, dir, testSVSPLogger())
@@ -456,7 +466,7 @@ func TestSVSPOOffCloseNoPlaceOrder(t *testing.T) {
 
 func TestSVSPPerpPartialFillMatchesAtFilledQty(t *testing.T) {
 	now := time.Now().UTC()
-	v := newSVSPTestVenue(binance.VenueName)
+	v := withSVSPDefaultInstruments(newSVSPTestVenue(binance.VenueName))
 	v.perpPartialFillNext = true
 	v.perpPartialFillRatio = 0.4
 	dir := t.TempDir()
@@ -514,10 +524,20 @@ func TestSVSPCloseUsesLedgerCappedNotAccountTotal(t *testing.T) {
 func TestSVSPReconcileIgnoresUntrackedPerpPerpPosition(t *testing.T) {
 	now := time.Now().UTC()
 	v := newSVSPTestVenue(binance.VenueName)
-	// 模拟 perp-perp 440U 永续仓: 账户有永续空, 但本策略台账为空。
 	v.positions = []venue.Position{{Symbol: "BTC-USDT", PositionAmt: -0.004, MarkPrice: 110000, EntryPrice: 110000, Leverage: 2}}
 	dir := t.TempDir()
+	ppStore, err := newCrossVenuePositionStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = ppStore.upsert(CrossVenuePosition{
+		Symbol: "BTC-USDT", HighVenue: binance.VenueName, LowVenue: okx.VenueName,
+		Status: CrossVenueStatusOpen, OpenedAt: now, UpdatedAt: now, IdemPrefix: "pp-test",
+		HighLeg: CrossVenueLegState{Venue: binance.VenueName, Side: "sell", Qty: 0.004},
+		LowLeg:  CrossVenueLegState{Venue: okx.VenueName, Side: "buy", Qty: 0.004},
+	})
 	cfg := testSVSPExecutorConfig()
+	cfg.NetworkConfig.RecordDir = dir
 	cfg.CrossVenueExecutor.LiveTradingEnabled = true
 	e := NewSingleVenueSpotPerpExecutor(cfg, map[string]venue.Venue{binance.VenueName: v}, dir, testSVSPLogger())
 	e.nowFn = func() time.Time { return now }
@@ -530,7 +550,7 @@ func TestSVSPReconcileIgnoresUntrackedPerpPerpPosition(t *testing.T) {
 
 func TestSVSPFirstLegUnknownBlocksRollback(t *testing.T) {
 	now := time.Now().UTC()
-	v := newSVSPTestVenue(binance.VenueName)
+	v := withSVSPDefaultInstruments(newSVSPTestVenue(binance.VenueName))
 	v.spotUnknownNext = true
 	dir := t.TempDir()
 	e := NewSingleVenueSpotPerpExecutor(testSVSPExecutorConfig(), map[string]venue.Venue{binance.VenueName: v}, dir, testSVSPLogger())
@@ -671,6 +691,7 @@ func TestSingleVenueSpotPerpManageOpenNoResurrectAfterFinalize(t *testing.T) {
 		pos := SingleVenueSpotPerpPosition{
 			Symbol: "PHA-USDT", Venue: binance.VenueName,
 			Status: SVSPStatusOpen, OpenedAt: now, UpdatedAt: now, IdemPrefix: "svsp-dust-resurrect",
+			NextFundingTime: carryTestPastFundingTime(now),
 			SpotLeg: SingleVenueSpotPerpLegState{Market: "spot", Side: "buy", Qty: 0.1875, EntryPrice: 0.04},
 			PerpLeg: SingleVenueSpotPerpLegState{Market: "perp", Side: "short", Qty: 0.01},
 		}
@@ -814,6 +835,52 @@ func TestSVSPShouldCloseEVWeakBlockedUntilFundingSynced(t *testing.T) {
 	pos.LastFundingSyncAt = now
 	if reason := e.shouldClosePosition(context.Background(), &pos); reason == "" {
 		t.Fatal("expected EV weak close after funding sync")
+	}
+}
+
+func TestSVSPHardStopBypassesFundingDefer(t *testing.T) {
+	now := time.Date(2026, 6, 20, 12, 0, 0, 0, time.UTC)
+	nextFunding := now.Add(2 * time.Hour)
+	v := newSVSPTestVenue(binance.VenueName)
+	v.book = venue.BookTicker{BidPrice: 100, AskPrice: 100}
+	v.positions = []venue.Position{{Symbol: "BTC-USDT", PositionAmt: -0.5, MarkPrice: 100, EntryPrice: 100, Leverage: 20}}
+	dir := t.TempDir()
+	cfg := testSVSPExecutorConfig()
+	cfg.CrossVenueExecutor.LiveTradingEnabled = true
+	e := NewSingleVenueSpotPerpExecutor(cfg, map[string]venue.Venue{binance.VenueName: v}, dir, testSVSPLogger())
+	e.nowFn = func() time.Time { return now }
+	v.spotBalances["BTC"] = 0.5
+	pos := SingleVenueSpotPerpPosition{
+		Symbol: "BTC-USDT", Venue: binance.VenueName, Status: SVSPStatusOpen,
+		OpenedAt: now.Add(-time.Hour), UpdatedAt: now, IdemPrefix: "hard-stop",
+		NextFundingTime: nextFunding,
+		SpotLeg: SingleVenueSpotPerpLegState{Qty: 0.5, EntryPrice: 100},
+		PerpLeg: SingleVenueSpotPerpLegState{Qty: 0.5, EntryPrice: 100},
+	}
+	_ = e.persistPosition(pos)
+	e.manageOpenPositions(context.Background(), true)
+	if len(e.ListActivePositions()) != 0 {
+		t.Fatal("hard stop should close before funding defer window")
+	}
+}
+
+func TestSVSPReconcileUntrackedPerpFlatten(t *testing.T) {
+	dir := t.TempDir()
+	v := newSVSPTestVenue(binance.VenueName)
+	v.positions = []venue.Position{{Symbol: "BTC-USDT", PositionAmt: -0.5, MarkPrice: 100, EntryPrice: 100, Leverage: 2}}
+	cfg := testSVSPExecutorConfig()
+	cfg.CrossVenueExecutor.LiveTradingEnabled = true
+	cfg.CrossVenueExecutor.UntrackedExposureAction = "flatten"
+	e := NewSingleVenueSpotPerpExecutor(cfg, map[string]venue.Venue{binance.VenueName: v}, dir, testSVSPLogger())
+	e.reconcileOnStart(context.Background(), true)
+	var sawClose bool
+	for _, req := range v.placeRequests {
+		if req.Market == venue.MarketPerp && req.ReduceOnly && req.Side == venue.SideBuy {
+			sawClose = true
+		}
+	}
+	if !sawClose {
+		t.Fatalf("expected flatten of untracked perp, requests=%+v", v.placeRequests)
 	}
 }
 

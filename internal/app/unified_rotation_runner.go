@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"math"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -18,6 +19,8 @@ const (
 	rotationSnapshotMaxAge        = 30 * time.Minute
 	rotationScanMinAbsFundingRate = 0.00005 // 0.5 bps per 8h-interval 基准;粗筛按 per-hour 归一比较
 	rotationScanMaxSymbols        = 150
+	// rotationScanMaxSymbolsFundingOnly 粗筛阶段无 24h 量/market 快照时的 honest 回退上限(纯 |rate/h| 排序)。
+	rotationScanMaxSymbolsFundingOnly = 250
 	// rotationScanDepthFetchMaxSymbols funding 粗筛后二次拉深度上限;与 rotationScanMaxSymbols 对齐以覆盖全部粗筛 symbol。
 	// 实际深度拉取的限流/并发由 unified_market_pipeline 适配(本常量仅设 N 上限)。
 	rotationScanDepthFetchMaxSymbols = 150
@@ -25,6 +28,8 @@ const (
 	// 统一轮动 SWITCH 事务性失败事件类型(domain_events.jsonl Type 字段,可检索)。
 	rotationSwitchAbortedCloseFailed EventType = "switch_aborted_close_failed"
 	rotationSwitchFailedOpen         EventType = "switch_failed_open"
+
+	rotationZeroCVSPCVPSAlertThreshold = 5
 )
 
 // unified_rotation_runner.go 统一轮动 runner: 扫描 → 留换决策 → 资金路由 → 四执行器派发(active 即实盘)。
@@ -120,6 +125,10 @@ type UnifiedRotationRunner struct {
 
 	portfolioEnableRollingHold bool
 	rollingHoldWarnOnce        sync.Once
+
+	consecutiveZeroCVSPCVPS int
+	lastZeroCVAlertMu       sync.Mutex
+	lastZeroCVAlertAt       time.Time
 }
 
 // rotationCapitalSnapshotContext 最近一轮资金路由只读上下文(供 capital snapshot API)。
@@ -614,6 +623,7 @@ func (r *UnifiedRotationRunner) runOnce(ctx context.Context) error {
 		return err
 	}
 	statusUpdate.Candidates = countRotationCandidates(candidates)
+	r.trackConsecutiveZeroCVSPCVPS(statusUpdate.Candidates)
 	borrowDaily, _ := rotationBorrowMapsFromProbes(snap.BorrowProbes)
 	held, heldInputs := r.collectHeldPositions(candidates, borrowDaily)
 	statusUpdate.Held = len(held)
@@ -651,16 +661,24 @@ func (r *UnifiedRotationRunner) runOnceDecisionAndDispatch(
 	candidatesByID := indexUnifiedOpportunitiesByID(candidates)
 	toFund := rotationOpportunitiesToFund(plan, candidatesByID)
 	if len(toFund) > 0 {
+		if !r.openLive() {
+			if r.logger != nil {
+				r.logger.Printf("[统一轮动] 控制面 halt/禁开,跳过资金路由与后续开仓")
+			}
+			r.storeLastCapitalSnapshotContext(toFund, CapitalRoutingPlan{})
+			r.dispatchRotationPlan(ctx, plan, candidatesByID, nil)
+			return plan
+		}
 		balances := rotationWalletBalancesFromAvailable(available, held, r.execCfg, r.venues, nil)
 		routerCfg := CapitalRouterConfigWithVenues(r.capitalRouterCfg, r.venues)
 		routingPlan := PlanCapitalRouting(toFund, balances, routerCfg)
 		r.storeLastCapitalSnapshotContext(toFund, routingPlan)
 		if r.logger != nil && len(routingPlan.WithinVenueTransfers) > 0 {
-			r.logger.Printf("[统一轮动] 资金路由: %d 笔所内划转 live=%v", len(routingPlan.WithinVenueTransfers), live)
+			r.logger.Printf("[统一轮动] 资金路由: %d 笔所内划转 live=%v", len(routingPlan.WithinVenueTransfers), r.openLive())
 		}
-		execResult := ExecuteCapitalRouting(ctx, routingPlan, r.venues, live, r.logger)
+		execResult := ExecuteCapitalRouting(ctx, routingPlan, r.venues, r.openLive(), r.logger)
 		if r.logger != nil {
-			r.logger.Printf("[统一轮动] 资金路由执行: executed=%d errs=%d live=%v", execResult.Executed, len(execResult.Errs), live)
+			r.logger.Printf("[统一轮动] 资金路由执行: executed=%d errs=%d live=%v", execResult.Executed, len(execResult.Errs), r.openLive())
 		}
 		unfundable := rotationUnfundableSet(routingPlan.Unfundable)
 		for _, e := range execResult.Errs {
@@ -677,11 +695,11 @@ func (r *UnifiedRotationRunner) runOnceDecisionAndDispatch(
 		if len(routingPlan.Unfundable) > 0 && r.logger != nil {
 			r.logger.Printf("[统一轮动] 无法备资机会: %v", routingPlan.Unfundable)
 		}
-		r.dispatchRotationPlan(ctx, live, plan, candidatesByID, unfundable)
+		r.dispatchRotationPlan(ctx, plan, candidatesByID, unfundable)
 		return plan
 	}
 	r.storeLastCapitalSnapshotContext(nil, CapitalRoutingPlan{})
-	r.dispatchRotationPlan(ctx, live, plan, candidatesByID, nil)
+	r.dispatchRotationPlan(ctx, plan, candidatesByID, nil)
 	return plan
 }
 
@@ -756,14 +774,14 @@ func (r *UnifiedRotationRunner) rotationOpenBlockedPredicate() RotationOpenBlock
 	}
 }
 
-// rotationScanFilterSymbols 从 funding 快照中筛出 max|rate/h| 达标的 symbol, 按 per-hour 降序取前 rotationScanMaxSymbols 个。
-func rotationScanFilterSymbols(fundingByVenue map[string]map[string]CrossVenueSpotPerpFundingSnap) []string {
+// rotationScanFundingPerHourBySymbol 返回各 symbol 跨 venue 最大 |rate/h|(仅保留达 min 阈值的项)。
+func rotationScanFundingPerHourBySymbol(fundingByVenue map[string]map[string]CrossVenueSpotPerpFundingSnap) map[string]float64 {
 	allSymbols := crossVenueSpotPerpCollectSymbols(fundingByVenue, nil)
 	if len(allSymbols) == 0 {
 		return nil
 	}
 	minPerHour := rotationFundingRatePerHour(rotationScanMinAbsFundingRate, 8)
-	maxPerHourBySym := make(map[string]float64, len(allSymbols))
+	out := make(map[string]float64, len(allSymbols))
 	for _, sym := range allSymbols {
 		maxPerHour := 0.0
 		for _, bySym := range fundingByVenue {
@@ -777,22 +795,82 @@ func rotationScanFilterSymbols(fundingByVenue map[string]map[string]CrossVenueSp
 			}
 		}
 		if maxPerHour >= minPerHour {
-			maxPerHourBySym[sym] = maxPerHour
+			out[sym] = maxPerHour
 		}
 	}
-	filtered := make([]string, 0, len(maxPerHourBySym))
-	for sym := range maxPerHourBySym {
+	return out
+}
+
+// rotationScanLiquidityProxyUSDT 粗筛流动性代理:各所 max(min(24h spot vol, 24h perp vol));无 market 数据时返回 0。
+func rotationScanLiquidityProxyUSDT(marketsByVenue map[string]map[string]CrossVenueSpotPerpMarketSnap, sym string) float64 {
+	if len(marketsByVenue) == 0 {
+		return 0
+	}
+	maxVol := 0.0
+	for _, bySym := range marketsByVenue {
+		mkt, ok := bySym[sym]
+		if !ok {
+			continue
+		}
+		vol := 0.0
+		switch {
+		case mkt.Volume24hSpotUSDT > 0 && mkt.Volume24hPerpUSDT > 0:
+			vol = math.Min(mkt.Volume24hSpotUSDT, mkt.Volume24hPerpUSDT)
+		case mkt.Volume24hSpotUSDT > 0:
+			vol = mkt.Volume24hSpotUSDT
+		case mkt.Volume24hPerpUSDT > 0:
+			vol = mkt.Volume24hPerpUSDT
+		}
+		if vol > maxVol {
+			maxVol = vol
+		}
+	}
+	return maxVol
+}
+
+// rotationScanCompositeScore funding×流动性复合分; liquidityUSDT<=0 时 honest 回退为纯 fundingPerHour。
+func rotationScanCompositeScore(fundingPerHour, liquidityUSDT float64) float64 {
+	if fundingPerHour <= 0 {
+		return 0
+	}
+	if liquidityUSDT <= 0 {
+		return fundingPerHour
+	}
+	return fundingPerHour * math.Sqrt(liquidityUSDT)
+}
+
+// rotationScanFilterSymbols 从 funding 快照筛出 |rate/h| 达标的 symbol 并按复合分降序取 top-N。
+// 流动性代理: market 快照 24h 成交额 USDT(各所 max(min(spot,perp))); markets 为空时 honest 回退为纯 funding 排序+更大上限。
+func rotationScanFilterSymbols(
+	fundingByVenue map[string]map[string]CrossVenueSpotPerpFundingSnap,
+	marketsByVenue map[string]map[string]CrossVenueSpotPerpMarketSnap,
+) []string {
+	maxPerHourBySym := rotationScanFundingPerHourBySymbol(fundingByVenue)
+	if len(maxPerHourBySym) == 0 {
+		return nil
+	}
+	hasMarkets := len(marketsByVenue) > 0
+	scoreBySym := make(map[string]float64, len(maxPerHourBySym))
+	for sym, perHour := range maxPerHourBySym {
+		scoreBySym[sym] = rotationScanCompositeScore(perHour, rotationScanLiquidityProxyUSDT(marketsByVenue, sym))
+	}
+	filtered := make([]string, 0, len(scoreBySym))
+	for sym := range scoreBySym {
 		filtered = append(filtered, sym)
 	}
 	sort.Slice(filtered, func(i, j int) bool {
-		ri, rj := maxPerHourBySym[filtered[i]], maxPerHourBySym[filtered[j]]
-		if ri != rj {
-			return ri > rj
+		si, sj := scoreBySym[filtered[i]], scoreBySym[filtered[j]]
+		if si != sj {
+			return si > sj
 		}
 		return filtered[i] < filtered[j]
 	})
-	if len(filtered) > rotationScanMaxSymbols {
-		filtered = filtered[:rotationScanMaxSymbols]
+	limit := rotationScanMaxSymbols
+	if !hasMarkets {
+		limit = rotationScanMaxSymbolsFundingOnly
+	}
+	if len(filtered) > limit {
+		filtered = filtered[:limit]
 	}
 	return filtered
 }
@@ -830,11 +908,17 @@ func (r *UnifiedRotationRunner) defaultScanRotationCandidates(ctx context.Contex
 	}
 
 	fundingByVenue := unifiedMarketFundingByVenueFromSnapshot(snap.FundingByVenue)
-	symbols := rotationScanFilterSymbols(fundingByVenue)
+	fundingQualified := rotationScanFundingPerHourBySymbol(fundingByVenue)
+	preFilterSymbols := make([]string, 0, len(fundingQualified))
+	for sym := range fundingQualified {
+		preFilterSymbols = append(preFilterSymbols, sym)
+	}
+	sort.Strings(preFilterSymbols)
 	if r.delistGuard != nil {
 		r.delistGuard.Refresh(ctx)
 	}
-	marketsByVenue := deps.fetchMarkets(ctx, r.venues, symbols)
+	marketsByVenue := deps.fetchMarkets(ctx, r.venues, preFilterSymbols)
+	symbols := rotationScanFilterSymbols(fundingByVenue, marketsByVenue)
 	// 决策期流动性自适应:对粗筛 symbol 二次拉深度/24h 量,填 MarketSnap.Depth/Volume 字段。
 	unifiedMarketEnrichMarketsWithDepthVolume(ctx, r.venues, marketsByVenue, symbols)
 	availableUSDTByVenue := deps.fetchAvailableUSDT(ctx, r.venues, crossVenueExecutorVenues)
@@ -1002,7 +1086,6 @@ func (r *UnifiedRotationRunner) collectHeldPositions(candidates []UnifiedOpportu
 
 func (r *UnifiedRotationRunner) dispatchRotationPlan(
 	ctx context.Context,
-	live bool,
 	plan RotationPlan,
 	candidatesByID map[string]UnifiedOpportunity,
 	unfundable map[string]struct{},
@@ -1050,7 +1133,13 @@ func (r *UnifiedRotationRunner) dispatchRotationPlan(
 				}
 				continue
 			}
-			if err := r.openOpportunity(ctx, act.ReplaceStrategyType, opp, live); err != nil {
+			if !r.openLive() {
+				if r.logger != nil {
+					r.logger.Printf("[统一轮动] SWITCH 开新跳过(控制面 halt/禁开) old=%s replace=%s", act.OpportunityID, act.ReplaceOpportunityID)
+				}
+				continue
+			}
+			if err := r.openOpportunity(ctx, act.ReplaceStrategyType, opp, true); err != nil {
 				r.recordRotationSwitchIncident(act, rotationSwitchFailedOpen, err.Error())
 				if r.logger != nil {
 					r.logger.Printf("[统一轮动] SWITCH 开新失败(旧仓已平) old=%s replace=%s symbol=%s: %v",
@@ -1064,13 +1153,54 @@ func (r *UnifiedRotationRunner) dispatchRotationPlan(
 				}
 				continue
 			}
+			if !r.openLive() {
+				if r.logger != nil {
+					r.logger.Printf("[统一轮动] OPEN 跳过(控制面 halt/禁开) %s", act.OpportunityID)
+				}
+				continue
+			}
 			if opp, ok := candidatesByID[act.OpportunityID]; ok {
-				if err := r.openOpportunity(ctx, act.StrategyType, opp, live); err != nil && r.logger != nil {
+				if err := r.openOpportunity(ctx, act.StrategyType, opp, true); err != nil && r.logger != nil {
 					r.logger.Printf("[统一轮动] OPEN 失败(已吞掉) %s: %v", act.OpportunityID, err)
 				}
 			}
 		}
 	}
+}
+
+func (r *UnifiedRotationRunner) trackConsecutiveZeroCVSPCVPS(counts RotationCandidateCounts) {
+	if r == nil {
+		return
+	}
+	r.statusMu.Lock()
+	if counts.CVSP == 0 && counts.CVPS == 0 {
+		r.consecutiveZeroCVSPCVPS++
+	} else {
+		r.consecutiveZeroCVSPCVPS = 0
+	}
+	streak := r.consecutiveZeroCVSPCVPS
+	r.statusMu.Unlock()
+	if streak >= rotationZeroCVSPCVPSAlertThreshold {
+		r.maybeLogZeroCVSPCVPSMajor(streak)
+	}
+}
+
+func (r *UnifiedRotationRunner) maybeLogZeroCVSPCVPSMajor(streak int) {
+	if r == nil || r.logger == nil {
+		return
+	}
+	r.lastZeroCVAlertMu.Lock()
+	defer r.lastZeroCVAlertMu.Unlock()
+	now := time.Now()
+	if r.nowFn != nil {
+		now = r.nowFn()
+	}
+	interval := r.tickerInterval()
+	if !r.lastZeroCVAlertAt.IsZero() && now.Sub(r.lastZeroCVAlertAt) < interval {
+		return
+	}
+	r.logger.Printf("[统一轮动] MAJOR: 连续 %d 轮 cvsp=0 且 cvps=0,跨所 carry 候选持续为空", streak)
+	r.lastZeroCVAlertAt = now
 }
 
 func (r *UnifiedRotationRunner) openOpportunity(ctx context.Context, strategyType string, opp UnifiedOpportunity, live bool) error {

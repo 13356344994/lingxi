@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"lingxi/internal/venue"
@@ -144,6 +145,82 @@ func TestExecuteRebalanceGateRejectsOverTotal(t *testing.T) {
 	plan := a.PlanAllocation(100, a.Capabilities())
 	if _, err := a.ExecuteRebalance(context.Background(), plan); err == nil {
 		t.Fatal("目标超过可调总额应报错")
+	}
+}
+
+func TestTransferWallet(t *testing.T) {
+	cases := []struct {
+		name       string
+		from, to   string
+		amount     float64
+		wantCall   bool
+		wantFrom   string
+		wantTo     string
+		wantAmount string
+		wantErr    string
+	}{
+		{name: "spot_to_futures", from: "spot", to: "futures", amount: 12.5, wantCall: true, wantFrom: "spot", wantTo: "futures", wantAmount: "12.5"},
+		{name: "futures_to_spot", from: "futures", to: "spot", amount: 7.25, wantCall: true, wantFrom: "futures", wantTo: "spot", wantAmount: "7.25"},
+		{name: "trim_and_case", from: " FUTURES ", to: " spot ", amount: 3, wantCall: true, wantFrom: "futures", wantTo: "spot", wantAmount: "3"},
+		{name: "zero_noop", from: "spot", to: "futures", amount: 0},
+		{name: "negative_noop", from: "spot", to: "futures", amount: -1},
+		{name: "unsupported_margin", from: "spot", to: "margin", amount: 10, wantErr: "unsupported"},
+		{name: "unsupported_funding", from: "funding", to: "spot", amount: 10, wantErr: "unsupported"},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			var transfers []map[string]any
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path != pathWalletTransfers {
+					http.Error(w, "unexpected path "+r.URL.Path, http.StatusNotFound)
+					return
+				}
+				w.Header().Set("Content-Type", "application/json")
+				b, _ := io.ReadAll(r.Body)
+				var m map[string]any
+				_ = json.Unmarshal(b, &m)
+				transfers = append(transfers, m)
+				_, _ = io.WriteString(w, `{"id":"tx-tw-1"}`)
+			}))
+			t.Cleanup(srv.Close)
+			a, err := New(venue.Config{Name: VenueName, APIKey: "K", APISecret: "S", Extra: map[string]string{"base_url": srv.URL}})
+			if err != nil {
+				t.Fatalf("New: %v", err)
+			}
+			err = a.TransferWallet(context.Background(), tc.from, tc.to, tc.amount)
+			if tc.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+					t.Fatalf("err = %v, want substring %q", err, tc.wantErr)
+				}
+				if len(transfers) != 0 {
+					t.Fatalf("unsupported direction should not call transfer, got %d calls", len(transfers))
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("TransferWallet: %v", err)
+			}
+			if !tc.wantCall {
+				if len(transfers) != 0 {
+					t.Fatalf("expected no transfer call, got %d", len(transfers))
+				}
+				return
+			}
+			if len(transfers) != 1 {
+				t.Fatalf("expected 1 transfer call, got %d", len(transfers))
+			}
+			tr := transfers[0]
+			if tr["from"] != tc.wantFrom || tr["to"] != tc.wantTo {
+				t.Fatalf("transfer direction = %+v, want from=%q to=%q", tr, tc.wantFrom, tc.wantTo)
+			}
+			if tr["currency"] != "USDT" || tr["settle"] != "usdt" {
+				t.Fatalf("transfer fields = %+v", tr)
+			}
+			if tr["amount"] != tc.wantAmount {
+				t.Fatalf("amount = %v, want %q", tr["amount"], tc.wantAmount)
+			}
+		})
 	}
 }
 
