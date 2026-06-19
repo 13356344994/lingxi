@@ -19,7 +19,7 @@
    若怀疑挂单裸奔且进程已死：**等待交易所 dead-man 倒计时到期自动撤单**（启用时 30s 内），或登录交易所手动撤单/平仓。
    若进程已死且**已成交的对冲腿（裸仓）需要平掉**（dead-man 只撤未成交挂单、平不掉已成交仓位）：
    `lingxi flatten`（先 `systemctl stop lingxi` 确保主进程已退出）——从本地台账重建裸仓并方向感知双腿强平；
-   该命令会抢单写租约做互锁，若主进程仍存活会自动拒绝。先 `lingxi flatten shadow` 预演可看清将平哪些仓而不下真实单。
+   该命令会抢单写租约做互锁，若主进程仍存活会自动拒绝。先 `lingxi flatten dry-run` 预演可看清将平哪些仓而不下真实单。
 3. **通报 + 取证**：截图账户持仓/挂单，备份 `records/`（尤其 `settlements_journal.jsonl` /
    `pending_funding_journal.jsonl` / `domain_events.jsonl` / `*_server.log`），再开始处置。
 
@@ -142,12 +142,12 @@ lingxi reconcile     # 实盘 ↔ 模型预期 对账；只读，可在运行期
 
 ## 9. 演练清单（上线前一次 + 之后定期）
 
-> 全部在 `shadow` 或最小档位（数十~数百 U）下演练，验证「人 + 系统」联合处置链路真的能跑通。
+> 全部在 **OFF 模式**或最小档位（数十~数百 U CANARY）下演练，验证「人 + 系统」联合处置链路真的能跑通。
 
 - [ ] **紧急停机演练**：创建/删除 emergency stop 文件，确认引擎在安全点停机、清除后可恢复。
 - [ ] **SIGTERM 优雅停机**：`systemctl stop`，确认日志有 `graceful_shutdown` 事件、状态/账本已落盘、dead-man 已停用。
 - [ ] **dead-man 兜底**：启用 dead-man，`kill -9` 主进程（模拟崩溃），确认交易所在倒计时到期后自动撤掉测试挂单。
-- [ ] **应急强平演练**：最小额开一笔对冲后 `kill -9` 主进程，先 `lingxi flatten shadow` 看预演清单，再 `lingxi flatten`
+- [ ] **应急强平演练**：最小额开一笔对冲后 `kill -9` 主进程，先 `lingxi flatten dry-run` 看预演清单，再 `lingxi flatten`
       确认裸仓被双腿收敛、台账清零、收到「紧急强平完成」Telegram；并验证主进程存活时 `flatten` 因单写租约被拒绝。
 - [ ] **生命周期通知**：启动/`systemctl stop`/模拟崩溃，确认分别收到「已启动」「计划停机」「异常退出(崩溃)」Telegram。
 - [ ] **看门狗拉起**：停掉心跳/healthz（或杀进程），确认 `watchdog.sh` 连续失败达阈值后重启服务并告警。
@@ -166,7 +166,7 @@ lingxi reconcile     # 实盘 ↔ 模型预期 对账；只读，可在运行期
 |---|---|
 | 紧急停机 | `touch <emergency_stop 文件>`；清除后自动恢复 |
 | 停服务（优雅） | `systemctl stop lingxi`（SIGTERM → 优雅收尾） |
-| 已成交裸仓应急强平 | `lingxi flatten [reason]`（先停主进程）；`lingxi flatten shadow` 预演 |
+| 已成交裸仓应急强平 | `lingxi flatten [reason]`（先停主进程）；`lingxi flatten dry-run` 预演 |
 | 看门狗 | `deploy/watchdog.sh`（systemd timer / cron；`LINGXI_FLATTEN_ON_DEAD=1` 开兜底强平） |
 | 未平仓台账（SSOT） | `records/live_open_hedges.json`（flatten 据此重建裸仓） |
 | 对账 | `lingxi reconcile` |

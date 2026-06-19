@@ -2,9 +2,9 @@
 
 `lingxi` 是一个资金费率套利交易系统：**四所跨所 perp-perp 实盘** + **五策略统一轮动系统** + 遗留 Binance 单所引擎（已 de-wire）+ Bybit/OKX/Gate 单所执行器（面板高级区保留）。涵盖机会筛选、执行风控、历史模拟和本地面板观测。
 
-> **当前运行态（2026-06-18）**：旧跨所 perp-perp ~440U **LIVE**；新五策略轮动默认 **OFF**（`unified_rotation` + `records/control_plane.json` 的 `rotation_live_enabled`）。运行三态：**OFF**（不下真单、不写真实台账）/ **CANARY_LIVE** / **LIVE**。交接文档见 `HANDOFF_20260617.md`；master 方案见 `PERP_PERP_REVIEW_20260617.md`。离线经济数据 **NO-GO**（`tools/go_no_go/RESULT.md`）。
+> **当前运行态（2026-06-19）**：**五策略统一轮动主路径**（perp-perp 经 `bindCrossVenuePerpPerpRotationExecutor` 接入 `UnifiedRotationRunner`，非独立双循环；常驻 = scanner + equity sampler + unified runner）。运行三态：**OFF**（跑决策+日志、不下真单、非 live 账本进 `records/dryrun/`）/ **CANARY_LIVE** / **LIVE**，由 `strategy_mode` 驱动；真钱闸 = `records/control_plane.json`（`rotation_live_enabled` / `global_halt` / `allow_*`）+ `strategy_mode`（`rotation_control.json` 的 `live` 字段 legacy 已忽略，看 `active`）。当前 config `strategy_mode: profit_seeking`（诚实成本闸）。交接见 `HANDOFF_20260619.md`；master 方案见 `PERP_PERP_REVIEW_20260617.md`。离线经济数据 **NO-GO**（`tools/go_no_go/RESULT.md`）。
 
-> 本 README 主体仍描述 Binance 遗留引擎架构；**生产主路径以交接文档为准**。凡是 README 承诺但代码尚未实现 / 默认关闭的能力，都在「已知风险与局限」一节明确标注。
+> 本 README 主体仍描述 **Binance 遗留单所引擎**架构（§二/§十二 R 编号作历史与设计参考）；**当前生产主路径是五策略统一轮动**，以 `HANDOFF_20260619.md` 为准。
 
 ---
 
@@ -37,7 +37,7 @@
 
 ### 2.1 入口与编排
 - `cmd/lingxi/main.go`：进程入口薄壳，负责信号处理 + 根 context，委托 `internal/app.Run`。
-- `internal/app/run.go`：应用编排入口，按运行模式（实盘 / 回测 / 对账 / 影子）选择路径并装配依赖。
+- `internal/app/run.go`：应用编排入口，按运行模式（backtest / reconcile / flatten / config-sample / startLiveStack）选择路径并装配依赖；生产常驻为统一轮动 runner + scanner + equity sampler。
 - `internal/app/funding_sniper_engine.go`：主引擎编排核心（扫描→评估→开仓→监控→结算→平仓的总调度）。
 - `internal/app/runtime_controller.go`：运行期控制器（启停、参数热调整、控制审计）。
 
@@ -59,7 +59,7 @@
 ### 2.3 网络与下单咽喉点
 - `internal/exchange/`：Binance 侧摸网络的包（另有 `internal/venue/bybit/` 直连 Bybit v5 API）。`client.go`（现货/合约元数据、账户费率、历史抓取、限频/回退/used-weight 治理）、`http.go` / `transport.go`（代理与连接池）、`symbols.go`（黄金币种交集）、`cache.go`（历史负载缓存）。
 - `internal/app/binance_gateway.go`：`SignedRequest` / `GetJSON` / `APIKeyRequest` 收口，联动平台熔断、used-weight 预算、本地下单限频。
-- `internal/app/engine_fees_market.go`：`signedRequest` 是**所有签名请求的唯一咽喉点**——影子模式在此硬拦截一切非 GET 调用（绝无真实订单/资金动作漏出）。
+- `internal/app/engine_fees_market.go`：`signedRequest` 是 **Binance 遗留引擎**所有签名请求的唯一咽喉点（当前生产主路径走 venue 适配层 + `ledger_guard`，见 `HANDOFF_20260619.md`）。
 - `internal/app/order_events.go`（`OrderEventHub`）/ `user_data_stream.go` / `websocket_bookticker.go`：订单回报中心、用户数据流、bookTicker/depth 行情流。
 
 ### 2.4 边界包（可独立单测，无网络依赖）
@@ -85,8 +85,8 @@
 ---
 
 ## 三、当前能力
-- **跨所 perp-perp 实盘**（`cross_venue_executor`，四所 ~440U，独立 live）
-- **五策略统一轮动**（`unified_rotation_runner`，60s 主循环；默认 OFF；面板「五策略轮动」主控卡 + `control_plane.json`）
+- **五策略统一轮动**（`unified_rotation_runner`，60s 主循环；perp-perp 经 binding 接入，非独立双循环；面板「五策略轮动」+ `control_plane.json`）
+- **跨所 perp-perp 执行体**（`cross_venue_executor`，开仓由统一 runner 派发）
 - 实盘运行入口和 Web Dashboard（venue 切换、`/api/venues`、`/api/unified/leaderboard`）
 - 多所编排：`orchestrator.go` + `internal/venue/`（Binance/Bybit/OKX/Gate 适配器）
 - 单所旧引擎已从 `run.go` de-wire；面板高级区保留旧 perp-perp/批量/按所控制
@@ -99,7 +99,7 @@
 - JSON / JSONL 记录落盘与运行期保留策略
 - 定点记账（`money.Micros`）贯穿结算
 - 残腿救援（`ExposureManager`）与重启恢复
-- 影子（只读冒烟）模式硬拦截
+- 运行三态 OFF / CANARY_LIVE / LIVE（非 live 账本进 `records/dryrun/`）
 
 ---
 
@@ -126,21 +126,13 @@
     超阈值周期与 HEALTHY/UNHEALTHY 结论
   - 不触碰任何下单/实盘路径，可在实盘运行期间随时执行；用于小额实盘验证「钱是不是按模型假设赚到的」
   - 对账成本侧已用模型费率计算预期(`ExpectedTotalFees`),成本模型误差会暴露在对账偏差中(R6 已修复,见「已知风险与局限 R6」)。
-- `Shadow`（影子只读冒烟）模式
-  - `go run ./cmd/lingxi shadow`
-  - 照常对接真实行情/账户、照常完成扫描/评估/决策，但任何会动用资金或改变交易所状态的签名请求
-    （下单/撤单/改杠杆/划转/借还币等一切非 GET）都会在唯一咽喉点 `signedRequest` 被**硬拦截**、
-    绝不触达交易所，下单意图以 `SHADOW_BLOCKED` 日志行落盘供核查
-  - 用途：实盘前的安全冒烟，抓「下错方向 / 异常数量 / 失控循环」等灾难性 bug；**不是**用来校准经济阈值
-    （模拟/影子量不到真实滑点、成交率、真实资金费与竞争，纸面数字会系统性偏乐观）
-  - 也可通过配置 `execution.shadow_trading: true` 开启
-  - ⚠️ **已知限制（咽喉点一刀切拦所有非 GET 的副作用）**：实盘启动前检查 `runLiveStartupChecks`
-    要读「资金账户可用 USDT」，而币安该查询用的是**只读但 POST** 的 `/sapi/v1/asset/get-funding-asset`
-    （`runtime_capital_adjustment.go:fetchFundingAccountFreeBalances`）。shadow 把它当「状态变更」一并拦掉，
-    导致**面板点「启动实盘」会在启动前检查阶段失败**（`读取实盘可调 USDT 失败: shadow 模式已拦截…`），
-    主循环根本起不来；面板的「资金快照 / 调仓」同样依赖该 POST，在 shadow 下也会失败。
-    即 shadow 目前**无法完整冒烟**「扫描→评估→决策」。如需在 shadow 跑通，需把 `get-funding-asset`
-    这类只读 POST 加入白名单放行（`shadow_trading.go`），或让启动前检查在 shadow 下对该读取容错跳过。
+- `OFF` 模式（部署前验证，非独立子命令）
+  - 由 `control_plane.json` + `strategy_mode` 决定：跑扫描/决策/日志，**不下真单**；非 live 写账本进 `records/dryrun/`（`ledger_guard.go`）。
+  - 用途：部署前验证决策链、观察候选与轮动逻辑，抓「下错方向 / 异常数量 / 失控循环」等灾难性 bug；**不是**用来校准经济阈值（OFF/回测量不到真实滑点、成交率、真实资金费与竞争，纸面数字会系统性偏乐观）。
+  - 切 CANARY_LIVE / LIVE 须经 control_plane + 面板/API；详见 `HANDOFF_20260619.md` §3–§4。
+- `Flatten` 应急强平
+  - `go run ./cmd/lingxi flatten [reason]` — 从台账重建裸仓并方向感知双腿强平（主进程须已停）
+  - `go run ./cmd/lingxi flatten dry-run` — 预演将平哪些仓，不下真实单
 
 `backtest/README.md` 里有更详细的样例文件说明和回放字段解释。
 
@@ -390,7 +382,7 @@ PORTALUSDT 这种有量的币因瞬态取数失败被 critical 熔断，且 `pau
 ### 🟠 R15. 回测引擎的「微观失真」
 当前回测/模拟（`fillmodel/cost.go` 残差 haircut + `historical_*` 冲击乘数）无法精确还原 Order Book 级别的排队延迟与滑点；`ExpectedLegFillRatio=0.99`、滑点用 `MarkPrice` 近似（见 R5）。
 - **缺失的解法**：缺乏 L3 级 Tick 数据回测框架与订单簿排队位置模拟。在抢资金费的极端踩踏窗口，真实滑点远比模拟恶劣。
-- **影响**：纸面阈值系统性偏乐观，回测/影子的盈利数字不能直接外推到实盘；这也是 README 反复强调「shadow 不用于校准经济阈值」的根因。
+- **影响**：纸面阈值系统性偏乐观，回测/OFF 模式的盈利数字不能直接外推到实盘；部署前验证（OFF）不用于校准经济阈值。
 
 ---
 
@@ -513,7 +505,7 @@ L2 簇上限 + `admitByClusterCap` + `portfolioClusterNotionalUSDT` 已落地(M-
 - [ ] 确认 `go test`、`go vet`、`go build` 可通过
 - [ ] 确认 `records/` 清理策略符合本次实验需求
 - [ ] 确认没有误提交运行产物、缓存和日志
-- [ ] 先用 `shadow` 跑若干完整周期抓灾难性 bug，再小额实盘
+- [ ] 部署前用 **OFF** 模式跑若干完整周期验证决策链，再 CANARY / 小额实盘
 - [ ] 小额实盘跑出若干完整周期后，用 `reconcile` 核对（并知悉 R6 的成本侧盲区），再考虑放大档位
 
 ---
@@ -637,7 +629,7 @@ L2 簇上限 + `admitByClusterCap` + `portfolioClusterNotionalUSDT` 已落地(M-
   都按 10W 标准建。**关键是 sizing 从第一天就是 capacity-driven（由市场深度/OI 反推），绝不写死小额**——
   这样扩容是「拧旋钮」而非「重写」，从根上消除「小资金假设硬编码」的后患。
 - **资金层面：必须灰度爬坡（如 10k → 30k → 100k），每档由验证门放行。** 真实滑点、成交率、真实资金费、
-  竞争只能用真钱在真市场量到（shadow/回测系统性偏乐观，见 R15）。未量到真实执行质量前直接上 10W，
+  竞争只能用真钱在真市场量到（OFF/回测系统性偏乐观，见 R15）。未量到真实执行质量前直接上 10W，
   亏的是「模型误差」的钱，与架构成熟度无关。这是风险管理，不是架构妥协。
 - **结论**：`MaxPortfolioNotionalUSDT` 等限额按 10W 设计、可一行配置调高；但**实际投放档位由灰度计划与
   验证门（经济回归 HEALTHY、执行质量达标、HA 就绪）控制**，二者解耦。
@@ -897,7 +889,7 @@ M6(治理) 可与 M2~M5 并行
 
 | 档位 | 前置门（必须全部满足） |
 |---|---|
-| **shadow** | M0 完成；`shadow` 模式跑满若干完整周期，无「下错方向/异常数量/失控循环」 |
+| **OFF（部署前验证）** | M0 完成；OFF 模式跑满若干完整周期，无「下错方向/异常数量/失控循环」 |
 | **数十~数百 U（首次真金，实际起步）** | M0 完成 + M4 滚动逻辑就位；`reconcile` 连续 HEALTHY；这是**校准真实滑点/成交率/资金费**的档位，亏得起学费 |
 | **1k~5k** | M1~M3 就位（配置/状态契约 + 动态 capacity sizing + 冲击成本入账 R5）；数百 U 档实测净利与模型一致 |
 | **1W~3W** | M5 执行切片 + 告警/可观测（R25）就位；借币容量校验通过；前档冲击成本符合预算 |
@@ -905,7 +897,7 @@ M6(治理) 可与 M2~M5 并行
 
 - 每档放行只改一个旋钮 `MaxPortfolioNotionalUSDT`，不改代码——这正是「架构一次到位」的兑现方式。
 - 任一档位出现「实测净利显著低于模型 / 冲击成本超预算 / 对账 UNHEALTHY」即**回退上一档**并定位偏差，修正后再前进。
-- ⚠️ **起步就是数十~数百 U**：在这个档位上，机会成本极低而信息价值极高——它的唯一使命是用真金把回测/shadow 的乐观偏差（R15）校准成真实参数，而不是赚钱。
+- ⚠️ **起步就是数十~数百 U**：在这个档位上，机会成本极低而信息价值极高——它的唯一使命是用真金把回测/OFF 的乐观偏差（R15）校准成真实参数，而不是赚钱。
 
 ---
 
@@ -977,7 +969,7 @@ M6(治理) 可与 M2~M5 并行
 - **进度**：✅ S8-A R23 对账诊断清洁(`reconcile.TradeRecord` 增 `CycleID` 专用字段,`Symbol` 不再被污染,报告 `cycle=<CycleID>`)+ 执行摩擦聚合 `Friction` 入对账(诊断展示、不卡 breach)。✅ S8-C R19 结算/pending 存储崩溃安全化(`report_store_journal.go`:`WriteJSONFile` 本就原子写[temp+fsync+rename],本次补 append-only 事实源——结算 append/update 与 pending upsert/delete 每次变更逐条 fsync 追加到 `settlements_journal.jsonl`/`pending_funding_journal.jsonl`,永不重写;原 JSON 退化为「物化视图」,事实源可经纯函数 `materializeSettlementsFromJournal`/`materializePendingFromJournal` 回放重建,防止内存截断被原子写忠实落盘而丢史)。✅ S8-B 执行切片规划层(`execution_slicing.go`:`planExecutionSlices` 纯函数——单腿名义超 `SliceThresholdNotionalUSDT` 才按 TWAP 等分切片,每片 ≤ `MaxSliceNotionalUSDT`、间隔 `SliceIntervalMs`、封顶 `MaxSlices`,末片吃浮点余量保证 Σ=总量;默认 `ExecutionSlicingEnabled=false` 单发零变更)。⚠️ **实盘双腿 lockstep 执行接线分阶段灰度**:切片间不得产生裸腿,需小额实盘校验后再把规划接入开仓提交路径(故本次只落地经过单测的规划层 + 配置/门槛,不改动现有 S0~S4 的双腿原子开仓与裸腿守卫)。✅ S8-D 事故 runbook + 演练清单(`deploy/RUNBOOK.md`,覆盖五类场景 SOP + 演练清单)。**S8 代码侧完成。** 待实盘/外部基建:L3 Tick 回测校正阈值(R15,需真实 tick 数据)、TWAP 双腿 lockstep 实盘接线(需小额实盘校验)、演练记录留存。
 
 ### 18.3 阶段→灰度联动
-- S0 完成 → 可上 `shadow`。
+- S0 完成 → 可上 **OFF** 部署前验证。
 - S0~S4 完成 → 可上**数十~数百 U**首次真金（校准真实参数）。
 - S1~S5 完成 + 前档参数验证 → 爬到 **1k~5k**。
 - S5~S7 完成 → 爬到 **1W~3W**。
@@ -1044,7 +1036,7 @@ M6(治理) 可与 M2~M5 并行
 - **[P3] 出厂默认武装关键守卫**：基线默认开启 `HoldHedgeGuardEnabled`、`FeedBlindnessGuardEnabled`、`MinMarginLevel=1.5`、`DeadMansSwitchEnabled`（空仓/无负 carry/回测下均为 no-op，逐字段可在 YAML/env 退回兼容姿态）。`MinRealizedNetEdgeRate` 仍留 0（策略 edge 闸需实盘标定）。（`defaults.go`）
 - **[P1] 灰度门 de-risk 自动闭环**：rollback 决策自动收紧生效组合名义硬顶（`effectiveMaxPortfolioNotionalUSDT`，原子 override、单调只减）；promote（放大风险）仍只建议不自动放大。（`capital_ramp.go`）
 - **[P2] Dashboard 令牌恒定时间比较**：`X-Dashboard-Token` 核对改 `crypto/subtle.ConstantTimeCompare`，消除时序侧信道。（`dashboard_server.go`）
-- **[P2] 死手开关覆盖已成交裸仓**：新增 `lingxi flatten` 应急强平子命令——从未平仓台账（SSOT）重建裸仓，复用方向感知双腿强平（`panicFlattenManagedExposure`）收敛现货/合约两腿，强平后核对台账残留并告警。抢单写租约做并发互锁（主进程存活时自动拒绝），支持 `shadow` 预演；外部看门狗 `LINGXI_FLATTEN_ON_DEAD=1` 可在「主进程确已死 + 台账有裸仓」时于重启前自动兜底。（`emergency_flatten.go` / `watchdog.sh`）
+- **[P2] 死手开关覆盖已成交裸仓**：新增 `lingxi flatten` 应急强平子命令——从未平仓台账（SSOT）重建裸仓，复用方向感知双腿强平（`panicFlattenManagedExposure`）收敛现货/合约两腿，强平后核对台账残留并告警。抢单写租约做并发互锁（主进程存活时自动拒绝），支持 `flatten dry-run` 预演；外部看门狗 `LINGXI_FLATTEN_ON_DEAD=1` 可在「主进程确已死 + 台账有裸仓」时于重启前自动兜底。（`emergency_flatten.go` / `watchdog.sh`）
 - **[运维] 进程生命周期 Telegram 通知**：启动（info）/计划停机（warning,`graceful_shutdown`）/异常崩溃（critical,`engine_crashed`）经 `notifyLifecycle`（绕过 MinSeverity 过滤，必达）推送；主循环 panic 兜底 recover 转受控关停并发崩溃通知，不再无声消失。（`funding_sniper_engine.go` / `graceful_shutdown.go`）
 
 **未闭环（大改 / 基建，建议下一步按序）**

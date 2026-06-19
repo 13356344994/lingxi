@@ -42,6 +42,9 @@ type ControlPlaneStatusView struct {
 	RotationCanOpen     bool   `json:"rotation_can_open"`
 	PerpPerpMode        string `json:"perp_perp_mode"`
 	RotationMode        string `json:"rotation_mode"`
+	StrategyMode        string `json:"strategy_mode"`
+	PerpPerpRunMode     string `json:"perp_perp_run_mode"`
+	RotationRunMode     string `json:"rotation_run_mode"`
 }
 
 // ControlPlane 统一控制面:线程安全,持久化到 records/control_plane.json。
@@ -242,13 +245,6 @@ func (cp *ControlPlane) setPersisted(mut func(*ControlPlanePersistedState)) erro
 func (cp *ControlPlane) SetGlobalHalt(on bool) error {
 	return cp.setPersisted(func(st *ControlPlanePersistedState) {
 		st.GlobalHalt = on
-	})
-}
-
-// SetAllowNewOpens 设置全局新开仓闸(附加层)。
-func (cp *ControlPlane) SetAllowNewOpens(on bool) error {
-	return cp.setPersisted(func(st *ControlPlanePersistedState) {
-		st.AllowNewOpens = on
 	})
 }
 

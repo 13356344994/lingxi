@@ -337,19 +337,6 @@ func (e *CrossVenueExecutor) TodayCSTEarnings(now time.Time) (CrossVenueCSTDayEa
 	return aggregateCrossVenueSettlementsInRange(records, dayStart, now), nil
 }
 
-// TodayCSTEarningsByVenue 汇总 close_time ∈ [北京时间当日 00:00, now] 的 settlements,按 high/low 腿归因到所。
-func (e *CrossVenueExecutor) TodayCSTEarningsByVenue(now time.Time) (CrossVenueCSTDayVenueEarnings, error) {
-	if e == nil {
-		return CrossVenueCSTDayVenueEarnings{}, nil
-	}
-	records, err := e.loadAllCrossVenueSettlements()
-	if err != nil {
-		return CrossVenueCSTDayVenueEarnings{}, err
-	}
-	dayStart := beijingCSTDayStart(now)
-	return aggregateCrossVenueSettlementsByVenueInRange(records, dayStart, now), nil
-}
-
 func (e *CrossVenueExecutor) loadAllCrossVenueSettlements() ([]CrossVenueSettlement, error) {
 	return e.loadCrossVenueSettlements(-1)
 }

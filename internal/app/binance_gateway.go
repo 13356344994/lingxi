@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -135,46 +134,4 @@ func (g *BinanceGateway) GetJSON(ctx context.Context, endpoint string, target an
 	}
 	engine.notePlatformRequestSuccess()
 	return nil
-}
-
-func (g *BinanceGateway) APIKeyRequest(ctx context.Context, method string, endpoint string, body io.Reader) ([]byte, error) {
-	engine := g.engine
-	req, err := http.NewRequestWithContext(ctx, method, endpoint, body)
-	if err != nil {
-		return nil, fmt.Errorf("创建 API KEY 请求失败: %w", err)
-	}
-	req.Header.Set("X-MBX-APIKEY", engine.client.APIKey())
-
-	resp, err := engine.client.HTTPClient().Do(req)
-	if err != nil {
-		requestErr := signedRequestError{Endpoint: endpoint, Cause: err}
-		if markErr := engine.notePlatformRequestResult(endpoint, requestErr); markErr != nil {
-			return nil, markErr
-		}
-		return nil, requestErr
-	}
-	defer resp.Body.Close()
-
-	payload, err := io.ReadAll(resp.Body)
-	if err != nil {
-		requestErr := signedRequestError{Endpoint: endpoint, Cause: err}
-		if markErr := engine.notePlatformRequestResult(endpoint, requestErr); markErr != nil {
-			return nil, markErr
-		}
-		return nil, requestErr
-	}
-	if resp.StatusCode != http.StatusOK {
-		requestErr := signedRequestError{
-			Endpoint:   endpoint,
-			StatusCode: resp.StatusCode,
-			Status:     resp.Status,
-			Body:       strings.TrimSpace(string(payload)),
-		}
-		if markErr := engine.notePlatformRequestResult(endpoint, requestErr); markErr != nil {
-			return nil, markErr
-		}
-		return nil, requestErr
-	}
-	engine.notePlatformRequestSuccess()
-	return payload, nil
 }

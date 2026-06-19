@@ -341,44 +341,6 @@ func (e *CrossVenueExecutor) IsRunning() bool {
 	return e.running.Load()
 }
 
-// Run 启动主循环;ctx 取消即退出。
-func (e *CrossVenueExecutor) Run(ctx context.Context) {
-	if e == nil || !e.cfg.CrossVenueExecutor.Enabled {
-		return
-	}
-	e.running.Store(true)
-	defer e.running.Store(false)
-	interval := time.Duration(e.cfg.CrossVenueExecutor.LoopIntervalSeconds) * time.Second
-	if interval <= 0 {
-		interval = 60 * time.Second
-	}
-	live := e.cfg.CrossVenueExecutor.LiveTradingEnabled
-	e.logger.Printf("[跨所执行] ========== 模式=%s enabled=true live=%v ==========", crossVenueExecutorModeLabel(e.cfg), live)
-	e.logger.Printf("[跨所执行] 已启动: interval=%s open_spread=%.0f%% max_concurrent=%d max_position=%.0fU",
-		interval, e.cfg.CrossVenueExecutor.OpenSpreadAPR*100, e.cfg.CrossVenueExecutor.MaxConcurrent, e.cfg.CrossVenueExecutor.MaxPositionUSDT)
-
-	// rotation 模式下 reconcile 由统一 runner runReconcileAll 派发,避免双调用。
-	if !e.RotationManaged() {
-		// rotationManaged 时 reconcile 由统一 runner 派发,避免与 runner.runReconcileAll 双调用。
-		if !e.RotationManaged() {
-			e.reconcileOnStart(ctx)
-		}
-	}
-
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-	e.tick(ctx, live)
-	for {
-		select {
-		case <-ctx.Done():
-			e.logger.Printf("[跨所执行] 已停止")
-			return
-		case <-ticker.C:
-			e.tick(ctx, live)
-		}
-	}
-}
-
 func (e *CrossVenueExecutor) tick(ctx context.Context, live bool) {
 	now := e.nowFn()
 	cycleID := crossVenueDecisionCycleID(now)

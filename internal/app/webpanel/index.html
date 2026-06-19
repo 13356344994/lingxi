@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Funding Rate Sniper Dashboard</title>
+  <title>灵犀 · 五策略统一轮动</title>
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -199,6 +199,71 @@
       grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
       gap: 12px;
       margin-top: 12px;
+    }
+    .control-plane-bar {
+      position: sticky;
+      top: 0;
+      z-index: 60;
+      background: #0b1220;
+      border: 1px solid #243049;
+      border-radius: 12px;
+      padding: 12px 14px;
+      margin: 0 0 12px;
+      box-shadow: 0 6px 24px rgba(0,0,0,0.35);
+    }
+    .control-plane-bar .cp-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+    .control-plane-bar .cp-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: #e5edff;
+      margin-right: 4px;
+    }
+    .cp-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      border: 1px solid #334155;
+      background: #111827;
+      color: #cbd5e1;
+    }
+    .cp-chip.live { background: #14532d; border-color: #166534; color: #86efac; }
+    .cp-chip.canary { background: #78350f; border-color: #b45309; color: #fde68a; }
+    .cp-chip.halt { background: #450a0a; border-color: #991b1b; color: #fca5a5; }
+    .cp-chip.paused { background: #422006; border-color: #b45309; color: #fde68a; }
+    .cp-chip.off { background: #1e293b; border-color: #334155; color: #94a3b8; }
+    .cp-chip.allow-true { background: #14532d; color: #86efac; }
+    .cp-chip.allow-false { background: #3f2937; color: #fca5a5; }
+    .mode-badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .capital-snapshot-panel {
+      margin-top: 12px;
+    }
+    .capital-snapshot-meta {
+      font-size: 11px;
+      color: #64748b;
+      margin-bottom: 8px;
+    }
+    .untrusted-pnl-warn {
+      margin-top: 8px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid #92400e;
+      background: #422006;
+      color: #fde68a;
+      font-size: 12px;
     }
     .wb-bar {
       position: sticky;
@@ -626,7 +691,7 @@
 <body>
   <div id="login-gate" style="position:fixed;inset:0;z-index:9999;display:none;align-items:center;justify-content:center;background:rgba(5,9,18,0.96);">
     <div style="width:min(420px,92vw);background:#111a2e;border:1px solid #243049;border-radius:12px;padding:28px 26px;box-shadow:0 18px 60px rgba(0,0,0,0.55);">
-      <h2 style="margin:0 0 6px;font-size:18px;color:#e5edff;">Funding Rate Sniper</h2>
+      <h2 style="margin:0 0 6px;font-size:18px;color:#e5edff;">灵犀 · 五策略统一轮动</h2>
       <div style="font-size:13px;color:#8aa0c6;margin-bottom:18px;">请输入控制令牌进入。令牌打印在后台日志 / 记录目录的 <code>.dashboard_control_token</code> 文件中。</div>
       <label for="gate-token" style="display:block;font-size:12px;color:#8aa0c6;margin-bottom:6px;">控制令牌</label>
       <input id="gate-token" type="password" autocomplete="off" placeholder="粘贴控制令牌"
@@ -641,7 +706,7 @@
     <header class="dash-header">
       <div class="dash-header-top">
         <div>
-          <h1>Funding Rate Sniper Dashboard</h1>
+          <h1>灵犀 · 五策略统一轮动</h1>
           <div class="hint dash-version">构建信息：{{.VersionSummary}}</div>
         </div>
         <div class="toolbar toolbar-compact">
@@ -656,6 +721,23 @@
       </div>
       <div class="hint dash-readonly-note">系统已处于【读保护模式】。所有自动化配置由 EngineGear 与 EngineProfile 后台自动接管。仅开放安全监控和必要的人工介入入口。</div>
       <div id="load-error-banner" style="display:none;margin:8px 0;padding:10px 14px;border-radius:8px;background:#3a1212;border:1px solid #ef4444;color:#fca5a5;font-size:13px;"></div>
+      <div id="control-plane-bar" class="control-plane-bar" style="display:none;" aria-label="控制面状态">
+        <div class="cp-row">
+          <span class="cp-title">控制面</span>
+          <span id="cp-global-halt" class="cp-chip off">总闸 -</span>
+          <span id="cp-allow-opens" class="cp-chip">开新仓 -</span>
+          <span id="cp-allow-manage" class="cp-chip">管单 -</span>
+          <span id="cp-allow-closes" class="cp-chip">验关 -</span>
+          <span id="cp-perp-mode" class="cp-chip off">PP -</span>
+          <span id="cp-rotation-mode" class="cp-chip off">轮动 -</span>
+        </div>
+        <div class="mode-badges" id="mode-badges-row">
+          <span id="cp-strategy-mode" class="cp-chip off">strategy_mode -</span>
+          <span id="cp-perp-run-mode" class="cp-chip off">PP RunMode -</span>
+          <span id="cp-rotation-run-mode" class="cp-chip off">轮动 RunMode -</span>
+        </div>
+        <div class="hint" id="control-plane-generated-at" style="margin:6px 0 0;font-size:11px;"></div>
+      </div>
       <details class="fold-panel fold-toolbar">
         <summary>数据导出</summary>
         <div class="toolbar toolbar-downloads">
@@ -685,12 +767,15 @@
         </div>
         <div class="hint" id="earnings-note" style="margin:0 0 10px;">含义:<strong>今日已实现收益</strong>=五策略 settlements.jsonl 在<strong>北京时间当日 00:00 后 close_time</strong>的 net_pnl 汇总(含 perp-perp + 四轮动);<strong>持仓中(未实现)</strong>=当前 OPEN 持仓已累计资金费;<strong>账户净值变动(含转账)</strong>=各所账户总值相对日初权益快照的变化(含充值/提币/调仓,非纯交易收益)。</div>
         <div id="earnings-realized-hero" style="margin:0 0 10px;padding:10px;background:#13203a;border:1px solid #2b3c5c;border-radius:8px;">
-          <div style="font-size:12px;color:#94a3b8;">已实现(今日) · 持仓中(未实现) · 账户净值变动(含转账)</div>
+          <div style="font-size:12px;color:#94a3b8;">可信已实现 · 不可信(legacy/幻觉) · 持仓中(未实现) · 账户净值变动(含转账)</div>
           <div style="display:flex;flex-wrap:wrap;gap:16px;margin-top:6px;">
-            <div><span style="font-size:12px;color:#8aa0c6;">已实现</span> <strong id="earnings-realized-total" style="font-size:20px;color:#86efac;">-</strong></div>
+            <div><span style="font-size:12px;color:#8aa0c6;">可信已实现</span> <strong id="earnings-realized-total" style="font-size:20px;color:#86efac;">-</strong></div>
+            <div><span style="font-size:12px;color:#8aa0c6;">不可信(legacy)</span> <strong id="earnings-untrusted-total" style="font-size:18px;color:#cbd5e1;">-</strong> <span id="earnings-untrusted-count" class="hint" style="font-size:11px;"></span></div>
             <div><span style="font-size:12px;color:#8aa0c6;">持仓中(未实现)</span> <strong id="earnings-unrealized-funding" style="font-size:18px;color:#cbd5e1;">-</strong></div>
             <div><span style="font-size:12px;color:#8aa0c6;">账户净值变动</span> <strong id="earnings-equity-delta" style="font-size:18px;color:#94a3b8;">-</strong></div>
           </div>
+          <div id="earnings-untrusted-warn" class="untrusted-pnl-warn" style="display:none;">不可信样本(如 HEI 类幻觉)不计入主风控/PnL 汇总;仅作审计对照。</div>
+          <div class="hint" id="earnings-generated-at" style="margin:6px 0 0;font-size:11px;"></div>
         </div>
         <div id="earnings-grid" style="display:flex;flex-wrap:wrap;gap:10px;"></div>
       </div>
@@ -699,8 +784,9 @@
     <!-- 1b. 轮动持仓区 -->
     <section class="section section-rotation-positions" aria-label="轮动持仓">
       <div class="section-head">
-        <h2 class="section-title">轮动持仓</h2>
-        <p class="hint section-desc">四轮动策略(SVSP/CVSP/SVPS/CVPS)当前持仓与历史结算,数据来自 <code>/api/rotation/positions</code> 与 <code>/api/rotation/settlements</code>。</p>
+        <h2 class="section-title">轮动与 perp-perp 持仓</h2>
+        <p class="hint section-desc">五策略统一轮动(SVSP/CVSP/SVPS/CVPS)与 perp-perp(PP)当前持仓与历史结算,数据来自 <code>/api/rotation/positions</code> 与 <code>/api/rotation/settlements</code>。</p>
+        <div class="hint" id="rotation-positions-generated-at" style="font-size:11px;margin-top:4px;"></div>
       </div>
       <div class="panel-inner">
         <h3 style="font-size:14px;color:#cbd5e1;margin:0 0 8px;">当前持仓 (OPEN)</h3>
@@ -708,8 +794,8 @@
           <table class="data-table" id="rotation-open-table">
             <thead>
               <tr>
-                <th>Symbol</th><th>策略</th><th>状态</th>
-                <th>现货腿</th><th>永续腿</th>
+                <th>Symbol</th><th title="carry 为 SVSP/CVSP/SVPS/CVPS; PP 为 perp-perp">策略</th><th>状态</th>
+                <th title="carry 为现货腿; PP 为高费永续腿">高费腿</th><th title="carry 为永续腿; PP 为低费永续腿">低费腿</th>
                 <th>名义(U)</th><th>已累计资费</th><th>手续费(开+预计平)</th><th>总盈亏(U)</th><th>盈亏比例</th><th>预期净EV</th><th>持有时长</th>
               </tr>
             </thead>
@@ -797,7 +883,16 @@
       <div class="ops-group ops-group-flatten">
         <div class="ops-group-label">紧急操作</div>
         <button id="strategy-flatten-all-btn" type="button" class="danger">⚠️ 一键全平仓</button>
-        <div class="hint" style="margin-top:8px;">平掉所有交易所的全部持仓，会真实下单。</div>
+        <div class="hint" style="margin-top:8px;">平掉所有交易所的全部持仓,会真实下单。须在弹窗中手动输入 <strong>FLATTEN</strong> 才会执行。</div>
+      </div>
+
+      <div class="ops-group ops-group-capital-snapshot">
+        <div class="ops-group-label">资金快照</div>
+        <div class="hint" style="margin-bottom:8px;">各所 wallet free/reserved/策略占用 + 无法备资 + 跨所调仓建议(只读)。</div>
+        <div id="capital-snapshot-panel" class="capital-snapshot-panel">
+          <div class="capital-snapshot-meta" id="capital-snapshot-generated-at">加载中…</div>
+          <div id="capital-snapshot-content" class="hint">加载资金快照…</div>
+        </div>
       </div>
 
       <div class="ops-group ops-group-legacy-stop">
@@ -820,16 +915,8 @@
           <button id="strategy-start-btn" type="button">策略启动</button>
           <button id="strategy-stop-btn" type="button" class="danger">策略停止</button>
         </div>
-        <div id="strategy-shadow-hint" class="hint" style="margin:0 0 8px;font-size:12px;color:#94a3b8;"></div>
+        <div id="strategy-engine-hint" class="hint" style="margin:0 0 8px;font-size:12px;color:#94a3b8;"></div>
         <div id="strategy-status-line" class="hint" style="margin:0 0 8px;font-size:13px;color:#cbd5e1;">加载策略状态…</div>
-      </div>
-
-      <div class="ops-group ops-group-global">
-        <div class="ops-group-label">批量操作</div>
-        <div class="risk-actions">
-          <button id="start-all-btn" type="button">全部启动(实盘)</button>
-          <button id="stop-all-btn" type="button" class="danger">全部停止</button>
-        </div>
       </div>
 
       <div id="cross-venue-panel" class="sub-panel" style="display:none;">
@@ -848,37 +935,9 @@
         </div>
         <div id="cv-status-line" class="hint" style="margin:8px 0 0;font-size:13px;color:#cbd5e1;">加载跨所状态…</div>
 
-        <div class="positions-block">
-          <div class="ops-group-label">当前持仓</div>
-          <div style="margin-top:8px;">
-          <strong style="color:#e5edff;font-size:14px;">跨所对冲持仓明细</strong>
-          <div class="hint" style="margin:6px 0 8px;">在场跨所对冲单:两腿方向/数量为真实币数;资费为已累计估算(est_funding_usdt);净额=累计资费−开仓费−预计平仓费(两腿 taker)。</div>
-          <div class="table-wrap" style="max-height:320px;">
-            <table id="cv-positions-table">
-              <thead>
-                <tr>
-                  <th>Symbol</th>
-                  <th>高费所</th>
-                  <th>低费所</th>
-                  <th>高腿</th>
-                  <th>低腿</th>
-                  <th>开仓价</th>
-                  <th>名义(U)</th>
-                  <th>开仓价差(APR)</th>
-                  <th>累计资费(U)</th>
-                  <th>开仓费(U)</th>
-                  <th>预计平仓费(U)</th>
-                  <th>净额(U)</th>
-                  <th>持有时长</th>
-                  <th>状态</th>
-                </tr>
-              </thead>
-              <tbody id="cv-positions-tbody">
-                <tr><td colspan="14" class="empty">加载中…</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <div class="positions-block" id="cv-positions-block">
+          <div class="ops-group-label">持仓明细</div>
+          <div class="hint" style="margin:6px 0 8px;">perp-perp 持仓已在上方「轮动与 perp-perp 持仓」统一展示,此处不再重复列表。上方「在场持仓」数字仍来自跨所引擎。</div>
         </div>
 
         <details class="fold-panel fold-nested">
@@ -897,7 +956,7 @@
             <div class="stat-card"><div class="stat-label">兜底稀释(U)</div><div class="stat-value" id="cvv-fallback-dilution" style="font-size:18px">-</div></div>
             <div class="stat-card"><div class="stat-label">选币拖累(U)</div><div class="stat-value" id="cvv-selection-drag" style="font-size:18px">-</div></div>
             <div class="stat-card"><div class="stat-label">快照滞后拖累(U)</div><div class="stat-value" id="cvv-freshness-drag" style="font-size:18px">-</div></div>
-            <div class="stat-card"><div class="stat-label">影子匹配笔数</div><div class="stat-value" id="cvv-shadow-matched" style="font-size:18px">-</div></div>
+            <div class="stat-card"><div class="stat-label">基线匹配笔数</div><div class="stat-value" id="cvv-baseline-matched" style="font-size:18px">-</div></div>
             <div class="stat-card"><div class="stat-label">滚动基线差距(U)</div><div class="stat-value" id="cvv-rolling-gap" style="font-size:18px">-</div></div>
             <div class="stat-card"><div class="stat-label">漏开快照数</div><div class="stat-value" id="cvv-missed-open" style="font-size:18px">-</div></div>
           </div>
@@ -967,8 +1026,8 @@
               <button id="cv-toggle-details-btn" type="button" class="secondary">全部折叠</button>
             </div>
           </div>
-          <details id="cv-shadow-section" style="margin-top:12px;">
-            <summary style="cursor:pointer;color:#e5edff;font-size:13px;font-weight:600;">影子组合</summary>
+          <details id="cv-baseline-compare-section" style="margin-top:12px;">
+            <summary style="cursor:pointer;color:#e5edff;font-size:13px;font-weight:600;">基线对比组合</summary>
             <div class="table-wrap" style="max-height:220px;margin-top:6px;">
               <table>
                 <thead>
@@ -983,7 +1042,7 @@
                     <th>兜底</th>
                   </tr>
                 </thead>
-                <tbody id="cv-shadow-tbody">
+                <tbody id="cv-baseline-compare-tbody">
                   <tr><td colspan="8" class="empty">加载中…</td></tr>
                 </tbody>
               </table>
@@ -1073,11 +1132,23 @@
           </div>
         </details>
       </div>
+        </div>
+      </details>
 
-      <div class="ops-group ops-group-venues">
-        <div class="ops-group-label">按交易所</div>
-        <div id="venue-overview" style="display:flex;flex-wrap:wrap;gap:12px;"></div>
-      </div>
+      <details class="fold-panel legacy-venue-fold" id="legacy-venue-fold">
+        <summary>遗留 · 单所引擎</summary>
+        <div class="fold-body">
+          <div class="ops-group ops-group-global">
+            <div class="ops-group-label">批量操作</div>
+            <div class="risk-actions">
+              <button id="start-all-btn" type="button">全部启动(实盘)</button>
+              <button id="stop-all-btn" type="button" class="danger">全部停止</button>
+            </div>
+          </div>
+          <div class="ops-group ops-group-venues">
+            <div class="ops-group-label">按交易所</div>
+            <div id="venue-overview" style="display:flex;flex-wrap:wrap;gap:12px;"></div>
+          </div>
         </div>
       </details>
     </section>
@@ -2628,7 +2699,7 @@
       const activePill = document.getElementById("rot-active-pill");
       if (activePill) {
         activePill.innerHTML = active
-          ? `<span class="pill high">运行中 · 实盘</span>`
+          ? `<span class="pill high">运行中</span>`
           : mkPill(false, "运行中", "已停止");
       }
 
@@ -2754,36 +2825,66 @@
       return s + " " + q.toFixed(6).replace(/\.?0+$/, "");
     }
 
-    function renderCrossVenuePositionsTable(details) {
-      const tbody = document.getElementById("cv-positions-tbody");
-      if (!tbody) { return; }
-      const rows = Array.isArray(details) ? details : [];
-      const fmtFeeUsd = (n) => { const v = Number(n || 0); return v.toFixed(4); };
-      if (!rows.length) {
-        tbody.innerHTML = `<tr><td colspan="14" class="empty">暂无在场持仓</td></tr>`;
+    function cpChipClassForMode(mode) {
+      const m = String(mode || "").toUpperCase();
+      if (m === "LIVE") { return "live"; }
+      if (m === "CANARY_LIVE" || m === "CANARY") { return "canary"; }
+      if (m === "HALT") { return "halt"; }
+      if (m === "PAUSED") { return "paused"; }
+      return "off";
+    }
+
+    function formatStrategyModeLabel(raw) {
+      const m = String(raw || "").toLowerCase();
+      if (m === "canary_profit") { return "CANARY_LIVE · canary_profit"; }
+      if (m === "profit_seeking") { return "LIVE · profit_seeking"; }
+      if (m === "collect_data") { return "LIVE · collect_data"; }
+      return raw || "-";
+    }
+
+    function setCpChip(id, text, cls) {
+      const el = document.getElementById(id);
+      if (!el) { return; }
+      el.textContent = text;
+      el.className = "cp-chip" + (cls ? (" " + cls) : "");
+    }
+
+    function renderControlPlaneBar(cp) {
+      const bar = document.getElementById("control-plane-bar");
+      if (!bar) { return; }
+      if (!cp || typeof cp !== "object") {
+        bar.style.display = "none";
         return;
       }
-      const fmtPrice = (n) => { const v = Number(n || 0); return v > 0 ? v.toFixed(4) : "-"; };
-      const fmtApr = (n) => { const v = Number(n || 0); return (v * 100).toFixed(2) + "%"; };
-      const fmtUsd = (n) => { const v = Number(n || 0); const s = v >= 0 ? "+" : ""; return s + v.toFixed(4); };
-      const usdColor = (n) => Number(n || 0) >= 0 ? "#86efac" : "#fca5a5";
-      tbody.innerHTML = rows.map((p) => `
-        <tr>
-          <td>${escapeHTML(p.symbol || "-")}</td>
-          <td>${escapeHTML(p.high_venue || "-")}</td>
-          <td>${escapeHTML(p.low_venue || "-")}</td>
-          <td>${escapeHTML(formatLeg(p.high_leg_side, p.high_leg_qty))}</td>
-          <td>${escapeHTML(formatLeg(p.low_leg_side, p.low_leg_qty))}</td>
-          <td>${escapeHTML(fmtPrice(p.high_leg_entry_price))} / ${escapeHTML(fmtPrice(p.low_leg_entry_price))}</td>
-          <td>${Number(p.notional_usdt || 0).toFixed(2)}</td>
-          <td>${escapeHTML(fmtApr(p.open_spread_apr))}</td>
-          <td style="color:${usdColor(p.est_funding_usdt)};">${escapeHTML(fmtUsd(p.est_funding_usdt))}</td>
-          <td>${escapeHTML(fmtFeeUsd(p.open_fees_usdt))}</td>
-          <td>${escapeHTML(fmtFeeUsd(p.est_close_fees_usdt))}</td>
-          <td style="color:${usdColor(p.net_usdt)};">${escapeHTML(fmtUsd(p.net_usdt))}</td>
-          <td>${escapeHTML(formatHoldDuration(p.hold_duration_seconds))}</td>
-          <td><span class="pill">${escapeHTML(p.status || "-")}</span></td>
-        </tr>`).join("");
+      bar.style.display = "";
+      const haltActive = !!(cp.effective_global_halt || cp.global_halt || cp.halt_file_active);
+      let haltText = "总闸 正常";
+      let haltCls = "live";
+      if (haltActive) {
+        haltText = cp.halt_file_active ? "总闸 HALT(.halt-live)" : "总闸 HALT";
+        haltCls = "halt";
+      } else if (cp.global_halt) {
+        haltText = "总闸 HALT(持久化)";
+        haltCls = "halt";
+      }
+      setCpChip("cp-global-halt", haltText, haltCls);
+      setCpChip("cp-allow-opens", "开新仓 " + (cp.allow_new_opens ? "允许" : "禁止"), cp.allow_new_opens ? "allow-true" : "allow-false");
+      setCpChip("cp-allow-manage", "管单 " + (cp.allow_manage_orders ? "允许" : "禁止"), cp.allow_manage_orders ? "allow-true" : "allow-false");
+      setCpChip("cp-allow-closes", "验关 " + (cp.allow_verified_closes ? "允许" : "禁止"), cp.allow_verified_closes ? "allow-true" : "allow-false");
+      const ppMode = String(cp.perp_perp_mode || "OFF");
+      const rotMode = String(cp.rotation_mode || "OFF");
+      setCpChip("cp-perp-mode", "PP " + ppMode + (cp.perp_perp_can_open ? " · 可开" : " · 不可开"), cpChipClassForMode(ppMode));
+      setCpChip("cp-rotation-mode", "轮动 " + rotMode + (cp.rotation_can_open ? " · 可开" : " · 不可开"), cpChipClassForMode(rotMode));
+      setCpChip("cp-strategy-mode", formatStrategyModeLabel(cp.strategy_mode), cpChipClassForMode(cp.strategy_mode === "canary_profit" ? "CANARY_LIVE" : (cp.strategy_mode ? "LIVE" : "OFF")));
+      setCpChip("cp-perp-run-mode", "PP RunMode " + (cp.perp_perp_run_mode || "OFF"), cpChipClassForMode(cp.perp_perp_run_mode));
+      setCpChip("cp-rotation-run-mode", "轮动 RunMode " + (cp.rotation_run_mode || "OFF"), cpChipClassForMode(cp.rotation_run_mode));
+      const genEl = document.getElementById("control-plane-generated-at");
+      if (genEl) { genEl.textContent = "控制面快照于刷新时读取 /api/strategy/status"; }
+    }
+
+    function renderCrossVenuePositionsTable(details) {
+      // PP 持仓已合并至 rotation 区,不再渲染重复表格。
+      void details;
     }
 
     function formatValidationMoney(value) {
@@ -2870,7 +2971,7 @@
 
     function toggleCrossVenueValidationSections() {
       const sections = [
-        document.getElementById("cv-shadow-section"),
+        document.getElementById("cv-baseline-compare-section"),
         document.getElementById("cv-counterfactual-section"),
         document.getElementById("cv-baseline-section"),
         document.getElementById("cv-rolling-section"),
@@ -2950,7 +3051,7 @@
         confidenceLabel = "中";
       }
       const confidenceSub = replayReady
-        ? `就绪度=${readinessCount}/3 | 影子匹配=${matched} | 窗口快照=${Number(data.scan_snapshot_count || 0)}`
+        ? `就绪度=${readinessCount}/3 | 基线匹配=${matched} | 窗口快照=${Number(data.scan_snapshot_count || 0)}`
         : `回放未就绪 | 已关联=${linked} | 缺失快照=${missingLink} | 总快照=${Number(data.scan_snapshot_total_count || 0)}`;
       const verdicts = [];
       if (!replayReady) {
@@ -2985,7 +3086,7 @@
       setText("cvv-overview-drag-sub", topDrag && topDrag.value > 0 ? `${topDrag.label}=${formatValidationMoney(topDrag.value)} U` : "-");
       setText("cvv-overview-conversion", tradeCount > 0 ? `${(conversionRate * 100).toFixed(0)}%` : "-");
       setText("cvv-overview-conversion-sub", replayReady
-        ? `影子匹配=${matched} / 交易=${tradeCount} | 漏开=${missed}`
+        ? `基线匹配=${matched} / 交易=${tradeCount} | 漏开=${missed}`
         : `快照关联=${linked} / 交易=${tradeCount} | 缺失=${missingLink}`);
       setText("cvv-overview-confidence", confidenceLabel);
       setText("cvv-overview-confidence-sub", confidenceSub);
@@ -3122,12 +3223,12 @@
         setText("cvv-fallback-dilution", "-");
         setText("cvv-selection-drag", "-");
         setText("cvv-freshness-drag", "-");
-        setText("cvv-shadow-matched", "-");
+        setText("cvv-baseline-matched", "-");
         setText("cvv-rolling-gap", "-");
         setText("cvv-missed-open", "-");
         renderRollingBaselineChart([]);
         renderRollingGapChart([]);
-        renderValidationTableBody("cv-shadow-tbody", 8, [], "暂无影子组合记录");
+        renderValidationTableBody("cv-baseline-compare-tbody", 8, [], "暂无基线对比组合记录");
         renderValidationTableBody("cv-counterfactual-tbody", 8, [], "暂无反事实回放记录");
         renderValidationTableBody("cv-baseline-portfolio-tbody", 7, [], "暂无基线组合回放记录");
         renderValidationTableBody("cv-rolling-baseline-tbody", 9, [], "暂无滚动基线回放记录");
@@ -3164,13 +3265,13 @@
       setText("cvv-fallback-dilution", formatValidationMoney(data.fallback_dilution));
       setText("cvv-selection-drag", formatValidationMoney(data.selection_drag));
       setText("cvv-freshness-drag", formatValidationMoney(data.freshness_drag));
-      setText("cvv-shadow-matched", String(Number(data.shadow_matched_trades || 0)));
+      setText("cvv-baseline-matched", String(Number(data.shadow_matched_trades || 0)));
       setText("cvv-rolling-gap", formatValidationMoney(rollingGap));
       setText("cvv-missed-open", String(Number(data.rolling_baseline_replay?.missed_open_snapshots || 0)));
       renderRollingBaselineChart(data.rolling_baseline_replay?.records || []);
       renderRollingGapChart(data.rolling_baseline_replay?.records || []);
 
-      renderValidationTableBody("cv-shadow-tbody", 8, (data.shadow_portfolio?.records || []).slice(0, detailLimit).map((item) => `
+      renderValidationTableBody("cv-baseline-compare-tbody", 8, (data.shadow_portfolio?.records || []).slice(0, detailLimit).map((item) => `
         <tr>
           <td>${escapeHTML(item.symbol || "-")}</td>
           <td>${escapeHTML((item.chosen_high_venue || "-") + "/" + (item.chosen_low_venue || "-"))}</td>
@@ -3180,7 +3281,7 @@
           <td>${formatValidationMoney(item.net_ev_gap)}</td>
           <td>${formatValidationMoney(item.realized_net_pnl)}</td>
           <td><span class="pill ${item.used_fallback ? "medium" : "low"}">${item.used_fallback ? "兜底" : "严格"}</span></td>
-        </tr>`), "暂无匹配当前过滤条件的影子组合记录");
+        </tr>`), "暂无匹配当前过滤条件的基线对比组合记录");
 
       renderValidationTableBody("cv-counterfactual-tbody", 8, (data.counterfactual_replay?.records || []).slice(0, detailLimit).map((item) => `
         <tr>
@@ -3236,8 +3337,16 @@
       const enabled = !!snap.enabled;
       const live = !!snap.live;
       if (enabledEl) {
-        enabledEl.textContent = enabled ? (live ? "启用·实盘" : "启用·影子") : "未启用";
-        enabledEl.style.color = enabled ? (live ? "#86efac" : "#fde68a") : "#94a3b8";
+        if (!enabled) {
+          enabledEl.textContent = "未启用";
+          enabledEl.style.color = "#94a3b8";
+        } else if (live) {
+          enabledEl.textContent = "启用 · LIVE";
+          enabledEl.style.color = "#86efac";
+        } else {
+          enabledEl.textContent = "启用 · OFF(未 live)";
+          enabledEl.style.color = "#fde68a";
+        }
       }
       if (modeEl) { modeEl.textContent = snap.mode || "-"; }
       const openingsOn = !!snap.openings_enabled;
@@ -3300,7 +3409,7 @@
 
     function renderStrategyStatus(st) {
       const line = document.getElementById("strategy-status-line");
-      const hint = document.getElementById("strategy-shadow-hint");
+      const hint = document.getElementById("strategy-engine-hint");
       if (!line) { return; }
       if (!st || typeof st !== "object") {
         line.textContent = "策略状态读取失败";
@@ -3310,17 +3419,17 @@
       const bybit = st.bybit || {};
       const cv = st.cross_venue || {};
       const bybitLabel = bybit.running ? "运行中" : "已停止";
-      const cvMode = cv.live ? "实盘" : "影子";
+      const cvRunLabel = cv.live ? "LIVE" : "OFF(未启用 live)";
       const openLabel = cv.openings_enabled ? "开" : "关";
       const activeN = Number(cv.active_positions || 0);
       const haltVenue = String(cv.health_halt_venue || "").trim();
       const haltLabel = haltVenue ? (" · 健康闸:" + haltVenue) : "";
-      line.textContent = `Bybit引擎:${bybitLabel} · 跨所引擎:${cvMode} · 开仓:${openLabel}${haltLabel} · 跨所在场:${activeN}`;
+      line.textContent = `Bybit引擎:${bybitLabel} · 跨所引擎:${cvRunLabel} · 开仓:${openLabel}${haltLabel} · 跨所在场:${activeN}`;
       if (hint) {
         if (cv.live) {
-          hint.textContent = "跨所引擎当前为实盘模式,将按 config 真实下单。";
+          hint.textContent = "跨所 perp-perp 引擎 config 已启用 live;是否可开新仓见顶部控制面(PP 模式/can_open)。";
         } else {
-          hint.textContent = "跨所引擎当前为影子模式,不会真实下单;切实盘需改 config 的 live_trading_enabled。";
+          hint.textContent = "跨所引擎当前 OFF / 未启用 live,不会真实下单;仅管理已在场持仓(若有)。切实盘需 config live_trading_enabled。";
         }
       }
       strategyVenueCapitals = {};
@@ -3349,14 +3458,78 @@
     }
 
     async function refreshStrategyStatus() {
-      if (selectedVenue !== "all") { return; }
       try {
         const st = await loadJSON("/api/strategy/status");
+        renderControlPlaneBar(st.control_plane || null);
+        if (selectedVenue !== "all") { return; }
         renderStrategyStatus(st);
       } catch (err) {
+        renderControlPlaneBar(null);
+        if (selectedVenue !== "all") { return; }
         renderStrategyStatus(null);
         const line = document.getElementById("strategy-status-line");
         if (line) { line.textContent = "策略状态读取失败: " + err.message; }
+      }
+    }
+
+    async function refreshCapitalSnapshot() {
+      const meta = document.getElementById("capital-snapshot-generated-at");
+      const box = document.getElementById("capital-snapshot-content");
+      if (!box) { return; }
+      try {
+        const snap = await loadJSON("/api/rotation/capital-snapshot");
+        if (meta) {
+          meta.textContent = snap.generated_at ? ("generated_at " + formatTimeUTC8(snap.generated_at)) : "generated_at -";
+        }
+        const venues = Array.isArray(snap.venues) ? snap.venues : [];
+        const unfundable = Array.isArray(snap.unfundable) ? snap.unfundable : [];
+        const suggestions = Array.isArray(snap.cross_venue_suggestions) ? snap.cross_venue_suggestions : [];
+        const pending = Array.isArray(snap.pending_opportunities) ? snap.pending_opportunities : [];
+        let html = "";
+        if (!venues.length) {
+          html += `<div class="hint">暂无 venue 资金数据(轮动 runner 未注入或未拉取余额)。</div>`;
+        } else {
+          html += `<div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:10px;">`;
+          venues.forEach((v) => {
+            const wallets = Array.isArray(v.wallets) ? v.wallets : [];
+            const walletLines = wallets.map((w) => {
+              const occ = w.occupied_by_strategy && typeof w.occupied_by_strategy === "object"
+                ? Object.entries(w.occupied_by_strategy).map(([k, val]) => `${k}:${Number(val || 0).toFixed(2)}`).join(", ")
+                : "-";
+              return `<div style="font-size:11px;color:#94a3b8;">${escapeHTML(String(w.wallet || "?"))} free ${Number(w.free_usdt || 0).toFixed(2)} / reserved ${Number(w.reserved_usdt || 0).toFixed(2)} U · 占用 ${escapeHTML(occ)}</div>`;
+            }).join("");
+            html += `<div style="flex:1 1 220px;min-width:220px;background:#0b1424;border:1px solid #1e293b;border-radius:8px;padding:10px;">
+              <div style="font-size:13px;font-weight:600;color:#e5edff;margin-bottom:4px;">${escapeHTML(v.venue || "?")} ${v.unified_wallet ? "(统一钱包)" : ""}</div>
+              <div style="font-size:12px;color:#cbd5e1;margin-bottom:4px;">合计 ${Number(v.total_usdt || 0).toFixed(2)} U</div>
+              ${walletLines || '<div class="hint">无 wallet 明细</div>'}
+            </div>`;
+          });
+          html += `</div>`;
+        }
+        if (pending.length) {
+          html += `<div style="margin:8px 0;font-size:12px;color:#cbd5e1;"><strong>待开机会</strong> ${pending.length} 条 · 合计需求约 ${pending.reduce((s, p) => s + Number(p.total_required_usdt || 0), 0).toFixed(2)} U</div>`;
+        }
+        if (unfundable.length) {
+          html += `<div style="margin:8px 0;padding:8px;border-radius:8px;border:1px solid #991b1b;background:#3f1212;font-size:12px;color:#fca5a5;"><strong>无法备资 ${unfundable.length} 条</strong><ul style="margin:6px 0 0;padding-left:18px;">`;
+          unfundable.slice(0, 8).forEach((u) => {
+            html += `<li>${escapeHTML(u.strategy_type || "?")} ${escapeHTML(u.symbol || u.opportunity_id || "-")}: ${escapeHTML(u.reason || "-")}${u.shortfall_usdt ? (" · 缺口 " + Number(u.shortfall_usdt).toFixed(2) + " U") : ""}</li>`;
+          });
+          html += `</ul></div>`;
+        }
+        if (suggestions.length) {
+          html += `<div style="margin:8px 0;font-size:12px;color:#fde68a;"><strong>跨所调仓建议</strong><ul style="margin:6px 0 0;padding-left:18px;">`;
+          suggestions.slice(0, 6).forEach((s) => {
+            const fromV = s.from_venue || s.FromVenue || "?";
+            const toV = s.to_venue || s.ToVenue || "?";
+            const amt = Number(s.amount_usdt != null ? s.amount_usdt : s.AmountUSDT || 0);
+            html += `<li>${escapeHTML(fromV)} → ${escapeHTML(toV)} ${amt.toFixed(2)} U · ${escapeHTML(s.reason || s.Reason || "-")}</li>`;
+          });
+          html += `</ul></div>`;
+        }
+        box.innerHTML = html || `<div class="hint">资金快照为空。</div>`;
+      } catch (err) {
+        if (meta) { meta.textContent = "读取失败"; }
+        box.innerHTML = `<div class="hint" style="color:#fca5a5;">资金快照读取失败: ${escapeHTML(err.message)}</div>`;
       }
     }
 
@@ -3408,7 +3581,12 @@
     }
 
     async function flattenAllStrategy() {
-      if (!confirm("确认平掉所有交易所的全部持仓？此操作会真实下单平仓")) { return; }
+      const typed = window.prompt("此操作会真实下单平掉所有交易所的全部持仓。\n请在下方输入 FLATTEN 以确认:");
+      if (typed === null) { return; }
+      if (String(typed).trim() !== "FLATTEN") {
+        alert("未输入 FLATTEN,已取消全平。");
+        return;
+      }
       try {
         const result = await postJSON("/api/strategy/flatten-all", { confirm: "FLATTEN" });
         const lines = (result.results || []).map((r) => {
@@ -3546,6 +3724,7 @@
           <div id="vcard-${escapeHTML(v)}" data-venue="${escapeHTML(v)}" style="flex:1 1 280px;min-width:280px;background:#0f1830;border:1px solid #243049;border-radius:10px;padding:14px;">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
               <strong style="color:#e5edff;font-size:15px;">${escapeHTML(v)}</strong>
+              <span style="font-size:11px;color:#64748b;margin-right:6px;">遗留·单所</span>
               <span id="vbadge-${escapeHTML(v)}"></span>
             </div>
             <div class="hint" id="vstatus-${escapeHTML(v)}" style="margin:0 0 6px;">阶段: - · 模式: -</div>
@@ -3728,6 +3907,11 @@
           </tr>`;
         }).join("");
         closedBody.innerHTML = closedRows || `<tr><td colspan="10" class="hint">暂无历史结算</td></tr>`;
+        const genEl = document.getElementById("rotation-positions-generated-at");
+        if (genEl) {
+          const ts = openResp.generated_at || closedResp.generated_at;
+          genEl.textContent = ts ? ("generated_at " + formatTimeUTC8(ts)) : "";
+        }
       } catch (err) {
         openBody.innerHTML = `<tr><td colspan="12" class="hint" style="color:#fca5a5;">加载失败: ${escapeHTML(err.message)}</td></tr>`;
         closedBody.innerHTML = `<tr><td colspan="10" class="hint" style="color:#fca5a5;">加载失败</td></tr>`;
@@ -3747,6 +3931,8 @@
       const color = (n) => Number(n || 0) >= 0 ? "#86efac" : "#fca5a5";
       const dayStart = data.day_start_cst ? String(data.day_start_cst) : "-";
       const tradeCount = Number(data.trade_count || 0);
+      const untrustedCount = Number(data.untrusted_trade_count || 0);
+      const untrustedPnL = Number(data.untrusted_realized_pnl_usdt || 0);
       const realizedPnL = data.realized_pnl_usdt != null ? data.realized_pnl_usdt : data.total_usdt;
       const openFunding = Number(data.open_accrued_funding_usdt || 0);
       const equityDelta = data.account_equity_delta_usdt != null ? data.account_equity_delta_usdt : (data.total && data.total.today_earning_usdt);
@@ -3759,11 +3945,28 @@
       lastEarningsTotalBlock = totalBlock;
       lastRealizedPnLUSDT = Number(realizedPnL || 0);
       const realizedEl = document.getElementById("earnings-realized-total");
+      const untrustedEl = document.getElementById("earnings-untrusted-total");
+      const untrustedCountEl = document.getElementById("earnings-untrusted-count");
+      const untrustedWarnEl = document.getElementById("earnings-untrusted-warn");
+      const earningsGenEl = document.getElementById("earnings-generated-at");
       const unrealEl = document.getElementById("earnings-unrealized-funding");
       const equityEl = document.getElementById("earnings-equity-delta");
       if (realizedEl) {
         realizedEl.textContent = fmt(realizedPnL) + " U";
         realizedEl.style.color = color(realizedPnL);
+      }
+      if (untrustedEl) {
+        untrustedEl.textContent = fmt(untrustedPnL) + " U";
+        untrustedEl.style.color = untrustedPnL !== 0 ? "#fde68a" : "#94a3b8";
+      }
+      if (untrustedCountEl) {
+        untrustedCountEl.textContent = untrustedCount > 0 ? `(${untrustedCount} 笔)` : "";
+      }
+      if (untrustedWarnEl) {
+        untrustedWarnEl.style.display = (untrustedPnL !== 0 || untrustedCount > 0) ? "" : "none";
+      }
+      if (earningsGenEl) {
+        earningsGenEl.textContent = data.generated_at ? ("generated_at " + formatTimeUTC8(data.generated_at)) : "";
       }
       if (unrealEl) unrealEl.textContent = fmt(openFunding) + " U";
       if (equityEl) {
@@ -3971,7 +4174,7 @@
       }
     }
 
-    document.getElementById("refresh-btn")?.addEventListener("click", () => { refreshDashboard(); refreshVenueOverview(); refreshStrategyStatus(); refreshCrossVenuePanel(); refreshEarnings(); refreshRotationStatus(); refreshRotationPositions(); });
+    document.getElementById("refresh-btn")?.addEventListener("click", () => { refreshDashboard(); refreshVenueOverview(); refreshStrategyStatus(); refreshCrossVenuePanel(); refreshEarnings(); refreshRotationStatus(); refreshRotationPositions(); refreshCapitalSnapshot(); });
     document.getElementById("start-all-btn")?.addEventListener("click", startAllVenues);
     document.getElementById("stop-all-btn")?.addEventListener("click", stopAllVenues);
     document.getElementById("save-risk-config-btn")?.addEventListener("click", saveRiskConfig);
@@ -4126,9 +4329,9 @@
       dashboardStarted = true;
       initCrossVenueValidationControls();
       // 先加载 venue 列表(填充 knownVenues),构建多所卡片(一次),再渲染主面板与状态。
-      loadVenues().then(() => { renderVenueTabs(); buildVenueOverview(); initRecordDownloads(); initRotationControl(); initStrategyControl(); refreshVenueOverview(); refreshStrategyStatus(); refreshCrossVenuePanel(); refreshEarnings(); refreshRotationStatus(); refreshRotationPositions(); });
+      loadVenues().then(() => { renderVenueTabs(); buildVenueOverview(); initRecordDownloads(); initRotationControl(); initStrategyControl(); refreshVenueOverview(); refreshStrategyStatus(); refreshCrossVenuePanel(); refreshEarnings(); refreshRotationStatus(); refreshRotationPositions(); refreshCapitalSnapshot(); });
       refreshDashboard();
-      setInterval(() => { refreshDashboard(); refreshVenueOverview(); refreshStrategyStatus(); refreshCrossVenuePanel(); refreshEarnings(); refreshRotationPositions(); }, 5000);
+      setInterval(() => { refreshDashboard(); refreshVenueOverview(); refreshStrategyStatus(); refreshCrossVenuePanel(); refreshEarnings(); refreshRotationPositions(); refreshCapitalSnapshot(); }, 5000);
       setInterval(() => { refreshRotationStatus(); }, 8000);
     }
 

@@ -488,10 +488,6 @@ func fetchVenueFundingForSymbol(ctx context.Context, v venue.Venue, sym venue.Sy
 	return venue.FundingSnapshot{}, false
 }
 
-func fetchVenueUSDTBalance(ctx context.Context, v venue.Venue) (float64, error) {
-	return fetchVenuePerpAvailableUSDT(ctx, v)
-}
-
 func isBybitSymbolHeld(recordDir string, sym venue.Symbol) bool {
 	bybitDir := recordDirForVenue(EngineConfig{NetworkConfig: NetworkConfig{RecordDir: recordDir}}, bybit.VenueName)
 	store, err := newBybitPositionStore(bybitDir)

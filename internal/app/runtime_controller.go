@@ -22,8 +22,6 @@ const (
 	runtimeLogCleanupInterval = 10 * time.Minute
 	runtimeLogScannerBuffer   = 1024 * 1024
 	runtimeLogMemoryLimit     = 2000
-	liveStartupCheckTimeout   = 30 * time.Second
-	maxServerTimeOffset       = 5 * time.Second
 )
 
 type RuntimeMode string
@@ -550,131 +548,6 @@ func (c *RuntimeController) finishTask(err error, message string) {
 	}
 }
 
-func (c *RuntimeController) recordExecutionEvent(record ExecutionIncidentRecord) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	if strings.TrimSpace(record.RunID) != "" {
-		c.status.RunID = strings.TrimSpace(record.RunID)
-	}
-	if strings.TrimSpace(record.CycleID) != "" {
-		c.status.CurrentCycleID = strings.TrimSpace(record.CycleID)
-	}
-	c.status.ExecutionIncidentCount = record.IncidentCount
-	if record.IncidentLimit > 0 {
-		c.status.ExecutionIncidentLimit = record.IncidentLimit
-	}
-	c.status.LastExecutionEvent = fmt.Sprintf("%s | %s | %s", nonEmpty(record.Phase, "-"), nonEmpty(record.Action, "-"), nonEmpty(record.Detail, "-"))
-	if strings.TrimSpace(record.Category) != "" || strings.TrimSpace(record.Severity) != "" {
-		c.status.LastExecutionEvent = fmt.Sprintf("%s | %s | %s | %s", nonEmpty(record.Category, "-"), nonEmpty(record.Severity, "-"), nonEmpty(record.Action, "-"), nonEmpty(record.Detail, "-"))
-	}
-	if record.Fatal {
-		c.status.CircuitBreakerTripped = true
-		c.status.CircuitBreakerReason = nonEmpty(record.Detail, c.status.CircuitBreakerReason)
-		c.status.LastMessage = "执行熔断已触发，等待任务退出"
-	}
-	c.status.RecentExecutionEvents = append(c.status.RecentExecutionEvents, record)
-	if len(c.status.RecentExecutionEvents) > 8 {
-		c.status.RecentExecutionEvents = c.status.RecentExecutionEvents[len(c.status.RecentExecutionEvents)-8:]
-	}
-}
-
-func (c *RuntimeController) recordLiveEngineStatus(snapshot LiveRuntimeSnapshot) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.status.Mode != string(RuntimeModeLive) {
-		return
-	}
-	if strings.TrimSpace(string(snapshot.Stage)) != "" {
-		c.setStageLocked(snapshot.Stage, snapshot.StageReason, "runtime-state")
-		if strings.TrimSpace(snapshot.StageTransitionedAt) != "" {
-			c.status.StageTransitionedAt = strings.TrimSpace(snapshot.StageTransitionedAt)
-		}
-	}
-	c.status.RunID = strings.TrimSpace(snapshot.RunID)
-	c.status.CurrentCycleID = strings.TrimSpace(snapshot.CycleID)
-	if snapshot.CurrentTargets >= 0 {
-		c.status.CurrentTargets = snapshot.CurrentTargets
-	}
-	c.status.PlatformRejectCount = snapshot.PlatformRejectCount
-	c.status.PlatformRequestErrors = snapshot.PlatformRequestErrors
-	c.status.RecoveryActionCount = snapshot.RecoveryActionCount
-	c.status.OrderUncertaintyCount = snapshot.OrderUncertaintyCount
-	c.status.CurrentPositions = append([]string(nil), snapshot.CurrentPositions...)
-	c.status.CurrentMonitorTargets = append([]string(nil), snapshot.CurrentMonitorTargets...)
-	c.status.CircuitBreakerTripped = snapshot.FuseTripped
-	if strings.TrimSpace(snapshot.FuseReason) != "" {
-		c.status.CircuitBreakerReason = snapshot.FuseReason
-	} else if !snapshot.FuseTripped {
-		c.status.CircuitBreakerReason = ""
-	}
-	c.status.CooldownUntil = strings.TrimSpace(snapshot.CooldownUntil)
-	c.status.LastOrderAt = strings.TrimSpace(snapshot.LastOrderAt)
-	c.status.LastOrderAction = strings.TrimSpace(snapshot.LastOrderAction)
-	c.status.LastRecoveryAt = strings.TrimSpace(snapshot.LastRecoveryAt)
-	c.status.LastRecoveryAction = strings.TrimSpace(snapshot.LastRecoveryAction)
-	c.status.LastManagedDrawdownAt = strings.TrimSpace(snapshot.LastManagedDrawdownAt)
-	c.status.LastManagedDrawdownAction = strings.TrimSpace(snapshot.LastManagedDrawdownAction)
-	c.status.ManagedDrawdownSummary = strings.TrimSpace(snapshot.ManagedDrawdownSummary)
-	c.status.HoldMonitorSummary = strings.TrimSpace(snapshot.HoldMonitorSummary)
-	c.status.LastUncertainOrder = strings.TrimSpace(snapshot.LastUncertainOrder)
-	c.status.RemainingIncidentBudget = snapshot.RemainingIncidentBudget
-	c.status.RemainingRecoveryBudget = snapshot.RemainingRecoveryBudget
-	c.status.RemainingUncertaintyBudget = snapshot.RemainingUncertaintyBudget
-	c.status.RemainingRejectBudget = snapshot.RemainingRejectBudget
-	c.status.RemainingErrorBudget = snapshot.RemainingErrorBudget
-	c.status.ProtectedIOCAttempts = snapshot.ProtectedIOCAttempts
-	c.status.ProtectedIOCCanceled = snapshot.ProtectedIOCCanceled
-	c.status.ProtectedIOCExpired = snapshot.ProtectedIOCExpired
-	c.status.ProtectedIOCPartial = snapshot.ProtectedIOCPartial
-	c.status.ProtectedIOCAvgUnfilledRatio = snapshot.ProtectedIOCAvgUnfilledRatio
-	c.status.ProtectedIOCCancelRate = snapshot.ProtectedIOCCancelRate
-	c.status.HealthStatus = strings.TrimSpace(snapshot.HealthStatus)
-	c.status.HealthSummary = strings.TrimSpace(snapshot.HealthSummary)
-	c.status.HealthScore = snapshot.HealthScore
-
-	oldGear := c.status.EngineGear
-	c.status.EngineGear = snapshot.EngineGear
-	if oldGear != "" && oldGear != snapshot.EngineGear {
-		if c.store != nil {
-			event := DomainEvent{
-				Type:       EventTypeEngineGearChanged,
-				Level:      EventLevelWarning,
-				OccurredAt: time.Now().UTC(),
-				RunID:      c.status.RunID,
-				CycleID:    c.status.CurrentCycleID,
-				Protocol:   "RiskSupervisor",
-				Stage:      LifecycleStage(c.status.CurrentStage),
-				Successful: true,
-				Reason:     fmt.Sprintf("EngineGear %s -> %s", oldGear, snapshot.EngineGear),
-			}
-			_ = c.store.AppendDomainEvents([]DomainEvent{event})
-		}
-	}
-
-	c.status.CanContinue = snapshot.CanContinue
-	c.status.ConsecutiveRejects = snapshot.ConsecutiveRejects
-	c.status.ConsecutiveErrors = snapshot.ConsecutiveErrors
-	c.status.CycleOpenNotionalUSDT = snapshot.CycleOpenNotionalUSDT
-	c.status.RemainingNotionalBudget = snapshot.RemainingNotionalBudget
-	c.status.LastExceptionCategory = strings.TrimSpace(snapshot.LastExceptionCategory)
-	c.status.LastExceptionSeverity = strings.TrimSpace(snapshot.LastExceptionSeverity)
-	c.status.LastExceptionDetail = strings.TrimSpace(snapshot.LastExceptionDetail)
-	c.status.CurrentCooldownCategory = strings.TrimSpace(snapshot.CurrentCooldownCategory)
-	c.status.CurrentCooldownSeverity = strings.TrimSpace(snapshot.CurrentCooldownSeverity)
-	c.status.CooledSymbols = append([]string(nil), snapshot.CooledSymbols...)
-	c.status.EmergencyStopTriggered = snapshot.EmergencyStopTriggered
-	c.status.EmergencyStopReason = strings.TrimSpace(snapshot.EmergencyStopReason)
-	c.status.DailyRiskLimitTriggered = snapshot.DailyRiskLimitTriggered
-	c.status.DailyRiskLimitReason = strings.TrimSpace(snapshot.DailyRiskLimitReason)
-	c.status.DailyRealizedPnL = snapshot.DailyRealizedPnL
-	c.status.DailyOrderCount = snapshot.DailyOrderCount
-	c.status.DailyOpenNotionalUSDT = snapshot.DailyOpenNotionalUSDT
-	c.status.RemainingDailyLossBudget = snapshot.RemainingDailyLossBudget
-	c.status.RemainingDailyOrderBudget = snapshot.RemainingDailyOrderBudget
-	c.status.RemainingDailyNotionalBudget = snapshot.RemainingDailyNotionalBudget
-}
-
 func (c *RuntimeController) updateMonthlyProgress(stage EngineStage, message string, current int, total int) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -730,46 +603,6 @@ func (c *RuntimeController) setStageLocked(stage EngineStage, reason string, sou
 	c.status.StageReason = transition.Reason
 	c.status.StageTransitionedAt = transition.Transitioned
 	c.appendStageTransitionLogLocked(source, transition)
-}
-
-func (c *RuntimeController) runLiveEngine(ctx context.Context, secretPath string, cfg EngineConfig) (string, error) {
-	c.appendControllerLog("开始启动实盘引擎")
-	// S7-A:抢单写租约,防止同一账户双开(双写撞单/对账错乱)。flock 在进程退出时由内核自动释放,无陈旧锁问题。
-	lease, err := acquireSingleWriterLease(cfg.NetworkConfig.RecordDir)
-	if err != nil {
-		c.appendControllerLog("单写租约获取失败: %v", err)
-		return "", err
-	}
-	defer func() {
-		if rerr := lease.Release(); rerr != nil {
-			c.appendControllerLog("释放单写租约失败: %v", rerr)
-		} else {
-			c.appendControllerLog("已释放单写租约")
-		}
-	}()
-	c.appendControllerLog("已获取单写租约,确保单实例独占写入")
-	engine, err := NewFundingRateSniperEngineWithConfig(secretPath, cfg)
-	if err != nil {
-		c.appendControllerLog("创建实盘引擎失败: %v", err)
-		return "", err
-	}
-	engine.runID = c.currentRunID()
-	engine.setTraceLogIDs(engine.runID, "")
-	engine.reportStore = c.store
-	engine.logger = log.New(newRuntimeLogWriter(c.logs, "live-engine", os.Stdout, engine.traceIDs, engine.recordMetadata), "[FundingRateSniper] ", log.LstdFlags|log.Lmicroseconds)
-	engine.executionEventHook = c.recordExecutionEvent
-	engine.liveStatusHook = c.recordLiveEngineStatus
-
-	if err := engine.Start(ctx); err != nil {
-		if errors.Is(err, context.Canceled) {
-			c.appendControllerLog("实盘引擎已停止")
-			return "实盘引擎已停止", err
-		}
-		c.appendControllerLog("实盘引擎异常退出: %v", err)
-		return "", err
-	}
-	c.appendControllerLog("实盘引擎已正常退出")
-	return "实盘引擎已正常退出", nil
 }
 
 func (c *RuntimeController) runMonthlySimulation(ctx context.Context, secretPath string, lookbackDays int, cfg EngineConfig) (string, error) {

@@ -66,6 +66,18 @@ func CurrentAttributionRunMode() AttributionRunMode {
 	return currentAttributionRunMode
 }
 
+// CurrentStrategyMode 返回当前 strategy_mode 配置(与 initAttributionRunMode 同源)。
+func CurrentStrategyMode() core.StrategyMode {
+	switch CurrentAttributionRunMode() {
+	case AttributionRunModeCanaryProfit:
+		return core.StrategyModeCanaryProfit
+	case AttributionRunModeProfitSeeking:
+		return core.StrategyModeProfitSeeking
+	default:
+		return core.StrategyModeCollectData
+	}
+}
+
 func auditRecordDir(base string) string {
 	base = strings.TrimSpace(base)
 	if base == "" {

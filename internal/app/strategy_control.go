@@ -654,5 +654,10 @@ func (s *DashboardServer) buildControlPlaneStatusView() ControlPlaneStatusView {
 	if s != nil {
 		cp = s.controlPlane
 	}
-	return cp.BuildStatusView(perpConfigLive, perpOpeningsOn, rotationActive, perpHealthHalt)
+	view := cp.BuildStatusView(perpConfigLive, perpOpeningsOn, rotationActive, perpHealthHalt)
+	strategyMode := CurrentStrategyMode()
+	view.StrategyMode = string(strategyMode)
+	view.PerpPerpRunMode = string(PerpPerpRunMode(perpConfigLive, view.PerpPerpLiveEnabled, strategyMode))
+	view.RotationRunMode = string(RotationRunMode(perpConfigLive, view.RotationLiveEnabled, strategyMode))
+	return view
 }

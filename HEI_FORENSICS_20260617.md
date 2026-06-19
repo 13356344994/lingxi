@@ -1,5 +1,7 @@
 # HEI forensic 报告（2026-06-17）
 
+> **后续修复**：PnL 信任层已由 `settlement_trust.go` 统一判据（fab6afd 边界 / 缺 funding_truth / attribution_incomplete / |trade_pnl|>50），HEI 类假亏不再触发风控或 go/no-go 样本。
+
 ## 1. 核心结论
 
 | 选项 | 判定 | 置信度 |

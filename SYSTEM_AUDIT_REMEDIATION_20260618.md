@@ -1,5 +1,7 @@
 # Lingxi 系统审判与整改思路（2026-06-18）
 
+> **文档结构**：§1–§8 = 2026-06-18 审计时点结论（保留主体，部分运行态描述已被 §9–§10 整改超越）；§9–§10 = 2026-06-19 整改落地记录（以代码为准）。
+
 本文只记录架构判断、关键问题和整改方向，供后续实现者（例如 Composer 2.5）拆任务执行。
 结论以当前代码实现为准，文档只作为旁证。
 
@@ -1205,12 +1207,16 @@ Composer 任务：
 
 ### 9.2 未尽 TODO（非阻塞，后续推进）
 
+> **2026-06-19 勘误（以下项已在 §10.1 第二批落地，勿再当「未做」）**：
+> - ✅ **账户级风控 Stage B 硬熔断**（一级硬停开仓 + opt-in auto-flatten，`account_risk_watch.go`）
+> - ✅ **CLI flatten 与 watchdog 五类 position store 覆盖**（`emergency_flatten.go` / `watchdog.sh`）
+> - ✅ **成本闸 `profit_seeking_mode`** — 已写 `config.yaml` `strategy_mode: profit_seeking`（见 §10.2 勘误）
+
 - 全量资金 allocator 合一（`RunUnifiedShadowAllocator` 接线）——当前已保证无双开/双 manage，但跨策略全局额度仲裁仍是下一步。
-- 账户级风控 **Stage B 硬熔断**——**刻意未做**（自动平仓误触发风险高）；建议先用 Stage A 只读报警观察一段。
-- dashboard 增 perp-perp 持仓面板视图（`buildRotationPositionViews`）。
+- dashboard 增 perp-perp 持仓面板视图（`buildRotationPositionViews`）。**2026-06-19 勘误：§10.1 已落地只读 UI。**
 - 运行模式标记（collect_data / canary_profit / profit_seeking）当前为包级常量 `currentAttributionRunMode`，待接 config。
-- 成本闸 `profit_seeking_mode` 配置切换（恢复 auto_derive_fee_reserve / impact / 真实 fee_reserve）——尚未改 config，待你决定何时从"采数据"切"求盈利"。
-- CLI flatten 与 watchdog 覆盖五类 position store（dead-man 盲区）——仍为 TODO。
+- ~~成本闸 `profit_seeking_mode` 配置切换~~ — **已改 config**（`strategy_mode: profit_seeking`），见 §10.2。
+- ~~CLI flatten 与 watchdog 覆盖五类 position store~~ — **§10.1 已落地**。
 - 止损与 go/no-go 的具体数字仍为建议值，需你在采样前确认锁死。
 
 ### 9.3 部署 checklist（重新 build + restart 前逐项确认）
@@ -1218,7 +1224,7 @@ Composer 任务：
 1. **先确认敞口姿态**：rotation 已 STOP（见 9.0）；决定 perp-perp 是否也停。
 2. **review 路线 B**：这是改 live 行为的最大改动（perp-perp 从独立循环→runner 驱动，`run.go` 装配变更）。重点核对 `run.go` 不再 `go exec.Run`、`SetRotationManaged(true)`、无 double open/manage。
 3. **build**：`go vet ./internal/app/ && go build ./... && go test ./internal/app/`（已验证全绿）。
-4. **先 shadow / canary**：用 `lingxi shadow` 或四所各 ~10U canary 跑一轮，看统一日志里 perp-perp 是否走 runner、有无双开、归因/控制面是否正确，再放量。
+4. **先 OFF / CANARY**：用 **OFF 模式**（control_plane，跑决策+日志、不下真单）或四所各 ~10U **CANARY_LIVE** 跑一轮，看统一日志里 perp-perp 是否走 runner、有无双开、归因/控制面是否正确，再放量。（`lingxi shadow` 已删除。）
 5. **控制面自检**：启动后核对 `/api/strategy/status` 的 `control_plane` 字段（perp_perp_mode / rotation_mode / effective_global_halt）与预期一致，消除 config vs runtime 误导。
 6. **账本回归**：跑 `go run ./cmd/ledgerrecon /root/lingxi/records`；新样本应带齐 entry/exit/closed_qty/funding_truth/attribution_complete，确认 churn 不再刷重复结算。
 7. **资金合一未完成的前提下**：放量前留意 perp-perp 与四 carry 对同一钱包的占用（capital snapshot 端点观察），避免 over-commit。
@@ -1244,9 +1250,9 @@ Composer 任务：
 |--------|------|--------|
 | P0 STOP 语义重做 | `manageLive()/closeLive()` 与 `active` 解耦，接 control_plane | 暂停=只停开仓，manage/verified-close/flatten 真钱；nil 退化安全 |
 | P0 dust 收口 | 负 carry 现货空残腿 < minNotional → best-effort 还币 + finalize + dust_ledger | 停 FLUX 式无限 churn；`position_dust.go` |
-| P0/P1 删生产 shadow + 三态 | `ledger_guard.go`（非 live 绝不写真账本，dry-run 进 `records/dryrun/`）+ `RunMode OFF/CANARY_LIVE/LIVE` | 删合成假成交持仓；保留 `lingxi shadow` 仅作开发冒烟 |
+| P0/P1 删生产 shadow + 三态 | `ledger_guard.go`（非 live 绝不写真账本，dry-run 进 `records/dryrun/`）+ `RunMode OFF/CANARY_LIVE/LIVE` | 删合成假成交持仓；**无 `lingxi shadow` 子命令** |
 | P0 账户级硬风控 Stage B | 一级硬停开仓（默认）+ 二级 opt-in auto-flatten（仅真实权益、默认关、不自动解除） | `account_risk_watch.go`；新增 config 阈值 |
-| P0 single-writer lease | 真钱装配抢 `.lingxi-live.lock`，双开 fail-fast | `live_stack_lease.go`；与 emergency_flatten/shadow 兼容 |
+| P0 single-writer lease | 真钱装配抢 `.lingxi-live.lock`，双开 fail-fast | `live_stack_lease.go`；与 emergency_flatten 兼容 |
 | P0 flatten/watchdog 五覆盖 | CLI flatten 复用五执行器 CloseAllPositions；watchdog.sh 检测五类 store | 补 dead-man 盲区 |
 | P0 SWITCH 事务性 | close 失败禁 open；open 失败记 `switch_failed_open`（critical）到 domain_events | 不再静默「平旧没开新」 |
 | P1 隔离 legacy 脏 PnL | `settlement_trust.go` 统一判据（fab6afd 边界 / 缺 funding_truth / attribution_incomplete / \|trade_pnl\|>50） | risk watcher / go-no-go / dashboard 三处分桶；HEI 假亏不再触发风控 |
@@ -1257,12 +1263,14 @@ Composer 任务：
 
 ### 10.2 未尽 TODO（本批后仍留）
 
+> **2026-06-19 勘误**：`strategy_mode: profit_seeking` **已写入 `config.yaml`**（加载时 `ApplyStrategyModeToEconomics` 收紧成本闸）；下文「尚未改 config」已过时。
+
 - CANARY_LIVE 与 config 字段映射（当前 OFF/LIVE 双态可用）。
 - AttributionRunMode（collect_data/canary_profit/profit_seeking）与 RunMode 显式联动。
 - Bybit/OKX/Gate 遗留单所执行器的 `[影子]` 日志与 mode 字符串（本批聚焦四 carry + perp-perp）。
-- capital_allocator `shadow_rebalance_suggestions`（分配器观测语义，非交易态）。
+- capital_allocator `shadow_rebalance_suggestions`（分配器观测语义，非交易态；**非已删 shadow 模式**）。
 - go/no-go 与止损阈值仍为建议初值，需采样前确认锁死。
-- 成本闸 profit_seeking_mode 切换（恢复 auto_derive_fee_reserve / impact）尚未改 config，待你决定何时从「采数据」切「求盈利」。
+- ~~成本闸 profit_seeking_mode 切换~~ — **已改 config**（见上勘误）。
 
 ### 10.3 部署 checklist 补充（在 §9.3 基础上）
 

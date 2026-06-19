@@ -3,7 +3,7 @@
 # ⚠️ profit_seeking 会在加载时经 ApplyStrategyModeToEconomics 强制收紧成本闸(auto_derive/impact/min_net≥0.002/basis 收回),
 #    显著减少开单数——与「最大化开仓/满仓」存在张力,属刻意取舍。
 # ⚠️ 生产配置改动:部署前须人工 review + 重新部署进程。
-# 运行形态:enable_rolling_hold=true → 跨周期滚动持有(:55 复核续持);主开仓路径为 cross_venue_executor perp-perp。
+# 运行形态:enable_rolling_hold=true → 跨周期滚动持有(:55 复核续持);**生产主路径**为五策略统一轮动 runner(perp-perp 经 binding 派发,非独立循环)。
 
 strategy:
   # 用户 2026-06-19 拍板:profit_seeking + 满仓 + 3× 起步(可调至 5×)
@@ -14,6 +14,8 @@ strategy:
 
 risk:
   # 用户 2026-06-19 拍板:profit_seeking + 满仓 + 3× 起步(可调至 5×) — 账户级硬停兜底(激进但保留)
+  # 【% 权益化】max_*_pct 与同名 USDT 阈值取 max(有效阈值=max(USDT, pct×RealEquityTotalUSDT));0=仅 USDT。
+  # 例:max_daily_loss_pct / max_account_drawdown_pct / max_strategy_cumulative_loss_pct(默认见 defaults.go)。
   max_daily_loss_usdt: 40
   max_account_drawdown_usdt: 90
   max_strategy_cumulative_loss_usdt: 30
@@ -48,13 +50,19 @@ network:
   # 监听所有网卡,通过机器 IP+端口(8080)直接访问面板,不再依赖 tailscale/本地回环。
   dashboard_addr: "0.0.0.0:8080"
 
-# P1 跨所资金费对冲执行引擎(消费扫描器机会,空高费所/多低费所 perp-perp 对冲)。
+# P1 跨所 perp-perp 执行引擎(空高费所/多低费所 delta 中性)。
+# 【统一 runner】开仓由 UnifiedRotationRunner 经 bindCrossVenuePerpPerpRotationExecutor 派发;
+#   非独立 Run() 循环(run.go: SetRotationManaged(true)+SetOpeningsEnabled(false))。
+# 【名义上限】max_position_usdt 为硬顶;实际单仓名义=min(硬顶, 流动性 cap liquidity_sizing.go, 全局预算)。
+# 【未列出的 sizing/滑点键】沿用 defaults: sizing_max_slippage_bps / sizing_max_participation_pct_24h /
+#   sizing_conservative_no_depth_factor / slippage_budget_bps / taker_slippage_budget_bps 等。
 cross_venue_executor:
   enabled: true
   live_trading_enabled: true
   # 用户 2026-06-19 拍板:profit_seeking + 满仓 + 3× 起步(可调至 5×) — 最大化并发/单腿名义
   max_concurrent: 8
   max_position_usdt: 150
+  # ↑ 硬顶(USDT);实际名义还受 liquidity_sizing 与 runner 预算约束,非固定满仓此数。
   # 用户 2026-06-19 拍板:3× 杠杆起步;MaxEffectiveLeverage 同时驱动开仓前设杠杆与 sizing 口径
   max_effective_leverage: 3
   # 保留保证金安全垫(不因提杠杆而移除);可用 USDT ≥ 名义/杠杆 × 此系数
@@ -66,7 +74,8 @@ cross_venue_executor:
   maker_chase_interval_ms: 1500
   maker_deadline_seconds: 12
 
-# 五策略统一资金费轮动 runner。perp-perp 仍走上方 cross_venue_executor 独立执行器。
+# 五策略统一资金费轮动 runner。perp-perp 执行体见 cross_venue_executor,开仓由 runner binding 派发。
+# total_deployable_usdt: 绝对预算(USDT);另有 total_deployable_pct(默认见 defaults,占真实现金权益比例),二者与 equity 取 min。
 unified_rotation:
   enabled: true
   live_trading_enabled: false

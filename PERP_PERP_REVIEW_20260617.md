@@ -140,7 +140,7 @@ v2 直接建设决策层与五类执行器，**小仓起步实盘轮动**。执�
 - 价格偏离、深度差、充值提现限制都会影响退出。
 - 对账户资金调度要求最高。
 
-定位：**五类结构之一。** 复杂度最高，但 v2 纳入统一轮动；资金不足时由 allocator 跳过，不单独 shadow 压制。
+定位：**五类结构之一。** 复杂度最高，但 v2 纳入统一轮动；资金不足时由 allocator 跳过，不单独 plan/observation 压制。
 
 ### 4. 同所 perp-spot（负费率）
 
@@ -683,7 +683,7 @@ HEI 异常 = 执行脱腿 / 状态机漏记 / 对冲失败？
 
 ### 阶段 3：小仓实盘轮动
 
-目标：**直接小仓实盘**，五类结构按排序结果进出场，不再 shadow 数天再等。
+目标：**直接小仓实盘**，五类结构按排序结果进出场，不再 OFF/plan 观察数天再等。
 
 建议：
 
@@ -1022,11 +1022,95 @@ v2 第一阶段成功不是赚多少钱，而是**小仓实盘轮动跑通且账
 
 阶段 -1 离线数据已留档（见附录），供决策参考，但不阻塞建设。
 
-**当前下一步（2026-06-18）**：统一 Opportunity + 轮动决策 + 四执行器 + runner **已建成并在 shadow 运行**；旧 perp-perp live 并行。下一里程碑是 **canary 前置清单**（见 `HANDOFF_20260617.md` §5）——子账户隔离、面板 live 二次确认、真实接口首笔验证；**不是**重复建骨架。
+**当前下一步（2026-06-19）**：路线 B 已落地——五策略统一 runner 主路径，perp-perp 经 binding 接入；shadow 已删，运行三态 OFF/CANARY/LIVE。下一里程碑：**CANARY 前置 + 实盘盖章**（见 `HANDOFF_20260619.md` §5–§8）——control_plane 自检、OFF 验证决策链、四所小额 canary 盯首笔；**不是**重复建骨架。
 
-## 实现进度与审计状态（2026-06-18）
+## 实现进度与审计状态（2026-06-19）
 
-> 接手 agent 速览：细节见 `HANDOFF_20260617.md`。本节标注 master 方案相对代码现实的实现/审计/风险状态。
+> 接手 agent 速览：细节见 `HANDOFF_20260619.md`。本节标注 master 方案相对**当前**代码现实的实现/审计/风险状态。
+
+### 已实现（路线 B + 三态 + profit_seeking）
+
+| 能力 | 状态 | 关键文件 |
+|---|---|---|
+| 统一机会 + 五类扫描 | ✅ | `unified_opportunity.go`、`*_scanner.go` |
+| 轮动决策 HOLD/SWITCH/CLOSE | ✅ | `unified_rotation.go` |
+| **perp-perp 接入统一 runner（路线 B）** | ✅ | `cross_venue_rotation_adapter.go`；`run.go` 无独立 `go exec.Run()` |
+| 五执行器 binding（含 perp-perp） | ✅ | `unified_rotation_runner.go` bind 段 |
+| 主循环 runner（60s、reconcile 启动 + 每轮 manage） | ✅ | `unified_rotation_runner.go` |
+| 运行三态 OFF / CANARY_LIVE / LIVE | ✅ | `run_mode.go`、`ledger_guard.go`（非 live → `records/dryrun/`） |
+| 统一控制面 | ✅ | `control_plane.go` → `control_plane.json` |
+| 账户级风控 Stage B 硬停开仓 | ✅ | `account_risk_watch.go` |
+| 流动性自适应单仓 sizing | ✅ | `liquidity_sizing.go`（非固定 max_position） |
+| 风控 % 权益化（pct 与 USDT 取 max） | ✅ | `defaults.go` / config `max_*_pct` |
+| flatten / watchdog 五类 store 覆盖 | ✅ | `emergency_flatten.go`、`watchdog.sh` |
+| SWITCH 事务性（close 失败禁 open） | ✅ | runner + domain_events |
+| 统一滑点预算 | ✅ | `slippage_budget_bps` 派生 gate/执行/平仓 |
+| settlement 信任层（HEI 假亏隔离） | ✅ | `settlement_trust.go` |
+| STOP 语义重做（暂停只停开仓） | ✅ | manage/close 与 `active` 解耦 |
+| dust 收口 | ✅ | `position_dust.go` |
+| 单写租约 | ✅ | `live_stack_lease.go` |
+| `strategy_mode: profit_seeking`（诚实成本闸） | ✅ 已写 config | `config.yaml` + `ApplyStrategyModeToEconomics` |
+| 面板「五策略轮动」+ perp-perp 持仓视图 | ✅ | `dashboard_server.go` |
+| 单所旧引擎 de-wire | ✅ | `run.go` |
+
+### 已审计并修复（2026-06-18~19 批次）
+
+- **执行层**：借币空现货敞口可见；第二腿部分成交回滚；unknown-fill 禁回滚（perp-perp + 四 carry）；dust 收口。
+- **决策层**：SWITCH 不重复扣费；churn 复活 bug；`CandidateOnly` 路线 A 止血（路线 B 后 perp-perp 真 binding）。
+- **安全**：reconcile 不再 flatten 未登记持仓；manage/verified-close 服从 RunMode + control_plane。
+- **架构**：双循环消歧；全局 capital budget（`TotalDeployableUSDT` / `TotalDeployablePct`）。
+
+### 当前运行态（文档时点）
+
+- **主路径**：scanner + equity sampler + unified runner；perp-perp 开仓由 runner 派发。
+- **真钱闸**：`control_plane.json` + `strategy_mode`；`rotation_control.json` 的 `live` legacy 已忽略，看 `active`。
+- **config**：`strategy_mode: profit_seeking`；`unified_rotation.live_trading_enabled=false`  alone 不决定真钱——以 control_plane 为准。
+
+### 未实现 / 未达标
+
+| 项 | 状态 |
+|---|---|
+| 全量 capital allocator 合一 | ⚠️ `RunUnifiedShadowAllocator` 未接线 |
+| CANARY_LIVE 与 config 显式映射 | ⚠️ OFF/LIVE 可用 |
+| 面板切 live 二次确认硬闸 | ❌ |
+| `/records` 独立下载令牌 | ❌ |
+| 可信 settlement replay 全闭环 | ⚠️ ledgerrecon 有，完整 replay 未闭环 |
+| 离线统一模拟器 | ❌ |
+| go/no-go 阈值锁死 | ⚠️ 仍为建议初值 |
+
+### 已知风险（必须诚实）
+
+1. **经济数据 NO-GO** 不变（见附录）。
+2. CANARY 前须 **OFF 观察决策** → control_plane 切 CANARY → 盯首笔开/平/借币/回滚。
+3. 任何 restart / 部署须用户点头；单写租约 + 回滚二进制必备。
+4. spot-perp 子账户现货腿隔离仍 ⚠️。
+
+### 任务编号对照（master §「给 Composer 的实现任务」）
+
+| 任务 | 状态 |
+|---|---|
+| 1–3 统一 Opportunity / 日志 / 排行榜 | ✅ |
+| 4 Data Collection Mode | ✅ 配置；⚠️ 与 RunMode 显式联动待完善 |
+| 5 账本对账 | ✅ 工具 + settlement_trust；⚠️ replay 未全闭环 |
+| 5.5 离线统一模拟器 | ❌ |
+| 5.6 阶段-1 go/no-go | ✅ |
+| 6 统一分配 + 续持/换仓 | ✅ runner；⚠️ allocator 未全合一 |
+| **17 路线 B perp-perp 接入 runner** | ✅ **已落地** |
+| 执行器层（五类） | ✅ 代码；CANARY 实盘验证进行中 |
+
+### 措辞说明
+
+- 文中「shadow 建议 / shadow 观察」在跨所资金路由语境 = **plan / observation 日志**，非已删除的 `lingxi shadow` 交易态。
+- 跨所再平衡仍可能只落建议、不自动提币——与所内真划转区分。
+
+---
+
+## 实现进度与审计状态（2026-06-18，历史快照）
+
+> ⚠️ 以下表格为路线 B 落地前快照，**已被上文 2026-06-19 节取代**。保留仅供 diff 审计。
+
+<details>
+<summary>展开 2026-06-18 历史快照（过时）</summary>
 
 ### 已实现（代码已接线、主循环在跑）
 
@@ -1092,7 +1176,9 @@ v2 第一阶段成功不是赚多少钱，而是**小仓实盘轮动跑通且账
 | 5.6 阶段-1 go/no-go | ✅ 见附录 + `tools/go_no_go/` |
 | 6 统一资金分配器 + 续持/换仓 | ✅ → `unified_rotation.go` + runner |
 | 执行器层（五类） | ✅ 代码；❌ 未 live 验证 |
-| 资金路由/再平衡 | ✅ 所内真划转；跨所 shadow |
+| 资金路由/再平衡 | ✅ 所内真划转；跨所 plan/observation 建议 |
+
+</details>
 
 ---
 
@@ -1106,4 +1192,4 @@ v2 第一阶段成功不是赚多少钱，而是**小仓实盘轮动跑通且账
 2. **负费率 perp-spot**：扣借币成本后（`analyze_neg_carry_net.py`）等权净年化约 **−53%**；仅 **5 个微盘币**（SENT/BARD/ALLO/HOME/CHIP）过 +45% 线。
 3. **实盘 perp-perp**：已跑 **181 笔**，累计资金费收入约 **1.6 USDT**。
 
-以上数据来自 `tools/go_no_go/` 独立脚本与既有实盘样本。v2 仍选择建设 shadow 轮动系统；用户可据此自行判断是否调整资金规模、结构范围或风控阈值。**不得用离线正收益粉饰 live 预期。**
+以上数据来自 `tools/go_no_go/` 独立脚本与既有实盘样本。v2 仍选择建设统一轮动系统（当前三态 OFF/CANARY/LIVE）；用户可据此自行判断是否调整资金规模、结构范围或风控阈值。**不得用离线正收益粉饰 live 预期。**

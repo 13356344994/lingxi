@@ -35,14 +35,3 @@ func (r *CostReporter) RecordExecutionCost(cost ExecutionCostRecord) {
 			cost.Symbol, cost.Action, cost.ExecutedQuantity, cost.SlippageUSDT, cost.Latency.Round(time.Millisecond))
 	}
 }
-
-func (r *CostReporter) FlushExecutionCosts() []ExecutionCostRecord {
-	if r == nil {
-		return nil
-	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	costs := append([]ExecutionCostRecord(nil), r.executionCosts...)
-	r.executionCosts = nil
-	return costs
-}

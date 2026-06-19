@@ -1,6 +1,6 @@
 # Lingxi 交接文档(给接手 agent)
 
-> ⚠️ **本文档已过时（2026-06-13）**。当前权威交接请读 **`HANDOFF_20260617.md`**。下文仅作旧跨所 perp-perp 时代的历史参考。
+> ⚠️ **本文档已过时**。当前权威交接请读 **`HANDOFF_20260619.md`**。`HANDOFF_20260617.md` 保留为历史快照。下文仅作 2026-06-13 旧跨所 perp-perp 时代的历史参考。
 
 > 最后更新:2026-06-13 ~18:05 (UTC+8) / 10:05 UTC
 > 项目:`/root/lingxi`,Go 单进程 + systemd(`lingxi` 服务)+ 外部看门狗(`lingxi-watchdog.timer`)
