@@ -791,7 +791,7 @@ func (e *CrossVenueExecutor) enrichOpportunityFromSnapshot(opp CrossVenueOpportu
 	if opp.ComparableWindowHours <= 0 || opp.ExpectedHoldHours <= 0 || opp.NetEV == 0 || opp.RankScore == 0 {
 		opp = crossVenueEstimateOpportunityMetrics(e.cfg.CrossVenueExecutor, opp, now)
 		ranked := []CrossVenueOpportunity{opp}
-		crossVenueFinalizeOpportunityRanking(ranked)
+		crossVenueFinalizeOpportunityRanking(e.cfg.CrossVenueExecutor, ranked)
 		opp = ranked[0]
 	}
 	return opp

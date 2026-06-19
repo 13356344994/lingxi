@@ -21,9 +21,7 @@ func crossVenueOpportunityIsStrict(opp CrossVenueOpportunity) bool {
 	}
 	return opp.ExecutionScore >= 0.60 &&
 		opp.RecoveryQualityScore >= 0.60 &&
-		opp.HistoryQualityScore >= 0.60 &&
-		opp.LiquidityScore >= 0.60 &&
-		opp.StabilityScore >= 0.20
+		opp.LiquidityScore >= 0.60
 }
 
 func crossVenueOpportunityIsAcceptableFallback(opp CrossVenueOpportunity) bool {
@@ -35,9 +33,7 @@ func crossVenueOpportunityIsAcceptableFallback(opp CrossVenueOpportunity) bool {
 	}
 	return opp.ExecutionScore >= 0.50 &&
 		opp.RecoveryQualityScore >= 0.50 &&
-		opp.HistoryQualityScore >= 0.35 &&
-		opp.LiquidityScore >= 0.35 &&
-		opp.StabilityScore >= 0.10
+		opp.LiquidityScore >= 0.35
 }
 
 func crossVenueOpportunityIsRecoverableSwitchTarget(opp CrossVenueOpportunity) bool {
@@ -70,14 +66,8 @@ func crossVenueSelectOpenMode(opp CrossVenueOpportunity, strictExists bool) (cro
 	if opp.RecoveryQualityScore < 0.50 {
 		reasons = append(reasons, "recovery<0.50")
 	}
-	if opp.HistoryQualityScore < 0.35 {
-		reasons = append(reasons, "history<0.35")
-	}
 	if opp.LiquidityScore < 0.35 {
 		reasons = append(reasons, "liquidity<0.35")
-	}
-	if opp.StabilityScore < 0.10 {
-		reasons = append(reasons, "stability<0.10")
 	}
 	if opp.TradableNotional > 0 && opp.TradableNotional < crossVenueMinOpenNotionalUSDT() {
 		reasons = append(reasons, "notional_too_small")

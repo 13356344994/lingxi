@@ -16,6 +16,7 @@ import (
 func testSingleVenuePerpSpotScanInput(now time.Time) SingleVenuePerpSpotScanInput {
 	exec := testCrossVenueExecutorConfig().CrossVenueExecutor
 	cfg := DefaultSingleVenuePerpSpotScannerConfig(exec)
+	cfg.PeakFundingHaircut = 1.0
 	nextFunding := scannerTestCarryNextFunding(now)
 
 	return SingleVenuePerpSpotScanInput{
@@ -26,20 +27,18 @@ func testSingleVenuePerpSpotScanInput(now time.Time) SingleVenuePerpSpotScanInpu
 		FundingByVenue: map[string]map[string]SingleVenuePerpSpotFundingSnap{
 			bybit.VenueName: {
 				"BTC-USDT": {
-					Rate:            -scannerTestCarryNearFundingRate,
+					Rate:            -scannerTestCarryNearNegativeFundingRate,
 					IntervalHours:   8,
 					NextFundingTime: nextFunding,
-					SpikeThreshold:  0.00025,
 				},
 				"ETH-USDT": {
-					Rate:            -scannerTestCarryNearFundingRate,
+					Rate:            -scannerTestCarryNearNegativeFundingRate,
 					IntervalHours:   8,
 					NextFundingTime: nextFunding,
-					SpikeThreshold:  0.00015,
 				},
 			},
 		},
-		MarketsByVenue: map[string]map[string]SingleVenuePerpSpotMarketSnap{
+		MarketsByVenue: scannerTestInstrumentMetaMarkets(map[string]map[string]SingleVenuePerpSpotMarketSnap{
 			bybit.VenueName: {
 				"BTC-USDT": {
 					SpotMid:       100000,
@@ -58,7 +57,7 @@ func testSingleVenuePerpSpotScanInput(now time.Time) SingleVenuePerpSpotScanInpu
 					HasPerp:       true,
 				},
 			},
-		},
+		}),
 		AvailableUSDTByVenue: map[string]float64{
 			bybit.VenueName: 500,
 		},
@@ -340,8 +339,9 @@ func TestAppendSingleVenuePerpSpotCandidatesWritesJSONL(t *testing.T) {
 	if rec.StrategyType != UnifiedStrategySingleVenuePerpSpot {
 		t.Fatalf("strategy_type = %q", rec.StrategyType)
 	}
-	if rec.WouldExecute {
-		t.Fatal("plan candidates must have would_execute=false")
+	wantExec := len(opps[0].RejectReasons) == 0
+	if rec.WouldExecute != wantExec {
+		t.Fatalf("would_execute = %v, want %v (reject_reasons=%v)", rec.WouldExecute, wantExec, opps[0].RejectReasons)
 	}
 }
 

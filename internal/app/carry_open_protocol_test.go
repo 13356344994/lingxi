@@ -100,12 +100,16 @@ func TestCarryFundingEntryWindowRespectsFloorAndCap(t *testing.T) {
 	}
 }
 
-func TestCarryFundingEntryMissingVolUsesTightestWindow(t *testing.T) {
+func TestCarryFundingEntryMissingVolUsesModerateWindow(t *testing.T) {
 	gate := testCarryFundingEntryGate()
 	withData := carryFundingEntryWindowMinutes(gate, 8, 0, true)
 	noData := carryFundingEntryWindowMinutes(gate, 8, 0, false)
-	if noData >= withData {
-		t.Fatalf("missing vol should be tighter: noData=%.2f withData=%.2f", noData, withData)
+	if noData <= withData*gate.MinVolScale+1e-6 {
+		t.Fatalf("missing vol should use moderate scale, not tightest: noData=%.2f withData=%.2f minScale=%.2f", noData, withData, gate.MinVolScale)
+	}
+	wantNoData := 8.0 * 60 * gate.BaseFraction * gate.MissingVolScale
+	if math.Abs(noData-wantNoData) > 1e-6 {
+		t.Fatalf("missing vol window %.2f want ≈%.2f (base×missingVolScale)", noData, wantNoData)
 	}
 }
 

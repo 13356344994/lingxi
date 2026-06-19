@@ -562,7 +562,7 @@ func TestUnifiedRotationRunner_DecideRotationIntegration(t *testing.T) {
 func TestUnifiedRotationRunner_ScanCandidatesOffline(t *testing.T) {
 	dir := t.TempDir()
 	now := time.Date(2026, 6, 18, 12, 0, 0, 0, time.UTC)
-	nextFunding := now.Add(30 * time.Minute)
+	nextFunding := scannerTestCarryNextFunding(now)
 	r := &UnifiedRotationRunner{
 		bindings:    map[string]*rotationExecutorBinding{},
 		logger:      log.New(io.Discard, "", 0),
@@ -570,6 +570,9 @@ func TestUnifiedRotationRunner_ScanCandidatesOffline(t *testing.T) {
 		recordDir:   dir,
 		execCfg:     testCrossVenueExecutorConfig().CrossVenueExecutor,
 		rotationCfg: DefaultRotationConfig(),
+		scanner: scannerTestCarryScannerWithVolHistory(bybit.VenueName, "BTC-USDT", []float64{
+			0.0020, 0.0024, 0.0022,
+		}),
 		fetchDeps: unifiedMarketPipelineFetchDeps{
 			fetchMarkets: func(context.Context, map[string]venue.Venue, []string) map[string]map[string]CrossVenueSpotPerpMarketSnap {
 				return scannerTestInstrumentMetaMarkets(map[string]map[string]CrossVenueSpotPerpMarketSnap{
@@ -591,7 +594,7 @@ func TestUnifiedRotationRunner_ScanCandidatesOffline(t *testing.T) {
 		ScannedAt:  now,
 		FundingByVenue: map[string]map[string]CrossVenueFundingEntry{
 			bybit.VenueName: {
-				"BTC-USDT": {Rate: 0.0003, IntervalHours: 8, NextFundingTime: nextFunding},
+				"BTC-USDT": {Rate: 0.05, IntervalHours: 8, NextFundingTime: nextFunding},
 			},
 			binance.VenueName: {
 				"BTC-USDT": {Rate: 0.0001, IntervalHours: 8, NextFundingTime: nextFunding},
@@ -608,12 +611,17 @@ func TestUnifiedRotationRunner_ScanCandidatesOffline(t *testing.T) {
 	if len(candidates) == 0 {
 		t.Fatal("expected candidates from offline scan")
 	}
+	tradeable := 0
 	strategies := map[string]int{}
 	for _, c := range candidates {
+		if len(c.RejectReasons) > 0 {
+			continue
+		}
+		tradeable++
 		strategies[c.StrategyType]++
 	}
 	if strategies[UnifiedStrategySingleVenueSpotPerp] == 0 && strategies[UnifiedStrategyCrossVenueSpotPerp] == 0 {
-		t.Fatalf("expected spot-perp candidates, got %v", strategies)
+		t.Fatalf("expected tradeable spot-perp candidates, got tradeable=%d strategies=%v", tradeable, strategies)
 	}
 
 	path := filepath.Join(opportunitiesRecordDir(dir), unifiedCandidatesLogFileName)
@@ -648,19 +656,23 @@ func TestUnifiedRotationRunner_TickerInterval(t *testing.T) {
 func TestUnifiedRotationRunner_RunOnceWritesCandidates(t *testing.T) {
 	dir := t.TempDir()
 	now := time.Date(2026, 6, 18, 12, 0, 0, 0, time.UTC)
-	nextFunding := now.Add(30 * time.Minute)
+	nextFunding := scannerTestCarryNextFunding(now)
 	snap := CrossVenueScanSnapshot{
 		SnapshotID: "runonce-snap",
 		ScannedAt:  now,
 		FundingByVenue: map[string]map[string]CrossVenueFundingEntry{
 			bybit.VenueName: {
-				"BTC-USDT": {Rate: 0.0003, IntervalHours: 8, NextFundingTime: nextFunding},
+				"BTC-USDT": {Rate: 0.05, IntervalHours: 8, NextFundingTime: nextFunding},
 			},
 			binance.VenueName: {
 				"BTC-USDT": {Rate: 0.0001, IntervalHours: 8, NextFundingTime: nextFunding},
 			},
 		},
 	}
+	sc := scannerTestCarryScannerWithVolHistory(bybit.VenueName, "BTC-USDT", []float64{
+		0.0020, 0.0024, 0.0022,
+	})
+	sc.lastSnapshot = snap
 	r := &UnifiedRotationRunner{
 		bindings:    map[string]*rotationExecutorBinding{},
 		logger:      log.New(io.Discard, "", 0),
@@ -668,7 +680,7 @@ func TestUnifiedRotationRunner_RunOnceWritesCandidates(t *testing.T) {
 		recordDir:   dir,
 		execCfg:     testCrossVenueExecutorConfig().CrossVenueExecutor,
 		rotationCfg: DefaultRotationConfig(),
-		scanner:     &CrossVenueScanner{lastSnapshot: snap},
+		scanner:     sc,
 		fetchDeps: unifiedMarketPipelineFetchDeps{
 			fetchMarkets: func(context.Context, map[string]venue.Venue, []string) map[string]map[string]CrossVenueSpotPerpMarketSnap {
 				return scannerTestInstrumentMetaMarkets(map[string]map[string]CrossVenueSpotPerpMarketSnap{

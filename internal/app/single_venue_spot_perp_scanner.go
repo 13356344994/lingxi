@@ -259,8 +259,7 @@ func buildSingleVenueSpotPerpOpportunity(
 		return UnifiedOpportunity{}, false
 	}
 
-	effectiveRate := crossVenueSpotPerpEffectiveFundingRate(fund.Rate, fund.SpikeThreshold, cfg.PeakFundingHaircut)
-	expectedFunding := notional * effectiveRate * float64(settlements)
+	effectiveRate := crossVenueSpotPerpEffectiveFundingRate(fund.Rate, fund.SpikeThreshold, cfg.PeakFundingHaircut, cfg.Exec.CarryNoHistoryHaircut)
 
 	entryBasisUSDT := crossVenueSpotPerpEntryBasisUSDT(mkt.SpotMid, mkt.PerpMid, notional)
 	expectedBasisPnL := crossVenueSpotPerpExpectedBasisPnL(entryBasisUSDT, notional, cvCfg)
@@ -273,6 +272,19 @@ func buildSingleVenueSpotPerpOpportunity(
 	if ok, _ := carryScannerFundingEntryEligible(now, fund, holdHours, notional, effectiveRate, expectedBasisPnL, openCost, slippage, cfg.Exec.FundingEntryGate(), vol, volOK); !ok {
 		return UnifiedOpportunity{}, false
 	}
+
+	maxNotional := notional
+	notional, _, ok := carrySizedNotionalAfterConfidence(maxNotional, cfg.Exec, fund, vol, volOK)
+	if !ok {
+		return UnifiedOpportunity{}, false
+	}
+
+	expectedFunding := notional * effectiveRate * float64(settlements)
+	entryBasisUSDT = crossVenueSpotPerpEntryBasisUSDT(mkt.SpotMid, mkt.PerpMid, notional)
+	expectedBasisPnL = crossVenueSpotPerpExpectedBasisPnL(entryBasisUSDT, notional, cvCfg)
+	openCost = singleVenueSpotPerpOpenCostUSDT(cfg, venueName, notional)
+	closeCost = openCost
+	slippage = crossVenueSpotPerpSlippageUSDT(cvCfg, notional, mkt, mkt)
 
 	spotCashRequired := notional
 	perpMarginRequired := crossVenueSpotPerpPerpMarginRequired(cvCfg, notional)

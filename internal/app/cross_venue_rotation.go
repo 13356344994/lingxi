@@ -218,6 +218,61 @@ func crossVenueHistoryQualityScore(samples, persistenceScans int) float64 {
 	return clamp01(float64(samples) / float64(persistenceScans))
 }
 
+const defaultSpreadPersistenceScans = 2
+
+func crossVenueConfidenceSizeMultiplier(floor, historyQuality, stabilityScore float64) float64 {
+	if floor <= 0 {
+		floor = 0.25
+	}
+	if floor > 1 {
+		floor = 1
+	}
+	conf := clamp01((clamp01(historyQuality) + clamp01(stabilityScore)) / 2)
+	return floor + (1-floor)*conf
+}
+
+func carryFundingHistoryQuality(fund CrossVenueSpotPerpFundingSnap) float64 {
+	sampleScore := crossVenueHistoryQualityScore(fund.FundingHistorySamples, defaultSpreadPersistenceScans)
+	if fund.SpikeThreshold > 0 {
+		return clamp01((sampleScore + 0.75) / 2)
+	}
+	return sampleScore
+}
+
+func carryFundingVolScale(gate CarryFundingEntryGateConfig, volPerHour float64, volDataAvailable bool) float64 {
+	gate = normalizeCarryFundingEntryGateConfig(gate)
+	if volDataAvailable && gate.VolRefPerHour > 0 {
+		vs := 1 - volPerHour/gate.VolRefPerHour
+		if vs < gate.MinVolScale {
+			vs = gate.MinVolScale
+		}
+		if vs > 1 {
+			vs = 1
+		}
+		return vs
+	}
+	return gate.MissingVolScale
+}
+
+func carryConfidenceSizeMultiplier(execCfg CrossVenueExecutorConfig, fund CrossVenueSpotPerpFundingSnap, volPerHour float64, volDataAvailable bool, gate CarryFundingEntryGateConfig) float64 {
+	floor := execCfg.LowConfidenceSizeFloorFraction
+	if floor <= 0 {
+		floor = 0.25
+	}
+	conf := clamp01(carryFundingHistoryQuality(fund))
+	conf *= clamp01(carryFundingVolScale(gate, volPerHour, volDataAvailable))
+	return floor + (1-floor)*conf
+}
+
+func carrySizedNotionalAfterConfidence(maxNotional float64, execCfg CrossVenueExecutorConfig, fund CrossVenueSpotPerpFundingSnap, volPerHour float64, volDataAvailable bool) (float64, float64, bool) {
+	mult := carryConfidenceSizeMultiplier(execCfg, fund, volPerHour, volDataAvailable, execCfg.FundingEntryGate())
+	sized := maxNotional * mult
+	if sized+1e-9 < crossVenueSpotPerpMinTradableNotionalUSDT {
+		return 0, mult, false
+	}
+	return sized, mult, true
+}
+
 func crossVenueObservableRiskCost(notional, freshnessAgeSeconds, comparableWindowHours, recoveryQuality float64) float64 {
 	if notional <= 0 {
 		return 0
@@ -259,16 +314,13 @@ func crossVenueEstimateOpportunityMetrics(cfg CrossVenueExecutorConfig, opp Cros
 		capitalEfficiency = netEV / effectiveMargin
 	}
 	historyQuality := clamp01(opp.HistoryQualityScore)
-	if historyQuality == 0 {
-		historyQuality = 0.7
-	}
 	liquidityScore := clamp01(opp.LiquidityScore)
 	if liquidityScore == 0 {
 		liquidityScore = crossVenueLiquidityScore(notional, windowHours)
 	}
 	stabilityScore := clamp01(opp.StabilityScore)
 	if stabilityScore == 0 {
-		stabilityScore = crossVenueStabilityScore(windowHours, 1)
+		stabilityScore = crossVenueStabilityScore(windowHours, 0)
 	}
 	executionScore := clamp01(opp.ExecutionScore)
 	if executionScore == 0 {
@@ -303,7 +355,7 @@ func crossVenueEstimateOpportunityMetrics(cfg CrossVenueExecutorConfig, opp Cros
 	return opp
 }
 
-func crossVenueFinalizeOpportunityRanking(opps []CrossVenueOpportunity) {
+func crossVenueFinalizeOpportunityRanking(cfg CrossVenueExecutorConfig, opps []CrossVenueOpportunity) {
 	maxNetEV := 0.0
 	maxCapEff := 0.0
 	maxRiskAdj := 0.0
@@ -318,6 +370,7 @@ func crossVenueFinalizeOpportunityRanking(opps []CrossVenueOpportunity) {
 			maxRiskAdj = opp.RiskAdjustedEVPerHour
 		}
 	}
+	floor := cfg.LowConfidenceSizeFloorFraction
 	for i := range opps {
 		netNorm := 0.0
 		if maxNetEV > 0 {
@@ -333,7 +386,9 @@ func crossVenueFinalizeOpportunityRanking(opps []CrossVenueOpportunity) {
 		}
 		quality := (opps[i].HistoryQualityScore + opps[i].LiquidityScore + opps[i].StabilityScore + opps[i].ExecutionScore + opps[i].RecoveryQualityScore) / 5
 		opps[i].RankScore = 100 * (0.35*netNorm + 0.25*capNorm + 0.20*riskNorm + 0.20*quality)
-		opps[i].SizeMultiplier = clamp01((capNorm + opps[i].ExecutionScore + opps[i].LiquidityScore + opps[i].RecoveryQualityScore) / 4)
+		confMult := crossVenueConfidenceSizeMultiplier(floor, opps[i].HistoryQualityScore, opps[i].StabilityScore)
+		baseMult := clamp01((capNorm + opps[i].ExecutionScore + opps[i].LiquidityScore + opps[i].RecoveryQualityScore) / 4)
+		opps[i].SizeMultiplier = clamp01(baseMult * confMult)
 		if opps[i].NetEV <= 0 {
 			opps[i].SizeMultiplier = 0
 		}

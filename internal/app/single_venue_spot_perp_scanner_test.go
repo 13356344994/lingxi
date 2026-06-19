@@ -16,6 +16,7 @@ import (
 func testSingleVenueSpotPerpScanInput(now time.Time) SingleVenueSpotPerpScanInput {
 	exec := testCrossVenueExecutorConfig().CrossVenueExecutor
 	cfg := DefaultSingleVenueSpotPerpScannerConfig(exec)
+	cfg.PeakFundingHaircut = 1.0
 	nextFunding := scannerTestCarryNextFunding(now)
 
 	return SingleVenueSpotPerpScanInput{
@@ -25,18 +26,8 @@ func testSingleVenueSpotPerpScanInput(now time.Time) SingleVenueSpotPerpScanInpu
 		Venues:     []string{bybit.VenueName},
 		FundingByVenue: map[string]map[string]SingleVenueSpotPerpFundingSnap{
 			bybit.VenueName: {
-				"BTC-USDT": {
-					Rate:            scannerTestCarryNearFundingRate,
-					IntervalHours:   8,
-					NextFundingTime: nextFunding,
-					SpikeThreshold:  0.00025,
-				},
-				"ETH-USDT": {
-					Rate:            scannerTestCarryNearFundingRate,
-					IntervalHours:   8,
-					NextFundingTime: nextFunding,
-					SpikeThreshold:  0.00015,
-				},
+				"BTC-USDT": scannerTestEstablishedFundingSnap(scannerTestCarryNearFundingRate, nextFunding),
+				"ETH-USDT": scannerTestEstablishedFundingSnap(scannerTestCarryNearFundingRate, nextFunding),
 			},
 		},
 		MarketsByVenue: scannerTestInstrumentMetaMarkets(map[string]map[string]SingleVenueSpotPerpMarketSnap{
@@ -139,8 +130,8 @@ func TestSingleVenueSpotPerpRequiresRebalanceHelper(t *testing.T) {
 }
 
 func TestSingleVenueSpotPerpEffectiveFundingRateNoHistoryFallback(t *testing.T) {
-	got := crossVenueSpotPerpEffectiveFundingRate(0.001, 0, 0.5)
-	want := 0.0005
+	got := crossVenueSpotPerpEffectiveFundingRate(0.001, 0, 0.5, 1.0)
+	want := 0.001
 	if math.Abs(got-want) > 1e-12 {
 		t.Fatalf("no-history effective rate = %.8f, want %.8f", got, want)
 	}
@@ -261,7 +252,7 @@ func TestSingleVenueSpotPerpUsesDiscreteSettlementCount(t *testing.T) {
 }
 
 func TestSingleVenueSpotPerpEffectiveFundingRateSpikeDecay(t *testing.T) {
-	got := crossVenueSpotPerpEffectiveFundingRate(0.001, 0.0004, 0.5)
+	got := crossVenueSpotPerpEffectiveFundingRate(0.001, 0.0004, 0.5, 1.0)
 	want := 0.0004 + 0.5*(0.001-0.0004)
 	if math.Abs(got-want) > 1e-12 {
 		t.Fatalf("effective rate = %.8f, want %.8f", got, want)
@@ -342,8 +333,9 @@ func TestAppendSingleVenueSpotPerpCandidatesWritesJSONL(t *testing.T) {
 	if rec.CycleID != "svsp-cycle-test" {
 		t.Fatalf("cycle_id = %q", rec.CycleID)
 	}
-	if rec.WouldExecute {
-		t.Fatal("plan candidates must have would_execute=false")
+	wantExec := len(opps[0].RejectReasons) == 0
+	if rec.WouldExecute != wantExec {
+		t.Fatalf("would_execute = %v, want %v (reject_reasons=%v)", rec.WouldExecute, wantExec, opps[0].RejectReasons)
 	}
 }
 

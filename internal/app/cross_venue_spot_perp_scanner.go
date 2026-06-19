@@ -27,8 +27,10 @@ type CrossVenueSpotPerpFundingSnap struct {
 	Rate            float64   `json:"rate"`
 	IntervalHours   int       `json:"interval_hours"`
 	NextFundingTime time.Time `json:"next_funding_time"`
-	// SpikeThreshold 尖峰衰减阈值(通常为历史 |rate| p90); <=0 时不做尖峰裁剪但会降低 data_quality。
+	// SpikeThreshold 尖峰衰减阈值(通常为历史 |rate| p90); <=0 时不做尖峰裁剪。
 	SpikeThreshold float64 `json:"spike_threshold,omitempty"`
+	// FundingHistorySamples 滚动费率历史样本数(软信号,用于置信度 sizing)。
+	FundingHistorySamples int `json:"funding_history_samples,omitempty"`
 }
 
 // CrossVenueSpotPerpMarketSnap 是某所某 symbol 的现货/永续中间价与深度容量(扫描输入)。
@@ -348,8 +350,7 @@ func buildCrossVenueSpotPerpOpportunity(
 		return UnifiedOpportunity{}, false
 	}
 
-	effectiveRate := crossVenueSpotPerpEffectiveFundingRate(fund.Rate, fund.SpikeThreshold, cfg.PeakFundingHaircut)
-	expectedFunding := notional * effectiveRate * float64(settlements)
+	effectiveRate := crossVenueSpotPerpEffectiveFundingRate(fund.Rate, fund.SpikeThreshold, cfg.PeakFundingHaircut, cfg.Exec.CarryNoHistoryHaircut)
 
 	entryBasisUSDT := crossVenueSpotPerpEntryBasisUSDT(spotMkt.SpotMid, perpMkt.PerpMid, notional)
 	expectedBasisPnL := crossVenueSpotPerpExpectedBasisPnL(entryBasisUSDT, notional, cfg)
@@ -362,6 +363,19 @@ func buildCrossVenueSpotPerpOpportunity(
 	if ok, _ := carryScannerFundingEntryEligible(now, fund, holdHours, notional, effectiveRate, expectedBasisPnL, openCost, slippage, cfg.Exec.FundingEntryGate(), vol, volOK); !ok {
 		return UnifiedOpportunity{}, false
 	}
+
+	maxNotional := notional
+	notional, _, ok := carrySizedNotionalAfterConfidence(maxNotional, cfg.Exec, fund, vol, volOK)
+	if !ok {
+		return UnifiedOpportunity{}, false
+	}
+
+	expectedFunding := notional * effectiveRate * float64(settlements)
+	entryBasisUSDT = crossVenueSpotPerpEntryBasisUSDT(spotMkt.SpotMid, perpMkt.PerpMid, notional)
+	expectedBasisPnL = crossVenueSpotPerpExpectedBasisPnL(entryBasisUSDT, notional, cfg)
+	openCost = crossVenueSpotPerpOpenCostUSDT(cfg, spotVenue, perpVenue, notional)
+	closeCost = openCost
+	slippage = crossVenueSpotPerpSlippageUSDT(cfg, notional, spotMkt, perpMkt)
 
 	spotCashRequired := notional
 	perpMarginRequired := crossVenueSpotPerpPerpMarginRequired(cfg, notional)
@@ -442,15 +456,16 @@ func crossVenueSpotPerpTradableNotional(cfg CrossVenueSpotPerpScannerConfig, spo
 	} else {
 		maxNotional = applyLiquidityCapToMaxPosition(maxNotional, liqCap)
 	}
-	// sizing_max_slippage_bps=0 时保留旧 depth_usage_ratio 硬闸(回归兼容)。
+	// sizing_max_slippage_bps=0 时保留旧 depth_usage_ratio 路径:cap 不足 min 则拒绝,否则 size down。
 	if cfg.Exec.SizingMaxSlippageBps <= 0 {
+		minNotional := crossVenueSpotPerpMinTradableNotionalUSDT
 		if spotMkt.SpotDepthUSDT > 0 {
 			ratio := cfg.Exec.DepthUsageRatio
 			if ratio <= 0 {
 				ratio = 0.20
 			}
 			cap := spotMkt.SpotDepthUSDT * ratio
-			if cap+1e-9 < cfg.Exec.MaxPositionUSDT {
+			if cap+1e-9 < minNotional {
 				return 0
 			}
 			maxNotional = math.Min(maxNotional, cap)
@@ -461,7 +476,7 @@ func crossVenueSpotPerpTradableNotional(cfg CrossVenueSpotPerpScannerConfig, spo
 				ratio = 0.20
 			}
 			cap := perpMkt.PerpDepthUSDT * ratio
-			if cap+1e-9 < cfg.Exec.MaxPositionUSDT {
+			if cap+1e-9 < minNotional {
 				return 0
 			}
 			maxNotional = math.Min(maxNotional, cap)
@@ -566,12 +581,18 @@ func crossVenueSpotPerpFundingSettlementCount(now time.Time, holdHours float64, 
 	return count
 }
 
-func crossVenueSpotPerpEffectiveFundingRate(rate, spikeThreshold, peakHaircut float64) float64 {
+func crossVenueSpotPerpEffectiveFundingRate(rate, spikeThreshold, peakHaircut, noHistoryHaircut float64) float64 {
 	if rate <= 0 {
 		return 0
 	}
 	if spikeThreshold <= 0 {
-		return rate * peakHaircut
+		if noHistoryHaircut <= 0 {
+			noHistoryHaircut = 1.0
+		}
+		return rate * noHistoryHaircut
+	}
+	if peakHaircut <= 0 {
+		peakHaircut = crossVenueSpotPerpDefaultPeakFundingHaircut
 	}
 	if rate <= spikeThreshold {
 		return rate
@@ -665,10 +686,7 @@ func crossVenueSpotPerpRequiresRebalance(
 }
 
 func crossVenueSpotPerpDataQualityScore(fund CrossVenueSpotPerpFundingSnap) float64 {
-	if fund.SpikeThreshold <= 0 {
-		return 0.35
-	}
-	return 0.75
+	return carryFundingHistoryQuality(fund)
 }
 
 func crossVenueSpotPerpLiquidityScore(spotMkt, perpMkt CrossVenueSpotPerpMarketSnap, notional, holdHours float64) float64 {

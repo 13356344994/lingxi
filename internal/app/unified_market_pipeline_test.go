@@ -265,7 +265,7 @@ func TestCrossVenueSpotPerpTradableNotionalBeyondDepthFetchLimitConservative(t *
 
 func TestUnifiedRotationRunner_ScanCandidatesLiquidityAdaptiveDepth(t *testing.T) {
 	now := time.Date(2026, 6, 19, 12, 0, 0, 0, time.UTC)
-	nextFunding := now.Add(30 * time.Minute)
+	nextFunding := scannerTestCarryNextFunding(now)
 	thinDepth := venue.Depth{
 		Asks: []venue.DepthLevel{{Price: 100000, Qty: 0.0003}},
 		Bids: []venue.DepthLevel{{Price: 100000, Qty: 0.0003}},
@@ -290,6 +290,9 @@ func TestUnifiedRotationRunner_ScanCandidatesLiquidityAdaptiveDepth(t *testing.T
 			return cfg
 		}(),
 		rotationCfg: DefaultRotationConfig(),
+		scanner: scannerTestCarryScannerWithVolHistory(bybit.VenueName, "BTC-USDT", []float64{
+			0.0020, 0.0024, 0.0022,
+		}),
 		fetchDeps: unifiedMarketPipelineFetchDeps{
 			fetchMarkets: func(_ context.Context, venues map[string]venue.Venue, symbols []string) map[string]map[string]CrossVenueSpotPerpMarketSnap {
 				out := make(map[string]map[string]CrossVenueSpotPerpMarketSnap)
@@ -316,7 +319,7 @@ func TestUnifiedRotationRunner_ScanCandidatesLiquidityAdaptiveDepth(t *testing.T
 		ScannedAt:  now,
 		FundingByVenue: map[string]map[string]CrossVenueFundingEntry{
 			bybit.VenueName: {
-				"BTC-USDT": {Rate: 0.0003, IntervalHours: 8, NextFundingTime: nextFunding},
+				"BTC-USDT": {Rate: scannerTestCarryNearFundingRate, IntervalHours: 8, NextFundingTime: nextFunding},
 			},
 			binance.VenueName: {
 				"BTC-USDT": {Rate: 0.0001, IntervalHours: 8, NextFundingTime: nextFunding},

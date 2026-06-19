@@ -98,10 +98,11 @@ type CrossVenueVenueStatus struct {
 
 // CrossVenueFundingEntry 是某所某 symbol 的一条费率明细(供执行引擎离线查询,免现场拉全量快照)。
 type CrossVenueFundingEntry struct {
-	Rate            float64   `json:"rate"`
-	IntervalHours   int       `json:"interval_hours"`
-	NextFundingTime time.Time `json:"next_funding_time"`
-	SpikeThreshold  float64   `json:"spike_threshold,omitempty"`
+	Rate                   float64   `json:"rate"`
+	IntervalHours          int       `json:"interval_hours"`
+	NextFundingTime        time.Time `json:"next_funding_time"`
+	SpikeThreshold         float64   `json:"spike_threshold,omitempty"`
+	FundingHistorySamples  int       `json:"funding_history_samples,omitempty"`
 }
 
 // CrossVenueBorrowProbe 是某 symbol 在某所的一条借币可得性探测结果(只读遥测)。
@@ -319,6 +320,7 @@ func (s *CrossVenueScanner) scanOnce(ctx context.Context) {
 	for venueName, bySym := range fundingByVenue {
 		for sym, entry := range bySym {
 			entry.SpikeThreshold = s.fundingSpikeThreshold(venueName, sym)
+			entry.FundingHistorySamples = s.fundingHistorySampleCount(venueName, sym)
 			bySym[sym] = entry
 		}
 	}
@@ -877,15 +879,11 @@ func buildCrossVenueFundingIndex(byVenue map[string][]venue.FundingSnapshot) map
 	return out
 }
 
-// indexSnapshotsBySymbol 把各所快照按 canonical symbol 索引(用平滑+封顶费率算年化)。
+// indexSnapshotsBySymbol 把各所快照按 canonical symbol 索引(用 live forward 费率+APR 封顶算年化)。
 func (s *CrossVenueScanner) indexSnapshotsBySymbol(byVenue map[string][]venue.FundingSnapshot) map[string][]symbolVenueFunding {
 	capAPR := s.cfg.FundingAPRSanityCap
 	if capAPR <= 0 {
 		capAPR = 5.0
-	}
-	window := s.cfg.SpreadPersistenceScans
-	if window <= 0 {
-		window = 1 // 零值=未配置(单测);出厂 DefaultEngineConfig 已设 2
 	}
 	out := make(map[string][]symbolVenueFunding)
 	for venueName, snaps := range byVenue {
@@ -901,11 +899,7 @@ func (s *CrossVenueScanner) indexSnapshotsBySymbol(byVenue map[string][]venue.Fu
 			if snap.NextFundingTime.IsZero() {
 				continue
 			}
-			smoothed, samples := s.smoothedFundingRate(venueName, sym, snap.LastFundingRate, window)
-			if samples < window {
-				continue
-			}
-			rate := capFundingRateByAPR(smoothed, interval, capAPR)
+			rate := capFundingRateByAPR(snap.LastFundingRate, interval, capAPR)
 			out[sym] = append(out[sym], symbolVenueFunding{
 				Venue:           venueName,
 				FundingRate:     rate,
@@ -983,13 +977,16 @@ func (s *CrossVenueScanner) computeCrossVenueOpportunities(ctx context.Context, 
 		}
 		highSamples := s.fundingHistorySampleCount(opp.HighVenue, sym)
 		lowSamples := s.fundingHistorySampleCount(opp.LowVenue, sym)
-		opp.HistoryQualityScore = crossVenueHistoryQualityScore(minInt(highSamples, lowSamples), s.cfg.SpreadPersistenceScans)
+		minSamples := minInt(highSamples, lowSamples)
+		windowHours := crossVenueComparableWindowHours(s.nowFn(), opp.HighNextFundingTime, opp.LowNextFundingTime)
+		opp.HistoryQualityScore = crossVenueHistoryQualityScore(minSamples, s.cfg.SpreadPersistenceScans)
+		opp.StabilityScore = crossVenueStabilityScore(windowHours, minSamples)
 		opp.Symbol = sym
 		opp.TradableNotional = crossVenuePerpPerpScanTradableNotional(ctx, s.execCfg, s.venues, opp.HighVenue, opp.LowVenue, sym)
 		opp = crossVenueEstimateOpportunityMetrics(s.execCfg, opp, s.nowFn())
 		opps = append(opps, opp)
 	}
-	crossVenueFinalizeOpportunityRanking(opps)
+	crossVenueFinalizeOpportunityRanking(s.execCfg, opps)
 	sort.Slice(opps, func(i, j int) bool {
 		if opps[i].RankScore == opps[j].RankScore {
 			return opps[i].Symbol < opps[j].Symbol
@@ -1022,7 +1019,7 @@ func computeCrossVenueOpportunities(byVenue map[string][]venue.FundingSnapshot, 
 		opp = crossVenueEstimateOpportunityMetrics(CrossVenueExecutorConfig{MaxPositionUSDT: 50, MaxEffectiveLeverage: 2, MarginSafetyFactor: 1.5, EVExpectedSlippageBps: 3}, opp, time.Now().UTC())
 		opps = append(opps, opp)
 	}
-	crossVenueFinalizeOpportunityRanking(opps)
+	crossVenueFinalizeOpportunityRanking(CrossVenueExecutorConfig{MaxPositionUSDT: 50, MaxEffectiveLeverage: 2, MarginSafetyFactor: 1.5, EVExpectedSlippageBps: 3}, opps)
 	sort.Slice(opps, func(i, j int) bool {
 		if opps[i].RankScore == opps[j].RankScore {
 			return opps[i].Symbol < opps[j].Symbol

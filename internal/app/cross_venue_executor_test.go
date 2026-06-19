@@ -243,6 +243,12 @@ func testCrossVenueExecutorConfig() EngineConfig {
 		SymbolCooldownHours:          1,
 		MakerFirst:                   false, // 既有单测钉死纯 IOC 语义;maker 场景见 TestCrossVenueMaker*
 	}
+	defExec := DefaultEngineConfig().CrossVenueExecutor
+	cfg.CrossVenueExecutor.CarryFundingEntryBaseFraction = defExec.CarryFundingEntryBaseFraction
+	cfg.CrossVenueExecutor.CarryFundingEntryMinVolScale = defExec.CarryFundingEntryMinVolScale
+	cfg.CrossVenueExecutor.CarryFundingEntryVolRefPerHour = defExec.CarryFundingEntryVolRefPerHour
+	cfg.CrossVenueExecutor.CarryFundingEntryFloorMinutes = defExec.CarryFundingEntryFloorMinutes
+	cfg.CrossVenueExecutor.CarryFundingEntryVolLookbackScans = defExec.CarryFundingEntryVolLookbackScans
 	cfg.CrossVenueScanner.Enabled = true
 	cfg.AllocatedCapitalUSDT = 1000
 	return cfg
@@ -2667,7 +2673,7 @@ func makeTestOpenOpportunity(cfg CrossVenueExecutorConfig, now time.Time, symbol
 	opp.StabilityScore = stability
 	opp.ExecutionScore = execution
 	ranked := []CrossVenueOpportunity{opp}
-	crossVenueFinalizeOpportunityRanking(ranked)
+	crossVenueFinalizeOpportunityRanking(cfg, ranked)
 	return ranked[0]
 }
 

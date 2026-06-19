@@ -180,6 +180,12 @@ func normalizeCarryFundingEntryGateConfig(cfg CarryFundingEntryGateConfig) Carry
 	if cfg.VolLookbackScans <= 0 {
 		cfg.VolLookbackScans = 10
 	}
+	if cfg.MissingVolScale <= 0 {
+		cfg.MissingVolScale = 0.6
+	}
+	if cfg.MissingVolScale > 1 {
+		cfg.MissingVolScale = 1
+	}
 	return cfg
 }
 
@@ -198,7 +204,7 @@ func carryFundingEntryWindowMinutes(
 	}
 	baseMinutes := ih * 60 * gate.BaseFraction
 
-	volScale := gate.MinVolScale
+	volScale := gate.MissingVolScale
 	if volDataAvailable && gate.VolRefPerHour > 0 {
 		volScale = 1 - rateVolPerHour/gate.VolRefPerHour
 		if volScale < gate.MinVolScale {

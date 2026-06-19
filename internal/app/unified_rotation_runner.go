@@ -822,6 +822,15 @@ func (r *UnifiedRotationRunner) defaultScanRotationCandidates(ctx context.Contex
 
 	volLookback := r.execCfg.CarryFundingEntryVolLookbackScans
 	fundingVolByVenue := carryFundingVolatilityMap(r.scanner, fundingByVenue, volLookback)
+	if r.logger != nil {
+		for venue, bySym := range fundingByVenue {
+			for sym := range bySym {
+				if _, ok := carryFundingVolFromMap(fundingVolByVenue, venue, sym); !ok {
+					r.logger.Printf("[carry-entry-gate] %s@%s 缺费率波动样本,使用保守缩窗", sym, venue)
+				}
+			}
+		}
+	}
 
 	singleSpotPerp := ScanSingleVenueSpotPerpOpportunities(SingleVenueSpotPerpScanInput{
 		SnapshotID:                   snapshotID,

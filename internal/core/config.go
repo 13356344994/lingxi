@@ -539,7 +539,7 @@ type CrossVenueScannerConfig struct {
 	BorrowProbeMaxLivePerScan int `cfg:"borrow_probe_max_live_per_scan"`
 	// FundingAPRSanityCap 单腿年化费率绝对值上限(小数,5.0=500%);超过视为尖峰/坏数据,截断后再参与价差/排序。
 	FundingAPRSanityCap float64 `cfg:"funding_apr_sanity_cap"`
-	// SpreadPersistenceScans 跨所价差须在最近 N 次扫描中持续达标(用近 N 次中位数费率);历史不足 N 次则暂不出候选。
+	// SpreadPersistenceScans 费率历史样本窗口(用于 HistoryQualityScore 软信号;不再作为存在性硬闸)。
 	SpreadPersistenceScans int `cfg:"spread_persistence_scans"`
 }
 
@@ -698,6 +698,12 @@ type CrossVenueExecutorConfig struct {
 	CarryFundingEntryFloorMinutes float64 `cfg:"carry_funding_entry_floor_minutes"`
 	// CarryFundingEntryVolLookbackScans 计算费率波动时使用的最近扫描样本数。默认 10。
 	CarryFundingEntryVolLookbackScans int `cfg:"carry_funding_entry_vol_lookback_scans"`
+	// CarryFundingEntryMissingVolScale 无费率波动历史时开仓窗口 volScale(中等,非最紧)。默认 0.6。
+	CarryFundingEntryMissingVolScale float64 `cfg:"carry_funding_entry_missing_vol_scale"`
+	// CarryNoHistoryHaircut 无 p90 历史时对 live rate 的乘数;1.0=不裁剪。默认 1.0。
+	CarryNoHistoryHaircut float64 `cfg:"carry_no_history_haircut"`
+	// LowConfidenceSizeFloorFraction 低置信度(历史/波动)时的 SizeMultiplier 下限。默认 0.25。
+	LowConfidenceSizeFloorFraction float64 `cfg:"low_confidence_size_floor_fraction"`
 }
 
 // CarryFundingEntryGateConfig carry 策略开仓前资金费结算窗口闸门参数视图(由 CrossVenueExecutorConfig 字段组装)。
@@ -707,6 +713,7 @@ type CarryFundingEntryGateConfig struct {
 	VolRefPerHour    float64
 	FloorMinutes     float64
 	VolLookbackScans int
+	MissingVolScale  float64
 }
 
 // FundingEntryGate 返回 carry 开仓窗口闸门配置视图。
@@ -717,6 +724,7 @@ func (c CrossVenueExecutorConfig) FundingEntryGate() CarryFundingEntryGateConfig
 		VolRefPerHour:    c.CarryFundingEntryVolRefPerHour,
 		FloorMinutes:     c.CarryFundingEntryFloorMinutes,
 		VolLookbackScans: c.CarryFundingEntryVolLookbackScans,
+		MissingVolScale:  c.CarryFundingEntryMissingVolScale,
 	}
 }
 

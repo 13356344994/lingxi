@@ -262,10 +262,8 @@ func buildSingleVenuePerpSpotOpportunity(
 	}
 
 	// 负费率: 多头永续收钱, 捕获量 = effective_rate(|rate|) (对 fund.Rate<0 取 -rate 走尖峰衰减口径)。
-	effectiveRate := crossVenueSpotPerpEffectiveFundingRate(-fund.Rate, fund.SpikeThreshold, cfg.PeakFundingHaircut)
-	expectedFunding := notional * effectiveRate * float64(settlements)
+	effectiveRate := crossVenueSpotPerpEffectiveFundingRate(-fund.Rate, fund.SpikeThreshold, cfg.PeakFundingHaircut, cfg.Exec.CarryNoHistoryHaircut)
 
-	// 基差符号: 与 spot-perp(现货多+永续空)相反 —— 先按同口径算 spot-perp entry basis, 再整体取反。
 	spotPerpEntryBasis := crossVenueSpotPerpEntryBasisUSDT(mkt.SpotMid, mkt.PerpMid, notional)
 	expectedBasisPnL := -crossVenueSpotPerpExpectedBasisPnL(spotPerpEntryBasis, notional, cvCfg)
 
@@ -278,6 +276,20 @@ func buildSingleVenuePerpSpotOpportunity(
 	if ok, _ := carryScannerFundingEntryEligible(now, fund, holdHours, notional, effectiveRate, expectedBasisPnL, openCost+borrowCost, slippage, cfg.Exec.FundingEntryGate(), vol, volOK); !ok {
 		return UnifiedOpportunity{}, false
 	}
+
+	maxNotional := notional
+	notional, _, ok := carrySizedNotionalAfterConfidence(maxNotional, cfg.Exec, fund, vol, volOK)
+	if !ok {
+		return UnifiedOpportunity{}, false
+	}
+
+	expectedFunding := notional * effectiveRate * float64(settlements)
+	spotPerpEntryBasis = crossVenueSpotPerpEntryBasisUSDT(mkt.SpotMid, mkt.PerpMid, notional)
+	expectedBasisPnL = -crossVenueSpotPerpExpectedBasisPnL(spotPerpEntryBasis, notional, cvCfg)
+	openCost = singleVenuePerpSpotOpenCostUSDT(cfg, venueName, notional)
+	closeCost = openCost
+	slippage = crossVenueSpotPerpSlippageUSDT(cvCfg, notional, mkt, mkt)
+	borrowCost = perpSpotBorrowCostUSDT(baseAsset, notional, holdHours, borrowDailyRateByAsset)
 
 	spotMarginRequired := notional
 	perpMarginRequired := crossVenueSpotPerpPerpMarginRequired(cvCfg, notional)

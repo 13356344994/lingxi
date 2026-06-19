@@ -375,6 +375,9 @@ func DefaultEngineConfig() EngineConfig {
 			CarryFundingEntryVolRefPerHour:    0.0001,
 			CarryFundingEntryFloorMinutes:     5,
 			CarryFundingEntryVolLookbackScans: 10,
+			CarryFundingEntryMissingVolScale:  0.6,
+			CarryNoHistoryHaircut:             1.0,
+			LowConfidenceSizeFloorFraction:    0.25,
 		},
 		CapitalAllocator: CapitalAllocatorConfig{
 			Enabled:                   false,

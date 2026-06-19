@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
-  "checksum": "c50f68255ad3aa5b466cf8a46dc48b8ffcaa86a73ca71ac9391995ee9e1e897c",
-  "updated_at": "2026-06-19T07:37:47Z",
+  "checksum": "31c266bae5ab8b8badfd7c7384fc205258afd7a71e6c3596f2c9f56f78a8f302",
+  "updated_at": "2026-06-19T08:12:47Z",
   "positions": [
     {
       "position_key": "BTW-USDT|bybit|svsp-BTWUSDT-bybit-1781770010",
@@ -181,41 +181,6 @@
       "opened_at": "2026-06-18T13:14:17.945374752Z",
       "updated_at": "2026-06-18T13:14:59.137065376Z",
       "close_reason": "open_retry",
-      "last_hedge_rebalance_at": "0001-01-01T00:00:00Z"
-    },
-    {
-      "position_key": "AI-USDT|gate|svsp-AIUSDT-gate-1781852716",
-      "symbol": "AI-USDT",
-      "venue": "gate",
-      "spot_leg": {
-        "market": "spot",
-        "side": "buy",
-        "qty": 300,
-        "entry_price": 0.02031,
-        "order_ids": [
-          "svsp-AIUSDT-gate-1781852716-s1"
-        ]
-      },
-      "perp_leg": {
-        "market": "perp",
-        "side": "short",
-        "qty": 300,
-        "entry_price": 0.02032,
-        "order_ids": [
-          "svsp-AIUSDT-gate-1781852716-p1"
-        ]
-      },
-      "opportunity_id": "single_venue_spot_perp:AI-USDT:gate+gate:cvsnap-20260619T065246.806726679",
-      "open_expected_net_ev": 0.000005036032023141013,
-      "expected_hold_hours": 1.120331464811389,
-      "next_funding_time": "0001-01-01T00:00:00Z",
-      "last_funding_sync_at": "0001-01-01T00:00:00Z",
-      "notional_usdt": 6.093000000000001,
-      "status": "open",
-      "transition_state": "hold",
-      "idem_prefix": "svsp-AIUSDT-gate-1781852716",
-      "opened_at": "2026-06-19T07:05:16.581503295Z",
-      "updated_at": "2026-06-19T07:37:47.229505894Z",
       "last_hedge_rebalance_at": "0001-01-01T00:00:00Z"
     }
   ]

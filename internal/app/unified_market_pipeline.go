@@ -36,10 +36,11 @@ func unifiedMarketFundingByVenueFromSnapshot(src map[string]map[string]CrossVenu
 		dstBySym := make(map[string]CrossVenueSpotPerpFundingSnap, len(bySym))
 		for sym, entry := range bySym {
 			dstBySym[sym] = CrossVenueSpotPerpFundingSnap{
-				Rate:            entry.Rate,
-				IntervalHours:   entry.IntervalHours,
-				NextFundingTime: entry.NextFundingTime,
-				SpikeThreshold:  entry.SpikeThreshold,
+				Rate:                  entry.Rate,
+				IntervalHours:         entry.IntervalHours,
+				NextFundingTime:       entry.NextFundingTime,
+				SpikeThreshold:        entry.SpikeThreshold,
+				FundingHistorySamples: entry.FundingHistorySamples,
 			}
 		}
 		out[venueName] = dstBySym

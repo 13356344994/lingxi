@@ -17,6 +17,7 @@ import (
 func testCrossVenuePerpSpotScanInput(now time.Time) CrossVenuePerpSpotScanInput {
 	exec := testCrossVenueExecutorConfig().CrossVenueExecutor
 	cfg := DefaultCrossVenuePerpSpotScannerConfig(exec)
+	cfg.PeakFundingHaircut = 1.0
 	nextFunding := scannerTestCarryNextFunding(now)
 
 	return CrossVenuePerpSpotScanInput{
@@ -25,20 +26,14 @@ func testCrossVenuePerpSpotScanInput(now time.Time) CrossVenuePerpSpotScanInput 
 		Symbols:    []string{"BTC-USDT"},
 		FundingByVenue: map[string]map[string]CrossVenuePerpSpotFundingSnap{
 			bybit.VenueName: {
-				"BTC-USDT": {
-					Rate:            -scannerTestCarryNearFundingRate,
-					IntervalHours:   8,
-					NextFundingTime: nextFunding,
-					SpikeThreshold:  0.00025,
-				},
+				"BTC-USDT": func() CrossVenuePerpSpotFundingSnap {
+					s := scannerTestEstablishedFundingSnap(-scannerTestCarryNearNegativeFundingRate, nextFunding)
+					s.Rate = -scannerTestCarryNearNegativeFundingRate
+					return s
+				}(),
 			},
 			"okx": {
-				"BTC-USDT": {
-					Rate:            -0.0001,
-					IntervalHours:   8,
-					NextFundingTime: nextFunding,
-					SpikeThreshold:  0.00008,
-				},
+				"BTC-USDT": scannerTestEstablishedFundingSnap(-0.0001, nextFunding),
 			},
 		},
 		MarketsByVenue: scannerTestInstrumentMetaMarkets(map[string]map[string]CrossVenuePerpSpotMarketSnap{
@@ -258,6 +253,7 @@ func TestScanCrossVenuePerpSpotExcludesMarginStressLiquidation(t *testing.T) {
 func TestScanCrossVenuePerpSpotBasisAndNetEV(t *testing.T) {
 	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
 	in := testCrossVenuePerpSpotScanInput(now)
+	in.FundingRateVolPerHourByVenue = scannerTestCarryLowFundingVol(bybit.VenueName, "BTC-USDT")
 	in.MarketsByVenue[binance.VenueName]["BTC-USDT"] = scannerTestInstrumentMeta(CrossVenuePerpSpotMarketSnap{
 		SpotMid:       100000,
 		PerpMid:       100050,
@@ -324,8 +320,9 @@ func TestAppendCrossVenuePerpSpotCandidatesWritesJSONL(t *testing.T) {
 	if rec.StrategyType != UnifiedStrategyCrossVenuePerpSpot {
 		t.Fatalf("strategy_type = %q", rec.StrategyType)
 	}
-	if rec.WouldExecute {
-		t.Fatal("plan candidates must have would_execute=false")
+	wantExec := len(opps[0].RejectReasons) == 0
+	if rec.WouldExecute != wantExec {
+		t.Fatalf("would_execute = %v, want %v (reject_reasons=%v)", rec.WouldExecute, wantExec, opps[0].RejectReasons)
 	}
 }
 

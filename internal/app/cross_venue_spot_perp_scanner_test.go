@@ -17,6 +17,7 @@ import (
 func testCrossVenueSpotPerpScanInput(now time.Time) CrossVenueSpotPerpScanInput {
 	exec := testCrossVenueExecutorConfig().CrossVenueExecutor
 	cfg := DefaultCrossVenueSpotPerpScannerConfig(exec)
+	cfg.PeakFundingHaircut = 1.0
 	nextFunding := scannerTestCarryNextFunding(now)
 
 	return CrossVenueSpotPerpScanInput{
@@ -25,20 +26,10 @@ func testCrossVenueSpotPerpScanInput(now time.Time) CrossVenueSpotPerpScanInput 
 		Symbols:    []string{"BTC-USDT"},
 		FundingByVenue: map[string]map[string]CrossVenueSpotPerpFundingSnap{
 			bybit.VenueName: {
-				"BTC-USDT": {
-					Rate:            scannerTestCarryNearFundingRate,
-					IntervalHours:   8,
-					NextFundingTime: nextFunding,
-					SpikeThreshold:  0.00025,
-				},
+				"BTC-USDT": scannerTestEstablishedFundingSnap(scannerTestCarryNearFundingRate, nextFunding),
 			},
 			"okx": {
-				"BTC-USDT": {
-					Rate:            0.0001,
-					IntervalHours:   8,
-					NextFundingTime: nextFunding,
-					SpikeThreshold:  0.00008,
-				},
+				"BTC-USDT": scannerTestEstablishedFundingSnap(0.0001, nextFunding),
 			},
 		},
 		MarketsByVenue: scannerTestInstrumentMetaMarkets(map[string]map[string]CrossVenueSpotPerpMarketSnap{
@@ -148,11 +139,15 @@ func TestCrossVenueSpotPerpRequiresRebalanceHelper(t *testing.T) {
 	}
 }
 
-func TestCrossVenueSpotPerpEffectiveFundingRateNoHistoryFallback(t *testing.T) {
-	got := crossVenueSpotPerpEffectiveFundingRate(0.001, 0, 0.5)
-	want := 0.0005
+func TestCrossVenueSpotPerpEffectiveFundingRateNoHistoryLiveRate(t *testing.T) {
+	got := crossVenueSpotPerpEffectiveFundingRate(0.001, 0, 0.5, 1.0)
+	want := 0.001
 	if math.Abs(got-want) > 1e-12 {
-		t.Fatalf("no-history effective rate = %.8f, want %.8f", got, want)
+		t.Fatalf("no-history effective rate = %.8f, want live %.8f", got, want)
+	}
+	gotHaircut := crossVenueSpotPerpEffectiveFundingRate(0.001, 0, 0.5, 0.5)
+	if math.Abs(gotHaircut-0.0005) > 1e-12 {
+		t.Fatalf("configured no-history haircut = %.8f, want 0.0005", gotHaircut)
 	}
 }
 
@@ -228,7 +223,7 @@ func TestScanCrossVenueSpotPerpExcludesMarginStressLiquidation(t *testing.T) {
 }
 
 func TestCrossVenueSpotPerpEffectiveFundingRateSpikeDecay(t *testing.T) {
-	got := crossVenueSpotPerpEffectiveFundingRate(0.001, 0.0004, 0.5)
+	got := crossVenueSpotPerpEffectiveFundingRate(0.001, 0.0004, 0.5, 1.0)
 	want := 0.0004 + 0.5*(0.001-0.0004)
 	if math.Abs(got-want) > 1e-12 {
 		t.Fatalf("effective rate = %.8f, want %.8f", got, want)
@@ -264,7 +259,7 @@ func TestAppendCrossVenueSpotPerpCandidatesWritesJSONL(t *testing.T) {
 	dir := t.TempDir()
 	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
 	in := testCrossVenueSpotPerpScanInput(now)
-	in.AvailableUSDTByVenue[bybit.VenueName] = 5
+	in.AvailableUSDTByVenue[bybit.VenueName] = 25
 	opps := ScanCrossVenueSpotPerpOpportunities(in)
 	if len(opps) == 0 {
 		t.Fatal("expected at least one opportunity")
@@ -292,8 +287,9 @@ func TestAppendCrossVenueSpotPerpCandidatesWritesJSONL(t *testing.T) {
 	if rec.CycleID != "cvsp-cycle-test" {
 		t.Fatalf("cycle_id = %q", rec.CycleID)
 	}
-	if rec.WouldExecute {
-		t.Fatal("plan candidates must have would_execute=false")
+	wantExec := len(opps[0].RejectReasons) == 0
+	if rec.WouldExecute != wantExec {
+		t.Fatalf("would_execute = %v, want %v (reject_reasons=%v)", rec.WouldExecute, wantExec, opps[0].RejectReasons)
 	}
 }
 

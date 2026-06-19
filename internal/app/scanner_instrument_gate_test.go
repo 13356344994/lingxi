@@ -44,13 +44,14 @@ func TestScannerMarketLegInstrumentValid(t *testing.T) {
 
 func TestScanCrossVenueSpotPerpExcludesInvalidSpotInstrument(t *testing.T) {
 	now := time.Date(2026, 6, 19, 12, 0, 0, 0, time.UTC)
-	nextFunding := now.Add(30 * time.Minute)
+	nextFunding := scannerTestCarryNextFunding(now)
 	cfg := DefaultCrossVenueSpotPerpScannerConfig(testCrossVenueExecutorConfig().CrossVenueExecutor)
+	cfg.PeakFundingHaircut = 1.0
 
 	baseFunding := map[string]map[string]CrossVenueSpotPerpFundingSnap{
 		"gate": {
-			"ESPORTS-USDT": {Rate: 0.0005, IntervalHours: 8, NextFundingTime: nextFunding},
-			"BTC-USDT":     {Rate: 0.0003, IntervalHours: 8, NextFundingTime: nextFunding},
+			"ESPORTS-USDT": {Rate: scannerTestCarryNearFundingRate, IntervalHours: 8, NextFundingTime: nextFunding},
+			"BTC-USDT":     {Rate: scannerTestCarryNearFundingRate, IntervalHours: 8, NextFundingTime: nextFunding},
 		},
 	}
 	validSpot := scannerTestInstrumentMeta(CrossVenueSpotPerpMarketSnap{
@@ -89,14 +90,15 @@ func TestScanCrossVenueSpotPerpExcludesInvalidSpotInstrument(t *testing.T) {
 		Now:        now,
 		Symbols:    []string{"BTC-USDT"},
 		FundingByVenue: map[string]map[string]CrossVenueSpotPerpFundingSnap{
-			"gate": {"BTC-USDT": {Rate: 0.0003, IntervalHours: 8, NextFundingTime: nextFunding}},
+			"gate": {"BTC-USDT": {Rate: scannerTestCarryNearFundingRate, IntervalHours: 8, NextFundingTime: nextFunding}},
 		},
 		MarketsByVenue: map[string]map[string]CrossVenueSpotPerpMarketSnap{
 			"binance": {"BTC-USDT": validSpot},
 			"gate":    {"BTC-USDT": validSpot},
 		},
-		AvailableUSDTByVenue: map[string]float64{"binance": 500, "gate": 500},
-		Config:               cfg,
+		AvailableUSDTByVenue:         map[string]float64{"binance": 500, "gate": 500},
+		Config:                       cfg,
+		FundingRateVolPerHourByVenue: scannerTestCarryLowFundingVol("gate", "BTC-USDT"),
 	})
 	if len(kept) == 0 {
 		t.Fatal("expected BTC candidate kept when both legs have valid tick/step")
