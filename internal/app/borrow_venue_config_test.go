@@ -68,8 +68,11 @@ func TestScanCrossVenuePerpSpotExcludesBorrowDisabledSpotVenue(t *testing.T) {
 			HasPerp:       true,
 		}),
 	}
+	// gate 借币禁用(应被排除);binance/okx 可借,应产出真候选(P1④:不可借才在筛选阶段剔除)。
 	in.BorrowKnownAvailable = testBorrowKnownRegistry(now,
 		CrossVenueBorrowProbe{Symbol: "BTC-USDT", Venue: "gate", Available: true},
+		CrossVenueBorrowProbe{Symbol: "BTC-USDT", Venue: "binance", Available: true},
+		CrossVenueBorrowProbe{Symbol: "BTC-USDT", Venue: "okx", Available: true},
 	)
 
 	opps := ScanCrossVenuePerpSpotOpportunities(in)

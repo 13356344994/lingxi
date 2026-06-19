@@ -18,8 +18,9 @@ const (
 	rotationSnapshotMaxAge        = 30 * time.Minute
 	rotationScanMinAbsFundingRate = 0.00005 // 0.5 bps per 8h-interval 基准;粗筛按 per-hour 归一比较
 	rotationScanMaxSymbols        = 150
-	// rotationScanDepthFetchMaxSymbols funding 粗筛后二次拉深度上限;深度 API 成本高,仅对决策候选前 N 个拉取。
-	rotationScanDepthFetchMaxSymbols = 50
+	// rotationScanDepthFetchMaxSymbols funding 粗筛后二次拉深度上限;与 rotationScanMaxSymbols 对齐以覆盖全部粗筛 symbol。
+	// 实际深度拉取的限流/并发由 unified_market_pipeline 适配(本常量仅设 N 上限)。
+	rotationScanDepthFetchMaxSymbols = 150
 
 	// 统一轮动 SWITCH 事务性失败事件类型(domain_events.jsonl Type 字段,可检索)。
 	rotationSwitchAbortedCloseFailed EventType = "switch_aborted_close_failed"
@@ -114,6 +115,11 @@ type UnifiedRotationRunner struct {
 	lastCapitalSnapshot   rotationCapitalSnapshotContext
 	// controlPlane 统一控制面附加闸(nil=仅沿用 active 等既有语义)。
 	controlPlane *ControlPlane
+
+	openCooldownStore *rotationOpenCooldownStore
+
+	portfolioEnableRollingHold bool
+	rollingHoldWarnOnce        sync.Once
 }
 
 // rotationCapitalSnapshotContext 最近一轮资金路由只读上下文(供 capital snapshot API)。
@@ -202,6 +208,10 @@ func NewUnifiedRotationRunner(
 	}
 	r.delistGuard = NewDelistGuard(venues, delistCfg, logger)
 	r.includePerpPerpCandidates = true
+	r.openCooldownStore = newRotationOpenCooldownStore(
+		r.recordDir,
+		time.Duration(normalizeRotationConfig(rotationCfg).OpenFailCooldownSeconds)*time.Second,
+	)
 	if b := bindSingleVenueSpotPerpRotationExecutor(svsp); b != nil {
 		r.bindings[b.strategyType] = b
 	}
@@ -227,6 +237,22 @@ func (r *UnifiedRotationRunner) SetControlPlane(cp *ControlPlane) {
 		return
 	}
 	r.controlPlane = cp
+}
+
+func (r *UnifiedRotationRunner) SetPortfolioEnableRollingHold(enabled bool) {
+	if r == nil {
+		return
+	}
+	r.portfolioEnableRollingHold = enabled
+}
+
+func (r *UnifiedRotationRunner) maybeWarnEnableRollingHoldNoOp() {
+	if r == nil || !r.portfolioEnableRollingHold || r.logger == nil {
+		return
+	}
+	r.rollingHoldWarnOnce.Do(func() {
+		r.logger.Printf("[统一轮动] WARNING: enable_rolling_hold=true 在统一轮动路径下当前为 no-op;续持由 min-hold + 结算闸控制")
+	})
 }
 
 // InitState 按默认 active 初始化;若 rotation_control.json 存在则用文件 active 覆盖(legacy live 字段忽略)。
@@ -352,6 +378,7 @@ func (r *UnifiedRotationRunner) Run(ctx context.Context) {
 	}
 	active := r.active.Load()
 	interval := r.tickerInterval()
+	r.maybeWarnEnableRollingHoldNoOp()
 	if r.logger != nil {
 		r.logger.Printf("[统一轮动] 周期 interval=%s active=%v", interval, active)
 	}
@@ -708,7 +735,12 @@ func (r *UnifiedRotationRunner) decideRotation(
 		current, _, _ := computeRealEquityWaterMark(r.recordDir)
 		equityUSDT = current
 	}
-	return DecideRotationWithBlocked(held, heldInputs, candidates, available, r.rotationCfg, r.rotationOpenBlockedPredicate(), equityUSDT)
+	cfg := r.rotationCfg
+	cfg = normalizeRotationConfig(cfg)
+	if r.openCooldownStore != nil {
+		cfg.OpenCooldownBlocked = r.openCooldownStore.blockedPredicate(r.nowFn)
+	}
+	return DecideRotationWithBlocked(held, heldInputs, candidates, available, cfg, r.rotationOpenBlockedPredicate(), equityUSDT)
 }
 
 func (r *UnifiedRotationRunner) rotationOpenBlockedPredicate() RotationOpenBlocked {
@@ -1054,10 +1086,22 @@ func (r *UnifiedRotationRunner) openOpportunity(ctx context.Context, strategyTyp
 		r.logger.Printf("[统一轮动] OPEN %s %s live=%v", strategyType, opp.Symbol, live)
 	}
 	if err := binding.openFn(ctx, opp, live); err != nil {
+		r.recordOpenFailureCooldown(strategyType, opp)
 		return err
 	}
 	appendAttributionPredictionBestEffort(r.recordDir, predictionRecordFromOpportunity(opp, time.Now().UTC()))
 	return nil
+}
+
+func (r *UnifiedRotationRunner) recordOpenFailureCooldown(strategyType string, opp UnifiedOpportunity) {
+	if r == nil || r.openCooldownStore == nil {
+		return
+	}
+	now := time.Now().UTC()
+	if r.nowFn != nil {
+		now = r.nowFn().UTC()
+	}
+	r.openCooldownStore.RecordFailure(strategyType, opp.Symbol, rotationOpportunityVenuePair(opp), now)
 }
 
 // recordRotationSwitchIncident 把 SWITCH 事务失败写入 domain_events.jsonl(失败静默,不阻断轮动)。

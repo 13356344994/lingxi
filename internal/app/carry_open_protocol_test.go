@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"math"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -22,6 +23,27 @@ func TestCarryMatchTwoLegOpensPartialLeg2(t *testing.T) {
 	}
 	if math.Abs(match.MatchedQty-4.0) > 1e-9 || math.Abs(match.ExcessLeg1-0.8) > 1e-9 {
 		t.Fatalf("matched=%.4f excess=%.4f, want 4.0/0.8", match.MatchedQty, match.ExcessLeg1)
+	}
+}
+
+func TestCarryMatchTwoLegOpensNormalizedContractPerpVsSpot(t *testing.T) {
+	t.Parallel()
+	perpCaps := venue.Capabilities{ContractBasedPerp: true}
+	perpInstr := venue.Instrument{StepSize: 100, ContractSize: 3.25}
+	spotInstr := venue.Instrument{StepSize: 1}
+	perpRes := venue.OrderResult{ExecutedQty: 400}
+	spotRes := venue.OrderResult{ExecutedQty: 1300}
+	match := carryMatchTwoLegOpensNormalized(perpRes, spotRes, perpInstr, spotInstr, perpCaps, venue.Capabilities{}, 1)
+	if !match.OK || math.Abs(match.MatchedQty-1300) > 1e-9 {
+		t.Fatalf("got %+v want matched 1300 coin", match)
+	}
+}
+
+func TestCarryPreflightSpotPerpOpenAlignRejectsMisalignedQty(t *testing.T) {
+	t.Parallel()
+	_, err := carryPreflightSpotPerpOpenAlign(5, 100, venue.Instrument{StepSize: 1, MinNotional: 5}, venue.Instrument{StepSize: 2, ContractSize: 10, MinNotional: 5}, venue.Capabilities{}, venue.Capabilities{ContractBasedPerp: true})
+	if err == nil || !strings.Contains(err.Error(), carryOpenRejectLegQtyMisalign) {
+		t.Fatalf("expected misalign skip, got %v", err)
 	}
 }
 

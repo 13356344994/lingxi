@@ -256,6 +256,22 @@ func gateQtyToCoin(qty float64, instr venue.Instrument) (float64, error) {
 	return contracts * instr.ContractSize, nil
 }
 
+func TestReconcileCrossVenueOpenBookQtyUsesMinWhenDeviationHigh(t *testing.T) {
+	t.Parallel()
+	got := reconcileCrossVenueOpenBookQty(venue.Capabilities{}, venue.Capabilities{ContractBasedPerp: true}, 1300, 400)
+	if got != 400 {
+		t.Fatalf("got=%v want min=400", got)
+	}
+}
+
+func TestCarryAlignSpotPerpOpenQtyBinanceSpotOkxPerp(t *testing.T) {
+	t.Parallel()
+	got := carryAlignSpotPerpOpenQty(30, 1, venue.Instrument{StepSize: 1}, venue.Instrument{StepSize: 2, ContractSize: 10}, venue.Capabilities{}, venue.Capabilities{ContractBasedPerp: true})
+	if got != 20 {
+		t.Fatalf("got=%v want 20", got)
+	}
+}
+
 func TestCrossVenueLegExecutedCoinQtyContractReportsContracts(t *testing.T) {
 	t.Parallel()
 	caps := venue.Capabilities{ContractBasedPerp: true}

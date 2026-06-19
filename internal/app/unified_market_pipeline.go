@@ -2,15 +2,22 @@ package app
 
 import (
 	"context"
+	"fmt"
+	"log/slog"
+	"math"
 	"strings"
 	"sync"
+	"time"
 
 	"lingxi/internal/venue"
 )
 
 const (
-	unifiedMarketFetchConcurrency      = 8
-	unifiedMarketDepthFetchConcurrency = 8
+	unifiedMarketFetchConcurrency           = 8
+	unifiedMarketDepthFetchConcurrency      = 8
+	unifiedMarketDepthEnrichVenueConcurrency = 2
+	unifiedMarketDepthFetchMinInterval      = 75 * time.Millisecond
+	unifiedMarketDepthFetchCallTimeout      = 5 * time.Second
 )
 
 // unified_market_pipeline.go 统一轮动扫描辅助: 按 venue 拉取 spot/perp 行情与可用 USDT(供 defaultScanRotationCandidates 使用)。
@@ -22,6 +29,50 @@ type unifiedMarketFetchAvailableUSDTFn func(ctx context.Context, venues map[stri
 type unifiedMarketPipelineFetchDeps struct {
 	fetchMarkets       unifiedMarketFetchMarketsFn
 	fetchAvailableUSDT unifiedMarketFetchAvailableUSDTFn
+}
+
+type venueSpotAvailableUSDTProvider interface {
+	FetchSpotAvailableUSDT(ctx context.Context) (float64, error)
+}
+
+type venueCrossMarginAvailableUSDTProvider interface {
+	FetchCrossMarginAvailableUSDT(ctx context.Context) (float64, error)
+}
+
+type venueFundingAvailableUSDTProvider interface {
+	FetchFundingAvailableUSDT(ctx context.Context) (float64, error)
+}
+
+type unifiedMarketDepthFetchPacer struct {
+	mu       sync.Mutex
+	minGap   time.Duration
+	lastCall time.Time
+}
+
+func newUnifiedMarketDepthFetchPacer(minGap time.Duration) *unifiedMarketDepthFetchPacer {
+	if minGap <= 0 {
+		return nil
+	}
+	return &unifiedMarketDepthFetchPacer{minGap: minGap}
+}
+
+func (p *unifiedMarketDepthFetchPacer) Wait(ctx context.Context) bool {
+	if p == nil || p.minGap <= 0 {
+		return true
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if wait := p.minGap - time.Since(p.lastCall); wait > 0 {
+		timer := time.NewTimer(wait)
+		defer timer.Stop()
+		select {
+		case <-ctx.Done():
+			return false
+		case <-timer.C:
+		}
+	}
+	p.lastCall = time.Now()
+	return true
 }
 
 func unifiedMarketFundingByVenueFromSnapshot(src map[string]map[string]CrossVenueFundingEntry) map[string]map[string]CrossVenueSpotPerpFundingSnap {
@@ -235,7 +286,12 @@ func unifiedMarketEnrichMarketsWithDepthVolume(
 	if len(symbols) == 0 || len(marketsByVenue) == 0 {
 		return
 	}
-	var wg sync.WaitGroup
+
+	type venueDepthJob struct {
+		v     venue.Venue
+		bySym map[string]CrossVenueSpotPerpMarketSnap
+	}
+	jobs := make([]venueDepthJob, 0, len(marketsByVenue))
 	for venueName, bySym := range marketsByVenue {
 		if len(bySym) == 0 {
 			continue
@@ -244,12 +300,45 @@ func unifiedMarketEnrichMarketsWithDepthVolume(
 		if v == nil {
 			continue
 		}
-		wg.Add(1)
-		go func(v venue.Venue, bySym map[string]CrossVenueSpotPerpMarketSnap) {
-			defer wg.Done()
-			unifiedMarketEnrichVenueMarketsDepthVolume(ctx, v, bySym, symbols)
-		}(v, bySym)
+		jobs = append(jobs, venueDepthJob{v: v, bySym: bySym})
 	}
+	if len(jobs) == 0 {
+		return
+	}
+
+	workers := unifiedMarketDepthEnrichVenueConcurrency
+	if workers <= 0 {
+		workers = 1
+	}
+	if workers > len(jobs) {
+		workers = len(jobs)
+	}
+
+	jobCh := make(chan venueDepthJob)
+	var wg sync.WaitGroup
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			pacer := newUnifiedMarketDepthFetchPacer(unifiedMarketDepthFetchMinInterval)
+			for job := range jobCh {
+				if ctx.Err() != nil {
+					return
+				}
+				unifiedMarketEnrichVenueMarketsDepthVolume(ctx, job.v, job.bySym, symbols, pacer)
+			}
+		}()
+	}
+	go func() {
+		defer close(jobCh)
+		for _, job := range jobs {
+			select {
+			case <-ctx.Done():
+				return
+			case jobCh <- job:
+			}
+		}
+	}()
 	wg.Wait()
 }
 
@@ -258,6 +347,7 @@ func unifiedMarketEnrichVenueMarketsDepthVolume(
 	v venue.Venue,
 	bySym map[string]CrossVenueSpotPerpMarketSnap,
 	symbols []string,
+	pacer *unifiedMarketDepthFetchPacer,
 ) {
 	if len(symbols) == 0 {
 		return
@@ -278,6 +368,9 @@ func unifiedMarketEnrichVenueMarketsDepthVolume(
 			defer wg.Done()
 			for sym := range symCh {
 				if ctx.Err() != nil {
+					return
+				}
+				if !pacer.Wait(ctx) {
 					return
 				}
 				mkt, ok := bySym[sym]
@@ -312,23 +405,70 @@ func unifiedMarketEnrichOneMarketDepthVolume(ctx context.Context, v venue.Venue,
 	if sym == "" || ctx.Err() != nil {
 		return
 	}
+	callCtx, cancel := context.WithTimeout(ctx, unifiedMarketDepthFetchCallTimeout)
+	defer cancel()
+
 	vsym := venue.Symbol(sym)
 	if mkt.HasSpot {
-		if depth, err := v.FetchDepth(ctx, venue.MarketSpot, vsym, crossVenueOpenSlippageDepthLimit); err == nil && depthHasLevels(depth) {
+		if depth, err := v.FetchDepth(callCtx, venue.MarketSpot, vsym, crossVenueOpenSlippageDepthLimit); err == nil && depthHasLevels(depth) {
 			mkt.SpotDepth = &depth
 		}
-		if vol := fetchVenueQuoteVolume24h(ctx, v, venue.MarketSpot, vsym); vol > 0 {
+		if vol := fetchVenueQuoteVolume24h(callCtx, v, venue.MarketSpot, vsym); vol > 0 {
 			mkt.Volume24hSpotUSDT = vol
 		}
 	}
 	if mkt.HasPerp {
-		if depth, err := v.FetchDepth(ctx, venue.MarketPerp, vsym, crossVenueOpenSlippageDepthLimit); err == nil && depthHasLevels(depth) {
+		if depth, err := v.FetchDepth(callCtx, venue.MarketPerp, vsym, crossVenueOpenSlippageDepthLimit); err == nil && depthHasLevels(depth) {
 			mkt.PerpDepth = &depth
 		}
-		if vol := fetchVenueQuoteVolume24h(ctx, v, venue.MarketPerp, vsym); vol > 0 {
+		if vol := fetchVenueQuoteVolume24h(callCtx, v, venue.MarketPerp, vsym); vol > 0 {
 			mkt.Volume24hPerpUSDT = vol
 		}
 	}
+}
+
+func fetchVenueWalletAvailableUSDT(ctx context.Context, label string, fetch func(context.Context) (float64, error)) (float64, error) {
+	avail, err := fetch(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("%s wallet: %w", label, err)
+	}
+	return math.Max(avail, 0), nil
+}
+
+// fetchVenueTotalTradingAvailableUSDT 返回扫描/allocator 用的 venue 级可动用 USDT 合计。
+// 统一账户所(okx/bybit) Perp 读取已含单池;分仓所(binance/gate)叠加 spot/perp/(margin/funding)。
+func fetchVenueTotalTradingAvailableUSDT(ctx context.Context, v venue.Venue) (float64, error) {
+	if v == nil {
+		return 0, fmt.Errorf("nil venue")
+	}
+	perp, err := fetchVenuePerpAvailableUSDT(ctx, v)
+	if err != nil {
+		return 0, err
+	}
+	total := perp
+
+	if spotP, ok := v.(venueSpotAvailableUSDTProvider); ok {
+		spot, err := fetchVenueWalletAvailableUSDT(ctx, "spot", spotP.FetchSpotAvailableUSDT)
+		if err != nil {
+			return 0, err
+		}
+		total += spot
+	}
+	if marginP, ok := v.(venueCrossMarginAvailableUSDTProvider); ok {
+		margin, err := fetchVenueWalletAvailableUSDT(ctx, "margin", marginP.FetchCrossMarginAvailableUSDT)
+		if err != nil {
+			return 0, err
+		}
+		total += margin
+	}
+	if fundingP, ok := v.(venueFundingAvailableUSDTProvider); ok {
+		funding, err := fetchVenueWalletAvailableUSDT(ctx, "funding", fundingP.FetchFundingAvailableUSDT)
+		if err != nil {
+			return 0, err
+		}
+		total += funding
+	}
+	return total, nil
 }
 
 func defaultUnifiedMarketFetchAvailableUSDTByVenue(ctx context.Context, venues map[string]venue.Venue, venueNames []string) map[string]float64 {
@@ -336,10 +476,12 @@ func defaultUnifiedMarketFetchAvailableUSDTByVenue(ctx context.Context, venues m
 	for _, venueName := range venueNames {
 		v := venues[venueName]
 		if v == nil {
+			slog.Warn("unified market: skip balance fetch, nil venue", "venue", venueName)
 			continue
 		}
-		avail, err := fetchVenuePerpAvailableUSDT(ctx, v)
+		avail, err := fetchVenueTotalTradingAvailableUSDT(ctx, v)
 		if err != nil {
+			slog.Warn("unified market: venue balance fetch failed, omit from scan (fail-closed)", "venue", venueName, "err", err)
 			continue
 		}
 		out[venueName] = avail

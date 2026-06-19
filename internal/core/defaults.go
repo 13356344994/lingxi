@@ -327,6 +327,8 @@ func DefaultEngineConfig() EngineConfig {
 			BorrowDisabledVenues:              "gate",
 			FundingAPRSanityCap:               5.0,
 			SpreadPersistenceScans:    2,
+			MinTradableNotionalUSDT:   20,
+			DropOneSidedZeroFunding:   true,
 		},
 		CrossVenueExecutor: CrossVenueExecutorConfig{
 			Enabled:                         false,

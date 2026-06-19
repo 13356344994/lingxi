@@ -166,6 +166,14 @@ func crossVenueExpectedOpenCostUSDT(cfg CrossVenueExecutorConfig, opp CrossVenue
 		notional*crossVenuePerpFeeBps(cfg, opp.LowVenue)/10000
 }
 
+func crossVenueOpenEVRoundTripFeeUSDT(cfg CrossVenueExecutorConfig, opp CrossVenueOpportunity, notional float64) float64 {
+	if notional <= 0 {
+		return 0
+	}
+	return notional*crossVenueTakerFeeBps(cfg, opp.HighVenue)/10000 +
+		notional*crossVenueTakerFeeBps(cfg, opp.LowVenue)/10000
+}
+
 func crossVenueExpectedCloseCostUSDT(cfg CrossVenueExecutorConfig, opp CrossVenueOpportunity, notional float64) float64 {
 	return crossVenueExpectedOpenCostUSDT(cfg, opp, notional)
 }
@@ -331,13 +339,14 @@ func crossVenueEstimateOpportunityMetrics(cfg CrossVenueExecutorConfig, opp Cros
 	}
 	windowHours := crossVenueOpenEVHoldHours(cfg, now, opp, crossVenueComparableWindowHours(now, opp.HighNextFundingTime, opp.LowNextFundingTime))
 	spreadEV := crossVenueOpenGateExpectedFundingUSDT(cfg, now, windowHours, notional, opp)
-	openCost := crossVenueExpectedOpenCostUSDT(cfg, opp, notional)
-	closeCost := crossVenueExpectedCloseCostUSDT(cfg, opp, notional)
+	openCost := crossVenueOpenEVRoundTripFeeUSDT(cfg, opp, notional)
+	closeCost := openCost
 	expectedSlippage := crossVenueExpectedSlippageUSDT(cfg, notional, 4)
 	recoveryQuality := crossVenueRecoveryQualityForPair(opp.HighVenue, opp.LowVenue)
 	observableRiskCost := crossVenueObservableRiskCost(notional, opp.FreshnessAgeSeconds, windowHours, recoveryQuality)
 	policyBuffer := crossVenuePolicyBuffer(openCost, closeCost)
-	netEV := spreadEV - openCost - closeCost - expectedSlippage - observableRiskCost - policyBuffer
+	dustCost := carryScannerPerpPerpDustResidualCostUSDT()
+	netEV := spreadEV - openCost - closeCost - expectedSlippage - observableRiskCost - policyBuffer - dustCost
 	effectiveMargin := crossVenueEffectiveMarginOccupied(cfg, notional)
 	capitalEfficiency := 0.0
 	if effectiveMargin > 0 {

@@ -113,6 +113,21 @@ func (a *Adapter) fetchFundingFreeUSDT(ctx context.Context) (float64, error) {
 	return 0, nil
 }
 
+// FetchSpotAvailableUSDT 返回现货钱包 USDT free(不含 U 本位合约/资金/全仓杠杆)。
+func (a *Adapter) FetchSpotAvailableUSDT(ctx context.Context) (float64, error) {
+	return a.fetchSpotFreeUSDT(ctx)
+}
+
+// FetchFundingAvailableUSDT 返回资金账户 USDT free。
+func (a *Adapter) FetchFundingAvailableUSDT(ctx context.Context) (float64, error) {
+	return a.fetchFundingFreeUSDT(ctx)
+}
+
+// FetchCrossMarginAvailableUSDT 返回全仓杠杆钱包 USDT free。
+func (a *Adapter) FetchCrossMarginAvailableUSDT(ctx context.Context) (float64, error) {
+	return a.fetchCrossMarginFreeUSDT(ctx)
+}
+
 func (a *Adapter) fetchCrossMarginFreeUSDT(ctx context.Context) (float64, error) {
 	var margin struct {
 		UserAssets []struct {

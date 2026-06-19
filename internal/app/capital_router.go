@@ -10,6 +10,9 @@ import (
 
 const capitalRouterEpsilon = 1e-9
 
+// CapitalUnfundableReasonCrossVenueGap 是跨所资金缺口导致 unfundable 的可统计前缀(日志/快照解析可 grep)。
+const CapitalUnfundableReasonCrossVenueGap = "cross_venue_funding_gap"
+
 // WalletKind 标识交易所内钱包类型。
 type WalletKind string
 
@@ -463,6 +466,42 @@ func planCrossVenueSuggestions(aggregated map[string]venueWalletRequirements, wo
 	return suggestions
 }
 
+type crossVenueInflowDetail struct {
+	suggestions []CrossVenueRebalanceSuggestion
+	totalUSDT   float64
+}
+
+func indexCrossVenueInflowSuggestions(suggestions []CrossVenueRebalanceSuggestion) map[string]crossVenueInflowDetail {
+	out := map[string]crossVenueInflowDetail{}
+	for _, s := range suggestions {
+		if s.ToVenue == "" || s.AmountUSDT <= capitalRouterEpsilon {
+			continue
+		}
+		d := out[s.ToVenue]
+		d.suggestions = append(d.suggestions, s)
+		d.totalUSDT += s.AmountUSDT
+		out[s.ToVenue] = d
+	}
+	return out
+}
+
+func formatCrossVenueFundingGapReason(toVenue string, detail crossVenueInflowDetail) string {
+	parts := make([]string, 0, len(detail.suggestions))
+	for _, s := range detail.suggestions {
+		parts = append(parts, fmt.Sprintf("%s→%s:%.4f", s.FromVenue, s.ToVenue, s.AmountUSDT))
+	}
+	sort.Strings(parts)
+	legacy := fmt.Sprintf("requires cross-venue rebalance to %s (not auto-funded)", toVenue)
+	return fmt.Sprintf(
+		"%s:to=%s:suggested=[%s]:total=%.4f:not_auto_executed; %s",
+		CapitalUnfundableReasonCrossVenueGap,
+		toVenue,
+		strings.Join(parts, ","),
+		detail.totalUSDT,
+		legacy,
+	)
+}
+
 func markUnfundableOpportunities(
 	chosen []UnifiedOpportunity,
 	perOpp map[string]map[string]venueWalletRequirements,
@@ -470,19 +509,14 @@ func markUnfundableOpportunities(
 	crossSuggestions []CrossVenueRebalanceSuggestion,
 	cfg CapitalRouterConfig,
 ) []string {
-	crossInflowVenues := map[string]struct{}{}
-	for _, s := range crossSuggestions {
-		if s.ToVenue != "" && s.AmountUSDT > capitalRouterEpsilon {
-			crossInflowVenues[s.ToVenue] = struct{}{}
-		}
-	}
+	crossInflowByVenue := indexCrossVenueInflowSuggestions(crossSuggestions)
 
 	available := cloneVenueWalletBalances(working)
 	var unfundable []string
 
 	for _, opp := range chosen {
 		reqByVenue := perOpp[opp.ID]
-		reason := opportunityFundingGapReason(reqByVenue, available, crossInflowVenues, cfg)
+		reason := opportunityFundingGapReason(reqByVenue, available, crossInflowByVenue, cfg)
 		if reason == "" {
 			consumeOpportunityFunding(reqByVenue, available, cfg)
 			continue
@@ -495,12 +529,12 @@ func markUnfundableOpportunities(
 func opportunityFundingGapReason(
 	reqByVenue map[string]venueWalletRequirements,
 	available VenueWalletBalances,
-	crossInflowVenues map[string]struct{},
+	crossInflowByVenue map[string]crossVenueInflowDetail,
 	cfg CapitalRouterConfig,
 ) string {
 	for venue, walletReq := range reqByVenue {
-		if _, needsCross := crossInflowVenues[venue]; needsCross {
-			return fmt.Sprintf("requires cross-venue rebalance to %s (not auto-funded)", venue)
+		if detail, needsCross := crossInflowByVenue[venue]; needsCross {
+			return formatCrossVenueFundingGapReason(venue, detail)
 		}
 		wallets := available[venue]
 		if wallets == nil {

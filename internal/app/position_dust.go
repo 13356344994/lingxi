@@ -14,6 +14,37 @@ import (
 
 const defaultDustCloseThresholdUSDT = 1.0
 
+// dustCloseDeferUntilFunding 在下次资金费结算前返回 true, 表示应推迟 dust_orphan 名义平仓。
+func dustCloseDeferUntilFunding(now, nextFunding time.Time) bool {
+	if nextFunding.IsZero() {
+		return false
+	}
+	return now.Before(nextFunding)
+}
+
+// carryDeferDustOrphanDecision 对非裸腿 dust 孤腿, 结算点前挂账不平仓。
+func carryDeferDustOrphanDecision(now, nextFunding time.Time, decision dustOrphanDecision) bool {
+	if !decision.IsDustOrphan || decision.NakedRisk {
+		return false
+	}
+	return dustCloseDeferUntilFunding(now, nextFunding)
+}
+
+// carryEVWeakFundingCloseAllowed 是否允许以 funding=0 / EV转弱 理由平仓:
+// 须已过 NextFundingTime, 且至少 sync 过一次(LastFundingSyncAt >= NextFundingTime)。
+func carryEVWeakFundingCloseAllowed(now, nextFunding, lastFundingSync time.Time) bool {
+	if nextFunding.IsZero() {
+		return true
+	}
+	if now.Before(nextFunding) {
+		return false
+	}
+	if lastFundingSync.IsZero() || lastFundingSync.Before(nextFunding) {
+		return false
+	}
+	return true
+}
+
 // dustOrphanDecision 是两腿策略孤腿检测结论。
 type dustOrphanDecision struct {
 	IsOrphan              bool

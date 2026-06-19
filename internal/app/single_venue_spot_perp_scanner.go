@@ -37,6 +37,7 @@ type SingleVenueSpotPerpScannerConfig struct {
 	ReserveUSDTByVenue        map[string]float64 `json:"reserve_usdt_by_venue,omitempty"`
 	DefaultReserveUSDT        float64            `json:"default_reserve_usdt"`
 	ExpectedHoldHours         float64            `json:"expected_hold_hours"`
+	FundingCaptureProbability float64            `json:"funding_capture_probability"`
 	PriceShockPcts            []float64          `json:"price_shock_pcts"`
 }
 
@@ -143,6 +144,7 @@ func normalizeSingleVenueSpotPerpScannerConfig(cfg SingleVenueSpotPerpScannerCon
 		ReserveUSDTByVenue:        cfg.ReserveUSDTByVenue,
 		DefaultReserveUSDT:        cfg.DefaultReserveUSDT,
 		ExpectedHoldHours:         cfg.ExpectedHoldHours,
+		FundingCaptureProbability: cfg.FundingCaptureProbability,
 		PriceShockPcts:            cfg.PriceShockPcts,
 	}
 	normalized = normalizeCrossVenueSpotPerpScannerConfig(normalized)
@@ -158,6 +160,7 @@ func normalizeSingleVenueSpotPerpScannerConfig(cfg SingleVenueSpotPerpScannerCon
 		ReserveUSDTByVenue:        normalized.ReserveUSDTByVenue,
 		DefaultReserveUSDT:        normalized.DefaultReserveUSDT,
 		ExpectedHoldHours:         normalized.ExpectedHoldHours,
+		FundingCaptureProbability: normalized.FundingCaptureProbability,
 		PriceShockPcts:            normalized.PriceShockPcts,
 	}
 }
@@ -269,7 +272,8 @@ func buildSingleVenueSpotPerpOpportunity(
 	slippage := crossVenueSpotPerpSlippageUSDT(cvCfg, notional, mkt, mkt)
 
 	vol, volOK := carryFundingVolFromMap(fundingVolByVenue, venueName, symbol)
-	if ok, _ := carryScannerFundingEntryEligible(now, fund, holdHours, notional, effectiveRate, expectedBasisPnL, openCost, slippage, cfg.Exec.FundingEntryGate(), vol, volOK); !ok {
+	entrySlippage := carryScannerEntrySlippageUSDT(cvCfg, notional, mkt, mkt)
+	if ok, _ := carryScannerFundingEntryEligible(now, fund, holdHours, notional, effectiveRate, expectedBasisPnL, openCost, entrySlippage, cfg.Exec.FundingEntryGate(), vol, volOK); !ok {
 		return UnifiedOpportunity{}, false
 	}
 
@@ -279,25 +283,23 @@ func buildSingleVenueSpotPerpOpportunity(
 		return UnifiedOpportunity{}, false
 	}
 
-	expectedFunding := notional * effectiveRate * float64(settlements)
+	expectedFunding := carryScannerExpectedFundingUSDT(notional, effectiveRate, settlements, cfg.FundingCaptureProbability)
 	entryBasisUSDT = crossVenueSpotPerpEntryBasisUSDT(mkt.SpotMid, mkt.PerpMid, notional)
 	expectedBasisPnL = crossVenueSpotPerpExpectedBasisPnL(entryBasisUSDT, notional, cvCfg)
 	openCost = singleVenueSpotPerpOpenCostUSDT(cfg, venueName, notional)
 	closeCost = openCost
 	slippage = crossVenueSpotPerpSlippageUSDT(cvCfg, notional, mkt, mkt)
-
 	spotCashRequired := notional
 	perpMarginRequired := crossVenueSpotPerpPerpMarginRequired(cvCfg, notional)
 	totalCapital := spotCashRequired + perpMarginRequired
-
 	rebalancePenalty := 0.0
-	requiresRebalance := singleVenueSpotPerpRequiresRebalance(
-		venueName, spotCashRequired, perpMarginRequired, available, cfg,
-	)
+	requiresRebalance := singleVenueSpotPerpRequiresRebalance(venueName, spotCashRequired, perpMarginRequired, available, cfg)
 	if requiresRebalance {
 		rebalancePenalty = notional * cfg.RebalanceTransferCostBps / 10000
 	}
-
+	spotLegInstr := legInstrumentFields(mkt.SpotTickSize, mkt.SpotStepSize, mkt.SpotMinNotional)
+	perpLegInstr := legInstrumentFields(mkt.PerpTickSize, mkt.PerpStepSize, mkt.PerpMinNotional)
+	closeCost += carryScannerDustResidualCostUSDT([]float64{spotLegInstr.minNotional, perpLegInstr.minNotional}, false)
 	netEV := expectedFunding + expectedBasisPnL - openCost - closeCost - slippage - rebalancePenalty
 
 	dataQuality := crossVenueSpotPerpDataQualityScore(fund)
@@ -320,8 +322,6 @@ func buildSingleVenueSpotPerpOpportunity(
 
 	refPrice := (mkt.SpotMid + mkt.PerpMid) / 2
 	qty := notional / refPrice
-	spotLegInstr := legInstrumentFields(mkt.SpotTickSize, mkt.SpotStepSize, mkt.SpotMinNotional)
-	perpLegInstr := legInstrumentFields(mkt.PerpTickSize, mkt.PerpStepSize, mkt.PerpMinNotional)
 
 	opp := UnifiedOpportunity{
 		ID:           unifiedOpportunityID(UnifiedStrategySingleVenueSpotPerp, symbol, snapshotID, venueName, venueName),
@@ -371,6 +371,7 @@ func singleVenueSpotPerpAsCrossVenueConfig(cfg SingleVenueSpotPerpScannerConfig)
 		ReserveUSDTByVenue:        cfg.ReserveUSDTByVenue,
 		DefaultReserveUSDT:        cfg.DefaultReserveUSDT,
 		ExpectedHoldHours:         cfg.ExpectedHoldHours,
+		FundingCaptureProbability: cfg.FundingCaptureProbability,
 		PriceShockPcts:            cfg.PriceShockPcts,
 	}
 }

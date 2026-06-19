@@ -367,3 +367,192 @@ func TestUnifiedMarketApplyInstrumentMetaCanonicalKey(t *testing.T) {
 		t.Fatalf("PerpTickSize = %v, want 0.0001", mkt.PerpTickSize)
 	}
 }
+
+type perpOnlyTestVenue struct {
+	fakeFundingVenue
+	perpUSDT float64
+	perpErr  error
+}
+
+func (v *perpOnlyTestVenue) FetchPerpAvailableUSDT(context.Context) (float64, error) {
+	if v.perpErr != nil {
+		return 0, v.perpErr
+	}
+	return v.perpUSDT, nil
+}
+
+func (v *perpOnlyTestVenue) TopUpPerpMarginUSDT(context.Context, float64) (float64, error) {
+	return 0, nil
+}
+
+type combinedWalletTestVenue struct {
+	fakeFundingVenue
+	perpUSDT    float64
+	perpErr     error
+	spotUSDT    float64
+	spotErr     error
+	marginUSDT  float64
+	marginErr   error
+	fundingUSDT float64
+	fundingErr  error
+}
+
+func (v *combinedWalletTestVenue) FetchPerpAvailableUSDT(context.Context) (float64, error) {
+	if v.perpErr != nil {
+		return 0, v.perpErr
+	}
+	return v.perpUSDT, nil
+}
+
+func (v *combinedWalletTestVenue) TopUpPerpMarginUSDT(context.Context, float64) (float64, error) {
+	return 0, nil
+}
+
+func (v *combinedWalletTestVenue) FetchSpotAvailableUSDT(context.Context) (float64, error) {
+	if v.spotErr != nil {
+		return 0, v.spotErr
+	}
+	return v.spotUSDT, nil
+}
+
+func (v *combinedWalletTestVenue) FetchCrossMarginAvailableUSDT(context.Context) (float64, error) {
+	if v.marginErr != nil {
+		return 0, v.marginErr
+	}
+	return v.marginUSDT, nil
+}
+
+func (v *combinedWalletTestVenue) FetchFundingAvailableUSDT(context.Context) (float64, error) {
+	if v.fundingErr != nil {
+		return 0, v.fundingErr
+	}
+	return v.fundingUSDT, nil
+}
+
+func TestFetchVenueTotalTradingAvailableUSDTCombinesWallets(t *testing.T) {
+	v := &combinedWalletTestVenue{
+		fakeFundingVenue: fakeFundingVenue{name: binance.VenueName},
+		perpUSDT:         30,
+		spotUSDT:         120,
+		marginUSDT:       5,
+		fundingUSDT:      10,
+	}
+	got, err := fetchVenueTotalTradingAvailableUSDT(context.Background(), v)
+	if err != nil {
+		t.Fatalf("fetch: %v", err)
+	}
+	if math.Abs(got-165) > 1e-9 {
+		t.Fatalf("total = %.4f, want 165 (30+120+5+10)", got)
+	}
+}
+
+func TestFetchVenueTotalTradingAvailableUSDTPerpOnlyForUnifiedVenue(t *testing.T) {
+	v := &perpOnlyTestVenue{
+		fakeFundingVenue: fakeFundingVenue{name: bybit.VenueName},
+		perpUSDT:         200,
+	}
+	got, err := fetchVenueTotalTradingAvailableUSDT(context.Background(), v)
+	if err != nil {
+		t.Fatalf("fetch: %v", err)
+	}
+	if math.Abs(got-200) > 1e-9 {
+		t.Fatalf("unified venue without spot provider should use perp only, got %.4f", got)
+	}
+}
+
+func TestDefaultUnifiedMarketFetchAvailableUSDTByVenueFailClosedOnError(t *testing.T) {
+	okVenue := &combinedWalletTestVenue{
+		fakeFundingVenue: fakeFundingVenue{name: binance.VenueName},
+		perpUSDT:         50,
+		spotUSDT:         80,
+	}
+	failVenue := &combinedWalletTestVenue{
+		fakeFundingVenue: fakeFundingVenue{name: "broken"},
+		perpErr:          errors.New("api down"),
+	}
+	got := defaultUnifiedMarketFetchAvailableUSDTByVenue(context.Background(), map[string]venue.Venue{
+		binance.VenueName: okVenue,
+		"broken":          failVenue,
+	}, []string{binance.VenueName, "broken"})
+	if _, ok := got["broken"]; ok {
+		t.Fatal("errored venue must be omitted (fail-closed), not reported as 0")
+	}
+	if math.Abs(got[binance.VenueName]-130) > 1e-9 {
+		t.Fatalf("binance total = %.4f, want 130", got[binance.VenueName])
+	}
+}
+
+type depthBurstTrackingVenue struct {
+	depthTrackingVenue
+	active  atomic.Int32
+	peak    atomic.Int32
+	onDepth func()
+}
+
+func (v *depthBurstTrackingVenue) FetchDepth(ctx context.Context, m venue.Market, s venue.Symbol, limit int) (venue.Depth, error) {
+	cur := v.active.Add(1)
+	for {
+		old := v.peak.Load()
+		if cur <= old || v.peak.CompareAndSwap(old, cur) {
+			break
+		}
+	}
+	if v.onDepth != nil {
+		v.onDepth()
+	}
+	defer v.active.Add(-1)
+	return v.depthTrackingVenue.FetchDepth(ctx, m, s, limit)
+}
+
+func TestUnifiedMarketEnrichMarketsDepthVolumePacingAndConcurrency(t *testing.T) {
+	symbolCount := rotationScanDepthFetchMaxSymbols
+	if symbolCount < 20 {
+		symbolCount = 20
+	}
+	venuesMap := map[string]venue.Venue{}
+	markets := map[string]map[string]CrossVenueSpotPerpMarketSnap{}
+	symbols := make([]string, 0, symbolCount)
+	for i := 0; i < symbolCount; i++ {
+		sym := fmt.Sprintf("PACE%03d-USDT", i)
+		symbols = append(symbols, sym)
+	}
+	for _, venueName := range []string{binance.VenueName, bybit.VenueName, "okx", "gate"} {
+		tracker := &depthBurstTrackingVenue{
+			depthTrackingVenue: depthTrackingVenue{
+				fakeFundingVenue: fakeFundingVenue{name: venueName},
+				depthCallsBySym:  make(map[string]int),
+			},
+			onDepth: func() { time.Sleep(2 * time.Millisecond) },
+		}
+		venuesMap[venueName] = tracker
+		bySym := make(map[string]CrossVenueSpotPerpMarketSnap, len(symbols))
+		for _, sym := range symbols {
+			bySym[sym] = CrossVenueSpotPerpMarketSnap{SpotMid: 100, PerpMid: 100, HasSpot: true, HasPerp: true}
+		}
+		markets[venueName] = bySym
+	}
+
+	start := time.Now()
+	unifiedMarketEnrichMarketsWithDepthVolume(context.Background(), venuesMap, markets, symbols)
+	elapsed := time.Since(start)
+
+	maxPeak := int32(0)
+	for _, v := range venuesMap {
+		if tracker, ok := v.(*depthBurstTrackingVenue); ok {
+			if p := tracker.peak.Load(); p > maxPeak {
+				maxPeak = p
+			}
+		}
+	}
+	perVenueWorkers := unifiedMarketDepthFetchConcurrency
+	if perVenueWorkers > symbolCount {
+		perVenueWorkers = symbolCount
+	}
+	if maxPeak > int32(perVenueWorkers) {
+		t.Fatalf("peak concurrent depth fetches = %d, want <= %d per venue", maxPeak, perVenueWorkers)
+	}
+	minExpected := time.Duration(symbolCount) * unifiedMarketDepthFetchMinInterval / 4
+	if elapsed < minExpected {
+		t.Fatalf("elapsed %v too short for pacing at %d symbols (min ~%v)", elapsed, symbolCount, minExpected)
+	}
+}

@@ -20,6 +20,10 @@ const (
 	crossVenueSpotPerpDefaultRebalanceLatencyH   = 2.0
 	crossVenueSpotPerpDefaultPerpMaintMarginRate = 0.005
 	crossVenueSpotPerpDefaultPerpWalletBuffer    = 0.10
+	carryScannerDefaultFundingCaptureProbability = 0.50
+	carryScannerPerpPerpDustLegFraction          = 0.50
+	// carryScannerDustResidualFraction 残腿期望成本 = 较大腿 min-notional × 此系数(偶发遗留,非全额)。
+	carryScannerDustResidualFraction = 0.05
 )
 
 // CrossVenueSpotPerpFundingSnap 是某所某 symbol 的永续资金费快照(扫描输入)。
@@ -71,6 +75,7 @@ type CrossVenueSpotPerpScannerConfig struct {
 	ReserveUSDTByVenue        map[string]float64 `json:"reserve_usdt_by_venue,omitempty"`
 	DefaultReserveUSDT        float64            `json:"default_reserve_usdt"`
 	ExpectedHoldHours         float64            `json:"expected_hold_hours"`
+	FundingCaptureProbability float64            `json:"funding_capture_probability"`
 	PriceShockPcts            []float64          `json:"price_shock_pcts"`
 }
 
@@ -219,7 +224,52 @@ func normalizeCrossVenueSpotPerpScannerConfig(cfg CrossVenueSpotPerpScannerConfi
 	if len(cfg.PriceShockPcts) == 0 {
 		cfg.PriceShockPcts = []float64{0.20, 0.30}
 	}
+	if cfg.FundingCaptureProbability <= 0 {
+		cfg.FundingCaptureProbability = carryScannerDefaultFundingCaptureProbability
+	}
 	return cfg
+}
+
+func carryScannerNormalizedFundingCaptureProbability(p float64) float64 {
+	if p <= 0 {
+		return carryScannerDefaultFundingCaptureProbability
+	}
+	return clamp01(p)
+}
+
+func carryScannerExpectedFundingUSDT(notional, effectiveRate float64, settlements int, captureProb float64) float64 {
+	if notional <= 0 || effectiveRate <= 0 || settlements <= 0 {
+		return 0
+	}
+	return notional * effectiveRate * float64(settlements) * carryScannerNormalizedFundingCaptureProbability(captureProb)
+}
+
+// carryScannerDustResidualCostUSDT 估计开/平仓因步进取整而偶发遗留残腿的期望成本。
+// 残腿期望损失 ≈ 偶发概率 × 残余名义,远小于单腿 min-notional(开仓侧对齐 P2⑤ 后更罕见)。
+// 故取"较大腿 min-notional × 小系数",而非两腿 min-notional 全额累加(后者会把每笔小仓 EV 直接压成负)。
+func carryScannerDustResidualCostUSDT(minNotionals []float64, perpPerpSymmetric bool) float64 {
+	maxMN := 0.0
+	for _, mn := range minNotionals {
+		if mn > maxMN {
+			maxMN = mn
+		}
+	}
+	if maxMN <= 0 {
+		return 0
+	}
+	frac := carryScannerDustResidualFraction
+	if perpPerpSymmetric {
+		// 两腿同为永续、步进对称,残腿概率更低,再打折。
+		frac *= carryScannerPerpPerpDustLegFraction
+	}
+	return maxMN * frac
+}
+
+func carryScannerPerpPerpDustResidualCostUSDT() float64 {
+	return carryScannerDustResidualCostUSDT(
+		[]float64{crossVenueSpotPerpMinTradableNotionalUSDT, crossVenueSpotPerpMinTradableNotionalUSDT},
+		true,
+	)
 }
 
 func crossVenueSpotPerpCollectSymbols(funding map[string]map[string]CrossVenueSpotPerpFundingSnap, markets map[string]map[string]CrossVenueSpotPerpMarketSnap) []string {
@@ -360,7 +410,8 @@ func buildCrossVenueSpotPerpOpportunity(
 	slippage := crossVenueSpotPerpSlippageUSDT(cfg, notional, spotMkt, perpMkt)
 
 	vol, volOK := carryFundingVolFromMap(fundingVolByVenue, perpVenue, symbol)
-	if ok, _ := carryScannerFundingEntryEligible(now, fund, holdHours, notional, effectiveRate, expectedBasisPnL, openCost, slippage, cfg.Exec.FundingEntryGate(), vol, volOK); !ok {
+	entrySlippage := carryScannerEntrySlippageUSDT(cfg, notional, spotMkt, perpMkt)
+	if ok, _ := carryScannerFundingEntryEligible(now, fund, holdHours, notional, effectiveRate, expectedBasisPnL, openCost, entrySlippage, cfg.Exec.FundingEntryGate(), vol, volOK); !ok {
 		return UnifiedOpportunity{}, false
 	}
 
@@ -370,31 +421,25 @@ func buildCrossVenueSpotPerpOpportunity(
 		return UnifiedOpportunity{}, false
 	}
 
-	expectedFunding := notional * effectiveRate * float64(settlements)
+	expectedFunding := carryScannerExpectedFundingUSDT(notional, effectiveRate, settlements, cfg.FundingCaptureProbability)
 	entryBasisUSDT = crossVenueSpotPerpEntryBasisUSDT(spotMkt.SpotMid, perpMkt.PerpMid, notional)
 	expectedBasisPnL = crossVenueSpotPerpExpectedBasisPnL(entryBasisUSDT, notional, cfg)
 	openCost = crossVenueSpotPerpOpenCostUSDT(cfg, spotVenue, perpVenue, notional)
 	closeCost = openCost
 	slippage = crossVenueSpotPerpSlippageUSDT(cfg, notional, spotMkt, perpMkt)
-
 	spotCashRequired := notional
 	perpMarginRequired := crossVenueSpotPerpPerpMarginRequired(cfg, notional)
-
 	rebalancePenalty := 0.0
-	requiresRebalance := crossVenueSpotPerpRequiresRebalance(
-		spotVenue, perpVenue, spotCashRequired, perpMarginRequired, available, cfg,
-	)
+	requiresRebalance := crossVenueSpotPerpRequiresRebalance(spotVenue, perpVenue, spotCashRequired, perpMarginRequired, available, cfg)
 	if requiresRebalance {
 		rebalancePenalty = notional * cfg.RebalanceTransferCostBps / 10000
 	}
-
-	netEV := expectedFunding + expectedBasisPnL - openCost - closeCost - slippage - rebalancePenalty
-
-	refPrice := (spotMkt.SpotMid + perpMkt.PerpMid) / 2
-	qty := notional / refPrice
-
 	spotLegInstr := legInstrumentFields(spotMkt.SpotTickSize, spotMkt.SpotStepSize, spotMkt.SpotMinNotional)
 	perpLegInstr := legInstrumentFields(perpMkt.PerpTickSize, perpMkt.PerpStepSize, perpMkt.PerpMinNotional)
+	closeCost += carryScannerDustResidualCostUSDT([]float64{spotLegInstr.minNotional, perpLegInstr.minNotional}, false)
+	netEV := expectedFunding + expectedBasisPnL - openCost - closeCost - slippage - rebalancePenalty
+	refPrice := (spotMkt.SpotMid + perpMkt.PerpMid) / 2
+	qty := notional / refPrice
 
 	dataQuality := crossVenueSpotPerpDataQualityScore(fund)
 	executionScore := crossVenueExecutionScore(slippage, notional)
@@ -569,18 +614,33 @@ func crossVenueSpotPerpFundingSettlementCount(now time.Time, holdHours float64, 
 		intervalHours = 8
 	}
 	holdEnd := now.Add(time.Duration(holdHours * float64(time.Hour)))
-	count := 0
+	interval := time.Duration(intervalHours) * time.Hour
 	t := nextFunding
 	if t.IsZero() || !t.After(now) {
-		t = now.Add(time.Duration(intervalHours) * time.Hour)
+		t = now.Add(interval)
+	} else if interval > 0 {
+		// nextFunding 锚定结算网格;若距 now 超过一个 interval,回退到 (now, holdEnd] 内首个结算点。
+		for t.Sub(now) > interval {
+			t = t.Add(-interval)
+		}
 	}
+	count := 0
 	for !t.After(holdEnd) {
-		if !t.Before(now) {
+		if t.After(now) {
 			count++
 		}
-		t = t.Add(time.Duration(intervalHours) * time.Hour)
+		t = t.Add(interval)
 	}
 	return count
+}
+
+// carryScannerEntrySlippageUSDT 开仓窗口 EV 闸仅计开仓两腿滑点(非四腿 round-trip)。
+func carryScannerEntrySlippageUSDT(cfg CrossVenueSpotPerpScannerConfig, notional float64, spotMkt, perpMkt CrossVenueSpotPerpMarketSnap) float64 {
+	legs := crossVenueSpotPerpEVSlippageLegs(spotMkt, perpMkt)
+	if len(legs) >= 2 && (spotMkt.SpotDepth != nil || perpMkt.PerpDepth != nil) {
+		return crossVenueExpectedSlippageUSDTWithLegs(cfg.Exec, notional, legs[:2])
+	}
+	return crossVenueExpectedSlippageUSDT(cfg.Exec, notional, 2)
 }
 
 func crossVenueSpotPerpEffectiveFundingRate(rate, spikeThreshold, peakHaircut, noHistoryHaircut float64) float64 {
@@ -612,7 +672,7 @@ func crossVenueSpotPerpEntryBasisUSDT(spotMid, perpMid, notional float64) float6
 func crossVenueSpotPerpExpectedBasisPnL(entryBasisUSDT, notional float64, cfg CrossVenueSpotPerpScannerConfig) float64 {
 	stress := notional * cfg.BasisWideningStressBps / 10000
 	if entryBasisUSDT >= 0 {
-		return entryBasisUSDT*cfg.BasisConvergenceFraction - stress
+		return -stress
 	}
 	return entryBasisUSDT - stress
 }

@@ -585,6 +585,12 @@ type CrossVenueScannerConfig struct {
 	FundingAPRSanityCap float64 `cfg:"funding_apr_sanity_cap"`
 	// SpreadPersistenceScans 费率历史样本窗口(用于 HistoryQualityScore 软信号;不再作为存在性硬闸)。
 	SpreadPersistenceScans int `cfg:"spread_persistence_scans"`
+	// MinTradableNotionalUSDT 进入结果列表的最小可交易名义(USDT);两腿盘口深度共同决定的 TradableNotional 低于此值则丢弃。
+	// 用于剔除盘口枯竭(如代币化美股)的伪机会,避免它们挤占 TopN。默认 20;≤0 表示不过滤。
+	MinTradableNotionalUSDT float64 `cfg:"min_tradable_notional_usdt"`
+	// DropOneSidedZeroFunding 丢弃任一腿资金费恰为 0 的"伪单边价差"(典型为 OKX 等所对代币化美股永续返回 0 费率)。
+	// 真加密永续几乎总有非零资金费;为 0 多为非资费类工具或坏数据。默认 true。
+	DropOneSidedZeroFunding bool `cfg:"drop_one_sided_zero_funding"`
 }
 
 // EngineConfig 是 Funding Rate Sniper Engine 的 MVP 运行配置。

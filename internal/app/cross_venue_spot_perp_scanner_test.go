@@ -230,6 +230,16 @@ func TestCrossVenueSpotPerpEffectiveFundingRateSpikeDecay(t *testing.T) {
 	}
 }
 
+func TestCrossVenueSpotPerpFundingSettlementCountAlignsGridBeforeNextFunding(t *testing.T) {
+	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
+	next := now.Add(2 * time.Hour)
+	// interval 1h、next 在 2h 后:应对齐到 now+1h 并计入 now+1h 与 now+2h 两次结算。
+	count := crossVenueSpotPerpFundingSettlementCount(now, 2, 1, next)
+	if count != 2 {
+		t.Fatalf("settlements = %d, want 2 when hourly grid has two points within 2h hold", count)
+	}
+}
+
 func TestCrossVenueSpotPerpFundingSettlementCount(t *testing.T) {
 	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
 	next := now.Add(2 * time.Hour)
@@ -339,6 +349,56 @@ func TestScanCrossVenueSpotPerpDoesNotMutateInput(t *testing.T) {
 	}
 }
 
+func TestCarryScannerExpectedFundingUSDTAppliesCaptureProbability(t *testing.T) {
+	full := carryScannerExpectedFundingUSDT(100, 0.01, 1, 1.0)
+	half := carryScannerExpectedFundingUSDT(100, 0.01, 1, 0.5)
+	if math.Abs(full-1.0) > 1e-9 || math.Abs(half-0.5) > 1e-9 {
+		t.Fatalf("capture scaling full=%.6f half=%.6f", full, half)
+	}
+}
+
+func TestCrossVenueSpotPerpExpectedBasisPnLPositiveCarryCostOnly(t *testing.T) {
+	cfg := DefaultCrossVenueSpotPerpScannerConfig(testCrossVenueExecutorConfig().CrossVenueExecutor)
+	got := crossVenueSpotPerpExpectedBasisPnL(2.5, 100, cfg)
+	if got >= 0 {
+		t.Fatalf("positive carry basis pnl = %.6f, want cost-only <=0", got)
+	}
+}
+
+func TestCarryScannerDustResidualCostUSDT(t *testing.T) {
+	// 残腿成本 = 较大腿 min-notional × 0.05(偶发遗留,非两腿全额)。
+	if got := carryScannerDustResidualCostUSDT([]float64{5, 10}, false); math.Abs(got-0.5) > 1e-9 {
+		t.Fatalf("carry dust cost = %.6f, want 0.5", got)
+	}
+	// perp-perp 对称再打 0.5 折:5 × 0.05 × 0.5 = 0.125。
+	if got := carryScannerPerpPerpDustResidualCostUSDT(); math.Abs(got-0.125) > 1e-9 {
+		t.Fatalf("perp-perp dust cost = %.6f, want 0.125", got)
+	}
+	// 残腿成本应远小于单腿 min-notional,避免压垮小仓 EV。
+	if carryScannerDustResidualCostUSDT([]float64{5, 10}, false) >= 5 {
+		t.Fatal("dust cost should be far below a single leg min-notional")
+	}
+}
+
+func TestScanCrossVenueSpotPerpZeroCandidateDiagnostics(t *testing.T) {
+	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
+	nextFunding := now.Add(2 * time.Hour)
+	in := CrossVenueSpotPerpScanInput{
+		Now: now, Symbols: []string{"BTC-USDT"},
+		FundingByVenue: map[string]map[string]CrossVenueSpotPerpFundingSnap{
+			bybit.VenueName: {"BTC-USDT": scannerTestEstablishedFundingSnap(0.001, nextFunding)},
+		},
+		MarketsByVenue: scannerTestInstrumentMetaMarkets(map[string]map[string]CrossVenueSpotPerpMarketSnap{
+			bybit.VenueName: {"BTC-USDT": {SpotMid: 100000, PerpMid: 100050, SpotDepthUSDT: 5000, PerpDepthUSDT: 5000, HasSpot: true, HasPerp: true}},
+		}),
+		AvailableUSDTByVenue: map[string]float64{bybit.VenueName: 500},
+		Config:               DefaultCrossVenueSpotPerpScannerConfig(testCrossVenueExecutorConfig().CrossVenueExecutor),
+	}
+	if len(ScanCrossVenueSpotPerpOpportunities(in)) != 0 {
+		t.Fatal("same-venue spot+perp must produce 0 cross-venue candidates")
+	}
+}
+
 func TestScanCrossVenueSpotPerpBasisAndNetEV(t *testing.T) {
 	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
 	in := testCrossVenueSpotPerpScanInput(now)
@@ -360,6 +420,10 @@ func TestScanCrossVenueSpotPerpBasisAndNetEV(t *testing.T) {
 	entryBasis := crossVenueSpotPerpEntryBasisUSDT(100000, 100200, opps[0].Legs[0].Notional)
 	if entryBasis <= 0 {
 		t.Fatalf("entry basis = %.4f, want >0 for perp premium", entryBasis)
+	}
+	expectedBasis := crossVenueSpotPerpExpectedBasisPnL(entryBasis, opps[0].Legs[0].Notional, in.Config)
+	if expectedBasis >= 0 {
+		t.Fatalf("positive carry basis contribution = %.6f, want cost-only <=0", expectedBasis)
 	}
 }
 

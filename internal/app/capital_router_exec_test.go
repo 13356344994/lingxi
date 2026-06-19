@@ -100,6 +100,9 @@ func TestExecuteCapitalRoutingCrossVenueNeverTransfers(t *testing.T) {
 		CrossVenueSuggestions: []CrossVenueRebalanceSuggestion{
 			{FromVenue: "binance", ToVenue: "gate", AmountUSDT: 120, Reason: "cross-gap"},
 		},
+		Unfundable: []string{
+			"cv-1: " + CapitalUnfundableReasonCrossVenueGap + ":to=gate:suggested=[binance→gate:120.0000]:total=120.0000:not_auto_executed",
+		},
 	}
 	var buf bytes.Buffer
 	result := ExecuteCapitalRouting(context.Background(), plan, map[string]venue.Venue{"gate": fake}, true, testCapitalRouterExecLogger(&buf))
@@ -113,8 +116,11 @@ func TestExecuteCapitalRoutingCrossVenueNeverTransfers(t *testing.T) {
 		t.Fatalf("cross-venue suggestions must not trigger transfers, got %+v", fake.calls)
 	}
 	logged := buf.String()
-	if !strings.Contains(logged, "[跨所建议]") || !strings.Contains(logged, "binance→gate") || !strings.Contains(logged, "不自动执行") {
+	if !strings.Contains(logged, "[跨所建议]") || !strings.Contains(logged, CapitalUnfundableReasonCrossVenueGap) || !strings.Contains(logged, "binance→gate") || !strings.Contains(logged, "不自动执行") {
 		t.Fatalf("cross-venue log = %q", logged)
+	}
+	if !strings.Contains(logged, "[跨所缺口][unfundable]") || !strings.Contains(logged, "cv-1") {
+		t.Fatalf("cross-venue unfundable log = %q", logged)
 	}
 }
 

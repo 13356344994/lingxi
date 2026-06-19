@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"lingxi/internal/venue"
 )
@@ -85,5 +86,74 @@ func TestIsNotionalFilterError(t *testing.T) {
 	}
 	if isNotionalFilterError(errors.New("HTTP 400 code=-1013 msg=Filter failure: PERCENT_PRICE")) {
 		t.Fatal("percent price reject should not match NOTIONAL")
+	}
+}
+
+func TestDustCloseDeferUntilFunding(t *testing.T) {
+	next := time.Date(2026, 6, 19, 8, 0, 0, 0, time.UTC)
+	before := next.Add(-time.Minute)
+	after := next.Add(time.Minute)
+	if !dustCloseDeferUntilFunding(before, next) {
+		t.Fatal("expected defer before settlement")
+	}
+	if dustCloseDeferUntilFunding(after, next) {
+		t.Fatal("should not defer after settlement")
+	}
+	if dustCloseDeferUntilFunding(before, time.Time{}) {
+		t.Fatal("zero nextFunding should not defer")
+	}
+}
+
+func TestCarryDeferDustOrphanDecision(t *testing.T) {
+	next := time.Date(2026, 6, 19, 8, 0, 0, 0, time.UTC)
+	now := next.Add(-time.Hour)
+	dust := dustOrphanDecision{IsOrphan: true, IsDustOrphan: true}
+	if !carryDeferDustOrphanDecision(now, next, dust) {
+		t.Fatal("expected dust defer before funding")
+	}
+	naked := dustOrphanDecision{IsOrphan: true, IsDustOrphan: true, NakedRisk: true}
+	if carryDeferDustOrphanDecision(now, next, naked) {
+		t.Fatal("naked risk must not defer")
+	}
+}
+
+func TestCarryEVWeakFundingCloseAllowed(t *testing.T) {
+	next := time.Date(2026, 6, 19, 8, 0, 0, 0, time.UTC)
+	cases := []struct {
+		name   string
+		now    time.Time
+		next   time.Time
+		syncAt time.Time
+		want   bool
+	}{
+		{"before funding", next.Add(-time.Hour), next, time.Time{}, false},
+		{"after funding no sync", next.Add(time.Hour), next, time.Time{}, false},
+		{"after funding stale sync", next.Add(time.Hour), next, next.Add(-time.Minute), false},
+		{"after funding post-sync", next.Add(time.Hour), next, next.Add(time.Minute), true},
+		{"zero next funding", next.Add(-time.Hour), time.Time{}, time.Time{}, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := carryEVWeakFundingCloseAllowed(tc.now, tc.next, tc.syncAt); got != tc.want {
+				t.Fatalf("got %v want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestCarrySingleVenueOpenQtyAlign(t *testing.T) {
+	spot := venue.Instrument{StepSize: 0.01, MinNotional: 5}
+	perp := venue.Instrument{StepSize: 0.001, MinNotional: 5}
+	caps := venue.Capabilities{}
+	got, err := carrySingleVenueOpenQtyAlign(0.1234, 100, spot, perp, caps)
+	if err != nil {
+		t.Fatalf("align: %v", err)
+	}
+	if got != 0.123 {
+		t.Fatalf("qty = %v want 0.123 (min of step floors)", got)
+	}
+	_, err = carrySingleVenueOpenQtyAlign(0.0001, 100, spot, perp, caps)
+	if err == nil {
+		t.Fatal("expected below min notional error")
 	}
 }

@@ -426,31 +426,32 @@ func (e *CrossVenueSpotPerpExecutor) executeOpen(ctx context.Context, opp Unifie
 	sym := venue.Symbol(opp.Symbol)
 	spotInstr := opportunityLegInstrument(opp, spotVenue, "spot")
 	perpInstr := opportunityLegInstrument(opp, perpVenue, "perp")
+	perpContract := perpV.Capabilities().ContractBasedPerp
+	spotCaps := spotV.Capabilities()
+	perpCaps := perpV.Capabilities()
 	if spotInstr.TickSize <= 0 || spotInstr.StepSize <= 0 {
 		spotInstr = e.lookupLegInstrument(ctx, spotVenue, sym, venue.MarketSpot)
 	}
-	if perpInstr.TickSize <= 0 || perpInstr.StepSize <= 0 {
+	if perpCaps.ContractBasedPerp && perpInstr.ContractSize <= 0 {
+		perpInstr = carryMergeContractPerpInstrument(perpInstr, e.lookupLegInstrument(ctx, perpVenue, sym, venue.MarketPerp))
+	} else if perpInstr.TickSize <= 0 || perpInstr.StepSize <= 0 {
 		perpInstr = e.lookupLegInstrument(ctx, perpVenue, sym, venue.MarketPerp)
 	}
-	perpContract := perpV.Capabilities().ContractBasedPerp
 	refPrice := 0.0
 	if perpBook, err := perpTrader.FetchBookTicker(ctx, venue.MarketPerp, sym); err == nil {
 		refPrice = perpBook.AskPrice
 	}
-	openQty := qty
-	if instrumentHasQtyRules(perpInstr) {
-		openQty = normalizeVenueQty(openQty, perpInstr, perpContract)
-	}
-	if instrumentHasQtyRules(spotInstr) && spotInstr.StepSize > 0 {
-		openQty = quantizeQtyToStep(openQty, spotInstr.StepSize)
-	}
-	if instrumentHasQtyRules(perpInstr) && !openLegTradableAfterQuantize(openQty, refPrice, perpInstr) {
-		return CrossVenueSpotPerpPosition{}, fmt.Errorf("开仓数量低于最小可交易量 qty=%.8f", openQty)
-	}
-	if instrumentHasQtyRules(spotInstr) && !openLegTradableAfterQuantize(openQty, refPrice, spotInstr) {
-		return CrossVenueSpotPerpPosition{}, fmt.Errorf("开仓数量低于最小可交易量 qty=%.8f", openQty)
+	openQty, alignErr := carryPreflightSpotPerpOpenAlign(qty, refPrice, spotInstr, perpInstr, spotCaps, perpCaps)
+	if alignErr != nil {
+		if live {
+			carryLogPreflightSkip(e.logger, "跨所spot-perp", opp.Symbol, alignErr.Error())
+		}
+		return CrossVenueSpotPerpPosition{}, alignErr
 	}
 	qty = openQty
+	if refPrice > 0 {
+		notional = qty * refPrice
+	}
 	idem := cvspIdemPrefix(sym, perpVenue)
 	now := e.nowFn()
 
@@ -535,7 +536,7 @@ func (e *CrossVenueSpotPerpExecutor) executeOpen(ctx context.Context, opp Unifie
 	}
 
 	spotID := cvspLegClientID(idem, "s1")
-	hedgeQty := perpRes.ExecutedQty
+	hedgeQty := crossVenueLegExecutedCoinQty(perpCaps, perpInstr, perpRes, 0)
 	if bal, err := spotV.FetchBalances(ctx); err == nil {
 		spotBook, _ := spotTrader.FetchBookTicker(ctx, venue.MarketSpot, sym)
 		if affordable := cvspAffordableSpotQty(spotQuoteAvailableUSDT(bal), spotBook.AskPrice, spotInstr.StepSize, slippageBps); affordable+executionQtyTolerance < hedgeQty {
@@ -560,7 +561,7 @@ func (e *CrossVenueSpotPerpExecutor) executeOpen(ctx context.Context, opp Unifie
 		}
 		return pos, fmt.Errorf("第二腿(买现货)未足额成交: %w", spotErr)
 	}
-	match := carryMatchTwoLegOpens(perpRes.ExecutedQty, spotRes.ExecutedQty, carryMinTradableQty(refPrice, spotInstr))
+	match := carryMatchTwoLegOpensNormalized(perpRes, spotRes, perpInstr, spotInstr, perpCaps, spotCaps, carryMinTradableQty(refPrice, spotInstr))
 	if !match.OK {
 		openFailed = true
 		e.rollbackFirstLeg(ctx, pos, perpV, perpTrader, sym, perpRes.ExecutedQty, live, perpInstr, perpContract)
@@ -748,6 +749,11 @@ func (e *CrossVenueSpotPerpExecutor) closePosition(ctx context.Context, pos Cros
 	spotOpen := spotQty > executionQtyTolerance
 	perpOpen := perpQty > executionQtyTolerance
 	if dust := evaluatePositiveCarryOrphan(ctx, e.cfg.CrossVenueExecutor, e.venues, pos.Symbol, pos.SpotVenue, pos.PerpVenue, spotOpen, perpOpen, spotQty, perpQty, pos.SpotLeg.EntryPrice); dust.IsDustOrphan {
+		if carryShouldDeferDustOrphanClose(e.nowFn(), pos.PerpNextFundingTime) {
+			pos.UpdatedAt = e.nowFn()
+			_ = e.persistPosition(pos)
+			return fmt.Errorf("dust_orphan 未到 funding 结算,保留持仓待下轮")
+		}
 		if live && spotOpen {
 			id := cvspLegClientID(pos.IdemPrefix, "dust")
 			qty := ledgerCappedCloseQty(pos.SpotLeg.Qty, spotQty)
@@ -857,7 +863,9 @@ func (e *CrossVenueSpotPerpExecutor) managePosition(ctx context.Context, pos Cro
 	e.armDeadManForPerpVenue(ctx, pos.PerpVenue, live)
 
 	if reason := e.shouldClose(&pos); reason != "" {
-		_ = e.closePosition(ctx, pos, live, reason)
+		if !carryShouldDeferEVWeakClose(e.nowFn(), pos.PerpNextFundingTime, reason) {
+			_ = e.closePosition(ctx, pos, live, reason)
+		}
 		return pos, false
 	}
 	return pos, false
@@ -973,6 +981,11 @@ func (e *CrossVenueSpotPerpExecutor) handleOrphanLeg(ctx context.Context, pos Cr
 	perpInstr := e.lookupLegInstrument(ctx, pos.PerpVenue, sym, venue.MarketPerp)
 	perpContract := e.venues[pos.PerpVenue] != nil && e.venues[pos.PerpVenue].Capabilities().ContractBasedPerp
 	if decision.IsDustOrphan {
+		if carryShouldDeferDustOrphanClose(e.nowFn(), pos.PerpNextFundingTime) {
+			pos.UpdatedAt = e.nowFn()
+			_ = e.persistPosition(pos)
+			return
+		}
 		if live && spotOpen {
 			if tr, ok := e.venues[pos.SpotVenue].(cvspTrader); ok {
 				id := cvspLegClientID(pos.IdemPrefix, "dust")

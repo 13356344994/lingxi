@@ -87,6 +87,20 @@ func TestEvaluateCrossVenueOpenEVSixtyAPRTakerOneSettlementRejected(t *testing.T
 	}
 }
 
+func TestEvaluateCrossVenueOpenEVUsesDiscreteFundingNotLinearExtrapolation(t *testing.T) {
+	now := time.Now().UTC()
+	nextFunding := now.Add(2 * time.Hour)
+	cfg := testNetProfitGateExecutorConfig()
+	cfg.ExpectedHoldHours = 12
+	notional := 150.0
+	opp := testCarryOpenEVOpportunity(now, nextFunding)
+	discrete := crossVenueOpenGateExpectedFundingUSDT(cfg, now, 12, notional, opp)
+	linear := crossVenueExpectedFundingPerHour(notional, opp.HighFundingRate, opp.HighIntervalHours, opp.LowFundingRate, opp.LowIntervalHours) * 12
+	if discrete >= linear {
+		t.Fatalf("discrete funding %.6f should be below 12h linear %.6f", discrete, linear)
+	}
+}
+
 func TestEvaluateCrossVenueOpenEVCarryCoinMakerTwelveHourHoldPasses(t *testing.T) {
 	now := time.Now().UTC()
 	nextFunding := now.Add(2 * time.Hour)
@@ -99,7 +113,7 @@ func TestEvaluateCrossVenueOpenEVCarryCoinMakerTwelveHourHoldPasses(t *testing.T
 	}
 	res := evaluateCrossVenueOpenEV(cfg, opp, notional, nil, now, 0)
 	if !res.OK {
-		t.Fatalf("expected pass for carry coin with maker fees + 12h hold: %s", res.Reason)
+		t.Fatalf("expected pass for high carry coin under discrete funding + maker 12h hold: %s", res.Reason)
 	}
 }
 
@@ -173,7 +187,7 @@ func TestCrossVenueOpenEVConfigTogglesExpectedHoldHoursAndMakerFees(t *testing.T
 	longHold := testNetProfitGateMakerHoldConfig()
 	longHold.ExpectedHoldHours = 12
 	if res := evaluateCrossVenueOpenEV(longHold, opp, notional, nil, now, 0); !res.OK {
-		t.Fatalf("expected pass when expected_hold_hours=12: %s", res.Reason)
+		t.Fatalf("expected pass with 12h discrete settlements (not linear extrapolation): %s", res.Reason)
 	}
 
 	highMakerFee := testNetProfitGateMakerHoldConfig()
@@ -222,7 +236,7 @@ func TestEvaluateCrossVenueOpenEVModestSpreadPositiveNetProfitPasses(t *testing.
 	}
 	res := evaluateCrossVenueOpenEV(cfg, opp, notional, nil, now, 0)
 	if !res.OK {
-		t.Fatalf("expected pass for modest spread with positive net profit over 12h maker hold: %s", res.Reason)
+		t.Fatalf("expected pass for modest spread when discrete funding covers maker round-trip: %s", res.Reason)
 	}
 }
 
@@ -278,7 +292,7 @@ func TestCrossVenueOpenGateModestSpreadPassesWhenNetProfitPositive(t *testing.T)
 		Now: now,
 	})
 	if !res.OK {
-		t.Fatalf("expected gate pass (would_execute): %s", res.Reason)
+		t.Fatalf("expected gate pass when net profit positive under discrete EV: %s", res.Reason)
 	}
 }
 

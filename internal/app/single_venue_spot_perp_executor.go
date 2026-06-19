@@ -411,6 +411,15 @@ func (e *SingleVenueSpotPerpExecutor) executeOpen(ctx context.Context, opp Unifi
 		SpotLeg:           SingleVenueSpotPerpLegState{Market: "spot", Side: "buy"},
 		PerpLeg:           SingleVenueSpotPerpLegState{Market: "perp", Side: "short"},
 	}
+	if t := parseCarryNextFundingTime(opp.NextFundingTime); !t.IsZero() {
+		pos.NextFundingTime = t
+	}
+	if opp.FundingIntervalHours > 0 {
+		pos.FundingIntervalHours = opp.FundingIntervalHours
+	}
+	if opp.RawFundingRate != 0 {
+		pos.OpenFundingRate = opp.RawFundingRate
+	}
 	if pos.ExpectedHoldHours <= 0 {
 		pos.ExpectedHoldHours = 8
 	}
@@ -430,6 +439,36 @@ func (e *SingleVenueSpotPerpExecutor) executeOpen(ctx context.Context, opp Unifi
 	takerBps := svspTakerSlippageBps(cfg)
 	spotInstr := opportunityLegInstrument(opp, venueName, "spot")
 	perpInstr := opportunityLegInstrument(opp, venueName, "perp")
+	caps := v.Capabilities()
+	if spotInstr.StepSize <= 0 && spotInstr.MinNotional <= 0 {
+		if in, ok := lookupVenueInstrumentForMarket(ctx, v, sym, venue.MarketSpot); ok {
+			spotInstr = in
+		}
+	}
+	if caps.ContractBasedPerp && perpInstr.ContractSize <= 0 {
+		if in, ok := lookupVenueInstrumentForMarket(ctx, v, sym, venue.MarketPerp); ok {
+			perpInstr = carryMergeContractPerpInstrument(perpInstr, in)
+		}
+	} else if perpInstr.StepSize <= 0 && perpInstr.MinNotional <= 0 {
+		if in, ok := lookupVenueInstrumentForMarket(ctx, v, sym, venue.MarketPerp); ok {
+			perpInstr = in
+		}
+	}
+	refPrice := 100.0
+	if book, berr := tr.FetchBookTicker(ctx, venue.MarketPerp, sym); berr == nil && book.AskPrice > 0 {
+		refPrice = book.AskPrice
+	} else if book, berr := tr.FetchBookTicker(ctx, venue.MarketSpot, sym); berr == nil && book.AskPrice > 0 {
+		refPrice = book.AskPrice
+	}
+	alignedQty, alignErr := carrySingleVenueOpenQtyAlign(qty, refPrice, spotInstr, perpInstr, v.Capabilities())
+	if alignErr != nil {
+		carryLogPreflightSkip(e.logger, "同所spot-perp", opp.Symbol, alignErr.Error())
+		return SingleVenueSpotPerpPosition{}, alignErr
+	}
+	qty = alignedQty
+	if pos.NotionalUSDT <= 0 || notional <= 0 {
+		pos.NotionalUSDT = qty * refPrice
+	}
 	spotNeed := pos.NotionalUSDT * (1 + takerBps/10000)
 	perpMargin := rotationPerpMarginWithBuffer(cfg, pos.NotionalUSDT)
 	if err := carryPreflightSingleVenueSpotPerpOpen(ctx, v, spotNeed, perpMargin); err != nil {
@@ -475,7 +514,7 @@ func (e *SingleVenueSpotPerpExecutor) executeOpen(ctx context.Context, opp Unifi
 		e.notifyCritical("同所spot-perp查单未知", fmt.Sprintf("%s 永续腿查单失败,禁止自动回滚", opp.Symbol), opp.Symbol)
 		return pos, fmt.Errorf("永续腿状态未知,禁止自动回滚: %w", perpErr)
 	}
-	refPrice := spotRes.AvgPrice
+	refPrice = spotRes.AvgPrice
 	if refPrice <= 0 {
 		refPrice = 100
 	}
@@ -638,6 +677,8 @@ func (e *SingleVenueSpotPerpExecutor) managePosition(ctx context.Context, pos Si
 		return e.manageOpeningContinuation(ctx, pos, spotOpen, perpOpen, spotQty, perpAmt, live)
 	}
 
+	e.syncFundingMeta(ctx, &pos)
+
 	if spotOpen != perpOpen {
 		e.handleOrphanLeg(ctx, pos, spotOpen, perpOpen, live, spotQty, perpAmt)
 		return pos, false
@@ -696,6 +737,20 @@ func (e *SingleVenueSpotPerpExecutor) manageOpeningContinuation(
 			hedgeQty = pos.SpotLeg.Qty
 		}
 		perpInstr := venue.Instrument{}
+		if in, ok := lookupVenueInstrumentForMarket(ctx, v, sym, venue.MarketPerp); ok {
+			perpInstr = in
+		}
+		spotInstr := venue.Instrument{}
+		if in, ok := lookupVenueInstrumentForMarket(ctx, v, sym, venue.MarketSpot); ok {
+			spotInstr = in
+		}
+		refCont := pos.SpotLeg.EntryPrice
+		if refCont <= 0 {
+			refCont = 100
+		}
+		if aligned, alignErr := carrySingleVenueOpenQtyAlign(hedgeQty, refCont, spotInstr, perpInstr, v.Capabilities()); alignErr == nil {
+			hedgeQty = aligned
+		}
 		perpID := svspLegClientID(pos.IdemPrefix, "p2")
 		perpRes, err := e.placeSVSPLegIOC(ctx, tr, venue.MarketPerp, sym, venue.SideSell, hedgeQty, perpID, false, live, svspTakerSlippageBps(e.execCfg()))
 		if orderStatusIsUnknown(perpRes) {
@@ -780,6 +835,11 @@ func (e *SingleVenueSpotPerpExecutor) handleOrphanLeg(
 	spotQty, perpAmt float64,
 ) {
 	decision := evaluatePositiveCarryOrphan(ctx, e.execCfg(), e.venues, pos.Symbol, pos.Venue, pos.Venue, spotOpen, perpOpen, spotQty, absQty(perpAmt), pos.SpotLeg.EntryPrice)
+	if decision.IsDustOrphan && carryDeferDustOrphanDecision(e.nowFn(), pos.NextFundingTime, decision) {
+		pos.UpdatedAt = e.nowFn()
+		_ = e.persistPosition(pos)
+		return
+	}
 	if decision.IsDustOrphan {
 		v := e.venues[pos.Venue]
 		tr, _ := v.(singleVenueSpotPerpTrader)
@@ -817,7 +877,45 @@ func (e *SingleVenueSpotPerpExecutor) handleOrphanLeg(
 			_, _ = e.placeSVSPLegIOC(ctx, tr, venue.MarketPerp, sym, venue.SideBuy, qty, svspLegClientID(pos.IdemPrefix, "op"), true, live, takerBps)
 		}
 	}
+	if decision.NakedRisk {
+		sq, pa, ferr := e.fetchLegState(ctx, v, sym)
+		if ferr == nil && sq <= executionQtyTolerance && absQty(pa) <= executionQtyTolerance {
+			pos.Status = SVSPStatusClosed
+			pos.CloseReason = nonEmpty(pos.CloseReason, "naked_orphan")
+			pos.UpdatedAt = e.nowFn()
+			e.finalizeClosedPosition(pos, live)
+			return
+		}
+	}
 	e.notifyCritical("同所spot-perp孤腿", fmt.Sprintf("%s@%s 检测到孤腿,已平掉剩余腿", pos.Symbol, pos.Venue), pos.Symbol)
+}
+
+func (e *SingleVenueSpotPerpExecutor) syncFundingMeta(ctx context.Context, pos *SingleVenueSpotPerpPosition) {
+	if pos == nil || !pos.NextFundingTime.IsZero() {
+		return
+	}
+	v := e.venues[pos.Venue]
+	if v == nil {
+		return
+	}
+	snaps, err := v.FetchFundingSnapshot(ctx)
+	if err != nil {
+		return
+	}
+	sym := venue.Symbol(pos.Symbol)
+	for _, snap := range snaps {
+		if snap.Symbol != sym {
+			continue
+		}
+		pos.OpenFundingRate = snap.LastFundingRate
+		if snap.IntervalHours > 0 {
+			pos.FundingIntervalHours = snap.IntervalHours
+		}
+		if !snap.NextFundingTime.IsZero() {
+			pos.NextFundingTime = snap.NextFundingTime
+		}
+		return
+	}
 }
 
 func (e *SingleVenueSpotPerpExecutor) syncRealizedFunding(ctx context.Context, pos *SingleVenueSpotPerpPosition) {
@@ -866,7 +964,9 @@ func (e *SingleVenueSpotPerpExecutor) shouldClosePosition(_ context.Context, pos
 	if pos.OpenExpectedNetEV > 0 && pos.ExpectedHoldHours > 0 {
 		holdHours := now.Sub(pos.OpenedAt).Hours()
 		if holdHours >= pos.ExpectedHoldHours && pos.RealizedFundingUSDT < pos.OpenExpectedNetEV*0.5 {
-			return fmt.Sprintf("持有%.1fh后EV转弱 funding=%.4f", holdHours, pos.RealizedFundingUSDT)
+			if carryEVWeakFundingCloseAllowed(now, pos.NextFundingTime, pos.LastFundingSyncAt) {
+				return fmt.Sprintf("持有%.1fh后EV转弱 funding=%.4f", holdHours, pos.RealizedFundingUSDT)
+			}
 		}
 	}
 	return ""
@@ -954,6 +1054,11 @@ func (e *SingleVenueSpotPerpExecutor) closePosition(ctx context.Context, pos Sin
 	perpOpen := absQty(perpAmt) > executionQtyTolerance
 	spotOpen := spotQty > executionQtyTolerance
 	if dust := evaluatePositiveCarryOrphan(ctx, e.execCfg(), e.venues, pos.Symbol, pos.Venue, pos.Venue, spotOpen, perpOpen, spotQty, absQty(perpAmt), pos.SpotLeg.EntryPrice); dust.IsDustOrphan {
+		if carryDeferDustOrphanDecision(e.nowFn(), pos.NextFundingTime, dust) {
+			pos.UpdatedAt = e.nowFn()
+			_ = e.persistPosition(pos)
+			return fmt.Errorf("dust_orphan 推迟至结算后: %s", pos.Symbol)
+		}
 		if live && spotOpen {
 			id := svspLegClientID(pos.IdemPrefix, "dust")
 			qty := ledgerCappedCloseQty(pos.SpotLeg.Qty, spotQty)

@@ -171,7 +171,7 @@ func TestScanSingleVenuePerpSpotRecordsPositiveFundingReject(t *testing.T) {
 	}
 }
 
-func TestScanSingleVenuePerpSpotRecordsNotBorrowableReject(t *testing.T) {
+func TestScanSingleVenuePerpSpotExcludesNotBorrowable(t *testing.T) {
 	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
 	in := testSingleVenuePerpSpotScanInput(now)
 	reg := testBorrowKnownRegistry(now,
@@ -179,12 +179,9 @@ func TestScanSingleVenuePerpSpotRecordsNotBorrowableReject(t *testing.T) {
 	)
 	in.BorrowKnownAvailable = reg
 	opps := ScanSingleVenuePerpSpotOpportunities(in)
-	btc := findSingleVenuePerpSpotOpp(opps, "BTC-USDT")
-	if btc == nil {
-		t.Fatal("expected rejected row for not borrowable asset")
-	}
-	if !containsPerpSpotReject(btc.RejectReasons, singleVenuePerpSpotRejectNotBorrowable) {
-		t.Fatalf("reject_reasons = %#v, want %q", btc.RejectReasons, singleVenuePerpSpotRejectNotBorrowable)
+	// P1④: 不可借币在筛选阶段直接排除,不再作为带 reject 的候选出现。
+	if btc := findSingleVenuePerpSpotOpp(opps, "BTC-USDT"); btc != nil {
+		t.Fatalf("not-borrowable asset should be excluded from candidates, got reject_reasons=%#v", btc.RejectReasons)
 	}
 }
 
@@ -299,7 +296,7 @@ func TestScanSingleVenuePerpSpotBasisAndNetEV(t *testing.T) {
 		t.Fatalf("spot-perp entry basis = %.4f, want >0 for perp premium", spotPerpEntryBasis)
 	}
 	cvCfg := singleVenuePerpSpotAsCrossVenueConfig(in.Config)
-	expectedBasis := -crossVenueSpotPerpExpectedBasisPnL(spotPerpEntryBasis, btc.Legs[0].Notional, cvCfg)
+	expectedBasis := crossVenuePerpSpotExpectedBasisPnL(spotPerpEntryBasis, btc.Legs[0].Notional, cvCfg)
 	if expectedBasis >= 0 {
 		t.Fatalf("perp-spot basis pnl = %.4f, want <0 when perp premium", expectedBasis)
 	}

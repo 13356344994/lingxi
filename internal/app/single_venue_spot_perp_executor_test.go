@@ -34,6 +34,8 @@ type svspTestVenue struct {
 	perpPartialFillRatio float64
 	clearOnClose         bool
 	fundingIncome        []venue.FundingIncome
+	instruments          []venue.Instrument
+	fundingSnaps         []venue.FundingSnapshot
 }
 
 func newSVSPTestVenue(name string) *svspTestVenue {
@@ -162,6 +164,17 @@ func (f *svspTestVenue) FetchRealizedFunding(context.Context, venue.Symbol, time
 	return f.fundingIncome, nil
 }
 
+func (f *svspTestVenue) FetchInstruments(context.Context) ([]venue.Instrument, error) {
+	if len(f.instruments) == 0 {
+		return nil, venue.ErrUnsupported
+	}
+	return f.instruments, nil
+}
+
+func (f *svspTestVenue) FetchFundingSnapshot(context.Context) ([]venue.FundingSnapshot, error) {
+	return f.fundingSnaps, nil
+}
+
 var _ venue.Venue = (*svspTestVenue)(nil)
 var _ venue.PerpMarginProvider = (*svspTestVenue)(nil)
 
@@ -212,6 +225,15 @@ func testSVSPOpportunity(venueName string, qty float64) UnifiedOpportunity {
 			{Venue: venueName, Market: "perp", Side: "short", Qty: qty, Notional: qty * 100},
 		},
 	}
+}
+
+func testSVSPOpportunityWithInstruments(venueName string, qty float64, stepSize, minNotional float64) UnifiedOpportunity {
+	opp := testSVSPOpportunity(venueName, qty)
+	for i := range opp.Legs {
+		opp.Legs[i].StepSize = stepSize
+		opp.Legs[i].MinNotional = minNotional
+	}
+	return opp
 }
 
 func TestSVSPOOffModeNoPlaceOrder(t *testing.T) {
@@ -678,6 +700,121 @@ func TestSingleVenueSpotPerpManageOpenNoResurrectAfterFinalize(t *testing.T) {
 
 		assertSVSPManageOpenFinalizeOnce(t, e, ctx)
 	})
+}
+
+func TestSVSPOpenAlignsQtyToJointStep(t *testing.T) {
+	now := time.Now().UTC()
+	v := newSVSPTestVenue(binance.VenueName)
+	dir := t.TempDir()
+	e := NewSingleVenueSpotPerpExecutor(testSVSPExecutorConfig(), map[string]venue.Venue{binance.VenueName: v}, dir, testSVSPLogger())
+	e.nowFn = func() time.Time { return now }
+
+	opp := testSVSPOpportunityWithInstruments(binance.VenueName, 0.1234, 0.01, 5)
+	_, err := e.executeOpen(context.Background(), opp, true)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	if len(v.placeRequests) == 0 {
+		t.Fatal("expected orders")
+	}
+	if v.placeRequests[0].Qty != 0.12 {
+		t.Fatalf("spot qty = %.4f want 0.12", v.placeRequests[0].Qty)
+	}
+}
+
+func TestSVSPOpenSkipsWhenBelowMinNotional(t *testing.T) {
+	now := time.Now().UTC()
+	v := newSVSPTestVenue(binance.VenueName)
+	dir := t.TempDir()
+	e := NewSingleVenueSpotPerpExecutor(testSVSPExecutorConfig(), map[string]venue.Venue{binance.VenueName: v}, dir, testSVSPLogger())
+	e.nowFn = func() time.Time { return now }
+
+	opp := testSVSPOpportunityWithInstruments(binance.VenueName, 0.0001, 0.0001, 5)
+	_, err := e.executeOpen(context.Background(), opp, true)
+	if err == nil {
+		t.Fatal("expected skip below min notional")
+	}
+	if atomic.LoadInt32(v.placeCount) != 0 {
+		t.Fatal("must not place when below min notional")
+	}
+}
+
+func TestSVSPDustOrphanDeferredBeforeFunding(t *testing.T) {
+	now := time.Date(2026, 6, 19, 6, 0, 0, 0, time.UTC)
+	nextFunding := now.Add(2 * time.Hour)
+	v := newSVSPTestVenue(binance.VenueName)
+	v.book = venue.BookTicker{BidPrice: 0.039, AskPrice: 0.041, BidQty: 1000, AskQty: 1000}
+	dir := t.TempDir()
+	cfg := testSVSPExecutorConfig()
+	e := NewSingleVenueSpotPerpExecutor(cfg, map[string]venue.Venue{binance.VenueName: v}, dir, testSVSPLogger())
+	e.nowFn = func() time.Time { return now }
+
+	pos := SingleVenueSpotPerpPosition{
+		Symbol: "PHA-USDT", Venue: binance.VenueName,
+		Status: SVSPStatusOpen, OpenedAt: now.Add(-time.Hour), UpdatedAt: now,
+		NextFundingTime: nextFunding, IdemPrefix: "defer-dust",
+		SpotLeg: SingleVenueSpotPerpLegState{Market: "spot", Side: "buy", Qty: 0.1875, EntryPrice: 0.04},
+		PerpLeg: SingleVenueSpotPerpLegState{Market: "perp", Side: "short", Qty: 0.01},
+	}
+	v.spotBalances["PHA"] = 0.1875
+	if err := e.persistPosition(pos); err != nil {
+		t.Fatal(err)
+	}
+
+	e.manageOpenPositions(context.Background(), true)
+	if len(e.ListActivePositions()) != 1 {
+		t.Fatalf("dust orphan should defer before funding, active=%d", len(e.ListActivePositions()))
+	}
+	if atomic.LoadInt32(v.placeCount) != 0 {
+		t.Fatal("must not flatten dust before funding settlement")
+	}
+}
+
+func TestSVSPNakedPerpOrphanStillClosesBeforeFunding(t *testing.T) {
+	now := time.Date(2026, 6, 19, 6, 0, 0, 0, time.UTC)
+	nextFunding := now.Add(2 * time.Hour)
+	v := newSVSPTestVenue(binance.VenueName)
+	dir := t.TempDir()
+	e := NewSingleVenueSpotPerpExecutor(testSVSPExecutorConfig(), map[string]venue.Venue{binance.VenueName: v}, dir, testSVSPLogger())
+	e.nowFn = func() time.Time { return now }
+
+	pos := SingleVenueSpotPerpPosition{
+		Symbol: "BTC-USDT", Venue: binance.VenueName,
+		Status: SVSPStatusOpen, OpenedAt: now, UpdatedAt: now,
+		NextFundingTime: nextFunding, IdemPrefix: "naked-perp",
+		PerpLeg: SingleVenueSpotPerpLegState{Market: "perp", Side: "short", Qty: 0.5, EntryPrice: 100},
+	}
+	v.positions = []venue.Position{{Symbol: "BTC-USDT", PositionAmt: -0.5, MarkPrice: 100, EntryPrice: 100, Leverage: 2}}
+	if err := e.persistPosition(pos); err != nil {
+		t.Fatal(err)
+	}
+
+	e.manageOpenPositions(context.Background(), true)
+	if len(e.ListActivePositions()) != 0 {
+		t.Fatal("naked perp orphan must still close before funding")
+	}
+}
+
+func TestSVSPShouldCloseEVWeakBlockedUntilFundingSynced(t *testing.T) {
+	now := time.Date(2026, 6, 19, 10, 0, 0, 0, time.UTC)
+	nextFunding := now.Add(-time.Hour)
+	e := NewSingleVenueSpotPerpExecutor(testSVSPExecutorConfig(), nil, t.TempDir(), testSVSPLogger())
+	e.nowFn = func() time.Time { return now }
+
+	pos := SingleVenueSpotPerpPosition{
+		OpenedAt:          now.Add(-9 * time.Hour),
+		OpenExpectedNetEV: 2.0,
+		ExpectedHoldHours: 8,
+		NextFundingTime:   nextFunding,
+		RealizedFundingUSDT: 0,
+	}
+	if reason := e.shouldClosePosition(context.Background(), &pos); reason != "" {
+		t.Fatalf("should defer EV weak until post-funding sync, got %q", reason)
+	}
+	pos.LastFundingSyncAt = now
+	if reason := e.shouldClosePosition(context.Background(), &pos); reason == "" {
+		t.Fatal("expected EV weak close after funding sync")
+	}
 }
 
 func assertSVSPManageOpenFinalizeOnce(t *testing.T, e *SingleVenueSpotPerpExecutor, ctx context.Context) {

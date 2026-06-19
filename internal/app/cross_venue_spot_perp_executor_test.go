@@ -14,6 +14,7 @@ import (
 	"lingxi/internal/venue"
 	"lingxi/internal/venue/binance"
 	"lingxi/internal/venue/bybit"
+	"lingxi/internal/venue/gate"
 	"lingxi/internal/venue/okx"
 )
 
@@ -690,5 +691,80 @@ func TestDecideRotationExcludesCVSPRollbackBlocked(t *testing.T) {
 	}
 	if opens[0].Symbol != "ETH-USDT" {
 		t.Fatalf("OPEN symbol = %q, want ETH-USDT", opens[0].Symbol)
+	}
+}
+
+type cvspContractPerpVenue struct {
+	*cvspTestVenue
+	perpInstr       venue.Instrument
+	reportContracts bool
+}
+
+func newCVSPContractPerpVenue(name string, instr venue.Instrument) *cvspContractPerpVenue {
+	return &cvspContractPerpVenue{cvspTestVenue: newCVSPTestVenue(name), perpInstr: instr, reportContracts: true}
+}
+
+func (f *cvspContractPerpVenue) Capabilities() venue.Capabilities {
+	return venue.Capabilities{ContractBasedPerp: true}
+}
+
+func (f *cvspContractPerpVenue) FetchInstruments(context.Context) ([]venue.Instrument, error) {
+	instr := f.perpInstr
+	instr.Symbol = "BEL-USDT"
+	instr.Market = venue.MarketPerp
+	return []venue.Instrument{instr}, nil
+}
+
+func (f *cvspContractPerpVenue) PlaceOrder(ctx context.Context, req venue.OrderRequest) (venue.OrderResult, error) {
+	if req.Market != venue.MarketPerp {
+		return f.cvspTestVenue.PlaceOrder(ctx, req)
+	}
+	execCoin := normalizeVenueQty(req.Qty, f.perpInstr, true)
+	execQty := execCoin / f.perpInstr.ContractSize
+	atomic.AddInt32(f.placeCount, 1)
+	f.placeRequests = append(f.placeRequests, req)
+	if req.Side == venue.SideSell && !req.ReduceOnly {
+		f.positions = []venue.Position{{Symbol: req.Symbol, PositionAmt: -execCoin, EntryPrice: req.Price}}
+	}
+	return venue.OrderResult{Symbol: req.Symbol, Market: req.Market, ClientOrderID: req.ClientOrderID, Status: "filled", ExecutedQty: execQty, AvgPrice: req.Price}, nil
+}
+
+func testCVSPOpportunityWithSteps(spotVenue, perpVenue, symbol string, qty, spotStep, perpStep float64) UnifiedOpportunity {
+	notional := qty * 100
+	return UnifiedOpportunity{
+		ID: "t", StrategyType: UnifiedStrategyCrossVenueSpotPerp, Symbol: symbol, ExpectedNetEVUSDT: 1.5, ExpectedHoldHours: 8,
+		Legs: []UnifiedOpportunityLeg{
+			{Venue: spotVenue, Market: "spot", Side: "buy", Qty: qty, Notional: notional, StepSize: spotStep, TickSize: 0.01, MinNotional: 5},
+			{Venue: perpVenue, Market: "perp", Side: "short", Qty: qty, Notional: notional, StepSize: perpStep, TickSize: 0.01, MinNotional: 5},
+		},
+	}
+}
+
+func TestCrossVenueSpotPerpOpenPreflightSkipsMisalignedQty(t *testing.T) {
+	dir := t.TempDir()
+	spot := newCVSPTestVenue(binance.VenueName)
+	perp := newCVSPContractPerpVenue(okx.VenueName, venue.Instrument{StepSize: 2, ContractSize: 10, TickSize: 0.01, MinNotional: 5})
+	e := testCVSPExecutor(t, dir, spot, perp.cvspTestVenue)
+	e.venues[okx.VenueName] = perp
+	_, err := e.executeOpen(context.Background(), testCVSPOpportunityWithSteps(binance.VenueName, okx.VenueName, "BEL-USDT", 5, 1, 2), true)
+	if err == nil || !strings.Contains(err.Error(), carryOpenRejectLegQtyMisalign) {
+		t.Fatalf("expected misalign skip, got %v", err)
+	}
+}
+
+func TestCrossVenueSpotPerpOpenContractPerpMatchesSpotCoin(t *testing.T) {
+	dir := t.TempDir()
+	spot := newCVSPTestVenue(binance.VenueName)
+	spot.balances["USDT"] = 500000
+	perp := newCVSPContractPerpVenue(gate.VenueName, venue.Instrument{StepSize: 100, ContractSize: 3.25, TickSize: 0.0001, MinNotional: 5})
+	perp.balances["USDT"] = 500000
+	e := testCVSPExecutor(t, dir, spot, perp.cvspTestVenue)
+	e.venues[gate.VenueName] = perp
+	pos, err := e.executeOpen(context.Background(), testCVSPOpportunityWithSteps(binance.VenueName, gate.VenueName, "BEL-USDT", 1300, 1, 100), true)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	if pos.SpotLeg.Qty != 1300 || pos.PerpLeg.Qty != 1300 {
+		t.Fatalf("want 1300/1300 coin got spot=%.4f perp=%.4f", pos.SpotLeg.Qty, pos.PerpLeg.Qty)
 	}
 }

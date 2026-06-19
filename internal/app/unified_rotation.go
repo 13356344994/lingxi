@@ -34,6 +34,12 @@ type RotationConfig struct {
 	ContinuationMinHoldSeconds int `json:"continuation_min_hold_seconds"`
 	// MinNetProfitUSDT 开仓预期净收益下限(USDT);由 CrossVenueExecutor 注入。默认 0。
 	MinNetProfitUSDT float64 `json:"min_net_profit_usdt"`
+	// MinOpenNotionalUSDT 候选可成交名义下限(USDT);低于此值丢弃,避免薄仓占并发槽。默认 20。
+	MinOpenNotionalUSDT float64 `json:"min_open_notional_usdt"`
+	// OpenFailCooldownSeconds 同一 (strategy,symbol,venue-pair) 开仓失败后冷却秒数。默认 900(15 分钟)。
+	OpenFailCooldownSeconds int `json:"open_fail_cooldown_seconds"`
+	// OpenCooldownBlocked 运行时注入:按机会粒度检查开仓失败冷却(nil=不检查)。
+	OpenCooldownBlocked func(opp UnifiedOpportunity) bool `json:"-"`
 }
 
 // DefaultRotationConfig 返回 v1 保守默认轮动配置。
@@ -44,6 +50,8 @@ func DefaultRotationConfig() RotationConfig {
 		DefaultReserveUSDT:         10,
 		ContinuationCloseThreshold: 0.001,
 		ContinuationMinHoldSeconds: 3600,
+		MinOpenNotionalUSDT:        20,
+		OpenFailCooldownSeconds:    900,
 	}
 }
 
@@ -126,6 +134,12 @@ func normalizeRotationConfig(cfg RotationConfig) RotationConfig {
 	}
 	if cfg.ContinuationMinHoldSeconds <= 0 {
 		cfg.ContinuationMinHoldSeconds = def.ContinuationMinHoldSeconds
+	}
+	if cfg.MinOpenNotionalUSDT <= 0 {
+		cfg.MinOpenNotionalUSDT = def.MinOpenNotionalUSDT
+	}
+	if cfg.OpenFailCooldownSeconds <= 0 {
+		cfg.OpenFailCooldownSeconds = def.OpenFailCooldownSeconds
 	}
 	return cfg
 }
@@ -417,9 +431,29 @@ func rotationMinNetProfitUSDT(cfg RotationConfig) float64 {
 	return cfg.MinNetProfitUSDT
 }
 
+func rotationMinOpenNotionalUSDT(cfg RotationConfig) float64 {
+	if cfg.MinOpenNotionalUSDT <= 0 {
+		return 0
+	}
+	return cfg.MinOpenNotionalUSDT
+}
+
+func rotationOpportunityTradableNotional(opp UnifiedOpportunity) float64 {
+	totalCapital := unifiedOpportunityTotalCapital(opp)
+	return rotationPositionNotionalUSDT(opp, totalCapital)
+}
+
 func rotationCanOpenOpportunity(opp UnifiedOpportunity, available map[string]float64, cfg RotationConfig, openCount int, budget *rotationBudgetState, blocked RotationOpenBlocked) (bool, string) {
 	if rotationOpportunityOpenBlocked(opp, blocked) {
 		return false, "open_blocked"
+	}
+	if cfg.OpenCooldownBlocked != nil && cfg.OpenCooldownBlocked(opp) {
+		return false, "open_cooldown"
+	}
+	if minNotional := rotationMinOpenNotionalUSDT(cfg); minNotional > 0 {
+		if rotationOpportunityTradableNotional(opp)+1e-9 < minNotional {
+			return false, "min_open_notional"
+		}
 	}
 	if opp.CandidateOnly {
 		return false, "candidate_only"
@@ -483,10 +517,12 @@ func rotationSortedPositiveCandidates(candidates []UnifiedOpportunity, cfg Rotat
 		}
 	}
 	sort.SliceStable(positive, func(i, j int) bool {
-		if positive[i].ExpectedNetEVUSDT == positive[j].ExpectedNetEVUSDT {
+		si := unifiedWindowScore(positive[i])
+		sj := unifiedWindowScore(positive[j])
+		if si == sj {
 			return positive[i].Symbol < positive[j].Symbol
 		}
-		return positive[i].ExpectedNetEVUSDT > positive[j].ExpectedNetEVUSDT
+		return si > sj
 	})
 	return positive
 }
@@ -503,7 +539,7 @@ func planUnifiedRotationOpensFrom(candidates []UnifiedOpportunity, available map
 		if !ok {
 			continue
 		}
-		score := opp.ExpectedNetEVUSDT
+		score := unifiedWindowScore(opp)
 		rotationDeductOpportunityCapital(funds, opp)
 		budget.addOpportunity(opp)
 		openCount++
@@ -513,7 +549,7 @@ func planUnifiedRotationOpensFrom(candidates []UnifiedOpportunity, available map
 			StrategyType:           opp.StrategyType,
 			Symbol:                 opp.Symbol,
 			Score:                  score,
-			Reason:                 fmt.Sprintf("open_window_score=%.6f", score),
+			Reason:                 fmt.Sprintf("open_window_yield=%.6f net_ev=%.4f", score, opp.ExpectedNetEVUSDT),
 			CapitalRequiredByVenue: cloneVenueCapitalFromOpportunity(opp.CapitalRequiredByVenue),
 		})
 	}
@@ -595,6 +631,19 @@ func rotationContinuationMinHoldSatisfied(pos HeldPosition, cfg RotationConfig, 
 		}
 	}
 	return !now.Before(pos.OpenedAt.Add(required))
+}
+
+// rotationSwitchMinHoldSatisfied 仅防止"刚开仓就被换"的 churn:从 OpenedAt 起固定 ContinuationMinHoldSeconds。
+// 与 soft-CLOSE 的 min-hold 不同——不延长到 NextFundingTime,否则会冻结临近结算的老仓、阻碍正常轮动。
+func rotationSwitchMinHoldSatisfied(pos HeldPosition, cfg RotationConfig, now time.Time) bool {
+	if pos.OpenedAt.IsZero() {
+		return true
+	}
+	minHold := time.Duration(cfg.ContinuationMinHoldSeconds) * time.Second
+	if minHold <= 0 {
+		return true
+	}
+	return !now.Before(pos.OpenedAt.Add(minHold))
 }
 
 // rotationShouldContinuationClose 判断是否因续持边际转负而软 CLOSE(含 hysteresis/min-hold/关仓费对比)。
@@ -733,6 +782,26 @@ func decideRotationAt(
 				Symbol:                 pos.Symbol,
 				Score:                  contScore,
 				Reason:                 fmt.Sprintf("hold continuation_score=%.6f >= adjusted_open_score=%.6f", contScore, adjustedOpenScore),
+				ReplaceOpportunityID:   best.ID,
+				ReplaceStrategyType:    best.StrategyType,
+				ReplaceSymbol:          best.Symbol,
+				ReplaceScore:           openScore,
+				SwitchCostUSDT:         switchCost,
+				CapitalRequiredByVenue: cloneVenueCapitalFromOpportunity(pos.CapitalRequiredByVenue),
+			})
+			chosen[pos.OpportunityID] = struct{}{}
+			rejectedReplace[best.ID] = struct{}{}
+			continue
+		}
+
+		if !rotationSwitchMinHoldSatisfied(pos, cfg, now) {
+			plan.Actions = append(plan.Actions, RotationAction{
+				Kind:                   RotationActionHold,
+				OpportunityID:          pos.OpportunityID,
+				StrategyType:           pos.StrategyType,
+				Symbol:                 pos.Symbol,
+				Score:                  contScore,
+				Reason:                 fmt.Sprintf("hold_switch_min_hold continuation_score=%.6f adjusted_open_score=%.6f", contScore, adjustedOpenScore),
 				ReplaceOpportunityID:   best.ID,
 				ReplaceStrategyType:    best.StrategyType,
 				ReplaceSymbol:          best.Symbol,

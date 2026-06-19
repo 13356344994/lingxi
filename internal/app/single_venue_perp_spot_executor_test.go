@@ -975,3 +975,98 @@ func TestSVPSManageRebalanceOnImbalance(t *testing.T) {
 		t.Fatalf("expected spot rebalance buy 0.1, got %.6f", spotBuyQty)
 	}
 }
+
+func testSVPSOpportunityWithInstruments(venueName string, qty, stepSize, minNotional float64) UnifiedOpportunity {
+	opp := testSVPSOpportunity(venueName, qty)
+	for i := range opp.Legs {
+		opp.Legs[i].StepSize = stepSize
+		opp.Legs[i].MinNotional = minNotional
+	}
+	return opp
+}
+
+func TestSVPSOpenAlignsQtyToJointStep(t *testing.T) {
+	now := time.Now().UTC()
+	v := newSVPSTestVenue(binance.VenueName, true)
+	dir := t.TempDir()
+	e := NewSingleVenuePerpSpotExecutor(testSVPSExecutorConfig(), map[string]venue.Venue{binance.VenueName: v}, dir, testSVPSLogger())
+	e.nowFn = func() time.Time { return now }
+
+	opp := testSVPSOpportunityWithInstruments(binance.VenueName, 0.1234, 0.01, 5)
+	_, err := e.executeOpen(context.Background(), opp, true)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	if len(v.placeRequests) == 0 || v.placeRequests[0].Qty != 0.12 {
+		t.Fatalf("spot borrow qty = %.4f want 0.12", v.placeRequests[0].Qty)
+	}
+}
+
+func TestSVPSOpenSkipsWhenBelowMinNotional(t *testing.T) {
+	now := time.Now().UTC()
+	v := newSVPSTestVenue(binance.VenueName, true)
+	dir := t.TempDir()
+	e := NewSingleVenuePerpSpotExecutor(testSVPSExecutorConfig(), map[string]venue.Venue{binance.VenueName: v}, dir, testSVPSLogger())
+	e.nowFn = func() time.Time { return now }
+
+	opp := testSVPSOpportunityWithInstruments(binance.VenueName, 0.0001, 0.0001, 5)
+	_, err := e.executeOpen(context.Background(), opp, true)
+	if err == nil {
+		t.Fatal("expected skip below min notional")
+	}
+	if atomic.LoadInt32(v.placeCount) != 0 {
+		t.Fatal("must not place when below min notional")
+	}
+}
+
+func TestSVPSDustOrphanDeferredBeforeFunding(t *testing.T) {
+	now := time.Date(2026, 6, 19, 6, 0, 0, 0, time.UTC)
+	nextFunding := now.Add(2 * time.Hour)
+	v := newSVPSTestVenue(binance.VenueName, true)
+	v.book = venue.BookTicker{BidPrice: 0.047, AskPrice: 0.049, BidQty: 1000, AskQty: 1000}
+	v.spotMinNotional = 1
+	dir := t.TempDir()
+	e := NewSingleVenuePerpSpotExecutor(testSVPSExecutorConfig(), map[string]venue.Venue{binance.VenueName: v}, dir, testSVPSLogger())
+	e.nowFn = func() time.Time { return now }
+
+	pos := SingleVenuePerpSpotPosition{
+		Symbol: "FLUX-USDT", Venue: binance.VenueName,
+		Status: SVPSStatusOpen, OpenedAt: now.Add(-time.Hour), UpdatedAt: now,
+		NextFundingTime: nextFunding, IdemPrefix: "defer-dust",
+		SpotLeg: SingleVenuePerpSpotLegState{Market: "spot", Side: "short", Qty: 0.10459, EntryPrice: 0.05},
+	}
+	v.borrowedBase["FLUX"] = 0.10459
+	if err := e.persistPosition(pos); err != nil {
+		t.Fatal(err)
+	}
+
+	e.manageOpenPositions(context.Background(), true)
+	if len(e.ListActivePositions()) != 1 {
+		t.Fatalf("dust orphan should defer before funding, active=%d", len(e.ListActivePositions()))
+	}
+	if atomic.LoadInt32(v.borrowRepayCount) != 0 {
+		t.Fatal("must not repay dust before funding settlement")
+	}
+}
+
+func TestSVPSShouldCloseEVWeakBlockedUntilFundingSynced(t *testing.T) {
+	now := time.Date(2026, 6, 19, 10, 0, 0, 0, time.UTC)
+	nextFunding := now.Add(-time.Hour)
+	e := NewSingleVenuePerpSpotExecutor(testSVPSExecutorConfig(), nil, t.TempDir(), testSVPSLogger())
+	e.nowFn = func() time.Time { return now }
+
+	pos := SingleVenuePerpSpotPosition{
+		OpenedAt:            now.Add(-9 * time.Hour),
+		OpenExpectedNetEV:   2.0,
+		ExpectedHoldHours:   8,
+		NextFundingTime:     nextFunding,
+		RealizedFundingUSDT: 0,
+	}
+	if reason := e.shouldClosePosition(context.Background(), &pos); reason != "" {
+		t.Fatalf("should defer EV weak until post-funding sync, got %q", reason)
+	}
+	pos.LastFundingSyncAt = now
+	if reason := e.shouldClosePosition(context.Background(), &pos); reason == "" {
+		t.Fatal("expected EV weak close after funding sync")
+	}
+}

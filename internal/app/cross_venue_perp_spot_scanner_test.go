@@ -177,19 +177,15 @@ func TestScanCrossVenuePerpSpotExcludesPositiveFunding(t *testing.T) {
 	}
 }
 
-func TestScanCrossVenuePerpSpotRecordsNotBorrowableReject(t *testing.T) {
+func TestScanCrossVenuePerpSpotExcludesNotBorrowable(t *testing.T) {
 	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
 	in := testCrossVenuePerpSpotScanInput(now)
 	in.BorrowKnownAvailable = NewBorrowKnownAvailableRegistry(24 * time.Hour)
 	in.BorrowDailyRateByAsset = map[string]float64{}
 	opps := ScanCrossVenuePerpSpotOpportunities(in)
-	if len(opps) != 2 {
-		t.Fatalf("opportunities = %d, want 2 rejected rows", len(opps))
-	}
-	for _, opp := range opps {
-		if !containsPerpSpotReject(opp.RejectReasons, crossVenuePerpSpotRejectNotBorrowable) {
-			t.Fatalf("reject_reasons = %#v, want %q", opp.RejectReasons, crossVenuePerpSpotRejectNotBorrowable)
-		}
+	// P1④: 全部不可借 → 筛选阶段排除,候选集为空。
+	if len(opps) != 0 {
+		t.Fatalf("opportunities = %d, want 0 (not-borrowable excluded at filter)", len(opps))
 	}
 }
 
@@ -289,7 +285,7 @@ func TestScanCrossVenuePerpSpotBasisAndNetEV(t *testing.T) {
 	spotMid := in.MarketsByVenue[spotVenue][opp.Symbol].SpotMid
 	perpMid := in.MarketsByVenue[perpVenue][opp.Symbol].PerpMid
 	entryBasis := crossVenueSpotPerpEntryBasisUSDT(spotMid, perpMid, opp.Legs[0].Notional)
-	expectedBasis := -crossVenueSpotPerpExpectedBasisPnL(entryBasis, opp.Legs[0].Notional, cvCfg)
+	expectedBasis := crossVenuePerpSpotExpectedBasisPnL(entryBasis, opp.Legs[0].Notional, cvCfg)
 	reconstructed := opp.ExpectedFundingUSDT + expectedBasis - opp.ExpectedOpenCostUSDT - opp.ExpectedCloseCostUSDT - opp.ExpectedSlippageUSDT - opp.ExpectedBorrowCostUSDT - opp.ExpectedRollbackCostUSDT
 	if math.Abs(opp.ExpectedNetEVUSDT-reconstructed) > 1e-6 {
 		t.Fatalf("net_ev = %.6f, reconstructed = %.6f", opp.ExpectedNetEVUSDT, reconstructed)

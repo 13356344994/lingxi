@@ -159,6 +159,21 @@ func TestScanSingleVenueSpotPerpRecordsNegativeFundingReject(t *testing.T) {
 	}
 }
 
+func TestScanSingleVenueSpotPerpFundingCaptureHalvesExpectedFunding(t *testing.T) {
+	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
+	in := testSingleVenueSpotPerpScanInput(now)
+	in.Config.FundingCaptureProbability = 1.0
+	full := ScanSingleVenueSpotPerpOpportunities(in)
+	in.Config.FundingCaptureProbability = 0.5
+	half := ScanSingleVenueSpotPerpOpportunities(in)
+	if len(full) == 0 || len(half) == 0 {
+		t.Fatal("expected opportunities for capture comparison")
+	}
+	if math.Abs(full[0].ExpectedFundingUSDT/2-half[0].ExpectedFundingUSDT) > 1e-6 {
+		t.Fatalf("funding full=%.6f half=%.6f", full[0].ExpectedFundingUSDT, half[0].ExpectedFundingUSDT)
+	}
+}
+
 func TestScanSingleVenueSpotPerpRecordsNoSpotMarketReject(t *testing.T) {
 	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
 	in := testSingleVenueSpotPerpScanInput(now)

@@ -2,6 +2,7 @@ package app
 
 import (
 	"math"
+	"strings"
 	"testing"
 	"time"
 
@@ -973,5 +974,64 @@ func TestRotationContinuationDefaultHoldingRiskBackwardCompat(t *testing.T) {
 	want := notional * 0.001 // 旧口径: notional×0.001 = riskScore0.1 × notional × 1%
 	if math.Abs(cont.HoldingRiskUSDT-want) > 1e-9 {
 		t.Fatalf("default holdingRisk=%v want %v", cont.HoldingRiskUSDT, want)
+	}
+}
+
+func TestRotationOpenSortsByYieldNotAbsoluteEV(t *testing.T) {
+	bigLowYield := testRotationOpp("big", UnifiedStrategyPerpPerp, "BTC", 50, 1000, "binance", "bybit")
+	smallHighYield := testRotationOpp("small", UnifiedStrategyPerpPerp, "ETH", 30, 100, "binance", "bybit")
+	actions := PlanUnifiedRotationOpens(
+		[]UnifiedOpportunity{bigLowYield, smallHighYield},
+		map[string]float64{"binance": 2000, "bybit": 2000},
+		RotationConfig{MaxConcurrent: 2, MaxPositionUSDT: 2000, DefaultReserveUSDT: 0},
+	)
+	if len(actions) != 2 || actions[0].OpportunityID != "small" {
+		t.Fatalf("expected yield-first small, got %+v", actions)
+	}
+}
+
+func TestRotationMinOpenNotionalRejectsThinCandidates(t *testing.T) {
+	cfg := DefaultRotationConfig()
+	cfg.DefaultReserveUSDT = 0
+	thin := testRotationOpp("thin", UnifiedStrategyCrossVenueSpotPerp, "BEL-USDT", 5, 10, "binance", "gate")
+	thin.Legs = []UnifiedOpportunityLeg{{Venue: "binance", Notional: 8}, {Venue: "gate", Notional: 8}}
+	okOpp := testRotationOpp("ok", UnifiedStrategyCrossVenueSpotPerp, "ETH-USDT", 4, 50, "binance", "gate")
+	okOpp.Legs = []UnifiedOpportunityLeg{{Venue: "binance", Notional: 50}, {Venue: "gate", Notional: 50}}
+	actions := PlanUnifiedRotationOpens([]UnifiedOpportunity{thin, okOpp}, map[string]float64{"binance": 200, "gate": 200}, cfg)
+	if len(actions) != 1 || actions[0].OpportunityID != "ok" {
+		t.Fatalf("expected only ok opp, got %+v", actions)
+	}
+}
+
+func TestRotationOpenCooldownBlocksCandidate(t *testing.T) {
+	now := time.Date(2026, 6, 19, 12, 0, 0, 0, time.UTC)
+	store := newRotationOpenCooldownStore("", 15*time.Minute)
+	store.RecordFailure(UnifiedStrategyCrossVenueSpotPerp, "BEL-USDT", "binance+gate", now)
+	cfg := DefaultRotationConfig()
+	cfg.OpenCooldownBlocked = store.blockedPredicate(func() time.Time { return now })
+	cfg.DefaultReserveUSDT = 0
+	opp := testRotationOpp("bel", UnifiedStrategyCrossVenueSpotPerp, "BEL-USDT", 10, 80, "binance", "gate")
+	ok, reason := rotationCanOpenOpportunity(opp, map[string]float64{"binance": 200, "gate": 200}, cfg, 0, nil, nil)
+	if ok || reason != "open_cooldown" {
+		t.Fatalf("cooldown: ok=%v reason=%q", ok, reason)
+	}
+}
+
+func TestDecideRotationSwitchBlockedByMinHold(t *testing.T) {
+	now := time.Date(2026, 6, 19, 10, 0, 0, 0, time.UTC)
+	held := HeldPosition{
+		OpportunityID: "held-btc", StrategyType: UnifiedStrategyPerpPerp, Symbol: "BTC-USDT",
+		CapitalRequiredByVenue: map[string]float64{"binance": 50, "bybit": 50},
+		OpenedAt: now.Add(-10 * time.Minute), NextFundingTime: now.Add(4 * time.Hour),
+	}
+	heldInputs := map[string]ContinuationInputs{"held-btc": {ExpectedFundingUSDT: 1, ExpectedCloseCostUSDT: 2}}
+	newOpp := testRotationOpp("new-eth", UnifiedStrategySingleVenueSpotPerp, "ETH-USDT", 30, 100)
+	plan := decideRotationAt([]HeldPosition{held}, heldInputs, []UnifiedOpportunity{newOpp},
+		map[string]float64{"binance": 200, "bybit": 200}, DefaultRotationConfig(), now, 0, nil)
+	if len(plan.Actions) != 1 || plan.Actions[0].Kind != RotationActionHold {
+		t.Fatalf("expected HOLD, got %+v", plan.Actions)
+	}
+	if !strings.Contains(plan.Actions[0].Reason, "hold_switch_min_hold") {
+		t.Fatalf("reason=%q", plan.Actions[0].Reason)
 	}
 }

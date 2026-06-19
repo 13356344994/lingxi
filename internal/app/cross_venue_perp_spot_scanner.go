@@ -38,6 +38,7 @@ type CrossVenuePerpSpotScannerConfig struct {
 	ReserveUSDTByVenue        map[string]float64 `json:"reserve_usdt_by_venue,omitempty"`
 	DefaultReserveUSDT        float64            `json:"default_reserve_usdt"`
 	ExpectedHoldHours         float64            `json:"expected_hold_hours"`
+	FundingCaptureProbability float64            `json:"funding_capture_probability"`
 	PriceShockPcts            []float64          `json:"price_shock_pcts"`
 }
 
@@ -162,6 +163,7 @@ func normalizeCrossVenuePerpSpotScannerConfig(cfg CrossVenuePerpSpotScannerConfi
 		ReserveUSDTByVenue:        cfg.ReserveUSDTByVenue,
 		DefaultReserveUSDT:        cfg.DefaultReserveUSDT,
 		ExpectedHoldHours:         cfg.ExpectedHoldHours,
+		FundingCaptureProbability: cfg.FundingCaptureProbability,
 		PriceShockPcts:            cfg.PriceShockPcts,
 	}
 	normalized = normalizeCrossVenueSpotPerpScannerConfig(normalized)
@@ -178,6 +180,7 @@ func normalizeCrossVenuePerpSpotScannerConfig(cfg CrossVenuePerpSpotScannerConfi
 		ReserveUSDTByVenue:        normalized.ReserveUSDTByVenue,
 		DefaultReserveUSDT:        normalized.DefaultReserveUSDT,
 		ExpectedHoldHours:         normalized.ExpectedHoldHours,
+		FundingCaptureProbability: normalized.FundingCaptureProbability,
 		PriceShockPcts:            normalized.PriceShockPcts,
 	}
 }
@@ -284,7 +287,8 @@ func buildCrossVenuePerpSpotOpportunity(
 
 	baseAsset := baseAssetFromCanonicalSymbol(symbol)
 	if !perpSpotAssetBorrowable(spotVenue, baseAsset, borrowKnown, borrowDisabled, now) {
-		return crossVenuePerpSpotRejectedOpportunity(snapshotID, symbol, perpVenue, spotVenue, crossVenuePerpSpotRejectNotBorrowable, fund, now, -fund.Rate), true
+		// 不可借币:负 carry 必须借币空现货,无货源直接在筛选阶段排除,不进候选集(借币可得性见 borrow_probes.jsonl)。
+		return UnifiedOpportunity{}, false
 	}
 
 	midDev := math.Abs(perpMkt.PerpMid/spotMkt.SpotMid - 1)
@@ -319,7 +323,7 @@ func buildCrossVenuePerpSpotOpportunity(
 	effectiveRate := crossVenueSpotPerpEffectiveFundingRate(-fund.Rate, fund.SpikeThreshold, cfg.PeakFundingHaircut, cfg.Exec.CarryNoHistoryHaircut)
 
 	spotPerpEntryBasis := crossVenueSpotPerpEntryBasisUSDT(spotMkt.SpotMid, perpMkt.PerpMid, notional)
-	expectedBasisPnL := -crossVenueSpotPerpExpectedBasisPnL(spotPerpEntryBasis, notional, cvCfg)
+	expectedBasisPnL := crossVenuePerpSpotExpectedBasisPnL(spotPerpEntryBasis, notional, cvCfg)
 
 	openCost := crossVenuePerpSpotOpenCostUSDT(cfg, spotVenue, perpVenue, notional)
 	closeCost := openCost
@@ -327,7 +331,8 @@ func buildCrossVenuePerpSpotOpportunity(
 	borrowCost := perpSpotBorrowCostUSDT(baseAsset, notional, holdHours, borrowDailyRateByAsset, borrowDefaultDailyRateWhenUnknown)
 
 	vol, volOK := carryFundingVolFromMap(fundingVolByVenue, perpVenue, symbol)
-	if ok, _ := carryScannerFundingEntryEligible(now, fund, holdHours, notional, effectiveRate, expectedBasisPnL, openCost+borrowCost, slippage, cfg.Exec.FundingEntryGate(), vol, volOK); !ok {
+	entrySlippage := carryScannerEntrySlippageUSDT(cvCfg, notional, spotMkt, perpMkt)
+	if ok, _ := carryScannerFundingEntryEligible(now, fund, holdHours, notional, effectiveRate, expectedBasisPnL, openCost+borrowCost, entrySlippage, cfg.Exec.FundingEntryGate(), vol, volOK); !ok {
 		return UnifiedOpportunity{}, false
 	}
 
@@ -337,32 +342,26 @@ func buildCrossVenuePerpSpotOpportunity(
 		return UnifiedOpportunity{}, false
 	}
 
-	expectedFunding := notional * effectiveRate * float64(settlements)
+	expectedFunding := carryScannerExpectedFundingUSDT(notional, effectiveRate, settlements, cfg.FundingCaptureProbability)
 	spotPerpEntryBasis = crossVenueSpotPerpEntryBasisUSDT(spotMkt.SpotMid, perpMkt.PerpMid, notional)
-	expectedBasisPnL = -crossVenueSpotPerpExpectedBasisPnL(spotPerpEntryBasis, notional, cvCfg)
+	expectedBasisPnL = crossVenuePerpSpotExpectedBasisPnL(spotPerpEntryBasis, notional, cvCfg)
 	openCost = crossVenuePerpSpotOpenCostUSDT(cfg, spotVenue, perpVenue, notional)
 	closeCost = openCost
 	slippage = crossVenueSpotPerpSlippageUSDT(cvCfg, notional, spotMkt, perpMkt)
 	borrowCost = perpSpotBorrowCostUSDT(baseAsset, notional, holdHours, borrowDailyRateByAsset, borrowDefaultDailyRateWhenUnknown)
-
 	spotMarginRequired := notional
 	perpMarginRequired := crossVenueSpotPerpPerpMarginRequired(cvCfg, notional)
-
 	rebalancePenalty := 0.0
-	requiresRebalance := crossVenuePerpSpotRequiresRebalance(
-		spotVenue, perpVenue, spotMarginRequired, perpMarginRequired, available, cfg,
-	)
+	requiresRebalance := crossVenuePerpSpotRequiresRebalance(spotVenue, perpVenue, spotMarginRequired, perpMarginRequired, available, cfg)
 	if requiresRebalance {
 		rebalancePenalty = notional * cfg.RebalanceTransferCostBps / 10000
 	}
-
-	netEV := expectedFunding + expectedBasisPnL - openCost - closeCost - slippage - borrowCost - rebalancePenalty
-
-	refPrice := (spotMkt.SpotMid + perpMkt.PerpMid) / 2
-	qty := notional / refPrice
-
 	perpLegInstr := legInstrumentFields(perpMkt.PerpTickSize, perpMkt.PerpStepSize, perpMkt.PerpMinNotional)
 	spotLegInstr := legInstrumentFields(spotMkt.SpotTickSize, spotMkt.SpotStepSize, spotMkt.SpotMinNotional)
+	closeCost += carryScannerDustResidualCostUSDT([]float64{spotLegInstr.minNotional, perpLegInstr.minNotional}, false)
+	netEV := expectedFunding + expectedBasisPnL - openCost - closeCost - slippage - borrowCost - rebalancePenalty
+	refPrice := (spotMkt.SpotMid + perpMkt.PerpMid) / 2
+	qty := notional / refPrice
 
 	dataQuality := crossVenueSpotPerpDataQualityScore(fund)
 	executionScore := crossVenueExecutionScore(slippage, notional)
@@ -432,6 +431,7 @@ func crossVenuePerpSpotAsCrossVenueConfig(cfg CrossVenuePerpSpotScannerConfig) C
 		ReserveUSDTByVenue:        cfg.ReserveUSDTByVenue,
 		DefaultReserveUSDT:        cfg.DefaultReserveUSDT,
 		ExpectedHoldHours:         cfg.ExpectedHoldHours,
+		FundingCaptureProbability: cfg.FundingCaptureProbability,
 		PriceShockPcts:            cfg.PriceShockPcts,
 	}
 }
@@ -479,6 +479,16 @@ func crossVenuePerpSpotRejectedOpportunity(snapshotID, symbol, perpVenue, spotVe
 	return unifiedRejectedOpportunityWithFunding(
 		UnifiedStrategyCrossVenuePerpSpot, snapshotID, symbol, perpVenue, spotVenue, reason, fund, now, displayRate,
 	)
+}
+
+// crossVenuePerpSpotExpectedBasisPnL 负 carry(perp-spot)基差 EV:仅罚不利侧,不计有利基差为收入。
+// 多永续/空现货:perp 溢价(basis>0)开仓不利→ basis+stress 成本;perp 折价有利→ 仅 stress。
+func crossVenuePerpSpotExpectedBasisPnL(entryBasisUSDT, notional float64, cfg CrossVenueSpotPerpScannerConfig) float64 {
+	stress := notional * cfg.BasisWideningStressBps / 10000
+	if entryBasisUSDT > 0 {
+		return -entryBasisUSDT - stress
+	}
+	return -stress
 }
 
 func crossVenuePerpSpotLegNotional(opp UnifiedOpportunity) float64 {

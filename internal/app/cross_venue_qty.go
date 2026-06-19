@@ -89,15 +89,20 @@ func crossVenueLegExecutedCoinQty(caps venue.Capabilities, instr venue.Instrumen
 		}
 		return asFromContracts
 	}
-	// 无 peer:张数通常小于 ContractSize(单张币面值),已换算的 coin 口径应明显更大。
-	if q < instr.ContractSize && asFromContracts > asCoin+executionQtyTolerance {
-		return asFromContracts
+	// 无 peer:ExecutedQty 可能是张数(≥1 且 coin 换算≈q×ContractSize)或已是币数。
+	if asFromContracts > asCoin+executionQtyTolerance {
+		if q < instr.ContractSize {
+			return asFromContracts
+		}
+		if instr.ContractSize > 0 && asFromContracts/q+1e-9 >= instr.ContractSize {
+			return asFromContracts
+		}
 	}
 	return asCoin
 }
 
-// reconcileCrossVenueOpenBookQty 开仓落盘时取两腿一致的币数量;优先信任币本位腿的 ExecutedQty。
-// 若仅一腿为张本位且两腿解读偏差大,取张本位腿换算后的 coin(币本位腿可能跟单了误读的张数)。
+// reconcileCrossVenueOpenBookQty 开仓落盘时取两腿一致的币数量;两腿均有成交时统一记 min,避免平仓留残腿。
+// 当高费腿为张本位且低费腿以「张数」误跟单(币量约为高腿 1/ContractSize)时,以高腿归一化币量为准。
 func reconcileCrossVenueOpenBookQty(highCaps, lowCaps venue.Capabilities, highCoin, lowCoin float64) float64 {
 	if highCoin <= executionQtyTolerance && lowCoin <= executionQtyTolerance {
 		return 0
@@ -108,22 +113,79 @@ func reconcileCrossVenueOpenBookQty(highCaps, lowCaps venue.Capabilities, highCo
 	if lowCoin <= executionQtyTolerance {
 		return highCoin
 	}
-	if qtyDeviation(highCoin, lowCoin) <= 0.05 {
-		return math.Min(highCoin, lowCoin)
-	}
-	if highCaps.ContractBasedPerp && !lowCaps.ContractBasedPerp && highCoin > lowCoin {
-		return highCoin
-	}
-	if lowCaps.ContractBasedPerp && !highCaps.ContractBasedPerp && lowCoin > highCoin {
-		return lowCoin
-	}
-	if !highCaps.ContractBasedPerp {
-		return highCoin
-	}
-	if !lowCaps.ContractBasedPerp {
-		return lowCoin
+	if highCaps.ContractBasedPerp && !lowCaps.ContractBasedPerp &&
+		highCoin > lowCoin+executionQtyTolerance {
+		ratio := highCoin / lowCoin
+		if ratio >= 2 && math.Abs(ratio-math.Round(ratio)) < 1e-6 {
+			return highCoin
+		}
 	}
 	return math.Min(highCoin, lowCoin)
+}
+
+func carryLegCoinStep(instr venue.Instrument, contractBased bool) float64 {
+	if contractBased && instr.ContractSize > 0 && instr.StepSize > 0 {
+		return instr.StepSize * instr.ContractSize
+	}
+	if instr.StepSize > 0 {
+		return instr.StepSize
+	}
+	return 0
+}
+
+func carrySpotPerpCanAlign(spotInstr, perpInstr venue.Instrument, perpCaps venue.Capabilities) bool {
+	if perpCaps.ContractBasedPerp && perpInstr.ContractSize <= 0 {
+		return false
+	}
+	return instrumentHasQtyRules(spotInstr) || instrumentHasQtyRules(perpInstr)
+}
+
+func carryAlignJointCoinQty(coinQty float64, spotInstr, perpInstr venue.Instrument, spotCaps, perpCaps venue.Capabilities) float64 {
+	jointStep := 0.0
+	for _, step := range []float64{
+		carryLegCoinStep(spotInstr, false),
+		carryLegCoinStep(perpInstr, perpCaps.ContractBasedPerp),
+	} {
+		if step <= 0 {
+			continue
+		}
+		if jointStep <= 0 || step < jointStep {
+			jointStep = step
+		}
+	}
+	if jointStep <= 0 {
+		return coinQty
+	}
+	return floorToStep(coinQty, jointStep)
+}
+
+// carryAlignSpotPerpOpenQty 把目标币数量向下对齐到 spot/perp 两腿共同可成交量(含张本位永续换算)。
+func carryAlignSpotPerpOpenQty(coinQty, refPrice float64, spotInstr, perpInstr venue.Instrument, spotCaps, perpCaps venue.Capabilities) float64 {
+	if coinQty <= executionQtyTolerance {
+		return 0
+	}
+	if !carrySpotPerpCanAlign(spotInstr, perpInstr, perpCaps) {
+		return coinQty
+	}
+	aligned := carryAlignJointCoinQty(coinQty, spotInstr, perpInstr, spotCaps, perpCaps)
+	if aligned <= executionQtyTolerance {
+		return 0
+	}
+	perpNorm := normalizeVenueQty(aligned, perpInstr, perpCaps.ContractBasedPerp)
+	if perpNorm+executionQtyTolerance < aligned {
+		spotNorm := normalizeVenueQty(aligned, spotInstr, false)
+		aligned = math.Min(spotNorm, perpNorm)
+		if aligned <= executionQtyTolerance {
+			return 0
+		}
+		return aligned
+	}
+	spotNorm := normalizeVenueQty(aligned, spotInstr, false)
+	if math.Min(spotNorm, perpNorm) <= executionQtyTolerance {
+		return 0
+	}
+	_ = refPrice
+	return aligned
 }
 
 // crossVenueBookNotionalUSDT 由真实成交币数量 × 参考价得到落盘名义(与两腿 qty 口径一致)。

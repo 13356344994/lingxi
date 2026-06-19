@@ -1603,3 +1603,40 @@ func TestUnifiedRotationRunner_NilControlPlaneManageLiveWhenStopped(t *testing.T
 		t.Fatal("nil control_plane stopped: manage must receive live=true")
 	}
 }
+
+func TestUnifiedRotationRunner_OpenFailureRecordsCooldown(t *testing.T) {
+	now := time.Date(2026, 6, 19, 12, 0, 0, 0, time.UTC)
+	cvsp := &fakeRotationExecutor{strategyType: UnifiedStrategyCrossVenueSpotPerp, openErr: fmt.Errorf("open rollback")}
+	r := testUnifiedRotationRunnerWithFakes(t, cvsp)
+	r.nowFn = func() time.Time { return now }
+	r.openCooldownStore = newRotationOpenCooldownStore("", 15*time.Minute)
+	opp := testRotationCandidate("bel", UnifiedStrategyCrossVenueSpotPerp, "BEL-USDT", 10, map[string]float64{binance.VenueName: 40, "gate": 40})
+	r.decideRotationFn = func([]HeldPosition, map[string]ContinuationInputs, []UnifiedOpportunity, map[string]float64) RotationPlan {
+		return RotationPlan{Actions: []RotationAction{{Kind: RotationActionOpen, OpportunityID: "bel", StrategyType: UnifiedStrategyCrossVenueSpotPerp, Symbol: "BEL-USDT"}}}
+	}
+	r.runOnceDecisionAndDispatch(context.Background(), []UnifiedOpportunity{opp}, map[string]float64{binance.VenueName: 500, "gate": 500}, nil, nil)
+	if !r.openCooldownStore.IsBlocked(UnifiedStrategyCrossVenueSpotPerp, "BEL-USDT", "binance+gate", now.Add(time.Minute)) {
+		t.Fatal("expected cooldown after open failure")
+	}
+}
+
+func TestUnifiedRotationRunner_EnableRollingHoldWarningOnce(t *testing.T) {
+	buf := &strings.Builder{}
+	r := testUnifiedRotationRunnerWithFakes(t)
+	r.logger = log.New(buf, "", 0)
+	r.SetPortfolioEnableRollingHold(true)
+	r.maybeWarnEnableRollingHoldNoOp()
+	r.maybeWarnEnableRollingHoldNoOp()
+	if strings.Count(buf.String(), "enable_rolling_hold=true") != 1 {
+		t.Fatalf("unexpected warning: %s", buf.String())
+	}
+}
+
+func TestRotationScanDepthFetchMaxSymbolsMatchesScanCap(t *testing.T) {
+	if rotationScanDepthFetchMaxSymbols != 150 {
+		t.Fatalf("depth cap=%d, want 150", rotationScanDepthFetchMaxSymbols)
+	}
+	if rotationScanDepthFetchMaxSymbols != rotationScanMaxSymbols {
+		t.Fatalf("depth cap=%d != scan cap=%d", rotationScanDepthFetchMaxSymbols, rotationScanMaxSymbols)
+	}
+}

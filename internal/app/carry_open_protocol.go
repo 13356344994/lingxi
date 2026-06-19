@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"strings"
 	"time"
 
 	"lingxi/internal/venue"
@@ -13,6 +14,7 @@ import (
 const (
 	carryScannerRejectFundingWindowNotReached = "funding_entry_window_not_reached"
 	carryScannerRejectFirstWindowEV           = "first_funding_window_ev_negative"
+	carryOpenRejectLegQtyMisalign             = "carry_open_leg_qty_misalign"
 )
 
 // carryTwoLegMatch 两腿开仓成交对齐结果(leg1 为先开腿,leg2 为对冲腿)。
@@ -24,7 +26,21 @@ type carryTwoLegMatch struct {
 	Leg2Partial bool
 }
 
-// carryMatchTwoLegOpens 按实际成交量对齐两腿;leg2 部分成交时以 leg2 为 matched,leg1 多余部分需 unwind。
+// carryMatchTwoLegOpensNormalized 先把各腿 ExecutedQty 归一成币数量再匹配(张本位永续 vs 币本位现货)。
+func carryMatchTwoLegOpensNormalized(
+	leg1Res, leg2Res venue.OrderResult,
+	leg1Instr, leg2Instr venue.Instrument,
+	leg1Caps, leg2Caps venue.Capabilities,
+	minTradableQty float64,
+) carryTwoLegMatch {
+	leg1Coin := crossVenueLegExecutedCoinQty(leg1Caps, leg1Instr, leg1Res, 0)
+	leg2Coin := crossVenueLegExecutedCoinQty(leg2Caps, leg2Instr, leg2Res, leg1Coin)
+	leg1Coin = crossVenueLegExecutedCoinQty(leg1Caps, leg1Instr, leg1Res, leg2Coin)
+	leg2Coin = crossVenueLegExecutedCoinQty(leg2Caps, leg2Instr, leg2Res, leg1Coin)
+	return carryMatchTwoLegOpens(leg1Coin, leg2Coin, minTradableQty)
+}
+
+// carryMatchTwoLegOpens 按实际成交量对齐两腿(币数量口径);leg2 部分成交时以 leg2 为 matched,leg1 多余部分需 unwind。
 func carryMatchTwoLegOpens(leg1Executed, leg2Executed, minTradableQty float64) carryTwoLegMatch {
 	out := carryTwoLegMatch{}
 	if leg1Executed <= executionQtyTolerance {
@@ -159,6 +175,94 @@ func carryLogPreflightSkip(logger *log.Logger, tag, symbol, reason string) {
 		return
 	}
 	logger.Printf("[%s] 跳过开仓 %s: %s", tag, symbol, reason)
+}
+
+func parseCarryNextFundingTime(raw string) time.Time {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return time.Time{}
+	}
+	t, err := time.Parse(time.RFC3339, raw)
+	if err != nil {
+		return time.Time{}
+	}
+	return t.UTC()
+}
+
+func carryMergeContractPerpInstrument(base, looked venue.Instrument) venue.Instrument {
+	if looked.ContractSize <= 0 {
+		return base
+	}
+	out := base
+	out.ContractSize = looked.ContractSize
+	if out.StepSize <= 0 && looked.StepSize > 0 {
+		out.StepSize = looked.StepSize
+	}
+	if out.TickSize <= 0 && looked.TickSize > 0 {
+		out.TickSize = looked.TickSize
+	}
+	if out.MinNotional <= 0 && looked.MinNotional > 0 {
+		out.MinNotional = looked.MinNotional
+	}
+	return out
+}
+
+func carryPreflightSpotPerpOpenAlign(
+	openQty, refPrice float64,
+	spotInstr, perpInstr venue.Instrument,
+	spotCaps, perpCaps venue.Capabilities,
+) (float64, error) {
+	if !carrySpotPerpCanAlign(spotInstr, perpInstr, perpCaps) {
+		if openQty <= executionQtyTolerance {
+			return 0, fmt.Errorf("%s: openQty=%.8f refPrice=%.8f", carryOpenRejectLegQtyMisalign, openQty, refPrice)
+		}
+		return openQty, nil
+	}
+	aligned := carryAlignSpotPerpOpenQty(openQty, refPrice, spotInstr, perpInstr, spotCaps, perpCaps)
+	if aligned <= executionQtyTolerance {
+		return 0, fmt.Errorf("%s: openQty=%.8f refPrice=%.8f", carryOpenRejectLegQtyMisalign, openQty, refPrice)
+	}
+	if instrumentHasQtyRules(spotInstr) && refPrice > 0 && !openLegTradableAfterQuantize(aligned, refPrice, spotInstr) {
+		return 0, fmt.Errorf("%s: spot 最小可交易量不满足 qty=%.8f", carryOpenRejectLegQtyMisalign, aligned)
+	}
+	if instrumentHasQtyRules(perpInstr) && refPrice > 0 && !openLegTradableAfterQuantize(aligned, refPrice, perpInstr) {
+		return 0, fmt.Errorf("%s: perp 最小可交易量不满足 qty=%.8f", carryOpenRejectLegQtyMisalign, aligned)
+	}
+	return aligned, nil
+}
+
+func singleVenueAlignOpenQtyFromInstruments(qty, refPrice float64, spotInstr, perpInstr venue.Instrument, caps venue.Capabilities) (float64, error) {
+	return carryPreflightSpotPerpOpenAlign(qty, refPrice, spotInstr, perpInstr, caps, caps)
+}
+
+func carrySingleVenueOpenQtyAlign(qty, refPrice float64, spotInstr, perpInstr venue.Instrument, caps venue.Capabilities) (float64, error) {
+	return singleVenueAlignOpenQtyFromInstruments(qty, refPrice, spotInstr, perpInstr, caps)
+}
+
+func carryDeferCloseUntilFundingSettlement(now, nextFunding time.Time) bool {
+	if nextFunding.IsZero() {
+		return false
+	}
+	return now.Before(nextFunding)
+}
+
+func carryShouldDeferDustOrphanClose(now, nextFunding time.Time) bool {
+	return carryDeferCloseUntilFundingSettlement(now, nextFunding)
+}
+
+func carryDeferDustOrphanClose(now, nextFunding time.Time) bool {
+	return carryShouldDeferDustOrphanClose(now, nextFunding)
+}
+
+func carryShouldDeferEVWeakClose(now, nextFunding time.Time, closeReason string) bool {
+	if !carryDeferCloseUntilFundingSettlement(now, nextFunding) {
+		return false
+	}
+	return strings.Contains(closeReason, "EV") || strings.Contains(closeReason, "funding")
+}
+
+func carryEVWeakenedCloseAllowed(now, nextFunding time.Time, closeReason string) bool {
+	return !carryShouldDeferEVWeakClose(now, nextFunding, closeReason)
 }
 
 func normalizeCarryFundingEntryGateConfig(cfg CarryFundingEntryGateConfig) CarryFundingEntryGateConfig {

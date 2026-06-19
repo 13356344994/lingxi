@@ -40,6 +40,7 @@ type SingleVenuePerpSpotScannerConfig struct {
 	ReserveUSDTByVenue        map[string]float64 `json:"reserve_usdt_by_venue,omitempty"`
 	DefaultReserveUSDT        float64            `json:"default_reserve_usdt"`
 	ExpectedHoldHours         float64            `json:"expected_hold_hours"`
+	FundingCaptureProbability float64            `json:"funding_capture_probability"`
 	PriceShockPcts            []float64          `json:"price_shock_pcts"`
 }
 
@@ -158,6 +159,7 @@ func normalizeSingleVenuePerpSpotScannerConfig(cfg SingleVenuePerpSpotScannerCon
 		ReserveUSDTByVenue:        cfg.ReserveUSDTByVenue,
 		DefaultReserveUSDT:        cfg.DefaultReserveUSDT,
 		ExpectedHoldHours:         cfg.ExpectedHoldHours,
+		FundingCaptureProbability: cfg.FundingCaptureProbability,
 		PriceShockPcts:            cfg.PriceShockPcts,
 	}
 	normalized = normalizeCrossVenueSpotPerpScannerConfig(normalized)
@@ -173,6 +175,7 @@ func normalizeSingleVenuePerpSpotScannerConfig(cfg SingleVenuePerpSpotScannerCon
 		ReserveUSDTByVenue:        normalized.ReserveUSDTByVenue,
 		DefaultReserveUSDT:        normalized.DefaultReserveUSDT,
 		ExpectedHoldHours:         normalized.ExpectedHoldHours,
+		FundingCaptureProbability: normalized.FundingCaptureProbability,
 		PriceShockPcts:            normalized.PriceShockPcts,
 	}
 }
@@ -242,7 +245,8 @@ func buildSingleVenuePerpSpotOpportunity(
 
 	baseAsset := baseAssetFromCanonicalSymbol(symbol)
 	if !perpSpotAssetBorrowable(venueName, baseAsset, borrowKnown, borrowDisabled, now) {
-		return singleVenuePerpSpotRejectedOpportunity(snapshotID, symbol, venueName, singleVenuePerpSpotRejectNotBorrowable, fund, now, -fund.Rate), true
+		// 不可借币:负 carry 必须借币空现货,无货源直接在筛选阶段排除,不进候选集(借币可得性见 borrow_probes.jsonl)。
+		return UnifiedOpportunity{}, false
 	}
 
 	midDev := math.Abs(mkt.PerpMid/mkt.SpotMid - 1)
@@ -278,7 +282,7 @@ func buildSingleVenuePerpSpotOpportunity(
 	effectiveRate := crossVenueSpotPerpEffectiveFundingRate(-fund.Rate, fund.SpikeThreshold, cfg.PeakFundingHaircut, cfg.Exec.CarryNoHistoryHaircut)
 
 	spotPerpEntryBasis := crossVenueSpotPerpEntryBasisUSDT(mkt.SpotMid, mkt.PerpMid, notional)
-	expectedBasisPnL := -crossVenueSpotPerpExpectedBasisPnL(spotPerpEntryBasis, notional, cvCfg)
+	expectedBasisPnL := crossVenuePerpSpotExpectedBasisPnL(spotPerpEntryBasis, notional, cvCfg)
 
 	openCost := singleVenuePerpSpotOpenCostUSDT(cfg, venueName, notional)
 	closeCost := openCost
@@ -286,7 +290,8 @@ func buildSingleVenuePerpSpotOpportunity(
 	borrowCost := perpSpotBorrowCostUSDT(baseAsset, notional, holdHours, borrowDailyRateByAsset, borrowDefaultDailyRateWhenUnknown)
 
 	vol, volOK := carryFundingVolFromMap(fundingVolByVenue, venueName, symbol)
-	if ok, _ := carryScannerFundingEntryEligible(now, fund, holdHours, notional, effectiveRate, expectedBasisPnL, openCost+borrowCost, slippage, cfg.Exec.FundingEntryGate(), vol, volOK); !ok {
+	entrySlippage := carryScannerEntrySlippageUSDT(cvCfg, notional, mkt, mkt)
+	if ok, _ := carryScannerFundingEntryEligible(now, fund, holdHours, notional, effectiveRate, expectedBasisPnL, openCost+borrowCost, entrySlippage, cfg.Exec.FundingEntryGate(), vol, volOK); !ok {
 		return UnifiedOpportunity{}, false
 	}
 
@@ -296,26 +301,24 @@ func buildSingleVenuePerpSpotOpportunity(
 		return UnifiedOpportunity{}, false
 	}
 
-	expectedFunding := notional * effectiveRate * float64(settlements)
+	expectedFunding := carryScannerExpectedFundingUSDT(notional, effectiveRate, settlements, cfg.FundingCaptureProbability)
 	spotPerpEntryBasis = crossVenueSpotPerpEntryBasisUSDT(mkt.SpotMid, mkt.PerpMid, notional)
-	expectedBasisPnL = -crossVenueSpotPerpExpectedBasisPnL(spotPerpEntryBasis, notional, cvCfg)
+	expectedBasisPnL = crossVenuePerpSpotExpectedBasisPnL(spotPerpEntryBasis, notional, cvCfg)
 	openCost = singleVenuePerpSpotOpenCostUSDT(cfg, venueName, notional)
 	closeCost = openCost
 	slippage = crossVenueSpotPerpSlippageUSDT(cvCfg, notional, mkt, mkt)
 	borrowCost = perpSpotBorrowCostUSDT(baseAsset, notional, holdHours, borrowDailyRateByAsset, borrowDefaultDailyRateWhenUnknown)
-
 	spotMarginRequired := notional
 	perpMarginRequired := crossVenueSpotPerpPerpMarginRequired(cvCfg, notional)
 	totalCapital := spotMarginRequired + perpMarginRequired
-
 	rebalancePenalty := 0.0
-	requiresRebalance := singleVenuePerpSpotRequiresRebalance(
-		venueName, spotMarginRequired, perpMarginRequired, available, cfg,
-	)
+	requiresRebalance := singleVenuePerpSpotRequiresRebalance(venueName, spotMarginRequired, perpMarginRequired, available, cfg)
 	if requiresRebalance {
 		rebalancePenalty = notional * cfg.RebalanceTransferCostBps / 10000
 	}
-
+	spotLegInstr := legInstrumentFields(mkt.SpotTickSize, mkt.SpotStepSize, mkt.SpotMinNotional)
+	perpLegInstr := legInstrumentFields(mkt.PerpTickSize, mkt.PerpStepSize, mkt.PerpMinNotional)
+	closeCost += carryScannerDustResidualCostUSDT([]float64{spotLegInstr.minNotional, perpLegInstr.minNotional}, false)
 	netEV := expectedFunding + expectedBasisPnL - openCost - closeCost - slippage - borrowCost - rebalancePenalty
 
 	dataQuality := crossVenueSpotPerpDataQualityScore(fund)
@@ -347,8 +350,8 @@ func buildSingleVenuePerpSpotOpportunity(
 		StrategyType: UnifiedStrategySingleVenuePerpSpot,
 		Symbol:       symbol,
 		Legs: []UnifiedOpportunityLeg{
-			{Venue: venueName, Market: "perp", Side: "long", Qty: qty, Notional: notional},
-			{Venue: venueName, Market: "spot", Side: "short", Qty: qty, Notional: notional},
+			{Venue: venueName, Market: "perp", Side: "long", Qty: qty, Notional: notional, TickSize: perpLegInstr.tick, StepSize: perpLegInstr.step, MinNotional: perpLegInstr.minNotional},
+			{Venue: venueName, Market: "spot", Side: "short", Qty: qty, Notional: notional, TickSize: spotLegInstr.tick, StepSize: spotLegInstr.step, MinNotional: spotLegInstr.minNotional},
 		},
 		ExpectedFundingUSDT:      expectedFunding,
 		ExpectedOpenCostUSDT:     openCost,
@@ -386,6 +389,7 @@ func singleVenuePerpSpotAsCrossVenueConfig(cfg SingleVenuePerpSpotScannerConfig)
 		ReserveUSDTByVenue:        cfg.ReserveUSDTByVenue,
 		DefaultReserveUSDT:        cfg.DefaultReserveUSDT,
 		ExpectedHoldHours:         cfg.ExpectedHoldHours,
+		FundingCaptureProbability: cfg.FundingCaptureProbability,
 		PriceShockPcts:            cfg.PriceShockPcts,
 	}
 }

@@ -280,12 +280,13 @@ func evaluateCrossVenueOpenEV(cfg CrossVenueExecutorConfig, opp CrossVenueOpport
 	if expectedFunding <= 0 {
 		return failEV(fmt.Sprintf("EV<0: expectedFunding=%.6f USDT ≤0 over hold=%.2fh", expectedFunding, holdHours))
 	}
-	openCost := crossVenueExpectedOpenCostUSDT(cfg, opp, notional)
-	closeCost := crossVenueExpectedCloseCostUSDT(cfg, opp, notional)
+	openCost := crossVenueOpenEVRoundTripFeeUSDT(cfg, opp, notional)
+	closeCost := openCost
 	roundTripSlippage := 0.0
 	legVenues := []string{opp.HighVenue, opp.LowVenue, opp.HighVenue, opp.LowVenue}
+	evSlipBps := crossVenueOpenEVEslippageBpsPerLeg(cfg)
 	for i := range legVenues {
-		slipBps := crossVenueEVSlippageFallbackBpsPerLeg(cfg)
+		slipBps := evSlipBps
 		if len(evLegs) > i {
 			slipBps = crossVenueEVSlippageBpsPerLeg(cfg, notional, evLegs[i])
 		}
@@ -295,7 +296,8 @@ func evaluateCrossVenueOpenEV(cfg CrossVenueExecutorConfig, opp CrossVenueOpport
 	recoveryQuality := crossVenueRecoveryQualityForPair(opp.HighVenue, opp.LowVenue)
 	observableRiskCost := crossVenueObservableRiskCost(notional, opp.FreshnessAgeSeconds, holdHours, recoveryQuality)
 	policyBuffer := crossVenuePolicyBuffer(openCost, closeCost)
-	netProfit := expectedFunding - roundTripCost - observableRiskCost - policyBuffer
+	dustCost := carryScannerPerpPerpDustResidualCostUSDT()
+	netProfit := expectedFunding - roundTripCost - observableRiskCost - policyBuffer - dustCost
 	minProfit := crossVenueMinNetProfitUSDT(cfg)
 	if netProfit <= minProfit+1e-9 {
 		return failEV(fmt.Sprintf("EV<0: netProfit=%.4f ≤ min %.4f USDT (funding=%.4f cost=%.4f hold=%.2fh)",
@@ -367,14 +369,22 @@ func crossVenueOpenEVHoldHours(cfg CrossVenueExecutorConfig, now time.Time, opp 
 	return crossVenueComparableWindowHours(now, opp.HighNextFundingTime, opp.LowNextFundingTime)
 }
 
-// crossVenueOpenGateExpectedFundingUSDT 开仓 EV 闸 funding 收入:配置了 expected_hold_hours 时按
-// fundingRatePerHour×holdHorizon 摊销;否则回退至窗口内离散结算次数(兼容短窗/单测)。
-func crossVenueOpenGateExpectedFundingUSDT(cfg CrossVenueExecutorConfig, now time.Time, holdHours, notional float64, opp CrossVenueOpportunity) float64 {
-	if cfg.ExpectedHoldHours > 0 && holdHours > 0 {
-		fundingPerHour := crossVenueExpectedFundingPerHour(notional, opp.HighFundingRate, opp.HighIntervalHours, opp.LowFundingRate, opp.LowIntervalHours)
-		return fundingPerHour * holdHours
+// crossVenueOpenEVEslippageBpsPerLeg EV 闸成本侧滑点:优先 EVExpectedSlippageBps(规划口径),与 SlippageBudget(执行闸)分离。
+func crossVenueOpenEVEslippageBpsPerLeg(cfg CrossVenueExecutorConfig) float64 {
+	if cfg.EVExpectedSlippageBps > 0 {
+		return cfg.EVExpectedSlippageBps
 	}
-	return crossVenueExpectedFundingOverHold(now, holdHours, notional, opp)
+	return crossVenueEVSlippageFallbackBpsPerLeg(cfg)
+}
+
+// crossVenueOpenGateExpectedFundingUSDT 开仓 EV 闸 funding 收入:按可比窗口内离散结算次数封顶,并乘捕获折现。
+func crossVenueOpenGateExpectedFundingUSDT(cfg CrossVenueExecutorConfig, now time.Time, holdHours, notional float64, opp CrossVenueOpportunity) float64 {
+	effectiveHold := holdHours
+	if effectiveHold <= 0 {
+		effectiveHold = crossVenueOpenEVHoldHours(cfg, now, opp, 0)
+	}
+	funding := crossVenueExpectedFundingOverHold(now, effectiveHold, notional, opp)
+	return funding * carryScannerNormalizedFundingCaptureProbability(0)
 }
 
 func bookSpreadBps(t venue.BookTicker) float64 {

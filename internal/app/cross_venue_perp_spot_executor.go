@@ -429,34 +429,32 @@ func (e *CrossVenuePerpSpotExecutor) executeOpen(ctx context.Context, opp Unifie
 	sym := venue.Symbol(opp.Symbol)
 	spotInstr := opportunityLegInstrument(opp, spotVenue, "spot")
 	perpInstr := opportunityLegInstrument(opp, perpVenue, "perp")
+	perpContract := perpV.Capabilities().ContractBasedPerp
+	spotCaps := spotV.Capabilities()
+	perpCaps := perpV.Capabilities()
 	if spotInstr.TickSize <= 0 || spotInstr.StepSize <= 0 {
 		spotInstr = e.lookupLegInstrument(ctx, spotVenue, sym, venue.MarketSpot)
 	}
-	if perpInstr.TickSize <= 0 || perpInstr.StepSize <= 0 {
+	if perpCaps.ContractBasedPerp && perpInstr.ContractSize <= 0 {
+		perpInstr = carryMergeContractPerpInstrument(perpInstr, e.lookupLegInstrument(ctx, perpVenue, sym, venue.MarketPerp))
+	} else if perpInstr.TickSize <= 0 || perpInstr.StepSize <= 0 {
 		perpInstr = e.lookupLegInstrument(ctx, perpVenue, sym, venue.MarketPerp)
 	}
-	perpContract := perpV.Capabilities().ContractBasedPerp
 	refPrice := 0.0
 	if perpBook, err := perpTrader.FetchBookTicker(ctx, venue.MarketPerp, sym); err == nil {
 		refPrice = perpBook.AskPrice
 	}
-	openQty := qty
-	if instrumentHasQtyRules(spotInstr) {
-		openQty = normalizeVenueQty(openQty, spotInstr, false)
-	}
-	if instrumentHasQtyRules(perpInstr) {
-		perpQty := normalizeVenueQty(qty, perpInstr, perpContract)
-		if perpQty < openQty {
-			openQty = perpQty
+	openQty, alignErr := carryPreflightSpotPerpOpenAlign(qty, refPrice, spotInstr, perpInstr, spotCaps, perpCaps)
+	if alignErr != nil {
+		if live {
+			carryLogPreflightSkip(e.logger, "跨所perp-spot", opp.Symbol, alignErr.Error())
 		}
-	}
-	if instrumentHasQtyRules(spotInstr) && !openLegTradableAfterQuantize(openQty, refPrice, spotInstr) {
-		return CrossVenuePerpSpotPosition{}, fmt.Errorf("开仓数量低于最小可交易量 qty=%.8f", openQty)
-	}
-	if instrumentHasQtyRules(perpInstr) && !openLegTradableAfterQuantize(openQty, refPrice, perpInstr) {
-		return CrossVenuePerpSpotPosition{}, fmt.Errorf("开仓数量低于最小可交易量 qty=%.8f", openQty)
+		return CrossVenuePerpSpotPosition{}, alignErr
 	}
 	qty = openQty
+	if refPrice > 0 {
+		notional = qty * refPrice
+	}
 	idem := cvpsIdemPrefix(sym, spotVenue)
 	now := e.nowFn()
 
@@ -563,7 +561,7 @@ func (e *CrossVenuePerpSpotExecutor) executeOpen(ctx context.Context, opp Unifie
 		}
 		return pos, fmt.Errorf("第二腿(多永续)未足额成交: %w", perpErr)
 	}
-	match := carryMatchTwoLegOpens(spotRes.ExecutedQty, perpRes.ExecutedQty, carryMinTradableQty(refPrice, perpInstr))
+	match := carryMatchTwoLegOpensNormalized(spotRes, perpRes, spotInstr, perpInstr, spotCaps, perpCaps, carryMinTradableQty(refPrice, perpInstr))
 	if !match.OK {
 		openFailed = true
 		e.rollbackFirstLeg(ctx, pos, spotV, spotTrader, sym, spotRes.ExecutedQty, live, spotInstr)
@@ -759,6 +757,11 @@ func (e *CrossVenuePerpSpotExecutor) closePosition(ctx context.Context, pos Cros
 		dust = negativeCarryDustFromNotionalReject(ctx, e.cfg.CrossVenueExecutor, e.venues, pos.Symbol, pos.SpotVenue, pos.PerpVenue, spotOpen, perpOpen, spotShort, perpLong, pos.SpotLeg.EntryPrice, pos.PerpLeg.EntryPrice)
 	}
 	if dust.IsDustOrphan {
+		if carryShouldDeferDustOrphanClose(e.nowFn(), pos.PerpNextFundingTime) {
+			pos.UpdatedAt = e.nowFn()
+			_ = e.persistPosition(pos)
+			return fmt.Errorf("dust_orphan 未到 funding 结算,保留持仓待下轮")
+		}
 		if live {
 			if spotOpen && !perpOpen {
 				bestEffortRepayMarginBorrow(ctx, spotV, pos.Symbol, spotShort)
@@ -874,7 +877,9 @@ func (e *CrossVenuePerpSpotExecutor) managePosition(ctx context.Context, pos Cro
 	e.armDeadManForPerpVenue(ctx, pos.PerpVenue, live)
 
 	if reason := e.shouldClose(&pos); reason != "" {
-		_ = e.closePosition(ctx, pos, live, reason)
+		if !carryShouldDeferEVWeakClose(e.nowFn(), pos.PerpNextFundingTime, reason) {
+			_ = e.closePosition(ctx, pos, live, reason)
+		}
 		return pos, false
 	}
 	return pos, false
@@ -996,6 +1001,11 @@ func (e *CrossVenuePerpSpotExecutor) handleOrphanLeg(ctx context.Context, pos Cr
 	perpInstr := e.lookupLegInstrument(ctx, pos.PerpVenue, sym, venue.MarketPerp)
 	perpContract := e.venues[pos.PerpVenue] != nil && e.venues[pos.PerpVenue].Capabilities().ContractBasedPerp
 	if decision.IsDustOrphan {
+		if carryShouldDeferDustOrphanClose(e.nowFn(), pos.PerpNextFundingTime) {
+			pos.UpdatedAt = e.nowFn()
+			_ = e.persistPosition(pos)
+			return
+		}
 		if live {
 			if spotOpen && !perpOpen {
 				bestEffortRepayMarginBorrow(ctx, e.venues[pos.SpotVenue], pos.Symbol, spotShort)

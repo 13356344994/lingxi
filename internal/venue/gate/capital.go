@@ -60,6 +60,11 @@ func (a *Adapter) transferUSDT(ctx context.Context, from, to venue.Wallet, amoun
 	return venue.Transfer{From: from, To: to, AssetUSDT: truncateTransferUSDT(amount), VenueRef: ref}, nil
 }
 
+// FetchSpotAvailableUSDT 返回现货账户 USDT available(不含 USDT 永续账户)。
+func (a *Adapter) FetchSpotAvailableUSDT(ctx context.Context) (float64, error) {
+	return a.fetchSpotUSDT(ctx)
+}
+
 // fetchSpotUSDT 拉现货账户 USDT 可动用余额(available,非 locked)。
 func (a *Adapter) fetchSpotUSDT(ctx context.Context) (float64, error) {
 	q := url.Values{}

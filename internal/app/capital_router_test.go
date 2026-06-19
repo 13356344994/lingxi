@@ -140,6 +140,12 @@ func TestPlanCapitalRoutingCrossVenueSuggestionOnly(t *testing.T) {
 	if !strings.Contains(plan.Unfundable[0], "cv-spot-perp-1") {
 		t.Fatalf("unfundable entry = %q", plan.Unfundable[0])
 	}
+	if !strings.Contains(plan.Unfundable[0], CapitalUnfundableReasonCrossVenueGap) {
+		t.Fatalf("unfundable entry should include %q for stats: %q", CapitalUnfundableReasonCrossVenueGap, plan.Unfundable[0])
+	}
+	if !strings.Contains(plan.Unfundable[0], "bybit→okx:") {
+		t.Fatalf("unfundable entry should include suggested transfer detail: %q", plan.Unfundable[0])
+	}
 }
 
 func TestPlanCapitalRoutingRespectsReserve(t *testing.T) {

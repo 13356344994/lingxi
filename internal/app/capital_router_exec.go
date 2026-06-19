@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
 
 	"lingxi/internal/venue"
 )
@@ -72,7 +73,20 @@ func ExecuteCapitalRouting(ctx context.Context, plan CapitalRoutingPlan, venues 
 	}
 
 	for _, sug := range plan.CrossVenueSuggestions {
-		logger.Printf("[跨所建议] %s→%s 金额=%.4f 原因=%s（不自动执行）", sug.FromVenue, sug.ToVenue, sug.AmountUSDT, sug.Reason)
+		logger.Printf(
+			"[跨所建议][%s] %s→%s 金额=%.4f 原因=%s（不自动执行，需人工或幂等划转模块）",
+			CapitalUnfundableReasonCrossVenueGap,
+			sug.FromVenue,
+			sug.ToVenue,
+			sug.AmountUSDT,
+			sug.Reason,
+		)
+	}
+
+	for _, entry := range plan.Unfundable {
+		if strings.Contains(entry, CapitalUnfundableReasonCrossVenueGap) {
+			logger.Printf("[跨所缺口][unfundable][%s] %s", CapitalUnfundableReasonCrossVenueGap, entry)
+		}
 	}
 
 	return result
