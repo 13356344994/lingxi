@@ -790,6 +790,42 @@ func (s *CrossVenueScanner) fundingSpikeThreshold(venue, sym string) float64 {
 	return absRatePercentile(hist, 90)
 }
 
+// fundingRateVolatilityPerHour 返回 venue/symbol 最近扫描样本的每小时归一化费率标准差。
+// 样本来自 recordFundingHistory 滚动缓存(扫描 cadence);不足 2 个样本时 ok=false。
+func (s *CrossVenueScanner) fundingRateVolatilityPerHour(venue, sym string, intervalHours, lookback int) (float64, bool) {
+	if s == nil || intervalHours <= 0 {
+		return 0, false
+	}
+	if lookback <= 0 {
+		lookback = crossVenueFundingHistoryMax
+	}
+	s.fundingHistoryMu.Lock()
+	hist := append([]float64(nil), s.fundingHistory[venue][sym]...)
+	s.fundingHistoryMu.Unlock()
+	if len(hist) > lookback {
+		hist = hist[len(hist)-lookback:]
+	}
+	return fundingRateStdDevPerHour(hist, intervalHours)
+}
+
+func fundingRateStdDevPerHour(rates []float64, intervalHours int) (float64, bool) {
+	if len(rates) < 2 || intervalHours <= 0 {
+		return 0, false
+	}
+	ih := float64(intervalHours)
+	mean := 0.0
+	for _, r := range rates {
+		mean += r / ih
+	}
+	mean /= float64(len(rates))
+	var sumSq float64
+	for _, r := range rates {
+		d := r/ih - mean
+		sumSq += d * d
+	}
+	return math.Sqrt(sumSq / float64(len(rates))), true
+}
+
 func absRatePercentile(rates []float64, pct float64) float64 {
 	if len(rates) < 2 {
 		return 0

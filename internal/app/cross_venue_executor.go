@@ -950,6 +950,10 @@ func (e *CrossVenueExecutor) reconcileOnStart(ctx context.Context) {
 			if crossVenueHasTrackedLeg(ps, name, ep.Symbol) {
 				continue
 			}
+			if carryStrategyOwnsPerpLeg(e.recordDir, name, ep.Symbol) {
+				e.logger.Printf("[跨所执行] reconcile: venue=%s %s≈%.6f 归属 carry 策略台账,跳过未登记判定", name, ep.Symbol, ep.PositionAmt)
+				continue
+			}
 			e.logger.Printf("[跨所执行] reconcile: venue=%s 未登记持仓 %s≈%.6f,请人工核对", name, ep.Symbol, ep.PositionAmt)
 			untrackedBySymbol[string(ep.Symbol)] = append(untrackedBySymbol[string(ep.Symbol)], crossVenueUntrackedLeg{
 				Venue:      name,

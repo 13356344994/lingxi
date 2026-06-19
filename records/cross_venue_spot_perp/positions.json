@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
-  "checksum": "ec39b199ef65db6060db86583a4e525780288af376d0a76fb6ba6bbf7ba7007d",
-  "updated_at": "2026-06-19T05:55:45Z",
+  "checksum": "5b958f2491d0bf6f08f71be1c82b90992a34c4648e6febdc789c1d58b3197bb0",
+  "updated_at": "2026-06-19T06:09:46Z",
   "positions": [
     {
       "position_key": "H-USDT|cvsp-HUSDT-bybit-1781761588",
@@ -474,48 +474,6 @@
       "last_accrual_at": "0001-01-01T00:00:00Z",
       "last_hedge_rebalance_at": "0001-01-01T00:00:00Z",
       "rollback_cost_usdt": 0.0116788896
-    },
-    {
-      "position_key": "BEL-USDT|cvsp-BELUSDT-gate-1781848487",
-      "symbol": "BEL-USDT",
-      "spot_venue": "bybit",
-      "perp_venue": "gate",
-      "spot_leg": {
-        "venue": "bybit",
-        "market": "spot",
-        "side": "buy",
-        "qty": 59,
-        "entry_price": 0.10611,
-        "order_ids": [
-          "cvsp-BELUSDT-gate-1781848487-s1"
-        ]
-      },
-      "perp_leg": {
-        "venue": "gate",
-        "market": "perp",
-        "side": "short",
-        "qty": 0,
-        "entry_price": 0.10414,
-        "order_ids": [
-          "cvsp-BELUSDT-gate-1781848487-p1"
-        ]
-      },
-      "opportunity_id": "cross_venue_spot_perp:BEL-USDT:bybit+gate:cvsnap-20260619T054214.023509587",
-      "expected_funding_usdt": 0.02131377820237505,
-      "expected_net_ev_usdt": 0.0017301538695995156,
-      "expected_hold_hours": 2.296104580670278,
-      "perp_funding_rate": 0.002458,
-      "perp_interval_hours": 8,
-      "perp_next_funding_time": "2026-06-19T08:00:00Z",
-      "est_funding_usdt": 0.00008140101128302306,
-      "status": "open",
-      "transition_state": "hold",
-      "idem_prefix": "cvsp-BELUSDT-gate-1781848487",
-      "notional_usdt": 16.45851598639,
-      "opened_at": "2026-06-19T05:54:47.814708303Z",
-      "updated_at": "2026-06-19T05:55:45.764214183Z",
-      "last_accrual_at": "2026-06-19T05:55:45.764214023Z",
-      "last_hedge_rebalance_at": "2026-06-19T05:55:14.340282309Z"
     }
   ]
 }

@@ -70,6 +70,7 @@ type SingleVenuePerpSpotScanInput struct {
 	BorrowDailyRateByAsset map[string]float64
 	BorrowLimitUSDTByAsset map[string]float64
 	Config                 SingleVenuePerpSpotScannerConfig
+	FundingRateVolPerHourByVenue map[string]map[string]float64
 }
 
 // ScanSingleVenuePerpSpotOpportunities 扫描单所 perp-spot 负 carry 机会(纯函数, plan-only)。
@@ -100,6 +101,7 @@ func ScanSingleVenuePerpSpotOpportunities(in SingleVenuePerpSpotScanInput) []Uni
 				in.SnapshotID, now, sym, venueName,
 				in.FundingByVenue, in.MarketsByVenue, in.AvailableUSDTByVenue,
 				in.BorrowDailyRateByAsset, in.BorrowLimitUSDTByAsset, cfg,
+				in.FundingRateVolPerHourByVenue,
 			)
 			if ok {
 				out = append(out, opp)
@@ -200,6 +202,7 @@ func buildSingleVenuePerpSpotOpportunity(
 	available map[string]float64,
 	borrowDailyRateByAsset, borrowLimitUSDTByAsset map[string]float64,
 	cfg SingleVenuePerpSpotScannerConfig,
+	fundingVolByVenue map[string]map[string]float64,
 ) (UnifiedOpportunity, bool) {
 	cvCfg := singleVenuePerpSpotAsCrossVenueConfig(cfg)
 
@@ -270,6 +273,11 @@ func buildSingleVenuePerpSpotOpportunity(
 	closeCost := openCost
 	slippage := crossVenueSpotPerpSlippageUSDT(cvCfg, notional, mkt, mkt)
 	borrowCost := perpSpotBorrowCostUSDT(baseAsset, notional, holdHours, borrowDailyRateByAsset)
+
+	vol, volOK := carryFundingVolFromMap(fundingVolByVenue, venueName, symbol)
+	if ok, _ := carryScannerFundingEntryEligible(now, fund, holdHours, notional, effectiveRate, expectedBasisPnL, openCost+borrowCost, slippage, cfg.Exec.FundingEntryGate(), vol, volOK); !ok {
+		return UnifiedOpportunity{}, false
+	}
 
 	spotMarginRequired := notional
 	perpMarginRequired := crossVenueSpotPerpPerpMarginRequired(cvCfg, notional)

@@ -65,6 +65,7 @@ type SingleVenueSpotPerpScanInput struct {
 	MarketsByVenue       map[string]map[string]SingleVenueSpotPerpMarketSnap
 	AvailableUSDTByVenue map[string]float64
 	Config               SingleVenueSpotPerpScannerConfig
+	FundingRateVolPerHourByVenue map[string]map[string]float64
 }
 
 // ScanSingleVenueSpotPerpOpportunities 扫描单所 spot-perp 机会(纯函数, plan-only)。
@@ -95,6 +96,7 @@ func ScanSingleVenueSpotPerpOpportunities(in SingleVenueSpotPerpScanInput) []Uni
 			opp, ok := buildSingleVenueSpotPerpOpportunity(
 				in.SnapshotID, now, sym, venueName,
 				in.FundingByVenue, in.MarketsByVenue, in.AvailableUSDTByVenue, cfg, drops,
+				in.FundingRateVolPerHourByVenue,
 			)
 			if ok {
 				out = append(out, opp)
@@ -195,6 +197,7 @@ func buildSingleVenueSpotPerpOpportunity(
 	available map[string]float64,
 	cfg SingleVenueSpotPerpScannerConfig,
 	drops *scannerInstrumentDropLog,
+	fundingVolByVenue map[string]map[string]float64,
 ) (UnifiedOpportunity, bool) {
 	cvCfg := singleVenueSpotPerpAsCrossVenueConfig(cfg)
 
@@ -265,6 +268,11 @@ func buildSingleVenueSpotPerpOpportunity(
 	openCost := singleVenueSpotPerpOpenCostUSDT(cfg, venueName, notional)
 	closeCost := openCost
 	slippage := crossVenueSpotPerpSlippageUSDT(cvCfg, notional, mkt, mkt)
+
+	vol, volOK := carryFundingVolFromMap(fundingVolByVenue, venueName, symbol)
+	if ok, _ := carryScannerFundingEntryEligible(now, fund, holdHours, notional, effectiveRate, expectedBasisPnL, openCost, slippage, cfg.Exec.FundingEntryGate(), vol, volOK); !ok {
+		return UnifiedOpportunity{}, false
+	}
 
 	spotCashRequired := notional
 	perpMarginRequired := crossVenueSpotPerpPerpMarginRequired(cvCfg, notional)

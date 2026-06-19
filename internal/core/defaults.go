@@ -369,7 +369,12 @@ func DefaultEngineConfig() EngineConfig {
 			SwitchSequence:                  "close_then_open",
 			MaxSwitchesPerCycle:             1,
 			UntrackedExposureAction:         "halt",
-			DustCloseThresholdUSDT:          1.0,
+			DustCloseThresholdUSDT:            1.0,
+			CarryFundingEntryBaseFraction:     0.125,
+			CarryFundingEntryMinVolScale:      0.2,
+			CarryFundingEntryVolRefPerHour:    0.0001,
+			CarryFundingEntryFloorMinutes:     5,
+			CarryFundingEntryVolLookbackScans: 10,
 		},
 		CapitalAllocator: CapitalAllocatorConfig{
 			Enabled:                   false,

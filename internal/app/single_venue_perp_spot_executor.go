@@ -455,6 +455,11 @@ func (e *SingleVenuePerpSpotExecutor) executeOpen(ctx context.Context, opp Unifi
 		e.logger.Printf("[同所perp-spot] %s 借币额度不足 max=%.6f need=%.6f,放弃机会", opp.Symbol, maxBorrow, qty)
 		return pos, fmt.Errorf("借币额度不足: max=%.6f need=%.6f", maxBorrow, qty)
 	}
+	perpMargin := rotationPerpMarginWithBuffer(cfg, notional)
+	if err := carryPreflightSingleVenueSpotPerpOpen(ctx, v, 0, perpMargin); err != nil {
+		carryLogPreflightSkip(e.logger, "同所perp-spot", opp.Symbol, err.Error())
+		return SingleVenuePerpSpotPosition{}, err
+	}
 
 	if err := e.persistPosition(pos); err != nil {
 		return pos, err
@@ -495,18 +500,33 @@ func (e *SingleVenuePerpSpotExecutor) executeOpen(ctx context.Context, opp Unifi
 		e.notifyCritical("同所perp-spot查单未知", fmt.Sprintf("%s 永续腿查单失败,禁止自动回滚", opp.Symbol), opp.Symbol)
 		return pos, fmt.Errorf("永续腿状态未知,禁止自动回滚: %w", perpErr)
 	}
-	if perpErr != nil || !hedgeLegFullyFilled(perpRes.ExecutedQty, hedgeQty) {
+	perpInstr := opportunityLegInstrument(opp, venueName, "perp")
+	refPrice := spotRes.AvgPrice
+	if refPrice <= 0 {
+		refPrice = 100
+	}
+	match := carryMatchTwoLegOpens(spotRes.ExecutedQty, perpRes.ExecutedQty, carryMinTradableQty(refPrice, perpInstr))
+	if perpErr != nil || !match.OK {
 		e.rollbackSpotLeg(ctx, v, tr, sym, &pos, spotRes.ExecutedQty, live, idem)
 		if perpRes.ExecutedQty > executionQtyTolerance {
 			e.rollbackPerpLeg(ctx, tr, sym, perpRes.ExecutedQty, live, idem)
 		}
-		e.logger.Printf("[同所perp-spot] %s 永续腿未足额成交(%.6f/%.6f),已回滚现货腿", opp.Symbol, perpRes.ExecutedQty, hedgeQty)
+		if match.Leg2Partial {
+			e.logger.Printf("[同所perp-spot] %s 永续腿未足额成交(%.6f/%.6f),已回滚现货腿", opp.Symbol, perpRes.ExecutedQty, hedgeQty)
+		}
 		return pos, fmt.Errorf("永续腿失败: %w", perpErr)
 	}
-	pos.PerpLeg.Qty = perpRes.ExecutedQty
+	if match.ExcessLeg1 > executionQtyTolerance {
+		e.rollbackSpotLeg(ctx, v, tr, sym, &pos, match.ExcessLeg1, live, idem)
+	}
+	if match.ExcessLeg2 > executionQtyTolerance {
+		e.rollbackPerpLeg(ctx, tr, sym, match.ExcessLeg2, live, idem)
+	}
+	pos.SpotLeg.Qty = match.MatchedQty
+	pos.PerpLeg.Qty = match.MatchedQty
 	pos.PerpLeg.EntryPrice = perpRes.AvgPrice
 	pos.PerpLeg.OrderIDs = []string{perpID}
-	pos.NotionalUSDT = hedgeQty * spotRes.AvgPrice
+	pos.NotionalUSDT = match.MatchedQty * spotRes.AvgPrice
 	pos.Status = SVPSStatusOpen
 	pos.TransitionState = "hold"
 	pos.UpdatedAt = e.nowFn()

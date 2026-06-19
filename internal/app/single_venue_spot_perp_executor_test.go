@@ -163,6 +163,15 @@ func (f *svspTestVenue) FetchRealizedFunding(context.Context, venue.Symbol, time
 }
 
 var _ venue.Venue = (*svspTestVenue)(nil)
+var _ venue.PerpMarginProvider = (*svspTestVenue)(nil)
+
+func (f *svspTestVenue) FetchPerpAvailableUSDT(context.Context) (float64, error) {
+	return f.balanceUSDT, nil
+}
+
+func (f *svspTestVenue) TopUpPerpMarginUSDT(context.Context, float64) (float64, error) {
+	return 0, nil
+}
 
 func testSVSPExecutorConfig() EngineConfig {
 	cfg := DefaultEngineConfig()
@@ -423,7 +432,7 @@ func TestSVSPOOffCloseNoPlaceOrder(t *testing.T) {
 	}
 }
 
-func TestSVSPPerpPartialFillTriggersRollback(t *testing.T) {
+func TestSVSPPerpPartialFillMatchesAtFilledQty(t *testing.T) {
 	now := time.Now().UTC()
 	v := newSVSPTestVenue(binance.VenueName)
 	v.perpPartialFillNext = true
@@ -432,12 +441,19 @@ func TestSVSPPerpPartialFillTriggersRollback(t *testing.T) {
 	e := NewSingleVenueSpotPerpExecutor(testSVSPExecutorConfig(), map[string]venue.Venue{binance.VenueName: v}, dir, testSVSPLogger())
 	e.nowFn = func() time.Time { return now }
 
-	_, err := e.executeOpen(context.Background(), testSVSPOpportunity(binance.VenueName, 0.5), true)
-	if err == nil {
-		t.Fatal("expected partial perp fill to fail open")
+	pos, err := e.executeOpen(context.Background(), testSVSPOpportunity(binance.VenueName, 0.5), true)
+	if err != nil {
+		t.Fatalf("partial perp fill should match at filled qty: %v", err)
 	}
-	if v.spotBalances["BTC"] > executionQtyTolerance {
-		t.Fatalf("partial fill must rollback spot, BTC=%.6f", v.spotBalances["BTC"])
+	if pos.Status != SVSPStatusOpen {
+		t.Fatalf("status = %s, want open", pos.Status)
+	}
+	wantQty := 0.5 * 0.4
+	if math.Abs(pos.PerpLeg.Qty-wantQty) > executionQtyTolerance {
+		t.Fatalf("perp qty = %.6f, want ≈%.6f", pos.PerpLeg.Qty, wantQty)
+	}
+	if math.Abs(pos.SpotLeg.Qty-wantQty) > executionQtyTolerance {
+		t.Fatalf("spot qty = %.6f, want ≈%.6f", pos.SpotLeg.Qty, wantQty)
 	}
 }
 

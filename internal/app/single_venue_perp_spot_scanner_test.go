@@ -16,7 +16,7 @@ import (
 func testSingleVenuePerpSpotScanInput(now time.Time) SingleVenuePerpSpotScanInput {
 	exec := testCrossVenueExecutorConfig().CrossVenueExecutor
 	cfg := DefaultSingleVenuePerpSpotScannerConfig(exec)
-	nextFunding := now.Add(2 * time.Hour)
+	nextFunding := scannerTestCarryNextFunding(now)
 
 	return SingleVenuePerpSpotScanInput{
 		SnapshotID: "svps-snap-test",
@@ -26,13 +26,13 @@ func testSingleVenuePerpSpotScanInput(now time.Time) SingleVenuePerpSpotScanInpu
 		FundingByVenue: map[string]map[string]SingleVenuePerpSpotFundingSnap{
 			bybit.VenueName: {
 				"BTC-USDT": {
-					Rate:            -0.0003,
+					Rate:            -scannerTestCarryNearFundingRate,
 					IntervalHours:   8,
 					NextFundingTime: nextFunding,
 					SpikeThreshold:  0.00025,
 				},
 				"ETH-USDT": {
-					Rate:            -0.0002,
+					Rate:            -scannerTestCarryNearFundingRate,
 					IntervalHours:   8,
 					NextFundingTime: nextFunding,
 					SpikeThreshold:  0.00015,
@@ -70,7 +70,13 @@ func testSingleVenuePerpSpotScanInput(now time.Time) SingleVenuePerpSpotScanInpu
 			"BTC": 100000,
 			"ETH": 100000,
 		},
-		Config: cfg,
+		Config:                       cfg,
+		FundingRateVolPerHourByVenue: map[string]map[string]float64{
+			bybit.VenueName: {
+				"BTC-USDT": 0.00001,
+				"ETH-USDT": 0.00001,
+			},
+		},
 	}
 }
 

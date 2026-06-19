@@ -569,7 +569,7 @@ func (e *CrossVenueExecutor) reduceCrossVenueRisk(ctx context.Context, pos Cross
 
 func perpPositionQty(positions []venue.Position, sym venue.Symbol) float64 {
 	for _, p := range positions {
-		if p.Symbol == sym {
+		if venueSymbolsMatch(p.Symbol, sym) {
 			return p.PositionAmt
 		}
 	}

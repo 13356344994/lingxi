@@ -403,11 +403,29 @@ func (r *UnifiedRotationRunner) runCycle(ctx context.Context) {
 }
 
 // runReconcileAll 启动时对各执行器调一次 reconcileOnStart,恢复在场真仓与断腿状态。
+// carry 策略先于 perp-perp 对账,以便重采腿 qty 后 perp-perp 不误判未登记持仓。
 func (r *UnifiedRotationRunner) runReconcileAll(ctx context.Context) {
 	if r == nil {
 		return
 	}
-	for _, binding := range r.bindings {
+	reconcileOrder := []string{
+		UnifiedStrategySingleVenueSpotPerp,
+		UnifiedStrategyCrossVenueSpotPerp,
+		UnifiedStrategySingleVenuePerpSpot,
+		UnifiedStrategyCrossVenuePerpSpot,
+		UnifiedStrategyPerpPerp,
+	}
+	seen := make(map[string]struct{}, len(r.bindings))
+	for _, strategyType := range reconcileOrder {
+		if binding := r.bindings[strategyType]; binding != nil {
+			r.runReconcileBinding(ctx, binding)
+			seen[strategyType] = struct{}{}
+		}
+	}
+	for strategyType, binding := range r.bindings {
+		if _, ok := seen[strategyType]; ok {
+			continue
+		}
 		if binding == nil || binding.reconcileFn == nil {
 			continue
 		}
@@ -802,47 +820,54 @@ func (r *UnifiedRotationRunner) defaultScanRotationCandidates(ctx context.Contex
 		scannerAvailableUSDT[venueName] = eff
 	}
 
+	volLookback := r.execCfg.CarryFundingEntryVolLookbackScans
+	fundingVolByVenue := carryFundingVolatilityMap(r.scanner, fundingByVenue, volLookback)
+
 	singleSpotPerp := ScanSingleVenueSpotPerpOpportunities(SingleVenueSpotPerpScanInput{
-		SnapshotID:           snapshotID,
-		Now:                  now,
-		Symbols:              symbols,
-		Venues:               crossVenueExecutorVenues,
-		FundingByVenue:       fundingByVenue,
-		MarketsByVenue:       marketsByVenue,
-		AvailableUSDTByVenue: scannerAvailableUSDT,
-		Config:               DefaultSingleVenueSpotPerpScannerConfig(r.execCfg),
+		SnapshotID:                   snapshotID,
+		Now:                          now,
+		Symbols:                      symbols,
+		Venues:                       crossVenueExecutorVenues,
+		FundingByVenue:               fundingByVenue,
+		MarketsByVenue:               marketsByVenue,
+		AvailableUSDTByVenue:         scannerAvailableUSDT,
+		Config:                       DefaultSingleVenueSpotPerpScannerConfig(r.execCfg),
+		FundingRateVolPerHourByVenue: fundingVolByVenue,
 	})
 	crossSpotPerp := ScanCrossVenueSpotPerpOpportunities(CrossVenueSpotPerpScanInput{
-		SnapshotID:           snapshotID,
-		Now:                  now,
-		Symbols:              symbols,
-		FundingByVenue:       fundingByVenue,
-		MarketsByVenue:       marketsByVenue,
-		AvailableUSDTByVenue: scannerAvailableUSDT,
-		Config:               DefaultCrossVenueSpotPerpScannerConfig(r.execCfg),
+		SnapshotID:                   snapshotID,
+		Now:                          now,
+		Symbols:                      symbols,
+		FundingByVenue:               fundingByVenue,
+		MarketsByVenue:               marketsByVenue,
+		AvailableUSDTByVenue:         scannerAvailableUSDT,
+		Config:                       DefaultCrossVenueSpotPerpScannerConfig(r.execCfg),
+		FundingRateVolPerHourByVenue: fundingVolByVenue,
 	})
 	singlePerpSpot := ScanSingleVenuePerpSpotOpportunities(SingleVenuePerpSpotScanInput{
-		SnapshotID:             snapshotID,
-		Now:                    now,
-		Symbols:                symbols,
-		Venues:                 crossVenueExecutorVenues,
-		FundingByVenue:         fundingByVenue,
-		MarketsByVenue:         marketsByVenue,
-		AvailableUSDTByVenue:   scannerAvailableUSDT,
-		BorrowDailyRateByAsset: borrowDaily,
-		BorrowLimitUSDTByAsset: borrowLimits,
-		Config:                 DefaultSingleVenuePerpSpotScannerConfig(r.execCfg),
+		SnapshotID:                   snapshotID,
+		Now:                          now,
+		Symbols:                      symbols,
+		Venues:                       crossVenueExecutorVenues,
+		FundingByVenue:               fundingByVenue,
+		MarketsByVenue:               marketsByVenue,
+		AvailableUSDTByVenue:         scannerAvailableUSDT,
+		BorrowDailyRateByAsset:       borrowDaily,
+		BorrowLimitUSDTByAsset:       borrowLimits,
+		Config:                       DefaultSingleVenuePerpSpotScannerConfig(r.execCfg),
+		FundingRateVolPerHourByVenue: fundingVolByVenue,
 	})
 	crossPerpSpot := ScanCrossVenuePerpSpotOpportunities(CrossVenuePerpSpotScanInput{
-		SnapshotID:             snapshotID,
-		Now:                    now,
-		Symbols:                symbols,
-		FundingByVenue:         fundingByVenue,
-		MarketsByVenue:         marketsByVenue,
-		AvailableUSDTByVenue:   scannerAvailableUSDT,
-		BorrowDailyRateByAsset: borrowDaily,
-		BorrowLimitUSDTByAsset: borrowLimits,
-		Config:                 DefaultCrossVenuePerpSpotScannerConfig(r.execCfg),
+		SnapshotID:                   snapshotID,
+		Now:                          now,
+		Symbols:                      symbols,
+		FundingByVenue:               fundingByVenue,
+		MarketsByVenue:               marketsByVenue,
+		AvailableUSDTByVenue:         scannerAvailableUSDT,
+		BorrowDailyRateByAsset:       borrowDaily,
+		BorrowLimitUSDTByAsset:       borrowLimits,
+		Config:                       DefaultCrossVenuePerpSpotScannerConfig(r.execCfg),
+		FundingRateVolPerHourByVenue: fundingVolByVenue,
 	})
 
 	candidates := make([]UnifiedOpportunity, 0, len(singleSpotPerp)+len(crossSpotPerp)+len(singlePerpSpot)+len(crossPerpSpot))

@@ -193,6 +193,18 @@ func (f *cvpsTestVenue) QueryOrder(_ context.Context, _ venue.Market, _ venue.Sy
 }
 
 var _ venue.Venue = (*cvpsTestVenue)(nil)
+var _ venue.PerpMarginProvider = (*cvpsTestVenue)(nil)
+
+func (f *cvpsTestVenue) FetchPerpAvailableUSDT(context.Context) (float64, error) {
+	if f.balances == nil {
+		return 0, nil
+	}
+	return f.balances["USDT"], nil
+}
+
+func (f *cvpsTestVenue) TopUpPerpMarginUSDT(context.Context, float64) (float64, error) {
+	return 0, nil
+}
 
 func testCVPSExecutor(t *testing.T, dir string, spotV, perpV *cvpsTestVenue) *CrossVenuePerpSpotExecutor {
 	t.Helper()
@@ -562,7 +574,7 @@ func TestCrossVenuePerpSpotBorrowLimitExceededSkipsOpen(t *testing.T) {
 	}
 }
 
-func TestCrossVenuePerpSpotPerpPartialFillTriggersRollback(t *testing.T) {
+func TestCrossVenuePerpSpotPerpPartialFillMatchesAtFilledQty(t *testing.T) {
 	dir := t.TempDir()
 	spot := newCVPSTestVenue(binance.VenueName, true)
 	perp := newCVPSTestVenue(bybit.VenueName, false)
@@ -570,12 +582,22 @@ func TestCrossVenuePerpSpotPerpPartialFillTriggersRollback(t *testing.T) {
 	perp.perpPartialFillRatio = 0.4
 	e := testCVPSExecutor(t, dir, spot, perp)
 
-	_, err := e.executeOpen(context.Background(), testCVPSOpportunity(binance.VenueName, bybit.VenueName, 0.5), true)
-	if err == nil {
-		t.Fatal("expected partial perp fill to fail open")
+	pos, err := e.executeOpen(context.Background(), testCVPSOpportunity(binance.VenueName, bybit.VenueName, 0.5), true)
+	if err != nil {
+		t.Fatalf("partial perp fill should match at filled qty: %v", err)
 	}
-	if spot.borrowedBase["BTC"] > executionQtyTolerance {
-		t.Fatalf("partial fill must rollback borrow, got %.6f", spot.borrowedBase["BTC"])
+	if pos.Status != CVPSStatusOpen {
+		t.Fatalf("status = %s, want open", pos.Status)
+	}
+	wantQty := 0.5 * 0.4
+	if math.Abs(pos.PerpLeg.Qty-wantQty) > executionQtyTolerance {
+		t.Fatalf("perp qty = %.6f, want ≈%.6f", pos.PerpLeg.Qty, wantQty)
+	}
+	if math.Abs(pos.SpotLeg.Qty-wantQty) > executionQtyTolerance {
+		t.Fatalf("spot qty = %.6f, want ≈%.6f", pos.SpotLeg.Qty, wantQty)
+	}
+	if math.Abs(spot.borrowedBase["BTC"]-wantQty) > executionQtyTolerance {
+		t.Fatalf("borrowed = %.6f, want ≈%.6f", spot.borrowedBase["BTC"], wantQty)
 	}
 }
 

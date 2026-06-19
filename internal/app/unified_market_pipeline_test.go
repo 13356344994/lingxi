@@ -265,7 +265,7 @@ func TestCrossVenueSpotPerpTradableNotionalBeyondDepthFetchLimitConservative(t *
 
 func TestUnifiedRotationRunner_ScanCandidatesLiquidityAdaptiveDepth(t *testing.T) {
 	now := time.Date(2026, 6, 19, 12, 0, 0, 0, time.UTC)
-	nextFunding := now.Add(2 * time.Hour)
+	nextFunding := now.Add(30 * time.Minute)
 	thinDepth := venue.Depth{
 		Asks: []venue.DepthLevel{{Price: 100000, Qty: 0.0003}},
 		Bids: []venue.DepthLevel{{Price: 100000, Qty: 0.0003}},

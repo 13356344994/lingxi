@@ -562,7 +562,7 @@ func TestUnifiedRotationRunner_DecideRotationIntegration(t *testing.T) {
 func TestUnifiedRotationRunner_ScanCandidatesOffline(t *testing.T) {
 	dir := t.TempDir()
 	now := time.Date(2026, 6, 18, 12, 0, 0, 0, time.UTC)
-	nextFunding := now.Add(2 * time.Hour)
+	nextFunding := now.Add(30 * time.Minute)
 	r := &UnifiedRotationRunner{
 		bindings:    map[string]*rotationExecutorBinding{},
 		logger:      log.New(io.Discard, "", 0),
@@ -648,7 +648,7 @@ func TestUnifiedRotationRunner_TickerInterval(t *testing.T) {
 func TestUnifiedRotationRunner_RunOnceWritesCandidates(t *testing.T) {
 	dir := t.TempDir()
 	now := time.Date(2026, 6, 18, 12, 0, 0, 0, time.UTC)
-	nextFunding := now.Add(2 * time.Hour)
+	nextFunding := now.Add(30 * time.Minute)
 	snap := CrossVenueScanSnapshot{
 		SnapshotID: "runonce-snap",
 		ScannedAt:  now,

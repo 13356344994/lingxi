@@ -147,6 +147,18 @@ func (f *cvspTestVenue) QueryOrder(_ context.Context, _ venue.Market, _ venue.Sy
 }
 
 var _ venue.Venue = (*cvspTestVenue)(nil)
+var _ venue.PerpMarginProvider = (*cvspTestVenue)(nil)
+
+func (f *cvspTestVenue) FetchPerpAvailableUSDT(context.Context) (float64, error) {
+	if f.balances == nil {
+		return 0, nil
+	}
+	return f.balances["USDT"], nil
+}
+
+func (f *cvspTestVenue) TopUpPerpMarginUSDT(context.Context, float64) (float64, error) {
+	return 0, nil
+}
 
 func testCVSPExecutor(t *testing.T, dir string, spotV, perpV *cvspTestVenue) *CrossVenueSpotPerpExecutor {
 	t.Helper()

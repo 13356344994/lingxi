@@ -688,6 +688,36 @@ type CrossVenueExecutorConfig struct {
 	// DustCloseThresholdUSDT 风险腿已平时,残余非风险腿名义低于此值(且低于交易所 minNotional 若可得)视为 dust,
 	// 标记已平并释放并发槽,不再无限重试。默认 1.0 USDT。
 	DustCloseThresholdUSDT float64 `cfg:"dust_close_threshold_usdt"`
+	// CarryFundingEntryBaseFraction 基础开仓窗口 = fundingInterval × 此系数。默认 0.125(1/8)→8h 约 60min。
+	CarryFundingEntryBaseFraction float64 `cfg:"carry_funding_entry_base_fraction"`
+	// CarryFundingEntryMinVolScale 高波动缩窗下限(volScale 最小值)。默认 0.2。
+	CarryFundingEntryMinVolScale float64 `cfg:"carry_funding_entry_min_vol_scale"`
+	// CarryFundingEntryVolRefPerHour 费率波动参考(每小时归一化 stddev);vol≥此值时缩至 minVolScale。默认 0.0001。
+	CarryFundingEntryVolRefPerHour float64 `cfg:"carry_funding_entry_vol_ref_per_hour"`
+	// CarryFundingEntryFloorMinutes 窗口下限(分钟),保证两腿能在结算前建立。默认 5。
+	CarryFundingEntryFloorMinutes float64 `cfg:"carry_funding_entry_floor_minutes"`
+	// CarryFundingEntryVolLookbackScans 计算费率波动时使用的最近扫描样本数。默认 10。
+	CarryFundingEntryVolLookbackScans int `cfg:"carry_funding_entry_vol_lookback_scans"`
+}
+
+// CarryFundingEntryGateConfig carry 策略开仓前资金费结算窗口闸门参数视图(由 CrossVenueExecutorConfig 字段组装)。
+type CarryFundingEntryGateConfig struct {
+	BaseFraction     float64
+	MinVolScale      float64
+	VolRefPerHour    float64
+	FloorMinutes     float64
+	VolLookbackScans int
+}
+
+// FundingEntryGate 返回 carry 开仓窗口闸门配置视图。
+func (c CrossVenueExecutorConfig) FundingEntryGate() CarryFundingEntryGateConfig {
+	return CarryFundingEntryGateConfig{
+		BaseFraction:     c.CarryFundingEntryBaseFraction,
+		MinVolScale:      c.CarryFundingEntryMinVolScale,
+		VolRefPerHour:    c.CarryFundingEntryVolRefPerHour,
+		FloorMinutes:     c.CarryFundingEntryFloorMinutes,
+		VolLookbackScans: c.CarryFundingEntryVolLookbackScans,
+	}
 }
 
 // CapitalAllocatorConfig 是跨策略资本分配器的可调参数(默认关闭+OFF 模式)。

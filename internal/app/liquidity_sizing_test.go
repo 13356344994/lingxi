@@ -151,7 +151,7 @@ func TestCrossVenueSpotPerpTradableNotionalSizingSwitchZeroRegression(t *testing
 
 func TestCrossVenueGateLiquidityAdaptiveSizing(t *testing.T) {
 	now := time.Now().UTC().Add(time.Hour)
-	nextFunding := now.Add(2 * time.Hour)
+	nextFunding := now.Add(30 * time.Minute)
 	high := newCrossVenueTestVenue(binance.VenueName, 0.001, 8, nextFunding)
 	low := newCrossVenueTestVenue(okx.VenueName, 0.0001, 8, nextFunding)
 	high.book = venue.BookTicker{BidPrice: 100, AskPrice: 100.01, BidQty: 1000, AskQty: 1000}

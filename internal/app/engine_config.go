@@ -38,7 +38,8 @@ type (
 	PortfolioConfig          = core.PortfolioConfig
 	AlertingConfig           = core.AlertingConfig
 	CrossVenueScannerConfig  = core.CrossVenueScannerConfig
-	CrossVenueExecutorConfig = core.CrossVenueExecutorConfig
+	CrossVenueExecutorConfig      = core.CrossVenueExecutorConfig
+	CarryFundingEntryGateConfig   = core.CarryFundingEntryGateConfig
 	CapitalAllocatorConfig   = core.CapitalAllocatorConfig
 	DataCollectionConfig     = core.DataCollectionConfig
 )

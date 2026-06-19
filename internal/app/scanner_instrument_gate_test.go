@@ -44,7 +44,7 @@ func TestScannerMarketLegInstrumentValid(t *testing.T) {
 
 func TestScanCrossVenueSpotPerpExcludesInvalidSpotInstrument(t *testing.T) {
 	now := time.Date(2026, 6, 19, 12, 0, 0, 0, time.UTC)
-	nextFunding := now.Add(2 * time.Hour)
+	nextFunding := now.Add(30 * time.Minute)
 	cfg := DefaultCrossVenueSpotPerpScannerConfig(testCrossVenueExecutorConfig().CrossVenueExecutor)
 
 	baseFunding := map[string]map[string]CrossVenueSpotPerpFundingSnap{

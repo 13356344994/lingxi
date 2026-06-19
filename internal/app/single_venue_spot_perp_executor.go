@@ -427,11 +427,20 @@ func (e *SingleVenueSpotPerpExecutor) executeOpen(ctx context.Context, opp Unifi
 		return SingleVenueSpotPerpPosition{}, nil
 	}
 
+	takerBps := svspTakerSlippageBps(cfg)
+	spotInstr := opportunityLegInstrument(opp, venueName, "spot")
+	perpInstr := opportunityLegInstrument(opp, venueName, "perp")
+	spotNeed := pos.NotionalUSDT * (1 + takerBps/10000)
+	perpMargin := rotationPerpMarginWithBuffer(cfg, pos.NotionalUSDT)
+	if err := carryPreflightSingleVenueSpotPerpOpen(ctx, v, spotNeed, perpMargin); err != nil {
+		carryLogPreflightSkip(e.logger, "同所spot-perp", opp.Symbol, err.Error())
+		return SingleVenueSpotPerpPosition{}, err
+	}
+
 	if err := e.persistPosition(pos); err != nil {
 		return pos, err
 	}
 
-	takerBps := svspTakerSlippageBps(cfg)
 	spotID := svspLegClientID(idem, "s1")
 	spotRes, err := e.placeSVSPLegIOC(ctx, tr, venue.MarketSpot, sym, venue.SideBuy, qty, spotID, false, live, takerBps)
 	if orderStatusIsUnknown(spotRes) || isUnknownOrderStateError(err) {
@@ -448,7 +457,7 @@ func (e *SingleVenueSpotPerpExecutor) executeOpen(ctx context.Context, opp Unifi
 	}
 	if err != nil || spotRes.ExecutedQty <= executionQtyTolerance {
 		if spotRes.ExecutedQty > executionQtyTolerance {
-			e.rollbackSpotLeg(ctx, v, tr, sym, &pos, spotRes.ExecutedQty, live, idem)
+			e.rollbackSpotLeg(ctx, v, tr, sym, &pos, spotRes.ExecutedQty, live, idem, spotInstr)
 		}
 		return pos, fmt.Errorf("现货腿失败: %w", err)
 	}
@@ -466,18 +475,32 @@ func (e *SingleVenueSpotPerpExecutor) executeOpen(ctx context.Context, opp Unifi
 		e.notifyCritical("同所spot-perp查单未知", fmt.Sprintf("%s 永续腿查单失败,禁止自动回滚", opp.Symbol), opp.Symbol)
 		return pos, fmt.Errorf("永续腿状态未知,禁止自动回滚: %w", perpErr)
 	}
-	if perpErr != nil || !hedgeLegFullyFilled(perpRes.ExecutedQty, hedgeQty) {
-		e.rollbackSpotLeg(ctx, v, tr, sym, &pos, spotRes.ExecutedQty, live, idem)
+	refPrice := spotRes.AvgPrice
+	if refPrice <= 0 {
+		refPrice = 100
+	}
+	match := carryMatchTwoLegOpens(spotRes.ExecutedQty, perpRes.ExecutedQty, carryMinTradableQty(refPrice, perpInstr))
+	if perpErr != nil || !match.OK {
+		e.rollbackSpotLeg(ctx, v, tr, sym, &pos, spotRes.ExecutedQty, live, idem, spotInstr)
 		if perpRes.ExecutedQty > executionQtyTolerance {
 			e.rollbackPerpLeg(ctx, tr, sym, perpRes.ExecutedQty, live, idem)
 		}
-		e.logger.Printf("[同所spot-perp] %s 永续腿未足额成交(%.6f/%.6f),已回滚现货腿", opp.Symbol, perpRes.ExecutedQty, hedgeQty)
+		if match.Leg2Partial {
+			e.logger.Printf("[同所spot-perp] %s 永续腿未足额成交(%.6f/%.6f),已回滚现货腿", opp.Symbol, perpRes.ExecutedQty, hedgeQty)
+		}
 		return pos, fmt.Errorf("永续腿失败: %w", perpErr)
 	}
-	pos.PerpLeg.Qty = perpRes.ExecutedQty
+	if match.ExcessLeg1 > executionQtyTolerance {
+		e.rollbackSpotLeg(ctx, v, tr, sym, &pos, match.ExcessLeg1, live, idem, spotInstr)
+	}
+	if match.ExcessLeg2 > executionQtyTolerance {
+		e.rollbackPerpLeg(ctx, tr, sym, match.ExcessLeg2, live, idem)
+	}
+	pos.SpotLeg.Qty = match.MatchedQty
+	pos.PerpLeg.Qty = match.MatchedQty
 	pos.PerpLeg.EntryPrice = perpRes.AvgPrice
 	pos.PerpLeg.OrderIDs = []string{perpID}
-	pos.NotionalUSDT = hedgeQty * spotRes.AvgPrice
+	pos.NotionalUSDT = match.MatchedQty * spotRes.AvgPrice
 	pos.Status = SVSPStatusOpen
 	pos.TransitionState = "hold"
 	pos.UpdatedAt = e.nowFn()
@@ -496,12 +519,21 @@ func (e *SingleVenueSpotPerpExecutor) rollbackSpotLeg(
 	qty float64,
 	live bool,
 	idemPrefix string,
+	instr venue.Instrument,
 ) {
 	if qty <= executionQtyTolerance {
 		return
 	}
+	sellQty := carryResolveSpotSellQty(ctx, v, sym, qty, instr.StepSize)
+	if sellQty <= executionQtyTolerance {
+		if e.logger != nil {
+			e.logger.Printf("[同所spot-perp] 回滚现货 %s 可卖量=0(意图=%.6f),跳过", sym, qty)
+		}
+		e.verifyRollbackCleared(ctx, v, sym, string(sym))
+		return
+	}
 	id := svspLegClientID(idemPrefix, "rb")
-	res, err := e.placeSVSPLegIOC(ctx, tr, venue.MarketSpot, sym, venue.SideSell, qty, id, false, live, svspTakerSlippageBps(e.execCfg()))
+	res, err := e.placeSVSPLegIOC(ctx, tr, venue.MarketSpot, sym, venue.SideSell, sellQty, id, false, live, svspTakerSlippageBps(e.execCfg()))
 	if err != nil {
 		e.logger.Printf("[同所spot-perp] 回滚现货腿失败 %s: %v", sym, err)
 		e.notifyCritical("同所spot-perp回滚失败", fmt.Sprintf("%s 现货腿回滚失败: %v", sym, err), string(sym))
@@ -663,17 +695,27 @@ func (e *SingleVenueSpotPerpExecutor) manageOpeningContinuation(
 		if pos.SpotLeg.Qty > executionQtyTolerance {
 			hedgeQty = pos.SpotLeg.Qty
 		}
+		perpInstr := venue.Instrument{}
 		perpID := svspLegClientID(pos.IdemPrefix, "p2")
 		perpRes, err := e.placeSVSPLegIOC(ctx, tr, venue.MarketPerp, sym, venue.SideSell, hedgeQty, perpID, false, live, svspTakerSlippageBps(e.execCfg()))
 		if orderStatusIsUnknown(perpRes) {
 			e.notifyCritical("同所spot-perp查单未知", fmt.Sprintf("%s 续开永续腿查单失败", pos.Symbol), pos.Symbol)
 			return pos, false
 		}
-		if err != nil || !hedgeLegFullyFilled(perpRes.ExecutedQty, hedgeQty) {
+		refPrice := pos.SpotLeg.EntryPrice
+		if refPrice <= 0 {
+			refPrice = 100
+		}
+		match := carryMatchTwoLegOpens(hedgeQty, perpRes.ExecutedQty, carryMinTradableQty(refPrice, perpInstr))
+		if err != nil || !match.OK {
 			e.handleOrphanLeg(ctx, pos, true, false, live, spotQty, perpAmt)
 			return pos, false
 		}
-		pos.PerpLeg.Qty = perpRes.ExecutedQty
+		if match.ExcessLeg1 > executionQtyTolerance {
+			e.rollbackSpotLeg(ctx, v, tr, sym, &pos, match.ExcessLeg1, live, pos.IdemPrefix, perpInstr)
+		}
+		pos.SpotLeg.Qty = match.MatchedQty
+		pos.PerpLeg.Qty = match.MatchedQty
 		pos.PerpLeg.EntryPrice = perpRes.AvgPrice
 		pos.PerpLeg.OrderIDs = append(pos.PerpLeg.OrderIDs, perpID)
 		pos.Status = SVSPStatusOpen

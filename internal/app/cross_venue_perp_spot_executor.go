@@ -497,6 +497,11 @@ func (e *CrossVenuePerpSpotExecutor) executeOpen(ctx context.Context, opp Unifie
 		e.logger.Printf("[跨所perp-spot] %s 借币额度不足 max=%.6f need=%.6f,放弃机会", opp.Symbol, maxBorrow, qty)
 		return pos, fmt.Errorf("借币额度不足: max=%.6f need=%.6f", maxBorrow, qty)
 	}
+	perpMargin := rotationPerpMarginWithBuffer(e.cfg.CrossVenueExecutor, notional)
+	if err := carryPreflightSpotPerpOpen(ctx, e.venues, spotVenue, perpVenue, 0, perpMargin); err != nil {
+		carryLogPreflightSkip(e.logger, "跨所perp-spot", opp.Symbol, err.Error())
+		return CrossVenuePerpSpotPosition{}, err
+	}
 
 	if err := e.persistPosition(pos); err != nil {
 		return pos, err
@@ -550,7 +555,7 @@ func (e *CrossVenuePerpSpotExecutor) executeOpen(ctx context.Context, opp Unifie
 		e.notifyCritical("跨所perp-spot查单未知", fmt.Sprintf("%s 永续腿查单失败,禁止自动回滚", opp.Symbol), opp.Symbol)
 		return pos, fmt.Errorf("永续腿状态未知,禁止自动回滚: %w", perpErr)
 	}
-	if perpErr != nil || !hedgeLegFullyFilled(perpRes.ExecutedQty, hedgeQty) {
+	if perpErr != nil || perpRes.ExecutedQty <= executionQtyTolerance {
 		openFailed = true
 		e.rollbackFirstLeg(ctx, pos, spotV, spotTrader, sym, spotRes.ExecutedQty, live, spotInstr)
 		if perpRes.ExecutedQty > executionQtyTolerance {
@@ -558,16 +563,26 @@ func (e *CrossVenuePerpSpotExecutor) executeOpen(ctx context.Context, opp Unifie
 		}
 		return pos, fmt.Errorf("第二腿(多永续)未足额成交: %w", perpErr)
 	}
-	if crossVenueLegMismatch(spotRes.ExecutedQty, perpRes.ExecutedQty) > executionQtyTolerance {
+	match := carryMatchTwoLegOpens(spotRes.ExecutedQty, perpRes.ExecutedQty, carryMinTradableQty(refPrice, perpInstr))
+	if !match.OK {
 		openFailed = true
 		e.rollbackFirstLeg(ctx, pos, spotV, spotTrader, sym, spotRes.ExecutedQty, live, spotInstr)
-		return pos, fmt.Errorf("跨所腿量不匹配 spot=%.6f perp=%.6f", spotRes.ExecutedQty, perpRes.ExecutedQty)
+		if perpRes.ExecutedQty > executionQtyTolerance {
+			e.rollbackPerpLeg(ctx, perpTrader, sym, perpRes.ExecutedQty, live, perpInstr, perpContract)
+		}
+		return pos, fmt.Errorf("第二腿(多永续)未足额成交: spot=%.6f perp=%.6f", spotRes.ExecutedQty, perpRes.ExecutedQty)
+	}
+	if match.ExcessLeg1 > executionQtyTolerance {
+		e.rollbackFirstLeg(ctx, pos, spotV, spotTrader, sym, match.ExcessLeg1, live, spotInstr)
+	}
+	if match.ExcessLeg2 > executionQtyTolerance {
+		e.rollbackPerpLeg(ctx, perpTrader, sym, match.ExcessLeg2, live, perpInstr, perpContract)
 	}
 
-	pos.PerpLeg.Qty = perpRes.ExecutedQty
+	pos.PerpLeg.Qty = match.MatchedQty
 	pos.PerpLeg.EntryPrice = perpRes.AvgPrice
 	pos.PerpLeg.OrderIDs = []string{perpID}
-	bookQty := spotRes.ExecutedQty
+	bookQty := match.MatchedQty
 	pos.SpotLeg.Qty = bookQty
 	pos.PerpLeg.Qty = bookQty
 	if pos.NotionalUSDT <= 0 {
@@ -1189,6 +1204,12 @@ func (e *CrossVenuePerpSpotExecutor) reconcileTrackedPosition(ctx context.Contex
 	perpOpen := perpLong > executionQtyTolerance
 	if spotOpen != perpOpen {
 		e.handleOrphanLeg(ctx, pos, spotOpen, perpOpen, live, spotShort, perpLong)
+		return
+	}
+	if spotOpen && perpOpen {
+		if carryReconcileAdoptNegativeLegQtys(&pos, spotShort, perpLong, e.nowFn(), e.logger, "跨所perp-spot") {
+			_ = e.persistPosition(pos)
+		}
 	}
 }
 

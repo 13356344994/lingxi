@@ -352,10 +352,9 @@ func crossVenueSamePosition(a, b CrossVenuePosition) bool {
 }
 
 func crossVenueHasTrackedLeg(ps []CrossVenuePosition, venueName string, sym venue.Symbol) bool {
-	wantSymbol := string(sym)
 	wantVenue := strings.TrimSpace(venueName)
 	for _, p := range activeCrossVenuePositions(ps) {
-		if p.Symbol != wantSymbol {
+		if !venueSymbolsMatch(venue.Symbol(p.Symbol), sym) {
 			continue
 		}
 		if strings.TrimSpace(p.HighVenue) == wantVenue || strings.TrimSpace(p.LowVenue) == wantVenue {
