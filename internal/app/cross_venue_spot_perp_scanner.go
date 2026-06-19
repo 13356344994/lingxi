@@ -1,6 +1,7 @@
 package app
 
 import (
+	"log"
 	"math"
 	"path/filepath"
 	"sort"
@@ -108,6 +109,64 @@ type CrossVenueSpotPerpScanInput struct {
 	FundingRateVolPerHourByVenue map[string]map[string]float64
 }
 
+// crossVenueCarryFunnelStats 跨所 carry 扫描漏斗计数(每轮 rollup 一次,非逐候选刷屏)。
+type crossVenueCarryFunnelStats struct {
+	Tag string
+
+	SymbolsSeen        int
+	NoSpotVenues       int
+	NoPerpVenues       int
+	NoBestPerp         int
+	PairSkipSameVenue  int
+	PairAttempts       int
+	BuildMarketInvalid int
+	BuildInstrument    int
+	BuildMidDev        int
+	BuildNotional      int
+	BuildMarginStress  int
+	BuildHoldHours     int
+	BuildSettlements   int
+	BuildFundingWindow int
+	BuildFundingEV     int
+	BuildConfSizing    int
+	BuildNotBorrowable int
+
+	Emitted         int
+	EmittedRejected int
+	EmittedTradable int
+}
+
+func (s *crossVenueCarryFunnelStats) recordEmit(opp UnifiedOpportunity) {
+	if s == nil {
+		return
+	}
+	s.Emitted++
+	if len(opp.RejectReasons) == 0 {
+		s.EmittedTradable++
+		return
+	}
+	s.EmittedRejected++
+}
+
+func logCrossVenueCarryFunnel(stats crossVenueCarryFunnelStats) {
+	crossVenueCarryFunnelLogFn(stats)
+}
+
+// crossVenueCarryFunnelLogFn 默认写标准 log;单测可临时替换以避免并行测试竞态。
+var crossVenueCarryFunnelLogFn = func(stats crossVenueCarryFunnelStats) {
+	log.Printf(
+		"[carry-funnel] %s symbols=%d no_spot_venues=%d no_perp_venues=%d no_best_perp=%d pair_skip_same_venue=%d pair_attempts=%d "+
+			"build_market=%d build_instrument=%d build_mid_dev=%d build_notional=%d build_margin_stress=%d build_hold_hours=%d build_settlements=%d "+
+			"build_funding_window=%d build_funding_ev=%d build_conf_sizing=%d build_not_borrowable=%d emitted=%d emitted_rejected=%d emitted_tradable=%d",
+		stats.Tag,
+		stats.SymbolsSeen, stats.NoSpotVenues, stats.NoPerpVenues, stats.NoBestPerp, stats.PairSkipSameVenue, stats.PairAttempts,
+		stats.BuildMarketInvalid, stats.BuildInstrument, stats.BuildMidDev, stats.BuildNotional, stats.BuildMarginStress,
+		stats.BuildHoldHours, stats.BuildSettlements,
+		stats.BuildFundingWindow, stats.BuildFundingEV, stats.BuildConfSizing, stats.BuildNotBorrowable,
+		stats.Emitted, stats.EmittedRejected, stats.EmittedTradable,
+	)
+}
+
 // ScanCrossVenueSpotPerpOpportunities 扫描跨所 spot-perp 机会(纯函数, plan-only)。
 // v1: 仅正费率 carry(A 所买现货 + B 所空永续), 不借币、不做空现货。
 func ScanCrossVenueSpotPerpOpportunities(in CrossVenueSpotPerpScanInput) []UnifiedOpportunity {
@@ -122,36 +181,48 @@ func ScanCrossVenueSpotPerpOpportunities(in CrossVenueSpotPerpScanInput) []Unifi
 	}
 
 	out := make([]UnifiedOpportunity, 0)
+	funnel := crossVenueCarryFunnelStats{Tag: "cvsp"}
 	drops := newScannerInstrumentDropLog()
 	for _, sym := range symbols {
 		sym = strings.TrimSpace(sym)
 		if sym == "" {
 			continue
 		}
+		funnel.SymbolsSeen++
 		spotVenues := crossVenueSpotPerpSpotBuyVenues(in.MarketsByVenue, sym, drops)
 		perpVenues := crossVenueSpotPerpPositivePerpVenues(in.FundingByVenue, in.MarketsByVenue, sym, drops)
-		if len(spotVenues) == 0 || len(perpVenues) == 0 {
+		if len(spotVenues) == 0 {
+			funnel.NoSpotVenues++
+			continue
+		}
+		if len(perpVenues) == 0 {
+			funnel.NoPerpVenues++
 			continue
 		}
 		bestPerpVenue, bestRate := crossVenueSpotPerpBestPositivePerpVenue(perpVenues)
 		if bestPerpVenue == "" || bestRate <= 0 {
+			funnel.NoBestPerp++
 			continue
 		}
 		for _, spotVenue := range spotVenues {
 			if spotVenue == bestPerpVenue {
+				funnel.PairSkipSameVenue++
 				continue
 			}
+			funnel.PairAttempts++
 			opp, ok := buildCrossVenueSpotPerpOpportunity(
 				in.SnapshotID, now, sym, spotVenue, bestPerpVenue,
 				in.FundingByVenue, in.MarketsByVenue, in.AvailableUSDTByVenue, cfg,
-				in.FundingRateVolPerHourByVenue,
+				in.FundingRateVolPerHourByVenue, &funnel,
 			)
 			if ok {
 				out = append(out, opp)
+				funnel.recordEmit(opp)
 			}
 		}
 	}
 
+	logCrossVenueCarryFunnel(funnel)
 	sort.Slice(out, func(i, j int) bool {
 		if out[i].ExpectedNetEVUSDT == out[j].ExpectedNetEVUSDT {
 			return out[i].ID < out[j].ID
@@ -358,20 +429,30 @@ func buildCrossVenueSpotPerpOpportunity(
 	available map[string]float64,
 	cfg CrossVenueSpotPerpScannerConfig,
 	fundingVolByVenue map[string]map[string]float64,
+	funnel *crossVenueCarryFunnelStats,
 ) (UnifiedOpportunity, bool) {
 	spotMkt := markets[spotVenue][symbol]
 	perpMkt := markets[perpVenue][symbol]
 	fund := funding[perpVenue][symbol]
 
 	if !spotMkt.HasSpot || spotMkt.SpotMid <= 0 || !perpMkt.HasPerp || perpMkt.PerpMid <= 0 || fund.Rate <= 0 {
+		if funnel != nil {
+			funnel.BuildMarketInvalid++
+		}
 		return UnifiedOpportunity{}, false
 	}
 	if !scannerBothLegsInstrumentValid(spotMkt, perpMkt) {
+		if funnel != nil {
+			funnel.BuildInstrument++
+		}
 		return UnifiedOpportunity{}, false
 	}
 
 	midDev := math.Abs(perpMkt.PerpMid/spotMkt.SpotMid - 1)
 	if midDev > cfg.Exec.MidPriceDeviationMax {
+		if funnel != nil {
+			funnel.BuildMidDev++
+		}
 		return UnifiedOpportunity{}, false
 	}
 
@@ -380,11 +461,17 @@ func buildCrossVenueSpotPerpOpportunity(
 		func(v string) float64 { return crossVenueSpotPerpVenueReserve(v, cfg) },
 	)
 	if notional <= 0 {
-		return UnifiedOpportunity{}, false
+		if funnel != nil {
+			funnel.BuildNotional++
+		}
+		return crossVenueSpotPerpRejectedOpportunity(snapshotID, symbol, spotVenue, perpVenue, singleVenueSpotPerpRejectInsufficientDepth, fund, now, fund.Rate), true
 	}
 
 	if crossVenueSpotPerpPerpLiquidatedAtShock(cfg, notional) {
-		return UnifiedOpportunity{}, false
+		if funnel != nil {
+			funnel.BuildMarginStress++
+		}
+		return crossVenueSpotPerpRejectedOpportunity(snapshotID, symbol, spotVenue, perpVenue, singleVenueSpotPerpRejectMarginStress, fund, now, fund.Rate), true
 	}
 
 	holdHours := cfg.ExpectedHoldHours
@@ -392,11 +479,17 @@ func buildCrossVenueSpotPerpOpportunity(
 		holdHours = crossVenueSpotPerpExpectedHoldHours(now, fund)
 	}
 	if holdHours <= 0 {
+		if funnel != nil {
+			funnel.BuildHoldHours++
+		}
 		return UnifiedOpportunity{}, false
 	}
 
 	settlements := crossVenueSpotPerpFundingSettlementCount(now, holdHours, fund.IntervalHours, fund.NextFundingTime)
 	if settlements <= 0 {
+		if funnel != nil {
+			funnel.BuildSettlements++
+		}
 		return UnifiedOpportunity{}, false
 	}
 
@@ -411,13 +504,24 @@ func buildCrossVenueSpotPerpOpportunity(
 
 	vol, volOK := carryFundingVolFromMap(fundingVolByVenue, perpVenue, symbol)
 	entrySlippage := carryScannerEntrySlippageUSDT(cfg, notional, spotMkt, perpMkt)
-	if ok, _ := carryScannerFundingEntryEligible(now, fund, holdHours, notional, effectiveRate, expectedBasisPnL, openCost, entrySlippage, cfg.Exec.FundingEntryGate(), vol, volOK); !ok {
+	if ok, reason := carryScannerFundingEntryEligible(now, fund, holdHours, notional, effectiveRate, expectedBasisPnL, openCost, entrySlippage, cfg.Exec.FundingEntryGate(), vol, volOK); !ok {
+		if funnel != nil {
+			switch reason {
+			case carryScannerRejectFundingWindowNotReached:
+				funnel.BuildFundingWindow++
+			default:
+				funnel.BuildFundingEV++
+			}
+		}
 		return UnifiedOpportunity{}, false
 	}
 
 	maxNotional := notional
 	notional, _, ok := carrySizedNotionalAfterConfidence(maxNotional, cfg.Exec, fund, vol, volOK)
 	if !ok {
+		if funnel != nil {
+			funnel.BuildConfSizing++
+		}
 		return UnifiedOpportunity{}, false
 	}
 
@@ -490,6 +594,12 @@ func buildCrossVenueSpotPerpOpportunity(
 	}
 	applyUnifiedFundingSnapDisplay(&opp, fund, now, fund.Rate)
 	return opp, true
+}
+
+func crossVenueSpotPerpRejectedOpportunity(snapshotID, symbol, spotVenue, perpVenue, reason string, fund CrossVenueSpotPerpFundingSnap, now time.Time, displayRate float64) UnifiedOpportunity {
+	return unifiedRejectedOpportunityWithFunding(
+		UnifiedStrategyCrossVenueSpotPerp, snapshotID, symbol, spotVenue, perpVenue, reason, fund, now, displayRate,
+	)
 }
 
 func crossVenueSpotPerpTradableNotional(cfg CrossVenueSpotPerpScannerConfig, spotMkt, perpMkt CrossVenueSpotPerpMarketSnap) float64 {

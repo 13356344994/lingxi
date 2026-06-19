@@ -285,6 +285,45 @@ type carryUntrackedLeg struct {
 	ReduceOnly bool
 }
 
+// carryUntrackedLegMaterialOrRecordDust 材料级未登记腿才返回 true;低于 dust 阈值只记 dust_ledger 并打 debug 日志。
+func carryUntrackedLegMaterialOrRecordDust(
+	ctx context.Context,
+	cfg CrossVenueExecutorConfig,
+	recordDir string,
+	logger *log.Logger,
+	venues map[string]venue.Venue,
+	leg carryUntrackedLeg,
+) bool {
+	v := venues[leg.Venue]
+	sym := venue.Symbol(leg.Symbol)
+	minN := venueInstrumentMinNotional(ctx, v, leg.Symbol, leg.Market)
+	threshold := effectiveDustThresholdUSDT(cfg, minN)
+	notional := legNotionalUSDT(ctx, v, sym, leg.Market, leg.Qty, 0)
+	if notional > 0 && notional < threshold {
+		appendCarryDustLedgerBestEffort(recordDir, "untracked_scan", leg.Symbol, baseAssetFromCanonicalSymbol(leg.Symbol), leg.Qty, notional, "carry_untracked_dust")
+		if logger != nil {
+			logger.Printf("[carry-dust] reconcile skip untracked dust: venue=%s market=%s %s qty≈%.8f notional≈$%.4f threshold=$%.2f",
+				leg.Venue, leg.Market, leg.Symbol, leg.Qty, notional, threshold)
+		}
+		return false
+	}
+	return true
+}
+
+func carryAppendMaterialUntrackedLeg(
+	ctx context.Context,
+	cfg CrossVenueExecutorConfig,
+	recordDir string,
+	logger *log.Logger,
+	venues map[string]venue.Venue,
+	leg carryUntrackedLeg,
+	out *[]carryUntrackedLeg,
+) {
+	if carryUntrackedLegMaterialOrRecordDust(ctx, cfg, recordDir, logger, venues, leg) {
+		*out = append(*out, leg)
+	}
+}
+
 func carryPerpLegOwnedByPerpPerp(recordDir, venueName string, sym venue.Symbol) bool {
 	recordDir = strings.TrimSpace(recordDir)
 	if recordDir == "" {
@@ -311,7 +350,7 @@ func carryPerpLegSkipUntrackedScan(recordDir, venueName string, sym venue.Symbol
 	return carryPerpLegOwnedByPerpPerp(recordDir, venueName, sym)
 }
 
-func carryScanUntrackedSVSPLegs(ctx context.Context, recordDir string, venues map[string]venue.Venue, ps []SingleVenueSpotPerpPosition) []carryUntrackedLeg {
+func carryScanUntrackedSVSPLegs(ctx context.Context, cfg CrossVenueExecutorConfig, recordDir string, logger *log.Logger, venues map[string]venue.Venue, ps []SingleVenueSpotPerpPosition) []carryUntrackedLeg {
 	var out []carryUntrackedLeg
 	for name, v := range venues {
 		if v == nil {
@@ -327,7 +366,7 @@ func carryScanUntrackedSVSPLegs(ctx context.Context, recordDir string, venues ma
 				if sym == "" || carryPerpLegSkipUntrackedScan(recordDir, name, ep.Symbol, svspHasTrackedSymbolVenue(ps, name, sym)) {
 					continue
 				}
-				out = append(out, carryUntrackedLeg{Venue: name, Symbol: sym, Market: venue.MarketPerp, Qty: absQty(ep.PositionAmt), Side: venue.SideBuy, ReduceOnly: true})
+				carryAppendMaterialUntrackedLeg(ctx, cfg, recordDir, logger, venues, carryUntrackedLeg{Venue: name, Symbol: sym, Market: venue.MarketPerp, Qty: absQty(ep.PositionAmt), Side: venue.SideBuy, ReduceOnly: true}, &out)
 			}
 		}
 		bal, err := v.FetchBalances(ctx)
@@ -342,13 +381,13 @@ func carryScanUntrackedSVSPLegs(ctx context.Context, recordDir string, venues ma
 			if sym == "" || svspHasTrackedSymbolVenue(ps, name, sym) {
 				continue
 			}
-			out = append(out, carryUntrackedLeg{Venue: name, Symbol: sym, Market: venue.MarketSpot, Qty: b.Free, Side: venue.SideSell, ReduceOnly: false})
+			carryAppendMaterialUntrackedLeg(ctx, cfg, recordDir, logger, venues, carryUntrackedLeg{Venue: name, Symbol: sym, Market: venue.MarketSpot, Qty: b.Free, Side: venue.SideSell, ReduceOnly: false}, &out)
 		}
 	}
 	return out
 }
 
-func carryScanUntrackedSVPSLegs(ctx context.Context, recordDir string, venues map[string]venue.Venue, ps []SingleVenuePerpSpotPosition) []carryUntrackedLeg {
+func carryScanUntrackedSVPSLegs(ctx context.Context, cfg CrossVenueExecutorConfig, recordDir string, logger *log.Logger, venues map[string]venue.Venue, ps []SingleVenuePerpSpotPosition) []carryUntrackedLeg {
 	var out []carryUntrackedLeg
 	for name, v := range venues {
 		if v == nil {
@@ -364,7 +403,7 @@ func carryScanUntrackedSVPSLegs(ctx context.Context, recordDir string, venues ma
 				if sym == "" || carryPerpLegSkipUntrackedScan(recordDir, name, ep.Symbol, svpsHasTrackedSymbolVenue(ps, name, sym)) {
 					continue
 				}
-				out = append(out, carryUntrackedLeg{Venue: name, Symbol: sym, Market: venue.MarketPerp, Qty: ep.PositionAmt, Side: venue.SideSell, ReduceOnly: true})
+				carryAppendMaterialUntrackedLeg(ctx, cfg, recordDir, logger, venues, carryUntrackedLeg{Venue: name, Symbol: sym, Market: venue.MarketPerp, Qty: ep.PositionAmt, Side: venue.SideSell, ReduceOnly: true}, &out)
 			}
 		}
 		bal, err := v.FetchBalances(ctx)
@@ -383,13 +422,13 @@ func carryScanUntrackedSVPSLegs(ctx context.Context, recordDir string, venues ma
 			if sym == "" || svpsHasTrackedSymbolVenue(ps, name, sym) {
 				continue
 			}
-			out = append(out, carryUntrackedLeg{Venue: name, Symbol: sym, Market: venue.MarketSpot, Qty: short, Side: venue.SideBuy, ReduceOnly: false})
+			carryAppendMaterialUntrackedLeg(ctx, cfg, recordDir, logger, venues, carryUntrackedLeg{Venue: name, Symbol: sym, Market: venue.MarketSpot, Qty: short, Side: venue.SideBuy, ReduceOnly: false}, &out)
 		}
 	}
 	return out
 }
 
-func carryScanUntrackedCVSPLegs(ctx context.Context, recordDir string, venues map[string]venue.Venue, ps []CrossVenueSpotPerpPosition) []carryUntrackedLeg {
+func carryScanUntrackedCVSPLegs(ctx context.Context, cfg CrossVenueExecutorConfig, recordDir string, logger *log.Logger, venues map[string]venue.Venue, ps []CrossVenueSpotPerpPosition) []carryUntrackedLeg {
 	var out []carryUntrackedLeg
 	for name, v := range venues {
 		if v == nil {
@@ -405,7 +444,7 @@ func carryScanUntrackedCVSPLegs(ctx context.Context, recordDir string, venues ma
 				if sym == "" || carryPerpLegSkipUntrackedScan(recordDir, name, ep.Symbol, cvspHasTrackedLeg(ps, name, sym)) {
 					continue
 				}
-				out = append(out, carryUntrackedLeg{Venue: name, Symbol: sym, Market: venue.MarketPerp, Qty: absQty(ep.PositionAmt), Side: venue.SideBuy, ReduceOnly: true})
+				carryAppendMaterialUntrackedLeg(ctx, cfg, recordDir, logger, venues, carryUntrackedLeg{Venue: name, Symbol: sym, Market: venue.MarketPerp, Qty: absQty(ep.PositionAmt), Side: venue.SideBuy, ReduceOnly: true}, &out)
 			}
 		}
 		bal, err := v.FetchBalances(ctx)
@@ -420,13 +459,13 @@ func carryScanUntrackedCVSPLegs(ctx context.Context, recordDir string, venues ma
 			if sym == "" || cvspHasTrackedLeg(ps, name, sym) {
 				continue
 			}
-			out = append(out, carryUntrackedLeg{Venue: name, Symbol: sym, Market: venue.MarketSpot, Qty: b.Free, Side: venue.SideSell, ReduceOnly: false})
+			carryAppendMaterialUntrackedLeg(ctx, cfg, recordDir, logger, venues, carryUntrackedLeg{Venue: name, Symbol: sym, Market: venue.MarketSpot, Qty: b.Free, Side: venue.SideSell, ReduceOnly: false}, &out)
 		}
 	}
 	return out
 }
 
-func carryScanUntrackedCVPSLegs(ctx context.Context, recordDir string, venues map[string]venue.Venue, ps []CrossVenuePerpSpotPosition) []carryUntrackedLeg {
+func carryScanUntrackedCVPSLegs(ctx context.Context, cfg CrossVenueExecutorConfig, recordDir string, logger *log.Logger, venues map[string]venue.Venue, ps []CrossVenuePerpSpotPosition) []carryUntrackedLeg {
 	var out []carryUntrackedLeg
 	for name, v := range venues {
 		if v == nil {
@@ -442,7 +481,7 @@ func carryScanUntrackedCVPSLegs(ctx context.Context, recordDir string, venues ma
 				if sym == "" || carryPerpLegSkipUntrackedScan(recordDir, name, ep.Symbol, cvpsHasTrackedLeg(ps, name, sym)) {
 					continue
 				}
-				out = append(out, carryUntrackedLeg{Venue: name, Symbol: sym, Market: venue.MarketPerp, Qty: ep.PositionAmt, Side: venue.SideSell, ReduceOnly: true})
+				carryAppendMaterialUntrackedLeg(ctx, cfg, recordDir, logger, venues, carryUntrackedLeg{Venue: name, Symbol: sym, Market: venue.MarketPerp, Qty: ep.PositionAmt, Side: venue.SideSell, ReduceOnly: true}, &out)
 			}
 		}
 		bal, err := v.FetchBalances(ctx)
@@ -461,7 +500,7 @@ func carryScanUntrackedCVPSLegs(ctx context.Context, recordDir string, venues ma
 			if sym == "" || cvpsHasTrackedLeg(ps, name, sym) {
 				continue
 			}
-			out = append(out, carryUntrackedLeg{Venue: name, Symbol: sym, Market: venue.MarketSpot, Qty: short, Side: venue.SideBuy, ReduceOnly: false})
+			carryAppendMaterialUntrackedLeg(ctx, cfg, recordDir, logger, venues, carryUntrackedLeg{Venue: name, Symbol: sym, Market: venue.MarketSpot, Qty: short, Side: venue.SideBuy, ReduceOnly: false}, &out)
 		}
 	}
 	return out

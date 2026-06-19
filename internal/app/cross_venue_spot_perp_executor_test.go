@@ -467,7 +467,8 @@ func TestCrossVenueSpotPerpReconcileUntrackedPerpFlatten(t *testing.T) {
 	e := testCVSPExecutor(t, dir, spot, perp)
 	e.cfg.CrossVenueExecutor.LiveTradingEnabled = true
 	e.cfg.CrossVenueExecutor.UntrackedExposureAction = "flatten"
-	perp.positions = []venue.Position{{Symbol: "BTC-USDT", PositionAmt: -0.01, EntryPrice: 100}}
+	// 名义需高于 dust 阈值(N-2)才算"材料级"未登记腿并触发 flatten;0.5×100=50U。
+	perp.positions = []venue.Position{{Symbol: "BTC-USDT", PositionAmt: -0.5, EntryPrice: 100}}
 	e.reconcileOnStart(context.Background(), true)
 	var sawClose bool
 	for _, req := range perp.placeRequests {

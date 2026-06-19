@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"lingxi/internal/money"
@@ -50,6 +51,8 @@ type SingleVenueSpotPerpExecutor struct {
 
 	rollbackBlockedMu sync.Mutex
 	rollbackBlocked   map[string]time.Time
+
+	openingsEnabled atomic.Bool // 未登记材料级敞口 halt 时禁止新开
 }
 
 // NewSingleVenueSpotPerpExecutor 构造执行器;venues 由调用方注入便于单测。
@@ -75,6 +78,7 @@ func NewSingleVenueSpotPerpExecutor(cfg EngineConfig, venues map[string]venue.Ve
 		deadManLastArm:           make(map[string]time.Time),
 		rollbackBlocked:          make(map[string]time.Time),
 	}
+	e.openingsEnabled.Store(true)
 	if store != nil {
 		if ps, lerr := store.load(); lerr == nil {
 			e.positions = ps
@@ -376,6 +380,9 @@ func (e *SingleVenueSpotPerpExecutor) placeSVSPCloseLegIOC(
 
 // executeOpen 腿1买现货→腿2空永续;腿2失败回滚腿1(卖回现货)。
 func (e *SingleVenueSpotPerpExecutor) executeOpen(ctx context.Context, opp UnifiedOpportunity, live bool) (SingleVenueSpotPerpPosition, error) {
+	if !e.OpeningsEnabled() {
+		return SingleVenueSpotPerpPosition{}, fmt.Errorf("同所spot-perp 未登记敞口 halt,禁止新开")
+	}
 	venueName, qty, notional, err := parseSingleVenueSpotPerpOpportunity(opp)
 	if err != nil {
 		return SingleVenueSpotPerpPosition{}, err
@@ -1194,6 +1201,14 @@ func (e *SingleVenueSpotPerpExecutor) notifyCritical(title, msg, symbol string) 
 	}
 }
 
+// OpeningsEnabled 返回运行时开仓开关;未登记材料级敞口 halt 后为 false。
+func (e *SingleVenueSpotPerpExecutor) OpeningsEnabled() bool {
+	if e == nil {
+		return false
+	}
+	return e.openingsEnabled.Load()
+}
+
 func (e *SingleVenueSpotPerpExecutor) armDeadManForPerpVenue(ctx context.Context, venueName string, live bool) {
 	armDeadMansForVenueNames(
 		ctx, e.cfg, e.venues, e.logger, e.nowFn,
@@ -1329,26 +1344,32 @@ func (e *SingleVenueSpotPerpExecutor) reconcileOnStart(ctx context.Context, live
 }
 
 func (e *SingleVenueSpotPerpExecutor) reconcileUntrackedExposureOnStart(ctx context.Context, ps []SingleVenueSpotPerpPosition, live bool) {
-	untracked := carryScanUntrackedSVSPLegs(ctx, e.recordDir, e.venues, ps)
+	cfg := e.execCfg()
+	untracked := carryScanUntrackedSVSPLegs(ctx, cfg, e.recordDir, e.logger, e.venues, ps)
 	if len(untracked) == 0 {
 		return
 	}
-	action := crossVenueUntrackedExposureAction(e.execCfg())
+	action := crossVenueUntrackedExposureAction(cfg)
 	for _, leg := range untracked {
 		e.logger.Printf("[同所spot-perp] reconcile: venue=%s 未登记 %s %s≈%.6f", leg.Venue, leg.Market, leg.Symbol, leg.Qty)
 	}
+	shouldHalt := true
 	switch action {
 	case crossVenueRecoveryActionFlatten:
-		if !e.execCfg().LiveTradingEnabled {
+		if !cfg.LiveTradingEnabled {
 			e.notifyCritical("同所spot-perp冷启动", "检测到未登记真实持仓,flatten 需 live", "")
-			return
+		} else {
+			shouldHalt = false
+			for _, leg := range untracked {
+				e.flattenUntrackedLeg(ctx, leg, live)
+			}
+			e.notifyCritical("同所spot-perp冷启动 flatten", fmt.Sprintf("已对 %d 条未登记腿执行 flatten", len(untracked)), "")
 		}
-		for _, leg := range untracked {
-			e.flattenUntrackedLeg(ctx, leg, live)
-		}
-		e.notifyCritical("同所spot-perp冷启动 flatten", fmt.Sprintf("已对 %d 条未登记腿执行 flatten", len(untracked)), "")
 	default:
 		e.notifyCritical("同所spot-perp冷启动", fmt.Sprintf("检测到 %d 条未登记真实持仓,已 halt 待人工确认", len(untracked)), "")
+	}
+	if shouldHalt {
+		e.openingsEnabled.Store(false)
 	}
 }
 

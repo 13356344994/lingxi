@@ -213,6 +213,26 @@
 
 ---
 
+## 重启后监控新发现(2026-06-20 部署后实盘监控,第三批已处理)
+
+### 🔴 核心结论(数据,监控 D)——当前最重要的判断
+> **这是"机会问题",不是"参数/实现问题"。** 旷钮全松(capture 1.0 / dust 0.01 / MinOpenNotional 5)后:**48,641 条候选 + 960 条 perp-perp 扫描 = 0 条正 EV、0 条 would_execute。**
+> - carry 三类"真候选"100% 死在 instrument 覆盖(无现货 70%+ / 不可借 89–98%)或深度,**根本到不了 EV 层**。
+> - perp-perp 960 条全负(最佳 -0.0019U):杀手是**滑点 × 小 notional(~5U)**,spread_ev 只有 slippage 的 ~1.9%。
+> - 历史:6/13–14 有 22 笔 realized_funding>0(系统能捕机会),6/16 起市场枯竭。
+> **含义:松参数救不了。破局靠扩可执行宇宙(扩所/扩借币/修现货覆盖)+ 等 funding 极端行情 + 提高有效 notional/收窄滑点,或承认当前无 edge、等行情。**
+
+| ID | 状态 | 说明 |
+|---|---|---|
+| **N-1** | ✅已修 | P1-7 孤腿 halt 原为"空喊"(只 log 不拉闸);现接控制面 `openingsEnabled`,材料级未登记腿真禁开 |
+| **N-2** | ✅已修 | 孤腿扫描加 dust 过滤(`notional ≥ effectiveDustThresholdUSDT`),26 条尘埃→仅 1 条材料级(MNT) |
+| **N-3** | ✅已修 | config `untracked_exposure_action: flatten`——重启后对材料级未登记腿(当前仅 MNT≈$9.7)IOC 清仓 |
+| **N-4** | ◐诊断+部分修 | cvsp/cvps=0 经查为**结构性无候选(非 bug)**:小币多单所挂牌、跨所异所配对天然产不出;已加 `[carry-funnel]` 逐关日志 + 修 cvsp 静默丢弃(可审计) |
+| **N-5** | ✅已修 | 复合分无效根因(filter 期无 24h volume,退化纯 funding)已修:预拉 top-300 volume + log1p 权重 + 薄币降权 |
+| **N-7** | ✅已修 | 重启后 ~22min 无决策:改为 funding 四所拉完即发布 snapshot、depth 延后到 top-N;首个决策从 ~20min 降到 ~1–2min |
+
+> 注:N-6(松旷钮未解锁开仓)已被核心结论吸收——确认是机会问题。全包 `go build/vet/test` 通过。
+
 ## 附:本次已修复清单(commit `1d42eba`)
 
 1. 开仓择优改按收益率(`unifiedWindowScore`)+ 最小仓位下限

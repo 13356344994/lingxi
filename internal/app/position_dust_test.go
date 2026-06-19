@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -144,9 +145,11 @@ func TestCarryEVWeakFundingCloseAllowed(t *testing.T) {
 func TestCarryScanUntrackedSVSPPerpLeg(t *testing.T) {
 	ctx := context.Background()
 	dir := t.TempDir()
+	cfg := CrossVenueExecutorConfig{DustCloseThresholdUSDT: 1.0}
+	logger := testSVSPLogger()
 	v := newSVSPTestVenue("binance")
 	v.positions = []venue.Position{{Symbol: "BTC-USDT", PositionAmt: -0.5, MarkPrice: 100, EntryPrice: 100, Leverage: 2}}
-	legs := carryScanUntrackedSVSPLegs(ctx, dir, map[string]venue.Venue{"binance": v}, nil)
+	legs := carryScanUntrackedSVSPLegs(ctx, cfg, dir, logger, map[string]venue.Venue{"binance": v}, nil)
 	if len(legs) != 1 || legs[0].Market != venue.MarketPerp {
 		t.Fatalf("expected 1 untracked perp leg, got %+v", legs)
 	}
@@ -160,9 +163,37 @@ func TestCarryScanUntrackedSVSPPerpLeg(t *testing.T) {
 		OpenedAt: now, UpdatedAt: now, IdemPrefix: "tracked",
 	})
 	ps, _ := store.load()
-	legs2 := carryScanUntrackedSVSPLegs(ctx, dir, map[string]venue.Venue{"binance": v}, ps)
+	legs2 := carryScanUntrackedSVSPLegs(ctx, cfg, dir, logger, map[string]venue.Venue{"binance": v}, ps)
 	if len(legs2) != 0 {
 		t.Fatalf("tracked symbol should be skipped, got %+v", legs2)
+	}
+}
+
+func TestCarryScanUntrackedSVSPFiltersDustSpotLeg(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	cfg := CrossVenueExecutorConfig{DustCloseThresholdUSDT: 1.0}
+	logger := testSVSPLogger()
+	v := newSVSPTestVenue("bybit")
+	v.book = venue.BookTicker{BidPrice: 0.49, AskPrice: 0.51}
+	v.spotBalances["MNT"] = 0.001 // notional ≈ $0.0005 < $1 dust threshold
+	legs := carryScanUntrackedSVSPLegs(ctx, cfg, dir, logger, map[string]venue.Venue{"bybit": v}, nil)
+	if len(legs) != 0 {
+		t.Fatalf("dust spot leg should be filtered, got %+v", legs)
+	}
+	ledgerPath := filepath.Join(dir, "dust_ledger.json")
+	records, err := readJSONFile[DustLedgerRecord](ledgerPath)
+	if err != nil || len(records) != 1 {
+		t.Fatalf("expected dust ledger record, err=%v records=%+v", err, records)
+	}
+	if records[0].Reason != "carry_untracked_dust" {
+		t.Fatalf("ledger reason = %q, want carry_untracked_dust", records[0].Reason)
+	}
+
+	v.spotBalances["MNT"] = 18.43 // MNT≈$9.7 material
+	legs = carryScanUntrackedSVSPLegs(ctx, cfg, dir, logger, map[string]venue.Venue{"bybit": v}, nil)
+	if len(legs) != 1 || legs[0].Symbol != "MNT-USDT" {
+		t.Fatalf("material MNT leg should remain, got %+v", legs)
 	}
 }
 

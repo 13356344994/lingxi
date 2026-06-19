@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"lingxi/internal/core"
@@ -47,6 +48,8 @@ type CrossVenueSpotPerpExecutor struct {
 	rollbackBlocked   map[string]time.Time
 
 	openQuarantine *openFailureQuarantine
+
+	openingsEnabled atomic.Bool // 未登记材料级敞口 halt 时禁止新开
 }
 
 // NewCrossVenueSpotPerpExecutor 构造执行引擎;默认 plan,不下真单。
@@ -76,6 +79,7 @@ func NewCrossVenueSpotPerpExecutor(cfg EngineConfig, venues map[string]venue.Ven
 		rollbackBlocked:          make(map[string]time.Time),
 		openQuarantine:           newOpenFailureQuarantine(time.Now),
 	}
+	e.openingsEnabled.Store(true)
 	if store != nil {
 		if ps, lerr := store.load(); lerr == nil {
 			e.positions = ps
@@ -204,6 +208,14 @@ func (e *CrossVenueSpotPerpExecutor) notifyCritical(title, msg, symbol string) {
 	if e.logger != nil {
 		e.logger.Printf("[CRITICAL][跨所spot-perp] %s: %s (%s)", title, msg, symbol)
 	}
+}
+
+// OpeningsEnabled 返回运行时开仓开关;未登记材料级敞口 halt 后为 false。
+func (e *CrossVenueSpotPerpExecutor) OpeningsEnabled() bool {
+	if e == nil {
+		return false
+	}
+	return e.openingsEnabled.Load()
 }
 
 func (e *CrossVenueSpotPerpExecutor) armDeadManForPerpVenue(ctx context.Context, venueName string, live bool) {
@@ -409,6 +421,9 @@ func (e *CrossVenueSpotPerpExecutor) placeCVSPCloseLegExec(
 
 // executeOpen 先开 B 所空永续,再开 A 所买现货;第二腿失败回滚第一腿。
 func (e *CrossVenueSpotPerpExecutor) executeOpen(ctx context.Context, opp UnifiedOpportunity, live bool) (CrossVenueSpotPerpPosition, error) {
+	if !e.OpeningsEnabled() {
+		return CrossVenueSpotPerpPosition{}, fmt.Errorf("跨所spot-perp 未登记敞口 halt,禁止新开")
+	}
 	spotVenue, perpVenue, qty, notional, err := parseCrossVenueSpotPerpLegs(opp)
 	if err != nil {
 		return CrossVenueSpotPerpPosition{}, err
@@ -1179,26 +1194,32 @@ func (e *CrossVenueSpotPerpExecutor) reconcileOnStart(ctx context.Context, live 
 }
 
 func (e *CrossVenueSpotPerpExecutor) reconcileUntrackedExposureOnStart(ctx context.Context, ps []CrossVenueSpotPerpPosition, live bool) {
-	untracked := carryScanUntrackedCVSPLegs(ctx, e.recordDir, e.venues, ps)
+	cfg := e.cfg.CrossVenueExecutor
+	untracked := carryScanUntrackedCVSPLegs(ctx, cfg, e.recordDir, e.logger, e.venues, ps)
 	if len(untracked) == 0 {
 		return
 	}
-	action := crossVenueUntrackedExposureAction(e.cfg.CrossVenueExecutor)
+	action := crossVenueUntrackedExposureAction(cfg)
 	for _, leg := range untracked {
 		e.logger.Printf("[跨所spot-perp] reconcile: venue=%s 未登记 %s %s≈%.6f", leg.Venue, leg.Market, leg.Symbol, leg.Qty)
 	}
+	shouldHalt := true
 	switch action {
 	case crossVenueRecoveryActionFlatten:
-		if !e.cfg.CrossVenueExecutor.LiveTradingEnabled {
+		if !cfg.LiveTradingEnabled {
 			e.notifyCritical("跨所spot-perp冷启动", "检测到未登记真实持仓,flatten 需 live", "")
-			return
+		} else {
+			shouldHalt = false
+			for _, leg := range untracked {
+				e.flattenUntrackedLeg(ctx, leg, live)
+			}
+			e.notifyCritical("跨所spot-perp冷启动 flatten", fmt.Sprintf("已对 %d 条未登记腿执行 flatten", len(untracked)), "")
 		}
-		for _, leg := range untracked {
-			e.flattenUntrackedLeg(ctx, leg, live)
-		}
-		e.notifyCritical("跨所spot-perp冷启动 flatten", fmt.Sprintf("已对 %d 条未登记腿执行 flatten", len(untracked)), "")
 	default:
 		e.notifyCritical("跨所spot-perp冷启动", fmt.Sprintf("检测到 %d 条未登记真实持仓,已 halt 待人工确认", len(untracked)), "")
+	}
+	if shouldHalt {
+		e.openingsEnabled.Store(false)
 	}
 }
 

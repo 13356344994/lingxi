@@ -375,3 +375,29 @@ func findCrossVenuePerpSpotOpp(opps []UnifiedOpportunity, symbol, spotVenue stri
 	}
 	return nil
 }
+
+func TestScanCrossVenuePerpSpotFunnelRollupNotBorrowable(t *testing.T) {
+	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
+	in := testCrossVenuePerpSpotScanInput(now)
+	in.BorrowKnownAvailable = NewBorrowKnownAvailableRegistry(24 * time.Hour)
+	in.BorrowDailyRateByAsset = map[string]float64{}
+	out := captureCrossVenueCarryFunnelLog(t, func() {
+		_ = ScanCrossVenuePerpSpotOpportunities(in)
+	})
+	if !strings.Contains(out, "[carry-funnel] cvps") {
+		t.Fatalf("missing funnel rollup log: %s", out)
+	}
+	if !strings.Contains(out, "build_not_borrowable=2") || !strings.Contains(out, "emitted=0") {
+		t.Fatalf("expected not-borrowable funnel collapse, got: %s", out)
+	}
+}
+
+func TestScanCrossVenuePerpSpotFunnelRollupHappyPath(t *testing.T) {
+	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
+	out := captureCrossVenueCarryFunnelLog(t, func() {
+		_ = ScanCrossVenuePerpSpotOpportunities(testCrossVenuePerpSpotScanInput(now))
+	})
+	if !strings.Contains(out, "pair_attempts=2") || !strings.Contains(out, "emitted=2") {
+		t.Fatalf("expected happy-path funnel counts, got: %s", out)
+	}
+}

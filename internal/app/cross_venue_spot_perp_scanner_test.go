@@ -3,6 +3,7 @@ package app
 import (
 	"bufio"
 	"encoding/json"
+	"fmt"
 	"math"
 	"os"
 	"path/filepath"
@@ -13,6 +14,28 @@ import (
 	"lingxi/internal/venue/binance"
 	"lingxi/internal/venue/bybit"
 )
+
+func captureCrossVenueCarryFunnelLog(t *testing.T, fn func()) string {
+	t.Helper()
+	buf := &strings.Builder{}
+	orig := crossVenueCarryFunnelLogFn
+	crossVenueCarryFunnelLogFn = func(stats crossVenueCarryFunnelStats) {
+		fmt.Fprintf(buf,
+			"[carry-funnel] %s symbols=%d no_spot_venues=%d no_perp_venues=%d no_best_perp=%d pair_skip_same_venue=%d pair_attempts=%d "+
+				"build_market=%d build_instrument=%d build_mid_dev=%d build_notional=%d build_margin_stress=%d build_hold_hours=%d build_settlements=%d "+
+				"build_funding_window=%d build_funding_ev=%d build_conf_sizing=%d build_not_borrowable=%d emitted=%d emitted_rejected=%d emitted_tradable=%d\n",
+			stats.Tag,
+			stats.SymbolsSeen, stats.NoSpotVenues, stats.NoPerpVenues, stats.NoBestPerp, stats.PairSkipSameVenue, stats.PairAttempts,
+			stats.BuildMarketInvalid, stats.BuildInstrument, stats.BuildMidDev, stats.BuildNotional, stats.BuildMarginStress,
+			stats.BuildHoldHours, stats.BuildSettlements,
+			stats.BuildFundingWindow, stats.BuildFundingEV, stats.BuildConfSizing, stats.BuildNotBorrowable,
+			stats.Emitted, stats.EmittedRejected, stats.EmittedTradable,
+		)
+	}
+	t.Cleanup(func() { crossVenueCarryFunnelLogFn = orig })
+	fn()
+	return buf.String()
+}
 
 func testCrossVenueSpotPerpScanInput(now time.Time) CrossVenueSpotPerpScanInput {
 	exec := testCrossVenueExecutorConfig().CrossVenueExecutor
@@ -204,9 +227,16 @@ func TestScanCrossVenueSpotPerpExcludesInsufficientDepth(t *testing.T) {
 	})
 	opps := ScanCrossVenueSpotPerpOpportunities(in)
 	for _, opp := range opps {
-		if opp.Legs[0].Venue == binance.VenueName {
-			t.Fatalf("unexpected opportunity with insufficient depth: notional=%.2f", opp.Legs[0].Notional)
+		if opportunityHasTradableLegs(opp) && len(opp.Legs) >= 2 && opp.Legs[0].Venue == binance.VenueName {
+			t.Fatalf("unexpected tradable opportunity with insufficient depth: notional=%.2f", opp.Legs[0].Notional)
 		}
+	}
+	binanceOpp := findCrossVenueSpotPerpOpp(opps, "BTC-USDT", binance.VenueName)
+	if binanceOpp == nil {
+		t.Fatal("expected rejected row for insufficient depth")
+	}
+	if !containsStringReject(binanceOpp.RejectReasons, singleVenueSpotPerpRejectInsufficientDepth) {
+		t.Fatalf("reject_reasons = %#v, want %q", binanceOpp.RejectReasons, singleVenueSpotPerpRejectInsufficientDepth)
 	}
 }
 
@@ -217,8 +247,13 @@ func TestScanCrossVenueSpotPerpExcludesMarginStressLiquidation(t *testing.T) {
 	in.Config.PerpWalletBufferRatio = 0.01
 	in.Config.PerpMaintenanceMarginRate = 0.05
 	opps := ScanCrossVenueSpotPerpOpportunities(in)
-	if len(opps) != 0 {
-		t.Fatalf("opportunities = %d, want 0 when +20%% shock liquidates", len(opps))
+	if len(opps) != 2 {
+		t.Fatalf("opportunities = %d, want 2 rejected rows", len(opps))
+	}
+	for _, opp := range opps {
+		if !containsStringReject(opp.RejectReasons, singleVenueSpotPerpRejectMarginStress) {
+			t.Fatalf("reject_reasons = %#v, want %q", opp.RejectReasons, singleVenueSpotPerpRejectMarginStress)
+		}
 	}
 }
 
@@ -397,6 +432,62 @@ func TestScanCrossVenueSpotPerpZeroCandidateDiagnostics(t *testing.T) {
 	if len(ScanCrossVenueSpotPerpOpportunities(in)) != 0 {
 		t.Fatal("same-venue spot+perp must produce 0 cross-venue candidates")
 	}
+}
+
+func TestScanCrossVenueSpotPerpFunnelRollupSameVenueOnly(t *testing.T) {
+	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
+	nextFunding := now.Add(2 * time.Hour)
+	in := CrossVenueSpotPerpScanInput{
+		Now: now, Symbols: []string{"BTC-USDT"},
+		FundingByVenue: map[string]map[string]CrossVenueSpotPerpFundingSnap{
+			bybit.VenueName: {"BTC-USDT": scannerTestEstablishedFundingSnap(0.001, nextFunding)},
+		},
+		MarketsByVenue: scannerTestInstrumentMetaMarkets(map[string]map[string]CrossVenueSpotPerpMarketSnap{
+			bybit.VenueName: {"BTC-USDT": {SpotMid: 100000, PerpMid: 100050, SpotDepthUSDT: 5000, PerpDepthUSDT: 5000, HasSpot: true, HasPerp: true}},
+		}),
+		AvailableUSDTByVenue: map[string]float64{bybit.VenueName: 500},
+		Config:               DefaultCrossVenueSpotPerpScannerConfig(testCrossVenueExecutorConfig().CrossVenueExecutor),
+	}
+	out := captureCrossVenueCarryFunnelLog(t, func() {
+		_ = ScanCrossVenueSpotPerpOpportunities(in)
+	})
+	if !strings.Contains(out, "[carry-funnel] cvsp") {
+		t.Fatalf("missing funnel rollup log: %s", out)
+	}
+	if !strings.Contains(out, "pair_skip_same_venue=1") || !strings.Contains(out, "pair_attempts=0") {
+		t.Fatalf("expected same-venue skip funnel, got: %s", out)
+	}
+}
+
+func TestScanCrossVenueSpotPerpFunnelRollupHappyPath(t *testing.T) {
+	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
+	out := captureCrossVenueCarryFunnelLog(t, func() {
+		_ = ScanCrossVenueSpotPerpOpportunities(testCrossVenueSpotPerpScanInput(now))
+	})
+	if !strings.Contains(out, "pair_attempts=2") || !strings.Contains(out, "emitted=2") {
+		t.Fatalf("expected happy-path funnel counts, got: %s", out)
+	}
+}
+
+func findCrossVenueSpotPerpOpp(opps []UnifiedOpportunity, symbol, spotVenue string) *UnifiedOpportunity {
+	for i := range opps {
+		if opps[i].Symbol != symbol {
+			continue
+		}
+		if strings.Contains(opps[i].ID, spotVenue) {
+			return &opps[i]
+		}
+	}
+	return nil
+}
+
+func containsStringReject(reasons []string, want string) bool {
+	for _, r := range reasons {
+		if r == want {
+			return true
+		}
+	}
+	return false
 }
 
 func TestScanCrossVenueSpotPerpBasisAndNetEV(t *testing.T) {

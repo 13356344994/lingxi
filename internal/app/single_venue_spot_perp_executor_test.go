@@ -882,6 +882,47 @@ func TestSVSPReconcileUntrackedPerpFlatten(t *testing.T) {
 	if !sawClose {
 		t.Fatalf("expected flatten of untracked perp, requests=%+v", v.placeRequests)
 	}
+	if !e.OpeningsEnabled() {
+		t.Fatal("flatten success should not halt openings")
+	}
+}
+
+func TestSVSPReconcileUntrackedMaterialHaltBlocksExecuteOpen(t *testing.T) {
+	dir := t.TempDir()
+	v := newSVSPTestVenue(binance.VenueName)
+	v.positions = []venue.Position{{Symbol: "BTC-USDT", PositionAmt: -0.5, MarkPrice: 100, EntryPrice: 100, Leverage: 2}}
+	cfg := testSVSPExecutorConfig()
+	cfg.CrossVenueExecutor.UntrackedExposureAction = "halt"
+	e := NewSingleVenueSpotPerpExecutor(cfg, map[string]venue.Venue{binance.VenueName: v}, dir, testSVSPLogger())
+	e.reconcileOnStart(context.Background(), false)
+	if e.OpeningsEnabled() {
+		t.Fatal("material untracked leg should halt openings")
+	}
+	_, err := e.executeOpen(context.Background(), testSVSPOpportunity(binance.VenueName, 0.5), true)
+	if err == nil {
+		t.Fatal("executeOpen should be blocked after untracked halt")
+	}
+}
+
+func TestSVSPReconcileUntrackedDustDoesNotHalt(t *testing.T) {
+	dir := t.TempDir()
+	v := newSVSPTestVenue(binance.VenueName)
+	v.book = venue.BookTicker{BidPrice: 0.49, AskPrice: 0.51}
+	v.spotBalances["PEPE"] = 0.001 // notional ≈ $0.0005 dust
+	cfg := testSVSPExecutorConfig()
+	cfg.CrossVenueExecutor.UntrackedExposureAction = "halt"
+	e := NewSingleVenueSpotPerpExecutor(cfg, map[string]venue.Venue{binance.VenueName: v}, dir, testSVSPLogger())
+	e.reconcileOnStart(context.Background(), false)
+	if !e.OpeningsEnabled() {
+		t.Fatal("dust-only untracked should not halt openings")
+	}
+	if atomic.LoadInt32(v.placeCount) != 0 {
+		t.Fatal("dust-only untracked must not trigger flatten orders")
+	}
+	_, err := e.executeOpen(context.Background(), testSVSPOpportunity(binance.VenueName, 0.5), true)
+	if err != nil && strings.Contains(err.Error(), "halt") {
+		t.Fatalf("executeOpen must not be blocked by untracked halt: %v", err)
+	}
 }
 
 func assertSVSPManageOpenFinalizeOnce(t *testing.T, e *SingleVenueSpotPerpExecutor, ctx context.Context) {

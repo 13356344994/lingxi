@@ -74,6 +74,9 @@ cross_venue_executor:
   maker_chase_rounds: 6
   maker_chase_interval_ms: 1500
   maker_deadline_seconds: 12
+  # N-3: 材料级未登记腿(过滤 dust 后)冷启动自动 IOC flatten;重启后对 bybit MNT≈$9.7 等真实残留下卖单。
+  # 此后任何材料级未登记腿均走 flatten,非仅 MNT。
+  untracked_exposure_action: flatten
 
 # 五策略统一资金费轮动 runner。perp-perp 执行体见 cross_venue_executor,开仓由 runner binding 派发。
 # total_deployable_usdt: 绝对预算(USDT);另有 total_deployable_pct(默认见 defaults,占真实现金权益比例),二者与 equity 取 min。
