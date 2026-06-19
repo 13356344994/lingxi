@@ -444,6 +444,8 @@ type HistoricalConfig struct {
 	MaxPerLegEquityShare                   float64       `cfg:"max_per_leg_equity_share"`
 	SpotTakerFeeRate                       float64       `cfg:"spot_taker_fee_rate"`
 	FuturesTakerFeeRate                    float64       `cfg:"futures_taker_fee_rate"`
+	SpotMakerFeeRate                       float64       `cfg:"spot_maker_fee_rate"`
+	FuturesMakerFeeRate                    float64       `cfg:"futures_maker_fee_rate"`
 	AssumedHourlyBorrowInterestRate        float64       `cfg:"assumed_hourly_borrow_interest_rate"`
 	BorrowInterestMinBillingHours          int           `cfg:"borrow_interest_min_billing_hours"`
 	NegativeCarrySpotEntryImpactMultiplier float64       `cfg:"negative_carry_spot_entry_impact_multiplier"`
@@ -695,13 +697,19 @@ type CrossVenueExecutorConfig struct {
 	MinHoldHours float64 `cfg:"min_hold_hours"`
 	// DefaultTakerFeeBps 各所永续吃单费率(bps)未命中内置默认表时的兜底值。默认 6。
 	DefaultTakerFeeBps float64 `cfg:"default_taker_fee_bps"`
+	// DefaultMakerFeeBps 各所永续挂单费率(bps)未命中内置默认表时的兜底值。默认 2。
+	DefaultMakerFeeBps float64 `cfg:"default_maker_fee_bps"`
+	// AssumeMakerFills EV/开仓闸往返成本按 maker 费率估算(与 maker-chase 执行一致)。默认 true。
+	AssumeMakerFills bool `cfg:"assume_maker_fills"`
+	// ExpectedHoldHours 开仓 EV 闸预期持有 horizon(小时):一次往返成本摊销至该窗口内 funding 收入。默认 12。
+	ExpectedHoldHours float64 `cfg:"expected_hold_hours"`
 	// EVExpectedSlippageBps EV 成本模型中每腿预期滑点(bps,非 SlippageBudget 容忍上限)。默认 3。
 	EVExpectedSlippageBps float64 `cfg:"ev_expected_slippage_bps"`
 	// EVMaxBreakevenHours 盈亏平衡持有时长上限(小时);超过则不开仓。默认 24。
 	EVMaxBreakevenHours float64 `cfg:"ev_max_breakeven_hours"`
 	// EVSafetyFactor 已废弃(旧 24h-hold EV 闸);保留配置兼容,开仓 EV 改用 MinNetProfitUSDT。默认 1.3。
 	EVSafetyFactor float64 `cfg:"ev_safety_factor"`
-	// MinNetProfitUSDT 短持窗口(至下次结算)预期净收益(USDT)下限;≤0 表示任意净正即可。默认 0。
+	// MinNetProfitUSDT 预期持有 horizon 内净收益(USDT)下限;≤0 表示任意净正即可。默认 0。
 	MinNetProfitUSDT float64 `cfg:"min_net_profit_usdt"`
 	// RealizedFundingPollMinutes 拉取真实结算资费的节流间隔(分钟);两次拉取之间用估算做临时展示。默认 5。
 	RealizedFundingPollMinutes int `cfg:"realized_funding_poll_minutes"`
@@ -1117,6 +1125,8 @@ func (cfg EngineConfig) Validate() error {
 	appendIssue(cfg.HistoricalConfig.MaxPerLegEquityShare > 0 && cfg.HistoricalConfig.MaxPerLegEquityShare <= 1, "Historical MaxPerLegEquityShare 必须在 (0, 1] 之间")
 	appendIssue(cfg.HistoricalConfig.SpotTakerFeeRate >= 0, "Historical SpotTakerFeeRate 不能小于 0")
 	appendIssue(cfg.HistoricalConfig.FuturesTakerFeeRate >= 0, "Historical FuturesTakerFeeRate 不能小于 0")
+	appendIssue(cfg.HistoricalConfig.SpotMakerFeeRate >= 0, "Historical SpotMakerFeeRate 不能小于 0")
+	appendIssue(cfg.HistoricalConfig.FuturesMakerFeeRate >= 0, "Historical FuturesMakerFeeRate 不能小于 0")
 	appendIssue(cfg.HistoricalConfig.AssumedHourlyBorrowInterestRate >= 0, "Historical AssumedHourlyBorrowInterestRate 不能小于 0")
 	appendIssue(cfg.HistoricalConfig.BorrowInterestMinBillingHours > 0, "Historical BorrowInterestMinBillingHours 必须大于 0")
 	appendIssue(cfg.HistoricalConfig.NegativeCarrySpotEntryImpactMultiplier >= 1, "Historical NegativeCarrySpotEntryImpactMultiplier 不能小于 1")
@@ -1224,6 +1234,8 @@ func (cfg EngineConfig) Validate() error {
 		appendIssue(cfg.CrossVenueExecutor.MaxEffectiveLeverage > 0, "CrossVenueExecutor MaxEffectiveLeverage 必须大于 0")
 		appendIssue(cfg.CrossVenueExecutor.MinHoldHours > 0, "CrossVenueExecutor MinHoldHours 必须大于 0")
 		appendIssue(cfg.CrossVenueExecutor.DefaultTakerFeeBps >= 0, "CrossVenueExecutor DefaultTakerFeeBps 不能小于 0")
+		appendIssue(cfg.CrossVenueExecutor.DefaultMakerFeeBps >= 0, "CrossVenueExecutor DefaultMakerFeeBps 不能小于 0")
+		appendIssue(cfg.CrossVenueExecutor.ExpectedHoldHours >= 0, "CrossVenueExecutor ExpectedHoldHours 不能小于 0")
 		appendIssue(cfg.CrossVenueExecutor.EVExpectedSlippageBps >= 0, "CrossVenueExecutor EVExpectedSlippageBps 不能小于 0")
 		appendIssue(cfg.CrossVenueExecutor.MinNetProfitUSDT >= 0, "CrossVenueExecutor MinNetProfitUSDT 不能小于 0")
 		appendIssue(cfg.CrossVenueExecutor.RealizedFundingPollMinutes > 0, "CrossVenueExecutor RealizedFundingPollMinutes 必须大于 0")

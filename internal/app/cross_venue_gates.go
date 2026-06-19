@@ -227,7 +227,7 @@ func evaluateCrossVenueOpenGate(
 	}
 
 	evLegs := crossVenuePerpPerpEVSlippageLegs(deps.fetchDepth, ctx, highV, lowV, sym, highMid, lowMid)
-	holdHours := crossVenueComparableWindowHours(in.Now, highSnap.NextFundingTime, lowSnap.NextFundingTime)
+	holdHours := crossVenueOpenEVHoldHours(cfg, in.Now, in.Opp, crossVenueComparableWindowHours(in.Now, highSnap.NextFundingTime, lowSnap.NextFundingTime))
 	evOpp := in.Opp
 	if evOpp.HighNextFundingTime.IsZero() {
 		evOpp.HighNextFundingTime = highSnap.NextFundingTime
@@ -259,19 +259,14 @@ type crossVenueEVResult struct {
 	Reason string
 }
 
-// evaluateCrossVenueOpenEV 短持净收益闸:至下次结算窗口内 funding 结算收入须覆盖四腿往返成本+风险/策略缓冲。
+// evaluateCrossVenueOpenEV 净收益闸:预期持有 horizon 内 funding 收入须覆盖四腿往返成本+风险/策略缓冲。
 // 费率须来自扫描器平滑+封顶后的 Opp 字段;缺省(单测直调 gate 且无结算窗口)则跳过 EV。
 func evaluateCrossVenueOpenEV(cfg CrossVenueExecutorConfig, opp CrossVenueOpportunity, notional float64, evLegs []crossVenueEVSlippageLeg, now time.Time, holdHours float64) crossVenueEVResult {
 	pass := func() crossVenueEVResult { return crossVenueEVResult{OK: true} }
 	failEV := func(reason string) crossVenueEVResult {
 		return crossVenueEVResult{OK: false, Reason: reason}
 	}
-	if holdHours <= 0 {
-		holdHours = opp.ComparableWindowHours
-	}
-	if holdHours <= 0 {
-		holdHours = opp.ExpectedHoldHours
-	}
+	holdHours = crossVenueOpenEVHoldHours(cfg, now, opp, holdHours)
 	if holdHours <= 0 {
 		if opp.HighAnnualizedAPR == 0 && opp.LowAnnualizedAPR == 0 {
 			return pass()
@@ -281,7 +276,7 @@ func evaluateCrossVenueOpenEV(cfg CrossVenueExecutorConfig, opp CrossVenueOpport
 	if opp.HighFundingRate == 0 && opp.LowFundingRate == 0 {
 		return pass()
 	}
-	expectedFunding := crossVenueExpectedFundingOverHold(now, holdHours, notional, opp)
+	expectedFunding := crossVenueOpenGateExpectedFundingUSDT(cfg, now, holdHours, notional, opp)
 	if expectedFunding <= 0 {
 		return failEV(fmt.Sprintf("EV<0: expectedFunding=%.6f USDT ≤0 over hold=%.2fh", expectedFunding, holdHours))
 	}
@@ -325,6 +320,61 @@ func crossVenueTakerFeeBps(cfg CrossVenueExecutorConfig, venueName string) float
 		return cfg.DefaultTakerFeeBps
 	}
 	return 6
+}
+
+func crossVenueMakerFeeBps(cfg CrossVenueExecutorConfig, venueName string) float64 {
+	venueName = strings.ToLower(strings.TrimSpace(venueName))
+	switch venueName {
+	case binance.VenueName:
+		return 2
+	case bybit.VenueName:
+		return 1
+	case okx.VenueName:
+		return 2
+	case gate.VenueName:
+		return 2
+	}
+	if cfg.DefaultMakerFeeBps > 0 {
+		return cfg.DefaultMakerFeeBps
+	}
+	return 2
+}
+
+func crossVenueAssumeMakerFills(cfg CrossVenueExecutorConfig) bool {
+	return cfg.AssumeMakerFills
+}
+
+func crossVenuePerpFeeBps(cfg CrossVenueExecutorConfig, venueName string) float64 {
+	if crossVenueAssumeMakerFills(cfg) {
+		return crossVenueMakerFeeBps(cfg, venueName)
+	}
+	return crossVenueTakerFeeBps(cfg, venueName)
+}
+
+func crossVenueOpenEVHoldHours(cfg CrossVenueExecutorConfig, now time.Time, opp CrossVenueOpportunity, comparableWindowHours float64) float64 {
+	if cfg.ExpectedHoldHours > 0 {
+		return cfg.ExpectedHoldHours
+	}
+	if comparableWindowHours > 0 {
+		return comparableWindowHours
+	}
+	if opp.ExpectedHoldHours > 0 {
+		return opp.ExpectedHoldHours
+	}
+	if opp.ComparableWindowHours > 0 {
+		return opp.ComparableWindowHours
+	}
+	return crossVenueComparableWindowHours(now, opp.HighNextFundingTime, opp.LowNextFundingTime)
+}
+
+// crossVenueOpenGateExpectedFundingUSDT 开仓 EV 闸 funding 收入:配置了 expected_hold_hours 时按
+// fundingRatePerHour×holdHorizon 摊销;否则回退至窗口内离散结算次数(兼容短窗/单测)。
+func crossVenueOpenGateExpectedFundingUSDT(cfg CrossVenueExecutorConfig, now time.Time, holdHours, notional float64, opp CrossVenueOpportunity) float64 {
+	if cfg.ExpectedHoldHours > 0 && holdHours > 0 {
+		fundingPerHour := crossVenueExpectedFundingPerHour(notional, opp.HighFundingRate, opp.HighIntervalHours, opp.LowFundingRate, opp.LowIntervalHours)
+		return fundingPerHour * holdHours
+	}
+	return crossVenueExpectedFundingOverHold(now, holdHours, notional, opp)
 }
 
 func bookSpreadBps(t venue.BookTicker) float64 {

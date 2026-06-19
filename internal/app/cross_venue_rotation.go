@@ -162,8 +162,8 @@ func crossVenueExpectedOpenCostUSDT(cfg CrossVenueExecutorConfig, opp CrossVenue
 	if notional <= 0 {
 		return 0
 	}
-	return notional*crossVenueTakerFeeBps(cfg, opp.HighVenue)/10000 +
-		notional*crossVenueTakerFeeBps(cfg, opp.LowVenue)/10000
+	return notional*crossVenuePerpFeeBps(cfg, opp.HighVenue)/10000 +
+		notional*crossVenuePerpFeeBps(cfg, opp.LowVenue)/10000
 }
 
 func crossVenueExpectedCloseCostUSDT(cfg CrossVenueExecutorConfig, opp CrossVenueOpportunity, notional float64) float64 {
@@ -329,8 +329,8 @@ func crossVenueEstimateOpportunityMetrics(cfg CrossVenueExecutorConfig, opp Cros
 	if notional <= 0 {
 		notional = 50
 	}
-	windowHours := crossVenueComparableWindowHours(now, opp.HighNextFundingTime, opp.LowNextFundingTime)
-	spreadEV := crossVenueExpectedFundingOverHold(now, windowHours, notional, opp)
+	windowHours := crossVenueOpenEVHoldHours(cfg, now, opp, crossVenueComparableWindowHours(now, opp.HighNextFundingTime, opp.LowNextFundingTime))
+	spreadEV := crossVenueOpenGateExpectedFundingUSDT(cfg, now, windowHours, notional, opp)
 	openCost := crossVenueExpectedOpenCostUSDT(cfg, opp, notional)
 	closeCost := crossVenueExpectedCloseCostUSDT(cfg, opp, notional)
 	expectedSlippage := crossVenueExpectedSlippageUSDT(cfg, notional, 4)
