@@ -2,6 +2,8 @@ package bybit
 
 import (
 	"context"
+	"crypto/sha1"
+	"encoding/hex"
 	"fmt"
 	"log"
 	"net/url"
@@ -12,6 +14,21 @@ import (
 	"lingxi/internal/execution"
 	"lingxi/internal/venue"
 )
+
+// bybitMaxOrderLinkIDLen 是 Bybit v5 文档对 orderLinkId 的硬上限(36 字符)。
+const bybitMaxOrderLinkIDLen = 36
+
+// bybitOrderLinkID 把中性 ClientOrderID 收敛到 Bybit 上限。≤36 原样返回(向后兼容);
+// >36 用确定性映射(20 字符可读前缀 + sha1 前 15 hex = 36),保证 place/query/cancel 三处映射一致且唯一。
+// 证据:reconcile-flat 类 clientID(48 字符,如 svsp-reconcile-flat-MNT-USDT-<unixnano>)曾触发
+// bybit /v5/order/create retCode=170003;请求体其余字段名均合法,唯一越限项为 orderLinkId 长度。
+func bybitOrderLinkID(clientOrderID string) string {
+	if len(clientOrderID) <= bybitMaxOrderLinkIDLen {
+		return clientOrderID
+	}
+	sum := sha1.Sum([]byte(clientOrderID))
+	return clientOrderID[:20] + "-" + hex.EncodeToString(sum[:])[:15]
+}
 
 // trading.go 实现 Bybit v5 私有写动作(签名 POST):下单/批量/撤单/设杠杆/切保证金模式 + 活动订单查询。
 //
@@ -109,7 +126,7 @@ func (a *Adapter) buildCreateBody(ctx context.Context, req venue.OrderRequest) (
 		OrderType:   orderType,
 		Qty:         qtyStr,
 		TimeInForce: tif,
-		OrderLinkID: req.ClientOrderID,
+		OrderLinkID: bybitOrderLinkID(req.ClientOrderID),
 		ReduceOnly:  req.ReduceOnly,
 	}
 	if orderType == "Limit" {
@@ -157,7 +174,8 @@ func (a *Adapter) PlaceOrder(ctx context.Context, req venue.OrderRequest) (venue
 	return venue.OrderResult{
 		Symbol:          req.Symbol,
 		Market:          req.Market,
-		ClientOrderID:   firstNonEmpty(ack.OrderLinkID, req.ClientOrderID),
+		// 优先回原始 clientID(上层按原始 ID 追踪/查单);收敛仅作用于发往 bybit 的线上值。
+		ClientOrderID:   firstNonEmpty(req.ClientOrderID, ack.OrderLinkID),
 		ExchangeOrderID: ack.OrderID,
 		Status:          "new",
 	}, nil
@@ -202,7 +220,7 @@ func (a *Adapter) PlaceBatch(ctx context.Context, reqs []venue.OrderRequest) ([]
 		out = append(out, venue.OrderResult{
 			Symbol:          r.Symbol,
 			Market:          r.Market,
-			ClientOrderID:   firstNonEmpty(ack.OrderLinkID, r.ClientOrderID),
+			ClientOrderID:   firstNonEmpty(r.ClientOrderID, ack.OrderLinkID),
 			ExchangeOrderID: ack.OrderID,
 			Status:          "new",
 		})
@@ -220,7 +238,7 @@ func (a *Adapter) CancelOrder(ctx context.Context, m venue.Market, s venue.Symbo
 		Category    string `json:"category"`
 		Symbol      string `json:"symbol"`
 		OrderLinkID string `json:"orderLinkId"`
-	}{Category: bybitCategory(m), Symbol: raw, OrderLinkID: clientOrderID}
+	}{Category: bybitCategory(m), Symbol: raw, OrderLinkID: bybitOrderLinkID(clientOrderID)}
 	return a.t.signedPost(ctx, pathOrderCancel, body, nil)
 }
 
@@ -257,7 +275,7 @@ func (a *Adapter) QueryOrder(ctx context.Context, m venue.Market, s venue.Symbol
 	q := url.Values{}
 	q.Set("category", bybitCategory(m))
 	q.Set("symbol", raw)
-	q.Set("orderLinkId", clientOrderID)
+	q.Set("orderLinkId", bybitOrderLinkID(clientOrderID))
 	var res struct {
 		List []struct {
 			OrderID      string `json:"orderId"`
@@ -282,7 +300,8 @@ func (a *Adapter) QueryOrder(ctx context.Context, m venue.Market, s venue.Symbol
 	result := venue.OrderResult{
 		Symbol:          s,
 		Market:          m,
-		ClientOrderID:   firstNonEmpty(o.OrderLinkID, clientOrderID),
+		// 回原始 clientID(查询入参),与发往 bybit 的收敛值解耦,保持上层追踪一致。
+		ClientOrderID:   firstNonEmpty(clientOrderID, o.OrderLinkID),
 		ExchangeOrderID: o.OrderID,
 		Status:          normalizeOrderStatus(o.OrderStatus),
 		ExecutedQty:     parseFloat(o.CumExecQty),
