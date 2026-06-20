@@ -330,6 +330,11 @@ func crossVenuePolicyBuffer(openCost, closeCost float64) float64 {
 }
 
 func crossVenueEstimateOpportunityMetrics(cfg CrossVenueExecutorConfig, opp CrossVenueOpportunity, now time.Time) CrossVenueOpportunity {
+	return crossVenueEstimateOpportunityMetricsEVRates(cfg, opp, now, opp.HighFundingRate, opp.LowFundingRate)
+}
+
+// crossVenueEstimateOpportunityMetricsEVRates 用指定费率算 spreadEV/NetEV,保留 opp 展示用 SpreadAPR/HighFundingRate 不变。
+func crossVenueEstimateOpportunityMetricsEVRates(cfg CrossVenueExecutorConfig, opp CrossVenueOpportunity, now time.Time, evHighRate, evLowRate float64) CrossVenueOpportunity {
 	notional := opp.TradableNotional
 	if notional <= 0 {
 		notional = cfg.MaxPositionUSDT
@@ -338,7 +343,10 @@ func crossVenueEstimateOpportunityMetrics(cfg CrossVenueExecutorConfig, opp Cros
 		notional = 50
 	}
 	windowHours := crossVenueOpenEVHoldHours(cfg, now, opp, crossVenueComparableWindowHours(now, opp.HighNextFundingTime, opp.LowNextFundingTime))
-	spreadEV := crossVenueOpenGateExpectedFundingUSDT(cfg, now, windowHours, notional, opp)
+	evOpp := opp
+	evOpp.HighFundingRate = evHighRate
+	evOpp.LowFundingRate = evLowRate
+	spreadEV := crossVenueOpenGateExpectedFundingUSDT(cfg, now, windowHours, notional, evOpp)
 	openCost := crossVenueOpenEVRoundTripFeeUSDT(cfg, opp, notional)
 	closeCost := openCost
 	expectedSlippage := crossVenueExpectedSlippageUSDT(cfg, notional, 4)

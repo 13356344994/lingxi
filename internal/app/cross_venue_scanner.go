@@ -28,8 +28,10 @@ const (
 	crossVenueOKXFetchTO      = 120 * time.Second // okx 逐币拉+全局 pacing,全量约 20–30s,留余量
 	crossVenueBorrowProbeGap  = 200 * time.Millisecond
 	crossVenueBorrowProbesLog = "borrow_probes.jsonl"
-	// crossVenueSpreadSanityCap 跨所年化价差绝对值上限(小数,2.0=200%);超过视为 bulk 快照/美股代币等伪信号。
-	crossVenueSpreadSanityCap = 2.0
+	// crossVenueSpreadSanityCap 跨所年化价差绝对荒谬上限(小数,50.0=5000%);仅挡明显快照错误/伪值。
+	crossVenueSpreadSanityCap = 50.0
+	// crossVenueExtremeSpreadMarkAPR 超过此阈值标记 ExtremeSpread(审计),不再整条丢弃。
+	crossVenueExtremeSpreadMarkAPR = 2.0
 )
 
 // crossVenueNames 扫描目标所(固定四所)。
@@ -42,6 +44,7 @@ var crossVenueScannerFactory = buildCrossVenueScannerAdapters
 type symbolVenueFunding struct {
 	Venue           string
 	FundingRate     float64
+	RawFundingRate  float64 // 快照原始费率(EV 重算用,未经平滑/封顶)
 	AnnualizedAPR   float64
 	IntervalHours   int
 	NextFundingTime time.Time
@@ -85,6 +88,8 @@ type CrossVenueOpportunity struct {
 	TradableNotional      float64   `json:"tradable_notional,omitempty"`
 	TradableQty           float64   `json:"tradable_qty,omitempty"`
 	NoTradeReason         string    `json:"no_trade_reason,omitempty"`
+	// ExtremeSpread 为 true 表示 spread 超过常规 sanity 阈值但保留(真实极端 carry,如 H-USDT)。
+	ExtremeSpread bool `json:"extreme_spread,omitempty"`
 }
 
 // CrossVenueVenueStatus 记录单所本轮拉取结果。
@@ -98,11 +103,11 @@ type CrossVenueVenueStatus struct {
 
 // CrossVenueFundingEntry 是某所某 symbol 的一条费率明细(供执行引擎离线查询,免现场拉全量快照)。
 type CrossVenueFundingEntry struct {
-	Rate                   float64   `json:"rate"`
-	IntervalHours          int       `json:"interval_hours"`
-	NextFundingTime        time.Time `json:"next_funding_time"`
-	SpikeThreshold         float64   `json:"spike_threshold,omitempty"`
-	FundingHistorySamples  int       `json:"funding_history_samples,omitempty"`
+	Rate                  float64   `json:"rate"`
+	IntervalHours         int       `json:"interval_hours"`
+	NextFundingTime       time.Time `json:"next_funding_time"`
+	SpikeThreshold        float64   `json:"spike_threshold,omitempty"`
+	FundingHistorySamples int       `json:"funding_history_samples,omitempty"`
 }
 
 // CrossVenueBorrowProbe 是某 symbol 在某所的一条借币可得性探测结果(只读遥测)。
@@ -942,10 +947,12 @@ func (s *CrossVenueScanner) indexSnapshotsBySymbol(byVenue map[string][]venue.Fu
 			if snap.NextFundingTime.IsZero() {
 				continue
 			}
-			rate := capFundingRateByAPR(snap.LastFundingRate, interval, capAPR)
+			rawRate := snap.LastFundingRate
+			rate := capFundingRateByAPR(rawRate, interval, capAPR)
 			out[sym] = append(out[sym], symbolVenueFunding{
 				Venue:           venueName,
 				FundingRate:     rate,
+				RawFundingRate:  rawRate,
 				AnnualizedAPR:   fundingAnnualizedAPR(rate, interval),
 				IntervalHours:   interval,
 				NextFundingTime: snap.NextFundingTime,
@@ -994,6 +1001,48 @@ func bestPairSpread(symbol string, entries []symbolVenueFunding) (CrossVenueOppo
 	return best, found
 }
 
+// crossVenueAbsurdSpreadCap 返回跨所 spread 绝对荒谬上限;用户 FundingAPRSanityCap 更严时尊重。
+func crossVenueAbsurdSpreadCap(cfg CrossVenueScannerConfig) float64 {
+	cap := crossVenueSpreadSanityCap
+	if userCap := cfg.FundingAPRSanityCap; userCap > 0 && userCap < cap {
+		cap = userCap
+	}
+	return cap
+}
+
+// crossVenueEVFundingRateCapAPR 极端 spread EV 重算用的单腿费率封顶(远高于常规 200% spread 闸)。
+func crossVenueEVFundingRateCapAPR(cfg CrossVenueScannerConfig) float64 {
+	return crossVenueAbsurdSpreadCap(cfg)
+}
+
+func rawFundingRateFromEntries(entries []symbolVenueFunding, venueName string) float64 {
+	for _, e := range entries {
+		if e.Venue == venueName {
+			if e.RawFundingRate != 0 {
+				return e.RawFundingRate
+			}
+			return e.FundingRate
+		}
+	}
+	return 0
+}
+
+func crossVenueExtremeSpreadEVRates(cfg CrossVenueScannerConfig, opp CrossVenueOpportunity, entries []symbolVenueFunding) (highRate, lowRate float64) {
+	highRate = opp.HighFundingRate
+	lowRate = opp.LowFundingRate
+	if !opp.ExtremeSpread {
+		return highRate, lowRate
+	}
+	evCap := crossVenueEVFundingRateCapAPR(cfg)
+	if raw := rawFundingRateFromEntries(entries, opp.HighVenue); raw != 0 {
+		highRate = capFundingRateByAPR(raw, opp.HighIntervalHours, evCap)
+	}
+	if raw := rawFundingRateFromEntries(entries, opp.LowVenue); raw != 0 {
+		lowRate = capFundingRateByAPR(raw, opp.LowIntervalHours, evCap)
+	}
+	return highRate, lowRate
+}
+
 // computeCrossVenueOpportunities 聚合各所快照,用近 N 次中位数+APR 封顶算价差,过滤/排序/截断。
 func (s *CrossVenueScanner) computeCrossVenueOpportunities(ctx context.Context, byVenue map[string][]venue.FundingSnapshot) []CrossVenueOpportunity {
 	minSpread := s.cfg.MinSpreadAPR
@@ -1001,9 +1050,10 @@ func (s *CrossVenueScanner) computeCrossVenueOpportunities(ctx context.Context, 
 	if topN <= 0 {
 		topN = 30
 	}
-	spreadCap := crossVenueSpreadSanityCap
-	if capAPR := s.cfg.FundingAPRSanityCap; capAPR > 0 && capAPR < spreadCap {
-		spreadCap = capAPR
+	absurdCap := crossVenueAbsurdSpreadCap(s.cfg)
+	markThreshold := crossVenueExtremeSpreadMarkAPR
+	if userCap := s.cfg.FundingAPRSanityCap; userCap > 0 && userCap < markThreshold {
+		markThreshold = userCap
 	}
 	bySymbol := s.indexSnapshotsBySymbol(byVenue)
 	opps := make([]CrossVenueOpportunity, 0, len(bySymbol))
@@ -1015,8 +1065,11 @@ func (s *CrossVenueScanner) computeCrossVenueOpportunities(ctx context.Context, 
 		if !ok || opp.SpreadAPR < minSpread {
 			continue
 		}
-		if spreadCap > 0 && opp.SpreadAPR > spreadCap {
+		if absurdCap > 0 && opp.SpreadAPR > absurdCap {
 			continue
+		}
+		if markThreshold > 0 && opp.SpreadAPR > markThreshold {
+			opp.ExtremeSpread = true
 		}
 		highSamples := s.fundingHistorySampleCount(opp.HighVenue, sym)
 		lowSamples := s.fundingHistorySampleCount(opp.LowVenue, sym)
@@ -1026,7 +1079,11 @@ func (s *CrossVenueScanner) computeCrossVenueOpportunities(ctx context.Context, 
 		opp.StabilityScore = crossVenueStabilityScore(windowHours, minSamples)
 		opp.Symbol = sym
 		opp.TradableNotional = crossVenuePerpPerpScanTradableNotional(ctx, s.execCfg, s.venues, opp.HighVenue, opp.LowVenue, sym)
-		opp = crossVenueEstimateOpportunityMetrics(s.execCfg, opp, s.nowFn())
+		if opp.ExtremeSpread && opp.TradableNotional <= 0 {
+			continue
+		}
+		evHigh, evLow := crossVenueExtremeSpreadEVRates(s.cfg, opp, entries)
+		opp = crossVenueEstimateOpportunityMetricsEVRates(s.execCfg, opp, s.nowFn(), evHigh, evLow)
 		opps = append(opps, opp)
 	}
 	crossVenueFinalizeOpportunityRanking(s.execCfg, opps)
@@ -1091,6 +1148,7 @@ func indexSnapshotsBySymbolRaw(byVenue map[string][]venue.FundingSnapshot) map[s
 			out[sym] = append(out[sym], symbolVenueFunding{
 				Venue:           venueName,
 				FundingRate:     rate,
+				RawFundingRate:  rate,
 				AnnualizedAPR:   fundingAnnualizedAPR(rate, interval),
 				IntervalHours:   interval,
 				NextFundingTime: snap.NextFundingTime,

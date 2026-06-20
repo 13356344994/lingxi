@@ -981,35 +981,35 @@ func (r *UnifiedRotationRunner) defaultScanRotationCandidates(ctx context.Contex
 		FundingRateVolPerHourByVenue: fundingVolByVenue,
 	})
 	singlePerpSpot := ScanSingleVenuePerpSpotOpportunities(SingleVenuePerpSpotScanInput{
-		SnapshotID:                   snapshotID,
-		Now:                          now,
-		Symbols:                      symbols,
-		Venues:                       crossVenueExecutorVenues,
-		FundingByVenue:               fundingByVenue,
-		MarketsByVenue:               marketsByVenue,
-		AvailableUSDTByVenue:         scannerAvailableUSDT,
+		SnapshotID:                        snapshotID,
+		Now:                               now,
+		Symbols:                           symbols,
+		Venues:                            crossVenueExecutorVenues,
+		FundingByVenue:                    fundingByVenue,
+		MarketsByVenue:                    marketsByVenue,
+		AvailableUSDTByVenue:              scannerAvailableUSDT,
 		BorrowDailyRateByAsset:            borrowDaily,
 		BorrowLimitUSDTByAsset:            borrowLimits,
 		BorrowKnownAvailable:              borrowKnown,
 		BorrowDefaultDailyRateWhenUnknown: borrowDefaultDaily,
 		BorrowDisabledVenues:              borrowDisabled,
 		Config:                            DefaultSingleVenuePerpSpotScannerConfig(r.execCfg),
-		FundingRateVolPerHourByVenue: fundingVolByVenue,
+		FundingRateVolPerHourByVenue:      fundingVolByVenue,
 	})
 	crossPerpSpot := ScanCrossVenuePerpSpotOpportunities(CrossVenuePerpSpotScanInput{
-		SnapshotID:                   snapshotID,
-		Now:                          now,
-		Symbols:                      symbols,
-		FundingByVenue:               fundingByVenue,
-		MarketsByVenue:               marketsByVenue,
-		AvailableUSDTByVenue:         scannerAvailableUSDT,
+		SnapshotID:                        snapshotID,
+		Now:                               now,
+		Symbols:                           symbols,
+		FundingByVenue:                    fundingByVenue,
+		MarketsByVenue:                    marketsByVenue,
+		AvailableUSDTByVenue:              scannerAvailableUSDT,
 		BorrowDailyRateByAsset:            borrowDaily,
 		BorrowLimitUSDTByAsset:            borrowLimits,
 		BorrowKnownAvailable:              borrowKnown,
 		BorrowDefaultDailyRateWhenUnknown: borrowDefaultDaily,
 		BorrowDisabledVenues:              borrowDisabled,
 		Config:                            DefaultCrossVenuePerpSpotScannerConfig(r.execCfg),
-		FundingRateVolPerHourByVenue: fundingVolByVenue,
+		FundingRateVolPerHourByVenue:      fundingVolByVenue,
 	})
 
 	candidates := make([]UnifiedOpportunity, 0, len(singleSpotPerp)+len(crossSpotPerp)+len(singlePerpSpot)+len(crossPerpSpot))
@@ -1023,6 +1023,7 @@ func (r *UnifiedRotationRunner) defaultScanRotationCandidates(ctx context.Contex
 	}
 
 	if r.includePerpPerpCandidates {
+		perpPerpCandidates := make([]UnifiedOpportunity, 0, len(snap.Opportunities))
 		for _, opp := range snap.Opportunities {
 			unified := rotationAlignPerpPerpCapital(
 				UnifiedOpportunityFromCrossVenue(r.execCfg, opp, nil, 0, 0),
@@ -1032,7 +1033,11 @@ func (r *UnifiedRotationRunner) defaultScanRotationCandidates(ctx context.Contex
 			if r.bindingForStrategy(UnifiedStrategyPerpPerp) == nil {
 				unified.CandidateOnly = true
 			}
+			perpPerpCandidates = append(perpPerpCandidates, unified)
 			candidates = append(candidates, unified)
+		}
+		if strings.TrimSpace(r.recordDir) != "" {
+			AppendCrossVenuePerpPerpCandidates(r.recordDir, writeCycleID, r.execCfg, perpPerpCandidates)
 		}
 	}
 

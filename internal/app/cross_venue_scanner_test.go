@@ -772,3 +772,107 @@ type scannerPerpDepthVenue struct {
 func (v *scannerPerpDepthVenue) FetchDepth(context.Context, venue.Market, venue.Symbol, int) (venue.Depth, error) {
 	return v.depth, nil
 }
+
+func TestCrossVenueScannerExtremeSpreadHUSDTPositiveNetEV(t *testing.T) {
+	// H-USDT 形态: binance 0.00625/4h (~1369% APR), bybit 0.0000125/1h (~11% APR), 两腿有 perp 深度。
+	deepDepth := venue.Depth{
+		Asks: []venue.DepthLevel{{Price: 1.0, Qty: 50000}},
+		Bids: []venue.DepthLevel{{Price: 1.0, Qty: 50000}},
+	}
+	now := time.Date(2026, 6, 20, 4, 0, 0, 0, time.UTC)
+	binanceNext := now.Add(2 * time.Hour)
+	bybitNext := now.Add(1 * time.Hour)
+	s := &CrossVenueScanner{
+		cfg: CrossVenueScannerConfig{
+			MinSpreadAPR: 0.01,
+			TopN:         5,
+		},
+		execCfg: CrossVenueExecutorConfig{
+			MaxPositionUSDT:       150,
+			SizingMaxSlippageBps:  20,
+			DefaultTakerFeeBps:    6,
+			EVExpectedSlippageBps: 3,
+			MinNetProfitUSDT:      0,
+			ExpectedHoldHours:     12,
+		},
+		venues: map[string]venue.Venue{
+			binance.VenueName: &scannerPerpDepthVenue{fakeFundingVenue: fakeFundingVenue{name: binance.VenueName}, depth: deepDepth},
+			bybit.VenueName:   &scannerPerpDepthVenue{fakeFundingVenue: fakeFundingVenue{name: bybit.VenueName}, depth: deepDepth},
+		},
+		nowFn:          func() time.Time { return now },
+		fundingHistory: make(map[string]map[string][]float64),
+	}
+	byVenue := map[string][]venue.FundingSnapshot{
+		binance.VenueName: {
+			{Symbol: "H-USDT", LastFundingRate: 0.00625, IntervalHours: 4, NextFundingTime: binanceNext},
+		},
+		bybit.VenueName: {
+			{Symbol: "H-USDT", LastFundingRate: 0.0000125, IntervalHours: 1, NextFundingTime: bybitNext},
+		},
+	}
+	s.recordFundingHistory(byVenue)
+	opps := s.computeCrossVenueOpportunities(context.Background(), byVenue)
+	if len(opps) == 0 {
+		t.Fatal("expected H-USDT opportunity, got none (sanity cap must not discard)")
+	}
+	var h *CrossVenueOpportunity
+	for i := range opps {
+		if opps[i].Symbol == "H-USDT" {
+			h = &opps[i]
+			break
+		}
+	}
+	if h == nil {
+		t.Fatalf("H-USDT not in opps: %+v", opps)
+	}
+	if !h.ExtremeSpread {
+		t.Fatalf("ExtremeSpread=false, want true for spread≈1358%%")
+	}
+	if h.SpreadAPR < 2.0 {
+		t.Fatalf("spread_apr=%.4f want >2.0 (200%%)", h.SpreadAPR)
+	}
+	if h.NetEV <= 0 {
+		t.Fatalf("NetEV=%.6f want >0 (spreadEV=%.6f open=%.6f close=%.6f slip=%.6f risk=%.6f policy=%.6f tradable=%.2f)",
+			h.NetEV, h.SpreadEV, h.OpenCost, h.CloseCost, h.ExpectedSlippage, h.ObservableRiskCost, h.PolicyBuffer, h.TradableNotional)
+	}
+	if h.RankScore <= 0 {
+		t.Fatalf("RankScore=%.6f want >0 for top-N ranking", h.RankScore)
+	}
+	if opps[0].Symbol != "H-USDT" {
+		t.Fatalf("top opp=%s want H-USDT (highest RankScore)", opps[0].Symbol)
+	}
+}
+
+func TestCrossVenueScannerAbsurdSpreadStillDiscarded(t *testing.T) {
+	now := time.Date(2026, 6, 20, 4, 0, 0, 0, time.UTC)
+	nextFunding := now.Add(2 * time.Hour)
+	absurdHigh := 60.0 * float64(8) / 8760.0
+	s := &CrossVenueScanner{
+		cfg: CrossVenueScannerConfig{
+			MinSpreadAPR:        0.01,
+			TopN:                5,
+			FundingAPRSanityCap: 100,
+		},
+		execCfg: CrossVenueExecutorConfig{MaxPositionUSDT: 150},
+		venues: map[string]venue.Venue{
+			binance.VenueName: &fakeFundingVenue{name: binance.VenueName},
+			bybit.VenueName:   &fakeFundingVenue{name: bybit.VenueName},
+		},
+		nowFn:          func() time.Time { return now },
+		fundingHistory: make(map[string]map[string][]float64),
+	}
+	byVenue := map[string][]venue.FundingSnapshot{
+		binance.VenueName: {
+			{Symbol: "FAKE-USDT", LastFundingRate: absurdHigh, IntervalHours: 8, NextFundingTime: nextFunding},
+		},
+		bybit.VenueName: {
+			{Symbol: "FAKE-USDT", LastFundingRate: 0.0001, IntervalHours: 8, NextFundingTime: nextFunding},
+		},
+	}
+	opps := s.computeCrossVenueOpportunities(context.Background(), byVenue)
+	for _, opp := range opps {
+		if opp.Symbol == "FAKE-USDT" {
+			t.Fatalf("absurd spread opp should be discarded, got spread=%.2f", opp.SpreadAPR)
+		}
+	}
+}

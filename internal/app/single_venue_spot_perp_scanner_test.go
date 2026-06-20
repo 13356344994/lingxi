@@ -53,7 +53,7 @@ func testSingleVenueSpotPerpScanInput(now time.Time) SingleVenueSpotPerpScanInpu
 		AvailableUSDTByVenue: map[string]float64{
 			bybit.VenueName: 500,
 		},
-		Config:                       cfg,
+		Config: cfg,
 		FundingRateVolPerHourByVenue: map[string]map[string]float64{
 			bybit.VenueName: {
 				"BTC-USDT": 0.00001,
@@ -134,6 +134,60 @@ func TestSingleVenueSpotPerpEffectiveFundingRateNoHistoryFallback(t *testing.T) 
 	want := 0.001
 	if math.Abs(got-want) > 1e-12 {
 		t.Fatalf("no-history effective rate = %.8f, want %.8f", got, want)
+	}
+}
+
+func TestScanSingleVenueSpotPerpReverseNegativeFundingWhenEnabled(t *testing.T) {
+	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
+	in := testSingleVenueSpotPerpScanInput(now)
+	in.Config.Exec.SingleVenueReverseFundingEnabled = true
+	in.Config.PeakFundingHaircut = 1.0
+	in.BorrowDailyRateByAsset = map[string]float64{"BTC": 0.00001, "ETH": 0.00001}
+	in.BorrowLimitUSDTByAsset = map[string]float64{"BTC": 100000, "ETH": 100000}
+	in.BorrowKnownAvailable = testBorrowKnownRegistry(now,
+		CrossVenueBorrowProbe{Symbol: "BTC-USDT", Venue: bybit.VenueName, Available: true},
+		CrossVenueBorrowProbe{Symbol: "ETH-USDT", Venue: bybit.VenueName, Available: true},
+	)
+	in.FundingByVenue[bybit.VenueName]["BTC-USDT"] = SingleVenueSpotPerpFundingSnap{
+		Rate:            -scannerTestCarryNearNegativeFundingRate,
+		IntervalHours:   8,
+		NextFundingTime: scannerTestCarryNextFunding(now),
+	}
+	opps := ScanSingleVenueSpotPerpOpportunities(in)
+	btc := findSingleVenueSpotPerpOpp(opps, "BTC-USDT")
+	if btc == nil {
+		t.Fatal("expected reverse negative funding candidate")
+	}
+	if len(btc.RejectReasons) > 0 || !opportunityHasTradableLegs(*btc) {
+		t.Fatalf("expected tradable reverse candidate, reject=%#v", btc.RejectReasons)
+	}
+	if btc.Legs[0].Side != "short" || btc.Legs[1].Side != "long" {
+		t.Fatalf("reverse legs = %+v", btc.Legs)
+	}
+	if btc.ExpectedBorrowCostUSDT <= 0 {
+		t.Fatalf("reverse spot-perp must include borrow cost, got %.6f", btc.ExpectedBorrowCostUSDT)
+	}
+	if btc.ExpectedNetEVUSDT <= 0 {
+		t.Fatalf("expected positive EV, got %.6f", btc.ExpectedNetEVUSDT)
+	}
+}
+
+func TestScanSingleVenueSpotPerpReverseNotBorrowableReject(t *testing.T) {
+	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
+	in := testSingleVenueSpotPerpScanInput(now)
+	in.Config.Exec.SingleVenueReverseFundingEnabled = true
+	in.FundingByVenue[bybit.VenueName]["BTC-USDT"] = SingleVenueSpotPerpFundingSnap{
+		Rate:            -scannerTestCarryNearFundingRate,
+		IntervalHours:   8,
+		NextFundingTime: scannerTestCarryNextFunding(now),
+	}
+	opps := ScanSingleVenueSpotPerpOpportunities(in)
+	btc := findSingleVenueSpotPerpOpp(opps, "BTC-USDT")
+	if btc == nil {
+		t.Fatal("expected rejected row for not borrowable")
+	}
+	if !containsReject(btc.RejectReasons, singleVenueSpotPerpRejectNotBorrowable) {
+		t.Fatalf("reject_reasons = %#v, want %q", btc.RejectReasons, singleVenueSpotPerpRejectNotBorrowable)
 	}
 }
 

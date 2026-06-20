@@ -1,16 +1,16 @@
 {
   "wired": true,
-  "updated_at": "2026-06-19T20:03:05.789217054Z",
+  "updated_at": "2026-06-20T04:54:57.840409281Z",
   "snapshot": {
-    "observed_at": "2026-06-19T20:03:05.758227523Z",
+    "observed_at": "2026-06-20T04:54:57.808523786Z",
     "day_start_cst": "2026-06-20T00:00:00+08:00",
     "daily_realized_pnl_usdt": 0,
-    "daily_equity_delta_usdt": 0.009889,
+    "daily_equity_delta_usdt": 0.061204,
     "venue_equity_deltas": {
-      "binance": 0.019894711100008067,
-      "bybit": -0.009706990000012183,
+      "binance": 0.029759857100003728,
+      "bybit": 0.032185519999984535,
       "gate": 0,
-      "okx": -0.00029895145068792317
+      "okx": -0.0007420521516365852
     },
     "cumulative_realized_pnl_usdt": -0.227578,
     "realized_pnl_peak_usdt": 0,
@@ -20,9 +20,9 @@
       "single_venue_perp_spot": 0,
       "single_venue_spot_perp": -0.006026
     },
-    "real_equity_total_usdt": 435.173198,
+    "real_equity_total_usdt": 435.224512,
     "real_equity_peak_usdt": 454.902493,
-    "real_equity_drawdown_usdt": 19.729295,
+    "real_equity_drawdown_usdt": 19.677981,
     "open_position_count": 0,
     "open_notional_usdt": 0,
     "positions_by_strategy": {

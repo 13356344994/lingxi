@@ -13,6 +13,8 @@ const (
 	singleVenueSpotPerpRejectNoSpotMarket      = "no_spot_market"
 	singleVenueSpotPerpRejectInsufficientDepth = "insufficient_depth"
 	singleVenueSpotPerpRejectMarginStress      = "margin_stress_liquidation"
+	singleVenueSpotPerpRejectNotBorrowable     = "not_borrowable"
+	singleVenueSpotPerpRejectBorrowOverLimit   = "borrow_over_limit"
 )
 
 // single_venue_spot_perp_scanner.go 单所 spot-perp 正 carry 扫描器(纯函数, plan-only, 不接入实盘 tick)。
@@ -58,15 +60,20 @@ func DefaultSingleVenueSpotPerpScannerConfig(exec CrossVenueExecutorConfig) Sing
 
 // SingleVenueSpotPerpScanInput 是纯函数扫描器输入。
 type SingleVenueSpotPerpScanInput struct {
-	SnapshotID           string
-	Now                  time.Time
-	Symbols              []string
-	Venues               []string
-	FundingByVenue       map[string]map[string]SingleVenueSpotPerpFundingSnap
-	MarketsByVenue       map[string]map[string]SingleVenueSpotPerpMarketSnap
-	AvailableUSDTByVenue map[string]float64
-	Config               SingleVenueSpotPerpScannerConfig
-	FundingRateVolPerHourByVenue map[string]map[string]float64
+	SnapshotID                        string
+	Now                               time.Time
+	Symbols                           []string
+	Venues                            []string
+	FundingByVenue                    map[string]map[string]SingleVenueSpotPerpFundingSnap
+	MarketsByVenue                    map[string]map[string]SingleVenueSpotPerpMarketSnap
+	AvailableUSDTByVenue              map[string]float64
+	BorrowDailyRateByAsset            map[string]float64
+	BorrowLimitUSDTByAsset            map[string]float64
+	BorrowKnownAvailable              *BorrowKnownAvailableRegistry
+	BorrowDefaultDailyRateWhenUnknown float64
+	BorrowDisabledVenues              map[string]struct{}
+	Config                            SingleVenueSpotPerpScannerConfig
+	FundingRateVolPerHourByVenue      map[string]map[string]float64
 }
 
 // ScanSingleVenueSpotPerpOpportunities 扫描单所 spot-perp 机会(纯函数, plan-only)。
@@ -96,8 +103,11 @@ func ScanSingleVenueSpotPerpOpportunities(in SingleVenueSpotPerpScanInput) []Uni
 			}
 			opp, ok := buildSingleVenueSpotPerpOpportunity(
 				in.SnapshotID, now, sym, venueName,
-				in.FundingByVenue, in.MarketsByVenue, in.AvailableUSDTByVenue, cfg, drops,
-				in.FundingRateVolPerHourByVenue,
+				in.FundingByVenue, in.MarketsByVenue, in.AvailableUSDTByVenue,
+				in.BorrowDailyRateByAsset, in.BorrowLimitUSDTByAsset,
+				in.BorrowKnownAvailable, in.BorrowDefaultDailyRateWhenUnknown,
+				in.BorrowDisabledVenues,
+				cfg, drops, in.FundingRateVolPerHourByVenue,
 			)
 			if ok {
 				out = append(out, opp)
@@ -198,6 +208,10 @@ func buildSingleVenueSpotPerpOpportunity(
 	funding map[string]map[string]SingleVenueSpotPerpFundingSnap,
 	markets map[string]map[string]SingleVenueSpotPerpMarketSnap,
 	available map[string]float64,
+	borrowDailyRateByAsset, borrowLimitUSDTByAsset map[string]float64,
+	borrowKnown *BorrowKnownAvailableRegistry,
+	borrowDefaultDailyRateWhenUnknown float64,
+	borrowDisabled map[string]struct{},
 	cfg SingleVenueSpotPerpScannerConfig,
 	drops *scannerInstrumentDropLog,
 	fundingVolByVenue map[string]map[string]float64,
@@ -216,7 +230,14 @@ func buildSingleVenueSpotPerpOpportunity(
 	}
 
 	if fund.Rate <= 0 {
-		return singleVenueSpotPerpRejectedOpportunity(snapshotID, symbol, venueName, singleVenueSpotPerpRejectNegativeFunding, fund, now, 0), true
+		if !cfg.Exec.SingleVenueReverseFundingEnabled {
+			return singleVenueSpotPerpRejectedOpportunity(snapshotID, symbol, venueName, singleVenueSpotPerpRejectNegativeFunding, fund, now, 0), true
+		}
+		return buildSingleVenueSpotPerpReverseOpportunity(
+			snapshotID, now, symbol, venueName, fund, mkt, available,
+			borrowDailyRateByAsset, borrowLimitUSDTByAsset, borrowKnown, borrowDefaultDailyRateWhenUnknown, borrowDisabled,
+			cfg, drops, fundingVolByVenue, cvCfg,
+		)
 	}
 	if !mkt.HasSpot || mkt.SpotMid <= 0 {
 		return singleVenueSpotPerpRejectedOpportunity(snapshotID, symbol, venueName, singleVenueSpotPerpRejectNoSpotMarket, fund, now, fund.Rate), true
@@ -351,6 +372,159 @@ func buildSingleVenueSpotPerpOpportunity(
 		RequiresRebalance:      requiresRebalance,
 	}
 	return singleVenueSpotPerpFinalizeOpportunity(opp, fund, now), true
+}
+
+// buildSingleVenueSpotPerpReverseOpportunity 负费率反向 carry:借币空现货 + 多永续(收负费率绝对值)。
+func buildSingleVenueSpotPerpReverseOpportunity(
+	snapshotID string,
+	now time.Time,
+	symbol, venueName string,
+	fund SingleVenueSpotPerpFundingSnap,
+	mkt SingleVenueSpotPerpMarketSnap,
+	available map[string]float64,
+	borrowDailyRateByAsset, borrowLimitUSDTByAsset map[string]float64,
+	borrowKnown *BorrowKnownAvailableRegistry,
+	borrowDefaultDailyRateWhenUnknown float64,
+	borrowDisabled map[string]struct{},
+	cfg SingleVenueSpotPerpScannerConfig,
+	drops *scannerInstrumentDropLog,
+	fundingVolByVenue map[string]map[string]float64,
+	cvCfg CrossVenueSpotPerpScannerConfig,
+) (UnifiedOpportunity, bool) {
+	displayRate := -fund.Rate
+	if !mkt.HasSpot || mkt.SpotMid <= 0 {
+		return singleVenueSpotPerpRejectedOpportunity(snapshotID, symbol, venueName, singleVenueSpotPerpRejectNoSpotMarket, fund, now, displayRate), true
+	}
+	if !mkt.HasPerp || mkt.PerpMid <= 0 {
+		return UnifiedOpportunity{}, false
+	}
+	if !scannerBothLegsInstrumentValid(mkt, mkt) {
+		if !scannerMarketLegInstrumentValid(mkt.SpotTickSize, mkt.SpotStepSize) {
+			drops.skip("svsp", symbol, venueName, "现货")
+		} else {
+			drops.skip("svsp", symbol, venueName, "永续")
+		}
+		return UnifiedOpportunity{}, false
+	}
+	baseAsset := baseAssetFromCanonicalSymbol(symbol)
+	if !perpSpotAssetBorrowable(venueName, baseAsset, borrowKnown, borrowDisabled, now) {
+		return singleVenueSpotPerpRejectedOpportunity(snapshotID, symbol, venueName, singleVenueSpotPerpRejectNotBorrowable, fund, now, displayRate), true
+	}
+	midDev := math.Abs(mkt.PerpMid/mkt.SpotMid - 1)
+	if midDev > cfg.Exec.MidPriceDeviationMax {
+		return UnifiedOpportunity{}, false
+	}
+	notional := crossVenueSpotPerpTradableNotionalForSingleVenue(cvCfg, mkt, mkt, venueName, available, func(v string) float64 { return singleVenueSpotPerpVenueReserve(v, cfg) })
+	if notional <= 0 {
+		return singleVenueSpotPerpRejectedOpportunity(snapshotID, symbol, venueName, singleVenueSpotPerpRejectInsufficientDepth, fund, now, displayRate), true
+	}
+	if crossVenueSpotPerpPerpLiquidatedAtShock(cvCfg, notional) {
+		return singleVenueSpotPerpRejectedOpportunity(snapshotID, symbol, venueName, singleVenueSpotPerpRejectMarginStress, fund, now, displayRate), true
+	}
+	holdHours := cfg.ExpectedHoldHours
+	if holdHours <= 0 {
+		holdHours = crossVenueSpotPerpExpectedHoldHours(now, fund)
+	}
+	if holdHours <= 0 {
+		return UnifiedOpportunity{}, false
+	}
+	settlements := crossVenueSpotPerpFundingSettlementCount(now, holdHours, fund.IntervalHours, fund.NextFundingTime)
+	if settlements <= 0 {
+		return UnifiedOpportunity{}, false
+	}
+	effectiveRate := crossVenueSpotPerpEffectiveFundingRate(displayRate, fund.SpikeThreshold, cfg.PeakFundingHaircut, cfg.Exec.CarryNoHistoryHaircut)
+	spotPerpEntryBasis := crossVenueSpotPerpEntryBasisUSDT(mkt.SpotMid, mkt.PerpMid, notional)
+	expectedBasisPnL := crossVenuePerpSpotExpectedBasisPnL(spotPerpEntryBasis, notional, cvCfg)
+	openCost := singleVenueSpotPerpOpenCostUSDT(cfg, venueName, notional)
+	closeCost := openCost
+	slippage := crossVenueSpotPerpSlippageUSDT(cvCfg, notional, mkt, mkt)
+	borrowCost := perpSpotBorrowCostUSDT(baseAsset, notional, holdHours, borrowDailyRateByAsset, borrowDefaultDailyRateWhenUnknown)
+	vol, volOK := carryFundingVolFromMap(fundingVolByVenue, venueName, symbol)
+	entrySlippage := carryScannerEntrySlippageUSDT(cvCfg, notional, mkt, mkt)
+	if ok, _ := carryScannerFundingEntryEligible(now, fund, holdHours, notional, effectiveRate, expectedBasisPnL, openCost+borrowCost, entrySlippage, cfg.Exec.FundingEntryGate(), vol, volOK); !ok {
+		return UnifiedOpportunity{}, false
+	}
+	maxNotional := notional
+	notional, _, ok := carrySizedNotionalAfterConfidence(maxNotional, cfg.Exec, fund, vol, volOK)
+	if !ok {
+		return UnifiedOpportunity{}, false
+	}
+	expectedFunding := carryScannerExpectedFundingUSDT(notional, effectiveRate, settlements, cfg.FundingCaptureProbability)
+	spotPerpEntryBasis = crossVenueSpotPerpEntryBasisUSDT(mkt.SpotMid, mkt.PerpMid, notional)
+	expectedBasisPnL = crossVenuePerpSpotExpectedBasisPnL(spotPerpEntryBasis, notional, cvCfg)
+	openCost = singleVenueSpotPerpOpenCostUSDT(cfg, venueName, notional)
+	closeCost = openCost
+	slippage = crossVenueSpotPerpSlippageUSDT(cvCfg, notional, mkt, mkt)
+	borrowCost = perpSpotBorrowCostUSDT(baseAsset, notional, holdHours, borrowDailyRateByAsset, borrowDefaultDailyRateWhenUnknown)
+	spotMarginRequired := notional
+	perpMarginRequired := crossVenueSpotPerpPerpMarginRequired(cvCfg, notional)
+	totalCapital := spotMarginRequired + perpMarginRequired
+	rebalancePenalty := 0.0
+	requiresRebalance := singleVenueSpotPerpRequiresRebalance(venueName, spotMarginRequired, perpMarginRequired, available, cfg)
+	if requiresRebalance {
+		rebalancePenalty = notional * cfg.RebalanceTransferCostBps / 10000
+	}
+	spotLegInstr := legInstrumentFields(mkt.SpotTickSize, mkt.SpotStepSize, mkt.SpotMinNotional)
+	perpLegInstr := legInstrumentFields(mkt.PerpTickSize, mkt.PerpStepSize, mkt.PerpMinNotional)
+	closeCost += carryScannerDustResidualCostUSDT([]float64{spotLegInstr.minNotional, perpLegInstr.minNotional}, false)
+	netEV := expectedFunding + expectedBasisPnL - openCost - closeCost - slippage - borrowCost - rebalancePenalty
+	dataQuality := crossVenueSpotPerpDataQualityScore(fund)
+	executionScore := crossVenueExecutionScore(slippage, notional)
+	liquidityScore := crossVenueSpotPerpLiquidityScore(mkt, mkt, notional, holdHours)
+	riskScore := singleVenueSpotPerpReverseRiskScore(cfg, requiresRebalance, midDev, dataQuality)
+	capitalEfficiency := 0.0
+	if totalCapital > 0 {
+		capitalEfficiency = netEV / totalCapital
+	}
+	rejectReasons := make([]string, 0)
+	if perpSpotBorrowOverLimit(baseAsset, notional, borrowLimitUSDTByAsset) {
+		rejectReasons = append(rejectReasons, singleVenueSpotPerpRejectBorrowOverLimit)
+	}
+	if requiresRebalance {
+		rejectReasons = append(rejectReasons, "requires_rebalance")
+	}
+	if netEV <= 0 {
+		rejectReasons = append(rejectReasons, "net_ev<=0")
+	}
+	refPrice := (mkt.SpotMid + mkt.PerpMid) / 2
+	qty := notional / refPrice
+	opp := UnifiedOpportunity{
+		ID:           unifiedOpportunityID(UnifiedStrategySingleVenueSpotPerp, symbol, snapshotID, venueName, venueName),
+		StrategyType: UnifiedStrategySingleVenueSpotPerp,
+		Symbol:       symbol,
+		Legs: []UnifiedOpportunityLeg{
+			{Venue: venueName, Market: "spot", Side: "short", Qty: qty, Notional: notional, TickSize: spotLegInstr.tick, StepSize: spotLegInstr.step, MinNotional: spotLegInstr.minNotional},
+			{Venue: venueName, Market: "perp", Side: "long", Qty: qty, Notional: notional, TickSize: perpLegInstr.tick, StepSize: perpLegInstr.step, MinNotional: perpLegInstr.minNotional},
+		},
+		ExpectedFundingUSDT:      expectedFunding,
+		ExpectedOpenCostUSDT:     openCost,
+		ExpectedCloseCostUSDT:    closeCost,
+		ExpectedSlippageUSDT:     slippage,
+		ExpectedBorrowCostUSDT:   borrowCost,
+		ExpectedRollbackCostUSDT: rebalancePenalty,
+		ExpectedNetEVUSDT:        netEV,
+		ExpectedHoldHours:        holdHours,
+		CapitalRequiredByVenue:   map[string]float64{venueName: totalCapital},
+		RiskScore:                riskScore,
+		ExecutionScore:           executionScore,
+		LiquidityScore:           liquidityScore,
+		DataQualityScore:         dataQuality,
+		CapitalEfficiencyScore:   capitalEfficiency,
+		RejectReasons:            rejectReasons,
+		RequiresRebalance:        requiresRebalance,
+	}
+	applyUnifiedFundingSnapDisplay(&opp, fund, now, displayRate)
+	return opp, true
+}
+
+func singleVenueSpotPerpReverseRiskScore(cfg SingleVenueSpotPerpScannerConfig, requiresRebalance bool, midDev, dataQuality float64) float64 {
+	risk := 0.40
+	if requiresRebalance {
+		risk += 0.15
+	}
+	risk += clamp01(midDev/cfg.Exec.MidPriceDeviationMax) * 0.15
+	risk += clamp01(1-dataQuality) * 0.20
+	return clamp01(risk)
 }
 
 func singleVenueSpotPerpFinalizeOpportunity(opp UnifiedOpportunity, fund CrossVenueSpotPerpFundingSnap, now time.Time) UnifiedOpportunity {

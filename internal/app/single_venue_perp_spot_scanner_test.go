@@ -73,7 +73,7 @@ func testSingleVenuePerpSpotScanInput(now time.Time) SingleVenuePerpSpotScanInpu
 			CrossVenueBorrowProbe{Symbol: "BTC-USDT", Venue: bybit.VenueName, Available: true},
 			CrossVenueBorrowProbe{Symbol: "ETH-USDT", Venue: bybit.VenueName, Available: true},
 		),
-		Config:                       cfg,
+		Config: cfg,
 		FundingRateVolPerHourByVenue: map[string]map[string]float64{
 			bybit.VenueName: {
 				"BTC-USDT": 0.00001,
@@ -171,7 +171,7 @@ func TestScanSingleVenuePerpSpotRecordsPositiveFundingReject(t *testing.T) {
 	}
 }
 
-func TestScanSingleVenuePerpSpotExcludesNotBorrowable(t *testing.T) {
+func TestScanSingleVenuePerpSpotRecordsNotBorrowableReject(t *testing.T) {
 	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
 	in := testSingleVenuePerpSpotScanInput(now)
 	reg := testBorrowKnownRegistry(now,
@@ -179,9 +179,41 @@ func TestScanSingleVenuePerpSpotExcludesNotBorrowable(t *testing.T) {
 	)
 	in.BorrowKnownAvailable = reg
 	opps := ScanSingleVenuePerpSpotOpportunities(in)
-	// P1④: 不可借币在筛选阶段直接排除,不再作为带 reject 的候选出现。
-	if btc := findSingleVenuePerpSpotOpp(opps, "BTC-USDT"); btc != nil {
-		t.Fatalf("not-borrowable asset should be excluded from candidates, got reject_reasons=%#v", btc.RejectReasons)
+	btc := findSingleVenuePerpSpotOpp(opps, "BTC-USDT")
+	if btc == nil {
+		t.Fatal("expected rejected row for not borrowable")
+	}
+	if !containsPerpSpotReject(btc.RejectReasons, singleVenuePerpSpotRejectNotBorrowable) {
+		t.Fatalf("reject_reasons = %#v, want %q", btc.RejectReasons, singleVenuePerpSpotRejectNotBorrowable)
+	}
+}
+
+func TestScanSingleVenuePerpSpotReversePositiveFundingWhenEnabled(t *testing.T) {
+	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
+	in := testSingleVenuePerpSpotScanInput(now)
+	in.Config.Exec.SingleVenueReverseFundingEnabled = true
+	in.Config.PeakFundingHaircut = 1.0
+	in.FundingByVenue[bybit.VenueName]["BTC-USDT"] = SingleVenuePerpSpotFundingSnap{
+		Rate:            scannerTestCarryNearNegativeFundingRate,
+		IntervalHours:   8,
+		NextFundingTime: scannerTestCarryNextFunding(now),
+	}
+	opps := ScanSingleVenuePerpSpotOpportunities(in)
+	btc := findSingleVenuePerpSpotOpp(opps, "BTC-USDT")
+	if btc == nil {
+		t.Fatal("expected reverse positive funding candidate")
+	}
+	if len(btc.RejectReasons) > 0 || !opportunityHasTradableLegs(*btc) {
+		t.Fatalf("expected tradable reverse candidate, reject=%#v legs=%+v", btc.RejectReasons, btc.Legs)
+	}
+	if btc.Legs[0].Side != "short" || btc.Legs[1].Side != "buy" {
+		t.Fatalf("reverse legs = %+v", btc.Legs)
+	}
+	if btc.ExpectedNetEVUSDT <= 0 {
+		t.Fatalf("expected positive EV, got %.6f", btc.ExpectedNetEVUSDT)
+	}
+	if btc.ExpectedBorrowCostUSDT != 0 {
+		t.Fatalf("reverse perp-spot should not borrow, got %.6f", btc.ExpectedBorrowCostUSDT)
 	}
 }
 

@@ -27,6 +27,16 @@
     .blocker-box { background: #1e293b; border: 1px solid #475569; border-radius: 8px; padding: 12px 16px; margin-bottom: 20px; }
     .blocker-box h2 { margin: 0 0 8px 0; font-size: 15px; color: #fbbf24; }
     .hint { color: #94a3b8; font-size: 13px; margin-bottom: 12px; }
+    .tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; border-bottom: 1px solid #334155; padding-bottom: 10px; }
+    .tab { background: #1e293b; color: #cbd5e1; border: 1px solid #334155; border-radius: 999px; padding: 6px 14px; cursor: pointer; font-size: 13px; }
+    .tab:hover { background: #334155; }
+    .tab.active { background: #2563eb; color: #fff; border-color: #2563eb; }
+    .tab .badge { display: inline-block; margin-left: 6px; background: rgba(255,255,255,.18); border-radius: 999px; padding: 0 7px; font-size: 11px; }
+    .tab.active .badge { background: rgba(255,255,255,.28); }
+    .panel { display: none; }
+    .panel.active { display: block; }
+    .panel-summary { color: #94a3b8; font-size: 13px; margin-bottom: 10px; }
+    .empty-note { color: #64748b; font-style: italic; padding: 16px 0; }
   </style>
 </head>
 <body>
@@ -42,29 +52,8 @@
       <div id="reject-top"></div>
     </div>
 
-    <table>
-      <thead>
-        <tr>
-          <th>#</th>
-          <th>策略</th>
-          <th>交易对</th>
-          <th>交易所</th>
-          <th>价差 APR</th>
-          <th>费率 APR</th>
-          <th>原始费率</th>
-          <th>美元/时</th>
-          <th>间隔 h</th>
-          <th>下次结算</th>
-          <th>距结算 min</th>
-          <th>预计资金费</th>
-          <th>净 EV</th>
-          <th>名义</th>
-          <th>可执行</th>
-          <th>拒绝原因</th>
-        </tr>
-      </thead>
-      <tbody id="rows"></tbody>
-    </table>
+    <div class="tabs" id="tabs"></div>
+    <div id="panels"></div>
 
     <div class="section">
       <h2>交易所资金不足 Top</h2>
@@ -138,6 +127,49 @@
       if (!s) return '—';
       try { return new Date(s).toLocaleString('zh-CN', {hour12:false}); } catch { return esc(s); }
     }
+    const TABLE_HEAD =
+      '<thead><tr>'+
+      '<th>#</th><th>策略</th><th>交易对</th><th>交易所</th><th>价差 APR</th><th>费率 APR</th>'+
+      '<th>原始费率</th><th>美元/时</th><th>间隔 h</th><th>下次结算</th><th>距结算 min</th>'+
+      '<th>预计资金费</th><th>净 EV</th><th>名义</th><th>可执行</th><th>拒绝原因</th>'+
+      '</tr></thead>';
+
+    function rowHTML(o) {
+      const cls = o.would_execute ? 'executable' : 'rejected';
+      const aprClass = (o.landscape_sort_key > 0.5) ? 'funding-high' : '';
+      return '<tr class="'+cls+'">'+
+        '<td>'+o.rank+'</td>'+
+        '<td>'+esc(strategyLabel(o.strategy_type))+'</td>'+
+        '<td>'+esc(o.symbol)+'</td>'+
+        '<td>'+(o.venues||[]).map(v=>'<span class="pill">'+esc(v)+'</span>').join('')+'</td>'+
+        '<td class="'+aprClass+'">'+pct(o.spread_apr)+'</td>'+
+        '<td class="'+aprClass+'">'+pct(o.funding_apr)+'</td>'+
+        '<td>'+fmt(o.raw_funding_rate,6)+'</td>'+
+        '<td>'+fmt(o.funding_rate_per_hour,6)+'</td>'+
+        '<td>'+(o.funding_interval_hours || '—')+'</td>'+
+        '<td>'+fmtTime(o.next_funding_time)+'</td>'+
+        '<td>'+fmt(o.minutes_until_funding,0)+'</td>'+
+        '<td>'+fmt(o.expected_funding_usdt,4)+'</td>'+
+        '<td>'+fmt(o.expected_net_ev_usdt,4)+'</td>'+
+        '<td>'+fmt(o.notional_usdt,2)+'</td>'+
+        '<td class="'+(o.would_execute?'ok':'no')+'">'+(o.would_execute?'是':'否')+'</td>'+
+        '<td><pre>'+esc(rejectReasonsLabel(o.reject_reasons))+'</pre></td>';
+    }
+
+    function tableHTML(opportunities) {
+      if (!opportunities || !opportunities.length) {
+        return '<div class="empty-note">本组当前无候选。</div>';
+      }
+      return '<table>'+TABLE_HEAD+'<tbody>'+opportunities.map(rowHTML).join('')+'</tbody></table>';
+    }
+
+    let activeTab = 'total';
+    function selectTab(key) {
+      activeTab = key;
+      document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.key === key));
+      document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.dataset.key === key));
+    }
+
     async function load() {
       const errEl = document.getElementById('error');
       errEl.textContent = '';
@@ -151,32 +183,39 @@
           '周期: <strong>'+esc(data.cycle_id || '—')+'</strong> · '+
           '候选 '+data.total_candidates+' · 可执行 '+data.would_execute_count+' · '+
           esc(data.generated_at)+'<br>数据源: '+esc(data.source_path);
-        const tbody = document.getElementById('rows');
-        tbody.innerHTML = '';
-        (data.opportunities || []).forEach(o => {
-          const tr = document.createElement('tr');
-          if (o.would_execute) tr.className = 'executable';
-          else tr.className = 'rejected';
-          const aprClass = (o.landscape_sort_key > 0.5) ? 'funding-high' : '';
-          tr.innerHTML =
-            '<td>'+o.rank+'</td>'+
-            '<td>'+esc(strategyLabel(o.strategy_type))+'</td>'+
-            '<td>'+esc(o.symbol)+'</td>'+
-            '<td>'+(o.venues||[]).map(v=>'<span class="pill">'+esc(v)+'</span>').join('')+'</td>'+
-            '<td class="'+aprClass+'">'+pct(o.spread_apr)+'</td>'+
-            '<td class="'+aprClass+'">'+pct(o.funding_apr)+'</td>'+
-            '<td>'+fmt(o.raw_funding_rate,6)+'</td>'+
-            '<td>'+fmt(o.funding_rate_per_hour,6)+'</td>'+
-            '<td>'+(o.funding_interval_hours || '—')+'</td>'+
-            '<td>'+fmtTime(o.next_funding_time)+'</td>'+
-            '<td>'+fmt(o.minutes_until_funding,0)+'</td>'+
-            '<td>'+fmt(o.expected_funding_usdt,4)+'</td>'+
-            '<td>'+fmt(o.expected_net_ev_usdt,4)+'</td>'+
-            '<td>'+fmt(o.notional_usdt,2)+'</td>'+
-            '<td class="'+(o.would_execute?'ok':'no')+'">'+(o.would_execute?'是':'否')+'</td>'+
-            '<td><pre>'+esc(rejectReasonsLabel(o.reject_reasons))+'</pre></td>';
-          tbody.appendChild(tr);
+
+        // 构造 tab 组:总排行 + 各策略(后端 strategies 已固定顺序)。
+        const groups = [{
+          key: 'total', label: '总排行',
+          total: data.total_candidates, exec: data.would_execute_count,
+          opportunities: data.opportunities || [],
+        }];
+        (data.strategies || []).forEach(s => {
+          groups.push({
+            key: s.strategy_type,
+            label: strategyLabel(s.strategy_type),
+            total: s.total_candidates,
+            exec: s.would_execute_count,
+            opportunities: s.opportunities || [],
+          });
         });
+
+        document.getElementById('tabs').innerHTML = groups.map(g =>
+          '<div class="tab" data-key="'+esc(g.key)+'">'+esc(g.label)+
+          '<span class="badge">'+g.total+' / '+g.exec+'★</span></div>'
+        ).join('');
+        document.getElementById('panels').innerHTML = groups.map(g =>
+          '<div class="panel" data-key="'+esc(g.key)+'">'+
+          '<div class="panel-summary">候选 '+g.total+' · 可执行 '+g.exec+'（★ 表示可执行数）</div>'+
+          tableHTML(g.opportunities)+
+          '</div>'
+        ).join('');
+        document.querySelectorAll('.tab').forEach(t =>
+          t.addEventListener('click', () => selectTab(t.dataset.key)));
+        // 保持当前选中的 tab(刷新后不跳回总榜);若该 tab 不存在则回退总榜。
+        if (!groups.some(g => g.key === activeTab)) activeTab = 'total';
+        selectTab(activeTab);
+
         document.getElementById('reject-top').innerHTML = (data.reject_reasons_top||[]).length
           ? '<table><tr><th>原因</th><th>次数</th></tr>'+
             data.reject_reasons_top.map(r=>'<tr><td>'+esc(rejectReasonLabel(r.reason))+'</td><td><strong>'+r.count+'</strong></td></tr>').join('')+

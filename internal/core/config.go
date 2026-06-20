@@ -765,6 +765,9 @@ type CrossVenueExecutorConfig struct {
 	CarryNoHistoryHaircut float64 `cfg:"carry_no_history_haircut"`
 	// LowConfidenceSizeFloorFraction 低置信度(历史/波动)时的 SizeMultiplier 下限。默认 0.25。
 	LowConfidenceSizeFloorFraction float64 `cfg:"low_confidence_size_floor_fraction"`
+	// SingleVenueReverseFundingEnabled 单所策略启用反向资金费 carry(负费率 spot-perp / 正费率 perp-spot)。
+	// 默认 false;关闭时仍走 v1_not_supported 拒绝,行为与改动前一致。
+	SingleVenueReverseFundingEnabled bool `cfg:"single_venue_reverse_funding_enabled"`
 }
 
 // CarryFundingEntryGateConfig carry 策略开仓前资金费结算窗口闸门参数视图(由 CrossVenueExecutorConfig 字段组装)。

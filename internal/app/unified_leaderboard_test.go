@@ -271,6 +271,60 @@ func TestDashboardUnifiedLeaderboardAPI(t *testing.T) {
 	}
 }
 
+func TestBuildUnifiedLeaderboardPerStrategyGrouping(t *testing.T) {
+	cycle := "cvsnap-per-strategy"
+	records := []UnifiedCandidateLogRecord{
+		{CycleID: cycle, StrategyType: UnifiedStrategySingleVenueSpotPerp, Symbol: "AAA-USDT", FundingAPR: 0.20},
+		{CycleID: cycle, StrategyType: UnifiedStrategySingleVenueSpotPerp, Symbol: "BBB-USDT", FundingAPR: 0.80},
+		{CycleID: cycle, StrategyType: UnifiedStrategyPerpPerp, Symbol: "HHH-USDT", Venues: []string{"binance", "bybit"},
+			SpreadAPR: 13.69, WouldExecute: true, ExpectedNetEVUSDT: 0.5},
+	}
+	resp := BuildUnifiedLeaderboard(records, 0)
+
+	// 总榜:全策略混排,3 条。
+	if len(resp.Opportunities) != 3 {
+		t.Fatalf("total opportunities = %d, want 3", len(resp.Opportunities))
+	}
+
+	// 分策略:固定 5 个分组、固定顺序(即使无候选也保留)。
+	if len(resp.Strategies) != 5 {
+		t.Fatalf("strategies = %d, want 5", len(resp.Strategies))
+	}
+	wantOrder := []string{
+		UnifiedStrategySingleVenueSpotPerp,
+		UnifiedStrategyCrossVenueSpotPerp,
+		UnifiedStrategySingleVenuePerpSpot,
+		UnifiedStrategyCrossVenuePerpSpot,
+		UnifiedStrategyPerpPerp,
+	}
+	for i, st := range wantOrder {
+		if resp.Strategies[i].StrategyType != st {
+			t.Fatalf("strategies[%d] = %q, want %q", i, resp.Strategies[i].StrategyType, st)
+		}
+	}
+
+	// svsp 组:2 条,组内独立按 APR 降序(BBB 0.80 > AAA 0.20),rank 从 1 起。
+	svsp := resp.Strategies[0]
+	if svsp.TotalCandidates != 2 || len(svsp.Opportunities) != 2 {
+		t.Fatalf("svsp group = %+v", svsp)
+	}
+	if svsp.Opportunities[0].Symbol != "BBB-USDT" || svsp.Opportunities[0].Rank != 1 {
+		t.Fatalf("svsp top = %+v", svsp.Opportunities[0])
+	}
+
+	// perp_perp 组:1 条可执行,组内 would_execute 计数正确。
+	pp := resp.Strategies[4]
+	if pp.TotalCandidates != 1 || pp.WouldExecuteCount != 1 {
+		t.Fatalf("perp_perp group = %+v", pp)
+	}
+
+	// 空策略组(cvsp)仍保留且为空。
+	cvsp := resp.Strategies[1]
+	if cvsp.TotalCandidates != 0 || len(cvsp.Opportunities) != 0 {
+		t.Fatalf("empty cvsp group should be present and empty: %+v", cvsp)
+	}
+}
+
 func TestUnifiedPrimarySortKeyFallback(t *testing.T) {
 	rec := UnifiedCandidateLogRecord{
 		ExpectedNetEVUSDT:      0.10,

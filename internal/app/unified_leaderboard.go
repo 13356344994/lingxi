@@ -52,17 +52,35 @@ type UnifiedVenueCapitalBlock struct {
 	Count int    `json:"count"`
 }
 
+// UnifiedStrategyLeaderboard 是单个策略的独立排行(总榜下的分组视图)。
+type UnifiedStrategyLeaderboard struct {
+	StrategyType      string                    `json:"strategy_type"`
+	TotalCandidates   int                       `json:"total_candidates"`
+	WouldExecuteCount int                       `json:"would_execute_count"`
+	Opportunities     []UnifiedLeaderboardEntry `json:"opportunities"`
+}
+
 // UnifiedLeaderboardResponse 是 /api/unified/leaderboard 的 JSON 响应。
 type UnifiedLeaderboardResponse struct {
-	CycleID                  string                     `json:"cycle_id"`
-	GeneratedAt              string                     `json:"generated_at"`
-	SourcePath               string                     `json:"source_path"`
-	TotalCandidates          int                        `json:"total_candidates"`
-	WouldExecuteCount        int                        `json:"would_execute_count"`
-	Opportunities            []UnifiedLeaderboardEntry  `json:"opportunities"`
-	RejectReasonsTop         []UnifiedReasonCount       `json:"reject_reasons_top"`
-	VenueCapitalInsufficient []UnifiedVenueCapitalBlock `json:"venue_capital_insufficient_top"`
-	Note                     string                     `json:"note,omitempty"`
+	CycleID                  string                       `json:"cycle_id"`
+	GeneratedAt              string                       `json:"generated_at"`
+	SourcePath               string                       `json:"source_path"`
+	TotalCandidates          int                          `json:"total_candidates"`
+	WouldExecuteCount        int                          `json:"would_execute_count"`
+	Opportunities            []UnifiedLeaderboardEntry    `json:"opportunities"`
+	Strategies               []UnifiedStrategyLeaderboard `json:"strategies"`
+	RejectReasonsTop         []UnifiedReasonCount         `json:"reject_reasons_top"`
+	VenueCapitalInsufficient []UnifiedVenueCapitalBlock   `json:"venue_capital_insufficient_top"`
+	Note                     string                       `json:"note,omitempty"`
+}
+
+// unifiedLeaderboardStrategyOrder 分策略排行的固定展示顺序。
+var unifiedLeaderboardStrategyOrder = []string{
+	UnifiedStrategySingleVenueSpotPerp,
+	UnifiedStrategyCrossVenueSpotPerp,
+	UnifiedStrategySingleVenuePerpSpot,
+	UnifiedStrategyCrossVenuePerpSpot,
+	UnifiedStrategyPerpPerp,
 }
 
 // UnifiedCandidatesLogPath 返回 unified_candidates.jsonl 的绝对/相对路径。
@@ -324,10 +342,10 @@ func topUnifiedReasonCounts(counts map[string]int, topN int) []UnifiedReasonCoun
 }
 
 type unifiedCandidateSortable struct {
-	rec           UnifiedCandidateLogRecord
-	landscapeKey  float64
-	primaryKey    float64
-	original      int
+	rec          UnifiedCandidateLogRecord
+	landscapeKey float64
+	primaryKey   float64
+	original     int
 }
 
 func leaderboardEntryFromRecord(rec UnifiedCandidateLogRecord, rank int, landscapeKey float64, now time.Time) UnifiedLeaderboardEntry {
@@ -392,8 +410,40 @@ func BuildUnifiedLeaderboard(records []UnifiedCandidateLogRecord, topN int) Unif
 	resp.CycleID = cycleID
 	resp.TotalCandidates = len(cycleRecords)
 
-	sortable := make([]unifiedCandidateSortable, len(cycleRecords))
-	for i, rec := range cycleRecords {
+	// 总排行(全策略混排)。
+	resp.Opportunities, resp.WouldExecuteCount = rankUnifiedRecords(cycleRecords, topN, now)
+
+	// 分策略排行:每个策略独立排序+独立 rank,固定顺序展示(无候选也保留空分组,便于前端固定 5 个区块)。
+	byStrategy := make(map[string][]UnifiedCandidateLogRecord, len(unifiedLeaderboardStrategyOrder))
+	for _, rec := range cycleRecords {
+		byStrategy[rec.StrategyType] = append(byStrategy[rec.StrategyType], rec)
+	}
+	resp.Strategies = make([]UnifiedStrategyLeaderboard, 0, len(unifiedLeaderboardStrategyOrder))
+	for _, st := range unifiedLeaderboardStrategyOrder {
+		sub := byStrategy[st]
+		opps, execCount := rankUnifiedRecords(sub, topN, now)
+		resp.Strategies = append(resp.Strategies, UnifiedStrategyLeaderboard{
+			StrategyType:      st,
+			TotalCandidates:   len(sub),
+			WouldExecuteCount: execCount,
+			Opportunities:     opps,
+		})
+	}
+
+	resp.RejectReasonsTop = buildUnifiedReasonCounts(cycleRecords, 15)
+	resp.VenueCapitalInsufficient = buildVenueCapitalInsufficientTop(cycleRecords, 10)
+	return resp
+}
+
+// rankUnifiedRecords 对一组候选排序并产出带 rank 的展示条目;返回条目与其中可执行数。
+// 排序口径:可执行置顶 → landscape(费率/价差 APR)降序 → 净EV降序 → symbol 升序 → 原始顺序。
+func rankUnifiedRecords(records []UnifiedCandidateLogRecord, topN int, now time.Time) ([]UnifiedLeaderboardEntry, int) {
+	if len(records) == 0 {
+		return []UnifiedLeaderboardEntry{}, 0
+	}
+	wouldExecuteCount := 0
+	sortable := make([]unifiedCandidateSortable, len(records))
+	for i, rec := range records {
 		sortable[i] = unifiedCandidateSortable{
 			rec:          rec,
 			landscapeKey: unifiedLandscapeSortKey(rec),
@@ -401,7 +451,7 @@ func BuildUnifiedLeaderboard(records []UnifiedCandidateLogRecord, topN int) Unif
 			original:     i,
 		}
 		if rec.WouldExecute {
-			resp.WouldExecuteCount++
+			wouldExecuteCount++
 		}
 	}
 	sort.SliceStable(sortable, func(i, j int) bool {
@@ -427,13 +477,11 @@ func BuildUnifiedLeaderboard(records []UnifiedCandidateLogRecord, topN int) Unif
 		sortable = sortable[:topN]
 	}
 
-	resp.Opportunities = make([]UnifiedLeaderboardEntry, 0, len(sortable))
+	out := make([]UnifiedLeaderboardEntry, 0, len(sortable))
 	for i, item := range sortable {
-		resp.Opportunities = append(resp.Opportunities, leaderboardEntryFromRecord(item.rec, i+1, item.landscapeKey, now))
+		out = append(out, leaderboardEntryFromRecord(item.rec, i+1, item.landscapeKey, now))
 	}
-	resp.RejectReasonsTop = buildUnifiedReasonCounts(cycleRecords, 15)
-	resp.VenueCapitalInsufficient = buildVenueCapitalInsufficientTop(cycleRecords, 10)
-	return resp
+	return out, wouldExecuteCount
 }
 
 // LoadUnifiedLeaderboard 从 JSONL 路径加载并构建排行榜。

@@ -180,12 +180,12 @@ func (e *SingleVenuePerpSpotExecutor) removePosition(pos SingleVenuePerpSpotPosi
 	return nil
 }
 
-func parseSingleVenuePerpSpotOpportunity(opp UnifiedOpportunity) (venueName string, qty, notional float64, err error) {
+func parseSingleVenuePerpSpotOpportunity(opp UnifiedOpportunity) (venueName string, qty, notional float64, positiveReverse bool, err error) {
 	if opp.StrategyType != "" && opp.StrategyType != UnifiedStrategySingleVenuePerpSpot {
-		return "", 0, 0, fmt.Errorf("strategy_type=%s", opp.StrategyType)
+		return "", 0, 0, false, fmt.Errorf("strategy_type=%s", opp.StrategyType)
 	}
 	if len(opp.Legs) < 2 {
-		return "", 0, 0, fmt.Errorf("legs<2")
+		return "", 0, 0, false, fmt.Errorf("legs<2")
 	}
 	var spotVenue, perpVenue string
 	for _, leg := range opp.Legs {
@@ -194,8 +194,10 @@ func parseSingleVenuePerpSpotOpportunity(opp UnifiedOpportunity) (venueName stri
 		v := strings.TrimSpace(leg.Venue)
 		switch mkt {
 		case "spot":
-			if side != "short" && side != "sell" {
-				return "", 0, 0, fmt.Errorf("spot leg side=%s", leg.Side)
+			if side == "buy" || side == "long" {
+				positiveReverse = true
+			} else if side != "short" && side != "sell" {
+				return "", 0, 0, false, fmt.Errorf("spot leg side=%s", leg.Side)
 			}
 			spotVenue = v
 			if leg.Qty > qty {
@@ -205,8 +207,12 @@ func parseSingleVenuePerpSpotOpportunity(opp UnifiedOpportunity) (venueName stri
 				notional = leg.Notional
 			}
 		case "perp":
-			if side != "long" && side != "buy" {
-				return "", 0, 0, fmt.Errorf("perp leg side=%s", leg.Side)
+			if positiveReverse {
+				if side != "short" && side != "sell" {
+					return "", 0, 0, false, fmt.Errorf("perp leg side=%s", leg.Side)
+				}
+			} else if side != "long" && side != "buy" {
+				return "", 0, 0, false, fmt.Errorf("perp leg side=%s", leg.Side)
 			}
 			perpVenue = v
 			if leg.Qty > qty {
@@ -216,19 +222,24 @@ func parseSingleVenuePerpSpotOpportunity(opp UnifiedOpportunity) (venueName stri
 				notional = leg.Notional
 			}
 		default:
-			return "", 0, 0, fmt.Errorf("unknown market=%s", leg.Market)
+			return "", 0, 0, false, fmt.Errorf("unknown market=%s", leg.Market)
 		}
 	}
 	if spotVenue == "" || perpVenue == "" {
-		return "", 0, 0, fmt.Errorf("missing spot/perp leg")
+		return "", 0, 0, false, fmt.Errorf("missing spot/perp leg")
 	}
 	if !strings.EqualFold(spotVenue, perpVenue) {
-		return "", 0, 0, fmt.Errorf("legs on different venues: %s vs %s", spotVenue, perpVenue)
+		return "", 0, 0, false, fmt.Errorf("legs on different venues: %s vs %s", spotVenue, perpVenue)
 	}
 	if qty <= executionQtyTolerance {
-		return "", 0, 0, fmt.Errorf("qty<=0")
+		return "", 0, 0, false, fmt.Errorf("qty<=0")
 	}
-	return spotVenue, qty, notional, nil
+	return spotVenue, qty, notional, positiveReverse, nil
+}
+
+func svpsPositiveCarryReverse(pos SingleVenuePerpSpotPosition) bool {
+	s := strings.ToLower(strings.TrimSpace(pos.SpotLeg.Side))
+	return s == "buy" || s == "long"
 }
 
 // checkNegativeCarrySupported 借币可得性闸:不支持借币做空的所直接放弃,绝不尝试借币。
@@ -396,15 +407,25 @@ func (e *SingleVenuePerpSpotExecutor) placeSVPSCloseLegIOC(
 	return e.placeSVPSIOC(ctx, tr, mkt, sym, side, qty, price, clientID, reduceOnly, marginEffect, live)
 }
 
-// executeOpen 腿1借币空现货→腿2多永续;腿2失败回滚腿1(买回现货+还币)。
+// executeOpen 负 carry 借币空现货+多永续;正 carry 反向 买现货+空永续。
 func (e *SingleVenuePerpSpotExecutor) executeOpen(ctx context.Context, opp UnifiedOpportunity, live bool) (SingleVenuePerpSpotPosition, error) {
 	if !e.OpeningsEnabled() {
 		return SingleVenuePerpSpotPosition{}, fmt.Errorf("同所perp-spot 未登记敞口 halt,禁止新开")
 	}
-	venueName, qty, notional, err := parseSingleVenuePerpSpotOpportunity(opp)
+	venueName, qty, notional, positiveReverse, err := parseSingleVenuePerpSpotOpportunity(opp)
 	if err != nil {
 		return SingleVenuePerpSpotPosition{}, err
 	}
+	if positiveReverse {
+		if !e.execCfg().SingleVenueReverseFundingEnabled {
+			return SingleVenuePerpSpotPosition{}, fmt.Errorf("反向资金费未启用(single_venue_reverse_funding_enabled=false)")
+		}
+		return e.executeOpenPositiveCarryReverse(ctx, opp, venueName, qty, notional, live)
+	}
+	return e.executeOpenNegativeCarry(ctx, opp, venueName, qty, notional, live)
+}
+
+func (e *SingleVenuePerpSpotExecutor) executeOpenNegativeCarry(ctx context.Context, opp UnifiedOpportunity, venueName string, qty, notional float64, live bool) (SingleVenuePerpSpotPosition, error) {
 	if e.isSymbolRollbackBlocked(opp.Symbol) {
 		return SingleVenuePerpSpotPosition{}, fmt.Errorf("%s 回滚未卸净,暂禁新开", opp.Symbol)
 	}
@@ -577,6 +598,179 @@ func (e *SingleVenuePerpSpotExecutor) executeOpen(ctx context.Context, opp Unifi
 	return pos, nil
 }
 
+// executeOpenPositiveCarryReverse 正费率反向:买现货→空永续;永续失败回滚现货(卖出)。
+func (e *SingleVenuePerpSpotExecutor) executeOpenPositiveCarryReverse(ctx context.Context, opp UnifiedOpportunity, venueName string, qty, notional float64, live bool) (SingleVenuePerpSpotPosition, error) {
+	if !e.OpeningsEnabled() {
+		return SingleVenuePerpSpotPosition{}, fmt.Errorf("同所perp-spot 未登记敞口 halt,禁止新开")
+	}
+	if e.isSymbolRollbackBlocked(opp.Symbol) {
+		return SingleVenuePerpSpotPosition{}, fmt.Errorf("%s 回滚未卸净,暂禁新开", opp.Symbol)
+	}
+	v := e.venues[venueName]
+	tr, ok := v.(singleVenuePerpSpotTrader)
+	if !ok || v == nil {
+		return SingleVenuePerpSpotPosition{}, fmt.Errorf("venue 不满足交易接口")
+	}
+	sym := venue.Symbol(opp.Symbol)
+	cfg := e.execCfg()
+	idem := svpsIdemPrefix(sym, venueName)
+	now := e.nowFn()
+	pos := SingleVenuePerpSpotPosition{
+		Symbol: opp.Symbol, Venue: venueName, OpportunityID: opp.ID,
+		OpenExpectedNetEV: opp.ExpectedNetEVUSDT, ExpectedHoldHours: opp.ExpectedHoldHours,
+		NotionalUSDT: notional, Status: SVPSStatusOpeningSpot, TransitionState: "open",
+		OpenedAt: now, UpdatedAt: now, IdemPrefix: idem,
+		SpotLeg: SingleVenuePerpSpotLegState{Market: "spot", Side: "buy"},
+		PerpLeg: SingleVenuePerpSpotLegState{Market: "perp", Side: "short"},
+	}
+	if pos.ExpectedHoldHours <= 0 {
+		pos.ExpectedHoldHours = 8
+	}
+	if pos.NotionalUSDT <= 0 {
+		pos.NotionalUSDT = qty * 100
+	}
+	if !live {
+		logDryRunOpen(e.logger, "同所perp-spot", opp.Symbol,
+			fmt.Sprintf("@%s 买现货/空永续 各≈%.6f 名义≈%.2fU EV≈%.4f", venueName, qty, pos.NotionalUSDT, opp.ExpectedNetEVUSDT))
+		appendDryRunEvent(e.recordDir, "svps_open", map[string]any{"symbol": opp.Symbol, "venue": venueName, "qty": qty, "notional": pos.NotionalUSDT, "reverse": true})
+		return SingleVenuePerpSpotPosition{}, nil
+	}
+	takerBps := svpsTakerSlippageBps(cfg)
+	spotInstr := opportunityLegInstrument(opp, venueName, "spot")
+	perpInstr := opportunityLegInstrument(opp, venueName, "perp")
+	caps := v.Capabilities()
+	if spotInstr.StepSize <= 0 && spotInstr.MinNotional <= 0 {
+		if in, ok := lookupVenueInstrumentForMarket(ctx, v, sym, venue.MarketSpot); ok {
+			spotInstr = in
+		}
+	}
+	if caps.ContractBasedPerp && perpInstr.ContractSize <= 0 {
+		if in, ok := lookupVenueInstrumentForMarket(ctx, v, sym, venue.MarketPerp); ok {
+			perpInstr = carryMergeContractPerpInstrument(perpInstr, in)
+		}
+	} else if perpInstr.StepSize <= 0 && perpInstr.MinNotional <= 0 {
+		if in, ok := lookupVenueInstrumentForMarket(ctx, v, sym, venue.MarketPerp); ok {
+			perpInstr = in
+		}
+	}
+	refPrice := 100.0
+	if book, berr := tr.FetchBookTicker(ctx, venue.MarketPerp, sym); berr == nil && book.AskPrice > 0 {
+		refPrice = book.AskPrice
+	} else if book, berr := tr.FetchBookTicker(ctx, venue.MarketSpot, sym); berr == nil && book.AskPrice > 0 {
+		refPrice = book.AskPrice
+	}
+	alignedQty, alignErr := carrySingleVenueOpenQtyAlign(qty, refPrice, spotInstr, perpInstr, v.Capabilities())
+	if alignErr != nil {
+		carryLogPreflightSkip(e.logger, "同所perp-spot", opp.Symbol, alignErr.Error())
+		return SingleVenuePerpSpotPosition{}, alignErr
+	}
+	qty = alignedQty
+	if pos.NotionalUSDT <= 0 || notional <= 0 {
+		pos.NotionalUSDT = qty * refPrice
+	}
+	spotNeed := pos.NotionalUSDT * (1 + takerBps/10000)
+	perpMargin := rotationPerpMarginWithBuffer(cfg, pos.NotionalUSDT)
+	if err := carryPreflightSingleVenueSpotPerpOpen(ctx, v, spotNeed, perpMargin); err != nil {
+		carryLogPreflightSkip(e.logger, "同所perp-spot", opp.Symbol, err.Error())
+		return SingleVenuePerpSpotPosition{}, err
+	}
+	if err := e.persistPosition(pos); err != nil {
+		return pos, err
+	}
+	spotID := svpsLegClientID(idem, "s1")
+	spotRes, err := e.placeSVPSLegIOC(ctx, tr, venue.MarketSpot, sym, venue.SideBuy, qty, spotID, false, venue.MarginEffectNone, live, takerBps)
+	if orderStatusIsUnknown(spotRes) || isUnknownOrderStateError(err) {
+		if spotRes.ExecutedQty > executionQtyTolerance {
+			pos.SpotLeg.Qty = spotRes.ExecutedQty
+			pos.SpotLeg.EntryPrice = spotRes.AvgPrice
+			pos.SpotLeg.OrderIDs = []string{spotID}
+			pos.Status = SVPSStatusOpeningPerp
+		}
+		pos.UpdatedAt = e.nowFn()
+		_ = e.persistPosition(pos)
+		e.notifyCritical("同所perp-spot查单未知", fmt.Sprintf("%s 现货腿查单失败,禁止自动回滚", opp.Symbol), opp.Symbol)
+		return pos, fmt.Errorf("现货腿状态未知,禁止自动回滚: %w", err)
+	}
+	if err != nil || spotRes.ExecutedQty <= executionQtyTolerance {
+		if spotRes.ExecutedQty > executionQtyTolerance {
+			e.rollbackSpotBuyLeg(ctx, v, tr, sym, &pos, spotRes.ExecutedQty, live, idem)
+		}
+		return pos, fmt.Errorf("现货腿失败: %w", err)
+	}
+	pos.SpotLeg.Qty = spotRes.ExecutedQty
+	pos.SpotLeg.EntryPrice = spotRes.AvgPrice
+	pos.SpotLeg.OrderIDs = []string{spotID}
+	pos.Status = SVPSStatusOpeningPerp
+	pos.UpdatedAt = e.nowFn()
+	_ = e.persistPosition(pos)
+	hedgeQty := spotRes.ExecutedQty
+	perpID := svpsLegClientID(idem, "p1")
+	perpRes, perpErr := e.placeSVPSLegIOC(ctx, tr, venue.MarketPerp, sym, venue.SideSell, hedgeQty, perpID, false, venue.MarginEffectNone, live, takerBps)
+	if orderStatusIsUnknown(perpRes) {
+		e.notifyCritical("同所perp-spot查单未知", fmt.Sprintf("%s 永续腿查单失败,禁止自动回滚", opp.Symbol), opp.Symbol)
+		return pos, fmt.Errorf("永续腿状态未知,禁止自动回滚: %w", perpErr)
+	}
+	refPrice = spotRes.AvgPrice
+	if refPrice <= 0 {
+		refPrice = 100
+	}
+	match := carryMatchTwoLegOpens(spotRes.ExecutedQty, perpRes.ExecutedQty, carryMinTradableQty(refPrice, perpInstr))
+	if perpErr != nil || !match.OK {
+		e.rollbackSpotBuyLeg(ctx, v, tr, sym, &pos, spotRes.ExecutedQty, live, idem)
+		if perpRes.ExecutedQty > executionQtyTolerance {
+			e.rollbackPerpShortLeg(ctx, tr, sym, perpRes.ExecutedQty, live, idem)
+		}
+		return pos, fmt.Errorf("永续腿失败: %w", perpErr)
+	}
+	if match.ExcessLeg1 > executionQtyTolerance {
+		e.rollbackSpotBuyLeg(ctx, v, tr, sym, &pos, match.ExcessLeg1, live, idem)
+	}
+	if match.ExcessLeg2 > executionQtyTolerance {
+		e.rollbackPerpShortLeg(ctx, tr, sym, match.ExcessLeg2, live, idem)
+	}
+	pos.SpotLeg.Qty = match.MatchedQty
+	pos.PerpLeg.Qty = match.MatchedQty
+	pos.PerpLeg.EntryPrice = perpRes.AvgPrice
+	pos.PerpLeg.OrderIDs = []string{perpID}
+	pos.NotionalUSDT = match.MatchedQty * spotRes.AvgPrice
+	pos.Status = SVPSStatusOpen
+	pos.TransitionState = "hold"
+	pos.UpdatedAt = e.nowFn()
+	_ = e.persistPosition(pos)
+	e.logger.Printf("[同所perp-spot] 反向开仓 %s@%s 买现货%.6f/空永续%.6f 名义≈%.2fU",
+		opp.Symbol, venueName, pos.SpotLeg.Qty, pos.PerpLeg.Qty, pos.NotionalUSDT)
+	return pos, nil
+}
+
+func (e *SingleVenuePerpSpotExecutor) rollbackSpotBuyLeg(
+	ctx context.Context, v venue.Venue, tr singleVenuePerpSpotTrader, sym venue.Symbol,
+	pos *SingleVenuePerpSpotPosition, qty float64, live bool, idemPrefix string,
+) {
+	if qty <= executionQtyTolerance {
+		return
+	}
+	id := svpsLegClientID(idemPrefix, "rb")
+	res, err := e.placeSVPSLegIOC(ctx, tr, venue.MarketSpot, sym, venue.SideSell, qty, id, false, venue.MarginEffectNone, live, svpsTakerSlippageBps(e.execCfg()))
+	if err != nil {
+		e.logger.Printf("[同所perp-spot] 回滚现货买入腿失败 %s: %v", sym, err)
+	} else if pos != nil {
+		pos.RollbackCostUSDT += res.Fee
+		pos.UpdatedAt = e.nowFn()
+		_ = e.persistPosition(*pos)
+	}
+	e.verifyRollbackCleared(ctx, v, sym, string(sym))
+}
+
+func (e *SingleVenuePerpSpotExecutor) rollbackPerpShortLeg(
+	ctx context.Context, tr singleVenuePerpSpotTrader, sym venue.Symbol, qty float64, live bool, idemPrefix string,
+) {
+	if qty <= executionQtyTolerance {
+		return
+	}
+	id := svpsLegClientID(idemPrefix, "rbp")
+	_, _ = e.placeSVPSLegIOC(ctx, tr, venue.MarketPerp, sym, venue.SideBuy, qty, id, true, venue.MarginEffectNone, live, svpsTakerSlippageBps(e.execCfg()))
+}
+
 func (e *SingleVenuePerpSpotExecutor) rollbackSpotLeg(
 	ctx context.Context,
 	v venue.Venue,
@@ -622,17 +816,17 @@ func (e *SingleVenuePerpSpotExecutor) verifyRollbackCleared(ctx context.Context,
 	if v == nil {
 		return
 	}
-	spotShort, perpLong, err := e.fetchLegState(ctx, v, sym)
+	spotLegQty, perpLegQty, err := e.fetchLegState(ctx, v, sym, false)
 	if err != nil {
 		e.notifyCritical("同所perp-spot回滚对账失败", fmt.Sprintf("%s: %v", symbol, err), symbol)
 		e.blockSymbolNewOpen(symbol)
 		return
 	}
-	if spotShort <= executionQtyTolerance && perpLong <= executionQtyTolerance {
+	if spotLegQty <= executionQtyTolerance && perpLegQty <= executionQtyTolerance {
 		return
 	}
 	e.notifyCritical("同所perp-spot回滚未卸净",
-		fmt.Sprintf("%s spot空=%.6f perp多=%.6f,阻塞新开并退避重试", symbol, spotShort, perpLong), symbol)
+		fmt.Sprintf("%s spot空=%.6f perp多=%.6f,阻塞新开并退避重试", symbol, spotLegQty, perpLegQty), symbol)
 	e.blockSymbolNewOpen(symbol)
 }
 
@@ -648,20 +842,32 @@ func svpsPerpLongQty(positions []venue.Position, sym venue.Symbol) float64 {
 	return 0
 }
 
-func (e *SingleVenuePerpSpotExecutor) fetchLegState(ctx context.Context, v venue.Venue, sym venue.Symbol) (spotShortQty, perpLongQty float64, err error) {
+func (e *SingleVenuePerpSpotExecutor) fetchLegState(ctx context.Context, v venue.Venue, sym venue.Symbol, positiveReverse bool) (spotLegQty, perpLegQty float64, err error) {
 	base := baseAssetFromCanonicalSymbol(string(sym))
 	bals, berr := v.FetchBalances(ctx)
-	if berr == nil {
-		spotShortQty = svpsSpotShortQty(bals, base)
-	}
 	positions, perr := v.FetchPositions(ctx)
-	if perr == nil {
-		perpLongQty = svpsPerpLongQty(positions, sym)
+	if positiveReverse {
+		if berr == nil {
+			spotLegQty = spotBalanceQty(bals, base)
+		}
+		if perr == nil {
+			amt := perpPositionQty(positions, sym)
+			if amt < -executionQtyTolerance {
+				perpLegQty = absQty(amt)
+			}
+		}
+	} else {
+		if berr == nil {
+			spotLegQty = svpsSpotShortQty(bals, base)
+		}
+		if perr == nil {
+			perpLegQty = svpsPerpLongQty(positions, sym)
+		}
 	}
 	if berr != nil && perr != nil {
 		return 0, 0, fmt.Errorf("balances=%v positions=%v", berr, perr)
 	}
-	return spotShortQty, perpLongQty, nil
+	return spotLegQty, perpLegQty, nil
 }
 
 func (e *SingleVenuePerpSpotExecutor) manageOpenPositions(ctx context.Context, live bool) {
@@ -691,22 +897,26 @@ func (e *SingleVenuePerpSpotExecutor) managePosition(ctx context.Context, pos Si
 		return pos, false
 	}
 
-	spotShort, perpLong, err := e.fetchLegState(ctx, v, venue.Symbol(pos.Symbol))
+	spotLegQty, perpLegQty, err := e.fetchLegState(ctx, v, venue.Symbol(pos.Symbol), svpsPositiveCarryReverse(pos))
 	if err != nil {
 		e.logger.Printf("[同所perp-spot] 拉腿状态失败 %s: %v", pos.Symbol, err)
 		return pos, false
 	}
-	spotOpen := spotShort > executionQtyTolerance
-	perpOpen := perpLong > executionQtyTolerance
+	spotOpen := spotLegQty > executionQtyTolerance
+	perpOpen := perpLegQty > executionQtyTolerance
 
 	if svpsIsOpeningStatus(pos.Status) {
-		return e.manageOpeningContinuation(ctx, pos, spotOpen, perpOpen, spotShort, perpLong, live)
+		return e.manageOpeningContinuation(ctx, pos, spotOpen, perpOpen, spotLegQty, perpLegQty, live)
 	}
 
 	e.syncFundingMeta(ctx, &pos)
 
 	if spotOpen != perpOpen {
-		e.handleOrphanLeg(ctx, pos, spotOpen, perpOpen, live, spotShort, perpLong)
+		if svpsPositiveCarryReverse(pos) {
+			e.handlePositiveReverseOrphanLeg(ctx, pos, spotOpen, perpOpen, live, spotLegQty, perpLegQty)
+		} else {
+			e.handleOrphanLeg(ctx, pos, spotOpen, perpOpen, live, spotLegQty, perpLegQty)
+		}
 		return pos, false
 	}
 	if !spotOpen && !perpOpen {
@@ -717,9 +927,13 @@ func (e *SingleVenuePerpSpotExecutor) managePosition(ctx context.Context, pos Si
 	}
 
 	e.syncRealizedFunding(ctx, &pos)
-	dev := qtyDeviation(spotShort, perpLong)
+	dev := qtyDeviation(spotLegQty, perpLegQty)
 	if carryShouldRebalanceHedge(dev, pos.LastHedgeRebalanceAt, e.nowFn()) {
-		e.rebalanceSVPSHedge(ctx, &pos, spotShort, perpLong, live)
+		if svpsPositiveCarryReverse(pos) {
+			e.rebalanceSVPSPositiveHedge(ctx, &pos, spotLegQty, perpLegQty, live)
+		} else {
+			e.rebalanceSVPSHedge(ctx, &pos, spotLegQty, perpLegQty, live)
+		}
 	}
 	pos.UpdatedAt = e.nowFn()
 	_ = e.persistPosition(pos)
@@ -780,7 +994,11 @@ func (e *SingleVenuePerpSpotExecutor) manageOpeningContinuation(
 			hedgeQty = aligned
 		}
 		perpID := svpsLegClientID(pos.IdemPrefix, "p2")
-		perpRes, err := e.placeSVPSLegIOC(ctx, tr, venue.MarketPerp, sym, venue.SideBuy, hedgeQty, perpID, false, venue.MarginEffectNone, live, svpsTakerSlippageBps(e.execCfg()))
+		perpSide := venue.SideBuy
+		if svpsPositiveCarryReverse(pos) {
+			perpSide = venue.SideSell
+		}
+		perpRes, err := e.placeSVPSLegIOC(ctx, tr, venue.MarketPerp, sym, perpSide, hedgeQty, perpID, false, venue.MarginEffectNone, live, svpsTakerSlippageBps(e.execCfg()))
 		if orderStatusIsUnknown(perpRes) {
 			e.notifyCritical("同所perp-spot查单未知", fmt.Sprintf("%s 续开永续腿查单失败", pos.Symbol), pos.Symbol)
 			return pos, false
@@ -804,9 +1022,80 @@ func (e *SingleVenuePerpSpotExecutor) manageOpeningContinuation(
 		_ = e.persistPosition(pos)
 		return pos, false
 	default:
-		e.handleOrphanLeg(ctx, pos, spotOpen, perpOpen, live, spotShort, perpLong)
+		if svpsPositiveCarryReverse(pos) {
+			e.handlePositiveReverseOrphanLeg(ctx, pos, spotOpen, perpOpen, live, spotShort, perpLong)
+		} else {
+			e.handleOrphanLeg(ctx, pos, spotOpen, perpOpen, live, spotShort, perpLong)
+		}
 		return pos, false
 	}
+}
+
+func (e *SingleVenuePerpSpotExecutor) rebalanceSVPSPositiveHedge(ctx context.Context, pos *SingleVenuePerpSpotPosition, spotQty, perpQty float64, live bool) {
+	if pos == nil {
+		return
+	}
+	reduceSpot, delta := carryPositiveRebalancePlan(spotQty, perpQty)
+	if delta <= executionQtyTolerance {
+		return
+	}
+	v := e.venues[pos.Venue]
+	tr, ok := v.(singleVenuePerpSpotTrader)
+	if !ok || tr == nil {
+		return
+	}
+	sym := venue.Symbol(pos.Symbol)
+	takerBps := svpsTakerSlippageBps(e.execCfg())
+	now := e.nowFn()
+	if reduceSpot {
+		if live {
+			id := svpsLegClientID(pos.IdemPrefix, "rb-s")
+			if res, _ := e.placeSVPSLegIOC(ctx, tr, venue.MarketSpot, sym, venue.SideSell, delta, id, false, venue.MarginEffectNone, live, takerBps); res.ExecutedQty > executionQtyTolerance {
+				pos.SpotLeg.Qty = math.Max(pos.SpotLeg.Qty-res.ExecutedQty, 0)
+			}
+		}
+	} else if live {
+		id := svpsLegClientID(pos.IdemPrefix, "rb-p")
+		if res, _ := e.placeSVPSLegIOC(ctx, tr, venue.MarketPerp, sym, venue.SideBuy, delta, id, true, venue.MarginEffectNone, live, takerBps); res.ExecutedQty > executionQtyTolerance {
+			pos.PerpLeg.Qty = math.Max(pos.PerpLeg.Qty-res.ExecutedQty, 0)
+		}
+	}
+	pos.LastHedgeRebalanceAt = now
+	pos.UpdatedAt = now
+	_ = e.persistPosition(*pos)
+}
+
+func (e *SingleVenuePerpSpotExecutor) handlePositiveReverseOrphanLeg(
+	ctx context.Context, pos SingleVenuePerpSpotPosition, spotOpen, perpOpen, live bool, spotQty, perpQty float64,
+) {
+	decision := evaluatePositiveCarryOrphan(ctx, e.execCfg(), e.venues, pos.Symbol, pos.Venue, pos.Venue, spotOpen, perpOpen, spotQty, perpQty, pos.SpotLeg.EntryPrice)
+	if pos.NextFundingTime.IsZero() {
+		e.syncFundingMeta(ctx, &pos)
+	}
+	if decision.IsDustOrphan && carryDeferDustOrphanDecision(e.nowFn(), pos.NextFundingTime, decision) {
+		pos.UpdatedAt = e.nowFn()
+		_ = e.persistPosition(pos)
+		return
+	}
+	v := e.venues[pos.Venue]
+	tr, _ := v.(singleVenuePerpSpotTrader)
+	sym := venue.Symbol(pos.Symbol)
+	takerBps := svpsTakerSlippageBps(e.execCfg())
+	if spotOpen && !perpOpen {
+		qty := ledgerCappedCloseQty(pos.SpotLeg.Qty, spotQty)
+		if live && tr != nil {
+			_, _ = e.placeSVPSLegIOC(ctx, tr, venue.MarketSpot, sym, venue.SideSell, qty, svpsLegClientID(pos.IdemPrefix, "os"), false, venue.MarginEffectNone, live, takerBps)
+		}
+	} else if perpOpen && !spotOpen {
+		qty := ledgerCappedCloseQty(pos.PerpLeg.Qty, perpQty)
+		if live && tr != nil {
+			_, _ = e.placeSVPSLegIOC(ctx, tr, venue.MarketPerp, sym, venue.SideBuy, qty, svpsLegClientID(pos.IdemPrefix, "op"), true, venue.MarginEffectNone, live, takerBps)
+		}
+	}
+	pos.Status = SVPSStatusOrphan
+	pos.UpdatedAt = e.nowFn()
+	_ = e.persistPosition(pos)
+	e.notifyCritical("同所perp-spot孤腿", fmt.Sprintf("%s@%s 反向carry检测到孤腿", pos.Symbol, pos.Venue), pos.Symbol)
 }
 
 func (e *SingleVenuePerpSpotExecutor) rebalanceSVPSHedge(ctx context.Context, pos *SingleVenuePerpSpotPosition, spotShort, perpLong float64, live bool) {
@@ -908,8 +1197,8 @@ func (e *SingleVenuePerpSpotExecutor) handleOrphanLeg(
 		}
 	}
 	if decision.NakedRisk {
-		spotShortNow, perpLongNow, ferr := e.fetchLegState(ctx, v, sym)
-		if ferr == nil && spotShortNow <= executionQtyTolerance && perpLongNow <= executionQtyTolerance {
+		spotLegQtyNow, perpLegQtyNow, ferr := e.fetchLegState(ctx, v, sym, svpsPositiveCarryReverse(pos))
+		if ferr == nil && spotLegQtyNow <= executionQtyTolerance && perpLegQtyNow <= executionQtyTolerance {
 			pos.Status = SVPSStatusClosed
 			pos.CloseReason = nonEmpty(pos.CloseReason, "naked_orphan")
 			pos.UpdatedAt = e.nowFn()
@@ -1037,36 +1326,46 @@ func (e *SingleVenuePerpSpotExecutor) closePosition(ctx context.Context, pos Sin
 	if pos.NextFundingTime.IsZero() {
 		e.syncFundingMeta(ctx, &pos)
 	}
-	spotShort, perpLong, ferr := e.fetchLegState(ctx, v, sym)
+	spotLegQty, perpLegQty, ferr := e.fetchLegState(ctx, v, sym, svpsPositiveCarryReverse(pos))
 	closeSpotQty := 0.0
 	closePerpQty := 0.0
+	posRev := svpsPositiveCarryReverse(pos)
 	if ferr != nil {
 		e.logger.Printf("[同所perp-spot] 平仓 %s 拉腿失败,跳过本轮(保留台账): %v", pos.Symbol, ferr)
 	} else {
-		if pos.SpotLeg.Qty > executionQtyTolerance && spotShort <= executionQtyTolerance {
+		if pos.SpotLeg.Qty > executionQtyTolerance && spotLegQty <= executionQtyTolerance {
 			e.logger.Printf("[同所perp-spot] 平仓 %s 现货实测为0,跳过本轮(保留台账)", pos.Symbol)
 		}
-		if pos.PerpLeg.Qty > executionQtyTolerance && perpLong <= executionQtyTolerance {
+		if pos.PerpLeg.Qty > executionQtyTolerance && perpLegQty <= executionQtyTolerance {
 			e.logger.Printf("[同所perp-spot] 平仓 %s 永续实测为0,跳过本轮(保留台账)", pos.Symbol)
 		}
-		closeSpotQty = ledgerCappedCloseQty(pos.SpotLeg.Qty, spotShort)
-		closePerpQty = ledgerCappedCloseQty(pos.PerpLeg.Qty, perpLong)
+		closeSpotQty = ledgerCappedCloseQty(pos.SpotLeg.Qty, spotLegQty)
+		closePerpQty = ledgerCappedCloseQty(pos.PerpLeg.Qty, perpLegQty)
 	}
-	// 优先平现货腿(空现货逼空风险更大)。
 	var spotCloseErr error
 	if closeSpotQty > executionQtyTolerance {
 		id := svpsLegClientID(pos.IdemPrefix, fmt.Sprintf("cs%d", attempt))
-		if res, err := e.placeSVPSCloseLegIOC(ctx, tr, venue.MarketSpot, sym, venue.SideBuy, closeSpotQty, id, false, venue.MarginEffectRepay, live, attempt); err == nil {
+		spotSide := venue.SideBuy
+		spotMargin := venue.MarginEffectRepay
+		if posRev {
+			spotSide = venue.SideSell
+			spotMargin = venue.MarginEffectNone
+		}
+		if res, err := e.placeSVPSCloseLegIOC(ctx, tr, venue.MarketSpot, sym, spotSide, closeSpotQty, id, false, spotMargin, live, attempt); err == nil {
 			pos.SpotLeg.Qty = math.Max(pos.SpotLeg.Qty-res.ExecutedQty, 0)
 			pos.CloseFeesUSDT += res.Fee
 		} else {
 			spotCloseErr = err
-			e.logger.Printf("[同所perp-spot] 平仓现货腿(还币)失败 %s(第%d轮): %v", pos.Symbol, attempt, err)
+			e.logger.Printf("[同所perp-spot] 平仓现货腿失败 %s(第%d轮): %v", pos.Symbol, attempt, err)
 		}
 	}
 	if closePerpQty > executionQtyTolerance {
 		id := svpsLegClientID(pos.IdemPrefix, fmt.Sprintf("cp%d", attempt))
-		if res, err := e.placeSVPSCloseLegIOC(ctx, tr, venue.MarketPerp, sym, venue.SideSell, closePerpQty, id, true, venue.MarginEffectNone, live, attempt); err == nil {
+		perpSide := venue.SideSell
+		if posRev {
+			perpSide = venue.SideBuy
+		}
+		if res, err := e.placeSVPSCloseLegIOC(ctx, tr, venue.MarketPerp, sym, perpSide, closePerpQty, id, true, venue.MarginEffectNone, live, attempt); err == nil {
 			pos.PerpLeg.Qty = math.Max(pos.PerpLeg.Qty-res.ExecutedQty, 0)
 			pos.CloseFeesUSDT += res.Fee
 		} else {
@@ -1074,8 +1373,8 @@ func (e *SingleVenuePerpSpotExecutor) closePosition(ctx context.Context, pos Sin
 		}
 	}
 
-	spotShort, perpLong, _ = e.fetchLegState(ctx, v, sym)
-	if spotShort <= executionQtyTolerance && perpLong <= executionQtyTolerance {
+	spotLegQty, perpLegQty, _ = e.fetchLegState(ctx, v, sym, posRev)
+	if spotLegQty <= executionQtyTolerance && perpLegQty <= executionQtyTolerance {
 		if pos.SpotLeg.Qty <= executionQtyTolerance && pos.PerpLeg.Qty <= executionQtyTolerance {
 			e.syncRealizedFunding(ctx, &pos)
 			pos.Status = SVPSStatusClosed
@@ -1089,11 +1388,15 @@ func (e *SingleVenuePerpSpotExecutor) closePosition(ctx context.Context, pos Sin
 		return fmt.Errorf("平仓跳过: %s 实测为0,保留台账待下轮", pos.Symbol)
 	}
 
-	spotOpen := spotShort > executionQtyTolerance
-	perpOpen := perpLong > executionQtyTolerance
-	dust := evaluateNegativeCarryOrphan(ctx, e.execCfg(), e.venues, pos.Symbol, pos.Venue, pos.Venue, spotOpen, perpOpen, spotShort, perpLong, pos.SpotLeg.EntryPrice, pos.PerpLeg.EntryPrice)
-	if !dust.IsDustOrphan && spotOpen && !perpOpen && isNotionalFilterError(spotCloseErr) {
-		dust = negativeCarryDustFromNotionalReject(ctx, e.execCfg(), e.venues, pos.Symbol, pos.Venue, pos.Venue, spotOpen, perpOpen, spotShort, perpLong, pos.SpotLeg.EntryPrice, pos.PerpLeg.EntryPrice)
+	spotOpen := spotLegQty > executionQtyTolerance
+	perpOpen := perpLegQty > executionQtyTolerance
+	dust := evaluateNegativeCarryOrphan(ctx, e.execCfg(), e.venues, pos.Symbol, pos.Venue, pos.Venue, spotOpen, perpOpen, spotLegQty, perpLegQty, pos.SpotLeg.EntryPrice, pos.PerpLeg.EntryPrice)
+	if !posRev {
+		if !dust.IsDustOrphan && spotOpen && !perpOpen && isNotionalFilterError(spotCloseErr) {
+			dust = negativeCarryDustFromNotionalReject(ctx, e.execCfg(), e.venues, pos.Symbol, pos.Venue, pos.Venue, spotOpen, perpOpen, spotLegQty, perpLegQty, pos.SpotLeg.EntryPrice, pos.PerpLeg.EntryPrice)
+		}
+	} else if !dust.IsDustOrphan && perpOpen && !spotOpen {
+		dust = evaluatePositiveCarryOrphan(ctx, e.execCfg(), e.venues, pos.Symbol, pos.Venue, pos.Venue, spotOpen, perpOpen, spotLegQty, perpLegQty, pos.SpotLeg.EntryPrice)
 	}
 	if dust.IsDustOrphan {
 		if carryDeferDustOrphanDecision(e.nowFn(), pos.NextFundingTime, dust) {
@@ -1102,15 +1405,19 @@ func (e *SingleVenuePerpSpotExecutor) closePosition(ctx context.Context, pos Sin
 			return fmt.Errorf("dust_orphan 推迟至结算后: %s", pos.Symbol)
 		}
 		if live {
-			if spotOpen && !perpOpen {
-				bestEffortRepayMarginBorrow(ctx, e.venues[pos.Venue], pos.Symbol, spotShort)
+			if !posRev && spotOpen && !perpOpen {
+				bestEffortRepayMarginBorrow(ctx, e.venues[pos.Venue], pos.Symbol, spotLegQty)
 			} else if perpOpen {
 				id := svpsLegClientID(pos.IdemPrefix, "dust")
-				qty := ledgerCappedCloseQty(pos.PerpLeg.Qty, perpLong)
-				_, _ = e.placeSVPSCloseLegIOC(ctx, tr, venue.MarketPerp, sym, venue.SideSell, qty, id, true, venue.MarginEffectNone, live, attempt)
+				qty := ledgerCappedCloseQty(pos.PerpLeg.Qty, perpLegQty)
+				perpSide := venue.SideSell
+				if posRev {
+					perpSide = venue.SideBuy
+				}
+				_, _ = e.placeSVPSCloseLegIOC(ctx, tr, venue.MarketPerp, sym, perpSide, qty, id, true, venue.MarginEffectNone, live, attempt)
 			}
 		}
-		dustQty := negativeCarryDustResidualQty(spotOpen, perpOpen, spotShort, perpLong)
+		dustQty := negativeCarryDustResidualQty(spotOpen, perpOpen, spotLegQty, perpLegQty)
 		appendCarryDustLedgerBestEffort(e.recordDir, "svps_dust_close", pos.Symbol, baseAssetFromCanonicalSymbol(pos.Symbol), dustQty, dust.RemainingNotionalUSDT, nonEmpty(reason, "dust_close"))
 		e.syncRealizedFunding(ctx, &pos)
 		pos.Status = SVPSStatusClosed
@@ -1123,8 +1430,8 @@ func (e *SingleVenuePerpSpotExecutor) closePosition(ctx context.Context, pos Sin
 
 	pos.UpdatedAt = e.nowFn()
 	_ = e.persistPosition(pos)
-	e.logger.Printf("[同所perp-spot] 平仓未完成 %s(第%d轮): spot空剩%.6f perp多剩%.6f",
-		pos.Symbol, attempt, spotShort, perpLong)
+	e.logger.Printf("[同所perp-spot] 平仓未完成 %s(第%d轮): spot剩%.6f perp剩%.6f",
+		pos.Symbol, attempt, spotLegQty, perpLegQty)
 	if attempt >= 3 {
 		e.notifyCritical("同所perp-spot平仓持续失败",
 			fmt.Sprintf("%s 已连续%d轮平不掉", pos.Symbol, attempt), pos.Symbol)
@@ -1262,12 +1569,12 @@ func (e *SingleVenuePerpSpotExecutor) CloseOnePositionVerified(ctx context.Conte
 	if v == nil {
 		return fmt.Errorf("%s@%s: venue 未就绪", pos.Symbol, pos.Venue)
 	}
-	spotShort, perpLong, ferr := e.fetchLegState(ctx, v, venue.Symbol(pos.Symbol))
+	spotLegQty, perpLegQty, ferr := e.fetchLegState(ctx, v, venue.Symbol(pos.Symbol), svpsPositiveCarryReverse(pos))
 	if ferr != nil {
 		return fmt.Errorf("%s: %w", pos.Symbol, ferr)
 	}
-	spotOpen := spotShort > executionQtyTolerance
-	perpOpen := perpLong > executionQtyTolerance
+	spotOpen := spotLegQty > executionQtyTolerance
+	perpOpen := perpLegQty > executionQtyTolerance
 	if !spotOpen && !perpOpen {
 		pos.Status = SVPSStatusClosed
 		if pos.CloseReason == "" {
@@ -1295,11 +1602,11 @@ func (e *SingleVenuePerpSpotExecutor) CountRealHeldPositions(ctx context.Context
 		if v == nil {
 			continue
 		}
-		spotShort, perpLong, ferr := e.fetchLegState(ctx, v, venue.Symbol(pos.Symbol))
+		spotLegQty, perpLegQty, ferr := e.fetchLegState(ctx, v, venue.Symbol(pos.Symbol), svpsPositiveCarryReverse(pos))
 		if ferr != nil {
 			continue
 		}
-		if spotShort > executionQtyTolerance || perpLong > executionQtyTolerance {
+		if spotLegQty > executionQtyTolerance || perpLegQty > executionQtyTolerance {
 			count++
 		}
 	}
@@ -1321,13 +1628,13 @@ func (e *SingleVenuePerpSpotExecutor) CloseAllPositions(ctx context.Context, liv
 			errs = append(errs, fmt.Errorf("%s@%s: venue 未就绪", pos.Symbol, pos.Venue))
 			continue
 		}
-		spotShort, perpLong, ferr := e.fetchLegState(ctx, v, venue.Symbol(pos.Symbol))
+		spotLegQty, perpLegQty, ferr := e.fetchLegState(ctx, v, venue.Symbol(pos.Symbol), svpsPositiveCarryReverse(pos))
 		if ferr != nil {
 			errs = append(errs, fmt.Errorf("%s: %w", pos.Symbol, ferr))
 			continue
 		}
-		spotOpen := spotShort > executionQtyTolerance
-		perpOpen := perpLong > executionQtyTolerance
+		spotOpen := spotLegQty > executionQtyTolerance
+		perpOpen := perpLegQty > executionQtyTolerance
 		if !spotOpen && !perpOpen {
 			pos.Status = SVPSStatusClosed
 			pos.CloseReason = "flatten_all_orphan"
@@ -1423,20 +1730,24 @@ func (e *SingleVenuePerpSpotExecutor) flattenUntrackedLeg(ctx context.Context, l
 }
 
 func (e *SingleVenuePerpSpotExecutor) reconcileTrackedPositionOnStart(ctx context.Context, pos SingleVenuePerpSpotPosition, v venue.Venue, live bool) {
-	spotShort, perpLong, err := e.fetchLegState(ctx, v, venue.Symbol(pos.Symbol))
+	spotLegQty, perpLegQty, err := e.fetchLegState(ctx, v, venue.Symbol(pos.Symbol), svpsPositiveCarryReverse(pos))
 	if err != nil {
 		e.logger.Printf("[同所perp-spot] reconcile %s 拉腿失败: %v", pos.Symbol, err)
 		return
 	}
-	spotOpen := spotShort > executionQtyTolerance
-	perpOpen := perpLong > executionQtyTolerance
+	spotOpen := spotLegQty > executionQtyTolerance
+	perpOpen := perpLegQty > executionQtyTolerance
 
 	if svpsIsOpeningStatus(pos.Status) {
-		_, _ = e.manageOpeningContinuation(ctx, pos, spotOpen, perpOpen, spotShort, perpLong, live)
+		_, _ = e.manageOpeningContinuation(ctx, pos, spotOpen, perpOpen, spotLegQty, perpLegQty, live)
 		return
 	}
 	if spotOpen != perpOpen {
-		e.handleOrphanLeg(ctx, pos, spotOpen, perpOpen, live, spotShort, perpLong)
+		if svpsPositiveCarryReverse(pos) {
+			e.handlePositiveReverseOrphanLeg(ctx, pos, spotOpen, perpOpen, live, spotLegQty, perpLegQty)
+		} else {
+			e.handleOrphanLeg(ctx, pos, spotOpen, perpOpen, live, spotLegQty, perpLegQty)
+		}
 		return
 	}
 	if !spotOpen && !perpOpen && pos.Status != SVPSStatusClosed {
