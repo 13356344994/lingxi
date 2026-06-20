@@ -54,11 +54,17 @@ func TestPerpSpotAssetBorrowableVenueAware(t *testing.T) {
 	if !perpSpotAssetBorrowable(binance.VenueName, "BTC", reg, nil, now) {
 		t.Fatal("binance BTC should pass")
 	}
-	if perpSpotAssetBorrowable(bybit.VenueName, "BTC", reg, nil, now) {
-		t.Fatal("bybit BTC must not inherit binance borrowability")
+	if perpSpotBorrowState(bybit.VenueName, "BTC", reg, nil, now) != BorrowStateUnknown {
+		t.Fatalf("bybit BTC must not inherit binance borrowability, state=%v", perpSpotBorrowState(bybit.VenueName, "BTC", reg, nil, now))
 	}
-	if perpSpotAssetBorrowable(binance.VenueName, "ETH", reg, nil, now) {
-		t.Fatal("never-confirmed ETH should fail closed")
+	if !perpSpotAssetBorrowable(bybit.VenueName, "BTC", reg, nil, now) {
+		t.Fatal("bool gate fail-open: bybit BTC unknown should pass bool gate")
+	}
+	if !perpSpotAssetBorrowable(binance.VenueName, "ETH", reg, nil, now) {
+		t.Fatal("bool gate fail-open: never-confirmed ETH should pass")
+	}
+	if perpSpotBorrowState(binance.VenueName, "ETH", reg, nil, now) != BorrowStateUnknown {
+		t.Fatalf("never-confirmed ETH state = %v, want Unknown", perpSpotBorrowState(binance.VenueName, "ETH", reg, nil, now))
 	}
 }
 

@@ -176,6 +176,9 @@ func TestScanSingleVenueSpotPerpReverseNotBorrowableReject(t *testing.T) {
 	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
 	in := testSingleVenueSpotPerpScanInput(now)
 	in.Config.Exec.SingleVenueReverseFundingEnabled = true
+	in.BorrowKnownAvailable = testBorrowKnownRegistry(now,
+		CrossVenueBorrowProbe{Symbol: "BTC-USDT", Venue: bybit.VenueName, Available: false},
+	)
 	in.FundingByVenue[bybit.VenueName]["BTC-USDT"] = SingleVenueSpotPerpFundingSnap{
 		Rate:            -scannerTestCarryNearFundingRate,
 		IntervalHours:   8,
@@ -184,7 +187,7 @@ func TestScanSingleVenueSpotPerpReverseNotBorrowableReject(t *testing.T) {
 	opps := ScanSingleVenueSpotPerpOpportunities(in)
 	btc := findSingleVenueSpotPerpOpp(opps, "BTC-USDT")
 	if btc == nil {
-		t.Fatal("expected rejected row for not borrowable")
+		t.Fatal("expected rejected row for confirmed unavailable")
 	}
 	if !containsReject(btc.RejectReasons, singleVenueSpotPerpRejectNotBorrowable) {
 		t.Fatalf("reject_reasons = %#v, want %q", btc.RejectReasons, singleVenueSpotPerpRejectNotBorrowable)

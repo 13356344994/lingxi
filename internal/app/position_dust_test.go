@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -246,7 +247,11 @@ func TestFlattenSecondVerification(t *testing.T) {
 	v := &flattenVerifySpotVenue{fakeFundingVenue: fakeFundingVenue{name: "bybit"}, spotQty: 18.43}
 	venues := map[string]venue.Venue{"bybit": v}
 
-	carryAfterUntrackedFlatten(ctx, dir, logger, venues, leg, true)
+	carryAfterUntrackedFlatten(ctx, dir, logger, venues, leg, venue.OrderResult{
+		ClientOrderID: "test-flat-1",
+		ExecutedQty:   0,
+		Status:        "canceled",
+	}, errors.New("IOC 未成交"))
 
 	ledgerPath := filepath.Join(dir, "dust_ledger.json")
 	records, err := readJSONFile[DustLedgerRecord](ledgerPath)
@@ -266,7 +271,11 @@ func TestFlattenSecondVerification(t *testing.T) {
 	}
 
 	v.spotQty = 0
-	carryAfterUntrackedFlatten(ctx, dir, logger, venues, leg, true)
+	carryAfterUntrackedFlatten(ctx, dir, logger, venues, leg, venue.OrderResult{
+		ClientOrderID: "test-flat-2",
+		ExecutedQty:   leg.Qty,
+		Status:        "filled",
+	}, nil)
 	if !recentlyFlattened(dir, recentFlattenKeyFromLeg(leg), recentFlattenTTL) {
 		t.Fatal("expected recent flatten registry after verified clear")
 	}
@@ -281,5 +290,102 @@ func TestRecentFlattenRegistryDedup(t *testing.T) {
 	markRecentFlatten(dir, recentFlattenKeyFromLeg(leg))
 	if !carryShouldSkipUntrackedFlatten(dir, nil, leg) {
 		t.Fatal("expected skip after recent flatten mark")
+	}
+}
+
+func TestFlattenIOCUnfilledMarksUnresolved(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	logger := testSVSPLogger()
+	cfg := CrossVenueExecutorConfig{DustCloseThresholdUSDT: 1.0}
+
+	leg := carryUntrackedLeg{
+		Venue: "bybit", Symbol: "MNT-USDT", Market: venue.MarketSpot,
+		Qty: 18.43, Side: venue.SideSell,
+	}
+	v := &flattenVerifySpotVenue{fakeFundingVenue: fakeFundingVenue{name: "bybit"}, spotQty: 18.43}
+	venues := map[string]venue.Venue{"bybit": v}
+
+	carryAfterUntrackedFlatten(ctx, dir, logger, venues, leg, venue.OrderResult{
+		ClientOrderID: "ioc-unfilled",
+		Status:        "canceled",
+		ExecutedQty:   0,
+	}, errors.New("IOC 未成交"))
+
+	records, err := readJSONFile[DustLedgerRecord](filepath.Join(dir, "dust_ledger.json"))
+	if err != nil || len(records) != 1 {
+		t.Fatalf("expected unresolved ledger, err=%v records=%+v", err, records)
+	}
+	if records[0].Reason != unresolvedOrphanReason {
+		t.Fatalf("reason = %q, want %q", records[0].Reason, unresolvedOrphanReason)
+	}
+	if legs := carryScanUntrackedSVSPLegs(ctx, cfg, dir, logger, venues, nil); len(legs) != 0 {
+		t.Fatalf("unresolved orphan should not re-scan, got %+v", legs)
+	}
+	if !carryShouldSkipUntrackedFlatten(dir, logger, leg) {
+		t.Fatal("expected skip repeat flatten after IOC unfilled")
+	}
+}
+
+func TestFlattenSubmitFailedPersists(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	logger := testSVSPLogger()
+	cfg := CrossVenueExecutorConfig{DustCloseThresholdUSDT: 1.0}
+
+	leg := carryUntrackedLeg{
+		Venue: "bybit", Symbol: "MNT-USDT", Market: venue.MarketSpot,
+		Qty: 18.43, Side: venue.SideSell,
+	}
+	v := &flattenVerifySpotVenue{fakeFundingVenue: fakeFundingVenue{name: "bybit"}, spotQty: 18.43}
+	venues := map[string]venue.Venue{"bybit": v}
+
+	carryAfterUntrackedFlatten(ctx, dir, logger, venues, leg, venue.OrderResult{Status: "rejected"}, errors.New("simulated spot fail"))
+
+	records, err := readJSONFile[DustLedgerRecord](filepath.Join(dir, "dust_ledger.json"))
+	if err != nil || len(records) != 1 {
+		t.Fatalf("expected flatten_submit_failed ledger, err=%v records=%+v", err, records)
+	}
+	if records[0].Reason != flattenSubmitFailedReason {
+		t.Fatalf("reason = %q, want %q", records[0].Reason, flattenSubmitFailedReason)
+	}
+	if legs := carryScanUntrackedSVSPLegs(ctx, cfg, dir, logger, venues, nil); len(legs) != 0 {
+		t.Fatalf("submit-failed orphan should not re-scan, got %+v", legs)
+	}
+	if !carryShouldSkipUntrackedFlatten(dir, logger, leg) {
+		t.Fatal("expected skip repeat flatten after submit failure")
+	}
+}
+
+func TestFlattenCrossStrategySameStartupDedup(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	logger := testSVSPLogger()
+
+	leg := carryUntrackedLeg{
+		Venue: "bybit", Symbol: "MNT-USDT", Market: venue.MarketSpot,
+		Qty: 18.43, Side: venue.SideSell,
+	}
+	v := &flattenVerifySpotVenue{fakeFundingVenue: fakeFundingVenue{name: "bybit"}, spotQty: 18.43}
+	venues := map[string]venue.Venue{"bybit": v}
+
+	carryAfterUntrackedFlatten(ctx, dir, logger, venues, leg, venue.OrderResult{
+		ClientOrderID: "svsp-flat",
+		Status:        "canceled",
+		ExecutedQty:   0,
+	}, errors.New("IOC 未成交"))
+
+	if !carryShouldSkipUntrackedFlatten(dir, logger, leg) {
+		t.Fatal("CVSP should skip same leg after SVSP flatten attempt")
+	}
+
+	cvspV := newCVSPTestVenue("bybit")
+	cvspV.balances["MNT"] = 18.43
+	cvspExec := NewCrossVenueSpotPerpExecutor(testCrossVenueExecutorConfig(), map[string]venue.Venue{"bybit": cvspV}, dir, logger)
+	before := atomic.LoadInt32(cvspV.placeCount)
+	cvspExec.flattenUntrackedLeg(ctx, leg, true)
+	after := atomic.LoadInt32(cvspV.placeCount)
+	if after != before {
+		t.Fatalf("CVSP should not place order after SVSP marked leg, placeCount %d->%d", before, after)
 	}
 }

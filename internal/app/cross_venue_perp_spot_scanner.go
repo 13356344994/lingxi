@@ -306,7 +306,8 @@ func buildCrossVenuePerpSpotOpportunity(
 	}
 
 	baseAsset := baseAssetFromCanonicalSymbol(symbol)
-	if !perpSpotAssetBorrowable(spotVenue, baseAsset, borrowKnown, borrowDisabled, now) {
+	borrowState := perpSpotBorrowState(spotVenue, baseAsset, borrowKnown, borrowDisabled, now)
+	if borrowState == BorrowStateUnavailable {
 		if funnel != nil {
 			funnel.BuildNotBorrowable++
 		}
@@ -423,6 +424,9 @@ func buildCrossVenuePerpSpotOpportunity(
 	}
 
 	rejectReasons := make([]string, 0)
+	if borrowState == BorrowStateUnknown {
+		rejectReasons = append(rejectReasons, perpSpotBorrowUnknownFailOpen)
+	}
 	if perpSpotBorrowOverLimit(baseAsset, notional, borrowLimitUSDTByAsset) {
 		rejectReasons = append(rejectReasons, crossVenuePerpSpotRejectBorrowOverLimit)
 	}

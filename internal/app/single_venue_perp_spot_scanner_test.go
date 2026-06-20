@@ -176,12 +176,13 @@ func TestScanSingleVenuePerpSpotRecordsNotBorrowableReject(t *testing.T) {
 	in := testSingleVenuePerpSpotScanInput(now)
 	reg := testBorrowKnownRegistry(now,
 		CrossVenueBorrowProbe{Symbol: "ETH-USDT", Venue: bybit.VenueName, Available: true},
+		CrossVenueBorrowProbe{Symbol: "BTC-USDT", Venue: bybit.VenueName, Available: false},
 	)
 	in.BorrowKnownAvailable = reg
 	opps := ScanSingleVenuePerpSpotOpportunities(in)
 	btc := findSingleVenuePerpSpotOpp(opps, "BTC-USDT")
 	if btc == nil {
-		t.Fatal("expected rejected row for not borrowable")
+		t.Fatal("expected rejected row for confirmed unavailable")
 	}
 	if !containsPerpSpotReject(btc.RejectReasons, singleVenuePerpSpotRejectNotBorrowable) {
 		t.Fatalf("reject_reasons = %#v, want %q", btc.RejectReasons, singleVenuePerpSpotRejectNotBorrowable)

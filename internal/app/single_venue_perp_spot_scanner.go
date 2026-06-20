@@ -250,7 +250,8 @@ func buildSingleVenuePerpSpotOpportunity(
 	}
 
 	baseAsset := baseAssetFromCanonicalSymbol(symbol)
-	if !perpSpotAssetBorrowable(venueName, baseAsset, borrowKnown, borrowDisabled, now) {
+	borrowState := perpSpotBorrowState(venueName, baseAsset, borrowKnown, borrowDisabled, now)
+	if borrowState == BorrowStateUnavailable {
 		return singleVenuePerpSpotRejectedOpportunity(snapshotID, symbol, venueName, singleVenuePerpSpotRejectNotBorrowable, fund, now, -fund.Rate), true
 	}
 
@@ -337,6 +338,9 @@ func buildSingleVenuePerpSpotOpportunity(
 	}
 
 	rejectReasons := make([]string, 0)
+	if borrowState == BorrowStateUnknown {
+		rejectReasons = append(rejectReasons, perpSpotBorrowUnknownFailOpen)
+	}
 	if perpSpotBorrowOverLimit(baseAsset, notional, borrowLimitUSDTByAsset) {
 		rejectReasons = append(rejectReasons, singleVenuePerpSpotRejectBorrowOverLimit)
 	}

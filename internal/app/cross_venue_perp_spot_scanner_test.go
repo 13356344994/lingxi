@@ -180,12 +180,14 @@ func TestScanCrossVenuePerpSpotExcludesPositiveFunding(t *testing.T) {
 func TestScanCrossVenuePerpSpotExcludesNotBorrowable(t *testing.T) {
 	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
 	in := testCrossVenuePerpSpotScanInput(now)
-	in.BorrowKnownAvailable = NewBorrowKnownAvailableRegistry(24 * time.Hour)
+	in.BorrowKnownAvailable = testBorrowKnownRegistry(now,
+		CrossVenueBorrowProbe{Symbol: "BTC-USDT", Venue: binance.VenueName, Available: false},
+		CrossVenueBorrowProbe{Symbol: "BTC-USDT", Venue: "okx", Available: false},
+	)
 	in.BorrowDailyRateByAsset = map[string]float64{}
 	opps := ScanCrossVenuePerpSpotOpportunities(in)
-	// P1④: 全部不可借 → 筛选阶段排除,候选集为空。
 	if len(opps) != 0 {
-		t.Fatalf("opportunities = %d, want 0 (not-borrowable excluded at filter)", len(opps))
+		t.Fatalf("opportunities = %d, want 0 (confirmed-unavailable excluded at filter)", len(opps))
 	}
 }
 
@@ -379,7 +381,10 @@ func findCrossVenuePerpSpotOpp(opps []UnifiedOpportunity, symbol, spotVenue stri
 func TestScanCrossVenuePerpSpotFunnelRollupNotBorrowable(t *testing.T) {
 	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
 	in := testCrossVenuePerpSpotScanInput(now)
-	in.BorrowKnownAvailable = NewBorrowKnownAvailableRegistry(24 * time.Hour)
+	in.BorrowKnownAvailable = testBorrowKnownRegistry(now,
+		CrossVenueBorrowProbe{Symbol: "BTC-USDT", Venue: binance.VenueName, Available: false},
+		CrossVenueBorrowProbe{Symbol: "BTC-USDT", Venue: "okx", Available: false},
+	)
 	in.BorrowDailyRateByAsset = map[string]float64{}
 	out := captureCrossVenueCarryFunnelLog(t, func() {
 		_ = ScanCrossVenuePerpSpotOpportunities(in)
@@ -388,7 +393,7 @@ func TestScanCrossVenuePerpSpotFunnelRollupNotBorrowable(t *testing.T) {
 		t.Fatalf("missing funnel rollup log: %s", out)
 	}
 	if !strings.Contains(out, "build_not_borrowable=2") || !strings.Contains(out, "emitted=0") {
-		t.Fatalf("expected not-borrowable funnel collapse, got: %s", out)
+		t.Fatalf("expected confirmed-unavailable funnel collapse, got: %s", out)
 	}
 }
 

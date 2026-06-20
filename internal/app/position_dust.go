@@ -15,9 +15,10 @@ import (
 )
 
 const (
-	recentFlattenTTL         = 30 * time.Minute
-	recentFlattenJSONLName   = "recent_flatten.jsonl"
-	unresolvedOrphanReason   = "unresolved_orphan"
+	recentFlattenTTL           = 30 * time.Minute
+	recentFlattenJSONLName     = "recent_flatten.jsonl"
+	unresolvedOrphanReason     = "unresolved_orphan"
+	flattenSubmitFailedReason  = "flatten_submit_failed"
 )
 
 const defaultDustCloseThresholdUSDT = 1.0
@@ -396,9 +397,42 @@ type recentFlattenRegistry struct {
 
 var globalRecentFlatten recentFlattenRegistry
 
+// globalPendingFlatten 同进程内跨策略 flatten 去重(已提交待核验/unresolved)。
+type pendingFlattenRegistry struct {
+	mu      sync.Mutex
+	entries map[string]map[recentFlattenKey]struct{}
+}
+
+var globalPendingFlatten pendingFlattenRegistry
+
 func init() {
 	globalRecentFlatten.entries = make(map[string][]recentFlattenEntry)
 	globalRecentFlatten.loaded = make(map[string]bool)
+	globalPendingFlatten.entries = make(map[string]map[recentFlattenKey]struct{})
+}
+
+func markPendingFlattenDedup(recordDir string, key recentFlattenKey) {
+	recordDir = strings.TrimSpace(recordDir)
+	if recordDir == "" {
+		return
+	}
+	globalPendingFlatten.mu.Lock()
+	defer globalPendingFlatten.mu.Unlock()
+	if globalPendingFlatten.entries[recordDir] == nil {
+		globalPendingFlatten.entries[recordDir] = make(map[recentFlattenKey]struct{})
+	}
+	globalPendingFlatten.entries[recordDir][key] = struct{}{}
+}
+
+func pendingFlattenDedup(recordDir string, key recentFlattenKey) bool {
+	recordDir = strings.TrimSpace(recordDir)
+	if recordDir == "" {
+		return false
+	}
+	globalPendingFlatten.mu.Lock()
+	defer globalPendingFlatten.mu.Unlock()
+	_, ok := globalPendingFlatten.entries[recordDir][key]
+	return ok
 }
 
 func recentFlattenQtyBand(qty float64) int {
@@ -477,10 +511,10 @@ func recentlyFlattened(recordDir string, key recentFlattenKey, within time.Durat
 	return false
 }
 
-func markRecentFlatten(recordDir string, key recentFlattenKey) {
+func markRecentFlatten(recordDir string, key recentFlattenKey) error {
 	recordDir = strings.TrimSpace(recordDir)
 	if recordDir == "" {
-		return
+		return nil
 	}
 	now := time.Now().UTC()
 	globalRecentFlatten.mu.Lock()
@@ -491,13 +525,17 @@ func markRecentFlatten(recordDir string, key recentFlattenKey) {
 	})
 	globalRecentFlatten.prune(recordDir, now)
 	globalRecentFlatten.mu.Unlock()
-	_ = appendJSONLRecord(recentFlattenJSONLPath(recordDir), recentFlattenRecord{
+	return appendJSONLRecord(recentFlattenJSONLPath(recordDir), recentFlattenRecord{
 		RecordedAt: now.Format(time.RFC3339),
 		Venue:      key.Venue,
 		Symbol:     key.Symbol,
 		Side:       key.Side,
 		QtyBand:    key.QtyBand,
 	})
+}
+
+func carryFlattenSkipReason(reason string) bool {
+	return reason == unresolvedOrphanReason || reason == flattenSubmitFailedReason
 }
 
 func carryIsUnresolvedOrphan(recordDir string, leg carryUntrackedLeg) bool {
@@ -515,7 +553,7 @@ func carryIsUnresolvedOrphan(recordDir string, leg carryUntrackedLeg) bool {
 	wantMarket := leg.Market.String()
 	wantSide := leg.Side.String()
 	for _, rec := range records {
-		if rec.Reason != unresolvedOrphanReason {
+		if !carryFlattenSkipReason(rec.Reason) {
 			continue
 		}
 		if canonicalTradingSymbol(rec.Symbol) != wantSymbol {
@@ -530,16 +568,30 @@ func carryIsUnresolvedOrphan(recordDir string, leg carryUntrackedLeg) bool {
 	return false
 }
 
-func markUnresolvedOrphan(recordDir string, leg carryUntrackedLeg, notionalUSDT float64) {
-	appendCarryDustLedgerBestEffort(
-		recordDir,
-		fmt.Sprintf("untracked_flatten|%s|%s|%s", strings.TrimSpace(leg.Venue), leg.Market.String(), leg.Side.String()),
-		leg.Symbol,
-		baseAssetFromCanonicalSymbol(leg.Symbol),
-		leg.Qty,
-		notionalUSDT,
-		unresolvedOrphanReason,
-	)
+func markUnresolvedOrphan(recordDir string, leg carryUntrackedLeg, notionalUSDT float64, reason string) error {
+	if strings.TrimSpace(recordDir) == "" || leg.Qty <= executionQtyTolerance {
+		return nil
+	}
+	if strings.TrimSpace(reason) == "" {
+		reason = unresolvedOrphanReason
+	}
+	path := filepath.Join(strings.TrimSpace(recordDir), "dust_ledger.json")
+	records, err := readJSONFile[DustLedgerRecord](path)
+	if err != nil {
+		return err
+	}
+	record := DustLedgerRecord{
+		RecordedAt:   time.Now().UTC().Format(time.RFC3339),
+		Phase:        fmt.Sprintf("untracked_flatten|%s|%s|%s", strings.TrimSpace(leg.Venue), leg.Market.String(), leg.Side.String()),
+		Symbol:       leg.Symbol,
+		Pair:         leg.Symbol,
+		Asset:        baseAssetFromCanonicalSymbol(leg.Symbol),
+		Quantity:     formatFloat(leg.Qty),
+		NotionalUSDT: formatFloat(maxFloat(notionalUSDT, 0)),
+		Reason:       reason,
+	}
+	records = append(records, record)
+	return writeJSONFile(path, records)
 }
 
 func carryShouldSkipUntrackedFlatten(recordDir string, logger *log.Logger, leg carryUntrackedLeg) bool {
@@ -551,6 +603,13 @@ func carryShouldSkipUntrackedFlatten(recordDir string, logger *log.Logger, leg c
 		return true
 	}
 	key := recentFlattenKeyFromLeg(leg)
+	if pendingFlattenDedup(recordDir, key) {
+		if logger != nil {
+			logger.Printf("[carry-flatten] venue=%s %s %s≈%.6f 本轮已 flatten，跳过重复下单",
+				leg.Venue, leg.Market, leg.Symbol, leg.Qty)
+		}
+		return true
+	}
 	if recentlyFlattened(recordDir, key, recentFlattenTTL) {
 		if logger != nil {
 			logger.Printf("[carry-flatten] venue=%s %s %s≈%.6f 已近期处理，跳过重复 flatten",
@@ -561,7 +620,34 @@ func carryShouldSkipUntrackedFlatten(recordDir string, logger *log.Logger, leg c
 	return false
 }
 
-func carryLegStillPresent(ctx context.Context, venues map[string]venue.Venue, leg carryUntrackedLeg) bool {
+func carryOrderWasSubmitted(res venue.OrderResult, submitErr error) bool {
+	if submitErr == nil {
+		return true
+	}
+	if strings.TrimSpace(res.ClientOrderID) != "" {
+		return true
+	}
+	switch strings.ToLower(strings.TrimSpace(res.Status)) {
+	case "unknown", "new", "canceled", "cancelled", "expired", "partially_filled":
+		return true
+	}
+	return false
+}
+
+func carryLegNotionalUSDT(ctx context.Context, venues map[string]venue.Venue, leg carryUntrackedLeg) float64 {
+	v := venues[leg.Venue]
+	return legNotionalUSDT(ctx, v, venue.Symbol(leg.Symbol), leg.Market, leg.Qty, 0)
+}
+
+// carryLegStillPresent 结合 IOC ExecutedQty 与重拉余额/持仓双重判断残腿是否仍在。
+func carryLegStillPresent(ctx context.Context, venues map[string]venue.Venue, leg carryUntrackedLeg, executedQty float64) bool {
+	if leg.Qty-executedQty > executionQtyTolerance {
+		return true
+	}
+	return carryLegBalanceStillPresent(ctx, venues, leg)
+}
+
+func carryLegBalanceStillPresent(ctx context.Context, venues map[string]venue.Venue, leg carryUntrackedLeg) bool {
 	v := venues[leg.Venue]
 	if v == nil {
 		return true
@@ -604,21 +690,40 @@ func carryLegStillPresent(ctx context.Context, venues map[string]venue.Venue, le
 	}
 }
 
-func carryAfterUntrackedFlatten(ctx context.Context, recordDir string, logger *log.Logger, venues map[string]venue.Venue, leg carryUntrackedLeg, placed bool) {
-	if !placed {
-		return
-	}
-	if carryLegStillPresent(ctx, venues, leg) {
-		v := venues[leg.Venue]
-		notional := legNotionalUSDT(ctx, v, venue.Symbol(leg.Symbol), leg.Market, leg.Qty, 0)
-		markUnresolvedOrphan(recordDir, leg, notional)
+func carryAfterUntrackedFlatten(ctx context.Context, recordDir string, logger *log.Logger, venues map[string]venue.Venue, leg carryUntrackedLeg, res venue.OrderResult, submitErr error) {
+	key := recentFlattenKeyFromLeg(leg)
+	markPendingFlattenDedup(recordDir, key)
+
+	if !carryOrderWasSubmitted(res, submitErr) {
+		notional := carryLegNotionalUSDT(ctx, venues, leg)
+		if err := markUnresolvedOrphan(recordDir, leg, notional, flattenSubmitFailedReason); err != nil && logger != nil {
+			logger.Printf("[carry-flatten] venue=%s %s %s≈%.6f 落盘 %s 失败: %v",
+				leg.Venue, leg.Market, leg.Symbol, leg.Qty, flattenSubmitFailedReason, err)
+		}
 		if logger != nil {
-			logger.Printf("[carry-flatten] venue=%s %s %s≈%.6f flatten 后仍有余量，标记 unresolved_orphan",
-				leg.Venue, leg.Market, leg.Symbol, leg.Qty)
+			logger.Printf("[carry-flatten] venue=%s %s %s≈%.6f 提交失败(%v)，标记 %s",
+				leg.Venue, leg.Market, leg.Symbol, leg.Qty, submitErr, flattenSubmitFailedReason)
 		}
 		return
 	}
-	markRecentFlatten(recordDir, recentFlattenKeyFromLeg(leg))
+
+	if carryLegStillPresent(ctx, venues, leg, res.ExecutedQty) {
+		notional := carryLegNotionalUSDT(ctx, venues, leg)
+		if err := markUnresolvedOrphan(recordDir, leg, notional, unresolvedOrphanReason); err != nil && logger != nil {
+			logger.Printf("[carry-flatten] venue=%s %s %s≈%.6f 落盘 %s 失败: %v",
+				leg.Venue, leg.Market, leg.Symbol, leg.Qty, unresolvedOrphanReason, err)
+		}
+		if logger != nil {
+			logger.Printf("[carry-flatten] venue=%s %s %s≈%.6f IOC成交≈%.6f 仍有余量，标记 %s",
+				leg.Venue, leg.Market, leg.Symbol, leg.Qty, res.ExecutedQty, unresolvedOrphanReason)
+		}
+		return
+	}
+
+	if err := markRecentFlatten(recordDir, key); err != nil && logger != nil {
+		logger.Printf("[carry-flatten] venue=%s %s %s≈%.6f 写入 recent_flatten 失败: %v",
+			leg.Venue, leg.Market, leg.Symbol, leg.Qty, err)
+	}
 	if logger != nil {
 		logger.Printf("[carry-flatten] venue=%s %s %s≈%.6f flatten 核验通过",
 			leg.Venue, leg.Market, leg.Symbol, leg.Qty)

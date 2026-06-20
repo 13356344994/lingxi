@@ -1716,6 +1716,9 @@ func (e *SingleVenuePerpSpotExecutor) flattenUntrackedLeg(ctx context.Context, l
 	if !live || leg.Qty <= executionQtyTolerance {
 		return
 	}
+	if carryShouldSkipUntrackedFlatten(e.recordDir, e.logger, leg) {
+		return
+	}
 	v := e.venues[leg.Venue]
 	tr, ok := v.(singleVenuePerpSpotTrader)
 	if !ok || tr == nil {
@@ -1726,7 +1729,8 @@ func (e *SingleVenuePerpSpotExecutor) flattenUntrackedLeg(ctx context.Context, l
 		margin = venue.MarginEffectRepay
 	}
 	id := fmt.Sprintf("svps-reconcile-flat-%s-%d", leg.Symbol, e.nowFn().UnixNano())
-	_, _ = e.placeSVPSLegIOC(ctx, tr, leg.Market, venue.Symbol(leg.Symbol), leg.Side, leg.Qty, id, leg.ReduceOnly, margin, live, svpsTakerSlippageBps(e.execCfg()))
+	res, err := e.placeSVPSLegIOC(ctx, tr, leg.Market, venue.Symbol(leg.Symbol), leg.Side, leg.Qty, id, leg.ReduceOnly, margin, live, svpsTakerSlippageBps(e.execCfg()))
+	carryAfterUntrackedFlatten(ctx, e.recordDir, e.logger, e.venues, leg, res, err)
 }
 
 func (e *SingleVenuePerpSpotExecutor) reconcileTrackedPositionOnStart(ctx context.Context, pos SingleVenuePerpSpotPosition, v venue.Venue, live bool) {

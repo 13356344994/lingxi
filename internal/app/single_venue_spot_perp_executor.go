@@ -1543,8 +1543,8 @@ func (e *SingleVenueSpotPerpExecutor) flattenUntrackedLeg(ctx context.Context, l
 		return
 	}
 	id := fmt.Sprintf("svsp-reconcile-flat-%s-%d", leg.Symbol, e.nowFn().UnixNano())
-	_, err := e.placeSVSPLegIOC(ctx, tr, leg.Market, venue.Symbol(leg.Symbol), leg.Side, leg.Qty, id, leg.ReduceOnly, venue.MarginEffectNone, live, svspTakerSlippageBps(e.execCfg()))
-	carryAfterUntrackedFlatten(ctx, e.recordDir, e.logger, e.venues, leg, err == nil)
+	res, err := e.placeSVSPLegIOC(ctx, tr, leg.Market, venue.Symbol(leg.Symbol), leg.Side, leg.Qty, id, leg.ReduceOnly, venue.MarginEffectNone, live, svspTakerSlippageBps(e.execCfg()))
+	carryAfterUntrackedFlatten(ctx, e.recordDir, e.logger, e.venues, leg, res, err)
 }
 
 func (e *SingleVenueSpotPerpExecutor) reconcileTrackedPositionOnStart(ctx context.Context, pos SingleVenueSpotPerpPosition, v venue.Venue, live bool) {

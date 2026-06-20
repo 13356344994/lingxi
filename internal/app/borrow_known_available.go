@@ -7,18 +7,30 @@ import (
 	"time"
 )
 
-// borrowKnownKey 是 venue+base 粒度的已知可借确认键(venue 小写, asset 大写)。
+// borrowKnownKey 是 venue+base 粒度的借币确认键(venue 小写, asset 大写)。
 type borrowKnownKey struct {
 	venue string
 	asset string
 }
 
-// BorrowKnownAvailableRegistry 维护各所 base 资产「探测 confirmed available=true」的记忆集(带 freshness 窗口)。
-// 供 perp-spot not_borrowable 闸 consult;未知/过期仍 fail-closed,避免 short-spot 孤儿腿。
+// BorrowState 是 execution venue 上 base 资产的借币可得性三态(扫描闸 consult)。
+type BorrowState int
+
+const (
+	// BorrowStateAvailable 窗口内 confirmed available=true。
+	BorrowStateAvailable BorrowState = iota
+	// BorrowStateUnavailable 窗口内 confirmed available=false,或 venue 配置禁用借币。
+	BorrowStateUnavailable
+	// BorrowStateUnknown 未探测/探测失败/记忆过期;扫描层 fail-open,由执行器 R29 预检兜底。
+	BorrowStateUnknown
+)
+
+// BorrowKnownAvailableRegistry 维护各所 base 资产借币探测 confirmed 记忆(available/unavailable 对称 TTL)。
 type BorrowKnownAvailableRegistry struct {
-	mu          sync.RWMutex
-	freshness   time.Duration
-	confirmedAt map[borrowKnownKey]time.Time
+	mu            sync.RWMutex
+	freshness     time.Duration
+	confirmedAt   map[borrowKnownKey]time.Time
+	unavailableAt map[borrowKnownKey]time.Time
 }
 
 // NewBorrowKnownAvailableRegistry 构造空 registry;freshness<=0 时默认 24h。
@@ -27,8 +39,9 @@ func NewBorrowKnownAvailableRegistry(freshness time.Duration) *BorrowKnownAvaila
 		freshness = 24 * time.Hour
 	}
 	return &BorrowKnownAvailableRegistry{
-		freshness:   freshness,
-		confirmedAt: make(map[borrowKnownKey]time.Time),
+		freshness:     freshness,
+		confirmedAt:   make(map[borrowKnownKey]time.Time),
+		unavailableAt: make(map[borrowKnownKey]time.Time),
 	}
 }
 
@@ -43,7 +56,7 @@ func (r *BorrowKnownAvailableRegistry) Freshness() time.Duration {
 }
 
 // SeedFromBorrowProbesJSONL 启动时从 records/borrow_probes.jsonl 暖启动(只读,不写 records)。
-// 缺 scanned_at 的行以 seedNow 作为确认时间(视为窗口内有效种子)。
+// 缺 scanned_at 的行以 seedNow 作为确认时间;探测失败(err 非空)行跳过,保持 unknown。
 func (r *BorrowKnownAvailableRegistry) SeedFromBorrowProbesJSONL(recordDir string, seedNow time.Time) error {
 	if r == nil {
 		return nil
@@ -68,17 +81,22 @@ func (r *BorrowKnownAvailableRegistry) SeedFromBorrowProbesJSONL(recordDir strin
 }
 
 func (r *BorrowKnownAvailableRegistry) observeJSONLRecord(rec borrowProbeJSONLRecord, at time.Time) {
-	if r == nil || !rec.Available {
+	if r == nil || strings.TrimSpace(rec.Err) != "" {
 		return
 	}
 	base := strings.ToUpper(strings.TrimSpace(rec.BaseAsset))
 	if base == "" {
 		base = baseAssetFromCanonicalSymbol(rec.Symbol)
 	}
-	r.observeConfirmed(rec.Venue, base, at)
+	if rec.Available {
+		r.observeConfirmed(rec.Venue, base, at)
+	} else {
+		r.observeConfirmedUnavailable(rec.Venue, base, at)
+	}
 }
 
-// ObserveProbes 用一轮 live/cache 借币探测结果刷新记忆(仅 available==true 写入/续期)。
+// ObserveProbes 用一轮 live/cache 借币探测结果刷新记忆。
+// available=true → confirmed;available=false 且 err 空 → confirmed-unavailable;err 非空 → 跳过(保持 unknown)。
 func (r *BorrowKnownAvailableRegistry) ObserveProbes(probes []CrossVenueBorrowProbe, at time.Time) {
 	if r == nil || len(probes) == 0 {
 		return
@@ -89,11 +107,15 @@ func (r *BorrowKnownAvailableRegistry) ObserveProbes(probes []CrossVenueBorrowPr
 		at = at.UTC()
 	}
 	for _, p := range probes {
-		if !p.Available {
+		if strings.TrimSpace(p.Err) != "" {
 			continue
 		}
 		base := baseAssetFromCanonicalSymbol(p.Symbol)
-		r.observeConfirmed(p.Venue, base, at)
+		if p.Available {
+			r.observeConfirmed(p.Venue, base, at)
+		} else {
+			r.observeConfirmedUnavailable(p.Venue, base, at)
+		}
 	}
 }
 
@@ -110,6 +132,23 @@ func (r *BorrowKnownAvailableRegistry) observeConfirmed(venue, baseAsset string,
 		return
 	}
 	r.confirmedAt[key] = at.UTC()
+	delete(r.unavailableAt, key)
+}
+
+func (r *BorrowKnownAvailableRegistry) observeConfirmedUnavailable(venue, baseAsset string, at time.Time) {
+	venue = strings.ToLower(strings.TrimSpace(venue))
+	baseAsset = strings.ToUpper(strings.TrimSpace(baseAsset))
+	if venue == "" || baseAsset == "" {
+		return
+	}
+	key := borrowKnownKey{venue: venue, asset: baseAsset}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if prev, ok := r.unavailableAt[key]; ok && prev.After(at) {
+		return
+	}
+	r.unavailableAt[key] = at.UTC()
+	delete(r.confirmedAt, key)
 }
 
 // IsBorrowable 报告某 execution venue 的 base 是否在 freshness 窗口内被 confirmed available。
@@ -136,6 +175,46 @@ func (r *BorrowKnownAvailableRegistry) IsBorrowable(venue, baseAsset string, now
 		return false
 	}
 	return now.Sub(at) <= freshness
+}
+
+// IsKnownUnavailable 报告某 execution venue 的 base 是否在 freshness 窗口内被 confirmed unavailable。
+func (r *BorrowKnownAvailableRegistry) IsKnownUnavailable(venue, baseAsset string, now time.Time) bool {
+	if r == nil {
+		return false
+	}
+	venue = strings.ToLower(strings.TrimSpace(venue))
+	baseAsset = strings.ToUpper(strings.TrimSpace(baseAsset))
+	if venue == "" || baseAsset == "" {
+		return false
+	}
+	if now.IsZero() {
+		now = time.Now().UTC()
+	} else {
+		now = now.UTC()
+	}
+	key := borrowKnownKey{venue: venue, asset: baseAsset}
+	r.mu.RLock()
+	at, ok := r.unavailableAt[key]
+	freshness := r.freshness
+	r.mu.RUnlock()
+	if !ok {
+		return false
+	}
+	return now.Sub(at) <= freshness
+}
+
+// BorrowState 查询 venue+base 在 registry 中的三态(不含 borrowDisabled;由 perpSpotBorrowState 叠加)。
+func (r *BorrowKnownAvailableRegistry) BorrowState(venue, baseAsset string, now time.Time) BorrowState {
+	if r == nil {
+		return BorrowStateUnknown
+	}
+	if r.IsBorrowable(venue, baseAsset, now) {
+		return BorrowStateAvailable
+	}
+	if r.IsKnownUnavailable(venue, baseAsset, now) {
+		return BorrowStateUnavailable
+	}
+	return BorrowStateUnknown
 }
 
 // CountFresh returns the number of venue+asset keys still inside the freshness window (for diagnostics/tests).
