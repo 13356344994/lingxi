@@ -183,10 +183,15 @@ func (e *CrossVenueExecutor) executeOpen(ctx context.Context, opp UnifiedOpportu
 		cvOpp.TradableNotional = decisionNotional
 	}
 
-	// 统一 runner 已通过 ExecuteCapitalRouting 备资;rotation 模式下跳过 gate 内重复划拨。
-	if !e.RotationManaged() {
-		requiredMargin := conservativeCrossVenueRequiredMargin(cfg)
-		ensureCrossVenuePerpMargin(ctx, e.logger, e.venues, cvOpp.HighVenue, cvOpp.LowVenue, requiredMargin)
+	// 开仓前确保两腿期货钱包保证金充足。rotation 模式下统一 runner 的资金路由对 perp-perp 并不会把
+	// 分仓所(binance)现货/全仓的钱搬进期货钱包,导致第二腿 -2019 保证金不足;故这里始终做幂等补足:
+	//   - 所需按本单真实名义/杠杆计(crossVenuePerVenueMarginUSDT),留 5% 余量对齐执行闸;
+	//   - 够则 no-op(统一账户所 okx/bybit/gate 期货可用通常已足,不触发划转);
+	//   - 资金来源仅现货/全仓杠杆,绝不动资金账户(见各 venue TopUpPerpMarginUSDT)。
+	if reqMargin := crossVenuePerVenueMarginUSDT(cfg, cvOpp.TradableNotional) * 1.05; reqMargin > 0 {
+		ensureCrossVenuePerpMargin(ctx, e.logger, e.venues, cvOpp.HighVenue, cvOpp.LowVenue, reqMargin)
+	} else if !e.RotationManaged() {
+		ensureCrossVenuePerpMargin(ctx, e.logger, e.venues, cvOpp.HighVenue, cvOpp.LowVenue, conservativeCrossVenueRequiredMargin(cfg))
 	}
 	if crossVenueUsesBybit(cvOpp.HighVenue, cvOpp.LowVenue) {
 		ensureBybitTradingAgreement(ctx, e.logger, e.venues[bybit.VenueName])
