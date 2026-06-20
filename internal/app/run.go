@@ -4,16 +4,45 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"lingxi/internal/core"
 	"lingxi/internal/venue/binance"
 )
+
+// beijingLogLocation 固定北京时区(UTC+8,无 DST);用 FixedZone 避免依赖系统 tzdata。
+var beijingLogLocation = time.FixedZone("UTC+8", 8*3600)
+
+// beijingLogWriter 在每条日志行前注入北京时间戳。仅改日志显示口径,不触碰 time.Local 与任何业务逻辑
+// (业务时刻仍走 time.Now().UTC());与全局改时区相比,隔离且无副作用。
+type beijingLogWriter struct {
+	mu  sync.Mutex
+	out io.Writer
+}
+
+func (w *beijingLogWriter) Write(p []byte) (int, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	ts := time.Now().In(beijingLogLocation).Format("2006/01/02 15:04:05")
+	if _, err := w.out.Write(append([]byte(ts+" "), p...)); err != nil {
+		return 0, err
+	}
+	return len(p), nil
+}
+
+// setupBeijingLogging 把标准库默认 logger 的时间戳改为北京时间:关掉自带 Ldate|Ltime(本地=UTC),
+// 改由 beijingLogWriter 统一前缀。子 logger 经 log.Default().Writer()/Flags() 继承,亦为北京时间。
+func setupBeijingLogging() {
+	log.SetFlags(0)
+	log.SetOutput(&beijingLogWriter{out: os.Stderr})
+}
 
 // crossVenueScannerRunHook / unifiedRotationRunHook 供单测注入,验证抢锁失败时不启动交易循环。
 var (
@@ -25,6 +54,7 @@ var (
 // 实盘/回测模式并完成依赖装配，并把失败以 error 上抛由 main 决定退出策略（R20：编排层不再 log.Fatalf，
 // 便于宿主复用、集成测试与 supervisor 接管）。
 func Run(ctx context.Context) error {
+	setupBeijingLogging()
 	log.Printf("启动 lingxi: %s", buildVersionSummary())
 
 	if len(os.Args) > 1 && (os.Args[1] == "backtest" || os.Args[1] == "backtest-replay" || os.Args[1] == "backtest-timeline" || os.Args[1] == "backtest-monthly") {

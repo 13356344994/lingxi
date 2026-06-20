@@ -168,7 +168,8 @@ func (t *transport) signedPost(ctx context.Context, path string, reqBody any, ou
 		return fmt.Errorf("bybit: 解析信封失败: %w", err)
 	}
 	if env.RetCode != 0 {
-		return fmt.Errorf("bybit: retCode=%d retMsg=%q", env.RetCode, env.RetMsg)
+		// 带上 path 与请求体(下单体不含密钥,密钥在 header)以便定位"未知参数"等参数级错误,避免靠猜。
+		return fmt.Errorf("bybit: retCode=%d retMsg=%q path=%s body=%s", env.RetCode, env.RetMsg, path, truncate(string(bodyBytes), 512))
 	}
 	if out == nil || len(env.Result) == 0 {
 		return nil

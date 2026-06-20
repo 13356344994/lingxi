@@ -125,7 +125,7 @@
     function esc(s) { const d = document.createElement('div'); d.textContent = s ?? ''; return d.innerHTML; }
     function fmtTime(s) {
       if (!s) return '—';
-      try { return new Date(s).toLocaleString('zh-CN', {hour12:false}); } catch { return esc(s); }
+      try { return new Date(s).toLocaleString('zh-CN', {hour12:false, timeZone:'Asia/Shanghai'}); } catch { return esc(s); }
     }
     const TABLE_HEAD =
       '<thead><tr>'+
