@@ -62,6 +62,7 @@ func crossVenueSnapshotAgeSeconds(snapshotTime, now time.Time) float64 {
 }
 
 func crossVenueComparableWindowHours(now, highNext, lowNext time.Time) float64 {
+	// 异周期 perp-perp:窗口取两腿下次结算的较早者(至最近结算前的可比持有期),非单一 interval。
 	end := minTime(highNext, lowNext)
 	if end.IsZero() || !end.After(now) {
 		return 0
@@ -70,6 +71,7 @@ func crossVenueComparableWindowHours(now, highNext, lowNext time.Time) float64 {
 }
 
 func crossVenuePostFundingCooldownActive(now, nextFunding time.Time, intervalHours int, cooldown time.Duration) bool {
+	// 每条腿独立用自身 interval 判断结算后冷却,异周期(如 4h vs 1h)不会互相误挡。
 	if cooldown <= 0 || nextFunding.IsZero() || intervalHours <= 0 {
 		return false
 	}
@@ -78,6 +80,7 @@ func crossVenuePostFundingCooldownActive(now, nextFunding time.Time, intervalHou
 }
 
 func crossVenueCompareAllowed(cfg CrossVenueExecutorConfig, pos *CrossVenuePosition, now time.Time) bool {
+	// 可比窗口与结算后冷却均按各腿自己的 NextFundingTime/IntervalHours 独立评估(见 crossVenueComparableWindowHours / crossVenuePostFundingCooldownActive)。
 	if pos == nil {
 		return false
 	}

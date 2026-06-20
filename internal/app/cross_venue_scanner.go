@@ -42,12 +42,41 @@ var crossVenueScannerFactory = buildCrossVenueScannerAdapters
 
 // symbolVenueFunding 是某 symbol 在某所的一条资金费记录(含年化)。
 type symbolVenueFunding struct {
-	Venue           string
-	FundingRate     float64
-	RawFundingRate  float64 // 快照原始费率(EV 重算用,未经平滑/封顶)
-	AnnualizedAPR   float64
-	IntervalHours   int
-	NextFundingTime time.Time
+	Venue                   string
+	FundingRate             float64
+	RawFundingRate          float64 // 快照原始费率(EV 重算用,未经平滑/封顶)
+	AnnualizedAPR           float64 // 单腿封顶后的年化(仅作 sanity 展示;配对/价差不再用它)
+	RawAnnualizedAPR        float64 // 原始(未封顶)年化;bestPairSpread 用它算真实价差,避免多腿同被封顶后价差被抹平
+	IntervalHours           int
+	NextFundingTime         time.Time
+	NextFundingTimeInferred bool // true 表示 NextFundingTime 由 now+interval 兜底推算
+}
+
+// crossVenuePerpPerpDiagWatchSymbols 跨所 perp-perp 观察名单(base 或 canonical symbol);每轮最多一条 [perp-perp-diag]。
+var crossVenuePerpPerpDiagWatchSymbols = []string{"H-USDT", "BTT", "PEPE"}
+
+func crossVenuePerpPerpDiagWatched(symbol string) bool {
+	symbol = strings.TrimSpace(symbol)
+	if symbol == "" {
+		return false
+	}
+	for _, w := range crossVenuePerpPerpDiagWatchSymbols {
+		if symbol == w || strings.HasPrefix(symbol, w+"-") {
+			return true
+		}
+	}
+	return false
+}
+
+// crossVenueResolveNextFundingTime 解析下次结算时刻;快照缺 NextFundingTime 时用 now+interval 兜底(仅索引/EV 估算,开仓闸仍拉 live 快照校验)。
+func crossVenueResolveNextFundingTime(now time.Time, next time.Time, intervalHours int) (resolved time.Time, inferred bool) {
+	if intervalHours <= 0 {
+		intervalHours = 8
+	}
+	if !next.IsZero() {
+		return next, false
+	}
+	return now.Add(time.Duration(intervalHours) * time.Hour), true
 }
 
 // CrossVenueOpportunity 是一条跨所资金费价差机会(策略:空高费所、多低费所)。
@@ -929,7 +958,15 @@ func buildCrossVenueFundingIndex(byVenue map[string][]venue.FundingSnapshot) map
 
 // indexSnapshotsBySymbol 把各所快照按 canonical symbol 索引(用 live forward 费率+APR 封顶算年化)。
 func (s *CrossVenueScanner) indexSnapshotsBySymbol(byVenue map[string][]venue.FundingSnapshot) map[string][]symbolVenueFunding {
-	capAPR := s.cfg.FundingAPRSanityCap
+	now := time.Now().UTC()
+	if s != nil && s.nowFn != nil {
+		now = s.nowFn().UTC()
+	}
+	return indexSnapshotsBySymbolAt(byVenue, now, s.cfg.FundingAPRSanityCap)
+}
+
+func indexSnapshotsBySymbolAt(byVenue map[string][]venue.FundingSnapshot, now time.Time, fundingAPRSanityCap float64) map[string][]symbolVenueFunding {
+	capAPR := fundingAPRSanityCap
 	if capAPR <= 0 {
 		capAPR = 5.0
 	}
@@ -944,18 +981,18 @@ func (s *CrossVenueScanner) indexSnapshotsBySymbol(byVenue map[string][]venue.Fu
 			if interval <= 0 {
 				interval = 8
 			}
-			if snap.NextFundingTime.IsZero() {
-				continue
-			}
+			nextFunding, inferred := crossVenueResolveNextFundingTime(now, snap.NextFundingTime, interval)
 			rawRate := snap.LastFundingRate
 			rate := capFundingRateByAPR(rawRate, interval, capAPR)
 			out[sym] = append(out[sym], symbolVenueFunding{
-				Venue:           venueName,
-				FundingRate:     rate,
-				RawFundingRate:  rawRate,
-				AnnualizedAPR:   fundingAnnualizedAPR(rate, interval),
-				IntervalHours:   interval,
-				NextFundingTime: snap.NextFundingTime,
+				Venue:                   venueName,
+				FundingRate:             rate,
+				RawFundingRate:          rawRate,
+				AnnualizedAPR:           fundingAnnualizedAPR(rate, interval),
+				RawAnnualizedAPR:        fundingAnnualizedAPR(rawRate, interval),
+				IntervalHours:           interval,
+				NextFundingTime:         nextFunding,
+				NextFundingTimeInferred: inferred,
 			})
 		}
 	}
@@ -973,23 +1010,25 @@ func bestPairSpread(symbol string, entries []symbolVenueFunding) (CrossVenueOppo
 		for j := i + 1; j < len(entries); j++ {
 			a, b := entries[i], entries[j]
 			high, low := a, b
-			if b.AnnualizedAPR > a.AnnualizedAPR {
+			// 用原始(未封顶)年化排序/算价差:若用单腿封顶后的 APR,多条腿同时超过封顶值会被压成相同上限,
+			// 真实价差被抹平为 0(H-USDT 这类四腿全爆表的极端机会就因此漏配)。荒谬上限改由 spread 级 absurdCap 兜底。
+			if b.RawAnnualizedAPR > a.RawAnnualizedAPR {
 				high, low = b, a
-			} else if b.AnnualizedAPR == a.AnnualizedAPR {
+			} else if b.RawAnnualizedAPR == a.RawAnnualizedAPR {
 				continue
 			}
-			spread := high.AnnualizedAPR - low.AnnualizedAPR
+			spread := high.RawAnnualizedAPR - low.RawAnnualizedAPR
 			if !found || spread > best.SpreadAPR {
 				found = true
 				best = CrossVenueOpportunity{
 					Symbol:              symbol,
 					HighVenue:           high.Venue,
 					LowVenue:            low.Venue,
-					HighAnnualizedAPR:   high.AnnualizedAPR,
-					LowAnnualizedAPR:    low.AnnualizedAPR,
+					HighAnnualizedAPR:   high.RawAnnualizedAPR,
+					LowAnnualizedAPR:    low.RawAnnualizedAPR,
 					SpreadAPR:           spread,
-					HighFundingRate:     high.FundingRate,
-					LowFundingRate:      low.FundingRate,
+					HighFundingRate:     high.RawFundingRate,
+					LowFundingRate:      low.RawFundingRate,
 					HighIntervalHours:   high.IntervalHours,
 					LowIntervalHours:    low.IntervalHours,
 					HighNextFundingTime: high.NextFundingTime,
@@ -1056,16 +1095,25 @@ func (s *CrossVenueScanner) computeCrossVenueOpportunities(ctx context.Context, 
 		markThreshold = userCap
 	}
 	bySymbol := s.indexSnapshotsBySymbol(byVenue)
+	diagBySym := s.initPerpPerpDiagRound(bySymbol)
 	opps := make([]CrossVenueOpportunity, 0, len(bySymbol))
 	for sym, entries := range bySymbol {
 		if len(entries) < 2 {
+			s.notePerpPerpDiagReject(diagBySym, sym, fmt.Sprintf("venues=%d need>=2", len(entries)))
 			continue
 		}
 		opp, ok := bestPairSpread(sym, entries)
-		if !ok || opp.SpreadAPR < minSpread {
+		if !ok {
+			s.notePerpPerpDiagReject(diagBySym, sym, "bestPairSpread no spread")
+			continue
+		}
+		s.notePerpPerpDiagPaired(diagBySym, sym, opp)
+		if opp.SpreadAPR < minSpread {
+			s.notePerpPerpDiagReject(diagBySym, sym, fmt.Sprintf("spreadAPR=%.4f < min=%.4f", opp.SpreadAPR, minSpread))
 			continue
 		}
 		if absurdCap > 0 && opp.SpreadAPR > absurdCap {
+			s.notePerpPerpDiagReject(diagBySym, sym, fmt.Sprintf("spreadAPR=%.4f > absurdCap=%.4f", opp.SpreadAPR, absurdCap))
 			continue
 		}
 		if markThreshold > 0 && opp.SpreadAPR > markThreshold {
@@ -1080,12 +1128,15 @@ func (s *CrossVenueScanner) computeCrossVenueOpportunities(ctx context.Context, 
 		opp.Symbol = sym
 		opp.TradableNotional = crossVenuePerpPerpScanTradableNotional(ctx, s.execCfg, s.venues, opp.HighVenue, opp.LowVenue, sym)
 		if opp.ExtremeSpread && opp.TradableNotional <= 0 {
+			s.notePerpPerpDiagReject(diagBySym, sym, "extreme spread but tradableNotional<=0")
 			continue
 		}
 		evHigh, evLow := crossVenueExtremeSpreadEVRates(s.cfg, opp, entries)
 		opp = crossVenueEstimateOpportunityMetricsEVRates(s.execCfg, opp, s.nowFn(), evHigh, evLow)
+		s.notePerpPerpDiagEntered(diagBySym, sym, opp)
 		opps = append(opps, opp)
 	}
+	preTopN := len(opps)
 	crossVenueFinalizeOpportunityRanking(s.execCfg, opps)
 	sort.Slice(opps, func(i, j int) bool {
 		if opps[i].RankScore == opps[j].RankScore {
@@ -1093,10 +1144,110 @@ func (s *CrossVenueScanner) computeCrossVenueOpportunities(ctx context.Context, 
 		}
 		return opps[i].RankScore > opps[j].RankScore
 	})
-	if len(opps) > topN {
+	truncated := len(opps) > topN
+	if truncated {
 		opps = opps[:topN]
 	}
+	s.finalizePerpPerpDiagRound(diagBySym, opps, preTopN, topN, truncated)
 	return opps
+}
+
+type perpPerpDiagRound struct {
+	symbol        string
+	venueCount    int
+	legs          []string
+	paired        bool
+	spreadAPR     float64
+	entered       bool
+	netEV         float64
+	rankScore     float64
+	inTopN        bool
+	topNTruncated bool
+	rejectReason  string
+	// 成本拆解(entered 后填充),用于定位 netEV 为负时是哪一项成本主导。
+	notional       float64
+	spreadEV       float64
+	openCost       float64
+	closeCost      float64
+	slippage       float64
+	observableRisk float64
+	policyBuffer   float64
+}
+
+func (s *CrossVenueScanner) initPerpPerpDiagRound(bySymbol map[string][]symbolVenueFunding) map[string]*perpPerpDiagRound {
+	out := make(map[string]*perpPerpDiagRound)
+	for sym, entries := range bySymbol {
+		if !crossVenuePerpPerpDiagWatched(sym) {
+			continue
+		}
+		d := &perpPerpDiagRound{symbol: sym, venueCount: len(entries)}
+		for _, e := range entries {
+			d.legs = append(d.legs, formatPerpPerpDiagLeg(e))
+		}
+		out[sym] = d
+	}
+	return out
+}
+
+func formatPerpPerpDiagLeg(e symbolVenueFunding) string {
+	inferred := "real"
+	if e.NextFundingTimeInferred {
+		inferred = "inferred"
+	}
+	return fmt.Sprintf("%s raw=%.8f apr=%.2f%% interval=%dh next=%s(%s)",
+		e.Venue, e.RawFundingRate, e.AnnualizedAPR*100, e.IntervalHours,
+		e.NextFundingTime.UTC().Format(time.RFC3339), inferred)
+}
+
+func (s *CrossVenueScanner) notePerpPerpDiagReject(diag map[string]*perpPerpDiagRound, sym, reason string) {
+	if d := diag[sym]; d != nil && d.rejectReason == "" {
+		d.rejectReason = reason
+	}
+}
+
+func (s *CrossVenueScanner) notePerpPerpDiagPaired(diag map[string]*perpPerpDiagRound, sym string, opp CrossVenueOpportunity) {
+	if d := diag[sym]; d != nil {
+		d.paired = true
+		d.spreadAPR = opp.SpreadAPR
+	}
+}
+
+func (s *CrossVenueScanner) notePerpPerpDiagEntered(diag map[string]*perpPerpDiagRound, sym string, opp CrossVenueOpportunity) {
+	if d := diag[sym]; d != nil {
+		d.entered = true
+		d.netEV = opp.NetEV
+		d.rankScore = opp.RankScore
+		d.notional = opp.TradableNotional
+		d.spreadEV = opp.SpreadEV
+		d.openCost = opp.OpenCost
+		d.closeCost = opp.CloseCost
+		d.slippage = opp.ExpectedSlippage
+		d.observableRisk = opp.ObservableRiskCost
+		d.policyBuffer = opp.PolicyBuffer
+	}
+}
+
+func (s *CrossVenueScanner) finalizePerpPerpDiagRound(diag map[string]*perpPerpDiagRound, opps []CrossVenueOpportunity, preTopN, topN int, truncated bool) {
+	if s == nil || s.logger == nil || len(diag) == 0 {
+		return
+	}
+	topSyms := make(map[string]CrossVenueOpportunity, len(opps))
+	for _, opp := range opps {
+		topSyms[opp.Symbol] = opp
+	}
+	for sym, d := range diag {
+		if opp, ok := topSyms[sym]; ok {
+			d.inTopN = true
+			d.netEV = opp.NetEV
+			d.rankScore = opp.RankScore
+		} else if d.entered && truncated && preTopN > topN {
+			d.topNTruncated = true
+		}
+		s.logger.Printf("[perp-perp-diag] %s venues=%d legs=[%s] paired=%t spreadAPR=%.2f%% entered=%t netEV=%.4f rankScore=%.4f inTop%d=%t topNTruncated=%t reject=%q | cost: notional=%.2f spreadEV=%.4f open=%.4f close=%.4f slip=%.4f obsRisk=%.4f policy=%.4f",
+			d.symbol, d.venueCount, strings.Join(d.legs, "; "), d.paired, d.spreadAPR*100,
+			d.entered, d.netEV, d.rankScore, topN, d.inTopN, d.topNTruncated, d.rejectReason,
+			d.notional, d.spreadEV, d.openCost, d.closeCost, d.slippage, d.observableRisk, d.policyBuffer)
+	}
 }
 
 // computeCrossVenueOpportunities 是无扫描器状态的包级入口(单测);不做持续性/平滑,行为与改造前一致。
@@ -1146,12 +1297,13 @@ func indexSnapshotsBySymbolRaw(byVenue map[string][]venue.FundingSnapshot) map[s
 			}
 			rate := snap.LastFundingRate
 			out[sym] = append(out[sym], symbolVenueFunding{
-				Venue:           venueName,
-				FundingRate:     rate,
-				RawFundingRate:  rate,
-				AnnualizedAPR:   fundingAnnualizedAPR(rate, interval),
-				IntervalHours:   interval,
-				NextFundingTime: snap.NextFundingTime,
+				Venue:            venueName,
+				FundingRate:      rate,
+				RawFundingRate:   rate,
+				AnnualizedAPR:    fundingAnnualizedAPR(rate, interval),
+				RawAnnualizedAPR: fundingAnnualizedAPR(rate, interval),
+				IntervalHours:    interval,
+				NextFundingTime:  snap.NextFundingTime,
 			})
 		}
 	}

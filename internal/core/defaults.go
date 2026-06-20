@@ -325,7 +325,7 @@ func DefaultEngineConfig() EngineConfig {
 			BorrowKnownFreshnessHours:         24,
 			BorrowDefaultDailyRateWhenUnknown: 0.001,
 			BorrowDisabledVenues:              "gate",
-			FundingAPRSanityCap:               5.0,
+			FundingAPRSanityCap:               50.0, // 5000%:与 crossVenueSpreadSanityCap 对齐。旧值 5.0(500%)会把荒谬上限+EV费率上限一起夹到500%,导致 H 这类双腿全爆表的极端高费币价差被压平/EV被压成负而漏开;5000% 仍能挡真正的脏数据。
 			SpreadPersistenceScans:            2,
 			MinTradableNotionalUSDT:           20,
 			DropOneSidedZeroFunding:           true,

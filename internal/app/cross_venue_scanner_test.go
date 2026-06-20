@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"log"
 	"math"
 	"net/http"
@@ -180,9 +181,9 @@ func TestFundingAnnualizedAPRIntervals(t *testing.T) {
 func TestBestPairSpreadPicksMax(t *testing.T) {
 	t.Parallel()
 	entries := []symbolVenueFunding{
-		{Venue: binance.VenueName, AnnualizedAPR: 0.10, IntervalHours: 8},
-		{Venue: bybit.VenueName, AnnualizedAPR: 0.50, IntervalHours: 1},
-		{Venue: okx.VenueName, AnnualizedAPR: 0.20, IntervalHours: 4},
+		{Venue: binance.VenueName, AnnualizedAPR: 0.10, RawAnnualizedAPR: 0.10, IntervalHours: 8},
+		{Venue: bybit.VenueName, AnnualizedAPR: 0.50, RawAnnualizedAPR: 0.50, IntervalHours: 1},
+		{Venue: okx.VenueName, AnnualizedAPR: 0.20, RawAnnualizedAPR: 0.20, IntervalHours: 4},
 	}
 	opp, ok := bestPairSpread("HOME-USDT", entries)
 	if !ok {
@@ -874,5 +875,158 @@ func TestCrossVenueScannerAbsurdSpreadStillDiscarded(t *testing.T) {
 		if opp.Symbol == "FAKE-USDT" {
 			t.Fatalf("absurd spread opp should be discarded, got spread=%.2f", opp.SpreadAPR)
 		}
+	}
+}
+
+// indexSnapshotsBySymbolLegacySkipMissing 复现修复前行为:缺 NextFundingTime 的腿被整条丢弃。
+func indexSnapshotsBySymbolLegacySkipMissing(byVenue map[string][]venue.FundingSnapshot, capAPR float64) map[string][]symbolVenueFunding {
+	if capAPR <= 0 {
+		capAPR = 5.0
+	}
+	out := make(map[string][]symbolVenueFunding)
+	for venueName, snaps := range byVenue {
+		for _, snap := range snaps {
+			sym := string(snap.Symbol)
+			if sym == "" || snap.NextFundingTime.IsZero() {
+				continue
+			}
+			interval := snap.IntervalHours
+			if interval <= 0 {
+				interval = 8
+			}
+			rawRate := snap.LastFundingRate
+			rate := capFundingRateByAPR(rawRate, interval, capAPR)
+			out[sym] = append(out[sym], symbolVenueFunding{
+				Venue:            venueName,
+				FundingRate:      rate,
+				RawFundingRate:   rawRate,
+				AnnualizedAPR:    fundingAnnualizedAPR(rate, interval),
+				RawAnnualizedAPR: fundingAnnualizedAPR(rawRate, interval),
+				IntervalHours:    interval,
+				NextFundingTime:  snap.NextFundingTime,
+			})
+		}
+	}
+	return out
+}
+
+func TestCrossVenueScannerHUSDTMissingBybitNextFundingTime(t *testing.T) {
+	// H-USDT 形态: binance 4h 高负费(≈-920% APR,有 NextFundingTime), bybit 1h 低负费(≈-175% APR,缺 NextFundingTime)。
+	deepDepth := venue.Depth{
+		Asks: []venue.DepthLevel{{Price: 1.0, Qty: 50000}},
+		Bids: []venue.DepthLevel{{Price: 1.0, Qty: 50000}},
+	}
+	now := time.Date(2026, 6, 20, 4, 0, 0, 0, time.UTC)
+	binanceNext := now.Add(2 * time.Hour)
+	binanceRate := -0.0042 // ≈ -920% APR @ 4h
+	bybitRate := -0.0002   // ≈ -175% APR @ 1h
+	byVenue := map[string][]venue.FundingSnapshot{
+		binance.VenueName: {
+			{Symbol: "H-USDT", LastFundingRate: binanceRate, IntervalHours: 4, NextFundingTime: binanceNext},
+		},
+		bybit.VenueName: {
+			{Symbol: "H-USDT", LastFundingRate: bybitRate, IntervalHours: 1}, // NextFundingTime 为零值
+		},
+	}
+
+	legacy := indexSnapshotsBySymbolLegacySkipMissing(byVenue, 5.0)
+	if len(legacy["H-USDT"]) != 1 {
+		t.Fatalf("legacy index legs=%d want 1 (bybit dropped)", len(legacy["H-USDT"]))
+	}
+	if _, ok := bestPairSpread("H-USDT", legacy["H-USDT"]); ok {
+		t.Fatal("legacy index should not pair with <2 legs")
+	}
+
+	fixed := indexSnapshotsBySymbolAt(byVenue, now, 5.0)
+	if len(fixed["H-USDT"]) != 2 {
+		t.Fatalf("fixed index legs=%d want 2", len(fixed["H-USDT"]))
+	}
+	var bybitLeg *symbolVenueFunding
+	for i := range fixed["H-USDT"] {
+		if fixed["H-USDT"][i].Venue == bybit.VenueName {
+			bybitLeg = &fixed["H-USDT"][i]
+			break
+		}
+	}
+	if bybitLeg == nil {
+		t.Fatal("bybit leg missing after fix")
+	}
+	if !bybitLeg.NextFundingTimeInferred {
+		t.Fatal("bybit NextFundingTime should be inferred")
+	}
+	wantBybitNext := now.Add(1 * time.Hour)
+	if !bybitLeg.NextFundingTime.Equal(wantBybitNext) {
+		t.Fatalf("bybit inferred next=%s want %s", bybitLeg.NextFundingTime, wantBybitNext)
+	}
+
+	opp, ok := bestPairSpread("H-USDT", fixed["H-USDT"])
+	if !ok {
+		t.Fatal("bestPairSpread should succeed with 2 legs")
+	}
+	if opp.SpreadAPR <= 0 {
+		t.Fatalf("spreadAPR=%.4f want >0", opp.SpreadAPR)
+	}
+	if opp.HighVenue != bybit.VenueName || opp.LowVenue != binance.VenueName {
+		t.Fatalf("pair venues high=%s low=%s want bybit/binance", opp.HighVenue, opp.LowVenue)
+	}
+
+	s := &CrossVenueScanner{
+		cfg: CrossVenueScannerConfig{
+			MinSpreadAPR: 0.01,
+			TopN:         30,
+		},
+		execCfg: CrossVenueExecutorConfig{
+			MaxPositionUSDT:       150,
+			SizingMaxSlippageBps:  20,
+			DefaultTakerFeeBps:    6,
+			EVExpectedSlippageBps: 3,
+			MinNetProfitUSDT:      0,
+			ExpectedHoldHours:     12,
+		},
+		venues: map[string]venue.Venue{
+			binance.VenueName: &scannerPerpDepthVenue{fakeFundingVenue: fakeFundingVenue{name: binance.VenueName}, depth: deepDepth},
+			bybit.VenueName:   &scannerPerpDepthVenue{fakeFundingVenue: fakeFundingVenue{name: bybit.VenueName}, depth: deepDepth},
+		},
+		logger:         log.New(io.Discard, "", 0),
+		nowFn:          func() time.Time { return now },
+		fundingHistory: make(map[string]map[string][]float64),
+	}
+	s.recordFundingHistory(byVenue)
+	opps := s.computeCrossVenueOpportunities(context.Background(), byVenue)
+	var h *CrossVenueOpportunity
+	for i := range opps {
+		if opps[i].Symbol == "H-USDT" {
+			h = &opps[i]
+			break
+		}
+	}
+	if h == nil {
+		t.Fatalf("H-USDT not in computeCrossVenueOpportunities output: %+v", opps)
+	}
+	if h.SpreadAPR <= 0 {
+		t.Fatalf("output spreadAPR=%.4f want >0", h.SpreadAPR)
+	}
+	if h.NetEV <= 0 {
+		t.Fatalf("NetEV=%.6f want >0 over 12h hold (spreadEV=%.6f)", h.NetEV, h.SpreadEV)
+	}
+	if h.ExpectedHoldHours != 12 {
+		t.Fatalf("ExpectedHoldHours=%.2f want 12", h.ExpectedHoldHours)
+	}
+}
+
+func TestCrossVenueResolveNextFundingTime(t *testing.T) {
+	now := time.Date(2026, 6, 20, 4, 0, 0, 0, time.UTC)
+	real := now.Add(3 * time.Hour)
+	got, inferred := crossVenueResolveNextFundingTime(now, real, 4)
+	if inferred || !got.Equal(real) {
+		t.Fatalf("real next: got=%s inferred=%t want %s false", got, inferred, real)
+	}
+	got, inferred = crossVenueResolveNextFundingTime(now, time.Time{}, 1)
+	if !inferred || !got.Equal(now.Add(time.Hour)) {
+		t.Fatalf("missing next: got=%s inferred=%t want %s true", got, inferred, now.Add(time.Hour))
+	}
+	got, inferred = crossVenueResolveNextFundingTime(now, time.Time{}, 0)
+	if !inferred || !got.Equal(now.Add(8*time.Hour)) {
+		t.Fatalf("default interval: got=%s want %s", got, now.Add(8*time.Hour))
 	}
 }

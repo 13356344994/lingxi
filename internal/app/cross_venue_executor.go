@@ -812,11 +812,13 @@ func bestTradeableSubsetPair(sym string, byVenue map[string]map[string]CrossVenu
 			interval = 8
 		}
 		entries = append(entries, symbolVenueFunding{
-			Venue:           name,
-			FundingRate:     entry.Rate,
-			AnnualizedAPR:   fundingAnnualizedAPR(entry.Rate, interval),
-			IntervalHours:   interval,
-			NextFundingTime: entry.NextFundingTime,
+			Venue:            name,
+			FundingRate:      entry.Rate,
+			RawFundingRate:   entry.Rate,
+			AnnualizedAPR:    fundingAnnualizedAPR(entry.Rate, interval),
+			RawAnnualizedAPR: fundingAnnualizedAPR(entry.Rate, interval),
+			IntervalHours:    interval,
+			NextFundingTime:  entry.NextFundingTime,
 		})
 	}
 	if len(entries) < 2 {
