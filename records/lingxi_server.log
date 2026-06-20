@@ -45283,3 +45283,77 @@ afd818239654bd903d747bb12420ec6c | cycle=
 2026/06/20 08:44:32 [统一轮动] 安全管理: strategy=single_venue_spot_perp
 2026/06/20 08:44:32 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
 2026/06/20 08:45:14 [账户风控] OK daily_equity_delta=0.1416 daily_realized=0.0000 settlement_dd=0.2276 real_equity_dd=19.5976 positions=0 notional=0.00
+2026/06/20 08:45:32 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/20 08:45:32 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/20 08:45:32 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/20 08:45:32 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/20 08:45:32 [统一轮动] 安全管理: strategy=perp_perp
+2026/06/20 08:45:49 [perp-perp-diag] PEPE-USDT venues=2 legs=[gate raw=0.00007500 apr=8.21% interval=8h next=2026-06-20T16:00:00Z(real); okx raw=0.00010000 apr=10.95% interval=8h next=2026-06-21T00:00:00Z(real)] paired=true spreadAPR=2.74% entered=false netEV=0.0000 rankScore=0.0000 inTop30=false topNTruncated=false reject="spreadAPR=0.0274 < min=0.0500" | cost: notional=0.00 spreadEV=0.0000 open=0.0000 close=0.0000 slip=0.0000 obsRisk=0.0000 policy=0.0000
+2026/06/20 08:45:49 [perp-perp-diag] H-USDT venues=4 legs=[gate raw=-0.00163000 apr=-1427.88% interval=1h next=2026-06-20T09:00:00Z(real); binance raw=-0.00714943 apr=-1565.73% interval=4h next=2026-06-20T12:00:00Z(real); bybit raw=-0.00115286 apr=-1009.91% interval=1h next=2026-06-20T09:00:00Z(real); okx raw=-0.00551159 apr=-1207.04% interval=4h next=2026-06-20T16:00:00Z(real)] paired=true spreadAPR=555.82% entered=true netEV=-1.1207 rankScore=0.0000 inTop30=false topNTruncated=true reject="" | cost: notional=150.00 spreadEV=0.5710 open=0.1575 close=0.1575 slip=1.2000 obsRisk=0.0202 policy=0.0315
+2026/06/20 08:45:49 [跨所扫描] 完成: venues_ok=4/4 opportunities=30 elapsed=2m39.846s
+2026/06/20 08:45:49 [跨所扫描] 机会 ROK-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/20 08:45:49 [跨所扫描] 机会 PANW-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/20 08:45:49 [跨所扫描] 机会 ISRG-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/20 08:45:49 [跨所扫描] 机会 TER-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/20 08:45:49 [跨所扫描] 机会 CIEN-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/20 08:45:49 [跨所扫描] 机会 ASML-USDT spread=29.0% high=okx(29.0%) low=binance(0.0%)
+2026/06/20 08:45:49 [跨所扫描] 机会 VRT-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/20 08:45:49 [跨所扫描] 机会 YFI-USDT spread=112.3% high=okx(2.8%) low=gate(-109.5%)
+2026/06/20 08:45:49 [跨所扫描] 机会 BX-USDT spread=11.9% high=okx(11.9%) low=binance(0.0%)
+2026/06/20 08:45:49 [跨所扫描] 机会 GEV-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/20 08:45:49 [跨所扫描] 机会 SHLD-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/20 08:45:49 [跨所扫描] 机会 AMAT-USDT spread=38.6% high=bybit(38.6%) low=okx(0.0%)
+2026/06/20 08:45:49 [跨所扫描] 机会 CGNX-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/20 08:45:49 [跨所扫描] 机会 CRM-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/20 08:45:49 [跨所扫描] 机会 TWLO-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/20 08:45:49 [跨所扫描] 机会 OPENAI-USDT spread=5.5% high=binance(5.5%) low=okx(0.0%)
+2026/06/20 08:45:49 [跨所扫描] 机会 ANTHROPIC-USDT spread=5.5% high=binance(5.5%) low=okx(0.0%)
+2026/06/20 08:45:49 [跨所扫描] 机会 INFQ-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/20 08:45:49 [跨所扫描] 机会 ALAB-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/20 08:45:49 [跨所扫描] 机会 RIVN-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/20 08:45:49 [跨所扫描] 机会 OL-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/20 08:45:49 [跨所扫描] 机会 SOLV-USDT spread=30.5% high=gate(10.9%) low=bybit(-19.6%)
+2026/06/20 08:45:49 [跨所扫描] 机会 MBOX-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/20 08:45:49 [跨所扫描] 机会 SMH-USDT spread=38.1% high=okx(49.0%) low=gate(10.9%)
+2026/06/20 08:45:49 [跨所扫描] 机会 V-USDT spread=21.9% high=binance(0.0%) low=gate(-21.9%)
+2026/06/20 08:45:49 [跨所扫描] 机会 GAIB-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/20 08:45:49 [跨所扫描] 机会 DAM-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/20 08:45:49 [跨所扫描] 机会 XLE-USDT spread=20.4% high=binance(20.4%) low=okx(0.0%)
+2026/06/20 08:45:49 [跨所扫描] 机会 LUNR-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/20 08:45:49 [跨所扫描] 机会 ZM-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/20 08:46:00 [借币探测] CIEN: binance不可借(缓存) bybit失败 okx不可借(缓存)
+2026/06/20 08:46:00 [借币探测] ROK: binance不可借(缓存) bybit失败 okx不可借(缓存)
+2026/06/20 08:46:00 [借币探测] RE: binance失败 bybit失败 okx不可借
+2026/06/20 08:46:00 [借币探测] PANW: binance不可借(缓存) bybit失败 okx不可借(缓存)
+2026/06/20 08:46:00 [借币探测] BX: binance不可借(缓存) bybit失败 okx不可借(缓存)
+2026/06/20 08:46:00 [借币探测] VRT: binance不可借(缓存) bybit失败 okx不可借(缓存)
+2026/06/20 08:46:00 [借币探测] BICO: binance失败 bybit不可借 okx不可借
+2026/06/20 08:46:00 [借币探测] ISRG: binance不可借(缓存) bybit失败 okx不可借(缓存)
+2026/06/20 08:46:00 [借币探测] YFI: binance失败 bybit可借(缓存,年化19%) okx可借(缓存,年化9%)
+2026/06/20 08:46:00 [借币探测] HPERP: binance不可借(缓存) bybit失败 okx失败
+2026/06/20 08:46:00 [借币探测] GEV: binance不可借(缓存) bybit失败 okx不可借(缓存)
+2026/06/20 08:46:00 [借币探测] AERGO: binance不可借 bybit失败 okx不可借
+2026/06/20 08:46:00 [借币探测] HOME: binance失败 bybit不可借 okx不可借
+2026/06/20 08:46:00 [借币探测] TER: binance不可借(缓存) bybit失败 okx不可借(缓存)
+2026/06/20 08:46:00 [借币探测] ALICE: binance失败 bybit失败 okx失败
+2026/06/20 08:46:00 [借币探测] H: binance不可借(缓存) bybit不可借(缓存) okx不可借(缓存)
+2026/06/20 08:46:00 [借币探测] RARE: binance失败 bybit失败 okx失败
+2026/06/20 08:46:00 [借币探测] ASML: binance不可借(缓存) bybit失败 okx不可借(缓存)
+2026/06/20 08:46:14 [账户风控] OK daily_equity_delta=0.1502 daily_realized=0.0000 settlement_dd=0.2276 real_equity_dd=19.5890 positions=0 notional=0.00
+2026/06/20 08:46:32 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/20 08:46:32 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/20 08:46:32 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/20 08:46:32 [统一轮动] 安全管理: strategy=perp_perp
+2026/06/20 08:46:32 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/20 08:47:14 [账户风控] OK daily_equity_delta=0.1502 daily_realized=0.0000 settlement_dd=0.2276 real_equity_dd=19.5890 positions=0 notional=0.00
+2026/06/20 08:47:32 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/20 08:47:32 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/20 08:47:32 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/20 08:47:32 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/20 08:47:32 [统一轮动] 安全管理: strategy=perp_perp
+2026/06/20 08:48:14 [账户风控] OK daily_equity_delta=0.1502 daily_realized=0.0000 settlement_dd=0.2276 real_equity_dd=19.5890 positions=0 notional=0.00
+2026/06/20 08:48:32 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/20 08:48:32 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/20 08:48:32 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/20 08:48:32 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/20 08:48:32 [统一轮动] 安全管理: strategy=perp_perp
