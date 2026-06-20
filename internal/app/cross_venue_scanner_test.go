@@ -197,7 +197,7 @@ func TestBestPairSpreadPicksMax(t *testing.T) {
 	}
 }
 
-func TestComputeCrossVenueOpportunitiesFilterAndTopN(t *testing.T) {
+func TestComputeCrossVenueOpportunitiesFilterAndSort(t *testing.T) {
 	t.Parallel()
 	byVenue := map[string][]venue.FundingSnapshot{
 		binance.VenueName: {
@@ -217,7 +217,7 @@ func TestComputeCrossVenueOpportunitiesFilterAndTopN(t *testing.T) {
 	}
 	opps := computeCrossVenueOpportunities(byVenue, 0.30, 1)
 	if len(opps) != 1 {
-		t.Fatalf("top_n=1 got %d opps", len(opps))
+		t.Fatalf("min_spread filter got %d opps, want 1", len(opps))
 	}
 	if opps[0].Symbol != "AAA-USDT" {
 		t.Fatalf("expected AAA-USDT top spread, got %s", opps[0].Symbol)

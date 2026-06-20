@@ -1227,6 +1227,9 @@ func (e *CrossVenueSpotPerpExecutor) flattenUntrackedLeg(ctx context.Context, le
 	if !live || leg.Qty <= executionQtyTolerance {
 		return
 	}
+	if carryShouldSkipUntrackedFlatten(e.recordDir, e.logger, leg) {
+		return
+	}
 	v := e.venues[leg.Venue]
 	tr, ok := v.(cvspTrader)
 	if !ok || tr == nil {
@@ -1236,7 +1239,8 @@ func (e *CrossVenueSpotPerpExecutor) flattenUntrackedLeg(ctx context.Context, le
 	instr := e.lookupLegInstrument(ctx, leg.Venue, sym, leg.Market)
 	contractBased := leg.Market == venue.MarketPerp && v.Capabilities().ContractBasedPerp
 	id := fmt.Sprintf("cvsp-reconcile-flat-%s-%d", leg.Symbol, e.nowFn().UnixNano())
-	_, _ = e.placeSpotPerpLegExec(ctx, tr, leg.Market, sym, leg.Side, leg.Qty, id, leg.ReduceOnly, live, instr, contractBased)
+	_, err := e.placeSpotPerpLegExec(ctx, tr, leg.Market, sym, leg.Side, leg.Qty, id, leg.ReduceOnly, live, instr, contractBased)
+	carryAfterUntrackedFlatten(ctx, e.recordDir, e.logger, e.venues, leg, err == nil)
 }
 
 func (e *CrossVenueSpotPerpExecutor) reconcileTrackedPosition(ctx context.Context, pos CrossVenueSpotPerpPosition, live bool) {

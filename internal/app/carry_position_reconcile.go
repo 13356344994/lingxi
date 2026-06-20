@@ -21,6 +21,108 @@ func canonicalTradingSymbol(sym string) string {
 	return s
 }
 
+// carryStrategyOwnsSpotLeg 检查 (venue,symbol) 现货腿是否归属任一在场 carry 策略台账。
+func carryStrategyOwnsSpotLeg(recordDir, venueName string, sym venue.Symbol) bool {
+	recordDir = strings.TrimSpace(recordDir)
+	venueName = strings.TrimSpace(venueName)
+	if recordDir == "" || venueName == "" {
+		return false
+	}
+	if carryCVSPOwnsSpotLeg(recordDir, venueName, sym) {
+		return true
+	}
+	if carryCVPSOwnsSpotLeg(recordDir, venueName, sym) {
+		return true
+	}
+	if carrySVSPOwnsSpotLeg(recordDir, venueName, sym) {
+		return true
+	}
+	if carrySVPSOwnsSpotLeg(recordDir, venueName, sym) {
+		return true
+	}
+	return false
+}
+
+func carryCVSPOwnsSpotLeg(recordDir, venueName string, sym venue.Symbol) bool {
+	store, err := newCrossVenueSpotPerpPositionStore(recordDir)
+	if err != nil {
+		return false
+	}
+	ps, err := store.load()
+	if err != nil {
+		return false
+	}
+	for _, p := range activeCrossVenueSpotPerpPositions(ps) {
+		if !venueSymbolsMatch(venue.Symbol(p.Symbol), sym) {
+			continue
+		}
+		if strings.EqualFold(strings.TrimSpace(p.SpotVenue), venueName) {
+			return true
+		}
+	}
+	return false
+}
+
+func carryCVPSOwnsSpotLeg(recordDir, venueName string, sym venue.Symbol) bool {
+	store, err := newCrossVenuePerpSpotPositionStore(recordDir)
+	if err != nil {
+		return false
+	}
+	ps, err := store.load()
+	if err != nil {
+		return false
+	}
+	for _, p := range activeCrossVenuePerpSpotPositions(ps) {
+		if !venueSymbolsMatch(venue.Symbol(p.Symbol), sym) {
+			continue
+		}
+		if strings.EqualFold(strings.TrimSpace(p.SpotVenue), venueName) {
+			return true
+		}
+	}
+	return false
+}
+
+func carrySVSPOwnsSpotLeg(recordDir, venueName string, sym venue.Symbol) bool {
+	store, err := newSingleVenueSpotPerpPositionStore(recordDir)
+	if err != nil {
+		return false
+	}
+	ps, err := store.load()
+	if err != nil {
+		return false
+	}
+	for _, p := range activeSingleVenueSpotPerpPositions(ps) {
+		if !venueSymbolsMatch(venue.Symbol(p.Symbol), sym) {
+			continue
+		}
+		if strings.EqualFold(strings.TrimSpace(p.Venue), venueName) {
+			return true
+		}
+	}
+	return false
+}
+
+func carrySVPSOwnsSpotLeg(recordDir, venueName string, sym venue.Symbol) bool {
+	store, err := newSingleVenuePerpSpotPositionStore(recordDir)
+	if err != nil {
+		return false
+	}
+	ps, err := store.load()
+	if err != nil {
+		return false
+	}
+	for _, p := range activeSingleVenuePerpSpotPositions(ps) {
+		if !venueSymbolsMatch(venue.Symbol(p.Symbol), sym) {
+			continue
+		}
+		if strings.EqualFold(strings.TrimSpace(p.Venue), venueName) {
+			return true
+		}
+	}
+	return false
+}
+
 // carryStrategyOwnsPerpLeg 检查 (venue,symbol) 永续腿是否归属任一在场 carry 策略台账。
 func carryStrategyOwnsPerpLeg(recordDir, venueName string, sym venue.Symbol) bool {
 	recordDir = strings.TrimSpace(recordDir)

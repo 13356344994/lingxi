@@ -1082,7 +1082,7 @@ func crossVenueExtremeSpreadEVRates(cfg CrossVenueScannerConfig, opp CrossVenueO
 	return highRate, lowRate
 }
 
-// computeCrossVenueOpportunities 聚合各所快照,用近 N 次中位数+APR 封顶算价差,过滤/排序/截断。
+// computeCrossVenueOpportunities 聚合各所快照,用近 N 次中位数+APR 封顶算价差,过滤/排序(全量,不截断)。
 func (s *CrossVenueScanner) computeCrossVenueOpportunities(ctx context.Context, byVenue map[string][]venue.FundingSnapshot) []CrossVenueOpportunity {
 	minSpread := s.cfg.MinSpreadAPR
 	topN := s.cfg.TopN
@@ -1126,14 +1126,15 @@ func (s *CrossVenueScanner) computeCrossVenueOpportunities(ctx context.Context, 
 		opp.HistoryQualityScore = crossVenueHistoryQualityScore(minSamples, s.cfg.SpreadPersistenceScans)
 		opp.StabilityScore = crossVenueStabilityScore(windowHours, minSamples)
 		opp.Symbol = sym
-		opp.TradableNotional = crossVenuePerpPerpScanTradableNotional(ctx, s.execCfg, s.venues, opp.HighVenue, opp.LowVenue, sym)
-		if opp.ExtremeSpread && opp.TradableNotional <= 0 {
+		tradableCap, slipLegs := s.perpPerpScanTradableCapAndSlippageLegs(ctx, opp.HighVenue, opp.LowVenue, sym)
+		if opp.ExtremeSpread && tradableCap <= 0 {
 			s.notePerpPerpDiagReject(diagBySym, sym, "extreme spread but tradableNotional<=0")
 			continue
 		}
 		evHigh, evLow := crossVenueExtremeSpreadEVRates(s.cfg, opp, entries)
-		opp = crossVenueEstimateOpportunityMetricsEVRates(s.execCfg, opp, s.nowFn(), evHigh, evLow)
-		s.notePerpPerpDiagEntered(diagBySym, sym, opp)
+		clamp := crossVenuePerpPerpNotionalClampCtx(ctx, s.venues, opp, slipLegs)
+		opp, chosenNotional := crossVenuePerpPerpSearchBestNotional(s.execCfg, opp, s.nowFn(), evHigh, evLow, tradableCap, slipLegs, clamp)
+		s.notePerpPerpDiagEntered(diagBySym, sym, opp, chosenNotional)
 		opps = append(opps, opp)
 	}
 	preTopN := len(opps)
@@ -1145,11 +1146,47 @@ func (s *CrossVenueScanner) computeCrossVenueOpportunities(ctx context.Context, 
 		return opps[i].RankScore > opps[j].RankScore
 	})
 	truncated := len(opps) > topN
-	if truncated {
-		opps = opps[:topN]
-	}
 	s.finalizePerpPerpDiagRound(diagBySym, opps, preTopN, topN, truncated)
 	return opps
+}
+
+// perpPerpScanTradableCapAndSlippageLegs 扫描期流动性 cap 与四腿深度滑点输入(与执行闸同 fetchDepth 路径)。
+func (s *CrossVenueScanner) perpPerpScanTradableCapAndSlippageLegs(ctx context.Context, highVenue, lowVenue, sym string) (float64, []crossVenueEVSlippageLeg) {
+	tradableCap := crossVenuePerpPerpScanTradableNotional(ctx, s.execCfg, s.venues, highVenue, lowVenue, sym)
+	highV := s.venues[highVenue]
+	lowV := s.venues[lowVenue]
+	if ctx == nil || highV == nil || lowV == nil {
+		return tradableCap, nil
+	}
+	vsym := venue.Symbol(sym)
+	fetchDepth := func(c context.Context, v venue.Venue, symbol venue.Symbol, limit int) (venue.Depth, error) {
+		return v.FetchDepth(c, venue.MarketPerp, symbol, limit)
+	}
+	highMid := crossVenuePerpPerpMidFromDepthOrBook(ctx, highV, vsym)
+	lowMid := crossVenuePerpPerpMidFromDepthOrBook(ctx, lowV, vsym)
+	slipLegs := crossVenuePerpPerpEVSlippageLegs(fetchDepth, ctx, highV, lowV, vsym, highMid, lowMid)
+	return tradableCap, slipLegs
+}
+
+// crossVenueOpportunitiesTopN 取已排序机会的前 N 条(仅面板展示;快照保留全量)。
+func crossVenueOpportunitiesTopN(opps []CrossVenueOpportunity, topN int) []CrossVenueOpportunity {
+	if topN <= 0 || len(opps) <= topN {
+		return opps
+	}
+	out := make([]CrossVenueOpportunity, topN)
+	copy(out, opps[:topN])
+	return out
+}
+
+// crossVenueScannerPanelDisplayTopN 面板展示条数;未配则退回 TopN,再默认 30。
+func crossVenueScannerPanelDisplayTopN(cfg CrossVenueScannerConfig) int {
+	if cfg.PanelDisplayTopN > 0 {
+		return cfg.PanelDisplayTopN
+	}
+	if cfg.TopN > 0 {
+		return cfg.TopN
+	}
+	return 30
 }
 
 type perpPerpDiagRound struct {
@@ -1166,6 +1203,7 @@ type perpPerpDiagRound struct {
 	rejectReason  string
 	// 成本拆解(entered 后填充),用于定位 netEV 为负时是哪一项成本主导。
 	notional       float64
+	chosenNotional float64
 	spreadEV       float64
 	openCost       float64
 	closeCost      float64
@@ -1212,12 +1250,13 @@ func (s *CrossVenueScanner) notePerpPerpDiagPaired(diag map[string]*perpPerpDiag
 	}
 }
 
-func (s *CrossVenueScanner) notePerpPerpDiagEntered(diag map[string]*perpPerpDiagRound, sym string, opp CrossVenueOpportunity) {
+func (s *CrossVenueScanner) notePerpPerpDiagEntered(diag map[string]*perpPerpDiagRound, sym string, opp CrossVenueOpportunity, chosenNotional float64) {
 	if d := diag[sym]; d != nil {
 		d.entered = true
 		d.netEV = opp.NetEV
 		d.rankScore = opp.RankScore
 		d.notional = opp.TradableNotional
+		d.chosenNotional = chosenNotional
 		d.spreadEV = opp.SpreadEV
 		d.openCost = opp.OpenCost
 		d.closeCost = opp.CloseCost
@@ -1231,8 +1270,11 @@ func (s *CrossVenueScanner) finalizePerpPerpDiagRound(diag map[string]*perpPerpD
 	if s == nil || s.logger == nil || len(diag) == 0 {
 		return
 	}
-	topSyms := make(map[string]CrossVenueOpportunity, len(opps))
-	for _, opp := range opps {
+	topSyms := make(map[string]CrossVenueOpportunity, topN)
+	for i, opp := range opps {
+		if i >= topN {
+			break
+		}
 		topSyms[opp.Symbol] = opp
 	}
 	for sym, d := range diag {
@@ -1243,10 +1285,10 @@ func (s *CrossVenueScanner) finalizePerpPerpDiagRound(diag map[string]*perpPerpD
 		} else if d.entered && truncated && preTopN > topN {
 			d.topNTruncated = true
 		}
-		s.logger.Printf("[perp-perp-diag] %s venues=%d legs=[%s] paired=%t spreadAPR=%.2f%% entered=%t netEV=%.4f rankScore=%.4f inTop%d=%t topNTruncated=%t reject=%q | cost: notional=%.2f spreadEV=%.4f open=%.4f close=%.4f slip=%.4f obsRisk=%.4f policy=%.4f",
+		s.logger.Printf("[perp-perp-diag] %s venues=%d legs=[%s] paired=%t spreadAPR=%.2f%% entered=%t netEV=%.4f rankScore=%.4f inTop%d=%t topNTruncated=%t reject=%q | cost: chosen_notional=%.2f notional=%.2f spreadEV=%.4f open=%.4f close=%.4f slip=%.4f obsRisk=%.4f policy=%.4f",
 			d.symbol, d.venueCount, strings.Join(d.legs, "; "), d.paired, d.spreadAPR*100,
 			d.entered, d.netEV, d.rankScore, topN, d.inTopN, d.topNTruncated, d.rejectReason,
-			d.notional, d.spreadEV, d.openCost, d.closeCost, d.slippage, d.observableRisk, d.policyBuffer)
+			d.chosenNotional, d.notional, d.spreadEV, d.openCost, d.closeCost, d.slippage, d.observableRisk, d.policyBuffer)
 	}
 }
 
@@ -1277,9 +1319,6 @@ func computeCrossVenueOpportunities(byVenue map[string][]venue.FundingSnapshot, 
 		}
 		return opps[i].RankScore > opps[j].RankScore
 	})
-	if len(opps) > topN {
-		opps = opps[:topN]
-	}
 	return opps
 }
 

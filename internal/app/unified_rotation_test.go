@@ -978,16 +978,18 @@ func TestRotationContinuationDefaultHoldingRiskBackwardCompat(t *testing.T) {
 	}
 }
 
-func TestRotationOpenSortsByYieldNotAbsoluteEV(t *testing.T) {
-	bigLowYield := testRotationOpp("big", UnifiedStrategyPerpPerp, "BTC", 50, 1000, "binance", "bybit")
+// P4(2026-06-20): 主排序口径改为绝对净收益(ExpectedNetEVUSDT)。本金长期闲置时机会稀缺、
+// 应优先抓绝对美元最大的单;资本效率仅作 tiebreaker。故大 EV 单先开,而非高资本效率单。
+func TestRotationOpenSortsByAbsoluteEVNotYield(t *testing.T) {
+	bigAbsEV := testRotationOpp("big", UnifiedStrategyPerpPerp, "BTC", 50, 1000, "binance", "bybit")
 	smallHighYield := testRotationOpp("small", UnifiedStrategyPerpPerp, "ETH", 30, 100, "binance", "bybit")
 	actions := PlanUnifiedRotationOpens(
-		[]UnifiedOpportunity{bigLowYield, smallHighYield},
+		[]UnifiedOpportunity{bigAbsEV, smallHighYield},
 		map[string]float64{"binance": 2000, "bybit": 2000},
 		RotationConfig{MaxConcurrent: 2, MaxPositionUSDT: 2000, DefaultReserveUSDT: 0},
 	)
-	if len(actions) != 2 || actions[0].OpportunityID != "small" {
-		t.Fatalf("expected yield-first small, got %+v", actions)
+	if len(actions) != 2 || actions[0].OpportunityID != "big" {
+		t.Fatalf("expected absolute-EV-first big, got %+v", actions)
 	}
 }
 

@@ -629,9 +629,24 @@ func (r *UnifiedRotationRunner) runOnce(ctx context.Context) error {
 	statusUpdate.Held = len(held)
 	statusUpdate.RealHeldManaged = r.countRealHeldPositions(ctx)
 	freeAvailable := rotationFreeAvailableUSDT(available, held)
-	plan := r.runOnceDecisionAndDispatch(ctx, candidates, freeAvailable, held, heldInputs)
+	rotationCfg := normalizeRotationConfig(r.rotationCfg)
+	if r.openCooldownStore != nil {
+		rotationCfg.OpenCooldownBlocked = r.openCooldownStore.blockedPredicate(r.nowFn)
+	}
+	diagnosticCandidates := candidates
+	rotationCandidates := filterRotationCandidates(diagnosticCandidates, rotationCfg)
+	diag := rotationDiagnoseCandidates(diagnosticCandidates, freeAvailable, rotationCfg)
+	diag.CycleID = snapshotID
+	appendRotationDecisionDiag(r.recordDir, diag)
+	plan := r.runOnceDecisionAndDispatch(ctx, rotationCandidates, freeAvailable, held, heldInputs, rotationDispatchDiag{diag: diag, rawTotal: len(diagnosticCandidates)})
 	statusUpdate.Actions = countRotationActions(plan)
 	return nil
+}
+
+// rotationDispatchDiag 决策日志附加上下文(可选,单测旧调用可省略)。
+type rotationDispatchDiag struct {
+	diag     RotationDecisionDiag
+	rawTotal int
 }
 
 // runOnceDecisionAndDispatch 纯决策+路由+派发(便于单测注入)。
@@ -641,7 +656,14 @@ func (r *UnifiedRotationRunner) runOnceDecisionAndDispatch(
 	available map[string]float64,
 	held []HeldPosition,
 	heldInputs map[string]ContinuationInputs,
+	diagCtx ...rotationDispatchDiag,
 ) RotationPlan {
+	var diag RotationDecisionDiag
+	rawTotal := 0
+	if len(diagCtx) > 0 {
+		diag = diagCtx[0].diag
+		rawTotal = diagCtx[0].rawTotal
+	}
 	if r == nil {
 		return RotationPlan{}
 	}
@@ -654,8 +676,13 @@ func (r *UnifiedRotationRunner) runOnceDecisionAndDispatch(
 	live := r.openLive()
 	plan := r.decideRotation(held, heldInputs, candidates, available)
 	if r.logger != nil {
-		r.logger.Printf("[统一轮动] 决策完成: held=%d candidates=%d actions=%d live=%v",
-			len(held), len(candidates), len(plan.Actions), live)
+		if rawTotal <= 0 {
+			rawTotal = len(candidates)
+		}
+		r.logger.Printf("[统一轮动] 决策完成: held=%d raw=%d rotation_candidates=%d actions=%d blocked[net_ev=%d hard=%d balance=%d] top_reject=%q live=%v",
+			len(held), rawTotal, len(candidates), len(plan.Actions),
+			diag.BlockedByNetEV, diag.BlockedByHardReject, diag.BlockedByBalance,
+			rotationDiagTopRejectReason(diag), live)
 	}
 
 	candidatesByID := indexUnifiedOpportunitiesByID(candidates)
@@ -1053,8 +1080,11 @@ func (r *UnifiedRotationRunner) defaultScanRotationCandidates(ctx context.Contex
 		if r.includePerpPerpCandidates {
 			perpPerpN = len(snap.Opportunities)
 		}
-		r.logger.Printf("[统一轮动] 扫描完成 snapshot=%s funding_symbols=%d candidates=%d (svsp=%d cvsp=%d svps=%d cvps=%d perp_perp=%d)",
-			snapshotID, len(symbols), len(candidates), len(singleSpotPerp), len(crossSpotPerp), len(singlePerpSpot), len(crossPerpSpot), perpPerpN)
+		counts := countRotationCandidates(candidates)
+		scanDiag := rotationDiagnoseCandidates(candidates, scannerAvailableUSDT, normalizeRotationConfig(r.rotationCfg))
+		r.logger.Printf("[统一轮动] 扫描完成 snapshot=%s funding_symbols=%d\n  raw_total=%d raw_by_strategy=[svsp=%d cvsp=%d svps=%d cvps=%d perp_perp=%d]\n  scanner_would_exec=%d rotation_would_exec=%d soft_reject=%d hard_reject=%d",
+			snapshotID, len(symbols), counts.Total, counts.SVSP, counts.CVSP, counts.SVPS, counts.CVPS, perpPerpN,
+			scanDiag.ScannerWouldExec, scanDiag.RotationWouldExec, scanDiag.SoftRejectCount, scanDiag.HardRejectCount)
 	}
 	return candidates, availableUSDTByVenue, nil
 }

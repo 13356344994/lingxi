@@ -566,6 +566,8 @@ type CrossVenueScannerConfig struct {
 	AlertSpreadAPR float64 `cfg:"alert_spread_apr"`
 	// TopN 每轮保留的年化价差 Top N 机会。默认 30。
 	TopN int `cfg:"top_n"`
+	// PanelDisplayTopN 面板/HTTP 展示 perp-perp 机会条数;快照仍保留全量供轮动消费。默认 30。
+	PanelDisplayTopN int `cfg:"panel_display_top_n"`
 	// BorrowProbeEnabled 每轮扫描后对头部机会做跨所借币可得性探测(纯只读)。默认 true。
 	BorrowProbeEnabled bool `cfg:"borrow_probe_enabled"`
 	// BorrowProbeTopN 借币探测覆盖的头部机会数(按 spread 排序)。默认 10。

@@ -149,6 +149,44 @@ func crossVenueExpectedSlippageUSDTWithLegs(cfg CrossVenueExecutorConfig, notion
 	return totalBps * notional / 10000
 }
 
+// crossVenueDepthMid 从盘口深度取中间价;缺一侧则退回有效侧。
+func crossVenueDepthMid(d venue.Depth) float64 {
+	bid, ask := 0.0, 0.0
+	if len(d.Bids) > 0 {
+		bid = d.Bids[0].Price
+	}
+	if len(d.Asks) > 0 {
+		ask = d.Asks[0].Price
+	}
+	if bid > 0 && ask > 0 {
+		return (bid + ask) / 2
+	}
+	if bid > 0 {
+		return bid
+	}
+	return ask
+}
+
+// crossVenuePerpPerpMidFromDepthOrBook 扫描期 perp 中间价:book ticker 优先,否则 depth。
+func crossVenuePerpPerpMidFromDepthOrBook(ctx context.Context, v venue.Venue, sym venue.Symbol) float64 {
+	if v == nil || ctx == nil {
+		return 0
+	}
+	if bt, err := v.FetchBookTicker(ctx, venue.MarketPerp, sym); err == nil {
+		if bt.BidPrice > 0 && bt.AskPrice > 0 {
+			if mid := (bt.BidPrice + bt.AskPrice) / 2; mid > 0 {
+				return mid
+			}
+		}
+	}
+	if depth, err := v.FetchDepth(ctx, venue.MarketPerp, sym, crossVenueOpenSlippageDepthLimit); err == nil {
+		if mid := crossVenueDepthMid(depth); mid > 0 {
+			return mid
+		}
+	}
+	return 0
+}
+
 func crossVenuePerpPerpEVSlippageLegs(
 	fetch func(context.Context, venue.Venue, venue.Symbol, int) (venue.Depth, error),
 	ctx context.Context,

@@ -1051,7 +1051,10 @@ func (s *DashboardServer) handleCrossVenueFundingAPI(w http.ResponseWriter, r *h
 		writeJSON(w, map[string]any{"enabled": false, "message": "跨所扫描器未启用"})
 		return
 	}
-	writeJSON(w, s.crossVenueScanner.Snapshot())
+	snap := s.crossVenueScanner.Snapshot()
+	panelTopN := crossVenueScannerPanelDisplayTopN(s.crossVenueScanner.cfg)
+	snap.Opportunities = crossVenueOpportunitiesTopN(snap.Opportunities, panelTopN)
+	writeJSON(w, snap)
 }
 
 // handleCrossVenuePositionsAPI 返回跨所对冲持仓台账+实时状态。

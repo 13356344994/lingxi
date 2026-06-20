@@ -6,7 +6,10 @@ import (
 	"time"
 )
 
-const unifiedCandidatesLogFileName = "unified_candidates.jsonl"
+const (
+	unifiedCandidatesLogFileName      = "unified_candidates.jsonl"
+	rotationDecisionDiagLogFileName   = "rotation_decision_diag.jsonl"
+)
 
 func opportunitiesRecordDir(base string) string {
 	base = strings.TrimSpace(base)
@@ -33,9 +36,12 @@ type UnifiedCandidateLogRecord struct {
 	ExpectedNetEVUSDT      float64            `json:"expected_net_ev_usdt"`
 	ExpectedFundingUSDT    float64            `json:"expected_funding_usdt,omitempty"`
 	CapitalRequiredByVenue map[string]float64 `json:"capital_required_by_venue"`
+	PrimaryScore           float64            `json:"primary_score"`
 	CapitalEfficiencyScore float64            `json:"capital_efficiency_score"`
 	RejectReasons          []string           `json:"reject_reasons"`
-	WouldExecute           bool               `json:"would_execute"`
+	WouldExecute           bool               `json:"would_execute"` // scanner 口径,兼容旧面板
+	ScannerWouldExecute    bool               `json:"scanner_would_execute"`
+	RotationWouldExecute   bool               `json:"rotation_would_execute"`
 	NotionalUSDT           float64            `json:"notional_usdt"`
 	RawFundingRate         float64            `json:"raw_funding_rate,omitempty"`
 	FundingRatePerHour     float64            `json:"funding_rate_per_hour,omitempty"`
@@ -50,6 +56,10 @@ type UnifiedCandidateLogRecord struct {
 }
 
 func unifiedCandidateLogFromOpportunity(cfg CrossVenueExecutorConfig, cycleID string, unified UnifiedOpportunity, wouldExecute bool, notionalUSDT float64) UnifiedCandidateLogRecord {
+	return unifiedCandidateLogFromOpportunityWithRotation(cfg, cycleID, unified, wouldExecute, notionalUSDT, DefaultRotationConfig())
+}
+
+func unifiedCandidateLogFromOpportunityWithRotation(cfg CrossVenueExecutorConfig, cycleID string, unified UnifiedOpportunity, wouldExecute bool, notionalUSDT float64, rotationCfg RotationConfig) UnifiedCandidateLogRecord {
 	venues := make([]string, 0, len(unified.Legs))
 	for _, leg := range unified.Legs {
 		if leg.Venue != "" {
@@ -60,6 +70,10 @@ func unifiedCandidateLogFromOpportunity(cfg CrossVenueExecutorConfig, cycleID st
 		venues = nil
 	}
 	_ = cfg
+	capEff := unified.CapitalEfficiencyScore
+	if capEff == 0 {
+		capEff = unifiedWindowScore(unified)
+	}
 	return UnifiedCandidateLogRecord{
 		CycleID:                cycleID,
 		StrategyType:           unified.StrategyType,
@@ -68,9 +82,12 @@ func unifiedCandidateLogFromOpportunity(cfg CrossVenueExecutorConfig, cycleID st
 		ExpectedNetEVUSDT:      unified.ExpectedNetEVUSDT,
 		ExpectedFundingUSDT:    unified.ExpectedFundingUSDT,
 		CapitalRequiredByVenue: unified.CapitalRequiredByVenue,
-		CapitalEfficiencyScore: unified.CapitalEfficiencyScore,
+		PrimaryScore:           unifiedPrimaryScore(unified),
+		CapitalEfficiencyScore: capEff,
 		RejectReasons:          unified.RejectReasons,
 		WouldExecute:           wouldExecute,
+		ScannerWouldExecute:    wouldExecute,
+		RotationWouldExecute:   rotationCandidateWouldExecuteStatic(unified, rotationCfg),
 		NotionalUSDT:           notionalUSDT,
 		RawFundingRate:         unified.RawFundingRate,
 		FundingRatePerHour:     unified.FundingRatePerHour,
@@ -180,4 +197,14 @@ func unifiedLandscapeSortKey(rec UnifiedCandidateLogRecord) float64 {
 		return rec.FundingRatePerHour * 24 * 365
 	}
 	return 0
+}
+
+// appendRotationDecisionDiag best-effort 写入 records/opportunities/rotation_decision_diag.jsonl。
+func appendRotationDecisionDiag(recordDir string, diag RotationDecisionDiag) {
+	recordDir = strings.TrimSpace(recordDir)
+	if recordDir == "" {
+		return
+	}
+	path := filepath.Join(opportunitiesRecordDir(recordDir), rotationDecisionDiagLogFileName)
+	_ = appendJSONLRecord(path, diag)
 }

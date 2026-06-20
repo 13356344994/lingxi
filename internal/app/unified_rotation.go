@@ -174,13 +174,27 @@ func rotationPositionNotionalUSDT(opp UnifiedOpportunity, totalCapital float64) 
 	return totalCapital
 }
 
-// unifiedWindowScore 返回本窗口预期净 USDT / 占用资金(不做年化)。
+// unifiedPrimaryScore 全链主排序口径：绝对净收益(USDT)。
+func unifiedPrimaryScore(opp UnifiedOpportunity) float64 {
+	return opp.ExpectedNetEVUSDT
+}
+
+// unifiedWindowScore 返回本窗口预期净 USDT / 占用资金(资本效率,tiebreaker/日志展示)。
 func unifiedWindowScore(opp UnifiedOpportunity) float64 {
 	totalCapital := unifiedOpportunityTotalCapital(opp)
 	if totalCapital <= 0 {
 		return 0
 	}
 	return opp.ExpectedNetEVUSDT / totalCapital
+}
+
+// rotationComparableAbsoluteScore 与续持净收益同量纲(USDT): netEV − holdingRisk。
+func rotationComparableAbsoluteScore(opp UnifiedOpportunity) float64 {
+	totalCapital := unifiedOpportunityTotalCapital(opp)
+	if totalCapital <= 0 {
+		return 0
+	}
+	return opp.ExpectedNetEVUSDT - rotationHoldingRiskUSDT(opp, totalCapital)
 }
 
 // rotationFundingRatePerHour 把 per-interval 绝对费率归一化为每小时(粗筛/排序/续持窗口折算共用)。
@@ -517,12 +531,15 @@ func rotationSortedPositiveCandidates(candidates []UnifiedOpportunity, cfg Rotat
 		}
 	}
 	sort.SliceStable(positive, func(i, j int) bool {
-		si := unifiedWindowScore(positive[i])
-		sj := unifiedWindowScore(positive[j])
-		if si == sj {
-			return positive[i].Symbol < positive[j].Symbol
+		pi, pj := unifiedPrimaryScore(positive[i]), unifiedPrimaryScore(positive[j])
+		if pi != pj {
+			return pi > pj
 		}
-		return si > sj
+		ci, cj := unifiedWindowScore(positive[i]), unifiedWindowScore(positive[j])
+		if ci != cj {
+			return ci > cj
+		}
+		return positive[i].Symbol < positive[j].Symbol
 	})
 	return positive
 }
@@ -539,7 +556,8 @@ func planUnifiedRotationOpensFrom(candidates []UnifiedOpportunity, available map
 		if !ok {
 			continue
 		}
-		score := unifiedWindowScore(opp)
+		score := unifiedPrimaryScore(opp)
+		capEff := unifiedWindowScore(opp)
 		rotationDeductOpportunityCapital(funds, opp)
 		budget.addOpportunity(opp)
 		openCount++
@@ -549,7 +567,7 @@ func planUnifiedRotationOpensFrom(candidates []UnifiedOpportunity, available map
 			StrategyType:           opp.StrategyType,
 			Symbol:                 opp.Symbol,
 			Score:                  score,
-			Reason:                 fmt.Sprintf("open_window_yield=%.6f net_ev=%.4f", score, opp.ExpectedNetEVUSDT),
+			Reason:                 fmt.Sprintf("open_net_ev=%.4f cap_eff=%.6f", score, capEff),
 			CapitalRequiredByVenue: cloneVenueCapitalFromOpportunity(opp.CapitalRequiredByVenue),
 		})
 	}
@@ -599,7 +617,7 @@ func rotationBestReplaceCandidate(
 		if !ok {
 			continue
 		}
-		score := rotationComparableWindowScore(opp)
+		score := rotationComparableAbsoluteScore(opp)
 		if !found || score > bestScore {
 			best = opp
 			bestScore = score
@@ -728,7 +746,6 @@ func decideRotationAt(
 	for _, pos := range held {
 		inputs := heldInputs[pos.OpportunityID]
 		contScore := continuationScore(pos, inputs)
-		heldCapital := unifiedOpportunityTotalCapitalFromMap(pos.CapitalRequiredByVenue)
 
 		if closeOK, closeReason := rotationShouldContinuationClose(pos, inputs, cfg, now); closeOK {
 			plan.Actions = append(plan.Actions, RotationAction{
@@ -775,20 +792,17 @@ func decideRotationAt(
 		}
 
 		switchCost := rotationSwitchMarginalCostUSDT(inputs.ExpectedCloseCostUSDT, best)
-		switchCostPerUnit := 0.0
-		if heldCapital > 0 {
-			switchCostPerUnit = switchCost / heldCapital
-		}
-		adjustedOpenScore := openScore - switchCostPerUnit
+		contNet := continuationNetUSDT(inputs)
+		adjustedOpenScore := openScore - switchCost
 
-		if contScore >= adjustedOpenScore {
+		if contNet >= adjustedOpenScore {
 			plan.Actions = append(plan.Actions, RotationAction{
 				Kind:                   RotationActionHold,
 				OpportunityID:          pos.OpportunityID,
 				StrategyType:           pos.StrategyType,
 				Symbol:                 pos.Symbol,
 				Score:                  contScore,
-				Reason:                 fmt.Sprintf("hold continuation_score=%.6f >= adjusted_open_score=%.6f", contScore, adjustedOpenScore),
+				Reason:                 fmt.Sprintf("hold continuation_net=%.4f >= adjusted_open_net=%.4f", contNet, adjustedOpenScore),
 				ReplaceOpportunityID:   best.ID,
 				ReplaceStrategyType:    best.StrategyType,
 				ReplaceSymbol:          best.Symbol,
@@ -808,7 +822,7 @@ func decideRotationAt(
 				StrategyType:           pos.StrategyType,
 				Symbol:                 pos.Symbol,
 				Score:                  contScore,
-				Reason:                 fmt.Sprintf("hold_switch_min_hold continuation_score=%.6f adjusted_open_score=%.6f", contScore, adjustedOpenScore),
+				Reason:                 fmt.Sprintf("hold_switch_min_hold continuation_net=%.4f adjusted_open_net=%.4f", contNet, adjustedOpenScore),
 				ReplaceOpportunityID:   best.ID,
 				ReplaceStrategyType:    best.StrategyType,
 				ReplaceSymbol:          best.Symbol,
@@ -827,7 +841,7 @@ func decideRotationAt(
 			StrategyType:           pos.StrategyType,
 			Symbol:                 pos.Symbol,
 			Score:                  contScore,
-			Reason:                 fmt.Sprintf("switch continuation_score=%.6f < adjusted_open_score=%.6f", contScore, adjustedOpenScore),
+			Reason:                 fmt.Sprintf("switch continuation_net=%.4f < adjusted_open_net=%.4f", contNet, adjustedOpenScore),
 			ReplaceOpportunityID:   best.ID,
 			ReplaceStrategyType:    best.StrategyType,
 			ReplaceSymbol:          best.Symbol,
@@ -866,4 +880,110 @@ func decideRotationAt(
 	plan.Actions = append(plan.Actions, planUnifiedRotationOpensFrom(remaining, funds, cfg, currentOpenCount, budget, blocked)...)
 
 	return plan
+}
+
+// RotationDecisionDiag 单轮候选诊断分布(止盲:解释 raw→可开漏斗)。
+type RotationDecisionDiag struct {
+	CycleID             string         `json:"cycle_id"`
+	RawTotal            int            `json:"raw_total"`
+	RawByStrategy       map[string]int `json:"raw_by_strategy"`
+	ScannerWouldExec    int            `json:"scanner_would_execute_total"`
+	RotationWouldExec   int            `json:"rotation_would_execute_total"`
+	WouldExecByStrategy map[string]int `json:"rotation_would_execute_by_strategy"`
+	SoftRejectCount     int            `json:"soft_reject_count"`
+	HardRejectCount     int            `json:"hard_reject_count"`
+	BlockedByNetEV      int            `json:"blocked_by_net_ev"`
+	BlockedByHardReject int            `json:"blocked_by_hard_reject"`
+	BlockedByBalance    int            `json:"blocked_by_balance"`
+	TopRejectReasons    map[string]int `json:"top_reject_reasons"`
+}
+
+// rotationDiagnoseCandidates 只诊断不执行:对每个候选跑 rotationCanOpenOpportunity 并累计分布。
+func rotationDiagnoseCandidates(candidates []UnifiedOpportunity, available map[string]float64, cfg RotationConfig) RotationDecisionDiag {
+	cfg = normalizeRotationConfig(cfg)
+	diag := RotationDecisionDiag{
+		RawTotal:            len(candidates),
+		RawByStrategy:       make(map[string]int),
+		WouldExecByStrategy: make(map[string]int),
+		TopRejectReasons:    make(map[string]int),
+	}
+	budget := newRotationBudgetState(available, nil, cfg, 0)
+	for _, opp := range candidates {
+		diag.RawByStrategy[opp.StrategyType]++
+		if len(opp.RejectReasons) == 0 {
+			diag.ScannerWouldExec++
+		} else if rotationFirstHardRejectReason(opp) != "" {
+			diag.HardRejectCount++
+		} else {
+			diag.SoftRejectCount++
+		}
+		ok, reason := rotationCanOpenOpportunity(opp, available, cfg, 0, &budget, nil)
+		if ok {
+			diag.RotationWouldExec++
+			diag.WouldExecByStrategy[opp.StrategyType]++
+			continue
+		}
+		if reason == "" {
+			reason = "unknown"
+		}
+		diag.TopRejectReasons[reason]++
+		switch {
+		case reason == "net_ev<=0":
+			diag.BlockedByNetEV++
+		case strings.HasPrefix(reason, "venue_balance_insufficient:") || reason == "requires_rebalance_unfundable":
+			diag.BlockedByBalance++
+		case strings.HasPrefix(reason, "reject:"):
+			diag.BlockedByHardReject++
+		}
+	}
+	return diag
+}
+
+// rotationDiagTopRejectReason 返回本轮最高频拒绝原因(无则空串)。
+func rotationDiagTopRejectReason(diag RotationDecisionDiag) string {
+	top := ""
+	topCount := 0
+	for reason, count := range diag.TopRejectReasons {
+		if count > topCount {
+			topCount = count
+			top = reason
+		}
+	}
+	return top
+}
+
+// filterRotationCandidates 决策输入池:剔除 scanner 硬拒/仅诊断/无资金/非正 EV 对象。
+func filterRotationCandidates(candidates []UnifiedOpportunity, cfg RotationConfig) []UnifiedOpportunity {
+	minProfit := rotationMinNetProfitUSDT(cfg)
+	out := make([]UnifiedOpportunity, 0, len(candidates))
+	for _, opp := range candidates {
+		if rotationFirstHardRejectReason(opp) != "" {
+			continue
+		}
+		if opp.CandidateOnly {
+			continue
+		}
+		if unifiedOpportunityTotalCapital(opp) <= 0 {
+			continue
+		}
+		if opp.ExpectedNetEVUSDT <= minProfit {
+			continue
+		}
+		out = append(out, opp)
+	}
+	return out
+}
+
+// rotationCandidateWouldExecuteStatic 静态预判是否可进决策池(不含余额/并发/冷却等运行时闸)。
+func rotationCandidateWouldExecuteStatic(opp UnifiedOpportunity, cfg RotationConfig) bool {
+	if rotationFirstHardRejectReason(opp) != "" {
+		return false
+	}
+	if opp.CandidateOnly {
+		return false
+	}
+	if unifiedOpportunityTotalCapital(opp) <= 0 {
+		return false
+	}
+	return opp.ExpectedNetEVUSDT > rotationMinNetProfitUSDT(cfg)
 }

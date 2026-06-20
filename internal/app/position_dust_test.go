@@ -213,3 +213,73 @@ func TestCarrySingleVenueOpenQtyAlign(t *testing.T) {
 		t.Fatal("expected below min notional error")
 	}
 }
+
+type flattenVerifySpotVenue struct {
+	fakeFundingVenue
+	spotQty float64
+}
+
+func (v *flattenVerifySpotVenue) FetchBalances(context.Context) (venue.Balances, error) {
+	byAsset := map[string]venue.Balance{
+		"USDT": {Asset: "USDT", Free: 10000},
+	}
+	if v.spotQty > 0 {
+		byAsset["MNT"] = venue.Balance{Asset: "MNT", Free: v.spotQty}
+	}
+	return venue.Balances{ByAsset: byAsset}, nil
+}
+
+func (v *flattenVerifySpotVenue) FetchPositions(context.Context) ([]venue.Position, error) {
+	return nil, nil
+}
+
+func TestFlattenSecondVerification(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	logger := testSVSPLogger()
+	cfg := CrossVenueExecutorConfig{DustCloseThresholdUSDT: 1.0}
+
+	leg := carryUntrackedLeg{
+		Venue: "bybit", Symbol: "MNT-USDT", Market: venue.MarketSpot,
+		Qty: 18.43, Side: venue.SideSell, ReduceOnly: false,
+	}
+	v := &flattenVerifySpotVenue{fakeFundingVenue: fakeFundingVenue{name: "bybit"}, spotQty: 18.43}
+	venues := map[string]venue.Venue{"bybit": v}
+
+	carryAfterUntrackedFlatten(ctx, dir, logger, venues, leg, true)
+
+	ledgerPath := filepath.Join(dir, "dust_ledger.json")
+	records, err := readJSONFile[DustLedgerRecord](ledgerPath)
+	if err != nil || len(records) != 1 {
+		t.Fatalf("expected unresolved_orphan dust ledger, err=%v records=%+v", err, records)
+	}
+	if records[0].Reason != unresolvedOrphanReason {
+		t.Fatalf("ledger reason = %q, want %q", records[0].Reason, unresolvedOrphanReason)
+	}
+
+	legs := carryScanUntrackedSVSPLegs(ctx, cfg, dir, logger, venues, nil)
+	if len(legs) != 0 {
+		t.Fatalf("unresolved orphan should not re-enter untracked scan, got %+v", legs)
+	}
+	if !carryShouldSkipUntrackedFlatten(dir, logger, leg) {
+		t.Fatal("expected skip repeat flatten for unresolved orphan")
+	}
+
+	v.spotQty = 0
+	carryAfterUntrackedFlatten(ctx, dir, logger, venues, leg, true)
+	if !recentlyFlattened(dir, recentFlattenKeyFromLeg(leg), recentFlattenTTL) {
+		t.Fatal("expected recent flatten registry after verified clear")
+	}
+}
+
+func TestRecentFlattenRegistryDedup(t *testing.T) {
+	dir := t.TempDir()
+	leg := carryUntrackedLeg{
+		Venue: "bybit", Symbol: "MNT-USDT", Market: venue.MarketSpot,
+		Qty: 18.43, Side: venue.SideSell,
+	}
+	markRecentFlatten(dir, recentFlattenKeyFromLeg(leg))
+	if !carryShouldSkipUntrackedFlatten(dir, nil, leg) {
+		t.Fatal("expected skip after recent flatten mark")
+	}
+}

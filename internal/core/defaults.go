@@ -318,6 +318,7 @@ func DefaultEngineConfig() EngineConfig {
 			MinSpreadAPR:                      0.05,
 			AlertSpreadAPR:                    1.0,
 			TopN:                              30,
+			PanelDisplayTopN:                  30,
 			BorrowProbeEnabled:                true,
 			BorrowProbeTopN:                   10,
 			BorrowProbeFundingTopK:            60,

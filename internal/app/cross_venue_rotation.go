@@ -1,9 +1,13 @@
 package app
 
 import (
+	"context"
 	"fmt"
+	"math"
 	"strings"
 	"time"
+
+	"lingxi/internal/venue"
 )
 
 const crossVenueRecoveryActionObserve = "observe"
@@ -338,6 +342,11 @@ func crossVenueEstimateOpportunityMetrics(cfg CrossVenueExecutorConfig, opp Cros
 
 // crossVenueEstimateOpportunityMetricsEVRates 用指定费率算 spreadEV/NetEV,保留 opp 展示用 SpreadAPR/HighFundingRate 不变。
 func crossVenueEstimateOpportunityMetricsEVRates(cfg CrossVenueExecutorConfig, opp CrossVenueOpportunity, now time.Time, evHighRate, evLowRate float64) CrossVenueOpportunity {
+	return crossVenueEstimateOpportunityMetricsEVRatesWithLegs(cfg, opp, now, evHighRate, evLowRate, nil)
+}
+
+// crossVenueEstimateOpportunityMetricsEVRatesWithLegs 与 EVRates 一致;滑点优先用深度腿,缺深度回退固定 bps。
+func crossVenueEstimateOpportunityMetricsEVRatesWithLegs(cfg CrossVenueExecutorConfig, opp CrossVenueOpportunity, now time.Time, evHighRate, evLowRate float64, slipLegs []crossVenueEVSlippageLeg) CrossVenueOpportunity {
 	notional := opp.TradableNotional
 	if notional <= 0 {
 		notional = cfg.MaxPositionUSDT
@@ -353,6 +362,9 @@ func crossVenueEstimateOpportunityMetricsEVRates(cfg CrossVenueExecutorConfig, o
 	openCost := crossVenueOpenEVRoundTripFeeUSDT(cfg, opp, notional)
 	closeCost := openCost
 	expectedSlippage := crossVenueExpectedSlippageUSDT(cfg, notional, 4)
+	if len(slipLegs) > 0 {
+		expectedSlippage = crossVenueExpectedSlippageUSDTWithLegs(cfg, notional, slipLegs)
+	}
 	recoveryQuality := crossVenueRecoveryQualityForPair(opp.HighVenue, opp.LowVenue)
 	observableRiskCost := crossVenueObservableRiskCost(notional, opp.FreshnessAgeSeconds, windowHours, recoveryQuality)
 	policyBuffer := crossVenuePolicyBuffer(openCost, closeCost)
@@ -403,6 +415,129 @@ func crossVenueEstimateOpportunityMetricsEVRates(cfg CrossVenueExecutorConfig, o
 		opp.TradableNotional = notional
 	}
 	return opp
+}
+
+// perpPerpNotionalClampCtx 名义网格点对齐两腿 minNotional/步进;零值 ok 时仅 cap 上界。
+type perpPerpNotionalClampCtx struct {
+	highInstr venue.Instrument
+	lowInstr  venue.Instrument
+	highCaps  venue.Capabilities
+	lowCaps   venue.Capabilities
+	refMid    float64
+	ok        bool
+}
+
+func crossVenuePerpPerpNotionalClampCtx(ctx context.Context, venues map[string]venue.Venue, opp CrossVenueOpportunity, slipLegs []crossVenueEVSlippageLeg) perpPerpNotionalClampCtx {
+	out := perpPerpNotionalClampCtx{}
+	if ctx == nil || venues == nil {
+		return out
+	}
+	highV := venues[opp.HighVenue]
+	lowV := venues[opp.LowVenue]
+	if highV == nil || lowV == nil {
+		return out
+	}
+	highInstr, okH := lookupVenueInstrument(ctx, highV, venue.Symbol(opp.Symbol))
+	lowInstr, okL := lookupVenueInstrument(ctx, lowV, venue.Symbol(opp.Symbol))
+	if !okH || !okL {
+		return out
+	}
+	out.highInstr = highInstr
+	out.lowInstr = lowInstr
+	out.highCaps = highV.Capabilities()
+	out.lowCaps = lowV.Capabilities()
+	out.refMid = crossVenuePerpPerpRefMidFromSlipLegs(slipLegs)
+	if out.refMid <= 0 {
+		out.refMid = crossVenuePerpPerpMidFromDepthOrBook(ctx, highV, venue.Symbol(opp.Symbol))
+	}
+	out.ok = out.refMid > 0
+	return out
+}
+
+func crossVenuePerpPerpRefMidFromSlipLegs(slipLegs []crossVenueEVSlippageLeg) float64 {
+	var sum, n float64
+	for _, leg := range slipLegs {
+		if leg.RefMid > 0 {
+			sum += leg.RefMid
+			n++
+		}
+	}
+	if n == 0 {
+		return 0
+	}
+	return sum / n
+}
+
+// clampToVenueStep 将名义 cap 到 tradableCap 并按两腿步进/minNotional 对齐;不可交易则返回 0。
+func clampToVenueStep(n float64, _ CrossVenueOpportunity, tradableCap float64, clamp perpPerpNotionalClampCtx) float64 {
+	if n <= 0 {
+		return 0
+	}
+	if tradableCap > 0 && n > tradableCap+1e-9 {
+		n = tradableCap
+	}
+	if !clamp.ok || clamp.refMid <= 0 {
+		return n
+	}
+	qty := alignCrossVenueQty(n, clamp.refMid, clamp.highInstr, clamp.lowInstr, clamp.highCaps, clamp.lowCaps)
+	if qty <= 0 {
+		return 0
+	}
+	if !crossVenueQtyTradable(qty, clamp.refMid, clamp.highInstr) || !crossVenueQtyTradable(qty, clamp.refMid, clamp.lowInstr) {
+		return 0
+	}
+	return qty * clamp.refMid
+}
+
+func appendPerpPerpNotionalGridPoint(grid []float64, n float64) []float64 {
+	if n <= 0 {
+		return grid
+	}
+	for _, g := range grid {
+		if math.Abs(g-n) < 1e-6 {
+			return grid
+		}
+	}
+	return append(grid, n)
+}
+
+// crossVenuePerpPerpSearchBestNotional 在离散名义网格上搜 netEV 最大点(每点用深度滑点同口径 EV)。
+func crossVenuePerpPerpSearchBestNotional(
+	cfg CrossVenueExecutorConfig,
+	opp CrossVenueOpportunity,
+	now time.Time,
+	evHigh, evLow, tradableCap float64,
+	slipLegs []crossVenueEVSlippageLeg,
+	clamp perpPerpNotionalClampCtx,
+) (CrossVenueOpportunity, float64) {
+	grid := []float64{25, 50, 75, 100, 150}
+	grid = appendPerpPerpNotionalGridPoint(grid, tradableCap)
+	best := math.Inf(-1)
+	var bestOpp CrossVenueOpportunity
+	var bestNotional float64
+	for _, n := range grid {
+		n = clampToVenueStep(n, opp, tradableCap, clamp)
+		if n <= 0 {
+			continue
+		}
+		cand := opp
+		cand.TradableNotional = n
+		cand = crossVenueEstimateOpportunityMetricsEVRatesWithLegs(cfg, cand, now, evHigh, evLow, slipLegs)
+		if cand.NetEV > best {
+			best = cand.NetEV
+			bestOpp = cand
+			bestNotional = n
+		}
+	}
+	if math.IsInf(best, -1) {
+		fallback := clampToVenueStep(tradableCap, opp, tradableCap, clamp)
+		if fallback <= 0 && tradableCap > 0 {
+			fallback = tradableCap
+		}
+		opp.TradableNotional = fallback
+		return crossVenueEstimateOpportunityMetricsEVRatesWithLegs(cfg, opp, now, evHigh, evLow, slipLegs), fallback
+	}
+	return bestOpp, bestNotional
 }
 
 func crossVenueFinalizeOpportunityRanking(cfg CrossVenueExecutorConfig, opps []CrossVenueOpportunity) {

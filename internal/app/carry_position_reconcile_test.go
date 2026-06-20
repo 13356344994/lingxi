@@ -33,6 +33,80 @@ func TestPerpPositionQtySymbolNormalization(t *testing.T) {
 	}
 }
 
+func TestCarryStrategyOwnsSpotLegCVSP(t *testing.T) {
+	dir := t.TempDir()
+	cvspStore, err := newCrossVenueSpotPerpPositionStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Date(2026, 6, 19, 6, 0, 0, 0, time.UTC)
+	_ = cvspStore.upsert(CrossVenueSpotPerpPosition{
+		Symbol: "MNT-USDT", SpotVenue: bybit.VenueName, PerpVenue: gate.VenueName,
+		Status: CVSPStatusOpen, OpenedAt: now, UpdatedAt: now, IdemPrefix: "mnt-test",
+		SpotLeg: CrossVenueSpotPerpLegState{Qty: 18.43},
+	})
+	if !carryStrategyOwnsSpotLeg(dir, bybit.VenueName, "MNT-USDT") {
+		t.Fatal("expected bybit MNT spot owned by CVSP")
+	}
+	if carryStrategyOwnsSpotLeg(dir, gate.VenueName, "MNT-USDT") {
+		t.Fatal("gate is perp venue, not spot owner")
+	}
+	if carryStrategyOwnsSpotLeg(dir, bybit.VenueName, "BTC-USDT") {
+		t.Fatal("unexpected ownership for unrelated symbol")
+	}
+}
+
+func TestSpotOrphanCrossStrategyDedup(t *testing.T) {
+	ctx := context.Background()
+	cfg := CrossVenueExecutorConfig{DustCloseThresholdUSDT: 1.0}
+	logger := testSVSPLogger()
+	now := time.Date(2026, 6, 19, 19, 9, 0, 0, time.UTC)
+
+	t.Run("SVSP skips CVSP-owned spot orphan", func(t *testing.T) {
+		dir := t.TempDir()
+		v := newSVSPTestVenue(bybit.VenueName)
+		v.book = venue.BookTicker{BidPrice: 0.49, AskPrice: 0.51}
+		v.spotBalances["MNT"] = 18.43
+
+		cvspStore, err := newCrossVenueSpotPerpPositionStore(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = cvspStore.upsert(CrossVenueSpotPerpPosition{
+			Symbol: "MNT-USDT", SpotVenue: bybit.VenueName, PerpVenue: gate.VenueName,
+			Status: CVSPStatusOpen, OpenedAt: now, UpdatedAt: now, IdemPrefix: "mnt-cvsp",
+			SpotLeg: CrossVenueSpotPerpLegState{Qty: 18.43},
+		})
+
+		legs := carryScanUntrackedSVSPLegs(ctx, cfg, dir, logger, map[string]venue.Venue{bybit.VenueName: v}, nil)
+		if len(legs) != 0 {
+			t.Fatalf("SVSP should skip CVSP-owned bybit MNT spot orphan, got %+v", legs)
+		}
+	})
+
+	t.Run("CVSP skips SVSP-owned spot orphan", func(t *testing.T) {
+		dir := t.TempDir()
+		v := newCVSPTestVenue(bybit.VenueName)
+		v.bookSpot = venue.BookTicker{BidPrice: 0.49, AskPrice: 0.51}
+		v.balances["MNT"] = 18.43
+
+		svspStore, err := newSingleVenueSpotPerpPositionStore(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = svspStore.upsert(SingleVenueSpotPerpPosition{
+			Symbol: "MNT-USDT", Venue: bybit.VenueName, Status: SVSPStatusOpen,
+			OpenedAt: now, UpdatedAt: now, IdemPrefix: "mnt-svsp",
+			SpotLeg: SingleVenueSpotPerpLegState{Qty: 18.43},
+		})
+
+		legs := carryScanUntrackedCVSPLegs(ctx, cfg, dir, logger, map[string]venue.Venue{bybit.VenueName: v}, nil)
+		if len(legs) != 0 {
+			t.Fatalf("CVSP should skip SVSP-owned bybit MNT spot orphan, got %+v", legs)
+		}
+	})
+}
+
 func TestCarryStrategyOwnsPerpLegCVSP(t *testing.T) {
 	dir := t.TempDir()
 	cvspStore, err := newCrossVenueSpotPerpPositionStore(dir)

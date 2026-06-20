@@ -5,11 +5,19 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"lingxi/internal/venue"
+)
+
+const (
+	recentFlattenTTL         = 30 * time.Minute
+	recentFlattenJSONLName   = "recent_flatten.jsonl"
+	unresolvedOrphanReason   = "unresolved_orphan"
 )
 
 const defaultDustCloseThresholdUSDT = 1.0
@@ -319,6 +327,9 @@ func carryAppendMaterialUntrackedLeg(
 	leg carryUntrackedLeg,
 	out *[]carryUntrackedLeg,
 ) {
+	if carryIsUnresolvedOrphan(recordDir, leg) {
+		return
+	}
 	if carryUntrackedLegMaterialOrRecordDust(ctx, cfg, recordDir, logger, venues, leg) {
 		*out = append(*out, leg)
 	}
@@ -350,6 +361,270 @@ func carryPerpLegSkipUntrackedScan(recordDir, venueName string, sym venue.Symbol
 	return carryPerpLegOwnedByPerpPerp(recordDir, venueName, sym)
 }
 
+func carrySpotLegSkipUntrackedScan(recordDir, venueName, sym string, selfTracked bool) bool {
+	if selfTracked {
+		return true
+	}
+	return carryStrategyOwnsSpotLeg(recordDir, venueName, venue.Symbol(sym))
+}
+
+type recentFlattenKey struct {
+	Venue   string
+	Symbol  string
+	Side    string
+	QtyBand int
+}
+
+type recentFlattenEntry struct {
+	Key         recentFlattenKey
+	FlattenedAt time.Time
+}
+
+type recentFlattenRecord struct {
+	RecordedAt string `json:"recorded_at"`
+	Venue      string `json:"venue"`
+	Symbol     string `json:"symbol"`
+	Side       string `json:"side"`
+	QtyBand    int    `json:"qty_band"`
+}
+
+type recentFlattenRegistry struct {
+	mu      sync.Mutex
+	entries map[string][]recentFlattenEntry
+	loaded  map[string]bool
+}
+
+var globalRecentFlatten recentFlattenRegistry
+
+func init() {
+	globalRecentFlatten.entries = make(map[string][]recentFlattenEntry)
+	globalRecentFlatten.loaded = make(map[string]bool)
+}
+
+func recentFlattenQtyBand(qty float64) int {
+	if qty <= executionQtyTolerance {
+		return 0
+	}
+	return int(math.Floor(math.Log10(qty)))
+}
+
+func recentFlattenKeyFromLeg(leg carryUntrackedLeg) recentFlattenKey {
+	return recentFlattenKey{
+		Venue:   strings.TrimSpace(leg.Venue),
+		Symbol:  canonicalTradingSymbol(leg.Symbol),
+		Side:    leg.Side.String(),
+		QtyBand: recentFlattenQtyBand(leg.Qty),
+	}
+}
+
+func recentFlattenJSONLPath(recordDir string) string {
+	return filepath.Join(strings.TrimSpace(recordDir), recentFlattenJSONLName)
+}
+
+func (r *recentFlattenRegistry) ensureLoaded(recordDir string) {
+	recordDir = strings.TrimSpace(recordDir)
+	if recordDir == "" || r.loaded[recordDir] {
+		return
+	}
+	records, err := readJSONLFile[recentFlattenRecord](recentFlattenJSONLPath(recordDir))
+	if err == nil {
+		cutoff := time.Now().UTC().Add(-recentFlattenTTL)
+		for _, rec := range records {
+			at, perr := time.Parse(time.RFC3339, strings.TrimSpace(rec.RecordedAt))
+			if perr != nil || at.Before(cutoff) {
+				continue
+			}
+			key := recentFlattenKey{
+				Venue:   strings.TrimSpace(rec.Venue),
+				Symbol:  canonicalTradingSymbol(rec.Symbol),
+				Side:    strings.TrimSpace(rec.Side),
+				QtyBand: rec.QtyBand,
+			}
+			r.entries[recordDir] = append(r.entries[recordDir], recentFlattenEntry{Key: key, FlattenedAt: at})
+		}
+	}
+	r.loaded[recordDir] = true
+}
+
+func (r *recentFlattenRegistry) prune(recordDir string, now time.Time) {
+	cutoff := now.Add(-recentFlattenTTL)
+	kept := r.entries[recordDir][:0]
+	for _, e := range r.entries[recordDir] {
+		if !e.FlattenedAt.Before(cutoff) {
+			kept = append(kept, e)
+		}
+	}
+	r.entries[recordDir] = kept
+}
+
+func recentlyFlattened(recordDir string, key recentFlattenKey, within time.Duration) bool {
+	recordDir = strings.TrimSpace(recordDir)
+	if recordDir == "" {
+		return false
+	}
+	now := time.Now().UTC()
+	cutoff := now.Add(-within)
+	globalRecentFlatten.mu.Lock()
+	defer globalRecentFlatten.mu.Unlock()
+	globalRecentFlatten.ensureLoaded(recordDir)
+	globalRecentFlatten.prune(recordDir, now)
+	for _, e := range globalRecentFlatten.entries[recordDir] {
+		if e.Key != key || e.FlattenedAt.Before(cutoff) {
+			continue
+		}
+		return true
+	}
+	return false
+}
+
+func markRecentFlatten(recordDir string, key recentFlattenKey) {
+	recordDir = strings.TrimSpace(recordDir)
+	if recordDir == "" {
+		return
+	}
+	now := time.Now().UTC()
+	globalRecentFlatten.mu.Lock()
+	globalRecentFlatten.ensureLoaded(recordDir)
+	globalRecentFlatten.entries[recordDir] = append(globalRecentFlatten.entries[recordDir], recentFlattenEntry{
+		Key:         key,
+		FlattenedAt: now,
+	})
+	globalRecentFlatten.prune(recordDir, now)
+	globalRecentFlatten.mu.Unlock()
+	_ = appendJSONLRecord(recentFlattenJSONLPath(recordDir), recentFlattenRecord{
+		RecordedAt: now.Format(time.RFC3339),
+		Venue:      key.Venue,
+		Symbol:     key.Symbol,
+		Side:       key.Side,
+		QtyBand:    key.QtyBand,
+	})
+}
+
+func carryIsUnresolvedOrphan(recordDir string, leg carryUntrackedLeg) bool {
+	recordDir = strings.TrimSpace(recordDir)
+	if recordDir == "" {
+		return false
+	}
+	path := filepath.Join(recordDir, "dust_ledger.json")
+	records, err := readJSONFile[DustLedgerRecord](path)
+	if err != nil {
+		return false
+	}
+	wantVenue := strings.TrimSpace(leg.Venue)
+	wantSymbol := canonicalTradingSymbol(leg.Symbol)
+	wantMarket := leg.Market.String()
+	wantSide := leg.Side.String()
+	for _, rec := range records {
+		if rec.Reason != unresolvedOrphanReason {
+			continue
+		}
+		if canonicalTradingSymbol(rec.Symbol) != wantSymbol {
+			continue
+		}
+		phase := strings.TrimSpace(rec.Phase)
+		if phase != "" && !strings.Contains(phase, wantVenue+"|"+wantMarket+"|"+wantSide) {
+			continue
+		}
+		return true
+	}
+	return false
+}
+
+func markUnresolvedOrphan(recordDir string, leg carryUntrackedLeg, notionalUSDT float64) {
+	appendCarryDustLedgerBestEffort(
+		recordDir,
+		fmt.Sprintf("untracked_flatten|%s|%s|%s", strings.TrimSpace(leg.Venue), leg.Market.String(), leg.Side.String()),
+		leg.Symbol,
+		baseAssetFromCanonicalSymbol(leg.Symbol),
+		leg.Qty,
+		notionalUSDT,
+		unresolvedOrphanReason,
+	)
+}
+
+func carryShouldSkipUntrackedFlatten(recordDir string, logger *log.Logger, leg carryUntrackedLeg) bool {
+	if carryIsUnresolvedOrphan(recordDir, leg) {
+		if logger != nil {
+			logger.Printf("[carry-flatten] venue=%s %s %s≈%.6f 未清 orphan 已登记，跳过重复 flatten",
+				leg.Venue, leg.Market, leg.Symbol, leg.Qty)
+		}
+		return true
+	}
+	key := recentFlattenKeyFromLeg(leg)
+	if recentlyFlattened(recordDir, key, recentFlattenTTL) {
+		if logger != nil {
+			logger.Printf("[carry-flatten] venue=%s %s %s≈%.6f 已近期处理，跳过重复 flatten",
+				leg.Venue, leg.Market, leg.Symbol, leg.Qty)
+		}
+		return true
+	}
+	return false
+}
+
+func carryLegStillPresent(ctx context.Context, venues map[string]venue.Venue, leg carryUntrackedLeg) bool {
+	v := venues[leg.Venue]
+	if v == nil {
+		return true
+	}
+	sym := venue.Symbol(canonicalTradingSymbol(leg.Symbol))
+	switch leg.Market {
+	case venue.MarketSpot:
+		bal, err := v.FetchBalances(ctx)
+		if err != nil {
+			return true
+		}
+		base := baseAssetFromCanonicalSymbol(leg.Symbol)
+		switch leg.Side {
+		case venue.SideSell:
+			if b, ok := bal.ByAsset[base]; ok && b.Free > executionQtyTolerance {
+				return true
+			}
+			return false
+		case venue.SideBuy:
+			return marginShortQtyFromBalance(bal, base) > executionQtyTolerance
+		default:
+			return true
+		}
+	case venue.MarketPerp:
+		positions, err := v.FetchPositions(ctx)
+		if err != nil {
+			return true
+		}
+		amt := perpPositionQty(positions, sym)
+		switch leg.Side {
+		case venue.SideBuy:
+			return amt < -executionQtyTolerance
+		case venue.SideSell:
+			return amt > executionQtyTolerance
+		default:
+			return absQty(amt) > executionQtyTolerance
+		}
+	default:
+		return true
+	}
+}
+
+func carryAfterUntrackedFlatten(ctx context.Context, recordDir string, logger *log.Logger, venues map[string]venue.Venue, leg carryUntrackedLeg, placed bool) {
+	if !placed {
+		return
+	}
+	if carryLegStillPresent(ctx, venues, leg) {
+		v := venues[leg.Venue]
+		notional := legNotionalUSDT(ctx, v, venue.Symbol(leg.Symbol), leg.Market, leg.Qty, 0)
+		markUnresolvedOrphan(recordDir, leg, notional)
+		if logger != nil {
+			logger.Printf("[carry-flatten] venue=%s %s %s≈%.6f flatten 后仍有余量，标记 unresolved_orphan",
+				leg.Venue, leg.Market, leg.Symbol, leg.Qty)
+		}
+		return
+	}
+	markRecentFlatten(recordDir, recentFlattenKeyFromLeg(leg))
+	if logger != nil {
+		logger.Printf("[carry-flatten] venue=%s %s %s≈%.6f flatten 核验通过",
+			leg.Venue, leg.Market, leg.Symbol, leg.Qty)
+	}
+}
+
 func carryScanUntrackedSVSPLegs(ctx context.Context, cfg CrossVenueExecutorConfig, recordDir string, logger *log.Logger, venues map[string]venue.Venue, ps []SingleVenueSpotPerpPosition) []carryUntrackedLeg {
 	var out []carryUntrackedLeg
 	for name, v := range venues {
@@ -378,7 +653,7 @@ func carryScanUntrackedSVSPLegs(ctx context.Context, cfg CrossVenueExecutorConfi
 				continue
 			}
 			sym := canonicalTradingSymbol(asset + "-USDT")
-			if sym == "" || svspHasTrackedSymbolVenue(ps, name, sym) {
+			if sym == "" || carrySpotLegSkipUntrackedScan(recordDir, name, sym, svspHasTrackedSymbolVenue(ps, name, sym)) {
 				continue
 			}
 			carryAppendMaterialUntrackedLeg(ctx, cfg, recordDir, logger, venues, carryUntrackedLeg{Venue: name, Symbol: sym, Market: venue.MarketSpot, Qty: b.Free, Side: venue.SideSell, ReduceOnly: false}, &out)
@@ -419,7 +694,7 @@ func carryScanUntrackedSVPSLegs(ctx context.Context, cfg CrossVenueExecutorConfi
 				continue
 			}
 			sym := canonicalTradingSymbol(asset + "-USDT")
-			if sym == "" || svpsHasTrackedSymbolVenue(ps, name, sym) {
+			if sym == "" || carrySpotLegSkipUntrackedScan(recordDir, name, sym, svpsHasTrackedSymbolVenue(ps, name, sym)) {
 				continue
 			}
 			carryAppendMaterialUntrackedLeg(ctx, cfg, recordDir, logger, venues, carryUntrackedLeg{Venue: name, Symbol: sym, Market: venue.MarketSpot, Qty: short, Side: venue.SideBuy, ReduceOnly: false}, &out)
@@ -456,7 +731,7 @@ func carryScanUntrackedCVSPLegs(ctx context.Context, cfg CrossVenueExecutorConfi
 				continue
 			}
 			sym := canonicalTradingSymbol(asset + "-USDT")
-			if sym == "" || cvspHasTrackedLeg(ps, name, sym) {
+			if sym == "" || carrySpotLegSkipUntrackedScan(recordDir, name, sym, cvspHasTrackedLeg(ps, name, sym)) {
 				continue
 			}
 			carryAppendMaterialUntrackedLeg(ctx, cfg, recordDir, logger, venues, carryUntrackedLeg{Venue: name, Symbol: sym, Market: venue.MarketSpot, Qty: b.Free, Side: venue.SideSell, ReduceOnly: false}, &out)
@@ -497,7 +772,7 @@ func carryScanUntrackedCVPSLegs(ctx context.Context, cfg CrossVenueExecutorConfi
 				continue
 			}
 			sym := canonicalTradingSymbol(asset + "-USDT")
-			if sym == "" || cvpsHasTrackedLeg(ps, name, sym) {
+			if sym == "" || carrySpotLegSkipUntrackedScan(recordDir, name, sym, cvpsHasTrackedLeg(ps, name, sym)) {
 				continue
 			}
 			carryAppendMaterialUntrackedLeg(ctx, cfg, recordDir, logger, venues, carryUntrackedLeg{Venue: name, Symbol: sym, Market: venue.MarketSpot, Qty: short, Side: venue.SideBuy, ReduceOnly: false}, &out)
