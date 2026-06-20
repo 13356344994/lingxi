@@ -949,6 +949,10 @@ func (r *UnifiedRotationRunner) defaultScanRotationCandidates(ctx context.Contex
 	// 决策期流动性自适应:对粗筛 symbol 二次拉深度/24h 量,填 MarketSnap.Depth/Volume 字段。
 	unifiedMarketEnrichMarketsWithDepthVolume(ctx, r.venues, marketsByVenue, symbols)
 	availableUSDTByVenue := deps.fetchAvailableUSDT(ctx, r.venues, crossVenueExecutorVenues)
+	if r.logger != nil {
+		// C 取证:对比 equity 快照,定位"有钱却判余额不足"的 venue 级可用读数(扣储备前)。
+		r.logger.Printf("[统一轮动] 各所可用USDT(扣储备前)=%v", availableUSDTByVenue)
+	}
 	borrowDaily, borrowLimits := rotationBorrowMapsFromProbes(snap.BorrowProbes)
 	var borrowKnown *BorrowKnownAvailableRegistry
 	borrowDefaultDaily := 0.001
