@@ -283,7 +283,10 @@ func (e *CrossVenueExecutor) executeCrossVenueOpen(ctx context.Context, plan cro
 
 	_, _, deadlineBudget, _ := crossVenueMakerChaseParams(cfg)
 	firstLegDeadline := e.nowFn().Add(deadlineBudget)
-	highRes, err := e.placeCrossVenueLegExec(ctx, highTrader, highSym, venue.SideSell, openQtyHigh, highID, false, live, false, crossVenueResolvedIOCSlippageBps(cfg), firstLegDeadline, plan.Gate.HighInstr, highCaps.ContractBasedPerp)
+	// 极端价差(资费收益远超 taker 费)时第一腿允许 taker 兜底:H 这类高波动极端币 maker 挂单几乎吃不到,
+	// 不兜底就永远"第一腿 maker 未成交"开不出仓;EV 本就按 taker 计,故兜底不改变盈利预期。普通机会仍 maker-only。
+	firstLegAllowTakerFallback := crossVenueBypassesConfidenceDownsize(plan.Opp)
+	highRes, err := e.placeCrossVenueLegExec(ctx, highTrader, highSym, venue.SideSell, openQtyHigh, highID, false, live, firstLegAllowTakerFallback, crossVenueResolvedIOCSlippageBps(cfg), firstLegDeadline, plan.Gate.HighInstr, highCaps.ContractBasedPerp)
 	if orderStatusIsUnknown(highRes) || isUnknownOrderStateError(err) {
 		if highRes.ExecutedQty > executionQtyTolerance {
 			pos.HighLeg.Qty = highRes.ExecutedQty

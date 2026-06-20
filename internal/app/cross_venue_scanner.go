@@ -357,6 +357,8 @@ func (s *CrossVenueScanner) Run(ctx context.Context) {
 	s.logger.Printf("[跨所扫描] 已启动: interval=%s min_spread=%.0f%% alert_spread=%.0f%% top_n=%d venues=%d",
 		interval, s.cfg.MinSpreadAPR*100, s.cfg.AlertSpreadAPR*100, s.cfg.TopN, len(s.venues))
 
+	// 热加载:首轮全量扫描(~30min)完成前,先载入磁盘上最近一轮完整快照,让轮动立即有真实数据可决策。
+	s.warmStartFromDisk()
 	s.scanOnce(ctx)
 
 	ticker := time.NewTicker(interval)
@@ -414,6 +416,10 @@ func (s *CrossVenueScanner) scanOnce(ctx context.Context) {
 	s.lastSnapshot = snapshot
 	s.mu.Unlock()
 	s.appendScanSnapshot(snapshot)
+	// 落一份含 FundingByVenue 的"最新完整快照"单文件(覆盖写),供下次进程启动热加载,免等首轮全量扫描。
+	if err := crossVenuePersistLatestSnapshot(s.recordDir, snapshot); err != nil && s.logger != nil {
+		s.logger.Printf("[跨所扫描] 最新快照落盘失败(热加载用): %v", err)
+	}
 
 	okCount := 0
 	for _, st := range statuses {

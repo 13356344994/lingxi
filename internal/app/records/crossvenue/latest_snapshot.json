@@ -1,0 +1,93 @@
+{
+  "snapshot_id": "cvsnap-20260616T000000.000000000",
+  "scanned_at": "2026-06-16T00:00:00Z",
+  "venue_statuses": [
+    {
+      "venue": "binance",
+      "ok": false,
+      "symbol_count": 0,
+      "elapsed_ms": 0,
+      "error": "适配器未就绪(凭证缺失或未注册)"
+    },
+    {
+      "venue": "bybit",
+      "ok": true,
+      "symbol_count": 1,
+      "elapsed_ms": 0
+    },
+    {
+      "venue": "gate",
+      "ok": false,
+      "symbol_count": 0,
+      "elapsed_ms": 0,
+      "error": "适配器未就绪(凭证缺失或未注册)"
+    },
+    {
+      "venue": "okx",
+      "ok": true,
+      "symbol_count": 1,
+      "elapsed_ms": 0
+    }
+  ],
+  "opportunities": [
+    {
+      "symbol": "BTC-USDT",
+      "high_symbol": "BTC-USDT",
+      "low_symbol": "BTC-USDT",
+      "high_mult": 1,
+      "low_mult": 1,
+      "high_venue": "bybit",
+      "low_venue": "okx",
+      "snapshot_id": "cvsnap-20260616T000000.000000000",
+      "snapshot_time": "2026-06-16T00:00:00Z",
+      "high_annualized_apr": 0.5475,
+      "low_annualized_apr": 0.1095,
+      "spread_apr": 0.438,
+      "comparable_window_hours": 4,
+      "expected_hold_hours": 4,
+      "spread_ev": 0.003,
+      "open_cost": 0.01575,
+      "close_cost": 0.01575,
+      "expected_slippage": 0.018,
+      "observable_risk_cost": 0.004016250000000001,
+      "policy_buffer": 0.00315,
+      "net_ev": -0.17866625,
+      "capital_efficiency_ev": -0.011911083333333333,
+      "risk_adjusted_ev_per_hour": -0.03175724315677213,
+      "high_funding_rate": 0.0005,
+      "low_funding_rate": 0.0001,
+      "high_interval_hours": 8,
+      "low_interval_hours": 8,
+      "high_next_funding_time": "2026-06-16T04:00:00Z",
+      "low_next_funding_time": "2026-06-16T04:00:00Z",
+      "history_quality_score": 1,
+      "liquidity_score": 0.7,
+      "stability_score": 0.5,
+      "execution_score": 0.976,
+      "recovery_quality_score": 0.6174999999999999,
+      "rank_score": -0.17866625,
+      "no_trade_reason": "net_ev\u003c=0"
+    }
+  ],
+  "min_spread_apr": 0.01,
+  "opportunity_count": 1,
+  "funding_by_venue": {
+    "bybit": {
+      "BTC-USDT": {
+        "rate": 0.0005,
+        "interval_hours": 8,
+        "next_funding_time": "2026-06-16T04:00:00Z",
+        "spike_threshold": 0.00046,
+        "funding_history_samples": 5
+      }
+    },
+    "okx": {
+      "BTC-USDT": {
+        "rate": 0.0001,
+        "interval_hours": 8,
+        "next_funding_time": "2026-06-16T04:00:00Z",
+        "funding_history_samples": 1
+      }
+    }
+  }
+}
