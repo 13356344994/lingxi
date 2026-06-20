@@ -129,3 +129,14 @@
 2026/06/20 18:16:08 [carry-flatten] venue=bybit spot MNT-USDT≈18.431550 IOC成交≈18.430000 仍有余量，标记 unresolved_orphan
 2026/06/20 18:16:08 [critical][同所spot-perp] 同所spot-perp冷启动 flatten: 已对 1 条未登记腿执行 flatten ()
 2026/06/20 18:33:13 [跨所扫描] 机会 MNT-USDT spread=5.5% high=gate(10.9%) low=bybit(5.4%)
+2026/06/20 18:52:45 [跨所扫描] 机会 MNT-USDT spread=9.2% high=gate(10.9%) low=bybit(1.7%)
+2026/06/20 18:53:05 [carry-funnel] cvsp symbols=150 no_spot_venues=50 no_perp_venues=31 no_best_perp=0 pair_skip_same_venue=45 pair_attempts=77 build_market=0 build_instrument=0 build_mid_dev=1 build_notional=0 build_margin_stress=0 build_hold_hours=0 build_settlements=0 build_funding_window=76 build_funding_ev=0 build_conf_sizing=0 build_not_borrowable=0 emitted=0 emitted_rejected=0 emitted_tradable=0
+2026/06/20 19:04:11 [跨所扫描] 机会 MNT-USDT spread=12.4% high=gate(10.9%) low=bybit(-1.5%)
+2026/06/20 19:23:49 [跨所扫描] 机会 MNT-USDT spread=12.6% high=gate(10.9%) low=bybit(-1.6%)
+2026/06/20 19:23:54 [carry-funnel] cvsp symbols=150 no_spot_venues=48 no_perp_venues=31 no_best_perp=0 pair_skip_same_venue=49 pair_attempts=81 build_market=0 build_instrument=0 build_mid_dev=3 build_notional=0 build_margin_stress=0 build_hold_hours=0 build_settlements=0 build_funding_window=76 build_funding_ev=2 build_conf_sizing=0 build_not_borrowable=0 emitted=0 emitted_rejected=0 emitted_tradable=0
+2026/06/20 19:33:48 [跨所扫描] 机会 MNT-USDT spread=12.3% high=gate(10.9%) low=bybit(-1.4%)
+2026/06/20 19:43:08 [carry-funnel] cvsp symbols=150 no_spot_venues=45 no_perp_venues=31 no_best_perp=0 pair_skip_same_venue=47 pair_attempts=84 build_market=0 build_instrument=0 build_mid_dev=3 build_notional=81 build_margin_stress=0 build_hold_hours=0 build_settlements=0 build_funding_window=0 build_funding_ev=0 build_conf_sizing=0 build_not_borrowable=0 emitted=81 emitted_rejected=81 emitted_tradable=0
+2026/06/20 19:52:25 [跨所扫描] 机会 MNT-USDT spread=18.1% high=gate(10.9%) low=bybit(-7.2%)
+2026/06/20 20:17:47 [跨所扫描] 机会 MNT-USDT spread=17.3% high=gate(10.9%) low=bybit(-6.4%)
+2026/06/20 20:41:53 [跨所扫描] 机会 MNT-USDT spread=14.8% high=gate(10.9%) low=bybit(-3.8%)
+2026/06/20 20:54:47 [跨所扫描] 机会 MNT-USDT spread=16.5% high=gate(10.9%) low=bybit(-5.5%)
