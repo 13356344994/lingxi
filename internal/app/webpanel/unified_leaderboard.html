@@ -24,6 +24,8 @@
     .pill { display: inline-block; background: #334155; border-radius: 999px; padding: 2px 8px; margin: 2px 4px 2px 0; font-size: 11px; }
     pre { white-space: pre-wrap; word-break: break-word; margin: 0; font-size: 11px; }
     .funding-high { color: #fbbf24; font-weight: 600; }
+    .pill.funding-high { background: #422006; color: #fbbf24; border: 1px solid #a16207; }
+    .pill.funding-low { background: #082f49; color: #38bdf8; border: 1px solid #0369a1; }
     .blocker-box { background: #1e293b; border: 1px solid #475569; border-radius: 8px; padding: 12px 16px; margin-bottom: 20px; }
     .blocker-box h2 { margin: 0 0 8px 0; font-size: 15px; color: #fbbf24; }
     .hint { color: #94a3b8; font-size: 13px; margin-bottom: 12px; }
@@ -204,6 +206,18 @@
       return val ? '<span class="ok">是</span>' : '<span class="no">否</span>';
     }
 
+    // venuesCell:perp-perp 明确标注两腿——venues[0]=高费所(做空收资费),venues[1]=低费所(做多)。
+    // 其它策略(carry)高低语义不同,保持普通展示不误标。
+    function venuesCell(o) {
+      const venues = o.venues || [];
+      const isPP = String(o.strategy_type || '').toLowerCase() === 'perp_perp';
+      if (isPP && venues.length >= 2) {
+        return '<span class="pill funding-high" title="高费率所·做空(收资费)">'+esc(venues[0])+' ↑高·空</span>'
+             + '<span class="pill funding-low" title="低费率所·做多">'+esc(venues[1])+' ↓低·多</span>';
+      }
+      return venues.map(v=>'<span class="pill">'+esc(v)+'</span>').join('');
+    }
+
     const TABLE_HEAD =
       '<thead><tr>'+
       '<th>#</th><th>策略</th><th>交易对</th><th>交易所</th>'+
@@ -220,7 +234,7 @@
         '<td>'+o.rank+'</td>'+
         '<td>'+esc(strategyLabel(o.strategy_type))+'</td>'+
         '<td>'+esc(o.symbol)+'</td>'+
-        '<td>'+(o.venues||[]).map(v=>'<span class="pill">'+esc(v)+'</span>').join('')+'</td>'+
+        '<td>'+venuesCell(o)+'</td>'+
         '<td class="'+aprClass+'">'+pct(o.spread_apr)+'</td>'+
         '<td class="'+aprClass+'">'+pct(o.funding_apr)+'</td>'+
         '<td>'+pctRate(o.high_funding_rate)+'</td>'+
