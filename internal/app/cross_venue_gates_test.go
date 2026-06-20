@@ -195,8 +195,14 @@ func TestOpenGateMarginMatchesSizing(t *testing.T) {
 	if !res.OK {
 		t.Fatalf("expected gate pass at sizing-aligned margin 50, got reject: %s", res.Reason)
 	}
-	if res.NotionalUSDT+1e-9 < notional {
-		t.Fatalf("notional=%.2f want >= %.2f", res.NotionalUSDT, notional)
+	// 资金封顶:可用恰为 50 时,执行闸按 可用×lev×0.99 封顶名义到 148.5(留安全垫),
+	// 使所需保证金 49.5 严格小于可用 50 —— 正是修掉"49.99<50 几分钱误拒"的关键。
+	wantCapped := wantMargin * lev * crossVenueExecCapitalSizingHaircut
+	if math.Abs(res.NotionalUSDT-wantCapped) > 1e-6 {
+		t.Fatalf("notional=%.4f want capital-capped %.4f (avail×lev×haircut)", res.NotionalUSDT, wantCapped)
+	}
+	if gotMargin := crossVenuePerVenueMarginUSDT(cfg.CrossVenueExecutor, res.NotionalUSDT); gotMargin >= wantMargin {
+		t.Fatalf("required margin %.4f should be strictly < available %.4f", gotMargin, wantMargin)
 	}
 
 	// 旧口径要 75:perp=74 会误拒;新口径 50 应通过。

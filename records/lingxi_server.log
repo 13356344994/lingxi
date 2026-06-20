@@ -61876,3 +61876,1903 @@ c1f28c64a816de7c8acc4e41e01a8027 | cycle=
 2026/06/21 00:12:23 [统一轮动] 安全管理: strategy=perp_perp
 2026/06/21 00:12:23 [统一轮动] 安全管理: strategy=single_venue_spot_perp
 2026/06/21 00:12:23 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/21 00:13:07 [账户风控] OK daily_equity_delta=0.0044 daily_realized=0.0000 settlement_dd=0.2276 real_equity_dd=19.6038 positions=0 notional=0.00
+2026/06/21 00:13:22 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/21 00:13:22 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/21 00:13:22 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/21 00:13:22 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/21 00:13:22 [统一轮动] 安全管理: strategy=perp_perp
+2026/06/21 00:14:07 [账户风控] OK daily_equity_delta=0.0044 daily_realized=0.0000 settlement_dd=0.2276 real_equity_dd=19.6038 positions=0 notional=0.00
+2026/06/21 00:14:22 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/21 00:14:22 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/21 00:14:22 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/21 00:14:22 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/21 00:14:22 [统一轮动] 安全管理: strategy=perp_perp
+2026/06/21 00:15:07 [账户风控] OK daily_equity_delta=0.0044 daily_realized=0.0000 settlement_dd=0.2276 real_equity_dd=19.6038 positions=0 notional=0.00
+2026/06/21 00:15:18 [venue=gate] [调仓] [调仓清币] 跳过 AI:余额 0.00270300 取整后为 0(粉尘)
+2026/06/21 00:15:18 [venue=gate] [调仓] [调仓清币] 跳过 ASR:余额 0.09524800 取整后为 0(粉尘)
+2026/06/21 00:15:18 [venue=gate] [调仓] [调仓清币] 跳过 BAN:余额 0.00134000 取整后为 0(粉尘)
+2026/06/21 00:15:18 [venue=gate] [调仓] [调仓清币] 跳过 BTR:余额 0.11405000 取整后为 0(粉尘)
+2026/06/21 00:15:18 [venue=gate] [调仓] [调仓清币] 失败 DOGE:市价卖出 0.31000000 下单失败(gate: label=INVALID_PARAM_VALUE message="TimeInForce gtc is not support for market order")
+2026/06/21 00:15:18 [venue=gate] [调仓] [调仓清币] 跳过 PHA:余额 0.00614000 取整后为 0(粉尘)
+2026/06/21 00:15:18 [venue=gate] [调仓] [调仓清币] 跳过 US:余额 0.35551000 取整后为 0(粉尘)
+2026/06/21 00:15:18 [venue=gate] [调仓] [调仓清币] 跳过 ZEREBRO:余额 0.82784000 取整后为 0(粉尘)
+2026/06/21 00:15:18 [venue=gate] [gate] 目标交易仓位已调整为 50.00 USDT:futures=50.00,余量留资金账户=186.44。清币归一:跳过 AI:余额 0.00270300 取整后为 0(粉尘);跳过 ASR:余额 0.09524800 取整后为 0(粉尘);跳过 BAN:余额 0.00134000 取整后为 0(粉尘);跳过 BTR:余额 0.11405000 取整后为 0(粉尘);失败 DOGE:市价卖出 0.31000000 下单失败(gate: label=INVALID_PARAM_VALUE message="TimeInForce gtc is not support for market order");跳过 PHA:余额 0.00614000 取整后为 0(粉尘);跳过 US:余额 0.35551000 取整后为 0(粉尘);跳过 ZEREBRO:余额 0.82784000 取整后为 0(粉尘)。
+2026/06/21 00:15:19 [venue=okx] [调仓] [调仓清币] 跳过 ADA:余额 0.00002630 取整后为 0(粉尘)
+2026/06/21 00:15:19 [venue=okx] [调仓] [调仓清币] 跳过 AGLD:余额 0.00000039 取整后为 0(粉尘)
+2026/06/21 00:15:19 [venue=bybit] [调仓] [调仓清币] 跳过 BEL:余额 0.00100000 取整后为 0(粉尘)
+2026/06/21 00:15:19 [venue=bybit] [调仓] [调仓清币] 跳过 MBOX:余额 0.00300000 取整后为 0(粉尘)
+2026/06/21 00:15:19 [venue=bybit] [调仓] [调仓清币] 跳过 RPL:余额 0.00797000 取整后为 0(粉尘)
+2026/06/21 00:15:19 [venue=okx] [调仓] [调仓清币] 失败 DOGE:市价卖出 0.32336400 下单失败(okx: code=1 msg="All operations failed" detail=[{"clOrdId":"","ordId":"","sCode":"51020","sMsg":"Your order should meet or exceed the minimum order amount.","subCode":"","tag":"","ts":"1781972119136"}])
+2026/06/21 00:15:19 [venue=okx] [调仓] [调仓清币] 跳过 DOGS:余额 0.22200000 取整后为 0(粉尘)
+2026/06/21 00:15:19 [venue=okx] [调仓] [调仓清币] 跳过 HMSTR:余额 0.06470000 取整后为 0(粉尘)
+2026/06/21 00:15:19 [venue=okx] [调仓] [调仓清币] 跳过 MENGO:余额 0.00006056 取整后为 0(粉尘)
+2026/06/21 00:15:19 [venue=okx] [调仓] [调仓清币] 跳过 MERL:余额 0.00020500 取整后为 0(粉尘)
+2026/06/21 00:15:19 [venue=okx] [调仓] [调仓清币] 跳过 NEIRO:余额 0.83520000 取整后为 0(粉尘)
+2026/06/21 00:15:19 [venue=okx] [调仓] [调仓清币] 跳过 PNUT:余额 0.00060447 取整后为 0(粉尘)
+2026/06/21 00:15:19 [venue=okx] [调仓] [调仓清币] 跳过 W:余额 0.00008600 取整后为 0(粉尘)
+2026/06/21 00:15:19 [venue=okx] [okx] 目标交易仓位已调整为 50.00 USDT:trading=50.00,余量留资金账户=39.52。清币归一:跳过 ADA:余额 0.00002630 取整后为 0(粉尘);跳过 AGLD:余额 0.00000039 取整后为 0(粉尘);失败 DOGE:市价卖出 0.32336400 下单失败(okx: code=1 msg="All operations failed" detail=[{"clOrdId":"","ordId":"","sCode":"51020","sMsg":"Your order should meet or exceed the minimum order amount.","subCode":"","tag":"","ts":"1781972119136"}]);跳过 DOGS:余额 0.22200000 取整后为 0(粉尘);跳过 HMSTR:余额 0.06470000 取整后为 0(粉尘);跳过 MENGO:余额 0.00006056 取整后为 0(粉尘);跳过 MERL:余额 0.00020500 取整后为 0(粉尘);跳过 NEIRO:余额 0.83520000 取整后为 0(粉尘);跳过 PNUT:余额 0.00060447 取整后为 0(粉尘);跳过 W:余额 0.00008600 取整后为 0(粉尘)。
+2026/06/21 00:15:19 [venue=bybit] [bybit] 目标交易仓位已调整为 50.00 USDT:unified=50.00,余量留资金账户=99.53。清币归一:跳过 BEL:余额 0.00100000 取整后为 0(粉尘);跳过 MBOX:余额 0.00300000 取整后为 0(粉尘);跳过 RPL:余额 0.00797000 取整后为 0(粉尘)。
+2026/06/21 00:15:19 目标交易仓位已调整为 50.00 USDT：UM futures=50.00(100%)，funding 余量=18.44。清币归一:跳过 funding/PEPE:交易所拒绝粉尘划转(32.62000000,精度/最小额不满足),忽略;跳过 spot/BEL:数量 0.00000000 低于最小可下单门槛(粉尘,约 0.00 USDT);跳过 cross_margin/BNB:数量 0.00100000 低于最小可下单门槛(粉尘,约 0.59 USDT);跳过 cross_margin/FLUX:数量 0.11000000 低于最小可下单门槛(粉尘,约 0.01 USDT)。
+2026/06/21 00:15:22 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/21 00:15:22 [统一轮动] 安全管理: strategy=perp_perp
+2026/06/21 00:15:22 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/21 00:15:22 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/21 00:15:22 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/21 00:16:07 [账户风控] OK daily_equity_delta=0.0017 daily_realized=0.0000 settlement_dd=0.2276 real_equity_dd=19.6065 positions=0 notional=0.00
+2026/06/21 00:16:22 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/21 00:16:22 [统一轮动] 安全管理: strategy=perp_perp
+2026/06/21 00:16:22 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/21 00:16:22 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/21 00:16:22 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/21 00:17:07 [账户风控] OK daily_equity_delta=0.0017 daily_realized=0.0000 settlement_dd=0.2276 real_equity_dd=19.6065 positions=0 notional=0.00
+2026/06/21 00:17:22 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/21 00:17:22 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/21 00:17:22 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/21 00:17:22 [统一轮动] 安全管理: strategy=perp_perp
+2026/06/21 00:17:22 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/21 00:18:07 [账户风控] OK daily_equity_delta=0.0017 daily_realized=0.0000 settlement_dd=0.2276 real_equity_dd=19.6065 positions=0 notional=0.00
+2026/06/21 00:18:22 [统一轮动] 安全管理: strategy=perp_perp
+2026/06/21 00:18:22 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/21 00:18:22 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/21 00:18:22 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/21 00:18:22 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/21 00:19:07 [账户风控] OK daily_equity_delta=0.0089 daily_realized=0.0000 settlement_dd=0.2276 real_equity_dd=19.5993 positions=0 notional=0.00
+2026/06/21 00:19:22 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/21 00:19:22 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/21 00:19:22 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/21 00:19:22 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/21 00:19:22 [统一轮动] 安全管理: strategy=perp_perp
+2026/06/21 00:20:07 [账户风控] OK daily_equity_delta=0.0089 daily_realized=0.0000 settlement_dd=0.2276 real_equity_dd=19.5993 positions=0 notional=0.00
+2026/06/21 00:20:22 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/21 00:20:22 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/21 00:20:22 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/21 00:20:22 [统一轮动] 安全管理: strategy=perp_perp
+2026/06/21 00:20:22 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/21 00:21:00 [perp-perp-diag] H-USDT venues=4 legs=[gate raw=-0.00216600 apr=-1897.42% interval=1h next=2026-06-20T17:00:00Z(real); binance raw=-0.01263930 apr=-2768.01% interval=4h next=2026-06-20T20:00:00Z(real); bybit raw=-0.00358092 apr=-3136.89% interval=1h next=2026-06-20T17:00:00Z(real); okx raw=-0.00396171 apr=-1735.23% interval=2h next=2026-06-20T20:00:00Z(real)] paired=true spreadAPR=1401.66% entered=true netEV=0.8450 rankScore=0.8450 inTop30=true topNTruncated=false reject="" | cost: chosen_notional=146.95 notional=146.95 spreadEV=1.4108 open=0.1543 close=0.1543 slip=0.0620 obsRisk=0.0393 policy=0.0309
+2026/06/21 00:21:00 [perp-perp-diag] PEPE-USDC venues=1 legs=[binance raw=-0.00007382 apr=-8.08% interval=8h next=2026-06-21T00:00:00Z(real)] paired=false spreadAPR=0.00% entered=false netEV=0.0000 rankScore=0.0000 inTop30=false topNTruncated=false reject="venues=1 need>=2" | cost: chosen_notional=0.00 notional=0.00 spreadEV=0.0000 open=0.0000 close=0.0000 slip=0.0000 obsRisk=0.0000 policy=0.0000
+2026/06/21 00:21:00 [perp-perp-diag] PEPE-USDT venues=4 legs=[gate raw=0.00009300 apr=10.18% interval=8h next=2026-06-21T00:00:00Z(real); binance raw=-0.00000593 apr=-0.65% interval=8h next=2026-06-21T00:00:00Z(real); bybit raw=0.00010000 apr=10.95% interval=8h next=2026-06-21T00:00:00Z(real); okx raw=0.00010000 apr=10.95% interval=8h next=2026-06-21T08:00:00Z(real)] paired=true spreadAPR=11.60% entered=true netEV=-0.1848 rankScore=0.0000 inTop30=false topNTruncated=true reject="" | cost: chosen_notional=24.93 notional=24.93 spreadEV=0.0013 open=0.0262 close=0.0262 slip=0.0000 obsRisk=0.0034 policy=0.0052
+2026/06/21 00:21:00 [perp-perp-diag] BTT-USDT venues=1 legs=[bybit raw=-0.00317781 apr=-347.97% interval=8h next=2026-06-21T00:00:00Z(real)] paired=false spreadAPR=0.00% entered=false netEV=0.0000 rankScore=0.0000 inTop30=false topNTruncated=false reject="venues=1 need>=2" | cost: chosen_notional=0.00 notional=0.00 spreadEV=0.0000 open=0.0000 close=0.0000 slip=0.0000 obsRisk=0.0000 policy=0.0000
+2026/06/21 00:21:00 [跨所扫描] 完成: venues_ok=4/4 opportunities=424 elapsed=8m53.139s
+2026/06/21 00:21:00 [跨所扫描] 机会 H-USDT spread=1401.7% high=okx(-1735.2%) low=bybit(-3136.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 AERGO-USDT spread=581.5% high=binance(-80.8%) low=bybit(-662.3%)
+2026/06/21 00:21:00 [跨所扫描] 机会 ALICE-USDT spread=563.8% high=gate(-248.2%) low=binance(-812.1%)
+2026/06/21 00:21:00 [跨所扫描] 机会 HOME-USDT spread=399.7% high=bybit(-245.1%) low=okx(-644.8%)
+2026/06/21 00:21:00 [跨所扫描] 机会 PANW-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 B3-USDT spread=373.4% high=bybit(10.9%) low=gate(-362.4%)
+2026/06/21 00:21:00 [跨所扫描] 机会 ISRG-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 ROK-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 TER-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 GEV-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 CIEN-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 VRT-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 SHLD-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 RE-USDT spread=324.5% high=bybit(10.9%) low=okx(-313.5%)
+2026/06/21 00:21:00 [跨所扫描] 机会 ALAB-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 AMAT-USDT spread=348.3% high=bybit(348.3%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 LYN-USDT spread=298.7% high=gate(309.7%) low=binance(10.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 CGNX-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 SAHARA-USDT spread=258.2% high=bybit(10.9%) low=binance(-247.3%)
+2026/06/21 00:21:00 [跨所扫描] 机会 ESP-USDT spread=415.2% high=bybit(10.9%) low=gate(-404.3%)
+2026/06/21 00:21:00 [跨所扫描] 机会 INFQ-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 BTW-USDT spread=181.1% high=gate(805.7%) low=binance(624.6%)
+2026/06/21 00:21:00 [跨所扫描] 机会 CRM-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 MU-USDT spread=42.9% high=binance(0.0%) low=bybit(-42.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 SHIB-USDT spread=6.3% high=okx(-23.6%) low=binance(-29.8%)
+2026/06/21 00:21:00 [跨所扫描] 机会 SPELL-USDT spread=304.7% high=binance(-56.7%) low=gate(-361.5%)
+2026/06/21 00:21:00 [跨所扫描] 机会 GUN-USDT spread=216.5% high=gate(10.9%) low=bybit(-205.5%)
+2026/06/21 00:21:00 [跨所扫描] 机会 LUNC-USDT spread=47.3% high=bybit(10.9%) low=gate(-36.4%)
+2026/06/21 00:21:00 [跨所扫描] 机会 RARE-USDT spread=207.0% high=bybit(9.7%) low=gate(-197.3%)
+2026/06/21 00:21:00 [跨所扫描] 机会 QQQ-USDT spread=44.0% high=binance(0.0%) low=bybit(-44.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 SMH-USDT spread=130.0% high=okx(140.9%) low=gate(10.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 XLE-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 JST-USDT spread=81.7% high=binance(2.2%) low=gate(-79.5%)
+2026/06/21 00:21:00 [跨所扫描] 机会 SKHYNIX-USDT spread=160.4% high=okx(174.8%) low=binance(14.3%)
+2026/06/21 00:21:00 [跨所扫描] 机会 FOLKS-USDT spread=258.0% high=gate(280.4%) low=bybit(22.5%)
+2026/06/21 00:21:00 [跨所扫描] 机会 O-USDT spread=121.8% high=okx(132.3%) low=gate(10.5%)
+2026/06/21 00:21:00 [跨所扫描] 机会 ANIME-USDT spread=156.9% high=binance(-19.6%) low=gate(-176.5%)
+2026/06/21 00:21:00 [跨所扫描] 机会 BEL-USDT spread=235.1% high=gate(169.0%) low=binance(-66.1%)
+2026/06/21 00:21:00 [跨所扫描] 机会 CLANKER-USDT spread=182.4% high=bybit(193.4%) low=gate(10.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 PHAROS-USDT spread=156.9% high=binance(10.9%) low=bybit(-145.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 STABLE-USDT spread=144.0% high=gate(3.1%) low=binance(-140.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 INTC-USDT spread=31.4% high=okx(31.4%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 V-USDT spread=21.9% high=binance(0.0%) low=gate(-21.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 CRCL-USDT spread=37.0% high=okx(37.0%) low=bybit(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 RKLB-USDT spread=146.0% high=bybit(146.0%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 TWLO-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 CYBER-USDT spread=140.7% high=gate(10.9%) low=bybit(-129.8%)
+2026/06/21 00:21:00 [跨所扫描] 机会 SPX-USDT spread=84.3% high=binance(10.9%) low=gate(-73.4%)
+2026/06/21 00:21:00 [跨所扫描] 机会 4-USDT spread=143.1% high=bybit(154.1%) low=gate(10.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 DUSK-USDT spread=236.3% high=binance(-42.6%) low=gate(-278.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 AXS-USDT spread=169.7% high=bybit(1.9%) low=okx(-167.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 PROVE-USDT spread=125.5% high=binance(10.9%) low=bybit(-114.5%)
+2026/06/21 00:21:00 [跨所扫描] 机会 COST-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 IO-USDT spread=132.1% high=binance(10.9%) low=bybit(-121.2%)
+2026/06/21 00:21:00 [跨所扫描] 机会 SLX-USDT spread=95.5% high=binance(106.4%) low=bybit(10.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 ESPORTS-USDT spread=180.9% high=bybit(750.1%) low=gate(569.2%)
+2026/06/21 00:21:00 [跨所扫描] 机会 C-USDT spread=195.4% high=gate(164.0%) low=binance(-31.4%)
+2026/06/21 00:21:00 [跨所扫描] 机会 NBIS-USDT spread=75.9% high=bybit(46.6%) low=binance(-29.3%)
+2026/06/21 00:21:00 [跨所扫描] 机会 CVC-USDT spread=157.6% high=bybit(10.9%) low=gate(-146.6%)
+2026/06/21 00:21:00 [跨所扫描] 机会 EDEN-USDT spread=146.8% high=gate(157.8%) low=binance(10.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 SUI-USDT spread=18.0% high=bybit(10.9%) low=binance(-7.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 XAUT-USDT spread=16.3% high=binance(0.8%) low=bybit(-15.5%)
+2026/06/21 00:21:00 [跨所扫描] 机会 EWY-USDT spread=48.1% high=bybit(48.1%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 XPIN-USDT spread=113.5% high=bybit(124.5%) low=gate(10.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 CHIP-USDT spread=126.4% high=bybit(10.9%) low=binance(-115.4%)
+2026/06/21 00:21:00 [跨所扫描] 机会 M-USDT spread=138.0% high=bybit(148.9%) low=gate(10.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 BR-USDT spread=193.2% high=bybit(204.2%) low=gate(10.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 VVV-USDT spread=75.4% high=binance(-187.0%) low=gate(-262.4%)
+2026/06/21 00:21:00 [跨所扫描] 机会 NG-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 HPE-USDT spread=34.6% high=okx(0.0%) low=gate(-34.6%)
+2026/06/21 00:21:00 [跨所扫描] 机会 LTC-USDT spread=7.3% high=bybit(3.0%) low=binance(-4.4%)
+2026/06/21 00:21:00 [跨所扫描] 机会 SOXL-USDT spread=17.8% high=bybit(17.8%) low=okx(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 COAI-USDT spread=141.4% high=bybit(152.4%) low=gate(10.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 BILL-USDT spread=35.9% high=gate(46.9%) low=binance(10.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 MAGMA-USDT spread=138.1% high=bybit(149.0%) low=gate(10.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 XCU-USDT spread=26.8% high=okx(0.0%) low=gate(-26.8%)
+2026/06/21 00:21:00 [跨所扫描] 机会 B-USDT spread=60.4% high=bybit(71.4%) low=gate(10.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 STG-USDT spread=78.0% high=bybit(10.5%) low=binance(-67.5%)
+2026/06/21 00:21:00 [跨所扫描] 机会 ERNEL-USDT spread=64.7% high=gate(10.9%) low=binance(-53.8%)
+2026/06/21 00:21:00 [跨所扫描] 机会 MSTR-USDT spread=74.9% high=okx(134.1%) low=bybit(59.2%)
+2026/06/21 00:21:00 [跨所扫描] 机会 YFI-USDT spread=58.6% high=bybit(9.9%) low=binance(-48.8%)
+2026/06/21 00:21:00 [跨所扫描] 机会 PLAY-USDT spread=60.4% high=binance(88.9%) low=gate(28.5%)
+2026/06/21 00:21:00 [跨所扫描] 机会 MASK-USDT spread=96.0% high=binance(10.9%) low=bybit(-85.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 RIVER-USDT spread=57.9% high=bybit(86.6%) low=binance(28.7%)
+2026/06/21 00:21:00 [跨所扫描] 机会 DAM-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 SIREN-USDT spread=104.1% high=gate(508.1%) low=bybit(403.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 XPL-USDT spread=43.4% high=okx(10.9%) low=gate(-32.4%)
+2026/06/21 00:21:00 [跨所扫描] 机会 ORCL-USDT spread=62.9% high=binance(0.0%) low=bybit(-62.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 SKY-USDT spread=19.4% high=gate(10.9%) low=okx(-8.4%)
+2026/06/21 00:21:00 [跨所扫描] 机会 OP-USDT spread=94.3% high=okx(-10.6%) low=bybit(-104.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 EDU-USDT spread=129.1% high=binance(10.9%) low=gate(-118.2%)
+2026/06/21 00:21:00 [跨所扫描] 机会 BONK-USDT spread=31.5% high=gate(10.9%) low=okx(-20.5%)
+2026/06/21 00:21:00 [跨所扫描] 机会 G-USDT spread=61.2% high=binance(-11.3%) low=gate(-72.5%)
+2026/06/21 00:21:00 [跨所扫描] 机会 AGT-USDT spread=31.3% high=binance(42.2%) low=gate(10.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 NFLX-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 SPORTFUN-USDT spread=144.1% high=binance(155.1%) low=bybit(10.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 ARIA-USDT spread=42.9% high=gate(53.9%) low=binance(10.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 BABY-USDT spread=36.7% high=gate(10.9%) low=bybit(-25.7%)
+2026/06/21 00:21:00 [跨所扫描] 机会 NXPC-USDT spread=39.0% high=binance(10.9%) low=gate(-28.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 IP-USDT spread=92.7% high=bybit(0.7%) low=okx(-92.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 PENGU-USDT spread=14.0% high=bybit(10.9%) low=binance(-3.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 B2-USDT spread=134.6% high=bybit(145.5%) low=binance(10.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 ADA-USDT spread=20.8% high=gate(10.9%) low=binance(-9.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 UNI-USDT spread=33.4% high=bybit(10.9%) low=gate(-22.4%)
+2026/06/21 00:21:00 [跨所扫描] 机会 XTZ-USDT spread=66.7% high=gate(10.9%) low=bybit(-55.7%)
+2026/06/21 00:21:00 [跨所扫描] 机会 HYPE-USDT spread=21.8% high=binance(10.2%) low=bybit(-11.7%)
+2026/06/21 00:21:00 [跨所扫描] 机会 POWR-USDT spread=83.7% high=gate(10.9%) low=bybit(-72.7%)
+2026/06/21 00:21:00 [跨所扫描] 机会 US-USDT spread=66.4% high=gate(77.3%) low=bybit(10.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 PIPPIN-USDT spread=10.6% high=bybit(21.5%) low=binance(10.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 DOT-USDT spread=25.8% high=okx(-2.3%) low=bybit(-28.1%)
+2026/06/21 00:21:00 [跨所扫描] 机会 ENS-USDT spread=24.0% high=binance(-4.6%) low=gate(-28.6%)
+2026/06/21 00:21:00 [跨所扫描] 机会 BIO-USDT spread=46.8% high=gate(10.9%) low=okx(-35.8%)
+2026/06/21 00:21:00 [跨所扫描] 机会 CRV-USDT spread=28.5% high=binance(-3.9%) low=gate(-32.4%)
+2026/06/21 00:21:00 [跨所扫描] 机会 OGN-USDT spread=39.5% high=gate(10.9%) low=binance(-28.5%)
+2026/06/21 00:21:00 [跨所扫描] 机会 PUMP-USDT spread=15.3% high=gate(10.9%) low=binance(-4.4%)
+2026/06/21 00:21:00 [跨所扫描] 机会 PLUME-USDT spread=20.9% high=gate(10.9%) low=binance(-9.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 PEPE-USDT spread=11.6% high=bybit(10.9%) low=binance(-0.6%)
+2026/06/21 00:21:00 [跨所扫描] 机会 MORPHO-USDT spread=63.7% high=binance(10.9%) low=gate(-52.8%)
+2026/06/21 00:21:00 [跨所扫描] 机会 APT-USDT spread=24.2% high=binance(-4.3%) low=gate(-28.5%)
+2026/06/21 00:21:00 [跨所扫描] 机会 INJ-USDT spread=34.5% high=binance(-24.1%) low=gate(-58.6%)
+2026/06/21 00:21:00 [跨所扫描] 机会 SUPER-USDT spread=134.5% high=gate(10.9%) low=bybit(-123.6%)
+2026/06/21 00:21:00 [跨所扫描] 机会 FLUX-USDT spread=63.7% high=binance(10.9%) low=gate(-52.8%)
+2026/06/21 00:21:00 [跨所扫描] 机会 ATOM-USDT spread=21.0% high=gate(-1.0%) low=binance(-22.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 GENIUS-USDT spread=31.3% high=bybit(10.9%) low=gate(-20.4%)
+2026/06/21 00:21:00 [跨所扫描] 机会 CFX-USDT spread=16.3% high=gate(10.9%) low=binance(-5.3%)
+2026/06/21 00:21:00 [跨所扫描] 机会 C98-USDT spread=60.7% high=bybit(27.5%) low=binance(-33.2%)
+2026/06/21 00:21:00 [跨所扫描] 机会 LUNR-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 WIF-USDT spread=10.6% high=gate(10.9%) low=binance(0.4%)
+2026/06/21 00:21:00 [跨所扫描] 机会 LINK-USDT spread=18.4% high=bybit(10.9%) low=okx(-7.5%)
+2026/06/21 00:21:00 [跨所扫描] 机会 TRX-USDT spread=13.6% high=binance(4.9%) low=bybit(-8.7%)
+2026/06/21 00:21:00 [跨所扫描] 机会 JCT-USDT spread=35.2% high=binance(46.2%) low=gate(10.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 ETC-USDT spread=22.0% high=binance(10.9%) low=bybit(-11.1%)
+2026/06/21 00:21:00 [跨所扫描] 机会 DOGE-USDT spread=13.8% high=okx(5.0%) low=gate(-8.8%)
+2026/06/21 00:21:00 [跨所扫描] 机会 ARB-USDT spread=24.1% high=bybit(-0.4%) low=gate(-24.5%)
+2026/06/21 00:21:00 [跨所扫描] 机会 COMP-USDT spread=67.0% high=okx(8.0%) low=bybit(-59.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 CFG-USDT spread=8.1% high=binance(10.9%) low=gate(2.8%)
+2026/06/21 00:21:00 [跨所扫描] 机会 SUN-USDT spread=19.6% high=binance(10.9%) low=gate(-8.7%)
+2026/06/21 00:21:00 [跨所扫描] 机会 WLD-USDT spread=11.8% high=gate(10.9%) low=okx(-0.8%)
+2026/06/21 00:21:00 [跨所扫描] 机会 XAI-USDT spread=33.2% high=gate(10.9%) low=binance(-22.2%)
+2026/06/21 00:21:00 [跨所扫描] 机会 PEOPLE-USDT spread=12.6% high=gate(10.9%) low=okx(-1.7%)
+2026/06/21 00:21:00 [跨所扫描] 机会 RAVE-USDT spread=17.7% high=gate(28.7%) low=binance(10.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 DYDX-USDT spread=7.3% high=gate(10.9%) low=binance(3.6%)
+2026/06/21 00:21:00 [跨所扫描] 机会 ENA-USDT spread=11.8% high=bybit(10.9%) low=gate(-0.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 POL-USDT spread=28.5% high=gate(10.9%) low=okx(-17.5%)
+2026/06/21 00:21:00 [跨所扫描] 机会 PROS-USDT spread=15.3% high=gate(26.3%) low=okx(10.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 PORTAL-USDT spread=109.5% high=bybit(10.9%) low=binance(-98.5%)
+2026/06/21 00:21:00 [跨所扫描] 机会 ZEST-USDT spread=79.4% high=bybit(123.2%) low=gate(43.8%)
+2026/06/21 00:21:00 [跨所扫描] 机会 STX-USDT spread=22.8% high=gate(10.9%) low=binance(-11.8%)
+2026/06/21 00:21:00 [跨所扫描] 机会 LAB-USDT spread=100.6% high=bybit(74.3%) low=binance(-26.3%)
+2026/06/21 00:21:00 [跨所扫描] 机会 TRUMP-USDT spread=46.5% high=gate(-5.5%) low=bybit(-52.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 NEAR-USDT spread=14.4% high=bybit(2.3%) low=gate(-12.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 SAND-USDT spread=69.5% high=gate(10.9%) low=okx(-58.6%)
+2026/06/21 00:21:00 [跨所扫描] 机会 MEW-USDT spread=20.9% high=gate(10.9%) low=bybit(-10.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 BMNR-USDT spread=28.0% high=binance(28.0%) low=bybit(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 GRT-USDT spread=9.0% high=bybit(-18.4%) low=gate(-27.5%)
+2026/06/21 00:21:00 [跨所扫描] 机会 SUSHI-USDT spread=13.4% high=bybit(10.9%) low=gate(-2.4%)
+2026/06/21 00:21:00 [跨所扫描] 机会 ZK-USDT spread=33.1% high=binance(10.9%) low=gate(-22.1%)
+2026/06/21 00:21:00 [跨所扫描] 机会 DRIFT-USDT spread=40.3% high=gate(51.2%) low=binance(10.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 HBAR-USDT spread=13.5% high=okx(10.9%) low=binance(-2.6%)
+2026/06/21 00:21:00 [跨所扫描] 机会 ONDO-USDT spread=24.5% high=gate(10.9%) low=binance(-13.5%)
+2026/06/21 00:21:00 [跨所扫描] 机会 XRP-USDT spread=12.5% high=bybit(10.9%) low=okx(-1.5%)
+2026/06/21 00:21:00 [跨所扫描] 机会 SOON-USDT spread=16.8% high=okx(27.8%) low=gate(10.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 CHZ-USDT spread=31.8% high=okx(-13.3%) low=gate(-45.1%)
+2026/06/21 00:21:00 [跨所扫描] 机会 JTO-USDT spread=48.0% high=gate(10.9%) low=okx(-37.1%)
+2026/06/21 00:21:00 [跨所扫描] 机会 NIL-USDT spread=44.5% high=binance(10.9%) low=gate(-33.5%)
+2026/06/21 00:21:00 [跨所扫描] 机会 LQTY-USDT spread=14.4% high=gate(10.9%) low=binance(-3.4%)
+2026/06/21 00:21:00 [跨所扫描] 机会 SPACE-USDT spread=56.7% high=gate(10.9%) low=okx(-45.8%)
+2026/06/21 00:21:00 [跨所扫描] 机会 FLOKI-USDT spread=17.3% high=gate(10.9%) low=okx(-6.4%)
+2026/06/21 00:21:00 [跨所扫描] 机会 ID-USDT spread=22.2% high=binance(-96.7%) low=gate(-118.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 LIT-USDT spread=9.9% high=gate(10.9%) low=okx(1.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 VIRTUAL-USDT spread=19.9% high=gate(10.9%) low=binance(-8.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 WLFI-USDT spread=33.1% high=binance(10.9%) low=bybit(-22.2%)
+2026/06/21 00:21:00 [跨所扫描] 机会 ZRO-USDT spread=12.9% high=binance(10.9%) low=gate(-2.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 COLLECT-USDT spread=7.0% high=binance(17.9%) low=gate(10.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 TIA-USDT spread=19.1% high=gate(10.9%) low=okx(-8.2%)
+2026/06/21 00:21:00 [跨所扫描] 机会 BARD-USDT spread=21.4% high=bybit(-8.2%) low=binance(-29.6%)
+2026/06/21 00:21:00 [跨所扫描] 机会 JASMY-USDT spread=24.4% high=gate(10.9%) low=binance(-13.4%)
+2026/06/21 00:21:00 [跨所扫描] 机会 USD1-USDT spread=33.1% high=bybit(10.9%) low=gate(-22.1%)
+2026/06/21 00:21:00 [跨所扫描] 机会 CAKE-USDT spread=42.0% high=bybit(10.9%) low=gate(-31.1%)
+2026/06/21 00:21:00 [跨所扫描] 机会 ALGO-USDT spread=21.6% high=gate(10.9%) low=binance(-10.7%)
+2026/06/21 00:21:00 [跨所扫描] 机会 PNUT-USDT spread=15.4% high=gate(10.9%) low=okx(-4.5%)
+2026/06/21 00:21:00 [跨所扫描] 机会 MEGA-USDT spread=34.4% high=gate(10.9%) low=binance(-23.4%)
+2026/06/21 00:21:00 [跨所扫描] 机会 STRK-USDT spread=45.6% high=bybit(10.9%) low=binance(-34.6%)
+2026/06/21 00:21:00 [跨所扫描] 机会 RUNE-USDT spread=21.1% high=gate(10.9%) low=binance(-10.1%)
+2026/06/21 00:21:00 [跨所扫描] 机会 ICP-USDT spread=29.1% high=gate(10.9%) low=okx(-18.1%)
+2026/06/21 00:21:00 [跨所扫描] 机会 ZAMA-USDT spread=11.7% high=gate(10.9%) low=okx(-0.8%)
+2026/06/21 00:21:00 [跨所扫描] 机会 ASR-USDT spread=82.6% high=gate(10.9%) low=binance(-71.7%)
+2026/06/21 00:21:00 [跨所扫描] 机会 BICO-USDT spread=91.4% high=bybit(-144.3%) low=okx(-235.7%)
+2026/06/21 00:21:00 [跨所扫描] 机会 SAMSUNG-USDT spread=74.8% high=okx(74.8%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 VELVET-USDT spread=34.9% high=bybit(47.8%) low=binance(12.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 FORM-USDT spread=10.0% high=bybit(21.0%) low=gate(10.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 GWEI-USDT spread=89.1% high=binance(10.9%) low=gate(-78.2%)
+2026/06/21 00:21:00 [跨所扫描] 机会 AVAX-USDT spread=7.0% high=bybit(10.9%) low=gate(3.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 ETHFI-USDT spread=25.3% high=gate(10.9%) low=okx(-14.3%)
+2026/06/21 00:21:00 [跨所扫描] 机会 CELO-USDT spread=6.2% high=gate(10.9%) low=binance(4.8%)
+2026/06/21 00:21:00 [跨所扫描] 机会 MON-USDT spread=26.5% high=gate(10.9%) low=bybit(-15.5%)
+2026/06/21 00:21:00 [跨所扫描] 机会 TAC-USDT spread=35.7% high=gate(74.0%) low=bybit(38.3%)
+2026/06/21 00:21:00 [跨所扫描] 机会 PTB-USDT spread=72.0% high=gate(114.3%) low=bybit(42.3%)
+2026/06/21 00:21:00 [跨所扫描] 机会 PIEVERSE-USDT spread=8.0% high=binance(19.0%) low=gate(10.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 ROSE-USDT spread=35.2% high=gate(10.9%) low=bybit(-24.3%)
+2026/06/21 00:21:00 [跨所扫描] 机会 ORCA-USDT spread=23.0% high=gate(10.9%) low=binance(-12.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 LDO-USDT spread=15.9% high=okx(10.9%) low=gate(-4.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 SFP-USDT spread=5.2% high=gate(10.9%) low=binance(5.8%)
+2026/06/21 00:21:00 [跨所扫描] 机会 LUNA-USDT spread=6.8% high=okx(17.8%) low=gate(10.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 AUCTION-USDT spread=11.4% high=gate(10.9%) low=okx(-0.4%)
+2026/06/21 00:21:00 [跨所扫描] 机会 LITE-USDT spread=46.6% high=gate(10.9%) low=okx(-35.7%)
+2026/06/21 00:21:00 [跨所扫描] 机会 CC-USDT spread=5.0% high=gate(10.9%) low=binance(5.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 PENDLE-USDT spread=19.2% high=binance(10.9%) low=gate(-8.2%)
+2026/06/21 00:21:00 [跨所扫描] 机会 SCR-USDT spread=6.5% high=gate(10.9%) low=binance(4.4%)
+2026/06/21 00:21:00 [跨所扫描] 机会 FIL-USDT spread=12.3% high=bybit(8.7%) low=binance(-3.6%)
+2026/06/21 00:21:00 [跨所扫描] 机会 LUMIA-USDT spread=52.1% high=gate(63.1%) low=binance(10.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 PHA-USDT spread=146.3% high=binance(2.6%) low=gate(-143.7%)
+2026/06/21 00:21:00 [跨所扫描] 机会 AR-USDT spread=10.1% high=gate(10.9%) low=okx(0.8%)
+2026/06/21 00:21:00 [跨所扫描] 机会 ENSO-USDT spread=54.6% high=okx(9.5%) low=gate(-45.1%)
+2026/06/21 00:21:00 [跨所扫描] 机会 RDW-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 BRETT-USDT spread=8.8% high=gate(10.9%) low=binance(2.2%)
+2026/06/21 00:21:00 [跨所扫描] 机会 CLO-USDT spread=165.7% high=binance(64.1%) low=gate(-101.6%)
+2026/06/21 00:21:00 [跨所扫描] 机会 ORDI-USDT spread=6.7% high=gate(10.9%) low=binance(4.3%)
+2026/06/21 00:21:00 [跨所扫描] 机会 OPENAI-USDT spread=5.5% high=binance(5.5%) low=okx(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 USDC-USDT spread=8.4% high=gate(8.4%) low=bybit(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 JUP-USDT spread=17.9% high=gate(10.9%) low=binance(-6.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 LA-USDT spread=7.8% high=gate(10.9%) low=okx(3.1%)
+2026/06/21 00:21:00 [跨所扫描] 机会 BEAT-USDT spread=39.7% high=okx(46.9%) low=gate(7.2%)
+2026/06/21 00:21:00 [跨所扫描] 机会 AERO-USDT spread=30.0% high=binance(10.9%) low=gate(-19.1%)
+2026/06/21 00:21:00 [跨所扫描] 机会 EVAA-USDT spread=112.3% high=bybit(123.3%) low=gate(10.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 IOTA-USDT spread=27.4% high=gate(10.9%) low=okx(-16.4%)
+2026/06/21 00:21:00 [跨所扫描] 机会 FIDA-USDT spread=46.6% high=bybit(-331.1%) low=gate(-377.8%)
+2026/06/21 00:21:00 [跨所扫描] 机会 1INCH-USDT spread=8.2% high=gate(10.9%) low=okx(2.8%)
+2026/06/21 00:21:00 [跨所扫描] 机会 SEI-USDT spread=10.6% high=bybit(10.9%) low=okx(0.3%)
+2026/06/21 00:21:00 [跨所扫描] 机会 BIRB-USDT spread=62.2% high=binance(10.9%) low=gate(-51.2%)
+2026/06/21 00:21:00 [跨所扫描] 机会 NC-USDT spread=94.2% high=gate(105.1%) low=binance(10.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 ATH-USDT spread=12.4% high=gate(10.9%) low=okx(-1.4%)
+2026/06/21 00:21:00 [跨所扫描] 机会 0G-USDT spread=47.5% high=gate(10.9%) low=okx(-36.6%)
+2026/06/21 00:21:00 [跨所扫描] 机会 XLM-USDT spread=15.4% high=gate(10.9%) low=binance(-4.4%)
+2026/06/21 00:21:00 [跨所扫描] 机会 CHR-USDT spread=7.6% high=gate(10.9%) low=binance(3.4%)
+2026/06/21 00:21:00 [跨所扫描] 机会 BROCCOLIF3B-USDT spread=99.4% high=gate(110.4%) low=binance(10.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 API3-USDT spread=7.2% high=gate(10.9%) low=binance(3.7%)
+2026/06/21 00:21:00 [跨所扫描] 机会 HIGH-USDT spread=763.1% high=bybit(763.1%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 RLC-USDT spread=26.5% high=gate(10.9%) low=binance(-15.5%)
+2026/06/21 00:21:00 [跨所扫描] 机会 EGLD-USDT spread=36.5% high=okx(10.6%) low=bybit(-26.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 ARK-USDT spread=17.1% high=gate(10.9%) low=binance(-6.2%)
+2026/06/21 00:21:00 [跨所扫描] 机会 BNT-USDT spread=50.5% high=gate(10.9%) low=binance(-39.5%)
+2026/06/21 00:21:00 [跨所扫描] 机会 BROCCOLI-USDT spread=55.0% high=bybit(66.0%) low=gate(10.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 RSR-USDT spread=16.1% high=gate(10.9%) low=binance(-5.2%)
+2026/06/21 00:21:00 [跨所扫描] 机会 APE-USDT spread=19.9% high=okx(10.9%) low=gate(-9.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 NOM-USDT spread=69.4% high=gate(10.9%) low=bybit(-58.5%)
+2026/06/21 00:21:00 [跨所扫描] 机会 TURBO-USDT spread=16.2% high=binance(10.9%) low=gate(-5.3%)
+2026/06/21 00:21:00 [跨所扫描] 机会 WAVES-USDT spread=43.3% high=bybit(10.9%) low=gate(-32.3%)
+2026/06/21 00:21:00 [跨所扫描] 机会 AITO-USDT spread=37.4% high=binance(10.9%) low=gate(-26.5%)
+2026/06/21 00:21:00 [跨所扫描] 机会 ZETA-USDT spread=32.1% high=gate(10.9%) low=okx(-21.1%)
+2026/06/21 00:21:00 [跨所扫描] 机会 ONT-USDT spread=8.8% high=gate(10.9%) low=binance(2.2%)
+2026/06/21 00:21:00 [跨所扫描] 机会 FIGHT-USDT spread=66.1% high=gate(77.1%) low=binance(10.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 MIRA-USDT spread=30.9% high=gate(10.9%) low=bybit(-20.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 RONIN-USDT spread=7.8% high=binance(0.1%) low=bybit(-7.7%)
+2026/06/21 00:21:00 [跨所扫描] 机会 FLR-USDT spread=12.2% high=gate(10.9%) low=bybit(-1.3%)
+2026/06/21 00:21:00 [跨所扫描] 机会 HUMA-USDT spread=16.4% high=binance(10.9%) low=okx(-5.5%)
+2026/06/21 00:21:00 [跨所扫描] 机会 RED-USDT spread=46.8% high=gate(10.9%) low=bybit(-35.8%)
+2026/06/21 00:21:00 [跨所扫描] 机会 BTR-USDT spread=40.8% high=binance(51.8%) low=gate(10.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 CARV-USDT spread=40.7% high=binance(10.9%) low=gate(-29.8%)
+2026/06/21 00:21:00 [跨所扫描] 机会 TUT-USDT spread=60.4% high=bybit(71.3%) low=gate(10.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 MBOX-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 GAS-USDT spread=41.5% high=gate(10.9%) low=okx(-30.6%)
+2026/06/21 00:21:00 [跨所扫描] 机会 MANA-USDT spread=52.5% high=bybit(10.9%) low=okx(-41.5%)
+2026/06/21 00:21:00 [跨所扫描] 机会 QTUM-USDT spread=13.8% high=gate(10.9%) low=okx(-2.8%)
+2026/06/21 00:21:00 [跨所扫描] 机会 USAR-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 BULLA-USDT spread=56.6% high=gate(143.4%) low=binance(86.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 CRO-USDT spread=27.4% high=gate(10.9%) low=okx(-16.5%)
+2026/06/21 00:21:00 [跨所扫描] 机会 MMT-USDT spread=12.7% high=gate(10.9%) low=okx(-1.8%)
+2026/06/21 00:21:00 [跨所扫描] 机会 TA-USDT spread=33.0% high=binance(43.9%) low=gate(10.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 GAIB-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 MTL-USDT spread=17.4% high=gate(10.9%) low=binance(-6.5%)
+2026/06/21 00:21:00 [跨所扫描] 机会 BAND-USDT spread=31.8% high=gate(10.9%) low=binance(-20.8%)
+2026/06/21 00:21:00 [跨所扫描] 机会 ANKR-USDT spread=14.8% high=bybit(10.9%) low=binance(-3.8%)
+2026/06/21 00:21:00 [跨所扫描] 机会 DOGS-USDT spread=8.5% high=gate(10.9%) low=binance(2.4%)
+2026/06/21 00:21:00 [跨所扫描] 机会 HIVE-USDT spread=57.4% high=bybit(10.9%) low=gate(-46.4%)
+2026/06/21 00:21:00 [跨所扫描] 机会 MAV-USDT spread=23.4% high=gate(10.9%) low=bybit(-12.4%)
+2026/06/21 00:21:00 [跨所扫描] 机会 TLM-USDT spread=5.0% high=binance(10.9%) low=gate(5.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 ARPA-USDT spread=6.4% high=gate(10.9%) low=binance(4.5%)
+2026/06/21 00:21:00 [跨所扫描] 机会 GMT-USDT spread=42.8% high=binance(10.9%) low=gate(-31.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 XCN-USDT spread=97.0% high=bybit(10.9%) low=gate(-86.1%)
+2026/06/21 00:21:00 [跨所扫描] 机会 BLUR-USDT spread=6.3% high=gate(10.9%) low=binance(4.7%)
+2026/06/21 00:21:00 [跨所扫描] 机会 ITE-USDT spread=17.1% high=binance(10.9%) low=gate(-6.1%)
+2026/06/21 00:21:00 [跨所扫描] 机会 MERL-USDT spread=5.8% high=gate(10.9%) low=bybit(5.2%)
+2026/06/21 00:21:00 [跨所扫描] 机会 ZEREBRO-USDT spread=11.9% high=binance(22.9%) low=gate(10.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 ZRX-USDT spread=22.8% high=gate(10.9%) low=okx(-11.8%)
+2026/06/21 00:21:00 [跨所扫描] 机会 NOK-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 TRUTH-USDT spread=62.7% high=okx(73.6%) low=gate(10.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 INX-USDT spread=19.9% high=gate(30.9%) low=binance(10.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 CELR-USDT spread=15.1% high=gate(10.9%) low=binance(-4.2%)
+2026/06/21 00:21:00 [跨所扫描] 机会 HEI-USDT spread=5.4% high=gate(10.9%) low=binance(5.6%)
+2026/06/21 00:21:00 [跨所扫描] 机会 IOTX-USDT spread=11.6% high=gate(10.9%) low=binance(-0.7%)
+2026/06/21 00:21:00 [跨所扫描] 机会 XVS-USDT spread=121.8% high=binance(-15.1%) low=gate(-136.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 MOVE-USDT spread=53.2% high=binance(64.2%) low=gate(10.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 LIGHT-USDT spread=20.0% high=bybit(31.0%) low=gate(10.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 OPN-USDT spread=18.6% high=okx(29.5%) low=gate(10.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 CKB-USDT spread=5.1% high=gate(10.9%) low=binance(5.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 TRUST-USDT spread=27.9% high=gate(10.9%) low=binance(-16.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 REZ-USDT spread=5.2% high=gate(10.9%) low=bybit(5.8%)
+2026/06/21 00:21:00 [跨所扫描] 机会 POWER-USDT spread=55.5% high=bybit(108.8%) low=binance(53.2%)
+2026/06/21 00:21:00 [跨所扫描] 机会 GEN-USDT spread=22.9% high=okx(33.9%) low=gate(10.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 LSK-USDT spread=91.5% high=binance(-24.6%) low=gate(-116.1%)
+2026/06/21 00:21:00 [跨所扫描] 机会 SSV-USDT spread=17.1% high=gate(10.9%) low=binance(-6.1%)
+2026/06/21 00:21:00 [跨所扫描] 机会 VANRY-USDT spread=5.3% high=gate(10.9%) low=binance(5.7%)
+2026/06/21 00:21:00 [跨所扫描] 机会 ENJ-USDT spread=28.9% high=gate(10.9%) low=bybit(-18.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 VANA-USDT spread=7.2% high=gate(10.9%) low=okx(3.8%)
+2026/06/21 00:21:00 [跨所扫描] 机会 MNO-USDT spread=51.7% high=binance(10.9%) low=gate(-40.7%)
+2026/06/21 00:21:00 [跨所扫描] 机会 BLESS-USDT spread=26.6% high=binance(37.6%) low=gate(10.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 TRADOOR-USDT spread=9.3% high=binance(20.2%) low=gate(10.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 BAS-USDT spread=15.8% high=gate(29.6%) low=binance(13.8%)
+2026/06/21 00:21:00 [跨所扫描] 机会 VIC-USDT spread=6.0% high=gate(10.9%) low=binance(5.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 A-USDT spread=93.7% high=binance(10.9%) low=gate(-82.8%)
+2026/06/21 00:21:00 [跨所扫描] 机会 HMSTR-USDT spread=21.7% high=gate(10.9%) low=binance(-10.7%)
+2026/06/21 00:21:00 [跨所扫描] 机会 AZTEC-USDT spread=6.3% high=binance(10.9%) low=okx(4.7%)
+2026/06/21 00:21:00 [跨所扫描] 机会 EPIC-USDT spread=110.3% high=gate(113.9%) low=binance(3.6%)
+2026/06/21 00:21:00 [跨所扫描] 机会 HANA-USDT spread=99.5% high=gate(160.3%) low=binance(60.8%)
+2026/06/21 00:21:00 [跨所扫描] 机会 ALCH-USDT spread=23.9% high=binance(34.8%) low=gate(10.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 UP-USDT spread=21.5% high=okx(10.9%) low=gate(-10.5%)
+2026/06/21 00:21:00 [跨所扫描] 机会 SWARMS-USDT spread=14.9% high=bybit(25.9%) low=gate(10.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 USELESS-USDT spread=24.0% high=binance(34.9%) low=gate(10.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 ARKM-USDT spread=41.2% high=gate(10.9%) low=bybit(-30.2%)
+2026/06/21 00:21:00 [跨所扫描] 机会 S-USDT spread=43.8% high=gate(10.9%) low=okx(-32.8%)
+2026/06/21 00:21:00 [跨所扫描] 机会 COOKIE-USDT spread=50.5% high=gate(10.9%) low=bybit(-39.6%)
+2026/06/21 00:21:00 [跨所扫描] 机会 DOLO-USDT spread=88.9% high=gate(10.9%) low=bybit(-77.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 IMX-USDT spread=8.4% high=gate(10.9%) low=okx(2.5%)
+2026/06/21 00:21:00 [跨所扫描] 机会 BX-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 BLEND-USDT spread=44.0% high=gate(10.9%) low=bybit(-33.1%)
+2026/06/21 00:21:00 [跨所扫描] 机会 WOO-USDT spread=66.9% high=gate(10.9%) low=bybit(-56.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 CORE-USDT spread=19.6% high=gate(10.9%) low=bybit(-8.6%)
+2026/06/21 00:21:00 [跨所扫描] 机会 ZBCN-USDT spread=211.4% high=gate(-110.8%) low=bybit(-322.2%)
+2026/06/21 00:21:00 [跨所扫描] 机会 NOW-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 SOLV-USDT spread=42.3% high=gate(10.9%) low=bybit(-31.3%)
+2026/06/21 00:21:00 [跨所扫描] 机会 NAORIS-USDT spread=39.9% high=gate(50.8%) low=binance(10.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 AIN-USDT spread=22.7% high=binance(54.7%) low=gate(32.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 ANTHROPIC-USDT spread=5.5% high=binance(5.5%) low=okx(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 VET-USDT spread=5.7% high=gate(-11.8%) low=bybit(-17.5%)
+2026/06/21 00:21:00 [跨所扫描] 机会 GME-USDT spread=17.3% high=gate(10.9%) low=okx(-6.3%)
+2026/06/21 00:21:00 [跨所扫描] 机会 RIVN-USDT spread=12.9% high=gate(12.9%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 SNX-USDT spread=37.5% high=gate(10.9%) low=bybit(-26.6%)
+2026/06/21 00:21:00 [跨所扫描] 机会 EWT-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 ON-USDT spread=7.0% high=gate(18.0%) low=binance(10.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 DRAM-USDT spread=246.1% high=gate(231.9%) low=bybit(-14.2%)
+2026/06/21 00:21:00 [跨所扫描] 机会 EBAY-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 FLNC-USDT spread=41.4% high=gate(41.4%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 EWJ-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 PAYP-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 ONDS-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 LRC-USDT spread=21.6% high=gate(10.9%) low=okx(-10.7%)
+2026/06/21 00:21:00 [跨所扫描] 机会 我踏马来了-USDT spread=144.9% high=binance(155.9%) low=gate(10.9%)
+2026/06/21 00:21:00 [跨所扫描] 机会 BABA-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 OL-USDT spread=32.5% high=okx(32.5%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 RAY-USDT spread=26.3% high=binance(0.0%) low=gate(-26.3%)
+2026/06/21 00:21:00 [跨所扫描] 机会 DIS-USDT spread=21.9% high=gate(21.9%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 FUN-USDT spread=12.5% high=binance(0.0%) low=gate(-12.5%)
+2026/06/21 00:21:00 [跨所扫描] 机会 AI-USDT spread=14.5% high=gate(14.5%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 UVXY-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 NVO-USDT spread=16.4% high=gate(16.4%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 BOB-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 DKNG-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 RLS-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 HD-USDT spread=21.9% high=gate(21.9%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 WMT-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 MLN-USDT spread=10.9% high=bybit(10.9%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 PUFFER-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 VINE-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 SNT-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 HIMS-USDT spread=28.2% high=gate(10.9%) low=okx(-17.3%)
+2026/06/21 00:21:00 [跨所扫描] 机会 SOL-USDT spread=11.7% high=gate(10.9%) low=binance(-0.7%)
+2026/06/21 00:21:00 [跨所扫描] 机会 ZM-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 URNM-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 QCOM-USDT spread=63.9% high=gate(10.9%) low=bybit(-53.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 XAG-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 EWZ-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 DEGEN-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 IREN-USDT spread=42.5% high=gate(10.9%) low=bybit(-31.5%)
+2026/06/21 00:21:00 [跨所扫描] 机会 AAVE-USDT spread=24.2% high=bybit(10.9%) low=gate(-13.2%)
+2026/06/21 00:21:00 [跨所扫描] 机会 UBER-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 BZ-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 CL-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 AXTI-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 LLY-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 ADBE-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 ASTS-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 MRVL-USDT spread=147.9% high=gate(18.3%) low=bybit(-129.6%)
+2026/06/21 00:21:00 [跨所扫描] 机会 CSCO-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 XPD-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 ASML-USDT spread=38.4% high=binance(0.0%) low=gate(-38.4%)
+2026/06/21 00:21:00 [跨所扫描] 机会 PAXG-USDT spread=29.8% high=bybit(10.9%) low=gate(-18.8%)
+2026/06/21 00:21:00 [跨所扫描] 机会 ETH-USDT spread=7.5% high=bybit(6.7%) low=gate(-0.8%)
+2026/06/21 00:21:00 [跨所扫描] 机会 BTC-USDT spread=8.9% high=bybit(9.4%) low=okx(0.5%)
+2026/06/21 00:21:00 [跨所扫描] 机会 SNDK-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 XAU-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 ZEC-USDT spread=26.4% high=okx(-7.3%) low=binance(-33.7%)
+2026/06/21 00:21:00 [跨所扫描] 机会 JPM-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 XPT-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 AAOI-USDT spread=135.4% high=gate(112.3%) low=binance(-23.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 IBM-USDT spread=155.7% high=gate(10.9%) low=bybit(-144.8%)
+2026/06/21 00:21:00 [跨所扫描] 机会 CRWV-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 BRKB-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 WDC-USDT spread=169.8% high=gate(169.8%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 CBRS-USDT spread=21.0% high=gate(10.9%) low=binance(-10.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 DELL-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 BNB-USDT spread=6.5% high=gate(10.9%) low=binance(4.5%)
+2026/06/21 00:21:00 [跨所扫描] 机会 ARM-USDT spread=179.4% high=gate(10.9%) low=bybit(-168.4%)
+2026/06/21 00:21:00 [跨所扫描] 机会 TSM-USDT spread=47.6% high=gate(10.9%) low=bybit(-36.6%)
+2026/06/21 00:21:00 [跨所扫描] 机会 MSFT-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 TAO-USDT spread=28.0% high=okx(10.9%) low=gate(-17.1%)
+2026/06/21 00:21:00 [跨所扫描] 机会 CRWD-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 SPCX-USDT spread=47.6% high=gate(47.6%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 AMD-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 AVGO-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 COHR-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 HYUNDAI-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 BE-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 CRDO-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 IWM-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 GLW-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 QNT-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 BP-USDT spread=5.5% high=gate(10.9%) low=bybit(5.5%)
+2026/06/21 00:21:00 [跨所扫描] 机会 D-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 COS-USDT spread=10.5% high=gate(10.5%) low=binance(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 BB-USDT spread=10.9% high=binance(10.9%) low=okx(0.0%)
+2026/06/21 00:21:00 [跨所扫描] 机会 AT-USDT spread=13.2% high=gate(10.9%) low=binance(-2.3%)
+2026/06/21 00:21:00 [跨所扫描] 机会 AVA-USDT spread=59.1% high=gate(10.9%) low=bybit(-48.1%)
+2026/06/21 00:21:00 [跨所扫描] 机会 AIA-USDT spread=216.7% high=gate(202.1%) low=bybit(-14.5%)
+2026/06/21 00:21:00 [跨所扫描] 价差告警(纯观测) H-USDT 年化价差 1401.7% 空 okx(-1735.2%/年,间隔 2h) 多 bybit(-3136.9%/年,间隔 1h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:21:00 [跨所扫描] 价差告警(纯观测) AERGO-USDT 年化价差 581.5% 空 binance(-80.8%/年,间隔 4h) 多 bybit(-662.3%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:21:00 [跨所扫描] 价差告警(纯观测) ALICE-USDT 年化价差 563.8% 空 gate(-248.2%/年,间隔 8h) 多 binance(-812.1%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:21:00 [跨所扫描] 价差告警(纯观测) HOME-USDT 年化价差 399.7% 空 bybit(-245.1%/年,间隔 1h) 多 okx(-644.8%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:21:00 [跨所扫描] 价差告警(纯观测) B3-USDT 年化价差 373.4% 空 bybit(10.9%/年,间隔 4h) 多 gate(-362.4%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:21:00 [跨所扫描] 价差告警(纯观测) RE-USDT 年化价差 324.5% 空 bybit(10.9%/年,间隔 4h) 多 okx(-313.5%/年,间隔 2h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:21:00 [跨所扫描] 价差告警(纯观测) AMAT-USDT 年化价差 348.3% 空 bybit(348.3%/年,间隔 8h) 多 binance(0.0%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:21:00 [跨所扫描] 价差告警(纯观测) LYN-USDT 年化价差 298.7% 空 gate(309.7%/年,间隔 4h) 多 binance(10.9%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:21:00 [跨所扫描] 价差告警(纯观测) SAHARA-USDT 年化价差 258.2% 空 bybit(10.9%/年,间隔 4h) 多 binance(-247.3%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:21:00 [跨所扫描] 价差告警(纯观测) ESP-USDT 年化价差 415.2% 空 bybit(10.9%/年,间隔 4h) 多 gate(-404.3%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:21:00 [跨所扫描] 价差告警(纯观测) BTW-USDT 年化价差 181.1% 空 gate(805.7%/年,间隔 4h) 多 binance(624.6%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:21:00 [跨所扫描] 价差告警(纯观测) SPELL-USDT 年化价差 304.7% 空 binance(-56.7%/年,间隔 8h) 多 gate(-361.5%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:21:00 [跨所扫描] 价差告警(纯观测) GUN-USDT 年化价差 216.5% 空 gate(10.9%/年,间隔 4h) 多 bybit(-205.5%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:21:00 [跨所扫描] 价差告警(纯观测) RARE-USDT 年化价差 207.0% 空 bybit(9.7%/年,间隔 4h) 多 gate(-197.3%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:21:00 [跨所扫描] 价差告警(纯观测) SMH-USDT 年化价差 130.0% 空 okx(140.9%/年,间隔 8h) 多 gate(10.9%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:21:00 [跨所扫描] 价差告警(纯观测) SKHYNIX-USDT 年化价差 160.4% 空 okx(174.8%/年,间隔 8h) 多 binance(14.3%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:21:00 [跨所扫描] 价差告警(纯观测) FOLKS-USDT 年化价差 258.0% 空 gate(280.4%/年,间隔 8h) 多 bybit(22.5%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:21:00 [跨所扫描] 价差告警(纯观测) O-USDT 年化价差 121.8% 空 okx(132.3%/年,间隔 4h) 多 gate(10.5%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:21:00 [跨所扫描] 价差告警(纯观测) ANIME-USDT 年化价差 156.9% 空 binance(-19.6%/年,间隔 4h) 多 gate(-176.5%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:21:00 [跨所扫描] 价差告警(纯观测) BEL-USDT 年化价差 235.1% 空 gate(169.0%/年,间隔 8h) 多 binance(-66.1%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:21:00 [跨所扫描] 价差告警(纯观测) CLANKER-USDT 年化价差 182.4% 空 bybit(193.4%/年,间隔 4h) 多 gate(10.9%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:21:00 [跨所扫描] 价差告警(纯观测) PHAROS-USDT 年化价差 156.9% 空 binance(10.9%/年,间隔 4h) 多 bybit(-145.9%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:21:00 [跨所扫描] 价差告警(纯观测) STABLE-USDT 年化价差 144.0% 空 gate(3.1%/年,间隔 4h) 多 binance(-140.9%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:21:00 [跨所扫描] 价差告警(纯观测) RKLB-USDT 年化价差 146.0% 空 bybit(146.0%/年,间隔 8h) 多 binance(0.0%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:21:00 [跨所扫描] 价差告警(纯观测) CYBER-USDT 年化价差 140.7% 空 gate(10.9%/年,间隔 8h) 多 bybit(-129.8%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:21:00 [跨所扫描] 价差告警(纯观测) 4-USDT 年化价差 143.1% 空 bybit(154.1%/年,间隔 4h) 多 gate(10.9%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:21:00 [跨所扫描] 价差告警(纯观测) DUSK-USDT 年化价差 236.3% 空 binance(-42.6%/年,间隔 4h) 多 gate(-278.9%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:21:00 [跨所扫描] 价差告警(纯观测) AXS-USDT 年化价差 169.7% 空 bybit(1.9%/年,间隔 8h) 多 okx(-167.9%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:21:00 [跨所扫描] 价差告警(纯观测) PROVE-USDT 年化价差 125.5% 空 binance(10.9%/年,间隔 4h) 多 bybit(-114.5%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:21:00 [跨所扫描] 价差告警(纯观测) IO-USDT 年化价差 132.1% 空 binance(10.9%/年,间隔 4h) 多 bybit(-121.2%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:21:00 [跨所扫描] 价差告警(纯观测) ESPORTS-USDT 年化价差 180.9% 空 bybit(750.1%/年,间隔 1h) 多 gate(569.2%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:21:00 [跨所扫描] 价差告警(纯观测) C-USDT 年化价差 195.4% 空 gate(164.0%/年,间隔 4h) 多 binance(-31.4%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:21:00 [跨所扫描] 价差告警(纯观测) CVC-USDT 年化价差 157.6% 空 bybit(10.9%/年,间隔 8h) 多 gate(-146.6%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:21:00 [跨所扫描] 价差告警(纯观测) EDEN-USDT 年化价差 146.8% 空 gate(157.8%/年,间隔 8h) 多 binance(10.9%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:21:00 [跨所扫描] 价差告警(纯观测) XPIN-USDT 年化价差 113.5% 空 bybit(124.5%/年,间隔 4h) 多 gate(10.9%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:21:00 [跨所扫描] 价差告警(纯观测) CHIP-USDT 年化价差 126.4% 空 bybit(10.9%/年,间隔 4h) 多 binance(-115.4%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:21:00 [跨所扫描] 价差告警(纯观测) M-USDT 年化价差 138.0% 空 bybit(148.9%/年,间隔 4h) 多 gate(10.9%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:21:00 [跨所扫描] 价差告警(纯观测) BR-USDT 年化价差 193.2% 空 bybit(204.2%/年,间隔 4h) 多 gate(10.9%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:21:00 [跨所扫描] 价差告警(纯观测) COAI-USDT 年化价差 141.4% 空 bybit(152.4%/年,间隔 4h) 多 gate(10.9%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:21:00 [跨所扫描] 价差告警(纯观测) MAGMA-USDT 年化价差 138.1% 空 bybit(149.0%/年,间隔 4h) 多 gate(10.9%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:21:00 [跨所扫描] 价差告警(纯观测) SIREN-USDT 年化价差 104.1% 空 gate(508.1%/年,间隔 1h) 多 bybit(403.9%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:21:00 [跨所扫描] 价差告警(纯观测) EDU-USDT 年化价差 129.1% 空 binance(10.9%/年,间隔 8h) 多 gate(-118.2%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:21:00 [跨所扫描] 价差告警(纯观测) SPORTFUN-USDT 年化价差 144.1% 空 binance(155.1%/年,间隔 4h) 多 bybit(10.9%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:21:00 [跨所扫描] 价差告警(纯观测) B2-USDT 年化价差 134.6% 空 bybit(145.5%/年,间隔 4h) 多 binance(10.9%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:21:00 [跨所扫描] 价差告警(纯观测) SUPER-USDT 年化价差 134.5% 空 gate(10.9%/年,间隔 8h) 多 bybit(-123.6%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:21:00 [跨所扫描] 价差告警(纯观测) PORTAL-USDT 年化价差 109.5% 空 bybit(10.9%/年,间隔 4h) 多 binance(-98.5%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:21:00 [跨所扫描] 价差告警(纯观测) LAB-USDT 年化价差 100.6% 空 bybit(74.3%/年,间隔 4h) 多 binance(-26.3%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:21:00 [跨所扫描] 价差告警(纯观测) PHA-USDT 年化价差 146.3% 空 binance(2.6%/年,间隔 4h) 多 gate(-143.7%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:21:00 [跨所扫描] 价差告警(纯观测) CLO-USDT 年化价差 165.7% 空 binance(64.1%/年,间隔 4h) 多 gate(-101.6%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:21:00 [跨所扫描] 价差告警(纯观测) EVAA-USDT 年化价差 112.3% 空 bybit(123.3%/年,间隔 4h) 多 gate(10.9%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:21:00 [跨所扫描] 价差告警(纯观测) HIGH-USDT 年化价差 763.1% 空 bybit(763.1%/年,间隔 8h) 多 binance(0.0%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:21:00 [跨所扫描] 价差告警(纯观测) XVS-USDT 年化价差 121.8% 空 binance(-15.1%/年,间隔 8h) 多 gate(-136.9%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:21:00 [跨所扫描] 价差告警(纯观测) EPIC-USDT 年化价差 110.3% 空 gate(113.9%/年,间隔 4h) 多 binance(3.6%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:21:00 [跨所扫描] 价差告警(纯观测) ZBCN-USDT 年化价差 211.4% 空 gate(-110.8%/年,间隔 4h) 多 bybit(-322.2%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:21:00 [跨所扫描] 价差告警(纯观测) DRAM-USDT 年化价差 246.1% 空 gate(231.9%/年,间隔 8h) 多 bybit(-14.2%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:21:00 [跨所扫描] 价差告警(纯观测) 我踏马来了-USDT 年化价差 144.9% 空 binance(155.9%/年,间隔 4h) 多 gate(10.9%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:21:00 [跨所扫描] 价差告警(纯观测) MRVL-USDT 年化价差 147.9% 空 gate(18.3%/年,间隔 8h) 多 bybit(-129.6%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:21:00 [跨所扫描] 价差告警(纯观测) AAOI-USDT 年化价差 135.4% 空 gate(112.3%/年,间隔 8h) 多 binance(-23.0%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:21:00 [跨所扫描] 价差告警(纯观测) IBM-USDT 年化价差 155.7% 空 gate(10.9%/年,间隔 8h) 多 bybit(-144.8%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:21:00 [跨所扫描] 价差告警(纯观测) WDC-USDT 年化价差 169.8% 空 gate(169.8%/年,间隔 8h) 多 binance(0.0%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:21:00 [跨所扫描] 价差告警(纯观测) ARM-USDT 年化价差 179.4% 空 gate(10.9%/年,间隔 8h) 多 bybit(-168.4%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:21:00 [跨所扫描] 价差告警(纯观测) AIA-USDT 年化价差 216.7% 空 gate(202.1%/年,间隔 4h) 多 bybit(-14.5%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:21:07 [账户风控] OK daily_equity_delta=0.0089 daily_realized=0.0000 settlement_dd=0.2276 real_equity_dd=19.5993 positions=0 notional=0.00
+2026/06/21 00:21:11 [借币探测] AERGO: binance不可借 bybit失败 okx不可借
+2026/06/21 00:21:11 [借币探测] TER: binance不可借 bybit失败 okx不可借
+2026/06/21 00:21:11 [借币探测] HOME: binance失败 bybit不可借 okx不可借
+2026/06/21 00:21:11 [借币探测] GEV: binance不可借 bybit失败 okx不可借
+2026/06/21 00:21:11 [借币探测] H: binance不可借 bybit不可借 okx不可借
+2026/06/21 00:21:11 [借币探测] B3: binance不可借 bybit不可借 okx失败
+2026/06/21 00:21:11 [借币探测] PANW: binance不可借 bybit失败 okx不可借
+2026/06/21 00:21:11 [借币探测] ROK: binance不可借 bybit失败 okx不可借
+2026/06/21 00:21:11 [借币探测] ALICE: binance失败 bybit失败 okx失败
+2026/06/21 00:21:11 [借币探测] ISRG: binance不可借 bybit失败 okx不可借
+2026/06/21 00:21:22 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/21 00:21:22 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/21 00:21:22 [统一轮动] 安全管理: strategy=perp_perp
+2026/06/21 00:21:22 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/21 00:21:22 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/21 00:22:07 [账户风控] OK daily_equity_delta=-0.0074 daily_realized=0.0000 settlement_dd=0.2276 real_equity_dd=19.6156 positions=0 notional=0.00
+2026/06/21 00:22:22 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/21 00:22:22 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/21 00:22:22 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/21 00:22:22 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/21 00:22:22 [统一轮动] 安全管理: strategy=perp_perp
+2026/06/21 00:23:07 [账户风控] OK daily_equity_delta=-0.0074 daily_realized=0.0000 settlement_dd=0.2276 real_equity_dd=19.6156 positions=0 notional=0.00
+2026/06/21 00:23:22 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/21 00:23:22 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/21 00:23:22 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/21 00:23:22 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/21 00:23:22 [统一轮动] 安全管理: strategy=perp_perp
+2026/06/21 00:24:07 [账户风控] OK daily_equity_delta=-0.0074 daily_realized=0.0000 settlement_dd=0.2276 real_equity_dd=19.6156 positions=0 notional=0.00
+2026/06/21 00:24:22 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/21 00:24:22 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/21 00:24:22 [统一轮动] 安全管理: strategy=perp_perp
+2026/06/21 00:24:22 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/21 00:24:22 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/21 00:25:07 [账户风控] OK daily_equity_delta=-0.0091 daily_realized=0.0000 settlement_dd=0.2276 real_equity_dd=19.6173 positions=0 notional=0.00
+2026/06/21 00:25:22 [统一轮动] 安全管理: strategy=perp_perp
+2026/06/21 00:25:22 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/21 00:25:22 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/21 00:25:22 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/21 00:25:22 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/21 00:26:07 [账户风控] OK daily_equity_delta=-0.0091 daily_realized=0.0000 settlement_dd=0.2276 real_equity_dd=19.6173 positions=0 notional=0.00
+2026/06/21 00:26:22 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/21 00:26:22 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/21 00:26:22 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/21 00:26:22 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/21 00:26:22 [统一轮动] 安全管理: strategy=perp_perp
+2026/06/21 00:27:07 [账户风控] OK daily_equity_delta=-0.0091 daily_realized=0.0000 settlement_dd=0.2276 real_equity_dd=19.6173 positions=0 notional=0.00
+2026/06/21 00:27:22 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/21 00:27:22 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/21 00:27:22 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/21 00:27:22 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/21 00:27:22 [统一轮动] 安全管理: strategy=perp_perp
+2026/06/21 00:28:07 [账户风控] OK daily_equity_delta=-0.0141 daily_realized=0.0000 settlement_dd=0.2276 real_equity_dd=19.6223 positions=0 notional=0.00
+2026/06/21 00:28:22 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/21 00:28:22 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/21 00:28:22 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/21 00:28:22 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/21 00:28:22 [统一轮动] 安全管理: strategy=perp_perp
+2026/06/21 00:29:07 [账户风控] OK daily_equity_delta=-0.0141 daily_realized=0.0000 settlement_dd=0.2276 real_equity_dd=19.6223 positions=0 notional=0.00
+2026/06/21 00:29:22 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/21 00:29:22 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/21 00:29:22 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/21 00:29:22 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/21 00:29:22 [统一轮动] 安全管理: strategy=perp_perp
+2026/06/21 00:30:07 [账户风控] OK daily_equity_delta=-0.0141 daily_realized=0.0000 settlement_dd=0.2276 real_equity_dd=19.6223 positions=0 notional=0.00
+2026/06/21 00:30:22 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/21 00:30:22 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/21 00:30:22 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/21 00:30:22 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/21 00:30:22 [统一轮动] 安全管理: strategy=perp_perp
+2026/06/21 00:31:07 [账户风控] OK daily_equity_delta=-0.0139 daily_realized=0.0000 settlement_dd=0.2276 real_equity_dd=19.6221 positions=0 notional=0.00
+2026/06/21 00:31:22 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/21 00:31:22 [统一轮动] 安全管理: strategy=perp_perp
+2026/06/21 00:31:22 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/21 00:31:22 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/21 00:31:22 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/21 00:32:07 [账户风控] OK daily_equity_delta=-0.0139 daily_realized=0.0000 settlement_dd=0.2276 real_equity_dd=19.6221 positions=0 notional=0.00
+2026/06/21 00:32:22 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/21 00:32:22 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/21 00:32:22 [统一轮动] 安全管理: strategy=perp_perp
+2026/06/21 00:32:22 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/21 00:32:22 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/21 00:33:07 [账户风控] OK daily_equity_delta=-0.0139 daily_realized=0.0000 settlement_dd=0.2276 real_equity_dd=19.6221 positions=0 notional=0.00
+2026/06/21 00:33:22 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/21 00:33:22 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/21 00:33:22 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/21 00:33:22 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/21 00:33:22 [统一轮动] 安全管理: strategy=perp_perp
+2026/06/21 00:34:07 [账户风控] OK daily_equity_delta=-0.0222 daily_realized=0.0000 settlement_dd=0.2276 real_equity_dd=19.6304 positions=0 notional=0.00
+2026/06/21 00:34:22 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/21 00:34:22 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/21 00:34:22 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/21 00:34:22 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/21 00:34:22 [统一轮动] 安全管理: strategy=perp_perp
+2026/06/21 00:35:07 [账户风控] OK daily_equity_delta=-0.0222 daily_realized=0.0000 settlement_dd=0.2276 real_equity_dd=19.6304 positions=0 notional=0.00
+2026/06/21 00:35:22 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/21 00:35:22 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/21 00:35:22 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/21 00:35:22 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/21 00:35:22 [统一轮动] 安全管理: strategy=perp_perp
+2026/06/21 00:36:07 [账户风控] OK daily_equity_delta=-0.0222 daily_realized=0.0000 settlement_dd=0.2276 real_equity_dd=19.6304 positions=0 notional=0.00
+2026/06/21 00:36:22 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/21 00:36:22 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/21 00:36:22 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/21 00:36:22 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/21 00:36:22 [统一轮动] 安全管理: strategy=perp_perp
+2026/06/21 00:37:07 [账户风控] OK daily_equity_delta=-0.0124 daily_realized=0.0000 settlement_dd=0.2276 real_equity_dd=19.6206 positions=0 notional=0.00
+2026/06/21 00:37:22 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/21 00:37:22 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/21 00:37:22 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/21 00:37:22 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/21 00:37:22 [统一轮动] 安全管理: strategy=perp_perp
+2026/06/21 00:38:07 [账户风控] OK daily_equity_delta=-0.0124 daily_realized=0.0000 settlement_dd=0.2276 real_equity_dd=19.6206 positions=0 notional=0.00
+2026/06/21 00:38:22 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/21 00:38:22 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/21 00:38:22 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/21 00:38:22 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/21 00:38:22 [统一轮动] 安全管理: strategy=perp_perp
+2026/06/21 00:39:07 [账户风控] OK daily_equity_delta=-0.0124 daily_realized=0.0000 settlement_dd=0.2276 real_equity_dd=19.6206 positions=0 notional=0.00
+2026/06/21 00:39:22 [统一轮动] 安全管理: strategy=perp_perp
+2026/06/21 00:39:22 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/21 00:39:22 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/21 00:39:22 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/21 00:39:22 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/21 00:40:07 [账户风控] OK daily_equity_delta=-0.0114 daily_realized=0.0000 settlement_dd=0.2276 real_equity_dd=19.6196 positions=0 notional=0.00
+2026/06/21 00:40:22 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/21 00:40:22 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/21 00:40:22 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/21 00:40:22 [统一轮动] 安全管理: strategy=perp_perp
+2026/06/21 00:40:22 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/21 00:41:07 [账户风控] OK daily_equity_delta=-0.0114 daily_realized=0.0000 settlement_dd=0.2276 real_equity_dd=19.6196 positions=0 notional=0.00
+2026/06/21 00:41:07 [统一轮动] 各所可用USDT(扣储备前)=map[binance:50 bybit:49.95261566 gate:236.437644380388 okx:49.99999999194814]
+2026/06/21 00:41:07 [carry-funnel] cvsp symbols=150 no_spot_venues=43 no_perp_venues=27 no_best_perp=0 pair_skip_same_venue=46 pair_attempts=102 build_market=0 build_instrument=0 build_mid_dev=2 build_notional=0 build_margin_stress=0 build_hold_hours=0 build_settlements=0 build_funding_window=100 build_funding_ev=0 build_conf_sizing=0 build_not_borrowable=0 emitted=0 emitted_rejected=0 emitted_tradable=0
+2026/06/21 00:41:07 [carry-funnel] cvps symbols=150 no_spot_venues=76 no_perp_venues=13 no_best_perp=0 pair_skip_same_venue=30 pair_attempts=63 build_market=0 build_instrument=0 build_mid_dev=0 build_notional=0 build_margin_stress=0 build_hold_hours=0 build_settlements=0 build_funding_window=55 build_funding_ev=0 build_conf_sizing=0 build_not_borrowable=8 emitted=0 emitted_rejected=0 emitted_tradable=0
+2026/06/21 00:41:09 [统一轮动] 扫描完成 snapshot=cvsnap-20260620T161207.452804566 funding_symbols=150
+  raw_total=918 raw_by_strategy=[svsp=287 cvsp=0 svps=207 cvps=0 perp_perp=424]
+  scanner_would_exec=1 rotation_would_exec=1 soft_reject=423 hard_reject=494
+2026/06/21 00:41:09 [统一轮动] 决策完成: held=0 raw=918 rotation_candidates=1 actions=1 blocked[net_ev=418 hard=0 balance=0] top_reject="min_open_notional" live=true
+2026/06/21 00:41:09 [统一轮动] 资金路由执行: executed=0 errs=0 live=true
+2026/06/21 00:41:09 [统一轮动] OPEN perp_perp H-USDT live=true
+2026/06/21 00:41:10 INFO bybit: signed trading agreement categoryV2=1
+2026/06/21 00:41:10 INFO bybit: signed trading agreement categoryV2=2
+2026/06/21 00:41:11 [统一轮动] OPEN 失败(已吞掉) perp_perp:H-USDT:okx+bybit:cvsnap-20260620T161207.452804566: 开仓闸: 高费所永续可用 USDT 50.00 < 所需 50.00
+2026/06/21 00:41:22 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/21 00:41:22 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/21 00:41:22 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/21 00:41:22 [统一轮动] 安全管理: strategy=perp_perp
+2026/06/21 00:41:22 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/21 00:41:43 [perp-perp-diag] PEPE-USDT venues=4 legs=[okx raw=0.00010000 apr=10.95% interval=8h next=2026-06-21T08:00:00Z(real); gate raw=-0.00011200 apr=-12.26% interval=8h next=2026-06-21T00:00:00Z(real); binance raw=-0.00002401 apr=-2.63% interval=8h next=2026-06-21T00:00:00Z(real); bybit raw=0.00010000 apr=10.95% interval=8h next=2026-06-21T00:00:00Z(real)] paired=true spreadAPR=23.21% entered=true netEV=-0.2005 rankScore=0.0000 inTop30=false topNTruncated=true reject="" | cost: chosen_notional=28.21 notional=28.21 spreadEV=0.0030 open=0.0282 close=0.0282 slip=0.0000 obsRisk=0.0114 policy=0.0056
+2026/06/21 00:41:43 [perp-perp-diag] BTT-USDT venues=1 legs=[bybit raw=-0.00140612 apr=-153.97% interval=8h next=2026-06-21T00:00:00Z(real)] paired=false spreadAPR=0.00% entered=false netEV=0.0000 rankScore=0.0000 inTop30=false topNTruncated=false reject="venues=1 need>=2" | cost: chosen_notional=0.00 notional=0.00 spreadEV=0.0000 open=0.0000 close=0.0000 slip=0.0000 obsRisk=0.0000 policy=0.0000
+2026/06/21 00:41:43 [perp-perp-diag] H-USDT venues=4 legs=[okx raw=-0.00390746 apr=-1711.47% interval=2h next=2026-06-20T20:00:00Z(real); gate raw=-0.00213900 apr=-1873.76% interval=1h next=2026-06-20T17:00:00Z(real); binance raw=-0.01206418 apr=-2642.06% interval=4h next=2026-06-20T20:00:00Z(real); bybit raw=-0.00203363 apr=-1781.46% interval=1h next=2026-06-20T17:00:00Z(real)] paired=true spreadAPR=930.59% entered=true netEV=0.4095 rankScore=0.4095 inTop30=true topNTruncated=false reject="" | cost: chosen_notional=148.22 notional=148.22 spreadEV=0.9447 open=0.1482 close=0.1482 slip=0.0377 obsRisk=0.0464 policy=0.0296
+2026/06/21 00:41:43 [perp-perp-diag] PEPE-USDC venues=1 legs=[binance raw=-0.00009410 apr=-10.30% interval=8h next=2026-06-21T00:00:00Z(real)] paired=false spreadAPR=0.00% entered=false netEV=0.0000 rankScore=0.0000 inTop30=false topNTruncated=false reject="venues=1 need>=2" | cost: chosen_notional=0.00 notional=0.00 spreadEV=0.0000 open=0.0000 close=0.0000 slip=0.0000 obsRisk=0.0000 policy=0.0000
+2026/06/21 00:41:43 [跨所扫描] 完成: venues_ok=4/4 opportunities=455 elapsed=10m31.963s
+2026/06/21 00:41:43 [跨所扫描] 机会 H-USDT spread=930.6% high=okx(-1711.5%) low=binance(-2642.1%)
+2026/06/21 00:41:43 [跨所扫描] 机会 AERGO-USDT spread=692.4% high=binance(-89.1%) low=bybit(-781.5%)
+2026/06/21 00:41:43 [跨所扫描] 机会 HOME-USDT spread=445.4% high=binance(-388.1%) low=bybit(-833.5%)
+2026/06/21 00:41:43 [跨所扫描] 机会 ESPORTS-USDT spread=418.1% high=bybit(897.5%) low=gate(479.4%)
+2026/06/21 00:41:43 [跨所扫描] 机会 LRC-USDT spread=71.1% high=gate(10.9%) low=bybit(-60.1%)
+2026/06/21 00:41:43 [跨所扫描] 机会 LLY-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 COST-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 ISRG-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 PANW-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 HYUNDAI-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 CSCO-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 XPD-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 TER-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 CRDO-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 CRWD-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 ASML-USDT spread=89.1% high=okx(0.0%) low=gate(-89.1%)
+2026/06/21 00:41:43 [跨所扫描] 机会 AMAT-USDT spread=338.7% high=bybit(338.7%) low=okx(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 ROK-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 BX-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 INFQ-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 CIEN-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 GEV-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 VRT-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 SHLD-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 XPT-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 IWM-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 ADBE-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 COHR-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 ALAB-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 DELL-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 EWT-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 ALICE-USDT spread=106.0% high=gate(-729.2%) low=binance(-835.1%)
+2026/06/21 00:41:43 [跨所扫描] 机会 EWJ-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 HNT-USDT spread=10.4% high=gate(-3.0%) low=bybit(-13.3%)
+2026/06/21 00:41:43 [跨所扫描] 机会 BE-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 RE-USDT spread=269.3% high=bybit(10.9%) low=okx(-258.4%)
+2026/06/21 00:41:43 [跨所扫描] 机会 SIREN-USDT spread=249.5% high=gate(713.9%) low=binance(464.4%)
+2026/06/21 00:41:43 [跨所扫描] 机会 SAHARA-USDT spread=237.7% high=bybit(10.9%) low=binance(-226.8%)
+2026/06/21 00:41:43 [跨所扫描] 机会 LYN-USDT spread=282.1% high=gate(293.0%) low=binance(10.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 URNM-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 STABLE-USDT spread=237.4% high=gate(10.9%) low=bybit(-226.4%)
+2026/06/21 00:41:43 [跨所扫描] 机会 NOW-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 DOLO-USDT spread=231.3% high=gate(10.9%) low=bybit(-220.4%)
+2026/06/21 00:41:43 [跨所扫描] 机会 SPELL-USDT spread=400.1% high=binance(-64.7%) low=gate(-464.7%)
+2026/06/21 00:41:43 [跨所扫描] 机会 CGNX-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 ESP-USDT spread=323.0% high=bybit(10.9%) low=gate(-312.1%)
+2026/06/21 00:41:43 [跨所扫描] 机会 FLOKI-USDT spread=61.1% high=bybit(10.9%) low=gate(-50.2%)
+2026/06/21 00:41:43 [跨所扫描] 机会 LUNC-USDT spread=14.0% high=binance(1.8%) low=gate(-12.2%)
+2026/06/21 00:41:43 [跨所扫描] 机会 ANIME-USDT spread=176.2% high=binance(-29.9%) low=gate(-206.1%)
+2026/06/21 00:41:43 [跨所扫描] 机会 NFLX-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 AVGO-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 EDU-USDT spread=239.4% high=binance(10.9%) low=gate(-228.4%)
+2026/06/21 00:41:43 [跨所扫描] 机会 NBIS-USDT spread=158.4% high=bybit(137.1%) low=binance(-21.3%)
+2026/06/21 00:41:43 [跨所扫描] 机会 SMH-USDT spread=130.8% high=okx(141.8%) low=gate(10.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 TLM-USDT spread=208.3% high=binance(10.9%) low=gate(-197.3%)
+2026/06/21 00:41:43 [跨所扫描] 机会 BTW-USDT spread=114.8% high=gate(760.6%) low=binance(645.8%)
+2026/06/21 00:41:43 [跨所扫描] 机会 INTC-USDT spread=50.2% high=okx(50.2%) low=binance(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 CRCL-USDT spread=33.7% high=okx(33.7%) low=bybit(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 VELVET-USDT spread=159.1% high=bybit(185.6%) low=binance(26.5%)
+2026/06/21 00:41:43 [跨所扫描] 机会 PHAROS-USDT spread=182.6% high=binance(10.9%) low=bybit(-171.7%)
+2026/06/21 00:41:43 [跨所扫描] 机会 GAS-USDT spread=120.4% high=binance(10.9%) low=gate(-109.5%)
+2026/06/21 00:41:43 [跨所扫描] 机会 SKHYNIX-USDT spread=163.4% high=okx(194.5%) low=binance(31.1%)
+2026/06/21 00:41:43 [跨所扫描] 机会 CHIP-USDT spread=123.6% high=bybit(-20.5%) low=gate(-144.1%)
+2026/06/21 00:41:43 [跨所扫描] 机会 QQQ-USDT spread=16.3% high=okx(0.0%) low=bybit(-16.3%)
+2026/06/21 00:41:43 [跨所扫描] 机会 XTZ-USDT spread=124.7% high=gate(10.9%) low=bybit(-113.7%)
+2026/06/21 00:41:43 [跨所扫描] 机会 CRM-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 FLUX-USDT spread=128.6% high=binance(10.9%) low=gate(-117.6%)
+2026/06/21 00:41:43 [跨所扫描] 机会 MAGMA-USDT spread=151.3% high=bybit(162.2%) low=gate(10.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 GLM-USDT spread=136.9% high=okx(10.9%) low=gate(-125.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 G-USDT spread=139.0% high=binance(-19.6%) low=gate(-158.6%)
+2026/06/21 00:41:43 [跨所扫描] 机会 LSK-USDT spread=328.0% high=bybit(3.8%) low=gate(-324.2%)
+2026/06/21 00:41:43 [跨所扫描] 机会 HPE-USDT spread=19.1% high=okx(0.0%) low=gate(-19.1%)
+2026/06/21 00:41:43 [跨所扫描] 机会 BANANA-USDT spread=119.7% high=binance(4.6%) low=bybit(-115.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 RKLB-USDT spread=123.5% high=bybit(123.5%) low=binance(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 AVAX-USDT spread=6.6% high=okx(10.9%) low=binance(4.4%)
+2026/06/21 00:41:43 [跨所扫描] 机会 DUSK-USDT spread=255.0% high=binance(-47.1%) low=gate(-302.1%)
+2026/06/21 00:41:43 [跨所扫描] 机会 C-USDT spread=173.9% high=gate(10.9%) low=bybit(-162.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 MSTR-USDT spread=131.4% high=okx(131.4%) low=bybit(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 FOLKS-USDT spread=208.6% high=gate(219.5%) low=bybit(10.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 RIVER-USDT spread=64.3% high=bybit(84.0%) low=gate(19.7%)
+2026/06/21 00:41:43 [跨所扫描] 机会 GLW-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 ASTS-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 IP-USDT spread=101.4% high=bybit(10.9%) low=okx(-90.4%)
+2026/06/21 00:41:43 [跨所扫描] 机会 VTHO-USDT spread=78.2% high=binance(10.9%) low=gate(-67.2%)
+2026/06/21 00:41:43 [跨所扫描] 机会 ZM-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 ASR-USDT spread=85.3% high=bybit(10.9%) low=binance(-74.3%)
+2026/06/21 00:41:43 [跨所扫描] 机会 AXS-USDT spread=133.8% high=bybit(-13.2%) low=okx(-147.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 XAUT-USDT spread=7.9% high=bybit(7.0%) low=binance(-0.8%)
+2026/06/21 00:41:43 [跨所扫描] 机会 ASTR-USDT spread=252.3% high=binance(10.9%) low=gate(-241.3%)
+2026/06/21 00:41:43 [跨所扫描] 机会 CLO-USDT spread=119.7% high=bybit(130.6%) low=gate(10.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 EWZ-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 SUI-USDT spread=18.9% high=bybit(10.9%) low=binance(-8.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 EWY-USDT spread=86.1% high=bybit(86.1%) low=okx(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 ONT-USDT spread=77.5% high=bybit(10.9%) low=gate(-66.6%)
+2026/06/21 00:41:43 [跨所扫描] 机会 4-USDT spread=169.0% high=bybit(208.3%) low=binance(39.3%)
+2026/06/21 00:41:43 [跨所扫描] 机会 MSFT-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 PORTAL-USDT spread=197.0% high=binance(-134.7%) low=bybit(-331.6%)
+2026/06/21 00:41:43 [跨所扫描] 机会 LTC-USDT spread=8.4% high=bybit(4.1%) low=binance(-4.3%)
+2026/06/21 00:41:43 [跨所扫描] 机会 CVC-USDT spread=205.1% high=bybit(10.9%) low=gate(-194.1%)
+2026/06/21 00:41:43 [跨所扫描] 机会 MERL-USDT spread=89.3% high=okx(10.9%) low=bybit(-78.4%)
+2026/06/21 00:41:43 [跨所扫描] 机会 BICO-USDT spread=86.7% high=binance(-153.5%) low=okx(-240.2%)
+2026/06/21 00:41:43 [跨所扫描] 机会 AGT-USDT spread=73.7% high=gate(117.2%) low=binance(43.4%)
+2026/06/21 00:41:43 [跨所扫描] 机会 CFG-USDT spread=25.0% high=binance(10.9%) low=gate(-14.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 FOGO-USDT spread=78.4% high=okx(10.9%) low=gate(-67.5%)
+2026/06/21 00:41:43 [跨所扫描] 机会 BABY-USDT spread=76.5% high=binance(10.9%) low=bybit(-65.6%)
+2026/06/21 00:41:43 [跨所扫描] 机会 B2-USDT spread=35.5% high=gate(46.4%) low=binance(10.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 TRUMP-USDT spread=51.6% high=okx(-15.8%) low=bybit(-67.4%)
+2026/06/21 00:41:43 [跨所扫描] 机会 FIDA-USDT spread=177.3% high=binance(-375.3%) low=bybit(-552.6%)
+2026/06/21 00:41:43 [跨所扫描] 机会 SKY-USDT spread=19.2% high=gate(10.9%) low=okx(-8.2%)
+2026/06/21 00:41:43 [跨所扫描] 机会 BSB-USDT spread=46.6% high=gate(57.6%) low=okx(10.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 BONK-USDT spread=25.3% high=binance(2.7%) low=bybit(-22.7%)
+2026/06/21 00:41:43 [跨所扫描] 机会 DAM-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 ROBO-USDT spread=29.5% high=okx(10.9%) low=bybit(-18.5%)
+2026/06/21 00:41:43 [跨所扫描] 机会 CLANKER-USDT spread=72.2% high=bybit(83.1%) low=gate(10.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 XCU-USDT spread=20.6% high=okx(0.0%) low=gate(-20.6%)
+2026/06/21 00:41:43 [跨所扫描] 机会 BARD-USDT spread=27.5% high=gate(-4.8%) low=binance(-32.3%)
+2026/06/21 00:41:43 [跨所扫描] 机会 MMT-USDT spread=52.6% high=gate(10.9%) low=bybit(-41.6%)
+2026/06/21 00:41:43 [跨所扫描] 机会 ONDO-USDT spread=24.8% high=bybit(10.9%) low=binance(-13.8%)
+2026/06/21 00:41:43 [跨所扫描] 机会 AERO-USDT spread=30.2% high=okx(10.9%) low=gate(-19.3%)
+2026/06/21 00:41:43 [跨所扫描] 机会 BLUR-USDT spread=103.2% high=binance(-8.8%) low=gate(-111.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 STG-USDT spread=73.2% high=bybit(10.9%) low=binance(-62.2%)
+2026/06/21 00:41:43 [跨所扫描] 机会 US-USDT spread=110.4% high=gate(121.3%) low=bybit(10.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 NEAR-USDT spread=10.6% high=bybit(3.7%) low=binance(-6.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 POLYX-USDT spread=65.5% high=bybit(11.2%) low=gate(-54.3%)
+2026/06/21 00:41:43 [跨所扫描] 机会 POL-USDT spread=42.0% high=gate(8.1%) low=bybit(-33.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 SAND-USDT spread=66.0% high=bybit(10.9%) low=binance(-55.1%)
+2026/06/21 00:41:43 [跨所扫描] 机会 ENSO-USDT spread=66.1% high=bybit(10.9%) low=gate(-55.2%)
+2026/06/21 00:41:43 [跨所扫描] 机会 SPX-USDT spread=49.1% high=okx(10.9%) low=gate(-38.1%)
+2026/06/21 00:41:43 [跨所扫描] 机会 ERNEL-USDT spread=92.8% high=gate(10.9%) low=bybit(-81.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 MEW-USDT spread=47.6% high=gate(10.9%) low=bybit(-36.6%)
+2026/06/21 00:41:43 [跨所扫描] 机会 USDC-USDT spread=9.3% high=gate(9.3%) low=okx(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 POWR-USDT spread=72.3% high=gate(10.9%) low=bybit(-61.3%)
+2026/06/21 00:41:43 [跨所扫描] 机会 VVV-USDT spread=86.6% high=bybit(-128.0%) low=gate(-214.6%)
+2026/06/21 00:41:43 [跨所扫描] 机会 ADA-USDT spread=20.9% high=gate(10.9%) low=binance(-10.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 CVX-USDT spread=85.4% high=okx(10.9%) low=gate(-74.5%)
+2026/06/21 00:41:43 [跨所扫描] 机会 OGN-USDT spread=24.7% high=gate(10.9%) low=binance(-13.8%)
+2026/06/21 00:41:43 [跨所扫描] 机会 COOKIE-USDT spread=210.9% high=gate(10.9%) low=bybit(-199.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 2Z-USDT spread=29.6% high=okx(10.9%) low=gate(-18.6%)
+2026/06/21 00:41:43 [跨所扫描] 机会 ME-USDT spread=126.6% high=okx(10.9%) low=bybit(-115.7%)
+2026/06/21 00:41:43 [跨所扫描] 机会 ENS-USDT spread=38.8% high=binance(-5.3%) low=gate(-44.1%)
+2026/06/21 00:41:43 [跨所扫描] 机会 BNT-USDT spread=30.1% high=bybit(-18.3%) low=binance(-48.4%)
+2026/06/21 00:41:43 [跨所扫描] 机会 JST-USDT spread=103.0% high=binance(1.6%) low=gate(-101.4%)
+2026/06/21 00:41:43 [跨所扫描] 机会 SKYAI-USDT spread=7.5% high=binance(18.5%) low=gate(10.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 METIS-USDT spread=169.4% high=gate(10.9%) low=bybit(-158.5%)
+2026/06/21 00:41:43 [跨所扫描] 机会 DOT-USDT spread=33.5% high=okx(-3.1%) low=gate(-36.6%)
+2026/06/21 00:41:43 [跨所扫描] 机会 PUMP-USDT spread=13.4% high=okx(10.9%) low=binance(-2.5%)
+2026/06/21 00:41:43 [跨所扫描] 机会 COMP-USDT spread=67.9% high=okx(3.5%) low=gate(-64.4%)
+2026/06/21 00:41:43 [跨所扫描] 机会 OP-USDT spread=58.6% high=gate(-7.7%) low=bybit(-66.3%)
+2026/06/21 00:41:43 [跨所扫描] 机会 PLAY-USDT spread=18.2% high=binance(87.7%) low=gate(69.4%)
+2026/06/21 00:41:43 [跨所扫描] 机会 UNI-USDT spread=38.1% high=bybit(10.9%) low=gate(-27.2%)
+2026/06/21 00:41:43 [跨所扫描] 机会 SEI-USDT spread=33.1% high=okx(-0.1%) low=gate(-33.3%)
+2026/06/21 00:41:43 [跨所扫描] 机会 TWLO-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 ATOM-USDT spread=18.3% high=okx(-3.8%) low=binance(-22.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 PENGU-USDT spread=19.5% high=okx(10.9%) low=gate(-8.5%)
+2026/06/21 00:41:43 [跨所扫描] 机会 BCH-USDT spread=8.1% high=okx(-16.2%) low=bybit(-24.4%)
+2026/06/21 00:41:43 [跨所扫描] 机会 SYRUP-USDT spread=34.4% high=okx(10.9%) low=gate(-23.4%)
+2026/06/21 00:41:43 [跨所扫描] 机会 ARB-USDT spread=22.5% high=bybit(0.3%) low=binance(-22.3%)
+2026/06/21 00:41:43 [跨所扫描] 机会 TAC-USDT spread=37.8% high=binance(48.8%) low=bybit(10.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 XLM-USDT spread=12.4% high=bybit(7.8%) low=binance(-4.6%)
+2026/06/21 00:41:43 [跨所扫描] 机会 RLC-USDT spread=61.0% high=binance(-17.7%) low=gate(-78.6%)
+2026/06/21 00:41:43 [跨所扫描] 机会 DOGE-USDT spread=11.0% high=bybit(5.9%) low=binance(-5.1%)
+2026/06/21 00:41:43 [跨所扫描] 机会 LA-USDT spread=57.8% high=okx(10.9%) low=gate(-46.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 STRK-USDT spread=41.9% high=bybit(10.9%) low=binance(-31.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 DIA-USDT spread=8.6% high=gate(10.9%) low=binance(2.4%)
+2026/06/21 00:41:43 [跨所扫描] 机会 ZEN-USDT spread=23.0% high=okx(10.9%) low=bybit(-12.1%)
+2026/06/21 00:41:43 [跨所扫描] 机会 VIRTUAL-USDT spread=16.1% high=okx(4.2%) low=binance(-11.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 ONG-USDT spread=44.2% high=gate(10.9%) low=bybit(-33.3%)
+2026/06/21 00:41:43 [跨所扫描] 机会 TIA-USDT spread=21.6% high=gate(10.9%) low=okx(-10.6%)
+2026/06/21 00:41:43 [跨所扫描] 机会 SUSHI-USDT spread=117.7% high=okx(1.1%) low=gate(-116.6%)
+2026/06/21 00:41:43 [跨所扫描] 机会 ETC-USDT spread=30.4% high=okx(10.9%) low=gate(-19.5%)
+2026/06/21 00:41:43 [跨所扫描] 机会 AUCTION-USDT spread=60.9% high=gate(10.9%) low=bybit(-49.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 M-USDT spread=148.4% high=bybit(159.3%) low=gate(10.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 WLD-USDT spread=11.2% high=gate(10.9%) low=okx(-0.3%)
+2026/06/21 00:41:43 [跨所扫描] 机会 SHIB-USDT spread=13.7% high=bybit(-19.0%) low=binance(-32.7%)
+2026/06/21 00:41:43 [跨所扫描] 机会 HBAR-USDT spread=17.2% high=okx(10.9%) low=gate(-6.2%)
+2026/06/21 00:41:43 [跨所扫描] 机会 NIGHT-USDT spread=11.6% high=okx(10.9%) low=gate(-0.7%)
+2026/06/21 00:41:43 [跨所扫描] 机会 LINK-USDT spread=8.8% high=bybit(1.7%) low=okx(-7.1%)
+2026/06/21 00:41:43 [跨所扫描] 机会 APT-USDT spread=26.1% high=okx(-5.1%) low=gate(-31.2%)
+2026/06/21 00:41:43 [跨所扫描] 机会 TOWNS-USDT spread=20.5% high=gate(10.9%) low=bybit(-9.6%)
+2026/06/21 00:41:43 [跨所扫描] 机会 PENDLE-USDT spread=21.1% high=okx(10.9%) low=gate(-10.2%)
+2026/06/21 00:41:43 [跨所扫描] 机会 BEAT-USDT spread=123.2% high=okx(134.2%) low=gate(10.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 BIO-USDT spread=45.1% high=bybit(10.9%) low=okx(-34.1%)
+2026/06/21 00:41:43 [跨所扫描] 机会 CFX-USDT spread=17.4% high=okx(10.9%) low=binance(-6.4%)
+2026/06/21 00:41:43 [跨所扫描] 机会 NOK-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 EVAA-USDT spread=44.4% high=binance(55.4%) low=gate(10.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 HYPE-USDT spread=24.8% high=binance(10.9%) low=bybit(-13.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 STX-USDT spread=22.2% high=gate(10.9%) low=binance(-11.2%)
+2026/06/21 00:41:43 [跨所扫描] 机会 JCT-USDT spread=22.3% high=binance(33.2%) low=gate(10.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 SLX-USDT spread=100.5% high=binance(111.5%) low=gate(10.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 CAKE-USDT spread=8.5% high=binance(2.2%) low=gate(-6.4%)
+2026/06/21 00:41:43 [跨所扫描] 机会 ICX-USDT spread=45.0% high=okx(10.9%) low=gate(-34.1%)
+2026/06/21 00:41:43 [跨所扫描] 机会 TRX-USDT spread=8.3% high=binance(5.1%) low=bybit(-3.2%)
+2026/06/21 00:41:43 [跨所扫描] 机会 SCR-USDT spread=8.9% high=gate(10.9%) low=binance(2.1%)
+2026/06/21 00:41:43 [跨所扫描] 机会 F-USDT spread=20.7% high=okx(10.9%) low=gate(-9.7%)
+2026/06/21 00:41:43 [跨所扫描] 机会 XPL-USDT spread=10.9% high=okx(10.9%) low=bybit(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 ZETA-USDT spread=25.2% high=binance(4.0%) low=gate(-21.2%)
+2026/06/21 00:41:43 [跨所扫描] 机会 JTO-USDT spread=41.1% high=gate(1.8%) low=okx(-39.3%)
+2026/06/21 00:41:43 [跨所扫描] 机会 XRP-USDT spread=11.8% high=bybit(10.9%) low=binance(-0.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 ILV-USDT spread=82.2% high=binance(10.9%) low=gate(-71.3%)
+2026/06/21 00:41:43 [跨所扫描] 机会 AZTEC-USDT spread=7.6% high=binance(10.9%) low=gate(3.4%)
+2026/06/21 00:41:43 [跨所扫描] 机会 RDW-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 ALGO-USDT spread=18.1% high=bybit(6.9%) low=binance(-11.2%)
+2026/06/21 00:41:43 [跨所扫描] 机会 MNT-USDT spread=27.1% high=gate(10.9%) low=bybit(-16.2%)
+2026/06/21 00:41:43 [跨所扫描] 机会 EGLD-USDT spread=58.7% high=okx(3.5%) low=gate(-55.2%)
+2026/06/21 00:41:43 [跨所扫描] 机会 PARTI-USDT spread=9.2% high=gate(10.9%) low=okx(1.8%)
+2026/06/21 00:41:43 [跨所扫描] 机会 GALA-USDT spread=8.0% high=okx(10.9%) low=gate(3.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 COAI-USDT spread=75.3% high=bybit(86.2%) low=gate(10.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 NG-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 AXL-USDT spread=5.2% high=binance(10.9%) low=bybit(5.7%)
+2026/06/21 00:41:43 [跨所扫描] 机会 HUMA-USDT spread=35.7% high=binance(10.9%) low=gate(-24.7%)
+2026/06/21 00:41:43 [跨所扫描] 机会 LITE-USDT spread=40.1% high=gate(10.9%) low=okx(-29.1%)
+2026/06/21 00:41:43 [跨所扫描] 机会 XEC-USDT spread=19.3% high=binance(9.9%) low=bybit(-9.4%)
+2026/06/21 00:41:43 [跨所扫描] 机会 B-USDT spread=75.0% high=bybit(86.0%) low=gate(10.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 FET-USDT spread=7.2% high=binance(0.4%) low=gate(-6.8%)
+2026/06/21 00:41:43 [跨所扫描] 机会 USD1-USDT spread=40.5% high=bybit(10.9%) low=gate(-29.6%)
+2026/06/21 00:41:43 [跨所扫描] 机会 MEGA-USDT spread=32.2% high=bybit(10.9%) low=binance(-21.2%)
+2026/06/21 00:41:43 [跨所扫描] 机会 MOVE-USDT spread=46.5% high=binance(57.4%) low=okx(10.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 FLOW-USDT spread=10.8% high=okx(10.9%) low=binance(0.1%)
+2026/06/21 00:41:43 [跨所扫描] 机会 GRT-USDT spread=47.5% high=bybit(2.3%) low=gate(-45.1%)
+2026/06/21 00:41:43 [跨所扫描] 机会 BILL-USDT spread=21.2% high=okx(32.1%) low=binance(10.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 JUP-USDT spread=14.9% high=gate(10.9%) low=binance(-4.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 ICP-USDT spread=19.9% high=gate(2.2%) low=okx(-17.7%)
+2026/06/21 00:41:43 [跨所扫描] 机会 LIT-USDT spread=5.3% high=binance(10.9%) low=okx(5.6%)
+2026/06/21 00:41:43 [跨所扫描] 机会 TURBO-USDT spread=47.5% high=binance(10.9%) low=gate(-36.6%)
+2026/06/21 00:41:43 [跨所扫描] 机会 AR-USDT spread=12.3% high=gate(10.9%) low=okx(-1.4%)
+2026/06/21 00:41:43 [跨所扫描] 机会 DYDX-USDT spread=14.1% high=gate(10.9%) low=bybit(-3.2%)
+2026/06/21 00:41:43 [跨所扫描] 机会 SPACE-USDT spread=49.4% high=bybit(10.9%) low=okx(-38.4%)
+2026/06/21 00:41:43 [跨所扫描] 机会 INJ-USDT spread=16.4% high=bybit(-19.4%) low=gate(-35.8%)
+2026/06/21 00:41:43 [跨所扫描] 机会 ZRX-USDT spread=25.6% high=gate(10.9%) low=okx(-14.6%)
+2026/06/21 00:41:43 [跨所扫描] 机会 MAGIC-USDT spread=42.8% high=okx(10.9%) low=gate(-31.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 EPIC-USDT spread=165.3% high=gate(169.3%) low=binance(4.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 CYBER-USDT spread=57.8% high=gate(10.9%) low=bybit(-46.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 WLFI-USDT spread=10.0% high=binance(10.9%) low=okx(1.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 JASMY-USDT spread=30.8% high=gate(10.9%) low=binance(-19.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 EDEN-USDT spread=63.9% high=gate(74.9%) low=okx(10.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 CHZ-USDT spread=20.6% high=okx(-12.9%) low=bybit(-33.5%)
+2026/06/21 00:41:43 [跨所扫描] 机会 ENA-USDT spread=8.2% high=okx(10.9%) low=binance(2.8%)
+2026/06/21 00:41:43 [跨所扫描] 机会 PLUME-USDT spread=17.5% high=okx(10.9%) low=binance(-6.5%)
+2026/06/21 00:41:43 [跨所扫描] 机会 PNUT-USDT spread=13.3% high=gate(10.9%) low=okx(-2.3%)
+2026/06/21 00:41:43 [跨所扫描] 机会 OPENAI-USDT spread=5.5% high=binance(5.5%) low=okx(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 PROVE-USDT spread=73.0% high=binance(10.9%) low=bybit(-62.1%)
+2026/06/21 00:41:43 [跨所扫描] 机会 NIL-USDT spread=66.6% high=binance(10.9%) low=gate(-55.6%)
+2026/06/21 00:41:43 [跨所扫描] 机会 TRB-USDT spread=9.2% high=okx(10.9%) low=gate(1.8%)
+2026/06/21 00:41:43 [跨所扫描] 机会 WAVES-USDT spread=42.0% high=gate(8.3%) low=bybit(-33.7%)
+2026/06/21 00:41:43 [跨所扫描] 机会 RENDER-USDT spread=8.5% high=okx(10.9%) low=gate(2.4%)
+2026/06/21 00:41:43 [跨所扫描] 机会 IOST-USDT spread=48.4% high=okx(10.9%) low=bybit(-37.5%)
+2026/06/21 00:41:43 [跨所扫描] 机会 BIRB-USDT spread=86.3% high=binance(10.9%) low=gate(-75.3%)
+2026/06/21 00:41:43 [跨所扫描] 机会 SFP-USDT spread=11.0% high=gate(10.9%) low=binance(-0.1%)
+2026/06/21 00:41:43 [跨所扫描] 机会 ZRO-USDT spread=5.3% high=okx(10.9%) low=gate(5.7%)
+2026/06/21 00:41:43 [跨所扫描] 机会 PEOPLE-USDT spread=58.5% high=gate(10.9%) low=bybit(-47.6%)
+2026/06/21 00:41:43 [跨所扫描] 机会 GWEI-USDT spread=16.9% high=binance(10.9%) low=gate(-5.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 FIL-USDT spread=14.2% high=gate(9.3%) low=bybit(-4.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 TRUST-USDT spread=34.5% high=okx(10.9%) low=binance(-23.5%)
+2026/06/21 00:41:43 [跨所扫描] 机会 CC-USDT spread=6.3% high=okx(10.9%) low=binance(4.6%)
+2026/06/21 00:41:43 [跨所扫描] 机会 SSV-USDT spread=16.9% high=okx(10.9%) low=binance(-6.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 MIRA-USDT spread=27.8% high=bybit(10.9%) low=gate(-16.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 MASK-USDT spread=18.1% high=binance(10.9%) low=gate(-7.1%)
+2026/06/21 00:41:43 [跨所扫描] 机会 ORDI-USDT spread=7.4% high=gate(10.9%) low=binance(3.5%)
+2026/06/21 00:41:43 [跨所扫描] 机会 CELO-USDT spread=8.1% high=gate(10.9%) low=binance(2.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 QTUM-USDT spread=45.5% high=gate(10.9%) low=bybit(-34.6%)
+2026/06/21 00:41:43 [跨所扫描] 机会 ARIA-USDT spread=49.9% high=gate(60.9%) low=binance(10.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 SAMSUNG-USDT spread=78.2% high=okx(78.2%) low=binance(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 ITE-USDT spread=42.3% high=okx(10.9%) low=gate(-31.3%)
+2026/06/21 00:41:43 [跨所扫描] 机会 CRO-USDT spread=30.8% high=bybit(10.9%) low=gate(-19.8%)
+2026/06/21 00:41:43 [跨所扫描] 机会 BB-USDT spread=34.8% high=binance(10.9%) low=gate(-23.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 SPORTFUN-USDT spread=109.3% high=binance(120.2%) low=bybit(10.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 SQD-USDT spread=97.7% high=gate(108.6%) low=binance(10.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 B3-USDT spread=123.7% high=bybit(10.9%) low=gate(-112.8%)
+2026/06/21 00:41:43 [跨所扫描] 机会 BOME-USDT spread=17.3% high=okx(10.9%) low=gate(-6.4%)
+2026/06/21 00:41:43 [跨所扫描] 机会 BAND-USDT spread=110.5% high=gate(10.9%) low=bybit(-99.6%)
+2026/06/21 00:41:43 [跨所扫描] 机会 CRV-USDT spread=23.4% high=binance(-2.5%) low=gate(-26.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 LAB-USDT spread=39.2% high=okx(10.9%) low=binance(-28.2%)
+2026/06/21 00:41:43 [跨所扫描] 机会 PYTH-USDT spread=14.7% high=okx(10.9%) low=bybit(-3.7%)
+2026/06/21 00:41:43 [跨所扫描] 机会 1INCH-USDT spread=12.0% high=gate(10.9%) low=okx(-1.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 XVS-USDT spread=105.3% high=binance(-28.3%) low=gate(-133.6%)
+2026/06/21 00:41:43 [跨所扫描] 机会 CTR-USDT spread=6.2% high=binance(17.2%) low=gate(10.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 AEVO-USDT spread=15.8% high=gate(10.9%) low=okx(-4.8%)
+2026/06/21 00:41:43 [跨所扫描] 机会 SM-USDT spread=8.0% high=okx(10.9%) low=gate(3.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 ENJ-USDT spread=30.6% high=okx(10.9%) low=bybit(-19.7%)
+2026/06/21 00:41:43 [跨所扫描] 机会 OPG-USDT spread=7.6% high=okx(18.5%) low=gate(10.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 IOTA-USDT spread=19.8% high=gate(-0.7%) low=okx(-20.4%)
+2026/06/21 00:41:43 [跨所扫描] 机会 BULLA-USDT spread=48.4% high=gate(127.5%) low=binance(79.1%)
+2026/06/21 00:41:43 [跨所扫描] 机会 CHR-USDT spread=6.2% high=gate(10.9%) low=binance(4.8%)
+2026/06/21 00:41:43 [跨所扫描] 机会 AVNT-USDT spread=70.0% high=okx(10.9%) low=bybit(-59.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 GUN-USDT spread=36.2% high=gate(10.9%) low=binance(-25.3%)
+2026/06/21 00:41:43 [跨所扫描] 机会 HIVE-USDT spread=99.4% high=bybit(10.9%) low=gate(-88.5%)
+2026/06/21 00:41:43 [跨所扫描] 机会 CRWV-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 VANA-USDT spread=75.9% high=gate(10.9%) low=bybit(-65.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 STO-USDT spread=32.9% high=gate(10.9%) low=bybit(-21.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 RUNE-USDT spread=55.0% high=bybit(-0.6%) low=gate(-55.6%)
+2026/06/21 00:41:43 [跨所扫描] 机会 LUNR-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 INIT-USDT spread=76.5% high=okx(10.9%) low=bybit(-65.6%)
+2026/06/21 00:41:43 [跨所扫描] 机会 WOO-USDT spread=43.0% high=okx(10.9%) low=bybit(-32.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 PEPE-USDT spread=23.2% high=okx(10.9%) low=gate(-12.3%)
+2026/06/21 00:41:43 [跨所扫描] 机会 DOGS-USDT spread=13.9% high=gate(10.9%) low=binance(-2.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 LDO-USDT spread=9.9% high=okx(10.9%) low=gate(1.1%)
+2026/06/21 00:41:43 [跨所扫描] 机会 IOTX-USDT spread=75.8% high=bybit(-0.8%) low=gate(-76.5%)
+2026/06/21 00:41:43 [跨所扫描] 机会 ROSE-USDT spread=111.3% high=binance(5.9%) low=bybit(-105.5%)
+2026/06/21 00:41:43 [跨所扫描] 机会 RARE-USDT spread=57.6% high=bybit(-28.7%) low=gate(-86.3%)
+2026/06/21 00:41:43 [跨所扫描] 机会 IO-USDT spread=57.6% high=binance(10.9%) low=bybit(-46.6%)
+2026/06/21 00:41:43 [跨所扫描] 机会 RONIN-USDT spread=15.2% high=bybit(10.1%) low=binance(-5.1%)
+2026/06/21 00:41:43 [跨所扫描] 机会 MON-USDT spread=9.6% high=okx(10.9%) low=bybit(1.4%)
+2026/06/21 00:41:43 [跨所扫描] 机会 NXPC-USDT spread=57.3% high=binance(10.9%) low=gate(-46.3%)
+2026/06/21 00:41:43 [跨所扫描] 机会 ID-USDT spread=51.4% high=binance(-114.4%) low=bybit(-165.7%)
+2026/06/21 00:41:43 [跨所扫描] 机会 TUT-USDT spread=5.5% high=bybit(16.5%) low=gate(10.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 ANKR-USDT spread=45.8% high=bybit(10.9%) low=gate(-34.8%)
+2026/06/21 00:41:43 [跨所扫描] 机会 BLESS-USDT spread=23.5% high=binance(42.5%) low=gate(19.1%)
+2026/06/21 00:41:43 [跨所扫描] 机会 API3-USDT spread=13.4% high=okx(10.9%) low=binance(-2.5%)
+2026/06/21 00:41:43 [跨所扫描] 机会 OPN-USDT spread=42.3% high=okx(53.3%) low=gate(10.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 BMT-USDT spread=13.6% high=binance(10.9%) low=gate(-2.6%)
+2026/06/21 00:41:43 [跨所扫描] 机会 BTR-USDT spread=39.9% high=binance(50.8%) low=gate(10.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 AGLD-USDT spread=13.7% high=okx(10.9%) low=bybit(-2.7%)
+2026/06/21 00:41:43 [跨所扫描] 机会 BASED-USDT spread=7.2% high=gate(10.9%) low=okx(3.7%)
+2026/06/21 00:41:43 [跨所扫描] 机会 BRETT-USDT spread=8.8% high=okx(10.9%) low=gate(2.2%)
+2026/06/21 00:41:43 [跨所扫描] 机会 MAV-USDT spread=35.9% high=gate(10.9%) low=bybit(-24.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 GEN-USDT spread=33.7% high=okx(44.6%) low=gate(10.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 ETHFI-USDT spread=22.7% high=gate(10.9%) low=okx(-11.8%)
+2026/06/21 00:41:43 [跨所扫描] 机会 XCN-USDT spread=89.3% high=gate(4.4%) low=bybit(-84.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 LQTY-USDT spread=17.1% high=okx(10.9%) low=binance(-6.1%)
+2026/06/21 00:41:43 [跨所扫描] 机会 THETA-USDT spread=11.3% high=okx(10.9%) low=gate(-0.3%)
+2026/06/21 00:41:43 [跨所扫描] 机会 ARK-USDT spread=9.5% high=gate(10.9%) low=binance(1.4%)
+2026/06/21 00:41:43 [跨所扫描] 机会 ZBCN-USDT spread=187.0% high=gate(-99.6%) low=bybit(-286.6%)
+2026/06/21 00:41:43 [跨所扫描] 机会 TRUTH-USDT spread=52.9% high=okx(63.9%) low=gate(10.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 ZEST-USDT spread=45.2% high=binance(56.1%) low=bybit(10.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 ZAMA-USDT spread=19.9% high=binance(10.9%) low=bybit(-9.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 VIC-USDT spread=20.8% high=gate(10.9%) low=binance(-9.8%)
+2026/06/21 00:41:43 [跨所扫描] 机会 PTB-USDT spread=57.7% high=gate(96.6%) low=bybit(38.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 HAEDAL-USDT spread=10.9% high=gate(10.9%) low=bybit(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 ATH-USDT spread=8.3% high=gate(10.9%) low=okx(2.6%)
+2026/06/21 00:41:43 [跨所扫描] 机会 GAIB-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 TRADOOR-USDT spread=10.3% high=binance(21.2%) low=gate(10.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 ARKM-USDT spread=26.8% high=okx(10.9%) low=bybit(-15.8%)
+2026/06/21 00:41:43 [跨所扫描] 机会 HMSTR-USDT spread=20.8% high=okx(10.9%) low=binance(-9.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 XDC-USDT spread=16.4% high=gate(10.9%) low=bybit(-5.5%)
+2026/06/21 00:41:43 [跨所扫描] 机会 0G-USDT spread=41.0% high=gate(10.9%) low=okx(-30.1%)
+2026/06/21 00:41:43 [跨所扫描] 机会 GMT-USDT spread=33.6% high=okx(10.9%) low=gate(-22.7%)
+2026/06/21 00:41:43 [跨所扫描] 机会 MORPHO-USDT spread=45.3% high=binance(10.9%) low=gate(-34.4%)
+2026/06/21 00:41:43 [跨所扫描] 机会 BMNR-USDT spread=23.7% high=binance(23.7%) low=okx(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 W-USDT spread=5.0% high=okx(10.9%) low=gate(5.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 TSM-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 RSR-USDT spread=13.8% high=gate(10.9%) low=binance(-2.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 AITO-USDT spread=37.9% high=binance(10.9%) low=gate(-26.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 XAI-USDT spread=64.5% high=gate(10.9%) low=bybit(-53.5%)
+2026/06/21 00:41:43 [跨所扫描] 机会 FIGHT-USDT spread=79.9% high=gate(90.9%) low=bybit(10.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 VELODROME-USDT spread=9.4% high=binance(10.9%) low=gate(1.5%)
+2026/06/21 00:41:43 [跨所扫描] 机会 TA-USDT spread=33.4% high=binance(44.4%) low=gate(10.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 WIF-USDT spread=26.1% high=okx(10.9%) low=gate(-15.1%)
+2026/06/21 00:41:43 [跨所扫描] 机会 IMX-USDT spread=24.8% high=gate(10.9%) low=okx(-13.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 LIGHT-USDT spread=10.2% high=binance(21.2%) low=gate(10.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 RVN-USDT spread=45.7% high=gate(10.9%) low=bybit(-34.8%)
+2026/06/21 00:41:43 [跨所扫描] 机会 NOM-USDT spread=143.3% high=gate(10.9%) low=bybit(-132.3%)
+2026/06/21 00:41:43 [跨所扫描] 机会 WDC-USDT spread=160.6% high=gate(160.6%) low=okx(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 MANA-USDT spread=74.7% high=bybit(-41.3%) low=gate(-116.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 C98-USDT spread=148.4% high=bybit(10.9%) low=gate(-137.4%)
+2026/06/21 00:41:43 [跨所扫描] 机会 TNSR-USDT spread=65.8% high=gate(10.9%) low=bybit(-54.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 YB-USDT spread=57.6% high=gate(68.5%) low=okx(10.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 S-USDT spread=46.4% high=gate(10.9%) low=okx(-35.4%)
+2026/06/21 00:41:43 [跨所扫描] 机会 LAYER-USDT spread=28.5% high=binance(6.1%) low=gate(-22.3%)
+2026/06/21 00:41:43 [跨所扫描] 机会 PHA-USDT spread=129.6% high=binance(-12.0%) low=bybit(-141.6%)
+2026/06/21 00:41:43 [跨所扫描] 机会 CELR-USDT spread=19.4% high=gate(10.9%) low=binance(-8.5%)
+2026/06/21 00:41:43 [跨所扫描] 机会 A-USDT spread=8.3% high=okx(10.9%) low=gate(2.6%)
+2026/06/21 00:41:43 [跨所扫描] 机会 ZIL-USDT spread=5.3% high=okx(10.9%) low=gate(5.7%)
+2026/06/21 00:41:43 [跨所扫描] 机会 ORCA-USDT spread=25.4% high=bybit(10.9%) low=gate(-14.5%)
+2026/06/21 00:41:43 [跨所扫描] 机会 ZEREBRO-USDT spread=9.8% high=binance(20.7%) low=gate(10.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 DEEP-USDT spread=20.8% high=binance(10.9%) low=gate(-9.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 HANA-USDT spread=43.4% high=gate(95.0%) low=binance(51.7%)
+2026/06/21 00:41:43 [跨所扫描] 机会 MUBARAK-USDT spread=8.6% high=okx(10.9%) low=bybit(2.3%)
+2026/06/21 00:41:43 [跨所扫描] 机会 WAXP-USDT spread=9.9% high=gate(10.9%) low=bybit(1.1%)
+2026/06/21 00:41:43 [跨所扫描] 机会 AMD-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 CARV-USDT spread=47.7% high=binance(10.9%) low=gate(-36.8%)
+2026/06/21 00:41:43 [跨所扫描] 机会 BAS-USDT spread=8.3% high=binance(19.3%) low=gate(10.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 USAR-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 USELESS-USDT spread=16.7% high=binance(27.0%) low=gate(10.3%)
+2026/06/21 00:41:43 [跨所扫描] 机会 ALCH-USDT spread=17.8% high=binance(28.7%) low=gate(10.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 DIS-USDT spread=21.9% high=gate(21.9%) low=binance(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 FLNC-USDT spread=77.2% high=gate(77.2%) low=okx(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 T-USDT spread=158.1% high=binance(10.9%) low=gate(-147.2%)
+2026/06/21 00:41:43 [跨所扫描] 机会 VET-USDT spread=70.3% high=gate(10.9%) low=bybit(-59.3%)
+2026/06/21 00:41:43 [跨所扫描] 机会 ARC-USDT spread=57.8% high=binance(10.9%) low=gate(-46.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 GME-USDT spread=13.4% high=gate(10.9%) low=okx(-2.5%)
+2026/06/21 00:41:43 [跨所扫描] 机会 MTL-USDT spread=74.4% high=bybit(10.9%) low=gate(-63.4%)
+2026/06/21 00:41:43 [跨所扫描] 机会 COTI-USDT spread=6.3% high=gate(10.9%) low=binance(4.6%)
+2026/06/21 00:41:43 [跨所扫描] 机会 BEL-USDT spread=158.8% high=gate(92.5%) low=binance(-66.3%)
+2026/06/21 00:41:43 [跨所扫描] 机会 SNX-USDT spread=19.0% high=binance(3.7%) low=gate(-15.3%)
+2026/06/21 00:41:43 [跨所扫描] 机会 BLUAI-USDT spread=9.0% high=gate(10.9%) low=binance(2.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 ANTHROPIC-USDT spread=5.5% high=binance(5.5%) low=okx(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 PAYP-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 AIN-USDT spread=8.5% high=gate(71.0%) low=binance(62.4%)
+2026/06/21 00:41:43 [跨所扫描] 机会 UVXY-USDT spread=5.4% high=gate(5.4%) low=binance(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 POWER-USDT spread=49.8% high=bybit(61.8%) low=gate(12.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 DRAM-USDT spread=261.9% high=gate(261.9%) low=binance(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 HIGH-USDT spread=408.1% high=bybit(408.1%) low=binance(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 AKE-USDT spread=62.4% high=bybit(73.4%) low=gate(10.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 XLE-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 EBAY-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 MBOX-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 MNO-USDT spread=19.1% high=binance(10.9%) low=gate(-8.1%)
+2026/06/21 00:41:43 [跨所扫描] 机会 ONDS-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 RIVN-USDT spread=49.9% high=gate(49.9%) low=okx(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 BABA-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 我踏马来了-USDT spread=121.9% high=binance(132.9%) low=gate(10.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 RED-USDT spread=74.3% high=gate(10.9%) low=bybit(-63.3%)
+2026/06/21 00:41:43 [跨所扫描] 机会 RAY-USDT spread=23.4% high=binance(0.0%) low=gate(-23.4%)
+2026/06/21 00:41:43 [跨所扫描] 机会 MLN-USDT spread=10.9% high=bybit(10.9%) low=binance(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 FUN-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 VINE-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 DEGEN-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 ARM-USDT spread=14.8% high=gate(10.9%) low=binance(-3.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 币安人生-USDT spread=5.0% high=binance(10.9%) low=gate(5.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 RLS-USDT spread=10.9% high=okx(10.9%) low=binance(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 BOB-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 DKNG-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 OL-USDT spread=24.3% high=okx(24.3%) low=binance(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 SNT-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 HD-USDT spread=21.9% high=gate(21.9%) low=binance(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 PUFFER-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 IREN-USDT spread=100.2% high=gate(10.9%) low=bybit(-89.3%)
+2026/06/21 00:41:43 [跨所扫描] 机会 QCOM-USDT spread=54.6% high=gate(10.9%) low=bybit(-43.6%)
+2026/06/21 00:41:43 [跨所扫描] 机会 HIMS-USDT spread=13.8% high=gate(10.9%) low=okx(-2.8%)
+2026/06/21 00:41:43 [跨所扫描] 机会 SOL-USDT spread=11.1% high=gate(10.9%) low=binance(-0.2%)
+2026/06/21 00:41:43 [跨所扫描] 机会 AI-USDT spread=97.7% high=gate(97.7%) low=binance(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 XAG-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 SNDK-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 UB-USDT spread=76.2% high=okx(10.9%) low=gate(-65.3%)
+2026/06/21 00:41:43 [跨所扫描] 机会 NVO-USDT spread=145.6% high=gate(145.6%) low=binance(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 WMT-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 AAVE-USDT spread=12.5% high=bybit(10.9%) low=gate(-1.5%)
+2026/06/21 00:41:43 [跨所扫描] 机会 CL-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 AXTI-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 V-USDT spread=21.9% high=binance(0.0%) low=gate(-21.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 BZ-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 PAXG-USDT spread=27.3% high=bybit(10.9%) low=gate(-16.3%)
+2026/06/21 00:41:43 [跨所扫描] 机会 ZEC-USDT spread=44.8% high=okx(-5.6%) low=bybit(-50.4%)
+2026/06/21 00:41:43 [跨所扫描] 机会 XAU-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 BRKB-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 TAO-USDT spread=34.0% high=okx(8.1%) low=bybit(-26.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 SPCX-USDT spread=67.1% high=gate(67.1%) low=okx(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 UBER-USDT spread=21.9% high=binance(0.0%) low=gate(-21.9%)
+2026/06/21 00:41:43 [跨所扫描] 机会 MRVL-USDT spread=27.8% high=gate(21.6%) low=bybit(-6.3%)
+2026/06/21 00:41:43 [跨所扫描] 机会 SOXL-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 MU-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 YFI-USDT spread=57.9% high=gate(-11.5%) low=binance(-69.4%)
+2026/06/21 00:41:43 [跨所扫描] 机会 AAOI-USDT spread=104.2% high=gate(88.6%) low=binance(-15.7%)
+2026/06/21 00:41:43 [跨所扫描] 机会 BNB-USDT spread=7.0% high=okx(10.9%) low=binance(4.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 CBRS-USDT spread=17.9% high=gate(10.9%) low=binance(-7.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 JPM-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 IBM-USDT spread=129.1% high=gate(10.9%) low=bybit(-118.1%)
+2026/06/21 00:41:43 [跨所扫描] 机会 QNT-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 BP-USDT spread=5.5% high=gate(10.9%) low=bybit(5.5%)
+2026/06/21 00:41:43 [跨所扫描] 机会 D-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 COS-USDT spread=10.5% high=gate(10.5%) low=binance(0.0%)
+2026/06/21 00:41:43 [跨所扫描] 机会 AT-USDT spread=18.0% high=okx(10.9%) low=binance(-7.1%)
+2026/06/21 00:41:43 [跨所扫描] 机会 AVA-USDT spread=90.3% high=gate(10.9%) low=bybit(-79.3%)
+2026/06/21 00:41:43 [跨所扫描] 机会 AIA-USDT spread=201.5% high=gate(168.8%) low=bybit(-32.7%)
+2026/06/21 00:41:43 [跨所扫描] 机会 O-USDT spread=120.3% high=okx(131.3%) low=gate(10.9%)
+2026/06/21 00:41:43 [跨所扫描] 价差告警(纯观测) H-USDT 年化价差 930.6% 空 okx(-1711.5%/年,间隔 2h) 多 binance(-2642.1%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:41:43 [跨所扫描] 价差告警(纯观测) HOME-USDT 年化价差 445.4% 空 binance(-388.1%/年,间隔 1h) 多 bybit(-833.5%/年,间隔 1h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:41:43 [跨所扫描] 价差告警(纯观测) AMAT-USDT 年化价差 338.7% 空 bybit(338.7%/年,间隔 8h) 多 okx(0.0%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:41:43 [跨所扫描] 价差告警(纯观测) SIREN-USDT 年化价差 249.5% 空 gate(713.9%/年,间隔 1h) 多 binance(464.4%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:41:43 [跨所扫描] 价差告警(纯观测) STABLE-USDT 年化价差 237.4% 空 gate(10.9%/年,间隔 4h) 多 bybit(-226.4%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:41:43 [跨所扫描] 价差告警(纯观测) DOLO-USDT 年化价差 231.3% 空 gate(10.9%/年,间隔 8h) 多 bybit(-220.4%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:41:43 [跨所扫描] 价差告警(纯观测) NBIS-USDT 年化价差 158.4% 空 bybit(137.1%/年,间隔 8h) 多 binance(-21.3%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:41:43 [跨所扫描] 价差告警(纯观测) TLM-USDT 年化价差 208.3% 空 binance(10.9%/年,间隔 4h) 多 gate(-197.3%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:41:43 [跨所扫描] 价差告警(纯观测) VELVET-USDT 年化价差 159.1% 空 bybit(185.6%/年,间隔 4h) 多 binance(26.5%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:41:43 [跨所扫描] 价差告警(纯观测) GAS-USDT 年化价差 120.4% 空 binance(10.9%/年,间隔 4h) 多 gate(-109.5%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:41:43 [跨所扫描] 价差告警(纯观测) CHIP-USDT 年化价差 123.6% 空 bybit(-20.5%/年,间隔 4h) 多 gate(-144.1%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:41:43 [跨所扫描] 价差告警(纯观测) XTZ-USDT 年化价差 124.7% 空 gate(10.9%/年,间隔 8h) 多 bybit(-113.7%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:41:43 [跨所扫描] 价差告警(纯观测) FLUX-USDT 年化价差 128.6% 空 binance(10.9%/年,间隔 4h) 多 gate(-117.6%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:41:43 [跨所扫描] 价差告警(纯观测) GLM-USDT 年化价差 136.9% 空 okx(10.9%/年,间隔 4h) 多 gate(-125.9%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:41:43 [跨所扫描] 价差告警(纯观测) G-USDT 年化价差 139.0% 空 binance(-19.6%/年,间隔 4h) 多 gate(-158.6%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:41:43 [跨所扫描] 价差告警(纯观测) LSK-USDT 年化价差 328.0% 空 bybit(3.8%/年,间隔 4h) 多 gate(-324.2%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:41:43 [跨所扫描] 价差告警(纯观测) BANANA-USDT 年化价差 119.7% 空 binance(4.6%/年,间隔 4h) 多 bybit(-115.0%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:41:43 [跨所扫描] 价差告警(纯观测) C-USDT 年化价差 173.9% 空 gate(10.9%/年,间隔 4h) 多 bybit(-162.9%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:41:43 [跨所扫描] 价差告警(纯观测) MSTR-USDT 年化价差 131.4% 空 okx(131.4%/年,间隔 8h) 多 bybit(0.0%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:41:43 [跨所扫描] 价差告警(纯观测) IP-USDT 年化价差 101.4% 空 bybit(10.9%/年,间隔 4h) 多 okx(-90.4%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:41:43 [跨所扫描] 价差告警(纯观测) ASTR-USDT 年化价差 252.3% 空 binance(10.9%/年,间隔 8h) 多 gate(-241.3%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:41:43 [跨所扫描] 价差告警(纯观测) CLO-USDT 年化价差 119.7% 空 bybit(130.6%/年,间隔 4h) 多 gate(10.9%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:41:43 [跨所扫描] 价差告警(纯观测) 4-USDT 年化价差 169.0% 空 bybit(208.3%/年,间隔 4h) 多 binance(39.3%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:41:43 [跨所扫描] 价差告警(纯观测) PORTAL-USDT 年化价差 197.0% 空 binance(-134.7%/年,间隔 4h) 多 bybit(-331.6%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:41:43 [跨所扫描] 价差告警(纯观测) FIDA-USDT 年化价差 177.3% 空 binance(-375.3%/年,间隔 4h) 多 bybit(-552.6%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:41:43 [跨所扫描] 价差告警(纯观测) BLUR-USDT 年化价差 103.2% 空 binance(-8.8%/年,间隔 4h) 多 gate(-111.9%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:41:43 [跨所扫描] 价差告警(纯观测) US-USDT 年化价差 110.4% 空 gate(121.3%/年,间隔 4h) 多 bybit(10.9%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:41:43 [跨所扫描] 价差告警(纯观测) COOKIE-USDT 年化价差 210.9% 空 gate(10.9%/年,间隔 4h) 多 bybit(-199.9%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:41:43 [跨所扫描] 价差告警(纯观测) ME-USDT 年化价差 126.6% 空 okx(10.9%/年,间隔 4h) 多 bybit(-115.7%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:41:43 [跨所扫描] 价差告警(纯观测) JST-USDT 年化价差 103.0% 空 binance(1.6%/年,间隔 4h) 多 gate(-101.4%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:41:43 [跨所扫描] 价差告警(纯观测) METIS-USDT 年化价差 169.4% 空 gate(10.9%/年,间隔 4h) 多 bybit(-158.5%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:41:43 [跨所扫描] 价差告警(纯观测) SUSHI-USDT 年化价差 117.7% 空 okx(1.1%/年,间隔 8h) 多 gate(-116.6%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:41:43 [跨所扫描] 价差告警(纯观测) BEAT-USDT 年化价差 123.2% 空 okx(134.2%/年,间隔 4h) 多 gate(10.9%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:41:43 [跨所扫描] 价差告警(纯观测) SLX-USDT 年化价差 100.5% 空 binance(111.5%/年,间隔 4h) 多 gate(10.9%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:41:43 [跨所扫描] 价差告警(纯观测) BAND-USDT 年化价差 110.5% 空 gate(10.9%/年,间隔 8h) 多 bybit(-99.6%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:41:43 [跨所扫描] 价差告警(纯观测) ROSE-USDT 年化价差 111.3% 空 binance(5.9%/年,间隔 8h) 多 bybit(-105.5%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:41:43 [跨所扫描] 价差告警(纯观测) NOM-USDT 年化价差 143.3% 空 gate(10.9%/年,间隔 4h) 多 bybit(-132.3%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:41:43 [跨所扫描] 价差告警(纯观测) WDC-USDT 年化价差 160.6% 空 gate(160.6%/年,间隔 8h) 多 okx(0.0%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:41:43 [跨所扫描] 价差告警(纯观测) C98-USDT 年化价差 148.4% 空 bybit(10.9%/年,间隔 8h) 多 gate(-137.4%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:41:43 [跨所扫描] 价差告警(纯观测) PHA-USDT 年化价差 129.6% 空 binance(-12.0%/年,间隔 4h) 多 bybit(-141.6%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:41:43 [跨所扫描] 价差告警(纯观测) T-USDT 年化价差 158.1% 空 binance(10.9%/年,间隔 4h) 多 gate(-147.2%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:41:43 [跨所扫描] 价差告警(纯观测) DRAM-USDT 年化价差 261.9% 空 gate(261.9%/年,间隔 8h) 多 binance(0.0%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:41:43 [跨所扫描] 价差告警(纯观测) IREN-USDT 年化价差 100.2% 空 gate(10.9%/年,间隔 8h) 多 bybit(-89.3%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:41:43 [跨所扫描] 价差告警(纯观测) NVO-USDT 年化价差 145.6% 空 gate(145.6%/年,间隔 8h) 多 binance(0.0%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:41:55 [借币探测] HYUNDAI: binance不可借 bybit失败 okx不可借
+2026/06/21 00:41:55 [借币探测] ISRG: binance不可借(缓存) bybit失败 okx不可借(缓存)
+2026/06/21 00:41:55 [借币探测] BOBA: binance不可借 bybit不可借 okx不可借
+2026/06/21 00:41:55 [借币探测] ALICE: binance失败 bybit失败 okx失败
+2026/06/21 00:41:55 [借币探测] ESPORTS: binance不可借 bybit失败 okx失败
+2026/06/21 00:41:55 [借币探测] LLY: binance不可借 bybit失败 okx不可借
+2026/06/21 00:41:55 [借币探测] H: binance不可借(缓存) bybit不可借(缓存) okx不可借(缓存)
+2026/06/21 00:41:55 [借币探测] AERGO: binance不可借(缓存) bybit失败 okx不可借(缓存)
+2026/06/21 00:41:55 [借币探测] HOME: binance失败 bybit不可借(缓存) okx不可借(缓存)
+2026/06/21 00:41:55 [借币探测] COST: binance不可借 bybit失败 okx不可借
+2026/06/21 00:41:55 [借币探测] HPERP: binance不可借 bybit失败 okx失败
+2026/06/21 00:41:55 [借币探测] LRC: binance不可借 bybit不可借 okx可借(年化16%)
+2026/06/21 00:41:55 [借币探测] PANW: binance不可借(缓存) bybit失败 okx不可借(缓存)
+2026/06/21 00:41:55 [借币探测] SPELL: binance失败 bybit不可借
+2026/06/21 00:42:07 [账户风控] OK daily_equity_delta=-0.0114 daily_realized=0.0000 settlement_dd=0.2276 real_equity_dd=19.6196 positions=0 notional=0.00
+2026/06/21 00:42:22 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/21 00:42:22 [统一轮动] 安全管理: strategy=perp_perp
+2026/06/21 00:42:22 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/21 00:42:22 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/21 00:42:22 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/21 00:43:07 [账户风控] OK daily_equity_delta=-0.0042 daily_realized=0.0000 settlement_dd=0.2276 real_equity_dd=19.6124 positions=0 notional=0.00
+2026/06/21 00:43:22 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/21 00:43:22 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/21 00:43:22 [统一轮动] 安全管理: strategy=perp_perp
+2026/06/21 00:43:22 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/21 00:43:22 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/21 00:44:07 [账户风控] OK daily_equity_delta=-0.0042 daily_realized=0.0000 settlement_dd=0.2276 real_equity_dd=19.6124 positions=0 notional=0.00
+2026/06/21 00:44:22 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/21 00:44:22 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/21 00:44:22 [统一轮动] 安全管理: strategy=perp_perp
+2026/06/21 00:44:22 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/21 00:44:22 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/21 00:45:07 [账户风控] OK daily_equity_delta=-0.0042 daily_realized=0.0000 settlement_dd=0.2276 real_equity_dd=19.6124 positions=0 notional=0.00
+2026/06/21 00:45:22 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/21 00:45:22 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/21 00:45:22 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/21 00:45:22 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/21 00:45:22 [统一轮动] 安全管理: strategy=perp_perp
+2026/06/21 00:46:07 [账户风控] OK daily_equity_delta=0.0004 daily_realized=0.0000 settlement_dd=0.2276 real_equity_dd=19.6078 positions=0 notional=0.00
+2026/06/21 00:46:22 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/21 00:46:22 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/21 00:46:22 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/21 00:46:22 [统一轮动] 安全管理: strategy=perp_perp
+2026/06/21 00:46:22 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/21 00:47:07 [账户风控] OK daily_equity_delta=0.0004 daily_realized=0.0000 settlement_dd=0.2276 real_equity_dd=19.6078 positions=0 notional=0.00
+2026/06/21 00:47:22 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/21 00:47:22 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/21 00:47:22 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/21 00:47:22 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/21 00:47:22 [统一轮动] 安全管理: strategy=perp_perp
+2026/06/21 00:48:07 [账户风控] OK daily_equity_delta=0.0004 daily_realized=0.0000 settlement_dd=0.2276 real_equity_dd=19.6078 positions=0 notional=0.00
+2026/06/21 00:48:22 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/21 00:48:22 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/21 00:48:22 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/21 00:48:22 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/21 00:48:22 [统一轮动] 安全管理: strategy=perp_perp
+2026/06/21 00:49:07 [账户风控] OK daily_equity_delta=-0.0008 daily_realized=0.0000 settlement_dd=0.2276 real_equity_dd=19.6090 positions=0 notional=0.00
+2026/06/21 00:49:22 [统一轮动] 安全管理: strategy=perp_perp
+2026/06/21 00:49:22 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/21 00:49:22 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/21 00:49:22 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/21 00:49:22 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/21 00:50:07 [账户风控] OK daily_equity_delta=-0.0008 daily_realized=0.0000 settlement_dd=0.2276 real_equity_dd=19.6090 positions=0 notional=0.00
+2026/06/21 00:50:22 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/21 00:50:22 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/21 00:50:22 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/21 00:50:22 [统一轮动] 安全管理: strategy=perp_perp
+2026/06/21 00:50:22 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/21 00:51:07 [账户风控] OK daily_equity_delta=-0.0008 daily_realized=0.0000 settlement_dd=0.2276 real_equity_dd=19.6090 positions=0 notional=0.00
+2026/06/21 00:51:22 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/21 00:51:22 [统一轮动] 安全管理: strategy=perp_perp
+2026/06/21 00:51:22 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/21 00:51:22 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/21 00:51:22 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/21 00:52:00 [perp-perp-diag] H-USDT venues=4 legs=[gate raw=-0.00231100 apr=-2024.44% interval=1h next=2026-06-20T17:00:00Z(real); binance raw=-0.01194660 apr=-2616.31% interval=4h next=2026-06-20T20:00:00Z(real); bybit raw=-0.00280953 apr=-2461.15% interval=1h next=2026-06-20T17:00:00Z(real); okx raw=-0.00402755 apr=-1764.07% interval=2h next=2026-06-20T20:00:00Z(real)] paired=true spreadAPR=852.24% entered=true netEV=0.3309 rankScore=0.3309 inTop30=true topNTruncated=false reject="" | cost: chosen_notional=148.93 notional=148.93 spreadEV=0.8694 open=0.1489 close=0.1489 slip=0.0391 obsRisk=0.0467 policy=0.0298
+2026/06/21 00:52:00 [perp-perp-diag] BTT-USDT venues=1 legs=[bybit raw=-0.00351713 apr=-385.13% interval=8h next=2026-06-21T00:00:00Z(real)] paired=false spreadAPR=0.00% entered=false netEV=0.0000 rankScore=0.0000 inTop30=false topNTruncated=false reject="venues=1 need>=2" | cost: chosen_notional=0.00 notional=0.00 spreadEV=0.0000 open=0.0000 close=0.0000 slip=0.0000 obsRisk=0.0000 policy=0.0000
+2026/06/21 00:52:00 [perp-perp-diag] PEPE-USDT venues=4 legs=[gate raw=-0.00003800 apr=-4.16% interval=8h next=2026-06-21T00:00:00Z(real); binance raw=-0.00002660 apr=-2.91% interval=8h next=2026-06-21T00:00:00Z(real); bybit raw=0.00010000 apr=10.95% interval=8h next=2026-06-21T00:00:00Z(real); okx raw=0.00010000 apr=10.95% interval=8h next=2026-06-21T08:00:00Z(real)] paired=true spreadAPR=15.11% entered=true netEV=-0.1626 rankScore=0.0000 inTop30=false topNTruncated=true reject="" | cost: chosen_notional=14.02 notional=14.02 spreadEV=0.0010 open=0.0147 close=0.0147 slip=0.0000 obsRisk=0.0038 policy=0.0029
+2026/06/21 00:52:00 [perp-perp-diag] PEPE-USDC venues=1 legs=[binance raw=-0.00009309 apr=-10.19% interval=8h next=2026-06-21T00:00:00Z(real)] paired=false spreadAPR=0.00% entered=false netEV=0.0000 rankScore=0.0000 inTop30=false topNTruncated=false reject="venues=1 need>=2" | cost: chosen_notional=0.00 notional=0.00 spreadEV=0.0000 open=0.0000 close=0.0000 slip=0.0000 obsRisk=0.0000 policy=0.0000
+2026/06/21 00:52:00 [跨所扫描] 完成: venues_ok=4/4 opportunities=432 elapsed=10m5.115s
+2026/06/21 00:52:00 [跨所扫描] 机会 H-USDT spread=852.2% high=okx(-1764.1%) low=binance(-2616.3%)
+2026/06/21 00:52:00 [跨所扫描] 机会 AERGO-USDT spread=606.6% high=binance(-89.9%) low=bybit(-696.5%)
+2026/06/21 00:52:00 [跨所扫描] 机会 ISRG-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 PANW-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 ROK-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 TER-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 GEV-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 VRT-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 LRC-USDT spread=87.6% high=gate(10.9%) low=bybit(-76.6%)
+2026/06/21 00:52:00 [跨所扫描] 机会 CIEN-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 SHLD-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 ALAB-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 SPELL-USDT spread=463.2% high=binance(-71.8%) low=gate(-535.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 HOME-USDT spread=277.4% high=binance(-398.6%) low=bybit(-676.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 AMAT-USDT spread=281.9% high=bybit(281.9%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 ESPORTS-USDT spread=259.4% high=binance(653.4%) low=gate(394.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 STABLE-USDT spread=242.6% high=gate(10.9%) low=bybit(-231.6%)
+2026/06/21 00:52:00 [跨所扫描] 机会 RE-USDT spread=219.3% high=bybit(10.9%) low=okx(-208.4%)
+2026/06/21 00:52:00 [跨所扫描] 机会 CGNX-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 SAHARA-USDT spread=315.3% high=bybit(10.9%) low=gate(-304.3%)
+2026/06/21 00:52:00 [跨所扫描] 机会 PHAROS-USDT spread=192.9% high=binance(10.9%) low=bybit(-181.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 CRM-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 INFQ-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 TWLO-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 SHIB-USDT spread=13.5% high=gate(-18.1%) low=binance(-31.6%)
+2026/06/21 00:52:00 [跨所扫描] 机会 FLOKI-USDT spread=32.1% high=bybit(10.9%) low=gate(-21.1%)
+2026/06/21 00:52:00 [跨所扫描] 机会 ESP-USDT spread=245.0% high=bybit(10.9%) low=gate(-234.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 NBIS-USDT spread=183.9% high=bybit(165.6%) low=binance(-18.3%)
+2026/06/21 00:52:00 [跨所扫描] 机会 LUNC-USDT spread=28.6% high=bybit(10.9%) low=gate(-17.6%)
+2026/06/21 00:52:00 [跨所扫描] 机会 SKHYNIX-USDT spread=169.2% high=okx(203.2%) low=binance(34.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 INTC-USDT spread=56.2% high=okx(56.2%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 PEPE-USDT spread=15.1% high=bybit(10.9%) low=gate(-4.2%)
+2026/06/21 00:52:00 [跨所扫描] 机会 QQQ-USDT spread=7.3% high=binance(0.0%) low=bybit(-7.3%)
+2026/06/21 00:52:00 [跨所扫描] 机会 SMH-USDT spread=128.7% high=okx(139.7%) low=gate(10.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 BEL-USDT spread=208.5% high=gate(142.5%) low=binance(-66.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 CRCL-USDT spread=31.2% high=okx(31.2%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 B-USDT spread=123.4% high=bybit(134.3%) low=gate(10.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 ASTR-USDT spread=239.9% high=binance(9.2%) low=gate(-230.7%)
+2026/06/21 00:52:00 [跨所扫描] 机会 CLANKER-USDT spread=195.1% high=bybit(206.0%) low=gate(10.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 EDU-USDT spread=212.6% high=binance(10.9%) low=gate(-201.7%)
+2026/06/21 00:52:00 [跨所扫描] 机会 GLM-USDT spread=138.6% high=binance(10.9%) low=gate(-127.7%)
+2026/06/21 00:52:00 [跨所扫描] 机会 AXS-USDT spread=135.0% high=bybit(3.6%) low=okx(-131.4%)
+2026/06/21 00:52:00 [跨所扫描] 机会 AVAX-USDT spread=6.4% high=gate(10.9%) low=binance(4.5%)
+2026/06/21 00:52:00 [跨所扫描] 机会 ALICE-USDT spread=158.1% high=gate(-665.5%) low=binance(-823.7%)
+2026/06/21 00:52:00 [跨所扫描] 机会 CHIP-USDT spread=131.5% high=bybit(-15.0%) low=gate(-146.5%)
+2026/06/21 00:52:00 [跨所扫描] 机会 SIREN-USDT spread=95.7% high=binance(451.8%) low=bybit(356.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 JST-USDT spread=88.0% high=binance(2.6%) low=gate(-85.4%)
+2026/06/21 00:52:00 [跨所扫描] 机会 CLO-USDT spread=84.5% high=bybit(139.4%) low=gate(54.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 PROVE-USDT spread=70.3% high=gate(10.9%) low=bybit(-59.4%)
+2026/06/21 00:52:00 [跨所扫描] 机会 FOLKS-USDT spread=207.8% high=gate(218.8%) low=bybit(10.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 EWY-USDT spread=67.1% high=bybit(67.1%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 B2-USDT spread=90.7% high=gate(101.6%) low=binance(10.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 LSK-USDT spread=287.0% high=bybit(10.9%) low=gate(-276.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 ANIME-USDT spread=96.5% high=binance(-27.9%) low=gate(-124.4%)
+2026/06/21 00:52:00 [跨所扫描] 机会 G-USDT spread=108.9% high=binance(-17.0%) low=gate(-125.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 BNB-USDT spread=7.1% high=bybit(10.9%) low=binance(3.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 SLX-USDT spread=103.9% high=binance(114.9%) low=gate(10.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 SUI-USDT spread=18.7% high=bybit(10.9%) low=binance(-7.7%)
+2026/06/21 00:52:00 [跨所扫描] 机会 RIVER-USDT spread=67.5% high=bybit(88.3%) low=gate(20.8%)
+2026/06/21 00:52:00 [跨所扫描] 机会 COST-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 BABY-USDT spread=61.9% high=gate(10.9%) low=bybit(-50.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 MSTR-USDT spread=122.9% high=okx(122.9%) low=bybit(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 AWE-USDT spread=34.4% high=binance(10.9%) low=gate(-23.4%)
+2026/06/21 00:52:00 [跨所扫描] 机会 STG-USDT spread=66.6% high=bybit(8.1%) low=binance(-58.6%)
+2026/06/21 00:52:00 [跨所扫描] 机会 US-USDT spread=100.3% high=gate(111.3%) low=bybit(10.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 VTHO-USDT spread=59.1% high=binance(10.9%) low=gate(-48.2%)
+2026/06/21 00:52:00 [跨所扫描] 机会 XTZ-USDT spread=76.0% high=gate(10.6%) low=bybit(-65.4%)
+2026/06/21 00:52:00 [跨所扫描] 机会 BARD-USDT spread=39.9% high=gate(10.9%) low=binance(-28.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 CVC-USDT spread=162.5% high=bybit(10.9%) low=gate(-151.5%)
+2026/06/21 00:52:00 [跨所扫描] 机会 ARIA-USDT spread=51.7% high=gate(62.6%) low=binance(10.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 XCU-USDT spread=40.0% high=okx(0.0%) low=gate(-40.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 ASR-USDT spread=80.3% high=bybit(10.9%) low=binance(-69.3%)
+2026/06/21 00:52:00 [跨所扫描] 机会 BANANA-USDT spread=78.2% high=gate(-0.5%) low=bybit(-78.7%)
+2026/06/21 00:52:00 [跨所扫描] 机会 GAS-USDT spread=105.3% high=binance(10.9%) low=gate(-94.4%)
+2026/06/21 00:52:00 [跨所扫描] 机会 RKLB-USDT spread=49.8% high=bybit(49.8%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 LTC-USDT spread=6.9% high=bybit(2.5%) low=binance(-4.4%)
+2026/06/21 00:52:00 [跨所扫描] 机会 POL-USDT spread=44.8% high=gate(10.9%) low=bybit(-33.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 BSB-USDT spread=16.2% high=gate(27.2%) low=binance(10.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 DAM-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 NFLX-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 ONT-USDT spread=57.4% high=bybit(10.9%) low=gate(-46.4%)
+2026/06/21 00:52:00 [跨所扫描] 机会 SKY-USDT spread=17.6% high=gate(10.9%) low=okx(-6.6%)
+2026/06/21 00:52:00 [跨所扫描] 机会 FOGO-USDT spread=32.2% high=binance(10.9%) low=gate(-21.2%)
+2026/06/21 00:52:00 [跨所扫描] 机会 TRUMP-USDT spread=63.1% high=gate(-20.8%) low=bybit(-83.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 TLM-USDT spread=99.4% high=binance(10.9%) low=gate(-88.5%)
+2026/06/21 00:52:00 [跨所扫描] 机会 TAC-USDT spread=34.8% high=binance(45.7%) low=bybit(10.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 BLUR-USDT spread=50.3% high=bybit(-8.4%) low=gate(-58.7%)
+2026/06/21 00:52:00 [跨所扫描] 机会 STRK-USDT spread=43.0% high=bybit(8.8%) low=binance(-34.2%)
+2026/06/21 00:52:00 [跨所扫描] 机会 NEAR-USDT spread=14.2% high=gate(6.9%) low=binance(-7.3%)
+2026/06/21 00:52:00 [跨所扫描] 机会 PTB-USDT spread=78.0% high=gate(137.8%) low=binance(59.8%)
+2026/06/21 00:52:00 [跨所扫描] 机会 SQD-USDT spread=58.0% high=gate(69.0%) low=binance(10.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 BONK-USDT spread=30.8% high=gate(10.9%) low=okx(-19.8%)
+2026/06/21 00:52:00 [跨所扫描] 机会 NG-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 COMP-USDT spread=77.3% high=okx(3.2%) low=gate(-74.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 MORPHO-USDT spread=42.9% high=binance(10.9%) low=gate(-32.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 ADA-USDT spread=21.1% high=gate(10.9%) low=binance(-10.1%)
+2026/06/21 00:52:00 [跨所扫描] 机会 NXPC-USDT spread=42.3% high=binance(10.9%) low=gate(-31.3%)
+2026/06/21 00:52:00 [跨所扫描] 机会 MEGA-USDT spread=31.5% high=bybit(10.9%) low=binance(-20.5%)
+2026/06/21 00:52:00 [跨所扫描] 机会 JTO-USDT spread=42.0% high=gate(0.8%) low=okx(-41.2%)
+2026/06/21 00:52:00 [跨所扫描] 机会 M-USDT spread=127.8% high=binance(138.8%) low=gate(10.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 JCT-USDT spread=24.7% high=binance(35.6%) low=gate(10.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 BEAT-USDT spread=167.0% high=okx(159.2%) low=gate(-7.8%)
+2026/06/21 00:52:00 [跨所扫描] 机会 FIDA-USDT spread=154.5% high=binance(-377.5%) low=bybit(-531.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 XLM-USDT spread=15.4% high=bybit(10.9%) low=binance(-4.4%)
+2026/06/21 00:52:00 [跨所扫描] 机会 SPX-USDT spread=14.0% high=binance(10.9%) low=gate(-3.1%)
+2026/06/21 00:52:00 [跨所扫描] 机会 SPACE-USDT spread=41.4% high=gate(10.9%) low=okx(-30.4%)
+2026/06/21 00:52:00 [跨所扫描] 机会 AGT-USDT spread=37.4% high=gate(80.4%) low=binance(42.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 BILL-USDT spread=33.5% high=gate(44.5%) low=binance(10.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 STX-USDT spread=20.8% high=gate(10.9%) low=binance(-9.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 ZRO-USDT spread=12.5% high=binance(10.9%) low=gate(-1.5%)
+2026/06/21 00:52:00 [跨所扫描] 机会 AITO-USDT spread=68.6% high=binance(10.9%) low=bybit(-57.7%)
+2026/06/21 00:52:00 [跨所扫描] 机会 DOGE-USDT spread=14.7% high=bybit(9.5%) low=binance(-5.2%)
+2026/06/21 00:52:00 [跨所扫描] 机会 ARB-USDT spread=27.8% high=bybit(3.1%) low=binance(-24.7%)
+2026/06/21 00:52:00 [跨所扫描] 机会 WIF-USDT spread=11.3% high=gate(10.9%) low=binance(-0.3%)
+2026/06/21 00:52:00 [跨所扫描] 机会 EGLD-USDT spread=46.7% high=okx(-1.2%) low=gate(-47.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 DUSK-USDT spread=179.3% high=bybit(-53.8%) low=gate(-233.1%)
+2026/06/21 00:52:00 [跨所扫描] 机会 ERNEL-USDT spread=91.4% high=gate(10.9%) low=bybit(-80.5%)
+2026/06/21 00:52:00 [跨所扫描] 机会 ILV-USDT spread=51.2% high=binance(10.9%) low=gate(-40.3%)
+2026/06/21 00:52:00 [跨所扫描] 机会 HAEDAL-USDT spread=38.0% high=binance(10.9%) low=bybit(-27.1%)
+2026/06/21 00:52:00 [跨所扫描] 机会 ROSE-USDT spread=84.5% high=binance(4.7%) low=bybit(-79.8%)
+2026/06/21 00:52:00 [跨所扫描] 机会 UNI-USDT spread=24.3% high=bybit(10.5%) low=gate(-13.8%)
+2026/06/21 00:52:00 [跨所扫描] 机会 BICO-USDT spread=84.3% high=binance(-152.3%) low=okx(-236.6%)
+2026/06/21 00:52:00 [跨所扫描] 机会 MAGMA-USDT spread=159.6% high=bybit(170.6%) low=gate(10.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 XPL-USDT spread=10.0% high=okx(10.2%) low=binance(0.1%)
+2026/06/21 00:52:00 [跨所扫描] 机会 PENDLE-USDT spread=9.1% high=gate(10.9%) low=binance(1.8%)
+2026/06/21 00:52:00 [跨所扫描] 机会 MNT-USDT spread=23.3% high=gate(10.9%) low=bybit(-12.4%)
+2026/06/21 00:52:00 [跨所扫描] 机会 ONDO-USDT spread=25.8% high=bybit(10.9%) low=binance(-14.8%)
+2026/06/21 00:52:00 [跨所扫描] 机会 PEOPLE-USDT spread=58.7% high=gate(10.9%) low=bybit(-47.7%)
+2026/06/21 00:52:00 [跨所扫描] 机会 WLD-USDT spread=10.1% high=gate(10.9%) low=okx(0.8%)
+2026/06/21 00:52:00 [跨所扫描] 机会 LA-USDT spread=69.0% high=binance(10.9%) low=gate(-58.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 LINK-USDT spread=8.5% high=bybit(0.9%) low=okx(-7.6%)
+2026/06/21 00:52:00 [跨所扫描] 机会 ETC-USDT spread=10.9% high=binance(10.9%) low=bybit(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 MERL-USDT spread=69.6% high=gate(10.9%) low=bybit(-58.7%)
+2026/06/21 00:52:00 [跨所扫描] 机会 TRX-USDT spread=9.1% high=binance(5.4%) low=bybit(-3.8%)
+2026/06/21 00:52:00 [跨所扫描] 机会 SAND-USDT spread=64.9% high=bybit(10.9%) low=okx(-53.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 FLUX-USDT spread=77.1% high=binance(10.9%) low=gate(-66.1%)
+2026/06/21 00:52:00 [跨所扫描] 机会 VIRTUAL-USDT spread=16.2% high=gate(4.6%) low=binance(-11.6%)
+2026/06/21 00:52:00 [跨所扫描] 机会 ATOM-USDT spread=26.6% high=gate(3.7%) low=binance(-22.8%)
+2026/06/21 00:52:00 [跨所扫描] 机会 CRV-USDT spread=10.2% high=bybit(8.2%) low=okx(-2.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 VVV-USDT spread=71.5% high=bybit(-127.8%) low=gate(-199.3%)
+2026/06/21 00:52:00 [跨所扫描] 机会 BERA-USDT spread=30.8% high=gate(10.9%) low=bybit(-19.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 EVAA-USDT spread=46.5% high=binance(57.4%) low=gate(10.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 PENGU-USDT spread=18.6% high=bybit(10.9%) low=gate(-7.7%)
+2026/06/21 00:52:00 [跨所扫描] 机会 APE-USDT spread=6.8% high=bybit(10.9%) low=gate(4.2%)
+2026/06/21 00:52:00 [跨所扫描] 机会 XRP-USDT spread=12.2% high=bybit(10.9%) low=binance(-1.2%)
+2026/06/21 00:52:00 [跨所扫描] 机会 SEI-USDT spread=14.6% high=binance(-0.4%) low=gate(-15.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 CFX-USDT spread=17.9% high=gate(10.9%) low=binance(-7.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 SKYAI-USDT spread=5.7% high=gate(34.4%) low=binance(28.7%)
+2026/06/21 00:52:00 [跨所扫描] 机会 LYN-USDT spread=165.1% high=gate(176.1%) low=binance(10.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 PUMP-USDT spread=12.6% high=gate(10.9%) low=binance(-1.7%)
+2026/06/21 00:52:00 [跨所扫描] 机会 HBAR-USDT spread=11.3% high=okx(10.8%) low=binance(-0.6%)
+2026/06/21 00:52:00 [跨所扫描] 机会 RENDER-USDT spread=8.8% high=bybit(10.9%) low=gate(2.2%)
+2026/06/21 00:52:00 [跨所扫描] 机会 CAKE-USDT spread=7.5% high=gate(10.9%) low=binance(3.5%)
+2026/06/21 00:52:00 [跨所扫描] 机会 ENS-USDT spread=18.7% high=bybit(-4.4%) low=gate(-23.1%)
+2026/06/21 00:52:00 [跨所扫描] 机会 ANKR-USDT spread=69.0% high=bybit(10.9%) low=gate(-58.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 SAMSUNG-USDT spread=77.2% high=okx(77.2%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 JUP-USDT spread=18.4% high=gate(10.9%) low=binance(-7.5%)
+2026/06/21 00:52:00 [跨所扫描] 机会 ENA-USDT spread=5.8% high=gate(10.9%) low=binance(5.1%)
+2026/06/21 00:52:00 [跨所扫描] 机会 ONG-USDT spread=13.2% high=gate(10.9%) low=bybit(-2.3%)
+2026/06/21 00:52:00 [跨所扫描] 机会 FIL-USDT spread=21.3% high=gate(10.9%) low=bybit(-10.4%)
+2026/06/21 00:52:00 [跨所扫描] 机会 SCR-USDT spread=8.0% high=gate(10.9%) low=binance(2.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 COAI-USDT spread=126.7% high=bybit(137.7%) low=gate(10.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 DIA-USDT spread=13.8% high=gate(10.9%) low=binance(-2.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 DOT-USDT spread=13.4% high=okx(-2.7%) low=bybit(-16.1%)
+2026/06/21 00:52:00 [跨所扫描] 机会 CRO-USDT spread=26.1% high=bybit(10.9%) low=okx(-15.2%)
+2026/06/21 00:52:00 [跨所扫描] 机会 ZETA-USDT spread=30.1% high=binance(1.3%) low=bybit(-28.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 PARTI-USDT spread=10.2% high=gate(10.9%) low=okx(0.7%)
+2026/06/21 00:52:00 [跨所扫描] 机会 IOTX-USDT spread=150.0% high=binance(-5.7%) low=gate(-155.7%)
+2026/06/21 00:52:00 [跨所扫描] 机会 YB-USDT spread=74.2% high=gate(85.2%) low=binance(10.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 APT-USDT spread=9.6% high=okx(-5.8%) low=gate(-15.4%)
+2026/06/21 00:52:00 [跨所扫描] 机会 ALGO-USDT spread=20.5% high=bybit(10.9%) low=binance(-9.6%)
+2026/06/21 00:52:00 [跨所扫描] 机会 INJ-USDT spread=9.1% high=bybit(-20.9%) low=gate(-30.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 ZRX-USDT spread=23.8% high=gate(10.9%) low=binance(-12.8%)
+2026/06/21 00:52:00 [跨所扫描] 机会 FIGHT-USDT spread=124.5% high=gate(138.8%) low=bybit(14.3%)
+2026/06/21 00:52:00 [跨所扫描] 机会 ID-USDT spread=9.7% high=bybit(-104.0%) low=binance(-113.8%)
+2026/06/21 00:52:00 [跨所扫描] 机会 NEO-USDT spread=5.1% high=gate(10.9%) low=okx(5.8%)
+2026/06/21 00:52:00 [跨所扫描] 机会 API3-USDT spread=14.5% high=gate(10.9%) low=binance(-3.5%)
+2026/06/21 00:52:00 [跨所扫描] 机会 NOM-USDT spread=31.2% high=gate(10.9%) low=binance(-20.2%)
+2026/06/21 00:52:00 [跨所扫描] 机会 MIRA-USDT spread=15.6% high=bybit(10.9%) low=binance(-4.6%)
+2026/06/21 00:52:00 [跨所扫描] 机会 DYDX-USDT spread=13.2% high=gate(10.9%) low=bybit(-2.2%)
+2026/06/21 00:52:00 [跨所扫描] 机会 COOKIE-USDT spread=164.3% high=gate(10.9%) low=bybit(-153.4%)
+2026/06/21 00:52:00 [跨所扫描] 机会 MMT-USDT spread=6.0% high=gate(10.9%) low=okx(4.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 2Z-USDT spread=8.8% high=binance(10.9%) low=bybit(2.2%)
+2026/06/21 00:52:00 [跨所扫描] 机会 OP-USDT spread=33.7% high=gate(-8.7%) low=bybit(-42.3%)
+2026/06/21 00:52:00 [跨所扫描] 机会 BIO-USDT spread=43.7% high=bybit(10.9%) low=okx(-32.7%)
+2026/06/21 00:52:00 [跨所扫描] 机会 SUSHI-USDT spread=61.3% high=okx(2.4%) low=gate(-58.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 RUNE-USDT spread=76.8% high=bybit(10.9%) low=gate(-65.8%)
+2026/06/21 00:52:00 [跨所扫描] 机会 XVS-USDT spread=36.2% high=binance(-30.3%) low=bybit(-66.5%)
+2026/06/21 00:52:00 [跨所扫描] 机会 CHZ-USDT spread=13.6% high=okx(-12.6%) low=bybit(-26.2%)
+2026/06/21 00:52:00 [跨所扫描] 机会 AR-USDT spread=11.9% high=gate(10.9%) low=okx(-1.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 TIA-USDT spread=20.8% high=gate(10.9%) low=okx(-9.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 OPENAI-USDT spread=5.5% high=binance(5.5%) low=okx(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 PORTAL-USDT spread=97.7% high=binance(-141.4%) low=bybit(-239.2%)
+2026/06/21 00:52:00 [跨所扫描] 机会 TRB-USDT spread=10.3% high=binance(10.9%) low=gate(0.7%)
+2026/06/21 00:52:00 [跨所扫描] 机会 JASMY-USDT spread=31.0% high=gate(10.9%) low=binance(-20.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 PLUME-USDT spread=14.6% high=gate(10.9%) low=binance(-3.6%)
+2026/06/21 00:52:00 [跨所扫描] 机会 BNT-USDT spread=118.3% high=bybit(10.9%) low=gate(-107.3%)
+2026/06/21 00:52:00 [跨所扫描] 机会 USD1-USDT spread=36.4% high=bybit(10.9%) low=gate(-25.4%)
+2026/06/21 00:52:00 [跨所扫描] 机会 QTUM-USDT spread=25.2% high=gate(10.9%) low=bybit(-14.3%)
+2026/06/21 00:52:00 [跨所扫描] 机会 ENSO-USDT spread=15.3% high=bybit(10.9%) low=gate(-4.4%)
+2026/06/21 00:52:00 [跨所扫描] 机会 TRUST-USDT spread=41.6% high=gate(10.9%) low=binance(-30.6%)
+2026/06/21 00:52:00 [跨所扫描] 机会 SM-USDT spread=30.6% high=bybit(10.9%) low=gate(-19.6%)
+2026/06/21 00:52:00 [跨所扫描] 机会 CHR-USDT spread=5.8% high=gate(10.9%) low=binance(5.2%)
+2026/06/21 00:52:00 [跨所扫描] 机会 SAFE-USDT spread=9.9% high=binance(10.9%) low=gate(1.1%)
+2026/06/21 00:52:00 [跨所扫描] 机会 ORCA-USDT spread=23.2% high=bybit(10.9%) low=binance(-12.2%)
+2026/06/21 00:52:00 [跨所扫描] 机会 1INCH-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 BTR-USDT spread=43.3% high=binance(54.3%) low=gate(10.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 ORDI-USDT spread=7.7% high=gate(10.9%) low=okx(3.2%)
+2026/06/21 00:52:00 [跨所扫描] 机会 LDO-USDT spread=9.3% high=gate(10.9%) low=binance(1.6%)
+2026/06/21 00:52:00 [跨所扫描] 机会 AVA-USDT spread=116.4% high=gate(10.9%) low=bybit(-105.5%)
+2026/06/21 00:52:00 [跨所扫描] 机会 HANA-USDT spread=36.4% high=gate(77.2%) low=bybit(40.8%)
+2026/06/21 00:52:00 [跨所扫描] 机会 CYBER-USDT spread=9.8% high=gate(10.9%) low=binance(1.1%)
+2026/06/21 00:52:00 [跨所扫描] 机会 USDC-USDT spread=9.3% high=gate(9.3%) low=bybit(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 LIGHT-USDT spread=12.0% high=binance(22.9%) low=gate(10.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 RLC-USDT spread=8.6% high=binance(-15.3%) low=gate(-23.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 SPORTFUN-USDT spread=88.6% high=binance(99.5%) low=bybit(10.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 TRADOOR-USDT spread=14.1% high=binance(25.0%) low=gate(10.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 OPN-USDT spread=42.9% high=okx(53.9%) low=gate(10.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 POLYX-USDT spread=67.0% high=bybit(11.2%) low=gate(-55.8%)
+2026/06/21 00:52:00 [跨所扫描] 机会 WLFI-USDT spread=10.1% high=binance(10.9%) low=okx(0.8%)
+2026/06/21 00:52:00 [跨所扫描] 机会 POWR-USDT spread=10.0% high=gate(10.9%) low=bybit(0.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 EPIC-USDT spread=162.6% high=gate(162.9%) low=binance(0.4%)
+2026/06/21 00:52:00 [跨所扫描] 机会 4-USDT spread=77.8% high=bybit(116.9%) low=binance(39.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 ZEN-USDT spread=9.1% high=okx(10.9%) low=bybit(1.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 ATH-USDT spread=7.8% high=gate(10.9%) low=okx(3.2%)
+2026/06/21 00:52:00 [跨所扫描] 机会 T-USDT spread=246.2% high=binance(10.9%) low=gate(-235.2%)
+2026/06/21 00:52:00 [跨所扫描] 机会 SFP-USDT spread=10.2% high=gate(10.9%) low=binance(0.7%)
+2026/06/21 00:52:00 [跨所扫描] 机会 PNUT-USDT spread=8.8% high=gate(10.9%) low=okx(2.2%)
+2026/06/21 00:52:00 [跨所扫描] 机会 RDW-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 CELO-USDT spread=6.7% high=gate(10.9%) low=binance(4.2%)
+2026/06/21 00:52:00 [跨所扫描] 机会 ICP-USDT spread=26.2% high=gate(9.1%) low=okx(-17.2%)
+2026/06/21 00:52:00 [跨所扫描] 机会 LITE-USDT spread=40.3% high=gate(10.9%) low=okx(-29.3%)
+2026/06/21 00:52:00 [跨所扫描] 机会 ICX-USDT spread=18.5% high=binance(10.9%) low=gate(-7.6%)
+2026/06/21 00:52:00 [跨所扫描] 机会 ETHFI-USDT spread=22.1% high=gate(10.9%) low=okx(-11.2%)
+2026/06/21 00:52:00 [跨所扫描] 机会 SYRUP-USDT spread=7.1% high=binance(10.9%) low=gate(3.8%)
+2026/06/21 00:52:00 [跨所扫描] 机会 CVX-USDT spread=94.2% high=binance(10.9%) low=gate(-83.2%)
+2026/06/21 00:52:00 [跨所扫描] 机会 GME-USDT spread=11.3% high=gate(10.9%) low=okx(-0.3%)
+2026/06/21 00:52:00 [跨所扫描] 机会 AUCTION-USDT spread=15.4% high=gate(10.9%) low=okx(-4.4%)
+2026/06/21 00:52:00 [跨所扫描] 机会 ITE-USDT spread=22.6% high=binance(10.9%) low=gate(-11.6%)
+2026/06/21 00:52:00 [跨所扫描] 机会 GRT-USDT spread=28.1% high=bybit(5.8%) low=binance(-22.4%)
+2026/06/21 00:52:00 [跨所扫描] 机会 IP-USDT spread=99.7% high=bybit(10.9%) low=okx(-88.7%)
+2026/06/21 00:52:00 [跨所扫描] 机会 AVNT-USDT spread=24.5% high=gate(10.9%) low=bybit(-13.5%)
+2026/06/21 00:52:00 [跨所扫描] 机会 PIEVERSE-USDT spread=24.8% high=bybit(35.8%) low=gate(10.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 USAR-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 HIVE-USDT spread=87.6% high=bybit(10.9%) low=gate(-76.6%)
+2026/06/21 00:52:00 [跨所扫描] 机会 ME-USDT spread=40.3% high=gate(10.9%) low=bybit(-29.4%)
+2026/06/21 00:52:00 [跨所扫描] 机会 VELODROME-USDT spread=50.2% high=binance(10.9%) low=gate(-39.2%)
+2026/06/21 00:52:00 [跨所扫描] 机会 DOGS-USDT spread=18.2% high=gate(10.9%) low=binance(-7.3%)
+2026/06/21 00:52:00 [跨所扫描] 机会 TRUTH-USDT spread=45.4% high=okx(56.4%) low=gate(10.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 TURBO-USDT spread=21.1% high=binance(10.9%) low=okx(-10.1%)
+2026/06/21 00:52:00 [跨所扫描] 机会 RONIN-USDT spread=14.5% high=bybit(10.9%) low=binance(-3.6%)
+2026/06/21 00:52:00 [跨所扫描] 机会 IO-USDT spread=17.1% high=binance(10.9%) low=bybit(-6.1%)
+2026/06/21 00:52:00 [跨所扫描] 机会 IOTA-USDT spread=30.5% high=gate(10.2%) low=okx(-20.3%)
+2026/06/21 00:52:00 [跨所扫描] 机会 HUMA-USDT spread=19.4% high=binance(10.9%) low=okx(-8.4%)
+2026/06/21 00:52:00 [跨所扫描] 机会 AEVO-USDT spread=21.3% high=gate(10.9%) low=okx(-10.3%)
+2026/06/21 00:52:00 [跨所扫描] 机会 NOK-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 LQTY-USDT spread=16.0% high=gate(10.9%) low=binance(-5.1%)
+2026/06/21 00:52:00 [跨所扫描] 机会 MON-USDT spread=10.2% high=gate(10.9%) low=bybit(0.8%)
+2026/06/21 00:52:00 [跨所扫描] 机会 ZEST-USDT spread=37.9% high=binance(48.8%) low=bybit(10.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 CC-USDT spread=8.3% high=bybit(10.9%) low=binance(2.6%)
+2026/06/21 00:52:00 [跨所扫描] 机会 NIL-USDT spread=23.4% high=binance(10.9%) low=gate(-12.5%)
+2026/06/21 00:52:00 [跨所扫描] 机会 MANA-USDT spread=37.1% high=bybit(-26.4%) low=gate(-63.5%)
+2026/06/21 00:52:00 [跨所扫描] 机会 MOVE-USDT spread=71.9% high=bybit(82.9%) low=gate(10.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 RARE-USDT spread=60.2% high=bybit(-42.5%) low=gate(-102.7%)
+2026/06/21 00:52:00 [跨所扫描] 机会 TNSR-USDT spread=12.6% high=gate(10.9%) low=bybit(-1.6%)
+2026/06/21 00:52:00 [跨所扫描] 机会 OPG-USDT spread=9.2% high=okx(20.2%) low=gate(10.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 LAYER-USDT spread=15.2% high=gate(7.2%) low=okx(-8.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 BR-USDT spread=13.4% high=binance(10.9%) low=gate(-2.4%)
+2026/06/21 00:52:00 [跨所扫描] 机会 AERO-USDT spread=7.4% high=binance(10.9%) low=gate(3.5%)
+2026/06/21 00:52:00 [跨所扫描] 机会 RVN-USDT spread=16.4% high=gate(10.9%) low=bybit(-5.5%)
+2026/06/21 00:52:00 [跨所扫描] 机会 ZAMA-USDT spread=24.3% high=binance(10.9%) low=gate(-13.4%)
+2026/06/21 00:52:00 [跨所扫描] 机会 0G-USDT spread=30.5% high=gate(2.4%) low=bybit(-28.1%)
+2026/06/21 00:52:00 [跨所扫描] 机会 METIS-USDT spread=46.4% high=binance(10.9%) low=bybit(-35.4%)
+2026/06/21 00:52:00 [跨所扫描] 机会 C-USDT spread=148.5% high=gate(10.9%) low=bybit(-137.5%)
+2026/06/21 00:52:00 [跨所扫描] 机会 BMNR-USDT spread=21.4% high=binance(21.4%) low=bybit(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 TUT-USDT spread=24.4% high=bybit(35.3%) low=binance(10.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 RED-USDT spread=29.0% high=gate(10.9%) low=bybit(-18.1%)
+2026/06/21 00:52:00 [跨所扫描] 机会 VANA-USDT spread=17.3% high=gate(10.9%) low=bybit(-6.3%)
+2026/06/21 00:52:00 [跨所扫描] 机会 DIS-USDT spread=21.9% high=gate(21.9%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 BASED-USDT spread=10.1% high=gate(10.9%) low=okx(0.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 FLOW-USDT spread=12.0% high=bybit(10.9%) low=binance(-1.1%)
+2026/06/21 00:52:00 [跨所扫描] 机会 DOLO-USDT spread=135.3% high=gate(10.9%) low=bybit(-124.4%)
+2026/06/21 00:52:00 [跨所扫描] 机会 MAV-USDT spread=7.4% high=gate(10.9%) low=bybit(3.6%)
+2026/06/21 00:52:00 [跨所扫描] 机会 BLESS-USDT spread=29.2% high=binance(40.1%) low=gate(10.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 GEN-USDT spread=28.3% high=okx(39.3%) low=gate(10.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 BULLA-USDT spread=30.5% high=gate(102.9%) low=binance(72.4%)
+2026/06/21 00:52:00 [跨所扫描] 机会 RSR-USDT spread=13.9% high=gate(10.9%) low=binance(-2.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 ARKM-USDT spread=18.5% high=gate(10.9%) low=bybit(-7.6%)
+2026/06/21 00:52:00 [跨所扫描] 机会 MTL-USDT spread=35.1% high=bybit(10.9%) low=binance(-24.1%)
+2026/06/21 00:52:00 [跨所扫描] 机会 BIRB-USDT spread=31.5% high=binance(10.9%) low=gate(-20.6%)
+2026/06/21 00:52:00 [跨所扫描] 机会 C98-USDT spread=154.5% high=bybit(10.9%) low=gate(-143.6%)
+2026/06/21 00:52:00 [跨所扫描] 机会 BAS-USDT spread=12.6% high=binance(23.5%) low=gate(10.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 VIC-USDT spread=20.1% high=gate(10.9%) low=binance(-9.2%)
+2026/06/21 00:52:00 [跨所扫描] 机会 BROCCOLIF3B-USDT spread=31.3% high=gate(42.3%) low=binance(10.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 OGN-USDT spread=18.8% high=bybit(10.2%) low=binance(-8.6%)
+2026/06/21 00:52:00 [跨所扫描] 机会 BTW-USDT spread=66.1% high=bybit(723.2%) low=binance(657.1%)
+2026/06/21 00:52:00 [跨所扫描] 机会 ALCH-USDT spread=16.9% high=binance(27.9%) low=gate(10.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 HMSTR-USDT spread=21.2% high=gate(10.9%) low=binance(-10.2%)
+2026/06/21 00:52:00 [跨所扫描] 机会 ARK-USDT spread=7.6% high=gate(10.9%) low=binance(3.3%)
+2026/06/21 00:52:00 [跨所扫描] 机会 SAGA-USDT spread=46.2% high=gate(57.2%) low=binance(10.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 B3-USDT spread=52.8% high=bybit(10.9%) low=gate(-41.8%)
+2026/06/21 00:52:00 [跨所扫描] 机会 LUNR-USDT spread=10.9% high=gate(10.9%) low=okx(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 IMX-USDT spread=33.3% high=gate(10.9%) low=okx(-22.4%)
+2026/06/21 00:52:00 [跨所扫描] 机会 S-USDT spread=44.4% high=gate(10.9%) low=okx(-33.4%)
+2026/06/21 00:52:00 [跨所扫描] 机会 USELESS-USDT spread=13.6% high=binance(24.5%) low=gate(10.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 MBOX-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 TA-USDT spread=34.8% high=binance(45.8%) low=gate(10.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 BX-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 BLUAI-USDT spread=9.8% high=gate(10.9%) low=binance(1.1%)
+2026/06/21 00:52:00 [跨所扫描] 机会 MNO-USDT spread=7.0% high=gate(10.9%) low=okx(4.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 PHA-USDT spread=26.8% high=binance(-11.0%) low=bybit(-37.8%)
+2026/06/21 00:52:00 [跨所扫描] 机会 ZBCN-USDT spread=157.6% high=gate(-37.4%) low=bybit(-195.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 CARV-USDT spread=18.6% high=binance(10.9%) low=gate(-7.7%)
+2026/06/21 00:52:00 [跨所扫描] 机会 BAND-USDT spread=67.3% high=gate(10.9%) low=bybit(-56.3%)
+2026/06/21 00:52:00 [跨所扫描] 机会 NAORIS-USDT spread=13.6% high=gate(24.5%) low=binance(10.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 XCN-USDT spread=34.9% high=gate(10.9%) low=bybit(-23.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 XAI-USDT spread=28.6% high=gate(10.9%) low=binance(-17.7%)
+2026/06/21 00:52:00 [跨所扫描] 机会 WOO-USDT spread=16.4% high=gate(10.9%) low=bybit(-5.5%)
+2026/06/21 00:52:00 [跨所扫描] 机会 SSV-USDT spread=17.7% high=gate(10.9%) low=binance(-6.7%)
+2026/06/21 00:52:00 [跨所扫描] 机会 ANTHROPIC-USDT spread=5.5% high=binance(5.5%) low=okx(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 VET-USDT spread=55.1% high=gate(10.9%) low=bybit(-44.2%)
+2026/06/21 00:52:00 [跨所扫描] 机会 FLNC-USDT spread=90.7% high=gate(90.7%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 RIVN-USDT spread=83.2% high=gate(83.2%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 VELVET-USDT spread=168.5% high=bybit(179.4%) low=gate(10.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 SNX-USDT spread=15.3% high=gate(8.9%) low=okx(-6.4%)
+2026/06/21 00:52:00 [跨所扫描] 机会 PUFFER-USDT spread=30.2% high=gate(10.9%) low=bybit(-19.3%)
+2026/06/21 00:52:00 [跨所扫描] 机会 GUN-USDT spread=30.8% high=gate(10.9%) low=binance(-19.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 CELR-USDT spread=20.5% high=gate(10.9%) low=binance(-9.6%)
+2026/06/21 00:52:00 [跨所扫描] 机会 UVXY-USDT spread=12.2% high=binance(0.0%) low=gate(-12.2%)
+2026/06/21 00:52:00 [跨所扫描] 机会 EWJ-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 DRAM-USDT spread=257.7% high=gate(257.7%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 MEW-USDT spread=9.5% high=gate(10.9%) low=okx(1.4%)
+2026/06/21 00:52:00 [跨所扫描] 机会 DYM-USDT spread=31.1% high=gate(42.0%) low=binance(10.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 ENJ-USDT spread=21.0% high=gate(10.9%) low=binance(-10.1%)
+2026/06/21 00:52:00 [跨所扫描] 机会 EBAY-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 COTI-USDT spread=6.4% high=gate(10.9%) low=binance(4.5%)
+2026/06/21 00:52:00 [跨所扫描] 机会 EWT-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 HIMS-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 HIGH-USDT spread=338.3% high=bybit(338.3%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 ARC-USDT spread=15.8% high=binance(10.9%) low=gate(-4.8%)
+2026/06/21 00:52:00 [跨所扫描] 机会 ZEREBRO-USDT spread=7.1% high=binance(18.1%) low=gate(10.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 POWER-USDT spread=102.5% high=bybit(113.4%) low=gate(10.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 BABA-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 我踏马来了-USDT spread=114.5% high=binance(125.5%) low=gate(10.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 WAVES-USDT spread=32.0% high=binance(0.0%) low=bybit(-32.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 GIGGLE-USDT spread=9.6% high=bybit(10.9%) low=gate(1.3%)
+2026/06/21 00:52:00 [跨所扫描] 机会 PAYP-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 ONDS-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 NVO-USDT spread=147.9% high=gate(147.9%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 MLN-USDT spread=10.9% high=bybit(10.9%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 HD-USDT spread=21.9% high=gate(21.9%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 GAIB-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 FUN-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 VINE-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 OL-USDT spread=19.4% high=okx(19.4%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 SNT-USDT spread=73.1% high=gate(10.9%) low=bybit(-62.1%)
+2026/06/21 00:52:00 [跨所扫描] 机会 币安人生-USDT spread=9.3% high=binance(10.9%) low=gate(1.6%)
+2026/06/21 00:52:00 [跨所扫描] 机会 AKE-USDT spread=15.6% high=bybit(26.5%) low=gate(10.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 RAY-USDT spread=21.4% high=binance(0.0%) low=okx(-21.4%)
+2026/06/21 00:52:00 [跨所扫描] 机会 RLS-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 XLE-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 BOB-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 URNM-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 DKNG-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 DEGEN-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 HYPE-USDT spread=22.0% high=gate(10.9%) low=bybit(-11.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 SOL-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 AI-USDT spread=66.4% high=gate(66.4%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 UB-USDT spread=40.1% high=binance(10.9%) low=gate(-29.1%)
+2026/06/21 00:52:00 [跨所扫描] 机会 NOW-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 XAG-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 QNT-USDT spread=17.3% high=gate(10.9%) low=bybit(-6.3%)
+2026/06/21 00:52:00 [跨所扫描] 机会 ZM-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 EWZ-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 WMT-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 IREN-USDT spread=73.8% high=gate(10.9%) low=bybit(-62.8%)
+2026/06/21 00:52:00 [跨所扫描] 机会 BZ-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 AAVE-USDT spread=8.7% high=bybit(10.9%) low=gate(2.3%)
+2026/06/21 00:52:00 [跨所扫描] 机会 UBER-USDT spread=21.9% high=binance(0.0%) low=gate(-21.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 CL-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 AXTI-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 ASML-USDT spread=140.6% high=binance(0.0%) low=gate(-140.6%)
+2026/06/21 00:52:00 [跨所扫描] 机会 XPD-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 ADBE-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 HPE-USDT spread=10.8% high=gate(10.8%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 CSCO-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 XPT-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 BCH-USDT spread=16.1% high=gate(-3.5%) low=binance(-19.6%)
+2026/06/21 00:52:00 [跨所扫描] 机会 SNDK-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 ZEC-USDT spread=41.7% high=okx(-4.6%) low=bybit(-46.3%)
+2026/06/21 00:52:00 [跨所扫描] 机会 PAXG-USDT spread=27.5% high=bybit(10.9%) low=gate(-16.5%)
+2026/06/21 00:52:00 [跨所扫描] 机会 LLY-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 YFI-USDT spread=80.6% high=gate(10.9%) low=binance(-69.7%)
+2026/06/21 00:52:00 [跨所扫描] 机会 JPM-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 ETH-USDT spread=7.3% high=gate(7.6%) low=bybit(0.3%)
+2026/06/21 00:52:00 [跨所扫描] 机会 BTC-USDT spread=9.5% high=gate(10.4%) low=okx(0.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 ARM-USDT spread=12.6% high=gate(10.9%) low=binance(-1.6%)
+2026/06/21 00:52:00 [跨所扫描] 机会 SOXL-USDT spread=10.9% high=gate(10.9%) low=bybit(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 ASTS-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 XAU-USDT spread=9.6% high=gate(9.6%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 MRVL-USDT spread=17.4% high=gate(17.4%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 CRWD-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 LAB-USDT spread=37.5% high=gate(10.9%) low=binance(-26.5%)
+2026/06/21 00:52:00 [跨所扫描] 机会 TAO-USDT spread=27.8% high=okx(7.4%) low=bybit(-20.4%)
+2026/06/21 00:52:00 [跨所扫描] 机会 CRWV-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 MU-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 WDC-USDT spread=159.5% high=gate(159.5%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 BRKB-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 CBRS-USDT spread=16.6% high=gate(10.9%) low=binance(-5.6%)
+2026/06/21 00:52:00 [跨所扫描] 机会 GLW-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 AMD-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 SPCX-USDT spread=69.2% high=gate(69.2%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 AVGO-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 HYUNDAI-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 AAOI-USDT spread=107.1% high=gate(83.9%) low=binance(-23.2%)
+2026/06/21 00:52:00 [跨所扫描] 机会 DELL-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 TSM-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 MSFT-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 V-USDT spread=21.9% high=binance(0.0%) low=gate(-21.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 COHR-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 IBM-USDT spread=89.2% high=gate(10.9%) low=bybit(-78.2%)
+2026/06/21 00:52:00 [跨所扫描] 机会 IWM-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 BE-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 QCOM-USDT spread=49.3% high=gate(10.9%) low=binance(-38.3%)
+2026/06/21 00:52:00 [跨所扫描] 机会 CRDO-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 BP-USDT spread=5.5% high=gate(10.9%) low=bybit(5.5%)
+2026/06/21 00:52:00 [跨所扫描] 机会 D-USDT spread=10.9% high=gate(10.9%) low=binance(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 COS-USDT spread=509.0% high=binance(0.0%) low=gate(-509.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 BB-USDT spread=10.9% high=binance(10.9%) low=okx(0.0%)
+2026/06/21 00:52:00 [跨所扫描] 机会 AT-USDT spread=21.1% high=gate(10.9%) low=okx(-10.1%)
+2026/06/21 00:52:00 [跨所扫描] 机会 AIA-USDT spread=206.6% high=gate(192.7%) low=bybit(-13.9%)
+2026/06/21 00:52:00 [跨所扫描] 机会 O-USDT spread=115.8% high=okx(126.7%) low=gate(10.9%)
+2026/06/21 00:52:00 [跨所扫描] 价差告警(纯观测) ESPORTS-USDT 年化价差 259.4% 空 binance(653.4%/年,间隔 1h) 多 gate(394.0%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:52:00 [跨所扫描] 价差告警(纯观测) SAHARA-USDT 年化价差 315.3% 空 bybit(10.9%/年,间隔 4h) 多 gate(-304.3%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:52:00 [跨所扫描] 价差告警(纯观测) B-USDT 年化价差 123.4% 空 bybit(134.3%/年,间隔 4h) 多 gate(10.9%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:52:00 [跨所扫描] 价差告警(纯观测) GLM-USDT 年化价差 138.6% 空 binance(10.9%/年,间隔 4h) 多 gate(-127.7%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:52:00 [跨所扫描] 价差告警(纯观测) M-USDT 年化价差 127.8% 空 binance(138.8%/年,间隔 4h) 多 gate(10.9%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:52:00 [跨所扫描] 价差告警(纯观测) DUSK-USDT 年化价差 179.3% 空 bybit(-53.8%/年,间隔 8h) 多 gate(-233.1%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:52:00 [跨所扫描] 价差告警(纯观测) IOTX-USDT 年化价差 150.0% 空 binance(-5.7%/年,间隔 8h) 多 gate(-155.7%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:52:00 [跨所扫描] 价差告警(纯观测) FIGHT-USDT 年化价差 124.5% 空 gate(138.8%/年,间隔 4h) 多 bybit(14.3%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:52:00 [跨所扫描] 价差告警(纯观测) BNT-USDT 年化价差 118.3% 空 bybit(10.9%/年,间隔 8h) 多 gate(-107.3%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:52:00 [跨所扫描] 价差告警(纯观测) AVA-USDT 年化价差 116.4% 空 gate(10.9%/年,间隔 4h) 多 bybit(-105.5%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:52:00 [跨所扫描] 价差告警(纯观测) VELVET-USDT 年化价差 168.5% 空 bybit(179.4%/年,间隔 4h) 多 gate(10.9%/年,间隔 4h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:52:00 [跨所扫描] 价差告警(纯观测) POWER-USDT 年化价差 102.5% 空 bybit(113.4%/年,间隔 4h) 多 gate(10.9%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:52:00 [跨所扫描] 价差告警(纯观测) ASML-USDT 年化价差 140.6% 空 binance(0.0%/年,间隔 8h) 多 gate(-140.6%/年,间隔 8h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:52:00 [跨所扫描] 价差告警(纯观测) COS-USDT 年化价差 509.0% 空 binance(0.0%/年,间隔 8h) 多 gate(-509.0%/年,间隔 1h) 策略:空高费所、多低费所对冲(未下单)
+2026/06/21 00:52:07 [账户风控] OK daily_equity_delta=0.0084 daily_realized=0.0000 settlement_dd=0.2276 real_equity_dd=19.5998 positions=0 notional=0.00
+2026/06/21 00:52:10 [借币探测] ROK: binance不可借 bybit失败 okx不可借
+2026/06/21 00:52:10 [借币探测] SPELL: bybit不可借(缓存)
+2026/06/21 00:52:10 [借币探测] TER: binance不可借 bybit失败 okx不可借
+2026/06/21 00:52:10 [借币探测] HPERP: binance不可借(缓存) bybit失败 okx失败
+2026/06/21 00:52:10 [借币探测] H: binance不可借 bybit不可借 okx不可借
+2026/06/21 00:52:10 [借币探测] GEV: binance不可借 bybit失败 okx不可借
+2026/06/21 00:52:10 [借币探测] VRT: binance不可借 bybit失败 okx不可借
+2026/06/21 00:52:10 [借币探测] LRC: binance不可借(缓存) bybit不可借(缓存) okx可借(缓存,年化16%)
+2026/06/21 00:52:10 [借币探测] AERGO: binance不可借 bybit失败 okx不可借
+2026/06/21 00:52:10 [借币探测] PANW: binance不可借 bybit失败 okx不可借
+2026/06/21 00:52:10 [借币探测] BOBA: binance不可借(缓存) bybit不可借(缓存) okx不可借(缓存)
+2026/06/21 00:52:10 [借币探测] ALICE: binance失败
+2026/06/21 00:52:10 [借币探测] ISRG: binance不可借 bybit失败 okx不可借
+2026/06/21 00:52:10 [借币探测] CIEN: binance不可借 bybit失败 okx不可借
+2026/06/21 00:52:22 [统一轮动] 安全管理: strategy=perp_perp
+2026/06/21 00:52:22 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/21 00:52:22 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/21 00:52:22 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/21 00:52:22 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/21 00:53:07 [账户风控] OK daily_equity_delta=0.0084 daily_realized=0.0000 settlement_dd=0.2276 real_equity_dd=19.5998 positions=0 notional=0.00
+2026/06/21 00:53:22 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/21 00:53:22 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/21 00:53:22 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/21 00:53:22 [统一轮动] 安全管理: strategy=perp_perp
+2026/06/21 00:53:22 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/21 00:54:07 [账户风控] OK daily_equity_delta=0.0084 daily_realized=0.0000 settlement_dd=0.2276 real_equity_dd=19.5998 positions=0 notional=0.00
+2026/06/21 00:54:22 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/21 00:54:22 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/21 00:54:22 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/21 00:54:22 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/21 00:54:22 [统一轮动] 安全管理: strategy=perp_perp
+2026/06/21 00:55:07 [账户风控] OK daily_equity_delta=-0.0015 daily_realized=0.0000 settlement_dd=0.2276 real_equity_dd=19.6097 positions=0 notional=0.00
+2026/06/21 00:55:22 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/21 00:55:22 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/21 00:55:22 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/21 00:55:22 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/21 00:55:22 [统一轮动] 安全管理: strategy=perp_perp
+2026/06/21 00:56:07 [账户风控] OK daily_equity_delta=-0.0015 daily_realized=0.0000 settlement_dd=0.2276 real_equity_dd=19.6097 positions=0 notional=0.00
+2026/06/21 00:56:22 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/21 00:56:22 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/21 00:56:22 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/21 00:56:22 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/21 00:56:22 [统一轮动] 安全管理: strategy=perp_perp
+2026/06/21 00:57:07 [账户风控] OK daily_equity_delta=-0.0015 daily_realized=0.0000 settlement_dd=0.2276 real_equity_dd=19.6097 positions=0 notional=0.00
+2026/06/21 00:57:09 [统一轮动] 已停止
+2026/06/21 00:57:11 启动 lingxi: version=e625f7a-dirty commit=e625f7a build_time=2026-06-20T16:57:10Z
+2026/06/21 00:57:11 [配置] 生效配置相对默认值有 25 处覆盖:
+2026/06/21 00:57:11 [配置]   CrossVenueExecutor.CloseSpreadAPR: 0.3 => 0.2
+2026/06/21 00:57:11 [配置]   CrossVenueExecutor.Enabled: false => true
+2026/06/21 00:57:11 [配置]   CrossVenueExecutor.LiveTradingEnabled: false => true
+2026/06/21 00:57:11 [配置]   CrossVenueExecutor.MarginSafetyFactor: 1 => 1.5
+2026/06/21 00:57:11 [配置]   CrossVenueExecutor.MaxConcurrent: 2 => 8
+2026/06/21 00:57:11 [配置]   CrossVenueExecutor.MaxPositionUSDT: 50 => 150
+2026/06/21 00:57:11 [配置]   CrossVenueExecutor.UntrackedExposureAction: halt => flatten
+2026/06/21 00:57:11 [配置]   HistoricalConfig.AssumedHourlyBorrowInterestRate: 5e-05 => 4.75e-05
+2026/06/21 00:57:11 [配置]   HistoricalConfig.FuturesTakerFeeRate: 0.0005 => 0.00045
+2026/06/21 00:57:11 [配置]   HistoricalConfig.MaxFundingCyclesHeld: 1 => 3
+2026/06/21 00:57:11 [配置]   HistoricalConfig.SpotTakerFeeRate: 0.001 => 0.00075
+2026/06/21 00:57:11 [配置]   NetworkConfig.DashboardAddr: 127.0.0.1:8080 => 0.0.0.0:8080
+2026/06/21 00:57:11 [配置]   PortfolioConfig.EnableRollingHold: false => true
+2026/06/21 00:57:11 [配置]   RiskConfig.AutoFlattenOnHardDrawdownEnabled: false => true
+2026/06/21 00:57:11 [配置]   RiskConfig.BorrowCapacityCheckEnabled: false => true
+2026/06/21 00:57:11 [配置]   RiskConfig.ImmediateInvalidateRate: 0.0005 => 5e-05
+2026/06/21 00:57:11 [配置]   RiskConfig.MaxAccountDrawdownUSDT: 60 => 90
+2026/06/21 00:57:11 [配置]   RiskConfig.MaxAccountOpenNotionalUSDT: 1200 => 2200
+2026/06/21 00:57:11 [配置]   RiskConfig.MaxCycleOpenNotionalUSDT: 300 => 60
+2026/06/21 00:57:11 [配置]   RiskConfig.MaxDailyLossUSDT: 25 => 40
+2026/06/21 00:57:11 [配置]   RiskConfig.MaxStrategyCumulativeLossUSDT: 35 => 30
+2026/06/21 00:57:11 [配置]   StrategyConfig.PerSymbolQuoteUSDT: 100 => 30
+2026/06/21 00:57:11 [配置]   StrategyConfig.StrategyMode: collect_data => profit_seeking
+2026/06/21 00:57:11 [配置]   UnifiedRotation.Enabled: false => true
+2026/06/21 00:57:11 [配置]   UnifiedRotation.TotalDeployableUSDT: 0 => 435
+2026/06/21 00:57:11 [冷启动检查] 开始执行每日健康检查...
+2026/06/21 00:57:11 [冷启动检查] 配置校验通过
+2026/06/21 00:57:11 [冷启动检查] 记录目录可写校验通过
+2026/06/21 00:57:11 [冷启动检查] 每日健康检查全部通过
+2026/06/21 00:57:11 [编排] venue=binance 运行时已注册(enabled,默认 idle,plan.autostart=false)
+2026/06/21 00:57:11 [编排] venue=bybit 运行时已注册(enabled,默认 idle,plan.autostart=false)
+2026/06/21 00:57:11 [编排] venue=gate 适配器已注入(仅行情/账户,不启动交易引擎)
+2026/06/21 00:57:11 [编排] venue=gate 运行时已注册(enabled,默认 idle,plan.autostart=false)
+2026/06/21 00:57:11 [编排] venue=okx 适配器已注入(仅行情/账户,不启动交易引擎)
+2026/06/21 00:57:11 [编排] venue=okx 运行时已注册(enabled,默认 idle,plan.autostart=false)
+2026/06/21 00:57:11 [借币记忆] 暖启动 22 条 venue+asset confirmed-available (freshness=24h0m0s)
+2026/06/21 00:57:11 [跨所扫描] 已启动: interval=10m0s min_spread=5% alert_spread=100% top_n=30 venues=4
+2026/06/21 00:57:11 [跨所执行] 运行时开仓开关已设为 开(已落盘 records/crossvenue/control.json)
+2026/06/21 00:57:11 [权益采样] 已启动: interval=3m0s 口径=各所USDT现金余额真实变化
+2026/06/21 00:57:11 [统一轮动] runner 常驻 (config 默认 active=false;持久化 active 优先)
+2026/06/21 00:57:11 Web 面板已启动: http://0.0.0.0:8080/
+2026/06/21 00:57:11 Dashboard 控制令牌已写入 records/.dashboard_control_token (0600,仅本机可读,可 cat 查看);指纹=4f9833446c7acc64
+2026/06/21 00:57:11 [ALERT][INFO] 面板控制令牌已更新 | 服务已重启,新控制令牌:
+42f699f4f490c1ffe5eb441e300bfd22 | cycle=
+2026/06/21 00:57:11 [统一轮动] 周期 interval=1m0s active=true
+2026/06/21 00:57:11 [统一轮动] 启动恢复: strategy=single_venue_spot_perp
+2026/06/21 00:57:11 [账户风控] 已启动: interval=1m0s (Stage B:一级硬停默认启用,二级 flatten opt-in 默认关闭)
+2026/06/21 00:57:11 [账户风控] OK daily_equity_delta=-0.0060 daily_realized=0.0000 settlement_dd=0.2276 real_equity_dd=19.6142 positions=0 notional=0.00
+2026/06/21 00:57:11 [carry-dust] reconcile skip untracked dust: venue=binance market=spot USDC-USDT qty≈0.00014425 notional≈$0.0001 threshold=$5.00
+2026/06/21 00:57:12 [carry-dust] reconcile skip untracked dust: venue=binance market=spot BEL-USDT qty≈0.08000000 notional≈$0.0128 threshold=$5.00
+2026/06/21 00:57:12 [carry-dust] reconcile skip untracked dust: venue=okx market=spot NEIRO-USDT qty≈0.83520000 notional≈$0.0001 threshold=$1.00
+2026/06/21 00:57:13 [carry-dust] reconcile skip untracked dust: venue=okx market=spot PNUT-USDT qty≈0.00060447 notional≈$0.0000 threshold=$1.00
+2026/06/21 00:57:13 [carry-dust] reconcile skip untracked dust: venue=okx market=spot DOGS-USDT qty≈0.22200000 notional≈$0.0000 threshold=$1.00
+2026/06/21 00:57:13 [carry-dust] reconcile skip untracked dust: venue=okx market=spot ADA-USDT qty≈0.00002630 notional≈$0.0000 threshold=$1.00
+2026/06/21 00:57:13 [carry-dust] reconcile skip untracked dust: venue=okx market=spot MERL-USDT qty≈0.00020500 notional≈$0.0000 threshold=$1.00
+2026/06/21 00:57:14 [carry-dust] reconcile skip untracked dust: venue=okx market=spot AGLD-USDT qty≈0.00000039 notional≈$0.0000 threshold=$1.00
+2026/06/21 00:57:14 [carry-dust] reconcile skip untracked dust: venue=okx market=spot HMSTR-USDT qty≈0.06470000 notional≈$0.0000 threshold=$1.00
+2026/06/21 00:57:14 [carry-dust] reconcile skip untracked dust: venue=okx market=spot MENGO-USDT qty≈0.00006056 notional≈$0.0000 threshold=$1.00
+2026/06/21 00:57:14 [carry-dust] reconcile skip untracked dust: venue=okx market=spot W-USDT qty≈0.00008600 notional≈$0.0000 threshold=$1.00
+2026/06/21 00:57:15 [carry-dust] reconcile skip untracked dust: venue=okx market=spot DOGE-USDT qty≈0.32336427 notional≈$0.0270 threshold=$1.00
+2026/06/21 00:57:15 [carry-dust] reconcile skip untracked dust: venue=gate market=spot BTR-USDT qty≈0.11405000 notional≈$0.0022 threshold=$3.00
+2026/06/21 00:57:15 [carry-dust] reconcile skip untracked dust: venue=gate market=spot ZEREBRO-USDT qty≈0.82784000 notional≈$0.0357 threshold=$3.00
+2026/06/21 00:57:15 [carry-dust] reconcile skip untracked dust: venue=gate market=spot AI-USDT qty≈0.00270300 notional≈$0.0001 threshold=$3.00
+2026/06/21 00:57:15 [carry-dust] reconcile skip untracked dust: venue=gate market=spot US-USDT qty≈0.35551000 notional≈$0.0056 threshold=$3.00
+2026/06/21 00:57:15 [carry-dust] reconcile skip untracked dust: venue=gate market=spot BAN-USDT qty≈0.00134000 notional≈$0.0001 threshold=$3.00
+2026/06/21 00:57:16 [carry-dust] reconcile skip untracked dust: venue=gate market=spot ASR-USDT qty≈0.09524800 notional≈$0.0846 threshold=$3.00
+2026/06/21 00:57:16 [carry-dust] reconcile skip untracked dust: venue=gate market=spot PHA-USDT qty≈0.00614000 notional≈$0.0002 threshold=$3.00
+2026/06/21 00:57:16 [carry-dust] reconcile skip untracked dust: venue=gate market=spot DOGE-USDT qty≈0.31741760 notional≈$0.0265 threshold=$3.00
+2026/06/21 00:57:16 [carry-dust] reconcile skip untracked dust: venue=bybit market=spot MBOX-USDT qty≈0.00300000 notional≈$0.0000 threshold=$5.00
+2026/06/21 00:57:17 [carry-dust] reconcile skip untracked dust: venue=bybit market=spot BEL-USDT qty≈0.00100000 notional≈$0.0002 threshold=$5.00
+2026/06/21 00:57:17 [carry-dust] reconcile skip untracked dust: venue=bybit market=spot RPL-USDT qty≈0.00797000 notional≈$0.0108 threshold=$5.00
+2026/06/21 00:57:17 [统一轮动] 启动恢复: strategy=cross_venue_spot_perp
+2026/06/21 00:57:17 [carry-dust] reconcile skip untracked dust: venue=binance market=spot BEL-USDT qty≈0.08000000 notional≈$0.0128 threshold=$5.00
+2026/06/21 00:57:18 [carry-dust] reconcile skip untracked dust: venue=binance market=spot USDC-USDT qty≈0.00014425 notional≈$0.0001 threshold=$5.00
+2026/06/21 00:57:18 [carry-dust] reconcile skip untracked dust: venue=okx market=spot NEIRO-USDT qty≈0.83520000 notional≈$0.0001 threshold=$1.00
+2026/06/21 00:57:18 [carry-dust] reconcile skip untracked dust: venue=okx market=spot PNUT-USDT qty≈0.00060447 notional≈$0.0000 threshold=$1.00
+2026/06/21 00:57:19 [carry-dust] reconcile skip untracked dust: venue=okx market=spot HMSTR-USDT qty≈0.06470000 notional≈$0.0000 threshold=$1.00
+2026/06/21 00:57:19 [carry-dust] reconcile skip untracked dust: venue=okx market=spot ADA-USDT qty≈0.00002630 notional≈$0.0000 threshold=$1.00
+2026/06/21 00:57:19 [carry-dust] reconcile skip untracked dust: venue=okx market=spot DOGE-USDT qty≈0.32336427 notional≈$0.0270 threshold=$1.00
+2026/06/21 00:57:20 [carry-dust] reconcile skip untracked dust: venue=okx market=spot DOGS-USDT qty≈0.22200000 notional≈$0.0000 threshold=$1.00
+2026/06/21 00:57:20 [carry-dust] reconcile skip untracked dust: venue=okx market=spot MERL-USDT qty≈0.00020500 notional≈$0.0000 threshold=$1.00
+2026/06/21 00:57:20 [carry-dust] reconcile skip untracked dust: venue=okx market=spot MENGO-USDT qty≈0.00006056 notional≈$0.0000 threshold=$1.00
+2026/06/21 00:57:21 [carry-dust] reconcile skip untracked dust: venue=okx market=spot W-USDT qty≈0.00008600 notional≈$0.0000 threshold=$1.00
+2026/06/21 00:57:21 [carry-dust] reconcile skip untracked dust: venue=okx market=spot AGLD-USDT qty≈0.00000039 notional≈$0.0000 threshold=$1.00
+2026/06/21 00:57:21 [carry-dust] reconcile skip untracked dust: venue=gate market=spot ASR-USDT qty≈0.09524800 notional≈$0.0845 threshold=$3.00
+2026/06/21 00:57:21 [carry-dust] reconcile skip untracked dust: venue=gate market=spot BTR-USDT qty≈0.11405000 notional≈$0.0022 threshold=$3.00
+2026/06/21 00:57:21 [carry-dust] reconcile skip untracked dust: venue=gate market=spot ZEREBRO-USDT qty≈0.82784000 notional≈$0.0357 threshold=$3.00
+2026/06/21 00:57:22 [carry-dust] reconcile skip untracked dust: venue=gate market=spot AI-USDT qty≈0.00270300 notional≈$0.0001 threshold=$3.00
+2026/06/21 00:57:22 [carry-dust] reconcile skip untracked dust: venue=gate market=spot PHA-USDT qty≈0.00614000 notional≈$0.0002 threshold=$3.00
+2026/06/21 00:57:22 [carry-dust] reconcile skip untracked dust: venue=gate market=spot DOGE-USDT qty≈0.31741760 notional≈$0.0265 threshold=$3.00
+2026/06/21 00:57:22 [carry-dust] reconcile skip untracked dust: venue=gate market=spot US-USDT qty≈0.35551000 notional≈$0.0056 threshold=$3.00
+2026/06/21 00:57:22 [carry-dust] reconcile skip untracked dust: venue=gate market=spot BAN-USDT qty≈0.00134000 notional≈$0.0001 threshold=$3.00
+2026/06/21 00:57:23 [carry-dust] reconcile skip untracked dust: venue=bybit market=spot MBOX-USDT qty≈0.00300000 notional≈$0.0000 threshold=$5.00
+2026/06/21 00:57:23 [carry-dust] reconcile skip untracked dust: venue=bybit market=spot BEL-USDT qty≈0.00100000 notional≈$0.0002 threshold=$5.00
+2026/06/21 00:57:23 [carry-dust] reconcile skip untracked dust: venue=bybit market=spot RPL-USDT qty≈0.00797000 notional≈$0.0108 threshold=$5.00
+2026/06/21 00:57:23 [统一轮动] 启动恢复: strategy=single_venue_perp_spot
+2026/06/21 00:57:24 [carry-dust] reconcile skip untracked dust: venue=binance market=spot BNB-USDT qty≈0.00000068 notional≈$0.0004 threshold=$5.00
+2026/06/21 00:57:24 [carry-dust] reconcile skip untracked dust: venue=binance market=spot FLUX-USDT qty≈0.10459000 notional≈$0.0053 threshold=$5.00
+2026/06/21 00:57:25 [统一轮动] 启动恢复: strategy=cross_venue_perp_spot
+2026/06/21 00:57:25 [carry-dust] reconcile skip untracked dust: venue=binance market=spot FLUX-USDT qty≈0.10459000 notional≈$0.0053 threshold=$5.00
+2026/06/21 00:57:26 [carry-dust] reconcile skip untracked dust: venue=binance market=spot BNB-USDT qty≈0.00000068 notional≈$0.0004 threshold=$5.00
+2026/06/21 00:57:26 [统一轮动] 启动恢复: strategy=perp_perp
+2026/06/21 00:57:26 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/21 00:57:26 [delist-guard] 已刷新 gate instrument 状态: total=2821 non_trading=2
+2026/06/21 00:57:27 [delist-guard] 已刷新 bybit instrument 状态: total=1255 non_trading=0
+2026/06/21 00:57:27 [delist-guard] 已刷新 binance instrument 状态: total=4393 non_trading=2367
+2026/06/21 00:57:27 [delist-guard] 已刷新 okx instrument 状态: total=1637 non_trading=0
+2026/06/21 00:57:27 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/21 00:57:27 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/21 00:57:27 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/21 00:57:27 [统一轮动] 安全管理: strategy=perp_perp

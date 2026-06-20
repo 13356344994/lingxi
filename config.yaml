@@ -86,6 +86,11 @@ unified_rotation:
   # 用户 2026-06-19 拍板:profit_seeking + 满仓 + 3× 起步(可调至 5×) — 全局资金预算
   total_deployable_usdt: 435
   max_strategy_capital_usage_pct: 0
+  # 2026-06-21:必须显式开启,否则 RotationConfigFromUnified 会用零值 false 覆盖默认 true,
+  # 导致 perp-perp 名义不按"各所可用×杠杆"封顶,死顶 80→所需正好等于可用→49.99<50 每轮被执行闸拒(H 永远开不出来)。
+  capital_aware_perp_perp_sizing_enabled: true
+  # 资金封顶安全垫:按 99% 可用反解名义,使所需保证金严格小于实时 perp 可用,避免 reserve/取整 drift 几分钱误拒。
+  capital_sizing_safety_haircut: 0.99
 
 # 多所编排（§7 / §8）。2026-06-15 起生产形态【仅跨所 perp-perp】;下列单所配置保留供回滚/对照。
 venues:

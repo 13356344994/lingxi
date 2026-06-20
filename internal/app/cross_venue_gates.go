@@ -16,6 +16,10 @@ import (
 
 // cross_venue_gates.go 跨所开仓闸门:全部满足才动手。
 
+// crossVenueExecCapitalSizingHaircut 执行闸资金封顶安全垫:按 99% 的两腿实时 perp 可用反解名义上限,
+// 使所需保证金严格小于实时可用,避免 reserve/取整 drift 造成 49.99<50 这类几分钱误拒(与 rotation 决策层同口径)。
+const crossVenueExecCapitalSizingHaircut = 0.99
+
 var crossVenueTradeableVenues = map[string]bool{
 	binance.VenueName: true,
 	okx.VenueName:     true,
@@ -198,6 +202,31 @@ func evaluateCrossVenueOpenGate(
 		return fail("深度容量不足")
 	}
 
+	levCap := cfg.MaxEffectiveLeverage
+	if levCap <= 0 {
+		levCap = 2
+	}
+	highBal, highBalErr := deps.fetchPerpAvailableUSDT(ctx, highV)
+	if highBalErr != nil {
+		return fail(fmt.Sprintf("高费所永续可用保证金读取失败: %v", highBalErr))
+	}
+	lowBal, lowBalErr := deps.fetchPerpAvailableUSDT(ctx, lowV)
+	if lowBalErr != nil {
+		return fail(fmt.Sprintf("低费所永续可用保证金读取失败: %v", lowBalErr))
+	}
+	// 资金封顶(与 rotation 决策层 rotationPerpPerpMaxNotionalFromVenueAvail 同口径):执行下单的名义也必须按
+	// "两腿实时 perp 可用×杠杆×安全垫"封顶,否则名义死顶 MaxPositionUSDT → 所需保证金=可用 → 49.99<50 这类
+	// 几分钱误拒,极端肥币(如 H)永远开不出来。够开多少开多少:资金不足时缩仓而非拒单,缩仓后所需严格小于可用。
+	if capBal := math.Min(highBal, lowBal); capBal > 0 {
+		maxByCapital := capBal * levCap * crossVenueExecCapitalSizingHaircut
+		if maxByCapital < notional {
+			notional = maxByCapital
+		}
+	}
+	if notional <= 0 {
+		return fail("资金封顶后名义不足")
+	}
+
 	maxSlipBps := crossVenueResolvedMaxOpenSlippageBps(cfg)
 	if slipBps, ok := estimateCrossVenueLegOpenSlippageBps(deps.fetchDepth, ctx, highV, highSym, venue.SideSell, notional, highMid); !ok {
 		return fail("高费所深度不足,无法估算开仓滑点")
@@ -210,20 +239,9 @@ func evaluateCrossVenueOpenGate(
 		return fail(fmt.Sprintf("低费所预估滑点 %.1f bps > %.0f", slipBps, maxSlipBps))
 	}
 
-	levCap := cfg.MaxEffectiveLeverage
-	if levCap <= 0 {
-		levCap = 2
-	}
 	// 与 sizing(crossVenuePerVenueMarginUSDT) 同口径:名义/杠杆;强平安全由 MinLiqDistance 校验,不再乘 MarginSafetyFactor。
+	// 名义此前已按两腿实时可用×杠杆×安全垫封顶,故 requiredMargin 必严格小于两腿可用(除非资金为 0)。
 	requiredMargin := crossVenuePerVenueMarginUSDT(cfg, notional)
-	highBal, highBalErr := deps.fetchPerpAvailableUSDT(ctx, highV)
-	if highBalErr != nil {
-		return fail(fmt.Sprintf("高费所永续可用保证金读取失败: %v", highBalErr))
-	}
-	lowBal, lowBalErr := deps.fetchPerpAvailableUSDT(ctx, lowV)
-	if lowBalErr != nil {
-		return fail(fmt.Sprintf("低费所永续可用保证金读取失败: %v", lowBalErr))
-	}
 	if highBal < requiredMargin {
 		return fail(fmt.Sprintf("高费所永续可用 USDT %.2f < 所需 %.2f", highBal, requiredMargin))
 	}
