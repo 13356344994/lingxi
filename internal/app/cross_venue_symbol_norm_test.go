@@ -110,10 +110,10 @@ func TestSameDenomPairingUnchanged(t *testing.T) {
 	if opp.HighVenue != binance.VenueName || opp.LowVenue != bybit.VenueName {
 		t.Fatalf("venues=%s/%s", opp.HighVenue, opp.LowVenue)
 	}
-	// 同计价 1000PEPE 跨 binance/bybit
+	// 同计价 1000PEPE 跨 binance/bybit(配对按原始费率:binance 0.002 > bybit 0.0005 → 可配对)
 	entries := []symbolVenueFunding{
-		{Venue: binance.VenueName, CanonicalSymbol: "1000PEPE-USDT", EconomicBase: "PEPE", Multiplier: 1000, MultKnown: true, RawAnnualizedAPR: 2.0},
-		{Venue: bybit.VenueName, CanonicalSymbol: "1000PEPE-USDT", EconomicBase: "PEPE", Multiplier: 1000, MultKnown: true, RawAnnualizedAPR: 0.5},
+		{Venue: binance.VenueName, CanonicalSymbol: "1000PEPE-USDT", EconomicBase: "PEPE", Multiplier: 1000, MultKnown: true, RawAnnualizedAPR: 2.0, RawFundingRate: 0.002},
+		{Venue: bybit.VenueName, CanonicalSymbol: "1000PEPE-USDT", EconomicBase: "PEPE", Multiplier: 1000, MultKnown: true, RawAnnualizedAPR: 0.5, RawFundingRate: 0.0005},
 	}
 	opp2, ok := bestPairSpread("PEPE-USDT", entries)
 	if !ok {

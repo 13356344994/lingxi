@@ -1033,23 +1033,29 @@ func bestPairSpread(pairKey string, entries []symbolVenueFunding) (CrossVenueOpp
 	}
 	best := CrossVenueOpportunity{Symbol: pairKey}
 	found := false
+	bestRawSpread := 0.0
 	for i := 0; i < len(entries); i++ {
 		for j := i + 1; j < len(entries); j++ {
 			a, b := entries[i], entries[j]
 			if !crossVenueFundingPairAllowed(a, b) {
 				continue
 			}
+			// 按【原始费率】(每次结算实际收取的费率)选对,而非年化 APR。用户策略口径:只看单次结算实际
+			// 领到多少;年化把结算频率(1h/2h/4h)混入,会把"单次大额但低频"的腿(如 binance -0.94%/4h)
+			// 误判为不如"单次小额但高频"的腿(bybit -0.33%/1h),选出不符合实际收取的配对。
+			// high=原始费率较大(较不负,做空),low=原始费率较小(较负,做多)。
 			high, low := a, b
-			// 用原始(未封顶)年化排序/算价差:若用单腿封顶后的 APR,多条腿同时超过封顶值会被压成相同上限,
-			// 真实价差被抹平为 0(H-USDT 这类四腿全爆表的极端机会就因此漏配)。荒谬上限改由 spread 级 absurdCap 兜底。
-			if b.RawAnnualizedAPR > a.RawAnnualizedAPR {
+			if b.RawFundingRate > a.RawFundingRate {
 				high, low = b, a
-			} else if b.RawAnnualizedAPR == a.RawAnnualizedAPR {
+			} else if b.RawFundingRate == a.RawFundingRate {
 				continue
 			}
+			rawSpread := high.RawFundingRate - low.RawFundingRate
+			// SpreadAPR 仍存年化价差,仅供展示与极端标记;选对/排序的实际收益由离散 raw×结算次数 EV 决定。
 			spread := high.RawAnnualizedAPR - low.RawAnnualizedAPR
-			if !found || spread > best.SpreadAPR {
+			if !found || rawSpread > bestRawSpread {
 				found = true
+				bestRawSpread = rawSpread
 				displaySym, highSym, lowSym, highMult, lowMult := crossVenueOpportunitySymbolsFromLegs(pairKey, high, low)
 				best = CrossVenueOpportunity{
 					Symbol:              displaySym,

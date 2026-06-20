@@ -180,10 +180,12 @@ func TestFundingAnnualizedAPRIntervals(t *testing.T) {
 
 func TestBestPairSpreadPicksMax(t *testing.T) {
 	t.Parallel()
+	// 配对按原始费率(RawFundingRate)价差选最大:bybit(0.005) 最高、binance(0.001) 最低 → bybit/binance。
+	// SpreadAPR 字段仍为所选对的年化价差(0.50-0.10=0.40),仅供展示。
 	entries := []symbolVenueFunding{
-		{Venue: binance.VenueName, AnnualizedAPR: 0.10, RawAnnualizedAPR: 0.10, IntervalHours: 8},
-		{Venue: bybit.VenueName, AnnualizedAPR: 0.50, RawAnnualizedAPR: 0.50, IntervalHours: 1},
-		{Venue: okx.VenueName, AnnualizedAPR: 0.20, RawAnnualizedAPR: 0.20, IntervalHours: 4},
+		{Venue: binance.VenueName, AnnualizedAPR: 0.10, RawAnnualizedAPR: 0.10, RawFundingRate: 0.001, IntervalHours: 8},
+		{Venue: bybit.VenueName, AnnualizedAPR: 0.50, RawAnnualizedAPR: 0.50, RawFundingRate: 0.005, IntervalHours: 1},
+		{Venue: okx.VenueName, AnnualizedAPR: 0.20, RawAnnualizedAPR: 0.20, RawFundingRate: 0.002, IntervalHours: 4},
 	}
 	opp, ok := bestPairSpread("HOME-USDT", entries)
 	if !ok {
