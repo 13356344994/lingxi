@@ -441,8 +441,9 @@ func TestFetchVenueTotalTradingAvailableUSDTCombinesWallets(t *testing.T) {
 	if err != nil {
 		t.Fatalf("fetch: %v", err)
 	}
-	if math.Abs(got-165) > 1e-9 {
-		t.Fatalf("total = %.4f, want 165 (30+120+5+10)", got)
+	// 资金账户红线:funding(10)不计入交易可用;只合计 perp+现货+杠杆 = 30+120+5 = 155。
+	if math.Abs(got-155) > 1e-9 {
+		t.Fatalf("total = %.4f, want 155 (30+120+5,不含资金账户)", got)
 	}
 }
 

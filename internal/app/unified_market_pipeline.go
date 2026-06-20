@@ -461,13 +461,8 @@ func fetchVenueTotalTradingAvailableUSDT(ctx context.Context, v venue.Venue) (fl
 		}
 		total += margin
 	}
-	if fundingP, ok := v.(venueFundingAvailableUSDTProvider); ok {
-		funding, err := fetchVenueWalletAvailableUSDT(ctx, "funding", fundingP.FetchFundingAvailableUSDT)
-		if err != nil {
-			return 0, err
-		}
-		total += funding
-	}
+	// 资金账户(funding/储备)红线:用户明确"资金账户不能调,只调交易账户"。故 venue 级"交易可用"
+	// 一律不计入资金钱包(perp+现货+杠杆),自动 sizing/路由也就不会动用资金账户;要动用须用户手动调仓。
 	return total, nil
 }
 
