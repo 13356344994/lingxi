@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func writeUnifiedCandidatesJSONL(t *testing.T, path string, records []UnifiedCandidateLogRecord) {
@@ -335,5 +336,70 @@ func TestUnifiedPrimarySortKeyFallback(t *testing.T) {
 	want := 0.10 / 50.0
 	if got != want {
 		t.Fatalf("primary sort key = %.6f, want %.6f", got, want)
+	}
+}
+
+func TestUnifiedNearestFundingMinutes(t *testing.T) {
+	now := time.Date(2026, 6, 20, 14, 0, 0, 0, time.UTC)
+	soon := now.Add(30 * time.Minute).Format(time.RFC3339)
+	later := now.Add(4 * time.Hour).Format(time.RFC3339)
+	same := now.Add(2 * time.Hour).Format(time.RFC3339)
+
+	rec := UnifiedCandidateLogRecord{
+		HighNextFundingTime: later,
+		LowNextFundingTime:  soon,
+	}
+	got := unifiedNearestFundingMinutes(rec, now)
+	if got < 29 || got > 31 {
+		t.Fatalf("nearest mins = %.1f, want ~30 (low leg)", got)
+	}
+
+	recSame := UnifiedCandidateLogRecord{
+		HighNextFundingTime: same,
+		LowNextFundingTime:  same,
+	}
+	gotSame := unifiedNearestFundingMinutes(recSame, now)
+	if gotSame < 119 || gotSame > 121 {
+		t.Fatalf("same-leg mins = %.1f, want ~120", gotSame)
+	}
+
+	recFallback := UnifiedCandidateLogRecord{
+		NextFundingTime: soon,
+	}
+	gotFallback := unifiedNearestFundingMinutes(recFallback, now)
+	if gotFallback < 29 || gotFallback > 31 {
+		t.Fatalf("fallback mins = %.1f, want ~30", gotFallback)
+	}
+}
+
+func TestLeaderboardEntryNearestFundingAndRotation(t *testing.T) {
+	now := time.Date(2026, 6, 20, 14, 0, 0, 0, time.UTC)
+	soon := now.Add(45 * time.Minute).Format(time.RFC3339)
+	later := now.Add(3 * time.Hour).Format(time.RFC3339)
+	rec := UnifiedCandidateLogRecord{
+		StrategyType:           UnifiedStrategyPerpPerp,
+		Symbol:                 "BTC-USDT",
+		Venues:                 []string{"okx", "bybit"},
+		HighNextFundingTime:    later,
+		LowNextFundingTime:     soon,
+		WouldExecute:           true,
+		RotationWouldExecute:   false,
+		HighFundingRate:        0.0001,
+		LowFundingRate:         -0.00005,
+		CapitalEfficiencyScore: 0.003,
+		CapitalRequiredByVenue: map[string]float64{"okx": 30, "bybit": 25},
+	}
+	entry := leaderboardEntryFromRecord(rec, 1, 0.5, now)
+	if entry.MinutesUntilFunding < 44 || entry.MinutesUntilFunding > 46 {
+		t.Fatalf("minutes_until_funding = %.1f, want ~45", entry.MinutesUntilFunding)
+	}
+	if !entry.WouldExecute || entry.RotationWouldExecute {
+		t.Fatalf("execute flags = would=%v rotation=%v", entry.WouldExecute, entry.RotationWouldExecute)
+	}
+	if entry.HighFundingRate != 0.0001 || entry.LowFundingRate != -0.00005 {
+		t.Fatalf("leg rates = high %.6f low %.6f", entry.HighFundingRate, entry.LowFundingRate)
+	}
+	if !strings.Contains(entry.RankReason, "距结算 45 min") {
+		t.Fatalf("rank_reason should use nearest leg: %q", entry.RankReason)
 	}
 }

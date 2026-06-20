@@ -653,6 +653,10 @@ type CrossVenueExecutorConfig struct {
 	CloseSpreadConsecutiveRounds int `cfg:"close_spread_consecutive_rounds"`
 	// CloseHardNegativeSpreadAPR 价差深度转负硬止损阈值(小数,−0.5=−50%年化);连续 N 轮低于此值立即平仓,不受最小持有保护。
 	CloseHardNegativeSpreadAPR float64 `cfg:"close_hard_negative_spread_apr"`
+	// CloseBeforeAdverseFundingEnabled 结算前净不利资费时立即平仓(绕过 N 连轮/MinHold)。默认 true。
+	CloseBeforeAdverseFundingEnabled bool `cfg:"close_before_adverse_funding_enabled"`
+	// PreFundingCloseLeadSeconds 距某腿下次 funding 结算 ≤ 此秒数且该结算净不利时触发即平。默认 120。
+	PreFundingCloseLeadSeconds int `cfg:"pre_funding_close_lead_seconds"`
 	// MaxConcurrent 同时在场最大跨所持仓数。默认 2。
 	MaxConcurrent int `cfg:"max_concurrent"`
 	// MaxPositionUSDT 单腿最大名义(USDT)。默认 50。
@@ -685,6 +689,10 @@ type CrossVenueExecutorConfig struct {
 	MarginSafetyFactor float64 `cfg:"margin_safety_factor"`
 	// MidPriceDeviationMax 两所中间价最大偏离(小数,0.03=3%)。默认 0.03。
 	MidPriceDeviationMax float64 `cfg:"mid_price_deviation_max"`
+	// MidPriceDeviationMaxExtreme 极端价差机会(ExtremeSpread 或 SpreadAPR>阈值)允许的更大中间价偏离上限。默认 0.08。
+	MidPriceDeviationMaxExtreme float64 `cfg:"mid_price_deviation_max_extreme"`
+	// EntryBasisConvergenceFraction 入场基差成本 EV 折现:预期持有期内收敛比例(0.5=锁入基差扣一半)。默认 0.5。
+	EntryBasisConvergenceFraction float64 `cfg:"entry_basis_convergence_fraction"`
 	// DepthUsageRatio 名义额占头部 3 档深度比例上限。默认 0.20。
 	DepthUsageRatio float64 `cfg:"depth_usage_ratio"`
 	// SizingMaxSlippageBps 流动性自适应单仓:沿盘口吃单滑点预算(bps),与 depth 项共同约束名义上限。默认 20;0=关闭(退化为旧 depth_usage_ratio)。

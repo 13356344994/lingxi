@@ -266,6 +266,8 @@ const (
 	// crossVenueExtremeSpreadConfidenceBypassAPR 与 scanner crossVenueExtremeSpreadMarkAPR 对齐:
 	// 当下 spread 超过此阈值时,豁免历史置信度砍仓(ExtremeSpread 亦同)。
 	crossVenueExtremeSpreadConfidenceBypassAPR = 2.0
+	// crossVenuePerpPerpDefaultEntryBasisConvergence 入场基差 EV 默认收敛折现(与 spot-perp 口径一致)。
+	crossVenuePerpPerpDefaultEntryBasisConvergence = 0.50
 )
 
 func crossVenueConfidenceSizeMultiplier(floor, historyQuality, stabilityScore float64) float64 {
@@ -371,7 +373,9 @@ func crossVenueEstimateOpportunityMetricsEVRatesWithLegs(cfg CrossVenueExecutorC
 	observableRiskCost := crossVenueObservableRiskCost(notional, opp.FreshnessAgeSeconds, windowHours, recoveryQuality)
 	policyBuffer := crossVenuePolicyBuffer(openCost, closeCost)
 	dustCost := carryScannerPerpPerpDustResidualCostUSDT()
-	netEV := spreadEV - openCost - closeCost - expectedSlippage - observableRiskCost - policyBuffer - dustCost
+	midDev := crossVenueMidDevFromSlipLegs(opp, slipLegs)
+	entryBasisCost := crossVenuePerpPerpEntryBasisCostUSDT(cfg, midDev, notional, opp)
+	netEV := spreadEV - openCost - closeCost - expectedSlippage - observableRiskCost - policyBuffer - dustCost - entryBasisCost
 	effectiveMargin := crossVenueEffectiveMarginOccupied(cfg, notional)
 	capitalEfficiency := 0.0
 	if effectiveMargin > 0 {
@@ -542,6 +546,53 @@ func crossVenuePerpPerpSearchBestNotional(
 	return bestOpp, bestNotional
 }
 
+// crossVenuePerpPerpEntryBasisCostUSDT 开仓时两腿 mid 偏离锁入的基差成本(收敛折现后从 netEV 扣除)。
+// 公式:偏离比例 × 名义 × EntryBasisConvergenceFraction;仅计成本侧,不把有利基差当收入。
+// 极端价差放宽 mid 闸时,只对超出 MidPriceDeviationMax 的增量偏离计基差(放宽区间本身不计)。
+func crossVenuePerpPerpEntryBasisCostUSDT(cfg CrossVenueExecutorConfig, midDev, notional float64, opp CrossVenueOpportunity) float64 {
+	if midDev <= 0 || notional <= 0 {
+		return 0
+	}
+	billableDev := midDev
+	if crossVenueBypassesConfidenceDownsize(opp) {
+		normalMax := cfg.MidPriceDeviationMax
+		if normalMax <= 0 {
+			normalMax = 0.03
+		}
+		billableDev = midDev - normalMax
+		if billableDev < 0 {
+			billableDev = 0
+		}
+	}
+	conv := cfg.EntryBasisConvergenceFraction
+	if conv <= 0 {
+		conv = crossVenuePerpPerpDefaultEntryBasisConvergence
+	}
+	return billableDev * notional * conv
+}
+
+func crossVenueMidDevFromSlipLegs(opp CrossVenueOpportunity, slipLegs []crossVenueEVSlippageLeg) float64 {
+	if len(slipLegs) >= 2 && slipLegs[0].RefMid > 0 && slipLegs[1].RefMid > 0 {
+		return crossVenueMidDeviation(slipLegs[0].RefMid, slipLegs[1].RefMid, crossVenueOppHighMult(opp), crossVenueOppLowMult(opp))
+	}
+	return 0
+}
+
+func crossVenueResolvedMidPriceDeviationMax(cfg CrossVenueExecutorConfig, opp CrossVenueOpportunity) float64 {
+	maxDev := cfg.MidPriceDeviationMax
+	if maxDev <= 0 {
+		maxDev = 0.03
+	}
+	if crossVenueBypassesConfidenceDownsize(opp) {
+		extremeMax := cfg.MidPriceDeviationMaxExtreme
+		if extremeMax <= 0 {
+			extremeMax = 0.08
+		}
+		maxDev = extremeMax
+	}
+	return maxDev
+}
+
 // crossVenueBypassesConfidenceDownsize 极端价差机会:当下可观测 spread 足够强,不因历史样本少砍仓。
 func crossVenueBypassesConfidenceDownsize(opp CrossVenueOpportunity) bool {
 	if opp.ExtremeSpread {
@@ -571,21 +622,33 @@ func crossVenueFinalizeOpportunityRanking(cfg CrossVenueExecutorConfig, opps []C
 	}
 }
 
-func crossVenueComputeCurrentFutureEV(cfg CrossVenueExecutorConfig, pos *CrossVenuePosition) (futureEV, capitalEfficiency, riskAdjusted, exitCost, switchCost, comparableWindow, riskScore float64) {
+func crossVenueComputeCurrentFutureEV(cfg CrossVenueExecutorConfig, pos *CrossVenuePosition, now time.Time) (futureEV, capitalEfficiency, riskAdjusted, exitCost, switchCost, comparableWindow, riskScore float64) {
 	if pos == nil {
 		return 0, 0, 0, 0, 0, 0, 1
+	}
+	if now.IsZero() {
+		now = time.Now().UTC()
 	}
 	notional := crossVenuePositionNotionalUSDT(pos)
 	windowHours := pos.CurrentComparableWindowHours
 	if windowHours <= 0 {
-		windowHours = crossVenueComparableWindowHours(time.Now().UTC(), pos.HighNextFundingTime, pos.LowNextFundingTime)
+		windowHours = crossVenueComparableWindowHours(now, pos.HighNextFundingTime, pos.LowNextFundingTime)
 	}
 	if windowHours <= 0 {
 		return 0, 0, 0, 0, 0, 0, clamp01(1 - (pos.ExecutionScore+pos.RecoveryQualityScore)/2)
 	}
-	fundingPerHour := crossVenueExpectedFundingPerHour(notional, pos.HighFundingRate, pos.HighIntervalHours, pos.LowFundingRate, pos.LowIntervalHours)
-	remainingSpreadEV := fundingPerHour * windowHours
-	opp := CrossVenueOpportunity{HighVenue: pos.HighVenue, LowVenue: pos.LowVenue}
+	opp := CrossVenueOpportunity{
+		HighVenue:           pos.HighVenue,
+		LowVenue:            pos.LowVenue,
+		HighFundingRate:     pos.HighFundingRate,
+		LowFundingRate:      pos.LowFundingRate,
+		HighIntervalHours:   pos.HighIntervalHours,
+		LowIntervalHours:    pos.LowIntervalHours,
+		HighNextFundingTime: pos.HighNextFundingTime,
+		LowNextFundingTime:  pos.LowNextFundingTime,
+	}
+	remainingSpreadEV := crossVenueExpectedFundingOverHold(now, windowHours, notional, opp)
+	remainingSpreadEV *= carryScannerNormalizedFundingCaptureProbability(0)
 	exitCost = crossVenueExpectedCloseCostUSDT(cfg, opp, notional) + crossVenueExpectedSlippageUSDT(cfg, notional, 2)
 	futureRiskCost := crossVenueObservableRiskCost(notional, pos.FreshnessAgeSeconds, windowHours, pos.RecoveryQualityScore)
 	futureEV = remainingSpreadEV - exitCost - futureRiskCost
@@ -600,4 +663,45 @@ func crossVenueComputeCurrentFutureEV(cfg CrossVenueExecutorConfig, pos *CrossVe
 	switchCost = exitCost + crossVenueExpectedOpenCostUSDT(cfg, opp, notional) + crossVenueExpectedSlippageUSDT(cfg, notional, 2)
 	riskScore = clamp01(1 - (pos.ExecutionScore+pos.RecoveryQualityScore)/2)
 	return futureEV, capitalEfficiency, riskAdjusted, exitCost, switchCost, windowHours, riskScore
+}
+
+// crossVenueUpcomingSettlementNetFundingUSDT 统计 lead 窗口内即将结算各腿的净 funding(正=收,负=付)。
+func crossVenueUpcomingSettlementNetFundingUSDT(cfg CrossVenueExecutorConfig, pos *CrossVenuePosition, now time.Time) (netFunding float64, settling bool) {
+	if pos == nil {
+		return 0, false
+	}
+	notional := crossVenuePositionNotionalUSDT(pos)
+	if notional <= 0 {
+		return 0, false
+	}
+	lead := cfg.PreFundingCloseLeadSeconds
+	if lead <= 0 {
+		lead = 120
+	}
+	leadDur := time.Duration(lead) * time.Second
+	highDue := !pos.HighNextFundingTime.IsZero() && pos.HighNextFundingTime.After(now) && !pos.HighNextFundingTime.After(now.Add(leadDur))
+	lowDue := !pos.LowNextFundingTime.IsZero() && pos.LowNextFundingTime.After(now) && !pos.LowNextFundingTime.After(now.Add(leadDur))
+	if highDue {
+		// 高费腿空头:正费率收,负费率付
+		netFunding += notional * pos.HighFundingRate
+		settling = true
+	}
+	if lowDue {
+		// 低费腿多头:正费率付,负费率收
+		netFunding -= notional * pos.LowFundingRate
+		settling = true
+	}
+	return netFunding, settling
+}
+
+// crossVenuePreFundingAdverseCloseReason 结算前净不利资费即平:优先级高于 N 连轮/MinHold。
+func crossVenuePreFundingAdverseCloseReason(cfg CrossVenueExecutorConfig, pos *CrossVenuePosition, now time.Time) string {
+	if pos == nil || !cfg.CloseBeforeAdverseFundingEnabled {
+		return ""
+	}
+	netFunding, settling := crossVenueUpcomingSettlementNetFundingUSDT(cfg, pos, now)
+	if !settling || netFunding >= 0 {
+		return ""
+	}
+	return fmt.Sprintf("结算前不利资费 %.4f USDT(净付,即平)", netFunding)
 }

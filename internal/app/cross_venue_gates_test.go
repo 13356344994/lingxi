@@ -267,6 +267,44 @@ func TestSizedOrderPassesGateWhenCapitalExists(t *testing.T) {
 	}
 }
 
+func TestMidDevRelaxedForExtremeSpread(t *testing.T) {
+	now := time.Now().UTC().Add(time.Hour)
+	nextFunding := now.Add(2 * time.Hour)
+	runGate := func(opp CrossVenueOpportunity) crossVenueGateResult {
+		high := newCrossVenueTestVenue(okx.VenueName, 0.00625, 4, nextFunding)
+		high.book = venue.BookTicker{BidPrice: 103.48, AskPrice: 103.52, BidQty: 1000, AskQty: 1000}
+		high.depth = venueDepthDeep()
+		low := newCrossVenueTestVenue(bybit.VenueName, 0.0000125, 1, nextFunding)
+		low.book = venue.BookTicker{BidPrice: 99.99, AskPrice: 100.01, BidQty: 1000, AskQty: 1000}
+		low.depth = venueDepthDeep()
+		cfg := testNetProfitGateExecutorConfig()
+		cfg.MidPriceDeviationMax = 0.03
+		cfg.MidPriceDeviationMaxExtreme = 0.08
+		cfg.AssumeMakerFills = true
+		cfg.ExpectedHoldHours = 12
+		cfg.MaxPositionUSDT = 50
+		return evaluateCrossVenueOpenGate(context.Background(), cfg, testCrossVenueGateDeps(1000), map[string]venue.Venue{
+			okx.VenueName: high, bybit.VenueName: low,
+		}, crossVenueGateInput{Opp: opp, Now: now})
+	}
+	extremeOpp := CrossVenueOpportunity{
+		Symbol: "BTC-USDT", HighVenue: okx.VenueName, LowVenue: bybit.VenueName,
+		SpreadAPR: 13.58, ExtremeSpread: true,
+		HighFundingRate: 0.00625, LowFundingRate: 0.0000125,
+		HighIntervalHours: 4, LowIntervalHours: 1,
+		HighNextFundingTime: nextFunding, LowNextFundingTime: nextFunding,
+	}
+	if res := runGate(extremeOpp); !res.OK {
+		t.Fatalf("extreme ~3.5%% mid dev should pass gate: %s", res.Reason)
+	}
+	normalOpp := extremeOpp
+	normalOpp.ExtremeSpread = false
+	normalOpp.SpreadAPR = 1.0
+	if res := runGate(normalOpp); res.OK || !strings.Contains(res.Reason, "中间价偏离") {
+		t.Fatalf("non-extreme ~3.5%% mid dev should reject, ok=%v reason=%q", res.OK, res.Reason)
+	}
+}
+
 func testPerpPerpHOpportunityForGate(t *testing.T, notional float64) UnifiedOpportunity {
 	t.Helper()
 	now := time.Now().UTC()

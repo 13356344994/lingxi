@@ -306,3 +306,81 @@ func TestRefreshCurrentPositionMetricsPopulatesFutureEV(t *testing.T) {
 		t.Fatalf("future EV should be populated: %+v", pos)
 	}
 }
+
+func TestCloseBeforeAdverseFunding(t *testing.T) {
+	now := time.Date(2026, 6, 20, 4, 0, 0, 0, time.UTC)
+	cfg := testCrossVenueExecutorConfig()
+	cfg.NetworkConfig.RecordDir = t.TempDir()
+	cfg.CrossVenueExecutor.MinHoldHours = 24
+	cfg.CrossVenueExecutor.CloseSpreadConsecutiveRounds = 3
+	cfg.CrossVenueExecutor.CloseBeforeAdverseFundingEnabled = true
+	cfg.CrossVenueExecutor.PreFundingCloseLeadSeconds = 120
+	lowNext := now.Add(60 * time.Second)
+	e := &CrossVenueExecutor{
+		cfg:   cfg,
+		store: mustCrossVenueStore(t, cfg.NetworkConfig.RecordDir),
+		nowFn: func() time.Time { return now },
+		scanner: testScannerWithFunding(map[string]map[string]CrossVenueFundingEntry{
+			"high": {"BTC-USDT": {Rate: 0.001, IntervalHours: 8, NextFundingTime: now.Add(4 * time.Hour)}},
+			"low":  {"BTC-USDT": {Rate: 0.003, IntervalHours: 1, NextFundingTime: lowNext}},
+		}),
+		logger: testCrossVenueLogger(),
+	}
+	pos := CrossVenuePosition{
+		Symbol: "BTC-USDT", HighVenue: "high", LowVenue: "low",
+		OpenedAt: now.Add(-2 * time.Hour), NotionalUSDT: 100,
+		HighNextFundingTime: now.Add(4 * time.Hour), LowNextFundingTime: lowNext,
+		HighIntervalHours: 8, LowIntervalHours: 1,
+	}
+	e.refreshCurrentPositionMetrics(&pos)
+	reason := e.shouldCloseCrossVenue(context.Background(), &pos)
+	if reason == "" || !strings.Contains(reason, "结算前不利资费") {
+		t.Fatalf("expected immediate close before adverse funding, got %q", reason)
+	}
+}
+
+func TestNoCloseOnNoiseAwayFromSettlement(t *testing.T) {
+	now := time.Date(2026, 6, 20, 4, 0, 0, 0, time.UTC)
+	cfg := testCrossVenueExecutorConfig()
+	cfg.NetworkConfig.RecordDir = t.TempDir()
+	cfg.CrossVenueExecutor.MinHoldHours = 24
+	cfg.CrossVenueExecutor.CloseSpreadConsecutiveRounds = 3
+	cfg.CrossVenueExecutor.CloseBeforeAdverseFundingEnabled = true
+	cfg.CrossVenueExecutor.PreFundingCloseLeadSeconds = 120
+	e := &CrossVenueExecutor{
+		cfg:   cfg,
+		store: mustCrossVenueStore(t, cfg.NetworkConfig.RecordDir),
+		nowFn: func() time.Time { return now },
+		scanner: testScannerWithFunding(map[string]map[string]CrossVenueFundingEntry{
+			"high": {"BTC-USDT": {Rate: -0.002, IntervalHours: 8, NextFundingTime: now.Add(4 * time.Hour)}},
+			"low":  {"BTC-USDT": {Rate: 0.003, IntervalHours: 1, NextFundingTime: now.Add(2 * time.Hour)}},
+		}),
+		logger: testCrossVenueLogger(),
+	}
+	pos := CrossVenuePosition{
+		Symbol: "BTC-USDT", HighVenue: "high", LowVenue: "low",
+		OpenedAt: now.Add(-2 * time.Hour), NotionalUSDT: 100,
+		HighNextFundingTime: now.Add(4 * time.Hour), LowNextFundingTime: now.Add(2 * time.Hour),
+		HighIntervalHours: 8, LowIntervalHours: 1,
+	}
+	e.refreshCurrentPositionMetrics(&pos)
+	if reason := e.shouldCloseCrossVenue(context.Background(), &pos); reason != "" {
+		t.Fatalf("adverse rates far from settlement should not trigger close, got %q", reason)
+	}
+
+	nearNext := now.Add(30 * time.Second)
+	e.scanner = testScannerWithFunding(map[string]map[string]CrossVenueFundingEntry{
+		"high": {"BTC-USDT": {Rate: 0.004, IntervalHours: 8, NextFundingTime: nearNext}},
+		"low":  {"BTC-USDT": {Rate: 0.0001, IntervalHours: 1, NextFundingTime: now.Add(2 * time.Hour)}},
+	})
+	pos2 := CrossVenuePosition{
+		Symbol: "BTC-USDT", HighVenue: "high", LowVenue: "low",
+		OpenedAt: now.Add(-2 * time.Hour), NotionalUSDT: 100,
+		HighNextFundingTime: nearNext, LowNextFundingTime: now.Add(2 * time.Hour),
+		HighIntervalHours: 8, LowIntervalHours: 1,
+	}
+	e.refreshCurrentPositionMetrics(&pos2)
+	if reason := e.shouldCloseCrossVenue(context.Background(), &pos2); reason != "" {
+		t.Fatalf("favorable funding near settlement should not trigger adverse close, got %q", reason)
+	}
+}

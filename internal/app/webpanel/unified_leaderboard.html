@@ -6,7 +6,7 @@
   <title>统一机会排行榜</title>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 0; background: #0f172a; color: #e2e8f0; }
-    .container { max-width: 1600px; margin: 0 auto; padding: 24px; }
+    .container { max-width: 2200px; margin: 0 auto; padding: 24px; }
     h1 { margin: 0 0 8px 0; }
     .meta { color: #94a3b8; margin-bottom: 20px; font-size: 14px; }
     .toolbar { margin-bottom: 16px; }
@@ -122,16 +122,95 @@
 
     function fmt(n, d) { return (n == null || Number.isNaN(n)) ? '—' : Number(n).toFixed(d ?? 4); }
     function pct(n) { return (n == null || Number.isNaN(n) || n === 0) ? '—' : (Number(n)*100).toFixed(2)+'%'; }
+    function pctRate(n) { return (n == null || Number.isNaN(n) || n === 0) ? '—' : (Number(n)*100).toFixed(4)+'%'; }
+    function usdt(n) { return (n == null || Number.isNaN(n)) ? '—' : Number(n).toFixed(2); }
     function esc(s) { const d = document.createElement('div'); d.textContent = s ?? ''; return d.innerHTML; }
-    function fmtTime(s) {
-      if (!s) return '—';
-      try { return new Date(s).toLocaleString('zh-CN', {hour12:false, timeZone:'Asia/Shanghai'}); } catch { return esc(s); }
+
+    // formatTimeUTC8 将 ISO/RFC3339 格式化为北京时间; withSuffix=false 时省略 (UTC+8) 后缀。
+    function formatTimeUTC8(value, opts) {
+      const withSuffix = !opts || opts.withSuffix !== false;
+      const text = String(value ?? '').trim();
+      if (!text) return '—';
+      const d = new Date(text);
+      if (Number.isNaN(d.getTime())) return esc(text);
+      const parts = new Intl.DateTimeFormat('zh-CN', {
+        timeZone: 'Asia/Shanghai',
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', second: '2-digit',
+        hour12: false,
+      }).formatToParts(d);
+      const pick = (type) => parts.find((p) => p.type === type)?.value || '00';
+      const formatted = `${pick('year')}-${pick('month')}-${pick('day')} ${pick('hour')}:${pick('minute')}:${pick('second')}`;
+      return withSuffix ? `${formatted} (UTC+8)` : formatted;
     }
+
+    function formatTimeHM(value) {
+      const text = String(value ?? '').trim();
+      if (!text) return '—';
+      const d = new Date(text);
+      if (Number.isNaN(d.getTime())) return esc(text);
+      const parts = new Intl.DateTimeFormat('zh-CN', {
+        timeZone: 'Asia/Shanghai',
+        hour: '2-digit', minute: '2-digit', hour12: false,
+      }).formatToParts(d);
+      const pick = (type) => parts.find((p) => p.type === type)?.value || '00';
+      return `${pick('hour')}:${pick('minute')}`;
+    }
+
+    function fundingLegSpan(venue, timeStr, isNearest) {
+      if (!timeStr) return '—';
+      const cls = isNearest ? ' funding-high' : '';
+      return `<span class="${cls.trim()}">${esc(venue || '?')} ${formatTimeHM(timeStr)}</span>`;
+    }
+
+    function formatNextFundingTimes(o) {
+      const high = o.high_next_funding_time;
+      const low = o.low_next_funding_time;
+      const venues = o.venues || [];
+      const highVenue = venues[0] || 'H';
+      const lowVenue = venues[1] || 'L';
+
+      if (high && low) {
+        const highDate = new Date(high);
+        const lowDate = new Date(low);
+        if (!Number.isNaN(highDate.getTime()) && !Number.isNaN(lowDate.getTime())) {
+          if (highDate.getTime() === lowDate.getTime()) {
+            return fundingLegSpan(highVenue, high, false);
+          }
+          const now = Date.now();
+          const highDelta = highDate.getTime() - now;
+          const lowDelta = lowDate.getTime() - now;
+          const highNear = highDelta <= lowDelta;
+          const nearVenue = highNear ? highVenue : lowVenue;
+          const nearTime = highNear ? high : low;
+          const farVenue = highNear ? lowVenue : highVenue;
+          const farTime = highNear ? low : high;
+          return fundingLegSpan(nearVenue, nearTime, true) + ' / ' + fundingLegSpan(farVenue, farTime, false);
+        }
+      }
+      if (high) return fundingLegSpan(highVenue, high, false);
+      if (low) return fundingLegSpan(lowVenue, low, false);
+      return formatTimeUTC8(o.next_funding_time, { withSuffix: false });
+    }
+
+    function fmtCapitalByVenue(map) {
+      if (!map || typeof map !== 'object') return '—';
+      const entries = Object.entries(map).filter(([, v]) => v != null && !Number.isNaN(v));
+      if (!entries.length) return '—';
+      return entries.map(([v, n]) => `<span class="pill">${esc(v)} ${usdt(n)}</span>`).join('');
+    }
+
+    function yesNo(val) {
+      return val ? '<span class="ok">是</span>' : '<span class="no">否</span>';
+    }
+
     const TABLE_HEAD =
       '<thead><tr>'+
-      '<th>#</th><th>策略</th><th>交易对</th><th>交易所</th><th>价差 APR</th><th>费率 APR</th>'+
-      '<th>原始费率</th><th>美元/时</th><th>间隔 h</th><th>下次结算</th><th>距结算 min</th>'+
-      '<th>预计资金费</th><th>净 EV</th><th>名义</th><th>可执行</th><th>拒绝原因</th>'+
+      '<th>#</th><th>策略</th><th>交易对</th><th>交易所</th>'+
+      '<th>价差 APR</th><th>费率 APR</th><th>高腿费率</th><th>低腿费率</th>'+
+      '<th>结算周期(h)</th><th>下次结算(北京)</th><th>距结算(min)</th>'+
+      '<th>预计资金费(USDT)</th><th>净 EV(USDT)</th><th>资本效率</th><th>名义(USDT)</th>'+
+      '<th>各腿占用(USDT)</th><th>可执行</th><th>轮换可开</th><th>拒绝原因</th>'+
       '</tr></thead>';
 
     function rowHTML(o) {
@@ -144,15 +223,18 @@
         '<td>'+(o.venues||[]).map(v=>'<span class="pill">'+esc(v)+'</span>').join('')+'</td>'+
         '<td class="'+aprClass+'">'+pct(o.spread_apr)+'</td>'+
         '<td class="'+aprClass+'">'+pct(o.funding_apr)+'</td>'+
-        '<td>'+fmt(o.raw_funding_rate,6)+'</td>'+
-        '<td>'+fmt(o.funding_rate_per_hour,6)+'</td>'+
+        '<td>'+pctRate(o.high_funding_rate)+'</td>'+
+        '<td>'+pctRate(o.low_funding_rate)+'</td>'+
         '<td>'+(o.funding_interval_hours || '—')+'</td>'+
-        '<td>'+fmtTime(o.next_funding_time)+'</td>'+
+        '<td>'+formatNextFundingTimes(o)+'</td>'+
         '<td>'+fmt(o.minutes_until_funding,0)+'</td>'+
-        '<td>'+fmt(o.expected_funding_usdt,4)+'</td>'+
-        '<td>'+fmt(o.expected_net_ev_usdt,4)+'</td>'+
-        '<td>'+fmt(o.notional_usdt,2)+'</td>'+
-        '<td class="'+(o.would_execute?'ok':'no')+'">'+(o.would_execute?'是':'否')+'</td>'+
+        '<td>'+usdt(o.expected_funding_usdt)+'</td>'+
+        '<td>'+usdt(o.expected_net_ev_usdt)+'</td>'+
+        '<td>'+fmt(o.capital_efficiency_score,6)+'</td>'+
+        '<td>'+usdt(o.notional_usdt)+'</td>'+
+        '<td>'+fmtCapitalByVenue(o.capital_required_by_venue)+'</td>'+
+        '<td>'+yesNo(o.would_execute)+'</td>'+
+        '<td>'+yesNo(o.rotation_would_execute)+'</td>'+
         '<td><pre>'+esc(rejectReasonsLabel(o.reject_reasons))+'</pre></td>';
     }
 

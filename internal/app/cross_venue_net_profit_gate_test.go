@@ -81,7 +81,7 @@ func TestEvaluateCrossVenueOpenEVSixtyAPRTakerOneSettlementRejected(t *testing.T
 		LowNextFundingTime:  nextFunding,
 	}
 	holdHours := crossVenueComparableWindowHours(now, nextFunding, nextFunding)
-	res := evaluateCrossVenueOpenEV(cfg, opp, notional, nil, now, holdHours)
+	res := evaluateCrossVenueOpenEV(cfg, opp, notional, nil, now, holdHours, 0)
 	if res.OK {
 		t.Fatal("expected reject for ~60% APR under taker fees + 1-settlement hold window")
 	}
@@ -111,7 +111,7 @@ func TestEvaluateCrossVenueOpenEVCarryCoinMakerTwelveHourHoldPasses(t *testing.T
 	if opp.SpreadAPR < 0.40 {
 		t.Fatalf("carry fixture spread_apr=%.2f expected ≥0.40", opp.SpreadAPR)
 	}
-	res := evaluateCrossVenueOpenEV(cfg, opp, notional, nil, now, 0)
+	res := evaluateCrossVenueOpenEV(cfg, opp, notional, nil, now, 0, 0)
 	if !res.OK {
 		t.Fatalf("expected pass for high carry coin under discrete funding + maker 12h hold: %s", res.Reason)
 	}
@@ -144,7 +144,7 @@ func TestEvaluateCrossVenueOpenEVCarryCoinTakerShortHoldRejected(t *testing.T) {
 		LowNextFundingTime:  nextFunding,
 	}
 	holdHours := crossVenueComparableWindowHours(now, nextFunding, nextFunding)
-	res := evaluateCrossVenueOpenEV(cfg, opp, notional, nil, now, holdHours)
+	res := evaluateCrossVenueOpenEV(cfg, opp, notional, nil, now, holdHours, 0)
 	if res.OK {
 		t.Fatal("expected reject for ~60% APR coin under taker fees + short hold window")
 	}
@@ -166,7 +166,7 @@ func TestEvaluateCrossVenueOpenEVWeakFundingMakerHoldStillRejected(t *testing.T)
 		HighNextFundingTime: nextFunding,
 		LowNextFundingTime:  nextFunding,
 	}
-	res := evaluateCrossVenueOpenEV(cfg, opp, notional, nil, now, 0)
+	res := evaluateCrossVenueOpenEV(cfg, opp, notional, nil, now, 0, 0)
 	if res.OK {
 		t.Fatal("expected reject when funding over expected hold does not cover maker round-trip")
 	}
@@ -180,13 +180,13 @@ func TestCrossVenueOpenEVConfigTogglesExpectedHoldHoursAndMakerFees(t *testing.T
 
 	shortHold := testNetProfitGateMakerHoldConfig()
 	shortHold.ExpectedHoldHours = 2
-	if res := evaluateCrossVenueOpenEV(shortHold, opp, notional, nil, now, 0); res.OK {
+	if res := evaluateCrossVenueOpenEV(shortHold, opp, notional, nil, now, 0, 0); res.OK {
 		t.Fatal("expected reject when expected_hold_hours shortened to 2h")
 	}
 
 	longHold := testNetProfitGateMakerHoldConfig()
 	longHold.ExpectedHoldHours = 12
-	if res := evaluateCrossVenueOpenEV(longHold, opp, notional, nil, now, 0); !res.OK {
+	if res := evaluateCrossVenueOpenEV(longHold, opp, notional, nil, now, 0, 0); !res.OK {
 		t.Fatalf("expected pass with 12h discrete settlements (not linear extrapolation): %s", res.Reason)
 	}
 
@@ -195,7 +195,7 @@ func TestCrossVenueOpenEVConfigTogglesExpectedHoldHoursAndMakerFees(t *testing.T
 	highMakerFeeOpp := opp
 	highMakerFeeOpp.HighVenue = "unknown-high"
 	highMakerFeeOpp.LowVenue = "unknown-low"
-	if res := evaluateCrossVenueOpenEV(highMakerFee, highMakerFeeOpp, notional, nil, now, 0); res.OK {
+	if res := evaluateCrossVenueOpenEV(highMakerFee, highMakerFeeOpp, notional, nil, now, 0, 0); res.OK {
 		t.Fatal("expected reject when default_maker_fee_bps raised to 150")
 	}
 
@@ -210,7 +210,7 @@ func TestCrossVenueOpenEVConfigTogglesExpectedHoldHoursAndMakerFees(t *testing.T
 	takerCfgOpp.SpreadAPR = 0.60
 	takerCfgOpp.HighFundingRate = highRate
 	takerCfgOpp.LowFundingRate = lowRate
-	if res := evaluateCrossVenueOpenEV(takerCfg, takerCfgOpp, notional, nil, now, 0); res.OK {
+	if res := evaluateCrossVenueOpenEV(takerCfg, takerCfgOpp, notional, nil, now, 0, 0); res.OK {
 		t.Fatal("expected reject when assume_maker_fills=false with taker fee tier on ~60% APR coin")
 	}
 }
@@ -234,7 +234,7 @@ func TestEvaluateCrossVenueOpenEVModestSpreadPositiveNetProfitPasses(t *testing.
 		HighNextFundingTime: nextFunding,
 		LowNextFundingTime:  nextFunding,
 	}
-	res := evaluateCrossVenueOpenEV(cfg, opp, notional, nil, now, 0)
+	res := evaluateCrossVenueOpenEV(cfg, opp, notional, nil, now, 0, 0)
 	if !res.OK {
 		t.Fatalf("expected pass for modest spread when discrete funding covers maker round-trip: %s", res.Reason)
 	}
@@ -258,7 +258,7 @@ func TestEvaluateCrossVenueOpenEVNegativeNetProfitRejected(t *testing.T) {
 		LowNextFundingTime:  nextFunding,
 	}
 	holdHours := crossVenueComparableWindowHours(now, nextFunding, nextFunding)
-	res := evaluateCrossVenueOpenEV(cfg, opp, notional, nil, now, holdHours)
+	res := evaluateCrossVenueOpenEV(cfg, opp, notional, nil, now, holdHours, 0)
 	if res.OK {
 		t.Fatal("expected reject when funding over hold does not cover round-trip cost")
 	}

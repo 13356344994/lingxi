@@ -114,11 +114,19 @@ func evaluateCrossVenueOpenGate(
 	// 排除美股代币等伪高价差标的,改靠下面的"快照有效性"(NextFundingTime/间隔/有限 rate)+ 扫描器价差上限。
 	highSnap, ok := deps.fetchFunding(ctx, highV, highSym)
 	if !ok || !crossVenueFundingSnapshotValid(highSnap, in.Now) {
-		return fail("高费所幽灵腿:资费快照无效(缺 rate/结算间隔/NextFundingTime)")
+		if snap, okLeg := crossVenueFundingSnapFromOppLeg(in.Opp, true, in.Now); okLeg {
+			highSnap = snap
+		} else {
+			return fail("高费所幽灵腿:资费快照无效(缺 rate/结算间隔/NextFundingTime)")
+		}
 	}
 	lowSnap, ok := deps.fetchFunding(ctx, lowV, lowSym)
 	if !ok || !crossVenueFundingSnapshotValid(lowSnap, in.Now) {
-		return fail("低费所幽灵腿:资费快照无效(缺 rate/结算间隔/NextFundingTime)")
+		if snap, okLeg := crossVenueFundingSnapFromOppLeg(in.Opp, false, in.Now); okLeg {
+			lowSnap = snap
+		} else {
+			return fail("低费所幽灵腿:资费快照无效(缺 rate/结算间隔/NextFundingTime)")
+		}
 	}
 
 	highInstr, ok := deps.lookupInstrument(ctx, highV, highSym)
@@ -152,10 +160,7 @@ func evaluateCrossVenueOpenGate(
 		}
 	}
 	dev := crossVenueMidDeviation(highMid, lowMid, highMult, lowMult)
-	maxDev := cfg.MidPriceDeviationMax
-	if maxDev <= 0 {
-		maxDev = 0.03
-	}
+	maxDev := crossVenueResolvedMidPriceDeviationMax(cfg, in.Opp)
 	if dev > maxDev {
 		return fail(fmt.Sprintf("两所中间价偏离 %.2f%% > %.2f%%", dev*100, maxDev*100))
 	}
@@ -245,7 +250,7 @@ func evaluateCrossVenueOpenGate(
 		evOpp.LowNextFundingTime = lowSnap.NextFundingTime
 		evOpp.LowIntervalHours = lowSnap.IntervalHours
 	}
-	if evRes := evaluateCrossVenueOpenEV(cfg, evOpp, notional, evLegs, in.Now, holdHours); !evRes.OK {
+	if evRes := evaluateCrossVenueOpenEV(cfg, evOpp, notional, evLegs, in.Now, holdHours, dev); !evRes.OK {
 		return fail(evRes.Reason)
 	}
 
@@ -277,7 +282,7 @@ type crossVenueEVResult struct {
 
 // evaluateCrossVenueOpenEV 净收益闸:预期持有 horizon 内 funding 收入须覆盖四腿往返成本+风险/策略缓冲。
 // 费率须来自扫描器平滑+封顶后的 Opp 字段;缺省(单测直调 gate 且无结算窗口)则跳过 EV。
-func evaluateCrossVenueOpenEV(cfg CrossVenueExecutorConfig, opp CrossVenueOpportunity, notional float64, evLegs []crossVenueEVSlippageLeg, now time.Time, holdHours float64) crossVenueEVResult {
+func evaluateCrossVenueOpenEV(cfg CrossVenueExecutorConfig, opp CrossVenueOpportunity, notional float64, evLegs []crossVenueEVSlippageLeg, now time.Time, holdHours float64, midDev float64) crossVenueEVResult {
 	pass := func() crossVenueEVResult { return crossVenueEVResult{OK: true} }
 	failEV := func(reason string) crossVenueEVResult {
 		return crossVenueEVResult{OK: false, Reason: reason}
@@ -313,7 +318,8 @@ func evaluateCrossVenueOpenEV(cfg CrossVenueExecutorConfig, opp CrossVenueOpport
 	observableRiskCost := crossVenueObservableRiskCost(notional, opp.FreshnessAgeSeconds, holdHours, recoveryQuality)
 	policyBuffer := crossVenuePolicyBuffer(openCost, closeCost)
 	dustCost := carryScannerPerpPerpDustResidualCostUSDT()
-	netProfit := expectedFunding - roundTripCost - observableRiskCost - policyBuffer - dustCost
+	entryBasisCost := crossVenuePerpPerpEntryBasisCostUSDT(cfg, midDev, notional, opp)
+	netProfit := expectedFunding - roundTripCost - observableRiskCost - policyBuffer - dustCost - entryBasisCost
 	minProfit := crossVenueMinNetProfitUSDT(cfg)
 	if netProfit <= minProfit+1e-9 {
 		return failEV(fmt.Sprintf("EV<0: netProfit=%.4f ≤ min %.4f USDT (funding=%.4f cost=%.4f hold=%.2fh)",
@@ -534,6 +540,31 @@ func lookupVenueInstrument(ctx context.Context, v venue.Venue, sym venue.Symbol)
 		}
 	}
 	return venue.Instrument{}, false
+}
+
+// crossVenueFundingSnapFromOppLeg venue 快照缺 symbol 时,用扫描器 Opp 已填 funding 字段作闸门回退(单测/新币首扫)。
+func crossVenueFundingSnapFromOppLeg(opp CrossVenueOpportunity, highLeg bool, now time.Time) (venue.FundingSnapshot, bool) {
+	var rate float64
+	var interval int
+	var next time.Time
+	if highLeg {
+		rate = opp.HighFundingRate
+		interval = opp.HighIntervalHours
+		next = opp.HighNextFundingTime
+	} else {
+		rate = opp.LowFundingRate
+		interval = opp.LowIntervalHours
+		next = opp.LowNextFundingTime
+	}
+	snap := venue.FundingSnapshot{
+		LastFundingRate: rate,
+		IntervalHours:   interval,
+		NextFundingTime: next,
+	}
+	if !crossVenueFundingSnapshotValid(snap, now) {
+		return venue.FundingSnapshot{}, false
+	}
+	return snap, true
 }
 
 // crossVenueFundingSnapshotValid 校验 bulk 快照里该 symbol 的 rate/结算间隔/下次结算时刻可用于 carry 判断。

@@ -530,7 +530,7 @@ func (e *CrossVenueExecutor) refreshCurrentPositionMetrics(pos *CrossVenuePositi
 	if pos.ExecutionScore <= 0 {
 		pos.ExecutionScore = crossVenueExecutionScore(crossVenueExpectedSlippageUSDT(e.cfg.CrossVenueExecutor, crossVenuePositionNotionalUSDT(pos), 2), crossVenuePositionNotionalUSDT(pos))
 	}
-	futureEV, capEff, riskAdj, exitCost, switchCost, comparable, riskScore := crossVenueComputeCurrentFutureEV(e.cfg.CrossVenueExecutor, pos)
+	futureEV, capEff, riskAdj, exitCost, switchCost, comparable, riskScore := crossVenueComputeCurrentFutureEV(e.cfg.CrossVenueExecutor, pos, now)
 	pos.CurrentFutureEV = futureEV
 	pos.CurrentCapitalEfficiencyEV = capEff
 	pos.CurrentRiskAdjustedEVPerHour = riskAdj
@@ -705,6 +705,9 @@ func (e *CrossVenueExecutor) shouldCloseCrossVenue(ctx context.Context, pos *Cro
 	if pos.FreshnessAgeSeconds > crossVenueMaxCompareAgeSeconds(cfg, e.cfg.CrossVenueScanner.MaxSnapshotAgeSeconds) {
 		return ""
 	}
+	if reason := crossVenuePreFundingAdverseCloseReason(cfg, pos, now); reason != "" {
+		return reason
+	}
 	if !crossVenueCompareAllowed(cfg, pos, now) {
 		return ""
 	}
@@ -712,6 +715,10 @@ func (e *CrossVenueExecutor) shouldCloseCrossVenue(ctx context.Context, pos *Cro
 		return ""
 	}
 	if pos.CurrentComparableWindowHours >= crossVenueMinComparableWindowHours(cfg) && pos.CurrentFutureEV <= 0 {
+		if e.crossVenueMinHoldBlocksSoftClose(pos) {
+			_ = e.persistPosition(*pos)
+			return ""
+		}
 		return fmt.Sprintf("未来净值<=0(%.4f)", pos.CurrentFutureEV)
 	}
 	if reason := e.crossVenueSwitchCloseReason(pos); reason != "" {

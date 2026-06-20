@@ -25,6 +25,7 @@ type UnifiedLeaderboardEntry struct {
 	PrimarySortKey         float64            `json:"primary_sort_key"`
 	RankReason             string             `json:"rank_reason"`
 	WouldExecute           bool               `json:"would_execute"`
+	RotationWouldExecute   bool               `json:"rotation_would_execute"`
 	RejectReasons          []string           `json:"reject_reasons"`
 	NotionalUSDT           float64            `json:"notional_usdt,omitempty"`
 	RawFundingRate         float64            `json:"raw_funding_rate,omitempty"`
@@ -195,6 +196,35 @@ func unifiedPrimarySortKey(rec UnifiedCandidateLogRecord) float64 {
 	return rec.ExpectedNetEVUSDT / totalCapital
 }
 
+func unifiedNearestFundingMinutes(rec UnifiedCandidateLogRecord, now time.Time) float64 {
+	high := strings.TrimSpace(rec.HighNextFundingTime)
+	low := strings.TrimSpace(rec.LowNextFundingTime)
+	if high != "" && low != "" {
+		highMins := unifiedMinutesUntilFunding(high, now)
+		lowMins := unifiedMinutesUntilFunding(low, now)
+		switch {
+		case highMins > 0 && lowMins > 0:
+			if lowMins < highMins {
+				return lowMins
+			}
+			return highMins
+		case highMins > 0:
+			return highMins
+		case lowMins > 0:
+			return lowMins
+		default:
+			return 0
+		}
+	}
+	if high != "" {
+		return unifiedMinutesUntilFunding(high, now)
+	}
+	if low != "" {
+		return unifiedMinutesUntilFunding(low, now)
+	}
+	return unifiedMinutesUntilFunding(rec.NextFundingTime, now)
+}
+
 func buildUnifiedRankReason(rank int, rec UnifiedCandidateLogRecord, landscapeKey float64, now time.Time) string {
 	venueList := strings.Join(rec.Venues, "+")
 	if venueList == "" {
@@ -206,7 +236,7 @@ func buildUnifiedRankReason(rank int, rec UnifiedCandidateLogRecord, landscapeKe
 		fundingLabel = "价差 APR"
 		fundingVal = rec.SpreadAPR
 	}
-	mins := unifiedMinutesUntilFunding(rec.NextFundingTime, now)
+	mins := unifiedNearestFundingMinutes(rec, now)
 	settlePart := ""
 	if mins > 0 {
 		settlePart = fmt.Sprintf("，距结算 %.0f min", mins)
@@ -374,6 +404,7 @@ func leaderboardEntryFromRecord(rec UnifiedCandidateLogRecord, rank int, landsca
 		PrimarySortKey:         unifiedPrimarySortKey(rec),
 		RankReason:             buildUnifiedRankReason(rank, rec, landscapeKey, now),
 		WouldExecute:           rec.WouldExecute,
+		RotationWouldExecute:   rec.RotationWouldExecute,
 		RejectReasons:          rejectReasons,
 		NotionalUSDT:           rec.NotionalUSDT,
 		RawFundingRate:         rec.RawFundingRate,
@@ -386,7 +417,7 @@ func leaderboardEntryFromRecord(rec UnifiedCandidateLogRecord, rank int, landsca
 		NextFundingTime:        rec.NextFundingTime,
 		HighNextFundingTime:    rec.HighNextFundingTime,
 		LowNextFundingTime:     rec.LowNextFundingTime,
-		MinutesUntilFunding:    unifiedMinutesUntilFunding(rec.NextFundingTime, now),
+		MinutesUntilFunding:    unifiedNearestFundingMinutes(rec, now),
 	}
 }
 
