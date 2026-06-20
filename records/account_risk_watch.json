@@ -1,8 +1,8 @@
 {
   "wired": true,
-  "updated_at": "2026-06-20T07:07:14.757149272Z",
+  "updated_at": "2026-06-20T07:08:14.756351225Z",
   "snapshot": {
-    "observed_at": "2026-06-20T07:07:14.724586186Z",
+    "observed_at": "2026-06-20T07:08:14.724113096Z",
     "day_start_cst": "2026-06-20T00:00:00+08:00",
     "daily_realized_pnl_usdt": 0,
     "daily_equity_delta_usdt": 0.202838,

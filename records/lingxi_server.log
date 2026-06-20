@@ -44219,3 +44219,9 @@ afd818239654bd903d747bb12420ec6c | cycle=
 2026/06/20 07:07:32 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
 2026/06/20 07:07:32 [统一轮动] 安全管理: strategy=single_venue_perp_spot
 2026/06/20 07:07:32 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/20 07:08:14 [账户风控] OK daily_equity_delta=0.2028 daily_realized=0.0000 settlement_dd=0.2276 real_equity_dd=19.5363 positions=0 notional=0.00
+2026/06/20 07:08:32 [统一轮动] 安全管理: strategy=single_venue_spot_perp
+2026/06/20 07:08:32 [统一轮动] 安全管理: strategy=cross_venue_spot_perp
+2026/06/20 07:08:32 [统一轮动] 安全管理: strategy=single_venue_perp_spot
+2026/06/20 07:08:32 [统一轮动] 安全管理: strategy=cross_venue_perp_spot
+2026/06/20 07:08:32 [统一轮动] 安全管理: strategy=perp_perp
