@@ -1056,10 +1056,14 @@ func (r *UnifiedRotationRunner) defaultScanRotationCandidates(ctx context.Contex
 	if r.includePerpPerpCandidates {
 		perpPerpCandidates := make([]UnifiedOpportunity, 0, len(snap.Opportunities))
 		for _, opp := range snap.Opportunities {
-			unified := rotationAlignPerpPerpCapital(
-				UnifiedOpportunityFromCrossVenue(r.execCfg, opp, nil, 0, 0),
-				r.execCfg,
-			)
+			unified := UnifiedOpportunityFromCrossVenue(r.execCfg, opp, nil, 0, 0)
+			if r.rotationCfg.CapitalAwarePerpPerpSizingEnabled {
+				unified = rotationCapPerpPerpOpportunityByCapital(
+					unified, r.execCfg, normalizeRotationConfig(r.rotationCfg), availableUSDTByVenue,
+				)
+			} else {
+				unified = rotationAlignPerpPerpCapital(unified, r.execCfg)
+			}
 			// 无 perp-perp binding 时仅作候选对比;有 binding 时可由统一 runner OPEN/SWITCH。
 			if r.bindingForStrategy(UnifiedStrategyPerpPerp) == nil {
 				unified.CandidateOnly = true

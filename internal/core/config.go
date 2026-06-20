@@ -843,6 +843,8 @@ type UnifiedRotationConfig struct {
 	TotalDeployablePct float64 `cfg:"total_deployable_pct"`
 	// MaxStrategyCapitalUsagePct 单策略占用占全局可部署预算的比例上限;0=不限。
 	MaxStrategyCapitalUsagePct float64 `cfg:"max_strategy_capital_usage_pct"`
+	// CapitalAwarePerpPerpSizingEnabled perp-perp 候选按各所 UNIFIED 可用×杠杆封顶名义;资金不足时缩仓而非拒单。默认 true。
+	CapitalAwarePerpPerpSizingEnabled bool `cfg:"capital_aware_perp_perp_sizing_enabled"`
 }
 
 // VenueFundingExecutorConfig 是 OKX/Gate 单所正费率执行器参数(正 carry:空永续+买现货,跨结算持有)。

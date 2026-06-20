@@ -205,6 +205,9 @@ func TestUnifiedRotationDefaults(t *testing.T) {
 	if cfg.UnifiedRotation.LiveTradingEnabled {
 		t.Fatal("UnifiedRotation.LiveTradingEnabled 默认应为 false")
 	}
+	if !cfg.UnifiedRotation.CapitalAwarePerpPerpSizingEnabled {
+		t.Fatal("UnifiedRotation.CapitalAwarePerpPerpSizingEnabled 默认应为 true")
+	}
 }
 
 func TestCrossVenueExecutorPerpPerpOpeningsDefaultEnabled(t *testing.T) {

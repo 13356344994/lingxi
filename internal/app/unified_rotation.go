@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 	"time"
@@ -40,6 +41,8 @@ type RotationConfig struct {
 	OpenFailCooldownSeconds int `json:"open_fail_cooldown_seconds"`
 	// OpenCooldownBlocked 运行时注入:按机会粒度检查开仓失败冷却(nil=不检查)。
 	OpenCooldownBlocked func(opp UnifiedOpportunity) bool `json:"-"`
+	// CapitalAwarePerpPerpSizingEnabled perp-perp 按 venue 可用×杠杆封顶名义;不足则缩仓。默认 true。
+	CapitalAwarePerpPerpSizingEnabled bool `json:"capital_aware_perp_perp_sizing_enabled"`
 }
 
 // DefaultRotationConfig 返回 v1 保守默认轮动配置。
@@ -50,8 +53,9 @@ func DefaultRotationConfig() RotationConfig {
 		DefaultReserveUSDT:         10,
 		ContinuationCloseThreshold: 0.001,
 		ContinuationMinHoldSeconds: 3600,
-		MinOpenNotionalUSDT:        5,
-		OpenFailCooldownSeconds:    900,
+		MinOpenNotionalUSDT:               5,
+		OpenFailCooldownSeconds:           900,
+		CapitalAwarePerpPerpSizingEnabled: true,
 	}
 }
 
@@ -77,6 +81,10 @@ func RotationConfigFromUnified(ur core.UnifiedRotationConfig, exec CrossVenueExe
 		cfg.MaxStrategyCapitalUsagePct = ur.MaxStrategyCapitalUsagePct
 	}
 	cfg.MinNetProfitUSDT = crossVenueMinNetProfitUSDT(exec)
+	cfg.CapitalAwarePerpPerpSizingEnabled = ur.CapitalAwarePerpPerpSizingEnabled
+	if !cfg.CapitalAwarePerpPerpSizingEnabled && ur == (core.UnifiedRotationConfig{}) {
+		cfg.CapitalAwarePerpPerpSizingEnabled = DefaultRotationConfig().CapitalAwarePerpPerpSizingEnabled
+	}
 	return cfg
 }
 
@@ -165,6 +173,90 @@ func rotationMaxLegNotional(opp UnifiedOpportunity) float64 {
 		}
 	}
 	return maxNotional
+}
+
+// rotationPerpPerpMaxNotionalFromVenueAvail 由单腿可用资金反解 perp-perp 等额名义上限。
+// 约束 rotationPerpMarginWithBuffer(notional) ≤ avail,即 notional×(1/lev+buffer) ≤ avail。
+func rotationPerpPerpMaxNotionalFromVenueAvail(execCfg CrossVenueExecutorConfig, availAfterReserve float64) float64 {
+	if availAfterReserve <= 0 {
+		return 0
+	}
+	lev := execCfg.MaxEffectiveLeverage
+	if lev <= 0 {
+		lev = 2
+	}
+	scannerCfg := DefaultSingleVenueSpotPerpScannerConfig(execCfg)
+	buffer := scannerCfg.PerpWalletBufferRatio
+	if buffer <= 0 {
+		buffer = crossVenueSpotPerpDefaultPerpWalletBuffer
+	}
+	denom := 1/lev + buffer
+	if denom <= 0 {
+		return 0
+	}
+	return availAfterReserve / denom
+}
+
+// rotationPerpPerpMaxNotionalByCapital 取 perp-perp 各腿 venue 扣储备后可用资金约束下的最大等额名义(min 绑定腿)。
+func rotationPerpPerpMaxNotionalByCapital(execCfg CrossVenueExecutorConfig, rotCfg RotationConfig, availableUSDTByVenue map[string]float64, opp UnifiedOpportunity) float64 {
+	maxN := math.MaxFloat64
+	for _, leg := range opp.Legs {
+		if leg.Venue == "" {
+			continue
+		}
+		avail := rotationEffectiveAvailable(availableUSDTByVenue, rotCfg, leg.Venue)
+		capN := rotationPerpPerpMaxNotionalFromVenueAvail(execCfg, avail)
+		if capN < maxN {
+			maxN = capN
+		}
+	}
+	if maxN == math.MaxFloat64 {
+		return 0
+	}
+	return maxN
+}
+
+// rotationScalePerpPerpOpportunityNotional 按 ratio 等比缩放 perp-perp 名义与线性 EV/成本字段(不含 borrow/rollback)。
+func rotationScalePerpPerpOpportunityNotional(opp *UnifiedOpportunity, ratio float64) {
+	if opp == nil || ratio <= 0 || math.Abs(ratio-1) <= 1e-9 {
+		return
+	}
+	for i := range opp.Legs {
+		opp.Legs[i].Notional *= ratio
+		opp.Legs[i].Qty *= ratio
+	}
+	opp.ExpectedFundingUSDT *= ratio
+	opp.ExpectedOpenCostUSDT *= ratio
+	opp.ExpectedCloseCostUSDT *= ratio
+	opp.ExpectedSlippageUSDT *= ratio
+	opp.ExpectedNetEVUSDT *= ratio
+}
+
+// rotationCapPerpPerpOpportunityByCapital 按各所 UNIFIED 可用×杠杆封顶 perp-perp 名义;资金不够则缩仓,留给开仓闸按 min_notional/netEV 过滤。
+func rotationCapPerpPerpOpportunityByCapital(opp UnifiedOpportunity, execCfg CrossVenueExecutorConfig, rotCfg RotationConfig, availableUSDTByVenue map[string]float64) UnifiedOpportunity {
+	if opp.StrategyType != UnifiedStrategyPerpPerp {
+		return opp
+	}
+	originalNotional := rotationMaxLegNotional(opp)
+	if originalNotional <= 0 {
+		return rotationAlignPerpPerpCapital(opp, execCfg)
+	}
+	maxByCapital := rotationPerpPerpMaxNotionalByCapital(execCfg, rotCfg, availableUSDTByVenue, opp)
+	cappedNotional := originalNotional
+	if maxByCapital >= 0 && maxByCapital < originalNotional {
+		cappedNotional = maxByCapital
+	}
+	if cappedNotional <= 0 {
+		for i := range opp.Legs {
+			opp.Legs[i].Notional = 0
+			opp.Legs[i].Qty = 0
+		}
+		return rotationAlignPerpPerpCapital(opp, execCfg)
+	}
+	if cappedNotional+1e-9 < originalNotional {
+		rotationScalePerpPerpOpportunityNotional(&opp, cappedNotional/originalNotional)
+	}
+	return rotationAlignPerpPerpCapital(opp, execCfg)
 }
 
 func rotationPositionNotionalUSDT(opp UnifiedOpportunity, totalCapital float64) float64 {
