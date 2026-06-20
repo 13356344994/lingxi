@@ -121,6 +121,8 @@ func unifiedOpportunityID(strategyType, symbol, snapshotID, highVenue, lowVenue 
 	return fmt.Sprintf("%s:%s:%s:%s", strategyType, symbol, highVenue+"+"+lowVenue, snapshotID)
 }
 
+// crossVenuePerVenueMarginUSDT 单腿永续保证金 = 名义 / MaxEffectiveLeverage。
+// MaxEffectiveLeverage 即真实可部署杠杆; MarginSafetyFactor 不参与 sizing(见 config 注释)。
 func crossVenuePerVenueMarginUSDT(cfg CrossVenueExecutorConfig, notional float64) float64 {
 	if notional <= 0 {
 		return 0
@@ -129,11 +131,7 @@ func crossVenuePerVenueMarginUSDT(cfg CrossVenueExecutorConfig, notional float64
 	if lev <= 0 {
 		lev = 2
 	}
-	marginFactor := cfg.MarginSafetyFactor
-	if marginFactor <= 0 {
-		marginFactor = 1.5
-	}
-	return notional / lev * marginFactor
+	return notional / lev
 }
 
 func unifiedRiskScoreFromCrossVenue(opp CrossVenueOpportunity) float64 {

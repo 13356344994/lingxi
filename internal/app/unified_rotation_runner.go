@@ -1726,6 +1726,7 @@ func rotationPerpMarginWithBuffer(execCfg CrossVenueExecutorConfig, notional flo
 	if bufferRatio <= 0 {
 		bufferRatio = crossVenueSpotPerpDefaultPerpWalletBuffer
 	}
+	// 保证金 = 名义/lev; buffer 为钱包小额垫,不替代可部署杠杆。
 	return margin + notional*bufferRatio
 }
 
@@ -1755,6 +1756,8 @@ func rotationAlignPerpPerpCapital(opp UnifiedOpportunity, execCfg CrossVenueExec
 	return opp
 }
 
+// rotationInferNotionalFromTotalCapital 由 spot+perp 单所总占用反推名义。
+// total = notional + rotationPerpMarginWithBuffer(notional) = notional × (1 + 1/lev + buffer)。
 func rotationInferNotionalFromTotalCapital(execCfg CrossVenueExecutorConfig, total float64) float64 {
 	if total <= 0 {
 		return 0
@@ -1764,15 +1767,11 @@ func rotationInferNotionalFromTotalCapital(execCfg CrossVenueExecutorConfig, tot
 	if lev <= 0 {
 		lev = 2
 	}
-	factor := execCfg.MarginSafetyFactor
-	if factor <= 0 {
-		factor = 1.5
-	}
 	buffer := scannerCfg.PerpWalletBufferRatio
 	if buffer <= 0 {
 		buffer = crossVenueSpotPerpDefaultPerpWalletBuffer
 	}
-	return total / (1 + factor/lev + buffer)
+	return total / (1 + 1/lev + buffer)
 }
 
 func rotationHeldWalletRequirements(pos HeldPosition, execCfg CrossVenueExecutorConfig) map[string]venueWalletRequirements {

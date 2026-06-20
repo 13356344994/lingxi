@@ -679,9 +679,9 @@ type CrossVenueExecutorConfig struct {
 	MinLiqDistance float64 `cfg:"min_liq_distance"`
 	// MaxHoldHours 最大持仓时长(小时)。默认 72。
 	MaxHoldHours int `cfg:"max_hold_hours"`
-	// MaxEffectiveLeverage 有效杠杆上限(名义/分配本金)。默认 2。
+	// MaxEffectiveLeverage 可部署杠杆:单腿保证金 = 名义/此值(如 3 → margin=notional/3)。默认 3。
 	MaxEffectiveLeverage float64 `cfg:"max_effective_leverage"`
-	// MarginSafetyFactor 保证金安全系数(可用 USDT ≥ 名义/杠杆 × 此系数)。默认 1.5。
+	// MarginSafetyFactor 强平安全垫(如 SetLeverage/强平距离校验),不参与 sizing 缩小保证金。默认 1.0(不缩)。
 	MarginSafetyFactor float64 `cfg:"margin_safety_factor"`
 	// MidPriceDeviationMax 两所中间价最大偏离(小数,0.03=3%)。默认 0.03。
 	MidPriceDeviationMax float64 `cfg:"mid_price_deviation_max"`
@@ -765,7 +765,7 @@ type CrossVenueExecutorConfig struct {
 	CarryFundingEntryMissingVolScale float64 `cfg:"carry_funding_entry_missing_vol_scale"`
 	// CarryNoHistoryHaircut 无 p90 历史时对 live rate 的乘数;1.0=不裁剪。默认 1.0。
 	CarryNoHistoryHaircut float64 `cfg:"carry_no_history_haircut"`
-	// LowConfidenceSizeFloorFraction 低置信度(历史/波动)时的 SizeMultiplier 下限。默认 0.25。
+	// LowConfidenceSizeFloorFraction 非极端币低置信度(历史/波动)时的 confMult 下限;极端 spread 机会豁免此砍仓。默认 0.6。
 	LowConfidenceSizeFloorFraction float64 `cfg:"low_confidence_size_floor_fraction"`
 	// SingleVenueReverseFundingEnabled 单所策略启用反向资金费 carry(负费率 spot-perp / 正费率 perp-spot)。
 	// 默认 false;关闭时仍走 v1_not_supported 拒绝,行为与改动前一致。

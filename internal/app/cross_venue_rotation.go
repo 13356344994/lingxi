@@ -193,6 +193,7 @@ func crossVenueExpectedSlippageUSDT(cfg CrossVenueExecutorConfig, notional float
 	return float64(legs) * notional * bps / 10000
 }
 
+// crossVenueEffectiveMarginOccupied perp-perp 两腿合计保证金 = 2 × 名义 / MaxEffectiveLeverage。
 func crossVenueEffectiveMarginOccupied(cfg CrossVenueExecutorConfig, notional float64) float64 {
 	if notional <= 0 {
 		return 0
@@ -201,11 +202,7 @@ func crossVenueEffectiveMarginOccupied(cfg CrossVenueExecutorConfig, notional fl
 	if lev <= 0 {
 		lev = 2
 	}
-	marginFactor := cfg.MarginSafetyFactor
-	if marginFactor <= 0 {
-		marginFactor = 1.5
-	}
-	return 2 * notional / lev * marginFactor
+	return 2 * notional / lev
 }
 
 func crossVenueRecoveryQualityForPair(highVenue, lowVenue string) float64 {
@@ -264,11 +261,16 @@ func crossVenueHistoryQualityScore(samples, persistenceScans int) float64 {
 	return clamp01(float64(samples) / float64(persistenceScans))
 }
 
-const defaultSpreadPersistenceScans = 2
+const (
+	defaultSpreadPersistenceScans = 2
+	// crossVenueExtremeSpreadConfidenceBypassAPR 与 scanner crossVenueExtremeSpreadMarkAPR 对齐:
+	// 当下 spread 超过此阈值时,豁免历史置信度砍仓(ExtremeSpread 亦同)。
+	crossVenueExtremeSpreadConfidenceBypassAPR = 2.0
+)
 
 func crossVenueConfidenceSizeMultiplier(floor, historyQuality, stabilityScore float64) float64 {
 	if floor <= 0 {
-		floor = 0.25
+		floor = 0.6
 	}
 	if floor > 1 {
 		floor = 1
@@ -303,7 +305,7 @@ func carryFundingVolScale(gate CarryFundingEntryGateConfig, volPerHour float64, 
 func carryConfidenceSizeMultiplier(execCfg CrossVenueExecutorConfig, fund CrossVenueSpotPerpFundingSnap, volPerHour float64, volDataAvailable bool, gate CarryFundingEntryGateConfig) float64 {
 	floor := execCfg.LowConfidenceSizeFloorFraction
 	if floor <= 0 {
-		floor = 0.25
+		floor = 0.6
 	}
 	conf := clamp01(carryFundingHistoryQuality(fund))
 	conf *= clamp01(carryFundingVolScale(gate, volPerHour, volDataAvailable))
@@ -540,11 +542,22 @@ func crossVenuePerpPerpSearchBestNotional(
 	return bestOpp, bestNotional
 }
 
+// crossVenueBypassesConfidenceDownsize 极端价差机会:当下可观测 spread 足够强,不因历史样本少砍仓。
+func crossVenueBypassesConfidenceDownsize(opp CrossVenueOpportunity) bool {
+	if opp.ExtremeSpread {
+		return true
+	}
+	return opp.SpreadAPR > crossVenueExtremeSpreadConfidenceBypassAPR
+}
+
 func crossVenueFinalizeOpportunityRanking(cfg CrossVenueExecutorConfig, opps []CrossVenueOpportunity) {
 	floor := cfg.LowConfidenceSizeFloorFraction
 	for i := range opps {
 		opps[i].RankScore = opps[i].NetEV
 		confMult := crossVenueConfidenceSizeMultiplier(floor, opps[i].HistoryQualityScore, opps[i].StabilityScore)
+		if crossVenueBypassesConfidenceDownsize(opps[i]) {
+			confMult = 1.0
+		}
 		capNorm := 0.0
 		if opps[i].CapitalEfficiencyEV > 0 {
 			capNorm = clamp01(opps[i].CapitalEfficiencyEV)
