@@ -7,7 +7,6 @@
 # 仅忽略编译出的二进制(根目录与 cmd 内),不要忽略 cmd/lingxi 源码目录。
 /lingxi
 /cmd/lingxi/lingxi
-*.log
 *.pid
 
 # Secrets and local-only config
@@ -16,8 +15,7 @@
 # config.local.yaml
 # config.local.json
 
-# Generated records and caches
-records/
+# Generated records and caches (logs/records 纳入版本库,由用户要求全量提交)
 .gocache/
 .cache/
 
