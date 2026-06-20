@@ -853,6 +853,8 @@ type UnifiedRotationConfig struct {
 	MaxStrategyCapitalUsagePct float64 `cfg:"max_strategy_capital_usage_pct"`
 	// CapitalAwarePerpPerpSizingEnabled perp-perp 候选按各所 UNIFIED 可用×杠杆封顶名义;资金不足时缩仓而非拒单。默认 true。
 	CapitalAwarePerpPerpSizingEnabled bool `cfg:"capital_aware_perp_perp_sizing_enabled"`
+	// CapitalSizingSafetyHaircut perp-perp 资金封顶安全垫(0,1];反解名义时按 haircut×可用封顶,使所需保证金严格小于实时可用。默认 0.99。
+	CapitalSizingSafetyHaircut float64 `cfg:"capital_sizing_safety_haircut"`
 }
 
 // VenueFundingExecutorConfig 是 OKX/Gate 单所正费率执行器参数(正 carry:空永续+买现货,跨结算持有)。

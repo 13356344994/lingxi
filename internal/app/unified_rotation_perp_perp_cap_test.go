@@ -54,9 +54,9 @@ func TestPerpPerpCapitalCapSizesDownToFit(t *testing.T) {
 		bybit.VenueName:   availAfterReserve + rotationReserveUSDT(rotCfg, bybit.VenueName),
 	}
 
-	wantMax := availAfterReserve * 3.0
-	if math.Abs(wantMax-59.25) > 0.05 {
-		t.Fatalf("sanity wantMax≈59.25 got %.4f", wantMax)
+	wantMax := availAfterReserve * 3.0 * rotationCapitalSizingSafetyHaircut(rotCfg)
+	if math.Abs(wantMax-58.6575) > 0.05 {
+		t.Fatalf("sanity wantMax≈58.66 got %.4f", wantMax)
 	}
 
 	opp := testPerpPerpHOpportunity(t, 79.6)
@@ -68,8 +68,11 @@ func TestPerpPerpCapitalCapSizesDownToFit(t *testing.T) {
 	}
 
 	margin := crossVenuePerVenueMarginUSDT(execCfg, gotNotional)
-	if math.Abs(margin-availAfterReserve) > 0.15 {
-		t.Fatalf("per-leg margin=%.4f want≈avail %.4f", margin, availAfterReserve)
+	if margin >= availAfterReserve {
+		t.Fatalf("per-leg margin=%.4f should be strictly less than avail %.4f", margin, availAfterReserve)
+	}
+	if margin < availAfterReserve*0.97 {
+		t.Fatalf("per-leg margin=%.4f too far below avail %.4f", margin, availAfterReserve)
 	}
 
 	ok, reason := rotationCanOpenOpportunity(capped, available, rotCfg, 0, nil, nil)
@@ -178,10 +181,32 @@ func TestRotationPerpPerpMaxNotionalFromVenueAvailFormula(t *testing.T) {
 	execCfg := CrossVenueExecutorConfig{MaxEffectiveLeverage: 3}
 	scannerCfg := DefaultSingleVenueSpotPerpScannerConfig(execCfg)
 	scannerCfg.PerpWalletBufferRatio = 0.10
-	got := rotationPerpPerpMaxNotionalFromVenueAvail(execCfg, 19.75)
-	want := 19.75 * 3.0
+	got := rotationPerpPerpMaxNotionalFromVenueAvail(execCfg, DefaultRotationConfig(), 19.75)
+	want := 19.75 * 3.0 * 0.99
 	if math.Abs(got-want) > 1e-6 {
 		t.Fatalf("maxNotional=%.6f want %.6f", got, want)
+	}
+}
+
+func TestCapitalCapLeavesSafetyHaircut(t *testing.T) {
+	t.Parallel()
+	execCfg := CrossVenueExecutorConfig{MaxEffectiveLeverage: 2}
+	rotCfg := DefaultRotationConfig()
+	avail := 50.0
+	available := map[string]float64{
+		binance.VenueName: avail + rotationReserveUSDT(rotCfg, binance.VenueName),
+		bybit.VenueName:   avail + rotationReserveUSDT(rotCfg, bybit.VenueName),
+	}
+	opp := testPerpPerpHOpportunity(t, 200)
+	maxN := rotationPerpPerpMaxNotionalByCapital(execCfg, rotCfg, available, opp)
+	margin := crossVenuePerVenueMarginUSDT(execCfg, maxN)
+	if margin >= avail {
+		t.Fatalf("margin %.4f should be strictly less than avail %.4f (haircut)", margin, avail)
+	}
+	capped := rotationCapPerpPerpOpportunityByCapital(opp, execCfg, rotCfg, available)
+	gotMargin := crossVenuePerVenueMarginUSDT(execCfg, rotationMaxLegNotional(capped))
+	if gotMargin >= avail {
+		t.Fatalf("capped margin %.4f should be strictly less than avail %.4f", gotMargin, avail)
 	}
 }
 

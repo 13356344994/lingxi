@@ -256,6 +256,41 @@ func TestPlanCapitalRoutingPerpSpotMarginWalletMapping(t *testing.T) {
 	}
 }
 
+func TestRoutingSkipsTransferWhenTargetWalletSufficient(t *testing.T) {
+	execCfg := CrossVenueExecutorConfig{MaxEffectiveLeverage: 3}
+	notional := 150.0
+	margin := crossVenuePerVenueMarginUSDT(execCfg, notional)
+	opp := rotationAlignPerpPerpCapital(UnifiedOpportunity{
+		ID:           "pp-funded",
+		StrategyType: UnifiedStrategyPerpPerp,
+		Symbol:       "H-USDT",
+		Legs: []UnifiedOpportunityLeg{
+			{Venue: binance.VenueName, Market: "perp", Side: "short", Notional: notional},
+			{Venue: bybit.VenueName, Market: "perp", Side: "long", Notional: notional},
+		},
+		CapitalRequiredByVenue: map[string]float64{
+			binance.VenueName: margin,
+			bybit.VenueName:   margin,
+		},
+	}, execCfg)
+	balances := VenueWalletBalances{
+		binance.VenueName: {WalletKindSpot: 0, WalletKindFutures: 68},
+		bybit.VenueName:   {WalletKindSpot: 100},
+	}
+	cfg := defaultCapitalRouterConfigForTests()
+	cfg.PerpLeverage = 3
+
+	plan := PlanCapitalRouting([]UnifiedOpportunity{opp}, balances, cfg)
+	for _, tr := range plan.WithinVenueTransfers {
+		if tr.Venue == binance.VenueName {
+			t.Fatalf("binance futures already funded, should not plan transfer: %+v", tr)
+		}
+	}
+	if len(plan.Unfundable) != 0 {
+		t.Fatalf("unfundable=%v want none", plan.Unfundable)
+	}
+}
+
 func TestPlanCapitalRoutingTableDriven(t *testing.T) {
 	tests := []struct {
 		name             string

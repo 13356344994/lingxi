@@ -87,6 +87,7 @@ func PlanCapitalRouting(chosen []UnifiedOpportunity, balances VenueWalletBalance
 		}
 		transfers = append(transfers, planWithinVenueTransfers(venue, req, working[venue])...)
 	}
+	transfers = pruneUnnecessaryWithinVenueTransfers(transfers, preTransfer, aggregated)
 	attachTransferOpportunityIDs(chosen, perOpp, preTransfer, transfers, cfg)
 	sortWalletTransfers(transfers)
 	applyWithinVenueTransfers(working, transfers)
@@ -338,6 +339,32 @@ func planWithinVenueTransfers(venue string, required venueWalletRequirements, wa
 		}
 	}
 	return transfers
+}
+
+// pruneUnnecessaryWithinVenueTransfers 剔除目标钱包已满足需求的所内划转(避免 spot 空时的无效 spot→futures)。
+func pruneUnnecessaryWithinVenueTransfers(transfers []WalletTransfer, preTransfer VenueWalletBalances, aggregated map[string]venueWalletRequirements) []WalletTransfer {
+	if len(transfers) == 0 {
+		return transfers
+	}
+	out := make([]WalletTransfer, 0, len(transfers))
+	for _, tr := range transfers {
+		wallets := preTransfer[tr.Venue]
+		if wallets == nil {
+			wallets = map[WalletKind]float64{}
+		}
+		req := aggregated[tr.Venue]
+		need := req[tr.To]
+		if need <= capitalRouterEpsilon {
+			out = append(out, tr)
+			continue
+		}
+		have := capitalRouterMax(0, wallets[tr.To])
+		if have+capitalRouterEpsilon >= need {
+			continue
+		}
+		out = append(out, tr)
+	}
+	return out
 }
 
 func attachTransferOpportunityIDs(

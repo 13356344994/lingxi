@@ -420,6 +420,7 @@ func DefaultEngineConfig() EngineConfig {
 			ContinuationMinHoldSeconds:        3600,
 			TotalDeployablePct:                DefaultTotalDeployablePct,
 			CapitalAwarePerpPerpSizingEnabled: true,
+			CapitalSizingSafetyHaircut:        0.99,
 		},
 		FundingExecutor: VenueFundingExecutorConfig{
 			LiveTradingEnabled:     false,

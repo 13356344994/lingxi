@@ -64,7 +64,18 @@ func ExecuteCapitalRouting(ctx context.Context, plan CapitalRoutingPlan, venues 
 			recordFailedTransfer(tr)
 			continue
 		}
+		// 目标钱包(perp/futures 等)已够则跳过所内划转,避免因 spot 空导致的不必要失败阻断开仓。
+		if have, ok := capitalRouterTargetWalletAvailableUSDT(ctx, v, tr.To); ok && have+capitalRouterEpsilon >= tr.AmountUSDT {
+			logger.Printf("[资金路由] 跳过划转 venue=%s %s→%s 金额=%.4f: 目标 %s 已有 %.4f ≥ 所需 %.4f",
+				tr.Venue, from, to, tr.AmountUSDT, to, have, tr.AmountUSDT)
+			continue
+		}
 		if err := wt.TransferWallet(ctx, from, to, tr.AmountUSDT); err != nil {
+			if have, ok := capitalRouterTargetWalletAvailableUSDT(ctx, v, tr.To); ok && have+capitalRouterEpsilon >= tr.AmountUSDT {
+				logger.Printf("[资金路由] 划转失败但目标 %s 已够(%.4f≥%.4f),不阻断开仓: venue=%s %s→%s err=%v",
+					to, have, tr.AmountUSDT, tr.Venue, from, to, err)
+				continue
+			}
 			result.Errs = append(result.Errs, fmt.Errorf("capital routing: venue %q %s→%s %.4f: %w", tr.Venue, from, to, tr.AmountUSDT, err))
 			recordFailedTransfer(tr)
 			continue
@@ -90,4 +101,27 @@ func ExecuteCapitalRouting(ctx context.Context, plan CapitalRoutingPlan, venues 
 	}
 
 	return result
+}
+
+// capitalRouterTargetWalletAvailableUSDT 读取所内目标钱包真实可用 USDT(供路由执行前/失败后复核)。
+func capitalRouterTargetWalletAvailableUSDT(ctx context.Context, v venue.Venue, wallet WalletKind) (float64, bool) {
+	if v == nil {
+		return 0, false
+	}
+	switch wallet {
+	case WalletKindFutures:
+		avail, err := fetchVenuePerpAvailableUSDT(ctx, v)
+		return avail, err == nil
+	case WalletKindSpot:
+		if p, ok := v.(venueSpotAvailableUSDTProvider); ok {
+			avail, err := fetchVenueWalletAvailableUSDT(ctx, "spot", p.FetchSpotAvailableUSDT)
+			return avail, err == nil
+		}
+	case WalletKindMargin:
+		if p, ok := v.(venueCrossMarginAvailableUSDTProvider); ok {
+			avail, err := fetchVenueWalletAvailableUSDT(ctx, "margin", p.FetchCrossMarginAvailableUSDT)
+			return avail, err == nil
+		}
+	}
+	return 0, false
 }

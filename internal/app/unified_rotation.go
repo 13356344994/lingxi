@@ -43,6 +43,8 @@ type RotationConfig struct {
 	OpenCooldownBlocked func(opp UnifiedOpportunity) bool `json:"-"`
 	// CapitalAwarePerpPerpSizingEnabled perp-perp 按 venue 可用×杠杆封顶名义;不足则缩仓。默认 true。
 	CapitalAwarePerpPerpSizingEnabled bool `json:"capital_aware_perp_perp_sizing_enabled"`
+	// CapitalSizingSafetyHaircut perp-perp 资金封顶安全垫(0,1];默认 0.99,避免 sizing 顶满可用后被执行闸几分钱拒单。
+	CapitalSizingSafetyHaircut float64 `json:"capital_sizing_safety_haircut"`
 }
 
 // DefaultRotationConfig 返回 v1 保守默认轮动配置。
@@ -56,6 +58,7 @@ func DefaultRotationConfig() RotationConfig {
 		MinOpenNotionalUSDT:               5,
 		OpenFailCooldownSeconds:           900,
 		CapitalAwarePerpPerpSizingEnabled: true,
+		CapitalSizingSafetyHaircut:        0.99,
 	}
 }
 
@@ -84,6 +87,9 @@ func RotationConfigFromUnified(ur core.UnifiedRotationConfig, exec CrossVenueExe
 	cfg.CapitalAwarePerpPerpSizingEnabled = ur.CapitalAwarePerpPerpSizingEnabled
 	if !cfg.CapitalAwarePerpPerpSizingEnabled && ur == (core.UnifiedRotationConfig{}) {
 		cfg.CapitalAwarePerpPerpSizingEnabled = DefaultRotationConfig().CapitalAwarePerpPerpSizingEnabled
+	}
+	if ur.CapitalSizingSafetyHaircut > 0 && ur.CapitalSizingSafetyHaircut <= 1 {
+		cfg.CapitalSizingSafetyHaircut = ur.CapitalSizingSafetyHaircut
 	}
 	return cfg
 }
@@ -149,7 +155,15 @@ func normalizeRotationConfig(cfg RotationConfig) RotationConfig {
 	if cfg.OpenFailCooldownSeconds <= 0 {
 		cfg.OpenFailCooldownSeconds = def.OpenFailCooldownSeconds
 	}
+	if cfg.CapitalSizingSafetyHaircut <= 0 || cfg.CapitalSizingSafetyHaircut > 1 {
+		cfg.CapitalSizingSafetyHaircut = def.CapitalSizingSafetyHaircut
+	}
 	return cfg
+}
+
+func rotationCapitalSizingSafetyHaircut(cfg RotationConfig) float64 {
+	cfg = normalizeRotationConfig(cfg)
+	return cfg.CapitalSizingSafetyHaircut
 }
 
 func rotationReserveUSDT(cfg RotationConfig, venue string) float64 {
@@ -179,7 +193,8 @@ func rotationMaxLegNotional(opp UnifiedOpportunity) float64 {
 // 约束 rotationPerpMarginWithBuffer(notional) ≤ avail,即 notional×(1/lev+buffer) ≤ avail。
 // rotationPerpPerpMaxNotionalFromVenueAvail 按执行闸同口径反推最大名义:路由后 perp 钱包可凑齐 notional/lev。
 // availAfterReserve 为 venue 总交易可用(含 spot,路由会搬进 perp);与 crossVenuePerVenueMarginUSDT 对齐。
-func rotationPerpPerpMaxNotionalFromVenueAvail(execCfg CrossVenueExecutorConfig, availAfterReserve float64) float64 {
+// 乘 CapitalSizingSafetyHaircut 留安全垫,使所需保证金严格小于实时 perp 可用(避免 reserve/取整 drift 几分钱拒单)。
+func rotationPerpPerpMaxNotionalFromVenueAvail(execCfg CrossVenueExecutorConfig, rotCfg RotationConfig, availAfterReserve float64) float64 {
 	if availAfterReserve <= 0 {
 		return 0
 	}
@@ -187,7 +202,7 @@ func rotationPerpPerpMaxNotionalFromVenueAvail(execCfg CrossVenueExecutorConfig,
 	if lev <= 0 {
 		lev = 2
 	}
-	return availAfterReserve * lev
+	return availAfterReserve * lev * rotationCapitalSizingSafetyHaircut(rotCfg)
 }
 
 // rotationPerpPerpMaxNotionalByCapital 取 perp-perp 各腿 venue 扣储备后可用资金约束下的最大等额名义(min 绑定腿)。
@@ -198,7 +213,7 @@ func rotationPerpPerpMaxNotionalByCapital(execCfg CrossVenueExecutorConfig, rotC
 			continue
 		}
 		avail := rotationEffectiveAvailable(availableUSDTByVenue, rotCfg, leg.Venue)
-		capN := rotationPerpPerpMaxNotionalFromVenueAvail(execCfg, avail)
+		capN := rotationPerpPerpMaxNotionalFromVenueAvail(execCfg, rotCfg, avail)
 		if capN < maxN {
 			maxN = capN
 		}

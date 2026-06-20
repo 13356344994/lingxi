@@ -1921,7 +1921,13 @@ func rotationWalletBalancesFromAvailable(fetched map[string]float64, held []Held
 			continue
 		}
 		if rotationWalletNeedFuturesOnly(needs) {
-			// perp-perp 等纯永续备资:idle 放 spot,PlanCapitalRouting 再 spot→futures 补足执行闸。
+			if real := rotationFetchRealVenueWalletBalances(context.Background(), venues[venue]); real != nil {
+				if venueTotalBalance(real) > capitalRouterEpsilon {
+					out[venue] = real
+					continue
+				}
+			}
+			// 无法读取分仓余额时退回:idle 放 spot,PlanCapitalRouting 再 spot→futures 补足执行闸。
 			out[venue] = rotationNonUnifiedIdleWalletSplit(venues[venue], total, true)
 			continue
 		}
@@ -1960,6 +1966,30 @@ func rotationNonUnifiedIdleWalletSplit(v venue.Venue, total float64, futuresOnly
 		}
 	}
 	return map[WalletKind]float64{WalletKindFutures: total}
+}
+
+// rotationFetchRealVenueWalletBalances 读取非统一账户 spot/perp 分仓真实可用(用于路由,避免 idle 误假定在 spot)。
+func rotationFetchRealVenueWalletBalances(ctx context.Context, v venue.Venue) map[WalletKind]float64 {
+	if v == nil || v.Capabilities().UnifiedWallet {
+		return nil
+	}
+	out := map[WalletKind]float64{}
+	gotPerp := false
+	gotSpot := false
+	if perp, err := fetchVenuePerpAvailableUSDT(ctx, v); err == nil {
+		out[WalletKindFutures] = perp
+		gotPerp = true
+	}
+	if spotP, ok := v.(venueSpotAvailableUSDTProvider); ok {
+		if spot, err := fetchVenueWalletAvailableUSDT(ctx, "spot", spotP.FetchSpotAvailableUSDT); err == nil {
+			out[WalletKindSpot] = spot
+			gotSpot = true
+		}
+	}
+	if !gotPerp && !gotSpot {
+		return nil
+	}
+	return out
 }
 
 func rotationContinuationNotionalFromCloseCost(closeCost float64, execCfg CrossVenueExecutorConfig) float64 {

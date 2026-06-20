@@ -1515,6 +1515,58 @@ func TestRotationWalletBalancesPerpPerpIdleInSpot(t *testing.T) {
 	}
 }
 
+type rotationFailingTransferSplitVenue struct {
+	rotationSplitWalletVenue
+}
+
+func (v *rotationFailingTransferSplitVenue) TransferWallet(ctx context.Context, from, to string, amount float64) error {
+	return fmt.Errorf("code=-5013 余额不足")
+}
+
+func TestRoutingNoBlockWhenFuturesAlreadyFunded(t *testing.T) {
+	t.Parallel()
+	pp := &fakeRotationExecutor{strategyType: UnifiedStrategyPerpPerp}
+	r := testUnifiedRotationRunnerWithFakes(t, pp)
+	r.SetActive(true)
+	r.execCfg = CrossVenueExecutorConfig{MaxEffectiveLeverage: 3}
+	notional := 150.0
+	margin := crossVenuePerVenueMarginUSDT(r.execCfg, notional)
+	binanceV := &rotationFailingTransferSplitVenue{
+		rotationSplitWalletVenue: rotationSplitWalletVenue{
+			fakeFundingVenue: fakeFundingVenue{name: binance.VenueName},
+			spotUSDT:         0,
+			futuresUSDT:      68,
+		},
+	}
+	r.venues = map[string]venue.Venue{
+		binance.VenueName: binanceV,
+		bybit.VenueName:   &rotationSplitWalletVenue{fakeFundingVenue: fakeFundingVenue{name: bybit.VenueName}, unified: true, spotUSDT: 100},
+	}
+
+	opp := rotationAlignPerpPerpCapital(UnifiedOpportunityFromCrossVenue(r.execCfg, CrossVenueOpportunity{
+		Symbol: "H-USDT", HighVenue: binance.VenueName, LowVenue: bybit.VenueName,
+	}, nil, notional, 0), r.execCfg)
+	plan := RotationPlan{Actions: []RotationAction{
+		{Kind: RotationActionOpen, OpportunityID: opp.ID, StrategyType: UnifiedStrategyPerpPerp, Symbol: "H-USDT"},
+	}}
+	r.decideRotationFn = func([]HeldPosition, map[string]ContinuationInputs, []UnifiedOpportunity, map[string]float64) RotationPlan {
+		return plan
+	}
+
+	r.runOnceDecisionAndDispatch(context.Background(), []UnifiedOpportunity{opp},
+		map[string]float64{binance.VenueName: 68, bybit.VenueName: 100}, nil, nil)
+
+	if len(pp.opens) != 1 {
+		t.Fatalf("opens=%+v want 1 (futures already funded, transfer failure must not block)", pp.opens)
+	}
+	if pp.liveOpens != 1 {
+		t.Fatalf("liveOpens=%d want 1", pp.liveOpens)
+	}
+	if margin > 68+1e-9 {
+		t.Fatalf("sanity margin=%.4f should fit in binance futures 68", margin)
+	}
+}
+
 func TestUnifiedRotationRunner_LiveTransferFailureBlocksOpen(t *testing.T) {
 	pp := &fakeRotationExecutor{strategyType: UnifiedStrategyPerpPerp}
 	r := testUnifiedRotationRunnerWithFakes(t, pp)
