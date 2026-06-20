@@ -1,16 +1,16 @@
 {
   "wired": true,
-  "updated_at": "2026-06-20T20:11:42.99099768Z",
+  "updated_at": "2026-06-20T23:24:42.733228982Z",
   "snapshot": {
-    "observed_at": "2026-06-20T20:11:42.954427419Z",
+    "observed_at": "2026-06-20T23:24:42.6927734Z",
     "day_start_cst": "2026-06-21T00:00:00+08:00",
     "daily_realized_pnl_usdt": 0,
-    "daily_equity_delta_usdt": -0.515779,
+    "daily_equity_delta_usdt": -49.453812,
     "venue_equity_deltas": {
-      "binance": -0.008714212299992141,
-      "bybit": -1.1807618099999786,
+      "binance": 1.4820321594000063,
+      "bybit": -53.693923979999994,
       "gate": 0,
-      "okx": 0.6736970638065429
+      "okx": 2.7580798102410853
     },
     "cumulative_realized_pnl_usdt": -0.227578,
     "realized_pnl_peak_usdt": 0,
@@ -21,13 +21,13 @@
       "single_venue_perp_spot": 0,
       "single_venue_spot_perp": -0.006026
     },
-    "real_equity_total_usdt": 434.778514,
+    "real_equity_total_usdt": 385.84048,
     "real_equity_peak_usdt": 454.902493,
-    "real_equity_drawdown_usdt": 20.123979,
-    "open_position_count": 1,
-    "open_notional_usdt": 87.567675,
+    "real_equity_drawdown_usdt": 69.062013,
+    "open_position_count": 0,
+    "open_notional_usdt": 0,
     "positions_by_strategy": {
-      "cross_venue_perp_perp": 1,
+      "cross_venue_perp_perp": 0,
       "cross_venue_perp_spot": 0,
       "cross_venue_spot_perp": 0,
       "single_venue_perp_spot": 0,
@@ -35,13 +35,17 @@
     }
   },
   "thresholds": {
-    "daily_loss_breached": false,
+    "daily_loss_breached": true,
+    "daily_loss_reason": "当日权益变化 -49.4538 USDT 已超过阈值 40.0000 USDT(已实现 0.0000,持仓 0 名义 0.00)",
     "drawdown_breached": false,
-    "any_breached": false
+    "any_breached": true
   },
   "hard_halt": {
-    "should_halt": false,
-    "daily_loss_breached": false,
+    "should_halt": true,
+    "reasons": [
+      "日权益回撤 49.4538 ≥ MaxDailyLossUSDT 40.0000"
+    ],
+    "daily_loss_breached": true,
     "settlement_drawdown_hit": false,
     "strategy_loss_breached": false,
     "open_notional_breached": false

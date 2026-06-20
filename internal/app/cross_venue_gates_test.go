@@ -52,6 +52,77 @@ func TestCrossVenueOpenGateAllowsVerifiableRealFunding(t *testing.T) {
 	}
 }
 
+func TestCrossVenueFundingEntryWindowReached(t *testing.T) {
+	now := time.Now().UTC()
+	lead := 180 * time.Second
+
+	// 窗口内:最近一腿距今 120s ≤180s → 放行。
+	if !crossVenueFundingEntryWindowReached(now.Add(120*time.Second), 8, now.Add(300*time.Second), 8, now, lead) {
+		t.Fatal("nearest 120s within 180s lead should be reached (pass)")
+	}
+	// 过早:最近一腿距今 600s >180s → 拒绝(false)。
+	if crossVenueFundingEntryWindowReached(now.Add(600*time.Second), 8, now.Add(600*time.Second), 8, now, lead) {
+		t.Fatal("nearest 600s beyond 180s lead should NOT be reached (reject)")
+	}
+	// 两腿结算时间均未知(零值)→ fail-open 放行。
+	if !crossVenueFundingEntryWindowReached(time.Time{}, 8, time.Time{}, 0, now, lead) {
+		t.Fatal("both unknown should fail-open (pass)")
+	}
+	// 过期时间(now-30s)按 interval=8h 推进到下一结算点 → 距今≈8h >180s → 拒绝。
+	if crossVenueFundingEntryWindowReached(now.Add(-30*time.Second), 8, time.Time{}, 0, now, lead) {
+		t.Fatal("expired time advanced by 8h interval should be far out (reject)")
+	}
+	// 一腿过期(推进到 +8h),另一腿在窗口内(+120s)→ nearest 取较近的 → 放行。
+	if !crossVenueFundingEntryWindowReached(now.Add(-30*time.Second), 8, now.Add(120*time.Second), 8, now, lead) {
+		t.Fatal("nearest should pick the within-window leg (pass)")
+	}
+	// 过期且 interval 未知(无法推进)→ 该腿视为不可用;唯一腿不可用 → fail-open 放行。
+	if !crossVenueFundingEntryWindowReached(now.Add(-30*time.Second), 0, time.Time{}, 0, now, lead) {
+		t.Fatal("expired with unknown interval (unadvanceable) should be treated as unknown → fail-open")
+	}
+}
+
+func TestCrossVenueOpenGateFundingEntryWindow(t *testing.T) {
+	now := time.Now().UTC()
+	runGate := func(nextFunding time.Time, leadSeconds int) crossVenueGateResult {
+		high := newCrossVenueTestVenue(binance.VenueName, 0.004, 8, nextFunding)
+		high.book = venueBookTight()
+		high.depth = venueDepthDeep()
+		low := newCrossVenueTestVenue(okx.VenueName, 0.0001, 8, nextFunding)
+		low.book = venueBookTight()
+		low.depth = venueDepthDeep()
+		cfg := testNetProfitGateExecutorConfig()
+		cfg.AssumeMakerFills = true
+		cfg.ExpectedHoldHours = 12
+		cfg.OpenFundingLeadSeconds = leadSeconds
+		return evaluateCrossVenueOpenGate(context.Background(), cfg, testCrossVenueGateDeps(1000), map[string]venue.Venue{
+			binance.VenueName: high,
+			okx.VenueName:     low,
+		}, crossVenueGateInput{
+			Opp: CrossVenueOpportunity{
+				Symbol: "BTC-USDT", HighVenue: binance.VenueName, LowVenue: okx.VenueName,
+				SpreadAPR: 0.40, HighFundingRate: 0.004, LowFundingRate: 0.0001,
+				HighIntervalHours: 8, LowIntervalHours: 8,
+				HighAnnualizedAPR: 4.0, LowAnnualizedAPR: 0.1,
+			},
+			Now: now,
+		})
+	}
+
+	// 窗口内:距结算 120s ≤180s lead → 过窗口闸,其余闸也通过 → OK。
+	if res := runGate(now.Add(120*time.Second), 180); !res.OK {
+		t.Fatalf("within entry window (120s) should pass, got reject: %s", res.Reason)
+	}
+	// 过早:距结算 600s >180s lead → 窗口闸拒,reason=funding_entry_window_not_reached。
+	res := runGate(now.Add(600*time.Second), 180)
+	if res.OK {
+		t.Fatal("too-early (600s before settlement) should be rejected by entry-window gate")
+	}
+	if res.Reason != carryScannerRejectFundingWindowNotReached {
+		t.Fatalf("reject reason = %q, want %q", res.Reason, carryScannerRejectFundingWindowNotReached)
+	}
+}
+
 func TestCrossVenueFundingSnapshotValid(t *testing.T) {
 	now := time.Now().UTC()
 	if crossVenueFundingSnapshotValid(venue.FundingSnapshot{
@@ -224,7 +295,7 @@ func TestOpenGateMarginMatchesSizing(t *testing.T) {
 
 func TestSizedOrderPassesGateWhenCapitalExists(t *testing.T) {
 	t.Parallel()
-	execCfg := CrossVenueExecutorConfig{MaxEffectiveLeverage: 3, MaxPositionUSDT: 150, ExpectedHoldHours: 12}
+	execCfg := CrossVenueExecutorConfig{MaxEffectiveLeverage: 3, MaxPositionUSDT: 150, ExpectedHoldHours: 12, OpenFundingLeadSeconds: 172800}
 	rotCfg := DefaultRotationConfig()
 	availAfterReserve := 50.0
 	available := map[string]float64{

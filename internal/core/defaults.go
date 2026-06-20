@@ -396,6 +396,7 @@ func DefaultEngineConfig() EngineConfig {
 			CarryNoHistoryHaircut:             1.0,
 			LowConfidenceSizeFloorFraction:    0.6,
 			SingleVenueReverseFundingEnabled:  false,
+			OpenFundingLeadSeconds:            180,
 		},
 		CapitalAllocator: CapitalAllocatorConfig{
 			Enabled:                   false,

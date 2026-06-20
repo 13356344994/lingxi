@@ -180,6 +180,23 @@ func evaluateCrossVenueOpenGate(
 		return fail(fmt.Sprintf("低费所盘口价差 %.1fbps 超限", bookSpreadBps(lowBook)))
 	}
 
+	// 结算前进场窗闸(OPEN-only):只在最近一腿资金费结算前 ≤lead 才放行;太早(距结算 >lead)拒开,
+	// 避免提前进场、结算前价差收敛白付手续费。与 carry 四策略同口径(reason 复用 funding_entry_window_not_reached,
+	// 排行榜已能翻译)。放在深度/滑点/EV/余额等重计算之前短路省开销;两腿结算时间均未知则 fail-open(不因缺数据丢极端机会)。
+	// 取两腿下次结算时间的最近一个;opp 字段为零时回退已校验的 high/low 快照值(与下文 evOpp 补值同口径)。
+	openWinHighNext, openWinHighInterval := in.Opp.HighNextFundingTime, in.Opp.HighIntervalHours
+	if openWinHighNext.IsZero() {
+		openWinHighNext, openWinHighInterval = highSnap.NextFundingTime, highSnap.IntervalHours
+	}
+	openWinLowNext, openWinLowInterval := in.Opp.LowNextFundingTime, in.Opp.LowIntervalHours
+	if openWinLowNext.IsZero() {
+		openWinLowNext, openWinLowInterval = lowSnap.NextFundingTime, lowSnap.IntervalHours
+	}
+	openLead := time.Duration(crossVenueResolvedOpenFundingLeadSeconds(cfg)) * time.Second
+	if !crossVenueFundingEntryWindowReached(openWinHighNext, openWinHighInterval, openWinLowNext, openWinLowInterval, in.Now, openLead) {
+		return fail(carryScannerRejectFundingWindowNotReached)
+	}
+
 	notional := cfg.MaxPositionUSDT
 	if notional <= 0 {
 		notional = 50
@@ -597,6 +614,54 @@ func crossVenueFundingSnapshotValid(snap venue.FundingSnapshot, now time.Time) b
 		return false
 	}
 	return true
+}
+
+// crossVenueResolvedOpenFundingLeadSeconds 结算前进场窗(秒);cfg 未配/≤0 时回退默认 180(3 分钟)。
+func crossVenueResolvedOpenFundingLeadSeconds(cfg CrossVenueExecutorConfig) int {
+	if cfg.OpenFundingLeadSeconds > 0 {
+		return cfg.OpenFundingLeadSeconds
+	}
+	return 180
+}
+
+// crossVenueAdvanceFundingTime 把过期(≤now)的结算时刻按 interval 向未来推进到下一个结算点。
+// interval 未知(≤0)时无法推进,原样返回(调用方据此判定该腿时间不可用)。
+func crossVenueAdvanceFundingTime(next time.Time, intervalHours int, now time.Time) time.Time {
+	if next.IsZero() || intervalHours <= 0 {
+		return next
+	}
+	interval := time.Duration(intervalHours) * time.Hour
+	for !next.After(now) {
+		next = next.Add(interval)
+	}
+	return next
+}
+
+// crossVenueFundingEntryWindowReached 结算前进场窗闸:取两腿下次结算时间的最近一个 nearest,
+// 仅当 nearest 距今 ≤lead 才放行(进场窗已到)。过期结算时刻按该腿 interval 推进到下一结算点再判;
+// 两腿结算时间均未知/不可用→fail-open(返回 true,放行)。
+func crossVenueFundingEntryWindowReached(highNext time.Time, highInterval int, lowNext time.Time, lowInterval int, now time.Time, lead time.Duration) bool {
+	var nearest time.Time
+	consider := func(next time.Time, intervalHours int) {
+		if next.IsZero() {
+			return
+		}
+		if !next.After(now) {
+			next = crossVenueAdvanceFundingTime(next, intervalHours, now)
+			if !next.After(now) {
+				return // 无法推进(interval 未知)→ 该腿时间视为不可用
+			}
+		}
+		if nearest.IsZero() || next.Before(nearest) {
+			nearest = next
+		}
+	}
+	consider(highNext, highInterval)
+	consider(lowNext, lowInterval)
+	if nearest.IsZero() {
+		return true // 两腿结算时间均未知 → fail-open
+	}
+	return nearest.Sub(now) <= lead
 }
 
 // crossVenueGateLiquidityNotionalCapPerLeg 跨所 perp-perp 执行期流动性上限(每腿独立 symbol 拉 depth)。

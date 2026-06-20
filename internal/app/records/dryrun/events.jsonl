@@ -378,3 +378,13 @@
 {"at":"2026-06-20T20:10:36.407170621Z","data":{"high":"bybit","low":"okx","qty":0.5,"symbol":"BTC-USDT"},"kind":"cvpp_open"}
 {"at":"2026-06-20T20:10:37.024486047Z","data":{"reason":"dry-run","symbol":"BTC-USDT"},"kind":"cvpp_close"}
 {"at":"2026-06-20T20:10:44.234669155Z","data":{"high":"bybit","low":"okx","qty":0.5,"symbol":"BTC-USDT"},"kind":"cvpp_open"}
+{"at":"2026-06-20T20:25:11.174800151Z","data":{"high":"bybit","low":"okx","qty":0.5,"symbol":"BTC-USDT"},"kind":"cvpp_open"}
+{"at":"2026-06-20T20:25:11.807349528Z","data":{"reason":"dry-run","symbol":"BTC-USDT"},"kind":"cvpp_close"}
+{"at":"2026-06-20T20:26:21.870772585Z","data":{"high":"bybit","low":"okx","qty":0.5,"symbol":"BTC-USDT"},"kind":"cvpp_open"}
+{"at":"2026-06-20T20:26:22.475258219Z","data":{"reason":"dry-run","symbol":"BTC-USDT"},"kind":"cvpp_close"}
+{"at":"2026-06-20T20:31:54.871981222Z","data":{"high":"bybit","low":"okx","qty":0.5,"symbol":"BTC-USDT"},"kind":"cvpp_open"}
+{"at":"2026-06-20T20:31:55.546603529Z","data":{"reason":"dry-run","symbol":"BTC-USDT"},"kind":"cvpp_close"}
+{"at":"2026-06-20T20:32:02.594626909Z","data":{"high":"bybit","low":"okx","qty":0.5,"symbol":"BTC-USDT"},"kind":"cvpp_open"}
+{"at":"2026-06-20T23:23:22.440641916Z","data":{"high":"bybit","low":"okx","qty":0.5,"symbol":"BTC-USDT"},"kind":"cvpp_open"}
+{"at":"2026-06-20T23:23:23.068005662Z","data":{"reason":"dry-run","symbol":"BTC-USDT"},"kind":"cvpp_close"}
+{"at":"2026-06-20T23:23:30.20413584Z","data":{"high":"bybit","low":"okx","qty":0.5,"symbol":"BTC-USDT"},"kind":"cvpp_open"}

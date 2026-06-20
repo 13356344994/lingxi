@@ -242,6 +242,9 @@ func testCrossVenueExecutorConfig() EngineConfig {
 		DepthUsageRatio:              0.20,
 		SymbolCooldownHours:          1,
 		MakerFirst:                   false, // 既有单测钉死纯 IOC 语义;maker 场景见 TestCrossVenueMaker*
+		// 既有闸门单测的 funding 结算时刻多为 now+(0.5~4h),并非验证"结算前进场窗";给一个极宽的进场窗
+		// (48h)使这些用例不被新窗口闸短路,继续考察滑点/保证金/中间价等原逻辑。窗口闸专项见 TestCrossVenueOpenGateFundingEntryWindow*。
+		OpenFundingLeadSeconds: 172800,
 	}
 	defExec := DefaultEngineConfig().CrossVenueExecutor
 	cfg.CrossVenueExecutor.CarryFundingEntryBaseFraction = defExec.CarryFundingEntryBaseFraction

@@ -778,6 +778,9 @@ type CrossVenueExecutorConfig struct {
 	// SingleVenueReverseFundingEnabled 单所策略启用反向资金费 carry(负费率 spot-perp / 正费率 perp-spot)。
 	// 默认 false;关闭时仍走 v1_not_supported 拒绝,行为与改动前一致。
 	SingleVenueReverseFundingEnabled bool `cfg:"single_venue_reverse_funding_enabled"`
+	// OpenFundingLeadSeconds perp-perp 结算前进场窗(秒):只在最近一腿资金费结算前 ≤ 此秒数才允许开仓,
+	// 太早(距结算 > 此值)拒开,避免提前进场、结算前价差收敛白付手续费。默认 180(3 分钟);≤0 时回退 180。
+	OpenFundingLeadSeconds int `cfg:"open_funding_lead_seconds"`
 }
 
 // CarryFundingEntryGateConfig carry 策略开仓前资金费结算窗口闸门参数视图(由 CrossVenueExecutorConfig 字段组装)。
