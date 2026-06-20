@@ -696,8 +696,8 @@ func (r *UnifiedRotationRunner) runOnceDecisionAndDispatch(
 			r.dispatchRotationPlan(ctx, plan, candidatesByID, nil)
 			return plan
 		}
-		balances := rotationWalletBalancesFromAvailable(available, held, r.execCfg, r.venues, nil)
-		routerCfg := CapitalRouterConfigWithVenues(r.capitalRouterCfg, r.venues)
+		routerCfg := rotationCapitalRouterConfig(r.execCfg, r.capitalRouterCfg, r.venues)
+		balances := rotationWalletBalancesFromAvailable(available, held, r.execCfg, r.venues, toFund, routerCfg)
 		routingPlan := PlanCapitalRouting(toFund, balances, routerCfg)
 		r.storeLastCapitalSnapshotContext(toFund, routingPlan)
 		if r.logger != nil && len(routingPlan.WithinVenueTransfers) > 0 {
@@ -1747,7 +1747,8 @@ func rotationAlignPerpPerpCapital(opp UnifiedOpportunity, execCfg CrossVenueExec
 			notional = total / 2
 		}
 	}
-	margin := rotationPerpMarginWithBuffer(execCfg, notional)
+	// 与执行闸 crossVenuePerVenueMarginUSDT 同口径,供 PlanCapitalRouting 所内 spot→perp 补足。
+	margin := crossVenuePerVenueMarginUSDT(execCfg, notional)
 	capByVenue := map[string]float64{}
 	for _, leg := range opp.Legs {
 		if leg.Venue != "" {
@@ -1861,11 +1862,24 @@ func rotationAssignCrossVenueWalletSplit(out map[string]venueWalletRequirements,
 	out[perpVenue.venue] = perpReq
 }
 
-func rotationWalletBalancesFromAvailable(fetched map[string]float64, held []HeldPosition, execCfg CrossVenueExecutorConfig, venues map[string]venue.Venue, pending []UnifiedOpportunity) VenueWalletBalances {
+func rotationCapitalRouterConfig(execCfg CrossVenueExecutorConfig, base CapitalRouterConfig, venues map[string]venue.Venue) CapitalRouterConfig {
+	cfg := CapitalRouterConfigWithVenues(base, venues)
+	if execCfg.MaxEffectiveLeverage > 0 {
+		cfg.PerpLeverage = execCfg.MaxEffectiveLeverage
+	}
+	return cfg
+}
+
+func rotationWalletBalancesFromAvailable(fetched map[string]float64, held []HeldPosition, execCfg CrossVenueExecutorConfig, venues map[string]venue.Venue, pending []UnifiedOpportunity, routerCfg ...CapitalRouterConfig) VenueWalletBalances {
 	unified := UnifiedWalletVenuesFromVenues(venues)
 	totals := cloneVenueCapitalMap(fetched)
 	for _, pos := range held {
 		rotationAddCapitalMap(totals, pos.CapitalRequiredByVenue)
+	}
+
+	capRouterCfg := DefaultCapitalRouterConfig()
+	if len(routerCfg) > 0 {
+		capRouterCfg = routerCfg[0]
 	}
 
 	walletNeed := map[string]venueWalletRequirements{}
@@ -1880,7 +1894,7 @@ func rotationWalletBalancesFromAvailable(fetched map[string]float64, held []Held
 		}
 	}
 	for _, opp := range pending {
-		reqByVenue := aggregateOpportunityRequirements(opp, DefaultCapitalRouterConfig())
+		reqByVenue := aggregateOpportunityRequirements(opp, capRouterCfg)
 		for venue, wallets := range reqByVenue {
 			if walletNeed[venue] == nil {
 				walletNeed[venue] = venueWalletRequirements{}
@@ -1903,7 +1917,12 @@ func rotationWalletBalancesFromAvailable(fetched map[string]float64, held []Held
 		needs := walletNeed[venue]
 		needTotal := venueTotalRequired(needs)
 		if needTotal <= capitalRouterEpsilon {
-			out[venue] = map[WalletKind]float64{WalletKindFutures: total}
+			out[venue] = rotationNonUnifiedIdleWalletSplit(venues[venue], total, false)
+			continue
+		}
+		if rotationWalletNeedFuturesOnly(needs) {
+			// perp-perp 等纯永续备资:idle 放 spot,PlanCapitalRouting 再 spot→futures 补足执行闸。
+			out[venue] = rotationNonUnifiedIdleWalletSplit(venues[venue], total, true)
 			continue
 		}
 		wallets := map[WalletKind]float64{}
@@ -1916,6 +1935,31 @@ func rotationWalletBalancesFromAvailable(fetched map[string]float64, held []Held
 		out[venue] = wallets
 	}
 	return out
+}
+
+func rotationWalletNeedFuturesOnly(needs venueWalletRequirements) bool {
+	if needs[WalletKindFutures] <= capitalRouterEpsilon {
+		return false
+	}
+	for _, w := range capitalRouterWalletKinds {
+		if w == WalletKindFutures {
+			continue
+		}
+		if needs[w] > capitalRouterEpsilon {
+			return false
+		}
+	}
+	return true
+}
+
+// rotationNonUnifiedIdleWalletSplit 非统一账户 idle 分配:支持所内划转且纯 perp 备资时假定 USDT 在 spot(路由后搬进 perp)。
+func rotationNonUnifiedIdleWalletSplit(v venue.Venue, total float64, futuresOnlyNeed bool) map[WalletKind]float64 {
+	if futuresOnlyNeed && v != nil {
+		if _, ok := v.(walletTransferer); ok {
+			return map[WalletKind]float64{WalletKindSpot: total}
+		}
+	}
+	return map[WalletKind]float64{WalletKindFutures: total}
 }
 
 func rotationContinuationNotionalFromCloseCost(closeCost float64, execCfg CrossVenueExecutorConfig) float64 {

@@ -54,9 +54,9 @@ func TestPerpPerpCapitalCapSizesDownToFit(t *testing.T) {
 		bybit.VenueName:   availAfterReserve + rotationReserveUSDT(rotCfg, bybit.VenueName),
 	}
 
-	wantMax := availAfterReserve / (1.0/3.0 + 0.10)
-	if math.Abs(wantMax-45.5769) > 0.05 {
-		t.Fatalf("sanity wantMax≈45.6 got %.4f", wantMax)
+	wantMax := availAfterReserve * 3.0
+	if math.Abs(wantMax-59.25) > 0.05 {
+		t.Fatalf("sanity wantMax≈59.25 got %.4f", wantMax)
 	}
 
 	opp := testPerpPerpHOpportunity(t, 79.6)
@@ -67,7 +67,7 @@ func TestPerpPerpCapitalCapSizesDownToFit(t *testing.T) {
 		t.Fatalf("capped notional=%.4f want≈%.4f", gotNotional, wantMax)
 	}
 
-	margin := rotationPerpMarginWithBuffer(execCfg, gotNotional)
+	margin := crossVenuePerVenueMarginUSDT(execCfg, gotNotional)
 	if math.Abs(margin-availAfterReserve) > 0.15 {
 		t.Fatalf("per-leg margin=%.4f want≈avail %.4f", margin, availAfterReserve)
 	}
@@ -179,7 +179,7 @@ func TestRotationPerpPerpMaxNotionalFromVenueAvailFormula(t *testing.T) {
 	scannerCfg := DefaultSingleVenueSpotPerpScannerConfig(execCfg)
 	scannerCfg.PerpWalletBufferRatio = 0.10
 	got := rotationPerpPerpMaxNotionalFromVenueAvail(execCfg, 19.75)
-	want := 19.75 / (1.0/3.0 + 0.10)
+	want := 19.75 * 3.0
 	if math.Abs(got-want) > 1e-6 {
 		t.Fatalf("maxNotional=%.6f want %.6f", got, want)
 	}

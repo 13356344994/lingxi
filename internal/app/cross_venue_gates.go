@@ -209,11 +209,8 @@ func evaluateCrossVenueOpenGate(
 	if levCap <= 0 {
 		levCap = 2
 	}
-	marginFactor := cfg.MarginSafetyFactor
-	if marginFactor <= 0 {
-		marginFactor = 1.5
-	}
-	requiredMargin := notional / levCap * marginFactor
+	// 与 sizing(crossVenuePerVenueMarginUSDT) 同口径:名义/杠杆;强平安全由 MinLiqDistance 校验,不再乘 MarginSafetyFactor。
+	requiredMargin := crossVenuePerVenueMarginUSDT(cfg, notional)
 	highBal, highBalErr := deps.fetchPerpAvailableUSDT(ctx, highV)
 	if highBalErr != nil {
 		return fail(fmt.Sprintf("高费所永续可用保证金读取失败: %v", highBalErr))

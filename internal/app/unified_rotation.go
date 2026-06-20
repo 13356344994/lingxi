@@ -177,6 +177,8 @@ func rotationMaxLegNotional(opp UnifiedOpportunity) float64 {
 
 // rotationPerpPerpMaxNotionalFromVenueAvail 由单腿可用资金反解 perp-perp 等额名义上限。
 // 约束 rotationPerpMarginWithBuffer(notional) ≤ avail,即 notional×(1/lev+buffer) ≤ avail。
+// rotationPerpPerpMaxNotionalFromVenueAvail 按执行闸同口径反推最大名义:路由后 perp 钱包可凑齐 notional/lev。
+// availAfterReserve 为 venue 总交易可用(含 spot,路由会搬进 perp);与 crossVenuePerVenueMarginUSDT 对齐。
 func rotationPerpPerpMaxNotionalFromVenueAvail(execCfg CrossVenueExecutorConfig, availAfterReserve float64) float64 {
 	if availAfterReserve <= 0 {
 		return 0
@@ -185,16 +187,7 @@ func rotationPerpPerpMaxNotionalFromVenueAvail(execCfg CrossVenueExecutorConfig,
 	if lev <= 0 {
 		lev = 2
 	}
-	scannerCfg := DefaultSingleVenueSpotPerpScannerConfig(execCfg)
-	buffer := scannerCfg.PerpWalletBufferRatio
-	if buffer <= 0 {
-		buffer = crossVenueSpotPerpDefaultPerpWalletBuffer
-	}
-	denom := 1/lev + buffer
-	if denom <= 0 {
-		return 0
-	}
-	return availAfterReserve / denom
+	return availAfterReserve * lev
 }
 
 // rotationPerpPerpMaxNotionalByCapital 取 perp-perp 各腿 venue 扣储备后可用资金约束下的最大等额名义(min 绑定腿)。
@@ -232,7 +225,7 @@ func rotationScalePerpPerpOpportunityNotional(opp *UnifiedOpportunity, ratio flo
 	opp.ExpectedNetEVUSDT *= ratio
 }
 
-// rotationCapPerpPerpOpportunityByCapital 按各所 UNIFIED 可用×杠杆封顶 perp-perp 名义;资金不够则缩仓,留给开仓闸按 min_notional/netEV 过滤。
+// rotationCapPerpPerpOpportunityByCapital 按各所总可用×杠杆封顶 perp-perp 名义(路由后 perp 可补足);资金不够则缩仓而非留给执行闸误拒。
 func rotationCapPerpPerpOpportunityByCapital(opp UnifiedOpportunity, execCfg CrossVenueExecutorConfig, rotCfg RotationConfig, availableUSDTByVenue map[string]float64) UnifiedOpportunity {
 	if opp.StrategyType != UnifiedStrategyPerpPerp {
 		return opp

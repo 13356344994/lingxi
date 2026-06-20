@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -1388,36 +1389,161 @@ func TestRotationWalletBalancesFromAvailableUnifiedVenueSinglePool(t *testing.T)
 	}
 }
 
+// rotationSplitWalletVenue 模拟非统一账户 spot/perp 分仓及所内划转。
+type rotationSplitWalletVenue struct {
+	fakeFundingVenue
+	unified     bool
+	spotUSDT    float64
+	futuresUSDT float64
+	transfers   []walletTransferCall
+}
+
+func (v *rotationSplitWalletVenue) Capabilities() venue.Capabilities {
+	return venue.Capabilities{UnifiedWallet: v.unified}
+}
+
+func (v *rotationSplitWalletVenue) FetchPerpAvailableUSDT(context.Context) (float64, error) {
+	if v.unified {
+		return v.spotUSDT + v.futuresUSDT, nil
+	}
+	return v.futuresUSDT, nil
+}
+
+func (v *rotationSplitWalletVenue) FetchSpotAvailableUSDT(context.Context) (float64, error) {
+	if v.unified {
+		return v.spotUSDT + v.futuresUSDT, nil
+	}
+	return v.spotUSDT, nil
+}
+
+func (v *rotationSplitWalletVenue) TransferWallet(_ context.Context, from, to string, amount float64) error {
+	v.transfers = append(v.transfers, walletTransferCall{from: from, to: to, amount: amount})
+	switch {
+	case from == "spot" && to == "futures":
+		move := math.Min(amount, v.spotUSDT)
+		v.spotUSDT -= move
+		v.futuresUSDT += move
+	case from == "futures" && to == "spot":
+		move := math.Min(amount, v.futuresUSDT)
+		v.futuresUSDT -= move
+		v.spotUSDT += move
+	}
+	return nil
+}
+
+func (v *rotationSplitWalletVenue) TopUpPerpMarginUSDT(_ context.Context, requiredUSDT float64) (float64, error) {
+	if v.futuresUSDT+1e-9 >= requiredUSDT {
+		return 0, nil
+	}
+	need := requiredUSDT - v.futuresUSDT
+	move := math.Min(need, v.spotUSDT)
+	v.spotUSDT -= move
+	v.futuresUSDT += move
+	return move, nil
+}
+
+func TestPerpPerpRoutingTopsUpPerpWallet(t *testing.T) {
+	t.Parallel()
+	execCfg := CrossVenueExecutorConfig{MaxEffectiveLeverage: 3}
+	notional := 150.0
+	margin := crossVenuePerVenueMarginUSDT(execCfg, notional)
+	if math.Abs(margin-50) > 1e-9 {
+		t.Fatalf("margin=%.4f want 50", margin)
+	}
+
+	now := time.Now().UTC()
+	cvOpp := CrossVenueOpportunity{
+		Symbol: "H-USDT", HighVenue: binance.VenueName, LowVenue: bybit.VenueName,
+		SpreadAPR: 10, HighFundingRate: 0.006, LowFundingRate: 0.0001,
+		HighIntervalHours: 4, LowIntervalHours: 1,
+		HighNextFundingTime: now.Add(2 * time.Hour), LowNextFundingTime: now.Add(time.Hour),
+		TradableNotional: notional, NetEV: 5,
+	}
+	opp := rotationAlignPerpPerpCapital(UnifiedOpportunityFromCrossVenue(execCfg, cvOpp, nil, notional, 0), execCfg)
+
+	binanceV := &rotationSplitWalletVenue{fakeFundingVenue: fakeFundingVenue{name: binance.VenueName}, spotUSDT: 100, futuresUSDT: 0}
+	bybitV := &rotationSplitWalletVenue{fakeFundingVenue: fakeFundingVenue{name: bybit.VenueName}, unified: true, spotUSDT: 100}
+	venues := map[string]venue.Venue{binance.VenueName: binanceV, bybit.VenueName: bybitV}
+	available := map[string]float64{binance.VenueName: 100, bybit.VenueName: 100}
+
+	routerCfg := rotationCapitalRouterConfig(execCfg, DefaultCapitalRouterConfig(), venues)
+	balances := rotationWalletBalancesFromAvailable(available, nil, execCfg, venues, []UnifiedOpportunity{opp}, routerCfg)
+	if balances[binance.VenueName][WalletKindSpot] != 100 || balances[binance.VenueName][WalletKindFutures] != 0 {
+		t.Fatalf("pre-route binance wallets=%+v want spot=100 futures=0", balances[binance.VenueName])
+	}
+
+	plan := PlanCapitalRouting([]UnifiedOpportunity{opp}, balances, routerCfg)
+	if len(plan.WithinVenueTransfers) != 1 {
+		t.Fatalf("transfers=%+v want 1 binance spot→futures", plan.WithinVenueTransfers)
+	}
+	tr := plan.WithinVenueTransfers[0]
+	if tr.Venue != binance.VenueName || tr.From != WalletKindSpot || tr.To != WalletKindFutures {
+		t.Fatalf("transfer=%+v want binance spot→futures", tr)
+	}
+	if math.Abs(tr.AmountUSDT-margin) > 1e-6 {
+		t.Fatalf("transfer amount=%.4f want margin %.4f", tr.AmountUSDT, margin)
+	}
+
+	result := ExecuteCapitalRouting(context.Background(), plan, venues, true, log.New(io.Discard, "", 0))
+	if len(result.Errs) != 0 {
+		t.Fatalf("routing errs=%v", result.Errs)
+	}
+	if binanceV.futuresUSDT+1e-9 < margin {
+		t.Fatalf("binance perp after route=%.4f want >= %.4f", binanceV.futuresUSDT, margin)
+	}
+
+	perpAvail, err := fetchVenuePerpAvailableUSDT(context.Background(), binanceV)
+	if err != nil || perpAvail+1e-9 < margin {
+		t.Fatalf("fetch perp=%.4f err=%v want >= %.4f", perpAvail, err, margin)
+	}
+}
+
+func TestRotationWalletBalancesPerpPerpIdleInSpot(t *testing.T) {
+	t.Parallel()
+	execCfg := CrossVenueExecutorConfig{MaxEffectiveLeverage: 3}
+	opp := rotationAlignPerpPerpCapital(UnifiedOpportunityFromCrossVenue(execCfg, CrossVenueOpportunity{
+		Symbol: "H-USDT", HighVenue: binance.VenueName, LowVenue: bybit.VenueName,
+	}, nil, 150, 0), execCfg)
+	binanceV := &rotationSplitWalletVenue{fakeFundingVenue: fakeFundingVenue{name: binance.VenueName}}
+	venues := map[string]venue.Venue{binance.VenueName: binanceV}
+	routerCfg := rotationCapitalRouterConfig(execCfg, DefaultCapitalRouterConfig(), venues)
+	balances := rotationWalletBalancesFromAvailable(
+		map[string]float64{binance.VenueName: 100}, nil, execCfg, venues, []UnifiedOpportunity{opp}, routerCfg,
+	)
+	if balances[binance.VenueName][WalletKindSpot] != 100 || balances[binance.VenueName][WalletKindFutures] != 0 {
+		t.Fatalf("perp-perp idle split=%+v want all in spot", balances[binance.VenueName])
+	}
+}
+
 func TestUnifiedRotationRunner_LiveTransferFailureBlocksOpen(t *testing.T) {
-	svsp := &fakeRotationExecutor{strategyType: UnifiedStrategySingleVenueSpotPerp}
-	r := testUnifiedRotationRunnerWithFakes(t, svsp)
+	pp := &fakeRotationExecutor{strategyType: UnifiedStrategyPerpPerp}
+	r := testUnifiedRotationRunnerWithFakes(t, pp)
 	r.SetActive(true)
+	r.execCfg = CrossVenueExecutorConfig{MaxEffectiveLeverage: 3}
 	r.venues = map[string]venue.Venue{
 		binance.VenueName: &rotationFailingTransferVenue{
 			rotationTransferCountVenue: rotationTransferCountVenue{fakeFundingVenue: fakeFundingVenue{name: binance.VenueName}},
 		},
+		bybit.VenueName: &fakeFundingVenue{name: bybit.VenueName},
 	}
 
-	opp := testRotationCandidate("open-svsp", UnifiedStrategySingleVenueSpotPerp, "BTC-USDT", 10,
-		map[string]float64{binance.VenueName: 20})
-	opp.Legs = []UnifiedOpportunityLeg{
-		{Venue: binance.VenueName, Market: "spot", Side: "buy", Notional: 20},
-		{Venue: binance.VenueName, Market: "perp", Side: "short", Notional: 20},
-	}
+	opp := rotationAlignPerpPerpCapital(UnifiedOpportunityFromCrossVenue(r.execCfg, CrossVenueOpportunity{
+		Symbol: "BTC-USDT", HighVenue: binance.VenueName, LowVenue: bybit.VenueName,
+	}, nil, 150, 0), r.execCfg)
 	plan := RotationPlan{Actions: []RotationAction{
-		{Kind: RotationActionOpen, OpportunityID: "open-svsp", StrategyType: UnifiedStrategySingleVenueSpotPerp, Symbol: "BTC-USDT"},
+		{Kind: RotationActionOpen, OpportunityID: opp.ID, StrategyType: UnifiedStrategyPerpPerp, Symbol: "BTC-USDT"},
 	}}
 	r.decideRotationFn = func([]HeldPosition, map[string]ContinuationInputs, []UnifiedOpportunity, map[string]float64) RotationPlan {
 		return plan
 	}
 
-	r.runOnceDecisionAndDispatch(context.Background(), []UnifiedOpportunity{opp}, map[string]float64{binance.VenueName: 200}, nil, nil)
+	r.runOnceDecisionAndDispatch(context.Background(), []UnifiedOpportunity{opp}, map[string]float64{binance.VenueName: 200, bybit.VenueName: 200}, nil, nil)
 
-	if len(svsp.opens) != 0 {
-		t.Fatalf("opens = %+v, want none after failed required transfer", svsp.opens)
+	if len(pp.opens) != 0 {
+		t.Fatalf("opens = %+v, want none after failed required transfer", pp.opens)
 	}
-	if svsp.liveOpens != 0 {
-		t.Fatalf("liveOpens = %d, want 0", svsp.liveOpens)
+	if pp.liveOpens != 0 {
+		t.Fatalf("liveOpens = %d, want 0", pp.liveOpens)
 	}
 	v := r.venues[binance.VenueName].(*rotationFailingTransferVenue)
 	if v.transferCount != 1 {

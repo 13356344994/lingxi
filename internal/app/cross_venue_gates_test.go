@@ -2,12 +2,14 @@ package app
 
 import (
 	"context"
+	"math"
 	"strings"
 	"testing"
 	"time"
 
 	"lingxi/internal/venue"
 	"lingxi/internal/venue/binance"
+	"lingxi/internal/venue/bybit"
 	"lingxi/internal/venue/okx"
 )
 
@@ -149,4 +151,139 @@ func TestSimulateTakerSlippageBps(t *testing.T) {
 	if !ok || slip > 0.01 {
 		t.Fatalf("deep book buy slip=%v ok=%v want ~0", slip, ok)
 	}
+}
+
+func TestOpenGateMarginMatchesSizing(t *testing.T) {
+	t.Parallel()
+	now := time.Now().UTC().Add(time.Hour)
+	nextFunding := now.Add(2 * time.Hour)
+	notional := 150.0
+	lev := 3.0
+	wantMargin := crossVenuePerVenueMarginUSDT(CrossVenueExecutorConfig{MaxEffectiveLeverage: lev}, notional)
+	if math.Abs(wantMargin-50) > 1e-9 {
+		t.Fatalf("sanity sizing margin=%.4f want 50", wantMargin)
+	}
+
+	high := newCrossVenueTestVenue(binance.VenueName, 0.001, 8, nextFunding)
+	high.book = venue.BookTicker{BidPrice: 99.99, AskPrice: 100.01, BidQty: 1000, AskQty: 1000}
+	high.depth = venue.Depth{
+		Bids: []venue.DepthLevel{{Price: 100, Qty: 5000}, {Price: 99.99, Qty: 5000}},
+	}
+	high.balanceUSDT = wantMargin
+	low := newCrossVenueTestVenue(bybit.VenueName, 0.0001, 8, nextFunding)
+	low.book = venue.BookTicker{BidPrice: 99.99, AskPrice: 100.01, BidQty: 1000, AskQty: 1000}
+	low.depth = venue.Depth{
+		Asks: []venue.DepthLevel{{Price: 100.01, Qty: 5000}, {Price: 100.02, Qty: 5000}},
+	}
+	low.balanceUSDT = wantMargin
+	venues := map[string]venue.Venue{binance.VenueName: high, bybit.VenueName: low}
+
+	cfg := testCrossVenueExecutorConfig()
+	cfg.CrossVenueExecutor.MaxPositionUSDT = notional
+	cfg.CrossVenueExecutor.MaxEffectiveLeverage = lev
+	cfg.CrossVenueExecutor.MarginSafetyFactor = 1.5 // 旧口径会要 75;新口径与 sizing 同为 50
+
+	res := evaluateCrossVenueOpenGate(context.Background(), cfg.CrossVenueExecutor, testCrossVenueGateDeps(1000), venues, crossVenueGateInput{
+		Opp: CrossVenueOpportunity{
+			Symbol: "BTC-USDT", HighVenue: binance.VenueName, LowVenue: bybit.VenueName,
+			SpreadAPR: 2.0, HighFundingRate: 0.019, LowFundingRate: 0.0001,
+			HighIntervalHours: 8, LowIntervalHours: 8,
+			HighNextFundingTime: nextFunding, LowNextFundingTime: nextFunding,
+		},
+		Now: now,
+	})
+	if !res.OK {
+		t.Fatalf("expected gate pass at sizing-aligned margin 50, got reject: %s", res.Reason)
+	}
+	if res.NotionalUSDT+1e-9 < notional {
+		t.Fatalf("notional=%.2f want >= %.2f", res.NotionalUSDT, notional)
+	}
+
+	// 旧口径要 75:perp=74 会误拒;新口径 50 应通过。
+	high.balanceUSDT = 74
+	low.balanceUSDT = 74
+	resMid := evaluateCrossVenueOpenGate(context.Background(), cfg.CrossVenueExecutor, testCrossVenueGateDeps(1000), venues, crossVenueGateInput{
+		Opp: CrossVenueOpportunity{
+			Symbol: "BTC-USDT", HighVenue: binance.VenueName, LowVenue: bybit.VenueName,
+			SpreadAPR: 2.0, HighFundingRate: 0.019, LowFundingRate: 0.0001,
+			HighIntervalHours: 8, LowIntervalHours: 8,
+			HighNextFundingTime: nextFunding, LowNextFundingTime: nextFunding,
+		},
+		Now: now,
+	})
+	if !resMid.OK {
+		t.Fatalf("74 USDT perp should pass new 50 margin gate, old 75 would reject: %s", resMid.Reason)
+	}
+}
+
+func TestSizedOrderPassesGateWhenCapitalExists(t *testing.T) {
+	t.Parallel()
+	execCfg := CrossVenueExecutorConfig{MaxEffectiveLeverage: 3, MaxPositionUSDT: 150, ExpectedHoldHours: 12}
+	rotCfg := DefaultRotationConfig()
+	availAfterReserve := 50.0
+	available := map[string]float64{
+		binance.VenueName: availAfterReserve + rotationReserveUSDT(rotCfg, binance.VenueName),
+		bybit.VenueName:   availAfterReserve + rotationReserveUSDT(rotCfg, bybit.VenueName),
+	}
+
+	now := time.Now().UTC().Add(time.Hour)
+	nextFunding := now.Add(2 * time.Hour)
+	opp := testPerpPerpHOpportunityForGate(t, 150)
+	capped := rotationCapPerpPerpOpportunityByCapital(opp, execCfg, rotCfg, available)
+	sizedNotional := rotationMaxLegNotional(capped)
+	wantMargin := crossVenuePerVenueMarginUSDT(execCfg, sizedNotional)
+	if wantMargin > availAfterReserve+0.01 {
+		t.Fatalf("capped margin %.4f should fit avail %.4f", wantMargin, availAfterReserve)
+	}
+
+	high := newCrossVenueTestVenue(binance.VenueName, 0.019, 8, nextFunding)
+	high.book = venue.BookTicker{BidPrice: 99.99, AskPrice: 100.01, BidQty: 1000, AskQty: 1000}
+	high.depth = venue.Depth{
+		Bids: []venue.DepthLevel{{Price: 100, Qty: 5000}, {Price: 99.99, Qty: 5000}},
+	}
+	high.balanceUSDT = wantMargin
+	low := newCrossVenueTestVenue(bybit.VenueName, 0.0001, 8, nextFunding)
+	low.book = venue.BookTicker{BidPrice: 99.99, AskPrice: 100.01, BidQty: 1000, AskQty: 1000}
+	low.depth = venue.Depth{
+		Asks: []venue.DepthLevel{{Price: 100.01, Qty: 5000}, {Price: 100.02, Qty: 5000}},
+	}
+	low.balanceUSDT = wantMargin
+	venues := map[string]venue.Venue{binance.VenueName: high, bybit.VenueName: low}
+
+	cfg := testCrossVenueExecutorConfig()
+	cfg.CrossVenueExecutor = execCfg
+	cfg.CrossVenueExecutor.MaxPositionUSDT = sizedNotional
+	res := evaluateCrossVenueOpenGate(context.Background(), cfg.CrossVenueExecutor, testCrossVenueGateDeps(1000), venues, crossVenueGateInput{
+		Opp: CrossVenueOpportunity{
+			Symbol: "BTC-USDT", HighVenue: binance.VenueName, LowVenue: bybit.VenueName,
+			SpreadAPR: 2.0, HighFundingRate: 0.019, LowFundingRate: 0.0001,
+			HighIntervalHours: 8, LowIntervalHours: 8,
+			HighNextFundingTime: nextFunding, LowNextFundingTime: nextFunding,
+		},
+		Now: now,
+	})
+	if !res.OK {
+		t.Fatalf("capital-sized order should pass gate, reason=%s", res.Reason)
+	}
+}
+
+func testPerpPerpHOpportunityForGate(t *testing.T, notional float64) UnifiedOpportunity {
+	t.Helper()
+	now := time.Now().UTC()
+	cvOpp := CrossVenueOpportunity{
+		Symbol:              "H-USDT",
+		HighVenue:           binance.VenueName,
+		LowVenue:            bybit.VenueName,
+		SpreadAPR:           13.58,
+		HighFundingRate:     0.00625,
+		LowFundingRate:      0.0000125,
+		HighIntervalHours:   4,
+		LowIntervalHours:    1,
+		HighNextFundingTime: now.Add(2 * time.Hour),
+		LowNextFundingTime:  now.Add(time.Hour),
+		TradableNotional:    notional,
+		SpreadEV:            2.0,
+		NetEV:               1.5,
+	}
+	return UnifiedOpportunityFromCrossVenue(CrossVenueExecutorConfig{MaxEffectiveLeverage: 3}, cvOpp, nil, notional, 0)
 }
