@@ -41,6 +41,8 @@ type crossVenueGateResult struct {
 	OK              bool
 	Reason          string
 	NotionalUSDT    float64
+	HighQty         float64
+	LowQty          float64
 	HighMid         float64
 	LowMid          float64
 	HighInstr       venue.Instrument
@@ -84,14 +86,15 @@ func evaluateCrossVenueOpenGate(
 	if highV == nil || lowV == nil {
 		return fail("venue 适配器未就绪")
 	}
-	sym := venue.Symbol(in.Opp.Symbol)
-	if in.BybitHeld != nil && in.BybitHeld(sym) {
+	highSym := venue.Symbol(crossVenueOppHighSymbol(in.Opp))
+	lowSym := venue.Symbol(crossVenueOppLowSymbol(in.Opp))
+	if in.BybitHeld != nil && (in.BybitHeld(highSym) || in.BybitHeld(lowSym)) {
 		return fail("symbol 已被 Bybit 单所引擎持有")
 	}
-	if in.BinanceHeld != nil && in.BinanceHeld(sym) {
+	if in.BinanceHeld != nil && (in.BinanceHeld(highSym) || in.BinanceHeld(lowSym)) {
 		return fail("symbol 已被 Binance 遗留引擎持有")
 	}
-	if in.FundingHeld != nil && in.FundingHeld(sym) {
+	if in.FundingHeld != nil && (in.FundingHeld(highSym) || in.FundingHeld(lowSym)) {
 		return fail("symbol 已被 OKX/Gate 单所 funding 引擎持有")
 	}
 	for _, p := range in.Positions {
@@ -109,29 +112,29 @@ func evaluateCrossVenueOpenGate(
 	// 注:不再用 FetchRealizedFunding 做开仓前置闸——binance/gate/okx 该方法未实现(返回 ErrUnsupported),
 	// 用它当闸会拒掉所有含这三所的开仓对(=几乎全部跨所机会),把策略整个搞死。
 	// 排除美股代币等伪高价差标的,改靠下面的"快照有效性"(NextFundingTime/间隔/有限 rate)+ 扫描器价差上限。
-	highSnap, ok := deps.fetchFunding(ctx, highV, sym)
+	highSnap, ok := deps.fetchFunding(ctx, highV, highSym)
 	if !ok || !crossVenueFundingSnapshotValid(highSnap, in.Now) {
 		return fail("高费所幽灵腿:资费快照无效(缺 rate/结算间隔/NextFundingTime)")
 	}
-	lowSnap, ok := deps.fetchFunding(ctx, lowV, sym)
+	lowSnap, ok := deps.fetchFunding(ctx, lowV, lowSym)
 	if !ok || !crossVenueFundingSnapshotValid(lowSnap, in.Now) {
 		return fail("低费所幽灵腿:资费快照无效(缺 rate/结算间隔/NextFundingTime)")
 	}
 
-	highInstr, ok := deps.lookupInstrument(ctx, highV, sym)
+	highInstr, ok := deps.lookupInstrument(ctx, highV, highSym)
 	if !ok {
 		return fail("高费所 lookupInstrument 失败")
 	}
-	lowInstr, ok := deps.lookupInstrument(ctx, lowV, sym)
+	lowInstr, ok := deps.lookupInstrument(ctx, lowV, lowSym)
 	if !ok {
 		return fail("低费所 lookupInstrument 失败")
 	}
 
-	highBook, err := deps.fetchBookTicker(ctx, highV, sym)
+	highBook, err := deps.fetchBookTicker(ctx, highV, highSym)
 	if err != nil || highBook.BidPrice <= 0 || highBook.AskPrice <= 0 {
 		return fail("高费所盘口无效")
 	}
-	lowBook, err := deps.fetchBookTicker(ctx, lowV, sym)
+	lowBook, err := deps.fetchBookTicker(ctx, lowV, lowSym)
 	if err != nil || lowBook.BidPrice <= 0 || lowBook.AskPrice <= 0 {
 		return fail("低费所盘口无效")
 	}
@@ -140,7 +143,15 @@ func evaluateCrossVenueOpenGate(
 	if highMid <= 0 || lowMid <= 0 {
 		return fail("中间价无效")
 	}
-	dev := math.Abs(highMid-lowMid) / math.Max(highMid, lowMid)
+	highMult := crossVenueOppHighMult(in.Opp)
+	lowMult := crossVenueOppLowMult(in.Opp)
+	// 跨计价硬护栏:经济 base 相同 + 归一 mid 价比≈倍数比;任一不满足则拒单(等同不配,绝不 fallback)。
+	if crossVenueIsCrossDenomPair(in.Opp) {
+		if !crossVenueCrossDenomGuardOK(in.Opp, highMid, lowMid) {
+			return fail("跨计价护栏:经济 base/价格比未通过(禁止错配)")
+		}
+	}
+	dev := crossVenueMidDeviation(highMid, lowMid, highMult, lowMult)
 	maxDev := cfg.MidPriceDeviationMax
 	if maxDev <= 0 {
 		maxDev = 0.03
@@ -165,12 +176,12 @@ func evaluateCrossVenueOpenGate(
 		notional = 50
 	}
 	if cfg.SizingMaxSlippageBps > 0 || cfg.SizingMaxParticipationPct24h > 0 {
-		if liqCap := crossVenueGateLiquidityNotionalCap(ctx, cfg, deps, highV, lowV, sym); liqCap < math.MaxFloat64 {
+		if liqCap := crossVenueGateLiquidityNotionalCapPerLeg(ctx, cfg, deps, highV, lowV, highSym, lowSym); liqCap < math.MaxFloat64 {
 			notional = math.Min(notional, liqCap)
 		}
 	} else {
-		capHigh := depthCapacityUSDT(deps.fetchDepth, ctx, highV, sym, cfg.DepthUsageRatio)
-		capLow := depthCapacityUSDT(deps.fetchDepth, ctx, lowV, sym, cfg.DepthUsageRatio)
+		capHigh := depthCapacityUSDT(deps.fetchDepth, ctx, highV, highSym, cfg.DepthUsageRatio)
+		capLow := depthCapacityUSDT(deps.fetchDepth, ctx, lowV, lowSym, cfg.DepthUsageRatio)
 		if capHigh > 0 && capHigh < notional {
 			notional = capHigh
 		}
@@ -183,12 +194,12 @@ func evaluateCrossVenueOpenGate(
 	}
 
 	maxSlipBps := crossVenueResolvedMaxOpenSlippageBps(cfg)
-	if slipBps, ok := estimateCrossVenueLegOpenSlippageBps(deps.fetchDepth, ctx, highV, sym, venue.SideSell, notional, highMid); !ok {
+	if slipBps, ok := estimateCrossVenueLegOpenSlippageBps(deps.fetchDepth, ctx, highV, highSym, venue.SideSell, notional, highMid); !ok {
 		return fail("高费所深度不足,无法估算开仓滑点")
 	} else if slipBps > maxSlipBps {
 		return fail(fmt.Sprintf("高费所预估滑点 %.1f bps > %.0f", slipBps, maxSlipBps))
 	}
-	if slipBps, ok := estimateCrossVenueLegOpenSlippageBps(deps.fetchDepth, ctx, lowV, sym, venue.SideBuy, notional, lowMid); !ok {
+	if slipBps, ok := estimateCrossVenueLegOpenSlippageBps(deps.fetchDepth, ctx, lowV, lowSym, venue.SideBuy, notional, lowMid); !ok {
 		return fail("低费所深度不足,无法估算开仓滑点")
 	} else if slipBps > maxSlipBps {
 		return fail(fmt.Sprintf("低费所预估滑点 %.1f bps > %.0f", slipBps, maxSlipBps))
@@ -226,7 +237,7 @@ func evaluateCrossVenueOpenGate(
 		return fail(fmt.Sprintf("低费所有效杠杆 %.2fx > %.2fx", notional/lowAlloc, levCap))
 	}
 
-	evLegs := crossVenuePerpPerpEVSlippageLegs(deps.fetchDepth, ctx, highV, lowV, sym, highMid, lowMid)
+	evLegs := crossVenuePerpPerpEVSlippageLegsPerSymbol(deps.fetchDepth, ctx, highV, lowV, highSym, lowSym, highMid, lowMid)
 	holdHours := crossVenueOpenEVHoldHours(cfg, in.Now, in.Opp, crossVenueComparableWindowHours(in.Now, highSnap.NextFundingTime, lowSnap.NextFundingTime))
 	evOpp := in.Opp
 	if evOpp.HighNextFundingTime.IsZero() {
@@ -242,9 +253,17 @@ func evaluateCrossVenueOpenGate(
 	}
 
 	_ = deps.venueCaps // 预留 contract-based 校验
+	highCaps := highV.Capabilities()
+	lowCaps := lowV.Capabilities()
+	alignedQty := alignCrossVenueQtyPerLeg(notional, highMid, lowMid, highMult, lowMult, highInstr, lowInstr, highCaps, lowCaps)
+	if alignedQty.HighQty <= executionQtyTolerance || alignedQty.LowQty <= executionQtyTolerance {
+		return fail("对齐后下单数量低于最小可交易量")
+	}
 	return crossVenueGateResult{
 		OK:              true,
 		NotionalUSDT:    notional,
+		HighQty:         alignedQty.HighQty,
+		LowQty:          alignedQty.LowQty,
 		HighMid:         highMid,
 		LowMid:          lowMid,
 		HighInstr:       highInstr,
@@ -532,6 +551,55 @@ func crossVenueFundingSnapshotValid(snap venue.FundingSnapshot, now time.Time) b
 		return false
 	}
 	return true
+}
+
+// crossVenueGateLiquidityNotionalCapPerLeg 跨所 perp-perp 执行期流动性上限(每腿独立 symbol 拉 depth)。
+func crossVenueGateLiquidityNotionalCapPerLeg(
+	ctx context.Context,
+	cfg CrossVenueExecutorConfig,
+	deps crossVenueGateDeps,
+	highV, lowV venue.Venue,
+	highSym, lowSym venue.Symbol,
+) float64 {
+	slipBps := crossVenueResolvedSizingMaxSlippageBps(cfg)
+	gateSlipBps := crossVenueResolvedMaxOpenSlippageBps(cfg)
+	if gateSlipBps > 0 && (slipBps <= 0 || gateSlipBps < slipBps) {
+		slipBps = gateSlipBps
+	}
+	partPct := cfg.SizingMaxParticipationPct24h
+	if slipBps <= 0 && partPct <= 0 {
+		return math.MaxFloat64
+	}
+	if deps.fetchDepth == nil {
+		return math.MaxFloat64
+	}
+	caps := make([]float64, 0, 2)
+	if highV != nil {
+		if depth, err := deps.fetchDepth(ctx, highV, highSym, crossVenueOpenSlippageDepthLimit); err == nil {
+			vol := fetchVenuePerpQuoteVolume24h(ctx, highV, highSym)
+			if cap := liquidityNotionalCap(depth, venue.SideSell, slipBps, vol, partPct); cap < math.MaxFloat64 {
+				caps = append(caps, cap)
+			}
+		}
+	}
+	if lowV != nil {
+		if depth, err := deps.fetchDepth(ctx, lowV, lowSym, crossVenueOpenSlippageDepthLimit); err == nil {
+			vol := fetchVenuePerpQuoteVolume24h(ctx, lowV, lowSym)
+			if cap := liquidityNotionalCap(depth, venue.SideBuy, slipBps, vol, partPct); cap < math.MaxFloat64 {
+				caps = append(caps, cap)
+			}
+		}
+	}
+	if len(caps) == 0 {
+		return math.MaxFloat64
+	}
+	out := caps[0]
+	for i := 1; i < len(caps); i++ {
+		if caps[i] < out {
+			out = caps[i]
+		}
+	}
+	return out
 }
 
 func fetchVenueFundingForSymbol(ctx context.Context, v venue.Venue, sym venue.Symbol) (venue.FundingSnapshot, bool) {

@@ -43,6 +43,11 @@ var crossVenueScannerFactory = buildCrossVenueScannerAdapters
 // symbolVenueFunding 是某 symbol 在某所的一条资金费记录(含年化)。
 type symbolVenueFunding struct {
 	Venue                   string
+	CanonicalSymbol         string  // venue-canonical 原始 symbol(下单/查 funding 用)
+	EconomicPairKey         string  // 经济配对键,如 PEPE-USDT(跨 1000PEPE↔PEPE 对齐)
+	EconomicBase            string  // 经济 base,如 PEPE
+	Multiplier              float64 // 计价倍数(1/1000/10000/1000000)
+	MultKnown               bool    // false 时仅允许同 canonical 配对,禁止跨计价
 	FundingRate             float64
 	RawFundingRate          float64 // 快照原始费率(EV 重算用,未经平滑/封顶)
 	AnnualizedAPR           float64 // 单腿封顶后的年化(仅作 sanity 展示;配对/价差不再用它)
@@ -82,6 +87,10 @@ func crossVenueResolveNextFundingTime(now time.Time, next time.Time, intervalHou
 // CrossVenueOpportunity 是一条跨所资金费价差机会(策略:空高费所、多低费所)。
 type CrossVenueOpportunity struct {
 	Symbol                string    `json:"symbol"`
+	HighSymbol            string    `json:"high_symbol,omitempty"` // 高费腿 venue-canonical symbol;空则同 Symbol
+	LowSymbol             string    `json:"low_symbol,omitempty"`  // 低费腿 venue-canonical symbol;空则同 Symbol
+	HighMult              float64   `json:"high_mult,omitempty"`   // 高费腿计价倍数(护栏/归一 mid 用)
+	LowMult               float64   `json:"low_mult,omitempty"`    // 低费腿计价倍数
 	HighVenue             string    `json:"high_venue"`
 	LowVenue              string    `json:"low_venue"`
 	SnapshotID            string    `json:"snapshot_id,omitempty"`
@@ -977,6 +986,12 @@ func indexSnapshotsBySymbolAt(byVenue map[string][]venue.FundingSnapshot, now ti
 			if sym == "" {
 				continue
 			}
+			pairKey, econBase, mult, multKnown := crossVenueEconomicPairKey(sym)
+			indexKey := pairKey
+			if !multKnown {
+				// 倍数无法解析 → 仅按 canonical 精确配对,等同改造前行为
+				indexKey = sym
+			}
 			interval := snap.IntervalHours
 			if interval <= 0 {
 				interval = 8
@@ -984,8 +999,13 @@ func indexSnapshotsBySymbolAt(byVenue map[string][]venue.FundingSnapshot, now ti
 			nextFunding, inferred := crossVenueResolveNextFundingTime(now, snap.NextFundingTime, interval)
 			rawRate := snap.LastFundingRate
 			rate := capFundingRateByAPR(rawRate, interval, capAPR)
-			out[sym] = append(out[sym], symbolVenueFunding{
+			out[indexKey] = append(out[indexKey], symbolVenueFunding{
 				Venue:                   venueName,
+				CanonicalSymbol:         sym,
+				EconomicPairKey:         pairKey,
+				EconomicBase:            econBase,
+				Multiplier:              mult,
+				MultKnown:               multKnown,
 				FundingRate:             rate,
 				RawFundingRate:          rawRate,
 				AnnualizedAPR:           fundingAnnualizedAPR(rate, interval),
@@ -999,16 +1019,20 @@ func indexSnapshotsBySymbolAt(byVenue map[string][]venue.FundingSnapshot, now ti
 	return out
 }
 
-// bestPairSpread 对同一 symbol 的多所记录取最优两两价差(年化高所 − 年化低所)。
-func bestPairSpread(symbol string, entries []symbolVenueFunding) (CrossVenueOpportunity, bool) {
+// bestPairSpread 对同一经济配对键下的多所记录取最优两两价差(年化高所 − 年化低所)。
+// 跨计价配对须两腿 MultKnown 且经济 base 一致;价格比二次确认在开仓闸 evaluateCrossVenueOpenGate 执行。
+func bestPairSpread(pairKey string, entries []symbolVenueFunding) (CrossVenueOpportunity, bool) {
 	if len(entries) < 2 {
 		return CrossVenueOpportunity{}, false
 	}
-	best := CrossVenueOpportunity{Symbol: symbol}
+	best := CrossVenueOpportunity{Symbol: pairKey}
 	found := false
 	for i := 0; i < len(entries); i++ {
 		for j := i + 1; j < len(entries); j++ {
 			a, b := entries[i], entries[j]
+			if !crossVenueFundingPairAllowed(a, b) {
+				continue
+			}
 			high, low := a, b
 			// 用原始(未封顶)年化排序/算价差:若用单腿封顶后的 APR,多条腿同时超过封顶值会被压成相同上限,
 			// 真实价差被抹平为 0(H-USDT 这类四腿全爆表的极端机会就因此漏配)。荒谬上限改由 spread 级 absurdCap 兜底。
@@ -1020,8 +1044,13 @@ func bestPairSpread(symbol string, entries []symbolVenueFunding) (CrossVenueOppo
 			spread := high.RawAnnualizedAPR - low.RawAnnualizedAPR
 			if !found || spread > best.SpreadAPR {
 				found = true
+				displaySym, highSym, lowSym, highMult, lowMult := crossVenueOpportunitySymbolsFromLegs(pairKey, high, low)
 				best = CrossVenueOpportunity{
-					Symbol:              symbol,
+					Symbol:              displaySym,
+					HighSymbol:          highSym,
+					LowSymbol:           lowSym,
+					HighMult:            highMult,
+					LowMult:             lowMult,
 					HighVenue:           high.Venue,
 					LowVenue:            low.Venue,
 					HighAnnualizedAPR:   high.RawAnnualizedAPR,
@@ -1038,6 +1067,46 @@ func bestPairSpread(symbol string, entries []symbolVenueFunding) (CrossVenueOppo
 		}
 	}
 	return best, found
+}
+
+// crossVenueFundingPairAllowed 索引期初筛:同 canonical 或跨计价且倍数/经济 base 均可解析且一致。
+func crossVenueFundingPairAllowed(a, b symbolVenueFunding) bool {
+	if a.Venue == b.Venue {
+		return false
+	}
+	if a.CanonicalSymbol == b.CanonicalSymbol {
+		return true
+	}
+	if !a.MultKnown || !b.MultKnown {
+		return false
+	}
+	if a.EconomicBase == "" || b.EconomicBase == "" {
+		return false
+	}
+	return strings.EqualFold(a.EconomicBase, b.EconomicBase)
+}
+
+func crossVenueOpportunitySymbolsFromLegs(pairKey string, high, low symbolVenueFunding) (displaySym, highSym, lowSym string, highMult, lowMult float64) {
+	highSym = high.CanonicalSymbol
+	lowSym = low.CanonicalSymbol
+	if highSym == "" {
+		highSym = pairKey
+	}
+	if lowSym == "" {
+		lowSym = pairKey
+	}
+	highMult = high.Multiplier
+	lowMult = low.Multiplier
+	if highMult <= 0 {
+		highMult = 1
+	}
+	if lowMult <= 0 {
+		lowMult = 1
+	}
+	if highSym == lowSym {
+		return highSym, highSym, lowSym, highMult, lowMult
+	}
+	return pairKey, highSym, lowSym, highMult, lowMult
 }
 
 // crossVenueAbsurdSpreadCap 返回跨所 spread 绝对荒谬上限;用户 FundingAPRSanityCap 更严时尊重。
@@ -1119,21 +1188,21 @@ func (s *CrossVenueScanner) computeCrossVenueOpportunities(ctx context.Context, 
 		if markThreshold > 0 && opp.SpreadAPR > markThreshold {
 			opp.ExtremeSpread = true
 		}
-		highSamples := s.fundingHistorySampleCount(opp.HighVenue, sym)
-		lowSamples := s.fundingHistorySampleCount(opp.LowVenue, sym)
+		highSamples := s.fundingHistorySampleCount(opp.HighVenue, crossVenueOppHighSymbol(opp))
+		lowSamples := s.fundingHistorySampleCount(opp.LowVenue, crossVenueOppLowSymbol(opp))
 		minSamples := minInt(highSamples, lowSamples)
 		windowHours := crossVenueComparableWindowHours(s.nowFn(), opp.HighNextFundingTime, opp.LowNextFundingTime)
 		opp.HistoryQualityScore = crossVenueHistoryQualityScore(minSamples, s.cfg.SpreadPersistenceScans)
 		opp.StabilityScore = crossVenueStabilityScore(windowHours, minSamples)
 		opp.Symbol = sym
-		tradableCap, slipLegs := s.perpPerpScanTradableCapAndSlippageLegs(ctx, opp.HighVenue, opp.LowVenue, sym)
+		tradableCap, slipLegs := s.perpPerpScanTradableCapAndSlippageLegs(ctx, opp)
 		if opp.ExtremeSpread && tradableCap <= 0 {
 			s.notePerpPerpDiagReject(diagBySym, sym, "extreme spread but tradableNotional<=0")
 			continue
 		}
 		evHigh, evLow := crossVenueExtremeSpreadEVRates(s.cfg, opp, entries)
-		clamp := crossVenuePerpPerpNotionalClampCtx(ctx, s.venues, opp, slipLegs)
-		opp, chosenNotional := crossVenuePerpPerpSearchBestNotional(s.execCfg, opp, s.nowFn(), evHigh, evLow, tradableCap, slipLegs, clamp)
+		clamp := crossVenuePerpPerpNotionalClampCtxForOpp(ctx, s.venues, opp, slipLegs)
+		opp, chosenNotional := crossVenuePerpPerpSearchBestNotionalPerLeg(s.execCfg, opp, s.nowFn(), evHigh, evLow, tradableCap, slipLegs, clamp)
 		s.notePerpPerpDiagEntered(diagBySym, sym, opp, chosenNotional)
 		opps = append(opps, opp)
 	}
@@ -1150,22 +1219,191 @@ func (s *CrossVenueScanner) computeCrossVenueOpportunities(ctx context.Context, 
 	return opps
 }
 
-// perpPerpScanTradableCapAndSlippageLegs 扫描期流动性 cap 与四腿深度滑点输入(与执行闸同 fetchDepth 路径)。
-func (s *CrossVenueScanner) perpPerpScanTradableCapAndSlippageLegs(ctx context.Context, highVenue, lowVenue, sym string) (float64, []crossVenueEVSlippageLeg) {
-	tradableCap := crossVenuePerpPerpScanTradableNotional(ctx, s.execCfg, s.venues, highVenue, lowVenue, sym)
-	highV := s.venues[highVenue]
-	lowV := s.venues[lowVenue]
+// perpPerpScanTradableCapAndSlippageLegs 扫描期流动性 cap 与四腿深度滑点输入(与执行闸同 fetchDepth 路径,per-leg symbol)。
+func (s *CrossVenueScanner) perpPerpScanTradableCapAndSlippageLegs(ctx context.Context, opp CrossVenueOpportunity) (float64, []crossVenueEVSlippageLeg) {
+	tradableCap := crossVenuePerpPerpScanTradableNotionalForOpp(ctx, s.execCfg, s.venues, opp)
+	highV := s.venues[opp.HighVenue]
+	lowV := s.venues[opp.LowVenue]
 	if ctx == nil || highV == nil || lowV == nil {
 		return tradableCap, nil
 	}
-	vsym := venue.Symbol(sym)
+	highSym := venue.Symbol(crossVenueOppHighSymbol(opp))
+	lowSym := venue.Symbol(crossVenueOppLowSymbol(opp))
 	fetchDepth := func(c context.Context, v venue.Venue, symbol venue.Symbol, limit int) (venue.Depth, error) {
 		return v.FetchDepth(c, venue.MarketPerp, symbol, limit)
 	}
-	highMid := crossVenuePerpPerpMidFromDepthOrBook(ctx, highV, vsym)
-	lowMid := crossVenuePerpPerpMidFromDepthOrBook(ctx, lowV, vsym)
-	slipLegs := crossVenuePerpPerpEVSlippageLegs(fetchDepth, ctx, highV, lowV, vsym, highMid, lowMid)
+	highMid := crossVenuePerpPerpMidFromDepthOrBook(ctx, highV, highSym)
+	lowMid := crossVenuePerpPerpMidFromDepthOrBook(ctx, lowV, lowSym)
+	slipLegs := crossVenuePerpPerpEVSlippageLegsPerSymbol(fetchDepth, ctx, highV, lowV, highSym, lowSym, highMid, lowMid)
 	return tradableCap, slipLegs
+}
+
+// crossVenuePerpPerpScanTradableNotionalForOpp 扫描期 perp-perp 可交易名义(每腿独立 symbol 拉 depth)。
+func crossVenuePerpPerpScanTradableNotionalForOpp(
+	ctx context.Context,
+	cfg CrossVenueExecutorConfig,
+	venues map[string]venue.Venue,
+	opp CrossVenueOpportunity,
+) float64 {
+	maxPos := cfg.MaxPositionUSDT
+	if maxPos <= 0 {
+		maxPos = 50
+	}
+	noDepthFactor := resolvedSizingConservativeNoDepthFactor(cfg)
+	if cfg.SizingMaxSlippageBps <= 0 && cfg.SizingMaxParticipationPct24h <= 0 {
+		return applyLiquiditySizingCap(maxPos, math.MaxFloat64, noDepthFactor)
+	}
+	highV := venues[opp.HighVenue]
+	lowV := venues[opp.LowVenue]
+	if ctx == nil || highV == nil || lowV == nil {
+		return applyLiquiditySizingCap(maxPos, math.MaxFloat64, noDepthFactor)
+	}
+	deps := crossVenueGateDeps{
+		fetchDepth: func(c context.Context, v venue.Venue, s venue.Symbol, limit int) (venue.Depth, error) {
+			return v.FetchDepth(c, venue.MarketPerp, s, limit)
+		},
+	}
+	liqCap := crossVenueGateLiquidityNotionalCapPerLeg(
+		ctx, cfg, deps, highV, lowV,
+		venue.Symbol(crossVenueOppHighSymbol(opp)),
+		venue.Symbol(crossVenueOppLowSymbol(opp)),
+	)
+	return applyLiquiditySizingCap(maxPos, liqCap, noDepthFactor)
+}
+
+// crossVenuePerpPerpNotionalClampCtxForOpp 扫描期名义网格对齐(每腿独立 symbol/instrument/mid)。
+func crossVenuePerpPerpNotionalClampCtxForOpp(ctx context.Context, venues map[string]venue.Venue, opp CrossVenueOpportunity, slipLegs []crossVenueEVSlippageLeg) perpPerpNotionalClampCtx {
+	out := perpPerpNotionalClampCtx{}
+	if ctx == nil || venues == nil {
+		return out
+	}
+	highV := venues[opp.HighVenue]
+	lowV := venues[opp.LowVenue]
+	if highV == nil || lowV == nil {
+		return out
+	}
+	highSym := venue.Symbol(crossVenueOppHighSymbol(opp))
+	lowSym := venue.Symbol(crossVenueOppLowSymbol(opp))
+	highInstr, okH := lookupVenueInstrument(ctx, highV, highSym)
+	lowInstr, okL := lookupVenueInstrument(ctx, lowV, lowSym)
+	if !okH || !okL {
+		return out
+	}
+	out.highInstr = highInstr
+	out.lowInstr = lowInstr
+	out.highCaps = highV.Capabilities()
+	out.lowCaps = lowV.Capabilities()
+	highMid := 0.0
+	lowMid := 0.0
+	if len(slipLegs) >= 2 {
+		highMid = slipLegs[0].RefMid
+		lowMid = slipLegs[1].RefMid
+	}
+	if highMid <= 0 {
+		highMid = crossVenuePerpPerpMidFromDepthOrBook(ctx, highV, highSym)
+	}
+	if lowMid <= 0 {
+		lowMid = crossVenuePerpPerpMidFromDepthOrBook(ctx, lowV, lowSym)
+	}
+	out.refMid = crossVenuePerpPerpRefMidFromLegMids(highMid, lowMid)
+	out.ok = highMid > 0 && lowMid > 0
+	if !out.ok {
+		return out
+	}
+	out.refMid = (highMid + lowMid) / 2
+	return out
+}
+
+func crossVenuePerpPerpRefMidFromLegMids(highMid, lowMid float64) float64 {
+	if highMid > 0 && lowMid > 0 {
+		return (highMid + lowMid) / 2
+	}
+	if highMid > 0 {
+		return highMid
+	}
+	return lowMid
+}
+
+func crossVenuePerpPerpEVSlippageLegsPerSymbol(
+	fetch func(context.Context, venue.Venue, venue.Symbol, int) (venue.Depth, error),
+	ctx context.Context,
+	highV, lowV venue.Venue,
+	highSym, lowSym venue.Symbol,
+	highMid, lowMid float64,
+) []crossVenueEVSlippageLeg {
+	if fetch == nil {
+		return nil
+	}
+	legs := []crossVenueEVSlippageLeg{
+		{Side: venue.SideSell, RefMid: highMid},
+		{Side: venue.SideBuy, RefMid: lowMid},
+		{Side: venue.SideBuy, RefMid: highMid},
+		{Side: venue.SideSell, RefMid: lowMid},
+	}
+	venues := []venue.Venue{highV, lowV, highV, lowV}
+	syms := []venue.Symbol{highSym, lowSym, highSym, lowSym}
+	for i := range legs {
+		if venues[i] == nil {
+			continue
+		}
+		if depth, err := fetch(ctx, venues[i], syms[i], crossVenueOpenSlippageDepthLimit); err == nil {
+			legs[i].Depth = &depth
+		}
+	}
+	return legs
+}
+
+// crossVenuePerpPerpSearchBestNotionalPerLeg 扫描期名义网格搜索(每腿 mid/instrument 对齐,跨计价安全)。
+func crossVenuePerpPerpSearchBestNotionalPerLeg(
+	cfg CrossVenueExecutorConfig,
+	opp CrossVenueOpportunity,
+	now time.Time,
+	evHigh, evLow, tradableCap float64,
+	slipLegs []crossVenueEVSlippageLeg,
+	clamp perpPerpNotionalClampCtx,
+) (CrossVenueOpportunity, float64) {
+	highMid, lowMid := crossVenueSlipLegMids(slipLegs)
+	if highMid <= 0 || lowMid <= 0 {
+		return crossVenuePerpPerpSearchBestNotional(cfg, opp, now, evHigh, evLow, tradableCap, slipLegs, clamp)
+	}
+	grid := []float64{25, 50, 75, 100, 150}
+	grid = appendPerpPerpNotionalGridPoint(grid, tradableCap)
+	best := math.Inf(-1)
+	var bestOpp CrossVenueOpportunity
+	var bestNotional float64
+	for _, n := range grid {
+		n = crossVenueClampNotionalPerLeg(n, opp, tradableCap, highMid, lowMid, clamp.highInstr, clamp.lowInstr, clamp.highCaps, clamp.lowCaps)
+		if n <= 0 {
+			continue
+		}
+		cand := opp
+		cand.TradableNotional = n
+		cand = crossVenueEstimateOpportunityMetricsEVRatesWithLegs(cfg, cand, now, evHigh, evLow, slipLegs)
+		if cand.NetEV > best {
+			best = cand.NetEV
+			bestOpp = cand
+			bestNotional = n
+		}
+	}
+	if math.IsInf(best, -1) {
+		fallback := crossVenueClampNotionalPerLeg(tradableCap, opp, tradableCap, highMid, lowMid, clamp.highInstr, clamp.lowInstr, clamp.highCaps, clamp.lowCaps)
+		if fallback <= 0 && tradableCap > 0 {
+			fallback = tradableCap
+		}
+		opp.TradableNotional = fallback
+		return crossVenueEstimateOpportunityMetricsEVRatesWithLegs(cfg, opp, now, evHigh, evLow, slipLegs), fallback
+	}
+	return bestOpp, bestNotional
+}
+
+func crossVenueSlipLegMids(slipLegs []crossVenueEVSlippageLeg) (highMid, lowMid float64) {
+	if len(slipLegs) >= 1 {
+		highMid = slipLegs[0].RefMid
+	}
+	if len(slipLegs) >= 2 {
+		lowMid = slipLegs[1].RefMid
+	}
+	return highMid, lowMid
 }
 
 // crossVenueOpportunitiesTopN 取已排序机会的前 N 条(仅面板展示;快照保留全量)。
@@ -1330,13 +1568,23 @@ func indexSnapshotsBySymbolRaw(byVenue map[string][]venue.FundingSnapshot) map[s
 			if sym == "" {
 				continue
 			}
+			pairKey, econBase, mult, multKnown := crossVenueEconomicPairKey(sym)
+			indexKey := pairKey
+			if !multKnown {
+				indexKey = sym
+			}
 			interval := snap.IntervalHours
 			if interval <= 0 {
 				interval = 8
 			}
 			rate := snap.LastFundingRate
-			out[sym] = append(out[sym], symbolVenueFunding{
+			out[indexKey] = append(out[indexKey], symbolVenueFunding{
 				Venue:            venueName,
+				CanonicalSymbol:  sym,
+				EconomicPairKey:  pairKey,
+				EconomicBase:     econBase,
+				Multiplier:       mult,
+				MultKnown:        multKnown,
 				FundingRate:      rate,
 				RawFundingRate:   rate,
 				AnnualizedAPR:    fundingAnnualizedAPR(rate, interval),

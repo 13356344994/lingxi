@@ -33,7 +33,8 @@ const (
 // CrossVenueLegState 是一条腿的成交快照。
 type CrossVenueLegState struct {
 	Venue      string   `json:"venue"`
-	Side       string   `json:"side"` // buy / sell
+	Symbol     string   `json:"symbol,omitempty"` // venue-canonical 下单 symbol;空则沿用持仓 Symbol
+	Side       string   `json:"side"`             // buy / sell
 	Qty        float64  `json:"qty"`
 	EntryPrice float64  `json:"entry_price"`
 	ExitPrice  float64  `json:"exit_price,omitempty"` // 平仓加权均价(生命周期内累加)
@@ -309,6 +310,19 @@ func crossVenuePositionBySymbol(ps []CrossVenuePosition, sym venue.Symbol) (Cros
 func normalizeCrossVenuePositions(ps []CrossVenuePosition) {
 	for i := range ps {
 		crossVenueEnsurePositionKey(&ps[i])
+		crossVenueEnsureLegSymbols(&ps[i])
+	}
+}
+
+func crossVenueEnsureLegSymbols(pos *CrossVenuePosition) {
+	if pos == nil {
+		return
+	}
+	if strings.TrimSpace(pos.HighLeg.Symbol) == "" {
+		pos.HighLeg.Symbol = pos.Symbol
+	}
+	if strings.TrimSpace(pos.LowLeg.Symbol) == "" {
+		pos.LowLeg.Symbol = pos.Symbol
 	}
 }
 
@@ -354,11 +368,12 @@ func crossVenueSamePosition(a, b CrossVenuePosition) bool {
 func crossVenueHasTrackedLeg(ps []CrossVenuePosition, venueName string, sym venue.Symbol) bool {
 	wantVenue := strings.TrimSpace(venueName)
 	for _, p := range activeCrossVenuePositions(ps) {
-		if !venueSymbolsMatch(venue.Symbol(p.Symbol), sym) {
-			continue
-		}
-		if strings.TrimSpace(p.HighVenue) == wantVenue || strings.TrimSpace(p.LowVenue) == wantVenue {
-			return true
+		if venueSymbolsMatch(venue.Symbol(p.Symbol), sym) ||
+			venueSymbolsMatch(venue.Symbol(crossVenuePositionHighSymbol(p)), sym) ||
+			venueSymbolsMatch(venue.Symbol(crossVenuePositionLowSymbol(p)), sym) {
+			if strings.TrimSpace(p.HighVenue) == wantVenue || strings.TrimSpace(p.LowVenue) == wantVenue {
+				return true
+			}
 		}
 	}
 	return false

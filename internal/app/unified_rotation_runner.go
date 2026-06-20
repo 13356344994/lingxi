@@ -1060,6 +1060,12 @@ func (r *UnifiedRotationRunner) defaultScanRotationCandidates(ctx context.Contex
 			if r.bindingForStrategy(UnifiedStrategyPerpPerp) == nil {
 				unified.CandidateOnly = true
 			}
+			// 安全闸:跨计价对(如 1000PEPE×PEPE,HighSymbol≠LowSymbol)开仓路径已支持 per-leg symbol,
+			// 但 cross_venue_manage 持仓管理/平仓/对账尚未全量 per-leg 化。在生命周期补完并复核前,
+			// 跨计价对仅作候选(诊断/排行可见、EV 可算),不自动开仓,避免开出无法正确管理的真仓。
+			if opp.HighSymbol != "" && opp.LowSymbol != "" && opp.HighSymbol != opp.LowSymbol {
+				unified.CandidateOnly = true
+			}
 			perpPerpCandidates = append(perpPerpCandidates, unified)
 			candidates = append(candidates, unified)
 		}
