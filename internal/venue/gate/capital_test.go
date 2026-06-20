@@ -3,6 +3,7 @@ package gate
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -82,18 +83,11 @@ func TestExecuteRebalanceGateFundsFuturesFromSpot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ExecuteRebalance: %v", err)
 	}
-	if len(got) != 1 || got[0].From != WalletSpot || got[0].To != WalletFutures || got[0].AssetUSDT != 100 {
-		t.Fatalf("应一笔 spot→futures 100, got %+v", got)
+	if len(got) != 1 || got[0].From != WalletSpot || got[0].To != WalletFutures || got[0].VenueRef != "unified-wallet-noop" {
+		t.Fatalf("统一账户应 no-op 成功, got %+v", got)
 	}
-	if len(*transfers) != 1 {
-		t.Fatalf("应发出 1 笔划转, got %d", len(*transfers))
-	}
-	tr := (*transfers)[0]
-	if tr["currency"] != "USDT" || tr["from"] != "spot" || tr["to"] != "futures" || tr["settle"] != "usdt" {
-		t.Errorf("划转体字段不符: %+v", tr)
-	}
-	if tr["amount"] != "100" {
-		t.Errorf("amount 应为 \"100\", got %v", tr["amount"])
+	if len(*transfers) != 0 {
+		t.Fatalf("统一账户不应调用旧 wallet/transfers, got %d calls", len(*transfers))
 	}
 }
 
@@ -104,15 +98,11 @@ func TestExecuteRebalanceGateReturnsExcessToSpot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ExecuteRebalance: %v", err)
 	}
-	if len(got) != 1 || got[0].From != WalletFutures || got[0].To != WalletSpot {
-		t.Fatalf("应一笔 futures→spot, got %+v", got)
+	if len(got) != 1 || got[0].From != WalletFutures || got[0].To != WalletSpot || got[0].VenueRef != "unified-wallet-noop" {
+		t.Fatalf("统一账户应 no-op 成功, got %+v", got)
 	}
-	if got[0].AssetUSDT != 20 {
-		t.Errorf("应回划 20, got %v", got[0].AssetUSDT)
-	}
-	tr := (*transfers)[0]
-	if tr["from"] != "futures" || tr["to"] != "spot" || tr["amount"] != "20" {
-		t.Errorf("回划体不符: %+v", tr)
+	if len(*transfers) != 0 {
+		t.Fatalf("统一账户不应调用旧 wallet/transfers, got %d calls", len(*transfers))
 	}
 }
 
@@ -159,9 +149,9 @@ func TestTransferWallet(t *testing.T) {
 		wantAmount string
 		wantErr    string
 	}{
-		{name: "spot_to_futures", from: "spot", to: "futures", amount: 12.5, wantCall: true, wantFrom: "spot", wantTo: "futures", wantAmount: "12.5"},
-		{name: "futures_to_spot", from: "futures", to: "spot", amount: 7.25, wantCall: true, wantFrom: "futures", wantTo: "spot", wantAmount: "7.25"},
-		{name: "trim_and_case", from: " FUTURES ", to: " spot ", amount: 3, wantCall: true, wantFrom: "futures", wantTo: "spot", wantAmount: "3"},
+		{name: "spot_to_futures", from: "spot", to: "futures", amount: 12.5, wantCall: false},
+		{name: "futures_to_spot", from: "futures", to: "spot", amount: 7.25, wantCall: false},
+		{name: "trim_and_case", from: " FUTURES ", to: " spot ", amount: 3, wantCall: false},
 		{name: "zero_noop", from: "spot", to: "futures", amount: 0},
 		{name: "negative_noop", from: "spot", to: "futures", amount: -1},
 		{name: "unsupported_margin", from: "spot", to: "margin", amount: 10, wantErr: "unsupported"},
@@ -233,5 +223,43 @@ func TestGateTransferWalletMapping(t *testing.T) {
 	}
 	if _, err := gateTransferWallet(venue.Wallet("funding")); err == nil {
 		t.Error("未知钱包应报错")
+	}
+}
+
+func TestGateUnifiedTransferNoOp(t *testing.T) {
+	transferCalled := false
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == pathWalletTransfers {
+			transferCalled = true
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = io.WriteString(w, `{"label":"PERPETUAL_CONTRACT_TRANSFER_USDT_EXCEPTION","message":"USDT Perpetual assets and positions have been migrated to the Unified Account. Please do not transfer USDT to the futures account."}`)
+			return
+		}
+		http.Error(w, "unexpected path "+r.URL.Path, http.StatusNotFound)
+	}))
+	t.Cleanup(srv.Close)
+	a, err := New(venue.Config{Name: VenueName, APIKey: "K", APISecret: "S", Extra: map[string]string{"base_url": srv.URL}})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	tr, err := a.transferUSDT(context.Background(), WalletSpot, WalletFutures, 100)
+	if err != nil {
+		t.Fatalf("transferUSDT unified no-op: %v", err)
+	}
+	if transferCalled {
+		t.Fatal("统一账户 proactive no-op 不应触网")
+	}
+	if tr.AssetUSDT != 0 || tr.VenueRef != "unified-wallet-noop" {
+		t.Fatalf("unexpected no-op transfer: %+v", tr)
+	}
+	if err := a.TransferWallet(context.Background(), "spot", "futures", 50); err != nil {
+		t.Fatalf("TransferWallet unified no-op: %v", err)
+	}
+}
+
+func TestGateUnifiedTransferNoOpErrorFallback(t *testing.T) {
+	err := fmt.Errorf(`gate: label=PERPETUAL_CONTRACT_TRANSFER_USDT_EXCEPTION message="USDT Perpetual assets and positions have been migrated to the Unified Account. Please do not transfer USDT to the futures account."`)
+	if !isGateUnifiedTransferNoOpError(err) {
+		t.Fatalf("expected unified transfer no-op error, got %v", err)
 	}
 }

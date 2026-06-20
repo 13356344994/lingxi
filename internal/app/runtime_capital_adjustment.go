@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"math"
@@ -219,6 +220,64 @@ func (e *FundingRateSniperEngine) captureRuntimeCapitalSnapshot(ctx context.Cont
 	return snapshot, nil
 }
 
+// isBinanceTransferOutLimitedError 识别币安全仓/账户「可转出上限」类拒绝(-3020 等),与真实故障(网络/权限)区分。
+func isBinanceTransferOutLimitedError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	if strings.Contains(msg, "-3020") ||
+		strings.Contains(msg, "transfer out amount exceeds max amount") ||
+		strings.Contains(msg, "exceeds max amount") ||
+		strings.Contains(msg, "可转出受限") {
+		return true
+	}
+	var reqErr signedRequestError
+	if errors.As(err, &reqErr) {
+		body := strings.ToLower(reqErr.Body)
+		if strings.Contains(body, "-3020") ||
+			strings.Contains(body, "transfer out amount exceeds max amount") ||
+			strings.Contains(body, "exceeds max amount") {
+			return true
+		}
+	}
+	return false
+}
+
+// transferUSDTAssetToleratingOutLimit 调仓路径专用:全仓转出超额时尽量部分归拢,零头转不出则 WARN 后继续。
+func (e *FundingRateSniperEngine) transferUSDTAssetToleratingOutLimit(ctx context.Context, transferType string, amount float64) (float64, error) {
+	actual, err := e.transferAssetBetweenAccounts(ctx, transferType, "USDT", amount)
+	if err == nil {
+		return actual, nil
+	}
+	if !isBinanceTransferOutLimitedError(err) {
+		return 0, err
+	}
+	if isCrossMarginTransferOut(transferType) {
+		maxTransferable, qerr := e.fetchCrossMarginMaxTransferableUSDT(ctx, "USDT")
+		if qerr == nil && maxTransferable > executionQtyTolerance {
+			// -3020 说明首次 cap 仍偏高,用更保守系数再试一次「能转多少转多少」。
+			retry := math.Floor(maxTransferable*0.99*1e8) / 1e8
+			if retry > executionQtyTolerance {
+				retryActual, retryErr := e.transferAssetBetweenAccounts(ctx, transferType, "USDT", retry)
+				if retryErr == nil && retryActual > executionQtyTolerance {
+					if e.logger != nil {
+						e.logger.Printf("WARN: 全仓 USDT 可转出受限 max=%.8f requested=%.8f actual=%.8f，剩余未归拢", maxTransferable, amount, retryActual)
+					}
+					return retryActual, nil
+				}
+				if retryErr != nil && !isBinanceTransferOutLimitedError(retryErr) {
+					return 0, retryErr
+				}
+			}
+		}
+	}
+	if e.logger != nil {
+		e.logger.Printf("WARN: %s USDT 可转出受限 requested=%.8f，剩余未归拢: %v", transferType, amount, err)
+	}
+	return 0, nil
+}
+
 func (e *FundingRateSniperEngine) transferUSDTBetweenCapitalAccounts(ctx context.Context, from string, to string, amount float64) ([]RuntimeCapitalTransfer, float64, error) {
 	amount = math.Floor(maxFloat(amount, 0)*1e8) / 1e8
 	if amount <= executionQtyTolerance || strings.TrimSpace(from) == strings.TrimSpace(to) {
@@ -235,7 +294,7 @@ func (e *FundingRateSniperEngine) transferUSDTBetweenCapitalAccounts(ctx context
 		if strings.TrimSpace(transferType) == "" {
 			return transfers, movedFromSource, fmt.Errorf("USDT 划转路径不完整: %s -> %s", from, to)
 		}
-		actual, err := e.transferAssetBetweenAccounts(ctx, transferType, "USDT", amount)
+		actual, err := e.transferUSDTAssetToleratingOutLimit(ctx, transferType, amount)
 		if err != nil {
 			return transfers, movedFromSource, err
 		}
@@ -378,6 +437,18 @@ func (e *FundingRateSniperEngine) AdjustTradingCapitalUSDT(ctx context.Context, 
 		}
 		transfers, actualMoved, err := e.transferUSDTBetweenCapitalAccounts(ctx, from, to, amount)
 		if err != nil {
+			// 兜底:单账户零头 dust 不应阻断其它账户归拢/分配。
+			if isBinanceTransferOutLimitedError(err) {
+				if e.logger != nil {
+					e.logger.Printf("WARN: %s→%s 可转出受限 requested=%.8f actual=%.8f，剩余未归拢", from, to, amount, actualMoved)
+				}
+				if actualMoved > executionQtyTolerance {
+					current[from] -= actualMoved
+					current[to] += actualMoved
+					allTransfers = append(allTransfers, transfers...)
+				}
+				return nil
+			}
 			return err
 		}
 		if actualMoved <= executionQtyTolerance {

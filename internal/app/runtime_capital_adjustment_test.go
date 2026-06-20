@@ -240,6 +240,87 @@ func TestAdjustTradingCapitalUSDTCapsCrossMarginTransferOut(t *testing.T) {
 	}
 }
 
+func TestBinanceDustTransferToleratedNotFatal(t *testing.T) {
+	spot := 0.0
+	futures := 100.0
+	margin := 0.02639549
+	funding := 70.0
+	marginMaxTransferable := 0.01491216
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/fapi/v1/time":
+			_, _ = w.Write([]byte(fmt.Sprintf(`{"serverTime":%d}`, time.Now().UnixMilli())))
+		case "/api/v3/exchangeInfo", "/fapi/v1/exchangeInfo":
+			_, _ = w.Write([]byte(`{"symbols":[]}`))
+		case "/api/v3/account":
+			_, _ = w.Write([]byte(`{"balances":[{"asset":"USDT","free":"` + formatFloat(spot) + `","locked":"0"}]}`))
+		case "/fapi/v3/account":
+			_, _ = w.Write([]byte(`{"assets":[{"asset":"USDT","walletBalance":"` + formatFloat(futures) + `","availableBalance":"` + formatFloat(futures) + `"}],"positions":[]}`))
+		case "/sapi/v1/margin/account":
+			_, _ = w.Write([]byte(`{"created":true,"borrowEnabled":true,"tradeEnabled":true,"transferInEnabled":true,"transferOutEnabled":true,"accountType":"MARGIN_1","TotalCollateralValueInUSDT":"0","totalNetAssetOfBtc":"0","totalLiabilityOfBtc":"0","userAssets":[{"asset":"USDT","borrowed":"0","free":"` + formatFloat(margin) + `","interest":"0","locked":"0","netAsset":"` + formatFloat(margin) + `"}]}`))
+		case "/sapi/v1/asset/get-funding-asset":
+			if r.Method != http.MethodPost {
+				t.Fatalf("unexpected funding asset method: %s", r.Method)
+			}
+			_, _ = w.Write([]byte(`[{"asset":"USDT","free":"` + formatFloat(funding) + `","locked":"0","freeze":"0","withdrawing":"0"}]`))
+		case binance.PathMarginMaxTransferable:
+			writeMarginMaxTransferable(w, marginMaxTransferable)
+		case "/sapi/v1/asset/transfer":
+			values, _ := url.ParseQuery(r.URL.RawQuery)
+			amount := parseFloat(values.Get("amount"))
+			switch values.Get("type") {
+			case "MARGIN_MAIN":
+				w.WriteHeader(http.StatusBadRequest)
+				_, _ = w.Write([]byte(`{"code":-3020,"msg":"Transfer out amount exceeds max amount."}`))
+			case "UMFUTURE_MAIN":
+				futures -= amount
+				spot += amount
+			case "MAIN_UMFUTURE":
+				spot -= amount
+				futures += amount
+			case "MAIN_FUNDING":
+				spot -= amount
+				funding += amount
+			default:
+				t.Fatalf("unexpected transfer type: %s", values.Get("type"))
+			}
+		default:
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	engine := &FundingRateSniperEngine{
+		client: exchange.NewClient(exchange.ClientConfig{
+			SpotBaseURL:    server.URL,
+			FuturesBaseURL: server.URL,
+			APIKey:         "demo-api-key",
+			SecretKey:      "demo-secret-key",
+			HTTPClient:     server.Client(),
+		}),
+		cfg:    DefaultEngineConfig(),
+		logger: log.New(io.Discard, "", 0),
+	}
+	engine.cfg.StrategyConfig.LiveFundingAsset = "USDT"
+
+	result, err := engine.AdjustTradingCapitalUSDT(context.Background(), 100)
+	if err != nil {
+		t.Fatalf("AdjustTradingCapitalUSDT() should tolerate dust -3020, got error = %v", err)
+	}
+	if got := result.After.CrossMarginFreeUSDT; got != margin {
+		t.Fatalf("expected cross margin dust left in place %.8f, got %.8f", margin, got)
+	}
+	if got := result.After.FuturesAvailableUSDT; got != 100 {
+		t.Fatalf("expected futures allocation to continue, got %.2f", got)
+	}
+	for _, transfer := range result.Transfers {
+		if transfer.TransferType == "MARGIN_MAIN" {
+			t.Fatalf("unexpected MARGIN_MAIN after -3020: %+v", transfer)
+		}
+	}
+}
+
 func TestAdjustTradingCapitalUSDTSkipsZeroCrossMarginTransferOut(t *testing.T) {
 	spot := 0.0
 	futures := 100.0

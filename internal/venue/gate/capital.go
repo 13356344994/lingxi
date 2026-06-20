@@ -54,10 +54,32 @@ func gateTransferWallet(w venue.Wallet) (string, error) {
 	}
 }
 
+func isSpotFuturesWalletTransfer(from, to venue.Wallet) bool {
+	return (from == WalletSpot && to == WalletFutures) || (from == WalletFutures && to == WalletSpot)
+}
+
+// isGateUnifiedTransferNoOpError 识别「USDT 永续已迁入统一账户、禁止旧 futures 划转」响应,视为无需搬动。
+func isGateUnifiedTransferNoOpError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "PERPETUAL_CONTRACT_TRANSFER_USDT_EXCEPTION") ||
+		strings.Contains(msg, "migrated to the Unified Account")
+}
+
+func gateUnifiedWalletNoOpTransfer(from, to venue.Wallet) venue.Transfer {
+	return venue.Transfer{From: from, To: to, AssetUSDT: 0, VenueRef: "unified-wallet-noop"}
+}
+
 // transferUSDT 在本 UID 的 spot↔futures 间划转 USDT。amount<=0 视为无操作。
 func (a *Adapter) transferUSDT(ctx context.Context, from, to venue.Wallet, amount float64) (venue.Transfer, error) {
 	if amount <= 0 {
 		return venue.Transfer{}, fmt.Errorf("gate: 划转金额必须为正, got %v", amount)
+	}
+	// 统一账户下 spot 与 USDT 永续余额已共享,旧 wallet/transfers 会报 PERPETUAL_CONTRACT_TRANSFER_USDT_EXCEPTION。
+	if a.Capabilities().UnifiedWallet && isSpotFuturesWalletTransfer(from, to) {
+		return gateUnifiedWalletNoOpTransfer(from, to), nil
 	}
 	fromW, err := gateTransferWallet(from)
 	if err != nil {
@@ -78,6 +100,9 @@ func (a *Adapter) transferUSDT(ctx context.Context, from, to venue.Wallet, amoun
 		ID string `json:"id"`
 	}
 	if err := a.t.signedPost(ctx, pathWalletTransfers, nil, body, &res); err != nil {
+		if isGateUnifiedTransferNoOpError(err) {
+			return gateUnifiedWalletNoOpTransfer(from, to), nil
+		}
 		return venue.Transfer{}, err
 	}
 	ref := "wallet-transfer"
