@@ -104,3 +104,28 @@
 2026/06/20 08:13:14 [统一轮动] 扫描完成 snapshot=cvsnap-20260620T074309.487191345 funding_symbols=150 candidates=582 (svsp=301 cvsp=0 svps=249 cvps=0 perp_perp=30)
 2026/06/20 08:33:24 [carry-funnel] cvsp symbols=150 no_spot_venues=34 no_perp_venues=28 no_best_perp=0 pair_skip_same_venue=67 pair_attempts=139 build_market=0 build_instrument=0 build_mid_dev=2 build_notional=4 build_margin_stress=0 build_hold_hours=0 build_settlements=0 build_funding_window=133 build_funding_ev=0 build_conf_sizing=0 build_not_borrowable=0 emitted=4 emitted_rejected=4 emitted_tradable=0
 2026/06/20 08:33:26 [统一轮动] 扫描完成 snapshot=cvsnap-20260620T080309.486976811 funding_symbols=150 candidates=612 (svsp=305 cvsp=4 svps=270 cvps=0 perp_perp=30)
+2026/06/20 08:49:44 [同所spot-perp] reconcile: venue=bybit 未登记 spot MNT-USDT≈18.431550
+2026/06/20 08:49:44 [critical][同所spot-perp] 同所spot-perp冷启动 flatten: 已对 1 条未登记腿执行 flatten ()
+2026/06/20 08:49:51 [跨所spot-perp] reconcile: venue=bybit 未登记 spot MNT-USDT≈18.431550
+2026/06/20 08:49:52 [下单] venue=bybit market=spot MNT-USDT side=sell price=0.5283 tick=0.0001 qty=18.43
+2026/06/20 08:49:52 [CRITICAL][跨所spot-perp] 跨所spot-perp冷启动 flatten: 已对 1 条未登记腿执行 flatten ()
+2026/06/20 09:19:34 [carry-funnel] cvsp symbols=150 no_spot_venues=49 no_perp_venues=32 no_best_perp=0 pair_skip_same_venue=42 pair_attempts=91 build_market=0 build_instrument=0 build_mid_dev=4 build_notional=0 build_margin_stress=0 build_hold_hours=0 build_settlements=0 build_funding_window=87 build_funding_ev=0 build_conf_sizing=0 build_not_borrowable=0 emitted=0 emitted_rejected=0 emitted_tradable=0
+2026/06/20 09:39:33 [carry-funnel] cvsp symbols=150 no_spot_venues=47 no_perp_venues=32 no_best_perp=0 pair_skip_same_venue=45 pair_attempts=86 build_market=0 build_instrument=0 build_mid_dev=3 build_notional=0 build_margin_stress=0 build_hold_hours=0 build_settlements=0 build_funding_window=83 build_funding_ev=0 build_conf_sizing=0 build_not_borrowable=0 emitted=0 emitted_rejected=0 emitted_tradable=0
+2026/06/20 09:51:48 [同所spot-perp] reconcile: venue=bybit 未登记 spot MNT-USDT≈18.431550
+2026/06/20 09:51:49 [carry-flatten] venue=bybit spot MNT-USDT≈18.431550 提交失败(bybit: retCode=170003 retMsg="An unknown parameter was sent.")，标记 flatten_submit_failed
+2026/06/20 09:51:49 [critical][同所spot-perp] 同所spot-perp冷启动 flatten: 已对 1 条未登记腿执行 flatten ()
+2026/06/20 10:05:06 [carry-entry-gate] MNT-USDT@bybit 缺费率波动样本,使用保守缩窗
+2026/06/20 10:05:06 [carry-entry-gate] MNTUSDT-31JUL26@bybit 缺费率波动样本,使用保守缩窗
+2026/06/20 10:05:06 [carry-entry-gate] MNTUSDT-03JUL26@bybit 缺费率波动样本,使用保守缩窗
+2026/06/20 10:05:06 [carry-entry-gate] MNTUSDT-26JUN26@bybit 缺费率波动样本,使用保守缩窗
+2026/06/20 10:05:06 [carry-entry-gate] MNTPERP@bybit 缺费率波动样本,使用保守缩窗
+2026/06/20 10:05:06 [carry-entry-gate] MNTUSDT-10JUL26@bybit 缺费率波动样本,使用保守缩窗
+2026/06/20 10:05:06 [carry-entry-gate] MNT-USDT@gate 缺费率波动样本,使用保守缩窗
+2026/06/20 10:05:06 [carry-funnel] cvsp symbols=150 no_spot_venues=53 no_perp_venues=34 no_best_perp=0 pair_skip_same_venue=38 pair_attempts=46 build_market=0 build_instrument=0 build_mid_dev=2 build_notional=44 build_margin_stress=0 build_hold_hours=0 build_settlements=0 build_funding_window=0 build_funding_ev=0 build_conf_sizing=0 build_not_borrowable=0 emitted=44 emitted_rejected=44 emitted_tradable=0
+2026/06/20 18:10:01 [同所spot-perp] reconcile: venue=bybit 未登记 spot MNT-USDT≈18.431550
+2026/06/20 18:10:01 [carry-flatten] venue=bybit spot MNT-USDT≈18.431550 提交失败(bybit: retCode=170003 retMsg="An unknown parameter was sent." path=/v5/order/create body={"category":"spot","symbol":"MNTUSDT","side":"Sell","orderType":"Limit","qty":"18.43","price":"0.5297","timeInForce":"IOC","orderLinkId":"svsp-reconcile-flat-MNT-USDT-1781950201488292781"})，标记 flatten_submit_failed
+2026/06/20 18:10:01 [critical][同所spot-perp] 同所spot-perp冷启动 flatten: 已对 1 条未登记腿执行 flatten ()
+2026/06/20 18:16:07 [同所spot-perp] reconcile: venue=bybit 未登记 spot MNT-USDT≈18.431550
+2026/06/20 18:16:08 [carry-flatten] venue=bybit spot MNT-USDT≈18.431550 IOC成交≈18.430000 仍有余量，标记 unresolved_orphan
+2026/06/20 18:16:08 [critical][同所spot-perp] 同所spot-perp冷启动 flatten: 已对 1 条未登记腿执行 flatten ()
+2026/06/20 18:33:13 [跨所扫描] 机会 MNT-USDT spread=5.5% high=gate(10.9%) low=bybit(5.4%)
