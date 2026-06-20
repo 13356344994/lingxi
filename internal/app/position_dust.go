@@ -640,14 +640,38 @@ func carryLegNotionalUSDT(ctx context.Context, venues map[string]venue.Venue, le
 }
 
 // carryLegStillPresent 结合 IOC ExecutedQty 与重拉余额/持仓双重判断残腿是否仍在。
+// 成交后的取整零头(剩余名义 < dust 阈值)视为已清,不算材料级残腿(避免把卖光后的步进零头误标 unresolved)。
 func carryLegStillPresent(ctx context.Context, venues map[string]venue.Venue, leg carryUntrackedLeg, executedQty float64) bool {
-	if leg.Qty-executedQty > executionQtyTolerance {
+	floor := carryLegDustQtyFloor(ctx, venues, leg)
+	if leg.Qty-executedQty > floor {
 		return true
 	}
-	return carryLegBalanceStillPresent(ctx, venues, leg)
+	return carryLegBalanceStillPresent(ctx, venues, leg, floor)
 }
 
-func carryLegBalanceStillPresent(ctx context.Context, venues map[string]venue.Venue, leg carryUntrackedLeg) bool {
+// carryLegDustQtyFloor 把 dust 名义阈值($)换算成该腿的数量阈值;无法定价时退回裸 tolerance。
+func carryLegDustQtyFloor(ctx context.Context, venues map[string]venue.Venue, leg carryUntrackedLeg) float64 {
+	if leg.Qty <= 0 {
+		return executionQtyTolerance
+	}
+	notional := carryLegNotionalUSDT(ctx, venues, leg)
+	if notional <= 0 {
+		return executionQtyTolerance
+	}
+	pricePerUnit := notional / leg.Qty
+	if pricePerUnit <= 0 {
+		return executionQtyTolerance
+	}
+	if dustQty := defaultDustCloseThresholdUSDT / pricePerUnit; dustQty > executionQtyTolerance {
+		return dustQty
+	}
+	return executionQtyTolerance
+}
+
+func carryLegBalanceStillPresent(ctx context.Context, venues map[string]venue.Venue, leg carryUntrackedLeg, floor float64) bool {
+	if floor < executionQtyTolerance {
+		floor = executionQtyTolerance
+	}
 	v := venues[leg.Venue]
 	if v == nil {
 		return true
@@ -662,12 +686,12 @@ func carryLegBalanceStillPresent(ctx context.Context, venues map[string]venue.Ve
 		base := baseAssetFromCanonicalSymbol(leg.Symbol)
 		switch leg.Side {
 		case venue.SideSell:
-			if b, ok := bal.ByAsset[base]; ok && b.Free > executionQtyTolerance {
+			if b, ok := bal.ByAsset[base]; ok && b.Free > floor {
 				return true
 			}
 			return false
 		case venue.SideBuy:
-			return marginShortQtyFromBalance(bal, base) > executionQtyTolerance
+			return marginShortQtyFromBalance(bal, base) > floor
 		default:
 			return true
 		}
@@ -679,11 +703,11 @@ func carryLegBalanceStillPresent(ctx context.Context, venues map[string]venue.Ve
 		amt := perpPositionQty(positions, sym)
 		switch leg.Side {
 		case venue.SideBuy:
-			return amt < -executionQtyTolerance
+			return amt < -floor
 		case venue.SideSell:
-			return amt > executionQtyTolerance
+			return amt > floor
 		default:
-			return absQty(amt) > executionQtyTolerance
+			return absQty(amt) > floor
 		}
 	default:
 		return true
