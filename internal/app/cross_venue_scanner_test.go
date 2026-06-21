@@ -1032,3 +1032,271 @@ func TestCrossVenueResolveNextFundingTime(t *testing.T) {
 		t.Fatalf("default interval: got=%s want %s", got, now.Add(8*time.Hour))
 	}
 }
+
+// fakeInstrumentFundingVenue 可定制 FetchInstruments + FetchFundingSnapshot,用于幽灵腿过滤单测。
+type fakeInstrumentFundingVenue struct {
+	fakeFundingVenue
+	instruments []venue.Instrument
+	instrErr    error
+	instrCalls  int
+}
+
+func (f *fakeInstrumentFundingVenue) FetchInstruments(context.Context) ([]venue.Instrument, error) {
+	f.instrCalls++
+	if f.instrErr != nil {
+		return nil, f.instrErr
+	}
+	return f.instruments, nil
+}
+
+func perpInstrument(sym string, nonTrading bool) venue.Instrument {
+	return venue.Instrument{
+		Symbol:     venue.Symbol(sym),
+		Market:     venue.MarketPerp,
+		NonTrading: nonTrading,
+	}
+}
+
+func TestCrossVenueScannerFilterGhostFundingSnapshots(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 6, 21, 12, 0, 0, 0, time.UTC)
+	nextFunding := now.Add(2 * time.Hour)
+
+	t.Run("drops symbol not in instruments list", func(t *testing.T) {
+		t.Parallel()
+		binanceVenue := &fakeInstrumentFundingVenue{
+			fakeFundingVenue: fakeFundingVenue{name: binance.VenueName},
+			instruments: []venue.Instrument{
+				perpInstrument("BTC-USDT", false),
+			},
+		}
+		byVenue := map[string][]venue.FundingSnapshot{
+			binance.VenueName: {
+				{Symbol: "BTC-USDT", LastFundingRate: 0.001, IntervalHours: 8, NextFundingTime: nextFunding},
+				{Symbol: "WAVES-USDT", LastFundingRate: 0, IntervalHours: 8, NextFundingTime: nextFunding},
+			},
+		}
+		s := &CrossVenueScanner{
+			venues: map[string]venue.Venue{binance.VenueName: binanceVenue},
+			logger: log.New(io.Discard, "", 0),
+			nowFn:  func() time.Time { return now },
+		}
+		got := s.filterGhostFundingSnapshots(context.Background(), byVenue)
+		if len(got[binance.VenueName]) != 1 {
+			t.Fatalf("binance snaps=%d want 1 (WAVES ghost dropped)", len(got[binance.VenueName]))
+		}
+		if got[binance.VenueName][0].Symbol != "BTC-USDT" {
+			t.Fatalf("kept symbol=%s want BTC-USDT", got[binance.VenueName][0].Symbol)
+		}
+	})
+
+	t.Run("drops NonTrading instrument", func(t *testing.T) {
+		t.Parallel()
+		binanceVenue := &fakeInstrumentFundingVenue{
+			fakeFundingVenue: fakeFundingVenue{name: binance.VenueName},
+			instruments: []venue.Instrument{
+				perpInstrument("BTC-USDT", false),
+				perpInstrument("WAVES-USDT", true),
+			},
+		}
+		byVenue := map[string][]venue.FundingSnapshot{
+			binance.VenueName: {
+				{Symbol: "BTC-USDT", LastFundingRate: 0.001, IntervalHours: 8, NextFundingTime: nextFunding},
+				{Symbol: "WAVES-USDT", LastFundingRate: 0, IntervalHours: 8, NextFundingTime: nextFunding},
+			},
+		}
+		s := &CrossVenueScanner{
+			venues: map[string]venue.Venue{binance.VenueName: binanceVenue},
+			logger: log.New(io.Discard, "", 0),
+			nowFn:  func() time.Time { return now },
+		}
+		got := s.filterGhostFundingSnapshots(context.Background(), byVenue)
+		if len(got[binance.VenueName]) != 1 || got[binance.VenueName][0].Symbol != "BTC-USDT" {
+			t.Fatalf("NonTrading WAVES should be dropped: %+v", got[binance.VenueName])
+		}
+	})
+
+	t.Run("keeps tradable symbol", func(t *testing.T) {
+		t.Parallel()
+		binanceVenue := &fakeInstrumentFundingVenue{
+			fakeFundingVenue: fakeFundingVenue{name: binance.VenueName},
+			instruments: []venue.Instrument{
+				perpInstrument("BTC-USDT", false),
+			},
+		}
+		byVenue := map[string][]venue.FundingSnapshot{
+			binance.VenueName: {
+				{Symbol: "BTC-USDT", LastFundingRate: 0.001, IntervalHours: 8, NextFundingTime: nextFunding},
+			},
+		}
+		s := &CrossVenueScanner{
+			venues: map[string]venue.Venue{binance.VenueName: binanceVenue},
+			logger: log.New(io.Discard, "", 0),
+			nowFn:  func() time.Time { return now },
+		}
+		got := s.filterGhostFundingSnapshots(context.Background(), byVenue)
+		if len(got[binance.VenueName]) != 1 {
+			t.Fatalf("tradable BTC-USDT should be kept, got %d snaps", len(got[binance.VenueName]))
+		}
+	})
+
+	t.Run("fail-open when FetchInstruments errors", func(t *testing.T) {
+		t.Parallel()
+		binanceVenue := &fakeInstrumentFundingVenue{
+			fakeFundingVenue: fakeFundingVenue{name: binance.VenueName},
+			instrErr:         errors.New("instrument API down"),
+		}
+		byVenue := map[string][]venue.FundingSnapshot{
+			binance.VenueName: {
+				{Symbol: "WAVES-USDT", LastFundingRate: 0, IntervalHours: 8, NextFundingTime: nextFunding},
+			},
+		}
+		s := &CrossVenueScanner{
+			venues: map[string]venue.Venue{binance.VenueName: binanceVenue},
+			logger: log.New(io.Discard, "", 0),
+			nowFn:  func() time.Time { return now },
+		}
+		got := s.filterGhostFundingSnapshots(context.Background(), byVenue)
+		if len(got[binance.VenueName]) != 1 {
+			t.Fatalf("fail-open should keep all funding, got %d snaps", len(got[binance.VenueName]))
+		}
+	})
+
+	t.Run("filter only affects venue missing symbol", func(t *testing.T) {
+		t.Parallel()
+		binanceVenue := &fakeInstrumentFundingVenue{
+			fakeFundingVenue: fakeFundingVenue{name: binance.VenueName},
+			instruments: []venue.Instrument{
+				perpInstrument("BTC-USDT", false),
+			},
+		}
+		bybitVenue := &fakeInstrumentFundingVenue{
+			fakeFundingVenue: fakeFundingVenue{name: bybit.VenueName},
+			instruments: []venue.Instrument{
+				perpInstrument("WAVES-USDT", false),
+			},
+		}
+		byVenue := map[string][]venue.FundingSnapshot{
+			binance.VenueName: {
+				{Symbol: "WAVES-USDT", LastFundingRate: 0, IntervalHours: 8, NextFundingTime: nextFunding},
+				{Symbol: "BTC-USDT", LastFundingRate: 0.001, IntervalHours: 8, NextFundingTime: nextFunding},
+			},
+			bybit.VenueName: {
+				{Symbol: "WAVES-USDT", LastFundingRate: -0.0118, IntervalHours: 8, NextFundingTime: nextFunding},
+			},
+		}
+		s := &CrossVenueScanner{
+			venues: map[string]venue.Venue{
+				binance.VenueName: binanceVenue,
+				bybit.VenueName:   bybitVenue,
+			},
+			logger: log.New(io.Discard, "", 0),
+			nowFn:  func() time.Time { return now },
+		}
+		got := s.filterGhostFundingSnapshots(context.Background(), byVenue)
+		for _, snap := range got[binance.VenueName] {
+			if snap.Symbol == "WAVES-USDT" {
+				t.Fatal("binance WAVES ghost should be filtered")
+			}
+		}
+		if len(got[binance.VenueName]) != 1 || got[binance.VenueName][0].Symbol != "BTC-USDT" {
+			t.Fatalf("binance kept=%+v want only BTC-USDT", got[binance.VenueName])
+		}
+		if len(got[bybit.VenueName]) != 1 || got[bybit.VenueName][0].Symbol != "WAVES-USDT" {
+			t.Fatalf("bybit WAVES should remain: %+v", got[bybit.VenueName])
+		}
+	})
+}
+
+func TestCrossVenueScannerGhostFilterRemovesFakeWAVESOpportunity(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 6, 21, 12, 0, 0, 0, time.UTC)
+	nextFunding := now.Add(2 * time.Hour)
+	dir := t.TempDir()
+	binanceVenue := &fakeInstrumentFundingVenue{
+		fakeFundingVenue: fakeFundingVenue{
+			name: binance.VenueName,
+			snaps: []venue.FundingSnapshot{
+				{Symbol: "WAVES-USDT", LastFundingRate: 0, IntervalHours: 8, NextFundingTime: nextFunding},
+			},
+		},
+		instruments: []venue.Instrument{
+			perpInstrument("BTC-USDT", false),
+		},
+	}
+	bybitVenue := &fakeInstrumentFundingVenue{
+		fakeFundingVenue: fakeFundingVenue{
+			name: bybit.VenueName,
+			snaps: []venue.FundingSnapshot{
+				{Symbol: "WAVES-USDT", LastFundingRate: -0.0118, IntervalHours: 8, NextFundingTime: nextFunding},
+			},
+		},
+		instruments: []venue.Instrument{
+			perpInstrument("WAVES-USDT", false),
+		},
+	}
+	s := &CrossVenueScanner{
+		cfg: CrossVenueScannerConfig{
+			Enabled:      true,
+			MinSpreadAPR: 0.01,
+			TopN:         10,
+		},
+		recordDir: dir,
+		venues: map[string]venue.Venue{
+			binance.VenueName: binanceVenue,
+			bybit.VenueName:   bybitVenue,
+			okx.VenueName:     &fakeFundingVenue{name: okx.VenueName, err: errors.New("skip")},
+			gate.VenueName:    &fakeFundingVenue{name: gate.VenueName, err: errors.New("skip")},
+		},
+		logger:         log.New(io.Discard, "", 0),
+		nowFn:          func() time.Time { return now },
+		fetchVenue:     defaultFetchVenueSnapshot,
+		fundingHistory: make(map[string]map[string][]float64),
+	}
+	s.scanOnce(context.Background())
+	for _, opp := range s.Snapshot().Opportunities {
+		if opp.Symbol == "WAVES-USDT" {
+			t.Fatalf("WAVES ghost pair should not appear in opportunities: %+v", opp)
+		}
+	}
+	if _, ok := s.Snapshot().FundingByVenue[binance.VenueName]["WAVES-USDT"]; ok {
+		t.Fatal("binance WAVES ghost should not be in FundingByVenue index")
+	}
+	if _, ok := s.Snapshot().FundingByVenue[bybit.VenueName]["WAVES-USDT"]; !ok {
+		t.Fatal("bybit WAVES should remain in FundingByVenue index")
+	}
+}
+
+func TestCrossVenueScannerTradableInstrumentsCacheTTL(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 6, 21, 12, 0, 0, 0, time.UTC)
+	binanceVenue := &fakeInstrumentFundingVenue{
+		fakeFundingVenue: fakeFundingVenue{name: binance.VenueName},
+		instruments: []venue.Instrument{
+			perpInstrument("BTC-USDT", false),
+		},
+	}
+	s := &CrossVenueScanner{
+		cfg: CrossVenueScannerConfig{ScanIntervalMinutes: 10},
+		venues: map[string]venue.Venue{
+			binance.VenueName: binanceVenue,
+		},
+		logger: log.New(io.Discard, "", 0),
+		nowFn:  func() time.Time { return now },
+	}
+	byVenue := map[string][]venue.FundingSnapshot{
+		binance.VenueName: {
+			{Symbol: "BTC-USDT", LastFundingRate: 0.001, IntervalHours: 8},
+		},
+	}
+	s.filterGhostFundingSnapshots(context.Background(), byVenue)
+	s.filterGhostFundingSnapshots(context.Background(), byVenue)
+	if binanceVenue.instrCalls != 1 {
+		t.Fatalf("FetchInstruments calls=%d want 1 (cached within TTL)", binanceVenue.instrCalls)
+	}
+	s.nowFn = func() time.Time { return now.Add(11 * time.Minute) }
+	s.filterGhostFundingSnapshots(context.Background(), byVenue)
+	if binanceVenue.instrCalls != 2 {
+		t.Fatalf("FetchInstruments calls=%d want 2 after TTL expiry", binanceVenue.instrCalls)
+	}
+}

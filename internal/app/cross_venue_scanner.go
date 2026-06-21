@@ -32,6 +32,8 @@ const (
 	crossVenueSpreadSanityCap = 50.0
 	// crossVenueExtremeSpreadMarkAPR 超过此阈值标记 ExtremeSpread(审计),不再整条丢弃。
 	crossVenueExtremeSpreadMarkAPR = 2.0
+	// crossVenueTradableInstrumentsCacheTTL instrument 缓存 TTL;与默认扫描周期对齐,避免一轮内重复拉。
+	crossVenueTradableInstrumentsCacheTTL = 10 * time.Minute
 )
 
 // crossVenueNames 扫描目标所(固定四所)。
@@ -197,6 +199,12 @@ type CrossVenueScanner struct {
 	// fundingHistory 滚动费率历史 venue → symbol → 最近若干次原始 LastFundingRate(并发:scanOnce 写,compute 读)。
 	fundingHistoryMu sync.Mutex
 	fundingHistory   map[string]map[string][]float64
+
+	// tradablePerp* 各所可交易永续 symbol 缓存(幽灵资费腿过滤用);FetchInstruments 失败时 fail-open 跳过该所。
+	tradablePerpMu        sync.Mutex
+	tradablePerpFetchedAt time.Time
+	tradablePerpSymbols   map[string]map[string]struct{} // venue → canonical symbol set
+	tradablePerpSkip      map[string]bool                // venue → true 表示 instrument 不可用,不过滤
 }
 
 // crossVenueBorrowKnownFreshness 返回借币 known-available 记忆窗口(来自 scanner 配置)。
@@ -387,6 +395,7 @@ func (s *CrossVenueScanner) Snapshot() CrossVenueScanSnapshot {
 func (s *CrossVenueScanner) scanOnce(ctx context.Context) {
 	start := s.nowFn()
 	snapshots, statuses := s.fetchAllVenues(ctx)
+	snapshots = s.filterGhostFundingSnapshots(ctx, snapshots)
 	s.recordFundingHistory(snapshots)
 	opps := s.computeCrossVenueOpportunities(ctx, snapshots)
 	snapshotID := crossVenueSnapshotID(start)
@@ -781,6 +790,105 @@ func defaultFetchVenueSnapshot(ctx context.Context, _ string, adp venue.Venue) (
 		return nil, fmt.Errorf("适配器为空")
 	}
 	return adp.FetchFundingSnapshot(ctx)
+}
+
+func crossVenueTradableInstrumentsCacheDuration(cfg CrossVenueScannerConfig) time.Duration {
+	if cfg.ScanIntervalMinutes > 0 {
+		return time.Duration(cfg.ScanIntervalMinutes) * time.Minute
+	}
+	return crossVenueTradableInstrumentsCacheTTL
+}
+
+// refreshTradablePerpCacheIfNeeded 拉取/刷新各所可交易永续 symbol 集合(TTL 内复用缓存)。
+func (s *CrossVenueScanner) refreshTradablePerpCacheIfNeeded(ctx context.Context) {
+	if s == nil {
+		return
+	}
+	now := s.nowFn()
+	ttl := crossVenueTradableInstrumentsCacheDuration(s.cfg)
+	s.tradablePerpMu.Lock()
+	defer s.tradablePerpMu.Unlock()
+	if !s.tradablePerpFetchedAt.IsZero() && now.Sub(s.tradablePerpFetchedAt) < ttl {
+		return
+	}
+	s.tradablePerpSymbols = make(map[string]map[string]struct{}, len(s.venues))
+	s.tradablePerpSkip = make(map[string]bool, len(s.venues))
+	for venueName, adp := range s.venues {
+		if adp == nil {
+			s.tradablePerpSkip[venueName] = true
+			continue
+		}
+		instruments, err := adp.FetchInstruments(ctx)
+		if err != nil || len(instruments) == 0 {
+			s.tradablePerpSkip[venueName] = true
+			if s.logger != nil {
+				if err != nil {
+					s.logger.Printf("[跨所扫描] venue=%s instrument 不可用,跳过幽灵过滤(fail-open): %v", venueName, err)
+				} else {
+					s.logger.Printf("[跨所扫描] venue=%s instrument 为空,跳过幽灵过滤(fail-open)", venueName)
+				}
+			}
+			continue
+		}
+		set := make(map[string]struct{})
+		for _, instr := range instruments {
+			if instr.Market != venue.MarketPerp || instr.NonTrading {
+				continue
+			}
+			sym := string(instr.Symbol)
+			if sym == "" {
+				continue
+			}
+			set[sym] = struct{}{}
+		}
+		if len(set) == 0 {
+			s.tradablePerpSkip[venueName] = true
+			if s.logger != nil {
+				s.logger.Printf("[跨所扫描] venue=%s 无可交易永续 instrument,跳过幽灵过滤(fail-open)", venueName)
+			}
+			continue
+		}
+		s.tradablePerpSymbols[venueName] = set
+	}
+	s.tradablePerpFetchedAt = now
+}
+
+// filterGhostFundingSnapshots 用各所可交易永续集合过滤 premiumIndex 等接口漏入的下架/幽灵 symbol。
+// FetchInstruments 失败/空时对该所 fail-open(保留全部 funding),开仓闸 instrument 查询仍为最终兜底。
+func (s *CrossVenueScanner) filterGhostFundingSnapshots(ctx context.Context, byVenue map[string][]venue.FundingSnapshot) map[string][]venue.FundingSnapshot {
+	if s == nil || len(byVenue) == 0 {
+		return byVenue
+	}
+	s.refreshTradablePerpCacheIfNeeded(ctx)
+	out := make(map[string][]venue.FundingSnapshot, len(byVenue))
+	for venueName, snaps := range byVenue {
+		s.tradablePerpMu.Lock()
+		skip := s.tradablePerpSkip[venueName]
+		allowed := s.tradablePerpSymbols[venueName]
+		s.tradablePerpMu.Unlock()
+		if skip || allowed == nil {
+			out[venueName] = snaps
+			continue
+		}
+		filtered := make([]venue.FundingSnapshot, 0, len(snaps))
+		dropped := 0
+		for _, snap := range snaps {
+			sym := string(snap.Symbol)
+			if sym == "" {
+				continue
+			}
+			if _, ok := allowed[sym]; !ok {
+				dropped++
+				continue
+			}
+			filtered = append(filtered, snap)
+		}
+		if dropped > 0 && s.logger != nil {
+			s.logger.Printf("[跨所扫描] 资费幽灵腿过滤: venue=%s 丢弃 %d 个非交易 symbol", venueName, dropped)
+		}
+		out[venueName] = filtered
+	}
+	return out
 }
 
 // fundingAnnualizedAPR 把单次结算费率按真实 interval 折算为年化(8760h/年)。
