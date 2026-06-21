@@ -195,8 +195,26 @@ func fundingCaptureExpectedOneSettlement(totalExpected float64, hold time.Durati
 	return totalExpected / float64(settlements)
 }
 
+func crossVenueSettlementCaptureIntervalHours(rec CrossVenueSettlement) int {
+	interval := 0
+	if rec.HighIntervalHours > 0 {
+		if interval == 0 || rec.HighIntervalHours < interval {
+			interval = rec.HighIntervalHours
+		}
+	}
+	if rec.LowIntervalHours > 0 {
+		if interval == 0 || rec.LowIntervalHours < interval {
+			interval = rec.LowIntervalHours
+		}
+	}
+	if interval <= 0 {
+		return defaultFundingCaptureIntervalHours
+	}
+	return interval
+}
+
 func crossVenueSettlementCaptureSample(rec CrossVenueSettlement) (fundingCaptureSample, bool) {
-	interval := defaultFundingCaptureIntervalHours
+	interval := crossVenueSettlementCaptureIntervalHours(rec)
 	if !settlementHeldThroughFirstFunding(rec.OpenTime, rec.CloseTime, interval) {
 		return fundingCaptureSample{}, false
 	}

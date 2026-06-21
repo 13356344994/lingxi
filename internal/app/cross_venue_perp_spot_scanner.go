@@ -60,19 +60,19 @@ func DefaultCrossVenuePerpSpotScannerConfig(exec CrossVenueExecutorConfig) Cross
 
 // CrossVenuePerpSpotScanInput 是纯函数扫描器输入。
 type CrossVenuePerpSpotScanInput struct {
-	SnapshotID             string
-	Now                    time.Time
-	Symbols                []string
-	FundingByVenue         map[string]map[string]CrossVenuePerpSpotFundingSnap
-	MarketsByVenue         map[string]map[string]CrossVenuePerpSpotMarketSnap
-	AvailableUSDTByVenue   map[string]float64
-	BorrowDailyRateByAsset map[string]float64
-	BorrowLimitUSDTByAsset map[string]float64
-	BorrowKnownAvailable   *BorrowKnownAvailableRegistry
+	SnapshotID                        string
+	Now                               time.Time
+	Symbols                           []string
+	FundingByVenue                    map[string]map[string]CrossVenuePerpSpotFundingSnap
+	MarketsByVenue                    map[string]map[string]CrossVenuePerpSpotMarketSnap
+	AvailableUSDTByVenue              map[string]float64
+	BorrowDailyRateByAsset            map[string]float64
+	BorrowLimitUSDTByAsset            map[string]float64
+	BorrowKnownAvailable              *BorrowKnownAvailableRegistry
 	BorrowDefaultDailyRateWhenUnknown float64
-	BorrowDisabledVenues   map[string]struct{}
-	Config                 CrossVenuePerpSpotScannerConfig
-	FundingRateVolPerHourByVenue map[string]map[string]float64
+	BorrowDisabledVenues              map[string]struct{}
+	Config                            CrossVenuePerpSpotScannerConfig
+	FundingRateVolPerHourByVenue      map[string]map[string]float64
 }
 
 // ScanCrossVenuePerpSpotOpportunities 扫描跨所 perp-spot 负 carry 机会(纯函数, plan-only)。
@@ -452,6 +452,7 @@ func buildCrossVenuePerpSpotOpportunity(
 		ExpectedBorrowCostUSDT:   borrowCost,
 		ExpectedRollbackCostUSDT: rebalancePenalty,
 		ExpectedNetEVUSDT:        netEV,
+		OpenEligibleNow:          true,
 		ExpectedHoldHours:        holdHours,
 		CapitalRequiredByVenue: map[string]float64{
 			spotVenue: spotMarginRequired,

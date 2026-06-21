@@ -61,6 +61,62 @@ func TestCrossVenueSettlementCaptureSampleIncludesHeldThroughFunding(t *testing.
 	}
 }
 
+func TestCrossVenueSettlementCaptureSampleOneHourIntervalQualifiesShortHold(t *testing.T) {
+	open := time.Date(2026, 6, 21, 10, 0, 0, 0, time.UTC)
+	rec := CrossVenueSettlement{
+		OpenTime:          open,
+		CloseTime:         open.Add(90 * time.Minute),
+		EstimatedFunding:  1.0,
+		RealizedFunding:   0.5,
+		HighIntervalHours: 4,
+		LowIntervalHours:  1,
+	}
+	sample, ok := crossVenueSettlementCaptureSample(rec)
+	if !ok {
+		t.Fatal("expected 1.5h hold on 1h-interval leg to qualify as valid capture sample")
+	}
+	if sample.FundingIntervalHours != 1 {
+		t.Fatalf("expected smallest leg interval 1h, got %d", sample.FundingIntervalHours)
+	}
+}
+
+func TestCrossVenueSettlementCaptureSampleOneHourIntervalRejectsSubIntervalHold(t *testing.T) {
+	open := time.Date(2026, 6, 21, 10, 0, 0, 0, time.UTC)
+	rec := CrossVenueSettlement{
+		OpenTime:          open,
+		CloseTime:         open.Add(30 * time.Minute),
+		EstimatedFunding:  1.0,
+		RealizedFunding:   0.5,
+		HighIntervalHours: 4,
+		LowIntervalHours:  1,
+	}
+	if _, ok := crossVenueSettlementCaptureSample(rec); ok {
+		t.Fatal("expected 0.5h hold to be rejected for 1h-interval leg")
+	}
+}
+
+func TestCrossVenueSettlementCaptureSampleMissingIntervalFallsBackToEightHours(t *testing.T) {
+	open := time.Date(2026, 6, 21, 10, 0, 0, 0, time.UTC)
+	short := CrossVenueSettlement{
+		OpenTime:         open,
+		CloseTime:        open.Add(90 * time.Minute),
+		EstimatedFunding: 1.0,
+		RealizedFunding:  0.5,
+	}
+	if _, ok := crossVenueSettlementCaptureSample(short); ok {
+		t.Fatal("expected legacy 8h fallback to reject sub-8h hold when interval missing")
+	}
+	long := CrossVenueSettlement{
+		OpenTime:         open,
+		CloseTime:        open.Add(9 * time.Hour),
+		EstimatedFunding: 2.0,
+		RealizedFunding:  0.8,
+	}
+	if _, ok := crossVenueSettlementCaptureSample(long); !ok {
+		t.Fatal("expected legacy 8h fallback to accept 9h hold when interval missing")
+	}
+}
+
 func TestEstimateFundingCaptureProbabilityForStrategyAggregates(t *testing.T) {
 	samples := []fundingCaptureSample{
 		{StrategyType: UnifiedStrategyPerpPerp, ExpectedFundingUSDT: 1, RealizedFundingUSDT: 0.2},

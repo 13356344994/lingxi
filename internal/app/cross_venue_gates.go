@@ -411,6 +411,25 @@ func crossVenuePerpFeeBps(cfg CrossVenueExecutorConfig, venueName string) float6
 }
 
 func crossVenueOpenEVHoldHours(cfg CrossVenueExecutorConfig, now time.Time, opp CrossVenueOpportunity, comparableWindowHours float64) float64 {
+	if cfg.NearTermOpenEVHorizonEnabled {
+		window := comparableWindowHours
+		if window <= 0 {
+			window = crossVenueComparableWindowHours(now, opp.HighNextFundingTime, opp.LowNextFundingTime)
+		}
+		if window <= 0 && opp.ComparableWindowHours > 0 {
+			window = opp.ComparableWindowHours
+		}
+		if window > 0 {
+			return window
+		}
+		if cfg.ExpectedHoldHours > 0 {
+			return cfg.ExpectedHoldHours
+		}
+		if opp.ExpectedHoldHours > 0 {
+			return opp.ExpectedHoldHours
+		}
+		return 0
+	}
 	if cfg.ExpectedHoldHours > 0 {
 		return cfg.ExpectedHoldHours
 	}
@@ -626,6 +645,68 @@ func crossVenueResolvedOpenFundingLeadSeconds(cfg CrossVenueExecutorConfig) int 
 		return cfg.OpenFundingLeadSeconds
 	}
 	return 180
+}
+
+func crossVenueResolvedTimingAwarePairSelectionMinHours(cfg CrossVenueExecutorConfig) float64 {
+	if cfg.TimingAwarePairSelectionMinHours > 0 {
+		return cfg.TimingAwarePairSelectionMinHours
+	}
+	return 0.01
+}
+
+// crossVenueNearestFundingSettlement 取两腿下次结算中最近的一个(过期时刻按 interval 推进)。
+func crossVenueNearestFundingSettlement(now, highNext time.Time, highInterval int, lowNext time.Time, lowInterval int) time.Time {
+	var nearest time.Time
+	consider := func(next time.Time, intervalHours int) {
+		if next.IsZero() {
+			return
+		}
+		if !next.After(now) {
+			next = crossVenueAdvanceFundingTime(next, intervalHours, now)
+			if !next.After(now) {
+				return
+			}
+		}
+		if nearest.IsZero() || next.Before(nearest) {
+			nearest = next
+		}
+	}
+	consider(highNext, highInterval)
+	consider(lowNext, lowInterval)
+	return nearest
+}
+
+// crossVenueHoursUntilFundingEntryWindow 距最近结算的进场窗(≤lead)尚余小时数;已在窗内或时间未知→0。
+func crossVenueHoursUntilFundingEntryWindow(now, highNext time.Time, highInterval int, lowNext time.Time, lowInterval int, lead time.Duration) float64 {
+	nearest := crossVenueNearestFundingSettlement(now, highNext, highInterval, lowNext, lowInterval)
+	if nearest.IsZero() {
+		return 0
+	}
+	if lead <= 0 {
+		lead = time.Duration(crossVenueResolvedOpenFundingLeadSeconds(CrossVenueExecutorConfig{})) * time.Second
+	}
+	untilEntry := nearest.Sub(now) - lead
+	if untilEntry <= 0 {
+		return 0
+	}
+	return untilEntry.Hours()
+}
+
+// crossVenuePairSelectionScore 扫描期 per-symbol 腿对排序分:timing-aware 时为可比窗口 funding EV / (等待+窗口)小时。
+func crossVenuePairSelectionScore(cfg CrossVenueExecutorConfig, now time.Time, high, low symbolVenueFunding, highNext, lowNext time.Time) float64 {
+	ev := crossVenuePairExpectedFundingOverComparableWindow(now, high, low)
+	if !cfg.TimingAwarePairSelectionEnabled {
+		return ev
+	}
+	windowHours := crossVenueComparableWindowHours(now, highNext, lowNext)
+	lead := time.Duration(crossVenueResolvedOpenFundingLeadSeconds(cfg)) * time.Second
+	waitHours := crossVenueHoursUntilFundingEntryWindow(now, highNext, high.IntervalHours, lowNext, low.IntervalHours, lead)
+	denom := waitHours + windowHours
+	minHours := crossVenueResolvedTimingAwarePairSelectionMinHours(cfg)
+	if denom < minHours {
+		denom = minHours
+	}
+	return ev / denom
 }
 
 // crossVenueAdvanceFundingTime 把过期(≤now)的结算时刻按 interval 向未来推进到下一个结算点。

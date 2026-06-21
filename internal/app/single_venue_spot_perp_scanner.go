@@ -359,6 +359,7 @@ func buildSingleVenueSpotPerpOpportunity(
 		ExpectedBorrowCostUSDT:   0,
 		ExpectedRollbackCostUSDT: rebalancePenalty,
 		ExpectedNetEVUSDT:        netEV,
+		OpenEligibleNow:          true,
 		ExpectedHoldHours:        holdHours,
 		CapitalRequiredByVenue: map[string]float64{
 			venueName: totalCapital,
@@ -503,6 +504,7 @@ func buildSingleVenueSpotPerpReverseOpportunity(
 		ExpectedBorrowCostUSDT:   borrowCost,
 		ExpectedRollbackCostUSDT: rebalancePenalty,
 		ExpectedNetEVUSDT:        netEV,
+		OpenEligibleNow:          true,
 		ExpectedHoldHours:        holdHours,
 		CapitalRequiredByVenue:   map[string]float64{venueName: totalCapital},
 		RiskScore:                riskScore,

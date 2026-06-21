@@ -36,7 +36,9 @@ func testPerpPerpHOpportunity(t *testing.T, notional float64) UnifiedOpportunity
 		ExpectedSlippage:    0.1 * (notional / 79.6),
 		NetEV:               1.5 * (notional / 79.6),
 	}
-	return UnifiedOpportunityFromCrossVenue(execCfg, cvOpp, nil, notional, 0)
+	out := UnifiedOpportunityFromCrossVenue(execCfg, cvOpp, nil, notional, 0)
+	out.OpenEligibleNow = true
+	return out
 }
 
 func TestPerpPerpCapitalCapSizesDownToFit(t *testing.T) {

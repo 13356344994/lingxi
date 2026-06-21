@@ -2054,6 +2054,117 @@ func TestUnifiedRotationRunner_PerpPerpFastDecisionEachCycleNotBlockedByScan(t *
 	waitForRotationAsyncScan(t, &slowScanCalls, new(int32), 1, 0)
 }
 
+func TestUnifiedRotationRunner_PerpPerpFastDecisionWritesCandidatesLog(t *testing.T) {
+	dir := t.TempDir()
+	svsp := &fakeRotationExecutor{strategyType: UnifiedStrategySingleVenueSpotPerp}
+	pp := &fakeRotationExecutor{strategyType: UnifiedStrategyPerpPerp}
+	r := testUnifiedRotationRunnerWithFakes(t, svsp, pp)
+	r.recordDir = dir
+	r.execCfg = testCrossVenueExecutorConfig().CrossVenueExecutor
+	now := time.Date(2026, 6, 21, 12, 0, 0, 0, time.UTC)
+	snapshotID := "cvsnap-20260621T120000.000000000"
+	r.nowFn = func() time.Time { return now }
+	r.scanner = &CrossVenueScanner{
+		lastSnapshot: CrossVenueScanSnapshot{
+			SnapshotID: snapshotID,
+			ScannedAt:  now,
+			Opportunities: []CrossVenueOpportunity{{
+				Symbol: "H-USDT", HighVenue: binance.VenueName, LowVenue: bybit.VenueName,
+				SnapshotID: snapshotID, NetEV: 5, SpreadEV: 10, TradableNotional: 150,
+			}},
+		},
+	}
+	r.fetchDeps.fetchAvailableUSDT = func(context.Context, map[string]venue.Venue, []string) map[string]float64 {
+		return map[string]float64{binance.VenueName: 500, bybit.VenueName: 500}
+	}
+	r.decideRotationFn = func([]HeldPosition, map[string]ContinuationInputs, []UnifiedOpportunity, map[string]float64) RotationPlan {
+		return RotationPlan{}
+	}
+
+	r.runPerpPerpDecisionFast(context.Background())
+
+	path := filepath.Join(opportunitiesRecordDir(dir), unifiedCandidatesLogFileName)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read unified_candidates.jsonl: %v", err)
+	}
+	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+	if len(lines) == 0 {
+		t.Fatal("expected unified_candidates.jsonl lines after fast path")
+	}
+	var rec UnifiedCandidateLogRecord
+	if err := json.Unmarshal([]byte(lines[0]), &rec); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if rec.CycleID != snapshotID {
+		t.Fatalf("cycle_id = %q, want %q", rec.CycleID, snapshotID)
+	}
+	if rec.Symbol != "H-USDT" {
+		t.Fatalf("symbol = %q", rec.Symbol)
+	}
+	if len(pp.opens) != 0 {
+		t.Fatalf("expected no opens when plan empty, got %d", len(pp.opens))
+	}
+}
+
+func TestRunPerpPerpDecisionFast_WaitingLogThrottleDoesNotOpen(t *testing.T) {
+	dir := t.TempDir()
+	buf := &strings.Builder{}
+	pp := &fakeRotationExecutor{strategyType: UnifiedStrategyPerpPerp}
+	r := testUnifiedRotationRunnerWithFakes(t, pp)
+	r.logger = log.New(buf, "", 0)
+	r.recordDir = dir
+	r.execCfg = testCrossVenueExecutorConfig().CrossVenueExecutor
+	r.execCfg.OpenFundingLeadSeconds = 180
+	now := time.Date(2026, 6, 21, 12, 0, 0, 0, time.UTC)
+	snapshotID := "cvsnap-20260621T120000.000000000"
+	farFunding := now.Add(2 * time.Hour)
+	r.nowFn = func() time.Time { return now }
+	r.scanner = &CrossVenueScanner{
+		lastSnapshot: CrossVenueScanSnapshot{
+			SnapshotID: snapshotID,
+			ScannedAt:  now,
+			Opportunities: []CrossVenueOpportunity{{
+				Symbol: "H-USDT", HighVenue: binance.VenueName, LowVenue: bybit.VenueName,
+				SnapshotID: snapshotID, NetEV: 5, SpreadEV: 10, TradableNotional: 150,
+				HighIntervalHours: 1, LowIntervalHours: 1,
+				HighNextFundingTime: farFunding, LowNextFundingTime: farFunding.Add(30 * time.Minute),
+			}},
+		},
+	}
+	r.fetchDeps.fetchAvailableUSDT = func(context.Context, map[string]venue.Venue, []string) map[string]float64 {
+		return map[string]float64{binance.VenueName: 500, bybit.VenueName: 500}
+	}
+
+	r.runPerpPerpDecisionFast(context.Background())
+	r.runPerpPerpDecisionFast(context.Background())
+	if len(pp.opens) != 0 {
+		t.Fatalf("expected no opens outside entry window, got %d", len(pp.opens))
+	}
+	logs := buf.String()
+	if strings.Count(logs, "待进场窗") != 1 {
+		t.Fatalf("expected throttled waiting log once, got %d occurrences in:\n%s", strings.Count(logs, "待进场窗"), logs)
+	}
+	if !strings.Contains(logs, "H-USDT") || !strings.Contains(logs, "在窗内=0") {
+		t.Fatalf("expected waiting log details, got:\n%s", logs)
+	}
+
+	now = now.Add(1 * time.Minute)
+	r.runPerpPerpDecisionFast(context.Background())
+	if strings.Count(buf.String(), "待进场窗") != 1 {
+		t.Fatalf("expected no second log within throttle window, got:\n%s", buf.String())
+	}
+
+	r.scanner.lastSnapshot.Opportunities[0].Symbol = "ETH-USDT"
+	r.runPerpPerpDecisionFast(context.Background())
+	if strings.Count(buf.String(), "待进场窗") != 2 {
+		t.Fatalf("expected log on symbol change despite throttle, got:\n%s", buf.String())
+	}
+	if len(pp.opens) != 0 {
+		t.Fatalf("symbol-change rerun must still not open, got %d opens", len(pp.opens))
+	}
+}
+
 func TestUnifiedRotationRunner_ActiveAgainstConfigCycleWarning(t *testing.T) {
 	buf := &strings.Builder{}
 	r := testUnifiedRotationRunnerWithFakes(t)

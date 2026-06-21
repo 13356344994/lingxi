@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"lingxi/internal/money"
 	"lingxi/internal/venue"
 	"lingxi/internal/venue/binance"
 	"lingxi/internal/venue/bybit"
@@ -430,6 +431,121 @@ func TestViewFromCrossVenuePerpPerp(t *testing.T) {
 	}
 	if view.Status != "open" || view.OpportunityID == "" {
 		t.Fatalf("status=%q opp=%q", view.Status, view.OpportunityID)
+	}
+}
+
+func TestRotationExpectedNextFundingSignConvention(t *testing.T) {
+	now := time.Date(2026, 6, 21, 15, 30, 0, 0, time.UTC)
+	nextHigh := now.Add(30 * time.Minute)
+	nextLow := time.Date(2026, 6, 21, 16, 0, 0, 0, time.UTC)
+
+	shortPositive := rotationExpectedLegFundingCashflowUSDT("sell", 0.005, 100, nextHigh, now)
+	if math.Abs(shortPositive-0.5) > 1e-9 {
+		t.Fatalf("short rate>0 want +0.5 got %v", shortPositive)
+	}
+	longNegative := rotationExpectedLegFundingCashflowUSDT("buy", -0.0126, 94.44, nextLow, now)
+	wantLong := 0.0126 * 94.44
+	if math.Abs(longNegative-wantLong) > 1e-4 {
+		t.Fatalf("long rate<0 want ~%v got %v", wantLong, longNegative)
+	}
+
+	execCfg := CrossVenueExecutorConfig{DefaultTakerFeeBps: 4}
+	pos := CrossVenuePosition{
+		Symbol: "H-USDT", HighVenue: bybit.VenueName, LowVenue: binance.VenueName,
+		Status:       CrossVenueStatusOpen,
+		HighLeg:      CrossVenueLegState{Side: "sell", Qty: 100, EntryPrice: 1.0},
+		LowLeg:       CrossVenueLegState{Side: "buy", Qty: 94.44, EntryPrice: 1.0},
+		NotionalUSDT: 100, HighFundingRate: 0.005, LowFundingRate: -0.0126,
+		HighNextFundingTime: nextHigh, LowNextFundingTime: nextLow,
+		HighLegFundingUSDT: -0.156, LowLegFundingUSDT: 0,
+		OpenedAt: now.Add(-2 * time.Hour),
+	}
+	view := viewFromCrossVenuePerpPerp(pos, execCfg, now)
+	if math.Abs(view.RealizedAccruedFundingUSDT+0.156) > 1e-9 {
+		t.Fatalf("realized_accrued=%v want -0.156", view.RealizedAccruedFundingUSDT)
+	}
+	wantExpected := money.SumUSDT(0.005*100, -(-0.0126)*94.44)
+	if math.Abs(view.ExpectedNextFundingUSDT-wantExpected) > 1e-4 {
+		t.Fatalf("expected_next=%v want %v", view.ExpectedNextFundingUSDT, wantExpected)
+	}
+	if view.HighFundingRate != 0.005 || view.LowFundingRate != -0.0126 {
+		t.Fatalf("rates high=%v low=%v", view.HighFundingRate, view.LowFundingRate)
+	}
+	if view.HighNextFundingTime == nil || !view.HighNextFundingTime.Equal(nextHigh) {
+		t.Fatalf("high_next=%v want %v", view.HighNextFundingTime, nextHigh)
+	}
+	if view.LowNextFundingTime == nil || !view.LowNextFundingTime.Equal(nextLow) {
+		t.Fatalf("low_next=%v want %v", view.LowNextFundingTime, nextLow)
+	}
+}
+
+func TestViewFromCrossVenuePerpPerpWindowSettlementCounts(t *testing.T) {
+	execCfg := CrossVenueExecutorConfig{DefaultTakerFeeBps: 4}
+	now := time.Date(2026, 6, 21, 12, 0, 0, 0, time.UTC)
+	highNext := now.Add(2 * time.Hour)
+	lowNext := now.Add(45 * time.Minute)
+	pos := CrossVenuePosition{
+		Symbol: "H-USDT", HighVenue: okx.VenueName, LowVenue: bybit.VenueName,
+		Status:              CrossVenueStatusOpen,
+		HighLeg:             CrossVenueLegState{Side: "sell", Qty: 100, EntryPrice: 1.0},
+		LowLeg:              CrossVenueLegState{Side: "buy", Qty: 100, EntryPrice: 1.0},
+		NotionalUSDT:        100,
+		HighFundingRate:     0.004,
+		LowFundingRate:      0.0001,
+		HighIntervalHours:   4,
+		LowIntervalHours:    1,
+		HighNextFundingTime: highNext,
+		LowNextFundingTime:  lowNext,
+		OpenedAt:            now.Add(-30 * time.Minute),
+	}
+	view := viewFromCrossVenuePerpPerp(pos, execCfg, now)
+	if view.HighSettlementsInWindow != 0 {
+		t.Fatalf("high_settlements_in_window=%d want 0 (4h leg next settlement beyond window)", view.HighSettlementsInWindow)
+	}
+	if view.LowSettlementsInWindow != 1 {
+		t.Fatalf("low_settlements_in_window=%d want 1 (1h leg within window)", view.LowSettlementsInWindow)
+	}
+	if view.ComparableWindowEndTime == nil || !view.ComparableWindowEndTime.Equal(lowNext) {
+		t.Fatalf("comparable_window_end_time=%v want %v", view.ComparableWindowEndTime, lowNext)
+	}
+	if view.HighIntervalHours != 4 || view.LowIntervalHours != 1 {
+		t.Fatalf("intervals high=%d low=%d want 4/1", view.HighIntervalHours, view.LowIntervalHours)
+	}
+}
+
+func TestRotationExpectedNextFundingPastOrZeroTime(t *testing.T) {
+	now := time.Date(2026, 6, 21, 16, 0, 0, 0, time.UTC)
+	past := now.Add(-time.Hour)
+	if got := rotationExpectedLegFundingCashflowUSDT("sell", 0.01, 100, past, now); got != 0 {
+		t.Fatalf("past next funding want 0 got %v", got)
+	}
+	if got := rotationExpectedLegFundingCashflowUSDT("buy", -0.01, 100, time.Time{}, now); got != 0 {
+		t.Fatalf("zero next funding want 0 got %v", got)
+	}
+	total := rotationExpectedNextFundingUSDT("sell", 0.01, 100, past, "buy", -0.01, 100, time.Time{}, now)
+	if total != 0 {
+		t.Fatalf("both legs stale want 0 got %v", total)
+	}
+}
+
+func TestViewFromCrossVenuePerpPerpCarrySingleLegUnaffected(t *testing.T) {
+	execCfg := CrossVenueExecutorConfig{DefaultTakerFeeBps: 4}
+	now := time.Now().UTC()
+	view := viewFromSVSP(SingleVenueSpotPerpPosition{
+		Symbol: "BTC-USDT", Venue: "binance", Status: SVSPStatusOpen,
+		SpotLeg:      SingleVenueSpotPerpLegState{Market: "spot", Side: "buy", Qty: 1, EntryPrice: 100},
+		PerpLeg:      SingleVenueSpotPerpLegState{Market: "perp", Side: "short", Qty: 1, EntryPrice: 100},
+		NotionalUSDT: 100, RealizedFundingUSDT: 0.12, OpenedAt: now,
+		SingleVenueSpotPerpAttribution: SingleVenueSpotPerpAttribution{OpenFeesUSDT: 0.08},
+	}, execCfg, now)
+	if view.HighFundingRate != 0 || view.LowFundingRate != 0 {
+		t.Fatalf("carry should not expose leg rates: high=%v low=%v", view.HighFundingRate, view.LowFundingRate)
+	}
+	if view.HighNextFundingTime != nil || view.LowNextFundingTime != nil {
+		t.Fatalf("carry should not expose next funding times")
+	}
+	if view.RealizedAccruedFundingUSDT != 0 || view.ExpectedNextFundingUSDT != 0 {
+		t.Fatalf("carry funding extras should be zero: realized=%v expected=%v", view.RealizedAccruedFundingUSDT, view.ExpectedNextFundingUSDT)
 	}
 }
 

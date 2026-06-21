@@ -1150,9 +1150,10 @@ func crossVenuePairExpectedFundingOverComparableWindow(now time.Time, high, low 
 
 // bestPairSpread 对同一经济配对键下的多所记录取最优两两配对。
 // 选对按可比窗口内离散 funding EV(短 leg high 空、low 多),与 crossVenueExpectedFundingOverHold 一致;
+// cfg.TimingAwarePairSelectionEnabled 时再按进场窗等待折现为 per-hour capturable EV。
 // SpreadAPR 仍存年化价差(高 APR − 低 APR),仅供展示与极端标记。
 // 跨计价配对须两腿 MultKnown 且经济 base 一致;价格比二次确认在开仓闸 evaluateCrossVenueOpenGate 执行。
-func bestPairSpread(pairKey string, entries []symbolVenueFunding, now time.Time) (CrossVenueOpportunity, bool) {
+func bestPairSpread(pairKey string, entries []symbolVenueFunding, now time.Time, cfg CrossVenueExecutorConfig) (CrossVenueOpportunity, bool) {
 	if len(entries) < 2 {
 		return CrossVenueOpportunity{}, false
 	}
@@ -1161,7 +1162,7 @@ func bestPairSpread(pairKey string, entries []symbolVenueFunding, now time.Time)
 	}
 	best := CrossVenueOpportunity{Symbol: pairKey}
 	found := false
-	bestEV := math.Inf(-1)
+	bestScore := math.Inf(-1)
 	for i := 0; i < len(entries); i++ {
 		for j := i + 1; j < len(entries); j++ {
 			a, b := entries[i], entries[j]
@@ -1178,10 +1179,10 @@ func bestPairSpread(pairKey string, entries []symbolVenueFunding, now time.Time)
 			spread := high.RawAnnualizedAPR - low.RawAnnualizedAPR
 			highNext, _ := crossVenueResolveNextFundingTime(now, high.NextFundingTime, high.IntervalHours)
 			lowNext, _ := crossVenueResolveNextFundingTime(now, low.NextFundingTime, low.IntervalHours)
-			ev := crossVenuePairExpectedFundingOverComparableWindow(now, high, low)
-			if !found || ev > bestEV {
+			score := crossVenuePairSelectionScore(cfg, now, high, low, highNext, lowNext)
+			if !found || score > bestScore {
 				found = true
-				bestEV = ev
+				bestScore = score
 				displaySym, highSym, lowSym, highMult, lowMult := crossVenueOpportunitySymbolsFromLegs(pairKey, high, low)
 				best = CrossVenueOpportunity{
 					Symbol:              displaySym,
@@ -1309,7 +1310,7 @@ func (s *CrossVenueScanner) computeCrossVenueOpportunities(ctx context.Context, 
 			s.notePerpPerpDiagReject(diagBySym, sym, fmt.Sprintf("venues=%d need>=2", len(entries)))
 			continue
 		}
-		opp, ok := bestPairSpread(sym, entries, s.nowFn())
+		opp, ok := bestPairSpread(sym, entries, s.nowFn(), s.execCfg)
 		if !ok {
 			s.notePerpPerpDiagReject(diagBySym, sym, "bestPairSpread no spread")
 			continue
@@ -1680,7 +1681,7 @@ func computeCrossVenueOpportunities(byVenue map[string][]venue.FundingSnapshot, 
 		if len(entries) < 2 {
 			continue
 		}
-		opp, ok := bestPairSpread(sym, entries, now)
+		opp, ok := bestPairSpread(sym, entries, now, CrossVenueExecutorConfig{TimingAwarePairSelectionEnabled: false})
 		if !ok || opp.SpreadAPR < minSpread {
 			continue
 		}

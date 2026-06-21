@@ -187,7 +187,7 @@ func TestBestPairSpreadPicksMaxComparableWindowEVWhenIntervalsDiffer(t *testing.
 		{Venue: binance.VenueName, RawAnnualizedAPR: fundingAnnualizedAPR(-0.005, 4), RawFundingRate: -0.005, IntervalHours: 4, NextFundingTime: now.Add(3 * time.Hour)},
 		{Venue: okx.VenueName, RawAnnualizedAPR: fundingAnnualizedAPR(-0.004, 4), RawFundingRate: -0.004, IntervalHours: 4, NextFundingTime: now.Add(30 * time.Minute)},
 	}
-	opp, ok := bestPairSpread("MIX-USDT", entries, now)
+	opp, ok := bestPairSpread("MIX-USDT", entries, now, CrossVenueExecutorConfig{TimingAwarePairSelectionEnabled: false})
 	if !ok {
 		t.Fatal("expected pair")
 	}
@@ -213,7 +213,7 @@ func TestBestPairSpreadPicksMaxWhenWindowAligns(t *testing.T) {
 		{Venue: bybit.VenueName, AnnualizedAPR: 0.50, RawAnnualizedAPR: 0.50, RawFundingRate: 0.005, IntervalHours: 1, NextFundingTime: now.Add(1 * time.Hour)},
 		{Venue: okx.VenueName, AnnualizedAPR: 0.20, RawAnnualizedAPR: 0.20, RawFundingRate: 0.002, IntervalHours: 4, NextFundingTime: now.Add(4 * time.Hour)},
 	}
-	opp, ok := bestPairSpread("HOME-USDT", entries, now)
+	opp, ok := bestPairSpread("HOME-USDT", entries, now, CrossVenueExecutorConfig{TimingAwarePairSelectionEnabled: false})
 	if !ok {
 		t.Fatal("expected pair")
 	}
@@ -222,6 +222,68 @@ func TestBestPairSpreadPicksMaxWhenWindowAligns(t *testing.T) {
 	}
 	if opp.SpreadAPR != 0.40 {
 		t.Fatalf("spread=%v want=0.40", opp.SpreadAPR)
+	}
+}
+
+func TestBestPairSpreadTimingAwarePrefersSoonerCapturablePair(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 6, 21, 14, 0, 0, 0, time.UTC)
+	entries := []symbolVenueFunding{
+		{Venue: okx.VenueName, RawAnnualizedAPR: fundingAnnualizedAPR(-0.0015, 4), RawFundingRate: -0.0015, IntervalHours: 4, NextFundingTime: now.Add(2 * time.Hour)},
+		{Venue: binance.VenueName, RawAnnualizedAPR: fundingAnnualizedAPR(-0.0025, 4), RawFundingRate: -0.0025, IntervalHours: 4, NextFundingTime: now.Add(2 * time.Hour)},
+		{Venue: bybit.VenueName, RawAnnualizedAPR: fundingAnnualizedAPR(-0.0012, 1), RawFundingRate: -0.0012, IntervalHours: 1, NextFundingTime: now.Add(1 * time.Hour)},
+		{Venue: gate.VenueName, RawAnnualizedAPR: fundingAnnualizedAPR(-0.0005, 1), RawFundingRate: -0.0005, IntervalHours: 1, NextFundingTime: now.Add(1 * time.Hour)},
+	}
+	cfg := CrossVenueExecutorConfig{TimingAwarePairSelectionEnabled: true, OpenFundingLeadSeconds: 180}
+	opp, ok := bestPairSpread("H-USDT", entries, now, cfg)
+	if !ok {
+		t.Fatal("expected pair")
+	}
+	if opp.HighVenue != gate.VenueName || opp.LowVenue != bybit.VenueName {
+		t.Fatalf("timing-aware want gate/bybit, got %s/%s", opp.HighVenue, opp.LowVenue)
+	}
+	laterEV := crossVenuePairExpectedFundingOverComparableWindow(now, entries[0], entries[1])
+	soonerEV := crossVenuePairExpectedFundingOverComparableWindow(now, entries[3], entries[2])
+	if soonerEV >= laterEV {
+		t.Fatalf("fixture: distant pair should have higher raw comparable EV (%.6f vs %.6f)", laterEV, soonerEV)
+	}
+}
+
+func TestBestPairSpreadTimingAwareRespectsEVMagnitude(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 6, 21, 14, 0, 0, 0, time.UTC)
+	entries := []symbolVenueFunding{
+		{Venue: okx.VenueName, RawAnnualizedAPR: fundingAnnualizedAPR(-0.03, 4), RawFundingRate: -0.03, IntervalHours: 4, NextFundingTime: now.Add(2 * time.Hour)},
+		{Venue: binance.VenueName, RawAnnualizedAPR: fundingAnnualizedAPR(-0.05, 4), RawFundingRate: -0.05, IntervalHours: 4, NextFundingTime: now.Add(2 * time.Hour)},
+		{Venue: bybit.VenueName, RawAnnualizedAPR: fundingAnnualizedAPR(-0.00001, 1), RawFundingRate: -0.00001, IntervalHours: 1, NextFundingTime: now.Add(1 * time.Hour)},
+		{Venue: gate.VenueName, RawAnnualizedAPR: fundingAnnualizedAPR(-0.000005, 1), RawFundingRate: -0.000005, IntervalHours: 1, NextFundingTime: now.Add(1 * time.Hour)},
+	}
+	cfg := CrossVenueExecutorConfig{TimingAwarePairSelectionEnabled: true, OpenFundingLeadSeconds: 180}
+	opp, ok := bestPairSpread("H-USDT", entries, now, cfg)
+	if !ok {
+		t.Fatal("expected pair")
+	}
+	if opp.HighVenue != okx.VenueName || opp.LowVenue != binance.VenueName {
+		t.Fatalf("large-EV distant pair should win, got %s/%s", opp.HighVenue, opp.LowVenue)
+	}
+}
+
+func TestBestPairSpreadTimingAwareDisabledUsesMaxComparableWindowEV(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 6, 21, 14, 0, 0, 0, time.UTC)
+	entries := []symbolVenueFunding{
+		{Venue: okx.VenueName, RawAnnualizedAPR: fundingAnnualizedAPR(-0.0015, 4), RawFundingRate: -0.0015, IntervalHours: 4, NextFundingTime: now.Add(2 * time.Hour)},
+		{Venue: binance.VenueName, RawAnnualizedAPR: fundingAnnualizedAPR(-0.0025, 4), RawFundingRate: -0.0025, IntervalHours: 4, NextFundingTime: now.Add(2 * time.Hour)},
+		{Venue: bybit.VenueName, RawAnnualizedAPR: fundingAnnualizedAPR(-0.0012, 1), RawFundingRate: -0.0012, IntervalHours: 1, NextFundingTime: now.Add(1 * time.Hour)},
+		{Venue: gate.VenueName, RawAnnualizedAPR: fundingAnnualizedAPR(-0.0005, 1), RawFundingRate: -0.0005, IntervalHours: 1, NextFundingTime: now.Add(1 * time.Hour)},
+	}
+	cfg := CrossVenueExecutorConfig{TimingAwarePairSelectionEnabled: false}
+	opp, ok := bestPairSpread("H-USDT", entries, now, cfg)
+	if !ok {
+		t.Fatal("expected pair")
+	}
+	if opp.HighVenue != okx.VenueName || opp.LowVenue != binance.VenueName {
+		t.Fatalf("flag off want max comparable-window EV okx/binance, got %s/%s", opp.HighVenue, opp.LowVenue)
 	}
 }
 
@@ -961,7 +1023,7 @@ func TestCrossVenueScannerHUSDTMissingBybitNextFundingTime(t *testing.T) {
 	if len(legacy["H-USDT"]) != 1 {
 		t.Fatalf("legacy index legs=%d want 1 (bybit dropped)", len(legacy["H-USDT"]))
 	}
-	if _, ok := bestPairSpread("H-USDT", legacy["H-USDT"], now); ok {
+	if _, ok := bestPairSpread("H-USDT", legacy["H-USDT"], now, CrossVenueExecutorConfig{}); ok {
 		t.Fatal("legacy index should not pair with <2 legs")
 	}
 
@@ -987,7 +1049,7 @@ func TestCrossVenueScannerHUSDTMissingBybitNextFundingTime(t *testing.T) {
 		t.Fatalf("bybit inferred next=%s want %s", bybitLeg.NextFundingTime, wantBybitNext)
 	}
 
-	opp, ok := bestPairSpread("H-USDT", fixed["H-USDT"], now)
+	opp, ok := bestPairSpread("H-USDT", fixed["H-USDT"], now, CrossVenueExecutorConfig{})
 	if !ok {
 		t.Fatal("bestPairSpread should succeed with 2 legs")
 	}

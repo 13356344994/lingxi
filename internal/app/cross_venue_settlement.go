@@ -58,6 +58,8 @@ type CrossVenueSettlement struct {
 	Symbol                  string    `json:"symbol"`
 	HighVenue               string    `json:"high_venue"`
 	LowVenue                string    `json:"low_venue"`
+	HighIntervalHours       int       `json:"high_interval_hours,omitempty"`
+	LowIntervalHours        int       `json:"low_interval_hours,omitempty"`
 	NotionalUSDT            float64   `json:"notional_usdt"`
 	HighLegFunding          float64   `json:"high_leg_funding"`
 	LowLegFunding           float64   `json:"low_leg_funding"`
@@ -145,6 +147,8 @@ func buildCrossVenueSettlement(pos CrossVenuePosition, closeTime time.Time) Cros
 		Symbol:                  pos.Symbol,
 		HighVenue:               pos.HighVenue,
 		LowVenue:                pos.LowVenue,
+		HighIntervalHours:       pos.HighIntervalHours,
+		LowIntervalHours:        pos.LowIntervalHours,
 		NotionalUSDT:            pos.NotionalUSDT,
 		HighLegFunding:          pos.HighLegFundingUSDT,
 		LowLegFunding:           pos.LowLegFundingUSDT,

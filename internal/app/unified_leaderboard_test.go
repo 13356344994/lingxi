@@ -68,7 +68,7 @@ func TestBuildUnifiedLeaderboardHidesStructuralRejectsByDefault(t *testing.T) {
 		{CycleID: cycle, StrategyType: UnifiedStrategyPerpPerp, Symbol: "MID-USDT", Venues: []string{"bybit", "okx"},
 			WouldExecute: true, SpreadAPR: 0.40, ExpectedNetEVUSDT: 0.01},
 	}
-	resp := BuildUnifiedLeaderboard(records, 0)
+	resp := BuildUnifiedLeaderboard(records, 0, time.Time{})
 	if len(resp.Opportunities) != 1 {
 		t.Fatalf("opportunities = %d, want only executable/displayable rows: %+v", len(resp.Opportunities), resp.Opportunities)
 	}
@@ -118,7 +118,7 @@ func TestDedupeUnifiedCandidatesDifferentVenuesRetained(t *testing.T) {
 		t.Fatalf("expected both venue pairs retained: %+v", got)
 	}
 
-	resp := BuildUnifiedLeaderboard(records, 0)
+	resp := BuildUnifiedLeaderboard(records, 0, time.Time{})
 	if resp.TotalCandidates != 2 {
 		t.Fatalf("total_candidates = %d, want 2", resp.TotalCandidates)
 	}
@@ -136,7 +136,7 @@ func TestLatestUnifiedCycleIDParsesEmbeddedTime(t *testing.T) {
 		t.Fatalf("latest cycle = %q, want %q (cvcycle newer than cvsnap)", got, newerCycle)
 	}
 
-	resp := BuildUnifiedLeaderboard(records, 0)
+	resp := BuildUnifiedLeaderboard(records, 0, time.Time{})
 	if resp.CycleID != newerCycle {
 		t.Fatalf("BuildUnifiedLeaderboard cycle_id = %q, want %q", resp.CycleID, newerCycle)
 	}
@@ -199,7 +199,7 @@ func TestBuildUnifiedLeaderboardTieredRanking(t *testing.T) {
 			ExpectedNetEVUSDT: 0.05, CapitalEfficiencyScore: 0.001, WouldExecute: true,
 			CapitalRequiredByVenue: map[string]float64{"bybit": 10, "okx": 10}, NotionalUSDT: 30},
 	}
-	resp := BuildUnifiedLeaderboard(records, 0)
+	resp := BuildUnifiedLeaderboard(records, 0, time.Time{})
 	if len(resp.Opportunities) != 3 {
 		t.Fatalf("opportunities = %d, want displayable rows only: %+v", len(resp.Opportunities), resp.Opportunities)
 	}
@@ -245,7 +245,7 @@ func TestBuildUnifiedLeaderboardSortsByPrimaryKey(t *testing.T) {
 		{CycleID: "cvcycle-old", StrategyType: UnifiedStrategyPerpPerp, Symbol: "OLD-USDT", Venues: []string{"bybit", "okx"},
 			ExpectedNetEVUSDT: 9.99, CapitalEfficiencyScore: 9.99, WouldExecute: true},
 	}
-	resp := BuildUnifiedLeaderboard(records, 0)
+	resp := BuildUnifiedLeaderboard(records, 0, time.Time{})
 	if resp.CycleID != cycle {
 		t.Fatalf("cycle_id = %q, want %q", resp.CycleID, cycle)
 	}
@@ -277,7 +277,7 @@ func TestBuildUnifiedLeaderboardRejectAndCapitalStats(t *testing.T) {
 		{CycleID: cycle, Symbol: "SOL-USDT", Venues: []string{"bybit", "okx"}, WouldExecute: false,
 			RejectReasons: []string{"execution<0.50"}},
 	}
-	resp := BuildUnifiedLeaderboard(records, 0)
+	resp := BuildUnifiedLeaderboard(records, 0, time.Time{})
 	if len(resp.RejectReasonsTop) == 0 {
 		t.Fatal("expected reject_reasons_top")
 	}
@@ -340,7 +340,7 @@ func TestBuildUnifiedLeaderboardPerStrategyGrouping(t *testing.T) {
 		{CycleID: cycle, StrategyType: UnifiedStrategyPerpPerp, Symbol: "HHH-USDT", Venues: []string{"binance", "bybit"},
 			SpreadAPR: 13.69, WouldExecute: true, ExpectedNetEVUSDT: 0.5},
 	}
-	resp := BuildUnifiedLeaderboard(records, 0)
+	resp := BuildUnifiedLeaderboard(records, 0, time.Time{})
 
 	// 总榜:全策略统计 3 条,默认只展示可评估/可执行候选。
 	if resp.TotalCandidates != 3 || len(resp.Opportunities) != 1 {
@@ -494,7 +494,7 @@ func TestBuildUnifiedLeaderboardSortsByCapitalAwareNetEVNotAPR(t *testing.T) {
 			SpreadAPR: 0.3, ExpectedNetEVUSDT: 0.12, NotionalUSDT: 80,
 			CapitalAwareNetEVUSDT: 0.04, CapitalAwareNotionalUSDT: 20, RotationWouldExecute: true},
 	}
-	resp := BuildUnifiedLeaderboard(records, 0)
+	resp := BuildUnifiedLeaderboard(records, 0, time.Time{})
 	if len(resp.Opportunities) != 2 {
 		t.Fatalf("opportunities = %d", len(resp.Opportunities))
 	}
@@ -516,7 +516,7 @@ func TestBuildUnifiedLeaderboardPositiveScannerNegativeCapitalAwareRanksLower(t 
 			WouldExecute: true, SpreadAPR: 0.8, ExpectedNetEVUSDT: 0.10, NotionalUSDT: 88,
 			CapitalAwareNetEVUSDT: 0.06, CapitalAwareNotionalUSDT: 24, RotationWouldExecute: true},
 	}
-	resp := BuildUnifiedLeaderboard(records, 0)
+	resp := BuildUnifiedLeaderboard(records, 0, time.Time{})
 	if resp.Opportunities[0].Symbol != "REAL-USDT" || !resp.Opportunities[0].RotationWouldExecute {
 		t.Fatalf("top = %+v, want REAL-USDT rotation pass", resp.Opportunities[0])
 	}
@@ -538,7 +538,7 @@ func TestBuildUnifiedLeaderboardOldRecordFallbackGraceful(t *testing.T) {
 		{CycleID: cycle, StrategyType: UnifiedStrategyPerpPerp, Symbol: "LEGACY-USDT", Venues: []string{"bybit", "okx"},
 			WouldExecute: true, SpreadAPR: 2.0, ExpectedNetEVUSDT: 0.15, NotionalUSDT: 75},
 	}
-	resp := BuildUnifiedLeaderboard(records, 0)
+	resp := BuildUnifiedLeaderboard(records, 0, time.Time{})
 	if len(resp.Opportunities) != 1 {
 		t.Fatalf("opportunities = %d", len(resp.Opportunities))
 	}
@@ -551,5 +551,60 @@ func TestBuildUnifiedLeaderboardOldRecordFallbackGraceful(t *testing.T) {
 	}
 	if entry.ExpectedNetEVUSDT != 0.15 || entry.NotionalUSDT != 75 {
 		t.Fatalf("legacy scanner fields = ev %.4f notional %.2f", entry.ExpectedNetEVUSDT, entry.NotionalUSDT)
+	}
+}
+
+func TestUnifiedLeaderboardCycleScannedAtPrefersNewerScannerSnapshot(t *testing.T) {
+	oldCycle := "cvsnap-20260621T110000.000000000"
+	freshScanner := time.Date(2026, 6, 21, 12, 1, 0, 0, time.UTC)
+	records := []UnifiedCandidateLogRecord{
+		{CycleID: oldCycle, StrategyType: UnifiedStrategyPerpPerp, Symbol: "H-USDT", Venues: []string{"binance", "bybit"}},
+	}
+
+	resp := BuildUnifiedLeaderboard(records, 0, freshScanner)
+	if resp.CycleScannedAt != freshScanner.Format(time.RFC3339) {
+		t.Fatalf("CycleScannedAt = %q, want %q", resp.CycleScannedAt, freshScanner.Format(time.RFC3339))
+	}
+
+	got, ok := unifiedLeaderboardCycleScannedAt(oldCycle, freshScanner)
+	if !ok || !got.Equal(freshScanner) {
+		t.Fatalf("unifiedLeaderboardCycleScannedAt = %v ok=%v, want %v true", got, ok, freshScanner)
+	}
+
+	newerCycle := "cvsnap-20260621T120500.000000000"
+	wantCycleTime := time.Date(2026, 6, 21, 12, 5, 0, 0, time.UTC)
+	got2, ok := unifiedLeaderboardCycleScannedAt(newerCycle, freshScanner)
+	if !ok || !got2.Equal(wantCycleTime) {
+		t.Fatalf("expected cycle time to win: got %v ok=%v", got2, ok)
+	}
+}
+
+func TestLoadUnifiedLeaderboardCrossChecksLatestSnapshotScannedAt(t *testing.T) {
+	dir := t.TempDir()
+	// 用真实墙钟锚定:LoadUnifiedLeaderboard 内部用 time.Now() 判过期,
+	// 写死时间戳会随真实时间漂移而误判过期(此前 bug)。oldCycle 取确定性的久远过去。
+	now := time.Now().UTC()
+	oldCycle := "cvsnap-20260101T110000.000000000"
+	path := UnifiedCandidatesLogPath(dir)
+	writeUnifiedCandidatesJSONL(t, path, []UnifiedCandidateLogRecord{
+		{CycleID: oldCycle, StrategyType: UnifiedStrategyPerpPerp, Symbol: "H-USDT", Venues: []string{"binance", "bybit"}},
+	})
+	freshScannedAt := now.Add(-90 * time.Second)
+	if err := crossVenuePersistLatestSnapshot(dir, CrossVenueScanSnapshot{
+		SnapshotID: "cvsnap-20260621T120000.000000000",
+		ScannedAt:  freshScannedAt,
+	}); err != nil {
+		t.Fatalf("persist latest snapshot: %v", err)
+	}
+
+	resp, err := LoadUnifiedLeaderboard(path, 10)
+	if err != nil {
+		t.Fatalf("LoadUnifiedLeaderboard: %v", err)
+	}
+	if resp.CycleScannedAt != freshScannedAt.Format(time.RFC3339) {
+		t.Fatalf("CycleScannedAt = %q, want %q", resp.CycleScannedAt, freshScannedAt.Format(time.RFC3339))
+	}
+	if resp.CycleStale {
+		t.Fatal("expected cycle not stale when latest_snapshot scanned_at is fresh")
 	}
 }

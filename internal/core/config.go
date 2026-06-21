@@ -728,7 +728,10 @@ type CrossVenueExecutorConfig struct {
 	// AssumeMakerFills EV/开仓闸往返成本按 maker 费率估算(与 maker-chase 执行一致)。默认 true。
 	AssumeMakerFills bool `cfg:"assume_maker_fills"`
 	// ExpectedHoldHours 开仓 EV 闸预期持有 horizon(小时):一次往返成本摊销至该窗口内 funding 收入。默认 12。
+	// NearTermOpenEVHorizonEnabled=true 时优先用至下次结算的可比窗口;仅在无可结算窗口时回退至此固定 horizon。
 	ExpectedHoldHours float64 `cfg:"expected_hold_hours"`
+	// NearTermOpenEVHorizonEnabled 开仓 EV/扫描 netEV 使用至下次结算的可比窗口(与 continuation future-EV 一致)。默认 true。
+	NearTermOpenEVHorizonEnabled bool `cfg:"near_term_open_ev_horizon_enabled"`
 	// EVExpectedSlippageBps EV 成本模型中每腿预期滑点(bps,非 SlippageBudget 容忍上限)。默认 3。
 	EVExpectedSlippageBps float64 `cfg:"ev_expected_slippage_bps"`
 	// EVMaxBreakevenHours 盈亏平衡持有时长上限(小时);超过则不开仓。默认 24。
@@ -791,6 +794,11 @@ type CrossVenueExecutorConfig struct {
 	// OpenFundingLeadSeconds perp-perp 结算前进场窗(秒):只在最近一腿资金费结算前 ≤ 此秒数才允许开仓,
 	// 太早(距结算 > 此值)拒开,避免提前进场、结算前价差收敛白付手续费。默认 180(3 分钟);≤0 时回退 180。
 	OpenFundingLeadSeconds int `cfg:"open_funding_lead_seconds"`
+	// TimingAwarePairSelectionEnabled 扫描期 per-symbol 腿对选择:在可比窗口 funding EV 上按进场窗等待折现
+	// (per-hour capturable EV);false 时仅取 max 可比窗口 EV。默认 true。
+	TimingAwarePairSelectionEnabled bool `cfg:"timing_aware_pair_selection_enabled"`
+	// TimingAwarePairSelectionMinHours timing-aware 分母下限(小时),防除零。默认 0.01。
+	TimingAwarePairSelectionMinHours float64 `cfg:"timing_aware_pair_selection_min_hours"`
 	// FundingCaptureProbability 运行时 perp-perp funding 捕获折现(结算回测贝叶斯;scan/decision 周期刷新,非 YAML)。
 	FundingCaptureProbability float64
 }

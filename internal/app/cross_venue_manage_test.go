@@ -11,6 +11,7 @@ import (
 
 	"lingxi/internal/venue"
 	"lingxi/internal/venue/binance"
+	"lingxi/internal/venue/bybit"
 	"lingxi/internal/venue/okx"
 )
 
@@ -382,5 +383,59 @@ func TestNoCloseOnNoiseAwayFromSettlement(t *testing.T) {
 	e.refreshCurrentPositionMetrics(&pos2)
 	if reason := e.shouldCloseCrossVenue(context.Background(), &pos2); reason != "" {
 		t.Fatalf("favorable funding near settlement should not trigger adverse close, got %q", reason)
+	}
+}
+
+func TestCrossVenueCloseThenOpenSwitchHoldsWhenTargetEntryWindowNotReached(t *testing.T) {
+	now := time.Date(2026, 6, 21, 12, 0, 0, 0, time.UTC)
+	farFunding := now.Add(600 * time.Second) // >180s lead → entry window not reached
+	tight := venue.BookTicker{BidPrice: 99.99, AskPrice: 100.01, BidQty: 1000, AskQty: 1000}
+	highV := newCrossVenueTestVenue(bybit.VenueName, 0.05, 8, farFunding)
+	lowV := newCrossVenueTestVenue(okx.VenueName, 0.0, 8, farFunding)
+	targetHigh := newCrossVenueTestVenue(binance.VenueName, 0.04, 8, farFunding)
+	highV.book, lowV.book, targetHigh.book = tight, tight, tight
+	cfg := testCrossVenueExecutorConfig()
+	cfg.NetworkConfig.RecordDir = t.TempDir()
+	cfg.CrossVenueExecutor.MinHoldHours = 0
+	scanner := &CrossVenueScanner{
+		lastSnapshot: CrossVenueScanSnapshot{
+			ScannedAt:  now,
+			SnapshotID: "snap-switch-gate",
+			Opportunities: []CrossVenueOpportunity{{
+				Symbol: "ETH-USDT", HighVenue: binance.VenueName, LowVenue: okx.VenueName,
+				HighFundingRate: 0.05, LowFundingRate: 0.0, HighIntervalHours: 8, LowIntervalHours: 8,
+				HighNextFundingTime: farFunding, LowNextFundingTime: farFunding,
+				ComparableWindowHours: 4, TradableNotional: 50, NetEV: 2.0,
+			}},
+			FundingByVenue: map[string]map[string]CrossVenueFundingEntry{
+				binance.VenueName: {"ETH-USDT": {Rate: 0.05, IntervalHours: 8, NextFundingTime: farFunding}},
+				okx.VenueName:     {"ETH-USDT": {Rate: 0.0, IntervalHours: 8, NextFundingTime: farFunding}},
+			},
+		},
+	}
+	e := &CrossVenueExecutor{
+		cfg: cfg,
+		venues: map[string]venue.Venue{
+			bybit.VenueName:   highV,
+			okx.VenueName:     lowV,
+			binance.VenueName: targetHigh,
+		},
+		store:     mustCrossVenueStore(t, cfg.NetworkConfig.RecordDir),
+		scanner:   scanner,
+		logger:    testCrossVenueLogger(),
+		nowFn:     func() time.Time { return now },
+		recordDir: cfg.NetworkConfig.RecordDir,
+	}
+	pos := CrossVenuePosition{
+		Symbol: "ETH-USDT", HighVenue: bybit.VenueName, LowVenue: okx.VenueName,
+		Status: CrossVenueStatusOpen, OpenedAt: now.Add(-2 * time.Hour), NotionalUSDT: 50,
+		PendingSwitchHighVenue: binance.VenueName, PendingSwitchLowVenue: okx.VenueName,
+		PendingSwitchSequence: crossVenueSwitchSequenceCloseThenOpen,
+		PendingSwitchReason:   "pending switch",
+		PartialSwitchPhase:    "pending",
+		RecoveryQualityScore:  0.9, ExecutionScore: 0.9,
+	}
+	if reason := e.crossVenueSwitchCloseReason(context.Background(), &pos); reason != "" {
+		t.Fatalf("expected hold (no close) when target entry window not reached, got %q", reason)
 	}
 }

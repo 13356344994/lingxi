@@ -179,18 +179,21 @@ func TestCrossVenueOpenEVConfigTogglesExpectedHoldHoursAndMakerFees(t *testing.T
 	opp := testCarryOpenEVOpportunity(now, nextFunding)
 
 	shortHold := testNetProfitGateMakerHoldConfig()
+	shortHold.NearTermOpenEVHorizonEnabled = false
 	shortHold.ExpectedHoldHours = 2
 	if res := evaluateCrossVenueOpenEV(shortHold, opp, notional, nil, now, 0, 0); res.OK {
 		t.Fatal("expected reject when expected_hold_hours shortened to 2h")
 	}
 
 	longHold := testNetProfitGateMakerHoldConfig()
+	longHold.NearTermOpenEVHorizonEnabled = false
 	longHold.ExpectedHoldHours = 12
 	if res := evaluateCrossVenueOpenEV(longHold, opp, notional, nil, now, 0, 0); !res.OK {
 		t.Fatalf("expected pass with 12h discrete settlements (not linear extrapolation): %s", res.Reason)
 	}
 
 	highMakerFee := testNetProfitGateMakerHoldConfig()
+	highMakerFee.NearTermOpenEVHorizonEnabled = false
 	highMakerFee.DefaultMakerFeeBps = 150
 	highMakerFeeOpp := opp
 	highMakerFeeOpp.HighVenue = "unknown-high"
@@ -200,6 +203,7 @@ func TestCrossVenueOpenEVConfigTogglesExpectedHoldHoursAndMakerFees(t *testing.T
 	}
 
 	takerCfg := testNetProfitGateMakerHoldConfig()
+	takerCfg.NearTermOpenEVHorizonEnabled = false
 	takerCfg.AssumeMakerFills = false
 	takerCfg.DefaultTakerFeeBps = 6
 	const intervalHours = 8

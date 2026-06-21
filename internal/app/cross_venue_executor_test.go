@@ -2170,7 +2170,7 @@ func TestCrossVenueSwitchCloseReasonWaitsForOpenThenCloseTarget(t *testing.T) {
 		PendingSwitchReason: "wait target live", Status: CrossVenueStatusOpen,
 		IdemPrefix: "cv-btc-old", CurrentComparableWindowHours: 1,
 	}
-	if reason := e.crossVenueSwitchCloseReason(&pos); reason != "" {
+	if reason := e.crossVenueSwitchCloseReason(context.Background(), &pos); reason != "" {
 		t.Fatalf("expected open_then_close to wait for target, got %q", reason)
 	}
 	target := CrossVenuePosition{
@@ -2178,7 +2178,7 @@ func TestCrossVenueSwitchCloseReasonWaitsForOpenThenCloseTarget(t *testing.T) {
 		IdemPrefix: "cv-btc-new", OpenedAt: now, Status: CrossVenueStatusOpen,
 	}
 	e.positions = []CrossVenuePosition{pos, target}
-	if reason := e.crossVenueSwitchCloseReason(&pos); reason == "" {
+	if reason := e.crossVenueSwitchCloseReason(context.Background(), &pos); reason == "" {
 		t.Fatalf("expected close reason once target is live, got empty reason")
 	}
 }
@@ -2921,7 +2921,7 @@ func TestCrossVenueSubsetFallbackInsufficientVenues(t *testing.T) {
 		t.Fatal("不得下单")
 	}
 	// 纯函数口径再钉一次:bestTradeableSubsetPair 必须返回 not-ok。
-	if _, ok := bestTradeableSubsetPair("BTC-USDT", scanner.lastSnapshot.FundingByVenue); ok {
+	if _, ok := bestTradeableSubsetPair("BTC-USDT", scanner.lastSnapshot.FundingByVenue, e.cfg.CrossVenueExecutor); ok {
 		t.Fatal("子集不足两所时 bestTradeableSubsetPair 应返回 not-ok")
 	}
 }

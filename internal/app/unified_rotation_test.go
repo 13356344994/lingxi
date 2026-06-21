@@ -31,6 +31,7 @@ func testRotationOpp(id, strategy, symbol string, netEV, capital float64, venues
 		ExpectedNetEVUSDT:      netEV,
 		ExpectedOpenCostUSDT:   1,
 		ExpectedCloseCostUSDT:  1,
+		OpenEligibleNow:        true,
 		CapitalRequiredByVenue: capByVenue,
 		Legs: []UnifiedOpportunityLeg{
 			{Venue: legVenue, Notional: capital},
@@ -363,6 +364,57 @@ func TestDecideRotationSwitchDoesNotDoubleChargeOpenCost(t *testing.T) {
 	}
 	if plan.Actions[0].SwitchCostUSDT != 2 {
 		t.Fatalf("switch cost = %.4f, want 2 (held close only, no openCost double-charge)", plan.Actions[0].SwitchCostUSDT)
+	}
+}
+
+func TestRotationSwitchMarginalCostExcludesNewSlippage(t *testing.T) {
+	opp := testRotationOpp("new", UnifiedStrategyPerpPerp, "ETH", 10, 100, "binance", "bybit")
+	opp.ExpectedSlippageUSDT = 0.5
+	opp.ExpectedRollbackCostUSDT = 0.3
+	heldClose := 2.0
+	switchCost := rotationSwitchMarginalCostUSDT(heldClose, opp)
+	if switchCost != heldClose {
+		t.Fatalf("switchCost=%.4f want held close only %.4f", switchCost, heldClose)
+	}
+	openScore := rotationComparableAbsoluteScore(opp)
+	adjusted := openScore - switchCost
+	wantAdjusted := opp.ExpectedNetEVUSDT - rotationHoldingRiskUSDT(opp, unifiedOpportunityTotalCapital(opp)) - heldClose
+	if math.Abs(adjusted-wantAdjusted) > 1e-9 {
+		t.Fatalf("adjustedOpenScore=%.4f want netEV-holdingRisk-heldClose=%.4f", adjusted, wantAdjusted)
+	}
+}
+
+func TestDecideRotationHoldWhenReplaceNotOpenEligibleNow(t *testing.T) {
+	held := HeldPosition{
+		OpportunityID:          "held-btc",
+		StrategyType:           UnifiedStrategyPerpPerp,
+		Symbol:                 "BTC",
+		CapitalRequiredByVenue: map[string]float64{"binance": 50, "bybit": 50},
+	}
+	heldInputs := map[string]ContinuationInputs{
+		"held-btc": {
+			ExpectedFundingUSDT:   1,
+			ExpectedCloseCostUSDT: 2,
+			HoldingRiskUSDT:       1,
+		},
+	}
+	newOpp := testRotationOpp("new-eth", UnifiedStrategyPerpPerp, "ETH", 50, 100, "binance", "bybit")
+	now := time.Date(2026, 6, 21, 12, 0, 0, 0, time.UTC)
+	farFunding := now.Add(600 * time.Second).UTC().Format(time.RFC3339)
+	newOpp.HighNextFundingTime = farFunding
+	newOpp.LowNextFundingTime = farFunding
+	newOpp.FundingIntervalHours = 8
+	newOpp.OpenEligibleNow = false
+
+	plan := DecideRotation(
+		[]HeldPosition{held},
+		heldInputs,
+		[]UnifiedOpportunity{newOpp},
+		map[string]float64{"binance": 500, "bybit": 500},
+		DefaultRotationConfig(),
+	)
+	if len(plan.Actions) != 1 || plan.Actions[0].Kind != RotationActionHold {
+		t.Fatalf("expected HOLD when replace not open-eligible, got %+v", plan.Actions)
 	}
 }
 

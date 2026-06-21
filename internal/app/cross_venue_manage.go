@@ -747,7 +747,7 @@ func (e *CrossVenueExecutor) shouldCloseCrossVenue(ctx context.Context, pos *Cro
 		}
 		return e.crossVenueFilterVoluntaryCloseReason(pos, fmt.Sprintf("未来净值<=0(%.4f)", pos.CurrentFutureEV))
 	}
-	if reason := e.crossVenueSwitchCloseReason(pos); reason != "" {
+	if reason := e.crossVenueSwitchCloseReason(ctx, pos); reason != "" {
 		return e.crossVenueFilterVoluntaryCloseReason(pos, reason)
 	}
 
@@ -838,7 +838,50 @@ func crossVenuePostFundingCooldown(cfg CrossVenueExecutorConfig) time.Duration {
 	return 3 * time.Minute
 }
 
-func (e *CrossVenueExecutor) crossVenueSwitchCloseReason(pos *CrossVenuePosition) string {
+func (e *CrossVenueExecutor) crossVenueSwitchTargetOpenGateOK(ctx context.Context, pos *CrossVenuePosition, now time.Time) bool {
+	if e == nil || pos == nil || e.scanner == nil {
+		return false
+	}
+	highVenue := strings.TrimSpace(pos.PendingSwitchHighVenue)
+	lowVenue := strings.TrimSpace(pos.PendingSwitchLowVenue)
+	if highVenue == "" || lowVenue == "" {
+		return false
+	}
+	snap := e.scanner.Snapshot()
+	if !e.snapshotFreshEnough(snap.ScannedAt) {
+		return false
+	}
+	var target CrossVenueOpportunity
+	found := false
+	for _, raw := range snap.Opportunities {
+		opp := e.enrichOpportunityFromSnapshot(raw, snap, now)
+		if opp.Symbol == pos.Symbol && opp.HighVenue == highVenue && opp.LowVenue == lowVenue {
+			target = opp
+			found = true
+			break
+		}
+	}
+	if !found {
+		return false
+	}
+	cfg := e.cfg.CrossVenueExecutor
+	deps := e.gateDeps(snap)
+	recordDir := e.cfg.NetworkConfig.RecordDir
+	gateRes := evaluateCrossVenueOpenGate(ctx, cfg, deps, e.venues, crossVenueGateInput{
+		Opp:                 target,
+		Positions:           e.snapshotPositions(),
+		AllowExistingSymbol: true,
+		BybitHeld:           func(sym venue.Symbol) bool { return isBybitSymbolHeld(recordDir, sym) },
+		BinanceHeld:         func(sym venue.Symbol) bool { return isBinanceSymbolHeld(recordDir, sym) },
+		FundingHeld:         func(sym venue.Symbol) bool { return isFundingSymbolHeldAnyVenue(recordDir, sym) },
+		HaltActive:          false,
+		SymbolCooling:       e.isSymbolCooling,
+		Now:                 now,
+	})
+	return gateRes.OK
+}
+
+func (e *CrossVenueExecutor) crossVenueSwitchCloseReason(ctx context.Context, pos *CrossVenuePosition) string {
 	if e == nil || pos == nil || e.scanner == nil {
 		return ""
 	}
@@ -852,6 +895,10 @@ func (e *CrossVenueExecutor) crossVenueSwitchCloseReason(pos *CrossVenuePosition
 			if crossVenueHasActivePositionTarget(e.snapshotPositions(), pos.Symbol, pos.PendingSwitchHighVenue, pos.PendingSwitchLowVenue, crossVenuePositionKey(*pos)) {
 				return nonEmpty(pos.PendingSwitchReason, "open_then_close target live")
 			}
+			return ""
+		}
+		// close_then_open: 平旧前确认替换目标仍过 open gate(含进场窗),避免平掉旧仓后开新被拒而空仓。
+		if !e.crossVenueSwitchTargetOpenGateOK(ctx, pos, now) {
 			return ""
 		}
 		return nonEmpty(pos.PendingSwitchReason, "pending switch")

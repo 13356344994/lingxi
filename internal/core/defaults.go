@@ -379,6 +379,7 @@ func DefaultEngineConfig() EngineConfig {
 			DefaultMakerFeeBps:                    2,
 			AssumeMakerFills:                      true,
 			ExpectedHoldHours:                     12,
+			NearTermOpenEVHorizonEnabled:          true,
 			EVExpectedSlippageBps:                 3,
 			EVMaxBreakevenHours:                   24,
 			EVSafetyFactor:                        1.3,
@@ -409,6 +410,8 @@ func DefaultEngineConfig() EngineConfig {
 			LowConfidenceSizeFloorFraction:        0.6,
 			SingleVenueReverseFundingEnabled:      false,
 			OpenFundingLeadSeconds:                180,
+			TimingAwarePairSelectionEnabled:       true,
+			TimingAwarePairSelectionMinHours:      0.01,
 		},
 		CapitalAllocator: CapitalAllocatorConfig{
 			Enabled:                   false,

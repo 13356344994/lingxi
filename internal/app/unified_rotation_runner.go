@@ -143,6 +143,10 @@ type UnifiedRotationRunner struct {
 	consecutiveZeroCVSPCVPS int
 	lastZeroCVAlertMu       sync.Mutex
 	lastZeroCVAlertAt       time.Time
+
+	lastPerpPerpWaitLogMu  sync.Mutex
+	lastPerpPerpWaitLogAt  time.Time
+	lastPerpPerpWaitLogKey string
 }
 
 // rotationCapitalSnapshotContext 最近一轮资金路由只读上下文(供 capital snapshot API)。
@@ -782,9 +786,188 @@ func (r *UnifiedRotationRunner) buildPerpPerpCandidatesFromSnapshot(
 		if opp.HighSymbol != "" && opp.LowSymbol != "" && opp.HighSymbol != opp.LowSymbol {
 			unified.CandidateOnly = true
 		}
+		now := time.Now().UTC()
+		if r.nowFn != nil {
+			now = r.nowFn().UTC()
+		}
+		unified.OpenEligibleNow = rotationOpportunityFundingEntryWindowEligible(unified, r.execCfg, now)
 		perpPerpCandidates = append(perpPerpCandidates, unified)
 	}
 	return perpPerpCandidates
+}
+
+func (r *UnifiedRotationRunner) appendPerpPerpCandidatesToUnifiedLog(
+	cycleID string,
+	snap CrossVenueScanSnapshot,
+	perpPerpCandidates []UnifiedOpportunity,
+	freeAvailable map[string]float64,
+	cycleAt time.Time,
+) {
+	if r == nil || !r.includePerpPerpCandidates || strings.TrimSpace(r.recordDir) == "" || len(perpPerpCandidates) == 0 {
+		return
+	}
+	writeCycleID := strings.TrimSpace(cycleID)
+	if writeCycleID == "" {
+		writeCycleID = crossVenueDecisionCycleID(cycleAt)
+	}
+	cvByKey := make(map[string]CrossVenueOpportunity, len(snap.Opportunities))
+	for _, o := range snap.Opportunities {
+		cvByKey[crossVenueUnifiedCandidateKey(o)] = o
+	}
+	enrich := &UnifiedCandidateLogEnricher{
+		AvailableUSDTByVenue: freeAvailable,
+		RotationCfg:          r.rotationCfg,
+		Now:                  cycleAt,
+		CrossVenueOppsByKey:  cvByKey,
+	}
+	AppendCrossVenuePerpPerpCandidates(r.recordDir, writeCycleID, r.execCfg, perpPerpCandidates, enrich)
+}
+
+const (
+	perpPerpWaitLogNoCandidates   = "no_candidates"
+	perpPerpWaitLogWaitingEntry   = "waiting_entry"
+	perpPerpWaitLogThrottleWindow = 5 * time.Minute
+)
+
+func rotationCandidatesOpenEligibleCount(candidates []UnifiedOpportunity) int {
+	n := 0
+	for _, c := range candidates {
+		if c.OpenEligibleNow {
+			n++
+		}
+	}
+	return n
+}
+
+func perpPerpOppFundingIntervals(snap CrossVenueScanSnapshot, opp UnifiedOpportunity) (highInt, lowInt int) {
+	for _, o := range snap.Opportunities {
+		if o.Symbol != opp.Symbol {
+			continue
+		}
+		highInt, lowInt = o.HighIntervalHours, o.LowIntervalHours
+		break
+	}
+	if highInt <= 0 {
+		highInt = opp.FundingIntervalHours
+	}
+	if lowInt <= 0 {
+		lowInt = opp.FundingIntervalHours
+	}
+	if highInt <= 0 {
+		highInt = 8
+	}
+	if lowInt <= 0 {
+		lowInt = 8
+	}
+	return highInt, lowInt
+}
+
+func perpPerpNearestFundingSettlement(opp UnifiedOpportunity, highInt, lowInt int, now time.Time) time.Time {
+	var nearest time.Time
+	consider := func(nextRaw string, intervalHours int) {
+		next := unifiedOpportunityParseFundingTime(nextRaw)
+		if next.IsZero() {
+			return
+		}
+		if !next.After(now) {
+			next = crossVenueAdvanceFundingTime(next, intervalHours, now)
+			if !next.After(now) {
+				return
+			}
+		}
+		if nearest.IsZero() || next.Before(nearest) {
+			nearest = next
+		}
+	}
+	consider(opp.HighNextFundingTime, highInt)
+	consider(opp.LowNextFundingTime, lowInt)
+	return nearest
+}
+
+func perpPerpPickNearestWaitCandidate(candidates []UnifiedOpportunity, snap CrossVenueScanSnapshot, now time.Time) (UnifiedOpportunity, time.Time) {
+	var best UnifiedOpportunity
+	var nearest time.Time
+	for _, opp := range candidates {
+		hi, lo := perpPerpOppFundingIntervals(snap, opp)
+		next := perpPerpNearestFundingSettlement(opp, hi, lo, now)
+		if next.IsZero() {
+			continue
+		}
+		if nearest.IsZero() || next.Before(nearest) {
+			nearest = next
+			best = opp
+		}
+	}
+	return best, nearest
+}
+
+func formatFundingTimeCST(t time.Time) string {
+	if t.IsZero() {
+		return "—"
+	}
+	return t.In(beijingCST).Format("15:04") + "(CST)"
+}
+
+func formatDurationRoughUntil(d time.Duration) string {
+	if d <= 0 {
+		return "≈0"
+	}
+	m := int(d.Round(time.Minute) / time.Minute)
+	if m < 60 {
+		return fmt.Sprintf("≈%dm", m)
+	}
+	h := m / 60
+	rm := m % 60
+	if rm == 0 {
+		return fmt.Sprintf("≈%dh", h)
+	}
+	return fmt.Sprintf("≈%dh%dm", h, rm)
+}
+
+func (r *UnifiedRotationRunner) perpPerpWaitLogKey(reason string, opp UnifiedOpportunity) string {
+	if reason == perpPerpWaitLogNoCandidates {
+		return perpPerpWaitLogNoCandidates
+	}
+	return reason + ":" + strings.TrimSpace(opp.Symbol)
+}
+
+func (r *UnifiedRotationRunner) maybeLogPerpPerpWaitingForEntryWindow(
+	now time.Time,
+	reason string,
+	candidates []UnifiedOpportunity,
+	snap CrossVenueScanSnapshot,
+	candidateCount, openEligibleCount int,
+) {
+	if r == nil || r.logger == nil {
+		return
+	}
+	waitOpp, nearest := perpPerpPickNearestWaitCandidate(candidates, snap, now)
+	key := r.perpPerpWaitLogKey(reason, waitOpp)
+	r.lastPerpPerpWaitLogMu.Lock()
+	defer r.lastPerpPerpWaitLogMu.Unlock()
+	if key == r.lastPerpPerpWaitLogKey && !r.lastPerpPerpWaitLogAt.IsZero() && now.Sub(r.lastPerpPerpWaitLogAt) < perpPerpWaitLogThrottleWindow {
+		return
+	}
+	var msg string
+	switch reason {
+	case perpPerpWaitLogNoCandidates:
+		msg = "[统一轮动] perp-perp 待进场窗: 无配对候选"
+	default:
+		symbol := strings.TrimSpace(waitOpp.Symbol)
+		if symbol == "" {
+			symbol = "—"
+		}
+		untilEntry := time.Duration(0)
+		if !nearest.IsZero() {
+			lead := time.Duration(crossVenueResolvedOpenFundingLeadSeconds(r.execCfg)) * time.Second
+			untilEntry = nearest.Add(-lead).Sub(now)
+		}
+		msg = fmt.Sprintf("[统一轮动] perp-perp 待进场窗: %s 最近结算=%s 距进场窗开启%s (candidates=%d 在窗内=%d)",
+			symbol, formatFundingTimeCST(nearest), formatDurationRoughUntil(untilEntry), candidateCount, openEligibleCount)
+	}
+	r.logger.Printf("%s", msg)
+	r.lastPerpPerpWaitLogAt = now
+	r.lastPerpPerpWaitLogKey = key
 }
 
 // runPerpPerpDecisionFast 每 60s cycle 基于 scanner 内存快照评估 perp-perp 开仓/换仓(与 carry 慢扫描解耦)。
@@ -812,12 +995,14 @@ func (r *UnifiedRotationRunner) runPerpPerpDecisionFast(ctx context.Context) {
 	available := r.fetchRotationAvailableUSDT(ctx)
 	perpCandidates := r.buildPerpPerpCandidatesFromSnapshot(snap, available)
 	if len(perpCandidates) == 0 {
+		r.maybeLogPerpPerpWaitingForEntryWindow(cycleAt, perpPerpWaitLogNoCandidates, nil, snap, 0, 0)
 		return
 	}
 	recordEarningLegDiag(r.recordDir, "perp_perp_fast", snapshotID, snapshotID, perpCandidates)
 	borrowDaily, _ := rotationBorrowMapsFromProbes(snap.BorrowProbes)
 	allHeld, allHeldInputs := r.collectHeldPositions(perpCandidates, borrowDaily)
 	freeAvailable := rotationFreeAvailableUSDT(available, allHeld)
+	r.appendPerpPerpCandidatesToUnifiedLog(snapshotID, snap, perpCandidates, freeAvailable, cycleAt)
 	rotationCfg := normalizeRotationConfig(r.rotationCfg)
 	if r.openCooldownStore != nil {
 		rotationCfg.OpenCooldownBlocked = r.openCooldownStore.blockedPredicate(r.nowFn)
@@ -826,10 +1011,15 @@ func (r *UnifiedRotationRunner) runPerpPerpDecisionFast(ctx context.Context) {
 	if len(rotationCandidates) == 0 {
 		return
 	}
+	refreshRotationCandidatesOpenEligibleNow(rotationCandidates, r.execCfg, cycleAt)
+	openEligibleCount := rotationCandidatesOpenEligibleCount(rotationCandidates)
 
 	plan := r.decideRotation(allHeld, allHeldInputs, rotationCandidates, freeAvailable)
 	plan.Actions = filterRotationPlanPerpPerpActions(plan.Actions)
 	if len(plan.Actions) == 0 {
+		if openEligibleCount == 0 {
+			r.maybeLogPerpPerpWaitingForEntryWindow(cycleAt, perpPerpWaitLogWaitingEntry, rotationCandidates, snap, len(rotationCandidates), openEligibleCount)
+		}
 		return
 	}
 	if r.logger != nil {
@@ -927,31 +1117,13 @@ func (r *UnifiedRotationRunner) runOnce(ctx context.Context) error {
 	if r.openCooldownStore != nil {
 		rotationCfg.OpenCooldownBlocked = r.openCooldownStore.blockedPredicate(r.nowFn)
 	}
-	if r.includePerpPerpCandidates && strings.TrimSpace(r.recordDir) != "" {
-		writeCycleID := snapshotID
-		if writeCycleID == "" {
-			writeCycleID = crossVenueDecisionCycleID(cycleAt)
-		}
-		perpPerpCandidates := make([]UnifiedOpportunity, 0)
-		for _, c := range candidates {
-			if c.StrategyType == UnifiedStrategyPerpPerp {
-				perpPerpCandidates = append(perpPerpCandidates, c)
-			}
-		}
-		if len(perpPerpCandidates) > 0 {
-			cvByKey := make(map[string]CrossVenueOpportunity, len(snap.Opportunities))
-			for _, o := range snap.Opportunities {
-				cvByKey[crossVenueUnifiedCandidateKey(o)] = o
-			}
-			enrich := &UnifiedCandidateLogEnricher{
-				AvailableUSDTByVenue: freeAvailable,
-				RotationCfg:          r.rotationCfg,
-				Now:                  cycleAt,
-				CrossVenueOppsByKey:  cvByKey,
-			}
-			AppendCrossVenuePerpPerpCandidates(r.recordDir, writeCycleID, r.execCfg, perpPerpCandidates, enrich)
+	perpPerpCandidates := make([]UnifiedOpportunity, 0)
+	for _, c := range candidates {
+		if c.StrategyType == UnifiedStrategyPerpPerp {
+			perpPerpCandidates = append(perpPerpCandidates, c)
 		}
 	}
+	r.appendPerpPerpCandidatesToUnifiedLog(snapshotID, snap, perpPerpCandidates, freeAvailable, cycleAt)
 	diagnosticCandidates := candidates
 	rotationCandidates := filterRotationCandidatesWithoutStrategy(
 		filterRotationCandidates(diagnosticCandidates, rotationCfg),
@@ -996,6 +1168,11 @@ func (r *UnifiedRotationRunner) runOnceDecisionAndDispatch(
 	}()
 
 	live := r.openLive()
+	now := time.Now().UTC()
+	if r.nowFn != nil {
+		now = r.nowFn().UTC()
+	}
+	refreshRotationCandidatesOpenEligibleNow(candidates, r.execCfg, now)
 	plan := r.decideRotation(held, heldInputs, candidates, available)
 	if r.logger != nil {
 		if rawTotal <= 0 {
@@ -1467,6 +1644,26 @@ func (r *UnifiedRotationRunner) dispatchRotationPlan(
 			if !r.closeLive() {
 				continue
 			}
+			opp, ok := candidatesByID[act.ReplaceOpportunityID]
+			if !ok {
+				if r.logger != nil {
+					r.logger.Printf("[统一轮动] SWITCH 中止(候选缺失,保留旧仓) old=%s replace=%s",
+						act.OpportunityID, act.ReplaceOpportunityID)
+				}
+				continue
+			}
+			now := time.Now().UTC()
+			if r.nowFn != nil {
+				now = r.nowFn().UTC()
+			}
+			opp.OpenEligibleNow = rotationOpportunityFundingEntryWindowEligible(opp, r.execCfg, now)
+			if !rotationOpportunityOpenEligibleForDecision(opp) {
+				if r.logger != nil {
+					r.logger.Printf("[统一轮动] SWITCH 中止(替换进场窗未到,保留旧仓) old=%s replace=%s symbol=%s",
+						act.OpportunityID, act.ReplaceOpportunityID, act.ReplaceSymbol)
+				}
+				continue
+			}
 			// 事务性换仓: 平旧失败则中止,禁止开新;平旧成功但开新失败须显式落盘(旧仓已平、新仓未开)。
 			if err := r.closeHeldVerified(ctx, act.StrategyType, act.OpportunityID, act.Symbol, act.Reason); err != nil {
 				r.recordRotationSwitchIncident(act, rotationSwitchAbortedCloseFailed, err.Error())
@@ -1481,15 +1678,6 @@ func (r *UnifiedRotationRunner) dispatchRotationPlan(
 				if r.logger != nil {
 					r.logger.Printf("[统一轮动] SWITCH 开新失败(旧仓已平,无法备资) old=%s replace=%s symbol=%s",
 						act.OpportunityID, act.ReplaceOpportunityID, act.Symbol)
-				}
-				continue
-			}
-			opp, ok := candidatesByID[act.ReplaceOpportunityID]
-			if !ok {
-				r.recordRotationSwitchIncident(act, rotationSwitchFailedOpen, "候选缺失")
-				if r.logger != nil {
-					r.logger.Printf("[统一轮动] SWITCH 开新失败(旧仓已平,候选缺失) old=%s replace=%s",
-						act.OpportunityID, act.ReplaceOpportunityID)
 				}
 				continue
 			}

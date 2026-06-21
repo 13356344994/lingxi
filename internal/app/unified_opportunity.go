@@ -51,6 +51,9 @@ type UnifiedOpportunity struct {
 	// CandidateOnly 为 true 时仅作候选对比展示，不由统一轮动 OPEN/SWITCH 执行(路线 A: perp-perp)。
 	// 零值 false 表示可执行，避免误伤未标记的四类 carry 候选(Go bool 零值为 false，故不用 CanExecute)。
 	CandidateOnly bool `json:"candidate_only,omitempty"`
+	// OpenEligibleNow 为 false 时决策层 OPEN/SWITCH 不选此候选(如 funding 进场窗未到)。
+	// Runner/扫描器在构建或决策前刷新;单元测试 helper 默认 true。
+	OpenEligibleNow bool `json:"open_eligible_now,omitempty"`
 	// 以下字段供排行榜/诊断展示(扫描器从 live snap 透传,不参与闸门/EV 决策)。
 	RawFundingRate       float64 `json:"raw_funding_rate,omitempty"`
 	FundingRatePerHour   float64 `json:"funding_rate_per_hour,omitempty"`

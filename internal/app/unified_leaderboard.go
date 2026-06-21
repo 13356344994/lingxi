@@ -159,6 +159,32 @@ func parseUnifiedCycleIDTime(cycleID string) (time.Time, bool) {
 	return time.Time{}, false
 }
 
+// unifiedLeaderboardCycleScannedAt 取 cycle_id 嵌入时间与 scanner 快照 scanned_at 中较新者(展示新鲜度)。
+func unifiedLeaderboardCycleScannedAt(cycleID string, scannerSnapshotScannedAt time.Time) (time.Time, bool) {
+	var best time.Time
+	ok := false
+	if t, parsed := parseUnifiedCycleIDTime(cycleID); parsed {
+		best = t
+		ok = true
+	}
+	if !scannerSnapshotScannedAt.IsZero() {
+		scannerAt := scannerSnapshotScannedAt.UTC()
+		if !ok || scannerAt.After(best) {
+			best = scannerAt
+			ok = true
+		}
+	}
+	return best, ok
+}
+
+func recordBaseFromUnifiedCandidatesLogPath(candidatesLogPath string) string {
+	oppDir := filepath.Dir(candidatesLogPath)
+	if filepath.Base(oppDir) != "opportunities" {
+		return ""
+	}
+	return filepath.Dir(oppDir)
+}
+
 func latestUnifiedCycleID(records []UnifiedCandidateLogRecord) string {
 	seen := map[string]struct{}{}
 	var latestParsedID string
@@ -545,7 +571,8 @@ func leaderboardEntryFromRecord(rec UnifiedCandidateLogRecord, rank int, landsca
 }
 
 // BuildUnifiedLeaderboard 从全部 JSONL 记录中取最近 cycle_id 的候选并排序。
-func BuildUnifiedLeaderboard(records []UnifiedCandidateLogRecord, topN int) UnifiedLeaderboardResponse {
+// scannerSnapshotScannedAt 可选:与 cycle_id 嵌入时间取较新者作为周期 scanned_at(展示新鲜度)。
+func BuildUnifiedLeaderboard(records []UnifiedCandidateLogRecord, topN int, scannerSnapshotScannedAt time.Time) UnifiedLeaderboardResponse {
 	now := time.Now().UTC()
 	resp := UnifiedLeaderboardResponse{
 		GeneratedAt: now.Format(time.RFC3339),
@@ -564,7 +591,7 @@ func BuildUnifiedLeaderboard(records []UnifiedCandidateLogRecord, topN int) Unif
 	resp.CycleID = cycleID
 	resp.TotalCandidates = len(cycleRecords)
 	resp.CycleStaleMaxAgeSeconds = rotationSnapshotMaxAge.Seconds()
-	if scannedAt, ok := parseUnifiedCycleIDTime(cycleID); ok {
+	if scannedAt, ok := unifiedLeaderboardCycleScannedAt(cycleID, scannerSnapshotScannedAt); ok {
 		resp.CycleScannedAt = scannedAt.Format(time.RFC3339)
 		resp.CycleAgeSeconds = now.Sub(scannedAt).Seconds()
 		if resp.CycleAgeSeconds < 0 {
@@ -680,7 +707,13 @@ func LoadUnifiedLeaderboard(path string, topN int) (UnifiedLeaderboardResponse, 
 	if err != nil {
 		return UnifiedLeaderboardResponse{}, err
 	}
-	resp := BuildUnifiedLeaderboard(records, topN)
+	var scannerScannedAt time.Time
+	if base := recordBaseFromUnifiedCandidatesLogPath(path); base != "" {
+		if snap, ok := crossVenueLoadLatestSnapshot(base); ok {
+			scannerScannedAt = snap.ScannedAt
+		}
+	}
+	resp := BuildUnifiedLeaderboard(records, topN, scannerScannedAt)
 	resp.SourcePath = path
 	return resp, nil
 }

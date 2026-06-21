@@ -593,6 +593,9 @@ func rotationCanOpenOpportunity(opp UnifiedOpportunity, available map[string]flo
 	if opp.CandidateOnly {
 		return false, "candidate_only"
 	}
+	if !rotationOpportunityOpenEligibleForDecision(opp) {
+		return false, carryScannerRejectFundingWindowNotReached
+	}
 	if hardReject := rotationFirstHardRejectReason(opp); hardReject != "" {
 		return false, fmt.Sprintf("reject:%s", hardReject)
 	}
@@ -748,9 +751,84 @@ func rotationBestReplaceCandidate(
 	return best, bestScore, found
 }
 
-// rotationSwitchMarginalCostUSDT 换仓边际成本: 平旧 close + 开新 slippage/rollback(openCost 已在 netEV)。
+// rotationSwitchMarginalCostUSDT 换仓边际成本: 仅平旧仓 close(不在任一候选 netEV 中)。
+// 新候选 netEV 已含 open+close+slippage;四类 carry 的 rebalancePenalty 亦在 netEV(映射为 ExpectedRollbackCostUSDT)。
 func rotationSwitchMarginalCostUSDT(heldCloseCostUSDT float64, newOpp UnifiedOpportunity) float64 {
-	return heldCloseCostUSDT + newOpp.ExpectedSlippageUSDT + newOpp.ExpectedRollbackCostUSDT
+	_ = newOpp
+	return heldCloseCostUSDT
+}
+
+func unifiedOpportunityParseFundingTime(s string) time.Time {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return time.Time{}
+	}
+	t, err := time.Parse(time.RFC3339, s)
+	if err != nil {
+		return time.Time{}
+	}
+	return t.UTC()
+}
+
+// rotationOpportunityFundingEntryWindowEligible 决策层进场窗闸(与执行 open gate 同口径 minimum)。
+func rotationOpportunityFundingEntryWindowEligible(opp UnifiedOpportunity, execCfg CrossVenueExecutorConfig, now time.Time) bool {
+	if now.IsZero() {
+		now = time.Now().UTC()
+	}
+	switch opp.StrategyType {
+	case UnifiedStrategyPerpPerp:
+		highNext := unifiedOpportunityParseFundingTime(opp.HighNextFundingTime)
+		lowNext := unifiedOpportunityParseFundingTime(opp.LowNextFundingTime)
+		ih := opp.FundingIntervalHours
+		if ih <= 0 {
+			ih = 8
+		}
+		lead := time.Duration(crossVenueResolvedOpenFundingLeadSeconds(execCfg)) * time.Second
+		return crossVenueFundingEntryWindowReached(highNext, ih, lowNext, ih, now, lead)
+	default:
+		next := unifiedOpportunityParseFundingTime(opp.NextFundingTime)
+		if next.IsZero() {
+			return true // 无结算时间 → fail-open(与 perp-perp 闸一致)
+		}
+		ih := opp.FundingIntervalHours
+		if ih <= 0 {
+			ih = 8
+		}
+		untilHours := crossVenueComparableWindowHours(now, next, next)
+		if untilHours <= 0 {
+			return false
+		}
+		entryWindowMinutes := carryFundingEntryWindowMinutes(execCfg.FundingEntryGate(), ih, 0, false)
+		return untilHours*60 <= entryWindowMinutes+1e-9
+	}
+}
+
+func refreshRotationCandidatesOpenEligibleNow(candidates []UnifiedOpportunity, execCfg CrossVenueExecutorConfig, now time.Time) {
+	for i := range candidates {
+		candidates[i].OpenEligibleNow = rotationOpportunityFundingEntryWindowEligible(candidates[i], execCfg, now)
+	}
+}
+
+func rotationOpportunityHasFundingTimeData(opp UnifiedOpportunity) bool {
+	switch opp.StrategyType {
+	case UnifiedStrategyPerpPerp:
+		return !unifiedOpportunityParseFundingTime(opp.HighNextFundingTime).IsZero() ||
+			!unifiedOpportunityParseFundingTime(opp.LowNextFundingTime).IsZero()
+	default:
+		return !unifiedOpportunityParseFundingTime(opp.NextFundingTime).IsZero()
+	}
+}
+
+// rotationOpportunityOpenEligibleForDecision 决策层 OPEN/SWITCH 进场窗闸。
+// Runner 刷新后 OpenEligibleNow 为准;无 funding 时间字段的 legacy/测试候选 fail-open。
+func rotationOpportunityOpenEligibleForDecision(opp UnifiedOpportunity) bool {
+	if opp.OpenEligibleNow {
+		return true
+	}
+	if !rotationOpportunityHasFundingTimeData(opp) {
+		return true
+	}
+	return false
 }
 
 // rotationContinuationMinHoldSatisfied 续持软 CLOSE 的 min-hold:固定秒数 + 首 settlement 持有(可配置)。

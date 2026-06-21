@@ -738,7 +738,7 @@ func (e *CrossVenueExecutor) resolveTradeableOpportunity(opp CrossVenueOpportuni
 	if crossVenueTradeableVenues[opp.HighVenue] && crossVenueTradeableVenues[opp.LowVenue] {
 		return opp, ""
 	}
-	alt, ok := bestTradeableSubsetPair(opp.Symbol, byVenue)
+	alt, ok := bestTradeableSubsetPair(opp.Symbol, byVenue, e.cfg.CrossVenueExecutor)
 	if !ok {
 		return opp, fmt.Sprintf("最优对(%s/%s)含不可交易所,费率索引中可交易所子集不足两所", opp.HighVenue, opp.LowVenue)
 	}
@@ -802,7 +802,7 @@ func (e *CrossVenueExecutor) enrichOpportunityFromSnapshot(opp CrossVenueOpportu
 // bestTradeableSubsetPair 用扫描器费率索引对某 symbol 在可交易所子集内重算最优腿对。
 // 年化口径与扫描器完全一致:bestPairSpread 按可比窗口离散 funding EV 选对,不另抄算法。
 // 索引里该 symbol 覆盖不足两个可交易所时返回 not-ok(沿用现有降级语义)。
-func bestTradeableSubsetPair(sym string, byVenue map[string]map[string]CrossVenueFundingEntry) (CrossVenueOpportunity, bool) {
+func bestTradeableSubsetPair(sym string, byVenue map[string]map[string]CrossVenueFundingEntry, cfg CrossVenueExecutorConfig) (CrossVenueOpportunity, bool) {
 	entries := make([]symbolVenueFunding, 0, len(crossVenueExecutorVenues))
 	for _, name := range crossVenueExecutorVenues {
 		entry, ok := byVenue[name][sym]
@@ -826,7 +826,7 @@ func bestTradeableSubsetPair(sym string, byVenue map[string]map[string]CrossVenu
 	if len(entries) < 2 {
 		return CrossVenueOpportunity{}, false
 	}
-	return bestPairSpread(sym, entries, time.Now().UTC())
+	return bestPairSpread(sym, entries, time.Now().UTC(), cfg)
 }
 
 func upsertCrossVenuePosition(ps []CrossVenuePosition, p CrossVenuePosition) []CrossVenuePosition {

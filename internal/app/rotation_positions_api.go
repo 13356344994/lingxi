@@ -50,18 +50,31 @@ type RotationPositionView struct {
 	ExpectedNetEVUSDT     float64                 `json:"expected_net_ev_usdt"`
 	ExpectedFundingUSDT   float64                 `json:"expected_funding_usdt"`
 	AccruedFundingUSDT    float64                 `json:"accrued_funding_usdt"`
-	TotalFeesUSDT         float64                 `json:"total_fees_usdt"`
-	TotalPnLUSDT          *float64                `json:"total_pnl_usdt,omitempty"`
-	PnLRatio              *float64                `json:"pnl_ratio,omitempty"`
-	OccupiedCapitalUSDT   float64                 `json:"occupied_capital_usdt,omitempty"`
-	PriceUnavailable      bool                    `json:"price_unavailable,omitempty"`
-	OpenedAt              time.Time               `json:"opened_at"`
-	UpdatedAt             time.Time               `json:"updated_at,omitempty"`
-	ClosedAt              time.Time               `json:"closed_at,omitempty"`
-	CloseReason           string                  `json:"close_reason,omitempty"`
-	TransitionState       string                  `json:"transition_state,omitempty"`
-	SwitchLineage         string                  `json:"switch_lineage,omitempty"`
-	HoldDurationSec       float64                 `json:"hold_duration_sec,omitempty"`
+	// Perp-perp 展示字段(omitempty; carry 单腿视图保持零值/省略)。
+	HighFundingRate            float64    `json:"high_funding_rate,omitempty"`
+	LowFundingRate             float64    `json:"low_funding_rate,omitempty"`
+	HighIntervalHours          int        `json:"high_interval_hours,omitempty"`
+	LowIntervalHours           int        `json:"low_interval_hours,omitempty"`
+	HighNextFundingTime        *time.Time `json:"high_next_funding_time,omitempty"`
+	LowNextFundingTime         *time.Time `json:"low_next_funding_time,omitempty"`
+	HighSettlementsInWindow    int        `json:"high_settlements_in_window,omitempty"`
+	LowSettlementsInWindow     int        `json:"low_settlements_in_window,omitempty"`
+	ComparableWindowEndTime    *time.Time `json:"comparable_window_end_time,omitempty"`
+	RealizedAccruedFundingUSDT float64    `json:"realized_accrued_funding_usdt,omitempty"`
+	ExpectedNextFundingUSDT    float64    `json:"expected_next_funding_usdt,omitempty"`
+	NetExpectedWithFundingUSDT *float64   `json:"net_expected_with_funding_usdt,omitempty"`
+	TotalFeesUSDT              float64    `json:"total_fees_usdt"`
+	TotalPnLUSDT               *float64   `json:"total_pnl_usdt,omitempty"`
+	PnLRatio                   *float64   `json:"pnl_ratio,omitempty"`
+	OccupiedCapitalUSDT        float64    `json:"occupied_capital_usdt,omitempty"`
+	PriceUnavailable           bool       `json:"price_unavailable,omitempty"`
+	OpenedAt                   time.Time  `json:"opened_at"`
+	UpdatedAt                  time.Time  `json:"updated_at,omitempty"`
+	ClosedAt                   time.Time  `json:"closed_at,omitempty"`
+	CloseReason                string     `json:"close_reason,omitempty"`
+	TransitionState            string     `json:"transition_state,omitempty"`
+	SwitchLineage              string     `json:"switch_lineage,omitempty"`
+	HoldDurationSec            float64    `json:"hold_duration_sec,omitempty"`
 }
 
 // RotationSettlementView 五轮动策略结算的统一视图(历史/已平仓)。
@@ -271,30 +284,109 @@ func viewFromCrossVenuePerpPerp(pos CrossVenuePosition, execCfg CrossVenueExecut
 	notional := crossVenuePositionNotionalUSDT(&pos)
 	cont := rotationContinuationFromPosition(pos.EstFundingUSDT, notional, execCfg, false, rotationContinuationOpts{baseAsset: baseAssetFromCanonicalSymbol(pos.Symbol)})
 	estCloseFees := crossVenueEstCloseFeeUSDT(execCfg, &pos)
-	return RotationPositionView{
-		StrategyType:          UnifiedStrategyPerpPerp,
-		PositionKey:           crossVenuePositionKey(pos),
-		OpportunityID:         crossVenuePositionOpportunityID(pos),
-		Symbol:                pos.Symbol,
-		Venues:                uniqueNonEmptyStrings(pos.HighVenue, pos.LowVenue),
-		Status:                normalizeRotationStatus(string(pos.Status), pos.CloseReason, pos.TransitionState),
-		SpotLeg:               crossVenuePerpLegView(pos.HighVenue, pos.HighLeg),
-		PerpLeg:               crossVenuePerpLegView(pos.LowVenue, pos.LowLeg),
-		NotionalUSDT:          notional,
-		OpenFeesUSDT:          pos.OpenFeesUSDT,
-		RealizedCloseFeesUSDT: pos.CloseFeesUSDT,
-		ExpectedCloseFeesUSDT: estCloseFees,
-		ExpectedCloseCostUSDT: cont.ExpectedCloseCostUSDT,
-		ExpectedNetEVUSDT:     pos.CurrentFutureEV,
-		ExpectedFundingUSDT:   pos.EstFundingUSDT,
-		AccruedFundingUSDT:    money.SumUSDT(pos.HighLegFundingUSDT, pos.LowLegFundingUSDT),
-		OpenedAt:              pos.OpenedAt,
-		UpdatedAt:             pos.UpdatedAt,
-		CloseReason:           pos.CloseReason,
-		TransitionState:       pos.TransitionState,
-		SwitchLineage:         rotationSwitchLineage(pos.CloseReason, pos.TransitionState),
-		HoldDurationSec:       holdDurationSec(pos.OpenedAt, now),
+	realizedFunding := money.SumUSDT(pos.HighLegFundingUSDT, pos.LowLegFundingUSDT)
+	highNotional := rotationCrossVenueLegNotionalUSDT(&pos, true)
+	lowNotional := rotationCrossVenueLegNotionalUSDT(&pos, false)
+	expectedNextFunding := rotationExpectedNextFundingUSDT(
+		pos.HighLeg.Side, pos.HighFundingRate, highNotional, pos.HighNextFundingTime,
+		pos.LowLeg.Side, pos.LowFundingRate, lowNotional, pos.LowNextFundingTime,
+		now,
+	)
+	windowHours := crossVenueComparableWindowHours(now, pos.HighNextFundingTime, pos.LowNextFundingTime)
+	highInt := pos.HighIntervalHours
+	if highInt <= 0 {
+		highInt = 8
 	}
+	lowInt := pos.LowIntervalHours
+	if lowInt <= 0 {
+		lowInt = 8
+	}
+	highSettlements := crossVenueSpotPerpFundingSettlementCount(now, windowHours, highInt, pos.HighNextFundingTime)
+	lowSettlements := crossVenueSpotPerpFundingSettlementCount(now, windowHours, lowInt, pos.LowNextFundingTime)
+	windowEnd := minTime(pos.HighNextFundingTime, pos.LowNextFundingTime)
+	view := RotationPositionView{
+		StrategyType:               UnifiedStrategyPerpPerp,
+		PositionKey:                crossVenuePositionKey(pos),
+		OpportunityID:              crossVenuePositionOpportunityID(pos),
+		Symbol:                     pos.Symbol,
+		Venues:                     uniqueNonEmptyStrings(pos.HighVenue, pos.LowVenue),
+		Status:                     normalizeRotationStatus(string(pos.Status), pos.CloseReason, pos.TransitionState),
+		SpotLeg:                    crossVenuePerpLegView(pos.HighVenue, pos.HighLeg),
+		PerpLeg:                    crossVenuePerpLegView(pos.LowVenue, pos.LowLeg),
+		NotionalUSDT:               notional,
+		OpenFeesUSDT:               pos.OpenFeesUSDT,
+		RealizedCloseFeesUSDT:      pos.CloseFeesUSDT,
+		ExpectedCloseFeesUSDT:      estCloseFees,
+		ExpectedCloseCostUSDT:      cont.ExpectedCloseCostUSDT,
+		ExpectedNetEVUSDT:          pos.CurrentFutureEV,
+		ExpectedFundingUSDT:        pos.EstFundingUSDT,
+		AccruedFundingUSDT:         realizedFunding,
+		HighFundingRate:            pos.HighFundingRate,
+		LowFundingRate:             pos.LowFundingRate,
+		HighIntervalHours:          highInt,
+		LowIntervalHours:           lowInt,
+		HighSettlementsInWindow:    highSettlements,
+		LowSettlementsInWindow:     lowSettlements,
+		RealizedAccruedFundingUSDT: realizedFunding,
+		ExpectedNextFundingUSDT:    expectedNextFunding,
+		OpenedAt:                   pos.OpenedAt,
+		UpdatedAt:                  pos.UpdatedAt,
+		CloseReason:                pos.CloseReason,
+		TransitionState:            pos.TransitionState,
+		SwitchLineage:              rotationSwitchLineage(pos.CloseReason, pos.TransitionState),
+		HoldDurationSec:            holdDurationSec(pos.OpenedAt, now),
+	}
+	if t := pos.HighNextFundingTime; !t.IsZero() {
+		view.HighNextFundingTime = &t
+	}
+	if t := pos.LowNextFundingTime; !t.IsZero() {
+		view.LowNextFundingTime = &t
+	}
+	if !windowEnd.IsZero() && windowEnd.After(now) {
+		view.ComparableWindowEndTime = &windowEnd
+	}
+	return view
+}
+
+func rotationCrossVenueLegNotionalUSDT(pos *CrossVenuePosition, highLeg bool) float64 {
+	if pos == nil {
+		return 0
+	}
+	leg := pos.LowLeg
+	if highLeg {
+		leg = pos.HighLeg
+	}
+	if leg.Qty > 0 && leg.EntryPrice > 0 {
+		return leg.Qty * leg.EntryPrice
+	}
+	return crossVenuePositionNotionalUSDT(pos)
+}
+
+// rotationExpectedLegFundingCashflowUSDT 估算单腿下一次结算的资费现金流(USDT)。
+// 约定: SHORT(sell) 在 rate>0 时收取 → +rate*notional; LONG(buy) 在 rate<0 时收取 → -rate*notional。
+// nextFunding 为零或已过期则该腿贡献 0。
+func rotationExpectedLegFundingCashflowUSDT(side string, rate, notional float64, nextFunding, now time.Time) float64 {
+	if notional <= 0 || nextFunding.IsZero() || !nextFunding.After(now) {
+		return 0
+	}
+	switch strings.ToLower(strings.TrimSpace(side)) {
+	case "sell", "short":
+		return rate * notional
+	case "buy", "long":
+		return -rate * notional
+	default:
+		return 0
+	}
+}
+
+func rotationExpectedNextFundingUSDT(
+	highSide string, highRate, highNotional float64, highNext time.Time,
+	lowSide string, lowRate, lowNotional float64, lowNext time.Time,
+	now time.Time,
+) float64 {
+	high := rotationExpectedLegFundingCashflowUSDT(highSide, highRate, highNotional, highNext, now)
+	low := rotationExpectedLegFundingCashflowUSDT(lowSide, lowRate, lowNotional, lowNext, now)
+	return money.SumUSDT(high, low)
 }
 
 func crossVenuePerpLegView(venueName string, leg CrossVenueLegState) RotationPositionLegView {
@@ -526,6 +618,10 @@ func enrichOneRotationPositionWithLivePrices(ctx context.Context, venues map[str
 	)
 	view.TotalPnLUSDT = &total
 	view.PnLRatio = rotationPositionPnLRatio(total, view.OccupiedCapitalUSDT)
+	if view.StrategyType == UnifiedStrategyPerpPerp {
+		netWithFunding := money.SumUSDT(total, view.ExpectedNextFundingUSDT)
+		view.NetExpectedWithFundingUSDT = &netWithFunding
+	}
 }
 
 func buildRotationPositionViews(s *DashboardServer, execCfg CrossVenueExecutorConfig, statusFilter, strategyFilter string) []RotationPositionView {

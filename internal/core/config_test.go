@@ -217,6 +217,13 @@ func TestCrossVenueExecutorPerpPerpOpeningsDefaultEnabled(t *testing.T) {
 	}
 }
 
+func TestCrossVenueExecutorNearTermOpenEVHorizonEnabledDefault(t *testing.T) {
+	cfg := DefaultEngineConfig()
+	if !cfg.CrossVenueExecutor.NearTermOpenEVHorizonEnabled {
+		t.Fatal("NearTermOpenEVHorizonEnabled 默认应为 true")
+	}
+}
+
 func TestDefaultBorrowDisabledVenuesGateOnly(t *testing.T) {
 	cfg := DefaultEngineConfig()
 	if cfg.CrossVenueScanner.BorrowDisabledVenues != "gate" {

@@ -585,6 +585,7 @@ func buildCrossVenueSpotPerpOpportunity(
 		ExpectedBorrowCostUSDT:   0,
 		ExpectedRollbackCostUSDT: rebalancePenalty,
 		ExpectedNetEVUSDT:        netEV,
+		OpenEligibleNow:          true,
 		ExpectedHoldHours:        holdHours,
 		CapitalRequiredByVenue: map[string]float64{
 			spotVenue: spotCashRequired,

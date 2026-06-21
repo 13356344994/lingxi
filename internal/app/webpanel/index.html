@@ -797,7 +797,7 @@
               <tr>
                 <th>交易对</th><th title="carry: 同所/跨所 现货-永续 或 永续-现货; PP: 跨所永续-永续">策略</th><th>状态</th>
                 <th title="carry 为现货腿; PP 为高费永续腿">高费腿</th><th title="carry 为永续腿; PP 为低费永续腿">低费腿</th>
-                <th>名义(U)</th><th>已累计资费</th><th>手续费(开+预计平)</th><th>总盈亏(U)</th><th>盈亏比例</th><th>预期净EV</th><th>持有时长</th>
+                <th>名义(U)</th><th title="PP: 已结算资费与预期下次资费分列; 总盈亏仅含已结算资费">资费</th><th>手续费(开+预计平)</th><th title="含未实现腿盈亏与已结算资费; 不含预期下次资费">总盈亏(U)</th><th>盈亏比例</th><th>预期净EV</th><th>持有时长</th>
               </tr>
             </thead>
             <tbody id="rotation-open-tbody"><tr><td colspan="12" class="hint">加载中…</td></tr></tbody>
@@ -3943,6 +3943,66 @@
       return v || "-";
     }
 
+    function fmtFundingRate(rate) {
+      if (rate == null || !Number.isFinite(Number(rate))) return "—";
+      const v = Number(rate) * 100;
+      const s = v >= 0 ? "+" : "";
+      return s + v.toFixed(4) + "%";
+    }
+
+    function fmtFundingInterval(hours) {
+      if (hours == null || !Number.isFinite(Number(hours)) || Number(hours) <= 0) return "";
+      return "/" + Number(hours) + "h";
+    }
+
+    function fmtWindowSettlements(count) {
+      if (count == null || !Number.isFinite(Number(count))) return "";
+      return " ·本窗" + Number(count) + "次";
+    }
+
+    function formatRotationFundingCell(p) {
+      const isPP = String(p.strategy_type || "") === "perp_perp";
+      if (!isPP) {
+        const v = Number(p.accrued_funding_usdt || 0);
+        return `<div style="font-size:11px;">已累计 ${v.toFixed(4)}</div>`;
+      }
+      const highVenue = (p.spot_leg && p.spot_leg.venue) || (Array.isArray(p.venues) ? p.venues[0] : "") || "高腿";
+      const lowVenue = (p.perp_leg && p.perp_leg.venue) || (Array.isArray(p.venues) ? p.venues[1] : "") || "低腿";
+      const highRate = p.high_funding_rate;
+      const lowRate = p.low_funding_rate;
+      const highWin = fmtWindowSettlements(p.high_settlements_in_window);
+      const lowWin = fmtWindowSettlements(p.low_settlements_in_window);
+      const highNext = p.high_next_funding_time ? formatTimeUTC8(p.high_next_funding_time, { withSuffix: false }) : "—";
+      const lowNext = p.low_next_funding_time ? formatTimeUTC8(p.low_next_funding_time, { withSuffix: false }) : "—";
+      const realized = p.realized_accrued_funding_usdt != null ? Number(p.realized_accrued_funding_usdt) : Number(p.accrued_funding_usdt || 0);
+      const expected = p.expected_next_funding_usdt != null ? Number(p.expected_next_funding_usdt) : null;
+      const realizedHtml = `<span style="color:${pnlColor(realized)}">${fmtPnL(realized)}</span>`;
+      const expectedHtml = expected == null || !Number.isFinite(expected)
+        ? "—"
+        : `<span style="color:${pnlColor(expected)}">${fmtPnL(expected)}</span>`;
+      return `<div style="font-size:11px;line-height:1.45;white-space:normal;min-width:160px;">
+        <div>${escapeHTML(highVenue)} 高腿 ${fmtFundingRate(highRate)}${fmtFundingInterval(p.high_interval_hours)}${highWin} · 下次 ${escapeHTML(highNext)}</div>
+        <div>${escapeHTML(lowVenue)} 低腿 ${fmtFundingRate(lowRate)}${fmtFundingInterval(p.low_interval_hours)}${lowWin} · 下次 ${escapeHTML(lowNext)}</div>
+        <div>已结算资费 ${realizedHtml}</div>
+        <div>预期下次资费 ${expectedHtml}</div>
+      </div>`;
+    }
+
+    function formatRotationTotalPnLCell(p) {
+      const totalPnL = p.total_pnl_usdt;
+      const isPP = String(p.strategy_type || "") === "perp_perp";
+      const note = isPP
+        ? '<div class="hint" style="font-size:10px;margin-top:2px;">仅含已结算资费</div>'
+        : "";
+      const netWith = isPP && p.net_expected_with_funding_usdt != null && Number.isFinite(Number(p.net_expected_with_funding_usdt))
+        ? `<div class="hint" style="font-size:10px;margin-top:2px;">含预期下次 ${fmtPnL(p.net_expected_with_funding_usdt)}</div>`
+        : "";
+      return `<div style="font-size:11px;line-height:1.4;">
+        <div style="color:${pnlColor(totalPnL)}">${fmtPnL(totalPnL)}</div>
+        ${note}${netWith}
+      </div>`;
+    }
+
     function formatRotationLegCell(leg) {
       if (!leg) return "-";
       const venue = leg.venue || "-";
@@ -3983,7 +4043,6 @@
         ]);
         const openRows = (openResp.positions || []).map((p) => {
           const totalFees = Number(p.total_fees_usdt != null ? p.total_fees_usdt : (Number(p.open_fees_usdt || 0) + Number(p.expected_close_fees_usdt || 0)));
-          const totalPnL = p.total_pnl_usdt;
           return `
           <tr>
             <td>${escapeHTML(p.symbol || "-")}</td>
@@ -3992,10 +4051,10 @@
             <td>${formatRotationLegCell(p.spot_leg)}</td>
             <td>${formatRotationLegCell(p.perp_leg)}</td>
             <td>${Number(p.notional_usdt || 0).toFixed(2)}</td>
-            <td>${Number(p.accrued_funding_usdt || 0).toFixed(4)}</td>
+            <td>${formatRotationFundingCell(p)}</td>
             <td>${totalFees.toFixed(4)}</td>
-            <td style="color:${pnlColor(totalPnL)}">${fmtPnL(totalPnL)}</td>
-            <td style="color:${pnlColor(totalPnL)}">${fmtPctRatio(p.pnl_ratio)}</td>
+            <td>${formatRotationTotalPnLCell(p)}</td>
+            <td style="color:${pnlColor(p.total_pnl_usdt)}">${fmtPctRatio(p.pnl_ratio)}</td>
             <td>${Number(p.expected_net_ev_usdt || 0).toFixed(4)}</td>
             <td>${formatHoldDuration(p.hold_duration_sec)}</td>
           </tr>`;
