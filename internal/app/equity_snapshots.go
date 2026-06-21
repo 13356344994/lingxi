@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -23,6 +24,7 @@ type equitySnapshotRecord struct {
 	TS       string  `json:"ts"`
 	Venue    string  `json:"venue"`
 	CashUSDT float64 `json:"cash_usdt"`
+	Complete *bool   `json:"complete,omitempty"`
 }
 
 func (e *CrossVenueExecutor) equitySnapshotsPath() string {
@@ -85,6 +87,26 @@ func (e *CrossVenueExecutor) sampleEquityOnce(ctx context.Context) {
 	}
 	if len(records) == 0 {
 		return
+	}
+	expectedVenues := len(e.venues)
+	complete := len(records) >= expectedVenues
+	if !complete {
+		var missing []string
+		got := make(map[string]struct{}, len(records))
+		for _, rec := range records {
+			got[rec.Venue] = struct{}{}
+		}
+		for name := range e.venues {
+			if _, ok := got[name]; !ok {
+				missing = append(missing, name)
+			}
+		}
+		sort.Strings(missing)
+		e.logger.Printf("[权益采样] 本轮残缺: 成功 %d/期望 %d, 缺 [%s]", len(records), expectedVenues, strings.Join(missing, ","))
+	}
+	completeFlag := complete
+	for i := range records {
+		records[i].Complete = &completeFlag
 	}
 	e.equitySnapMu.Lock()
 	defer e.equitySnapMu.Unlock()

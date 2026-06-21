@@ -20,8 +20,10 @@ risk:
   max_account_drawdown_usdt: 90
   max_strategy_cumulative_loss_usdt: 30
   max_account_open_notional_usdt: 2200
-  # 用户 2026-06-20 拍板:启用二级 auto-flatten(真实现金权益回撤≥阈值→全平);重启后生效。
-  auto_flatten_on_hard_drawdown_enabled: true
+  # 2026-06-21 止血:二级 auto-flatten 暂时关闭。其触发依据(RealEquityPeak/Drawdown)目前坐在不可信的
+  # 权益快照上(已发现单样本毛刺设峰 454.9U、残缺 venue 读把总额算成≈0),会把毛刺/提现误判成回撤而误平健康仓。
+  # 在 equity_snapshots 质量闸 + fund-flow 调整后判据上线并验证前,先置 false(belt);代码版降级见 account_risk_watch.go。
+  auto_flatten_on_hard_drawdown_enabled: false
   # 【对齐真实余额,O-5】单周期开仓名义上限:与 per_symbol_quote_usdt×2 同步(60),币安 ~99U 余额 preflight 对照。
   max_cycle_open_notional_usdt: 60
   # 硬约束 immediate_invalidate_rate < min_net_profit_rate;profit_seeking 加载后 min_net 抬至 ≥0.002(默认 0.002)。

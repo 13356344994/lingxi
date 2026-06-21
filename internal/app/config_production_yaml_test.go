@@ -55,9 +55,11 @@ func TestLoadProductionConfigYAML(t *testing.T) {
 	if math.Abs(cfg.RiskConfig.MaxAccountOpenNotionalUSDT-2200) > 1e-9 {
 		t.Fatalf("risk.max_account_open_notional_usdt = %.2f want 2200", cfg.RiskConfig.MaxAccountOpenNotionalUSDT)
 	}
-	// 用户 2026-06-20 拍板:启用击穿硬回撤自动平仓(P1-8)。
-	if !cfg.RiskConfig.AutoFlattenOnHardDrawdownEnabled {
-		t.Fatal("risk.auto_flatten_on_hard_drawdown_enabled = false want true")
+	// 2026-06-21 止血:二级 auto-flatten 暂时关闭。其触发依据(RealEquityPeak/Drawdown)目前坐在不可信的
+	// 权益快照上(单样本毛刺设峰、残缺 venue 读把总额算成≈0),会把毛刺/提现误判成回撤而误平健康仓。
+	// 待 equity_snapshots 质量闸 + fund-flow 调整后判据验证稳定后再恢复 true。
+	if cfg.RiskConfig.AutoFlattenOnHardDrawdownEnabled {
+		t.Fatal("risk.auto_flatten_on_hard_drawdown_enabled = true want false(2026-06-21 止血,权益质量闸验证前禁用)")
 	}
 
 	// cross_venue_executor 杠杆/名义

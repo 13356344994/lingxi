@@ -107,6 +107,8 @@ func TestEvaluateAccountAutoFlattenIntent_AdaptivePeakDrawdown(t *testing.T) {
 		s.RealEquityDrawdownUSDT = 149
 		s.RealEquityPeakUSDT = testReferenceEquityUSDT
 		s.RealEquityTotalUSDT = testReferenceEquityUSDT - 149
+		s.RealEquityQualityPassed = true
+		s.RealEquityPeakConfirmed = true
 	}), cfg)
 	if below.ShouldFlatten {
 		t.Fatalf("expected no flatten below pct threshold at reference equity, got %+v", below)
@@ -116,6 +118,8 @@ func TestEvaluateAccountAutoFlattenIntent_AdaptivePeakDrawdown(t *testing.T) {
 		s.RealEquityDrawdownUSDT = 150
 		s.RealEquityPeakUSDT = testReferenceEquityUSDT
 		s.RealEquityTotalUSDT = testReferenceEquityUSDT - 150
+		s.RealEquityQualityPassed = true
+		s.RealEquityPeakConfirmed = true
 	}), cfg)
 	if !at.ShouldFlatten {
 		t.Fatalf("expected flatten at reference equity boundary, got %+v", at)
@@ -126,6 +130,8 @@ func TestEvaluateAccountAutoFlattenIntent_AdaptivePeakDrawdown(t *testing.T) {
 	notYet := evaluateAccountAutoFlattenIntent(testAccountRiskSnapshotForEval(0, func(s *accountRiskSnapshot) {
 		s.RealEquityDrawdownUSDT = scaledLimit - 1
 		s.RealEquityPeakUSDT = scaledPeak
+		s.RealEquityQualityPassed = true
+		s.RealEquityPeakConfirmed = true
 	}), cfg)
 	if notYet.ShouldFlatten {
 		t.Fatalf("drawdown below scaled limit must not flatten, got %+v", notYet)

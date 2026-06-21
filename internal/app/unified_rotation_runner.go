@@ -758,6 +758,7 @@ func (r *UnifiedRotationRunner) runPerpPerpDecisionFast(ctx context.Context) {
 	if len(perpCandidates) == 0 {
 		return
 	}
+	recordEarningLegDiag(r.recordDir, "perp_perp_fast", snapshotID, snapshotID, perpCandidates)
 	borrowDaily, _ := rotationBorrowMapsFromProbes(snap.BorrowProbes)
 	allHeld, allHeldInputs := r.collectHeldPositions(perpCandidates, borrowDaily)
 	freeAvailable := rotationFreeAvailableUSDT(available, allHeld)
@@ -1291,9 +1292,11 @@ func (r *UnifiedRotationRunner) defaultScanRotationCandidates(ctx context.Contex
 		candidates = appendDelistRejectedCandidates(r.delistGuard, snapshotID, symbols, candidates)
 		candidates = applyDelistOpenGateToCandidates(r.delistGuard, candidates)
 	}
+	recordEarningLegDiag(r.recordDir, "carry_scan", snapshotID, writeCycleID, candidates)
 
 	if r.includePerpPerpCandidates {
 		perpPerpCandidates := r.buildPerpPerpCandidatesFromSnapshot(snap, availableUSDTByVenue)
+		recordEarningLegDiag(r.recordDir, "carry_scan_perp_perp", snapshotID, writeCycleID, perpPerpCandidates)
 		candidates = append(candidates, perpPerpCandidates...)
 		if strings.TrimSpace(r.recordDir) != "" {
 			AppendCrossVenuePerpPerpCandidates(r.recordDir, writeCycleID, r.execCfg, perpPerpCandidates)
@@ -1314,9 +1317,11 @@ func (r *UnifiedRotationRunner) defaultScanRotationCandidates(ctx context.Contex
 		}
 		counts := countRotationCandidates(candidates)
 		scanDiag := rotationDiagnoseCandidates(candidates, scannerAvailableUSDT, normalizeRotationConfig(r.rotationCfg))
-		r.logger.Printf("[统一轮动] 扫描完成 snapshot=%s funding_symbols=%d\n  raw_total=%d raw_by_strategy=[svsp=%d cvsp=%d svps=%d cvps=%d perp_perp=%d]\n  scanner_would_exec=%d rotation_would_exec=%d soft_reject=%d hard_reject=%d",
+		earningSummary, _ := diagnoseEarningLegConflicts(candidates)
+		r.logger.Printf("[统一轮动] 扫描完成 snapshot=%s funding_symbols=%d\n  raw_total=%d raw_by_strategy=[svsp=%d cvsp=%d svps=%d cvps=%d perp_perp=%d]\n  scanner_would_exec=%d rotation_would_exec=%d soft_reject=%d hard_reject=%d earning_leg_groups=%d conflict_keys=%d duplicated_candidates=%d",
 			snapshotID, len(symbols), counts.Total, counts.SVSP, counts.CVSP, counts.SVPS, counts.CVPS, perpPerpN,
-			scanDiag.ScannerWouldExec, scanDiag.RotationWouldExec, scanDiag.SoftRejectCount, scanDiag.HardRejectCount)
+			scanDiag.ScannerWouldExec, scanDiag.RotationWouldExec, scanDiag.SoftRejectCount, scanDiag.HardRejectCount,
+			earningSummary.UniqueKeyCount, earningSummary.ConflictKeyCount, earningSummary.DuplicatedCandidateCount)
 	}
 	return candidates, availableUSDTByVenue, nil
 }

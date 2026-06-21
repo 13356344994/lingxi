@@ -210,6 +210,8 @@ func TestEvaluateAccountAutoFlattenIntent_RealEquityBoundary(t *testing.T) {
 		s.RealEquityDrawdownUSDT = 149.99
 		s.RealEquityTotalUSDT = 850
 		s.RealEquityPeakUSDT = 999.99
+		s.RealEquityQualityPassed = true
+		s.RealEquityPeakConfirmed = true
 	}), cfg)
 	if below.ShouldFlatten {
 		t.Fatalf("expected no flatten below threshold, got %+v", below)
@@ -218,6 +220,8 @@ func TestEvaluateAccountAutoFlattenIntent_RealEquityBoundary(t *testing.T) {
 		s.RealEquityDrawdownUSDT = 150
 		s.RealEquityTotalUSDT = 850
 		s.RealEquityPeakUSDT = 1000
+		s.RealEquityQualityPassed = true
+		s.RealEquityPeakConfirmed = true
 	}), cfg)
 	if !at.ShouldFlatten || at.Reason == "" {
 		t.Fatalf("expected flatten at real equity boundary, got %+v", at)
@@ -247,6 +251,10 @@ func TestComputeRealEquityWaterMark(t *testing.T) {
 	lines := stringsJoinLines(
 		`{"ts":"2026-06-19T00:00:00Z","venue":"okx","cash_usdt":1000}`,
 		`{"ts":"2026-06-19T00:00:00Z","venue":"gate","cash_usdt":500}`,
+		`{"ts":"2026-06-19T00:03:00Z","venue":"okx","cash_usdt":1000}`,
+		`{"ts":"2026-06-19T00:03:00Z","venue":"gate","cash_usdt":500}`,
+		`{"ts":"2026-06-19T00:06:00Z","venue":"okx","cash_usdt":1000}`,
+		`{"ts":"2026-06-19T00:06:00Z","venue":"gate","cash_usdt":500}`,
 		`{"ts":"2026-06-19T01:00:00Z","venue":"okx","cash_usdt":950}`,
 		`{"ts":"2026-06-19T01:00:00Z","venue":"gate","cash_usdt":500}`,
 	)
@@ -393,6 +401,9 @@ func TestAccountRiskWatcherAutoFlattenOptIn(t *testing.T) {
 	w.equityFn = func(now time.Time) accountEquityObservation { return accountEquityObservation{ReadOK: true} }
 	w.positionFn = func() accountRiskPositionSummary { return accountRiskPositionSummary{} }
 	w.realEquityFn = func(recordDir string) (float64, float64, float64) { return 850, 1000, 150 }
+	w.realEquityQualityFn = func(recordDir string) realEquityQualityResult {
+		return realEquityQualityResult{Passed: true, PeakConfirmed: true}
+	}
 	w.notifyFn = func(title, detail string) {}
 	w.haltFn = func(reason string) error {
 		haltCount.Add(1)

@@ -35,8 +35,8 @@ const (
 
 // accountRiskSnapshot 单次观测的账户级风险视图。
 type accountRiskSnapshot struct {
-	ObservedAt             time.Time          `json:"observed_at"`
-	DayStartCST            time.Time          `json:"day_start_cst"`
+	ObservedAt                  time.Time          `json:"observed_at"`
+	DayStartCST                 time.Time          `json:"day_start_cst"`
 	DailyRealizedPnLUSDT        float64            `json:"daily_realized_pnl_usdt"`
 	DailyEquityDeltaUSDT        float64            `json:"daily_equity_delta_usdt"`
 	DailyFundFlowAdjustUSDT     float64            `json:"daily_fund_flow_adjust_usdt,omitempty"`
@@ -44,16 +44,19 @@ type accountRiskSnapshot struct {
 	VenueEquityDeltas           map[string]float64 `json:"venue_equity_deltas,omitempty"`
 	EquityDataTrusted           bool               `json:"equity_data_trusted"`
 	EquityDataUntrustedReason   string             `json:"equity_data_untrusted_reason,omitempty"`
-	CumulativeRealizedPnL  float64            `json:"cumulative_realized_pnl_usdt"`
-	RealizedPnLPeakUSDT    float64            `json:"realized_pnl_peak_usdt"`
-	AccountDrawdownUSDT    float64            `json:"account_drawdown_usdt"`
-	StrategyNetPnL         map[string]float64 `json:"strategy_net_pnl,omitempty"`
-	RealEquityTotalUSDT    float64            `json:"real_equity_total_usdt"`
-	RealEquityPeakUSDT     float64            `json:"real_equity_peak_usdt"`
-	RealEquityDrawdownUSDT float64            `json:"real_equity_drawdown_usdt"`
-	OpenPositionCount      int                `json:"open_position_count"`
-	OpenNotionalUSDT       float64            `json:"open_notional_usdt"`
-	PositionsByStrategy    map[string]int     `json:"positions_by_strategy,omitempty"`
+	CumulativeRealizedPnL       float64            `json:"cumulative_realized_pnl_usdt"`
+	RealizedPnLPeakUSDT         float64            `json:"realized_pnl_peak_usdt"`
+	AccountDrawdownUSDT         float64            `json:"account_drawdown_usdt"`
+	StrategyNetPnL              map[string]float64 `json:"strategy_net_pnl,omitempty"`
+	RealEquityTotalUSDT         float64            `json:"real_equity_total_usdt"`
+	RealEquityPeakUSDT          float64            `json:"real_equity_peak_usdt"`
+	RealEquityDrawdownUSDT      float64            `json:"real_equity_drawdown_usdt"`
+	RealEquityQualityPassed     bool               `json:"real_equity_quality_passed"`
+	RealEquityQualityFailReason string             `json:"real_equity_quality_fail_reason,omitempty"`
+	RealEquityPeakConfirmed     bool               `json:"real_equity_peak_confirmed"`
+	OpenPositionCount           int                `json:"open_position_count"`
+	OpenNotionalUSDT            float64            `json:"open_notional_usdt"`
+	PositionsByStrategy         map[string]int     `json:"positions_by_strategy,omitempty"`
 }
 
 // accountRiskThresholdResult 阈值判定结果(Stage A 告警 + Stage B 硬停输入)。
@@ -107,12 +110,13 @@ type accountRiskWatcher struct {
 	svps       *SingleVenuePerpSpotExecutor
 	cvps       *CrossVenuePerpSpotExecutor
 
-	settlementFn func() ([]strategySettlementRecord, error)
-	equityFn     func(now time.Time) accountEquityObservation
-	positionFn   func() accountRiskPositionSummary
-	equityState  accountRiskEquityState
-	realEquityFn func(recordDir string) (current, peak, drawdown float64)
-	notifyFn     func(title, detail string)
+	settlementFn        func() ([]strategySettlementRecord, error)
+	equityFn            func(now time.Time) accountEquityObservation
+	positionFn          func() accountRiskPositionSummary
+	equityState         accountRiskEquityState
+	realEquityFn        func(recordDir string) (current, peak, drawdown float64)
+	realEquityQualityFn func(recordDir string) realEquityQualityResult
+	notifyFn            func(title, detail string)
 
 	// Stage B 执行依赖(生产由 newAccountRiskWatcher 绑定;单测注入 mock)。
 	haltFn              func(reason string) error
@@ -138,14 +142,14 @@ type accountEquityObservation struct {
 
 // accountRiskEquityState 跨 tick 权益状态:上次可信快照、日基准平移(充提)、交易上下文。
 type accountRiskEquityState struct {
-	DayStartCST            time.Time
-	LastTrustedTotalUSDT   float64
-	LastTrustedByVenue     map[string]float64
-	HasLastTrusted         bool
+	DayStartCST             time.Time
+	LastTrustedTotalUSDT    float64
+	LastTrustedByVenue      map[string]float64
+	HasLastTrusted          bool
 	DailyFundFlowAdjustUSDT float64
-	LastDailyRealizedPnL   float64
-	LastSettlementCount    int
-	LastPositionCount      int
+	LastDailyRealizedPnL    float64
+	LastSettlementCount     int
+	LastPositionCount       int
 }
 
 func (st *accountRiskEquityState) resetForDay(dayStart time.Time) {
@@ -241,6 +245,10 @@ func (w *accountRiskWatcher) bindDefaultSources() {
 		return readEquitySnapshotObservation(w.recordDir, beijingCSTDayStart(now))
 	}
 	w.realEquityFn = computeRealEquityWaterMark
+	w.realEquityQualityFn = func(recordDir string) realEquityQualityResult {
+		_, _, _, quality := computeRealEquityWaterMarkWithQuality(recordDir)
+		return quality
+	}
 	w.positionFn = w.collectPositionSummary
 	w.notifyFn = w.emitCriticalAlert
 }
@@ -377,6 +385,7 @@ func (w *accountRiskWatcher) buildSnapshot(now time.Time) accountRiskSnapshot {
 	pos := w.positionFn()
 	cumulative, peak, drawdown := computeRealizedPnLWaterMark(records)
 	realCurrent, realPeak, realDrawdown := w.realEquityFn(w.recordDir)
+	realQuality := w.realEquityQualityFn(w.recordDir)
 
 	trusted, untrustedReason := assessAccountEquityTrust(
 		obs,
@@ -422,6 +431,9 @@ func (w *accountRiskWatcher) buildSnapshot(now time.Time) accountRiskSnapshot {
 		RealEquityTotalUSDT:         realCurrent,
 		RealEquityPeakUSDT:          realPeak,
 		RealEquityDrawdownUSDT:      realDrawdown,
+		RealEquityQualityPassed:     realQuality.Passed,
+		RealEquityQualityFailReason: realQuality.Reason,
+		RealEquityPeakConfirmed:     realQuality.PeakConfirmed,
 		OpenPositionCount:           pos.TotalCount,
 		OpenNotionalUSDT:            pos.OpenNotional,
 		PositionsByStrategy:         pos.ByStrategy,
@@ -505,6 +517,15 @@ func evaluateAccountAutoFlattenIntent(snap accountRiskSnapshot, cfg RiskConfig) 
 	if !snap.EquityDataTrusted {
 		return accountAutoFlattenIntent{}
 	}
+	if !snap.RealEquityQualityPassed {
+		return accountAutoFlattenIntent{}
+	}
+	if !snap.RealEquityPeakConfirmed || snap.RealEquityPeakUSDT <= 0 {
+		return accountAutoFlattenIntent{}
+	}
+	if realEquityDrawdownPrimarilyFundFlow(snap, cfg) {
+		return accountAutoFlattenIntent{}
+	}
 	if !cfg.AutoFlattenOnHardDrawdownEnabled {
 		return accountAutoFlattenIntent{}
 	}
@@ -546,50 +567,9 @@ func accountRiskAlertIntents(result accountRiskThresholdResult) []accountRiskAle
 }
 
 // computeRealEquityWaterMark 从 equity_snapshots 回放各所 USDT 现金总和,得当前/峰值/回撤(真实现金口径)。
+// 仅消费 complete 且 valid 的样本;peak 需连续 N 个样本确认后才抬升。
 func computeRealEquityWaterMark(recordDir string) (current, peak, drawdown float64) {
-	path := filepath.Join(crossVenueRecordDir(recordDir), equitySnapshotsFileName)
-	f, err := os.Open(path)
-	if err != nil {
-		return 0, 0, 0
-	}
-	defer f.Close()
-
-	type tsTotal struct {
-		ts    time.Time
-		total float64
-	}
-	byTS := make(map[string]float64)
-	var tsOrder []string
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" {
-			continue
-		}
-		var rec equitySnapshotRecord
-		if err := json.Unmarshal([]byte(line), &rec); err != nil {
-			continue
-		}
-		if _, ok := byTS[rec.TS]; !ok {
-			tsOrder = append(tsOrder, rec.TS)
-		}
-		byTS[rec.TS] = money.SumUSDT(byTS[rec.TS], rec.CashUSDT)
-	}
-	if len(tsOrder) == 0 {
-		return 0, 0, 0
-	}
-	sort.Strings(tsOrder)
-	for _, tsStr := range tsOrder {
-		total := byTS[tsStr]
-		if total > peak {
-			peak = total
-		}
-		current = total
-	}
-	drawdown = money.SumUSDT(peak, -current)
-	if drawdown < 0 {
-		drawdown = 0
-	}
+	current, peak, drawdown, _ = computeRealEquityWaterMarkWithQuality(recordDir)
 	return current, peak, drawdown
 }
 
