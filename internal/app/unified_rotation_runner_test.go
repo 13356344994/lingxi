@@ -2034,3 +2034,25 @@ func TestUnifiedRotationRunner_ScanningStuckResets(t *testing.T) {
 		t.Fatal("expected LastError set for stuck scan reset")
 	}
 }
+
+// TestRotationOpenFailureIsBenignTiming 验证"未到进场窗(太早)"被识别为良性时序拒绝(不应触发开仓冷却),
+// 而真正的执行失败(幽灵腿/盘口/余额等)不是良性,仍应冷却。这是"候选被太早探测后罚下场、错过自身窗口"的根治回归。
+func TestRotationOpenFailureIsBenignTiming(t *testing.T) {
+	cases := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{"nil", nil, false},
+		{"entry_window_raw", fmt.Errorf("funding_entry_window_not_reached"), true},
+		{"entry_window_wrapped", fmt.Errorf("开仓闸: %s", carryScannerRejectFundingWindowNotReached), true},
+		{"ghost_leg", fmt.Errorf("开仓闸: 高费所幽灵腿:资费快照无效(缺 rate/结算间隔/NextFundingTime)"), false},
+		{"spread", fmt.Errorf("开仓闸: 高费所盘口价差 42.5bps 超限"), false},
+		{"balance", fmt.Errorf("venue_balance_insufficient:binance"), false},
+	}
+	for _, c := range cases {
+		if got := rotationOpenFailureIsBenignTiming(c.err); got != c.want {
+			t.Errorf("%s: rotationOpenFailureIsBenignTiming=%v want %v", c.name, got, c.want)
+		}
+	}
+}

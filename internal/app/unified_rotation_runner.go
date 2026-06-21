@@ -1488,7 +1488,12 @@ func (r *UnifiedRotationRunner) openOpportunity(ctx context.Context, strategyTyp
 		r.logger.Printf("[统一轮动] OPEN %s %s live=%v", strategyType, opp.Symbol, live)
 	}
 	if err := binding.openFn(ctx, opp, live); err != nil {
-		r.recordOpenFailureCooldown(strategyType, opp)
+		// funding_entry_window_not_reached 是"还没到结算进场窗(太早)"的良性时序信号,不是开仓失败:
+		// 若按失败记 15min 冷却,会把候选在它真正的 ≤180s 窗口到来前就罚下场 → 永远错过自己的窗口
+		// (这正是"明明有 EV>0 有效候选却长时间开不出来"的根因)。这类时序拒绝不冷却,允许下个 60s 周期继续重试。
+		if !rotationOpenFailureIsBenignTiming(err) {
+			r.recordOpenFailureCooldown(strategyType, opp)
+		}
 		return err
 	}
 	appendAttributionPredictionBestEffort(r.recordDir, predictionRecordFromOpportunity(opp, time.Now().UTC()))
@@ -1504,6 +1509,15 @@ func (r *UnifiedRotationRunner) recordOpenFailureCooldown(strategyType string, o
 		now = r.nowFn().UTC()
 	}
 	r.openCooldownStore.RecordFailure(strategyType, opp.Symbol, rotationOpportunityVenuePair(opp), now)
+}
+
+// rotationOpenFailureIsBenignTiming 判断开仓返回的 error 是否属于"良性时序拒绝"(还没到结算进场窗,太早),
+// 这类不是真正的执行失败,不应触发开仓冷却——否则候选会在自己 ≤180s 窗口到来前被罚下 15min,永远开不出来。
+func rotationOpenFailureIsBenignTiming(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(err.Error(), carryScannerRejectFundingWindowNotReached)
 }
 
 // recordRotationSwitchIncident 把 SWITCH 事务失败写入 domain_events.jsonl(失败静默,不阻断轮动)。
