@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "day_start_cst": "2026-06-21T00:00:00+08:00",
+  "last_trusted_total_usdt": 384.661678,
+  "last_trusted_by_venue": {
+    "binance": 79.96667194295,
+    "bybit": 94.22786329,
+    "gate": 118.218824380388,
+    "okx": 92.24831856444501
+  },
+  "has_last_trusted": true,
+  "last_trusted_at": "2026-06-21T06:28:52.536254216Z",
+  "daily_fund_flow_adjust_usdt": 0,
+  "last_daily_realized_pnl": -2.377637,
+  "last_settlement_count": 329,
+  "last_position_count": 0,
+  "updated_at": "2026-06-21T06:28:52.536254216Z"
+}

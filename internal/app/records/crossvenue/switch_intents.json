@@ -8,7 +8,7 @@
     "switch_sequence": "close_then_open",
     "partial_switch_phase": "open_new_retry",
     "reason": "switch rollback complete, waiting retry",
-    "created_at": "2026-06-21T03:07:35.629385188Z",
-    "expires_at": "2026-06-21T03:37:35.629385188Z"
+    "created_at": "2026-06-21T07:24:27.616696327Z",
+    "expires_at": "2026-06-21T07:54:27.616696327Z"
   }
 ]
