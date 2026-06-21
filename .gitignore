@@ -20,3 +20,7 @@
 .cache/
 
 # Go build/test artifacts
+
+# 运行时大日志(无限增长,曾超 GitHub 100MB 硬限)——移出版本库,本地保留
+records/opportunities/
+records/crossvenue/scan_snapshots.jsonl
