@@ -85,11 +85,12 @@ func (f *fakeRotationExecutor) binding() *rotationExecutorBinding {
 func testUnifiedRotationRunnerWithFakes(t *testing.T, fakes ...*fakeRotationExecutor) *UnifiedRotationRunner {
 	t.Helper()
 	r := &UnifiedRotationRunner{
-		bindings:         map[string]*rotationExecutorBinding{},
-		logger:           log.New(io.Discard, "", 0),
-		nowFn:            func() time.Time { return time.Date(2026, 6, 18, 12, 0, 0, 0, time.UTC) },
-		rotationCfg:      DefaultRotationConfig(),
-		capitalRouterCfg: DefaultCapitalRouterConfig(),
+		bindings:                  map[string]*rotationExecutorBinding{},
+		logger:                    log.New(io.Discard, "", 0),
+		nowFn:                     func() time.Time { return time.Date(2026, 6, 18, 12, 0, 0, 0, time.UTC) },
+		rotationCfg:               DefaultRotationConfig(),
+		capitalRouterCfg:          DefaultCapitalRouterConfig(),
+		includePerpPerpCandidates: true,
 	}
 	r.active.Store(true)
 	for _, f := range fakes {
@@ -1923,5 +1924,113 @@ func TestUnifiedRotationRunner_ConsecutiveZeroCVSPCVPSMajorAlert(t *testing.T) {
 	r.trackConsecutiveZeroCVSPCVPS(RotationCandidateCounts{CVSP: 0, CVPS: 0})
 	if strings.Count(buf.String(), "MAJOR") != 1 {
 		t.Fatalf("streak reset should suppress repeat until threshold again, log=%s", buf.String())
+	}
+}
+
+func TestUnifiedRotationRunner_PerpPerpFastDecisionEachCycleNotBlockedByScan(t *testing.T) {
+	svsp := &fakeRotationExecutor{strategyType: UnifiedStrategySingleVenueSpotPerp}
+	pp := &fakeRotationExecutor{strategyType: UnifiedStrategyPerpPerp}
+	r := testUnifiedRotationRunnerWithFakes(t, svsp, pp)
+	r.execCfg = testCrossVenueExecutorConfig().CrossVenueExecutor
+	now := time.Date(2026, 6, 18, 12, 0, 0, 0, time.UTC)
+	r.nowFn = func() time.Time { return now }
+	r.scanner = &CrossVenueScanner{
+		lastSnapshot: CrossVenueScanSnapshot{
+			SnapshotID: "snap-fast",
+			ScannedAt:  now,
+			Opportunities: []CrossVenueOpportunity{{
+				Symbol: "H-USDT", HighVenue: binance.VenueName, LowVenue: bybit.VenueName,
+				SnapshotID: "snap-fast", NetEV: 5, SpreadEV: 10, OpenCost: 1, CloseCost: 1,
+				TradableNotional: 150,
+			}},
+		},
+	}
+	r.fetchDeps.fetchAvailableUSDT = func(context.Context, map[string]venue.Venue, []string) map[string]float64 {
+		return map[string]float64{binance.VenueName: 500, bybit.VenueName: 500}
+	}
+
+	var slowScanCalls int32
+	var fastDecideCalls int32
+	scanStarted := make(chan struct{})
+	scanRelease := make(chan struct{})
+	r.scanCandidatesFn = func(ctx context.Context, snap CrossVenueScanSnapshot) ([]UnifiedOpportunity, map[string]float64, error) {
+		atomic.AddInt32(&slowScanCalls, 1)
+		close(scanStarted)
+		<-scanRelease
+		return nil, map[string]float64{binance.VenueName: 100}, nil
+	}
+	r.decideRotationFn = func(_ []HeldPosition, _ map[string]ContinuationInputs, candidates []UnifiedOpportunity, _ map[string]float64) RotationPlan {
+		if len(candidates) == 1 && candidates[0].StrategyType == UnifiedStrategyPerpPerp {
+			atomic.AddInt32(&fastDecideCalls, 1)
+			return RotationPlan{Actions: []RotationAction{{
+				Kind: RotationActionOpen, OpportunityID: candidates[0].ID,
+				StrategyType: UnifiedStrategyPerpPerp, Symbol: candidates[0].Symbol,
+			}}}
+		}
+		return RotationPlan{}
+	}
+
+	r.runCycle(context.Background())
+	select {
+	case <-scanStarted:
+	case <-time.After(200 * time.Millisecond):
+		t.Fatal("slow carry scan did not start")
+	}
+	if atomic.LoadInt32(&fastDecideCalls) != 1 {
+		t.Fatalf("fastDecideCalls = %d, want 1 on first cycle while slow scan runs", atomic.LoadInt32(&fastDecideCalls))
+	}
+
+	r.runCycle(context.Background())
+	if atomic.LoadInt32(&fastDecideCalls) != 2 {
+		t.Fatalf("fastDecideCalls = %d, want 2 on second cycle despite scanning=true", atomic.LoadInt32(&fastDecideCalls))
+	}
+	if atomic.LoadInt32(&slowScanCalls) != 1 {
+		t.Fatalf("slowScanCalls = %d, want 1 (second cycle must skip duplicate async scan)", atomic.LoadInt32(&slowScanCalls))
+	}
+
+	close(scanRelease)
+	waitForRotationAsyncScan(t, &slowScanCalls, new(int32), 1, 0)
+}
+
+func TestUnifiedRotationRunner_PausedAgainstConfigCriticalAlert(t *testing.T) {
+	buf := &strings.Builder{}
+	r := testUnifiedRotationRunnerWithFakes(t)
+	r.logger = log.New(buf, "", 0)
+	r.rotationConfigIntendedActive = true
+	r.SetActive(false)
+
+	r.runCycle(context.Background())
+	if !strings.Contains(buf.String(), "CRITICAL") || !strings.Contains(buf.String(), "active=false") {
+		t.Fatalf("expected CRITICAL paused-against-config alert, got: %s", buf.String())
+	}
+	st := r.Status()
+	if !st.PausedAgainstConfig || !st.ConfigIntendedActive {
+		t.Fatalf("status = %+v, want paused_against_config visible", st)
+	}
+	if st.LastError == "" {
+		t.Fatal("expected LastError populated for panel visibility")
+	}
+}
+
+func TestUnifiedRotationRunner_ScanningStuckResets(t *testing.T) {
+	buf := &strings.Builder{}
+	svsp := &fakeRotationExecutor{strategyType: UnifiedStrategySingleVenueSpotPerp}
+	r := testUnifiedRotationRunnerWithFakes(t, svsp)
+	r.logger = log.New(buf, "", 0)
+	now := time.Date(2026, 6, 18, 12, 0, 0, 0, time.UTC)
+	r.nowFn = func() time.Time { return now }
+	r.scanner = &CrossVenueScanner{lastSnapshot: CrossVenueScanSnapshot{SnapshotID: "snap-stuck", ScannedAt: now}}
+	r.scanning.Store(true)
+	r.scanStartedAt = now.Add(-rotationAsyncScanTimeout - time.Minute)
+
+	r.maybeResetStuckAsyncScan()
+	if r.scanning.Load() {
+		t.Fatal("scanning flag should be reset after timeout")
+	}
+	if !strings.Contains(buf.String(), "CRITICAL") || !strings.Contains(buf.String(), "扫描超时") {
+		t.Fatalf("expected CRITICAL scan timeout alert, got: %s", buf.String())
+	}
+	if r.Status().LastError == "" {
+		t.Fatal("expected LastError set for stuck scan reset")
 	}
 }

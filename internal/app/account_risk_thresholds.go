@@ -68,3 +68,12 @@ func effectiveAutoFlattenAccountDrawdownUSDT(cfg RiskConfig, equityPeakUSDT floa
 	}
 	return effectiveLossDrawdownThresholdUSDT(usdt, cfg.AutoFlattenAccountDrawdownPct, equityPeakUSDT)
 }
+
+// effectiveAccountRiskMaxEquityTickDropUSDT 单 tick 权益骤降判定阈值;归一基准=上次可信总权益。
+func effectiveAccountRiskMaxEquityTickDropUSDT(cfg RiskConfig, lastTrustedTotalUSDT float64) float64 {
+	usdt := cfg.AccountRiskMaxEquityTickDropUSDT
+	if usdt <= 0 {
+		usdt = defaultAccountRiskMaxEquityTickDropUSDT
+	}
+	return effectiveLossDrawdownThresholdUSDT(usdt, cfg.AccountRiskMaxEquityTickDropPct, lastTrustedTotalUSDT)
+}

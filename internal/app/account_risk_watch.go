@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math"
 	"os"
 	"path/filepath"
 	"sort"
@@ -26,15 +27,23 @@ const (
 	defaultMaxAccountOpenNotionalUSDT = 1200.0
 	// defaultAutoFlattenAccountDrawdownUSDT 二级自动全平默认:明显高于一级 MaxAccountDrawdownUSDT(60)。
 	defaultAutoFlattenAccountDrawdownUSDT = 150.0
+	// defaultAccountRiskMinFundFlowStepUSDT 充提检测默认最小步长(USDT)。
+	defaultAccountRiskMinFundFlowStepUSDT = 5.0
+	// defaultAccountRiskMaxEquityTickDropUSDT 单 tick 权益骤降跳过评估默认(USDT)。
+	defaultAccountRiskMaxEquityTickDropUSDT = 50.0
 )
 
 // accountRiskSnapshot 单次观测的账户级风险视图。
 type accountRiskSnapshot struct {
 	ObservedAt             time.Time          `json:"observed_at"`
 	DayStartCST            time.Time          `json:"day_start_cst"`
-	DailyRealizedPnLUSDT   float64            `json:"daily_realized_pnl_usdt"`
-	DailyEquityDeltaUSDT   float64            `json:"daily_equity_delta_usdt"`
-	VenueEquityDeltas      map[string]float64 `json:"venue_equity_deltas,omitempty"`
+	DailyRealizedPnLUSDT        float64            `json:"daily_realized_pnl_usdt"`
+	DailyEquityDeltaUSDT        float64            `json:"daily_equity_delta_usdt"`
+	DailyFundFlowAdjustUSDT     float64            `json:"daily_fund_flow_adjust_usdt,omitempty"`
+	DailyEquityDeltaForRiskUSDT float64            `json:"daily_equity_delta_for_risk_usdt"`
+	VenueEquityDeltas           map[string]float64 `json:"venue_equity_deltas,omitempty"`
+	EquityDataTrusted           bool               `json:"equity_data_trusted"`
+	EquityDataUntrustedReason   string             `json:"equity_data_untrusted_reason,omitempty"`
 	CumulativeRealizedPnL  float64            `json:"cumulative_realized_pnl_usdt"`
 	RealizedPnLPeakUSDT    float64            `json:"realized_pnl_peak_usdt"`
 	AccountDrawdownUSDT    float64            `json:"account_drawdown_usdt"`
@@ -99,8 +108,9 @@ type accountRiskWatcher struct {
 	cvps       *CrossVenuePerpSpotExecutor
 
 	settlementFn func() ([]strategySettlementRecord, error)
-	equityFn     func(now time.Time) (total float64, byVenue map[string]float64)
+	equityFn     func(now time.Time) accountEquityObservation
 	positionFn   func() accountRiskPositionSummary
+	equityState  accountRiskEquityState
 	realEquityFn func(recordDir string) (current, peak, drawdown float64)
 	notifyFn     func(title, detail string)
 
@@ -115,6 +125,56 @@ type accountRiskPositionSummary struct {
 	TotalCount   int
 	OpenNotional float64
 	ByStrategy   map[string]int
+}
+
+// accountEquityObservation 单次权益读取结果(含原始日 delta 与 venue 现金;可信性由 buildSnapshot 结合历史判定)。
+type accountEquityObservation struct {
+	TotalUSDT     float64
+	ByVenue       map[string]float64
+	VenueDeltas   map[string]float64
+	RawDailyDelta float64
+	ReadOK        bool
+}
+
+// accountRiskEquityState 跨 tick 权益状态:上次可信快照、日基准平移(充提)、交易上下文。
+type accountRiskEquityState struct {
+	DayStartCST            time.Time
+	LastTrustedTotalUSDT   float64
+	LastTrustedByVenue     map[string]float64
+	HasLastTrusted         bool
+	DailyFundFlowAdjustUSDT float64
+	LastDailyRealizedPnL   float64
+	LastSettlementCount    int
+	LastPositionCount      int
+}
+
+func (st *accountRiskEquityState) resetForDay(dayStart time.Time) {
+	if st == nil {
+		return
+	}
+	st.DayStartCST = dayStart
+	st.DailyFundFlowAdjustUSDT = 0
+	st.LastDailyRealizedPnL = 0
+	st.LastSettlementCount = 0
+	st.LastPositionCount = 0
+}
+
+func copyVenueEquityMap(src map[string]float64) map[string]float64 {
+	if len(src) == 0 {
+		return nil
+	}
+	out := make(map[string]float64, len(src))
+	for k, v := range src {
+		out[k] = v
+	}
+	return out
+}
+
+func effectiveAccountRiskMinFundFlowStepUSDT(cfg RiskConfig) float64 {
+	if cfg.AccountRiskMinFundFlowStepUSDT > 0 {
+		return cfg.AccountRiskMinFundFlowStepUSDT
+	}
+	return defaultAccountRiskMinFundFlowStepUSDT
 }
 
 type accountRiskWatchConfig struct {
@@ -159,17 +219,26 @@ func (w *accountRiskWatcher) bindDefaultSources() {
 	w.settlementFn = func() ([]strategySettlementRecord, error) {
 		return loadStrategySettlementRecordsFromDir(w.recordDir)
 	}
-	w.equityFn = func(now time.Time) (float64, map[string]float64) {
+	w.equityFn = func(now time.Time) accountEquityObservation {
 		if w.crossVenue != nil {
-			deltas, _, _, _, _ := w.crossVenue.TodayCSTEquityDeltas(now)
-			var total float64
+			deltas, currents, _, _, _ := w.crossVenue.TodayCSTEquityDeltas(now)
+			var deltaTotal float64
 			for _, d := range deltas {
-				total = money.SumUSDT(total, d)
+				deltaTotal = money.SumUSDT(deltaTotal, d)
 			}
-			return total, deltas
+			var currentTotal float64
+			for _, c := range currents {
+				currentTotal = money.SumUSDT(currentTotal, c)
+			}
+			return accountEquityObservation{
+				TotalUSDT:     currentTotal,
+				ByVenue:       currents,
+				VenueDeltas:   deltas,
+				RawDailyDelta: deltaTotal,
+				ReadOK:        len(currents) > 0,
+			}
 		}
-		total, byVenue := readEquitySnapshotTotalDelta(w.recordDir, beijingCSTDayStart(now))
-		return total, byVenue
+		return readEquitySnapshotObservation(w.recordDir, beijingCSTDayStart(now))
 	}
 	w.realEquityFn = computeRealEquityWaterMark
 	w.positionFn = w.collectPositionSummary
@@ -228,6 +297,18 @@ func (w *accountRiskWatcher) tickOnce() {
 	}
 	now := w.nowFn().UTC()
 	snap := w.buildSnapshot(now)
+	if !snap.EquityDataTrusted {
+		if w.logger != nil {
+			reason := snap.EquityDataUntrustedReason
+			if strings.TrimSpace(reason) == "" {
+				reason = "读取失败/0值"
+			}
+			w.logger.Printf("[账户风控] 权益数据不可靠(%s),本轮跳过风控评估", reason)
+		}
+		w.persistObservation(snap, accountRiskThresholdResult{}, accountHardHaltIntent{}, accountAutoFlattenIntent{})
+		return
+	}
+
 	thresholds := evaluateAccountRiskThresholds(snap, w.cfg.RiskConfig)
 	haltIntent := evaluateAccountHardHaltIntent(snap, w.cfg.RiskConfig)
 	flattenIntent := evaluateAccountAutoFlattenIntent(snap, w.cfg.RiskConfig)
@@ -285,42 +366,81 @@ func (w *accountRiskWatcher) tickOnce() {
 
 func (w *accountRiskWatcher) buildSnapshot(now time.Time) accountRiskSnapshot {
 	dayStart := beijingCSTDayStart(now)
+	if w.equityState.DayStartCST.IsZero() || !w.equityState.DayStartCST.Equal(dayStart) {
+		w.equityState.resetForDay(dayStart)
+	}
+
 	records, _ := w.settlementFn()
 	daily := aggregateStrategySettlementsInRange(records, dayStart, now)
 	allTime := aggregateStrategySettlementsInRange(records, time.Time{}, now)
-	equityDelta, venueDeltas := w.equityFn(now)
-	cumulative, peak, drawdown := computeRealizedPnLWaterMark(records)
+	obs := w.equityFn(now)
 	pos := w.positionFn()
+	cumulative, peak, drawdown := computeRealizedPnLWaterMark(records)
 	realCurrent, realPeak, realDrawdown := w.realEquityFn(w.recordDir)
 
+	trusted, untrustedReason := assessAccountEquityTrust(
+		obs,
+		realCurrent,
+		pos,
+		&w.equityState,
+		w.cfg.RiskConfig,
+	)
+	var fundFlowStep float64
+	if trusted {
+		fundFlowStep = detectAccountFundFlowStep(
+			&w.equityState,
+			obs.TotalUSDT,
+			obs.RawDailyDelta,
+			daily.TotalNetPnL,
+			pos,
+			len(records),
+			effectiveAccountRiskMinFundFlowStepUSDT(w.cfg.RiskConfig),
+		)
+		if fundFlowStep != 0 && w.logger != nil {
+			w.logger.Printf("[账户风控] 检测到资金转入/转出 %.4f,已平移日基准(不计亏损)", fundFlowStep)
+		}
+		w.equityState.rememberTrustedObservation(obs, pos, daily.TotalNetPnL, len(records))
+	}
+	dailyFundFlowAdjust := w.equityState.DailyFundFlowAdjustUSDT
+	rawDailyDelta := obs.RawDailyDelta
+	dailyEquityForRisk := money.SumUSDT(rawDailyDelta, -dailyFundFlowAdjust)
+
 	return accountRiskSnapshot{
-		ObservedAt:             now,
-		DayStartCST:            dayStart,
-		DailyRealizedPnLUSDT:   daily.TotalNetPnL,
-		DailyEquityDeltaUSDT:   equityDelta,
-		VenueEquityDeltas:      venueDeltas,
-		CumulativeRealizedPnL:  cumulative,
-		RealizedPnLPeakUSDT:    peak,
-		AccountDrawdownUSDT:    drawdown,
-		StrategyNetPnL:         allTime.ByStrategy,
-		RealEquityTotalUSDT:    realCurrent,
-		RealEquityPeakUSDT:     realPeak,
-		RealEquityDrawdownUSDT: realDrawdown,
-		OpenPositionCount:      pos.TotalCount,
-		OpenNotionalUSDT:       pos.OpenNotional,
-		PositionsByStrategy:    pos.ByStrategy,
+		ObservedAt:                  now,
+		DayStartCST:                 dayStart,
+		DailyRealizedPnLUSDT:        daily.TotalNetPnL,
+		DailyEquityDeltaUSDT:        rawDailyDelta,
+		DailyFundFlowAdjustUSDT:     dailyFundFlowAdjust,
+		DailyEquityDeltaForRiskUSDT: dailyEquityForRisk,
+		VenueEquityDeltas:           obs.VenueDeltas,
+		EquityDataTrusted:           trusted,
+		EquityDataUntrustedReason:   untrustedReason,
+		CumulativeRealizedPnL:       cumulative,
+		RealizedPnLPeakUSDT:         peak,
+		AccountDrawdownUSDT:         drawdown,
+		StrategyNetPnL:              allTime.ByStrategy,
+		RealEquityTotalUSDT:         realCurrent,
+		RealEquityPeakUSDT:          realPeak,
+		RealEquityDrawdownUSDT:      realDrawdown,
+		OpenPositionCount:           pos.TotalCount,
+		OpenNotionalUSDT:            pos.OpenNotional,
+		PositionsByStrategy:         pos.ByStrategy,
 	}
 }
 
 // evaluateAccountRiskThresholds 纯函数:对比 RiskConfig 阈值,产出 Stage A 告警意图(无副作用)。
 func evaluateAccountRiskThresholds(snap accountRiskSnapshot, cfg RiskConfig) accountRiskThresholdResult {
+	if !snap.EquityDataTrusted {
+		return accountRiskThresholdResult{}
+	}
 	var res accountRiskThresholdResult
 	lossLimit := effectiveMaxDailyLossUSDT(cfg, snap.RealEquityTotalUSDT)
-	if lossLimit > 0 && snap.DailyEquityDeltaUSDT <= -lossLimit {
+	dailyLossDelta := snap.DailyEquityDeltaForRiskUSDT
+	if lossLimit > 0 && dailyLossDelta <= -lossLimit {
 		res.DailyLossBreached = true
 		res.DailyLossReason = fmt.Sprintf(
-			"当日权益变化 %.4f USDT 已超过阈值 %.4f USDT(已实现 %.4f,持仓 %d 名义 %.2f)",
-			snap.DailyEquityDeltaUSDT, lossLimit, snap.DailyRealizedPnLUSDT,
+			"当日交易口径权益变化 %.4f USDT 已超过阈值 %.4f USDT(原始权益变化 %.4f,充提平移 %.4f,已实现 %.4f,持仓 %d 名义 %.2f)",
+			dailyLossDelta, lossLimit, snap.DailyEquityDeltaUSDT, snap.DailyFundFlowAdjustUSDT, snap.DailyRealizedPnLUSDT,
 			snap.OpenPositionCount, snap.OpenNotionalUSDT,
 		)
 	}
@@ -339,12 +459,16 @@ func evaluateAccountRiskThresholds(snap accountRiskSnapshot, cfg RiskConfig) acc
 // evaluateAccountHardHaltIntent 纯函数:一级硬停判定(非破坏性;任一条件触发即 ShouldHalt)。
 func evaluateAccountHardHaltIntent(snap accountRiskSnapshot, cfg RiskConfig) accountHardHaltIntent {
 	var intent accountHardHaltIntent
+	if !snap.EquityDataTrusted {
+		return intent
+	}
 
 	lossLimit := effectiveMaxDailyLossUSDT(cfg, snap.RealEquityTotalUSDT)
-	if lossLimit > 0 && snap.DailyEquityDeltaUSDT <= -lossLimit {
+	dailyLossDelta := snap.DailyEquityDeltaForRiskUSDT
+	if lossLimit > 0 && dailyLossDelta <= -lossLimit {
 		intent.DailyLossBreached = true
 		intent.Reasons = append(intent.Reasons, fmt.Sprintf(
-			"日权益回撤 %.4f ≥ MaxDailyLossUSDT %.4f", -snap.DailyEquityDeltaUSDT, lossLimit))
+			"日权益回撤 %.4f ≥ MaxDailyLossUSDT %.4f", -dailyLossDelta, lossLimit))
 	}
 
 	drawdownLimit := effectiveMaxAccountDrawdownUSDT(cfg, snap.RealEquityPeakUSDT)
@@ -378,6 +502,9 @@ func evaluateAccountHardHaltIntent(snap accountRiskSnapshot, cfg RiskConfig) acc
 
 // evaluateAccountAutoFlattenIntent 纯函数:二级自动全平(opt-in + 高阈值 + 仅认 equity_snapshots 真实现金回撤)。
 func evaluateAccountAutoFlattenIntent(snap accountRiskSnapshot, cfg RiskConfig) accountAutoFlattenIntent {
+	if !snap.EquityDataTrusted {
+		return accountAutoFlattenIntent{}
+	}
 	if !cfg.AutoFlattenOnHardDrawdownEnabled {
 		return accountAutoFlattenIntent{}
 	}
@@ -496,11 +623,21 @@ func computeRealizedPnLWaterMark(records []strategySettlementRecord) (cumulative
 }
 
 func readEquitySnapshotTotalDelta(recordDir string, windowStart time.Time) (total float64, byVenue map[string]float64) {
-	byVenue = make(map[string]float64)
+	obs := readEquitySnapshotObservation(recordDir, windowStart)
+	return obs.RawDailyDelta, obs.VenueDeltas
+}
+
+func readEquitySnapshotObservation(recordDir string, windowStart time.Time) accountEquityObservation {
+	obs := accountEquityObservation{
+		ByVenue:     make(map[string]float64),
+		VenueDeltas: make(map[string]float64),
+		ReadOK:      true,
+	}
 	path := filepath.Join(crossVenueRecordDir(recordDir), equitySnapshotsFileName)
 	f, err := os.Open(path)
 	if err != nil {
-		return 0, byVenue
+		obs.ReadOK = false
+		return obs
 	}
 	defer f.Close()
 
@@ -534,16 +671,130 @@ func readEquitySnapshotTotalDelta(recordDir string, windowStart time.Time) (tota
 			}
 		}
 	}
+	if len(currents) == 0 {
+		obs.ReadOK = false
+		return obs
+	}
 	for venueName, current := range currents {
+		obs.ByVenue[venueName] = current
 		baseline, ok := baselines[venueName]
 		if !ok {
 			baseline = current
 		}
 		delta := current - baseline
-		byVenue[venueName] = delta
-		total = money.SumUSDT(total, delta)
+		obs.VenueDeltas[venueName] = delta
+		obs.RawDailyDelta = money.SumUSDT(obs.RawDailyDelta, delta)
 	}
-	return total, byVenue
+	var currentTotal float64
+	for _, current := range currents {
+		currentTotal = money.SumUSDT(currentTotal, current)
+	}
+	obs.TotalUSDT = currentTotal
+	return obs
+}
+
+func detectAccountFundFlowStep(
+	st *accountRiskEquityState,
+	currentTotal float64,
+	rawDailyDelta float64,
+	dailyRealized float64,
+	pos accountRiskPositionSummary,
+	settlementCount int,
+	minStep float64,
+) float64 {
+	if st == nil || minStep <= 0 {
+		return 0
+	}
+	if st.HasLastTrusted {
+		tickChange := money.SumUSDT(currentTotal, -st.LastTrustedTotalUSDT)
+		if math.Abs(tickChange) < minStep {
+			return 0
+		}
+		if pos.TotalCount != st.LastPositionCount {
+			return 0
+		}
+		if settlementCount > st.LastSettlementCount {
+			pnlDelta := money.SumUSDT(dailyRealized, -st.LastDailyRealizedPnL)
+			if math.Abs(tickChange-pnlDelta) < minStep*0.5 {
+				return 0
+			}
+		}
+		st.DailyFundFlowAdjustUSDT = money.SumUSDT(st.DailyFundFlowAdjustUSDT, tickChange)
+		return tickChange
+	}
+	unexplained := money.SumUSDT(rawDailyDelta, -dailyRealized)
+	if math.Abs(unexplained) < minStep {
+		return 0
+	}
+	if math.Abs(dailyRealized) >= minStep*0.5 && math.Abs(unexplained) < math.Abs(dailyRealized) {
+		return 0
+	}
+	initialThreshold := minStep
+	if pos.TotalCount > 0 {
+		initialThreshold = math.Max(minStep*4, 25)
+	}
+	if math.Abs(unexplained) < initialThreshold {
+		return 0
+	}
+	st.DailyFundFlowAdjustUSDT = money.SumUSDT(st.DailyFundFlowAdjustUSDT, unexplained)
+	return unexplained
+}
+
+func assessAccountEquityTrust(
+	obs accountEquityObservation,
+	realCurrent float64,
+	pos accountRiskPositionSummary,
+	st *accountRiskEquityState,
+	cfg RiskConfig,
+) (trusted bool, reason string) {
+	if !obs.ReadOK {
+		return false, "权益读取失败"
+	}
+	for venue, cash := range obs.ByVenue {
+		if cash <= 0 {
+			if prev, ok := st.LastTrustedByVenue[venue]; ok && prev > 0 {
+				return false, fmt.Sprintf("venue %s 现金读成 0", venue)
+			}
+		}
+	}
+	if obs.TotalUSDT <= 0 && st.HasLastTrusted && st.LastTrustedTotalUSDT > 0 {
+		return false, "总权益读成 0"
+	}
+	if realCurrent <= 0 && st.HasLastTrusted && st.LastTrustedTotalUSDT > 0 {
+		return false, "真实现金权益读成 0"
+	}
+	if st.HasLastTrusted && obs.TotalUSDT > 0 && obs.TotalUSDT < st.LastTrustedTotalUSDT {
+		drop := money.SumUSDT(st.LastTrustedTotalUSDT, -obs.TotalUSDT)
+		limit := effectiveAccountRiskMaxEquityTickDropUSDT(cfg, st.LastTrustedTotalUSDT)
+		if drop > limit && pos.TotalCount >= st.LastPositionCount {
+			return false, fmt.Sprintf("单 tick 权益骤降 %.4f > 阈值 %.4f 且无持仓减少", drop, limit)
+		}
+	}
+	if st.HasLastTrusted && realCurrent > 0 && realCurrent < st.LastTrustedTotalUSDT {
+		drop := money.SumUSDT(st.LastTrustedTotalUSDT, -realCurrent)
+		limit := effectiveAccountRiskMaxEquityTickDropUSDT(cfg, st.LastTrustedTotalUSDT)
+		if drop > limit && pos.TotalCount >= st.LastPositionCount {
+			return false, fmt.Sprintf("真实现金单 tick 骤降 %.4f > 阈值 %.4f 且无持仓减少", drop, limit)
+		}
+	}
+	return true, ""
+}
+
+func (st *accountRiskEquityState) rememberTrustedObservation(
+	obs accountEquityObservation,
+	pos accountRiskPositionSummary,
+	dailyRealized float64,
+	settlementCount int,
+) {
+	if st == nil {
+		return
+	}
+	st.LastTrustedTotalUSDT = obs.TotalUSDT
+	st.LastTrustedByVenue = copyVenueEquityMap(obs.ByVenue)
+	st.HasLastTrusted = true
+	st.LastDailyRealizedPnL = dailyRealized
+	st.LastSettlementCount = settlementCount
+	st.LastPositionCount = pos.TotalCount
 }
 
 func loadStrategySettlementRecordsFromDir(recordDir string) ([]strategySettlementRecord, error) {

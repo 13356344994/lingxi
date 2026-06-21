@@ -80,19 +80,17 @@ func TestEvaluateAccountHardHaltIntent_AdaptiveDailyLoss(t *testing.T) {
 	cfg.MaxAccountOpenNotionalUSDT = 0
 	cfg.MaxGrossLeverage = 0
 
-	snap435 := accountRiskSnapshot{
-		DailyEquityDeltaUSDT: -40,
-		RealEquityTotalUSDT:  testReferenceEquityUSDT,
-	}
+	snap435 := testAccountRiskSnapshotForEval(-40, func(s *accountRiskSnapshot) {
+		s.RealEquityTotalUSDT = testReferenceEquityUSDT
+	})
 	at435 := evaluateAccountHardHaltIntent(snap435, cfg)
 	if !at435.ShouldHalt {
 		t.Fatalf("expected halt at equity=435 with -40 loss, got %+v", at435)
 	}
 
-	snap2000 := accountRiskSnapshot{
-		DailyEquityDeltaUSDT: -40,
-		RealEquityTotalUSDT:  2000,
-	}
+	snap2000 := testAccountRiskSnapshotForEval(-40, func(s *accountRiskSnapshot) {
+		s.RealEquityTotalUSDT = 2000
+	})
 	at2000 := evaluateAccountHardHaltIntent(snap2000, cfg)
 	if at2000.ShouldHalt {
 		t.Fatalf("same -40 USDT loss must not halt at equity=2000 (scaled threshold), got %+v", at2000)
@@ -105,30 +103,30 @@ func TestEvaluateAccountAutoFlattenIntent_AdaptivePeakDrawdown(t *testing.T) {
 	cfg.AutoFlattenAccountDrawdownUSDT = 150
 	cfg.AutoFlattenAccountDrawdownPct = 150.0 / testReferenceEquityUSDT
 
-	below := evaluateAccountAutoFlattenIntent(accountRiskSnapshot{
-		RealEquityDrawdownUSDT: 149,
-		RealEquityPeakUSDT:     testReferenceEquityUSDT,
-		RealEquityTotalUSDT:    testReferenceEquityUSDT - 149,
-	}, cfg)
+	below := evaluateAccountAutoFlattenIntent(testAccountRiskSnapshotForEval(0, func(s *accountRiskSnapshot) {
+		s.RealEquityDrawdownUSDT = 149
+		s.RealEquityPeakUSDT = testReferenceEquityUSDT
+		s.RealEquityTotalUSDT = testReferenceEquityUSDT - 149
+	}), cfg)
 	if below.ShouldFlatten {
 		t.Fatalf("expected no flatten below pct threshold at reference equity, got %+v", below)
 	}
 
-	at := evaluateAccountAutoFlattenIntent(accountRiskSnapshot{
-		RealEquityDrawdownUSDT: 150,
-		RealEquityPeakUSDT:     testReferenceEquityUSDT,
-		RealEquityTotalUSDT:    testReferenceEquityUSDT - 150,
-	}, cfg)
+	at := evaluateAccountAutoFlattenIntent(testAccountRiskSnapshotForEval(0, func(s *accountRiskSnapshot) {
+		s.RealEquityDrawdownUSDT = 150
+		s.RealEquityPeakUSDT = testReferenceEquityUSDT
+		s.RealEquityTotalUSDT = testReferenceEquityUSDT - 150
+	}), cfg)
 	if !at.ShouldFlatten {
 		t.Fatalf("expected flatten at reference equity boundary, got %+v", at)
 	}
 
 	scaledPeak := 2000.0
 	scaledLimit := 150.0 / testReferenceEquityUSDT * scaledPeak
-	notYet := evaluateAccountAutoFlattenIntent(accountRiskSnapshot{
-		RealEquityDrawdownUSDT: scaledLimit - 1,
-		RealEquityPeakUSDT:     scaledPeak,
-	}, cfg)
+	notYet := evaluateAccountAutoFlattenIntent(testAccountRiskSnapshotForEval(0, func(s *accountRiskSnapshot) {
+		s.RealEquityDrawdownUSDT = scaledLimit - 1
+		s.RealEquityPeakUSDT = scaledPeak
+	}), cfg)
 	if notYet.ShouldFlatten {
 		t.Fatalf("drawdown below scaled limit must not flatten, got %+v", notYet)
 	}

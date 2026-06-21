@@ -60,6 +60,8 @@ network:
 cross_venue_executor:
   enabled: true
   live_trading_enabled: true
+  # perp-perp 结算前进场窗(秒):统一 runner 每 60s 基于 scanner 缓存快照做 perp-perp 高频决策,3min 可稳定接住结算档。
+  open_funding_lead_seconds: 180
   # 用户 2026-06-19 拍板:profit_seeking + 满仓 + 3× 起步(可调至 5×) — 最大化并发/单腿名义
   max_concurrent: 8
   max_position_usdt: 150

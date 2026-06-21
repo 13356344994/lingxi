@@ -12,6 +12,13 @@ const (
 	DefaultMaxAccountDrawdownPct = 60.0 / ReferenceAccountEquityUSDT
 	// DefaultMaxStrategyCumulativeLossPct 单策略累计净亏占当前权益(30U@435≈7%;dev floor 35 仍生效)。
 	DefaultMaxStrategyCumulativeLossPct = 30.0 / ReferenceAccountEquityUSDT
+	// DefaultAccountRiskMinFundFlowStepUSDT 充提检测最小步长(USDT);低于该值的 tick 变化视为噪声。
+	DefaultAccountRiskMinFundFlowStepUSDT = 5.0
+	// DefaultAccountRiskMaxEquityTickDropUSDT 单 tick 权益骤降熔断(USDT);断网读 0 等异常应被跳过。
+	DefaultAccountRiskMaxEquityTickDropUSDT = 50.0
+	// DefaultAccountRiskMaxEquityTickDropPct 单 tick 权益骤降占上次可信权益比例(35%@435≈152U)。
+	DefaultAccountRiskMaxEquityTickDropPct = 0.35
+
 	// DefaultMaxGrossLeverage 在场总名义总杠杆倍数(5×@435≈2175U,对齐生产 open_notional≈2200)。
 	DefaultMaxGrossLeverage = 5.0
 	// DefaultAutoFlattenAccountDrawdownPct 二级全平占峰值权益(150U@435≈34.5%)。
@@ -172,6 +179,9 @@ func DefaultEngineConfig() EngineConfig {
 			AutoFlattenOnHardDrawdownEnabled: false,
 			AutoFlattenAccountDrawdownUSDT:   150.0,
 			AutoFlattenAccountDrawdownPct:    DefaultAutoFlattenAccountDrawdownPct,
+			AccountRiskMinFundFlowStepUSDT:   DefaultAccountRiskMinFundFlowStepUSDT,
+			AccountRiskMaxEquityTickDropUSDT: DefaultAccountRiskMaxEquityTickDropUSDT,
+			AccountRiskMaxEquityTickDropPct:  DefaultAccountRiskMaxEquityTickDropPct,
 			// HedgeImbalanceAbortRate 默认开启「相对偏离」维度的关键不变量守卫(Gate 4)：两腿名义偏离
 			// 超过较大腿的 10% 即熔断。该比例尺度无关，在「数百 U → 100k」全资金区间一致有效，不会像
 			// 绝对额阈值那样随资金规模失真。10% 足以容忍正常开仓的步进取整 / 基差，又能抓住「某腿半成交

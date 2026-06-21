@@ -323,6 +323,12 @@ type RiskConfig struct {
 	AutoFlattenAccountDrawdownUSDT float64 `cfg:"auto_flatten_account_drawdown_usdt"`
 	// AutoFlattenAccountDrawdownPct 二级全平占真实现金峰值权益比例;>0 时有效阈值=max(USDT, pct×RealEquityPeakUSDT);0=仅 USDT。
 	AutoFlattenAccountDrawdownPct float64 `cfg:"auto_flatten_account_drawdown_pct"`
+	// AccountRiskMinFundFlowStepUSDT 账户风控:权益单 tick 突变 ≥ 该值且无对应交易/持仓变化时,视为充提并平移日基准(不计亏损)。
+	AccountRiskMinFundFlowStepUSDT float64 `cfg:"account_risk_min_fund_flow_step_usdt"`
+	// AccountRiskMaxEquityTickDropUSDT 账户风控:相对上次可信权益,单 tick 最大允许降幅(USDT);超过且无持仓减少则视为数据不可靠、跳过评估。
+	AccountRiskMaxEquityTickDropUSDT float64 `cfg:"account_risk_max_equity_tick_drop_usdt"`
+	// AccountRiskMaxEquityTickDropPct 同上,占上次可信权益比例;>0 时阈值=max(USDT, pct×lastTrusted);0=仅 USDT。
+	AccountRiskMaxEquityTickDropPct float64 `cfg:"account_risk_max_equity_tick_drop_pct"`
 	// HedgeImbalanceAbortUSDT / HedgeImbalanceAbortRate 是 Gate 4 关键不变量守卫的阈值：
 	// 当 |现货腿名义 − 合约腿名义| 的绝对值(USDT)或相对比例超过阈值时立即熔断，防止裸敞口。
 	// 默认 0 表示该维度不启用（不改变既有行为，opt-in）。
@@ -1100,6 +1106,9 @@ func (cfg EngineConfig) Validate() error {
 	appendIssue(cfg.RiskConfig.MaxStrategyCumulativeLossPct >= 0, "MaxStrategyCumulativeLossPct 不能小于 0")
 	appendIssue(cfg.RiskConfig.MaxGrossLeverage >= 0, "MaxGrossLeverage 不能小于 0（0 表示仅使用 MaxAccountOpenNotionalUSDT）")
 	appendIssue(cfg.RiskConfig.AutoFlattenAccountDrawdownPct >= 0, "AutoFlattenAccountDrawdownPct 不能小于 0")
+	appendIssue(cfg.RiskConfig.AccountRiskMinFundFlowStepUSDT >= 0, "AccountRiskMinFundFlowStepUSDT 不能小于 0")
+	appendIssue(cfg.RiskConfig.AccountRiskMaxEquityTickDropUSDT >= 0, "AccountRiskMaxEquityTickDropUSDT 不能小于 0")
+	appendIssue(cfg.RiskConfig.AccountRiskMaxEquityTickDropPct >= 0, "AccountRiskMaxEquityTickDropPct 不能小于 0")
 
 	appendIssue(cfg.RiskConfig.MinNetProfitRate > 0, "MinNetProfitRate 必须大于 0")
 	appendIssue(cfg.RiskConfig.ImmediateInvalidateRate > 0, "ImmediateInvalidateRate 必须大于 0")

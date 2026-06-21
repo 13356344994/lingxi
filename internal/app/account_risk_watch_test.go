@@ -11,14 +11,35 @@ import (
 	"time"
 )
 
-func TestEvaluateAccountRiskThresholds_BelowThreshold(t *testing.T) {
+func testAccountRiskSnapshotForEval(delta float64, extra func(*accountRiskSnapshot)) accountRiskSnapshot {
 	snap := accountRiskSnapshot{
-		DailyEquityDeltaUSDT: 5,
-		AccountDrawdownUSDT:  3,
-		DailyRealizedPnLUSDT: 4,
-		OpenPositionCount:    1,
-		OpenNotionalUSDT:     50,
+		DailyEquityDeltaUSDT:        delta,
+		DailyEquityDeltaForRiskUSDT: delta,
+		EquityDataTrusted:           true,
 	}
+	if extra != nil {
+		extra(&snap)
+	}
+	return snap
+}
+
+func testAccountEquityObservation(total, rawDelta float64, venues map[string]float64) accountEquityObservation {
+	return accountEquityObservation{
+		TotalUSDT:     total,
+		ByVenue:       venues,
+		VenueDeltas:   copyVenueEquityMap(venues),
+		RawDailyDelta: rawDelta,
+		ReadOK:        true,
+	}
+}
+
+func TestEvaluateAccountRiskThresholds_BelowThreshold(t *testing.T) {
+	snap := testAccountRiskSnapshotForEval(5, func(s *accountRiskSnapshot) {
+		s.AccountDrawdownUSDT = 3
+		s.DailyRealizedPnLUSDT = 4
+		s.OpenPositionCount = 1
+		s.OpenNotionalUSDT = 50
+	})
 	cfg := DefaultEngineConfig().RiskConfig
 	cfg.MaxDailyLossUSDT = 25
 	cfg.MaxAccountDrawdownUSDT = 60
@@ -30,12 +51,11 @@ func TestEvaluateAccountRiskThresholds_BelowThreshold(t *testing.T) {
 }
 
 func TestEvaluateAccountRiskThresholds_DailyLossBreached(t *testing.T) {
-	snap := accountRiskSnapshot{
-		DailyEquityDeltaUSDT: -30,
-		DailyRealizedPnLUSDT: -12,
-		OpenPositionCount:    2,
-		OpenNotionalUSDT:     120,
-	}
+	snap := testAccountRiskSnapshotForEval(-30, func(s *accountRiskSnapshot) {
+		s.DailyRealizedPnLUSDT = -12
+		s.OpenPositionCount = 2
+		s.OpenNotionalUSDT = 120
+	})
 	cfg := DefaultEngineConfig().RiskConfig
 	cfg.MaxDailyLossUSDT = 25
 	cfg.MaxAccountDrawdownUSDT = 60
@@ -51,12 +71,11 @@ func TestEvaluateAccountRiskThresholds_DailyLossBreached(t *testing.T) {
 }
 
 func TestEvaluateAccountRiskThresholds_DrawdownBreached(t *testing.T) {
-	snap := accountRiskSnapshot{
-		DailyEquityDeltaUSDT:  -1,
-		AccountDrawdownUSDT:   65,
-		RealizedPnLPeakUSDT:   100,
-		CumulativeRealizedPnL: 35,
-	}
+	snap := testAccountRiskSnapshotForEval(-1, func(s *accountRiskSnapshot) {
+		s.AccountDrawdownUSDT = 65
+		s.RealizedPnLPeakUSDT = 100
+		s.CumulativeRealizedPnL = 35
+	})
 	cfg := DefaultEngineConfig().RiskConfig
 	cfg.MaxDailyLossUSDT = 25
 	cfg.MaxAccountDrawdownUSDT = 60
@@ -68,10 +87,9 @@ func TestEvaluateAccountRiskThresholds_DrawdownBreached(t *testing.T) {
 }
 
 func TestEvaluateAccountRiskThresholds_ZeroLimitsDisabled(t *testing.T) {
-	snap := accountRiskSnapshot{
-		DailyEquityDeltaUSDT: -100,
-		AccountDrawdownUSDT:  200,
-	}
+	snap := testAccountRiskSnapshotForEval(-100, func(s *accountRiskSnapshot) {
+		s.AccountDrawdownUSDT = 200
+	})
 	cfg := DefaultEngineConfig().RiskConfig
 	cfg.MaxDailyLossUSDT = 0
 	cfg.MaxAccountDrawdownUSDT = 0
@@ -91,11 +109,11 @@ func TestEvaluateAccountHardHaltIntent_DailyLossBoundary(t *testing.T) {
 	cfg.MaxAccountOpenNotionalUSDT = 0
 	cfg.MaxGrossLeverage = 0
 
-	below := evaluateAccountHardHaltIntent(accountRiskSnapshot{DailyEquityDeltaUSDT: -24.99}, cfg)
+	below := evaluateAccountHardHaltIntent(testAccountRiskSnapshotForEval(-24.99, nil), cfg)
 	if below.ShouldHalt {
 		t.Fatalf("expected no halt below threshold, got %+v", below)
 	}
-	at := evaluateAccountHardHaltIntent(accountRiskSnapshot{DailyEquityDeltaUSDT: -25}, cfg)
+	at := evaluateAccountHardHaltIntent(testAccountRiskSnapshotForEval(-25, nil), cfg)
 	if !at.ShouldHalt || !at.DailyLossBreached {
 		t.Fatalf("expected halt at boundary, got %+v", at)
 	}
@@ -110,11 +128,15 @@ func TestEvaluateAccountHardHaltIntent_SettlementDrawdownBoundary(t *testing.T) 
 	cfg.MaxAccountOpenNotionalUSDT = 0
 	cfg.MaxGrossLeverage = 0
 
-	below := evaluateAccountHardHaltIntent(accountRiskSnapshot{AccountDrawdownUSDT: 59.99}, cfg)
+	below := evaluateAccountHardHaltIntent(testAccountRiskSnapshotForEval(0, func(s *accountRiskSnapshot) {
+		s.AccountDrawdownUSDT = 59.99
+	}), cfg)
 	if below.ShouldHalt {
 		t.Fatalf("expected no halt below drawdown threshold, got %+v", below)
 	}
-	at := evaluateAccountHardHaltIntent(accountRiskSnapshot{AccountDrawdownUSDT: 60}, cfg)
+	at := evaluateAccountHardHaltIntent(testAccountRiskSnapshotForEval(0, func(s *accountRiskSnapshot) {
+		s.AccountDrawdownUSDT = 60
+	}), cfg)
 	if !at.ShouldHalt || !at.SettlementDrawdownHit {
 		t.Fatalf("expected halt at drawdown boundary, got %+v", at)
 	}
@@ -129,15 +151,15 @@ func TestEvaluateAccountHardHaltIntent_StrategyLossBoundary(t *testing.T) {
 	cfg.MaxAccountOpenNotionalUSDT = 0
 	cfg.MaxGrossLeverage = 0
 
-	below := evaluateAccountHardHaltIntent(accountRiskSnapshot{
-		StrategyNetPnL: map[string]float64{"cross_venue_spot_perp": -34.99},
-	}, cfg)
+	below := evaluateAccountHardHaltIntent(testAccountRiskSnapshotForEval(0, func(s *accountRiskSnapshot) {
+		s.StrategyNetPnL = map[string]float64{"cross_venue_spot_perp": -34.99}
+	}), cfg)
 	if below.ShouldHalt {
 		t.Fatalf("expected no halt below strategy loss threshold, got %+v", below)
 	}
-	at := evaluateAccountHardHaltIntent(accountRiskSnapshot{
-		StrategyNetPnL: map[string]float64{"single_venue_spot_perp": -35},
-	}, cfg)
+	at := evaluateAccountHardHaltIntent(testAccountRiskSnapshotForEval(0, func(s *accountRiskSnapshot) {
+		s.StrategyNetPnL = map[string]float64{"single_venue_spot_perp": -35}
+	}), cfg)
 	if !at.ShouldHalt || !at.StrategyLossBreached {
 		t.Fatalf("expected halt at strategy loss boundary, got %+v", at)
 	}
@@ -151,11 +173,15 @@ func TestEvaluateAccountHardHaltIntent_OpenNotionalBoundary(t *testing.T) {
 	cfg.MaxAccountOpenNotionalUSDT = 1200
 	cfg.MaxGrossLeverage = 0
 
-	below := evaluateAccountHardHaltIntent(accountRiskSnapshot{OpenNotionalUSDT: 1199.99}, cfg)
+	below := evaluateAccountHardHaltIntent(testAccountRiskSnapshotForEval(0, func(s *accountRiskSnapshot) {
+		s.OpenNotionalUSDT = 1199.99
+	}), cfg)
 	if below.ShouldHalt {
 		t.Fatalf("expected no halt below notional cap, got %+v", below)
 	}
-	at := evaluateAccountHardHaltIntent(accountRiskSnapshot{OpenNotionalUSDT: 1200}, cfg)
+	at := evaluateAccountHardHaltIntent(testAccountRiskSnapshotForEval(0, func(s *accountRiskSnapshot) {
+		s.OpenNotionalUSDT = 1200
+	}), cfg)
 	if !at.ShouldHalt || !at.OpenNotionalBreached {
 		t.Fatalf("expected halt at notional cap, got %+v", at)
 	}
@@ -166,7 +192,9 @@ func TestEvaluateAccountAutoFlattenIntent_OptInOff(t *testing.T) {
 	cfg.AutoFlattenOnHardDrawdownEnabled = false
 	cfg.AutoFlattenAccountDrawdownUSDT = 150
 
-	got := evaluateAccountAutoFlattenIntent(accountRiskSnapshot{RealEquityDrawdownUSDT: 500}, cfg)
+	got := evaluateAccountAutoFlattenIntent(testAccountRiskSnapshotForEval(0, func(s *accountRiskSnapshot) {
+		s.RealEquityDrawdownUSDT = 500
+	}), cfg)
 	if got.ShouldFlatten {
 		t.Fatalf("opt-in off must not flatten, got %+v", got)
 	}
@@ -178,19 +206,19 @@ func TestEvaluateAccountAutoFlattenIntent_RealEquityBoundary(t *testing.T) {
 	cfg.AutoFlattenAccountDrawdownUSDT = 150
 	cfg.AutoFlattenAccountDrawdownPct = 0
 
-	below := evaluateAccountAutoFlattenIntent(accountRiskSnapshot{
-		RealEquityDrawdownUSDT: 149.99,
-		RealEquityTotalUSDT:    850,
-		RealEquityPeakUSDT:     999.99,
-	}, cfg)
+	below := evaluateAccountAutoFlattenIntent(testAccountRiskSnapshotForEval(0, func(s *accountRiskSnapshot) {
+		s.RealEquityDrawdownUSDT = 149.99
+		s.RealEquityTotalUSDT = 850
+		s.RealEquityPeakUSDT = 999.99
+	}), cfg)
 	if below.ShouldFlatten {
 		t.Fatalf("expected no flatten below threshold, got %+v", below)
 	}
-	at := evaluateAccountAutoFlattenIntent(accountRiskSnapshot{
-		RealEquityDrawdownUSDT: 150,
-		RealEquityTotalUSDT:    850,
-		RealEquityPeakUSDT:     1000,
-	}, cfg)
+	at := evaluateAccountAutoFlattenIntent(testAccountRiskSnapshotForEval(0, func(s *accountRiskSnapshot) {
+		s.RealEquityDrawdownUSDT = 150
+		s.RealEquityTotalUSDT = 850
+		s.RealEquityPeakUSDT = 1000
+	}), cfg)
 	if !at.ShouldFlatten || at.Reason == "" {
 		t.Fatalf("expected flatten at real equity boundary, got %+v", at)
 	}
@@ -201,10 +229,10 @@ func TestEvaluateAccountAutoFlattenIntent_SettlementIllusionIgnored(t *testing.T
 	cfg.AutoFlattenOnHardDrawdownEnabled = true
 	cfg.AutoFlattenAccountDrawdownUSDT = 150
 
-	got := evaluateAccountAutoFlattenIntent(accountRiskSnapshot{
-		AccountDrawdownUSDT:    500, // settlements 假亏幻觉
-		RealEquityDrawdownUSDT: 10,  // 真实现金几乎无损
-	}, cfg)
+	got := evaluateAccountAutoFlattenIntent(testAccountRiskSnapshotForEval(0, func(s *accountRiskSnapshot) {
+		s.AccountDrawdownUSDT = 500
+		s.RealEquityDrawdownUSDT = 10
+	}), cfg)
 	if got.ShouldFlatten {
 		t.Fatalf("settlement illusion must not trigger auto-flatten, got %+v", got)
 	}
@@ -298,8 +326,8 @@ func TestAccountRiskWatcherTickTriggersHaltWithoutFlatten(t *testing.T) {
 	})
 	w.nowFn = func() time.Time { return time.Date(2026, 6, 19, 12, 0, 0, 0, time.UTC) }
 	w.settlementFn = func() ([]strategySettlementRecord, error) { return nil, nil }
-	w.equityFn = func(now time.Time) (float64, map[string]float64) {
-		return -15, map[string]float64{"okx": -15}
+	w.equityFn = func(now time.Time) accountEquityObservation {
+		return testAccountEquityObservation(85, -15, map[string]float64{"okx": 85})
 	}
 	w.positionFn = func() accountRiskPositionSummary {
 		return accountRiskPositionSummary{TotalCount: 1, OpenNotional: 50, ByStrategy: map[string]int{"cross_venue_perp_perp": 1}}
@@ -362,7 +390,7 @@ func TestAccountRiskWatcherAutoFlattenOptIn(t *testing.T) {
 	})
 	w.nowFn = func() time.Time { return time.Date(2026, 6, 19, 12, 0, 0, 0, time.UTC) }
 	w.settlementFn = func() ([]strategySettlementRecord, error) { return nil, nil }
-	w.equityFn = func(now time.Time) (float64, map[string]float64) { return 0, nil }
+	w.equityFn = func(now time.Time) accountEquityObservation { return accountEquityObservation{ReadOK: true} }
 	w.positionFn = func() accountRiskPositionSummary { return accountRiskPositionSummary{} }
 	w.realEquityFn = func(recordDir string) (float64, float64, float64) { return 850, 1000, 150 }
 	w.notifyFn = func(title, detail string) {}
@@ -426,7 +454,7 @@ func TestAccountRiskWatcherSettlementsIllusionNoHalt(t *testing.T) {
 			},
 		}, nil
 	}
-	w.equityFn = func(now time.Time) (float64, map[string]float64) { return 0, nil }
+	w.equityFn = func(now time.Time) accountEquityObservation { return accountEquityObservation{ReadOK: true} }
 	w.positionFn = func() accountRiskPositionSummary { return accountRiskPositionSummary{} }
 	w.realEquityFn = func(recordDir string) (float64, float64, float64) { return 1000, 1000, 0 }
 	w.notifyFn = func(title, detail string) {}
@@ -462,7 +490,7 @@ func TestAccountRiskWatcherSettlementsIllusionNoAutoFlatten(t *testing.T) {
 			{SettlementID: "x", CloseTime: time.Now(), NetPnL: -500, StrategyType: "cross_venue_perp_perp"},
 		}, nil
 	}
-	w.equityFn = func(now time.Time) (float64, map[string]float64) { return 0, nil }
+	w.equityFn = func(now time.Time) accountEquityObservation { return accountEquityObservation{ReadOK: true} }
 	w.positionFn = func() accountRiskPositionSummary { return accountRiskPositionSummary{} }
 	w.realEquityFn = func(recordDir string) (float64, float64, float64) { return 990, 1000, 10 }
 	w.notifyFn = func(title, detail string) {}
@@ -496,7 +524,9 @@ func TestAccountRiskWatcherNoActionWhenSafe(t *testing.T) {
 		Logger:    log.New(os.Stderr, "", 0),
 	})
 	w.settlementFn = func() ([]strategySettlementRecord, error) { return nil, nil }
-	w.equityFn = func(now time.Time) (float64, map[string]float64) { return 5, nil }
+	w.equityFn = func(now time.Time) accountEquityObservation {
+		return testAccountEquityObservation(1005, 5, nil)
+	}
 	w.positionFn = func() accountRiskPositionSummary {
 		return accountRiskPositionSummary{OpenNotional: 100}
 	}
@@ -537,6 +567,177 @@ func TestAccountRiskWatcherRunDoesNotBlockOnCancel(t *testing.T) {
 	case <-done:
 	case <-time.After(2 * time.Second):
 		t.Fatal("watcher goroutine did not exit on context cancel")
+	}
+}
+
+func TestEvaluateAccountRiskThresholds_UntrustedSkips(t *testing.T) {
+	snap := testAccountRiskSnapshotForEval(-100, nil)
+	snap.EquityDataTrusted = false
+	cfg := DefaultEngineConfig().RiskConfig
+	cfg.MaxDailyLossUSDT = 25
+	got := evaluateAccountRiskThresholds(snap, cfg)
+	if got.AnyBreached {
+		t.Fatalf("untrusted snapshot must skip thresholds, got %+v", got)
+	}
+}
+
+func TestAssessAccountEquityTrust_VenueZeroSkipped(t *testing.T) {
+	st := &accountRiskEquityState{
+		HasLastTrusted:       true,
+		LastTrustedTotalUSDT: 118,
+		LastTrustedByVenue:   map[string]float64{"okx": 118},
+	}
+	cfg := DefaultEngineConfig().RiskConfig
+	trusted, reason := assessAccountEquityTrust(
+		accountEquityObservation{TotalUSDT: 0, ByVenue: map[string]float64{"okx": 0}, ReadOK: true},
+		0,
+		accountRiskPositionSummary{},
+		st,
+		cfg,
+	)
+	if trusted || reason == "" {
+		t.Fatalf("venue zero must be untrusted, trusted=%v reason=%q", trusted, reason)
+	}
+}
+
+func TestAssessAccountEquityTrust_ReadFailureSkipped(t *testing.T) {
+	trusted, reason := assessAccountEquityTrust(
+		accountEquityObservation{ReadOK: false},
+		100,
+		accountRiskPositionSummary{},
+		&accountRiskEquityState{},
+		DefaultEngineConfig().RiskConfig,
+	)
+	if trusted || reason == "" {
+		t.Fatalf("read failure must be untrusted, trusted=%v reason=%q", trusted, reason)
+	}
+}
+
+func TestDetectAccountFundFlowStep_WithdrawalRebaseline(t *testing.T) {
+	st := &accountRiskEquityState{
+		HasLastTrusted:       true,
+		LastTrustedTotalUSDT: 435,
+		LastPositionCount:    0,
+	}
+	step := detectAccountFundFlowStep(st, 385.55, -49.45, 0, accountRiskPositionSummary{}, 0, 5)
+	if step != -49.45 {
+		t.Fatalf("step=%v want -49.45", step)
+	}
+	if st.DailyFundFlowAdjustUSDT != -49.45 {
+		t.Fatalf("adjust=%v want -49.45", st.DailyFundFlowAdjustUSDT)
+	}
+	adjusted := -49.45 - st.DailyFundFlowAdjustUSDT
+	if adjusted != 0 {
+		t.Fatalf("risk delta=%v want 0", adjusted)
+	}
+}
+
+func TestAccountRiskWatcherWithdrawalNoHalt(t *testing.T) {
+	var haltCount atomic.Int32
+	cfg := DefaultEngineConfig()
+	cfg.RiskConfig.MaxDailyLossUSDT = 40
+	cfg.AlertingConfig.Enabled = false
+
+	w := newAccountRiskWatcher(accountRiskWatchConfig{
+		Cfg:       cfg,
+		RecordDir: t.TempDir(),
+		Logger:    log.New(os.Stderr, "", 0),
+	})
+	w.nowFn = func() time.Time { return time.Date(2026, 6, 21, 12, 0, 0, 0, time.UTC) }
+	w.settlementFn = func() ([]strategySettlementRecord, error) { return nil, nil }
+	w.positionFn = func() accountRiskPositionSummary { return accountRiskPositionSummary{} }
+	w.realEquityFn = func(recordDir string) (float64, float64, float64) { return 385.55, 435, 49.45 }
+	w.notifyFn = func(title, detail string) {}
+	w.haltFn = func(reason string) error {
+		haltCount.Add(1)
+		return nil
+	}
+	w.equityState.HasLastTrusted = true
+	w.equityState.LastTrustedTotalUSDT = 435
+	w.equityState.LastTrustedByVenue = map[string]float64{"okx": 435}
+	w.equityState.LastPositionCount = 0
+	w.equityFn = func(now time.Time) accountEquityObservation {
+		return testAccountEquityObservation(385.55, -49.45, map[string]float64{"okx": 385.55})
+	}
+
+	w.tickOnce()
+	if haltCount.Load() != 0 {
+		t.Fatalf("withdrawal must not halt, got halt=%d", haltCount.Load())
+	}
+}
+
+func TestAccountRiskWatcherUnreliableEquitySkipsHaltAndFlatten(t *testing.T) {
+	var haltCount atomic.Int32
+	var flattenCount atomic.Int32
+
+	cfg := DefaultEngineConfig()
+	cfg.RiskConfig.MaxDailyLossUSDT = 10
+	cfg.RiskConfig.AutoFlattenOnHardDrawdownEnabled = true
+	cfg.RiskConfig.AutoFlattenAccountDrawdownUSDT = 150
+	cfg.AlertingConfig.Enabled = false
+
+	w := newAccountRiskWatcher(accountRiskWatchConfig{
+		Cfg:       cfg,
+		RecordDir: t.TempDir(),
+		Logger:    log.New(os.Stderr, "", 0),
+	})
+	w.settlementFn = func() ([]strategySettlementRecord, error) { return nil, nil }
+	w.positionFn = func() accountRiskPositionSummary { return accountRiskPositionSummary{} }
+	w.realEquityFn = func(recordDir string) (float64, float64, float64) { return 0, 118, 118 }
+	w.notifyFn = func(title, detail string) {}
+	w.haltFn = func(reason string) error {
+		haltCount.Add(1)
+		return nil
+	}
+	w.flattenFn = func(ctx context.Context) error {
+		flattenCount.Add(1)
+		return nil
+	}
+	w.equityState.HasLastTrusted = true
+	w.equityState.LastTrustedTotalUSDT = 118
+	w.equityState.LastTrustedByVenue = map[string]float64{"okx": 118}
+	w.equityFn = func(now time.Time) accountEquityObservation {
+		return testAccountEquityObservation(0, -118, map[string]float64{"okx": 0})
+	}
+
+	w.tickOnce()
+	if haltCount.Load() != 0 || flattenCount.Load() != 0 {
+		t.Fatalf("unreliable equity must skip halt/flatten, halt=%d flatten=%d", haltCount.Load(), flattenCount.Load())
+	}
+}
+
+func TestAccountRiskWatcherRealTradingLossStillHalts(t *testing.T) {
+	var haltCount atomic.Int32
+	cfg := DefaultEngineConfig()
+	cfg.RiskConfig.MaxDailyLossUSDT = 10
+	cfg.AlertingConfig.Enabled = false
+
+	w := newAccountRiskWatcher(accountRiskWatchConfig{
+		Cfg:       cfg,
+		RecordDir: t.TempDir(),
+		Logger:    log.New(os.Stderr, "", 0),
+	})
+	w.settlementFn = func() ([]strategySettlementRecord, error) {
+		return []strategySettlementRecord{
+			{SettlementID: "loss", CloseTime: time.Now(), NetPnL: -15, StrategyType: "cross_venue_perp_perp"},
+		}, nil
+	}
+	w.positionFn = func() accountRiskPositionSummary {
+		return accountRiskPositionSummary{TotalCount: 1, OpenNotional: 50}
+	}
+	w.realEquityFn = func(recordDir string) (float64, float64, float64) { return 85, 100, 15 }
+	w.notifyFn = func(title, detail string) {}
+	w.haltFn = func(reason string) error {
+		haltCount.Add(1)
+		return nil
+	}
+	w.equityFn = func(now time.Time) accountEquityObservation {
+		return testAccountEquityObservation(85, -15, map[string]float64{"okx": 85})
+	}
+
+	w.tickOnce()
+	if haltCount.Load() != 1 {
+		t.Fatalf("real trading loss must halt, got halt=%d", haltCount.Load())
 	}
 }
 

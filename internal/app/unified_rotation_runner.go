@@ -30,6 +30,9 @@ const (
 	rotationSwitchFailedOpen         EventType = "switch_failed_open"
 
 	rotationZeroCVSPCVPSAlertThreshold = 5
+
+	// rotationAsyncScanTimeout 异步 carry 全量扫描卡死防护:超时后重置 scanning 并告警。
+	rotationAsyncScanTimeout = 25 * time.Minute
 )
 
 // unified_rotation_runner.go 统一轮动 runner: 扫描 → 留换决策 → 资金路由 → 四执行器派发(active 即实盘)。
@@ -71,15 +74,17 @@ type RotationActionCounts struct {
 
 // RotationStatus 统一轮动运行时快照(JSON 友好)。
 type RotationStatus struct {
-	Active          bool                    `json:"active"`
-	IntervalSeconds int                     `json:"interval_seconds"`
-	LastCycleAt     string                  `json:"last_cycle_at"`
-	LastSnapshotID  string                  `json:"last_snapshot_id"`
-	Candidates      RotationCandidateCounts `json:"candidates"`
-	Held            int                     `json:"held"`
-	RealHeldManaged int                     `json:"real_held_managed"`
-	Actions         RotationActionCounts    `json:"actions"`
-	LastError       string                  `json:"last_error"`
+	Active               bool                    `json:"active"`
+	ConfigIntendedActive bool                    `json:"config_intended_active"`
+	PausedAgainstConfig  bool                    `json:"paused_against_config"`
+	IntervalSeconds      int                     `json:"interval_seconds"`
+	LastCycleAt          string                  `json:"last_cycle_at"`
+	LastSnapshotID       string                  `json:"last_snapshot_id"`
+	Candidates           RotationCandidateCounts `json:"candidates"`
+	Held                 int                     `json:"held"`
+	RealHeldManaged      int                     `json:"real_held_managed"`
+	Actions              RotationActionCounts    `json:"actions"`
+	LastError            string                  `json:"last_error"`
 }
 
 // UnifiedRotationRunner 串联五类扫描候选、轮动决策、资金路由与四 spot/perp-spot 执行器。
@@ -109,10 +114,18 @@ type UnifiedRotationRunner struct {
 	active   atomic.Bool
 	scanning atomic.Bool
 
+	// rotationConfigIntendedActive config 层 rotation 实盘意图(InitState defaultActive);与持久化 active 解耦供告警。
+	rotationConfigIntendedActive bool
+
+	scanStartedMu sync.Mutex
+	scanStartedAt time.Time
+
 	statusMu               sync.RWMutex
 	status                 RotationStatus
 	lastPausedLogMu        sync.Mutex
 	lastPausedLogAt        time.Time
+	lastPausedCriticalMu   sync.Mutex
+	lastPausedCriticalAt   time.Time
 	lastStaleSnapshotLogMu sync.Mutex
 	lastStaleSnapshotLogAt time.Time
 
@@ -269,6 +282,7 @@ func (r *UnifiedRotationRunner) InitState(defaultActive bool) {
 	if r == nil {
 		return
 	}
+	r.rotationConfigIntendedActive = defaultActive
 	r.active.Store(defaultActive)
 	if r.recordDir == "" {
 		return
@@ -303,6 +317,8 @@ func (r *UnifiedRotationRunner) Status() RotationStatus {
 	st := r.status
 	r.statusMu.RUnlock()
 	st.Active = r.active.Load()
+	st.ConfigIntendedActive = r.rotationConfigIntendedActive
+	st.PausedAgainstConfig = !st.Active && st.ConfigIntendedActive
 	st.IntervalSeconds = int(r.tickerInterval().Seconds())
 	st.RealHeldManaged = r.countRealHeldPositions(context.Background())
 	return st
@@ -414,7 +430,9 @@ func (r *UnifiedRotationRunner) runCycle(ctx context.Context) {
 	}
 	// 暂停时仍管理在场真仓; verified-close 走 closeVerifiedFn(交易所真仓时仍下单)。
 	r.runManageAll(ctx)
+	r.maybeResetStuckAsyncScan()
 	if !r.active.Load() {
+		r.maybeLogPausedAgainstConfig()
 		r.maybeLogPaused()
 		return
 	}
@@ -428,12 +446,15 @@ func (r *UnifiedRotationRunner) runCycle(ctx context.Context) {
 	if r.controlPlane != nil && !r.controlPlane.RotationLiveEnabled() {
 		return
 	}
-	// 扫描/decision 可能耗时数分钟; 异步执行以免阻塞 60s 安全管理循环。
+	// perp-perp:每 cycle 用缓存快照同步决策(不占用 carry 慢扫描 scanning 闸)。
+	r.runPerpPerpDecisionFast(ctx)
+	// carry 四策略扫描/decision 可能耗时数分钟; 异步执行以免阻塞 60s 安全管理循环。
 	if !r.scanning.CompareAndSwap(false, true) {
 		return
 	}
+	r.markAsyncScanStarted()
 	go func() {
-		defer r.scanning.Store(false)
+		defer r.clearAsyncScanStarted()
 		r.runOnceSafe(ctx)
 	}()
 }
@@ -522,12 +543,102 @@ func (r *UnifiedRotationRunner) maybeLogPaused() {
 	r.lastPausedLogMu.Lock()
 	defer r.lastPausedLogMu.Unlock()
 	now := time.Now()
+	if r.nowFn != nil {
+		now = r.nowFn()
+	}
 	interval := r.tickerInterval()
 	if !r.lastPausedLogAt.IsZero() && now.Sub(r.lastPausedLogAt) < interval {
 		return
 	}
 	r.logger.Printf("[统一轮动] 已暂停(active=false)")
 	r.lastPausedLogAt = now
+}
+
+func (r *UnifiedRotationRunner) maybeLogPausedAgainstConfig() {
+	if r == nil || !r.rotationConfigIntendedActive || r.active.Load() {
+		return
+	}
+	msg := "rotation 配置意图为实盘开启但 runner active=false,交易已暂停未恢复"
+	r.statusMu.Lock()
+	r.status.LastError = msg
+	r.statusMu.Unlock()
+	if r.logger == nil {
+		return
+	}
+	r.lastPausedCriticalMu.Lock()
+	defer r.lastPausedCriticalMu.Unlock()
+	now := time.Now()
+	if r.nowFn != nil {
+		now = r.nowFn()
+	}
+	interval := r.tickerInterval()
+	if !r.lastPausedCriticalAt.IsZero() && now.Sub(r.lastPausedCriticalAt) < interval {
+		return
+	}
+	r.logger.Printf("[统一轮动] CRITICAL: %s", msg)
+	r.lastPausedCriticalAt = now
+}
+
+func (r *UnifiedRotationRunner) markAsyncScanStarted() {
+	if r == nil {
+		return
+	}
+	now := time.Now()
+	if r.nowFn != nil {
+		now = r.nowFn()
+	}
+	r.scanStartedMu.Lock()
+	r.scanStartedAt = now
+	r.scanStartedMu.Unlock()
+}
+
+func (r *UnifiedRotationRunner) clearAsyncScanStarted() {
+	if r == nil {
+		return
+	}
+	r.scanning.Store(false)
+	r.scanStartedMu.Lock()
+	r.scanStartedAt = time.Time{}
+	r.scanStartedMu.Unlock()
+}
+
+func (r *UnifiedRotationRunner) asyncScanRunningFor() time.Duration {
+	if r == nil || !r.scanning.Load() {
+		return 0
+	}
+	r.scanStartedMu.Lock()
+	started := r.scanStartedAt
+	r.scanStartedMu.Unlock()
+	if started.IsZero() {
+		return 0
+	}
+	now := time.Now()
+	if r.nowFn != nil {
+		now = r.nowFn()
+	}
+	return now.Sub(started)
+}
+
+func (r *UnifiedRotationRunner) maybeResetStuckAsyncScan() {
+	if r == nil || !r.scanning.Load() {
+		return
+	}
+	elapsed := r.asyncScanRunningFor()
+	if elapsed <= 0 || elapsed < rotationAsyncScanTimeout {
+		return
+	}
+	r.scanning.Store(false)
+	r.scanStartedMu.Lock()
+	r.scanStartedAt = time.Time{}
+	r.scanStartedMu.Unlock()
+	msg := fmt.Sprintf("异步 carry 扫描超时 age=%.0fs > max=%.0fs,已重置 scanning 标志",
+		elapsed.Seconds(), rotationAsyncScanTimeout.Seconds())
+	r.statusMu.Lock()
+	r.status.LastError = msg
+	r.statusMu.Unlock()
+	if r.logger != nil {
+		r.logger.Printf("[统一轮动] CRITICAL: %s", msg)
+	}
 }
 
 func (r *UnifiedRotationRunner) maybeLogControlPlaneHalt() {
@@ -582,6 +693,131 @@ func (r *UnifiedRotationRunner) runOnceSafe(ctx context.Context) {
 	}
 }
 
+func (r *UnifiedRotationRunner) fetchRotationAvailableUSDT(ctx context.Context) map[string]float64 {
+	if r == nil {
+		return nil
+	}
+	deps := r.fetchDeps
+	if deps.fetchAvailableUSDT == nil {
+		deps.fetchAvailableUSDT = defaultUnifiedMarketFetchAvailableUSDTByVenue
+	}
+	return deps.fetchAvailableUSDT(ctx, r.venues, crossVenueExecutorVenues)
+}
+
+func (r *UnifiedRotationRunner) buildPerpPerpCandidatesFromSnapshot(
+	snap CrossVenueScanSnapshot,
+	availableUSDTByVenue map[string]float64,
+) []UnifiedOpportunity {
+	if r == nil || !r.includePerpPerpCandidates || len(snap.Opportunities) == 0 {
+		return nil
+	}
+	perpPerpCandidates := make([]UnifiedOpportunity, 0, len(snap.Opportunities))
+	for _, opp := range snap.Opportunities {
+		unified := UnifiedOpportunityFromCrossVenue(r.execCfg, opp, nil, 0, 0)
+		if r.rotationCfg.CapitalAwarePerpPerpSizingEnabled {
+			unified = rotationCapPerpPerpOpportunityByCapital(
+				unified, r.execCfg, normalizeRotationConfig(r.rotationCfg), availableUSDTByVenue,
+			)
+		} else {
+			unified = rotationAlignPerpPerpCapital(unified, r.execCfg)
+		}
+		if r.bindingForStrategy(UnifiedStrategyPerpPerp) == nil {
+			unified.CandidateOnly = true
+		}
+		if opp.HighSymbol != "" && opp.LowSymbol != "" && opp.HighSymbol != opp.LowSymbol {
+			unified.CandidateOnly = true
+		}
+		perpPerpCandidates = append(perpPerpCandidates, unified)
+	}
+	return perpPerpCandidates
+}
+
+// runPerpPerpDecisionFast 每 60s cycle 基于 scanner 内存快照评估 perp-perp 开仓/换仓(与 carry 慢扫描解耦)。
+func (r *UnifiedRotationRunner) runPerpPerpDecisionFast(ctx context.Context) {
+	if r == nil || !r.includePerpPerpCandidates || r.bindingForStrategy(UnifiedStrategyPerpPerp) == nil {
+		return
+	}
+	if r.scanner == nil {
+		return
+	}
+	cycleAt := time.Now().UTC()
+	if r.nowFn != nil {
+		cycleAt = r.nowFn().UTC()
+	}
+	snap := r.scanner.Snapshot()
+	snapshotID := strings.TrimSpace(snap.SnapshotID)
+	if snapshotID == "" {
+		return
+	}
+	if r.snapshotStale(snap.ScannedAt, cycleAt) {
+		return
+	}
+
+	available := r.fetchRotationAvailableUSDT(ctx)
+	perpCandidates := r.buildPerpPerpCandidatesFromSnapshot(snap, available)
+	if len(perpCandidates) == 0 {
+		return
+	}
+	borrowDaily, _ := rotationBorrowMapsFromProbes(snap.BorrowProbes)
+	allHeld, allHeldInputs := r.collectHeldPositions(perpCandidates, borrowDaily)
+	freeAvailable := rotationFreeAvailableUSDT(available, allHeld)
+	rotationCfg := normalizeRotationConfig(r.rotationCfg)
+	if r.openCooldownStore != nil {
+		rotationCfg.OpenCooldownBlocked = r.openCooldownStore.blockedPredicate(r.nowFn)
+	}
+	rotationCandidates := filterRotationCandidates(perpCandidates, rotationCfg)
+	if len(rotationCandidates) == 0 {
+		return
+	}
+
+	plan := r.decideRotation(allHeld, allHeldInputs, rotationCandidates, freeAvailable)
+	plan.Actions = filterRotationPlanPerpPerpActions(plan.Actions)
+	if len(plan.Actions) == 0 {
+		return
+	}
+	if r.logger != nil {
+		r.logger.Printf("[统一轮动] perp-perp 高频决策 snapshot=%s candidates=%d actions=%d live=%v",
+			snapshotID, len(rotationCandidates), len(plan.Actions), r.openLive())
+	}
+	prevDecide := r.decideRotationFn
+	r.decideRotationFn = func([]HeldPosition, map[string]ContinuationInputs, []UnifiedOpportunity, map[string]float64) RotationPlan {
+		return plan
+	}
+	defer func() { r.decideRotationFn = prevDecide }()
+	r.runOnceDecisionAndDispatch(ctx, rotationCandidates, freeAvailable, allHeld, allHeldInputs)
+}
+
+func filterRotationCandidatesWithoutStrategy(candidates []UnifiedOpportunity, strategyType string) []UnifiedOpportunity {
+	if len(candidates) == 0 || strings.TrimSpace(strategyType) == "" {
+		return candidates
+	}
+	out := make([]UnifiedOpportunity, 0, len(candidates))
+	for _, c := range candidates {
+		if c.StrategyType == strategyType {
+			continue
+		}
+		out = append(out, c)
+	}
+	return out
+}
+
+func rotationActionAffectsPerpPerp(act RotationAction) bool {
+	return act.StrategyType == UnifiedStrategyPerpPerp || act.ReplaceStrategyType == UnifiedStrategyPerpPerp
+}
+
+func filterRotationPlanPerpPerpActions(actions []RotationAction) []RotationAction {
+	if len(actions) == 0 {
+		return nil
+	}
+	out := make([]RotationAction, 0, len(actions))
+	for _, act := range actions {
+		if rotationActionAffectsPerpPerp(act) {
+			out = append(out, act)
+		}
+	}
+	return out
+}
+
 // runOnce 单轮闭环: 产候选 → 收持仓 → 决策 → 资金路由 → 派发。
 func (r *UnifiedRotationRunner) runOnce(ctx context.Context) error {
 	if r == nil {
@@ -634,7 +870,10 @@ func (r *UnifiedRotationRunner) runOnce(ctx context.Context) error {
 		rotationCfg.OpenCooldownBlocked = r.openCooldownStore.blockedPredicate(r.nowFn)
 	}
 	diagnosticCandidates := candidates
-	rotationCandidates := filterRotationCandidates(diagnosticCandidates, rotationCfg)
+	rotationCandidates := filterRotationCandidatesWithoutStrategy(
+		filterRotationCandidates(diagnosticCandidates, rotationCfg),
+		UnifiedStrategyPerpPerp,
+	)
 	diag := rotationDiagnoseCandidates(diagnosticCandidates, freeAvailable, rotationCfg)
 	diag.CycleID = snapshotID
 	appendRotationDecisionDiag(r.recordDir, diag)
@@ -1054,29 +1293,8 @@ func (r *UnifiedRotationRunner) defaultScanRotationCandidates(ctx context.Contex
 	}
 
 	if r.includePerpPerpCandidates {
-		perpPerpCandidates := make([]UnifiedOpportunity, 0, len(snap.Opportunities))
-		for _, opp := range snap.Opportunities {
-			unified := UnifiedOpportunityFromCrossVenue(r.execCfg, opp, nil, 0, 0)
-			if r.rotationCfg.CapitalAwarePerpPerpSizingEnabled {
-				unified = rotationCapPerpPerpOpportunityByCapital(
-					unified, r.execCfg, normalizeRotationConfig(r.rotationCfg), availableUSDTByVenue,
-				)
-			} else {
-				unified = rotationAlignPerpPerpCapital(unified, r.execCfg)
-			}
-			// 无 perp-perp binding 时仅作候选对比;有 binding 时可由统一 runner OPEN/SWITCH。
-			if r.bindingForStrategy(UnifiedStrategyPerpPerp) == nil {
-				unified.CandidateOnly = true
-			}
-			// 安全闸:跨计价对(如 1000PEPE×PEPE,HighSymbol≠LowSymbol)开仓路径已支持 per-leg symbol,
-			// 但 cross_venue_manage 持仓管理/平仓/对账尚未全量 per-leg 化。在生命周期补完并复核前,
-			// 跨计价对仅作候选(诊断/排行可见、EV 可算),不自动开仓,避免开出无法正确管理的真仓。
-			if opp.HighSymbol != "" && opp.LowSymbol != "" && opp.HighSymbol != opp.LowSymbol {
-				unified.CandidateOnly = true
-			}
-			perpPerpCandidates = append(perpPerpCandidates, unified)
-			candidates = append(candidates, unified)
-		}
+		perpPerpCandidates := r.buildPerpPerpCandidatesFromSnapshot(snap, availableUSDTByVenue)
+		candidates = append(candidates, perpPerpCandidates...)
 		if strings.TrimSpace(r.recordDir) != "" {
 			AppendCrossVenuePerpPerpCandidates(r.recordDir, writeCycleID, r.execCfg, perpPerpCandidates)
 		}
