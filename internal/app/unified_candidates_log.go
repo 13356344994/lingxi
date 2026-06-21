@@ -168,6 +168,12 @@ func unifiedRejectedOpportunityWithFunding(
 }
 
 func unifiedMinutesUntilFunding(nextFundingRFC3339 string, now time.Time) float64 {
+	return unifiedMinutesUntilFundingWithInterval(nextFundingRFC3339, now, 0)
+}
+
+// unifiedMinutesUntilFundingWithInterval 计算距下一次资费结算的分钟数。
+// 当 next 已过期且 intervalHours>0 时，按间隔滚动到下一次结算；interval 未知时保持原行为(过期返回 0)。
+func unifiedMinutesUntilFundingWithInterval(nextFundingRFC3339 string, now time.Time, intervalHours int) float64 {
 	nextFundingRFC3339 = strings.TrimSpace(nextFundingRFC3339)
 	if nextFundingRFC3339 == "" {
 		return 0
@@ -175,6 +181,15 @@ func unifiedMinutesUntilFunding(nextFundingRFC3339 string, now time.Time) float6
 	t, err := time.Parse(time.RFC3339, nextFundingRFC3339)
 	if err != nil {
 		return 0
+	}
+	if !t.After(now) {
+		if intervalHours <= 0 {
+			return 0
+		}
+		interval := time.Duration(intervalHours) * time.Hour
+		for !t.After(now) {
+			t = t.Add(interval)
+		}
 	}
 	mins := t.Sub(now).Minutes()
 	if mins < 0 {

@@ -197,11 +197,12 @@ func unifiedPrimarySortKey(rec UnifiedCandidateLogRecord) float64 {
 }
 
 func unifiedNearestFundingMinutes(rec UnifiedCandidateLogRecord, now time.Time) float64 {
+	interval := rec.FundingIntervalHours
 	high := strings.TrimSpace(rec.HighNextFundingTime)
 	low := strings.TrimSpace(rec.LowNextFundingTime)
 	if high != "" && low != "" {
-		highMins := unifiedMinutesUntilFunding(high, now)
-		lowMins := unifiedMinutesUntilFunding(low, now)
+		highMins := unifiedMinutesUntilFundingWithInterval(high, now, interval)
+		lowMins := unifiedMinutesUntilFundingWithInterval(low, now, interval)
 		switch {
 		case highMins > 0 && lowMins > 0:
 			if lowMins < highMins {
@@ -217,12 +218,12 @@ func unifiedNearestFundingMinutes(rec UnifiedCandidateLogRecord, now time.Time) 
 		}
 	}
 	if high != "" {
-		return unifiedMinutesUntilFunding(high, now)
+		return unifiedMinutesUntilFundingWithInterval(high, now, interval)
 	}
 	if low != "" {
-		return unifiedMinutesUntilFunding(low, now)
+		return unifiedMinutesUntilFundingWithInterval(low, now, interval)
 	}
-	return unifiedMinutesUntilFunding(rec.NextFundingTime, now)
+	return unifiedMinutesUntilFundingWithInterval(rec.NextFundingTime, now, interval)
 }
 
 func buildUnifiedRankReason(rank int, rec UnifiedCandidateLogRecord, landscapeKey float64, now time.Time) string {

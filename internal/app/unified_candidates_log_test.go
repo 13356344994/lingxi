@@ -130,3 +130,45 @@ func TestUnifiedCandidateLogRecordJSONShape(t *testing.T) {
 		t.Fatal("expected single json line")
 	}
 }
+
+func TestUnifiedMinutesUntilFundingWithInterval(t *testing.T) {
+	now := time.Date(2026, 6, 21, 10, 24, 0, 0, time.UTC)
+	pastHourly := time.Date(2026, 6, 21, 10, 0, 0, 0, time.UTC).Format(time.RFC3339)
+	future := now.Add(2 * time.Hour).Format(time.RFC3339)
+
+	got := unifiedMinutesUntilFundingWithInterval(pastHourly, now, 1)
+	if got < 35 || got > 37 {
+		t.Fatalf("rolled hourly mins = %.1f, want ~36", got)
+	}
+
+	gotZero := unifiedMinutesUntilFundingWithInterval(pastHourly, now, 0)
+	if gotZero != 0 {
+		t.Fatalf("expired without interval = %.1f, want 0", gotZero)
+	}
+
+	gotFuture := unifiedMinutesUntilFundingWithInterval(future, now, 1)
+	if gotFuture < 119 || gotFuture > 121 {
+		t.Fatalf("future mins = %.1f, want ~120", gotFuture)
+	}
+
+	gotLegacy := unifiedMinutesUntilFunding(pastHourly, now)
+	if gotLegacy != 0 {
+		t.Fatalf("legacy wrapper expired = %.1f, want 0", gotLegacy)
+	}
+}
+
+func TestUnifiedNearestFundingMinutesRolledExpiredLeg(t *testing.T) {
+	now := time.Date(2026, 6, 21, 10, 24, 0, 0, time.UTC)
+	pastHourly := time.Date(2026, 6, 21, 10, 0, 0, 0, time.UTC).Format(time.RFC3339)
+	futureTwoHour := time.Date(2026, 6, 21, 12, 0, 0, 0, time.UTC).Format(time.RFC3339)
+
+	rec := UnifiedCandidateLogRecord{
+		FundingIntervalHours: 1,
+		HighNextFundingTime:  pastHourly,
+		LowNextFundingTime:   futureTwoHour,
+	}
+	got := unifiedNearestFundingMinutes(rec, now)
+	if got < 35 || got > 37 {
+		t.Fatalf("nearest mins = %.1f, want ~36 (rolled hourly high leg, not ~96 low leg)", got)
+	}
+}

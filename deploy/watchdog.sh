@@ -34,6 +34,9 @@ SECRET_FILE="${LINGXI_SECRET_FILE:-$(CDPATH= cd -- "$(dirname -- "$0")/.." && pw
 STATE_DIR="${LINGXI_WATCHDOG_STATE_DIR:-$RECORD_DIR}"
 FAIL_COUNT_FILE="$STATE_DIR/.watchdog_fail_count"
 LAST_RESTART_FILE="$STATE_DIR/.watchdog_last_restart"
+# 连通性盲区健康信号:主程序权益采样器在「全部 venue 拉取失败」时写此文件(connectivity_blind=true)。
+# 这是环境问题(代理/交易所不可达),重启主进程治不了,反而会上演重启风暴(见 2026-06-21 事故)。
+SAMPLER_HEALTH_FILE="${LINGXI_SAMPLER_HEALTH_FILE:-$RECORD_DIR/crossvenue/equity_sampler_health.json}"
 
 # 已成交裸仓兜底强平(补全交易所侧 dead-man 的盲区:dead-man 只撤未成交挂单,平不掉已成交的对冲腿)。
 # 默认关闭(0):这是会动用资金的实盘动作,须显式开启。开启后,仅当①主进程确已死(心跳年龄 > FLATTEN_STALE_THRESHOLD,
@@ -160,6 +163,15 @@ maybe_flatten_naked_positions() {
   fi
 }
 
+# connectivity_blind 返回 0 表示主程序正处于「连通性盲区」(全部 venue 采样失败,疑代理/交易所不可达)。
+# 仅当健康信号文件较新(5min 内,避免陈旧文件误抑制)且 connectivity_blind=true 才认定。
+# 此时进程通常还活着(心跳在更),问题在环境;重启无益且会风暴,故看门狗跳过重启、只告警等待恢复。
+connectivity_blind() {
+  [ -f "$SAMPLER_HEALTH_FILE" ] || return 1
+  [ -n "$(find "$SAMPLER_HEALTH_FILE" -mmin -5 2>/dev/null)" ] || return 1
+  grep -q '"connectivity_blind"[[:space:]]*:[[:space:]]*true' "$SAMPLER_HEALTH_FILE" 2>/dev/null
+}
+
 # halt_active 返回 0 表示存在急停文件(全局 records/.halt-live 或任一 venue 子目录的 .halt-live)。
 # 急停 = 人工有意停止:引擎停转后心跳停更、/healthz 503 都是**预期状态**,看门狗绝不能在此时重启
 # (重启 + LINGXI_AUTOSTART_LIVE=1 会复活交易,且循环上演重启风暴)。删除急停文件后恢复正常监护。
@@ -174,6 +186,13 @@ check_once() {
   if halt_active; then
     echo 0 >"$FAIL_COUNT_FILE"
     log "急停文件存在(人工停止),跳过健康检查与重启"
+    return 0
+  fi
+  # 连通性盲区 + 心跳仍新鲜 = 进程活着但代理/交易所不可达:环境问题,重启无益且会风暴 → 跳过重启。
+  # 注意必须同时要求心跳新鲜:若进程其实已死(心跳陈旧),仍走下方正常重启逻辑,不被盲区信号误抑制。
+  if connectivity_blind && [ "$(heartbeat_age)" -le "$STALE_THRESHOLD" ]; then
+    echo 0 >"$FAIL_COUNT_FILE"
+    log "连通性盲区(全部 venue 采样失败,疑代理 127.0.0.1:43203 或交易所不可达)且心跳新鲜:环境问题,跳过重启,等待连通性恢复"
     return 0
   fi
   reasons=""

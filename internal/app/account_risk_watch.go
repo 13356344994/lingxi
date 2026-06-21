@@ -146,6 +146,7 @@ type accountRiskEquityState struct {
 	LastTrustedTotalUSDT    float64
 	LastTrustedByVenue      map[string]float64
 	HasLastTrusted          bool
+	LastTrustedAt           time.Time
 	DailyFundFlowAdjustUSDT float64
 	LastDailyRealizedPnL    float64
 	LastSettlementCount     int
@@ -213,6 +214,9 @@ func newAccountRiskWatcher(c accountRiskWatchConfig) *accountRiskWatcher {
 	}
 	w.bindDefaultSources()
 	w.bindDefaultActions(c)
+	if st, ok := loadAccountRiskEquityState(w.recordDir); ok {
+		w.equityState = st
+	}
 	return w
 }
 
@@ -393,9 +397,23 @@ func (w *accountRiskWatcher) buildSnapshot(now time.Time) accountRiskSnapshot {
 		pos,
 		&w.equityState,
 		w.cfg.RiskConfig,
+		w.recordDir,
+		now,
 	)
 	var fundFlowStep float64
-	if trusted {
+	blindGap := w.equityState.HasLastTrusted && equityObservationHasBlindGap(w.equityState.LastTrustedAt, now)
+	connectivityBlind := isEquitySamplerConnectivityBlind(w.recordDir)
+	needsReanchor := blindGap || connectivityBlind
+	reanchoredThisTick := false
+	if trusted && needsReanchor {
+		if w.logger != nil {
+			w.logger.Printf("[账户风控] 因盲区重锚,不计入回撤(last_trusted_at=%s connectivity_blind=%v)",
+				w.equityState.LastTrustedAt.UTC().Format(time.RFC3339), connectivityBlind)
+		}
+		w.equityState.reanchorTrustedObservation(obs, pos, daily.TotalNetPnL, len(records), now)
+		_ = saveAccountRiskEquityState(w.recordDir, &w.equityState, now)
+		reanchoredThisTick = true
+	} else if trusted {
 		fundFlowStep = detectAccountFundFlowStep(
 			&w.equityState,
 			obs.TotalUSDT,
@@ -408,11 +426,15 @@ func (w *accountRiskWatcher) buildSnapshot(now time.Time) accountRiskSnapshot {
 		if fundFlowStep != 0 && w.logger != nil {
 			w.logger.Printf("[账户风控] 检测到资金转入/转出 %.4f,已平移日基准(不计亏损)", fundFlowStep)
 		}
-		w.equityState.rememberTrustedObservation(obs, pos, daily.TotalNetPnL, len(records))
+		w.equityState.rememberTrustedObservation(obs, pos, daily.TotalNetPnL, len(records), now)
+		_ = saveAccountRiskEquityState(w.recordDir, &w.equityState, now)
 	}
 	dailyFundFlowAdjust := w.equityState.DailyFundFlowAdjustUSDT
 	rawDailyDelta := obs.RawDailyDelta
 	dailyEquityForRisk := money.SumUSDT(rawDailyDelta, -dailyFundFlowAdjust)
+	if reanchoredThisTick {
+		dailyEquityForRisk = 0
+	}
 
 	return accountRiskSnapshot{
 		ObservedAt:                  now,
@@ -726,7 +748,12 @@ func assessAccountEquityTrust(
 	pos accountRiskPositionSummary,
 	st *accountRiskEquityState,
 	cfg RiskConfig,
+	recordDir string,
+	now time.Time,
 ) (trusted bool, reason string) {
+	if isEquitySamplerConnectivityBlind(recordDir) {
+		return false, "连通性盲区(全部 venue 采样失败)"
+	}
 	if !obs.ReadOK {
 		return false, "权益读取失败"
 	}
@@ -747,6 +774,9 @@ func assessAccountEquityTrust(
 		drop := money.SumUSDT(st.LastTrustedTotalUSDT, -obs.TotalUSDT)
 		limit := effectiveAccountRiskMaxEquityTickDropUSDT(cfg, st.LastTrustedTotalUSDT)
 		if drop > limit && pos.TotalCount >= st.LastPositionCount {
+			if equityObservationHasBlindGap(st.LastTrustedAt, now) {
+				return true, ""
+			}
 			return false, fmt.Sprintf("单 tick 权益骤降 %.4f > 阈值 %.4f 且无持仓减少", drop, limit)
 		}
 	}
@@ -754,6 +784,9 @@ func assessAccountEquityTrust(
 		drop := money.SumUSDT(st.LastTrustedTotalUSDT, -realCurrent)
 		limit := effectiveAccountRiskMaxEquityTickDropUSDT(cfg, st.LastTrustedTotalUSDT)
 		if drop > limit && pos.TotalCount >= st.LastPositionCount {
+			if equityObservationHasBlindGap(st.LastTrustedAt, now) {
+				return true, ""
+			}
 			return false, fmt.Sprintf("真实现金单 tick 骤降 %.4f > 阈值 %.4f 且无持仓减少", drop, limit)
 		}
 	}
@@ -765,6 +798,7 @@ func (st *accountRiskEquityState) rememberTrustedObservation(
 	pos accountRiskPositionSummary,
 	dailyRealized float64,
 	settlementCount int,
+	observedAt time.Time,
 ) {
 	if st == nil {
 		return
@@ -772,6 +806,26 @@ func (st *accountRiskEquityState) rememberTrustedObservation(
 	st.LastTrustedTotalUSDT = obs.TotalUSDT
 	st.LastTrustedByVenue = copyVenueEquityMap(obs.ByVenue)
 	st.HasLastTrusted = true
+	st.LastTrustedAt = observedAt.UTC()
+	st.LastDailyRealizedPnL = dailyRealized
+	st.LastSettlementCount = settlementCount
+	st.LastPositionCount = pos.TotalCount
+}
+
+func (st *accountRiskEquityState) reanchorTrustedObservation(
+	obs accountEquityObservation,
+	pos accountRiskPositionSummary,
+	dailyRealized float64,
+	settlementCount int,
+	observedAt time.Time,
+) {
+	if st == nil {
+		return
+	}
+	st.LastTrustedTotalUSDT = obs.TotalUSDT
+	st.LastTrustedByVenue = copyVenueEquityMap(obs.ByVenue)
+	st.HasLastTrusted = true
+	st.LastTrustedAt = observedAt.UTC()
 	st.LastDailyRealizedPnL = dailyRealized
 	st.LastSettlementCount = settlementCount
 	st.LastPositionCount = pos.TotalCount

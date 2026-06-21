@@ -255,8 +255,8 @@ func TestComputeRealEquityWaterMark(t *testing.T) {
 		`{"ts":"2026-06-19T00:03:00Z","venue":"gate","cash_usdt":500}`,
 		`{"ts":"2026-06-19T00:06:00Z","venue":"okx","cash_usdt":1000}`,
 		`{"ts":"2026-06-19T00:06:00Z","venue":"gate","cash_usdt":500}`,
-		`{"ts":"2026-06-19T01:00:00Z","venue":"okx","cash_usdt":950}`,
-		`{"ts":"2026-06-19T01:00:00Z","venue":"gate","cash_usdt":500}`,
+		`{"ts":"2026-06-19T00:09:00Z","venue":"okx","cash_usdt":950}`,
+		`{"ts":"2026-06-19T00:09:00Z","venue":"gate","cash_usdt":500}`,
 	)
 	path := filepath.Join(cvDir, equitySnapshotsFileName)
 	if err := os.WriteFile(path, []byte(lines), 0o600); err != nil {
@@ -605,6 +605,8 @@ func TestAssessAccountEquityTrust_VenueZeroSkipped(t *testing.T) {
 		accountRiskPositionSummary{},
 		st,
 		cfg,
+		t.TempDir(),
+		time.Date(2026, 6, 21, 12, 0, 0, 0, time.UTC),
 	)
 	if trusted || reason == "" {
 		t.Fatalf("venue zero must be untrusted, trusted=%v reason=%q", trusted, reason)
@@ -618,6 +620,8 @@ func TestAssessAccountEquityTrust_ReadFailureSkipped(t *testing.T) {
 		accountRiskPositionSummary{},
 		&accountRiskEquityState{},
 		DefaultEngineConfig().RiskConfig,
+		t.TempDir(),
+		time.Now().UTC(),
 	)
 	if trusted || reason == "" {
 		t.Fatalf("read failure must be untrusted, trusted=%v reason=%q", trusted, reason)

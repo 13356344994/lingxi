@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"lingxi/internal/money"
 )
@@ -21,6 +22,8 @@ const (
 	equityVenueZeroLookback = 5
 	// equityMinVenuePresenceRatio 近期样本中 venue 出现比例下限(推导预期集合)。
 	equityMinVenuePresenceRatio = 0.5
+	// equitySampleGapBlindThreshold 相邻可信样本间隔超过此值视为连通性盲区(采样周期 3min×5)。
+	equitySampleGapBlindThreshold = 15 * time.Minute
 )
 
 // realEquityQualityResult 真实现金权益回放质量闸结果(供 auto-flatten 与观测)。
@@ -39,6 +42,28 @@ type equityTimestampSample struct {
 	ByVenue   map[string]float64
 	Complete  *bool
 	TotalUSDT float64
+}
+
+func parseEquitySampleTime(sample equityTimestampSample) (time.Time, bool) {
+	ts, err := time.Parse(time.RFC3339, sample.TS)
+	if err != nil {
+		return time.Time{}, false
+	}
+	return ts, true
+}
+
+func equitySampleHasBlindGap(prev, curr time.Time) bool {
+	if prev.IsZero() || curr.IsZero() {
+		return false
+	}
+	return curr.Sub(prev) > equitySampleGapBlindThreshold
+}
+
+func equityObservationHasBlindGap(lastTrustedAt, observedAt time.Time) bool {
+	if lastTrustedAt.IsZero() || observedAt.IsZero() {
+		return false
+	}
+	return observedAt.Sub(lastTrustedAt) > equitySampleGapBlindThreshold
 }
 
 func loadEquityTimestampSamples(recordDir string) ([]equityTimestampSample, error) {
@@ -259,13 +284,25 @@ func computeConfirmedRealEquityWaterMark(samples []equityTimestampSample) (curre
 	}
 
 	recentTotals := make([]float64, 0, equityPeakConfirmSampleCount)
+	var prevSampleTS time.Time
+	var prevSampleSet bool
 	for _, sample := range completeValid {
+		sampleTS, tsOK := parseEquitySampleTime(sample)
+		if prevSampleSet && tsOK && equitySampleHasBlindGap(prevSampleTS, sampleTS) {
+			peak = 0
+			recentTotals = recentTotals[:0]
+			quality.PeakConfirmed = false
+		}
 		current = sample.TotalUSDT
 		recentTotals = append(recentTotals, sample.TotalUSDT)
 		if len(recentTotals) > equityPeakConfirmSampleCount {
 			recentTotals = recentTotals[len(recentTotals)-equityPeakConfirmSampleCount:]
 		}
 		if len(recentTotals) < equityPeakConfirmSampleCount {
+			if tsOK {
+				prevSampleTS = sampleTS
+				prevSampleSet = true
+			}
 			continue
 		}
 		minTotal := recentTotals[0]
@@ -281,6 +318,10 @@ func computeConfirmedRealEquityWaterMark(samples []equityTimestampSample) (curre
 		if minTotal > peak {
 			peak = maxTotal
 			quality.PeakConfirmed = true
+		}
+		if tsOK {
+			prevSampleTS = sampleTS
+			prevSampleSet = true
 		}
 	}
 	drawdown = money.SumUSDT(peak, -current)

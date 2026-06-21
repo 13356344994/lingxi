@@ -403,3 +403,26 @@ func TestLeaderboardEntryNearestFundingAndRotation(t *testing.T) {
 		t.Fatalf("rank_reason should use nearest leg: %q", entry.RankReason)
 	}
 }
+
+func TestUnifiedNearestFundingMinutesExpiredHighLegRolls(t *testing.T) {
+	now := time.Date(2026, 6, 21, 10, 36, 0, 0, time.UTC)
+	expiredHigh := time.Date(2026, 6, 21, 10, 0, 0, 0, time.UTC).Format(time.RFC3339)
+	futureLow := time.Date(2026, 6, 21, 12, 0, 0, 0, time.UTC).Format(time.RFC3339)
+	rec := UnifiedCandidateLogRecord{
+		StrategyType:           UnifiedStrategyPerpPerp,
+		Symbol:                 "H-USDT",
+		Venues:                 []string{"bybit", "binance"},
+		FundingIntervalHours:   1,
+		HighNextFundingTime:    expiredHigh,
+		LowNextFundingTime:     futureLow,
+		CapitalEfficiencyScore: 0.002,
+	}
+	got := unifiedNearestFundingMinutes(rec, now)
+	if got < 23 || got > 25 {
+		t.Fatalf("nearest mins = %.1f, want ~24 (rolled 1h high leg), not ~85 from low leg", got)
+	}
+	entry := leaderboardEntryFromRecord(rec, 1, 0.5, now)
+	if entry.MinutesUntilFunding < 23 || entry.MinutesUntilFunding > 25 {
+		t.Fatalf("entry minutes_until_funding = %.1f, want ~24", entry.MinutesUntilFunding)
+	}
+}

@@ -86,6 +86,11 @@ func (e *CrossVenueExecutor) sampleEquityOnce(ctx context.Context) {
 		})
 	}
 	if len(records) == 0 {
+		expectedVenues := len(e.venues)
+		e.logger.Printf("[权益采样] 连通性盲区: 全部 venue 拉取失败 %d/%d,本轮跳过且标记盲区", 0, expectedVenues)
+		if err := recordEquitySamplerAttempt(e.recordDir, ts, expectedVenues, 0, false); err != nil {
+			e.logger.Printf("[权益采样] 写入健康信号失败: %v", err)
+		}
 		return
 	}
 	expectedVenues := len(e.venues)
@@ -127,6 +132,9 @@ func (e *CrossVenueExecutor) sampleEquityOnce(ctx context.Context) {
 			e.logger.Printf("[权益采样] 写入记录失败: %v", err)
 			return
 		}
+	}
+	if err := recordEquitySamplerAttempt(e.recordDir, ts, expectedVenues, len(records), complete); err != nil {
+		e.logger.Printf("[权益采样] 写入健康信号失败: %v", err)
 	}
 }
 
