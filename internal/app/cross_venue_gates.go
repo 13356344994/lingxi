@@ -591,6 +591,10 @@ func crossVenueFundingSnapFromOppLeg(opp CrossVenueOpportunity, highLeg bool, no
 		interval = opp.LowIntervalHours
 		next = opp.LowNextFundingTime
 	}
+	// 过期结算时刻按 interval 推进到下一结算点:旧快照或刚过结算点时,NextFundingTime 会落到过去,
+	// 但只要 interval 已知,该腿就是有效的(只是时间戳过期),不应被误判为"幽灵腿"。
+	// 真缺数据的腿(interval<=0 或 NextFundingTime 为零)无法推进,仍会被下方校验判为无效→幽灵(行为不变)。
+	next = crossVenueAdvanceFundingTime(next, interval, now)
 	snap := venue.FundingSnapshot{
 		LastFundingRate: rate,
 		IntervalHours:   interval,

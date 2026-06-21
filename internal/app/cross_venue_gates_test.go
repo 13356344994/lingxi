@@ -402,3 +402,31 @@ func testPerpPerpHOpportunityForGate(t *testing.T, notional float64) UnifiedOppo
 	}
 	return UnifiedOpportunityFromCrossVenue(CrossVenueExecutorConfig{MaxEffectiveLeverage: 3}, cvOpp, nil, notional, 0)
 }
+
+// TestCrossVenueFundingSnapFromOppLegRollsStaleTime 验证:有效但 NextFundingTime 过期的腿应按 interval 滚动后放行
+// (修正旧快照/刚过结算点导致的"幽灵腿"误判);真缺 interval/时间的腿仍判幽灵(行为不变)。
+func TestCrossVenueFundingSnapFromOppLegRollsStaleTime(t *testing.T) {
+	now := time.Date(2026, 6, 21, 14, 9, 0, 0, time.UTC)
+	// 过期但有效(rate+interval 齐全,NextFundingTime=14:00 已过)→ 滚动到 15:00 放行
+	opp := CrossVenueOpportunity{HighFundingRate: -0.0004, HighIntervalHours: 1, HighNextFundingTime: time.Date(2026, 6, 21, 14, 0, 0, 0, time.UTC)}
+	snap, ok := crossVenueFundingSnapFromOppLeg(opp, true, now)
+	if !ok {
+		t.Fatal("有效但时间戳过期的高腿被误判为幽灵腿(应滚动后放行)")
+	}
+	if !snap.NextFundingTime.Equal(time.Date(2026, 6, 21, 15, 0, 0, 0, time.UTC)) {
+		t.Fatalf("NextFundingTime 应滚动到 15:00, got %v", snap.NextFundingTime)
+	}
+	// 缺 interval → 无法滚动 → 仍幽灵
+	if _, ok := crossVenueFundingSnapFromOppLeg(CrossVenueOpportunity{HighFundingRate: -0.0004, HighIntervalHours: 0, HighNextFundingTime: time.Date(2026, 6, 21, 14, 0, 0, 0, time.UTC)}, true, now); ok {
+		t.Fatal("缺 interval 的过期腿应仍判幽灵")
+	}
+	// 缺 NextFundingTime → 仍幽灵
+	if _, ok := crossVenueFundingSnapFromOppLeg(CrossVenueOpportunity{HighFundingRate: -0.0004, HighIntervalHours: 1}, true, now); ok {
+		t.Fatal("缺 NextFundingTime 的腿应仍判幽灵")
+	}
+	// 未来时间 → 原样有效
+	snap4, ok := crossVenueFundingSnapFromOppLeg(CrossVenueOpportunity{HighFundingRate: -0.0004, HighIntervalHours: 1, HighNextFundingTime: now.Add(20 * time.Minute)}, true, now)
+	if !ok || !snap4.NextFundingTime.Equal(now.Add(20*time.Minute)) {
+		t.Fatalf("未来时间应原样有效: ok=%v t=%v", ok, snap4.NextFundingTime)
+	}
+}
