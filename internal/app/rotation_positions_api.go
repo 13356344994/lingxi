@@ -672,6 +672,24 @@ func loadRotationStrategySettlementRecords(s *DashboardServer, since time.Time, 
 	dir := resolveStrategyRecordDir(s)
 	var out []strategySettlementRecord
 
+	if s != nil && s.crossVenueExecutor != nil {
+		recs, err := s.crossVenueExecutor.loadAllCrossVenueSettlements()
+		if err != nil {
+			return nil, err
+		}
+		for _, rec := range recs {
+			out = append(out, crossVenueSettlementToRecord(rec))
+		}
+	} else {
+		recs, err := loadTailJSONLFile[CrossVenueSettlement](filepath.Join(crossVenueRecordDir(dir), crossVenueSettlementsFileName), since, limit)
+		if err != nil {
+			return nil, err
+		}
+		for _, rec := range recs {
+			out = append(out, crossVenueSettlementToRecord(rec))
+		}
+	}
+
 	if s.svspExec != nil {
 		recs, err := s.svspExec.ListRecentSettlements(limit)
 		if err != nil {
@@ -758,6 +776,20 @@ func loadRotationStrategySettlementRecords(s *DashboardServer, since time.Time, 
 }
 
 func tailStrategyRecords(records []strategySettlementRecord, limit int) []strategySettlementRecord {
+	sort.SliceStable(records, func(i, j int) bool {
+		left := records[i].CloseTime
+		right := records[j].CloseTime
+		if left.Equal(right) {
+			return records[i].SettlementID < records[j].SettlementID
+		}
+		if left.IsZero() {
+			return true
+		}
+		if right.IsZero() {
+			return false
+		}
+		return left.Before(right)
+	})
 	if limit <= 0 || len(records) <= limit {
 		return records
 	}

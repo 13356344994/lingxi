@@ -84,3 +84,15 @@ func TestUnifiedOpportunityFromCrossVenueDoesNotMutateInput(t *testing.T) {
 		t.Fatal("UnifiedOpportunityFromCrossVenue mutated input CrossVenueOpportunity")
 	}
 }
+
+func TestUnifiedOpportunityFromCrossVenueDoesNotResurrectZeroNotional(t *testing.T) {
+	cvCfg := CrossVenueExecutorConfig{MaxPositionUSDT: 150, MaxEffectiveLeverage: 3}
+	opp := CrossVenueOpportunity{
+		Symbol: "DEAD-USDT", HighVenue: bybit.VenueName, LowVenue: okx.VenueName,
+		TradableNotional: 0, SizeMultiplier: 0, NoTradeReason: "net_ev<=0", NetEV: 0,
+	}
+	unified := UnifiedOpportunityFromCrossVenue(cvCfg, opp, nil, 0, 0)
+	if unified.Legs[0].Notional != 0 {
+		t.Fatalf("notional=%.2f want 0 (must not fall back to MaxPositionUSDT)", unified.Legs[0].Notional)
+	}
+}

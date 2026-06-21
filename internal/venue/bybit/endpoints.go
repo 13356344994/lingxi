@@ -19,8 +19,10 @@ const (
 	pathPositionList    = "/v5/position/list"           // 私有只读:持仓
 	pathQueryAPI        = "/v5/user/query-api"          // 私有只读:API key 权限自检
 
-	pathAssetCoinsBalance = "/v5/asset/transfer/query-account-coins-balance" // 私有只读:资金(FUND)钱包余额
-	pathInterTransfer     = "/v5/asset/transfer/inter-transfer"              // 私有写:本 UID 账户类型间划转
+	pathAssetCoinsBalance   = "/v5/asset/transfer/query-account-coins-balance" // 私有只读:资金(FUND)钱包余额
+	pathInterTransfer       = "/v5/asset/transfer/inter-transfer"              // 私有写:本 UID 账户类型间划转
+	pathDepositQueryRecord  = "/v5/asset/deposit/query-record"                 // 私有只读:链上充值记录
+	pathWithdrawQueryRecord = "/v5/asset/withdraw/query-record"                // 私有只读:链上提现记录
 
 	pathOrderCreate      = "/v5/order/create"             // 私有写:下单
 	pathOrderCreateBatch = "/v5/order/create-batch"       // 私有写:批量下单

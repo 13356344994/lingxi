@@ -117,6 +117,7 @@ type accountRiskWatcher struct {
 	realEquityFn        func(recordDir string) (current, peak, drawdown float64)
 	realEquityQualityFn func(recordDir string) realEquityQualityResult
 	notifyFn            func(title, detail string)
+	fundFlowLookup      accountFundFlowLookup // 单测注入;nil 时从 crossVenue 解析
 
 	// Stage B 执行依赖(生产由 newAccountRiskWatcher 绑定;单测注入 mock)。
 	haltFn              func(reason string) error
@@ -151,6 +152,7 @@ type accountRiskEquityState struct {
 	LastDailyRealizedPnL    float64
 	LastSettlementCount     int
 	LastPositionCount       int
+	fundFlowSourceLogged    bool
 }
 
 func (st *accountRiskEquityState) resetForDay(dayStart time.Time) {
@@ -400,7 +402,6 @@ func (w *accountRiskWatcher) buildSnapshot(now time.Time) accountRiskSnapshot {
 		w.recordDir,
 		now,
 	)
-	var fundFlowStep float64
 	blindGap := w.equityState.HasLastTrusted && equityObservationHasBlindGap(w.equityState.LastTrustedAt, now)
 	connectivityBlind := isEquitySamplerConnectivityBlind(w.recordDir)
 	needsReanchor := blindGap || connectivityBlind
@@ -414,18 +415,26 @@ func (w *accountRiskWatcher) buildSnapshot(now time.Time) accountRiskSnapshot {
 		_ = saveAccountRiskEquityState(w.recordDir, &w.equityState, now)
 		reanchoredThisTick = true
 	} else if trusted {
-		fundFlowStep = detectAccountFundFlowStep(
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		lookup := w.fundFlowLookup
+		if lookup == nil {
+			lookup = crossVenueFundFlowLookup(w.crossVenue)
+		}
+		applyAccountFundFlowAdjustment(
+			ctx,
 			&w.equityState,
+			obs,
+			lookup,
+			dayStart,
 			obs.TotalUSDT,
 			obs.RawDailyDelta,
 			daily.TotalNetPnL,
 			pos,
 			len(records),
 			effectiveAccountRiskMinFundFlowStepUSDT(w.cfg.RiskConfig),
+			w.logger,
 		)
-		if fundFlowStep != 0 && w.logger != nil {
-			w.logger.Printf("[账户风控] 检测到资金转入/转出 %.4f,已平移日基准(不计亏损)", fundFlowStep)
-		}
+		cancel()
 		w.equityState.rememberTrustedObservation(obs, pos, daily.TotalNetPnL, len(records), now)
 		_ = saveAccountRiskEquityState(w.recordDir, &w.equityState, now)
 	}

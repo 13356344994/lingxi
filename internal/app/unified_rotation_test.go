@@ -49,6 +49,17 @@ func TestRotationConfigFromUnifiedInheritsExecMaxPosition(t *testing.T) {
 	}
 }
 
+func TestRotationConfigFromUnifiedInheritsExecMaxConcurrent(t *testing.T) {
+	exec := CrossVenueExecutorConfig{MaxConcurrent: 8}
+	cfg := RotationConfigFromUnified(core.UnifiedRotationConfig{}, exec)
+	if cfg.MaxConcurrent != 8 {
+		t.Fatalf("rotation max_concurrent=%d want 8 from exec", cfg.MaxConcurrent)
+	}
+	if def := DefaultRotationConfig(); def.MaxConcurrent != 3 {
+		t.Fatalf("DefaultRotationConfig max_concurrent=%d want 3", def.MaxConcurrent)
+	}
+}
+
 func TestRotationCanOpenRejectsAboveExecMaxPosition(t *testing.T) {
 	execCfg := CrossVenueExecutorConfig{MaxPositionUSDT: 150}
 	rotCfg := RotationConfigFromUnified(core.UnifiedRotationConfig{}, execCfg)
@@ -1057,7 +1068,7 @@ func TestDecideRotationSwitchBlockedByMinHoldNearFunding(t *testing.T) {
 	held := HeldPosition{
 		OpportunityID: "held-btc", StrategyType: UnifiedStrategyPerpPerp, Symbol: "BTC-USDT",
 		CapitalRequiredByVenue: map[string]float64{"binance": 50, "bybit": 50},
-		OpenedAt: now.Add(-90 * time.Minute), NextFundingTime: now.Add(30 * time.Minute),
+		OpenedAt:               now.Add(-90 * time.Minute), NextFundingTime: now.Add(30 * time.Minute),
 	}
 	heldInputs := map[string]ContinuationInputs{"held-btc": {ExpectedFundingUSDT: 1, ExpectedCloseCostUSDT: 2}}
 	newOpp := testRotationOpp("new-eth", UnifiedStrategySingleVenueSpotPerp, "ETH-USDT", 30, 100)
@@ -1076,7 +1087,7 @@ func TestDecideRotationSwitchBlockedByMinHold(t *testing.T) {
 	held := HeldPosition{
 		OpportunityID: "held-btc", StrategyType: UnifiedStrategyPerpPerp, Symbol: "BTC-USDT",
 		CapitalRequiredByVenue: map[string]float64{"binance": 50, "bybit": 50},
-		OpenedAt: now.Add(-10 * time.Minute), NextFundingTime: now.Add(4 * time.Hour),
+		OpenedAt:               now.Add(-10 * time.Minute), NextFundingTime: now.Add(4 * time.Hour),
 	}
 	heldInputs := map[string]ContinuationInputs{"held-btc": {ExpectedFundingUSDT: 1, ExpectedCloseCostUSDT: 2}}
 	newOpp := testRotationOpp("new-eth", UnifiedStrategySingleVenueSpotPerp, "ETH-USDT", 30, 100)

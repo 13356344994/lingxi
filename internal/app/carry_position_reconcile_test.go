@@ -161,7 +161,7 @@ func TestCrossVenueReconcileIgnoresCarryOwnedPerpLeg(t *testing.T) {
 		recordDir: dir,
 	}
 	e.openingsEnabled.Store(true)
-	e.reconcileOnStart(context.Background())
+	e.reconcileOnStart(context.Background(), true)
 	if !e.OpeningsEnabled() {
 		t.Fatal("perp-perp should not latch halt when carry owns gate perp leg")
 	}

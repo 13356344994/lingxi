@@ -719,6 +719,7 @@
         <span class="wb-title" id="workbench-title">选择交易所</span>
         <div class="wb-tabs" id="venue-tabs"></div>
       </div>
+      <div id="venue-scope-note" class="hint" style="display:none;margin:4px 0 0;color:#fde68a;font-size:12px;"></div>
       <div class="hint dash-readonly-note">系统已处于【读保护模式】。所有自动化配置由 EngineGear 与 EngineProfile 后台自动接管。仅开放安全监控和必要的人工介入入口。</div>
       <div id="load-error-banner" style="display:none;margin:8px 0;padding:10px 14px;border-radius:8px;background:#3a1212;border:1px solid #ef4444;color:#fca5a5;font-size:13px;"></div>
       <div id="control-plane-bar" class="control-plane-bar" style="display:none;" aria-label="控制面状态">
@@ -2610,9 +2611,24 @@
       `).join("");
     }
 
+    // renderVenueScopeNote:当 ?venue=all 命中单所 summary 时,提示用户当前面板数据仅来自缺省所。
+    function renderVenueScopeNote(scope, venueName) {
+      const el = document.getElementById("venue-scope-note");
+      if (!el) { return; }
+      if (selectedVenue === "all" && scope === "primary_only") {
+        const v = venueName || primaryVenue || "主所";
+        el.textContent = `提示：「全部(总览)」下运行时/资金/结算面板仅展示 ${v} 单所数据，非四所合计。`;
+        el.style.display = "";
+      } else {
+        el.textContent = "";
+        el.style.display = "none";
+      }
+    }
+
     async function refreshDashboard() {
       try {
         const summary = await loadJSON("/api/dashboard/summary?limit=200" + venueQuery("&"));
+        renderVenueScopeNote(summary.venue_scope, summary.venue);
         renderRuntimeStatus(summary.runtime_status || {});
         renderCapitalSnapshot(summary.capital_snapshot || {}, summary.capital_snapshot_error || "");
         renderRuntimeLogs(summary.runtime_logs || []);
@@ -2881,6 +2897,7 @@
     const strategyCapitalStorageKey = "lingxi-strategy-capital-usdt";
     let strategyVenueCapitals = {};
     let lastEarningsByVenue = {};
+    let lastEarningsByVenueSettlement = {};
     let lastRealizedPnLUSDT = 0;
     let lastEarningsTotalBlock = {};
 
@@ -3147,7 +3164,7 @@
       ].sort((a, b) => b.value - a.value);
       const topDrag = dragCandidates[0];
       const tradeCount = Number(data.trade_count || 0);
-      const matched = Number(data.shadow_matched_trades || 0);
+      const matched = Number(data.replay_matched_trades ?? data.shadow_matched_trades ?? 0);
       const linked = Number(data.entry_snapshot_linked_trades || 0);
       const missingLink = Number(data.missing_entry_snapshot_trades || 0);
       const missed = Number(data.rolling_baseline_replay?.missed_open_snapshots || 0);
@@ -3376,7 +3393,7 @@
       setText("cvv-fallback-dilution", formatValidationMoney(data.fallback_dilution));
       setText("cvv-selection-drag", formatValidationMoney(data.selection_drag));
       setText("cvv-freshness-drag", formatValidationMoney(data.freshness_drag));
-      setText("cvv-baseline-matched", String(Number(data.shadow_matched_trades || 0)));
+      setText("cvv-baseline-matched", String(Number(data.replay_matched_trades ?? data.shadow_matched_trades ?? 0)));
       setText("cvv-rolling-gap", formatValidationMoney(rollingGap));
       setText("cvv-missed-open", String(Number(data.rolling_baseline_replay?.missed_open_snapshots || 0)));
       renderRollingBaselineChart(data.rolling_baseline_replay?.records || []);
@@ -3547,7 +3564,7 @@
       (st.venue_capitals || []).forEach((vc) => {
         if (vc && vc.venue) { strategyVenueCapitals[vc.venue] = vc; }
       });
-      updateVenueCardFinancials(lastEarningsByVenue, lastEarningsTotalBlock);
+      updateVenueCardFinancials(lastEarningsByVenue, lastEarningsTotalBlock, lastEarningsByVenueSettlement);
     }
 
     function renderStrategyCapitalResults(results) {
@@ -3988,8 +4005,8 @@
         const closedRows = (closedResp.settlements || []).map((s) => {
           const fees = Number(s.open_fees || 0) + Number(s.close_fees || 0);
           const venues = Array.isArray(s.venues) ? s.venues.join("+") : "-";
-          const openT = s.open_time ? String(s.open_time).replace("T", " ").slice(0, 19) : "-";
-          const closeT = s.close_time ? String(s.close_time).replace("T", " ").slice(0, 19) : "-";
+          const openT = s.open_time ? formatTimeUTC8(s.open_time, { withSuffix: false }) : "-";
+          const closeT = s.close_time ? formatTimeUTC8(s.close_time, { withSuffix: false }) : "-";
           const netPnL = Number(s.net_pnl || 0);
           const pnlRatio = s.pnl_ratio != null ? s.pnl_ratio : (Number(s.notional_usdt || 0) > 0 ? netPnL / Number(s.notional_usdt) : null);
           return `
@@ -4041,7 +4058,9 @@
       const totalCap = totalBlock.capital_usdt;
       const totalEq = totalBlock.equity_usdt;
       const byVenue = data.by_venue && typeof data.by_venue === "object" ? data.by_venue : {};
+      const byVenueSettlement = data.by_venue_settlement && typeof data.by_venue_settlement === "object" ? data.by_venue_settlement : {};
       lastEarningsByVenue = byVenue;
+      lastEarningsByVenueSettlement = byVenueSettlement;
       lastEarningsTotalBlock = totalBlock;
       lastRealizedPnLUSDT = Number(realizedPnL || 0);
       const realizedEl = document.getElementById("earnings-realized-total");
@@ -4077,12 +4096,17 @@
       const venueCards = venueNames.map((v) => {
         const row = byVenue[v] || {};
         const earn = row.today_earning_usdt;
+        const realized = byVenueSettlement[v];
+        const hasRealized = realized != null && Number.isFinite(Number(realized));
         const cap = row.capital_usdt;
         const eq = row.equity_usdt;
         const upnl = row.unrealized_pnl_usdt;
         const ret = row.today_return_rate;
         const capBreak = formatVenueCapitalBreakdown(strategyVenueCapitals[v]);
         const capLine = capBreak || `可动用 ${fmtCap(cap)} U`;
+        const realizedLine = hasRealized
+          ? `<div style="font-size:16px;font-weight:600;color:${color(realized)};">已实现 ${fmt(realized)} U</div>`
+          : "";
         const upnlLine = upnl != null && Math.abs(Number(upnl)) > 1e-6
           ? `<div style="font-size:11px;color:#64748b;margin-top:2px;">浮动盈亏 ${fmt(upnl)} U</div>` : "";
         const capErr = row.capital_error ? `<div style="font-size:11px;color:#fca5a5;margin-top:2px;">${escapeHTML(row.capital_error)}</div>` : "";
@@ -4091,7 +4115,8 @@
           <div style="font-size:12px;color:#8aa0c6;margin-bottom:4px;">${escapeHTML(v)}</div>
           <div style="font-size:12px;color:#94a3b8;margin-bottom:2px;">${capLine}</div>
           <div style="font-size:12px;color:#94a3b8;margin-bottom:2px;">全部资金 ${fmtCap(eq)} U</div>
-          <div style="font-size:18px;font-weight:600;color:${color(earn)};">账户净值 ${fmt(earn)} U · 收益率 ${fmtPct(ret)}</div>
+          ${realizedLine}
+          <div style="font-size:14px;color:#94a3b8;">净值变动(含充提) ${fmt(earn)} U · 收益率 ${fmtPct(ret)}</div>
           ${upnlLine}
           ${capErr}
         </div>`;
@@ -4112,19 +4137,22 @@
         </div>`;
       cards += venueCards;
       grid.innerHTML = cards;
-      updateVenueCardFinancials(byVenue, totalBlock);
+      updateVenueCardFinancials(byVenue, totalBlock, byVenueSettlement);
     }
 
-    function updateVenueCardFinancials(byVenue, totalBlock) {
+    function updateVenueCardFinancials(byVenue, totalBlock, byVenueSettlement) {
       const fmt = (n) => { const v = Number(n || 0); const s = v >= 0 ? "+" : ""; return s + v.toFixed(4); };
       const fmtCap = (n) => Number(n || 0).toFixed(2);
       const fmtPct = (rate) => { const v = Number(rate || 0) * 100; const s = v >= 0 ? "+" : ""; return s + v.toFixed(2) + "%"; };
+      const settlement = byVenueSettlement && typeof byVenueSettlement === "object" ? byVenueSettlement : {};
       const venues = knownVenues.length ? knownVenues : Object.keys(byVenue || {});
       venues.forEach((v) => {
         const el = document.getElementById("vfin-" + v);
         if (!el) { return; }
         const row = (byVenue && byVenue[v]) ? byVenue[v] : {};
         const earn = row.today_earning_usdt;
+        const realized = settlement[v];
+        const hasRealized = realized != null && Number.isFinite(Number(realized));
         const cap = row.capital_usdt;
         const eq = row.equity_usdt;
         const upnl = row.unrealized_pnl_usdt;
@@ -4133,7 +4161,8 @@
         const capText = capBreak ? capBreak + " · " : `可动用 ${fmtCap(cap)} U · `;
         const upnlText = upnl != null && Math.abs(Number(upnl)) > 1e-6 ? ` · 浮动盈亏 ${fmt(upnl)} U` : "";
         const err = row.capital_error ? ` · ${row.capital_error}` : "";
-        el.textContent = `${capText}全部资金 ${fmtCap(eq)} U · 账户净值变动 ${fmt(earn)} U · 收益率 ${fmtPct(ret)}${upnlText}${err}`;
+        const realizedText = hasRealized ? ` · 已实现 ${fmt(realized)} U` : "";
+        el.textContent = `${capText}全部资金 ${fmtCap(eq)} U${realizedText} · 净值变动(含充提) ${fmt(earn)} U · 收益率 ${fmtPct(ret)}${upnlText}${err}`;
       });
       const totalEl = document.getElementById("vfin-total");
       if (totalEl && totalBlock) {

@@ -122,3 +122,115 @@ func TestSpreadAPRThresholdBypassesConfidenceDownsize(t *testing.T) {
 		t.Fatal("moderate spread without ExtremeSpread flag should not bypass")
 	}
 }
+
+func TestCrossVenueFinalizeOpportunityRankingScalesLinearEconomics(t *testing.T) {
+	t.Parallel()
+	cfg := CrossVenueExecutorConfig{
+		MaxPositionUSDT:                100,
+		LowConfidenceSizeFloorFraction: 0.25,
+		MaxEffectiveLeverage:           3,
+		EVExpectedSlippageBps:          3,
+	}
+	now := time.Now().UTC()
+	opp := CrossVenueOpportunity{
+		Symbol:               "NEW-USDT",
+		HighVenue:            bybit.VenueName,
+		LowVenue:             okx.VenueName,
+		HighFundingRate:      0.002,
+		LowFundingRate:       0.0001,
+		HighIntervalHours:    8,
+		LowIntervalHours:     8,
+		HighNextFundingTime:  now.Add(time.Hour),
+		LowNextFundingTime:   now.Add(time.Hour),
+		TradableNotional:     100,
+		HistoryQualityScore:  0,
+		StabilityScore:       0,
+		ExecutionScore:       0.70,
+		LiquidityScore:       0.45,
+		RecoveryQualityScore: 0.65,
+	}
+	opp = crossVenueEstimateOpportunityMetrics(cfg, opp, now)
+	opp.HistoryQualityScore = 0
+	opp.StabilityScore = 0
+	opp.NetEV = 2.0 // 保证 finalize 不因 net_ev<=0 清零 SizeMultiplier
+	origNotional := opp.TradableNotional
+	origSpreadEV := opp.SpreadEV
+	origOpen := opp.OpenCost
+	origClose := opp.CloseCost
+	origSlip := opp.ExpectedSlippage
+	origRisk := opp.ObservableRiskCost
+	origPolicy := opp.PolicyBuffer
+	origNet := opp.NetEV
+	origRiskAdj := opp.RiskAdjustedEVPerHour
+	origCapEff := opp.CapitalEfficiencyEV
+
+	ranked := []CrossVenueOpportunity{opp}
+	crossVenueFinalizeOpportunityRanking(cfg, ranked)
+	got := ranked[0]
+
+	if got.SizeMultiplier <= 0 || got.SizeMultiplier >= 1 {
+		t.Fatalf("SizeMultiplier=%.4f want in (0,1) for low-confidence downsize", got.SizeMultiplier)
+	}
+	ratio := got.TradableNotional / origNotional
+	if math.Abs(ratio-got.SizeMultiplier) > 1e-9 {
+		t.Fatalf("TradableNotional ratio=%.6f SizeMultiplier=%.6f", ratio, got.SizeMultiplier)
+	}
+	checkRatio := func(name string, gotVal, origVal float64) {
+		t.Helper()
+		if origVal == 0 {
+			return
+		}
+		if math.Abs(gotVal/origVal-ratio) > 0.02 {
+			t.Fatalf("%s ratio=%.4f want≈%.4f (got=%.6f orig=%.6f)", name, gotVal/origVal, ratio, gotVal, origVal)
+		}
+	}
+	checkRatio("SpreadEV", got.SpreadEV, origSpreadEV)
+	checkRatio("OpenCost", got.OpenCost, origOpen)
+	checkRatio("CloseCost", got.CloseCost, origClose)
+	checkRatio("ExpectedSlippage", got.ExpectedSlippage, origSlip)
+	checkRatio("ObservableRiskCost", got.ObservableRiskCost, origRisk)
+	checkRatio("PolicyBuffer", got.PolicyBuffer, origPolicy)
+	checkRatio("NetEV", got.NetEV, origNet)
+	checkRatio("RiskAdjustedEVPerHour", got.RiskAdjustedEVPerHour, origRiskAdj)
+	if math.Abs(got.RankScore-got.NetEV) > 1e-12 {
+		t.Fatalf("RankScore=%.6f NetEV=%.6f want equal after finalize", got.RankScore, got.NetEV)
+	}
+	if origCapEff > 0 && math.Abs(got.CapitalEfficiencyEV-origCapEff) > 0.02 {
+		t.Fatalf("CapitalEfficiencyEV=%.6f want≈%.6f (ratio-invariant)", got.CapitalEfficiencyEV, origCapEff)
+	}
+
+	unified := UnifiedOpportunityFromCrossVenue(cfg, got, nil, 0, 0)
+	if math.Abs(unified.Legs[0].Notional-got.TradableNotional) > 1e-9 {
+		t.Fatalf("unified notional=%.4f TradableNotional=%.4f", unified.Legs[0].Notional, got.TradableNotional)
+	}
+	if math.Abs(unified.ExpectedNetEVUSDT-got.NetEV) > 1e-9 {
+		t.Fatalf("unified netEV=%.6f opp NetEV=%.6f", unified.ExpectedNetEVUSDT, got.NetEV)
+	}
+}
+
+func TestCrossVenueFinalizeOpportunityRankingZeroNetEVClearsEconomics(t *testing.T) {
+	t.Parallel()
+	cfg := CrossVenueExecutorConfig{MaxPositionUSDT: 100, LowConfidenceSizeFloorFraction: 0.25}
+	now := time.Now().UTC()
+	opp := CrossVenueOpportunity{
+		Symbol: "X-USDT", HighVenue: bybit.VenueName, LowVenue: okx.VenueName,
+		HighFundingRate: 0.00001, LowFundingRate: 0.00001,
+		HighIntervalHours: 8, LowIntervalHours: 8,
+		HighNextFundingTime: now.Add(time.Hour), LowNextFundingTime: now.Add(time.Hour),
+		TradableNotional: 100, SpreadEV: 0.5, OpenCost: 0.2, CloseCost: 0.2,
+		ExpectedSlippage: 0.1, NetEV: -0.05, NoTradeReason: "net_ev<=0",
+	}
+	ranked := []CrossVenueOpportunity{opp}
+	crossVenueFinalizeOpportunityRanking(cfg, ranked)
+	got := ranked[0]
+	if got.TradableNotional != 0 || got.SizeMultiplier != 0 {
+		t.Fatalf("zero-net opp notional=%.2f sizeMult=%.2f want 0/0", got.TradableNotional, got.SizeMultiplier)
+	}
+	if got.NetEV != 0 || got.SpreadEV != 0 {
+		t.Fatalf("zero-net opp NetEV=%.6f SpreadEV=%.6f want 0", got.NetEV, got.SpreadEV)
+	}
+	unified := UnifiedOpportunityFromCrossVenue(cfg, got, nil, 0, 0)
+	if unified.Legs[0].Notional != 0 {
+		t.Fatalf("unified notional=%.2f want 0 (no MaxPosition fallback)", unified.Legs[0].Notional)
+	}
+}

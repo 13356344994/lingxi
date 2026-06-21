@@ -100,8 +100,12 @@ func attributionReportPath(recordDir string) string {
 
 // AttributionPredictionRecord 是机会实际开仓时的 prediction 归因记录。
 type AttributionPredictionRecord struct {
-	RecordedAt            time.Time `json:"recorded_at"`
+	RecordedAt time.Time `json:"recorded_at"`
+	// AttributionID 是 prediction/realized 对账用的唯一键(通常为 position_key);OpportunityID 保留候选身份兼容。
+	AttributionID         string    `json:"attribution_id,omitempty"`
 	OpportunityID         string    `json:"opportunity_id"`
+	PositionKey           string    `json:"position_key,omitempty"`
+	IdemPrefix            string    `json:"idem_prefix,omitempty"`
 	Strategy              string    `json:"strategy"`
 	Symbol                string    `json:"symbol"`
 	Venues                []string  `json:"venues,omitempty"`
@@ -118,7 +122,10 @@ type AttributionPredictionRecord struct {
 // AttributionRealizedRecord 是平仓 finalize 时的 realized 归因记录。
 type AttributionRealizedRecord struct {
 	RecordedAt           time.Time `json:"recorded_at"`
+	AttributionID        string    `json:"attribution_id,omitempty"`
 	OpportunityID        string    `json:"opportunity_id"`
+	PositionKey          string    `json:"position_key,omitempty"`
+	IdemPrefix           string    `json:"idem_prefix,omitempty"`
 	Strategy             string    `json:"strategy"`
 	Symbol               string    `json:"symbol"`
 	Venues               []string  `json:"venues,omitempty"`
@@ -160,7 +167,7 @@ func predictionRecordFromOpportunity(opp UnifiedOpportunity, openTime time.Time)
 	if openTime.IsZero() {
 		openTime = time.Now().UTC()
 	}
-	return AttributionPredictionRecord{
+	rec := AttributionPredictionRecord{
 		RecordedAt:            time.Now().UTC(),
 		OpportunityID:         opp.ID,
 		Strategy:              opp.StrategyType,
@@ -175,28 +182,94 @@ func predictionRecordFromOpportunity(opp UnifiedOpportunity, openTime time.Time)
 		ExpectedNetEVUSDT:     opp.ExpectedNetEVUSDT,
 		RunMode:               string(CurrentAttributionRunMode()),
 	}
+	rec.AttributionID = attributionJoinKeyFromPrediction(rec)
+	return rec
+}
+
+func predictionRecordFromCrossVenuePosition(opp UnifiedOpportunity, pos CrossVenuePosition, openTime time.Time) AttributionPredictionRecord {
+	rec := predictionRecordFromOpportunity(opp, openTime)
+	rec.PositionKey = crossVenuePositionKey(pos)
+	rec.IdemPrefix = strings.TrimSpace(pos.IdemPrefix)
+	rec.AttributionID = attributionIDFromCrossVenuePosition(pos)
+	return rec
+}
+
+func attributionIDFromCrossVenuePosition(pos CrossVenuePosition) string {
+	if key := crossVenuePositionKey(pos); key != "" {
+		return key
+	}
+	return crossVenuePositionOpportunityID(pos)
+}
+
+func attributionIDFromCrossVenueSettlement(rec CrossVenueSettlement) string {
+	if key := strings.TrimSpace(rec.PositionKey); key != "" {
+		return key
+	}
+	if id := strings.TrimSpace(rec.SettlementID); id != "" {
+		return id
+	}
+	return unifiedOpportunityID(UnifiedStrategyPerpPerp, rec.Symbol, rec.EntrySnapshotID, rec.HighVenue, rec.LowVenue)
+}
+
+func attributionJoinKeyFromPrediction(rec AttributionPredictionRecord) string {
+	if id := strings.TrimSpace(rec.AttributionID); id != "" {
+		return id
+	}
+	return strings.TrimSpace(rec.OpportunityID)
+}
+
+func attributionJoinKeyFromRealized(rec AttributionRealizedRecord) string {
+	if id := strings.TrimSpace(rec.AttributionID); id != "" {
+		return id
+	}
+	return strings.TrimSpace(rec.OpportunityID)
+}
+
+func indexAttributionPredictions(predictions []AttributionPredictionRecord) map[string]AttributionPredictionRecord {
+	out := make(map[string]AttributionPredictionRecord, len(predictions))
+	for _, pred := range predictions {
+		key := attributionJoinKeyFromPrediction(pred)
+		if key == "" {
+			continue
+		}
+		out[key] = pred
+	}
+	return out
 }
 
 func appendAttributionPredictionBestEffort(recordDir string, rec AttributionPredictionRecord) {
-	if strings.TrimSpace(rec.OpportunityID) == "" {
+	if attributionJoinKeyFromPrediction(rec) == "" {
 		return
+	}
+	if strings.TrimSpace(rec.AttributionID) == "" {
+		rec.AttributionID = attributionJoinKeyFromPrediction(rec)
 	}
 	_ = appendJSONLRecord(attributionPredictionsPath(recordDir), rec)
 }
 
 func appendAttributionRealizedBestEffort(recordDir string, rec AttributionRealizedRecord) {
-	if strings.TrimSpace(rec.OpportunityID) == "" {
+	if attributionJoinKeyFromRealized(rec) == "" {
 		return
+	}
+	if strings.TrimSpace(rec.AttributionID) == "" {
+		rec.AttributionID = attributionJoinKeyFromRealized(rec)
 	}
 	_ = appendJSONLRecord(attributionRealizedPath(recordDir), rec)
 }
 
 func realizedRecordFromCrossVenueSettlement(rec CrossVenueSettlement) AttributionRealizedRecord {
 	oppID := unifiedOpportunityID(UnifiedStrategyPerpPerp, rec.Symbol, rec.EntrySnapshotID, rec.HighVenue, rec.LowVenue)
+	if stored := strings.TrimSpace(rec.OpportunityID); stored != "" {
+		oppID = stored
+	}
+	attrID := attributionIDFromCrossVenueSettlement(rec)
 	slippage := rec.OpenSlippage + rec.CloseSlippage
 	return AttributionRealizedRecord{
 		RecordedAt:           time.Now().UTC(),
+		AttributionID:        attrID,
 		OpportunityID:        oppID,
+		PositionKey:          strings.TrimSpace(rec.PositionKey),
+		IdemPrefix:           strings.TrimSpace(rec.SettlementID),
 		Strategy:             UnifiedStrategyPerpPerp,
 		Symbol:               rec.Symbol,
 		Venues:               []string{rec.HighVenue, rec.LowVenue},
@@ -255,37 +328,39 @@ func realizedRecordFromSVPSSettlement(rec SingleVenuePerpSpotSettlement) Attribu
 
 func realizedRecordFromCVSPSettlement(rec CrossVenueSpotPerpSettlement) AttributionRealizedRecord {
 	return AttributionRealizedRecord{
-		RecordedAt:          time.Now().UTC(),
-		OpportunityID:       rec.OpportunityID,
-		Strategy:            UnifiedStrategyCrossVenueSpotPerp,
-		Symbol:              rec.Symbol,
-		Venues:              []string{rec.SpotVenue, rec.PerpVenue},
-		CloseTime:           rec.CloseTime,
-		OpenTime:            rec.OpenTime,
-		NotionalUSDT:        rec.NotionalUSDT,
-		RealizedFundingUSDT: rec.RealizedFunding,
-		RealizedFeesUSDT:    rec.TotalFees,
-		FinalNetPnLUSDT:     rec.NetPnL,
-		AttributionComplete: rec.OpportunityID != "",
-		RunMode:             string(CurrentAttributionRunMode()),
+		RecordedAt:           time.Now().UTC(),
+		OpportunityID:        rec.OpportunityID,
+		Strategy:             UnifiedStrategyCrossVenueSpotPerp,
+		Symbol:               rec.Symbol,
+		Venues:               []string{rec.SpotVenue, rec.PerpVenue},
+		CloseTime:            rec.CloseTime,
+		OpenTime:             rec.OpenTime,
+		NotionalUSDT:         rec.NotionalUSDT,
+		RealizedFundingUSDT:  rec.RealizedFunding,
+		RealizedTradePnLUSDT: rec.TradePnL,
+		RealizedFeesUSDT:     rec.TotalFees,
+		FinalNetPnLUSDT:      rec.NetPnL,
+		AttributionComplete:  rec.OpportunityID != "",
+		RunMode:              string(CurrentAttributionRunMode()),
 	}
 }
 
 func realizedRecordFromCVPSSettlement(rec CrossVenuePerpSpotSettlement) AttributionRealizedRecord {
 	return AttributionRealizedRecord{
-		RecordedAt:          time.Now().UTC(),
-		OpportunityID:       rec.OpportunityID,
-		Strategy:            UnifiedStrategyCrossVenuePerpSpot,
-		Symbol:              rec.Symbol,
-		Venues:              []string{rec.PerpVenue, rec.SpotVenue},
-		CloseTime:           rec.CloseTime,
-		OpenTime:            rec.OpenTime,
-		NotionalUSDT:        rec.NotionalUSDT,
-		RealizedFundingUSDT: rec.RealizedFunding,
-		RealizedFeesUSDT:    rec.TotalFees,
-		FinalNetPnLUSDT:     rec.NetPnL,
-		AttributionComplete: rec.OpportunityID != "",
-		RunMode:             string(CurrentAttributionRunMode()),
+		RecordedAt:           time.Now().UTC(),
+		OpportunityID:        rec.OpportunityID,
+		Strategy:             UnifiedStrategyCrossVenuePerpSpot,
+		Symbol:               rec.Symbol,
+		Venues:               []string{rec.PerpVenue, rec.SpotVenue},
+		CloseTime:            rec.CloseTime,
+		OpenTime:             rec.OpenTime,
+		NotionalUSDT:         rec.NotionalUSDT,
+		RealizedFundingUSDT:  rec.RealizedFunding,
+		RealizedTradePnLUSDT: rec.TradePnL,
+		RealizedFeesUSDT:     rec.TotalFees,
+		FinalNetPnLUSDT:      rec.NetPnL,
+		AttributionComplete:  rec.OpportunityID != "",
+		RunMode:              string(CurrentAttributionRunMode()),
 	}
 }
 
@@ -359,8 +434,8 @@ func grossPnLUSDT(rec AttributionRealizedRecord) float64 {
 }
 
 func explainedNetPnLUSDT(rec AttributionRealizedRecord) float64 {
-	return rec.RealizedFundingUSDT + rec.RealizedTradePnLUSDT - rec.RealizedFeesUSDT -
-		rec.RealizedSlippageUSDT - rec.RealizedBorrowUSDT
+	// 开/平仓滑点已隐含在 RealizedTradePnLUSDT(实际成交价),不得再扣 RealizedSlippageUSDT,见 cost_accounting.go:64-74。
+	return rec.RealizedFundingUSDT + rec.RealizedTradePnLUSDT - rec.RealizedFeesUSDT - rec.RealizedBorrowUSDT
 }
 
 func holdYears(openTime, closeTime time.Time) float64 {
@@ -448,7 +523,7 @@ func unexplainedPnLRatio(samples []AttributionRealizedRecord, predictions map[st
 	var gross, unexplained float64
 	for _, rec := range samples {
 		gross += grossPnLUSDT(rec)
-		pred, ok := predictions[rec.OpportunityID]
+		pred, ok := predictions[attributionJoinKeyFromRealized(rec)]
 		if ok {
 			unexplained += math.Abs(pred.ExpectedNetEVUSDT - rec.FinalNetPnLUSDT)
 			continue
@@ -536,7 +611,7 @@ func aggregateAttributionByDimension(
 		if rec.AttributionComplete {
 			b.row.AttributionCompleteRate += 1
 		}
-		if pred, ok := predictions[rec.OpportunityID]; ok {
+		if pred, ok := predictions[attributionJoinKeyFromRealized(rec)]; ok {
 			b.row.PredictedNetEVUSDT += pred.ExpectedNetEVUSDT
 			b.row.PredictedFundingUSDT += pred.ExpectedFundingUSDT
 		}
@@ -564,26 +639,20 @@ func BuildAttributionReconcileRows(
 	predictions []AttributionPredictionRecord,
 	realized []AttributionRealizedRecord,
 ) []AttributionReconcileRow {
-	predByID := make(map[string]AttributionPredictionRecord, len(predictions))
-	for _, pred := range predictions {
-		if pred.OpportunityID == "" {
-			continue
-		}
-		predByID[pred.OpportunityID] = pred
-	}
+	predByJoinKey := indexAttributionPredictions(predictions)
 	var rows []AttributionReconcileRow
 	rows = append(rows, aggregateAttributionByDimension("strategy", func(rec AttributionRealizedRecord, _ map[string]AttributionPredictionRecord) string {
 		return rec.Strategy
-	}, realized, predByID)...)
+	}, realized, predByJoinKey)...)
 	rows = append(rows, aggregateAttributionByDimension("symbol", func(rec AttributionRealizedRecord, _ map[string]AttributionPredictionRecord) string {
 		return rec.Symbol
-	}, realized, predByID)...)
+	}, realized, predByJoinKey)...)
 	rows = append(rows, aggregateAttributionByDimension("venue", func(rec AttributionRealizedRecord, _ map[string]AttributionPredictionRecord) string {
 		if len(rec.Venues) == 0 {
 			return ""
 		}
 		return strings.Join(rec.Venues, "+")
-	}, realized, predByID)...)
+	}, realized, predByJoinKey)...)
 	return rows
 }
 
@@ -598,12 +667,7 @@ func WriteAttributionReport(recordDir string) error {
 		return err
 	}
 	rows := BuildAttributionReconcileRows(predictions, realized)
-	predByID := make(map[string]AttributionPredictionRecord, len(predictions))
-	for _, pred := range predictions {
-		if pred.OpportunityID != "" {
-			predByID[pred.OpportunityID] = pred
-		}
-	}
+	predByJoinKey := indexAttributionPredictions(predictions)
 	byStrategy := map[string][]AttributionRealizedRecord{}
 	for _, rec := range realized {
 		byStrategy[rec.Strategy] = append(byStrategy[rec.Strategy], rec)
@@ -613,7 +677,7 @@ func WriteAttributionReport(recordDir string) error {
 		result := EvaluateAttributionGoNoGo(AttributionGoNoGoStrategyInput{
 			Strategy:                 strategy,
 			Realized:                 samples,
-			PredictionsByOpportunity: predByID,
+			PredictionsByOpportunity: predByJoinKey,
 			CapitalAllocatedUSDT:     1000,
 		})
 		goNoGoLines = append(goNoGoLines, fmt.Sprintf("- **%s**: %s (%s)", strategy, result.Verdict, strings.Join(result.Reasons, "; ")))

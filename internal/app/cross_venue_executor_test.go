@@ -672,7 +672,7 @@ func TestCrossVenueReconcileOnStart(t *testing.T) {
 		logger: testCrossVenueLogger(),
 		nowFn:  func() time.Time { return now },
 	}
-	e.reconcileOnStart(context.Background())
+	e.reconcileOnStart(context.Background(), true)
 	ps, _ := store.load()
 	if len(ps) != 0 {
 		t.Fatalf("expected orphan cleared, got %d positions", len(ps))
@@ -698,7 +698,7 @@ func TestCrossVenueReconcileOnStartImportUntrackedPair(t *testing.T) {
 		nowFn:     func() time.Time { return now },
 		recordDir: dir,
 	}
-	e.reconcileOnStart(context.Background())
+	e.reconcileOnStart(context.Background(), true)
 	ps, err := store.load()
 	if err != nil {
 		t.Fatal(err)
@@ -736,7 +736,7 @@ func TestCrossVenueReconcileOnStartFlattenUntrackedPair(t *testing.T) {
 		nowFn:     func() time.Time { return now },
 		recordDir: dir,
 	}
-	e.reconcileOnStart(context.Background())
+	e.reconcileOnStart(context.Background(), true)
 	ps, err := store.load()
 	if err != nil {
 		t.Fatal(err)
@@ -746,6 +746,36 @@ func TestCrossVenueReconcileOnStartFlattenUntrackedPair(t *testing.T) {
 	}
 	if atomic.LoadInt32(high.placeCount) == 0 || atomic.LoadInt32(low.placeCount) == 0 {
 		t.Fatalf("flatten should place close orders: high=%d low=%d", *high.placeCount, *low.placeCount)
+	}
+}
+
+func TestCrossVenueReconcileOnStartFlattenRespectsLiveFalse(t *testing.T) {
+	dir := t.TempDir()
+	store := mustCrossVenueStore(t, dir)
+	now := time.Now().UTC().Add(time.Hour)
+	high := newCrossVenueTestVenue(bybit.VenueName, 0.001, 8, now.Add(2*time.Hour))
+	low := newCrossVenueTestVenue(okx.VenueName, 0.0001, 8, now.Add(2*time.Hour))
+	high.positions = []venue.Position{{Symbol: "BTC-USDT", PositionAmt: -0.5, MarkPrice: 100, EntryPrice: 100}}
+	low.positions = []venue.Position{{Symbol: "BTC-USDT", PositionAmt: 0.5, MarkPrice: 100, EntryPrice: 100}}
+	cfg := testCrossVenueExecutorConfig()
+	cfg.NetworkConfig.RecordDir = dir
+	cfg.CrossVenueExecutor.UntrackedExposureAction = "flatten"
+	cfg.CrossVenueExecutor.LiveTradingEnabled = true
+	e := &CrossVenueExecutor{
+		cfg:       cfg,
+		venues:    map[string]venue.Venue{bybit.VenueName: high, okx.VenueName: low},
+		store:     store,
+		logger:    testCrossVenueLogger(),
+		nowFn:     func() time.Time { return now },
+		recordDir: dir,
+	}
+	e.reconcileOnStart(context.Background(), false)
+	if atomic.LoadInt32(high.placeCount) != 0 || atomic.LoadInt32(low.placeCount) != 0 {
+		t.Fatalf("live=false must not flatten even when config live_trading_enabled=true: high=%d low=%d",
+			atomic.LoadInt32(high.placeCount), atomic.LoadInt32(low.placeCount))
+	}
+	if e.OpeningsEnabled() {
+		t.Fatal("unhandled untracked exposure should latch openings off")
 	}
 }
 
@@ -769,7 +799,7 @@ func TestCrossVenueReconcileOnStartHaltUntrackedPair(t *testing.T) {
 		recordDir: dir,
 	}
 	e.openingsEnabled.Store(true)
-	e.reconcileOnStart(context.Background())
+	e.reconcileOnStart(context.Background(), true)
 	if e.OpeningsEnabled() {
 		t.Fatal("halt branch should disable openings")
 	}
@@ -791,7 +821,10 @@ func TestCrossVenueShouldCloseForBetterSwitchCandidate(t *testing.T) {
 		Opportunities: []CrossVenueOpportunity{{
 			Symbol: "ETH-USDT", HighVenue: gate.VenueName, LowVenue: okx.VenueName, SpreadAPR: 30,
 			HighFundingRate: 0.05, LowFundingRate: 0.0, HighIntervalHours: 8, LowIntervalHours: 8,
-			HighNextFundingTime: now.Add(4 * time.Hour), LowNextFundingTime: now.Add(4 * time.Hour), TradableNotional: 50,
+			HighNextFundingTime: now.Add(4 * time.Hour), LowNextFundingTime: now.Add(4 * time.Hour),
+			ComparableWindowHours: 4, ExpectedHoldHours: 4, TradableNotional: 50,
+			SpreadEV: 2.5, OpenCost: 0.05, CloseCost: 0.05, ExpectedSlippage: 0.01,
+			NetEV: 2.0, RankScore: 2.0,
 		}},
 		FundingByVenue: map[string]map[string]CrossVenueFundingEntry{
 			bybit.VenueName: {"BTC-USDT": {Rate: 0.02, IntervalHours: 8, NextFundingTime: now.Add(4 * time.Hour)}},
@@ -1129,7 +1162,7 @@ func TestCrossVenueReconcileOnStartRecoversPendingSwitch(t *testing.T) {
 		nowFn:     func() time.Time { return now },
 		recordDir: dir,
 	}
-	e.reconcileOnStart(context.Background())
+	e.reconcileOnStart(context.Background(), true)
 	ps, err := store.load()
 	if err != nil {
 		t.Fatal(err)
@@ -1194,7 +1227,7 @@ func TestCrossVenueReconcileOnStartPromotesUnhedgedSwitchTargetToSecondLegContin
 	if err := e.upsertSwitchIntent(intent); err != nil {
 		t.Fatal(err)
 	}
-	e.reconcileOnStart(context.Background())
+	e.reconcileOnStart(context.Background(), true)
 	ps, err := store.load()
 	if err != nil {
 		t.Fatal(err)
@@ -1263,7 +1296,7 @@ func TestCrossVenueReconcileOnStartConfirmsLiveSwitchTarget(t *testing.T) {
 	if err := e.upsertSwitchIntent(intent); err != nil {
 		t.Fatal(err)
 	}
-	e.reconcileOnStart(context.Background())
+	e.reconcileOnStart(context.Background(), true)
 	ps, err := store.load()
 	if err != nil {
 		t.Fatal(err)
@@ -1331,7 +1364,7 @@ func TestCrossVenueReconcileOnStartPromotesFirstLegToSecondLegContinuation(t *te
 	if err := e.upsertSwitchIntent(intent); err != nil {
 		t.Fatal(err)
 	}
-	e.reconcileOnStart(context.Background())
+	e.reconcileOnStart(context.Background(), true)
 	ps, err := store.load()
 	if err != nil {
 		t.Fatal(err)
@@ -1470,6 +1503,99 @@ func TestManageCrossVenuePositionContinuesOpeningSecondLeg(t *testing.T) {
 	}
 	if intents := e.activeSwitchIntents(now); len(intents) != 0 {
 		t.Fatalf("switch intent should be consumed after continuation success, got %+v", intents)
+	}
+}
+
+func TestManageCrossVenuePositionContinuesOpeningSecondLegUnknownBlocksRollback(t *testing.T) {
+	dir := t.TempDir()
+	store := mustCrossVenueStore(t, dir)
+	now := time.Now().UTC()
+	pos := CrossVenuePosition{
+		Symbol:                "BTC-USDT",
+		HighVenue:             gate.VenueName,
+		LowVenue:              okx.VenueName,
+		Status:                CrossVenueStatusOpeningSecondLeg,
+		TransitionState:       "open",
+		RecoveryAction:        crossVenueRecoveryActionObserve,
+		OpenedAt:              now.Add(-10 * time.Minute),
+		UpdatedAt:             now,
+		IdemPrefix:            "runtime-target-unknown-l2",
+		HighLeg:               CrossVenueLegState{Venue: gate.VenueName, Side: "sell", Qty: 0.5, EntryPrice: 100},
+		LowLeg:                CrossVenueLegState{Venue: okx.VenueName, Side: "buy"},
+		PendingSwitchSequence: crossVenueSwitchSequenceCloseThenOpen,
+		PartialSwitchPhase:    "open_new_second_leg",
+	}
+	if err := store.upsert(pos); err != nil {
+		t.Fatal(err)
+	}
+	cfg := testCrossVenueExecutorConfig()
+	cfg.NetworkConfig.RecordDir = dir
+	cfg.CrossVenueExecutor.LiveTradingEnabled = true
+	high := newCrossVenueTestVenue(gate.VenueName, 0.02, 8, now.Add(4*time.Hour))
+	low := newCrossVenueTestVenue(okx.VenueName, 0.0, 8, now.Add(4*time.Hour))
+	low.unknownNext = true
+	high.positions = []venue.Position{{Symbol: "BTC-USDT", PositionAmt: -0.5, MarkPrice: 100, EntryPrice: 100}}
+	low.positions = nil
+	sink := &recordingAlertSink{}
+	e := &CrossVenueExecutor{
+		cfg:       cfg,
+		venues:    map[string]venue.Venue{gate.VenueName: high, okx.VenueName: low},
+		store:     store,
+		logger:    testCrossVenueLogger(),
+		nowFn:     func() time.Time { return now },
+		recordDir: dir,
+	}
+	e.alerts = &AlertDispatcher{
+		sinks:    []AlertSink{sink},
+		minRank:  severityRank(EventLevelInfo),
+		timeout:  time.Second,
+		now:      time.Now,
+		lastSent: map[string]time.Time{},
+	}
+	intent := crossVenueSwitchIntent{
+		Symbol:             "BTC-USDT",
+		FromHighVenue:      bybit.VenueName,
+		FromLowVenue:       okx.VenueName,
+		TargetHighVenue:    gate.VenueName,
+		TargetLowVenue:     okx.VenueName,
+		SwitchSequence:     crossVenueSwitchSequenceCloseThenOpen,
+		PartialSwitchPhase: "open_new_second_leg",
+		CreatedAt:          now,
+		ExpiresAt:          now.Add(30 * time.Minute),
+	}
+	if err := e.upsertSwitchIntent(intent); err != nil {
+		t.Fatal(err)
+	}
+	got, changed := e.manageCrossVenuePosition(context.Background(), pos, true)
+	if !changed {
+		t.Fatal("expected unknown second-leg continuation to persist awareness")
+	}
+	if got.Status != CrossVenueStatusOpeningSecondLeg || got.TransitionState != "open" || got.PartialSwitchPhase != "open_new_second_leg" {
+		t.Fatalf("expected recoverable opening_second_leg/open state, got %+v", got)
+	}
+	if got.RecoveryAction != crossVenueRecoveryActionObserve {
+		t.Fatalf("expected observe recovery action, got %q", got.RecoveryAction)
+	}
+	if atomic.LoadInt32(low.placeCount) != 1 {
+		t.Fatalf("expected one second-leg attempt, low places=%d", atomic.LoadInt32(low.placeCount))
+	}
+	if atomic.LoadInt32(high.placeCount) != 0 {
+		t.Fatalf("must not flatten first leg on unknown second leg, high places=%d", atomic.LoadInt32(high.placeCount))
+	}
+	if len(high.positions) != 1 || high.positions[0].PositionAmt >= 0 {
+		t.Fatalf("expected first leg position retained, got %+v", high.positions)
+	}
+	titles := sink.waitTitles(t, 1)
+	if len(titles) == 0 || !strings.Contains(titles[0], "查单未知") {
+		t.Fatalf("expected critical unknown-order alert, got %v", titles)
+	}
+	intents := e.activeSwitchIntents(now)
+	if len(intents) != 1 || intents[0].PartialSwitchPhase != "open_new_second_leg" {
+		t.Fatalf("switch intent should remain open_new_second_leg, got %+v", intents)
+	}
+	ps, _ := store.load()
+	if len(ps) != 1 || ps[0].Status != CrossVenueStatusOpeningSecondLeg {
+		t.Fatalf("expected persisted opening position, got %+v", ps)
 	}
 }
 
@@ -2967,6 +3093,12 @@ func TestCrossVenueAcceptableFallbackOpensOff(t *testing.T) {
 	got := crossVenueApplyAcceptableFallback(opp)
 	if got.TradableNotional != 10 {
 		t.Fatalf("fallback should cap notional to 10U, got %+v", got)
+	}
+	if got.NetEV != 1 {
+		t.Fatalf("fallback should scale NetEV to 1U, got %.4f", got.NetEV)
+	}
+	if got.RankScore != got.NetEV {
+		t.Fatalf("RankScore=%.4f NetEV=%.4f want equal after fallback shrink", got.RankScore, got.NetEV)
 	}
 	if got.NoTradeReason != "acceptable_fallback" {
 		t.Fatalf("fallback should mark no-trade reason, got %+v", got)

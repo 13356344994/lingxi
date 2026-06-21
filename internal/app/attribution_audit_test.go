@@ -280,6 +280,8 @@ func TestRealizedRecordFromCrossVenueSettlementPreservesAttributionFlags(t *test
 		HighVenue:             "okx",
 		LowVenue:              "bybit",
 		EntrySnapshotID:       "snap-1",
+		PositionKey:           "BTC-USDT|cv-btc-okx-1",
+		SettlementID:          "cv-btc-okx-1",
 		OpenTime:              closeT.Add(-2 * time.Hour),
 		CloseTime:             closeT,
 		NotionalUSDT:          100,
@@ -300,6 +302,93 @@ func TestRealizedRecordFromCrossVenueSettlementPreservesAttributionFlags(t *test
 	wantID := unifiedOpportunityID(UnifiedStrategyPerpPerp, "BTC-USDT", "snap-1", "okx", "bybit")
 	if rec.OpportunityID != wantID {
 		t.Fatalf("opportunity_id = %q, want %q", rec.OpportunityID, wantID)
+	}
+	if rec.AttributionID != "BTC-USDT|cv-btc-okx-1" {
+		t.Fatalf("attribution_id = %q, want position_key join key", rec.AttributionID)
+	}
+}
+
+func TestAttributionRepeatedOpensSameSnapshotDistinctJoinKeys(t *testing.T) {
+	snapshotID := "snap-h-usdt"
+	oppID := unifiedOpportunityID(UnifiedStrategyPerpPerp, "H-USDT", snapshotID, "bybit", "okx")
+	opp := UnifiedOpportunity{
+		ID:                  oppID,
+		StrategyType:        UnifiedStrategyPerpPerp,
+		Symbol:              "H-USDT",
+		Legs:                []UnifiedOpportunityLeg{{Venue: "bybit", Market: "perp", Side: "short"}, {Venue: "okx", Market: "perp", Side: "long"}},
+		ExpectedFundingUSDT: 5,
+		ExpectedNetEVUSDT:   4,
+	}
+	open := time.Date(2026, 6, 21, 8, 0, 0, 0, time.UTC)
+	posA := CrossVenuePosition{
+		Symbol: "H-USDT", HighVenue: "bybit", LowVenue: "okx",
+		EntrySnapshotID: snapshotID, OpportunityID: oppID,
+		IdemPrefix: "cv-husdt-bybit-a", OpenedAt: open,
+	}
+	posB := CrossVenuePosition{
+		Symbol: "H-USDT", HighVenue: "bybit", LowVenue: "okx",
+		EntrySnapshotID: snapshotID, OpportunityID: oppID,
+		IdemPrefix: "cv-husdt-bybit-b", OpenedAt: open.Add(time.Minute),
+	}
+	predA := predictionRecordFromCrossVenuePosition(opp, posA, open)
+	predB := predictionRecordFromCrossVenuePosition(opp, posB, open.Add(time.Minute))
+	if predA.OpportunityID != predB.OpportunityID {
+		t.Fatalf("candidate opportunity_id should match: %q vs %q", predA.OpportunityID, predB.OpportunityID)
+	}
+	if predA.AttributionID == predB.AttributionID {
+		t.Fatalf("attribution_id collision: both %q", predA.AttributionID)
+	}
+
+	closeT := open.Add(2 * time.Hour)
+	realA := realizedRecordFromCrossVenueSettlement(buildCrossVenueSettlement(posA, closeT))
+	realB := realizedRecordFromCrossVenueSettlement(buildCrossVenueSettlement(posB, closeT.Add(time.Minute)))
+	if realA.OpportunityID != realB.OpportunityID {
+		t.Fatalf("realized opportunity_id should match for same snapshot: %q vs %q", realA.OpportunityID, realB.OpportunityID)
+	}
+	if realA.AttributionID == realB.AttributionID {
+		t.Fatalf("realized attribution_id collision: both %q", realA.AttributionID)
+	}
+
+	preds := indexAttributionPredictions([]AttributionPredictionRecord{predA, predB})
+	if len(preds) != 2 {
+		t.Fatalf("prediction index = %d entries, want 2 distinct join keys", len(preds))
+	}
+	if _, ok := preds[predA.AttributionID]; !ok {
+		t.Fatalf("missing prediction for %q", predA.AttributionID)
+	}
+	if _, ok := preds[predB.AttributionID]; !ok {
+		t.Fatalf("missing prediction for %q", predB.AttributionID)
+	}
+
+	predA.ExpectedNetEVUSDT = 4.0
+	predB.ExpectedNetEVUSDT = 6.0
+	realA.FinalNetPnLUSDT = 3.8
+	realB.FinalNetPnLUSDT = 5.5
+	realA.RealizedFundingUSDT = 4
+	realB.RealizedFundingUSDT = 6
+	realA.AttributionComplete = true
+	realB.AttributionComplete = true
+	realA.RunMode = string(AttributionRunModeProfitSeeking)
+	realB.RunMode = string(AttributionRunModeProfitSeeking)
+	rows := BuildAttributionReconcileRows([]AttributionPredictionRecord{predA, predB}, []AttributionRealizedRecord{realA, realB})
+	var strategyRow *AttributionReconcileRow
+	for i := range rows {
+		if rows[i].DimensionKind == "strategy" && rows[i].DimensionValue == UnifiedStrategyPerpPerp {
+			strategyRow = &rows[i]
+			break
+		}
+	}
+	if strategyRow == nil {
+		t.Fatal("missing perp-perp strategy reconcile row")
+	}
+	if strategyRow.SampleCount != 2 {
+		t.Fatalf("sample count = %d, want 2", strategyRow.SampleCount)
+	}
+	if strategyRow.PredictedNetEVUSDT != 10 {
+		t.Fatalf("predicted net ev = %.4f, want 10 (4+6)", strategyRow.PredictedNetEVUSDT)
+	}
+	if strategyRow.RealizedNetPnLUSDT != 9.3 {
+		t.Fatalf("realized net pnl = %.4f, want 9.3 (3.8+5.5)", strategyRow.RealizedNetPnLUSDT)
 	}
 }
 
@@ -346,6 +435,25 @@ func postBoundaryGoNoGoWindow(weeks int) (start, end time.Time) {
 		start = attributionFixBoundaryTime.Add(time.Second)
 	}
 	return start, end
+}
+
+func TestExplainedNetPnLDoesNotDoubleCountSlippage(t *testing.T) {
+	rec := AttributionRealizedRecord{
+		RealizedFundingUSDT:  1.2,
+		RealizedTradePnLUSDT: 0.3,
+		RealizedFeesUSDT:     0.4,
+		RealizedSlippageUSDT: 0.1,
+		RealizedBorrowUSDT:   0.05,
+		FinalNetPnLUSDT:      1.05,
+	}
+	got := explainedNetPnLUSDT(rec)
+	want := 1.05 // funding + trade - fees - borrow; slippage already in trade_pnl
+	if got != want {
+		t.Fatalf("explained net = %.4f, want %.4f (must not subtract slippage again)", got, want)
+	}
+	if got != rec.FinalNetPnLUSDT {
+		t.Fatalf("explained net = %.4f, final net = %.4f, want match", got, rec.FinalNetPnLUSDT)
+	}
 }
 
 func assertAnError(msg string) error {

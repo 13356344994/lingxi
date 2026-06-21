@@ -717,6 +717,10 @@ type CrossVenueExecutorConfig struct {
 	DeadManCountdownSeconds int `cfg:"dead_man_countdown_seconds"`
 	// MinHoldHours 最小预期持有时长(小时),EV 闸用作覆盖往返手续费的时间窗;持仓管理也会参考。
 	MinHoldHours float64 `cfg:"min_hold_hours"`
+	// MinHoldToFirstSettlementEnabled 开仓后须持有至首个 intended funding 结算(+缓冲)才允许软平仓/换仓;硬风控不受限。默认 true。
+	MinHoldToFirstSettlementEnabled bool `cfg:"min_hold_to_first_settlement_enabled"`
+	// MinHoldToFirstSettlementBufferSeconds 首个 funding 结算后额外缓冲秒数(等待资费 sync)。默认 60。
+	MinHoldToFirstSettlementBufferSeconds int `cfg:"min_hold_to_first_settlement_buffer_seconds"`
 	// DefaultTakerFeeBps 各所永续吃单费率(bps)未命中内置默认表时的兜底值。默认 6。
 	DefaultTakerFeeBps float64 `cfg:"default_taker_fee_bps"`
 	// DefaultMakerFeeBps 各所永续挂单费率(bps)未命中内置默认表时的兜底值。默认 2。
@@ -787,6 +791,8 @@ type CrossVenueExecutorConfig struct {
 	// OpenFundingLeadSeconds perp-perp 结算前进场窗(秒):只在最近一腿资金费结算前 ≤ 此秒数才允许开仓,
 	// 太早(距结算 > 此值)拒开,避免提前进场、结算前价差收敛白付手续费。默认 180(3 分钟);≤0 时回退 180。
 	OpenFundingLeadSeconds int `cfg:"open_funding_lead_seconds"`
+	// FundingCaptureProbability 运行时 perp-perp funding 捕获折现(结算回测贝叶斯;scan/decision 周期刷新,非 YAML)。
+	FundingCaptureProbability float64
 }
 
 // CarryFundingEntryGateConfig carry 策略开仓前资金费结算窗口闸门参数视图(由 CrossVenueExecutorConfig 字段组装)。
@@ -854,6 +860,10 @@ type UnifiedRotationConfig struct {
 	ContinuationCloseThreshold float64 `cfg:"continuation_close_threshold"`
 	// ContinuationMinHoldSeconds 开仓后至少持有此秒数才允许续持分触发的软 CLOSE;风险类平仓不受限。默认 3600。
 	ContinuationMinHoldSeconds int `cfg:"continuation_min_hold_seconds"`
+	// MinHoldToFirstSettlementEnabled 开仓后须持有至首个 intended funding 结算(+缓冲)才允许软 CLOSE/SWITCH;硬风控不受限。默认 true。
+	MinHoldToFirstSettlementEnabled bool `cfg:"min_hold_to_first_settlement_enabled"`
+	// MinHoldToFirstSettlementBufferSeconds 首个 funding 结算后额外缓冲秒数。默认 60。
+	MinHoldToFirstSettlementBufferSeconds int `cfg:"min_hold_to_first_settlement_buffer_seconds"`
 	// TotalDeployableUSDT 全局可部署资金上限(USDT);0=不单独设限,仅用账户可用合计−储备作为预算基数。
 	TotalDeployableUSDT float64 `cfg:"total_deployable_usdt"`
 	// TotalDeployablePct 全局可部署预算占真实现金权益比例;>0 且 equity>0 时有效上限=pct×RealEquityTotalUSDT;否则退回 USDT。

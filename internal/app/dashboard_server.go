@@ -103,6 +103,8 @@ type DashboardSummaryResponse struct {
 	// Venue 标识本次 summary 代表的所(读时注入,§9.2):summary 是单所视图,缺省/all → 缺省所(Primary),
 	// 具名 → 该所;前端据此知道当前 Tab 展示的是哪家。
 	Venue                 string                    `json:"venue"`
+	// VenueScope 当 ?venue=all 且本接口无法跨所聚合时为 "primary_only"(诚实标注:数据仅来自缺省所,非四所合计)。
+	VenueScope            string                    `json:"venue_scope,omitempty"`
 	RuntimeStatus         RuntimeTaskStatus         `json:"runtime_status"`
 	CapitalSnapshot       RuntimeCapitalSnapshot    `json:"capital_snapshot"`
 	CapitalSnapshotError  string                    `json:"capital_snapshot_error"`
@@ -364,6 +366,7 @@ func (s *DashboardServer) handleDashboardSummaryAPI(w http.ResponseWriter, r *ht
 
 	writeJSON(w, DashboardSummaryResponse{
 		Venue:                 rt.name,
+		VenueScope:            venueScopeLabel(venueParam(r)),
 		RuntimeStatus:         ctrl.Status(),
 		CapitalSnapshot:       capitalSnapshot,
 		CapitalSnapshotError:  capitalSnapshotError,

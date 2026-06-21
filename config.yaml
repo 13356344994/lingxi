@@ -86,7 +86,7 @@ cross_venue_executor:
 # total_deployable_usdt: 绝对预算(USDT);另有 total_deployable_pct(默认见 defaults,占真实现金权益比例),二者与 equity 取 min。
 unified_rotation:
   enabled: true
-  live_trading_enabled: false
+  live_trading_enabled: true
   # 用户 2026-06-19 拍板:profit_seeking + 满仓 + 3× 起步(可调至 5×) — 全局资金预算
   total_deployable_usdt: 435
   max_strategy_capital_usage_pct: 0

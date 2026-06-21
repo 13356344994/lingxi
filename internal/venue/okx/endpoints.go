@@ -23,8 +23,10 @@ const (
 	pathQueryOrder     = "/api/v5/trade/order"
 	pathCancelAllAfter = "/api/v5/trade/cancel-all-after"
 
-	pathAssetBalances = "/api/v5/asset/balances" // 资金账户余额
-	pathAssetTransfer = "/api/v5/asset/transfer" // 所内划转(绝不跨所/提币)
+	pathAssetBalances     = "/api/v5/asset/balances"           // 资金账户余额
+	pathAssetTransfer     = "/api/v5/asset/transfer"           // 所内划转(绝不跨所/提币)
+	pathDepositHistory    = "/api/v5/asset/deposit-history"    // 私有只读:链上充值
+	pathWithdrawalHistory = "/api/v5/asset/withdrawal-history" // 私有只读:链上提现
 
 	instTypeSpot = "SPOT"
 	instTypeSwap = "SWAP"

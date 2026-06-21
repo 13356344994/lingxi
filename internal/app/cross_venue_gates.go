@@ -441,7 +441,7 @@ func crossVenueOpenGateExpectedFundingUSDT(cfg CrossVenueExecutorConfig, now tim
 		effectiveHold = crossVenueOpenEVHoldHours(cfg, now, opp, 0)
 	}
 	funding := crossVenueExpectedFundingOverHold(now, effectiveHold, notional, opp)
-	return funding * carryScannerNormalizedFundingCaptureProbability(0)
+	return funding * crossVenueExecutorFundingCaptureProbability(cfg)
 }
 
 func bookSpreadBps(t venue.BookTicker) float64 {

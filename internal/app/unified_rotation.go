@@ -33,6 +33,10 @@ type RotationConfig struct {
 	ContinuationCloseThreshold float64 `json:"continuation_close_threshold"`
 	// ContinuationMinHoldSeconds 开仓后至少持有此秒数才允许续持分软 CLOSE。默认 3600。
 	ContinuationMinHoldSeconds int `json:"continuation_min_hold_seconds"`
+	// MinHoldToFirstSettlementEnabled 开仓后须持有至首个 intended funding 结算(+缓冲)才允许软 CLOSE/SWITCH。默认 true。
+	MinHoldToFirstSettlementEnabled bool `json:"min_hold_to_first_settlement_enabled"`
+	// MinHoldToFirstSettlementBufferSeconds 首个 funding 结算后额外缓冲秒数。默认 60。
+	MinHoldToFirstSettlementBufferSeconds int `json:"min_hold_to_first_settlement_buffer_seconds"`
 	// MinNetProfitUSDT 开仓预期净收益下限(USDT);由 CrossVenueExecutor 注入。默认 0。
 	MinNetProfitUSDT float64 `json:"min_net_profit_usdt"`
 	// MinOpenNotionalUSDT 候选可成交名义下限(USDT);低于此值丢弃,避免薄仓占并发槽。默认 5。
@@ -50,15 +54,17 @@ type RotationConfig struct {
 // DefaultRotationConfig 返回 v1 保守默认轮动配置。
 func DefaultRotationConfig() RotationConfig {
 	return RotationConfig{
-		MaxConcurrent:              3,
-		MaxPositionUSDT:            0, // 由 CrossVenueExecutorConfig 注入;勿独立默认 500
-		DefaultReserveUSDT:         10,
-		ContinuationCloseThreshold: 0.001,
-		ContinuationMinHoldSeconds: 3600,
-		MinOpenNotionalUSDT:               5,
-		OpenFailCooldownSeconds:           900,
-		CapitalAwarePerpPerpSizingEnabled: true,
-		CapitalSizingSafetyHaircut:        0.99,
+		MaxConcurrent:                         3,
+		MaxPositionUSDT:                       0, // 由 CrossVenueExecutorConfig 注入;勿独立默认 500
+		DefaultReserveUSDT:                    10,
+		ContinuationCloseThreshold:            0.001,
+		ContinuationMinHoldSeconds:            3600,
+		MinHoldToFirstSettlementEnabled:       true,
+		MinHoldToFirstSettlementBufferSeconds: 60,
+		MinOpenNotionalUSDT:                   5,
+		OpenFailCooldownSeconds:               900,
+		CapitalAwarePerpPerpSizingEnabled:     true,
+		CapitalSizingSafetyHaircut:            0.99,
 	}
 }
 
@@ -68,11 +74,21 @@ func RotationConfigFromUnified(ur core.UnifiedRotationConfig, exec CrossVenueExe
 	if exec.MaxPositionUSDT > 0 {
 		cfg.MaxPositionUSDT = exec.MaxPositionUSDT
 	}
+	if exec.MaxConcurrent > 0 {
+		cfg.MaxConcurrent = exec.MaxConcurrent
+	}
 	if ur.ContinuationCloseThreshold > 0 {
 		cfg.ContinuationCloseThreshold = ur.ContinuationCloseThreshold
 	}
 	if ur.ContinuationMinHoldSeconds > 0 {
 		cfg.ContinuationMinHoldSeconds = ur.ContinuationMinHoldSeconds
+	}
+	cfg.MinHoldToFirstSettlementEnabled = DefaultRotationConfig().MinHoldToFirstSettlementEnabled
+	if ur != (core.UnifiedRotationConfig{}) {
+		cfg.MinHoldToFirstSettlementEnabled = ur.MinHoldToFirstSettlementEnabled
+	}
+	if ur.MinHoldToFirstSettlementBufferSeconds > 0 {
+		cfg.MinHoldToFirstSettlementBufferSeconds = ur.MinHoldToFirstSettlementBufferSeconds
 	}
 	if ur.TotalDeployableUSDT > 0 {
 		cfg.TotalDeployableUSDT = ur.TotalDeployableUSDT
@@ -103,6 +119,8 @@ type HeldPosition struct {
 	OpenedAt               time.Time          `json:"opened_at,omitempty"`
 	// NextFundingTime 最近一侧永续下次结算时刻;续持 min-hold 参考距结算剩余时间。
 	NextFundingTime time.Time `json:"next_funding_time,omitempty"`
+	// TargetFirstFundingTime 开仓时记录的首个 intended funding 结算时刻(多腿取最早);不随 scanner 刷新。
+	TargetFirstFundingTime time.Time `json:"target_first_funding_time,omitempty"`
 }
 
 // ContinuationInputs 是下一结算窗口续持口径的纯函数输入(由调用方提供)。
@@ -154,6 +172,9 @@ func normalizeRotationConfig(cfg RotationConfig) RotationConfig {
 	}
 	if cfg.OpenFailCooldownSeconds <= 0 {
 		cfg.OpenFailCooldownSeconds = def.OpenFailCooldownSeconds
+	}
+	if cfg.MinHoldToFirstSettlementBufferSeconds <= 0 {
+		cfg.MinHoldToFirstSettlementBufferSeconds = def.MinHoldToFirstSettlementBufferSeconds
 	}
 	if cfg.CapitalSizingSafetyHaircut <= 0 || cfg.CapitalSizingSafetyHaircut > 1 {
 		cfg.CapitalSizingSafetyHaircut = def.CapitalSizingSafetyHaircut
@@ -732,43 +753,24 @@ func rotationSwitchMarginalCostUSDT(heldCloseCostUSDT float64, newOpp UnifiedOpp
 	return heldCloseCostUSDT + newOpp.ExpectedSlippageUSDT + newOpp.ExpectedRollbackCostUSDT
 }
 
-// rotationContinuationMinHoldSatisfied 续持软 CLOSE 的 min-hold: 固定秒数与「持至下次 funding」取较大者。
+// rotationContinuationMinHoldSatisfied 续持软 CLOSE 的 min-hold:固定秒数 + 首 settlement 持有(可配置)。
 func rotationContinuationMinHoldSatisfied(pos HeldPosition, cfg RotationConfig, now time.Time) bool {
 	if pos.OpenedAt.IsZero() {
 		return true
 	}
+	if !rotationFirstSettlementHoldSatisfied(pos, cfg, now) {
+		return false
+	}
 	minHold := time.Duration(cfg.ContinuationMinHoldSeconds) * time.Second
 	if minHold <= 0 {
 		return true
 	}
-	required := minHold
-	if !pos.NextFundingTime.IsZero() && pos.NextFundingTime.After(pos.OpenedAt) {
-		untilFunding := pos.NextFundingTime.Sub(pos.OpenedAt)
-		if untilFunding > required {
-			required = untilFunding
-		}
-	}
-	return !now.Before(pos.OpenedAt.Add(required))
+	return !now.Before(pos.OpenedAt.Add(minHold))
 }
 
-// rotationSwitchMinHoldSatisfied 防止"刚开仓就被换"的 churn:固定 ContinuationMinHoldSeconds 与「持至下次 funding」取较大者(与 soft-CLOSE 同口径)。
-// OpenedAt/NextFundingTime 零值时安全回退(零值 OpenedAt 视为已满足;无 NextFundingTime 则仅固定秒数)。
+// rotationSwitchMinHoldSatisfied 防止"刚开仓就被换"的 churn:固定 ContinuationMinHoldSeconds + 首 settlement 持有。
 func rotationSwitchMinHoldSatisfied(pos HeldPosition, cfg RotationConfig, now time.Time) bool {
-	if pos.OpenedAt.IsZero() {
-		return true
-	}
-	minHold := time.Duration(cfg.ContinuationMinHoldSeconds) * time.Second
-	if minHold <= 0 {
-		return true
-	}
-	required := minHold
-	if !pos.NextFundingTime.IsZero() && pos.NextFundingTime.After(pos.OpenedAt) {
-		untilFunding := pos.NextFundingTime.Sub(pos.OpenedAt)
-		if untilFunding > required {
-			required = untilFunding
-		}
-	}
-	return !now.Before(pos.OpenedAt.Add(required))
+	return rotationContinuationMinHoldSatisfied(pos, cfg, now)
 }
 
 // rotationShouldContinuationClose 判断是否因续持边际转负而软 CLOSE(含 hysteresis/min-hold/关仓费对比)。

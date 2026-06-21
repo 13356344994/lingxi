@@ -58,7 +58,7 @@ func TestReadUnifiedCandidatesJSONLMissingFile(t *testing.T) {
 	}
 }
 
-func TestBuildUnifiedLeaderboardSortsByFundingLandscape(t *testing.T) {
+func TestBuildUnifiedLeaderboardHidesStructuralRejectsByDefault(t *testing.T) {
 	cycle := "cvcycle-landscape"
 	records := []UnifiedCandidateLogRecord{
 		{CycleID: cycle, StrategyType: UnifiedStrategyCrossVenuePerpSpot, Symbol: "LOW-USDT", Venues: []string{"bybit", "binance"},
@@ -69,17 +69,17 @@ func TestBuildUnifiedLeaderboardSortsByFundingLandscape(t *testing.T) {
 			WouldExecute: true, SpreadAPR: 0.40, ExpectedNetEVUSDT: 0.01},
 	}
 	resp := BuildUnifiedLeaderboard(records, 0)
-	if len(resp.Opportunities) != 3 {
-		t.Fatalf("opportunities = %d, want 3", len(resp.Opportunities))
+	if len(resp.Opportunities) != 1 {
+		t.Fatalf("opportunities = %d, want only executable/displayable rows: %+v", len(resp.Opportunities), resp.Opportunities)
 	}
 	if resp.Opportunities[0].Symbol != "MID-USDT" || !resp.Opportunities[0].WouldExecute {
 		t.Fatalf("executable should pin top: %+v", resp.Opportunities[0])
 	}
-	if resp.Opportunities[1].Symbol != "HIGH-USDT" {
-		t.Fatalf("second should be highest funding APR, got %+v", resp.Opportunities[1])
+	if resp.TotalCandidates != 3 || resp.DisplayedCandidates != 1 {
+		t.Fatalf("counts total=%d displayed=%d", resp.TotalCandidates, resp.DisplayedCandidates)
 	}
-	if resp.Opportunities[2].Symbol != "LOW-USDT" {
-		t.Fatalf("third should be lowest funding APR, got %+v", resp.Opportunities[2])
+	if len(resp.RejectReasonsTop) == 0 {
+		t.Fatal("structural rejects should still contribute to reject statistics")
 	}
 }
 
@@ -95,6 +95,78 @@ func TestDedupeUnifiedCandidatesLatest(t *testing.T) {
 	}
 	if got[0].FundingAPR != 0.5 {
 		t.Fatalf("BTC should keep latest row: %.2f", got[0].FundingAPR)
+	}
+}
+
+func TestDedupeUnifiedCandidatesDifferentVenuesRetained(t *testing.T) {
+	records := []UnifiedCandidateLogRecord{
+		{CycleID: "c1", StrategyType: UnifiedStrategyPerpPerp, Symbol: "BTC-USDT", Venues: []string{"bybit", "okx"},
+			SpreadAPR: 0.30, WouldExecute: true},
+		{CycleID: "c1", StrategyType: UnifiedStrategyPerpPerp, Symbol: "BTC-USDT", Venues: []string{"bybit", "binance"},
+			SpreadAPR: 0.55, WouldExecute: false, RejectReasons: []string{"execution<0.50"}},
+	}
+	got := dedupeUnifiedCandidatesLatest(records)
+	if len(got) != 2 {
+		t.Fatalf("deduped = %d, want 2 (different venue pairs)", len(got))
+	}
+	venues := map[string]bool{}
+	for _, rec := range got {
+		key := strings.Join(rec.Venues, "+")
+		venues[key] = true
+	}
+	if !venues["bybit+okx"] || !venues["bybit+binance"] {
+		t.Fatalf("expected both venue pairs retained: %+v", got)
+	}
+
+	resp := BuildUnifiedLeaderboard(records, 0)
+	if resp.TotalCandidates != 2 {
+		t.Fatalf("total_candidates = %d, want 2", resp.TotalCandidates)
+	}
+}
+
+func TestLatestUnifiedCycleIDParsesEmbeddedTime(t *testing.T) {
+	olderSnap := "cvsnap-20260621T100000.000000000"
+	newerCycle := "cvcycle-20260621T110000.000000000"
+	records := []UnifiedCandidateLogRecord{
+		{CycleID: olderSnap, Symbol: "OLD-USDT"},
+		{CycleID: newerCycle, Symbol: "NEW-USDT"},
+	}
+	got := latestUnifiedCycleID(records)
+	if got != newerCycle {
+		t.Fatalf("latest cycle = %q, want %q (cvcycle newer than cvsnap)", got, newerCycle)
+	}
+
+	resp := BuildUnifiedLeaderboard(records, 0)
+	if resp.CycleID != newerCycle {
+		t.Fatalf("BuildUnifiedLeaderboard cycle_id = %q, want %q", resp.CycleID, newerCycle)
+	}
+	if resp.CycleScannedAt == "" || resp.CycleAgeSeconds < 0 {
+		t.Fatalf("expected cycle age metadata: scanned_at=%q age=%.0f", resp.CycleScannedAt, resp.CycleAgeSeconds)
+	}
+}
+
+func TestParseUnifiedCycleIDTime(t *testing.T) {
+	want := time.Date(2026, 6, 21, 11, 0, 0, 0, time.UTC)
+	got, ok := parseUnifiedCycleIDTime("cvcycle-20260621T110000.000000000")
+	if !ok {
+		t.Fatal("expected parse ok")
+	}
+	if !got.Equal(want) {
+		t.Fatalf("parsed = %v, want %v", got, want)
+	}
+	if _, ok := parseUnifiedCycleIDTime("cvcycle-bad"); ok {
+		t.Fatal("expected bad cycle id to fail parse")
+	}
+}
+
+func TestUnifiedScannerWouldExecuteLegacyFallback(t *testing.T) {
+	rec := UnifiedCandidateLogRecord{WouldExecute: true}
+	if !unifiedScannerWouldExecute(rec) {
+		t.Fatal("legacy would_execute should count as scanner pass")
+	}
+	rec2 := UnifiedCandidateLogRecord{ScannerWouldExecute: true}
+	if !unifiedScannerWouldExecute(rec2) {
+		t.Fatal("explicit scanner_would_execute should pass")
 	}
 }
 
@@ -128,20 +200,20 @@ func TestBuildUnifiedLeaderboardTieredRanking(t *testing.T) {
 			CapitalRequiredByVenue: map[string]float64{"bybit": 10, "okx": 10}, NotionalUSDT: 30},
 	}
 	resp := BuildUnifiedLeaderboard(records, 0)
-	if len(resp.Opportunities) != 5 {
-		t.Fatalf("opportunities = %d, want 5", len(resp.Opportunities))
+	if len(resp.Opportunities) != 3 {
+		t.Fatalf("opportunities = %d, want displayable rows only: %+v", len(resp.Opportunities), resp.Opportunities)
 	}
 
 	got := make([]string, len(resp.Opportunities))
 	for i, o := range resp.Opportunities {
 		got[i] = o.Symbol
 	}
-	want := []string{"EXEC-USDT", "GOOD-USDT", "AAA-USDT", "ZZZ-USDT", "NEAR-USDT"}
+	want := []string{"GOOD-USDT", "EXEC-USDT", "NEAR-USDT"}
 	if strings.Join(got, ",") != strings.Join(want, ",") {
 		t.Fatalf("rank order = %v, want %v", got, want)
 	}
-	if !resp.Opportunities[0].WouldExecute {
-		t.Fatal("top row should be executable")
+	if resp.Opportunities[0].Symbol != "GOOD-USDT" {
+		t.Fatal("top row should rank by capital-aware net EV among rotation-pass rows")
 	}
 	nearIdx := -1
 	for i, o := range resp.Opportunities {
@@ -149,11 +221,6 @@ func TestBuildUnifiedLeaderboardTieredRanking(t *testing.T) {
 			nearIdx = i
 			if o.ExpectedNetEVUSDT >= 0 {
 				t.Fatalf("NEAR near-miss should have negative EV: %+v", o)
-			}
-		}
-		if o.Symbol == "AAA-USDT" || o.Symbol == "ZZZ-USDT" {
-			if o.ExpectedNetEVUSDT != 0 {
-				t.Fatalf("degenerate row %s should have zero EV: %+v", o.Symbol, o)
 			}
 		}
 	}
@@ -188,18 +255,11 @@ func TestBuildUnifiedLeaderboardSortsByPrimaryKey(t *testing.T) {
 	if len(resp.Opportunities) != 2 {
 		t.Fatalf("opportunities = %d, want 2", len(resp.Opportunities))
 	}
-	// 分层排序:可执行(would_execute)候选优先于"已评估近失"候选,即使后者主排序键更高。
-	// AAA 可执行(tier1)→ 排名第 1;BBB 仅近失(tier2)→ 排名第 2。
-	if resp.Opportunities[0].Symbol != "AAA-USDT" || resp.Opportunities[0].Rank != 1 {
+	// 轮动闸可开优先,再按 capital-aware(此处回退扫描)净 EV 降序:BBB(0.20) 在 AAA(0.05) 前。
+	if resp.Opportunities[0].Symbol != "BBB-USDT" || resp.Opportunities[0].Rank != 1 {
 		t.Fatalf("top opportunity = %+v", resp.Opportunities[0])
 	}
-	if !resp.Opportunities[0].WouldExecute {
-		t.Fatalf("top opportunity should be executable: %+v", resp.Opportunities[0])
-	}
-	if resp.Opportunities[0].PrimarySortKey != 0.001 {
-		t.Fatalf("primary_sort_key = %.6f", resp.Opportunities[0].PrimarySortKey)
-	}
-	if resp.Opportunities[1].Symbol != "BBB-USDT" {
+	if resp.Opportunities[1].Symbol != "AAA-USDT" {
 		t.Fatalf("second opportunity = %+v", resp.Opportunities[1])
 	}
 	if resp.Opportunities[0].RankReason == "" {
@@ -282,9 +342,9 @@ func TestBuildUnifiedLeaderboardPerStrategyGrouping(t *testing.T) {
 	}
 	resp := BuildUnifiedLeaderboard(records, 0)
 
-	// 总榜:全策略混排,3 条。
-	if len(resp.Opportunities) != 3 {
-		t.Fatalf("total opportunities = %d, want 3", len(resp.Opportunities))
+	// 总榜:全策略统计 3 条,默认只展示可评估/可执行候选。
+	if resp.TotalCandidates != 3 || len(resp.Opportunities) != 1 {
+		t.Fatalf("total candidates=%d opportunities=%d, want 3/1", resp.TotalCandidates, len(resp.Opportunities))
 	}
 
 	// 分策略:固定 5 个分组、固定顺序(即使无候选也保留)。
@@ -304,13 +364,10 @@ func TestBuildUnifiedLeaderboardPerStrategyGrouping(t *testing.T) {
 		}
 	}
 
-	// svsp 组:2 条,组内独立按 APR 降序(BBB 0.80 > AAA 0.20),rank 从 1 起。
+	// svsp 组:2 条纯费率景观行,保留 total 但默认不展示。
 	svsp := resp.Strategies[0]
-	if svsp.TotalCandidates != 2 || len(svsp.Opportunities) != 2 {
+	if svsp.TotalCandidates != 2 || svsp.DisplayedCandidates != 0 || len(svsp.Opportunities) != 0 {
 		t.Fatalf("svsp group = %+v", svsp)
-	}
-	if svsp.Opportunities[0].Symbol != "BBB-USDT" || svsp.Opportunities[0].Rank != 1 {
-		t.Fatalf("svsp top = %+v", svsp.Opportunities[0])
 	}
 
 	// perp_perp 组:1 条可执行,组内 would_execute 计数正确。
@@ -424,5 +481,75 @@ func TestUnifiedNearestFundingMinutesExpiredHighLegRolls(t *testing.T) {
 	entry := leaderboardEntryFromRecord(rec, 1, 0.5, now)
 	if entry.MinutesUntilFunding < 23 || entry.MinutesUntilFunding > 25 {
 		t.Fatalf("entry minutes_until_funding = %.1f, want ~24", entry.MinutesUntilFunding)
+	}
+}
+
+func TestBuildUnifiedLeaderboardSortsByCapitalAwareNetEVNotAPR(t *testing.T) {
+	cycle := "cvcycle-cap-ev"
+	records := []UnifiedCandidateLogRecord{
+		{CycleID: cycle, StrategyType: UnifiedStrategyPerpPerp, Symbol: "HIGH-APR-USDT", Venues: []string{"bybit", "okx"},
+			SpreadAPR: 5.0, ExpectedNetEVUSDT: 0.50, NotionalUSDT: 90,
+			CapitalAwareNetEVUSDT: -0.08, CapitalAwareNotionalUSDT: 22, RotationWouldExecute: false},
+		{CycleID: cycle, StrategyType: UnifiedStrategyPerpPerp, Symbol: "LOW-APR-USDT", Venues: []string{"bybit", "binance"},
+			SpreadAPR: 0.3, ExpectedNetEVUSDT: 0.12, NotionalUSDT: 80,
+			CapitalAwareNetEVUSDT: 0.04, CapitalAwareNotionalUSDT: 20, RotationWouldExecute: true},
+	}
+	resp := BuildUnifiedLeaderboard(records, 0)
+	if len(resp.Opportunities) != 2 {
+		t.Fatalf("opportunities = %d", len(resp.Opportunities))
+	}
+	if resp.Opportunities[0].Symbol != "LOW-APR-USDT" {
+		t.Fatalf("rank1 = %s, want LOW-APR-USDT (rotation pass + positive cap EV)", resp.Opportunities[0].Symbol)
+	}
+	if resp.Opportunities[1].Symbol != "HIGH-APR-USDT" {
+		t.Fatalf("rank2 = %s, want HIGH-APR-USDT", resp.Opportunities[1].Symbol)
+	}
+}
+
+func TestBuildUnifiedLeaderboardPositiveScannerNegativeCapitalAwareRanksLower(t *testing.T) {
+	cycle := "cvcycle-scanner-vs-cap"
+	records := []UnifiedCandidateLogRecord{
+		{CycleID: cycle, StrategyType: UnifiedStrategyPerpPerp, Symbol: "TRAP-USDT", Venues: []string{"bybit", "okx"},
+			WouldExecute: true, SpreadAPR: 13.0, ExpectedNetEVUSDT: 0.35, NotionalUSDT: 95,
+			CapitalAwareNetEVUSDT: -0.02, CapitalAwareNotionalUSDT: 22, RotationWouldExecute: false},
+		{CycleID: cycle, StrategyType: UnifiedStrategyPerpPerp, Symbol: "REAL-USDT", Venues: []string{"bybit", "binance"},
+			WouldExecute: true, SpreadAPR: 0.8, ExpectedNetEVUSDT: 0.10, NotionalUSDT: 88,
+			CapitalAwareNetEVUSDT: 0.06, CapitalAwareNotionalUSDT: 24, RotationWouldExecute: true},
+	}
+	resp := BuildUnifiedLeaderboard(records, 0)
+	if resp.Opportunities[0].Symbol != "REAL-USDT" || !resp.Opportunities[0].RotationWouldExecute {
+		t.Fatalf("top = %+v, want REAL-USDT rotation pass", resp.Opportunities[0])
+	}
+	trap := resp.Opportunities[1]
+	if trap.Symbol != "TRAP-USDT" || trap.RotationWouldExecute {
+		t.Fatalf("trap row = %+v, want rotation_would_execute=false", trap)
+	}
+	if trap.ScannerEstimateOnly {
+		t.Fatalf("trap should have capital-aware fields populated: %+v", trap)
+	}
+	if trap.ExpectedNetEVUSDT <= 0 || trap.CapitalAwareNetEVUSDT >= 0 {
+		t.Fatalf("trap scanner EV should be positive while cap EV negative: %+v", trap)
+	}
+}
+
+func TestBuildUnifiedLeaderboardOldRecordFallbackGraceful(t *testing.T) {
+	cycle := "cvcycle-legacy"
+	records := []UnifiedCandidateLogRecord{
+		{CycleID: cycle, StrategyType: UnifiedStrategyPerpPerp, Symbol: "LEGACY-USDT", Venues: []string{"bybit", "okx"},
+			WouldExecute: true, SpreadAPR: 2.0, ExpectedNetEVUSDT: 0.15, NotionalUSDT: 75},
+	}
+	resp := BuildUnifiedLeaderboard(records, 0)
+	if len(resp.Opportunities) != 1 {
+		t.Fatalf("opportunities = %d", len(resp.Opportunities))
+	}
+	entry := resp.Opportunities[0]
+	if !entry.ScannerEstimateOnly {
+		t.Fatalf("legacy row should be scanner_estimate_only: %+v", entry)
+	}
+	if entry.CapitalAwareNotionalUSDT != 0 || entry.CapitalAwareNetEVUSDT != 0 {
+		t.Fatalf("legacy row should not fabricate capital-aware fields: %+v", entry)
+	}
+	if entry.ExpectedNetEVUSDT != 0.15 || entry.NotionalUSDT != 75 {
+		t.Fatalf("legacy scanner fields = ev %.4f notional %.2f", entry.ExpectedNetEVUSDT, entry.NotionalUSDT)
 	}
 }

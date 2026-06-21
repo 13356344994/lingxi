@@ -9,6 +9,17 @@ import (
 // venueAllSelector 是读 API 的「跨所聚合」哨兵值(?venue=all)。控制类写操作显式拒绝该值(必须指定单一所)。
 const venueAllSelector = "all"
 
+// venueScopePrimaryOnly 表示 ?venue=all 命中「单所视图」读接口时,实际回落缺省所(Primary)而非跨所聚合。
+const venueScopePrimaryOnly = "primary_only"
+
+// venueScopeLabel 为 summary/status 类单所读接口生成 venue_scope 响应字段:仅 venue=all 时返回 primary_only,其余为空(omitempty)。
+func venueScopeLabel(selector string) string {
+	if selector == venueAllSelector {
+		return venueScopePrimaryOnly
+	}
+	return ""
+}
+
 // venueParam 解析请求里的 ?venue= 选择器(裁空格 + 小写归一)。缺省(空)语义 = 缺省所(Primary),
 // 与改造前单所行为逐字节一致;P3c 起额外支持具名所与 all 聚合。
 func venueParam(r *http.Request) string {

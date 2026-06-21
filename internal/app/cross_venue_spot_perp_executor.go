@@ -777,6 +777,7 @@ func (e *CrossVenueSpotPerpExecutor) closePosition(ctx context.Context, pos Cros
 			_, _ = e.placeCVSPCloseLegExec(ctx, spotTrader, venue.MarketSpot, sym, venue.SideSell, qty, id, false, live, attempt, spotInstr, false)
 		}
 		pos.Status = CVSPStatusClosed
+		pos.DustResidualCostUSDT = applyCarryDustResidualCost(dust.RemainingNotionalUSDT)
 		pos.CloseReason = appendDustCloseReason(nonEmpty(pos.CloseReason, reason), dust.RemainingNotionalUSDT)
 		pos.UpdatedAt = e.nowFn()
 		logDustOrphanClosed(e.logger, "跨所spot-perp", pos.Symbol, dust.RemainingNotionalUSDT)
@@ -1017,6 +1018,7 @@ func (e *CrossVenueSpotPerpExecutor) handleOrphanLeg(ctx context.Context, pos Cr
 			}
 		}
 		pos.Status = CVSPStatusClosed
+		pos.DustResidualCostUSDT = applyCarryDustResidualCost(decision.RemainingNotionalUSDT)
 		pos.CloseReason = appendDustCloseReason(nonEmpty(pos.CloseReason, "dust_orphan"), decision.RemainingNotionalUSDT)
 		pos.UpdatedAt = e.nowFn()
 		logDustOrphanClosed(e.logger, "跨所spot-perp", pos.Symbol, decision.RemainingNotionalUSDT)

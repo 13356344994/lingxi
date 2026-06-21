@@ -122,7 +122,7 @@ func TestCrossVenueRouteBStartupUntrackedPositionOverridesDefaultEnabled(t *test
 	if !e.OpeningsEnabled() {
 		t.Fatal("startup should enable openings before reconcile")
 	}
-	e.reconcileOnStart(context.Background())
+	e.reconcileOnStart(context.Background(), true)
 	if e.OpeningsEnabled() {
 		t.Fatal("untracked position latch should override default-enabled startup")
 	}

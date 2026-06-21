@@ -39,13 +39,14 @@
     .panel.active { display: block; }
     .panel-summary { color: #94a3b8; font-size: 13px; margin-bottom: 10px; }
     .empty-note { color: #64748b; font-style: italic; padding: 16px 0; }
+    .stale-warn { color: #fbbf24; font-weight: 600; }
   </style>
 </head>
 <body>
   <div class="container">
     <h1>统一机会排行榜（只读）</h1>
     <div class="meta" id="meta">加载中…</div>
-    <div class="hint">按 live 费率/价差 APR 降序排列（可执行候选置顶）；即使 EV=0 或被结构闸拒绝，仍展示原始费率与市场信息。</div>
+    <div class="hint">默认只展示扫描通过、轮动闸可开、或已有 EV/名义/资金占用的候选；纯结构性拒绝(如无现货盘/借不到币/方向不匹配)不进榜单,但仍计入拒绝原因统计。APR 与「扫描估算(理想名义)」为雷达扫描口径；「净EV(按可投名义)」与「轮动闸可开」才反映当前资金下的真实轮动/open 闸结论。旧记录无 capital-aware 字段时，净EV列会标注为扫描估算。</div>
     <div class="toolbar"><a href="/">← 返回主面板</a> · <button id="refresh">刷新</button></div>
     <div id="error" class="error"></div>
 
@@ -223,13 +224,36 @@
       '<th>#</th><th>策略</th><th>交易对</th><th>交易所</th>'+
       '<th>价差 APR</th><th>费率 APR</th><th>高腿费率</th><th>低腿费率</th>'+
       '<th>结算周期(h)</th><th>下次结算(北京)</th><th>距结算(min)</th>'+
-      '<th>预计资金费(USDT)</th><th>净 EV(USDT)</th><th>资本效率</th><th>名义(USDT)</th>'+
-      '<th>各腿占用(USDT)</th><th>可执行</th><th>轮换可开</th><th>拒绝原因</th>'+
+      '<th>预计资金费(USDT)</th><th>净EV(按可投名义)</th><th>轮动闸可开</th><th>扫描估算净EV(理想名义)</th><th>扫描估算名义</th>'+
+      '<th>资本效率</th><th>各腿占用(USDT)</th><th>扫描通过</th><th>拒绝原因</th>'+
       '</tr></thead>';
 
+    function capitalAwareNetEV(o) {
+      if (o.capital_aware_notional_usdt > 0) {
+        return o.capital_aware_net_ev_usdt;
+      }
+      return null;
+    }
+
+    function capitalAwareNotional(o) {
+      if (o.capital_aware_notional_usdt > 0) {
+        return o.capital_aware_notional_usdt;
+      }
+      return null;
+    }
+
     function rowHTML(o) {
-      const cls = o.would_execute ? 'executable' : 'rejected';
+      const scannerExec = (o.scanner_would_execute != null) ? o.scanner_would_execute : o.would_execute;
+      const rotationExec = !!o.rotation_would_execute;
+      const cls = rotationExec ? 'executable' : 'rejected';
       const aprClass = (o.landscape_sort_key > 0.5) ? 'funding-high' : '';
+      const capEV = capitalAwareNetEV(o);
+      const capNotional = capitalAwareNotional(o);
+      const scannerOnly = !!o.scanner_estimate_only || capEV == null;
+      const capEVCell = scannerOnly
+        ? '<span class="no" title="旧记录/无 capital-aware 字段">—</span>'
+        : usdt(capEV);
+      const capNotionalCell = scannerOnly ? '—' : usdt(capNotional);
       return '<tr class="'+cls+'">'+
         '<td>'+o.rank+'</td>'+
         '<td>'+esc(strategyLabel(o.strategy_type))+'</td>'+
@@ -243,12 +267,13 @@
         '<td>'+formatNextFundingTimes(o)+'</td>'+
         '<td>'+fmt(o.minutes_until_funding,0)+'</td>'+
         '<td>'+usdt(o.expected_funding_usdt)+'</td>'+
-        '<td>'+usdt(o.expected_net_ev_usdt)+'</td>'+
+        '<td>'+capEVCell+'</td>'+
+        '<td>'+yesNo(rotationExec)+'</td>'+
+        '<td title="扫描估算(理想名义)">'+usdt(o.expected_net_ev_usdt)+'</td>'+
+        '<td title="扫描估算(理想名义)">'+usdt(o.notional_usdt)+'</td>'+
         '<td>'+fmt(o.capital_efficiency_score,6)+'</td>'+
-        '<td>'+usdt(o.notional_usdt)+'</td>'+
         '<td>'+fmtCapitalByVenue(o.capital_required_by_venue)+'</td>'+
-        '<td>'+yesNo(o.would_execute)+'</td>'+
-        '<td>'+yesNo(o.rotation_would_execute)+'</td>'+
+        '<td>'+yesNo(scannerExec)+'</td>'+
         '<td><pre>'+esc(rejectReasonsLabel(o.reject_reasons))+'</pre></td>';
     }
 
@@ -275,15 +300,33 @@
         });
         if (!res.ok) throw new Error(await res.text());
         const data = await res.json();
-        document.getElementById('meta').innerHTML =
+        const scannerExec = data.scanner_would_execute_count ?? data.would_execute_count ?? 0;
+        const rotationExec = data.rotation_would_execute_count ?? 0;
+        const displayed = data.displayed_candidates ?? (data.opportunities || []).length;
+        const total = data.total_candidates ?? displayed;
+        let meta =
           '周期: <strong>'+esc(data.cycle_id || '—')+'</strong> · '+
-          '候选 '+data.total_candidates+' · 可执行 '+data.would_execute_count+' · '+
-          esc(data.generated_at)+'<br>数据源: '+esc(data.source_path);
+          '候选 '+displayed+' / '+total+' · 扫描通过 '+scannerExec+' · 轮换可开 '+rotationExec+' · '+
+          esc(formatTimeUTC8(data.generated_at));
+        if (data.cycle_scanned_at) {
+          const ageMin = (data.cycle_age_seconds != null) ? Math.round(data.cycle_age_seconds / 60) : null;
+          meta += '<br>周期扫描于 '+esc(formatTimeUTC8(data.cycle_scanned_at));
+          if (ageMin != null) {
+            meta += '（约 '+ageMin+' 分钟前）';
+          }
+          if (data.cycle_stale) {
+            const maxMin = Math.round((data.cycle_stale_max_age_seconds || 1800) / 60);
+            meta += ' · <span class="stale-warn">⚠ 周期已过期（超过 '+maxMin+' 分钟），数据可能滞后</span>';
+          }
+        }
+        meta += '<br>数据源: '+esc(data.source_path);
+        document.getElementById('meta').innerHTML = meta;
 
         // 构造 tab 组:总排行 + 各策略(后端 strategies 已固定顺序)。
         const groups = [{
           key: 'total', label: '总排行',
-          total: data.total_candidates, exec: data.would_execute_count,
+          total: total, displayed: displayed,
+          scannerExec: scannerExec, rotationExec: rotationExec,
           opportunities: data.opportunities || [],
         }];
         (data.strategies || []).forEach(s => {
@@ -291,18 +334,20 @@
             key: s.strategy_type,
             label: strategyLabel(s.strategy_type),
             total: s.total_candidates,
-            exec: s.would_execute_count,
+            displayed: s.displayed_candidates ?? (s.opportunities || []).length,
+            scannerExec: s.scanner_would_execute_count ?? s.would_execute_count ?? 0,
+            rotationExec: s.rotation_would_execute_count ?? 0,
             opportunities: s.opportunities || [],
           });
         });
 
         document.getElementById('tabs').innerHTML = groups.map(g =>
           '<div class="tab" data-key="'+esc(g.key)+'">'+esc(g.label)+
-          '<span class="badge">'+g.total+' / '+g.exec+'★</span></div>'
+          '<span class="badge">'+g.displayed+'/'+g.total+' · 扫'+g.scannerExec+' · 换'+g.rotationExec+'</span></div>'
         ).join('');
         document.getElementById('panels').innerHTML = groups.map(g =>
           '<div class="panel" data-key="'+esc(g.key)+'">'+
-          '<div class="panel-summary">候选 '+g.total+' · 可执行 '+g.exec+'（★ 表示可执行数）</div>'+
+          '<div class="panel-summary">展示 '+g.displayed+' / 共 '+g.total+' · 扫描通过 '+g.scannerExec+' · 轮换可开 '+g.rotationExec+'</div>'+
           tableHTML(g.opportunities)+
           '</div>'
         ).join('');

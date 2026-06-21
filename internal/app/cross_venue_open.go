@@ -171,6 +171,9 @@ func (e *CrossVenueExecutor) executeCrossVenueOpen(ctx context.Context, plan cro
 		LowIntervalHours:     plan.Opp.LowIntervalHours,
 		HighNextFundingTime:  plan.Opp.HighNextFundingTime,
 		LowNextFundingTime:   plan.Opp.LowNextFundingTime,
+		TargetFirstFundingTime: rotationEarliestFundingAfterOpen(
+			e.nowFn(), plan.Opp.HighNextFundingTime, plan.Opp.LowNextFundingTime,
+		),
 		FreshnessAgeSeconds:  plan.Opp.FreshnessAgeSeconds,
 		HistoryQualityScore:  plan.Opp.HistoryQualityScore,
 		LiquidityScore:       plan.Opp.LiquidityScore,

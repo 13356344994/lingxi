@@ -337,7 +337,7 @@ func TestCrossVenueFinalizeRankingOrdersByNetEV(t *testing.T) {
 		}
 		return crossVenueEstimateOpportunityMetrics(cfg, opp, now)
 	}
-	opps := []CrossVenueOpportunity{makeOpp("LOW", 0.003), makeOpp("HIGH", 0.006)}
+	opps := []CrossVenueOpportunity{makeOpp("LOW", 0.01), makeOpp("HIGH", 0.02)}
 	crossVenueFinalizeOpportunityRanking(cfg, opps)
 	if opps[0].NetEV >= opps[1].NetEV {
 		t.Fatalf("expected HIGH net ev > LOW before sort, got %.4f vs %.4f", opps[0].NetEV, opps[1].NetEV)

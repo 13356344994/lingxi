@@ -1129,6 +1129,34 @@ func TestUnifiedRotationRunner_InitStateFromControlFile(t *testing.T) {
 	}
 }
 
+func TestUnifiedRotationRunner_InitStateActiveAgainstConfigWarning(t *testing.T) {
+	buf := &strings.Builder{}
+	dir := t.TempDir()
+	r := testUnifiedRotationRunnerWithFakes(t)
+	r.logger = log.New(buf, "", 0)
+	r.recordDir = dir
+	r.SetActive(true)
+
+	r2 := testUnifiedRotationRunnerWithFakes(t)
+	r2.logger = log.New(buf, "", 0)
+	r2.recordDir = dir
+	r2.InitState(false)
+
+	if !r2.active.Load() {
+		t.Fatal("active should come from control file (true)")
+	}
+	if !strings.Contains(buf.String(), "active=true") || !strings.Contains(buf.String(), "WARNING") {
+		t.Fatalf("expected InitState WARNING for active against config, got: %s", buf.String())
+	}
+	st := r2.Status()
+	if !st.ActiveAgainstConfig || st.ConfigIntendedActive || st.PausedAgainstConfig {
+		t.Fatalf("status = %+v, want active_against_config", st)
+	}
+	if st.LastError == "" {
+		t.Fatal("expected LastError populated for panel visibility")
+	}
+}
+
 func TestUnifiedRotationRunner_InitStateDefaultsWithoutFile(t *testing.T) {
 	dir := t.TempDir()
 	r := testUnifiedRotationRunnerWithFakes(t)
@@ -1717,6 +1745,40 @@ func TestUnifiedRotationRunner_ActiveOpenAndManageBothLive(t *testing.T) {
 	}
 }
 
+func TestUnifiedRotationRunner_PerpPerpOpenRequiresPerpPerpLiveGate(t *testing.T) {
+	perp := &fakeRotationExecutor{strategyType: UnifiedStrategyPerpPerp}
+	svsp := &fakeRotationExecutor{strategyType: UnifiedStrategySingleVenueSpotPerp}
+	r := testUnifiedRotationRunnerWithFakes(t, perp, svsp)
+	dir := t.TempDir()
+	cp := NewControlPlane(dir, nil, nil)
+	if err := cp.setPersisted(func(st *ControlPlanePersistedState) {
+		st.RotationLiveEnabled = true
+		st.PerpPerpLiveEnabled = false
+	}); err != nil {
+		t.Fatal(err)
+	}
+	r.SetControlPlane(cp)
+	r.SetActive(true)
+
+	perpOpp := testRotationCandidate("open-perp", UnifiedStrategyPerpPerp, "BTC-USDT", 10, map[string]float64{binance.VenueName: 50, bybit.VenueName: 50})
+	svspOpp := testRotationCandidate("open-svsp", UnifiedStrategySingleVenueSpotPerp, "ETH-USDT", 10, map[string]float64{binance.VenueName: 50})
+	plan := RotationPlan{Actions: []RotationAction{
+		{Kind: RotationActionOpen, OpportunityID: "open-perp", StrategyType: UnifiedStrategyPerpPerp, Symbol: "BTC-USDT"},
+		{Kind: RotationActionOpen, OpportunityID: "open-svsp", StrategyType: UnifiedStrategySingleVenueSpotPerp, Symbol: "ETH-USDT"},
+	}}
+	r.decideRotationFn = func([]HeldPosition, map[string]ContinuationInputs, []UnifiedOpportunity, map[string]float64) RotationPlan {
+		return plan
+	}
+	r.runOnceDecisionAndDispatch(context.Background(), []UnifiedOpportunity{perpOpp, svspOpp}, map[string]float64{binance.VenueName: 500, bybit.VenueName: 500}, nil, nil)
+
+	if len(perp.opens) != 0 {
+		t.Fatalf("perp_perp_live_enabled=false must skip perp-perp OPEN, got %d opens", len(perp.opens))
+	}
+	if svsp.liveOpens != 1 {
+		t.Fatalf("carry OPEN should still proceed, liveOpens=%d", svsp.liveOpens)
+	}
+}
+
 func TestUnifiedRotationRunner_PausedVerifiedCloseStillLive(t *testing.T) {
 	svsp := &fakeRotationExecutor{strategyType: UnifiedStrategySingleVenueSpotPerp}
 	r := testUnifiedRotationRunnerWithFakes(t, svsp)
@@ -1990,6 +2052,23 @@ func TestUnifiedRotationRunner_PerpPerpFastDecisionEachCycleNotBlockedByScan(t *
 
 	close(scanRelease)
 	waitForRotationAsyncScan(t, &slowScanCalls, new(int32), 1, 0)
+}
+
+func TestUnifiedRotationRunner_ActiveAgainstConfigCycleWarning(t *testing.T) {
+	buf := &strings.Builder{}
+	r := testUnifiedRotationRunnerWithFakes(t)
+	r.logger = log.New(buf, "", 0)
+	r.rotationConfigIntendedActive = false
+	r.SetActive(true)
+
+	r.runCycle(context.Background())
+	if !strings.Contains(buf.String(), "WARNING") || !strings.Contains(buf.String(), "active=true") {
+		t.Fatalf("expected WARNING active-against-config alert, got: %s", buf.String())
+	}
+	st := r.Status()
+	if !st.ActiveAgainstConfig || st.ConfigIntendedActive {
+		t.Fatalf("status = %+v, want active_against_config visible", st)
+	}
 }
 
 func TestUnifiedRotationRunner_PausedAgainstConfigCriticalAlert(t *testing.T) {

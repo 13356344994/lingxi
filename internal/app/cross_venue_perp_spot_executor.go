@@ -791,6 +791,7 @@ func (e *CrossVenuePerpSpotExecutor) closePosition(ctx context.Context, pos Cros
 		dustQty := negativeCarryDustResidualQty(spotOpen, perpOpen, spotShort, perpLong)
 		appendCarryDustLedgerBestEffort(e.recordDir, "cvps_dust_close", pos.Symbol, baseAssetFromCanonicalSymbol(pos.Symbol), dustQty, dust.RemainingNotionalUSDT, nonEmpty(reason, "dust_close"))
 		pos.Status = CVPSStatusClosed
+		pos.DustResidualCostUSDT = applyCarryDustResidualCost(dust.RemainingNotionalUSDT)
 		pos.CloseReason = appendDustCloseReason(nonEmpty(pos.CloseReason, reason), dust.RemainingNotionalUSDT)
 		pos.UpdatedAt = e.nowFn()
 		logDustOrphanClosed(e.logger, "跨所perp-spot", pos.Symbol, dust.RemainingNotionalUSDT)
@@ -1043,6 +1044,7 @@ func (e *CrossVenuePerpSpotExecutor) handleOrphanLeg(ctx context.Context, pos Cr
 		dustQty := negativeCarryDustResidualQty(spotOpen, perpOpen, spotShort, perpLong)
 		appendCarryDustLedgerBestEffort(e.recordDir, "cvps_dust_orphan", pos.Symbol, baseAssetFromCanonicalSymbol(pos.Symbol), dustQty, decision.RemainingNotionalUSDT, "dust_orphan")
 		pos.Status = CVPSStatusClosed
+		pos.DustResidualCostUSDT = applyCarryDustResidualCost(decision.RemainingNotionalUSDT)
 		pos.CloseReason = appendDustCloseReason(nonEmpty(pos.CloseReason, "dust_orphan"), decision.RemainingNotionalUSDT)
 		pos.UpdatedAt = e.nowFn()
 		logDustOrphanClosed(e.logger, "跨所perp-spot", pos.Symbol, decision.RemainingNotionalUSDT)

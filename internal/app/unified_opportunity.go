@@ -163,11 +163,19 @@ func opportunityHasTradableLegs(opp UnifiedOpportunity) bool {
 
 // UnifiedOpportunityFromCrossVenue 把现有 CrossVenueOpportunity 映射为 UnifiedOpportunity(strategy_type=perp_perp)。
 // 不修改输入 opp,仅做字段映射与派生。
+func crossVenueOpportunityExplicitlyZeroNotional(opp CrossVenueOpportunity) bool {
+	if opp.TradableNotional > 0 {
+		return false
+	}
+	// scanner finalize 因 net_ev<=0 或 SizeMultiplier=0 显式清零名义时,勿回退 MaxPosition。
+	return opp.SizeMultiplier == 0 || opp.NoTradeReason != ""
+}
+
 func UnifiedOpportunityFromCrossVenue(cfg CrossVenueExecutorConfig, opp CrossVenueOpportunity, rejectReasons []string, notionalUSDT, refPrice float64) UnifiedOpportunity {
 	if notionalUSDT <= 0 {
 		notionalUSDT = opp.TradableNotional
 	}
-	if notionalUSDT <= 0 {
+	if notionalUSDT <= 0 && !crossVenueOpportunityExplicitlyZeroNotional(opp) {
 		notionalUSDT = cfg.MaxPositionUSDT
 	}
 	perVenueMargin := crossVenuePerVenueMarginUSDT(cfg, notionalUSDT)

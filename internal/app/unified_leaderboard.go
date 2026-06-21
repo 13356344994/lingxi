@@ -13,32 +13,36 @@ import (
 
 // UnifiedLeaderboardEntry 是排行榜中单条机会的只读展示结构。
 type UnifiedLeaderboardEntry struct {
-	Rank                   int                `json:"rank"`
-	StrategyType           string             `json:"strategy_type"`
-	Symbol                 string             `json:"symbol"`
-	Venues                 []string           `json:"venues"`
-	ExpectedNetEVUSDT      float64            `json:"expected_net_ev_usdt"`
-	ExpectedFundingUSDT    float64            `json:"expected_funding_usdt,omitempty"`
-	CapitalRequiredByVenue map[string]float64 `json:"capital_required_by_venue"`
-	CapitalEfficiencyScore float64            `json:"capital_efficiency_score"`
-	LandscapeSortKey       float64            `json:"landscape_sort_key"`
-	PrimarySortKey         float64            `json:"primary_sort_key"`
-	RankReason             string             `json:"rank_reason"`
-	WouldExecute           bool               `json:"would_execute"`
-	RotationWouldExecute   bool               `json:"rotation_would_execute"`
-	RejectReasons          []string           `json:"reject_reasons"`
-	NotionalUSDT           float64            `json:"notional_usdt,omitempty"`
-	RawFundingRate         float64            `json:"raw_funding_rate,omitempty"`
-	FundingRatePerHour     float64            `json:"funding_rate_per_hour,omitempty"`
-	FundingAPR             float64            `json:"funding_apr,omitempty"`
-	SpreadAPR              float64            `json:"spread_apr,omitempty"`
-	HighFundingRate        float64            `json:"high_funding_rate,omitempty"`
-	LowFundingRate         float64            `json:"low_funding_rate,omitempty"`
-	FundingIntervalHours   int                `json:"funding_interval_hours,omitempty"`
-	NextFundingTime        string             `json:"next_funding_time,omitempty"`
-	HighNextFundingTime    string             `json:"high_next_funding_time,omitempty"`
-	LowNextFundingTime     string             `json:"low_next_funding_time,omitempty"`
-	MinutesUntilFunding    float64            `json:"minutes_until_funding,omitempty"`
+	Rank                     int                `json:"rank"`
+	StrategyType             string             `json:"strategy_type"`
+	Symbol                   string             `json:"symbol"`
+	Venues                   []string           `json:"venues"`
+	ExpectedNetEVUSDT        float64            `json:"expected_net_ev_usdt"`
+	ExpectedFundingUSDT      float64            `json:"expected_funding_usdt,omitempty"`
+	CapitalAwareNetEVUSDT    float64            `json:"capital_aware_net_ev_usdt,omitempty"`
+	CapitalAwareNotionalUSDT float64            `json:"capital_aware_notional_usdt,omitempty"`
+	ScannerEstimateOnly      bool               `json:"scanner_estimate_only,omitempty"`
+	CapitalRequiredByVenue   map[string]float64 `json:"capital_required_by_venue"`
+	CapitalEfficiencyScore   float64            `json:"capital_efficiency_score"`
+	LandscapeSortKey         float64            `json:"landscape_sort_key"`
+	PrimarySortKey           float64            `json:"primary_sort_key"`
+	RankReason               string             `json:"rank_reason"`
+	WouldExecute             bool               `json:"would_execute"` // scanner 口径,兼容旧面板
+	ScannerWouldExecute      bool               `json:"scanner_would_execute"`
+	RotationWouldExecute     bool               `json:"rotation_would_execute"`
+	RejectReasons            []string           `json:"reject_reasons"`
+	NotionalUSDT             float64            `json:"notional_usdt,omitempty"`
+	RawFundingRate           float64            `json:"raw_funding_rate,omitempty"`
+	FundingRatePerHour       float64            `json:"funding_rate_per_hour,omitempty"`
+	FundingAPR               float64            `json:"funding_apr,omitempty"`
+	SpreadAPR                float64            `json:"spread_apr,omitempty"`
+	HighFundingRate          float64            `json:"high_funding_rate,omitempty"`
+	LowFundingRate           float64            `json:"low_funding_rate,omitempty"`
+	FundingIntervalHours     int                `json:"funding_interval_hours,omitempty"`
+	NextFundingTime          string             `json:"next_funding_time,omitempty"`
+	HighNextFundingTime      string             `json:"high_next_funding_time,omitempty"`
+	LowNextFundingTime       string             `json:"low_next_funding_time,omitempty"`
+	MinutesUntilFunding      float64            `json:"minutes_until_funding,omitempty"`
 }
 
 // UnifiedReasonCount 统计 reject_reason 出现次数。
@@ -55,24 +59,34 @@ type UnifiedVenueCapitalBlock struct {
 
 // UnifiedStrategyLeaderboard 是单个策略的独立排行(总榜下的分组视图)。
 type UnifiedStrategyLeaderboard struct {
-	StrategyType      string                    `json:"strategy_type"`
-	TotalCandidates   int                       `json:"total_candidates"`
-	WouldExecuteCount int                       `json:"would_execute_count"`
-	Opportunities     []UnifiedLeaderboardEntry `json:"opportunities"`
+	StrategyType              string                    `json:"strategy_type"`
+	TotalCandidates           int                       `json:"total_candidates"`
+	DisplayedCandidates       int                       `json:"displayed_candidates"`
+	WouldExecuteCount         int                       `json:"would_execute_count"`
+	ScannerWouldExecuteCount  int                       `json:"scanner_would_execute_count"`
+	RotationWouldExecuteCount int                       `json:"rotation_would_execute_count"`
+	Opportunities             []UnifiedLeaderboardEntry `json:"opportunities"`
 }
 
 // UnifiedLeaderboardResponse 是 /api/unified/leaderboard 的 JSON 响应。
 type UnifiedLeaderboardResponse struct {
-	CycleID                  string                       `json:"cycle_id"`
-	GeneratedAt              string                       `json:"generated_at"`
-	SourcePath               string                       `json:"source_path"`
-	TotalCandidates          int                          `json:"total_candidates"`
-	WouldExecuteCount        int                          `json:"would_execute_count"`
-	Opportunities            []UnifiedLeaderboardEntry    `json:"opportunities"`
-	Strategies               []UnifiedStrategyLeaderboard `json:"strategies"`
-	RejectReasonsTop         []UnifiedReasonCount         `json:"reject_reasons_top"`
-	VenueCapitalInsufficient []UnifiedVenueCapitalBlock   `json:"venue_capital_insufficient_top"`
-	Note                     string                       `json:"note,omitempty"`
+	CycleID                   string                       `json:"cycle_id"`
+	CycleScannedAt            string                       `json:"cycle_scanned_at,omitempty"`
+	CycleAgeSeconds           float64                      `json:"cycle_age_seconds,omitempty"`
+	CycleStale                bool                         `json:"cycle_stale"`
+	CycleStaleMaxAgeSeconds   float64                      `json:"cycle_stale_max_age_seconds,omitempty"`
+	GeneratedAt               string                       `json:"generated_at"`
+	SourcePath                string                       `json:"source_path"`
+	TotalCandidates           int                          `json:"total_candidates"`
+	DisplayedCandidates       int                          `json:"displayed_candidates"`
+	WouldExecuteCount         int                          `json:"would_execute_count"`
+	ScannerWouldExecuteCount  int                          `json:"scanner_would_execute_count"`
+	RotationWouldExecuteCount int                          `json:"rotation_would_execute_count"`
+	Opportunities             []UnifiedLeaderboardEntry    `json:"opportunities"`
+	Strategies                []UnifiedStrategyLeaderboard `json:"strategies"`
+	RejectReasonsTop          []UnifiedReasonCount         `json:"reject_reasons_top"`
+	VenueCapitalInsufficient  []UnifiedVenueCapitalBlock   `json:"venue_capital_insufficient_top"`
+	Note                      string                       `json:"note,omitempty"`
 }
 
 // unifiedLeaderboardStrategyOrder 分策略排行的固定展示顺序。
@@ -127,18 +141,85 @@ func readUnifiedCandidatesJSONL(path string) ([]UnifiedCandidateLogRecord, error
 	return out, nil
 }
 
+const unifiedCycleIDTimeLayout = "20060102T150405.000000000"
+
+func parseUnifiedCycleIDTime(cycleID string) (time.Time, bool) {
+	cycleID = strings.TrimSpace(cycleID)
+	for _, prefix := range []string{"cvsnap-", "cvcycle-"} {
+		if !strings.HasPrefix(cycleID, prefix) {
+			continue
+		}
+		ts := strings.TrimPrefix(cycleID, prefix)
+		t, err := time.Parse(unifiedCycleIDTimeLayout, ts)
+		if err != nil {
+			return time.Time{}, false
+		}
+		return t.UTC(), true
+	}
+	return time.Time{}, false
+}
+
 func latestUnifiedCycleID(records []UnifiedCandidateLogRecord) string {
-	latest := ""
+	seen := map[string]struct{}{}
+	var latestParsedID string
+	var latestParsed time.Time
+	var hasParsed bool
+	fallbackLatest := ""
 	for _, rec := range records {
 		cycle := strings.TrimSpace(rec.CycleID)
 		if cycle == "" {
 			continue
 		}
-		if latest == "" || cycle > latest {
-			latest = cycle
+		if _, ok := seen[cycle]; ok {
+			continue
+		}
+		seen[cycle] = struct{}{}
+		if t, ok := parseUnifiedCycleIDTime(cycle); ok {
+			if !hasParsed || t.After(latestParsed) {
+				latestParsed = t
+				latestParsedID = cycle
+				hasParsed = true
+			}
+			continue
+		}
+		if fallbackLatest == "" || cycle > fallbackLatest {
+			fallbackLatest = cycle
 		}
 	}
-	return latest
+	if hasParsed {
+		return latestParsedID
+	}
+	return fallbackLatest
+}
+
+func unifiedCandidateDedupeKey(rec UnifiedCandidateLogRecord) string {
+	venues := strings.Join(rec.Venues, "+")
+	return rec.StrategyType + "|" + rec.Symbol + "|" + venues
+}
+
+func unifiedScannerWouldExecute(rec UnifiedCandidateLogRecord) bool {
+	if rec.ScannerWouldExecute {
+		return true
+	}
+	return rec.WouldExecute
+}
+
+func unifiedRecordHasCapitalAware(rec UnifiedCandidateLogRecord) bool {
+	return rec.CapitalAwareNotionalUSDT > 0
+}
+
+func unifiedCapitalAwareNetEV(rec UnifiedCandidateLogRecord) float64 {
+	if unifiedRecordHasCapitalAware(rec) {
+		return rec.CapitalAwareNetEVUSDT
+	}
+	return rec.ExpectedNetEVUSDT
+}
+
+func unifiedDisplayNotionalUSDT(rec UnifiedCandidateLogRecord) float64 {
+	if unifiedRecordHasCapitalAware(rec) {
+		return rec.CapitalAwareNotionalUSDT
+	}
+	return rec.NotionalUSDT
 }
 
 func filterUnifiedCandidatesByCycle(records []UnifiedCandidateLogRecord, cycleID string) []UnifiedCandidateLogRecord {
@@ -160,12 +241,11 @@ func dedupeUnifiedCandidatesLatest(records []UnifiedCandidateLogRecord) []Unifie
 	}
 	lastIdx := make(map[string]int, len(records))
 	for i, rec := range records {
-		key := rec.StrategyType + "|" + rec.Symbol
-		lastIdx[key] = i
+		lastIdx[unifiedCandidateDedupeKey(rec)] = i
 	}
 	out := make([]UnifiedCandidateLogRecord, 0, len(lastIdx))
 	for i, rec := range records {
-		key := rec.StrategyType + "|" + rec.Symbol
+		key := unifiedCandidateDedupeKey(rec)
 		if lastIdx[key] != i {
 			continue
 		}
@@ -242,14 +322,27 @@ func buildUnifiedRankReason(rank int, rec UnifiedCandidateLogRecord, landscapeKe
 	if mins > 0 {
 		settlePart = fmt.Sprintf("，距结算 %.0f min", mins)
 	}
-	execLabel := "不可执行"
-	if rec.WouldExecute {
-		execLabel = "可执行"
+	scannerExec := unifiedScannerWouldExecute(rec)
+	execLabel := "扫描未通过"
+	if scannerExec {
+		execLabel = "扫描通过"
+	}
+	if rec.RotationWouldExecute {
+		execLabel += "·轮动闸可开"
+	} else if unifiedRecordHasCapitalAware(rec) {
+		execLabel += "·轮动闸不可开"
+	}
+	capNetEV := unifiedCapitalAwareNetEV(rec)
+	capNotional := unifiedDisplayNotionalUSDT(rec)
+	capPart := ""
+	if unifiedRecordHasCapitalAware(rec) {
+		capPart = fmt.Sprintf("，按可投名义 %.2f USDT 净EV %.4f", capNotional, capNetEV)
+	} else {
+		capPart = fmt.Sprintf("，扫描估算名义 %.2f USDT 净EV %.4f", rec.NotionalUSDT, rec.ExpectedNetEVUSDT)
 	}
 	return fmt.Sprintf(
-		"排名第 %d（%s）：%s %.2f%%；%s @ %s，预计净EV %.4f USDT，预计资金费 %.4f USDT，名义 %.2f USDT%s",
-		rank, execLabel, fundingLabel, fundingVal*100, rec.Symbol, venueList,
-		rec.ExpectedNetEVUSDT, rec.ExpectedFundingUSDT, rec.NotionalUSDT, settlePart,
+		"排名第 %d（%s）：%s %.2f%%；%s @ %s%s%s",
+		rank, execLabel, fundingLabel, fundingVal*100, rec.Symbol, venueList, capPart, settlePart,
 	)
 }
 
@@ -281,7 +374,7 @@ func classifyVenueCapitalInsufficient(reason string, venues []string) (venue str
 func buildUnifiedReasonCounts(records []UnifiedCandidateLogRecord, topN int) []UnifiedReasonCount {
 	counts := map[string]int{}
 	for _, rec := range records {
-		if rec.WouldExecute {
+		if unifiedScannerWouldExecute(rec) {
 			continue
 		}
 		reasons := rec.RejectReasons
@@ -341,6 +434,29 @@ func buildVenueCapitalInsufficientTop(records []UnifiedCandidateLogRecord, topN 
 	return out
 }
 
+// unifiedLeaderboardDisplayable 返回默认榜单是否展示该候选。
+// 结构性拒绝行(no_spot_market/not_borrowable/方向不支持等)常只有费率/APR,没有 EV/名义/资金占用;
+// 它们保留在拒绝原因统计里,但不挤占默认“机会”榜单。
+func unifiedLeaderboardDisplayable(rec UnifiedCandidateLogRecord) bool {
+	if unifiedScannerWouldExecute(rec) || rec.RotationWouldExecute {
+		return true
+	}
+	if rec.ExpectedNetEVUSDT != 0 || rec.ExpectedFundingUSDT != 0 || rec.NotionalUSDT > 0 {
+		return true
+	}
+	return sumCapitalRequired(rec.CapitalRequiredByVenue) > 0
+}
+
+func filterUnifiedLeaderboardDisplayRecords(records []UnifiedCandidateLogRecord) []UnifiedCandidateLogRecord {
+	out := make([]UnifiedCandidateLogRecord, 0, len(records))
+	for _, rec := range records {
+		if unifiedLeaderboardDisplayable(rec) {
+			out = append(out, rec)
+		}
+	}
+	return out
+}
+
 func topUnifiedReasonCounts(counts map[string]int, topN int) []UnifiedReasonCount {
 	if len(counts) == 0 {
 		return nil
@@ -392,33 +508,39 @@ func leaderboardEntryFromRecord(rec UnifiedCandidateLogRecord, rank int, landsca
 	if venues == nil {
 		venues = []string{}
 	}
+	scannerExec := unifiedScannerWouldExecute(rec)
+	hasCapital := unifiedRecordHasCapitalAware(rec)
 	return UnifiedLeaderboardEntry{
-		Rank:                   rank,
-		StrategyType:           rec.StrategyType,
-		Symbol:                 rec.Symbol,
-		Venues:                 venues,
-		ExpectedNetEVUSDT:      rec.ExpectedNetEVUSDT,
-		ExpectedFundingUSDT:    rec.ExpectedFundingUSDT,
-		CapitalRequiredByVenue: capital,
-		CapitalEfficiencyScore: rec.CapitalEfficiencyScore,
-		LandscapeSortKey:       landscapeKey,
-		PrimarySortKey:         unifiedPrimarySortKey(rec),
-		RankReason:             buildUnifiedRankReason(rank, rec, landscapeKey, now),
-		WouldExecute:           rec.WouldExecute,
-		RotationWouldExecute:   rec.RotationWouldExecute,
-		RejectReasons:          rejectReasons,
-		NotionalUSDT:           rec.NotionalUSDT,
-		RawFundingRate:         rec.RawFundingRate,
-		FundingRatePerHour:     rec.FundingRatePerHour,
-		FundingAPR:             rec.FundingAPR,
-		SpreadAPR:              rec.SpreadAPR,
-		HighFundingRate:        rec.HighFundingRate,
-		LowFundingRate:         rec.LowFundingRate,
-		FundingIntervalHours:   rec.FundingIntervalHours,
-		NextFundingTime:        rec.NextFundingTime,
-		HighNextFundingTime:    rec.HighNextFundingTime,
-		LowNextFundingTime:     rec.LowNextFundingTime,
-		MinutesUntilFunding:    unifiedNearestFundingMinutes(rec, now),
+		Rank:                     rank,
+		StrategyType:             rec.StrategyType,
+		Symbol:                   rec.Symbol,
+		Venues:                   venues,
+		ExpectedNetEVUSDT:        rec.ExpectedNetEVUSDT,
+		ExpectedFundingUSDT:      rec.ExpectedFundingUSDT,
+		CapitalAwareNetEVUSDT:    rec.CapitalAwareNetEVUSDT,
+		CapitalAwareNotionalUSDT: rec.CapitalAwareNotionalUSDT,
+		ScannerEstimateOnly:      !hasCapital,
+		CapitalRequiredByVenue:   capital,
+		CapitalEfficiencyScore:   rec.CapitalEfficiencyScore,
+		LandscapeSortKey:         landscapeKey,
+		PrimarySortKey:           unifiedPrimarySortKey(rec),
+		RankReason:               buildUnifiedRankReason(rank, rec, landscapeKey, now),
+		WouldExecute:             scannerExec,
+		ScannerWouldExecute:      scannerExec,
+		RotationWouldExecute:     rec.RotationWouldExecute,
+		RejectReasons:            rejectReasons,
+		NotionalUSDT:             rec.NotionalUSDT,
+		RawFundingRate:           rec.RawFundingRate,
+		FundingRatePerHour:       rec.FundingRatePerHour,
+		FundingAPR:               rec.FundingAPR,
+		SpreadAPR:                rec.SpreadAPR,
+		HighFundingRate:          rec.HighFundingRate,
+		LowFundingRate:           rec.LowFundingRate,
+		FundingIntervalHours:     rec.FundingIntervalHours,
+		NextFundingTime:          rec.NextFundingTime,
+		HighNextFundingTime:      rec.HighNextFundingTime,
+		LowNextFundingTime:       rec.LowNextFundingTime,
+		MinutesUntilFunding:      unifiedNearestFundingMinutes(rec, now),
 	}
 }
 
@@ -441,9 +563,24 @@ func BuildUnifiedLeaderboard(records []UnifiedCandidateLogRecord, topN int) Unif
 	}
 	resp.CycleID = cycleID
 	resp.TotalCandidates = len(cycleRecords)
+	resp.CycleStaleMaxAgeSeconds = rotationSnapshotMaxAge.Seconds()
+	if scannedAt, ok := parseUnifiedCycleIDTime(cycleID); ok {
+		resp.CycleScannedAt = scannedAt.Format(time.RFC3339)
+		resp.CycleAgeSeconds = now.Sub(scannedAt).Seconds()
+		if resp.CycleAgeSeconds < 0 {
+			resp.CycleAgeSeconds = 0
+		}
+		resp.CycleStale = resp.CycleAgeSeconds > rotationSnapshotMaxAge.Seconds()
+	}
+	scannerCount, rotationCount := countUnifiedExecuteFlags(cycleRecords)
+	resp.ScannerWouldExecuteCount = scannerCount
+	resp.RotationWouldExecuteCount = rotationCount
+	resp.WouldExecuteCount = scannerCount
 
 	// 总排行(全策略混排)。
-	resp.Opportunities, resp.WouldExecuteCount = rankUnifiedRecords(cycleRecords, topN, now)
+	displayRecords := filterUnifiedLeaderboardDisplayRecords(cycleRecords)
+	resp.Opportunities, _ = rankUnifiedRecords(displayRecords, topN, now)
+	resp.DisplayedCandidates = len(resp.Opportunities)
 
 	// 分策略排行:每个策略独立排序+独立 rank,固定顺序展示(无候选也保留空分组,便于前端固定 5 个区块)。
 	byStrategy := make(map[string][]UnifiedCandidateLogRecord, len(unifiedLeaderboardStrategyOrder))
@@ -453,12 +590,17 @@ func BuildUnifiedLeaderboard(records []UnifiedCandidateLogRecord, topN int) Unif
 	resp.Strategies = make([]UnifiedStrategyLeaderboard, 0, len(unifiedLeaderboardStrategyOrder))
 	for _, st := range unifiedLeaderboardStrategyOrder {
 		sub := byStrategy[st]
-		opps, execCount := rankUnifiedRecords(sub, topN, now)
+		subScanner, subRotation := countUnifiedExecuteFlags(sub)
+		displaySub := filterUnifiedLeaderboardDisplayRecords(sub)
+		opps, _ := rankUnifiedRecords(displaySub, topN, now)
 		resp.Strategies = append(resp.Strategies, UnifiedStrategyLeaderboard{
-			StrategyType:      st,
-			TotalCandidates:   len(sub),
-			WouldExecuteCount: execCount,
-			Opportunities:     opps,
+			StrategyType:              st,
+			TotalCandidates:           len(sub),
+			DisplayedCandidates:       len(opps),
+			WouldExecuteCount:         subScanner,
+			ScannerWouldExecuteCount:  subScanner,
+			RotationWouldExecuteCount: subRotation,
+			Opportunities:             opps,
 		})
 	}
 
@@ -467,8 +609,20 @@ func BuildUnifiedLeaderboard(records []UnifiedCandidateLogRecord, topN int) Unif
 	return resp
 }
 
-// rankUnifiedRecords 对一组候选排序并产出带 rank 的展示条目;返回条目与其中可执行数。
-// 排序口径:可执行置顶 → landscape(费率/价差 APR)降序 → 净EV降序 → symbol 升序 → 原始顺序。
+func countUnifiedExecuteFlags(records []UnifiedCandidateLogRecord) (scannerCount, rotationCount int) {
+	for _, rec := range records {
+		if unifiedScannerWouldExecute(rec) {
+			scannerCount++
+		}
+		if rec.RotationWouldExecute {
+			rotationCount++
+		}
+	}
+	return scannerCount, rotationCount
+}
+
+// rankUnifiedRecords 对一组候选排序并产出带 rank 的展示条目;返回条目与其中扫描通过数。
+// 排序口径:轮动闸可开置顶 → 按可投名义净EV降序 → landscape(费率/价差 APR)降序 → symbol 升序 → 原始顺序。
 func rankUnifiedRecords(records []UnifiedCandidateLogRecord, topN int, now time.Time) ([]UnifiedLeaderboardEntry, int) {
 	if len(records) == 0 {
 		return []UnifiedLeaderboardEntry{}, 0
@@ -482,19 +636,23 @@ func rankUnifiedRecords(records []UnifiedCandidateLogRecord, topN int, now time.
 			primaryKey:   unifiedPrimarySortKey(rec),
 			original:     i,
 		}
-		if rec.WouldExecute {
+		if unifiedScannerWouldExecute(rec) {
 			wouldExecuteCount++
 		}
 	}
 	sort.SliceStable(sortable, func(i, j int) bool {
-		if sortable[i].rec.WouldExecute != sortable[j].rec.WouldExecute {
-			return sortable[i].rec.WouldExecute
+		iRot := sortable[i].rec.RotationWouldExecute
+		jRot := sortable[j].rec.RotationWouldExecute
+		if iRot != jRot {
+			return iRot
+		}
+		iCapEV := unifiedCapitalAwareNetEV(sortable[i].rec)
+		jCapEV := unifiedCapitalAwareNetEV(sortable[j].rec)
+		if iCapEV != jCapEV {
+			return iCapEV > jCapEV
 		}
 		if sortable[i].landscapeKey != sortable[j].landscapeKey {
 			return sortable[i].landscapeKey > sortable[j].landscapeKey
-		}
-		if sortable[i].rec.ExpectedNetEVUSDT != sortable[j].rec.ExpectedNetEVUSDT {
-			return sortable[i].rec.ExpectedNetEVUSDT > sortable[j].rec.ExpectedNetEVUSDT
 		}
 		if sortable[i].rec.Symbol != sortable[j].rec.Symbol {
 			return sortable[i].rec.Symbol < sortable[j].rec.Symbol

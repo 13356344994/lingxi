@@ -45,15 +45,7 @@
       "spread_apr": 0.438,
       "comparable_window_hours": 4,
       "expected_hold_hours": 4,
-      "spread_ev": 0.003,
-      "open_cost": 0.01575,
-      "close_cost": 0.01575,
-      "expected_slippage": 0.018,
-      "observable_risk_cost": 0.004016250000000001,
-      "policy_buffer": 0.00315,
-      "net_ev": -0.17866625,
       "capital_efficiency_ev": -0.011911083333333333,
-      "risk_adjusted_ev_per_hour": -0.03175724315677213,
       "high_funding_rate": 0.0005,
       "low_funding_rate": 0.0001,
       "high_interval_hours": 8,
@@ -65,7 +57,6 @@
       "stability_score": 0.5,
       "execution_score": 0.976,
       "recovery_quality_score": 0.6174999999999999,
-      "rank_score": -0.17866625,
       "no_trade_reason": "net_ev\u003c=0"
     }
   ],

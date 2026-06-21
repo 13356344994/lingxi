@@ -36,7 +36,7 @@ func TestAppendCrossVenuePerpPerpCandidatesWritesJSONL(t *testing.T) {
 		rotationAlignPerpPerpCapital(UnifiedOpportunityFromCrossVenue(execCfg, cvOpp, nil, 0, 0), execCfg),
 	}
 
-	AppendCrossVenuePerpPerpCandidates(dir, "pp-cycle-test", execCfg, opps)
+	AppendCrossVenuePerpPerpCandidates(dir, "pp-cycle-test", execCfg, opps, nil)
 
 	path := filepath.Join(opportunitiesRecordDir(dir), unifiedCandidatesLogFileName)
 	data, err := os.ReadFile(path)

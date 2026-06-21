@@ -178,16 +178,42 @@ func TestFundingAnnualizedAPRIntervals(t *testing.T) {
 	}
 }
 
-func TestBestPairSpreadPicksMax(t *testing.T) {
+func TestBestPairSpreadPicksMaxComparableWindowEVWhenIntervalsDiffer(t *testing.T) {
 	t.Parallel()
-	// 配对按原始费率(RawFundingRate)价差选最大:bybit(0.005) 最高、binance(0.001) 最低 → bybit/binance。
-	// SpreadAPR 字段仍为所选对的年化价差(0.50-0.10=0.40),仅供展示。
+	// 原始费率价差 gate/binance(0.004) > gate/okx(0.003),但可比窗口内仅 okx 结算 → EV 选 gate/okx。
+	now := time.Date(2026, 6, 20, 4, 0, 0, 0, time.UTC)
 	entries := []symbolVenueFunding{
-		{Venue: binance.VenueName, AnnualizedAPR: 0.10, RawAnnualizedAPR: 0.10, RawFundingRate: 0.001, IntervalHours: 8},
-		{Venue: bybit.VenueName, AnnualizedAPR: 0.50, RawAnnualizedAPR: 0.50, RawFundingRate: 0.005, IntervalHours: 1},
-		{Venue: okx.VenueName, AnnualizedAPR: 0.20, RawAnnualizedAPR: 0.20, RawFundingRate: 0.002, IntervalHours: 4},
+		{Venue: gate.VenueName, RawAnnualizedAPR: fundingAnnualizedAPR(-0.001, 1), RawFundingRate: -0.001, IntervalHours: 1, NextFundingTime: now.Add(1 * time.Hour)},
+		{Venue: binance.VenueName, RawAnnualizedAPR: fundingAnnualizedAPR(-0.005, 4), RawFundingRate: -0.005, IntervalHours: 4, NextFundingTime: now.Add(3 * time.Hour)},
+		{Venue: okx.VenueName, RawAnnualizedAPR: fundingAnnualizedAPR(-0.004, 4), RawFundingRate: -0.004, IntervalHours: 4, NextFundingTime: now.Add(30 * time.Minute)},
 	}
-	opp, ok := bestPairSpread("HOME-USDT", entries)
+	opp, ok := bestPairSpread("MIX-USDT", entries, now)
+	if !ok {
+		t.Fatal("expected pair")
+	}
+	if opp.HighVenue != gate.VenueName || opp.LowVenue != okx.VenueName {
+		t.Fatalf("best pair = %s/%s, want gate/okx (EV window not raw spread gate/binance)", opp.HighVenue, opp.LowVenue)
+	}
+	wantEV := crossVenuePairExpectedFundingOverComparableWindow(now, entries[0], entries[2])
+	if got := crossVenueExpectedFundingOverHold(now, 0, 1, opp); math.Abs(got-wantEV) > 1e-12 {
+		t.Fatalf("selected EV=%v want=%v", got, wantEV)
+	}
+	rawSpreadPairEV := crossVenuePairExpectedFundingOverComparableWindow(now, entries[0], entries[1])
+	if wantEV <= rawSpreadPairEV {
+		t.Fatalf("test fixture: gate/okx EV=%v should beat gate/binance EV=%v", wantEV, rawSpreadPairEV)
+	}
+}
+
+func TestBestPairSpreadPicksMaxWhenWindowAligns(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 6, 20, 4, 0, 0, 0, time.UTC)
+	// 可比窗口内 bybit 结算一次、binance 不结算;EV 仍选 bybit/binance(最高单次 spread)。
+	entries := []symbolVenueFunding{
+		{Venue: binance.VenueName, AnnualizedAPR: 0.10, RawAnnualizedAPR: 0.10, RawFundingRate: 0.001, IntervalHours: 8, NextFundingTime: now.Add(8 * time.Hour)},
+		{Venue: bybit.VenueName, AnnualizedAPR: 0.50, RawAnnualizedAPR: 0.50, RawFundingRate: 0.005, IntervalHours: 1, NextFundingTime: now.Add(1 * time.Hour)},
+		{Venue: okx.VenueName, AnnualizedAPR: 0.20, RawAnnualizedAPR: 0.20, RawFundingRate: 0.002, IntervalHours: 4, NextFundingTime: now.Add(4 * time.Hour)},
+	}
+	opp, ok := bestPairSpread("HOME-USDT", entries, now)
 	if !ok {
 		t.Fatal("expected pair")
 	}
@@ -935,7 +961,7 @@ func TestCrossVenueScannerHUSDTMissingBybitNextFundingTime(t *testing.T) {
 	if len(legacy["H-USDT"]) != 1 {
 		t.Fatalf("legacy index legs=%d want 1 (bybit dropped)", len(legacy["H-USDT"]))
 	}
-	if _, ok := bestPairSpread("H-USDT", legacy["H-USDT"]); ok {
+	if _, ok := bestPairSpread("H-USDT", legacy["H-USDT"], now); ok {
 		t.Fatal("legacy index should not pair with <2 legs")
 	}
 
@@ -961,7 +987,7 @@ func TestCrossVenueScannerHUSDTMissingBybitNextFundingTime(t *testing.T) {
 		t.Fatalf("bybit inferred next=%s want %s", bybitLeg.NextFundingTime, wantBybitNext)
 	}
 
-	opp, ok := bestPairSpread("H-USDT", fixed["H-USDT"])
+	opp, ok := bestPairSpread("H-USDT", fixed["H-USDT"], now)
 	if !ok {
 		t.Fatal("bestPairSpread should succeed with 2 legs")
 	}

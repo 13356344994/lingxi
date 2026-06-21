@@ -76,16 +76,19 @@ func crossVenueSelectOpenMode(opp CrossVenueOpportunity, strictExists bool) (cro
 }
 
 func crossVenueApplyAcceptableFallback(opp CrossVenueOpportunity) CrossVenueOpportunity {
-	opp.SizeMultiplier *= 0.5
+	const shrinkRatio = 0.5
+	opp.SizeMultiplier *= shrinkRatio
 	if opp.SizeMultiplier < 0.1 {
 		opp.SizeMultiplier = 0.1
 	}
 	if opp.TradableNotional > 0 {
-		opp.TradableNotional *= 0.5
+		opp.TradableNotional *= shrinkRatio
 	}
 	if opp.TradableQty > 0 {
-		opp.TradableQty *= 0.5
+		opp.TradableQty *= shrinkRatio
 	}
+	crossVenueScaleOpportunityLinearEconomics(&opp, shrinkRatio)
+	opp.RankScore = opp.NetEV
 	if strings.TrimSpace(opp.NoTradeReason) == "" {
 		opp.NoTradeReason = "acceptable_fallback"
 	}

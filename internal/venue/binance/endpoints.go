@@ -41,15 +41,17 @@ const (
 	PathFuturesExchangeInfo     = "/fapi/v1/exchangeInfo"
 
 	// ---- 杠杆/资产/账户 /sapi ----
-	PathMarginOrder           = "/sapi/v1/margin/order"
-	PathMarginAccount         = "/sapi/v1/margin/account"
-	PathMarginBorrowRepay     = "/sapi/v1/margin/borrow-repay"
-	PathMarginInterestHistory = "/sapi/v1/margin/interestHistory"
-	PathMarginCrossMarginData = "/sapi/v1/margin/crossMarginData" // USER_DATA:全仓杠杆费率(含 dailyInterest)
-	PathMarginMaxBorrowable   = "/sapi/v1/margin/maxBorrowable"   // USER_DATA:当前最大可借
-	PathMarginMaxTransferable = "/sapi/v1/margin/maxTransferable" // USER_DATA:全仓最大可转出
-	PathAssetTransfer         = "/sapi/v1/asset/transfer"
-	PathAssetFundingAsset     = "/sapi/v1/asset/get-funding-asset"
-	PathBNBBurn               = "/sapi/v1/bnbBurn"
-	PathAPIRestrictions       = "/sapi/v1/account/apiRestrictions"
+	PathMarginOrder            = "/sapi/v1/margin/order"
+	PathMarginAccount          = "/sapi/v1/margin/account"
+	PathMarginBorrowRepay      = "/sapi/v1/margin/borrow-repay"
+	PathMarginInterestHistory  = "/sapi/v1/margin/interestHistory"
+	PathMarginCrossMarginData  = "/sapi/v1/margin/crossMarginData" // USER_DATA:全仓杠杆费率(含 dailyInterest)
+	PathMarginMaxBorrowable    = "/sapi/v1/margin/maxBorrowable"   // USER_DATA:当前最大可借
+	PathMarginMaxTransferable  = "/sapi/v1/margin/maxTransferable" // USER_DATA:全仓最大可转出
+	PathAssetTransfer          = "/sapi/v1/asset/transfer"
+	PathCapitalDepositHisrec   = "/sapi/v1/capital/deposit/hisrec"
+	PathCapitalWithdrawHistory = "/sapi/v1/capital/withdraw/history"
+	PathAssetFundingAsset      = "/sapi/v1/asset/get-funding-asset"
+	PathBNBBurn                = "/sapi/v1/bnbBurn"
+	PathAPIRestrictions        = "/sapi/v1/account/apiRestrictions"
 )

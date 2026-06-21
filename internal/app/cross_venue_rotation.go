@@ -601,10 +601,38 @@ func crossVenueBypassesConfidenceDownsize(opp CrossVenueOpportunity) bool {
 	return opp.SpreadAPR > crossVenueExtremeSpreadConfidenceBypassAPR
 }
 
+// crossVenueScaleOpportunityLinearEconomics 按名义比例缩放线性 EV/成本字段,使 finalize 后指标与 TradableNotional 一致。
+func crossVenueScaleOpportunityLinearEconomics(opp *CrossVenueOpportunity, ratio float64) {
+	if opp == nil {
+		return
+	}
+	if ratio <= 0 {
+		opp.SpreadEV = 0
+		opp.OpenCost = 0
+		opp.CloseCost = 0
+		opp.ExpectedSlippage = 0
+		opp.ObservableRiskCost = 0
+		opp.PolicyBuffer = 0
+		opp.NetEV = 0
+		opp.RiskAdjustedEVPerHour = 0
+		return
+	}
+	if math.Abs(ratio-1) < 1e-12 {
+		return
+	}
+	opp.SpreadEV *= ratio
+	opp.OpenCost *= ratio
+	opp.CloseCost *= ratio
+	opp.ExpectedSlippage *= ratio
+	opp.ObservableRiskCost *= ratio
+	opp.PolicyBuffer *= ratio
+	opp.NetEV *= ratio
+	opp.RiskAdjustedEVPerHour *= ratio
+}
+
 func crossVenueFinalizeOpportunityRanking(cfg CrossVenueExecutorConfig, opps []CrossVenueOpportunity) {
 	floor := cfg.LowConfidenceSizeFloorFraction
 	for i := range opps {
-		opps[i].RankScore = opps[i].NetEV
 		confMult := crossVenueConfidenceSizeMultiplier(floor, opps[i].HistoryQualityScore, opps[i].StabilityScore)
 		if crossVenueBypassesConfidenceDownsize(opps[i]) {
 			confMult = 1.0
@@ -618,7 +646,10 @@ func crossVenueFinalizeOpportunityRanking(cfg CrossVenueExecutorConfig, opps []C
 		if opps[i].NetEV <= crossVenueMinNetProfitUSDT(cfg) {
 			opps[i].SizeMultiplier = 0
 		}
-		opps[i].TradableNotional *= opps[i].SizeMultiplier
+		sizeMult := opps[i].SizeMultiplier
+		opps[i].TradableNotional *= sizeMult
+		crossVenueScaleOpportunityLinearEconomics(&opps[i], sizeMult)
+		opps[i].RankScore = opps[i].NetEV
 	}
 }
 
@@ -648,7 +679,7 @@ func crossVenueComputeCurrentFutureEV(cfg CrossVenueExecutorConfig, pos *CrossVe
 		LowNextFundingTime:  pos.LowNextFundingTime,
 	}
 	remainingSpreadEV := crossVenueExpectedFundingOverHold(now, windowHours, notional, opp)
-	remainingSpreadEV *= carryScannerNormalizedFundingCaptureProbability(0)
+	remainingSpreadEV *= crossVenueExecutorFundingCaptureProbability(cfg)
 	exitCost = crossVenueExpectedCloseCostUSDT(cfg, opp, notional) + crossVenueExpectedSlippageUSDT(cfg, notional, 2)
 	futureRiskCost := crossVenueObservableRiskCost(notional, pos.FreshnessAgeSeconds, windowHours, pos.RecoveryQualityScore)
 	futureEV = remainingSpreadEV - exitCost - futureRiskCost

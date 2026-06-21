@@ -75,7 +75,7 @@ func TestCrossDenomPairingPairsPEPE(t *testing.T) {
 		{Venue: binance.VenueName, CanonicalSymbol: "1000PEPE-USDT", EconomicBase: "PEPE", Multiplier: 1000, MultKnown: true, RawAnnualizedAPR: 2.0, RawFundingRate: 0.001, IntervalHours: 8},
 		{Venue: okx.VenueName, CanonicalSymbol: "PEPE-USDT", EconomicBase: "PEPE", Multiplier: 1, MultKnown: true, RawAnnualizedAPR: 0.1, RawFundingRate: 0.0001, IntervalHours: 8},
 	}
-	opp, ok := bestPairSpread("PEPE-USDT", entries)
+	opp, ok := bestPairSpread("PEPE-USDT", entries, time.Now().UTC())
 	if !ok {
 		t.Fatal("expected pairing")
 	}
@@ -115,7 +115,7 @@ func TestSameDenomPairingUnchanged(t *testing.T) {
 		{Venue: binance.VenueName, CanonicalSymbol: "1000PEPE-USDT", EconomicBase: "PEPE", Multiplier: 1000, MultKnown: true, RawAnnualizedAPR: 2.0, RawFundingRate: 0.002},
 		{Venue: bybit.VenueName, CanonicalSymbol: "1000PEPE-USDT", EconomicBase: "PEPE", Multiplier: 1000, MultKnown: true, RawAnnualizedAPR: 0.5, RawFundingRate: 0.0005},
 	}
-	opp2, ok := bestPairSpread("PEPE-USDT", entries)
+	opp2, ok := bestPairSpread("PEPE-USDT", entries, time.Now().UTC())
 	if !ok {
 		t.Fatal("expected same-denom 1000PEPE pair")
 	}

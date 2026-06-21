@@ -72,6 +72,7 @@ type SingleVenueSpotPerpPosition struct {
 	CloseReason          string                      `json:"close_reason,omitempty"`
 	CloseAttempts        int                         `json:"close_attempts,omitempty"`
 	LastHedgeRebalanceAt time.Time                   `json:"last_hedge_rebalance_at,omitempty"`
+	DustResidualCostUSDT float64                     `json:"dust_residual_cost_usdt,omitempty"`
 	SingleVenueSpotPerpAttribution
 }
 
@@ -294,20 +295,23 @@ func svspIsOpeningStatus(st SingleVenueSpotPerpStatus) bool {
 
 // SingleVenueSpotPerpSettlement 平仓结算记录(写入 settlements.jsonl)。
 type SingleVenueSpotPerpSettlement struct {
-	SettlementID    string    `json:"settlement_id,omitempty"`
-	PositionKey     string    `json:"position_key,omitempty"`
-	OpportunityID   string    `json:"opportunity_id,omitempty"`
-	OpenTime        time.Time `json:"open_time"`
-	CloseTime       time.Time `json:"close_time"`
-	Symbol          string    `json:"symbol"`
-	Venue           string    `json:"venue"`
-	NotionalUSDT    float64   `json:"notional_usdt"`
-	RealizedFunding float64   `json:"realized_funding"`
-	TradePnL        float64   `json:"trade_pnl"`
-	OpenFees        float64   `json:"open_fees"`
-	CloseFees       float64   `json:"close_fees"`
-	RollbackCost    float64   `json:"rollback_cost"`
-	TotalFees       float64   `json:"total_fees"`
-	NetPnL          float64   `json:"net_pnl"`
-	CloseReason     string    `json:"close_reason,omitempty"`
+	SettlementID         string    `json:"settlement_id,omitempty"`
+	PositionKey          string    `json:"position_key,omitempty"`
+	OpportunityID        string    `json:"opportunity_id,omitempty"`
+	OpenTime             time.Time `json:"open_time"`
+	CloseTime            time.Time `json:"close_time"`
+	Symbol               string    `json:"symbol"`
+	Venue                string    `json:"venue"`
+	NotionalUSDT         float64   `json:"notional_usdt"`
+	ExpectedFundingUSDT  float64   `json:"expected_funding_usdt,omitempty"`
+	FundingIntervalHours int       `json:"funding_interval_hours,omitempty"`
+	RealizedFunding      float64   `json:"realized_funding"`
+	TradePnL             float64   `json:"trade_pnl"`
+	OpenFees             float64   `json:"open_fees"`
+	CloseFees            float64   `json:"close_fees"`
+	RollbackCost         float64   `json:"rollback_cost"`
+	DustResidualCost     float64   `json:"dust_residual_cost,omitempty"`
+	TotalFees            float64   `json:"total_fees"`
+	NetPnL               float64   `json:"net_pnl"`
+	CloseReason          string    `json:"close_reason,omitempty"`
 }

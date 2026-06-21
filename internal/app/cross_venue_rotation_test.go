@@ -90,12 +90,12 @@ func TestForwardEVDiscretePerLeg(t *testing.T) {
 	window := crossVenueComparableWindowHours(now, highNext, lowNext)
 	pos := &CrossVenuePosition{
 		HighVenue: "okx", LowVenue: "bybit",
-		NotionalUSDT: 100,
+		NotionalUSDT:    100,
 		HighFundingRate: 0.004, LowFundingRate: 0.0001,
 		HighIntervalHours: 4, LowIntervalHours: 1,
 		HighNextFundingTime: highNext, LowNextFundingTime: lowNext,
 		CurrentComparableWindowHours: window,
-		ExecutionScore: 0.8, RecoveryQualityScore: 0.7,
+		ExecutionScore:               0.8, RecoveryQualityScore: 0.7,
 	}
 	cfg := testCrossVenueExecutorConfig().CrossVenueExecutor
 	opp := CrossVenueOpportunity{
@@ -113,7 +113,7 @@ func TestForwardEVDiscretePerLeg(t *testing.T) {
 	}
 	futureEV, _, _, exitCost, _, _, _ := crossVenueComputeCurrentFutureEV(cfg, pos, now)
 	futureRisk := crossVenueObservableRiskCost(100, 0, window, pos.RecoveryQualityScore)
-	capturedFunding := discreteFunding * carryScannerNormalizedFundingCaptureProbability(0)
+	capturedFunding := discreteFunding * crossVenueExecutorFundingCaptureProbability(cfg)
 	linearBasedEV := linearFunding - exitCost - futureRisk
 	if math.Abs(futureEV-linearBasedEV) < 1e-6 {
 		t.Fatalf("forward EV %.6f should differ from linear extrapolation %.6f", futureEV, linearBasedEV)

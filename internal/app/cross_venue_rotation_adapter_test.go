@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"log"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -397,4 +398,127 @@ func TestUnifiedRotationRunnerPerpPerpCandidateExecutableWithBinding(t *testing.
 		}
 	}
 	t.Fatal("expected perp-perp candidate")
+}
+
+type rotationSideEffectTrackingVenue struct {
+	*crossVenueTestVenue
+	topUpCalls *int32
+	signCalls  *int32
+}
+
+func (v *rotationSideEffectTrackingVenue) TopUpPerpMarginUSDT(_ context.Context, requiredUSDT float64) (float64, error) {
+	if v.topUpCalls != nil {
+		atomic.AddInt32(v.topUpCalls, 1)
+	}
+	if v.crossVenueTestVenue == nil {
+		return 0, nil
+	}
+	before := v.crossVenueTestVenue.balanceUSDT
+	if before+1e-6 >= requiredUSDT {
+		return 0, nil
+	}
+	transferred := requiredUSDT - before
+	v.crossVenueTestVenue.balanceUSDT = requiredUSDT + 100
+	return transferred, nil
+}
+
+func (v *rotationSideEffectTrackingVenue) SignTradingAgreements(context.Context) error {
+	if v.signCalls != nil {
+		atomic.AddInt32(v.signCalls, 1)
+	}
+	return nil
+}
+
+func newRotationSideEffectTrackingExecutor(t *testing.T, high, low *rotationSideEffectTrackingVenue, nextFunding time.Time) *CrossVenueExecutor {
+	t.Helper()
+	now := time.Date(2026, 6, 18, 12, 0, 0, 0, time.UTC).Add(time.Hour)
+	cfg := testCrossVenueExecutorConfig()
+	cfg.NetworkConfig.RecordDir = t.TempDir()
+	cfg.CrossVenueExecutor.OpenSpreadAPR = 0.5
+	cfg.CrossVenueExecutor.MaxBookSpreadBps = 250
+	cfg.CrossVenueExecutor.OpenFundingLeadSeconds = 180
+	tightBook := venue.BookTicker{BidPrice: 99.9, AskPrice: 100.1, BidQty: 1000, AskQty: 1000}
+	high.book = tightBook
+	low.book = tightBook
+	cvOpp := makeTestOpenOpportunity(cfg.CrossVenueExecutor, now, "BTC-USDT", high.name, low.name, 0.05, 0.0, 50, 0.9, 0.9, 0.9, 0.9)
+	cvOpp.HighNextFundingTime = nextFunding
+	cvOpp.LowNextFundingTime = nextFunding
+	e := &CrossVenueExecutor{
+		cfg:    cfg,
+		venues: map[string]venue.Venue{high.name: high, low.name: low},
+		store:  mustCrossVenueStore(t, cfg.NetworkConfig.RecordDir),
+		logger: testCrossVenueLogger(),
+		nowFn:  func() time.Time { return now },
+		scanner: testScannerWithFunding(map[string]map[string]CrossVenueFundingEntry{
+			high.name: {
+				"BTC-USDT": {Rate: 0.05, IntervalHours: 8, NextFundingTime: nextFunding},
+			},
+			low.name: {
+				"BTC-USDT": {Rate: 0.0, IntervalHours: 8, NextFundingTime: nextFunding},
+			},
+		}),
+		symbolCooldown: map[string]time.Time{},
+	}
+	e.scanner.lastSnapshot.ScannedAt = now
+	e.scanner.lastSnapshot.SnapshotID = "snap-rot"
+	e.scanner.lastSnapshot.Opportunities = []CrossVenueOpportunity{cvOpp}
+	e.SetRotationManaged(true)
+	return e
+}
+
+// TestRotationExecuteOpenFundingEntryWindowSkipsSideEffects 进场窗未到时须先过无副作用闸再返回,
+// 不得触发 TopUpPerpMarginUSDT / bybit 协议签署(审计:每分钟 OPEN 失败仍划保证金)。
+func TestRotationExecuteOpenFundingEntryWindowSkipsSideEffects(t *testing.T) {
+	now := time.Date(2026, 6, 18, 12, 0, 0, 0, time.UTC).Add(time.Hour)
+	nextFunding := now.Add(600 * time.Second) // 600s > 180s lead → funding_entry_window_not_reached
+	var highTopUp, lowTopUp, signCalls int32
+	highBase := newCrossVenueTestVenue(bybit.VenueName, 0.001, 8, nextFunding)
+	lowBase := newCrossVenueTestVenue(binance.VenueName, 0.0001, 8, nextFunding)
+	high := &rotationSideEffectTrackingVenue{crossVenueTestVenue: highBase, topUpCalls: &highTopUp, signCalls: &signCalls}
+	low := &rotationSideEffectTrackingVenue{crossVenueTestVenue: lowBase, topUpCalls: &lowTopUp}
+	e := newRotationSideEffectTrackingExecutor(t, high, low, nextFunding)
+	opp := UnifiedOpportunityFromCrossVenue(e.cfg.CrossVenueExecutor, e.scanner.Snapshot().Opportunities[0], nil, 50, 100)
+	_, err := e.executeOpen(context.Background(), opp, false)
+	if err == nil {
+		t.Fatal("expected funding entry window reject")
+	}
+	if !strings.Contains(err.Error(), carryScannerRejectFundingWindowNotReached) {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if atomic.LoadInt32(&highTopUp) != 0 || atomic.LoadInt32(&lowTopUp) != 0 {
+		t.Fatalf("TopUpPerpMarginUSDT must not run before entry window: high=%d low=%d", highTopUp, lowTopUp)
+	}
+	if atomic.LoadInt32(&signCalls) != 0 {
+		t.Fatalf("SignTradingAgreements must not run before entry window: calls=%d", signCalls)
+	}
+}
+
+// TestRotationExecuteOpenGatePassStillTopUpPerpMargin 闸通过后仍须在下单前补足永续保证金(含 gate 初拒、划转后复闸)。
+func TestRotationExecuteOpenGatePassStillTopUpPerpMargin(t *testing.T) {
+	now := time.Date(2026, 6, 18, 12, 0, 0, 0, time.UTC).Add(time.Hour)
+	nextFunding := now.Add(120 * time.Second) // within 180s lead
+	var highTopUp, lowTopUp, signCalls int32
+	highBase := newCrossVenueTestVenue(bybit.VenueName, 0.001, 8, nextFunding)
+	lowBase := newCrossVenueTestVenue(binance.VenueName, 0.0001, 8, nextFunding)
+	// 低于 gate 所需保证金,TopUpPerpMarginUSDT 须被调用后复闸才放行。
+	highBase.balanceUSDT = 5
+	lowBase.balanceUSDT = 5
+	high := &rotationSideEffectTrackingVenue{crossVenueTestVenue: highBase, topUpCalls: &highTopUp, signCalls: &signCalls}
+	low := &rotationSideEffectTrackingVenue{crossVenueTestVenue: lowBase, topUpCalls: &lowTopUp}
+	e := newRotationSideEffectTrackingExecutor(t, high, low, nextFunding)
+	e.cfg.CrossVenueExecutor.LiveTradingEnabled = true
+	opp := UnifiedOpportunityFromCrossVenue(e.cfg.CrossVenueExecutor, e.scanner.Snapshot().Opportunities[0], nil, 50, 100)
+	pos, err := e.executeOpen(context.Background(), opp, true)
+	if err != nil {
+		t.Fatalf("executeOpen after margin top-up: %v", err)
+	}
+	if pos.OpportunityID != opp.ID {
+		t.Fatalf("OpportunityID=%q want %q", pos.OpportunityID, opp.ID)
+	}
+	if atomic.LoadInt32(&highTopUp) == 0 || atomic.LoadInt32(&lowTopUp) == 0 {
+		t.Fatalf("expected TopUpPerpMarginUSDT on both legs: high=%d low=%d", highTopUp, lowTopUp)
+	}
+	if atomic.LoadInt32(&signCalls) != 1 {
+		t.Fatalf("expected bybit agreement sign once, got %d", signCalls)
+	}
 }

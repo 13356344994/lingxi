@@ -67,6 +67,17 @@ func TestResolveVenue(t *testing.T) {
 	}
 }
 
+func TestVenueScopeLabel(t *testing.T) {
+	if got := venueScopeLabel("all"); got != venueScopePrimaryOnly {
+		t.Fatalf("venueScopeLabel(all) = %q, want %q", got, venueScopePrimaryOnly)
+	}
+	for _, sel := range []string{"", "binance", "okx"} {
+		if got := venueScopeLabel(sel); got != "" {
+			t.Fatalf("venueScopeLabel(%q) = %q, want empty", sel, got)
+		}
+	}
+}
+
 func TestReadTargets(t *testing.T) {
 	s, b, k := newRoutingTestServer()
 

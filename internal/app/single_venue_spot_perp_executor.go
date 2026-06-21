@@ -1015,6 +1015,7 @@ func (e *SingleVenueSpotPerpExecutor) handleOrphanLeg(
 			_, _ = e.placeSVSPLegIOC(ctx, tr, venue.MarketSpot, sym, venue.SideSell, qty, svspLegClientID(pos.IdemPrefix, "dust"), false, venue.MarginEffectNone, live, takerBps)
 		}
 		pos.Status = SVSPStatusClosed
+		pos.DustResidualCostUSDT = applyCarryDustResidualCost(decision.RemainingNotionalUSDT)
 		pos.CloseReason = appendDustCloseReason(nonEmpty(pos.CloseReason, "dust_orphan"), decision.RemainingNotionalUSDT)
 		pos.UpdatedAt = e.nowFn()
 		logDustOrphanClosed(e.logger, "同所spot-perp", pos.Symbol, decision.RemainingNotionalUSDT)
@@ -1237,6 +1238,7 @@ func (e *SingleVenueSpotPerpExecutor) closePosition(ctx context.Context, pos Sin
 		e.syncRealizedFunding(ctx, &pos)
 		pos.Status = SVSPStatusClosed
 		pos.CloseReason = appendDustCloseReason(nonEmpty(pos.CloseReason, reason), dust.RemainingNotionalUSDT)
+		pos.DustResidualCostUSDT = applyCarryDustResidualCost(dust.RemainingNotionalUSDT)
 		pos.UpdatedAt = e.nowFn()
 		logDustOrphanClosed(e.logger, "同所spot-perp", pos.Symbol, dust.RemainingNotionalUSDT)
 		e.finalizeClosedPosition(pos, live)
@@ -1265,24 +1267,27 @@ func buildSVSPSettlement(pos SingleVenueSpotPerpPosition, closeTime time.Time) S
 	if pos.PerpLeg.ClosedQty > executionQtyTolerance && pos.PerpLeg.ExitPrice > 0 {
 		tradePnL += (pos.PerpLeg.EntryPrice - pos.PerpLeg.ExitPrice) * pos.PerpLeg.ClosedQty
 	}
-	netPnL := money.SumUSDT(pos.RealizedFundingUSDT, tradePnL, -totalFees, -attr.RollbackCostUSDT)
+	netPnL := money.SumUSDT(pos.RealizedFundingUSDT, tradePnL, -totalFees, -attr.RollbackCostUSDT, -pos.DustResidualCostUSDT)
 	return SingleVenueSpotPerpSettlement{
-		SettlementID:    nonEmpty(pos.IdemPrefix, svspPositionKey(pos)),
-		PositionKey:     svspPositionKey(pos),
-		OpportunityID:   pos.OpportunityID,
-		OpenTime:        pos.OpenedAt,
-		CloseTime:       closeTime,
-		Symbol:          pos.Symbol,
-		Venue:           pos.Venue,
-		NotionalUSDT:    pos.NotionalUSDT,
-		RealizedFunding: pos.RealizedFundingUSDT,
-		TradePnL:        tradePnL,
-		OpenFees:        attr.OpenFeesUSDT,
-		CloseFees:       attr.CloseFeesUSDT,
-		RollbackCost:    attr.RollbackCostUSDT,
-		TotalFees:       totalFees,
-		NetPnL:          netPnL,
-		CloseReason:     pos.CloseReason,
+		SettlementID:         nonEmpty(pos.IdemPrefix, svspPositionKey(pos)),
+		PositionKey:          svspPositionKey(pos),
+		OpportunityID:        pos.OpportunityID,
+		OpenTime:             pos.OpenedAt,
+		CloseTime:            closeTime,
+		Symbol:               pos.Symbol,
+		Venue:                pos.Venue,
+		NotionalUSDT:         pos.NotionalUSDT,
+		ExpectedFundingUSDT:  pos.EstFundingUSDT,
+		FundingIntervalHours: pos.FundingIntervalHours,
+		RealizedFunding:      pos.RealizedFundingUSDT,
+		TradePnL:             tradePnL,
+		OpenFees:             attr.OpenFeesUSDT,
+		CloseFees:            attr.CloseFeesUSDT,
+		RollbackCost:         attr.RollbackCostUSDT,
+		DustResidualCost:     pos.DustResidualCostUSDT,
+		TotalFees:            totalFees,
+		NetPnL:               netPnL,
+		CloseReason:          pos.CloseReason,
 	}
 }
 

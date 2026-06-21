@@ -296,6 +296,19 @@ func (e *CrossVenueExecutor) continueCrossVenueOpeningSecondLeg(ctx context.Cont
 		_ = e.updateSwitchIntentAttempt(intent.Symbol, intent.TargetHighVenue, intent.TargetLowVenue, "open_new_second_leg", "runtime continuation retrying second leg")
 	}
 	lowRes, err := e.placeCrossVenueLegExec(ctx, lowTrader, sym, venue.SideBuy, hedgeQty, lowID, false, live, true, crossVenueTakerSlippageBps(e.cfg.CrossVenueExecutor), now.Add(deadlineBudget), lowInstr, lowCaps.ContractBasedPerp)
+	if orderStatusIsUnknown(lowRes) || isUnknownOrderStateError(err) {
+		pos.Status = CrossVenueStatusOpeningSecondLeg
+		pos.TransitionState = "open"
+		pos.RecoveryAction = crossVenueRecoveryActionObserve
+		pos.PartialSwitchPhase = "open_new_second_leg"
+		pos.UpdatedAt = now
+		_ = e.persistPosition(pos)
+		e.notifyCritical("跨所查单未知", fmt.Sprintf("%s 第二腿续做查单失败,禁止自动回滚", pos.Symbol), pos.Symbol)
+		if hasIntent {
+			_ = e.updateSwitchIntentAttempt(intent.Symbol, intent.TargetHighVenue, intent.TargetLowVenue, "open_new_second_leg", "runtime continuation second leg order state unknown, awaiting reconcile")
+		}
+		return pos, true
+	}
 	if err != nil || lowRes.ExecutedQty <= executionQtyTolerance {
 		pos.Status = CrossVenueStatusOrphanSingleLeg
 		pos.TransitionState = "recover"
@@ -349,6 +362,7 @@ func (e *CrossVenueExecutor) handleOrphanLeg(ctx context.Context, pos CrossVenue
 	sym := venue.Symbol(pos.Symbol)
 	orphDeadline := crossVenueCloseLegDeadline(e.nowFn(), e.cfg.CrossVenueExecutor)
 	takerBps := crossVenueTakerSlippageBps(e.cfg.CrossVenueExecutor)
+	flattened := false
 	if highOpen && !lowOpen {
 		tr, _ := e.venues[pos.HighVenue].(crossVenueTrader)
 		if tr != nil {
@@ -356,9 +370,13 @@ func (e *CrossVenueExecutor) handleOrphanLeg(ctx context.Context, pos CrossVenue
 			book, _ := tr.FetchBookTicker(ctx, venue.MarketPerp, sym)
 			highInstr := e.lookupPerpInstrument(ctx, pos.HighVenue, sym)
 			if live {
-				if res, _ := e.placeCrossVenueLegExec(ctx, tr, sym, venue.SideBuy, qty, crossVenueLegClientID(pos.IdemPrefix, "oh"), true, live, true, takerBps, orphDeadline, highInstr, e.venues[pos.HighVenue].Capabilities().ContractBasedPerp); res.ExecutedQty > executionQtyTolerance {
+				res, err := e.placeCrossVenueLegExec(ctx, tr, sym, venue.SideBuy, qty, crossVenueLegClientID(pos.IdemPrefix, "oh"), true, live, true, takerBps, orphDeadline, highInstr, e.venues[pos.HighVenue].Capabilities().ContractBasedPerp)
+				if res.ExecutedQty > executionQtyTolerance {
 					e.recordCrossVenueExecution(ctx, &pos, cvExecOrphanCloseHigh, res, crossVenueBookMid(book))
 					_ = e.persistPosition(pos)
+					flattened = true
+				} else if err != nil && e.logger != nil {
+					e.logger.Printf("[跨所] %s 孤腿平高费腿失败: %v", pos.Symbol, err)
 				}
 			}
 		}
@@ -369,14 +387,22 @@ func (e *CrossVenueExecutor) handleOrphanLeg(ctx context.Context, pos CrossVenue
 			book, _ := tr.FetchBookTicker(ctx, venue.MarketPerp, sym)
 			lowInstr := e.lookupPerpInstrument(ctx, pos.LowVenue, sym)
 			if live {
-				if res, _ := e.placeCrossVenueLegExec(ctx, tr, sym, venue.SideSell, qty, crossVenueLegClientID(pos.IdemPrefix, "ol"), true, live, true, takerBps, orphDeadline, lowInstr, e.venues[pos.LowVenue].Capabilities().ContractBasedPerp); res.ExecutedQty > executionQtyTolerance {
+				res, err := e.placeCrossVenueLegExec(ctx, tr, sym, venue.SideSell, qty, crossVenueLegClientID(pos.IdemPrefix, "ol"), true, live, true, takerBps, orphDeadline, lowInstr, e.venues[pos.LowVenue].Capabilities().ContractBasedPerp)
+				if res.ExecutedQty > executionQtyTolerance {
 					e.recordCrossVenueExecution(ctx, &pos, cvExecOrphanCloseLow, res, crossVenueBookMid(book))
 					_ = e.persistPosition(pos)
+					flattened = true
+				} else if err != nil && e.logger != nil {
+					e.logger.Printf("[跨所] %s 孤腿平低费腿失败: %v", pos.Symbol, err)
 				}
 			}
 		}
 	}
-	e.notifyCritical("跨所孤腿", fmt.Sprintf("%s 检测到孤腿,已平掉剩余腿", pos.Symbol), pos.Symbol)
+	if flattened {
+		e.notifyCritical("跨所孤腿", fmt.Sprintf("%s 检测到孤腿,已平掉剩余腿", pos.Symbol), pos.Symbol)
+	} else {
+		e.notifyCritical("跨所孤腿", fmt.Sprintf("%s 检测到孤腿,平掉剩余腿未成功", pos.Symbol), pos.Symbol)
+	}
 }
 
 func (e *CrossVenueExecutor) rebalanceHedge(ctx context.Context, pos CrossVenuePosition, highAmt, lowAmt float64, live bool) {
@@ -700,13 +726,13 @@ func (e *CrossVenueExecutor) shouldCloseCrossVenue(ctx context.Context, pos *Cro
 		maxHold = 72 * time.Hour
 	}
 	if now.Sub(pos.OpenedAt) > maxHold {
-		return fmt.Sprintf("持仓超过 %dh", cfg.MaxHoldHours)
+		return e.crossVenueFilterVoluntaryCloseReason(pos, fmt.Sprintf("持仓超过 %dh", cfg.MaxHoldHours))
 	}
 	if pos.FreshnessAgeSeconds > crossVenueMaxCompareAgeSeconds(cfg, e.cfg.CrossVenueScanner.MaxSnapshotAgeSeconds) {
 		return ""
 	}
 	if reason := crossVenuePreFundingAdverseCloseReason(cfg, pos, now); reason != "" {
-		return reason
+		return e.crossVenueFilterVoluntaryCloseReason(pos, reason)
 	}
 	if !crossVenueCompareAllowed(cfg, pos, now) {
 		return ""
@@ -719,10 +745,10 @@ func (e *CrossVenueExecutor) shouldCloseCrossVenue(ctx context.Context, pos *Cro
 			_ = e.persistPosition(*pos)
 			return ""
 		}
-		return fmt.Sprintf("未来净值<=0(%.4f)", pos.CurrentFutureEV)
+		return e.crossVenueFilterVoluntaryCloseReason(pos, fmt.Sprintf("未来净值<=0(%.4f)", pos.CurrentFutureEV))
 	}
 	if reason := e.crossVenueSwitchCloseReason(pos); reason != "" {
-		return reason
+		return e.crossVenueFilterVoluntaryCloseReason(pos, reason)
 	}
 
 	spread := e.currentSpreadAPR(ctx, pos)
@@ -769,7 +795,7 @@ func (e *CrossVenueExecutor) shouldCloseCrossVenue(ctx context.Context, pos *Cro
 				_ = e.persistPosition(*pos)
 				return ""
 			}
-			return fmt.Sprintf("价差年化 %.1f%% 连续 %d 轮低于 %.1f%%", spread*100, pos.CloseSpreadStreak, closeAPR*100)
+			return e.crossVenueFilterVoluntaryCloseReason(pos, fmt.Sprintf("价差年化 %.1f%% 连续 %d 轮低于 %.1f%%", spread*100, pos.CloseSpreadStreak, closeAPR*100))
 		}
 		_ = e.persistPosition(*pos)
 	} else {
@@ -834,6 +860,9 @@ func (e *CrossVenueExecutor) crossVenueSwitchCloseReason(pos *CrossVenuePosition
 		return ""
 	}
 	cfg := e.cfg.CrossVenueExecutor
+	if crossVenueFirstSettlementHoldBlocksVoluntaryClose(pos, cfg, now) {
+		return ""
+	}
 	if cfg.MinHoldHours > 0 && now.Sub(pos.OpenedAt).Hours() < cfg.MinHoldHours {
 		return ""
 	}

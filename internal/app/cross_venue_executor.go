@@ -479,6 +479,7 @@ func (e *CrossVenueExecutor) isHaltActive() bool {
 }
 
 func (e *CrossVenueExecutor) manageOpenPositions(ctx context.Context, live bool) {
+	refreshCrossVenueExecutorFundingCaptureProbability(&e.cfg.CrossVenueExecutor, e.recordDir)
 	active := activeCrossVenuePositions(e.snapshotPositions())
 	for i := range active {
 		_, _ = e.manageCrossVenuePosition(ctx, active[i], live)
@@ -486,6 +487,7 @@ func (e *CrossVenueExecutor) manageOpenPositions(ctx context.Context, live bool)
 }
 
 func (e *CrossVenueExecutor) evaluateNewOpens(ctx context.Context, live bool) {
+	refreshCrossVenueExecutorFundingCaptureProbability(&e.cfg.CrossVenueExecutor, e.recordDir)
 	cfg := e.cfg.CrossVenueExecutor
 	active := activeCrossVenuePositions(e.snapshotPositions())
 	now := e.nowFn()
@@ -692,7 +694,7 @@ func (e *CrossVenueExecutor) evaluateNewOpens(ctx context.Context, live bool) {
 		e.positions = upsertCrossVenuePosition(e.positions, pos)
 		e.mu.Unlock()
 		unified := UnifiedOpportunityFromCrossVenue(cfg, opp, nil, gateRes.NotionalUSDT, refPrice)
-		appendAttributionPredictionBestEffort(e.recordDir, predictionRecordFromOpportunity(unified, pos.OpenedAt))
+		appendAttributionPredictionBestEffort(e.recordDir, predictionRecordFromCrossVenuePosition(unified, pos, pos.OpenedAt))
 		active = append(active, pos)
 	}
 	if len(rejected) > 0 {
@@ -798,7 +800,7 @@ func (e *CrossVenueExecutor) enrichOpportunityFromSnapshot(opp CrossVenueOpportu
 }
 
 // bestTradeableSubsetPair 用扫描器费率索引对某 symbol 在可交易所子集内重算最优腿对。
-// 年化口径与扫描器完全一致:fundingAnnualizedAPR 折算 + bestPairSpread 两两取最大,不另抄算法。
+// 年化口径与扫描器完全一致:bestPairSpread 按可比窗口离散 funding EV 选对,不另抄算法。
 // 索引里该 symbol 覆盖不足两个可交易所时返回 not-ok(沿用现有降级语义)。
 func bestTradeableSubsetPair(sym string, byVenue map[string]map[string]CrossVenueFundingEntry) (CrossVenueOpportunity, bool) {
 	entries := make([]symbolVenueFunding, 0, len(crossVenueExecutorVenues))
@@ -824,7 +826,7 @@ func bestTradeableSubsetPair(sym string, byVenue map[string]map[string]CrossVenu
 	if len(entries) < 2 {
 		return CrossVenueOpportunity{}, false
 	}
-	return bestPairSpread(sym, entries)
+	return bestPairSpread(sym, entries, time.Now().UTC())
 }
 
 func upsertCrossVenuePosition(ps []CrossVenuePosition, p CrossVenuePosition) []CrossVenuePosition {
@@ -912,7 +914,7 @@ func (e *CrossVenueExecutor) allocatedUSDTForVenue(venueName string) float64 {
 	return e.cfg.AllocatedCapitalUSDT
 }
 
-func (e *CrossVenueExecutor) reconcileOnStart(ctx context.Context) {
+func (e *CrossVenueExecutor) reconcileOnStart(ctx context.Context, live bool) {
 	ps, err := e.store.load()
 	if err != nil {
 		e.logger.Printf("[跨所执行] reconcile 读台账失败: %v", err)
@@ -968,7 +970,7 @@ func (e *CrossVenueExecutor) reconcileOnStart(ctx context.Context) {
 	}
 	if len(untrackedBySymbol) > 0 {
 		action := crossVenueUntrackedExposureAction(e.cfg.CrossVenueExecutor)
-		if !e.handleUntrackedExposureOnStart(ctx, action, untrackedBySymbol) {
+		if !e.handleUntrackedExposureOnStart(ctx, action, untrackedBySymbol, live) {
 			_ = e.SetOpeningsEnabled(false)
 			e.notifyCritical("跨所冷启动接管", "检测到未登记真实持仓,已关闭跨所开仓直到人工确认", "")
 		}
@@ -991,7 +993,7 @@ func crossVenueUntrackedExposureAction(cfg CrossVenueExecutorConfig) string {
 	}
 }
 
-func (e *CrossVenueExecutor) handleUntrackedExposureOnStart(ctx context.Context, action string, bySymbol map[string][]crossVenueUntrackedLeg) bool {
+func (e *CrossVenueExecutor) handleUntrackedExposureOnStart(ctx context.Context, action string, bySymbol map[string][]crossVenueUntrackedLeg, live bool) bool {
 	if e == nil || len(bySymbol) == 0 {
 		return true
 	}
@@ -1014,7 +1016,7 @@ func (e *CrossVenueExecutor) handleUntrackedExposureOnStart(ctx context.Context,
 			e.recordCrossVenueTransition(pos, "", "import", "冷启动导入未登记真实持仓")
 			e.notifyWarn("跨所冷启动导入", symbol+" 已导入 SSOT，后续按在场仓管理", symbol)
 		case crossVenueRecoveryActionFlatten:
-			if !e.cfg.CrossVenueExecutor.LiveTradingEnabled {
+			if !live || !e.cfg.CrossVenueExecutor.LiveTradingEnabled {
 				allHandled = false
 				continue
 			}
@@ -1097,6 +1099,11 @@ func (e *CrossVenueExecutor) buildUntrackedImportedPosition(symbol string, legs 
 		pos.NotionalUSDT = math.Min(absQty(high.Qty), absQty(low.Qty)) * maxFloat64(highPrice, lowPrice)
 	}
 	e.refreshCurrentPositionMetrics(&pos)
+	if pos.TargetFirstFundingTime.IsZero() {
+		pos.TargetFirstFundingTime = rotationEarliestFundingAfterOpen(
+			pos.OpenedAt, pos.HighNextFundingTime, pos.LowNextFundingTime,
+		)
+	}
 	return pos, true
 }
 

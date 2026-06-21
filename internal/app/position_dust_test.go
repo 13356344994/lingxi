@@ -11,6 +11,15 @@ import (
 	"lingxi/internal/venue"
 )
 
+func TestApplyCarryDustResidualCost(t *testing.T) {
+	if got := applyCarryDustResidualCost(0.45); got != 0.45 {
+		t.Fatalf("dust cost = %v, want 0.45", got)
+	}
+	if got := applyCarryDustResidualCost(-1); got != 0 {
+		t.Fatalf("negative notional dust cost = %v, want 0", got)
+	}
+}
+
 func TestEffectiveDustThresholdUsesExchangeMinNotional(t *testing.T) {
 	cfg := CrossVenueExecutorConfig{DustCloseThresholdUSDT: 1.0}
 	if got := effectiveDustThresholdUSDT(cfg, 3.0); got != 3.0 {

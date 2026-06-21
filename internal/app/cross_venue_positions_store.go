@@ -81,6 +81,7 @@ type CrossVenuePosition struct {
 	LowIntervalHours              int                      `json:"low_interval_hours,omitempty"`
 	HighNextFundingTime           time.Time                `json:"high_next_funding_time,omitempty"`
 	LowNextFundingTime            time.Time                `json:"low_next_funding_time,omitempty"`
+	TargetFirstFundingTime        time.Time                `json:"target_first_funding_time,omitempty"`
 	CurrentComparableWindowHours  float64                  `json:"current_comparable_window_hours,omitempty"`
 	CurrentFutureEV               float64                  `json:"current_future_ev,omitempty"`
 	CurrentCapitalEfficiencyEV    float64                  `json:"current_capital_efficiency_ev,omitempty"`

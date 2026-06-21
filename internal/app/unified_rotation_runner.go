@@ -77,6 +77,7 @@ type RotationStatus struct {
 	Active               bool                    `json:"active"`
 	ConfigIntendedActive bool                    `json:"config_intended_active"`
 	PausedAgainstConfig  bool                    `json:"paused_against_config"`
+	ActiveAgainstConfig  bool                    `json:"active_against_config"`
 	IntervalSeconds      int                     `json:"interval_seconds"`
 	LastCycleAt          string                  `json:"last_cycle_at"`
 	LastSnapshotID       string                  `json:"last_snapshot_id"`
@@ -297,6 +298,15 @@ func (r *UnifiedRotationRunner) InitState(defaultActive bool) {
 		return
 	}
 	r.active.Store(st.Active)
+	if st.Active && !defaultActive {
+		msg := "rotation 配置意图为实盘关闭但 rotation_control.json active=true,runner 以持久化 active 运行"
+		r.statusMu.Lock()
+		r.status.LastError = msg
+		r.statusMu.Unlock()
+		if r.logger != nil {
+			r.logger.Printf("[统一轮动] WARNING: %s", msg)
+		}
+	}
 }
 
 // SetActive 运行时启停轮动执行(线程安全);active=true 即实盘下单,状态变更落盘 rotation_control.json。
@@ -319,6 +329,7 @@ func (r *UnifiedRotationRunner) Status() RotationStatus {
 	st.Active = r.active.Load()
 	st.ConfigIntendedActive = r.rotationConfigIntendedActive
 	st.PausedAgainstConfig = !st.Active && st.ConfigIntendedActive
+	st.ActiveAgainstConfig = st.Active && !st.ConfigIntendedActive
 	st.IntervalSeconds = int(r.tickerInterval().Seconds())
 	st.RealHeldManaged = r.countRealHeldPositions(context.Background())
 	return st
@@ -353,6 +364,17 @@ func (r *UnifiedRotationRunner) openLive() bool {
 		return false
 	}
 	if !r.controlPlane.RotationLiveEnabled() {
+		return false
+	}
+	return true
+}
+
+// openLiveForStrategy 按策略类型判定新开仓是否真钱;perp-perp 额外要求 perp_perp_live_enabled。
+func (r *UnifiedRotationRunner) openLiveForStrategy(strategyType string) bool {
+	if !r.openLive() {
+		return false
+	}
+	if strategyType == UnifiedStrategyPerpPerp && r.controlPlane != nil && !r.controlPlane.PerpPerpLiveEnabled() {
 		return false
 	}
 	return true
@@ -436,6 +458,7 @@ func (r *UnifiedRotationRunner) runCycle(ctx context.Context) {
 		r.maybeLogPaused()
 		return
 	}
+	r.maybeLogActiveAgainstConfig()
 	if r.controlPlane != nil && r.controlPlane.IsGlobalHaltActive() {
 		r.maybeLogControlPlaneHalt()
 		return
@@ -552,6 +575,31 @@ func (r *UnifiedRotationRunner) maybeLogPaused() {
 	}
 	r.logger.Printf("[统一轮动] 已暂停(active=false)")
 	r.lastPausedLogAt = now
+}
+
+func (r *UnifiedRotationRunner) maybeLogActiveAgainstConfig() {
+	if r == nil || r.rotationConfigIntendedActive || !r.active.Load() {
+		return
+	}
+	msg := "rotation 配置意图为实盘关闭但 runner active=true,交易以持久化 active 运行"
+	r.statusMu.Lock()
+	r.status.LastError = msg
+	r.statusMu.Unlock()
+	if r.logger == nil {
+		return
+	}
+	r.lastPausedCriticalMu.Lock()
+	defer r.lastPausedCriticalMu.Unlock()
+	now := time.Now()
+	if r.nowFn != nil {
+		now = r.nowFn()
+	}
+	interval := r.tickerInterval()
+	if !r.lastPausedCriticalAt.IsZero() && now.Sub(r.lastPausedCriticalAt) < interval {
+		return
+	}
+	r.logger.Printf("[统一轮动] WARNING: %s", msg)
+	r.lastPausedCriticalAt = now
 }
 
 func (r *UnifiedRotationRunner) maybeLogPausedAgainstConfig() {
@@ -704,6 +752,13 @@ func (r *UnifiedRotationRunner) fetchRotationAvailableUSDT(ctx context.Context) 
 	return deps.fetchAvailableUSDT(ctx, r.venues, crossVenueExecutorVenues)
 }
 
+func (r *UnifiedRotationRunner) refreshExecCfgFundingCaptureProbability() {
+	if r == nil {
+		return
+	}
+	refreshCrossVenueExecutorFundingCaptureProbability(&r.execCfg, r.recordDir)
+}
+
 func (r *UnifiedRotationRunner) buildPerpPerpCandidatesFromSnapshot(
 	snap CrossVenueScanSnapshot,
 	availableUSDTByVenue map[string]float64,
@@ -753,6 +808,7 @@ func (r *UnifiedRotationRunner) runPerpPerpDecisionFast(ctx context.Context) {
 		return
 	}
 
+	r.refreshExecCfgFundingCaptureProbability()
 	available := r.fetchRotationAvailableUSDT(ctx)
 	perpCandidates := r.buildPerpPerpCandidatesFromSnapshot(snap, available)
 	if len(perpCandidates) == 0 {
@@ -846,6 +902,7 @@ func (r *UnifiedRotationRunner) runOnce(ctx context.Context) error {
 	if snapshotID == "" {
 		return nil
 	}
+	r.refreshExecCfgFundingCaptureProbability()
 	if r.snapshotStale(snap.ScannedAt, cycleAt) {
 		age := crossVenueSnapshotAgeSeconds(snap.ScannedAt, cycleAt)
 		statusUpdate.LastError = fmt.Sprintf("scanner snapshot stale: age=%.0fs > max=%.0fs", age, rotationSnapshotMaxAge.Seconds())
@@ -869,6 +926,31 @@ func (r *UnifiedRotationRunner) runOnce(ctx context.Context) error {
 	rotationCfg := normalizeRotationConfig(r.rotationCfg)
 	if r.openCooldownStore != nil {
 		rotationCfg.OpenCooldownBlocked = r.openCooldownStore.blockedPredicate(r.nowFn)
+	}
+	if r.includePerpPerpCandidates && strings.TrimSpace(r.recordDir) != "" {
+		writeCycleID := snapshotID
+		if writeCycleID == "" {
+			writeCycleID = crossVenueDecisionCycleID(cycleAt)
+		}
+		perpPerpCandidates := make([]UnifiedOpportunity, 0)
+		for _, c := range candidates {
+			if c.StrategyType == UnifiedStrategyPerpPerp {
+				perpPerpCandidates = append(perpPerpCandidates, c)
+			}
+		}
+		if len(perpPerpCandidates) > 0 {
+			cvByKey := make(map[string]CrossVenueOpportunity, len(snap.Opportunities))
+			for _, o := range snap.Opportunities {
+				cvByKey[crossVenueUnifiedCandidateKey(o)] = o
+			}
+			enrich := &UnifiedCandidateLogEnricher{
+				AvailableUSDTByVenue: freeAvailable,
+				RotationCfg:          r.rotationCfg,
+				Now:                  cycleAt,
+				CrossVenueOppsByKey:  cvByKey,
+			}
+			AppendCrossVenuePerpPerpCandidates(r.recordDir, writeCycleID, r.execCfg, perpPerpCandidates, enrich)
+		}
 	}
 	diagnosticCandidates := candidates
 	rotationCandidates := filterRotationCandidatesWithoutStrategy(
@@ -1174,6 +1256,7 @@ func (r *UnifiedRotationRunner) defaultScanRotationCandidates(ctx context.Contex
 		writeCycleID = crossVenueDecisionCycleID(now)
 	}
 
+	r.refreshExecCfgFundingCaptureProbability()
 	fundingByVenue := unifiedMarketFundingByVenueFromSnapshot(snap.FundingByVenue)
 	fundingQualified := rotationScanFundingPerHourBySymbol(fundingByVenue)
 	preFilterSymbols := make([]string, 0, len(fundingQualified))
@@ -1230,6 +1313,8 @@ func (r *UnifiedRotationRunner) defaultScanRotationCandidates(ctx context.Contex
 		}
 	}
 
+	singleSpotPerpCfg := DefaultSingleVenueSpotPerpScannerConfig(r.execCfg)
+	singleSpotPerpCfg.FundingCaptureProbability = scannerFundingCaptureProbability(r.recordDir, UnifiedStrategySingleVenueSpotPerp, singleSpotPerpCfg.FundingCaptureProbability)
 	singleSpotPerp := ScanSingleVenueSpotPerpOpportunities(SingleVenueSpotPerpScanInput{
 		SnapshotID:                   snapshotID,
 		Now:                          now,
@@ -1238,9 +1323,11 @@ func (r *UnifiedRotationRunner) defaultScanRotationCandidates(ctx context.Contex
 		FundingByVenue:               fundingByVenue,
 		MarketsByVenue:               marketsByVenue,
 		AvailableUSDTByVenue:         scannerAvailableUSDT,
-		Config:                       DefaultSingleVenueSpotPerpScannerConfig(r.execCfg),
+		Config:                       singleSpotPerpCfg,
 		FundingRateVolPerHourByVenue: fundingVolByVenue,
 	})
+	crossSpotPerpCfg := DefaultCrossVenueSpotPerpScannerConfig(r.execCfg)
+	crossSpotPerpCfg.FundingCaptureProbability = scannerFundingCaptureProbability(r.recordDir, UnifiedStrategyCrossVenueSpotPerp, crossSpotPerpCfg.FundingCaptureProbability)
 	crossSpotPerp := ScanCrossVenueSpotPerpOpportunities(CrossVenueSpotPerpScanInput{
 		SnapshotID:                   snapshotID,
 		Now:                          now,
@@ -1248,9 +1335,11 @@ func (r *UnifiedRotationRunner) defaultScanRotationCandidates(ctx context.Contex
 		FundingByVenue:               fundingByVenue,
 		MarketsByVenue:               marketsByVenue,
 		AvailableUSDTByVenue:         scannerAvailableUSDT,
-		Config:                       DefaultCrossVenueSpotPerpScannerConfig(r.execCfg),
+		Config:                       crossSpotPerpCfg,
 		FundingRateVolPerHourByVenue: fundingVolByVenue,
 	})
+	singlePerpSpotCfg := DefaultSingleVenuePerpSpotScannerConfig(r.execCfg)
+	singlePerpSpotCfg.FundingCaptureProbability = scannerFundingCaptureProbability(r.recordDir, UnifiedStrategySingleVenuePerpSpot, singlePerpSpotCfg.FundingCaptureProbability)
 	singlePerpSpot := ScanSingleVenuePerpSpotOpportunities(SingleVenuePerpSpotScanInput{
 		SnapshotID:                        snapshotID,
 		Now:                               now,
@@ -1264,9 +1353,11 @@ func (r *UnifiedRotationRunner) defaultScanRotationCandidates(ctx context.Contex
 		BorrowKnownAvailable:              borrowKnown,
 		BorrowDefaultDailyRateWhenUnknown: borrowDefaultDaily,
 		BorrowDisabledVenues:              borrowDisabled,
-		Config:                            DefaultSingleVenuePerpSpotScannerConfig(r.execCfg),
+		Config:                            singlePerpSpotCfg,
 		FundingRateVolPerHourByVenue:      fundingVolByVenue,
 	})
+	crossPerpSpotCfg := DefaultCrossVenuePerpSpotScannerConfig(r.execCfg)
+	crossPerpSpotCfg.FundingCaptureProbability = scannerFundingCaptureProbability(r.recordDir, UnifiedStrategyCrossVenuePerpSpot, crossPerpSpotCfg.FundingCaptureProbability)
 	crossPerpSpot := ScanCrossVenuePerpSpotOpportunities(CrossVenuePerpSpotScanInput{
 		SnapshotID:                        snapshotID,
 		Now:                               now,
@@ -1279,7 +1370,7 @@ func (r *UnifiedRotationRunner) defaultScanRotationCandidates(ctx context.Contex
 		BorrowKnownAvailable:              borrowKnown,
 		BorrowDefaultDailyRateWhenUnknown: borrowDefaultDaily,
 		BorrowDisabledVenues:              borrowDisabled,
-		Config:                            DefaultCrossVenuePerpSpotScannerConfig(r.execCfg),
+		Config:                            crossPerpSpotCfg,
 		FundingRateVolPerHourByVenue:      fundingVolByVenue,
 	})
 
@@ -1298,9 +1389,6 @@ func (r *UnifiedRotationRunner) defaultScanRotationCandidates(ctx context.Contex
 		perpPerpCandidates := r.buildPerpPerpCandidatesFromSnapshot(snap, availableUSDTByVenue)
 		recordEarningLegDiag(r.recordDir, "carry_scan_perp_perp", snapshotID, writeCycleID, perpPerpCandidates)
 		candidates = append(candidates, perpPerpCandidates...)
-		if strings.TrimSpace(r.recordDir) != "" {
-			AppendCrossVenuePerpPerpCandidates(r.recordDir, writeCycleID, r.execCfg, perpPerpCandidates)
-		}
 	}
 
 	if strings.TrimSpace(r.recordDir) != "" {
@@ -1405,13 +1493,13 @@ func (r *UnifiedRotationRunner) dispatchRotationPlan(
 				}
 				continue
 			}
-			if !r.openLive() {
+			if !r.openLiveForStrategy(act.ReplaceStrategyType) {
 				if r.logger != nil {
 					r.logger.Printf("[统一轮动] SWITCH 开新跳过(控制面 halt/禁开) old=%s replace=%s", act.OpportunityID, act.ReplaceOpportunityID)
 				}
 				continue
 			}
-			if err := r.openOpportunity(ctx, act.ReplaceStrategyType, opp, true); err != nil {
+			if err := r.openOpportunity(ctx, act.ReplaceStrategyType, opp, r.openLiveForStrategy(act.ReplaceStrategyType)); err != nil {
 				r.recordRotationSwitchIncident(act, rotationSwitchFailedOpen, err.Error())
 				if r.logger != nil {
 					r.logger.Printf("[统一轮动] SWITCH 开新失败(旧仓已平) old=%s replace=%s symbol=%s: %v",
@@ -1425,15 +1513,19 @@ func (r *UnifiedRotationRunner) dispatchRotationPlan(
 				}
 				continue
 			}
-			if !r.openLive() {
+			if !r.openLiveForStrategy(act.StrategyType) {
 				if r.logger != nil {
 					r.logger.Printf("[统一轮动] OPEN 跳过(控制面 halt/禁开) %s", act.OpportunityID)
 				}
 				continue
 			}
 			if opp, ok := candidatesByID[act.OpportunityID]; ok {
-				if err := r.openOpportunity(ctx, act.StrategyType, opp, true); err != nil && r.logger != nil {
-					r.logger.Printf("[统一轮动] OPEN 失败(已吞掉) %s: %v", act.OpportunityID, err)
+				if err := r.openOpportunity(ctx, act.StrategyType, opp, r.openLiveForStrategy(act.StrategyType)); err != nil && r.logger != nil {
+					if rotationOpenFailureIsBenignTiming(err) {
+						r.logger.Printf("[统一轮动] OPEN WAIT(进场窗未到) %s: %v", act.OpportunityID, err)
+					} else {
+						r.logger.Printf("[统一轮动] OPEN 失败(已吞掉) %s: %v", act.OpportunityID, err)
+					}
 				}
 			}
 		}
@@ -1496,7 +1588,10 @@ func (r *UnifiedRotationRunner) openOpportunity(ctx context.Context, strategyTyp
 		}
 		return err
 	}
-	appendAttributionPredictionBestEffort(r.recordDir, predictionRecordFromOpportunity(opp, time.Now().UTC()))
+	// perp-perp 在 executeOpen 内按 position_key 写 prediction,避免同 snapshot 重复开仓 opportunity_id 碰撞。
+	if strategyType != UnifiedStrategyPerpPerp {
+		appendAttributionPredictionBestEffort(r.recordDir, predictionRecordFromOpportunity(opp, time.Now().UTC()))
+	}
 	return nil
 }
 
@@ -1745,6 +1840,9 @@ func collectCrossVenueHeldRecords(ps []CrossVenuePosition, execCfg CrossVenueExe
 				CapitalRequiredByVenue: capital,
 				OpenedAt:               p.OpenedAt,
 				NextFundingTime:        minTime(p.HighNextFundingTime, p.LowNextFundingTime),
+				TargetFirstFundingTime: rotationEffectiveTargetFirstFundingTime(
+					p.OpenedAt, p.TargetFirstFundingTime, p.HighNextFundingTime, p.LowNextFundingTime,
+				),
 			},
 			ContinuationInputs: rotationContinuationFromPosition(windowFunding, notional, execCfg, false, rotationContinuationOpts{}),
 			delistLegs: []rotationDelistLeg{
@@ -1813,6 +1911,7 @@ func collectSingleVenueSpotPerpHeldRecords(ps []SingleVenueSpotPerpPosition, exe
 				CapitalRequiredByVenue: capital,
 				OpenedAt:               p.OpenedAt,
 				NextFundingTime:        p.NextFundingTime,
+				TargetFirstFundingTime: rotationEarliestFundingAfterOpen(p.OpenedAt, p.NextFundingTime),
 			},
 			ContinuationInputs: rotationContinuationFromPosition(windowFunding, p.NotionalUSDT, execCfg, false, rotationContinuationOpts{baseAsset: baseAssetFromCanonicalSymbol(p.Symbol)}),
 			delistLegs: []rotationDelistLeg{
@@ -1845,6 +1944,7 @@ func collectCrossVenueSpotPerpHeldRecords(ps []CrossVenueSpotPerpPosition, execC
 				CapitalRequiredByVenue: capital,
 				OpenedAt:               p.OpenedAt,
 				NextFundingTime:        p.PerpNextFundingTime,
+				TargetFirstFundingTime: rotationEarliestFundingAfterOpen(p.OpenedAt, p.PerpNextFundingTime),
 			},
 			ContinuationInputs: rotationContinuationFromPosition(windowFunding, p.NotionalUSDT, execCfg, false, rotationContinuationOpts{baseAsset: baseAssetFromCanonicalSymbol(p.Symbol)}),
 			delistLegs: []rotationDelistLeg{
@@ -1877,6 +1977,7 @@ func collectSingleVenuePerpSpotHeldRecords(ps []SingleVenuePerpSpotPosition, exe
 				CapitalRequiredByVenue: capital,
 				OpenedAt:               p.OpenedAt,
 				NextFundingTime:        p.NextFundingTime,
+				TargetFirstFundingTime: rotationEarliestFundingAfterOpen(p.OpenedAt, p.NextFundingTime),
 			},
 			ContinuationInputs: rotationContinuationFromPosition(windowFunding, p.NotionalUSDT, execCfg, true, rotationContinuationOpts{baseAsset: baseAssetFromCanonicalSymbol(p.Symbol)}),
 			delistLegs: []rotationDelistLeg{
@@ -1909,6 +2010,7 @@ func collectCrossVenuePerpSpotHeldRecords(ps []CrossVenuePerpSpotPosition, execC
 				CapitalRequiredByVenue: capital,
 				OpenedAt:               p.OpenedAt,
 				NextFundingTime:        p.PerpNextFundingTime,
+				TargetFirstFundingTime: rotationEarliestFundingAfterOpen(p.OpenedAt, p.PerpNextFundingTime),
 			},
 			ContinuationInputs: rotationContinuationFromPosition(windowFunding, p.NotionalUSDT, execCfg, true, rotationContinuationOpts{baseAsset: baseAssetFromCanonicalSymbol(p.Symbol)}),
 			delistLegs: []rotationDelistLeg{

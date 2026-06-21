@@ -32,8 +32,7 @@ func (e *CrossVenueExecutor) ReconcileOnStart(ctx context.Context, live bool) {
 	if e == nil {
 		return
 	}
-	_ = live
-	e.reconcileOnStart(ctx)
+	e.reconcileOnStart(ctx, live)
 }
 
 // ManageOpenPositions 管理在场持仓(薄包装,供统一 runner manageFn 调用)。
@@ -183,6 +182,22 @@ func (e *CrossVenueExecutor) executeOpen(ctx context.Context, opp UnifiedOpportu
 		cvOpp.TradableNotional = decisionNotional
 	}
 
+	gateInput := crossVenueGateInput{
+		Opp:           cvOpp,
+		Positions:     e.snapshotPositions(),
+		BybitHeld:     func(sym venue.Symbol) bool { return isBybitSymbolHeld(e.cfg.NetworkConfig.RecordDir, sym) },
+		BinanceHeld:   func(sym venue.Symbol) bool { return isBinanceSymbolHeld(e.cfg.NetworkConfig.RecordDir, sym) },
+		FundingHeld:   func(sym venue.Symbol) bool { return isFundingSymbolHeldAnyVenue(e.cfg.NetworkConfig.RecordDir, sym) },
+		HaltActive:    e.isHaltActive(),
+		SymbolCooling: e.isSymbolCooling,
+		Now:           now,
+	}
+	// 无副作用开仓闸须先于账户侧效应(保证金划转/bybit 协议签署),避免"进场窗未到"等时序拒绝仍触 API。
+	gateRes := evaluateCrossVenueOpenGate(ctx, cfg, deps, e.venues, gateInput)
+	if !gateRes.OK && gateRes.Reason == carryScannerRejectFundingWindowNotReached {
+		return CrossVenuePosition{}, fmt.Errorf("开仓闸: %s", gateRes.Reason)
+	}
+
 	// 开仓前确保两腿期货钱包保证金充足。rotation 模式下统一 runner 的资金路由对 perp-perp 并不会把
 	// 分仓所(binance)现货/全仓的钱搬进期货钱包,导致第二腿 -2019 保证金不足;故这里始终做幂等补足:
 	//   - 所需按本单真实名义/杠杆计(crossVenuePerVenueMarginUSDT),留 5% 余量对齐执行闸;
@@ -197,16 +212,9 @@ func (e *CrossVenueExecutor) executeOpen(ctx context.Context, opp UnifiedOpportu
 		ensureBybitTradingAgreement(ctx, e.logger, e.venues[bybit.VenueName])
 	}
 
-	gateRes := evaluateCrossVenueOpenGate(ctx, cfg, deps, e.venues, crossVenueGateInput{
-		Opp:           cvOpp,
-		Positions:     e.snapshotPositions(),
-		BybitHeld:     func(sym venue.Symbol) bool { return isBybitSymbolHeld(e.cfg.NetworkConfig.RecordDir, sym) },
-		BinanceHeld:   func(sym venue.Symbol) bool { return isBinanceSymbolHeld(e.cfg.NetworkConfig.RecordDir, sym) },
-		FundingHeld:   func(sym venue.Symbol) bool { return isFundingSymbolHeldAnyVenue(e.cfg.NetworkConfig.RecordDir, sym) },
-		HaltActive:    e.isHaltActive(),
-		SymbolCooling: e.isSymbolCooling,
-		Now:           now,
-	})
+	if !gateRes.OK {
+		gateRes = evaluateCrossVenueOpenGate(ctx, cfg, deps, e.venues, gateInput)
+	}
 	if !gateRes.OK {
 		return CrossVenuePosition{}, fmt.Errorf("开仓闸: %s", gateRes.Reason)
 	}
@@ -243,6 +251,7 @@ func (e *CrossVenueExecutor) executeOpen(ctx context.Context, opp UnifiedOpportu
 	if pos.Symbol != "" {
 		pos.OpportunityID = opp.ID
 		_ = e.persistPosition(pos)
+		appendAttributionPredictionBestEffort(e.recordDir, predictionRecordFromCrossVenuePosition(opp, pos, pos.OpenedAt))
 	}
 	return pos, nil
 }

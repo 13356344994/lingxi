@@ -534,3 +534,111 @@ func TestRotationPositionsAPIIncludesPerpPerp(t *testing.T) {
 		t.Fatalf("venues=%v spot_type=%q perp_type=%q", pos.Venues, pos.SpotLeg.MarketType, pos.PerpLeg.MarketType)
 	}
 }
+
+func TestRotationSettlementsAPIIncludesPerpPerp(t *testing.T) {
+	cfg := testCrossVenueExecutorConfig()
+	cfg.NetworkConfig.RecordDir = t.TempDir()
+	cvExec := &CrossVenueExecutor{
+		cfg:       cfg,
+		store:     mustCrossVenueStore(t, cfg.NetworkConfig.RecordDir),
+		recordDir: cfg.NetworkConfig.RecordDir,
+		nowFn:     func() time.Time { return time.Date(2026, 6, 21, 8, 30, 0, 0, time.UTC) },
+	}
+	path := cvExec.settlementsLedgerPath()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeSettlementLine(t, path, CrossVenueSettlement{
+		SettlementID:       "cv-AMAT",
+		PositionKey:        "AMAT-USDT|cv-AMAT",
+		OpportunityID:      "perp_perp:AMAT-USDT:bybit+binance:cvsnap-test",
+		Symbol:             "AMAT-USDT",
+		HighVenue:          bybit.VenueName,
+		LowVenue:           binance.VenueName,
+		OpenTime:           time.Date(2026, 6, 21, 7, 57, 48, 0, time.UTC),
+		CloseTime:          time.Date(2026, 6, 21, 8, 18, 53, 0, time.UTC),
+		NotionalUSDT:       88.75,
+		RealizedFunding:    0.584531,
+		NetPnL:             -0.160703,
+		CloseReason:        "未来净值<=0(-0.0781)",
+		FundingTruthStatus: "partial",
+		HighLegFunding:     0.584531,
+		EstimatedFunding:   0.585981,
+		OpenFees:           0.024308,
+		CloseFees:          0.024525,
+		TotalFees:          0.048833,
+	})
+	s := &DashboardServer{crossVenueExecutor: cvExec}
+	req := httptest.NewRequest(http.MethodGet, "/api/rotation/settlements?limit=10", nil)
+	rec := httptest.NewRecorder()
+	s.handleRotationSettlementsAPI(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	var resp RotationSettlementsAPIResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if resp.Count != 1 || len(resp.Settlements) != 1 {
+		t.Fatalf("count=%d settlements=%d body=%s", resp.Count, len(resp.Settlements), rec.Body.String())
+	}
+	got := resp.Settlements[0]
+	if got.StrategyType != UnifiedStrategyPerpPerp || got.Symbol != "AMAT-USDT" {
+		t.Fatalf("settlement=%+v", got)
+	}
+	if got.PositionKey != "AMAT-USDT|cv-AMAT" || got.NetPnL != -0.160703 {
+		t.Fatalf("unexpected settlement fields: %+v", got)
+	}
+}
+
+func TestRotationSettlementsAPILimitsAfterGlobalCloseTimeSort(t *testing.T) {
+	dir := t.TempDir()
+	oldTime := time.Date(2026, 6, 19, 6, 0, 0, 0, time.UTC)
+	newTime := time.Date(2026, 6, 21, 8, 18, 53, 0, time.UTC)
+
+	cvspPath := filepath.Join(crossVenueSpotPerpRecordDir(dir), crossVenueSpotPerpSettlementsFile)
+	if err := os.MkdirAll(filepath.Dir(cvspPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeSettlementLine(t, cvspPath, CrossVenueSpotPerpSettlement{
+		SettlementID: "old-cvsp", Symbol: "BEL-USDT", SpotVenue: binance.VenueName, PerpVenue: "gate",
+		OpenTime: oldTime.Add(-time.Minute), CloseTime: oldTime, NetPnL: -0.01,
+	})
+
+	cfg := testCrossVenueExecutorConfig()
+	cfg.NetworkConfig.RecordDir = dir
+	cvExec := &CrossVenueExecutor{
+		cfg:       cfg,
+		store:     mustCrossVenueStore(t, dir),
+		recordDir: dir,
+		nowFn:     func() time.Time { return newTime.Add(time.Minute) },
+	}
+	perpPath := cvExec.settlementsLedgerPath()
+	if err := os.MkdirAll(filepath.Dir(perpPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeSettlementLine(t, perpPath, CrossVenueSettlement{
+		SettlementID: "new-perp", PositionKey: "AMAT-USDT|new-perp",
+		Symbol: "AMAT-USDT", HighVenue: bybit.VenueName, LowVenue: binance.VenueName,
+		OpenTime: newTime.Add(-20 * time.Minute), CloseTime: newTime, NetPnL: -0.160703,
+		FundingTruthStatus: "partial",
+	})
+
+	s := &DashboardServer{store: mustTestReportStore(t, dir), crossVenueExecutor: cvExec}
+	req := httptest.NewRequest(http.MethodGet, "/api/rotation/settlements?limit=1", nil)
+	rec := httptest.NewRecorder()
+	s.handleRotationSettlementsAPI(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	var resp RotationSettlementsAPIResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if resp.Count != 1 || len(resp.Settlements) != 1 {
+		t.Fatalf("count=%d settlements=%d body=%s", resp.Count, len(resp.Settlements), rec.Body.String())
+	}
+	if got := resp.Settlements[0].Symbol; got != "AMAT-USDT" {
+		t.Fatalf("latest settlement symbol=%s, want AMAT-USDT; body=%s", got, rec.Body.String())
+	}
+}

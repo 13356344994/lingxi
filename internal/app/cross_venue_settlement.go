@@ -47,6 +47,7 @@ type CrossVenueSettlement struct {
 	PositionKey             string    `json:"position_key,omitempty"`
 	EntryDecisionCycleID    string    `json:"entry_decision_cycle_id,omitempty"`
 	EntrySnapshotID         string    `json:"entry_snapshot_id,omitempty"`
+	OpportunityID           string    `json:"opportunity_id,omitempty"`
 	EntryOpenMode           string    `json:"entry_open_mode,omitempty"`
 	UsedFallback            bool      `json:"used_fallback,omitempty"`
 	CurrentSnapshotID       string    `json:"current_snapshot_id,omitempty"`
@@ -131,6 +132,7 @@ func buildCrossVenueSettlement(pos CrossVenuePosition, closeTime time.Time) Cros
 	return CrossVenueSettlement{
 		SettlementID:            crossVenueSettlementID(pos),
 		PositionKey:             crossVenuePositionKey(pos),
+		OpportunityID:           crossVenuePositionOpportunityID(pos),
 		EntryDecisionCycleID:    pos.EntryDecisionCycleID,
 		EntrySnapshotID:         pos.EntrySnapshotID,
 		EntryOpenMode:           pos.EntryOpenMode,

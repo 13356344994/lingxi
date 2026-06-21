@@ -1169,6 +1169,7 @@ func (e *SingleVenuePerpSpotExecutor) handleOrphanLeg(
 		dustQty := negativeCarryDustResidualQty(spotOpen, perpOpen, spotShort, perpLong)
 		appendCarryDustLedgerBestEffort(e.recordDir, "svps_dust_orphan", pos.Symbol, baseAssetFromCanonicalSymbol(pos.Symbol), dustQty, decision.RemainingNotionalUSDT, "dust_orphan")
 		pos.Status = SVPSStatusClosed
+		pos.DustResidualCostUSDT = applyCarryDustResidualCost(decision.RemainingNotionalUSDT)
 		pos.CloseReason = appendDustCloseReason(nonEmpty(pos.CloseReason, "dust_orphan"), decision.RemainingNotionalUSDT)
 		pos.UpdatedAt = e.nowFn()
 		logDustOrphanClosed(e.logger, "同所perp-spot", pos.Symbol, decision.RemainingNotionalUSDT)
@@ -1421,6 +1422,7 @@ func (e *SingleVenuePerpSpotExecutor) closePosition(ctx context.Context, pos Sin
 		appendCarryDustLedgerBestEffort(e.recordDir, "svps_dust_close", pos.Symbol, baseAssetFromCanonicalSymbol(pos.Symbol), dustQty, dust.RemainingNotionalUSDT, nonEmpty(reason, "dust_close"))
 		e.syncRealizedFunding(ctx, &pos)
 		pos.Status = SVPSStatusClosed
+		pos.DustResidualCostUSDT = applyCarryDustResidualCost(dust.RemainingNotionalUSDT)
 		pos.CloseReason = appendDustCloseReason(nonEmpty(pos.CloseReason, reason), dust.RemainingNotionalUSDT)
 		pos.UpdatedAt = e.nowFn()
 		logDustOrphanClosed(e.logger, "同所perp-spot", pos.Symbol, dust.RemainingNotionalUSDT)
@@ -1450,25 +1452,28 @@ func buildSVPSSettlement(pos SingleVenuePerpSpotPosition, closeTime time.Time) S
 	if pos.PerpLeg.ClosedQty > executionQtyTolerance && pos.PerpLeg.ExitPrice > 0 {
 		tradePnL += (pos.PerpLeg.ExitPrice - pos.PerpLeg.EntryPrice) * pos.PerpLeg.ClosedQty
 	}
-	netPnL := money.SumUSDT(pos.RealizedFundingUSDT, tradePnL, -totalFees, -attr.RollbackCostUSDT, -attr.BorrowCostUSDT)
+	netPnL := money.SumUSDT(pos.RealizedFundingUSDT, tradePnL, -totalFees, -attr.RollbackCostUSDT, -attr.BorrowCostUSDT, -pos.DustResidualCostUSDT)
 	return SingleVenuePerpSpotSettlement{
-		SettlementID:    nonEmpty(pos.IdemPrefix, svpsPositionKey(pos)),
-		PositionKey:     svpsPositionKey(pos),
-		OpportunityID:   pos.OpportunityID,
-		OpenTime:        pos.OpenedAt,
-		CloseTime:       closeTime,
-		Symbol:          pos.Symbol,
-		Venue:           pos.Venue,
-		NotionalUSDT:    pos.NotionalUSDT,
-		RealizedFunding: pos.RealizedFundingUSDT,
-		TradePnL:        tradePnL,
-		BorrowCost:      attr.BorrowCostUSDT,
-		OpenFees:        attr.OpenFeesUSDT,
-		CloseFees:       attr.CloseFeesUSDT,
-		RollbackCost:    attr.RollbackCostUSDT,
-		TotalFees:       totalFees,
-		NetPnL:          netPnL,
-		CloseReason:     pos.CloseReason,
+		SettlementID:         nonEmpty(pos.IdemPrefix, svpsPositionKey(pos)),
+		PositionKey:          svpsPositionKey(pos),
+		OpportunityID:        pos.OpportunityID,
+		OpenTime:             pos.OpenedAt,
+		CloseTime:            closeTime,
+		Symbol:               pos.Symbol,
+		Venue:                pos.Venue,
+		NotionalUSDT:         pos.NotionalUSDT,
+		ExpectedFundingUSDT:  pos.EstFundingUSDT,
+		FundingIntervalHours: pos.FundingIntervalHours,
+		RealizedFunding:      pos.RealizedFundingUSDT,
+		TradePnL:             tradePnL,
+		BorrowCost:           attr.BorrowCostUSDT,
+		OpenFees:             attr.OpenFeesUSDT,
+		CloseFees:            attr.CloseFeesUSDT,
+		RollbackCost:         attr.RollbackCostUSDT,
+		DustResidualCost:     pos.DustResidualCostUSDT,
+		TotalFees:            totalFees,
+		NetPnL:               netPnL,
+		CloseReason:          pos.CloseReason,
 	}
 }
 

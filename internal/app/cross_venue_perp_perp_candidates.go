@@ -12,7 +12,7 @@ import (
 const perpPerpCandidateLogTopN = 60
 
 // AppendCrossVenuePerpPerpCandidates best-effort 写入 records/opportunities/unified_candidates.jsonl(plan-only)。
-func AppendCrossVenuePerpPerpCandidates(recordDir, cycleID string, execCfg CrossVenueExecutorConfig, opps []UnifiedOpportunity) {
+func AppendCrossVenuePerpPerpCandidates(recordDir, cycleID string, execCfg CrossVenueExecutorConfig, opps []UnifiedOpportunity, enrich *UnifiedCandidateLogEnricher) {
 	if strings.TrimSpace(cycleID) == "" || len(opps) == 0 {
 		return
 	}
@@ -38,7 +38,7 @@ func AppendCrossVenuePerpPerpCandidates(recordDir, cycleID string, execCfg Cross
 			continue
 		}
 		notional := rotationMaxLegNotional(opp)
-		rec := unifiedCandidateLogFromOpportunity(execCfg, cycleID, opp, len(opp.RejectReasons) == 0, notional)
+		rec := unifiedCandidateLogFromOpportunityWithRotation(execCfg, cycleID, opp, len(opp.RejectReasons) == 0, notional, DefaultRotationConfig(), enrichPerpPerpCandidateEnricher(opp, enrich))
 		_ = appendJSONLRecord(path, rec)
 	}
 }
@@ -49,4 +49,20 @@ func crossVenuePerpPerpCandidateAlwaysLog(opp UnifiedOpportunity) bool {
 		return true
 	}
 	return crossVenuePerpPerpDiagWatched(opp.Symbol)
+}
+
+func enrichPerpPerpCandidateEnricher(opp UnifiedOpportunity, base *UnifiedCandidateLogEnricher) *UnifiedCandidateLogEnricher {
+	if base == nil {
+		return nil
+	}
+	out := *base
+	if out.CrossVenueOpp == nil && out.CrossVenueOppsByKey != nil {
+		if key, ok := crossVenueOppKeyFromUnified(opp); ok {
+			if cv, found := out.CrossVenueOppsByKey[key]; found {
+				cvCopy := cv
+				out.CrossVenueOpp = &cvCopy
+			}
+		}
+	}
+	return &out
 }

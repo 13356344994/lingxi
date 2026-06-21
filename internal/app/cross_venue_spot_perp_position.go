@@ -9,6 +9,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"lingxi/internal/money"
 )
 
 // cross_venue_spot_perp_position.go 跨所 spot-perp 持仓台账与结算落盘(records/cross_venue_spot_perp/)。
@@ -72,27 +74,32 @@ type CrossVenueSpotPerpPosition struct {
 	OpenFeesUSDT         float64                          `json:"open_fees_usdt,omitempty"`
 	CloseFeesUSDT        float64                          `json:"close_fees_usdt,omitempty"`
 	RollbackCostUSDT     float64                          `json:"rollback_cost_usdt,omitempty"`
+	DustResidualCostUSDT float64                          `json:"dust_residual_cost_usdt,omitempty"`
 }
 
 // CrossVenueSpotPerpSettlement 是单仓平仓结算记录。
 type CrossVenueSpotPerpSettlement struct {
-	SettlementID    string    `json:"settlement_id,omitempty"`
-	PositionKey     string    `json:"position_key,omitempty"`
-	OpportunityID   string    `json:"opportunity_id,omitempty"`
-	OpenTime        time.Time `json:"open_time"`
-	CloseTime       time.Time `json:"close_time"`
-	Symbol          string    `json:"symbol"`
-	SpotVenue       string    `json:"spot_venue"`
-	PerpVenue       string    `json:"perp_venue"`
-	NotionalUSDT    float64   `json:"notional_usdt"`
-	PerpLegFunding  float64   `json:"perp_leg_funding"`
-	RealizedFunding float64   `json:"realized_funding"`
-	OpenFees        float64   `json:"open_fees"`
-	CloseFees       float64   `json:"close_fees"`
-	RollbackCost    float64   `json:"rollback_cost"`
-	TotalFees       float64   `json:"total_fees"`
-	NetPnL          float64   `json:"net_pnl"`
-	CloseReason     string    `json:"close_reason,omitempty"`
+	SettlementID        string    `json:"settlement_id,omitempty"`
+	PositionKey         string    `json:"position_key,omitempty"`
+	OpportunityID       string    `json:"opportunity_id,omitempty"`
+	OpenTime            time.Time `json:"open_time"`
+	CloseTime           time.Time `json:"close_time"`
+	Symbol              string    `json:"symbol"`
+	SpotVenue           string    `json:"spot_venue"`
+	PerpVenue           string    `json:"perp_venue"`
+	NotionalUSDT        float64   `json:"notional_usdt"`
+	ExpectedFundingUSDT float64   `json:"expected_funding_usdt,omitempty"`
+	PerpIntervalHours   int       `json:"perp_interval_hours,omitempty"`
+	PerpLegFunding      float64   `json:"perp_leg_funding"`
+	RealizedFunding     float64   `json:"realized_funding"`
+	OpenFees            float64   `json:"open_fees"`
+	CloseFees           float64   `json:"close_fees"`
+	RollbackCost        float64   `json:"rollback_cost"`
+	DustResidualCost    float64   `json:"dust_residual_cost,omitempty"`
+	TradePnL            float64   `json:"trade_pnl"`
+	TotalFees           float64   `json:"total_fees"`
+	NetPnL              float64   `json:"net_pnl"`
+	CloseReason         string    `json:"close_reason,omitempty"`
 }
 
 type crossVenueSpotPerpPositionsEnvelope struct {
@@ -331,29 +338,46 @@ func cvspHasTrackedLeg(ps []CrossVenueSpotPerpPosition, venueName, symbol string
 	return false
 }
 
+func computeCrossVenueSpotPerpTradePnL(pos CrossVenueSpotPerpPosition) float64 {
+	var total float64
+	if pos.SpotLeg.ClosedQty > executionQtyTolerance && pos.SpotLeg.ExitPrice > 0 {
+		total += (pos.SpotLeg.ExitPrice - pos.SpotLeg.EntryPrice) * pos.SpotLeg.ClosedQty
+	}
+	if pos.PerpLeg.ClosedQty > executionQtyTolerance && pos.PerpLeg.ExitPrice > 0 {
+		total += (pos.PerpLeg.EntryPrice - pos.PerpLeg.ExitPrice) * pos.PerpLeg.ClosedQty
+	}
+	return total
+}
+
 func buildCrossVenueSpotPerpSettlement(pos CrossVenueSpotPerpPosition, closeTime time.Time) CrossVenueSpotPerpSettlement {
 	openFees := pos.OpenFeesUSDT
 	closeFees := pos.CloseFeesUSDT
-	totalFees := openFees + closeFees
+	totalFees := money.SumUSDT(openFees, closeFees)
 	realizedFunding := pos.PerpLegFundingUSDT
-	netPnL := realizedFunding - totalFees - pos.RollbackCostUSDT
+	tradePnL := computeCrossVenueSpotPerpTradePnL(pos)
+	// net_pnl 口径对齐 cross_venue_settlement.go / cost_accounting.go:滑点已隐含在 trade_pnl,不得再扣。
+	netPnL := money.SumUSDT(realizedFunding, tradePnL, -totalFees, -pos.RollbackCostUSDT, -pos.DustResidualCostUSDT)
 	return CrossVenueSpotPerpSettlement{
-		SettlementID:    fmt.Sprintf("cvsp-%s-%d", pos.Symbol, closeTime.UTC().UnixNano()),
-		PositionKey:     cvspPositionKey(pos),
-		OpportunityID:   pos.OpportunityID,
-		OpenTime:        pos.OpenedAt,
-		CloseTime:       closeTime,
-		Symbol:          pos.Symbol,
-		SpotVenue:       pos.SpotVenue,
-		PerpVenue:       pos.PerpVenue,
-		NotionalUSDT:    pos.NotionalUSDT,
-		PerpLegFunding:  pos.PerpLegFundingUSDT,
-		RealizedFunding: realizedFunding,
-		OpenFees:        openFees,
-		CloseFees:       closeFees,
-		RollbackCost:    pos.RollbackCostUSDT,
-		TotalFees:       totalFees,
-		NetPnL:          netPnL,
-		CloseReason:     pos.CloseReason,
+		SettlementID:        fmt.Sprintf("cvsp-%s-%d", pos.Symbol, closeTime.UTC().UnixNano()),
+		PositionKey:         cvspPositionKey(pos),
+		OpportunityID:       pos.OpportunityID,
+		OpenTime:            pos.OpenedAt,
+		CloseTime:           closeTime,
+		Symbol:              pos.Symbol,
+		SpotVenue:           pos.SpotVenue,
+		PerpVenue:           pos.PerpVenue,
+		NotionalUSDT:        pos.NotionalUSDT,
+		ExpectedFundingUSDT: pos.ExpectedFundingUSDT,
+		PerpIntervalHours:   pos.PerpIntervalHours,
+		PerpLegFunding:      pos.PerpLegFundingUSDT,
+		RealizedFunding:     realizedFunding,
+		OpenFees:            openFees,
+		CloseFees:           closeFees,
+		RollbackCost:        pos.RollbackCostUSDT,
+		DustResidualCost:    pos.DustResidualCostUSDT,
+		TradePnL:            tradePnL,
+		TotalFees:           totalFees,
+		NetPnL:              netPnL,
+		CloseReason:         pos.CloseReason,
 	}
 }

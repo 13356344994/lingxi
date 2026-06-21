@@ -35,6 +35,9 @@ func TestLoadProductionConfigYAML(t *testing.T) {
 	}
 
 	// unified_rotation 全局预算
+	if !cfg.UnifiedRotation.LiveTradingEnabled {
+		t.Fatal("unified_rotation.live_trading_enabled = false want true(生产配置应与 rotation_control active=true 意图一致)")
+	}
 	if math.Abs(cfg.UnifiedRotation.TotalDeployableUSDT-435) > 1e-9 {
 		t.Fatalf("unified_rotation.total_deployable_usdt = %.2f want 435", cfg.UnifiedRotation.TotalDeployableUSDT)
 	}

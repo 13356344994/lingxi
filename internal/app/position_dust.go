@@ -15,10 +15,10 @@ import (
 )
 
 const (
-	recentFlattenTTL           = 30 * time.Minute
-	recentFlattenJSONLName     = "recent_flatten.jsonl"
-	unresolvedOrphanReason     = "unresolved_orphan"
-	flattenSubmitFailedReason  = "flatten_submit_failed"
+	recentFlattenTTL          = 30 * time.Minute
+	recentFlattenJSONLName    = "recent_flatten.jsonl"
+	unresolvedOrphanReason    = "unresolved_orphan"
+	flattenSubmitFailedReason = "flatten_submit_failed"
 )
 
 const defaultDustCloseThresholdUSDT = 1.0
@@ -283,6 +283,16 @@ func appendDustCloseReason(base string, notional float64) string {
 		return suffix
 	}
 	return base + ";" + suffix
+}
+
+// carryDustResidualCostUSDT 把 dust 孤腿残余名义保守记为已实现成本(写入 settlement net_pnl)。
+func carryDustResidualCostUSDT(notionalUSDT float64) float64 {
+	return maxFloat(notionalUSDT, 0)
+}
+
+// applyCarryDustResidualCost 在 dust 平仓收尾前把残余名义写入持仓,供 settlement 扣减。
+func applyCarryDustResidualCost(notionalUSDT float64) float64 {
+	return carryDustResidualCostUSDT(notionalUSDT)
 }
 
 type carryUntrackedLeg struct {

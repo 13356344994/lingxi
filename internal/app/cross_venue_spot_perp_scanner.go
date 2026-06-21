@@ -305,7 +305,13 @@ func carryScannerNormalizedFundingCaptureProbability(p float64) float64 {
 	if p <= 0 {
 		return carryScannerDefaultFundingCaptureProbability
 	}
-	return clamp01(p)
+	if p < carryScannerMinFundingCaptureProbability {
+		return carryScannerMinFundingCaptureProbability
+	}
+	if p > 1 {
+		return 1
+	}
+	return p
 }
 
 func carryScannerExpectedFundingUSDT(notional, effectiveRate float64, settlements int, captureProb float64) float64 {
