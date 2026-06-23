@@ -241,6 +241,11 @@ func (a *Adapter) fetchFundingRate(ctx context.Context, instID string, px ticker
 	}
 	it := rows[0]
 	canonical, _ := a.ToCanonical(instID, venue.MarketPerp)
+	// OKX 语义:fundingTime = 当前 fundingRate 的「即将结算时刻」(下一笔真正会扣/收的结算);
+	// nextFundingTime = 再下一笔(预测)。下一次结算时间必须取 fundingTime,而非 nextFundingTime——
+	// 否则会跳过最近一笔结算(如 2h 币现在 01:11、fundingTime=02:00、nextFundingTime=04:00,
+	// 误用后者会把「下次结算」显示成 04:00 并错配费率/距结算/可比窗口/结算后冷却)。
+	// interval 仍用两者之差推导(fundingTime→nextFundingTime 即一个结算周期)。
 	fundingTime := msStringToTime(it.FundingTime)
 	nextFundingTime := msStringToTime(it.NextFundingTime)
 	intervalHours := 8
@@ -253,6 +258,11 @@ func (a *Adapter) fetchFundingRate(ctx context.Context, instID string, px ticker
 			}
 		}
 	}
+	// 取即将结算时刻作为「下次结算」;fundingTime 缺失时回退 nextFundingTime,避免完全丢失锚点。
+	upcomingFunding := fundingTime
+	if upcomingFunding.IsZero() {
+		upcomingFunding = nextFundingTime
+	}
 	mark := px.mark
 	if mark == 0 {
 		mark = px.last
@@ -262,7 +272,7 @@ func (a *Adapter) fetchFundingRate(ctx context.Context, instID string, px ticker
 		MarkPrice:       mark,
 		IndexPrice:      px.index,
 		LastFundingRate: parseFloat(it.FundingRate),
-		NextFundingTime: nextFundingTime,
+		NextFundingTime: upcomingFunding,
 		IntervalHours:   intervalHours,
 		RateCap:         defaultFundingCap,
 		RateFloor:       -defaultFundingCap,

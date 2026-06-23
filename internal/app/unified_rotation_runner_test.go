@@ -173,6 +173,9 @@ func TestUnifiedRotationRunner_DispatchCloseAndSwitch(t *testing.T) {
 
 	newOpp := testRotationCandidate("open-new", UnifiedStrategyCrossVenueSpotPerp, "ETH-USDT", 20,
 		map[string]float64{binance.VenueName: 40, bybit.VenueName: 40})
+	// FIX-10:进场窗闸 fail-CLOSED → 换仓目标须带未来结算时间(测试固定 now=2026-06-18T12:00:00Z)。
+	newOpp.NextFundingTime = "2026-06-18T12:02:00Z"
+	newOpp.FundingIntervalHours = 8
 	available := map[string]float64{binance.VenueName: 500, bybit.VenueName: 500}
 	plan := RotationPlan{Actions: []RotationAction{
 		{Kind: RotationActionClose, OpportunityID: "held-close", StrategyType: UnifiedStrategySingleVenueSpotPerp, Symbol: "BTC-USDT", Reason: "test close"},
@@ -213,6 +216,9 @@ func TestUnifiedRotationRunner_DispatchCloseAndSwitch(t *testing.T) {
 func testRotationSwitchPlan() (RotationPlan, UnifiedOpportunity) {
 	newOpp := testRotationCandidate("open-new", UnifiedStrategyCrossVenueSpotPerp, "ETH-USDT", 20,
 		map[string]float64{binance.VenueName: 40, bybit.VenueName: 40})
+	// FIX-10:开/换仓进场窗闸已 fail-CLOSED,候选须带未来结算时间(测试固定 now=2026-06-18T12:00:00Z)方为 eligible。
+	newOpp.NextFundingTime = "2026-06-18T12:02:00Z"
+	newOpp.FundingIntervalHours = 8
 	plan := RotationPlan{Actions: []RotationAction{{
 		Kind:                 RotationActionSwitch,
 		OpportunityID:        "held-old",
@@ -549,6 +555,9 @@ func TestUnifiedRotationRunner_DecideRotationIntegration(t *testing.T) {
 
 	newOpp := testRotationCandidate("new-eth", UnifiedStrategyCrossVenueSpotPerp, "ETH-USDT", 30,
 		map[string]float64{binance.VenueName: 40, bybit.VenueName: 40})
+	// FIX-10:进场窗闸 fail-CLOSED → 候选须带未来结算时间(测试固定 now=2026-06-18T12:00:00Z)方能被选为换仓目标。
+	newOpp.NextFundingTime = "2026-06-18T12:02:00Z"
+	newOpp.FundingIntervalHours = 8
 	available := map[string]float64{binance.VenueName: 200, bybit.VenueName: 200}
 
 	r.scanCandidatesFn = func(ctx context.Context, snap CrossVenueScanSnapshot) ([]UnifiedOpportunity, map[string]float64, error) {

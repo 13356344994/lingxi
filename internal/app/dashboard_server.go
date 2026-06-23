@@ -62,7 +62,12 @@ type DashboardServer struct {
 	// venueEquityCache 缓存各所钱包总额/浮盈亏拉取结果,避免面板 5s 轮询触发交易所限频。
 	venueEquityCacheMu sync.Mutex
 	venueEquityCache   map[string]venueEquityCacheEntry
+	// recordDir 根记录目录(account_risk_equity_state.json 等所在);空=回退 "records"。
+	recordDir string
 }
+
+// SetRecordDir 注入根记录目录(供面板读取账户风控充提平移状态)。
+func (s *DashboardServer) SetRecordDir(dir string) { s.recordDir = strings.TrimSpace(dir) }
 
 // SetTokenMirrorDir 设置控制令牌的固定镜像目录(启动前调用)。
 func (s *DashboardServer) SetTokenMirrorDir(dir string) { s.tokenMirrorDir = strings.TrimSpace(dir) }
@@ -1160,6 +1165,19 @@ func (s *DashboardServer) handleEarningsAPI(w http.ResponseWriter, r *http.Reque
 	openAccruedFunding := sumOpenAccruedFundingUSDT(s)
 	accountEquityDelta := total.TodayEarningUSDT
 
+	// 充提平移:把账户风控识别出的当日充值/提币从「账户净值变动」里拆出来,使提现不再被误读为亏损,
+	// 并给出「交易净值变动(不含转账)」让用户一眼看清纯交易结果。
+	fundFlowAdjust := 0.0
+	fundFlowKnown := false
+	if st, ok := loadAccountRiskEquityState(s.recordDir); ok {
+		fundFlowAdjust = st.DailyFundFlowAdjustUSDT
+		fundFlowKnown = true
+	}
+	tradingEquityDelta := accountEquityDelta
+	if fundFlowKnown {
+		tradingEquityDelta = accountEquityDelta - fundFlowAdjust
+	}
+
 	resp := map[string]any{
 		"basis":                       "settlement_ledger_realized_pnl",
 		"window":                      "beijing_cst_day",
@@ -1169,6 +1187,9 @@ func (s *DashboardServer) handleEarningsAPI(w http.ResponseWriter, r *http.Reque
 		"untrusted_realized_pnl_usdt": pnlSummary.UntrustedNetPnL,
 		"open_accrued_funding_usdt":   openAccruedFunding,
 		"account_equity_delta_usdt":   accountEquityDelta,
+		"fund_flow_adjust_usdt":       fundFlowAdjust,
+		"fund_flow_known":             fundFlowKnown,
+		"trading_equity_delta_usdt":   tradingEquityDelta,
 		"all_time_realized_pnl_usdt":  allTimeSummary.TotalNetPnL,
 		"all_time_untrusted_pnl_usdt": allTimeSummary.UntrustedNetPnL,
 		"trade_count":                 pnlSummary.TradeCount,

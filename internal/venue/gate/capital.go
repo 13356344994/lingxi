@@ -162,7 +162,15 @@ func (a *Adapter) CaptureMovableSnapshot(ctx context.Context) ([]venue.WalletSna
 		{Wallet: WalletFutures, Label: "USDT 永续账户", FreeUSDT: futures},
 		{Wallet: WalletSpot, Label: "现货账户", FreeUSDT: spot},
 	}
-	return snaps, spot + futures, nil
+	// 统一账户:现货与 USDT 永续共用同一可用 USDT 池,/spot/accounts 与 /futures/usdt/accounts 的
+	// available 互为镜像(实测两边都≈账户真实权益)。直接相加会把同一笔钱算两遍(可调≈2×权益,
+	// 会让引擎把 Gate 腿开成 2 倍 → 保证金/下单失败),故统一账户下只计一次。
+	// 取两边较大值代表共用池规模:可避免某次读数瞬时滞后归零导致少算。
+	total := spot + futures
+	if a.Capabilities().UnifiedWallet {
+		total = math.Max(spot, futures)
+	}
+	return snaps, total, nil
 }
 
 // PlanAllocation 纯函数:把交易总额全部放进 USDT 永续账户,余量留现货账户。

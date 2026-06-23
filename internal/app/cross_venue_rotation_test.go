@@ -72,14 +72,23 @@ func TestEntryBasisCostInNetEV(t *testing.T) {
 	if math.Abs(basisCost-7.5) > 1e-9 {
 		t.Fatalf("basis cost=%.4f want 7.5", basisCost)
 	}
-	slipLegs := []crossVenueEVSlippageLeg{{RefMid: 110}, {RefMid: 100}}
-	wide := crossVenueEstimateOpportunityMetricsEVRatesWithLegs(cfg, opp, now, opp.HighFundingRate, opp.LowFundingRate, slipLegs)
 	aligned := crossVenueEstimateOpportunityMetrics(cfg, opp, now)
-	if wide.NetEV >= aligned.NetEV {
-		t.Fatalf("wide mid should lower netEV: wide=%.4f aligned=%.4f", wide.NetEV, aligned.NetEV)
+	// 不利方向:slipLegs[0]=高费腿(做空)=100,slipLegs[1]=低费腿(做多)=110。
+	// 做多腿更贵 → 基差收敛会让价格腿亏损 → 应计基差成本 → netEV 下降为负。
+	adverseLegs := []crossVenueEVSlippageLeg{{RefMid: 100}, {RefMid: 110}}
+	adverse := crossVenueEstimateOpportunityMetricsEVRatesWithLegs(cfg, opp, now, opp.HighFundingRate, opp.LowFundingRate, adverseLegs)
+	if adverse.NetEV >= aligned.NetEV {
+		t.Fatalf("adverse basis (long leg richer) should lower netEV: adverse=%.4f aligned=%.4f", adverse.NetEV, aligned.NetEV)
 	}
-	if wide.NetEV > crossVenueMinNetProfitUSDT(cfg) {
-		t.Fatalf("large basis should push netEV negative, got %.4f", wide.NetEV)
+	if adverse.NetEV > crossVenueMinNetProfitUSDT(cfg) {
+		t.Fatalf("large adverse basis should push netEV negative, got %.4f", adverse.NetEV)
+	}
+	// 顺向有利:同等量级、方向相反(做空的高腿更贵)。基差收敛对价格腿有利 → 不计成本。
+	// 两者 slippage 对称,唯一差异即基差成本 → favorable.NetEV 必须显著高于 adverse.NetEV。
+	favorableLegs := []crossVenueEVSlippageLeg{{RefMid: 110}, {RefMid: 100}}
+	favorable := crossVenueEstimateOpportunityMetricsEVRatesWithLegs(cfg, opp, now, opp.HighFundingRate, opp.LowFundingRate, favorableLegs)
+	if favorable.NetEV <= adverse.NetEV {
+		t.Fatalf("favorable basis (short leg richer) must NOT be charged, should beat adverse: favorable=%.4f adverse=%.4f", favorable.NetEV, adverse.NetEV)
 	}
 }
 

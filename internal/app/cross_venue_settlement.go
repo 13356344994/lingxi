@@ -120,16 +120,30 @@ func buildCrossVenueSettlement(pos CrossVenuePosition, closeTime time.Time) Cros
 	realizedFunding := money.SumUSDT(pos.HighLegFundingUSDT, pos.LowLegFundingUSDT)
 	tradePnL := computeCrossVenueTradePnL(pos)
 
+	fundingStatus := strings.TrimSpace(pos.FundingTruthStatus)
+	if fundingStatus == "" {
+		fundingStatus = "unknown"
+	}
+	realizedFundingComplete := pos.RealizedFundingComplete
+	switch {
+	case crossVenueSettlementShouldUseEstimatedFunding(pos, fundingStatus, closeTime):
+		realizedFunding = pos.EstFundingUSDT
+		fundingStatus = "estimated"
+		realizedFundingComplete = false
+	case fundingStatus == "partial" && pos.EstFundingUSDT != 0:
+		// FIX(P1):partial = 一腿真实、另一腿真实资费拉取失败。原先直接用两腿之和,缺失腿恒为 0 →
+		// 少计资金费。改为给缺失腿补上其"整仓估算"份额(与 missing 全缺失分支同一 EstFundingUSDT 基准),
+		// 真实腿保持原值不重复计数(见 crossVenuePartialRealizedFunding 注释)。状态仍标 partial,
+		// RealizedFundingComplete=false 已表明非全真,下游可据此审计。
+		realizedFunding = crossVenuePartialRealizedFunding(pos)
+		realizedFundingComplete = false
+	}
+
 	// 净利润口径对齐 cost_accounting.go SettlementAttribution / CycleSettlement:
 	// net_pnl = realized_funding + trade_pnl − total_fees − rollback_cost − rebalance_cost
 	// 【关键】开/平仓滑点已隐含在 trade_pnl(由实际成交价算出); OpenSlippage/CloseSlippage 是相对参考价的
 	// 执行质量量,绝不可再从 net_pnl 扣减(否则重复计数,见 cost_accounting.go 第 64-74 行注释)。
 	netPnL := money.SumUSDT(realizedFunding, tradePnL, -totalFees, -attr.RollbackCostUSDT, -attr.RebalanceCostUSDT)
-
-	fundingStatus := strings.TrimSpace(pos.FundingTruthStatus)
-	if fundingStatus == "" {
-		fundingStatus = "unknown"
-	}
 
 	return CrossVenueSettlement{
 		SettlementID:            crossVenueSettlementID(pos),
@@ -154,7 +168,7 @@ func buildCrossVenueSettlement(pos CrossVenuePosition, closeTime time.Time) Cros
 		LowLegFunding:           pos.LowLegFundingUSDT,
 		EstimatedFunding:        pos.EstFundingUSDT,
 		RealizedFunding:         realizedFunding,
-		RealizedFundingComplete: pos.RealizedFundingComplete,
+		RealizedFundingComplete: realizedFundingComplete,
 		FundingTruthStatus:      fundingStatus,
 		AttributionIncomplete:   pos.AttributionIncomplete,
 		TradePnL:                tradePnL,
@@ -168,6 +182,54 @@ func buildCrossVenueSettlement(pos CrossVenuePosition, closeTime time.Time) Cros
 		NetPnL:                  netPnL,
 		CloseReason:             pos.CloseReason,
 	}
+}
+
+// crossVenuePartialRealizedFunding 计算 partial(一腿真实、一腿缺失)时的资金费:
+// 保留已取真实腿原值,缺失腿用"整仓估算"减去真实腿份额后补齐,从而:
+//
+//	realized = 真实腿之和 + (EstFundingUSDT − 真实腿之和) = EstFundingUSDT
+//
+// 由 cross_venue_manage.go 维护:EstFundingUSDT = HighLegFundingUSDT + LowLegFundingUSDT + 轮间估算增量,
+// 其中真实腿份额即 HighLegFundingUSDT/LowLegFundingUSDT。因此真实腿被原样保留、绝不重复计数,
+// 缺失腿取其在整仓估算中的份额(而非 0)。调用方已确保 EstFundingUSDT != 0(否则无估算可用,保持原两腿之和)。
+func crossVenuePartialRealizedFunding(pos CrossVenuePosition) float64 {
+	realLegSum := money.SumUSDT(pos.HighLegFundingUSDT, pos.LowLegFundingUSDT)
+	missingLegEstimate := pos.EstFundingUSDT - realLegSum
+	return money.SumUSDT(realLegSum, missingLegEstimate)
+}
+
+// crossVenueSettlementShouldUseEstimatedFunding 真实资费不可用时,若持仓跨越≥1次结算则用 EstFundingUSDT 兜底。
+func crossVenueSettlementShouldUseEstimatedFunding(pos CrossVenuePosition, fundingStatus string, closeTime time.Time) bool {
+	if pos.EstFundingUSDT == 0 {
+		return false
+	}
+	switch fundingStatus {
+	case "complete", "partial", "real":
+		return false
+	case "estimated":
+		return true
+	}
+	return crossVenueHeldThroughSettlement(pos, closeTime)
+}
+
+func crossVenueHeldThroughSettlement(pos CrossVenuePosition, closeTime time.Time) bool {
+	if pos.OpenedAt.IsZero() || closeTime.IsZero() || !closeTime.After(pos.OpenedAt) {
+		return false
+	}
+	target := rotationEffectiveTargetFirstFundingTime(
+		pos.OpenedAt, pos.TargetFirstFundingTime, pos.HighNextFundingTime, pos.LowNextFundingTime,
+	)
+	if !target.IsZero() && closeTime.After(target) {
+		return true
+	}
+	interval := pos.HighIntervalHours
+	if interval <= 0 {
+		interval = defaultFundingCaptureIntervalHours
+	}
+	if pos.LowIntervalHours > 0 && pos.LowIntervalHours < interval {
+		interval = pos.LowIntervalHours
+	}
+	return settlementHeldThroughFirstFunding(pos.OpenedAt, closeTime, interval)
 }
 
 func crossVenuePositionIsSwitchExit(pos CrossVenuePosition) bool {

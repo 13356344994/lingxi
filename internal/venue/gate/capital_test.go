@@ -63,13 +63,15 @@ func capitalFakeGate(t *testing.T, spotUSDT, futuresUSDT string) (*Adapter, *[]m
 }
 
 func TestCaptureMovableSnapshotGate(t *testing.T) {
+	// 统一账户:spot/futures 的 available 互为同一池镜像,不能相加(否则可调≈2×权益)。
+	// 取较大值单计:max(80,70)=80,而非 80+70=150。
 	a, _ := capitalFakeGate(t, "80", "70")
 	snaps, total, err := a.CaptureMovableSnapshot(context.Background())
 	if err != nil {
 		t.Fatalf("CaptureMovableSnapshot: %v", err)
 	}
-	if total != 150 {
-		t.Errorf("总额应为 150, got %v", total)
+	if total != 80 {
+		t.Errorf("统一账户可调应为 max(spot,futures)=80(不双计), got %v", total)
 	}
 	if len(snaps) != 2 {
 		t.Fatalf("应 2 个钱包, got %d", len(snaps))
@@ -119,7 +121,8 @@ func TestExecuteRebalanceGateNoopWhenInPlace(t *testing.T) {
 }
 
 func TestExecuteRebalanceGateSkipsTinyAmount(t *testing.T) {
-	a, transfers := capitalFakeGate(t, "0.00000001", "99.999999995")
+	// 统一账户口径:可调=max(spot,futures)。spot=100 → 可调=100≥目标;futures 仅微差 → 跳过划转。
+	a, transfers := capitalFakeGate(t, "100", "99.999999995")
 	plan := a.PlanAllocation(100, a.Capabilities())
 	got, err := a.ExecuteRebalance(context.Background(), plan)
 	if err != nil {

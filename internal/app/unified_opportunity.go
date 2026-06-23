@@ -62,6 +62,8 @@ type UnifiedOpportunity struct {
 	HighFundingRate      float64 `json:"high_funding_rate,omitempty"`
 	LowFundingRate       float64 `json:"low_funding_rate,omitempty"`
 	FundingIntervalHours int     `json:"funding_interval_hours,omitempty"`
+	HighIntervalHours    int     `json:"high_interval_hours,omitempty"`
+	LowIntervalHours     int     `json:"low_interval_hours,omitempty"`
 	NextFundingTime      string  `json:"next_funding_time,omitempty"`
 	HighNextFundingTime  string  `json:"high_next_funding_time,omitempty"`
 	LowNextFundingTime   string  `json:"low_next_funding_time,omitempty"`
@@ -96,6 +98,8 @@ func applyUnifiedCrossVenueDisplay(opp *UnifiedOpportunity, cv CrossVenueOpportu
 	opp.HighFundingRate = cv.HighFundingRate
 	opp.LowFundingRate = cv.LowFundingRate
 	opp.FundingAPR = cv.SpreadAPR
+	opp.HighIntervalHours = cv.HighIntervalHours
+	opp.LowIntervalHours = cv.LowIntervalHours
 	ih := cv.HighIntervalHours
 	if ih <= 0 {
 		ih = cv.LowIntervalHours

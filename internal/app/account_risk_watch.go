@@ -51,12 +51,15 @@ type accountRiskSnapshot struct {
 	RealEquityTotalUSDT         float64            `json:"real_equity_total_usdt"`
 	RealEquityPeakUSDT          float64            `json:"real_equity_peak_usdt"`
 	RealEquityDrawdownUSDT      float64            `json:"real_equity_drawdown_usdt"`
-	RealEquityQualityPassed     bool               `json:"real_equity_quality_passed"`
-	RealEquityQualityFailReason string             `json:"real_equity_quality_fail_reason,omitempty"`
-	RealEquityPeakConfirmed     bool               `json:"real_equity_peak_confirmed"`
-	OpenPositionCount           int                `json:"open_position_count"`
-	OpenNotionalUSDT            float64            `json:"open_notional_usdt"`
-	PositionsByStrategy         map[string]int     `json:"positions_by_strategy,omitempty"`
+	// RealEquityDrawdownAdjustedUSDT 扣全时净充提后的交易口径回撤(自动全平/告警以此为准),
+	// 提现不再被算成回撤;真实交易亏损仍如实计入。
+	RealEquityDrawdownAdjustedUSDT float64        `json:"real_equity_drawdown_adjusted_usdt"`
+	RealEquityQualityPassed        bool           `json:"real_equity_quality_passed"`
+	RealEquityQualityFailReason    string         `json:"real_equity_quality_fail_reason,omitempty"`
+	RealEquityPeakConfirmed        bool           `json:"real_equity_peak_confirmed"`
+	OpenPositionCount              int            `json:"open_position_count"`
+	OpenNotionalUSDT               float64        `json:"open_notional_usdt"`
+	PositionsByStrategy            map[string]int `json:"positions_by_strategy,omitempty"`
 }
 
 // accountRiskThresholdResult 阈值判定结果(Stage A 告警 + Stage B 硬停输入)。
@@ -149,10 +152,40 @@ type accountRiskEquityState struct {
 	HasLastTrusted          bool
 	LastTrustedAt           time.Time
 	DailyFundFlowAdjustUSDT float64
-	LastDailyRealizedPnL    float64
-	LastSettlementCount     int
-	LastPositionCount       int
-	fundFlowSourceLogged    bool
+	// CumulativeFundFlowUSDT 全时净充提(deposit+/withdraw−),跨天累计、永不日重置。
+	// 用于把「真实现金权益」换算成「交易口径权益」(扣掉本金进出),使提现/充值不污染回撤。
+	CumulativeFundFlowUSDT float64
+	// TradingEquityPeakUSDT 交易口径权益(realEquity − CumulativeFundFlow)的高水位,跨天保留。
+	TradingEquityPeakUSDT float64
+	LastDailyRealizedPnL  float64
+	LastSettlementCount   int
+	LastPositionCount     int
+	fundFlowSourceLogged  bool
+}
+
+// updateTradingEquityDrawdown 把真实现金权益换算成交易口径(扣全时净充提),维护交易峰值并返回扣充提回撤。
+//
+// tradingEquity = realCurrent − CumulativeFundFlow。提现/充值同步改变 realCurrent 与 CumulativeFundFlow,
+// 故 tradingEquity 连续不跳:充提既不制造也不掩盖回撤;只有真实交易盈亏移动它。
+// 首次以历史确认峰值 realPeak 播种(假设峰值设定前无充提);盲区重锚时峰值压回当前(与原始回撤口径一致)。
+func (st *accountRiskEquityState) updateTradingEquityDrawdown(realCurrent, realPeak float64, reanchored bool) float64 {
+	if st == nil {
+		return 0
+	}
+	tradingEquity := money.SumUSDT(realCurrent, -st.CumulativeFundFlowUSDT)
+	if st.TradingEquityPeakUSDT == 0 && realPeak > 0 {
+		st.TradingEquityPeakUSDT = realPeak
+	}
+	if reanchored {
+		st.TradingEquityPeakUSDT = tradingEquity
+	} else if tradingEquity > st.TradingEquityPeakUSDT {
+		st.TradingEquityPeakUSDT = tradingEquity
+	}
+	dd := money.SumUSDT(st.TradingEquityPeakUSDT, -tradingEquity)
+	if dd < 0 {
+		dd = 0
+	}
+	return dd
 }
 
 func (st *accountRiskEquityState) resetForDay(dayStart time.Time) {
@@ -372,8 +405,9 @@ func (w *accountRiskWatcher) tickOnce() {
 	}
 
 	if !haltIntent.ShouldHalt && !thresholds.AnyBreached && !flattenIntent.ShouldFlatten && w.logger != nil {
-		w.logger.Printf("[账户风控] OK daily_equity_delta=%.4f daily_realized=%.4f settlement_dd=%.4f real_equity_dd=%.4f positions=%d notional=%.2f",
+		w.logger.Printf("[账户风控] OK daily_equity_delta=%.4f daily_realized=%.4f settlement_dd=%.4f real_equity_dd=%.4f real_equity_dd_adj=%.4f cum_fund_flow=%.4f positions=%d notional=%.2f",
 			snap.DailyEquityDeltaUSDT, snap.DailyRealizedPnLUSDT, snap.AccountDrawdownUSDT, snap.RealEquityDrawdownUSDT,
+			snap.RealEquityDrawdownAdjustedUSDT, w.equityState.CumulativeFundFlowUSDT,
 			snap.OpenPositionCount, snap.OpenNotionalUSDT)
 	}
 }
@@ -420,7 +454,7 @@ func (w *accountRiskWatcher) buildSnapshot(now time.Time) accountRiskSnapshot {
 		if lookup == nil {
 			lookup = crossVenueFundFlowLookup(w.crossVenue)
 		}
-		applyAccountFundFlowAdjustment(
+		_, fundFlowStep := applyAccountFundFlowAdjustment(
 			ctx,
 			&w.equityState,
 			obs,
@@ -435,6 +469,8 @@ func (w *accountRiskWatcher) buildSnapshot(now time.Time) accountRiskSnapshot {
 			w.logger,
 		)
 		cancel()
+		// 全时净充提累计:每 tick 把识别到的充提增量累加进去,跨天不重置(本金进出口径)。
+		w.equityState.CumulativeFundFlowUSDT = money.SumUSDT(w.equityState.CumulativeFundFlowUSDT, fundFlowStep)
 		w.equityState.rememberTrustedObservation(obs, pos, daily.TotalNetPnL, len(records), now)
 		_ = saveAccountRiskEquityState(w.recordDir, &w.equityState, now)
 	}
@@ -445,29 +481,39 @@ func (w *accountRiskWatcher) buildSnapshot(now time.Time) accountRiskSnapshot {
 		dailyEquityForRisk = 0
 	}
 
+	// 交易口径回撤:tradingEquity = 真实现金权益 − 全时净充提。提现同时压低 realCurrent 与
+	// CumulativeFundFlow,tradingEquity 连续不跳 → 既不制造也不掩盖回撤;只有真实交易盈亏移动它。
+	// 据此重锚的交易峰值供自动全平/告警用,杜绝把提现误判成回撤触发全平。
+	realEquityDrawdownAdjusted := realDrawdown
+	if realQuality.Passed && realCurrent > 0 {
+		realEquityDrawdownAdjusted = w.equityState.updateTradingEquityDrawdown(realCurrent, realPeak, reanchoredThisTick)
+		_ = saveAccountRiskEquityState(w.recordDir, &w.equityState, now)
+	}
+
 	return accountRiskSnapshot{
-		ObservedAt:                  now,
-		DayStartCST:                 dayStart,
-		DailyRealizedPnLUSDT:        daily.TotalNetPnL,
-		DailyEquityDeltaUSDT:        rawDailyDelta,
-		DailyFundFlowAdjustUSDT:     dailyFundFlowAdjust,
-		DailyEquityDeltaForRiskUSDT: dailyEquityForRisk,
-		VenueEquityDeltas:           obs.VenueDeltas,
-		EquityDataTrusted:           trusted,
-		EquityDataUntrustedReason:   untrustedReason,
-		CumulativeRealizedPnL:       cumulative,
-		RealizedPnLPeakUSDT:         peak,
-		AccountDrawdownUSDT:         drawdown,
-		StrategyNetPnL:              allTime.ByStrategy,
-		RealEquityTotalUSDT:         realCurrent,
-		RealEquityPeakUSDT:          realPeak,
-		RealEquityDrawdownUSDT:      realDrawdown,
-		RealEquityQualityPassed:     realQuality.Passed,
-		RealEquityQualityFailReason: realQuality.Reason,
-		RealEquityPeakConfirmed:     realQuality.PeakConfirmed,
-		OpenPositionCount:           pos.TotalCount,
-		OpenNotionalUSDT:            pos.OpenNotional,
-		PositionsByStrategy:         pos.ByStrategy,
+		ObservedAt:                     now,
+		DayStartCST:                    dayStart,
+		DailyRealizedPnLUSDT:           daily.TotalNetPnL,
+		DailyEquityDeltaUSDT:           rawDailyDelta,
+		DailyFundFlowAdjustUSDT:        dailyFundFlowAdjust,
+		DailyEquityDeltaForRiskUSDT:    dailyEquityForRisk,
+		VenueEquityDeltas:              obs.VenueDeltas,
+		EquityDataTrusted:              trusted,
+		EquityDataUntrustedReason:      untrustedReason,
+		CumulativeRealizedPnL:          cumulative,
+		RealizedPnLPeakUSDT:            peak,
+		AccountDrawdownUSDT:            drawdown,
+		StrategyNetPnL:                 allTime.ByStrategy,
+		RealEquityTotalUSDT:            realCurrent,
+		RealEquityPeakUSDT:             realPeak,
+		RealEquityDrawdownUSDT:         realDrawdown,
+		RealEquityDrawdownAdjustedUSDT: realEquityDrawdownAdjusted,
+		RealEquityQualityPassed:        realQuality.Passed,
+		RealEquityQualityFailReason:    realQuality.Reason,
+		RealEquityPeakConfirmed:        realQuality.PeakConfirmed,
+		OpenPositionCount:              pos.TotalCount,
+		OpenNotionalUSDT:               pos.OpenNotional,
+		PositionsByStrategy:            pos.ByStrategy,
 	}
 }
 
@@ -561,14 +607,15 @@ func evaluateAccountAutoFlattenIntent(snap accountRiskSnapshot, cfg RiskConfig) 
 		return accountAutoFlattenIntent{}
 	}
 	limit := effectiveAutoFlattenAccountDrawdownUSDT(cfg, snap.RealEquityPeakUSDT)
-	if limit <= 0 || snap.RealEquityDrawdownUSDT < limit {
+	// 用扣全时净充提后的交易口径回撤判定:提现不再触发全平,真实交易亏损仍如实触发。
+	if limit <= 0 || snap.RealEquityDrawdownAdjustedUSDT < limit {
 		return accountAutoFlattenIntent{}
 	}
 	return accountAutoFlattenIntent{
 		ShouldFlatten: true,
 		Reason: fmt.Sprintf(
-			"真实现金权益回撤 %.4f USDT ≥ AutoFlattenAccountDrawdownUSDT %.4f (current=%.4f peak=%.4f;不用 settlements)",
-			snap.RealEquityDrawdownUSDT, limit, snap.RealEquityTotalUSDT, snap.RealEquityPeakUSDT),
+			"交易口径权益回撤 %.4f USDT ≥ AutoFlattenAccountDrawdownUSDT %.4f (原始回撤=%.4f current=%.4f peak=%.4f 全时净充提=%.4f;不用 settlements)",
+			snap.RealEquityDrawdownAdjustedUSDT, limit, snap.RealEquityDrawdownUSDT, snap.RealEquityTotalUSDT, snap.RealEquityPeakUSDT, snap.DailyFundFlowAdjustUSDT),
 	}
 }
 

@@ -405,9 +405,18 @@ func TestCarryScannerDustResidualCostUSDT(t *testing.T) {
 	if got := carryScannerDustResidualCostUSDT([]float64{5, 10}, false); math.Abs(got-0.5) > 1e-9 {
 		t.Fatalf("carry dust cost = %.6f, want 0.5", got)
 	}
-	// perp-perp 对称再打 0.5 折:5 × 0.05 × 0.5 = 0.125。
-	if got := carryScannerPerpPerpDustResidualCostUSDT(); math.Abs(got-0.125) > 1e-9 {
-		t.Fatalf("perp-perp dust cost = %.6f, want 0.125", got)
+	// perp-perp 残腿成本现按名义比例(0.08%)计,封顶旧固定值 0.125、下限 0.01。
+	// 名义未知(<=0)时回退上限 0.125。
+	if got := carryScannerPerpPerpDustResidualCostUSDT(0); math.Abs(got-0.125) > 1e-9 {
+		t.Fatalf("perp-perp dust cost (notional<=0) = %.6f, want ceiling 0.125", got)
+	}
+	// $25 名义:25 × 8bps = 0.02,小仓被大幅摊薄(远低于旧 0.125)。
+	if got := carryScannerPerpPerpDustResidualCostUSDT(25); math.Abs(got-0.02) > 1e-9 {
+		t.Fatalf("perp-perp dust cost ($25) = %.6f, want 0.02", got)
+	}
+	// 大仓封顶:$1000 × 8bps = 0.8 → 封顶 0.125。
+	if got := carryScannerPerpPerpDustResidualCostUSDT(1000); math.Abs(got-0.125) > 1e-9 {
+		t.Fatalf("perp-perp dust cost ($1000) = %.6f, want ceiling 0.125", got)
 	}
 	// 残腿成本应远小于单腿 min-notional,避免压垮小仓 EV。
 	if carryScannerDustResidualCostUSDT([]float64{5, 10}, false) >= 5 {

@@ -206,6 +206,19 @@ func yamlScalar(fv reflect.Value) string {
 			return "true"
 		}
 		return "false"
+	case reflect.Slice:
+		if fv.Type().Elem().Kind() == reflect.String {
+			n := fv.Len()
+			if n == 0 {
+				return "[]"
+			}
+			items := make([]string, n)
+			for i := 0; i < n; i++ {
+				items[i] = strconv.Quote(fv.Index(i).String())
+			}
+			return "[" + strings.Join(items, ", ") + "]"
+		}
+		return fmt.Sprintf("%v", fv.Interface())
 	default:
 		return fmt.Sprintf("%v", fv.Interface())
 	}
@@ -237,6 +250,11 @@ func configValueKind(fv reflect.Value) string {
 		return "int"
 	case reflect.Float32, reflect.Float64:
 		return "float"
+	case reflect.Slice:
+		if fv.Type().Elem().Kind() == reflect.String {
+			return "string_list"
+		}
+		return "unknown"
 	default:
 		return "unknown"
 	}
@@ -275,6 +293,19 @@ func assignConfigValue(fv reflect.Value, raw string) error {
 			return fmt.Errorf("非法 float 配置: %s", raw)
 		}
 		fv.SetFloat(f)
+	case reflect.Slice:
+		if fv.Type().Elem().Kind() != reflect.String {
+			return fmt.Errorf("不支持的配置字段类型: %s", fv.Type())
+		}
+		// 逗号分隔的字符串列表(去空白、丢空项);整串为空则置空切片。
+		parts := strings.Split(raw, ",")
+		out := make([]string, 0, len(parts))
+		for _, p := range parts {
+			if s := strings.TrimSpace(p); s != "" {
+				out = append(out, s)
+			}
+		}
+		fv.Set(reflect.ValueOf(out))
 	default:
 		return fmt.Errorf("不支持的配置字段类型: %s", fv.Kind())
 	}

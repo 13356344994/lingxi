@@ -180,9 +180,10 @@ func TestCrossVenueOpenEVConfigTogglesExpectedHoldHoursAndMakerFees(t *testing.T
 
 	shortHold := testNetProfitGateMakerHoldConfig()
 	shortHold.NearTermOpenEVHorizonEnabled = false
-	shortHold.ExpectedHoldHours = 2
+	// hold(1.5h) < 距下次结算(2h):窗口内零次结算 → funding=0 → 必然拒开,与捕获概率无关。
+	shortHold.ExpectedHoldHours = 1.5
 	if res := evaluateCrossVenueOpenEV(shortHold, opp, notional, nil, now, 0, 0); res.OK {
-		t.Fatal("expected reject when expected_hold_hours shortened to 2h")
+		t.Fatal("expected reject when expected_hold_hours captures zero settlements before next funding")
 	}
 
 	longHold := testNetProfitGateMakerHoldConfig()
@@ -359,9 +360,10 @@ func TestPlanUnifiedRotationOpensRanksByExpectedNetEV(t *testing.T) {
 	cfg := DefaultRotationConfig()
 	cfg.MaxConcurrent = 2
 	cfg.MinNetProfitUSDT = 0
+	// FIX-10:决策层进场窗闸 fail-CLOSED 后,OPEN 须 OpenEligibleNow=true(生产由 refreshRotationCandidatesOpenEligibleNow 据结算时间预置;此处直调 PlanUnifiedRotationOpens 故显式置位)。
 	candidates := []UnifiedOpportunity{
-		{ID: "low", Symbol: "AAA", StrategyType: UnifiedStrategyPerpPerp, ExpectedNetEVUSDT: 0.05, CapitalRequiredByVenue: map[string]float64{"okx": 20}},
-		{ID: "high", Symbol: "BBB", StrategyType: UnifiedStrategyPerpPerp, ExpectedNetEVUSDT: 0.20, CapitalRequiredByVenue: map[string]float64{"okx": 20}},
+		{ID: "low", Symbol: "AAA", StrategyType: UnifiedStrategyPerpPerp, ExpectedNetEVUSDT: 0.05, OpenEligibleNow: true, CapitalRequiredByVenue: map[string]float64{"okx": 20}},
+		{ID: "high", Symbol: "BBB", StrategyType: UnifiedStrategyPerpPerp, ExpectedNetEVUSDT: 0.20, OpenEligibleNow: true, CapitalRequiredByVenue: map[string]float64{"okx": 20}},
 	}
 	available := map[string]float64{"okx": 100}
 	actions := PlanUnifiedRotationOpens(candidates, available, cfg)

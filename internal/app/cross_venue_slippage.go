@@ -26,6 +26,8 @@ type crossVenueEVSlippageLeg struct {
 	Depth  *venue.Depth
 	Side   venue.Side
 	RefMid float64
+	// Maker 该腿以 maker(post-only 挂单)成交,近零穿价滑点;统一捕获模型下首腿对齐 maker-first 执行。
+	Maker bool
 }
 
 // crossVenueSlippageBudgetBase 统一基准;0=legacy 模式(退回各独立常量)。
@@ -127,6 +129,10 @@ func crossVenueEVSlippageFallbackBpsPerLeg(cfg CrossVenueExecutorConfig) float64
 
 func crossVenueEVSlippageBpsPerLeg(cfg CrossVenueExecutorConfig, notional float64, leg crossVenueEVSlippageLeg) float64 {
 	if notional <= 0 {
+		return 0
+	}
+	if leg.Maker {
+		// maker 挂单成交:不穿价,滑点≈0(费用侧由 maker fee 单独计入,不在此重复扣)。
 		return 0
 	}
 	if leg.Depth != nil && depthHasLevels(*leg.Depth) && leg.RefMid > 0 {

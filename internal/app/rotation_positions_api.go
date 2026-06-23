@@ -75,6 +75,20 @@ type RotationPositionView struct {
 	TransitionState            string     `json:"transition_state,omitempty"`
 	SwitchLineage              string     `json:"switch_lineage,omitempty"`
 	HoldDurationSec            float64    `json:"hold_duration_sec,omitempty"`
+	// CapturePlan 统一资费捕获计划视图(仅统一模型开仓的 perp-perp 持仓有值;旧仓/未启用为 nil)。
+	CapturePlan *RotationCapturePlanView `json:"capture_plan,omitempty"`
+}
+
+// RotationCapturePlanView 面板展示用的捕获计划:为吃哪条腿、哪次结算而开,预期资费与基差止损预算/已用。
+type RotationCapturePlanView struct {
+	TargetLeg                 string     `json:"target_leg"` // high/low
+	TargetSettlementTime      *time.Time `json:"target_settlement_time,omitempty"`
+	TargetSettlements         int        `json:"target_settlements,omitempty"`
+	PlannedExitTime           *time.Time `json:"planned_exit_time,omitempty"`
+	ExpectedTargetFundingUSDT float64    `json:"expected_target_funding_usdt,omitempty"`
+	BasisBudgetUSDT           float64    `json:"basis_budget_usdt,omitempty"`
+	BasisUsedUSDT             float64    `json:"basis_used_usdt,omitempty"`      // 已用(峰值不利基差 PnL)
+	BasisRemainingUSDT        float64    `json:"basis_remaining_usdt,omitempty"` // 剩余预算
 }
 
 // RotationSettlementView 五轮动策略结算的统一视图(历史/已平仓)。
@@ -287,12 +301,6 @@ func viewFromCrossVenuePerpPerp(pos CrossVenuePosition, execCfg CrossVenueExecut
 	realizedFunding := money.SumUSDT(pos.HighLegFundingUSDT, pos.LowLegFundingUSDT)
 	highNotional := rotationCrossVenueLegNotionalUSDT(&pos, true)
 	lowNotional := rotationCrossVenueLegNotionalUSDT(&pos, false)
-	expectedNextFunding := rotationExpectedNextFundingUSDT(
-		pos.HighLeg.Side, pos.HighFundingRate, highNotional, pos.HighNextFundingTime,
-		pos.LowLeg.Side, pos.LowFundingRate, lowNotional, pos.LowNextFundingTime,
-		now,
-	)
-	windowHours := crossVenueComparableWindowHours(now, pos.HighNextFundingTime, pos.LowNextFundingTime)
 	highInt := pos.HighIntervalHours
 	if highInt <= 0 {
 		highInt = 8
@@ -301,6 +309,12 @@ func viewFromCrossVenuePerpPerp(pos CrossVenuePosition, execCfg CrossVenueExecut
 	if lowInt <= 0 {
 		lowInt = 8
 	}
+	expectedNextFunding := rotationExpectedNextFundingUSDT(
+		pos.HighLeg.Side, pos.HighFundingRate, highNotional, float64(highInt), pos.HighNextFundingTime,
+		pos.LowLeg.Side, pos.LowFundingRate, lowNotional, float64(lowInt), pos.LowNextFundingTime,
+		now,
+	)
+	windowHours := crossVenueComparableWindowHours(now, pos.HighNextFundingTime, pos.LowNextFundingTime)
 	highSettlements := crossVenueSpotPerpFundingSettlementCount(now, windowHours, highInt, pos.HighNextFundingTime)
 	lowSettlements := crossVenueSpotPerpFundingSettlementCount(now, windowHours, lowInt, pos.LowNextFundingTime)
 	windowEnd := minTime(pos.HighNextFundingTime, pos.LowNextFundingTime)
@@ -345,6 +359,24 @@ func viewFromCrossVenuePerpPerp(pos CrossVenuePosition, execCfg CrossVenueExecut
 	if !windowEnd.IsZero() && windowEnd.After(now) {
 		view.ComparableWindowEndTime = &windowEnd
 	}
+	if pos.CapturePlan != nil {
+		plan := pos.CapturePlan
+		pv := &RotationCapturePlanView{
+			TargetLeg:                 plan.TargetLeg,
+			TargetSettlements:         plan.TargetSettlements,
+			ExpectedTargetFundingUSDT: plan.ExpectedTargetFundingUSDT,
+			BasisBudgetUSDT:           plan.BasisBudgetUSDT,
+			BasisUsedUSDT:             plan.PeakAdverseBasisUSDT,
+			BasisRemainingUSDT:        money.SumUSDT(plan.BasisBudgetUSDT, -plan.PeakAdverseBasisUSDT),
+		}
+		if t := plan.TargetSettlementTime; !t.IsZero() {
+			pv.TargetSettlementTime = &t
+		}
+		if t := plan.PlannedExitTime; !t.IsZero() {
+			pv.PlannedExitTime = &t
+		}
+		view.CapturePlan = pv
+	}
 	return view
 }
 
@@ -362,12 +394,34 @@ func rotationCrossVenueLegNotionalUSDT(pos *CrossVenuePosition, highLeg bool) fl
 	return crossVenuePositionNotionalUSDT(pos)
 }
 
+// advanceFundingTimeToFuture 把一个可能已过期的结算时间戳按结算周期推进到 now 之后的下一次。
+// 行情快照常滞后(例如显示 02:00 但现在已 02:04),若不推进会把"下次资费"误判为 0。
+// nextFunding 为零、intervalHours<=0 或已在未来时原样返回。
+func advanceFundingTimeToFuture(nextFunding, now time.Time, intervalHours float64) time.Time {
+	if nextFunding.IsZero() || intervalHours <= 0 || nextFunding.After(now) {
+		return nextFunding
+	}
+	interval := time.Duration(intervalHours * float64(time.Hour))
+	if interval <= 0 {
+		return nextFunding
+	}
+	// k 为最小正整数使 nextFunding + k*interval > now;整数除法取 floor 后 +1。
+	steps := now.Sub(nextFunding)/interval + 1
+	return nextFunding.Add(steps * interval)
+}
+
 // rotationExpectedLegFundingCashflowUSDT 估算单腿下一次结算的资费现金流(USDT)。
 // 约定: SHORT(sell) 在 rate>0 时收取 → +rate*notional; LONG(buy) 在 rate<0 时收取 → -rate*notional。
-// nextFunding 为零或已过期则该腿贡献 0。
-func rotationExpectedLegFundingCashflowUSDT(side string, rate, notional float64, nextFunding, now time.Time) float64 {
-	if notional <= 0 || nextFunding.IsZero() || !nextFunding.After(now) {
+// nextFunding 已过期时按 intervalHours 推进到真正的下一次;仍无法定位未来结算(零时间/无周期)则该腿贡献 0。
+func rotationExpectedLegFundingCashflowUSDT(side string, rate, notional, intervalHours float64, nextFunding, now time.Time) float64 {
+	if notional <= 0 || nextFunding.IsZero() {
 		return 0
+	}
+	if !nextFunding.After(now) {
+		nextFunding = advanceFundingTimeToFuture(nextFunding, now, intervalHours)
+		if !nextFunding.After(now) {
+			return 0
+		}
 	}
 	switch strings.ToLower(strings.TrimSpace(side)) {
 	case "sell", "short":
@@ -380,12 +434,12 @@ func rotationExpectedLegFundingCashflowUSDT(side string, rate, notional float64,
 }
 
 func rotationExpectedNextFundingUSDT(
-	highSide string, highRate, highNotional float64, highNext time.Time,
-	lowSide string, lowRate, lowNotional float64, lowNext time.Time,
+	highSide string, highRate, highNotional, highInterval float64, highNext time.Time,
+	lowSide string, lowRate, lowNotional, lowInterval float64, lowNext time.Time,
 	now time.Time,
 ) float64 {
-	high := rotationExpectedLegFundingCashflowUSDT(highSide, highRate, highNotional, highNext, now)
-	low := rotationExpectedLegFundingCashflowUSDT(lowSide, lowRate, lowNotional, lowNext, now)
+	high := rotationExpectedLegFundingCashflowUSDT(highSide, highRate, highNotional, highInterval, highNext, now)
+	low := rotationExpectedLegFundingCashflowUSDT(lowSide, lowRate, lowNotional, lowInterval, lowNext, now)
 	return money.SumUSDT(high, low)
 }
 

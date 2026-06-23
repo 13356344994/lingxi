@@ -21,10 +21,15 @@ const (
 	crossVenueSpotPerpDefaultRebalanceLatencyH   = 2.0
 	crossVenueSpotPerpDefaultPerpMaintMarginRate = 0.005
 	crossVenueSpotPerpDefaultPerpWalletBuffer    = 0.10
-	carryScannerDefaultFundingCaptureProbability = 0.50
+	carryScannerDefaultFundingCaptureProbability = 0.75
 	carryScannerPerpPerpDustLegFraction          = 0.50
 	// carryScannerDustResidualFraction 残腿期望成本 = 较大腿 min-notional × 此系数(偶发遗留,非全额)。
 	carryScannerDustResidualFraction = 0.05
+	// carryScannerPerpPerpDustResidualBps perp-perp 残腿成本按名义比例计(0.08%),
+	// 以旧固定值(min-notional×0.05×0.5=0.125)为上限,避免大仓无界增长。
+	carryScannerPerpPerpDustResidualBps = 8.0
+	// carryScannerPerpPerpDustResidualFloorUSDT 残腿成本下限,避免小仓归零(总有少量取整残余)。
+	carryScannerPerpPerpDustResidualFloorUSDT = 0.01
 )
 
 // CrossVenueSpotPerpFundingSnap 是某所某 symbol 的永续资金费快照(扫描输入)。
@@ -342,11 +347,27 @@ func carryScannerDustResidualCostUSDT(minNotionals []float64, perpPerpSymmetric 
 	return maxMN * frac
 }
 
-func carryScannerPerpPerpDustResidualCostUSDT() float64 {
-	return carryScannerDustResidualCostUSDT(
+// carryScannerPerpPerpDustResidualCostUSDT 估计 perp-perp 开/平因步进取整偶发遗留残腿的期望成本。
+// 旧实现返回与名义无关的固定 0.125(= min-notional × 0.05 × 0.5),在 $20~30 的小仓上占比高达 0.5%+,
+// 是资费 EV 的数倍,会把所有小额暴力币机会直接压成负。
+// 残腿来自单腿 lot 取整,随仓位名义近似按比例缩放;故改为「名义 × 小 bps」,并以旧固定值为上限(大仓封顶),
+// 同时设极小下限避免归零。这样小仓摊薄、大仓与旧行为一致。
+func carryScannerPerpPerpDustResidualCostUSDT(notionalUSDT float64) float64 {
+	ceiling := carryScannerDustResidualCostUSDT(
 		[]float64{crossVenueSpotPerpMinTradableNotionalUSDT, crossVenueSpotPerpMinTradableNotionalUSDT},
 		true,
 	)
+	if notionalUSDT <= 0 {
+		return ceiling
+	}
+	cost := notionalUSDT * carryScannerPerpPerpDustResidualBps / 10000
+	if cost > ceiling {
+		cost = ceiling
+	}
+	if cost < carryScannerPerpPerpDustResidualFloorUSDT {
+		cost = carryScannerPerpPerpDustResidualFloorUSDT
+	}
+	return cost
 }
 
 func crossVenueSpotPerpCollectSymbols(funding map[string]map[string]CrossVenueSpotPerpFundingSnap, markets map[string]map[string]CrossVenueSpotPerpMarketSnap) []string {

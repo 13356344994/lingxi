@@ -766,14 +766,16 @@
           <strong style="color:#e5edff;font-size:15px;">今日已实现收益(北京时间)</strong>
           <button id="earnings-clear-btn" type="button" class="danger" style="font-size:12px;">清除权益快照(24h外)</button>
         </div>
-        <div class="hint" id="earnings-note" style="margin:0 0 10px;">含义:<strong>今日已实现收益</strong>=五策略 settlements.jsonl 在<strong>北京时间当日 00:00 后 close_time</strong>的 net_pnl 汇总(含 perp-perp + 四轮动);<strong>持仓中(未实现)</strong>=当前 OPEN 持仓已累计资金费;<strong>账户净值变动(含转账)</strong>=各所账户总值相对日初权益快照的变化(含充值/提币/调仓,非纯交易收益)。</div>
+          <div class="hint" id="earnings-note" style="margin:0 0 10px;">含义:<strong>今日已实现收益</strong>=五策略 settlements.jsonl 在<strong>北京时间当日 00:00 后 close_time</strong>的 net_pnl 汇总(含 perp-perp + 四轮动);<strong>持仓中(未实现)</strong>=当前 OPEN 持仓已累计资金费;<strong>账户净值变动(含转账)</strong>=各所账户总值相对日初权益快照的变化(含充值/提币/调仓);<strong>充提转账</strong>=账户风控识别出的当日充值(+)/提币(−),已从风控亏损口径中剔除;<strong>交易净值变动(不含转账)</strong>=账户净值变动−充提转账,才是纯交易结果。提现后若「账户净值变动」下降但「交易净值变动」基本不动,即说明那是提币而非亏损。</div>
         <div id="earnings-realized-hero" style="margin:0 0 10px;padding:10px;background:#13203a;border:1px solid #2b3c5c;border-radius:8px;">
           <div style="font-size:12px;color:#94a3b8;">可信已实现 · 不可信(legacy/幻觉) · 持仓中(未实现) · 账户净值变动(含转账)</div>
           <div style="display:flex;flex-wrap:wrap;gap:16px;margin-top:6px;">
             <div><span style="font-size:12px;color:#8aa0c6;">可信已实现</span> <strong id="earnings-realized-total" style="font-size:20px;color:#86efac;">-</strong></div>
             <div><span style="font-size:12px;color:#8aa0c6;">不可信(legacy)</span> <strong id="earnings-untrusted-total" style="font-size:18px;color:#cbd5e1;">-</strong> <span id="earnings-untrusted-count" class="hint" style="font-size:11px;"></span></div>
             <div><span style="font-size:12px;color:#8aa0c6;">持仓中(未实现)</span> <strong id="earnings-unrealized-funding" style="font-size:18px;color:#cbd5e1;">-</strong></div>
-            <div><span style="font-size:12px;color:#8aa0c6;">账户净值变动</span> <strong id="earnings-equity-delta" style="font-size:18px;color:#94a3b8;">-</strong></div>
+            <div><span style="font-size:12px;color:#8aa0c6;">账户净值变动(含转账)</span> <strong id="earnings-equity-delta" style="font-size:18px;color:#94a3b8;">-</strong></div>
+            <div><span style="font-size:12px;color:#8aa0c6;">充提转账</span> <strong id="earnings-fund-flow" style="font-size:18px;color:#94a3b8;">-</strong></div>
+            <div><span style="font-size:12px;color:#8aa0c6;">交易净值变动(不含转账)</span> <strong id="earnings-trading-delta" style="font-size:18px;color:#94a3b8;">-</strong></div>
           </div>
           <div id="earnings-untrusted-warn" class="untrusted-pnl-warn" style="display:none;">不可信样本(如 HEI 类幻觉)不计入主风控/PnL 汇总;仅作审计对照。</div>
           <div class="hint" id="earnings-generated-at" style="margin:6px 0 0;font-size:11px;"></div>
@@ -3985,6 +3987,29 @@
         <div>${escapeHTML(lowVenue)} 低腿 ${fmtFundingRate(lowRate)}${fmtFundingInterval(p.low_interval_hours)}${lowWin} · 下次 ${escapeHTML(lowNext)}</div>
         <div>已结算资费 ${realizedHtml}</div>
         <div>预期下次资费 ${expectedHtml}</div>
+        ${formatCapturePlan(p.capture_plan)}
+      </div>`;
+    }
+
+    // formatCapturePlan 统一资费捕获计划摘要:为吃哪条腿/哪次结算而开、计划离场、预期资费、基差止损预算已用/剩余。
+    function formatCapturePlan(plan) {
+      if (!plan) return "";
+      const legLabel = plan.target_leg === "low" ? "低腿(多)" : (plan.target_leg === "high" ? "高腿(空)" : (plan.target_leg || "—"));
+      const settle = plan.target_settlement_time ? formatTimeUTC8(plan.target_settlement_time, { withSuffix: false }) : "—";
+      const exit = plan.planned_exit_time ? formatTimeUTC8(plan.planned_exit_time, { withSuffix: false }) : "—";
+      const n = Number(plan.target_settlements || 0);
+      const nLabel = n > 1 ? ` ×${n}次` : "";
+      const expFund = Number(plan.expected_target_funding_usdt || 0);
+      const budget = Number(plan.basis_budget_usdt || 0);
+      const used = Number(plan.basis_used_usdt || 0);
+      const remain = Number(plan.basis_remaining_usdt || 0);
+      const basisHtml = budget > 0
+        ? `基差止损 已用 <span style="color:${pnlColor(-used)}">${fmtPnL(used)}</span> / 预算 ${fmtPnL(budget)}(余 ${fmtPnL(remain)})`
+        : "基差止损 —";
+      return `<div style="margin-top:4px;padding-top:4px;border-top:1px dashed #d0d7de;color:#475569;">
+        <div title="本笔为吃此腿、此结算时刻而开;到点(+缓冲)即离场">捕获计划 目标 ${escapeHTML(legLabel)}${nLabel} · 结算 ${escapeHTML(settle)}</div>
+        <div>计划离场 ${escapeHTML(exit)} · 预期资费 <span style="color:${pnlColor(expFund)}">${fmtPnL(expFund)}</span></div>
+        <div>${basisHtml}</div>
       </div>`;
     }
 
@@ -3992,7 +4017,7 @@
       const totalPnL = p.total_pnl_usdt;
       const isPP = String(p.strategy_type || "") === "perp_perp";
       const note = isPP
-        ? '<div class="hint" style="font-size:10px;margin-top:2px;">仅含已结算资费</div>'
+        ? '<div class="hint" style="font-size:10px;margin-top:2px;">含两腿未实现盈亏 + 已结算资费 − 开/平仓费(不含下次预期资费)</div>'
         : "";
       const netWith = isPP && p.net_expected_with_funding_usdt != null && Number.isFinite(Number(p.net_expected_with_funding_usdt))
         ? `<div class="hint" style="font-size:10px;margin-top:2px;">含预期下次 ${fmtPnL(p.net_expected_with_funding_usdt)}</div>`
@@ -4150,6 +4175,21 @@
       if (equityEl) {
         equityEl.textContent = fmt(equityDelta) + " U";
         equityEl.style.color = color(equityDelta);
+      }
+      const fundFlowEl = document.getElementById("earnings-fund-flow");
+      const tradingDeltaEl = document.getElementById("earnings-trading-delta");
+      const fundFlowKnown = data.fund_flow_known === true;
+      const fundFlow = Number(data.fund_flow_adjust_usdt || 0);
+      const tradingDelta = data.trading_equity_delta_usdt != null ? Number(data.trading_equity_delta_usdt) : equityDelta;
+      if (fundFlowEl) {
+        fundFlowEl.textContent = fundFlowKnown ? (fmt(fundFlow) + " U") : "—";
+        fundFlowEl.style.color = fundFlowKnown && fundFlow !== 0 ? "#7dd3fc" : "#94a3b8";
+        fundFlowEl.title = fundFlowKnown ? "正=充值,负=提币;已从风控亏损口径剔除" : "账户风控状态未就绪";
+      }
+      if (tradingDeltaEl) {
+        tradingDeltaEl.textContent = fundFlowKnown ? (fmt(tradingDelta) + " U") : "—";
+        tradingDeltaEl.style.color = fundFlowKnown ? color(tradingDelta) : "#94a3b8";
+        tradingDeltaEl.title = "账户净值变动 − 充提转账 = 纯交易结果";
       }
       const venueNames = Object.keys(byVenue).sort();
       const venueCards = venueNames.map((v) => {

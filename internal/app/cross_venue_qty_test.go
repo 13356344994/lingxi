@@ -49,6 +49,25 @@ func (f *contractLegFakeVenue) PlaceOrder(_ context.Context, req venue.OrderRequ
 	if f.reportContractsInExecutedQty && instr.ContractSize > 0 {
 		execQty = execCoin / instr.ContractSize
 	}
+	if req.ReduceOnly && len(f.positions) > 0 {
+		cur := f.positions[0].PositionAmt
+		if cur < 0 && req.Side == venue.SideBuy {
+			f.positions[0].PositionAmt = math.Min(cur+execCoin, 0)
+			f.positions[0].MarkPrice = req.Price
+			return venue.OrderResult{
+				Symbol: req.Symbol, Market: req.Market, ClientOrderID: req.ClientOrderID,
+				Status: "filled", ExecutedQty: execQty, AvgPrice: req.Price, CumQuoteUSDT: execCoin * req.Price,
+			}, nil
+		}
+		if cur > 0 && req.Side == venue.SideSell {
+			f.positions[0].PositionAmt = math.Max(cur-execCoin, 0)
+			f.positions[0].MarkPrice = req.Price
+			return venue.OrderResult{
+				Symbol: req.Symbol, Market: req.Market, ClientOrderID: req.ClientOrderID,
+				Status: "filled", ExecutedQty: execQty, AvgPrice: req.Price, CumQuoteUSDT: execCoin * req.Price,
+			}, nil
+		}
+	}
 	amt := execCoin
 	if req.Side == venue.SideSell {
 		amt = -execCoin
@@ -342,50 +361,31 @@ func TestCrossVenueOpenBookQtyBybitHighGateLowReportsContracts(t *testing.T) {
 	}
 }
 
-func TestCrossVenueOpenBookQtyGateHighBybitLowReportsContracts(t *testing.T) {
-	// H-USDT 口径:gate 高费腿先成交,ExecutedQty 误报张数(3 张 × 10 = 30 币);bybit 对冲跟单 3 币。
+func TestCrossVenueOpenVerifyBooksExchangeTruth(t *testing.T) {
 	now := vNow()
-	gateInstr := venue.Instrument{
-		Symbol: "H-USDT", Market: venue.MarketPerp, StepSize: 1, ContractSize: 10, QtyUnit: "contract",
-	}
-	gateVenue := newContractLegFakeVenueReportingContracts(gate.VenueName, gateInstr)
-	bybitVenue := newCrossVenueTestVenue(bybit.VenueName, 0.001, 8, now)
-	bybitVenue.instruments = []venue.Instrument{{
-		Symbol: "H-USDT", Market: venue.MarketPerp, StepSize: 1, ContractSize: 1,
-	}}
-
+	high := newCrossVenueTestVenue(bybit.VenueName, 0.001, 8, now)
+	low := newCrossVenueTestVenue(okx.VenueName, 0.0001, 8, now)
+	high.positions = []venue.Position{{Symbol: "BTC-USDT", PositionAmt: -0.5, MarkPrice: 100, Leverage: 2}}
+	low.positions = []venue.Position{{Symbol: "BTC-USDT", PositionAmt: 0.5, MarkPrice: 100, Leverage: 2}}
 	cfg := testCrossVenueExecutorConfig()
 	cfg.NetworkConfig.RecordDir = t.TempDir()
-	cfg.CrossVenueExecutor.LiveTradingEnabled = true
 	e := &CrossVenueExecutor{
 		cfg:    cfg,
-		venues: map[string]venue.Venue{gate.VenueName: gateVenue, bybit.VenueName: bybitVenue},
+		venues: map[string]venue.Venue{bybit.VenueName: high, okx.VenueName: low},
 		store:  mustCrossVenueStore(t, cfg.NetworkConfig.RecordDir),
 		logger: testCrossVenueLogger(),
 		nowFn:  func() time.Time { return now },
 	}
-	refPrice := 0.243
-	qty := float64(30)
-	plan := crossVenueOpenPlan{
-		Opp: CrossVenueOpportunity{Symbol: "H-USDT", HighVenue: gate.VenueName, LowVenue: bybit.VenueName, SpreadAPR: 2.0},
-		Gate: crossVenueGateResult{
-			NotionalUSDT: 7.3,
-			HighInstr:    gateInstr,
-			LowInstr:     bybitVenue.instruments[0],
-		},
-		Qty:        qty,
-		RefPrice:   refPrice,
-		IdemPrefix: "h-book",
+	pos := CrossVenuePosition{
+		Symbol: "BTC-USDT", HighVenue: bybit.VenueName, LowVenue: okx.VenueName,
+		Status: CrossVenueStatusOpeningSecondLeg, IdemPrefix: "verify-book",
 	}
-	pos, err := e.executeCrossVenueOpen(context.Background(), plan, true)
+	plan := e.crossVenueOpenPlanFromPosition(context.Background(), pos)
+	highQty, lowQty, imbalance, err := e.verifyAndFinalizeCrossVenueOpen(context.Background(), &pos, plan, true)
 	if err != nil {
-		t.Fatalf("open: %v", err)
+		t.Fatalf("verify: %v", err)
 	}
-	if pos.HighLeg.Qty != 30 || pos.LowLeg.Qty != 30 {
-		t.Fatalf("want both legs 30 coin, got high=%v low=%v", pos.HighLeg.Qty, pos.LowLeg.Qty)
-	}
-	wantNotional := 30 * refPrice
-	if math.Abs(pos.NotionalUSDT-wantNotional) > 1e-6 {
-		t.Fatalf("notional=%v want %v", pos.NotionalUSDT, wantNotional)
+	if highQty != 0.5 || lowQty != 0.5 || imbalance > executionQtyTolerance {
+		t.Fatalf("want 0.5/0.5 balanced, got high=%v low=%v imbalance=%v", highQty, lowQty, imbalance)
 	}
 }

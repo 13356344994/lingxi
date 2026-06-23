@@ -44,17 +44,49 @@ type UnifiedCandidateLogRecord struct {
 	RotationWouldExecute     bool               `json:"rotation_would_execute"`
 	CapitalAwareNetEVUSDT    float64            `json:"capital_aware_net_ev_usdt,omitempty"`
 	CapitalAwareNotionalUSDT float64            `json:"capital_aware_notional_usdt,omitempty"`
-	NotionalUSDT             float64            `json:"notional_usdt"`
-	RawFundingRate           float64            `json:"raw_funding_rate,omitempty"`
-	FundingRatePerHour       float64            `json:"funding_rate_per_hour,omitempty"`
-	FundingAPR               float64            `json:"funding_apr,omitempty"`
-	SpreadAPR                float64            `json:"spread_apr,omitempty"`
-	HighFundingRate          float64            `json:"high_funding_rate,omitempty"`
-	LowFundingRate           float64            `json:"low_funding_rate,omitempty"`
-	FundingIntervalHours     int                `json:"funding_interval_hours,omitempty"`
-	NextFundingTime          string             `json:"next_funding_time,omitempty"`
-	HighNextFundingTime      string             `json:"high_next_funding_time,omitempty"`
-	LowNextFundingTime       string             `json:"low_next_funding_time,omitempty"`
+	// CapitalAwareCost 按「可投名义」重估的成本瀑布:资金费 − 费用 − 滑点 − 基差 − dust − 观测风险 − 缓冲 = 净EV。
+	// 让排行榜能看清一条机会的净EV到底被哪块成本吃掉,而不只给一个净EV数字。
+	CapitalAwareCost     *UnifiedCostBreakdown `json:"capital_aware_cost,omitempty"`
+	NotionalUSDT         float64               `json:"notional_usdt"`
+	RawFundingRate       float64               `json:"raw_funding_rate,omitempty"`
+	FundingRatePerHour   float64               `json:"funding_rate_per_hour,omitempty"`
+	FundingAPR           float64               `json:"funding_apr,omitempty"`
+	SpreadAPR            float64               `json:"spread_apr,omitempty"`
+	HighFundingRate      float64               `json:"high_funding_rate,omitempty"`
+	LowFundingRate       float64               `json:"low_funding_rate,omitempty"`
+	FundingIntervalHours int                   `json:"funding_interval_hours,omitempty"`
+	HighIntervalHours    int                   `json:"high_interval_hours,omitempty"`
+	LowIntervalHours     int                   `json:"low_interval_hours,omitempty"`
+	NextFundingTime      string                `json:"next_funding_time,omitempty"`
+	HighNextFundingTime  string                `json:"high_next_funding_time,omitempty"`
+	LowNextFundingTime   string                `json:"low_next_funding_time,omitempty"`
+}
+
+// UnifiedCostBreakdown 是一条机会按可投名义重估的净EV成本瀑布(USDT,均为该机会期望持有窗口内的口径)。
+// 关系:NetEVUSDT = FundingUSDT − FeesUSDT − SlippageUSDT − EntryBasisUSDT − DustUSDT − ObservableRiskUSDT − PolicyBufferUSDT。
+type UnifiedCostBreakdown struct {
+	FundingUSDT        float64 `json:"funding_usdt"`         // 期望吃到的资金费(毛收入)
+	FeesUSDT           float64 `json:"fees_usdt"`            // 开+平双边手续费
+	SlippageUSDT       float64 `json:"slippage_usdt"`        // 期望滑点
+	EntryBasisUSDT     float64 `json:"entry_basis_usdt"`     // 两腿入场基差成本
+	DustUSDT           float64 `json:"dust_usdt"`            // 残腿/取整 dust 期望成本
+	ObservableRiskUSDT float64 `json:"observable_risk_usdt"` // 新鲜度/窗口/可恢复性折算的观测风险成本
+	PolicyBufferUSDT   float64 `json:"policy_buffer_usdt"`   // 保守政策缓冲
+	NetEVUSDT          float64 `json:"net_ev_usdt"`          // 净EV(= 上面相减)
+}
+
+// unifiedCostBreakdownFromCrossVenue 从重估后的跨所机会提取成本瀑布(展示用,不改排序/决策)。
+func unifiedCostBreakdownFromCrossVenue(o CrossVenueOpportunity) *UnifiedCostBreakdown {
+	return &UnifiedCostBreakdown{
+		FundingUSDT:        o.SpreadEV,
+		FeesUSDT:           o.OpenCost + o.CloseCost,
+		SlippageUSDT:       o.ExpectedSlippage,
+		EntryBasisUSDT:     o.EntryBasisCost,
+		DustUSDT:           o.DustResidualCost,
+		ObservableRiskUSDT: o.ObservableRiskCost,
+		PolicyBufferUSDT:   o.PolicyBuffer,
+		NetEVUSDT:          o.NetEV,
+	}
 }
 
 // UnifiedCandidateLogEnricher 可选上下文:在写入 JSONL 时填充 capital-aware EV/名义与真实 rotation/open 闸口径。
@@ -110,6 +142,8 @@ func unifiedCandidateLogFromOpportunityWithRotation(cfg CrossVenueExecutorConfig
 		HighFundingRate:        unified.HighFundingRate,
 		LowFundingRate:         unified.LowFundingRate,
 		FundingIntervalHours:   unified.FundingIntervalHours,
+		HighIntervalHours:      unified.HighIntervalHours,
+		LowIntervalHours:       unified.LowIntervalHours,
 		NextFundingTime:        unified.NextFundingTime,
 		HighNextFundingTime:    unified.HighNextFundingTime,
 		LowNextFundingTime:     unified.LowNextFundingTime,
@@ -152,6 +186,17 @@ func applyScannerEstimatesFromCrossVenue(rec *UnifiedCandidateLogRecord, cvOpp C
 	}
 }
 
+// crossVenueApplyCapitalAwareSlippageOverride 统一捕获模型下,让"可投"EV 复算沿用 headline 真实深度算出的每单位滑点 bps,
+// 使排行榜 headline 与 capital-aware 同法可比(同名义则相等,异名义按 bps 线性缩放)。flag OFF 时不改动(行为不变)。
+func crossVenueApplyCapitalAwareSlippageOverride(cfg CrossVenueExecutorConfig, reOpp *CrossVenueOpportunity, headline *CrossVenueOpportunity) {
+	if reOpp == nil || headline == nil || !crossVenueUnifiedActiveForSymbol(cfg, headline.Symbol) {
+		return
+	}
+	if headline.TradableNotional > 0 && headline.ExpectedSlippage > 0 {
+		reOpp.EVSlippageBpsOverride = headline.ExpectedSlippage / headline.TradableNotional * 10000
+	}
+}
+
 func applyUnifiedCandidateCapitalAware(rec *UnifiedCandidateLogRecord, unified UnifiedOpportunity, cfg CrossVenueExecutorConfig, enrich UnifiedCandidateLogEnricher) {
 	if rec == nil {
 		return
@@ -172,9 +217,11 @@ func applyUnifiedCandidateCapitalAware(rec *UnifiedCandidateLogRecord, unified U
 		if notional > 0 {
 			reOpp := *cvOpp
 			reOpp.TradableNotional = notional
+			crossVenueApplyCapitalAwareSlippageOverride(cfg, &reOpp, cvOpp)
 			estimated := crossVenueEstimateOpportunityMetrics(cfg, reOpp, now)
 			rec.CapitalAwareNotionalUSDT = notional
 			rec.CapitalAwareNetEVUSDT = estimated.NetEV
+			rec.CapitalAwareCost = unifiedCostBreakdownFromCrossVenue(estimated)
 		}
 		rec.RotationWouldExecute = enrich.GateOK
 		return
@@ -188,9 +235,11 @@ func applyUnifiedCandidateCapitalAware(rec *UnifiedCandidateLogRecord, unified U
 		if capNotional > 0 {
 			reOpp := *cvOpp
 			reOpp.TradableNotional = capNotional
+			crossVenueApplyCapitalAwareSlippageOverride(cfg, &reOpp, cvOpp)
 			estimated := crossVenueEstimateOpportunityMetrics(cfg, reOpp, now)
 			rec.CapitalAwareNotionalUSDT = capNotional
 			rec.CapitalAwareNetEVUSDT = estimated.NetEV
+			rec.CapitalAwareCost = unifiedCostBreakdownFromCrossVenue(estimated)
 			capped.ExpectedNetEVUSDT = estimated.NetEV
 			capped.ExpectedFundingUSDT = estimated.SpreadEV
 			capped.ExpectedOpenCostUSDT = estimated.OpenCost

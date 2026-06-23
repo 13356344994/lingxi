@@ -15,6 +15,7 @@ const (
 	pathFuturesAccounts           = "/api/v4/futures/usdt/accounts"
 	pathFuturesPositions          = "/api/v4/futures/usdt/positions"
 	pathFuturesOrders             = "/api/v4/futures/usdt/orders"
+	pathFuturesAccountBook        = "/api/v4/futures/usdt/account_book" // 私有读:U 本位账户流水(type=fund 为资金费结算)
 	pathFuturesCountdownCancelAll = "/api/v4/futures/usdt/countdown_cancel_all"
 
 	pathWalletFee         = "/api/v4/wallet/fee"

@@ -9,23 +9,25 @@ import (
 )
 
 const (
-	accountRiskEquityStateFileName     = "account_risk_equity_state.json"
+	accountRiskEquityStateFileName      = "account_risk_equity_state.json"
 	accountRiskEquityStateSchemaVersion = 1
 )
 
 // persistedAccountRiskEquityState 跨 tick/重启的账户权益状态(原子落盘)。
 type persistedAccountRiskEquityState struct {
-	SchemaVersion           int               `json:"schema_version"`
-	DayStartCST             time.Time         `json:"day_start_cst"`
-	LastTrustedTotalUSDT    float64           `json:"last_trusted_total_usdt"`
+	SchemaVersion           int                `json:"schema_version"`
+	DayStartCST             time.Time          `json:"day_start_cst"`
+	LastTrustedTotalUSDT    float64            `json:"last_trusted_total_usdt"`
 	LastTrustedByVenue      map[string]float64 `json:"last_trusted_by_venue,omitempty"`
-	HasLastTrusted          bool              `json:"has_last_trusted"`
-	LastTrustedAt           time.Time         `json:"last_trusted_at,omitempty"`
-	DailyFundFlowAdjustUSDT float64           `json:"daily_fund_flow_adjust_usdt"`
-	LastDailyRealizedPnL    float64           `json:"last_daily_realized_pnl"`
-	LastSettlementCount     int               `json:"last_settlement_count"`
-	LastPositionCount       int               `json:"last_position_count"`
-	UpdatedAt               time.Time         `json:"updated_at"`
+	HasLastTrusted          bool               `json:"has_last_trusted"`
+	LastTrustedAt           time.Time          `json:"last_trusted_at,omitempty"`
+	DailyFundFlowAdjustUSDT float64            `json:"daily_fund_flow_adjust_usdt"`
+	CumulativeFundFlowUSDT  float64            `json:"cumulative_fund_flow_usdt"`
+	TradingEquityPeakUSDT   float64            `json:"trading_equity_peak_usdt"`
+	LastDailyRealizedPnL    float64            `json:"last_daily_realized_pnl"`
+	LastSettlementCount     int                `json:"last_settlement_count"`
+	LastPositionCount       int                `json:"last_position_count"`
+	UpdatedAt               time.Time          `json:"updated_at"`
 }
 
 func accountRiskEquityStatePath(recordDir string) string {
@@ -48,6 +50,8 @@ func (st *accountRiskEquityState) toPersisted(now time.Time) persistedAccountRis
 		HasLastTrusted:          st.HasLastTrusted,
 		LastTrustedAt:           st.LastTrustedAt,
 		DailyFundFlowAdjustUSDT: st.DailyFundFlowAdjustUSDT,
+		CumulativeFundFlowUSDT:  st.CumulativeFundFlowUSDT,
+		TradingEquityPeakUSDT:   st.TradingEquityPeakUSDT,
 		LastDailyRealizedPnL:    st.LastDailyRealizedPnL,
 		LastSettlementCount:     st.LastSettlementCount,
 		LastPositionCount:       st.LastPositionCount,
@@ -65,6 +69,8 @@ func (st *accountRiskEquityState) applyPersisted(p persistedAccountRiskEquitySta
 	st.HasLastTrusted = p.HasLastTrusted
 	st.LastTrustedAt = p.LastTrustedAt
 	st.DailyFundFlowAdjustUSDT = p.DailyFundFlowAdjustUSDT
+	st.CumulativeFundFlowUSDT = p.CumulativeFundFlowUSDT
+	st.TradingEquityPeakUSDT = p.TradingEquityPeakUSDT
 	st.LastDailyRealizedPnL = p.LastDailyRealizedPnL
 	st.LastSettlementCount = p.LastSettlementCount
 	st.LastPositionCount = p.LastPositionCount

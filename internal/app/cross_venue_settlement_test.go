@@ -296,6 +296,113 @@ func TestSummarizeCrossVenueSettlementsUsesVenueAttribution(t *testing.T) {
 	}
 }
 
+func TestBuildCrossVenueSettlementUsesEstimatedFundingWhenMissing(t *testing.T) {
+	opened := time.Date(2026, 6, 14, 0, 0, 0, 0, time.UTC)
+	closeTime := opened.Add(10 * time.Hour)
+	pos := CrossVenuePosition{
+		Symbol: "BTC-USDT", HighVenue: "binance", LowVenue: "gate",
+		OpenedAt: opened, HighIntervalHours: 8, LowIntervalHours: 8,
+		HighNextFundingTime:     opened.Add(4 * time.Hour),
+		LowNextFundingTime:      opened.Add(4 * time.Hour),
+		EstFundingUSDT:          1.75,
+		FundingTruthStatus:      "missing",
+		RealizedFundingComplete: false,
+	}
+	rec := buildCrossVenueSettlement(pos, closeTime)
+	if rec.FundingTruthStatus != "estimated" {
+		t.Fatalf("funding_truth=%q want estimated", rec.FundingTruthStatus)
+	}
+	if math.Abs(rec.RealizedFunding-1.75) > 1e-9 {
+		t.Fatalf("realized_funding=%v want 1.75", rec.RealizedFunding)
+	}
+	if math.Abs(rec.NetPnL-1.75) > 1e-9 {
+		t.Fatalf("net_pnl=%v want 1.75 (estimated funding included)", rec.NetPnL)
+	}
+}
+
+func TestBuildCrossVenueSettlement_PartialEstimatesMissingLeg(t *testing.T) {
+	// partial:高费腿真实 (0.6),低费腿真实资费拉取失败 → LowLegFundingUSDT 停留 0。
+	// 整仓估算 EstFundingUSDT=0.5(隐含低费腿估算 -0.1)。
+	// 期望:realized = 0.5(= 真实腿 0.6 + 缺失腿估算 -0.1),而非旧逻辑的 0.6(缺失腿计 0 → 多计)。
+	pos := CrossVenuePosition{
+		Symbol:                  "BTC-USDT",
+		HighVenue:               "binance",
+		LowVenue:                "gate",
+		OpenedAt:                time.Date(2026, 6, 14, 0, 0, 0, 0, time.UTC),
+		HighLegFundingUSDT:      0.6,
+		LowLegFundingUSDT:       0,
+		EstFundingUSDT:          0.5,
+		FundingTruthStatus:      "partial",
+		RealizedFundingComplete: false,
+	}
+	rec := buildCrossVenueSettlement(pos, pos.OpenedAt.Add(10*time.Hour))
+
+	if math.Abs(rec.RealizedFunding-0.5) > 1e-9 {
+		t.Fatalf("realized_funding=%v want 0.5 (real leg + estimated missing leg)", rec.RealizedFunding)
+	}
+	// 不得退化为只算真实腿(旧 bug:缺失腿计 0)。
+	if math.Abs(rec.RealizedFunding-0.6) < 1e-9 {
+		t.Fatalf("realized_funding=%v under-counts: missing leg still treated as 0", rec.RealizedFunding)
+	}
+	// 不得重复计数真实腿(真实腿 + 整仓估算 = 1.1)。
+	if math.Abs(rec.RealizedFunding-1.1) < 1e-9 {
+		t.Fatalf("realized_funding=%v double-counts the real leg", rec.RealizedFunding)
+	}
+	if rec.FundingTruthStatus != "partial" {
+		t.Fatalf("funding_truth=%q want partial (kept, missing leg estimated)", rec.FundingTruthStatus)
+	}
+	if rec.RealizedFundingComplete {
+		t.Fatal("realized_funding_complete must stay false for partial")
+	}
+	// net = realized(0.5) + trade(0) - fees(0) = 0.5
+	if math.Abs(rec.NetPnL-0.5) > 1e-9 {
+		t.Fatalf("net_pnl=%v want 0.5", rec.NetPnL)
+	}
+}
+
+func TestBuildCrossVenueSettlement_PartialWithoutEstimateKeepsRealLeg(t *testing.T) {
+	// 无整仓估算(EstFundingUSDT=0)时无估算可用 → 保持原两腿之和(不抹掉真实腿)。
+	pos := CrossVenuePosition{
+		Symbol:             "BTC-USDT",
+		HighVenue:          "binance",
+		LowVenue:           "gate",
+		OpenedAt:           time.Date(2026, 6, 14, 0, 0, 0, 0, time.UTC),
+		HighLegFundingUSDT: 0.6,
+		LowLegFundingUSDT:  0,
+		EstFundingUSDT:     0,
+		FundingTruthStatus: "partial",
+	}
+	rec := buildCrossVenueSettlement(pos, pos.OpenedAt.Add(10*time.Hour))
+	if math.Abs(rec.RealizedFunding-0.6) > 1e-9 {
+		t.Fatalf("realized_funding=%v want 0.6 (real leg preserved when no estimate available)", rec.RealizedFunding)
+	}
+	if rec.FundingTruthStatus != "partial" {
+		t.Fatalf("funding_truth=%q want partial", rec.FundingTruthStatus)
+	}
+}
+
+func TestBuildCrossVenueSettlement_CompleteUsesRealLegsOnly(t *testing.T) {
+	// 回归:fully-real(complete)路径不受 partial 改动影响,仍只用两腿真实值,EstFundingUSDT 不介入。
+	pos := CrossVenuePosition{
+		Symbol:                  "BTC-USDT",
+		HighVenue:               "binance",
+		LowVenue:                "gate",
+		OpenedAt:                time.Date(2026, 6, 14, 0, 0, 0, 0, time.UTC),
+		HighLegFundingUSDT:      0.6,
+		LowLegFundingUSDT:       -0.1,
+		EstFundingUSDT:          99, // 即便估算很大也不得被采用
+		FundingTruthStatus:      "complete",
+		RealizedFundingComplete: true,
+	}
+	rec := buildCrossVenueSettlement(pos, pos.OpenedAt.Add(10*time.Hour))
+	if math.Abs(rec.RealizedFunding-0.5) > 1e-9 {
+		t.Fatalf("realized_funding=%v want 0.5 (real legs only)", rec.RealizedFunding)
+	}
+	if !rec.RealizedFundingComplete || rec.FundingTruthStatus != "complete" {
+		t.Fatalf("complete path changed: complete=%v status=%q", rec.RealizedFundingComplete, rec.FundingTruthStatus)
+	}
+}
+
 func TestAppendCrossVenueSettlementIsIdempotent(t *testing.T) {
 	dir := t.TempDir()
 	now := time.Date(2026, 6, 16, 0, 0, 0, 0, time.UTC)

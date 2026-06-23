@@ -173,12 +173,16 @@ func crossVenueExpectedOpenCostUSDT(cfg CrossVenueExecutorConfig, opp CrossVenue
 		notional*crossVenuePerpFeeBps(cfg, opp.LowVenue)/10000
 }
 
+// crossVenueOpenEVRoundTripFeeUSDT 开仓侧 EV 的单边两腿费用。
+// 此前写死 taker,而 close/换仓/续持 EV 均用 maker 感知的 crossVenuePerpFeeBps,造成同笔交易开仓侧被多算一倍多的费,
+// 系统性低估机会(尤以小额暴力币为甚)。改用同一 maker 感知函数对齐:maker 优先下开仓更易挂上 maker,
+// 平仓在时间压力下反而更可能吃 taker——故对开仓侧用 maker 估计并不激进。
 func crossVenueOpenEVRoundTripFeeUSDT(cfg CrossVenueExecutorConfig, opp CrossVenueOpportunity, notional float64) float64 {
 	if notional <= 0 {
 		return 0
 	}
-	return notional*crossVenueTakerFeeBps(cfg, opp.HighVenue)/10000 +
-		notional*crossVenueTakerFeeBps(cfg, opp.LowVenue)/10000
+	return notional*crossVenuePerpFeeBps(cfg, opp.HighVenue)/10000 +
+		notional*crossVenuePerpFeeBps(cfg, opp.LowVenue)/10000
 }
 
 func crossVenueExpectedCloseCostUSDT(cfg CrossVenueExecutorConfig, opp CrossVenueOpportunity, notional float64) float64 {
@@ -365,16 +369,34 @@ func crossVenueEstimateOpportunityMetricsEVRatesWithLegs(cfg CrossVenueExecutorC
 	spreadEV := crossVenueOpenGateExpectedFundingUSDT(cfg, now, windowHours, notional, evOpp)
 	openCost := crossVenueOpenEVRoundTripFeeUSDT(cfg, opp, notional)
 	closeCost := openCost
-	expectedSlippage := crossVenueExpectedSlippageUSDT(cfg, notional, 4)
-	if len(slipLegs) > 0 {
-		expectedSlippage = crossVenueExpectedSlippageUSDTWithLegs(cfg, notional, slipLegs)
+	unifiedActive := crossVenueUnifiedActiveForSymbol(cfg, opp.Symbol)
+	makerFirst := unifiedActive && (cfg.MakerFirst || cfg.AssumeMakerFills)
+	var expectedSlippage float64
+	switch {
+	case unifiedActive && opp.EVSlippageBpsOverride > 0:
+		// 同一口径复算:沿用 headline 真实深度算出的每单位总滑点 bps,线性随名义缩放 → headline 与"可投"EV 同法可比。
+		expectedSlippage = opp.EVSlippageBpsOverride * notional / 10000
+	case len(slipLegs) > 0:
+		legs := slipLegs
+		if makerFirst && len(legs) >= 1 {
+			// 高费腿首腿 maker 挂单(执行端 post-only 追价),近零穿价;其余腿(对冲腿+两腿平仓)吃 taker。
+			legs = append([]crossVenueEVSlippageLeg(nil), slipLegs...)
+			legs[0].Maker = true
+		}
+		expectedSlippage = crossVenueExpectedSlippageUSDTWithLegs(cfg, notional, legs)
+	default:
+		legsCrossed := 4
+		if makerFirst {
+			legsCrossed = 3 // 仅 对冲腿开 + 两腿平 吃 taker;高费腿首腿 maker
+		}
+		expectedSlippage = crossVenueExpectedSlippageUSDT(cfg, notional, legsCrossed)
 	}
 	recoveryQuality := crossVenueRecoveryQualityForPair(opp.HighVenue, opp.LowVenue)
 	observableRiskCost := crossVenueObservableRiskCost(notional, opp.FreshnessAgeSeconds, windowHours, recoveryQuality)
 	policyBuffer := crossVenuePolicyBuffer(openCost, closeCost)
-	dustCost := carryScannerPerpPerpDustResidualCostUSDT()
-	midDev := crossVenueMidDevFromSlipLegs(opp, slipLegs)
-	entryBasisCost := crossVenuePerpPerpEntryBasisCostUSDT(cfg, midDev, notional, opp)
+	dustCost := carryScannerPerpPerpDustResidualCostUSDT(notional)
+	adverseDev := crossVenueAdverseMidDevFromSlipLegs(opp, slipLegs)
+	entryBasisCost := crossVenuePerpPerpEntryBasisCostUSDT(cfg, adverseDev, notional, opp)
 	netEV := spreadEV - openCost - closeCost - expectedSlippage - observableRiskCost - policyBuffer - dustCost - entryBasisCost
 	effectiveMargin := crossVenueEffectiveMarginOccupied(cfg, notional)
 	capitalEfficiency := 0.0
@@ -403,6 +425,8 @@ func crossVenueEstimateOpportunityMetricsEVRatesWithLegs(cfg CrossVenueExecutorC
 	opp.ExpectedSlippage = expectedSlippage
 	opp.ObservableRiskCost = observableRiskCost
 	opp.PolicyBuffer = policyBuffer
+	opp.DustResidualCost = dustCost
+	opp.EntryBasisCost = entryBasisCost
 	opp.NetEV = netEV
 	opp.CapitalEfficiencyEV = capitalEfficiency
 	opp.HistoryQualityScore = historyQuality
@@ -547,19 +571,21 @@ func crossVenuePerpPerpSearchBestNotional(
 }
 
 // crossVenuePerpPerpEntryBasisCostUSDT 开仓时两腿 mid 偏离锁入的基差成本(收敛折现后从 netEV 扣除)。
-// 公式:偏离比例 × 名义 × EntryBasisConvergenceFraction;仅计成本侧,不把有利基差当收入。
+// 入参 adverseDev 为「带符号的不利偏离」(见 crossVenueAdverseMidDeviation):
+// >0 表示做多腿比做空腿更贵 → 基差收敛会让价格腿亏损 → 计成本;≤0 表示顺向有利 → 不计成本(保守:也不计为收入)。
+// 公式:不利偏离 × 名义 × EntryBasisConvergenceFraction。
 // 极端价差放宽 mid 闸时,只对超出 MidPriceDeviationMax 的增量偏离计基差(放宽区间本身不计)。
-func crossVenuePerpPerpEntryBasisCostUSDT(cfg CrossVenueExecutorConfig, midDev, notional float64, opp CrossVenueOpportunity) float64 {
-	if midDev <= 0 || notional <= 0 {
+func crossVenuePerpPerpEntryBasisCostUSDT(cfg CrossVenueExecutorConfig, adverseDev, notional float64, opp CrossVenueOpportunity) float64 {
+	if adverseDev <= 0 || notional <= 0 {
 		return 0
 	}
-	billableDev := midDev
+	billableDev := adverseDev
 	if crossVenueBypassesConfidenceDownsize(opp) {
 		normalMax := cfg.MidPriceDeviationMax
 		if normalMax <= 0 {
 			normalMax = 0.03
 		}
-		billableDev = midDev - normalMax
+		billableDev = adverseDev - normalMax
 		if billableDev < 0 {
 			billableDev = 0
 		}
@@ -571,9 +597,11 @@ func crossVenuePerpPerpEntryBasisCostUSDT(cfg CrossVenueExecutorConfig, midDev, 
 	return billableDev * notional * conv
 }
 
-func crossVenueMidDevFromSlipLegs(opp CrossVenueOpportunity, slipLegs []crossVenueEVSlippageLeg) float64 {
+// crossVenueAdverseMidDevFromSlipLegs 从四腿深度参考 mid 取「不利方向」的归一化基差。
+// slipLegs[0]=高费腿(做空)、slipLegs[1]=低费腿(做多);返回值 >0 表示做多腿更贵=不利。
+func crossVenueAdverseMidDevFromSlipLegs(opp CrossVenueOpportunity, slipLegs []crossVenueEVSlippageLeg) float64 {
 	if len(slipLegs) >= 2 && slipLegs[0].RefMid > 0 && slipLegs[1].RefMid > 0 {
-		return crossVenueMidDeviation(slipLegs[0].RefMid, slipLegs[1].RefMid, crossVenueOppHighMult(opp), crossVenueOppLowMult(opp))
+		return crossVenueAdverseMidDeviation(slipLegs[0].RefMid, slipLegs[1].RefMid, crossVenueOppHighMult(opp), crossVenueOppLowMult(opp))
 	}
 	return 0
 }
@@ -649,7 +677,14 @@ func crossVenueFinalizeOpportunityRanking(cfg CrossVenueExecutorConfig, opps []C
 		sizeMult := opps[i].SizeMultiplier
 		opps[i].TradableNotional *= sizeMult
 		crossVenueScaleOpportunityLinearEconomics(&opps[i], sizeMult)
-		opps[i].RankScore = opps[i].NetEV
+		rank := opps[i].NetEV
+		if crossVenueUnifiedActiveForSymbol(cfg, opps[i].Symbol) && rank > 0 {
+			// 统一模型:对薄盘机会下调排名权重(执行/流动性分越低权重越小),让深度好的机会排在前面;
+			// 仅作用于正 EV(负 EV 已被 SizeMultiplier=0/闸口过滤),不会把亏损机会反向抬升。
+			liqW := clamp01((opps[i].ExecutionScore + opps[i].LiquidityScore) / 2)
+			rank *= liqW
+		}
+		opps[i].RankScore = rank
 	}
 }
 
@@ -725,14 +760,63 @@ func crossVenueUpcomingSettlementNetFundingUSDT(cfg CrossVenueExecutorConfig, po
 	return netFunding, settling
 }
 
+// crossVenueUpcomingTargetSettlementNetFundingUSDT 统一捕获模型:只看"目标腿"在 lead 窗口内即将结算的 funding。
+// 非目标(便宜)腿的微小不利结算不计入,避免"为 okx 开仓却被 bybit 即将结算的负资费提前平掉"。
+func crossVenueUpcomingTargetSettlementNetFundingUSDT(cfg CrossVenueExecutorConfig, pos *CrossVenuePosition, now time.Time) (float64, bool) {
+	if pos == nil || pos.CapturePlan == nil {
+		return 0, false
+	}
+	notional := crossVenuePositionNotionalUSDT(pos)
+	if notional <= 0 {
+		return 0, false
+	}
+	lead := cfg.PreFundingCloseLeadSeconds
+	if lead <= 0 {
+		lead = 120
+	}
+	leadDur := time.Duration(lead) * time.Second
+	if pos.CapturePlan.TargetLeg == "high" {
+		due := !pos.HighNextFundingTime.IsZero() && pos.HighNextFundingTime.After(now) && !pos.HighNextFundingTime.After(now.Add(leadDur))
+		if due {
+			return notional * pos.HighFundingRate, true // 空腿:正费率收,负费率付
+		}
+		return 0, false
+	}
+	due := !pos.LowNextFundingTime.IsZero() && pos.LowNextFundingTime.After(now) && !pos.LowNextFundingTime.After(now.Add(leadDur))
+	if due {
+		return -notional * pos.LowFundingRate, true // 多腿:正费率付,负费率收
+	}
+	return 0, false
+}
+
 // crossVenuePreFundingAdverseCloseReason 结算前净不利资费即平:优先级高于 N 连轮/MinHold。
+// 统一捕获模型下只看目标腿(降级:非目标腿的微小不利结算不再触发离场)。
 func crossVenuePreFundingAdverseCloseReason(cfg CrossVenueExecutorConfig, pos *CrossVenuePosition, now time.Time) string {
 	if pos == nil || !cfg.CloseBeforeAdverseFundingEnabled {
 		return ""
+	}
+	if cfg.UnifiedCaptureModelEnabled && pos.CapturePlan != nil {
+		netFunding, settling := crossVenueUpcomingTargetSettlementNetFundingUSDT(cfg, pos, now)
+		if !settling || netFunding >= 0 {
+			return ""
+		}
+		return fmt.Sprintf("目标腿结算前不利资费 %.4f USDT(净付,即平)", netFunding)
 	}
 	netFunding, settling := crossVenueUpcomingSettlementNetFundingUSDT(cfg, pos, now)
 	if !settling || netFunding >= 0 {
 		return ""
 	}
 	return fmt.Sprintf("结算前不利资费 %.4f USDT(净付,即平)", netFunding)
+}
+
+// crossVenuePlannedExitCloseReason 统一捕获模型主离场:到达计划离场时刻(末次目标结算 + 缓冲)即平。
+func crossVenuePlannedExitCloseReason(pos *CrossVenuePosition, now time.Time) string {
+	if pos == nil || pos.CapturePlan == nil {
+		return ""
+	}
+	exit := pos.CapturePlan.PlannedExitTime
+	if exit.IsZero() || now.Before(exit) {
+		return ""
+	}
+	return fmt.Sprintf("计划离场:目标结算+缓冲已到(%s)", exit.UTC().Format("2006-01-02 15:04:05Z"))
 }

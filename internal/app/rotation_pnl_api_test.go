@@ -439,11 +439,11 @@ func TestRotationExpectedNextFundingSignConvention(t *testing.T) {
 	nextHigh := now.Add(30 * time.Minute)
 	nextLow := time.Date(2026, 6, 21, 16, 0, 0, 0, time.UTC)
 
-	shortPositive := rotationExpectedLegFundingCashflowUSDT("sell", 0.005, 100, nextHigh, now)
+	shortPositive := rotationExpectedLegFundingCashflowUSDT("sell", 0.005, 100, 8, nextHigh, now)
 	if math.Abs(shortPositive-0.5) > 1e-9 {
 		t.Fatalf("short rate>0 want +0.5 got %v", shortPositive)
 	}
-	longNegative := rotationExpectedLegFundingCashflowUSDT("buy", -0.0126, 94.44, nextLow, now)
+	longNegative := rotationExpectedLegFundingCashflowUSDT("buy", -0.0126, 94.44, 8, nextLow, now)
 	wantLong := 0.0126 * 94.44
 	if math.Abs(longNegative-wantLong) > 1e-4 {
 		t.Fatalf("long rate<0 want ~%v got %v", wantLong, longNegative)
@@ -516,15 +516,57 @@ func TestViewFromCrossVenuePerpPerpWindowSettlementCounts(t *testing.T) {
 func TestRotationExpectedNextFundingPastOrZeroTime(t *testing.T) {
 	now := time.Date(2026, 6, 21, 16, 0, 0, 0, time.UTC)
 	past := now.Add(-time.Hour)
-	if got := rotationExpectedLegFundingCashflowUSDT("sell", 0.01, 100, past, now); got != 0 {
-		t.Fatalf("past next funding want 0 got %v", got)
+	// 过期时间戳但无周期(interval=0):无法定位未来结算 → 0。
+	if got := rotationExpectedLegFundingCashflowUSDT("sell", 0.01, 100, 0, past, now); got != 0 {
+		t.Fatalf("past next funding without interval want 0 got %v", got)
 	}
-	if got := rotationExpectedLegFundingCashflowUSDT("buy", -0.01, 100, time.Time{}, now); got != 0 {
+	if got := rotationExpectedLegFundingCashflowUSDT("buy", -0.01, 100, 8, time.Time{}, now); got != 0 {
 		t.Fatalf("zero next funding want 0 got %v", got)
 	}
-	total := rotationExpectedNextFundingUSDT("sell", 0.01, 100, past, "buy", -0.01, 100, time.Time{}, now)
+	total := rotationExpectedNextFundingUSDT("sell", 0.01, 100, 0, past, "buy", -0.01, 100, 0, time.Time{}, now)
 	if total != 0 {
-		t.Fatalf("both legs stale want 0 got %v", total)
+		t.Fatalf("both legs stale without interval want 0 got %v", total)
+	}
+}
+
+func TestRotationExpectedNextFundingAdvancesStaleTimestamp(t *testing.T) {
+	now := time.Date(2026, 6, 23, 2, 4, 0, 0, time.UTC)
+	// 行情快照滞后:下次结算显示 02:00(4 分钟前),但仍有周期可推进到真正的下一次。
+	staleNext := time.Date(2026, 6, 23, 2, 0, 0, 0, time.UTC)
+	// 2h 周期的多腿(rate<0 → 收资费),推进到 04:00,期望 +rate 反号。
+	got := rotationExpectedLegFundingCashflowUSDT("buy", -0.003, 100, 2, staleNext, now)
+	if math.Abs(got-0.3) > 1e-9 {
+		t.Fatalf("stale long leg should advance and pay +0.3 got %v", got)
+	}
+	// 1h 周期的空腿(rate<0 → 付资费),推进到 03:00。
+	short := rotationExpectedLegFundingCashflowUSDT("sell", -0.0002, 100, 1, staleNext, now)
+	if math.Abs(short-(-0.02)) > 1e-9 {
+		t.Fatalf("stale short leg should advance to -0.02 got %v", short)
+	}
+	total := rotationExpectedNextFundingUSDT("sell", -0.0002, 100, 1, staleNext, "buy", -0.003, 100, 2, staleNext, now)
+	if math.Abs(total-money.SumUSDT(-0.02, 0.3)) > 1e-9 {
+		t.Fatalf("stale total want %v got %v", money.SumUSDT(-0.02, 0.3), total)
+	}
+}
+
+func TestAdvanceFundingTimeToFuture(t *testing.T) {
+	now := time.Date(2026, 6, 23, 2, 4, 0, 0, time.UTC)
+	stale := time.Date(2026, 6, 23, 2, 0, 0, 0, time.UTC)
+	if got := advanceFundingTimeToFuture(stale, now, 2); !got.Equal(time.Date(2026, 6, 23, 4, 0, 0, 0, time.UTC)) {
+		t.Fatalf("advance 2h want 04:00 got %v", got)
+	}
+	if got := advanceFundingTimeToFuture(stale, now, 1); !got.Equal(time.Date(2026, 6, 23, 3, 0, 0, 0, time.UTC)) {
+		t.Fatalf("advance 1h want 03:00 got %v", got)
+	}
+	future := now.Add(time.Hour)
+	if got := advanceFundingTimeToFuture(future, now, 2); !got.Equal(future) {
+		t.Fatalf("future timestamp should be unchanged got %v", got)
+	}
+	if got := advanceFundingTimeToFuture(time.Time{}, now, 2); !got.IsZero() {
+		t.Fatalf("zero timestamp should stay zero got %v", got)
+	}
+	if got := advanceFundingTimeToFuture(stale, now, 0); !got.Equal(stale) {
+		t.Fatalf("no interval should leave stale unchanged got %v", got)
 	}
 }
 

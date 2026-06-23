@@ -105,6 +105,7 @@ func TestEvaluateAccountAutoFlattenIntent_AdaptivePeakDrawdown(t *testing.T) {
 
 	below := evaluateAccountAutoFlattenIntent(testAccountRiskSnapshotForEval(0, func(s *accountRiskSnapshot) {
 		s.RealEquityDrawdownUSDT = 149
+		s.RealEquityDrawdownAdjustedUSDT = 149
 		s.RealEquityPeakUSDT = testReferenceEquityUSDT
 		s.RealEquityTotalUSDT = testReferenceEquityUSDT - 149
 		s.RealEquityQualityPassed = true
@@ -116,6 +117,7 @@ func TestEvaluateAccountAutoFlattenIntent_AdaptivePeakDrawdown(t *testing.T) {
 
 	at := evaluateAccountAutoFlattenIntent(testAccountRiskSnapshotForEval(0, func(s *accountRiskSnapshot) {
 		s.RealEquityDrawdownUSDT = 150
+		s.RealEquityDrawdownAdjustedUSDT = 150
 		s.RealEquityPeakUSDT = testReferenceEquityUSDT
 		s.RealEquityTotalUSDT = testReferenceEquityUSDT - 150
 		s.RealEquityQualityPassed = true
@@ -129,6 +131,7 @@ func TestEvaluateAccountAutoFlattenIntent_AdaptivePeakDrawdown(t *testing.T) {
 	scaledLimit := 150.0 / testReferenceEquityUSDT * scaledPeak
 	notYet := evaluateAccountAutoFlattenIntent(testAccountRiskSnapshotForEval(0, func(s *accountRiskSnapshot) {
 		s.RealEquityDrawdownUSDT = scaledLimit - 1
+		s.RealEquityDrawdownAdjustedUSDT = scaledLimit - 1
 		s.RealEquityPeakUSDT = scaledPeak
 		s.RealEquityQualityPassed = true
 		s.RealEquityPeakConfirmed = true

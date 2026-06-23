@@ -732,6 +732,11 @@ type CrossVenueExecutorConfig struct {
 	ExpectedHoldHours float64 `cfg:"expected_hold_hours"`
 	// NearTermOpenEVHorizonEnabled 开仓 EV/扫描 netEV 使用至下次结算的可比窗口(与 continuation future-EV 一致)。默认 true。
 	NearTermOpenEVHorizonEnabled bool `cfg:"near_term_open_ev_horizon_enabled"`
+	// NearTermOpenEVExpectedSettlements 近端 horizon 下预期前向持有的结算次数 N:horizon 至少 = N × 最短腿 funding interval,
+	// 使进场窗内(可比窗口≈0.04h)的 EV 按"多结算前向持有"而非"距下次结算的残余时间"计费。默认 3;≤0 时回退 3。
+	NearTermOpenEVExpectedSettlements int `cfg:"near_term_open_ev_expected_settlements"`
+	// NearTermOpenEVMaxHoldHours 近端 horizon 上限(小时):防止 N×interval 反向膨胀回 12h 式高估。默认 8;≤0 时回退 8。
+	NearTermOpenEVMaxHoldHours float64 `cfg:"near_term_open_ev_max_hold_hours"`
 	// EVExpectedSlippageBps EV 成本模型中每腿预期滑点(bps,非 SlippageBudget 容忍上限)。默认 3。
 	EVExpectedSlippageBps float64 `cfg:"ev_expected_slippage_bps"`
 	// EVMaxBreakevenHours 盈亏平衡持有时长上限(小时);超过则不开仓。默认 24。
@@ -799,6 +804,24 @@ type CrossVenueExecutorConfig struct {
 	TimingAwarePairSelectionEnabled bool `cfg:"timing_aware_pair_selection_enabled"`
 	// TimingAwarePairSelectionMinHours timing-aware 分母下限(小时),防除零。默认 0.01。
 	TimingAwarePairSelectionMinHours float64 `cfg:"timing_aware_pair_selection_min_hours"`
+	// UnifiedCaptureModelEnabled 统一资费捕获模型总开关:开启后进场对齐"付钱腿"结算、EV/离场同口径、
+	// 用基差(而非资费价差)做实时止损。默认 false(关闭时行为与改造前完全一致,可一键回滚)。
+	UnifiedCaptureModelEnabled bool `cfg:"unified_capture_model_enabled"`
+	// UnifiedCaptureModelSymbolAllowlist 灰度白名单:非空时统一捕获模型仅对名单内 symbol 生效(其余走旧逻辑);
+	// 空=对全部 perp-perp symbol 生效(在 flag ON 前提下)。用于 canary 小范围放量后再扩大。
+	UnifiedCaptureModelSymbolAllowlist []string `cfg:"unified_capture_model_symbol_allowlist"`
+	// CaptureTargetSettlements 统一捕获模型下每笔默认目标结算次数 N:进场/EV/持有都围绕"吃满 N 次目标结算"。
+	// 默认 1(单次目标结算捕获,基差暴露最小);仅当基差稳定分≥阈值时才允许 N>1。≤0 回退 1。
+	CaptureTargetSettlements int `cfg:"capture_target_settlements"`
+	// BasisStopBudgetFraction 基差止损预算 = 此系数 × 预期目标资费;累计不利基差 PnL 超过预算即平。默认 1.0。
+	BasisStopBudgetFraction float64 `cfg:"basis_stop_budget_fraction"`
+	// BasisStabilityMinScoreForMultiSettlement 允许 N>1 次结算持有所需的最小基差稳定分([0,1])。默认 0.7。
+	BasisStabilityMinScoreForMultiSettlement float64 `cfg:"basis_stability_min_score_for_multi_settlement"`
+	// CaptureFundingToCostMinRatio 统一模型入场硬条件:预期目标资费 / 往返成本 ≥ 此比值才允许开仓。
+	// 用于把"滑点远大于资费"的薄盘暴力小币挡在外面。默认 1.0;≤0 时不启用该闸。
+	CaptureFundingToCostMinRatio float64 `cfg:"capture_funding_to_cost_min_ratio"`
+	// PlannedExitBufferSeconds 统一模型下持有到目标结算后的离场缓冲(秒):结算 + 此缓冲后离场,确保资费已入账。默认 90。
+	PlannedExitBufferSeconds int `cfg:"planned_exit_buffer_seconds"`
 	// FundingCaptureProbability 运行时 perp-perp funding 捕获折现(结算回测贝叶斯;scan/decision 周期刷新,非 YAML)。
 	FundingCaptureProbability float64
 }

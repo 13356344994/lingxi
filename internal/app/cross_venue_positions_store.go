@@ -52,6 +52,19 @@ type CrossVenueAttribution struct {
 	RebalanceCostUSDT float64 `json:"rebalance_cost_usdt,omitempty"`
 }
 
+// CarryCapturePlan 统一资费捕获计划:开仓那一刻就钉死"这笔为吃哪条腿、哪一次(或几次)结算而开"。
+// 进场对齐、EV 定价、持有到点、基差止损全部引用它,消除"选币/进场/离场三套时间口径互相打架"。
+// nil = 旧仓或未启用统一模型(行为回退到改造前)。
+type CarryCapturePlan struct {
+	TargetLeg                 string    `json:"target_leg,omitempty"`                   // high / low:实际付钱给我们的腿
+	TargetSettlementTime      time.Time `json:"target_settlement_time,omitempty"`       // 目标腿的下次结算时刻(UTC)
+	TargetSettlements         int       `json:"target_settlements,omitempty"`           // 计划吃满的结算次数 N
+	PlannedExitTime           time.Time `json:"planned_exit_time,omitempty"`            // 计划离场 = 最后一次目标结算 + 缓冲
+	ExpectedTargetFundingUSDT float64   `json:"expected_target_funding_usdt,omitempty"` // 计划区间内预期收到的资费(毛)
+	BasisBudgetUSDT           float64   `json:"basis_budget_usdt,omitempty"`            // 基差止损预算(USDT)
+	PeakAdverseBasisUSDT      float64   `json:"peak_adverse_basis_usdt,omitempty"`      // 持有期内累计不利基差 PnL 峰值(正=亏)
+}
+
 // CrossVenuePosition 是一笔跨所 perp-perp 对冲持仓(空高费所、多低费所)。
 type CrossVenuePosition struct {
 	PositionKey          string             `json:"position_key,omitempty"`
@@ -118,8 +131,12 @@ type CrossVenuePosition struct {
 	UpdatedAt                     time.Time                `json:"updated_at"`
 	CloseSpreadStreak             int                      `json:"close_spread_streak,omitempty"`
 	CloseHardNegativeSpreadStreak int                      `json:"close_hard_negative_spread_streak,omitempty"`
-	IdemPrefix                    string                   `json:"idem_prefix"`
-	NotionalUSDT                  float64                  `json:"notional_usdt,omitempty"`
+	// RebalanceFailStreak 连续对冲再平衡失败次数(订单失败或零成交);成功后再平衡清零。
+	RebalanceFailStreak int `json:"rebalance_fail_streak,omitempty"`
+	// LegImbalanceQty 开仓核验后两腿交易所真实币数量之差的绝对值(0=平衡);告警/审计用,非 sizing。
+	LegImbalanceQty float64 `json:"leg_imbalance_qty,omitempty"`
+	IdemPrefix      string  `json:"idem_prefix"`
+	NotionalUSDT    float64 `json:"notional_usdt,omitempty"`
 	// LastAccrualAt 上次资金费记账时刻;每轮按 now−LastAccrualAt 的真实小时数折算累加(零值=自 OpenedAt 起算)。
 	LastAccrualAt time.Time `json:"last_accrual_at,omitempty"`
 	// LastRealizedFundingAt 上次成功拉取真实结算资费的时刻;节流 RealizedFundingPollMinutes 或跨结算周期再拉。
@@ -128,6 +145,9 @@ type CrossVenuePosition struct {
 	CloseAttempts int `json:"close_attempts,omitempty"`
 	// CloseReason 首次触发平仓的原因(跨轮重试时沿用,日志/告警可追溯)。
 	CloseReason string `json:"close_reason,omitempty"`
+	// CapturePlan 统一资费捕获计划(开仓写入);nil=旧仓/未启用统一模型。
+	// 必须用指针+omitempty:nil 序列化时整键省略,旧台账(无此键)字节不变 → 校验和匹配 → 不阻断自动接管在场实盘仓。
+	CapturePlan *CarryCapturePlan `json:"carry_capture_plan,omitempty"`
 	// AttributionIncomplete 平仓/回滚/再平衡成交量无法可靠归一化为币数量(如 gate/okx ContractSize lookup 失败)。
 	AttributionIncomplete bool `json:"attribution_incomplete,omitempty"`
 	// CrossVenueAttribution 开/平/回滚/再平衡阶段的费用与滑点观测累加(供平仓结算归因)。

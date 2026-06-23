@@ -221,6 +221,29 @@ func crossVenueMidDeviation(highMid, lowMid, highMult, lowMult float64) float64 
 	return math.Abs(normHigh-normLow) / math.Max(normHigh, normLow)
 }
 
+// crossVenueAdverseMidDeviation 返回「不利方向」的归一化基差(带符号)。
+// 策略在高费腿做空、低费腿做多;价格腿盈亏 = 开仓基差 − 平仓基差,基差 B = P_high − P_low。
+// 若基差收敛(B→0):B>0(做空的高腿更贵)→ 盈利(顺向有利);B<0(做多的低腿更贵)→ 亏损(不利)。
+// 故定义不利偏离 = (P_low − P_high)/max:>0 表示做多腿更贵=不利(应计成本);≤0 表示顺向有利(不计)。
+func crossVenueAdverseMidDeviation(highMid, lowMid, highMult, lowMult float64) float64 {
+	if highMid <= 0 || lowMid <= 0 {
+		return 0
+	}
+	if highMult <= 0 {
+		highMult = 1
+	}
+	if lowMult <= 0 {
+		lowMult = 1
+	}
+	normHigh := highMid / highMult
+	normLow := lowMid / lowMult
+	denom := math.Max(normHigh, normLow)
+	if denom <= 0 {
+		return 0
+	}
+	return (normLow - normHigh) / denom
+}
+
 func crossVenueLegSymbolFromOpp(opp CrossVenueOpportunity, highLeg bool) string {
 	if highLeg {
 		return crossVenueOppHighSymbol(opp)

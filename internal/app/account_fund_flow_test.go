@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log"
+	"math"
 	"os"
 	"strings"
 	"sync/atomic"
@@ -96,6 +97,50 @@ func TestApplyAccountFundFlowAdjustment_RealZeroFlowLogsOneShot(t *testing.T) {
 	}
 	if !strings.Contains(buf.String(), "充提流水源=real cumulative=0.0000 (首次确认)") {
 		t.Fatalf("expected one-shot real zero-flow log, got %q", buf.String())
+	}
+}
+
+// 提现尚处 pending → real 充提源暂返 0,但权益已骤降且无持仓:必须重对账并入充提平移,
+// 使风控口径权益≈已实现交易盈亏,而非把提现误记成亏损/回撤。
+func TestApplyAccountFundFlowAdjustment_RealZeroButLargeUnexplainedReconciles(t *testing.T) {
+	st := &accountRiskEquityState{}
+	const dailyRealized = 8.0
+	obs := testAccountEquityObservation(385.55, -49.45, map[string]float64{"okx": 385.55})
+	lookup := func(name string) venue.ExternalFundFlowProvider {
+		if name == "okx" {
+			return &stubFundFlowProvider{net: 0}
+		}
+		return nil
+	}
+	buf := &strings.Builder{}
+	logger := log.New(buf, "", 0)
+	source, _ := applyAccountFundFlowAdjustment(
+		context.Background(),
+		st,
+		obs,
+		lookup,
+		time.Now().UTC().Add(-time.Hour),
+		obs.TotalUSDT,
+		obs.RawDailyDelta,
+		dailyRealized,
+		accountRiskPositionSummary{},
+		0,
+		5,
+		logger,
+	)
+	if source != "real+reconcile" {
+		t.Fatalf("source=%q want real+reconcile", source)
+	}
+	wantAdjust := money.SumUSDT(obs.RawDailyDelta, -dailyRealized)
+	if math.Abs(st.DailyFundFlowAdjustUSDT-wantAdjust) > 1e-9 {
+		t.Fatalf("adjust=%v want %v", st.DailyFundFlowAdjustUSDT, wantAdjust)
+	}
+	riskDelta := money.SumUSDT(obs.RawDailyDelta, -st.DailyFundFlowAdjustUSDT)
+	if math.Abs(riskDelta-dailyRealized) > 1e-9 {
+		t.Fatalf("risk delta=%v want %v (≈realized, withdrawal neutralized)", riskDelta, dailyRealized)
+	}
+	if !strings.Contains(buf.String(), "real充提源疑似漏检") {
+		t.Fatalf("expected reconcile warn log, got %q", buf.String())
 	}
 }
 

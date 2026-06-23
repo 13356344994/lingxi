@@ -10,6 +10,7 @@ import (
 	"lingxi/internal/venue"
 	"lingxi/internal/venue/binance"
 	"lingxi/internal/venue/bybit"
+	"lingxi/internal/venue/gate"
 	"lingxi/internal/venue/okx"
 )
 
@@ -64,9 +65,9 @@ func TestCrossVenueFundingEntryWindowReached(t *testing.T) {
 	if crossVenueFundingEntryWindowReached(now.Add(600*time.Second), 8, now.Add(600*time.Second), 8, now, lead) {
 		t.Fatal("nearest 600s beyond 180s lead should NOT be reached (reject)")
 	}
-	// 两腿结算时间均未知(零值)→ fail-open 放行。
-	if !crossVenueFundingEntryWindowReached(time.Time{}, 8, time.Time{}, 0, now, lead) {
-		t.Fatal("both unknown should fail-open (pass)")
+	// 两腿结算时间均未知(零值)→ fail-CLOSED 拒绝(FIX-10:开/换仓缺时间不盲开)。
+	if crossVenueFundingEntryWindowReached(time.Time{}, 8, time.Time{}, 0, now, lead) {
+		t.Fatal("both unknown should fail-CLOSED (reject)")
 	}
 	// 过期时间(now-30s)按 interval=8h 推进到下一结算点 → 距今≈8h >180s → 拒绝。
 	if crossVenueFundingEntryWindowReached(now.Add(-30*time.Second), 8, time.Time{}, 0, now, lead) {
@@ -76,9 +77,9 @@ func TestCrossVenueFundingEntryWindowReached(t *testing.T) {
 	if !crossVenueFundingEntryWindowReached(now.Add(-30*time.Second), 8, now.Add(120*time.Second), 8, now, lead) {
 		t.Fatal("nearest should pick the within-window leg (pass)")
 	}
-	// 过期且 interval 未知(无法推进)→ 该腿视为不可用;唯一腿不可用 → fail-open 放行。
-	if !crossVenueFundingEntryWindowReached(now.Add(-30*time.Second), 0, time.Time{}, 0, now, lead) {
-		t.Fatal("expired with unknown interval (unadvanceable) should be treated as unknown → fail-open")
+	// 过期且 interval 未知(无法推进)→ 该腿视为不可用;唯一腿不可用 → fail-CLOSED 拒绝(FIX-10)。
+	if crossVenueFundingEntryWindowReached(now.Add(-30*time.Second), 0, time.Time{}, 0, now, lead) {
+		t.Fatal("expired with unknown interval (unadvanceable) → unknown → fail-CLOSED (reject)")
 	}
 }
 
@@ -416,9 +417,16 @@ func TestCrossVenueFundingSnapFromOppLegRollsStaleTime(t *testing.T) {
 	if !snap.NextFundingTime.Equal(time.Date(2026, 6, 21, 15, 0, 0, 0, time.UTC)) {
 		t.Fatalf("NextFundingTime 应滚动到 15:00, got %v", snap.NextFundingTime)
 	}
-	// 缺 interval → 无法滚动 → 仍幽灵
-	if _, ok := crossVenueFundingSnapFromOppLeg(CrossVenueOpportunity{HighFundingRate: -0.0004, HighIntervalHours: 0, HighNextFundingTime: time.Date(2026, 6, 21, 14, 0, 0, 0, time.UTC)}, true, now); ok {
-		t.Fatal("缺 interval 的过期腿应仍判幽灵")
+	// interval 缺失时回退 venue 默认→ 过期 NextFundingTime 仍可滚动放行
+	oppDefaultInt, ok := crossVenueFundingSnapFromOppLeg(CrossVenueOpportunity{
+		HighVenue: gate.VenueName, HighFundingRate: -0.0004, HighIntervalHours: 0,
+		HighNextFundingTime: time.Date(2026, 6, 21, 14, 0, 0, 0, time.UTC),
+	}, true, now)
+	if !ok {
+		t.Fatal("缺 per-symbol interval 时应回退 venue 默认并滚动过期时间")
+	}
+	if oppDefaultInt.IntervalHours <= 0 {
+		t.Fatalf("venue default interval should be >0, got %d", oppDefaultInt.IntervalHours)
 	}
 	// 缺 NextFundingTime → 仍幽灵
 	if _, ok := crossVenueFundingSnapFromOppLeg(CrossVenueOpportunity{HighFundingRate: -0.0004, HighIntervalHours: 1}, true, now); ok {

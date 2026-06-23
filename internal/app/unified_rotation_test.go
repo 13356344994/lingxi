@@ -942,6 +942,102 @@ func TestRotationSpotPerpWindowFundingMatchesCandidateSettlements(t *testing.T) 
 	}
 }
 
+func TestRotationPerpPerpWindowFundingMatchesCandidateDiscreteCaptureBasis(t *testing.T) {
+	now := time.Date(2026, 6, 19, 10, 0, 0, 0, time.UTC)
+	notional := 3000.0
+	highRate, lowRate := 0.0009, 0.0001
+	highInt, lowInt := 1, 8 // 异周期;high(空)在窗内结算→正 spread funding
+	highNext := now.Add(15 * time.Minute)
+	lowNext := now.Add(50 * time.Minute)
+
+	got := rotationPerpPerpWindowFundingUSDT(notional, highRate, highInt, lowRate, lowInt, highNext, lowNext, now)
+
+	// FIX-9:续持口径必须等于候选口径——离散结算次数(crossVenueExpectedFundingOverHold)× 捕获概率折现。
+	windowHours := crossVenueComparableWindowHours(now, highNext, lowNext)
+	candidateOpp := CrossVenueOpportunity{
+		HighFundingRate:     highRate,
+		LowFundingRate:      lowRate,
+		HighIntervalHours:   highInt,
+		LowIntervalHours:    lowInt,
+		HighNextFundingTime: highNext,
+		LowNextFundingTime:  lowNext,
+	}
+	wantFunding := crossVenueExpectedFundingOverHold(now, windowHours, notional, candidateOpp)
+	wantFunding *= crossVenueExecutorFundingCaptureProbability(CrossVenueExecutorConfig{})
+	if math.Abs(got-wantFunding) > 1e-9 {
+		t.Fatalf("continuation funding=%v want candidate discrete×capture basis %v", got, wantFunding)
+	}
+
+	// 必须与旧线性口径(fundingPerHour×windowHours,无捕获折现)不同,否则未真正改口径。
+	oldLinear := crossVenueExpectedFundingPerHour(notional, highRate, highInt, lowRate, lowInt) * windowHours
+	if math.Abs(got-oldLinear) < 1e-9 {
+		t.Fatalf("continuation funding still equals old linear basis %v; capture/discrete fix not applied", oldLinear)
+	}
+	// 捕获概率 ∈ (0,1) → 续持口径应严格小于未折现的离散值。
+	undiscounted := crossVenueExpectedFundingOverHold(now, windowHours, notional, candidateOpp)
+	if !(got < undiscounted) {
+		t.Fatalf("continuation funding %v should be discounted below undiscounted discrete %v", got, undiscounted)
+	}
+}
+
+func TestRotationPerpPerpEntryWindowPerLegDistinguishesMixedIntervals(t *testing.T) {
+	now := time.Date(2026, 6, 19, 10, 0, 0, 0, time.UTC)
+	highNext := now.Add(6 * time.Hour)      // 8h 腿,远离结算
+	lowNext := now.Add(-3540 * time.Second) // 1h 腿,59min 前结算 → 下次结算在 +60s
+	opp := UnifiedOpportunity{
+		StrategyType:         UnifiedStrategyPerpPerp,
+		HighNextFundingTime:  highNext.Format(time.RFC3339),
+		LowNextFundingTime:   lowNext.Format(time.RFC3339),
+		HighIntervalHours:    8,
+		LowIntervalHours:     1,
+		FundingIntervalHours: 8, // 旧单 interval 口径会误用 8h 评估两腿
+	}
+	execCfg := CrossVenueExecutorConfig{} // lead=180s 默认
+	// FIX-10(a):per-leg——1h 腿在 ~60s 内结算(≤180s lead)→ 进场窗已到 → eligible。
+	if !rotationOpportunityFundingEntryWindowEligible(opp, execCfg, now) {
+		t.Fatal("per-leg: 1h-interval low leg settles in ~60s (within 180s lead) → must be entry-window eligible")
+	}
+	// 对照:旧单 8h interval 会把过期 low 推进到 +8h,nearest≈6h → 不在窗口 → 误判 not eligible。
+	lead := 180 * time.Second
+	if crossVenueFundingEntryWindowReached(highNext, 8, lowNext, 8, now, lead) {
+		t.Fatal("control: single-8h-interval interpretation should NOT reach window (demonstrates per-leg fix matters)")
+	}
+}
+
+func TestRotationOpenEligibilityFailsClosedWhenFundingTimesUnknown(t *testing.T) {
+	now := time.Date(2026, 6, 19, 10, 0, 0, 0, time.UTC)
+	execCfg := CrossVenueExecutorConfig{}
+
+	// FIX-10(b) perp-perp:两腿结算时间均缺失 → 进场窗闸 fail-CLOSED → 不 eligible。
+	ppOpp := UnifiedOpportunity{
+		StrategyType:      UnifiedStrategyPerpPerp,
+		HighIntervalHours: 1,
+		LowIntervalHours:  8,
+	}
+	if rotationOpportunityFundingEntryWindowEligible(ppOpp, execCfg, now) {
+		t.Fatal("perp-perp with unknown funding times must be NOT eligible (fail-closed)")
+	}
+
+	// FIX-10(b) spot-perp(default 分支):缺 NextFundingTime → fail-CLOSED。
+	spOpp := UnifiedOpportunity{
+		StrategyType:         UnifiedStrategyCrossVenueSpotPerp,
+		FundingIntervalHours: 8,
+	}
+	if rotationOpportunityFundingEntryWindowEligible(spOpp, execCfg, now) {
+		t.Fatal("spot-perp with unknown funding time must be NOT eligible (fail-closed)")
+	}
+
+	// FIX-10(b) 决策层:OpenEligibleNow=false 且无 funding 时间数据 → NOT eligible(不再 fail-open)。
+	decisionOpp := UnifiedOpportunity{StrategyType: UnifiedStrategyPerpPerp, OpenEligibleNow: false}
+	if rotationOpportunityOpenEligibleForDecision(decisionOpp) {
+		t.Fatal("decision layer: unknown funding times + not eligible → must be NOT open-eligible (fail-closed)")
+	}
+	decisionOpp.OpenEligibleNow = true
+	if !rotationOpportunityOpenEligibleForDecision(decisionOpp) {
+		t.Fatal("decision layer: OpenEligibleNow=true should remain eligible")
+	}
+}
+
 func TestRotationContinuationMinHoldUsesNextFunding(t *testing.T) {
 	now := time.Date(2026, 6, 19, 10, 0, 0, 0, time.UTC)
 	pos := HeldPosition{

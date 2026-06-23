@@ -13,36 +13,40 @@ import (
 
 // UnifiedLeaderboardEntry 是排行榜中单条机会的只读展示结构。
 type UnifiedLeaderboardEntry struct {
-	Rank                     int                `json:"rank"`
-	StrategyType             string             `json:"strategy_type"`
-	Symbol                   string             `json:"symbol"`
-	Venues                   []string           `json:"venues"`
-	ExpectedNetEVUSDT        float64            `json:"expected_net_ev_usdt"`
-	ExpectedFundingUSDT      float64            `json:"expected_funding_usdt,omitempty"`
-	CapitalAwareNetEVUSDT    float64            `json:"capital_aware_net_ev_usdt,omitempty"`
-	CapitalAwareNotionalUSDT float64            `json:"capital_aware_notional_usdt,omitempty"`
-	ScannerEstimateOnly      bool               `json:"scanner_estimate_only,omitempty"`
-	CapitalRequiredByVenue   map[string]float64 `json:"capital_required_by_venue"`
-	CapitalEfficiencyScore   float64            `json:"capital_efficiency_score"`
-	LandscapeSortKey         float64            `json:"landscape_sort_key"`
-	PrimarySortKey           float64            `json:"primary_sort_key"`
-	RankReason               string             `json:"rank_reason"`
-	WouldExecute             bool               `json:"would_execute"` // scanner 口径,兼容旧面板
-	ScannerWouldExecute      bool               `json:"scanner_would_execute"`
-	RotationWouldExecute     bool               `json:"rotation_would_execute"`
-	RejectReasons            []string           `json:"reject_reasons"`
-	NotionalUSDT             float64            `json:"notional_usdt,omitempty"`
-	RawFundingRate           float64            `json:"raw_funding_rate,omitempty"`
-	FundingRatePerHour       float64            `json:"funding_rate_per_hour,omitempty"`
-	FundingAPR               float64            `json:"funding_apr,omitempty"`
-	SpreadAPR                float64            `json:"spread_apr,omitempty"`
-	HighFundingRate          float64            `json:"high_funding_rate,omitempty"`
-	LowFundingRate           float64            `json:"low_funding_rate,omitempty"`
-	FundingIntervalHours     int                `json:"funding_interval_hours,omitempty"`
-	NextFundingTime          string             `json:"next_funding_time,omitempty"`
-	HighNextFundingTime      string             `json:"high_next_funding_time,omitempty"`
-	LowNextFundingTime       string             `json:"low_next_funding_time,omitempty"`
-	MinutesUntilFunding      float64            `json:"minutes_until_funding,omitempty"`
+	Rank                           int                   `json:"rank"`
+	StrategyType                   string                `json:"strategy_type"`
+	Symbol                         string                `json:"symbol"`
+	Venues                         []string              `json:"venues"`
+	ExpectedNetEVUSDT              float64               `json:"expected_net_ev_usdt"`
+	ExpectedFundingUSDT            float64               `json:"expected_funding_usdt,omitempty"`
+	CapitalAwareNetEVUSDT          float64               `json:"capital_aware_net_ev_usdt,omitempty"`
+	CapitalAwareNotionalUSDT       float64               `json:"capital_aware_notional_usdt,omitempty"`
+	CapitalAwareCost               *UnifiedCostBreakdown `json:"capital_aware_cost,omitempty"`
+	ScannerEstimateOnly            bool                  `json:"scanner_estimate_only,omitempty"`
+	CapitalRequiredByVenue         map[string]float64    `json:"capital_required_by_venue"`
+	CapitalEfficiencyScore         float64               `json:"capital_efficiency_score"`
+	CapitalEfficiencyIdealFallback bool                  `json:"capital_efficiency_ideal_fallback,omitempty"`
+	LandscapeSortKey               float64               `json:"landscape_sort_key"`
+	PrimarySortKey                 float64               `json:"primary_sort_key"`
+	RankReason                     string                `json:"rank_reason"`
+	WouldExecute                   bool                  `json:"would_execute"` // scanner 口径,兼容旧面板
+	ScannerWouldExecute            bool                  `json:"scanner_would_execute"`
+	RotationWouldExecute           bool                  `json:"rotation_would_execute"`
+	RejectReasons                  []string              `json:"reject_reasons"`
+	NotionalUSDT                   float64               `json:"notional_usdt,omitempty"`
+	RawFundingRate                 float64               `json:"raw_funding_rate,omitempty"`
+	FundingRatePerHour             float64               `json:"funding_rate_per_hour,omitempty"`
+	FundingAPR                     float64               `json:"funding_apr,omitempty"`
+	SpreadAPR                      float64               `json:"spread_apr,omitempty"`
+	HighFundingRate                float64               `json:"high_funding_rate,omitempty"`
+	LowFundingRate                 float64               `json:"low_funding_rate,omitempty"`
+	FundingIntervalHours           int                   `json:"funding_interval_hours,omitempty"`
+	HighIntervalHours              int                   `json:"high_interval_hours,omitempty"`
+	LowIntervalHours               int                   `json:"low_interval_hours,omitempty"`
+	NextFundingTime                string                `json:"next_funding_time,omitempty"`
+	HighNextFundingTime            string                `json:"high_next_funding_time,omitempty"`
+	LowNextFundingTime             string                `json:"low_next_funding_time,omitempty"`
+	MinutesUntilFunding            float64               `json:"minutes_until_funding,omitempty"`
 }
 
 // UnifiedReasonCount 统计 reject_reason 出现次数。
@@ -248,6 +252,48 @@ func unifiedDisplayNotionalUSDT(rec UnifiedCandidateLogRecord) float64 {
 	return rec.NotionalUSDT
 }
 
+// unifiedCapitalAwareMarginOccupied 按 capital-aware 名义线性缩放各腿占用保证金(展示用,不改排序/决策)。
+func unifiedCapitalAwareMarginOccupied(rec UnifiedCandidateLogRecord) float64 {
+	total := sumCapitalRequired(rec.CapitalRequiredByVenue)
+	if !unifiedRecordHasCapitalAware(rec) || total <= 0 || rec.NotionalUSDT <= 0 {
+		return total
+	}
+	ratio := rec.CapitalAwareNotionalUSDT / rec.NotionalUSDT
+	if ratio <= 0 {
+		return total
+	}
+	return total * ratio
+}
+
+// unifiedDisplayCapitalEfficiency 排行榜「资本效率」展示:capital-aware 净EV/可投占用;无 capital-aware 时回退理想名义值并标记。
+func unifiedDisplayCapitalEfficiency(rec UnifiedCandidateLogRecord) (score float64, idealFallback bool) {
+	if unifiedRecordHasCapitalAware(rec) {
+		margin := unifiedCapitalAwareMarginOccupied(rec)
+		if margin > 0 {
+			return rec.CapitalAwareNetEVUSDT / margin, false
+		}
+	}
+	if rec.CapitalEfficiencyScore != 0 {
+		return rec.CapitalEfficiencyScore, true
+	}
+	totalCapital := sumCapitalRequired(rec.CapitalRequiredByVenue)
+	if totalCapital > 0 {
+		return rec.ExpectedNetEVUSDT / totalCapital, true
+	}
+	return rec.ExpectedNetEVUSDT, true
+}
+
+func unifiedLegIntervalHours(rec UnifiedCandidateLogRecord, highLeg bool) int {
+	if highLeg {
+		if rec.HighIntervalHours > 0 {
+			return rec.HighIntervalHours
+		}
+	} else if rec.LowIntervalHours > 0 {
+		return rec.LowIntervalHours
+	}
+	return rec.FundingIntervalHours
+}
+
 func filterUnifiedCandidatesByCycle(records []UnifiedCandidateLogRecord, cycleID string) []UnifiedCandidateLogRecord {
 	if cycleID == "" {
 		return nil
@@ -307,8 +353,8 @@ func unifiedNearestFundingMinutes(rec UnifiedCandidateLogRecord, now time.Time) 
 	high := strings.TrimSpace(rec.HighNextFundingTime)
 	low := strings.TrimSpace(rec.LowNextFundingTime)
 	if high != "" && low != "" {
-		highMins := unifiedMinutesUntilFundingWithInterval(high, now, interval)
-		lowMins := unifiedMinutesUntilFundingWithInterval(low, now, interval)
+		highMins := unifiedMinutesUntilFundingWithInterval(high, now, unifiedLegIntervalHours(rec, true))
+		lowMins := unifiedMinutesUntilFundingWithInterval(low, now, unifiedLegIntervalHours(rec, false))
 		switch {
 		case highMins > 0 && lowMins > 0:
 			if lowMins < highMins {
@@ -324,10 +370,10 @@ func unifiedNearestFundingMinutes(rec UnifiedCandidateLogRecord, now time.Time) 
 		}
 	}
 	if high != "" {
-		return unifiedMinutesUntilFundingWithInterval(high, now, interval)
+		return unifiedMinutesUntilFundingWithInterval(high, now, unifiedLegIntervalHours(rec, true))
 	}
 	if low != "" {
-		return unifiedMinutesUntilFundingWithInterval(low, now, interval)
+		return unifiedMinutesUntilFundingWithInterval(low, now, unifiedLegIntervalHours(rec, false))
 	}
 	return unifiedMinutesUntilFundingWithInterval(rec.NextFundingTime, now, interval)
 }
@@ -536,37 +582,42 @@ func leaderboardEntryFromRecord(rec UnifiedCandidateLogRecord, rank int, landsca
 	}
 	scannerExec := unifiedScannerWouldExecute(rec)
 	hasCapital := unifiedRecordHasCapitalAware(rec)
+	displayCapEff, capEffIdeal := unifiedDisplayCapitalEfficiency(rec)
 	return UnifiedLeaderboardEntry{
-		Rank:                     rank,
-		StrategyType:             rec.StrategyType,
-		Symbol:                   rec.Symbol,
-		Venues:                   venues,
-		ExpectedNetEVUSDT:        rec.ExpectedNetEVUSDT,
-		ExpectedFundingUSDT:      rec.ExpectedFundingUSDT,
-		CapitalAwareNetEVUSDT:    rec.CapitalAwareNetEVUSDT,
-		CapitalAwareNotionalUSDT: rec.CapitalAwareNotionalUSDT,
-		ScannerEstimateOnly:      !hasCapital,
-		CapitalRequiredByVenue:   capital,
-		CapitalEfficiencyScore:   rec.CapitalEfficiencyScore,
-		LandscapeSortKey:         landscapeKey,
-		PrimarySortKey:           unifiedPrimarySortKey(rec),
-		RankReason:               buildUnifiedRankReason(rank, rec, landscapeKey, now),
-		WouldExecute:             scannerExec,
-		ScannerWouldExecute:      scannerExec,
-		RotationWouldExecute:     rec.RotationWouldExecute,
-		RejectReasons:            rejectReasons,
-		NotionalUSDT:             rec.NotionalUSDT,
-		RawFundingRate:           rec.RawFundingRate,
-		FundingRatePerHour:       rec.FundingRatePerHour,
-		FundingAPR:               rec.FundingAPR,
-		SpreadAPR:                rec.SpreadAPR,
-		HighFundingRate:          rec.HighFundingRate,
-		LowFundingRate:           rec.LowFundingRate,
-		FundingIntervalHours:     rec.FundingIntervalHours,
-		NextFundingTime:          rec.NextFundingTime,
-		HighNextFundingTime:      rec.HighNextFundingTime,
-		LowNextFundingTime:       rec.LowNextFundingTime,
-		MinutesUntilFunding:      unifiedNearestFundingMinutes(rec, now),
+		Rank:                           rank,
+		StrategyType:                   rec.StrategyType,
+		Symbol:                         rec.Symbol,
+		Venues:                         venues,
+		ExpectedNetEVUSDT:              rec.ExpectedNetEVUSDT,
+		ExpectedFundingUSDT:            rec.ExpectedFundingUSDT,
+		CapitalAwareNetEVUSDT:          rec.CapitalAwareNetEVUSDT,
+		CapitalAwareNotionalUSDT:       rec.CapitalAwareNotionalUSDT,
+		CapitalAwareCost:               rec.CapitalAwareCost,
+		ScannerEstimateOnly:            !hasCapital,
+		CapitalRequiredByVenue:         capital,
+		CapitalEfficiencyScore:         displayCapEff,
+		CapitalEfficiencyIdealFallback: capEffIdeal,
+		LandscapeSortKey:               landscapeKey,
+		PrimarySortKey:                 unifiedPrimarySortKey(rec),
+		RankReason:                     buildUnifiedRankReason(rank, rec, landscapeKey, now),
+		WouldExecute:                   scannerExec,
+		ScannerWouldExecute:            scannerExec,
+		RotationWouldExecute:           rec.RotationWouldExecute,
+		RejectReasons:                  rejectReasons,
+		NotionalUSDT:                   rec.NotionalUSDT,
+		RawFundingRate:                 rec.RawFundingRate,
+		FundingRatePerHour:             rec.FundingRatePerHour,
+		FundingAPR:                     rec.FundingAPR,
+		SpreadAPR:                      rec.SpreadAPR,
+		HighFundingRate:                rec.HighFundingRate,
+		LowFundingRate:                 rec.LowFundingRate,
+		FundingIntervalHours:           rec.FundingIntervalHours,
+		HighIntervalHours:              rec.HighIntervalHours,
+		LowIntervalHours:               rec.LowIntervalHours,
+		NextFundingTime:                rec.NextFundingTime,
+		HighNextFundingTime:            rec.HighNextFundingTime,
+		LowNextFundingTime:             rec.LowNextFundingTime,
+		MinutesUntilFunding:            unifiedNearestFundingMinutes(rec, now),
 	}
 }
 
@@ -649,7 +700,8 @@ func countUnifiedExecuteFlags(records []UnifiedCandidateLogRecord) (scannerCount
 }
 
 // rankUnifiedRecords 对一组候选排序并产出带 rank 的展示条目;返回条目与其中扫描通过数。
-// 排序口径:轮动闸可开置顶 → 按可投名义净EV降序 → landscape(费率/价差 APR)降序 → symbol 升序 → 原始顺序。
+// 排序口径:可投净EV为正的行始终置顶(亏损行永不超过盈利行) → 正EV组内:可信(已带 capital-aware)优先,其次轮动闸可开 →
+// 按可投净EV降序 → landscape(费率/价差 APR)降序 → symbol 升序 → 原始顺序。
 func rankUnifiedRecords(records []UnifiedCandidateLogRecord, topN int, now time.Time) ([]UnifiedLeaderboardEntry, int) {
 	if len(records) == 0 {
 		return []UnifiedLeaderboardEntry{}, 0
@@ -668,13 +720,28 @@ func rankUnifiedRecords(records []UnifiedCandidateLogRecord, topN int, now time.
 		}
 	}
 	sort.SliceStable(sortable, func(i, j int) bool {
-		iRot := sortable[i].rec.RotationWouldExecute
-		jRot := sortable[j].rec.RotationWouldExecute
-		if iRot != jRot {
-			return iRot
-		}
 		iCapEV := unifiedCapitalAwareNetEV(sortable[i].rec)
 		jCapEV := unifiedCapitalAwareNetEV(sortable[j].rec)
+		// 1) 可投净EV为正的行始终高于非正(<=0)行:亏损/打平行永远不能登顶盈利行之上。
+		iPos := iCapEV > 0
+		jPos := jCapEV > 0
+		if iPos != jPos {
+			return iPos
+		}
+		if iPos {
+			// 正EV组内:带 capital-aware 的可信行高于仅扫描估算(scanner_estimate_only)行。
+			iTrusted := unifiedRecordHasCapitalAware(sortable[i].rec)
+			jTrusted := unifiedRecordHasCapitalAware(sortable[j].rec)
+			if iTrusted != jTrusted {
+				return iTrusted
+			}
+			// 同档内优先轮动闸可开。
+			iRot := sortable[i].rec.RotationWouldExecute
+			jRot := sortable[j].rec.RotationWouldExecute
+			if iRot != jRot {
+				return iRot
+			}
+		}
 		if iCapEV != jCapEV {
 			return iCapEV > jCapEV
 		}

@@ -285,15 +285,28 @@ func NewCrossVenueExecutor(cfg EngineConfig, orch *Orchestrator, scanner *CrossV
 		realFundingLogLast:       make(map[string]time.Time),
 		nowFn:                    time.Now,
 	}
+	corruptStoreLoad := false
 	if ps, lerr := store.load(); lerr == nil {
 		e.positions = ps
+	} else {
+		// 台账损坏(校验和/解析失败):绝不当作空仓启动(交易所可能仍有真实持仓)。
+		// 置空内存台账但 HALT 新开,并交由 reconcileOnStart 以交易所真值重建敞口。
+		corruptStoreLoad = true
+		e.positions = nil
+		if logger != nil {
+			logger.Printf("[跨所执行] 台账 positions.json 加载失败(损坏/校验和失配),HALT 新开待启动 reconcile 以交易所真值重建: %v", lerr)
+		}
 	}
 	recordDir := strings.TrimSpace(cfg.NetworkConfig.RecordDir)
 	if recordDir == "" {
 		recordDir = "records"
 	}
 	e.recordDir = recordDir
-	if enabled, lerr := loadCrossVenueControlState(recordDir); lerr == nil {
+	if corruptStoreLoad {
+		// 损坏分支强制 HALT,不读取 control.json 的 enabled(避免被旧的"已开"状态覆盖)。
+		e.openingsEnabled.Store(false)
+		e.notifyCritical("跨所台账损坏", "positions.json 加载失败(损坏/校验和失配),已 HALT 新开仓;将于启动 reconcile 以交易所真实持仓重建敞口,不以空仓视为已平", "")
+	} else if enabled, lerr := loadCrossVenueControlState(recordDir); lerr == nil {
 		e.openingsEnabled.Store(enabled)
 	} else if logger != nil {
 		logger.Printf("[跨所执行] 读取 control.json 失败,开仓开关默认关: %v", lerr)
@@ -766,11 +779,9 @@ func (e *CrossVenueExecutor) enrichOpportunityFromSnapshot(opp CrossVenueOpportu
 	if opp.FreshnessAgeSeconds <= 0 && !snap.ScannedAt.IsZero() {
 		opp.FreshnessAgeSeconds = crossVenueSnapshotAgeSeconds(snap.ScannedAt, now)
 	}
-	if entry, ok := snap.FundingByVenue[opp.HighVenue][opp.Symbol]; ok {
+	if entry, ok := snap.FundingByVenue[opp.HighVenue][crossVenueOppHighSymbol(opp)]; ok {
 		opp.HighFundingRate = entry.Rate
-		if entry.IntervalHours > 0 {
-			opp.HighIntervalHours = entry.IntervalHours
-		}
+		opp.HighIntervalHours = crossVenueResolveFundingIntervalHours(opp.HighVenue, entry.IntervalHours, e.venues)
 		if !entry.NextFundingTime.IsZero() {
 			opp.HighNextFundingTime = entry.NextFundingTime
 		}
@@ -778,11 +789,9 @@ func (e *CrossVenueExecutor) enrichOpportunityFromSnapshot(opp CrossVenueOpportu
 			opp.HighAnnualizedAPR = fundingAnnualizedAPR(opp.HighFundingRate, opp.HighIntervalHours)
 		}
 	}
-	if entry, ok := snap.FundingByVenue[opp.LowVenue][opp.Symbol]; ok {
+	if entry, ok := snap.FundingByVenue[opp.LowVenue][crossVenueOppLowSymbol(opp)]; ok {
 		opp.LowFundingRate = entry.Rate
-		if entry.IntervalHours > 0 {
-			opp.LowIntervalHours = entry.IntervalHours
-		}
+		opp.LowIntervalHours = crossVenueResolveFundingIntervalHours(opp.LowVenue, entry.IntervalHours, e.venues)
 		if !entry.NextFundingTime.IsZero() {
 			opp.LowNextFundingTime = entry.NextFundingTime
 		}
@@ -790,6 +799,7 @@ func (e *CrossVenueExecutor) enrichOpportunityFromSnapshot(opp CrossVenueOpportu
 			opp.LowAnnualizedAPR = fundingAnnualizedAPR(opp.LowFundingRate, opp.LowIntervalHours)
 		}
 	}
+	crossVenueEnrichOppLegIntervals(&opp, e.venues)
 	if opp.ComparableWindowHours <= 0 || opp.ExpectedHoldHours <= 0 || opp.NetEV == 0 || opp.RankScore == 0 {
 		opp = crossVenueEstimateOpportunityMetrics(e.cfg.CrossVenueExecutor, opp, now)
 		ranked := []CrossVenueOpportunity{opp}
@@ -809,10 +819,7 @@ func bestTradeableSubsetPair(sym string, byVenue map[string]map[string]CrossVenu
 		if !ok {
 			continue
 		}
-		interval := entry.IntervalHours
-		if interval <= 0 {
-			interval = 8
-		}
+		interval := crossVenueResolveFundingIntervalHours(name, entry.IntervalHours, nil)
 		entries = append(entries, symbolVenueFunding{
 			Venue:            name,
 			FundingRate:      entry.Rate,
@@ -893,10 +900,11 @@ func (e *CrossVenueExecutor) fetchFundingFromSnapshot(v venue.Venue, sym venue.S
 	if !ok {
 		return venue.FundingSnapshot{}, false
 	}
+	interval := crossVenueResolveFundingIntervalHours(name, entry.IntervalHours, e.venues)
 	return venue.FundingSnapshot{
 		Symbol:          sym,
 		LastFundingRate: entry.Rate,
-		IntervalHours:   entry.IntervalHours,
+		IntervalHours:   interval,
 		NextFundingTime: entry.NextFundingTime,
 	}, true
 }
@@ -917,8 +925,12 @@ func (e *CrossVenueExecutor) allocatedUSDTForVenue(venueName string) float64 {
 func (e *CrossVenueExecutor) reconcileOnStart(ctx context.Context, live bool) {
 	ps, err := e.store.load()
 	if err != nil {
-		e.logger.Printf("[跨所执行] reconcile 读台账失败: %v", err)
-		return
+		// 台账损坏:不能 return(那会带着空内存台账继续,把交易所真实持仓当成"无仓")。
+		// 改为 HALT 新开 + 以空台账继续走下方未登记敞口扫描,从交易所真值重建/接管敞口。
+		e.logger.Printf("[跨所执行] reconcile 读台账失败(损坏),HALT 新开并以交易所真值重建敞口: %v", err)
+		_ = e.SetOpeningsEnabled(false)
+		e.notifyCritical("跨所台账损坏", "reconcile 加载 positions.json 失败,已 HALT 新开仓;改以交易所真实持仓重建敞口(绝不以空仓视为已平)", "")
+		ps = nil
 	}
 	active := activeCrossVenuePositions(ps)
 	if len(active) == 0 {

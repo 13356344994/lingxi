@@ -208,6 +208,7 @@ func TestEvaluateAccountAutoFlattenIntent_RealEquityBoundary(t *testing.T) {
 
 	below := evaluateAccountAutoFlattenIntent(testAccountRiskSnapshotForEval(0, func(s *accountRiskSnapshot) {
 		s.RealEquityDrawdownUSDT = 149.99
+		s.RealEquityDrawdownAdjustedUSDT = 149.99
 		s.RealEquityTotalUSDT = 850
 		s.RealEquityPeakUSDT = 999.99
 		s.RealEquityQualityPassed = true
@@ -218,6 +219,7 @@ func TestEvaluateAccountAutoFlattenIntent_RealEquityBoundary(t *testing.T) {
 	}
 	at := evaluateAccountAutoFlattenIntent(testAccountRiskSnapshotForEval(0, func(s *accountRiskSnapshot) {
 		s.RealEquityDrawdownUSDT = 150
+		s.RealEquityDrawdownAdjustedUSDT = 150
 		s.RealEquityTotalUSDT = 850
 		s.RealEquityPeakUSDT = 1000
 		s.RealEquityQualityPassed = true

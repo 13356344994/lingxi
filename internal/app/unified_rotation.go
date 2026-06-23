@@ -355,14 +355,27 @@ func rotationSpotPerpWindowFundingUSDT(notional, rate float64, intervalHours int
 	return notional * effectiveRate * float64(settlements)
 }
 
-// rotationPerpPerpWindowFundingUSDT perp-perp 下一可比窗口 spread funding(对齐 crossVenueComputeCurrentFutureEV)。
+// rotationPerpPerpWindowFundingUSDT perp-perp 下一可比窗口 spread funding(续持口径)。
+// FIX-9:与候选 EV 同口径——离散结算次数(crossVenueExpectedFundingOverHold)× 捕获概率折现,
+// 而非旧的线性 fundingPerHour×windowHours 且无折现。两侧 funding 基准一致后,HOLD vs 换仓比较才公平。
+// 注:捕获概率用 crossVenueExecutorFundingCaptureProbability 的默认口径(未配 cfg 时与候选回退值一致);
+// 此函数被 collectCrossVenueHeldRecords(unified_rotation_runner.go,allowlist 外)调用且签名不便扩展,
+// 若 cfg.FundingCaptureProbability 被配成非默认值,续持侧将偏保守(低估 HOLD funding)→ 倾向收/换而非凭空高估持有。
 func rotationPerpPerpWindowFundingUSDT(notional, highRate float64, highInt int, lowRate float64, lowInt int, highNext, lowNext, now time.Time) float64 {
 	windowHours := crossVenueComparableWindowHours(now, highNext, lowNext)
 	if windowHours <= 0 {
 		return 0
 	}
-	fundingPerHour := crossVenueExpectedFundingPerHour(notional, highRate, highInt, lowRate, lowInt)
-	return fundingPerHour * windowHours
+	opp := CrossVenueOpportunity{
+		HighFundingRate:     highRate,
+		LowFundingRate:      lowRate,
+		HighIntervalHours:   highInt,
+		LowIntervalHours:    lowInt,
+		HighNextFundingTime: highNext,
+		LowNextFundingTime:  lowNext,
+	}
+	funding := crossVenueExpectedFundingOverHold(now, windowHours, notional, opp)
+	return funding * crossVenueExecutorFundingCaptureProbability(CrossVenueExecutorConfig{})
 }
 
 const (
@@ -779,16 +792,33 @@ func rotationOpportunityFundingEntryWindowEligible(opp UnifiedOpportunity, execC
 	case UnifiedStrategyPerpPerp:
 		highNext := unifiedOpportunityParseFundingTime(opp.HighNextFundingTime)
 		lowNext := unifiedOpportunityParseFundingTime(opp.LowNextFundingTime)
-		ih := opp.FundingIntervalHours
-		if ih <= 0 {
-			ih = 8
+		// FIX-10(a):每腿用各自 interval(镜像执行 open gate 的 per-leg 口径),异周期对(如 1h vs 8h)才能被正确判定;
+		// 单腿缺 interval 时回退该腿 FundingIntervalHours 再回退 8h。
+		highInt := opp.HighIntervalHours
+		if highInt <= 0 {
+			highInt = opp.FundingIntervalHours
+		}
+		if highInt <= 0 {
+			highInt = 8
+		}
+		lowInt := opp.LowIntervalHours
+		if lowInt <= 0 {
+			lowInt = opp.FundingIntervalHours
+		}
+		if lowInt <= 0 {
+			lowInt = 8
 		}
 		lead := time.Duration(crossVenueResolvedOpenFundingLeadSeconds(execCfg)) * time.Second
-		return crossVenueFundingEntryWindowReached(highNext, ih, lowNext, ih, now, lead)
+		if crossVenueUnifiedActiveForSymbol(execCfg, opp.Symbol) {
+			// 统一捕获模型:决策层进场窗也对齐"付钱的腿",与执行 open gate 同口径。
+			targetLeg := crossVenueTargetFundingLeg(opp.HighFundingRate, opp.LowFundingRate)
+			return crossVenueFundingEntryWindowReachedTargeted(targetLeg, highNext, highInt, lowNext, lowInt, now, lead)
+		}
+		return crossVenueFundingEntryWindowReached(highNext, highInt, lowNext, lowInt, now, lead)
 	default:
 		next := unifiedOpportunityParseFundingTime(opp.NextFundingTime)
 		if next.IsZero() {
-			return true // 无结算时间 → fail-open(与 perp-perp 闸一致)
+			return false // FIX-10(b):无结算时间 → fail-CLOSED(开/换仓不凭空进场,宁可跳过)
 		}
 		ih := opp.FundingIntervalHours
 		if ih <= 0 {
@@ -820,12 +850,9 @@ func rotationOpportunityHasFundingTimeData(opp UnifiedOpportunity) bool {
 }
 
 // rotationOpportunityOpenEligibleForDecision 决策层 OPEN/SWITCH 进场窗闸。
-// Runner 刷新后 OpenEligibleNow 为准;无 funding 时间字段的 legacy/测试候选 fail-open。
+// Runner 刷新后 OpenEligibleNow 为准;FIX-10(b):缺 funding 时间字段的候选 fail-CLOSED(开/换仓宁可跳过,不盲开)。
 func rotationOpportunityOpenEligibleForDecision(opp UnifiedOpportunity) bool {
 	if opp.OpenEligibleNow {
-		return true
-	}
-	if !rotationOpportunityHasFundingTimeData(opp) {
 		return true
 	}
 	return false

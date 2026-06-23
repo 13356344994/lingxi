@@ -160,10 +160,26 @@
       return `${pick('hour')}:${pick('minute')}`;
     }
 
-    function fundingLegSpan(venue, timeStr, isNearest) {
+    function fundingLegSpan(venue, timeStr, intervalHours, isNearest) {
       if (!timeStr) return '—';
       const cls = isNearest ? ' funding-high' : '';
-      return `<span class="${cls.trim()}">${esc(venue || '?')} ${formatTimeHM(timeStr)}</span>`;
+      const intLabel = intervalHours ? `${intervalHours}h@` : '';
+      return `<span class="${cls.trim()}">${esc(venue || '?')} ${intLabel}${formatTimeHM(timeStr)}</span>`;
+    }
+
+    function formatFundingIntervals(o) {
+      const venues = o.venues || [];
+      const highVenue = venues[0] || 'H';
+      const lowVenue = venues[1] || 'L';
+      const highInt = o.high_interval_hours;
+      const lowInt = o.low_interval_hours;
+      if (highInt && lowInt) {
+        if (highInt === lowInt && highVenue === lowVenue) return String(highInt);
+        return `${esc(highVenue)} ${highInt}h / ${esc(lowVenue)} ${lowInt}h`;
+      }
+      if (highInt) return `${esc(highVenue)} ${highInt}h`;
+      if (lowInt) return `${esc(lowVenue)} ${lowInt}h`;
+      return o.funding_interval_hours || '—';
     }
 
     function formatNextFundingTimes(o) {
@@ -172,13 +188,15 @@
       const venues = o.venues || [];
       const highVenue = venues[0] || 'H';
       const lowVenue = venues[1] || 'L';
+      const highInt = o.high_interval_hours || o.funding_interval_hours;
+      const lowInt = o.low_interval_hours || o.funding_interval_hours;
 
       if (high && low) {
         const highDate = new Date(high);
         const lowDate = new Date(low);
         if (!Number.isNaN(highDate.getTime()) && !Number.isNaN(lowDate.getTime())) {
-          if (highDate.getTime() === lowDate.getTime()) {
-            return fundingLegSpan(highVenue, high, false);
+          if (highDate.getTime() === lowDate.getTime() && highVenue === lowVenue && highInt === lowInt) {
+            return fundingLegSpan(highVenue, high, highInt, false);
           }
           const now = Date.now();
           const highDelta = highDate.getTime() - now;
@@ -186,13 +204,15 @@
           const highNear = highDelta <= lowDelta;
           const nearVenue = highNear ? highVenue : lowVenue;
           const nearTime = highNear ? high : low;
+          const nearInt = highNear ? highInt : lowInt;
           const farVenue = highNear ? lowVenue : highVenue;
           const farTime = highNear ? low : high;
-          return fundingLegSpan(nearVenue, nearTime, true) + ' / ' + fundingLegSpan(farVenue, farTime, false);
+          const farInt = highNear ? lowInt : highInt;
+          return fundingLegSpan(nearVenue, nearTime, nearInt, true) + ' / ' + fundingLegSpan(farVenue, farTime, farInt, false);
         }
       }
-      if (high) return fundingLegSpan(highVenue, high, false);
-      if (low) return fundingLegSpan(lowVenue, low, false);
+      if (high) return fundingLegSpan(highVenue, high, highInt, false);
+      if (low) return fundingLegSpan(lowVenue, low, lowInt, false);
       return formatTimeUTC8(o.next_funding_time, { withSuffix: false });
     }
 
@@ -222,10 +242,19 @@
     const TABLE_HEAD =
       '<thead><tr>'+
       '<th>#</th><th>策略</th><th>交易对</th><th>交易所</th>'+
-      '<th>价差 APR</th><th>费率 APR</th><th>高腿费率</th><th>低腿费率</th>'+
+      '<th title="年化价差(高腿−低腿),已年化">价差 APR</th>'+
+      '<th title="carry 单腿年化资金费;perp-perp 与价差 APR 同值,故省略显示 —">费率 APR</th>'+
+      '<th title="高腿单次结算费率(非年化)">高腿单次费率</th>'+
+      '<th title="低腿单次结算费率(非年化)">低腿单次费率</th>'+
       '<th>结算周期(h)</th><th>下次结算(北京)</th><th>距结算(min)</th>'+
-      '<th>预计资金费(USDT)</th><th>净EV(按可投名义)</th><th>轮动闸可开</th><th>扫描估算净EV(理想名义)</th><th>扫描估算名义</th>'+
-      '<th>资本效率</th><th>各腿占用(USDT)</th><th>扫描通过</th><th>拒绝原因</th>'+
+      '<th title="按可投名义重算的毛资金费">预计资金费</th>'+
+      '<th title="按实际可投名义的综合净EV(已扣手续费/滑点/基差/dust),排序即按此列。统一捕获模型生效时,本列与扫描净EV同一口径计算(maker一致滑点+计划持有horizon),同名义下两者一致,这是唯一可信的净EV数字">净EV(可投)</th>'+
+      '<th title="上一列净EV对应的实际可投名义(受订单簿深度/各所余额限制)">可投名义</th>'+
+      '<th title="运行期轮动闸:综合余额/并发/进场窗后这一轮是否真的会开">轮动闸可开</th>'+
+      '<th title="扫描器在理想名义下的估算净EV(非实际可成交)。统一捕获模型生效时与「净EV(可投)」同法计算,差异仅来自名义大小(深度/余额限制),不再是两套互相打架的口径">扫描净EV(理想)</th>'+
+      '<th title="扫描器理想名义(订单簿深度为0时回退 MaxPosition)">扫描名义(理想)</th>'+
+      '<th>资本效率</th><th>各腿占用(USDT)</th>'+
+      '<th title="扫描器口径:无硬性拒因(≠这一轮一定会开)">扫描通过</th><th>拒绝原因</th>'+
       '</tr></thead>';
 
     function capitalAwareNetEV(o) {
@@ -242,6 +271,29 @@
       return null;
     }
 
+    // costWaterfallTitle 把净EV成本瀑布拼成多行 tooltip:资金费 − 费用 − 滑点 − 基差 − dust − 观测风险 − 缓冲 = 净EV。
+    function costWaterfallTitle(c) {
+      if (!c) { return '按可投名义重算的综合净EV(已扣手续费/滑点/基差/dust)'; }
+      const f = function(v){ return usdt(v); };
+      return '成本瀑布(按可投名义,期望持有窗口口径):\n'+
+        '  毛资金费   '+f(c.funding_usdt)+'\n'+
+        '− 双边手续费 '+f(c.fees_usdt)+'\n'+
+        '− 滑点       '+f(c.slippage_usdt)+'\n'+
+        '− 入场基差   '+f(c.entry_basis_usdt)+'\n'+
+        '− dust残腿   '+f(c.dust_usdt)+'\n'+
+        '− 观测风险   '+f(c.observable_risk_usdt)+'\n'+
+        '− 政策缓冲   '+f(c.policy_buffer_usdt)+'\n'+
+        '= 净EV       '+f(c.net_ev_usdt);
+    }
+
+    function capitalEfficiencyCell(o) {
+      const val = o.capital_efficiency_score;
+      if (o.capital_efficiency_ideal_fallback) {
+        return fmt(val, 6) + ' <span class="no" title="理想名义(无 capital-aware)">*</span>';
+      }
+      return fmt(val, 6);
+    }
+
     function rowHTML(o) {
       const scannerExec = (o.scanner_would_execute != null) ? o.scanner_would_execute : o.would_execute;
       const rotationExec = !!o.rotation_would_execute;
@@ -252,26 +304,32 @@
       const scannerOnly = !!o.scanner_estimate_only || capEV == null;
       const capEVCell = scannerOnly
         ? '<span class="no" title="旧记录/无 capital-aware 字段">—</span>'
-        : usdt(capEV);
+        : '<span title="'+esc(costWaterfallTitle(o.capital_aware_cost))+'" style="cursor:help;border-bottom:1px dotted #888;">'+usdt(capEV)+(o.capital_aware_cost?' ⓘ':'')+'</span>';
       const capNotionalCell = scannerOnly ? '—' : usdt(capNotional);
+      const isPP = String(o.strategy_type || '').toLowerCase() === 'perp_perp';
+      // perp-perp 的「费率 APR」与「价差 APR」恒为同值,重复展示制造迷惑 → PP 直接省略为 —,指向左列。
+      const fundingAprCell = isPP
+        ? '<span class="no" title="perp-perp:费率APR=价差APR(见左列)">—</span>'
+        : '<span class="'+aprClass+'">'+pct(o.funding_apr)+'</span>';
       return '<tr class="'+cls+'">'+
         '<td>'+o.rank+'</td>'+
         '<td>'+esc(strategyLabel(o.strategy_type))+'</td>'+
         '<td>'+esc(o.symbol)+'</td>'+
         '<td>'+venuesCell(o)+'</td>'+
         '<td class="'+aprClass+'">'+pct(o.spread_apr)+'</td>'+
-        '<td class="'+aprClass+'">'+pct(o.funding_apr)+'</td>'+
+        '<td>'+fundingAprCell+'</td>'+
         '<td>'+pctRate(o.high_funding_rate)+'</td>'+
         '<td>'+pctRate(o.low_funding_rate)+'</td>'+
-        '<td>'+(o.funding_interval_hours || '—')+'</td>'+
+        '<td>'+formatFundingIntervals(o)+'</td>'+
         '<td>'+formatNextFundingTimes(o)+'</td>'+
         '<td>'+fmt(o.minutes_until_funding,0)+'</td>'+
         '<td>'+usdt(o.expected_funding_usdt)+'</td>'+
         '<td>'+capEVCell+'</td>'+
+        '<td>'+capNotionalCell+'</td>'+
         '<td>'+yesNo(rotationExec)+'</td>'+
         '<td title="扫描估算(理想名义)">'+usdt(o.expected_net_ev_usdt)+'</td>'+
         '<td title="扫描估算(理想名义)">'+usdt(o.notional_usdt)+'</td>'+
-        '<td>'+fmt(o.capital_efficiency_score,6)+'</td>'+
+        '<td>'+capitalEfficiencyCell(o)+'</td>'+
         '<td>'+fmtCapitalByVenue(o.capital_required_by_venue)+'</td>'+
         '<td>'+yesNo(scannerExec)+'</td>'+
         '<td><pre>'+esc(rejectReasonsLabel(o.reject_reasons))+'</pre></td>';

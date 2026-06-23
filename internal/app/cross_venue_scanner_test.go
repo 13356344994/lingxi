@@ -1027,7 +1027,7 @@ func TestCrossVenueScannerHUSDTMissingBybitNextFundingTime(t *testing.T) {
 		t.Fatal("legacy index should not pair with <2 legs")
 	}
 
-	fixed := indexSnapshotsBySymbolAt(byVenue, now, 5.0)
+	fixed := indexSnapshotsBySymbolAt(nil, byVenue, now, 5.0)
 	if len(fixed["H-USDT"]) != 2 {
 		t.Fatalf("fixed index legs=%d want 2", len(fixed["H-USDT"]))
 	}
@@ -1118,6 +1118,24 @@ func TestCrossVenueResolveNextFundingTime(t *testing.T) {
 	got, inferred = crossVenueResolveNextFundingTime(now, time.Time{}, 0)
 	if !inferred || !got.Equal(now.Add(8*time.Hour)) {
 		t.Fatalf("default interval: got=%s want %s", got, now.Add(8*time.Hour))
+	}
+
+	// FIX-8(a):过期(≤now)NextFundingTime 按 interval 向未来滚动到下一真实结算点,而非保留过去值或兜底 now+interval。
+	// 1h interval、上次结算在 now-90m → 滚动到 now+30m(网格 ...:00),仍标 inferred=false(落在真实结算网格)。
+	stale := now.Add(-90 * time.Minute)
+	got, inferred = crossVenueResolveNextFundingTime(now, stale, 1)
+	if inferred {
+		t.Fatalf("rolled-forward stale time should not be marked inferred: got inferred=true (%s)", got)
+	}
+	if !got.After(now) {
+		t.Fatalf("rolled-forward time must be in the future: got=%s now=%s", got, now)
+	}
+	if want := now.Add(30 * time.Minute); !got.Equal(want) {
+		t.Fatalf("rolled-forward 1h grid: got=%s want %s", got, want)
+	}
+	// 滚动后的 next 进 comparable 窗口应为正(非 0),不会触发 12h 兜底膨胀。
+	if win := crossVenueComparableWindowHours(now, got, got); win <= 0 || win > 1 {
+		t.Fatalf("rolled-forward comparable window should be in (0,1h], got %.4fh", win)
 	}
 }
 

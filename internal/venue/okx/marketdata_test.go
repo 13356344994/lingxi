@@ -73,8 +73,9 @@ func TestFundingSnapshotParse(t *testing.T) {
 	if s.IntervalHours != 8 {
 		t.Errorf("结算周期推导错误: got %dh want 8h", s.IntervalHours)
 	}
-	if !s.NextFundingTime.Equal(time.UnixMilli(1700028800000).UTC()) {
-		t.Errorf("nextFundingTime 解析错误: %v", s.NextFundingTime)
+	// 下次结算应取 fundingTime(即将结算)而非 nextFundingTime(再下一笔);interval 仍由两者之差得 8h。
+	if !s.NextFundingTime.Equal(time.UnixMilli(1700000000000).UTC()) {
+		t.Errorf("下次结算应为 fundingTime(即将结算), got %v", s.NextFundingTime)
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -54,9 +55,76 @@ func (a *Adapter) BorrowRepay(ctx context.Context, asset string, amt float64, di
 	return nil
 }
 
+// binanceIncomeRow 是 GET /fapi/v1/income 单条流水(仅取本方法所需字段;income/asset 为字符串,time 为毫秒)。
+type binanceIncomeRow struct {
+	Symbol     string `json:"symbol"`
+	IncomeType string `json:"incomeType"`
+	Income     string `json:"income"`
+	Asset      string `json:"asset"`
+	Time       int64  `json:"time"`
+}
+
+// FetchRealizedFunding 拉某永续标的自 since 起的真实资金费结算流水。
+// 走 GET /fapi/v1/income(incomeType=FUNDING_FEE),与现有签名 GET(account.go/perp_margin.go)
+// 同一 signedGetJSON 签名/HTTP 路径。income>0=收到、<0=支付,U 本位单位 USDT。
+// 与 bybit 实现同形:返回逐条 FundingIncome(由调用方求和);窗口外/无结算时返回空切片 + nil(表示"已核实=0",
+// 而非不支持),从而让 app 层资金费停止回退到估算。
 func (a *Adapter) FetchRealizedFunding(ctx context.Context, s venue.Symbol, since time.Time) ([]venue.FundingIncome, error) {
-	// 资金费流水 /fapi/v1/income 仍由 app 层 settlement 使用;后续按需下沉。
-	return nil, venue.ErrUnsupported
+	raw, err := a.ToVenue(s, venue.MarketPerp)
+	if err != nil {
+		return nil, err
+	}
+	const pageLimit = 1000 // 币安 income 单页上限;单标的资金费极稀疏,正常一页即取全,翻页仅作兜底。
+	endMs := a.now().UnixMilli()
+	var startMs int64
+	if !since.IsZero() {
+		startMs = since.UnixMilli()
+	}
+	out := make([]venue.FundingIncome, 0, 8)
+	for page := 0; page < 50; page++ {
+		params := url.Values{}
+		params.Set("incomeType", "FUNDING_FEE")
+		if raw != "" {
+			params.Set("symbol", raw)
+		}
+		if startMs > 0 {
+			params.Set("startTime", strconv.FormatInt(startMs, 10))
+		}
+		if endMs > 0 {
+			params.Set("endTime", strconv.FormatInt(endMs, 10))
+		}
+		params.Set("limit", strconv.Itoa(pageLimit))
+		var rows []binanceIncomeRow
+		if err := a.signedGetJSON(ctx, a.futuresBaseURL()+PathFuturesIncome, params, &rows); err != nil {
+			return nil, err
+		}
+		var lastMs int64
+		for _, r := range rows {
+			if !strings.EqualFold(strings.TrimSpace(r.IncomeType), "FUNDING_FEE") {
+				continue
+			}
+			if raw != "" && r.Symbol != "" && !strings.EqualFold(strings.TrimSpace(r.Symbol), raw) {
+				continue
+			}
+			var ts time.Time
+			if r.Time > 0 {
+				ts = time.UnixMilli(r.Time).UTC()
+			}
+			asset := strings.TrimSpace(r.Asset)
+			if asset == "" {
+				asset = "USDT"
+			}
+			out = append(out, venue.FundingIncome{Symbol: s, Income: parseFloat(r.Income), Asset: asset, Time: ts})
+			if r.Time > lastMs {
+				lastMs = r.Time
+			}
+		}
+		if len(rows) < pageLimit || lastMs <= 0 {
+			break
+		}
+		startMs = lastMs + 1 // 翻页:推进到本页最后一条之后,避免重复/漏取。
+	}
+	return out, nil
 }
 
 func (a *Adapter) FetchUserTrades(ctx context.Context, m venue.Market, s venue.Symbol, since time.Time) ([]venue.Trade, error) {

@@ -126,7 +126,7 @@ func TestEstimateFundingCaptureProbabilityForStrategyAggregates(t *testing.T) {
 	if got <= carryScannerMinFundingCaptureProbability {
 		t.Fatalf("expected estimate above floor with moderate capture evidence, got %.4f", got)
 	}
-	if got >= 0.5 {
+	if got >= carryScannerFundingCapturePriorMean {
 		t.Fatalf("expected estimate below prior with low capture evidence, got %.4f", got)
 	}
 }
@@ -167,8 +167,8 @@ func TestCrossVenueOpenGateExpectedFundingUsesBackfilledCaptureProbability(t *te
 	})
 	cfg := testCrossVenueExecutorConfig().CrossVenueExecutor
 	refreshCrossVenueExecutorFundingCaptureProbability(&cfg, dir)
-	if cfg.FundingCaptureProbability >= 0.5 {
-		t.Fatalf("expected backfill below prior 0.5 with low capture history, got %.4f", cfg.FundingCaptureProbability)
+	if cfg.FundingCaptureProbability >= carryScannerFundingCapturePriorMean {
+		t.Fatalf("expected backfill below prior with low capture history, got %.4f", cfg.FundingCaptureProbability)
 	}
 	if cfg.FundingCaptureProbability < carryScannerMinFundingCaptureProbability {
 		t.Fatalf("expected floor %.2f, got %.4f", carryScannerMinFundingCaptureProbability, cfg.FundingCaptureProbability)

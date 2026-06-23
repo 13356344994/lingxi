@@ -8,8 +8,13 @@ import (
 
 const (
 	carryScannerMinFundingCaptureProbability = 0.30
-	carryScannerFundingCapturePriorMean      = 0.50
-	carryScannerFundingCapturePriorStrength  = 20.0
+	// carryScannerFundingCapturePriorMean 资费捕获率贝叶斯先验均值。
+	// 反映「首结算最小持有」承诺:开仓即承诺持有到首次结算,故无数据时的期望捕获应偏高(~0.75),而非掷硬币 0.5。
+	// 旧值 0.5 + 强先验 20 会把捕获率长期钉死在 0.5,使好价差暴力币 netEV 恒为负→不开仓→无结算样本→捕获率永远停在 0.5(自锁)。
+	carryScannerFundingCapturePriorMean = 0.75
+	// carryScannerFundingCapturePriorStrength 先验强度:约需这么多次真实结算才能把估计明显拉离先验。
+	// 由 20 降到 10,让真实成交数据更快接管(早期 ~10 次结算即可自校正,而非 ~40 次)。
+	carryScannerFundingCapturePriorStrength = 10.0
 )
 
 // FundingCaptureEstimateConfig 控制 settlement 回测的 capture 概率贝叶斯收缩。

@@ -2,6 +2,7 @@ package app
 
 import (
 	"encoding/json"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -532,6 +533,36 @@ func TestBuildUnifiedLeaderboardPositiveScannerNegativeCapitalAwareRanksLower(t 
 	}
 }
 
+func TestBuildUnifiedLeaderboardNegativeRotationNeverOutranksPositive(t *testing.T) {
+	cycle := "cvcycle-rot-neg-vs-pos"
+	records := []UnifiedCandidateLogRecord{
+		// 轮动闸可开,但可投净EV为负 —— 绝不能登顶。
+		{CycleID: cycle, StrategyType: UnifiedStrategyPerpPerp, Symbol: "ROT-NEG-USDT", Venues: []string{"bybit", "okx"},
+			SpreadAPR: 9.0, ExpectedNetEVUSDT: 0.40, NotionalUSDT: 95,
+			CapitalAwareNetEVUSDT: -0.05, CapitalAwareNotionalUSDT: 23, RotationWouldExecute: true},
+		// 轮动闸不可开,但可投净EV为正 —— 应排在上面。
+		{CycleID: cycle, StrategyType: UnifiedStrategyPerpPerp, Symbol: "NOROT-POS-USDT", Venues: []string{"bybit", "binance"},
+			SpreadAPR: 0.5, ExpectedNetEVUSDT: 0.09, NotionalUSDT: 82,
+			CapitalAwareNetEVUSDT: 0.03, CapitalAwareNotionalUSDT: 21, RotationWouldExecute: false},
+	}
+	resp := BuildUnifiedLeaderboard(records, 0, time.Time{})
+	if len(resp.Opportunities) != 2 {
+		t.Fatalf("opportunities = %d", len(resp.Opportunities))
+	}
+	if resp.Opportunities[0].Symbol != "NOROT-POS-USDT" {
+		t.Fatalf("rank1 = %s, want NOROT-POS-USDT (positive cap EV must outrank negative-EV rotation row)", resp.Opportunities[0].Symbol)
+	}
+	if resp.Opportunities[0].RotationWouldExecute {
+		t.Fatalf("rank1 should be the rotation=false positive-EV row, got rotation=true: %+v", resp.Opportunities[0])
+	}
+	if resp.Opportunities[1].Symbol != "ROT-NEG-USDT" || !resp.Opportunities[1].RotationWouldExecute {
+		t.Fatalf("rank2 = %+v, want ROT-NEG-USDT with rotation_would_execute=true ranked below the positive row", resp.Opportunities[1])
+	}
+	if resp.Opportunities[1].CapitalAwareNetEVUSDT >= 0 {
+		t.Fatalf("ROT-NEG-USDT should keep its negative cap EV: %+v", resp.Opportunities[1])
+	}
+}
+
 func TestBuildUnifiedLeaderboardOldRecordFallbackGraceful(t *testing.T) {
 	cycle := "cvcycle-legacy"
 	records := []UnifiedCandidateLogRecord{
@@ -606,5 +637,57 @@ func TestLoadUnifiedLeaderboardCrossChecksLatestSnapshotScannedAt(t *testing.T) 
 	}
 	if resp.CycleStale {
 		t.Fatal("expected cycle not stale when latest_snapshot scanned_at is fresh")
+	}
+}
+
+func TestUnifiedDisplayCapitalEfficiencyUsesCapitalAwareEV(t *testing.T) {
+	rec := UnifiedCandidateLogRecord{
+		ExpectedNetEVUSDT:        0.06,
+		NotionalUSDT:             52,
+		CapitalEfficiencyScore:   0.06 / 26,
+		CapitalAwareNetEVUSDT:    -0.02,
+		CapitalAwareNotionalUSDT: 22,
+		CapitalRequiredByVenue:   map[string]float64{"gate": 26, "binance": 26},
+	}
+	score, ideal := unifiedDisplayCapitalEfficiency(rec)
+	wantMargin := 52.0 * (22.0 / 52.0)
+	want := -0.02 / wantMargin
+	if ideal {
+		t.Fatal("expected capital-aware display, not ideal fallback")
+	}
+	if score > want*1.01 || score < want*0.99 {
+		if math.Abs(score-want) > 1e-9 {
+			t.Fatalf("display cap eff = %.6f, want ~%.6f (negative cap-aware)", score, want)
+		}
+	}
+	if score > 0 {
+		t.Fatalf("display cap eff should be negative when cap-aware EV negative, got %.6f", score)
+	}
+	entry := leaderboardEntryFromRecord(rec, 1, 0.5, time.Now().UTC())
+	if entry.CapitalEfficiencyScore > 0 {
+		t.Fatalf("leaderboard entry cap eff = %.6f, want negative", entry.CapitalEfficiencyScore)
+	}
+	if entry.CapitalEfficiencyIdealFallback {
+		t.Fatal("should not flag ideal fallback when capital-aware present")
+	}
+}
+
+func TestLeaderboardEntryShowsBothLegIntervals(t *testing.T) {
+	now := time.Date(2026, 6, 22, 12, 0, 0, 0, time.UTC)
+	rec := UnifiedCandidateLogRecord{
+		StrategyType:        UnifiedStrategyPerpPerp,
+		Symbol:              "WAVES-USDT",
+		Venues:              []string{"gate", "binance"},
+		HighIntervalHours:   1,
+		LowIntervalHours:    4,
+		HighNextFundingTime: now.Add(time.Hour).Format(time.RFC3339),
+		LowNextFundingTime:  now.Add(3 * time.Hour).Format(time.RFC3339),
+	}
+	entry := leaderboardEntryFromRecord(rec, 1, 0.5, now)
+	if entry.HighIntervalHours != 1 || entry.LowIntervalHours != 4 {
+		t.Fatalf("entry intervals high=%d low=%d want 1/4", entry.HighIntervalHours, entry.LowIntervalHours)
+	}
+	if entry.HighNextFundingTime == "" || entry.LowNextFundingTime == "" {
+		t.Fatalf("entry next funding missing: %+v", entry)
 	}
 }

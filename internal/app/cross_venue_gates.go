@@ -168,6 +168,8 @@ func evaluateCrossVenueOpenGate(
 	if dev > maxDev {
 		return fail(fmt.Sprintf("两所中间价偏离 %.2f%% > %.2f%%", dev*100, maxDev*100))
 	}
+	// 基差成本只对「不利方向」(做多腿比做空腿更贵,收敛时亏损)计;顺向有利不计。
+	adverseDev := crossVenueAdverseMidDeviation(highMid, lowMid, highMult, lowMult)
 
 	maxSpreadBps := cfg.MaxBookSpreadBps
 	if maxSpreadBps <= 0 {
@@ -182,7 +184,7 @@ func evaluateCrossVenueOpenGate(
 
 	// 结算前进场窗闸(OPEN-only):只在最近一腿资金费结算前 ≤lead 才放行;太早(距结算 >lead)拒开,
 	// 避免提前进场、结算前价差收敛白付手续费。与 carry 四策略同口径(reason 复用 funding_entry_window_not_reached,
-	// 排行榜已能翻译)。放在深度/滑点/EV/余额等重计算之前短路省开销;两腿结算时间均未知则 fail-open(不因缺数据丢极端机会)。
+	// 排行榜已能翻译)。放在深度/滑点/EV/余额等重计算之前短路省开销;两腿结算时间均未知则 fail-CLOSED(缺数据不盲开,FIX-10)。
 	// 取两腿下次结算时间的最近一个;opp 字段为零时回退已校验的 high/low 快照值(与下文 evOpp 补值同口径)。
 	openWinHighNext, openWinHighInterval := in.Opp.HighNextFundingTime, in.Opp.HighIntervalHours
 	if openWinHighNext.IsZero() {
@@ -193,7 +195,13 @@ func evaluateCrossVenueOpenGate(
 		openWinLowNext, openWinLowInterval = lowSnap.NextFundingTime, lowSnap.IntervalHours
 	}
 	openLead := time.Duration(crossVenueResolvedOpenFundingLeadSeconds(cfg)) * time.Second
-	if !crossVenueFundingEntryWindowReached(openWinHighNext, openWinHighInterval, openWinLowNext, openWinLowInterval, in.Now, openLead) {
+	if crossVenueUnifiedActiveForSymbol(cfg, in.Opp.Symbol) {
+		// 统一捕获模型:进场对齐"付钱的腿"的结算,而非时间最近的便宜腿(消灭"为 okx 开仓却贴着 bybit 结算进场"的错配)。
+		targetLeg := crossVenueTargetFundingLeg(in.Opp.HighFundingRate, in.Opp.LowFundingRate)
+		if !crossVenueFundingEntryWindowReachedTargeted(targetLeg, openWinHighNext, openWinHighInterval, openWinLowNext, openWinLowInterval, in.Now, openLead) {
+			return fail(carryScannerRejectFundingWindowNotReached)
+		}
+	} else if !crossVenueFundingEntryWindowReached(openWinHighNext, openWinHighInterval, openWinLowNext, openWinLowInterval, in.Now, openLead) {
 		return fail(carryScannerRejectFundingWindowNotReached)
 	}
 
@@ -285,7 +293,7 @@ func evaluateCrossVenueOpenGate(
 		evOpp.LowNextFundingTime = lowSnap.NextFundingTime
 		evOpp.LowIntervalHours = lowSnap.IntervalHours
 	}
-	if evRes := evaluateCrossVenueOpenEV(cfg, evOpp, notional, evLegs, in.Now, holdHours, dev); !evRes.OK {
+	if evRes := evaluateCrossVenueOpenEV(cfg, evOpp, notional, evLegs, in.Now, holdHours, adverseDev); !evRes.OK {
 		return fail(evRes.Reason)
 	}
 
@@ -341,7 +349,12 @@ func evaluateCrossVenueOpenEV(cfg CrossVenueExecutorConfig, opp CrossVenueOpport
 	roundTripSlippage := 0.0
 	legVenues := []string{opp.HighVenue, opp.LowVenue, opp.HighVenue, opp.LowVenue}
 	evSlipBps := crossVenueOpenEVEslippageBpsPerLeg(cfg)
+	unifiedActive := crossVenueUnifiedActiveForSymbol(cfg, opp.Symbol)
+	makerFirst := unifiedActive && (cfg.MakerFirst || cfg.AssumeMakerFills)
 	for i := range legVenues {
+		if makerFirst && i == 0 {
+			continue // 统一模型:高费腿首腿 maker 挂单,近零穿价滑点(与执行端 maker-first 一致)
+		}
 		slipBps := evSlipBps
 		if len(evLegs) > i {
 			slipBps = crossVenueEVSlippageBpsPerLeg(cfg, notional, evLegs[i])
@@ -349,10 +362,18 @@ func evaluateCrossVenueOpenEV(cfg CrossVenueExecutorConfig, opp CrossVenueOpport
 		roundTripSlippage += notional * slipBps / 10000
 	}
 	roundTripCost := openCost + closeCost + roundTripSlippage
+	// 统一模型入场硬条件:预期目标资费 / 往返成本 ≥ ratio,把"滑点远大于资费"的薄盘暴力小币挡在外面。
+	if unifiedActive && cfg.CaptureFundingToCostMinRatio > 0 && roundTripCost > 0 {
+		targetFunding := crossVenueExpectedTargetFundingUSDT(cfg, opp, notional)
+		if targetFunding < cfg.CaptureFundingToCostMinRatio*roundTripCost {
+			return failEV(fmt.Sprintf("资费/成本比 %.2f < %.2f(目标资费=%.4f 往返成本=%.4f)",
+				targetFunding/roundTripCost, cfg.CaptureFundingToCostMinRatio, targetFunding, roundTripCost))
+		}
+	}
 	recoveryQuality := crossVenueRecoveryQualityForPair(opp.HighVenue, opp.LowVenue)
 	observableRiskCost := crossVenueObservableRiskCost(notional, opp.FreshnessAgeSeconds, holdHours, recoveryQuality)
 	policyBuffer := crossVenuePolicyBuffer(openCost, closeCost)
-	dustCost := carryScannerPerpPerpDustResidualCostUSDT()
+	dustCost := carryScannerPerpPerpDustResidualCostUSDT(notional)
 	entryBasisCost := crossVenuePerpPerpEntryBasisCostUSDT(cfg, midDev, notional, opp)
 	netProfit := expectedFunding - roundTripCost - observableRiskCost - policyBuffer - dustCost - entryBasisCost
 	minProfit := crossVenueMinNetProfitUSDT(cfg)
@@ -410,7 +431,66 @@ func crossVenuePerpFeeBps(cfg CrossVenueExecutorConfig, venueName string) float6
 	return crossVenueTakerFeeBps(cfg, venueName)
 }
 
+// crossVenueShortestLegFundingIntervalHours 取两腿中较短的真实 funding interval(小时);
+// 用作可比窗口缺失时的近端 horizon——取较短者最保守(更少结算次数→更低 funding EV)。两腿 interval 均未知→0。
+func crossVenueShortestLegFundingIntervalHours(opp CrossVenueOpportunity) float64 {
+	hi, lo := opp.HighIntervalHours, opp.LowIntervalHours
+	switch {
+	case hi > 0 && lo > 0:
+		if hi < lo {
+			return float64(hi)
+		}
+		return float64(lo)
+	case hi > 0:
+		return float64(hi)
+	case lo > 0:
+		return float64(lo)
+	default:
+		return 0
+	}
+}
+
+// crossVenueResolvedNearTermOpenEVExpectedSettlements 近端 horizon 预期前向结算次数 N;cfg 未配/≤0 回退 3。
+func crossVenueResolvedNearTermOpenEVExpectedSettlements(cfg CrossVenueExecutorConfig) float64 {
+	if cfg.NearTermOpenEVExpectedSettlements > 0 {
+		return float64(cfg.NearTermOpenEVExpectedSettlements)
+	}
+	return 3
+}
+
+// crossVenueResolvedNearTermOpenEVMaxHoldHours 近端 horizon 上限(小时);cfg 未配/≤0 回退 8。
+func crossVenueResolvedNearTermOpenEVMaxHoldHours(cfg CrossVenueExecutorConfig) float64 {
+	if cfg.NearTermOpenEVMaxHoldHours > 0 {
+		return cfg.NearTermOpenEVMaxHoldHours
+	}
+	return 8
+}
+
+// crossVenueCapturePlanHoldHours 统一捕获模型下的计划持有时长(小时)= N × 目标腿 funding interval,
+// 使 EV 资费分子只计"实际计划吃满的 N 次目标结算",而非用便宜腿/长 horizon 摊薄。interval 不可用时返回 0(回退)。
+func crossVenueCapturePlanHoldHours(cfg CrossVenueExecutorConfig, opp CrossVenueOpportunity) float64 {
+	leg := crossVenueTargetFundingLeg(opp.HighFundingRate, opp.LowFundingRate)
+	interval := opp.HighIntervalHours
+	if leg == "low" {
+		interval = opp.LowIntervalHours
+	}
+	if interval <= 0 {
+		return 0
+	}
+	n := crossVenueEffectiveCaptureSettlements(cfg, opp.StabilityScore)
+	if n < 1 {
+		n = 1
+	}
+	return float64(n) * float64(interval)
+}
+
 func crossVenueOpenEVHoldHours(cfg CrossVenueExecutorConfig, now time.Time, opp CrossVenueOpportunity, comparableWindowHours float64) float64 {
+	if crossVenueUnifiedActiveForSymbol(cfg, opp.Symbol) {
+		// 统一捕获模型:horizon = 计划持有(N 次目标结算),与进场/离场同口径(消除"摊 5 次结算的 EV 却第一次结算就离场")。
+		if h := crossVenueCapturePlanHoldHours(cfg, opp); h > 0 {
+			return h
+		}
+	}
 	if cfg.NearTermOpenEVHorizonEnabled {
 		window := comparableWindowHours
 		if window <= 0 {
@@ -419,14 +499,24 @@ func crossVenueOpenEVHoldHours(cfg CrossVenueExecutorConfig, now time.Time, opp 
 		if window <= 0 && opp.ComparableWindowHours > 0 {
 			window = opp.ComparableWindowHours
 		}
+		// horizon = 预期前向持有,而非"距下次结算的残余时间"。在进场窗内可比窗口≈0.04h,若直接拿它当 horizon,
+		// EV 只给一次即将结算的 funding 却扣全额开+平往返成本 → netProfit<0 → 结构性拒开(FIX-8 矫枉过正)。
+		// 改为:horizon 至少 = N × 最短腿 funding interval(N=NearTermOpenEVExpectedSettlements,默认 3),
+		// 若可比窗口更大则保留可比窗口;再用 NearTermOpenEVMaxHoldHours(默认 8h)封顶,杜绝反向膨胀回 12h 式高估。
+		// 下游 funding EV 仍按离散结算次数 × 捕获概率(≤1)逐次折现(crossVenueOpenGateExpectedFundingUSDT →
+		// crossVenueExpectedFundingOverHold × crossVenueExecutorFundingCaptureProbability),故延长 horizon 不会
+		// 把 N 个结算的瞬时尖峰过度计入(每个被计结算都已乘捕获概率)。
+		if legInterval := crossVenueShortestLegFundingIntervalHours(opp); legInterval > 0 {
+			expectedHold := crossVenueResolvedNearTermOpenEVExpectedSettlements(cfg) * legInterval
+			result := math.Max(window, expectedHold)
+			if capHours := crossVenueResolvedNearTermOpenEVMaxHoldHours(cfg); capHours > 0 && result > capHours {
+				result = capHours
+			}
+			return result
+		}
+		// interval 未知 → 无法按 N×interval 计前向持有:回退可比窗口(可比窗口也缺则 0,最保守:不凭空给收入)。
 		if window > 0 {
 			return window
-		}
-		if cfg.ExpectedHoldHours > 0 {
-			return cfg.ExpectedHoldHours
-		}
-		if opp.ExpectedHoldHours > 0 {
-			return opp.ExpectedHoldHours
 		}
 		return 0
 	}
@@ -610,6 +700,13 @@ func crossVenueFundingSnapFromOppLeg(opp CrossVenueOpportunity, highLeg bool, no
 		interval = opp.LowIntervalHours
 		next = opp.LowNextFundingTime
 	}
+	if interval <= 0 {
+		venueName := opp.HighVenue
+		if !highLeg {
+			venueName = opp.LowVenue
+		}
+		interval = crossVenueVenueDefaultFundingIntervalHours(venueName, nil)
+	}
 	// 过期结算时刻按 interval 推进到下一结算点:旧快照或刚过结算点时,NextFundingTime 会落到过去,
 	// 但只要 interval 已知,该腿就是有效的(只是时间戳过期),不应被误判为"幽灵腿"。
 	// 真缺数据的腿(interval<=0 或 NextFundingTime 为零)无法推进,仍会被下方校验判为无效→幽灵(行为不变)。
@@ -652,6 +749,83 @@ func crossVenueResolvedTimingAwarePairSelectionMinHours(cfg CrossVenueExecutorCo
 		return cfg.TimingAwarePairSelectionMinHours
 	}
 	return 0.01
+}
+
+// crossVenueUnifiedActiveForSymbol 统一捕获模型是否对该 symbol 生效:总开关 ON 且(白名单为空 或 symbol 命中白名单)。
+// 灰度期可只放量少数 symbol;其余 symbol 走旧逻辑(开仓不建 plan → 持有/离场自然回退,口径一致无混用)。
+func crossVenueUnifiedActiveForSymbol(cfg CrossVenueExecutorConfig, symbol string) bool {
+	if !cfg.UnifiedCaptureModelEnabled {
+		return false
+	}
+	if len(cfg.UnifiedCaptureModelSymbolAllowlist) == 0 {
+		return true
+	}
+	symbol = strings.ToUpper(strings.TrimSpace(symbol))
+	for _, s := range cfg.UnifiedCaptureModelSymbolAllowlist {
+		if strings.ToUpper(strings.TrimSpace(s)) == symbol {
+			return true
+		}
+	}
+	return false
+}
+
+// crossVenueResolvedCaptureTargetSettlements 统一捕获模型默认目标结算次数 N;cfg 未配/≤0 回退 1。
+func crossVenueResolvedCaptureTargetSettlements(cfg CrossVenueExecutorConfig) int {
+	if cfg.CaptureTargetSettlements > 0 {
+		return cfg.CaptureTargetSettlements
+	}
+	return 1
+}
+
+// crossVenueEffectiveCaptureSettlements 实际允许的目标结算次数:N>1 仅在基差稳定分≥阈值时放行,否则夹回 1。
+// 杜绝"在不稳定/暴力币上贪多次结算 → 基差暴露翻倍"的风险。
+func crossVenueEffectiveCaptureSettlements(cfg CrossVenueExecutorConfig, stabilityScore float64) int {
+	n := crossVenueResolvedCaptureTargetSettlements(cfg)
+	if n <= 1 {
+		return n
+	}
+	thr := cfg.BasisStabilityMinScoreForMultiSettlement
+	if thr <= 0 {
+		thr = 0.7
+	}
+	if stabilityScore < thr {
+		return 1
+	}
+	return n
+}
+
+// crossVenueExpectedTargetFundingUSDT 计划区间内预期从"目标腿"收到的资费(毛,USDT);仅计收钱方向,负则 0。
+func crossVenueExpectedTargetFundingUSDT(cfg CrossVenueExecutorConfig, opp CrossVenueOpportunity, notional float64) float64 {
+	if notional <= 0 {
+		return 0
+	}
+	leg := crossVenueTargetFundingLeg(opp.HighFundingRate, opp.LowFundingRate)
+	rate := opp.HighFundingRate
+	if leg == "low" {
+		rate = -opp.LowFundingRate
+	}
+	per := rate * notional
+	if per < 0 {
+		per = 0
+	}
+	n := crossVenueEffectiveCaptureSettlements(cfg, opp.StabilityScore)
+	return per * float64(n)
+}
+
+// crossVenueResolvedBasisStopBudgetFraction 基差止损预算系数(× 预期目标资费);cfg 未配/≤0 回退 1.0。
+func crossVenueResolvedBasisStopBudgetFraction(cfg CrossVenueExecutorConfig) float64 {
+	if cfg.BasisStopBudgetFraction > 0 {
+		return cfg.BasisStopBudgetFraction
+	}
+	return 1.0
+}
+
+// crossVenueResolvedPlannedExitBufferSeconds 持有到目标结算后的离场缓冲(秒);cfg 未配/≤0 回退 90。
+func crossVenueResolvedPlannedExitBufferSeconds(cfg CrossVenueExecutorConfig) int {
+	if cfg.PlannedExitBufferSeconds > 0 {
+		return cfg.PlannedExitBufferSeconds
+	}
+	return 90
 }
 
 // crossVenueNearestFundingSettlement 取两腿下次结算中最近的一个(过期时刻按 interval 推进)。
@@ -722,9 +896,9 @@ func crossVenueAdvanceFundingTime(next time.Time, intervalHours int, now time.Ti
 	return next
 }
 
-// crossVenueFundingEntryWindowReached 结算前进场窗闸:取两腿下次结算时间的最近一个 nearest,
+// crossVenueFundingEntryWindowReached 结算前进场窗闸(OPEN/SWITCH-only):取两腿下次结算时间的最近一个 nearest,
 // 仅当 nearest 距今 ≤lead 才放行(进场窗已到)。过期结算时刻按该腿 interval 推进到下一结算点再判;
-// 两腿结算时间均未知/不可用→fail-open(返回 true,放行)。
+// FIX-10(b):两腿结算时间均未知/不可用→fail-CLOSED(返回 false,不放行)——开/换仓缺时间不盲开,宁可跳过。
 func crossVenueFundingEntryWindowReached(highNext time.Time, highInterval int, lowNext time.Time, lowInterval int, now time.Time, lead time.Duration) bool {
 	var nearest time.Time
 	consider := func(next time.Time, intervalHours int) {
@@ -744,9 +918,94 @@ func crossVenueFundingEntryWindowReached(highNext time.Time, highInterval int, l
 	consider(highNext, highInterval)
 	consider(lowNext, lowInterval)
 	if nearest.IsZero() {
-		return true // 两腿结算时间均未知 → fail-open
+		return false // 两腿结算时间均未知 → fail-closed(开/换仓宁可跳过)
 	}
 	return nearest.Sub(now) <= lead
+}
+
+// crossVenueTargetFundingLeg 返回实际付钱给我们的"目标腿":"high"=空高费腿,"low"=多低费腿。
+// 约定:空腿在 rate>0 时收(单次现金流 +highRate),多腿在 rate<0 时收(单次现金流 −lowRate);
+// 取单次结算现金流更大的那条腿。统一捕获模型据此把进场对齐到"付钱的腿",而非时间最近的便宜腿。
+func crossVenueTargetFundingLeg(highRate, lowRate float64) string {
+	highGain := highRate // 空腿:+rate
+	lowGain := -lowRate  // 多腿:−rate
+	if lowGain > highGain {
+		return "low"
+	}
+	return "high"
+}
+
+// crossVenueTargetLegNextSettlement 取目标腿的下次结算时刻(过期则按 interval 推进到未来);零时间表示不可用。
+func crossVenueTargetLegNextSettlement(targetLeg string, highNext time.Time, highInterval int, lowNext time.Time, lowInterval int, now time.Time) time.Time {
+	next, interval := highNext, highInterval
+	if targetLeg == "low" {
+		next, interval = lowNext, lowInterval
+	}
+	if next.IsZero() {
+		return time.Time{}
+	}
+	if !next.After(now) {
+		next = crossVenueAdvanceFundingTime(next, interval, now)
+		if !next.After(now) {
+			return time.Time{}
+		}
+	}
+	return next
+}
+
+// crossVenueFundingEntryWindowReachedTargeted 统一捕获模型的进场窗闸:只看"目标腿"的下次结算,
+// 距今 ≤lead 才放行。目标腿时间不可用 → fail-CLOSED(返回 false)。
+func crossVenueFundingEntryWindowReachedTargeted(targetLeg string, highNext time.Time, highInterval int, lowNext time.Time, lowInterval int, now time.Time, lead time.Duration) bool {
+	target := crossVenueTargetLegNextSettlement(targetLeg, highNext, highInterval, lowNext, lowInterval, now)
+	if target.IsZero() {
+		return false
+	}
+	return target.Sub(now) <= lead
+}
+
+// crossVenueBuildCapturePlan 开仓时构建统一资费捕获计划(flag OFF 或目标腿时间不可用时返回 nil → 回退旧行为)。
+// 计划钉死:目标腿、目标结算时刻、目标结算次数 N、计划离场(末次目标结算+缓冲)、预期目标资费、基差止损预算。
+func crossVenueBuildCapturePlan(cfg CrossVenueExecutorConfig, symbol string, highRate, lowRate, notional float64, highInterval int, highNext time.Time, lowInterval int, lowNext time.Time, openedAt time.Time, stabilityScore float64) *CarryCapturePlan {
+	if !crossVenueUnifiedActiveForSymbol(cfg, symbol) {
+		return nil
+	}
+	if openedAt.IsZero() {
+		openedAt = time.Now().UTC()
+	}
+	leg := crossVenueTargetFundingLeg(highRate, lowRate)
+	interval := highInterval
+	rate := highRate // 空腿单次收 +rate
+	if leg == "low" {
+		interval = lowInterval
+		rate = -lowRate // 多腿单次收 −rate
+	}
+	target := crossVenueTargetLegNextSettlement(leg, highNext, highInterval, lowNext, lowInterval, openedAt)
+	if target.IsZero() {
+		return nil
+	}
+	n := crossVenueEffectiveCaptureSettlements(cfg, stabilityScore)
+	if n < 1 {
+		n = 1
+	}
+	lastSettlement := target
+	if n > 1 && interval > 0 {
+		lastSettlement = target.Add(time.Duration(n-1) * time.Duration(interval) * time.Hour)
+	}
+	buffer := time.Duration(crossVenueResolvedPlannedExitBufferSeconds(cfg)) * time.Second
+	// 预期目标资费(毛):目标腿单次收益率 × 名义 × N(只计我们真正收钱的方向,负则置 0)。
+	perSettlement := rate * notional
+	if perSettlement < 0 {
+		perSettlement = 0
+	}
+	expected := perSettlement * float64(n)
+	return &CarryCapturePlan{
+		TargetLeg:                 leg,
+		TargetSettlementTime:      target,
+		TargetSettlements:         n,
+		PlannedExitTime:           lastSettlement.Add(buffer),
+		ExpectedTargetFundingUSDT: expected,
+		BasisBudgetUSDT:           crossVenueResolvedBasisStopBudgetFraction(cfg) * expected,
+	}
 }
 
 // crossVenueGateLiquidityNotionalCapPerLeg 跨所 perp-perp 执行期流动性上限(每腿独立 symbol 拉 depth)。

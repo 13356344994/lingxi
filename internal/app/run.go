@@ -132,6 +132,7 @@ func startLiveStack(ctx context.Context, cfg EngineConfig) error {
 	// 控制令牌的固定镜像目录(全局 records/):Primary 所随注册顺序漂移时主令牌文件路径会变,
 	// 镜像保证 `cat records/.dashboard_control_token` 永远是当前有效令牌。
 	dashboard.SetTokenMirrorDir(cfg.NetworkConfig.RecordDir)
+	dashboard.SetRecordDir(cfg.NetworkConfig.RecordDir)
 	controlPlane := NewControlPlane(cfg.NetworkConfig.RecordDir, emergencyStopPaths(cfg), log.Default())
 	dashboard.SetControlPlane(controlPlane)
 	// 重启后把新控制令牌经 Telegram 推给用户(用户明确要求;凭据与交易告警同源 secret.yaml,
