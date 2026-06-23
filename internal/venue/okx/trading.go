@@ -69,18 +69,47 @@ func roundDownStep(v, step float64) float64 {
 	if step <= 0 {
 		return v
 	}
-	return math.Floor(v/step) * step
+	// 加微小 epsilon 再向下取整,避免浮点表示把恰好落在网格上的值(如 3.0 存成 2.9999999)误降一格。
+	return math.Floor(v/step+1e-9) * step
+}
+
+// stepDecimals 返回步进 step 隐含的小数位数,用于把下单数量格式化到交易所网格。
+func stepDecimals(step float64) int {
+	if step <= 0 || step >= 1 {
+		return 0
+	}
+	s := strconv.FormatFloat(step, 'f', -1, 64)
+	if i := strings.IndexByte(s, '.'); i >= 0 {
+		return len(s) - i - 1
+	}
+	return 0
+}
+
+// fmtStepDown 把 v 向下取整到 step 网格,并按 step 精度格式化后去除多余尾零。
+// 关键:用 FormatFloat(..., 定精度) 而非 -1 精度,杜绝 0.30000000000000004 这类浮点尾巴,
+// 否则 OKX 会以 51121「Order quantity must be a multiple of the lot size」拒单。
+func fmtStepDown(v, step float64) string {
+	if step <= 0 {
+		return fmtNum(v)
+	}
+	q := roundDownStep(v, step)
+	s := strconv.FormatFloat(q, 'f', stepDecimals(step), 64)
+	if strings.Contains(s, ".") {
+		s = strings.TrimRight(s, "0")
+		s = strings.TrimRight(s, ".")
+	}
+	return s
 }
 
 func qtyToContractSz(qty, ctVal, lotSz float64) (string, error) {
 	if ctVal <= 0 {
 		return "", fmt.Errorf("okx: ctVal 无效")
 	}
-	contracts := roundDownStep(qty/ctVal, lotSz)
-	if contracts <= 0 {
+	szStr := fmtStepDown(qty/ctVal, lotSz)
+	if v, _ := strconv.ParseFloat(szStr, 64); v <= 0 {
 		return "", fmt.Errorf("okx: 换算后张数为 0(qty=%v ctVal=%v lotSz=%v)", qty, ctVal, lotSz)
 	}
-	return fmtNum(contracts), nil
+	return szStr, nil
 }
 
 type okxPlaceOrderBody struct {
@@ -111,7 +140,7 @@ func (a *Adapter) buildPlaceOrderBody(ctx context.Context, req venue.OrderReques
 	if err != nil {
 		return okxPlaceOrderBody{}, err
 	}
-	sz := fmtNum(roundDownStep(req.Qty, inst.StepSize))
+	sz := fmtStepDown(req.Qty, inst.StepSize)
 	if req.Market == venue.MarketPerp {
 		sz, err = qtyToContractSz(req.Qty, inst.ContractSize, inst.StepSize)
 		if err != nil {

@@ -921,10 +921,20 @@ func (e *CrossVenueExecutor) crossVenueBasisStopCloseReason(ctx context.Context,
 		pos.CapturePlan.PeakAdverseBasisUSDT = adverse
 		_ = e.persistPosition(*pos)
 	}
-	if adverse > budget {
-		return fmt.Sprintf("基差止损:累计不利基差 %.4f USDT 超过预算 %.4f USDT", adverse, budget)
+	if adverse <= budget {
+		return ""
 	}
-	return ""
+	// 资费捕获窗保护(P1):目标腿即将结算且这次结算仍是净收(funding 还在),此刻平仓会"既吃基差亏、又错过本来要收的资费"。
+	// 因此在这个短窗口内让基差止损让位给资费捕获——只继续追踪峰值,不离场,随后由计划离场清仓。
+	// 若资费已蒸发(目标腿不再净收,如暴力币费率塌缩),本保护自动失效,基差止损照常触发兜底限亏。
+	if netFunding, settling := crossVenueUpcomingTargetSettlementNetFundingUSDT(e.cfg.CrossVenueExecutor, pos, now); settling && netFunding > 0 {
+		if e.logger != nil {
+			e.logger.Printf("[跨所][基差止损让位] %s 不利基差 %.4f 超预算 %.4f,但目标腿即将结算净收 %.4f USDT,保持持仓待捕获资费",
+				pos.Symbol, adverse, budget, netFunding)
+		}
+		return ""
+	}
+	return fmt.Sprintf("基差止损:累计不利基差 %.4f USDT 超过预算 %.4f USDT", adverse, budget)
 }
 
 func (e *CrossVenueExecutor) shouldCloseCrossVenue(ctx context.Context, pos *CrossVenuePosition) string {

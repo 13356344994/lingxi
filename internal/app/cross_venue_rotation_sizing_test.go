@@ -61,6 +61,64 @@ func TestExtremeSpreadBypassesConfidenceDownsize(t *testing.T) {
 	}
 }
 
+// TestUnifiedExtremeSpreadConfidenceDownsized 验证 P0:统一模型下,极端价差的"瞬时尖峰"(历史/稳定分≈0)
+// 不再全量豁免砍仓,而是被置信度砍到 floor 量级,把基差波动钉在可承受规模(ARX 那类满仓亏损的根因)。
+func TestUnifiedExtremeSpreadConfidenceDownsized(t *testing.T) {
+	t.Parallel()
+	cfg := CrossVenueExecutorConfig{
+		MaxPositionUSDT:                150,
+		LowConfidenceSizeFloorFraction: 0.25,
+		MaxEffectiveLeverage:           3,
+		EVExpectedSlippageBps:          3,
+		UnifiedCaptureModelEnabled:     true,
+	}
+	now := time.Now().UTC()
+	mk := func(hq, ss float64) CrossVenueOpportunity {
+		opp := CrossVenueOpportunity{
+			Symbol:               "SPIKE-USDT",
+			HighVenue:            bybit.VenueName,
+			LowVenue:             okx.VenueName,
+			HighFundingRate:      0.05,
+			LowFundingRate:       -0.01,
+			HighIntervalHours:    8,
+			LowIntervalHours:     8,
+			HighNextFundingTime:  now.Add(time.Hour),
+			LowNextFundingTime:   now.Add(time.Hour),
+			TradableNotional:     147.65,
+			ExtremeSpread:        true,
+			SpreadAPR:            13.58,
+			ExecutionScore:       0.70,
+			LiquidityScore:       0.80,
+			RecoveryQualityScore: 0.65,
+			CapitalEfficiencyEV:  0.50,
+			NetEV:                5.0,
+		}
+		opp.HistoryQualityScore = hq
+		opp.StabilityScore = ss
+		return opp
+	}
+
+	baseMult := clamp01((0.50 + 0.70 + 0.80 + 0.65) / 4)
+
+	// 瞬时尖峰:历史/稳定分≈0 → 被砍到 floor confMult。
+	spike := []CrossVenueOpportunity{mk(0, 0)}
+	crossVenueFinalizeOpportunityRanking(cfg, spike)
+	wantSpikeMult := clamp01(baseMult * crossVenueConfidenceSizeMultiplier(0.25, 0, 0))
+	if math.Abs(spike[0].SizeMultiplier-wantSpikeMult) > 1e-9 {
+		t.Fatalf("瞬时尖峰应被置信砍仓: SizeMultiplier=%.4f want %.4f", spike[0].SizeMultiplier, wantSpikeMult)
+	}
+	if spike[0].SizeMultiplier >= baseMult*0.95 {
+		t.Fatalf("瞬时尖峰不应再拿满量: SizeMultiplier=%.4f baseMult=%.4f", spike[0].SizeMultiplier, baseMult)
+	}
+
+	// 持续性强的暴力币:历史/稳定分高 → confMult≈1,接近满量(主战场仍能吃到)。
+	persistent := []CrossVenueOpportunity{mk(1, 1)}
+	crossVenueFinalizeOpportunityRanking(cfg, persistent)
+	if persistent[0].SizeMultiplier < baseMult*0.95 {
+		t.Fatalf("持续暴力币应接近满量: SizeMultiplier=%.4f baseMult=%.4f", persistent[0].SizeMultiplier, baseMult)
+	}
+}
+
 func TestNonExtremeStillConfidenceSized(t *testing.T) {
 	t.Parallel()
 	cfg := CrossVenueExecutorConfig{

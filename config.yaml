@@ -81,6 +81,17 @@ cross_venue_executor:
   # N-3: 材料级未登记腿(过滤 dust 后)冷启动自动 IOC flatten;重启后对 bybit MNT≈$9.7 等真实残留下卖单。
   # 此后任何材料级未登记腿均走 flatten,非仅 MNT。
   untracked_exposure_action: flatten
+  # 统一资费捕获模型(用户 2026-06-23 拍板:全量实盘,不灰度)。
+  # 进场对齐"实际付钱的腿"结算 / EV 同口径(计划持有 horizon + maker 一致滑点) /
+  # 离场由计划治理(持有到目标结算+缓冲,价差噪声不再抖动平仓) / 基差止损为真正风控。
+  # 一键回滚:改回 false 重启即恢复旧逻辑。白名单留空=对所有 perp-perp 币生效。
+  unified_capture_model_enabled: true
+  # 每笔默认目标结算次数 N(1=单次目标结算,基差暴露最小);N>1 仅在基差稳定分达标时放行。
+  capture_target_settlements: 1
+  # 基差止损预算 = 此系数 × 预期目标资费;开仓以来累计不利基差 PnL 超过预算即平。
+  basis_stop_budget_fraction: 1.0
+  # 入场硬条件:预期目标资费 / 往返成本 ≥ 此比值,挡掉"滑点远大于资费"的薄盘暴力小币。
+  capture_funding_to_cost_min_ratio: 1.0
 
 # 五策略统一资金费轮动 runner。perp-perp 执行体见 cross_venue_executor,开仓由 runner binding 派发。
 # total_deployable_usdt: 绝对预算(USDT);另有 total_deployable_pct(默认见 defaults,占真实现金权益比例),二者与 equity 取 min。

@@ -1,9 +1,14 @@
 package app
 
 import (
+	"context"
 	"math"
 	"testing"
 	"time"
+
+	"lingxi/internal/venue"
+	"lingxi/internal/venue/bybit"
+	"lingxi/internal/venue/okx"
 )
 
 // TestCarryCapturePlanPersistenceRoundTrip 验证统一捕获计划随台账原子落盘/读回不丢字段,
@@ -332,6 +337,50 @@ func TestBasisStopBudgetBoundsLoss(t *testing.T) {
 	adverse := crossVenueAdverseBasisPnLUSDT(80, 100, 102, 100, 100) // 1.6
 	if !(adverse > plan.BasisBudgetUSDT) {
 		t.Fatalf("adverse %.4f should exceed budget %.4f to trigger stop", adverse, plan.BasisBudgetUSDT)
+	}
+}
+
+// TestBasisStopYieldsToFundingCapture 验证 P1:目标腿即将结算且仍净收时,基差止损让位(不平仓);
+// 资费已蒸发时基差止损照常触发兜底。避免"为收资费进场却在收到资费前被基差止损踢出"。
+func TestBasisStopYieldsToFundingCapture(t *testing.T) {
+	now := time.Date(2026, 6, 23, 7, 59, 0, 0, time.UTC)
+	high := newCrossVenueTestVenue(bybit.VenueName, 0.0, 4, now)
+	low := newCrossVenueTestVenue(okx.VenueName, 0.0, 4, now)
+	// 高腿盘口中间价 102(bid101/ask103),低腿沿用默认 100(bid99/ask101)。
+	high.book = venue.BookTicker{BidPrice: 101, AskPrice: 103, BidQty: 1000, AskQty: 1000}
+	cfg := testCrossVenueExecutorConfig()
+	cfg.NetworkConfig.RecordDir = t.TempDir()
+	cfg.CrossVenueExecutor.UnifiedCaptureModelEnabled = true
+	cfg.CrossVenueExecutor.PreFundingCloseLeadSeconds = 120
+	e := &CrossVenueExecutor{
+		cfg:    cfg,
+		venues: map[string]venue.Venue{bybit.VenueName: high, okx.VenueName: low},
+		store:  mustCrossVenueStore(t, cfg.NetworkConfig.RecordDir),
+		logger: testCrossVenueLogger(),
+		nowFn:  func() time.Time { return now },
+	}
+	mkPos := func(lowNext time.Time, lowRate float64) *CrossVenuePosition {
+		return &CrossVenuePosition{
+			Symbol: "BTC-USDT", HighVenue: bybit.VenueName, LowVenue: okx.VenueName,
+			NotionalUSDT:       80,
+			HighLeg:            CrossVenueLegState{Venue: bybit.VenueName, Symbol: "BTC-USDT", Side: "sell", Qty: 0.8, EntryPrice: 100},
+			LowLeg:             CrossVenueLegState{Venue: okx.VenueName, Symbol: "BTC-USDT", Side: "buy", Qty: 0.8, EntryPrice: 100},
+			LowNextFundingTime: lowNext,
+			LowFundingRate:     lowRate,
+			CapturePlan:        &CarryCapturePlan{TargetLeg: "low", BasisBudgetUSDT: 0.24},
+		}
+	}
+	// 不利基差 = 80×(高腿+2% − 低腿0%) = 1.6 USDT > 预算 0.24 → 满足止损阈值。
+
+	// 场景A:资费已蒸发(目标腿下次结算远在 lead 窗外)→ 基差止损照常触发兜底。
+	gone := mkPos(now.Add(time.Hour), -0.003)
+	if r := e.crossVenueBasisStopCloseReason(context.Background(), gone, now); r == "" {
+		t.Fatal("资费已蒸发:基差止损必须触发")
+	}
+	// 场景B:目标腿 60s 内结算且仍净收(低腿负费率=多腿收)→ 让位,不平仓。
+	imminent := mkPos(now.Add(60*time.Second), -0.003)
+	if r := e.crossVenueBasisStopCloseReason(context.Background(), imminent, now); r != "" {
+		t.Fatalf("即将结算且净收:基差止损必须让位,却返回 %q", r)
 	}
 }
 

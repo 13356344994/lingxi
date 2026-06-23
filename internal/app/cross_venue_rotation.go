@@ -663,7 +663,12 @@ func crossVenueFinalizeOpportunityRanking(cfg CrossVenueExecutorConfig, opps []C
 	for i := range opps {
 		confMult := crossVenueConfidenceSizeMultiplier(floor, opps[i].HistoryQualityScore, opps[i].StabilityScore)
 		if crossVenueBypassesConfidenceDownsize(opps[i]) {
-			confMult = 1.0
+			// 统一模型:极端价差/暴力币不再全量豁免置信砍仓——那正是 ARX 那类"瞬时资费尖峰(无历史)+ 基差碾压亏损"
+			// 拿满仓($93)的根因。改为按置信度(历史质量+稳定性)给量:持续性强的暴力币(样本多,如 H-USDT)仍接近满量,
+			// 一闪而过的尖峰(样本≈0)只拿 floor 量,基差波动被钉在可承受量级。旧模型保持原"全量豁免"行为不变。
+			if !crossVenueUnifiedActiveForSymbol(cfg, opps[i].Symbol) {
+				confMult = 1.0
+			}
 		}
 		capNorm := 0.0
 		if opps[i].CapitalEfficiencyEV > 0 {

@@ -37,6 +37,9 @@ func TestPerpCoinToContractRoundTrip(t *testing.T) {
 		{"H lot2 ct10", 30, 10, 2, "2", 20},
 		{"H lot2 ct10 larger", 70, 10, 2, "6", 60},
 		{"BTC", 0.05, 0.01, 0.001, "5", 0.05},
+		// 分数 lotSz:旧实现 floor*step 会留下 2.9000000000000004 浮点尾巴,被 OKX 以 51121 拒单。
+		{"frac lot0.1", 2.95, 1, 0.1, "2.9", 2.9},
+		{"frac lot0.01", 1.239, 1, 0.01, "1.23", 1.23},
 	}
 	for _, tc := range cases {
 		tc := tc
