@@ -131,13 +131,16 @@ type CrossVenueOpportunity struct {
 	HistoryQualityScore   float64   `json:"history_quality_score,omitempty"`
 	LiquidityScore        float64   `json:"liquidity_score,omitempty"`
 	StabilityScore        float64   `json:"stability_score,omitempty"`
-	ExecutionScore        float64   `json:"execution_score,omitempty"`
-	RecoveryQualityScore  float64   `json:"recovery_quality_score,omitempty"`
-	RankScore             float64   `json:"rank_score,omitempty"`
-	SizeMultiplier        float64   `json:"size_multiplier,omitempty"`
-	TradableNotional      float64   `json:"tradable_notional,omitempty"`
-	TradableQty           float64   `json:"tradable_qty,omitempty"`
-	NoTradeReason         string    `json:"no_trade_reason,omitempty"`
+	// ViolenceScore 暴力度复合分([0,1]):幅度(spread 年化) × 持续性(历史质量+基差稳定)。
+	// 仅观测/排序参考,不作硬闸:既violent又persistent的真暴力币→高分;瞬时尖刺陷阱→低分。
+	ViolenceScore        float64 `json:"violence_score,omitempty"`
+	ExecutionScore       float64 `json:"execution_score,omitempty"`
+	RecoveryQualityScore float64 `json:"recovery_quality_score,omitempty"`
+	RankScore            float64 `json:"rank_score,omitempty"`
+	SizeMultiplier       float64 `json:"size_multiplier,omitempty"`
+	TradableNotional     float64 `json:"tradable_notional,omitempty"`
+	TradableQty          float64 `json:"tradable_qty,omitempty"`
+	NoTradeReason        string  `json:"no_trade_reason,omitempty"`
 	// ExtremeSpread 为 true 表示 spread 超过常规 sanity 阈值但保留(真实极端 carry,如 H-USDT)。
 	ExtremeSpread bool `json:"extreme_spread,omitempty"`
 	// EVSlippageBpsOverride 统一捕获模型下"同一口径"复算用:headline 已用真实深度算出的每单位总滑点(bps,跨所有穿价腿合计)。
@@ -1340,6 +1343,7 @@ func (s *CrossVenueScanner) computeCrossVenueOpportunities(ctx context.Context, 
 		windowHours := crossVenueComparableWindowHours(s.nowFn(), opp.HighNextFundingTime, opp.LowNextFundingTime)
 		opp.HistoryQualityScore = crossVenueHistoryQualityScore(minSamples, s.cfg.SpreadPersistenceScans)
 		opp.StabilityScore = crossVenueStabilityScore(windowHours, minSamples)
+		opp.ViolenceScore = crossVenueViolenceScore(opp.SpreadAPR, opp.HistoryQualityScore, opp.StabilityScore)
 		opp.Symbol = sym
 		tradableCap, slipLegs := s.perpPerpScanTradableCapAndSlippageLegs(ctx, opp)
 		if opp.ExtremeSpread && tradableCap <= 0 {

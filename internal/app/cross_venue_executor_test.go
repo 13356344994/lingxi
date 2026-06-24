@@ -907,6 +907,41 @@ func TestCrossVenueReconcileOnStartFlattenUntrackedPair(t *testing.T) {
 	}
 }
 
+func TestCrossVenueReconcileOnStartFlattenUntrackedSingleNakedLeg(t *testing.T) {
+	// 单边裸腿(只有 low 一条 long 腿,无法配成双腿):flatten 动作下应逐腿方向感知收敛,
+	// 而非一律 HALT 把裸腿晾着。
+	dir := t.TempDir()
+	store := mustCrossVenueStore(t, dir)
+	now := time.Now().UTC().Add(time.Hour)
+	high := newCrossVenueTestVenue(bybit.VenueName, 0.001, 8, now.Add(2*time.Hour))
+	low := newCrossVenueTestVenue(okx.VenueName, 0.0001, 8, now.Add(2*time.Hour))
+	low.positions = []venue.Position{{Symbol: "BTC-USDT", PositionAmt: 0.5, MarkPrice: 100, EntryPrice: 100}}
+	low.clearOnReduceOnly = true
+	cfg := testCrossVenueExecutorConfig()
+	cfg.NetworkConfig.RecordDir = dir
+	cfg.CrossVenueExecutor.UntrackedExposureAction = "flatten"
+	cfg.CrossVenueExecutor.LiveTradingEnabled = true
+	e := &CrossVenueExecutor{
+		cfg:       cfg,
+		venues:    map[string]venue.Venue{bybit.VenueName: high, okx.VenueName: low},
+		store:     store,
+		logger:    testCrossVenueLogger(),
+		nowFn:     func() time.Time { return now },
+		recordDir: dir,
+	}
+	_ = e.SetOpeningsEnabled(true)
+	e.reconcileOnStart(context.Background(), true)
+	if atomic.LoadInt32(low.placeCount) == 0 {
+		t.Fatal("单边裸腿 flatten 应对该腿下平仓单")
+	}
+	if pp, _ := low.FetchPositions(context.Background()); len(pp) != 0 {
+		t.Fatalf("单边裸腿应被平掉,残留 %d", len(pp))
+	}
+	if !e.OpeningsEnabled() {
+		t.Fatal("单边裸腿已收敛后不应继续 HALT 开仓")
+	}
+}
+
 func TestCrossVenueReconcileOnStartFlattenRespectsLiveFalse(t *testing.T) {
 	dir := t.TempDir()
 	store := mustCrossVenueStore(t, dir)

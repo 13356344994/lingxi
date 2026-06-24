@@ -358,7 +358,8 @@ func carryScannerPerpPerpDustResidualCostUSDT(notionalUSDT float64) float64 {
 		true,
 	)
 	if notionalUSDT <= 0 {
-		return ceiling
+		// 名义 ≤0 是无仓/无效输入:不应收取与名义无关的 0.125 幻影成本(会污染 EV、掩盖其它成本项)。
+		return 0
 	}
 	cost := notionalUSDT * carryScannerPerpPerpDustResidualBps / 10000
 	if cost > ceiling {

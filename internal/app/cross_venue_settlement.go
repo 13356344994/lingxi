@@ -3,6 +3,7 @@ package app
 import (
 	"bufio"
 	"encoding/json"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,6 +11,9 @@ import (
 
 	"lingxi/internal/money"
 )
+
+// crossVenueFundingEstimateEpsilon 判定离散估算是否"非平凡"的阈值(USDT)。
+const crossVenueFundingEstimateEpsilon = 1e-6
 
 const crossVenueSettlementsFileName = "settlements.jsonl"
 
@@ -139,6 +143,22 @@ func buildCrossVenueSettlement(pos CrossVenuePosition, closeTime time.Time) Cros
 		realizedFundingComplete = false
 	}
 
+	// FIX(P0 资费归因):统一捕获模型在结算瞬时前后开/平(持有仅几分钟),真实资费轮询常发生在结算"之前"
+	// (此刻两腿真实资费天然为 0),又因 RealizedFundingPollMinutes 节流 + 平仓早于下次轮询,导致结算后
+	// 实际收到的资费从未被回填 → 两腿恒记 0、状态却被标 complete,EV<0 兜底分支(依赖 EstFundingUSDT 连续
+	// 累计值)对超短持有又严重低估。结果:明明跨过了结算、真实收了资费的 carry 单,被记成纯基差亏损。
+	//
+	// 兜底口径:仅当"两腿真实资费都恰为 0"(=从未抓到任何结算流水的特征)且持仓确实跨越≥1 次结算瞬时时,
+	// 用离散结算估算(= 名义 × 单次费率 × 跨越结算次数,与 estimateFundingAccrual 同符号约定)兜底。
+	// 任一腿已抓到真实非零值则绝不覆盖(真实优先);估算标 estimated / complete=false,下游审计可辨。
+	if pos.HighLegFundingUSDT == 0 && pos.LowLegFundingUSDT == 0 && crossVenueHeldThroughSettlement(pos, closeTime) {
+		if est := crossVenueDiscreteFundingEstimate(pos, closeTime); math.Abs(est) > crossVenueFundingEstimateEpsilon {
+			realizedFunding = est
+			fundingStatus = "estimated"
+			realizedFundingComplete = false
+		}
+	}
+
 	// 净利润口径对齐 cost_accounting.go SettlementAttribution / CycleSettlement:
 	// net_pnl = realized_funding + trade_pnl − total_fees − rollback_cost − rebalance_cost
 	// 【关键】开/平仓滑点已隐含在 trade_pnl(由实际成交价算出); OpenSlippage/CloseSlippage 是相对参考价的
@@ -230,6 +250,63 @@ func crossVenueHeldThroughSettlement(pos CrossVenuePosition, closeTime time.Time
 		interval = pos.LowIntervalHours
 	}
 	return settlementHeldThroughFirstFunding(pos.OpenedAt, closeTime, interval)
+}
+
+// crossVenueLegSettlementCount 统计 (open, close] 区间内某腿跨越的结算瞬时次数。
+// firstFunding = 开仓后该腿第一次结算时刻;step = 结算周期。funding 在结算瞬时按当时持仓全额支付,
+// 故只要 open < t ≤ close 即视为吃到/付出该次结算(含恰好平在结算点的边界)。
+func crossVenueLegSettlementCount(open, closeTime, firstFunding time.Time, intervalHours int) int {
+	if open.IsZero() || closeTime.IsZero() || firstFunding.IsZero() || !closeTime.After(open) {
+		return 0
+	}
+	interval := intervalHours
+	if interval <= 0 {
+		interval = defaultFundingCaptureIntervalHours
+	}
+	step := time.Duration(interval) * time.Hour
+	if step <= 0 {
+		return 0
+	}
+	t := firstFunding
+	// 把 t 推进到严格晚于 open 的第一个结算点(防 firstFunding 为陈旧/早于 open 的值)。
+	for !t.After(open) {
+		t = t.Add(step)
+	}
+	count := 0
+	for !t.After(closeTime) { // t ≤ close
+		count++
+		t = t.Add(step)
+		if count > 1000 { // 安全阀:异常时间参数下不进入死循环
+			break
+		}
+	}
+	return count
+}
+
+// crossVenueDiscreteFundingEstimate 离散结算资费估算:名义 × 单次费率 × 跨越结算次数,逐腿求和。
+// 符号与 estimateFundingAccrual 一致:空高费腿 +rate、多低费腿 −rate(单次=折算一个完整结算周期)。
+// 用于真实资费缺失/延迟时兜底超短持有(连续累计的 EstFundingUSDT 对此会严重低估)。
+func crossVenueDiscreteFundingEstimate(pos CrossVenuePosition, closeTime time.Time) float64 {
+	notional := pos.NotionalUSDT
+	if notional <= 0 {
+		notional = pos.HighLeg.Qty * pos.HighLeg.EntryPrice
+	}
+	if notional <= 0 {
+		return 0
+	}
+	highFirst := pos.HighNextFundingTime
+	if highFirst.IsZero() {
+		highFirst = pos.TargetFirstFundingTime
+	}
+	lowFirst := pos.LowNextFundingTime
+	if lowFirst.IsZero() {
+		lowFirst = pos.TargetFirstFundingTime
+	}
+	hCount := crossVenueLegSettlementCount(pos.OpenedAt, closeTime, highFirst, pos.HighIntervalHours)
+	lCount := crossVenueLegSettlementCount(pos.OpenedAt, closeTime, lowFirst, pos.LowIntervalHours)
+	high := notional * pos.HighFundingRate * float64(hCount)
+	low := -notional * pos.LowFundingRate * float64(lCount)
+	return money.SumUSDT(high, low)
 }
 
 func crossVenuePositionIsSwitchExit(pos CrossVenuePosition) bool {
@@ -454,9 +531,28 @@ func (e *CrossVenueExecutor) loadCrossVenueSettlements(limit int) ([]CrossVenueS
 		if err := json.Unmarshal([]byte(line), &rec); err != nil {
 			continue
 		}
+		if !crossVenueSettlementSane(rec) {
+			continue // 跳过物理不可能的脏记录(旧二进制账务 bug),避免污染聚合
+		}
 		out = append(out, rec)
 	}
 	return out, nil
+}
+
+// crossVenueSettlementSane 防御性过滤:delta 中性三角对冲的单笔结算,其净值/交易盈亏/滑点幅度绝不可能
+// 数倍于名义(两腿对冲,最坏基差发散损失也远小于名义)。历史旧二进制曾写出 net_pnl 远超名义的物理不可能
+// 记录(实锤:HEI net=-801.56 而名义仅 46),会把全时段聚合带成巨亏假象。仅在 notional>0 且某项幅度
+// > 5×名义 时判为脏记录跳过——阈值极保守,正常对冲结算(哪怕大滑点)绝不会触及,不会误杀真实亏损。
+func crossVenueSettlementSane(rec CrossVenueSettlement) bool {
+	n := rec.NotionalUSDT
+	if n <= 0 {
+		return true
+	}
+	limit := n * 5
+	return math.Abs(rec.NetPnL) <= limit &&
+		math.Abs(rec.TradePnL) <= limit &&
+		math.Abs(rec.CloseSlippage) <= limit &&
+		math.Abs(rec.OpenSlippage) <= limit
 }
 
 func summarizeCrossVenueSettlements(records []CrossVenueSettlement) CrossVenueSettlementsSummary {

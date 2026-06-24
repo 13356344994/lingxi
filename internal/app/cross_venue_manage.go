@@ -98,6 +98,10 @@ func (e *CrossVenueExecutor) manageCrossVenuePosition(ctx context.Context, pos C
 	if !highOpen && !lowOpen {
 		pos.Status = CrossVenueStatusClosed
 		pos.UpdatedAt = e.nowFn()
+		// 终态结算前强制再拉一次真实资费(无视节流),抓取结算后实际入账值。dry-run 不落账,免去多余网络拉取。
+		if live {
+			e.forceSyncRealizedFunding(ctx, &pos)
+		}
 		e.finalizeClosedCrossVenuePosition(pos, live)
 		return pos, true
 	}
@@ -622,6 +626,23 @@ func (e *CrossVenueExecutor) estimateFundingAccrual(pos *CrossVenuePosition) flo
 // syncRealizedFunding 按节流间隔拉两腿真实结算资费,覆盖写入腿字段(非叠加)。拉取失败保留上次值。
 func (e *CrossVenueExecutor) syncRealizedFunding(ctx context.Context, pos *CrossVenuePosition) {
 	if pos == nil || !e.shouldPollRealizedFunding(pos) {
+		return
+	}
+	e.doSyncRealizedFunding(ctx, pos)
+}
+
+// forceSyncRealizedFunding 无视节流强制拉取一次真实资费,用于平仓终态结算前——确保抓到"结算之后"
+// 实际入账的资费(常规节流会让超短持有在结算前轮询一次拿到 0、平仓前再不轮询,导致真实资费被记 0)。
+func (e *CrossVenueExecutor) forceSyncRealizedFunding(ctx context.Context, pos *CrossVenuePosition) {
+	if pos == nil {
+		return
+	}
+	e.doSyncRealizedFunding(ctx, pos)
+}
+
+// doSyncRealizedFunding 真正执行两腿真实资费拉取与状态写入(不做节流判断)。
+func (e *CrossVenueExecutor) doSyncRealizedFunding(ctx context.Context, pos *CrossVenuePosition) {
+	if pos == nil {
 		return
 	}
 	sym := venue.Symbol(pos.Symbol)

@@ -67,6 +67,8 @@ type UnifiedOpportunity struct {
 	NextFundingTime      string  `json:"next_funding_time,omitempty"`
 	HighNextFundingTime  string  `json:"high_next_funding_time,omitempty"`
 	LowNextFundingTime   string  `json:"low_next_funding_time,omitempty"`
+	// ViolenceScore 暴力度复合分([0,1]):幅度×持续性。仅观测/排序参考,不作硬闸。
+	ViolenceScore float64 `json:"violence_score,omitempty"`
 }
 
 func applyUnifiedFundingSnapDisplay(opp *UnifiedOpportunity, fund CrossVenueSpotPerpFundingSnap, now time.Time, rawRate float64) {
@@ -98,6 +100,7 @@ func applyUnifiedCrossVenueDisplay(opp *UnifiedOpportunity, cv CrossVenueOpportu
 	opp.HighFundingRate = cv.HighFundingRate
 	opp.LowFundingRate = cv.LowFundingRate
 	opp.FundingAPR = cv.SpreadAPR
+	opp.ViolenceScore = cv.ViolenceScore
 	opp.HighIntervalHours = cv.HighIntervalHours
 	opp.LowIntervalHours = cv.LowIntervalHours
 	ih := cv.HighIntervalHours

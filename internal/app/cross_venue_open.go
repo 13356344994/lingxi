@@ -585,6 +585,22 @@ func (e *CrossVenueExecutor) lookupPerpInstrument(ctx context.Context, venueName
 	return venue.Instrument{}
 }
 
+// crossVenueMaxHedgedCloseAttempts 自愿平仓"保持对冲"最多容忍的轮数;超过后即使首腿仍卡住也升级为强平兜底
+// (允许单边平),避免对冲腿被无限期持有。约 = N × 主循环周期(~60s)。
+const crossVenueMaxHedgedCloseAttempts = 3
+
+// crossVenueCloseForcesFlat 平仓原因是否属于"必须尽快变平"的强制场景:强平距离不足 / 紧急 flatten。
+// 这类场景宁可单边裸腿也要尽快降敞口;其余(计划离场/换仓/基差止损/EV/回滚)优先保持对冲。
+func crossVenueCloseForcesFlat(reason string) bool {
+	r := strings.ToLower(strings.TrimSpace(reason))
+	for _, kw := range []string{"强平", "紧急", "flatten", "liquidat", "emergency"} {
+		if strings.Contains(reason, kw) || strings.Contains(r, kw) {
+			return true
+		}
+	}
+	return false
+}
+
 func (e *CrossVenueExecutor) closeCrossVenuePosition(ctx context.Context, pos CrossVenuePosition, live bool, reason string) error {
 	if !live {
 		if pos.HighLeg.Qty > executionQtyTolerance {
@@ -625,7 +641,14 @@ func (e *CrossVenueExecutor) closeCrossVenuePosition(ctx context.Context, pos Cr
 	// 下单前以交易所真实持仓为准(reduce-only 绝不超过剩余量)。
 	e.syncCrossVenueCloseLegQtyFromExchange(ctx, highV, highSym, &pos.HighLeg.Qty)
 	e.syncCrossVenueCloseLegQtyFromExchange(ctx, lowV, lowSym, &pos.LowLeg.Qty)
+	// FIX(P1 平仓裸腿):计划离场/换仓/基差止损等"自愿"平仓,若首腿(高费)一张都没平掉、却照样平掉次腿(低费),
+	// 会留下单边裸腿暴露到下一轮(~60s),在暴力币上直接吃方向性亏损(TAIKO 即此:gate 高腿未平、bybit 低腿先平,
+	// 裸 55s → close_slip -0.545 / trade -0.80)。本轮若高腿无进展则跳过低腿、保持 delta 中性,下轮重试两腿。
+	// 强平距离/紧急 flatten 等"必须尽快变平"场景维持原状(宁可单边也要快速降敞口);连续 N 轮仍卡住则升级强平兜底,
+	// 避免对冲腿被无限期持有。
+	forceFlat := crossVenueCloseForcesFlat(reason) || attempt >= crossVenueMaxHedgedCloseAttempts
 	// 逐腿 reduce-only,按返回的 ExecutedQty 先行对账(clientID 带轮次后缀,跨轮重试不撞幂等去重)。
+	highBeforeQty := pos.HighLeg.Qty
 	if pos.HighLeg.Qty > executionQtyTolerance {
 		id := crossVenueLegClientID(pos.IdemPrefix, fmt.Sprintf("ch%d", attempt))
 		highInstr := e.lookupPerpInstrument(ctx, pos.HighVenue, highSym)
@@ -636,7 +659,16 @@ func (e *CrossVenueExecutor) closeCrossVenuePosition(ctx context.Context, pos Cr
 			e.logger.Printf("[跨所] 平仓高费腿失败 %s(第 %d 轮,下轮重试): %v", pos.Symbol, attempt, perr)
 		}
 	}
-	if pos.LowLeg.Qty > executionQtyTolerance {
+	// 高腿"本轮一张没平掉"且低腿仍在对冲 → 自愿平仓下保持对冲,跳过低腿。
+	hedgePreserveSkipLow := !forceFlat &&
+		highBeforeQty > executionQtyTolerance &&
+		(highBeforeQty-pos.HighLeg.Qty) <= executionQtyTolerance &&
+		pos.LowLeg.Qty > executionQtyTolerance
+	switch {
+	case hedgePreserveSkipLow:
+		e.logger.Printf("[跨所] 平仓保持对冲 %s(第 %d 轮):高费腿未平动(剩 %.6f),本轮不平低费腿(剩 %.6f)以维持 delta 中性,下轮重试两腿",
+			pos.Symbol, attempt, pos.HighLeg.Qty, pos.LowLeg.Qty)
+	case pos.LowLeg.Qty > executionQtyTolerance:
 		id := crossVenueLegClientID(pos.IdemPrefix, fmt.Sprintf("cl%d", attempt))
 		lowInstr := e.lookupPerpInstrument(ctx, pos.LowVenue, lowSym)
 		if res, book, perr := e.placeCrossVenueCloseLeg(ctx, lowTrader, lowSym, venue.SideSell, pos.LowLeg.Qty, id, live, attempt, baseTakerBps, closeDeadline, lowInstr, lowV.Capabilities().ContractBasedPerp); perr == nil {
@@ -661,6 +693,8 @@ func (e *CrossVenueExecutor) closeCrossVenuePosition(ctx context.Context, pos Cr
 		}
 		pos.Status = CrossVenueStatusClosed
 		pos.UpdatedAt = e.nowFn()
+		// 平仓终态:强制再拉一次真实资费(无视节流),抓取结算后实际入账值,避免超短持有把真实资费记成 0。
+		e.forceSyncRealizedFunding(ctx, &pos)
 		e.recordCrossVenueTransition(pos, string(CrossVenueStatusClosing), string(CrossVenueStatusClosed), pos.CloseReason)
 		e.finalizeClosedCrossVenuePosition(pos, live)
 		e.notifyTrade("跨所平仓", fmt.Sprintf("%s %s(第 %d 轮平仓完成)", pos.Symbol, pos.CloseReason, attempt), pos.Symbol)

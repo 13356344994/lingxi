@@ -1014,6 +1014,14 @@ func (e *CrossVenueExecutor) handleUntrackedExposureOnStart(ctx context.Context,
 	for symbol, legs := range bySymbol {
 		pos, ok := e.buildUntrackedImportedPosition(symbol, legs, cycleID)
 		if !ok {
+			// 无法配成完整双腿(单边裸腿 / 同向多腿):flatten 动作下逐腿方向感知 reduce-only 收敛,
+			// 而非一律 HALT 把裸腿晾着(与 carry 侧 untracked 扫描的 flatten 行为对齐)。
+			if action == crossVenueRecoveryActionFlatten && live && e.cfg.CrossVenueExecutor.LiveTradingEnabled {
+				if e.flattenCrossVenueUnpairedLegs(ctx, symbol, legs, live) {
+					e.notifyWarn("跨所冷启动 flatten", symbol+" 单边裸腿已逐腿收敛", symbol)
+					continue
+				}
+			}
 			allHandled = false
 			continue
 		}
@@ -1050,6 +1058,67 @@ func (e *CrossVenueExecutor) handleUntrackedExposureOnStart(ctx context.Context,
 		}
 	}
 	return allHandled && action != crossVenueRecoveryActionHalt
+}
+
+// flattenCrossVenueUnpairedLegs 逐腿 flatten 无法配成双腿的未登记裸腿;全部确认平掉返回 true。
+func (e *CrossVenueExecutor) flattenCrossVenueUnpairedLegs(ctx context.Context, symbol string, legs []crossVenueUntrackedLeg, live bool) bool {
+	allFlat := true
+	for _, leg := range legs {
+		if !e.flattenCrossVenueNakedLeg(ctx, leg, live) {
+			allFlat = false
+		}
+	}
+	if !allFlat {
+		e.notifyCritical("跨所冷启动单腿 flatten 失败", symbol+" 单边裸腿未能全部收敛,转 HALT 待人工", symbol)
+	}
+	return allFlat
+}
+
+// flattenCrossVenueNakedLeg 对单条未配对的未登记 perp 裸腿执行方向感知 reduce-only IOC 平仓:
+// 多头(Qty>0)→卖出,空头(Qty<0)→买回;逐轮升级穿价滑点 + FetchPositions 真值核验。
+// 返回 true 表示已确认平掉(或本就无敞口);仅 live 执行,非 live 返回 false(交由 HALT)。
+func (e *CrossVenueExecutor) flattenCrossVenueNakedLeg(ctx context.Context, leg crossVenueUntrackedLeg, live bool) bool {
+	if !live {
+		return false
+	}
+	qty := absQty(leg.Qty)
+	if qty <= executionQtyTolerance {
+		return true
+	}
+	v := e.venues[leg.Venue]
+	tr, ok := v.(crossVenueTrader)
+	if !ok || tr == nil {
+		return false
+	}
+	sym := venue.Symbol(leg.Symbol)
+	side := venue.SideSell
+	if leg.Qty < 0 {
+		side = venue.SideBuy
+	}
+	instr, _ := lookupVenueInstrument(ctx, v, sym)
+	contractBased := v.Capabilities().ContractBasedPerp
+	baseSlip := crossVenueTakerSlippageBps(e.cfg.CrossVenueExecutor)
+	_, _, deadlineBudget, _ := crossVenueMakerChaseParams(e.cfg.CrossVenueExecutor)
+	remaining := qty
+	for attempt := 1; attempt <= crossVenueRollbackRetryAttempts; attempt++ {
+		// 下单前以交易所真实持仓为准(reduce-only 绝不超过剩余量);已无敞口则确认收尾。
+		if positions, perr := v.FetchPositions(ctx); perr == nil {
+			exch := absQty(perpPositionQty(positions, sym))
+			if exch <= executionQtyTolerance {
+				return true
+			}
+			remaining = exch
+		}
+		slip := baseSlip * float64(attempt)
+		id := fmt.Sprintf("cv-reconcile-flat-%s-%s-%d-%d", leg.Venue, leg.Symbol, attempt, e.nowFn().UnixNano())
+		_, _ = e.placeCrossVenueLegExec(ctx, tr, sym, side, remaining, id, true, live, true, slip, e.nowFn().Add(deadlineBudget), instr, contractBased)
+		if positions, perr := v.FetchPositions(ctx); perr == nil {
+			if absQty(perpPositionQty(positions, sym)) <= executionQtyTolerance {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (e *CrossVenueExecutor) buildUntrackedImportedPosition(symbol string, legs []crossVenueUntrackedLeg, cycleID string) (CrossVenuePosition, bool) {

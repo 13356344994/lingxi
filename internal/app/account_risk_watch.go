@@ -44,6 +44,7 @@ type accountRiskSnapshot struct {
 	VenueEquityDeltas           map[string]float64 `json:"venue_equity_deltas,omitempty"`
 	EquityDataTrusted           bool               `json:"equity_data_trusted"`
 	EquityDataUntrustedReason   string             `json:"equity_data_untrusted_reason,omitempty"`
+	DailyLosingTradeCount       int                `json:"daily_losing_trade_count"`
 	CumulativeRealizedPnL       float64            `json:"cumulative_realized_pnl_usdt"`
 	RealizedPnLPeakUSDT         float64            `json:"realized_pnl_peak_usdt"`
 	AccountDrawdownUSDT         float64            `json:"account_drawdown_usdt"`
@@ -76,6 +77,7 @@ type accountHardHaltIntent struct {
 	ShouldHalt            bool     `json:"should_halt"`
 	Reasons               []string `json:"reasons,omitempty"`
 	DailyLossBreached     bool     `json:"daily_loss_breached"`
+	DailyLosingTradesHit  bool     `json:"daily_losing_trades_hit"`
 	SettlementDrawdownHit bool     `json:"settlement_drawdown_hit"`
 	StrategyLossBreached  bool     `json:"strategy_loss_breached"`
 	OpenNotionalBreached  bool     `json:"open_notional_breached"`
@@ -420,6 +422,7 @@ func (w *accountRiskWatcher) buildSnapshot(now time.Time) accountRiskSnapshot {
 
 	records, _ := w.settlementFn()
 	daily := aggregateStrategySettlementsInRange(records, dayStart, now)
+	dailyLosingTrades := countLosingSettlementsInRange(records, dayStart, now)
 	allTime := aggregateStrategySettlementsInRange(records, time.Time{}, now)
 	obs := w.equityFn(now)
 	pos := w.positionFn()
@@ -497,6 +500,7 @@ func (w *accountRiskWatcher) buildSnapshot(now time.Time) accountRiskSnapshot {
 		DailyEquityDeltaUSDT:           rawDailyDelta,
 		DailyFundFlowAdjustUSDT:        dailyFundFlowAdjust,
 		DailyEquityDeltaForRiskUSDT:    dailyEquityForRisk,
+		DailyLosingTradeCount:          dailyLosingTrades,
 		VenueEquityDeltas:              obs.VenueDeltas,
 		EquityDataTrusted:              trusted,
 		EquityDataUntrustedReason:      untrustedReason,
@@ -558,6 +562,12 @@ func evaluateAccountHardHaltIntent(snap accountRiskSnapshot, cfg RiskConfig) acc
 		intent.DailyLossBreached = true
 		intent.Reasons = append(intent.Reasons, fmt.Sprintf(
 			"日权益回撤 %.4f ≥ MaxDailyLossUSDT %.4f", -dailyLossDelta, lossLimit))
+	}
+
+	if cfg.DailyMaxLosingTrades > 0 && snap.DailyLosingTradeCount >= cfg.DailyMaxLosingTrades {
+		intent.DailyLosingTradesHit = true
+		intent.Reasons = append(intent.Reasons, fmt.Sprintf(
+			"当日净亏笔数 %d ≥ DailyMaxLosingTrades %d(当日错次预算用尽)", snap.DailyLosingTradeCount, cfg.DailyMaxLosingTrades))
 	}
 
 	drawdownLimit := effectiveMaxAccountDrawdownUSDT(cfg, snap.RealEquityPeakUSDT)
@@ -649,6 +659,31 @@ func accountRiskAlertIntents(result accountRiskThresholdResult) []accountRiskAle
 func computeRealEquityWaterMark(recordDir string) (current, peak, drawdown float64) {
 	current, peak, drawdown, _ = computeRealEquityWaterMarkWithQuality(recordDir)
 	return current, peak, drawdown
+}
+
+// countLosingSettlementsInRange 统计窗口内"可信且净亏(NetPnL<0)"的已结算笔数(当日错次预算用)。
+// 仅计可信记录,避免 untrusted_legacy 幻觉污染错次计数;用极小 epsilon 把 ~0 的记录排除。
+func countLosingSettlementsInRange(records []strategySettlementRecord, since, until time.Time) int {
+	const lossEpsilonUSDT = 1e-6
+	n := 0
+	for _, rec := range records {
+		if rec.CloseTime.IsZero() {
+			continue
+		}
+		if !since.IsZero() && rec.CloseTime.Before(since) {
+			continue
+		}
+		if !until.IsZero() && rec.CloseTime.After(until) {
+			continue
+		}
+		if !isTrustedStrategySettlementRecord(rec) {
+			continue
+		}
+		if rec.NetPnL < -lossEpsilonUSDT {
+			n++
+		}
+	}
+	return n
 }
 
 // computeRealizedPnLWaterMark 按 close_time 回放五策略已实现净利,得累计/高水位/回撤(settlements 口径,一级 halt 用)。

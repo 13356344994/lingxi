@@ -266,6 +266,17 @@ func appendCarryDustLedgerBestEffort(recordDir, phase, symbol, asset string, qty
 		NotionalUSDT: formatFloat(maxFloat(notionalUSDT, 0)),
 		Reason:       reason,
 	}
+	// untracked_scan 是每次 reconcile/启动对同一批固定残仓的重复探测——无去重会无限膨胀
+	// (实测曾累计 3361 条 ≈ 仅 ~24 个物理残仓被反复记录,污染 ledger 与磁盘)。
+	// 同 (phase,symbol,asset,quantity) 已存在则跳过;真实的 dust 平仓事件(其它 phase)仍逐条记录。
+	if phase == "untracked_scan" {
+		for i := range records {
+			if records[i].Phase == record.Phase && records[i].Symbol == record.Symbol &&
+				records[i].Asset == record.Asset && records[i].Quantity == record.Quantity {
+				return
+			}
+		}
+	}
 	records = append(records, record)
 	_ = writeJSONFile(path, records)
 }

@@ -818,6 +818,48 @@ func (s *DashboardServer) handleRotationSettlementsAPI(w http.ResponseWriter, r 
 	})
 }
 
+// MissedOpportunitiesAPIResponse 错过机会复盘台账 API 响应(#1):近 N 条 + 按分类/分层聚合 + 真暴力币漏单专项。
+type MissedOpportunitiesAPIResponse struct {
+	GeneratedAt time.Time                    `json:"generated_at"`
+	Since       time.Time                    `json:"since"`
+	Limit       int                          `json:"limit"`
+	Count       int                          `json:"count"`
+	ByCategory  map[string]int               `json:"by_category"`
+	ByLayer     map[string]int               `json:"by_layer"`
+	Aggregation MissedOpportunityAggregation `json:"aggregation"`
+	Records     []MissedOpportunity          `json:"records"`
+}
+
+func (s *DashboardServer) handleMissedOpportunitiesAPI(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	since := parseSinceQuery(r)
+	limit := parseLimit(r, 200)
+	dir := resolveStrategyRecordDir(s)
+	path := filepath.Join(opportunitiesRecordDir(dir), missedOpportunityLogFileName)
+	records, err := loadTailJSONLFile[MissedOpportunity](path, since, limit)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	agg := aggregateMissedOpportunities(records, missedOpportunityHighViolenceThreshold)
+	sort.Slice(records, func(i, j int) bool {
+		return records[i].Timestamp > records[j].Timestamp
+	})
+	writeJSON(w, MissedOpportunitiesAPIResponse{
+		GeneratedAt: time.Now().UTC(),
+		Since:       since,
+		Limit:       limit,
+		Count:       len(records),
+		ByCategory:  agg.ByCategory,
+		ByLayer:     agg.ByLayer,
+		Aggregation: agg,
+		Records:     records,
+	})
+}
+
 func loadRotationStrategySettlementRecords(s *DashboardServer, since time.Time, limit int) ([]strategySettlementRecord, error) {
 	dir := resolveStrategyRecordDir(s)
 	var out []strategySettlementRecord

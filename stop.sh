@@ -33,6 +33,15 @@ stop_pid() {
 
 STOPPED=0
 
+# 首选:停 systemd 单元(显式 stop 不会被 Restart=always 重新拉起);其后再兜底清理可能残留的手动 nohup 进程。
+if command -v systemctl >/dev/null 2>&1 && systemctl cat lingxi >/dev/null 2>&1; then
+  if systemctl is-active --quiet lingxi; then
+    echo "正在停止 lingxi(systemctl stop)..."
+    systemctl stop lingxi 2>/dev/null || true
+    STOPPED=1
+  fi
+fi
+
 if [ -f "$PID_FILE" ]; then
   FILE_PID=$(cat "$PID_FILE" 2>/dev/null || true)
   if stop_pid "$FILE_PID"; then

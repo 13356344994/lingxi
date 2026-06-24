@@ -23,7 +23,11 @@ Type=simple
 User=root
 Group=root
 WorkingDirectory=/root/lingxi
-ExecStart=/root/lingxi/lingxi
+# 二进制在 /root 下,SELinux(Enforcing)默认标签 admin_home_t/user_tmp_t,init_t 无权 execute → 203/EXEC。
+# 部署时执行一次:`semanage fcontext -a -t bin_t /root/lingxi/lingxi`,并让 start.sh 每次 go build 后 restorecon 重打标。
+# 用 sh -c + exec 把 stdout/stderr 追加到与原 nohup 同一份日志(systemd 239 的 append:/file: 不保证可用);
+# exec 确保 PID 即 lingxi 本体,KillSignal=SIGTERM 直达进程触发优雅停机。
+ExecStart=/bin/sh -c 'exec /root/lingxi/lingxi >> /root/lingxi/records/lingxi_server.log 2>&1'
 # 崩溃重启后【自动恢复实盘交易】(无人值守)——单写租约(S7-A)保证不会双开,reconcile 兜底持仓对账。
 # 2026-06-10 起开启(PROJECT_AUDIT O-2):此前进程死亡只回到面板模式,持仓失管,Restart=always 形同虚设。
 Environment=LINGXI_AUTOSTART_LIVE=1

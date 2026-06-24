@@ -294,6 +294,10 @@ type RiskConfig struct {
 	MaxDailyLossPct          float64 `cfg:"max_daily_loss_pct"`
 	MaxDailyOrderCount       int     `cfg:"max_daily_order_count"`
 	MaxDailyOpenNotionalUSDT float64 `cfg:"max_daily_open_notional_usdt"`
+	// DailyMaxLosingTrades 当日错次预算:单个 UTC+8 自然日内"已结算且净亏(NetPnL<0)"的笔数达到此值,
+	// 即触发账户级一级硬停(停新开仓、在场仓继续 manage),需人工复核解除。补 MaxDailyLossUSDT 金额维度的盲区:
+	// 哪怕每笔亏得不多,连续多笔亏说明当前行情/参数不利,应主动停手而非继续试错。0=关闭该维度。
+	DailyMaxLosingTrades int `cfg:"daily_max_losing_trades"`
 	// MaxConsecutiveLossCycles 是实盘连续亏损熔断阈值：当「按 funding 实收结算后的真实净利」连续为负的
 	// 周期数达到该值时，触发日级熔断、停止继续开仓，要求人工复核。0 表示关闭该维度。它对应回测里的
 	// MaxConsecutiveLosses，把同一条系统性失效保护从回测补齐到实盘，且只会停机（fail-safe），不会下新单。
@@ -667,8 +671,16 @@ type CrossVenueExecutorConfig struct {
 	MaxConcurrent int `cfg:"max_concurrent"`
 	// MaxPositionUSDT 单腿最大名义(USDT)。默认 50。
 	MaxPositionUSDT float64 `cfg:"max_position_usdt"`
+	// PerTradeMaxLossPct 单笔下注单元:把基差止损预算(=单笔最坏可控亏损)钉死在此比例 × 该腿名义之内。
+	// 暴力币基差可瞬间剧烈摆动,本闸给每笔下注一个硬亏损上限,避免单笔失控吃掉多笔资费利润。
+	// 默认 0.08(名义的 8%);≤0 时不封顶(回退纯 BasisStopBudgetFraction 口径)。
+	PerTradeMaxLossPct float64 `cfg:"per_trade_max_loss_pct"`
 	// MaxBookSpreadBps 两腿盘口价差上限(bps)。默认 30。
 	MaxBookSpreadBps float64 `cfg:"max_book_spread_bps"`
+	// MakerLegMaxBookSpreadBps 统一模型 maker-first 下 maker(首/高费)腿盘口价差上限(bps)。
+	// maker 腿我们挂单不穿价,可放宽;taker(对冲/低费)腿仍用 MaxBookSpreadBps 严控。
+	// 默认 80;≤0 时回退 MaxBookSpreadBps(即不放宽)。仅统一模型 + maker-first 生效。
+	MakerLegMaxBookSpreadBps float64 `cfg:"maker_leg_max_book_spread_bps"`
 	// MaxOpenSlippageBps 开仓前按 max_position_usdt 模拟吃单,任一腿预估滑点超此阈值则拒开。默认 15。
 	MaxOpenSlippageBps float64 `cfg:"max_open_slippage_bps"`
 	// SlippageBudgetBps 滑点统一基准(bps):sizing/gate/EV 回退/IOC 第一腿均由此派生。默认 20;0=legacy(退回各独立常量)。
@@ -822,6 +834,13 @@ type CrossVenueExecutorConfig struct {
 	CaptureFundingToCostMinRatio float64 `cfg:"capture_funding_to_cost_min_ratio"`
 	// PlannedExitBufferSeconds 统一模型下持有到目标结算后的离场缓冲(秒):结算 + 此缓冲后离场,确保资费已入账。默认 90。
 	PlannedExitBufferSeconds int `cfg:"planned_exit_buffer_seconds"`
+	// ViolenceSizeBoostWeight 暴力度软调仓权重:统一模型下 sizeMult ×= (1 + 权重 × ViolenceScore),clamp01 封顶。
+	// 真暴力币(高费且持续,violence 高)更靠近满仓;瞬时尖刺(violence≈0)不受影响。只向满仓靠拢、绝不超额。
+	// 默认 0.3;0=关闭(回退纯置信度调仓)。仅统一模型生效。
+	ViolenceSizeBoostWeight float64 `cfg:"violence_size_boost_weight"`
+	// ViolenceRankBoostWeight 暴力度排序权重:统一模型下正 EV 机会 rank ×= (1 + 权重 × ViolenceScore)。
+	// 同等净EV下,真暴力币排得更靠前(用户主战场)。默认 0.3;0=关闭。仅作用于正 EV,不抬升亏损机会。
+	ViolenceRankBoostWeight float64 `cfg:"violence_rank_boost_weight"`
 	// FundingCaptureProbability 运行时 perp-perp funding 捕获折现(结算回测贝叶斯;scan/decision 周期刷新,非 YAML)。
 	FundingCaptureProbability float64
 }

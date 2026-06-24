@@ -274,6 +274,22 @@ const (
 	crossVenuePerpPerpDefaultEntryBasisConvergence = 0.50
 )
 
+// crossVenueViolenceRefAPR 暴力度幅度归一参考:spread 年化达此值即视为"满幅度"(mag=1)。
+const crossVenueViolenceRefAPR = 2.0
+
+// crossVenueViolenceScore 暴力度复合分([0,1]) = 幅度 × 持续性。
+// 幅度 = clamp01(spreadAPR / 参考APR);持续性 = (历史质量 + 基差稳定)/2。
+// 设计意图:把"真暴力币(高幅度且持续)"与"瞬时尖刺陷阱(高幅度但不持续)"区分开——
+// 前者得高分(值得满仓吃资费),后者得低分(应小仓/观望)。纯观测,不作硬闸。
+func crossVenueViolenceScore(spreadAPR, historyQuality, stabilityScore float64) float64 {
+	if spreadAPR <= 0 {
+		return 0
+	}
+	mag := clamp01(spreadAPR / crossVenueViolenceRefAPR)
+	persistence := clamp01((clamp01(historyQuality) + clamp01(stabilityScore)) / 2)
+	return mag * persistence
+}
+
 func crossVenueConfidenceSizeMultiplier(floor, historyQuality, stabilityScore float64) float64 {
 	if floor <= 0 {
 		floor = 0.6
@@ -675,11 +691,17 @@ func crossVenueFinalizeOpportunityRanking(cfg CrossVenueExecutorConfig, opps []C
 			capNorm = clamp01(opps[i].CapitalEfficiencyEV)
 		}
 		baseMult := clamp01((capNorm + opps[i].ExecutionScore + opps[i].LiquidityScore + opps[i].RecoveryQualityScore) / 4)
-		opps[i].SizeMultiplier = clamp01(baseMult * confMult)
+		sizeMult := clamp01(baseMult * confMult)
+		// 暴力度软调仓:统一模型下真暴力币(violence 高=既高费又持续)向满仓靠拢,clamp01 封顶 → 绝不超额。
+		// 瞬时尖刺(violence≈0,无历史)不受影响,仍由置信度钉在 floor 量,P0 防尖峰满仓的保护不被破坏。
+		if crossVenueUnifiedActiveForSymbol(cfg, opps[i].Symbol) && cfg.ViolenceSizeBoostWeight > 0 && opps[i].ViolenceScore > 0 {
+			sizeMult = clamp01(sizeMult * (1 + cfg.ViolenceSizeBoostWeight*opps[i].ViolenceScore))
+		}
+		opps[i].SizeMultiplier = sizeMult
 		if opps[i].NetEV <= crossVenueMinNetProfitUSDT(cfg) {
 			opps[i].SizeMultiplier = 0
 		}
-		sizeMult := opps[i].SizeMultiplier
+		sizeMult = opps[i].SizeMultiplier
 		opps[i].TradableNotional *= sizeMult
 		crossVenueScaleOpportunityLinearEconomics(&opps[i], sizeMult)
 		rank := opps[i].NetEV
@@ -688,6 +710,10 @@ func crossVenueFinalizeOpportunityRanking(cfg CrossVenueExecutorConfig, opps []C
 			// 仅作用于正 EV(负 EV 已被 SizeMultiplier=0/闸口过滤),不会把亏损机会反向抬升。
 			liqW := clamp01((opps[i].ExecutionScore + opps[i].LiquidityScore) / 2)
 			rank *= liqW
+			// 暴力度软排序:同等净EV下真暴力币排更前(用户主战场)。仅正 EV 生效,不抬升亏损机会。
+			if cfg.ViolenceRankBoostWeight > 0 && opps[i].ViolenceScore > 0 {
+				rank *= (1 + cfg.ViolenceRankBoostWeight*opps[i].ViolenceScore)
+			}
 		}
 		opps[i].RankScore = rank
 	}

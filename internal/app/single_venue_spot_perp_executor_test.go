@@ -431,6 +431,89 @@ func TestSVSPCloseRecordsSettlement(t *testing.T) {
 	}
 }
 
+func TestSVSPCloseLegDirections(t *testing.T) {
+	// 正 carry:现货多→卖出(无 margin 效应)、永续空→买回。
+	spotSide, spotMargin, perpSide := svspCloseLegDirections(false)
+	if spotSide != venue.SideSell || spotMargin != venue.MarginEffectNone || perpSide != venue.SideBuy {
+		t.Fatalf("positive carry close dirs wrong: spot=%v margin=%v perp=%v", spotSide, spotMargin, perpSide)
+	}
+	// 负 carry(反向):现货空借→买回还币、永续多→卖出。
+	spotSide, spotMargin, perpSide = svspCloseLegDirections(true)
+	if spotSide != venue.SideBuy || spotMargin != venue.MarginEffectRepay || perpSide != venue.SideSell {
+		t.Fatalf("negative carry close dirs wrong: spot=%v margin=%v perp=%v", spotSide, spotMargin, perpSide)
+	}
+}
+
+func TestSVSPNegativeCarryClosePlacesCorrectSides(t *testing.T) {
+	now := time.Now().UTC()
+	v := newSVSPTestVenue(binance.VenueName)
+	// 负 carry:现货空借(短,余额为负)+ 永续多。fetchLegState 负 carry 读 marginShortQtyFromBalance(净负余额)。
+	v.spotBalances["BTC"] = -0.5
+	v.positions = []venue.Position{{Symbol: "BTC-USDT", PositionAmt: 0.5, MarkPrice: 100, EntryPrice: 100, Leverage: 2}}
+	dir := t.TempDir()
+	e := NewSingleVenueSpotPerpExecutor(testSVSPExecutorConfig(), map[string]venue.Venue{binance.VenueName: v}, dir, testSVSPLogger())
+	e.nowFn = func() time.Time { return now }
+
+	pos := SingleVenueSpotPerpPosition{
+		Symbol: "BTC-USDT", Venue: binance.VenueName,
+		Status: SVSPStatusOpen, OpenedAt: now.Add(-10 * time.Hour), IdemPrefix: "neg-close",
+		SpotLeg:      SingleVenueSpotPerpLegState{Market: "spot", Side: "short", Qty: 0.5, EntryPrice: 100},
+		PerpLeg:      SingleVenueSpotPerpLegState{Market: "perp", Side: "long", Qty: 0.5, EntryPrice: 100},
+		NotionalUSDT: 50, OpenExpectedNetEV: 1.0, ExpectedHoldHours: 8,
+	}
+	if err := e.persistPosition(pos); err != nil {
+		t.Fatal(err)
+	}
+	_ = e.closePosition(context.Background(), pos, true, "测试负carry平仓")
+
+	var sawSpotBuyRepay, sawPerpSell bool
+	for _, req := range v.placeRequests {
+		if req.Market == venue.MarketSpot && req.Side == venue.SideBuy && req.MarginEffect == venue.MarginEffectRepay {
+			sawSpotBuyRepay = true
+		}
+		if req.Market == venue.MarketPerp && req.Side == venue.SideSell {
+			sawPerpSell = true
+		}
+		// 不应出现正 carry 的平仓方向(卖现货 / 买回永续)。
+		if req.Market == venue.MarketSpot && req.Side == venue.SideSell {
+			t.Fatalf("negative carry 误用卖现货平仓: %+v", req)
+		}
+		if req.Market == venue.MarketPerp && req.Side == venue.SideBuy {
+			t.Fatalf("negative carry 误用买回永续平仓: %+v", req)
+		}
+	}
+	if !sawSpotBuyRepay {
+		t.Fatal("negative carry 平仓未对现货空腿执行 买回+还币")
+	}
+	if !sawPerpSell {
+		t.Fatal("negative carry 平仓未对永续多腿执行 卖出")
+	}
+}
+
+// TestSVSPBuildSettlementTradePnLDirection 锁定 buildSVSPSettlement 的方向感知 tradePnL:
+// 负 carry 现货空头(跌则盈)/永续多头(涨则盈);正 carry 现货多头/永续空头。符号反了会被此测试抓住。
+func TestSVSPBuildSettlementTradePnLDirection(t *testing.T) {
+	closeTime := time.Now().UTC()
+	// 负 carry:现货空 Entry=100→Exit=90 买回低,盈 +10;永续多 flat。期望 tradePnL=+10。
+	neg := SingleVenueSpotPerpPosition{
+		Symbol: "BTC-USDT", Venue: binance.VenueName,
+		SpotLeg: SingleVenueSpotPerpLegState{Market: "spot", Side: "short", EntryPrice: 100, ExitPrice: 90, ClosedQty: 1},
+		PerpLeg: SingleVenueSpotPerpLegState{Market: "perp", Side: "long", EntryPrice: 100, ExitPrice: 100, ClosedQty: 1},
+	}
+	if st := buildSVSPSettlement(neg, closeTime); math.Abs(st.TradePnL-10) > 1e-9 {
+		t.Fatalf("负 carry 现货空盈利:期望 tradePnL=+10 实得 %.6f", st.TradePnL)
+	}
+	// 正 carry:现货多 Entry=100→Exit=90 亏 -10;永续空 flat。期望 tradePnL=-10。
+	pos := SingleVenueSpotPerpPosition{
+		Symbol: "BTC-USDT", Venue: binance.VenueName,
+		SpotLeg: SingleVenueSpotPerpLegState{Market: "spot", Side: "buy", EntryPrice: 100, ExitPrice: 90, ClosedQty: 1},
+		PerpLeg: SingleVenueSpotPerpLegState{Market: "perp", Side: "short", EntryPrice: 100, ExitPrice: 100, ClosedQty: 1},
+	}
+	if st := buildSVSPSettlement(pos, closeTime); math.Abs(st.TradePnL-(-10)) > 1e-9 {
+		t.Fatalf("正 carry 现货多亏损:期望 tradePnL=-10 实得 %.6f", st.TradePnL)
+	}
+}
+
 func TestSVSPExecutorLoadsPersistedPositions(t *testing.T) {
 	dir := t.TempDir()
 	store := mustSVSPStore(t, dir)

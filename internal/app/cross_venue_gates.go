@@ -175,8 +175,15 @@ func evaluateCrossVenueOpenGate(
 	if maxSpreadBps <= 0 {
 		maxSpreadBps = 30
 	}
-	if bookSpreadBps(highBook) > maxSpreadBps {
-		return fail(fmt.Sprintf("高费所盘口价差 %.1fbps 超限", bookSpreadBps(highBook)))
+	// maker-first 统一模型:高费(首)腿是挂单 maker,我们不穿价 → 用更宽的 maker 阈值;
+	// 低费(对冲)腿恒为 taker,要穿价 → 仍用严格阈值。避免"拒掉一个我们其实不会付的盘口成本"
+	// 把 TAIKO 这类暴力薄盘币(maker 腿盘口天然宽)误杀。
+	highMaxSpreadBps := maxSpreadBps
+	if crossVenueUnifiedActiveForSymbol(cfg, in.Opp.Symbol) && (cfg.MakerFirst || cfg.AssumeMakerFills) && cfg.MakerLegMaxBookSpreadBps > maxSpreadBps {
+		highMaxSpreadBps = cfg.MakerLegMaxBookSpreadBps
+	}
+	if bookSpreadBps(highBook) > highMaxSpreadBps {
+		return fail(fmt.Sprintf("高费所盘口价差 %.1fbps 超限(maker上限 %.0f)", bookSpreadBps(highBook), highMaxSpreadBps))
 	}
 	if bookSpreadBps(lowBook) > maxSpreadBps {
 		return fail(fmt.Sprintf("低费所盘口价差 %.1fbps 超限", bookSpreadBps(lowBook)))
@@ -998,13 +1005,21 @@ func crossVenueBuildCapturePlan(cfg CrossVenueExecutorConfig, symbol string, hig
 		perSettlement = 0
 	}
 	expected := perSettlement * float64(n)
+	budget := crossVenueResolvedBasisStopBudgetFraction(cfg) * expected
+	// 单笔下注单元:把单笔最坏可控亏损(基差预算)钉死在名义的 PerTradeMaxLossPct 之内。
+	// 仅会把预算往小里收(更早止损=更小亏损),不会放大;>0 才生效。
+	if cfg.PerTradeMaxLossPct > 0 {
+		if cap := cfg.PerTradeMaxLossPct * notional; cap > 0 && budget > cap {
+			budget = cap
+		}
+	}
 	return &CarryCapturePlan{
 		TargetLeg:                 leg,
 		TargetSettlementTime:      target,
 		TargetSettlements:         n,
 		PlannedExitTime:           lastSettlement.Add(buffer),
 		ExpectedTargetFundingUSDT: expected,
-		BasisBudgetUSDT:           crossVenueResolvedBasisStopBudgetFraction(cfg) * expected,
+		BasisBudgetUSDT:           budget,
 	}
 }
 

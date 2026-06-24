@@ -42,6 +42,13 @@ LDFLAGS="-X ${VERSION_PKG}.appVersion=${APP_VERSION} -X ${VERSION_PKG}.gitCommit
 echo "构建版本: version=${APP_VERSION} commit=${GIT_COMMIT} build_time=${BUILD_TIME}"
 go build -ldflags "$LDFLAGS" -o "$BIN_FILE" ./cmd/lingxi
 
+# SELinux(Enforcing,RHEL8):go build 产物默认带 user_tmp_t/admin_home_t 标签,systemd(init_t)无权 execute
+# → 起进程报 203/EXEC。按已登记的 fcontext 规则(/root/lingxi/lingxi → bin_t)重新打标,确保 systemctl 能拉起。
+# 一次性前置:semanage fcontext -a -t bin_t '/root/lingxi/lingxi'(已在本机登记)。
+if command -v restorecon >/dev/null 2>&1; then
+  restorecon -F "$BIN_FILE" 2>/dev/null || true
+fi
+
 # 记录启动前的日志行数，便于只在「本次启动」新追加的日志里提取控制令牌，避免误取上一次的旧令牌。
 LOG_LINES_BEFORE=0
 if [ -f "$LOG_FILE" ]; then
@@ -54,16 +61,30 @@ fi
 TOKEN_FILE="$LOG_DIR/.dashboard_control_token"
 rm -f "$TOKEN_FILE"
 
-echo "启动 lingxi..."
-nohup "$BIN_FILE" >>"$LOG_FILE" 2>&1 &
-NEW_PID=$!
-echo "$NEW_PID" >"$PID_FILE"
-
-sleep 1
-if ! kill -0 "$NEW_PID" 2>/dev/null; then
-  echo "lingxi 启动失败，请检查日志: $LOG_FILE" >&2
-  rm -f "$PID_FILE"
-  exit 1
+echo "通过 systemd 启动 lingxi(systemctl restart,受 Restart=always + 看门狗保护;手动 nohup 不受保护)..."
+# 用 systemd 作为唯一运行者:崩溃由 Restart=always 自愈,卡死由 watchdog `systemctl restart lingxi` 兜底。
+# stdout/stderr 由 unit 内 sh -c + exec 重定向到 $LOG_FILE,与原 nohup 同一份日志。
+if command -v systemctl >/dev/null 2>&1 && systemctl cat lingxi >/dev/null 2>&1; then
+  systemctl restart lingxi
+  sleep 2
+  if ! systemctl is-active --quiet lingxi; then
+    echo "lingxi 启动失败,请检查: journalctl -u lingxi -n 50  或  $LOG_FILE" >&2
+    exit 1
+  fi
+  NEW_PID=$(systemctl show -p MainPID --value lingxi 2>/dev/null || true)
+  echo "$NEW_PID" >"$PID_FILE"
+else
+  # 回退:无 systemd(本地开发等)时仍用 nohup(不受 Restart=always 保护)。
+  echo "未检测到 systemd lingxi 单元,回退 nohup 启动(无崩溃自愈保护)"
+  nohup "$BIN_FILE" >>"$LOG_FILE" 2>&1 &
+  NEW_PID=$!
+  echo "$NEW_PID" >"$PID_FILE"
+  sleep 1
+  if ! kill -0 "$NEW_PID" 2>/dev/null; then
+    echo "lingxi 启动失败，请检查日志: $LOG_FILE" >&2
+    rm -f "$PID_FILE"
+    exit 1
+  fi
 fi
 
 echo "lingxi 已启动"

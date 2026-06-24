@@ -20,6 +20,9 @@ risk:
   max_account_drawdown_usdt: 90
   max_strategy_cumulative_loss_usdt: 30
   max_account_open_notional_usdt: 2200
+  # 当日错次预算:单个 UTC+8 自然日内"已结算且净亏"的笔数达到此值即账户级一级硬停(停新开仓,在场仓继续 manage)。
+  # 补 max_daily_loss_usdt 金额维度盲区:每笔亏不多但连续多笔亏=当前行情/参数不利,主动停手而非继续试错。0=关闭。
+  daily_max_losing_trades: 8
   # 2026-06-21 止血:二级 auto-flatten 暂时关闭。其触发依据(RealEquityPeak/Drawdown)目前坐在不可信的
   # 权益快照上(已发现单样本毛刺设峰 454.9U、残缺 venue 读把总额算成≈0),会把毛刺/提现误判成回撤而误平健康仓。
   # 在 equity_snapshots 质量闸 + fund-flow 调整后判据上线并验证前,先置 false(belt);代码版降级见 account_risk_watch.go。
@@ -92,6 +95,16 @@ cross_venue_executor:
   basis_stop_budget_fraction: 1.0
   # 入场硬条件:预期目标资费 / 往返成本 ≥ 此比值,挡掉"滑点远大于资费"的薄盘暴力小币。
   capture_funding_to_cost_min_ratio: 1.0
+  # 单笔下注单元:把单笔最坏可控亏损(基差止损预算)钉死在 此比例 × 该腿名义 之内;只会更早止损,不会放大。0=不封顶。
+  per_trade_max_loss_pct: 0.08
+  # 统一模型 maker-first 下 maker(首/高费)腿盘口价差上限(bps);taker(低费)腿仍用 max_book_spread_bps(默认30)严控。
+  # 暴力薄盘币 maker 腿盘口天然偏宽,我们挂单不穿价,放宽避免误杀。≤max_book_spread_bps 则不放宽。
+  maker_leg_max_book_spread_bps: 80
+  # 暴力度软调仓:统一模型下 sizeMult ×= (1 + 权重 × ViolenceScore),clamp01 封顶 → 真暴力币向满仓靠拢、绝不超额;
+  # 瞬时尖刺(violence≈0)不受影响,P0 防尖峰满仓的保护不破。0=关闭(回退纯置信度调仓)。
+  violence_size_boost_weight: 0.3
+  # 暴力度软排序:统一模型下正EV机会 rank ×= (1 + 权重 × ViolenceScore),同等净EV下真暴力币排更前(主战场)。0=关闭。
+  violence_rank_boost_weight: 0.3
 
 # 五策略统一资金费轮动 runner。perp-perp 执行体见 cross_venue_executor,开仓由 runner binding 派发。
 # total_deployable_usdt: 绝对预算(USDT);另有 total_deployable_pct(默认见 defaults,占真实现金权益比例),二者与 equity 取 min。

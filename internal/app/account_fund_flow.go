@@ -91,11 +91,12 @@ func applyAccountFundFlowAdjustment(
 			prev := st.DailyFundFlowAdjustUSDT
 			st.DailyFundFlowAdjustUSDT = cumulativeUnexplained
 			step = money.SumUSDT(cumulativeUnexplained, -prev)
-			if logger != nil {
+			// one-shot:仅在首次进入或平移额真正变化时打印,避免空仓期每 60s tick 重复刷屏(曾累计上百条/日)。
+			if logger != nil && (!st.fundFlowSourceLogged || math.Abs(step) > 1e-9) {
 				logger.Printf("[账户风控] real充提源疑似漏检(real_cum=%.4f 残差=%.4f positions=0):并入充提平移 cumulative=%.4f(风控口径权益≈已实现 %.4f)",
 					realTotal, residual, cumulativeUnexplained, dailyRealized)
-				st.fundFlowSourceLogged = true
 			}
+			st.fundFlowSourceLogged = true
 			return "real+reconcile", step
 		}
 		prev := st.DailyFundFlowAdjustUSDT

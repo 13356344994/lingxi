@@ -1693,6 +1693,7 @@ func (r *UnifiedRotationRunner) dispatchRotationPlan(
 					r.logger.Printf("[统一轮动] SWITCH 开新失败(旧仓已平) old=%s replace=%s symbol=%s: %v",
 						act.OpportunityID, act.ReplaceOpportunityID, act.ReplaceSymbol, err)
 				}
+				r.recordMissedOpportunity(opp, err.Error(), rotationOpenFailureIsBenignTiming(err), r.openLiveForStrategy(act.ReplaceStrategyType))
 			}
 		case RotationActionOpen:
 			if _, skip := unfundable[act.OpportunityID]; skip {
@@ -1708,12 +1709,18 @@ func (r *UnifiedRotationRunner) dispatchRotationPlan(
 				continue
 			}
 			if opp, ok := candidatesByID[act.OpportunityID]; ok {
-				if err := r.openOpportunity(ctx, act.StrategyType, opp, r.openLiveForStrategy(act.StrategyType)); err != nil && r.logger != nil {
-					if rotationOpenFailureIsBenignTiming(err) {
-						r.logger.Printf("[统一轮动] OPEN WAIT(进场窗未到) %s: %v", act.OpportunityID, err)
-					} else {
-						r.logger.Printf("[统一轮动] OPEN 失败(已吞掉) %s: %v", act.OpportunityID, err)
+				openLive := r.openLiveForStrategy(act.StrategyType)
+				if err := r.openOpportunity(ctx, act.StrategyType, opp, openLive); err != nil {
+					benign := rotationOpenFailureIsBenignTiming(err)
+					if r.logger != nil {
+						if benign {
+							r.logger.Printf("[统一轮动] OPEN WAIT(进场窗未到) %s: %v", act.OpportunityID, err)
+						} else {
+							r.logger.Printf("[统一轮动] OPEN 失败(已吞掉) %s: %v", act.OpportunityID, err)
+						}
 					}
+					// #1 错过机会复盘:记录被拒/推迟的开仓尝试(归类 + 反事实)。
+					r.recordMissedOpportunity(opp, err.Error(), benign, openLive)
 				}
 			}
 		}

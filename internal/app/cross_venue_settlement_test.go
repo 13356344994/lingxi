@@ -560,6 +560,158 @@ func TestCrossVenuePositionZeroAttributionByteCompatible(t *testing.T) {
 	}
 }
 
+func TestCrossVenueLegSettlementCount(t *testing.T) {
+	open := time.Date(2026, 6, 24, 0, 58, 0, 0, time.UTC)
+	first := time.Date(2026, 6, 24, 1, 0, 0, 0, time.UTC)
+	cases := []struct {
+		name     string
+		close    time.Time
+		interval int
+		want     int
+	}{
+		{"closed before settlement", open.Add(1 * time.Minute), 4, 0},
+		{"held through one", time.Date(2026, 6, 24, 1, 2, 0, 0, time.UTC), 4, 1},
+		{"closed exactly at settlement counts", first, 4, 1},
+		{"two settlements 4h", time.Date(2026, 6, 24, 5, 1, 0, 0, time.UTC), 4, 2},
+		{"stale firstFunding before open advances", open.Add(2 * time.Minute), 4, 1},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			ff := first
+			if c.name == "stale firstFunding before open advances" {
+				ff = time.Date(2026, 6, 23, 21, 0, 0, 0, time.UTC) // 早于 open,需推进到 01:00
+			}
+			got := crossVenueLegSettlementCount(open, c.close, ff, c.interval)
+			if got != c.want {
+				t.Fatalf("count=%d want %d", got, c.want)
+			}
+		})
+	}
+}
+
+func TestCrossVenueDiscreteFundingEstimate(t *testing.T) {
+	open := time.Date(2026, 6, 24, 0, 58, 0, 0, time.UTC)
+	first := time.Date(2026, 6, 24, 1, 0, 0, 0, time.UTC)
+	pos := CrossVenuePosition{
+		Symbol: "TAIKO-USDT", HighVenue: "gate", LowVenue: "bybit",
+		OpenedAt: open, NotionalUSDT: 1000,
+		HighIntervalHours: 4, LowIntervalHours: 4,
+		HighNextFundingTime: first, LowNextFundingTime: first,
+		HighFundingRate: 0.001, LowFundingRate: -0.002,
+	}
+	// 跨 1 次结算:high=1000*0.001*1=+1.0,low=-1000*(-0.002)*1=+2.0 → 3.0
+	got := crossVenueDiscreteFundingEstimate(pos, time.Date(2026, 6, 24, 1, 2, 0, 0, time.UTC))
+	if math.Abs(got-3.0) > 1e-9 {
+		t.Fatalf("discrete=%v want 3.0", got)
+	}
+	// 平在结算前 → 0 次 → 估算 0
+	got = crossVenueDiscreteFundingEstimate(pos, open.Add(1*time.Minute))
+	if math.Abs(got) > 1e-9 {
+		t.Fatalf("discrete=%v want 0 (closed before settlement)", got)
+	}
+}
+
+func TestBuildCrossVenueSettlement_DiscreteEstimateWhenLegsZeroHeldThrough(t *testing.T) {
+	// P0 回归:统一捕获模型超短持有,真实资费轮询在结算前抓到 0、平仓前未再轮询 → 两腿恒 0、状态被标 complete。
+	// 但持仓确实跨越了结算瞬时 → 必须用离散结算估算兜底,而不是把真实收到的资费记成 0。
+	open := time.Date(2026, 6, 24, 0, 58, 0, 0, time.UTC)
+	first := time.Date(2026, 6, 24, 1, 0, 0, 0, time.UTC)
+	closeTime := time.Date(2026, 6, 24, 1, 2, 0, 0, time.UTC)
+	pos := CrossVenuePosition{
+		Symbol: "TAIKO-USDT", HighVenue: "gate", LowVenue: "bybit",
+		OpenedAt: open, NotionalUSDT: 1000,
+		HighIntervalHours: 4, LowIntervalHours: 4,
+		HighNextFundingTime: first, LowNextFundingTime: first,
+		HighFundingRate: 0.001, LowFundingRate: -0.002,
+		HighLegFundingUSDT: 0, LowLegFundingUSDT: 0,
+		FundingTruthStatus:      "complete", // 早于结算的轮询误标 complete@0
+		RealizedFundingComplete: true,
+	}
+	rec := buildCrossVenueSettlement(pos, closeTime)
+	if math.Abs(rec.RealizedFunding-3.0) > 1e-9 {
+		t.Fatalf("realized_funding=%v want 3.0 (discrete estimate), 资费被记 0 的 bug 复现", rec.RealizedFunding)
+	}
+	if rec.FundingTruthStatus != "estimated" {
+		t.Fatalf("funding_truth=%q want estimated", rec.FundingTruthStatus)
+	}
+	if rec.RealizedFundingComplete {
+		t.Fatal("complete must be false for estimated fallback")
+	}
+}
+
+func TestBuildCrossVenueSettlement_NoOverrideWhenLegRealNonZero(t *testing.T) {
+	// 任一腿已抓到真实非零值 → 绝不被离散估算覆盖(真实优先)。
+	open := time.Date(2026, 6, 24, 0, 58, 0, 0, time.UTC)
+	first := time.Date(2026, 6, 24, 1, 0, 0, 0, time.UTC)
+	closeTime := time.Date(2026, 6, 24, 1, 2, 0, 0, time.UTC)
+	pos := CrossVenuePosition{
+		Symbol: "TAIKO-USDT", HighVenue: "gate", LowVenue: "bybit",
+		OpenedAt: open, NotionalUSDT: 1000,
+		HighIntervalHours: 4, LowIntervalHours: 4,
+		HighNextFundingTime: first, LowNextFundingTime: first,
+		HighFundingRate: 0.001, LowFundingRate: -0.002,
+		HighLegFundingUSDT: 0.5, LowLegFundingUSDT: 0,
+		FundingTruthStatus:      "partial",
+		RealizedFundingComplete: false,
+	}
+	rec := buildCrossVenueSettlement(pos, closeTime)
+	if rec.FundingTruthStatus == "estimated" && math.Abs(rec.RealizedFunding-3.0) < 1e-9 {
+		t.Fatalf("real leg 0.5 被离散估算覆盖了,真实优先被破坏:realized=%v status=%q", rec.RealizedFunding, rec.FundingTruthStatus)
+	}
+}
+
+func TestBuildCrossVenueSettlement_NoOverrideWhenNotHeldThrough(t *testing.T) {
+	// 没跨结算瞬时(开/平都在结算前)→ 不兜底,资费就是 0。
+	open := time.Date(2026, 6, 24, 0, 58, 0, 0, time.UTC)
+	first := time.Date(2026, 6, 24, 1, 0, 0, 0, time.UTC)
+	closeTime := open.Add(1 * time.Minute) // 00:59,早于 01:00 结算
+	pos := CrossVenuePosition{
+		Symbol: "TAIKO-USDT", HighVenue: "gate", LowVenue: "bybit",
+		OpenedAt: open, NotionalUSDT: 1000,
+		HighIntervalHours: 4, LowIntervalHours: 4,
+		HighNextFundingTime: first, LowNextFundingTime: first,
+		TargetFirstFundingTime:  first,
+		HighFundingRate:         0.001, LowFundingRate: -0.002,
+		HighLegFundingUSDT:      0, LowLegFundingUSDT: 0,
+		FundingTruthStatus:      "complete",
+		RealizedFundingComplete: true,
+	}
+	rec := buildCrossVenueSettlement(pos, closeTime)
+	if math.Abs(rec.RealizedFunding) > 1e-9 {
+		t.Fatalf("realized_funding=%v want 0 (未跨结算不应兜底)", rec.RealizedFunding)
+	}
+}
+
+func TestCrossVenueCloseForcesFlat(t *testing.T) {
+	force := []string{"强平距离不足,全平", "flatten_all", "紧急平仓", "emergency flatten", "liquidation risk"}
+	for _, r := range force {
+		if !crossVenueCloseForcesFlat(r) {
+			t.Fatalf("reason %q 应判为强制变平", r)
+		}
+	}
+	hedged := []string{"计划离场:目标结算+缓冲已到", "换仓", "基差止损:累计不利基差", "未来净值<=0", "open_new_retry", "rollback_new", ""}
+	for _, r := range hedged {
+		if crossVenueCloseForcesFlat(r) {
+			t.Fatalf("reason %q 应保持对冲(非强制变平)", r)
+		}
+	}
+}
+
+func TestCrossVenueSettlementSane(t *testing.T) {
+	// 物理不可能:net 远超 5×名义 → 脏记录
+	if crossVenueSettlementSane(CrossVenueSettlement{NotionalUSDT: 46, NetPnL: -801.56, TradePnL: -801.56}) {
+		t.Fatal("HEI 型脏记录(net=-801/名义46)应被判脏")
+	}
+	// 正常对冲结算(哪怕较大滑点)放行
+	if !crossVenueSettlementSane(CrossVenueSettlement{NotionalUSDT: 90, NetPnL: -0.89, TradePnL: -0.80, CloseSlippage: -0.55}) {
+		t.Fatal("正常 TAIKO 型结算被误杀")
+	}
+	// 无名义无法判定 → 放行
+	if !crossVenueSettlementSane(CrossVenueSettlement{NotionalUSDT: 0, NetPnL: -999}) {
+		t.Fatal("无名义记录应放行")
+	}
+}
+
 func TestCalculateSlippageSignConvention(t *testing.T) {
 	// 买入价高于 mid → 负滑点(成本)
 	slip := CalculateSlippage(100, 101, 1, true)

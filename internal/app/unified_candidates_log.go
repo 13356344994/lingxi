@@ -52,6 +52,7 @@ type UnifiedCandidateLogRecord struct {
 	FundingRatePerHour   float64               `json:"funding_rate_per_hour,omitempty"`
 	FundingAPR           float64               `json:"funding_apr,omitempty"`
 	SpreadAPR            float64               `json:"spread_apr,omitempty"`
+	ViolenceScore        float64               `json:"violence_score,omitempty"`
 	HighFundingRate      float64               `json:"high_funding_rate,omitempty"`
 	LowFundingRate       float64               `json:"low_funding_rate,omitempty"`
 	FundingIntervalHours int                   `json:"funding_interval_hours,omitempty"`
@@ -139,6 +140,7 @@ func unifiedCandidateLogFromOpportunityWithRotation(cfg CrossVenueExecutorConfig
 		FundingRatePerHour:     unified.FundingRatePerHour,
 		FundingAPR:             unified.FundingAPR,
 		SpreadAPR:              unified.SpreadAPR,
+		ViolenceScore:          unified.ViolenceScore,
 		HighFundingRate:        unified.HighFundingRate,
 		LowFundingRate:         unified.LowFundingRate,
 		FundingIntervalHours:   unified.FundingIntervalHours,

@@ -241,6 +241,16 @@ func svspNegativeCarry(pos SingleVenueSpotPerpPosition) bool {
 	return s == "short" || s == "sell"
 }
 
+// svspCloseLegDirections 按 carry 方向返回平仓双腿的下单方向与现货保证金效应。
+// 正 carry:现货多→卖出(无 margin 效应)、永续空→买回。
+// 负 carry(反向):现货空借→买回并还币(MarginEffectRepay)、永续多→卖出。
+func svspCloseLegDirections(negativeCarry bool) (spotSide venue.Side, spotMargin venue.MarginEffect, perpSide venue.Side) {
+	if negativeCarry {
+		return venue.SideBuy, venue.MarginEffectRepay, venue.SideSell
+	}
+	return venue.SideSell, venue.MarginEffectNone, venue.SideBuy
+}
+
 func (e *SingleVenueSpotPerpExecutor) isSymbolRollbackBlocked(symbol string) bool {
 	e.rollbackBlockedMu.Lock()
 	defer e.rollbackBlockedMu.Unlock()
@@ -914,7 +924,12 @@ func (e *SingleVenueSpotPerpExecutor) manageOpeningContinuation(
 			hedgeQty = aligned
 		}
 		perpID := svspLegClientID(pos.IdemPrefix, "p2")
-		perpRes, err := e.placeSVSPLegIOC(ctx, tr, venue.MarketPerp, sym, venue.SideSell, hedgeQty, perpID, false, venue.MarginEffectNone, live, svspTakerSlippageBps(e.execCfg()))
+		// 方向感知续腿:正 carry 永续空头(SideSell);负 carry(反向)永续多头(SideBuy)。
+		perpContinueSide := venue.SideSell
+		if svspNegativeCarry(pos) {
+			perpContinueSide = venue.SideBuy
+		}
+		perpRes, err := e.placeSVSPLegIOC(ctx, tr, venue.MarketPerp, sym, perpContinueSide, hedgeQty, perpID, false, venue.MarginEffectNone, live, svspTakerSlippageBps(e.execCfg()))
 		if orderStatusIsUnknown(perpRes) {
 			e.notifyCritical("同所spot-perp查单未知", fmt.Sprintf("%s 续开永续腿查单失败", pos.Symbol), pos.Symbol)
 			return pos, false
@@ -956,10 +971,6 @@ func (e *SingleVenueSpotPerpExecutor) rebalanceSVSPHedge(ctx context.Context, po
 	if pos == nil {
 		return
 	}
-	reduceSpot, delta := carryPositiveRebalancePlan(spotQty, perpQty)
-	if delta <= executionQtyTolerance {
-		return
-	}
 	v := e.venues[pos.Venue]
 	tr, ok := v.(singleVenueSpotPerpTrader)
 	if !ok || tr == nil {
@@ -968,6 +979,41 @@ func (e *SingleVenueSpotPerpExecutor) rebalanceSVSPHedge(ctx context.Context, po
 	sym := venue.Symbol(pos.Symbol)
 	takerBps := svspTakerSlippageBps(e.execCfg())
 	now := e.nowFn()
+	if svspNegativeCarry(*pos) {
+		// 负 carry(反向:现货借币空+永续多)再平衡:减大腿恢复 delta 中性。
+		// 减现货空→买回还币(SideBuy+Repay);减永续多→卖出(SideSell)。
+		reduceSpotShort, reducePerpLong, delta := carryNegativeRebalancePlan(spotQty, perpQty)
+		if delta <= executionQtyTolerance {
+			return
+		}
+		if reduceSpotShort && live {
+			id := svspLegClientID(pos.IdemPrefix, "rb-s")
+			if res, _ := e.placeSVSPLegIOC(ctx, tr, venue.MarketSpot, sym, venue.SideBuy, delta, id, false, venue.MarginEffectRepay, live, takerBps); res.ExecutedQty > executionQtyTolerance {
+				pos.SpotLeg.Qty = math.Max(pos.SpotLeg.Qty-res.ExecutedQty, 0)
+			}
+		} else if reducePerpLong && live {
+			id := svspLegClientID(pos.IdemPrefix, "rb-p")
+			if res, _ := e.placeSVSPLegIOC(ctx, tr, venue.MarketPerp, sym, venue.SideSell, delta, id, true, venue.MarginEffectNone, live, takerBps); res.ExecutedQty > executionQtyTolerance {
+				pos.PerpLeg.Qty = math.Max(pos.PerpLeg.Qty-res.ExecutedQty, 0)
+			}
+		}
+		pos.LastHedgeRebalanceAt = now
+		pos.UpdatedAt = now
+		_ = e.persistPosition(*pos)
+		if e.logger != nil {
+			leg := "永续"
+			if reduceSpotShort {
+				leg = "现货"
+			}
+			e.logger.Printf("[同所spot-perp] %s 对冲再平衡(反向):偏差%.1f%% 减%s %.6f",
+				pos.Symbol, qtyDeviation(spotQty, perpQty)*100, leg, delta)
+		}
+		return
+	}
+	reduceSpot, delta := carryPositiveRebalancePlan(spotQty, perpQty)
+	if delta <= executionQtyTolerance {
+		return
+	}
 	if reduceSpot {
 		if live {
 			id := svspLegClientID(pos.IdemPrefix, "rb-s")
@@ -996,7 +1042,13 @@ func (e *SingleVenueSpotPerpExecutor) handleOrphanLeg(
 	spotOpen, perpOpen, live bool,
 	spotQty, perpAmt float64,
 ) {
-	decision := evaluatePositiveCarryOrphan(ctx, e.execCfg(), e.venues, pos.Symbol, pos.Venue, pos.Venue, spotOpen, perpOpen, spotQty, absQty(perpAmt), pos.SpotLeg.EntryPrice)
+	neg := svspNegativeCarry(pos)
+	var decision dustOrphanDecision
+	if neg {
+		decision = evaluateNegativeCarryOrphan(ctx, e.execCfg(), e.venues, pos.Symbol, pos.Venue, pos.Venue, spotOpen, perpOpen, spotQty, absQty(perpAmt), pos.SpotLeg.EntryPrice, pos.PerpLeg.EntryPrice)
+	} else {
+		decision = evaluatePositiveCarryOrphan(ctx, e.execCfg(), e.venues, pos.Symbol, pos.Venue, pos.Venue, spotOpen, perpOpen, spotQty, absQty(perpAmt), pos.SpotLeg.EntryPrice)
+	}
 	if pos.NextFundingTime.IsZero() {
 		e.syncFundingMeta(ctx, &pos)
 	}
@@ -1010,9 +1062,19 @@ func (e *SingleVenueSpotPerpExecutor) handleOrphanLeg(
 		tr, _ := v.(singleVenueSpotPerpTrader)
 		sym := venue.Symbol(pos.Symbol)
 		takerBps := svspTakerSlippageBps(e.execCfg())
-		if live && tr != nil && spotOpen {
-			qty := ledgerCappedCloseQty(pos.SpotLeg.Qty, spotQty)
-			_, _ = e.placeSVSPLegIOC(ctx, tr, venue.MarketSpot, sym, venue.SideSell, qty, svspLegClientID(pos.IdemPrefix, "dust"), false, venue.MarginEffectNone, live, takerBps)
+		if live {
+			if neg {
+				// 负 carry:现货空腿→买回还币;永续多腿→卖出。
+				if spotOpen && !perpOpen {
+					bestEffortRepayMarginBorrow(ctx, v, pos.Symbol, spotQty)
+				} else if tr != nil && perpOpen {
+					qty := ledgerCappedCloseQty(pos.PerpLeg.Qty, absQty(perpAmt))
+					_, _ = e.placeSVSPLegIOC(ctx, tr, venue.MarketPerp, sym, venue.SideSell, qty, svspLegClientID(pos.IdemPrefix, "dust"), true, venue.MarginEffectNone, live, takerBps)
+				}
+			} else if tr != nil && spotOpen {
+				qty := ledgerCappedCloseQty(pos.SpotLeg.Qty, spotQty)
+				_, _ = e.placeSVSPLegIOC(ctx, tr, venue.MarketSpot, sym, venue.SideSell, qty, svspLegClientID(pos.IdemPrefix, "dust"), false, venue.MarginEffectNone, live, takerBps)
+			}
 		}
 		pos.Status = SVSPStatusClosed
 		pos.DustResidualCostUSDT = applyCarryDustResidualCost(decision.RemainingNotionalUSDT)
@@ -1035,12 +1097,22 @@ func (e *SingleVenueSpotPerpExecutor) handleOrphanLeg(
 	if spotOpen && !perpOpen {
 		qty := ledgerCappedCloseQty(pos.SpotLeg.Qty, spotQty)
 		if live {
-			_, _ = e.placeSVSPLegIOC(ctx, tr, venue.MarketSpot, sym, venue.SideSell, qty, svspLegClientID(pos.IdemPrefix, "os"), false, venue.MarginEffectNone, live, takerBps)
+			if neg {
+				// 负 carry 现货空腿→买回还币。
+				_, _ = e.placeSVSPLegIOC(ctx, tr, venue.MarketSpot, sym, venue.SideBuy, qty, svspLegClientID(pos.IdemPrefix, "os"), false, venue.MarginEffectRepay, live, takerBps)
+			} else {
+				_, _ = e.placeSVSPLegIOC(ctx, tr, venue.MarketSpot, sym, venue.SideSell, qty, svspLegClientID(pos.IdemPrefix, "os"), false, venue.MarginEffectNone, live, takerBps)
+			}
 		}
 	} else if perpOpen && !spotOpen {
 		qty := ledgerCappedCloseQty(pos.PerpLeg.Qty, absQty(perpAmt))
 		if live {
-			_, _ = e.placeSVSPLegIOC(ctx, tr, venue.MarketPerp, sym, venue.SideBuy, qty, svspLegClientID(pos.IdemPrefix, "op"), true, venue.MarginEffectNone, live, takerBps)
+			// 负 carry 永续多腿→卖出;正 carry 永续空腿→买回。
+			perpOrphanSide := venue.SideBuy
+			if neg {
+				perpOrphanSide = venue.SideSell
+			}
+			_, _ = e.placeSVSPLegIOC(ctx, tr, venue.MarketPerp, sym, perpOrphanSide, qty, svspLegClientID(pos.IdemPrefix, "op"), true, venue.MarginEffectNone, live, takerBps)
 		}
 	}
 	if decision.NakedRisk {
@@ -1118,7 +1190,7 @@ func (e *SingleVenueSpotPerpExecutor) shouldClosePosition(ctx context.Context, p
 	if pos == nil {
 		return ""
 	}
-	if reason := carryHardStopCloseReason(ctx, e.venues, true, pos.Symbol, pos.Venue, pos.Venue, pos.SpotLeg.EntryPrice, pos.PerpLeg.EntryPrice); reason != "" {
+	if reason := carryHardStopCloseReason(ctx, e.venues, !svspNegativeCarry(*pos), pos.Symbol, pos.Venue, pos.Venue, pos.SpotLeg.EntryPrice, pos.PerpLeg.EntryPrice); reason != "" {
 		return reason
 	}
 	cfg := e.execCfg()
@@ -1188,9 +1260,12 @@ func (e *SingleVenueSpotPerpExecutor) closePosition(ctx context.Context, pos Sin
 		closeSpotQty = ledgerCappedCloseQty(pos.SpotLeg.Qty, spotQty)
 		closePerpQty = ledgerCappedCloseQty(pos.PerpLeg.Qty, absQty(perpAmt))
 	}
+	// 方向感知平仓:正 carry 现货多→卖出平、永续空→买回平;负 carry(反向)现货空借→买回还币、永续多→卖出平。
+	neg := svspNegativeCarry(pos)
+	spotCloseSide, spotCloseMargin, perpCloseSide := svspCloseLegDirections(neg)
 	if closeSpotQty > executionQtyTolerance {
 		id := svspLegClientID(pos.IdemPrefix, fmt.Sprintf("cs%d", attempt))
-		if res, err := e.placeSVSPCloseLegIOC(ctx, tr, venue.MarketSpot, sym, venue.SideSell, closeSpotQty, id, false, venue.MarginEffectNone, live, attempt); err == nil {
+		if res, err := e.placeSVSPCloseLegIOC(ctx, tr, venue.MarketSpot, sym, spotCloseSide, closeSpotQty, id, false, spotCloseMargin, live, attempt); err == nil {
 			pos.SpotLeg.Qty = math.Max(pos.SpotLeg.Qty-res.ExecutedQty, 0)
 			pos.CloseFeesUSDT += res.Fee
 		} else {
@@ -1199,7 +1274,7 @@ func (e *SingleVenueSpotPerpExecutor) closePosition(ctx context.Context, pos Sin
 	}
 	if closePerpQty > executionQtyTolerance {
 		id := svspLegClientID(pos.IdemPrefix, fmt.Sprintf("cp%d", attempt))
-		if res, err := e.placeSVSPCloseLegIOC(ctx, tr, venue.MarketPerp, sym, venue.SideBuy, closePerpQty, id, true, venue.MarginEffectNone, live, attempt); err == nil {
+		if res, err := e.placeSVSPCloseLegIOC(ctx, tr, venue.MarketPerp, sym, perpCloseSide, closePerpQty, id, true, venue.MarginEffectNone, live, attempt); err == nil {
 			pos.PerpLeg.Qty = math.Max(pos.PerpLeg.Qty-res.ExecutedQty, 0)
 			pos.CloseFeesUSDT += res.Fee
 		} else {
@@ -1224,7 +1299,13 @@ func (e *SingleVenueSpotPerpExecutor) closePosition(ctx context.Context, pos Sin
 
 	perpOpen := absQty(perpAmt) > executionQtyTolerance
 	spotOpen := spotQty > executionQtyTolerance
-	if dust := evaluatePositiveCarryOrphan(ctx, e.execCfg(), e.venues, pos.Symbol, pos.Venue, pos.Venue, spotOpen, perpOpen, spotQty, absQty(perpAmt), pos.SpotLeg.EntryPrice); dust.IsDustOrphan {
+	var dust dustOrphanDecision
+	if neg {
+		dust = evaluateNegativeCarryOrphan(ctx, e.execCfg(), e.venues, pos.Symbol, pos.Venue, pos.Venue, spotOpen, perpOpen, spotQty, absQty(perpAmt), pos.SpotLeg.EntryPrice, pos.PerpLeg.EntryPrice)
+	} else {
+		dust = evaluatePositiveCarryOrphan(ctx, e.execCfg(), e.venues, pos.Symbol, pos.Venue, pos.Venue, spotOpen, perpOpen, spotQty, absQty(perpAmt), pos.SpotLeg.EntryPrice)
+	}
+	if dust.IsDustOrphan {
 		if carryDeferDustOrphanDecision(e.nowFn(), pos.NextFundingTime, dust) {
 			pos.UpdatedAt = e.nowFn()
 			_ = e.persistPosition(pos)
@@ -1233,7 +1314,12 @@ func (e *SingleVenueSpotPerpExecutor) closePosition(ctx context.Context, pos Sin
 		if live && spotOpen {
 			id := svspLegClientID(pos.IdemPrefix, "dust")
 			qty := ledgerCappedCloseQty(pos.SpotLeg.Qty, spotQty)
-			_, _ = e.placeSVSPCloseLegIOC(ctx, tr, venue.MarketSpot, sym, venue.SideSell, qty, id, false, venue.MarginEffectNone, live, attempt)
+			_, _ = e.placeSVSPCloseLegIOC(ctx, tr, venue.MarketSpot, sym, spotCloseSide, qty, id, false, spotCloseMargin, live, attempt)
+		}
+		if live && neg && perpOpen && !spotOpen {
+			id := svspLegClientID(pos.IdemPrefix, "dustp")
+			qty := ledgerCappedCloseQty(pos.PerpLeg.Qty, absQty(perpAmt))
+			_, _ = e.placeSVSPCloseLegIOC(ctx, tr, venue.MarketPerp, sym, perpCloseSide, qty, id, true, venue.MarginEffectNone, live, attempt)
 		}
 		e.syncRealizedFunding(ctx, &pos)
 		pos.Status = SVSPStatusClosed
@@ -1260,12 +1346,22 @@ func (e *SingleVenueSpotPerpExecutor) closePosition(ctx context.Context, pos Sin
 func buildSVSPSettlement(pos SingleVenueSpotPerpPosition, closeTime time.Time) SingleVenueSpotPerpSettlement {
 	attr := pos.SingleVenueSpotPerpAttribution
 	totalFees := money.SumUSDT(attr.OpenFeesUSDT, attr.CloseFeesUSDT)
+	// 方向感知 tradePnL:正 carry 现货多(涨则盈)/永续空(跌则盈);负 carry(反向)现货空(跌则盈)/永续多(涨则盈)。
+	neg := svspNegativeCarry(pos)
 	tradePnL := 0.0
 	if pos.SpotLeg.ClosedQty > executionQtyTolerance && pos.SpotLeg.ExitPrice > 0 {
-		tradePnL += (pos.SpotLeg.ExitPrice - pos.SpotLeg.EntryPrice) * pos.SpotLeg.ClosedQty
+		if neg {
+			tradePnL += (pos.SpotLeg.EntryPrice - pos.SpotLeg.ExitPrice) * pos.SpotLeg.ClosedQty
+		} else {
+			tradePnL += (pos.SpotLeg.ExitPrice - pos.SpotLeg.EntryPrice) * pos.SpotLeg.ClosedQty
+		}
 	}
 	if pos.PerpLeg.ClosedQty > executionQtyTolerance && pos.PerpLeg.ExitPrice > 0 {
-		tradePnL += (pos.PerpLeg.EntryPrice - pos.PerpLeg.ExitPrice) * pos.PerpLeg.ClosedQty
+		if neg {
+			tradePnL += (pos.PerpLeg.ExitPrice - pos.PerpLeg.EntryPrice) * pos.PerpLeg.ClosedQty
+		} else {
+			tradePnL += (pos.PerpLeg.EntryPrice - pos.PerpLeg.ExitPrice) * pos.PerpLeg.ClosedQty
+		}
 	}
 	netPnL := money.SumUSDT(pos.RealizedFundingUSDT, tradePnL, -totalFees, -attr.RollbackCostUSDT, -pos.DustResidualCostUSDT)
 	return SingleVenueSpotPerpSettlement{
