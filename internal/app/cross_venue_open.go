@@ -139,6 +139,77 @@ func (e *CrossVenueExecutor) placeCrossVenueIOC(
 	return res, nil
 }
 
+// crossVenueOpenFundingRefreshMinRetainFraction 下单前实时资费复核:最新目标腿资费相对快照预期至少需保留的比例,
+// 低于此(即资费已大幅塌缩)则放弃开仓。0.5 = 允许缩水一半以内。
+const crossVenueOpenFundingRefreshMinRetainFraction = 0.5
+
+// crossVenueRefreshedFunding 下单前重拉的两腿最新资费。
+type crossVenueRefreshedFunding struct {
+	HighRate     float64
+	LowRate      float64
+	HighNext     time.Time
+	LowNext      time.Time
+	HighInterval int
+	LowInterval  int
+	Fetched      bool // 两腿都拉到才 true;否则 fail-open 沿用快照。
+}
+
+// refreshFundingBeforeOpen 进场窗内、真正下第一腿之前重拉两腿最新资费并复核目标腿资费是否仍成立。
+// 离结算越近,交易所预测资费越收敛于真实结算值;用最新值挡住"用十几分钟前旧快照赌 3 分钟后结算的短周期腿翻盘"
+// (LAB 即此:bybit 1h 腿在旧快照期内翻负→做空反付资费)。
+// 返回 (fresh, ok, reason):ok=false 表示资费已翻向/大幅塌缩,应放弃本单;拉取失败时 fail-open(ok=true,Fetched=false)。
+func (e *CrossVenueExecutor) refreshFundingBeforeOpen(ctx context.Context, plan crossVenueOpenPlan) (crossVenueRefreshedFunding, bool, string) {
+	cfg := e.cfg.CrossVenueExecutor
+	if !cfg.OpenFundingRefreshEnabled || !crossVenueUnifiedActiveForSymbol(cfg, plan.Opp.Symbol) {
+		return crossVenueRefreshedFunding{}, true, ""
+	}
+	highV := e.venues[plan.Opp.HighVenue]
+	lowV := e.venues[plan.Opp.LowVenue]
+	if highV == nil || lowV == nil {
+		return crossVenueRefreshedFunding{}, true, ""
+	}
+	highSnap, hok := fetchVenueFundingForSymbol(ctx, highV, venue.Symbol(crossVenueOppHighSymbol(plan.Opp)))
+	lowSnap, lok := fetchVenueFundingForSymbol(ctx, lowV, venue.Symbol(crossVenueOppLowSymbol(plan.Opp)))
+	if !hok || !lok {
+		if e.logger != nil {
+			e.logger.Printf("[跨所][进场资费复核] %s 实时资费拉取失败(high_ok=%v low_ok=%v),fail-open 沿用快照", plan.Opp.Symbol, hok, lok)
+		}
+		return crossVenueRefreshedFunding{}, true, ""
+	}
+	fresh := crossVenueRefreshedFunding{
+		HighRate: highSnap.LastFundingRate, LowRate: lowSnap.LastFundingRate,
+		HighNext: highSnap.NextFundingTime, LowNext: lowSnap.NextFundingTime,
+		HighInterval: highSnap.IntervalHours, LowInterval: lowSnap.IntervalHours,
+		Fetched: true,
+	}
+	freshOpp := plan.Opp
+	freshOpp.HighFundingRate = fresh.HighRate
+	freshOpp.LowFundingRate = fresh.LowRate
+	if fresh.HighInterval > 0 {
+		freshOpp.HighIntervalHours = fresh.HighInterval
+	}
+	if fresh.LowInterval > 0 {
+		freshOpp.LowIntervalHours = fresh.LowInterval
+	}
+	if !fresh.HighNext.IsZero() {
+		freshOpp.HighNextFundingTime = fresh.HighNext
+	}
+	if !fresh.LowNext.IsZero() {
+		freshOpp.LowNextFundingTime = fresh.LowNext
+	}
+	freshFunding := crossVenueExpectedTargetFundingUSDT(cfg, freshOpp, plan.Gate.NotionalUSDT)
+	if freshFunding <= 0 {
+		return fresh, false, fmt.Sprintf("最新目标腿资费=%.4f≤0(快照费率 high=%.6f low=%.6f → 最新 high=%.6f low=%.6f),边缘机会已消失",
+			freshFunding, plan.Opp.HighFundingRate, plan.Opp.LowFundingRate, fresh.HighRate, fresh.LowRate)
+	}
+	snapFunding := crossVenueExpectedTargetFundingUSDT(cfg, plan.Opp, plan.Gate.NotionalUSDT)
+	if snapFunding > 0 && freshFunding < snapFunding*crossVenueOpenFundingRefreshMinRetainFraction {
+		return fresh, false, fmt.Sprintf("最新目标腿资费 %.4f < 快照 %.4f × %.2f,资费已大幅塌缩",
+			freshFunding, snapFunding, crossVenueOpenFundingRefreshMinRetainFraction)
+	}
+	return fresh, true, ""
+}
+
 // executeCrossVenueOpen 极端所(高费)先腿 → 低费所对冲;第二腿失败立即回滚。
 func (e *CrossVenueExecutor) executeCrossVenueOpen(ctx context.Context, plan crossVenueOpenPlan, live bool) (CrossVenuePosition, error) {
 	cfg := e.cfg.CrossVenueExecutor
@@ -193,6 +264,31 @@ func (e *CrossVenueExecutor) executeCrossVenueOpen(ctx context.Context, plan cro
 		NotionalUSDT:         plan.Gate.NotionalUSDT,
 		HighLeg:              CrossVenueLegState{Venue: plan.Opp.HighVenue, Symbol: string(highSym), Side: "sell"},
 		LowLeg:               CrossVenueLegState{Venue: plan.Opp.LowVenue, Symbol: string(lowSym), Side: "buy"},
+	}
+	// 下单前实时资费复核(仅 live):进场窗内用最新资费挡住"旧快照赌短周期腿翻盘";达标则把最新费率写回仓位。
+	if live {
+		if fresh, ok, reason := e.refreshFundingBeforeOpen(ctx, plan); !ok {
+			if e.logger != nil {
+				e.logger.Printf("[跨所perp-perp] 放弃开仓 %s:进场资费复核未过——%s", plan.Opp.Symbol, reason)
+			}
+			return CrossVenuePosition{}, nil
+		} else if fresh.Fetched {
+			pos.HighFundingRate = fresh.HighRate
+			pos.LowFundingRate = fresh.LowRate
+			if fresh.HighInterval > 0 {
+				pos.HighIntervalHours = fresh.HighInterval
+			}
+			if fresh.LowInterval > 0 {
+				pos.LowIntervalHours = fresh.LowInterval
+			}
+			if !fresh.HighNext.IsZero() {
+				pos.HighNextFundingTime = fresh.HighNext
+			}
+			if !fresh.LowNext.IsZero() {
+				pos.LowNextFundingTime = fresh.LowNext
+			}
+			pos.TargetFirstFundingTime = rotationEarliestFundingAfterOpen(e.nowFn(), pos.HighNextFundingTime, pos.LowNextFundingTime)
+		}
 	}
 	// 统一捕获模型:开仓即钉死本笔的捕获计划(目标腿/目标结算/计划离场/预期资费/基差预算);flag OFF → nil(回退旧行为)。
 	pos.CapturePlan = crossVenueBuildCapturePlan(

@@ -832,6 +832,12 @@ type CrossVenueExecutorConfig struct {
 	// CaptureFundingToCostMinRatio 统一模型入场硬条件:预期目标资费 / 往返成本 ≥ 此比值才允许开仓。
 	// 用于把"滑点远大于资费"的薄盘暴力小币挡在外面。默认 1.0;≤0 时不启用该闸。
 	CaptureFundingToCostMinRatio float64 `cfg:"capture_funding_to_cost_min_ratio"`
+	// OpenFundingRefreshEnabled 下单前实时资费复核:在进场窗内真正下第一腿之前,重拉两腿最新资费
+	// (离结算越近,交易所预测资费越收敛于真实结算值),用最新值重算"目标腿资费/往返成本";若资费已翻向或
+	// 资费÷往返成本跌破 CaptureFundingToCostMinRatio,则放弃本单——根治"用十几分钟前的旧快照赌 3 分钟后结算
+	// 的 1h 腿资费翻盘"(LAB 即此:bybit 1h 腿在 12 分钟旧快照期内翻负,做空反付资费)。拉取失败则 fail-open
+	// (沿用快照,不阻塞)。默认 true;仅统一捕获模型生效。
+	OpenFundingRefreshEnabled bool `cfg:"open_funding_refresh_enabled"`
 	// PlannedExitBufferSeconds 统一模型下持有到目标结算后的离场缓冲(秒):结算 + 此缓冲后离场,确保资费已入账。默认 90。
 	PlannedExitBufferSeconds int `cfg:"planned_exit_buffer_seconds"`
 	// ViolenceSizeBoostWeight 暴力度软调仓权重:统一模型下 sizeMult ×= (1 + 权重 × ViolenceScore),clamp01 封顶。

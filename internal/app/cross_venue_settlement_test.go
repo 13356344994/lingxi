@@ -12,6 +12,8 @@ import (
 
 	"lingxi/internal/money"
 	"lingxi/internal/venue"
+	"lingxi/internal/venue/bybit"
+	"lingxi/internal/venue/okx"
 )
 
 func TestAggregateCrossVenueSettlementsCSTDayBoundary(t *testing.T) {
@@ -714,6 +716,82 @@ func TestBuildCrossVenueSettlement_PartialOKXLegDiscreteEstimate(t *testing.T) {
 	}
 	if rec.RealizedFundingComplete {
 		t.Fatal("partial 必须保持 complete=false")
+	}
+}
+
+// TestRefreshFundingBeforeOpen_AbortsOnFlip 复刻 LAB:快照目标腿(high)正费率(看起来收钱),
+// 进场窗内实时拉到 high 已翻负 → 目标腿不再收钱 → 放弃开仓。
+func TestRefreshFundingBeforeOpen_AbortsOnFlip(t *testing.T) {
+	now := time.Now().UTC()
+	nf := now.Add(3 * time.Minute)
+	high := newCrossVenueTestVenue(bybit.VenueName, -0.002, 1, nf) // 实时:bybit 1h 翻负
+	low := newCrossVenueTestVenue(okx.VenueName, 0.0001, 2, nf)
+	cfg := DefaultEngineConfig()
+	cfg.CrossVenueExecutor.UnifiedCaptureModelEnabled = true
+	cfg.CrossVenueExecutor.OpenFundingRefreshEnabled = true
+	e := &CrossVenueExecutor{
+		cfg:    cfg,
+		venues: map[string]venue.Venue{bybit.VenueName: high, okx.VenueName: low},
+		logger: testCrossVenueLogger(),
+		nowFn:  func() time.Time { return now },
+	}
+	plan := crossVenueOpenPlan{
+		Opp: CrossVenueOpportunity{
+			Symbol: "BTC-USDT", HighVenue: bybit.VenueName, LowVenue: okx.VenueName,
+			HighFundingRate: 0.002, LowFundingRate: 0.0001, // 快照:high 正(收钱)
+			HighIntervalHours: 1, LowIntervalHours: 2,
+			HighNextFundingTime: nf, LowNextFundingTime: nf,
+		},
+		Gate: crossVenueGateResult{NotionalUSDT: 65},
+	}
+	if _, ok, reason := e.refreshFundingBeforeOpen(context.Background(), plan); ok {
+		t.Fatalf("期望放弃开仓(bybit 实时翻负),却通过了: reason=%q", reason)
+	}
+}
+
+// TestRefreshFundingBeforeOpen_PassesWhenFresh 实时资费仍强(≥快照一半且收钱)→ 放行,并回填最新费率。
+func TestRefreshFundingBeforeOpen_PassesWhenFresh(t *testing.T) {
+	now := time.Now().UTC()
+	nf := now.Add(3 * time.Minute)
+	high := newCrossVenueTestVenue(bybit.VenueName, 0.003, 1, nf) // 实时仍正且更强
+	low := newCrossVenueTestVenue(okx.VenueName, 0.0001, 2, nf)
+	cfg := DefaultEngineConfig()
+	cfg.CrossVenueExecutor.UnifiedCaptureModelEnabled = true
+	cfg.CrossVenueExecutor.OpenFundingRefreshEnabled = true
+	e := &CrossVenueExecutor{
+		cfg:    cfg,
+		venues: map[string]venue.Venue{bybit.VenueName: high, okx.VenueName: low},
+		logger: testCrossVenueLogger(),
+		nowFn:  func() time.Time { return now },
+	}
+	plan := crossVenueOpenPlan{
+		Opp: CrossVenueOpportunity{
+			Symbol: "BTC-USDT", HighVenue: bybit.VenueName, LowVenue: okx.VenueName,
+			HighFundingRate: 0.002, LowFundingRate: 0.0001,
+			HighIntervalHours: 1, LowIntervalHours: 2,
+			HighNextFundingTime: nf, LowNextFundingTime: nf,
+		},
+		Gate: crossVenueGateResult{NotionalUSDT: 65},
+	}
+	fresh, ok, reason := e.refreshFundingBeforeOpen(context.Background(), plan)
+	if !ok {
+		t.Fatalf("期望放行,却放弃: reason=%q", reason)
+	}
+	if !fresh.Fetched || math.Abs(fresh.HighRate-0.003) > 1e-9 {
+		t.Fatalf("期望回填最新 high 费率 0.003,实得 fetched=%v rate=%v", fresh.Fetched, fresh.HighRate)
+	}
+}
+
+// TestRefreshFundingBeforeOpen_FailOpenWhenDisabled 关开关时直接放行(不拉取、不拦)。
+func TestRefreshFundingBeforeOpen_FailOpenWhenDisabled(t *testing.T) {
+	now := time.Now().UTC()
+	cfg := DefaultEngineConfig()
+	cfg.CrossVenueExecutor.UnifiedCaptureModelEnabled = true
+	cfg.CrossVenueExecutor.OpenFundingRefreshEnabled = false
+	e := &CrossVenueExecutor{cfg: cfg, logger: testCrossVenueLogger(), nowFn: func() time.Time { return now }}
+	plan := crossVenueOpenPlan{Opp: CrossVenueOpportunity{Symbol: "BTC-USDT", HighVenue: bybit.VenueName, LowVenue: okx.VenueName}, Gate: crossVenueGateResult{NotionalUSDT: 65}}
+	if _, ok, _ := e.refreshFundingBeforeOpen(context.Background(), plan); !ok {
+		t.Fatal("关开关时应直接放行")
 	}
 }
 

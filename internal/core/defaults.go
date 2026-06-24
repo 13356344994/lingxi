@@ -422,6 +422,7 @@ func DefaultEngineConfig() EngineConfig {
 			BasisStopBudgetFraction:                  1.0,
 			BasisStabilityMinScoreForMultiSettlement: 0.7,
 			CaptureFundingToCostMinRatio:             1.0,
+			OpenFundingRefreshEnabled:                true,
 			PlannedExitBufferSeconds:                 90,
 			ViolenceSizeBoostWeight:                  0.3,
 			ViolenceRankBoostWeight:                  0.3,

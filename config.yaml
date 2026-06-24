@@ -95,6 +95,9 @@ cross_venue_executor:
   basis_stop_budget_fraction: 1.0
   # 入场硬条件:预期目标资费 / 往返成本 ≥ 此比值,挡掉"滑点远大于资费"的薄盘暴力小币。
   capture_funding_to_cost_min_ratio: 1.0
+  # 下单前实时资费复核:进场窗内真正下第一腿之前重拉两腿最新资费(离结算越近越收敛),若目标腿资费已翻向或
+  # 较快照塌缩过半则放弃本单——根治"用旧快照赌短周期(1h)腿结算时翻盘"(LAB 即此)。拉取失败 fail-open 沿用快照。
+  open_funding_refresh_enabled: true
   # 单笔下注单元:把单笔最坏可控亏损(基差止损预算)钉死在 此比例 × 该腿名义 之内;只会更早止损,不会放大。0=不封顶。
   per_trade_max_loss_pct: 0.08
   # 统一模型 maker-first 下 maker(首/高费)腿盘口价差上限(bps);taker(低费)腿仍用 max_book_spread_bps(默认30)严控。
