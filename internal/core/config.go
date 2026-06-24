@@ -827,6 +827,11 @@ type CrossVenueExecutorConfig struct {
 	CaptureTargetSettlements int `cfg:"capture_target_settlements"`
 	// BasisStopBudgetFraction 基差止损预算 = 此系数 × 预期目标资费;累计不利基差 PnL 超过预算即平。默认 1.0。
 	BasisStopBudgetFraction float64 `cfg:"basis_stop_budget_fraction"`
+	// BasisStopConfirmChecks 基差止损迟滞:不利基差需连续此轮数(manage 每轮≈60s)都超预算才真正止损,
+	// 而非单 tick 瞬时触发。结算点附近两所永续会瞬时插针/错位,单次采样到尖刺就止损会在最差点把均值回归型
+	// 噪声锁成实亏(perp-perp 两腿同一标的,基差本应回归)。要求连续确认可挡掉 <1 轮的瞬时插针。
+	// 默认 2;≤1 时退化为单次触发(旧行为)。资费捕获让位窗与硬边界(MaxHold/计划离场)仍兜底。
+	BasisStopConfirmChecks int `cfg:"basis_stop_confirm_checks"`
 	// BasisStabilityMinScoreForMultiSettlement 允许 N>1 次结算持有所需的最小基差稳定分([0,1])。默认 0.7。
 	BasisStabilityMinScoreForMultiSettlement float64 `cfg:"basis_stability_min_score_for_multi_settlement"`
 	// CaptureFundingToCostMinRatio 统一模型入场硬条件:预期目标资费 / 往返成本 ≥ 此比值才允许开仓。

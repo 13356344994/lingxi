@@ -92,7 +92,10 @@ cross_venue_executor:
   # 每笔默认目标结算次数 N(1=单次目标结算,基差暴露最小);N>1 仅在基差稳定分达标时放行。
   capture_target_settlements: 1
   # 基差止损预算 = 此系数 × 预期目标资费;开仓以来累计不利基差 PnL 超过预算即平。
-  basis_stop_budget_fraction: 1.0
+  # 1.5:给基差均值回归留空间(单结算预期资费小,1.0 会被结算点正常噪声频繁触发→小赚大亏)。
+  basis_stop_budget_fraction: 1.5
+  # 基差止损迟滞:不利基差需连续此轮数(manage 每轮≈60s)都超预算才止损,挡结算点瞬时插针把均值回归噪声锁成实亏。
+  basis_stop_confirm_checks: 2
   # 入场硬条件:预期目标资费 / 往返成本 ≥ 此比值,挡掉"滑点远大于资费"的薄盘暴力小币。
   capture_funding_to_cost_min_ratio: 1.0
   # 下单前实时资费复核:进场窗内真正下第一腿之前重拉两腿最新资费(离结算越近越收敛),若目标腿资费已翻向或

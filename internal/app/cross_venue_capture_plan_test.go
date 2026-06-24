@@ -384,6 +384,58 @@ func TestBasisStopYieldsToFundingCapture(t *testing.T) {
 	}
 }
 
+// TestBasisStopHysteresis 验证迟滞:确认轮数=2 时,超预算第 1 轮不平(挡瞬时插针),
+// 回到预算内重置计数,连续 2 轮超预算才真正止损。
+func TestBasisStopHysteresis(t *testing.T) {
+	now := time.Date(2026, 6, 23, 7, 59, 0, 0, time.UTC)
+	high := newCrossVenueTestVenue(bybit.VenueName, 0.0, 4, now)
+	low := newCrossVenueTestVenue(okx.VenueName, 0.0, 4, now)
+	high.book = venue.BookTicker{BidPrice: 101, AskPrice: 103, BidQty: 1000, AskQty: 1000} // 高腿 mid=102 → 不利基差 1.6
+	cfg := testCrossVenueExecutorConfig()
+	cfg.NetworkConfig.RecordDir = t.TempDir()
+	cfg.CrossVenueExecutor.UnifiedCaptureModelEnabled = true
+	cfg.CrossVenueExecutor.BasisStopConfirmChecks = 2
+	e := &CrossVenueExecutor{
+		cfg:    cfg,
+		venues: map[string]venue.Venue{bybit.VenueName: high, okx.VenueName: low},
+		store:  mustCrossVenueStore(t, cfg.NetworkConfig.RecordDir),
+		logger: testCrossVenueLogger(),
+		nowFn:  func() time.Time { return now },
+	}
+	// 资费已蒸发(目标腿结算远在 lead 窗外)→ 无让位;不利基差 1.6 > 预算 0.24。
+	pos := &CrossVenuePosition{
+		Symbol: "BTC-USDT", HighVenue: bybit.VenueName, LowVenue: okx.VenueName,
+		NotionalUSDT:       80,
+		HighLeg:            CrossVenueLegState{Venue: bybit.VenueName, Symbol: "BTC-USDT", Side: "sell", Qty: 0.8, EntryPrice: 100},
+		LowLeg:             CrossVenueLegState{Venue: okx.VenueName, Symbol: "BTC-USDT", Side: "buy", Qty: 0.8, EntryPrice: 100},
+		LowNextFundingTime: now.Add(time.Hour), LowFundingRate: -0.003,
+		CapturePlan:        &CarryCapturePlan{TargetLeg: "low", BasisBudgetUSDT: 0.24},
+	}
+	// 第 1 轮:超预算但确认中(1/2),不平。
+	if r := e.crossVenueBasisStopCloseReason(context.Background(), pos, now); r != "" {
+		t.Fatalf("第 1 轮应迟滞不平,却返回 %q", r)
+	}
+	if pos.CapturePlan.BasisBreachStreak != 1 {
+		t.Fatalf("第 1 轮 streak 应=1,实得 %d", pos.CapturePlan.BasisBreachStreak)
+	}
+	// 第 2 轮基差回到预算内(高腿 mid 回 100)→ 重置 streak,不平(均值回归,瞬时插针不该锁亏)。
+	high.book = venue.BookTicker{BidPrice: 99, AskPrice: 101, BidQty: 1000, AskQty: 1000}
+	if r := e.crossVenueBasisStopCloseReason(context.Background(), pos, now); r != "" {
+		t.Fatalf("回到预算内应不平,却返回 %q", r)
+	}
+	if pos.CapturePlan.BasisBreachStreak != 0 {
+		t.Fatalf("回归后 streak 应重置为 0,实得 %d", pos.CapturePlan.BasisBreachStreak)
+	}
+	// 再次连续 2 轮超预算 → 触发止损。
+	high.book = venue.BookTicker{BidPrice: 101, AskPrice: 103, BidQty: 1000, AskQty: 1000}
+	if r := e.crossVenueBasisStopCloseReason(context.Background(), pos, now); r != "" {
+		t.Fatalf("重新超预算第 1 轮应迟滞不平,却返回 %q", r)
+	}
+	if r := e.crossVenueBasisStopCloseReason(context.Background(), pos, now); r == "" {
+		t.Fatal("连续 2 轮超预算应触发止损")
+	}
+}
+
 // TestEffectiveCaptureSettlements 验证 N>1 仅在基差稳定分≥阈值时放行,否则夹回 1。
 func TestEffectiveCaptureSettlements(t *testing.T) {
 	cfg := CrossVenueExecutorConfig{CaptureTargetSettlements: 3, BasisStabilityMinScoreForMultiSettlement: 0.7}

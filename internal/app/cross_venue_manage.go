@@ -938,24 +938,55 @@ func (e *CrossVenueExecutor) crossVenueBasisStopCloseReason(ctx context.Context,
 		return ""
 	}
 	adverse := crossVenueAdverseBasisPnLUSDT(notional, entryHigh, highMid, entryLow, lowMid) // >0 = 基差走阔致亏(不利)
+	dirty := false
 	if adverse > pos.CapturePlan.PeakAdverseBasisUSDT {
 		pos.CapturePlan.PeakAdverseBasisUSDT = adverse
-		_ = e.persistPosition(*pos)
+		dirty = true
 	}
+	// 回到预算内:重置连续超限计数(迟滞从头计起)。
 	if adverse <= budget {
+		if pos.CapturePlan.BasisBreachStreak != 0 {
+			pos.CapturePlan.BasisBreachStreak = 0
+			dirty = true
+		}
+		if dirty {
+			_ = e.persistPosition(*pos)
+		}
 		return ""
 	}
 	// 资费捕获窗保护(P1):目标腿即将结算且这次结算仍是净收(funding 还在),此刻平仓会"既吃基差亏、又错过本来要收的资费"。
 	// 因此在这个短窗口内让基差止损让位给资费捕获——只继续追踪峰值,不离场,随后由计划离场清仓。
-	// 若资费已蒸发(目标腿不再净收,如暴力币费率塌缩),本保护自动失效,基差止损照常触发兜底限亏。
+	// 让位期不累计迟滞(避免把被保护期算进确认轮数)。若资费已蒸发(目标腿不再净收),本保护自动失效,迟滞照常推进。
 	if netFunding, settling := crossVenueUpcomingTargetSettlementNetFundingUSDT(e.cfg.CrossVenueExecutor, pos, now); settling && netFunding > 0 {
+		if pos.CapturePlan.BasisBreachStreak != 0 {
+			pos.CapturePlan.BasisBreachStreak = 0
+			dirty = true
+		}
+		if dirty {
+			_ = e.persistPosition(*pos)
+		}
 		if e.logger != nil {
 			e.logger.Printf("[跨所][基差止损让位] %s 不利基差 %.4f 超预算 %.4f,但目标腿即将结算净收 %.4f USDT,保持持仓待捕获资费",
 				pos.Symbol, adverse, budget, netFunding)
 		}
 		return ""
 	}
-	return fmt.Sprintf("基差止损:累计不利基差 %.4f USDT 超过预算 %.4f USDT", adverse, budget)
+	// 迟滞:不利基差超预算 + 无让位时累计连续轮数,达确认阈值才真正止损——挡掉结算点 <1 轮的瞬时插针
+	// (perp-perp 两腿同一标的,基差应均值回归;单次采样到尖刺就平会在最差点把噪声锁成实亏)。
+	pos.CapturePlan.BasisBreachStreak++
+	required := e.cfg.CrossVenueExecutor.BasisStopConfirmChecks
+	if required < 1 {
+		required = 1
+	}
+	if pos.CapturePlan.BasisBreachStreak < required {
+		_ = e.persistPosition(*pos)
+		if e.logger != nil {
+			e.logger.Printf("[跨所][基差止损迟滞] %s 不利基差 %.4f 超预算 %.4f(确认中 %d/%d 轮,暂不平待回归)",
+				pos.Symbol, adverse, budget, pos.CapturePlan.BasisBreachStreak, required)
+		}
+		return ""
+	}
+	return fmt.Sprintf("基差止损:累计不利基差 %.4f USDT 连续 %d 轮超过预算 %.4f USDT", adverse, pos.CapturePlan.BasisBreachStreak, budget)
 }
 
 func (e *CrossVenueExecutor) shouldCloseCrossVenue(ctx context.Context, pos *CrossVenuePosition) string {
