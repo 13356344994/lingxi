@@ -510,6 +510,10 @@ func (s *CrossVenueScanner) probeBorrowForOpportunities(
 
 	symbols := borrowProbeTargetSymbols(opps, selectNegativeFundingProbeSymbols(fundingByVenue, fundingTopK))
 	jsonlPath := filepath.Join(s.recordDir, crossVenueBorrowProbesLog)
+	// 无界 append 防膨胀:超 16MB 滚动归档到 .1(暖启动 SeedFromBorrowProbesJSONL 只读当前文件,最近探测足够)。
+	if _, rErr := rotateJSONLBySize(jsonlPath, 16*1024*1024); rErr != nil && s.logger != nil {
+		s.logger.Printf("[借币探测] borrow_probes 滚动归档失败 path=%s: %v", jsonlPath, rErr)
+	}
 	bySymbolSummary := make(map[string][]string, len(symbols))
 	seen := make(map[string]CrossVenueBorrowProbe, len(symbols)*len(crossVenueNames))
 	liveUsed := 0
