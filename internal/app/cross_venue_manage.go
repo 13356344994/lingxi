@@ -989,6 +989,102 @@ func (e *CrossVenueExecutor) crossVenueBasisStopCloseReason(ctx context.Context,
 	return fmt.Sprintf("基差止损:累计不利基差 %.4f USDT 连续 %d 轮超过预算 %.4f USDT", adverse, pos.CapturePlan.BasisBreachStreak, budget)
 }
 
+// crossVenueMaybeRollCapturePlan 计划离场点的滚动续持判定:同一对下个目标结算仍净收资费 + 基差安全(远未触止损)
+// + 未超最大续持次数 → 把捕获计划延到下个结算(roll),返回 true(调用方不平仓);否则 false(照常平)。
+// 续持零边际开仓成本(不重开、不再付一趟开+平),仅多担一个周期基差风险,且每次都重拉资费 + 重测基差,不稳即平。
+// 根治"稳定复现资费源被每周期 churn 白付往返"(LAB:连续多小时反复开平,3 趟往返吃掉 3 次资费)。
+func (e *CrossVenueExecutor) crossVenueMaybeRollCapturePlan(ctx context.Context, pos *CrossVenuePosition, now time.Time) bool {
+	cfg := e.cfg.CrossVenueExecutor
+	if !cfg.CaptureRollEnabled || pos == nil || pos.CapturePlan == nil {
+		return false
+	}
+	plan := pos.CapturePlan
+	maxRolls := cfg.CaptureMaxRolls
+	if maxRolls <= 0 {
+		maxRolls = 6
+	}
+	if plan.RollCount >= maxRolls {
+		return false
+	}
+	notional := crossVenuePositionNotionalUSDT(pos)
+	if notional <= 0 {
+		return false
+	}
+	// 基差安全闸:当前不利基差须远低于预算(<50%),否则续持下个周期很可能直接撞基差止损,不如按计划平。
+	if plan.BasisBudgetUSDT > 0 && pos.HighLeg.EntryPrice > 0 && pos.LowLeg.EntryPrice > 0 {
+		highMid := e.crossVenueLegMid(ctx, pos.HighVenue, crossVenuePositionHighSymbol(*pos))
+		lowMid := e.crossVenueLegMid(ctx, pos.LowVenue, crossVenuePositionLowSymbol(*pos))
+		if highMid > 0 && lowMid > 0 {
+			adverse := crossVenueAdverseBasisPnLUSDT(notional, pos.HighLeg.EntryPrice, highMid, pos.LowLeg.EntryPrice, lowMid)
+			if adverse > plan.BasisBudgetUSDT*0.5 {
+				return false
+			}
+		}
+	}
+	// 目标腿重拉最新资费,确认下个结算仍净收钱。
+	leg := plan.TargetLeg
+	targetVenue := pos.HighVenue
+	targetSym := crossVenuePositionHighSymbol(*pos)
+	if leg == "low" {
+		targetVenue = pos.LowVenue
+		targetSym = crossVenuePositionLowSymbol(*pos)
+	}
+	v := e.venues[targetVenue]
+	if v == nil {
+		return false
+	}
+	snap, ok := fetchVenueFundingForSymbol(ctx, v, venue.Symbol(targetSym))
+	if !ok {
+		return false
+	}
+	perSettlement := snap.LastFundingRate * notional // 空高腿单次收 +rate
+	if leg == "low" {
+		perSettlement = -snap.LastFundingRate * notional // 多低腿单次收 −rate
+	}
+	if perSettlement <= 0 {
+		return false // 下个结算不再收钱(翻向/塌缩),照常平
+	}
+	interval := snap.IntervalHours
+	if interval <= 0 {
+		if leg == "low" {
+			interval = pos.LowIntervalHours
+		} else {
+			interval = pos.HighIntervalHours
+		}
+	}
+	if interval <= 0 {
+		return false
+	}
+	// 下个目标结算 = 从当前 TargetSettlementTime 按 interval 滚到严格晚于 now 的下一个。
+	step := time.Duration(interval) * time.Hour
+	next := plan.TargetSettlementTime
+	if next.IsZero() {
+		next = now
+	}
+	for !next.After(now) {
+		next = next.Add(step)
+	}
+	buffer := time.Duration(crossVenueResolvedPlannedExitBufferSeconds(cfg)) * time.Second
+	plan.RollCount++
+	plan.TargetSettlementTime = next
+	plan.PlannedExitTime = next.Add(buffer)
+	plan.ExpectedTargetFundingUSDT += perSettlement
+	budget := crossVenueResolvedBasisStopBudgetFraction(cfg) * plan.ExpectedTargetFundingUSDT
+	if cfg.PerTradeMaxLossPct > 0 {
+		if capUSDT := cfg.PerTradeMaxLossPct * notional; capUSDT > 0 && budget > capUSDT {
+			budget = capUSDT
+		}
+	}
+	plan.BasisBudgetUSDT = budget
+	plan.BasisBreachStreak = 0
+	_ = e.persistPosition(*pos)
+	if e.logger != nil {
+		e.logger.Printf("[跨所][滚动续持] %s 第 %d 次 roll:下个目标结算 %s 仍净收 %.4f USDT,延长持有(免一趟往返)",
+			pos.Symbol, plan.RollCount, next.UTC().Format("2006-01-02 15:04:05Z"), perSettlement)
+	}
+	return true
+}
+
 func (e *CrossVenueExecutor) shouldCloseCrossVenue(ctx context.Context, pos *CrossVenuePosition) string {
 	if pos == nil {
 		return ""
@@ -1007,6 +1103,10 @@ func (e *CrossVenueExecutor) shouldCloseCrossVenue(ctx context.Context, pos *Cro
 	if unified {
 		// 统一捕获模型主离场:持有到计划离场时刻(目标结算 + 缓冲)。纯时间驱动,先于快照新鲜度短路检查,确保到点必离。
 		if reason := crossVenuePlannedExitCloseReason(pos, now); reason != "" {
+			// 计划离场点:若同一对下个结算仍净收 + 基差安全,滚动续持(免一趟往返),否则照常平。
+			if e.crossVenueMaybeRollCapturePlan(ctx, pos, now) {
+				return ""
+			}
 			return e.crossVenueFilterVoluntaryCloseReason(pos, reason)
 		}
 		// 基差止损(统一模型真正的风控):累计不利基差 PnL 超过预算即平。也先于新鲜度检查,基差跟踪用持仓内最新价。

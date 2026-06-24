@@ -96,6 +96,11 @@ cross_venue_executor:
   basis_stop_budget_fraction: 1.5
   # 基差止损迟滞:不利基差需连续此轮数(manage 每轮≈60s)都超预算才止损,挡结算点瞬时插针把均值回归噪声锁成实亏。
   basis_stop_confirm_checks: 2
+  # 滚动续持:计划离场点若同一对下个目标结算仍净收资费+基差安全,则延长持有而非平仓重开,免去对稳定复现
+  # 资费源每周期白付一趟往返(LAB 即此:连续多小时被反复开平,3 趟往返吃掉 3 次资费)。每次都重校资费+基差,不稳即平。
+  capture_roll_enabled: true
+  # 单笔最多滚动续持次数(上限总持有周期;MaxHold 仍为硬顶)。
+  capture_max_rolls: 6
   # 入场硬条件:预期目标资费 / 往返成本 ≥ 此比值,挡掉"滑点远大于资费"的薄盘暴力小币。
   capture_funding_to_cost_min_ratio: 1.0
   # 下单前实时资费复核:进场窗内真正下第一腿之前重拉两腿最新资费(离结算越近越收敛),若目标腿资费已翻向或

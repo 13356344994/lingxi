@@ -436,6 +436,59 @@ func TestBasisStopHysteresis(t *testing.T) {
 	}
 }
 
+// TestCaptureRoll 验证滚动续持:计划离场点,目标腿下个结算仍净收+基差安全 → roll 延长持有(不平);
+// 下个结算翻向(不再收钱)→ 不 roll(照常平),根治稳定复现资费源被每周期 churn 白付往返。
+func TestCaptureRoll(t *testing.T) {
+	now := time.Date(2026, 6, 23, 8, 1, 30, 0, time.UTC) // 已过计划离场点
+	settle := time.Date(2026, 6, 23, 8, 0, 0, 0, time.UTC)
+	mkExec := func(lowRate float64) (*CrossVenueExecutor, *CrossVenuePosition) {
+		high := newCrossVenueTestVenue(bybit.VenueName, 0.0, 1, now)
+		low := newCrossVenueTestVenue(okx.VenueName, lowRate, 1, now) // 目标=低腿(多),lowRate<0 → 多腿收
+		cfg := testCrossVenueExecutorConfig()
+		cfg.NetworkConfig.RecordDir = t.TempDir()
+		cfg.CrossVenueExecutor.UnifiedCaptureModelEnabled = true
+		cfg.CrossVenueExecutor.CaptureRollEnabled = true
+		cfg.CrossVenueExecutor.CaptureMaxRolls = 6
+		e := &CrossVenueExecutor{
+			cfg:    cfg,
+			venues: map[string]venue.Venue{bybit.VenueName: high, okx.VenueName: low},
+			store:  mustCrossVenueStore(t, cfg.NetworkConfig.RecordDir),
+			logger: testCrossVenueLogger(),
+			nowFn:  func() time.Time { return now },
+		}
+		pos := &CrossVenuePosition{
+			Symbol: "BTC-USDT", HighVenue: bybit.VenueName, LowVenue: okx.VenueName,
+			NotionalUSDT:      80,
+			HighIntervalHours: 1, LowIntervalHours: 1,
+			HighLeg:     CrossVenueLegState{Venue: bybit.VenueName, Symbol: "BTC-USDT", Side: "sell", Qty: 0.8, EntryPrice: 100},
+			LowLeg:      CrossVenueLegState{Venue: okx.VenueName, Symbol: "BTC-USDT", Side: "buy", Qty: 0.8, EntryPrice: 100},
+			CapturePlan: &CarryCapturePlan{TargetLeg: "low", TargetSettlementTime: settle, PlannedExitTime: settle.Add(90 * time.Second), ExpectedTargetFundingUSDT: 0.24, BasisBudgetUSDT: 0.36},
+		}
+		return e, pos
+	}
+
+	// 场景A:下个结算仍净收(low rate -0.3%)→ roll 续持,目标结算延后、RollCount=1。
+	e, pos := mkExec(-0.003)
+	if !e.crossVenueMaybeRollCapturePlan(context.Background(), pos, now) {
+		t.Fatal("下个结算仍净收应 roll 续持")
+	}
+	if pos.CapturePlan.RollCount != 1 {
+		t.Fatalf("RollCount 应=1,实得 %d", pos.CapturePlan.RollCount)
+	}
+	if !pos.CapturePlan.TargetSettlementTime.After(settle) {
+		t.Fatalf("目标结算应延后,实得 %v", pos.CapturePlan.TargetSettlementTime)
+	}
+	if crossVenuePlannedExitCloseReason(pos, now) != "" {
+		t.Fatal("roll 后计划离场时刻应已延后,不再触发离场")
+	}
+
+	// 场景B:下个结算翻向(low rate +0.3% → 多腿反付)→ 不 roll,照常平。
+	e2, pos2 := mkExec(0.003)
+	if e2.crossVenueMaybeRollCapturePlan(context.Background(), pos2, now) {
+		t.Fatal("下个结算翻向(不再收钱)不应 roll,应照常平")
+	}
+}
+
 // TestEffectiveCaptureSettlements 验证 N>1 仅在基差稳定分≥阈值时放行,否则夹回 1。
 func TestEffectiveCaptureSettlements(t *testing.T) {
 	cfg := CrossVenueExecutorConfig{CaptureTargetSettlements: 3, BasisStabilityMinScoreForMultiSettlement: 0.7}

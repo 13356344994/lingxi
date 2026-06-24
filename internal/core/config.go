@@ -845,6 +845,13 @@ type CrossVenueExecutorConfig struct {
 	OpenFundingRefreshEnabled bool `cfg:"open_funding_refresh_enabled"`
 	// PlannedExitBufferSeconds 统一模型下持有到目标结算后的离场缓冲(秒):结算 + 此缓冲后离场,确保资费已入账。默认 90。
 	PlannedExitBufferSeconds int `cfg:"planned_exit_buffer_seconds"`
+	// CaptureRollEnabled 计划离场时滚动续持:到计划离场点,若同一对下个目标结算仍净收资费且基差安全(远未触止损),
+	// 则把捕获计划延到下个结算(roll),而非平仓重开。根治"稳定复现的资费源被每周期 churn(平了重开)、白付一趟趟往返"
+	// (LAB 即此:连续多小时被反复开平,3 趟往返吃掉 3 次资费)。续持是零边际开仓成本,仅多担一个周期基差风险,
+	// 且每次续持都重新校验"下个结算仍收钱 + 基差安全",不稳就照常平。默认 true。
+	CaptureRollEnabled bool `cfg:"capture_roll_enabled"`
+	// CaptureMaxRolls 单笔最多滚动续持次数(上限总持有周期,兜底基差暴露;MaxHold 仍为硬顶)。默认 6。
+	CaptureMaxRolls int `cfg:"capture_max_rolls"`
 	// ViolenceSizeBoostWeight 暴力度软调仓权重:统一模型下 sizeMult ×= (1 + 权重 × ViolenceScore),clamp01 封顶。
 	// 真暴力币(高费且持续,violence 高)更靠近满仓;瞬时尖刺(violence≈0)不受影响。只向满仓靠拢、绝不超额。
 	// 默认 0.3;0=关闭(回退纯置信度调仓)。仅统一模型生效。

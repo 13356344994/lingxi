@@ -425,6 +425,8 @@ func DefaultEngineConfig() EngineConfig {
 			CaptureFundingToCostMinRatio:             1.0,
 			OpenFundingRefreshEnabled:                true,
 			PlannedExitBufferSeconds:                 90,
+			CaptureRollEnabled:                       true,
+			CaptureMaxRolls:                          6,
 			ViolenceSizeBoostWeight:                  0.3,
 			ViolenceRankBoostWeight:                  0.3,
 		},

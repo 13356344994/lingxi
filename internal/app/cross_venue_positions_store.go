@@ -64,6 +64,7 @@ type CarryCapturePlan struct {
 	BasisBudgetUSDT           float64   `json:"basis_budget_usdt,omitempty"`            // 基差止损预算(USDT)
 	PeakAdverseBasisUSDT      float64   `json:"peak_adverse_basis_usdt,omitempty"`      // 持有期内累计不利基差 PnL 峰值(正=亏)
 	BasisBreachStreak         int       `json:"basis_breach_streak,omitempty"`          // 不利基差连续超预算的 manage 轮数(迟滞:达阈值才止损,挡结算点瞬时插针)
+	RollCount                 int       `json:"roll_count,omitempty"`                   // 已滚动续持次数(计划离场时若下个结算仍净收+基差安全则 roll,而非平仓重开)
 }
 
 // CrossVenuePosition 是一笔跨所 perp-perp 对冲持仓(空高费所、多低费所)。
