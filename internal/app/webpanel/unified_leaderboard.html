@@ -243,6 +243,7 @@
       '<thead><tr>'+
       '<th>#</th><th>策略</th><th>交易对</th><th>交易所</th>'+
       '<th title="年化价差(高腿−低腿),已年化">价差 APR</th>'+
+      '<th title="暴力度复合分[0,1]=幅度×持续性:既高费又持续的真暴力币高分,瞬时尖刺陷阱低分。仅观测/排序参考,不作硬闸">暴力度</th>'+
       '<th title="carry 单腿年化资金费;perp-perp 与价差 APR 同值,故省略显示 —">费率 APR</th>'+
       '<th title="高腿单次结算费率(非年化)">高腿单次费率</th>'+
       '<th title="低腿单次结算费率(非年化)">低腿单次费率</th>'+
@@ -317,6 +318,7 @@
         '<td>'+esc(o.symbol)+'</td>'+
         '<td>'+venuesCell(o)+'</td>'+
         '<td class="'+aprClass+'">'+pct(o.spread_apr)+'</td>'+
+        '<td title="幅度×持续性,越高越是值得满仓的真暴力币">'+(o.violence_score?fmt(o.violence_score,2):'—')+'</td>'+
         '<td>'+fundingAprCell+'</td>'+
         '<td>'+pctRate(o.high_funding_rate)+'</td>'+
         '<td>'+pctRate(o.low_funding_rate)+'</td>'+

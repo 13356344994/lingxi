@@ -816,6 +816,19 @@
             <tbody id="rotation-closed-tbody"><tr><td colspan="10" class="hint">加载中…</td></tr></tbody>
           </table>
         </div>
+        <h3 style="font-size:14px;color:#cbd5e1;margin:16px 0 8px;">错过机会复盘(被拒 / 推迟的开仓)</h3>
+        <p class="hint section-desc" style="font-size:11px;">每条 = 一次被选中却没开成的尝试,带拒绝分类 / 分层与反事实提示。数据来自 <code>/api/rotation/missed-opportunities</code>。</p>
+        <div class="hint" id="missed-opp-summary" style="font-size:11px;margin:4px 0;"></div>
+        <div class="table-wrap" style="overflow-x:auto;">
+          <table class="data-table" id="missed-opp-table">
+            <thead>
+              <tr>
+                <th>时间</th><th>交易对</th><th>高/低所</th><th>价差APR</th><th title="幅度×持续性,越高越是真暴力币">暴力度</th><th>预期资费</th><th title="归一拒绝分类">分类</th><th title="execution=执行事故风险; liquidity/cost/window/quality=下注质量(可调)">分层</th><th>反事实提示</th>
+              </tr>
+            </thead>
+            <tbody id="missed-opp-tbody"><tr><td colspan="9" class="hint">加载中…</td></tr></tbody>
+          </table>
+        </div>
       </div>
     </section>
 
@@ -4119,6 +4132,53 @@
       }
     }
 
+    async function refreshMissedOpportunities() {
+      const body = document.getElementById("missed-opp-tbody");
+      const summaryEl = document.getElementById("missed-opp-summary");
+      if (!body) return;
+      try {
+        const resp = await loadJSON("/api/rotation/missed-opportunities?limit=80");
+        const records = resp.records || [];
+        const layerColor = (layer) => layer === "execution" ? "#fca5a5" : (layer === "control" ? "#cbd5e1" : "#fcd34d");
+        const rows = records.map((m) => {
+          const ts = m.timestamp ? formatTimeUTC8(m.timestamp, { withSuffix: false }) : "-";
+          const venues = `${escapeHTML(m.high_venue || "-")}/${escapeHTML(m.low_venue || "-")}`;
+          const spreadApr = (Number(m.spread_apr || 0) * 100).toFixed(1) + "%";
+          const violence = Number(m.violence_score || 0) > 0 ? Number(m.violence_score).toFixed(2) : "—";
+          const benign = m.benign_timing ? ' <span class="hint" style="font-size:10px;">(良性推迟)</span>' : "";
+          return `
+          <tr>
+            <td style="font-size:11px;">${escapeHTML(ts)}</td>
+            <td>${escapeHTML(m.symbol || "-")}</td>
+            <td style="font-size:11px;">${venues}</td>
+            <td>${spreadApr}</td>
+            <td>${violence}</td>
+            <td>${Number(m.expected_funding_usdt || 0).toFixed(4)}</td>
+            <td style="font-size:11px;">${escapeHTML(m.reject_category || "-")}${benign}</td>
+            <td style="font-size:11px;color:${layerColor(m.blocking_layer)}">${escapeHTML(m.blocking_layer || "-")}</td>
+            <td class="hint" style="font-size:11px;max-width:320px;white-space:normal;" title="${escapeHTML(m.reject_reason || "")}">${escapeHTML(m.counterfactual || "-")}</td>
+          </tr>`;
+        }).join("");
+        body.innerHTML = rows || `<tr><td colspan="9" class="hint">暂无错过记录(说明最近被选中的开仓都成交了)</td></tr>`;
+        if (summaryEl) {
+          const byCat = resp.by_category || {};
+          const cats = Object.keys(byCat).sort((a, b) => byCat[b] - byCat[a]).map((k) => `${escapeHTML(k)}×${byCat[k]}`);
+          const agg = resp.aggregation || {};
+          const thr = Number(agg.high_violence_threshold || 0).toFixed(2);
+          const hv = Number(agg.high_violence_count || 0);
+          const hvCostLiq = Number(agg.high_violence_blocked_by_cost_liq || 0);
+          let html = records.length ? `近 ${resp.count} 条 · 按分类:${escapeHTML(cats.join(" / "))}` : "";
+          if (hv > 0) {
+            const warn = hvCostLiq > 0 ? `style="color:#fca5a5;"` : "";
+            html += ` · <span ${warn}>真暴力币漏单(violence≥${thr},非良性):${hv} 条,其中 cost/liquidity 挡掉 ${hvCostLiq} 条</span>`;
+          }
+          summaryEl.innerHTML = html;
+        }
+      } catch (err) {
+        body.innerHTML = `<tr><td colspan="9" class="hint" style="color:#fca5a5;">加载失败: ${escapeHTML(err.message)}</td></tr>`;
+      }
+    }
+
     // refreshVenueOverview:仅更新每所运行徽标 / 阶段 / 模式 / 启停按钮可用态,不触碰输入框。
     async function refreshEarnings() {
       const grid = document.getElementById("earnings-grid");
@@ -4402,7 +4462,7 @@
       }
     }
 
-    document.getElementById("refresh-btn")?.addEventListener("click", () => { refreshDashboard(); refreshVenueOverview(); refreshStrategyStatus(); refreshCrossVenuePanel(); refreshEarnings(); refreshRotationStatus(); refreshRotationPositions(); refreshCapitalSnapshot(); });
+    document.getElementById("refresh-btn")?.addEventListener("click", () => { refreshDashboard(); refreshVenueOverview(); refreshStrategyStatus(); refreshCrossVenuePanel(); refreshEarnings(); refreshRotationStatus(); refreshRotationPositions(); refreshMissedOpportunities(); refreshCapitalSnapshot(); });
     document.getElementById("start-all-btn")?.addEventListener("click", startAllVenues);
     document.getElementById("stop-all-btn")?.addEventListener("click", stopAllVenues);
     document.getElementById("save-risk-config-btn")?.addEventListener("click", saveRiskConfig);
@@ -4557,9 +4617,9 @@
       dashboardStarted = true;
       initCrossVenueValidationControls();
       // 先加载 venue 列表(填充 knownVenues),构建多所卡片(一次),再渲染主面板与状态。
-      loadVenues().then(() => { renderVenueTabs(); buildVenueOverview(); initRecordDownloads(); initRotationControl(); initStrategyControl(); refreshVenueOverview(); refreshStrategyStatus(); refreshCrossVenuePanel(); refreshEarnings(); refreshRotationStatus(); refreshRotationPositions(); refreshCapitalSnapshot(); });
+      loadVenues().then(() => { renderVenueTabs(); buildVenueOverview(); initRecordDownloads(); initRotationControl(); initStrategyControl(); refreshVenueOverview(); refreshStrategyStatus(); refreshCrossVenuePanel(); refreshEarnings(); refreshRotationStatus(); refreshRotationPositions(); refreshMissedOpportunities(); refreshCapitalSnapshot(); });
       refreshDashboard();
-      setInterval(() => { refreshDashboard(); refreshVenueOverview(); refreshStrategyStatus(); refreshCrossVenuePanel(); refreshEarnings(); refreshRotationPositions(); refreshCapitalSnapshot(); }, 5000);
+      setInterval(() => { refreshDashboard(); refreshVenueOverview(); refreshStrategyStatus(); refreshCrossVenuePanel(); refreshEarnings(); refreshRotationPositions(); refreshMissedOpportunities(); refreshCapitalSnapshot(); }, 5000);
       setInterval(() => { refreshRotationStatus(); }, 8000);
     }
 
