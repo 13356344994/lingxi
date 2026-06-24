@@ -682,6 +682,41 @@ func TestBuildCrossVenueSettlement_NoOverrideWhenNotHeldThrough(t *testing.T) {
 	}
 }
 
+// TestBuildCrossVenueSettlement_PartialOKXLegDiscreteEstimate 复刻 H/TAIKO 病理:
+// 目标腿在 okx/gate(FetchRealizedFunding 不支持)→ 该腿真实资费恒读 0,另一腿(bybit)有真实值。
+// 旧逻辑用连续累计 EstFundingUSDT(对超短跨结算单≈0)补缺腿,把整单误记为亏损。
+// 新逻辑:okx 缺腿用离散结算估算补齐(名义×费率×跨结算次数),bybit 真实腿保持原值。
+func TestBuildCrossVenueSettlement_PartialOKXLegDiscreteEstimate(t *testing.T) {
+	open := time.Date(2026, 6, 24, 15, 57, 0, 0, time.UTC)  // 结算前 3 分钟开
+	settle := time.Date(2026, 6, 24, 16, 0, 0, 0, time.UTC) // 16:00 结算
+	closeTime := time.Date(2026, 6, 24, 16, 1, 30, 0, time.UTC)
+	pos := CrossVenuePosition{
+		Symbol: "H-USDT", HighVenue: "okx", LowVenue: "bybit",
+		OpenedAt: open, NotionalUSDT: 85,
+		HighIntervalHours: 4, LowIntervalHours: 1,
+		HighNextFundingTime: settle, LowNextFundingTime: settle,
+		TargetFirstFundingTime: settle,
+		HighFundingRate:        0.0009, LowFundingRate: 0.0001,
+		HighLegFundingUSDT: 0, LowLegFundingUSDT: 0.04, // okx 读不到记 0;bybit 真实 0.04
+		EstFundingUSDT:          0.0014, // 连续累计(旧逻辑会用它,严重低估)
+		FundingTruthStatus:      "partial",
+		RealizedFundingComplete: false,
+	}
+	rec := buildCrossVenueSettlement(pos, closeTime)
+	// okx 离散估算 = 85 × 0.0009 × 1 = 0.0765;+ bybit 真实 0.04 = 0.1165。
+	want := 85*0.0009 + 0.04
+	if math.Abs(rec.RealizedFunding-want) > 1e-6 {
+		t.Fatalf("realized_funding=%v want %.6f (okx 缺腿离散补齐 + bybit 真实)", rec.RealizedFunding, want)
+	}
+	// 绝不退回旧的连续累计 0.0014(白付往返的根源)。
+	if math.Abs(rec.RealizedFunding-0.0014) < 1e-6 {
+		t.Fatalf("realized_funding=%v 退回了连续累计低估值", rec.RealizedFunding)
+	}
+	if rec.RealizedFundingComplete {
+		t.Fatal("partial 必须保持 complete=false")
+	}
+}
+
 func TestCrossVenueCloseForcesFlat(t *testing.T) {
 	force := []string{"强平距离不足,全平", "flatten_all", "紧急平仓", "emergency flatten", "liquidation risk"}
 	for _, r := range force {

@@ -134,12 +134,18 @@ func buildCrossVenueSettlement(pos CrossVenuePosition, closeTime time.Time) Cros
 		realizedFunding = pos.EstFundingUSDT
 		fundingStatus = "estimated"
 		realizedFundingComplete = false
-	case fundingStatus == "partial" && pos.EstFundingUSDT != 0:
-		// FIX(P1):partial = 一腿真实、另一腿真实资费拉取失败。原先直接用两腿之和,缺失腿恒为 0 →
-		// 少计资金费。改为给缺失腿补上其"整仓估算"份额(与 missing 全缺失分支同一 EstFundingUSDT 基准),
-		// 真实腿保持原值不重复计数(见 crossVenuePartialRealizedFunding 注释)。状态仍标 partial,
-		// RealizedFundingComplete=false 已表明非全真,下游可据此审计。
-		realizedFunding = crossVenuePartialRealizedFunding(pos)
+	case fundingStatus == "partial":
+		// FIX(P0):partial = 一腿真实、另一腿读不到(典型 okx/gate 的 FetchRealizedFunding 不支持)。
+		// 旧实现给缺失腿补"连续累计 EstFundingUSDT 份额",但对"结算前 3 分钟开、结算后 90 秒平"的超短捕获单,
+		// 连续累计≈0 → 目标腿(常在 okx/gate)收到的离散结算大头被记成 0 → 整单被误记为纯基差亏损(H/TAIKO 即此)。
+		// 改为对值为 0 的缺失腿用"离散结算估算"(名义 × 单次费率 × 跨结算次数)补齐,真实非零腿保持原值。
+		// 若离散估算亦为 0(未跨结算),回退连续累计份额,绝不重复计真实腿。状态仍标 partial / complete=false。
+		discrete := crossVenuePartialRealizedFundingDiscrete(pos, closeTime)
+		if math.Abs(discrete) > math.Abs(realizedFunding) {
+			realizedFunding = discrete
+		} else if pos.EstFundingUSDT != 0 {
+			realizedFunding = crossVenuePartialRealizedFunding(pos)
+		}
 		realizedFundingComplete = false
 	}
 
@@ -287,12 +293,20 @@ func crossVenueLegSettlementCount(open, closeTime, firstFunding time.Time, inter
 // 符号与 estimateFundingAccrual 一致:空高费腿 +rate、多低费腿 −rate(单次=折算一个完整结算周期)。
 // 用于真实资费缺失/延迟时兜底超短持有(连续累计的 EstFundingUSDT 对此会严重低估)。
 func crossVenueDiscreteFundingEstimate(pos CrossVenuePosition, closeTime time.Time) float64 {
+	high, low := crossVenueDiscreteFundingEstimateLegs(pos, closeTime)
+	return money.SumUSDT(high, low)
+}
+
+// crossVenueDiscreteFundingEstimateLegs 分腿返回离散结算资费估算:high = 空高费腿(+rate × 跨结算次数),
+// low = 多低费腿(−rate × 跨结算次数)。供 partial 时对"读不到真实资费的腿(okx/gate FetchRealizedFunding
+// 不支持)"按腿离散兜底,避免连续累计 EstFundingUSDT 对超短跨结算单严重低估。
+func crossVenueDiscreteFundingEstimateLegs(pos CrossVenuePosition, closeTime time.Time) (high, low float64) {
 	notional := pos.NotionalUSDT
 	if notional <= 0 {
 		notional = pos.HighLeg.Qty * pos.HighLeg.EntryPrice
 	}
 	if notional <= 0 {
-		return 0
+		return 0, 0
 	}
 	highFirst := pos.HighNextFundingTime
 	if highFirst.IsZero() {
@@ -304,9 +318,39 @@ func crossVenueDiscreteFundingEstimate(pos CrossVenuePosition, closeTime time.Ti
 	}
 	hCount := crossVenueLegSettlementCount(pos.OpenedAt, closeTime, highFirst, pos.HighIntervalHours)
 	lCount := crossVenueLegSettlementCount(pos.OpenedAt, closeTime, lowFirst, pos.LowIntervalHours)
-	high := notional * pos.HighFundingRate * float64(hCount)
-	low := -notional * pos.LowFundingRate * float64(lCount)
+	high = notional * pos.HighFundingRate * float64(hCount)
+	low = -notional * pos.LowFundingRate * float64(lCount)
+	return high, low
+}
+
+// crossVenuePartialRealizedFundingDiscrete partial(一腿真实、一腿读不到)时,对值为 0 的缺失腿用离散结算
+// 估算补齐(若该腿确实跨越了结算且费率非零),真实非零腿保持原值。相比旧的连续累计 EstFundingUSDT 份额,
+// 对"结算前 3 分钟开、结算后 90 秒平"的超短捕获单更准——典型如 high=okx/gate 的单,目标腿大头资费此前被记 0。
+func crossVenuePartialRealizedFundingDiscrete(pos CrossVenuePosition, closeTime time.Time) float64 {
+	hEst, lEst := crossVenueDiscreteFundingEstimateLegs(pos, closeTime)
+	high := pos.HighLegFundingUSDT
+	// 仅对"该所读不到真实资费(okx/gate)且当前记 0"的腿用离散估算补齐;
+	// 可读所(binance/bybit)或已有非零值的腿一律保持原样,绝不覆盖真实读数。
+	if high == 0 && !crossVenueVenueReadsRealizedFunding(pos.HighVenue) {
+		high = hEst
+	}
+	low := pos.LowLegFundingUSDT
+	if low == 0 && !crossVenueVenueReadsRealizedFunding(pos.LowVenue) {
+		low = lEst
+	}
 	return money.SumUSDT(high, low)
+}
+
+// crossVenueVenueReadsRealizedFunding 标识该所是否支持 FetchRealizedFunding(读真实结算流水)。
+// okx/gate 适配器当前返回 ErrUnsupported(见 internal/venue/{okx,gate}/pending.go),故其腿的真实资费
+// 永远读不到、只能离散估算兜底。新增/改造所支持后需同步此处。
+func crossVenueVenueReadsRealizedFunding(venueName string) bool {
+	switch strings.ToLower(strings.TrimSpace(venueName)) {
+	case "okx", "gate":
+		return false
+	default:
+		return true
+	}
 }
 
 func crossVenuePositionIsSwitchExit(pos CrossVenuePosition) bool {
