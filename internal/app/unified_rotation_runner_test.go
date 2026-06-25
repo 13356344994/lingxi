@@ -342,8 +342,9 @@ func TestUnifiedRotationRunner_SwitchFailedOpenUnfundableRecorded(t *testing.T) 
 	r.dispatchRotationPlan(context.Background(), plan,
 		map[string]UnifiedOpportunity{"open-new": newOpp}, unfundable)
 
-	if len(svsp.closes) != 1 {
-		t.Fatalf("close should succeed before unfundable skip, closes = %v", svsp.closes)
+	// FIX(两头落空):新仓不可备资时应在平旧之前拦截、保留旧仓(不再先平旧才发现开不出)。
+	if len(svsp.closes) != 0 {
+		t.Fatalf("新仓不可备资应平旧前拦截、保留旧仓,closes 应=0,实得 %v", svsp.closes)
 	}
 	if len(cvsp.opens) != 0 {
 		t.Fatalf("unfundable must skip open, opens = %+v", cvsp.opens)

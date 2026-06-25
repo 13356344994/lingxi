@@ -130,6 +130,9 @@ unified_rotation:
   capital_aware_perp_perp_sizing_enabled: true
   # 资金封顶安全垫:按 99% 可用反解名义,使所需保证金严格小于实时 perp 可用,避免 reserve/取整 drift 几分钱误拒。
   capital_sizing_safety_haircut: 0.99
+  # 换仓优势安全垫(USDT):新候选净优势须超过此值才换仓,而非略优即换——挡掉换仓真实往返 +
+  # "平旧失败/新仓开不出→两头落空" 执行风险 + 新候选单结算乐观 EV(BLEND 即此:换仓吃了资费却净亏 -0.355)。
+  switch_min_advantage_usdt: 0.10
 
 # 多所编排（§7 / §8）。2026-06-15 起生产形态【仅跨所 perp-perp】;下列单所配置保留供回滚/对照。
 venues:

@@ -220,6 +220,38 @@ func TestDecideRotationSwitchWhenNewOpportunityWins(t *testing.T) {
 	}
 }
 
+// TestDecideRotationSwitchAdvantageMargin 验证换仓优势安全垫:同一显著更优的候选,
+// margin 极大时 HOLD(优势不足以覆盖安全垫),margin=0 时 SWITCH——确认安全垫是决定因素,挡掉换仓 churn。
+func TestDecideRotationSwitchAdvantageMargin(t *testing.T) {
+	held := HeldPosition{
+		OpportunityID:          "held-btc",
+		StrategyType:           UnifiedStrategyPerpPerp,
+		Symbol:                 "BTC",
+		CapitalRequiredByVenue: map[string]float64{"binance": 50, "bybit": 50},
+	}
+	heldInputs := map[string]ContinuationInputs{
+		"held-btc": {ExpectedFundingUSDT: 4, ExpectedCloseCostUSDT: 2, HoldingRiskUSDT: 1},
+	}
+	newOpp := testRotationOpp("new-eth", UnifiedStrategySingleVenueSpotPerp, "ETH", 30, 100)
+	newOpp.ExpectedOpenCostUSDT = 1
+	funds := map[string]float64{"binance": 200, "bybit": 200}
+
+	// 安全垫极大:任何优势都不够 → HOLD。
+	cfg := DefaultRotationConfig()
+	cfg.SwitchMinAdvantageUSDT = 1000
+	plan := DecideRotation([]HeldPosition{held}, heldInputs, []UnifiedOpportunity{newOpp}, funds, cfg)
+	if len(plan.Actions) != 1 || plan.Actions[0].Kind != RotationActionHold {
+		t.Fatalf("安全垫极大应 HOLD,实得 %+v", plan.Actions)
+	}
+
+	// 安全垫=0:同样优势 → SWITCH(证明安全垫是决定因素)。
+	cfg.SwitchMinAdvantageUSDT = 0
+	plan2 := DecideRotation([]HeldPosition{held}, heldInputs, []UnifiedOpportunity{newOpp}, funds, cfg)
+	if len(plan2.Actions) != 1 || plan2.Actions[0].Kind != RotationActionSwitch {
+		t.Fatalf("安全垫=0 同样优势应 SWITCH,实得 %+v", plan2.Actions)
+	}
+}
+
 func TestDecideRotationCloseWhenContinuationNegative(t *testing.T) {
 	now := time.Date(2026, 6, 18, 12, 0, 0, 0, time.UTC)
 	held := HeldPosition{

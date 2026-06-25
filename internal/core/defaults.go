@@ -451,6 +451,7 @@ func DefaultEngineConfig() EngineConfig {
 			DelistStatusCacheTTL:                  time.Hour,
 			ContinuationCloseThreshold:            0.001,
 			ContinuationMinHoldSeconds:            3600,
+			SwitchMinAdvantageUSDT:                0.10,
 			MinHoldToFirstSettlementEnabled:       true,
 			MinHoldToFirstSettlementBufferSeconds: 60,
 			TotalDeployablePct:                    DefaultTotalDeployablePct,

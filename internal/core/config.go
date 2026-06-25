@@ -928,6 +928,9 @@ type UnifiedRotationConfig struct {
 	ContinuationCloseThreshold float64 `cfg:"continuation_close_threshold"`
 	// ContinuationMinHoldSeconds 开仓后至少持有此秒数才允许续持分触发的软 CLOSE;风险类平仓不受限。默认 3600。
 	ContinuationMinHoldSeconds int `cfg:"continuation_min_hold_seconds"`
+	// SwitchMinAdvantageUSDT 换仓优势安全垫(USDT):仅当新候选净优势(adjusted_open_net − continuation_net)
+	// 超过此值才换仓,而非略优即换;挡掉换仓真实往返 + "平旧失败/新仓开不出→两头落空" 的执行风险 + 单结算乐观 EV。默认 0.10。
+	SwitchMinAdvantageUSDT float64 `cfg:"switch_min_advantage_usdt"`
 	// MinHoldToFirstSettlementEnabled 开仓后须持有至首个 intended funding 结算(+缓冲)才允许软 CLOSE/SWITCH;硬风控不受限。默认 true。
 	MinHoldToFirstSettlementEnabled bool `cfg:"min_hold_to_first_settlement_enabled"`
 	// MinHoldToFirstSettlementBufferSeconds 首个 funding 结算后额外缓冲秒数。默认 60。

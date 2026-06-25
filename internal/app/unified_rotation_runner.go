@@ -1664,26 +1664,29 @@ func (r *UnifiedRotationRunner) dispatchRotationPlan(
 				}
 				continue
 			}
-			// 事务性换仓: 平旧失败则中止,禁止开新;平旧成功但开新失败须显式落盘(旧仓已平、新仓未开)。
-			if err := r.closeHeldVerified(ctx, act.StrategyType, act.OpportunityID, act.Symbol, act.Reason); err != nil {
-				r.recordRotationSwitchIncident(act, rotationSwitchAbortedCloseFailed, err.Error())
-				if r.logger != nil {
-					r.logger.Printf("[统一轮动] SWITCH 中止(平旧失败) %s symbol=%s: %v",
-						act.OpportunityID, act.Symbol, err)
-				}
-				continue
-			}
+			// FIX(两头落空):把"新仓能否备资 / 是否允许开"前移到平旧之前——平旧一旦启动,旧仓即进入 closing
+			// 必被后续轮次平完,无法回退;若平了才发现新仓备不了资/被 halt,就只剩旧仓已平、新仓没开的净亏(BLEND 即此)。
+			// 故先确认新仓可开,再动旧仓。
 			if _, skip := unfundable[act.ReplaceOpportunityID]; skip {
-				r.recordRotationSwitchIncident(act, rotationSwitchFailedOpen, "无法备资")
+				r.recordRotationSwitchIncident(act, rotationSwitchFailedOpen, "新仓无法备资(平旧前拦截,保留旧仓)")
 				if r.logger != nil {
-					r.logger.Printf("[统一轮动] SWITCH 开新失败(旧仓已平,无法备资) old=%s replace=%s symbol=%s",
+					r.logger.Printf("[统一轮动] SWITCH 中止(新仓无法备资,保留旧仓) old=%s replace=%s symbol=%s",
 						act.OpportunityID, act.ReplaceOpportunityID, act.Symbol)
 				}
 				continue
 			}
 			if !r.openLiveForStrategy(act.ReplaceStrategyType) {
 				if r.logger != nil {
-					r.logger.Printf("[统一轮动] SWITCH 开新跳过(控制面 halt/禁开) old=%s replace=%s", act.OpportunityID, act.ReplaceOpportunityID)
+					r.logger.Printf("[统一轮动] SWITCH 中止(控制面 halt/禁开,保留旧仓) old=%s replace=%s", act.OpportunityID, act.ReplaceOpportunityID)
+				}
+				continue
+			}
+			// 事务性换仓: 新仓已确认可备资可开,再平旧;平旧失败则中止(旧仓进入 closing 由后续轮次收尾)。
+			if err := r.closeHeldVerified(ctx, act.StrategyType, act.OpportunityID, act.Symbol, act.Reason); err != nil {
+				r.recordRotationSwitchIncident(act, rotationSwitchAbortedCloseFailed, err.Error())
+				if r.logger != nil {
+					r.logger.Printf("[统一轮动] SWITCH 中止(平旧失败) %s symbol=%s: %v",
+						act.OpportunityID, act.Symbol, err)
 				}
 				continue
 			}

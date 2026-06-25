@@ -49,6 +49,10 @@ type RotationConfig struct {
 	CapitalAwarePerpPerpSizingEnabled bool `json:"capital_aware_perp_perp_sizing_enabled"`
 	// CapitalSizingSafetyHaircut perp-perp 资金封顶安全垫(0,1];默认 0.99,避免 sizing 顶满可用后被执行闸几分钱拒单。
 	CapitalSizingSafetyHaircut float64 `json:"capital_sizing_safety_haircut"`
+	// SwitchMinAdvantageUSDT 换仓优势安全垫(USDT):仅当新候选的净优势(adjusted_open_net − continuation_net)
+	// 超过此值才换仓,而非略优即换。换仓需先平旧(一旦启动旧仓即进入 closing 必被平完)再开新,有真实往返 +
+	// "平旧失败/新仓开不出→两头落空"的执行风险;新候选 EV 又是单结算乐观值。故只在显著更优时才值得承担。默认 0.10;<0 取 0。
+	SwitchMinAdvantageUSDT float64 `json:"switch_min_advantage_usdt"`
 }
 
 // DefaultRotationConfig 返回 v1 保守默认轮动配置。
@@ -65,6 +69,7 @@ func DefaultRotationConfig() RotationConfig {
 		OpenFailCooldownSeconds:               900,
 		CapitalAwarePerpPerpSizingEnabled:     true,
 		CapitalSizingSafetyHaircut:            0.99,
+		SwitchMinAdvantageUSDT:                0.10,
 	}
 }
 
@@ -82,6 +87,9 @@ func RotationConfigFromUnified(ur core.UnifiedRotationConfig, exec CrossVenueExe
 	}
 	if ur.ContinuationMinHoldSeconds > 0 {
 		cfg.ContinuationMinHoldSeconds = ur.ContinuationMinHoldSeconds
+	}
+	if ur.SwitchMinAdvantageUSDT > 0 {
+		cfg.SwitchMinAdvantageUSDT = ur.SwitchMinAdvantageUSDT
 	}
 	cfg.MinHoldToFirstSettlementEnabled = DefaultRotationConfig().MinHoldToFirstSettlementEnabled
 	if ur != (core.UnifiedRotationConfig{}) {
@@ -169,6 +177,9 @@ func normalizeRotationConfig(cfg RotationConfig) RotationConfig {
 	}
 	if cfg.MinOpenNotionalUSDT <= 0 {
 		cfg.MinOpenNotionalUSDT = def.MinOpenNotionalUSDT
+	}
+	if cfg.SwitchMinAdvantageUSDT < 0 {
+		cfg.SwitchMinAdvantageUSDT = 0
 	}
 	if cfg.OpenFailCooldownSeconds <= 0 {
 		cfg.OpenFailCooldownSeconds = def.OpenFailCooldownSeconds
@@ -1001,15 +1012,21 @@ func decideRotationAt(
 		switchCost := rotationSwitchMarginalCostUSDT(inputs.ExpectedCloseCostUSDT, best)
 		contNet := continuationNetUSDT(inputs)
 		adjustedOpenScore := openScore - switchCost
+		// 换仓优势安全垫:仅当新候选显著更优(超过 SwitchMinAdvantageUSDT)才换;略优即换会被换仓真实往返 +
+		// "平旧失败/新仓开不出→两头落空"的执行风险 + 新候选单结算乐观 EV 吃掉(BLEND 即此)。
+		switchMargin := cfg.SwitchMinAdvantageUSDT
+		if switchMargin < 0 {
+			switchMargin = 0
+		}
 
-		if contNet >= adjustedOpenScore {
+		if contNet >= adjustedOpenScore-switchMargin {
 			plan.Actions = append(plan.Actions, RotationAction{
 				Kind:                   RotationActionHold,
 				OpportunityID:          pos.OpportunityID,
 				StrategyType:           pos.StrategyType,
 				Symbol:                 pos.Symbol,
 				Score:                  contScore,
-				Reason:                 fmt.Sprintf("hold continuation_net=%.4f >= adjusted_open_net=%.4f", contNet, adjustedOpenScore),
+				Reason:                 fmt.Sprintf("hold continuation_net=%.4f >= adjusted_open_net=%.4f − margin=%.4f", contNet, adjustedOpenScore, switchMargin),
 				ReplaceOpportunityID:   best.ID,
 				ReplaceStrategyType:    best.StrategyType,
 				ReplaceSymbol:          best.Symbol,
