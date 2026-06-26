@@ -9,7 +9,7 @@ func testDirectionalCfg() OKXDirectionalConfig {
 	return OKXDirectionalConfig{
 		EMAFast: 3, EMASlow: 8,
 		TrendEfficiencyThreshold: 0.30,
-		ZScoreEntry:              1.5,
+		ZScoreEntry:              1.2,
 		MinFundingAbsPerInterval: 0.0005,
 		RequireFundingAlignment:  true,
 		StopLossPct:              0.025,
@@ -46,8 +46,8 @@ func TestDirectionalSignalTrendFollow(t *testing.T) {
 
 func TestDirectionalSignalRangeRevert(t *testing.T) {
 	cfg := testDirectionalCfg()
-	// 震荡:围绕 100 大幅振荡(低效率比=震荡态),末根冲高 → z 分高 → 反转做空。资费正(做空允许)。
-	closes := []float64{100, 102, 98, 102, 98, 102, 98, 102, 98, 104}
+	// 震荡:围绕 100 大幅振荡(低效率比=震荡态),收盘抬高到高 z 但末根温和(非急拉,过防飞刀闸)→ 反转做空。资费正(做空允许)。
+	closes := []float64{98, 102, 98, 102, 98, 102, 98, 102, 104, 104.3}
 	s := computeDirectionalSignal(closes, 0.0008, cfg)
 	if s.Regime != RegimeRange {
 		t.Fatalf("应判为震荡态, got %s (reason=%s)", s.Regime, s.Reason)
@@ -103,6 +103,29 @@ func TestFundingPermits(t *testing.T) {
 	}
 	if permit, strong := fundingPermits(DirectionShort, 0.001, 0.0005); !permit || !strong {
 		t.Fatal("做空+正费率应允许且强对齐")
+	}
+}
+
+func TestDirectionalEntryGuard(t *testing.T) {
+	cfg := testDirectionalCfg()
+	cfg.SpikeBarPct = 0.03
+	cfg.TrendMaxExtensionPct = 0.02
+	cfg.VolExpansionMaxRatio = 1.8
+	cfg.ReversionKnifePct = 0.015
+	// 趋势态:最后一根 +5% 暴拉尖刺 → 做多被否(防追高/暴拉回调)。
+	spikeUp := []float64{100, 100.2, 100.4, 100.6, 100.8, 101, 106.05}
+	if ok, _ := directionalEntryGuard(spikeUp, DirectionLong, RegimeTrend, emaLast(spikeUp, cfg.EMAFast), cfg); ok {
+		t.Fatal("同向暴拉尖刺应否决趋势追多")
+	}
+	// 震荡态:最后一根急跌 -2% → 反转做多被否(防抄底接飞刀)。
+	knifeDown := []float64{100, 100.5, 99.8, 100.3, 99.9, 100.2, 98.2}
+	if ok, _ := directionalEntryGuard(knifeDown, DirectionLong, RegimeRange, emaLast(knifeDown, cfg.EMAFast), cfg); ok {
+		t.Fatal("仍急跌应否决抄底做多")
+	}
+	// 正常震荡反转:温和回踩,放行。
+	calm := []float64{100, 100.4, 99.8, 100.3, 99.9, 100.1, 100.05}
+	if ok, _ := directionalEntryGuard(calm, DirectionLong, RegimeRange, emaLast(calm, cfg.EMAFast), cfg); !ok {
+		t.Fatal("温和回踩应放行反转做多")
 	}
 }
 

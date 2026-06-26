@@ -723,6 +723,17 @@ type OKXDirectionalConfig struct {
 	CostFloorBps float64 `cfg:"cost_floor_bps"`
 	// SymbolCooldownMinutes 平仓后该币冷却分钟数。默认 30。
 	SymbolCooldownMinutes int `cfg:"symbol_cooldown_minutes"`
+	// --- 防陷阱入场质量闸(用户要求:不陷波动/单边/暴拉回调/抄底/追高/滚仓陷阱)---
+	// SpikeBarPct 最后一根K线同向涨跌幅 ≥ 此值视为"暴拉尖刺",趋势态不追(防暴拉回调/追高)。默认 0.03(3%)。
+	SpikeBarPct float64 `cfg:"spike_bar_pct"`
+	// TrendMaxExtensionPct 趋势态入场时价格相对快EMA的偏离上限;超过=过度延展,不追(防单边/追高)。默认 0.02(2%)。
+	TrendMaxExtensionPct float64 `cfg:"trend_max_extension_pct"`
+	// VolExpansionMaxRatio 震荡态:近窗波动/基线波动 > 此比值视为"区间在破/波动骤升",不做反转(防波动陷阱)。默认 1.8。
+	VolExpansionMaxRatio float64 `cfg:"vol_expansion_max_ratio"`
+	// ReversionKnifePct 震荡反转时,极值仍以 ≥ 此速率延续(急跌/急拉)则不接(防抄底接飞刀/追空顶)。默认 0.015(1.5%)。
+	ReversionKnifePct float64 `cfg:"reversion_knife_pct"`
+	// LossCooldownMultiplier 止损平仓后该币冷却时间 = SymbolCooldownMinutes × 此倍数(防滚仓/亏损币快速复入)。默认 3。
+	LossCooldownMultiplier float64 `cfg:"loss_cooldown_multiplier"`
 }
 
 // CrossVenueExecutorConfig 是跨所资金费对冲执行引擎的可调参数。

@@ -486,6 +486,11 @@ func DefaultEngineConfig() EngineConfig {
 			DailyLossLimitUSDT:          0, // 不设日熔断(用户要求)
 			CostFloorBps:                60,
 			SymbolCooldownMinutes:       30,
+			SpikeBarPct:                 0.03,
+			TrendMaxExtensionPct:        0.02,
+			VolExpansionMaxRatio:        1.8,
+			ReversionKnifePct:           0.015,
+			LossCooldownMultiplier:      3,
 		},
 		FundingExecutor: VenueFundingExecutorConfig{
 			LiveTradingEnabled:     false,

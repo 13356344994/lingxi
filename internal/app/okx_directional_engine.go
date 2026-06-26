@@ -40,6 +40,9 @@ type okxDirectionalPosition struct {
 	OpenedAt      time.Time `json:"opened_at"`
 	Regime        string    `json:"regime"`
 	FundingAtOpen float64   `json:"funding_at_open"`
+	// 管理循环每轮回填:最新中价 + 本金口径浮盈%(供面板实时显示)。
+	LastMid                  float64 `json:"last_mid,omitempty"`
+	LastUnrealizedAccountPct float64 `json:"last_unrealized_account_pct,omitempty"`
 }
 
 func (p *okxDirectionalPosition) directionSide() DirectionSide {
@@ -101,13 +104,15 @@ type OKXDirectionalStatus struct {
 
 // OKXDirectionalPositionView 单仓只读视图(面板多仓表)。
 type OKXDirectionalPositionView struct {
-	Symbol       string    `json:"symbol"`
-	Side         string    `json:"side"`
-	EntryPrice   float64   `json:"entry_price"`
-	Qty          float64   `json:"qty"`
-	NotionalUSDT float64   `json:"notional_usdt"`
-	Regime       string    `json:"regime"`
-	OpenedAt     time.Time `json:"opened_at"`
+	Symbol               string    `json:"symbol"`
+	Side                 string    `json:"side"`
+	EntryPrice           float64   `json:"entry_price"`
+	Qty                  float64   `json:"qty"`
+	NotionalUSDT         float64   `json:"notional_usdt"`
+	Regime               string    `json:"regime"`
+	OpenedAt             time.Time `json:"opened_at"`
+	LastMid              float64   `json:"last_mid"`
+	UnrealizedAccountPct float64   `json:"unrealized_account_pct"` // 本金口径浮盈%(已×杠杆)
 }
 
 // OKXDirectionalEngine OKX 方向引擎(独立于 carry)。
@@ -346,6 +351,7 @@ func (e *OKXDirectionalEngine) OKXDirectionalStatus() OKXDirectionalStatus {
 		st.Positions = append(st.Positions, OKXDirectionalPositionView{
 			Symbol: p.Symbol, Side: p.Side, EntryPrice: p.EntryPrice, Qty: p.Qty,
 			NotionalUSDT: p.NotionalUSDT, Regime: p.Regime, OpenedAt: p.OpenedAt,
+			LastMid: p.LastMid, UnrealizedAccountPct: p.LastUnrealizedAccountPct,
 		})
 		if first {
 			st.HoldingSymbol = p.Symbol
@@ -663,6 +669,13 @@ func (e *OKXDirectionalEngine) manageOne(ctx context.Context, pos *okxDirectiona
 	uPnLNotional := directionalUPnLPct(side, pos.EntryPrice, mid) // 价格移动口径(占名义)
 	lev := float64(e.leverage())
 	uPnLAccount := uPnLNotional * lev // 交易仓本金口径:止损/止盈按本金 %(5X 下 ×5)
+	// 回填实时浮盈到持仓(供面板显示)。
+	e.mu.Lock()
+	if p, ok := e.positions[pos.Symbol]; ok {
+		p.LastMid = mid
+		p.LastUnrealizedAccountPct = uPnLAccount
+	}
+	e.mu.Unlock()
 	holdMin := int(e.nowFn().UTC().Sub(pos.OpenedAt).Minutes())
 	if holdMin < 0 {
 		holdMin = 0
@@ -750,13 +763,21 @@ func (e *OKXDirectionalEngine) closePosition(ctx context.Context, pos *okxDirect
 	if err := appendJSONLRecord(e.settlementsPath, settle); err != nil {
 		e.logger.Printf("[OKX方向] 结算落盘失败: %v", err)
 	}
-	coolMin := e.cfg.SymbolCooldownMinutes
+	coolMin := float64(e.cfg.SymbolCooldownMinutes)
 	if coolMin <= 0 {
 		coolMin = 30
 	}
+	// 防滚仓/亏损币快速复入:止损平仓后该币冷却拉长(LossCooldownMultiplier 倍)。
+	if strings.Contains(reason, "止损") || realized < 0 {
+		mult := e.cfg.LossCooldownMultiplier
+		if mult < 1 {
+			mult = 1
+		}
+		coolMin *= mult
+	}
 	e.mu.Lock()
 	e.dailyRealizedUSDT += realized
-	e.cooldownUntil[pos.Symbol] = e.nowFn().UTC().Add(time.Duration(coolMin) * time.Minute)
+	e.cooldownUntil[pos.Symbol] = e.nowFn().UTC().Add(time.Duration(coolMin * float64(time.Minute)))
 	delete(e.positions, pos.Symbol)
 	e.mu.Unlock()
 	e.persistPositions()

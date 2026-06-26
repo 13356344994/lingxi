@@ -199,6 +199,12 @@ func computeDirectionalSignal(closes []float64, fundingRate float64, cfg OKXDire
 		return out
 	}
 
+	// 防陷阱入场质量闸:波动/单边/暴拉回调/抄底/追高。
+	if ok, reason := directionalEntryGuard(closes, base, out.Regime, emaLast(closes, cfg.EMAFast), cfg); !ok {
+		out.Reason = reason
+		return out
+	}
+
 	// 资费对齐闸。用独立的"强逆否决阈值"(而非选币阈值),否则会把刚过选币线的币(如 +0.0538%)在对齐方向上误杀。
 	if cfg.RequireFundingAlignment {
 		vetoAbs := cfg.FundingVetoAbsPerInterval
@@ -246,6 +252,75 @@ func directionalShouldClose(uPnLPct float64, holdMin int, side DirectionSide, fr
 		return true, "信号反转"
 	}
 	return false, ""
+}
+
+// directionalEntryGuard 防陷阱入场闸:返回 (是否放行, 否决理由)。
+//
+//	趋势态:① 同向暴拉尖刺不追(暴拉回调/追高)② 离快EMA过度延展不追(单边/追高)。
+//	震荡态:① 近窗波动相对基线骤升=区间在破,不反转(波动陷阱)② 极值仍急速延续不接(抄底接飞刀/追空顶)。
+func directionalEntryGuard(closes []float64, base DirectionSide, regime DirectionRegime, emaFast float64, cfg OKXDirectionalConfig) (bool, string) {
+	n := len(closes)
+	if n < 6 {
+		return true, ""
+	}
+	last, prev := closes[n-1], closes[n-2]
+	lastRet := 0.0
+	if prev > 0 {
+		lastRet = (last - prev) / prev
+	}
+	spike := cfg.SpikeBarPct
+	if spike <= 0 {
+		spike = 0.03
+	}
+	extMax := cfg.TrendMaxExtensionPct
+	if extMax <= 0 {
+		extMax = 0.02
+	}
+	volExpMax := cfg.VolExpansionMaxRatio
+	if volExpMax <= 0 {
+		volExpMax = 1.8
+	}
+	knife := cfg.ReversionKnifePct
+	if knife <= 0 {
+		knife = 0.015
+	}
+
+	if regime == RegimeTrend {
+		// 暴拉尖刺:最后一根同向暴动,大概率紧接回调,别追。
+		if math.Abs(lastRet) >= spike && ((base == DirectionLong && lastRet > 0) || (base == DirectionShort && lastRet < 0)) {
+			return false, fmt.Sprintf("暴拉尖刺不追(lastRet=%.2f%%≥%.2f%%)", lastRet*100, spike*100)
+		}
+		// 过度延展:价格离快EMA过远,追高/杀跌风险大,等回踩。
+		if emaFast > 0 {
+			ext := (last - emaFast) / emaFast
+			if (base == DirectionLong && ext > extMax) || (base == DirectionShort && ext < -extMax) {
+				return false, fmt.Sprintf("离快EMA过远不追(ext=%.2f%%)", ext*100)
+			}
+		}
+		return true, ""
+	}
+
+	// 震荡态反转。
+	rets := pctReturns(closes)
+	if len(rets) >= 6 {
+		_, baseVol := meanStd(rets)
+		k := 8
+		if k > len(rets) {
+			k = len(rets)
+		}
+		_, recentVol := meanStd(rets[len(rets)-k:])
+		if baseVol > 0 && recentVol/baseVol > volExpMax {
+			return false, fmt.Sprintf("波动骤升区间在破,不反转(vol×%.2f)", recentVol/baseVol)
+		}
+	}
+	// 飞刀/急拉:极值仍以高速延续,别接。
+	if base == DirectionLong && lastRet <= -knife {
+		return false, fmt.Sprintf("仍急跌不抄底(lastRet=%.2f%%)", lastRet*100)
+	}
+	if base == DirectionShort && lastRet >= knife {
+		return false, fmt.Sprintf("仍急拉不追空顶(lastRet=%.2f%%)", lastRet*100)
+	}
+	return true, ""
 }
 
 // formatRatePct 把单次费率格式化成百分比字符串(供日志)。
