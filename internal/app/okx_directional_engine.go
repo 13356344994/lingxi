@@ -40,9 +40,10 @@ type okxDirectionalPosition struct {
 	OpenedAt      time.Time `json:"opened_at"`
 	Regime        string    `json:"regime"`
 	FundingAtOpen float64   `json:"funding_at_open"`
-	// 管理循环每轮回填:最新中价 + 本金口径浮盈%(供面板实时显示)。
+	// 管理循环每轮回填:最新中价 + 本金口径浮盈% + 浮盈USDT(供面板实时显示)。
 	LastMid                  float64 `json:"last_mid,omitempty"`
 	LastUnrealizedAccountPct float64 `json:"last_unrealized_account_pct,omitempty"`
+	LastUnrealizedUSDT       float64 `json:"last_unrealized_usdt,omitempty"`
 	// 高阶仓位管理状态。
 	InitialNotionalUSDT float64 `json:"initial_notional_usdt,omitempty"`  // 首次开仓名义(补仓上限/部分平仓基准)
 	PeakAccountPct      float64 `json:"peak_account_pct,omitempty"`       // 本金口径浮盈高水位(移动止损用)
@@ -107,6 +108,11 @@ type OKXDirectionalStatus struct {
 	OpenCount           int                          // 当前持仓数
 	MaxConcurrent       int                          // 最大并发
 	Positions           []OKXDirectionalPositionView // 多币持仓明细
+	// 收益(以交易仓本金 M 为基数)。
+	TotalUnrealizedUSDT float64 // 在场持仓合计浮盈
+	TotalPnLTodayUSDT   float64 // 当日已实现 + 当前浮盈
+	PnLPctOfCapital     float64 // TotalPnLTodayUSDT / 交易仓本金
+	DeployedMarginUSDT  float64 // 已部署保证金合计
 }
 
 // OKXDirectionalPositionView 单仓只读视图(面板多仓表)。
@@ -120,6 +126,7 @@ type OKXDirectionalPositionView struct {
 	OpenedAt             time.Time `json:"opened_at"`
 	LastMid              float64   `json:"last_mid"`
 	UnrealizedAccountPct float64   `json:"unrealized_account_pct"` // 本金口径浮盈%(已×杠杆)
+	UnrealizedUSDT       float64   `json:"unrealized_usdt"`        // 浮盈(USDT)
 }
 
 // OKXDirectionalEngine OKX 方向引擎(独立于 carry)。
@@ -144,6 +151,7 @@ type OKXDirectionalEngine struct {
 	settlementsPath   string
 	controlPath       string
 	control           okxDirectionalControl
+	lastProvisionAt   time.Time
 }
 
 // okxDirectionalControl 页面可控运行态(records/okx_directional/control.json):
@@ -239,9 +247,60 @@ func (e *OKXDirectionalEngine) runOnce(ctx context.Context) {
 	e.manageAll(ctx)
 	// 开新仓须页面"开始"(control.Active);日熔断按用户要求默认关闭(DailyLossLimitUSDT=0 → 永不熔断)。
 	ctrl := e.getControl()
-	if ctrl.Active && !directionalDailyLossHalted(e.dailyRealizedUSDT, e.cfg.DailyLossLimitUSDT) && e.concurrencyAllows() {
-		e.openFromShortlist(ctx)
+	if ctrl.Active {
+		// 空仓时把 OKX 统一交易账户可动用 USDT 调到交易仓本金 M(多退少补),使"设多少=账户多少"。
+		e.provisionCapitalIfFlat(ctx)
+		if !directionalDailyLossHalted(e.dailyRealizedUSDT, e.cfg.DailyLossLimitUSDT) && e.concurrencyAllows() {
+			e.openFromShortlist(ctx)
+		}
 	}
+}
+
+// provisionCapitalIfFlat 空仓时把统一交易账户可动用 USDT 调到交易仓本金 M(超出移到资金账户,不足从资金账户补)。
+// 仅空仓时执行:此时可用=账户权益,不会与持仓占用保证金口径冲突;节流 5min。
+func (e *OKXDirectionalEngine) provisionCapitalIfFlat(ctx context.Context) {
+	e.mu.RLock()
+	flat := len(e.positions) == 0
+	last := e.lastProvisionAt
+	e.mu.RUnlock()
+	if !flat {
+		return
+	}
+	if !last.IsZero() && e.nowFn().UTC().Sub(last) < 5*time.Minute {
+		return
+	}
+	m := e.getControl().TradingCapitalUSDT
+	if m <= 0 {
+		return
+	}
+	snaps, _, err := e.okxA.CaptureMovableSnapshot(ctx)
+	if err != nil {
+		e.logger.Printf("[OKX方向][资金] 读取账户快照失败: %v", err)
+		return
+	}
+	var tradingAvail float64
+	for _, s := range snaps {
+		if s.Wallet == okx.WalletTrading {
+			tradingAvail = s.FreeUSDT
+		}
+	}
+	e.mu.Lock()
+	e.lastProvisionAt = e.nowFn().UTC()
+	e.mu.Unlock()
+	if math.Abs(tradingAvail-m) <= 2.0 {
+		return // 已接近 M,不折腾
+	}
+	if !e.cfg.LiveTradingEnabled {
+		e.logger.Printf("[OKX方向][资金][OFF] 拟把交易账户可用 %.2f 调到 %.2f", tradingAvail, m)
+		return
+	}
+	plan := e.okxA.PlanAllocation(m, e.okxV.Capabilities())
+	trs, rerr := e.okxA.ExecuteRebalance(ctx, plan)
+	if rerr != nil {
+		e.logger.Printf("[OKX方向][资金] 调账户到 %.2f 失败: %v", m, rerr)
+		return
+	}
+	e.logger.Printf("[OKX方向][资金] 已把统一交易账户可用调到≈%.2f(原%.2f)划转%d笔", m, tradingAvail, len(trs))
 }
 
 // maybeRebuildUniverse 到点(或 shortlist 空)就全场扫描重算 shortlist。失败保留旧 shortlist。
@@ -376,7 +435,12 @@ func (e *OKXDirectionalEngine) OKXDirectionalStatus() OKXDirectionalStatus {
 			Symbol: p.Symbol, Side: p.Side, EntryPrice: p.EntryPrice, Qty: p.Qty,
 			NotionalUSDT: p.NotionalUSDT, Regime: p.Regime, OpenedAt: p.OpenedAt,
 			LastMid: p.LastMid, UnrealizedAccountPct: p.LastUnrealizedAccountPct,
+			UnrealizedUSDT: p.LastUnrealizedUSDT,
 		})
+		st.TotalUnrealizedUSDT += p.LastUnrealizedUSDT
+		if lev := float64(e.leverage()); lev > 0 {
+			st.DeployedMarginUSDT += p.NotionalUSDT / lev
+		}
 		if first {
 			st.HoldingSymbol = p.Symbol
 			st.Side = p.Side
@@ -386,6 +450,11 @@ func (e *OKXDirectionalEngine) OKXDirectionalStatus() OKXDirectionalStatus {
 			st.OpenedAt = p.OpenedAt
 			first = false
 		}
+	}
+	// 收益(以交易仓本金 M 为基数):当日已实现 + 当前浮盈,及其占 M 的比例。
+	st.TotalPnLTodayUSDT = e.dailyRealizedUSDT + st.TotalUnrealizedUSDT
+	if capUSDT > 0 {
+		st.PnLPctOfCapital = st.TotalPnLTodayUSDT / capUSDT
 	}
 	return st
 }
@@ -705,6 +774,7 @@ func (e *OKXDirectionalEngine) manageOne(ctx context.Context, pos *okxDirectiona
 	if p, ok := e.positions[pos.Symbol]; ok {
 		p.LastMid = mid
 		p.LastUnrealizedAccountPct = uPnLAccount
+		p.LastUnrealizedUSDT = uPnLNotional * p.NotionalUSDT // 实时浮盈(USDT)
 	}
 	e.mu.Unlock()
 	holdMin := int(e.nowFn().UTC().Sub(pos.OpenedAt).Minutes())

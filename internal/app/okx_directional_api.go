@@ -22,6 +22,10 @@ type OKXDirectionalAPIResponse struct {
 	OpenCount           int                          `json:"open_count"`
 	MaxConcurrent       int                          `json:"max_concurrent"`
 	Positions           []OKXDirectionalPositionView `json:"positions,omitempty"`
+	TotalUnrealizedUSDT float64                      `json:"total_unrealized_usdt"`
+	TotalPnLTodayUSDT   float64                      `json:"total_pnl_today_usdt"`
+	PnLPctOfCapital     float64                      `json:"pnl_pct_of_capital"`
+	DeployedMarginUSDT  float64                      `json:"deployed_margin_usdt"`
 	HoldingSymbol       string                       `json:"holding_symbol,omitempty"`
 	Side                string                       `json:"side,omitempty"`
 	EntryPrice          float64                      `json:"entry_price,omitempty"`
@@ -52,6 +56,10 @@ func (s *DashboardServer) okxDirectionalStatusOrEmpty() OKXDirectionalAPIRespons
 		OpenCount:           st.OpenCount,
 		MaxConcurrent:       st.MaxConcurrent,
 		Positions:           st.Positions,
+		TotalUnrealizedUSDT: st.TotalUnrealizedUSDT,
+		TotalPnLTodayUSDT:   st.TotalPnLTodayUSDT,
+		PnLPctOfCapital:     st.PnLPctOfCapital,
+		DeployedMarginUSDT:  st.DeployedMarginUSDT,
 		HoldingSymbol:       st.HoldingSymbol,
 		Side:                st.Side,
 		EntryPrice:          st.EntryPrice,
