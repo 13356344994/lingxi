@@ -369,6 +369,27 @@
     .section-desc {
       margin: 0;
     }
+    .strategy-zone {
+      margin-bottom: 28px;
+      padding: 18px 18px 8px;
+      border: 1px solid #334155;
+      border-radius: 16px;
+      background: #0c1222;
+    }
+    .strategy-banner {
+      margin: 0 0 18px 0;
+      padding: 12px 16px;
+      border-radius: 10px;
+      font-size: 1.15rem;
+      font-weight: 600;
+      color: #f8fafc;
+      background: linear-gradient(90deg, #1e3a5f 0%, #1e293b 100%);
+      border-left: 4px solid #3b82f6;
+    }
+    .strategy-zone-okx .strategy-banner {
+      border-left-color: #f59e0b;
+      background: linear-gradient(90deg, #3d2a14 0%, #1e293b 100%);
+    }
     .section-overview .earnings-hero {
       background: linear-gradient(135deg, #0f1a33 0%, #111827 55%, #0b1220 100%);
       border: 1px solid #334155;
@@ -782,121 +803,15 @@
       </div>
     </section>
 
-    <!-- 1b. 轮动持仓区 -->
-    <section class="section section-rotation-positions" aria-label="轮动持仓">
-      <div class="section-head">
-        <h2 class="section-title">轮动与 perp-perp 持仓</h2>
-        <p class="hint section-desc">五策略统一轮动(SVSP/CVSP/SVPS/CVPS)与 perp-perp(PP)当前持仓与历史结算,数据来自 <code>/api/rotation/positions</code> 与 <code>/api/rotation/settlements</code>。</p>
-        <div class="hint" id="rotation-positions-generated-at" style="font-size:11px;margin-top:4px;"></div>
-      </div>
-      <div class="panel-inner">
-        <h3 style="font-size:14px;color:#cbd5e1;margin:0 0 8px;">当前持仓 (OPEN)</h3>
-        <div class="table-wrap" style="overflow-x:auto;margin-bottom:16px;">
-          <table class="data-table" id="rotation-open-table">
-            <thead>
-              <tr>
-                <th>交易对</th><th title="carry: 同所/跨所 现货-永续 或 永续-现货; PP: 跨所永续-永续">策略</th><th>状态</th>
-                <th title="carry 为现货腿; PP 为高费永续腿">高费腿</th><th title="carry 为永续腿; PP 为低费永续腿">低费腿</th>
-                <th>名义(U)</th><th title="PP: 已结算资费与预期下次资费分列; 总盈亏仅含已结算资费">资费</th><th>手续费(开+预计平)</th><th title="含未实现腿盈亏与已结算资费; 不含预期下次资费">总盈亏(U)</th><th>盈亏比例</th><th title="开仓那一刻预估的净EV快照,持有期不刷新,仅供回看开仓依据,非当前实时EV">预期净EV(开仓时)</th><th>持有时长</th>
-              </tr>
-            </thead>
-            <tbody id="rotation-open-tbody"><tr><td colspan="12" class="hint">加载中…</td></tr></tbody>
-          </table>
-        </div>
-        <h3 style="font-size:14px;color:#cbd5e1;margin:0 0 8px;">历史 / 已平仓 (开→平→换)</h3>
-        <div class="table-wrap" style="overflow-x:auto;">
-          <table class="data-table" id="rotation-closed-table">
-            <thead>
-              <tr>
-                <th>交易对</th><th>策略</th><th>所</th><th>开→平</th><th>已实现净利</th><th>盈亏比例</th><th>资费</th><th>开+平费</th><th>原因</th><th>持有时长</th>
-              </tr>
-            </thead>
-            <tbody id="rotation-closed-tbody"><tr><td colspan="10" class="hint">加载中…</td></tr></tbody>
-          </table>
-        </div>
-        <h3 style="font-size:14px;color:#cbd5e1;margin:16px 0 8px;">错过机会复盘(被拒 / 推迟的开仓)</h3>
-        <p class="hint section-desc" style="font-size:11px;">每条 = 一次被选中却没开成的尝试,带拒绝分类 / 分层与反事实提示。数据来自 <code>/api/rotation/missed-opportunities</code>。</p>
-        <div class="hint" id="missed-opp-summary" style="font-size:11px;margin:4px 0;"></div>
-        <div class="table-wrap" style="overflow-x:auto;">
-          <table class="data-table" id="missed-opp-table">
-            <thead>
-              <tr>
-                <th>时间</th><th>交易对</th><th>高/低所</th><th>价差APR</th><th title="幅度×持续性,越高越是真暴力币">暴力度</th><th>预期资费</th><th title="归一拒绝分类">分类</th><th title="execution=执行事故风险; liquidity/cost/window/quality=下注质量(可调)">分层</th><th>反事实提示</th>
-              </tr>
-            </thead>
-            <tbody id="missed-opp-tbody"><tr><td colspan="9" class="hint">加载中…</td></tr></tbody>
-          </table>
-        </div>
-      </div>
-    </section>
-
-    <details class="fold-panel" id="okx-directional-fold">
-      <summary>OKX 方向引擎(独立) <span class="hint fold-summary-meta" id="okx-dir-summary-meta"></span></summary>
-      <div class="fold-body panel-inner">
-        <p class="hint section-desc">独立于 carry 的 OKX 方向引擎。固定 5X;你只设「交易仓本金」与「止损%(本金基准)」,点开始即真金双向交易。数据/控制:<code>/api/okx-directional</code>。</p>
-        <div class="hint" id="okx-dir-generated-at" style="font-size:11px;margin-bottom:8px;"></div>
-        <div class="ops-group" style="margin-bottom:12px;">
-          <div class="ops-group-label">交易控制(5X 固定)</div>
-          <div class="form-grid" style="margin-bottom:10px;">
-            <div>
-              <label for="okx-dir-capital-input">交易仓本金 (USDT)</label>
-              <input id="okx-dir-capital-input" type="number" min="1" step="1" placeholder="30" style="width:100%;box-sizing:border-box;padding:8px 10px;border-radius:8px;border:1px solid #2c3b59;background:#0b1220;color:#e5edff;">
-            </div>
-            <div>
-              <label for="okx-dir-stop-input">止损 %(交易仓本金基准)</label>
-              <input id="okx-dir-stop-input" type="number" min="1" max="95" step="1" placeholder="50" style="width:100%;box-sizing:border-box;padding:8px 10px;border-radius:8px;border:1px solid #2c3b59;background:#0b1220;color:#e5edff;">
-            </div>
-          </div>
-          <div class="risk-actions">
-            <button id="okx-dir-start-btn" type="button">▶ 开始(实盘 5X)</button>
-            <button id="okx-dir-stop-btn" type="button" class="danger">■ 停止开新仓</button>
-            <button id="okx-dir-apply-btn" type="button" class="secondary">仅保存本金/止损</button>
-          </div>
-          <div class="hint" id="okx-dir-control-msg" style="margin-top:8px;font-size:12px;"></div>
-          <div class="hint" style="margin-top:4px;font-size:11px;color:#64748b;">名义 = 本金 × 5;止损按本金 %(50% 本金≈10% 价格)。停止仅不开新仓,已有持仓仍按止损/止盈/信号看护。</div>
-        </div>
-        <div class="status-grid stats">
-          <div class="stat-card"><div class="stat-label">运行</div><div class="stat-value" id="okx-dir-active" style="font-size:16px">-</div></div>
-          <div class="stat-card"><div class="stat-label">交易仓本金(U)</div><div class="stat-value" id="okx-dir-capital" style="font-size:16px">-</div></div>
-          <div class="stat-card"><div class="stat-label">止损%</div><div class="stat-value" id="okx-dir-stop" style="font-size:16px">-</div></div>
-          <div class="stat-card"><div class="stat-label">杠杆</div><div class="stat-value" id="okx-dir-lev" style="font-size:16px">-</div></div>
-          <div class="stat-card"><div class="stat-label">启用</div><div class="stat-value" id="okx-dir-enabled" style="font-size:16px">-</div></div>
-          <div class="stat-card"><div class="stat-label">实盘闸</div><div class="stat-value" id="okx-dir-live" style="font-size:16px">-</div></div>
-        </div>
-        <h3 style="font-size:14px;color:#cbd5e1;margin:12px 0 8px;">当前持仓</h3>
-        <div class="status-grid stats">
-          <div class="stat-card"><div class="stat-label">币对</div><div class="stat-value" id="okx-dir-symbol" style="font-size:16px">-</div></div>
-          <div class="stat-card"><div class="stat-label">方向</div><div class="stat-value" id="okx-dir-side" style="font-size:16px">-</div></div>
-          <div class="stat-card"><div class="stat-label">开仓价</div><div class="stat-value" id="okx-dir-entry" style="font-size:16px">-</div></div>
-          <div class="stat-card"><div class="stat-label">名义(U)</div><div class="stat-value" id="okx-dir-notional" style="font-size:16px">-</div></div>
-          <div class="stat-card"><div class="stat-label">未实现%</div><div class="stat-value" id="okx-dir-unrealized" style="font-size:16px">-</div></div>
-          <div class="stat-card"><div class="stat-label">持有</div><div class="stat-value" id="okx-dir-hold" style="font-size:14px">-</div></div>
-        </div>
-        <h3 style="font-size:14px;color:#cbd5e1;margin:12px 0 8px;">当日风控</h3>
-        <div class="status-grid stats">
-          <div class="stat-card"><div class="stat-label">已实现(U)</div><div class="stat-value" id="okx-dir-daily-realized" style="font-size:16px">-</div></div>
-          <div class="stat-card"><div class="stat-label">日亏熔断线(U)</div><div class="stat-value" id="okx-dir-daily-limit" style="font-size:16px">-</div></div>
-        </div>
-        <div class="hint" id="okx-dir-last-error" style="margin-top:8px;font-size:12px;color:#fca5a5;"></div>
-        <h3 style="font-size:14px;color:#cbd5e1;margin:16px 0 8px;">最近平仓</h3>
-        <div class="table-wrap" style="overflow-x:auto;">
-          <table class="data-table" id="okx-dir-recent-table">
-            <thead>
-              <tr>
-                <th>时间</th><th>币对</th><th>方向</th><th>开→平</th><th>名义(U)</th><th>已实现(U)</th><th>持有</th><th>原因</th>
-              </tr>
-            </thead>
-            <tbody id="okx-dir-recent-tbody"><tr><td colspan="8" class="hint">加载中…</td></tr></tbody>
-          </table>
-        </div>
-      </div>
-    </details>
+    <!-- 策略一 · 资金费轮动 -->
+    <div class="strategy-zone strategy-zone-carry" aria-label="策略一">
+      <h2 class="strategy-banner">策略一 · 资金费轮动(Carry,binance/bybit/gate)</h2>
 
     <!-- 2. 操作区 -->
     <section class="section section-operations panel" aria-label="操作">
       <div class="section-head">
-        <h2 class="section-title" id="venue-overview-title">操作</h2>
-        <p class="hint section-desc">以五策略统一轮动为主入口；调仓与紧急平仓常驻上方。旧 perp-perp / 批量 / 按所控制收在「高级」折叠区。</p>
+        <h2 class="section-title" id="venue-overview-title">Carry 操作</h2>
+        <p class="hint section-desc">五策略轮动启停、一键编排、调仓与紧急平仓。</p>
       </div>
 
       <div id="rotation-main-card" class="rotation-hero-card">
@@ -943,6 +858,19 @@
         <div id="rotation-last-error" class="rotation-error-line" style="display:none;"></div>
       </div>
 
+      <div id="strategy-control-panel" class="sub-panel" style="display:none;">
+        <div class="ops-group-label">策略总控</div>
+        <h3 style="margin:0 0 8px;font-size:15px;color:#e5edff;">一键编排</h3>
+        <div class="hint" style="margin-bottom:10px;">一键编排 Bybit 执行引擎 + 跨所对冲引擎;细粒度 per-venue 操作仍可用下方卡片。</div>
+        <div class="risk-actions" style="margin-bottom:10px;">
+          <button id="strategy-start-btn" type="button">策略启动</button>
+          <button id="strategy-stop-btn" type="button" class="danger">策略停止</button>
+        </div>
+        <div id="strategy-engine-hint" class="hint" style="margin:0 0 8px;font-size:12px;color:#94a3b8;"></div>
+        <div id="strategy-status-line" class="hint" style="margin:0 0 8px;font-size:13px;color:#cbd5e1;">加载策略状态…</div>
+
+      </div>
+
       <div class="ops-group ops-group-capital">
         <div class="ops-group-label">调仓</div>
         <div class="hint" style="margin-bottom:10px;">设置每所交易仓位并一次性调整四所 USDT 分布。</div>
@@ -974,18 +902,6 @@
       <details class="fold-panel" id="legacy-perp-fold" hidden>
         <summary>高级 · 旧 perp-perp 控制</summary>
         <div class="fold-body">
-      <div id="strategy-control-panel" class="sub-panel" style="display:none;">
-        <div class="ops-group-label">策略总控</div>
-        <h3 style="margin:0 0 8px;font-size:15px;color:#e5edff;">一键编排</h3>
-        <div class="hint" style="margin-bottom:10px;">一键编排 Bybit 执行引擎 + 跨所对冲引擎;细粒度 per-venue 操作仍可用下方卡片。</div>
-        <div class="risk-actions" style="margin-bottom:10px;">
-          <button id="strategy-start-btn" type="button">策略启动</button>
-          <button id="strategy-stop-btn" type="button" class="danger">策略停止</button>
-        </div>
-        <div id="strategy-engine-hint" class="hint" style="margin:0 0 8px;font-size:12px;color:#94a3b8;"></div>
-        <div id="strategy-status-line" class="hint" style="margin:0 0 8px;font-size:13px;color:#cbd5e1;">加载策略状态…</div>
-      </div>
-
       <div id="cross-venue-panel" class="sub-panel" style="display:none;">
         <h3 style="margin:0 0 8px;font-size:15px;color:#e5edff;">跨所对冲执行器(全局唯一)</h3>
         <div class="hint" style="margin-bottom:10px;">消费扫描器价差信号,在四所永续腿间 perp-perp 对冲;与下方各所单所 funding 引擎独立。</div>
@@ -1220,12 +1136,133 @@
       </details>
     </section>
 
+    <section class="section section-rotation-positions" aria-label="轮动持仓">
+      <div class="section-head">
+        <h2 class="section-title">轮动与 perp-perp 持仓</h2>
+        <p class="hint section-desc">五策略统一轮动(SVSP/CVSP/SVPS/CVPS)与 perp-perp(PP)当前持仓与历史结算,数据来自 <code>/api/rotation/positions</code> 与 <code>/api/rotation/settlements</code>。</p>
+        <div class="hint" id="rotation-positions-generated-at" style="font-size:11px;margin-top:4px;"></div>
+      </div>
+      <div class="panel-inner">
+        <h3 style="font-size:14px;color:#cbd5e1;margin:0 0 8px;">当前持仓 (OPEN)</h3>
+        <div class="table-wrap" style="overflow-x:auto;margin-bottom:16px;">
+          <table class="data-table" id="rotation-open-table">
+            <thead>
+              <tr>
+                <th>交易对</th><th title="carry: 同所/跨所 现货-永续 或 永续-现货; PP: 跨所永续-永续">策略</th><th>状态</th>
+                <th title="carry 为现货腿; PP 为高费永续腿">高费腿</th><th title="carry 为永续腿; PP 为低费永续腿">低费腿</th>
+                <th>名义(U)</th><th title="PP: 已结算资费与预期下次资费分列; 总盈亏仅含已结算资费">资费</th><th>手续费(开+预计平)</th><th title="含未实现腿盈亏与已结算资费; 不含预期下次资费">总盈亏(U)</th><th>盈亏比例</th><th title="开仓那一刻预估的净EV快照,持有期不刷新,仅供回看开仓依据,非当前实时EV">预期净EV(开仓时)</th><th>持有时长</th>
+              </tr>
+            </thead>
+            <tbody id="rotation-open-tbody"><tr><td colspan="12" class="hint">加载中…</td></tr></tbody>
+          </table>
+        </div>
+        <h3 style="font-size:14px;color:#cbd5e1;margin:0 0 8px;">历史 / 已平仓 (开→平→换)</h3>
+        <div class="table-wrap" style="overflow-x:auto;">
+          <table class="data-table" id="rotation-closed-table">
+            <thead>
+              <tr>
+                <th>交易对</th><th>策略</th><th>所</th><th>开→平</th><th>已实现净利</th><th>盈亏比例</th><th>资费</th><th>开+平费</th><th>原因</th><th>持有时长</th>
+              </tr>
+            </thead>
+            <tbody id="rotation-closed-tbody"><tr><td colspan="10" class="hint">加载中…</td></tr></tbody>
+          </table>
+        </div>
+        <div id="missed-opp-block" hidden>
+        <h3 style="font-size:14px;color:#cbd5e1;margin:16px 0 8px;">错过机会复盘(被拒 / 推迟的开仓)</h3>
+        <p class="hint section-desc" style="font-size:11px;">每条 = 一次被选中却没开成的尝试,带拒绝分类 / 分层与反事实提示。数据来自 <code>/api/rotation/missed-opportunities</code>。</p>
+        <div class="hint" id="missed-opp-summary" style="font-size:11px;margin:4px 0;"></div>
+        <div class="table-wrap" style="overflow-x:auto;">
+          <table class="data-table" id="missed-opp-table">
+            <thead>
+              <tr>
+                <th>时间</th><th>交易对</th><th>高/低所</th><th>价差APR</th><th title="幅度×持续性,越高越是真暴力币">暴力度</th><th>预期资费</th><th title="归一拒绝分类">分类</th><th title="execution=执行事故风险; liquidity/cost/window/quality=下注质量(可调)">分层</th><th>反事实提示</th>
+              </tr>
+            </thead>
+            <tbody id="missed-opp-tbody"><tr><td colspan="9" class="hint">加载中…</td></tr></tbody>
+          </table>
+        </div>
+        </div>
+      </div>
+    </section>
+
+
+    </div>
+
+    <!-- 策略二 · OKX 方向交易 -->
+    <div class="strategy-zone strategy-zone-okx" aria-label="策略二">
+      <h2 class="strategy-banner">策略二 · OKX 方向交易(独立 5X)</h2>
+
+    <details class="fold-panel" id="okx-directional-fold" open>
+      <summary>OKX 方向引擎(独立) <span class="hint fold-summary-meta" id="okx-dir-summary-meta"></span></summary>
+      <div class="fold-body panel-inner">
+        <p class="hint section-desc">独立于 carry 的 OKX 方向引擎。固定 5X;你只设「交易仓本金」与「止损%(本金基准)」,点开始即真金双向交易。数据/控制:<code>/api/okx-directional</code>。</p>
+        <div class="hint" id="okx-dir-generated-at" style="font-size:11px;margin-bottom:8px;"></div>
+        <div class="ops-group" style="margin-bottom:12px;">
+          <div class="ops-group-label">交易控制(5X 固定)</div>
+          <div class="form-grid" style="margin-bottom:10px;">
+            <div>
+              <label for="okx-dir-capital-input">交易仓本金 (USDT)</label>
+              <input id="okx-dir-capital-input" type="number" min="1" step="1" placeholder="30" style="width:100%;box-sizing:border-box;padding:8px 10px;border-radius:8px;border:1px solid #2c3b59;background:#0b1220;color:#e5edff;">
+            </div>
+            <div>
+              <label for="okx-dir-stop-input">止损 %(交易仓本金基准)</label>
+              <input id="okx-dir-stop-input" type="number" min="1" max="95" step="1" placeholder="50" style="width:100%;box-sizing:border-box;padding:8px 10px;border-radius:8px;border:1px solid #2c3b59;background:#0b1220;color:#e5edff;">
+            </div>
+          </div>
+          <div class="risk-actions">
+            <button id="okx-dir-start-btn" type="button">▶ 开始(实盘 5X)</button>
+            <button id="okx-dir-stop-btn" type="button" class="danger">■ 停止开新仓</button>
+            <button id="okx-dir-apply-btn" type="button" class="secondary">仅保存本金/止损</button>
+          </div>
+          <div class="hint" id="okx-dir-control-msg" style="margin-top:8px;font-size:12px;"></div>
+          <div class="hint" style="margin-top:4px;font-size:11px;color:#64748b;">名义 = 本金 × 5;止损按本金 %(50% 本金≈10% 价格)。停止仅不开新仓,已有持仓仍按止损/止盈/信号看护。</div>
+        </div>
+        <div class="status-grid stats">
+          <div class="stat-card"><div class="stat-label">运行</div><div class="stat-value" id="okx-dir-active" style="font-size:16px">-</div></div>
+          <div class="stat-card"><div class="stat-label">交易仓本金(U)</div><div class="stat-value" id="okx-dir-capital" style="font-size:16px">-</div></div>
+          <div class="stat-card"><div class="stat-label">止损%</div><div class="stat-value" id="okx-dir-stop" style="font-size:16px">-</div></div>
+          <div class="stat-card"><div class="stat-label">杠杆</div><div class="stat-value" id="okx-dir-lev" style="font-size:16px">-</div></div>
+          <div class="stat-card"><div class="stat-label">启用</div><div class="stat-value" id="okx-dir-enabled" style="font-size:16px">-</div></div>
+          <div class="stat-card"><div class="stat-label">实盘闸</div><div class="stat-value" id="okx-dir-live" style="font-size:16px">-</div></div>
+        </div>
+        <h3 style="font-size:14px;color:#cbd5e1;margin:12px 0 8px;">当前持仓</h3>
+        <div class="status-grid stats">
+          <div class="stat-card"><div class="stat-label">币对</div><div class="stat-value" id="okx-dir-symbol" style="font-size:16px">-</div></div>
+          <div class="stat-card"><div class="stat-label">方向</div><div class="stat-value" id="okx-dir-side" style="font-size:16px">-</div></div>
+          <div class="stat-card"><div class="stat-label">开仓价</div><div class="stat-value" id="okx-dir-entry" style="font-size:16px">-</div></div>
+          <div class="stat-card"><div class="stat-label">名义(U)</div><div class="stat-value" id="okx-dir-notional" style="font-size:16px">-</div></div>
+          <div class="stat-card"><div class="stat-label">未实现%</div><div class="stat-value" id="okx-dir-unrealized" style="font-size:16px">-</div></div>
+          <div class="stat-card"><div class="stat-label">持有</div><div class="stat-value" id="okx-dir-hold" style="font-size:14px">-</div></div>
+        </div>
+        <h3 style="font-size:14px;color:#cbd5e1;margin:12px 0 8px;">当日风控</h3>
+        <div class="status-grid stats">
+          <div class="stat-card"><div class="stat-label">已实现(U)</div><div class="stat-value" id="okx-dir-daily-realized" style="font-size:16px">-</div></div>
+          <div class="stat-card"><div class="stat-label">日亏熔断线(U)</div><div class="stat-value" id="okx-dir-daily-limit" style="font-size:16px">-</div></div>
+        </div>
+        <div class="hint" id="okx-dir-last-error" style="margin-top:8px;font-size:12px;color:#fca5a5;"></div>
+        <h3 style="font-size:14px;color:#cbd5e1;margin:16px 0 8px;">最近平仓</h3>
+        <div class="table-wrap" style="overflow-x:auto;">
+          <table class="data-table" id="okx-dir-recent-table">
+            <thead>
+              <tr>
+                <th>时间</th><th>币对</th><th>方向</th><th>开→平</th><th>名义(U)</th><th>已实现(U)</th><th>持有</th><th>原因</th>
+              </tr>
+            </thead>
+            <tbody id="okx-dir-recent-tbody"><tr><td colspan="8" class="hint">加载中…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </details>
+
+
+    </div>
+
     <!-- 3. 当前持仓区 (跨所持仓表在 cross-venue-panel 内，随总览 Tab 显示) -->
     <!-- 注: cv-positions-table 位于 #cross-venue-panel .positions-block -->
 
     
     <!-- 4. 指标/明细区 (默认折叠) -->
-    <section class="section section-details" aria-label="指标与明细">
+    <section class="section section-details" aria-label="指标与明细" hidden>
       <div class="section-head">
         <h2 class="section-title section-title-muted">指标与明细</h2>
         <p class="hint section-desc">绩效、运行态、事件流与历史记录。默认折叠，需要时再展开。</p>
