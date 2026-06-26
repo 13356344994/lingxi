@@ -699,8 +699,10 @@ type OKXDirectionalConfig struct {
 	TrendEfficiencyThreshold float64 `cfg:"trend_efficiency_threshold"`
 	// ZScoreEntry 震荡态反转入场 z 分阈值(|收盘 z| ≥ 此值才开)。默认 1.5。
 	ZScoreEntry float64 `cfg:"zscore_entry"`
-	// RequireFundingAlignment 资费对齐闸:true 时多要费率≤MinFundingAbs、空要费率≥−MinFundingAbs。默认 true。
+	// RequireFundingAlignment 资费对齐闸:true 时仅当资费"明显逆持仓"(≥FundingVetoAbsPerInterval)才否决该方向。默认 true。
 	RequireFundingAlignment bool `cfg:"require_funding_alignment"`
+	// FundingVetoAbsPerInterval 资费强逆否决阈值(单次费率绝对值);与选币阈值解耦,避免刚过选币线就把对齐方向误杀。默认 0.0015。
+	FundingVetoAbsPerInterval float64 `cfg:"funding_veto_abs_per_interval"`
 	// TradingCapitalUSDT 交易仓(合约账户)投入本金,由页面设置;名义 = 本金 × Leverage。默认 30。运行时被页面控制覆盖。
 	TradingCapitalUSDT float64 `cfg:"trading_capital_usdt"`
 	// StopLossPct 硬止损,以"交易仓本金"为基准(0.5=亏到本金的 50% 即平)。5X 下 50% 本金≈10% 价格移动。默认 0.5。运行时页面可覆盖。

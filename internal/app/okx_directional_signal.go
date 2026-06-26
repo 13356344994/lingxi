@@ -199,9 +199,13 @@ func computeDirectionalSignal(closes []float64, fundingRate float64, cfg OKXDire
 		return out
 	}
 
-	// 资费对齐闸。
+	// 资费对齐闸。用独立的"强逆否决阈值"(而非选币阈值),否则会把刚过选币线的币(如 +0.0538%)在对齐方向上误杀。
 	if cfg.RequireFundingAlignment {
-		permit, strong := fundingPermits(base, fundingRate, cfg.MinFundingAbsPerInterval)
+		vetoAbs := cfg.FundingVetoAbsPerInterval
+		if vetoAbs <= 0 {
+			vetoAbs = 0.0015 // 0.15%/结算:仅当资费明显逆持仓才否决
+		}
+		permit, strong := fundingPermits(base, fundingRate, vetoAbs)
 		if !permit {
 			out.Reason = "资费逆持仓,放弃(" + base.String() + " 费率=" + formatRatePct(fundingRate) + ")"
 			return out

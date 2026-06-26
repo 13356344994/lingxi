@@ -401,6 +401,10 @@ func (e *OKXDirectionalEngine) scanAndOpen(ctx context.Context) {
 	if costFloor <= 0 {
 		costFloor = 60
 	}
+	// 漏斗诊断:统计每轮"宇宙→有方向→过成本地板"各级数量,并把 flat 原因分类(样本不足/资费否决/无信号),便于精准优化。
+	var nSignal, nBelowFloor int
+	var nInsufficient, nVeto, nNoSig int
+	var floorEg, vetoEg, noSigEg string
 	for _, sym := range universe {
 		closes, cerr := e.fetchCloses(ctx, venue.Symbol(sym))
 		if cerr != nil {
@@ -409,7 +413,25 @@ func (e *OKXDirectionalEngine) scanAndOpen(ctx context.Context) {
 		}
 		rate := rateBySym[sym]
 		sig := computeDirectionalSignal(closes, rate, e.cfg)
-		if sig.Side == DirectionFlat || sig.ExpectedMoveBps < costFloor {
+		if sig.Side == DirectionFlat {
+			switch {
+			case strings.Contains(sig.Reason, "样本不足"):
+				nInsufficient++
+			case strings.Contains(sig.Reason, "资费逆"):
+				nVeto++
+				vetoEg = sym + ":" + sig.Reason
+			default:
+				nNoSig++
+				if noSigEg == "" {
+					noSigEg = sym + ":" + sig.Reason
+				}
+			}
+			continue
+		}
+		nSignal++
+		if sig.ExpectedMoveBps < costFloor {
+			nBelowFloor++
+			floorEg = fmt.Sprintf("%s %s move=%.0fbps<%.0f", sym, sig.Side.String(), sig.ExpectedMoveBps, costFloor)
 			continue
 		}
 		if best == nil || sig.Conviction > best.signal.Conviction {
@@ -418,6 +440,8 @@ func (e *OKXDirectionalEngine) scanAndOpen(ctx context.Context) {
 	}
 	if best == nil {
 		e.clearLastError()
+		e.logger.Printf("[OKX方向][漏斗] 宇宙=%d 有方向=%d 过地板=0 | flat分解: 样本不足=%d 资费否决=%d 无信号=%d | 被成本地板挡=%d(地板=%.0fbps) | 例[veto=%s][nosig=%s][floor=%s]",
+			len(universe), nSignal, nInsufficient, nVeto, nNoSig, nBelowFloor, costFloor, vetoEg, noSigEg, floorEg)
 		return
 	}
 	e.openPosition(ctx, best.sym, best.signal, best.rate)

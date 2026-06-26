@@ -151,8 +151,9 @@ okx_directional:
   ema_fast: 9
   ema_slow: 30
   trend_efficiency_threshold: 0.30
-  zscore_entry: 1.5
+  zscore_entry: 1.2
   require_funding_alignment: true
+  funding_veto_abs_per_interval: 0.0015   # 资费强逆否决阈值(与选币阈值解耦,只挡明显逆持仓的资费)
   cost_floor_bps: 60
   max_hold_minutes: 180
   symbol_cooldown_minutes: 30
