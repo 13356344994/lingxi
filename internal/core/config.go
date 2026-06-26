@@ -682,9 +682,15 @@ type OKXDirectionalConfig struct {
 	NotionalUSDT float64 `cfg:"notional_usdt"`
 	// Leverage 永续杠杆。默认 5。
 	Leverage int `cfg:"leverage"`
-	// MaxConcurrent 最大并发持仓数。默认 1。
+	// MaxConcurrent 最大并发持仓数(多币)。每仓本金 = 交易仓本金 / MaxConcurrent,总名义满仓=本金×杠杆。默认 3。
 	MaxConcurrent int `cfg:"max_concurrent"`
-	// UniverseTopN 资费筛币:按 |单次费率| 降序取前 N 作候选。默认 12。
+	// UniverseScanIntervalMinutes 全场扫描周期(分钟):每隔此时长重算 shortlist(综合分)。默认 30。
+	UniverseScanIntervalMinutes int `cfg:"universe_scan_interval_minutes"`
+	// CandidatePoolN 全场扫描时按 |费率| 取前 N 进入深度打分(拉K线/量/OI)。默认 40。
+	CandidatePoolN int `cfg:"candidate_pool_n"`
+	// ShortlistN 综合分排序后保留的可交易 shortlist 大小(供 90s 循环出信号)。默认 20。
+	ShortlistN int `cfg:"shortlist_n"`
+	// UniverseTopN 资费筛币:按 |单次费率| 降序取前 N 作候选(仅在无 shortlist 时回退)。默认 12。
 	UniverseTopN int `cfg:"universe_top_n"`
 	// MinFundingAbsPerInterval 进入候选的最小 |单次费率|(小数,0.0005=0.05%)。默认 0.0005。
 	MinFundingAbsPerInterval float64 `cfg:"min_funding_abs_per_interval"`

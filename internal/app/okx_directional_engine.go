@@ -94,6 +94,20 @@ type OKXDirectionalStatus struct {
 	DailyLossLimitUSDT  float64
 	HaltedByDailyLoss   bool
 	LastError           string
+	OpenCount           int                          // 当前持仓数
+	MaxConcurrent       int                          // 最大并发
+	Positions           []OKXDirectionalPositionView // 多币持仓明细
+}
+
+// OKXDirectionalPositionView 单仓只读视图(面板多仓表)。
+type OKXDirectionalPositionView struct {
+	Symbol       string    `json:"symbol"`
+	Side         string    `json:"side"`
+	EntryPrice   float64   `json:"entry_price"`
+	Qty          float64   `json:"qty"`
+	NotionalUSDT float64   `json:"notional_usdt"`
+	Regime       string    `json:"regime"`
+	OpenedAt     time.Time `json:"opened_at"`
 }
 
 // OKXDirectionalEngine OKX 方向引擎(独立于 carry)。
@@ -107,7 +121,9 @@ type OKXDirectionalEngine struct {
 	nowFn     func() time.Time
 
 	mu                sync.RWMutex
-	pos               *okxDirectionalPosition
+	positions         map[string]*okxDirectionalPosition // 多币并发持仓(键=symbol)
+	shortlist         []okxUniverseEntry                 // 每 ~30min 全场扫描产出的可交易币
+	lastUniverseScan  time.Time
 	dailyRealizedUSDT float64
 	dayStartCST       time.Time
 	cooldownUntil     map[string]time.Time
@@ -152,6 +168,7 @@ func NewOKXDirectionalEngine(cfg EngineConfig, orch *Orchestrator, recordDir str
 		logger:          logger,
 		recordDir:       dir,
 		nowFn:           time.Now,
+		positions:       make(map[string]*okxDirectionalPosition),
 		cooldownUntil:   make(map[string]time.Time),
 		positionPath:    filepath.Join(dir, okxDirectionalPositionFile),
 		settlementsPath: filepath.Join(dir, okxDirectionalSettlementsFile),
@@ -162,10 +179,10 @@ func NewOKXDirectionalEngine(cfg EngineConfig, orch *Orchestrator, recordDir str
 	if c, ok := e.loadControl(); ok {
 		e.control = c
 	}
-	if pos, err := e.loadPosition(); err != nil {
-		return nil, err
-	} else if pos != nil && pos.isOpen() {
-		e.pos = pos
+	for _, p := range e.loadPositions() {
+		if p != nil && p.isOpen() {
+			e.positions[p.Symbol] = p
+		}
 	}
 	return e, nil
 }
@@ -204,16 +221,45 @@ func (e *OKXDirectionalEngine) runOnce(ctx context.Context) {
 		}
 	}()
 	e.refreshCSTDay()
-	// 持仓始终管理(即便页面已停止,也继续看护止损/止盈/反转,绝不撒手不管)。
-	if e.holding() {
-		e.manage(ctx)
-		return
-	}
+	// 每 ~30min 全场扫描刷新 shortlist(综合分:资费+波动+热度+BTC情境);90s 循环只在 shortlist 上动作。
+	e.maybeRebuildUniverse(ctx)
+	// 持仓始终管理(即便页面已停止,也继续看护止损/止盈/反转,绝不撒手不管)。先管理(可能腾出仓位),再补开。
+	e.manageAll(ctx)
 	// 开新仓须页面"开始"(control.Active);日熔断按用户要求默认关闭(DailyLossLimitUSDT=0 → 永不熔断)。
 	ctrl := e.getControl()
 	if ctrl.Active && !directionalDailyLossHalted(e.dailyRealizedUSDT, e.cfg.DailyLossLimitUSDT) && e.concurrencyAllows() {
-		e.scanAndOpen(ctx)
+		e.openFromShortlist(ctx)
 	}
+}
+
+// maybeRebuildUniverse 到点(或 shortlist 空)就全场扫描重算 shortlist。失败保留旧 shortlist。
+func (e *OKXDirectionalEngine) maybeRebuildUniverse(ctx context.Context) {
+	interval := time.Duration(e.cfg.UniverseScanIntervalMinutes) * time.Minute
+	if interval <= 0 {
+		interval = 30 * time.Minute
+	}
+	e.mu.RLock()
+	due := e.lastUniverseScan.IsZero() || e.nowFn().UTC().Sub(e.lastUniverseScan) >= interval || len(e.shortlist) == 0
+	e.mu.RUnlock()
+	if !due {
+		return
+	}
+	snaps, err := e.okxV.FetchFundingSnapshot(ctx)
+	if err != nil {
+		e.logger.Printf("[OKX方向][选币] 拉资费快照失败,沿用旧 shortlist: %v", err)
+		return
+	}
+	sl, err := scanOKXUniverse(ctx, e.okxA, e.okxV, snaps, e.cfg, e.logger)
+	if err != nil {
+		e.logger.Printf("[OKX方向][选币] 全场扫描失败,沿用旧 shortlist: %v", err)
+		return
+	}
+	e.mu.Lock()
+	e.shortlist = sl
+	e.lastUniverseScan = e.nowFn().UTC()
+	e.mu.Unlock()
+	// 落盘 shortlist 供分析记录。
+	_ = writeJSONFile(filepath.Join(e.recordDir, "universe.json"), map[string]any{"at": e.nowFn().UTC(), "shortlist": sl})
 }
 
 func (e *OKXDirectionalEngine) refreshCSTDay() {
@@ -227,24 +273,30 @@ func (e *OKXDirectionalEngine) refreshCSTDay() {
 	}
 }
 
-func (e *OKXDirectionalEngine) holding() bool {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-	return e.pos != nil && e.pos.isOpen()
+func (e *OKXDirectionalEngine) maxConcurrent() int {
+	if e.cfg.MaxConcurrent > 0 {
+		return e.cfg.MaxConcurrent
+	}
+	return 1
 }
 
 func (e *OKXDirectionalEngine) concurrencyAllows() bool {
-	maxC := e.cfg.MaxConcurrent
-	if maxC <= 0 {
-		maxC = 1
-	}
 	e.mu.RLock()
-	open := 0
-	if e.pos != nil && e.pos.isOpen() {
-		open = 1
-	}
+	n := len(e.positions)
 	e.mu.RUnlock()
-	return open < maxC
+	return n < e.maxConcurrent()
+}
+
+// openPositionsSnapshot 返回当前持仓副本(并发安全)。
+func (e *OKXDirectionalEngine) openPositionsSnapshot() []*okxDirectionalPosition {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	out := make([]*okxDirectionalPosition, 0, len(e.positions))
+	for _, p := range e.positions {
+		cp := *p
+		out = append(out, &cp)
+	}
+	return out
 }
 
 func (e *OKXDirectionalEngine) setLastError(msg string) {
@@ -282,14 +334,28 @@ func (e *OKXDirectionalEngine) OKXDirectionalStatus() OKXDirectionalStatus {
 		DailyLossLimitUSDT: e.cfg.DailyLossLimitUSDT,
 		HaltedByDailyLoss:  directionalDailyLossHalted(e.dailyRealizedUSDT, e.cfg.DailyLossLimitUSDT),
 		LastError:          e.lastError,
+		OpenCount:          len(e.positions),
+		MaxConcurrent:      e.maxConcurrent(),
 	}
-	if e.pos != nil && e.pos.isOpen() {
-		st.HoldingSymbol = e.pos.Symbol
-		st.Side = e.pos.Side
-		st.EntryPrice = e.pos.EntryPrice
-		st.Qty = e.pos.Qty
-		st.NotionalUSDT = e.pos.NotionalUSDT
-		st.OpenedAt = e.pos.OpenedAt
+	// 多仓明细 + 首仓回填单仓字段(向后兼容旧面板)。
+	first := true
+	for _, p := range e.positions {
+		if !p.isOpen() {
+			continue
+		}
+		st.Positions = append(st.Positions, OKXDirectionalPositionView{
+			Symbol: p.Symbol, Side: p.Side, EntryPrice: p.EntryPrice, Qty: p.Qty,
+			NotionalUSDT: p.NotionalUSDT, Regime: p.Regime, OpenedAt: p.OpenedAt,
+		})
+		if first {
+			st.HoldingSymbol = p.Symbol
+			st.Side = p.Side
+			st.EntryPrice = p.EntryPrice
+			st.Qty = p.Qty
+			st.NotionalUSDT = p.NotionalUSDT
+			st.OpenedAt = p.OpenedAt
+			first = false
+		}
 	}
 	return st
 }
@@ -366,53 +432,51 @@ func directionalUPnLPct(side DirectionSide, entry, mid float64) float64 {
 	}
 }
 
-func (e *OKXDirectionalEngine) scanAndOpen(ctx context.Context) {
-	snaps, err := e.okxV.FetchFundingSnapshot(ctx)
-	if err != nil {
-		e.setLastError(err.Error())
-		e.logger.Printf("[OKX方向] 拉资费快照失败: %v", err)
-		return
-	}
+// openFromShortlist 在 shortlist 上出信号,补开到 MaxConcurrent(跳过已持有/冷却),按信心降序优先,逐仓保证金预检。
+func (e *OKXDirectionalEngine) openFromShortlist(ctx context.Context) {
 	e.mu.RLock()
+	sl := append([]okxUniverseEntry(nil), e.shortlist...)
+	held := make(map[string]bool, len(e.positions))
+	for s := range e.positions {
+		held[s] = true
+	}
 	cooldown := make(map[string]time.Time, len(e.cooldownUntil))
 	for k, v := range e.cooldownUntil {
 		cooldown[k] = v
 	}
 	e.mu.RUnlock()
 
-	now := e.nowFn().UTC()
-	universe := selectDirectionalUniverse(snaps, cooldown, now, e.cfg)
-	if len(universe) == 0 {
-		e.clearLastError()
+	slots := e.maxConcurrent() - len(held)
+	if slots <= 0 || len(sl) == 0 {
 		return
 	}
-	rateBySym := make(map[string]float64, len(snaps))
-	for _, s := range snaps {
-		rateBySym[string(s.Symbol)] = s.LastFundingRate
+	now := e.nowFn().UTC()
+	costFloor := e.cfg.CostFloorBps
+	if costFloor <= 0 {
+		costFloor = 60
 	}
-
 	type pick struct {
 		sym    string
 		signal DirectionalSignal
 		rate   float64
 	}
-	var best *pick
-	costFloor := e.cfg.CostFloorBps
-	if costFloor <= 0 {
-		costFloor = 60
-	}
-	// 漏斗诊断:统计每轮"宇宙→有方向→过成本地板"各级数量,并把 flat 原因分类(样本不足/资费否决/无信号),便于精准优化。
-	var nSignal, nBelowFloor int
-	var nInsufficient, nVeto, nNoSig int
+	var picks []pick
+	var nSignal, nBelowFloor, nInsufficient, nVeto, nNoSig int
 	var floorEg, vetoEg, noSigEg string
-	for _, sym := range universe {
+	for _, ent := range sl {
+		sym := ent.Symbol
+		if held[sym] {
+			continue
+		}
+		if until, ok := cooldown[sym]; ok && now.Before(until) {
+			continue
+		}
 		closes, cerr := e.fetchCloses(ctx, venue.Symbol(sym))
 		if cerr != nil {
 			e.logger.Printf("[OKX方向] %s K线失败: %v", sym, cerr)
 			continue
 		}
-		rate := rateBySym[sym]
-		sig := computeDirectionalSignal(closes, rate, e.cfg)
+		sig := computeDirectionalSignal(closes, ent.FundingRate, e.cfg)
 		if sig.Side == DirectionFlat {
 			switch {
 			case strings.Contains(sig.Reason, "样本不足"):
@@ -434,17 +498,25 @@ func (e *OKXDirectionalEngine) scanAndOpen(ctx context.Context) {
 			floorEg = fmt.Sprintf("%s %s move=%.0fbps<%.0f", sym, sig.Side.String(), sig.ExpectedMoveBps, costFloor)
 			continue
 		}
-		if best == nil || sig.Conviction > best.signal.Conviction {
-			best = &pick{sym: sym, signal: sig, rate: rate}
-		}
+		picks = append(picks, pick{sym: sym, signal: sig, rate: ent.FundingRate})
 	}
-	if best == nil {
+	sort.Slice(picks, func(i, j int) bool { return picks[i].signal.Conviction > picks[j].signal.Conviction })
+	if len(picks) == 0 {
 		e.clearLastError()
-		e.logger.Printf("[OKX方向][漏斗] 宇宙=%d 有方向=%d 过地板=0 | flat分解: 样本不足=%d 资费否决=%d 无信号=%d | 被成本地板挡=%d(地板=%.0fbps) | 例[veto=%s][nosig=%s][floor=%s]",
-			len(universe), nSignal, nInsufficient, nVeto, nNoSig, nBelowFloor, costFloor, vetoEg, noSigEg, floorEg)
+		e.logger.Printf("[OKX方向][漏斗] shortlist=%d 空位=%d 有方向=0 | flat: 样本不足=%d 资费否决=%d 无信号=%d 过地板挡=%d(地板=%.0fbps) | 例[veto=%s][nosig=%s][floor=%s]",
+			len(sl), slots, nInsufficient, nVeto, nNoSig, nBelowFloor, costFloor, vetoEg, noSigEg, floorEg)
 		return
 	}
-	e.openPosition(ctx, best.sym, best.signal, best.rate)
+	opened := 0
+	for _, p := range picks {
+		if opened >= slots {
+			break
+		}
+		if e.openPosition(ctx, p.sym, p.signal, p.rate) {
+			opened++
+		}
+	}
+	_ = nSignal
 }
 
 func (e *OKXDirectionalEngine) fetchCloses(ctx context.Context, sym venue.Symbol) ([]float64, error) {
@@ -469,36 +541,38 @@ func (e *OKXDirectionalEngine) fetchCloses(ctx context.Context, sym venue.Symbol
 	return closes, nil
 }
 
-func (e *OKXDirectionalEngine) openPosition(ctx context.Context, sym string, sig DirectionalSignal, fundingRate float64) {
+// openPosition 开单仓:每仓本金 = 交易仓本金/MaxConcurrent,名义 = 每仓本金 × 杠杆;开仓前预检永续可用保证金。成功返回 true。
+func (e *OKXDirectionalEngine) openPosition(ctx context.Context, sym string, sig DirectionalSignal, fundingRate float64) bool {
 	book, err := e.okxV.FetchBookTicker(ctx, venue.MarketPerp, venue.Symbol(sym))
 	if err != nil {
 		e.setLastError(err.Error())
 		e.logger.Printf("[OKX方向] %s 盘口失败: %v", sym, err)
-		return
+		return false
 	}
 	mid := (book.BidPrice + book.AskPrice) / 2
 	if mid <= 0 {
 		e.setLastError("mid<=0")
-		return
+		return false
 	}
 	instr, ok := lookupVenueInstrumentForMarket(ctx, e.okxV, venue.Symbol(sym), venue.MarketPerp)
 	if !ok {
 		e.setLastError("instrument 缺失")
 		e.logger.Printf("[OKX方向] %s 无 instrument 元数据,跳过开仓", sym)
-		return
+		return false
 	}
 	caps := e.okxV.Capabilities()
-	// 名义 = 交易仓本金(页面设) × 杠杆(5X)。用户用本金大小控风险。
+	// 每仓本金 = 交易仓本金 / 最大并发;名义 = 每仓本金 × 杠杆。总并发满仓总名义=本金×杠杆,总风险=本金(加仓不放大总敞口)。
 	ctrl := e.getControl()
-	notional := ctrl.TradingCapitalUSDT * float64(e.leverage())
+	perPosCapital := ctrl.TradingCapitalUSDT / float64(e.maxConcurrent())
+	notional := perPosCapital * float64(e.leverage())
 	if notional <= 0 {
-		e.logger.Printf("[OKX方向] %s 交易仓本金<=0,跳过开仓", sym)
-		return
+		e.logger.Printf("[OKX方向] %s 每仓本金<=0,跳过开仓", sym)
+		return false
 	}
 	qty := normalizeVenueQty(notional/mid, instr, caps.ContractBasedPerp)
 	if !openLegTradableAfterQuantize(qty, mid, instr) {
 		e.logger.Printf("[OKX方向] %s 量化后不可交易 qty=%.8f mid=%.6f notional=%.2f", sym, qty, mid, notional)
-		return
+		return false
 	}
 	var side venue.Side
 	switch sig.Side {
@@ -507,17 +581,22 @@ func (e *OKXDirectionalEngine) openPosition(ctx context.Context, sym string, sig
 	case DirectionShort:
 		side = venue.SideSell
 	default:
-		return
+		return false
 	}
 	if !e.cfg.LiveTradingEnabled {
-		e.logger.Printf("[OKX方向][OFF] 拟开 %s %s regime=%s conviction=%.2f move=%.1fbps 原因=%s",
-			sym, sig.Side.String(), sig.Regime.String(), sig.Conviction, sig.ExpectedMoveBps, sig.Reason)
-		return
+		e.logger.Printf("[OKX方向][OFF] 拟开 %s %s regime=%s conviction=%.2f move=%.1fbps 名义=%.2f 原因=%s",
+			sym, sig.Side.String(), sig.Regime.String(), sig.Conviction, sig.ExpectedMoveBps, notional, sig.Reason)
+		return false
+	}
+	// 保证金预检:永续可用 ≥ 每仓本金,避免多仓时超额开仓被交易所拒(尤其旧单占用满额时)。
+	if avail, merr := fetchVenuePerpAvailableUSDT(ctx, e.okxV); merr == nil && avail+1e-9 < perPosCapital {
+		e.logger.Printf("[OKX方向] %s 永续可用 %.2f < 每仓本金 %.2f,跳过开仓", sym, avail, perPosCapital)
+		return false
 	}
 	if err := e.okxV.SetLeverage(ctx, venue.Symbol(sym), e.leverage()); err != nil {
 		e.setLastError(err.Error())
 		e.logger.Printf("[OKX方向] %s 设杠杆失败: %v", sym, err)
-		return
+		return false
 	}
 	clientID := okxDirectionalClientID(sym, "open")
 	res, oerr := e.placeDirectionalLeg(ctx, venue.Symbol(sym), side, qty, clientID, false, instr, caps.ContractBasedPerp)
@@ -528,7 +607,7 @@ func (e *OKXDirectionalEngine) openPosition(ctx context.Context, sym string, sig
 		}
 		e.setLastError(msg)
 		e.logger.Printf("[OKX方向] %s 开仓失败: %v", sym, oerr)
-		return
+		return false
 	}
 	fillPrice := res.AvgPrice
 	if fillPrice <= 0 {
@@ -545,19 +624,27 @@ func (e *OKXDirectionalEngine) openPosition(ctx context.Context, sym string, sig
 		FundingAtOpen: fundingRate,
 	}
 	e.mu.Lock()
-	e.pos = pos
+	e.positions[sym] = pos
 	e.mu.Unlock()
-	if err := e.savePosition(pos); err != nil {
-		e.logger.Printf("[OKX方向] 持仓落盘失败: %v", err)
-	}
+	e.persistPositions()
 	e.clearLastError()
-	e.logger.Printf("[OKX方向] 已开 %s %s qty=%.8f @%.6f regime=%s", sym, pos.Side, pos.Qty, pos.EntryPrice, pos.Regime)
+	e.logger.Printf("[OKX方向] 已开 %s %s qty=%.8f @%.6f 名义=%.2f regime=%s", sym, pos.Side, pos.Qty, pos.EntryPrice, notional, pos.Regime)
+	return true
 }
 
-func (e *OKXDirectionalEngine) manage(ctx context.Context) {
-	e.mu.RLock()
-	pos := e.pos
-	e.mu.RUnlock()
+// manageAll 管理所有在场持仓(止损/止盈/信号反转/超时);逐仓独立。
+func (e *OKXDirectionalEngine) manageAll(ctx context.Context) {
+	for _, pos := range e.openPositionsSnapshot() {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+		e.manageOne(ctx, pos)
+	}
+}
+
+func (e *OKXDirectionalEngine) manageOne(ctx context.Context, pos *okxDirectionalPosition) {
 	if pos == nil || !pos.isOpen() {
 		return
 	}
@@ -670,11 +757,9 @@ func (e *OKXDirectionalEngine) closePosition(ctx context.Context, pos *okxDirect
 	e.mu.Lock()
 	e.dailyRealizedUSDT += realized
 	e.cooldownUntil[pos.Symbol] = e.nowFn().UTC().Add(time.Duration(coolMin) * time.Minute)
-	e.pos = nil
+	delete(e.positions, pos.Symbol)
 	e.mu.Unlock()
-	if err := e.savePosition(nil); err != nil {
-		e.logger.Printf("[OKX方向] 清空持仓落盘失败: %v", err)
-	}
+	e.persistPositions()
 	e.clearLastError()
 	e.logger.Printf("[OKX方向] 已平 %s %s 原因=%s 实现≈%.4f USDT", pos.Symbol, pos.Side, reason, realized)
 }
@@ -849,32 +934,44 @@ func (e *OKXDirectionalEngine) confirmDirectionalFill(ctx context.Context, sym v
 	}
 }
 
-func (e *OKXDirectionalEngine) loadPosition() (*okxDirectionalPosition, error) {
+// loadPositions 读 positions.json:新格式为持仓列表;兼容旧单仓对象(自动迁移为单元素列表)。
+func (e *OKXDirectionalEngine) loadPositions() []*okxDirectionalPosition {
 	data, err := os.ReadFile(e.positionPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, nil
+	if err != nil || len(strings.TrimSpace(string(data))) == 0 {
+		return nil
+	}
+	// 先按列表解析。
+	var list []*okxDirectionalPosition
+	if err := json.Unmarshal(data, &list); err == nil {
+		out := make([]*okxDirectionalPosition, 0, len(list))
+		for _, p := range list {
+			if p != nil && p.isOpen() {
+				out = append(out, p)
+			}
 		}
-		return nil, err
+		return out
 	}
-	if len(strings.TrimSpace(string(data))) == 0 {
-		return nil, nil
+	// 回退:旧单仓对象。
+	var one okxDirectionalPosition
+	if err := json.Unmarshal(data, &one); err == nil && one.isOpen() {
+		return []*okxDirectionalPosition{&one}
 	}
-	var pos okxDirectionalPosition
-	if err := json.Unmarshal(data, &pos); err != nil {
-		return nil, err
-	}
-	if !pos.isOpen() {
-		return nil, nil
-	}
-	return &pos, nil
+	return nil
 }
 
-func (e *OKXDirectionalEngine) savePosition(pos *okxDirectionalPosition) error {
-	if pos == nil || !pos.isOpen() {
-		return writeJSONFile(e.positionPath, struct{}{})
+// persistPositions 把当前持仓 map 落盘为列表(原子写)。
+func (e *OKXDirectionalEngine) persistPositions() {
+	e.mu.RLock()
+	list := make([]*okxDirectionalPosition, 0, len(e.positions))
+	for _, p := range e.positions {
+		if p != nil && p.isOpen() {
+			list = append(list, p)
+		}
 	}
-	return writeJSONFile(e.positionPath, pos)
+	e.mu.RUnlock()
+	if err := writeJSONFile(e.positionPath, list); err != nil {
+		e.logger.Printf("[OKX方向] 持仓落盘失败: %v", err)
+	}
 }
 
 // getControl 返回当前控制态副本(本金/止损% 带 config 回退)。

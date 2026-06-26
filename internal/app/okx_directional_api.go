@@ -12,25 +12,28 @@ import (
 
 // OKXDirectionalAPIResponse GET /api/okx-directional 响应(引擎快照 + 最近结算)。
 type OKXDirectionalAPIResponse struct {
-	GeneratedAt         time.Time                  `json:"generated_at"`
-	Enabled             bool                       `json:"enabled"`
-	Live                bool                       `json:"live"`
-	Active              bool                       `json:"active"`
-	TradingCapitalUSDT  float64                    `json:"trading_capital_usdt"`
-	StopLossPct         float64                    `json:"stop_loss_pct"`
-	Leverage            int                        `json:"leverage"`
-	HoldingSymbol       string                     `json:"holding_symbol,omitempty"`
-	Side                string                     `json:"side,omitempty"`
-	EntryPrice          float64                    `json:"entry_price,omitempty"`
-	Qty                 float64                    `json:"qty,omitempty"`
-	NotionalUSDT        float64                    `json:"notional_usdt,omitempty"`
-	UnrealizedPctApprox float64                    `json:"unrealized_pct_approx,omitempty"`
-	OpenedAt            time.Time                  `json:"opened_at,omitempty"`
-	DailyRealizedUSDT   float64                    `json:"daily_realized_usdt"`
-	DailyLossLimitUSDT  float64                    `json:"daily_loss_limit_usdt"`
-	HaltedByDailyLoss   bool                       `json:"halted_by_daily_loss"`
-	LastError           string                     `json:"last_error,omitempty"`
-	Recent              []okxDirectionalSettlement `json:"recent,omitempty"`
+	GeneratedAt         time.Time                    `json:"generated_at"`
+	Enabled             bool                         `json:"enabled"`
+	Live                bool                         `json:"live"`
+	Active              bool                         `json:"active"`
+	TradingCapitalUSDT  float64                      `json:"trading_capital_usdt"`
+	StopLossPct         float64                      `json:"stop_loss_pct"`
+	Leverage            int                          `json:"leverage"`
+	OpenCount           int                          `json:"open_count"`
+	MaxConcurrent       int                          `json:"max_concurrent"`
+	Positions           []OKXDirectionalPositionView `json:"positions,omitempty"`
+	HoldingSymbol       string                       `json:"holding_symbol,omitempty"`
+	Side                string                       `json:"side,omitempty"`
+	EntryPrice          float64                      `json:"entry_price,omitempty"`
+	Qty                 float64                      `json:"qty,omitempty"`
+	NotionalUSDT        float64                      `json:"notional_usdt,omitempty"`
+	UnrealizedPctApprox float64                      `json:"unrealized_pct_approx,omitempty"`
+	OpenedAt            time.Time                    `json:"opened_at,omitempty"`
+	DailyRealizedUSDT   float64                      `json:"daily_realized_usdt"`
+	DailyLossLimitUSDT  float64                      `json:"daily_loss_limit_usdt"`
+	HaltedByDailyLoss   bool                         `json:"halted_by_daily_loss"`
+	LastError           string                       `json:"last_error,omitempty"`
+	Recent              []okxDirectionalSettlement   `json:"recent,omitempty"`
 }
 
 func (s *DashboardServer) okxDirectionalStatusOrEmpty() OKXDirectionalAPIResponse {
@@ -46,6 +49,9 @@ func (s *DashboardServer) okxDirectionalStatusOrEmpty() OKXDirectionalAPIRespons
 		TradingCapitalUSDT:  st.TradingCapitalUSDT,
 		StopLossPct:         st.StopLossPct,
 		Leverage:            st.Leverage,
+		OpenCount:           st.OpenCount,
+		MaxConcurrent:       st.MaxConcurrent,
+		Positions:           st.Positions,
 		HoldingSymbol:       st.HoldingSymbol,
 		Side:                st.Side,
 		EntryPrice:          st.EntryPrice,
