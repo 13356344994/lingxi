@@ -762,42 +762,24 @@ func (e *OKXDirectionalEngine) manageOne(ctx context.Context, pos *okxDirectiona
 		}
 	}
 	floor := real.StopFloorAccountPct
+	peak := real.PeakAccountPct
 	partialDone := real.PartialTPDone
 	addCount := real.AddCount
 	initNotional := real.InitialNotionalUSDT
 	e.mu.Unlock()
 	e.persistPositions()
 
-	// 1. 触止损地板(初始硬止损 / 移动止损保盈)。
-	if uPnLAccount <= floor {
-		reason := "硬止损"
-		if partialDone {
-			reason = "移动止损保盈"
-		}
-		e.closePosition(ctx, pos, mid, uPnLNotional, holdMin, reason)
-		return
-	}
-	// 2. 信号反转 → 全平(换方向交给下轮选币)。
-	if fresh.Side != DirectionFlat && fresh.Side != side {
-		e.closePosition(ctx, pos, mid, uPnLNotional, holdMin, "信号反转")
-		return
-	}
-	// 3. 超时离场。
-	if cfg.MaxHoldMinutes > 0 && holdMin >= cfg.MaxHoldMinutes {
-		e.closePosition(ctx, pos, mid, uPnLNotional, holdMin, "超时离场")
-		return
-	}
-	// 4. 部分止盈(首次达标):平掉一部分锁利,止损上移到保本,余仓移动止损跑利润。
-	tp1 := cfg.PartialTPTriggerPct
-	if tp1 <= 0 {
-		tp1 = 0.20
-	}
-	if !partialDone && uPnLAccount >= tp1 {
+	// 数据驱动判定:由实时信心/动能/回撤决定本仓"补仓 / 部分止盈 / 持有 / 离场",而非到点机械执行三件套。
+	act := decideDirectionalPositionAction(uPnLAccount, peak, floor, holdMin, side, fresh, partialDone, addCount, cfg)
+	switch act.Kind {
+	case dirActClose:
+		e.closePosition(ctx, pos, mid, uPnLNotional, holdMin, act.Reason)
+	case dirActPartialTP:
 		frac := cfg.PartialTPFraction
 		if frac <= 0 || frac >= 1 {
 			frac = 0.5
 		}
-		if e.partialClose(ctx, pos, frac, mid, uPnLNotional, holdMin, "部分止盈") {
+		if e.partialClose(ctx, pos, frac, mid, uPnLNotional, holdMin, act.Reason) {
 			e.mu.Lock()
 			if r := e.positions[pos.Symbol]; r != nil {
 				r.PartialTPDone = true
@@ -808,24 +790,12 @@ func (e *OKXDirectionalEngine) manageOne(ctx context.Context, pos *okxDirectiona
 			e.mu.Unlock()
 			e.persistPositions()
 		}
-		return
-	}
-	// 5. 补仓(仅盈利仓 + 信号仍同向 + 过入场闸 + 资本有余):金字塔加盈利仓,绝不摊亏(防滚仓)。
-	sin := cfg.ScaleInTriggerPct
-	if sin <= 0 {
-		sin = 0.15
-	}
-	maxAdds := cfg.MaxAdds
-	if maxAdds <= 0 {
-		maxAdds = 2
-	}
-	if uPnLAccount >= sin && addCount < maxAdds && fresh.Side == side {
+	case dirActScaleIn:
 		frac := cfg.ScaleInFraction
 		if frac <= 0 {
 			frac = 0.5
 		}
-		tranche := initNotional * frac
-		if e.scaleIn(ctx, pos, side, tranche, mid) {
+		if e.scaleIn(ctx, pos, side, initNotional*frac, mid) {
 			e.mu.Lock()
 			if r := e.positions[pos.Symbol]; r != nil {
 				r.AddCount++
@@ -833,9 +803,9 @@ func (e *OKXDirectionalEngine) manageOne(ctx context.Context, pos *okxDirectiona
 			e.mu.Unlock()
 			e.persistPositions()
 		}
-		return
+	default:
+		e.clearLastError()
 	}
-	e.clearLastError()
 }
 
 func (e *OKXDirectionalEngine) closePosition(ctx context.Context, pos *okxDirectionalPosition, mid, uPnLPct float64, holdMin int, reason string) {

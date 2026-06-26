@@ -747,6 +747,13 @@ type OKXDirectionalConfig struct {
 	MaxAdds int `cfg:"max_adds"`
 	// ScaleInFraction 每次补仓名义 = 首仓名义 × 此比例。默认 0.5。
 	ScaleInFraction float64 `cfg:"scale_in_fraction"`
+	// --- 数据驱动的仓位动作判定(决定补仓/部分止盈/持有/离场,而非固定阈值机械触发) ---
+	// AddConvictionMin 仅当最新信号信心 ≥ 此值且仍趋势态同向(强延续)才考虑补仓(press winner)。默认 0.6。
+	AddConvictionMin float64 `cfg:"add_conviction_min"`
+	// TPFadeConviction 最新信号信心 ≤ 此值视为"edge 转弱",在盈利时部分止盈锁利。默认 0.4。
+	TPFadeConviction float64 `cfg:"tp_fade_conviction"`
+	// PeakGivebackFraction 自浮盈高水位回撤达 此比例×高水位 视为动能转弱,盈利中触发部分止盈。默认 0.4。
+	PeakGivebackFraction float64 `cfg:"peak_giveback_fraction"`
 }
 
 // CrossVenueExecutorConfig 是跨所资金费对冲执行引擎的可调参数。

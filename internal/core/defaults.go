@@ -497,6 +497,9 @@ func DefaultEngineConfig() EngineConfig {
 			ScaleInTriggerPct:           0.15,
 			MaxAdds:                     2,
 			ScaleInFraction:             0.5,
+			AddConvictionMin:            0.6,
+			TPFadeConviction:            0.4,
+			PeakGivebackFraction:        0.4,
 		},
 		FundingExecutor: VenueFundingExecutorConfig{
 			LiveTradingEnabled:     false,

@@ -323,6 +323,95 @@ func directionalEntryGuard(closes []float64, base DirectionSide, regime Directio
 	return true, ""
 }
 
+// dirPosActionKind 持仓动作类型。
+type dirPosActionKind int
+
+const (
+	dirActHold dirPosActionKind = iota
+	dirActClose
+	dirActPartialTP
+	dirActScaleIn
+)
+
+// dirPosAction 数据驱动的单仓动作判定结果。
+type dirPosAction struct {
+	Kind   dirPosActionKind
+	Reason string
+}
+
+// decideDirectionalPositionAction 纯函数:根据"当前数据"判断本仓该怎么做(而非固定阈值机械触发三件套)。
+// 优先级:① 风险(触止损地板/信号反转/超时)永远先平;② 盈利中按"动能/信心/回撤"二选一:
+//   - 强延续(信心高 + 趋势态同向 + 未到补仓上限)→ 补仓 press winner;
+//   - edge 转弱(信心低 或 自高水位明显回撤)→ 部分止盈锁利(仅首次);
+//   - 其余 → 持有(交给移动止损跑利润)。
+//
+// 所有判据都来自实时信号/浮盈/高水位,不是"到点必做"。
+func decideDirectionalPositionAction(
+	uPnLAccount, peakAccount, stopFloor float64,
+	holdMin int,
+	side DirectionSide,
+	fresh DirectionalSignal,
+	partialDone bool,
+	addCount int,
+	cfg OKXDirectionalConfig,
+) dirPosAction {
+	// ① 风险闸,永远最先。
+	if uPnLAccount <= stopFloor {
+		if partialDone {
+			return dirPosAction{dirActClose, "移动止损保盈"}
+		}
+		return dirPosAction{dirActClose, "硬止损"}
+	}
+	if fresh.Side != DirectionFlat && fresh.Side != side {
+		return dirPosAction{dirActClose, "信号反转"}
+	}
+	if cfg.MaxHoldMinutes > 0 && holdMin >= cfg.MaxHoldMinutes {
+		return dirPosAction{dirActClose, "超时离场"}
+	}
+
+	addConv := cfg.AddConvictionMin
+	if addConv <= 0 {
+		addConv = 0.6
+	}
+	fadeConv := cfg.TPFadeConviction
+	if fadeConv <= 0 {
+		fadeConv = 0.4
+	}
+	giveback := cfg.PeakGivebackFraction
+	if giveback <= 0 {
+		giveback = 0.4
+	}
+	addMinProfit := cfg.ScaleInTriggerPct
+	if addMinProfit <= 0 {
+		addMinProfit = 0.15
+	}
+	tpMinProfit := cfg.PartialTPTriggerPct
+	if tpMinProfit <= 0 {
+		tpMinProfit = 0.20
+	}
+	maxAdds := cfg.MaxAdds
+	if maxAdds <= 0 {
+		maxAdds = 2
+	}
+
+	// ② 数据驱动:强延续 vs edge转弱,盈利中二选一。
+	strongContinuation := fresh.Side == side && fresh.Conviction >= addConv && fresh.Regime == RegimeTrend
+	gaveBack := peakAccount > 1e-9 && (peakAccount-uPnLAccount) >= giveback*peakAccount
+	fading := fresh.Conviction <= fadeConv || gaveBack
+
+	if uPnLAccount >= addMinProfit && strongContinuation && addCount < maxAdds {
+		return dirPosAction{dirActScaleIn, fmt.Sprintf("强延续加仓(信心%.2f 趋势态 浮盈%.0f%%)", fresh.Conviction, uPnLAccount*100)}
+	}
+	if !partialDone && uPnLAccount >= tpMinProfit && fading {
+		why := "信心转弱"
+		if gaveBack {
+			why = fmt.Sprintf("自高水位回撤(峰%.0f%%→现%.0f%%)", peakAccount*100, uPnLAccount*100)
+		}
+		return dirPosAction{dirActPartialTP, "edge转弱锁利:" + why}
+	}
+	return dirPosAction{dirActHold, ""}
+}
+
 // formatRatePct 把单次费率格式化成百分比字符串(供日志)。
 func formatRatePct(r float64) string {
 	return fmt.Sprintf("%.4f%%", r*100)

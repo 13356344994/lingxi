@@ -106,6 +106,49 @@ func TestFundingPermits(t *testing.T) {
 	}
 }
 
+func TestDecideDirectionalPositionAction(t *testing.T) {
+	cfg := testDirectionalCfg()
+	cfg.MaxHoldMinutes = 180
+	cfg.ScaleInTriggerPct = 0.15
+	cfg.PartialTPTriggerPct = 0.20
+	cfg.AddConvictionMin = 0.6
+	cfg.TPFadeConviction = 0.4
+	cfg.PeakGivebackFraction = 0.4
+	cfg.MaxAdds = 2
+	stopFloor := -0.5
+	// 触止损地板 → 平。
+	if a := decideDirectionalPositionAction(-0.55, 0.1, stopFloor, 10, DirectionLong, DirectionalSignal{Side: DirectionLong}, false, 0, cfg); a.Kind != dirActClose {
+		t.Fatalf("触地板应平, got %v", a)
+	}
+	// 信号反转 → 平。
+	if a := decideDirectionalPositionAction(0.1, 0.1, stopFloor, 10, DirectionLong, DirectionalSignal{Side: DirectionShort, Conviction: 0.8}, false, 0, cfg); a.Kind != dirActClose {
+		t.Fatalf("反转应平, got %v", a)
+	}
+	// 强延续(盈利+高信心+趋势)→ 补仓。
+	strong := DirectionalSignal{Side: DirectionLong, Conviction: 0.8, Regime: RegimeTrend}
+	if a := decideDirectionalPositionAction(0.18, 0.18, stopFloor, 10, DirectionLong, strong, false, 0, cfg); a.Kind != dirActScaleIn {
+		t.Fatalf("强延续应补仓, got %v", a)
+	}
+	// edge转弱(盈利+低信心)→ 部分止盈。
+	weak := DirectionalSignal{Side: DirectionLong, Conviction: 0.3, Regime: RegimeRange}
+	if a := decideDirectionalPositionAction(0.25, 0.25, stopFloor, 10, DirectionLong, weak, false, 0, cfg); a.Kind != dirActPartialTP {
+		t.Fatalf("信心转弱应部分止盈, got %v", a)
+	}
+	// 自高水位明显回撤(峰0.5→现0.25,回撤50%>40%)→ 部分止盈。
+	midConv := DirectionalSignal{Side: DirectionLong, Conviction: 0.55, Regime: RegimeTrend}
+	if a := decideDirectionalPositionAction(0.25, 0.5, stopFloor, 10, DirectionLong, midConv, false, 0, cfg); a.Kind != dirActPartialTP {
+		t.Fatalf("高水位回撤应部分止盈, got %v", a)
+	}
+	// 盈利但不强不弱不回撤 → 持有。
+	if a := decideDirectionalPositionAction(0.12, 0.13, stopFloor, 10, DirectionLong, midConv, false, 0, cfg); a.Kind != dirActHold {
+		t.Fatalf("无明确信号应持有, got %v(%s)", a.Kind, a.Reason)
+	}
+	// 已部分止盈 + 信心转弱 + 未补够 → 不重复部分止盈,持有(交给移动止损)。
+	if a := decideDirectionalPositionAction(0.22, 0.25, stopFloor, 10, DirectionLong, weak, true, 0, cfg); a.Kind != dirActHold {
+		t.Fatalf("已部分止盈不应重复, got %v", a)
+	}
+}
+
 func TestDirectionalEntryGuard(t *testing.T) {
 	cfg := testDirectionalCfg()
 	cfg.SpikeBarPct = 0.03
