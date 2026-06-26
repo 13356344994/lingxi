@@ -744,11 +744,9 @@
         <div class="toolbar toolbar-downloads">
           <button type="button" class="record-download-btn" data-download-url="{{.SettlementCSV}}">下载结算 JSON</button>
           <button type="button" class="record-download-btn" data-download-url="{{.MonitorCSV}}">下载监控 JSONL</button>
-          <button type="button" class="record-download-btn" data-download-url="{{.BacktestCSV}}">下载回测 JSON</button>
           <button type="button" class="record-download-btn" data-download-url="{{.ResidualCSV}}">下载残腿 JSON</button>
           <button type="button" class="record-download-btn" data-download-url="{{.ExecutionCSV}}">下载执行事故 JSONL</button>
           <button type="button" class="record-download-btn" data-download-url="{{.DomainEventCSV}}">下载协议事件 JSONL</button>
-          <button type="button" class="record-download-btn" data-download-url="{{.MonthlySimulationCSV}}">下载历史模拟日志 JSON</button>
           <button type="button" class="record-download-btn" data-download-url="{{.RuntimeEventLog}}">下载运行日志</button>
           <button type="button" class="record-download-btn" data-download-url="{{.ControlAuditLog}}">下载控制审计 JSONL</button>
         </div>
@@ -799,7 +797,7 @@
               <tr>
                 <th>交易对</th><th title="carry: 同所/跨所 现货-永续 或 永续-现货; PP: 跨所永续-永续">策略</th><th>状态</th>
                 <th title="carry 为现货腿; PP 为高费永续腿">高费腿</th><th title="carry 为永续腿; PP 为低费永续腿">低费腿</th>
-                <th>名义(U)</th><th title="PP: 已结算资费与预期下次资费分列; 总盈亏仅含已结算资费">资费</th><th>手续费(开+预计平)</th><th title="含未实现腿盈亏与已结算资费; 不含预期下次资费">总盈亏(U)</th><th>盈亏比例</th><th>预期净EV</th><th>持有时长</th>
+                <th>名义(U)</th><th title="PP: 已结算资费与预期下次资费分列; 总盈亏仅含已结算资费">资费</th><th>手续费(开+预计平)</th><th title="含未实现腿盈亏与已结算资费; 不含预期下次资费">总盈亏(U)</th><th>盈亏比例</th><th title="开仓那一刻预估的净EV快照,持有期不刷新,仅供回看开仓依据,非当前实时EV">预期净EV(开仓时)</th><th>持有时长</th>
               </tr>
             </thead>
             <tbody id="rotation-open-tbody"><tr><td colspan="12" class="hint">加载中…</td></tr></tbody>
@@ -911,16 +909,7 @@
         </div>
       </div>
 
-      <div class="ops-group ops-group-legacy-stop">
-        <div class="ops-group-label">旧 perp-perp 停闸</div>
-        <div class="risk-actions">
-          <button id="legacy-perp-openings-off-btn" type="button" class="danger">关闭跨所开仓闸</button>
-          <button id="legacy-perp-strategy-stop-btn" type="button" class="danger">策略停止</button>
-        </div>
-        <div class="hint" style="margin-top:8px;">任意 Tab 均可触达;停止开新仓,在场持仓继续管理直至平掉。</div>
-      </div>
-
-      <details class="fold-panel" id="legacy-perp-fold">
+      <details class="fold-panel" id="legacy-perp-fold" hidden>
         <summary>高级 · 旧 perp-perp 控制</summary>
         <div class="fold-body">
       <div id="strategy-control-panel" class="sub-panel" style="display:none;">
@@ -1213,7 +1202,7 @@
       </div>
       <div class="hint">该操作会清空：后台运行日志、历史缓存、全部页面记录（结算/监控/回测/残腿/执行事故/协议事件/灰尘/待结算资金费/月度模拟），以及运行态台账（控制审计、日级风控、残腿救援、未平仓对冲）。清空后不可恢复，需先停止后台任务。</div>
       <div class="status-grid" id="capital-wallets-dynamic" style="display:none"></div>
-      <div class="status-grid" id="capital-wallets-legacy">
+      <div class="status-grid" id="capital-wallets-legacy" hidden>
         <div class="stat-card">
           <div class="stat-label">现货 U</div>
           <div class="stat-value" id="capital-spot-usdt" style="font-size:18px">-</div>
@@ -1435,7 +1424,7 @@
         <div class="hint">这里优先展示 runtime 最近收到的统一结构化事件，包含协议事件和已桥接的关键风险事件。</div>
         <div id="runtime-domain-events" class="log-list"></div>
       </div>
-      <div class="sub-block">
+      <div class="sub-block" hidden>
         <h2 style="font-size:18px;">最近执行事件</h2>
         <div class="hint">这里保留兼容视图，主要展示旧执行事故流，方便和统一事件流对照排查。</div>
         <div id="runtime-execution-events" class="log-list"></div>
@@ -4272,20 +4261,21 @@
         const ret = row.today_return_rate;
         const capBreak = formatVenueCapitalBreakdown(strategyVenueCapitals[v]);
         const capLine = capBreak || `可动用 ${fmtCap(cap)} U`;
-        const realizedLine = hasRealized
-          ? `<div style="font-size:16px;font-weight:600;color:${color(realized)};">已实现 ${fmt(realized)} U</div>`
-          : "";
+        // 主数字用「已实现」(结算台账口径,可信,各所之和=顶部可信已实现);始终展示,无结算则显示 +0。
+        const realizedShown = hasRealized ? Number(realized) : 0;
+        const realizedLine = `<div style="font-size:18px;font-weight:600;color:${color(realizedShown)};">已实现 ${fmt(realizedShown)} U</div>`;
         const upnlLine = upnl != null && Math.abs(Number(upnl)) > 1e-6
           ? `<div style="font-size:11px;color:#64748b;margin-top:2px;">浮动盈亏 ${fmt(upnl)} U</div>` : "";
         const capErr = row.capital_error ? `<div style="font-size:11px;color:#fca5a5;margin-top:2px;">${escapeHTML(row.capital_error)}</div>` : "";
+        // 净值变动降级为小字灰注:账户快照口径(含浮盈+充提),与「已实现」口径不同、不可相加(提币会让它失真)。
         return `
         <div style="flex:1 1 170px;min-width:170px;background:#0b1424;border:1px solid #1e293b;border-radius:8px;padding:10px;">
           <div style="font-size:12px;color:#8aa0c6;margin-bottom:4px;">${escapeHTML(v)}</div>
-          <div style="font-size:12px;color:#94a3b8;margin-bottom:2px;">${capLine}</div>
-          <div style="font-size:12px;color:#94a3b8;margin-bottom:2px;">全部资金 ${fmtCap(eq)} U</div>
           ${realizedLine}
-          <div style="font-size:14px;color:#94a3b8;">净值变动(含充提) ${fmt(earn)} U · 收益率 ${fmtPct(ret)}</div>
+          <div style="font-size:12px;color:#94a3b8;margin:3px 0 2px;">${capLine}</div>
+          <div style="font-size:12px;color:#94a3b8;margin-bottom:2px;">全部资金 ${fmtCap(eq)} U</div>
           ${upnlLine}
+          <div style="font-size:11px;color:#64748b;margin-top:3px;" title="账户快照口径:含浮盈与充提转账,与上方「已实现」(结算台账)口径不同,不能直接相加;提币会让此值失真">净值变动(账户口径) ${fmt(earn)} U · 收益率 ${fmtPct(ret)}</div>
           ${capErr}
         </div>`;
       }).join("");
