@@ -107,7 +107,7 @@ func (s *DashboardServer) SetControlPlane(cp *ControlPlane) {
 type DashboardSummaryResponse struct {
 	// Venue 标识本次 summary 代表的所(读时注入,§9.2):summary 是单所视图,缺省/all → 缺省所(Primary),
 	// 具名 → 该所;前端据此知道当前 Tab 展示的是哪家。
-	Venue                 string                    `json:"venue"`
+	Venue string `json:"venue"`
 	// VenueScope 当 ?venue=all 且本接口无法跨所聚合时为 "primary_only"(诚实标注:数据仅来自缺省所,非四所合计)。
 	VenueScope            string                    `json:"venue_scope,omitempty"`
 	RuntimeStatus         RuntimeTaskStatus         `json:"runtime_status"`
@@ -1171,9 +1171,13 @@ func (s *DashboardServer) handleEarningsAPI(w http.ResponseWriter, r *http.Reque
 	// 并给出「交易净值变动(不含转账)」让用户一眼看清纯交易结果。
 	fundFlowAdjust := 0.0
 	fundFlowKnown := false
+	fundFlowSource := ""
+	fundFlowUnconfirmed := 0.0
 	if st, ok := loadAccountRiskEquityState(s.recordDir); ok {
 		fundFlowAdjust = st.DailyFundFlowAdjustUSDT
 		fundFlowKnown = true
+		fundFlowSource = st.DailyFundFlowSource
+		fundFlowUnconfirmed = st.DailyFundFlowReconcileUSDT
 	}
 	tradingEquityDelta := accountEquityDelta
 	if fundFlowKnown {
@@ -1191,6 +1195,8 @@ func (s *DashboardServer) handleEarningsAPI(w http.ResponseWriter, r *http.Reque
 		"account_equity_delta_usdt":   accountEquityDelta,
 		"fund_flow_adjust_usdt":       fundFlowAdjust,
 		"fund_flow_known":             fundFlowKnown,
+		"fund_flow_source":            fundFlowSource,
+		"fund_flow_unconfirmed_usdt":  fundFlowUnconfirmed,
 		"trading_equity_delta_usdt":   tradingEquityDelta,
 		"all_time_realized_pnl_usdt":  allTimeSummary.TotalNetPnL,
 		"all_time_untrusted_pnl_usdt": allTimeSummary.UntrustedNetPnL,

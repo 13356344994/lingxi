@@ -101,6 +101,11 @@ cross_venue_executor:
   capture_roll_enabled: true
   # 单笔最多滚动续持次数(上限总持有周期;MaxHold 仍为硬顶)。
   capture_max_rolls: 6
+  # 对冲 carry 持有到计划离场:开后不再做持有期主动止损(关闭基差止损 + 轮动层续持边际转负软平)。
+  # perp-perp 两腿同标的、基差均值回归,持有期主动平多在薄盘把"省几分钱预期成本"变成"穿价实亏几 U"
+  # (B3 即此:续持净 -0.109 想省 0.1,gate 出场实滑 -3.5)。只留计划离场/roll、结算前净付保护、最大持有硬顶、
+  # 裸腿/对账/下架安全平腿。设 false 可恢复旧的持有期主动止损。
+  carry_hold_to_planned_exit_enabled: true
   # 入场硬条件:预期目标资费 / 往返成本 ≥ 此比值,挡掉"滑点远大于资费"的薄盘暴力小币。
   capture_funding_to_cost_min_ratio: 1.0
   # 下单前实时资费复核:进场窗内真正下第一腿之前重拉两腿最新资费(离结算越近越收敛),若目标腿资费已翻向或

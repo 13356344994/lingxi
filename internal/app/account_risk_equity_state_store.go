@@ -27,7 +27,10 @@ type persistedAccountRiskEquityState struct {
 	LastDailyRealizedPnL    float64            `json:"last_daily_realized_pnl"`
 	LastSettlementCount     int                `json:"last_settlement_count"`
 	LastPositionCount       int                `json:"last_position_count"`
-	UpdatedAt               time.Time          `json:"updated_at"`
+	// 充提平移来源与未确权额(向后兼容:旧文件无此字段则默认空/0,仍按 schema v1 读取)。
+	DailyFundFlowSource        string    `json:"daily_fund_flow_source,omitempty"`
+	DailyFundFlowReconcileUSDT float64   `json:"daily_fund_flow_reconcile_usdt,omitempty"`
+	UpdatedAt                  time.Time `json:"updated_at"`
 }
 
 func accountRiskEquityStatePath(recordDir string) string {
@@ -43,19 +46,21 @@ func (st *accountRiskEquityState) toPersisted(now time.Time) persistedAccountRis
 		return persistedAccountRiskEquityState{SchemaVersion: accountRiskEquityStateSchemaVersion, UpdatedAt: now}
 	}
 	return persistedAccountRiskEquityState{
-		SchemaVersion:           accountRiskEquityStateSchemaVersion,
-		DayStartCST:             st.DayStartCST,
-		LastTrustedTotalUSDT:    st.LastTrustedTotalUSDT,
-		LastTrustedByVenue:      copyVenueEquityMap(st.LastTrustedByVenue),
-		HasLastTrusted:          st.HasLastTrusted,
-		LastTrustedAt:           st.LastTrustedAt,
-		DailyFundFlowAdjustUSDT: st.DailyFundFlowAdjustUSDT,
-		CumulativeFundFlowUSDT:  st.CumulativeFundFlowUSDT,
-		TradingEquityPeakUSDT:   st.TradingEquityPeakUSDT,
-		LastDailyRealizedPnL:    st.LastDailyRealizedPnL,
-		LastSettlementCount:     st.LastSettlementCount,
-		LastPositionCount:       st.LastPositionCount,
-		UpdatedAt:               now,
+		SchemaVersion:              accountRiskEquityStateSchemaVersion,
+		DayStartCST:                st.DayStartCST,
+		LastTrustedTotalUSDT:       st.LastTrustedTotalUSDT,
+		LastTrustedByVenue:         copyVenueEquityMap(st.LastTrustedByVenue),
+		HasLastTrusted:             st.HasLastTrusted,
+		LastTrustedAt:              st.LastTrustedAt,
+		DailyFundFlowAdjustUSDT:    st.DailyFundFlowAdjustUSDT,
+		CumulativeFundFlowUSDT:     st.CumulativeFundFlowUSDT,
+		TradingEquityPeakUSDT:      st.TradingEquityPeakUSDT,
+		LastDailyRealizedPnL:       st.LastDailyRealizedPnL,
+		LastSettlementCount:        st.LastSettlementCount,
+		LastPositionCount:          st.LastPositionCount,
+		DailyFundFlowSource:        st.DailyFundFlowSource,
+		DailyFundFlowReconcileUSDT: st.DailyFundFlowReconcileUSDT,
+		UpdatedAt:                  now,
 	}
 }
 
@@ -74,6 +79,8 @@ func (st *accountRiskEquityState) applyPersisted(p persistedAccountRiskEquitySta
 	st.LastDailyRealizedPnL = p.LastDailyRealizedPnL
 	st.LastSettlementCount = p.LastSettlementCount
 	st.LastPositionCount = p.LastPositionCount
+	st.DailyFundFlowSource = p.DailyFundFlowSource
+	st.DailyFundFlowReconcileUSDT = p.DailyFundFlowReconcileUSDT
 }
 
 func loadAccountRiskEquityState(recordDir string) (accountRiskEquityState, bool) {

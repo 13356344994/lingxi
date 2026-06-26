@@ -142,6 +142,40 @@ func TestApplyAccountFundFlowAdjustment_RealZeroButLargeUnexplainedReconciles(t 
 	if !strings.Contains(buf.String(), "real充提源疑似漏检") {
 		t.Fatalf("expected reconcile warn log, got %q", buf.String())
 	}
+	if st.DailyFundFlowSource != "real+reconcile" {
+		t.Fatalf("DailyFundFlowSource=%q want real+reconcile", st.DailyFundFlowSource)
+	}
+	// 未确权额=real 之外的残差(real 返回 0 → 整笔 unexplained 均未确权),应非零并暴露给面板高亮。
+	if math.Abs(st.DailyFundFlowReconcileUSDT) < 1e-9 {
+		t.Fatalf("DailyFundFlowReconcileUSDT=%v want non-zero (unconfirmed portion)", st.DailyFundFlowReconcileUSDT)
+	}
+}
+
+// real 源确权(net≠0)时:source=real,未确权额必须归零(面板不应误报 ⚠)。
+func TestApplyAccountFundFlowAdjustment_RealConfirmedClearsUnconfirmed(t *testing.T) {
+	st := &accountRiskEquityState{DailyFundFlowReconcileUSDT: 99, DailyFundFlowSource: "heuristic"}
+	obs := testAccountEquityObservation(385.55, -49.45, map[string]float64{"okx": 385.55})
+	lookup := func(name string) venue.ExternalFundFlowProvider {
+		if name == "okx" {
+			return &stubFundFlowProvider{net: -49.45}
+		}
+		return nil
+	}
+	source, _ := applyAccountFundFlowAdjustment(
+		context.Background(), st, obs, lookup,
+		time.Now().UTC().Add(-time.Hour),
+		obs.TotalUSDT, obs.RawDailyDelta, 0,
+		accountRiskPositionSummary{TotalCount: 1}, 0, 5, nil,
+	)
+	if source != "real" {
+		t.Fatalf("source=%q want real", source)
+	}
+	if st.DailyFundFlowSource != "real" {
+		t.Fatalf("DailyFundFlowSource=%q want real", st.DailyFundFlowSource)
+	}
+	if st.DailyFundFlowReconcileUSDT != 0 {
+		t.Fatalf("DailyFundFlowReconcileUSDT=%v want 0 (real-confirmed clears unconfirmed)", st.DailyFundFlowReconcileUSDT)
+	}
 }
 
 func TestApplyAccountFundFlowAdjustment_HeuristicLogsOneShot(t *testing.T) {

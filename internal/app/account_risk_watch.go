@@ -163,6 +163,10 @@ type accountRiskEquityState struct {
 	LastSettlementCount   int
 	LastPositionCount     int
 	fundFlowSourceLogged  bool
+	// DailyFundFlowSource 当日充提平移来源:real(交易所充提历史确权) / real+reconcile(real 之外残差按无持仓推断) / heuristic(纯残差推断)。
+	// DailyFundFlowReconcileUSDT 平移额中「未经交易所确权」的部分(reconcile/heuristic 推断),供面板高亮提示用户确认,杜绝把真实亏损静默当成充提隐藏。
+	DailyFundFlowSource        string
+	DailyFundFlowReconcileUSDT float64
 }
 
 // updateTradingEquityDrawdown 把真实现金权益换算成交易口径(扣全时净充提),维护交易峰值并返回扣充提回撤。

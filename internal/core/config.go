@@ -852,6 +852,13 @@ type CrossVenueExecutorConfig struct {
 	CaptureRollEnabled bool `cfg:"capture_roll_enabled"`
 	// CaptureMaxRolls 单笔最多滚动续持次数(上限总持有周期,兜底基差暴露;MaxHold 仍为硬顶)。默认 6。
 	CaptureMaxRolls int `cfg:"capture_max_rolls"`
+	// CarryHoldToPlannedExitEnabled 对冲 carry 持有到计划离场:开后不再做"持有期主动止损平仓"。
+	// 因 perp-perp 两腿同一标的(delta 中性、基差均值回归),持有期的主动平仓(基差止损 / 续持边际转负)
+	// 多在薄盘上把"为省几分钱预期成本"变成"实盘穿价亏几 U"(B3 即此:续持净 -0.109 想省 0.1,gate 出场实滑 -3.5)。
+	// 开后只保留:计划离场(目标结算+缓冲,流动性最好的窗口)+ 到点 roll 续持/平仓的再评估、结算前净付保护、
+	// 最大持有硬顶、以及裸腿/对账/下架等安全平腿;关闭"基差止损"和轮动层"续持边际转负软平"。
+	// 默认 true(去掉持有期强平);设 false 可恢复旧的主动止损行为。
+	CarryHoldToPlannedExitEnabled bool `cfg:"carry_hold_to_planned_exit_enabled"`
 	// ViolenceSizeBoostWeight 暴力度软调仓权重:统一模型下 sizeMult ×= (1 + 权重 × ViolenceScore),clamp01 封顶。
 	// 真暴力币(高费且持续,violence 高)更靠近满仓;瞬时尖刺(violence≈0)不受影响。只向满仓靠拢、绝不超额。
 	// 默认 0.3;0=关闭(回退纯置信度调仓)。仅统一模型生效。

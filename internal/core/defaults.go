@@ -427,6 +427,7 @@ func DefaultEngineConfig() EngineConfig {
 			PlannedExitBufferSeconds:                 90,
 			CaptureRollEnabled:                       true,
 			CaptureMaxRolls:                          6,
+			CarryHoldToPlannedExitEnabled:            true,
 			ViolenceSizeBoostWeight:                  0.3,
 			ViolenceRankBoostWeight:                  0.3,
 		},

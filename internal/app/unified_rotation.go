@@ -31,6 +31,9 @@ type RotationConfig struct {
 	MaxStrategyCapitalUsagePct float64 `json:"max_strategy_capital_usage_pct"`
 	// ContinuationCloseThreshold 续持分须低于 −此阈值才允许软 CLOSE(过滤边际负分 fee churn)。默认 0.001。
 	ContinuationCloseThreshold float64 `json:"continuation_close_threshold"`
+	// ContinuationCloseDisabled 关闭"续持边际转负软 CLOSE"(由 exec.CarryHoldToPlannedExitEnabled 注入)。
+	// 对冲 carry 持有到计划离场,不在持有期因边际 EV 转负而主动平仓(避免薄盘穿价把省几分钱变成实亏几 U)。
+	ContinuationCloseDisabled bool `json:"continuation_close_disabled"`
 	// ContinuationMinHoldSeconds 开仓后至少持有此秒数才允许续持分软 CLOSE。默认 3600。
 	ContinuationMinHoldSeconds int `json:"continuation_min_hold_seconds"`
 	// MinHoldToFirstSettlementEnabled 开仓后须持有至首个 intended funding 结算(+缓冲)才允许软 CLOSE/SWITCH。默认 true。
@@ -91,6 +94,8 @@ func RotationConfigFromUnified(ur core.UnifiedRotationConfig, exec CrossVenueExe
 	if ur.SwitchMinAdvantageUSDT > 0 {
 		cfg.SwitchMinAdvantageUSDT = ur.SwitchMinAdvantageUSDT
 	}
+	// 对冲 carry 持有到计划离场:同步关闭轮动层"续持边际转负软平"(与执行层基差止损一并由该 flag 治理)。
+	cfg.ContinuationCloseDisabled = exec.CarryHoldToPlannedExitEnabled
 	cfg.MinHoldToFirstSettlementEnabled = DefaultRotationConfig().MinHoldToFirstSettlementEnabled
 	if ur != (core.UnifiedRotationConfig{}) {
 		cfg.MinHoldToFirstSettlementEnabled = ur.MinHoldToFirstSettlementEnabled
@@ -891,6 +896,10 @@ func rotationSwitchMinHoldSatisfied(pos HeldPosition, cfg RotationConfig, now ti
 
 // rotationShouldContinuationClose 判断是否因续持边际转负而软 CLOSE(含 hysteresis/min-hold/关仓费对比)。
 func rotationShouldContinuationClose(pos HeldPosition, inputs ContinuationInputs, cfg RotationConfig, now time.Time) (bool, string) {
+	// 对冲 carry 持有到计划离场:不在持有期因边际 EV 转负而主动平仓(由计划离场/roll 在结算窗口统一再评估)。
+	if cfg.ContinuationCloseDisabled {
+		return false, ""
+	}
 	contNet := continuationNetUSDT(inputs)
 	contScore := continuationScore(pos, inputs)
 	closeCost := inputs.ExpectedCloseCostUSDT

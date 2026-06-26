@@ -284,6 +284,46 @@ func TestDecideRotationCloseWhenContinuationNegative(t *testing.T) {
 	}
 }
 
+// ContinuationCloseDisabled(对冲 carry 持有到计划离场)时:即便续持边际转负也不主动平,交由计划离场/roll 在结算窗口再评估。
+func TestDecideRotationContinuationCloseDisabledHolds(t *testing.T) {
+	now := time.Date(2026, 6, 18, 12, 0, 0, 0, time.UTC)
+	held := HeldPosition{
+		OpportunityID:          "held-btc",
+		StrategyType:           UnifiedStrategyPerpPerp,
+		Symbol:                 "BTC",
+		CapitalRequiredByVenue: map[string]float64{"binance": 50, "bybit": 50},
+		OpenedAt:               now.Add(-2 * time.Hour),
+	}
+	heldInputs := map[string]ContinuationInputs{
+		"held-btc": {ExpectedFundingUSDT: 0, ExpectedCloseCostUSDT: 2, HoldingRiskUSDT: 10},
+	}
+	cfg := DefaultRotationConfig()
+	cfg.ContinuationCloseDisabled = true
+	plan := decideRotationAt(
+		[]HeldPosition{held}, heldInputs, nil,
+		map[string]float64{"binance": 200, "bybit": 200},
+		cfg, now, 0, nil,
+	)
+	for _, a := range plan.Actions {
+		if a.Kind == RotationActionClose {
+			t.Fatalf("ContinuationCloseDisabled 时不应主动平仓,却产生 CLOSE: %+v", a)
+		}
+	}
+}
+
+// RotationConfigFromUnified 应把 exec.CarryHoldToPlannedExitEnabled 注入 ContinuationCloseDisabled。
+func TestRotationConfigFromUnifiedWiresHoldToPlannedExit(t *testing.T) {
+	exec := CrossVenueExecutorConfig{CarryHoldToPlannedExitEnabled: true}
+	cfg := RotationConfigFromUnified(core.UnifiedRotationConfig{}, exec)
+	if !cfg.ContinuationCloseDisabled {
+		t.Fatal("CarryHoldToPlannedExitEnabled=true 应令 ContinuationCloseDisabled=true")
+	}
+	exec.CarryHoldToPlannedExitEnabled = false
+	if RotationConfigFromUnified(core.UnifiedRotationConfig{}, exec).ContinuationCloseDisabled {
+		t.Fatal("CarryHoldToPlannedExitEnabled=false 应令 ContinuationCloseDisabled=false")
+	}
+}
+
 func TestDecideRotationMarginalNegativeHoldsFreshPosition(t *testing.T) {
 	now := time.Date(2026, 6, 18, 12, 0, 0, 0, time.UTC)
 	held := HeldPosition{

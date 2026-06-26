@@ -4240,11 +4240,20 @@
       const tradingDeltaEl = document.getElementById("earnings-trading-delta");
       const fundFlowKnown = data.fund_flow_known === true;
       const fundFlow = Number(data.fund_flow_adjust_usdt || 0);
+      const fundFlowSource = String(data.fund_flow_source || "");
+      const fundFlowUnconfirmed = Number(data.fund_flow_unconfirmed_usdt || 0);
+      const fundFlowHasUnconfirmed = Math.abs(fundFlowUnconfirmed) > 1e-6;
       const tradingDelta = data.trading_equity_delta_usdt != null ? Number(data.trading_equity_delta_usdt) : equityDelta;
       if (fundFlowEl) {
-        fundFlowEl.textContent = fundFlowKnown ? (fmt(fundFlow) + " U") : "—";
-        fundFlowEl.style.color = fundFlowKnown && fundFlow !== 0 ? "#7dd3fc" : "#94a3b8";
-        fundFlowEl.title = fundFlowKnown ? "正=充值,负=提币;已从风控亏损口径剔除" : "账户风控状态未就绪";
+        // 未经交易所确权的平移(reconcile/heuristic 推断)加 ⚠ 提示用户核实,避免真实亏损被静默当成提币隐藏。
+        const warn = fundFlowKnown && fundFlowHasUnconfirmed ? " ⚠" : "";
+        fundFlowEl.textContent = fundFlowKnown ? (fmt(fundFlow) + " U" + warn) : "—";
+        fundFlowEl.style.color = !fundFlowKnown ? "#94a3b8" : (fundFlowHasUnconfirmed ? "#fbbf24" : (fundFlow !== 0 ? "#7dd3fc" : "#94a3b8"));
+        fundFlowEl.title = !fundFlowKnown
+          ? "账户风控状态未就绪"
+          : (fundFlowHasUnconfirmed
+              ? `正=充值,负=提币。注意:其中 ${fmt(fundFlowUnconfirmed)} U 未经交易所充提历史确权(来源=${fundFlowSource}),系按"无持仓时权益变动只能来自充提"推断。请核实确为真实充提,而非未被记账的交易亏损。`
+              : `正=充值,负=提币;已从风控亏损口径剔除(来源=${fundFlowSource || "real"},已确权)`);
       }
       if (tradingDeltaEl) {
         tradingDeltaEl.textContent = fundFlowKnown ? (fmt(tradingDelta) + " U") : "—";

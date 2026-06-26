@@ -795,6 +795,29 @@ func TestRefreshFundingBeforeOpen_FailOpenWhenDisabled(t *testing.T) {
 	}
 }
 
+// TestCrossVenuePreflightBothLegsMargin 验证开第一腿前双腿保证金预检:任一腿所保证金不足即放弃(防回滚白亏);两腿都够则放行。
+func TestCrossVenuePreflightBothLegsMargin(t *testing.T) {
+	now := time.Now().UTC()
+	high := newCrossVenueTestVenue(bybit.VenueName, 0.0, 8, now)
+	high.balanceUSDT = 10000
+	low := newCrossVenueTestVenue(okx.VenueName, 0.0, 8, now)
+	low.balanceUSDT = 1 // 远不够开 $80 名义所需保证金
+	cfg := DefaultEngineConfig()
+	e := &CrossVenueExecutor{
+		cfg:    cfg,
+		venues: map[string]venue.Venue{bybit.VenueName: high, okx.VenueName: low},
+		logger: testCrossVenueLogger(),
+		nowFn:  func() time.Time { return now },
+	}
+	if r := e.crossVenuePreflightBothLegsMargin(context.Background(), high, low, bybit.VenueName, okx.VenueName, 80, 80); r == "" {
+		t.Fatal("低费腿所保证金不足应放弃开仓")
+	}
+	low.balanceUSDT = 10000
+	if r := e.crossVenuePreflightBothLegsMargin(context.Background(), high, low, bybit.VenueName, okx.VenueName, 80, 80); r != "" {
+		t.Fatalf("两腿保证金都够应放行,却拒: %s", r)
+	}
+}
+
 func TestCrossVenueCloseForcesFlat(t *testing.T) {
 	force := []string{"强平距离不足,全平", "flatten_all", "紧急平仓", "emergency flatten", "liquidation risk"}
 	for _, r := range force {

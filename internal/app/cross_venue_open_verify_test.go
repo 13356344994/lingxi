@@ -212,6 +212,9 @@ func TestExecuteCrossVenueOpenImbalancedFillsConverge(t *testing.T) {
 		lowFillRatio:        440.0 / 700.0,
 	}
 	low.instruments = []venue.Instrument{{Symbol: "BTC-USDT", Market: venue.MarketPerp, StepSize: 1, ContractSize: 1, MinNotional: 5}}
+	// 备足两腿保证金,使本测试聚焦"成交收敛"而非被开仓前的保证金预检拦下($70k 名义需充足永续可用)。
+	high.balanceUSDT = 200000
+	low.balanceUSDT = 200000
 
 	e := newCrossVenueOpenTestExecutorWithVenues(t, map[string]venue.Venue{bybit.VenueName: high, okx.VenueName: low}, nil)
 	plan := crossVenueOpenPlan{
@@ -248,6 +251,9 @@ func TestExecuteCrossVenueOpenImbalancedFillsRollback(t *testing.T) {
 	low.instruments = []venue.Instrument{{Symbol: "BTC-USDT", Market: venue.MarketPerp, StepSize: 1, ContractSize: 1, MinNotional: 5}}
 	high.clearOnReduceOnly = true
 	low.clearOnReduceOnly = true
+	// 备足两腿保证金,使本测试聚焦"收敛失败回滚"而非被开仓前保证金预检拦下。
+	high.balanceUSDT = 200000
+	low.balanceUSDT = 200000
 
 	e := newCrossVenueOpenTestExecutorWithVenues(t, map[string]venue.Venue{bybit.VenueName: high, okx.VenueName: low}, nil)
 	plan := crossVenueOpenPlan{

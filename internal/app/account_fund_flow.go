@@ -97,11 +97,16 @@ func applyAccountFundFlowAdjustment(
 					realTotal, residual, cumulativeUnexplained, dailyRealized)
 			}
 			st.fundFlowSourceLogged = true
+			st.DailyFundFlowSource = "real+reconcile"
+			// 未确权部分 = real 之外被「无持仓推断」并入的残差;面板据此高亮提示用户确认非隐藏亏损。
+			st.DailyFundFlowReconcileUSDT = residual
 			return "real+reconcile", step
 		}
 		prev := st.DailyFundFlowAdjustUSDT
 		st.DailyFundFlowAdjustUSDT = realTotal
 		step = money.SumUSDT(realTotal, -prev)
+		st.DailyFundFlowSource = "real"
+		st.DailyFundFlowReconcileUSDT = 0
 		if logger != nil {
 			if !st.fundFlowSourceLogged {
 				logger.Printf("[账户风控] 充提流水源=real cumulative=%.4f (首次确认)", realTotal)
@@ -122,6 +127,9 @@ func applyAccountFundFlowAdjustment(
 		settlementCount,
 		minStep,
 	)
+	st.DailyFundFlowSource = "heuristic"
+	// 纯启发式路径:整笔平移均未经交易所确权,全额标为未证实,面板高亮提示用户核实。
+	st.DailyFundFlowReconcileUSDT = st.DailyFundFlowAdjustUSDT
 	if logger != nil {
 		if !st.fundFlowSourceLogged {
 			logger.Printf("[账户风控] 充提流水源=heuristic cumulative=%.4f (首次确认)", st.DailyFundFlowAdjustUSDT)

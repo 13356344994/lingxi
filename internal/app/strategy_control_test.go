@@ -211,6 +211,27 @@ func newStrategyTestOrchestrator(t *testing.T) (*Orchestrator, map[string]*Runti
 	return o, controllers
 }
 
+// 资金全停在 funding 钱包时,可动用须等于 TotalMovable(与轮动"扣储备前可用"一致),而非旧实现的 0。
+func TestStrategyCapitalBreakdownCountsFundingWalletAsDeployable(t *testing.T) {
+	// 模拟 binance 实况:spot/futures/cross-margin 皆 0,46.98 全在 funding 钱包。
+	snap := RuntimeCapitalSnapshot{
+		SpotFreeUSDT:         0,
+		FuturesAvailableUSDT: 0,
+		CrossMarginFreeUSDT:  0,
+		FundingFreeUSDT:      46.98,
+		TotalMovableUSDT:     46.98,
+	}
+	trading, reserve := strategyCapitalBreakdown(snap)
+	if trading < 46.97 || trading > 46.99 {
+		t.Fatalf("可动用应≈46.98(funding 钱包可被路由部署),got trading=%.4f reserve=%.4f", trading, reserve)
+	}
+	// 常态:资金在交易钱包,口径不变。
+	snap2 := RuntimeCapitalSnapshot{FuturesAvailableUSDT: 40, FundingFreeUSDT: 5, TotalMovableUSDT: 45}
+	if tr, _ := strategyCapitalBreakdown(snap2); tr < 44.99 || tr > 45.01 {
+		t.Fatalf("可动用应=45(futures40+funding5),got %.4f", tr)
+	}
+}
+
 func TestStrategyCapitalParallelPerVenueResults(t *testing.T) {
 	o, ctrls := newStrategyTestOrchestrator(t)
 	// gate: 可调不足

@@ -1110,8 +1110,12 @@ func (e *CrossVenueExecutor) shouldCloseCrossVenue(ctx context.Context, pos *Cro
 			return e.crossVenueFilterVoluntaryCloseReason(pos, reason)
 		}
 		// 基差止损(统一模型真正的风控):累计不利基差 PnL 超过预算即平。也先于新鲜度检查,基差跟踪用持仓内最新价。
-		if reason := e.crossVenueBasisStopCloseReason(ctx, pos, now); reason != "" {
-			return e.crossVenueFilterVoluntaryCloseReason(pos, reason)
+		// CarryHoldToPlannedExitEnabled 时关闭:对冲 carry 两腿同标的、基差均值回归,持有期主动平多在薄盘把噪声锁成实亏,
+		// 改为持有到计划离场(流动性最好的窗口)再由 roll/平仓统一评估;尾部由最大持有硬顶 + 裸腿/对账安全平腿兜底。
+		if !cfg.CarryHoldToPlannedExitEnabled {
+			if reason := e.crossVenueBasisStopCloseReason(ctx, pos, now); reason != "" {
+				return e.crossVenueFilterVoluntaryCloseReason(pos, reason)
+			}
 		}
 	}
 	if pos.FreshnessAgeSeconds > crossVenueMaxCompareAgeSeconds(cfg, e.cfg.CrossVenueScanner.MaxSnapshotAgeSeconds) {

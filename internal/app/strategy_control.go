@@ -128,16 +128,12 @@ type StrategyStatusResponse struct {
 }
 
 func strategyCapitalBreakdown(s RuntimeCapitalSnapshot) (trading, reserve float64) {
-	trading = s.SpotFreeUSDT + s.FuturesAvailableUSDT + s.CrossMarginFreeUSDT
-	reserve = s.FundingFreeUSDT
-	if trading == 0 {
-		if reserve > 0 && s.TotalMovableUSDT >= reserve {
-			trading = s.TotalMovableUSDT - reserve
-		} else {
-			trading = s.TotalMovableUSDT
-			reserve = 0
-		}
-	}
+	// 资金钱包(funding)会被资金路由按需搬入交易钱包,轮动的"各所可用USDT(扣储备前)"= TotalMovable(含 funding)。
+	// 旧实现把 funding 当不可动的"储备",当资金全停在 funding 钱包时面板会显示「可动用(交易)=0」,
+	// 与轮动实际可部署额(如 binance 46.98)严重不一致(用户所见"数据不对等")。
+	// 故 funding 计入可动用,口径与轮动对齐;真正的交易储备由轮动 rotationReserveUSDT(配置)在预算层强制,不在此处近似。
+	trading = s.SpotFreeUSDT + s.FuturesAvailableUSDT + s.CrossMarginFreeUSDT + s.FundingFreeUSDT
+	reserve = 0
 	return trading, reserve
 }
 

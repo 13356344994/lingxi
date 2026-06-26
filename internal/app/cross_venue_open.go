@@ -210,6 +210,38 @@ func (e *CrossVenueExecutor) refreshFundingBeforeOpen(ctx context.Context, plan 
 	return fresh, true, ""
 }
 
+// crossVenuePreflightBothLegsMargin 开第一腿前双腿保证金预检(防回滚白亏):
+// perp-perp 此前无此预检——常见"开了高费腿,低费腿因对面所保证金不足(bybit ab not enough / binance -2019)失败 → 回滚第一腿",
+// 在薄盘上白付一趟往返 + 滑点。开第一腿前确认两所永续可用都 ≥ 各自所需保证金(ensure 划转后口径),不够则放弃本单。
+// 任一腿可用拉取失败时 fail-open(不阻塞,执行层仍按实际成交兜底),仅记录。返回非空=应放弃,内容为原因。
+func (e *CrossVenueExecutor) crossVenuePreflightBothLegsMargin(ctx context.Context, highV, lowV venue.Venue, highVenue, lowVenue string, highNotional, lowNotional float64) string {
+	cfg := e.cfg.CrossVenueExecutor
+	check := func(v venue.Venue, name string, notional float64) string {
+		if v == nil || notional <= 0 {
+			return ""
+		}
+		need := rotationPerpMarginWithBuffer(cfg, notional)
+		avail, err := fetchVenuePerpAvailableUSDT(ctx, v)
+		if err != nil {
+			if e.logger != nil {
+				e.logger.Printf("[跨所perp-perp][保证金预检] %s 永续可用拉取失败,fail-open: %v", name, err)
+			}
+			return ""
+		}
+		if avail+1e-9 < need {
+			return fmt.Sprintf("%s 永续保证金不足 avail=%.4f < need≈%.4f", name, avail, need)
+		}
+		return ""
+	}
+	if r := check(highV, highVenue, highNotional); r != "" {
+		return r
+	}
+	if r := check(lowV, lowVenue, lowNotional); r != "" {
+		return r
+	}
+	return ""
+}
+
 // executeCrossVenueOpen 极端所(高费)先腿 → 低费所对冲;第二腿失败立即回滚。
 func (e *CrossVenueExecutor) executeCrossVenueOpen(ctx context.Context, plan crossVenueOpenPlan, live bool) (CrossVenuePosition, error) {
 	cfg := e.cfg.CrossVenueExecutor
@@ -377,6 +409,14 @@ func (e *CrossVenueExecutor) executeCrossVenueOpen(ctx context.Context, plan cro
 		return CrossVenuePosition{}, fmt.Errorf("开仓数量低于最小可交易量 qty=%.8f", openQtyLow)
 	}
 	plan.Qty = openQtyHigh
+
+	// 开第一腿前双腿保证金预检:任一所保证金不够就放弃,避免"开了第一腿、第二腿因对面所没钱失败 → 回滚白亏"。
+	if reason := e.crossVenuePreflightBothLegsMargin(ctx, highV, lowV, plan.Opp.HighVenue, plan.Opp.LowVenue, openQtyHigh*plan.Gate.HighMid, openQtyLow*lowRef); reason != "" {
+		if e.logger != nil {
+			e.logger.Printf("[跨所perp-perp] 放弃开仓 %s:双腿保证金预检未过——%s", plan.Opp.Symbol, reason)
+		}
+		return CrossVenuePosition{}, nil
+	}
 
 	if lerr := highV.SetLeverage(ctx, highSym, legLev); lerr != nil && lerr != venue.ErrUnsupported {
 		e.logger.Printf("[跨所] 设高费腿杠杆失败 %s %s lev=%d: %v", plan.Opp.HighVenue, highSym, legLev, lerr)
