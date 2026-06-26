@@ -137,7 +137,12 @@ okx_directional:
   loop_interval_seconds: 90
   # 杠杆固定 5X(用户拍板,不在页面调)
   leverage: 5
-  max_concurrent: 1
+  # 多币并发:每仓本金=交易仓本金/max_concurrent,名义=每仓本金×5X;总满仓名义=本金×5、总风险=本金。
+  max_concurrent: 3
+  # 全场扫描周期(分钟):每隔此时长重算 shortlist(综合分=资费+波动+热度+BTC情境)。
+  universe_scan_interval_minutes: 30
+  candidate_pool_n: 40
+  shortlist_n: 20
   # 默认交易仓本金/止损%(页面可覆盖并持久化)
   trading_capital_usdt: 30
   stop_loss_pct: 0.50        # 交易仓本金基准:50%(5X 下≈10% 价格移动)
