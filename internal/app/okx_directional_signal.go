@@ -339,13 +339,13 @@ type dirPosAction struct {
 	Reason string
 }
 
-// decideDirectionalPositionAction 纯函数:根据"当前数据"判断本仓该怎么做(而非固定阈值机械触发三件套)。
-// 优先级:① 风险(触止损地板/信号反转/超时)永远先平;② 盈利中按"动能/信心/回撤"二选一:
-//   - 强延续(信心高 + 趋势态同向 + 未到补仓上限)→ 补仓 press winner;
-//   - edge 转弱(信心低 或 自高水位明显回撤)→ 部分止盈锁利(仅首次);
-//   - 其余 → 持有(交给移动止损跑利润)。
+// decideDirectionalPositionAction 纯函数:数据驱动 + 快进快出哲学,判断本仓该怎么做。
+// 优先级:① 风险(触止损地板/信号反转/超时)永远先平;
 //
-// 所有判据都来自实时信号/浮盈/高水位,不是"到点必做"。
+//	② 浮盈达小止盈 QuickTPPct:默认"吃到就跑"全平落袋;仅当数据判定强延续(信心高+趋势态同向+未到补仓上限)才骑乘加仓博大趋势;
+//	③ 未到小止盈:持有,亏由止损地板/反转/超时治理(不让亏损长大)。
+//
+// 小资金高频核心:赢快落袋、亏不放大、单笔净期望盖过成本(配合 maker 进场)。判据全来自实时信号/浮盈,不是到点机械执行。
 func decideDirectionalPositionAction(
 	uPnLAccount, peakAccount, stopFloor float64,
 	holdMin int,
@@ -373,42 +373,27 @@ func decideDirectionalPositionAction(
 	if addConv <= 0 {
 		addConv = 0.6
 	}
-	fadeConv := cfg.TPFadeConviction
-	if fadeConv <= 0 {
-		fadeConv = 0.4
-	}
-	giveback := cfg.PeakGivebackFraction
-	if giveback <= 0 {
-		giveback = 0.4
-	}
-	addMinProfit := cfg.ScaleInTriggerPct
-	if addMinProfit <= 0 {
-		addMinProfit = 0.15
-	}
-	tpMinProfit := cfg.PartialTPTriggerPct
-	if tpMinProfit <= 0 {
-		tpMinProfit = 0.20
-	}
 	maxAdds := cfg.MaxAdds
 	if maxAdds <= 0 {
 		maxAdds = 2
 	}
+	quickTP := cfg.QuickTPPct
+	if quickTP <= 0 {
+		quickTP = 0.12
+	}
 
-	// ② 数据驱动:强延续 vs edge转弱,盈利中二选一。
+	// ② 快进快出哲学(小资金高频):浮盈达小止盈即全平落袋(吃到就赚到);
+	//    仅当数据判定"强延续"(信心高 + 趋势态同向 + 未到补仓上限)才改为骑乘加仓,博那笔少见的大趋势。
 	strongContinuation := fresh.Side == side && fresh.Conviction >= addConv && fresh.Regime == RegimeTrend
-	gaveBack := peakAccount > 1e-9 && (peakAccount-uPnLAccount) >= giveback*peakAccount
-	fading := fresh.Conviction <= fadeConv || gaveBack
-
-	if uPnLAccount >= addMinProfit && strongContinuation && addCount < maxAdds {
-		return dirPosAction{dirActScaleIn, fmt.Sprintf("强延续加仓(信心%.2f 趋势态 浮盈%.0f%%)", fresh.Conviction, uPnLAccount*100)}
-	}
-	if !partialDone && uPnLAccount >= tpMinProfit && fading {
-		why := "信心转弱"
-		if gaveBack {
-			why = fmt.Sprintf("自高水位回撤(峰%.0f%%→现%.0f%%)", peakAccount*100, uPnLAccount*100)
+	if uPnLAccount >= quickTP {
+		if strongContinuation && addCount < maxAdds {
+			return dirPosAction{dirActScaleIn, fmt.Sprintf("强延续骑乘加仓(信心%.2f 趋势 浮盈%.0f%%)", fresh.Conviction, uPnLAccount*100)}
 		}
-		return dirPosAction{dirActPartialTP, "edge转弱锁利:" + why}
+		return dirPosAction{dirActClose, fmt.Sprintf("快进快出止盈(浮盈%.0f%%本金,吃到就跑)", uPnLAccount*100)}
 	}
+	// 未到小止盈:持有,等它到点或撞止损/反转/超时(亏不让它长大,由止损地板+反转+超时治理)。
+	_ = partialDone
+	_ = peakAccount
 	return dirPosAction{dirActHold, ""}
 }
 

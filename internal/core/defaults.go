@@ -482,8 +482,8 @@ func DefaultEngineConfig() EngineConfig {
 			TradingCapitalUSDT:          30,
 			StopLossPct:                 0.50, // 交易仓本金基准:50%(5X 下≈10% 价格)
 			TakeProfitPct:               0.30, // 交易仓本金基准:30%(5X 下≈6% 价格)
-			MaxHoldMinutes:              180,
-			DailyLossLimitUSDT:          0, // 不设日熔断(用户要求)
+			MaxHoldMinutes:              60,   // 快进快出:不久持,停滞即让位
+			DailyLossLimitUSDT:          0,    // 不设日熔断(用户要求)
 			CostFloorBps:                60,
 			SymbolCooldownMinutes:       30,
 			SpikeBarPct:                 0.03,
@@ -500,6 +500,7 @@ func DefaultEngineConfig() EngineConfig {
 			AddConvictionMin:            0.6,
 			TPFadeConviction:            0.4,
 			PeakGivebackFraction:        0.4,
+			QuickTPPct:                  0.12,
 		},
 		FundingExecutor: VenueFundingExecutorConfig{
 			LiveTradingEnabled:     false,

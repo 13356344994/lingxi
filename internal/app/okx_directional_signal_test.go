@@ -124,28 +124,24 @@ func TestDecideDirectionalPositionAction(t *testing.T) {
 	if a := decideDirectionalPositionAction(0.1, 0.1, stopFloor, 10, DirectionLong, DirectionalSignal{Side: DirectionShort, Conviction: 0.8}, false, 0, cfg); a.Kind != dirActClose {
 		t.Fatalf("反转应平, got %v", a)
 	}
-	// 强延续(盈利+高信心+趋势)→ 补仓。
+	cfg.QuickTPPct = 0.12
+	// 达小止盈 + 强延续(高信心+趋势)→ 骑乘加仓。
 	strong := DirectionalSignal{Side: DirectionLong, Conviction: 0.8, Regime: RegimeTrend}
 	if a := decideDirectionalPositionAction(0.18, 0.18, stopFloor, 10, DirectionLong, strong, false, 0, cfg); a.Kind != dirActScaleIn {
-		t.Fatalf("强延续应补仓, got %v", a)
+		t.Fatalf("强延续应骑乘加仓, got %v", a)
 	}
-	// edge转弱(盈利+低信心)→ 部分止盈。
+	// 达小止盈 + 非强(低信心)→ 快进快出全平(吃到就跑)。
 	weak := DirectionalSignal{Side: DirectionLong, Conviction: 0.3, Regime: RegimeRange}
-	if a := decideDirectionalPositionAction(0.25, 0.25, stopFloor, 10, DirectionLong, weak, false, 0, cfg); a.Kind != dirActPartialTP {
-		t.Fatalf("信心转弱应部分止盈, got %v", a)
+	if a := decideDirectionalPositionAction(0.15, 0.15, stopFloor, 10, DirectionLong, weak, false, 0, cfg); a.Kind != dirActClose {
+		t.Fatalf("达小止盈且非强延续应快进快出全平, got %v(%s)", a.Kind, a.Reason)
 	}
-	// 自高水位明显回撤(峰0.5→现0.25,回撤50%>40%)→ 部分止盈。
-	midConv := DirectionalSignal{Side: DirectionLong, Conviction: 0.55, Regime: RegimeTrend}
-	if a := decideDirectionalPositionAction(0.25, 0.5, stopFloor, 10, DirectionLong, midConv, false, 0, cfg); a.Kind != dirActPartialTP {
-		t.Fatalf("高水位回撤应部分止盈, got %v", a)
+	// 达小止盈 + 强但已到补仓上限 → 全平落袋(不能再加就拿走)。
+	if a := decideDirectionalPositionAction(0.18, 0.18, stopFloor, 10, DirectionLong, strong, false, cfg.MaxAdds, cfg); a.Kind != dirActClose {
+		t.Fatalf("到补仓上限应全平, got %v", a)
 	}
-	// 盈利但不强不弱不回撤 → 持有。
-	if a := decideDirectionalPositionAction(0.12, 0.13, stopFloor, 10, DirectionLong, midConv, false, 0, cfg); a.Kind != dirActHold {
-		t.Fatalf("无明确信号应持有, got %v(%s)", a.Kind, a.Reason)
-	}
-	// 已部分止盈 + 信心转弱 + 未补够 → 不重复部分止盈,持有(交给移动止损)。
-	if a := decideDirectionalPositionAction(0.22, 0.25, stopFloor, 10, DirectionLong, weak, true, 0, cfg); a.Kind != dirActHold {
-		t.Fatalf("已部分止盈不应重复, got %v", a)
+	// 未到小止盈 → 持有(等到点或撞止损/反转/超时)。
+	if a := decideDirectionalPositionAction(0.05, 0.05, stopFloor, 10, DirectionLong, weak, false, 0, cfg); a.Kind != dirActHold {
+		t.Fatalf("未到小止盈应持有, got %v(%s)", a.Kind, a.Reason)
 	}
 }
 

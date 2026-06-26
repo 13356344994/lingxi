@@ -754,6 +754,9 @@ type OKXDirectionalConfig struct {
 	TPFadeConviction float64 `cfg:"tp_fade_conviction"`
 	// PeakGivebackFraction 自浮盈高水位回撤达 此比例×高水位 视为动能转弱,盈利中触发部分止盈。默认 0.4。
 	PeakGivebackFraction float64 `cfg:"peak_giveback_fraction"`
+	// QuickTPPct 快进快出小止盈(本金口径):浮盈达此值即全平落袋(吃到就赚到),除非数据判定强延续则改为骑乘加仓。
+	// 小资金高频核心:赢快跑。需 > 往返成本对应的本金%(maker进场压成本)。默认 0.12(+12%本金;5X下≈2.4%价)。
+	QuickTPPct float64 `cfg:"quick_tp_pct"`
 }
 
 // CrossVenueExecutorConfig 是跨所资金费对冲执行引擎的可调参数。
