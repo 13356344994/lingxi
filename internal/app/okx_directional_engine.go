@@ -43,6 +43,13 @@ type okxDirectionalPosition struct {
 	// 管理循环每轮回填:最新中价 + 本金口径浮盈%(供面板实时显示)。
 	LastMid                  float64 `json:"last_mid,omitempty"`
 	LastUnrealizedAccountPct float64 `json:"last_unrealized_account_pct,omitempty"`
+	// 高阶仓位管理状态。
+	InitialNotionalUSDT float64 `json:"initial_notional_usdt,omitempty"`  // 首次开仓名义(补仓上限/部分平仓基准)
+	PeakAccountPct      float64 `json:"peak_account_pct,omitempty"`       // 本金口径浮盈高水位(移动止损用)
+	StopFloorAccountPct float64 `json:"stop_floor_account_pct,omitempty"` // 动态止损地板(本金口径,单调上移)
+	PartialTPDone       bool    `json:"partial_tp_done,omitempty"`        // 是否已部分止盈(后转保本+移动)
+	AddCount            int     `json:"add_count,omitempty"`              // 已补仓次数
+	RealizedPartialUSDT float64 `json:"realized_partial_usdt,omitempty"`  // 本仓已落袋的部分止盈
 }
 
 func (p *okxDirectionalPosition) directionSide() DirectionSide {
@@ -290,6 +297,23 @@ func (e *OKXDirectionalEngine) concurrencyAllows() bool {
 	n := len(e.positions)
 	e.mu.RUnlock()
 	return n < e.maxConcurrent()
+}
+
+// deployedMarginUSDT 当前所有持仓占用的保证金合计(各仓名义/杠杆)。
+func (e *OKXDirectionalEngine) deployedMarginUSDT() float64 {
+	lev := float64(e.leverage())
+	if lev <= 0 {
+		lev = 5
+	}
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	var m float64
+	for _, p := range e.positions {
+		if p != nil && p.isOpen() {
+			m += p.NotionalUSDT / lev
+		}
+	}
+	return m
 }
 
 // openPositionsSnapshot 返回当前持仓副本(并发安全)。
@@ -594,7 +618,14 @@ func (e *OKXDirectionalEngine) openPosition(ctx context.Context, sym string, sig
 			sym, sig.Side.String(), sig.Regime.String(), sig.Conviction, sig.ExpectedMoveBps, notional, sig.Reason)
 		return false
 	}
-	// 保证金预检:永续可用 ≥ 每仓本金,避免多仓时超额开仓被交易所拒(尤其旧单占用满额时)。
+	// 资本总上限:已部署保证金(各仓名义/杠杆)+ 本仓所需 ≤ 交易仓本金 M。
+	// 即便交易所账户还有闲钱,也绝不超出用户设定的总风险(M)。这是"总风险=本金"的硬保证。
+	deployed := e.deployedMarginUSDT()
+	if deployed+perPosCapital > ctrl.TradingCapitalUSDT+1e-6 {
+		e.logger.Printf("[OKX方向] %s 已部署保证金 %.2f + 本仓 %.2f > 交易仓本金 %.2f,跳过开仓", sym, deployed, perPosCapital, ctrl.TradingCapitalUSDT)
+		return false
+	}
+	// 交易所侧可用保证金兜底预检。
 	if avail, merr := fetchVenuePerpAvailableUSDT(ctx, e.okxV); merr == nil && avail+1e-9 < perPosCapital {
 		e.logger.Printf("[OKX方向] %s 永续可用 %.2f < 每仓本金 %.2f,跳过开仓", sym, avail, perPosCapital)
 		return false
@@ -696,15 +727,115 @@ func (e *OKXDirectionalEngine) manageOne(ctx context.Context, pos *okxDirectiona
 		}
 	}
 	fresh := computeDirectionalSignal(closes, rate, e.cfg)
-	// 止损/止盈以"交易仓本金"为基准(页面设的止损%);故传本金口径 uPnL + 页面止损%。
-	effCfg := e.cfg
-	effCfg.StopLossPct = e.getControl().StopLossPct
-	shouldClose, reason := directionalShouldClose(uPnLAccount, holdMin, side, fresh, effCfg)
-	if !shouldClose {
-		e.clearLastError()
+	cfg := e.cfg
+	stopPct := e.getControl().StopLossPct
+	if stopPct <= 0 {
+		stopPct = cfg.StopLossPct
+	}
+	// 更新本仓高阶状态(高水位 + 动态止损地板),全部本金口径。在锁内改真实指针。
+	e.mu.Lock()
+	real := e.positions[pos.Symbol]
+	if real == nil {
+		e.mu.Unlock()
 		return
 	}
-	e.closePosition(ctx, pos, mid, uPnLNotional, holdMin, reason)
+	if real.InitialNotionalUSDT <= 0 {
+		real.InitialNotionalUSDT = real.NotionalUSDT
+	}
+	if real.StopFloorAccountPct == 0 && !real.PartialTPDone {
+		real.StopFloorAccountPct = -stopPct // 初始硬止损(本金口径)
+	}
+	if uPnLAccount > real.PeakAccountPct {
+		real.PeakAccountPct = uPnLAccount
+	}
+	if real.PartialTPDone { // 部分止盈后:移动止损 = max(保本0, 高水位 − 间距),单调上移
+		gap := cfg.TrailGapPct
+		if gap <= 0 {
+			gap = 0.15
+		}
+		cand := real.PeakAccountPct - gap
+		if cand < 0 {
+			cand = 0
+		}
+		if cand > real.StopFloorAccountPct {
+			real.StopFloorAccountPct = cand
+		}
+	}
+	floor := real.StopFloorAccountPct
+	partialDone := real.PartialTPDone
+	addCount := real.AddCount
+	initNotional := real.InitialNotionalUSDT
+	e.mu.Unlock()
+	e.persistPositions()
+
+	// 1. 触止损地板(初始硬止损 / 移动止损保盈)。
+	if uPnLAccount <= floor {
+		reason := "硬止损"
+		if partialDone {
+			reason = "移动止损保盈"
+		}
+		e.closePosition(ctx, pos, mid, uPnLNotional, holdMin, reason)
+		return
+	}
+	// 2. 信号反转 → 全平(换方向交给下轮选币)。
+	if fresh.Side != DirectionFlat && fresh.Side != side {
+		e.closePosition(ctx, pos, mid, uPnLNotional, holdMin, "信号反转")
+		return
+	}
+	// 3. 超时离场。
+	if cfg.MaxHoldMinutes > 0 && holdMin >= cfg.MaxHoldMinutes {
+		e.closePosition(ctx, pos, mid, uPnLNotional, holdMin, "超时离场")
+		return
+	}
+	// 4. 部分止盈(首次达标):平掉一部分锁利,止损上移到保本,余仓移动止损跑利润。
+	tp1 := cfg.PartialTPTriggerPct
+	if tp1 <= 0 {
+		tp1 = 0.20
+	}
+	if !partialDone && uPnLAccount >= tp1 {
+		frac := cfg.PartialTPFraction
+		if frac <= 0 || frac >= 1 {
+			frac = 0.5
+		}
+		if e.partialClose(ctx, pos, frac, mid, uPnLNotional, holdMin, "部分止盈") {
+			e.mu.Lock()
+			if r := e.positions[pos.Symbol]; r != nil {
+				r.PartialTPDone = true
+				if r.StopFloorAccountPct < 0 {
+					r.StopFloorAccountPct = 0 // 转保本
+				}
+			}
+			e.mu.Unlock()
+			e.persistPositions()
+		}
+		return
+	}
+	// 5. 补仓(仅盈利仓 + 信号仍同向 + 过入场闸 + 资本有余):金字塔加盈利仓,绝不摊亏(防滚仓)。
+	sin := cfg.ScaleInTriggerPct
+	if sin <= 0 {
+		sin = 0.15
+	}
+	maxAdds := cfg.MaxAdds
+	if maxAdds <= 0 {
+		maxAdds = 2
+	}
+	if uPnLAccount >= sin && addCount < maxAdds && fresh.Side == side {
+		frac := cfg.ScaleInFraction
+		if frac <= 0 {
+			frac = 0.5
+		}
+		tranche := initNotional * frac
+		if e.scaleIn(ctx, pos, side, tranche, mid) {
+			e.mu.Lock()
+			if r := e.positions[pos.Symbol]; r != nil {
+				r.AddCount++
+			}
+			e.mu.Unlock()
+			e.persistPositions()
+		}
+		return
+	}
+	e.clearLastError()
 }
 
 func (e *OKXDirectionalEngine) closePosition(ctx context.Context, pos *okxDirectionalPosition, mid, uPnLPct float64, holdMin int, reason string) {
@@ -783,6 +914,129 @@ func (e *OKXDirectionalEngine) closePosition(ctx context.Context, pos *okxDirect
 	e.persistPositions()
 	e.clearLastError()
 	e.logger.Printf("[OKX方向] 已平 %s %s 原因=%s 实现≈%.4f USDT", pos.Symbol, pos.Side, reason, realized)
+}
+
+// partialClose 部分止盈:reduce-only 平掉 fraction 比例,记部分结算,缩减持仓 qty/名义,累加当日已实现。成功返回 true。
+func (e *OKXDirectionalEngine) partialClose(ctx context.Context, pos *okxDirectionalPosition, fraction, mid, uPnLNotional float64, holdMin int, reason string) bool {
+	if !e.cfg.LiveTradingEnabled {
+		e.logger.Printf("[OKX方向][OFF] 拟部分止盈 %s frac=%.2f", pos.Symbol, fraction)
+		return false
+	}
+	instr, ok := lookupVenueInstrumentForMarket(ctx, e.okxV, venue.Symbol(pos.Symbol), venue.MarketPerp)
+	if !ok {
+		return false
+	}
+	caps := e.okxV.Capabilities()
+	var closeSide venue.Side
+	switch pos.directionSide() {
+	case DirectionLong:
+		closeSide = venue.SideSell
+	case DirectionShort:
+		closeSide = venue.SideBuy
+	default:
+		return false
+	}
+	closeQty := normalizeVenueQty(pos.Qty*fraction, instr, caps.ContractBasedPerp)
+	if closeQty <= 0 || !openLegTradableAfterQuantize(closeQty, mid, instr) {
+		return false // 余量太小不可分,留给后续全平
+	}
+	if closeQty >= pos.Qty {
+		closeQty = pos.Qty
+	}
+	clientID := okxDirectionalClientID(pos.Symbol, "ptp")
+	res, cerr := e.placeDirectionalLeg(ctx, venue.Symbol(pos.Symbol), closeSide, closeQty, clientID, true, instr, caps.ContractBasedPerp)
+	if cerr != nil || res.ExecutedQty <= executionQtyTolerance {
+		e.logger.Printf("[OKX方向] %s 部分止盈下单失败: %v", pos.Symbol, cerr)
+		return false
+	}
+	exitPrice := mid
+	if res.AvgPrice > 0 {
+		exitPrice = res.AvgPrice
+	}
+	closedFrac := res.ExecutedQty / pos.Qty
+	if closedFrac > 1 {
+		closedFrac = 1
+	}
+	closedNotional := pos.NotionalUSDT * closedFrac
+	realized := directionalUPnLPct(pos.directionSide(), pos.EntryPrice, exitPrice) * closedNotional
+	settle := okxDirectionalSettlement{
+		Time: e.nowFn().UTC(), Symbol: pos.Symbol, Side: pos.Side, Entry: pos.EntryPrice, Exit: exitPrice,
+		NotionalUSDT: closedNotional, RealizedUSDT: realized, HoldMinutes: holdMin, Regime: pos.Regime,
+		Reason: reason + "(部分)", FundingAtOpen: pos.FundingAtOpen,
+	}
+	if err := appendJSONLRecord(e.settlementsPath, settle); err != nil {
+		e.logger.Printf("[OKX方向] 部分结算落盘失败: %v", err)
+	}
+	e.mu.Lock()
+	if r := e.positions[pos.Symbol]; r != nil {
+		r.Qty -= res.ExecutedQty
+		if r.Qty < 0 {
+			r.Qty = 0
+		}
+		r.NotionalUSDT -= closedNotional
+		if r.NotionalUSDT < 0 {
+			r.NotionalUSDT = 0
+		}
+		r.RealizedPartialUSDT += realized
+	}
+	e.dailyRealizedUSDT += realized
+	e.mu.Unlock()
+	e.logger.Printf("[OKX方向] 部分止盈 %s 平%.0f%% 实现≈%.4f USDT(转保本+移动止损)", pos.Symbol, closedFrac*100, realized)
+	return true
+}
+
+// scaleIn 补仓(仅盈利仓):同向加 tranche 名义,受总资本上限约束,更新加权均价/qty/名义。成功返回 true。绝不摊亏(调用方已确保盈利+信号同向)。
+func (e *OKXDirectionalEngine) scaleIn(ctx context.Context, pos *okxDirectionalPosition, side DirectionSide, tranche, mid float64) bool {
+	if tranche <= 0 || mid <= 0 {
+		return false
+	}
+	if !e.cfg.LiveTradingEnabled {
+		e.logger.Printf("[OKX方向][OFF] 拟补仓 %s tranche=%.2f", pos.Symbol, tranche)
+		return false
+	}
+	lev := float64(e.leverage())
+	if e.deployedMarginUSDT()+tranche/lev > e.getControl().TradingCapitalUSDT+1e-6 {
+		e.logger.Printf("[OKX方向] %s 补仓超总资本上限,跳过", pos.Symbol)
+		return false
+	}
+	instr, ok := lookupVenueInstrumentForMarket(ctx, e.okxV, venue.Symbol(pos.Symbol), venue.MarketPerp)
+	if !ok {
+		return false
+	}
+	caps := e.okxV.Capabilities()
+	addSide := venue.SideBuy
+	if side == DirectionShort {
+		addSide = venue.SideSell
+	}
+	addQty := normalizeVenueQty(tranche/mid, instr, caps.ContractBasedPerp)
+	if addQty <= 0 || !openLegTradableAfterQuantize(addQty, mid, instr) {
+		return false
+	}
+	clientID := okxDirectionalClientID(pos.Symbol, "add")
+	res, oerr := e.placeDirectionalLeg(ctx, venue.Symbol(pos.Symbol), addSide, addQty, clientID, false, instr, caps.ContractBasedPerp)
+	if oerr != nil || res.ExecutedQty <= executionQtyTolerance {
+		e.logger.Printf("[OKX方向] %s 补仓失败: %v", pos.Symbol, oerr)
+		return false
+	}
+	fillPrice := res.AvgPrice
+	if fillPrice <= 0 {
+		fillPrice = mid
+	}
+	addNotional := res.ExecutedQty * fillPrice
+	var newAvg float64
+	e.mu.Lock()
+	if r := e.positions[pos.Symbol]; r != nil {
+		newQty := r.Qty + res.ExecutedQty
+		if newQty > 0 {
+			r.EntryPrice = (r.EntryPrice*r.Qty + fillPrice*res.ExecutedQty) / newQty
+		}
+		r.Qty = newQty
+		r.NotionalUSDT += addNotional
+		newAvg = r.EntryPrice
+	}
+	e.mu.Unlock()
+	e.logger.Printf("[OKX方向] 补仓 %s +qty%.6f @%.6f → 新均价%.6f(金字塔加盈利仓)", pos.Symbol, res.ExecutedQty, fillPrice, newAvg)
+	return true
 }
 
 func (e *OKXDirectionalEngine) leverage() int {

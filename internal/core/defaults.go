@@ -491,6 +491,12 @@ func DefaultEngineConfig() EngineConfig {
 			VolExpansionMaxRatio:        1.8,
 			ReversionKnifePct:           0.015,
 			LossCooldownMultiplier:      3,
+			PartialTPTriggerPct:         0.20,
+			PartialTPFraction:           0.5,
+			TrailGapPct:                 0.15,
+			ScaleInTriggerPct:           0.15,
+			MaxAdds:                     2,
+			ScaleInFraction:             0.5,
 		},
 		FundingExecutor: VenueFundingExecutorConfig{
 			LiveTradingEnabled:     false,

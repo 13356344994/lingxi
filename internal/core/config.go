@@ -734,6 +734,19 @@ type OKXDirectionalConfig struct {
 	ReversionKnifePct float64 `cfg:"reversion_knife_pct"`
 	// LossCooldownMultiplier 止损平仓后该币冷却时间 = SymbolCooldownMinutes × 此倍数(防滚仓/亏损币快速复入)。默认 3。
 	LossCooldownMultiplier float64 `cfg:"loss_cooldown_multiplier"`
+	// --- 高阶仓位管理:部分止盈/移动止损/补仓(均本金口径) ---
+	// PartialTPTriggerPct 浮盈达本金的此比例时部分止盈一次,并把止损上移到保本。默认 0.20(+20%本金)。
+	PartialTPTriggerPct float64 `cfg:"partial_tp_trigger_pct"`
+	// PartialTPFraction 部分止盈平掉的仓位比例。默认 0.5(平一半)。
+	PartialTPFraction float64 `cfg:"partial_tp_fraction"`
+	// TrailGapPct 部分止盈后移动止损与高水位的回撤间距(本金口径)。默认 0.15。
+	TrailGapPct float64 `cfg:"trail_gap_pct"`
+	// ScaleInTriggerPct 浮盈达本金此比例且信号仍确认时补仓(仅加盈利仓,绝不摊亏)。默认 0.15。
+	ScaleInTriggerPct float64 `cfg:"scale_in_trigger_pct"`
+	// MaxAdds 单仓最多补仓次数。默认 2。
+	MaxAdds int `cfg:"max_adds"`
+	// ScaleInFraction 每次补仓名义 = 首仓名义 × 此比例。默认 0.5。
+	ScaleInFraction float64 `cfg:"scale_in_fraction"`
 }
 
 // CrossVenueExecutorConfig 是跨所资金费对冲执行引擎的可调参数。
