@@ -162,6 +162,12 @@ okx_directional:
   cost_floor_bps: 60
   max_hold_minutes: 180
   symbol_cooldown_minutes: 30
+  # 防陷阱入场质量闸(不陷波动/单边/暴拉回调/抄底/追高/滚仓)
+  spike_bar_pct: 0.03            # 最后一根同向涨跌≥3% 视为暴拉尖刺,趋势态不追
+  trend_max_extension_pct: 0.02  # 趋势入场价离快EMA>2% 视为过度延展,不追
+  vol_expansion_max_ratio: 1.8   # 震荡态近窗波动/基线>1.8 视为区间在破,不反转
+  reversion_knife_pct: 0.015     # 反转时极值仍以≥1.5%/根延续(急跌急拉)不接(防接飞刀/追空顶)
+  loss_cooldown_multiplier: 3    # 止损平仓后该币冷却×3,防滚仓/亏损币快速复入
 
 # 五策略统一资金费轮动 runner。perp-perp 执行体见 cross_venue_executor,开仓由 runner binding 派发。
 # total_deployable_usdt: 绝对预算(USDT);另有 total_deployable_pct(默认见 defaults,占真实现金权益比例),二者与 equity 取 min。
