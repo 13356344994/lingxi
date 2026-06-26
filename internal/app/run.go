@@ -234,6 +234,14 @@ func startLiveStack(ctx context.Context, cfg EngineConfig) error {
 	} else if cfg.CrossVenueExecutor.Enabled {
 		log.Default().Printf("[跨所执行] 已启用但扫描器未启用,跳过(需 cross_venue_scanner.enabled=true)")
 	}
+	if cfg.OKXDirectional.Enabled {
+		if eng, err := NewOKXDirectionalEngine(cfg, orch, cfg.NetworkConfig.RecordDir, log.Default()); err != nil {
+			log.Default().Printf("[OKX方向] 构造失败,跳过: %v", err)
+		} else {
+			dashboard.SetOKXDirectionalEngine(eng)
+			go eng.Run(ctx)
+		}
+	}
 	if err := dashboard.Start(ctx); err != nil && !errors.Is(err, context.Canceled) {
 		return fmt.Errorf("Web 面板异常退出: %w", err)
 	}

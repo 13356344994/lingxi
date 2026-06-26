@@ -224,6 +224,24 @@ func TestCrossVenueExecutorNearTermOpenEVHorizonEnabledDefault(t *testing.T) {
 	}
 }
 
+func TestDirectionalVenueExclusion(t *testing.T) {
+	c := CrossVenueScannerConfig{DirectionalVenues: "okx"}
+	if !c.IsDirectionalVenue("okx") || !c.IsDirectionalVenue("OKX") {
+		t.Fatal("okx 应被识别为方向交易专用所(从 carry 剔除)")
+	}
+	if c.IsDirectionalVenue("binance") || c.IsDirectionalVenue("bybit") || c.IsDirectionalVenue("gate") {
+		t.Fatal("仅 okx 应被剔除,其余所仍参与 carry")
+	}
+	// 默认空:不剔除任何所(carry 行为不变)。
+	empty := CrossVenueScannerConfig{}
+	if empty.IsDirectionalVenue("okx") {
+		t.Fatal("DirectionalVenues 为空时不应剔除任何所")
+	}
+	if len(empty.DirectionalVenueSet()) != 0 {
+		t.Fatal("空配置的方向所集合应为空")
+	}
+}
+
 func TestDefaultBorrowDisabledVenuesGateOnly(t *testing.T) {
 	cfg := DefaultEngineConfig()
 	if cfg.CrossVenueScanner.BorrowDisabledVenues != "gate" {

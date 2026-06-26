@@ -256,6 +256,39 @@ func TestPositionsSignParse(t *testing.T) {
 	}
 }
 
+// TestFetchCandlesParse 钉死 K 线解析:OKX 返回 newest-first 字符串数组,
+// FetchCandles 应转为 oldest-first 并正确解析 ts/O/H/L/C/vol。
+func TestFetchCandlesParse(t *testing.T) {
+	a := fakeOKX(t, map[string]string{
+		pathCandles: `{"code":"0","msg":"","data":[
+			["1700000120000","60100","60150","60080","60120","10.5","1050000","1050000","1"],
+			["1700000060000","60050","60100","60000","60100","8.2","492000","492000","1"],
+			["1700000000000","60000","60060","59990","60050","12.1","726050","726050","1"]
+		]}`,
+	})
+	candles, err := a.FetchCandles(context.Background(), venue.MarketPerp, "BTC-USDT", "1m", 3)
+	if err != nil {
+		t.Fatalf("FetchCandles: %v", err)
+	}
+	if len(candles) != 3 {
+		t.Fatalf("应解析 3 根 K 线, got %d", len(candles))
+	}
+	if candles[0].OpenTime.UnixMilli() != 1700000000000 {
+		t.Errorf("第一根应为最旧 ts, got %d", candles[0].OpenTime.UnixMilli())
+	}
+	if candles[2].OpenTime.UnixMilli() != 1700000120000 {
+		t.Errorf("最后一根应为最新 ts, got %d", candles[2].OpenTime.UnixMilli())
+	}
+	c0 := candles[0]
+	if c0.Open != 60000 || c0.High != 60060 || c0.Low != 59990 || c0.Close != 60050 || c0.Volume != 12.1 {
+		t.Errorf("最旧 K 线 O/H/L/C/vol 解析错误: %+v", c0)
+	}
+	c2 := candles[2]
+	if c2.Open != 60100 || c2.High != 60150 || c2.Low != 60080 || c2.Close != 60120 || c2.Volume != 10.5 {
+		t.Errorf("最新 K 线 O/H/L/C/vol 解析错误: %+v", c2)
+	}
+}
+
 func TestFetchRecentQuoteVolumeSpot(t *testing.T) {
 	a := fakeOKX(t, map[string]string{
 		pathTicker: `{"code":"0","msg":"","data":[{"instId":"BTC-USDT","volCcy24h":"1234567890.5","vol24h":"20000","last":"60000"}]}`,

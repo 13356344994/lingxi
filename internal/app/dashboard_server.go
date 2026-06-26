@@ -57,6 +57,8 @@ type DashboardServer struct {
 	cvpsExec *CrossVenuePerpSpotExecutor
 	// rotationRunner 是五策略统一轮动 runner; nil=未注入。
 	rotationRunner *UnifiedRotationRunner
+	// okxDirectional OKX 方向引擎(独立于 carry);nil=未注入。
+	okxDirectional *OKXDirectionalEngine
 	// controlPlane 统一控制面; nil=未注入(测试/旧路径)。
 	controlPlane *ControlPlane
 	// venueEquityCache 缓存各所钱包总额/浮盈亏拉取结果,避免面板 5s 轮询触发交易所限频。
@@ -96,6 +98,11 @@ func (s *DashboardServer) SetRotationExecutors(svsp *SingleVenueSpotPerpExecutor
 // SetRotationRunner 注入五策略统一轮动 runner(供 /api/rotation/* 读取与控制)。
 func (s *DashboardServer) SetRotationRunner(r *UnifiedRotationRunner) {
 	s.rotationRunner = r
+}
+
+// SetOKXDirectionalEngine 注入 OKX 方向引擎(供 /api/okx-directional 读取)。
+func (s *DashboardServer) SetOKXDirectionalEngine(e *OKXDirectionalEngine) {
+	s.okxDirectional = e
 }
 
 // SetControlPlane 注入统一控制面(供 STOP/START 与 status 展示)。
@@ -211,6 +218,8 @@ func (s *DashboardServer) Start(ctx context.Context) error {
 	mux.HandleFunc("/api/rotation/attribution", s.authorizeReadAPI(s.handleSettlementAttributionAPI))
 	mux.HandleFunc("/api/rotation/start", s.handleRotationStartAPI)
 	mux.HandleFunc("/api/rotation/stop", s.handleRotationStopAPI)
+	mux.HandleFunc("/api/okx-directional", s.authorizeReadAPI(s.handleOKXDirectionalAPI))
+	mux.HandleFunc("/api/okx-directional/control", s.handleOKXDirectionalControlAPI)
 	// S5-B 探针/指标(不鉴权,只暴露非敏感健康信息):供 k8s liveness/readiness 与 Prometheus 抓取。
 	mux.HandleFunc("/livez", s.handleLivez)
 	mux.HandleFunc("/healthz", s.handleHealthz)

@@ -122,6 +122,41 @@ cross_venue_executor:
   # 暴力度软排序:统一模型下正EV机会 rank ×= (1 + 权重 × ViolenceScore),同等净EV下真暴力币排更前(主战场)。0=关闭。
   violence_rank_boost_weight: 0.3
 
+# 跨所资金费扫描器(carry 的选所/选币入口)。
+cross_venue_scanner:
+  # 方向交易专用所:从 carry(扫描+跨所配对+单所轮动+统一资金池)中完全剔除,改由 OKX 方向引擎独占、资金独立核算。
+  # 这些所仍由 orchestrator 注册供方向引擎使用,但绝不参与任何资金费 carry,避免 carry 与方向引擎抢同一所资金/持仓。
+  directional_venues: "okx"
+
+# OKX 方向交易引擎(独立于 carry)。OKX 已被 directional_venues 从 carry 剔除,资金独占。
+# 选币:OKX 资费快照按 |费率| 排序;方向:K线 regime(趋势顺势/震荡反转,双向);资费做对齐闸(顺带收资费、不逆扛)。
+# 杠杆固定 5X、无日熔断;页面设「交易仓本金 + 止损%」并点开始/停止(control.json 持久化)。
+okx_directional:
+  enabled: true              # 引擎常驻;实际开新仓须页面点"开始"(control.active)
+  live_trading_enabled: true # 真金闸:true 时页面"开始"即真实下单(用户要求实盘、禁影子)
+  loop_interval_seconds: 90
+  # 杠杆固定 5X(用户拍板,不在页面调)
+  leverage: 5
+  max_concurrent: 1
+  # 默认交易仓本金/止损%(页面可覆盖并持久化)
+  trading_capital_usdt: 30
+  stop_loss_pct: 0.50        # 交易仓本金基准:50%(5X 下≈10% 价格移动)
+  take_profit_pct: 0.30      # 本金基准:30%(5X 下≈6% 价格)
+  daily_loss_limit_usdt: 0   # 0=不设日熔断(用户要求)
+  # 选币/信号
+  universe_top_n: 12
+  min_funding_abs_per_interval: 0.0005
+  candle_bar: "5m"
+  candle_limit: 120
+  ema_fast: 9
+  ema_slow: 30
+  trend_efficiency_threshold: 0.30
+  zscore_entry: 1.5
+  require_funding_alignment: true
+  cost_floor_bps: 60
+  max_hold_minutes: 180
+  symbol_cooldown_minutes: 30
+
 # 五策略统一资金费轮动 runner。perp-perp 执行体见 cross_venue_executor,开仓由 runner binding 派发。
 # total_deployable_usdt: 绝对预算(USDT);另有 total_deployable_pct(默认见 defaults,占真实现金权益比例),二者与 equity 取 min。
 unified_rotation:

@@ -309,6 +309,10 @@ func buildCrossVenueScannerAdapters(orch *Orchestrator, cfg EngineConfig, secret
 	}
 	out := make(map[string]venue.Venue, len(crossVenueNames))
 	for _, name := range crossVenueNames {
+		// 方向交易专用所(如 okx)从 carry 扫描中剔除:不扫、不配对、资金不进 carry 池。
+		if cfg.CrossVenueScanner.IsDirectionalVenue(name) {
+			continue
+		}
 		if adp := crossVenueAdapterFromOrchestrator(orch, name); adp != nil {
 			out[name] = adp
 			continue

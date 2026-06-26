@@ -367,6 +367,55 @@ func (a *Adapter) FetchDepth(ctx context.Context, m venue.Market, s venue.Symbol
 	return depth, nil
 }
 
+// Candle 是 OKX K 线一根蜡烛(本包专用,未纳入 venue 公共接口)。
+type Candle struct {
+	OpenTime time.Time
+	Open     float64
+	High     float64
+	Low      float64
+	Close    float64
+	Volume   float64 // 基础币数量;SWAP 永续直接取 OKX vol 列(张),不做 ctVal 换算。
+}
+
+// FetchCandles 用 /api/v5/market/candles 拉历史 K 线。
+// bar 为 OKX 周期(如 "1m","5m","15m","1H");limit 上限 300。
+// OKX 返回 newest-first,本方法转为 oldest-first。
+func (a *Adapter) FetchCandles(ctx context.Context, m venue.Market, s venue.Symbol, bar string, limit int) ([]Candle, error) {
+	raw, err := a.ToVenue(s, m)
+	if err != nil {
+		return nil, err
+	}
+	if limit > 300 {
+		limit = 300
+	}
+	q := url.Values{}
+	q.Set("instId", raw)
+	q.Set("bar", bar)
+	if limit > 0 {
+		q.Set("limit", strconv.Itoa(limit))
+	}
+	var rows [][]string
+	if err := a.t.publicGet(ctx, pathCandles, q, &rows); err != nil {
+		return nil, err
+	}
+	out := make([]Candle, 0, len(rows))
+	for i := len(rows) - 1; i >= 0; i-- {
+		row := rows[i]
+		if len(row) < 6 {
+			continue
+		}
+		out = append(out, Candle{
+			OpenTime: msStringToTime(row[0]),
+			Open:     parseFloat(row[1]),
+			High:     parseFloat(row[2]),
+			Low:      parseFloat(row[3]),
+			Close:    parseFloat(row[4]),
+			Volume:   parseFloat(row[5]),
+		})
+	}
+	return out, nil
+}
+
 // FetchOpenInterest 取最近持仓量(转换为币数量:张数 × ctVal)。
 func (a *Adapter) FetchOpenInterest(ctx context.Context, s venue.Symbol) (float64, error) {
 	raw, err := a.ToVenue(s, venue.MarketPerp)

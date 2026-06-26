@@ -830,6 +830,68 @@
       </div>
     </section>
 
+    <details class="fold-panel" id="okx-directional-fold">
+      <summary>OKX 方向引擎(独立) <span class="hint fold-summary-meta" id="okx-dir-summary-meta"></span></summary>
+      <div class="fold-body panel-inner">
+        <p class="hint section-desc">独立于 carry 的 OKX 方向引擎。固定 5X;你只设「交易仓本金」与「止损%(本金基准)」,点开始即真金双向交易。数据/控制:<code>/api/okx-directional</code>。</p>
+        <div class="hint" id="okx-dir-generated-at" style="font-size:11px;margin-bottom:8px;"></div>
+        <div class="ops-group" style="margin-bottom:12px;">
+          <div class="ops-group-label">交易控制(5X 固定)</div>
+          <div class="form-grid" style="margin-bottom:10px;">
+            <div>
+              <label for="okx-dir-capital-input">交易仓本金 (USDT)</label>
+              <input id="okx-dir-capital-input" type="number" min="1" step="1" placeholder="30" style="width:100%;box-sizing:border-box;padding:8px 10px;border-radius:8px;border:1px solid #2c3b59;background:#0b1220;color:#e5edff;">
+            </div>
+            <div>
+              <label for="okx-dir-stop-input">止损 %(交易仓本金基准)</label>
+              <input id="okx-dir-stop-input" type="number" min="1" max="95" step="1" placeholder="50" style="width:100%;box-sizing:border-box;padding:8px 10px;border-radius:8px;border:1px solid #2c3b59;background:#0b1220;color:#e5edff;">
+            </div>
+          </div>
+          <div class="risk-actions">
+            <button id="okx-dir-start-btn" type="button">▶ 开始(实盘 5X)</button>
+            <button id="okx-dir-stop-btn" type="button" class="danger">■ 停止开新仓</button>
+            <button id="okx-dir-apply-btn" type="button" class="secondary">仅保存本金/止损</button>
+          </div>
+          <div class="hint" id="okx-dir-control-msg" style="margin-top:8px;font-size:12px;"></div>
+          <div class="hint" style="margin-top:4px;font-size:11px;color:#64748b;">名义 = 本金 × 5;止损按本金 %(50% 本金≈10% 价格)。停止仅不开新仓,已有持仓仍按止损/止盈/信号看护。</div>
+        </div>
+        <div class="status-grid stats">
+          <div class="stat-card"><div class="stat-label">运行</div><div class="stat-value" id="okx-dir-active" style="font-size:16px">-</div></div>
+          <div class="stat-card"><div class="stat-label">交易仓本金(U)</div><div class="stat-value" id="okx-dir-capital" style="font-size:16px">-</div></div>
+          <div class="stat-card"><div class="stat-label">止损%</div><div class="stat-value" id="okx-dir-stop" style="font-size:16px">-</div></div>
+          <div class="stat-card"><div class="stat-label">杠杆</div><div class="stat-value" id="okx-dir-lev" style="font-size:16px">-</div></div>
+          <div class="stat-card"><div class="stat-label">启用</div><div class="stat-value" id="okx-dir-enabled" style="font-size:16px">-</div></div>
+          <div class="stat-card"><div class="stat-label">实盘闸</div><div class="stat-value" id="okx-dir-live" style="font-size:16px">-</div></div>
+        </div>
+        <h3 style="font-size:14px;color:#cbd5e1;margin:12px 0 8px;">当前持仓</h3>
+        <div class="status-grid stats">
+          <div class="stat-card"><div class="stat-label">币对</div><div class="stat-value" id="okx-dir-symbol" style="font-size:16px">-</div></div>
+          <div class="stat-card"><div class="stat-label">方向</div><div class="stat-value" id="okx-dir-side" style="font-size:16px">-</div></div>
+          <div class="stat-card"><div class="stat-label">开仓价</div><div class="stat-value" id="okx-dir-entry" style="font-size:16px">-</div></div>
+          <div class="stat-card"><div class="stat-label">名义(U)</div><div class="stat-value" id="okx-dir-notional" style="font-size:16px">-</div></div>
+          <div class="stat-card"><div class="stat-label">未实现%</div><div class="stat-value" id="okx-dir-unrealized" style="font-size:16px">-</div></div>
+          <div class="stat-card"><div class="stat-label">持有</div><div class="stat-value" id="okx-dir-hold" style="font-size:14px">-</div></div>
+        </div>
+        <h3 style="font-size:14px;color:#cbd5e1;margin:12px 0 8px;">当日风控</h3>
+        <div class="status-grid stats">
+          <div class="stat-card"><div class="stat-label">已实现(U)</div><div class="stat-value" id="okx-dir-daily-realized" style="font-size:16px">-</div></div>
+          <div class="stat-card"><div class="stat-label">日亏熔断线(U)</div><div class="stat-value" id="okx-dir-daily-limit" style="font-size:16px">-</div></div>
+        </div>
+        <div class="hint" id="okx-dir-last-error" style="margin-top:8px;font-size:12px;color:#fca5a5;"></div>
+        <h3 style="font-size:14px;color:#cbd5e1;margin:16px 0 8px;">最近平仓</h3>
+        <div class="table-wrap" style="overflow-x:auto;">
+          <table class="data-table" id="okx-dir-recent-table">
+            <thead>
+              <tr>
+                <th>时间</th><th>币对</th><th>方向</th><th>开→平</th><th>名义(U)</th><th>已实现(U)</th><th>持有</th><th>原因</th>
+              </tr>
+            </thead>
+            <tbody id="okx-dir-recent-tbody"><tr><td colspan="8" class="hint">加载中…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </details>
+
     <!-- 2. 操作区 -->
     <section class="section section-operations panel" aria-label="操作">
       <div class="section-head">
@@ -4059,6 +4121,175 @@
       return `${fmtLeg(spotLeg)} · ${fmtLeg(perpLeg)}`;
     }
 
+    function okxDirectionSideLabel(side) {
+      const s = String(side || "").toLowerCase();
+      if (s === "long") return "多";
+      if (s === "short") return "空";
+      return s || "-";
+    }
+
+    function holdDurationSinceOpened(iso) {
+      if (!iso) return "-";
+      const ms = Date.now() - new Date(iso).getTime();
+      if (!Number.isFinite(ms) || ms < 0) return "-";
+      return formatHoldDuration(ms / 1000);
+    }
+
+    async function refreshOKXDirectional() {
+      const enabledEl = document.getElementById("okx-dir-enabled");
+      const liveEl = document.getElementById("okx-dir-live");
+      if (!enabledEl && !liveEl) return;
+      try {
+        const st = await loadJSON("/api/okx-directional");
+        const enabled = !!st.enabled;
+        const live = !!st.live;
+        const halted = !!st.halted_by_daily_loss;
+        if (enabledEl) {
+          enabledEl.textContent = boolLabel(enabled);
+          enabledEl.style.color = enabled ? "#86efac" : "#cbd5e1";
+        }
+        if (liveEl) {
+          liveEl.textContent = boolLabel(live);
+          liveEl.style.color = live ? "#86efac" : "#cbd5e1";
+        }
+        const haltedEl = document.getElementById("okx-dir-halted");
+        if (haltedEl) {
+          haltedEl.textContent = halted ? "是" : "否";
+          haltedEl.style.color = halted ? "#fca5a5" : "#86efac";
+        }
+        const active = !!st.active;
+        const activeEl = document.getElementById("okx-dir-active");
+        if (activeEl) {
+          activeEl.textContent = active ? "运行中" : "已停止";
+          activeEl.style.color = active ? "#86efac" : "#94a3b8";
+        }
+        const capEl = document.getElementById("okx-dir-capital");
+        if (capEl) { capEl.textContent = Number(st.trading_capital_usdt || 0).toFixed(2); }
+        const stopEl = document.getElementById("okx-dir-stop");
+        if (stopEl) { stopEl.textContent = (Number(st.stop_loss_pct || 0) * 100).toFixed(0) + "%"; }
+        const levEl = document.getElementById("okx-dir-lev");
+        if (levEl) { levEl.textContent = (st.leverage ? st.leverage : 5) + "X"; }
+        // 预填输入框为当前值(仅当用户未在编辑,即输入框为空时)。
+        const capIn = document.getElementById("okx-dir-capital-input");
+        if (capIn && !capIn.value && Number(st.trading_capital_usdt) > 0) { capIn.value = String(Number(st.trading_capital_usdt)); }
+        const stopIn = document.getElementById("okx-dir-stop-input");
+        if (stopIn && !stopIn.value && Number(st.stop_loss_pct) > 0) { stopIn.value = String(Math.round(Number(st.stop_loss_pct) * 100)); }
+        const symEl = document.getElementById("okx-dir-symbol");
+        if (symEl) { symEl.textContent = st.holding_symbol || "—"; }
+        const sideEl = document.getElementById("okx-dir-side");
+        if (sideEl) { sideEl.textContent = st.holding_symbol ? okxDirectionSideLabel(st.side) : "—"; }
+        const entryEl = document.getElementById("okx-dir-entry");
+        if (entryEl) {
+          entryEl.textContent = st.holding_symbol && Number(st.entry_price) > 0
+            ? Number(st.entry_price).toFixed(4) : "—";
+        }
+        const notionalEl = document.getElementById("okx-dir-notional");
+        if (notionalEl) {
+          notionalEl.textContent = st.holding_symbol
+            ? Number(st.notional_usdt || 0).toFixed(2) : "—";
+        }
+        const unrealEl = document.getElementById("okx-dir-unrealized");
+        if (unrealEl) {
+          if (st.holding_symbol && st.unrealized_pct_approx != null) {
+            const v = Number(st.unrealized_pct_approx);
+            unrealEl.textContent = fmtPctRatio(v);
+            unrealEl.style.color = pnlColor(v);
+          } else {
+            unrealEl.textContent = "—";
+            unrealEl.style.color = "";
+          }
+        }
+        const holdEl = document.getElementById("okx-dir-hold");
+        if (holdEl) {
+          holdEl.textContent = st.holding_symbol && st.opened_at
+            ? holdDurationSinceOpened(st.opened_at) : "—";
+        }
+        const dailyEl = document.getElementById("okx-dir-daily-realized");
+        if (dailyEl) {
+          const v = Number(st.daily_realized_usdt || 0);
+          dailyEl.textContent = fmtPnL(v, 2);
+          dailyEl.style.color = pnlColor(v);
+        }
+        const limitEl = document.getElementById("okx-dir-daily-limit");
+        if (limitEl) {
+          limitEl.textContent = Number(st.daily_loss_limit_usdt || 0).toFixed(2);
+        }
+        const errEl = document.getElementById("okx-dir-last-error");
+        if (errEl) {
+          const err = String(st.last_error || "").trim();
+          errEl.textContent = err ? ("最近错误: " + err) : "";
+          errEl.style.display = err ? "" : "none";
+        }
+        const metaEl = document.getElementById("okx-dir-summary-meta");
+        if (metaEl) {
+          const pos = st.holding_symbol ? (st.holding_symbol + " " + okxDirectionSideLabel(st.side)) : "空仓";
+          metaEl.textContent = enabled ? (" · " + pos) : "";
+        }
+        const genEl = document.getElementById("okx-dir-generated-at");
+        if (genEl) {
+          genEl.textContent = st.generated_at ? ("生成于 " + formatTimeUTC8(st.generated_at)) : "";
+        }
+        const recentBody = document.getElementById("okx-dir-recent-tbody");
+        if (recentBody) {
+          const rows = (st.recent || []).map((s) => {
+            const ts = s.time ? formatTimeUTC8(s.time, { withSuffix: false }) : "-";
+            const entry = Number(s.entry || 0).toFixed(4);
+            const exit = Number(s.exit || 0).toFixed(4);
+            const realized = Number(s.realized_usdt || 0);
+            const holdMin = Number(s.hold_minutes || 0);
+            const holdLabel = holdMin > 0 ? (holdMin >= 60 ? (holdMin / 60).toFixed(1) + "时" : holdMin + "分") : "-";
+            return `
+            <tr>
+              <td style="font-size:11px;">${escapeHTML(ts)}</td>
+              <td>${escapeHTML(s.symbol || "-")}</td>
+              <td>${escapeHTML(okxDirectionSideLabel(s.side))}</td>
+              <td style="font-size:11px;">${escapeHTML(entry)} → ${escapeHTML(exit)}</td>
+              <td>${Number(s.notional || 0).toFixed(2)}</td>
+              <td style="color:${pnlColor(realized)}">${realized.toFixed(4)}</td>
+              <td>${escapeHTML(holdLabel)}</td>
+              <td>${escapeHTML(s.reason || "-")}</td>
+            </tr>`;
+          }).join("");
+          recentBody.innerHTML = rows || `<tr><td colspan="8" class="hint">暂无最近平仓</td></tr>`;
+        }
+      } catch (err) {
+        const errEl = document.getElementById("okx-dir-last-error");
+        if (errEl) {
+          errEl.textContent = "加载失败: " + err.message;
+          errEl.style.display = "";
+        }
+        const recentBody = document.getElementById("okx-dir-recent-tbody");
+        if (recentBody) {
+          recentBody.innerHTML = `<tr><td colspan="8" class="hint" style="color:#fca5a5;">加载失败</td></tr>`;
+        }
+      }
+    }
+
+    // OKX 方向引擎控制:页面设交易仓本金/止损% + 开始/停止。开始须二次确认(真金 5X)。
+    async function okxDirectionalControl(active) {
+      const msgEl = document.getElementById("okx-dir-control-msg");
+      const setMsg = (t, ok) => { if (msgEl) { msgEl.textContent = t; msgEl.style.color = ok ? "#86efac" : "#fca5a5"; } };
+      const capital = Number(document.getElementById("okx-dir-capital-input")?.value || "0");
+      const stopPct = Number(document.getElementById("okx-dir-stop-input")?.value || "0");
+      if (active && !(capital > 0)) { setMsg("请先填交易仓本金(USDT)", false); return; }
+      if (active && !confirm(`确认实盘开始 OKX 方向交易?\n交易仓本金 = ${capital}U × 5X(名义 ${capital * 5}U)\n止损 = ${stopPct || 50}% 本金\n这是真金下单,确认?`)) { return; }
+      const body = { active, trading_capital_usdt: capital, stop_loss_pct: stopPct, confirm: active ? "LIVE" : "" };
+      try {
+        await postJSON(controlURL("/api/okx-directional/control"), body);
+        setMsg(active ? "已开始(实盘 5X)" : "已停止开新仓(持仓仍看护止损)", true);
+        refreshOKXDirectional();
+      } catch (err) {
+        setMsg("操作失败: " + err.message, false);
+      }
+    }
+    document.getElementById("okx-dir-start-btn")?.addEventListener("click", () => okxDirectionalControl(true));
+    document.getElementById("okx-dir-stop-btn")?.addEventListener("click", () => okxDirectionalControl(false));
+    document.getElementById("okx-dir-apply-btn")?.addEventListener("click", async () => {
+      let active = false;
+      try { const st = await loadJSON("/api/okx-directional"); active = !!st.active; } catch (e) {}
+      okxDirectionalControl(active);
+    });
+
     async function refreshRotationPositions() {
       const openBody = document.getElementById("rotation-open-tbody");
       const closedBody = document.getElementById("rotation-closed-tbody");
@@ -4461,7 +4692,7 @@
       }
     }
 
-    document.getElementById("refresh-btn")?.addEventListener("click", () => { refreshDashboard(); refreshVenueOverview(); refreshStrategyStatus(); refreshCrossVenuePanel(); refreshEarnings(); refreshRotationStatus(); refreshRotationPositions(); refreshMissedOpportunities(); refreshCapitalSnapshot(); });
+    document.getElementById("refresh-btn")?.addEventListener("click", () => { refreshDashboard(); refreshVenueOverview(); refreshStrategyStatus(); refreshCrossVenuePanel(); refreshEarnings(); refreshRotationStatus(); refreshRotationPositions(); refreshMissedOpportunities(); refreshCapitalSnapshot(); refreshOKXDirectional(); });
     document.getElementById("start-all-btn")?.addEventListener("click", startAllVenues);
     document.getElementById("stop-all-btn")?.addEventListener("click", stopAllVenues);
     document.getElementById("save-risk-config-btn")?.addEventListener("click", saveRiskConfig);
@@ -4616,9 +4847,9 @@
       dashboardStarted = true;
       initCrossVenueValidationControls();
       // 先加载 venue 列表(填充 knownVenues),构建多所卡片(一次),再渲染主面板与状态。
-      loadVenues().then(() => { renderVenueTabs(); buildVenueOverview(); initRecordDownloads(); initRotationControl(); initStrategyControl(); refreshVenueOverview(); refreshStrategyStatus(); refreshCrossVenuePanel(); refreshEarnings(); refreshRotationStatus(); refreshRotationPositions(); refreshMissedOpportunities(); refreshCapitalSnapshot(); });
+      loadVenues().then(() => { renderVenueTabs(); buildVenueOverview(); initRecordDownloads(); initRotationControl(); initStrategyControl(); refreshVenueOverview(); refreshStrategyStatus(); refreshCrossVenuePanel(); refreshEarnings(); refreshRotationStatus(); refreshRotationPositions(); refreshMissedOpportunities(); refreshCapitalSnapshot(); refreshOKXDirectional(); });
       refreshDashboard();
-      setInterval(() => { refreshDashboard(); refreshVenueOverview(); refreshStrategyStatus(); refreshCrossVenuePanel(); refreshEarnings(); refreshRotationPositions(); refreshMissedOpportunities(); refreshCapitalSnapshot(); }, 5000);
+      setInterval(() => { refreshDashboard(); refreshVenueOverview(); refreshStrategyStatus(); refreshCrossVenuePanel(); refreshEarnings(); refreshRotationPositions(); refreshMissedOpportunities(); refreshCapitalSnapshot(); refreshOKXDirectional(); }, 5000);
       setInterval(() => { refreshRotationStatus(); }, 8000);
     }
 

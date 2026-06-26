@@ -67,6 +67,20 @@ func (c CrossVenueScannerConfig) BorrowDisabledSet() map[string]struct{} {
 	return ParseVenueList(c.BorrowDisabledVenues)
 }
 
+// DirectionalVenueSet 返回 DirectionalVenues 解析后的集合(从 carry 中剔除的方向交易专用所)。
+func (c CrossVenueScannerConfig) DirectionalVenueSet() map[string]struct{} {
+	return ParseVenueList(c.DirectionalVenues)
+}
+
+// IsDirectionalVenue 报告 venue 是否被划为方向交易专用(不参与 carry)。
+func (c CrossVenueScannerConfig) IsDirectionalVenue(venue string) bool {
+	if c.DirectionalVenues == "" {
+		return false
+	}
+	_, ok := c.DirectionalVenueSet()[strings.ToLower(strings.TrimSpace(venue))]
+	return ok
+}
+
 // VenueBorrowCapable 报告 venue 是否允许借币探测与 perp-spot short-spot(不在 disabled 列表中)。
 func (c CrossVenueScannerConfig) VenueBorrowCapable(venue string) bool {
 	venue = strings.ToLower(strings.TrimSpace(venue))
@@ -593,6 +607,10 @@ type CrossVenueScannerConfig struct {
 	// BorrowDisabledVenues 逗号分隔、禁止借币/short-spot 的 venue 列表(借币探测与 perp-spot 空现货均跳过)。
 	// 默认 "gate"(单币种保证金账户无统一账户借币);留空表示全部 venue 可借。
 	BorrowDisabledVenues string `cfg:"borrow_disabled_venues"`
+	// DirectionalVenues 逗号分隔:从资金费 carry(扫描+跨所配对+单所轮动+统一资金池)中完全剔除、
+	// 改作方向交易专用的 venue 列表。这些 venue 仍由 orchestrator 注册(供方向引擎使用)、资金独立核算,
+	// 但绝不参与任何 carry 策略,避免 carry 与方向引擎同时占用同一所的资金/持仓。默认空。
+	DirectionalVenues string `cfg:"directional_venues"`
 	// FundingAPRSanityCap 单腿年化费率绝对值上限(小数,5.0=500%);超过视为尖峰/坏数据,截断后再参与价差/排序。
 	FundingAPRSanityCap float64 `cfg:"funding_apr_sanity_cap"`
 	// SpreadPersistenceScans 费率历史样本窗口(用于 HistoryQualityScore 软信号;不再作为存在性硬闸)。
@@ -645,6 +663,58 @@ type EngineConfig struct {
 
 	// UnifiedRotation 是五策略统一轮动 runner 开关(默认关闭;面板 START+confirm=LIVE 后 active 即实盘)。
 	UnifiedRotation UnifiedRotationConfig `cfg:"unified_rotation"`
+
+	// OKXDirectional 是 OKX 方向交易引擎(独立于 carry):用资费筛币、价格 regime 定方向、资费做对齐闸,实盘双向。
+	OKXDirectional OKXDirectionalConfig `cfg:"okx_directional"`
+}
+
+// OKXDirectionalConfig 是 OKX 方向交易引擎参数。OKX 已从 carry 剔除(directional_venues),资金独占。
+// 选币:OKX 资费快照按 |费率| 排序取 TopN(被资费标记的币)。方向:K线 regime(趋势顺势/震荡反转,双向)。
+// 资费对齐闸:只在资费不逆持仓时开(多要费率≤阈值、空要费率≥−阈值),令持仓顺带收资费、绝不逆扛。实盘 + 5X + 小额。
+type OKXDirectionalConfig struct {
+	// Enabled 启用引擎主循环。默认 false。
+	Enabled bool `cfg:"enabled"`
+	// LiveTradingEnabled 主安全闸:false=只算信号不下单;true=真钱。默认 false。
+	LiveTradingEnabled bool `cfg:"live_trading_enabled"`
+	// LoopIntervalSeconds 主循环周期(秒)。默认 90。
+	LoopIntervalSeconds int `cfg:"loop_interval_seconds"`
+	// NotionalUSDT 单仓名义(USDT)。默认 30。
+	NotionalUSDT float64 `cfg:"notional_usdt"`
+	// Leverage 永续杠杆。默认 5。
+	Leverage int `cfg:"leverage"`
+	// MaxConcurrent 最大并发持仓数。默认 1。
+	MaxConcurrent int `cfg:"max_concurrent"`
+	// UniverseTopN 资费筛币:按 |单次费率| 降序取前 N 作候选。默认 12。
+	UniverseTopN int `cfg:"universe_top_n"`
+	// MinFundingAbsPerInterval 进入候选的最小 |单次费率|(小数,0.0005=0.05%)。默认 0.0005。
+	MinFundingAbsPerInterval float64 `cfg:"min_funding_abs_per_interval"`
+	// CandleBar K线粒度(OKX bar:1m/5m/15m/1H)。默认 5m。
+	CandleBar string `cfg:"candle_bar"`
+	// CandleLimit 拉取K线根数(算信号窗口)。默认 120。
+	CandleLimit int `cfg:"candle_limit"`
+	// EMAFast/EMASlow 趋势态 EMA 快慢周期。默认 9 / 30。
+	EMAFast int `cfg:"ema_fast"`
+	EMASlow int `cfg:"ema_slow"`
+	// TrendEfficiencyThreshold 趋势/震荡判别:efficiency ratio ≥ 此值=趋势态,否则震荡态。默认 0.30。
+	TrendEfficiencyThreshold float64 `cfg:"trend_efficiency_threshold"`
+	// ZScoreEntry 震荡态反转入场 z 分阈值(|收盘 z| ≥ 此值才开)。默认 1.5。
+	ZScoreEntry float64 `cfg:"zscore_entry"`
+	// RequireFundingAlignment 资费对齐闸:true 时多要费率≤MinFundingAbs、空要费率≥−MinFundingAbs。默认 true。
+	RequireFundingAlignment bool `cfg:"require_funding_alignment"`
+	// TradingCapitalUSDT 交易仓(合约账户)投入本金,由页面设置;名义 = 本金 × Leverage。默认 30。运行时被页面控制覆盖。
+	TradingCapitalUSDT float64 `cfg:"trading_capital_usdt"`
+	// StopLossPct 硬止损,以"交易仓本金"为基准(0.5=亏到本金的 50% 即平)。5X 下 50% 本金≈10% 价格移动。默认 0.5。运行时页面可覆盖。
+	StopLossPct float64 `cfg:"stop_loss_pct"`
+	// TakeProfitPct 止盈,同样以交易仓本金为基准(0.30=赚到本金 30% 止盈)。默认 0.30。
+	TakeProfitPct float64 `cfg:"take_profit_pct"`
+	// MaxHoldMinutes 最大持有(分钟),超时平。默认 180。
+	MaxHoldMinutes int `cfg:"max_hold_minutes"`
+	// DailyLossLimitUSDT 当日累计已实现亏损熔断线(USDT);≤0=不启用日熔断。默认 0(按用户要求不设日熔断)。
+	DailyLossLimitUSDT float64 `cfg:"daily_loss_limit_usdt"`
+	// CostFloorBps 成本地板:预期边(bps)须 ≥ 此值才开,挡薄盘穿价。默认 60。
+	CostFloorBps float64 `cfg:"cost_floor_bps"`
+	// SymbolCooldownMinutes 平仓后该币冷却分钟数。默认 30。
+	SymbolCooldownMinutes int `cfg:"symbol_cooldown_minutes"`
 }
 
 // CrossVenueExecutorConfig 是跨所资金费对冲执行引擎的可调参数。

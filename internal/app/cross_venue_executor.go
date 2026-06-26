@@ -325,6 +325,10 @@ func (e *CrossVenueExecutor) SetControlPlane(cp *ControlPlane) {
 func buildCrossVenueExecutorAdapters(orch *Orchestrator, cfg EngineConfig, secretPath string, logger *log.Logger) map[string]venue.Venue {
 	out := make(map[string]venue.Venue, len(crossVenueExecutorVenues))
 	for _, name := range crossVenueExecutorVenues {
+		// 方向交易专用所(如 okx)从 carry 执行/轮动中剔除:不开 carry 仓、资金不进统一池,交由方向引擎独占。
+		if cfg.CrossVenueScanner.IsDirectionalVenue(name) {
+			continue
+		}
 		if adp := crossVenueAdapterFromOrchestrator(orch, name); adp != nil {
 			out[name] = adp
 			continue
