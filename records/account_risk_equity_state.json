@@ -1,15 +1,15 @@
 {
   "schema_version": 1,
   "day_start_cst": "2026-06-28T00:00:00+08:00",
-  "last_trusted_total_usdt": 218.572415,
+  "last_trusted_total_usdt": 215.952658,
   "last_trusted_by_venue": {
-    "binance": 25.715247550850002,
-    "bybit": 68.82874749,
-    "gate": 58.515177132108995,
+    "binance": 25.24427736105,
+    "bybit": 67.42353247,
+    "gate": 57.771606044409,
     "okx": 65.51324339406496
   },
   "has_last_trusted": true,
-  "last_trusted_at": "2026-06-27T19:03:36.429285089Z",
+  "last_trusted_at": "2026-06-27T22:54:52.421581421Z",
   "daily_fund_flow_adjust_usdt": 0,
   "cumulative_fund_flow_usdt": -64.24524,
   "trading_equity_peak_usdt": 229.312393,
@@ -17,5 +17,5 @@
   "last_settlement_count": 356,
   "last_position_count": 0,
   "daily_fund_flow_source": "heuristic",
-  "updated_at": "2026-06-27T19:03:36.429285089Z"
+  "updated_at": "2026-06-27T22:54:52.421581421Z"
 }

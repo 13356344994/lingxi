@@ -1,18 +1,32 @@
 [
   {
+    "symbol": "CBRS-USDT",
+    "side": "long",
+    "entry_price": 198.7,
+    "qty": 0.08,
+    "notional_usdt": 16.666666666666668,
+    "opened_at": "2026-06-27T22:19:18.118776201Z",
+    "regime": "trend",
+    "funding_at_open": 0.00050633,
+    "last_mid": 197.655,
+    "last_unrealized_account_pct": -0.026295923502767677,
+    "last_unrealized_usdt": -0.08765307834255893,
+    "initial_notional_usdt": 16.666666666666668,
+    "stop_floor_account_pct": -0.2
+  },
+  {
     "symbol": "RE-USDT",
     "side": "long",
-    "entry_price": 0.6825,
-    "qty": 24,
+    "entry_price": 0.6643,
+    "qty": 25,
     "notional_usdt": 16.666666666666668,
-    "opened_at": "2026-06-27T18:55:12.446398306Z",
+    "opened_at": "2026-06-27T22:47:16.754774788Z",
     "regime": "trend",
-    "funding_at_open": -0.0015309,
-    "last_mid": 0.68535,
-    "last_unrealized_account_pct": 0.02087912087912102,
-    "last_unrealized_usdt": 0.06959706959707007,
+    "funding_at_open": -0.00157923,
+    "last_mid": 0.66325,
+    "last_unrealized_account_pct": -0.007903055848261294,
+    "last_unrealized_usdt": -0.026343519494204312,
     "initial_notional_usdt": 16.666666666666668,
-    "peak_account_pct": 0.02087912087912102,
     "stop_floor_account_pct": -0.2
   }
 ]

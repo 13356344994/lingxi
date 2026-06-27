@@ -185,6 +185,9 @@ okx_directional:
   # 最低开仓信心闸(跨所印证后口径):离线回测证实只有高信心档有正 edge(≥0.7 命中59%/扣10bps后净+0.13%笔),
   # 低信心档确定性亏损。只做高信心档把薄 edge 做厚:频次降约3/4,换「净亏→净正」。0=关闭。
   min_open_conviction: 0.70
+  # 信号反转最小持有(分钟):开仓后此时长内不因信号反转立即平仓(防5m噪声急翻churn,白付往返成本);窗口内仍由硬止损兜底。
+  # 离线验证:0→30min 单笔期望+0.12%→+0.33%、胜率42%→46%(maker口径),且与OKX/Bybit实盘反转churn互证。
+  reversal_min_hold_minutes: 30
 
 # 五策略统一资金费轮动 runner。perp-perp 执行体见 cross_venue_executor,开仓由 runner binding 派发。
 # total_deployable_usdt: 绝对预算(USDT);另有 total_deployable_pct(默认见 defaults,占真实现金权益比例),二者与 equity 取 min。

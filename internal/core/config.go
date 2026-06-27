@@ -779,6 +779,9 @@ type OKXDirectionalConfig struct {
 	// TrendSizeFraction 趋势单仓位系数:趋势态每仓本金/名义 ×此系数(趋势单胜率低,少冒险,资金偏向 range 反转单)。
 	// 默认 0.5(趋势单减半仓)。≤0 或 >1 回退 1(不缩放)。
 	TrendSizeFraction float64 `cfg:"trend_size_fraction"`
+	// ReversalMinHoldMinutes 信号反转最小持有(分钟):开仓后此时长内不因信号反转立即平仓(防 5m 噪声急翻 churn);
+	// 窗口内仍由硬止损兜底。默认 0(立即反转平)。
+	ReversalMinHoldMinutes int `cfg:"reversal_min_hold_minutes"`
 	// MinOpenConviction 最低开仓信心闸(跨所印证后的最终 Conviction 口径):低于此值的信号不开仓。
 	// 离线回测实证:仅高信心档(≥0.7 命中 59% / 扣 10bps 往返后净 +0.13%/笔)有正 edge,低信心档(<0.5)确定性亏损。
 	// 只做高信心档把薄 edge 做厚——频次降约 3/4 换取「净亏→净正」。默认 0.65。≤0 关闭(不筛)。

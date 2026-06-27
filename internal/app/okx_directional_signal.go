@@ -379,7 +379,11 @@ func decideDirectionalPositionAction(
 		return dirPosAction{dirActClose, "硬止损"}
 	}
 	if fresh.Side != DirectionFlat && fresh.Side != side {
-		return dirPosAction{dirActClose, "信号反转"}
+		// 反转最小持有:开仓后 N 分钟内不因信号反转立即平(5m 噪声易急翻造成 churn,白付往返成本);
+		// 此窗口内仍由硬止损(①上方)兜底,只是不让噪声反转把刚开的仓秒平。0=关闭(立即反转平)。
+		if cfg.ReversalMinHoldMinutes <= 0 || holdMin >= cfg.ReversalMinHoldMinutes {
+			return dirPosAction{dirActClose, "信号反转"}
+		}
 	}
 
 	addConv := cfg.AddConvictionMin

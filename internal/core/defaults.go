@@ -510,6 +510,7 @@ func DefaultEngineConfig() EngineConfig {
 			TrendEntryPullbackMaxBarPct:    0.005,
 			TrendSizeFraction:              0.5,
 			MinOpenConviction:              0.70,
+			ReversalMinHoldMinutes:         30,
 			CrossVenueCorroborationEnabled: true,
 			CrossVenueConvictionStep:       0.1,
 			CrossVenueVetoMinPeers:         2,
