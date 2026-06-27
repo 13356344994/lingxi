@@ -305,6 +305,14 @@ func directionalEntryGuard(closes []float64, base DirectionSide, regime Directio
 				return false, fmt.Sprintf("离快EMA过远不追(ext=%.2f%%)", ext*100)
 			}
 		}
+		// 回踩入场:趋势态只在最后一根顺势方向涨跌 ≤ 阈值(回踩/横盘)时入场,不追顺势暴动的当根——
+		// 买回踩不买尖顶,根治趋势单追高(复盘 trend 胜率仅 25%、冲一下就反转)。
+		pull := cfg.TrendEntryPullbackMaxBarPct
+		if pull > 0 {
+			if (base == DirectionLong && lastRet > pull) || (base == DirectionShort && lastRet < -pull) {
+				return false, fmt.Sprintf("等回踩不追当根顺势冲(lastRet=%.2f%%>%.2f%%)", lastRet*100, pull*100)
+			}
+		}
 		return true, ""
 	}
 
@@ -392,19 +400,40 @@ func decideDirectionalPositionAction(
 	}
 	trailGap := cfg.TrailGapPct
 	if trailGap <= 0 {
-		trailGap = 0.15
+		trailGap = 0.06
+	}
+	lockFrac := cfg.TrailLockFraction
+	if lockFrac <= 0 {
+		lockFrac = 0.5
 	}
 
-	// ② 盈利保护(移动保盈):高水位过臂点后,浮盈回吐到 max(0, 峰值−间距) 即落袋,
-	//    不再让赢单一路回吐到超时变亏单(用户痛点:中途盈利却超时亏损)。
+	// ② 盈利保护(移动保盈棘轮):高水位过臂点后,按峰值比例锁利——
+	//    锁利线 = max(峰值×lockFrac, 峰值−trailGap),浮盈回吐到锁利线即落袋。
+	//    旧实现用 max(0, 峰值−0.15):峰值<15% 时锁利线恒=0(只保本),叠加 QuickTP=12%,
+	//    [臂点,QuickTP] 这段最常发生的浮盈区间裸奔——冲到 +6~10% 又回头的单(趋势追高单典型轨迹)
+	//    全额回吐成保本/小亏(复盘实证:这是"很少赚"的主因)。改为比例锁利后,峰值+10% 至少落袋 +5%。
+	//    上涨途中(uPnL 仍在锁利线之上)不触发,赢单照常冲 QuickTP;仅"从峰值回吐"才落袋,不误伤利润源。
 	if peakAccount >= arm {
-		lock := peakAccount - trailGap
+		lock := peakAccount * lockFrac
+		if byGap := peakAccount - trailGap; byGap > lock {
+			lock = byGap // 高峰值时用更紧的绝对间距二次收紧
+		}
 		if lock < 0 {
 			lock = 0
 		}
 		if uPnLAccount <= lock {
-			return dirPosAction{dirActClose, fmt.Sprintf("移动保盈(峰值%.0f%%回吐至%.0f%%)", peakAccount*100, uPnLAccount*100)}
+			return dirPosAction{dirActClose, fmt.Sprintf("移动保盈(峰值%.0f%%锁利%.0f%%,回吐至%.0f%%)", peakAccount*100, lock*100, uPnLAccount*100)}
 		}
+	}
+
+	// ②.5 分批止盈(scale-out):浮盈首次达 PartialTPTriggerPct(< QuickTP)且未分批过 → 先落袋一部分,
+	//      把"确定的利润"锁进口袋;剩余仓位继续由棘轮(②)/快进快出(③)管理博更大趋势。
+	//      根治"很少赚":复盘里大量单冲到 +6~10% 却没够到 +12% 止盈、随后回吐——分批后至少这一部分已落袋。
+	partialTrig := cfg.PartialTPTriggerPct
+	partialFrac := cfg.PartialTPFraction
+	if partialTrig > 0 && partialFrac > 0 && partialFrac < 1 && !partialDone &&
+		uPnLAccount >= partialTrig && uPnLAccount < quickTP {
+		return dirPosAction{dirActPartialTP, fmt.Sprintf("分批止盈(浮盈%.0f%%先落袋%.0f%%,余仓博趋势)", uPnLAccount*100, partialFrac*100)}
 	}
 
 	// ③ 快进快出小止盈:浮盈达 QuickTP 即全平落袋;仅强延续(高信心+趋势同向+未到补仓上限)才骑乘加仓。

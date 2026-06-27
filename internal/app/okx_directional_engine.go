@@ -737,6 +737,11 @@ func (e *OKXDirectionalEngine) openFromShortlist(ctx context.Context) {
 		if creason != "" && creason != "无跨所数据" {
 			e.logger.Printf("[OKX方向][跨所] %s %s %s 信心→%.2f", p.sym, p.signal.Side.String(), creason, p.signal.Conviction)
 		}
+		// 最低开仓信心闸:只做高信心档(回测证实仅高信心档扣费后正 edge,低信心档确定性亏损)。
+		if mc := e.cfg.MinOpenConviction; mc > 0 && p.signal.Conviction < mc {
+			e.logger.Printf("[OKX方向] %s 信心%.3f < 最低开仓信心%.3f,跳过(只做高信心档)", p.sym, p.signal.Conviction, mc)
+			continue
+		}
 		if e.openPosition(ctx, p.sym, p.signal, p.rate) {
 			opened++
 		}
@@ -840,6 +845,14 @@ func (e *OKXDirectionalEngine) openPosition(ctx context.Context, sym string, sig
 	// 每仓本金 = 交易仓本金 / 最大并发;名义 = 每仓本金 × 杠杆。总并发满仓总名义=本金×杠杆,总风险=本金(加仓不放大总敞口)。
 	ctrl := e.getControl()
 	perPosCapital := ctrl.TradingCapitalUSDT / float64(e.maxConcurrent())
+	// 趋势单减半仓:趋势态胜率低(复盘 25% vs range 53%),少冒险,资金偏向 range 反转单。
+	if sig.Regime == RegimeTrend {
+		f := e.cfg.TrendSizeFraction
+		if f <= 0 || f > 1 {
+			f = 1
+		}
+		perPosCapital *= f
+	}
 	notional := perPosCapital * float64(e.leverage())
 	if notional <= 0 {
 		e.logger.Printf("[OKX方向] %s 每仓本金<=0,跳过开仓", sym)
@@ -872,7 +885,20 @@ func (e *OKXDirectionalEngine) openPosition(ctx context.Context, sym string, sig
 		return false
 	}
 	// 交易所侧可用保证金兜底预检。
-	if avail, merr := fetchVenuePerpAvailableUSDT(ctx, e.v); merr == nil && avail+1e-9 < perPosCapital {
+	avail, merr := fetchVenuePerpAvailableUSDT(ctx, e.v)
+	if merr == nil && avail+1e-9 < perPosCapital {
+		// 永续/合约钱包可用不足时,先从闲置钱包(现货/全仓杠杆)把 USDT 补进合约钱包再复检。
+		// 根治 binance「钱在现货、合约钱包可用=0、永远开不出仓」——provisionCapital 走的 CaptureMovableSnapshot
+		// 对 binance 返回 ErrUnsupported 被跳过,但 binance 实现了 TopUpPerpMarginUSDT,此处显式调用补足。
+		// 绝不动资金账户(用户红线),TopUp 仅从现货/全仓杠杆搬;不支持的所(统一钱包)best-effort 跳过。
+		if tp, ok := e.v.(venue.PerpMarginProvider); ok {
+			if moved, terr := tp.TopUpPerpMarginUSDT(ctx, perPosCapital); terr == nil && moved > 0 {
+				e.logger.Printf("[OKX方向] %s 合约钱包可用不足,从闲置钱包补 %.2f USDT 进合约钱包后复检", sym, moved)
+				avail, merr = fetchVenuePerpAvailableUSDT(ctx, e.v)
+			}
+		}
+	}
+	if merr == nil && avail+1e-9 < perPosCapital {
 		e.logger.Printf("[OKX方向] %s 永续可用 %.2f < 每仓本金 %.2f,跳过开仓", sym, avail, perPosCapital)
 		return false
 	}
@@ -1098,9 +1124,18 @@ func (e *OKXDirectionalEngine) closePosition(ctx context.Context, pos *okxDirect
 		e.logger.Printf("[OKX方向] %s 平仓失败: %v", pos.Symbol, cerr)
 		return
 	}
+	// 记账口径:默认盘口(平仓时刻真实 mark-to-market);仅当成交价可信且不是「回读成持仓均价」的伪值时才用真实成交价。
+	// 根治 Gate 假 0:某些 venue 平仓 AvgPrice 被回读成持仓均价(exit≈entry),用成交价算就记成假 0 污染复盘。
+	// 因此 exit≈entry(到 1e-6)一律判为回读伪值 → 用盘口口径(realized 已是盘口默认值)并把 Exit 记成盘口。
 	realized := uPnLPct * pos.NotionalUSDT
-	if exitPrice > 0 && pos.EntryPrice > 0 {
+	fillIsArtifact := exitPrice <= 0 || (pos.EntryPrice > 0 && math.Abs(exitPrice-pos.EntryPrice) < pos.EntryPrice*1e-6)
+	if exitTrusted && exitPrice > 0 && pos.EntryPrice > 0 && !fillIsArtifact {
 		realized = directionalUPnLPct(pos.directionSide(), pos.EntryPrice, exitPrice) * pos.NotionalUSDT
+	} else {
+		if fillIsArtifact && exitPrice > 0 && math.Abs(uPnLPct) > 0.002 {
+			e.logger.Printf("[OKX方向][记账] %s 平仓成交价(%.8f)≈持仓均价但实时浮盈%.2f%%,疑成交价回读异常,改用盘口口径记账", pos.Symbol, exitPrice, uPnLPct*100)
+		}
+		exitPrice = mid // 回读伪值/无效 → Exit 记盘口,避免落假 0
 	}
 	settle := okxDirectionalSettlement{
 		Time:          e.nowFn().UTC(),
@@ -1367,6 +1402,12 @@ func (e *OKXDirectionalEngine) placeDirectionalLeg(
 	}
 	if remaining <= executionQtyTolerance {
 		remaining = qty - acc.ExecutedQty
+	}
+	// 开仓/补仓腿(reduceOnly=false)只做 maker:maker 没挂上就放弃这次开仓,绝不吃单兜底。
+	// 回测铁证:信号毛 edge≈7bps < 吃单往返成本(~10bps+),吃单兜底会把薄 edge 吃成负;开仓没成交=没仓位,无害。
+	// 平仓腿(reduceOnly=true)保留下方 IOC 兜底,确保止损/超时能离场。
+	if !reduceOnly {
+		return acc, nil
 	}
 	book, err := e.v.FetchBookTicker(ctx, venue.MarketPerp, sym)
 	if err != nil {

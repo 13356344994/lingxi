@@ -13,6 +13,10 @@ import (
 
 var _ venue.PerpMarginProvider = (*Adapter)(nil)
 
+// minPerpTopUpUSDT 是补保证金的最小划转额:低于此值的闲置零头(常为被抵押锁定的全仓杠杆残额)不搬,
+// 避免触发 binance -3020「Transfer out amount exceeds max amount」并每周期刷告警。
+const minPerpTopUpUSDT = 1.0
+
 // FetchPerpAvailableUSDT 返回 U 本位合约钱包 USDT availableBalance(不含现货/资金/全仓)。
 func (a *Adapter) FetchPerpAvailableUSDT(ctx context.Context) (float64, error) {
 	var futures []struct {
@@ -66,7 +70,9 @@ func (a *Adapter) TopUpPerpMarginUSDT(ctx context.Context, requiredUSDT float64)
 		}
 		amount := math.Min(need, avail)
 		amount = math.Floor(amount*1e8) / 1e8
-		if amount <= 1e-6 {
+		// 跳过灰尘级划转(<1 USDT):全仓杠杆等钱包常残留被抵押锁定的零头,转出会触发
+		// -3020「exceeds max amount」并每决策周期刷告警噪声;低于此阈值不值得搬。
+		if amount < minPerpTopUpUSDT {
 			continue
 		}
 		if err := a.transferUSDT(ctx, src.typ, amount); err != nil {

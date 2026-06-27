@@ -1766,6 +1766,11 @@
             </div>
             <div class="dir-hero-sep"></div>
             <div class="dir-hero-item">
+              <span class="dir-hero-label">四所总资金 (U)</span>
+              <span class="dir-hero-val" id="dir-hero-total-equity">—</span>
+            </div>
+            <div class="dir-hero-sep"></div>
+            <div class="dir-hero-item">
               <span class="dir-hero-label">运行中 / 总</span>
               <span class="dir-hero-val dir-hero-val-sm" id="dir-hero-running">—</span>
             </div>
@@ -1951,15 +1956,6 @@
                 </thead>
                 <tbody id="okx-dir-positions-tbody"><tr><td colspan="8" class="hint">加载中…</td></tr></tbody>
               </table>
-            </div>
-            <!-- 隐藏的 legacy 单仓字段 (JS 使用, 保留 id) -->
-            <div class="status-grid stats" hidden aria-hidden="true">
-              <div class="stat-card"><div class="stat-label">币对</div><div class="stat-value" id="okx-dir-symbol" style="font-size:16px">-</div></div>
-              <div class="stat-card"><div class="stat-label">方向</div><div class="stat-value" id="okx-dir-side" style="font-size:16px">-</div></div>
-              <div class="stat-card"><div class="stat-label">开仓价</div><div class="stat-value" id="okx-dir-entry" style="font-size:16px">-</div></div>
-              <div class="stat-card"><div class="stat-label">名义(U)</div><div class="stat-value" id="okx-dir-notional" style="font-size:16px">-</div></div>
-              <div class="stat-card"><div class="stat-label">未实现%</div><div class="stat-value" id="okx-dir-unrealized" style="font-size:16px">-</div></div>
-              <div class="stat-card"><div class="stat-label">持有</div><div class="stat-value" id="okx-dir-hold" style="font-size:14px">-</div></div>
             </div>
           </div>
 
@@ -5422,6 +5418,22 @@
       if (heroFloatEl) { heroFloatEl.textContent = fmtPnL(heroFloat, 2); heroFloatEl.style.color = pnlColor(heroFloat); }
       if (heroTodayEl) { heroTodayEl.textContent = fmtPnL(heroToday, 2); heroTodayEl.style.color = pnlColor(heroToday); }
       if (heroRunEl) heroRunEl.textContent = heroRunning + " / " + venues.length;
+      // 四所总资金:汇总 /api/earnings 各所账户权益(钱包口径,含现货+合约等)。
+      const heroEquityEl = document.getElementById("dir-hero-total-equity");
+      if (heroEquityEl) {
+        try {
+          const earn = await loadJSON("/api/earnings");
+          const bv = earn && earn.by_venue && typeof earn.by_venue === "object" ? earn.by_venue : {};
+          let totalEquity = 0, anyKnown = false;
+          venues.forEach((v) => {
+            const e = bv[v] && Number(bv[v].equity_usdt);
+            if (e && isFinite(e)) { totalEquity += e; anyKnown = true; }
+          });
+          heroEquityEl.textContent = anyKnown ? totalEquity.toFixed(2) : "—";
+        } catch (_) {
+          heroEquityEl.textContent = "—";
+        }
+      }
     }
 
     // OKX 方向引擎控制:页面设交易仓本金/止损% + 开始/停止。开始须二次确认(真金 5X)。

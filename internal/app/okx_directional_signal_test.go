@@ -215,22 +215,121 @@ func TestSignalWindowRegime(t *testing.T) {
 func TestBreakevenGiveback(t *testing.T) {
 	cfg := testDirectionalCfg()
 	cfg.BreakevenArmPct = 0.05
-	cfg.TrailGapPct = 0.15
+	cfg.TrailGapPct = 0.06
+	cfg.TrailLockFraction = 0.5
 	cfg.QuickTPPct = 0.12
 	cfg.MaxHoldMinutes = 180
 	stopFloor := -0.5
 	hold := DirectionalSignal{Side: DirectionLong, Conviction: 0.3, Regime: RegimeRange}
-	// 峰值 +20%(已过臂点),回吐到 +3%(< 峰值−间距=5%)→ 移动保盈平。
+	// 峰值 +20%(已过臂点),锁利线=max(20%×0.5=10%, 20%−6%=14%)=14%;回吐到 +3%(≤14%)→ 平。
 	if a := decideDirectionalPositionAction(0.03, 0.20, stopFloor, 10, DirectionLong, hold, false, 0, cfg); a.Kind != dirActClose {
-		t.Fatalf("回吐过保盈线应平, got %v(%s)", a.Kind, a.Reason)
+		t.Fatalf("回吐过锁利线应平, got %v(%s)", a.Kind, a.Reason)
 	}
-	// 峰值 +20%,仍在 +10%(> 峰值−间距=5%)→ 不触发保盈,持有。
-	if a := decideDirectionalPositionAction(0.10, 0.20, stopFloor, 10, DirectionLong, hold, false, 0, cfg); a.Kind != dirActHold {
-		t.Fatalf("回吐未过保盈线应持有, got %v(%s)", a.Kind, a.Reason)
+	// 峰值 +20%,锁利线=14%;回吐到 +10%(≤14%)→ 平(旧实现锁利线=5% 会误持有,正是漏利 bug)。
+	if a := decideDirectionalPositionAction(0.10, 0.20, stopFloor, 10, DirectionLong, hold, false, 0, cfg); a.Kind != dirActClose {
+		t.Fatalf("回吐过锁利线应平, got %v(%s)", a.Kind, a.Reason)
+	}
+	// 峰值 +20% 时锁利线=14% > QuickTP=12%:高于锁利线的浮盈必先触发快进快出止盈,
+	//   故高峰值由 QuickTP 主导(+16% → 全平落袋);"持有"语义见 TestTrailRatchetDeadZone 低峰值用例。
+	if a := decideDirectionalPositionAction(0.16, 0.20, stopFloor, 10, DirectionLong, hold, false, 0, cfg); a.Kind != dirActClose {
+		t.Fatalf("高峰值应由快进快出止盈主导平仓, got %v(%s)", a.Kind, a.Reason)
 	}
 	// 峰值未过臂点(+4%),回撤到 +1%,不触发保盈,持有。
 	if a := decideDirectionalPositionAction(0.01, 0.04, stopFloor, 10, DirectionLong, hold, false, 0, cfg); a.Kind != dirActHold {
 		t.Fatalf("峰值未过臂点不应触发保盈, got %v(%s)", a.Kind, a.Reason)
+	}
+}
+
+// TestTrailRatchetDeadZone 复盘实证回归:峰值落在 [臂点, QuickTP] 区间(最常发生)的单,
+// 旧实现只保本(锁利线=0)导致 +6~10% 峰值全额回吐成亏;棘轮按比例锁利后必须锁住一半。
+func TestTrailRatchetDeadZone(t *testing.T) {
+	cfg := testDirectionalCfg()
+	cfg.BreakevenArmPct = 0.05
+	cfg.TrailGapPct = 0.06
+	cfg.TrailLockFraction = 0.5
+	cfg.QuickTPPct = 0.12
+	cfg.MaxHoldMinutes = 180
+	stopFloor := -0.5
+	hold := DirectionalSignal{Side: DirectionLong, Conviction: 0.3, Regime: RegimeRange}
+
+	// 峰值 +10%(够不到 QuickTP=12%),锁利线=max(5%,4%)=5%。
+	// 回吐到 +4%(≤5%)→ 平(旧实现锁利线=0,会拖到 0 甚至负;这是 SNX/BICO 类亏单的根因)。
+	if a := decideDirectionalPositionAction(0.04, 0.10, stopFloor, 10, DirectionLong, hold, false, 0, cfg); a.Kind != dirActClose {
+		t.Fatalf("峰值10%%回吐至4%%应锁利平, got %v(%s)", a.Kind, a.Reason)
+	}
+	// 峰值 +10%,仍在 +6%(>5%)→ 持有。
+	if a := decideDirectionalPositionAction(0.06, 0.10, stopFloor, 10, DirectionLong, hold, false, 0, cfg); a.Kind != dirActHold {
+		t.Fatalf("峰值10%%仍在6%%应持有, got %v(%s)", a.Kind, a.Reason)
+	}
+	// 峰值 +6%,锁利线=max(3%, 0%)=3%;回吐到 +2%(≤3%)→ 平(不再保本裸奔)。
+	if a := decideDirectionalPositionAction(0.02, 0.06, stopFloor, 10, DirectionLong, hold, false, 0, cfg); a.Kind != dirActClose {
+		t.Fatalf("峰值6%%回吐至2%%应锁利平, got %v(%s)", a.Kind, a.Reason)
+	}
+	// 上涨途中:峰值 +11% 且当前 +11%(>锁利线5.5%)→ 不被棘轮误平,持有继续冲 QuickTP。
+	if a := decideDirectionalPositionAction(0.11, 0.11, stopFloor, 10, DirectionLong, hold, false, 0, cfg); a.Kind != dirActHold {
+		t.Fatalf("上涨途中不应被棘轮误平, got %v(%s)", a.Kind, a.Reason)
+	}
+	// 够到 QuickTP=12%:仍走快进快出全平(棘轮在其之前不拦截,因为 12%>锁利线6%)。
+	if a := decideDirectionalPositionAction(0.12, 0.12, stopFloor, 10, DirectionLong, hold, false, 0, cfg); a.Kind != dirActClose {
+		t.Fatalf("够到QuickTP应平, got %v(%s)", a.Kind, a.Reason)
+	}
+}
+
+// TestPartialTakeProfitScaleOut 分批止盈:浮盈首次达 trigger(<QuickTP)且未分批 → 先落袋一部分;
+// 分批过后不再重复;达 QuickTP 仍走全平;trigger=0 关闭。
+func TestPartialTakeProfitScaleOut(t *testing.T) {
+	cfg := testDirectionalCfg()
+	cfg.BreakevenArmPct = 0.05
+	cfg.TrailGapPct = 0.06
+	cfg.TrailLockFraction = 0.5
+	cfg.QuickTPPct = 0.12
+	cfg.PartialTPTriggerPct = 0.06
+	cfg.PartialTPFraction = 0.5
+	cfg.MaxHoldMinutes = 180
+	stopFloor := -0.5
+	hold := DirectionalSignal{Side: DirectionLong, Conviction: 0.3, Regime: RegimeRange}
+
+	// 浮盈 +7%(≥trigger 6% 且 <QuickTP 12%)、未分批 → 分批止盈。
+	if a := decideDirectionalPositionAction(0.07, 0.07, stopFloor, 10, DirectionLong, hold, false, 0, cfg); a.Kind != dirActPartialTP {
+		t.Fatalf("达分批线未分批应 PartialTP, got %v(%s)", a.Kind, a.Reason)
+	}
+	// 已分批过(partialDone=true)→ 不再重复分批,转持有(余仓交棘轮/快进快出)。
+	if a := decideDirectionalPositionAction(0.07, 0.07, stopFloor, 10, DirectionLong, hold, true, 0, cfg); a.Kind == dirActPartialTP {
+		t.Fatalf("已分批不应重复分批, got %v(%s)", a.Kind, a.Reason)
+	}
+	// 浮盈达 QuickTP(+12%)→ 全平(不被分批拦截)。
+	if a := decideDirectionalPositionAction(0.12, 0.12, stopFloor, 10, DirectionLong, hold, false, 0, cfg); a.Kind != dirActClose {
+		t.Fatalf("达QuickTP应全平, got %v(%s)", a.Kind, a.Reason)
+	}
+	// trigger=0 关闭分批:+7% 不分批,持有。
+	cfg.PartialTPTriggerPct = 0
+	if a := decideDirectionalPositionAction(0.07, 0.07, stopFloor, 10, DirectionLong, hold, false, 0, cfg); a.Kind == dirActPartialTP {
+		t.Fatalf("关闭分批不应 PartialTP, got %v(%s)", a.Kind, a.Reason)
+	}
+}
+
+// TestTrendPullbackEntryGuard 趋势回踩入场:只在最后一根顺势涨跌≤阈值(回踩/横盘)入场,
+// 追顺势暴动当根则拦截(买回踩不买尖顶,根治趋势追高)。
+func TestTrendPullbackEntryGuard(t *testing.T) {
+	cfg := testDirectionalCfg()
+	cfg.TrendEntryPullbackMaxBarPct = 0.005
+	cfg.SpikeBarPct = 0.03
+	cfg.TrendMaxExtensionPct = 0.02
+
+	// 顺势上涨但最后一根回踩(lastRet<0)→ 放行。
+	pb := []float64{100, 101, 102, 103, 104, 105, 104.8}
+	if ok, r := directionalEntryGuard(pb, DirectionLong, RegimeTrend, 104.0, cfg); !ok {
+		t.Fatalf("回踩当根应放行, got reason=%s", r)
+	}
+	// 最后一根顺势冲 +1%(>0.5% 阈值,但 <3% 尖刺、ext<2%)→ 仅被回踩闸拦截。
+	chase := []float64{100, 101, 102, 103, 104, 105, 106.05}
+	if ok, r := directionalEntryGuard(chase, DirectionLong, RegimeTrend, 105.5, cfg); ok {
+		t.Fatalf("追当根顺势冲应拦截, got ok reason=%s", r)
+	}
+	// 关闭回踩闸(=0)→ 同样的追高样本放行(证明是回踩闸在起作用)。
+	cfg.TrendEntryPullbackMaxBarPct = 0
+	if ok, r := directionalEntryGuard(chase, DirectionLong, RegimeTrend, 105.5, cfg); !ok {
+		t.Fatalf("关闭回踩闸应放行, got reason=%s", r)
 	}
 }
 

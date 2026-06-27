@@ -739,12 +739,18 @@ type OKXDirectionalConfig struct {
 	// LossCooldownMultiplier 止损平仓后该币冷却时间 = SymbolCooldownMinutes × 此倍数(防滚仓/亏损币快速复入)。默认 3。
 	LossCooldownMultiplier float64 `cfg:"loss_cooldown_multiplier"`
 	// --- 高阶仓位管理:部分止盈/移动止损/补仓(均本金口径) ---
-	// PartialTPTriggerPct 浮盈达本金的此比例时部分止盈一次,并把止损上移到保本。默认 0.20(+20%本金)。
+	// PartialTPTriggerPct 浮盈首次达本金的此比例时分批止盈一次(落袋 PartialTPFraction),并把止损上移到保本;
+	// 须 < QuickTPPct(否则被快进快出全平抢先)。默认 0.06(+6%本金):复盘里大量单冲到 +6~10% 没够到 +12% 全平就回吐,
+	// 分批后至少这一部分已落袋(治"很少赚")。0 关闭分批止盈。
 	PartialTPTriggerPct float64 `cfg:"partial_tp_trigger_pct"`
 	// PartialTPFraction 部分止盈平掉的仓位比例。默认 0.5(平一半)。
 	PartialTPFraction float64 `cfg:"partial_tp_fraction"`
-	// TrailGapPct 部分止盈后移动止损与高水位的回撤间距(本金口径)。默认 0.15。
+	// TrailGapPct 移动保盈的绝对回撤间距(本金口径):高峰值时用 峰值−间距 作为锁利线(比例锁利的二次收紧)。默认 0.06。
 	TrailGapPct float64 `cfg:"trail_gap_pct"`
+	// TrailLockFraction 移动保盈的峰值比例锁利系数:浮盈高水位过臂点后,锁利线=max(峰值×该系数, 峰值−TrailGapPct)。
+	// 把原先"峰值<TrailGapPct 时只保本(锁利线=0)"的死区补上——让冲到 +6~10% 又回头的单至少落袋一半峰值利润,
+	// 不再全额回吐成亏(治"很少赚":赢着的单被拖回亏损)。默认 0.5(锁住峰值的一半)。0 回退 0.5。
+	TrailLockFraction float64 `cfg:"trail_lock_fraction"`
 	// ScaleInTriggerPct 浮盈达本金此比例且信号仍确认时补仓(仅加盈利仓,绝不摊亏)。默认 0.15。
 	ScaleInTriggerPct float64 `cfg:"scale_in_trigger_pct"`
 	// MaxAdds 单仓最多补仓次数。默认 2。
@@ -767,6 +773,16 @@ type OKXDirectionalConfig struct {
 	StaleCutMinutes int `cfg:"stale_cut_minutes"`
 	// StaleCutMinProfitPct 停滞离场的盈利门槛(本金口径):达 StaleCutMinutes 时浮盈 ≤ 此值才砍;默认 0(未盈利即砍,赢单不受影响)。
 	StaleCutMinProfitPct float64 `cfg:"stale_cut_min_profit_pct"`
+	// TrendEntryPullbackMaxBarPct 趋势回踩入场闸:趋势态只在「最后一根顺势方向涨跌 ≤ 此比例」(即回踩/横盘)时入场,
+	// 不在顺势暴动的当根追入——买回踩不买尖顶,根治趋势单追高(复盘 trend 胜率仅 25%)。默认 0.005(0.5%/根)。≤0 关闭。
+	TrendEntryPullbackMaxBarPct float64 `cfg:"trend_entry_pullback_max_bar_pct"`
+	// TrendSizeFraction 趋势单仓位系数:趋势态每仓本金/名义 ×此系数(趋势单胜率低,少冒险,资金偏向 range 反转单)。
+	// 默认 0.5(趋势单减半仓)。≤0 或 >1 回退 1(不缩放)。
+	TrendSizeFraction float64 `cfg:"trend_size_fraction"`
+	// MinOpenConviction 最低开仓信心闸(跨所印证后的最终 Conviction 口径):低于此值的信号不开仓。
+	// 离线回测实证:仅高信心档(≥0.7 命中 59% / 扣 10bps 往返后净 +0.13%/笔)有正 edge,低信心档(<0.5)确定性亏损。
+	// 只做高信心档把薄 edge 做厚——频次降约 3/4 换取「净亏→净正」。默认 0.65。≤0 关闭(不筛)。
+	MinOpenConviction float64 `cfg:"min_open_conviction"`
 	// --- 跨所交叉印证(开仓端):同币在其他所的近窗方向用于加/减信心、极端背离则否决 ---
 	// CrossVenueCorroborationEnabled 开启跨所交叉印证。默认 true。
 	CrossVenueCorroborationEnabled bool `cfg:"cross_venue_corroboration_enabled"`

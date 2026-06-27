@@ -165,12 +165,26 @@ okx_directional:
   symbol_cooldown_minutes: 30
   # 快进快出小止盈(本金口径):浮盈达此值即全平落袋(吃到就赚到),数据强延续才改骑乘加仓
   quick_tp_pct: 0.12
+  # 移动保盈棘轮:浮盈高水位过 breakeven_arm_pct(默认5%)后,锁利线=max(峰值×trail_lock_fraction, 峰值−trail_gap_pct);
+  # 回吐到锁利线即落袋。修复原"峰值<间距时只保本"的死区——冲到+6~10%又回头的趋势追高单至少锁住一半利润,不再全额回吐成亏。
+  trail_lock_fraction: 0.5    # 锁住峰值的一半(峰值+10%→至少落袋+5%)
+  trail_gap_pct: 0.06         # 高峰值时的绝对回撤间距(峰值−6%),与比例锁利取紧者
+  # 分批止盈(scale-out):浮盈首次达 partial_tp_trigger_pct(须<quick_tp_pct)且未分批过→先落袋 partial_tp_fraction,
+  # 剩余仓位继续骑棘轮/快进快出博趋势。根治"很少赚":大量单冲到+6~10%没够到+12%全平就回吐,分批后这部分已落袋。
+  partial_tp_trigger_pct: 0.06
+  partial_tp_fraction: 0.5
   # 防陷阱入场质量闸(不陷波动/单边/暴拉回调/抄底/追高/滚仓)
   spike_bar_pct: 0.03            # 最后一根同向涨跌≥3% 视为暴拉尖刺,趋势态不追
   trend_max_extension_pct: 0.02  # 趋势入场价离快EMA>2% 视为过度延展,不追
   vol_expansion_max_ratio: 1.8   # 震荡态近窗波动/基线>1.8 视为区间在破,不反转
   reversion_knife_pct: 0.015     # 反转时极值仍以≥1.5%/根延续(急跌急拉)不接(防接飞刀/追空顶)
   loss_cooldown_multiplier: 3    # 止损平仓后该币冷却×3,防滚仓/亏损币快速复入
+  # 趋势单根治(复盘 trend 胜率仅 25% vs range 53%,系统性追高):
+  trend_entry_pullback_max_bar_pct: 0.005  # 趋势态只在最后一根顺势涨跌≤0.5%(回踩/横盘)入场,不追顺势暴动当根(买回踩不买尖顶)
+  trend_size_fraction: 0.5                 # 趋势单仓位减半(胜率低少冒险,资金偏向 range 反转单)
+  # 最低开仓信心闸(跨所印证后口径):离线回测证实只有高信心档有正 edge(≥0.7 命中59%/扣10bps后净+0.13%笔),
+  # 低信心档确定性亏损。只做高信心档把薄 edge 做厚:频次降约3/4,换「净亏→净正」。0=关闭。
+  min_open_conviction: 0.65
 
 # 五策略统一资金费轮动 runner。perp-perp 执行体见 cross_venue_executor,开仓由 runner binding 派发。
 # total_deployable_usdt: 绝对预算(USDT);另有 total_deployable_pct(默认见 defaults,占真实现金权益比例),二者与 equity 取 min。

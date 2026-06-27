@@ -101,6 +101,10 @@ func (s *DashboardServer) okxDirectionalStatusOrEmpty(venue string) OKXDirection
 		allTime := computeDirectionalStats(allSettles, time.Time{})
 		resp.StatsToday = &today
 		resp.StatsAllTime = &allTime
+		// 今日已实现/合计改用 settlements 口径(北京日切聚合):重启不清零,且已用上修正后的成交价记账。
+		// 内存计数器 dailyRealizedUSDT 仅本进程累计、重启归零,不适合作为面板「今日合计」。
+		resp.DailyRealizedUSDT = today.NetUSDT
+		resp.TotalPnLTodayUSDT = today.NetUSDT
 	}
 	return resp
 }
