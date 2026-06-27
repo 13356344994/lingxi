@@ -210,11 +210,13 @@ func TestDirectionalExitPolicySim(t *testing.T) {
 		{"无快进快出(只棘轮+分批,QuickTP99)", func(c *core.OKXDirectionalConfig) {
 			c.QuickTPPct = 0.99
 		}},
-		{"信心闸0.65(当前出场)", func(c *core.OKXDirectionalConfig) {
-			c.MinOpenConviction = 0.65
-		}},
-		{"信心闸0.65 + 持有更久", func(c *core.OKXDirectionalConfig) {
-			c.MinOpenConviction = 0.65
+		{"信心闸0.60", func(c *core.OKXDirectionalConfig) { c.MinOpenConviction = 0.60 }},
+		{"信心闸0.65(当前)", func(c *core.OKXDirectionalConfig) { c.MinOpenConviction = 0.65 }},
+		{"信心闸0.70", func(c *core.OKXDirectionalConfig) { c.MinOpenConviction = 0.70 }},
+		{"信心闸0.75", func(c *core.OKXDirectionalConfig) { c.MinOpenConviction = 0.75 }},
+		{"信心闸0.80", func(c *core.OKXDirectionalConfig) { c.MinOpenConviction = 0.80 }},
+		{"信心闸0.70 + 持有更久", func(c *core.OKXDirectionalConfig) {
+			c.MinOpenConviction = 0.70
 			c.QuickTPPct = 0.20
 			c.StaleCutMinutes = 60
 			c.MaxHoldMinutes = 120

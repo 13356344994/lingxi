@@ -5605,3 +5605,514 @@ ab84dd5729aa5e465b5bf2f459996060 | cycle=
 2026/06/28 02:51:44 [gate][OKX方向] RIF-USDT 信心0.399 < 最低开仓信心0.650,跳过(只做高信心档)
 2026/06/28 02:51:45 [gate][OKX方向][跨所] CLO-USDT short 同向1/反向0 信心→0.45
 2026/06/28 02:51:45 [gate][OKX方向] CLO-USDT 信心0.453 < 最低开仓信心0.650,跳过(只做高信心档)
+2026/06/28 02:51:55 [bybit][下单] venue=bybit market=perp S-USDT side=sell price=0.02355 tick=0.00001 qty=1066
+2026/06/28 02:51:57 [binance][下单] venue=binance market=perp S-USDT side=sell price=0.02355 tick=0.00001 qty=709
+2026/06/28 02:51:58 [bybit][下单] venue=bybit market=perp S-USDT side=sell price=0.02354 tick=0.00001 qty=1066
+2026/06/28 02:51:59 [binance][下单] venue=binance market=perp S-USDT side=sell price=0.02355 tick=0.00001 qty=709
+2026/06/28 02:52:01 [bybit][下单] venue=bybit market=perp S-USDT side=sell price=0.02354 tick=0.00001 qty=1066
+2026/06/28 02:52:01 [binance][下单] venue=binance market=perp S-USDT side=sell price=0.02354 tick=0.00001 qty=709
+2026/06/28 02:52:01 [bybit][OKX方向] 已平 S-USDT long 原因=移动保盈(峰值6%锁利3%,回吐至2%) 实现≈0.0853 USDT
+2026/06/28 02:52:02 [binance][OKX方向] 已平 S-USDT long 原因=移动保盈(峰值6%锁利3%,回吐至2%) 实现≈0.0497 USDT
+2026/06/28 02:52:04 [binance][OKX方向][跨所] 否决 AGLD-USDT long: 跨所背离:3所均反向,疑似单所假动作
+2026/06/28 02:52:04 [binance][OKX方向][跨所] 否决 SNX-USDT short: 跨所背离:3所均反向,疑似单所假动作
+2026/06/28 02:52:05 [binance][OKX方向][跨所] 否决 STG-USDT short: 跨所背离:2所均反向,疑似单所假动作
+2026/06/28 02:52:05 [binance][OKX方向][跨所] RIF-USDT short 同向1/反向0 信心→0.50
+2026/06/28 02:52:05 [binance][OKX方向] RIF-USDT 信心0.505 < 最低开仓信心0.650,跳过(只做高信心档)
+2026/06/28 02:52:05 [binance][OKX方向][跨所] BNT-USDT short 同向2/反向0 信心→0.56
+2026/06/28 02:52:05 [binance][OKX方向] BNT-USDT 信心0.560 < 最低开仓信心0.650,跳过(只做高信心档)
+2026/06/28 02:52:05 [bybit][OKX方向][跨所] 否决 AGLD-USDT long: 跨所背离:2所均反向,疑似单所假动作
+2026/06/28 02:52:05 [bybit][OKX方向][跨所] 否决 SNX-USDT short: 跨所背离:2所均反向,疑似单所假动作
+2026/06/28 02:52:05 [bybit][OKX方向] XPIN-USDT 信心0.592 < 最低开仓信心0.650,跳过(只做高信心档)
+2026/06/28 02:52:41 [账户风控] OK daily_equity_delta=-11.0021 daily_realized=0.0000 settlement_dd=4.8136 real_equity_dd=11.3929 real_equity_dd_adj=11.3980 cum_fund_flow=-64.2452 positions=0 notional=0.00
+2026/06/28 02:52:45 [OKX方向][跨所] 否决 H-USDT short: 跨所背离:2所均反向,疑似单所假动作
+2026/06/28 02:52:45 [OKX方向][跨所] 否决 SNX-USDT short: 跨所背离:2所均反向,疑似单所假动作
+2026/06/28 02:53:15 [gate][OKX方向][跨所] XCN-USDT short 同向0/反向1 信心→0.62
+2026/06/28 02:53:15 [gate][OKX方向] XCN-USDT 信心0.617 < 最低开仓信心0.650,跳过(只做高信心档)
+2026/06/28 02:53:15 [gate][OKX方向][跨所] KNC-USDT short 同向1/反向0 信心→0.56
+2026/06/28 02:53:15 [gate][OKX方向] KNC-USDT 信心0.562 < 最低开仓信心0.650,跳过(只做高信心档)
+2026/06/28 02:53:15 [gate][OKX方向] RIF-USDT 信心0.399 < 最低开仓信心0.650,跳过(只做高信心档)
+2026/06/28 02:53:15 [gate][OKX方向][跨所] CLO-USDT short 同向1/反向0 信心→0.44
+2026/06/28 02:53:15 [gate][OKX方向] CLO-USDT 信心0.438 < 最低开仓信心0.650,跳过(只做高信心档)
+2026/06/28 02:53:37 [binance][OKX方向][跨所] 否决 STG-USDT short: 跨所背离:2所均反向,疑似单所假动作
+2026/06/28 02:53:38 [binance][OKX方向][跨所] 否决 AGLD-USDT long: 跨所背离:3所均反向,疑似单所假动作
+2026/06/28 02:53:38 [binance][OKX方向][跨所] 否决 SNX-USDT short: 跨所背离:3所均反向,疑似单所假动作
+2026/06/28 02:53:38 [binance][OKX方向][跨所] RIF-USDT short 同向1/反向0 信心→0.52
+2026/06/28 02:53:38 [binance][OKX方向] RIF-USDT 信心0.517 < 最低开仓信心0.650,跳过(只做高信心档)
+2026/06/28 02:53:38 [binance][OKX方向][跨所] BNT-USDT short 同向2/反向0 信心→0.54
+2026/06/28 02:53:38 [binance][OKX方向] BNT-USDT 信心0.542 < 最低开仓信心0.650,跳过(只做高信心档)
+2026/06/28 02:53:39 [bybit][OKX方向][跨所] 否决 AGLD-USDT long: 跨所背离:2所均反向,疑似单所假动作
+2026/06/28 02:53:39 [bybit][OKX方向][跨所] 否决 SNX-USDT short: 跨所背离:2所均反向,疑似单所假动作
+2026/06/28 02:53:41 [账户风控] OK daily_equity_delta=-11.0021 daily_realized=0.0000 settlement_dd=4.8136 real_equity_dd=11.3929 real_equity_dd_adj=11.3980 cum_fund_flow=-64.2452 positions=0 notional=0.00
+2026/06/28 02:54:41 [账户风控] OK daily_equity_delta=-11.0021 daily_realized=0.0000 settlement_dd=4.8136 real_equity_dd=11.3929 real_equity_dd_adj=11.3980 cum_fund_flow=-64.2452 positions=0 notional=0.00
+2026/06/28 02:54:46 [gate][OKX方向][跨所] KNC-USDT short 同向1/反向0 信心→0.58
+2026/06/28 02:54:46 [gate][OKX方向] KNC-USDT 信心0.581 < 最低开仓信心0.650,跳过(只做高信心档)
+2026/06/28 02:54:46 [gate][OKX方向][跨所] CLO-USDT short 同向1/反向0 信心→0.46
+2026/06/28 02:54:46 [gate][OKX方向] CLO-USDT 信心0.458 < 最低开仓信心0.650,跳过(只做高信心档)
+2026/06/28 02:55:05 [OKX方向][跨所] 否决 H-USDT short: 跨所背离:2所均反向,疑似单所假动作
+2026/06/28 02:55:06 [OKX方向][跨所] 否决 SNX-USDT short: 跨所背离:2所均反向,疑似单所假动作
+2026/06/28 02:55:06 [OKX方向][跨所] RE-USDT long 同向2/反向0 信心→0.81
+2026/06/28 02:55:06 [下单] venue=okx market=perp RE-USDT side=buy price=0.68194 tick=0.00001 qty=30
+2026/06/28 02:55:06 [下单] venue=okx market=perp RE-USDT side=buy price=0.68172 tick=0.00001 qty=30
+2026/06/28 02:55:08 [OKX方向] 已开 RE-USDT long qty=30.00000000 @0.681720 名义=25.00 regime=trend
+2026/06/28 02:55:10 [bybit][下单] venue=bybit market=perp PRL-USDT side=buy price=0.1575 tick=0.0001 qty=163
+2026/06/28 02:55:11 [binance][OKX方向][跨所] 否决 SNX-USDT short: 跨所背离:3所均反向,疑似单所假动作
+2026/06/28 02:55:11 [binance][OKX方向][跨所] RE-USDT long 同向3/反向0 信心→0.91
+2026/06/28 02:55:11 [binance][下单] venue=binance market=perp RE-USDT side=buy price=0.6826 tick=0.0001 qty=24
+2026/06/28 02:55:12 [binance][OKX方向] 已开 RE-USDT long qty=24.00000000 @0.682500 名义=16.67 regime=trend
+2026/06/28 02:55:12 [binance][OKX方向][跨所] RIF-USDT short 同向1/反向0 信心→0.65
+2026/06/28 02:55:12 [bybit][下单] venue=bybit market=perp PRL-USDT side=buy price=0.1575 tick=0.0001 qty=163
+2026/06/28 02:55:13 [binance][下单] venue=binance market=perp RIF-USDT side=sell price=0.06169 tick=0.00001 qty=270
+2026/06/28 02:55:15 [bybit][下单] venue=bybit market=perp PRL-USDT side=buy price=0.1575 tick=0.0001 qty=163
+2026/06/28 02:55:15 [binance][下单] venue=binance market=perp RIF-USDT side=sell price=0.06169 tick=0.00001 qty=270
+2026/06/28 02:55:17 [binance][下单] venue=binance market=perp RIF-USDT side=sell price=0.06169 tick=0.00001 qty=270
+2026/06/28 02:55:17 [bybit][下单] venue=bybit market=perp PRL-USDT side=buy price=0.1584 tick=0.0001 qty=163
+2026/06/28 02:55:18 [bybit][OKX方向] 已平 PRL-USDT short 原因=信号反转 实现≈-0.7175 USDT
+2026/06/28 02:55:19 [binance][OKX方向] RIF-USDT 开仓失败: <nil>
+2026/06/28 02:55:19 [binance][OKX方向][跨所] STG-USDT long 同向2/反向0 信心→0.72
+2026/06/28 02:55:19 [bybit][下单] venue=bybit market=perp VELVET-USDT side=buy price=1.38893 tick=0.00001 qty=30
+2026/06/28 02:55:20 [binance][下单] venue=binance market=perp STG-USDT side=buy price=0.1754 tick=0.0001 qty=94
+2026/06/28 02:55:22 [binance][下单] venue=binance market=perp STG-USDT side=buy price=0.1754 tick=0.0001 qty=94
+2026/06/28 02:55:22 [bybit][下单] venue=bybit market=perp VELVET-USDT side=buy price=1.38879 tick=0.00001 qty=30
+2026/06/28 02:55:22 [bybit][下单] venue=bybit market=perp VELVET-USDT side=buy price=1.38640 tick=0.00001 qty=30
+2026/06/28 02:55:24 [binance][下单] venue=binance market=perp STG-USDT side=buy price=0.1758 tick=0.0001 qty=94
+2026/06/28 02:55:24 [binance][OKX方向][maker] STG-USDT 第3轮失败: binance POST https://fapi.binance.com/fapi/v1/order: HTTP 400 code=-5022 msg=Due to the order could not be executed as maker, the Post Only order will be rejected. The order will not be recorded in the order history
+2026/06/28 02:55:24 [binance][OKX方向] STG-USDT 开仓失败: <nil>
+2026/06/28 02:55:24 [binance][OKX方向][跨所] TNSR-USDT short 同向2/反向0 信心→0.53
+2026/06/28 02:55:24 [binance][OKX方向] TNSR-USDT 信心0.533 < 最低开仓信心0.650,跳过(只做高信心档)
+2026/06/28 02:55:25 [bybit][下单] venue=bybit market=perp VELVET-USDT side=buy price=1.39364 tick=0.00001 qty=30
+2026/06/28 02:55:25 [bybit][OKX方向] 已平 VELVET-USDT short 原因=信号反转 实现≈-0.5419 USDT
+2026/06/28 02:55:26 [bybit][OKX方向][跨所] 否决 SNX-USDT short: 跨所背离:2所均反向,疑似单所假动作
+2026/06/28 02:55:26 [bybit][OKX方向][跨所] RE-USDT long 同向2/反向0 信心→0.81
+2026/06/28 02:55:27 [bybit][下单] venue=bybit market=perp RE-USDT side=buy price=0.6825 tick=0.0001 qty=36
+2026/06/28 02:55:30 [bybit][下单] venue=bybit market=perp RE-USDT side=buy price=0.6827 tick=0.0001 qty=36
+2026/06/28 02:55:30 [bybit][OKX方向] 已开 RE-USDT long qty=36.00000000 @0.682700 名义=25.00 regime=trend
+2026/06/28 02:55:30 [bybit][OKX方向][跨所] STG-USDT long 同向1/反向0 信心→0.62
+2026/06/28 02:55:30 [bybit][OKX方向] STG-USDT 信心0.624 < 最低开仓信心0.650,跳过(只做高信心档)
+2026/06/28 02:55:41 [账户风控] OK daily_equity_delta=-11.2155 daily_realized=0.0000 settlement_dd=4.8136 real_equity_dd=11.6063 real_equity_dd_adj=11.6114 cum_fund_flow=-64.2452 positions=0 notional=0.00
+2026/06/28 02:56:16 [gate][OKX方向][跨所] XCN-USDT short 同向0/反向1 信心→0.64
+2026/06/28 02:56:16 [gate][OKX方向] XCN-USDT 信心0.644 < 最低开仓信心0.650,跳过(只做高信心档)
+2026/06/28 02:56:16 [binance][OKX方向] 引擎退出: context canceled
+2026/06/28 02:56:16 [bybit][OKX方向] 引擎退出: context canceled
+2026/06/28 02:56:16 [OKX方向] 引擎退出: context canceled
+2026/06/28 02:56:16 [gate][OKX方向] RE-USDT 信心0.602 < 最低开仓信心0.650,跳过(只做高信心档)
+2026/06/28 02:56:16 [gate][OKX方向] RIF-USDT 信心0.572 < 最低开仓信心0.650,跳过(只做高信心档)
+2026/06/28 02:56:16 [gate][OKX方向] MANTRA-USDT 信心0.353 < 最低开仓信心0.650,跳过(只做高信心档)
+2026/06/28 02:56:16 [gate][OKX方向] 引擎退出: context canceled
+2026/06/28 02:56:17 启动 lingxi: version=c68e30f-dirty commit=c68e30f build_time=2026-06-27T18:56:16Z
+2026/06/28 02:56:17 [配置] 生效配置相对默认值有 30 处覆盖:
+2026/06/28 02:56:17 [配置]   CrossVenueExecutor.CloseSpreadAPR: 0.3 => 0.2
+2026/06/28 02:56:17 [配置]   CrossVenueExecutor.Enabled: false => true
+2026/06/28 02:56:17 [配置]   CrossVenueExecutor.LiveTradingEnabled: false => true
+2026/06/28 02:56:17 [配置]   CrossVenueExecutor.MarginSafetyFactor: 1 => 1.5
+2026/06/28 02:56:17 [配置]   CrossVenueExecutor.MaxConcurrent: 2 => 8
+2026/06/28 02:56:17 [配置]   CrossVenueExecutor.MaxPositionUSDT: 75 => 150
+2026/06/28 02:56:17 [配置]   CrossVenueExecutor.UnifiedCaptureModelEnabled: false => true
+2026/06/28 02:56:17 [配置]   CrossVenueExecutor.UntrackedExposureAction: halt => flatten
+2026/06/28 02:56:17 [配置]   CrossVenueScanner.DirectionalVenues:  => okx
+2026/06/28 02:56:17 [配置]   CrossVenueScanner.Enabled: true => false
+2026/06/28 02:56:17 [配置]   HistoricalConfig.AssumedHourlyBorrowInterestRate: 5e-05 => 4.75e-05
+2026/06/28 02:56:17 [配置]   HistoricalConfig.FuturesTakerFeeRate: 0.0005 => 0.00045
+2026/06/28 02:56:17 [配置]   HistoricalConfig.MaxFundingCyclesHeld: 1 => 3
+2026/06/28 02:56:17 [配置]   HistoricalConfig.SpotTakerFeeRate: 0.001 => 0.00075
+2026/06/28 02:56:17 [配置]   NetworkConfig.DashboardAddr: 127.0.0.1:8080 => 0.0.0.0:8080
+2026/06/28 02:56:17 [配置]   OKXDirectional.Enabled: false => true
+2026/06/28 02:56:17 [配置]   OKXDirectional.LiveTradingEnabled: false => true
+2026/06/28 02:56:17 [配置]   PortfolioConfig.EnableRollingHold: false => true
+2026/06/28 02:56:17 [配置]   RiskConfig.BorrowCapacityCheckEnabled: false => true
+2026/06/28 02:56:17 [配置]   RiskConfig.ImmediateInvalidateRate: 0.0005 => 5e-05
+2026/06/28 02:56:17 [配置]   RiskConfig.MaxAccountDrawdownUSDT: 60 => 90
+2026/06/28 02:56:17 [配置]   RiskConfig.MaxAccountOpenNotionalUSDT: 1200 => 2200
+2026/06/28 02:56:17 [配置]   RiskConfig.MaxCycleOpenNotionalUSDT: 300 => 60
+2026/06/28 02:56:17 [配置]   RiskConfig.MaxDailyLossUSDT: 25 => 40
+2026/06/28 02:56:17 [配置]   RiskConfig.MaxStrategyCumulativeLossUSDT: 35 => 30
+2026/06/28 02:56:17 [配置]   StrategyConfig.PerSymbolQuoteUSDT: 100 => 30
+2026/06/28 02:56:17 [配置]   StrategyConfig.StrategyMode: collect_data => profit_seeking
+2026/06/28 02:56:17 [配置]   UnifiedRotation.Enabled: false => true
+2026/06/28 02:56:17 [配置]   UnifiedRotation.LiveTradingEnabled: false => true
+2026/06/28 02:56:17 [配置]   UnifiedRotation.TotalDeployableUSDT: 0 => 435
+2026/06/28 02:56:17 [冷启动检查] 开始执行每日健康检查...
+2026/06/28 02:56:17 [冷启动检查] 配置校验通过
+2026/06/28 02:56:17 [冷启动检查] 记录目录可写校验通过
+2026/06/28 02:56:17 [冷启动检查] 每日健康检查全部通过
+2026/06/28 02:56:17 [编排] venue=binance 运行时已注册(enabled,默认 idle,plan.autostart=false)
+2026/06/28 02:56:17 [编排] venue=bybit 适配器已注入(仅行情/账户,不启动交易引擎)
+2026/06/28 02:56:17 [编排] venue=bybit 运行时已注册(enabled,默认 idle,plan.autostart=false)
+2026/06/28 02:56:17 [编排] venue=gate 适配器已注入(仅行情/账户,不启动交易引擎)
+2026/06/28 02:56:17 [编排] venue=gate 运行时已注册(enabled,默认 idle,plan.autostart=false)
+2026/06/28 02:56:17 [编排] venue=okx 适配器已注入(仅行情/账户,不启动交易引擎)
+2026/06/28 02:56:17 [编排] venue=okx 运行时已注册(enabled,默认 idle,plan.autostart=false)
+2026/06/28 02:56:17 [跨所执行] 运行时开仓开关已设为 关(已落盘 records/crossvenue/control.json)
+2026/06/28 02:56:17 [统一轮动] WARNING: rotation 配置意图为实盘关闭但 rotation_control.json active=true,runner 以持久化 active 运行
+2026/06/28 02:56:17 [账户服务] carry 交易已停(scanner.enabled=false);权益采样/充提核算/账户硬风控 仍常驻
+2026/06/28 02:56:17 [方向] bybit 引擎已接线(默认停用,需面板点开始)
+2026/06/28 02:56:17 [方向] gate 引擎已接线(默认停用,需面板点开始)
+2026/06/28 02:56:17 [方向] binance 引擎已接线(默认停用,需面板点开始)
+2026/06/28 02:56:17 Web 面板已启动: http://0.0.0.0:8080/
+2026/06/28 02:56:17 Dashboard 控制令牌已写入 records/.dashboard_control_token (0600,仅本机可读,可 cat 查看);指纹=a7f7eb64d15eae85
+2026/06/28 02:56:17 [ALERT][INFO] 面板控制令牌已更新 | 服务已重启,新控制令牌:
+e987759bb670af425ae73c3dee11e8bf | cycle=
+2026/06/28 02:56:17 [权益采样] 已启动: interval=3m0s 口径=各所USDT现金余额真实变化
+2026/06/28 02:56:17 [账户风控] 已启动: interval=1m0s (Stage B:一级硬停默认启用,二级 flatten opt-in 默认关闭)
+2026/06/28 02:56:17 [OKX方向] 引擎启动 live=true 周期=1m30s
+2026/06/28 02:56:17 [bybit][OKX方向] 引擎启动 live=true 周期=1m30s
+2026/06/28 02:56:17 [gate][OKX方向] 引擎启动 live=true 周期=1m30s
+2026/06/28 02:56:17 [binance][OKX方向] 引擎启动 live=true 周期=1m30s
+2026/06/28 02:56:17 [账户风控] 充提流水源=heuristic cumulative=0.0000 (首次确认)
+2026/06/28 02:56:17 [账户风控] OK daily_equity_delta=-11.2155 daily_realized=0.0000 settlement_dd=4.8136 real_equity_dd=11.6063 real_equity_dd_adj=11.6114 cum_fund_flow=-64.2452 positions=0 notional=0.00
+2026/06/28 02:56:18 [gate][OKX方向][选币] 候选=29 BTC趋势=0.03 入选=20 头部: AGLD-USDT(1.000) LAB-USDT EDGE-USDT
+2026/06/28 02:56:18 [gate][delist-guard] 已刷新 gate instrument 状态: total=2832 non_trading=2
+2026/06/28 02:56:18 [gate][delist-guard] 已刷新 okx instrument 状态: total=1659 non_trading=0
+2026/06/28 02:56:18 [gate][delist-guard] 已刷新 bybit instrument 状态: total=1266 non_trading=0
+2026/06/28 02:56:19 [gate][OKX方向][跨所] XCN-USDT short 同向0/反向1 信心→0.64
+2026/06/28 02:56:19 [gate][OKX方向] XCN-USDT 信心0.644 < 最低开仓信心0.650,跳过(只做高信心档)
+2026/06/28 02:56:19 [gate][OKX方向][跨所] RE-USDT long 同向2/反向0 信心→0.80
+2026/06/28 02:56:19 [gate][OKX方向] RE-USDT 永续可用 3.69 < 每仓本金 5.00,跳过开仓
+2026/06/28 02:56:19 [gate][OKX方向] RIF-USDT 信心0.572 < 最低开仓信心0.650,跳过(只做高信心档)
+2026/06/28 02:56:19 [gate][OKX方向][跨所] STG-USDT long 同向1/反向0 信心→0.63
+2026/06/28 02:56:19 [gate][OKX方向] STG-USDT 信心0.633 < 最低开仓信心0.650,跳过(只做高信心档)
+2026/06/28 02:56:19 [gate][OKX方向] MANTRA-USDT 信心0.353 < 最低开仓信心0.650,跳过(只做高信心档)
+2026/06/28 02:56:22 [bybit][OKX方向][选币] 候选=27 BTC趋势=0.03 入选=20 头部: LAB-USDT(0.988) AGLD-USDT BEL-USDT
+2026/06/28 02:56:22 [bybit][delist-guard] 已刷新 bybit instrument 状态: total=1266 non_trading=0
+2026/06/28 02:56:23 [bybit][delist-guard] 已刷新 okx instrument 状态: total=1659 non_trading=0
+2026/06/28 02:56:23 [bybit][delist-guard] 已刷新 gate instrument 状态: total=2832 non_trading=2
+2026/06/28 02:56:23 [binance][OKX方向][选币] 候选=26 BTC趋势=0.03 入选=20 头部: SYN-USDT(1.000) LAB-USDT AGLD-USDT
+2026/06/28 02:56:24 [binance][delist-guard] 已刷新 bybit instrument 状态: total=1266 non_trading=0
+2026/06/28 02:56:24 [binance][delist-guard] 已刷新 gate instrument 状态: total=2832 non_trading=2
+2026/06/28 02:56:24 [binance][delist-guard] 已刷新 binance instrument 状态: total=4415 non_trading=2375
+2026/06/28 02:56:24 [binance][delist-guard] 已刷新 okx instrument 状态: total=1659 non_trading=0
+2026/06/28 02:56:25 [bybit][OKX方向][跨所] 否决 SNX-USDT short: 跨所背离:2所均反向,疑似单所假动作
+2026/06/28 02:56:25 [bybit][OKX方向][跨所] S-USDT long 同向2/反向0 信心→0.80
+2026/06/28 02:56:26 [bybit][下单] venue=bybit market=perp S-USDT side=buy price=0.02361 tick=0.00001 qty=1058
+2026/06/28 02:56:26 [bybit][下单] venue=bybit market=perp S-USDT side=buy price=0.02360 tick=0.00001 qty=1058
+2026/06/28 02:56:27 [bybit][OKX方向] 已开 S-USDT long qty=1058.00000000 @0.023600 名义=25.00 regime=trend
+2026/06/28 02:56:27 [binance][OKX方向][跨所] 否决 SNX-USDT short: 跨所背离:3所均反向,疑似单所假动作
+2026/06/28 02:56:27 [bybit][OKX方向][跨所] STG-USDT long 同向1/反向0 信心→0.61
+2026/06/28 02:56:27 [bybit][OKX方向] STG-USDT 信心0.614 < 最低开仓信心0.650,跳过(只做高信心档)
+2026/06/28 02:56:27 [bybit][OKX方向][跨所] VELVET-USDT long 同向1/反向0 信心→0.42
+2026/06/28 02:56:27 [bybit][OKX方向] VELVET-USDT 信心0.420 < 最低开仓信心0.650,跳过(只做高信心档)
+2026/06/28 02:56:27 [binance][OKX方向][跨所] S-USDT long 同向3/反向0 信心→0.92
+2026/06/28 02:56:28 [binance][下单] venue=binance market=perp S-USDT side=buy price=0.02359 tick=0.00001 qty=706
+2026/06/28 02:56:28 [binance][OKX方向][maker] S-USDT 第1轮失败: binance POST https://fapi.binance.com/fapi/v1/order: HTTP 400 code=-5022 msg=Due to the order could not be executed as maker, the Post Only order will be rejected. The order will not be recorded in the order history
+2026/06/28 02:56:28 [binance][OKX方向] S-USDT 开仓失败: <nil>
+2026/06/28 02:56:28 [binance][OKX方向][跨所] RIF-USDT short 同向1/反向0 信心→0.65
+2026/06/28 02:56:28 [binance][OKX方向] RIF-USDT 信心0.647 < 最低开仓信心0.650,跳过(只做高信心档)
+2026/06/28 02:56:28 [binance][OKX方向][跨所] STG-USDT long 同向2/反向0 信心→0.72
+2026/06/28 02:56:29 [binance][下单] venue=binance market=perp STG-USDT side=buy price=0.1754 tick=0.0001 qty=94
+2026/06/28 02:56:31 [binance][下单] venue=binance market=perp STG-USDT side=buy price=0.1754 tick=0.0001 qty=94
+2026/06/28 02:56:33 [binance][下单] venue=binance market=perp STG-USDT side=buy price=0.1754 tick=0.0001 qty=94
+2026/06/28 02:56:35 [binance][OKX方向] STG-USDT 开仓失败: <nil>
+2026/06/28 02:56:35 [binance][OKX方向][跨所] TNSR-USDT short 同向2/反向0 信心→0.55
+2026/06/28 02:56:35 [binance][OKX方向] TNSR-USDT 信心0.553 < 最低开仓信心0.650,跳过(只做高信心档)
+2026/06/28 02:56:35 [binance][OKX方向][跨所] PRL-USDT long 同向2/反向0 信心→0.55
+2026/06/28 02:56:35 [binance][OKX方向] PRL-USDT 信心0.550 < 最低开仓信心0.650,跳过(只做高信心档)
+2026/06/28 02:56:36 [binance][OKX方向][跨所] VELVET-USDT long 同向2/反向0 信心→0.52
+2026/06/28 02:56:36 [binance][OKX方向] VELVET-USDT 信心0.516 < 最低开仓信心0.650,跳过(只做高信心档)
+2026/06/28 02:57:08 [OKX方向][选币] 候选=7 BTC趋势=0.03 入选=7 头部: AGLD-USDT(1.000) LAB-USDT BICO-USDT
+2026/06/28 02:57:08 [OKX公告] 已刷新风险集合: symbols=0
+2026/06/28 02:57:08 [delist-guard] 已刷新 okx instrument 状态: total=1659 non_trading=0
+2026/06/28 02:57:08 [delist-guard] 已刷新 bybit instrument 状态: total=1266 non_trading=0
+2026/06/28 02:57:09 [delist-guard] 已刷新 gate instrument 状态: total=2832 non_trading=2
+2026/06/28 02:57:17 [账户风控] OK daily_equity_delta=-10.9150 daily_realized=0.0000 settlement_dd=4.8136 real_equity_dd=11.3058 real_equity_dd_adj=11.3109 cum_fund_flow=-64.2452 positions=0 notional=0.00
+2026/06/28 02:57:50 [gate][OKX方向][跨所] XCN-USDT short 同向0/反向1 信心→0.58
+2026/06/28 02:57:50 [gate][OKX方向] XCN-USDT 信心0.577 < 最低开仓信心0.650,跳过(只做高信心档)
+2026/06/28 02:57:50 [gate][OKX方向][跨所] RE-USDT long 同向2/反向0 信心→0.77
+2026/06/28 02:57:50 [gate][OKX方向] RE-USDT 永续可用 3.69 < 每仓本金 5.00,跳过开仓
+2026/06/28 02:57:50 [gate][OKX方向] RIF-USDT 信心0.572 < 最低开仓信心0.650,跳过(只做高信心档)
+2026/06/28 02:57:50 [gate][OKX方向][跨所] STG-USDT long 同向1/反向0 信心→0.63
+2026/06/28 02:57:50 [gate][OKX方向] STG-USDT 信心0.633 < 最低开仓信心0.650,跳过(只做高信心档)
+2026/06/28 02:57:50 [gate][OKX方向] MANTRA-USDT 信心0.359 < 最低开仓信心0.650,跳过(只做高信心档)
+2026/06/28 02:57:59 [下单] venue=okx market=perp S-USDT side=sell price=0.02355 tick=0.00001 qty=530
+2026/06/28 02:58:00 [下单] venue=okx market=perp S-USDT side=sell price=0.02355 tick=0.00001 qty=530
+2026/06/28 02:58:00 [下单] venue=okx market=perp S-USDT side=sell price=0.02355 tick=0.00001 qty=530
+2026/06/28 02:58:01 [下单] venue=okx market=perp S-USDT side=sell price=0.02345 tick=0.00001 qty=530
+2026/06/28 02:58:01 [OKX方向] 已平 S-USDT long 原因=移动保盈(峰值7%锁利4%,回吐至3%) 实现≈0.0986 USDT
+2026/06/28 02:58:01 [bybit][OKX方向][跨所] 否决 SNX-USDT short: 跨所背离:2所均反向,疑似单所假动作
+2026/06/28 02:58:01 [bybit][OKX方向][跨所] ARX-USDT long 同向2/反向0 信心→0.69
+2026/06/28 02:58:02 [bybit][下单] venue=bybit market=perp ARX-USDT side=buy price=0.3058 tick=0.0001 qty=81
+2026/06/28 02:58:03 [bybit][OKX方向] 已开 ARX-USDT long qty=81.00000000 @0.305800 名义=25.00 regime=trend
+2026/06/28 02:58:03 [bybit][OKX方向] 引擎退出: context canceled
+2026/06/28 02:58:03 [gate][OKX方向] 引擎退出: context canceled
+2026/06/28 02:58:03 [binance][OKX方向] 引擎退出: context canceled
+2026/06/28 02:58:04 启动 lingxi: version=c68e30f-dirty commit=c68e30f build_time=2026-06-27T18:58:03Z
+2026/06/28 02:58:04 [配置] 生效配置相对默认值有 30 处覆盖:
+2026/06/28 02:58:04 [配置]   CrossVenueExecutor.CloseSpreadAPR: 0.3 => 0.2
+2026/06/28 02:58:04 [配置]   CrossVenueExecutor.Enabled: false => true
+2026/06/28 02:58:04 [配置]   CrossVenueExecutor.LiveTradingEnabled: false => true
+2026/06/28 02:58:04 [配置]   CrossVenueExecutor.MarginSafetyFactor: 1 => 1.5
+2026/06/28 02:58:04 [配置]   CrossVenueExecutor.MaxConcurrent: 2 => 8
+2026/06/28 02:58:04 [配置]   CrossVenueExecutor.MaxPositionUSDT: 75 => 150
+2026/06/28 02:58:04 [配置]   CrossVenueExecutor.UnifiedCaptureModelEnabled: false => true
+2026/06/28 02:58:04 [配置]   CrossVenueExecutor.UntrackedExposureAction: halt => flatten
+2026/06/28 02:58:04 [配置]   CrossVenueScanner.DirectionalVenues:  => okx
+2026/06/28 02:58:04 [配置]   CrossVenueScanner.Enabled: true => false
+2026/06/28 02:58:04 [配置]   HistoricalConfig.AssumedHourlyBorrowInterestRate: 5e-05 => 4.75e-05
+2026/06/28 02:58:04 [配置]   HistoricalConfig.FuturesTakerFeeRate: 0.0005 => 0.00045
+2026/06/28 02:58:04 [配置]   HistoricalConfig.MaxFundingCyclesHeld: 1 => 3
+2026/06/28 02:58:04 [配置]   HistoricalConfig.SpotTakerFeeRate: 0.001 => 0.00075
+2026/06/28 02:58:04 [配置]   NetworkConfig.DashboardAddr: 127.0.0.1:8080 => 0.0.0.0:8080
+2026/06/28 02:58:04 [配置]   OKXDirectional.Enabled: false => true
+2026/06/28 02:58:04 [配置]   OKXDirectional.LiveTradingEnabled: false => true
+2026/06/28 02:58:04 [配置]   PortfolioConfig.EnableRollingHold: false => true
+2026/06/28 02:58:04 [配置]   RiskConfig.BorrowCapacityCheckEnabled: false => true
+2026/06/28 02:58:04 [配置]   RiskConfig.ImmediateInvalidateRate: 0.0005 => 5e-05
+2026/06/28 02:58:04 [配置]   RiskConfig.MaxAccountDrawdownUSDT: 60 => 90
+2026/06/28 02:58:04 [配置]   RiskConfig.MaxAccountOpenNotionalUSDT: 1200 => 2200
+2026/06/28 02:58:04 [配置]   RiskConfig.MaxCycleOpenNotionalUSDT: 300 => 60
+2026/06/28 02:58:04 [配置]   RiskConfig.MaxDailyLossUSDT: 25 => 40
+2026/06/28 02:58:04 [配置]   RiskConfig.MaxStrategyCumulativeLossUSDT: 35 => 30
+2026/06/28 02:58:04 [配置]   StrategyConfig.PerSymbolQuoteUSDT: 100 => 30
+2026/06/28 02:58:04 [配置]   StrategyConfig.StrategyMode: collect_data => profit_seeking
+2026/06/28 02:58:04 [配置]   UnifiedRotation.Enabled: false => true
+2026/06/28 02:58:04 [配置]   UnifiedRotation.LiveTradingEnabled: false => true
+2026/06/28 02:58:04 [配置]   UnifiedRotation.TotalDeployableUSDT: 0 => 435
+2026/06/28 02:58:04 [冷启动检查] 开始执行每日健康检查...
+2026/06/28 02:58:04 [冷启动检查] 配置校验通过
+2026/06/28 02:58:04 [冷启动检查] 记录目录可写校验通过
+2026/06/28 02:58:04 [冷启动检查] 每日健康检查全部通过
+2026/06/28 02:58:04 [编排] venue=binance 运行时已注册(enabled,默认 idle,plan.autostart=false)
+2026/06/28 02:58:04 [编排] venue=bybit 适配器已注入(仅行情/账户,不启动交易引擎)
+2026/06/28 02:58:04 [编排] venue=bybit 运行时已注册(enabled,默认 idle,plan.autostart=false)
+2026/06/28 02:58:04 [编排] venue=gate 适配器已注入(仅行情/账户,不启动交易引擎)
+2026/06/28 02:58:04 [编排] venue=gate 运行时已注册(enabled,默认 idle,plan.autostart=false)
+2026/06/28 02:58:04 [编排] venue=okx 适配器已注入(仅行情/账户,不启动交易引擎)
+2026/06/28 02:58:04 [编排] venue=okx 运行时已注册(enabled,默认 idle,plan.autostart=false)
+2026/06/28 02:58:04 [跨所执行] 运行时开仓开关已设为 关(已落盘 records/crossvenue/control.json)
+2026/06/28 02:58:04 [权益采样] 已启动: interval=3m0s 口径=各所USDT现金余额真实变化
+2026/06/28 02:58:04 [统一轮动] WARNING: rotation 配置意图为实盘关闭但 rotation_control.json active=true,runner 以持久化 active 运行
+2026/06/28 02:58:04 [账户服务] carry 交易已停(scanner.enabled=false);权益采样/充提核算/账户硬风控 仍常驻
+2026/06/28 02:58:04 [OKX方向] 引擎启动 live=true 周期=1m30s
+2026/06/28 02:58:04 [方向] bybit 引擎已接线(默认停用,需面板点开始)
+2026/06/28 02:58:04 [账户风控] 已启动: interval=1m0s (Stage B:一级硬停默认启用,二级 flatten opt-in 默认关闭)
+2026/06/28 02:58:04 [方向] gate 引擎已接线(默认停用,需面板点开始)
+2026/06/28 02:58:04 [方向] binance 引擎已接线(默认停用,需面板点开始)
+2026/06/28 02:58:04 Web 面板已启动: http://0.0.0.0:8080/
+2026/06/28 02:58:04 Dashboard 控制令牌已写入 records/.dashboard_control_token (0600,仅本机可读,可 cat 查看);指纹=42a410ee9223e2ad
+2026/06/28 02:58:04 [ALERT][INFO] 面板控制令牌已更新 | 服务已重启,新控制令牌:
+962f5bb518a83eb9017dd031ce206dad | cycle=
+2026/06/28 02:58:04 [bybit][OKX方向] 引擎启动 live=true 周期=1m30s
+2026/06/28 02:58:04 [gate][OKX方向] 引擎启动 live=true 周期=1m30s
+2026/06/28 02:58:04 [binance][OKX方向] 引擎启动 live=true 周期=1m30s
+2026/06/28 02:58:04 [账户风控] 充提流水源=heuristic cumulative=0.0000 (首次确认)
+2026/06/28 02:58:04 [账户风控] OK daily_equity_delta=-10.9150 daily_realized=0.0000 settlement_dd=4.8136 real_equity_dd=11.3058 real_equity_dd_adj=11.3109 cum_fund_flow=-64.2452 positions=0 notional=0.00
+2026/06/28 02:58:04 [gate][OKX方向][选币] 候选=29 BTC趋势=0.03 入选=20 头部: AGLD-USDT(1.000) LAB-USDT EDGE-USDT
+2026/06/28 02:58:04 [gate][delist-guard] 已刷新 gate instrument 状态: total=2832 non_trading=2
+2026/06/28 02:58:05 [gate][delist-guard] 已刷新 bybit instrument 状态: total=1266 non_trading=0
+2026/06/28 02:58:06 [gate][delist-guard] 已刷新 okx instrument 状态: total=1659 non_trading=0
+2026/06/28 02:58:06 [gate][OKX方向][跨所] XCN-USDT short 同向0/反向1 信心→0.62
+2026/06/28 02:58:06 [gate][OKX方向] XCN-USDT 信心0.618 < 最低开仓信心0.650,跳过(只做高信心档)
+2026/06/28 02:58:06 [gate][OKX方向] RIF-USDT 信心0.572 < 最低开仓信心0.650,跳过(只做高信心档)
+2026/06/28 02:58:06 [gate][OKX方向][跨所] RE-USDT long 同向2/反向0 信心→0.76
+2026/06/28 02:58:06 [gate][OKX方向] RE-USDT 永续可用 3.69 < 每仓本金 5.00,跳过开仓
+2026/06/28 02:58:06 [gate][OKX方向] 币安人生-USDT 信心0.546 < 最低开仓信心0.650,跳过(只做高信心档)
+2026/06/28 02:58:07 [gate][OKX方向][跨所] STG-USDT long 同向1/反向0 信心→0.63
+2026/06/28 02:58:07 [gate][OKX方向] STG-USDT 信心0.633 < 最低开仓信心0.650,跳过(只做高信心档)
+2026/06/28 02:58:07 [gate][OKX方向] MANTRA-USDT 信心0.359 < 最低开仓信心0.650,跳过(只做高信心档)
+2026/06/28 02:58:10 [bybit][OKX方向][选币] 候选=27 BTC趋势=0.03 入选=20 头部: LAB-USDT(0.987) AGLD-USDT BEL-USDT
+2026/06/28 02:58:10 [bybit][delist-guard] 已刷新 bybit instrument 状态: total=1266 non_trading=0
+2026/06/28 02:58:10 [binance][OKX方向][选币] 候选=26 BTC趋势=0.03 入选=20 头部: SYN-USDT(1.000) LAB-USDT AGLD-USDT
+2026/06/28 02:58:10 [bybit][delist-guard] 已刷新 okx instrument 状态: total=1659 non_trading=0
+2026/06/28 02:58:10 [bybit][delist-guard] 已刷新 gate instrument 状态: total=2832 non_trading=2
+2026/06/28 02:58:11 [binance][delist-guard] 已刷新 bybit instrument 状态: total=1266 non_trading=0
+2026/06/28 02:58:11 [binance][delist-guard] 已刷新 gate instrument 状态: total=2832 non_trading=2
+2026/06/28 02:58:11 [binance][delist-guard] 已刷新 binance instrument 状态: total=4415 non_trading=2375
+2026/06/28 02:58:11 [binance][delist-guard] 已刷新 okx instrument 状态: total=1659 non_trading=0
+2026/06/28 02:58:14 [binance][OKX方向][跨所] 否决 SNX-USDT short: 跨所背离:3所均反向,疑似单所假动作
+2026/06/28 02:58:14 [binance][OKX方向][跨所] 否决 STG-USDT short: 跨所背离:2所均反向,疑似单所假动作
+2026/06/28 02:58:14 [binance][OKX方向][跨所] S-USDT long 同向3/反向0 信心→0.89
+2026/06/28 02:58:15 [binance][下单] venue=binance market=perp S-USDT side=buy price=0.02345 tick=0.00001 qty=709
+2026/06/28 02:58:15 [binance][OKX方向][maker] S-USDT 第1轮失败: binance POST https://fapi.binance.com/fapi/v1/order: HTTP 400 code=-5022 msg=Due to the order could not be executed as maker, the Post Only order will be rejected. The order will not be recorded in the order history
+2026/06/28 02:58:15 [binance][OKX方向] S-USDT 开仓失败: <nil>
+2026/06/28 02:58:15 [binance][OKX方向][跨所] RIF-USDT short 同向1/反向0 信心→0.66
+2026/06/28 02:58:16 [binance][下单] venue=binance market=perp RIF-USDT side=sell price=0.06167 tick=0.00001 qty=270
+2026/06/28 02:58:18 [binance][下单] venue=binance market=perp RIF-USDT side=sell price=0.06167 tick=0.00001 qty=270
+2026/06/28 02:58:20 [binance][下单] venue=binance market=perp RIF-USDT side=sell price=0.06167 tick=0.00001 qty=270
+2026/06/28 02:58:22 [binance][OKX方向] RIF-USDT 开仓失败: <nil>
+2026/06/28 02:58:22 [binance][OKX方向][跨所] PRL-USDT long 同向2/反向0 信心→0.60
+2026/06/28 02:58:22 [binance][OKX方向] PRL-USDT 信心0.598 < 最低开仓信心0.650,跳过(只做高信心档)
+2026/06/28 02:58:22 [binance][OKX方向][跨所] TNSR-USDT short 同向2/反向0 信心→0.57
+2026/06/28 02:58:22 [binance][OKX方向] TNSR-USDT 信心0.575 < 最低开仓信心0.650,跳过(只做高信心档)
+2026/06/28 02:58:55 [OKX方向][选币] 候选=7 BTC趋势=0.02 入选=7 头部: AGLD-USDT(1.000) LAB-USDT BICO-USDT
+2026/06/28 02:58:55 [OKX公告] 已刷新风险集合: symbols=0
+2026/06/28 02:58:55 [delist-guard] 已刷新 okx instrument 状态: total=1659 non_trading=0
+2026/06/28 02:58:56 [delist-guard] 已刷新 bybit instrument 状态: total=1266 non_trading=0
+2026/06/28 02:58:56 [delist-guard] 已刷新 gate instrument 状态: total=2832 non_trading=2
+2026/06/28 02:59:05 [账户风控] OK daily_equity_delta=-11.5376 daily_realized=0.0000 settlement_dd=4.8136 real_equity_dd=11.9284 real_equity_dd_adj=11.9335 cum_fund_flow=-64.2452 positions=0 notional=0.00
+2026/06/28 02:59:37 [gate][OKX方向][跨所] XCN-USDT short 同向0/反向1 信心→0.63
+2026/06/28 02:59:37 [gate][OKX方向] XCN-USDT 信心0.631 < 最低开仓信心0.650,跳过(只做高信心档)
+2026/06/28 02:59:37 [gate][OKX方向][跨所] STG-USDT short 同向0/反向1 信心→0.52
+2026/06/28 02:59:37 [gate][OKX方向] STG-USDT 信心0.518 < 最低开仓信心0.650,跳过(只做高信心档)
+2026/06/28 02:59:37 [gate][OKX方向][跨所] RE-USDT long 同向2/反向0 信心→0.78
+2026/06/28 02:59:37 [gate][OKX方向] RE-USDT 永续可用 3.69 < 每仓本金 5.00,跳过开仓
+2026/06/28 02:59:38 [gate][OKX方向] 币安人生-USDT 信心0.545 < 最低开仓信心0.650,跳过(只做高信心档)
+2026/06/28 02:59:38 [gate][OKX方向] RIF-USDT 信心0.535 < 最低开仓信心0.650,跳过(只做高信心档)
+2026/06/28 02:59:38 [gate][OKX方向] MANTRA-USDT 信心0.359 < 最低开仓信心0.650,跳过(只做高信心档)
+2026/06/28 02:59:47 [OKX方向][跨所] 否决 H-USDT short: 跨所背离:2所均反向,疑似单所假动作
+2026/06/28 02:59:47 [OKX方向][跨所] 否决 SNX-USDT short: 跨所背离:2所均反向,疑似单所假动作
+2026/06/28 02:59:47 [OKX方向][跨所] S-USDT long 同向2/反向0 信心→0.77
+2026/06/28 02:59:48 [下单] venue=okx market=perp S-USDT side=buy price=0.02345 tick=0.00001 qty=1060
+2026/06/28 02:59:50 [下单] venue=okx market=perp S-USDT side=buy price=0.02345 tick=0.00001 qty=1060
+2026/06/28 02:59:53 [下单] venue=okx market=perp S-USDT side=buy price=0.02345 tick=0.00001 qty=1060
+2026/06/28 02:59:55 [binance][OKX方向][跨所] 否决 SNX-USDT short: 跨所背离:3所均反向,疑似单所假动作
+2026/06/28 02:59:55 [binance][OKX方向][跨所] S-USDT long 同向3/反向0 信心→0.88
+2026/06/28 02:59:56 [binance][下单] venue=binance market=perp S-USDT side=buy price=0.02345 tick=0.00001 qty=709
+2026/06/28 02:59:56 [OKX方向] S-USDT 开仓失败: <nil>
+2026/06/28 02:59:58 [binance][下单] venue=binance market=perp S-USDT side=buy price=0.02347 tick=0.00001 qty=709
+2026/06/28 03:00:00 [binance][下单] venue=binance market=perp S-USDT side=buy price=0.02348 tick=0.00001 qty=709
+2026/06/28 03:00:02 [binance][OKX方向] S-USDT 开仓失败: <nil>
+2026/06/28 03:00:02 [binance][OKX方向][跨所] 否决 STG-USDT short: 跨所背离:2所均反向,疑似单所假动作
+2026/06/28 03:00:02 [binance][OKX方向][跨所] RIF-USDT short 同向1/反向0 信心→0.63
+2026/06/28 03:00:02 [binance][OKX方向] RIF-USDT 信心0.628 < 最低开仓信心0.650,跳过(只做高信心档)
+2026/06/28 03:00:02 [binance][OKX方向][跨所] PRL-USDT long 同向2/反向0 信心→0.64
+2026/06/28 03:00:02 [binance][OKX方向] PRL-USDT 信心0.641 < 最低开仓信心0.650,跳过(只做高信心档)
+2026/06/28 03:00:02 [binance][OKX方向][跨所] TNSR-USDT short 同向2/反向0 信心→0.57
+2026/06/28 03:00:02 [binance][OKX方向] TNSR-USDT 信心0.575 < 最低开仓信心0.650,跳过(只做高信心档)
+2026/06/28 03:00:04 [账户风控] OK daily_equity_delta=-11.5376 daily_realized=0.0000 settlement_dd=4.8136 real_equity_dd=11.9284 real_equity_dd_adj=11.9335 cum_fund_flow=-64.2452 positions=0 notional=0.00
+2026/06/28 03:01:04 [账户风控] OK daily_equity_delta=-11.5376 daily_realized=0.0000 settlement_dd=4.8136 real_equity_dd=11.9284 real_equity_dd_adj=11.9335 cum_fund_flow=-64.2452 positions=0 notional=0.00
+2026/06/28 03:01:08 [gate][OKX方向][跨所] CLO-USDT long 同向0/反向1 信心→0.90
+2026/06/28 03:01:08 [gate][OKX方向] CLO-USDT 永续可用 3.69 < 每仓本金 10.00,跳过开仓
+2026/06/28 03:01:09 [gate][OKX方向][跨所] 否决 AGLD-USDT long: 跨所背离:2所均反向,疑似单所假动作
+2026/06/28 03:01:09 [gate][OKX方向][跨所] RE-USDT long 同向2/反向0 信心→0.81
+2026/06/28 03:01:09 [gate][OKX方向] RE-USDT 永续可用 3.69 < 每仓本金 5.00,跳过开仓
+2026/06/28 03:01:10 [gate][OKX方向] 币安人生-USDT 信心0.532 < 最低开仓信心0.650,跳过(只做高信心档)
+2026/06/28 03:01:10 [gate][OKX方向] RIF-USDT 信心0.462 < 最低开仓信心0.650,跳过(只做高信心档)
+2026/06/28 03:01:10 [gate][OKX方向][跨所] ARK-USDT short 同向1/反向0 信心→0.40
+2026/06/28 03:01:10 [gate][OKX方向] ARK-USDT 信心0.402 < 最低开仓信心0.650,跳过(只做高信心档)
+2026/06/28 03:01:35 [binance][OKX方向][跨所] 否决 AGLD-USDT long: 跨所背离:3所均反向,疑似单所假动作
+2026/06/28 03:01:35 [binance][OKX方向][跨所] SNX-USDT long 同向3/反向0 信心→0.87
+2026/06/28 03:01:36 [binance][下单] venue=binance market=perp SNX-USDT side=buy price=0.2301 tick=0.0001 qty=72.4
+2026/06/28 03:01:38 [binance][下单] venue=binance market=perp SNX-USDT side=buy price=0.2301 tick=0.0001 qty=72.4
+2026/06/28 03:01:40 [binance][下单] venue=binance market=perp SNX-USDT side=buy price=0.2301 tick=0.0001 qty=72.4
+2026/06/28 03:01:42 [binance][OKX方向] SNX-USDT 开仓失败: <nil>
+2026/06/28 03:01:42 [binance][OKX方向][跨所] RIF-USDT short 同向1/反向0 信心→0.59
+2026/06/28 03:01:42 [binance][OKX方向] RIF-USDT 信心0.594 < 最低开仓信心0.650,跳过(只做高信心档)
+2026/06/28 03:01:42 [binance][OKX方向][跨所] PRL-USDT long 同向2/反向0 信心→0.66
+2026/06/28 03:01:43 [binance][下单] venue=binance market=perp PRL-USDT side=buy price=0.1585 tick=0.0001 qty=105
+2026/06/28 03:01:45 [binance][下单] venue=binance market=perp PRL-USDT side=buy price=0.1585 tick=0.0001 qty=105
+2026/06/28 03:01:47 [binance][下单] venue=binance market=perp PRL-USDT side=buy price=0.1585 tick=0.0001 qty=105
+2026/06/28 03:01:49 [binance][OKX方向] PRL-USDT 开仓失败: <nil>
+2026/06/28 03:01:49 [binance][OKX方向][跨所] TNSR-USDT short 同向2/反向0 信心→0.55
+2026/06/28 03:01:49 [binance][OKX方向] TNSR-USDT 信心0.553 < 最低开仓信心0.650,跳过(只做高信心档)
+2026/06/28 03:01:49 [binance][OKX方向][跨所] IN-USDT long 同向2/反向0 信心→0.50
+2026/06/28 03:01:49 [binance][OKX方向] IN-USDT 信心0.501 < 最低开仓信心0.650,跳过(只做高信心档)
+2026/06/28 03:02:05 [账户风控] OK daily_equity_delta=-11.6120 daily_realized=0.0000 settlement_dd=4.8136 real_equity_dd=12.0028 real_equity_dd_adj=12.0080 cum_fund_flow=-64.2452 positions=0 notional=0.00
+2026/06/28 03:02:16 [OKX方向][跨所] 否决 H-USDT short: 跨所背离:2所均反向,疑似单所假动作
+2026/06/28 03:02:40 [gate][OKX方向][跨所] RE-USDT long 同向2/反向0 信心→0.82
+2026/06/28 03:02:40 [gate][OKX方向] RE-USDT 永续可用 3.69 < 每仓本金 5.00,跳过开仓
+2026/06/28 03:02:40 [gate][OKX方向][跨所] STG-USDT short 同向0/反向1 信心→0.43
+2026/06/28 03:02:40 [gate][OKX方向] STG-USDT 信心0.432 < 最低开仓信心0.650,跳过(只做高信心档)
+2026/06/28 03:02:41 [gate][OKX方向] 币安人生-USDT 信心0.532 < 最低开仓信心0.650,跳过(只做高信心档)
+2026/06/28 03:02:41 [gate][OKX方向][跨所] XCN-USDT short 同向0/反向1 信心→0.41
+2026/06/28 03:02:41 [gate][OKX方向] XCN-USDT 信心0.405 < 最低开仓信心0.650,跳过(只做高信心档)
+2026/06/28 03:02:41 [gate][OKX方向] RIF-USDT 信心0.504 < 最低开仓信心0.650,跳过(只做高信心档)
+2026/06/28 03:02:41 [gate][OKX方向][跨所] ARK-USDT short 同向1/反向0 信心→0.40
+2026/06/28 03:02:41 [gate][OKX方向] ARK-USDT 信心0.402 < 最低开仓信心0.650,跳过(只做高信心档)
+2026/06/28 03:03:04 [账户风控] OK daily_equity_delta=-11.6120 daily_realized=0.0000 settlement_dd=4.8136 real_equity_dd=12.0028 real_equity_dd_adj=12.0080 cum_fund_flow=-64.2452 positions=0 notional=0.00
+2026/06/28 03:03:22 [binance][OKX方向][跨所] 否决 STG-USDT short: 跨所背离:2所均反向,疑似单所假动作
+2026/06/28 03:03:22 [binance][OKX方向][跨所] RIF-USDT short 同向1/反向0 信心→0.63
+2026/06/28 03:03:22 [binance][OKX方向] RIF-USDT 信心0.627 < 最低开仓信心0.650,跳过(只做高信心档)
+2026/06/28 03:03:22 [binance][OKX方向][跨所] PRL-USDT long 同向2/反向0 信心→0.68
+2026/06/28 03:03:23 [binance][下单] venue=binance market=perp PRL-USDT side=buy price=0.1588 tick=0.0001 qty=104
+2026/06/28 03:03:25 [binance][下单] venue=binance market=perp PRL-USDT side=buy price=0.1588 tick=0.0001 qty=104
+2026/06/28 03:03:27 [binance][下单] venue=binance market=perp PRL-USDT side=buy price=0.1588 tick=0.0001 qty=104
+2026/06/28 03:03:29 [binance][OKX方向] PRL-USDT 开仓失败: <nil>
+2026/06/28 03:03:29 [binance][OKX方向][跨所] VELVET-USDT long 同向2/反向0 信心→0.52
+2026/06/28 03:03:29 [binance][OKX方向] VELVET-USDT 信心0.517 < 最低开仓信心0.650,跳过(只做高信心档)
+2026/06/28 03:03:30 [binance][OKX方向][跨所] TNSR-USDT short 同向2/反向0 信心→0.51
+2026/06/28 03:03:30 [binance][OKX方向] TNSR-USDT 信心0.510 < 最低开仓信心0.650,跳过(只做高信心档)
+2026/06/28 03:03:36 启动 lingxi: version=c68e30f-dirty commit=c68e30f build_time=2026-06-27T19:03:35Z
+2026/06/28 03:03:36 [配置] 生效配置相对默认值有 30 处覆盖:
+2026/06/28 03:03:36 [配置]   CrossVenueExecutor.CloseSpreadAPR: 0.3 => 0.2
+2026/06/28 03:03:36 [配置]   CrossVenueExecutor.Enabled: false => true
+2026/06/28 03:03:36 [配置]   CrossVenueExecutor.LiveTradingEnabled: false => true
+2026/06/28 03:03:36 [配置]   CrossVenueExecutor.MarginSafetyFactor: 1 => 1.5
+2026/06/28 03:03:36 [配置]   CrossVenueExecutor.MaxConcurrent: 2 => 8
+2026/06/28 03:03:36 [配置]   CrossVenueExecutor.MaxPositionUSDT: 75 => 150
+2026/06/28 03:03:36 [配置]   CrossVenueExecutor.UnifiedCaptureModelEnabled: false => true
+2026/06/28 03:03:36 [配置]   CrossVenueExecutor.UntrackedExposureAction: halt => flatten
+2026/06/28 03:03:36 [配置]   CrossVenueScanner.DirectionalVenues:  => okx
+2026/06/28 03:03:36 [配置]   CrossVenueScanner.Enabled: true => false
+2026/06/28 03:03:36 [配置]   HistoricalConfig.AssumedHourlyBorrowInterestRate: 5e-05 => 4.75e-05
+2026/06/28 03:03:36 [配置]   HistoricalConfig.FuturesTakerFeeRate: 0.0005 => 0.00045
+2026/06/28 03:03:36 [配置]   HistoricalConfig.MaxFundingCyclesHeld: 1 => 3
+2026/06/28 03:03:36 [配置]   HistoricalConfig.SpotTakerFeeRate: 0.001 => 0.00075
+2026/06/28 03:03:36 [配置]   NetworkConfig.DashboardAddr: 127.0.0.1:8080 => 0.0.0.0:8080
+2026/06/28 03:03:36 [配置]   OKXDirectional.Enabled: false => true
+2026/06/28 03:03:36 [配置]   OKXDirectional.LiveTradingEnabled: false => true
+2026/06/28 03:03:36 [配置]   PortfolioConfig.EnableRollingHold: false => true
+2026/06/28 03:03:36 [配置]   RiskConfig.BorrowCapacityCheckEnabled: false => true
+2026/06/28 03:03:36 [配置]   RiskConfig.ImmediateInvalidateRate: 0.0005 => 5e-05
+2026/06/28 03:03:36 [配置]   RiskConfig.MaxAccountDrawdownUSDT: 60 => 90
+2026/06/28 03:03:36 [配置]   RiskConfig.MaxAccountOpenNotionalUSDT: 1200 => 2200
+2026/06/28 03:03:36 [配置]   RiskConfig.MaxCycleOpenNotionalUSDT: 300 => 60
+2026/06/28 03:03:36 [配置]   RiskConfig.MaxDailyLossUSDT: 25 => 40
+2026/06/28 03:03:36 [配置]   RiskConfig.MaxStrategyCumulativeLossUSDT: 35 => 30
+2026/06/28 03:03:36 [配置]   StrategyConfig.PerSymbolQuoteUSDT: 100 => 30
+2026/06/28 03:03:36 [配置]   StrategyConfig.StrategyMode: collect_data => profit_seeking
+2026/06/28 03:03:36 [配置]   UnifiedRotation.Enabled: false => true
+2026/06/28 03:03:36 [配置]   UnifiedRotation.LiveTradingEnabled: false => true
+2026/06/28 03:03:36 [配置]   UnifiedRotation.TotalDeployableUSDT: 0 => 435
+2026/06/28 03:03:36 [冷启动检查] 开始执行每日健康检查...
+2026/06/28 03:03:36 [冷启动检查] 配置校验通过
+2026/06/28 03:03:36 [冷启动检查] 记录目录可写校验通过
+2026/06/28 03:03:36 [冷启动检查] 每日健康检查全部通过
+2026/06/28 03:03:36 [编排] venue=binance 运行时已注册(enabled,默认 idle,plan.autostart=false)
+2026/06/28 03:03:36 [编排] venue=bybit 适配器已注入(仅行情/账户,不启动交易引擎)
+2026/06/28 03:03:36 [编排] venue=bybit 运行时已注册(enabled,默认 idle,plan.autostart=false)
+2026/06/28 03:03:36 [编排] venue=gate 适配器已注入(仅行情/账户,不启动交易引擎)
+2026/06/28 03:03:36 [编排] venue=gate 运行时已注册(enabled,默认 idle,plan.autostart=false)
+2026/06/28 03:03:36 [编排] venue=okx 适配器已注入(仅行情/账户,不启动交易引擎)
+2026/06/28 03:03:36 [编排] venue=okx 运行时已注册(enabled,默认 idle,plan.autostart=false)
+2026/06/28 03:03:36 [跨所执行] 运行时开仓开关已设为 关(已落盘 records/crossvenue/control.json)
+2026/06/28 03:03:36 [权益采样] 已启动: interval=3m0s 口径=各所USDT现金余额真实变化
+2026/06/28 03:03:36 [统一轮动] WARNING: rotation 配置意图为实盘关闭但 rotation_control.json active=true,runner 以持久化 active 运行
+2026/06/28 03:03:36 [账户服务] carry 交易已停(scanner.enabled=false);权益采样/充提核算/账户硬风控 仍常驻
+2026/06/28 03:03:36 [账户风控] 已启动: interval=1m0s (Stage B:一级硬停默认启用,二级 flatten opt-in 默认关闭)
+2026/06/28 03:03:36 [方向] bybit 引擎已接线(默认停用,需面板点开始)
+2026/06/28 03:03:36 [bybit][OKX方向] 引擎启动 live=true 周期=1m30s
+2026/06/28 03:03:36 [OKX方向] 引擎启动 live=true 周期=1m30s
+2026/06/28 03:03:36 [方向] gate 引擎已接线(默认停用,需面板点开始)
+2026/06/28 03:03:36 [方向] binance 引擎已接线(默认停用,需面板点开始)
+2026/06/28 03:03:36 Web 面板已启动: http://0.0.0.0:8080/
+2026/06/28 03:03:36 Dashboard 控制令牌已写入 records/.dashboard_control_token (0600,仅本机可读,可 cat 查看);指纹=c781909995832c1a
+2026/06/28 03:03:36 [gate][OKX方向] 引擎启动 live=true 周期=1m30s
+2026/06/28 03:03:36 [binance][OKX方向] 引擎启动 live=true 周期=1m30s
+2026/06/28 03:03:36 [ALERT][INFO] 面板控制令牌已更新 | 服务已重启,新控制令牌:
+bd97b16b28f800c87635760ce534ba70 | cycle=
+2026/06/28 03:03:36 [账户风控] 充提流水源=heuristic cumulative=0.0000 (首次确认)
+2026/06/28 03:03:36 [账户风控] OK daily_equity_delta=-11.6120 daily_realized=0.0000 settlement_dd=4.8136 real_equity_dd=12.0028 real_equity_dd_adj=12.0080 cum_fund_flow=-64.2452 positions=0 notional=0.00
+2026/06/28 03:03:37 [gate][OKX方向][选币] 候选=29 BTC趋势=0.04 入选=20 头部: AGLD-USDT(1.000) LAB-USDT EDGE-USDT
+2026/06/28 03:03:37 [gate][delist-guard] 已刷新 gate instrument 状态: total=2832 non_trading=2
+2026/06/28 03:03:37 [gate][delist-guard] 已刷新 okx instrument 状态: total=1659 non_trading=0
+2026/06/28 03:03:38 [gate][delist-guard] 已刷新 bybit instrument 状态: total=1266 non_trading=0
+2026/06/28 03:03:38 [gate][OKX方向][跨所] STG-USDT short 同向0/反向1 信心→0.55
+2026/06/28 03:03:38 [gate][OKX方向] STG-USDT 信心0.549 < 最低开仓信心0.700,跳过(只做高信心档)
+2026/06/28 03:03:38 [gate][OKX方向][跨所] XCN-USDT short 同向0/反向1 信心→0.43
+2026/06/28 03:03:38 [gate][OKX方向] XCN-USDT 信心0.433 < 最低开仓信心0.700,跳过(只做高信心档)
+2026/06/28 03:03:38 [gate][OKX方向] 币安人生-USDT 信心0.532 < 最低开仓信心0.700,跳过(只做高信心档)
+2026/06/28 03:03:38 [gate][OKX方向] RIF-USDT 信心0.504 < 最低开仓信心0.700,跳过(只做高信心档)
+2026/06/28 03:03:39 [gate][OKX方向][跨所] ARK-USDT short 同向1/反向0 信心→0.40
+2026/06/28 03:03:39 [gate][OKX方向] ARK-USDT 信心0.402 < 最低开仓信心0.700,跳过(只做高信心档)
+2026/06/28 03:03:41 [bybit][OKX方向][选币] 候选=29 BTC趋势=0.03 入选=20 头部: LAB-USDT(0.982) AGLD-USDT BEL-USDT
+2026/06/28 03:03:42 [bybit][delist-guard] 已刷新 bybit instrument 状态: total=1266 non_trading=0
+2026/06/28 03:03:42 [bybit][delist-guard] 已刷新 okx instrument 状态: total=1659 non_trading=0
+2026/06/28 03:03:42 [bybit][delist-guard] 已刷新 gate instrument 状态: total=2832 non_trading=2
+2026/06/28 03:03:42 [binance][OKX方向][选币] 候选=25 BTC趋势=0.03 入选=20 头部: SYN-USDT(1.000) LAB-USDT AGLD-USDT
+2026/06/28 03:03:43 [binance][delist-guard] 已刷新 binance instrument 状态: total=4415 non_trading=2375
+2026/06/28 03:03:43 [binance][delist-guard] 已刷新 okx instrument 状态: total=1659 non_trading=0
+2026/06/28 03:03:43 [binance][delist-guard] 已刷新 bybit instrument 状态: total=1266 non_trading=0
+2026/06/28 03:03:44 [binance][delist-guard] 已刷新 gate instrument 状态: total=2832 non_trading=2
+2026/06/28 03:03:46 [binance][OKX方向][跨所] 否决 GLM-USDT short: 跨所背离:2所均反向,疑似单所假动作
+2026/06/28 03:03:46 [binance][OKX方向][跨所] 否决 STG-USDT short: 跨所背离:2所均反向,疑似单所假动作
+2026/06/28 03:03:47 [binance][OKX方向][跨所] RIF-USDT short 同向1/反向0 信心→0.63
+2026/06/28 03:03:47 [binance][OKX方向] RIF-USDT 信心0.634 < 最低开仓信心0.700,跳过(只做高信心档)
+2026/06/28 03:03:47 [binance][OKX方向][跨所] PRL-USDT long 同向2/反向0 信心→0.68
+2026/06/28 03:03:47 [binance][OKX方向] PRL-USDT 信心0.683 < 最低开仓信心0.700,跳过(只做高信心档)
+2026/06/28 03:03:47 [binance][OKX方向][跨所] VELVET-USDT long 同向2/反向0 信心→0.52
+2026/06/28 03:03:47 [binance][OKX方向] VELVET-USDT 信心0.523 < 最低开仓信心0.700,跳过(只做高信心档)
+2026/06/28 03:03:47 [binance][OKX方向][跨所] IN-USDT long 同向2/反向0 信心→0.51
+2026/06/28 03:03:47 [binance][OKX方向] IN-USDT 信心0.507 < 最低开仓信心0.700,跳过(只做高信心档)
+2026/06/28 03:04:27 [OKX方向][选币] 候选=7 BTC趋势=0.03 入选=7 头部: AGLD-USDT(1.000) LAB-USDT BICO-USDT
+2026/06/28 03:04:27 [OKX公告] 已刷新风险集合: symbols=0
+2026/06/28 03:04:27 [delist-guard] 已刷新 okx instrument 状态: total=1659 non_trading=0
+2026/06/28 03:04:28 [delist-guard] 已刷新 gate instrument 状态: total=2832 non_trading=2
+2026/06/28 03:04:28 [delist-guard] 已刷新 bybit instrument 状态: total=1266 non_trading=0

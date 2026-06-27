@@ -509,7 +509,7 @@ func DefaultEngineConfig() EngineConfig {
 			StaleCutMinProfitPct:           0,
 			TrendEntryPullbackMaxBarPct:    0.005,
 			TrendSizeFraction:              0.5,
-			MinOpenConviction:              0.65,
+			MinOpenConviction:              0.70,
 			CrossVenueCorroborationEnabled: true,
 			CrossVenueConvictionStep:       0.1,
 			CrossVenueVetoMinPeers:         2,

@@ -1101,7 +1101,7 @@
     .strategy-zone-okx .table-wrap {
       border: 1px solid var(--border);
       border-radius: var(--r-sm);
-      overflow: hidden;
+      overflow: auto; /* 可滚动(配合 max-height);原 hidden 会把最近平仓等长列表截断且无法滑动 */
     }
     .strategy-zone-okx th {
       background: var(--surface-2);
@@ -5069,6 +5069,11 @@
           btn.classList.toggle("active", btn.getAttribute("data-dir-venue") === currentDirectionalVenue);
         });
       }
+      // 概览卡片高亮即时切换(否则要等下一轮含网络拉取的 refreshDirectionalVenueOverview 才更新,显得很慢)。
+      ["okx", "bybit", "gate", "binance"].forEach((v) => {
+        const cardEl = document.getElementById("dir-vcard-" + v);
+        if (cardEl) cardEl.classList.toggle("active", v === currentDirectionalVenue);
+      });
     }
 
     function switchDirectionalVenue(venue) {

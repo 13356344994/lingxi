@@ -1,18 +1,18 @@
 [
   {
-    "symbol": "S-USDT",
+    "symbol": "RE-USDT",
     "side": "long",
-    "entry_price": 0.02347,
-    "qty": 709,
+    "entry_price": 0.6825,
+    "qty": 24,
     "notional_usdt": 16.666666666666668,
-    "opened_at": "2026-06-27T18:42:15.34575635Z",
+    "opened_at": "2026-06-27T18:55:12.446398306Z",
     "regime": "trend",
-    "funding_at_open": -0.00086345,
-    "last_mid": 0.023735,
-    "last_unrealized_account_pct": 0.056455048998721315,
-    "last_unrealized_usdt": 0.18818349666240441,
+    "funding_at_open": -0.0015309,
+    "last_mid": 0.68535,
+    "last_unrealized_account_pct": 0.02087912087912102,
+    "last_unrealized_usdt": 0.06959706959707007,
     "initial_notional_usdt": 16.666666666666668,
-    "peak_account_pct": 0.056455048998721315,
+    "peak_account_pct": 0.02087912087912102,
     "stop_floor_account_pct": -0.2
   }
 ]
