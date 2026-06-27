@@ -46,8 +46,8 @@ func (a *Adapter) TopUpPerpMarginUSDT(ctx context.Context, requiredUSDT float64)
 	}
 	need := requiredUSDT - current
 	var transferred float64
-	// 资金来源仅现货/全仓杠杆(交易账户);**绝不动用资金账户(funding wallet)**——用户红线:资金账户不可调。
-	// 历史曾把 funding 作为补仓来源,会越线占用储备金,已移除。
+	// 资金来源:现货 / 全仓杠杆 / 资金钱包,补进 U 本位合约直到够交易仓本金。
+	// 用户 2026-06-28 明确授权:方向量化下把各钱包(含 funding)资金调进合约账户,以便开仓。
 	sources := []struct {
 		label string
 		read  func(context.Context) (float64, error)
@@ -55,6 +55,7 @@ func (a *Adapter) TopUpPerpMarginUSDT(ctx context.Context, requiredUSDT float64)
 	}{
 		{"spot", a.fetchSpotFreeUSDT, "MAIN_UMFUTURE"},
 		{"cross_margin", a.fetchCrossMarginFreeUSDT, "MARGIN_UMFUTURE"},
+		{"funding", a.fetchFundingFreeUSDT, "FUNDING_UMFUTURE"},
 	}
 	for _, src := range sources {
 		if need <= 1e-6 {

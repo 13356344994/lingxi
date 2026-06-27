@@ -1,0 +1,18 @@
+[
+  {
+    "symbol": "S-USDT",
+    "side": "long",
+    "entry_price": 0.02347,
+    "qty": 709,
+    "notional_usdt": 16.666666666666668,
+    "opened_at": "2026-06-27T18:42:15.34575635Z",
+    "regime": "trend",
+    "funding_at_open": -0.00086345,
+    "last_mid": 0.023735,
+    "last_unrealized_account_pct": 0.056455048998721315,
+    "last_unrealized_usdt": 0.18818349666240441,
+    "initial_notional_usdt": 16.666666666666668,
+    "peak_account_pct": 0.056455048998721315,
+    "stop_floor_account_pct": -0.2
+  }
+]

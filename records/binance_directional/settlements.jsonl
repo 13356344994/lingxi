@@ -1,0 +1,2 @@
+{"time":"2026-06-27T18:45:09.366311076Z","symbol":"VELVET-USDT","side":"short","entry":1.3741,"exit":1.356,"notional":16.666666666666668,"realized_usdt":0.21953763675617985,"hold_minutes":4,"regime":"range","reason":"分批止盈(浮盈6%先落袋50%,余仓博趋势)(部分)","funding_at_open":0.00060583}
+{"time":"2026-06-27T18:48:18.743511324Z","symbol":"VELVET-USDT","side":"short","entry":1.3741,"exit":1.3738,"notional":16.666666666666668,"realized_usdt":0.0036387453606019577,"hold_minutes":7,"regime":"range","reason":"移动止损保盈","funding_at_open":0.00060583}

@@ -136,6 +136,24 @@ func (a *Adapter) fetchSpotUSDT(ctx context.Context) (float64, error) {
 	return 0, nil
 }
 
+// fetchUnifiedUSDT 拉统一账户 USDT 跨保证金可动用余额(balances.USDT.available)。
+// 统一账户下 /futures/usdt/accounts 与 /spot/accounts 的 available 只是子视图、严重低估真实可用保证金,
+// 必须读 /unified/accounts 才是开仓可用的真值。
+func (a *Adapter) fetchUnifiedUSDT(ctx context.Context) (float64, error) {
+	var acct struct {
+		Balances map[string]struct {
+			Available string `json:"available"`
+		} `json:"balances"`
+	}
+	if err := a.t.signedGet(ctx, pathUnifiedAccounts, nil, &acct); err != nil {
+		return 0, err
+	}
+	if b, ok := acct.Balances["USDT"]; ok {
+		return math.Max(parseFloat(b.Available), 0), nil
+	}
+	return 0, nil
+}
+
 // fetchFuturesUSDT 拉 USDT 永续账户可动用余额(available 字段)。
 func (a *Adapter) fetchFuturesUSDT(ctx context.Context) (float64, error) {
 	var acct struct {

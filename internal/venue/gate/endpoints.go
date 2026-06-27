@@ -7,6 +7,7 @@ const (
 	pathSpotTickers       = "/api/v4/spot/tickers"
 	pathSpotOrderBook     = "/api/v4/spot/order_book"
 	pathSpotAccounts      = "/api/v4/spot/accounts"
+	pathUnifiedAccounts   = "/api/v4/unified/accounts" // 统一账户:跨保证金真实可用 USDT(子账户 available 不反映)
 	pathSpotOrders        = "/api/v4/spot/orders"
 
 	pathFuturesContracts          = "/api/v4/futures/usdt/contracts"

@@ -892,8 +892,9 @@ func (e *OKXDirectionalEngine) openPosition(ctx context.Context, sym string, sig
 		// 对 binance 返回 ErrUnsupported 被跳过,但 binance 实现了 TopUpPerpMarginUSDT,此处显式调用补足。
 		// 绝不动资金账户(用户红线),TopUp 仅从现货/全仓杠杆搬;不支持的所(统一钱包)best-effort 跳过。
 		if tp, ok := e.v.(venue.PerpMarginProvider); ok {
-			if moved, terr := tp.TopUpPerpMarginUSDT(ctx, perPosCapital); terr == nil && moved > 0 {
-				e.logger.Printf("[OKX方向] %s 合约钱包可用不足,从闲置钱包补 %.2f USDT 进合约钱包后复检", sym, moved)
+			// 目标=整笔交易仓本金(把现货/全仓/资金钱包资金一次补够,而非只补一仓),让多仓都能开出。
+			if moved, terr := tp.TopUpPerpMarginUSDT(ctx, ctrl.TradingCapitalUSDT); terr == nil && moved > 0 {
+				e.logger.Printf("[OKX方向] %s 合约钱包可用不足,从闲置钱包补 %.2f USDT 进合约钱包(目标交易仓本金%.2f)后复检", sym, moved, ctrl.TradingCapitalUSDT)
 				avail, merr = fetchVenuePerpAvailableUSDT(ctx, e.v)
 			}
 		}

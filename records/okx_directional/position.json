@@ -2,16 +2,19 @@
   {
     "symbol": "S-USDT",
     "side": "long",
-    "entry_price": 0.02308,
-    "qty": 1080,
-    "notional_usdt": 25,
-    "opened_at": "2026-06-27T18:09:18.567424359Z",
+    "entry_price": 0.023375660377358488,
+    "qty": 530,
+    "notional_usdt": 12.5,
+    "opened_at": "2026-06-27T18:44:25.58980283Z",
     "regime": "trend",
-    "funding_at_open": -0.0005294424829361,
-    "last_mid": 0.0228,
-    "last_unrealized_account_pct": -0.06065857885615229,
-    "last_unrealized_usdt": -0.3032928942807615,
+    "funding_at_open": -0.0008987866951318,
+    "last_mid": 0.02366,
+    "last_unrealized_account_pct": 0.06081959141503491,
+    "last_unrealized_usdt": 0.15204897853758728,
     "initial_notional_usdt": 25,
-    "stop_floor_account_pct": -0.2
+    "peak_account_pct": 0.07151447643493174,
+    "stop_floor_account_pct": 0.011514476434931739,
+    "partial_tp_done": true,
+    "realized_partial_usdt": 0.05579501335851876
   }
 ]
