@@ -21,8 +21,9 @@ type persistedAccountRiskEquityState struct {
 	LastTrustedByVenue      map[string]float64 `json:"last_trusted_by_venue,omitempty"`
 	HasLastTrusted          bool               `json:"has_last_trusted"`
 	LastTrustedAt           time.Time          `json:"last_trusted_at,omitempty"`
-	DailyFundFlowAdjustUSDT float64            `json:"daily_fund_flow_adjust_usdt"`
-	CumulativeFundFlowUSDT  float64            `json:"cumulative_fund_flow_usdt"`
+	DailyFundFlowAdjustUSDT    float64            `json:"daily_fund_flow_adjust_usdt"`
+	DailyFundFlowByVenueUSDT   map[string]float64 `json:"daily_fund_flow_by_venue_usdt,omitempty"`
+	CumulativeFundFlowUSDT     float64            `json:"cumulative_fund_flow_usdt"`
 	TradingEquityPeakUSDT   float64            `json:"trading_equity_peak_usdt"`
 	LastDailyRealizedPnL    float64            `json:"last_daily_realized_pnl"`
 	LastSettlementCount     int                `json:"last_settlement_count"`
@@ -53,6 +54,7 @@ func (st *accountRiskEquityState) toPersisted(now time.Time) persistedAccountRis
 		HasLastTrusted:             st.HasLastTrusted,
 		LastTrustedAt:              st.LastTrustedAt,
 		DailyFundFlowAdjustUSDT:    st.DailyFundFlowAdjustUSDT,
+		DailyFundFlowByVenueUSDT:   copyVenueEquityMap(st.DailyFundFlowByVenueUSDT),
 		CumulativeFundFlowUSDT:     st.CumulativeFundFlowUSDT,
 		TradingEquityPeakUSDT:      st.TradingEquityPeakUSDT,
 		LastDailyRealizedPnL:       st.LastDailyRealizedPnL,
@@ -74,6 +76,7 @@ func (st *accountRiskEquityState) applyPersisted(p persistedAccountRiskEquitySta
 	st.HasLastTrusted = p.HasLastTrusted
 	st.LastTrustedAt = p.LastTrustedAt
 	st.DailyFundFlowAdjustUSDT = p.DailyFundFlowAdjustUSDT
+	st.DailyFundFlowByVenueUSDT = copyVenueEquityMap(p.DailyFundFlowByVenueUSDT)
 	st.CumulativeFundFlowUSDT = p.CumulativeFundFlowUSDT
 	st.TradingEquityPeakUSDT = p.TradingEquityPeakUSDT
 	st.LastDailyRealizedPnL = p.LastDailyRealizedPnL

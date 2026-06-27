@@ -39,25 +39,27 @@ func fetchAccountRealFundFlowUSDT(
 	obs accountEquityObservation,
 	lookup accountFundFlowLookup,
 	since time.Time,
-) (total float64, ok bool) {
+) (total float64, byVenue map[string]float64, ok bool) {
 	if lookup == nil || len(obs.ByVenue) == 0 {
-		return 0, false
+		return 0, nil, false
 	}
+	byVenue = make(map[string]float64, len(obs.ByVenue))
 	for venueName := range obs.ByVenue {
 		p := lookup(venueName)
 		if p == nil {
-			return 0, false
+			return 0, nil, false
 		}
 		net, err := p.FetchNetExternalFundFlowUSDT(ctx, since)
 		if err != nil {
 			if errors.Is(err, venue.ErrUnsupported) {
-				return 0, false
+				return 0, nil, false
 			}
-			return 0, false
+			return 0, nil, false
 		}
+		byVenue[venueName] = net
 		total = money.SumUSDT(total, net)
 	}
-	return total, true
+	return total, byVenue, true
 }
 
 func applyAccountFundFlowAdjustment(
@@ -77,7 +79,8 @@ func applyAccountFundFlowAdjustment(
 	if st == nil {
 		return "heuristic", 0
 	}
-	if realTotal, ok := fetchAccountRealFundFlowUSDT(ctx, obs, lookup, dayStart); ok {
+	if realTotal, realByVenue, ok := fetchAccountRealFundFlowUSDT(ctx, obs, lookup, dayStart); ok {
+		st.DailyFundFlowByVenueUSDT = copyVenueEquityMap(realByVenue)
 		// 交叉校验:real 充提源(交易所充提历史)对尚处 pending / 未到 DONE/success 的提现会暂时漏检,
 		// 返回 0 却把权益骤降误当成交易亏损/回撤(可触发日损/回撤急停)。
 		// 安全信号:positions==0 时权益变动在数学上不可能来自交易(无未实现、已实现单列),
@@ -127,6 +130,7 @@ func applyAccountFundFlowAdjustment(
 		settlementCount,
 		minStep,
 	)
+	st.DailyFundFlowByVenueUSDT = nil
 	st.DailyFundFlowSource = "heuristic"
 	// 纯启发式路径:整笔平移均未经交易所确权,全额标为未证实,面板高亮提示用户核实。
 	st.DailyFundFlowReconcileUSDT = st.DailyFundFlowAdjustUSDT

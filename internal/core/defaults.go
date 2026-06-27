@@ -480,7 +480,7 @@ func DefaultEngineConfig() EngineConfig {
 			RequireFundingAlignment:     true,
 			FundingVetoAbsPerInterval:   0.0015,
 			TradingCapitalUSDT:          30,
-			StopLossPct:                 0.50, // 交易仓本金基准:50%(5X 下≈10% 价格)
+			StopLossPct:                 0.20, // 交易仓本金基准:20%(5X 下≈4% 价格)——收紧,让止损先于超时生效
 			TakeProfitPct:               0.30, // 交易仓本金基准:30%(5X 下≈6% 价格)
 			MaxHoldMinutes:              60,   // 快进快出:不久持,停滞即让位
 			DailyLossLimitUSDT:          0,    // 不设日熔断(用户要求)
@@ -501,6 +501,17 @@ func DefaultEngineConfig() EngineConfig {
 			TPFadeConviction:            0.4,
 			PeakGivebackFraction:        0.4,
 			QuickTPPct:                  0.12,
+			SignalWindowBars:            24,
+			AbsMaxHoldMinutes:           180,
+			BreakevenArmPct:                0.05,
+			StaleCutMinutes:                40,
+			StaleCutMinProfitPct:           0,
+			CrossVenueCorroborationEnabled: true,
+			CrossVenueConvictionStep:       0.1,
+			CrossVenueVetoMinPeers:         2,
+			CrossVenueDeadbandPct:          0.003,
+			FillPriceMaxDevPct:             0.10,
+			MaxOpenSpreadBps:               50,
 		},
 		FundingExecutor: VenueFundingExecutorConfig{
 			LiveTradingEnabled:     false,

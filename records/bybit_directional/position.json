@@ -1,0 +1,35 @@
+[
+  {
+    "symbol": "NOKIA-USDT",
+    "side": "long",
+    "entry_price": 13.038,
+    "qty": 3.8,
+    "notional_usdt": 50,
+    "opened_at": "2026-06-27T16:04:30.925338026Z",
+    "regime": "range",
+    "funding_at_open": 0.00103073,
+    "last_mid": 13.062,
+    "last_unrealized_account_pct": 0.009203865623561564,
+    "last_unrealized_usdt": 0.09203865623561563,
+    "initial_notional_usdt": 50,
+    "peak_account_pct": 0.018599478447614913,
+    "stop_floor_account_pct": -0.2
+  },
+  {
+    "symbol": "0G-USDT",
+    "side": "long",
+    "entry_price": 0.22783143030671119,
+    "qty": 329.3,
+    "notional_usdt": 74.98804,
+    "opened_at": "2026-06-27T15:40:57.157910225Z",
+    "regime": "trend",
+    "funding_at_open": -0.00056725,
+    "last_mid": 0.23235,
+    "last_unrealized_account_pct": 0.09916475718924792,
+    "last_unrealized_usdt": 1.4872341557395221,
+    "initial_notional_usdt": 50,
+    "peak_account_pct": 0.15825586542718056,
+    "stop_floor_account_pct": -0.2,
+    "add_count": 1
+  }
+]

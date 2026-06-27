@@ -1,0 +1,50 @@
+[
+  {
+    "symbol": "AGLD-USDT",
+    "side": "long",
+    "entry_price": 0.2283,
+    "qty": 218,
+    "notional_usdt": 50,
+    "opened_at": "2026-06-27T15:32:54.78387657Z",
+    "regime": "trend",
+    "funding_at_open": -0.010628,
+    "last_mid": 0.23120000000000002,
+    "last_unrealized_account_pct": 0.06351292159439365,
+    "last_unrealized_usdt": 0.6351292159439365,
+    "initial_notional_usdt": 50,
+    "peak_account_pct": 0.06351292159439365,
+    "stop_floor_account_pct": -0.2
+  },
+  {
+    "symbol": "PUNDIX-USDT",
+    "side": "long",
+    "entry_price": 0.098699013807,
+    "qty": 507,
+    "notional_usdt": 50,
+    "opened_at": "2026-06-27T15:11:21.307689551Z",
+    "regime": "trend",
+    "funding_at_open": -0.000884,
+    "last_mid": 0.09809999999999999,
+    "last_unrealized_account_pct": -0.030345480866269828,
+    "last_unrealized_usdt": -0.30345480866269825,
+    "initial_notional_usdt": 50,
+    "peak_account_pct": 0.012714726486062054,
+    "stop_floor_account_pct": -0.2
+  },
+  {
+    "symbol": "CVC-USDT",
+    "side": "long",
+    "entry_price": 0.02151,
+    "qty": 2320,
+    "notional_usdt": 50,
+    "opened_at": "2026-06-27T15:09:43.089308902Z",
+    "regime": "trend",
+    "funding_at_open": -0.0031,
+    "last_mid": 0.02146,
+    "last_unrealized_account_pct": -0.01162250116225045,
+    "last_unrealized_usdt": -0.11622501162250448,
+    "initial_notional_usdt": 50,
+    "peak_account_pct": 0.011622501162249641,
+    "stop_floor_account_pct": -0.2
+  }
+]

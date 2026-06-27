@@ -1,0 +1,33 @@
+[
+  {
+    "symbol": "JELLYJELLY-USDT",
+    "side": "long",
+    "entry_price": 0.0598793750000001,
+    "qty": 1600,
+    "notional_usdt": 100,
+    "opened_at": "2026-06-27T14:05:44.114927876Z",
+    "regime": "trend",
+    "funding_at_open": 0.0005055389488147,
+    "last_mid": 0.058285000000000003,
+    "last_unrealized_account_pct": -0.13313223459664505,
+    "last_unrealized_usdt": -2.662644691932901,
+    "initial_notional_usdt": 100,
+    "peak_account_pct": 0.01800494744641979,
+    "stop_floor_account_pct": -0.2
+  },
+  {
+    "symbol": "RE-USDT",
+    "side": "long",
+    "entry_price": 0.6093,
+    "qty": 160,
+    "notional_usdt": 100,
+    "opened_at": "2026-06-27T14:11:49.117117517Z",
+    "regime": "trend",
+    "funding_at_open": -0.0014526081267253,
+    "last_mid": 0.5939749999999999,
+    "last_unrealized_account_pct": -0.12575906778270174,
+    "last_unrealized_usdt": -2.515181355654035,
+    "initial_notional_usdt": 100,
+    "stop_floor_account_pct": -0.2
+  }
+]

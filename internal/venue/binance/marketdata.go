@@ -201,6 +201,55 @@ func (a *Adapter) FetchOpenInterest(ctx context.Context, s venue.Symbol) (float6
 	return parseFloat(payload.OpenInterest), nil
 }
 
+// FetchCandles 用 /fapi/v1/klines 拉 U 本位永续历史 K 线。
+// bar 为币安 interval(如 "1m","5m","15m","1h");limit 上限 1500。
+// 币安返回 oldest-first,本方法保持该顺序。
+func (a *Adapter) FetchCandles(ctx context.Context, m venue.Market, s venue.Symbol, bar string, limit int) ([]venue.Candle, error) {
+	if m != venue.MarketPerp {
+		return nil, fmt.Errorf("binance: FetchCandles 仅支持永续")
+	}
+	raw, err := a.ToVenue(s, m)
+	if err != nil {
+		return nil, err
+	}
+	bar = strings.TrimSpace(bar)
+	if bar == "" {
+		return nil, fmt.Errorf("binance: 空 bar")
+	}
+	if limit <= 0 {
+		limit = 100
+	}
+	if limit > 1500 {
+		limit = 1500
+	}
+	var rows [][]any
+	url := fmt.Sprintf("%s?symbol=%s&interval=%s&limit=%d", a.futuresBaseURL()+PathFuturesKlines, raw, bar, limit)
+	if err := a.publicGet(ctx, url, &rows); err != nil {
+		return nil, err
+	}
+	return parseBinanceKlines(rows), nil
+}
+
+// parseBinanceKlines 把币安 klines 二维数组解析为 oldest-first 的 []venue.Candle(纯解析,可单测)。
+func parseBinanceKlines(rows [][]any) []venue.Candle {
+	out := make([]venue.Candle, 0, len(rows))
+	for _, row := range rows {
+		if len(row) < 6 {
+			continue
+		}
+		openMs := int64(parseAnyFloat(row[0]))
+		out = append(out, venue.Candle{
+			OpenTime: msToTime(openMs),
+			Open:     parseAnyFloat(row[1]),
+			High:     parseAnyFloat(row[2]),
+			Low:      parseAnyFloat(row[3]),
+			Close:    parseAnyFloat(row[4]),
+			Volume:   parseAnyFloat(row[5]),
+		})
+	}
+	return out
+}
+
 // FetchRecentQuoteVolume 用 klines 第 8 列(quote volume)在 window 内求和;window 向上取整到分钟。
 func (a *Adapter) FetchRecentQuoteVolume(ctx context.Context, m venue.Market, s venue.Symbol, window time.Duration) (float64, error) {
 	raw, err := a.ToVenue(s, m)

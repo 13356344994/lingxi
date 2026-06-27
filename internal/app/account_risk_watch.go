@@ -154,6 +154,8 @@ type accountRiskEquityState struct {
 	HasLastTrusted          bool
 	LastTrustedAt           time.Time
 	DailyFundFlowAdjustUSDT float64
+	// DailyFundFlowByVenueUSDT 当日各所净充提(充值−提现),仅 real/real+reconcile 源确权时填充;heuristic 路径为空。
+	DailyFundFlowByVenueUSDT map[string]float64
 	// CumulativeFundFlowUSDT 全时净充提(deposit+/withdraw−),跨天累计、永不日重置。
 	// 用于把「真实现金权益」换算成「交易口径权益」(扣掉本金进出),使提现/充值不污染回撤。
 	CumulativeFundFlowUSDT float64
@@ -200,6 +202,7 @@ func (st *accountRiskEquityState) resetForDay(dayStart time.Time) {
 	}
 	st.DayStartCST = dayStart
 	st.DailyFundFlowAdjustUSDT = 0
+	st.DailyFundFlowByVenueUSDT = nil
 	st.LastDailyRealizedPnL = 0
 	st.LastSettlementCount = 0
 	st.LastPositionCount = 0

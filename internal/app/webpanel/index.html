@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>灵犀 · 五策略统一轮动</title>
+  <title>灵犀 · 四所方向量化</title>
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -685,6 +685,558 @@
       color: #fca5a5;
       font-size: 13px;
     }
+    /* === 方向量化仪表盘专属样式 === */
+    .dir-venue-overview-bar {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin: 0 0 16px;
+    }
+    .dir-venue-card {
+      background: #0b1220;
+      border: 1px solid #243049;
+      border-radius: 10px;
+      padding: 10px 12px;
+      cursor: pointer;
+      transition: border-color 0.12s ease, background 0.12s ease;
+      user-select: none;
+    }
+    .dir-venue-card:hover {
+      border-color: #3b82f6;
+      background: #0f1a33;
+    }
+    .dir-venue-card.active {
+      border-color: #f59e0b;
+      background: linear-gradient(135deg, #3d2a14 0%, #1e293b 100%);
+      box-shadow: 0 0 0 1px #f59e0b40;
+    }
+    .dvc-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 6px;
+    }
+    .dvc-name {
+      font-size: 13px;
+      font-weight: 700;
+      color: #e5edff;
+    }
+    .dvc-dot {
+      font-size: 13px;
+      line-height: 1;
+    }
+    .dvc-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      font-size: 12px;
+      margin-top: 3px;
+    }
+    .dvc-label {
+      color: #64748b;
+    }
+    .dvc-val {
+      color: #cbd5e1;
+      font-weight: 600;
+    }
+    .dir-detail-zone {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .dir-section-card {
+      background: #0b1220;
+      border: 1px solid #1e293b;
+      border-radius: 10px;
+      padding: 14px 16px;
+    }
+    .dir-section-title {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #64748b;
+      margin: 0 0 10px;
+    }
+    .dir-two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .dir-control-card {
+      background: #080e1b;
+      border: 1px dashed #2c3b59;
+      border-radius: 10px;
+      padding: 14px 16px;
+      margin-top: 4px;
+    }
+    .dir-section-card .stats,
+    .dir-section-card .status-grid {
+      margin: 0;
+    }
+    @media (max-width: 800px) {
+      .dir-two-col { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 640px) {
+      .dir-venue-overview-bar { grid-template-columns: repeat(2, 1fr); }
+    }
+    /* === /方向量化样式 === */
+
+    /* ============================================================
+       方向量化仪表盘 · 升级设计系统 v2
+       ============================================================ */
+    :root {
+      --bg: #0a0f1c;
+      --surface: #111a2e;
+      --surface-2: #16223c;
+      --border: #223049;
+      --border-soft: #1a2540;
+      --text: #e8eefc;
+      --text-muted: #8aa0c6;
+      --text-dim: #5d6f91;
+      --accent: #3b82f6;
+      --accent-soft: #1e3a6b;
+      --pos: #34d399;
+      --neg: #f87171;
+      --warn: #fbbf24;
+      --sp1: 4px; --sp2: 8px; --sp3: 12px; --sp4: 16px; --sp5: 24px; --sp6: 32px;
+      --r: 12px;
+      --r-sm: 8px;
+      --shadow: 0 1px 0 rgba(255,255,255,.02), 0 8px 24px rgba(0,0,0,.35);
+    }
+
+    /* === 方向量化区域整体 === */
+    .strategy-zone-okx {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: var(--sp4) var(--sp4) var(--sp3);
+      margin-bottom: 28px;
+    }
+
+    /* === 区域顶部 Header === */
+    .dir-zone-header { margin-bottom: var(--sp4); }
+    .dir-zone-title-row {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: var(--sp4);
+      flex-wrap: wrap;
+    }
+    .strategy-zone-okx .strategy-banner {
+      font-size: clamp(1rem, 2.5vw, 1.2rem);
+      font-weight: 700;
+      letter-spacing: .025em;
+      color: var(--text);
+      background: linear-gradient(90deg, #2e1e08 0%, #1a2540 100%);
+      border-left: 3px solid var(--warn);
+      border-radius: var(--r-sm);
+      padding: var(--sp3) var(--sp4);
+      margin: 0 0 var(--sp2);
+    }
+    .dir-zone-subtitle {
+      margin: 0;
+      font-size: 11px;
+      color: var(--text-dim);
+      letter-spacing: .05em;
+      text-transform: uppercase;
+    }
+
+    /* === Hero 摘要条 === */
+    .dir-hero-bar {
+      display: flex;
+      align-items: stretch;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r-sm);
+      overflow: hidden;
+      flex-shrink: 0;
+      box-shadow: var(--shadow);
+    }
+    .dir-hero-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: var(--sp3) var(--sp4);
+      gap: 3px;
+      min-width: 100px;
+    }
+    .dir-hero-sep { width: 1px; background: var(--border); flex-shrink: 0; }
+    .dir-hero-label {
+      font-size: 10px;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      white-space: nowrap;
+    }
+    .dir-hero-val {
+      font-size: 20px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      font-feature-settings: "tnum";
+      color: var(--text);
+      white-space: nowrap;
+    }
+    .dir-hero-val-sm { font-size: 16px; font-weight: 600; }
+
+    /* === 四所概览卡片 (升级) === */
+    .strategy-zone-okx .dir-venue-overview-bar {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: var(--sp3);
+      margin: 0 0 var(--sp4);
+    }
+    .strategy-zone-okx .dir-venue-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: var(--sp3) var(--sp4);
+      cursor: pointer;
+      transition: border-color .15s, transform .15s, box-shadow .15s;
+      user-select: none;
+      display: flex;
+      flex-direction: column;
+      gap: var(--sp2);
+      box-shadow: var(--shadow);
+    }
+    .strategy-zone-okx .dir-venue-card:hover {
+      border-color: var(--accent);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(59,130,246,.18), var(--shadow);
+    }
+    .strategy-zone-okx .dir-venue-card.active {
+      border-color: var(--warn);
+      border-left-width: 3px;
+      background: linear-gradient(135deg, #201508 0%, var(--surface-2) 100%);
+      box-shadow: 0 0 0 1px rgba(251,191,36,.12), var(--shadow);
+    }
+    .strategy-zone-okx .dvc-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0;
+    }
+    .strategy-zone-okx .dvc-name {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+    .strategy-zone-okx .dvc-dot { font-size: 12px; line-height: 1; }
+    .strategy-zone-okx .dvc-pnl-label {
+      font-size: 9px;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      margin-bottom: 2px;
+    }
+    .strategy-zone-okx .dvc-pnl-main {
+      font-size: 22px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      font-feature-settings: "tnum";
+      line-height: 1.1;
+    }
+    .strategy-zone-okx .dvc-footer {
+      display: flex;
+      align-items: center;
+      gap: var(--sp2);
+      font-size: 11px;
+      color: var(--text-dim);
+      padding-top: var(--sp1);
+      border-top: 1px solid var(--border-soft);
+    }
+    .strategy-zone-okx .dvc-footer-label { color: var(--text-dim); }
+    .strategy-zone-okx .dvc-footer-val {
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
+      font-feature-settings: "tnum";
+      font-weight: 600;
+    }
+
+    /* === 所切换 Tabs === */
+    .strategy-zone-okx .wb-tabs {
+      display: flex;
+      gap: var(--sp1);
+      flex-wrap: wrap;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r-sm);
+      padding: var(--sp1);
+      width: fit-content;
+      margin-bottom: var(--sp4) !important;
+    }
+    .strategy-zone-okx .wb-tab {
+      padding: 5px 14px;
+      border-radius: 6px;
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--text-muted);
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all .12s;
+      letter-spacing: .03em;
+    }
+    .strategy-zone-okx .wb-tab:hover { background: var(--surface-2); color: var(--text); border-color: var(--border); }
+    .strategy-zone-okx .wb-tab.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+      font-weight: 700;
+    }
+
+    /* === fold-panel 升级 (仅 strategy-zone-okx 内) === */
+    .strategy-zone-okx .fold-panel {
+      background: var(--surface);
+      border-color: var(--border);
+      border-radius: var(--r);
+      box-shadow: var(--shadow);
+    }
+    .strategy-zone-okx .fold-panel > summary {
+      color: var(--text-muted);
+      padding: var(--sp3) var(--sp4);
+    }
+    .strategy-zone-okx .fold-panel[open] > summary {
+      color: var(--text);
+      border-bottom-color: var(--border);
+    }
+    .strategy-zone-okx .fold-panel > summary::before { color: var(--text-dim); }
+    .strategy-zone-okx .fold-panel[open] > summary::before { color: var(--accent); }
+
+    /* === detail-zone 内部间距 === */
+    .strategy-zone-okx .dir-detail-zone { gap: var(--sp4); }
+
+    /* === 区块卡片 === */
+    .strategy-zone-okx .dir-section-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: var(--sp4);
+      box-shadow: var(--shadow);
+    }
+    .strategy-zone-okx .dir-section-title {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      margin: 0 0 var(--sp3);
+      padding-bottom: var(--sp2);
+      border-bottom: 1px solid var(--border-soft);
+    }
+
+    /* === KPI 主网格 === */
+    .dir-kpi-primary {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: var(--sp3);
+      margin-bottom: var(--sp3);
+    }
+    .dir-kpi-secondary {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--sp2);
+      padding-top: var(--sp3);
+      border-top: 1px solid var(--border-soft);
+    }
+    .dir-kpi-card {
+      background: var(--surface-2);
+      border: 1px solid var(--border-soft);
+      border-radius: var(--r-sm);
+      padding: var(--sp3);
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+    .dir-kpi-card.accent {
+      border-color: rgba(59,130,246,.3);
+      background: linear-gradient(135deg, #0d1c38 0%, var(--surface-2) 100%);
+    }
+    .dir-kpi-label {
+      font-size: 10px;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      white-space: nowrap;
+    }
+    .dir-kpi-val {
+      font-size: 24px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      font-feature-settings: "tnum";
+      color: var(--text);
+      line-height: 1.15;
+    }
+    .dir-kpi-val.sm { font-size: 18px; }
+    .dir-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--sp1);
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 600;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+    .dir-chip-label {
+      color: var(--text-dim);
+      font-weight: 400;
+      margin-right: 1px;
+    }
+
+    /* === 两栏并排 === */
+    .strategy-zone-okx .dir-two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--sp4);
+    }
+
+    /* === 统一表格样式 === */
+    .strategy-zone-okx .table-wrap {
+      border: 1px solid var(--border);
+      border-radius: var(--r-sm);
+      overflow: hidden;
+    }
+    .strategy-zone-okx th {
+      background: var(--surface-2);
+      color: var(--text-dim);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      padding: var(--sp2) var(--sp3);
+      border-bottom: 1px solid var(--border);
+      font-weight: 700;
+    }
+    .strategy-zone-okx td {
+      padding: var(--sp2) var(--sp3);
+      border-bottom: 1px solid var(--border-soft);
+      color: var(--text-muted);
+      font-size: 12px;
+    }
+    .strategy-zone-okx tr:last-child td { border-bottom: none; }
+    .strategy-zone-okx tbody tr:hover td { background: rgba(59,130,246,.04); }
+
+    /* === 控制卡片 === */
+    .strategy-zone-okx .dir-control-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: var(--sp4);
+      box-shadow: var(--shadow);
+    }
+    .dir-control-label {
+      display: block;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--text-dim);
+      margin-bottom: var(--sp3);
+      padding-bottom: var(--sp2);
+      border-bottom: 1px solid var(--border-soft);
+    }
+    .dir-control-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--sp3);
+      align-items: flex-end;
+      margin-bottom: var(--sp3);
+    }
+    .dir-control-field { flex: 1 1 140px; }
+    .dir-control-field label {
+      display: block;
+      font-size: 11px;
+      color: var(--text-dim);
+      letter-spacing: .04em;
+      margin-bottom: var(--sp1);
+      font-weight: 500;
+    }
+    .dir-control-field input {
+      width: 100%;
+      box-sizing: border-box;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--r-sm);
+      color: var(--text);
+      padding: 9px 12px;
+      font-size: 14px;
+      font-variant-numeric: tabular-nums;
+      transition: border-color .12s, box-shadow .12s;
+    }
+    .dir-control-field input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px rgba(59,130,246,.15);
+    }
+    .dir-btn-group {
+      display: flex;
+      gap: var(--sp2);
+      flex-wrap: wrap;
+      align-items: flex-end;
+    }
+    .dir-btn {
+      padding: 9px 18px;
+      border-radius: var(--r-sm);
+      border: none;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: filter .12s, transform .1s;
+      white-space: nowrap;
+    }
+    .dir-btn:hover { filter: brightness(1.1); transform: translateY(-1px); }
+    .dir-btn:active { transform: translateY(0); filter: brightness(.95); }
+    .dir-btn-start { background: var(--accent); color: #fff; }
+    .dir-btn-stop {
+      background: transparent;
+      border: 1px solid #ef4444;
+      color: #f87171;
+    }
+    .dir-btn-stop:hover { background: rgba(239,68,68,.1); filter: none; }
+    .dir-btn-save {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+    }
+
+    /* === 折叠区 nested === */
+    .strategy-zone-okx .fold-nested {
+      background: var(--surface-2);
+      border-color: var(--border-soft);
+      border-radius: var(--r-sm);
+    }
+    .strategy-zone-okx .fold-nested > summary {
+      font-size: 13px;
+      color: var(--text-muted);
+      padding: var(--sp2) var(--sp3);
+    }
+    .strategy-zone-okx .fold-nested[open] > summary { color: var(--text); }
+
+    /* === 生成时间注释 === */
+    .dir-gen-at {
+      font-size: 11px;
+      color: var(--text-dim);
+      margin: 0 0 var(--sp2);
+    }
+
+    /* === 响应式 === */
+    @media (max-width: 900px) {
+      .strategy-zone-okx .dir-two-col { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 640px) {
+      .strategy-zone-okx .dir-venue-overview-bar { grid-template-columns: repeat(2, 1fr); }
+      .dir-kpi-primary { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
+      .dir-zone-title-row { flex-direction: column; }
+      .dir-hero-bar { width: 100%; }
+    }
+    /* === / 方向量化升级 v2 === */
+
     @media (max-width: 640px) {
       .container {
         padding: 14px;
@@ -707,12 +1259,15 @@
         padding: 8px 6px;
       }
     }
+    /* 弃用区:carry 控制面状态条(JS 会尝试显示,用 !important 压过);四所概览卡已可切换→隐藏冗余 tab 行。 */
+    #control-plane-bar { display: none !important; }
+    #okx-dir-venue-tabs { display: none !important; }
   </style>
 </head>
 <body>
   <div id="login-gate" style="position:fixed;inset:0;z-index:9999;display:none;align-items:center;justify-content:center;background:rgba(5,9,18,0.96);">
     <div style="width:min(420px,92vw);background:#111a2e;border:1px solid #243049;border-radius:12px;padding:28px 26px;box-shadow:0 18px 60px rgba(0,0,0,0.55);">
-      <h2 style="margin:0 0 6px;font-size:18px;color:#e5edff;">灵犀 · 五策略统一轮动</h2>
+      <h2 style="margin:0 0 6px;font-size:18px;color:#e5edff;">灵犀 · 四所方向量化</h2>
       <div style="font-size:13px;color:#8aa0c6;margin-bottom:18px;">请输入控制令牌进入。令牌打印在后台日志 / 记录目录的 <code>.dashboard_control_token</code> 文件中。</div>
       <label for="gate-token" style="display:block;font-size:12px;color:#8aa0c6;margin-bottom:6px;">控制令牌</label>
       <input id="gate-token" type="password" autocomplete="off" placeholder="粘贴控制令牌"
@@ -727,7 +1282,8 @@
     <header class="dash-header">
       <div class="dash-header-top">
         <div>
-          <h1>灵犀 · 五策略统一轮动</h1>
+          <h1>灵犀 · 四所方向量化</h1>
+          <p class="hint" style="margin:2px 0 4px;font-size:13px;color:#8aa0c6;">OKX · Bybit · Gate · Binance 四所独立方向引擎</p>
           <div class="hint dash-version">构建信息：{{.VersionSummary}}</div>
         </div>
         <div class="toolbar toolbar-compact">
@@ -775,7 +1331,7 @@
     </header>
 
     <!-- 1. 总览区 -->
-    <section class="section section-overview" aria-label="总览">
+    <section class="section section-overview" aria-label="总览" style="display:none" aria-hidden="true">
       <div class="section-head">
         <h2 class="section-title">收益总览</h2>
         <p class="hint section-desc">今日<strong>已实现收益</strong>来自五策略结算台账(北京时间);下方另列账户净值变动(含转账)作对照。</p>
@@ -804,7 +1360,7 @@
     </section>
 
     <!-- 策略一 · 资金费轮动 -->
-    <div class="strategy-zone strategy-zone-carry" aria-label="策略一">
+    <div class="strategy-zone strategy-zone-carry" aria-label="策略一" style="display:none" aria-hidden="true">
       <h2 class="strategy-banner">策略一 · 资金费轮动(Carry,binance/bybit/gate)</h2>
 
     <!-- 2. 操作区 -->
@@ -1188,94 +1744,321 @@
 
     </div>
 
-    <!-- 策略二 · OKX 方向交易 -->
-    <div class="strategy-zone strategy-zone-okx" aria-label="策略二">
-      <h2 class="strategy-banner">策略二 · OKX 方向交易(独立 5X)</h2>
+    <!-- 方向量化(OKX / Bybit / Gate / Binance 四所独立引擎) -->
+    <div class="strategy-zone strategy-zone-okx" aria-label="方向量化">
 
-    <details class="fold-panel" id="okx-directional-fold" open>
-      <summary>OKX 方向引擎(独立) <span class="hint fold-summary-meta" id="okx-dir-summary-meta"></span></summary>
-      <div class="fold-body panel-inner">
-        <p class="hint section-desc">独立于 carry 的 OKX 方向引擎。固定 5X;你只设「交易仓本金」与「止损%(本金基准)」,点开始即真金双向交易。数据/控制:<code>/api/okx-directional</code>。</p>
-        <div class="hint" id="okx-dir-generated-at" style="font-size:11px;margin-bottom:8px;"></div>
-        <div class="ops-group" style="margin-bottom:12px;">
-          <div class="ops-group-label">交易控制(5X 固定)</div>
-          <div class="form-grid" style="margin-bottom:10px;">
-            <div>
-              <label for="okx-dir-capital-input">交易仓本金 (USDT)</label>
-              <input id="okx-dir-capital-input" type="number" min="1" step="1" placeholder="30" style="width:100%;box-sizing:border-box;padding:8px 10px;border-radius:8px;border:1px solid #2c3b59;background:#0b1220;color:#e5edff;">
+      <!-- 顶部：标题 + 全局摘要 Hero -->
+      <div class="dir-zone-header">
+        <div class="dir-zone-title-row">
+          <div>
+            <h2 class="strategy-banner" id="okx-dir-banner-title">灵犀 · 四所方向量化</h2>
+            <p class="dir-zone-subtitle">OKX · Bybit · Gate · Binance &nbsp;|&nbsp; 实盘引擎独立运行</p>
+          </div>
+          <div class="dir-hero-bar">
+            <div class="dir-hero-item">
+              <span class="dir-hero-label">在场总浮盈</span>
+              <span class="dir-hero-val" id="dir-hero-float-pnl">—</span>
             </div>
-            <div>
-              <label for="okx-dir-stop-input">止损 %(交易仓本金基准)</label>
-              <input id="okx-dir-stop-input" type="number" min="1" max="95" step="1" placeholder="50" style="width:100%;box-sizing:border-box;padding:8px 10px;border-radius:8px;border:1px solid #2c3b59;background:#0b1220;color:#e5edff;">
+            <div class="dir-hero-sep"></div>
+            <div class="dir-hero-item">
+              <span class="dir-hero-label">今日合计</span>
+              <span class="dir-hero-val" id="dir-hero-today-pnl">—</span>
+            </div>
+            <div class="dir-hero-sep"></div>
+            <div class="dir-hero-item">
+              <span class="dir-hero-label">运行中 / 总</span>
+              <span class="dir-hero-val dir-hero-val-sm" id="dir-hero-running">—</span>
             </div>
           </div>
-          <div class="risk-actions">
-            <button id="okx-dir-start-btn" type="button">▶ 开始(实盘 5X)</button>
-            <button id="okx-dir-stop-btn" type="button" class="danger">■ 停止开新仓</button>
-            <button id="okx-dir-apply-btn" type="button" class="secondary">仅保存本金/止损</button>
-          </div>
-          <div class="hint" id="okx-dir-control-msg" style="margin-top:8px;font-size:12px;"></div>
-          <div class="hint" style="margin-top:4px;font-size:11px;color:#64748b;">名义 = 本金 × 5;止损按本金 %(50% 本金≈10% 价格)。停止仅不开新仓,已有持仓仍按止损/止盈/信号看护。</div>
-        </div>
-        <div class="status-grid stats">
-          <div class="stat-card"><div class="stat-label">运行</div><div class="stat-value" id="okx-dir-active" style="font-size:16px">-</div></div>
-          <div class="stat-card"><div class="stat-label">交易仓本金(U)</div><div class="stat-value" id="okx-dir-capital" style="font-size:16px">-</div></div>
-          <div class="stat-card"><div class="stat-label">止损%</div><div class="stat-value" id="okx-dir-stop" style="font-size:16px">-</div></div>
-          <div class="stat-card"><div class="stat-label">杠杆</div><div class="stat-value" id="okx-dir-lev" style="font-size:16px">-</div></div>
-          <div class="stat-card"><div class="stat-label">启用</div><div class="stat-value" id="okx-dir-enabled" style="font-size:16px">-</div></div>
-          <div class="stat-card"><div class="stat-label">实盘闸</div><div class="stat-value" id="okx-dir-live" style="font-size:16px">-</div></div>
-        </div>
-        <h3 style="font-size:14px;color:#cbd5e1;margin:12px 0 8px;">当前持仓</h3>
-        <div class="hint" id="okx-dir-positions-summary" style="font-size:12px;margin-bottom:8px;">—</div>
-        <div class="table-wrap" style="overflow-x:auto;margin-bottom:12px;">
-          <table class="data-table" id="okx-dir-positions-table">
-            <thead>
-              <tr>
-                <th>币对</th><th>方向</th><th>开仓价</th><th>名义(U)</th><th>regime</th><th>持有</th>
-              </tr>
-            </thead>
-            <tbody id="okx-dir-positions-tbody"><tr><td colspan="6" class="hint">加载中…</td></tr></tbody>
-          </table>
-        </div>
-        <div class="status-grid stats" hidden aria-hidden="true">
-          <div class="stat-card"><div class="stat-label">币对</div><div class="stat-value" id="okx-dir-symbol" style="font-size:16px">-</div></div>
-          <div class="stat-card"><div class="stat-label">方向</div><div class="stat-value" id="okx-dir-side" style="font-size:16px">-</div></div>
-          <div class="stat-card"><div class="stat-label">开仓价</div><div class="stat-value" id="okx-dir-entry" style="font-size:16px">-</div></div>
-          <div class="stat-card"><div class="stat-label">名义(U)</div><div class="stat-value" id="okx-dir-notional" style="font-size:16px">-</div></div>
-          <div class="stat-card"><div class="stat-label">未实现%</div><div class="stat-value" id="okx-dir-unrealized" style="font-size:16px">-</div></div>
-          <div class="stat-card"><div class="stat-label">持有</div><div class="stat-value" id="okx-dir-hold" style="font-size:14px">-</div></div>
-        </div>
-        <h3 style="font-size:14px;color:#cbd5e1;margin:12px 0 8px;">选币 shortlist(每30min全场)</h3>
-        <div class="table-wrap" style="overflow-x:auto;margin-bottom:12px;">
-          <table class="data-table" id="okx-dir-shortlist-table">
-            <thead>
-              <tr>
-                <th>币对</th><th>综合分</th><th>资费</th><th>波动ATR%</th><th>与BTC相关</th>
-              </tr>
-            </thead>
-            <tbody id="okx-dir-shortlist-tbody"><tr><td colspan="5" class="hint">加载中…</td></tr></tbody>
-          </table>
-        </div>
-        <h3 style="font-size:14px;color:#cbd5e1;margin:12px 0 8px;">当日风控</h3>
-        <div class="status-grid stats">
-          <div class="stat-card"><div class="stat-label">已实现(U)</div><div class="stat-value" id="okx-dir-daily-realized" style="font-size:16px">-</div></div>
-          <div class="stat-card"><div class="stat-label">日亏熔断线(U)</div><div class="stat-value" id="okx-dir-daily-limit" style="font-size:16px">-</div></div>
-        </div>
-        <div class="hint" id="okx-dir-last-error" style="margin-top:8px;font-size:12px;color:#fca5a5;"></div>
-        <h3 style="font-size:14px;color:#cbd5e1;margin:16px 0 8px;">最近平仓</h3>
-        <div class="table-wrap" style="overflow-x:auto;">
-          <table class="data-table" id="okx-dir-recent-table">
-            <thead>
-              <tr>
-                <th>时间</th><th>币对</th><th>方向</th><th>开→平</th><th>名义(U)</th><th>已实现(U)</th><th>持有</th><th>原因</th>
-              </tr>
-            </thead>
-            <tbody id="okx-dir-recent-tbody"><tr><td colspan="8" class="hint">加载中…</td></tr></tbody>
-          </table>
         </div>
       </div>
-    </details>
 
+      <!-- 四所概览条：点击切换当前所 -->
+      <div id="dir-venue-overview-bar" class="dir-venue-overview-bar" aria-label="四所概览">
+        <div class="dir-venue-card active" id="dir-vcard-okx" role="button" tabindex="0"
+             onclick="switchDirectionalVenue('okx')" aria-label="切换至 OKX">
+          <div class="dvc-header">
+            <span class="dvc-name">OKX</span>
+            <span class="dvc-dot" id="dir-vdot-okx" title="运行状态">○</span>
+          </div>
+          <div>
+            <div class="dvc-pnl-label">今日盈亏</div>
+            <div class="dvc-pnl-main" id="dir-vpnl-okx">—</div>
+          </div>
+          <div class="dvc-footer">
+            <span class="dvc-footer-label">持仓</span>
+            <span class="dvc-footer-val" id="dir-vpos-okx">—</span>
+          </div>
+        </div>
+        <div class="dir-venue-card" id="dir-vcard-bybit" role="button" tabindex="0"
+             onclick="switchDirectionalVenue('bybit')" aria-label="切换至 Bybit">
+          <div class="dvc-header">
+            <span class="dvc-name">Bybit</span>
+            <span class="dvc-dot" id="dir-vdot-bybit" title="运行状态">○</span>
+          </div>
+          <div>
+            <div class="dvc-pnl-label">今日盈亏</div>
+            <div class="dvc-pnl-main" id="dir-vpnl-bybit">—</div>
+          </div>
+          <div class="dvc-footer">
+            <span class="dvc-footer-label">持仓</span>
+            <span class="dvc-footer-val" id="dir-vpos-bybit">—</span>
+          </div>
+        </div>
+        <div class="dir-venue-card" id="dir-vcard-gate" role="button" tabindex="0"
+             onclick="switchDirectionalVenue('gate')" aria-label="切换至 Gate">
+          <div class="dvc-header">
+            <span class="dvc-name">Gate</span>
+            <span class="dvc-dot" id="dir-vdot-gate" title="运行状态">○</span>
+          </div>
+          <div>
+            <div class="dvc-pnl-label">今日盈亏</div>
+            <div class="dvc-pnl-main" id="dir-vpnl-gate">—</div>
+          </div>
+          <div class="dvc-footer">
+            <span class="dvc-footer-label">持仓</span>
+            <span class="dvc-footer-val" id="dir-vpos-gate">—</span>
+          </div>
+        </div>
+        <div class="dir-venue-card" id="dir-vcard-binance" role="button" tabindex="0"
+             onclick="switchDirectionalVenue('binance')" aria-label="切换至 Binance">
+          <div class="dvc-header">
+            <span class="dvc-name">Binance</span>
+            <span class="dvc-dot" id="dir-vdot-binance" title="运行状态">○</span>
+          </div>
+          <div>
+            <div class="dvc-pnl-label">今日盈亏</div>
+            <div class="dvc-pnl-main" id="dir-vpnl-binance">—</div>
+          </div>
+          <div class="dvc-footer">
+            <span class="dvc-footer-label">持仓</span>
+            <span class="dvc-footer-val" id="dir-vpos-binance">—</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 所切换 tabs (JS 依赖此元素维护 active 状态) -->
+      <div class="wb-tabs" id="okx-dir-venue-tabs" aria-label="方向交易所">
+        <button type="button" class="wb-tab active" data-dir-venue="okx">OKX</button>
+        <button type="button" class="wb-tab" data-dir-venue="bybit">Bybit</button>
+        <button type="button" class="wb-tab" data-dir-venue="gate">Gate</button>
+        <button type="button" class="wb-tab" data-dir-venue="binance">Binance</button>
+      </div>
+
+      <details class="fold-panel" id="okx-directional-fold" open>
+        <summary>当前所详情 <span class="hint fold-summary-meta" id="okx-dir-summary-meta"></span></summary>
+        <div class="fold-body panel-inner dir-detail-zone">
+
+          <!-- 生成时间 -->
+          <div class="dir-gen-at" id="okx-dir-generated-at"></div>
+
+          <!-- ① 关键指标 KPI 网格 -->
+          <div class="dir-section-card" id="okx-dir-pnl-overview">
+            <div class="dir-section-title">关键指标 <span style="text-transform:none;letter-spacing:0;font-weight:400;color:var(--text-dim);">(策略口径)</span></div>
+            <!-- 主要 KPI：大字号、着色 -->
+            <div class="dir-kpi-primary">
+              <div class="dir-kpi-card accent">
+                <div class="dir-kpi-label">合计今日 (U)</div>
+                <div class="dir-kpi-val" id="okx-dir-total-pnl">-</div>
+              </div>
+              <div class="dir-kpi-card">
+                <div class="dir-kpi-label">在场浮盈 (U)</div>
+                <div class="dir-kpi-val sm" id="okx-dir-uPnL">-</div>
+              </div>
+              <div class="dir-kpi-card">
+                <div class="dir-kpi-label">当日已实现 (U)</div>
+                <div class="dir-kpi-val sm" id="okx-dir-realized">-</div>
+              </div>
+              <div class="dir-kpi-card">
+                <div class="dir-kpi-label">收益率 (占本金)</div>
+                <div class="dir-kpi-val sm" id="okx-dir-pnl-pct">-</div>
+              </div>
+              <div class="dir-kpi-card">
+                <div class="dir-kpi-label">交易仓本金 (U)</div>
+                <div class="dir-kpi-val sm" id="okx-dir-cap">-</div>
+              </div>
+              <div class="dir-kpi-card">
+                <div class="dir-kpi-label">已部署保证金 (U)</div>
+                <div class="dir-kpi-val sm" id="okx-dir-deployed">-</div>
+              </div>
+            </div>
+            <!-- 次级信息 chips -->
+            <div class="dir-kpi-secondary">
+              <div class="dir-chip"><span class="dir-chip-label">运行状态</span><span id="okx-dir-active">-</span></div>
+              <div class="dir-chip"><span class="dir-chip-label">杠杆</span><span id="okx-dir-lev">-</span></div>
+              <div class="dir-chip"><span class="dir-chip-label">启用</span><span id="okx-dir-enabled">-</span></div>
+              <div class="dir-chip"><span class="dir-chip-label">实盘闸</span><span id="okx-dir-live">-</span></div>
+            </div>
+          </div>
+
+          <!-- ② 两栏并排：本所账户(钱包口径) + 日风控 & 运行参数 -->
+          <div class="dir-two-col">
+            <div id="okx-dir-acct-overview" class="dir-section-card">
+              <div class="dir-section-title">本所账户 <span style="text-transform:none;letter-spacing:0;font-weight:400;color:var(--text-dim);">(钱包口径)</span></div>
+              <div class="dir-kpi-primary" style="grid-template-columns:repeat(auto-fit,minmax(120px,1fr));">
+                <div class="dir-kpi-card">
+                  <div class="dir-kpi-label">权益 / 可动 USDT</div>
+                  <div class="dir-kpi-val sm" id="dir-acct-equity">-</div>
+                </div>
+                <div class="dir-kpi-card">
+                  <div class="dir-kpi-label">本金 / 快照</div>
+                  <div class="dir-kpi-val sm" id="dir-acct-capital">-</div>
+                </div>
+                <div class="dir-kpi-card">
+                  <div class="dir-kpi-label">当日净值变动</div>
+                  <div class="dir-kpi-val sm" id="dir-acct-today-earning">-</div>
+                </div>
+                <div class="dir-kpi-card">
+                  <div class="dir-kpi-label">纯交易收益 · 扣充提</div>
+                  <div class="dir-kpi-val sm" id="dir-acct-trading-pnl">-</div>
+                </div>
+              </div>
+              <div style="font-size:11px;margin-top:var(--sp2);color:var(--text-dim);" id="dir-acct-fundflow-note">—</div>
+            </div>
+            <div class="dir-section-card">
+              <div class="dir-section-title">日风控 &amp; 运行参数</div>
+              <div class="dir-kpi-primary" style="grid-template-columns:repeat(auto-fit,minmax(120px,1fr));">
+                <div class="dir-kpi-card">
+                  <div class="dir-kpi-label">已实现 (U)</div>
+                  <div class="dir-kpi-val sm" id="okx-dir-daily-realized">-</div>
+                </div>
+                <div class="dir-kpi-card">
+                  <div class="dir-kpi-label">日亏熔断线 (U)</div>
+                  <div class="dir-kpi-val sm" id="okx-dir-daily-limit">-</div>
+                </div>
+                <div class="dir-kpi-card">
+                  <div class="dir-kpi-label">本金设定 (U)</div>
+                  <div class="dir-kpi-val sm" id="okx-dir-capital">-</div>
+                </div>
+                <div class="dir-kpi-card">
+                  <div class="dir-kpi-label">止损 %</div>
+                  <div class="dir-kpi-val sm" id="okx-dir-stop">-</div>
+                </div>
+              </div>
+              <div id="okx-dir-last-error" style="font-size:12px;color:#fca5a5;margin-top:8px;display:none;"></div>
+            </div>
+          </div>
+
+          <!-- ③ 当前持仓 -->
+          <div class="dir-section-card">
+            <div class="dir-section-title">当前持仓 <span id="okx-dir-positions-summary" style="text-transform:none;letter-spacing:0;font-weight:400;color:var(--text-dim);font-size:10px;margin-left:4px;">—</span></div>
+            <div class="table-wrap" style="overflow-x:auto;margin:0;">
+              <table class="data-table" id="okx-dir-positions-table">
+                <thead>
+                  <tr>
+                    <th>币对</th><th>方向</th><th>开仓价</th><th>名义(U)</th><th>Regime</th><th>浮盈(U)</th><th>浮盈%(本金)</th><th>持有</th>
+                  </tr>
+                </thead>
+                <tbody id="okx-dir-positions-tbody"><tr><td colspan="8" class="hint">加载中…</td></tr></tbody>
+              </table>
+            </div>
+            <!-- 隐藏的 legacy 单仓字段 (JS 使用, 保留 id) -->
+            <div class="status-grid stats" hidden aria-hidden="true">
+              <div class="stat-card"><div class="stat-label">币对</div><div class="stat-value" id="okx-dir-symbol" style="font-size:16px">-</div></div>
+              <div class="stat-card"><div class="stat-label">方向</div><div class="stat-value" id="okx-dir-side" style="font-size:16px">-</div></div>
+              <div class="stat-card"><div class="stat-label">开仓价</div><div class="stat-value" id="okx-dir-entry" style="font-size:16px">-</div></div>
+              <div class="stat-card"><div class="stat-label">名义(U)</div><div class="stat-value" id="okx-dir-notional" style="font-size:16px">-</div></div>
+              <div class="stat-card"><div class="stat-label">未实现%</div><div class="stat-value" id="okx-dir-unrealized" style="font-size:16px">-</div></div>
+              <div class="stat-card"><div class="stat-label">持有</div><div class="stat-value" id="okx-dir-hold" style="font-size:14px">-</div></div>
+            </div>
+          </div>
+
+          <!-- ④ 最近平仓 -->
+          <div class="dir-section-card">
+            <div class="dir-section-title">最近平仓</div>
+            <div class="table-wrap" style="overflow-x:auto;margin:0;">
+              <table class="data-table" id="okx-dir-recent-table">
+                <thead>
+                  <tr>
+                    <th>时间</th><th>币对</th><th>方向</th><th>开→平</th><th>名义(U)</th><th>已实现(U)</th><th>持有</th><th>原因</th>
+                  </tr>
+                </thead>
+                <tbody id="okx-dir-recent-tbody"><tr><td colspan="8" class="hint">加载中…</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- ⑤ 复盘/归因 (默认折叠) -->
+          <details class="fold-panel fold-nested" id="okx-dir-stats" style="margin:0;">
+            <summary>复盘 / 归因</summary>
+            <div class="fold-body">
+              <div class="hint" id="okx-dir-stats-empty">暂无结算</div>
+              <div id="okx-dir-stats-content" style="display:none;">
+                <div style="margin-bottom:12px;">
+                  <div class="hint" style="font-size:11px;margin-bottom:6px;">今日</div>
+                  <div class="status-grid stats" id="okx-dir-stats-today-summary">
+                    <div class="stat-card"><div class="stat-label">成交</div><div class="stat-value" id="okx-dir-stats-today-count" style="font-size:15px">-</div></div>
+                    <div class="stat-card"><div class="stat-label">胜率</div><div class="stat-value" id="okx-dir-stats-today-winrate" style="font-size:15px">-</div></div>
+                    <div class="stat-card"><div class="stat-label">净盈亏</div><div class="stat-value" id="okx-dir-stats-today-net" style="font-size:15px">-</div></div>
+                    <div class="stat-card"><div class="stat-label">均盈 / 均亏</div><div class="stat-value" id="okx-dir-stats-today-avg" style="font-size:13px">-</div></div>
+                  </div>
+                  <div class="table-wrap" style="overflow-x:auto;margin-top:8px;">
+                    <table class="data-table" id="okx-dir-stats-today-reason-table">
+                      <thead><tr><th>出场原因</th><th>笔数</th><th>胜</th><th>净额(U)</th></tr></thead>
+                      <tbody id="okx-dir-stats-today-reason-tbody"><tr><td colspan="4" class="hint">—</td></tr></tbody>
+                    </table>
+                  </div>
+                </div>
+                <div>
+                  <div class="hint" style="font-size:11px;margin-bottom:6px;">累计</div>
+                  <div class="status-grid stats" id="okx-dir-stats-all-summary">
+                    <div class="stat-card"><div class="stat-label">成交</div><div class="stat-value" id="okx-dir-stats-all-count" style="font-size:15px">-</div></div>
+                    <div class="stat-card"><div class="stat-label">胜率</div><div class="stat-value" id="okx-dir-stats-all-winrate" style="font-size:15px">-</div></div>
+                    <div class="stat-card"><div class="stat-label">净盈亏</div><div class="stat-value" id="okx-dir-stats-all-net" style="font-size:15px">-</div></div>
+                    <div class="stat-card"><div class="stat-label">均盈 / 均亏</div><div class="stat-value" id="okx-dir-stats-all-avg" style="font-size:13px">-</div></div>
+                  </div>
+                  <div class="table-wrap" style="overflow-x:auto;margin-top:8px;">
+                    <table class="data-table" id="okx-dir-stats-all-reason-table">
+                      <thead><tr><th>出场原因</th><th>笔数</th><th>胜</th><th>净额(U)</th></tr></thead>
+                      <tbody id="okx-dir-stats-all-reason-tbody"><tr><td colspan="4" class="hint">—</td></tr></tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </details>
+
+          <!-- ⑥ 选币 Shortlist (默认折叠) -->
+          <details class="fold-panel fold-nested" style="margin:0;">
+            <summary>选币 Shortlist <span class="hint fold-summary-meta">(每 30 min 全场刷新)</span></summary>
+            <div class="fold-body">
+              <div class="table-wrap" style="overflow-x:auto;margin:0;">
+                <table class="data-table" id="okx-dir-shortlist-table">
+                  <thead>
+                    <tr>
+                      <th>币对</th><th>综合分</th><th>资费</th><th>波动 ATR%</th><th>与 BTC 相关</th>
+                    </tr>
+                  </thead>
+                  <tbody id="okx-dir-shortlist-tbody"><tr><td colspan="5" class="hint">加载中…</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+          </details>
+
+          <!-- ⑦ 控制区 (底部，布局整洁) -->
+          <div class="dir-control-card">
+            <span class="dir-control-label">交易控制 · 5× 固定杠杆</span>
+            <div class="dir-control-row">
+              <div class="dir-control-field">
+                <label for="okx-dir-capital-input">交易仓本金 (USDT)</label>
+                <input id="okx-dir-capital-input" type="number" min="1" step="1" placeholder="30">
+              </div>
+              <div class="dir-control-field">
+                <label for="okx-dir-stop-input">止损 % (本金基准)</label>
+                <input id="okx-dir-stop-input" type="number" min="1" max="95" step="1" placeholder="50">
+              </div>
+              <div class="dir-btn-group">
+                <button id="okx-dir-start-btn" type="button" class="dir-btn dir-btn-start">▶ 开始</button>
+                <button id="okx-dir-stop-btn" type="button" class="dir-btn dir-btn-stop">■ 停止</button>
+                <button id="okx-dir-apply-btn" type="button" class="dir-btn dir-btn-save">保存</button>
+              </div>
+            </div>
+            <div id="okx-dir-control-msg" style="font-size:12px;margin-bottom:var(--sp2);"></div>
+            <div style="font-size:11px;color:var(--text-dim);">名义 = 本金 × 5；止损按本金 %(50% 本金 ≈ 10% 价格)。停止仅不开新仓，持仓仍按止损/止盈/信号看护。</div>
+          </div>
+
+        </div>
+      </details>
 
     </div>
 
@@ -4061,6 +4844,77 @@
       return s + v.toFixed(2) + "%";
     }
 
+    function renderDirectionalStatsSummary(stats, prefix) {
+      const countEl = document.getElementById("okx-dir-stats-" + prefix + "-count");
+      const winRateEl = document.getElementById("okx-dir-stats-" + prefix + "-winrate");
+      const netEl = document.getElementById("okx-dir-stats-" + prefix + "-net");
+      const avgEl = document.getElementById("okx-dir-stats-" + prefix + "-avg");
+      if (!stats || !Number(stats.trade_count)) {
+        if (countEl) countEl.textContent = "0";
+        if (winRateEl) { winRateEl.textContent = "—"; winRateEl.style.color = ""; }
+        if (netEl) { netEl.textContent = "—"; netEl.style.color = ""; }
+        if (avgEl) avgEl.textContent = "—";
+        return;
+      }
+      if (countEl) countEl.textContent = String(Number(stats.trade_count || 0));
+      if (winRateEl) {
+        const wr = Number(stats.win_rate || 0);
+        winRateEl.textContent = (wr * 100).toFixed(1) + "%";
+        winRateEl.style.color = wr >= 0.5 ? "#86efac" : "#fca5a5";
+      }
+      if (netEl) {
+        const net = Number(stats.net_usdt || 0);
+        netEl.textContent = fmtPnL(net, 2);
+        netEl.style.color = pnlColor(net);
+      }
+      if (avgEl) {
+        const avgWin = Number(stats.avg_win_usdt || 0);
+        const avgLoss = Number(stats.avg_loss_usdt || 0);
+        avgEl.innerHTML = `<span style="color:${pnlColor(avgWin)}">${fmtPnL(avgWin, 2)}</span> / <span style="color:${pnlColor(avgLoss)}">${fmtPnL(avgLoss, 2)}</span>`;
+      }
+    }
+
+    function renderDirectionalReasonTable(stats, tbodyId) {
+      const tbody = document.getElementById(tbodyId);
+      if (!tbody) return;
+      const rows = Array.isArray(stats?.by_reason) ? stats.by_reason : [];
+      if (rows.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" class="hint">—</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = rows.map((r) => {
+        const net = Number(r.net_usdt || 0);
+        return `
+          <tr>
+            <td>${escapeHTML(r.reason || "-")}</td>
+            <td>${Number(r.count || 0)}</td>
+            <td>${Number(r.wins || 0)}</td>
+            <td style="color:${pnlColor(net)}">${escapeHTML(fmtPnL(net, 2))}</td>
+          </tr>`;
+      }).join("");
+    }
+
+    function renderOKXDirectionalStats(st) {
+      const wrap = document.getElementById("okx-dir-stats");
+      const emptyEl = document.getElementById("okx-dir-stats-empty");
+      const contentEl = document.getElementById("okx-dir-stats-content");
+      const today = st?.stats_today;
+      const allTime = st?.stats_all_time;
+      const hasData = !!(today || allTime);
+      const hasTrades = Number(today?.trade_count || 0) > 0 || Number(allTime?.trade_count || 0) > 0;
+      if (emptyEl) emptyEl.style.display = hasData && hasTrades ? "none" : "";
+      if (contentEl) contentEl.style.display = hasData && hasTrades ? "" : "none";
+      if (!hasData || !hasTrades) {
+        if (emptyEl) emptyEl.textContent = hasData ? "暂无结算" : "暂无结算";
+        return;
+      }
+      renderDirectionalStatsSummary(today, "today");
+      renderDirectionalStatsSummary(allTime, "all");
+      renderDirectionalReasonTable(today, "okx-dir-stats-today-reason-tbody");
+      renderDirectionalReasonTable(allTime, "okx-dir-stats-all-reason-tbody");
+      if (wrap) wrap.style.display = "";
+    }
+
     function marketTypeLabel(t) {
       const v = String(t || "").toLowerCase();
       if (v === "perp") return "永续";
@@ -4194,12 +5048,58 @@
       return formatHoldDuration(ms / 1000);
     }
 
+    let currentDirectionalVenue = "okx";
+
+    function directionalVenueLabel(venue) {
+      const v = String(venue || "").toLowerCase();
+      if (v === "okx") return "OKX";
+      if (v === "bybit") return "Bybit";
+      if (v === "gate") return "Gate";
+      if (v === "binance") return "Binance";
+      return v ? v.toUpperCase() : "OKX";
+    }
+
+    function directionalAPIURL(path) {
+      return path + "?venue=" + encodeURIComponent(currentDirectionalVenue);
+    }
+
+    function updateDirectionalVenueUI() {
+      const label = directionalVenueLabel(currentDirectionalVenue);
+      const titleEl = document.getElementById("okx-dir-banner-title");
+      if (titleEl) titleEl.textContent = "策略二 · 方向交易(当前:" + label + ")";
+      const tabs = document.getElementById("okx-dir-venue-tabs");
+      if (tabs) {
+        tabs.querySelectorAll("[data-dir-venue]").forEach((btn) => {
+          btn.classList.toggle("active", btn.getAttribute("data-dir-venue") === currentDirectionalVenue);
+        });
+      }
+    }
+
+    function switchDirectionalVenue(venue) {
+      const v = String(venue || "").toLowerCase();
+      if (v !== "okx" && v !== "bybit" && v !== "gate" && v !== "binance") return;
+      currentDirectionalVenue = v;
+      const capIn = document.getElementById("okx-dir-capital-input");
+      const stopIn = document.getElementById("okx-dir-stop-input");
+      if (capIn) capIn.value = "";
+      if (stopIn) stopIn.value = "";
+      const msgEl = document.getElementById("okx-dir-control-msg");
+      if (msgEl) { msgEl.textContent = ""; msgEl.style.color = ""; }
+      updateDirectionalVenueUI();
+      refreshOKXDirectional();
+    }
+
+    document.getElementById("okx-dir-venue-tabs")?.querySelectorAll("[data-dir-venue]").forEach((btn) => {
+      btn.addEventListener("click", () => switchDirectionalVenue(btn.getAttribute("data-dir-venue")));
+    });
+    updateDirectionalVenueUI();
+
     async function refreshOKXDirectional() {
       const enabledEl = document.getElementById("okx-dir-enabled");
       const liveEl = document.getElementById("okx-dir-live");
       if (!enabledEl && !liveEl) return;
       try {
-        const st = await loadJSON("/api/okx-directional");
+        const st = await loadJSON(directionalAPIURL("/api/okx-directional"));
         const enabled = !!st.enabled;
         const live = !!st.live;
         const halted = !!st.halted_by_daily_loss;
@@ -4263,6 +5163,38 @@
           holdEl.textContent = st.holding_symbol && st.opened_at
             ? holdDurationSinceOpened(st.opened_at) : "—";
         }
+        const capOverviewEl = document.getElementById("okx-dir-cap");
+        if (capOverviewEl) {
+          capOverviewEl.textContent = Number(st.trading_capital_usdt || 0).toFixed(2) + " U";
+        }
+        const deployedEl = document.getElementById("okx-dir-deployed");
+        if (deployedEl) {
+          deployedEl.textContent = Number(st.deployed_margin_usdt || 0).toFixed(2) + " U";
+        }
+        const uPnLEl = document.getElementById("okx-dir-uPnL");
+        if (uPnLEl) {
+          const v = Number(st.total_unrealized_usdt || 0);
+          uPnLEl.textContent = fmtPnL(v, 2) + " U";
+          uPnLEl.style.color = pnlColor(v);
+        }
+        const realizedOverviewEl = document.getElementById("okx-dir-realized");
+        if (realizedOverviewEl) {
+          const v = Number(st.daily_realized_usdt || 0);
+          realizedOverviewEl.textContent = fmtPnL(v, 2) + " U";
+          realizedOverviewEl.style.color = pnlColor(v);
+        }
+        const totalPnlEl = document.getElementById("okx-dir-total-pnl");
+        if (totalPnlEl) {
+          const v = Number(st.total_pnl_today_usdt || 0);
+          totalPnlEl.textContent = fmtPnL(v, 2) + " U";
+          totalPnlEl.style.color = pnlColor(v);
+        }
+        const pnlPctEl = document.getElementById("okx-dir-pnl-pct");
+        if (pnlPctEl) {
+          const v = Number(st.pnl_pct_of_capital || 0);
+          pnlPctEl.textContent = fmtPctRatio(v);
+          pnlPctEl.style.color = pnlColor(v);
+        }
         const posSummaryEl = document.getElementById("okx-dir-positions-summary");
         if (posSummaryEl) {
           const openCount = Number(st.open_count ?? (Array.isArray(st.positions) ? st.positions.length : 0));
@@ -4275,7 +5207,7 @@
         if (posBody) {
           const positions = Array.isArray(st.positions) ? st.positions : [];
           if (positions.length === 0) {
-            posBody.innerHTML = `<tr><td colspan="6" class="hint">空仓</td></tr>`;
+            posBody.innerHTML = `<tr><td colspan="8" class="hint">空仓</td></tr>`;
           } else {
             posBody.innerHTML = positions.map((p) => {
               const entry = Number(p.entry_price || 0) > 0 ? Number(p.entry_price).toFixed(4) : "—";
@@ -4283,6 +5215,8 @@
               const hold = p.opened_at ? holdDurationSinceOpened(p.opened_at) : "—";
               const sideLower = String(p.side || "").toLowerCase();
               const sideColor = sideLower === "long" ? "#86efac" : (sideLower === "short" ? "#fca5a5" : "");
+              const uPnL = Number(p.unrealized_usdt || 0);
+              const uAcctPct = p.unrealized_account_pct;
               return `
             <tr>
               <td>${escapeHTML(p.symbol || "-")}</td>
@@ -4290,6 +5224,8 @@
               <td>${escapeHTML(entry)}</td>
               <td>${escapeHTML(notional)}</td>
               <td>${escapeHTML(p.regime || "-")}</td>
+              <td style="color:${pnlColor(uPnL)}">${escapeHTML(fmtPnL(uPnL))}</td>
+              <td style="color:${pnlColor(uAcctPct)}">${escapeHTML(fmtPctRatio(uAcctPct))}</td>
               <td style="font-size:11px;">${escapeHTML(hold)}</td>
             </tr>`;
             }).join("");
@@ -4329,6 +5265,7 @@
         if (genEl) {
           genEl.textContent = st.generated_at ? ("生成于 " + formatTimeUTC8(st.generated_at)) : "";
         }
+        renderOKXDirectionalStats(st);
         const recentBody = document.getElementById("okx-dir-recent-tbody");
         if (recentBody) {
           const rows = (st.recent || []).map((s) => {
@@ -4353,7 +5290,7 @@
           recentBody.innerHTML = rows || `<tr><td colspan="8" class="hint">暂无最近平仓</td></tr>`;
         }
         try {
-          const uni = await loadJSON("/records/okx_directional/universe.json");
+          const uni = await loadJSON("/records/" + currentDirectionalVenue + "_directional/universe.json");
           const shortBody = document.getElementById("okx-dir-shortlist-tbody");
           if (shortBody) {
             const list = Array.isArray(uni.shortlist) ? uni.shortlist : [];
@@ -4376,6 +5313,54 @@
             shortBody.innerHTML = `<tr><td colspan="5" class="hint">暂无</td></tr>`;
           }
         }
+        try {
+          const earnData = await loadJSON("/api/earnings");
+          const byVenue = earnData.by_venue && typeof earnData.by_venue === "object" ? earnData.by_venue : {};
+          const row = byVenue[currentDirectionalVenue];
+          const equityEl = document.getElementById("dir-acct-equity");
+          const capitalEl = document.getElementById("dir-acct-capital");
+          const todayEarnEl = document.getElementById("dir-acct-today-earning");
+          const tradingPnlEl = document.getElementById("dir-acct-trading-pnl");
+          const fundflowNoteEl = document.getElementById("dir-acct-fundflow-note");
+          if (!row) {
+            if (equityEl) { equityEl.textContent = "—"; equityEl.style.color = ""; }
+            if (capitalEl) { capitalEl.textContent = "—"; capitalEl.style.color = ""; }
+            if (todayEarnEl) { todayEarnEl.textContent = "—"; todayEarnEl.style.color = ""; }
+            if (tradingPnlEl) { tradingPnlEl.textContent = "—"; tradingPnlEl.style.color = ""; }
+            if (fundflowNoteEl) fundflowNoteEl.textContent = "—";
+          } else {
+            if (equityEl) {
+              equityEl.textContent = Number(row.equity_usdt || 0).toFixed(2) + " U";
+              equityEl.style.color = "";
+            }
+            if (capitalEl) {
+              capitalEl.textContent = Number(row.capital_usdt || 0).toFixed(2) + " U";
+              capitalEl.style.color = "";
+            }
+            if (todayEarnEl) {
+              const v = Number(row.today_earning_usdt || 0);
+              todayEarnEl.textContent = fmtPnL(v, 2) + " U";
+              todayEarnEl.style.color = pnlColor(v);
+            }
+            if (tradingPnlEl) {
+              const fundFlowKnown = row.today_fund_flow_known === true;
+              const v = fundFlowKnown ? Number(row.today_trading_pnl_usdt || 0) : Number(row.today_earning_usdt || 0);
+              tradingPnlEl.textContent = fmtPnL(v, 2) + " U";
+              tradingPnlEl.style.color = pnlColor(v);
+            }
+            if (fundflowNoteEl) {
+              const fundFlowKnown = row.today_fund_flow_known === true;
+              const fundFlow = Number(row.today_fund_flow_usdt || 0);
+              if (!fundFlowKnown) {
+                fundflowNoteEl.textContent = "充提未知";
+              } else if (Math.abs(fundFlow) > 1e-6) {
+                fundflowNoteEl.textContent = "含充提 " + fmtPnL(fundFlow, 2) + " U 已扣除";
+              } else {
+                fundflowNoteEl.textContent = "";
+              }
+            }
+          }
+        } catch (_) {}
       } catch (err) {
         const errEl = document.getElementById("okx-dir-last-error");
         if (errEl) {
@@ -4388,13 +5373,55 @@
         }
         const posBody = document.getElementById("okx-dir-positions-tbody");
         if (posBody) {
-          posBody.innerHTML = `<tr><td colspan="6" class="hint" style="color:#fca5a5;">加载失败</td></tr>`;
+          posBody.innerHTML = `<tr><td colspan="8" class="hint" style="color:#fca5a5;">加载失败</td></tr>`;
         }
         const shortBody = document.getElementById("okx-dir-shortlist-tbody");
         if (shortBody) {
           shortBody.innerHTML = `<tr><td colspan="5" class="hint">暂无</td></tr>`;
         }
       }
+    }
+
+    // 四所概览条刷新:并发拉取四所数据,更新迷你卡片;失败则显示「—」不报错。
+    async function refreshDirectionalVenueOverview() {
+      const venues = ["okx", "bybit", "gate", "binance"];
+      let heroFloat = 0, heroToday = 0, heroRunning = 0;
+      await Promise.allSettled(venues.map(async (v) => {
+        const dotEl = document.getElementById("dir-vdot-" + v);
+        const posEl = document.getElementById("dir-vpos-" + v);
+        const pnlEl = document.getElementById("dir-vpnl-" + v);
+        const cardEl = document.getElementById("dir-vcard-" + v);
+        if (cardEl) cardEl.classList.toggle("active", v === currentDirectionalVenue);
+        try {
+          const st = await loadJSON("/api/okx-directional?venue=" + encodeURIComponent(v));
+          const active = !!st.active;
+          if (dotEl) {
+            dotEl.textContent = active ? "●" : "○";
+            dotEl.style.color = active ? "#4ade80" : "#64748b";
+            dotEl.title = active ? "运行中" : "已停止";
+          }
+          const openCount = Number(st.open_count ?? (Array.isArray(st.positions) ? st.positions.length : 0));
+          if (posEl) posEl.textContent = String(openCount);
+          if (pnlEl) {
+            const pv = Number(st.total_pnl_today_usdt || 0);
+            pnlEl.textContent = fmtPnL(pv, 2);
+            pnlEl.style.color = pnlColor(pv);
+          }
+          heroFloat += Number(st.total_unrealized_usdt || 0);
+          heroToday += Number(st.total_pnl_today_usdt || 0);
+          if (active) heroRunning++;
+        } catch (_) {
+          if (dotEl) { dotEl.textContent = "○"; dotEl.style.color = "#64748b"; }
+          if (posEl) posEl.textContent = "—";
+          if (pnlEl) { pnlEl.textContent = "—"; pnlEl.style.color = ""; }
+        }
+      }));
+      const heroFloatEl = document.getElementById("dir-hero-float-pnl");
+      const heroTodayEl = document.getElementById("dir-hero-today-pnl");
+      const heroRunEl = document.getElementById("dir-hero-running");
+      if (heroFloatEl) { heroFloatEl.textContent = fmtPnL(heroFloat, 2); heroFloatEl.style.color = pnlColor(heroFloat); }
+      if (heroTodayEl) { heroTodayEl.textContent = fmtPnL(heroToday, 2); heroTodayEl.style.color = pnlColor(heroToday); }
+      if (heroRunEl) heroRunEl.textContent = heroRunning + " / " + venues.length;
     }
 
     // OKX 方向引擎控制:页面设交易仓本金/止损% + 开始/停止。开始须二次确认(真金 5X)。
@@ -4404,10 +5431,11 @@
       const capital = Number(document.getElementById("okx-dir-capital-input")?.value || "0");
       const stopPct = Number(document.getElementById("okx-dir-stop-input")?.value || "0");
       if (active && !(capital > 0)) { setMsg("请先填交易仓本金(USDT)", false); return; }
-      if (active && !confirm(`确认实盘开始 OKX 方向交易?\n交易仓本金 = ${capital}U × 5X(名义 ${capital * 5}U)\n止损 = ${stopPct || 50}% 本金\n这是真金下单,确认?`)) { return; }
+      const venueLabel = directionalVenueLabel(currentDirectionalVenue);
+      if (active && !confirm(`确认实盘开始 ${venueLabel} 方向交易?\n交易仓本金 = ${capital}U × 5X(名义 ${capital * 5}U)\n止损 = ${stopPct || 50}% 本金\n这是真金下单,确认?`)) { return; }
       const body = { active, trading_capital_usdt: capital, stop_loss_pct: stopPct, confirm: active ? "LIVE" : "" };
       try {
-        await postJSON(controlURL("/api/okx-directional/control"), body);
+        await postJSON(directionalAPIURL("/api/okx-directional/control"), body);
         setMsg(active ? "已开始(实盘 5X)" : "已停止开新仓(持仓仍看护止损)", true);
         refreshOKXDirectional();
       } catch (err) {
@@ -4418,7 +5446,7 @@
     document.getElementById("okx-dir-stop-btn")?.addEventListener("click", () => okxDirectionalControl(false));
     document.getElementById("okx-dir-apply-btn")?.addEventListener("click", async () => {
       let active = false;
-      try { const st = await loadJSON("/api/okx-directional"); active = !!st.active; } catch (e) {}
+      try { const st = await loadJSON(directionalAPIURL("/api/okx-directional")); active = !!st.active; } catch (e) {}
       okxDirectionalControl(active);
     });
 
@@ -4622,6 +5650,15 @@
         const eq = row.equity_usdt;
         const upnl = row.unrealized_pnl_usdt;
         const ret = row.today_return_rate;
+        const fundFlowKnown = row.today_fund_flow_known === true;
+        const fundFlow = Number(row.today_fund_flow_usdt || 0);
+        const tradingPnL = fundFlowKnown ? Number(row.today_trading_pnl_usdt || 0) : Number(earn || 0);
+        let tradingHint = "";
+        if (fundFlowKnown && Math.abs(fundFlow) > 1e-6) {
+          tradingHint = `<div style="font-size:10px;color:#64748b;margin-top:1px;">含充提 ${fmtPnL(fundFlow)} U 已扣除</div>`;
+        } else if (!fundFlowKnown) {
+          tradingHint = `<div style="font-size:10px;color:#64748b;margin-top:1px;">充提未知</div>`;
+        }
         const capBreak = formatVenueCapitalBreakdown(strategyVenueCapitals[v]);
         const capLine = capBreak || `可动用 ${fmtCap(cap)} U`;
         // 主数字用「已实现」(结算台账口径,可信,各所之和=顶部可信已实现);始终展示,无结算则显示 +0。
@@ -4639,6 +5676,8 @@
           <div style="font-size:12px;color:#94a3b8;margin-bottom:2px;">全部资金 ${fmtCap(eq)} U</div>
           ${upnlLine}
           <div style="font-size:11px;color:#64748b;margin-top:3px;" title="账户快照口径:含浮盈与充提转账,与上方「已实现」(结算台账)口径不同,不能直接相加;提币会让此值失真">净值变动(账户口径) ${fmt(earn)} U · 收益率 ${fmtPct(ret)}</div>
+          <div style="font-size:12px;color:${pnlColor(tradingPnL)};margin-top:3px;" title="净值变动(账户口径) − 当日该所净充提 = 纯交易结果">纯交易收益(扣充提) ${fmtPnL(tradingPnL)} U</div>
+          ${tradingHint}
           ${capErr}
         </div>`;
       }).join("");
@@ -4824,7 +5863,20 @@
       }
     }
 
-    document.getElementById("refresh-btn")?.addEventListener("click", () => { refreshDashboard(); refreshVenueOverview(); refreshStrategyStatus(); refreshCrossVenuePanel(); refreshEarnings(); refreshRotationStatus(); refreshRotationPositions(); refreshMissedOpportunities(); refreshCapitalSnapshot(); refreshOKXDirectional(); });
+    document.getElementById("refresh-btn")?.addEventListener("click", () => {
+      refreshEarnings();
+      refreshOKXDirectional();
+      if (false) {
+        refreshDashboard();
+        refreshVenueOverview();
+        refreshStrategyStatus();
+        refreshCrossVenuePanel();
+        refreshRotationStatus();
+        refreshRotationPositions();
+        refreshMissedOpportunities();
+        refreshCapitalSnapshot();
+      }
+    });
     document.getElementById("start-all-btn")?.addEventListener("click", startAllVenues);
     document.getElementById("stop-all-btn")?.addEventListener("click", stopAllVenues);
     document.getElementById("save-risk-config-btn")?.addEventListener("click", saveRiskConfig);
@@ -4979,10 +6031,41 @@
       dashboardStarted = true;
       initCrossVenueValidationControls();
       // 先加载 venue 列表(填充 knownVenues),构建多所卡片(一次),再渲染主面板与状态。
-      loadVenues().then(() => { renderVenueTabs(); buildVenueOverview(); initRecordDownloads(); initRotationControl(); initStrategyControl(); refreshVenueOverview(); refreshStrategyStatus(); refreshCrossVenuePanel(); refreshEarnings(); refreshRotationStatus(); refreshRotationPositions(); refreshMissedOpportunities(); refreshCapitalSnapshot(); refreshOKXDirectional(); });
-      refreshDashboard();
-      setInterval(() => { refreshDashboard(); refreshVenueOverview(); refreshStrategyStatus(); refreshCrossVenuePanel(); refreshEarnings(); refreshRotationPositions(); refreshMissedOpportunities(); refreshCapitalSnapshot(); refreshOKXDirectional(); }, 5000);
-      setInterval(() => { refreshRotationStatus(); }, 8000);
+      loadVenues().then(() => {
+        renderVenueTabs();
+        buildVenueOverview();
+        initRecordDownloads();
+        initRotationControl();
+        initStrategyControl();
+        refreshEarnings();
+        refreshOKXDirectional();
+        refreshDirectionalVenueOverview();
+        if (false) {
+          refreshVenueOverview();
+          refreshStrategyStatus();
+          refreshCrossVenuePanel();
+          refreshRotationStatus();
+          refreshRotationPositions();
+          refreshMissedOpportunities();
+          refreshCapitalSnapshot();
+        }
+      });
+      if (false) { refreshDashboard(); }
+      setInterval(() => {
+        refreshEarnings();
+        refreshOKXDirectional();
+        refreshDirectionalVenueOverview();
+        if (false) {
+          refreshDashboard();
+          refreshVenueOverview();
+          refreshStrategyStatus();
+          refreshCrossVenuePanel();
+          refreshRotationPositions();
+          refreshMissedOpportunities();
+          refreshCapitalSnapshot();
+        }
+      }, 5000);
+      if (false) { setInterval(() => { refreshRotationStatus(); }, 8000); }
     }
 
     async function attemptEnter(tokenFromGate) {

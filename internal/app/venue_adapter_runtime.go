@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"lingxi/internal/venue"
+	"lingxi/internal/venue/bybit"
 	"lingxi/internal/venue/gate"
 	"lingxi/internal/venue/okx"
 )
@@ -20,6 +21,12 @@ import (
 var venuesRequiringAdapter = map[string]bool{
 	okx.VenueName:  true,
 	gate.VenueName: true,
+}
+
+// venuesOptionalAdapter best-effort 注入 venueAdapter 的所:方向量化需要其 venue.Venue 适配器
+// (供方向引擎下单 + 作为 OKX 等所的跨所交叉印证 peer);凭证缺失只跳过该所方向能力,绝不禁用整个 venue 运行时。
+var venuesOptionalAdapter = map[string]bool{
+	bybit.VenueName: true,
 }
 
 // venueAdapterFactory 可注入(单测替换 fake,避免触网)。
@@ -53,14 +60,22 @@ func buildRegisteredVenueAdapter(venueName, secretPath string) (venue.Venue, err
 		return okx.New(cfg)
 	case gate.VenueName:
 		return gate.New(cfg)
+	case bybit.VenueName:
+		return bybit.New(cfg)
 	default:
 		return nil, fmt.Errorf("venue %q 未登记适配器工厂", venueName)
 	}
 }
 
-// wireVenueAdapter 为 okx/gate 注入 venueAdapter;其它所 no-op(币安/bybit 行为不变)。
+// wireVenueAdapter 为 okx/gate(必需)与 bybit(best-effort)注入 venueAdapter;其它所 no-op(币安行为不变)。
+// 必需所凭证缺失 → 返回错误(启动隔离跳过该所);best-effort 所凭证缺失 → 仅日志跳过其方向能力,不致命。
 func wireVenueAdapter(rt *venueRuntime, secretPath string, logger *log.Logger) error {
-	if rt == nil || !venuesRequiringAdapter[rt.name] {
+	if rt == nil {
+		return nil
+	}
+	mandatory := venuesRequiringAdapter[rt.name]
+	optional := venuesOptionalAdapter[rt.name]
+	if !mandatory && !optional {
 		return nil
 	}
 	if secretPath == "" {
@@ -68,6 +83,12 @@ func wireVenueAdapter(rt *venueRuntime, secretPath string, logger *log.Logger) e
 	}
 	adp, err := venueAdapterFactory(rt.name, secretPath)
 	if err != nil {
+		if optional && !mandatory {
+			if logger != nil {
+				logger.Printf("[编排] venue=%s 方向适配器注入失败(best-effort,跳过该所方向能力): %v", rt.name, err)
+			}
+			return nil
+		}
 		return fmt.Errorf("venue=%s 凭证/适配器: %w", rt.name, err)
 	}
 	rt.venueAdapter = adp

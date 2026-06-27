@@ -1,0 +1,17 @@
+[
+  {
+    "symbol": "IP-USDT",
+    "side": "long",
+    "entry_price": 0.3163,
+    "qty": 316,
+    "notional_usdt": 100,
+    "opened_at": "2026-06-27T16:02:59.41006199Z",
+    "regime": "trend",
+    "funding_at_open": -0.0011586969958709,
+    "last_mid": 0.31425000000000003,
+    "last_unrealized_account_pct": -0.0324059437243123,
+    "last_unrealized_usdt": -0.6481188744862459,
+    "initial_notional_usdt": 100,
+    "stop_floor_account_pct": -0.2
+  }
+]

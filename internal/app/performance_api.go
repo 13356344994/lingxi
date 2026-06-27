@@ -111,21 +111,27 @@ type VenuesResponse struct {
 
 // VenueFinancialSnapshot 单所资金快照(实时)与今日收益(北京时间自然日,跨所结算按腿归因)。
 type VenueFinancialSnapshot struct {
-	CapitalUSDT       float64 `json:"capital_usdt"`
-	EquityUSDT        float64 `json:"equity_usdt"`
-	UnrealizedPnLUSDT float64 `json:"unrealized_pnl_usdt"`
-	TodayEarningUSDT  float64 `json:"today_earning_usdt"`
-	TodayReturnRate   float64 `json:"today_return_rate"`
-	CapitalError      string  `json:"capital_error,omitempty"`
+	CapitalUSDT          float64 `json:"capital_usdt"`
+	EquityUSDT           float64 `json:"equity_usdt"`
+	UnrealizedPnLUSDT    float64 `json:"unrealized_pnl_usdt"`
+	TodayEarningUSDT     float64 `json:"today_earning_usdt"`
+	TodayReturnRate      float64 `json:"today_return_rate"`
+	TodayFundFlowUSDT    float64 `json:"today_fund_flow_usdt"`
+	TodayFundFlowKnown   bool    `json:"today_fund_flow_known"`
+	TodayTradingPnLUSDT  float64 `json:"today_trading_pnl_usdt"`
+	CapitalError         string  `json:"capital_error,omitempty"`
 }
 
 // VenuesFinancialTotal 全部注册所的资金与今日收益合计。
 type VenuesFinancialTotal struct {
-	CapitalUSDT       float64 `json:"capital_usdt"`
-	EquityUSDT        float64 `json:"equity_usdt"`
-	UnrealizedPnLUSDT float64 `json:"unrealized_pnl_usdt"`
-	TodayEarningUSDT  float64 `json:"today_earning_usdt"`
-	TodayReturnRate   float64 `json:"today_return_rate"`
+	CapitalUSDT          float64 `json:"capital_usdt"`
+	EquityUSDT           float64 `json:"equity_usdt"`
+	UnrealizedPnLUSDT    float64 `json:"unrealized_pnl_usdt"`
+	TodayEarningUSDT     float64 `json:"today_earning_usdt"`
+	TodayReturnRate      float64 `json:"today_return_rate"`
+	TodayFundFlowUSDT    float64 `json:"today_fund_flow_usdt"`
+	TodayFundFlowKnown   bool    `json:"today_fund_flow_known"`
+	TodayTradingPnLUSDT  float64 `json:"today_trading_pnl_usdt"`
 }
 
 // todayReturnRate 今日收益率 = 今日真实资金变化 / 日初基准账户总值;基准≤0 时返回 0 避免除零。
@@ -206,7 +212,49 @@ func (s *DashboardServer) buildVenuesFinancialSnapshot(now time.Time) (map[strin
 		}
 	}
 	total.TodayReturnRate = todayReturnRate(total.TodayEarningUSDT, totalBaseline)
+	applyVenueTradingPnLFromFundFlow(byVenue, &total, s.recordDir)
 	return byVenue, total, dayStart
+}
+
+// applyVenueTradingPnLFromFundFlow 用账户风控 per-venue 充提明细(或账户级兜底)计算各所/合计纯交易收益。
+func applyVenueTradingPnLFromFundFlow(byVenue map[string]VenueFinancialSnapshot, total *VenuesFinancialTotal, recordDir string) {
+	if total == nil {
+		return
+	}
+	st, ok := loadAccountRiskEquityState(recordDir)
+	perVenueKnown := ok && st.DailyFundFlowSource != "heuristic" && len(st.DailyFundFlowByVenueUSDT) > 0
+
+	var sumPerVenueFundFlow float64
+	for name, entry := range byVenue {
+		if perVenueKnown {
+			ff, has := st.DailyFundFlowByVenueUSDT[name]
+			if has {
+				entry.TodayFundFlowKnown = true
+				entry.TodayFundFlowUSDT = ff
+				entry.TodayTradingPnLUSDT = money.SumUSDT(entry.TodayEarningUSDT, -ff)
+				sumPerVenueFundFlow = money.SumUSDT(sumPerVenueFundFlow, ff)
+			} else {
+				entry.TodayTradingPnLUSDT = entry.TodayEarningUSDT
+			}
+		} else {
+			entry.TodayTradingPnLUSDT = entry.TodayEarningUSDT
+		}
+		byVenue[name] = entry
+	}
+
+	if perVenueKnown {
+		total.TodayFundFlowKnown = true
+		total.TodayFundFlowUSDT = sumPerVenueFundFlow
+		total.TodayTradingPnLUSDT = money.SumUSDT(total.TodayEarningUSDT, -sumPerVenueFundFlow)
+		return
+	}
+	if ok && st.DailyFundFlowSource != "heuristic" {
+		total.TodayFundFlowKnown = true
+		total.TodayFundFlowUSDT = st.DailyFundFlowAdjustUSDT
+		total.TodayTradingPnLUSDT = money.SumUSDT(total.TodayEarningUSDT, -st.DailyFundFlowAdjustUSDT)
+		return
+	}
+	total.TodayTradingPnLUSDT = total.TodayEarningUSDT
 }
 
 // handleVenuesAPI 返回编排器已注册的 venue 列表(注册序)与缺省所,供前端构建 venue 选择器。

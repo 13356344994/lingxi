@@ -1,0 +1,49 @@
+[
+  {
+    "symbol": "SNX-USDT",
+    "side": "long",
+    "entry_price": 0.2254,
+    "qty": 443,
+    "notional_usdt": 100,
+    "opened_at": "2026-06-27T15:00:15.225908831Z",
+    "regime": "trend",
+    "funding_at_open": -0.0009400909555151,
+    "last_mid": 0.22425,
+    "last_unrealized_account_pct": -0.025510204081632307,
+    "last_unrealized_usdt": -0.5102040816326462,
+    "initial_notional_usdt": 100,
+    "stop_floor_account_pct": -0.2
+  },
+  {
+    "symbol": "BSB-USDT",
+    "side": "long",
+    "entry_price": 0.2946,
+    "qty": 330,
+    "notional_usdt": 100,
+    "opened_at": "2026-06-27T15:00:23.709175454Z",
+    "regime": "trend",
+    "funding_at_open": 0.0005526476912812,
+    "last_mid": 0.29505,
+    "last_unrealized_account_pct": 0.00763747454175163,
+    "last_unrealized_usdt": 0.1527494908350326,
+    "initial_notional_usdt": 100,
+    "peak_account_pct": 0.00763747454175163,
+    "stop_floor_account_pct": -0.2
+  },
+  {
+    "symbol": "BICO-USDT",
+    "side": "long",
+    "entry_price": 0.0197829964398735,
+    "qty": 5056,
+    "notional_usdt": 100,
+    "opened_at": "2026-06-27T14:53:05.900806946Z",
+    "regime": "trend",
+    "funding_at_open": -0.0016296067187375,
+    "last_mid": 0.019784999999999997,
+    "last_unrealized_account_pct": 0.0005063843924218237,
+    "last_unrealized_usdt": 0.010127687848436474,
+    "initial_notional_usdt": 100,
+    "peak_account_pct": 0.0005063843924218237,
+    "stop_floor_account_pct": -0.2
+  }
+]

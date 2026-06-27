@@ -6,6 +6,7 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"math"
@@ -17,6 +18,9 @@ import (
 	"time"
 
 	"lingxi/internal/venue"
+	"lingxi/internal/venue/binance"
+	"lingxi/internal/venue/bybit"
+	"lingxi/internal/venue/gate"
 	"lingxi/internal/venue/okx"
 )
 
@@ -88,6 +92,7 @@ type okxDirectionalSettlement struct {
 
 // OKXDirectionalStatus 只读快照(面板/监控用)。
 type OKXDirectionalStatus struct {
+	Venue               string `json:"venue"`
 	Enabled             bool
 	Live                bool
 	Active              bool    // 页面"开始/停止"
@@ -133,8 +138,9 @@ type OKXDirectionalPositionView struct {
 type OKXDirectionalEngine struct {
 	cfg       OKXDirectionalConfig
 	netCfg    EngineConfig
-	okxV      venue.Venue
-	okxA      *okx.Adapter
+	v         DirectionalVenue
+	venueName string
+	peers     map[string]DirectionalVenue // G3 跨所;本阶段可为 nil
 	logger    *log.Logger
 	recordDir string
 	nowFn     func() time.Time
@@ -152,6 +158,8 @@ type OKXDirectionalEngine struct {
 	controlPath       string
 	control           okxDirectionalControl
 	lastProvisionAt   time.Time
+	delistGuard       *DelistGuard
+	annGuard          *okxAnnouncementGuard
 }
 
 // okxDirectionalControl 页面可控运行态(records/okx_directional/control.json):
@@ -163,28 +171,29 @@ type okxDirectionalControl struct {
 	UpdatedAt          time.Time `json:"updated_at"`
 }
 
-// NewOKXDirectionalEngine 从 Orchestrator 解析 OKX 适配器并加载持久化持仓。
-func NewOKXDirectionalEngine(cfg EngineConfig, orch *Orchestrator, recordDir string, logger *log.Logger) (*OKXDirectionalEngine, error) {
-	v := crossVenueAdapterFromOrchestrator(orch, okx.VenueName)
+// NewDirectionalEngine 通用方向引擎构造:注入 venue 适配器并加载持久化持仓。
+func NewDirectionalEngine(venueName string, v DirectionalVenue, peers map[string]DirectionalVenue, cfg EngineConfig, recordDir string, logger *log.Logger) (*OKXDirectionalEngine, error) {
 	if v == nil {
-		return nil, fmt.Errorf("okx 适配器未注册")
-	}
-	okxA, ok := v.(*okx.Adapter)
-	if !ok {
-		return nil, fmt.Errorf("okx 适配器类型断言失败(期望 *okx.Adapter)")
+		return nil, fmt.Errorf("%s 适配器未注册", venueName)
 	}
 	if logger == nil {
 		logger = log.Default()
 	}
-	dir := okxDirectionalRecordDir(recordDir)
+	// 多所方向引擎共享 "[OKX方向]" 消息前缀:非 okx 所再套一层 "[venue]" 以便按所区分/检索;
+	// okx 保持原样(不打断既有监控)。beijingLogWriter 互斥写,子 logger 共享写入器安全。
+	if venueName != okx.VenueName {
+		logger = log.New(logger.Writer(), logger.Prefix()+"["+venueName+"]", logger.Flags())
+	}
+	dir := directionalRecordDir(recordDir, venueName)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return nil, fmt.Errorf("创建 okx_directional 目录失败: %w", err)
+		return nil, fmt.Errorf("创建 %s_directional 目录失败: %w", venueName, err)
 	}
 	e := &OKXDirectionalEngine{
 		cfg:             cfg.OKXDirectional,
 		netCfg:          cfg,
-		okxV:            v,
-		okxA:            okxA,
+		v:               v,
+		venueName:       venueName,
+		peers:           peers,
 		logger:          logger,
 		recordDir:       dir,
 		nowFn:           time.Now,
@@ -204,15 +213,71 @@ func NewOKXDirectionalEngine(cfg EngineConfig, orch *Orchestrator, recordDir str
 			e.positions[p.Symbol] = p
 		}
 	}
+	venues := map[string]venue.Venue{venueName: v}
+	for name, pv := range peers {
+		venues[name] = pv
+	}
+	e.delistGuard = NewDelistGuard(venues, DefaultDelistGuardConfig(), logger)
+	if venueName == okx.VenueName {
+		e.annGuard = newOKXAnnouncementGuard(logger)
+	}
 	return e, nil
 }
 
-func okxDirectionalRecordDir(base string) string {
+func buildDirectionalPeers(orch *Orchestrator, self string, logger *log.Logger) map[string]DirectionalVenue {
+	peers := make(map[string]DirectionalVenue)
+	for _, name := range []string{okx.VenueName, binance.VenueName, bybit.VenueName, gate.VenueName} {
+		if name == self {
+			continue
+		}
+		adp := crossVenueAdapterFromOrchestrator(orch, name)
+		if adp == nil {
+			continue
+		}
+		if dv, ok := adp.(DirectionalVenue); ok {
+			peers[name] = dv
+		} else if logger != nil {
+			logger.Printf("[方向][跨所] %s 适配器未实现 DirectionalVenue,跳过", name)
+		}
+	}
+	return peers
+}
+
+// NewDirectionalEngineForVenue 从 Orchestrator 按所名构造方向引擎。
+func NewDirectionalEngineForVenue(venueName string, cfg EngineConfig, orch *Orchestrator, recordDir string, logger *log.Logger) (*OKXDirectionalEngine, error) {
+	v := crossVenueAdapterFromOrchestrator(orch, venueName)
+	if v == nil {
+		return nil, fmt.Errorf("%s 适配器未注册", venueName)
+	}
+	dv, ok := v.(DirectionalVenue)
+	if !ok {
+		return nil, fmt.Errorf("%s 适配器未实现 DirectionalVenue", venueName)
+	}
+	peers := buildDirectionalPeers(orch, venueName, logger)
+	return NewDirectionalEngine(venueName, dv, peers, cfg, recordDir, logger)
+}
+
+// NewOKXDirectionalEngine 从 Orchestrator 解析 OKX 适配器并委托 NewDirectionalEngineForVenue。
+func NewOKXDirectionalEngine(cfg EngineConfig, orch *Orchestrator, recordDir string, logger *log.Logger) (*OKXDirectionalEngine, error) {
+	return NewDirectionalEngineForVenue(okx.VenueName, cfg, orch, recordDir, logger)
+}
+
+// Venue 返回引擎所属交易所名。
+func (e *OKXDirectionalEngine) Venue() string { return e.venueName }
+
+// SettlementsPath 返回结算记录文件路径。
+func (e *OKXDirectionalEngine) SettlementsPath() string { return e.settlementsPath }
+
+func directionalRecordDir(base, venueName string) string {
 	base = strings.TrimSpace(base)
 	if base == "" {
 		base = "records"
 	}
-	return filepath.Join(base, "okx_directional")
+	return filepath.Join(base, venueName+"_directional")
+}
+
+func okxDirectionalRecordDir(base string) string {
+	return directionalRecordDir(base, "okx")
 }
 
 // Run 主循环:日界刷新 → 持仓管理 / 扫描开仓。
@@ -243,29 +308,34 @@ func (e *OKXDirectionalEngine) runOnce(ctx context.Context) {
 	e.refreshCSTDay()
 	// 每 ~30min 全场扫描刷新 shortlist(综合分:资费+波动+热度+BTC情境);90s 循环只在 shortlist 上动作。
 	e.maybeRebuildUniverse(ctx)
+	if e.annGuard != nil {
+		e.annGuard.Refresh(ctx)
+	}
+	if e.delistGuard != nil {
+		e.delistGuard.Refresh(ctx)
+	}
 	// 持仓始终管理(即便页面已停止,也继续看护止损/止盈/反转,绝不撒手不管)。先管理(可能腾出仓位),再补开。
 	e.manageAll(ctx)
 	// 开新仓须页面"开始"(control.Active);日熔断按用户要求默认关闭(DailyLossLimitUSDT=0 → 永不熔断)。
 	ctrl := e.getControl()
 	if ctrl.Active {
-		// 空仓时把 OKX 统一交易账户可动用 USDT 调到交易仓本金 M(多退少补),使"设多少=账户多少"。
-		e.provisionCapitalIfFlat(ctx)
+		// 把 OKX 统一交易账户可动用 USDT 向交易仓本金 M 靠拢(空仓双向调平;持仓时单向从资金账户补进闲置资金,使剩余空位能开出)。
+		e.provisionCapital(ctx)
 		if !directionalDailyLossHalted(e.dailyRealizedUSDT, e.cfg.DailyLossLimitUSDT) && e.concurrencyAllows() {
 			e.openFromShortlist(ctx)
 		}
 	}
 }
 
-// provisionCapitalIfFlat 空仓时把统一交易账户可动用 USDT 调到交易仓本金 M(超出移到资金账户,不足从资金账户补)。
-// 仅空仓时执行:此时可用=账户权益,不会与持仓占用保证金口径冲突;节流 5min。
-func (e *OKXDirectionalEngine) provisionCapitalIfFlat(ctx context.Context) {
+// provisionCapital 把统一交易账户可动用 USDT 向交易仓本金 M 靠拢:
+//   - 空仓:双向调平到 M(超出回资金账户、不足从资金账户补);
+//   - 持仓:ExecuteRebalance 只搬「自由资金」、绝不动已锁定保证金,故持仓期间也安全运行——
+//     把资金账户里闲置的 USDT 单向补进交易账户,让剩余空位也能开出(修「持仓后开不出新仓」)。
+// 节流 5min。
+func (e *OKXDirectionalEngine) provisionCapital(ctx context.Context) {
 	e.mu.RLock()
-	flat := len(e.positions) == 0
 	last := e.lastProvisionAt
 	e.mu.RUnlock()
-	if !flat {
-		return
-	}
 	if !last.IsZero() && e.nowFn().UTC().Sub(last) < 5*time.Minute {
 		return
 	}
@@ -273,34 +343,65 @@ func (e *OKXDirectionalEngine) provisionCapitalIfFlat(ctx context.Context) {
 	if m <= 0 {
 		return
 	}
-	snaps, _, err := e.okxA.CaptureMovableSnapshot(ctx)
+	caps := e.v.Capabilities()
+	if caps.UnifiedWallet {
+		// 统一账户所(如 Bybit/Gate):无所内 funding↔trading 划转概念,可用即交易本金,不折腾。
+		// OKX 虽 UnifiedWallet=true(现货/永续同池),CapitalWallets 仍含 "trading" 分仓,继续走下方逻辑。
+		hasTradingWallet := false
+		for _, w := range caps.CapitalWallets {
+			if w == venue.Wallet("trading") {
+				hasTradingWallet = true
+				break
+			}
+		}
+		if !hasTradingWallet {
+			return
+		}
+	}
+	snaps, totalMovable, err := e.v.CaptureMovableSnapshot(ctx)
 	if err != nil {
-		e.logger.Printf("[OKX方向][资金] 读取账户快照失败: %v", err)
+		// 该所不支持所内钱包划转(如 binance 只读适配器)→ 静默跳过补仓,不刷错误噪声;直接用账户现有可用交易。
+		if !errors.Is(err, venue.ErrUnsupported) {
+			e.logger.Printf("[OKX方向][资金] 读取账户快照失败: %v", err)
+		}
 		return
 	}
 	var tradingAvail float64
 	for _, s := range snaps {
-		if s.Wallet == okx.WalletTrading {
+		if s.Wallet == venue.Wallet("trading") {
 			tradingAvail = s.FreeUSDT
 		}
 	}
 	e.mu.Lock()
 	e.lastProvisionAt = e.nowFn().UTC()
 	e.mu.Unlock()
-	if math.Abs(tradingAvail-m) <= 2.0 {
-		return // 已接近 M,不折腾
+	// 目标「交易账户自由可用」= 交易仓本金 − 已占保证金(已占部分被锁定、不在可调内);
+	// 再夹到可调总额(trading+funding 自由)以内——避免持仓时把目标错设成全额 M 导致 target>可调 报错。
+	// 空仓时 deployedMargin=0 → target=min(M, 可调总额),与旧「调到 M」等价。
+	target := m - e.deployedMarginUSDT()
+	if target < 0 {
+		target = 0
+	}
+	if target > totalMovable {
+		target = totalMovable
+	}
+	if math.Abs(tradingAvail-target) <= 2.0 {
+		return // 已接近目标自由可用,不折腾
 	}
 	if !e.cfg.LiveTradingEnabled {
-		e.logger.Printf("[OKX方向][资金][OFF] 拟把交易账户可用 %.2f 调到 %.2f", tradingAvail, m)
+		e.logger.Printf("[OKX方向][资金][OFF] 拟把交易账户可用 %.2f 调到 %.2f(本金%.2f−已占保证金,夹于可调%.2f)", tradingAvail, target, m, totalMovable)
 		return
 	}
-	plan := e.okxA.PlanAllocation(m, e.okxV.Capabilities())
-	trs, rerr := e.okxA.ExecuteRebalance(ctx, plan)
+	plan := e.v.PlanAllocation(target, caps)
+	trs, rerr := e.v.ExecuteRebalance(ctx, plan)
 	if rerr != nil {
-		e.logger.Printf("[OKX方向][资金] 调账户到 %.2f 失败: %v", m, rerr)
+		e.logger.Printf("[OKX方向][资金] 调账户到 %.2f 失败: %v", target, rerr)
 		return
 	}
-	e.logger.Printf("[OKX方向][资金] 已把统一交易账户可用调到≈%.2f(原%.2f)划转%d笔", m, tradingAvail, len(trs))
+	if len(trs) == 0 {
+		return // 资金账户无可补余额 / 已达目标:不打无效日志
+	}
+	e.logger.Printf("[OKX方向][资金] 交易账户可用 %.2f→目标 %.2f(本金%.2f−已占保证金),划转 %d 笔", tradingAvail, target, m, len(trs))
 }
 
 // maybeRebuildUniverse 到点(或 shortlist 空)就全场扫描重算 shortlist。失败保留旧 shortlist。
@@ -315,12 +416,12 @@ func (e *OKXDirectionalEngine) maybeRebuildUniverse(ctx context.Context) {
 	if !due {
 		return
 	}
-	snaps, err := e.okxV.FetchFundingSnapshot(ctx)
+	snaps, err := e.v.FetchFundingSnapshot(ctx)
 	if err != nil {
 		e.logger.Printf("[OKX方向][选币] 拉资费快照失败,沿用旧 shortlist: %v", err)
 		return
 	}
-	sl, err := scanOKXUniverse(ctx, e.okxA, e.okxV, snaps, e.cfg, e.logger)
+	sl, err := scanOKXUniverse(ctx, e.v, snaps, e.cfg, e.logger)
 	if err != nil {
 		e.logger.Printf("[OKX方向][选币] 全场扫描失败,沿用旧 shortlist: %v", err)
 		return
@@ -412,6 +513,7 @@ func (e *OKXDirectionalEngine) OKXDirectionalStatus() OKXDirectionalStatus {
 		stop = e.cfg.StopLossPct
 	}
 	st := OKXDirectionalStatus{
+		Venue:              e.venueName,
 		Enabled:            e.cfg.Enabled,
 		Live:               e.cfg.LiveTradingEnabled,
 		Active:             e.control.Active,
@@ -570,6 +672,18 @@ func (e *OKXDirectionalEngine) openFromShortlist(ctx context.Context) {
 		if until, ok := cooldown[sym]; ok && now.Before(until) {
 			continue
 		}
+		if e.delistGuard != nil {
+			if nonTrading, known := e.delistGuard.IsNonTrading(e.venueName, sym, venue.MarketPerp); nonTrading && known {
+				e.logger.Printf("[OKX方向][下架守卫] %s 非交易/下架状态,跳过开仓", sym)
+				continue
+			}
+		}
+		if e.annGuard != nil {
+			if risky, reason := e.annGuard.IsRisky(sym); risky {
+				e.logger.Printf("[OKX方向][公告] %s 命中风险公告,跳过开仓: %s", sym, reason)
+				continue
+			}
+		}
 		closes, cerr := e.fetchCloses(ctx, venue.Symbol(sym))
 		if cerr != nil {
 			e.logger.Printf("[OKX方向] %s K线失败: %v", sym, cerr)
@@ -611,11 +725,66 @@ func (e *OKXDirectionalEngine) openFromShortlist(ctx context.Context) {
 		if opened >= slots {
 			break
 		}
+		peersDir := e.gatherPeerDirections(ctx, p.sym)
+		convDelta, veto, creason := crossVenueCorroboration(p.signal.Side, peersDir, e.cfg)
+		if veto {
+			e.logger.Printf("[OKX方向][跨所] 否决 %s %s: %s", p.sym, p.signal.Side.String(), creason)
+			continue
+		}
+		if convDelta != 0 {
+			p.signal.Conviction = clamp01(p.signal.Conviction + convDelta)
+		}
+		if creason != "" && creason != "无跨所数据" {
+			e.logger.Printf("[OKX方向][跨所] %s %s %s 信心→%.2f", p.sym, p.signal.Side.String(), creason, p.signal.Conviction)
+		}
 		if e.openPosition(ctx, p.sym, p.signal, p.rate) {
 			opened++
 		}
 	}
 	_ = nSignal
+}
+
+// gatherPeerDirections best-effort 拉其他所同币近窗 K 线并判方向;该所无此币/失败则跳过(不计入)。
+func (e *OKXDirectionalEngine) gatherPeerDirections(ctx context.Context, sym string) []peerDirState {
+	if len(e.peers) == 0 {
+		return nil
+	}
+	bar := strings.TrimSpace(e.cfg.CandleBar)
+	if bar == "" {
+		bar = "5m"
+	}
+	limit := e.cfg.CandleLimit
+	if limit <= 0 {
+		limit = 120
+	}
+	win := e.cfg.SignalWindowBars
+	if win <= 0 {
+		win = 24
+	}
+	deadband := e.cfg.CrossVenueDeadbandPct
+	if deadband <= 0 {
+		deadband = 0.003
+	}
+	out := make([]peerDirState, 0, len(e.peers))
+	for name, pv := range e.peers {
+		if pv == nil {
+			continue
+		}
+		cctx, cancel := context.WithTimeout(ctx, 8*time.Second)
+		candles, err := pv.FetchCandles(cctx, venue.MarketPerp, venue.Symbol(sym), bar, limit)
+		cancel()
+		if err != nil || len(candles) < 2 {
+			continue
+		}
+		closes := make([]float64, 0, len(candles))
+		for _, c := range candles {
+			if c.Close > 0 {
+				closes = append(closes, c.Close)
+			}
+		}
+		out = append(out, peerDirState{Venue: name, Side: recentDirection(closes, win, deadband)})
+	}
+	return out
 }
 
 func (e *OKXDirectionalEngine) fetchCloses(ctx context.Context, sym venue.Symbol) ([]float64, error) {
@@ -627,7 +796,7 @@ func (e *OKXDirectionalEngine) fetchCloses(ctx context.Context, sym venue.Symbol
 	if limit <= 0 {
 		limit = 120
 	}
-	candles, err := e.okxA.FetchCandles(ctx, venue.MarketPerp, sym, bar, limit)
+	candles, err := e.v.FetchCandles(ctx, venue.MarketPerp, sym, bar, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -642,7 +811,7 @@ func (e *OKXDirectionalEngine) fetchCloses(ctx context.Context, sym venue.Symbol
 
 // openPosition 开单仓:每仓本金 = 交易仓本金/MaxConcurrent,名义 = 每仓本金 × 杠杆;开仓前预检永续可用保证金。成功返回 true。
 func (e *OKXDirectionalEngine) openPosition(ctx context.Context, sym string, sig DirectionalSignal, fundingRate float64) bool {
-	book, err := e.okxV.FetchBookTicker(ctx, venue.MarketPerp, venue.Symbol(sym))
+	book, err := e.v.FetchBookTicker(ctx, venue.MarketPerp, venue.Symbol(sym))
 	if err != nil {
 		e.setLastError(err.Error())
 		e.logger.Printf("[OKX方向] %s 盘口失败: %v", sym, err)
@@ -653,13 +822,21 @@ func (e *OKXDirectionalEngine) openPosition(ctx context.Context, sym string, sig
 		e.setLastError("mid<=0")
 		return false
 	}
-	instr, ok := lookupVenueInstrumentForMarket(ctx, e.okxV, venue.Symbol(sym), venue.MarketPerp)
+	// 修复B:开仓流动性闸——盘口价差过大(薄盘)直接跳过开仓。
+	if e.cfg.MaxOpenSpreadBps > 0 && book.BidPrice > 0 && book.AskPrice > 0 {
+		spreadBps := (book.AskPrice - book.BidPrice) / mid * 10000
+		if spreadBps > e.cfg.MaxOpenSpreadBps {
+			e.logger.Printf("[OKX方向][流动性] %s 盘口价差 %.0fbps > %.0fbps,薄盘跳过开仓", sym, spreadBps, e.cfg.MaxOpenSpreadBps)
+			return false
+		}
+	}
+	instr, ok := lookupVenueInstrumentForMarket(ctx, e.v, venue.Symbol(sym), venue.MarketPerp)
 	if !ok {
 		e.setLastError("instrument 缺失")
 		e.logger.Printf("[OKX方向] %s 无 instrument 元数据,跳过开仓", sym)
 		return false
 	}
-	caps := e.okxV.Capabilities()
+	caps := e.v.Capabilities()
 	// 每仓本金 = 交易仓本金 / 最大并发;名义 = 每仓本金 × 杠杆。总并发满仓总名义=本金×杠杆,总风险=本金(加仓不放大总敞口)。
 	ctrl := e.getControl()
 	perPosCapital := ctrl.TradingCapitalUSDT / float64(e.maxConcurrent())
@@ -695,11 +872,11 @@ func (e *OKXDirectionalEngine) openPosition(ctx context.Context, sym string, sig
 		return false
 	}
 	// 交易所侧可用保证金兜底预检。
-	if avail, merr := fetchVenuePerpAvailableUSDT(ctx, e.okxV); merr == nil && avail+1e-9 < perPosCapital {
+	if avail, merr := fetchVenuePerpAvailableUSDT(ctx, e.v); merr == nil && avail+1e-9 < perPosCapital {
 		e.logger.Printf("[OKX方向] %s 永续可用 %.2f < 每仓本金 %.2f,跳过开仓", sym, avail, perPosCapital)
 		return false
 	}
-	if err := e.okxV.SetLeverage(ctx, venue.Symbol(sym), e.leverage()); err != nil {
+	if err := e.v.SetLeverage(ctx, venue.Symbol(sym), e.leverage()); err != nil {
 		e.setLastError(err.Error())
 		e.logger.Printf("[OKX方向] %s 设杠杆失败: %v", sym, err)
 		return false
@@ -715,9 +892,9 @@ func (e *OKXDirectionalEngine) openPosition(ctx context.Context, sym string, sig
 		e.logger.Printf("[OKX方向] %s 开仓失败: %v", sym, oerr)
 		return false
 	}
-	fillPrice := res.AvgPrice
-	if fillPrice <= 0 {
-		fillPrice = mid
+	fillPrice, trusted := sanitizeFillPrice(res.AvgPrice, mid, e.cfg.FillPriceMaxDevPct)
+	if !trusted {
+		e.logger.Printf("[OKX方向][记账] %s 开仓成交价 %.6f 偏离 mid %.6f 过大或无效,记账回退 mid", sym, res.AvgPrice, mid)
 	}
 	pos := &okxDirectionalPosition{
 		Symbol:        sym,
@@ -755,7 +932,7 @@ func (e *OKXDirectionalEngine) manageOne(ctx context.Context, pos *okxDirectiona
 		return
 	}
 	sym := venue.Symbol(pos.Symbol)
-	book, err := e.okxV.FetchBookTicker(ctx, venue.MarketPerp, sym)
+	book, err := e.v.FetchBookTicker(ctx, venue.MarketPerp, sym)
 	if err != nil {
 		e.setLastError(err.Error())
 		e.logger.Printf("[OKX方向] %s 管理盘口失败: %v", pos.Symbol, err)
@@ -781,6 +958,13 @@ func (e *OKXDirectionalEngine) manageOne(ctx context.Context, pos *okxDirectiona
 	if holdMin < 0 {
 		holdMin = 0
 	}
+	if e.delistGuard != nil {
+		if nonTrading, known := e.delistGuard.IsNonTrading(e.venueName, pos.Symbol, venue.MarketPerp); nonTrading && known {
+			e.logger.Printf("[OKX方向][下架守卫] %s 非交易/下架,主动平仓", pos.Symbol)
+			e.closePosition(ctx, pos, mid, uPnLNotional, holdMin, "下架/非交易主动平仓")
+			return
+		}
+	}
 	closes, cerr := e.fetchCloses(ctx, sym)
 	if cerr != nil {
 		e.setLastError(cerr.Error())
@@ -788,7 +972,7 @@ func (e *OKXDirectionalEngine) manageOne(ctx context.Context, pos *okxDirectiona
 		return
 	}
 	rate := pos.FundingAtOpen
-	if snaps, serr := e.okxV.FetchFundingSnapshot(ctx); serr == nil {
+	if snaps, serr := e.v.FetchFundingSnapshot(ctx); serr == nil {
 		for _, s := range snaps {
 			if string(s.Symbol) == pos.Symbol {
 				rate = s.LastFundingRate
@@ -893,17 +1077,17 @@ func (e *OKXDirectionalEngine) closePosition(ctx context.Context, pos *okxDirect
 			pos.Symbol, pos.Side, reason, uPnLPct*100, holdMin)
 		return
 	}
-	instr, ok := lookupVenueInstrumentForMarket(ctx, e.okxV, venue.Symbol(pos.Symbol), venue.MarketPerp)
+	instr, ok := lookupVenueInstrumentForMarket(ctx, e.v, venue.Symbol(pos.Symbol), venue.MarketPerp)
 	if !ok {
 		e.setLastError("instrument 缺失")
 		return
 	}
-	caps := e.okxV.Capabilities()
+	caps := e.v.Capabilities()
 	clientID := okxDirectionalClientID(pos.Symbol, "close")
 	res, cerr := e.placeDirectionalLeg(ctx, venue.Symbol(pos.Symbol), closeSide, pos.Qty, clientID, true, instr, caps.ContractBasedPerp)
-	exitPrice := mid
-	if res.AvgPrice > 0 {
-		exitPrice = res.AvgPrice
+	exitPrice, exitTrusted := sanitizeFillPrice(res.AvgPrice, mid, e.cfg.FillPriceMaxDevPct)
+	if !exitTrusted {
+		e.logger.Printf("[OKX方向][记账] %s 平仓成交价 %.6f 偏离 mid %.6f 过大或无效,记账回退 mid", pos.Symbol, res.AvgPrice, mid)
 	}
 	if cerr != nil || res.ExecutedQty <= executionQtyTolerance {
 		msg := "平仓未成交"
@@ -962,11 +1146,11 @@ func (e *OKXDirectionalEngine) partialClose(ctx context.Context, pos *okxDirecti
 		e.logger.Printf("[OKX方向][OFF] 拟部分止盈 %s frac=%.2f", pos.Symbol, fraction)
 		return false
 	}
-	instr, ok := lookupVenueInstrumentForMarket(ctx, e.okxV, venue.Symbol(pos.Symbol), venue.MarketPerp)
+	instr, ok := lookupVenueInstrumentForMarket(ctx, e.v, venue.Symbol(pos.Symbol), venue.MarketPerp)
 	if !ok {
 		return false
 	}
-	caps := e.okxV.Capabilities()
+	caps := e.v.Capabilities()
 	var closeSide venue.Side
 	switch pos.directionSide() {
 	case DirectionLong:
@@ -989,9 +1173,9 @@ func (e *OKXDirectionalEngine) partialClose(ctx context.Context, pos *okxDirecti
 		e.logger.Printf("[OKX方向] %s 部分止盈下单失败: %v", pos.Symbol, cerr)
 		return false
 	}
-	exitPrice := mid
-	if res.AvgPrice > 0 {
-		exitPrice = res.AvgPrice
+	exitPrice, exitTrusted := sanitizeFillPrice(res.AvgPrice, mid, e.cfg.FillPriceMaxDevPct)
+	if !exitTrusted {
+		e.logger.Printf("[OKX方向][记账] %s 部分平仓成交价 %.6f 偏离 mid %.6f 过大或无效,记账回退 mid", pos.Symbol, res.AvgPrice, mid)
 	}
 	closedFrac := res.ExecutedQty / pos.Qty
 	if closedFrac > 1 {
@@ -1039,11 +1223,11 @@ func (e *OKXDirectionalEngine) scaleIn(ctx context.Context, pos *okxDirectionalP
 		e.logger.Printf("[OKX方向] %s 补仓超总资本上限,跳过", pos.Symbol)
 		return false
 	}
-	instr, ok := lookupVenueInstrumentForMarket(ctx, e.okxV, venue.Symbol(pos.Symbol), venue.MarketPerp)
+	instr, ok := lookupVenueInstrumentForMarket(ctx, e.v, venue.Symbol(pos.Symbol), venue.MarketPerp)
 	if !ok {
 		return false
 	}
-	caps := e.okxV.Capabilities()
+	caps := e.v.Capabilities()
 	addSide := venue.SideBuy
 	if side == DirectionShort {
 		addSide = venue.SideSell
@@ -1058,9 +1242,9 @@ func (e *OKXDirectionalEngine) scaleIn(ctx context.Context, pos *okxDirectionalP
 		e.logger.Printf("[OKX方向] %s 补仓失败: %v", pos.Symbol, oerr)
 		return false
 	}
-	fillPrice := res.AvgPrice
-	if fillPrice <= 0 {
-		fillPrice = mid
+	fillPrice, fillTrusted := sanitizeFillPrice(res.AvgPrice, mid, e.cfg.FillPriceMaxDevPct)
+	if !fillTrusted {
+		e.logger.Printf("[OKX方向][记账] %s 补仓成交价 %.6f 偏离 mid %.6f 过大或无效,记账回退 mid", pos.Symbol, res.AvgPrice, mid)
 	}
 	addNotional := res.ExecutedQty * fillPrice
 	var newAvg float64
@@ -1116,15 +1300,15 @@ func (e *OKXDirectionalEngine) placeDirectionalLeg(
 		if !now.Add(okxDirectionalMakerInterval + okxDirectionalMakerTakerBuf).Before(deadline) {
 			break
 		}
-		book, berr := e.okxV.FetchBookTicker(ctx, venue.MarketPerp, sym)
+		book, berr := e.v.FetchBookTicker(ctx, venue.MarketPerp, sym)
 		if berr != nil || book.BidPrice <= 0 || book.AskPrice <= 0 {
 			break
 		}
 		price := makerPassivePrice(side, book)
 		price, remaining = quantizeOrderPriceQty(price, remaining, side, instr, contractBased, e.logger, string(sym))
 		makerID := crossVenueLegClientID(clientID, fmt.Sprintf("m%d", attempt))
-		logLiveOrderLeg(e.logger, okx.VenueName, venue.MarketPerp, string(sym), side, price, instr.TickSize, remaining, instr.StepSize)
-		placed, perr := e.okxV.PlaceOrder(ctx, venue.OrderRequest{
+		logLiveOrderLeg(e.logger, e.venueName, venue.MarketPerp, string(sym), side, price, instr.TickSize, remaining, instr.StepSize)
+		placed, perr := e.v.PlaceOrder(ctx, venue.OrderRequest{
 			Market:        venue.MarketPerp,
 			Symbol:        sym,
 			Side:          side,
@@ -1147,7 +1331,7 @@ func (e *OKXDirectionalEngine) placeDirectionalLeg(
 		}
 		waitUntil := e.nowFn().UTC().Add(okxDirectionalMakerInterval)
 		for e.nowFn().UTC().Before(waitUntil) {
-			res, qerr := e.okxV.QueryOrder(ctx, venue.MarketPerp, sym, makerID)
+			res, qerr := e.v.QueryOrder(ctx, venue.MarketPerp, sym, makerID)
 			if qerr == nil {
 				switch strings.ToLower(res.Status) {
 				case "filled":
@@ -1162,14 +1346,14 @@ func (e *OKXDirectionalEngine) placeDirectionalLeg(
 			}
 			select {
 			case <-ctx.Done():
-				_ = e.okxV.CancelOrder(ctx, venue.MarketPerp, sym, makerID)
+				_ = e.v.CancelOrder(ctx, venue.MarketPerp, sym, makerID)
 				return acc, ctx.Err()
 			case <-time.After(crossVenueConfirmPoll):
 			}
 		}
 	nextMakerRound:
-		_ = e.okxV.CancelOrder(ctx, venue.MarketPerp, sym, makerID)
-		if res, qerr := e.okxV.QueryOrder(ctx, venue.MarketPerp, sym, makerID); qerr == nil && res.ExecutedQty > executionQtyTolerance {
+		_ = e.v.CancelOrder(ctx, venue.MarketPerp, sym, makerID)
+		if res, qerr := e.v.QueryOrder(ctx, venue.MarketPerp, sym, makerID); qerr == nil && res.ExecutedQty > executionQtyTolerance {
 			acc = mergeCrossVenueOrderResults(acc, res)
 			remaining = qty - acc.ExecutedQty
 		}
@@ -1184,7 +1368,7 @@ func (e *OKXDirectionalEngine) placeDirectionalLeg(
 	if remaining <= executionQtyTolerance {
 		remaining = qty - acc.ExecutedQty
 	}
-	book, err := e.okxV.FetchBookTicker(ctx, venue.MarketPerp, sym)
+	book, err := e.v.FetchBookTicker(ctx, venue.MarketPerp, sym)
 	if err != nil {
 		if acc.ExecutedQty > executionQtyTolerance {
 			return acc, err
@@ -1194,8 +1378,8 @@ func (e *OKXDirectionalEngine) placeDirectionalLeg(
 	takerPrice := iocLimitPrice(side, book, okxDirectionalTakerSlippageBps)
 	takerPrice, remaining = quantizeOrderPriceQty(takerPrice, remaining, side, instr, contractBased, e.logger, string(sym))
 	takerID := crossVenueLegClientID(clientID, "tk")
-	logLiveOrderLeg(e.logger, okx.VenueName, venue.MarketPerp, string(sym), side, takerPrice, instr.TickSize, remaining, instr.StepSize)
-	takerRes, terr := e.okxV.PlaceOrder(ctx, venue.OrderRequest{
+	logLiveOrderLeg(e.logger, e.venueName, venue.MarketPerp, string(sym), side, takerPrice, instr.TickSize, remaining, instr.StepSize)
+	takerRes, terr := e.v.PlaceOrder(ctx, venue.OrderRequest{
 		Market:        venue.MarketPerp,
 		Symbol:        sym,
 		Side:          side,
@@ -1224,7 +1408,7 @@ func (e *OKXDirectionalEngine) confirmDirectionalFill(ctx context.Context, sym v
 	deadline := e.nowFn().UTC().Add(crossVenueConfirmTimeout)
 	var last venue.OrderResult
 	for {
-		res, err := e.okxV.QueryOrder(ctx, venue.MarketPerp, sym, clientID)
+		res, err := e.v.QueryOrder(ctx, venue.MarketPerp, sym, clientID)
 		if err == nil {
 			last = res
 			st := strings.ToLower(res.Status)

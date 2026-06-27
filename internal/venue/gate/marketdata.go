@@ -348,6 +348,74 @@ func (a *Adapter) FetchOpenInterest(ctx context.Context, s venue.Symbol) (float6
 	return float64(c.PositionSize) * mult, nil
 }
 
+type gateCandlestick struct {
+	T   float64 `json:"t"`
+	V   int64   `json:"v"`
+	O   string  `json:"o"`
+	H   string  `json:"h"`
+	L   string  `json:"l"`
+	C   string  `json:"c"`
+	Sum string  `json:"sum"`
+}
+
+// FetchCandles 用 /api/v4/futures/usdt/candlesticks 拉 USDT 永续历史 K 线。
+// bar 为 Gate interval(如 "1m","5m","1h");limit 上限 2000。
+// Gate 返回 oldest-first;合约成交量 v(张) × quanto_multiplier 换算为币数量。
+func (a *Adapter) FetchCandles(ctx context.Context, m venue.Market, s venue.Symbol, bar string, limit int) ([]venue.Candle, error) {
+	if m != venue.MarketPerp {
+		return nil, fmt.Errorf("gate: FetchCandles 仅支持永续")
+	}
+	raw, err := a.ToVenue(s, m)
+	if err != nil {
+		return nil, err
+	}
+	bar = strings.TrimSpace(bar)
+	if bar == "" {
+		return nil, fmt.Errorf("gate: 空 bar")
+	}
+	if limit <= 0 {
+		limit = 100
+	}
+	if limit > 2000 {
+		limit = 2000
+	}
+	mult := 1.0
+	if inst, ierr := a.lookupInstrument(ctx, m, s); ierr == nil && inst.ContractSize > 0 {
+		mult = inst.ContractSize
+	}
+	q := url.Values{}
+	q.Set("contract", raw)
+	q.Set("interval", bar)
+	q.Set("limit", strconv.Itoa(limit))
+	var rows []gateCandlestick
+	if err := a.t.publicGet(ctx, pathFuturesCandlesticks, q, &rows); err != nil {
+		return nil, err
+	}
+	return parseGateCandlesticks(rows, mult), nil
+}
+
+// parseGateCandlesticks 把 Gate candlesticks 解析为 oldest-first 的 []venue.Candle(纯解析,可单测)。
+func parseGateCandlesticks(rows []gateCandlestick, mult float64) []venue.Candle {
+	if mult <= 0 {
+		mult = 1
+	}
+	out := make([]venue.Candle, 0, len(rows))
+	for _, row := range rows {
+		if row.T <= 0 {
+			continue
+		}
+		out = append(out, venue.Candle{
+			OpenTime: secToTime(int64(row.T)),
+			Open:     parseFloat(row.O),
+			High:     parseFloat(row.H),
+			Low:      parseFloat(row.L),
+			Close:    parseFloat(row.C),
+			Volume:   float64(row.V) * mult,
+		})
+	}
+	return out
+}
+
 // FetchRecentQuoteVolume 用 tickers 端点取 24h USDT 报价量。
 // spot: quote_volume(计价货币=USDT);futures: volume_24h_settle(USDT 结算货币成交额)。
 // 若 settle 缺失,回退 volume_24h_quote,再回退 volume_24h_base×last。

@@ -221,3 +221,54 @@ func TestFetchRecentQuoteVolumeEmptyResponse(t *testing.T) {
 		t.Fatal("空响应应返回 error")
 	}
 }
+
+// TestFetchCandlesParse 钉死 K 线解析:Gate candlesticks 为 oldest-first 对象数组,
+// FetchCandles 应正确解析 ts/O/H/L/C/vol(张×multiplier→币数量)。
+func TestFetchCandlesParse(t *testing.T) {
+	a := fakeGate(t, map[string]string{
+		pathFuturesCandlesticks: `[
+			{"t":1700000000,"v":1210,"o":"60000","h":"60060","l":"59990","c":"60050","sum":"726050"},
+			{"t":1700000060,"v":820,"o":"60050","h":"60100","l":"60000","c":"60100","sum":"492000"},
+			{"t":1700000120,"v":1050,"o":"60100","h":"60150","l":"60080","c":"60120","sum":"1050000"}
+		]`,
+		pathFuturesContracts + "/BTC_USDT": `{"name":"BTC_USDT","quanto_multiplier":"0.01","order_size_round":1}`,
+	})
+	candles, err := a.FetchCandles(context.Background(), venue.MarketPerp, "BTC-USDT", "5m", 3)
+	if err != nil {
+		t.Fatalf("FetchCandles: %v", err)
+	}
+	if len(candles) != 3 {
+		t.Fatalf("应解析 3 根 K 线, got %d", len(candles))
+	}
+	if candles[0].OpenTime.Unix() != 1700000000 {
+		t.Errorf("第一根应为最旧 ts, got %d", candles[0].OpenTime.Unix())
+	}
+	if candles[2].OpenTime.Unix() != 1700000120 {
+		t.Errorf("最后一根应为最新 ts, got %d", candles[2].OpenTime.Unix())
+	}
+	c0 := candles[0]
+	if c0.Open != 60000 || c0.High != 60060 || c0.Low != 59990 || c0.Close != 60050 || c0.Volume != 12.1 {
+		t.Errorf("最旧 K 线 O/H/L/C/vol 解析错误: %+v", c0)
+	}
+	c2 := candles[2]
+	if c2.Open != 60100 || c2.High != 60150 || c2.Low != 60080 || c2.Close != 60120 || c2.Volume != 10.5 {
+		t.Errorf("最新 K 线 O/H/L/C/vol 解析错误: %+v", c2)
+	}
+}
+
+func TestParseGateCandlesticks(t *testing.T) {
+	rows := []gateCandlestick{
+		{T: 1700000120, V: 1050, O: "60100", H: "60150", L: "60080", C: "60120"},
+		{T: 1700000000, V: 1210, O: "60000", H: "60060", L: "59990", C: "60050"},
+	}
+	candles := parseGateCandlesticks(rows, 0.01)
+	if len(candles) != 2 {
+		t.Fatalf("got %d candles", len(candles))
+	}
+	if candles[0].OpenTime.Unix() != 1700000120 || candles[0].Volume != 10.5 {
+		t.Errorf("第一行解析错误: %+v", candles[0])
+	}
+	if candles[1].Volume != 12.1 {
+		t.Errorf("第二行 vol 换算错误: %+v", candles[1])
+	}
+}

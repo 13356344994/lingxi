@@ -705,6 +705,8 @@ type OKXDirectionalConfig struct {
 	TrendEfficiencyThreshold float64 `cfg:"trend_efficiency_threshold"`
 	// ZScoreEntry 震荡态反转入场 z 分阈值(|收盘 z| ≥ 此值才开)。默认 1.5。
 	ZScoreEntry float64 `cfg:"zscore_entry"`
+	// SignalWindowBars 信号窗口:efficiency ratio 与 z 分仅在最近此根 K 线上计算(匹配持仓周期,避免长窗钝化导致 regime 永远判震荡)。≤0 回退用全部 closes。默认 24(5m×24=2h)。
+	SignalWindowBars int `cfg:"signal_window_bars"`
 	// RequireFundingAlignment 资费对齐闸:true 时仅当资费"明显逆持仓"(≥FundingVetoAbsPerInterval)才否决该方向。默认 true。
 	RequireFundingAlignment bool `cfg:"require_funding_alignment"`
 	// FundingVetoAbsPerInterval 资费强逆否决阈值(单次费率绝对值);与选币阈值解耦,避免刚过选币线就把对齐方向误杀。默认 0.0015。
@@ -717,6 +719,8 @@ type OKXDirectionalConfig struct {
 	TakeProfitPct float64 `cfg:"take_profit_pct"`
 	// MaxHoldMinutes 最大持有(分钟),超时平。默认 180。
 	MaxHoldMinutes int `cfg:"max_hold_minutes"`
+	// AbsMaxHoldMinutes 绝对最大持有(分钟):达 MaxHoldMinutes 后若仍盈利且信号同向可续持,但不得超过此绝对上限。≤0 回退 MaxHoldMinutes×3。默认 180。
+	AbsMaxHoldMinutes int `cfg:"abs_max_hold_minutes"`
 	// DailyLossLimitUSDT 当日累计已实现亏损熔断线(USDT);≤0=不启用日熔断。默认 0(按用户要求不设日熔断)。
 	DailyLossLimitUSDT float64 `cfg:"daily_loss_limit_usdt"`
 	// CostFloorBps 成本地板:预期边(bps)须 ≥ 此值才开,挡薄盘穿价。默认 60。
@@ -757,6 +761,25 @@ type OKXDirectionalConfig struct {
 	// QuickTPPct 快进快出小止盈(本金口径):浮盈达此值即全平落袋(吃到就赚到),除非数据判定强延续则改为骑乘加仓。
 	// 小资金高频核心:赢快跑。需 > 往返成本对应的本金%(maker进场压成本)。默认 0.12(+12%本金;5X下≈2.4%价)。
 	QuickTPPct float64 `cfg:"quick_tp_pct"`
+	// BreakevenArmPct 盈利保护臂点(本金口径):浮盈高水位达此值后启用移动保盈(回吐到 max(0, 峰值−TrailGapPct) 即平),不让赢单回吐成亏单。默认 0.05。
+	BreakevenArmPct float64 `cfg:"breakeven_arm_pct"`
+	// StaleCutMinutes 治超时:持仓达此分钟数仍未盈利(浮盈 ≤ StaleCutMinProfitPct)即提前停滞离场,不拖到 MaxHold 放大亏损。默认 40(=2/3×60)。
+	StaleCutMinutes int `cfg:"stale_cut_minutes"`
+	// StaleCutMinProfitPct 停滞离场的盈利门槛(本金口径):达 StaleCutMinutes 时浮盈 ≤ 此值才砍;默认 0(未盈利即砍,赢单不受影响)。
+	StaleCutMinProfitPct float64 `cfg:"stale_cut_min_profit_pct"`
+	// --- 跨所交叉印证(开仓端):同币在其他所的近窗方向用于加/减信心、极端背离则否决 ---
+	// CrossVenueCorroborationEnabled 开启跨所交叉印证。默认 true。
+	CrossVenueCorroborationEnabled bool `cfg:"cross_venue_corroboration_enabled"`
+	// CrossVenueConvictionStep 每个同向 peer 加、每个反向 peer 减的信心步长。默认 0.1。
+	CrossVenueConvictionStep float64 `cfg:"cross_venue_conviction_step"`
+	// CrossVenueVetoMinPeers 否决所需的最少「有数据 peer」数:仅当 ≥此数的 peer 都反向(无一同向)才否决该开仓。默认 2。
+	CrossVenueVetoMinPeers int `cfg:"cross_venue_veto_min_peers"`
+	// CrossVenueDeadbandPct 判定 peer 方向的净位移死区(信号窗口内);|净位移|≤此值视为无方向。默认 0.003(0.3%)。
+	CrossVenueDeadbandPct float64 `cfg:"cross_venue_deadband_pct"`
+	// FillPriceMaxDevPct 成交价合理性校验:avg 偏离 mid 超过此比例则判为不可信,记账回退 mid。默认 0.10(10%)。
+	FillPriceMaxDevPct float64 `cfg:"fill_price_max_dev_pct"`
+	// MaxOpenSpreadBps 开仓流动性闸:盘口价差(bps)超过此值则跳过开仓(挡薄盘)。≤0 不启用。默认 50(0.5%)。
+	MaxOpenSpreadBps float64 `cfg:"max_open_spread_bps"`
 }
 
 // CrossVenueExecutorConfig 是跨所资金费对冲执行引擎的可调参数。

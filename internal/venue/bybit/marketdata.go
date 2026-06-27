@@ -331,6 +331,95 @@ func (a *Adapter) FetchOpenInterest(ctx context.Context, s venue.Symbol) (float6
 	return parseFloat(res.List[0].OpenInterest), nil
 }
 
+// FetchCandles 用 /v5/market/kline 拉 linear 永续历史 K 线。
+// bar 为中性周期(如 "5m"),映射为 Bybit interval(如 "5");limit 上限 1000。
+// Bybit 返回 newest-first,本方法转为 oldest-first。
+func (a *Adapter) FetchCandles(ctx context.Context, m venue.Market, s venue.Symbol, bar string, limit int) ([]venue.Candle, error) {
+	if m != venue.MarketPerp {
+		return nil, fmt.Errorf("bybit: FetchCandles 仅支持永续")
+	}
+	raw, err := a.ToVenue(s, m)
+	if err != nil {
+		return nil, err
+	}
+	interval, err := barToBybitInterval(bar)
+	if err != nil {
+		return nil, err
+	}
+	if limit <= 0 {
+		limit = 100
+	}
+	if limit > 1000 {
+		limit = 1000
+	}
+	q := url.Values{}
+	q.Set("category", categoryLinear)
+	q.Set("symbol", raw)
+	q.Set("interval", interval)
+	q.Set("limit", strconv.Itoa(limit))
+	var res struct {
+		List [][]string `json:"list"` // [start,open,high,low,close,volume,turnover]
+	}
+	if err := a.t.publicGet(ctx, pathKline, q, &res); err != nil {
+		return nil, err
+	}
+	return parseBybitKlines(res.List), nil
+}
+
+// barToBybitInterval 把中性 bar(如 "5m")映射为 Bybit v5 kline interval(如 "5")。
+func barToBybitInterval(bar string) (string, error) {
+	switch strings.ToLower(strings.TrimSpace(bar)) {
+	case "1m":
+		return "1", nil
+	case "3m":
+		return "3", nil
+	case "5m":
+		return "5", nil
+	case "15m":
+		return "15", nil
+	case "30m":
+		return "30", nil
+	case "1h", "60m":
+		return "60", nil
+	case "2h", "120m":
+		return "120", nil
+	case "4h", "240m":
+		return "240", nil
+	case "6h", "360m":
+		return "360", nil
+	case "12h", "720m":
+		return "720", nil
+	case "1d":
+		return "D", nil
+	case "1w":
+		return "W", nil
+	case "1mth", "1month":
+		return "M", nil
+	default:
+		return "", fmt.Errorf("bybit: 不支持的 bar %q", bar)
+	}
+}
+
+// parseBybitKlines 把 Bybit kline list 解析为 oldest-first 的 []venue.Candle(纯解析,可单测)。
+func parseBybitKlines(rows [][]string) []venue.Candle {
+	out := make([]venue.Candle, 0, len(rows))
+	for i := len(rows) - 1; i >= 0; i-- {
+		row := rows[i]
+		if len(row) < 6 {
+			continue
+		}
+		out = append(out, venue.Candle{
+			OpenTime: msStringToTime(row[0]),
+			Open:     parseFloat(row[1]),
+			High:     parseFloat(row[2]),
+			Low:      parseFloat(row[3]),
+			Close:    parseFloat(row[4]),
+			Volume:   parseFloat(row[5]),
+		})
+	}
+	return out
+}
+
 // FetchRecentQuoteVolume 用 kline.turnover(成交额=quote 计)在 window 内求和。
 func (a *Adapter) FetchRecentQuoteVolume(ctx context.Context, m venue.Market, s venue.Symbol, window time.Duration) (float64, error) {
 	raw, _ := a.ToVenue(s, m)

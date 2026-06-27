@@ -1,31 +1,33 @@
 {
   "wired": true,
-  "updated_at": "2026-06-21T15:34:00.854483523Z",
+  "updated_at": "2026-06-27T16:37:05.431174585Z",
   "snapshot": {
-    "observed_at": "2026-06-21T15:34:00.269701768Z",
-    "day_start_cst": "2026-06-21T00:00:00+08:00",
-    "daily_realized_pnl_usdt": -3.729158,
-    "daily_equity_delta_usdt": -1.612802,
-    "daily_equity_delta_for_risk_usdt": -1.612802,
+    "observed_at": "2026-06-27T16:37:05.085148199Z",
+    "day_start_cst": "2026-06-28T00:00:00+08:00",
+    "daily_realized_pnl_usdt": 0,
+    "daily_equity_delta_usdt": -0.205182,
+    "daily_equity_delta_for_risk_usdt": -0.205182,
     "venue_equity_deltas": {
-      "binance": -3.714002368300015,
-      "bybit": 2.100767779999998,
-      "gate": 0,
-      "okx": 0.00043206151745778243
+      "binance": 0.0064123448999993116,
+      "bybit": 0.8154062300000078,
+      "gate": -1.027000000000001,
+      "okx": 0
     },
     "equity_data_trusted": true,
-    "cumulative_realized_pnl_usdt": -3.956736,
-    "realized_pnl_peak_usdt": 0,
-    "account_drawdown_usdt": 3.956736,
+    "daily_losing_trade_count": 0,
+    "cumulative_realized_pnl_usdt": -0.474641,
+    "realized_pnl_peak_usdt": 4.338909,
+    "account_drawdown_usdt": 4.81355,
     "strategy_net_pnl": {
       "cross_venue_spot_perp": -0.221552,
-      "perp_perp": -3.729158,
+      "perp_perp": -0.247063,
       "single_venue_perp_spot": 0,
       "single_venue_spot_perp": -0.006026
     },
-    "real_equity_total_usdt": 384.228078,
-    "real_equity_peak_usdt": 385.867419,
-    "real_equity_drawdown_usdt": 1.639341,
+    "real_equity_total_usdt": 164.46603,
+    "real_equity_peak_usdt": 165.06199,
+    "real_equity_drawdown_usdt": 0.59596,
+    "real_equity_drawdown_adjusted_usdt": 0.601123,
     "real_equity_quality_passed": true,
     "real_equity_peak_confirmed": true,
     "open_position_count": 0,
@@ -46,6 +48,7 @@
   "hard_halt": {
     "should_halt": false,
     "daily_loss_breached": false,
+    "daily_losing_trades_hit": false,
     "settlement_drawdown_hit": false,
     "strategy_loss_breached": false,
     "open_notional_breached": false

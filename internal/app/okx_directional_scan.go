@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"lingxi/internal/venue"
-	"lingxi/internal/venue/okx"
 )
 
 type okxScanCandidate struct {
@@ -23,12 +22,12 @@ type okxScanCandidate struct {
 
 // scanOKXUniverse 全场扫描:资费池 → 逐币拉特征 → rankUniverse 出 shortlist。
 // 网络/单币失败容忍(跳过+日志),ctx 取消则立即返回 ctx.Err()。
-func scanOKXUniverse(ctx context.Context, okxA *okx.Adapter, okxV venue.Venue, fundingSnaps []venue.FundingSnapshot, cfg OKXDirectionalConfig, logger *log.Logger) ([]okxUniverseEntry, error) {
+func scanOKXUniverse(ctx context.Context, v DirectionalVenue, fundingSnaps []venue.FundingSnapshot, cfg OKXDirectionalConfig, logger *log.Logger) ([]okxUniverseEntry, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if okxA == nil {
-		return nil, fmt.Errorf("okx adapter nil")
+	if v == nil {
+		return nil, fmt.Errorf("directional venue nil")
 	}
 
 	poolN := cfg.CandidatePoolN
@@ -54,7 +53,7 @@ func scanOKXUniverse(ctx context.Context, okxA *okx.Adapter, okxV venue.Venue, f
 
 	var btc okxBTCContext
 	var btcReturns []float64
-	btcCandles, err := okxA.FetchCandles(ctx, venue.MarketPerp, "BTC-USDT", bar, limit)
+	btcCandles, err := v.FetchCandles(ctx, venue.MarketPerp, "BTC-USDT", bar, limit)
 	if err != nil {
 		if logger != nil {
 			logger.Printf("[OKX方向][选币] BTC K线失败,用零情境继续: %v", err)
@@ -73,7 +72,7 @@ func scanOKXUniverse(ctx context.Context, okxA *okx.Adapter, okxV venue.Venue, f
 			return nil, err
 		}
 		sym := venue.Symbol(cand.sym)
-		candles, cerr := okxA.FetchCandles(ctx, venue.MarketPerp, sym, bar, limit)
+		candles, cerr := v.FetchCandles(ctx, venue.MarketPerp, sym, bar, limit)
 		if cerr != nil {
 			if logger != nil {
 				logger.Printf("[OKX方向][选币] %s K线失败,跳过: %v", cand.sym, cerr)
@@ -95,7 +94,7 @@ func scanOKXUniverse(ctx context.Context, okxA *okx.Adapter, okxV venue.Venue, f
 		}
 
 		atrPct := calcAtrPct(candles, lastClose)
-		volUSDT := fetchOKXCandidateVolUSDT(ctx, okxV, sym, candles, logger)
+		volUSDT := fetchOKXCandidateVolUSDT(ctx, v, sym, candles, logger)
 		btcCorr := pearsonAligned(returns, btcReturns)
 
 		feats = append(feats, okxUniverseFeatures{
@@ -141,7 +140,7 @@ func selectOKXScanCandidates(snaps []venue.FundingSnapshot, cfg OKXDirectionalCo
 	return cands
 }
 
-func buildOKXBTCContext(candles []okx.Candle) okxBTCContext {
+func buildOKXBTCContext(candles []venue.Candle) okxBTCContext {
 	var btc okxBTCContext
 	closes := candleCloses(candles)
 	if len(closes) < 2 {
@@ -155,7 +154,7 @@ func buildOKXBTCContext(candles []okx.Candle) okxBTCContext {
 	return btc
 }
 
-func candleCloses(candles []okx.Candle) []float64 {
+func candleCloses(candles []venue.Candle) []float64 {
 	out := make([]float64, 0, len(candles))
 	for _, c := range candles {
 		if c.Close > 0 {
@@ -182,7 +181,7 @@ func pctReturns(closes []float64) []float64 {
 }
 
 // calcAtrPct 近窗平均真实波幅 / 末收(价格占比)。
-func calcAtrPct(candles []okx.Candle, lastClose float64) float64 {
+func calcAtrPct(candles []venue.Candle, lastClose float64) float64 {
 	if lastClose <= 0 || len(candles) == 0 {
 		return 0
 	}
@@ -206,7 +205,7 @@ func calcAtrPct(candles []okx.Candle, lastClose float64) float64 {
 	return (trSum / float64(n)) / lastClose
 }
 
-func fetchOKXCandidateVolUSDT(ctx context.Context, okxV venue.Venue, sym venue.Symbol, candles []okx.Candle, logger *log.Logger) float64 {
+func fetchOKXCandidateVolUSDT(ctx context.Context, okxV venue.Venue, sym venue.Symbol, candles []venue.Candle, logger *log.Logger) float64 {
 	if okxV != nil {
 		vol, err := okxV.FetchRecentQuoteVolume(ctx, venue.MarketPerp, sym, time.Hour)
 		if err == nil && vol > 0 {

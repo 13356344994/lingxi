@@ -145,6 +145,16 @@ func NewVenueError(venue, category, severity, rawCode string, retryable bool, ca
 	return &VenueError{Venue: venue, Category: category, Severity: severity, RawCode: rawCode, Retryable: retryable, cause: cause}
 }
 
+// Candle 统一 K 线(方向量化引擎用)。OpenTime 为该根开盘 UTC 时间。
+type Candle struct {
+	OpenTime time.Time
+	Open     float64
+	High     float64
+	Low      float64
+	Close    float64
+	Volume   float64 // 成交量(基础币)
+}
+
 // Factory 用配置构造一个 Venue 适配器实例(每所注册一个)。
 type Factory func(cfg Config) (Venue, error)
 

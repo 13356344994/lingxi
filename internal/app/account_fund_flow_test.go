@@ -58,6 +58,9 @@ func TestApplyAccountFundFlowAdjustment_RealSubtractsFromDailyEquityDelta(t *tes
 	if st.DailyFundFlowAdjustUSDT != -49.45 {
 		t.Fatalf("adjust=%v want -49.45", st.DailyFundFlowAdjustUSDT)
 	}
+	if got := st.DailyFundFlowByVenueUSDT["okx"]; got != -49.45 {
+		t.Fatalf("byVenue okx=%v want -49.45", got)
+	}
 	riskDelta := money.SumUSDT(obs.RawDailyDelta, -st.DailyFundFlowAdjustUSDT)
 	if riskDelta != 0 {
 		t.Fatalf("risk delta=%v want 0", riskDelta)
@@ -210,6 +213,9 @@ func TestApplyAccountFundFlowAdjustment_HeuristicLogsOneShot(t *testing.T) {
 	if source != "heuristic" {
 		t.Fatalf("source=%q want heuristic", source)
 	}
+	if st.DailyFundFlowByVenueUSDT != nil {
+		t.Fatalf("heuristic must clear byVenue map, got %v", st.DailyFundFlowByVenueUSDT)
+	}
 	if step != -49.45 {
 		t.Fatalf("step=%v want -49.45", step)
 	}
@@ -302,7 +308,7 @@ func TestFetchAccountRealFundFlowUSDT_ErrUnsupportedReturnsFalse(t *testing.T) {
 	lookup := func(name string) venue.ExternalFundFlowProvider {
 		return &stubFundFlowProvider{err: venue.ErrUnsupported}
 	}
-	_, ok := fetchAccountRealFundFlowUSDT(context.Background(), obs, lookup, time.Now().UTC())
+	_, _, ok := fetchAccountRealFundFlowUSDT(context.Background(), obs, lookup, time.Now().UTC())
 	if ok {
 		t.Fatal("ErrUnsupported should not count as real fund-flow ok")
 	}
@@ -313,7 +319,7 @@ func TestFetchAccountRealFundFlowUSDT_OtherErrorReturnsFalse(t *testing.T) {
 	lookup := func(name string) venue.ExternalFundFlowProvider {
 		return &stubFundFlowProvider{err: errors.New("api down")}
 	}
-	_, ok := fetchAccountRealFundFlowUSDT(context.Background(), obs, lookup, time.Now().UTC())
+	_, _, ok := fetchAccountRealFundFlowUSDT(context.Background(), obs, lookup, time.Now().UTC())
 	if ok {
 		t.Fatal("API error should fall back to heuristic")
 	}

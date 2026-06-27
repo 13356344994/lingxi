@@ -293,3 +293,59 @@ func TestFetchInstrumentsSpotStepSize(t *testing.T) {
 		t.Errorf("basePrecision 回退: got %v want %v", got, want)
 	}
 }
+
+// TestFetchCandlesParse 钉死 K 线解析:Bybit 返回 newest-first 字符串数组,
+// FetchCandles 应转为 oldest-first 并正确解析 ts/O/H/L/C/vol。
+func TestFetchCandlesParse(t *testing.T) {
+	a := fakeBybit(t, map[string]string{
+		pathKline: `{"retCode":0,"retMsg":"OK","result":{"category":"linear","list":[
+			["1700000120000","60100","60150","60080","60120","10.5","1050000"],
+			["1700000060000","60050","60100","60000","60100","8.2","492000"],
+			["1700000000000","60000","60060","59990","60050","12.1","726050"]
+		]}}`,
+	})
+	candles, err := a.FetchCandles(context.Background(), venue.MarketPerp, "BTC-USDT", "5m", 3)
+	if err != nil {
+		t.Fatalf("FetchCandles: %v", err)
+	}
+	if len(candles) != 3 {
+		t.Fatalf("应解析 3 根 K 线, got %d", len(candles))
+	}
+	if candles[0].OpenTime.UnixMilli() != 1700000000000 {
+		t.Errorf("第一根应为最旧 ts, got %d", candles[0].OpenTime.UnixMilli())
+	}
+	if candles[2].OpenTime.UnixMilli() != 1700000120000 {
+		t.Errorf("最后一根应为最新 ts, got %d", candles[2].OpenTime.UnixMilli())
+	}
+	c0 := candles[0]
+	if c0.Open != 60000 || c0.High != 60060 || c0.Low != 59990 || c0.Close != 60050 || c0.Volume != 12.1 {
+		t.Errorf("最旧 K 线 O/H/L/C/vol 解析错误: %+v", c0)
+	}
+	c2 := candles[2]
+	if c2.Open != 60100 || c2.High != 60150 || c2.Low != 60080 || c2.Close != 60120 || c2.Volume != 10.5 {
+		t.Errorf("最新 K 线 O/H/L/C/vol 解析错误: %+v", c2)
+	}
+}
+
+func TestParseBybitKlines(t *testing.T) {
+	rows := [][]string{
+		{"1700000120000", "60100", "60150", "60080", "60120", "10.5", "1050000"},
+		{"1700000000000", "60000", "60060", "59990", "60050", "12.1", "726050"},
+	}
+	candles := parseBybitKlines(rows)
+	if len(candles) != 2 {
+		t.Fatalf("got %d candles", len(candles))
+	}
+	if candles[0].OpenTime.UnixMilli() != 1700000000000 || candles[0].Volume != 12.1 {
+		t.Errorf("反转后第一根解析错误: %+v", candles[0])
+	}
+}
+
+func TestBarToBybitInterval(t *testing.T) {
+	if got, err := barToBybitInterval("5m"); err != nil || got != "5" {
+		t.Fatalf("5m -> 5: got=%q err=%v", got, err)
+	}
+	if got, err := barToBybitInterval("1h"); err != nil || got != "60" {
+		t.Fatalf("1h -> 60: got=%q err=%v", got, err)
+	}
+}

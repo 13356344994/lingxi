@@ -145,6 +145,29 @@ func TestDecideDirectionalPositionAction(t *testing.T) {
 	}
 }
 
+func TestStaleCutTimeout(t *testing.T) {
+	cfg := testDirectionalCfg()
+	cfg.MaxHoldMinutes = 60
+	cfg.StaleCutMinutes = 40
+	cfg.StaleCutMinProfitPct = 0
+	cfg.QuickTPPct = 0.12
+	cfg.BreakevenArmPct = 0.05
+	stopFloor := -0.5
+	hold := DirectionalSignal{Side: DirectionLong, Conviction: 0.3, Regime: RegimeRange}
+	// 持 45m 未盈利(浮亏)→ 停滞离场提前砍(不等 60m)。
+	if a := decideDirectionalPositionAction(-0.02, 0.0, stopFloor, 45, DirectionLong, hold, false, 0, cfg); a.Kind != dirActClose {
+		t.Fatalf("久持未盈应停滞离场, got %v(%s)", a.Kind, a.Reason)
+	}
+	// 持 45m 但已盈利(+6%,未到快进快出12%)→ 不砍,持有(赢单不受影响)。
+	if a := decideDirectionalPositionAction(0.06, 0.06, stopFloor, 45, DirectionLong, hold, false, 0, cfg); a.Kind == dirActClose {
+		t.Fatalf("久持但盈利不应停滞离场, got %v(%s)", a.Kind, a.Reason)
+	}
+	// 持 30m 未盈利(< StaleCut 40m)→ 还没到停滞点,持有。
+	if a := decideDirectionalPositionAction(-0.02, 0.0, stopFloor, 30, DirectionLong, hold, false, 0, cfg); a.Kind != dirActHold {
+		t.Fatalf("未到停滞点应持有, got %v(%s)", a.Kind, a.Reason)
+	}
+}
+
 func TestDirectionalEntryGuard(t *testing.T) {
 	cfg := testDirectionalCfg()
 	cfg.SpikeBarPct = 0.03
@@ -175,5 +198,151 @@ func TestCloseZScore(t *testing.T) {
 	}
 	if !math.IsInf(z, 0) && z < 0 {
 		t.Fatal("正偏离应为正 z")
+	}
+}
+
+func TestSignalWindowRegime(t *testing.T) {
+	cfg := testDirectionalCfg()
+	cfg.SignalWindowBars = 5
+	// 整段看是震荡(长程大幅来回),但最近窗口是干净上行趋势 → 窗口化后应判趋势做多。
+	closes := []float64{100, 90, 110, 95, 105, 100, 101, 102, 103, 104}
+	s := computeDirectionalSignal(closes, -0.001, cfg)
+	if s.Regime != RegimeTrend {
+		t.Fatalf("窗口内为趋势应判趋势态, got %s reason=%s", s.Regime, s.Reason)
+	}
+}
+
+func TestBreakevenGiveback(t *testing.T) {
+	cfg := testDirectionalCfg()
+	cfg.BreakevenArmPct = 0.05
+	cfg.TrailGapPct = 0.15
+	cfg.QuickTPPct = 0.12
+	cfg.MaxHoldMinutes = 180
+	stopFloor := -0.5
+	hold := DirectionalSignal{Side: DirectionLong, Conviction: 0.3, Regime: RegimeRange}
+	// 峰值 +20%(已过臂点),回吐到 +3%(< 峰值−间距=5%)→ 移动保盈平。
+	if a := decideDirectionalPositionAction(0.03, 0.20, stopFloor, 10, DirectionLong, hold, false, 0, cfg); a.Kind != dirActClose {
+		t.Fatalf("回吐过保盈线应平, got %v(%s)", a.Kind, a.Reason)
+	}
+	// 峰值 +20%,仍在 +10%(> 峰值−间距=5%)→ 不触发保盈,持有。
+	if a := decideDirectionalPositionAction(0.10, 0.20, stopFloor, 10, DirectionLong, hold, false, 0, cfg); a.Kind != dirActHold {
+		t.Fatalf("回吐未过保盈线应持有, got %v(%s)", a.Kind, a.Reason)
+	}
+	// 峰值未过臂点(+4%),回撤到 +1%,不触发保盈,持有。
+	if a := decideDirectionalPositionAction(0.01, 0.04, stopFloor, 10, DirectionLong, hold, false, 0, cfg); a.Kind != dirActHold {
+		t.Fatalf("峰值未过臂点不应触发保盈, got %v(%s)", a.Kind, a.Reason)
+	}
+}
+
+func TestSmartTimeout(t *testing.T) {
+	cfg := testDirectionalCfg()
+	cfg.MaxHoldMinutes = 60
+	cfg.AbsMaxHoldMinutes = 180
+	cfg.QuickTPPct = 0.12
+	cfg.BreakevenArmPct = 0.05
+	stopFloor := -0.5
+	aligned := DirectionalSignal{Side: DirectionLong, Conviction: 0.3, Regime: RegimeRange}
+	flat := DirectionalSignal{Side: DirectionFlat}
+	// 超时但盈利且信号同向 + 未到绝对上限 → 续持。
+	if a := decideDirectionalPositionAction(0.03, 0.03, stopFloor, 65, DirectionLong, aligned, false, 0, cfg); a.Kind != dirActHold {
+		t.Fatalf("超时但盈利同向应续持, got %v(%s)", a.Kind, a.Reason)
+	}
+	// 超时且亏损 → 离场。
+	if a := decideDirectionalPositionAction(-0.02, 0.0, stopFloor, 65, DirectionLong, aligned, false, 0, cfg); a.Kind != dirActClose {
+		t.Fatalf("超时且亏损应离场, got %v(%s)", a.Kind, a.Reason)
+	}
+	// 超时盈利但信号转 flat(不同向)→ 离场。
+	if a := decideDirectionalPositionAction(0.03, 0.03, stopFloor, 65, DirectionLong, flat, false, 0, cfg); a.Kind != dirActClose {
+		t.Fatalf("超时盈利但信号不同向应离场, got %v(%s)", a.Kind, a.Reason)
+	}
+	// 超时盈利同向但已达绝对上限 → 离场。
+	if a := decideDirectionalPositionAction(0.03, 0.03, stopFloor, 185, DirectionLong, aligned, false, 0, cfg); a.Kind != dirActClose {
+		t.Fatalf("达绝对上限应离场, got %v(%s)", a.Kind, a.Reason)
+	}
+}
+
+func TestRecentDirection(t *testing.T) {
+	up := []float64{100, 101, 102, 103, 104}
+	if recentDirection(up, 5, 0.003) != DirectionLong {
+		t.Fatal("上行应判 Long")
+	}
+	down := []float64{104, 103, 102, 101, 100}
+	if recentDirection(down, 5, 0.003) != DirectionShort {
+		t.Fatal("下行应判 Short")
+	}
+	flat := []float64{100, 100.05, 100.02, 100.01, 100.0}
+	if recentDirection(flat, 5, 0.003) != DirectionFlat {
+		t.Fatal("窄幅应判 Flat")
+	}
+}
+
+func TestCrossVenueCorroboration(t *testing.T) {
+	cfg := testDirectionalCfg()
+	cfg.CrossVenueCorroborationEnabled = true
+	cfg.CrossVenueConvictionStep = 0.1
+	cfg.CrossVenueVetoMinPeers = 2
+	// 无数据 → 不调整不否决。
+	if d, v, _ := crossVenueCorroboration(DirectionLong, nil, cfg); v || d != 0 {
+		t.Fatalf("无数据应中性, got d=%v v=%v", d, v)
+	}
+	// 两所同向 → 加信心。
+	agree := []peerDirState{{"b", DirectionLong}, {"c", DirectionLong}}
+	if d, v, _ := crossVenueCorroboration(DirectionLong, agree, cfg); v || d <= 0 {
+		t.Fatalf("同向应加信心, got d=%v v=%v", d, v)
+	}
+	// 两所全反向 → 否决。
+	dis := []peerDirState{{"b", DirectionShort}, {"c", DirectionShort}}
+	if _, v, _ := crossVenueCorroboration(DirectionLong, dis, cfg); !v {
+		t.Fatal("两所全反向应否决")
+	}
+	// 仅一所反向(<vetoMin)→ 不否决,但减信心。
+	one := []peerDirState{{"b", DirectionShort}}
+	if d, v, _ := crossVenueCorroboration(DirectionLong, one, cfg); v || d >= 0 {
+		t.Fatalf("单所反向应减信心不否决, got d=%v v=%v", d, v)
+	}
+	// 一同向一反向 → 不否决,净 0。
+	mix := []peerDirState{{"b", DirectionLong}, {"c", DirectionShort}}
+	if d, v, _ := crossVenueCorroboration(DirectionLong, mix, cfg); v || d != 0 {
+		t.Fatalf("一同一反应净0不否决, got d=%v v=%v", d, v)
+	}
+}
+
+func TestSanitizeFillPrice(t *testing.T) {
+	const eps = 1e-9
+
+	// 正常成交价(偏离 5%,在 10% 以内)→ 返回 avg,trusted=true。
+	price, trusted := sanitizeFillPrice(0.105, 0.100, 0.10)
+	if !trusted || math.Abs(price-0.105) > eps {
+		t.Fatalf("正常成交价应返回 avg trusted=true, got price=%.6f trusted=%v", price, trusted)
+	}
+
+	// avg=0 → 返回 mid,trusted=false。
+	price, trusted = sanitizeFillPrice(0, 0.199, 0.10)
+	if trusted || math.Abs(price-0.199) > eps {
+		t.Fatalf("avg=0 应回退 mid trusted=false, got price=%.6f trusted=%v", price, trusted)
+	}
+
+	// avg 偏离 mid 超过 10%(16%) → 返回 mid,trusted=false。
+	price, trusted = sanitizeFillPrice(0.1671, 0.199, 0.10)
+	if trusted || math.Abs(price-0.199) > eps {
+		t.Fatalf("avg 偏离>10%% 应回退 mid trusted=false, got price=%.6f trusted=%v", price, trusted)
+	}
+
+	// mid<=0,avg>0 → 返回 avg,trusted=true(无法校验,信任 avg)。
+	price, trusted = sanitizeFillPrice(0.5, 0, 0.10)
+	if !trusted || math.Abs(price-0.5) > eps {
+		t.Fatalf("mid<=0 且 avg>0 应返回 avg trusted=true, got price=%.6f trusted=%v", price, trusted)
+	}
+
+	// mid<=0,avg<=0 → 返回 0,trusted=false。
+	price, trusted = sanitizeFillPrice(0, 0, 0.10)
+	if trusted || price != 0 {
+		t.Fatalf("mid<=0 且 avg<=0 应返回 0 trusted=false, got price=%.6f trusted=%v", price, trusted)
+	}
+
+	// maxDevFrac<=0 时回退默认 0.10;偏离 5% 应 trusted。
+	price, trusted = sanitizeFillPrice(0.105, 0.100, 0)
+	if !trusted || math.Abs(price-0.105) > eps {
+		t.Fatalf("maxDevFrac=0 时应用默认 10%% 校验,偏离5%%应 trusted, got price=%.6f trusted=%v", price, trusted)
 	}
 }

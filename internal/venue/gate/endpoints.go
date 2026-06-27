@@ -12,6 +12,7 @@ const (
 	pathFuturesContracts          = "/api/v4/futures/usdt/contracts"
 	pathFuturesTickers            = "/api/v4/futures/usdt/tickers"
 	pathFuturesOrderBook          = "/api/v4/futures/usdt/order_book"
+	pathFuturesCandlesticks       = "/api/v4/futures/usdt/candlesticks"
 	pathFuturesAccounts           = "/api/v4/futures/usdt/accounts"
 	pathFuturesPositions          = "/api/v4/futures/usdt/positions"
 	pathFuturesOrders             = "/api/v4/futures/usdt/orders"

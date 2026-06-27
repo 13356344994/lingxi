@@ -1,9 +1,9 @@
 {
-  "global_halt": false,
+  "global_halt": true,
   "allow_new_opens": true,
   "allow_manage_orders": true,
   "allow_verified_closes": true,
   "perp_perp_live_enabled": true,
   "rotation_live_enabled": true,
-  "updated_at": "2026-06-20T23:52:42Z"
+  "updated_at": "2026-06-27T15:59:27Z"
 }

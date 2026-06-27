@@ -57,8 +57,8 @@ type DashboardServer struct {
 	cvpsExec *CrossVenuePerpSpotExecutor
 	// rotationRunner 是五策略统一轮动 runner; nil=未注入。
 	rotationRunner *UnifiedRotationRunner
-	// okxDirectional OKX 方向引擎(独立于 carry);nil=未注入。
-	okxDirectional *OKXDirectionalEngine
+	// directionalEngines 各所方向引擎(独立于 carry);键=venue 名。
+	directionalEngines map[string]*OKXDirectionalEngine
 	// controlPlane 统一控制面; nil=未注入(测试/旧路径)。
 	controlPlane *ControlPlane
 	// venueEquityCache 缓存各所钱包总额/浮盈亏拉取结果,避免面板 5s 轮询触发交易所限频。
@@ -100,9 +100,30 @@ func (s *DashboardServer) SetRotationRunner(r *UnifiedRotationRunner) {
 	s.rotationRunner = r
 }
 
-// SetOKXDirectionalEngine 注入 OKX 方向引擎(供 /api/okx-directional 读取)。
+// SetOKXDirectionalEngine 按 eng.Venue() 注册方向引擎(供 /api/okx-directional 读取)。
 func (s *DashboardServer) SetOKXDirectionalEngine(e *OKXDirectionalEngine) {
-	s.okxDirectional = e
+	if e == nil {
+		return
+	}
+	if s.directionalEngines == nil {
+		s.directionalEngines = make(map[string]*OKXDirectionalEngine)
+	}
+	s.directionalEngines[e.Venue()] = e
+}
+
+// directionalEngine 按 venue 名取方向引擎;空 venue 默认 okx。
+func (s *DashboardServer) directionalEngine(venueName string) *OKXDirectionalEngine {
+	if s == nil {
+		return nil
+	}
+	v := strings.ToLower(strings.TrimSpace(venueName))
+	if v == "" {
+		v = "okx"
+	}
+	if s.directionalEngines == nil {
+		return nil
+	}
+	return s.directionalEngines[v]
 }
 
 // SetControlPlane 注入统一控制面(供 STOP/START 与 status 展示)。

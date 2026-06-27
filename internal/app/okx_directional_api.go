@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -13,6 +12,7 @@ import (
 // OKXDirectionalAPIResponse GET /api/okx-directional 响应(引擎快照 + 最近结算)。
 type OKXDirectionalAPIResponse struct {
 	GeneratedAt         time.Time                    `json:"generated_at"`
+	Venue               string                       `json:"venue"`
 	Enabled             bool                         `json:"enabled"`
 	Live                bool                         `json:"live"`
 	Active              bool                         `json:"active"`
@@ -38,15 +38,30 @@ type OKXDirectionalAPIResponse struct {
 	HaltedByDailyLoss   bool                         `json:"halted_by_daily_loss"`
 	LastError           string                       `json:"last_error,omitempty"`
 	Recent              []okxDirectionalSettlement   `json:"recent,omitempty"`
+	StatsToday          *directionalStats            `json:"stats_today,omitempty"`
+	StatsAllTime        *directionalStats            `json:"stats_all_time,omitempty"`
 }
 
-func (s *DashboardServer) okxDirectionalStatusOrEmpty() OKXDirectionalAPIResponse {
-	if s == nil || s.okxDirectional == nil {
-		return OKXDirectionalAPIResponse{GeneratedAt: time.Now().UTC()}
+func directionalVenueFromRequest(r *http.Request) string {
+	if r == nil {
+		return "okx"
 	}
-	st := s.okxDirectional.OKXDirectionalStatus()
+	v := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("venue")))
+	if v == "" {
+		return "okx"
+	}
+	return v
+}
+
+func (s *DashboardServer) okxDirectionalStatusOrEmpty(venue string) OKXDirectionalAPIResponse {
+	eng := s.directionalEngine(venue)
+	if s == nil || eng == nil {
+		return OKXDirectionalAPIResponse{GeneratedAt: time.Now().UTC(), Venue: venue, Enabled: false}
+	}
+	st := eng.OKXDirectionalStatus()
 	resp := OKXDirectionalAPIResponse{
 		GeneratedAt:         time.Now().UTC(),
+		Venue:               st.Venue,
 		Enabled:             st.Enabled,
 		Live:                st.Live,
 		Active:              st.Active,
@@ -72,14 +87,20 @@ func (s *DashboardServer) okxDirectionalStatusOrEmpty() OKXDirectionalAPIRespons
 		HaltedByDailyLoss:   st.HaltedByDailyLoss,
 		LastError:           st.LastError,
 	}
-	dir := resolveStrategyRecordDir(s)
-	path := filepath.Join(okxDirectionalRecordDir(dir), okxDirectionalSettlementsFile)
-	recent, err := loadTailJSONLFile[okxDirectionalSettlement](path, time.Time{}, 20)
+	recent, err := loadTailJSONLFile[okxDirectionalSettlement](eng.SettlementsPath(), time.Time{}, 20)
 	if err == nil && len(recent) > 0 {
 		sort.Slice(recent, func(i, j int) bool {
 			return recent[i].Time.After(recent[j].Time)
 		})
 		resp.Recent = recent
+	}
+	allSettles, allErr := loadTailJSONLFile[okxDirectionalSettlement](eng.SettlementsPath(), time.Time{}, 1000)
+	if allErr == nil && allSettles != nil {
+		now := time.Now().UTC()
+		today := computeDirectionalStats(allSettles, beijingCSTDayStart(now))
+		allTime := computeDirectionalStats(allSettles, time.Time{})
+		resp.StatsToday = &today
+		resp.StatsAllTime = &allTime
 	}
 	return resp
 }
@@ -89,11 +110,13 @@ func (s *DashboardServer) handleOKXDirectionalAPI(w http.ResponseWriter, r *http
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	if s.okxDirectional == nil {
-		writeJSON(w, map[string]any{"enabled": false})
+	venue := directionalVenueFromRequest(r)
+	eng := s.directionalEngine(venue)
+	if eng == nil {
+		writeJSON(w, map[string]any{"enabled": false, "venue": venue})
 		return
 	}
-	writeJSON(w, s.okxDirectionalStatusOrEmpty())
+	writeJSON(w, s.okxDirectionalStatusOrEmpty(venue))
 }
 
 // OKXDirectionalControlRequest POST /api/okx-directional/control 入参(页面:交易仓本金 + 止损% + 开始/停止)。
@@ -113,9 +136,11 @@ func (s *DashboardServer) handleOKXDirectionalControlAPI(w http.ResponseWriter, 
 	if !s.authorizeRuntimeControl(w, r, "okx_directional_control") {
 		return
 	}
-	if s.okxDirectional == nil {
-		s.auditControlAction(r, "okx_directional_control", false, "OKX 方向引擎未注入")
-		http.Error(w, "OKX 方向引擎未注入(需 okx_directional.enabled=true)", http.StatusBadRequest)
+	venue := directionalVenueFromRequest(r)
+	eng := s.directionalEngine(venue)
+	if eng == nil {
+		s.auditControlAction(r, "okx_directional_control", false, fmt.Sprintf("%s 方向引擎未注入", venue))
+		http.Error(w, fmt.Sprintf("%s 方向引擎未注入", venue), http.StatusBadRequest)
 		return
 	}
 	var req OKXDirectionalControlRequest
@@ -131,11 +156,11 @@ func (s *DashboardServer) handleOKXDirectionalControlAPI(w http.ResponseWriter, 
 		http.Error(w, msg, http.StatusBadRequest)
 		return
 	}
-	if err := s.okxDirectional.SetOKXDirectionalControl(req.Active, req.TradingCapitalUSDT, req.StopLossPct); err != nil {
+	if err := eng.SetOKXDirectionalControl(req.Active, req.TradingCapitalUSDT, req.StopLossPct); err != nil {
 		s.auditControlAction(r, "okx_directional_control", false, err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	s.auditControlAction(r, "okx_directional_control", true, fmt.Sprintf("active=%v capital=%.2f stop=%.2f", req.Active, req.TradingCapitalUSDT, req.StopLossPct))
-	writeJSON(w, s.okxDirectionalStatusOrEmpty())
+	s.auditControlAction(r, "okx_directional_control", true, fmt.Sprintf("venue=%s active=%v capital=%.2f stop=%.2f", venue, req.Active, req.TradingCapitalUSDT, req.StopLossPct))
+	writeJSON(w, s.okxDirectionalStatusOrEmpty(venue))
 }

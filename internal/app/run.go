@@ -15,6 +15,8 @@ import (
 
 	"lingxi/internal/core"
 	"lingxi/internal/venue/binance"
+	"lingxi/internal/venue/bybit"
+	"lingxi/internal/venue/gate"
 )
 
 // beijingLogLocation 固定北京时区(UTC+8,无 DST);用 FixedZone 避免依赖系统 tzdata。
@@ -157,7 +159,11 @@ func startLiveStack(ctx context.Context, cfg EngineConfig) error {
 	if secretPath == "" {
 		secretPath = "secret.yaml"
 	}
-	if cfg.CrossVenueScanner.Enabled {
+	// carryTradingEnabled:carry(扫描+跨所配对+单所轮动)是否真钱交易。停 carry 后为 false,
+	// 但账户级共享服务(权益采样 / 充提核算 / 账户硬风控)与 carry 无关,必须常驻——
+	// 否则实盘方向引擎会失去账户硬止损,且收益面板的「按北京0点基准」数据会断供。
+	carryTradingEnabled := cfg.CrossVenueScanner.Enabled
+	if carryTradingEnabled {
 		// S7-A:真钱交易循环(scanner+executor / unified_rotation)启动前抢单写租约,防双开双写同一账户。
 		// flock 随进程退出由内核释放;与 emergency_flatten 共用 .lingxi-live.lock(主进程存活时 flatten 抢锁失败)。
 		liveLease, leaseErr := acquireLiveStackSingleWriterLease(cfg)
@@ -167,8 +173,62 @@ func startLiveStack(ctx context.Context, cfg EngineConfig) error {
 		if liveLease != nil {
 			defer func() { _ = liveLease.Release() }()
 		}
-		scanner := NewCrossVenueScanner(cfg, orch, secretPath, log.Default())
-		dashboard.SetCrossVenueScanner(scanner)
+	}
+	// 账户级共享服务常驻构造(独立于 carry 交易):scanner 对象 + crossVenueExecutor 仅用于权益采样/收益核算,
+	// 不启动其扫描/轮动/开仓循环(那些仅在 carryTradingEnabled 时挂 hook)。
+	scanner := NewCrossVenueScanner(cfg, orch, secretPath, log.Default())
+	dashboard.SetCrossVenueScanner(scanner)
+	var crossVenueExec *CrossVenueExecutor
+	if exec, err := NewCrossVenueExecutor(cfg, orch, scanner, secretPath, log.Default()); err != nil {
+		log.Default().Printf("[跨所执行] 构造失败,跳过: %v", err)
+	} else {
+		crossVenueExec = exec
+		exec.SetControlPlane(controlPlane)
+		dashboard.SetCrossVenueExecutor(exec)
+		// 路线 B: open/manage/reconcile 仅由统一 runner 驱动;停 Run 主循环防双循环,reconcile 经 runner 派发。
+		exec.SetRotationManaged(true)
+		// 开仓仅在 carry 真钱交易时允许;停 carry 后恒关。
+		_ = exec.SetOpeningsEnabled(carryTradingEnabled && cfg.CrossVenueExecutor.PerpPerpOpeningsDefaultEnabled)
+		go exec.RunEquitySampler(ctx) // 账户级权益采样:常驻(收益面板「北京0点基准」数据源)
+	}
+	// 五策略统一轮动 runner:常驻构造(便于面板 START/STOP 与账户风控引用),carry 停时 active=false 且不挂 run hook。
+	var svspExec *SingleVenueSpotPerpExecutor
+	var cvspExec *CrossVenueSpotPerpExecutor
+	var svpsExec *SingleVenuePerpSpotExecutor
+	var cvpsExec *CrossVenuePerpSpotExecutor
+	var rotationRunner *UnifiedRotationRunner
+	{
+		rotVenues := buildCrossVenueExecutorAdapters(orch, cfg, secretPath, log.Default())
+		rd := cfg.NetworkConfig.RecordDir
+		svspExec = NewSingleVenueSpotPerpExecutor(cfg, rotVenues, rd, log.Default())
+		cvspExec = NewCrossVenueSpotPerpExecutor(cfg, rotVenues, rd, log.Default())
+		svpsExec = NewSingleVenuePerpSpotExecutor(cfg, rotVenues, rd, log.Default())
+		cvpsExec = NewCrossVenuePerpSpotExecutor(cfg, rotVenues, rd, log.Default())
+		rotationRunner = NewUnifiedRotationRunner(
+			cfg.CrossVenueExecutor, RotationConfigFromUnified(cfg.UnifiedRotation, cfg.CrossVenueExecutor), DefaultCapitalRouterConfig(),
+			svspExec, cvspExec, svpsExec, cvpsExec, crossVenueExec, scanner, rotVenues, rd, log.Default(),
+			DelistGuardConfigFromUnifiedRotation(cfg.UnifiedRotation),
+		)
+		defaultActive := carryTradingEnabled && cfg.UnifiedRotation.Enabled && cfg.UnifiedRotation.LiveTradingEnabled
+		rotationRunner.InitState(defaultActive)
+		rotationRunner.SetControlPlane(controlPlane)
+		dashboard.SetRotationExecutors(svspExec, cvspExec, svpsExec, cvpsExec)
+		dashboard.SetRotationRunner(rotationRunner)
+	}
+	// Stage B 账户级硬风控:常驻(实盘方向引擎也需要账户级硬止损)。一级硬停默认启用(非破坏性);二级 flatten opt-in 默认关闭。
+	go startAccountRiskWatcher(ctx, accountRiskWatchConfig{
+		Cfg:            cfg,
+		RecordDir:      cfg.NetworkConfig.RecordDir,
+		Logger:         log.Default(),
+		ControlPlane:   controlPlane,
+		RotationRunner: rotationRunner,
+		CrossVenue:     crossVenueExec,
+		SVSP:           svspExec,
+		CVSP:           cvspExec,
+		SVPS:           svpsExec,
+		CVPS:           cvpsExec,
+	})
+	if carryTradingEnabled {
 		// OKX/Gate funding 执行器选币读扫描器快照,不现场拉全量资金费。
 		for _, rt := range orch.All() {
 			if rt != nil && rt.controller != nil && isFundingExecutorVenue(rt.name) {
@@ -176,63 +236,10 @@ func startLiveStack(ctx context.Context, cfg EngineConfig) error {
 			}
 		}
 		go crossVenueScannerRunHook(scanner, ctx)
-		var crossVenueExec *CrossVenueExecutor
-		if cfg.CrossVenueExecutor.Enabled {
-			exec, err := NewCrossVenueExecutor(cfg, orch, scanner, secretPath, log.Default())
-			if err != nil {
-				log.Default().Printf("[跨所执行] 构造失败,跳过: %v", err)
-			} else {
-				crossVenueExec = exec
-				exec.SetControlPlane(controlPlane)
-				dashboard.SetCrossVenueExecutor(exec)
-				// 路线 B: open/manage/reconcile 仅由统一 runner 驱动;停 Run 主循环防双循环,reconcile 经 runner 派发。
-				exec.SetRotationManaged(true)
-				_ = exec.SetOpeningsEnabled(cfg.CrossVenueExecutor.PerpPerpOpeningsDefaultEnabled)
-				go exec.RunEquitySampler(ctx)
-			}
-		}
-		// 五策略统一轮动 runner:常驻构造(便于面板 START/STOP),初始 active 由 config + rotation_control.json 决定。
-		// active=false 时不下新单,仍 reconcile/manage;active=true 即实盘。perp-perp 经 CrossVenueExecutor binding 同台择优。
-		var svspExec *SingleVenueSpotPerpExecutor
-		var cvspExec *CrossVenueSpotPerpExecutor
-		var svpsExec *SingleVenuePerpSpotExecutor
-		var cvpsExec *CrossVenuePerpSpotExecutor
-		var rotationRunner *UnifiedRotationRunner
-		{
-			rotVenues := buildCrossVenueExecutorAdapters(orch, cfg, secretPath, log.Default())
-			rd := cfg.NetworkConfig.RecordDir
-			svspExec = NewSingleVenueSpotPerpExecutor(cfg, rotVenues, rd, log.Default())
-			cvspExec = NewCrossVenueSpotPerpExecutor(cfg, rotVenues, rd, log.Default())
-			svpsExec = NewSingleVenuePerpSpotExecutor(cfg, rotVenues, rd, log.Default())
-			cvpsExec = NewCrossVenuePerpSpotExecutor(cfg, rotVenues, rd, log.Default())
-			rotationRunner = NewUnifiedRotationRunner(
-				cfg.CrossVenueExecutor, RotationConfigFromUnified(cfg.UnifiedRotation, cfg.CrossVenueExecutor), DefaultCapitalRouterConfig(),
-				svspExec, cvspExec, svpsExec, cvpsExec, crossVenueExec, scanner, rotVenues, rd, log.Default(),
-				DelistGuardConfigFromUnifiedRotation(cfg.UnifiedRotation),
-			)
-			defaultActive := cfg.UnifiedRotation.Enabled && cfg.UnifiedRotation.LiveTradingEnabled
-			rotationRunner.InitState(defaultActive)
-			rotationRunner.SetControlPlane(controlPlane)
-			dashboard.SetRotationExecutors(svspExec, cvspExec, svpsExec, cvpsExec)
-			dashboard.SetRotationRunner(rotationRunner)
-			log.Default().Printf("[统一轮动] runner 常驻 (config 默认 active=%v;持久化 active 优先)", defaultActive)
-			go unifiedRotationRunHook(rotationRunner, ctx)
-		}
-		// Stage B 账户级硬风控:一级硬停默认启用(非破坏性);二级 flatten opt-in 默认关闭。
-		go startAccountRiskWatcher(ctx, accountRiskWatchConfig{
-			Cfg:            cfg,
-			RecordDir:      cfg.NetworkConfig.RecordDir,
-			Logger:         log.Default(),
-			ControlPlane:   controlPlane,
-			RotationRunner: rotationRunner,
-			CrossVenue:     crossVenueExec,
-			SVSP:           svspExec,
-			CVSP:           cvspExec,
-			SVPS:           svpsExec,
-			CVPS:           cvpsExec,
-		})
-	} else if cfg.CrossVenueExecutor.Enabled {
-		log.Default().Printf("[跨所执行] 已启用但扫描器未启用,跳过(需 cross_venue_scanner.enabled=true)")
+		go unifiedRotationRunHook(rotationRunner, ctx)
+		log.Default().Printf("[统一轮动] carry 真钱交易已启动 (config 默认 active=%v)", rotationRunner != nil && cfg.UnifiedRotation.LiveTradingEnabled)
+	} else {
+		log.Default().Printf("[账户服务] carry 交易已停(scanner.enabled=false);权益采样/充提核算/账户硬风控 仍常驻")
 	}
 	if cfg.OKXDirectional.Enabled {
 		if eng, err := NewOKXDirectionalEngine(cfg, orch, cfg.NetworkConfig.RecordDir, log.Default()); err != nil {
@@ -241,6 +248,28 @@ func startLiveStack(ctx context.Context, cfg EngineConfig) error {
 			dashboard.SetOKXDirectionalEngine(eng)
 			go eng.Run(ctx)
 		}
+	}
+	// 其余方向所各起一个独立方向引擎,默认停用(需面板点开始)。bybit/gate 适配器已注入 orchestrator。
+	for _, vn := range []string{bybit.VenueName, gate.VenueName} {
+		if eng, derr := NewDirectionalEngineForVenue(vn, cfg, orch, cfg.NetworkConfig.RecordDir, log.Default()); derr != nil {
+			log.Default().Printf("[方向] %s 引擎构造失败,跳过: %v", vn, derr)
+		} else {
+			dashboard.SetOKXDirectionalEngine(eng)
+			go eng.Run(ctx)
+			log.Default().Printf("[方向] %s 引擎已接线(默认停用,需面板点开始)", vn)
+		}
+	}
+	// binance 方向引擎:适配器构造特殊(需 networkCfg + 认证客户端),单独构建后接线;默认停用。
+	if badp, berr := buildCrossVenueReadOnlyAdapter(binance.VenueName, cfg, secretPath); berr != nil {
+		log.Default().Printf("[方向] binance 适配器构造失败,跳过: %v", berr)
+	} else if bdv, ok := badp.(DirectionalVenue); !ok {
+		log.Default().Printf("[方向] binance 适配器未实现 DirectionalVenue,跳过")
+	} else if eng, derr := NewDirectionalEngine(binance.VenueName, bdv, buildDirectionalPeers(orch, binance.VenueName, log.Default()), cfg, cfg.NetworkConfig.RecordDir, log.Default()); derr != nil {
+		log.Default().Printf("[方向] binance 引擎构造失败,跳过: %v", derr)
+	} else {
+		dashboard.SetOKXDirectionalEngine(eng)
+		go eng.Run(ctx)
+		log.Default().Printf("[方向] binance 引擎已接线(默认停用,需面板点开始)")
 	}
 	if err := dashboard.Start(ctx); err != nil && !errors.Is(err, context.Canceled) {
 		return fmt.Errorf("Web 面板异常退出: %w", err)

@@ -154,7 +154,15 @@ func computeDirectionalSignal(closes []float64, fundingRate float64, cfg OKXDire
 		return out
 	}
 	last := closes[n-1]
-	er := efficiencyRatio(closes)
+	win := cfg.SignalWindowBars
+	if win <= 0 {
+		win = 24
+	}
+	sc := closes
+	if len(closes) > win {
+		sc = closes[len(closes)-win:]
+	}
+	er := efficiencyRatio(sc)
 	trendThresh := cfg.TrendEfficiencyThreshold
 	if trendThresh <= 0 {
 		trendThresh = 0.30
@@ -171,13 +179,13 @@ func computeDirectionalSignal(closes []float64, fundingRate float64, cfg OKXDire
 		} else if fast < slow {
 			base = DirectionShort
 		}
-		// 预期移动:趋势态用近窗净位移幅度近似。
-		out.ExpectedMoveBps = math.Abs(last-closes[0]) / last * 10000
+		// 预期移动:趋势态用信号窗口净位移幅度近似。
+		out.ExpectedMoveBps = math.Abs(last-sc[0]) / last * 10000
 		out.Conviction = clamp01(er)
 	} else {
 		// 震荡态:反转(z 分)。
 		out.Regime = RegimeRange
-		z, _, std := closeZScore(closes)
+		z, _, std := closeZScore(sc)
 		zEntry := cfg.ZScoreEntry
 		if zEntry <= 0 {
 			zEntry = 1.5
@@ -355,7 +363,7 @@ func decideDirectionalPositionAction(
 	addCount int,
 	cfg OKXDirectionalConfig,
 ) dirPosAction {
-	// ① 风险闸,永远最先。
+	// ① 风险闸,永远最先:触止损地板 / 信号反转。
 	if uPnLAccount <= stopFloor {
 		if partialDone {
 			return dirPosAction{dirActClose, "移动止损保盈"}
@@ -364,9 +372,6 @@ func decideDirectionalPositionAction(
 	}
 	if fresh.Side != DirectionFlat && fresh.Side != side {
 		return dirPosAction{dirActClose, "信号反转"}
-	}
-	if cfg.MaxHoldMinutes > 0 && holdMin >= cfg.MaxHoldMinutes {
-		return dirPosAction{dirActClose, "超时离场"}
 	}
 
 	addConv := cfg.AddConvictionMin
@@ -381,9 +386,28 @@ func decideDirectionalPositionAction(
 	if quickTP <= 0 {
 		quickTP = 0.12
 	}
+	arm := cfg.BreakevenArmPct
+	if arm <= 0 {
+		arm = 0.05
+	}
+	trailGap := cfg.TrailGapPct
+	if trailGap <= 0 {
+		trailGap = 0.15
+	}
 
-	// ② 快进快出哲学(小资金高频):浮盈达小止盈即全平落袋(吃到就赚到);
-	//    仅当数据判定"强延续"(信心高 + 趋势态同向 + 未到补仓上限)才改为骑乘加仓,博那笔少见的大趋势。
+	// ② 盈利保护(移动保盈):高水位过臂点后,浮盈回吐到 max(0, 峰值−间距) 即落袋,
+	//    不再让赢单一路回吐到超时变亏单(用户痛点:中途盈利却超时亏损)。
+	if peakAccount >= arm {
+		lock := peakAccount - trailGap
+		if lock < 0 {
+			lock = 0
+		}
+		if uPnLAccount <= lock {
+			return dirPosAction{dirActClose, fmt.Sprintf("移动保盈(峰值%.0f%%回吐至%.0f%%)", peakAccount*100, uPnLAccount*100)}
+		}
+	}
+
+	// ③ 快进快出小止盈:浮盈达 QuickTP 即全平落袋;仅强延续(高信心+趋势同向+未到补仓上限)才骑乘加仓。
 	strongContinuation := fresh.Side == side && fresh.Conviction >= addConv && fresh.Regime == RegimeTrend
 	if uPnLAccount >= quickTP {
 		if strongContinuation && addCount < maxAdds {
@@ -391,13 +415,131 @@ func decideDirectionalPositionAction(
 		}
 		return dirPosAction{dirActClose, fmt.Sprintf("快进快出止盈(浮盈%.0f%%本金,吃到就跑)", uPnLAccount*100)}
 	}
-	// 未到小止盈:持有,等它到点或撞止损/反转/超时(亏不让它长大,由止损地板+反转+超时治理)。
+
+	// ④ 治超时(停滞离场):给单子 ~2/3 窗口(StaleCutMinutes)仍未盈利就提前砍。
+	//    复盘实证:拖到 MaxHold 超时的单整体净亏(主失血口);提前砍既缩小单笔亏损,又腾空位给新机会。
+	//    已盈利/能冲到快进快出的赢单不受影响(仅当 uPnL ≤ StaleCutMinProfitPct,默认 0,即未盈利才砍)。
+	staleCut := cfg.StaleCutMinutes
+	if staleCut <= 0 {
+		staleCut = 40
+	}
+	if cfg.MaxHoldMinutes > 0 && holdMin >= staleCut && uPnLAccount <= cfg.StaleCutMinProfitPct {
+		return dirPosAction{dirActClose, fmt.Sprintf("停滞离场(持%dm未盈,浮盈%.0f%%)", holdMin, uPnLAccount*100)}
+	}
+
+	// ⑤ 超时:智能续持——达 MaxHold 后若仍盈利且信号同向,续持(让利润跑,受②保盈兜底);
+	//    否则离场。续持不得超过绝对上限 AbsMaxHoldMinutes。
+	if cfg.MaxHoldMinutes > 0 && holdMin >= cfg.MaxHoldMinutes {
+		absMax := cfg.AbsMaxHoldMinutes
+		if absMax <= 0 {
+			absMax = cfg.MaxHoldMinutes * 3
+		}
+		aligned := fresh.Side == side && fresh.Side != DirectionFlat
+		if holdMin < absMax && uPnLAccount > 0 && aligned {
+			return dirPosAction{dirActHold, ""}
+		}
+		return dirPosAction{dirActClose, "超时离场"}
+	}
+
+	// ⑤ 未到小止盈且无风险:持有(亏由止损地板/反转/超时治理)。
 	_ = partialDone
-	_ = peakAccount
 	return dirPosAction{dirActHold, ""}
 }
 
 // formatRatePct 把单次费率格式化成百分比字符串(供日志)。
 func formatRatePct(r float64) string {
 	return fmt.Sprintf("%.4f%%", r*100)
+}
+
+// recentDirection 由收盘序列在信号窗口内的净位移判最近方向:超死区→Long/Short,否则 Flat。
+func recentDirection(closes []float64, win int, deadbandPct float64) DirectionSide {
+	n := len(closes)
+	if n < 2 {
+		return DirectionFlat
+	}
+	if win > 0 && n > win {
+		closes = closes[n-win:]
+		n = len(closes)
+	}
+	first, last := closes[0], closes[n-1]
+	if first <= 0 {
+		return DirectionFlat
+	}
+	move := (last - first) / first
+	if deadbandPct < 0 {
+		deadbandPct = 0
+	}
+	if move > deadbandPct {
+		return DirectionLong
+	}
+	if move < -deadbandPct {
+		return DirectionShort
+	}
+	return DirectionFlat
+}
+
+// peerDirState 单个 peer 所对同币的最近方向。
+type peerDirState struct {
+	Venue string
+	Side  DirectionSide
+}
+
+// crossVenueCorroboration 跨所交叉印证(纯):对比其他所同币最近方向。
+// 返回 信心增量、是否否决、原因。规则:
+//   - 关闭或无方向 → 不调整;
+//   - 无任何有数据 peer(known=0)→ 不调整、绝不否决(币可能为本所独有);
+//   - 有数据 peer 全部反向且数量 ≥ vetoMin → 否决(单所假动作/流动性陷阱);
+//   - 否则 信心增量 = step×同向数 − step×反向数。
+func crossVenueCorroboration(primary DirectionSide, peers []peerDirState, cfg OKXDirectionalConfig) (convDelta float64, veto bool, reason string) {
+	if !cfg.CrossVenueCorroborationEnabled || primary == DirectionFlat {
+		return 0, false, ""
+	}
+	step := cfg.CrossVenueConvictionStep
+	if step <= 0 {
+		step = 0.1
+	}
+	vetoMin := cfg.CrossVenueVetoMinPeers
+	if vetoMin <= 0 {
+		vetoMin = 2
+	}
+	var agree, disagree, known int
+	for _, p := range peers {
+		if p.Side == DirectionFlat {
+			continue
+		}
+		known++
+		if p.Side == primary {
+			agree++
+		} else {
+			disagree++
+		}
+	}
+	if known == 0 {
+		return 0, false, "无跨所数据"
+	}
+	if agree == 0 && known >= vetoMin {
+		return 0, true, fmt.Sprintf("跨所背离:%d所均反向,疑似单所假动作", known)
+	}
+	return step*float64(agree) - step*float64(disagree), false, fmt.Sprintf("同向%d/反向%d", agree, disagree)
+}
+
+// sanitizeFillPrice 校验成交价:avg<=0 或偏离 mid 超过 maxDevFrac → 判为不可信,回退用 mid。
+// 纯函数,无副作用,可单测。
+func sanitizeFillPrice(avg, mid, maxDevFrac float64) (price float64, trusted bool) {
+	if mid <= 0 {
+		if avg > 0 {
+			return avg, true
+		}
+		return 0, false
+	}
+	if avg <= 0 {
+		return mid, false
+	}
+	if maxDevFrac <= 0 {
+		maxDevFrac = 0.10
+	}
+	if math.Abs(avg/mid-1) > maxDevFrac {
+		return mid, false // 离谱成交价,回退 mid
+	}
+	return avg, true
 }

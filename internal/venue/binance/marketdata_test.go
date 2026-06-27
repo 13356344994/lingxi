@@ -88,3 +88,57 @@ func TestKlineIntervalForMinutes(t *testing.T) {
 		t.Fatalf("200m 应 5m, got %s limit=%d", interval, limit)
 	}
 }
+
+// TestFetchCandlesParse 钉死 K 线解析:币安 klines 为 oldest-first 数组,
+// FetchCandles 应正确解析 ts/O/H/L/C/vol 并保持顺序。
+func TestFetchCandlesParse(t *testing.T) {
+	a := newHarness(t, func(w http.ResponseWriter, r *http.Request) {
+		if !strings.Contains(r.URL.Path, PathFuturesKlines) {
+			http.NotFound(w, r)
+			return
+		}
+		if r.URL.Query().Get("interval") != "5m" || r.URL.Query().Get("symbol") != "BTCUSDT" {
+			t.Fatalf("query=%v", r.URL.Query())
+		}
+		_, _ = w.Write([]byte(`[
+			[1700000000000,"60000","60060","59990","60050","12.1",1700000299999,"726050",100,"500","0","0"],
+			[1700000060000,"60050","60100","60000","60100","8.2",1700000899999,"492000",80,"400","0","0"],
+			[1700000120000,"60100","60150","60080","60120","10.5",1700001499999,"1050000",90,"450","0","0"]
+		]`))
+	})
+	candles, err := a.FetchCandles(context.Background(), venue.MarketPerp, "BTC-USDT", "5m", 3)
+	if err != nil {
+		t.Fatalf("FetchCandles: %v", err)
+	}
+	if len(candles) != 3 {
+		t.Fatalf("应解析 3 根 K 线, got %d", len(candles))
+	}
+	if candles[0].OpenTime.UnixMilli() != 1700000000000 {
+		t.Errorf("第一根应为最旧 ts, got %d", candles[0].OpenTime.UnixMilli())
+	}
+	if candles[2].OpenTime.UnixMilli() != 1700000120000 {
+		t.Errorf("最后一根应为最新 ts, got %d", candles[2].OpenTime.UnixMilli())
+	}
+	c0 := candles[0]
+	if c0.Open != 60000 || c0.High != 60060 || c0.Low != 59990 || c0.Close != 60050 || c0.Volume != 12.1 {
+		t.Errorf("最旧 K 线 O/H/L/C/vol 解析错误: %+v", c0)
+	}
+	c2 := candles[2]
+	if c2.Open != 60100 || c2.High != 60150 || c2.Low != 60080 || c2.Close != 60120 || c2.Volume != 10.5 {
+		t.Errorf("最新 K 线 O/H/L/C/vol 解析错误: %+v", c2)
+	}
+}
+
+func TestParseBinanceKlines(t *testing.T) {
+	rows := [][]any{
+		{float64(1700000120000), "60100", "60150", "60080", "60120", "10.5"},
+		{float64(1700000000000), "60000", "60060", "59990", "60050", "12.1"},
+	}
+	candles := parseBinanceKlines(rows)
+	if len(candles) != 2 {
+		t.Fatalf("got %d candles", len(candles))
+	}
+	if candles[0].OpenTime.UnixMilli() != 1700000120000 || candles[0].Volume != 10.5 {
+		t.Errorf("第一行解析错误: %+v", candles[0])
+	}
+}
