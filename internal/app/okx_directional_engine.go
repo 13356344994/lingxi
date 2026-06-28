@@ -1121,6 +1121,19 @@ func (e *OKXDirectionalEngine) closePosition(ctx context.Context, pos *okxDirect
 		if cerr != nil {
 			msg = cerr.Error()
 		}
+		// 交易所报「无持仓/空仓」=该仓在所上已不存在(手动平过/幽灵持仓):移除跟踪,不再每周期空转重试。
+		if cerr != nil {
+			le := strings.ToLower(cerr.Error())
+			if strings.Contains(le, "empty position") || strings.Contains(le, "position not found") ||
+				strings.Contains(le, "no position") || strings.Contains(le, "no open position") {
+				e.mu.Lock()
+				delete(e.positions, pos.Symbol)
+				e.mu.Unlock()
+				e.persistPositions()
+				e.logger.Printf("[OKX方向] %s 交易所已无持仓(幽灵),移除跟踪不再重试: %v", pos.Symbol, cerr)
+				return
+			}
+		}
 		e.setLastError(msg)
 		e.logger.Printf("[OKX方向] %s 平仓失败: %v", pos.Symbol, cerr)
 		return

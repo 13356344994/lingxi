@@ -814,3 +814,4 @@
 {"at":"2026-06-27T17:12:08.575134536Z","data":{"high":"bybit","low":"okx","qty":0.5,"symbol":"BTC-USDT"},"kind":"cvpp_open"}
 {"at":"2026-06-27T17:12:09.265472043Z","data":{"reason":"dry-run","symbol":"BTC-USDT"},"kind":"cvpp_close"}
 {"at":"2026-06-27T17:12:16.077464296Z","data":{"high":"bybit","low":"okx","qty":0.5,"symbol":"BTC-USDT"},"kind":"cvpp_open"}
+{"at":"2026-06-28T02:40:59.621466381Z","data":{"reason":"dry-run","symbol":"BTC-USDT"},"kind":"cvpp_close"}

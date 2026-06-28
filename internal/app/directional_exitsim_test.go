@@ -215,10 +215,10 @@ func TestDirectionalExitPolicySim(t *testing.T) {
 		{"信心闸0.70", func(c *core.OKXDirectionalConfig) { c.MinOpenConviction = 0.70 }},
 		{"信心闸0.75", func(c *core.OKXDirectionalConfig) { c.MinOpenConviction = 0.75 }},
 		{"信心闸0.80", func(c *core.OKXDirectionalConfig) { c.MinOpenConviction = 0.80 }},
-		{"信心0.70 反转持有0", func(c *core.OKXDirectionalConfig) { c.MinOpenConviction = 0.70; c.ReversalMinHoldMinutes = 0 }},
-		{"信心0.70 反转持有10", func(c *core.OKXDirectionalConfig) { c.MinOpenConviction = 0.70; c.ReversalMinHoldMinutes = 10 }},
-		{"信心0.70 反转持有20", func(c *core.OKXDirectionalConfig) { c.MinOpenConviction = 0.70; c.ReversalMinHoldMinutes = 20 }},
-		{"信心0.70 反转持有30", func(c *core.OKXDirectionalConfig) { c.MinOpenConviction = 0.70; c.ReversalMinHoldMinutes = 30 }},
+		{"当前 stale40 hold60", func(c *core.OKXDirectionalConfig) { c.MinOpenConviction = 0.70; c.ReversalMinHoldMinutes = 30 }},
+		{"stale60 hold90", func(c *core.OKXDirectionalConfig) { c.MinOpenConviction = 0.70; c.ReversalMinHoldMinutes = 30; c.StaleCutMinutes = 60; c.MaxHoldMinutes = 90 }},
+		{"stale off hold90", func(c *core.OKXDirectionalConfig) { c.MinOpenConviction = 0.70; c.ReversalMinHoldMinutes = 30; c.StaleCutMinutes = 0; c.MaxHoldMinutes = 90 }},
+		{"stale off hold120", func(c *core.OKXDirectionalConfig) { c.MinOpenConviction = 0.70; c.ReversalMinHoldMinutes = 30; c.StaleCutMinutes = 0; c.MaxHoldMinutes = 120 }},
 	}
 	fmt.Printf("\n=== 出场策略净期望对比(账户%%,已扣成本)===\n")
 	for _, v := range variants {
