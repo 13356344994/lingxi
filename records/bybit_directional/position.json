@@ -1,18 +1,34 @@
 [
   {
-    "symbol": "PHAROS-USDT",
+    "symbol": "BEL-USDT",
     "side": "long",
-    "entry_price": 0.4904,
-    "qty": 101,
+    "entry_price": 0.12477,
+    "qty": 399,
     "notional_usdt": 50,
-    "opened_at": "2026-06-28T03:13:32.88471741Z",
+    "opened_at": "2026-06-28T03:51:39.835175457Z",
     "regime": "range",
-    "funding_at_open": -0.00511609,
-    "last_mid": 0.493,
-    "last_unrealized_account_pct": 0.026508972267536617,
-    "last_unrealized_usdt": 0.2650897226753662,
+    "funding_at_open": -0.0053186,
+    "last_mid": 0.12478500000000001,
+    "last_unrealized_account_pct": 0.0006011060351046374,
+    "last_unrealized_usdt": 0.006011060351046375,
     "initial_notional_usdt": 50,
-    "peak_account_pct": 0.026508972267536617,
+    "peak_account_pct": 0.0030055301755231873,
+    "stop_floor_account_pct": -0.2
+  },
+  {
+    "symbol": "RE-USDT",
+    "side": "long",
+    "entry_price": 0.6313,
+    "qty": 39,
+    "notional_usdt": 25,
+    "opened_at": "2026-06-28T03:51:43.144021196Z",
+    "regime": "trend",
+    "funding_at_open": -0.01050443,
+    "last_mid": 0.63015,
+    "last_unrealized_account_pct": -0.009108189450340445,
+    "last_unrealized_usdt": -0.04554094725170222,
+    "initial_notional_usdt": 25,
+    "peak_account_pct": 0.0035640741327424477,
     "stop_floor_account_pct": -0.2
   }
 ]

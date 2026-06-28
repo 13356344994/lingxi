@@ -1,5 +1,21 @@
 [
   {
+    "symbol": "SNX-USDT",
+    "side": "short",
+    "entry_price": 0.234,
+    "qty": 213,
+    "notional_usdt": 50,
+    "opened_at": "2026-06-28T03:51:42.682700109Z",
+    "regime": "range",
+    "funding_at_open": -0.0009769852984208,
+    "last_mid": 0.23375,
+    "last_unrealized_account_pct": 0.005341880341880347,
+    "last_unrealized_usdt": 0.053418803418803465,
+    "initial_notional_usdt": 50,
+    "peak_account_pct": 0.005341880341880347,
+    "stop_floor_account_pct": -0.2
+  },
+  {
     "symbol": "GLM-USDT",
     "side": "long",
     "entry_price": 0.1046,
@@ -8,9 +24,9 @@
     "opened_at": "2026-06-28T03:20:52.999891015Z",
     "regime": "trend",
     "funding_at_open": -0.0029799331806653,
-    "last_mid": 0.10335,
-    "last_unrealized_account_pct": -0.05975143403441688,
-    "last_unrealized_usdt": -0.29875717017208436,
+    "last_mid": 0.10295,
+    "last_unrealized_account_pct": -0.07887189292543015,
+    "last_unrealized_usdt": -0.39435946462715077,
     "initial_notional_usdt": 25,
     "peak_account_pct": 0.026290630975143163,
     "stop_floor_account_pct": -0.2

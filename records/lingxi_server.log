@@ -13437,3 +13437,144 @@ b85c9c77e8509a887121382c02431748 | cycle=
 2026/06/28 11:45:24 [binance][OKX方向] BICO-USDT 开仓失败: <nil>
 2026/06/28 11:45:24 [binance][OKX方向][跨所] ARX-USDT short 同向3/反向0 信心→0.68
 2026/06/28 11:45:24 [binance][OKX方向] ARX-USDT 信心0.677 < 最低开仓信心0.700,跳过(只做高信心档)
+2026/06/28 11:46:03 [OKX方向][选币] 候选=11 BTC趋势=0.11 入选=11 头部: RE-USDT(0.989) LAB-USDT PROS-USDT
+2026/06/28 11:46:03 [OKX公告] 已刷新风险集合: symbols=0
+2026/06/28 11:46:03 [delist-guard] 已刷新 gate instrument 状态: total=2832 non_trading=4
+2026/06/28 11:46:03 [delist-guard] 已刷新 okx instrument 状态: total=1659 non_trading=0
+2026/06/28 11:46:03 [delist-guard] 已刷新 bybit instrument 状态: total=1266 non_trading=0
+2026/06/28 11:46:11 [账户风控] 权益数据不可靠(真实现金单 tick 骤降 65.9368 > 阈值 53.3005 且无持仓减少),本轮跳过风控评估
+2026/06/28 11:46:55 [OKX方向][跨所] BICO-USDT short 同向2/反向0 信心→0.61
+2026/06/28 11:46:55 [OKX方向] BICO-USDT 信心0.613 < 最低开仓信心0.700,跳过(只做高信心档)
+2026/06/28 11:46:55 [OKX方向][跨所] ARX-USDT short 同向2/反向0 信心→0.57
+2026/06/28 11:46:55 [OKX方向] ARX-USDT 信心0.569 < 最低开仓信心0.700,跳过(只做高信心档)
+2026/06/28 11:46:57 [bybit][OKX方向][跨所] SIREN-USDT short 同向0/反向1 信心→0.65
+2026/06/28 11:46:57 [bybit][OKX方向] SIREN-USDT 信心0.646 < 最低开仓信心0.700,跳过(只做高信心档)
+2026/06/28 11:46:57 [binance][OKX方向][跨所] 否决 SIREN-USDT short: 跨所背离:2所均反向,疑似单所假动作
+2026/06/28 11:46:58 [binance][OKX方向][跨所] BICO-USDT short 同向3/反向0 信心→0.73
+2026/06/28 11:46:58 [binance][下单] venue=binance market=perp BICO-USDT side=sell price=0.01988 tick=0.00001 qty=838
+2026/06/28 11:47:00 [binance][OKX方向] 已开 BICO-USDT short qty=838.00000000 @0.019880 名义=16.67 regime=trend
+2026/06/28 11:47:11 [账户风控] 权益数据不可靠(真实现金单 tick 骤降 65.9368 > 阈值 53.3005 且无持仓减少),本轮跳过风控评估
+2026/06/28 11:48:11 [账户风控] 权益数据不可靠(真实现金单 tick 骤降 65.9368 > 阈值 53.3005 且无持仓减少),本轮跳过风控评估
+2026/06/28 11:48:30 [bybit][OKX方向][跨所] SIREN-USDT short 同向0/反向1 信心→0.66
+2026/06/28 11:48:30 [bybit][OKX方向] SIREN-USDT 信心0.658 < 最低开仓信心0.700,跳过(只做高信心档)
+2026/06/28 11:49:11 [账户风控] 权益数据不可靠(真实现金单 tick 骤降 66.3627 > 阈值 53.3005 且无持仓减少),本轮跳过风控评估
+2026/06/28 11:49:16 [OKX方向][跨所] ARX-USDT short 同向2/反向0 信心→0.57
+2026/06/28 11:49:16 [OKX方向] ARX-USDT 信心0.572 < 最低开仓信心0.700,跳过(只做高信心档)
+2026/06/28 11:49:16 [OKX方向][跨所] BICO-USDT short 同向2/反向0 信心→0.55
+2026/06/28 11:49:16 [OKX方向] BICO-USDT 信心0.549 < 最低开仓信心0.700,跳过(只做高信心档)
+2026/06/28 11:50:02 [bybit][OKX方向][跨所] GLM-USDT long 同向0/反向1 信心→0.64
+2026/06/28 11:50:02 [bybit][OKX方向] GLM-USDT 信心0.644 < 最低开仓信心0.700,跳过(只做高信心档)
+2026/06/28 11:50:11 [账户风控] 权益数据不可靠(真实现金单 tick 骤降 66.3627 > 阈值 53.3005 且无持仓减少),本轮跳过风控评估
+2026/06/28 11:51:11 [账户风控] 权益数据不可靠(真实现金单 tick 骤降 66.3627 > 阈值 53.3005 且无持仓减少),本轮跳过风控评估
+2026/06/28 11:51:35 [bybit][OKX方向][跨所] 否决 GLM-USDT long: 跨所背离:2所均反向,疑似单所假动作
+2026/06/28 11:51:36 [bybit][下单] venue=bybit market=perp BEL-USDT side=buy price=0.12478 tick=0.00001 qty=400
+2026/06/28 11:51:37 [bybit][下单] venue=bybit market=perp BEL-USDT side=buy price=0.12477 tick=0.00001 qty=400
+2026/06/28 11:51:37 [OKX方向][跨所] SNX-USDT short 同向2/反向0 信心→0.75
+2026/06/28 11:51:38 [下单] venue=okx market=perp SNX-USDT side=sell price=0.2340 tick=0.0001 qty=213
+2026/06/28 11:51:39 [bybit][下单] venue=bybit market=perp BEL-USDT side=buy price=0.12477 tick=0.00001 qty=1
+2026/06/28 11:51:39 [bybit][OKX方向][maker] BEL-USDT 第3轮失败: bybit: retCode=110094 retMsg="Order does not meet minimum order value 5USDT" path=/v5/order/create body={"category":"linear","symbol":"BELUSDT","side":"Buy","orderType":"Limit","qty":"1","price":"0.12477","timeInForce":"PostOnly","orderLinkId":"okxdir-BELUSDT-open-1782618696-m3"}
+2026/06/28 11:51:39 [bybit][OKX方向] 已开 BEL-USDT long qty=399.00000000 @0.124770 名义=50.00 regime=range
+2026/06/28 11:51:39 [bybit][OKX方向][跨所] RE-USDT long 同向2/反向0 信心→0.76
+2026/06/28 11:51:40 [下单] venue=okx market=perp SNX-USDT side=sell price=0.2340 tick=0.0001 qty=213
+2026/06/28 11:51:41 [bybit][下单] venue=bybit market=perp RE-USDT side=buy price=0.6313 tick=0.0001 qty=39
+2026/06/28 11:51:42 [OKX方向] 已开 SNX-USDT short qty=213.00000000 @0.234000 名义=50.00 regime=range
+2026/06/28 11:51:42 [OKX方向][跨所] BICO-USDT short 同向2/反向0 信心→0.54
+2026/06/28 11:51:42 [OKX方向] BICO-USDT 信心0.537 < 最低开仓信心0.700,跳过(只做高信心档)
+2026/06/28 11:51:43 [bybit][OKX方向] 已开 RE-USDT long qty=39.00000000 @0.631300 名义=25.00 regime=trend
+2026/06/28 11:52:11 [账户风控] 因盲区重锚,不计入回撤(last_trusted_at=2026-06-28T03:37:06Z connectivity_blind=false)
+2026/06/28 11:52:11 [账户风控] OK daily_equity_delta=-78.8608 daily_realized=0.0000 settlement_dd=4.8136 real_equity_dd=79.2515 real_equity_dd_adj=0.0000 cum_fund_flow=-64.2452 positions=0 notional=0.00
+2026/06/28 11:53:11 [账户风控] 权益数据不可靠(真实现金单 tick 骤降 65.5132 > 阈值 52.9633 且无持仓减少),本轮跳过风控评估
+2026/06/28 11:54:11 [账户风控] 权益数据不可靠(真实现金单 tick 骤降 65.5132 > 阈值 52.9633 且无持仓减少),本轮跳过风控评估
+2026/06/28 11:54:46 [bybit][下单] venue=bybit market=perp PHAROS-USDT side=sell price=0.4903 tick=0.0001 qty=101
+2026/06/28 11:54:48 [bybit][下单] venue=bybit market=perp PHAROS-USDT side=sell price=0.4906 tick=0.0001 qty=101
+2026/06/28 11:54:51 [bybit][下单] venue=bybit market=perp PHAROS-USDT side=sell price=0.4906 tick=0.0001 qty=101
+2026/06/28 11:54:54 [bybit][下单] venue=bybit market=perp PHAROS-USDT side=sell price=0.4878 tick=0.0001 qty=101
+2026/06/28 11:54:54 [bybit][OKX方向] 已平 PHAROS-USDT long 原因=停滞离场(持41m未盈,浮盈-1%) 实现≈-0.0975 USDT
+2026/06/28 11:54:54 [OKX方向][跨所] ARX-USDT short 同向2/反向0 信心→0.57
+2026/06/28 11:54:54 [OKX方向] ARX-USDT 信心0.567 < 最低开仓信心0.700,跳过(只做高信心档)
+2026/06/28 11:54:54 [OKX方向][跨所] BICO-USDT short 同向2/反向0 信心→0.55
+2026/06/28 11:54:54 [OKX方向] BICO-USDT 信心0.545 < 最低开仓信心0.700,跳过(只做高信心档)
+2026/06/28 11:54:56 [bybit][OKX方向][跨所] GLM-USDT long 同向0/反向1 信心→0.72
+2026/06/28 11:54:57 [bybit][下单] venue=bybit market=perp GLM-USDT side=buy price=0.10311 tick=0.00001 qty=484
+2026/06/28 11:54:59 [bybit][下单] venue=bybit market=perp GLM-USDT side=buy price=0.10311 tick=0.00001 qty=484
+2026/06/28 11:55:02 [bybit][下单] venue=bybit market=perp GLM-USDT side=buy price=0.10311 tick=0.00001 qty=484
+2026/06/28 11:55:04 [bybit][OKX方向] GLM-USDT 开仓失败: <nil>
+2026/06/28 11:55:11 [账户风控] 权益数据不可靠(真实现金单 tick 骤降 65.3667 > 阈值 52.9633 且无持仓减少),本轮跳过风控评估
+2026/06/28 11:56:11 [账户风控] 权益数据不可靠(真实现金单 tick 骤降 65.3667 > 阈值 52.9633 且无持仓减少),本轮跳过风控评估
+2026/06/28 11:56:37 [bybit][OKX方向][跨所] SIREN-USDT long 同向1/反向0 信心→0.43
+2026/06/28 11:56:37 [bybit][OKX方向] SIREN-USDT 信心0.431 < 最低开仓信心0.700,跳过(只做高信心档)
+2026/06/28 11:57:11 [账户风控] 权益数据不可靠(真实现金单 tick 骤降 65.3667 > 阈值 52.9633 且无持仓减少),本轮跳过风控评估
+2026/06/28 11:57:39 [binance][下单] venue=binance market=perp CLO-USDT side=buy price=0.12538 tick=0.00001 qty=140
+2026/06/28 11:57:40 [binance][OKX方向] 已平 CLO-USDT short 原因=硬止损 实现≈-0.8862 USDT
+2026/06/28 11:57:43 [binance][下单] venue=binance market=perp HOT-USDT side=buy price=0.0003253 tick=0.0000001 qty=102438
+2026/06/28 11:57:45 [binance][下单] venue=binance market=perp HOT-USDT side=buy price=0.0003253 tick=0.0000001 qty=102438
+2026/06/28 11:57:48 [binance][下单] venue=binance market=perp HOT-USDT side=buy price=0.0003253 tick=0.0000001 qty=102438
+2026/06/28 11:57:50 [binance][OKX方向] HOT-USDT 开仓失败: <nil>
+2026/06/28 11:57:50 [binance][OKX方向][跨所] ARX-USDT short 同向3/反向0 信心→0.67
+2026/06/28 11:57:50 [binance][OKX方向] ARX-USDT 信心0.671 < 最低开仓信心0.700,跳过(只做高信心档)
+2026/06/28 11:57:50 [binance][OKX方向][跨所] SIREN-USDT long 同向2/反向0 信心→0.54
+2026/06/28 11:57:50 [binance][OKX方向] SIREN-USDT 信心0.543 < 最低开仓信心0.700,跳过(只做高信心档)
+2026/06/28 11:58:00 启动 lingxi: version=964e807-dirty commit=964e807 build_time=2026-06-28T03:58:00Z
+2026/06/28 11:58:00 [配置] 生效配置相对默认值有 30 处覆盖:
+2026/06/28 11:58:00 [配置]   CrossVenueExecutor.CloseSpreadAPR: 0.3 => 0.2
+2026/06/28 11:58:00 [配置]   CrossVenueExecutor.Enabled: false => true
+2026/06/28 11:58:00 [配置]   CrossVenueExecutor.LiveTradingEnabled: false => true
+2026/06/28 11:58:00 [配置]   CrossVenueExecutor.MarginSafetyFactor: 1 => 1.5
+2026/06/28 11:58:00 [配置]   CrossVenueExecutor.MaxConcurrent: 2 => 8
+2026/06/28 11:58:00 [配置]   CrossVenueExecutor.MaxPositionUSDT: 75 => 150
+2026/06/28 11:58:00 [配置]   CrossVenueExecutor.UnifiedCaptureModelEnabled: false => true
+2026/06/28 11:58:00 [配置]   CrossVenueExecutor.UntrackedExposureAction: halt => flatten
+2026/06/28 11:58:00 [配置]   CrossVenueScanner.DirectionalVenues:  => okx
+2026/06/28 11:58:00 [配置]   CrossVenueScanner.Enabled: true => false
+2026/06/28 11:58:00 [配置]   HistoricalConfig.AssumedHourlyBorrowInterestRate: 5e-05 => 4.75e-05
+2026/06/28 11:58:00 [配置]   HistoricalConfig.FuturesTakerFeeRate: 0.0005 => 0.00045
+2026/06/28 11:58:00 [配置]   HistoricalConfig.MaxFundingCyclesHeld: 1 => 3
+2026/06/28 11:58:00 [配置]   HistoricalConfig.SpotTakerFeeRate: 0.001 => 0.00075
+2026/06/28 11:58:00 [配置]   NetworkConfig.DashboardAddr: 127.0.0.1:8080 => 0.0.0.0:8080
+2026/06/28 11:58:00 [配置]   OKXDirectional.Enabled: false => true
+2026/06/28 11:58:00 [配置]   OKXDirectional.LiveTradingEnabled: false => true
+2026/06/28 11:58:00 [配置]   PortfolioConfig.EnableRollingHold: false => true
+2026/06/28 11:58:00 [配置]   RiskConfig.BorrowCapacityCheckEnabled: false => true
+2026/06/28 11:58:00 [配置]   RiskConfig.ImmediateInvalidateRate: 0.0005 => 5e-05
+2026/06/28 11:58:00 [配置]   RiskConfig.MaxAccountDrawdownUSDT: 60 => 90
+2026/06/28 11:58:00 [配置]   RiskConfig.MaxAccountOpenNotionalUSDT: 1200 => 2200
+2026/06/28 11:58:00 [配置]   RiskConfig.MaxCycleOpenNotionalUSDT: 300 => 60
+2026/06/28 11:58:00 [配置]   RiskConfig.MaxDailyLossUSDT: 25 => 40
+2026/06/28 11:58:00 [配置]   RiskConfig.MaxStrategyCumulativeLossUSDT: 35 => 30
+2026/06/28 11:58:00 [配置]   StrategyConfig.PerSymbolQuoteUSDT: 100 => 30
+2026/06/28 11:58:00 [配置]   StrategyConfig.StrategyMode: collect_data => profit_seeking
+2026/06/28 11:58:00 [配置]   UnifiedRotation.Enabled: false => true
+2026/06/28 11:58:00 [配置]   UnifiedRotation.LiveTradingEnabled: false => true
+2026/06/28 11:58:00 [配置]   UnifiedRotation.TotalDeployableUSDT: 0 => 435
+2026/06/28 11:58:00 [冷启动检查] 开始执行每日健康检查...
+2026/06/28 11:58:00 [冷启动检查] 配置校验通过
+2026/06/28 11:58:00 [冷启动检查] 记录目录可写校验通过
+2026/06/28 11:58:00 [冷启动检查] 每日健康检查全部通过
+2026/06/28 11:58:00 [编排] venue=binance 运行时已注册(enabled,默认 idle,plan.autostart=false)
+2026/06/28 11:58:00 [编排] venue=bybit 适配器已注入(仅行情/账户,不启动交易引擎)
+2026/06/28 11:58:00 [编排] venue=bybit 运行时已注册(enabled,默认 idle,plan.autostart=false)
+2026/06/28 11:58:00 [编排] venue=gate 适配器已注入(仅行情/账户,不启动交易引擎)
+2026/06/28 11:58:00 [编排] venue=gate 运行时已注册(enabled,默认 idle,plan.autostart=false)
+2026/06/28 11:58:00 [编排] venue=okx 适配器已注入(仅行情/账户,不启动交易引擎)
+2026/06/28 11:58:00 [编排] venue=okx 运行时已注册(enabled,默认 idle,plan.autostart=false)
+2026/06/28 11:58:00 [跨所执行] 运行时开仓开关已设为 关(已落盘 records/crossvenue/control.json)
+2026/06/28 11:58:00 [权益采样] 已启动: interval=3m0s 口径=各所USDT现金余额真实变化
+2026/06/28 11:58:00 [统一轮动] WARNING: rotation 配置意图为实盘关闭但 rotation_control.json active=true,runner 以持久化 active 运行
+2026/06/28 11:58:00 [账户服务] carry 交易已停(scanner.enabled=false);权益采样/充提核算/账户硬风控 仍常驻
+2026/06/28 11:58:00 [方向] bybit 引擎已接线(默认停用,需面板点开始)
+2026/06/28 11:58:00 [方向] gate 引擎已接线(默认停用,需面板点开始)
+2026/06/28 11:58:00 [账户风控] 已启动: interval=1m0s (Stage B:一级硬停默认启用,二级 flatten opt-in 默认关闭)
+2026/06/28 11:58:00 [方向] binance 引擎已接线(默认停用,需面板点开始)
+2026/06/28 11:58:00 Web 面板已启动: http://0.0.0.0:8080/
+2026/06/28 11:58:00 Dashboard 控制令牌已写入 records/.dashboard_control_token (0600,仅本机可读,可 cat 查看);指纹=966a48bad3de5be5
+2026/06/28 11:58:00 [ALERT][INFO] 面板控制令牌已更新 | 服务已重启,新控制令牌:
+0f765ab55efb62ed5473faa6479a00d4 | cycle=
+2026/06/28 11:58:00 [OKX方向] 引擎启动 live=true 周期=1m30s
+2026/06/28 11:58:00 [bybit][OKX方向] 引擎启动 live=true 周期=1m30s
+2026/06/28 11:58:00 [gate][OKX方向] 引擎启动 live=true 周期=1m30s
+2026/06/28 11:58:00 [binance][OKX方向] 引擎启动 live=true 周期=1m30s
+2026/06/28 11:58:01 [账户风控] 权益数据不可靠(真实现金单 tick 骤降 66.2300 > 阈值 52.9633 且无持仓减少),本轮跳过风控评估
+2026/06/28 11:58:01 [gate][OKX方向][选币] 候选=39 BTC趋势=0.08 入选=20 头部: AGLD-USDT(0.968) EDGE-USDT RE-USDT
+2026/06/28 11:58:01 [gate][delist-guard] 已刷新 bybit instrument 状态: total=1266 non_trading=0
+2026/06/28 11:58:01 [gate][delist-guard] 已刷新 gate instrument 状态: total=2832 non_trading=4
+2026/06/28 11:58:02 [gate][delist-guard] 已刷新 okx instrument 状态: total=1659 non_trading=0

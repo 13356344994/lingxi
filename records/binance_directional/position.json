@@ -1,5 +1,20 @@
 [
   {
+    "symbol": "BICO-USDT",
+    "side": "short",
+    "entry_price": 0.01988,
+    "qty": 838,
+    "notional_usdt": 16.666666666666668,
+    "opened_at": "2026-06-28T03:47:00.556156284Z",
+    "regime": "trend",
+    "funding_at_open": -0.00145081,
+    "last_mid": 0.019944999999999997,
+    "last_unrealized_account_pct": -0.016348088531186893,
+    "last_unrealized_usdt": -0.05449362843728965,
+    "initial_notional_usdt": 16.666666666666668,
+    "stop_floor_account_pct": -0.2
+  },
+  {
     "symbol": "SNX-USDT",
     "side": "short",
     "entry_price": 0.2315,
@@ -8,20 +23,10 @@
     "opened_at": "2026-06-28T03:39:47.159040769Z",
     "regime": "trend",
     "funding_at_open": -0.00095288,
-    "last_mid": 0.23285,
-    "last_unrealized_account_pct": -0.029157667386608858,
-    "last_unrealized_usdt": -0.09719222462202953,
+    "last_mid": 0.23454999999999998,
+    "last_unrealized_account_pct": -0.0658747300215976,
+    "last_unrealized_usdt": -0.21958243340532538,
     "initial_notional_usdt": 16.666666666666668,
     "stop_floor_account_pct": -0.2
-  },
-  {
-    "symbol": "CLO-USDT",
-    "side": "short",
-    "entry_price": 0.11905,
-    "qty": 140,
-    "notional_usdt": 16.666666666666668,
-    "opened_at": "2026-06-28T03:45:23.841159669Z",
-    "regime": "trend",
-    "funding_at_open": -0.00056272
   }
 ]

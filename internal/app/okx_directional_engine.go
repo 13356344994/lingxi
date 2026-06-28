@@ -975,7 +975,7 @@ func (e *OKXDirectionalEngine) openPosition(ctx context.Context, sym string, sig
 		return false
 	}
 	clientID := okxDirectionalClientID(sym, "open")
-	res, oerr := e.placeDirectionalLeg(ctx, venue.Symbol(sym), side, qty, clientID, false, instr, caps.ContractBasedPerp)
+	res, oerr := e.placeDirectionalLeg(ctx, venue.Symbol(sym), side, qty, clientID, false, instr, caps.ContractBasedPerp, false)
 	if oerr != nil || res.ExecutedQty <= executionQtyTolerance {
 		msg := "开仓未成交"
 		if oerr != nil {
@@ -1177,7 +1177,8 @@ func (e *OKXDirectionalEngine) closePosition(ctx context.Context, pos *okxDirect
 	}
 	caps := e.v.Capabilities()
 	clientID := okxDirectionalClientID(pos.Symbol, "close")
-	res, cerr := e.placeDirectionalLeg(ctx, venue.Symbol(pos.Symbol), closeSide, pos.Qty, clientID, true, instr, caps.ContractBasedPerp)
+	urgentExit := strings.Contains(reason, "止损") || strings.Contains(reason, "反转") || strings.Contains(reason, "下架")
+	res, cerr := e.placeDirectionalLeg(ctx, venue.Symbol(pos.Symbol), closeSide, pos.Qty, clientID, true, instr, caps.ContractBasedPerp, urgentExit)
 	exitPrice, exitTrusted := sanitizeFillPrice(res.AvgPrice, mid, e.cfg.FillPriceMaxDevPct)
 	if !exitTrusted {
 		e.logger.Printf("[OKX方向][记账] %s 平仓成交价 %.6f 偏离 mid %.6f 过大或无效,记账回退 mid", pos.Symbol, res.AvgPrice, mid)
@@ -1283,7 +1284,7 @@ func (e *OKXDirectionalEngine) partialClose(ctx context.Context, pos *okxDirecti
 		closeQty = pos.Qty
 	}
 	clientID := okxDirectionalClientID(pos.Symbol, "ptp")
-	res, cerr := e.placeDirectionalLeg(ctx, venue.Symbol(pos.Symbol), closeSide, closeQty, clientID, true, instr, caps.ContractBasedPerp)
+	res, cerr := e.placeDirectionalLeg(ctx, venue.Symbol(pos.Symbol), closeSide, closeQty, clientID, true, instr, caps.ContractBasedPerp, false)
 	if cerr != nil || res.ExecutedQty <= executionQtyTolerance {
 		e.logger.Printf("[OKX方向] %s 部分止盈下单失败: %v", pos.Symbol, cerr)
 		return false
@@ -1352,7 +1353,7 @@ func (e *OKXDirectionalEngine) scaleIn(ctx context.Context, pos *okxDirectionalP
 		return false
 	}
 	clientID := okxDirectionalClientID(pos.Symbol, "add")
-	res, oerr := e.placeDirectionalLeg(ctx, venue.Symbol(pos.Symbol), addSide, addQty, clientID, false, instr, caps.ContractBasedPerp)
+	res, oerr := e.placeDirectionalLeg(ctx, venue.Symbol(pos.Symbol), addSide, addQty, clientID, false, instr, caps.ContractBasedPerp, false)
 	if oerr != nil || res.ExecutedQty <= executionQtyTolerance {
 		e.logger.Printf("[OKX方向] %s 补仓失败: %v", pos.Symbol, oerr)
 		return false
@@ -1404,13 +1405,16 @@ func (e *OKXDirectionalEngine) placeDirectionalLeg(
 	reduceOnly bool,
 	instr venue.Instrument,
 	contractBased bool,
+	urgent bool,
 ) (venue.OrderResult, error) {
 	deadline := e.nowFn().UTC().Add(okxDirectionalMakerDeadline)
 	var acc venue.OrderResult
 	remaining := qty
 	live := e.cfg.LiveTradingEnabled
 
-	for attempt := 1; attempt <= okxDirectionalMakerRounds && remaining > executionQtyTolerance; attempt++ {
+	// 紧急离场(硬止损/信号反转):跳过 maker 被动追价,直奔 IOC 吃单立即平仓——
+	// 否则价格朝反方向狂奔时 maker 永不成交,拖到 IOC 时已冲穿止损(实测滑到 -36~-45% 账户)。
+	for attempt := 1; !urgent && attempt <= okxDirectionalMakerRounds && remaining > executionQtyTolerance; attempt++ {
 		now := e.nowFn().UTC()
 		if !now.Add(okxDirectionalMakerInterval + okxDirectionalMakerTakerBuf).Before(deadline) {
 			break
