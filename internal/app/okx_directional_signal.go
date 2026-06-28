@@ -172,6 +172,11 @@ func computeDirectionalSignal(closes []float64, fundingRate float64, cfg OKXDire
 	if er >= trendThresh {
 		// 趋势态:顺势(EMA 快慢)。
 		out.Regime = RegimeTrend
+		// 回测实证:趋势单扣费后负 edge(高信心也仅~32%命中)→ 默认不交易趋势态,只做 range scalp。
+		if !cfg.TradeTrendRegime {
+			out.Reason = "趋势态已禁用(回测负edge,只做震荡反转)"
+			return out
+		}
 		fast := emaLast(closes, cfg.EMAFast)
 		slow := emaLast(closes, cfg.EMASlow)
 		if fast > slow {
@@ -521,7 +526,7 @@ type peerDirState struct {
 // 返回 信心增量、是否否决、原因。规则:
 //   - 关闭或无方向 → 不调整;
 //   - 无任何有数据 peer(known=0)→ 不调整、绝不否决(币可能为本所独有);
-//   - 有数据 peer 全部反向且数量 ≥ vetoMin → 否决(单所假动作/流动性陷阱);
+//   - known≥1 且 agree==0(有数据但无一同向)→ 硬否决(至少需 1 个 peer 同向才放行);
 //   - 否则 信心增量 = step×同向数 − step×反向数。
 func crossVenueCorroboration(primary DirectionSide, peers []peerDirState, cfg OKXDirectionalConfig) (convDelta float64, veto bool, reason string) {
 	if !cfg.CrossVenueCorroborationEnabled || primary == DirectionFlat {
@@ -530,10 +535,6 @@ func crossVenueCorroboration(primary DirectionSide, peers []peerDirState, cfg OK
 	step := cfg.CrossVenueConvictionStep
 	if step <= 0 {
 		step = 0.1
-	}
-	vetoMin := cfg.CrossVenueVetoMinPeers
-	if vetoMin <= 0 {
-		vetoMin = 2
 	}
 	var agree, disagree, known int
 	for _, p := range peers {
@@ -550,8 +551,14 @@ func crossVenueCorroboration(primary DirectionSide, peers []peerDirState, cfg OK
 	if known == 0 {
 		return 0, false, "无跨所数据"
 	}
-	if agree == 0 && known >= vetoMin {
-		return 0, true, fmt.Sprintf("跨所背离:%d所均反向,疑似单所假动作", known)
+	// 探索高频档:仅当「≥CrossVenueVetoMinPeers 个 peer 反向 且 无一同向」才硬否决(明确冲突);
+	// 其余只按同向/反向数调信心(不再因 0 同向就一刀切否决),放开入场采样。
+	vetoMin := cfg.CrossVenueVetoMinPeers
+	if vetoMin < 2 {
+		vetoMin = 2
+	}
+	if agree == 0 && disagree >= vetoMin {
+		return 0, true, fmt.Sprintf("跨所%d反向且无同向", disagree)
 	}
 	return step*float64(agree) - step*float64(disagree), false, fmt.Sprintf("同向%d/反向%d", agree, disagree)
 }

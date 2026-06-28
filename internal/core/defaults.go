@@ -465,26 +465,26 @@ func DefaultEngineConfig() EngineConfig {
 			LoopIntervalSeconds:         90,
 			NotionalUSDT:                30,
 			Leverage:                    5,
-			MaxConcurrent:               3,
+			MaxConcurrent:               4,
 			UniverseScanIntervalMinutes: 30,
 			CandidatePoolN:              40,
 			ShortlistN:                  20,
-			UniverseTopN:                12,
+			UniverseTopN:                20,
 			MinFundingAbsPerInterval:    0.0005,
 			CandleBar:                   "5m",
 			CandleLimit:                 120,
 			EMAFast:                     9,
 			EMASlow:                     30,
 			TrendEfficiencyThreshold:    0.30,
-			ZScoreEntry:                 1.2,
+			ZScoreEntry:                 1.0, // 探索高频档:1.0(原1.2)——震荡反转信号触发更频繁,放开入场采样
 			RequireFundingAlignment:     true,
 			FundingVetoAbsPerInterval:   0.0015,
 			TradingCapitalUSDT:          30,
-			StopLossPct:                 0.20, // 交易仓本金基准:20%(5X 下≈4% 价格)——收紧,让止损先于超时生效
+			StopLossPct:                 0.05, // 交易仓本金基准:5%(5X 下≈1% 价格)——更紧止损,快止快出
 			TakeProfitPct:               0.30, // 交易仓本金基准:30%(5X 下≈6% 价格)
-			MaxHoldMinutes:              60,   // 快进快出:不久持,停滞即让位
+			MaxHoldMinutes:              30,   // scalp:回测 edge 窗口≈30min(60min 会回吐,15min 盖不过费)
 			DailyLossLimitUSDT:          0,    // 不设日熔断(用户要求)
-			CostFloorBps:                60,
+			CostFloorBps:                40, // 探索高频档:40(原60)——放行更多小波动机会
 			SymbolCooldownMinutes:       30,
 			SpikeBarPct:                 0.03,
 			TrendMaxExtensionPct:        0.02,
@@ -503,13 +503,13 @@ func DefaultEngineConfig() EngineConfig {
 			PeakGivebackFraction:        0.4,
 			QuickTPPct:                  0.12,
 			SignalWindowBars:            24,
-			AbsMaxHoldMinutes:           180,
+			AbsMaxHoldMinutes:           60,
 			BreakevenArmPct:                0.05,
-			StaleCutMinutes:                40,
+			StaleCutMinutes:                30, // 离线验证:砍越早净越差(stale5胜26%/-535% vs stale40胜49%/-69%),信号需~30min兑现;设=MaxHold让单子走完窗口,样本才真实
 			StaleCutMinProfitPct:           0,
 			TrendEntryPullbackMaxBarPct:    0.005,
 			TrendSizeFraction:              0.5,
-			MinOpenConviction:              0.70,
+			MinOpenConviction:              0.55, // 探索高频档:0.55(原0.70)——更多信号过闸采样(微仓每笔仅~0.2U风险)
 			ReversalMinHoldMinutes:         30,
 			MaxVenuesPerSymbolSide:         2,
 			AvoidBTCChase:                  false, // 单一窗口/重叠样本证据不足(44%vs57%统计上≈),先关闭,待更多数据稳健验证再议
@@ -520,7 +520,7 @@ func DefaultEngineConfig() EngineConfig {
 			CrossVenueVetoMinPeers:         2,
 			CrossVenueDeadbandPct:          0.003,
 			FillPriceMaxDevPct:             0.10,
-			MaxOpenSpreadBps:               50,
+			MaxOpenSpreadBps:               20, // 开仓价差门收紧:20bps(原 50)
 		},
 		FundingExecutor: VenueFundingExecutorConfig{
 			LiveTradingEnabled:     false,

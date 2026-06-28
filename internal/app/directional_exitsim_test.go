@@ -123,6 +123,219 @@ func simulateExitPolicy(cfg core.OKXDirectionalConfig, symbolCloses map[string][
 	return res
 }
 
+// TestDirectionalScalpExitSweep 验证 GPT「时间尺度」出场建议:在 B1 后的实盘配置基线
+// (5% 止损 / MaxHold30 / 信心闸0.70)上,扫描 StaleCutMinutes × QuickTPPct,
+// 看「更早砍无正反馈单 + 更小止盈」是否净期望更优(还是把 30min 才兑现的赢单提前砍了)。
+// 运行:EDGE_BT=1 go test ./internal/app/ -run TestDirectionalScalpExitSweep -v -timeout 600s
+func TestDirectionalScalpExitSweep(t *testing.T) {
+	if os.Getenv("EDGE_BT") == "" {
+		t.Skip("研究用:设 EDGE_BT=1 且需外网 OKX 公共行情")
+	}
+	topN := 80
+	if v := os.Getenv("EDGE_BT_TOPN"); v != "" {
+		fmt.Sscanf(v, "%d", &topN)
+	}
+	barMin := 5
+	syms, err := edgeBTTopSymbols(topN)
+	if err != nil {
+		t.Fatalf("取 symbols 失败: %v", err)
+	}
+	symbolCloses := make(map[string][]float64)
+	for _, s := range syms {
+		c, e := edgeBTCandles(s, "5m", 300)
+		if e == nil && len(c) >= 60 {
+			symbolCloses[s] = c
+		}
+		time.Sleep(60 * time.Millisecond)
+	}
+	t.Logf("%d 币种 5m K线", len(symbolCloses))
+
+	// B1 后实盘基线配置。
+	base := func() core.OKXDirectionalConfig {
+		c := exitSimBaseCfg()
+		c.StopLossPct = 0.05
+		c.MinOpenConviction = 0.70
+		c.MaxHoldMinutes = 30
+		c.AbsMaxHoldMinutes = 60
+		c.ReversalMinHoldMinutes = 30
+		c.StaleCutMinProfitPct = 0
+		return c
+	}
+	stales := []int{5, 10, 15, 40}
+	quickTPs := []float64{0.06, 0.08, 0.12}
+	// 双成本档:乐观(全 maker 5bps/腿)与现实(含急平吃单,8bps/腿)。
+	for _, legBps := range []float64{5, 8} {
+		legCost := legBps / 10000
+		fmt.Printf("\n=== Scalp 出场扫描(单腿%.0fbps,账户口径×5)===\n", legBps)
+		fmt.Printf("  %-30s %-6s %-9s %-9s %-6s\n", "配置", "笔数", "净账户%", "单笔均值%", "胜率")
+		for _, st := range stales {
+			for _, qt := range quickTPs {
+				cfg := base()
+				cfg.StaleCutMinutes = st
+				cfg.QuickTPPct = qt
+				r := simulateExitPolicy(cfg, symbolCloses, barMin, legCost)
+				avg, wr := 0.0, 0.0
+				if r.trades > 0 {
+					avg = r.netAcct / float64(r.trades)
+					wr = float64(r.wins) / float64(r.trades) * 100
+				}
+				name := fmt.Sprintf("stale%-2d QuickTP%.0f%%", st, qt*100)
+				fmt.Printf("  %-30s %-6d %+8.2f %+8.3f %5.0f%%\n", name, r.trades, r.netAcct*100, avg*100, wr)
+			}
+		}
+	}
+}
+
+// simulateExitPolicyFiltered 同 simulateExitPolicy,但可选只在指定 regime 入场(regimeOnly!=""),
+// 用于检验「只做 range / 只做 trend」是否改变净期望。
+func simulateExitPolicyFiltered(cfg core.OKXDirectionalConfig, symbolCloses map[string][]float64, barMin int, legCostFrac float64, regimeOnly string) exitSimResult {
+	lev := float64(cfg.Leverage)
+	if lev <= 0 {
+		lev = 5
+	}
+	legCostAcct := legCostFrac * lev
+	stopBase := -cfg.StopLossPct
+	if stopBase >= 0 {
+		stopBase = -0.20
+	}
+	warm := cfg.SignalWindowBars
+	if warm < cfg.EMASlow {
+		warm = cfg.EMASlow
+	}
+	if warm < 30 {
+		warm = 30
+	}
+	var res exitSimResult
+	for _, closes := range symbolCloses {
+		n := len(closes)
+		type pos struct {
+			side      DirectionSide
+			entry     float64
+			peak      float64
+			openBar   int
+			frac      float64
+			partialOn bool
+			realized  float64
+		}
+		var p *pos
+		for i := warm; i < n; i++ {
+			win := closes[:i+1]
+			price := closes[i]
+			if p == nil {
+				sig := computeDirectionalSignal(win, 0, cfg)
+				okConv := cfg.MinOpenConviction <= 0 || sig.Conviction >= cfg.MinOpenConviction
+				okReg := regimeOnly == "" || sig.Regime.String() == regimeOnly
+				if (sig.Side == DirectionLong || sig.Side == DirectionShort) && okConv && okReg {
+					p = &pos{side: sig.Side, entry: price, openBar: i, frac: 1}
+					p.realized -= legCostAcct
+				}
+				continue
+			}
+			uAcct := directionalUPnLPct(p.side, p.entry, price) * lev
+			if uAcct > p.peak {
+				p.peak = uAcct
+			}
+			holdMin := (i - p.openBar) * barMin
+			fresh := computeDirectionalSignal(win, 0, cfg)
+			stopFloor := stopBase
+			if p.partialOn {
+				stopFloor = 0
+			}
+			act := decideDirectionalPositionAction(uAcct, p.peak, stopFloor, holdMin, p.side, fresh, p.partialOn, 0, cfg)
+			switch act.Kind {
+			case dirActClose:
+				p.realized += p.frac*uAcct - legCostAcct*p.frac
+				res.trades++
+				res.netAcct += p.realized
+				if p.realized > 0 {
+					res.wins++
+				}
+				p = nil
+			case dirActPartialTP:
+				f := cfg.PartialTPFraction
+				if f <= 0 || f >= 1 {
+					f = 0.5
+				}
+				p.realized += f*uAcct - legCostAcct*f
+				p.frac -= f
+				p.partialOn = true
+			}
+		}
+		if p != nil {
+			last := closes[n-1]
+			uAcct := directionalUPnLPct(p.side, p.entry, last) * lev
+			p.realized += p.frac*uAcct - legCostAcct*p.frac
+			res.trades++
+			res.netAcct += p.realized
+			if p.realized > 0 {
+				res.wins++
+			}
+		}
+	}
+	return res
+}
+
+// TestDirectionalScalpEntryQuality 找净正配置:信心闸 × 出场风格(当前 vs 极简持到30min)× regime。
+// 运行:EDGE_BT=1 go test ./internal/app/ -run TestDirectionalScalpEntryQuality -v -timeout 600s
+func TestDirectionalScalpEntryQuality(t *testing.T) {
+	if os.Getenv("EDGE_BT") == "" {
+		t.Skip("研究用:设 EDGE_BT=1")
+	}
+	topN := 80
+	if v := os.Getenv("EDGE_BT_TOPN"); v != "" {
+		fmt.Sscanf(v, "%d", &topN)
+	}
+	barMin := 5
+	syms, err := edgeBTTopSymbols(topN)
+	if err != nil {
+		t.Fatalf("symbols: %v", err)
+	}
+	symbolCloses := make(map[string][]float64)
+	for _, s := range syms {
+		c, e := edgeBTCandles(s, "5m", 300)
+		if e == nil && len(c) >= 60 {
+			symbolCloses[s] = c
+		}
+		time.Sleep(60 * time.Millisecond)
+	}
+	t.Logf("%d 币种 5m K线", len(symbolCloses))
+
+	base := func() core.OKXDirectionalConfig {
+		c := exitSimBaseCfg()
+		c.StopLossPct = 0.05
+		c.MaxHoldMinutes = 30
+		c.AbsMaxHoldMinutes = 30
+		c.ReversalMinHoldMinutes = 30
+		c.StaleCutMinutes = 40
+		return c
+	}
+	// 极简出场:只保留硬止损 + 持到 MaxHold 强平,关掉停滞/反转/棘轮/分批/快止盈。
+	minimal := func(c *core.OKXDirectionalConfig) {
+		c.StaleCutMinutes = 9999
+		c.ReversalMinHoldMinutes = 99999
+		c.QuickTPPct = 9.99
+		c.BreakevenArmPct = 9.99
+		c.PartialTPTriggerPct = 9.99
+	}
+	for _, legBps := range []float64{5, 8, 12} {
+		legCost := legBps / 10000
+		fmt.Printf("\n=== 极限信心扫描(极简持到30m,单腿%.0fbps)===\n", legBps)
+		fmt.Printf("  %-22s %-6s %-9s %-9s %-6s\n", "配置", "笔数", "净账户%", "单笔均值%", "胜率")
+		for _, conv := range []float64{0.85, 0.90, 0.95, 0.99} {
+			cfg := base()
+			cfg.MinOpenConviction = conv
+			minimal(&cfg)
+			r := simulateExitPolicyFiltered(cfg, symbolCloses, barMin, legCost, "")
+			avg, wr := 0.0, 0.0
+			if r.trades > 0 {
+				avg = r.netAcct / float64(r.trades)
+				wr = float64(r.wins) / float64(r.trades) * 100
+			}
+			fmt.Printf("  信心%.2f 极简持到30m   %-6d %+8.2f %+8.3f %5.0f%%\n", conv, r.trades, r.netAcct*100, avg*100, wr)
+		}
+	}
+}
+
 func exitSimBaseCfg() core.OKXDirectionalConfig {
 	return core.OKXDirectionalConfig{
 		SignalWindowBars: 24, TrendEfficiencyThreshold: 0.30,

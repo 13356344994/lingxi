@@ -4852,11 +4852,19 @@
         if (avgEl) avgEl.textContent = "—";
         return;
       }
-      if (countEl) countEl.textContent = String(Number(stats.trade_count || 0));
+      const posCount = Number(stats.position_count || 0);
+      const eventCount = Number(stats.trade_count || 0);
+      // 成交卡:仓位级为主(合并分批),事件数附后——避免分批止盈把笔数/胜率虚高。
+      if (countEl) countEl.textContent = posCount > 0 ? `${posCount}仓 / ${eventCount}事件` : String(eventCount);
       if (winRateEl) {
-        const wr = Number(stats.win_rate || 0);
-        winRateEl.textContent = (wr * 100).toFixed(1) + "%";
-        winRateEl.style.color = wr >= 0.5 ? "#86efac" : "#fca5a5";
+        // 显示仓位级胜率(诚实口径);括注事件级。
+        const posWR = Number(stats.position_win_rate || 0);
+        const evWR = Number(stats.win_rate || 0);
+        winRateEl.innerHTML = posCount > 0
+          ? `${(posWR * 100).toFixed(1)}% <span style="font-size:11px;color:#9ca3af">(事件${(evWR * 100).toFixed(0)}%)</span>`
+          : (evWR * 100).toFixed(1) + "%";
+        const wrForColor = posCount > 0 ? posWR : evWR;
+        winRateEl.style.color = wrForColor >= 0.5 ? "#86efac" : "#fca5a5";
       }
       if (netEl) {
         const net = Number(stats.net_usdt || 0);
@@ -4866,7 +4874,13 @@
       if (avgEl) {
         const avgWin = Number(stats.avg_win_usdt || 0);
         const avgLoss = Number(stats.avg_loss_usdt || 0);
-        avgEl.innerHTML = `<span style="color:${pnlColor(avgWin)}">${fmtPnL(avgWin, 2)}</span> / <span style="color:${pnlColor(avgLoss)}">${fmtPnL(avgLoss, 2)}</span>`;
+        // 附仓位级 PF 与最大单仓亏损(三档升降/edge 评估的关键指标)。
+        const pf = Number(stats.position_profit_factor || 0);
+        const maxLoss = Number(stats.position_max_loss_usdt || 0);
+        const pfTxt = posCount > 0
+          ? ` <span style="font-size:11px;color:#9ca3af">· PF ${pf >= 999 ? "∞" : pf.toFixed(2)} · 最大亏 <span style="color:${pnlColor(maxLoss)}">${fmtPnL(maxLoss, 2)}</span></span>`
+          : "";
+        avgEl.innerHTML = `<span style="color:${pnlColor(avgWin)}">${fmtPnL(avgWin, 2)}</span> / <span style="color:${pnlColor(avgLoss)}">${fmtPnL(avgLoss, 2)}</span>${pfTxt}`;
       }
     }
 

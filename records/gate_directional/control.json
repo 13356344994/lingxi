@@ -1,6 +1,6 @@
 {
   "active": false,
   "trading_capital_usdt": 30,
-  "stop_loss_pct": 0.2,
+  "stop_loss_pct": 0.05,
   "updated_at": "2026-06-28T02:08:38.803996566Z"
 }

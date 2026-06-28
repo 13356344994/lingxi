@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "last_success_ts": "2026-06-28T03:58:00Z",
-  "last_attempt_ts": "2026-06-28T03:58:00Z",
+  "last_success_ts": "2026-06-28T08:24:13Z",
+  "last_attempt_ts": "2026-06-28T08:24:13Z",
   "consecutive_all_fail": 0,
   "connectivity_blind": false,
   "expected_venue_count": 3,

@@ -175,6 +175,15 @@ func (cp *ControlPlane) IsGlobalHaltActive() bool {
 	return persisted || cp.haltFileActive()
 }
 
+// IsEmergencyHaltActive 仅 .halt-live 紧急文件(人工硬急停)生效即返回 true;
+// 不含账户回撤型持久 global_halt。供"探索档不因普通风控停机、只为人工急停而停"使用。
+func (cp *ControlPlane) IsEmergencyHaltActive() bool {
+	if cp == nil {
+		return false
+	}
+	return cp.haltFileActive()
+}
+
 func (cp *ControlPlane) AllowNewOpens() bool {
 	if cp == nil {
 		return true

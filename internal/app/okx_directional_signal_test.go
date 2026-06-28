@@ -9,6 +9,7 @@ func testDirectionalCfg() OKXDirectionalConfig {
 	return OKXDirectionalConfig{
 		EMAFast: 3, EMASlow: 8,
 		TrendEfficiencyThreshold: 0.30,
+		TradeTrendRegime:         true, // 单测验证趋势机制本身;生产默认关闭(回测负edge)
 		ZScoreEntry:              1.2,
 		MinFundingAbsPerInterval: 0.0005,
 		RequireFundingAlignment:  true,
@@ -389,17 +390,17 @@ func TestCrossVenueCorroboration(t *testing.T) {
 	if d, v, _ := crossVenueCorroboration(DirectionLong, agree, cfg); v || d <= 0 {
 		t.Fatalf("同向应加信心, got d=%v v=%v", d, v)
 	}
-	// 两所全反向 → 否决。
+	// 两所全反向(agree=0,known=2)→ 否决。
 	dis := []peerDirState{{"b", DirectionShort}, {"c", DirectionShort}}
 	if _, v, _ := crossVenueCorroboration(DirectionLong, dis, cfg); !v {
 		t.Fatal("两所全反向应否决")
 	}
-	// 仅一所反向(<vetoMin)→ 不否决,但减信心。
+	// 仅一所反向(agree=0,disagree=1 < vetoMin=2)→ 不否决,仅减信心(探索高频档:放开入场,只挡明确冲突)。
 	one := []peerDirState{{"b", DirectionShort}}
 	if d, v, _ := crossVenueCorroboration(DirectionLong, one, cfg); v || d >= 0 {
-		t.Fatalf("单所反向应减信心不否决, got d=%v v=%v", d, v)
+		t.Fatalf("单所反向应不否决仅减信心, got d=%v v=%v", d, v)
 	}
-	// 一同向一反向 → 不否决,净 0。
+	// 一同向一反向(agree=1,disagree=1)→ 不否决,净 0。
 	mix := []peerDirState{{"b", DirectionLong}, {"c", DirectionShort}}
 	if d, v, _ := crossVenueCorroboration(DirectionLong, mix, cfg); v || d != 0 {
 		t.Fatalf("一同一反应净0不否决, got d=%v v=%v", d, v)

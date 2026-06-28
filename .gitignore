@@ -8,6 +8,8 @@
 /lingxi
 /cmd/lingxi/lingxi
 *.pid
+# 原子写中间产物(writeJSONFile 先写 .tmp 再 rename;偶被 git add -A 抢拍到)
+*.tmp
 
 # Secrets and local-only config
 # secret.yaml

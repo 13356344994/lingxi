@@ -139,7 +139,10 @@ okx_directional:
   # 杠杆固定 5X(用户拍板,不在页面调)
   leverage: 5
   # 多币并发:每仓本金=交易仓本金/max_concurrent,名义=每仓本金×5X;总满仓名义=本金×5、总风险=本金。
-  max_concurrent: 3
+  max_concurrent: 30   # 广撒网档:每所最多 30 币(上限);实际开多少由资金决定(见 per_position_notional_usdt)
+  # 广撒网:每仓固定名义 7.5U(>最小单5U)。实际持仓数=交易仓本金/(7.5/杠杆)笔,上限 max_concurrent。
+  # 10U/所→约6币;要满30币需约45U/所。资金不足时自动按资金可开的最大数量,不会强行缩成开不出的小单。
+  per_position_notional_usdt: 7.5
   # 全场扫描周期(分钟):每隔此时长重算 shortlist(综合分=资费+波动+热度+BTC情境)。
   universe_scan_interval_minutes: 30
   candidate_pool_n: 40
@@ -150,17 +153,18 @@ okx_directional:
   take_profit_pct: 0.30      # 本金基准:30%(5X 下≈6% 价格)
   daily_loss_limit_usdt: 0   # 0=不设日熔断(用户要求)
   # 选币/信号
-  universe_top_n: 12
+  universe_top_n: 20   # 探索高频档:20(原12)——更宽候选池
   min_funding_abs_per_interval: 0.0005
   candle_bar: "5m"
   candle_limit: 120
   ema_fast: 9
   ema_slow: 30
   trend_efficiency_threshold: 0.30
-  zscore_entry: 1.2
+  zscore_entry: 1.0   # 探索高频档:1.0(原1.2)——震荡反转信号触发更频繁
   require_funding_alignment: true
   funding_veto_abs_per_interval: 0.0015   # 资费强逆否决阈值(与选币阈值解耦,只挡明显逆持仓的资费)
-  cost_floor_bps: 60
+  cost_floor_bps: 40   # 探索高频档:40(原60)——放行更多小波动机会
+  open_taker_fallback_bps: 30   # 探索高频档:开仓 maker 挂不上时以≤30bps IOC 吃单兜底(提高成交率/频率;0=纯maker)。价差闸已限<20bps,薄盘不会触发
   max_hold_minutes: 60          # 快进快出:不久持,停滞即让位
   symbol_cooldown_minutes: 30
   # 快进快出小止盈(本金口径):浮盈达此值即全平落袋(吃到就赚到),数据强延续才改骑乘加仓
@@ -184,7 +188,7 @@ okx_directional:
   trend_size_fraction: 0.5                 # 趋势单仓位减半(胜率低少冒险,资金偏向 range 反转单)
   # 最低开仓信心闸(跨所印证后口径):离线回测证实只有高信心档有正 edge(≥0.7 命中59%/扣10bps后净+0.13%笔),
   # 低信心档确定性亏损。只做高信心档把薄 edge 做厚:频次降约3/4,换「净亏→净正」。0=关闭。
-  min_open_conviction: 0.70
+  min_open_conviction: 0.55   # 探索高频档:0.55(原0.70)——更多信号过闸采样(微仓每笔仅~0.2U风险)
   # 信号反转最小持有(分钟):开仓后此时长内不因信号反转立即平仓(防5m噪声急翻churn,白付往返成本);窗口内仍由硬止损兜底。
   # 离线验证:0→30min 单笔期望+0.12%→+0.33%、胜率42%→46%(maker口径),且与OKX/Bybit实盘反转churn互证。
   reversal_min_hold_minutes: 30

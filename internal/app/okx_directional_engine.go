@@ -25,13 +25,16 @@ import (
 )
 
 const (
-	okxDirectionalPositionFile     = "position.json"
-	okxDirectionalSettlementsFile  = "settlements.jsonl"
-	okxDirectionalTakerSlippageBps = 40.0
-	okxDirectionalMakerRounds      = 3
-	okxDirectionalMakerInterval    = 2 * time.Second
-	okxDirectionalMakerDeadline    = 12 * time.Second
-	okxDirectionalMakerTakerBuf    = 3 * time.Second
+	okxDirectionalPositionFile      = "position.json"
+	okxDirectionalSettlementsFile   = "settlements.jsonl"
+	okxDirectionalCooldownFile      = "cooldowns.json"
+	okxDirectionalTakerSlippageBps  = 40.0
+	okxDirectionalUrgentSlippageBps = 150.0 // 风控急平 IOC 放宽滑点(薄盘也能成交)
+	okxDirectionalMakerRounds       = 3
+	okxDirectionalMakerInterval     = 2 * time.Second
+	okxDirectionalMakerDeadline     = 12 * time.Second
+	okxDirectionalMakerTakerBuf     = 3 * time.Second
+	okxDirectionalRiskInterval      = 20 * time.Second // 快速风控子循环周期(止损发现 ~20s)
 )
 
 // okxDirectionalPosition 是当前唯一持仓(内存 + position.json)。
@@ -44,6 +47,8 @@ type okxDirectionalPosition struct {
 	OpenedAt      time.Time `json:"opened_at"`
 	Regime        string    `json:"regime"`
 	FundingAtOpen float64   `json:"funding_at_open"`
+	// 仓位唯一 ID(用于多条 settlement 聚合回单仓,格式 "symbol-nanosecond")。
+	PositionID string `json:"position_id,omitempty"`
 	// 管理循环每轮回填:最新中价 + 本金口径浮盈% + 浮盈USDT(供面板实时显示)。
 	LastMid                  float64 `json:"last_mid,omitempty"`
 	LastUnrealizedAccountPct float64 `json:"last_unrealized_account_pct,omitempty"`
@@ -55,6 +60,13 @@ type okxDirectionalPosition struct {
 	PartialTPDone       bool    `json:"partial_tp_done,omitempty"`        // 是否已部分止盈(后转保本+移动)
 	AddCount            int     `json:"add_count,omitempty"`              // 已补仓次数
 	RealizedPartialUSDT float64 `json:"realized_partial_usdt,omitempty"`  // 本仓已落袋的部分止盈
+	// 执行质量/成交后行为仪表化(阶段A:量化 maker 逆选择 + 秒级退出能否把 PF 拉过 1;只记录,不改交易行为)。
+	EntryMid          float64 `json:"entry_mid,omitempty"`           // 开仓决策时刻中价(算入场滑点基准)
+	EntrySlipBps      float64 `json:"entry_slip_bps,omitempty"`      // 入场滑点(bps,正=比中价更差)
+	OpenViaTaker      bool    `json:"open_via_taker,omitempty"`      // 开仓是否走了 IOC 吃单兜底(maker 没挂上)
+	OpenFeeUSDT       float64 `json:"open_fee_usdt,omitempty"`       // 开仓+补仓累计实扣手续费(交易所真实口径)
+	MFEAccountPct     float64 `json:"mfe_account_pct,omitempty"`     // 成交后最大浮盈(本金口径高水位,运行态)
+	MAEAccountPct     float64 `json:"mae_account_pct,omitempty"`     // 成交后最大浮亏(本金口径,负值,运行态)
 }
 
 func (p *okxDirectionalPosition) directionSide() DirectionSide {
@@ -88,6 +100,17 @@ type okxDirectionalSettlement struct {
 	Regime        string    `json:"regime"`
 	Reason        string    `json:"reason"`
 	FundingAtOpen float64   `json:"funding_at_open"`
+	// 仓位 ID:与 okxDirectionalPosition.PositionID 对应,用于聚合分批止盈。
+	PositionID string `json:"position_id,omitempty"`
+	// 执行质量/成交后仪表化(阶段A,仅记录供离线归因:maker 逆选择有多严重 / 秒级退出能否把 PF 拉过 1)。
+	HoldSeconds   int     `json:"hold_seconds,omitempty"`    // 持有秒数(比 hold_minutes 更细,供秒级退出分析)
+	EntrySlipBps  float64 `json:"entry_slip_bps,omitempty"`  // 入场滑点(bps,正=更差)
+	ExitSlipBps   float64 `json:"exit_slip_bps,omitempty"`   // 出场滑点(bps,正=更差)
+	OpenViaTaker  bool    `json:"open_via_taker,omitempty"`  // 开仓是否走 IOC 吃单
+	CloseViaTaker bool    `json:"close_via_taker,omitempty"` // 平仓是否走 IOC 吃单
+	FeeUSDT       float64 `json:"fee_usdt,omitempty"`        // 本次结算归属的实扣手续费(开仓侧按比例 + 平仓侧)
+	MFEAccountPct float64 `json:"mfe_account_pct,omitempty"` // 成交后最大浮盈(本金口径)
+	MAEAccountPct float64 `json:"mae_account_pct,omitempty"` // 成交后最大浮亏(本金口径,负值)
 }
 
 // OKXDirectionalStatus 只读快照(面板/监控用)。
@@ -152,14 +175,19 @@ type OKXDirectionalEngine struct {
 	dailyRealizedUSDT float64
 	dayStartCST       time.Time
 	cooldownUntil     map[string]time.Time
+	coinLossCount     map[string]int // 单币亏损次数(跨日清零;累计≥2 → ban 到次日)
 	lastError         string
 	positionPath      string
 	settlementsPath   string
 	controlPath       string
+	cooldownPath      string
 	control           okxDirectionalControl
 	lastProvisionAt   time.Time
 	delistGuard       *DelistGuard
 	annGuard          *okxAnnouncementGuard
+	// 安全网 B2: 控制面接线(可为 nil,nil 时跳过 halt 检测)
+	controlPlane   *ControlPlane
+	lastHaltLogAt  time.Time
 }
 
 // okxDirectionalControl 页面可控运行态(records/okx_directional/control.json):
@@ -199,9 +227,11 @@ func NewDirectionalEngine(venueName string, v DirectionalVenue, peers map[string
 		nowFn:           time.Now,
 		positions:       make(map[string]*okxDirectionalPosition),
 		cooldownUntil:   make(map[string]time.Time),
+		coinLossCount:   make(map[string]int),
 		positionPath:    filepath.Join(dir, okxDirectionalPositionFile),
 		settlementsPath: filepath.Join(dir, okxDirectionalSettlementsFile),
 		controlPath:     filepath.Join(dir, "control.json"),
+		cooldownPath:    filepath.Join(dir, okxDirectionalCooldownFile),
 	}
 	// 控制态:优先读持久化(页面设过的本金/止损/启停);无则用 config 默认且 active=false(必须页面点开始)。
 	e.control = okxDirectionalControl{Active: false, TradingCapitalUSDT: cfg.OKXDirectional.TradingCapitalUSDT, StopLossPct: cfg.OKXDirectional.StopLossPct}
@@ -213,6 +243,8 @@ func NewDirectionalEngine(venueName string, v DirectionalVenue, peers map[string
 			e.positions[p.Symbol] = p
 		}
 	}
+	// 单币冷却/亏损计数跨重启恢复(根治「重启清零→止损后当日 ban 从未生效」)。
+	e.restoreCooldowns()
 	venues := map[string]venue.Venue{venueName: v}
 	for name, pv := range peers {
 		venues[name] = pv
@@ -268,6 +300,9 @@ func (e *OKXDirectionalEngine) Venue() string { return e.venueName }
 // SettlementsPath 返回结算记录文件路径。
 func (e *OKXDirectionalEngine) SettlementsPath() string { return e.settlementsPath }
 
+// SetControlPlane 接入统一控制面(安全网 B2)。nil 表示不检测。
+func (e *OKXDirectionalEngine) SetControlPlane(cp *ControlPlane) { e.controlPlane = cp }
+
 func directionalRecordDir(base, venueName string) string {
 	base = strings.TrimSpace(base)
 	if base == "" {
@@ -280,20 +315,116 @@ func okxDirectionalRecordDir(base string) string {
 	return directionalRecordDir(base, "okx")
 }
 
-// Run 主循环:日界刷新 → 持仓管理 / 扫描开仓。
+// Run 主循环:full-ticker(90s)→ runOnce(选币/开仓/完整管理);risk-ticker(20s)→ manageRiskFast(快速止损)。
 func (e *OKXDirectionalEngine) Run(ctx context.Context) {
 	interval := time.Duration(e.cfg.LoopIntervalSeconds) * time.Second
 	if interval < 15*time.Second {
 		interval = 15 * time.Second
 	}
-	e.logger.Printf("[OKX方向] 引擎启动 live=%v 周期=%s", e.cfg.LiveTradingEnabled, interval)
+	e.logger.Printf("[OKX方向] 引擎启动 live=%v 周期=%s 风控=%s", e.cfg.LiveTradingEnabled, interval, okxDirectionalRiskInterval)
+	e.logEffectiveParams()
+	full := time.NewTicker(interval)
+	risk := time.NewTicker(okxDirectionalRiskInterval)
+	defer full.Stop()
+	defer risk.Stop()
+	// 启动后立即执行一次完整循环。
+	e.runOnce(ctx)
 	for {
-		e.runOnce(ctx)
 		select {
 		case <-ctx.Done():
 			e.logger.Printf("[OKX方向] 引擎退出: %v", ctx.Err())
 			return
-		case <-time.After(interval):
+		case <-full.C:
+			e.runOnce(ctx)
+		case <-risk.C:
+			e.manageRiskFast(ctx)
+		}
+	}
+}
+
+// logEffectiveParams 启动时打印「最终生效」的关键交易参数(已含 control.json 覆盖)。
+// 根治配置透明度问题:config.yaml / defaults.go / control.json 三处可能不一致,
+// 启动日志钉死实际跑的值,避免「改了 config 却没生效」的误判。
+func (e *OKXDirectionalEngine) logEffectiveParams() {
+	c := e.getControl()
+	cfg := e.cfg
+	// 前缀:非 okx 所的 logger 已自带 "[venue]" 前缀,故此处不重复加 venueName(避免 "[bybit][bybit]")。
+	e.logger.Printf("[OKX方向][生效参数] 本金=%.2fU 止损=%.0f%%(本金) 杠杆=%dX 并发上限=%d 每仓名义=%.2fU active=%v",
+		c.TradingCapitalUSDT, c.StopLossPct*100, e.leverage(), e.maxConcurrent(), cfg.PerPositionNotionalUSDT, c.Active)
+	e.logger.Printf("[OKX方向][生效参数] 入场: minConv=%.2f zEntry=%.2f costFloor=%.0fbps takerFallback=%.0fbps universeTopN=%d 选币周期=%dmin maxSpread=%.0fbps",
+		cfg.MinOpenConviction, cfg.ZScoreEntry, cfg.CostFloorBps, cfg.OpenTakerFallbackBps, cfg.UniverseTopN, cfg.UniverseScanIntervalMinutes, cfg.MaxOpenSpreadBps)
+	e.logger.Printf("[OKX方向][生效参数] 出场: quickTP=%.0f%% partialTP=%.0f%%×%.0f%% trailGap=%.0f%% trailLock=%.0f%% staleCut=%dm maxHold=%dm absMax=%dm 反转最小持有=%dm",
+		cfg.QuickTPPct*100, cfg.PartialTPTriggerPct*100, cfg.PartialTPFraction*100, cfg.TrailGapPct*100, cfg.TrailLockFraction*100,
+		cfg.StaleCutMinutes, cfg.MaxHoldMinutes, cfg.AbsMaxHoldMinutes, cfg.ReversalMinHoldMinutes)
+	e.logger.Printf("[OKX方向][生效参数] regime: 趋势态交易=%v 资费对齐闸=%v 跨所印证=%v(否决需≥%d反向) BTC追势过滤=%v",
+		cfg.TradeTrendRegime, cfg.RequireFundingAlignment, cfg.CrossVenueCorroborationEnabled, cfg.CrossVenueVetoMinPeers, cfg.AvoidBTCChase)
+}
+
+// manageRiskFast 快速风控子循环(~20s):仅拉盘口(廉价),发现触止损立即平仓。
+// 不拉K线/资费,不开新仓,只做硬止损守门。并发安全;book 失败容错跳过。
+func (e *OKXDirectionalEngine) manageRiskFast(ctx context.Context) {
+	defer func() {
+		if r := recover(); r != nil {
+			e.logger.Printf("[OKX方向][快速风控] panic 已恢复: %v", r)
+		}
+	}()
+	ctrl := e.getControl()
+	for _, pos := range e.openPositionsSnapshot() {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+		if !pos.isOpen() {
+			continue
+		}
+		book, err := e.v.FetchBookTicker(ctx, venue.MarketPerp, venue.Symbol(pos.Symbol))
+		if err != nil {
+			continue // 廉价失败容错:跳过本仓,等下轮
+		}
+		mid := (book.BidPrice + book.AskPrice) / 2
+		if mid <= 0 {
+			continue
+		}
+		side := pos.directionSide()
+		uPnLNotional := directionalUPnLPct(side, pos.EntryPrice, mid)
+		lev := float64(e.leverage())
+		uPnLAccount := uPnLNotional * lev
+		// 回填实时浮盈(与 manageOne 保持同口径)+ 运行态 MFE/MAE(成交后最大浮盈/浮亏,本金口径)。
+		e.mu.Lock()
+		if p, ok := e.positions[pos.Symbol]; ok {
+			p.LastMid = mid
+			p.LastUnrealizedAccountPct = uPnLAccount
+			p.LastUnrealizedUSDT = uPnLNotional * p.NotionalUSDT
+			if uPnLAccount > p.MFEAccountPct {
+				p.MFEAccountPct = uPnLAccount
+			}
+			if uPnLAccount < p.MAEAccountPct {
+				p.MAEAccountPct = uPnLAccount
+			}
+		}
+		e.mu.Unlock()
+		// 取动态止损地板;为 0 时退回 -StopLossPct 作硬止损地板。
+		e.mu.RLock()
+		var floor float64
+		if p, ok := e.positions[pos.Symbol]; ok {
+			floor = p.StopFloorAccountPct
+		}
+		e.mu.RUnlock()
+		if floor == 0 {
+			stopPct := ctrl.StopLossPct
+			if stopPct <= 0 {
+				stopPct = e.cfg.StopLossPct
+			}
+			floor = -stopPct
+		}
+		if uPnLAccount <= floor {
+			holdMin := int(e.nowFn().UTC().Sub(pos.OpenedAt).Minutes())
+			if holdMin < 0 {
+				holdMin = 0
+			}
+			e.logger.Printf("[OKX方向][快速风控] %s 浮盈%.2f%%≤止损地板%.2f%%,立即硬止损", pos.Symbol, uPnLAccount*100, floor*100)
+			e.closePosition(ctx, pos, mid, uPnLNotional, holdMin, "硬止损(快速)")
 		}
 	}
 }
@@ -438,10 +569,16 @@ func (e *OKXDirectionalEngine) refreshCSTDay() {
 	now := e.nowFn().UTC()
 	dayStart := beijingCSTDayStart(now)
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	rolled := false
 	if e.dayStartCST.IsZero() || !e.dayStartCST.Equal(dayStart) {
 		e.dayStartCST = dayStart
 		e.dailyRealizedUSDT = 0
+		e.coinLossCount = make(map[string]int) // 跨日清空单币亏损计数
+		rolled = true
+	}
+	e.mu.Unlock()
+	if rolled {
+		e.persistCooldowns() // 跨日清零后落盘,避免重启又把昨日计数读回来
 	}
 }
 
@@ -618,6 +755,18 @@ func directionalDailyLossHalted(dailyRealized, limitUSDT float64) bool {
 	return dailyRealized <= -limitUSDT
 }
 
+// directionalSlipBps 成交滑点(bps,正=比中价更差):买单成交价高于中价为差,卖单成交价低于中价为差。
+// mid 或 fill 无效时返回 0。供执行质量归因(maker 逆选择/吃单成本)。
+func directionalSlipBps(side venue.Side, mid, fill float64) float64 {
+	if mid <= 0 || fill <= 0 {
+		return 0
+	}
+	if side == venue.SideBuy {
+		return (fill - mid) / mid * 10000
+	}
+	return (mid - fill) / mid * 10000
+}
+
 // directionalUPnLPct 未实现盈亏占名义(含方向符号,正=盈)。
 func directionalUPnLPct(side DirectionSide, entry, mid float64) float64 {
 	if entry <= 0 || mid <= 0 {
@@ -635,6 +784,17 @@ func directionalUPnLPct(side DirectionSide, entry, mid float64) float64 {
 
 // openFromShortlist 在 shortlist 上出信号,补开到 MaxConcurrent(跳过已持有/冷却),按信心降序优先,逐仓保证金预检。
 func (e *OKXDirectionalEngine) openFromShortlist(ctx context.Context) {
+	// 安全网 B2(探索档语义):仅人工紧急急停(.halt-live 文件)时跳过新开仓;
+	// 账户回撤型持久 global_halt 不锁死微仓探索档(探索档不因普通风控停机,只为人工急停/系统级故障停)。
+	// 在场持仓管理/平仓任何时候都不受影响。
+	if e.controlPlane != nil && e.controlPlane.IsEmergencyHaltActive() {
+		now := e.nowFn()
+		if now.Sub(e.lastHaltLogAt) > 5*time.Minute {
+			e.lastHaltLogAt = now
+			e.logger.Printf("[%s][OKX方向] 人工紧急急停(.halt-live)生效,跳过新开仓(在场持仓照常管理)", e.venueName)
+		}
+		return
+	}
 	e.mu.RLock()
 	sl := append([]okxUniverseEntry(nil), e.shortlist...)
 	held := make(map[string]bool, len(e.positions))
@@ -908,9 +1068,17 @@ func (e *OKXDirectionalEngine) openPosition(ctx context.Context, sym string, sig
 		return false
 	}
 	caps := e.v.Capabilities()
-	// 每仓本金 = 交易仓本金 / 最大并发;名义 = 每仓本金 × 杠杆。总并发满仓总名义=本金×杠杆,总风险=本金(加仓不放大总敞口)。
 	ctrl := e.getControl()
-	perPosCapital := ctrl.TradingCapitalUSDT / float64(e.maxConcurrent())
+	// 仓位大小两种模型:
+	//   ① PerPositionNotionalUSDT>0(广撒网档):每仓固定名义,持仓数量由「资金/每仓保证金」决定、上限 MaxConcurrent。
+	//      即"上限设30,资金不够就按资金可开的最大数量"——下方已部署保证金闸自动封顶。
+	//   ② 否则(旧模型):每仓本金 = 交易仓本金 / 最大并发,满仓总名义=本金×杠杆。
+	var perPosCapital float64
+	if e.cfg.PerPositionNotionalUSDT > 0 {
+		perPosCapital = e.cfg.PerPositionNotionalUSDT / float64(e.leverage())
+	} else {
+		perPosCapital = ctrl.TradingCapitalUSDT / float64(e.maxConcurrent())
+	}
 	// 趋势单减半仓:趋势态胜率低(复盘 25% vs range 53%),少冒险,资金偏向 range 反转单。
 	if sig.Regime == RegimeTrend {
 		f := e.cfg.TrendSizeFraction
@@ -975,29 +1143,36 @@ func (e *OKXDirectionalEngine) openPosition(ctx context.Context, sym string, sig
 		return false
 	}
 	clientID := okxDirectionalClientID(sym, "open")
-	res, oerr := e.placeDirectionalLeg(ctx, venue.Symbol(sym), side, qty, clientID, false, instr, caps.ContractBasedPerp, false)
-	if oerr != nil || res.ExecutedQty <= executionQtyTolerance {
-		msg := "开仓未成交"
-		if oerr != nil {
-			msg = oerr.Error()
-		}
-		e.setLastError(msg)
+	res, tookTaker, oerr := e.placeDirectionalLeg(ctx, venue.Symbol(sym), side, qty, clientID, false, instr, caps.ContractBasedPerp, false)
+	if oerr != nil {
+		e.setLastError(oerr.Error())
 		e.logger.Printf("[OKX方向] %s 开仓失败: %v", sym, oerr)
+		return false
+	}
+	if res.ExecutedQty <= executionQtyTolerance {
+		// maker-only 未成交属正常流程(不吃单设计);不写 last_error 避免污染面板。
+		e.logger.Printf("[OKX方向] %s maker 未成交,放弃本轮开仓(maker-only,不吃单;executed=%.8f)", sym, res.ExecutedQty)
 		return false
 	}
 	fillPrice, trusted := sanitizeFillPrice(res.AvgPrice, mid, e.cfg.FillPriceMaxDevPct)
 	if !trusted {
 		e.logger.Printf("[OKX方向][记账] %s 开仓成交价 %.6f 偏离 mid %.6f 过大或无效,记账回退 mid", sym, res.AvgPrice, mid)
 	}
+	openedAt := e.nowFn().UTC()
 	pos := &okxDirectionalPosition{
 		Symbol:        sym,
 		Side:          sig.Side.String(),
 		EntryPrice:    fillPrice,
 		Qty:           res.ExecutedQty,
 		NotionalUSDT:  notional,
-		OpenedAt:      e.nowFn().UTC(),
+		OpenedAt:      openedAt,
 		Regime:        sig.Regime.String(),
 		FundingAtOpen: fundingRate,
+		PositionID:    fmt.Sprintf("%s-%d", sym, openedAt.UnixNano()),
+		EntryMid:      mid,
+		EntrySlipBps:  directionalSlipBps(side, mid, fillPrice),
+		OpenViaTaker:  tookTaker,
+		OpenFeeUSDT:   math.Abs(res.Fee),
 	}
 	e.mu.Lock()
 	e.positions[sym] = pos
@@ -1039,12 +1214,18 @@ func (e *OKXDirectionalEngine) manageOne(ctx context.Context, pos *okxDirectiona
 	uPnLNotional := directionalUPnLPct(side, pos.EntryPrice, mid) // 价格移动口径(占名义)
 	lev := float64(e.leverage())
 	uPnLAccount := uPnLNotional * lev // 交易仓本金口径:止损/止盈按本金 %(5X 下 ×5)
-	// 回填实时浮盈到持仓(供面板显示)。
+	// 回填实时浮盈到持仓(供面板显示)+ 运行态 MFE/MAE(成交后最大浮盈/浮亏,本金口径)。
 	e.mu.Lock()
 	if p, ok := e.positions[pos.Symbol]; ok {
 		p.LastMid = mid
 		p.LastUnrealizedAccountPct = uPnLAccount
 		p.LastUnrealizedUSDT = uPnLNotional * p.NotionalUSDT // 实时浮盈(USDT)
+		if uPnLAccount > p.MFEAccountPct {
+			p.MFEAccountPct = uPnLAccount
+		}
+		if uPnLAccount < p.MAEAccountPct {
+			p.MAEAccountPct = uPnLAccount
+		}
 	}
 	e.mu.Unlock()
 	holdMin := int(e.nowFn().UTC().Sub(pos.OpenedAt).Minutes())
@@ -1177,8 +1358,11 @@ func (e *OKXDirectionalEngine) closePosition(ctx context.Context, pos *okxDirect
 	}
 	caps := e.v.Capabilities()
 	clientID := okxDirectionalClientID(pos.Symbol, "close")
-	urgentExit := strings.Contains(reason, "止损") || strings.Contains(reason, "反转") || strings.Contains(reason, "下架")
-	res, cerr := e.placeDirectionalLeg(ctx, venue.Symbol(pos.Symbol), closeSide, pos.Qty, clientID, true, instr, caps.ContractBasedPerp, urgentExit)
+	// 风控/不利信号 → urgent=true 跳过 maker 直接 IOC 吃单,且使用放宽滑点防薄盘卡单。
+	urgentExit := strings.Contains(reason, "止损") || strings.Contains(reason, "反转") ||
+		strings.Contains(reason, "保盈") || strings.Contains(reason, "停滞") ||
+		strings.Contains(reason, "下架")
+	res, closeTookTaker, cerr := e.placeDirectionalLeg(ctx, venue.Symbol(pos.Symbol), closeSide, pos.Qty, clientID, true, instr, caps.ContractBasedPerp, urgentExit)
 	exitPrice, exitTrusted := sanitizeFillPrice(res.AvgPrice, mid, e.cfg.FillPriceMaxDevPct)
 	if !exitTrusted {
 		e.logger.Printf("[OKX方向][记账] %s 平仓成交价 %.6f 偏离 mid %.6f 过大或无效,记账回退 mid", pos.Symbol, res.AvgPrice, mid)
@@ -1218,6 +1402,10 @@ func (e *OKXDirectionalEngine) closePosition(ctx context.Context, pos *okxDirect
 		}
 		exitPrice = mid // 回读伪值/无效 → Exit 记盘口,避免落假 0
 	}
+	holdSec := int(e.nowFn().UTC().Sub(pos.OpenedAt).Seconds())
+	if holdSec < 0 {
+		holdSec = 0
+	}
 	settle := okxDirectionalSettlement{
 		Time:          e.nowFn().UTC(),
 		Symbol:        pos.Symbol,
@@ -1230,6 +1418,15 @@ func (e *OKXDirectionalEngine) closePosition(ctx context.Context, pos *okxDirect
 		Regime:        pos.Regime,
 		Reason:        reason,
 		FundingAtOpen: pos.FundingAtOpen,
+		PositionID:    pos.PositionID,
+		HoldSeconds:   holdSec,
+		EntrySlipBps:  pos.EntrySlipBps,
+		ExitSlipBps:   directionalSlipBps(closeSide, mid, exitPrice),
+		OpenViaTaker:  pos.OpenViaTaker,
+		CloseViaTaker: closeTookTaker,
+		FeeUSDT:       pos.OpenFeeUSDT + math.Abs(res.Fee), // 剩余开仓侧实扣费(分批已按比例扣减)+ 本次平仓侧实扣费
+		MFEAccountPct: pos.MFEAccountPct,
+		MAEAccountPct: pos.MAEAccountPct,
 	}
 	if err := appendJSONLRecord(e.settlementsPath, settle); err != nil {
 		e.logger.Printf("[OKX方向] 结算落盘失败: %v", err)
@@ -1238,20 +1435,43 @@ func (e *OKXDirectionalEngine) closePosition(ctx context.Context, pos *okxDirect
 	if coolMin <= 0 {
 		coolMin = 30
 	}
-	// 防滚仓/亏损币快速复入:止损平仓后该币冷却拉长(LossCooldownMultiplier 倍)。
-	if strings.Contains(reason, "止损") || realized < 0 {
-		mult := e.cfg.LossCooldownMultiplier
-		if mult < 1 {
-			mult = 1
+	now := e.nowFn().UTC()
+	isStopLoss := strings.Contains(reason, "止损")
+	// 单币亏损记忆(ban/冷却)增强:
+	//   - reason 含 "止损" → ban 到次日 CST 0 点(彻底晾一天)
+	//   - realized<0 且非止损标签:coinLossCount[sym]++;≥2 → 同样 ban 到次日;否则 cooldown×mult 至少 120min
+	//   - realized≥0:正常冷却,不增计数
+	var coolUntil time.Time
+	if isStopLoss {
+		coolUntil = beijingCSTDayStart(now).Add(24 * time.Hour)
+	} else if realized < 0 {
+		e.mu.Lock()
+		e.coinLossCount[pos.Symbol]++
+		count := e.coinLossCount[pos.Symbol]
+		e.mu.Unlock()
+		if count >= 2 {
+			coolUntil = beijingCSTDayStart(now).Add(24 * time.Hour)
+		} else {
+			mult := e.cfg.LossCooldownMultiplier
+			if mult < 1 {
+				mult = 1
+			}
+			cm := coolMin * mult
+			if cm < 120 { // 至少 2 小时
+				cm = 120
+			}
+			coolUntil = now.Add(time.Duration(cm * float64(time.Minute)))
 		}
-		coolMin *= mult
+	} else {
+		coolUntil = now.Add(time.Duration(coolMin * float64(time.Minute)))
 	}
 	e.mu.Lock()
 	e.dailyRealizedUSDT += realized
-	e.cooldownUntil[pos.Symbol] = e.nowFn().UTC().Add(time.Duration(coolMin * float64(time.Minute)))
+	e.cooldownUntil[pos.Symbol] = coolUntil
 	delete(e.positions, pos.Symbol)
 	e.mu.Unlock()
 	e.persistPositions()
+	e.persistCooldowns() // 冷却/亏损计数落盘,重启可恢复(止损 ban 不再因重启失效)
 	e.clearLastError()
 	e.logger.Printf("[OKX方向] 已平 %s %s 原因=%s 实现≈%.4f USDT", pos.Symbol, pos.Side, reason, realized)
 }
@@ -1284,7 +1504,7 @@ func (e *OKXDirectionalEngine) partialClose(ctx context.Context, pos *okxDirecti
 		closeQty = pos.Qty
 	}
 	clientID := okxDirectionalClientID(pos.Symbol, "ptp")
-	res, cerr := e.placeDirectionalLeg(ctx, venue.Symbol(pos.Symbol), closeSide, closeQty, clientID, true, instr, caps.ContractBasedPerp, false)
+	res, partialTookTaker, cerr := e.placeDirectionalLeg(ctx, venue.Symbol(pos.Symbol), closeSide, closeQty, clientID, true, instr, caps.ContractBasedPerp, false)
 	if cerr != nil || res.ExecutedQty <= executionQtyTolerance {
 		e.logger.Printf("[OKX方向] %s 部分止盈下单失败: %v", pos.Symbol, cerr)
 		return false
@@ -1299,10 +1519,18 @@ func (e *OKXDirectionalEngine) partialClose(ctx context.Context, pos *okxDirecti
 	}
 	closedNotional := pos.NotionalUSDT * closedFrac
 	realized := directionalUPnLPct(pos.directionSide(), pos.EntryPrice, exitPrice) * closedNotional
+	holdSec := int(e.nowFn().UTC().Sub(pos.OpenedAt).Seconds())
+	if holdSec < 0 {
+		holdSec = 0
+	}
+	proratedOpenFee := pos.OpenFeeUSDT * closedFrac // 开仓侧实扣费按平掉比例归属本次部分结算
 	settle := okxDirectionalSettlement{
 		Time: e.nowFn().UTC(), Symbol: pos.Symbol, Side: pos.Side, Entry: pos.EntryPrice, Exit: exitPrice,
 		NotionalUSDT: closedNotional, RealizedUSDT: realized, HoldMinutes: holdMin, Regime: pos.Regime,
-		Reason: reason + "(部分)", FundingAtOpen: pos.FundingAtOpen,
+		Reason: reason + "(部分)", FundingAtOpen: pos.FundingAtOpen, PositionID: pos.PositionID,
+		HoldSeconds: holdSec, EntrySlipBps: pos.EntrySlipBps, ExitSlipBps: directionalSlipBps(closeSide, mid, exitPrice),
+		OpenViaTaker: pos.OpenViaTaker, CloseViaTaker: partialTookTaker,
+		FeeUSDT: proratedOpenFee + math.Abs(res.Fee), MFEAccountPct: pos.MFEAccountPct, MAEAccountPct: pos.MAEAccountPct,
 	}
 	if err := appendJSONLRecord(e.settlementsPath, settle); err != nil {
 		e.logger.Printf("[OKX方向] 部分结算落盘失败: %v", err)
@@ -1318,6 +1546,10 @@ func (e *OKXDirectionalEngine) partialClose(ctx context.Context, pos *okxDirecti
 			r.NotionalUSDT = 0
 		}
 		r.RealizedPartialUSDT += realized
+		r.OpenFeeUSDT -= proratedOpenFee // 已归属本次部分结算的开仓费扣减,余仓全平时只记剩余
+		if r.OpenFeeUSDT < 0 {
+			r.OpenFeeUSDT = 0
+		}
 	}
 	e.dailyRealizedUSDT += realized
 	e.mu.Unlock()
@@ -1353,7 +1585,7 @@ func (e *OKXDirectionalEngine) scaleIn(ctx context.Context, pos *okxDirectionalP
 		return false
 	}
 	clientID := okxDirectionalClientID(pos.Symbol, "add")
-	res, oerr := e.placeDirectionalLeg(ctx, venue.Symbol(pos.Symbol), addSide, addQty, clientID, false, instr, caps.ContractBasedPerp, false)
+	res, addTookTaker, oerr := e.placeDirectionalLeg(ctx, venue.Symbol(pos.Symbol), addSide, addQty, clientID, false, instr, caps.ContractBasedPerp, false)
 	if oerr != nil || res.ExecutedQty <= executionQtyTolerance {
 		e.logger.Printf("[OKX方向] %s 补仓失败: %v", pos.Symbol, oerr)
 		return false
@@ -1372,6 +1604,10 @@ func (e *OKXDirectionalEngine) scaleIn(ctx context.Context, pos *okxDirectionalP
 		}
 		r.Qty = newQty
 		r.NotionalUSDT += addNotional
+		r.OpenFeeUSDT += math.Abs(res.Fee) // 补仓侧实扣费累计到开仓费(全平/分批按比例归属)
+		if addTookTaker {
+			r.OpenViaTaker = true
+		}
 		newAvg = r.EntryPrice
 	}
 	e.mu.Unlock()
@@ -1396,6 +1632,7 @@ func okxDirectionalClientID(sym, leg string) string {
 }
 
 // placeDirectionalLeg maker-first 追价,未成交则小滑点 IOC 兜底。
+// 返回 (合并成交结果, 是否走了 IOC 吃单兜底, error):tookTaker 供执行质量归因(maker 逆选择)。
 func (e *OKXDirectionalEngine) placeDirectionalLeg(
 	ctx context.Context,
 	sym venue.Symbol,
@@ -1406,7 +1643,7 @@ func (e *OKXDirectionalEngine) placeDirectionalLeg(
 	instr venue.Instrument,
 	contractBased bool,
 	urgent bool,
-) (venue.OrderResult, error) {
+) (venue.OrderResult, bool, error) {
 	deadline := e.nowFn().UTC().Add(okxDirectionalMakerDeadline)
 	var acc venue.OrderResult
 	remaining := qty
@@ -1445,7 +1682,7 @@ func (e *OKXDirectionalEngine) placeDirectionalLeg(
 			acc = mergeCrossVenueOrderResults(acc, placed)
 			remaining = qty - acc.ExecutedQty
 			if remaining <= executionQtyTolerance {
-				return acc, nil
+				return acc, false, nil
 			}
 		}
 		waitUntil := e.nowFn().UTC().Add(okxDirectionalMakerInterval)
@@ -1457,7 +1694,7 @@ func (e *OKXDirectionalEngine) placeDirectionalLeg(
 					acc = mergeCrossVenueOrderResults(acc, res)
 					remaining = qty - acc.ExecutedQty
 					if remaining <= executionQtyTolerance {
-						return acc, nil
+						return acc, false, nil
 					}
 				case "canceled", "rejected":
 					goto nextMakerRound
@@ -1466,7 +1703,7 @@ func (e *OKXDirectionalEngine) placeDirectionalLeg(
 			select {
 			case <-ctx.Done():
 				_ = e.v.CancelOrder(ctx, venue.MarketPerp, sym, makerID)
-				return acc, ctx.Err()
+				return acc, false, ctx.Err()
 			case <-time.After(crossVenueConfirmPoll):
 			}
 		}
@@ -1477,30 +1714,36 @@ func (e *OKXDirectionalEngine) placeDirectionalLeg(
 			remaining = qty - acc.ExecutedQty
 		}
 		if remaining <= executionQtyTolerance {
-			return acc, nil
+			return acc, false, nil
 		}
 	}
 
 	if remaining <= executionQtyTolerance && acc.ExecutedQty > executionQtyTolerance {
-		return acc, nil
+		return acc, false, nil
 	}
 	if remaining <= executionQtyTolerance {
 		remaining = qty - acc.ExecutedQty
 	}
-	// 开仓/补仓腿(reduceOnly=false)只做 maker:maker 没挂上就放弃这次开仓,绝不吃单兜底。
-	// 回测铁证:信号毛 edge≈7bps < 吃单往返成本(~10bps+),吃单兜底会把薄 edge 吃成负;开仓没成交=没仓位,无害。
-	// 平仓腿(reduceOnly=true)保留下方 IOC 兜底,确保止损/超时能离场。
-	if !reduceOnly {
-		return acc, nil
+	// 开仓/补仓腿(reduceOnly=false):默认只做 maker(maker 没挂上即放弃,保护薄 edge);
+	// 探索高频档可配 OpenTakerFallbackBps>0,允许小滑点 IOC 吃单兜底以提高成交率/频率(代价多付吃单成本)。
+	// 平仓腿(reduceOnly=true)始终保留下方 IOC 兜底,确保止损/超时能离场。
+	openTakerSlip := e.cfg.OpenTakerFallbackBps
+	if !reduceOnly && openTakerSlip <= 0 {
+		return acc, false, nil
 	}
 	book, err := e.v.FetchBookTicker(ctx, venue.MarketPerp, sym)
 	if err != nil {
-		if acc.ExecutedQty > executionQtyTolerance {
-			return acc, err
-		}
-		return acc, err
+		return acc, false, err
 	}
-	takerPrice := iocLimitPrice(side, book, okxDirectionalTakerSlippageBps)
+	// 滑点选择:平仓默认 40bps;风控急平 150bps;开仓吃单兜底用 OpenTakerFallbackBps。
+	slippageBps := okxDirectionalTakerSlippageBps
+	if !reduceOnly {
+		slippageBps = openTakerSlip
+	}
+	if urgent {
+		slippageBps = okxDirectionalUrgentSlippageBps
+	}
+	takerPrice := iocLimitPrice(side, book, slippageBps)
 	takerPrice, remaining = quantizeOrderPriceQty(takerPrice, remaining, side, instr, contractBased, e.logger, string(sym))
 	takerID := crossVenueLegClientID(clientID, "tk")
 	logLiveOrderLeg(e.logger, e.venueName, venue.MarketPerp, string(sym), side, takerPrice, instr.TickSize, remaining, instr.StepSize)
@@ -1516,9 +1759,9 @@ func (e *OKXDirectionalEngine) placeDirectionalLeg(
 	})
 	if terr != nil {
 		if acc.ExecutedQty > executionQtyTolerance {
-			return acc, terr
+			return acc, false, terr
 		}
-		return takerRes, terr
+		return takerRes, takerRes.ExecutedQty > executionQtyTolerance, terr
 	}
 	if takerRes.ExecutedQty <= executionQtyTolerance && live {
 		confirmed, qerr := e.confirmDirectionalFill(ctx, sym, takerID)
@@ -1526,7 +1769,8 @@ func (e *OKXDirectionalEngine) placeDirectionalLeg(
 			takerRes = confirmed
 		}
 	}
-	return mergeCrossVenueOrderResults(acc, takerRes), nil
+	tookTaker := takerRes.ExecutedQty > executionQtyTolerance
+	return mergeCrossVenueOrderResults(acc, takerRes), tookTaker, nil
 }
 
 func (e *OKXDirectionalEngine) confirmDirectionalFill(ctx context.Context, sym venue.Symbol, clientID string) (venue.OrderResult, error) {
@@ -1655,4 +1899,91 @@ func (e *OKXDirectionalEngine) loadControl() (okxDirectionalControl, bool) {
 
 func (e *OKXDirectionalEngine) saveControl(c okxDirectionalControl) error {
 	return writeJSONFile(e.controlPath, c)
+}
+
+// okxDirectionalCooldownState 单币冷却/亏损计数的持久化快照(records/{venue}_directional/cooldowns.json)。
+// 根治「冷却/ban 仅存内存,重启即清零」——本 session 重启频繁(日志已见上百次),导致
+// 「硬止损→当日 ban」「单币亏 2 次→晾一天」实际从未生效,亏损币反复快速复入污染 PF。
+type okxDirectionalCooldownState struct {
+	CooldownUntil map[string]time.Time `json:"cooldown_until"`
+	CoinLossCount map[string]int       `json:"coin_loss_count"`
+	DayStartCST   time.Time            `json:"day_start_cst"`
+	SavedAt       time.Time            `json:"saved_at"`
+}
+
+// restoreCooldowns 启动时从 cooldowns.json 恢复冷却/亏损计数。
+//   - 同一 CST 交易日:恢复 cooldownUntil + coinLossCount + dayStartCST(令 refreshCSTDay 不误清当日计数);
+//   - 跨日(保存的是旧交易日):只恢复尚未到期的 cooldownUntil(ban 到次日的仍有效),
+//     丢弃 coinLossCount(本就跨日清零),dayStartCST 留零由 refreshCSTDay 正常初始化。
+func (e *OKXDirectionalEngine) restoreCooldowns() {
+	st, ok := e.loadCooldowns()
+	if !ok {
+		return
+	}
+	now := e.nowFn().UTC()
+	today := beijingCSTDayStart(now)
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.cooldownUntil == nil {
+		e.cooldownUntil = make(map[string]time.Time)
+	}
+	restored := 0
+	for sym, until := range st.CooldownUntil {
+		if now.Before(until) { // 只恢复仍在冷却期内的(过期的无意义)
+			e.cooldownUntil[sym] = until
+			restored++
+		}
+	}
+	sameDay := !st.DayStartCST.IsZero() && st.DayStartCST.Equal(today)
+	if sameDay {
+		e.coinLossCount = make(map[string]int, len(st.CoinLossCount))
+		for sym, c := range st.CoinLossCount {
+			e.coinLossCount[sym] = c
+		}
+		e.dayStartCST = today // 防 refreshCSTDay 把当日已累计的亏损计数清零
+		e.dailyRealizedUSDT = 0
+	}
+	e.logger.Printf("[OKX方向][冷却] 启动恢复:冷却币=%d 当日亏损计数=%d 同日=%v",
+		restored, len(e.coinLossCount), sameDay)
+}
+
+func (e *OKXDirectionalEngine) loadCooldowns() (okxDirectionalCooldownState, bool) {
+	data, err := os.ReadFile(e.cooldownPath)
+	if err != nil || len(strings.TrimSpace(string(data))) == 0 {
+		return okxDirectionalCooldownState{}, false
+	}
+	var st okxDirectionalCooldownState
+	if err := json.Unmarshal(data, &st); err != nil {
+		return okxDirectionalCooldownState{}, false
+	}
+	return st, true
+}
+
+// persistCooldowns 落盘冷却/亏损计数(调用方持有或未持有锁均安全:内部自取读锁拷贝)。
+// 落盘前剪掉已过期的 cooldownUntil 项,避免文件无界增长。
+func (e *OKXDirectionalEngine) persistCooldowns() {
+	now := e.nowFn().UTC()
+	e.mu.RLock()
+	cd := make(map[string]time.Time, len(e.cooldownUntil))
+	for sym, until := range e.cooldownUntil {
+		if now.Before(until) {
+			cd[sym] = until
+		}
+	}
+	lc := make(map[string]int, len(e.coinLossCount))
+	for sym, c := range e.coinLossCount {
+		if c > 0 {
+			lc[sym] = c
+		}
+	}
+	st := okxDirectionalCooldownState{
+		CooldownUntil: cd,
+		CoinLossCount: lc,
+		DayStartCST:   e.dayStartCST,
+		SavedAt:       now,
+	}
+	e.mu.RUnlock()
+	if err := writeJSONFile(e.cooldownPath, st); err != nil {
+		e.logger.Printf("[OKX方向][冷却] 落盘失败: %v", err)
+	}
 }

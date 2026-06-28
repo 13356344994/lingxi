@@ -231,6 +231,108 @@ func TestDirectionalEdgeBacktest(t *testing.T) {
 	edgeBTConvictionBuckets(t, prod, symbolCloses, 12, barMin, legBps)
 }
 
+// TestDirectionalScalpEdge 按 regime × 信心档 × 短horizon 拆 edge(带往返成本),验证:
+//  ① 信心是否真能排序 edge(同 regime 内高信心档净 edge 应更高);
+//  ② scalp 短持有(15/30min)下,哪个 regime+信心档扣费后仍正(指导 scalp 参数)。
+// 运行:EDGE_BT=1 go test ./internal/app/ -run TestDirectionalScalpEdge -v -timeout 600s
+func TestDirectionalScalpEdge(t *testing.T) {
+	if os.Getenv("EDGE_BT") == "" {
+		t.Skip("研究用:设 EDGE_BT=1")
+	}
+	topN := 80
+	if v := os.Getenv("EDGE_BT_TOPN"); v != "" {
+		fmt.Sscanf(v, "%d", &topN)
+	}
+	legBps := 5.0
+	if v := os.Getenv("EDGE_BT_LEGBPS"); v != "" {
+		fmt.Sscanf(v, "%g", &legBps)
+	}
+	syms, err := edgeBTTopSymbols(topN)
+	if err != nil {
+		t.Fatalf("symbols: %v", err)
+	}
+	symbolCloses := make(map[string][]float64)
+	for _, s := range syms {
+		c, err := edgeBTCandles(s, "5m", 300)
+		if err == nil && len(c) >= 60 {
+			symbolCloses[s] = c
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	t.Logf("有效币种 %d", len(symbolCloses))
+	cfg := core.OKXDirectionalConfig{
+		SignalWindowBars: 24, TrendEfficiencyThreshold: 0.30,
+		EMAFast: 9, EMASlow: 30, ZScoreEntry: 1.2,
+		SpikeBarPct: 0.03, TrendMaxExtensionPct: 0.02, VolExpansionMaxRatio: 1.8,
+		ReversionKnifePct: 0.015, TrendEntryPullbackMaxBarPct: 0.005,
+	}
+	warm := 30
+	rtCost := 2 * legBps / 10000
+	type key struct {
+		reg  string
+		clo  float64
+		hb   int
+	}
+	type acc struct{ sum float64; n, w int }
+	stats := map[key]*acc{}
+	cbuckets := [][2]float64{{0.5, 0.7}, {0.7, 1.01}}
+	horizons := []int{3, 6} // 15min / 30min
+	for _, closes := range symbolCloses {
+		nn := len(closes)
+		for i := warm; i < nn; i++ {
+			sig := computeDirectionalSignal(closes[:i+1], 0, cfg)
+			if sig.Side == DirectionFlat {
+				continue
+			}
+			for _, hb := range horizons {
+				if i+hb >= nn {
+					continue
+				}
+				ret := (closes[i+hb] - closes[i]) / closes[i]
+				if sig.Side == DirectionShort {
+					ret = -ret
+				}
+				for _, cb := range cbuckets {
+					if sig.Conviction >= cb[0] && sig.Conviction < cb[1] {
+						k := key{sig.Regime.String(), cb[0], hb}
+						a := stats[k]
+						if a == nil {
+							a = &acc{}
+							stats[k] = a
+						}
+						a.sum += ret
+						a.n++
+						if ret > 0 {
+							a.w++
+						}
+						break
+					}
+				}
+			}
+		}
+	}
+	fmt.Printf("== scalp edge(regime×信心×horizon,往返成本=%.0fbps)==\n", 2*legBps)
+	for _, hb := range horizons {
+		for _, reg := range []string{"range", "trend"} {
+			for _, cb := range cbuckets {
+				a := stats[key{reg, cb[0], hb}]
+				if a == nil || a.n == 0 {
+					fmt.Printf("  +%d根 %-5s 信心[%.1f,%.1f): n=0\n", hb, reg, cb[0], cb[1])
+					continue
+				}
+				mean := a.sum / float64(a.n)
+				net := mean - rtCost
+				flag := ""
+				if net > 0 {
+					flag = "← 正"
+				}
+				fmt.Printf("  +%d根(%dm) %-5s 信心[%.1f,%.1f): n=%d 命中=%.1f%% 毛%+.3f%% 净%+.3f%% %s\n",
+					hb, hb*5, reg, cb[0], cb[1], a.n, float64(a.w)/float64(a.n)*100, mean*100, net*100, flag)
+			}
+		}
+	}
+}
+
 // edgeBTConvictionBuckets 按信心档统计:对 12 根(≈MaxHold)前向收益,分桶 [0,.3)/[.3,.5)/[.5,.7)/[.7,1],
 // 报告每桶 n/命中率/均值,以及「扣往返成本(2×legBps)后的净均值」——净>0 才是真 edge。
 func edgeBTConvictionBuckets(t *testing.T, cfg core.OKXDirectionalConfig, symbolCloses map[string][]float64, hb, barMin int, legBps float64) {

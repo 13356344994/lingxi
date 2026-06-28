@@ -1,6 +1,8 @@
 package app
 
 import (
+	"fmt"
+	"math"
 	"sort"
 	"strings"
 	"time"
@@ -14,6 +16,7 @@ type directionalReasonStat struct {
 }
 
 type directionalStats struct {
+	// 事件级(每条 settlement = 1 笔,保持兼容)
 	TradeCount  int                     `json:"trade_count"`
 	Wins        int                     `json:"wins"`
 	WinRate     float64                 `json:"win_rate"`
@@ -22,6 +25,13 @@ type directionalStats struct {
 	AvgLossUSDT float64                 `json:"avg_loss_usdt"`
 	ByReason    []directionalReasonStat `json:"by_reason"`
 	ByRegime    []directionalReasonStat `json:"by_regime"`
+	// 仓位级(多条 settlement 按 PositionID 合并为 1 仓,修正分批止盈导致的虚高胜率)
+	PositionCount       int     `json:"position_count"`
+	PositionWins        int     `json:"position_wins"`
+	PositionWinRate     float64 `json:"position_win_rate"`
+	PositionProfitFactor float64 `json:"position_profit_factor"`
+	PositionMaxLossUSDT float64 `json:"position_max_loss_usdt"`  // 最亏的一仓(负值)
+	PositionAvgWinUSDT  float64 `json:"position_avg_win_usdt"`   // 盈仓均值
 }
 
 // directionalReasonKey 归并出场原因:去掉括号内后缀,避免同类分裂。
@@ -126,15 +136,65 @@ func computeDirectionalStats(settles []okxDirectionalSettlement, since time.Time
 		avgLoss = lossSum / float64(lossCount)
 	}
 
+	// 仓位级聚合:按 PositionID 合并分批止盈。
+	// key: PositionID 非空时直接用;否则回退到 "Symbol|Side|entry8位" 作为代理键。
+	posNetUSDT := map[string]float64{}
+	for _, s := range filtered {
+		key := s.PositionID
+		if key == "" {
+			key = fmt.Sprintf("%s|%s|%.8f", s.Symbol, s.Side, s.Entry)
+		}
+		posNetUSDT[key] += s.RealizedUSDT
+	}
+	var posWins int
+	var posGain, posLoss float64
+	var posMaxLoss float64 = 0
+	var posWinSum float64
+	var posWinCount int
+	for _, pnl := range posNetUSDT {
+		if pnl > 0 {
+			posWins++
+			posGain += pnl
+			posWinSum += pnl
+			posWinCount++
+		} else if pnl < 0 {
+			posLoss += pnl
+			if pnl < posMaxLoss {
+				posMaxLoss = pnl
+			}
+		}
+	}
+	posCount := len(posNetUSDT)
+	posWinRate := 0.0
+	if posCount > 0 {
+		posWinRate = float64(posWins) / float64(posCount)
+	}
+	posPF := 0.0
+	if math.Abs(posLoss) > 1e-12 {
+		posPF = posGain / math.Abs(posLoss)
+	} else if posGain > 0 {
+		posPF = 999
+	}
+	posAvgWin := 0.0
+	if posWinCount > 0 {
+		posAvgWin = posWinSum / float64(posWinCount)
+	}
+
 	return directionalStats{
-		TradeCount:  tradeCount,
-		Wins:        wins,
-		WinRate:     winRate,
-		NetUSDT:     netUSDT,
-		AvgWinUSDT:  avgWin,
-		AvgLossUSDT: avgLoss,
-		ByReason:    directionalStatsFromBuckets(reasonBuckets),
-		ByRegime:    directionalStatsFromBuckets(regimeBuckets),
+		TradeCount:           tradeCount,
+		Wins:                 wins,
+		WinRate:              winRate,
+		NetUSDT:              netUSDT,
+		AvgWinUSDT:           avgWin,
+		AvgLossUSDT:          avgLoss,
+		ByReason:             directionalStatsFromBuckets(reasonBuckets),
+		ByRegime:             directionalStatsFromBuckets(regimeBuckets),
+		PositionCount:        posCount,
+		PositionWins:         posWins,
+		PositionWinRate:      posWinRate,
+		PositionProfitFactor: posPF,
+		PositionMaxLossUSDT:  posMaxLoss,
+		PositionAvgWinUSDT:   posAvgWin,
 	}
 }
 

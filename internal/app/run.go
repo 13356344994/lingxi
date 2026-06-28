@@ -245,6 +245,7 @@ func startLiveStack(ctx context.Context, cfg EngineConfig) error {
 		if eng, err := NewOKXDirectionalEngine(cfg, orch, cfg.NetworkConfig.RecordDir, log.Default()); err != nil {
 			log.Default().Printf("[OKX方向] 构造失败,跳过: %v", err)
 		} else {
+			eng.SetControlPlane(controlPlane)
 			dashboard.SetOKXDirectionalEngine(eng)
 			go eng.Run(ctx)
 		}
@@ -254,6 +255,7 @@ func startLiveStack(ctx context.Context, cfg EngineConfig) error {
 		if eng, derr := NewDirectionalEngineForVenue(vn, cfg, orch, cfg.NetworkConfig.RecordDir, log.Default()); derr != nil {
 			log.Default().Printf("[方向] %s 引擎构造失败,跳过: %v", vn, derr)
 		} else {
+			eng.SetControlPlane(controlPlane)
 			dashboard.SetOKXDirectionalEngine(eng)
 			go eng.Run(ctx)
 			log.Default().Printf("[方向] %s 引擎已接线(默认停用,需面板点开始)", vn)
@@ -267,6 +269,7 @@ func startLiveStack(ctx context.Context, cfg EngineConfig) error {
 	} else if eng, derr := NewDirectionalEngine(binance.VenueName, bdv, buildDirectionalPeers(orch, binance.VenueName, log.Default()), cfg, cfg.NetworkConfig.RecordDir, log.Default()); derr != nil {
 		log.Default().Printf("[方向] binance 引擎构造失败,跳过: %v", derr)
 	} else {
+		eng.SetControlPlane(controlPlane)
 		dashboard.SetOKXDirectionalEngine(eng)
 		go eng.Run(ctx)
 		log.Default().Printf("[方向] binance 引擎已接线(默认停用,需面板点开始)")

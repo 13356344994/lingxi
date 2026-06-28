@@ -773,6 +773,9 @@ type OKXDirectionalConfig struct {
 	StaleCutMinutes int `cfg:"stale_cut_minutes"`
 	// StaleCutMinProfitPct 停滞离场的盈利门槛(本金口径):达 StaleCutMinutes 时浮盈 ≤ 此值才砍;默认 0(未盈利即砍,赢单不受影响)。
 	StaleCutMinProfitPct float64 `cfg:"stale_cut_min_profit_pct"`
+	// TradeTrendRegime 是否交易趋势态信号。回测实证:趋势单即使高 ER/信心,扣费后仍负 edge(命中仅~32%),
+	// 是主要失血源;只做震荡反转(range)才有正 edge。默认 false(不做趋势,只做 range scalp)。
+	TradeTrendRegime bool `cfg:"trade_trend_regime"`
 	// TrendEntryPullbackMaxBarPct 趋势回踩入场闸:趋势态只在「最后一根顺势方向涨跌 ≤ 此比例」(即回踩/横盘)时入场,
 	// 不在顺势暴动的当根追入——买回踩不买尖顶,根治趋势单追高(复盘 trend 胜率仅 25%)。默认 0.005(0.5%/根)。≤0 关闭。
 	TrendEntryPullbackMaxBarPct float64 `cfg:"trend_entry_pullback_max_bar_pct"`
@@ -811,6 +814,13 @@ type OKXDirectionalConfig struct {
 	FillPriceMaxDevPct float64 `cfg:"fill_price_max_dev_pct"`
 	// MaxOpenSpreadBps 开仓流动性闸:盘口价差(bps)超过此值则跳过开仓(挡薄盘)。≤0 不启用。默认 50(0.5%)。
 	MaxOpenSpreadBps float64 `cfg:"max_open_spread_bps"`
+	// OpenTakerFallbackBps 探索高频档:开仓 maker 未成交时,允许以此滑点(bps)IOC 吃单兜底成交。
+	// ≤0=纯 maker-only 开仓(挂不上即放弃,保护薄 edge);>0=吃单兜底(提高成交率/频率,代价多付吃单成本)。
+	OpenTakerFallbackBps float64 `cfg:"open_taker_fallback_bps"`
+	// PerPositionNotionalUSDT 广撒网档:每仓固定名义(USDT)。>0 时仓位大小不再按"本金/并发",
+	// 改为固定名义,实际持仓数量 = 交易仓本金可支撑的保证金笔数,上限 MaxConcurrent。
+	// 即"币上限设大(如30),资金不足就按资金可开的最大数量"。≤0=旧模型(本金/并发)。
+	PerPositionNotionalUSDT float64 `cfg:"per_position_notional_usdt"`
 }
 
 // CrossVenueExecutorConfig 是跨所资金费对冲执行引擎的可调参数。
