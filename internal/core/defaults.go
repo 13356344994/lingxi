@@ -512,7 +512,7 @@ func DefaultEngineConfig() EngineConfig {
 			MinOpenConviction:              0.70,
 			ReversalMinHoldMinutes:         30,
 			MaxVenuesPerSymbolSide:         2,
-			AvoidBTCChase:                  true,
+			AvoidBTCChase:                  false, // 单一窗口/重叠样本证据不足(44%vs57%统计上≈),先关闭,待更多数据稳健验证再议
 			BTCChaseLookbackBars:           6,
 			BTCChaseMinMovePct:             0.0008,
 			CrossVenueCorroborationEnabled: true,

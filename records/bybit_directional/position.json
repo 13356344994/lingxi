@@ -1,21 +1,5 @@
 [
   {
-    "symbol": "ARX-USDT",
-    "side": "short",
-    "entry_price": 0.2743,
-    "qty": 91,
-    "notional_usdt": 25,
-    "opened_at": "2026-06-28T03:01:00.83092664Z",
-    "regime": "trend",
-    "funding_at_open": -0.00146186,
-    "last_mid": 0.27625,
-    "last_unrealized_account_pct": -0.035545023696682596,
-    "last_unrealized_usdt": -0.177725118483413,
-    "initial_notional_usdt": 25,
-    "peak_account_pct": 0.015493984688297803,
-    "stop_floor_account_pct": -0.2
-  },
-  {
     "symbol": "PHAROS-USDT",
     "side": "long",
     "entry_price": 0.4904,
@@ -24,27 +8,11 @@
     "opened_at": "2026-06-28T03:13:32.88471741Z",
     "regime": "range",
     "funding_at_open": -0.00511609,
-    "last_mid": 0.48560000000000003,
-    "last_unrealized_account_pct": -0.04893964110929823,
-    "last_unrealized_usdt": -0.4893964110929823,
+    "last_mid": 0.493,
+    "last_unrealized_account_pct": 0.026508972267536617,
+    "last_unrealized_usdt": 0.2650897226753662,
     "initial_notional_usdt": 50,
-    "peak_account_pct": 0.018352365415986626,
-    "stop_floor_account_pct": -0.2
-  },
-  {
-    "symbol": "O-USDT",
-    "side": "short",
-    "entry_price": 0.3988,
-    "qty": 62,
-    "notional_usdt": 25,
-    "opened_at": "2026-06-28T03:26:20.692186834Z",
-    "regime": "trend",
-    "funding_at_open": 0.00050327,
-    "last_mid": 0.40705,
-    "last_unrealized_account_pct": -0.1034353059177537,
-    "last_unrealized_usdt": -0.5171765295887685,
-    "initial_notional_usdt": 25,
-    "peak_account_pct": 0.03823971915747238,
+    "peak_account_pct": 0.026508972267536617,
     "stop_floor_account_pct": -0.2
   }
 ]
