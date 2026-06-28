@@ -779,6 +779,10 @@ type OKXDirectionalConfig struct {
 	// TrendSizeFraction 趋势单仓位系数:趋势态每仓本金/名义 ×此系数(趋势单胜率低,少冒险,资金偏向 range 反转单)。
 	// 默认 0.5(趋势单减半仓)。≤0 或 >1 回退 1(不缩放)。
 	TrendSizeFraction float64 `cfg:"trend_size_fraction"`
+	// MaxVenuesPerSymbolSide 单币跨所集中度上限:同一币+同方向,最多允许 N 个所同时持有(读 peer 持仓文件判定)。
+	// 根治「跨所印证致四所对同一币同向同开→错则齐亏」的相关性集中风险(如 BICO 三所 7min 同步亏 -2.76U)。
+	// 降相关回撤、不改单笔 edge。默认 2(3 所活跃时最多 2 所碰同一币);0=不限。
+	MaxVenuesPerSymbolSide int `cfg:"max_venues_per_symbol_side"`
 	// ReversalMinHoldMinutes 信号反转最小持有(分钟):开仓后此时长内不因信号反转立即平仓(防 5m 噪声急翻 churn);
 	// 窗口内仍由硬止损兜底。默认 0(立即反转平)。
 	ReversalMinHoldMinutes int `cfg:"reversal_min_hold_minutes"`

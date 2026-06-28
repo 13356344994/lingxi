@@ -188,6 +188,9 @@ okx_directional:
   # 信号反转最小持有(分钟):开仓后此时长内不因信号反转立即平仓(防5m噪声急翻churn,白付往返成本);窗口内仍由硬止损兜底。
   # 离线验证:0→30min 单笔期望+0.12%→+0.33%、胜率42%→46%(maker口径),且与OKX/Bybit实盘反转churn互证。
   reversal_min_hold_minutes: 30
+  # 单币跨所集中度上限:同一币+同方向最多 N 个所同时持有(读 peer 持仓文件)。根治跨所印证致四所同币同向同开→齐亏的
+  # 相关性集中(如 BICO 三所 7min 同步 -2.76U)。降相关回撤、不改单笔 edge。0=不限。
+  max_venues_per_symbol_side: 2
 
 # 五策略统一资金费轮动 runner。perp-perp 执行体见 cross_venue_executor,开仓由 runner binding 派发。
 # total_deployable_usdt: 绝对预算(USDT);另有 total_deployable_pct(默认见 defaults,占真实现金权益比例),二者与 equity 取 min。

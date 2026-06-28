@@ -1,21 +1,5 @@
 [
   {
-    "symbol": "STEEM-USDT",
-    "side": "long",
-    "entry_price": 0.04094,
-    "qty": 338,
-    "notional_usdt": 16.666666666666668,
-    "opened_at": "2026-06-28T02:10:52.770882718Z",
-    "regime": "trend",
-    "funding_at_open": -0.00137076,
-    "last_mid": 0.040845,
-    "last_unrealized_account_pct": -0.011602344894967986,
-    "last_unrealized_usdt": -0.03867448298322662,
-    "initial_notional_usdt": 16.666666666666668,
-    "peak_account_pct": 0.02931118710307733,
-    "stop_floor_account_pct": -0.2
-  },
-  {
     "symbol": "BICO-USDT",
     "side": "long",
     "entry_price": 0.02007,
@@ -24,11 +8,27 @@
     "opened_at": "2026-06-28T02:21:48.77475422Z",
     "regime": "range",
     "funding_at_open": -0.0022469,
-    "last_mid": 0.020005000000000002,
-    "last_unrealized_account_pct": -0.01619332336821103,
-    "last_unrealized_usdt": -0.10795548912140689,
+    "last_mid": 0.019985000000000003,
+    "last_unrealized_account_pct": -0.021175884404583525,
+    "last_unrealized_usdt": -0.14117256269722353,
     "initial_notional_usdt": 33.333333333333336,
     "peak_account_pct": 0.03114100647732851,
+    "stop_floor_account_pct": -0.2
+  },
+  {
+    "symbol": "POWR-USDT",
+    "side": "long",
+    "entry_price": 0.05122,
+    "qty": 325,
+    "notional_usdt": 16.666666666666668,
+    "opened_at": "2026-06-28T02:56:06.347240988Z",
+    "regime": "trend",
+    "funding_at_open": -0.01233899,
+    "last_mid": 0.051375000000000004,
+    "last_unrealized_account_pct": 0.01513080827801663,
+    "last_unrealized_usdt": 0.05043602759338877,
+    "initial_notional_usdt": 16.666666666666668,
+    "peak_account_pct": 0.01513080827801663,
     "stop_floor_account_pct": -0.2
   }
 ]

@@ -742,11 +742,43 @@ func (e *OKXDirectionalEngine) openFromShortlist(ctx context.Context) {
 			e.logger.Printf("[OKX方向] %s 信心%.3f < 最低开仓信心%.3f,跳过(只做高信心档)", p.sym, p.signal.Conviction, mc)
 			continue
 		}
+		// 单币跨所集中度上限:同币+同方向已有 ≥cap 个所持仓则跳过,避免跨所印证把四所推成同一笔相关下注(错则齐亏)。
+		if cap := e.cfg.MaxVenuesPerSymbolSide; cap > 0 {
+			if held := e.peerHoldersOfSymbol(p.sym, p.signal.Side); held >= cap {
+				e.logger.Printf("[OKX方向] %s 已有%d个所持同向仓(≥上限%d),跳过(降跨所集中度)", p.sym, held, cap)
+				continue
+			}
+		}
 		if e.openPosition(ctx, p.sym, p.signal, p.rate) {
 			opened++
 		}
 	}
 	_ = nSignal
+}
+
+// peerHoldersOfSymbol 统计有多少其他所当前持有 sym 的同方向仓(读 peer 的 position.json,跨所共享文件系统)。
+// 用于单币跨所集中度上限,避免四所对同一币同向同开。读文件失败的 peer 不计入(best-effort)。
+func (e *OKXDirectionalEngine) peerHoldersOfSymbol(sym string, side DirectionSide) int {
+	base := filepath.Dir(e.recordDir)
+	count := 0
+	for peerName := range e.peers {
+		pp := filepath.Join(base, peerName+"_directional", okxDirectionalPositionFile)
+		data, err := os.ReadFile(pp)
+		if err != nil || len(strings.TrimSpace(string(data))) == 0 {
+			continue
+		}
+		var list []*okxDirectionalPosition
+		if json.Unmarshal(data, &list) != nil {
+			continue
+		}
+		for _, p := range list {
+			if p != nil && p.isOpen() && p.Symbol == sym && p.directionSide() == side {
+				count++
+				break // 计所数,不计仓数
+			}
+		}
+	}
+	return count
 }
 
 // gatherPeerDirections best-effort 拉其他所同币近窗 K 线并判方向;该所无此币/失败则跳过(不计入)。
