@@ -779,6 +779,14 @@ type OKXDirectionalConfig struct {
 	// TrendSizeFraction 趋势单仓位系数:趋势态每仓本金/名义 ×此系数(趋势单胜率低,少冒险,资金偏向 range 反转单)。
 	// 默认 0.5(趋势单减半仓)。≤0 或 >1 回退 1(不缩放)。
 	TrendSizeFraction float64 `cfg:"trend_size_fraction"`
+	// AvoidBTCChase BTC 追势过滤:剔除「与 BTC 近期方向同向」的开仓。离线实证:顺 BTC 近30min方向的 alt 信号前向
+	// edge 为负(命中44%/-0.03%),逆 BTC 方向(fade)为正(命中57%/+0.14%)——追在 BTC 带动的延展末端被反杀。
+	// true 时只开「逆 BTC 或 BTC 横盘」的单。默认 true。
+	AvoidBTCChase bool `cfg:"avoid_btc_chase"`
+	// BTCChaseLookbackBars BTC 近期方向的回看根数(信号同周期 K 线)。默认 6(5m×6=30min)。
+	BTCChaseLookbackBars int `cfg:"btc_chase_lookback_bars"`
+	// BTCChaseMinMovePct BTC 近期净移动绝对值阈值:超过才判定 BTC 有方向(否则视为横盘不过滤)。默认 0.0008(0.08%)。
+	BTCChaseMinMovePct float64 `cfg:"btc_chase_min_move_pct"`
 	// MaxVenuesPerSymbolSide 单币跨所集中度上限:同一币+同方向,最多允许 N 个所同时持有(读 peer 持仓文件判定)。
 	// 根治「跨所印证致四所对同一币同向同开→错则齐亏」的相关性集中风险(如 BICO 三所 7min 同步亏 -2.76U)。
 	// 降相关回撤、不改单笔 edge。默认 2(3 所活跃时最多 2 所碰同一币);0=不限。

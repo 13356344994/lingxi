@@ -720,10 +720,44 @@ func (e *OKXDirectionalEngine) openFromShortlist(ctx context.Context) {
 			len(sl), slots, nInsufficient, nVeto, nNoSig, nBelowFloor, costFloor, vetoEg, noSigEg, floorEg)
 		return
 	}
+	// BTC 近期方向(用于追势过滤):每周期取一次。1=涨 -1=跌 0=横盘/未知。
+	btcDir := 0
+	if e.cfg.AvoidBTCChase {
+		look := e.cfg.BTCChaseLookbackBars
+		if look <= 0 {
+			look = 6
+		}
+		minMove := e.cfg.BTCChaseMinMovePct
+		if minMove <= 0 {
+			minMove = 0.0008
+		}
+		if bc, berr := e.fetchCloses(ctx, venue.Symbol("BTC-USDT")); berr == nil && len(bc) > look {
+			ref := bc[len(bc)-1-look]
+			if ref > 0 {
+				m := (bc[len(bc)-1] - ref) / ref
+				if m > minMove {
+					btcDir = 1
+				} else if m < -minMove {
+					btcDir = -1
+				}
+			}
+		}
+	}
 	opened := 0
 	for _, p := range picks {
 		if opened >= slots {
 			break
+		}
+		// BTC 追势过滤:与 BTC 近期方向同向=追势(负 edge),跳过;逆 BTC/横盘 才开。
+		if btcDir != 0 {
+			sigDir := 1
+			if p.signal.Side == DirectionShort {
+				sigDir = -1
+			}
+			if sigDir == btcDir {
+				e.logger.Printf("[OKX方向] %s %s 与BTC近期方向同向(追势,负edge),跳过", p.sym, p.signal.Side.String())
+				continue
+			}
 		}
 		peersDir := e.gatherPeerDirections(ctx, p.sym)
 		convDelta, veto, creason := crossVenueCorroboration(p.signal.Side, peersDir, e.cfg)

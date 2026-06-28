@@ -191,6 +191,11 @@ okx_directional:
   # 单币跨所集中度上限:同一币+同方向最多 N 个所同时持有(读 peer 持仓文件)。根治跨所印证致四所同币同向同开→齐亏的
   # 相关性集中(如 BICO 三所 7min 同步 -2.76U)。降相关回撤、不改单笔 edge。0=不限。
   max_venues_per_symbol_side: 2
+  # BTC 追势过滤:剔除与 BTC 近期方向同向的开仓。离线实证:顺BTC近30min方向 edge为负(44%/-0.03%),
+  # 逆BTC方向 为正(57%/+0.14%)——追在 BTC 带动的延展末端被反杀。只开逆BTC/BTC横盘的单。
+  avoid_btc_chase: true
+  btc_chase_lookback_bars: 6      # 5m×6=30min
+  btc_chase_min_move_pct: 0.0008  # BTC 净移动>0.08% 才算有方向
 
 # 五策略统一资金费轮动 runner。perp-perp 执行体见 cross_venue_executor,开仓由 runner binding 派发。
 # total_deployable_usdt: 绝对预算(USDT);另有 total_deployable_pct(默认见 defaults,占真实现金权益比例),二者与 equity 取 min。
