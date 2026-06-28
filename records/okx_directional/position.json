@@ -1,17 +1,1 @@
-[
-  {
-    "symbol": "BICO-USDT",
-    "side": "long",
-    "entry_price": 0.02046,
-    "qty": 1221,
-    "notional_usdt": 25,
-    "opened_at": "2026-06-28T02:02:11.899076323Z",
-    "regime": "trend",
-    "funding_at_open": -0.0019873526344839,
-    "last_mid": 0.020045,
-    "last_unrealized_account_pct": -0.10141739980449627,
-    "last_unrealized_usdt": -0.5070869990224813,
-    "initial_notional_usdt": 25,
-    "stop_floor_account_pct": -0.2
-  }
-]
+[]

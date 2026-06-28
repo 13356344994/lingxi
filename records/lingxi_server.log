@@ -12699,3 +12699,77 @@ a1d176a141e70ca1fe65a960df747620 | cycle=
 2026/06/28 10:42:46 [OKX方向][漏斗] shortlist=11 空位=2 有方向=0 | flat: 样本不足=0 资费否决=2 无信号=7 过地板挡=1(地板=60bps) | 例[veto=AGLD-USDT:资费逆持仓,放弃(short 费率=-0.2699%)][nosig=LAB-USDT:无方向信号(regime=range)][floor=IREN-USDT long move=38bps<60]
 2026/06/28 10:42:46 [binance][OKX方向] 部分止盈 POWR-USDT 平50% 实现≈0.0846 USDT(转保本+移动止损)
 2026/06/28 10:43:02 [账户风控] 权益数据不可靠(真实现金单 tick 骤降 65.4828 > 阈值 53.8194 且无持仓减少),本轮跳过风控评估
+2026/06/28 10:44:02 [账户风控] 权益数据不可靠(真实现金单 tick 骤降 65.4828 > 阈值 53.8194 且无持仓减少),本轮跳过风控评估
+2026/06/28 10:44:16 [bybit][下单] venue=bybit market=perp O-USDT side=buy price=0.3973 tick=0.0001 qty=30
+2026/06/28 10:44:17 [binance][下单] venue=binance market=perp POWR-USDT side=sell price=0.05041 tick=0.00001 qty=166
+2026/06/28 10:44:19 [bybit][下单] venue=bybit market=perp O-USDT side=buy price=0.3973 tick=0.0001 qty=30
+2026/06/28 10:44:19 [binance][下单] venue=binance market=perp POWR-USDT side=sell price=0.05041 tick=0.00001 qty=166
+2026/06/28 10:44:21 [binance][OKX方向] 已平 POWR-USDT long 原因=移动保盈(峰值6%锁利3%,回吐至2%) 实现≈0.0282 USDT
+2026/06/28 10:44:21 [bybit][下单] venue=bybit market=perp O-USDT side=buy price=0.3973 tick=0.0001 qty=30
+2026/06/28 10:44:23 [binance][OKX方向] SYN-USDT 信心0.618 < 最低开仓信心0.700,跳过(只做高信心档)
+2026/06/28 10:44:23 [binance][OKX方向][跨所] PHAROS-USDT long 同向0/反向1 信心→0.40
+2026/06/28 10:44:23 [binance][OKX方向] PHAROS-USDT 信心0.402 < 最低开仓信心0.700,跳过(只做高信心档)
+2026/06/28 10:44:24 [bybit][下单] venue=bybit market=perp O-USDT side=buy price=0.3993 tick=0.0001 qty=30
+2026/06/28 10:44:24 [bybit][OKX方向] 部分止盈 O-USDT 平49% 实现≈0.1737 USDT(转保本+移动止损)
+2026/06/28 10:45:02 [账户风控] 权益数据不可靠(真实现金单 tick 骤降 65.5503 > 阈值 53.8194 且无持仓减少),本轮跳过风控评估
+2026/06/28 10:45:06 [下单] venue=okx market=perp BICO-USDT side=sell price=0.02003 tick=0.00001 qty=1221
+2026/06/28 10:45:09 [下单] venue=okx market=perp BICO-USDT side=sell price=0.02000 tick=0.00001 qty=1221
+2026/06/28 10:45:11 [下单] venue=okx market=perp BICO-USDT side=sell price=0.02000 tick=0.00001 qty=1221
+2026/06/28 10:45:14 [下单] venue=okx market=perp BICO-USDT side=sell price=0.01991 tick=0.00001 qty=1221
+2026/06/28 10:45:14 [OKX方向] 已平 BICO-USDT long 原因=停滞离场(持42m未盈,浮盈-10%) 实现≈-0.5743 USDT
+2026/06/28 10:45:15 [OKX方向][跨所] PROS-USDT long 同向0/反向1 信心→0.60
+2026/06/28 10:45:15 [OKX方向] PROS-USDT 信心0.603 < 最低开仓信心0.700,跳过(只做高信心档)
+2026/06/28 10:45:15 [OKX方向][跨所] IP-USDT short 同向1/反向0 信心→0.44
+2026/06/28 10:45:15 [OKX方向] IP-USDT 信心0.442 < 最低开仓信心0.700,跳过(只做高信心档)
+2026/06/28 10:45:56 [binance][OKX方向] SYN-USDT 信心0.604 < 最低开仓信心0.700,跳过(只做高信心档)
+2026/06/28 10:45:57 [binance][OKX方向] PUNDIX-USDT 信心0.593 < 最低开仓信心0.700,跳过(只做高信心档)
+2026/06/28 10:45:57 [binance][OKX方向][跨所] PHAROS-USDT long 同向0/反向1 信心→0.42
+2026/06/28 10:45:57 [binance][OKX方向] PHAROS-USDT 信心0.415 < 最低开仓信心0.700,跳过(只做高信心档)
+2026/06/28 10:45:57 [binance][OKX方向][跨所] BAS-USDT long 同向1/反向0 信心→0.52
+2026/06/28 10:45:57 [binance][OKX方向] BAS-USDT 信心0.519 < 最低开仓信心0.700,跳过(只做高信心档)
+2026/06/28 10:45:57 [binance][OKX方向][跨所] VELVET-USDT long 同向2/反向0 信心→0.60
+2026/06/28 10:45:57 [binance][OKX方向] VELVET-USDT 信心0.601 < 最低开仓信心0.700,跳过(只做高信心档)
+2026/06/28 10:45:58 [binance][OKX方向][跨所] IP-USDT short 同向2/反向0 信心→0.56
+2026/06/28 10:45:58 [binance][OKX方向] IP-USDT 信心0.561 < 最低开仓信心0.700,跳过(只做高信心档)
+2026/06/28 10:46:02 [账户风控] 权益数据不可靠(真实现金单 tick 骤降 65.5503 > 阈值 53.8194 且无持仓减少),本轮跳过风控评估
+2026/06/28 10:46:46 [OKX方向][跨所] PROS-USDT long 同向0/反向1 信心→0.43
+2026/06/28 10:46:46 [OKX方向] PROS-USDT 信心0.432 < 最低开仓信心0.700,跳过(只做高信心档)
+2026/06/28 10:46:46 [OKX方向][跨所] IP-USDT short 同向1/反向0 信心→0.45
+2026/06/28 10:46:46 [OKX方向] IP-USDT 信心0.454 < 最低开仓信心0.700,跳过(只做高信心档)
+2026/06/28 10:47:02 [账户风控] 权益数据不可靠(真实现金单 tick 骤降 65.5503 > 阈值 53.8194 且无持仓减少),本轮跳过风控评估
+2026/06/28 10:47:28 [bybit][下单] venue=bybit market=perp PUNDIX-USDT side=sell price=0.09250 tick=0.00001 qty=273
+2026/06/28 10:47:31 [binance][OKX方向] SYN-USDT 信心0.637 < 最低开仓信心0.700,跳过(只做高信心档)
+2026/06/28 10:47:31 [binance][OKX方向][跨所] PHAROS-USDT long 同向0/反向1 信心→0.43
+2026/06/28 10:47:31 [binance][OKX方向] PHAROS-USDT 信心0.425 < 最低开仓信心0.700,跳过(只做高信心档)
+2026/06/28 10:47:31 [binance][OKX方向][跨所] IP-USDT short 同向2/反向0 信心→0.59
+2026/06/28 10:47:31 [binance][OKX方向] IP-USDT 信心0.591 < 最低开仓信心0.700,跳过(只做高信心档)
+2026/06/28 10:47:31 [bybit][下单] venue=bybit market=perp PUNDIX-USDT side=sell price=0.09250 tick=0.00001 qty=273
+2026/06/28 10:47:31 [binance][OKX方向][跨所] BAS-USDT long 同向1/反向0 信心→0.48
+2026/06/28 10:47:31 [binance][OKX方向] BAS-USDT 信心0.476 < 最低开仓信心0.700,跳过(只做高信心档)
+2026/06/28 10:47:34 [bybit][下单] venue=bybit market=perp PUNDIX-USDT side=sell price=0.09252 tick=0.00001 qty=273
+2026/06/28 10:47:36 [bybit][下单] venue=bybit market=perp PUNDIX-USDT side=sell price=0.09210 tick=0.00001 qty=273
+2026/06/28 10:47:37 [bybit][OKX方向] 部分止盈 PUNDIX-USDT 平50% 实现≈0.3253 USDT(转保本+移动止损)
+2026/06/28 10:48:02 [账户风控] 权益数据不可靠(真实现金单 tick 骤降 65.0844 > 阈值 53.8194 且无持仓减少),本轮跳过风控评估
+2026/06/28 10:48:17 [OKX方向][跨所] 否决 SNX-USDT long: 跨所背离:2所均反向,疑似单所假动作
+2026/06/28 10:48:17 [OKX方向][跨所] PROS-USDT long 同向0/反向1 信心→0.43
+2026/06/28 10:48:17 [OKX方向] PROS-USDT 信心0.430 < 最低开仓信心0.700,跳过(只做高信心档)
+2026/06/28 10:48:17 [OKX方向][跨所] IP-USDT short 同向1/反向0 信心→0.45
+2026/06/28 10:48:17 [OKX方向] IP-USDT 信心0.446 < 最低开仓信心0.700,跳过(只做高信心档)
+2026/06/28 10:49:02 [账户风控] 权益数据不可靠(真实现金单 tick 骤降 65.0844 > 阈值 53.8194 且无持仓减少),本轮跳过风控评估
+2026/06/28 10:49:04 [binance][OKX方向][跨所] 否决 PUNDIX-USDT short: 跨所背离:2所均反向,疑似单所假动作
+2026/06/28 10:49:04 [binance][OKX方向][跨所] 否决 SNX-USDT long: 跨所背离:3所均反向,疑似单所假动作
+2026/06/28 10:49:04 [binance][OKX方向][跨所] PHAROS-USDT long 同向0/反向1 信心→0.45
+2026/06/28 10:49:04 [binance][OKX方向] PHAROS-USDT 信心0.452 < 最低开仓信心0.700,跳过(只做高信心档)
+2026/06/28 10:49:04 [binance][OKX方向][跨所] VELVET-USDT long 同向2/反向0 信心→0.60
+2026/06/28 10:49:04 [binance][OKX方向] VELVET-USDT 信心0.604 < 最低开仓信心0.700,跳过(只做高信心档)
+2026/06/28 10:49:05 [binance][OKX方向][跨所] IP-USDT short 同向2/反向0 信心→0.58
+2026/06/28 10:49:05 [binance][OKX方向] IP-USDT 信心0.583 < 最低开仓信心0.700,跳过(只做高信心档)
+2026/06/28 10:49:05 [binance][OKX方向][跨所] BAS-USDT long 同向1/反向0 信心→0.43
+2026/06/28 10:49:05 [binance][OKX方向] BAS-USDT 信心0.434 < 最低开仓信心0.700,跳过(只做高信心档)
+2026/06/28 10:49:48 [OKX方向][跨所] 否决 SNX-USDT long: 跨所背离:2所均反向,疑似单所假动作
+2026/06/28 10:49:48 [OKX方向][跨所] PROS-USDT long 同向0/反向1 信心→0.44
+2026/06/28 10:49:48 [OKX方向] PROS-USDT 信心0.436 < 最低开仓信心0.700,跳过(只做高信心档)
+2026/06/28 10:49:48 [OKX方向][跨所] IP-USDT short 同向1/反向0 信心→0.45
+2026/06/28 10:49:48 [OKX方向] IP-USDT 信心0.450 < 最低开仓信心0.700,跳过(只做高信心档)
+2026/06/28 10:50:02 [账户风控] 因盲区重锚,不计入回撤(last_trusted_at=2026-06-28T02:34:52Z connectivity_blind=false)
+2026/06/28 10:50:02 [账户风控] OK daily_equity_delta=-75.9861 daily_realized=0.0000 settlement_dd=4.8136 real_equity_dd=76.3768 real_equity_dd_adj=0.0000 cum_fund_flow=-64.2452 positions=0 notional=0.00
