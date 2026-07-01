@@ -563,6 +563,10 @@ func DefaultEngineConfig() EngineConfig {
 			FastEarlyCutMaeBps:             5,
 			FastEarlyCutCurBps:             3,
 			FastCooldownSeconds:            300,
+			FastWSCollectorEnabled:         false, // OKX WS 动态采集:默认关,config.yaml 显式开
+			FastWSMaxSymbols:               15,
+			FastWSEmitIntervalMs:           1000,
+			FastWSLargeTradeUSDT:           500,
 		},
 		FundingExecutor: VenueFundingExecutorConfig{
 			LiveTradingEnabled:     false,

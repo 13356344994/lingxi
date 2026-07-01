@@ -891,6 +891,11 @@ type OKXDirectionalConfig struct {
 	FastEarlyCutMaeBps  float64 `cfg:"fast_early_cut_mae_bps"`  // 期间最深回撤≤-此值(默认 5)
 	FastEarlyCutCurBps  float64 `cfg:"fast_early_cut_cur_bps"`  // 且当前浮盈≤-此值(默认 3)
 	FastCooldownSeconds int     `cfg:"fast_cooldown_seconds"`   // stop/no_feedback/early_cut 后该 symbol fast 层冷却秒(默认 300;非永久黑名单)
+	// ===== fast 动态特征采集器 v2(OKX 公共 WS trades+books5;record-only,隔离,不下单/不读账户)=====
+	FastWSCollectorEnabled  bool    `cfg:"fast_ws_collector_enabled"`   // 默认 false
+	FastWSMaxSymbols        int     `cfg:"fast_ws_max_symbols"`         // 订阅 symbol 上限(默认 15)
+	FastWSEmitIntervalMs    int     `cfg:"fast_ws_emit_interval_ms"`    // 每 symbol 特征事件输出间隔ms(默认 1000)
+	FastWSLargeTradeUSDT    float64 `cfg:"fast_ws_large_trade_usdt"`    // 大单阈值(名义USDT,默认 500)
 }
 
 // CrossVenueExecutorConfig 是跨所资金费对冲执行引擎的可调参数。
