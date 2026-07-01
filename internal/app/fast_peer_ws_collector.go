@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -181,41 +182,59 @@ func bybitLinearUSDTSet() (map[string]bool, error) {
 	return set, nil
 }
 
-// peerUniverse 三所交集(种子=主流 + OKX shortlist),上限 maxN。
-func (e *OKXDirectionalEngine) peerUniverse() ([]string, error) {
+// peerUniverse universe = OKX ∩ (Binance ∪ Bybit),含非主流(inefficient universe search)。
+// 返回 canon 列表 + binance/bybit 各自可用集(供 per-venue 过滤,避免订阅不存在的合约=收不到数据)。
+// 种子顺序:主流优先(供 venue-pair 基线)→ 其余交集按字母序(无偏广撒网),上限 maxN。
+func (e *OKXDirectionalEngine) peerUniverse() (universe []string, binSet, bybitSet map[string]bool, err error) {
 	okxSet, err := okxSwapUSDTSet()
 	if err != nil {
-		return nil, fmt.Errorf("okx instruments: %w", err)
+		return nil, nil, nil, fmt.Errorf("okx instruments: %w", err)
 	}
-	binSet, err := binanceFuturesUSDTSet()
+	binSet, err = binanceFuturesUSDTSet()
 	if err != nil {
-		return nil, fmt.Errorf("binance exchangeInfo: %w", err)
+		return nil, nil, nil, fmt.Errorf("binance exchangeInfo: %w", err)
 	}
-	bybitSet, err := bybitLinearUSDTSet()
+	bybitSet, err = bybitLinearUSDTSet()
 	if err != nil {
-		return nil, fmt.Errorf("bybit instruments: %w", err)
+		return nil, nil, nil, fmt.Errorf("bybit instruments: %w", err)
 	}
 	maxN := e.cfg.FastWSMaxSymbols
 	if maxN <= 0 {
 		maxN = 15
 	}
-	seed := append([]string{}, peerSeedMajors...)
-	seed = append(seed, e.fastWSSymbols()...) // 叠加当前 OKX shortlist(若也在三所)
+	tradable := func(c string) bool { // OKX 有合约 且 Binance/Bybit 至少一个有
+		return okxSet[c] && (binSet[peerRaw(c)] || bybitSet[peerRaw(c)])
+	}
 	seen := map[string]bool{}
 	out := make([]string, 0, maxN)
-	for _, c := range seed {
-		if seen[c] {
-			continue
+	add := func(c string) bool {
+		if seen[c] || !tradable(c) {
+			return false
 		}
 		seen[c] = true
-		if okxSet[c] && binSet[peerRaw(c)] && bybitSet[peerRaw(c)] {
-			out = append(out, c)
-			if len(out) >= maxN {
-				break
-			}
+		out = append(out, c)
+		return len(out) >= maxN
+	}
+	// 1) 主流 + 当前 OKX shortlist 优先
+	for _, c := range append(append([]string{}, peerSeedMajors...), e.fastWSSymbols()...) {
+		if add(c) {
+			return out, binSet, bybitSet, nil
 		}
 	}
-	return out, nil
+	// 2) 其余交集(非主流)按字母序补足到 maxN
+	rest := make([]string, 0, len(okxSet))
+	for c := range okxSet {
+		if !seen[c] && tradable(c) {
+			rest = append(rest, c)
+		}
+	}
+	sort.Strings(rest)
+	for _, c := range rest {
+		if add(c) {
+			break
+		}
+	}
+	return out, binSet, bybitSet, nil
 }
 
 func (e *OKXDirectionalEngine) fastPeerCollectorLoop(ctx context.Context) {
@@ -230,32 +249,44 @@ func (e *OKXDirectionalEngine) fastPeerCollectorLoop(ctx context.Context) {
 			venues[x] = true
 		}
 	}
-	// 计算三所交集 universe(带重试,失败只告警)
+	// 计算 universe = OKX ∩ (Binance ∪ Bybit)(带重试,失败只告警)
 	var universe []string
+	var binSet, bybitSet map[string]bool
 	for {
-		u, err := e.peerUniverse()
+		u, bs, ys, err := e.peerUniverse()
 		if err == nil && len(u) > 0 {
-			universe = u
+			universe, binSet, bybitSet = u, bs, ys
 			break
 		}
 		if err != nil {
-			e.logger.Printf("[fast_peer] 计算交集 universe 失败,30s 重试: %v", err)
+			e.logger.Printf("[fast_peer] 计算 universe 失败,30s 重试: %v", err)
 		} else {
-			e.logger.Printf("[fast_peer] 三所交集为空,30s 重试")
+			e.logger.Printf("[fast_peer] universe 为空,30s 重试")
 		}
 		if !sleepCtx(ctx, 30*time.Second) {
 			return
 		}
 	}
-	e.logger.Printf("[fast_peer] cross-venue lead-lag 采集启动(record-only)venues=%v universe(%d)=%v", venues, len(universe), universe)
+	// per-venue 过滤:各所只订阅它真实上市的合约
+	filt := func(set map[string]bool) []string {
+		out := make([]string, 0, len(universe))
+		for _, c := range universe {
+			if set[peerRaw(c)] {
+				out = append(out, c)
+			}
+		}
+		return out
+	}
+	binList, bybitList := filt(binSet), filt(bybitSet)
+	e.logger.Printf("[fast_peer] cross-venue lead-lag 采集启动(record-only)venues=%v universe=%d(okx) binance=%d bybit=%d 样例=%v", venues, len(universe), len(binList), len(bybitList), universe[:min(8, len(universe))])
 	st := newPeerState()
 	// OKX 也作为一个 venue 收进同一文件(便于单文件内跨 venue 对齐)
 	go e.peerVenueLoop(ctx, "okx", universe, st)
 	if venues["binance"] {
-		go e.peerVenueLoop(ctx, "binance", universe, st)
+		go e.peerVenueLoop(ctx, "binance", binList, st)
 	}
 	if venues["bybit"] {
-		go e.peerVenueLoop(ctx, "bybit", universe, st)
+		go e.peerVenueLoop(ctx, "bybit", bybitList, st)
 	}
 	e.peerEmitLoop(ctx, st)
 }
