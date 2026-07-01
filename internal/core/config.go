@@ -896,6 +896,9 @@ type OKXDirectionalConfig struct {
 	FastWSMaxSymbols        int     `cfg:"fast_ws_max_symbols"`         // 订阅 symbol 上限(默认 15)
 	FastWSEmitIntervalMs    int     `cfg:"fast_ws_emit_interval_ms"`    // 每 symbol 特征事件输出间隔ms(默认 1000)
 	FastWSLargeTradeUSDT    float64 `cfg:"fast_ws_large_trade_usdt"`    // 大单阈值(名义USDT,默认 500)
+	// ===== cross-venue lead-lag peer 采集(Binance/Bybit 公共 WS;record-only,不接下单/不读账户)=====
+	FastPeerWSEnabled bool   `cfg:"fast_peer_ws_enabled"` // 默认 false
+	FastPeerVenues    string `cfg:"fast_peer_venues"`     // csv,如 "binance,bybit"
 }
 
 // CrossVenueExecutorConfig 是跨所资金费对冲执行引擎的可调参数。

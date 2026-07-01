@@ -472,6 +472,12 @@ func (e *OKXDirectionalEngine) Run(ctx context.Context) {
 		go e.fastScalperLoop(ctx) // 扫描/开仓(maker 入场可能阻塞)
 		go e.fastManageLoop(ctx)  // 平仓/接管(每2s,独立,不被开仓阻塞)
 	}
+	if e.fastWSEnabled() {
+		go e.fastWSCollectorLoop(ctx) // OKX 公共 WS 动态特征采集(record-only,隔离,失败只告警)
+	}
+	if e.fastPeerEnabled() {
+		go e.fastPeerCollectorLoop(ctx) // Binance/Bybit 公共 WS(cross-venue lead-lag,record-only,失败只告警)
+	}
 	// 启动后立即执行一次完整循环。
 	e.runOnce(ctx)
 	for {

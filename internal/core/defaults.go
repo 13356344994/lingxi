@@ -567,6 +567,8 @@ func DefaultEngineConfig() EngineConfig {
 			FastWSMaxSymbols:               15,
 			FastWSEmitIntervalMs:           1000,
 			FastWSLargeTradeUSDT:           500,
+			FastPeerWSEnabled:              false, // cross-venue lead-lag peer 采集:默认关
+			FastPeerVenues:                 "binance,bybit",
 		},
 		FundingExecutor: VenueFundingExecutorConfig{
 			LiveTradingEnabled:     false,
