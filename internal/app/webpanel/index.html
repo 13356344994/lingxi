@@ -1761,13 +1761,23 @@
             </div>
             <div class="dir-hero-sep"></div>
             <div class="dir-hero-item">
-              <span class="dir-hero-label">今日合计</span>
+              <span class="dir-hero-label">今日合计(北京时间)</span>
               <span class="dir-hero-val" id="dir-hero-today-pnl">—</span>
             </div>
             <div class="dir-hero-sep"></div>
             <div class="dir-hero-item">
-              <span class="dir-hero-label">四所总资金 (U)</span>
-              <span class="dir-hero-val" id="dir-hero-total-equity">—</span>
+              <span class="dir-hero-label">钱包总额 (U)</span>
+              <span class="dir-hero-val" id="dir-hero-wallet-equity" title="各所钱包账户权益合计(含现货+合约),来自 /api/earnings。钱包总额 ≠ 交易权益 ≠ 方向本金">—</span>
+            </div>
+            <div class="dir-hero-sep"></div>
+            <div class="dir-hero-item">
+              <span class="dir-hero-label">交易权益 (U)</span>
+              <span class="dir-hero-val" id="dir-hero-trading-equity" title="交易口径真实现金权益(account_risk_watch);资金流来源=heuristic 时黄标提示,数字可能不完全可信。钱包总额 ≠ 交易权益 ≠ 方向本金">—</span>
+            </div>
+            <div class="dir-hero-sep"></div>
+            <div class="dir-hero-item">
+              <span class="dir-hero-label">启用方向本金 (U)</span>
+              <span class="dir-hero-val" id="dir-hero-directional-capital" title="仅 active=true 的所 control.json trading_capital_usdt 合计(已停用的 Binance/Gate 不计)。钱包总额 ≠ 交易权益 ≠ 方向本金">—</span>
             </div>
             <div class="dir-hero-sep"></div>
             <div class="dir-hero-item">
@@ -1966,10 +1976,10 @@
               <table class="data-table" id="okx-dir-recent-table">
                 <thead>
                   <tr>
-                    <th>时间</th><th>币对</th><th>方向</th><th>开→平</th><th>名义(U)</th><th>已实现(U)</th><th>持有</th><th>原因</th>
+                    <th>时间</th><th>层</th><th>币对</th><th>方向</th><th>开→平</th><th>名义(U)</th><th>已实现(U)</th><th>费(U)</th><th>持有</th><th>原因</th>
                   </tr>
                 </thead>
-                <tbody id="okx-dir-recent-tbody"><tr><td colspan="8" class="hint">加载中…</td></tr></tbody>
+                <tbody id="okx-dir-recent-tbody"><tr><td colspan="10" class="hint">加载中…</td></tr></tbody>
               </table>
             </div>
           </div>
@@ -1981,7 +1991,7 @@
               <div class="hint" id="okx-dir-stats-empty">暂无结算</div>
               <div id="okx-dir-stats-content" style="display:none;">
                 <div style="margin-bottom:12px;">
-                  <div class="hint" style="font-size:11px;margin-bottom:6px;">今日</div>
+                  <div class="hint" style="font-size:11px;margin-bottom:6px;">今日(北京时间自然日 00:00–24:00)</div>
                   <div class="status-grid stats" id="okx-dir-stats-today-summary">
                     <div class="stat-card"><div class="stat-label">成交</div><div class="stat-value" id="okx-dir-stats-today-count" style="font-size:15px">-</div></div>
                     <div class="stat-card"><div class="stat-label">胜率</div><div class="stat-value" id="okx-dir-stats-today-winrate" style="font-size:15px">-</div></div>
@@ -5051,6 +5061,26 @@
       return s || "-";
     }
 
+    // 分层标签:fast_v1 → fast、slow_5m → slow(最近平仓表用)。
+    function directionalLayerLabel(layer) {
+      if (layer === "fast_v1") return "fast";
+      if (layer === "slow_5m") return "slow";
+      return layer || "-";
+    }
+
+    // 持有时长显示:fast_v1 优先用 hold_seconds(秒级) → 26s / 1m12s;slow_5m 用分钟(X分 / X.X时)。
+    function formatHold(s) {
+      if (s && s.signal_layer === "fast_v1") {
+        const sec = Number(s.hold_seconds || 0);
+        if (!(sec > 0)) return "-";
+        if (sec < 60) return sec + "s";
+        const m = Math.floor(sec / 60), r = sec % 60;
+        return r > 0 ? (m + "m" + r + "s") : (m + "m");
+      }
+      const holdMin = Number((s && s.hold_minutes) || 0);
+      return holdMin > 0 ? (holdMin >= 60 ? (holdMin / 60).toFixed(1) + "时" : holdMin + "分") : "-";
+    }
+
     function holdDurationSinceOpened(iso) {
       if (!iso) return "-";
       const ms = Date.now() - new Date(iso).getTime();
@@ -5288,21 +5318,23 @@
             const entry = Number(s.entry || 0).toFixed(4);
             const exit = Number(s.exit || 0).toFixed(4);
             const realized = Number(s.realized_usdt || 0);
-            const holdMin = Number(s.hold_minutes || 0);
-            const holdLabel = holdMin > 0 ? (holdMin >= 60 ? (holdMin / 60).toFixed(1) + "时" : holdMin + "分") : "-";
+            const fee = Number(s.fee_usdt || 0);
+            const holdLabel = formatHold(s);
             return `
             <tr>
               <td style="font-size:11px;">${escapeHTML(ts)}</td>
+              <td style="font-size:11px;">${escapeHTML(directionalLayerLabel(s.signal_layer))}</td>
               <td>${escapeHTML(s.symbol || "-")}</td>
               <td>${escapeHTML(okxDirectionSideLabel(s.side))}</td>
               <td style="font-size:11px;">${escapeHTML(entry)} → ${escapeHTML(exit)}</td>
               <td>${Number(s.notional || 0).toFixed(2)}</td>
               <td style="color:${pnlColor(realized)}">${realized.toFixed(4)}</td>
+              <td style="font-size:11px;">${fee > 0 ? fee.toFixed(4) : "-"}</td>
               <td>${escapeHTML(holdLabel)}</td>
               <td>${escapeHTML(s.reason || "-")}</td>
             </tr>`;
           }).join("");
-          recentBody.innerHTML = rows || `<tr><td colspan="8" class="hint">暂无最近平仓</td></tr>`;
+          recentBody.innerHTML = rows || `<tr><td colspan="10" class="hint">暂无最近平仓</td></tr>`;
         }
         try {
           const uni = await loadJSON("/records/" + currentDirectionalVenue + "_directional/universe.json");
@@ -5437,21 +5469,64 @@
       if (heroFloatEl) { heroFloatEl.textContent = fmtPnL(heroFloat, 2); heroFloatEl.style.color = pnlColor(heroFloat); }
       if (heroTodayEl) { heroTodayEl.textContent = fmtPnL(heroToday, 2); heroTodayEl.style.color = pnlColor(heroToday); }
       if (heroRunEl) heroRunEl.textContent = heroRunning + " / " + venues.length;
-      // 四所总资金:汇总 /api/earnings 各所账户权益(钱包口径,含现货+合约等)。
-      const heroEquityEl = document.getElementById("dir-hero-total-equity");
-      if (heroEquityEl) {
+      // 资金三口径拆分展示(必须区分:钱包总额 ≠ 交易权益 ≠ 方向本金)。
+      // 1) 钱包总额:/api/earnings 各所 equity_usdt(钱包口径,含现货+合约)求和。
+      const walletEl = document.getElementById("dir-hero-wallet-equity");
+      if (walletEl) {
         try {
           const earn = await loadJSON("/api/earnings");
           const bv = earn && earn.by_venue && typeof earn.by_venue === "object" ? earn.by_venue : {};
-          let totalEquity = 0, anyKnown = false;
+          let total = 0, anyKnown = false;
           venues.forEach((v) => {
             const e = bv[v] && Number(bv[v].equity_usdt);
-            if (e && isFinite(e)) { totalEquity += e; anyKnown = true; }
+            if (e && isFinite(e)) { total += e; anyKnown = true; }
           });
-          heroEquityEl.textContent = anyKnown ? totalEquity.toFixed(2) : "—";
-        } catch (_) {
-          heroEquityEl.textContent = "—";
-        }
+          walletEl.textContent = anyKnown ? total.toFixed(2) : "—";
+        } catch (_) { walletEl.textContent = "—"; }
+      }
+      // 2) 交易权益:account_risk_watch 真实现金权益;资金流来源=heuristic 时黄标提示(数字可能不可信)。
+      const tradeEqEl = document.getElementById("dir-hero-trading-equity");
+      if (tradeEqEl) {
+        // 每次刷新前重置样式/title,避免上一轮 heuristic 黄标在数据失败/恢复正常后残留。
+        tradeEqEl.style.color = "";
+        tradeEqEl.title = "交易口径真实现金权益(account_risk_watch)。钱包总额 ≠ 交易权益 ≠ 方向本金";
+        try {
+          const watch = await loadJSON("/records/account_risk_watch.json");
+          const eq = Number(watch && watch.snapshot && watch.snapshot.real_equity_total_usdt);
+          let src = "";
+          try {
+            const st2 = await loadJSON("/records/account_risk_equity_state.json");
+            src = String((st2 && st2.daily_fund_flow_source) || "");
+          } catch (_) {}
+          if (isFinite(eq) && eq > 0) {
+            if (src === "heuristic") {
+              tradeEqEl.textContent = eq.toFixed(2) + " ⚠heuristic";
+              tradeEqEl.style.color = "#fbbf24";
+              tradeEqEl.title = "交易口径权益(real_equity_total),资金流来源=heuristic → 数字可能不完全可信";
+            } else {
+              tradeEqEl.textContent = eq.toFixed(2);
+              tradeEqEl.title = "交易口径真实现金权益(account_risk_watch)" + (src ? (" · fund_flow_source=" + src) : "");
+            }
+          } else {
+            tradeEqEl.textContent = "—";
+          }
+        } catch (_) { tradeEqEl.textContent = "—"; }
+      }
+      // 3) 启用方向本金:仅 active=true 的所 control.json trading_capital_usdt 合计(已停用所不计)。
+      const dirCapEl = document.getElementById("dir-hero-directional-capital");
+      if (dirCapEl) {
+        try {
+          let cap = 0, anyCap = false;
+          await Promise.all(venues.map(async (v) => {
+            try {
+              const c = await loadJSON("/records/" + v + "_directional/control.json");
+              if (!(c && c.active === true)) return; // 仅统计启用的所
+              const tc = Number(c.trading_capital_usdt);
+              if (isFinite(tc) && tc > 0) { cap += tc; anyCap = true; }
+            } catch (_) {}
+          }));
+          dirCapEl.textContent = anyCap ? cap.toFixed(2) : "—";
+        } catch (_) { dirCapEl.textContent = "—"; }
       }
     }
 
