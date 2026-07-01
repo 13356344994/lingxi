@@ -821,6 +821,70 @@ type OKXDirectionalConfig struct {
 	// 改为固定名义,实际持仓数量 = 交易仓本金可支撑的保证金笔数,上限 MaxConcurrent。
 	// 即"币上限设大(如30),资金不足就按资金可开的最大数量"。≤0=旧模型(本金/并发)。
 	PerPositionNotionalUSDT float64 `cfg:"per_position_notional_usdt"`
+	// OpenMicroRecordEnabled 阶段2A 开仓微结构 record-only 埋点总开关。默认 false:完全不采集、零额外负载、零行为变化。
+	// true 时:开仓决策点对「有方向信号的候选」best-effort 拉一次盘口+深度,记录微结构到 position/settlement,
+	// 并把候选决策(成交/被各闸拒/maker未成交)写 open_decision_events.jsonl。纯记录,绝不进入任何开/平/跳过条件。
+	OpenMicroRecordEnabled bool `cfg:"open_micro_record_enabled"`
+	// OpenMicroRecordVenue 灰度:仅对该所采集(如 "binance");空=所有所。仅在 OpenMicroRecordEnabled=true 时有意义。
+	OpenMicroRecordVenue string `cfg:"open_micro_record_venue"`
+	// ===== Fast scalper 骨架开关(全部默认 false;当前未接任何交易逻辑,纯占位,改值不影响实盘)=====
+	// 设计意图:让结构上区分「慢信号探索层(slow_5m,当前)」与「未来快 scalper 层」,避免把 5m 慢信号误当超频策略。
+	// 这三个开关目前在代码里没有任何引用点(inert),启用前必须先实现对应层并经离线验证+用户确认。
+	FastScalperEnabled      bool `cfg:"fast_scalper_enabled"`       // 总开关:未来快 scalper 层
+	PostFillFeedbackEnabled bool `cfg:"post_fill_feedback_enabled"` // 成交后秒级反馈层(阶段B)
+	FastManageEnabled       bool `cfg:"fast_manage_enabled"`        // 快速管理循环(止盈/移盈/刹车进 3-5s)
+	// TakerFallbackVenues 阶段2B 方案A:开仓 taker fallback 的「允许所」名单(csv,如 "binance" 或 "binance,bybit")。
+	// 空="" → 所有活跃所都允许(= 当前行为,默认零变化);非空 → 仅名单内所用 OpenTakerFallbackBps,
+	// 名单外所开仓变 maker-only(maker 挂不上即放弃,不吃单)。仅影响开仓腿;平仓 IOC/止损/止盈不受影响。
+	TakerFallbackVenues string `cfg:"taker_fallback_venues"`
+	// TradabilityPrefilterEnabled 不可交易币动态预过滤(低风险工程优化,非 edge 过滤)。默认 true。
+	// 基于 per_position_notional_usdt × 当前价 × instrument(step/minQty/minNotional/contractBased)量化后是否可交易;
+	// 不可交易的 symbol 不进 picks(本来在 openPosition 也开不出),并记 open_decision_events(stage=tradability)。动态判定,不写死黑名单。
+	TradabilityPrefilterEnabled bool `cfg:"tradability_prefilter_enabled"`
+	// ShadowFastSignalEnabled fast-layer 影子快信号 record-only(只记录、不下单、不影响实盘)。默认 true。
+	// 对有方向候选评估若干快信号(narrow_spread/deep_book/low_runup/opposite_btc/normal_range/non_extreme_funding/good_micro_combo),
+	// 写 shadow_fast_signal_events.jsonl;后续脚本回填前向收益,找 PF>1 子集。需 OpenMicro 埋点提供 env(关时不记)。
+	ShadowFastSignalEnabled bool `cfg:"shadow_fast_signal_enabled"`
+	// ===== regime_degrade 风险降档(坏环境只缩小单仓名义,不停机/不禁开/不改信号)=====
+	// 命中 regime_degrade_candidate = (RegimeDegradeBtcLo<=btc_trend_strength<RegimeDegradeBtcHi) 或
+	//   candidate_market_mode ∈ RegimeDegradeModes(csv)。命中时仅把本次新开仓名义降到 RegimeDegradeNotionalUSDT。
+	// 只影响新开仓;在场仓/平仓/信号/cross_venue/cost_floor/stop/TP/stale/cooldown 全不受影响。
+	// 默认 false:只有 config.yaml 显式打开才生效。需 OpenMicro 埋点提供 env(env 缺失=不命中=用默认名义)。
+	RegimeDegradeEnabled      bool    `cfg:"regime_degrade_enabled"`
+	RegimeDegradeAction       string  `cfg:"regime_degrade_action"`        // 当前仅支持 "downsize"
+	RegimeDegradeNotionalUSDT float64 `cfg:"regime_degrade_notional_usdt"` // 命中时的单仓名义(如 5),需 >0 且 < per_position_notional_usdt 才生效
+	RegimeDegradeBtcLo        float64 `cfg:"regime_degrade_btc_lo"`        // 过渡带命中下界(含),reason=transition_band
+	RegimeDegradeBtcHi        float64 `cfg:"regime_degrade_btc_hi"`        // 过渡带命中上界(不含)
+	RegimeDegradeBtcExtreme   float64 `cfg:"regime_degrade_btc_extreme"`   // 极端追势命中阈(btc_trend>=此值),reason=extreme_trend;<=0=关闭该段
+	RegimeDegradeModes        string  `cfg:"regime_degrade_modes"`         // 命中的 market_mode csv(如 "broad_up"),reason=匹配的 mode
+	// ===== fast scalper v1(超频线;record-only,M5 前禁止真实下单)=====
+	// 独立于 5m 慢信号,OKX-only,3-5s 循环扫描可交易候选,写 fast_executable_shadow_events.jsonl(纯记录)。
+	FastScalperV1Enabled         bool   `cfg:"fast_scalper_v1_enabled"`          // 总开关,默认 false
+	FastScalperV1Venue           string `cfg:"fast_scalper_v1_venue"`            // 仅该所启用(默认 "okx";空=所有所)
+	FastScalperV1IntervalSeconds int    `cfg:"fast_scalper_v1_interval_seconds"` // 快循环间隔秒(默认 4)
+	FastScalperV1MaxSymbols      int    `cfg:"fast_scalper_v1_max_symbols"`      // 每轮最多扫描的候选数(默认 20)
+	FastScalperV1MaxPending      int    `cfg:"fast_scalper_v1_max_pending"`      // 同时跟踪的 pending 事件上限(默认 60)
+	// ===== fast live v1(真实下单!默认关;唯一急停 = .halt-live)=====
+	// 测试资金实盘试错:命中分数即真实开仓,固定 horizon 平仓;不设笔数/仓数/连亏自停上限(由资金模型/交易所最小下单自然决定)。
+	FastLiveEnabled        bool    `cfg:"fast_live_enabled"`         // 总开关,默认 false(true=真实下单)
+	FastLiveNotionalUSDT   float64 `cfg:"fast_live_notional_usdt"`  // 每笔 fast 名义;<=0 则用 per_position_notional_usdt
+	FastLiveScoreThreshold float64 `cfg:"fast_live_score_threshold"`// 入场分数阈(默认 0.6)
+	FastLiveHorizonSeconds int     `cfg:"fast_live_horizon_seconds"`// 固定持有秒数后平仓(默认 60)
+	FastLiveEntryUrgent    bool    `cfg:"fast_live_entry_urgent"`   // true=IOC 吃单即时成交(executable);false=maker-first
+	FastLiveTakerSlippageBps float64 `cfg:"fast_live_taker_slippage_bps"` // fast 开仓 IOC 吃单滑点预算(绕过慢层 maker-only 闸;默认 30)
+	// fast live v2 出场(scalper exit):覆盖成本即落袋 / 反向走弱快平 / 180s 兜底。exit_mode="scalper" 启用;"fixed"=旧 60s。
+	FastLiveExitMode     string  `cfg:"fast_live_exit_mode"`      // "scalper"(v2,默认) | "fixed"(v1 固定 horizon)
+	FastV2TakeProfitBps  float64 `cfg:"fast_v2_take_profit_bps"`  // 浮盈(价格bps,自成交价计)≥此值即落袋(覆盖出场双边成本;默认 12)
+	FastV2StopBps        float64 `cfg:"fast_v2_stop_bps"`         // 浮亏≤-此值即反向走弱快平(默认 15)
+	FastV2MaxHoldSeconds int     `cfg:"fast_v2_max_hold_seconds"` // 最长持有兜底秒(默认 180)
+	// ===== fast live v3 = maker-first scalper(入场 post-only 不追价;出场 taker 移动止盈/无反馈快平)=====
+	FastEntryMode          string  `cfg:"fast_entry_mode"`            // "maker"(v3,默认) | "taker"(v1/v2)
+	FastMakerWaitMs        int     `cfg:"fast_maker_wait_ms"`         // post-only 等待成交毫秒,超时撤单不追价(默认 2000)
+	FastMakerPollMs        int     `cfg:"fast_maker_poll_ms"`         // 等待期间查单间隔毫秒(默认 300)
+	FastV3TrailActivateBps float64 `cfg:"fast_v3_trail_activate_bps"` // 浮盈峰值≥此值激活移动止盈(默认 8)
+	FastV3TrailGiveBackBps float64 `cfg:"fast_v3_trail_give_back_bps"`// 自峰值回吐≥此值即止盈落袋(默认 5)
+	FastV3NoFeedbackSeconds int    `cfg:"fast_v3_no_feedback_seconds"`// 成交后此秒数内峰值浮盈不足即快平(默认 25)
+	FastV3NoFeedbackMinBps float64 `cfg:"fast_v3_no_feedback_min_bps"`// "有正反馈"的峰值浮盈门槛(默认 2)
 }
 
 // CrossVenueExecutorConfig 是跨所资金费对冲执行引擎的可调参数。

@@ -448,3 +448,372 @@ func TestDirectionalExitPolicySim(t *testing.T) {
 			v.name, r.trades, r.netAcct*100, avg*100, wr)
 	}
 }
+
+// scratchAcc 一种 scratch 策略(或基线)在全样本上的累计。
+type scratchAcc struct {
+	trades  int
+	wins    int
+	sumWin  float64 // 盈仓账户% 合计
+	sumLoss float64 // 亏仓账户% 合计(负)
+}
+
+func (a *scratchAcc) add(r float64) {
+	a.trades++
+	if r > 0 {
+		a.wins++
+		a.sumWin += r
+	} else {
+		a.sumLoss += r
+	}
+}
+
+func (a *scratchAcc) net() float64 { return a.sumWin + a.sumLoss }
+func (a *scratchAcc) pf() float64 {
+	if a.sumLoss < 0 {
+		return a.sumWin / -a.sumLoss
+	}
+	if a.sumWin > 0 {
+		return 999
+	}
+	return 0
+}
+
+// simBaselineFromBar 从 5m 入场 bar j 起按生产出场逻辑回放到平仓,返回净账户%(已扣进出场成本)。
+func simBaselineFromBar(cfg core.OKXDirectionalConfig, c5 []float64, j int, entry float64, side DirectionSide, lev, legCostAcct float64) float64 {
+	stopBase := -cfg.StopLossPct
+	if stopBase >= 0 {
+		stopBase = -0.20
+	}
+	peak, frac, realized := 0.0, 1.0, -legCostAcct // 入场成本
+	partialOn := false
+	n := len(c5)
+	for i := j + 1; i < n; i++ {
+		uAcct := directionalUPnLPct(side, entry, c5[i]) * lev
+		if uAcct > peak {
+			peak = uAcct
+		}
+		holdMin := (i - j) * 5
+		fresh := computeDirectionalSignal(c5[:i+1], 0, cfg)
+		stopFloor := stopBase
+		if partialOn {
+			stopFloor = 0
+		}
+		act := decideDirectionalPositionAction(uAcct, peak, stopFloor, holdMin, side, fresh, partialOn, 0, cfg)
+		switch act.Kind {
+		case dirActClose:
+			return realized + frac*uAcct - legCostAcct*frac
+		case dirActPartialTP:
+			f := cfg.PartialTPFraction
+			if f <= 0 || f >= 1 {
+				f = 0.5
+			}
+			realized += f*uAcct - legCostAcct*f
+			frac -= f
+			partialOn = true
+		}
+	}
+	uAcct := directionalUPnLPct(side, entry, c5[n-1]) * lev
+	return realized + frac*uAcct - legCostAcct*frac
+}
+
+// TestDirectionalScratch1mProbe (研究用,EDGE_BT=1,需外网)。
+// 用 1m K 线在「5m 生产入场信号」之上,probe「成交后 W 内 MFE≤阈值就砍」的反事实净效果。
+//   - 入场信号:把 1m 重采样成 5m(每5根取收盘)后跑 computeDirectionalSignal,对齐生产 5m 口径;
+//   - 基线出场:decideDirectionalPositionAction 回放(同 simulateExitPolicy);
+//   - scratch:若入场后 W 窗口内 MFE(账户%)≤阈值,则在窗口末以 1m 收盘价全平;否则走基线;
+//   - 局限:1m 粒度 ⇒ 30s 无法表示(需实盘亚分钟埋点);maker/taker 历史K线无成交类型,无法分桶。
+// 运行:EDGE_BT=1 go test ./internal/app/ -run TestDirectionalScratch1mProbe -v -timeout 600s
+func TestDirectionalScratch1mProbe(t *testing.T) {
+	if os.Getenv("EDGE_BT") == "" {
+		t.Skip("研究用:设 EDGE_BT=1 且需外网 OKX 公共行情")
+	}
+	topN := 80
+	if v := os.Getenv("EDGE_BT_TOPN"); v != "" {
+		fmt.Sscanf(v, "%d", &topN)
+	}
+	legBps := 5.0
+	if v := os.Getenv("EDGE_BT_LEGBPS"); v != "" {
+		fmt.Sscanf(v, "%g", &legBps)
+	}
+	syms, err := edgeBTTopSymbols(topN)
+	if err != nil {
+		t.Fatalf("symbols: %v", err)
+	}
+	closes1m := make(map[string][]float64)
+	for _, s := range syms {
+		c, err := edgeBTCandles(s, "1m", 300) // 1m×300 ≈ 5 小时
+		if err == nil && len(c) >= 60 {
+			closes1m[s] = c
+		}
+		time.Sleep(40 * time.Millisecond)
+	}
+	t.Logf("%d 币种 1m K线(重采样5m入场)", len(closes1m))
+
+	// 生产「实际生效」口径:zEntry=1.0 / minConv=0.55 / stop5% / maxHold60 / stale30。
+	cfg := exitSimBaseCfg()
+	cfg.ZScoreEntry = 1.0
+	cfg.MinOpenConviction = 0.55
+	cfg.StopLossPct = 0.05
+	cfg.MaxHoldMinutes = 60
+	cfg.StaleCutMinutes = 30
+	lev := float64(cfg.Leverage)
+	if lev <= 0 {
+		lev = 5
+	}
+	legCostAcct := legBps / 10000 * lev
+
+	windows := []struct {
+		name string
+		bars int // 1m 根数
+	}{{"60s", 1}, {"120s", 2}, {"180s", 3}}
+	thrs := []float64{0.0, 0.005, 0.01} // 正反馈阈值(账户口径%)
+
+	baseline := &scratchAcc{}
+	scratch := map[string]*scratchAcc{}
+	type cutStat struct {
+		loserCut    int
+		loserSaved  float64 // Σ(scratch − baseline),亏仓上为正=改善
+		winnerCut   int
+		winnerLost  float64 // Σ(baseline − scratch),盈仓上为正=代价
+		fired       int
+	}
+	cuts := map[string]*cutStat{}
+	for _, w := range windows {
+		for _, thr := range thrs {
+			k := fmt.Sprintf("%s|%.1f%%", w.name, thr*100)
+			scratch[k] = &scratchAcc{}
+			cuts[k] = &cutStat{}
+		}
+	}
+
+	warm := 30
+	entries := 0
+	for _, c1 := range closes1m {
+		// 重采样 5m:取每个 5 分钟桶的收盘(1m 下标 4,9,14,...)。
+		var c5 []float64
+		for i := 4; i < len(c1); i += 5 {
+			c5 = append(c5, c1[i])
+		}
+		n5 := len(c5)
+		for j := warm; j < n5; j++ {
+			sig := computeDirectionalSignal(c5[:j+1], 0, cfg)
+			okConv := cfg.MinOpenConviction <= 0 || sig.Conviction >= cfg.MinOpenConviction
+			if !((sig.Side == DirectionLong || sig.Side == DirectionShort) && okConv) {
+				continue
+			}
+			entries++
+			entry := c5[j]
+			br := simBaselineFromBar(cfg, c5, j, entry, sig.Side, lev, legCostAcct)
+			baseline.add(br)
+			base1m := 5*j + 4 // 入场对应 1m 下标
+			for _, w := range windows {
+				endIdx := base1m + w.bars
+				haveWin := endIdx < len(c1)
+				mfe := 0.0
+				if haveWin {
+					for k := base1m + 1; k <= endIdx; k++ {
+						u := directionalUPnLPct(sig.Side, entry, c1[k]) * lev
+						if u > mfe {
+							mfe = u
+						}
+					}
+				}
+				for _, thr := range thrs {
+					key := fmt.Sprintf("%s|%.1f%%", w.name, thr*100)
+					a := scratch[key]
+					cc := cuts[key]
+					if haveWin && mfe <= thr {
+						// scratch 触发:窗口末 1m 收盘全平(进+出场成本)。
+						sr := directionalUPnLPct(sig.Side, entry, c1[endIdx])*lev - legCostAcct*2
+						a.add(sr)
+						cc.fired++
+						if br < 0 {
+							cc.loserCut++
+							cc.loserSaved += sr - br
+						} else if br > 0 {
+							cc.winnerCut++
+							cc.winnerLost += br - sr
+						}
+					} else {
+						a.add(br) // 不触发:走基线
+					}
+				}
+			}
+		}
+	}
+
+	fmt.Printf("\n=== 1m scratch probe(入场=5m生产信号,单腿%.0fbps×5,账户口径)===\n", legBps)
+	fmt.Printf("入场样本=%d  基线: 笔数=%d 净=%+.2f%% PF=%.2f 胜率=%.0f%%\n",
+		entries, baseline.trades, baseline.net()*100, baseline.pf(), float64(baseline.wins)/float64(max1(baseline.trades))*100)
+	fmt.Printf("⚠ 30s 在 1m 粒度无法表示(需实盘亚分钟埋点);maker/taker 历史K线无成交类型,无法分桶。\n")
+	fmt.Printf("%-14s %-7s %-8s %-7s | 触发  砍亏仓(改善%%)   误杀盈仓(代价%%)  净Δvs基线%%\n", "窗口", "阈值", "PF", "胜率")
+	for _, w := range windows {
+		for _, thr := range thrs {
+			key := fmt.Sprintf("%s|%.1f%%", w.name, thr*100)
+			a := scratch[key]
+			cc := cuts[key]
+			wr := float64(a.wins) / float64(max1(a.trades)) * 100
+			fmt.Printf("%-14s %-7s %-8.2f %-6.0f%% | %-4d  %-3d(%+.2f)      %-3d(%+.2f)     %+.2f\n",
+				w.name, fmt.Sprintf("MFE≤%.1f%%", thr*100), a.pf(), wr,
+				cc.fired, cc.loserCut, cc.loserSaved*100, cc.winnerCut, cc.winnerLost*100,
+				(a.net()-baseline.net())*100)
+		}
+	}
+}
+
+func max1(n int) int {
+	if n < 1 {
+		return 1
+	}
+	return n
+}
+
+func (a *scratchAcc) avgWin() float64 {
+	if a.wins == 0 {
+		return 0
+	}
+	return a.sumWin / float64(a.wins)
+}
+func (a *scratchAcc) avgLoss() float64 {
+	l := a.trades - a.wins
+	if l == 0 {
+		return 0
+	}
+	return a.sumLoss / float64(l)
+}
+
+// TestDirectionalEntryConfirmProbe (研究用,EDGE_BT=1,需外网)。
+// 测「过滤坏入场」而非「砍坏仓」:5m 生产信号只作候选,等 1m 反转确认再进,对比立即进。
+//   - immediate:5m 信号即在 c5[j] 收盘进(现状);
+//   - confirm_turn:信号后最多等 K 根 1m,出现 1 根有利方向 1m(多:上涨/空:下跌)才进,否则放弃(miss);
+//   - confirm_2up:更严,需连续 2 根有利 1m(持续转向)才进;
+//   - 出场统一用生产 decideDirectionalPositionAction(从入场后回放)。
+// 报告每策略:入场数 / 错过率 / 净% / PF / 胜率 / 均盈 / 均亏。
+// 局限:spread 稳定性 / bid-ask 移动 / 跨所反向 历史K线无法测(只能实盘),本 probe 只测「价格反转确认」;
+//       30s 在 1m 粒度无法表示;maker/taker 不可从历史K线分桶。
+// 运行:EDGE_BT=1 go test ./internal/app/ -run TestDirectionalEntryConfirmProbe -v -timeout 600s
+func TestDirectionalEntryConfirmProbe(t *testing.T) {
+	if os.Getenv("EDGE_BT") == "" {
+		t.Skip("研究用:设 EDGE_BT=1 且需外网 OKX 公共行情")
+	}
+	topN := 80
+	if v := os.Getenv("EDGE_BT_TOPN"); v != "" {
+		fmt.Sscanf(v, "%d", &topN)
+	}
+	legBps := 5.0
+	if v := os.Getenv("EDGE_BT_LEGBPS"); v != "" {
+		fmt.Sscanf(v, "%g", &legBps)
+	}
+	K := 3 // 最多等 3 根 1m(≈180s)确认
+	if v := os.Getenv("EDGE_BT_CONFIRM_K"); v != "" {
+		fmt.Sscanf(v, "%d", &K)
+	}
+	syms, err := edgeBTTopSymbols(topN)
+	if err != nil {
+		t.Fatalf("symbols: %v", err)
+	}
+	closes1m := make(map[string][]float64)
+	for _, s := range syms {
+		c, err := edgeBTCandles(s, "1m", 300)
+		if err == nil && len(c) >= 60 {
+			closes1m[s] = c
+		}
+		time.Sleep(40 * time.Millisecond)
+	}
+	t.Logf("%d 币种 1m K线(确认探针,K=%d)", len(closes1m), K)
+
+	cfg := exitSimBaseCfg()
+	cfg.ZScoreEntry = 1.0
+	cfg.MinOpenConviction = 0.55
+	cfg.StopLossPct = 0.05
+	cfg.MaxHoldMinutes = 60
+	cfg.StaleCutMinutes = 30
+	lev := float64(cfg.Leverage)
+	if lev <= 0 {
+		lev = 5
+	}
+	legCostAcct := legBps / 10000 * lev
+
+	imm := &scratchAcc{}
+	turn := &scratchAcc{}
+	two := &scratchAcc{}
+	missTurn, missTwo := 0, 0
+	warm, signals := 30, 0
+	for _, c1 := range closes1m {
+		var c5 []float64
+		for i := 4; i < len(c1); i += 5 {
+			c5 = append(c5, c1[i])
+		}
+		n5 := len(c5)
+		for j := warm; j < n5; j++ {
+			sig := computeDirectionalSignal(c5[:j+1], 0, cfg)
+			okConv := cfg.MinOpenConviction <= 0 || sig.Conviction >= cfg.MinOpenConviction
+			if !((sig.Side == DirectionLong || sig.Side == DirectionShort) && okConv) {
+				continue
+			}
+			signals++
+			side := sig.Side
+			base := 5*j + 4
+			imm.add(simBaselineFromBar(cfg, c5, j, c5[j], side, lev, legCostAcct))
+
+			fav := func(idx int) bool { // 该 1m 是否有利方向
+				if idx < 1 || idx >= len(c1) {
+					return false
+				}
+				if side == DirectionLong {
+					return c1[idx] > c1[idx-1]
+				}
+				return c1[idx] < c1[idx-1]
+			}
+			// confirm_turn:首根有利 1m 即进。
+			tIdx := -1
+			for k := 1; k <= K; k++ {
+				idx := base + k
+				if idx >= len(c1) {
+					break
+				}
+				if fav(idx) {
+					tIdx = idx
+					break
+				}
+			}
+			if tIdx < 0 {
+				missTurn++
+			} else {
+				turn.add(simBaselineFromBar(cfg, c5, j, c1[tIdx], side, lev, legCostAcct))
+			}
+			// confirm_2up:连续 2 根有利 1m,进在第 2 根。
+			twoIdx := -1
+			for k := 1; k <= K; k++ {
+				idx := base + k
+				if idx >= len(c1) || idx < 1 {
+					break
+				}
+				if fav(idx) && fav(idx-1) {
+					twoIdx = idx
+					break
+				}
+			}
+			if twoIdx < 0 {
+				missTwo++
+			} else {
+				two.add(simBaselineFromBar(cfg, c5, j, c1[twoIdx], side, lev, legCostAcct))
+			}
+		}
+	}
+
+	fmt.Printf("\n=== 入场确认 probe(5m信号候选 + 1m确认,K=%d,单腿%.0fbps×5,账户口径)===\n", K, legBps)
+	fmt.Printf("总信号=%d  ⚠ spread/盘口/跨所 历史K线测不了(仅实盘);30s 测不了;maker/taker 不可分桶。\n", signals)
+	fmt.Printf("%-14s %-6s %-8s %-8s %-7s %-9s %-9s\n", "策略", "错过%", "净%", "PF", "胜率", "均盈%", "均亏%")
+	row := func(name string, a *scratchAcc, miss int) {
+		entries := a.trades
+		missRate := float64(miss) / float64(max1(signals)) * 100
+		fmt.Printf("%-14s %-5.0f%% %-+8.2f %-8.2f %-6.0f%% %-+9.3f %-+9.3f (入场%d)\n",
+			name, missRate, a.net()*100, a.pf(), float64(a.wins)/float64(max1(entries))*100,
+			a.avgWin()*100, a.avgLoss()*100, entries)
+	}
+	row("immediate", imm, 0)
+	row("confirm_turn", turn, missTurn)
+	row("confirm_2up", two, missTwo)
+	fmt.Printf("判读:看确认后 PF/胜率/均盈亏是否比 immediate 改善,以及错过率代价是否可接受。\n")
+}

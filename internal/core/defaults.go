@@ -521,6 +521,43 @@ func DefaultEngineConfig() EngineConfig {
 			CrossVenueDeadbandPct:          0.003,
 			FillPriceMaxDevPct:             0.10,
 			MaxOpenSpreadBps:               20, // 开仓价差门收紧:20bps(原 50)
+			OpenMicroRecordEnabled:         false, // 阶段2A 开仓微结构埋点:默认关(record-only,开了也不改交易行为)
+			OpenMicroRecordVenue:           "",    // 灰度:空=所有所;设 "binance" 仅该所采集
+			FastScalperEnabled:             false, // 骨架占位:未来快 scalper 层(当前无引用,inert)
+			PostFillFeedbackEnabled:        false, // 骨架占位:成交后秒级反馈层(inert)
+			FastManageEnabled:              false, // 骨架占位:快速管理循环(inert)
+			TakerFallbackVenues:            "",    // 阶段2B-A:空=所有所允许 taker fallback(=当前行为);灰度设 "binance"
+			TradabilityPrefilterEnabled:    true,  // 不可交易币动态预过滤(工程优化,非edge;不可交易本就开不出)
+			ShadowFastSignalEnabled:        true,  // fast-layer 影子快信号 record-only(只记录,不下单)
+			RegimeDegradeEnabled:           false, // regime_degrade 风险降档:默认关,只有 config.yaml 显式打开才生效
+			RegimeDegradeAction:            "downsize",
+			RegimeDegradeNotionalUSDT:      5,   // 命中坏环境时单仓名义降到 5U(仅 enabled=true 时生效)
+			RegimeDegradeBtcLo:             0.1, // 过渡带下界(transition_band)
+			RegimeDegradeBtcHi:             0.2, // 过渡带上界
+			RegimeDegradeBtcExtreme:        0.4, // 极端追势阈(extreme_trend):btc_trend>=0.4 也降档
+			RegimeDegradeModes:             "broad_up",
+			FastScalperV1Enabled:           false, // 超频线 record-only:默认关,仅 config.yaml 显式开
+			FastScalperV1Venue:             "okx",
+			FastScalperV1IntervalSeconds:   4,
+			FastScalperV1MaxSymbols:        20,
+			FastScalperV1MaxPending:        60,
+			FastLiveEnabled:                false, // 真实下单总开关:默认关,仅 config.yaml 显式开
+			FastLiveNotionalUSDT:           0,     // <=0=用 per_position_notional_usdt(7.5U)
+			FastLiveScoreThreshold:         0.6,
+			FastLiveHorizonSeconds:         60,
+			FastLiveEntryUrgent:            true, // executable:IOC 即时成交
+			FastLiveTakerSlippageBps:       30,   // fast 开仓吃单滑点(绕过慢层 OKX maker-only 闸)
+			FastLiveExitMode:               "scalper", // v2 scalper exit(覆盖成本落袋/反向快平/180s兜底)
+			FastV2TakeProfitBps:            12,
+			FastV2StopBps:                  15,
+			FastV2MaxHoldSeconds:           180,
+			FastEntryMode:                  "maker", // v3 maker-first 入场
+			FastMakerWaitMs:                2000,
+			FastMakerPollMs:                300,
+			FastV3TrailActivateBps:         8,
+			FastV3TrailGiveBackBps:         5,
+			FastV3NoFeedbackSeconds:        25,
+			FastV3NoFeedbackMinBps:         2,
 		},
 		FundingExecutor: VenueFundingExecutorConfig{
 			LiveTradingEnabled:     false,

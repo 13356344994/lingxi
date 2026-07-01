@@ -20,14 +20,61 @@ type okxScanCandidate struct {
 	rate float64
 }
 
+// okxMarketBreadth universe 扫描级市场广度(低成本:复用候选池已拉 K 线,30min 粒度)。record-only。
+type okxMarketBreadth struct {
+	Breadth5m   float64 `json:"breadth_5m"`   // 候选中最后一根 5m 上涨占比 [0,1]
+	Breadth15m  float64 `json:"breadth_15m"`  // 候选中近 3 根净涨占比
+	Dispersion  float64 `json:"dispersion"`   // 候选最后一根收益率的标准差(离散度)
+	MarketMode  string  `json:"market_mode"`  // broad_up/broad_down/mixed/quiet
+	SampleCount int     `json:"sample_count"`
+	At          time.Time `json:"at"`
+}
+
+// computeBreadthFrom 由候选币的「最后一根收益、近3根净收益」聚合市场广度。
+func computeBreadthFrom(lastRets, cumRets []float64, now time.Time) okxMarketBreadth {
+	b := okxMarketBreadth{At: now, SampleCount: len(lastRets)}
+	if len(lastRets) == 0 {
+		b.MarketMode = "quiet"
+		return b
+	}
+	up5, up15 := 0, 0
+	for _, r := range lastRets {
+		if r > 0 {
+			up5++
+		}
+	}
+	for _, r := range cumRets {
+		if r > 0 {
+			up15++
+		}
+	}
+	b.Breadth5m = float64(up5) / float64(len(lastRets))
+	if len(cumRets) > 0 {
+		b.Breadth15m = float64(up15) / float64(len(cumRets))
+	}
+	_, b.Dispersion = meanStd(lastRets)
+	switch {
+	case b.Breadth5m >= 0.70:
+		b.MarketMode = "broad_up"
+	case b.Breadth5m <= 0.30:
+		b.MarketMode = "broad_down"
+	case b.Dispersion < 0.002:
+		b.MarketMode = "quiet"
+	default:
+		b.MarketMode = "mixed"
+	}
+	return b
+}
+
 // scanOKXUniverse 全场扫描:资费池 → 逐币拉特征 → rankUniverse 出 shortlist。
 // 网络/单币失败容忍(跳过+日志),ctx 取消则立即返回 ctx.Err()。
-func scanOKXUniverse(ctx context.Context, v DirectionalVenue, fundingSnaps []venue.FundingSnapshot, cfg OKXDirectionalConfig, logger *log.Logger) ([]okxUniverseEntry, error) {
+func scanOKXUniverse(ctx context.Context, v DirectionalVenue, fundingSnaps []venue.FundingSnapshot, cfg OKXDirectionalConfig, logger *log.Logger) ([]okxUniverseEntry, okxMarketBreadth, error) {
+	var breadth okxMarketBreadth
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return nil, breadth, err
 	}
 	if v == nil {
-		return nil, fmt.Errorf("directional venue nil")
+		return nil, breadth, fmt.Errorf("directional venue nil")
 	}
 
 	poolN := cfg.CandidatePoolN
@@ -48,7 +95,7 @@ func scanOKXUniverse(ctx context.Context, v DirectionalVenue, fundingSnaps []ven
 		if logger != nil {
 			logger.Printf("[OKX方向][选币] 候选=0 BTC趋势=0.00 入选=0 头部: (空)")
 		}
-		return nil, nil
+		return nil, breadth, nil
 	}
 
 	var btc okxBTCContext
@@ -59,17 +106,18 @@ func scanOKXUniverse(ctx context.Context, v DirectionalVenue, fundingSnaps []ven
 			logger.Printf("[OKX方向][选币] BTC K线失败,用零情境继续: %v", err)
 		}
 	} else if err := ctx.Err(); err != nil {
-		return nil, err
+		return nil, breadth, err
 	} else {
 		btc = buildOKXBTCContext(btcCandles)
 		btcReturns = pctReturns(candleCloses(btcCandles))
 	}
 
 	feats := make([]okxUniverseFeatures, 0, len(candidates))
+	var breadthLast, breadthCum []float64 // 市场广度:候选最后一根 / 近3根净 收益
 
 	for _, cand := range candidates {
 		if err := ctx.Err(); err != nil {
-			return nil, err
+			return nil, breadth, err
 		}
 		sym := venue.Symbol(cand.sym)
 		candles, cerr := v.FetchCandles(ctx, venue.MarketPerp, sym, bar, limit)
@@ -92,6 +140,14 @@ func scanOKXUniverse(ctx context.Context, v DirectionalVenue, fundingSnaps []ven
 		if lastClose <= 0 {
 			continue
 		}
+		// 市场广度采样(复用本就拉到的 closes,零额外调用)。
+		if len(returns) >= 1 {
+			breadthLast = append(breadthLast, returns[len(returns)-1])
+		}
+		if len(closes) >= 4 {
+			n := len(closes)
+			breadthCum = append(breadthCum, (closes[n-1]-closes[n-4])/closes[n-4])
+		}
 
 		atrPct := calcAtrPct(candles, lastClose)
 		volUSDT := fetchOKXCandidateVolUSDT(ctx, v, sym, candles, logger)
@@ -106,10 +162,13 @@ func scanOKXUniverse(ctx context.Context, v DirectionalVenue, fundingSnaps []ven
 		})
 	}
 
+	breadth = computeBreadthFrom(breadthLast, breadthCum, timeNowUTC())
 	shortlist := rankUniverse(feats, btc, cfg.ShortlistN)
 	logOKXUniverseScanSummary(logger, len(candidates), btc.TrendStrength, shortlist)
-	return shortlist, nil
+	return shortlist, breadth, nil
 }
+
+func timeNowUTC() time.Time { return time.Now().UTC() }
 
 func selectOKXScanCandidates(snaps []venue.FundingSnapshot, cfg OKXDirectionalConfig, poolN int) []okxScanCandidate {
 	minAbs := cfg.MinFundingAbsPerInterval
