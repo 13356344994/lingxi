@@ -260,6 +260,31 @@ func (c *BinanceClient) ResolveAccountTradingCostProfile(ctx context.Context, sp
 	return c.resolveAccountTradingCostProfile(ctx, spotSymbols, futuresSymbols, borrowAssets)
 }
 
+// FetchFuturesCommissionRateReadOnly 只读封装:GET /fapi/v1/commissionRate,返回某 U 本位永续合约的
+// 账户级 maker/taker 费率(已反映 VIP 阶梯与 BNB 抵扣)。供 fee 折扣审计等只读工具复用,
+// 不涉及任何下单/撤单/资金动作。
+func (c *BinanceClient) FetchFuturesCommissionRateReadOnly(ctx context.Context, symbol string) (maker, taker float64, err error) {
+	rate, err := c.fetchFuturesCommissionRate(ctx, symbol)
+	if err != nil {
+		return 0, 0, err
+	}
+	m, _ := strconv.ParseFloat(strings.TrimSpace(rate.MakerCommissionRate), 64)
+	t, _ := strconv.ParseFloat(strings.TrimSpace(rate.TakerCommissionRate), 64)
+	return m, t, nil
+}
+
+// FetchBNBBurnStatus 只读封装:GET /fapi/v1/feeBurn,查询 U 本位合约是否已开启 BNB 抵扣手续费。
+// 纯查询;绝不开启/关闭抵扣,也不购买 BNB。
+func (c *BinanceClient) FetchBNBBurnStatus(ctx context.Context) (bool, error) {
+	var payload struct {
+		FeeBurn bool `json:"feeBurn"`
+	}
+	if err := c.signedGetJSON(ctx, c.futuresBaseURL+"/fapi/v1/feeBurn", nil, &payload); err != nil {
+		return false, err
+	}
+	return payload.FeeBurn, nil
+}
+
 // ApplyNetworkConfig 导出网络配置应用（限速 slot / 冷却 / API Key 白名单）。
 func (c *BinanceClient) ApplyNetworkConfig(cfg core.NetworkConfig) {
 	c.applyNetworkConfig(cfg)

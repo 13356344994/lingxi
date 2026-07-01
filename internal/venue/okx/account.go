@@ -237,6 +237,38 @@ func (a *Adapter) fetchTradeFee(ctx context.Context, q url.Values) (taker, maker
 	return parseFloat(rows[0].Taker), parseFloat(rows[0].Maker), nil
 }
 
+// FeeSchedule 是 OKX SWAP 账户级手续费档位快照(只读)。
+// Maker/Taker 为负值代表返佣;Level 是 OKX 费率等级(如 "Lv1");
+// USDTFeeRate 语义与账户设置有关,原样上报。
+type FeeSchedule struct {
+	Maker float64 // 合约 maker 费率(账户实时,已含 VIP 阶梯)
+	Taker float64 // 合约 taker 费率(账户实时,已含 VIP 阶梯)
+	Level string  // OKX 费率等级 level 字段(如 "Lv1")
+}
+
+// FetchFeeSchedule 拉 SWAP 账户级实时手续费率与费率等级(只读封装,GET /api/v5/account/trade-fee)。
+// 仅暴露只读费率/等级查询,不改任何下单/资金/交易参数;供 fee 折扣审计等只读工具复用。
+func (a *Adapter) FetchFeeSchedule(ctx context.Context) (FeeSchedule, error) {
+	q := url.Values{}
+	q.Set("instType", instTypeSwap)
+	var rows []struct {
+		Taker string `json:"taker"`
+		Maker string `json:"maker"`
+		Level string `json:"level"`
+	}
+	if err := a.t.signedGet(ctx, pathTradeFee, q, &rows); err != nil {
+		return FeeSchedule{}, err
+	}
+	if len(rows) == 0 {
+		return FeeSchedule{}, fmt.Errorf("okx: trade-fee 响应为空")
+	}
+	return FeeSchedule{
+		Maker: parseFloat(rows[0].Maker),
+		Taker: parseFloat(rows[0].Taker),
+		Level: strings.TrimSpace(rows[0].Level),
+	}, nil
+}
+
 // MaxBorrowable OKX 借币做空路径未接入。
 func (a *Adapter) MaxBorrowable(ctx context.Context, asset string) (float64, error) {
 	return 0, venue.ErrUnsupported
