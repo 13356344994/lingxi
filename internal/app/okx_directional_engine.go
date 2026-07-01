@@ -232,12 +232,19 @@ type okxDirectionalSettlement struct {
 	MakerWaitMs       int     `json:"maker_wait_ms,omitempty"`
 	FillMid           float64 `json:"fill_mid,omitempty"`
 	MakerEdgeBps      float64 `json:"maker_edge_bps,omitempty"` // 成交价相对 fill_mid 的优势(正=比 mid 便宜买/贵卖)
-	PostFillMfe15sBps float64 `json:"post_fill_mfe_15s_bps,omitempty"`
-	PostFillMfe30sBps float64 `json:"post_fill_mfe_30s_bps,omitempty"`
-	PostFillMfe60sBps float64 `json:"post_fill_mfe_60s_bps,omitempty"`
-	PostFillMae15sBps float64 `json:"post_fill_mae_15s_bps,omitempty"`
-	PostFillMae30sBps float64 `json:"post_fill_mae_30s_bps,omitempty"`
-	PostFillMae60sBps float64 `json:"post_fill_mae_60s_bps,omitempty"`
+	// seen-aware 成交后水位:指针 nil=该窗口未采样;非nil(含 &0)=采样到(区分"没采样"与"真实0")。
+	PostFillMfe3sBps  *float64 `json:"post_fill_mfe_3s_bps,omitempty"`
+	PostFillMae3sBps  *float64 `json:"post_fill_mae_3s_bps,omitempty"`
+	PostFillMfe5sBps  *float64 `json:"post_fill_mfe_5s_bps,omitempty"`
+	PostFillMae5sBps  *float64 `json:"post_fill_mae_5s_bps,omitempty"`
+	PostFillMfe10sBps *float64 `json:"post_fill_mfe_10s_bps,omitempty"`
+	PostFillMae10sBps *float64 `json:"post_fill_mae_10s_bps,omitempty"`
+	PostFillMfe15sBps *float64 `json:"post_fill_mfe_15s_bps,omitempty"`
+	PostFillMae15sBps *float64 `json:"post_fill_mae_15s_bps,omitempty"`
+	PostFillMfe30sBps *float64 `json:"post_fill_mfe_30s_bps,omitempty"`
+	PostFillMae30sBps *float64 `json:"post_fill_mae_30s_bps,omitempty"`
+	PostFillMfe60sBps *float64 `json:"post_fill_mfe_60s_bps,omitempty"`
+	PostFillMae60sBps *float64 `json:"post_fill_mae_60s_bps,omitempty"`
 }
 
 // OKXDirectionalStatus 只读快照(面板/监控用)。

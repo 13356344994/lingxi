@@ -59,13 +59,54 @@ type fastLivePosition struct {
 	MakerWaitMs     int     `json:"maker_wait_ms,omitempty"`
 	FillMid         float64 `json:"fill_mid,omitempty"`
 	MakerEdgeBps    float64 `json:"maker_edge_bps,omitempty"`
-	PeakBps         float64 `json:"peak_bps,omitempty"` // 浮盈峰值(移动止盈用)
-	Mfe15           float64 `json:"mfe15,omitempty"`
-	Mfe30           float64 `json:"mfe30,omitempty"`
-	Mfe60           float64 `json:"mfe60,omitempty"`
-	Mae15           float64 `json:"mae15,omitempty"`
-	Mae30           float64 `json:"mae30,omitempty"`
-	Mae60           float64 `json:"mae60,omitempty"`
+	PeakBps         float64 `json:"peak_bps,omitempty"` // 浮盈峰值(移动止盈用;全程 all-time)
+	// seen-aware 成交后水位(bps):首次采样某窗口时 MFE=MAE=ubps(不被假 0 污染);窗口外不采样(Seen=false)。
+	Mfe3  float64 `json:"mfe3,omitempty"`
+	Mae3  float64 `json:"mae3,omitempty"`
+	Seen3 bool    `json:"seen3,omitempty"`
+	Mfe5  float64 `json:"mfe5,omitempty"`
+	Mae5  float64 `json:"mae5,omitempty"`
+	Seen5 bool    `json:"seen5,omitempty"`
+	Mfe10  float64 `json:"mfe10,omitempty"`
+	Mae10  float64 `json:"mae10,omitempty"`
+	Seen10 bool    `json:"seen10,omitempty"`
+	Mfe15  float64 `json:"mfe15,omitempty"`
+	Mae15  float64 `json:"mae15,omitempty"`
+	Seen15 bool    `json:"seen15,omitempty"`
+	Mfe30  float64 `json:"mfe30,omitempty"`
+	Mae30  float64 `json:"mae30,omitempty"`
+	Seen30 bool    `json:"seen30,omitempty"`
+	Mfe60  float64 `json:"mfe60,omitempty"`
+	Mae60  float64 `json:"mae60,omitempty"`
+	Seen60 bool    `json:"seen60,omitempty"`
+}
+
+// fastUpdateExcursion seen-aware 分窗采样成交后水位:hold(秒)在窗口内才采样;
+// 首次采样该窗口 MFE=MAE=ubps(避免默认 0 污染真实负浮盈),之后取 max/min。
+func fastUpdateExcursion(p *fastLivePosition, holdSec float64, ubps float64) {
+	upd := func(w float64, mfe, mae *float64, seen *bool) {
+		if holdSec > w {
+			return
+		}
+		if !*seen {
+			*seen = true
+			*mfe = ubps
+			*mae = ubps
+			return
+		}
+		if ubps > *mfe {
+			*mfe = ubps
+		}
+		if ubps < *mae {
+			*mae = ubps
+		}
+	}
+	upd(3, &p.Mfe3, &p.Mae3, &p.Seen3)
+	upd(5, &p.Mfe5, &p.Mae5, &p.Seen5)
+	upd(10, &p.Mfe10, &p.Mae10, &p.Seen10)
+	upd(15, &p.Mfe15, &p.Mae15, &p.Seen15)
+	upd(30, &p.Mfe30, &p.Mae30, &p.Seen30)
+	upd(60, &p.Mfe60, &p.Mae60, &p.Seen60)
 }
 
 // fastMakerAttemptEvent 每次 maker 入场尝试(成交/未成交都记;供按 maker_filled/wait/edge 分桶)。record-only。
@@ -545,30 +586,7 @@ func (e *OKXDirectionalEngine) fastLiveManage(ctx context.Context) {
 			if ubps > p.PeakBps {
 				p.PeakBps = ubps
 			}
-			if hold <= 15 {
-				if ubps > p.Mfe15 {
-					p.Mfe15 = ubps
-				}
-				if ubps < p.Mae15 {
-					p.Mae15 = ubps
-				}
-			}
-			if hold <= 30 {
-				if ubps > p.Mfe30 {
-					p.Mfe30 = ubps
-				}
-				if ubps < p.Mae30 {
-					p.Mae30 = ubps
-				}
-			}
-			if hold <= 60 {
-				if ubps > p.Mfe60 {
-					p.Mfe60 = ubps
-				}
-				if ubps < p.Mae60 {
-					p.Mae60 = ubps
-				}
-			}
+			fastUpdateExcursion(p, hold, ubps)
 		}
 		if p.MakerEntry { // v3 出场:移动止盈 / 无正反馈快平 / 止损 / 兜底(均 taker)
 			if haveMid && e.cfg.FastV2StopBps > 0 && ubps <= -e.cfg.FastV2StopBps {
@@ -686,19 +704,27 @@ func (e *OKXDirectionalEngine) fastLiveClose(ctx context.Context, p *fastLivePos
 		EntryMidImpulse15s:  p.EntryImpulse15s,
 		EntryMidImpulse30s:  p.EntryImpulse30s,
 		EntryMidImpulse60s:  p.EntryImpulse60s,
-		// v3 maker 执行 + 成交后水位
-		MakerEntry:        p.MakerEntry,
-		MakerOrderPrice:   p.MakerOrderPrice,
-		MakerWaitMs:       p.MakerWaitMs,
-		FillMid:           p.FillMid,
-		MakerEdgeBps:      p.MakerEdgeBps,
-		PostFillMfe15sBps: p.Mfe15,
-		PostFillMfe30sBps: p.Mfe30,
-		PostFillMfe60sBps: p.Mfe60,
-		PostFillMae15sBps: p.Mae15,
-		PostFillMae30sBps: p.Mae30,
-		PostFillMae60sBps: p.Mae60,
+		// v3 maker 执行
+		MakerEntry:      p.MakerEntry,
+		MakerOrderPrice: p.MakerOrderPrice,
+		MakerWaitMs:     p.MakerWaitMs,
+		FillMid:         p.FillMid,
+		MakerEdgeBps:    p.MakerEdgeBps,
 	}
+	// seen-aware 成交后水位:仅采样到的窗口写指针(nil=未采样,非nil含0=采样到)
+	ptr := func(seen bool, v float64) *float64 {
+		if !seen {
+			return nil
+		}
+		x := v
+		return &x
+	}
+	settle.PostFillMfe3sBps, settle.PostFillMae3sBps = ptr(p.Seen3, p.Mfe3), ptr(p.Seen3, p.Mae3)
+	settle.PostFillMfe5sBps, settle.PostFillMae5sBps = ptr(p.Seen5, p.Mfe5), ptr(p.Seen5, p.Mae5)
+	settle.PostFillMfe10sBps, settle.PostFillMae10sBps = ptr(p.Seen10, p.Mfe10), ptr(p.Seen10, p.Mae10)
+	settle.PostFillMfe15sBps, settle.PostFillMae15sBps = ptr(p.Seen15, p.Mfe15), ptr(p.Seen15, p.Mae15)
+	settle.PostFillMfe30sBps, settle.PostFillMae30sBps = ptr(p.Seen30, p.Mfe30), ptr(p.Seen30, p.Mae30)
+	settle.PostFillMfe60sBps, settle.PostFillMae60sBps = ptr(p.Seen60, p.Mfe60), ptr(p.Seen60, p.Mae60)
 	if err := appendJSONLRecord(e.settlementsPath, settle); err != nil {
 		e.logger.Printf("[fast_live] 结算落盘失败: %v", err)
 	}
