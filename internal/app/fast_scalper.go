@@ -59,7 +59,8 @@ type fastLivePosition struct {
 	MakerWaitMs     int     `json:"maker_wait_ms,omitempty"`
 	FillMid         float64 `json:"fill_mid,omitempty"`
 	MakerEdgeBps    float64 `json:"maker_edge_bps,omitempty"`
-	PeakBps         float64 `json:"peak_bps,omitempty"` // 浮盈峰值(移动止盈用;全程 all-time)
+	PeakBps         float64 `json:"peak_bps,omitempty"`   // 浮盈峰值(移动止盈用;全程 all-time)
+	TroughBps       float64 `json:"trough_bps,omitempty"` // 浮亏谷值(全程 all-time 最深回撤;早砍用)
 	// seen-aware 成交后水位(bps):首次采样某窗口时 MFE=MAE=ubps(不被假 0 污染);窗口外不采样(Seen=false)。
 	Mfe3  float64 `json:"mfe3,omitempty"`
 	Mae3  float64 `json:"mae3,omitempty"`
@@ -130,6 +131,17 @@ type fastMakerAttemptEvent struct {
 }
 
 const fastMakerAttemptFile = "fast_maker_attempts.jsonl"
+const fastCooldownFile = "fast_cooldowns.jsonl" // fast 层短冷却审计(落盘可查;非永久黑名单)
+
+// fastCooldownEvent 一条 fast 冷却记录(落盘审计:哪个 symbol、原因、到期时间)。
+type fastCooldownEvent struct {
+	RecordedAt time.Time `json:"recorded_at"`
+	Venue      string    `json:"venue"`
+	Symbol     string    `json:"symbol"`
+	Reason     string    `json:"reason"`
+	UntilTime  time.Time `json:"until"`
+	Seconds    int       `json:"seconds"`
+}
 
 // fastExecShadowEvent 一条可执行 fast 事件(record-only)。
 type fastExecShadowEvent struct {
@@ -186,7 +198,40 @@ var (
 	fastLivePos    = map[string]map[string]*fastLivePosition{} // venue -> symbol -> pos
 	fastLiveLoaded = map[string]bool{}
 	fastSkipAgg    = map[string]int{} // 入场结果/跳过原因聚合(每 60s 打一行后清空)
+	fastCooldownMu sync.Mutex
+	fastCooldown   = map[string]map[string]time.Time{} // venue -> symbol -> 冷却到期(fast 层;仅内存,5min 短冷却)
 )
+
+// fastInCooldown 该 symbol 是否在 fast 冷却中(只影响 fast 层)。
+func (e *OKXDirectionalEngine) fastInCooldown(sym string, now time.Time) bool {
+	fastCooldownMu.Lock()
+	defer fastCooldownMu.Unlock()
+	m := fastCooldown[e.venueName]
+	if m == nil {
+		return false
+	}
+	until, ok := m[sym]
+	return ok && now.Before(until)
+}
+
+// fastSetCooldown 设 fast 冷却 + 落盘审计 + 日志(非永久黑名单,到期自动恢复)。
+func (e *OKXDirectionalEngine) fastSetCooldown(sym, reason string, now time.Time) {
+	secs := e.cfg.FastCooldownSeconds
+	if secs <= 0 {
+		return
+	}
+	until := now.Add(time.Duration(secs) * time.Second)
+	fastCooldownMu.Lock()
+	if fastCooldown[e.venueName] == nil {
+		fastCooldown[e.venueName] = map[string]time.Time{}
+	}
+	fastCooldown[e.venueName][sym] = until
+	fastCooldownMu.Unlock()
+	_ = appendJSONLRecord(filepath.Join(e.recordDir, fastCooldownFile), fastCooldownEvent{
+		RecordedAt: now, Venue: e.venueName, Symbol: sym, Reason: reason, UntilTime: until, Seconds: secs,
+	})
+	e.logger.Printf("[fast_cooldown] %s fast层冷却%ds 至%s 原因=%s(非永久黑名单)", sym, secs, until.Format("15:04:05"), reason)
+}
 
 func fastSign(x float64) int {
 	if x > 0 {
@@ -586,9 +631,18 @@ func (e *OKXDirectionalEngine) fastLiveManage(ctx context.Context) {
 			if ubps > p.PeakBps {
 				p.PeakBps = ubps
 			}
+			if ubps < p.TroughBps {
+				p.TroughBps = ubps
+			}
 			fastUpdateExcursion(p, hold, ubps)
 		}
-		if p.MakerEntry { // v3 出场:移动止盈 / 无正反馈快平 / 止损 / 兜底(均 taker)
+		if p.MakerEntry { // v3 出场:早砍 / 移动止盈 / 无正反馈快平 / 止损 / 兜底(均 taker)
+			// v3.1 早砍:成交后 >=Ns 仍无正反馈(峰值≤0)且已明显走坏(谷值≤-MAE 且当前≤-cur)→ 提前砍,别等 -15bps 大止损。
+			if e.cfg.FastEarlyCutEnabled && haveMid && hold >= float64(e.cfg.FastEarlyCutSeconds) &&
+				p.PeakBps <= 0 && p.TroughBps <= -e.cfg.FastEarlyCutMaeBps && ubps <= -e.cfg.FastEarlyCutCurBps {
+				e.fastLiveClose(ctx, p, "fast_early_cut")
+				continue
+			}
 			if haveMid && e.cfg.FastV2StopBps > 0 && ubps <= -e.cfg.FastV2StopBps {
 				e.fastLiveClose(ctx, p, "fast_stop_reversal")
 				continue
@@ -732,6 +786,10 @@ func (e *OKXDirectionalEngine) fastLiveClose(ctx context.Context, p *fastLivePos
 	delete(fastLivePos[e.venueName], sym)
 	e.fastLivePersistLocked()
 	fastLiveMu.Unlock()
+	// 坏出场(反向止损/无反馈/早砍)→ 该 symbol fast 层短冷却,防同一坏信号在同一行情片段反复刷单。
+	if reason == "fast_stop_reversal" || reason == "fast_no_feedback" || reason == "fast_early_cut" {
+		e.fastSetCooldown(sym, reason, now)
+	}
 	e.logger.Printf("[fast_live] 已平 %s %s 持有%ds entry=%.6f exit=%.6f realized=%.4fU 原因=%s", sym, p.Side, holdSec, p.EntryPrice, exitPrice, realized, reason)
 }
 
@@ -934,6 +992,10 @@ func (e *OKXDirectionalEngine) fastLiveOpen(ctx context.Context, ev *fastExecSha
 		return "halt"
 	}
 	sym := ev.Symbol
+	// fast 短冷却中 → 跳过(只影响 fast 层;非永久黑名单)
+	if e.fastInCooldown(sym, e.nowFn().UTC()) {
+		return "cooldown"
+	}
 	// 同 symbol 已有未平 fast 仓 → 不重复、不反手
 	fastLiveMu.Lock()
 	_, hasFast := fastLivePos[e.venueName][sym]

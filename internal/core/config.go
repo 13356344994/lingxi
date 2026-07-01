@@ -885,6 +885,12 @@ type OKXDirectionalConfig struct {
 	FastV3TrailGiveBackBps float64 `cfg:"fast_v3_trail_give_back_bps"`// 自峰值回吐≥此值即止盈落袋(默认 5)
 	FastV3NoFeedbackSeconds int    `cfg:"fast_v3_no_feedback_seconds"`// 成交后此秒数内峰值浮盈不足即快平(默认 25)
 	FastV3NoFeedbackMinBps float64 `cfg:"fast_v3_no_feedback_min_bps"`// "有正反馈"的峰值浮盈门槛(默认 2)
+	// ===== v3.1 早砍 + fast 短冷却(据 P4.1 clean:赢亏 3-5s 已分化)=====
+	FastEarlyCutEnabled bool    `cfg:"fast_early_cut_enabled"`  // 默认 true
+	FastEarlyCutSeconds int     `cfg:"fast_early_cut_seconds"`  // 成交后达此秒数开始判早砍(默认 5)
+	FastEarlyCutMaeBps  float64 `cfg:"fast_early_cut_mae_bps"`  // 期间最深回撤≤-此值(默认 5)
+	FastEarlyCutCurBps  float64 `cfg:"fast_early_cut_cur_bps"`  // 且当前浮盈≤-此值(默认 3)
+	FastCooldownSeconds int     `cfg:"fast_cooldown_seconds"`   // stop/no_feedback/early_cut 后该 symbol fast 层冷却秒(默认 300;非永久黑名单)
 }
 
 // CrossVenueExecutorConfig 是跨所资金费对冲执行引擎的可调参数。

@@ -558,6 +558,11 @@ func DefaultEngineConfig() EngineConfig {
 			FastV3TrailGiveBackBps:         5,
 			FastV3NoFeedbackSeconds:        25,
 			FastV3NoFeedbackMinBps:         2,
+			FastEarlyCutEnabled:            true,
+			FastEarlyCutSeconds:            5,
+			FastEarlyCutMaeBps:             5,
+			FastEarlyCutCurBps:             3,
+			FastCooldownSeconds:            300,
 		},
 		FundingExecutor: VenueFundingExecutorConfig{
 			LiveTradingEnabled:     false,
