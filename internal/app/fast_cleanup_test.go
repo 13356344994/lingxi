@@ -143,6 +143,37 @@ func Test_fastCleanupAbsentPosition_WritesCleanupAndRemoves(t *testing.T) {
 	}
 }
 
+// Test_makerFillState_Matrix 钉死成交判定加严:仅 executed>tol 且 status filled/partial 才算成交;
+// executed>tol 但 status 非 fill 类 = suspicious(不建仓);否则 not_filled。
+func Test_makerFillState_Matrix(t *testing.T) {
+	tol := executionQtyTolerance
+	q := tol + 0.004
+	cases := []struct {
+		name     string
+		executed float64
+		status   string
+		want     string
+	}{
+		{"filled_with_qty", q, "filled", "fill"},
+		{"partially_filled_with_qty", q, "partially_filled", "fill"},
+		{"partial_filled_alias", q, "partial_filled", "fill"},
+		{"canceled_zero", 0, "canceled", "not_filled"},
+		{"rejected_zero", 0, "rejected", "not_filled"},
+		{"canceled_with_qty_suspicious", q, "canceled", "suspicious"},
+		{"rejected_with_qty_suspicious", q, "rejected", "suspicious"},
+		{"empty_status_with_qty_suspicious", q, "", "suspicious"},
+		{"empty_status_zero", 0, "", "not_filled"},
+		{"new_status_with_qty_suspicious", q, "new", "suspicious"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := makerFillState(c.executed, c.status, tol); got != c.want {
+				t.Fatalf("makerFillState(%.4f,%q)=%q want %q", c.executed, c.status, got, c.want)
+			}
+		})
+	}
+}
+
 func errOf(s string) error { return &simpleErr{s} }
 
 type simpleErr struct{ s string }

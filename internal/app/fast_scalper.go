@@ -84,6 +84,8 @@ type fastMakerAttemptEvent struct {
 	MakerEdgeBps    float64   `json:"maker_edge_bps,omitempty"`
 	SpreadBps       float64   `json:"spread_bps,omitempty"`
 	Imbalance       float64   `json:"imbalance,omitempty"`
+	// 成交确认路径:immediate_fill/poll_fill/cancel_then_query_fill/suspicious_exec_qty_no_fill_status/maker_not_filled。
+	EntryConfirmPath string `json:"entry_confirm_path,omitempty"`
 }
 
 const fastMakerAttemptFile = "fast_maker_attempts.jsonl"
@@ -803,15 +805,33 @@ func (e *OKXDirectionalEngine) fastCleanupAbsentPosition(p *fastLivePosition) {
 		p.Symbol, p.Side, fastCleanupReason, holdSec)
 }
 
+// makerFillState 纯判定 maker 单状态:必须 executed>tol 且 status∈{filled,partially_filled} 才算成交;
+// executed>tol 但 status 非 fill 类 = 可疑(疑似撤单/回报竞态,不能当普通成交建仓);否则未成交。
+// 返回:"fill" / "suspicious" / "not_filled"。
+func makerFillState(executed float64, status string, tol float64) string {
+	st := strings.ToLower(strings.TrimSpace(status))
+	filled := st == "filled" || st == "partially_filled" || st == "partial_filled"
+	if executed > tol {
+		if filled {
+			return "fill"
+		}
+		return "suspicious"
+	}
+	return "not_filled"
+}
+
 // fastMakerEntry v3 单发 post-only 入场(不追价):挂被动价,等 wait_ms,成交则返回;超时撤单(不重挂)。
-// 返回 (成交结果, 挂单价, 等待ms, error)。未成交时 res.ExecutedQty<=tol。
-func (e *OKXDirectionalEngine) fastMakerEntry(ctx context.Context, sym string, side venue.Side, qty float64, instr venue.Instrument, contractBased bool) (venue.OrderResult, float64, int, error) {
+// 返回 (成交结果, 挂单价, 等待ms, confirmPath, error)。confirmPath ∈
+//   immediate_fill / poll_fill / cancel_then_query_fill / suspicious_exec_qty_no_fill_status / maker_not_filled。
+// 成交判定加严:仅 makerFillState=="fill"(executed>tol 且 status filled/partial) 才返回成交;
+// executed>tol 但 status 非 fill 类 → suspicious(调用方不建仓);QueryOrder 失败/未成交 → maker_not_filled。
+func (e *OKXDirectionalEngine) fastMakerEntry(ctx context.Context, sym string, side venue.Side, qty float64, instr venue.Instrument, contractBased bool) (venue.OrderResult, float64, int, string, error) {
 	var acc venue.OrderResult
 	bctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	book, berr := e.v.FetchBookTicker(bctx, venue.MarketPerp, venue.Symbol(sym))
 	cancel()
 	if berr != nil || book.BidPrice <= 0 || book.AskPrice <= 0 {
-		return acc, 0, 0, berr
+		return acc, 0, 0, "maker_not_filled", berr
 	}
 	price := makerPassivePrice(side, book)
 	price, q := quantizeOrderPriceQty(price, qty, side, instr, contractBased, e.logger, sym)
@@ -822,11 +842,11 @@ func (e *OKXDirectionalEngine) fastMakerEntry(ctx context.Context, sym string, s
 		Type: venue.OrderTypePostOnly, Qty: q, Price: price, ClientOrderID: clientID, ReduceOnly: false,
 	})
 	if perr != nil {
-		return acc, price, 0, perr
+		return acc, price, 0, "maker_not_filled", perr
 	}
 	elapsed := func() int { return int(e.nowFn().UTC().Sub(start).Milliseconds()) }
-	if placed.ExecutedQty > executionQtyTolerance && strings.EqualFold(placed.Status, "filled") {
-		return placed, price, elapsed(), nil
+	if makerFillState(placed.ExecutedQty, placed.Status, executionQtyTolerance) == "fill" {
+		return placed, price, elapsed(), "immediate_fill", nil
 	}
 	waitMs := e.cfg.FastMakerWaitMs
 	if waitMs <= 0 {
@@ -841,25 +861,33 @@ func (e *OKXDirectionalEngine) fastMakerEntry(ctx context.Context, sym string, s
 		select {
 		case <-ctx.Done():
 			_ = e.v.CancelOrder(ctx, venue.MarketPerp, venue.Symbol(sym), clientID)
-			return acc, price, elapsed(), ctx.Err()
+			return acc, price, elapsed(), "maker_not_filled", ctx.Err()
 		case <-time.After(time.Duration(pollMs) * time.Millisecond):
 		}
 		if r, qerr := e.v.QueryOrder(ctx, venue.MarketPerp, venue.Symbol(sym), clientID); qerr == nil {
-			if r.ExecutedQty > executionQtyTolerance && strings.EqualFold(r.Status, "filled") {
-				return r, price, elapsed(), nil
+			switch makerFillState(r.ExecutedQty, r.Status, executionQtyTolerance) {
+			case "fill":
+				return r, price, elapsed(), "poll_fill", nil
+			case "suspicious":
+				return r, price, elapsed(), "suspicious_exec_qty_no_fill_status", nil
 			}
 			if strings.EqualFold(r.Status, "canceled") || strings.EqualFold(r.Status, "rejected") {
-				return r, price, elapsed(), nil // 不追价
+				return acc, price, elapsed(), "maker_not_filled", nil // 明确未成交,不追价
 			}
 		}
 	}
 	// 超时:撤单(不追价),查最终成交(可能等待期内部分成交)
 	_ = e.v.CancelOrder(ctx, venue.MarketPerp, venue.Symbol(sym), clientID)
 	wms := elapsed()
-	if r, qerr := e.v.QueryOrder(ctx, venue.MarketPerp, venue.Symbol(sym), clientID); qerr == nil && r.ExecutedQty > executionQtyTolerance {
-		return r, price, wms, nil
+	if r, qerr := e.v.QueryOrder(ctx, venue.MarketPerp, venue.Symbol(sym), clientID); qerr == nil {
+		switch makerFillState(r.ExecutedQty, r.Status, executionQtyTolerance) {
+		case "fill":
+			return r, price, wms, "cancel_then_query_fill", nil
+		case "suspicious":
+			return r, price, wms, "suspicious_exec_qty_no_fill_status", nil
+		}
 	}
-	return acc, price, wms, nil
+	return acc, price, wms, "maker_not_filled", nil // 含 QueryOrder 失败 → 不建仓
 }
 
 // fastLiveOpen 命中分数即真实开仓。各 guard:flat不开/异常盘口不开/量化不可交易不开/halt不开/已持(fast或slow)不重复不反手/下单失败不重试。
@@ -938,10 +966,12 @@ func (e *OKXDirectionalEngine) fastLiveOpen(ctx context.Context, ev *fastExecSha
 	var makerOrderPrice float64
 	var makerWaitMs int
 	var openViaTaker bool
+	var confirmPath string
 	if makerMode {
 		var oerr error
-		res, makerOrderPrice, makerWaitMs, oerr = e.fastMakerEntry(ctx, sym, side, qty, instr, caps.ContractBasedPerp)
-		filled := oerr == nil && res.ExecutedQty > executionQtyTolerance
+		res, makerOrderPrice, makerWaitMs, confirmPath, oerr = e.fastMakerEntry(ctx, sym, side, qty, instr, caps.ContractBasedPerp)
+		// 成交仅认 status filled/partial 的确认路径;suspicious 不算成交(不建仓)。
+		filled := oerr == nil && (confirmPath == "immediate_fill" || confirmPath == "poll_fill" || confirmPath == "cancel_then_query_fill")
 		// fill_mid + maker_edge,并记一条 maker 尝试(成交/未成交都记,供分桶)
 		fillMidNow := e.fastCurrentMid(ctx, sym)
 		if fillMidNow <= 0 {
@@ -964,10 +994,17 @@ func (e *OKXDirectionalEngine) fastLiveOpen(ctx context.Context, ev *fastExecSha
 			MakerOrderPrice: makerOrderPrice, MakerWaitMs: makerWaitMs, MakerFilled: filled,
 			FillPrice: fillPx, FillMid: fillMidNow, MakerEdgeBps: edgeBps,
 			SpreadBps: ev.SpreadBps, Imbalance: ev.OrderbookImbalance,
+			EntryConfirmPath: confirmPath,
 		})
 		if oerr != nil {
 			e.logger.Printf("[fast_live] %s maker下单失败(不重试): %v", sym, oerr)
 			return "order_fail"
+		}
+		// 可疑单:executed>tol 但 status 非 filled/partial → 不建幽灵本地仓,只告警(Phase1;不做 pending 核验)。
+		if confirmPath == "suspicious_exec_qty_no_fill_status" {
+			e.logger.Printf("[fast_live][warn] %s 可疑成交(不建本地仓): status=%q executed=%.8f exchangeOrderID=%s clientID=%s path=%s",
+				sym, res.Status, res.ExecutedQty, res.ExchangeOrderID, nonEmpty(res.ClientOrderID, okxDirectionalClientID(sym, "fastmaker")), confirmPath)
+			return "suspicious_no_build"
 		}
 		if !filled {
 			return "maker_not_filled"
