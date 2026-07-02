@@ -70,8 +70,8 @@ func TestLoadProductionConfigYAML(t *testing.T) {
 	}
 
 	// okx_directional 方向引擎生产参数(2026-07-02 重建)
-	if cfg.OKXDirectional.MaxConcurrent != 10 {
-		t.Fatalf("okx_directional.max_concurrent = %d want 10(用户指令)", cfg.OKXDirectional.MaxConcurrent)
+	if cfg.OKXDirectional.MaxConcurrent != 5 {
+		t.Fatalf("okx_directional.max_concurrent = %d want 5(用户指令 2026-07-02 22:17)", cfg.OKXDirectional.MaxConcurrent)
 	}
 	if !cfg.OKXDirectional.MAEDisasterCutEnabled {
 		t.Fatal("okx_directional.mae_disaster_cut_enabled = false want true")
