@@ -35,8 +35,13 @@ def pf(xs):
     return (g / abs(l)) if l else (999.0 if g > 0 else 0.0)
 
 
-def load():
-    rows = []
+def main():
+    import sys
+    # 单遍流式 + 紧凑存储(避免把 2GB+ JSONL 全量载入 dict 导致 OOM):
+    #   OKX 存每 symbol 的紧凑数组;peer 只缓存「已动(|mid_ret_3s|>=阈值)」的元组。内存有界。
+    O = {}          # sym -> ([ts],[mid],[spread],[mr3])
+    peerbuf = []    # (sym, ts, mv_bps)  仅 |mv|>=PEER_MOVE_BP
+    T0 = None; T1 = None
     for l in open(PATH):
         l = l.strip()
         if not l:
@@ -45,28 +50,35 @@ def load():
             d = json.loads(l)
         except json.JSONDecodeError:
             continue
+        mid = d.get("mid", 0) or 0
+        if mid <= 0:
+            continue
         t = ts(d.get("recorded_at"))
-        if t and d.get("mid", 0) > 0:
-            d["_t"] = t
-            rows.append(d)
-    return rows
-
-
-def main():
-    rows = load()
-    okx = [r for r in rows if r.get("venue") == "okx"]
-    peer = [r for r in rows if r.get("venue") in ("binance", "bybit")]
-    if not okx or not peer:
+        if t is None:
+            continue
+        v = d.get("venue")
+        if v == "okx":
+            s = sys.intern(d["symbol"])
+            rec = O.get(s)
+            if rec is None:
+                rec = O[s] = ([], [], [], [])
+            rec[0].append(t); rec[1].append(mid)
+            rec[2].append(d.get("spread_bps", 0) or 0); rec[3].append(d.get("mid_ret_3s", 0) or 0)
+            if T0 is None or t < T0: T0 = t
+            if T1 is None or t > T1: T1 = t
+        elif v == "binance" or v == "bybit":
+            mv = (d.get("mid_ret_3s", 0) or 0) * 1e4
+            if abs(mv) >= PEER_MOVE_BP:
+                peerbuf.append((sys.intern(d["symbol"]), t, mv))
+    if not O or not peerbuf:
         print("数据不足。"); return
-    T0 = min(r["_t"] for r in okx); T1 = max(r["_t"] for r in okx)
-    # OKX 索引
-    O = {}
-    for e in okx:
-        O.setdefault(e["symbol"], []).append(e)
-    for s in O:
-        O[s].sort(key=lambda x: x["_t"])
-    idx = {s: {"ts": [e["_t"] for e in v], "mid": [e["mid"] for e in v],
-               "spread": [e.get("spread_bps", 0) for e in v], "mr3": [e.get("mid_ret_3s", 0) for e in v]} for s, v in O.items()}
+    # 排序组装 idx
+    idx = {}
+    for s, (tl, ml, spl, r3) in O.items():
+        order = sorted(range(len(tl)), key=lambda i: tl[i])
+        idx[s] = {"ts": [tl[i] for i in order], "mid": [ml[i] for i in order],
+                  "spread": [spl[i] for i in order], "mr3": [r3[i] for i in order]}
+    O = None  # 释放
 
     def now_i(s, t):
         o = idx.get(s)
@@ -89,19 +101,16 @@ def main():
         return min(2, int((t - T0) / (T1 - T0 + 1e-9) * 3)) if T1 > T0 else 0
 
     # 收集 lag-follow 样本:peer 已动 & OKX 未动
-    persym = collections.defaultdict(lambda: {h: [] for h in HZ})  # sym -> h -> [(bps, win)]
-    persym[""]  # noop
     samp = collections.defaultdict(lambda: collections.defaultdict(list))
-    for e in peer:
-        mv = (e.get("mid_ret_3s", 0) or 0) * 1e4
-        if abs(mv) < PEER_MOVE_BP:
+    for s, t, mv in peerbuf:
+        if s not in idx:
             continue
-        s = e["symbol"]; i0 = now_i(s, e["_t"])
+        i0 = now_i(s, t)
         if i0 is None:
             continue
         if abs(idx[s]["mr3"][i0] * 1e4) > OKX_STILL_BP:  # OKX 已经动了→不算 lag
             continue
-        side = sgn(mv); w = win3(e["_t"])
+        side = sgn(mv); w = win3(t)
         for h in HZ:
             r = fwd(s, i0, h)
             if r is not None:
