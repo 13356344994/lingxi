@@ -241,17 +241,6 @@ func (d *AlertDispatcher) dispatchToSinkWithRetry(sink AlertSink, alert Alert, t
 	}
 }
 
-// domainEventToAlert 把结构化领域事件映射为告警(纯函数)。标题取事件类型,明细取 Reason。
-func domainEventToAlert(event DomainEvent) Alert {
-	return Alert{
-		Level:      event.Level,
-		Title:      string(event.Type),
-		Detail:     event.Reason,
-		CycleID:    event.CycleID,
-		OccurredAt: event.OccurredAt,
-	}
-}
-
 // loggerAlertSink 是兜底出口:把告警写到本地日志(带 [ALERT] 前缀),保证无外部通道时仍有落点。
 type loggerAlertSink struct {
 	logger *log.Logger

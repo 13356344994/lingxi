@@ -1,6 +1,8 @@
 {
-  "cooldown_until": {},
+  "cooldown_until": {
+    "RLS-USDT": "2026-07-03T00:00:00+08:00"
+  },
   "coin_loss_count": {},
-  "day_start_cst": "2026-06-28T00:00:00+08:00",
-  "saved_at": "2026-06-28T08:22:21.721634491Z"
+  "day_start_cst": "2026-07-02T00:00:00+08:00",
+  "saved_at": "2026-07-02T13:29:16.348401723Z"
 }

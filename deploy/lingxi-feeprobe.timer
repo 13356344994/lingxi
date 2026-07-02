@@ -1,0 +1,10 @@
+[Unit]
+Description=Run lingxi feeprobe daily (keeps records/fee_discount_audit.jsonl fresh)
+
+[Timer]
+OnCalendar=*-*-* 08:30:00
+RandomizedDelaySec=600
+Persistent=true
+
+[Install]
+WantedBy=timers.target

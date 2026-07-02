@@ -1,0 +1,11 @@
+[Unit]
+Description=lingxi funding-moment study: accumulate settlement-moment events nightly (read-only research)
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/root/lingxi/records
+ExecStart=/usr/bin/python3 /root/lingxi/records/_fast_funding_moment_directional.py --live
+StandardOutput=append:/root/lingxi/records/funding_moment_study.log
+StandardError=append:/root/lingxi/records/funding_moment_study.log
+TimeoutStartSec=1800

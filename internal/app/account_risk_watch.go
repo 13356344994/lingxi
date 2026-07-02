@@ -109,11 +109,7 @@ type accountRiskWatcher struct {
 	logger    *log.Logger
 	nowFn     func() time.Time
 
-	crossVenue *CrossVenueExecutor
-	svsp       *SingleVenueSpotPerpExecutor
-	cvsp       *CrossVenueSpotPerpExecutor
-	svps       *SingleVenuePerpSpotExecutor
-	cvps       *CrossVenuePerpSpotExecutor
+	equity *AccountEquityService
 
 	settlementFn        func() ([]strategySettlementRecord, error)
 	equityFn            func(now time.Time) accountEquityObservation
@@ -227,16 +223,11 @@ func effectiveAccountRiskMinFundFlowStepUSDT(cfg RiskConfig) float64 {
 }
 
 type accountRiskWatchConfig struct {
-	Cfg            EngineConfig
-	RecordDir      string
-	Logger         *log.Logger
-	ControlPlane   *ControlPlane
-	RotationRunner *UnifiedRotationRunner
-	CrossVenue     *CrossVenueExecutor
-	SVSP           *SingleVenueSpotPerpExecutor
-	CVSP           *CrossVenueSpotPerpExecutor
-	SVPS           *SingleVenuePerpSpotExecutor
-	CVPS           *CrossVenuePerpSpotExecutor
+	Cfg          EngineConfig
+	RecordDir    string
+	Logger       *log.Logger
+	ControlPlane *ControlPlane
+	Equity       *AccountEquityService
 }
 
 func newAccountRiskWatcher(c accountRiskWatchConfig) *accountRiskWatcher {
@@ -245,16 +236,12 @@ func newAccountRiskWatcher(c accountRiskWatchConfig) *accountRiskWatcher {
 		logger = log.Default()
 	}
 	w := &accountRiskWatcher{
-		cfg:        c.Cfg,
-		recordDir:  strings.TrimSpace(c.RecordDir),
-		alerts:     newAlertDispatcher(c.Cfg.AlertingConfig, logger),
-		logger:     logger,
-		nowFn:      time.Now,
-		crossVenue: c.CrossVenue,
-		svsp:       c.SVSP,
-		cvsp:       c.CVSP,
-		svps:       c.SVPS,
-		cvps:       c.CVPS,
+		cfg:       c.Cfg,
+		recordDir: strings.TrimSpace(c.RecordDir),
+		alerts:    newAlertDispatcher(c.Cfg.AlertingConfig, logger),
+		logger:    logger,
+		nowFn:     time.Now,
+		equity:    c.Equity,
 	}
 	w.bindDefaultSources()
 	w.bindDefaultActions(c)
@@ -272,8 +259,8 @@ func (w *accountRiskWatcher) bindDefaultSources() {
 		return loadStrategySettlementRecordsFromDir(w.recordDir)
 	}
 	w.equityFn = func(now time.Time) accountEquityObservation {
-		if w.crossVenue != nil {
-			deltas, currents, _, _, _ := w.crossVenue.TodayCSTEquityDeltas(now)
+		if w.equity != nil {
+			deltas, currents, _, _, _ := w.equity.TodayCSTEquityDeltas(now)
 			var deltaTotal float64
 			for _, d := range deltas {
 				deltaTotal = money.SumUSDT(deltaTotal, d)
@@ -310,21 +297,6 @@ func (w *accountRiskWatcher) bindDefaultActions(c accountRiskWatchConfig) {
 		w.haltFn = func(reason string) error {
 			return cp.SetGlobalHalt(true)
 		}
-	}
-	if c.RotationRunner != nil {
-		runner := c.RotationRunner
-		w.setRotationActiveFn = runner.SetActive
-	}
-	deps := strategyFlattenDeps{
-		CrossVenue: c.CrossVenue,
-		SVSP:       c.SVSP,
-		CVSP:       c.CVSP,
-		SVPS:       c.SVPS,
-		CVPS:       c.CVPS,
-	}
-	w.flattenFn = func(ctx context.Context) error {
-		flattenAllStrategyPositions(ctx, deps)
-		return nil
 	}
 }
 
@@ -462,7 +434,7 @@ func (w *accountRiskWatcher) buildSnapshot(now time.Time) accountRiskSnapshot {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		lookup := w.fundFlowLookup
 		if lookup == nil {
-			lookup = crossVenueFundFlowLookup(w.crossVenue)
+			lookup = defaultAccountFundFlowLookup(w.equity.Venues())
 		}
 		_, fundFlowStep := applyAccountFundFlowAdjustment(
 			ctx,
@@ -929,195 +901,67 @@ func (st *accountRiskEquityState) reanchorTrustedObservation(
 	st.LastPositionCount = pos.TotalCount
 }
 
+// directionalVenueNames 方向引擎覆盖的四所(账户风控按此扫描 records/{venue}_directional/)。
+var directionalVenueNames = []string{"okx", "bybit", "binance", "gate"}
+
+// loadStrategySettlementRecordsFromDir 读取全部方向引擎结算(records/{venue}_directional/settlements.jsonl),
+// 映射为账户风控统一的 strategySettlementRecord。方向结算的 realized_usdt 来自交易所实扣口径,恒视为可信。
 func loadStrategySettlementRecordsFromDir(recordDir string) ([]strategySettlementRecord, error) {
 	dir := strings.TrimSpace(recordDir)
 	if dir == "" {
 		dir = "records"
 	}
 	var out []strategySettlementRecord
-
-	perpRecs, err := loadTailJSONLFile[CrossVenueSettlement](filepath.Join(crossVenueRecordDir(dir), crossVenueSettlementsFileName), time.Time{}, 0)
-	if err != nil {
-		return nil, err
+	for _, vn := range directionalVenueNames {
+		path := filepath.Join(directionalRecordDir(dir, vn), okxDirectionalSettlementsFile)
+		recs, err := loadTailJSONLFile[okxDirectionalSettlement](path, time.Time{}, 0)
+		if err != nil {
+			return nil, err
+		}
+		for _, rec := range recs {
+			out = append(out, strategySettlementRecord{
+				StrategyType:       "directional_" + vn,
+				Symbol:             rec.Symbol,
+				Venues:             []string{vn},
+				CloseTime:          rec.Time,
+				NotionalUSDT:       rec.NotionalUSDT,
+				NetPnL:             rec.RealizedUSDT,
+				TotalFees:          rec.FeeUSDT,
+				CloseReason:        rec.Reason,
+				FundingTruthStatus: "trusted",
+			})
+		}
 	}
-	for _, rec := range perpRecs {
-		out = append(out, crossVenueSettlementToRecord(rec))
-	}
-
-	svspRecs, err := loadTailJSONLFile[SingleVenueSpotPerpSettlement](filepath.Join(singleVenueSpotPerpRecordDir(dir), svspSettlementsLogName), time.Time{}, 0)
-	if err != nil {
-		return nil, err
-	}
-	for _, rec := range svspRecs {
-		out = append(out, svspSettlementToRecord(rec))
-	}
-
-	cvspRecs, err := loadTailJSONLFile[CrossVenueSpotPerpSettlement](filepath.Join(crossVenueSpotPerpRecordDir(dir), crossVenueSpotPerpSettlementsFile), time.Time{}, 0)
-	if err != nil {
-		return nil, err
-	}
-	for _, rec := range cvspRecs {
-		out = append(out, cvspSettlementToRecord(rec))
-	}
-
-	svpsRecs, err := loadTailJSONLFile[SingleVenuePerpSpotSettlement](filepath.Join(singleVenuePerpSpotRecordDir(dir), svpsSettlementsLogName), time.Time{}, 0)
-	if err != nil {
-		return nil, err
-	}
-	for _, rec := range svpsRecs {
-		out = append(out, svpsSettlementToRecord(rec))
-	}
-
-	cvpsRecs, err := loadTailJSONLFile[CrossVenuePerpSpotSettlement](filepath.Join(crossVenuePerpSpotRecordDir(dir), crossVenuePerpSpotSettlementsFile), time.Time{}, 0)
-	if err != nil {
-		return nil, err
-	}
-	for _, rec := range cvpsRecs {
-		out = append(out, cvpsSettlementToRecord(rec))
-	}
-
 	return out, nil
 }
 
-type strategyFlattenDeps struct {
-	CrossVenue *CrossVenueExecutor
-	SVSP       *SingleVenueSpotPerpExecutor
-	CVSP       *CrossVenueSpotPerpExecutor
-	SVPS       *SingleVenuePerpSpotExecutor
-	CVPS       *CrossVenuePerpSpotExecutor
-}
-
-// flattenAllStrategyPositions 五策略 CloseAllPositions(ctx,true) 等价入口(供二级 flatten 与单测注入)。
-func flattenAllStrategyPositions(ctx context.Context, d strategyFlattenDeps) int {
-	return flattenStrategyPositionsReport(ctx, d, true).TotalClosed
-}
-
-// flattenStrategyPositionsReport 对五策略各调用 CloseAllPositions 并汇总结果(供 flatten CLI / Dashboard / 账户风控复用)。
-func flattenStrategyPositionsReport(ctx context.Context, d strategyFlattenDeps, live bool) StrategyFlattenAllResponse {
-	var results []StrategyFlattenResult
-	totalClosed := 0
-
-	if d.CrossVenue != nil {
-		closed, errs := d.CrossVenue.CloseAllPositions(ctx, live)
-		r := StrategyFlattenResult{Strategy: "cross_venue_perp_perp", Closed: closed}
-		for _, e := range errs {
-			r.Errors = append(r.Errors, e.Error())
-		}
-		if closed == 0 && len(errs) == 0 {
-			r.Message = "无在场持仓"
-		}
-		results = append(results, r)
-		totalClosed += closed
-	} else {
-		results = append(results, StrategyFlattenResult{Strategy: "cross_venue_perp_perp", Skipped: true, Message: "未启用"})
-	}
-
-	if d.SVSP != nil {
-		closed, errs := d.SVSP.CloseAllPositions(ctx, live)
-		r := StrategyFlattenResult{Strategy: "single_venue_spot_perp", Closed: closed}
-		for _, e := range errs {
-			r.Errors = append(r.Errors, e.Error())
-		}
-		if closed == 0 && len(errs) == 0 {
-			r.Message = "无在场持仓"
-		}
-		results = append(results, r)
-		totalClosed += closed
-	} else {
-		results = append(results, StrategyFlattenResult{Strategy: "single_venue_spot_perp", Skipped: true, Message: "未启用"})
-	}
-
-	if d.CVSP != nil {
-		closed, errs := d.CVSP.CloseAllPositions(ctx, live)
-		r := StrategyFlattenResult{Strategy: "cross_venue_spot_perp", Closed: closed}
-		for _, e := range errs {
-			r.Errors = append(r.Errors, e.Error())
-		}
-		if closed == 0 && len(errs) == 0 {
-			r.Message = "无在场持仓"
-		}
-		results = append(results, r)
-		totalClosed += closed
-	} else {
-		results = append(results, StrategyFlattenResult{Strategy: "cross_venue_spot_perp", Skipped: true, Message: "未启用"})
-	}
-
-	if d.SVPS != nil {
-		closed, errs := d.SVPS.CloseAllPositions(ctx, live)
-		r := StrategyFlattenResult{Strategy: "single_venue_perp_spot", Closed: closed}
-		for _, e := range errs {
-			r.Errors = append(r.Errors, e.Error())
-		}
-		if closed == 0 && len(errs) == 0 {
-			r.Message = "无在场持仓"
-		}
-		results = append(results, r)
-		totalClosed += closed
-	} else {
-		results = append(results, StrategyFlattenResult{Strategy: "single_venue_perp_spot", Skipped: true, Message: "未启用"})
-	}
-
-	if d.CVPS != nil {
-		closed, errs := d.CVPS.CloseAllPositions(ctx, live)
-		r := StrategyFlattenResult{Strategy: "cross_venue_perp_spot", Closed: closed}
-		for _, e := range errs {
-			r.Errors = append(r.Errors, e.Error())
-		}
-		if closed == 0 && len(errs) == 0 {
-			r.Message = "无在场持仓"
-		}
-		results = append(results, r)
-		totalClosed += closed
-	} else {
-		results = append(results, StrategyFlattenResult{Strategy: "cross_venue_perp_spot", Skipped: true, Message: "未启用"})
-	}
-
-	return StrategyFlattenAllResponse{Results: results, TotalClosed: totalClosed}
-}
-
+// collectPositionSummary 从各所方向引擎的 position.json 汇总在场仓位(文件即事实源,无需持引擎引用)。
 func (w *accountRiskWatcher) collectPositionSummary() accountRiskPositionSummary {
 	var summary accountRiskPositionSummary
 	summary.ByStrategy = make(map[string]int)
 	if w == nil {
 		return summary
 	}
-	if w.crossVenue != nil {
-		snap := w.crossVenue.PositionsSnapshot()
-		summary.ByStrategy["cross_venue_perp_perp"] = snap.ActivePositions
-		summary.TotalCount += snap.ActivePositions
-		for _, p := range activeCrossVenuePositions(snap.Positions) {
-			summary.OpenNotional = money.SumUSDT(summary.OpenNotional, p.NotionalUSDT)
-		}
+	type directionalPositionLite struct {
+		Symbol       string  `json:"symbol"`
+		NotionalUSDT float64 `json:"notional_usdt"`
 	}
-	if w.svsp != nil {
-		active := w.svsp.ListActivePositions()
-		summary.ByStrategy["single_venue_spot_perp"] = len(active)
-		summary.TotalCount += len(active)
-		for _, p := range active {
-			summary.OpenNotional = money.SumUSDT(summary.OpenNotional, p.NotionalUSDT)
+	for _, vn := range directionalVenueNames {
+		path := filepath.Join(directionalRecordDir(w.recordDir, vn), okxDirectionalPositionFile)
+		data, err := os.ReadFile(path)
+		if err != nil {
+			continue
 		}
-	}
-	if w.cvsp != nil {
-		active := w.cvsp.ListActivePositions()
-		summary.ByStrategy["cross_venue_spot_perp"] = len(active)
-		summary.TotalCount += len(active)
-		for _, p := range active {
-			summary.OpenNotional = money.SumUSDT(summary.OpenNotional, p.NotionalUSDT)
+		var positions []directionalPositionLite
+		if err := json.Unmarshal(data, &positions); err != nil {
+			continue
 		}
-	}
-	if w.svps != nil {
-		active := w.svps.ListActivePositions()
-		summary.ByStrategy["single_venue_perp_spot"] = len(active)
-		summary.TotalCount += len(active)
-		for _, p := range active {
-			summary.OpenNotional = money.SumUSDT(summary.OpenNotional, p.NotionalUSDT)
+		if len(positions) == 0 {
+			continue
 		}
-	}
-	if w.cvps != nil {
-		active := w.cvps.ListActivePositions()
-		summary.ByStrategy["cross_venue_perp_spot"] = len(active)
-		summary.TotalCount += len(active)
-		for _, p := range active {
+		summary.ByStrategy["directional_"+vn] = len(positions)
+		summary.TotalCount += len(positions)
+		for _, p := range positions {
 			summary.OpenNotional = money.SumUSDT(summary.OpenNotional, p.NotionalUSDT)
 		}
 	}

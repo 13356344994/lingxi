@@ -1,0 +1,9 @@
+[Unit]
+Description=lingxi feeprobe: daily read-only account fee-rate probe (4 venues)
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/root/lingxi
+ExecStart=/root/lingxi/feeprobe -secret /root/lingxi/secret.yaml
+TimeoutStartSec=120

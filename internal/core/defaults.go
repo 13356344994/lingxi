@@ -520,7 +520,8 @@ func DefaultEngineConfig() EngineConfig {
 			CrossVenueVetoMinPeers:         2,
 			CrossVenueDeadbandPct:          0.003,
 			FillPriceMaxDevPct:             0.10,
-			MaxOpenSpreadBps:               20, // 开仓价差门收紧:20bps(原 50)
+			MaxOpenSpreadBps:               20,  // 开仓价差门收紧:20bps(原 50)
+			PerPositionNotionalUSDT:        7.5, // 广撒网档单仓固定名义;此前无默认(漏配 yaml 时回退"本金/并发"旧模型,风险口径漂移,审计 P2)
 			OpenMicroRecordEnabled:         false, // 阶段2A 开仓微结构埋点:默认关(record-only,开了也不改交易行为)
 			OpenMicroRecordVenue:           "",    // 灰度:空=所有所;设 "binance" 仅该所采集
 			FastScalperEnabled:             false, // 骨架占位:未来快 scalper 层(当前无引用,inert)
@@ -529,6 +530,10 @@ func DefaultEngineConfig() EngineConfig {
 			TakerFallbackVenues:            "",    // 阶段2B-A:空=所有所允许 taker fallback(=当前行为);灰度设 "binance"
 			TradabilityPrefilterEnabled:    true,  // 不可交易币动态预过滤(工程优化,非edge;不可交易本就开不出)
 			ShadowFastSignalEnabled:        true,  // fast-layer 影子快信号 record-only(只记录,不下单)
+			RunupConfirmFilterEnabled:      false, // runup 临门确认:默认关,config.yaml 显式打开才生效(依据见 config.go 注释)
+			RunupConfirmMinBps:             0,     // 默认只挡 runup<0(信号后仍逆行);不要求正向追涨
+			MAEDisasterCutEnabled:          false, // MAE 灾难刹车:默认关,config.yaml 显式打开才生效(离线反事实已过门)
+			MAEDisasterCutPct:              0.03,  // 触及 -3%(本金)即砍;-2% 档改善更大但误杀率也高,起步取保守档
 			RegimeDegradeEnabled:           false, // regime_degrade 风险降档:默认关,只有 config.yaml 显式打开才生效
 			RegimeDegradeAction:            "downsize",
 			RegimeDegradeNotionalUSDT:      5,   // 命中坏环境时单仓名义降到 5U(仅 enabled=true 时生效)

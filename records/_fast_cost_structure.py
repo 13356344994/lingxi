@@ -27,7 +27,7 @@ def main():
             try:
                 d = json.loads(l)
                 if d.get("venue") == "okx":
-                    OKX_MAKER_BP = d["maker_fee"] * 1e4; OKX_TAKER_BP = d["taker_fee"] * 1e4
+                    OKX_MAKER_BP = abs(d["maker_fee"]) * 1e4; OKX_TAKER_BP = abs(d["taker_fee"]) * 1e4  # OKX API 负=实扣费用,取abs作成本
             except Exception:
                 pass
     print(f"OKX published 费率(fee audit):maker={OKX_MAKER_BP:.1f}bp taker={OKX_TAKER_BP:.1f}bp  (账户 VIP/OKB 抵扣=NEED_API)")

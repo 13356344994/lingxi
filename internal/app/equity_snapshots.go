@@ -4,10 +4,12 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"log"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"lingxi/internal/venue"
@@ -27,15 +29,57 @@ type equitySnapshotRecord struct {
 	Complete *bool   `json:"complete,omitempty"`
 }
 
-func (e *CrossVenueExecutor) equitySnapshotsPath() string {
-	return filepath.Join(crossVenueRecordDir(e.recordDir), equitySnapshotsFileName)
+// AccountEquityService 账户级权益采样与收益核算服务:与任何策略引擎解耦,只依赖 venue 适配器集合。
+// 快照数据沿用历史路径 records/crossvenue/equity_snapshots.jsonl 以保持连续性。
+type AccountEquityService struct {
+	venues       map[string]venue.Venue
+	recordDir    string
+	logger       *log.Logger
+	nowFn        func() time.Time
+	equitySnapMu sync.Mutex
+}
+
+// NewAccountEquityService 构造账户级权益服务。venues 为空时服务仍可构造(采样每轮记为盲区)。
+func NewAccountEquityService(venues map[string]venue.Venue, recordDir string, logger *log.Logger) *AccountEquityService {
+	if logger == nil {
+		logger = log.Default()
+	}
+	if strings.TrimSpace(recordDir) == "" {
+		recordDir = "records"
+	}
+	return &AccountEquityService{
+		venues:    venues,
+		recordDir: recordDir,
+		logger:    logger,
+		nowFn:     time.Now,
+	}
+}
+
+// Venues 暴露适配器集合(充提核算 lookup 等账户级服务复用)。
+func (s *AccountEquityService) Venues() map[string]venue.Venue {
+	if s == nil {
+		return nil
+	}
+	return s.venues
+}
+
+// accountEquityRecordDir 历史快照目录(沿用 crossvenue/ 子目录,保证既有数据连续)。
+func accountEquityRecordDir(base string) string {
+	if strings.TrimSpace(base) == "" {
+		base = "records"
+	}
+	return filepath.Join(base, "crossvenue")
+}
+
+func (s *AccountEquityService) equitySnapshotsPath() string {
+	return filepath.Join(accountEquityRecordDir(s.recordDir), equitySnapshotsFileName)
 }
 
 type equityReporter interface {
 	FetchEquityUSDT(ctx context.Context) (float64, error)
 }
 
-func (e *CrossVenueExecutor) cashUSDTFromBalances(b venue.Balances) float64 {
+func cashUSDTFromBalances(b venue.Balances) float64 {
 	var total float64
 	for asset, bal := range b.ByAsset {
 		if _, ok := equityStableCoins[strings.ToUpper(asset)]; ok {
@@ -45,14 +89,14 @@ func (e *CrossVenueExecutor) cashUSDTFromBalances(b venue.Balances) float64 {
 	return total
 }
 
-func (e *CrossVenueExecutor) sampleEquityOnce(ctx context.Context) {
-	if e == nil {
+func (s *AccountEquityService) sampleEquityOnce(ctx context.Context) {
+	if s == nil {
 		return
 	}
-	now := e.nowFn().UTC()
+	now := s.nowFn().UTC()
 	ts := now.Format(time.RFC3339)
 	var records []equitySnapshotRecord
-	for name, v := range e.venues {
+	for name, v := range s.venues {
 		cctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 		var cash float64
 		if er, ok := v.(equityReporter); ok {
@@ -60,23 +104,23 @@ func (e *CrossVenueExecutor) sampleEquityOnce(ctx context.Context) {
 			if err == nil {
 				cash = eq
 			} else {
-				e.logger.Printf("[权益采样] %s 用现金口径回退(无总权益接口/拉取失败): %v", name, err)
+				s.logger.Printf("[权益采样] %s 用现金口径回退(无总权益接口/拉取失败): %v", name, err)
 				bal, balErr := v.FetchBalances(cctx)
 				if balErr != nil {
 					cancel()
-					e.logger.Printf("[权益采样] %s 拉余额失败(跳过本轮): %v", name, balErr)
+					s.logger.Printf("[权益采样] %s 拉余额失败(跳过本轮): %v", name, balErr)
 					continue
 				}
-				cash = e.cashUSDTFromBalances(bal)
+				cash = cashUSDTFromBalances(bal)
 			}
 		} else {
 			bal, err := v.FetchBalances(cctx)
 			if err != nil {
 				cancel()
-				e.logger.Printf("[权益采样] %s 拉余额失败(跳过本轮): %v", name, err)
+				s.logger.Printf("[权益采样] %s 拉余额失败(跳过本轮): %v", name, err)
 				continue
 			}
-			cash = e.cashUSDTFromBalances(bal)
+			cash = cashUSDTFromBalances(bal)
 		}
 		cancel()
 		records = append(records, equitySnapshotRecord{
@@ -86,14 +130,14 @@ func (e *CrossVenueExecutor) sampleEquityOnce(ctx context.Context) {
 		})
 	}
 	if len(records) == 0 {
-		expectedVenues := len(e.venues)
-		e.logger.Printf("[权益采样] 连通性盲区: 全部 venue 拉取失败 %d/%d,本轮跳过且标记盲区", 0, expectedVenues)
-		if err := recordEquitySamplerAttempt(e.recordDir, ts, expectedVenues, 0, false); err != nil {
-			e.logger.Printf("[权益采样] 写入健康信号失败: %v", err)
+		expectedVenues := len(s.venues)
+		s.logger.Printf("[权益采样] 连通性盲区: 全部 venue 拉取失败 %d/%d,本轮跳过且标记盲区", 0, expectedVenues)
+		if err := recordEquitySamplerAttempt(s.recordDir, ts, expectedVenues, 0, false); err != nil {
+			s.logger.Printf("[权益采样] 写入健康信号失败: %v", err)
 		}
 		return
 	}
-	expectedVenues := len(e.venues)
+	expectedVenues := len(s.venues)
 	complete := len(records) >= expectedVenues
 	if !complete {
 		var missing []string
@@ -101,49 +145,49 @@ func (e *CrossVenueExecutor) sampleEquityOnce(ctx context.Context) {
 		for _, rec := range records {
 			got[rec.Venue] = struct{}{}
 		}
-		for name := range e.venues {
+		for name := range s.venues {
 			if _, ok := got[name]; !ok {
 				missing = append(missing, name)
 			}
 		}
 		sort.Strings(missing)
-		e.logger.Printf("[权益采样] 本轮残缺: 成功 %d/期望 %d, 缺 [%s]", len(records), expectedVenues, strings.Join(missing, ","))
+		s.logger.Printf("[权益采样] 本轮残缺: 成功 %d/期望 %d, 缺 [%s]", len(records), expectedVenues, strings.Join(missing, ","))
 	}
 	completeFlag := complete
 	for i := range records {
 		records[i].Complete = &completeFlag
 	}
-	e.equitySnapMu.Lock()
-	defer e.equitySnapMu.Unlock()
-	path := e.equitySnapshotsPath()
+	s.equitySnapMu.Lock()
+	defer s.equitySnapMu.Unlock()
+	path := s.equitySnapshotsPath()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		e.logger.Printf("[权益采样] 创建目录失败: %v", err)
+		s.logger.Printf("[权益采样] 创建目录失败: %v", err)
 		return
 	}
 	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {
-		e.logger.Printf("[权益采样] 打开文件失败: %v", err)
+		s.logger.Printf("[权益采样] 打开文件失败: %v", err)
 		return
 	}
 	defer f.Close()
 	enc := json.NewEncoder(f)
 	for _, rec := range records {
 		if err := enc.Encode(rec); err != nil {
-			e.logger.Printf("[权益采样] 写入记录失败: %v", err)
+			s.logger.Printf("[权益采样] 写入记录失败: %v", err)
 			return
 		}
 	}
-	if err := recordEquitySamplerAttempt(e.recordDir, ts, expectedVenues, len(records), complete); err != nil {
-		e.logger.Printf("[权益采样] 写入健康信号失败: %v", err)
+	if err := recordEquitySamplerAttempt(s.recordDir, ts, expectedVenues, len(records), complete); err != nil {
+		s.logger.Printf("[权益采样] 写入健康信号失败: %v", err)
 	}
 }
 
-func (e *CrossVenueExecutor) RunEquitySampler(ctx context.Context) {
-	if e == nil {
+func (s *AccountEquityService) RunEquitySampler(ctx context.Context) {
+	if s == nil {
 		return
 	}
-	e.logger.Printf("[权益采样] 已启动: interval=%s 口径=各所USDT现金余额真实变化", equitySampleInterval)
-	e.sampleEquityOnce(ctx)
+	s.logger.Printf("[权益采样] 已启动: interval=%s 口径=各所USDT现金余额真实变化", equitySampleInterval)
+	s.sampleEquityOnce(ctx)
 	ticker := time.NewTicker(equitySampleInterval)
 	defer ticker.Stop()
 	for {
@@ -151,34 +195,30 @@ func (e *CrossVenueExecutor) RunEquitySampler(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			e.sampleEquityOnce(ctx)
+			s.sampleEquityOnce(ctx)
 		}
 	}
 }
 
 // TodayCSTEquityDeltas 按北京时间自然日界,用 equity_snapshots 计算各所账户总值相对日初的真实变化。
-// 返回值: deltas(今日变化)、currents(当前快照)、baselines(日界后首条快照)、dayStart、earliestBaselineTS。
-func (e *CrossVenueExecutor) TodayCSTEquityDeltas(now time.Time) (deltas, currents, baselines map[string]float64, dayStart, earliestBaseline time.Time) {
+func (s *AccountEquityService) TodayCSTEquityDeltas(now time.Time) (deltas, currents, baselines map[string]float64, dayStart, earliestBaseline time.Time) {
 	dayStart = beijingCSTDayStart(now)
-	deltas, currents, baselines, earliestBaseline = e.equityEarnings(dayStart)
+	deltas, currents, baselines, earliestBaseline = s.equityEarnings(dayStart)
 	return deltas, currents, baselines, dayStart, earliestBaseline
 }
 
-func (e *CrossVenueExecutor) equityEarnings(windowStart time.Time) (deltas, currents, baselines map[string]float64, earliest time.Time) {
+func (s *AccountEquityService) equityEarnings(windowStart time.Time) (deltas, currents, baselines map[string]float64, earliest time.Time) {
 	deltas = make(map[string]float64)
 	currents = make(map[string]float64)
 	baselines = make(map[string]float64)
-	if e == nil {
+	if s == nil {
 		return deltas, currents, baselines, earliest
 	}
-	e.equitySnapMu.Lock()
-	defer e.equitySnapMu.Unlock()
-	path := e.equitySnapshotsPath()
+	s.equitySnapMu.Lock()
+	defer s.equitySnapMu.Unlock()
+	path := s.equitySnapshotsPath()
 	f, err := os.Open(path)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return deltas, currents, baselines, earliest
-		}
 		return deltas, currents, baselines, earliest
 	}
 	defer f.Close()
@@ -229,13 +269,13 @@ func (e *CrossVenueExecutor) equityEarnings(windowStart time.Time) (deltas, curr
 	return deltas, currents, baselines, earliest
 }
 
-func (e *CrossVenueExecutor) pruneEquitySnapshots(before time.Time) (removed int, err error) {
-	if e == nil {
+func (s *AccountEquityService) pruneEquitySnapshots(before time.Time) (removed int, err error) {
+	if s == nil {
 		return 0, nil
 	}
-	e.equitySnapMu.Lock()
-	defer e.equitySnapMu.Unlock()
-	path := e.equitySnapshotsPath()
+	s.equitySnapMu.Lock()
+	defer s.equitySnapMu.Unlock()
+	path := s.equitySnapshotsPath()
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {

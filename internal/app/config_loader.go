@@ -55,7 +55,6 @@ func loadEngineConfig() (EngineConfig, error) {
 	}
 	mode := core.ParseStrategyMode(cfg.StrategyConfig.StrategyMode)
 	core.ApplyStrategyModeToEconomics(&cfg, mode)
-	initAttributionRunMode(mode)
 	logEffectiveConfigDiff(cfg)
 	return cfg, nil
 }

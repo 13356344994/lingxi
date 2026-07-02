@@ -112,7 +112,14 @@ def cap_tier(p):
     return "15U"
 
 
-def load():
+
+def _is_fast_row(r):
+    """fast 层结算行判定:fast_scalper_v1 的 position_id 带 fast- 前缀 / reason 带 [fast] 标记。
+    慢层(90s 方向微鳞)研究必须剔除 fast 行,否则 3855 笔 fast 学费会淹没慢层信号(口径污染)。"""
+    pid = str(r.get("position_id") or "")
+    return pid.startswith("fast-") or "[fast]" in str(r.get("reason") or "") or str(r.get("strategy") or "") == "fast_scalper_v1"
+
+def load(include_fast=False):
     rows = []
     for v in VENUES:
         for f in (f"records/{v}_directional/settlements.jsonl", f"{v}_directional/settlements.jsonl"):
@@ -124,6 +131,8 @@ def load():
                     try:
                         r = json.loads(line)
                     except json.JSONDecodeError:
+                        continue
+                    if not include_fast and _is_fast_row(r):
                         continue
                     r["_venue"] = v
                     rows.append(r)

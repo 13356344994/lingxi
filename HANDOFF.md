@@ -1,4 +1,23 @@
-# LINGXI 方向量化 — 交接文档(2026-06-28)
+# LINGXI 方向量化 — 交接文档(2026-06-28;07-02 晚追加 §-1 事故与重建)
+
+## -1. 2026-07-02 事故与重建(最新状态,先读这段)
+
+**事故**:07-02 下午,外部进程(疑似 `lingxiopt` 巡检 agent 的破坏性 `git checkout/reset`)把工作区 ~408 个已跟踪文件 + 全部未跟踪新文件抹掉。当日全部未提交工作(大精简 + 账户服务重建 + MAE 刹车等)源码丢失;**当日编译好的 binary 幸存并被备份**(`/root/lingxi_GOODBUILD_0702_0753.bak`),`.git` 备份在 `/root/lingxi_git_backup_0702`。
+
+**重建(本次提交)**:按会话记录把当日工作全部重写并验证(build/vet/test/race 全绿),已部署重启:
+- **大精简**:删 carry/五策略轮动/遗留 sniper(internal/app 238→~50 个 Go 文件);共享工具重新安家到 `venue_shared_helpers.go` / `quantity_helpers.go` / `store_helpers.go`。
+- **账户服务重建**:`equity_snapshots.go` 的 `AccountEquityService`(修复 OKX 被排除在权益采样外的 bug)+ `strategy_settlements.go` 统一结算模型;`account_risk_watch.go` 改喝方向结算真数据(修复"账户风控空转"P0)。
+- **风控新闸**:MAE 灾难刹车(-3% 砍,灰度 okx/bybit)+ runup 临门确认闸(灰度 okx)+ 方向开仓尊重 global_halt + maker 部分成交按实际成交额记账 + PositionID 平仓并发 claim。
+- **风控阈值重校准**(88U 微仓口径):日损 8 / 账户回撤 115 / 策略累亏 80 / 笔数闸关。
+- **用户指令已生效**:`max_concurrent=10`;OKX control.json `trading_capital_usdt=100`。
+- **面板重写**:`webpanel/index.html` 全新方向交易面板(账户/各所资金/引擎控制/持仓/结算)。
+- **研究与自动化**:`records/_fee_posture_advisor.py`(费率姿态顾问)、`records/_fast_readiness_report.py`(fast 重启三闸 GO/NO-GO)、`records/_fast_funding_moment_directional.py`(结算瞬间研究,systemd 每日 4 班自动积累)、`records/fee_rebate.json`(返佣谈成后填 `okx_rebate_share`)。
+
+**数据损失(不可恢复,记账口径注意)**:已跟踪的 `records/*/settlements.jsonl` 被回滚到 6-28 版本,**6-28→7-02 的结算行丢失**(交易本身真实发生过,真数据在交易所;需要时可从交易所成交历史 API 重建)。持仓文件已按交易所实盘核对重写(7-02 21:26)。
+
+**返佣落地后的"惊喜"操作步骤**:① 把谈到的比例填进 `records/fee_rebate.json` 的 `okx_rebate_share`(如 0.45);② 跑 `python3 records/_fee_posture_advisor.py` 看新成本结构;③ 跑 `python3 records/_fast_readiness_report.py` 看 fast 实盘线三闸是否转 GO;④ 三闸全过才把 `fast_scalper_v1_enabled: true` 灰度重启。
+
+---
 
 > 给接手 agent:看这一份即可接手。系统为**四所方向量化"微仓广撒网探索档"**,目标是用户的"小资金广撒网多捞钱 / 超频 scalper"。当前**尚未找到扣费后稳健正 edge**,处于微仓采样阶段。
 

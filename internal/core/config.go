@@ -857,6 +857,20 @@ type OKXDirectionalConfig struct {
 	RegimeDegradeBtcHi        float64 `cfg:"regime_degrade_btc_hi"`        // 过渡带命中上界(不含)
 	RegimeDegradeBtcExtreme   float64 `cfg:"regime_degrade_btc_extreme"`   // 极端追势命中阈(btc_trend>=此值),reason=extreme_trend;<=0=关闭该段
 	RegimeDegradeModes        string  `cfg:"regime_degrade_modes"`         // 命中的 market_mode csv(如 "broad_up"),reason=匹配的 mode
+	// ===== runup 临门确认闸(2026-07-02;阶段C"临门入场确认"的第一块)=====
+	// 依据(slow-only 530 仓带 micro,跨前后半窗稳定):开仓时刻 pre_open_runup_bps<0(=信号出现后价格仍逆信号方向走,
+	// 反转未确认)桶 PF 0.44-0.53,OKX 上 PF 0.30 vs runup≥0 的 0.93。语义:runup < RunupConfirmMinBps 时拒绝开仓
+	// (reason=runup_confirm),等价格开始朝信号方向走再上。micro 数据缺失时 fail-open 放行(无数据不拦)。
+	RunupConfirmFilterEnabled bool    `cfg:"runup_confirm_filter_enabled"`
+	RunupConfirmMinBps        float64 `cfg:"runup_confirm_min_bps"` // 开仓须 runup≥此值;默认 0(只挡逆行,不要求追涨)
+	RunupConfirmVenues        string  `cfg:"runup_confirm_venues"`  // 灰度允许所 csv;空=所有所生效
+	// ===== MAE 灾难刹车(§11.2;2026-07-02 离线反事实过门后上线)=====
+	// 依据:541 仓微仓样本,浮亏触及 -3%(本金口径)后 89% 最终仍亏,反事实改善 +4.3U/292仓(-2% 档 +5.2U/350仓)。
+	// 语义:20s 快速风控循环里,当前浮盈(本金口径)≤ -MAEDisasterCutPct 即市价平仓(reason=mae_disaster_cut)。
+	// 是比 stop_loss_pct(5%)更浅的一道灾难闸;只影响出场,不影响开仓/信号。默认 false,回滚=置 false + 重启。
+	MAEDisasterCutEnabled bool    `cfg:"mae_disaster_cut_enabled"`
+	MAEDisasterCutPct     float64 `cfg:"mae_disaster_cut_pct"`    // 本金口径(0.03=浮亏3%即砍);须 >0 且 < 生效 stop_loss_pct 才有意义
+	MAEDisasterCutVenues  string  `cfg:"mae_disaster_cut_venues"` // 灰度允许所 csv;空=所有所生效
 	// ===== fast scalper v1(超频线;record-only,M5 前禁止真实下单)=====
 	// 独立于 5m 慢信号,OKX-only,3-5s 循环扫描可交易候选,写 fast_executable_shadow_events.jsonl(纯记录)。
 	FastScalperV1Enabled         bool   `cfg:"fast_scalper_v1_enabled"`          // 总开关,默认 false

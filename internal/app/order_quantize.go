@@ -65,14 +65,6 @@ func legInstrumentFields(tick, step, minNotional float64) legInstrumentMeta {
 	return legInstrumentMeta{tick: tick, step: step, minNotional: minNotional}
 }
 
-func instrumentFromOpportunityLeg(leg UnifiedOpportunityLeg) venue.Instrument {
-	return venue.Instrument{
-		TickSize:    leg.TickSize,
-		StepSize:    leg.StepSize,
-		MinNotional: leg.MinNotional,
-	}
-}
-
 func quantizeOrderPriceQty(price, qty float64, side venue.Side, instr venue.Instrument, contractBased bool, logger *log.Logger, sym string) (float64, float64) {
 	if logger != nil {
 		if price > 0 && instr.TickSize <= 0 {
@@ -119,15 +111,6 @@ func alignOpenQtyFromInstruments(planQty float64, highInstr, lowInstr venue.Inst
 		lowQty = normalizeVenueQty(planQty, lowInstr, lowCaps.ContractBasedPerp)
 	}
 	return math.Min(highQty, lowQty)
-}
-
-func opportunityLegInstrument(opp UnifiedOpportunity, venueName, market string) venue.Instrument {
-	for _, leg := range opp.Legs {
-		if leg.Venue == venueName && stringsEqualMarket(leg.Market, market) {
-			return instrumentFromOpportunityLeg(leg)
-		}
-	}
-	return venue.Instrument{}
 }
 
 func stringsEqualMarket(a, b string) bool {

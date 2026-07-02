@@ -1,0 +1,6 @@
+{
+  "_comment": "返佣配置(人工维护):完成 OKX 节点换绑后,把实际拿到手的返佣比例填进 okx_rebate_share(占手续费的比例,如 0.35=返 35%)。_fee_posture_advisor.py 与 _fast_maker_maker_sim.py / _fast_readiness_report.py 读此文件计算有效费率。",
+  "okx_rebate_share": 0.0,
+  "okx_rebate_bound_at": "",
+  "okx_rebate_channel": ""
+}

@@ -16,13 +16,17 @@ risk:
   # 用户 2026-06-19 拍板:profit_seeking + 满仓 + 3× 起步(可调至 5×) — 账户级硬停兜底(激进但保留)
   # 【% 权益化】max_*_pct 与同名 USDT 阈值取 max(有效阈值=max(USDT, pct×RealEquityTotalUSDT));0=仅 USDT。
   # 例:max_daily_loss_pct / max_account_drawdown_pct / max_strategy_cumulative_loss_pct(默认见 defaults.go)。
-  max_daily_loss_usdt: 40
-  max_account_drawdown_usdt: 90
-  max_strategy_cumulative_loss_usdt: 30
+  # 2026-07-02 重校准(账户≈88U,微仓方向探索档;旧值是 6/19 给 450U carry 定的,已失配):
+  max_daily_loss_usdt: 8
+  # 账户回撤闸口径=「全部历史 settlements 累计净利曲线自高水位的回撤」(含全部探索学费≈86U),阈值须计入已发生部分。
+  max_account_drawdown_usdt: 115
+  # directional_okx 全期累计已 -52(探索学费);80 = 再给 ~28U 探索预算,到点硬停须人工确认。
+  max_strategy_cumulative_loss_usdt: 80
   max_account_open_notional_usdt: 2200
   # 当日错次预算:单个 UTC+8 自然日内"已结算且净亏"的笔数达到此值即账户级一级硬停(停新开仓,在场仓继续 manage)。
-  # 补 max_daily_loss_usdt 金额维度盲区:每笔亏不多但连续多笔亏=当前行情/参数不利,主动停手而非继续试错。0=关闭。
-  daily_max_losing_trades: 8
+  # 当日错次预算:0=关闭。微仓广撒网的常态就是大量小额亏单(百笔/日),笔数维度对 scalper 无意义,
+  # 金额维度(max_daily_loss_usdt)才是有效刹车;保留 0 防每分钟 critical 刷屏。
+  daily_max_losing_trades: 0
   # 2026-06-21 止血:二级 auto-flatten 暂时关闭。其触发依据(RealEquityPeak/Drawdown)目前坐在不可信的
   # 权益快照上(已发现单样本毛刺设峰 454.9U、残缺 venue 读把总额算成≈0),会把毛刺/提现误判成回撤而误平健康仓。
   # 在 equity_snapshots 质量闸 + fund-flow 调整后判据上线并验证前,先置 false(belt);代码版降级见 account_risk_watch.go。
@@ -139,7 +143,7 @@ okx_directional:
   # 杠杆固定 5X(用户拍板,不在页面调)
   leverage: 5
   # 多币并发:每仓本金=交易仓本金/max_concurrent,名义=每仓本金×5X;总满仓名义=本金×5、总风险=本金。
-  max_concurrent: 30   # 广撒网档:每所最多 30 币(上限);实际开多少由资金决定(见 per_position_notional_usdt)
+  max_concurrent: 10   # 2026-07-02 用户指令:每所最多 10 币(原 30 广撒网档收敛)
   # 广撒网:每仓固定名义 7.5U(>最小单5U)。实际持仓数=交易仓本金/(7.5/杠杆)笔,上限 max_concurrent。
   # 10U/所→约6币;要满30币需约45U/所。资金不足时自动按资金可开的最大数量,不会强行缩成开不出的小单。
   per_position_notional_usdt: 7.5
@@ -200,6 +204,31 @@ okx_directional:
   avoid_btc_chase: false   # 关闭:44%vs57%来自单一窗口+重叠样本,统计不稳健,待更多数据再议
   btc_chase_lookback_bars: 6      # 5m×6=30min
   btc_chase_min_move_pct: 0.0008  # BTC 净移动>0.08% 才算有方向
+  # ===== 2026-07-02 重建(工作区事故后按会话记录恢复;各键详注见 internal/core/config.go)=====
+  # 阶段2A 开仓微结构埋点(record-only):settlements 带 open_micro 上下文,是 runup 闸与微结构归因的数据源。
+  open_micro_record_enabled: true
+  # regime 风险降档(只缩新开仓名义 7.5→5U,不停机):命中桶 PF 0.34 vs 非命中 0.73(n=124/379)。
+  # ⚠️ 方法学警示:依据是同集 in-sample 分桶(无 holdout),上线后实录 n=26 方向相反——slow-only 样本到 30+ 若仍反向须回滚。
+  regime_degrade_enabled: true
+  regime_degrade_action: "downsize"
+  # MAE 灾难刹车(§11.2):20s 快速风控里浮亏(本金口径)触及 -3% 即市价平仓(reason=mae_disaster_cut)。
+  # 离线反事实(541 微仓样本):触及 -3% 后 89% 最终仍亏,当场砍改善 +4.3U/292仓(分所全为正)。
+  # 只影响出场(比 stop_loss_pct=5% 更浅的灾难闸),不影响开仓/信号。灰度=okx,bybit;回滚:enabled:false + 重启。
+  mae_disaster_cut_enabled: true
+  mae_disaster_cut_pct: 0.03
+  mae_disaster_cut_venues: "okx,bybit"
+  # runup 临门确认闸:开仓时刻 pre_open_runup_bps<0(信号后价格仍逆行=反转未确认)拒开(reason=runup_confirm)。
+  # 依据(slow-only 530 仓,跨前后半窗稳定):runup<0 桶 PF 0.44-0.53;OKX 上 0.30 vs 0.93。灰度=okx;micro 缺失放行。
+  runup_confirm_filter_enabled: true
+  runup_confirm_min_bps: 0
+  runup_confirm_venues: "okx"
+  # fast 数据采集:fast_ws(OKX 逐笔+盘口,事件研究/结算瞬间研究数据源)保留;
+  # fast_peer(跨所 lead-lag)已被大样本证伪(领先→跟随不可用),2026-07-02 停采省 ~1GB/天。
+  fast_ws_collector_enabled: true
+  fast_peer_ws_enabled: false
+  # fast 实盘线(fast_scalper_v1):暂停。头两天 3855 笔实盘学费 -30.3U 证明现约束下无正期望;
+  # 重启三闸(见 records/_fast_readiness_report.py):返佣落地(成本地板<4bp)+ 事件信号毛期望>2×成本 + 影子模拟净正。
+  fast_scalper_v1_enabled: false
 
 # 五策略统一资金费轮动 runner。perp-perp 执行体见 cross_venue_executor,开仓由 runner binding 派发。
 # total_deployable_usdt: 绝对预算(USDT);另有 total_deployable_pct(默认见 defaults,占真实现金权益比例),二者与 equity 取 min。

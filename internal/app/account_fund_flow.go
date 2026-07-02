@@ -144,10 +144,3 @@ func applyAccountFundFlowAdjustment(
 	}
 	return "heuristic", step
 }
-
-func crossVenueFundFlowLookup(cv *CrossVenueExecutor) accountFundFlowLookup {
-	if cv == nil {
-		return nil
-	}
-	return defaultAccountFundFlowLookup(cv.venues)
-}

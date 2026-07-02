@@ -25,14 +25,14 @@ import (
 )
 
 const (
-	okxDirectionalPositionFile      = "position.json"
-	okxDirectionalSettlementsFile   = "settlements.jsonl"
-	okxDirectionalCooldownFile      = "cooldowns.json"
-	okxDirectionalOpenEventsFile    = "open_decision_events.jsonl"
-	okxDirectionalShadowEventsFile  = "shadow_fast_signal_events.jsonl"
+	okxDirectionalPositionFile     = "position.json"
+	okxDirectionalSettlementsFile  = "settlements.jsonl"
+	okxDirectionalCooldownFile     = "cooldowns.json"
+	okxDirectionalOpenEventsFile   = "open_decision_events.jsonl"
+	okxDirectionalShadowEventsFile = "shadow_fast_signal_events.jsonl"
 	// 慢层幽灵仓清理:交易所已确认本地方向无持仓时,写独立留痕文件(不写 settlements.jsonl,不污染 PnL/PF/胜率)。
-	slowPositionCleanupFile = "slow_position_cleanup.jsonl"
-	slowCleanupReason       = "slow_exchange_position_absent_cleanup"
+	slowPositionCleanupFile         = "slow_position_cleanup.jsonl"
+	slowCleanupReason               = "slow_exchange_position_absent_cleanup"
 	okxDirectionalTakerSlippageBps  = 40.0
 	okxDirectionalUrgentSlippageBps = 150.0 // 风控急平 IOC 放宽滑点(薄盘也能成交)
 	okxDirectionalMakerRounds       = 3
@@ -66,12 +66,12 @@ type okxDirectionalPosition struct {
 	AddCount            int     `json:"add_count,omitempty"`              // 已补仓次数
 	RealizedPartialUSDT float64 `json:"realized_partial_usdt,omitempty"`  // 本仓已落袋的部分止盈
 	// 执行质量/成交后行为仪表化(阶段A:量化 maker 逆选择 + 秒级退出能否把 PF 拉过 1;只记录,不改交易行为)。
-	EntryMid          float64 `json:"entry_mid,omitempty"`           // 开仓决策时刻中价(算入场滑点基准)
-	EntrySlipBps      float64 `json:"entry_slip_bps,omitempty"`      // 入场滑点(bps,正=比中价更差)
-	OpenViaTaker      bool    `json:"open_via_taker,omitempty"`      // 开仓是否走了 IOC 吃单兜底(maker 没挂上)
-	OpenFeeUSDT       float64 `json:"open_fee_usdt,omitempty"`       // 开仓+补仓累计实扣手续费(交易所真实口径)
-	MFEAccountPct     float64 `json:"mfe_account_pct,omitempty"`     // 成交后最大浮盈(本金口径高水位,整段运行态)
-	MAEAccountPct     float64 `json:"mae_account_pct,omitempty"`     // 成交后最大浮亏(本金口径,负值,整段运行态)
+	EntryMid      float64 `json:"entry_mid,omitempty"`       // 开仓决策时刻中价(算入场滑点基准)
+	EntrySlipBps  float64 `json:"entry_slip_bps,omitempty"`  // 入场滑点(bps,正=比中价更差)
+	OpenViaTaker  bool    `json:"open_via_taker,omitempty"`  // 开仓是否走了 IOC 吃单兜底(maker 没挂上)
+	OpenFeeUSDT   float64 `json:"open_fee_usdt,omitempty"`   // 开仓+补仓累计实扣手续费(交易所真实口径)
+	MFEAccountPct float64 `json:"mfe_account_pct,omitempty"` // 成交后最大浮盈(本金口径高水位,整段运行态)
+	MAEAccountPct float64 `json:"mae_account_pct,omitempty"` // 成交后最大浮亏(本金口径,负值,整段运行态)
 	// 时间切片 MFE/MAE(本金口径):各窗口内观察到的最大浮盈/浮亏,供「成交后 N 秒内是否见正反馈」分析。
 	// 采样受管理循环节奏限制(风控 20s + 完整 90s),故 30s 窗口分辨率约 20s,为近似;不改交易行为。
 	MFE30sPct  float64 `json:"mfe_30s_pct,omitempty"`
@@ -125,12 +125,12 @@ type openMicrostructure struct {
 // openMicroEnv v2 开仓环境因子(record-only;埋点关时不采集)。
 type openMicroEnv struct {
 	// A. BTC 环境(来自每轮单次缓存的 BTC 5m K 线;btc_ret_1m 需 1m 拉取,列第二步)
-	BtcRet5mBps     float64 `json:"btc_ret_5m_bps,omitempty"`
-	BtcRet15mBps    float64 `json:"btc_ret_15m_bps,omitempty"`
-	BtcRet30mBps    float64 `json:"btc_ret_30m_bps,omitempty"`
+	BtcRet5mBps      float64 `json:"btc_ret_5m_bps,omitempty"`
+	BtcRet15mBps     float64 `json:"btc_ret_15m_bps,omitempty"`
+	BtcRet30mBps     float64 `json:"btc_ret_30m_bps,omitempty"`
 	BtcTrendStrength float64 `json:"btc_trend_strength,omitempty"` // 效率比[0,1]
-	BtcImpulse      float64 `json:"btc_impulse,omitempty"`        // 近窗/基线波动比
-	EntrySideVsBtc  string  `json:"entry_side_vs_btc,omitempty"`  // same/opposite/neutral
+	BtcImpulse       float64 `json:"btc_impulse,omitempty"`        // 近窗/基线波动比
+	EntrySideVsBtc   string  `json:"entry_side_vs_btc,omitempty"`  // same/opposite/neutral
 	// B. Symbol-BTC 关系
 	SymbolBtcCorr30m float64 `json:"symbol_btc_corr_30m,omitempty"`
 	SymbolBtcBeta30m float64 `json:"symbol_btc_beta_30m,omitempty"`
@@ -140,20 +140,20 @@ type openMicroEnv struct {
 	CandidateDispersion float64 `json:"candidate_dispersion,omitempty"`
 	CandidateMarketMode string  `json:"candidate_market_mode,omitempty"` // broad_up/broad_down/mixed/quiet
 	// D. Funding 环境(funding_at_open 已在外层;此处补充派生量。minutes_to_next/funding_window 需快照→第二步)
-	FundingAbs      float64 `json:"funding_abs,omitempty"`
-	FundingBucket   string  `json:"funding_bucket,omitempty"` // low/mid/high/extreme
-	FundingRankPct  float64 `json:"funding_rank_pct,omitempty"`
+	FundingAbs     float64 `json:"funding_abs,omitempty"`
+	FundingBucket  string  `json:"funding_bucket,omitempty"` // low/mid/high/extreme
+	FundingRankPct float64 `json:"funding_rank_pct,omitempty"`
 	// E. 波动 regime
-	AtrPct            float64 `json:"atr_pct,omitempty"`
-	AtrPctRank        float64 `json:"atr_pct_rank,omitempty"`
+	AtrPct             float64 `json:"atr_pct,omitempty"`
+	AtrPctRank         float64 `json:"atr_pct_rank,omitempty"`
 	RecentVolExpansion float64 `json:"recent_vol_expansion,omitempty"`
-	SpikeCount15m     int     `json:"spike_count_15m,omitempty"`
-	RangeBreakState   string  `json:"range_break_state,omitempty"` // normal/expanding/breaking
+	SpikeCount15m      int     `json:"spike_count_15m,omitempty"`
+	RangeBreakState    string  `json:"range_break_state,omitempty"` // normal/expanding/breaking
 	// F. 持仓拥挤度
-	SameSidePositionCount   int     `json:"same_side_position_count,omitempty"`
-	SameSymbolCrossVenueCnt int     `json:"same_symbol_cross_venue_count,omitempty"`
-	BtcAlignedPositionCount int     `json:"btc_aligned_position_count,omitempty"`
-	VenueOpenPositionCount  int     `json:"venue_open_position_count,omitempty"`
+	SameSidePositionCount    int     `json:"same_side_position_count,omitempty"`
+	SameSymbolCrossVenueCnt  int     `json:"same_symbol_cross_venue_count,omitempty"`
+	BtcAlignedPositionCount  int     `json:"btc_aligned_position_count,omitempty"`
+	VenueOpenPositionCount   int     `json:"venue_open_position_count,omitempty"`
 	TotalDirectionalNotional float64 `json:"total_directional_notional,omitempty"`
 }
 
@@ -227,11 +227,11 @@ type okxDirectionalSettlement struct {
 	EntryMidImpulse30s  float64   `json:"mid_impulse_30s_bps,omitempty"`
 	EntryMidImpulse60s  float64   `json:"mid_impulse_60s_bps,omitempty"`
 	// v3 maker-first 执行字段(区分 maker 入场 / taker 出场,供按 maker_filled/wait/edge 分桶)
-	MakerEntry        bool    `json:"maker_entry,omitempty"`         // true=maker 入场(否则 taker)
-	MakerOrderPrice   float64 `json:"maker_order_price,omitempty"`
-	MakerWaitMs       int     `json:"maker_wait_ms,omitempty"`
-	FillMid           float64 `json:"fill_mid,omitempty"`
-	MakerEdgeBps      float64 `json:"maker_edge_bps,omitempty"` // 成交价相对 fill_mid 的优势(正=比 mid 便宜买/贵卖)
+	MakerEntry      bool    `json:"maker_entry,omitempty"` // true=maker 入场(否则 taker)
+	MakerOrderPrice float64 `json:"maker_order_price,omitempty"`
+	MakerWaitMs     int     `json:"maker_wait_ms,omitempty"`
+	FillMid         float64 `json:"fill_mid,omitempty"`
+	MakerEdgeBps    float64 `json:"maker_edge_bps,omitempty"` // 成交价相对 fill_mid 的优势(正=比 mid 便宜买/贵卖)
 	// seen-aware 成交后水位:指针 nil=该窗口未采样;非nil(含 &0)=采样到(区分"没采样"与"真实0")。
 	PostFillMfe3sBps  *float64 `json:"post_fill_mfe_3s_bps,omitempty"`
 	PostFillMae3sBps  *float64 `json:"post_fill_mae_3s_bps,omitempty"`
@@ -323,8 +323,10 @@ type OKXDirectionalEngine struct {
 	delistGuard       *DelistGuard
 	annGuard          *okxAnnouncementGuard
 	// 安全网 B2: 控制面接线(可为 nil,nil 时跳过 halt 检测)
-	controlPlane   *ControlPlane
-	lastHaltLogAt  time.Time
+	controlPlane  *ControlPlane
+	lastHaltLogAt time.Time
+	// closingClaims 平仓进行中的 PositionID 集合(防 20s/90s 双循环重复 reduce-only)。仅内存。
+	closingClaims map[string]bool
 }
 
 // okxDirectionalControl 页面可控运行态(records/okx_directional/control.json):
@@ -354,22 +356,22 @@ func NewDirectionalEngine(venueName string, v DirectionalVenue, peers map[string
 		return nil, fmt.Errorf("创建 %s_directional 目录失败: %w", venueName, err)
 	}
 	e := &OKXDirectionalEngine{
-		cfg:             cfg.OKXDirectional,
-		netCfg:          cfg,
-		v:               v,
-		venueName:       venueName,
-		peers:           peers,
-		logger:          logger,
-		recordDir:       dir,
-		nowFn:           time.Now,
-		positions:       make(map[string]*okxDirectionalPosition),
-		cooldownUntil:   make(map[string]time.Time),
-		coinLossCount:   make(map[string]int),
-		positionPath:    filepath.Join(dir, okxDirectionalPositionFile),
-		settlementsPath: filepath.Join(dir, okxDirectionalSettlementsFile),
-		controlPath:     filepath.Join(dir, "control.json"),
-		cooldownPath:    filepath.Join(dir, okxDirectionalCooldownFile),
-		openEventsPath:  filepath.Join(dir, okxDirectionalOpenEventsFile),
+		cfg:              cfg.OKXDirectional,
+		netCfg:           cfg,
+		v:                v,
+		venueName:        venueName,
+		peers:            peers,
+		logger:           logger,
+		recordDir:        dir,
+		nowFn:            time.Now,
+		positions:        make(map[string]*okxDirectionalPosition),
+		cooldownUntil:    make(map[string]time.Time),
+		coinLossCount:    make(map[string]int),
+		positionPath:     filepath.Join(dir, okxDirectionalPositionFile),
+		settlementsPath:  filepath.Join(dir, okxDirectionalSettlementsFile),
+		controlPath:      filepath.Join(dir, "control.json"),
+		cooldownPath:     filepath.Join(dir, okxDirectionalCooldownFile),
+		openEventsPath:   filepath.Join(dir, okxDirectionalOpenEventsFile),
 		shadowEventsPath: filepath.Join(dir, okxDirectionalShadowEventsFile),
 	}
 	// 控制态:优先读持久化(页面设过的本金/止损/启停);无则用 config 默认且 active=false(必须页面点开始)。
@@ -529,6 +531,22 @@ func (e *OKXDirectionalEngine) logEffectiveParams() {
 	} else {
 		e.logger.Printf("[OKX方向][生效参数] regime_degrade=off(默认名义 %.2fU,无降档)", cfg.PerPositionNotionalUSDT)
 	}
+	if cfg.MAEDisasterCutEnabled {
+		scope := strings.TrimSpace(cfg.MAEDisasterCutVenues)
+		if scope == "" {
+			scope = "所有所"
+		}
+		e.logger.Printf("[OKX方向][生效参数] mae_disaster_cut=on 阈值=-%.1f%%(本金) 灰度所=%s 本所生效=%v(仅出场刹车;依据:触及-3%%后89%%仍亏)",
+			cfg.MAEDisasterCutPct*100, scope, e.maeDisasterCutArmed())
+	}
+	if cfg.RunupConfirmFilterEnabled {
+		scope := strings.TrimSpace(cfg.RunupConfirmVenues)
+		if scope == "" {
+			scope = "所有所"
+		}
+		e.logger.Printf("[OKX方向][生效参数] runup_confirm=on 最小runup=%.1fbp 灰度所=%s 本所生效=%v(开仓闸;micro 缺失放行)",
+			cfg.RunupConfirmMinBps, scope, e.runupConfirmArmed())
+	}
 }
 
 // manageRiskFast 快速风控子循环(~20s):仅拉盘口(廉价),发现触止损立即平仓。
@@ -571,27 +589,25 @@ func (e *OKXDirectionalEngine) manageRiskFast(ctx context.Context) {
 			updateWindowedExcursion(p, holdSecRF, uPnLAccount)
 		}
 		e.mu.Unlock()
-		// 取动态止损地板;为 0 时退回 -StopLossPct 作硬止损地板。
+		// 取动态止损地板;为 0 时退回 -StopLossPct;MAE 灾难刹车武装时地板取更浅者(只会更早出场)。
 		e.mu.RLock()
-		var floor float64
+		var dynFloor float64
 		if p, ok := e.positions[pos.Symbol]; ok {
-			floor = p.StopFloorAccountPct
+			dynFloor = p.StopFloorAccountPct
 		}
 		e.mu.RUnlock()
-		if floor == 0 {
-			stopPct := ctrl.StopLossPct
-			if stopPct <= 0 {
-				stopPct = e.cfg.StopLossPct
-			}
-			floor = -stopPct
+		stopPct := ctrl.StopLossPct
+		if stopPct <= 0 {
+			stopPct = e.cfg.StopLossPct
 		}
+		floor, cutReason := effectiveFastStopFloor(dynFloor, stopPct, e.cfg.MAEDisasterCutPct, e.maeDisasterCutArmed())
 		if uPnLAccount <= floor {
 			holdMin := int(e.nowFn().UTC().Sub(pos.OpenedAt).Minutes())
 			if holdMin < 0 {
 				holdMin = 0
 			}
-			e.logger.Printf("[OKX方向][快速风控] %s 浮盈%.2f%%≤止损地板%.2f%%,立即硬止损", pos.Symbol, uPnLAccount*100, floor*100)
-			e.closePosition(ctx, pos, mid, uPnLNotional, holdMin, "硬止损(快速)")
+			e.logger.Printf("[OKX方向][快速风控] %s 浮盈%.2f%%≤止损地板%.2f%%,立即平仓(%s)", pos.Symbol, uPnLAccount*100, floor*100, cutReason)
+			e.closePosition(ctx, pos, mid, uPnLNotional, holdMin, cutReason)
 		}
 	}
 }
@@ -629,6 +645,7 @@ func (e *OKXDirectionalEngine) runOnce(ctx context.Context) {
 //   - 空仓:双向调平到 M(超出回资金账户、不足从资金账户补);
 //   - 持仓:ExecuteRebalance 只搬「自由资金」、绝不动已锁定保证金,故持仓期间也安全运行——
 //     把资金账户里闲置的 USDT 单向补进交易账户,让剩余空位也能开出(修「持仓后开不出新仓」)。
+//
 // 节流 5min。
 func (e *OKXDirectionalEngine) provisionCapital(ctx context.Context) {
 	e.mu.RLock()
@@ -1064,9 +1081,11 @@ func (e *OKXDirectionalEngine) candidateTradable(ctx context.Context, sym venue.
 
 // regimeDegradeCandidate 判定本候选是否落在「坏环境」(纯派生,只读 micro.Env;不改信号/不影响判定逻辑)。
 // 离散 OR 命中,返回单一原因标签(优先级 transition_band > extreme_trend > broad_up/mode):
-//   transition_band: RegimeDegradeBtcLo<=btc_trend<RegimeDegradeBtcHi(过渡/震荡带)
-//   extreme_trend:   btc_trend>=RegimeDegradeBtcExtreme(极端追势顶;阈<=0=关闭该段)
-//   <mode>:          candidate_market_mode ∈ RegimeDegradeModes(如 broad_up)
+//
+//	transition_band: RegimeDegradeBtcLo<=btc_trend<RegimeDegradeBtcHi(过渡/震荡带)
+//	extreme_trend:   btc_trend>=RegimeDegradeBtcExtreme(极端追势顶;阈<=0=关闭该段)
+//	<mode>:          candidate_market_mode ∈ RegimeDegradeModes(如 broad_up)
+//
 // 刻意不罩 0.2-0.4(健康趋势)与 mixed(单笔毒性低)。env 缺失→不命中(安全回退默认名义)。
 func (e *OKXDirectionalEngine) regimeDegradeCandidate(m *openMicrostructure) (bool, string) {
 	if m == nil || m.Env == nil {
@@ -1179,12 +1198,12 @@ func eventFromMicro(sym string, side DirectionSide, sig DirectionalSignal, fundi
 
 // openMicroCycleEnv 每轮 openFromShortlist 共享的环境上下文(只算一次,所有候选复用;仅 +1 次 BTC K 线)。
 type openMicroCycleEnv struct {
-	btcRet5, btcRet15, btcRet30 float64
+	btcRet5, btcRet15, btcRet30  float64
 	btcTrend, btcImpulse, btcStd float64
-	btcDir                      DirectionSide
-	breadth                     okxMarketBreadth
-	fundingRankPct              map[string]float64
-	atrRankPct                  map[string]float64
+	btcDir                       DirectionSide
+	breadth                      okxMarketBreadth
+	fundingRankPct               map[string]float64
+	atrRankPct                   map[string]float64
 }
 
 // gatherMicroCycleEnv 组装本轮环境上下文(BTC 一次缓存拉取 + shortlist 内排名,均低成本)。仅埋点启用时调用。
@@ -1414,14 +1433,18 @@ func (e *OKXDirectionalEngine) buildOpenMicroEnv(sym string, side DirectionSide,
 
 // openFromShortlist 在 shortlist 上出信号,补开到 MaxConcurrent(跳过已持有/冷却),按信心降序优先,逐仓保证金预检。
 func (e *OKXDirectionalEngine) openFromShortlist(ctx context.Context) {
-	// 安全网 B2(探索档语义):仅人工紧急急停(.halt-live 文件)时跳过新开仓;
-	// 账户回撤型持久 global_halt 不锁死微仓探索档(探索档不因普通风控停机,只为人工急停/系统级故障停)。
-	// 在场持仓管理/平仓任何时候都不受影响。
-	if e.controlPlane != nil && e.controlPlane.IsEmergencyHaltActive() {
+	// 安全网 B2:人工急停(.halt-live)或账户级 global_halt 生效时跳过新开仓;在场持仓管理/平仓任何时候都不受影响。
+	// 2026-07-02 变更:旧版刻意让探索档无视 global_halt(当时账户风控空转+阈值失配,halt 全是误报);
+	// 现账户风控已吃方向结算真数据、阈值按 88U 校准,halt 是有效信号,方向开仓必须尊重(审计 P0)。
+	if e.controlPlane != nil && (e.controlPlane.IsEmergencyHaltActive() || e.controlPlane.IsGlobalHaltActive()) {
 		now := e.nowFn()
 		if now.Sub(e.lastHaltLogAt) > 5*time.Minute {
 			e.lastHaltLogAt = now
-			e.logger.Printf("[%s][OKX方向] 人工紧急急停(.halt-live)生效,跳过新开仓(在场持仓照常管理)", e.venueName)
+			src := "global_halt(账户风控硬停)"
+			if e.controlPlane.IsEmergencyHaltActive() {
+				src = "人工紧急急停(.halt-live)"
+			}
+			e.logger.Printf("[%s][OKX方向] %s 生效,跳过新开仓(在场持仓照常管理;解除:面板 START 或清 control_plane.global_halt)", e.venueName, src)
 		}
 		return
 	}
@@ -1477,8 +1500,8 @@ func (e *OKXDirectionalEngine) openFromShortlist(ctx context.Context) {
 		e.recordShadowFastSignal(p.sym, p.signal.Side, stage, result, p.micro) // fast-layer 影子快信号(record-only)
 	}
 	var picks []pick
-	var nSignal, nBelowFloor, nInsufficient, nVeto, nNoSig, nNotTradable int
-	var floorEg, vetoEg, noSigEg string
+	var nSignal, nBelowFloor, nInsufficient, nVeto, nNoSig, nNotTradable, nRunupReject int
+	var floorEg, vetoEg, noSigEg, runupEg string
 	for _, ent := range sl {
 		sym := ent.Symbol
 		if held[sym] {
@@ -1533,6 +1556,14 @@ func (e *OKXDirectionalEngine) openFromShortlist(ctx context.Context) {
 			recDecision(cand, "tradability", "rejected", "not_tradable_after_quantize", "", false)
 			continue
 		}
+		// runup 临门确认闸:信号出现后价格仍逆信号方向走(runup<阈值)= 反转未确认,拒开等下轮。
+		// micro 缺失时 fail-open(无数据不拦)。依据:runup<0 桶 PF 0.44-0.53 跨窗稳定(OKX 0.30 vs 0.93)。
+		if e.runupConfirmArmed() && micro != nil && micro.PreOpenRunupBps < e.cfg.RunupConfirmMinBps {
+			nRunupReject++
+			runupEg = fmt.Sprintf("%s %s runup=%.1fbp<%.1f", sym, sig.Side.String(), micro.PreOpenRunupBps, e.cfg.RunupConfirmMinBps)
+			recDecision(cand, "runup_confirm", "rejected", "runup_below_confirm_min", "", false)
+			continue
+		}
 		if sig.ExpectedMoveBps < costFloor {
 			nBelowFloor++
 			floorEg = fmt.Sprintf("%s %s move=%.0fbps<%.0f", sym, sig.Side.String(), sig.ExpectedMoveBps, costFloor)
@@ -1544,8 +1575,8 @@ func (e *OKXDirectionalEngine) openFromShortlist(ctx context.Context) {
 	sort.Slice(picks, func(i, j int) bool { return picks[i].signal.Conviction > picks[j].signal.Conviction })
 	if len(picks) == 0 {
 		e.clearLastError()
-		e.logger.Printf("[OKX方向][漏斗] shortlist=%d 空位=%d 有方向=0 | flat: 样本不足=%d 资费否决=%d 无信号=%d 过地板挡=%d 不可交易=%d(地板=%.0fbps) | 例[veto=%s][nosig=%s][floor=%s]",
-			len(sl), slots, nInsufficient, nVeto, nNoSig, nBelowFloor, nNotTradable, costFloor, vetoEg, noSigEg, floorEg)
+		e.logger.Printf("[OKX方向][漏斗] shortlist=%d 空位=%d 有方向=0 | flat: 样本不足=%d 资费否决=%d 无信号=%d 过地板挡=%d 不可交易=%d runup未确认=%d(地板=%.0fbps) | 例[veto=%s][nosig=%s][floor=%s][runup=%s]",
+			len(sl), slots, nInsufficient, nVeto, nNoSig, nBelowFloor, nNotTradable, nRunupReject, costFloor, vetoEg, noSigEg, floorEg, runupEg)
 		return
 	}
 	// BTC 近期方向(用于追势过滤):每周期取一次。1=涨 -1=跌 0=横盘/未知。
@@ -1871,13 +1902,22 @@ func (e *OKXDirectionalEngine) openPosition(ctx context.Context, sym string, sig
 	if !trusted {
 		e.logger.Printf("[OKX方向][记账] %s 开仓成交价 %.6f 偏离 mid %.6f 过大或无效,记账回退 mid", sym, res.AvgPrice, mid)
 	}
+	// maker-only 下可能部分成交:名义按【实际成交额】记账,否则 realized=uPnL%×名义 会按满额放大盈亏,
+	// 污染日损/统计口径(审计 P1)。交易所真实风险本就按实际 qty,记账与之对齐。
+	actualNotional := res.ExecutedQty * fillPrice
+	if actualNotional > 0 && actualNotional < notional*0.99 {
+		e.logger.Printf("[OKX方向][记账] %s maker 部分成交 %.2f/%.2fU,名义按实际成交额记账", sym, actualNotional, notional)
+	}
+	if actualNotional <= 0 {
+		actualNotional = notional
+	}
 	openedAt := e.nowFn().UTC()
 	pos := &okxDirectionalPosition{
 		Symbol:        sym,
 		Side:          sig.Side.String(),
 		EntryPrice:    fillPrice,
 		Qty:           res.ExecutedQty,
-		NotionalUSDT:  notional,
+		NotionalUSDT:  actualNotional,
 		OpenedAt:      openedAt,
 		Regime:        sig.Regime.String(),
 		FundingAtOpen: fundingRate,
@@ -1888,9 +1928,9 @@ func (e *OKXDirectionalEngine) openPosition(ctx context.Context, sym string, sig
 		OpenFeeUSDT:   math.Abs(res.Fee),
 		OpenMicro:     micro, // record-only:挂上开仓微结构(nil 时 omitempty 不落盘)
 		// 分层标记(record-only):当前全是慢信号探索层。
-		SignalLayer:     dirSignalLayerSlow5m,
-		EntryLayer:      dirEntryLayerSlow5m,
-		ManagementLayer: dirManageLayerSlow,
+		SignalLayer:         dirSignalLayerSlow5m,
+		EntryLayer:          dirEntryLayerSlow5m,
+		ManagementLayer:     dirManageLayerSlow,
 		RegimeDegradeHit:    regimeHit, // 命中坏环境则本仓名义已降档(见上方 effPerPosNotional)
 		RegimeDegradeReason: regimeReason,
 	}
@@ -2065,6 +2105,23 @@ func (e *OKXDirectionalEngine) closePosition(ctx context.Context, pos *okxDirect
 	default:
 		return
 	}
+	// 并发平仓 claim:同一 PositionID 只允许一路在平(20s 快环与 90s 慢环可能同 tick 触发,审计 P1)。
+	e.mu.Lock()
+	if e.closingClaims == nil {
+		e.closingClaims = make(map[string]bool)
+	}
+	cur, stillHeld := e.positions[pos.Symbol]
+	if !stillHeld || cur == nil || cur.PositionID != pos.PositionID || e.closingClaims[pos.PositionID] {
+		e.mu.Unlock()
+		return
+	}
+	e.closingClaims[pos.PositionID] = true
+	e.mu.Unlock()
+	defer func() {
+		e.mu.Lock()
+		delete(e.closingClaims, pos.PositionID)
+		e.mu.Unlock()
+	}()
 	if !e.cfg.LiveTradingEnabled {
 		e.logger.Printf("[OKX方向][OFF] 拟平 %s %s 原因=%s uPnL=%.3f%% hold=%dm",
 			pos.Symbol, pos.Side, reason, uPnLPct*100, holdMin)
@@ -2145,36 +2202,36 @@ func (e *OKXDirectionalEngine) closePosition(ctx context.Context, pos *okxDirect
 	openMicro := src.OpenMicro
 	e.mu.Unlock()
 	settle := okxDirectionalSettlement{
-		Time:          e.nowFn().UTC(),
-		Symbol:        pos.Symbol,
-		Side:          pos.Side,
-		Entry:         pos.EntryPrice,
-		Exit:          exitPrice,
-		NotionalUSDT:  pos.NotionalUSDT,
-		RealizedUSDT:  realized,
-		HoldMinutes:   holdMin,
-		Regime:        pos.Regime,
-		Reason:        reason,
-		FundingAtOpen: pos.FundingAtOpen,
-		PositionID:    pos.PositionID,
-		HoldSeconds:   holdSec,
-		EntrySlipBps:  entrySlip,
-		ExitSlipBps:   directionalSlipBps(closeSide, mid, exitPrice),
-		OpenViaTaker:  openTaker,
-		CloseViaTaker: closeInfo.tookTaker,
-		FeeUSDT:       openFee + math.Abs(res.Fee), // 剩余开仓侧实扣费(分批已按比例扣减)+ 本次平仓侧实扣费
-		MFEAccountPct: mfe,
-		MAEAccountPct: mae,
-		MFE30sPct:     mfe30,
-		MAE30sPct:     mae30,
-		MFE60sPct:     mfe60,
-		MAE60sPct:     mae60,
-		MFE180sPct:    mfe180,
-		MAE180sPct:    mae180,
-		OpenMicro:     openMicro,
-		SignalLayer:     pos.SignalLayer,
-		EntryLayer:      pos.EntryLayer,
-		ManagementLayer: pos.ManagementLayer,
+		Time:                e.nowFn().UTC(),
+		Symbol:              pos.Symbol,
+		Side:                pos.Side,
+		Entry:               pos.EntryPrice,
+		Exit:                exitPrice,
+		NotionalUSDT:        pos.NotionalUSDT,
+		RealizedUSDT:        realized,
+		HoldMinutes:         holdMin,
+		Regime:              pos.Regime,
+		Reason:              reason,
+		FundingAtOpen:       pos.FundingAtOpen,
+		PositionID:          pos.PositionID,
+		HoldSeconds:         holdSec,
+		EntrySlipBps:        entrySlip,
+		ExitSlipBps:         directionalSlipBps(closeSide, mid, exitPrice),
+		OpenViaTaker:        openTaker,
+		CloseViaTaker:       closeInfo.tookTaker,
+		FeeUSDT:             openFee + math.Abs(res.Fee), // 剩余开仓侧实扣费(分批已按比例扣减)+ 本次平仓侧实扣费
+		MFEAccountPct:       mfe,
+		MAEAccountPct:       mae,
+		MFE30sPct:           mfe30,
+		MAE30sPct:           mae30,
+		MFE60sPct:           mfe60,
+		MAE60sPct:           mae60,
+		MFE180sPct:          mfe180,
+		MAE180sPct:          mae180,
+		OpenMicro:           openMicro,
+		SignalLayer:         pos.SignalLayer,
+		EntryLayer:          pos.EntryLayer,
+		ManagementLayer:     pos.ManagementLayer,
 		RegimeDegradeHit:    pos.RegimeDegradeHit,
 		RegimeDegradeReason: pos.RegimeDegradeReason,
 	}
@@ -2432,6 +2489,44 @@ func (e *OKXDirectionalEngine) leverage() int {
 		return e.cfg.Leverage
 	}
 	return 5
+}
+
+// venueInAllowList 灰度所名单判定:空名单=所有所生效;非空则须命中本所(csv,容忍空格,大小写不敏感)。
+func (e *OKXDirectionalEngine) venueInAllowList(allow string) bool {
+	allow = strings.TrimSpace(allow)
+	if allow == "" {
+		return true
+	}
+	for _, v := range strings.Split(allow, ",") {
+		if strings.EqualFold(strings.TrimSpace(v), e.venueName) {
+			return true
+		}
+	}
+	return false
+}
+
+// maeDisasterCutArmed MAE 灾难刹车是否对本所生效(§11.2):开关开 + 阈值>0 + 本所在灰度名单。
+func (e *OKXDirectionalEngine) maeDisasterCutArmed() bool {
+	return e.cfg.MAEDisasterCutEnabled && e.cfg.MAEDisasterCutPct > 0 && e.venueInAllowList(e.cfg.MAEDisasterCutVenues)
+}
+
+// runupConfirmArmed runup 临门确认闸是否对本所生效:开关开 + 本所在灰度名单 + 本所已开 OpenMicro 埋点(数据源)。
+func (e *OKXDirectionalEngine) runupConfirmArmed() bool {
+	return e.cfg.RunupConfirmFilterEnabled && e.venueInAllowList(e.cfg.RunupConfirmVenues) && e.openMicroEnabled()
+}
+
+// effectiveFastStopFloor 计算 20s 快速风控的生效止损地板与出场原因(纯函数,可单测)。
+// 语义:地板取「更浅」者(数值更大),即灾难刹车只会让出场更早、绝不放宽既有止损/锁利。
+func effectiveFastStopFloor(dynamicFloor, stopPct, maeCutPct float64, maeArmed bool) (floor float64, reason string) {
+	floor = dynamicFloor
+	if floor == 0 {
+		floor = -stopPct
+	}
+	reason = "硬止损(快速)"
+	if maeArmed && maeCutPct > 0 && -maeCutPct > floor {
+		return -maeCutPct, "mae_disaster_cut"
+	}
+	return floor, reason
 }
 
 func okxDirectionalClientID(sym, leg string) string {

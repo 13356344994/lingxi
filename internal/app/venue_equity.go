@@ -57,8 +57,8 @@ func (s *DashboardServer) venueAccountAdapter(rt *venueRuntime) venue.AccountDat
 	if rt == nil || rt.name == "" {
 		return nil
 	}
-	if s != nil && s.crossVenueExecutor != nil {
-		if adp := s.crossVenueExecutor.venues[rt.name]; adp != nil {
+	if s != nil && s.equitySvc != nil {
+		if adp := s.equitySvc.Venues()[rt.name]; adp != nil {
 			return adp
 		}
 	}

@@ -26,12 +26,9 @@ import (
 // P3b 起逐步:per-venue records/<venue>/ 隔离、控制 API ?venue= 路由、双级 halt、启动隔离、面板 venue 维度。
 type venueRuntime struct {
 	name string
-	// venueAdapter 是该所的 venue.Venue 适配器(P3a 可为 nil;接第二家时每所注入各自适配器)。
+	// venueAdapter 是该所的 venue.Venue 适配器(方向引擎下单/行情/账户的唯一通道)。
 	venueAdapter venue.Venue
-	controller   *RuntimeController
-	store        *ReportStore
-	// allocatedCapitalUSDT 是该所绩效指标的收益率分母(§9.1),来自该所 cfg.AllocatedCapitalUSDT。
-	// 0 表示未配置 → /api/performance 因分母缺失判 Insufficient(不静默猜)。
+	// allocatedCapitalUSDT 是该所绩效指标的收益率分母,来自该所 cfg.AllocatedCapitalUSDT。
 	allocatedCapitalUSDT float64
 }
 
@@ -80,24 +77,11 @@ func venueEngineConfig(cfg EngineConfig, venueName string) EngineConfig {
 }
 
 func buildVenueRuntime(ctx context.Context, cfg EngineConfig, venueName string, logger *log.Logger) (*venueRuntime, error) {
+	_ = ctx
+	_ = logger
 	venueCfg := venueEngineConfig(cfg, venueName)
-
-	store, err := NewReportStore(venueCfg.NetworkConfig.RecordDir)
-	if err != nil {
-		return nil, err
-	}
-	// 日志 venue 维度(§12.1):非币安所给 logger 加 `[venue=<name>] ` 前缀,四所并行时进程日志可按所区分;
-	// 币安(primary)沿用原 logger(无前缀)→ 既有日志逐字节不变。结构化记录已按 records/<venue>/ 物理隔离。
-	venueLogger := venueScopedLogger(logger, venueName)
-	controller, err := NewRuntimeController(ctx, store, venueCfg, venueLogger)
-	if err != nil {
-		return nil, err
-	}
-	controller.venueName = venueName // 资金快照/调仓据此分支(币安走引擎,其它走 venue 适配器)
 	return &venueRuntime{
 		name:                 venueName,
-		controller:           controller,
-		store:                store,
 		allocatedCapitalUSDT: venueCfg.AllocatedCapitalUSDT,
 	}, nil
 }

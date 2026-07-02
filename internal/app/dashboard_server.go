@@ -23,41 +23,25 @@ import (
 	"time"
 )
 
-//go:embed webpanel/*
+//go:embed webpanel/index.html
 var webPanelFS embed.FS
 
-// DashboardServer 提供记录查看和下载面板。
+// DashboardServer 本地控制面板:方向引擎控制/观测 + 账户级权益/收益 + 记录浏览。
 type DashboardServer struct {
-	addr string
-	// orchestrator 持有所有 venue 运行时(P3a)。store/controller 是 Primary() 的快捷引用,使现有 handler
-	// 保持走缺省所、路由零变化;P3 后续 handler 改按 ?venue= 经 orchestrator 路由。
-	orchestrator           *Orchestrator
-	store                  *ReportStore
-	controller             *RuntimeController
-	auditStore             *DashboardAuditStore
-	controlToken           string
-	logger                 *log.Logger
-	indexTmpl              *template.Template
-	unifiedLeaderboardTmpl *template.Template
-	startedAt              time.Time
-	// tokenMirrorDir 是控制令牌文件的固定镜像目录(全局 records/)。Primary 所随注册顺序漂移时,
-	// 令牌会被写进 records/<primary>/ —— 路径每次重启都可能不同,用户 cat 旧路径拿到的是过期令牌。
-	// 镜像保证 `cat records/.dashboard_control_token` 永远有效。
+	addr         string
+	orchestrator *Orchestrator
+	auditStore   *DashboardAuditStore
+	controlToken string
+	logger       *log.Logger
+	indexTmpl    *template.Template
+	startedAt    time.Time
+	// tokenMirrorDir 是控制令牌文件的固定镜像目录(全局 records/)。
 	tokenMirrorDir string
 	// tokenNotify 在令牌落盘后被调用(如经 Telegram 推送给用户),nil=不推送。
 	tokenNotify func(token string)
-	// crossVenueScanner 是 P1 跨所资金费价差扫描器(纯只读);nil=未启用。
-	crossVenueScanner *CrossVenueScanner
-	// crossVenueExecutor 是 P1 跨所 perp-perp 对冲执行引擎;nil=未启用。
-	crossVenueExecutor *CrossVenueExecutor
-	// 五策略统一轮动的四个执行器(供一键全平仓 flatten-all 使用);nil=未启用 unified_rotation。
-	svspExec *SingleVenueSpotPerpExecutor
-	cvspExec *CrossVenueSpotPerpExecutor
-	svpsExec *SingleVenuePerpSpotExecutor
-	cvpsExec *CrossVenuePerpSpotExecutor
-	// rotationRunner 是五策略统一轮动 runner; nil=未注入。
-	rotationRunner *UnifiedRotationRunner
-	// directionalEngines 各所方向引擎(独立于 carry);键=venue 名。
+	// equitySvc 账户级权益采样/收益核算服务;nil=未注入。
+	equitySvc *AccountEquityService
+	// directionalEngines 各所方向引擎;键=venue 名。
 	directionalEngines map[string]*OKXDirectionalEngine
 	// controlPlane 统一控制面; nil=未注入(测试/旧路径)。
 	controlPlane *ControlPlane
@@ -68,8 +52,15 @@ type DashboardServer struct {
 	recordDir string
 }
 
-// SetRecordDir 注入根记录目录(供面板读取账户风控充提平移状态)。
+// SetRecordDir 注入根记录目录(供面板读取账户风控充提平移状态与 /records/ 静态目录)。
 func (s *DashboardServer) SetRecordDir(dir string) { s.recordDir = strings.TrimSpace(dir) }
+
+func (s *DashboardServer) recordDirOrDefault() string {
+	if s != nil && strings.TrimSpace(s.recordDir) != "" {
+		return strings.TrimSpace(s.recordDir)
+	}
+	return "records"
+}
 
 // SetTokenMirrorDir 设置控制令牌的固定镜像目录(启动前调用)。
 func (s *DashboardServer) SetTokenMirrorDir(dir string) { s.tokenMirrorDir = strings.TrimSpace(dir) }
@@ -77,27 +68,9 @@ func (s *DashboardServer) SetTokenMirrorDir(dir string) { s.tokenMirrorDir = str
 // SetTokenNotifier 设置令牌推送回调(启动前调用)。
 func (s *DashboardServer) SetTokenNotifier(fn func(token string)) { s.tokenNotify = fn }
 
-// SetCrossVenueScanner 注入跨所资金费扫描器(供 /api/cross-venue/funding 读取)。
-func (s *DashboardServer) SetCrossVenueScanner(scanner *CrossVenueScanner) {
-	s.crossVenueScanner = scanner
-}
-
-// SetCrossVenueExecutor 注入跨所对冲执行引擎(供 /api/cross-venue/positions 读取)。
-func (s *DashboardServer) SetCrossVenueExecutor(exec *CrossVenueExecutor) {
-	s.crossVenueExecutor = exec
-}
-
-// SetRotationExecutors 注入五策略统一轮动的四个执行器(供一键全平仓 /api/strategy/flatten-all 使用)。
-func (s *DashboardServer) SetRotationExecutors(svsp *SingleVenueSpotPerpExecutor, cvsp *CrossVenueSpotPerpExecutor, svps *SingleVenuePerpSpotExecutor, cvps *CrossVenuePerpSpotExecutor) {
-	s.svspExec = svsp
-	s.cvspExec = cvsp
-	s.svpsExec = svps
-	s.cvpsExec = cvps
-}
-
-// SetRotationRunner 注入五策略统一轮动 runner(供 /api/rotation/* 读取与控制)。
-func (s *DashboardServer) SetRotationRunner(r *UnifiedRotationRunner) {
-	s.rotationRunner = r
+// SetAccountEquityService 注入账户级权益服务(供收益面板「北京0点基准」与快照清理使用)。
+func (s *DashboardServer) SetAccountEquityService(svc *AccountEquityService) {
+	s.equitySvc = svc
 }
 
 // SetOKXDirectionalEngine 按 eng.Venue() 注册方向引擎(供 /api/okx-directional 读取)。
@@ -131,121 +104,60 @@ func (s *DashboardServer) SetControlPlane(cp *ControlPlane) {
 	s.controlPlane = cp
 }
 
-// DashboardSummaryResponse 表示面板一次刷新所需的聚合数据。
-type DashboardSummaryResponse struct {
-	// Venue 标识本次 summary 代表的所(读时注入,§9.2):summary 是单所视图,缺省/all → 缺省所(Primary),
-	// 具名 → 该所;前端据此知道当前 Tab 展示的是哪家。
-	Venue string `json:"venue"`
-	// VenueScope 当 ?venue=all 且本接口无法跨所聚合时为 "primary_only"(诚实标注:数据仅来自缺省所,非四所合计)。
-	VenueScope            string                    `json:"venue_scope,omitempty"`
-	RuntimeStatus         RuntimeTaskStatus         `json:"runtime_status"`
-	CapitalSnapshot       RuntimeCapitalSnapshot    `json:"capital_snapshot"`
-	CapitalSnapshotError  string                    `json:"capital_snapshot_error"`
-	RuntimeLogs           []RuntimeLogRecord        `json:"runtime_logs"`
-	RuntimeConfig         RuntimeRiskConfig         `json:"runtime_config"`
-	UnifiedEvents         []UnifiedDashboardEvent   `json:"unified_events"`
-	ExecutionIncidents    []ExecutionIncidentRecord `json:"execution_incidents"`
-	DomainEvents          []DomainEvent             `json:"domain_events"`
-	Settlements           []SettlementCSVRecord     `json:"settlements"`
-	Monitors              []MonitorCSVRecord        `json:"monitors"`
-	Backtests             []BacktestCSVRecord       `json:"backtests"`
-	ResidualRisks         []ResidualRiskCSVRecord   `json:"residual_risks"`
-	ResidualSeverityStats []ResidualSeverityStats   `json:"residual_severity_stats"`
-	ResidualScenarioStats []ResidualScenarioStats   `json:"residual_scenario_stats"`
-}
-
-// NewDashboardServer 创建一个只读 Web 面板服务。P3a 起接收 Orchestrator;缺省所(Primary)的 store/controller
-// 作为现有 handler 的快捷引用,保持路由与行为零变化。
+// NewDashboardServer 创建本地 Web 面板服务。
 func NewDashboardServer(addr string, orch *Orchestrator, logger *log.Logger) (*DashboardServer, error) {
 	primary := orch.Primary()
 	if primary == nil {
 		return nil, fmt.Errorf("编排器未注册任何 venue,无法创建面板")
 	}
-	store := primary.store
-	controller := primary.controller
 	indexTmpl, err := template.ParseFS(webPanelFS, "webpanel/index.html")
 	if err != nil {
 		return nil, fmt.Errorf("解析 Web 面板模板失败: %w", err)
 	}
-	unifiedLeaderboardTmpl, err := template.ParseFS(webPanelFS, "webpanel/unified_leaderboard.html")
-	if err != nil {
-		return nil, fmt.Errorf("解析统一机会排行榜模板失败: %w", err)
-	}
-	auditStore, err := NewDashboardAuditStore(filepath.Join(store.RecordDir(), dashboardAuditLogJSONLName))
-	if err != nil {
-		return nil, err
-	}
 	return &DashboardServer{
-		addr:                   addr,
-		orchestrator:           orch,
-		store:                  store,
-		controller:             controller,
-		auditStore:             auditStore,
-		controlToken:           randomDashboardToken(),
-		logger:                 logger,
-		indexTmpl:              indexTmpl,
-		unifiedLeaderboardTmpl: unifiedLeaderboardTmpl,
-		startedAt:              time.Now(),
+		addr:         addr,
+		orchestrator: orch,
+		controlToken: randomDashboardToken(),
+		logger:       logger,
+		indexTmpl:    indexTmpl,
+		startedAt:    time.Now(),
 	}, nil
+}
+
+// ensureAuditStore 懒初始化审计存储(recordDir 由 SetRecordDir 注入,晚于构造)。
+func (s *DashboardServer) ensureAuditStore() *DashboardAuditStore {
+	if s == nil {
+		return nil
+	}
+	if s.auditStore != nil {
+		return s.auditStore
+	}
+	store, err := NewDashboardAuditStore(filepath.Join(s.recordDirOrDefault(), dashboardAuditLogJSONLName))
+	if err != nil {
+		if s.logger != nil {
+			s.logger.Printf("初始化 dashboard 审计日志失败: %v", err)
+		}
+		return nil
+	}
+	s.auditStore = store
+	return store
 }
 
 // Start 启动 Web 面板，并在 ctx 取消时优雅关闭。
 func (s *DashboardServer) Start(ctx context.Context) error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", s.handleIndex)
-	mux.HandleFunc("/api/dashboard/summary", s.authorizeReadAPI(s.handleDashboardSummaryAPI))
-	mux.HandleFunc("/api/performance", s.authorizeReadAPI(s.handlePerformanceAPI))
 	mux.HandleFunc("/api/venues", s.authorizeReadAPI(s.handleVenuesAPI))
-	mux.HandleFunc("/api/cross-venue/funding", s.authorizeReadAPI(s.handleCrossVenueFundingAPI))
-	mux.HandleFunc("/api/cross-venue/positions", s.authorizeReadAPI(s.handleCrossVenuePositionsAPI))
-	mux.HandleFunc("/api/cross-venue/settlements", s.authorizeReadAPI(s.handleCrossVenueSettlementsAPI))
-	mux.HandleFunc("/api/cross-venue/validation", s.authorizeReadAPI(s.handleCrossVenueValidationAPI))
-	mux.HandleFunc("/api/crossvenue/openings", s.handleCrossVenueOpeningsAPI)
+	mux.HandleFunc("/api/performance", s.authorizeReadAPI(s.handlePerformanceAPI))
 	mux.HandleFunc("/api/earnings", s.authorizeReadAPI(s.handleEarningsAPI))
 	mux.HandleFunc("/api/earnings/clear", s.handleEarningsClearAPI)
-	mux.HandleFunc("/api/settlements", s.authorizeReadAPI(s.handleSettlementAPI))
-	mux.HandleFunc("/api/monitor-records", s.authorizeReadAPI(s.handleMonitorAPI))
-	mux.HandleFunc("/api/backtest-records", s.authorizeReadAPI(s.handleBacktestAPI))
-	mux.HandleFunc("/api/residual-risk-records", s.authorizeReadAPI(s.handleResidualRiskAPI))
-	mux.HandleFunc("/api/residual-severity-stats", s.authorizeReadAPI(s.handleResidualSeverityStatsAPI))
-	mux.HandleFunc("/api/residual-scenario-stats", s.authorizeReadAPI(s.handleResidualScenarioStatsAPI))
-	mux.HandleFunc("/api/runtime/status", s.authorizeReadAPI(s.handleRuntimeStatusAPI))
-	mux.HandleFunc("/api/runtime/logs", s.authorizeReadAPI(s.handleRuntimeLogsAPI))
-	mux.HandleFunc("/api/unified-events", s.authorizeReadAPI(s.handleUnifiedEventsAPI))
-	mux.HandleFunc("/api/unified/leaderboard", s.authorizeReadAPI(s.handleUnifiedLeaderboardAPI))
-	mux.HandleFunc("/unified/leaderboard", s.handleUnifiedLeaderboardPage)
-	mux.HandleFunc("/api/execution-incidents", s.authorizeReadAPI(s.handleExecutionIncidentsAPI))
-	mux.HandleFunc("/api/domain-events", s.authorizeReadAPI(s.handleDomainEventsAPI))
-	mux.HandleFunc("/api/runtime/config", s.authorizeReadAPI(s.handleRuntimeConfigAPI))
-	mux.HandleFunc("/api/runtime/config/preview", s.authorizeReadAPI(s.handleRuntimeConfigPreviewAPI))
-	mux.HandleFunc("/api/runtime/config/rollback", s.handleRuntimeConfigRollbackAPI)
-	mux.HandleFunc("/api/runtime/clear-logs", s.handleRuntimeClearLogsAPI)
-	mux.HandleFunc("/api/runtime/clear-data", s.handleRuntimeClearDataAPI)
-	mux.HandleFunc("/api/runtime/clear-cache", s.handleRuntimeClearCacheAPI)
-	mux.HandleFunc("/api/runtime/clear-all", s.handleRuntimeClearAllAPI)
-	mux.HandleFunc("/api/runtime/capital", s.handleRuntimeCapitalAPI)
-	mux.HandleFunc("/api/runtime/start", s.handleRuntimeStartAPI)
-	mux.HandleFunc("/api/runtime/stop", s.handleRuntimeStopAPI)
-	mux.HandleFunc("/api/strategy/status", s.authorizeReadAPI(s.handleStrategyStatusAPI))
-	mux.HandleFunc("/api/strategy/capital", s.handleStrategyCapitalAPI)
-	mux.HandleFunc("/api/strategy/start", s.handleStrategyStartAPI)
-	mux.HandleFunc("/api/strategy/stop", s.handleStrategyStopAPI)
-	mux.HandleFunc("/api/strategy/flatten-all", s.handleStrategyFlattenAllAPI)
-	mux.HandleFunc("/api/rotation/status", s.authorizeReadAPI(s.handleRotationStatusAPI))
-	mux.HandleFunc("/api/rotation/capital-snapshot", s.authorizeReadAPI(s.handleRotationCapitalSnapshotAPI))
-	mux.HandleFunc("/api/rotation/positions", s.authorizeReadAPI(s.handleRotationPositionsAPI))
-	mux.HandleFunc("/api/rotation/settlements", s.authorizeReadAPI(s.handleRotationSettlementsAPI))
-	mux.HandleFunc("/api/rotation/missed-opportunities", s.authorizeReadAPI(s.handleMissedOpportunitiesAPI))
-	mux.HandleFunc("/api/rotation/attribution", s.authorizeReadAPI(s.handleSettlementAttributionAPI))
-	mux.HandleFunc("/api/rotation/start", s.handleRotationStartAPI)
-	mux.HandleFunc("/api/rotation/stop", s.handleRotationStopAPI)
 	mux.HandleFunc("/api/okx-directional", s.authorizeReadAPI(s.handleOKXDirectionalAPI))
 	mux.HandleFunc("/api/okx-directional/control", s.handleOKXDirectionalControlAPI)
-	// S5-B 探针/指标(不鉴权,只暴露非敏感健康信息):供 k8s liveness/readiness 与 Prometheus 抓取。
+	// 探针/指标(不鉴权,只暴露非敏感健康信息)。
 	mux.HandleFunc("/livez", s.handleLivez)
 	mux.HandleFunc("/healthz", s.handleHealthz)
 	mux.HandleFunc("/metrics", s.handleMetrics)
-	mux.Handle("/records/", s.authorizeRead(http.StripPrefix("/records/", http.FileServer(http.Dir(s.store.RecordDir())))))
+	mux.Handle("/records/", s.authorizeRead(http.StripPrefix("/records/", http.FileServer(http.Dir(s.recordDirOrDefault())))))
 
 	server := &http.Server{
 		Addr:              s.addr,
@@ -261,8 +173,6 @@ func (s *DashboardServer) Start(ctx context.Context) error {
 	}()
 
 	s.logger.Printf("Web 面板已启动: %s", dashboardBaseURL(s.addr))
-	// 安全:控制令牌**不再打印明文到日志**(日志会被转存/分享,明文令牌等于裸奔),只写入仅本机可读(0600)的
-	// 令牌文件,并在日志里打印「文件路径 + 指纹」便于核对。start.sh 从该文件读取令牌打印到本机控制台。
 	if s.controlToken != "" {
 		if tokenPath, err := s.persistControlToken(); err == nil {
 			s.logger.Printf("Dashboard 控制令牌已写入 %s (0600,仅本机可读,可 cat 查看);指纹=%s", tokenPath, hashDashboardToken(s.controlToken))
@@ -270,7 +180,7 @@ func (s *DashboardServer) Start(ctx context.Context) error {
 			s.logger.Printf("Dashboard 控制令牌写入文件失败(%v),请改用 cat 令牌文件;指纹=%s", err, hashDashboardToken(s.controlToken))
 		}
 		if s.tokenNotify != nil {
-			go s.tokenNotify(s.controlToken) // 异步推送(如 Telegram),绝不阻塞面板启动
+			go s.tokenNotify(s.controlToken)
 		}
 	} else {
 		s.logger.Printf("Dashboard 控制令牌未设置（控制类操作不需要令牌）")
@@ -287,593 +197,22 @@ func (s *DashboardServer) handleIndex(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	// 面板 HTML 内嵌于二进制,版本随构建变化;禁用浏览器缓存,避免改版后用户仍看到旧页面(需强刷)。
 	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
 	w.Header().Set("Pragma", "no-cache")
 	w.Header().Set("Expires", "0")
 	data := struct {
-		SettlementCSV        string
-		MonitorCSV           string
-		BacktestCSV          string
-		ResidualCSV          string
-		ExecutionCSV         string
-		DomainEventCSV       string
-		MonthlySimulationCSV string
-		RuntimeEventLog      string
-		ControlAuditLog      string
-		VersionSummary       string
+		ControlAuditLog string
+		VersionSummary  string
 	}{
-		SettlementCSV:        path.Join("/records", settlementCSVName),
-		MonitorCSV:           path.Join("/records", monitorCSVName),
-		BacktestCSV:          path.Join("/records", backtestCSVName),
-		ResidualCSV:          path.Join("/records", residualCSVName),
-		ExecutionCSV:         path.Join("/records", executionCSVName),
-		DomainEventCSV:       path.Join("/records", domainEventJSONLName),
-		MonthlySimulationCSV: path.Join("/records", monthlySimulationLogCSVName),
-		RuntimeEventLog:      path.Join("/records", runtimeEventLogJSONLName),
-		ControlAuditLog:      path.Join("/records", dashboardAuditLogJSONLName),
-		VersionSummary:       buildVersionSummary(),
+		ControlAuditLog: path.Join("/records", dashboardAuditLogJSONLName),
+		VersionSummary:  buildVersionSummary(),
 	}
 	if err := s.indexTmpl.Execute(w, data); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
 
-func (s *DashboardServer) handleSettlementAPI(w http.ResponseWriter, r *http.Request) {
-	targets, err := s.readTargets(r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
-	records, err := aggregateRecords(targets, parseLimit(r, 200), (*ReportStore).ListSettlementRecords, venueParam(r) == venueAllSelector)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	writeJSON(w, records)
-}
-
-func (s *DashboardServer) handleDashboardSummaryAPI(w http.ResponseWriter, r *http.Request) {
-	// summary 是「单所视图」:缺省/all → 缺省所(Primary);具名 → 该所。跨所 all 聚合视图是独立后续项(§9.2)。
-	rt, err := s.resolveVenue(venueParam(r))
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
-	if rt.controller == nil {
-		http.Error(w, "后台控制器未初始化", http.StatusServiceUnavailable)
-		return
-	}
-	ctrl := rt.controller
-	store := rt.store
-
-	limit := parseLimit(r, 200)
-	runtimeLogs, err := ctrl.RecentLogs(limit)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	executionIncidents, err := store.ListExecutionIncidents(limit)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	domainEvents, err := store.ListDomainEvents(limit)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	settlements, err := store.ListSettlementRecords(limit)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	monitors, err := store.ListMonitorRecords(limit)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	backtests, err := store.ListBacktestRecords(limit)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	residualRisks, err := store.ListResidualRiskRecords(limit)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	residualSeverityStats, err := store.ListResidualSeverityStats()
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	residualScenarioStats, err := store.ListResidualScenarioStats()
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	capitalSnapshot := RuntimeCapitalSnapshot{}
-	capitalSnapshotError := ""
-	if snapshot, snapshotErr := ctrl.CurrentCapitalSnapshot(); snapshotErr != nil {
-		capitalSnapshotError = snapshotErr.Error()
-	} else {
-		capitalSnapshot = snapshot
-	}
-
-	writeJSON(w, DashboardSummaryResponse{
-		Venue:                 rt.name,
-		VenueScope:            venueScopeLabel(venueParam(r)),
-		RuntimeStatus:         ctrl.Status(),
-		CapitalSnapshot:       capitalSnapshot,
-		CapitalSnapshotError:  capitalSnapshotError,
-		RuntimeLogs:           runtimeLogs,
-		RuntimeConfig:         ctrl.CurrentRiskConfig(),
-		UnifiedEvents:         buildUnifiedDashboardEvents(domainEvents, executionIncidents, limit),
-		ExecutionIncidents:    executionIncidents,
-		DomainEvents:          domainEvents,
-		Settlements:           settlements,
-		Monitors:              monitors,
-		Backtests:             backtests,
-		ResidualRisks:         residualRisks,
-		ResidualSeverityStats: residualSeverityStats,
-		ResidualScenarioStats: residualScenarioStats,
-	})
-}
-
-func (s *DashboardServer) handleUnifiedEventsAPI(w http.ResponseWriter, r *http.Request) {
-	targets, err := s.readTargets(r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
-	limit := parseLimit(r, 200)
-	injectVenue := venueParam(r) == venueAllSelector
-	executionIncidents, err := aggregateRecords(targets, limit, (*ReportStore).ListExecutionIncidents, injectVenue)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	domainEvents, err := aggregateRecords(targets, limit, (*ReportStore).ListDomainEvents, injectVenue)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	writeJSON(w, buildUnifiedDashboardEvents(domainEvents, executionIncidents, limit))
-}
-
-func (s *DashboardServer) handleMonitorAPI(w http.ResponseWriter, r *http.Request) {
-	targets, err := s.readTargets(r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
-	records, err := aggregateRecords(targets, parseLimit(r, 200), (*ReportStore).ListMonitorRecords, venueParam(r) == venueAllSelector)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	writeJSON(w, records)
-}
-
-func (s *DashboardServer) handleBacktestAPI(w http.ResponseWriter, r *http.Request) {
-	targets, err := s.readTargets(r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
-	records, err := aggregateRecords(targets, parseLimit(r, 200), (*ReportStore).ListBacktestRecords, venueParam(r) == venueAllSelector)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	writeJSON(w, records)
-}
-
-func (s *DashboardServer) handleResidualRiskAPI(w http.ResponseWriter, r *http.Request) {
-	targets, err := s.readTargets(r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
-	records, err := aggregateRecords(targets, parseLimit(r, 200), (*ReportStore).ListResidualRiskRecords, venueParam(r) == venueAllSelector)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	writeJSON(w, records)
-}
-
-func (s *DashboardServer) handleResidualSeverityStatsAPI(w http.ResponseWriter, r *http.Request) {
-	targets, err := s.readTargets(r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
-	stats, err := aggregateStats(targets, (*ReportStore).ListResidualSeverityStats)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	writeJSON(w, stats)
-}
-
-func (s *DashboardServer) handleResidualScenarioStatsAPI(w http.ResponseWriter, r *http.Request) {
-	targets, err := s.readTargets(r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
-	stats, err := aggregateStats(targets, (*ReportStore).ListResidualScenarioStats)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	writeJSON(w, stats)
-}
-
-func (s *DashboardServer) handleRuntimeStatusAPI(w http.ResponseWriter, r *http.Request) {
-	rt, err := s.resolveVenue(venueParam(r))
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
-	if rt.controller == nil {
-		http.Error(w, "后台控制器未初始化", http.StatusServiceUnavailable)
-		return
-	}
-	writeJSON(w, rt.controller.Status())
-}
-
-func (s *DashboardServer) handleRuntimeLogsAPI(w http.ResponseWriter, r *http.Request) {
-	rt, err := s.resolveVenue(venueParam(r))
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
-	if rt.controller == nil {
-		http.Error(w, "后台控制器未初始化", http.StatusServiceUnavailable)
-		return
-	}
-	logs, err := rt.controller.RecentLogs(parseLimit(r, 200))
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	writeJSON(w, logs)
-}
-
-func (s *DashboardServer) handleExecutionIncidentsAPI(w http.ResponseWriter, r *http.Request) {
-	targets, err := s.readTargets(r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
-	records, err := aggregateRecords(targets, parseLimit(r, 200), (*ReportStore).ListExecutionIncidents, venueParam(r) == venueAllSelector)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	writeJSON(w, records)
-}
-
-func (s *DashboardServer) handleDomainEventsAPI(w http.ResponseWriter, r *http.Request) {
-	targets, err := s.readTargets(r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
-	records, err := aggregateRecords(targets, parseLimit(r, 200), (*ReportStore).ListDomainEvents, venueParam(r) == venueAllSelector)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	writeJSON(w, records)
-}
-
-func (s *DashboardServer) handleRuntimeConfigAPI(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
-	case http.MethodGet:
-		rt, err := s.resolveVenue(venueParam(r))
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusNotFound)
-			return
-		}
-		if rt.controller == nil {
-			http.Error(w, "后台控制器未初始化", http.StatusServiceUnavailable)
-			return
-		}
-		writeJSON(w, rt.controller.CurrentRiskConfig())
-	case http.MethodPost:
-		if !s.authorizeRuntimeControl(w, r, "config_update") {
-			return
-		}
-		rt, ok := s.resolveControlTarget(w, r, "config_update")
-		if !ok {
-			return
-		}
-		if rt.controller == nil {
-			http.Error(w, "后台控制器未初始化", http.StatusServiceUnavailable)
-			return
-		}
-		var req RuntimeRiskConfig
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			s.auditControlAction(r, "config_update", false, fmt.Sprintf("解析风控参数失败: %v", err))
-			http.Error(w, fmt.Sprintf("解析风控参数失败: %v", err), http.StatusBadRequest)
-			return
-		}
-		updated, err := rt.controller.UpdateRiskConfig(req)
-		if err != nil {
-			s.auditControlAction(r, "config_update", false, err.Error())
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-		s.auditControlAction(r, "config_update", true, "风控参数已更新")
-		writeJSON(w, map[string]any{
-			"message": "风控参数已更新，将在下一次启动任务时生效",
-			"config":  updated,
-		})
-	default:
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-	}
-}
-
-// handleRuntimeConfigPreviewAPI 干跑预览改参的字段级 before/after diff,不落地任何改动(R35/S5-F)。
-func (s *DashboardServer) handleRuntimeConfigPreviewAPI(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	// 预览为干跑(不落地),按单所视图解析(缺省/all → 缺省所)。
-	rt, err := s.resolveVenue(venueParam(r))
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
-	if rt.controller == nil {
-		http.Error(w, "后台控制器未初始化", http.StatusServiceUnavailable)
-		return
-	}
-	var req RuntimeRiskConfig
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, fmt.Sprintf("解析风控参数失败: %v", err), http.StatusBadRequest)
-		return
-	}
-	diffs, err := rt.controller.PreviewRiskConfigUpdate(req)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	writeJSON(w, map[string]any{"diffs": diffs, "changed": len(diffs)})
-}
-
-// handleRuntimeConfigRollbackAPI 一键回滚到上一次改参前的配置(R35/S5-F)。
-func (s *DashboardServer) handleRuntimeConfigRollbackAPI(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	if !s.authorizeRuntimeControl(w, r, "config_rollback") {
-		return
-	}
-	rt, ok := s.resolveControlTarget(w, r, "config_rollback")
-	if !ok {
-		return
-	}
-	if rt.controller == nil {
-		http.Error(w, "后台控制器未初始化", http.StatusServiceUnavailable)
-		return
-	}
-	rolledBack, err := rt.controller.RollbackRiskConfig()
-	if err != nil {
-		s.auditControlAction(r, "config_rollback", false, err.Error())
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	s.auditControlAction(r, "config_rollback", true, "风控参数已回滚到上一版本")
-	writeJSON(w, map[string]any{
-		"message": "风控参数已回滚到上一版本，将在下一次启动任务时生效",
-		"config":  rolledBack,
-	})
-}
-
-func (s *DashboardServer) handleRuntimeClearLogsAPI(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	if !s.authorizeRuntimeControl(w, r, "clear_logs") {
-		return
-	}
-	rt, ok := s.resolveControlTarget(w, r, "clear_logs")
-	if !ok {
-		return
-	}
-	if rt.controller == nil {
-		http.Error(w, "后台控制器未初始化", http.StatusServiceUnavailable)
-		return
-	}
-	if err := rt.controller.ClearRuntimeLogs(); err != nil {
-		s.auditControlAction(r, "clear_logs", false, err.Error())
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	s.auditControlAction(r, "clear_logs", true, "后台运行日志已清空")
-	writeJSON(w, map[string]string{"message": "后台运行日志已清空"})
-}
-
-func (s *DashboardServer) handleRuntimeClearDataAPI(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	if !s.authorizeRuntimeControl(w, r, "clear_data") {
-		return
-	}
-	rt, ok := s.resolveControlTarget(w, r, "clear_data")
-	if !ok {
-		return
-	}
-	if rt.controller == nil {
-		http.Error(w, "后台控制器未初始化", http.StatusServiceUnavailable)
-		return
-	}
-	if err := rt.controller.ClearDashboardData(); err != nil {
-		s.auditControlAction(r, "clear_data", false, err.Error())
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	s.auditControlAction(r, "clear_data", true, "页面 JSON 数据已清空")
-	writeJSON(w, map[string]string{"message": "页面 JSON 数据已清空"})
-}
-
-func (s *DashboardServer) handleRuntimeClearCacheAPI(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	if !s.authorizeRuntimeControl(w, r, "clear_cache") {
-		return
-	}
-	rt, ok := s.resolveControlTarget(w, r, "clear_cache")
-	if !ok {
-		return
-	}
-	if rt.controller == nil {
-		http.Error(w, "后台控制器未初始化", http.StatusServiceUnavailable)
-		return
-	}
-	if err := rt.controller.ClearHistoricalCache(); err != nil {
-		s.auditControlAction(r, "clear_cache", false, err.Error())
-		http.Error(w, err.Error(), http.StatusConflict)
-		return
-	}
-	s.auditControlAction(r, "clear_cache", true, "历史缓存已清空")
-	writeJSON(w, map[string]string{"message": "历史缓存已清空"})
-}
-
-func (s *DashboardServer) handleRuntimeClearAllAPI(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	if !s.authorizeRuntimeControl(w, r, "clear_all") {
-		return
-	}
-	rt, ok := s.resolveControlTarget(w, r, "clear_all")
-	if !ok {
-		return
-	}
-	if rt.controller == nil {
-		http.Error(w, "后台控制器未初始化", http.StatusServiceUnavailable)
-		return
-	}
-	// clear_all 毁灭性(清空该所全部日志+记录),强制 confirm:必须显式带 confirm=<venue 名>,防误触(§7.3/§13.2)。
-	if strings.TrimSpace(r.URL.Query().Get("confirm")) != rt.name {
-		const msg = "clear_all 为毁灭性操作,须显式确认:请带 confirm=<交易所名>(与目标所一致)"
-		s.auditControlAction(r, "clear_all", false, msg)
-		http.Error(w, msg, http.StatusBadRequest)
-		return
-	}
-	if err := rt.controller.ClearAllRecords(); err != nil {
-		s.auditControlAction(r, "clear_all", false, err.Error())
-		http.Error(w, err.Error(), http.StatusConflict)
-		return
-	}
-	s.auditControlAction(r, "clear_all", true, "所有日志与记录已清空")
-	writeJSON(w, map[string]string{"message": "所有日志与记录已清空"})
-}
-
-func (s *DashboardServer) handleRuntimeCapitalAPI(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	if !s.authorizeRuntimeControl(w, r, "capital_adjust") {
-		return
-	}
-	rt, ok := s.resolveControlTarget(w, r, "capital_adjust")
-	if !ok {
-		return
-	}
-	if rt.controller == nil {
-		http.Error(w, "后台控制器未初始化", http.StatusServiceUnavailable)
-		return
-	}
-	var req RuntimeCapitalAdjustmentRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		s.auditControlAction(r, "capital_adjust", false, fmt.Sprintf("解析仓位调整参数失败: %v", err))
-		http.Error(w, fmt.Sprintf("解析仓位调整参数失败: %v", err), http.StatusBadRequest)
-		return
-	}
-	result, err := rt.controller.AdjustTradingCapital(req)
-	if err != nil {
-		s.auditControlAction(r, "capital_adjust", false, err.Error())
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	s.auditControlAction(r, "capital_adjust", true, result.Message)
-	writeJSON(w, result)
-}
-
-func (s *DashboardServer) handleRuntimeStartAPI(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	if !s.authorizeRuntimeControl(w, r, "start") {
-		return
-	}
-	rt, ok := s.resolveControlTarget(w, r, "start")
-	if !ok {
-		return
-	}
-	if rt.controller == nil {
-		http.Error(w, "后台控制器未初始化", http.StatusServiceUnavailable)
-		return
-	}
-
-	var req RuntimeStartRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		s.auditControlAction(r, "start", false, fmt.Sprintf("解析启动参数失败: %v", err))
-		http.Error(w, fmt.Sprintf("解析启动参数失败: %v", err), http.StatusBadRequest)
-		return
-	}
-	if err := rt.controller.Start(req); err != nil {
-		s.auditControlAction(r, "start", false, err.Error())
-		http.Error(w, err.Error(), http.StatusConflict)
-		return
-	}
-	s.auditControlAction(r, "start", true, fmt.Sprintf("后台任务已启动 mode=%s lookback_days=%d", strings.TrimSpace(req.Mode), req.LookbackDays))
-	writeJSON(w, map[string]string{"message": "后台任务已启动"})
-}
-
-func (s *DashboardServer) handleRuntimeStopAPI(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	if !s.authorizeRuntimeControl(w, r, "stop") {
-		return
-	}
-	rt, ok := s.resolveControlTarget(w, r, "stop")
-	if !ok {
-		return
-	}
-	if rt.controller == nil {
-		http.Error(w, "后台控制器未初始化", http.StatusServiceUnavailable)
-		return
-	}
-	if err := rt.controller.Stop(); err != nil {
-		s.auditControlAction(r, "stop", false, err.Error())
-		http.Error(w, err.Error(), http.StatusConflict)
-		return
-	}
-	s.auditControlAction(r, "stop", true, "已发送停止信号")
-	writeJSON(w, map[string]string{"message": "已发送停止信号"})
-}
-
-// tokenMatches 用恒定时间比较核对面板令牌(防时序侧信道泄露令牌长度/前缀)。空令牌视为不匹配。
+// tokenMatches 用恒定时间比较核对面板令牌(防时序侧信道)。空令牌视为不匹配。
 func (s *DashboardServer) tokenMatches(provided string) bool {
 	if s.controlToken == "" {
 		return false
@@ -882,8 +221,6 @@ func (s *DashboardServer) tokenMatches(provided string) bool {
 }
 
 func (s *DashboardServer) authorizeRuntimeControl(w http.ResponseWriter, r *http.Request, action string) bool {
-	// 远程请求(非本机回环):按需放开——只要持有合法控制令牌即放行(原为一律拒绝本机外请求)。
-	// 令牌是此处唯一鉴权凭据;未配置令牌时仍只允许本机,避免裸奔写接口被公网直接调用。
 	if !isLoopbackRequest(r) {
 		if s.controlToken == "" {
 			s.auditControlAction(r, action, false, "未设置控制令牌时仅允许本机控制")
@@ -934,14 +271,12 @@ func (s *DashboardServer) authorizeReadAPI(handler http.HandlerFunc) http.Handle
 }
 
 func (s *DashboardServer) auditControlAction(r *http.Request, action string, success bool, detail string) {
-	if s == nil || s.auditStore == nil {
+	if s == nil {
 		return
 	}
-	status := RuntimeTaskStatus{}
-	metadata := TraceRecordMetadata{}
-	if s.controller != nil {
-		status = s.controller.Status()
-		metadata = s.controller.currentRecordMetadata()
+	store := s.ensureAuditStore()
+	if store == nil {
+		return
 	}
 	record := newDashboardAuditRecord(
 		action,
@@ -950,18 +285,17 @@ func (s *DashboardServer) auditControlAction(r *http.Request, action string, suc
 		"dashboard",
 		strings.TrimSpace(r.RemoteAddr),
 		hashDashboardToken(r.Header.Get("X-Dashboard-Token")),
-		status.RunID,
-		status.CurrentCycleID,
+		"",
+		"",
 		s.auditVenueLabel(r),
-		metadata,
+		TraceRecordMetadata{},
 	)
-	if err := s.auditStore.Append(record); err != nil && s.logger != nil {
+	if err := store.Append(record); err != nil && s.logger != nil {
 		s.logger.Printf("写入 dashboard 审计日志失败: %v", err)
 	}
 }
 
-// auditVenueLabel 解析本次控制操作作用的所标签供审计:具名 → 该名;all → "all"(扇出拒绝场景也如实记录意图);
-// 缺省(空)→ 缺省所名(Primary)。编排器缺失时回退空串。
+// auditVenueLabel 解析本次控制操作作用的所标签供审计。
 func (s *DashboardServer) auditVenueLabel(r *http.Request) string {
 	name := venueParam(r)
 	if name != "" {
@@ -978,16 +312,12 @@ func (s *DashboardServer) auditVenueLabel(r *http.Request) string {
 // dashboardControlTokenFileName 是控制令牌落盘文件名(写在 RecordDir 下,0600 权限)。
 const dashboardControlTokenFileName = ".dashboard_control_token"
 
-// persistControlToken 把控制令牌以 0600 权限原子写入 RecordDir 下的令牌文件,返回路径。供操作者本机读取,避免明文进日志。
+// persistControlToken 把控制令牌以 0600 权限原子写入 RecordDir 下的令牌文件,返回路径。
 func (s *DashboardServer) persistControlToken() (string, error) {
-	if s.store == nil {
-		return "", fmt.Errorf("记录存储未初始化")
-	}
-	tokenPath := filepath.Join(s.store.RecordDir(), dashboardControlTokenFileName)
+	tokenPath := filepath.Join(s.recordDirOrDefault(), dashboardControlTokenFileName)
 	if err := writeDashboardTokenFile(tokenPath, s.controlToken); err != nil {
 		return "", err
 	}
-	// 固定镜像:Primary 所漂移导致主路径每次重启可能不同,镜像保证固定路径永远是当前有效令牌。
 	if s.tokenMirrorDir != "" {
 		mirror := filepath.Join(s.tokenMirrorDir, dashboardControlTokenFileName)
 		if mirror != tokenPath {
@@ -1069,121 +399,6 @@ func parseLimit(r *http.Request, fallback int) int {
 	return limit
 }
 
-func parsePositiveFloatQuery(r *http.Request, key string, fallback float64) float64 {
-	text := strings.TrimSpace(r.URL.Query().Get(key))
-	if text == "" {
-		return fallback
-	}
-	v, err := strconv.ParseFloat(text, 64)
-	if err != nil || v <= 0 {
-		return fallback
-	}
-	return v
-}
-
-// handleCrossVenueFundingAPI 返回最新一轮跨所资金费价差扫描结果(纯只读)。
-func (s *DashboardServer) handleCrossVenueFundingAPI(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	if s.crossVenueScanner == nil {
-		writeJSON(w, map[string]any{"enabled": false, "message": "跨所扫描器未启用"})
-		return
-	}
-	snap := s.crossVenueScanner.Snapshot()
-	panelTopN := crossVenueScannerPanelDisplayTopN(s.crossVenueScanner.cfg)
-	snap.Opportunities = crossVenueOpportunitiesTopN(snap.Opportunities, panelTopN)
-	writeJSON(w, snap)
-}
-
-// handleCrossVenuePositionsAPI 返回跨所对冲持仓台账+实时状态。
-func (s *DashboardServer) handleCrossVenuePositionsAPI(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	if s.crossVenueExecutor == nil {
-		writeJSON(w, map[string]any{"enabled": false, "message": "跨所执行引擎未启用"})
-		return
-	}
-	writeJSON(w, s.crossVenueExecutor.PositionsSnapshot())
-}
-
-// handleCrossVenueSettlementsAPI 返回跨所 perp-perp 单仓净利润归因结算记录 + 汇总。
-func (s *DashboardServer) handleCrossVenueSettlementsAPI(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	if s.crossVenueExecutor == nil {
-		writeJSON(w, map[string]any{"enabled": false, "message": "跨所执行引擎未启用"})
-		return
-	}
-	limit := parseLimit(r, 100)
-	resp, err := s.crossVenueExecutor.SettlementsSnapshot(limit)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	writeJSON(w, resp)
-}
-
-func (s *DashboardServer) handleCrossVenueValidationAPI(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	if s.crossVenueExecutor == nil {
-		writeJSON(w, map[string]any{"enabled": false, "message": "跨所执行引擎未启用"})
-		return
-	}
-	window := strings.TrimSpace(r.URL.Query().Get("window"))
-	var resp CrossVenueValidationSnapshot
-	var err error
-	switch strings.ToLower(window) {
-	case "beijing_day", "today_cst", "today":
-		now := time.Now()
-		resp, err = s.crossVenueExecutor.ValidationSnapshotSince(beijingCSTDayStart(now), now)
-	default:
-		windowHours := parsePositiveFloatQuery(r, "window_hours", 24)
-		resp, err = s.crossVenueExecutor.ValidationSnapshot(time.Duration(windowHours * float64(time.Hour)))
-	}
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	writeJSON(w, resp)
-}
-
-// handleCrossVenueOpeningsAPI 切换跨所运行时开仓开关(第三道闸)。
-func (s *DashboardServer) handleCrossVenueOpeningsAPI(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	if !s.authorizeRuntimeControl(w, r, "crossvenue_openings") {
-		return
-	}
-	if s.crossVenueExecutor == nil {
-		http.Error(w, "跨所执行引擎未启用", http.StatusServiceUnavailable)
-		return
-	}
-	var req struct {
-		Enabled bool `json:"enabled"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid json", http.StatusBadRequest)
-		return
-	}
-	if err := s.crossVenueExecutor.SetOpeningsEnabled(req.Enabled); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	s.auditControlAction(r, "crossvenue_openings", true, fmt.Sprintf("enabled=%v", req.Enabled))
-	writeJSON(w, map[string]any{"ok": true, "openings_enabled": req.Enabled})
-}
-
 func (s *DashboardServer) handleEarningsAPI(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -1194,11 +409,8 @@ func (s *DashboardServer) handleEarningsAPI(w http.ResponseWriter, r *http.Reque
 
 	pnlSummary, pnlErr := TodayCSTStrategyPnL(s, now)
 	allTimeSummary, _ := AllTimeStrategyPnL(s, now)
-	openAccruedFunding := sumOpenAccruedFundingUSDT(s)
 	accountEquityDelta := total.TodayEarningUSDT
 
-	// 充提平移:把账户风控识别出的当日充值/提币从「账户净值变动」里拆出来,使提现不再被误读为亏损,
-	// 并给出「交易净值变动(不含转账)」让用户一眼看清纯交易结果。
 	fundFlowAdjust := 0.0
 	fundFlowKnown := false
 	fundFlowSource := ""
@@ -1221,7 +433,6 @@ func (s *DashboardServer) handleEarningsAPI(w http.ResponseWriter, r *http.Reque
 		"generated_at":                now.Format(time.RFC3339),
 		"realized_pnl_usdt":           pnlSummary.TotalNetPnL,
 		"untrusted_realized_pnl_usdt": pnlSummary.UntrustedNetPnL,
-		"open_accrued_funding_usdt":   openAccruedFunding,
 		"account_equity_delta_usdt":   accountEquityDelta,
 		"fund_flow_adjust_usdt":       fundFlowAdjust,
 		"fund_flow_known":             fundFlowKnown,
@@ -1243,11 +454,6 @@ func (s *DashboardServer) handleEarningsAPI(w http.ResponseWriter, r *http.Reque
 	if pnlErr != nil {
 		resp["pnl_error"] = pnlErr.Error()
 	}
-	if s.crossVenueExecutor != nil {
-		if legacy, err := s.crossVenueExecutor.TodayCSTEarnings(now); err == nil {
-			resp["perp_perp_settlements_net_pnl"] = legacy.TotalNetPnL
-		}
-	}
 	writeJSON(w, resp)
 }
 
@@ -1259,145 +465,18 @@ func (s *DashboardServer) handleEarningsClearAPI(w http.ResponseWriter, r *http.
 	if !s.authorizeRuntimeControl(w, r, "earnings_clear") {
 		return
 	}
-	if s.crossVenueExecutor == nil {
-		writeJSON(w, map[string]any{"ok": true, "removed": 0, "message": "跨所执行引擎未启用,无快照可清"})
+	if s.equitySvc == nil {
+		writeJSON(w, map[string]any{"ok": true, "removed": 0, "message": "权益服务未启用,无快照可清"})
 		return
 	}
 	before := time.Now().UTC().Add(-24 * time.Hour)
-	removed, err := s.crossVenueExecutor.pruneEquitySnapshots(before)
+	removed, err := s.equitySvc.pruneEquitySnapshots(before)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	s.auditControlAction(r, "earnings_clear", true, fmt.Sprintf("removed=%d", removed))
 	writeJSON(w, map[string]any{"ok": true, "removed": removed, "message": fmt.Sprintf("已清除 %d 条 24 小时以外的权益快照", removed)})
-}
-
-func (s *DashboardServer) resolveUnifiedCandidatesLogPath() string {
-	if s.crossVenueExecutor != nil {
-		return s.crossVenueExecutor.UnifiedCandidatesLogPath()
-	}
-	base := s.store.RecordDir()
-	candidatesPath := UnifiedCandidatesLogPath(base)
-	if _, err := os.Stat(candidatesPath); err == nil {
-		return candidatesPath
-	}
-	parent := filepath.Dir(base)
-	if parent != base && parent != "" && parent != "." {
-		return UnifiedCandidatesLogPath(parent)
-	}
-	return candidatesPath
-}
-
-func (s *DashboardServer) handleUnifiedLeaderboardAPI(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	limit := parseLimit(r, 50)
-	resp, err := LoadUnifiedLeaderboard(s.resolveUnifiedCandidatesLogPath(), limit)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	writeJSON(w, resp)
-}
-
-func (s *DashboardServer) handleUnifiedLeaderboardPage(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	if s.unifiedLeaderboardTmpl == nil {
-		http.Error(w, "页面模板未加载", http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
-	w.Header().Set("Pragma", "no-cache")
-	w.Header().Set("Expires", "0")
-	if err := s.unifiedLeaderboardTmpl.Execute(w, nil); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
-}
-
-// RotationStartRequest 启动统一轮动;须 confirm=LIVE 才允许实盘下单。
-type RotationStartRequest struct {
-	Confirm string `json:"confirm"`
-}
-
-func (s *DashboardServer) rotationStatusOrEmpty() RotationStatus {
-	if s == nil || s.rotationRunner == nil {
-		return emptyRotationStatus()
-	}
-	return s.rotationRunner.Status()
-}
-
-func (s *DashboardServer) handleRotationStatusAPI(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	writeJSON(w, s.rotationStatusOrEmpty())
-}
-
-func (s *DashboardServer) handleRotationCapitalSnapshotAPI(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	if s.rotationRunner == nil {
-		writeJSON(w, UnifiedCapitalSnapshot{})
-		return
-	}
-	writeJSON(w, s.rotationRunner.CapitalSnapshotReadOnly(r.Context()))
-}
-
-func (s *DashboardServer) handleRotationStartAPI(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	if !s.authorizeRuntimeControl(w, r, "rotation_start") {
-		return
-	}
-	if s.rotationRunner == nil {
-		s.auditControlAction(r, "rotation_start", false, "统一轮动 runner 未注入")
-		http.Error(w, "统一轮动 runner 未注入", http.StatusBadRequest)
-		return
-	}
-	var req RotationStartRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		s.auditControlAction(r, "rotation_start", false, fmt.Sprintf("解析启动参数失败: %v", err))
-		http.Error(w, fmt.Sprintf("解析启动参数失败: %v", err), http.StatusBadRequest)
-		return
-	}
-	if strings.TrimSpace(req.Confirm) != "LIVE" {
-		const msg = "启动实盘轮动须显式确认:请带 confirm=LIVE"
-		s.auditControlAction(r, "rotation_start", false, msg)
-		http.Error(w, msg, http.StatusBadRequest)
-		return
-	}
-	s.rotationRunner.SetActive(true)
-	s.auditControlAction(r, "rotation_start", true, "统一轮动已启动(实盘)")
-	writeJSON(w, s.rotationRunner.Status())
-}
-
-func (s *DashboardServer) handleRotationStopAPI(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	if !s.authorizeRuntimeControl(w, r, "rotation_stop") {
-		return
-	}
-	if s.rotationRunner == nil {
-		s.auditControlAction(r, "rotation_stop", false, "统一轮动 runner 未注入")
-		http.Error(w, "统一轮动 runner 未注入", http.StatusBadRequest)
-		return
-	}
-	s.rotationRunner.SetActive(false)
-	s.auditControlAction(r, "rotation_stop", true, "统一轮动已暂停")
-	writeJSON(w, s.rotationRunner.Status())
 }
 
 func writeJSON(w http.ResponseWriter, payload any) {

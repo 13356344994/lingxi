@@ -7,14 +7,10 @@ import (
 	"sync"
 	"time"
 
-	"lingxi/internal/core"
 	"lingxi/internal/venue"
 )
 
-const (
-	rotationRejectDelisting = "delisting"
-	defaultDelistCacheTTL   = time.Hour
-)
+const defaultDelistCacheTTL = time.Hour
 
 // DelistGuardConfig 控制统一轮动下市风险守卫。
 type DelistGuardConfig struct {
@@ -28,16 +24,6 @@ func DefaultDelistGuardConfig() DelistGuardConfig {
 		Enabled:  true,
 		CacheTTL: defaultDelistCacheTTL,
 	}
-}
-
-// DelistGuardConfigFromUnifiedRotation 从 core unified_rotation 配置映射守卫参数。
-func DelistGuardConfigFromUnifiedRotation(cfg core.UnifiedRotationConfig) DelistGuardConfig {
-	out := DefaultDelistGuardConfig()
-	out.Enabled = cfg.DelistGuardEnabled
-	if cfg.DelistStatusCacheTTL > 0 {
-		out.CacheTTL = cfg.DelistStatusCacheTTL
-	}
-	return out
 }
 
 func normalizeDelistGuardConfig(cfg DelistGuardConfig) DelistGuardConfig {
@@ -179,137 +165,4 @@ func (g *DelistGuard) IsNonTrading(venueName, symbol string, m venue.Market) (no
 		return false, false
 	}
 	return e.nonTrading, true
-}
-
-type rotationDelistLeg struct {
-	Venue  string
-	Market venue.Market
-}
-
-func (g *DelistGuard) rejectReasonForLegs(symbol string, legs []rotationDelistLeg) string {
-	if !g.enabled() || len(legs) == 0 {
-		return ""
-	}
-	sym := strings.TrimSpace(symbol)
-	for _, leg := range legs {
-		if nonTrading, known := g.IsNonTrading(leg.Venue, sym, leg.Market); nonTrading && known {
-			return rotationRejectDelisting
-		}
-	}
-	return ""
-}
-
-func delistLegsFromOpportunity(opp UnifiedOpportunity) []rotationDelistLeg {
-	if len(opp.Legs) == 0 {
-		return nil
-	}
-	out := make([]rotationDelistLeg, 0, len(opp.Legs))
-	for _, leg := range opp.Legs {
-		v := strings.TrimSpace(leg.Venue)
-		if v == "" {
-			continue
-		}
-		m := venue.MarketSpot
-		if strings.EqualFold(strings.TrimSpace(leg.Market), "perp") {
-			m = venue.MarketPerp
-		}
-		out = append(out, rotationDelistLeg{Venue: v, Market: m})
-	}
-	return out
-}
-
-func (g *DelistGuard) rejectReasonForOpportunity(opp UnifiedOpportunity) string {
-	return g.rejectReasonForLegs(opp.Symbol, delistLegsFromOpportunity(opp))
-}
-
-func (g *DelistGuard) rejectReasonForHeld(rec rotationHeldRecord) string {
-	sym := strings.TrimSpace(rec.Symbol)
-	if sym == "" {
-		return ""
-	}
-	return g.rejectReasonForLegs(sym, rec.delistLegs)
-}
-
-// applyDelistOpenGateToCandidates 将命中下市/非交易状态的候选改为 reject(leaderboard 可见),并清零 net EV 防开仓。
-func applyDelistOpenGateToCandidates(guard *DelistGuard, candidates []UnifiedOpportunity) []UnifiedOpportunity {
-	if guard == nil || !guard.enabled() {
-		return candidates
-	}
-	out := make([]UnifiedOpportunity, len(candidates))
-	for i, opp := range candidates {
-		out[i] = opp
-		if len(opp.RejectReasons) > 0 || opp.ExpectedNetEVUSDT <= 0 {
-			continue
-		}
-		if reason := guard.rejectReasonForOpportunity(opp); reason != "" {
-			out[i].RejectReasons = append([]string{reason}, out[i].RejectReasons...)
-			out[i].ExpectedNetEVUSDT = 0
-			out[i].RiskScore = 1
-			out[i].DataQualityScore = 0
-		}
-	}
-	return out
-}
-
-// appendDelistRejectedCandidates 为扫描 symbol×venue 组合补充 delisting reject 行(尚未被 scanner 产出时)。
-func appendDelistRejectedCandidates(
-	guard *DelistGuard,
-	snapshotID string,
-	symbols []string,
-	existing []UnifiedOpportunity,
-) []UnifiedOpportunity {
-	if guard == nil || !guard.enabled() || len(symbols) == 0 {
-		return existing
-	}
-	seen := make(map[string]struct{}, len(existing))
-	for _, opp := range existing {
-		seen[opp.ID] = struct{}{}
-	}
-	out := existing
-	for _, venueName := range crossVenueExecutorVenues {
-		for _, sym := range symbols {
-			sym = strings.TrimSpace(sym)
-			if sym == "" {
-				continue
-			}
-			legs := []rotationDelistLeg{
-				{Venue: venueName, Market: venue.MarketSpot},
-				{Venue: venueName, Market: venue.MarketPerp},
-			}
-			if guard.rejectReasonForLegs(sym, legs) == "" {
-				continue
-			}
-			id := unifiedOpportunityID(UnifiedStrategySingleVenueSpotPerp, sym, snapshotID, venueName, venueName)
-			if _, ok := seen[id]; ok {
-				continue
-			}
-			seen[id] = struct{}{}
-			out = append(out, singleVenueSpotPerpRejectedOpportunity(snapshotID, sym, venueName, rotationRejectDelisting, CrossVenueSpotPerpFundingSnap{}, time.Now().UTC(), 0))
-		}
-	}
-	return out
-}
-
-// manageBindingDelistCloses 对 binding 的在场持仓检查下市状态;走 verified-close 主动平仓。
-func (g *DelistGuard) manageBindingDelistCloses(ctx context.Context, binding *rotationExecutorBinding, live bool) {
-	if !g.enabled() || binding == nil || binding.heldFn == nil {
-		return
-	}
-	for _, rec := range binding.heldFn() {
-		reason := g.rejectReasonForHeld(rec)
-		if reason == "" {
-			continue
-		}
-		if g.logger != nil {
-			g.logger.Printf("[delist-guard] 检测到下市/非交易状态 symbol=%s strategy=%s opp=%s,主动平仓",
-				rec.Symbol, rec.StrategyType, rec.OpportunityID)
-		}
-		_ = live // 下市平仓为硬安全动作,不受 runner 暂停影响
-		if binding.closeVerifiedFn == nil {
-			continue
-		}
-		if err := binding.closeVerifiedFn(ctx, rec.OpportunityID, rec.Symbol, reason); err != nil && g.logger != nil {
-			g.logger.Printf("[delist-guard] 主动平仓失败(已吞掉) opp=%s: %v", rec.OpportunityID, err)
-		}
-	}
 }

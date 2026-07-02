@@ -26,3 +26,9 @@
 # 运行时大日志(无限增长,曾超 GitHub 100MB 硬限)——移出版本库,本地保留
 records/opportunities/
 records/crossvenue/scan_snapshots.jsonl
+
+# 大体积研究数据(不进库,超GitHub 100MB限制)
+records/archive/
+records/*/fast_dynamic_feature_events.jsonl
+records/*/fast_executable_shadow_events.jsonl
+records/crossvenue/fast_peer_leadlag_events.jsonl

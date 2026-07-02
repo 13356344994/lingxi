@@ -1,0 +1,25 @@
+UNIV_MON_START 01:25:56
+UNIV_CANDIDATE 01:26:59 |   ★ ACT-USDT +30s: n=665 mean=+5.8bp gPF=2.56 net@5=1.14 pos=59% spr=1.0bp 正窗口=3/3
+UNIV_CANDIDATE 01:58:05 |   ★ ACT-USDT +30s: n=709 mean=+6.0bp gPF=2.64 net@5=1.17 pos=59% spr=1.0bp 正窗口=3/3 ;   ★ ACT-USDT +60s: n=711 mean=+5.6bp gPF=1.90 net@5=1.07 pos=57% spr=1.0bp 正窗口=3/3
+UNIV_CANDIDATE 02:29:13 |   ★ ACT-USDT +30s: n=754 mean=+5.9bp gPF=2.56 net@5=1.15 pos=59% spr=1.0bp 正窗口=3/3
+UNIV_CANDIDATE 03:00:28 |   ★ ACT-USDT +30s: n=821 mean=+5.9bp gPF=2.51 net@5=1.15 pos=59% spr=1.0bp 正窗口=3/3
+UNIV_CANDIDATE 03:31:55 |   ★ ACT-USDT +30s: n=882 mean=+5.7bp gPF=2.45 net@5=1.12 pos=59% spr=1.0bp 正窗口=3/3
+UNIV_CANDIDATE 04:03:19 |   ★ ACT-USDT +30s: n=936 mean=+5.4bp gPF=2.30 net@5=1.06 pos=59% spr=1.0bp 正窗口=3/3
+UNIV_CANDIDATE 04:34:43 |   ★ ACT-USDT +30s: n=975 mean=+5.4bp gPF=2.32 net@5=1.06 pos=59% spr=1.0bp 正窗口=3/3
+UNIV_HB 05:06:12 | OKX universe symbols=76  peer lag-follow 命中 symbols=74 | 无达标候选
+UNIV_HB 05:37:46 | OKX universe symbols=76  peer lag-follow 命中 symbols=74 | 无达标候选
+UNIV_HB 06:09:39 | OKX universe symbols=76  peer lag-follow 命中 symbols=74 | 无达标候选
+UNIV_HB 06:39:39 |  | 无达标候选
+UNIV_HB 07:09:39 |  | 无达标候选
+UNIV_HB 07:39:40 |  | 无达标候选
+UNIV_HB 08:09:40 |  | 无达标候选
+UNIV_HB 08:39:40 |  | 无达标候选
+UNIV_HB 09:09:40 |  | 无达标候选
+UNIV_HB 09:39:40 |  | 无达标候选
+UNIV_HB 10:09:40 |  | 无达标候选
+UNIV_HB 10:39:40 |  | 无达标候选
+UNIV_HB 11:09:40 |  | 无达标候选
+UNIV_HB 11:39:40 |  | 无达标候选
+UNIV_HB 12:09:41 |  | 无达标候选
+UNIV_HB 12:39:41 |  | 无达标候选
+UNIV_HB 13:09:41 |  | 无达标候选

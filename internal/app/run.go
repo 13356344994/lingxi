@@ -7,8 +7,6 @@ import (
 	"io"
 	"log"
 	"os"
-	"path/filepath"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -46,34 +44,12 @@ func setupBeijingLogging() {
 	log.SetOutput(&beijingLogWriter{out: os.Stderr})
 }
 
-// crossVenueScannerRunHook / unifiedRotationRunHook 供单测注入,验证抢锁失败时不启动交易循环。
-var (
-	crossVenueScannerRunHook = func(s *CrossVenueScanner, ctx context.Context) { s.Run(ctx) }
-	unifiedRotationRunHook   = func(r *UnifiedRotationRunner, ctx context.Context) { r.Run(ctx) }
-)
-
 // Run 是应用编排入口：进程级信号处理由调用方（cmd/lingxi）负责，本函数仅依据命令行参数选择
 // 实盘/回测模式并完成依赖装配，并把失败以 error 上抛由 main 决定退出策略（R20：编排层不再 log.Fatalf，
 // 便于宿主复用、集成测试与 supervisor 接管）。
 func Run(ctx context.Context) error {
 	setupBeijingLogging()
 	log.Printf("启动 lingxi: %s", buildVersionSummary())
-
-	if len(os.Args) > 1 && (os.Args[1] == "backtest" || os.Args[1] == "backtest-replay" || os.Args[1] == "backtest-timeline" || os.Args[1] == "backtest-monthly") {
-		return runBacktestMode(ctx)
-	}
-
-	// reconcile 是只读对账子命令：把已落盘结算记录与模型预期逐周期对账并打印报告，不触碰下单/实盘路径。
-	if len(os.Args) > 1 && os.Args[1] == "reconcile" {
-		return runReconcileMode(ctx)
-	}
-
-	// flatten/emergency-flatten 是应急强平子命令：补全交易所侧 dead-man 的盲区(已成交裸仓)。供外部看门狗在
-	// 确认主进程已死、本地未平仓台账非空时触发——从台账重建裸仓并方向感知双腿强平。这是会动用资金的实盘动作,
-	// 故独立成命令、不在常规启动路径上,且必须在主进程确已退出后触发(详见 emergency_flatten.go)。
-	if len(os.Args) > 1 && (os.Args[1] == "flatten" || os.Args[1] == "emergency-flatten") {
-		return runEmergencyFlatten(ctx)
-	}
 
 	// config-sample 导出一份自文档化的样例配置(列出全部可配项及默认值),不读取配置文件、不触碰实盘。
 	// 用法: lingxi config-sample [输出路径]; 省略路径则打印到 stdout。
@@ -159,88 +135,27 @@ func startLiveStack(ctx context.Context, cfg EngineConfig) error {
 	if secretPath == "" {
 		secretPath = "secret.yaml"
 	}
-	// carryTradingEnabled:carry(扫描+跨所配对+单所轮动)是否真钱交易。停 carry 后为 false,
-	// 但账户级共享服务(权益采样 / 充提核算 / 账户硬风控)与 carry 无关,必须常驻——
-	// 否则实盘方向引擎会失去账户硬止损,且收益面板的「按北京0点基准」数据会断供。
-	carryTradingEnabled := cfg.CrossVenueScanner.Enabled
-	if carryTradingEnabled {
-		// S7-A:真钱交易循环(scanner+executor / unified_rotation)启动前抢单写租约,防双开双写同一账户。
-		// flock 随进程退出由内核释放;与 emergency_flatten 共用 .lingxi-live.lock(主进程存活时 flatten 抢锁失败)。
-		liveLease, leaseErr := acquireLiveStackSingleWriterLease(cfg)
-		if leaseErr != nil {
-			return leaseErr
-		}
-		if liveLease != nil {
-			defer func() { _ = liveLease.Release() }()
-		}
+	// S7-A:方向引擎真钱下单前抢单写租约,防双开双写同一账户。flock 随进程退出由内核释放。
+	liveLease, leaseErr := acquireLiveStackSingleWriterLease(cfg)
+	if leaseErr != nil {
+		return leaseErr
 	}
-	// 账户级共享服务常驻构造(独立于 carry 交易):scanner 对象 + crossVenueExecutor 仅用于权益采样/收益核算,
-	// 不启动其扫描/轮动/开仓循环(那些仅在 carryTradingEnabled 时挂 hook)。
-	scanner := NewCrossVenueScanner(cfg, orch, secretPath, log.Default())
-	dashboard.SetCrossVenueScanner(scanner)
-	var crossVenueExec *CrossVenueExecutor
-	if exec, err := NewCrossVenueExecutor(cfg, orch, scanner, secretPath, log.Default()); err != nil {
-		log.Default().Printf("[跨所执行] 构造失败,跳过: %v", err)
-	} else {
-		crossVenueExec = exec
-		exec.SetControlPlane(controlPlane)
-		dashboard.SetCrossVenueExecutor(exec)
-		// 路线 B: open/manage/reconcile 仅由统一 runner 驱动;停 Run 主循环防双循环,reconcile 经 runner 派发。
-		exec.SetRotationManaged(true)
-		// 开仓仅在 carry 真钱交易时允许;停 carry 后恒关。
-		_ = exec.SetOpeningsEnabled(carryTradingEnabled && cfg.CrossVenueExecutor.PerpPerpOpeningsDefaultEnabled)
-		go exec.RunEquitySampler(ctx) // 账户级权益采样:常驻(收益面板「北京0点基准」数据源)
+	if liveLease != nil {
+		defer func() { _ = liveLease.Release() }()
 	}
-	// 五策略统一轮动 runner:常驻构造(便于面板 START/STOP 与账户风控引用),carry 停时 active=false 且不挂 run hook。
-	var svspExec *SingleVenueSpotPerpExecutor
-	var cvspExec *CrossVenueSpotPerpExecutor
-	var svpsExec *SingleVenuePerpSpotExecutor
-	var cvpsExec *CrossVenuePerpSpotExecutor
-	var rotationRunner *UnifiedRotationRunner
-	{
-		rotVenues := buildCrossVenueExecutorAdapters(orch, cfg, secretPath, log.Default())
-		rd := cfg.NetworkConfig.RecordDir
-		svspExec = NewSingleVenueSpotPerpExecutor(cfg, rotVenues, rd, log.Default())
-		cvspExec = NewCrossVenueSpotPerpExecutor(cfg, rotVenues, rd, log.Default())
-		svpsExec = NewSingleVenuePerpSpotExecutor(cfg, rotVenues, rd, log.Default())
-		cvpsExec = NewCrossVenuePerpSpotExecutor(cfg, rotVenues, rd, log.Default())
-		rotationRunner = NewUnifiedRotationRunner(
-			cfg.CrossVenueExecutor, RotationConfigFromUnified(cfg.UnifiedRotation, cfg.CrossVenueExecutor), DefaultCapitalRouterConfig(),
-			svspExec, cvspExec, svpsExec, cvpsExec, crossVenueExec, scanner, rotVenues, rd, log.Default(),
-			DelistGuardConfigFromUnifiedRotation(cfg.UnifiedRotation),
-		)
-		defaultActive := carryTradingEnabled && cfg.UnifiedRotation.Enabled && cfg.UnifiedRotation.LiveTradingEnabled
-		rotationRunner.InitState(defaultActive)
-		rotationRunner.SetControlPlane(controlPlane)
-		dashboard.SetRotationExecutors(svspExec, cvspExec, svpsExec, cvpsExec)
-		dashboard.SetRotationRunner(rotationRunner)
-	}
-	// Stage B 账户级硬风控:常驻(实盘方向引擎也需要账户级硬止损)。一级硬停默认启用(非破坏性);二级 flatten opt-in 默认关闭。
+	// 账户级共享服务(与策略引擎解耦):权益采样 / 充提核算 / 账户硬风控,覆盖全部四所。
+	accountVenues := buildAccountVenueAdapters(orch, cfg, secretPath, log.Default())
+	equitySvc := NewAccountEquityService(accountVenues, cfg.NetworkConfig.RecordDir, log.Default())
+	dashboard.SetAccountEquityService(equitySvc)
+	go equitySvc.RunEquitySampler(ctx) // 账户级权益采样:常驻(收益面板「北京0点基准」数据源)
+	// Stage B 账户级硬风控:常驻(实盘方向引擎也需要账户级硬止损)。一级硬停默认启用(非破坏性)。
 	go startAccountRiskWatcher(ctx, accountRiskWatchConfig{
-		Cfg:            cfg,
-		RecordDir:      cfg.NetworkConfig.RecordDir,
-		Logger:         log.Default(),
-		ControlPlane:   controlPlane,
-		RotationRunner: rotationRunner,
-		CrossVenue:     crossVenueExec,
-		SVSP:           svspExec,
-		CVSP:           cvspExec,
-		SVPS:           svpsExec,
-		CVPS:           cvpsExec,
+		Cfg:          cfg,
+		RecordDir:    cfg.NetworkConfig.RecordDir,
+		Logger:       log.Default(),
+		ControlPlane: controlPlane,
+		Equity:       equitySvc,
 	})
-	if carryTradingEnabled {
-		// OKX/Gate funding 执行器选币读扫描器快照,不现场拉全量资金费。
-		for _, rt := range orch.All() {
-			if rt != nil && rt.controller != nil && isFundingExecutorVenue(rt.name) {
-				rt.controller.SetCrossVenueScanner(scanner)
-			}
-		}
-		go crossVenueScannerRunHook(scanner, ctx)
-		go unifiedRotationRunHook(rotationRunner, ctx)
-		log.Default().Printf("[统一轮动] carry 真钱交易已启动 (config 默认 active=%v)", rotationRunner != nil && cfg.UnifiedRotation.LiveTradingEnabled)
-	} else {
-		log.Default().Printf("[账户服务] carry 交易已停(scanner.enabled=false);权益采样/充提核算/账户硬风控 仍常驻")
-	}
 	if cfg.OKXDirectional.Enabled {
 		if eng, err := NewOKXDirectionalEngine(cfg, orch, cfg.NetworkConfig.RecordDir, log.Default()); err != nil {
 			log.Default().Printf("[OKX方向] 构造失败,跳过: %v", err)
@@ -293,100 +208,4 @@ func runConfigSample() error {
 	}
 	fmt.Print(sample)
 	return nil
-}
-
-func runBacktestMode(ctx context.Context) error {
-	log.Printf("启动回测/模拟模式: %s", buildVersionSummary())
-	cfg, err := loadEngineConfig()
-	if err != nil {
-		return fmt.Errorf("加载主配置失败: %w", err)
-	}
-	store, err := NewReportStore(cfg.NetworkConfig.RecordDir)
-	if err != nil {
-		return fmt.Errorf("初始化回测记录存储失败: %w", err)
-	}
-
-	runner := NewBacktestRunner(store, log.Default(), cfg)
-	mode := "aggregate"
-	inputPath := filepath.Join("backtest", "sample_backtest_trades.csv")
-	secretPath := "secret.yaml"
-	lookbackDays := cfg.HistoricalConfig.DefaultLookbackDays
-
-	switch os.Args[1] {
-	case "backtest-monthly":
-		mode = "monthly"
-		if len(os.Args) > 2 {
-			secretPath = os.Args[2]
-		}
-		if len(os.Args) > 3 {
-			lookbackDays = parseLookbackDays(os.Args[3], lookbackDays)
-		}
-	case "backtest-replay":
-		mode = "replay"
-		inputPath = filepath.Join("backtest", "sample_backtest_replay.csv")
-		if len(os.Args) > 2 {
-			inputPath = os.Args[2]
-		}
-	case "backtest-timeline":
-		mode = "timeline"
-		inputPath = filepath.Join("backtest", "sample_backtest_timeline.csv")
-		if len(os.Args) > 2 {
-			inputPath = os.Args[2]
-		}
-	default:
-		if len(os.Args) > 2 && os.Args[2] == "replay" {
-			mode = "replay"
-			inputPath = filepath.Join("backtest", "sample_backtest_replay.csv")
-			if len(os.Args) > 3 {
-				inputPath = os.Args[3]
-			}
-		} else if len(os.Args) > 2 && os.Args[2] == "timeline" {
-			mode = "timeline"
-			inputPath = filepath.Join("backtest", "sample_backtest_timeline.csv")
-			if len(os.Args) > 3 {
-				inputPath = os.Args[3]
-			}
-		} else if len(os.Args) > 2 && os.Args[2] == "monthly" {
-			mode = "monthly"
-			if len(os.Args) > 3 {
-				secretPath = os.Args[3]
-			}
-			if len(os.Args) > 4 {
-				lookbackDays = parseLookbackDays(os.Args[4], lookbackDays)
-			}
-		} else if len(os.Args) > 2 {
-			inputPath = os.Args[2]
-		}
-	}
-
-	var records []BacktestCSVRecord
-	switch mode {
-	case "replay":
-		records, err = runner.RunReplayFromCSV(inputPath)
-	case "timeline":
-		records, err = runner.RunTimelineFromCSV(inputPath)
-	case "monthly":
-		records, err = runner.RunMonthlyMarketSimulation(ctx, secretPath, lookbackDays)
-	default:
-		records, err = runner.RunFromCSV(inputPath)
-	}
-	if err != nil {
-		return fmt.Errorf("执行回测失败: %w", err)
-	}
-
-	if mode == "monthly" {
-		log.Printf("月度真实行情模拟完成，lookbackDays=%d secret=%s 已写入 %d 条汇总记录到 %s，并输出详细日志到 %s",
-			lookbackDays, redactSecretPath(secretPath), len(records), filepath.Join(cfg.NetworkConfig.RecordDir, backtestCSVName), filepath.Join(cfg.NetworkConfig.RecordDir, monthlySimulationLogCSVName))
-		return nil
-	}
-	log.Printf("回测模式完成，模式=%s 已写入 %d 条汇总记录到 %s", mode, len(records), filepath.Join(cfg.NetworkConfig.RecordDir, backtestCSVName))
-	return nil
-}
-
-func parseLookbackDays(raw string, fallback int) int {
-	value, err := strconv.Atoi(raw)
-	if err != nil || value <= 0 {
-		return fallback
-	}
-	return value
 }

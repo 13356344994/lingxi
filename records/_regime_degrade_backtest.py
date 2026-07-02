@@ -32,6 +32,13 @@ def pf(xs):
     return (g / abs(l)) if l else (999.0 if g > 0 else 0.0)
 
 
+
+def _is_fast_row(r):
+    """fast 层结算行判定:fast_scalper_v1 的 position_id 带 fast- 前缀 / reason 带 [fast] 标记。
+    慢层(90s 方向微鳞)研究必须剔除 fast 行,否则 3855 笔 fast 学费会淹没慢层信号(口径污染)。"""
+    pid = str(r.get("position_id") or "")
+    return pid.startswith("fast-") or "[fast]" in str(r.get("reason") or "") or str(r.get("strategy") or "") == "fast_scalper_v1"
+
 def load_positions():
     """聚合到仓位级(按 position_id);带 env(btc_trend/market_mode)、net、hard_stop、notional、hit、平仓时间。"""
     agg = {}
@@ -46,6 +53,8 @@ def load_positions():
             try:
                 r = json.loads(line)
             except json.JSONDecodeError:
+                continue
+            if _is_fast_row(r):
                 continue
             pid = r.get("position_id") or f'{r.get("symbol")}|{r.get("side")}|{r.get("entry",0):.8f}'
             p = agg.get(pid)

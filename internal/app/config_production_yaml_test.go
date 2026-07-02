@@ -46,14 +46,18 @@ func TestLoadProductionConfigYAML(t *testing.T) {
 	}
 
 	// risk 账户级硬停
-	if math.Abs(cfg.RiskConfig.MaxDailyLossUSDT-40) > 1e-9 {
-		t.Fatalf("risk.max_daily_loss_usdt = %.2f want 40", cfg.RiskConfig.MaxDailyLossUSDT)
+	// 2026-07-02 重校准:阈值按 88U 微仓探索档口径(旧值是 6/19 给 450U carry 定的)。
+	if math.Abs(cfg.RiskConfig.MaxDailyLossUSDT-8) > 1e-9 {
+		t.Fatalf("risk.max_daily_loss_usdt = %.2f want 8", cfg.RiskConfig.MaxDailyLossUSDT)
 	}
-	if math.Abs(cfg.RiskConfig.MaxAccountDrawdownUSDT-90) > 1e-9 {
-		t.Fatalf("risk.max_account_drawdown_usdt = %.2f want 90", cfg.RiskConfig.MaxAccountDrawdownUSDT)
+	if math.Abs(cfg.RiskConfig.MaxAccountDrawdownUSDT-115) > 1e-9 {
+		t.Fatalf("risk.max_account_drawdown_usdt = %.2f want 115", cfg.RiskConfig.MaxAccountDrawdownUSDT)
 	}
-	if math.Abs(cfg.RiskConfig.MaxStrategyCumulativeLossUSDT-30) > 1e-9 {
-		t.Fatalf("risk.max_strategy_cumulative_loss_usdt = %.2f want 30", cfg.RiskConfig.MaxStrategyCumulativeLossUSDT)
+	if math.Abs(cfg.RiskConfig.MaxStrategyCumulativeLossUSDT-80) > 1e-9 {
+		t.Fatalf("risk.max_strategy_cumulative_loss_usdt = %.2f want 80", cfg.RiskConfig.MaxStrategyCumulativeLossUSDT)
+	}
+	if cfg.RiskConfig.DailyMaxLosingTrades != 0 {
+		t.Fatalf("risk.daily_max_losing_trades = %d want 0(微仓 scalper 笔数维度无意义,金额维度才是刹车)", cfg.RiskConfig.DailyMaxLosingTrades)
 	}
 	if math.Abs(cfg.RiskConfig.MaxAccountOpenNotionalUSDT-2200) > 1e-9 {
 		t.Fatalf("risk.max_account_open_notional_usdt = %.2f want 2200", cfg.RiskConfig.MaxAccountOpenNotionalUSDT)
@@ -63,6 +67,26 @@ func TestLoadProductionConfigYAML(t *testing.T) {
 	// 待 equity_snapshots 质量闸 + fund-flow 调整后判据验证稳定后再恢复 true。
 	if cfg.RiskConfig.AutoFlattenOnHardDrawdownEnabled {
 		t.Fatal("risk.auto_flatten_on_hard_drawdown_enabled = true want false(2026-06-21 止血,权益质量闸验证前禁用)")
+	}
+
+	// okx_directional 方向引擎生产参数(2026-07-02 重建)
+	if cfg.OKXDirectional.MaxConcurrent != 10 {
+		t.Fatalf("okx_directional.max_concurrent = %d want 10(用户指令)", cfg.OKXDirectional.MaxConcurrent)
+	}
+	if !cfg.OKXDirectional.MAEDisasterCutEnabled {
+		t.Fatal("okx_directional.mae_disaster_cut_enabled = false want true")
+	}
+	if math.Abs(cfg.OKXDirectional.MAEDisasterCutPct-0.03) > 1e-9 {
+		t.Fatalf("okx_directional.mae_disaster_cut_pct = %.4f want 0.03", cfg.OKXDirectional.MAEDisasterCutPct)
+	}
+	if !cfg.OKXDirectional.RunupConfirmFilterEnabled {
+		t.Fatal("okx_directional.runup_confirm_filter_enabled = false want true")
+	}
+	if cfg.OKXDirectional.FastScalperV1Enabled {
+		t.Fatal("okx_directional.fast_scalper_v1_enabled = true want false(重启须过三闸,见 _fast_readiness_report.py)")
+	}
+	if !cfg.OKXDirectional.OpenMicroRecordEnabled {
+		t.Fatal("okx_directional.open_micro_record_enabled = false want true(runup 闸数据源)")
 	}
 
 	// cross_venue_executor 杠杆/名义
