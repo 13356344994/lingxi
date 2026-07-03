@@ -931,6 +931,23 @@ type OKXDirectionalConfig struct {
 	FastWSMaxSymbols        int     `cfg:"fast_ws_max_symbols"`         // 订阅 symbol 上限(默认 15)
 	FastWSEmitIntervalMs    int     `cfg:"fast_ws_emit_interval_ms"`    // 每 symbol 特征事件输出间隔ms(默认 1000)
 	FastWSLargeTradeUSDT    float64 `cfg:"fast_ws_large_trade_usdt"`    // 大单阈值(名义USDT,默认 500)
+	// 动机层采集(record-only,2026-07-03):全市场 SWAP 爆仓单公共频道 → fast_liquidation_events.jsonl。
+	// "被迫的行为最可预测":强平流是最高含金量的动机因子原料;挂在 fast_ws 连接上,不下单/不读账户/不影响交易。
+	FastLiqCollectorEnabled bool `cfg:"fast_liq_collector_enabled"` // 默认 false,config.yaml 显式开
+	// ===== v3 蓝图(2026-07-03 用户批准):战场(池塘)→入场(接型候选)→出场(物种化)=====
+	// ① 池塘质量(119k shadow 实证:能量是主轴——高跟随池全部能量中位≥9.6bps,死水镜面(SNDK/MRVL)
+	//   深度17万但能量<6 → 跟随率38-56%;CELO(v1被锤1124笔)能量3.2=全场最差池)。打标恒开(零成本);
+	//   过滤开关独立灰度。判定用滚动2h逐扫描样本的中位数,动态、禁止写死名单,币随行情可自动恢复。
+	FastPondMinEnergyBps  float64 `cfg:"fast_pond_min_energy_bps"`  // 30s位移中位下限(bps);判定 pond_ok 用
+	FastPondDepthLoUSDT   float64 `cfg:"fast_pond_depth_lo_usdt"`   // 10bp内挂单名义中位下限(<5k薄盘跟随率仅50.3%)
+	FastPondFilterEnabled bool    `cfg:"fast_pond_filter_enabled"`  // true=fast层拒开不合格池塘;false=仅打标(record-only)
+	// ② 接型候选生成(record-only,绝不实盘;91k实证:同冲量档"接"比"追"高8-15pp,但现生成器98%产追单):
+	//   liq_catch=强平后60s接被迫者(P2首验82.0%全场最高);fade_exhaustion=冲量≥阈值且15s已减速→逆向接。
+	FastAltCandidatesEnabled bool    `cfg:"fast_alt_candidates_enabled"` // shadow 记录接型候选(带 candidate_source 标)
+	FastFadeMinImpulseBps    float64 `cfg:"fast_fade_min_impulse_bps"`   // fade 候选最小已走30s冲量(默认8)
+	// ③ 物种化出场(424笔实证:A=3s深亏≤-6bps PF0.26仅26%回正→3s认错省血;C=10s无正反馈 PF0.51→快撤;
+	//   B=打完即弹 PF1.50 唯一毛正物种→现有 trail 逻辑不动)。默认关;随入场灰度一起开。
+	FastSpeciesExitEnabled bool `cfg:"fast_species_exit_enabled"`
 	// ===== cross-venue lead-lag peer 采集(Binance/Bybit 公共 WS;record-only,不接下单/不读账户)=====
 	FastPeerWSEnabled bool   `cfg:"fast_peer_ws_enabled"` // 默认 false
 	FastPeerVenues    string `cfg:"fast_peer_venues"`     // csv,如 "binance,bybit"

@@ -585,6 +585,14 @@ func DefaultEngineConfig() EngineConfig {
 			FastWSMaxSymbols:               15,
 			FastWSEmitIntervalMs:           1000,
 			FastWSLargeTradeUSDT:           500,
+			FastLiqCollectorEnabled:        false, // 爆仓单动机采集:默认关,config.yaml 显式开
+			FastPondMinEnergyBps:           8,     // v3池塘:能量中位≥8bps(实证分水岭:好池≥9.6,死水<6)
+			FastPondDepthLoUSDT:            5000,  // v3池塘:深度中位≥5k(薄盘跟随率仅50.3%)
+			FastPondFilterEnabled:          false, // v3池塘过滤:默认仅打标,灰度另开
+			FastAltCandidatesEnabled:       false, // v3接型候选:默认关,config.yaml 显式开(record-only)
+			FastFadeMinImpulseBps:          8,     // fade 候选冲量阈值
+			FastSpeciesExitEnabled:         false, // v3物种化出场:默认关,随入场灰度一起开
+
 			FastPeerWSEnabled:              false, // cross-venue lead-lag peer 采集:默认关
 			FastPeerVenues:                 "binance,bybit",
 		},

@@ -7,6 +7,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -185,6 +186,15 @@ type fastExecShadowEvent struct {
 	FastCandidateScore  float64 `json:"fast_candidate_score,omitempty"`
 	FastCandidateSide   string  `json:"fast_candidate_side,omitempty"`
 	FastCandidateReason string  `json:"fast_candidate_reason,omitempty"`
+
+	// v3 蓝图字段(2026-07-03):
+	// CandidateSource 非空 = 接型候选(liq_catch/fade_exhaustion),record-only,fastLiveOpen 硬闸拒绝实盘。
+	CandidateSource string `json:"candidate_source,omitempty"`
+	// 池塘质量打标(恒开,零成本;滚动2h逐扫描中位数,动态判定,禁止写死名单)
+	PondEnergyMedBps float64 `json:"pond_energy_med_bps,omitempty"`
+	PondDepthMedUSDT float64 `json:"pond_depth_med_usdt,omitempty"`
+	PondSamples      int     `json:"pond_samples,omitempty"`
+	PondOK           bool    `json:"pond_ok"`
 }
 
 // ---- 滚动 mid 历史 + fast live 持仓(包级,OKX-only 单引擎,按 venue 隔离)----
@@ -206,6 +216,126 @@ var (
 	fastDailyMu    sync.Mutex
 	fastDaily      = map[string]*fastDailyState{} // venue -> 当日 fast 已实现(北京日切;重启从 settlements 重建)
 )
+
+// ===== v3 蓝图①:池塘质量(2026-07-03 用户批准) =====
+// 119k shadow 实证:能量(30s位移中位)是池塘主轴——高跟随池全部能量≥9.6bps;死水镜面(SNDK/MRVL)
+// 深度17万但能量<6→跟随率38-56%;CELO 能量3.2=全场最差。滚动2h逐扫描样本取中位,动态判定,
+// 禁止写死名单(币随行情变化自动进出;这是用户铁律:动态、不写死黑名单)。
+
+type fastPondSample struct {
+	ts        time.Time
+	absMove30 float64 // |30s mid 位移| bps(能量)
+	depth10   float64 // 10bp 内双边挂单名义 USDT
+}
+
+var (
+	fastPondMu   sync.Mutex
+	fastPondHist = map[string][]fastPondSample{} // venue|symbol -> 滚动 2h 样本
+	fastLiqBufMu sync.Mutex
+	fastLiqBuf   = map[string][]fastRecentLiq{} // symbol -> 最近强平(5min;公共全市场频道,无 venue 维度)
+)
+
+const fastPondWindowSec = 7200
+const fastPondWarmupSamples = 150 // ~10min@4s扫描;样本不足 fail-open(pond_ok=true),新币/重启不误杀
+
+// fastRecentLiq 最近强平内存缓冲(供接型候选 liq_catch;与落盘的 fastLiqEvent 解耦)。
+type fastRecentLiq struct {
+	ts      time.Time
+	posSide string // 被强平的持仓方向:long=多头爆(被迫卖) short=空头爆(被迫买)
+}
+
+func fastPondRecord(key string, now time.Time, absMove30, depth10 float64) {
+	fastPondMu.Lock()
+	defer fastPondMu.Unlock()
+	h := append(fastPondHist[key], fastPondSample{now, absMove30, depth10})
+	cut := now.Add(-fastPondWindowSec * time.Second)
+	i := 0
+	for i < len(h) && h[i].ts.Before(cut) {
+		i++
+	}
+	fastPondHist[key] = h[i:]
+}
+
+func fastMedian(a []float64) float64 {
+	if len(a) == 0 {
+		return 0
+	}
+	sort.Float64s(a)
+	if n := len(a); n%2 == 1 {
+		return a[n/2]
+	} else {
+		return (a[n/2-1] + a[n/2]) / 2
+	}
+}
+
+// fastPondEval 返回该池塘滚动窗口的 (能量中位bps, 深度中位USDT, 样本数)。
+func fastPondEval(key string) (float64, float64, int) {
+	fastPondMu.Lock()
+	defer fastPondMu.Unlock()
+	h := fastPondHist[key]
+	if len(h) == 0 {
+		return 0, 0, 0
+	}
+	en := make([]float64, 0, len(h))
+	dp := make([]float64, 0, len(h))
+	for _, s := range h {
+		en = append(en, s.absMove30)
+		dp = append(dp, s.depth10)
+	}
+	return fastMedian(en), fastMedian(dp), len(h)
+}
+
+// fastMidSpanSecs mid 历史覆盖秒数(池塘样本只在 30s 冲量真实可算时才记,避免 0 值污染能量中位)。
+func fastMidSpanSecs(key string, now time.Time) float64 {
+	fastMidMu.Lock()
+	defer fastMidMu.Unlock()
+	h := fastMidHist[key]
+	if len(h) == 0 {
+		return 0
+	}
+	return now.Sub(h[0].ts).Seconds()
+}
+
+// fastNoteLiq 由 fast_ws 强平推送调用:写入内存缓冲(保留5min),供接型候选生成(liq_catch)。
+func fastNoteLiq(sym, posSide string, now time.Time) {
+	fastLiqBufMu.Lock()
+	defer fastLiqBufMu.Unlock()
+	h := append(fastLiqBuf[sym], fastRecentLiq{now, posSide})
+	cut := now.Add(-5 * time.Minute)
+	i := 0
+	for i < len(h) && h[i].ts.Before(cut) {
+		i++
+	}
+	fastLiqBuf[sym] = h[i:]
+}
+
+// fastRecentLiqCatchSide 最近 windowSec 内该 symbol 有强平 → 返回"接被迫者"方向与强平笔数。
+// 多头爆=被迫卖砸出坑→接多;空头爆=被迫买顶出尖→接空。两向平票不出候选(混战不接)。
+func fastRecentLiqCatchSide(sym string, now time.Time, windowSec int) (string, int) {
+	fastLiqBufMu.Lock()
+	defer fastLiqBufMu.Unlock()
+	cut := now.Add(-time.Duration(windowSec) * time.Second)
+	nLong, nShort := 0, 0
+	for _, l := range fastLiqBuf[sym] {
+		if l.ts.Before(cut) {
+			continue
+		}
+		switch l.posSide {
+		case "long":
+			nLong++
+		case "short":
+			nShort++
+		}
+	}
+	switch {
+	case nLong > nShort:
+		return "long", nLong + nShort
+	case nShort > nLong:
+		return "short", nLong + nShort
+	default:
+		return "", nLong + nShort
+	}
+}
 
 // fastDailyState fast 层当日状态(独立于 slow 的账户级风控):已实现净额(熔断用)+ 单币净亏笔数(自适应退避用)。
 type fastDailyState struct {
@@ -528,6 +658,16 @@ func (e *OKXDirectionalEngine) fastScalperTick(ctx context.Context) {
 			break
 		}
 		written++
+		// v3② 接型候选:同盘口快照派生 liq_catch / fade_exhaustion 事件(CandidateSource 非空 = 纯 shadow)
+		if e.cfg.FastAltCandidatesEnabled {
+			for _, alt := range e.buildFastAltCandidates(ev, now) {
+				if err := appendJSONLRecord(path, *alt); err != nil {
+					e.logger.Printf("[fast_scalper] 接型候选落盘失败: %v", err)
+					break
+				}
+				written++
+			}
+		}
 		if e.cfg.FastLiveEnabled {
 			r := e.fastLiveOpen(ctx, ev) // 命中即真实开仓(内部各 guard);返回结果/跳过原因
 			fastSkipAgg[r]++
@@ -590,6 +730,18 @@ func (e *OKXDirectionalEngine) buildFastEvent(ctx context.Context, sym string, n
 	ev.MidImpulse15sBps = e.fastImpulseBps(sym, mid, now, 15)
 	ev.MidImpulse30sBps = e.fastImpulseBps(sym, mid, now, 30)
 	ev.MidImpulse60sBps = e.fastImpulseBps(sym, mid, now, 60)
+	// v3① 池塘质量:样本入池(仅当 30s 冲量真实可算)+ 打标(恒开,零成本;过滤由独立开关灰度)
+	pondKey := e.venueName + "|" + sym
+	if fastMidSpanSecs(pondKey, now) >= 30 {
+		fastPondRecord(pondKey, now, math.Abs(ev.MidImpulse30sBps), ev.DepthNotional10bps)
+	}
+	enMed, dpMed, pn := fastPondEval(pondKey)
+	ev.PondEnergyMedBps, ev.PondDepthMedUSDT, ev.PondSamples = enMed, dpMed, pn
+	if pn < fastPondWarmupSamples {
+		ev.PondOK = true // 热身期 fail-open:不因样本不足误杀
+	} else {
+		ev.PondOK = enMed >= e.cfg.FastPondMinEnergyBps && dpMed >= e.cfg.FastPondDepthLoUSDT
+	}
 	if ev.SpreadBps >= 1 {
 		ev.MakerPlaceable = true
 		ev.MakerTheoFillPrice = book.BidPrice
@@ -597,6 +749,45 @@ func (e *OKXDirectionalEngine) buildFastEvent(ctx context.Context, sym string, n
 	}
 	ev.FastCandidateScore, ev.FastCandidateSide, ev.FastCandidateReason = scoreFastEvent(ev)
 	return ev
+}
+
+// buildFastAltCandidates v3② 接型候选生成(record-only,绝不实盘;fastLiveOpen 有 CandidateSource 硬闸)。
+// 动机:91k shadow 实证同冲量档"接"比"追"跟随率高 8-15pp,而现生成器 98% 产追单——缺的不是打分,是候选来源。
+//   liq_catch:强平后 60s 内接被迫者(P2 首验:接被迫卖 82.0% 全场最高 vs 无强平 60.7%)。
+//   fade_exhaustion:30s 冲量≥阈值 且 15s 冲量已减速(<40%)→ 追高者力竭,逆向接回落。
+// 先 shadow 攒前向成绩(fwd_15/30/60s 由离线脚本回填核对),达标才谈灰度实盘。
+func (e *OKXDirectionalEngine) buildFastAltCandidates(base *fastExecShadowEvent, now time.Time) []*fastExecShadowEvent {
+	if base == nil || base.Mid <= 0 {
+		return nil
+	}
+	out := make([]*fastExecShadowEvent, 0, 2)
+	if side, n := fastRecentLiqCatchSide(base.Symbol, now, 60); side != "" {
+		ev := *base
+		ev.SnapshotID = base.SnapshotID + "|liq_catch"
+		ev.CandidateSource = "liq_catch"
+		ev.FastCandidateSide = side
+		ev.FastCandidateScore = 0
+		ev.FastCandidateReason = fmt.Sprintf("liq_catch_n%d", n)
+		out = append(out, &ev)
+	}
+	minImp := e.cfg.FastFadeMinImpulseBps
+	if minImp <= 0 {
+		minImp = 8
+	}
+	if a30 := math.Abs(base.MidImpulse30sBps); a30 >= minImp && math.Abs(base.MidImpulse15sBps) <= 0.4*a30 {
+		ev := *base
+		ev.SnapshotID = base.SnapshotID + "|fade"
+		ev.CandidateSource = "fade_exhaustion"
+		if base.MidImpulse30sBps > 0 {
+			ev.FastCandidateSide = "short"
+		} else {
+			ev.FastCandidateSide = "long"
+		}
+		ev.FastCandidateScore = 0
+		ev.FastCandidateReason = "fade_exhaustion"
+		out = append(out, &ev)
+	}
+	return out
 }
 
 func (e *OKXDirectionalEngine) updateFastMidHist(sym string, now time.Time, mid float64) {
@@ -802,6 +993,8 @@ func (e *OKXDirectionalEngine) fastLiveManage(ctx context.Context) {
 		mid := e.fastCurrentMid(ctx, p.Symbol)
 		haveMid := mid > 0 && p.EntryPrice > 0
 		var ubps float64
+		var mae3, mfe10, mae10 float64
+		var seen3, seen10 bool
 		if haveMid {
 			ubps = (mid - p.EntryPrice) / p.EntryPrice * 10000
 			if p.Side == "short" {
@@ -816,6 +1009,8 @@ func (e *OKXDirectionalEngine) fastLiveManage(ctx context.Context) {
 				p.TroughBps = ubps
 			}
 			fastUpdateExcursion(p, hold, ubps)
+			mae3, seen3 = p.Mae3, p.Seen3
+			mfe10, mae10, seen10 = p.Mfe10, p.Mae10, p.Seen10
 			fastLiveMu.Unlock()
 		}
 		// v2 出场时序闸(2026-07-03,交易所账本 6304 笔解剖):minHold 内禁一切亏损驱动出场
@@ -826,6 +1021,20 @@ func (e *OKXDirectionalEngine) fastLiveManage(ctx context.Context) {
 		if haveMid && e.cfg.FastDisasterStopBps > 0 && ubps <= -e.cfg.FastDisasterStopBps {
 			e.fastLiveClose(ctx, p, "fast_disaster_stop")
 			continue
+		}
+		// v3③ 物种化出场(424笔实证;默认关,随接型入场灰度一起开):
+		//   A(点燃者碾过):3s 内已深亏 ≤-6bps → PF0.26、仅26%回正,minHold 对它是刑具 → 立刻认错(豁免 minHold);
+		//   C(死水):10s 无正反馈且不深亏 → PF0.51,时间成本主导 → 快撤换弹;
+		//   B(打完即弹,PF1.50 唯一毛正物种)不在此砍,交给既有 trail/max_hold。
+		if e.cfg.FastSpeciesExitEnabled && haveMid {
+			if seen3 && hold >= 3 && mae3 <= -6 && ubps <= -4 {
+				e.fastLiveClose(ctx, p, "fast_species_a_cut")
+				continue
+			}
+			if seen10 && hold >= 10 && mfe10 < 1 && mae10 > -4 && ubps < 1 && ubps > -4 {
+				e.fastLiveClose(ctx, p, "fast_species_c_exit")
+				continue
+			}
 		}
 		if p.MakerEntry { // v3 出场:早砍 / 移动止盈 / 无正反馈快平 / 止损 / 兜底(均 taker)
 			// v3.1 早砍:成交后 >=Ns 仍无正反馈(峰值≤0)且已明显走坏(谷值≤-MAE 且当前≤-cur)→ 提前砍,别等 -15bps 大止损。
@@ -989,7 +1198,7 @@ func (e *OKXDirectionalEngine) fastLiveClose(ctx context.Context, p *fastLivePos
 	e.fastLivePersistLocked()
 	fastLiveMu.Unlock()
 	// 坏出场(反向止损/无反馈/早砍)→ 该 symbol fast 层短冷却,防同一坏信号在同一行情片段反复刷单。
-	if reason == "fast_stop_reversal" || reason == "fast_no_feedback" || reason == "fast_early_cut" {
+	if reason == "fast_stop_reversal" || reason == "fast_no_feedback" || reason == "fast_early_cut" || reason == "fast_species_a_cut" {
 		e.fastSetCooldown(sym, reason, now)
 	}
 	e.logger.Printf("[fast_live] 已平 %s %s 持有%ds entry=%.6f exit=%.6f realized=%.4fU 原因=%s", sym, p.Side, holdSec, p.EntryPrice, exitPrice, realized, reason)
@@ -1181,6 +1390,9 @@ func (e *OKXDirectionalEngine) fastLiveOpen(ctx context.Context, ev *fastExecSha
 	if ev == nil {
 		return "nil"
 	}
+	if ev.CandidateSource != "" { // v3② 接型候选硬闸:纯 shadow,前向成绩达标前禁实盘
+		return "record_only_source"
+	}
 	if ev.FastCandidateSide != "long" && ev.FastCandidateSide != "short" { // flat 不开
 		return "flat"
 	}
@@ -1189,6 +1401,10 @@ func (e *OKXDirectionalEngine) fastLiveOpen(ctx context.Context, ev *fastExecSha
 	}
 	if e.controlPlane != nil && e.controlPlane.IsEmergencyHaltActive() { // 唯一急停
 		return "halt"
+	}
+	// v3① 池塘过滤(独立灰度开关;默认仅打标不拦):死水/薄盘不下场,不跟机构抢镜面盘
+	if e.cfg.FastPondFilterEnabled && !ev.PondOK {
+		return "pond_reject"
 	}
 	sym := ev.Symbol
 	// v2.2 自适应门槛(替代禁开):单币当日亏损档位抬高再入场分数,弱时段(UTC 弱段)提标+降名义。

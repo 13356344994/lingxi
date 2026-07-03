@@ -228,6 +228,22 @@ okx_directional:
   # fast_peer(跨所 lead-lag)已被大样本证伪(领先→跟随不可用),2026-07-02 停采省 ~1GB/天。
   fast_ws_collector_enabled: true
   fast_peer_ws_enabled: false
+  # 动机层采集(2026-07-03,record-only):全市场 SWAP 爆仓单 → fast_liquidation_events.jsonl。
+  # 因子哲学:"被迫的行为最可预测"——强平流是动机维度含金量最高的原料;挂在 fast_ws 连接上,零交易影响。
+  fast_liq_collector_enabled: true
+  # v3 蓝图(2026-07-03 用户批准"可以"):战场(池塘)→入场(接型候选)→出场(物种化),分层灰度。
+  # ① 池塘质量:打标恒开(shadow 事件带 pond_* 字段,零交易影响)。过滤开关先关:record-only 打标
+  #   1 天,与离线 119k 事件排名核对命中集一致后才开(实证:能量中位≥8bps 是好池分水岭,CELO=3.2 全场最差)。
+  fast_pond_min_energy_bps: 8
+  fast_pond_depth_lo_usdt: 5000
+  fast_pond_filter_enabled: false
+  # ② 接型候选(record-only,fastLiveOpen 有 candidate_source 硬闸,绝不实盘):
+  #   liq_catch=强平后60s接被迫者(P2首验82.0%全场最高);fade_exhaustion=冲量≥8bps且15s已减速→逆向接。
+  #   先攒 1-2 天前向成绩(离线脚本按 candidate_source 分桶核对),达标才谈灰度。
+  fast_alt_candidates_enabled: true
+  fast_fade_min_impulse_bps: 8
+  # ③ 物种化出场(A=3s深亏立断/C=10s无反馈快撤/B不动):默认关,随接型入场灰度一起开。
+  fast_species_exit_enabled: false
   # fast 实盘线 v2 重启(2026-07-03 用户决策,有意越过三闸——依据:交易所账本重建 6304 笔 v1 往返解剖,
   # 亏损集中在 <15s 出场翻炒(毛均 -12.8bps/PF 0.20),60-180s 桶毛正(+2.7bps/PF 1.36),信号方向真实存在。
   # v2 = 只修出场时序,不动打分器:minHold 60s 内禁亏损驱动出场 + 灾难线 40bps 防插针 + fast 层日亏 3U 熔断。

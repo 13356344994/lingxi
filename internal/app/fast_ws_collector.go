@@ -19,7 +19,21 @@ import (
 // 目的:采集能解释 3-5s 胜负分化的动态字段(trade flow / book delta / liquidity pull-refill / short return)。
 
 const fastDynFeatureFile = "fast_dynamic_feature_events.jsonl"
+const fastLiqEventFile = "fast_liquidation_events.jsonl"
 const okxPublicWSURL = "wss://ws.okx.com:8443/ws/v5/public"
+
+// fastLiqEvent 一条爆仓单事件(record-only 动机层原料:被迫的行为最可预测)。
+// 覆盖全市场 SWAP(不只 shortlist):长尾池塘的强平密度/方向本身就是研究对象。
+type fastLiqEvent struct {
+	RecordedAt time.Time `json:"recorded_at"`
+	Symbol     string    `json:"symbol"`
+	PosSide    string    `json:"pos_side"` // 被强平的持仓方向(long=多头爆,short=空头爆)
+	Side       string    `json:"side"`     // 强平单的成交方向(多头爆=sell,空头爆=buy)
+	Qty        float64   `json:"qty"`      // 张数
+	BkPx       float64   `json:"bk_px"`    // 破产价
+	BkLoss     float64   `json:"bk_loss"`  // 穿仓损失
+	ExchTs     string    `json:"exch_ts"`  // 交易所毫秒时间戳(原样保留)
+}
 
 // fastDynEvent 一条动态特征事件(record-only)。
 type fastDynEvent struct {
@@ -161,11 +175,15 @@ func (e *OKXDirectionalEngine) runFastWS(ctx context.Context) error {
 	defer conn.Close()
 	_ = conn.SetReadDeadline(time.Now().Add(35 * time.Second))
 	// 订阅 trades + books5
-	args := make([]map[string]string, 0, len(syms)*2)
+	args := make([]map[string]string, 0, len(syms)*2+1)
 	for _, s := range syms {
 		inst := s + "-SWAP"
 		args = append(args, map[string]string{"channel": "trades", "instId": inst})
 		args = append(args, map[string]string{"channel": "books5", "instId": inst})
+	}
+	// 动机层:全市场 SWAP 爆仓单(单条订阅覆盖全部合约;公共频道,量小,record-only)
+	if e.cfg.FastLiqCollectorEnabled {
+		args = append(args, map[string]string{"channel": "liquidation-orders", "instType": "SWAP"})
 	}
 	if err := conn.WriteJSON(map[string]interface{}{"op": "subscribe", "args": args}); err != nil {
 		return err
@@ -219,8 +237,12 @@ func (e *OKXDirectionalEngine) fastWSHandle(st *fastWSState, payload []byte) {
 	if err := json.Unmarshal(payload, &msg); err != nil || msg.Arg.Channel == "" || len(msg.Data) == 0 {
 		return
 	}
-	sym := strings.TrimSuffix(msg.Arg.InstID, "-SWAP")
 	now := e.nowFn().UTC()
+	if msg.Arg.Channel == "liquidation-orders" {
+		e.fastWSHandleLiquidations(now, msg.Data)
+		return
+	}
+	sym := strings.TrimSuffix(msg.Arg.InstID, "-SWAP")
 	st.mu.Lock()
 	defer st.mu.Unlock()
 	switch msg.Arg.Channel {
@@ -256,6 +278,44 @@ func (e *OKXDirectionalEngine) fastWSHandle(st *fastWSState, payload []byte) {
 		}
 		st.books[sym] = append(st.books[sym], wsBookPt{ts: now, bidPx: bidPx, bidQty: bidQty, askPx: askPx, askQty: askQty, mid: (bidPx + askPx) / 2})
 		st.books[sym] = pruneBooks(st.books[sym], now.Add(-12*time.Second))
+	}
+}
+
+// fastWSHandleLiquidations 解析爆仓单推送并逐条落盘(record-only;instId 在 data 元素里,arg 无 instId)。
+func (e *OKXDirectionalEngine) fastWSHandleLiquidations(now time.Time, data []json.RawMessage) {
+	path := filepath.Join(e.recordDir, fastLiqEventFile)
+	for _, d := range data {
+		var item struct {
+			InstID  string `json:"instId"`
+			Details []struct {
+				PosSide string `json:"posSide"`
+				Side    string `json:"side"`
+				Sz      string `json:"sz"`
+				BkPx    string `json:"bkPx"`
+				BkLoss  string `json:"bkLoss"`
+				Ts      string `json:"ts"`
+			} `json:"details"`
+		}
+		if json.Unmarshal(d, &item) != nil || item.InstID == "" {
+			continue
+		}
+		sym := strings.TrimSuffix(item.InstID, "-SWAP")
+		for _, det := range item.Details {
+			qty, _ := strconv.ParseFloat(det.Sz, 64)
+			bkPx, _ := strconv.ParseFloat(det.BkPx, 64)
+			bkLoss, _ := strconv.ParseFloat(det.BkLoss, 64)
+			if qty <= 0 {
+				continue
+			}
+			fastNoteLiq(sym, det.PosSide, now) // v3② 内存缓冲:接型候选 liq_catch 的实时来源
+			if err := appendJSONLRecord(path, fastLiqEvent{
+				RecordedAt: now, Symbol: sym, PosSide: det.PosSide, Side: det.Side,
+				Qty: qty, BkPx: bkPx, BkLoss: bkLoss, ExchTs: det.Ts,
+			}); err != nil {
+				e.logger.Printf("[fast_ws][liq] 落盘失败: %v", err)
+				return
+			}
+		}
 	}
 }
 

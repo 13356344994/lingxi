@@ -1,40 +1,39 @@
 {
   "wired": true,
-  "updated_at": "2026-07-03T03:11:08.736666848Z",
+  "updated_at": "2026-07-03T06:40:43.440492718Z",
   "snapshot": {
-    "observed_at": "2026-07-03T03:11:08.15495663Z",
+    "observed_at": "2026-07-03T06:40:42.866395509Z",
     "day_start_cst": "2026-07-03T00:00:00+08:00",
-    "daily_realized_pnl_usdt": -2.383376,
-    "daily_equity_delta_usdt": -2.787822,
-    "daily_equity_delta_for_risk_usdt": -2.787822,
+    "daily_realized_pnl_usdt": -2.443588,
+    "daily_equity_delta_usdt": -2.967438,
+    "daily_equity_delta_for_risk_usdt": -2.967438,
     "venue_equity_deltas": {
       "binance": 0,
-      "bybit": -0.973410389999998,
+      "bybit": -1.1038772699999981,
       "gate": 0,
-      "okx": -1.8144124479188406
+      "okx": -1.8635606321158917
     },
     "equity_data_trusted": true,
-    "daily_losing_trade_count": 321,
-    "cumulative_realized_pnl_usdt": -29.9992,
+    "daily_losing_trade_count": 376,
+    "cumulative_realized_pnl_usdt": -30.059412,
     "realized_pnl_peak_usdt": 11.868901,
-    "account_drawdown_usdt": 41.868101,
+    "account_drawdown_usdt": 41.928313,
     "strategy_net_pnl": {
       "directional_binance": -0.996926,
-      "directional_bybit": -7.463534,
+      "directional_bybit": -7.519877,
       "directional_gate": -9.81336,
-      "directional_okx": -11.72538
+      "directional_okx": -11.729249
     },
-    "real_equity_total_usdt": 157.724946,
+    "real_equity_total_usdt": 157.545331,
     "real_equity_peak_usdt": 161.931074,
-    "real_equity_drawdown_usdt": 4.206128,
-    "real_equity_drawdown_adjusted_usdt": 4.206128,
+    "real_equity_drawdown_usdt": 4.385743,
+    "real_equity_drawdown_adjusted_usdt": 4.385743,
     "real_equity_quality_passed": true,
     "real_equity_peak_confirmed": true,
     "open_position_count": 3,
-    "open_notional_usdt": 18.82666,
+    "open_notional_usdt": 14.929,
     "positions_by_strategy": {
-      "directional_bybit": 1,
-      "directional_okx": 2
+      "directional_okx": 3
     }
   },
   "thresholds": {
