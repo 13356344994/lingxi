@@ -598,6 +598,7 @@ func DefaultEngineConfig() EngineConfig {
 			FastLiqFollowMaxSpreadBps:      12,    // taker 进场点差上限
 			FastLiqFollowDepthHiUSDT:       150000, // 深度>15万=机构镜面盘,不去
 			FastLiqFollowMinImp15Bps:       5,      // v4瀑布存活确认:15s冲量≥5bps且同向才进,死瀑布=接反转
+			FastLiqFollowLongEnabled:       false,  // v4.1:空头爆=一次性回补冲顶,跟多=替轧空站岗(-34bps@180s)
 			FastSpeciesExitEnabled:         false, // v3物种化出场:默认关,随入场灰度一起开
 			FastExitEnergyScaleEnabled:     false, // v3出场能量单位制:默认关,config.yaml 显式开
 

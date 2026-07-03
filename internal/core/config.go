@@ -960,7 +960,11 @@ type OKXDirectionalConfig struct {
 	FastLiqFollowMaxSpreadBps float64 `cfg:"fast_liq_follow_max_spread_bps"` // 当刻点差上限(taker 进场,点差即成本)
 	FastLiqFollowDepthHiUSDT  float64 `cfg:"fast_liq_follow_depth_hi_usdt"`
 	// v4 瀑布存活确认:15s 冲量方向须与被迫流一致且幅度≥此值(bps)才进场;<=0 关闭该闸。
-	FastLiqFollowMinImp15Bps float64 `cfg:"fast_liq_follow_min_imp15_bps"`  // 10bp深度上限(机构镜面盘不去,小资金战场纪律)
+	FastLiqFollowMinImp15Bps float64 `cfg:"fast_liq_follow_min_imp15_bps"`
+	// v4.1 方向不对称(2026-07-03 21:45 全量对质):多头爆瀑布=恐慌卖压会延续(离线跟空 n=86 +7.8bps@60s);
+	// 空头爆=一次性回补,买完没人接,FOMO 接盘后阴跌(离线跟多 n=56 -13.4@60s/-34.1@180s,实盘35笔-0.26U)。
+	// false=只跟空不跟多;跟多候选 shadow 照记。
+	FastLiqFollowLongEnabled bool `cfg:"fast_liq_follow_long_enabled"`  // 10bp深度上限(机构镜面盘不去,小资金战场纪律)
 	// ③ 物种化出场(424笔实证:A=3s深亏≤-6bps PF0.26仅26%回正→3s认错省血;C=10s无正反馈 PF0.51→快撤;
 	//   B=打完即弹 PF1.50 唯一毛正物种→现有 trail 逻辑不动)。默认关;随入场灰度一起开。
 	FastSpeciesExitEnabled bool `cfg:"fast_species_exit_enabled"`

@@ -904,6 +904,11 @@ func (e *OKXDirectionalEngine) fastLiqFollowTick(ctx context.Context) {
 		// 此刻进场就是接反转。死瀑布不会有第二波爆仓,热队列自然放弃。
 		case !fastLiqCascadeAlive(follow, ev.MidImpulse15sBps, e.cfg.FastLiqFollowMinImp15Bps):
 			skip = "cascade_dead"
+		// v4.1 方向不对称(2026-07-03 21:45 离线86/56簇+实盘53笔对质):多头爆=恐慌卖压延续,跟空+7.8bps@60s;
+		// 空头爆=一次性回补,买完没人接,FOMO接盘后阴跌 -13.4@60s/-34.1@180s → 跟多=替轧空行情站岗,关。
+		// (其镜像"轧空冲顶反手做空"=+34bps@180s 已登记候选机制,shadow攒记录,不直接实盘。)
+		case follow == "long" && !e.cfg.FastLiqFollowLongEnabled:
+			skip = "squeeze_top_no_long"
 		case ev.SpreadBps > maxSpread:
 			skip = "spread_wide"
 		case ev.DepthNotional10bps < e.cfg.FastPondDepthLoUSDT:

@@ -260,3 +260,6 @@
 {"recorded_at":"2026-07-03T12:50:36.500973392Z","venue":"okx","symbol":"RE-USDT","reason":"fast_species_a_cut","until":"2026-07-03T14:50:36.500973392Z","seconds":7200}
 {"recorded_at":"2026-07-03T13:04:10.457469636Z","venue":"okx","symbol":"SNDK-USDT","reason":"fast_species_a_cut","until":"2026-07-03T15:04:10.457469636Z","seconds":7200}
 {"recorded_at":"2026-07-03T13:07:52.470215171Z","venue":"okx","symbol":"ALLO-USDT","reason":"fast_species_a_cut","until":"2026-07-03T13:22:52.470215171Z","seconds":900}
+{"recorded_at":"2026-07-03T13:11:49.709585778Z","venue":"okx","symbol":"ZKP-USDT","reason":"fast_species_a_cut","until":"2026-07-03T15:11:49.709585778Z","seconds":7200}
+{"recorded_at":"2026-07-03T13:32:15.679432855Z","venue":"okx","symbol":"XPL-USDT","reason":"fast_species_a_cut","until":"2026-07-03T15:32:15.679432855Z","seconds":7200}
+{"recorded_at":"2026-07-03T13:41:39.71312728Z","venue":"okx","symbol":"PUMP-USDT","reason":"fast_species_a_cut","until":"2026-07-03T13:46:39.71312728Z","seconds":300}

@@ -133,6 +133,10 @@ func TestLoadProductionConfigYAML(t *testing.T) {
 	if cfg.OKXDirectional.FastLiqFollowMinImp15Bps < 3 {
 		t.Fatalf("fast_liq_follow_min_imp15_bps = %.1f want >=3(瀑布存活确认,死瀑布=接反转)", cfg.OKXDirectional.FastLiqFollowMinImp15Bps)
 	}
+	// v4.1 方向不对称:跟多=替轧空站岗(-34bps@180s,实盘35笔-0.26U);回开须用户明示。
+	if cfg.OKXDirectional.FastLiqFollowLongEnabled {
+		t.Fatal("fast_liq_follow_long_enabled = true want false(空头爆=一次性回补,跟多接FOMO阴跌)")
+	}
 	if !cfg.OKXDirectional.OpenMicroRecordEnabled {
 		t.Fatal("okx_directional.open_micro_record_enabled = false want true(runup 闸数据源)")
 	}

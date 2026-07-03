@@ -1,37 +1,41 @@
 {
   "wired": true,
-  "updated_at": "2026-07-03T13:10:21.852930811Z",
+  "updated_at": "2026-07-03T13:49:29.355968107Z",
   "snapshot": {
-    "observed_at": "2026-07-03T13:10:21.149786006Z",
+    "observed_at": "2026-07-03T13:49:28.658797826Z",
     "day_start_cst": "2026-07-03T00:00:00+08:00",
-    "daily_realized_pnl_usdt": -4.261481,
-    "daily_equity_delta_usdt": -4.796552,
-    "daily_equity_delta_for_risk_usdt": -4.796552,
+    "daily_realized_pnl_usdt": -4.113357,
+    "daily_equity_delta_usdt": -4.416974,
+    "daily_equity_delta_for_risk_usdt": -4.416974,
     "venue_equity_deltas": {
       "binance": 0,
-      "bybit": -1.648632070000005,
+      "bybit": -1.2380246999999969,
       "gate": 0,
-      "okx": -3.1479204777798344
+      "okx": -3.1789492084199225
     },
     "equity_data_trusted": true,
-    "daily_losing_trade_count": 537,
-    "cumulative_realized_pnl_usdt": -31.877305,
+    "daily_losing_trade_count": 545,
+    "cumulative_realized_pnl_usdt": -31.729181,
     "realized_pnl_peak_usdt": 11.868901,
-    "account_drawdown_usdt": 43.746206,
+    "account_drawdown_usdt": 43.598082,
     "strategy_net_pnl": {
       "directional_binance": -0.996926,
-      "directional_bybit": -8.048814,
+      "directional_bybit": -7.825814,
       "directional_gate": -9.81336,
-      "directional_okx": -13.018205
+      "directional_okx": -13.093081
     },
-    "real_equity_total_usdt": 155.716216,
+    "real_equity_total_usdt": 156.095796,
     "real_equity_peak_usdt": 161.931074,
-    "real_equity_drawdown_usdt": 6.214858,
-    "real_equity_drawdown_adjusted_usdt": 6.214858,
+    "real_equity_drawdown_usdt": 5.835278,
+    "real_equity_drawdown_adjusted_usdt": 5.835278,
     "real_equity_quality_passed": true,
     "real_equity_peak_confirmed": true,
-    "open_position_count": 0,
-    "open_notional_usdt": 0
+    "open_position_count": 6,
+    "open_notional_usdt": 35.426372,
+    "positions_by_strategy": {
+      "directional_bybit": 2,
+      "directional_okx": 4
+    }
   },
   "thresholds": {
     "daily_loss_breached": false,
