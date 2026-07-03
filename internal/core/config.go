@@ -955,7 +955,18 @@ type OKXDirectionalConfig struct {
 	// 净-2.67U,成交后 3s 顺向占优仅 12%,60% 单子无肉,maker edge 越大死得越惨(逆选择税)。
 	// false=降级 record-only(shadow 照记当地图),实盘子弹全部让给事件驱动线。
 	FastScorerLiveEnabled bool `cfg:"fast_scorer_live_enabled"`
-	FastLiqFollowLiveEnabled  bool    `cfg:"fast_liq_follow_live_enabled"`
+	FastLiqFollowLiveEnabled bool `cfg:"fast_liq_follow_live_enabled"`
+	// v5 证伪停火(2026-07-04 接手审计):liq_follow 实盘关闭后,评估管线是否继续跑(写 shadow + 跳过原因,
+	// 不下单)。信息集对齐研究的数据源:实盘评估时刻的样本才能回答"重开条件是否成立",不能靠簇诞生时刻外推。
+	FastLiqFollowShadowEnabled bool `cfg:"fast_liq_follow_shadow_enabled"`
+	// v5 全市场 mid 标尺(2026-07-04):单请求拉全部 SWAP tickers 喂 fastMidHist,根治"盲区闸=结构性迟到"
+	// (实盘曾必须等第二波爆仓才有 15s 历史,此时瀑布已跑完 -75~-440bps=可收割段已过)。record-only 基建:
+	// 只喂价格历史,不下单;每 N 秒 1 个公共请求(/market/tickers 限频 20次/2s,余量巨大)。
+	FastMarketMidsEnabled         bool `cfg:"fast_market_mids_enabled"`
+	FastMarketMidIntervalSeconds  int  `cfg:"fast_market_mid_interval_seconds"` // 默认 3
+	// v5 跨所强平流采集(2026-07-04,record-only):Binance 全市场 forceOrder 流 → fast_xvenue_liq_events.jsonl。
+	// 频率问题的正解=加事件源不降标准:同一币在别所被强平,被迫流是同一股。不下单/不读账户/不影响交易。
+	FastXvenueLiqEnabled      bool    `cfg:"fast_xvenue_liq_enabled"`
 	FastLiqFollowMinLiqs      int     `cfg:"fast_liq_follow_min_liqs"`       // 30s内同向净强平笔数下限(1笔可能是噪声)
 	FastLiqFollowMaxSpreadBps float64 `cfg:"fast_liq_follow_max_spread_bps"` // 当刻点差上限(taker 进场,点差即成本)
 	FastLiqFollowDepthHiUSDT  float64 `cfg:"fast_liq_follow_depth_hi_usdt"`

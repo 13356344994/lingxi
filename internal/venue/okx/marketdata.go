@@ -141,6 +141,42 @@ func (a *Adapter) fetchInstrumentsByType(ctx context.Context, instType string) (
 	return rows, nil
 }
 
+// FetchAllPerpMids 单请求拉全市场 USDT 本位 SWAP 的盘口中价(symbol→mid,symbol 无 -SWAP 后缀)。
+// 用途:fast 层全市场价格标尺(v5 盲区闸根治,record-only 基建)。bid/ask 缺失时回退 last。
+// 单个公共请求(/market/tickers 限频 20次/2s),无逐币放大。
+func (a *Adapter) FetchAllPerpMids(ctx context.Context) (map[string]float64, error) {
+	q := url.Values{}
+	q.Set("instType", instTypeSwap)
+	var tickers []struct {
+		InstID string `json:"instId"`
+		BidPx  string `json:"bidPx"`
+		AskPx  string `json:"askPx"`
+		Last   string `json:"last"`
+	}
+	if err := a.t.publicGet(ctx, pathTickers, q, &tickers); err != nil {
+		return nil, err
+	}
+	out := make(map[string]float64, len(tickers))
+	for _, tk := range tickers {
+		up := strings.ToUpper(tk.InstID)
+		if !strings.HasSuffix(up, "-USDT-SWAP") {
+			continue
+		}
+		bid, ask := parseFloat(tk.BidPx), parseFloat(tk.AskPx)
+		mid := 0.0
+		if bid > 0 && ask > 0 {
+			mid = (bid + ask) / 2
+		} else if l := parseFloat(tk.Last); l > 0 {
+			mid = l
+		}
+		if mid <= 0 {
+			continue
+		}
+		out[strings.TrimSuffix(tk.InstID, "-SWAP")] = mid
+	}
+	return out, nil
+}
+
 // FetchFundingSnapshot 拉全量 USDT 本位 SWAP 资金费快照。
 // 流程:先 tickers 拿 mark/index 价,再逐 instId 调 funding-rate(限频 20 req/2s)。
 // 全量扫描约 20–30s,可接受(引擎扫描为低频操作)。

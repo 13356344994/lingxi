@@ -251,11 +251,20 @@ okx_directional:
   # ③ 物种化出场【开】:A=3s深亏≤-6bps立断(豁免minHold,424笔实证PF0.26仅26%回正)/
   #   C=10s无正反馈快撤换弹(PF0.51)/B(打完即弹PF1.50)不动交给trail。
   fast_species_exit_enabled: true
-  # ④ liq_follow 事件驱动全市场入场(2026-07-03 17:41 用户架构纠偏:"禁止漏斗套漏斗,挑选范围=全市场,
-  #   资格当刻判定"):爆仓推送(全部SWAP)→热队列→秒级现场验资格(点差≤12bps/深度5k-15万)→顺被迫流taker进场。
-  #   离线:liq_follow 镜像 1622 事件四窗口全正(+60s +6.5bps),今日最稳机制。
-  #   限频礼让(账号安全):每秒≤2币≤4个公共请求;连续失败退让60s;绝不硬扛 50011。
-  fast_liq_follow_live_enabled: true
+  # ④ liq_follow 事件驱动全市场入场(2026-07-03 17:41 架构;2026-07-04 03:20 证伪停火)。
+  #   停火依据(信息集对齐研究,接手审计):实盘可开火时刻的样本剔除 LAB 后全部子集为负
+  #   (适度带 ex-LAB n=16: 60s顺向率38%/-4.7bps/180s -16bps);簇诞生时刻的 +21bps@60s 实盘够不到——
+  #   盲区闸(需15s历史)+评估冷却=结构性迟到,进场时瀑布已跑完-75~-440bps,可收割段已过。
+  #   三次出场修刀单笔经济性 -13.7→-22.0→-33.3bps/笔,病根在入场时机非出场。累计学费 liq_follow -0.96U。
+  #   重开条件:全市场mid标尺上线后,以"簇诞生即评估"的新信息集重做对齐研究,ex-LAB 净正才向用户提重开。
+  fast_liq_follow_live_enabled: false
+  # 停火后评估管线继续跑(shadow+跳过原因照记,不下单)——重开研究的数据源,不许一并关掉。
+  fast_liq_follow_shadow_enabled: true
+  # v5 基建(2026-07-04,均 record-only):
+  #   全市场 mid 标尺:单请求拉全部 SWAP tickers 喂价格历史,根治盲区闸迟到(3s一发,限频余量巨大);
+  fast_market_mids_enabled: true
+  #   Binance 全市场 forceOrder 强平流采集(频率正解=加事件源不降标准;本机曾有 binance 期货流超时史,失败只告警重连)。
+  fast_xvenue_liq_enabled: true
   fast_liq_follow_min_liqs: 2
   fast_liq_follow_max_spread_bps: 12
   fast_liq_follow_depth_hi_usdt: 150000

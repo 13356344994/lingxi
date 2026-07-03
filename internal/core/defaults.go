@@ -593,7 +593,11 @@ func DefaultEngineConfig() EngineConfig {
 			FastFadeMinImpulseBps:          8,     // fade 候选冲量阈值
 			FastFadeLiveEnabled:            false, // fade 实盘灰度:默认关,config.yaml 显式开
 			FastScorerLiveEnabled:          false, // v4换枪:scorer 默认 record-only,要实盘须显式开(606笔证据见 config.go)
-			FastLiqFollowLiveEnabled:       false, // liq_follow 事件驱动:默认关,config.yaml 显式开
+			FastLiqFollowLiveEnabled:       false, // liq_follow 事件驱动:默认关;2026-07-04 证伪停火(信息集对齐后 ex-LAB 全负)
+			FastLiqFollowShadowEnabled:     false, // 停火后评估管线继续(shadow+跳过原因,不下单):默认关,config.yaml 显式开
+			FastMarketMidsEnabled:          false, // 全市场 mid 标尺(盲区闸根治):默认关,config.yaml 显式开
+			FastMarketMidIntervalSeconds:   3,     // tickers 全量拉取间隔(限频 20次/2s,3s 一发余量巨大)
+			FastXvenueLiqEnabled:           false, // Binance forceOrder 跨所强平采集:默认关,config.yaml 显式开
 			FastLiqFollowMinLiqs:           2,     // 30s内同向净强平≥2笔才算被迫流(单笔=噪声)
 			FastLiqFollowMaxSpreadBps:      12,    // taker 进场点差上限
 			FastLiqFollowDepthHiUSDT:       150000, // 深度>15万=机构镜面盘,不去

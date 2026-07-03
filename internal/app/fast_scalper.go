@@ -822,7 +822,8 @@ func (e *OKXDirectionalEngine) fastLiqFollowLoop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-t.C:
-			if !e.cfg.FastLiqFollowLiveEnabled || !e.fastScalperEnabled() {
+			// v5 停火后 shadow 模式:评估管线照跑(写 shadow+跳过原因),fastLiveOpen 的来源闸拒实盘下单。
+			if (!e.cfg.FastLiqFollowLiveEnabled && !e.cfg.FastLiqFollowShadowEnabled) || !e.fastScalperEnabled() {
 				continue
 			}
 			e.fastLiqFollowTick(ctx)
@@ -1461,7 +1462,18 @@ func (e *OKXDirectionalEngine) fastLiveManage(ctx context.Context) {
 			}
 			continue
 		}
-		if haveMid && e.cfg.FastV2TakeProfitBps > 0 && ubps >= effTP {
+		// v5 肥尾收割(2026-07-04,1s路径回放:同18单 trail -0.32U vs TP封顶 -0.43U):liq_follow 单
+		// 的期望全在右尾(镜像中位+3~7bps/均值+21bps),TP封顶=切断期望来源(LAB反事实+625bps只落袋+43)。
+		// 改棘轮:激活=0.8×能量单位,回吐=0.4×能量即落袋;绝对下限沿用 trail 配置(8/5bps)。
+		// 注:当前 liq_follow 实盘已停火(record-only),此路径为重开灰度预置,部署时无行为影响。
+		if p.CandidateSource == "liq_follow" {
+			effAct := fastScaledExitBps(e.cfg.FastV3TrailActivateBps, 0.8, unit)
+			effGive := fastScaledExitBps(e.cfg.FastV3TrailGiveBackBps, 0.4, unit)
+			if haveMid && e.cfg.FastV3TrailActivateBps > 0 && p.PeakBps >= effAct && ubps <= p.PeakBps-effGive {
+				e.fastLiveClose(ctx, p, "fast_trail_tp")
+				continue
+			}
+		} else if haveMid && e.cfg.FastV2TakeProfitBps > 0 && ubps >= effTP {
 			e.fastLiveClose(ctx, p, "fast_tp")
 			continue
 		}
@@ -1471,6 +1483,60 @@ func (e *OKXDirectionalEngine) fastLiveManage(ctx context.Context) {
 		}
 		if hold >= maxHold {
 			e.fastLiveClose(ctx, p, "fast_max_hold")
+		}
+	}
+}
+
+// ===== v5 全市场 mid 标尺(2026-07-04)=====
+// 病根(接手审计钉死):盲区闸要求 15s mid 历史,而历史只来自轮询/评估过的币 → 事件线必须等第二波爆仓
+// 才能进场,此时瀑布已跑完 -75~-440bps,可收割段(簇诞生后 ~15-30s)已过=结构性迟到。
+// 根治:单请求拉全部 SWAP tickers(限频 20次/2s,3s 一发余量巨大)喂 fastMidHist,全市场任何币在
+// 簇诞生时刻即有真实冲量可算。record-only 基建:只喂价格历史,不下单。
+
+// bulkMidVenue 可选接口:一次请求返回全市场 perp mid(symbol→mid)。
+type bulkMidVenue interface {
+	FetchAllPerpMids(ctx context.Context) (map[string]float64, error)
+}
+
+func (e *OKXDirectionalEngine) fastMarketMidLoop(ctx context.Context) {
+	defer func() {
+		if r := recover(); r != nil {
+			e.logger.Printf("[fast_mids] loop panic 已恢复: %v", r)
+		}
+	}()
+	bm, ok := e.v.(bulkMidVenue)
+	if !ok {
+		e.logger.Printf("[fast_mids] venue 适配器不支持全市场 tickers,标尺关闭")
+		return
+	}
+	iv := e.cfg.FastMarketMidIntervalSeconds
+	if iv < 2 {
+		iv = 3
+	}
+	e.logger.Printf("[fast_mids] 全市场 mid 标尺启动 间隔=%ds(盲区闸根治:簇诞生即有冲量可算)", iv)
+	t := time.NewTicker(time.Duration(iv) * time.Second)
+	defer t.Stop()
+	fails := 0
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			fctx, cancel := context.WithTimeout(ctx, 8*time.Second)
+			mids, err := bm.FetchAllPerpMids(fctx)
+			cancel()
+			if err != nil || len(mids) == 0 {
+				fails++
+				if fails%20 == 1 { // 每 ~1 分钟至多一条,不刷屏
+					e.logger.Printf("[fast_mids] 全市场 tickers 拉取失败(连续%d): %v", fails, err)
+				}
+				continue
+			}
+			fails = 0
+			now := e.nowFn().UTC()
+			for sym, mid := range mids {
+				e.updateFastMidHist(sym, now, mid)
+			}
 		}
 	}
 }

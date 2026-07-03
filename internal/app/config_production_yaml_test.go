@@ -127,8 +127,21 @@ func TestLoadProductionConfigYAML(t *testing.T) {
 	if cfg.OKXDirectional.FastScorerLiveEnabled {
 		t.Fatal("fast_scorer_live_enabled = true want false(606笔:91%子弹3s顺向仅12%,60%无肉,逆选择税)")
 	}
-	if !cfg.OKXDirectional.FastLiqFollowLiveEnabled {
-		t.Fatal("fast_liq_follow_live_enabled = false want true(换枪后主火力=事件驱动线)")
+	// v5 证伪停火(2026-07-04 接手审计):信息集对齐后,实盘可开火时刻的样本 ex-LAB 全部子集为负
+	// (适度带 ex-LAB n=16: 60s顺向率38%/-4.7bps);盲区闸+评估冷却=结构性迟到,进场时瀑布已跑完
+	// -75~-440bps。三次出场修刀单笔经济性 -13.7→-22.0→-33.3bps/笔恶化,病根在入场时机。
+	// 重开须:全市场mid标尺下以"簇诞生即评估"新信息集重做对齐研究 ex-LAB 净正 + 用户明示。
+	if cfg.OKXDirectional.FastLiqFollowLiveEnabled {
+		t.Fatal("fast_liq_follow_live_enabled = true want false(2026-07-04 证伪停火,重开须用户明示)")
+	}
+	if !cfg.OKXDirectional.FastLiqFollowShadowEnabled {
+		t.Fatal("fast_liq_follow_shadow_enabled = false want true(停火后评估管线必须继续记 shadow=重开研究数据源)")
+	}
+	if !cfg.OKXDirectional.FastMarketMidsEnabled {
+		t.Fatal("fast_market_mids_enabled = false want true(全市场mid标尺=盲区闸根治,重开研究前置)")
+	}
+	if !cfg.OKXDirectional.FastXvenueLiqEnabled {
+		t.Fatal("fast_xvenue_liq_enabled = false want true(跨所强平流采集=频率正解的地图数据)")
 	}
 	if cfg.OKXDirectional.FastLiqFollowMinImp15Bps < 3 {
 		t.Fatalf("fast_liq_follow_min_imp15_bps = %.1f want >=3(瀑布存活确认,死瀑布=接反转)", cfg.OKXDirectional.FastLiqFollowMinImp15Bps)

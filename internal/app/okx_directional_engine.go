@@ -519,7 +519,13 @@ func (e *OKXDirectionalEngine) Run(ctx context.Context) {
 	if e.fastScalperEnabled() {
 		go e.fastScalperLoop(ctx)   // 扫描/开仓(maker 入场可能阻塞)
 		go e.fastManageLoop(ctx)    // 平仓/接管(每2s,独立,不被开仓阻塞)
-		go e.fastLiqFollowLoop(ctx) // v3③ 事件驱动全市场入场(爆仓热队列;开关在循环内判定)
+		go e.fastLiqFollowLoop(ctx) // v3③ 事件驱动评估(爆仓热队列;实盘/shadow 开关在循环内判定)
+		if e.cfg.FastMarketMidsEnabled {
+			go e.fastMarketMidLoop(ctx) // v5 全市场 mid 标尺(盲区闸根治;record-only 基建)
+		}
+	}
+	if e.fastXvenueLiqEnabled() {
+		go e.fastXvenueLiqLoop(ctx) // v5 Binance 强平流采集(record-only,失败只告警)
 	}
 	if e.fastWSEnabled() {
 		go e.fastWSCollectorLoop(ctx) // OKX 公共 WS 动态特征采集(record-only,隔离,失败只告警)
