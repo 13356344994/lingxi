@@ -53,6 +53,7 @@ func TestFastPond_WarmupFailOpenAndFilterGate(t *testing.T) {
 	e := newFastV3TestEngine(t)
 	e.cfg.FastPondFilterEnabled = true
 	e.cfg.FastPondMinEnergyBps = 8
+	e.cfg.FastScorerLiveEnabled = true // 本测试测池塘闸,需先过 v4 scorer 来源闸
 	// 热身期(样本不足):pond_ok 应为 true,不误杀
 	ev := &fastExecShadowEvent{Symbol: "Y-USDT", Mid: 1, Bid: 0.999, Ask: 1.001,
 		FastCandidateSide: "long", FastCandidateScore: 0.99, PondSamples: 10, PondOK: true}
@@ -367,4 +368,45 @@ func TestFastLiqFollowBlindGate(t *testing.T) {
 	fastMidMu.Lock()
 	delete(fastMidHist, key)
 	fastMidMu.Unlock()
+}
+
+func TestFastScorerRecordOnlyGate(t *testing.T) {
+	e := newFastV3TestEngine(t)
+	e.cfg.FastLiveEnabled = true
+	ev := &fastExecShadowEvent{Symbol: "SC-USDT", Mid: 1, Bid: 0.999, Ask: 1.001,
+		FastCandidateSide: "long", FastCandidateScore: 0.99}
+	// v4 换枪:scorer 关 → record-only
+	e.cfg.FastScorerLiveEnabled = false
+	if r := e.fastLiveOpen(context.Background(), ev); r != "scorer_record_only" {
+		t.Fatalf("scorer 关时应 record-only,得到 %s", r)
+	}
+	// 显式开 → 走后续闸(不被来源闸拦)
+	e.cfg.FastScorerLiveEnabled = true
+	if r := e.fastLiveOpen(context.Background(), ev); r == "scorer_record_only" {
+		t.Fatalf("scorer 开时不应被来源闸拦,得到 %s", r)
+	}
+}
+
+func TestFastLiqCascadeAlive(t *testing.T) {
+	// 阈值<=0 = 闸关闭
+	if !fastLiqCascadeAlive("short", 0, 0) {
+		t.Fatal("阈值0应放行")
+	}
+	// 多头爆仓→跟空:价格须仍在跌(imp15<=-5)
+	if !fastLiqCascadeAlive("short", -8, 5) {
+		t.Fatal("跟空且仍在跌应放行")
+	}
+	if fastLiqCascadeAlive("short", -2, 5) {
+		t.Fatal("跌幅不足=瀑布将死,应拦")
+	}
+	if fastLiqCascadeAlive("short", +6, 5) {
+		t.Fatal("已翻涨=瀑布死了,应拦")
+	}
+	// 空头爆仓→跟多:价格须仍在涨
+	if !fastLiqCascadeAlive("long", +7, 5) {
+		t.Fatal("跟多且仍在涨应放行")
+	}
+	if fastLiqCascadeAlive("long", -6, 5) {
+		t.Fatal("已翻跌应拦")
+	}
 }

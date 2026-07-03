@@ -255,6 +255,13 @@ okx_directional:
   fast_liq_follow_min_liqs: 2
   fast_liq_follow_max_spread_bps: 12
   fast_liq_follow_depth_hi_usdt: 150000
+  # ⑥ v4 换枪(2026-07-03 20:32 用户拍板"听你的 我相信你";606笔全量解剖依据见 HANDOFF 全量反思):
+  #   scorer 轮询线降级 record-only(占91%子弹净-2.67U,成交后3s顺向占优仅12%,60%单子无肉,
+  #   maker edge越大死得越惨=逆选择税;shadow 照记当地图)。实盘子弹全部让给事件驱动线。
+  fast_scorer_live_enabled: false
+  #   liq_follow 加瀑布存活确认:15s冲量与被迫流同向且≥5bps 才进(死瀑布=接反转,唯一+21bps
+  #   舒服单 imp30=-192 顺势印证);盲区闸(零历史不进)之后的第二道能量释放闸。
+  fast_liq_follow_min_imp15_bps: 5
   # ⑤ 出场能量单位制【开】(2026-07-03 19:11 逐笔对账钉死:管线无bug、方向全对,但出场尺子还是死水池刻度——
   #   LAB能量30.7bps下25bps灾难线=0.8个噪声步长,14笔灾难止损7笔/12笔A斩7笔在180s内回到更优价=收割自己选的能量。
   #   能量成熟池:灾难=2.0×能量中位/止损=1.2×/A斩=0.6×/TP=0.8×,均不低于原绝对下限;能量未知回退原值)。

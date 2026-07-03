@@ -118,6 +118,16 @@ func TestLoadProductionConfigYAML(t *testing.T) {
 	if !cfg.OKXDirectional.FastExitEnergyScaleEnabled {
 		t.Fatal("fast_exit_energy_scale_enabled = false want true(高能池绝对阈值=0.8个噪声步长,止损收割自选能量)")
 	}
+	// v4 换枪(2026-07-03 用户拍板):scorer 必须 record-only;回开=撤销换枪决策,须用户明示。
+	if cfg.OKXDirectional.FastScorerLiveEnabled {
+		t.Fatal("fast_scorer_live_enabled = true want false(606笔:91%子弹3s顺向仅12%,60%无肉,逆选择税)")
+	}
+	if !cfg.OKXDirectional.FastLiqFollowLiveEnabled {
+		t.Fatal("fast_liq_follow_live_enabled = false want true(换枪后主火力=事件驱动线)")
+	}
+	if cfg.OKXDirectional.FastLiqFollowMinImp15Bps < 3 {
+		t.Fatalf("fast_liq_follow_min_imp15_bps = %.1f want >=3(瀑布存活确认,死瀑布=接反转)", cfg.OKXDirectional.FastLiqFollowMinImp15Bps)
+	}
 	if !cfg.OKXDirectional.OpenMicroRecordEnabled {
 		t.Fatal("okx_directional.open_micro_record_enabled = false want true(runup 闸数据源)")
 	}

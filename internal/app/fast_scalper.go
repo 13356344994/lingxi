@@ -380,6 +380,17 @@ func fastMidSpanSecs(key string, now time.Time) float64 {
 	return now.Sub(h[0].ts).Seconds()
 }
 
+// fastLiqCascadeAlive 瀑布存活确认:15s 冲量方向与被迫流一致且幅度≥minBps(<=0 视为关闭该闸)。
+func fastLiqCascadeAlive(follow string, imp15, minBps float64) bool {
+	if minBps <= 0 {
+		return true
+	}
+	if follow == "short" {
+		return imp15 <= -minBps
+	}
+	return imp15 >= minBps
+}
+
 // fastNoteLiq 由 fast_ws 强平推送调用:写入内存缓冲(保留5min),供接型候选生成(liq_catch)。
 func fastNoteLiq(sym, posSide string, now time.Time) {
 	fastLiqBufMu.Lock()
@@ -888,6 +899,11 @@ func (e *OKXDirectionalEngine) fastLiqFollowTick(ctx context.Context) {
 		// 顶回热队列,15s 评估冷却后带着真实冲量再评——"瀑布还活着"本身成为入场资格的一部分。
 		case fastMidSpanSecs(e.venueName+"|"+sym, now) < 15:
 			skip = "blind_no_history"
+		// v4 能量释放确认(2026-07-03 20:32 换枪):15s 冲量方向必须与被迫流一致且幅度≥阈值——
+		// 瀑布还在走才有肉(BASED imp30=-192 顺势 +21bps 全场最舒服单);冲量已翻向/横住=瀑布死了,
+		// 此刻进场就是接反转。死瀑布不会有第二波爆仓,热队列自然放弃。
+		case !fastLiqCascadeAlive(follow, ev.MidImpulse15sBps, e.cfg.FastLiqFollowMinImp15Bps):
+			skip = "cascade_dead"
 		case ev.SpreadBps > maxSpread:
 			skip = "spread_wide"
 		case ev.DepthNotional10bps < e.cfg.FastPondDepthLoUSDT:
@@ -1733,6 +1749,12 @@ func (e *OKXDirectionalEngine) fastLiveOpen(ctx context.Context, ev *fastExecSha
 		if !allowFade && !allowLiqFollow {
 			return "record_only_source"
 		}
+	} else if !e.cfg.FastScorerLiveEnabled {
+		// v4 换枪(2026-07-03 20:32 用户拍板"听你的"):scorer 轮询线降级 record-only。
+		// 606 笔全量解剖:scorer 占 91% 子弹净-2.67U,成交后 3s 顺向占优仅 12%,60% 单子 30s 内无肉,
+		// maker 账面 edge 越大 mae30 越深(-13.3 vs -7.6)=逆选择税;高分有肉率 26% 不预测运动。
+		// shadow 照常记录(地图数据),实盘子弹全部让给事件驱动线(能量正在释放时 taker 即进)。
+		return "scorer_record_only"
 	}
 	if ev.FastCandidateSide != "long" && ev.FastCandidateSide != "short" { // flat 不开
 		return "flat"

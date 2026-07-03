@@ -951,10 +951,16 @@ type OKXDirectionalConfig struct {
 	// liq_follow 事件驱动全市场入场(2026-07-03 17:41 用户架构纠偏:"禁止漏斗套漏斗——不要从预选名单里
 	// 反复筛,挑选范围=全市场,资格当刻判定"):爆仓推送(全部SWAP)把注意力拉到正在发生被迫流的币,
 	// 秒级现场验资格(点差/深度/被迫流强度),顺被迫流 taker 进场。离线:1622事件四窗口全正(+60s+6.5bps)。
+	// v4 换枪(2026-07-03 20:32 用户拍板):scorer 轮询线是否实盘开仓。606 笔解剖:scorer 占 91% 子弹
+	// 净-2.67U,成交后 3s 顺向占优仅 12%,60% 单子无肉,maker edge 越大死得越惨(逆选择税)。
+	// false=降级 record-only(shadow 照记当地图),实盘子弹全部让给事件驱动线。
+	FastScorerLiveEnabled bool `cfg:"fast_scorer_live_enabled"`
 	FastLiqFollowLiveEnabled  bool    `cfg:"fast_liq_follow_live_enabled"`
 	FastLiqFollowMinLiqs      int     `cfg:"fast_liq_follow_min_liqs"`       // 30s内同向净强平笔数下限(1笔可能是噪声)
 	FastLiqFollowMaxSpreadBps float64 `cfg:"fast_liq_follow_max_spread_bps"` // 当刻点差上限(taker 进场,点差即成本)
-	FastLiqFollowDepthHiUSDT  float64 `cfg:"fast_liq_follow_depth_hi_usdt"`  // 10bp深度上限(机构镜面盘不去,小资金战场纪律)
+	FastLiqFollowDepthHiUSDT  float64 `cfg:"fast_liq_follow_depth_hi_usdt"`
+	// v4 瀑布存活确认:15s 冲量方向须与被迫流一致且幅度≥此值(bps)才进场;<=0 关闭该闸。
+	FastLiqFollowMinImp15Bps float64 `cfg:"fast_liq_follow_min_imp15_bps"`  // 10bp深度上限(机构镜面盘不去,小资金战场纪律)
 	// ③ 物种化出场(424笔实证:A=3s深亏≤-6bps PF0.26仅26%回正→3s认错省血;C=10s无正反馈 PF0.51→快撤;
 	//   B=打完即弹 PF1.50 唯一毛正物种→现有 trail 逻辑不动)。默认关;随入场灰度一起开。
 	FastSpeciesExitEnabled bool `cfg:"fast_species_exit_enabled"`
