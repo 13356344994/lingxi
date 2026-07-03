@@ -122,6 +122,7 @@ type accountRiskWatcher struct {
 
 	// Stage B 执行依赖(生产由 newAccountRiskWatcher 绑定;单测注入 mock)。
 	haltFn              func(reason string) error
+	haltActiveFn        func() bool // 已处于 global_halt 态则跳过重复写盘/重复告警(幂等收敛)
 	setRotationActiveFn func(on bool)
 	flattenFn           func(ctx context.Context) error
 	autoFlattenDone     atomic.Bool
@@ -228,6 +229,9 @@ type accountRiskWatchConfig struct {
 	Logger       *log.Logger
 	ControlPlane *ControlPlane
 	Equity       *AccountEquityService
+	// FlattenFn 二级自动全平执行体(平掉全部方向引擎在场仓)。由 run.go 绑定;
+	// 为 nil 时二级全平永不执行(仅一级硬停生效)。
+	FlattenFn func(ctx context.Context) error
 }
 
 func newAccountRiskWatcher(c accountRiskWatchConfig) *accountRiskWatcher {
@@ -297,6 +301,10 @@ func (w *accountRiskWatcher) bindDefaultActions(c accountRiskWatchConfig) {
 		w.haltFn = func(reason string) error {
 			return cp.SetGlobalHalt(true)
 		}
+		w.haltActiveFn = cp.IsGlobalHaltActive
+	}
+	if c.FlattenFn != nil {
+		w.flattenFn = c.FlattenFn
 	}
 }
 
@@ -346,12 +354,17 @@ func (w *accountRiskWatcher) tickOnce() {
 
 	if haltIntent.ShouldHalt {
 		detail := strings.Join(haltIntent.Reasons, "; ") + " [Stage B:一级硬停,已停新开仓,在场仓继续 manage; " + manualRecoveryHint + "]"
-		if w.haltFn != nil {
-			if err := w.haltFn(detail); err != nil && w.logger != nil {
-				w.logger.Printf("[账户风控] SetGlobalHalt 失败: %v", err)
+		// 幂等收敛:阈值持续超标时每 60s tick 都会走到这里。已处于 halt 态则不重复写盘/推送
+		// (首次触发已通知;持续超标数小时周期性刷屏只会让用户对告警脱敏)。
+		alreadyHalted := w.haltActiveFn != nil && w.haltActiveFn()
+		if !alreadyHalted {
+			if w.haltFn != nil {
+				if err := w.haltFn(detail); err != nil && w.logger != nil {
+					w.logger.Printf("[账户风控] SetGlobalHalt 失败: %v", err)
+				}
 			}
+			w.notifyFn("账户级硬停(一级)", detail)
 		}
-		w.notifyFn("账户级硬停(一级)", detail)
 	} else if thresholds.AnyBreached {
 		for _, intent := range accountRiskAlertIntents(thresholds) {
 			w.notifyFn(intent.Title, intent.Detail)
@@ -399,7 +412,17 @@ func (w *accountRiskWatcher) buildSnapshot(now time.Time) accountRiskSnapshot {
 		w.equityState.resetForDay(dayStart)
 	}
 
-	records, _ := w.settlementFn()
+	// 风控喝的就是这份结算数据:读失败绝不能静默当成"零结算"(回撤/日亏会基于空数据静默失效)。
+	// 仍以空数据继续本轮(权益口径的日亏/回撤闸不依赖 settlements,保留部分保护),但必须告警留痕。
+	records, serr := w.settlementFn()
+	if serr != nil {
+		if w.logger != nil {
+			w.logger.Printf("[账户风控] settlements 加载失败(结算口径闸本轮失效,权益口径闸仍生效): %v", serr)
+		}
+		if w.notifyFn != nil {
+			w.notifyFn("账户风控数据源异常", "settlements 加载失败: "+serr.Error())
+		}
+	}
 	daily := aggregateStrategySettlementsInRange(records, dayStart, now)
 	dailyLosingTrades := countLosingSettlementsInRange(records, dayStart, now)
 	allTime := aggregateStrategySettlementsInRange(records, time.Time{}, now)
@@ -603,7 +626,7 @@ func evaluateAccountAutoFlattenIntent(snap accountRiskSnapshot, cfg RiskConfig) 
 	return accountAutoFlattenIntent{
 		ShouldFlatten: true,
 		Reason: fmt.Sprintf(
-			"交易口径权益回撤 %.4f USDT ≥ AutoFlattenAccountDrawdownUSDT %.4f (原始回撤=%.4f current=%.4f peak=%.4f 全时净充提=%.4f;不用 settlements)",
+			"交易口径权益回撤 %.4f USDT ≥ AutoFlattenAccountDrawdownUSDT %.4f (原始回撤=%.4f current=%.4f peak=%.4f 当日充提平移=%.4f;不用 settlements)",
 			snap.RealEquityDrawdownAdjustedUSDT, limit, snap.RealEquityDrawdownUSDT, snap.RealEquityTotalUSDT, snap.RealEquityPeakUSDT, snap.DailyFundFlowAdjustUSDT),
 	}
 }

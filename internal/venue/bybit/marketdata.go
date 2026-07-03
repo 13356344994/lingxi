@@ -279,7 +279,7 @@ func (a *Adapter) FetchDepth(ctx context.Context, m venue.Market, s venue.Symbol
 		limit = 50
 	}
 	q := url.Values{}
-	q.Set("category", categoryLinear)
+	q.Set("category", bybitInstCategory(m)) // 按 market 选 spot/linear(原硬编码 linear,现货深度会查错市场)
 	q.Set("symbol", raw)
 	q.Set("limit", strconv.Itoa(limit))
 	var res bybitOrderbook

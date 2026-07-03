@@ -905,6 +905,27 @@ type OKXDirectionalConfig struct {
 	FastEarlyCutMaeBps  float64 `cfg:"fast_early_cut_mae_bps"`  // 期间最深回撤≤-此值(默认 5)
 	FastEarlyCutCurBps  float64 `cfg:"fast_early_cut_cur_bps"`  // 且当前浮盈≤-此值(默认 3)
 	FastCooldownSeconds int     `cfg:"fast_cooldown_seconds"`   // stop/no_feedback/early_cut 后该 symbol fast 层冷却秒(默认 300;非永久黑名单)
+	// ===== fast v2 出场时序(2026-07-03,交易所账本重建 6304 笔往返解剖得出)=====
+	// 数据:<15s 出场 1690 笔毛均 -12.8bps(PF 0.20);60-180s 桶毛均 +2.7bps(PF 1.36)。
+	// 亏损集中在 edge 兑现前的出场翻炒 → minHold 内禁一切非灾难出场;灾难线防插针;日亏熔断锁学费上限。
+	FastMinHoldSeconds     int     `cfg:"fast_min_hold_seconds"`      // 最短持有秒(默认 30=账本转正分水岭;期间仅灾难线/锁盈可出场;0=关闭回 v1 行为)
+	FastDisasterStopBps    float64 `cfg:"fast_disaster_stop_bps"`     // 灾难止损(bps,任何时刻有效;默认 40)
+	FastDailyLossLimitUSDT float64 `cfg:"fast_daily_loss_limit_usdt"` // fast 层当日净亏绝对值熔断(USDT;pct 未配时生效;0=关)
+	// FastDailyLossPctOfCapital fast 层日熔断 = 本所交易本金(control.json 页面值)×此比例;>0 时优先于 USDT 绝对值。
+	// 2026-07-03 用户决策:0.30(OKX 本金 100U → 30U 学费预算,随页面调本金自动缩放)。
+	FastDailyLossPctOfCapital float64 `cfg:"fast_daily_loss_pct_of_capital"`
+	// ===== fast v2.2 自适应惩罚(2026-07-03,替代"禁开"黑名单;用户方向:广撒网不收网,让重复失败变贵) =====
+	// v1 账本教训:同币日内无上限重复锤(CELO 两天 1124 笔)贡献 96% 出血;UTC 00-08 时段占一半亏损。
+	// 单币亏损退避:每亏一笔,该币 fast 冷却×backoff 倍(300s→15m→45m→…,cap 封顶),再入场分数门槛 +bump(cap 封顶);
+	// 赢一笔减一档。北京日切重置。不禁开——行情反转、信号重新证明自己后自动恢复。
+	FastLossCooldownBackoffFactor float64 `cfg:"fast_loss_cooldown_backoff_factor"` // 默认 3;<=1=关退避(回固定冷却)
+	FastLossCooldownCapSeconds    int     `cfg:"fast_loss_cooldown_cap_seconds"`    // 退避冷却上限秒(默认 7200)
+	FastLossScoreBumpPerLoss      float64 `cfg:"fast_loss_score_bump_per_loss"`     // 每亏一笔该币再入场门槛+此值(默认 0.05)
+	FastLossScoreBumpCap          float64 `cfg:"fast_loss_score_bump_cap"`          // 门槛加成上限(默认 0.25)
+	// 弱时段自适应:不禁开,只提高入场标准 + 降名义(便宜地继续采样,数据够了再评估弱时段高分单是否可救)。
+	FastWeakHoursUTC          string  `cfg:"fast_weak_hours_utc"`           // 弱时段 UTC 小时,如 "0-7" 或 "0,1,2";空=无弱时段
+	FastWeakHoursScoreBump    float64 `cfg:"fast_weak_hours_score_bump"`    // 弱时段分数门槛+此值(默认 0.10)
+	FastWeakHoursNotionalFrac float64 `cfg:"fast_weak_hours_notional_frac"` // 弱时段名义×此系数(默认 0.5)
 	// ===== fast 动态特征采集器 v2(OKX 公共 WS trades+books5;record-only,隔离,不下单/不读账户)=====
 	FastWSCollectorEnabled  bool    `cfg:"fast_ws_collector_enabled"`   // 默认 false
 	FastWSMaxSymbols        int     `cfg:"fast_ws_max_symbols"`         // 订阅 symbol 上限(默认 15)

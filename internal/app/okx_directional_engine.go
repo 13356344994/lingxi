@@ -226,6 +226,10 @@ type okxDirectionalSettlement struct {
 	EntryMidImpulse15s  float64   `json:"mid_impulse_15s_bps,omitempty"`
 	EntryMidImpulse30s  float64   `json:"mid_impulse_30s_bps,omitempty"`
 	EntryMidImpulse60s  float64   `json:"mid_impulse_60s_bps,omitempty"`
+	// fast 出场时序版本:"" = v1(2026-06/30-07/01 学费批次);"v2" = minHold+灾难线+日熔断批次(2026-07-03 起)。
+	FastExitVersion string `json:"fast_exit_version,omitempty"`
+	// v2.2 自适应入场标注(loss_lvlN / weak_hour),供按惩罚档位分桶复盘。
+	EntryAdaptiveTags string `json:"entry_adaptive_tags,omitempty"`
 	// v3 maker-first 执行字段(区分 maker 入场 / taker 出场,供按 maker_filled/wait/edge 分桶)
 	MakerEntry      bool    `json:"maker_entry,omitempty"` // true=maker 入场(否则 taker)
 	MakerOrderPrice float64 `json:"maker_order_price,omitempty"`
@@ -456,6 +460,47 @@ func okxDirectionalRecordDir(base string) string {
 	return directionalRecordDir(base, "okx")
 }
 
+// FlattenAll 账户级二级风控入口:立即平掉本引擎全部在场仓(逐仓 urgent IOC,best-effort 不中断)。
+// 由账户风控 watcher 在硬回撤触发且 auto_flatten opt-in 开启时调用;平不掉的仓返回 error 供上层告警。
+// reason 须含"止损"以走 closePosition 的 urgent 路径(跳过 maker、放宽滑点)。
+func (e *OKXDirectionalEngine) FlattenAll(ctx context.Context, reason string) error {
+	poss := e.openPositionsSnapshot()
+	if len(poss) == 0 {
+		return nil
+	}
+	e.logger.Printf("[OKX方向][账户风控] 二级自动全平开始: %d 仓 原因=%s", len(poss), reason)
+	for _, pos := range poss {
+		if !pos.isOpen() {
+			continue
+		}
+		mid := pos.LastMid
+		if book, berr := e.v.FetchBookTicker(ctx, venue.MarketPerp, venue.Symbol(pos.Symbol)); berr == nil {
+			if m := (book.BidPrice + book.AskPrice) / 2; m > 0 {
+				mid = m
+			}
+		}
+		if mid <= 0 {
+			mid = pos.EntryPrice
+		}
+		uPnLNotional := directionalUPnLPct(pos.directionSide(), pos.EntryPrice, mid)
+		holdMin := int(e.nowFn().UTC().Sub(pos.OpenedAt).Minutes())
+		if holdMin < 0 {
+			holdMin = 0
+		}
+		e.closePosition(ctx, pos, mid, uPnLNotional, holdMin, reason)
+	}
+	remaining := 0
+	for _, p := range e.openPositionsSnapshot() {
+		if p.isOpen() {
+			remaining++
+		}
+	}
+	if remaining > 0 {
+		return fmt.Errorf("%s 全平后仍有 %d 仓在场(见 last_error/日志)", e.venueName, remaining)
+	}
+	return nil
+}
+
 // Run 主循环:full-ticker(90s)→ runOnce(选币/开仓/完整管理);risk-ticker(20s)→ manageRiskFast(快速止损)。
 func (e *OKXDirectionalEngine) Run(ctx context.Context) {
 	interval := time.Duration(e.cfg.LoopIntervalSeconds) * time.Second
@@ -569,7 +614,9 @@ func (e *OKXDirectionalEngine) manageRiskFast(ctx context.Context) {
 		}
 		book, err := e.v.FetchBookTicker(ctx, venue.MarketPerp, venue.Symbol(pos.Symbol))
 		if err != nil {
-			continue // 廉价失败容错:跳过本仓,等下轮
+			// 廉价失败容错:跳过本仓等下轮,但必须留痕(20s 环是硬止损唯一秒级守门,静默跳过=止损裸奔不可见)。
+			e.setLastError(fmt.Sprintf("快速风控 %s 盘口失败: %v", pos.Symbol, err))
+			continue
 		}
 		mid := (book.BidPrice + book.AskPrice) / 2
 		if mid <= 0 {
@@ -2038,7 +2085,7 @@ func (e *OKXDirectionalEngine) manageOne(ctx context.Context, pos *okxDirectiona
 	if real.PartialTPDone { // 部分止盈后:移动止损 = max(保本0, 高水位 − 间距),单调上移
 		gap := cfg.TrailGapPct
 		if gap <= 0 {
-			gap = 0.15
+			gap = 0.06 // 与 decideDirectionalPositionAction 的 fallback 对齐(原 0.15,部分止盈后反而更松,不一致)
 		}
 		cand := real.PeakAccountPct - gap
 		if cand < 0 {
@@ -2055,6 +2102,13 @@ func (e *OKXDirectionalEngine) manageOne(ctx context.Context, pos *okxDirectiona
 	initNotional := real.InitialNotionalUSDT
 	e.mu.Unlock()
 	e.persistPositions()
+
+	// MAE 灾难刹车同样罩住 90s 慢环:原先只在 20s 快环生效,若快环盘口连续失败,-3%~-5% 区间保护存在盲窗。
+	// effectiveFastStopFloor 只会把地板抬浅(更早出场),不会放松;部分止盈后地板≥0 时不受影响(与快环同口径)。
+	if effFloor, effReason := effectiveFastStopFloor(floor, stopPct, cfg.MAEDisasterCutPct, e.maeDisasterCutArmed()); effReason == "mae_disaster_cut" && uPnLAccount <= effFloor {
+		e.closePosition(ctx, pos, mid, uPnLNotional, holdMin, effReason)
+		return
+	}
 
 	// 数据驱动判定:由实时信心/动能/回撤决定本仓"补仓 / 部分止盈 / 持有 / 离场",而非到点机械执行三件套。
 	act := decideDirectionalPositionAction(uPnLAccount, peak, floor, holdMin, side, fresh, partialDone, addCount, cfg)

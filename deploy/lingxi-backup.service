@@ -1,0 +1,16 @@
+# lingxi-backup.service —— 交易记录+日志 4 小时快照(oneshot,由 lingxi-backup.timer 触发)。
+# 安装:
+#   sudo cp deploy/lingxi-backup.{service,timer} /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now lingxi-backup.timer
+[Unit]
+Description=lingxi records+log 4h snapshot backup
+# 不依赖 lingxi.service:主进程挂着也要照常备份(备份的意义正是主进程/工作区出事时兜底)
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/root/lingxi
+Environment=LINGXI_DIR=/root/lingxi
+Environment=LINGXI_BACKUP_DIR=/root/lingxi_backups
+Environment=LINGXI_BACKUP_KEEP=90
+ExecStart=/bin/sh /root/lingxi/deploy/backup_snapshot.sh

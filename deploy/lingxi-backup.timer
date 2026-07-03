@@ -1,0 +1,12 @@
+# lingxi-backup.timer —— 每 4 小时触发一次记录+日志快照(整点 00/04/08/12/16/20 UTC)。
+[Unit]
+Description=lingxi 4h records+log snapshot timer
+
+[Timer]
+# 每 4 小时一班;避开整点尖峰(资费结算/选币扫描多在整点),固定 :03 触发
+OnCalendar=00/4:03:00
+# 错过(关机/维护)则开机后补跑一次
+Persistent=true
+
+[Install]
+WantedBy=timers.target

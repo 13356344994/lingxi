@@ -16,8 +16,10 @@ risk:
   # 用户 2026-06-19 拍板:profit_seeking + 满仓 + 3× 起步(可调至 5×) — 账户级硬停兜底(激进但保留)
   # 【% 权益化】max_*_pct 与同名 USDT 阈值取 max(有效阈值=max(USDT, pct×RealEquityTotalUSDT));0=仅 USDT。
   # 例:max_daily_loss_pct / max_account_drawdown_pct / max_strategy_cumulative_loss_pct(默认见 defaults.go)。
-  # 2026-07-02 重校准(账户≈88U,微仓方向探索档;旧值是 6/19 给 450U carry 定的,已失配):
-  max_daily_loss_usdt: 8
+  # 2026-07-03 用户决策抬高:fast v2 学费预算=每所本金 30%(OKX 100U→30U),账户级日亏硬停必须 > fast 预算
+  # 才不会先于 fast 熔断把全账户停掉(层级:fast 30U 先熔,slow/其他所照跑;账户级 35U 是最终兜底)。
+  # 代价=接受单日最大约 22% 权益回撤(160U 口径),用户明确接受(2026-07-03 01:59 对话)。原值 8U(7-02 校准)。
+  max_daily_loss_usdt: 35
   # 账户回撤闸口径=「全部历史 settlements 累计净利曲线自高水位的回撤」(含全部探索学费≈86U),阈值须计入已发生部分。
   max_account_drawdown_usdt: 115
   # directional_okx 全期累计已 -52(探索学费);80 = 再给 ~28U 探索预算,到点硬停须人工确认。
@@ -151,10 +153,10 @@ okx_directional:
   universe_scan_interval_minutes: 30
   candidate_pool_n: 40
   shortlist_n: 20
-  # 默认交易仓本金/止损%(页面可覆盖并持久化)
+  # 默认交易仓本金/止损%(页面可覆盖并持久化;各所 control.json 是实际生效源)
   trading_capital_usdt: 30
-  stop_loss_pct: 0.20        # 交易仓本金基准:20%(5X 下≈4% 价格移动)
-  take_profit_pct: 0.30      # 本金基准:30%(5X 下≈6% 价格)
+  stop_loss_pct: 0.05        # 交易仓本金基准:5%(5X 下≈1% 价格)。2026-07-02 对齐:原写 0.20 但 control.json/defaults 实际生效 0.05,消除三源漂移(行为零变化)
+  take_profit_pct: 0.30      # ⚠️ 死参数:live 出场走 decideDirectionalPositionAction(quick_tp/分批/棘轮),不读此值;仅遗留单测用
   daily_loss_limit_usdt: 0   # 0=不设日熔断(用户要求)
   # 选币/信号
   universe_top_n: 20   # 探索高频档:20(原12)——更宽候选池
@@ -226,9 +228,31 @@ okx_directional:
   # fast_peer(跨所 lead-lag)已被大样本证伪(领先→跟随不可用),2026-07-02 停采省 ~1GB/天。
   fast_ws_collector_enabled: true
   fast_peer_ws_enabled: false
-  # fast 实盘线(fast_scalper_v1):暂停。头两天 3855 笔实盘学费 -30.3U 证明现约束下无正期望;
-  # 重启三闸(见 records/_fast_readiness_report.py):返佣落地(成本地板<4bp)+ 事件信号毛期望>2×成本 + 影子模拟净正。
-  fast_scalper_v1_enabled: false
+  # fast 实盘线 v2 重启(2026-07-03 用户决策,有意越过三闸——依据:交易所账本重建 6304 笔 v1 往返解剖,
+  # 亏损集中在 <15s 出场翻炒(毛均 -12.8bps/PF 0.20),60-180s 桶毛正(+2.7bps/PF 1.36),信号方向真实存在。
+  # v2 = 只修出场时序,不动打分器:minHold 60s 内禁亏损驱动出场 + 灾难线 40bps 防插针 + fast 层日亏 3U 熔断。
+  # 灰度:仅 OKX、名义 5U;结算带 fast_exit_version=v2 且另存 fast_v2_settlements.jsonl 供分代对照分析。
+  fast_scalper_v1_enabled: true
+  fast_live_enabled: true
+  fast_live_notional_usdt: 5
+  # minHold=30s:账本细分桶显示 0-30s 全负(0-10s 毛均-15.6bps),30-45s/45-60s 桶 PF≈2 全曲线最强;
+  # 60s 会把最优出场窗口锁在门外(2026-07-03 与用户对齐)。
+  fast_min_hold_seconds: 30
+  # 灾难线 40→25(v2 数据标定:胜单最深回撤 P50=-1.9bps、几乎无胜单破 -25;灾难单 10s 内已 -26bps,早砍省 15-20bps/笔)
+  fast_disaster_stop_bps: 25
+  # fast 学费预算=本所交易本金×30%(OKX 100U→30U;随页面调本金自动缩放;触发当日停开 fast,北京日切恢复)
+  fast_daily_loss_pct_of_capital: 0.30
+  # ===== v2.2 自适应惩罚(2026-07-03,替代"禁开"黑名单;广撒网不收网,让重复失败变贵)=====
+  # v1 账本教训:同币日内无上限重复锤(CELO 两天 1124 笔)贡献 96% 出血 → 亏损退避:该币每亏一档,
+  # 冷却 300s×3^档(15m/45m/…cap 2h)+ 再入场门槛 +0.05/档(cap +0.25);赢单降档,北京日切重置。
+  fast_loss_cooldown_backoff_factor: 3
+  fast_loss_cooldown_cap_seconds: 7200
+  fast_loss_score_bump_per_loss: 0.05
+  fast_loss_score_bump_cap: 0.25
+  # 弱时段(v1:UTC 00-08 占一半亏损):不禁开,门槛 +0.10 且名义×0.5,便宜地继续采样,数据够了再评估是否可救
+  fast_weak_hours_utc: "0-7"
+  fast_weak_hours_score_bump: 0.10
+  fast_weak_hours_notional_frac: 0.5
 
 # 五策略统一资金费轮动 runner。perp-perp 执行体见 cross_venue_executor,开仓由 runner binding 派发。
 # total_deployable_usdt: 绝对预算(USDT);另有 total_deployable_pct(默认见 defaults,占真实现金权益比例),二者与 equity 取 min。

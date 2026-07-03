@@ -60,7 +60,11 @@ func main() {
 }
 
 func buildAdapter(name string) (venue.Venue, error) {
-	sec, err := app.LoadVenueSecretConfig("/root/lingxi/secret.yaml", name)
+	secretPath := strings.TrimSpace(os.Getenv("LINGXI_SECRET_PATH"))
+	if secretPath == "" {
+		secretPath = "/root/lingxi/secret.yaml"
+	}
+	sec, err := app.LoadVenueSecretConfig(secretPath, name)
 	if err != nil {
 		return nil, fmt.Errorf("凭证: %w", err)
 	}

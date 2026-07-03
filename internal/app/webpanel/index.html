@@ -97,10 +97,11 @@ a{color:var(--blue);text-decoration:none}
         <div class="small" style="margin-top:8px">开始=真实下单,须持有控制令牌;停止只停新开仓,在场仓继续按规则管理。</div>
       </div>
       <div class="card">
-        <h3>仓位级统计 (今日 / 全期)</h3>
-        <table id="statsTable"><thead><tr><th></th><th>仓数</th><th>胜率</th><th>PF</th><th>净利</th><th>最大亏</th></tr></thead><tbody>
-          <tr id="statsToday"><td>今日</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
-          <tr id="statsAll"><td>全期</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+        <h3>仓位级统计 (今日分层 / 全期)</h3>
+        <table id="statsTable"><thead><tr><th></th><th>开仓数</th><th>仓数(平)</th><th>胜率</th><th>PF</th><th>净利</th><th>最大亏</th></tr></thead><tbody>
+          <tr id="statsTodaySlow"><td>今日·慢线</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+          <tr id="statsTodayFast"><td>今日·fast</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+          <tr id="statsAll"><td>全期(合)</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
         </tbody></table>
         <div class="small" id="statsNote" style="margin-top:6px"></div>
       </div>
@@ -135,7 +136,10 @@ function tokenHeaders(){
   return t ? {"X-Dashboard-Token": t, "Content-Type":"application/json"} : {"Content-Type":"application/json"};
 }
 function saveToken(){
-  localStorage.setItem("lx_token", document.getElementById("token").value.trim());
+  const t = document.getElementById("token").value.trim();
+  localStorage.setItem("lx_token", t);
+  // 同步写 cookie:records/、审计日志是 <a href> 直接导航,浏览器带不了自定义请求头,只读鉴权回退认此 cookie。
+  document.cookie = "lx_token=" + encodeURIComponent(t) + "; path=/; max-age=31536000; SameSite=Strict";
   toast("令牌已保存到本浏览器");
 }
 function toast(text, isErr){
@@ -198,15 +202,23 @@ function renderTabs(){
   });
 }
 
-function statRow(id, s){
+function statRow(id, s, opened){
   const el = document.getElementById(id);
-  if(!s){ return; }
+  if(!el || !s){ return; }
   const c = el.children;
-  c[1].textContent = s.position_count ?? "—";
-  c[2].textContent = s.position_win_rate!=null ? (s.position_win_rate*100).toFixed(1)+"%" : "—";
-  c[3].textContent = fmt(s.position_profit_factor);
-  c[4].innerHTML = `<span class="${cls(s.net_usdt)}">${sign(s.net_usdt)} U</span>`;
-  c[5].innerHTML = `<span class="neg">${fmt(s.position_max_loss_usdt)} U</span>`;
+  c[1].textContent = opened!=null ? opened : "—";
+  c[2].textContent = s.position_count ?? "—";
+  c[3].textContent = s.position_win_rate!=null ? (s.position_win_rate*100).toFixed(1)+"%" : "—";
+  c[4].textContent = fmt(s.position_profit_factor);
+  c[5].innerHTML = `<span class="${cls(s.net_usdt)}">${sign(s.net_usdt)} U</span>`;
+  c[6].innerHTML = `<span class="neg">${fmt(s.position_max_loss_usdt)} U</span>`;
+}
+// 持仓时长智能格式:2 分钟内显示秒(fast 超频可读),更长显示 分m秒s。
+function fmtHold(x){
+  const s = x.hold_seconds!=null ? x.hold_seconds : (x.hold_minutes!=null ? x.hold_minutes*60 : null);
+  if(s==null) return "—";
+  if(s < 120) return s + "s";
+  return Math.floor(s/60) + "m" + (s%60 ? (s%60)+"s" : "");
 }
 
 async function refreshDirectional(){
@@ -231,8 +243,9 @@ async function refreshDirectional(){
     if(document.activeElement.id!=="ctlCapital") document.getElementById("ctlCapital").value = d.trading_capital_usdt||"";
     if(document.activeElement.id!=="ctlStop") document.getElementById("ctlStop").value = d.stop_loss_pct!=null? Math.round(d.stop_loss_pct*100):"";
 
-    statRow("statsToday", d.stats_today);
-    statRow("statsAll", d.stats_all_time);
+    statRow("statsTodaySlow", d.stats_today_slow, d.opened_today_slow);
+    statRow("statsTodayFast", d.stats_today_fast, d.opened_today_fast);
+    statRow("statsAll", d.stats_all_time, null);
     document.getElementById("statsNote").textContent = d.stats_all_time
       ? `事件级 ${d.stats_all_time.trade_count} 笔 · 事件胜率 ${(d.stats_all_time.win_rate*100).toFixed(1)}%` : "";
 
@@ -253,7 +266,7 @@ async function refreshDirectional(){
         <td>${ts(x.time)}</td><td>${x.symbol}</td><td class="${x.side==='long'?'pos':'neg'}">${x.side}</td>
         <td>${x.entry}</td><td>${x.exit}</td><td>${fmt(x.notional)} U</td>
         <td class="${cls(x.realized_usdt)}">${sign(x.realized_usdt)}</td>
-        <td>${x.hold_seconds?Math.round(x.hold_seconds/60)+"m":(x.hold_minutes!=null?x.hold_minutes+"m":"—")}</td>
+        <td>${fmtHold(x)}</td>
         <td>${x.reason||""}</td><td>${(x.open_via_taker?"T":"m")+"/"+(x.close_via_taker?"T":"m")}</td></tr>`);
     });
   }catch(err){ console.warn(err); }
@@ -277,6 +290,8 @@ async function controlEngine(active){
 }
 
 document.getElementById("token").value = localStorage.getItem("lx_token")||"";
+// 旧版只存 localStorage 不写 cookie:页面加载时补写一次,老用户不用重新点保存。
+(function(){ const t = localStorage.getItem("lx_token"); if(t && !document.cookie.includes("lx_token=")) document.cookie = "lx_token=" + encodeURIComponent(t) + "; path=/; max-age=31536000; SameSite=Strict"; })();
 renderTabs();
 refreshAccount(); refreshDirectional();
 setInterval(refreshAccount, 15000);

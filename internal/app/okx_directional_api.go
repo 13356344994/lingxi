@@ -40,6 +40,12 @@ type OKXDirectionalAPIResponse struct {
 	Recent              []okxDirectionalSettlement   `json:"recent,omitempty"`
 	StatsToday          *directionalStats            `json:"stats_today,omitempty"`
 	StatsAllTime        *directionalStats            `json:"stats_all_time,omitempty"`
+	// 分层今日统计(2026-07-03):fast 笔数会淹没 slow,混合行意义有限 → slow/fast 各一行。
+	StatsTodaySlow *directionalStats `json:"stats_today_slow,omitempty"`
+	StatsTodayFast *directionalStats `json:"stats_today_fast,omitempty"`
+	// 今日开仓数(含仍在场的):已结算按 close_time−hold 推回开仓时刻,在场按 OpenedAt。
+	OpenedTodaySlow int `json:"opened_today_slow"`
+	OpenedTodayFast int `json:"opened_today_fast"`
 }
 
 func directionalVenueFromRequest(r *http.Request) string {
@@ -97,10 +103,46 @@ func (s *DashboardServer) okxDirectionalStatusOrEmpty(venue string) OKXDirection
 	allSettles, allErr := loadTailJSONLFile[okxDirectionalSettlement](eng.SettlementsPath(), time.Time{}, 1000)
 	if allErr == nil && allSettles != nil {
 		now := time.Now().UTC()
-		today := computeDirectionalStats(allSettles, beijingCSTDayStart(now))
+		dayStart := beijingCSTDayStart(now)
+		today := computeDirectionalStats(allSettles, dayStart)
 		allTime := computeDirectionalStats(allSettles, time.Time{})
 		resp.StatsToday = &today
 		resp.StatsAllTime = &allTime
+		// 分层今日统计:fast(signal_layer=fast_v1)与 slow 分开,fast 高笔数不再淹没 slow。
+		var slowSettles, fastSettles []okxDirectionalSettlement
+		for _, rec := range allSettles {
+			if rec.SignalLayer == fastSignalLayer {
+				fastSettles = append(fastSettles, rec)
+			} else {
+				slowSettles = append(slowSettles, rec)
+			}
+		}
+		slowToday := computeDirectionalStats(slowSettles, dayStart)
+		fastToday := computeDirectionalStats(fastSettles, dayStart)
+		resp.StatsTodaySlow = &slowToday
+		resp.StatsTodayFast = &fastToday
+		// 今日开仓数(含在场):已结算按 close_time−hold_seconds 推回开仓时刻。
+		for _, rec := range allSettles {
+			openAt := rec.Time.Add(-time.Duration(rec.HoldSeconds) * time.Second)
+			if rec.HoldSeconds == 0 && rec.HoldMinutes > 0 {
+				openAt = rec.Time.Add(-time.Duration(rec.HoldMinutes) * time.Minute)
+			}
+			if openAt.Before(dayStart) {
+				continue
+			}
+			if rec.SignalLayer == fastSignalLayer {
+				resp.OpenedTodayFast++
+			} else {
+				resp.OpenedTodaySlow++
+			}
+		}
+		// 在场仓:slow 按 Positions 视图,fast 读 fast 持仓表。
+		for _, p := range st.Positions {
+			if !p.OpenedAt.Before(dayStart) {
+				resp.OpenedTodaySlow++
+			}
+		}
+		resp.OpenedTodayFast += eng.fastOpenPositionsOpenedSince(dayStart)
 		// 今日已实现/合计改用 settlements 口径(北京日切聚合):重启不清零,且已用上修正后的成交价记账。
 		// 内存计数器 dailyRealizedUSDT 仅本进程累计、重启归零,不适合作为面板「今日合计」。
 		resp.DailyRealizedUSDT = today.NetUSDT

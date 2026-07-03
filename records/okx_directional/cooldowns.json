@@ -1,8 +1,35 @@
 {
   "cooldown_until": {
-    "RLS-USDT": "2026-07-03T00:00:00+08:00"
+    "AAOI-USDT": "2026-07-03T03:05:29.291617797Z",
+    "ARX-USDT": "2026-07-04T00:00:00+08:00",
+    "BARD-USDT": "2026-07-04T00:00:00+08:00",
+    "BLEND-USDT": "2026-07-03T03:34:36.586261252Z",
+    "BOT-USDT": "2026-07-04T00:00:00+08:00",
+    "BREV-USDT": "2026-07-04T00:00:00+08:00",
+    "CELO-USDT": "2026-07-04T00:00:00+08:00",
+    "KLAC-USDT": "2026-07-04T00:00:00+08:00",
+    "KORU-USDT": "2026-07-03T03:22:53.37455173Z",
+    "ME-USDT": "2026-07-04T00:00:00+08:00",
+    "RLS-USDT": "2026-07-04T00:00:00+08:00",
+    "SNDK-USDT": "2026-07-04T00:00:00+08:00"
   },
-  "coin_loss_count": {},
-  "day_start_cst": "2026-07-02T00:00:00+08:00",
-  "saved_at": "2026-07-02T13:29:16.348401723Z"
+  "coin_loss_count": {
+    "AAOI-USDT": 1,
+    "ARX-USDT": 2,
+    "AXTI-USDT": 1,
+    "BARD-USDT": 2,
+    "BOT-USDT": 2,
+    "BSB-USDT": 1,
+    "CELO-USDT": 2,
+    "KIOXIA-USDT": 1,
+    "KLAC-USDT": 2,
+    "KORU-USDT": 1,
+    "ME-USDT": 2,
+    "ORCL-USDT": 1,
+    "RLS-USDT": 2,
+    "SNDK-USDT": 2,
+    "SOXL-USDT": 1
+  },
+  "day_start_cst": "2026-07-03T00:00:00+08:00",
+  "saved_at": "2026-07-03T03:04:36.590543392Z"
 }

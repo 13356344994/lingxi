@@ -64,6 +64,10 @@ func (s *DashboardAuditStore) Append(record DashboardAuditRecord) error {
 	if _, err := file.Write(append(payload, '\n')); err != nil {
 		return fmt.Errorf("写入审计日志失败: %w", err)
 	}
+	// fsync:审计记录是控制操作的唯一留痕,进程 crash 不应丢最后一条(与 store.AppendJSONLRecord 同口径)。
+	if err := file.Sync(); err != nil {
+		return fmt.Errorf("落盘审计日志失败: %w", err)
+	}
 	return nil
 }
 

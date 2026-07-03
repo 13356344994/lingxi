@@ -113,13 +113,20 @@ func startLiveStack(ctx context.Context, cfg EngineConfig) error {
 	dashboard.SetRecordDir(cfg.NetworkConfig.RecordDir)
 	controlPlane := NewControlPlane(cfg.NetworkConfig.RecordDir, emergencyStopPaths(cfg), log.Default())
 	dashboard.SetControlPlane(controlPlane)
+	secretPath := strings.TrimSpace(os.Getenv("LINGXI_SECRET_PATH"))
+	if secretPath == "" {
+		secretPath = "secret.yaml"
+	}
 	// 重启后把新控制令牌经 Telegram 推给用户(用户明确要求;凭据与交易告警同源 secret.yaml,
-	// 未配置 Telegram 时静默跳过)。
-	if tgToken, tgChat := loadAlertingSecretsOrEmpty("secret.yaml"); tgToken != "" && tgChat != "" {
+	// 未配置 Telegram 时静默跳过)。同时把凭证注入 cfg.AlertingConfig:此前账户风控的
+	// 硬停/回撤 critical 告警因 AlertingConfig.Enabled 默认 false 只落日志、从不推送——
+	// 无人值守副业模式下"出事了但用户不知道"是最大缺口,故只要 secret.yaml 配了 Telegram 就自动启用
+	// (MinSeverity 保持 warning:仅风控告警/硬停会推,不刷屏)。
+	if tgToken, tgChat := loadAlertingSecretsOrEmpty(secretPath); tgToken != "" && tgChat != "" {
+		cfg.AlertingConfig.Enabled = true
+		cfg.AlertingConfig.TelegramBotToken = tgToken
+		cfg.AlertingConfig.TelegramChatID = tgChat
 		ac := cfg.AlertingConfig
-		ac.Enabled = true
-		ac.TelegramBotToken = tgToken
-		ac.TelegramChatID = tgChat
 		ac.MinSeverity = "info"
 		tokenDispatcher := newAlertDispatcher(ac, log.Default())
 		dashboard.SetTokenNotifier(func(token string) {
@@ -130,10 +137,6 @@ func startLiveStack(ctx context.Context, cfg EngineConfig) error {
 				OccurredAt: time.Now().UTC(),
 			})
 		})
-	}
-	secretPath := strings.TrimSpace(os.Getenv("LINGXI_SECRET_PATH"))
-	if secretPath == "" {
-		secretPath = "secret.yaml"
 	}
 	// S7-A:方向引擎真钱下单前抢单写租约,防双开双写同一账户。flock 随进程退出由内核释放。
 	liveLease, leaseErr := acquireLiveStackSingleWriterLease(cfg)
@@ -148,20 +151,15 @@ func startLiveStack(ctx context.Context, cfg EngineConfig) error {
 	equitySvc := NewAccountEquityService(accountVenues, cfg.NetworkConfig.RecordDir, log.Default())
 	dashboard.SetAccountEquityService(equitySvc)
 	go equitySvc.RunEquitySampler(ctx) // 账户级权益采样:常驻(收益面板「北京0点基准」数据源)
-	// Stage B 账户级硬风控:常驻(实盘方向引擎也需要账户级硬止损)。一级硬停默认启用(非破坏性)。
-	go startAccountRiskWatcher(ctx, accountRiskWatchConfig{
-		Cfg:          cfg,
-		RecordDir:    cfg.NetworkConfig.RecordDir,
-		Logger:       log.Default(),
-		ControlPlane: controlPlane,
-		Equity:       equitySvc,
-	})
+	// 方向引擎先于账户风控构造:风控二级全平(FlattenFn)需要持引擎引用逐所平仓。
+	var directionalEngines []*OKXDirectionalEngine
 	if cfg.OKXDirectional.Enabled {
 		if eng, err := NewOKXDirectionalEngine(cfg, orch, cfg.NetworkConfig.RecordDir, log.Default()); err != nil {
 			log.Default().Printf("[OKX方向] 构造失败,跳过: %v", err)
 		} else {
 			eng.SetControlPlane(controlPlane)
 			dashboard.SetOKXDirectionalEngine(eng)
+			directionalEngines = append(directionalEngines, eng)
 			go eng.Run(ctx)
 		}
 	}
@@ -172,6 +170,7 @@ func startLiveStack(ctx context.Context, cfg EngineConfig) error {
 		} else {
 			eng.SetControlPlane(controlPlane)
 			dashboard.SetOKXDirectionalEngine(eng)
+			directionalEngines = append(directionalEngines, eng)
 			go eng.Run(ctx)
 			log.Default().Printf("[方向] %s 引擎已接线(默认停用,需面板点开始)", vn)
 		}
@@ -186,9 +185,32 @@ func startLiveStack(ctx context.Context, cfg EngineConfig) error {
 	} else {
 		eng.SetControlPlane(controlPlane)
 		dashboard.SetOKXDirectionalEngine(eng)
+		directionalEngines = append(directionalEngines, eng)
 		go eng.Run(ctx)
 		log.Default().Printf("[方向] binance 引擎已接线(默认停用,需面板点开始)")
 	}
+	// Stage B 账户级硬风控:常驻(实盘方向引擎也需要账户级硬止损)。一级硬停默认启用(非破坏性)。
+	// 二级全平执行体在此接线(此前 flattenFn 从未绑定 = 死代码,即使 config 开了 opt-in 也不会全平);
+	// 是否触发仍由 auto_flatten_on_hard_drawdown_enabled(默认 false)+ 数据质量闸决定,接线本身不改变行为。
+	go startAccountRiskWatcher(ctx, accountRiskWatchConfig{
+		Cfg:          cfg,
+		RecordDir:    cfg.NetworkConfig.RecordDir,
+		Logger:       log.Default(),
+		ControlPlane: controlPlane,
+		Equity:       equitySvc,
+		FlattenFn: func(fctx context.Context) error {
+			var errs []string
+			for _, eng := range directionalEngines {
+				if err := eng.FlattenAll(fctx, "账户级自动全平(硬止损)"); err != nil {
+					errs = append(errs, err.Error())
+				}
+			}
+			if len(errs) > 0 {
+				return errors.New(strings.Join(errs, "; "))
+			}
+			return nil
+		},
+	})
 	if err := dashboard.Start(ctx); err != nil && !errors.Is(err, context.Canceled) {
 		return fmt.Errorf("Web 面板异常退出: %w", err)
 	}

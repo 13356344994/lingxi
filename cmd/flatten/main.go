@@ -22,10 +22,17 @@ import (
 )
 
 const (
-	secretPath = "/root/lingxi/secret.yaml"
-	slip       = 0.004 // IOC 限价偏移 0.4%(okx 价格保护带 ~0.5%,留余量)
-	tol        = 1e-8
+	slip = 0.004 // IOC 限价偏移 0.4%(okx 价格保护带 ~0.5%,留余量)
+	tol  = 1e-8
 )
+
+// secretPath 支持 LINGXI_SECRET_PATH 覆盖(与主程序同名环境变量),默认沿用生产部署路径。
+var secretPath = func() string {
+	if p := strings.TrimSpace(os.Getenv("LINGXI_SECRET_PATH")); p != "" {
+		return p
+	}
+	return "/root/lingxi/secret.yaml"
+}()
 
 func buildAdapter(name string) (venue.Venue, error) {
 	if name == binance.VenueName {

@@ -14,6 +14,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path"
 	"path/filepath"
@@ -245,11 +246,27 @@ func (s *DashboardServer) authorizeRuntimeControl(w http.ResponseWriter, r *http
 	return true
 }
 
+// readTokenFromRequest 只读路径的令牌提取:优先 X-Dashboard-Token 请求头(JS fetch),
+// 回退 lx_token cookie(浏览器 <a href> 导航带不了自定义头,如 records/、审计日志链接)。
+// 仅用于只读鉴权;控制类接口保持只认请求头——cookie 会被浏览器自动附带,认 cookie 做写操作等于开 CSRF 口子。
+func readTokenFromRequest(r *http.Request) string {
+	if t := r.Header.Get("X-Dashboard-Token"); t != "" {
+		return t
+	}
+	if c, err := r.Cookie("lx_token"); err == nil {
+		if v, uerr := url.QueryUnescape(c.Value); uerr == nil {
+			return v
+		}
+		return c.Value
+	}
+	return ""
+}
+
 func (s *DashboardServer) authorizeRead(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !isLoopbackRequest(r) {
-			if s.controlToken != "" && !s.tokenMatches(r.Header.Get("X-Dashboard-Token")) {
-				http.Error(w, "仅允许本机或持有合法令牌访问记录数据", http.StatusForbidden)
+			if s.controlToken != "" && !s.tokenMatches(readTokenFromRequest(r)) {
+				http.Error(w, "仅允许本机或持有合法令牌访问记录数据(请先在面板首页保存控制令牌)", http.StatusForbidden)
 				return
 			}
 		}
@@ -261,7 +278,7 @@ func (s *DashboardServer) authorizeRead(next http.Handler) http.Handler {
 func (s *DashboardServer) authorizeReadAPI(handler http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if !isLoopbackRequest(r) {
-			if s.controlToken != "" && !s.tokenMatches(r.Header.Get("X-Dashboard-Token")) {
+			if s.controlToken != "" && !s.tokenMatches(readTokenFromRequest(r)) {
 				http.Error(w, "仅允许本机或持有合法令牌访问 API", http.StatusForbidden)
 				return
 			}

@@ -7,6 +7,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -45,6 +46,8 @@ type fastLivePosition struct {
 	Score        float64   `json:"score,omitempty"`
 	ScoreReason  string    `json:"score_reason,omitempty"`
 	OpenViaTaker bool      `json:"open_via_taker,omitempty"`
+	// v2.2 自适应入场标注(loss_lvlN / weak_hour;平仓时写入 settlement 供分桶复盘)
+	EntryAdaptiveTags string `json:"entry_adaptive_tags,omitempty"`
 	// 入场上下文(复盘用,平仓时写入 settlement)
 	EventID         string    `json:"event_id,omitempty"`
 	EventTime       time.Time `json:"event_time,omitempty"`
@@ -200,7 +203,165 @@ var (
 	fastSkipAgg    = map[string]int{} // 入场结果/跳过原因聚合(每 60s 打一行后清空)
 	fastCooldownMu sync.Mutex
 	fastCooldown   = map[string]map[string]time.Time{} // venue -> symbol -> 冷却到期(fast 层;仅内存,5min 短冷却)
+	fastDailyMu    sync.Mutex
+	fastDaily      = map[string]*fastDailyState{} // venue -> 当日 fast 已实现(北京日切;重启从 settlements 重建)
 )
+
+// fastDailyState fast 层当日状态(独立于 slow 的账户级风控):已实现净额(熔断用)+ 单币净亏笔数(自适应退避用)。
+type fastDailyState struct {
+	day      time.Time
+	realized float64
+	// symLosses 单币当日净亏笔数(赢单减一档,地板 0):驱动"亏得越多越难再进"的自适应惩罚,不禁开。
+	symLosses map[string]int
+	loaded    bool
+}
+
+// fastDailyStateLocked 返回当日状态(调用者须持 fastDailyMu);首次调用从 settlements.jsonl 重建(重启不丢日内计数)。
+func (e *OKXDirectionalEngine) fastDailyStateLocked(now time.Time) *fastDailyState {
+	dayStart := beijingCSTDayStart(now)
+	st := fastDaily[e.venueName]
+	if st == nil || !st.day.Equal(dayStart) {
+		st = &fastDailyState{day: dayStart, symLosses: map[string]int{}}
+		fastDaily[e.venueName] = st
+	}
+	if st.symLosses == nil {
+		st.symLosses = map[string]int{}
+	}
+	if !st.loaded {
+		st.loaded = true
+		if data, err := os.ReadFile(e.settlementsPath); err == nil {
+			for _, line := range strings.Split(string(data), "\n") { // 文件按时间追加,顺序回放即时序
+				line = strings.TrimSpace(line)
+				if line == "" {
+					continue
+				}
+				var rec okxDirectionalSettlement
+				if json.Unmarshal([]byte(line), &rec) != nil {
+					continue
+				}
+				if rec.SignalLayer != fastSignalLayer || rec.Time.Before(dayStart) {
+					continue
+				}
+				st.realized += rec.RealizedUSDT
+				st.applyOutcome(rec.Symbol, rec.RealizedUSDT)
+			}
+		}
+	}
+	return st
+}
+
+// applyOutcome 更新单币亏损档位:净亏 +1 档,净赢 -1 档(地板 0,信号重新证明自己即自动降档)。
+func (st *fastDailyState) applyOutcome(sym string, realized float64) {
+	if realized < 0 {
+		st.symLosses[sym]++
+	} else if realized > 0 && st.symLosses[sym] > 0 {
+		st.symLosses[sym]--
+	}
+}
+
+// fastDailyRealized 返回当日 fast 已实现净额(熔断判定用)。
+func (e *OKXDirectionalEngine) fastDailyRealized(now time.Time) float64 {
+	fastDailyMu.Lock()
+	defer fastDailyMu.Unlock()
+	return e.fastDailyStateLocked(now).realized
+}
+
+// fastSymbolLossLevel 该币当日亏损档位(0=干净)。
+func (e *OKXDirectionalEngine) fastSymbolLossLevel(sym string, now time.Time) int {
+	fastDailyMu.Lock()
+	defer fastDailyMu.Unlock()
+	return e.fastDailyStateLocked(now).symLosses[sym]
+}
+
+// effectiveFastDailyLossLimit fast 层日熔断有效阈值:pct>0 → 本所交易本金×pct(随页面调本金缩放);
+// 否则回退 USDT 绝对值;两者均未配 → 0(关)。
+func (e *OKXDirectionalEngine) effectiveFastDailyLossLimit() float64 {
+	if pct := e.cfg.FastDailyLossPctOfCapital; pct > 0 {
+		if capital := e.getControl().TradingCapitalUSDT; capital > 0 {
+			return capital * pct
+		}
+	}
+	return e.cfg.FastDailyLossLimitUSDT
+}
+
+// fastOpenPositionsOpenedSince 当前在场 fast 仓中开仓时刻不早于 since 的数量(面板"今日开仓数"用)。
+func (e *OKXDirectionalEngine) fastOpenPositionsOpenedSince(since time.Time) int {
+	fastLiveMu.Lock()
+	defer fastLiveMu.Unlock()
+	n := 0
+	for _, p := range fastLivePos[e.venueName] {
+		if p != nil && !p.OpenedAt.Before(since) {
+			n++
+		}
+	}
+	return n
+}
+
+// fastDailyAdd 累加一笔 fast 结算到当日计数 + 更新该币亏损档位(平仓路径调用)。
+func (e *OKXDirectionalEngine) fastDailyAdd(now time.Time, sym string, delta float64) {
+	fastDailyMu.Lock()
+	defer fastDailyMu.Unlock()
+	st := e.fastDailyStateLocked(now)
+	st.realized += delta
+	st.applyOutcome(sym, delta)
+}
+
+// fastParseWeakHoursUTC 解析弱时段配置("0-7" / "0,1,2" / 混合"0-3,22,23")→ 24 位布尔表;解析失败的段忽略。
+func fastParseWeakHoursUTC(spec string) [24]bool {
+	var out [24]bool
+	for _, part := range strings.Split(spec, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		if lo, hi, ok := strings.Cut(part, "-"); ok {
+			a, aerr := strconv.Atoi(strings.TrimSpace(lo))
+			b, berr := strconv.Atoi(strings.TrimSpace(hi))
+			if aerr == nil && berr == nil && a >= 0 && b <= 23 && a <= b {
+				for h := a; h <= b; h++ {
+					out[h] = true
+				}
+			}
+			continue
+		}
+		if h, err := strconv.Atoi(part); err == nil && h >= 0 && h <= 23 {
+			out[h] = true
+		}
+	}
+	return out
+}
+
+// fastEntryAdaptive 计算本次入场的自适应门槛与名义系数(v2.2:替代禁开的惩罚机制)。
+// 返回 (有效分数门槛, 名义系数, 标注)。
+func (e *OKXDirectionalEngine) fastEntryAdaptive(sym string, now time.Time) (threshold, notionalFrac float64, tags string) {
+	threshold = e.cfg.FastLiveScoreThreshold
+	notionalFrac = 1.0
+	var notes []string
+	// ① 单币亏损退避:每亏一档,门槛 +bump(cap 封顶)。
+	if bump := e.cfg.FastLossScoreBumpPerLoss; bump > 0 {
+		if lvl := e.fastSymbolLossLevel(sym, now); lvl > 0 {
+			add := bump * float64(lvl)
+			if cap := e.cfg.FastLossScoreBumpCap; cap > 0 && add > cap {
+				add = cap
+			}
+			threshold += add
+			notes = append(notes, fmt.Sprintf("loss_lvl%d(+%.2f)", lvl, add))
+		}
+	}
+	// ② 弱时段:提高门槛 + 降名义(不禁开,便宜地继续采样)。
+	if spec := strings.TrimSpace(e.cfg.FastWeakHoursUTC); spec != "" {
+		if fastParseWeakHoursUTC(spec)[now.UTC().Hour()] {
+			if b := e.cfg.FastWeakHoursScoreBump; b > 0 {
+				threshold += b
+			}
+			if f := e.cfg.FastWeakHoursNotionalFrac; f > 0 && f < 1 {
+				notionalFrac = f
+			}
+			notes = append(notes, "weak_hour")
+		}
+	}
+	return threshold, notionalFrac, strings.Join(notes, "|")
+}
 
 // fastInCooldown 该 symbol 是否在 fast 冷却中(只影响 fast 层)。
 func (e *OKXDirectionalEngine) fastInCooldown(sym string, now time.Time) bool {
@@ -215,10 +376,28 @@ func (e *OKXDirectionalEngine) fastInCooldown(sym string, now time.Time) bool {
 }
 
 // fastSetCooldown 设 fast 冷却 + 落盘审计 + 日志(非永久黑名单,到期自动恢复)。
+// v2.2 亏损退避:该币当日每亏一档,冷却 ×backoff 倍(300s→15m→45m→…),cap 封顶——
+// 对着同一坏行情片段反复锤(v1: CELO 两天 1124 笔)的直接解药;赢单降档后冷却自动缩短。
 func (e *OKXDirectionalEngine) fastSetCooldown(sym, reason string, now time.Time) {
 	secs := e.cfg.FastCooldownSeconds
 	if secs <= 0 {
 		return
+	}
+	if factor := e.cfg.FastLossCooldownBackoffFactor; factor > 1 {
+		if lvl := e.fastSymbolLossLevel(sym, now); lvl > 1 {
+			scaled := float64(secs)
+			for i := 1; i < lvl; i++ {
+				scaled *= factor
+			}
+			cap := e.cfg.FastLossCooldownCapSeconds
+			if cap <= 0 {
+				cap = 7200
+			}
+			if scaled > float64(cap) {
+				scaled = float64(cap)
+			}
+			secs = int(scaled)
+		}
 	}
 	until := now.Add(time.Duration(secs) * time.Second)
 	fastCooldownMu.Lock()
@@ -577,16 +756,16 @@ func (e *OKXDirectionalEngine) fastLiveLoad() {
 }
 
 // fastLivePersistLocked 调用者须持有 fastLiveMu。
+// 原子写(tmp+fsync+rename)+ 失败留日志:此文件是重启接管 fast 仓的唯一依据,
+// 半写损坏或静默失败 = 崩溃后丢仓(实盘孤儿仓无人管)。
 func (e *OKXDirectionalEngine) fastLivePersistLocked() {
 	list := make([]*fastLivePosition, 0, len(fastLivePos[e.venueName]))
 	for _, p := range fastLivePos[e.venueName] {
 		list = append(list, p)
 	}
-	data, err := json.MarshalIndent(list, "", "  ")
-	if err != nil {
-		return
+	if err := writeJSONFile(filepath.Join(e.recordDir, fastLivePositionFile), list); err != nil {
+		e.logger.Printf("[fast_live] 持仓落盘失败(重启可能丢仓,需关注): %v", err)
 	}
-	_ = os.WriteFile(filepath.Join(e.recordDir, fastLivePositionFile), data, 0644)
 }
 
 // fastCurrentMid best-effort 拉当前中价(决策用);失败返回 0。
@@ -628,6 +807,8 @@ func (e *OKXDirectionalEngine) fastLiveManage(ctx context.Context) {
 			if p.Side == "short" {
 				ubps = -ubps
 			}
+			// 持锁更新:fastLivePersistLocked(持 fastLiveMu)会并发 marshal 这些字段,无锁写是数据竞态。
+			fastLiveMu.Lock()
 			if ubps > p.PeakBps {
 				p.PeakBps = ubps
 			}
@@ -635,15 +816,25 @@ func (e *OKXDirectionalEngine) fastLiveManage(ctx context.Context) {
 				p.TroughBps = ubps
 			}
 			fastUpdateExcursion(p, hold, ubps)
+			fastLiveMu.Unlock()
+		}
+		// v2 出场时序闸(2026-07-03,交易所账本 6304 笔解剖):minHold 内禁一切亏损驱动出场
+		// (<15s 出场毛均 -12.8bps 是出血主源;60s+ 桶毛正)。灾难线任何时刻有效(防插针深亏);
+		// 盈利保护(trail_tp)不受 minHold 限制(锁盈不是翻炒来源)。
+		minHold := float64(e.cfg.FastMinHoldSeconds)
+		inMinHold := minHold > 0 && hold < minHold
+		if haveMid && e.cfg.FastDisasterStopBps > 0 && ubps <= -e.cfg.FastDisasterStopBps {
+			e.fastLiveClose(ctx, p, "fast_disaster_stop")
+			continue
 		}
 		if p.MakerEntry { // v3 出场:早砍 / 移动止盈 / 无正反馈快平 / 止损 / 兜底(均 taker)
 			// v3.1 早砍:成交后 >=Ns 仍无正反馈(峰值≤0)且已明显走坏(谷值≤-MAE 且当前≤-cur)→ 提前砍,别等 -15bps 大止损。
-			if e.cfg.FastEarlyCutEnabled && haveMid && hold >= float64(e.cfg.FastEarlyCutSeconds) &&
+			if e.cfg.FastEarlyCutEnabled && !inMinHold && haveMid && hold >= float64(e.cfg.FastEarlyCutSeconds) &&
 				p.PeakBps <= 0 && p.TroughBps <= -e.cfg.FastEarlyCutMaeBps && ubps <= -e.cfg.FastEarlyCutCurBps {
 				e.fastLiveClose(ctx, p, "fast_early_cut")
 				continue
 			}
-			if haveMid && e.cfg.FastV2StopBps > 0 && ubps <= -e.cfg.FastV2StopBps {
+			if haveMid && !inMinHold && e.cfg.FastV2StopBps > 0 && ubps <= -e.cfg.FastV2StopBps {
 				e.fastLiveClose(ctx, p, "fast_stop_reversal")
 				continue
 			}
@@ -651,7 +842,7 @@ func (e *OKXDirectionalEngine) fastLiveManage(ctx context.Context) {
 				e.fastLiveClose(ctx, p, "fast_trail_tp") // 浮盈扩大后回吐 → 移动止盈
 				continue
 			}
-			if e.cfg.FastV3NoFeedbackSeconds > 0 && hold >= float64(e.cfg.FastV3NoFeedbackSeconds) && p.PeakBps < e.cfg.FastV3NoFeedbackMinBps {
+			if e.cfg.FastV3NoFeedbackSeconds > 0 && !inMinHold && hold >= float64(e.cfg.FastV3NoFeedbackSeconds) && p.PeakBps < e.cfg.FastV3NoFeedbackMinBps {
 				e.fastLiveClose(ctx, p, "fast_no_feedback") // 成交后无正反馈 → 快平
 				continue
 			}
@@ -675,7 +866,7 @@ func (e *OKXDirectionalEngine) fastLiveManage(ctx context.Context) {
 			e.fastLiveClose(ctx, p, "fast_tp")
 			continue
 		}
-		if haveMid && e.cfg.FastV2StopBps > 0 && ubps <= -e.cfg.FastV2StopBps {
+		if haveMid && !inMinHold && e.cfg.FastV2StopBps > 0 && ubps <= -e.cfg.FastV2StopBps {
 			e.fastLiveClose(ctx, p, "fast_stop_reversal")
 			continue
 		}
@@ -709,7 +900,11 @@ func (e *OKXDirectionalEngine) fastLiveClose(ctx context.Context, p *fastLivePos
 		cside, dside = venue.SideBuy, DirectionShort
 	}
 	clientID := okxDirectionalClientID(sym, "fastclose")
-	res, legInfo, oerr := e.placeDirectionalLeg(ctx, venue.Symbol(sym), cside, p.Qty, clientID, true, instr, caps.ContractBasedPerp, true, 0)
+	// v2.2 出场执行分级:盈利/到时出场(trail_tp/max_hold)非紧急 → maker-first 省 ~3bps(taker 5bps→maker 2bps,
+	// 费用是 trail_tp 利润的一半);止损/灾难/早砍保持 urgent IOC 秒平(等 maker = 亏损扩大)。
+	// maker 未成交由 placeDirectionalLeg 的平仓 IOC 兜底,不会挂死。
+	urgentClose := reason != "fast_trail_tp" && reason != "fast_max_hold"
+	res, legInfo, oerr := e.placeDirectionalLeg(ctx, venue.Symbol(sym), cside, p.Qty, clientID, true, instr, caps.ContractBasedPerp, urgentClose, 0)
 	if oerr != nil || res.ExecutedQty <= executionQtyTolerance {
 		// 交易所明确回报「该方向无持仓可平」(OKX 51169 等严格 allowlist)→ 主动按方向核验交易所持仓后清理本地幽灵,
 		// 不再每 2s 无限重试(根治 GLW 幽灵仓刷屏 + 连带限频)。任一防护不满足 → 走原「下轮重试」。
@@ -779,9 +974,16 @@ func (e *OKXDirectionalEngine) fastLiveClose(ctx context.Context, p *fastLivePos
 	settle.PostFillMfe15sBps, settle.PostFillMae15sBps = ptr(p.Seen15, p.Mfe15), ptr(p.Seen15, p.Mae15)
 	settle.PostFillMfe30sBps, settle.PostFillMae30sBps = ptr(p.Seen30, p.Mfe30), ptr(p.Seen30, p.Mae30)
 	settle.PostFillMfe60sBps, settle.PostFillMae60sBps = ptr(p.Seen60, p.Mfe60), ptr(p.Seen60, p.Mae60)
+	settle.FastExitVersion = "v2" // 出场时序 v2(minHold+灾难线+日熔断);离线分析与 v1 学费数据分代对照
+	settle.EntryAdaptiveTags = p.EntryAdaptiveTags
 	if err := appendJSONLRecord(e.settlementsPath, settle); err != nil {
 		e.logger.Printf("[fast_live] 结算落盘失败: %v", err)
 	}
+	// v2 独立日志(用户要求):fast 结算另存一份专用文件,后续分析不用从混合 settlements 里过滤。
+	if err := appendJSONLRecord(filepath.Join(e.recordDir, "fast_v2_settlements.jsonl"), settle); err != nil {
+		e.logger.Printf("[fast_live] v2 结算副本落盘失败: %v", err)
+	}
+	e.fastDailyAdd(now, sym, realized)
 	fastLiveMu.Lock()
 	delete(fastLivePos[e.venueName], sym)
 	e.fastLivePersistLocked()
@@ -982,9 +1184,6 @@ func (e *OKXDirectionalEngine) fastLiveOpen(ctx context.Context, ev *fastExecSha
 	if ev.FastCandidateSide != "long" && ev.FastCandidateSide != "short" { // flat 不开
 		return "flat"
 	}
-	if ev.FastCandidateScore < e.cfg.FastLiveScoreThreshold {
-		return "low_score"
-	}
 	if ev.Mid <= 0 || ev.Bid <= 0 || ev.Ask <= 0 { // 异常盘口不开
 		return "bad_book"
 	}
@@ -992,9 +1191,23 @@ func (e *OKXDirectionalEngine) fastLiveOpen(ctx context.Context, ev *fastExecSha
 		return "halt"
 	}
 	sym := ev.Symbol
+	// v2.2 自适应门槛(替代禁开):单币当日亏损档位抬高再入场分数,弱时段(UTC 弱段)提标+降名义。
+	effThreshold, notionalFrac, adaptiveTags := e.fastEntryAdaptive(sym, e.nowFn().UTC())
+	if ev.FastCandidateScore < effThreshold {
+		if adaptiveTags != "" {
+			return "low_score_adaptive"
+		}
+		return "low_score"
+	}
 	// fast 短冷却中 → 跳过(只影响 fast 层;非永久黑名单)
 	if e.fastInCooldown(sym, e.nowFn().UTC()) {
 		return "cooldown"
+	}
+	// fast 层日亏熔断(学费上限):当日 fast 净亏达阈值 → 当日停开新 fast 仓(在场仓照常管理;北京日切自动恢复)。
+	if lim := e.effectiveFastDailyLossLimit(); lim > 0 {
+		if realized := e.fastDailyRealized(e.nowFn().UTC()); realized <= -lim {
+			return "daily_loss_halt"
+		}
 	}
 	// 同 symbol 已有未平 fast 仓 → 不重复、不反手
 	fastLiveMu.Lock()
@@ -1017,6 +1230,7 @@ func (e *OKXDirectionalEngine) fastLiveOpen(ctx context.Context, ev *fastExecSha
 	if notional <= 0 {
 		return "no_notional"
 	}
+	notional *= notionalFrac // 弱时段降名义(便宜地继续采样)
 	lev := float64(e.leverage())
 	if lev <= 0 {
 		lev = 1
@@ -1135,6 +1349,7 @@ func (e *OKXDirectionalEngine) fastLiveOpen(ctx context.Context, ev *fastExecSha
 		EntrySpreadBps: ev.SpreadBps, EntryImbalance: ev.OrderbookImbalance,
 		EntryImpulse15s: ev.MidImpulse15sBps, EntryImpulse30s: ev.MidImpulse30sBps, EntryImpulse60s: ev.MidImpulse60sBps,
 		MakerEntry: makerMode, MakerOrderPrice: makerOrderPrice, MakerWaitMs: makerWaitMs, FillMid: fillMid, MakerEdgeBps: makerEdge,
+		EntryAdaptiveTags: adaptiveTags,
 	}
 	fastLiveMu.Lock()
 	if fastLivePos[e.venueName] == nil {

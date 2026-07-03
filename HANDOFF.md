@@ -17,6 +17,29 @@
 
 **返佣落地后的"惊喜"操作步骤**:① 把谈到的比例填进 `records/fee_rebate.json` 的 `okx_rebate_share`(如 0.45);② 跑 `python3 records/_fee_posture_advisor.py` 看新成本结构;③ 跑 `python3 records/_fast_readiness_report.py` 看 fast 实盘线三闸是否转 GO;④ 三闸全过才把 `fast_scalper_v1_enabled: true` 灰度重启。
 
+**🔄 fast v2 重启(2026-07-03 凌晨,用户明确决策,有意越过三闸)**:
+- **依据(交易所账本,不是本地记录)**:`records/_fast_exchange_truth.py` 从 OKX fills-history 重建 v1 全部 **6304 笔往返**(本地结算 7-02 事故丢失;缓存 `records/fast_exchange_fills_cache.jsonl`)。解剖:整体毛均 -3.71bps/毛PF 0.65(扣费前就亏,返佣救不了 v1 跑法);**但 <15s 出场 1690 笔毛均 -12.8bps(PF 0.20)是出血主源,60-180s 桶 532 笔毛均 +2.7bps(PF 1.36)、≥180s 桶 929 笔 PF 1.09 毛正**;SKHYNIX(股票perp)490 笔 PF 1.27。结论:信号方向真实,出场翻炒杀死期望。注意 ≥60s 桶有幸存者偏差(未触止损才活到那),v2 即是对该假设的实盘验证。
+- **v2 改动(只修出场时序,不动打分器/信号)**:`fast_min_hold_seconds=60`(期间禁 early_cut/stop/no_feedback 等一切亏损驱动出场;trail_tp 锁盈不受限)+ `fast_disaster_stop_bps=40`(任何时刻有效,防插针)+ `fast_daily_loss_limit_usdt=3`(fast 层独立日亏熔断,当日停开、北京日切恢复、重启从 settlements 重建计数)。
+- **灰度**:仅 OKX、名义 5U(`fast_live_notional_usdt=5`)。结算带 `fast_exit_version:"v2"` 且另存 `records/okx_directional/fast_v2_settlements.jsonl`(与 v1 学费数据分代对照)。生产 yaml 测试已锚定全部 v2 护栏(缺一测试即红)。
+- **复盘口径**:v1 vs v2 对比看毛均 bps/PF/出场原因分布;若 v2 仍毛负 → 出场时序假设证伪,停线回 record-only,别再调参。
+- **v2.2 自适应惩罚(2026-07-03 02:30,用户纠偏"禁开=偷懒的黑名单,要自适应不要收网")**:
+  ① **单币亏损退避**(v1 最大教训:同币日内无上限重复锤,CELO 两天 1124 笔,反事实模拟单币亏3笔止步可减 96% 出血):该币当日每净亏一笔升一档 → fast 冷却 300s×3^档(15m/45m/…cap 2h)+ 再入场分数门槛 +0.05/档(cap +0.25);**净赢一笔降一档**,北京日切重置,绝不禁开——行情反转、信号重新证明自己即自动恢复。
+  ② **弱时段自适应**(v1:UTC 00-08 占一半亏损,唯一毛正时段 UTC08):该时段不禁开,门槛 +0.10 且名义 ×0.5,便宜地继续采样;结算带 `entry_adaptive_tags`(loss_lvlN/weak_hour)供分桶评估弱时段高分单是否可救。
+  ③ **灾难线 40→25bps**(v2 标定:胜单最深回撤 P50=-1.9bps 几乎无破 -25,不误杀;灾难单 10s 内已 -26bps,早砍省 15-20bps/笔)。
+  ④ **盈利出场 maker 化**:trail_tp/max_hold 平仓改非紧急 maker-first(省 ~3bps,taker 5→maker 2;费用曾吃掉 trail_tp 毛利一半),止损/灾难/早砍保持 urgent IOC 秒平;maker 未成交有平仓 IOC 兜底不挂死。
+  单测:`fast_adaptive_test.go`(门槛递增/赢单降档/cap/弱时段/冷却退避)。
+- **v2.1 参数对齐(2026-07-03 02:00 与用户逐条确认)**:① `fast_min_hold_seconds` 60→**30**(账本细分桶:0-30s 全负、30-45s/45-60s 桶 PF≈2 全曲线最强,60s 把最优出场窗口锁在门外);② fast 日熔断改**每所交易本金×30%**(`fast_daily_loss_pct_of_capital=0.30`,OKX 100U→30U,随页面调本金缩放);③ **账户级日亏硬停 8→35U**(用户明确接受单日 ~22% 权益回撤;不抬则 9.2U 账户级先全停,30% 学费预算是虚的——层级:fast 30U 先熔只停 fast,35U 才全停);④ 面板:今日统计拆 慢线/fast 两行 + 今日开仓数(含在场),持仓时长 <2min 显示秒。
+
+**2026-07-02 深夜整改批次(全代码审计后落地,不改任何信号/入场/出场参数,不影响开单频率)**:
+- **P0 二级全平接线**:`flattenFn` 此前从未绑定=死代码;现 `run.go` 收集全部方向引擎后绑定 `FlattenAll`(urgent IOC 逐仓平)。**是否触发仍由 `auto_flatten_on_hard_drawdown_enabled`(默认 false)决定,接线本身零行为变化**。
+- **P0 风控数据源告警**:`settlements` 加载失败原先被 `_` 静默吞掉(回撤闸静默失效);现日志+critical 告警,权益口径闸继续生效。
+- **P0 Telegram 风控推送**:secret.yaml 配了 Telegram 即自动启用 `AlertingConfig`(此前 Enabled=false,硬停只写日志不推送,人不在电脑前不知道出事)。MinSeverity=warning 不刷屏;硬停告警幂等收敛(已 halt 态不重复推)。
+- **P1**:MAE 灾难刹车补进 90s manageOne(原仅 20s 快环,快环盘口失败时 -3%~-5% 有盲窗);fast 持仓改原子写+失败留日志(原 os.WriteFile 静默);fast 仓字段改持锁更新(修与 persist 的数据竞态);20s 快环盘口失败记 last_error(原静默跳过);Bybit `FetchDepth` 修 category(原硬编码 linear,现货深度查错市场);审计日志 append 加 fsync。
+- **配置对齐**:config `stop_loss_pct` 0.20→0.05(=实际生效值,行为零变化);`take_profit_pct` 注明死参数;systemd 的 `LINGXI_AUTOSTART_LIVE` 是幽灵开关(代码不读,重启恢复交易由 control.json active 决定),deploy 文件已清理;flatten/posq/livecheck 支持 `LINGXI_SECRET_PATH`。
+- **新增回归测试**:`account_risk_watch_wiring_test.go`(settlements 失败告警 / 硬停幂等 / 二级全平接线+幂等)。
+- **4 小时快照备份已上线**(用户要求,直接回应 7-02 工作区被毁事故):`deploy/backup_snapshot.sh` + `lingxi-backup.timer`(每 4h 的 :03 触发,UTC 00/04/08/12/16/20)。关键记录(settlements/持仓/控制/权益/风控/审计)+ 服务日志 + config.yaml 打包到 **/root/lingxi_backups/**(独立于工作区,git reset 伤不到);服务日志归档后 truncate 切段(每包=一段 4h 日志),**交易记录只复制绝不截断**;保留 90 个包(~15 天);刻意排除 fast_dynamic_feature_events.jsonl(628M 研究流,可再生)。恢复:解包对应时间的 tar.gz 取 records/ 下文件。
+- **面板令牌 cookie 回退**(只读路径):records/、审计日志是 <a href> 导航带不了请求头,保存令牌时同步写 lx_token cookie,后端只读鉴权回退认 cookie;**控制类接口仍只认请求头**(防 CSRF)。
+
 ---
 
 > 给接手 agent:看这一份即可接手。系统为**四所方向量化"微仓广撒网探索档"**,目标是用户的"小资金广撒网多捞钱 / 超频 scalper"。当前**尚未找到扣费后稳健正 edge**,处于微仓采样阶段。
@@ -46,7 +69,7 @@
 
 ## 2. 配置优先级(重要,踩过坑)
 **`config.yaml` 是真源,覆盖 `internal/core/defaults.go`**;`records/{venue}_directional/control.json` 再覆盖 config 的 `active / trading_capital_usdt / stop_loss_pct`。改参数优先改 config.yaml(否则改 defaults 无效)。`stale_cut_minutes` 不在 config → 用 defaults(=30)。
-- ⚠️ **已知三处不一致(待对齐,边际敏感先别动值)**:`stop_loss_pct` config=0.20 / defaults=0.05 / control(实际生效)=0.05;`max_hold` config=60 / defaults=30;`take_profit_pct` 是**死参数**(live 出场走 `decideDirectionalPositionAction`,不读它)。
+- ✅ **三处不一致已于 2026-07-02 晚对齐**:`stop_loss_pct` config 已改 0.05(=control/defaults 实际生效值,行为零变化);`take_profit_pct` 仍是**死参数**(live 出场走 `decideDirectionalPositionAction`,不读它),config 注释已标注;`max_hold` config=60 是有意配置(覆盖 defaults=30),非漂移。
 - ✅ **生效参数已上启动日志(2026-06-28)**:引擎启动打印 `[OKX方向][生效参数]` 四行(本金/止损/杠杆/并发/每仓名义、入场闸、出场闸、regime 闸),已含 control 覆盖。**排查"改了配置没生效"先看这四行。** 代码 `logEffectiveParams()`。
 
 ## 3. 当前线上配置(已部署,2026-06-30 09:30 更新)

@@ -568,6 +568,19 @@ func DefaultEngineConfig() EngineConfig {
 			FastEarlyCutMaeBps:             5,
 			FastEarlyCutCurBps:             3,
 			FastCooldownSeconds:            300,
+			// fast v2 出场时序(交易所账本 6304 笔细分桶:0-30s 全负,30-45s/45-60s 桶 PF≈2 全曲线最强)
+			FastMinHoldSeconds:        30,
+			FastDisasterStopBps:       25, // v2 标定:胜单最深回撤 P50=-1.9bps,25 几乎不误杀;灾难单 10s 内已 -26bps,早砍省 15-20bps/笔
+			FastDailyLossLimitUSDT:    3,    // pct 未配时的绝对值兜底
+			FastDailyLossPctOfCapital: 0.30, // 用户决策:每所按交易本金 30% 做 fast 学费预算
+			// v2.2 自适应惩罚(替代禁开):同币亏损退避 + 弱时段提标降额
+			FastLossCooldownBackoffFactor: 3,
+			FastLossCooldownCapSeconds:    7200,
+			FastLossScoreBumpPerLoss:      0.05,
+			FastLossScoreBumpCap:          0.25,
+			FastWeakHoursUTC:              "0-7", // v1 账本:该时段占一半亏损,唯一毛正时段是 UTC08
+			FastWeakHoursScoreBump:        0.10,
+			FastWeakHoursNotionalFrac:     0.5,
 			FastWSCollectorEnabled:         false, // OKX WS 动态采集:默认关,config.yaml 显式开
 			FastWSMaxSymbols:               15,
 			FastWSEmitIntervalMs:           1000,

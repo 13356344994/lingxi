@@ -4,6 +4,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"lingxi/internal/core"
@@ -47,8 +48,8 @@ func TestLoadProductionConfigYAML(t *testing.T) {
 
 	// risk 账户级硬停
 	// 2026-07-02 重校准:阈值按 88U 微仓探索档口径(旧值是 6/19 给 450U carry 定的)。
-	if math.Abs(cfg.RiskConfig.MaxDailyLossUSDT-8) > 1e-9 {
-		t.Fatalf("risk.max_daily_loss_usdt = %.2f want 8", cfg.RiskConfig.MaxDailyLossUSDT)
+	if math.Abs(cfg.RiskConfig.MaxDailyLossUSDT-35) > 1e-9 {
+		t.Fatalf("risk.max_daily_loss_usdt = %.2f want 35(2026-07-03 用户决策:须>fast 30%%本金学费预算)", cfg.RiskConfig.MaxDailyLossUSDT)
 	}
 	if math.Abs(cfg.RiskConfig.MaxAccountDrawdownUSDT-115) > 1e-9 {
 		t.Fatalf("risk.max_account_drawdown_usdt = %.2f want 115", cfg.RiskConfig.MaxAccountDrawdownUSDT)
@@ -82,8 +83,24 @@ func TestLoadProductionConfigYAML(t *testing.T) {
 	if !cfg.OKXDirectional.RunupConfirmFilterEnabled {
 		t.Fatal("okx_directional.runup_confirm_filter_enabled = false want true")
 	}
-	if cfg.OKXDirectional.FastScalperV1Enabled {
-		t.Fatal("okx_directional.fast_scalper_v1_enabled = true want false(重启须过三闸,见 _fast_readiness_report.py)")
+	// fast v2 重启(2026-07-03 用户决策):必须带全部 v2 护栏,缺一即视为配置回退事故。
+	if !cfg.OKXDirectional.FastScalperV1Enabled || !cfg.OKXDirectional.FastLiveEnabled {
+		t.Fatal("fast v2 应启用(fast_scalper_v1_enabled + fast_live_enabled 均须 true)")
+	}
+	if math.Abs(cfg.OKXDirectional.FastLiveNotionalUSDT-5) > 1e-9 {
+		t.Fatalf("fast_live_notional_usdt = %.2f want 5(v2 灰度名义)", cfg.OKXDirectional.FastLiveNotionalUSDT)
+	}
+	if cfg.OKXDirectional.FastMinHoldSeconds < 15 || cfg.OKXDirectional.FastMinHoldSeconds > 60 {
+		t.Fatalf("fast_min_hold_seconds = %d want [15,60](账本:0-30s 全负,30-60s PF≈2;<15 回 v1 绞肉机)", cfg.OKXDirectional.FastMinHoldSeconds)
+	}
+	if cfg.OKXDirectional.FastDisasterStopBps <= 0 {
+		t.Fatal("fast_disaster_stop_bps 须 >0(minHold 期间唯一止损防线)")
+	}
+	if cfg.OKXDirectional.FastDailyLossPctOfCapital <= 0 && cfg.OKXDirectional.FastDailyLossLimitUSDT <= 0 {
+		t.Fatal("fast 日熔断须启用(pct_of_capital 或 usdt 至少一个 >0;v2 学费上限)")
+	}
+	if v := strings.TrimSpace(cfg.OKXDirectional.FastScalperV1Venue); !strings.EqualFold(v, "okx") {
+		t.Fatalf("fast_scalper_v1_venue = %q want okx(v2 仅灰度 OKX)", v)
 	}
 	if !cfg.OKXDirectional.OpenMicroRecordEnabled {
 		t.Fatal("okx_directional.open_micro_record_enabled = false want true(runup 闸数据源)")
