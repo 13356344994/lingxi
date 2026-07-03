@@ -1,6 +1,7 @@
 package app
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -49,6 +50,8 @@ type fastLivePosition struct {
 	OpenViaTaker bool      `json:"open_via_taker,omitempty"`
 	// v2.2 自适应入场标注(loss_lvlN / weak_hour;平仓时写入 settlement 供分桶复盘)
 	EntryAdaptiveTags string `json:"entry_adaptive_tags,omitempty"`
+	// v3 接型入场来源(空=scorer 追型;fade_exhaustion=接型灰度;平仓时写入 settlement 分代对照)
+	CandidateSource string `json:"candidate_source,omitempty"`
 	// 入场上下文(复盘用,平仓时写入 settlement)
 	EventID         string    `json:"event_id,omitempty"`
 	EventTime       time.Time `json:"event_time,omitempty"`
@@ -283,6 +286,64 @@ func fastPondEval(key string) (float64, float64, int) {
 		dp = append(dp, s.depth10)
 	}
 	return fastMedian(en), fastMedian(dp), len(h)
+}
+
+// fastPondRestore 重启回放:从 shadow 文件尾部恢复最近 2h 池塘样本。
+// 动机(2026-07-03 实盘暴露):池塘统计是内存态,重启清零 → 全部池塘回热身 fail-open,
+// 死水池(如 CELO)获得 ~10 分钟免检窗口,重启一次送一次人头。回放后判定即刻成熟。
+func (e *OKXDirectionalEngine) fastPondRestore() {
+	path := filepath.Join(e.recordDir, fastExecShadowFile)
+	f, err := os.Open(path)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	st, err := f.Stat()
+	if err != nil {
+		return
+	}
+	const maxTail = int64(64 << 20) // 2h base 事件 ~20MB,64MB 尾部足够
+	skipFirst := false
+	if st.Size() > maxTail {
+		if _, err := f.Seek(st.Size()-maxTail, 0); err != nil {
+			return
+		}
+		skipFirst = true // seek 落点大概率在行中,掐掉半行
+	}
+	cut := e.nowFn().UTC().Add(-fastPondWindowSec * time.Second)
+	sc := bufio.NewScanner(f)
+	sc.Buffer(make([]byte, 0, 1<<20), 1<<20)
+	n := 0
+	for sc.Scan() {
+		if skipFirst {
+			skipFirst = false
+			continue
+		}
+		var d struct {
+			RecordedAt         time.Time `json:"recorded_at"`
+			Symbol             string    `json:"symbol"`
+			CandidateSource    string    `json:"candidate_source"`
+			MidImpulse15sBps   float64   `json:"mid_impulse_15s_bps"`
+			MidImpulse30sBps   float64   `json:"mid_impulse_30s_bps"`
+			MidImpulse60sBps   float64   `json:"mid_impulse_60s_bps"`
+			DepthNotional10bps float64   `json:"depth_notional_10bps"`
+		}
+		if json.Unmarshal(sc.Bytes(), &d) != nil || d.Symbol == "" || d.CandidateSource != "" {
+			continue
+		}
+		if d.RecordedAt.Before(cut) {
+			continue
+		}
+		// 三冲量全精确 0 ≈ 当时 mid 历史不足(上一次进程刚启动),跳过防污染能量中位
+		if d.MidImpulse15sBps == 0 && d.MidImpulse30sBps == 0 && d.MidImpulse60sBps == 0 {
+			continue
+		}
+		fastPondRecord(e.venueName+"|"+d.Symbol, d.RecordedAt.UTC(), math.Abs(d.MidImpulse30sBps), d.DepthNotional10bps)
+		n++
+	}
+	if n > 0 {
+		e.logger.Printf("[fast_scalper] 池塘统计回放完成: %d 样本(2h窗口,重启不失忆,免死水池热身fail-open)", n)
+	}
 }
 
 // fastMidSpanSecs mid 历史覆盖秒数(池塘样本只在 30s 冲量真实可算时才记,避免 0 值污染能量中位)。
@@ -578,6 +639,7 @@ func (e *OKXDirectionalEngine) fastScalperLoop(ctx context.Context) {
 		}
 	}()
 	e.logger.Printf("[OKX方向][fast_scalper] v3 扫描goroutine启动 周期=%s 扫描上限=%d 入场=%s live=%v", e.fastScalperInterval(), e.cfg.FastScalperV1MaxSymbols, e.cfg.FastEntryMode, e.cfg.FastLiveEnabled)
+	e.fastPondRestore() // 池塘统计重启回放(同步,数秒;失败静默=退回热身fail-open)
 	t := time.NewTicker(e.fastScalperInterval())
 	defer t.Stop()
 	for {
@@ -658,7 +720,8 @@ func (e *OKXDirectionalEngine) fastScalperTick(ctx context.Context) {
 			break
 		}
 		written++
-		// v3② 接型候选:同盘口快照派生 liq_catch / fade_exhaustion 事件(CandidateSource 非空 = 纯 shadow)
+		// v3② 接型候选:同盘口快照派生 liq_catch / fade_exhaustion 事件;fade 在灰度开关+OK池塘下可实盘,
+		// 其余(liq_catch 等)由 fastLiveOpen 硬闸拒为 record_only_source。
 		if e.cfg.FastAltCandidatesEnabled {
 			for _, alt := range e.buildFastAltCandidates(ev, now) {
 				if err := appendJSONLRecord(path, *alt); err != nil {
@@ -666,6 +729,9 @@ func (e *OKXDirectionalEngine) fastScalperTick(ctx context.Context) {
 					break
 				}
 				written++
+				if e.cfg.FastLiveEnabled {
+					fastSkipAgg["alt_"+e.fastLiveOpen(ctx, alt)]++
+				}
 			}
 		}
 		if e.cfg.FastLiveEnabled {
@@ -1155,6 +1221,7 @@ func (e *OKXDirectionalEngine) fastLiveClose(ctx context.Context, p *fastLivePos
 		FastCandidateScore:  p.Score,
 		FastCandidateSide:   p.Side,
 		FastCandidateReason: p.ScoreReason,
+		FastCandidateSource: p.CandidateSource,
 		FastEventID:         p.EventID,
 		SourceEventTime:     p.EventTime,
 		EntrySpreadBps:      p.EntrySpreadBps,
@@ -1390,8 +1457,13 @@ func (e *OKXDirectionalEngine) fastLiveOpen(ctx context.Context, ev *fastExecSha
 	if ev == nil {
 		return "nil"
 	}
-	if ev.CandidateSource != "" { // v3② 接型候选硬闸:纯 shadow,前向成绩达标前禁实盘
-		return "record_only_source"
+	if ev.CandidateSource != "" {
+		// v3② fade 实盘灰度(2026-07-03 16:44 用户拍板:秒级策略 2h=数万决策周期,机制已核实即动,禁止日历攒数据):
+		// 机制=接力竭的 FOMO 冲量(我们做"被迫一次性taker"的对手方=唯一毛正物种 B 的镜像);仅限成熟 OK 池塘。
+		// liq_catch 永远硬闸:已证伪(被迫流持续 1-3 分钟,60s 内接刀三桶全负,力竭/吸收确认都救不了)。
+		if !(e.cfg.FastFadeLiveEnabled && ev.CandidateSource == "fade_exhaustion" && ev.PondOK && ev.PondSamples >= fastPondWarmupSamples) {
+			return "record_only_source"
+		}
 	}
 	if ev.FastCandidateSide != "long" && ev.FastCandidateSide != "short" { // flat 不开
 		return "flat"
@@ -1408,8 +1480,10 @@ func (e *OKXDirectionalEngine) fastLiveOpen(ctx context.Context, ev *fastExecSha
 	}
 	sym := ev.Symbol
 	// v2.2 自适应门槛(替代禁开):单币当日亏损档位抬高再入场分数,弱时段(UTC 弱段)提标+降名义。
+	// fade 接型候选无 scorer 分数(机制条件即资格:冲量≥8bps+15s力竭+OK池塘),跳过分数闸;
+	// 冷却/单币退避降名义/日熔断/持仓互斥等其余闸照过。
 	effThreshold, notionalFrac, adaptiveTags := e.fastEntryAdaptive(sym, e.nowFn().UTC())
-	if ev.FastCandidateScore < effThreshold {
+	if ev.CandidateSource == "" && ev.FastCandidateScore < effThreshold {
 		if adaptiveTags != "" {
 			return "low_score_adaptive"
 		}
@@ -1566,6 +1640,7 @@ func (e *OKXDirectionalEngine) fastLiveOpen(ctx context.Context, ev *fastExecSha
 		EntryImpulse15s: ev.MidImpulse15sBps, EntryImpulse30s: ev.MidImpulse30sBps, EntryImpulse60s: ev.MidImpulse60sBps,
 		MakerEntry: makerMode, MakerOrderPrice: makerOrderPrice, MakerWaitMs: makerWaitMs, FillMid: fillMid, MakerEdgeBps: makerEdge,
 		EntryAdaptiveTags: adaptiveTags,
+		CandidateSource:   ev.CandidateSource,
 	}
 	fastLiveMu.Lock()
 	if fastLivePos[e.venueName] == nil {

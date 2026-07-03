@@ -591,6 +591,7 @@ func DefaultEngineConfig() EngineConfig {
 			FastPondFilterEnabled:          false, // v3池塘过滤:默认仅打标,灰度另开
 			FastAltCandidatesEnabled:       false, // v3接型候选:默认关,config.yaml 显式开(record-only)
 			FastFadeMinImpulseBps:          8,     // fade 候选冲量阈值
+			FastFadeLiveEnabled:            false, // fade 实盘灰度:默认关,config.yaml 显式开
 			FastSpeciesExitEnabled:         false, // v3物种化出场:默认关,随入场灰度一起开
 
 			FastPeerWSEnabled:              false, // cross-venue lead-lag peer 采集:默认关

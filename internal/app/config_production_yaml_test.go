@@ -102,6 +102,19 @@ func TestLoadProductionConfigYAML(t *testing.T) {
 	if v := strings.TrimSpace(cfg.OKXDirectional.FastScalperV1Venue); !strings.EqualFold(v, "okx") {
 		t.Fatalf("fast_scalper_v1_venue = %q want okx(v2 仅灰度 OKX)", v)
 	}
+	// v3 三闸(2026-07-03 当日全开,用户拍板;回退即配置事故)
+	if !cfg.OKXDirectional.FastPondFilterEnabled {
+		t.Fatal("fast_pond_filter_enabled = false want true(死水池实证纯亏,不跟机构抢镜面盘)")
+	}
+	if cfg.OKXDirectional.FastPondMinEnergyBps < 6 {
+		t.Fatalf("fast_pond_min_energy_bps = %.1f want >=6(好池分水岭≥9.6,死水<6)", cfg.OKXDirectional.FastPondMinEnergyBps)
+	}
+	if !cfg.OKXDirectional.FastAltCandidatesEnabled || !cfg.OKXDirectional.FastFadeLiveEnabled {
+		t.Fatal("fade 接型灰度应启用(fast_alt_candidates_enabled + fast_fade_live_enabled 均须 true)")
+	}
+	if !cfg.OKXDirectional.FastSpeciesExitEnabled {
+		t.Fatal("fast_species_exit_enabled = false want true(A物种minHold是刑具,3s认错止血)")
+	}
 	if !cfg.OKXDirectional.OpenMicroRecordEnabled {
 		t.Fatal("okx_directional.open_micro_record_enabled = false want true(runup 闸数据源)")
 	}

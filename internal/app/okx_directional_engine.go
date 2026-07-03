@@ -219,6 +219,7 @@ type okxDirectionalSettlement struct {
 	FastCandidateScore  float64   `json:"fast_candidate_score,omitempty"`
 	FastCandidateSide   string    `json:"fast_candidate_side,omitempty"`
 	FastCandidateReason string    `json:"fast_candidate_reason,omitempty"`
+	FastCandidateSource string    `json:"fast_candidate_source,omitempty"` // 空=scorer 追型;fade_exhaustion=接型灰度
 	FastEventID         string    `json:"fast_event_id,omitempty"`
 	SourceEventTime     time.Time `json:"source_event_time,omitempty"`
 	EntrySpreadBps      float64   `json:"entry_spread_bps,omitempty"`

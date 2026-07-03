@@ -6,6 +6,9 @@ import (
 	"context"
 	"io"
 	"log"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -60,6 +63,29 @@ func TestFastPond_WarmupFailOpenAndFilterGate(t *testing.T) {
 	ev2.PondOK = false
 	if r := e.fastLiveOpen(context.Background(), &ev2); r != "pond_reject" {
 		t.Fatalf("死水池应 pond_reject,得到 %s", r)
+	}
+}
+
+func TestFastPond_RestoreFromShadowFile(t *testing.T) {
+	e := newFastV3TestEngine(t)
+	now := time.Now().UTC()
+	path := filepath.Join(e.recordDir, fastExecShadowFile)
+	var lines []string
+	// 200 条有效样本(冲量非零)+ 1 条过期 + 1 条接型候选 + 1 条冲量全零(应全被跳过)
+	for i := 0; i < 200; i++ {
+		lines = append(lines, `{"recorded_at":"`+now.Add(-time.Duration(i)*10*time.Second).Format(time.RFC3339Nano)+`","symbol":"R-USDT","mid_impulse_30s_bps":9,"mid_impulse_15s_bps":4,"depth_notional_10bps":8000}`)
+	}
+	lines = append(lines,
+		`{"recorded_at":"`+now.Add(-3*time.Hour).Format(time.RFC3339Nano)+`","symbol":"R-USDT","mid_impulse_30s_bps":99,"mid_impulse_15s_bps":9,"depth_notional_10bps":1}`,
+		`{"recorded_at":"`+now.Format(time.RFC3339Nano)+`","symbol":"R-USDT","candidate_source":"fade_exhaustion","mid_impulse_30s_bps":50,"mid_impulse_15s_bps":1,"depth_notional_10bps":1}`,
+		`{"recorded_at":"`+now.Format(time.RFC3339Nano)+`","symbol":"R-USDT","mid_impulse_30s_bps":0,"mid_impulse_15s_bps":0,"mid_impulse_60s_bps":0,"depth_notional_10bps":1}`)
+	if err := os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	e.fastPondRestore()
+	en, dp, n := fastPondEval(e.venueName + "|R-USDT")
+	if n != 200 || en != 9 || dp != 8000 {
+		t.Fatalf("回放错: en=%v dp=%v n=%d(want 200条 en=9 dp=8000;过期/候选/全零应被跳过)", en, dp, n)
 	}
 }
 
@@ -119,9 +145,41 @@ func TestFastAlt_FadeExhaustionCandidate(t *testing.T) {
 func TestFastAlt_RecordOnlyHardGate(t *testing.T) {
 	e := newFastV3TestEngine(t)
 	e.cfg.FastLiveEnabled = true
+	e.cfg.FastFadeLiveEnabled = true
+	// liq_catch:即使 fade 灰度开、池塘 OK,也永远硬闸(已证伪)
 	ev := &fastExecShadowEvent{Symbol: "G-USDT", Mid: 1, Bid: 0.999, Ask: 1.001,
-		CandidateSource: "liq_catch", FastCandidateSide: "long", FastCandidateScore: 0.99, PondOK: true}
+		CandidateSource: "liq_catch", FastCandidateSide: "long", FastCandidateScore: 0.99,
+		PondOK: true, PondSamples: fastPondWarmupSamples + 1}
 	if r := e.fastLiveOpen(context.Background(), ev); r != "record_only_source" {
-		t.Fatalf("接型候选必须被硬闸拒绝,得到 %s", r)
+		t.Fatalf("liq_catch 必须被硬闸拒绝,得到 %s", r)
+	}
+}
+
+func TestFastAlt_FadeLiveGate(t *testing.T) {
+	e := newFastV3TestEngine(t)
+	e.cfg.FastLiveEnabled = true
+	mk := func(pondOK bool, samples int) *fastExecShadowEvent {
+		return &fastExecShadowEvent{Symbol: "FG-USDT", Mid: 1, Bid: 0.999, Ask: 1.001,
+			CandidateSource: "fade_exhaustion", FastCandidateSide: "short",
+			PondOK: pondOK, PondSamples: samples}
+	}
+	// 灰度开关关 → 拒
+	e.cfg.FastFadeLiveEnabled = false
+	if r := e.fastLiveOpen(context.Background(), mk(true, fastPondWarmupSamples+1)); r != "record_only_source" {
+		t.Fatalf("灰度关时 fade 应拒,得到 %s", r)
+	}
+	e.cfg.FastFadeLiveEnabled = true
+	// 池塘热身期(样本不足)→ 拒(fade 实盘要求成熟 OK 池,不吃 fail-open)
+	if r := e.fastLiveOpen(context.Background(), mk(true, 10)); r != "record_only_source" {
+		t.Fatalf("热身池 fade 应拒,得到 %s", r)
+	}
+	// 池塘 REJ → 拒
+	if r := e.fastLiveOpen(context.Background(), mk(false, fastPondWarmupSamples+1)); r != "record_only_source" {
+		t.Fatalf("REJ 池 fade 应拒,得到 %s", r)
+	}
+	// 成熟 OK 池 → 过硬闸与分数闸(score=0 不应挡 fade),走到后续闸(测试环境无行情,不会真下单)
+	r := e.fastLiveOpen(context.Background(), mk(true, fastPondWarmupSamples+1))
+	if r == "record_only_source" || r == "low_score" || r == "low_score_adaptive" {
+		t.Fatalf("成熟OK池的 fade 不应被来源/分数闸拦,得到 %s", r)
 	}
 }

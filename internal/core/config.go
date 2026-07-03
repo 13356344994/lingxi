@@ -945,6 +945,9 @@ type OKXDirectionalConfig struct {
 	//   liq_catch=强平后60s接被迫者(P2首验82.0%全场最高);fade_exhaustion=冲量≥阈值且15s已减速→逆向接。
 	FastAltCandidatesEnabled bool    `cfg:"fast_alt_candidates_enabled"` // shadow 记录接型候选(带 candidate_source 标)
 	FastFadeMinImpulseBps    float64 `cfg:"fast_fade_min_impulse_bps"`   // fade 候选最小已走30s冲量(默认8)
+	// fade 实盘灰度(2026-07-03 16:44 用户纠偏"秒级策略2小时=充分样本,禁止日历思维攒数据"):
+	// 仅 fade_exhaustion 且成熟 OK 池塘可实盘;liq_catch 永远硬闸(已证伪:被迫流持续1-3分钟,60s接刀全负)。
+	FastFadeLiveEnabled bool `cfg:"fast_fade_live_enabled"`
 	// ③ 物种化出场(424笔实证:A=3s深亏≤-6bps PF0.26仅26%回正→3s认错省血;C=10s无正反馈 PF0.51→快撤;
 	//   B=打完即弹 PF1.50 唯一毛正物种→现有 trail 逻辑不动)。默认关;随入场灰度一起开。
 	FastSpeciesExitEnabled bool `cfg:"fast_species_exit_enabled"`

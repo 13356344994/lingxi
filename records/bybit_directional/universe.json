@@ -1,185 +1,185 @@
 {
-  "at": "2026-07-03T06:36:49.030177673Z",
+  "at": "2026-07-03T08:55:50.574704889Z",
   "shortlist": [
     {
-      "symbol": "LAB-USDT",
-      "funding_rate": -0.00406089,
-      "score": 0.9994527100638619,
-      "atr_pct": 0.023590053468102272,
-      "vol_usdt": 9790243.202,
-      "btc_corr": 0.01109687460606872,
-      "reason": "funding=-0.4061% atr=2.36% hot=1.00 btccorr=0.01 btcTrend=0.07"
+      "symbol": "ZKP-USDT",
+      "funding_rate": -0.02,
+      "score": 0.9729704415890861,
+      "atr_pct": 0.018683589138134598,
+      "vol_usdt": 2416593.828529999,
+      "btc_corr": 0.0655869697632628,
+      "reason": "funding=-2.0000% atr=1.87% hot=0.91 btccorr=0.07 btcTrend=0.05"
     },
     {
-      "symbol": "ZKP-USDT",
-      "funding_rate": -0.01140041,
-      "score": 0.9585498264922588,
-      "atr_pct": 0.015046996178074708,
-      "vol_usdt": 1174436.6309,
-      "btc_corr": 0.11521780361767343,
-      "reason": "funding=-1.1400% atr=1.50% hot=0.87 btccorr=0.12 btcTrend=0.07"
+      "symbol": "THE-USDT",
+      "funding_rate": -0.00741357,
+      "score": 0.9666598923830032,
+      "atr_pct": 0.023168483047115798,
+      "vol_usdt": 1857356.3456700004,
+      "btc_corr": -0.22107747084477464,
+      "reason": "funding=-0.7414% atr=2.32% hot=0.90 btccorr=-0.22 btcTrend=0.05"
     },
     {
       "symbol": "BIRB-USDT",
-      "funding_rate": -0.00948372,
-      "score": 0.9561661834999707,
-      "atr_pct": 0.024272672980121156,
-      "vol_usdt": 952509.8847000002,
-      "btc_corr": 0.005164651529141655,
-      "reason": "funding=-0.9484% atr=2.43% hot=0.85 btccorr=0.01 btcTrend=0.07"
+      "funding_rate": -0.00792444,
+      "score": 0.9637138236647416,
+      "atr_pct": 0.0216183574879227,
+      "vol_usdt": 1448214.3254799994,
+      "btc_corr": -0.035454132280104474,
+      "reason": "funding=-0.7924% atr=2.16% hot=0.88 btccorr=-0.04 btcTrend=0.05"
     },
     {
       "symbol": "10000NEX-USDT",
-      "funding_rate": -0.00911334,
-      "score": 0.9448568873371331,
-      "atr_pct": 0.038181525883055435,
-      "vol_usdt": 558279.3802999998,
-      "btc_corr": 0.10439337556175343,
-      "reason": "funding=-0.9113% atr=3.82% hot=0.82 btccorr=0.10 btcTrend=0.07"
-    },
-    {
-      "symbol": "SLX-USDT",
-      "funding_rate": -0.00957817,
-      "score": 0.9438311313378509,
-      "atr_pct": 0.014844651095732414,
-      "vol_usdt": 644971.9611,
-      "btc_corr": -0.14838565846420793,
-      "reason": "funding=-0.9578% atr=1.48% hot=0.83 btccorr=-0.15 btcTrend=0.07"
-    },
-    {
-      "symbol": "BLEND-USDT",
-      "funding_rate": -0.0057462,
-      "score": 0.926819978563149,
-      "atr_pct": 0.013935135109659512,
-      "vol_usdt": 649379.7518199998,
-      "btc_corr": -0.0719190713149562,
-      "reason": "funding=-0.5746% atr=1.39% hot=0.83 btccorr=-0.07 btcTrend=0.07"
+      "funding_rate": -0.02279549,
+      "score": 0.9569849432877037,
+      "atr_pct": 0.03922953451043339,
+      "vol_usdt": 1068897.5584,
+      "btc_corr": 0.15399412797572018,
+      "reason": "funding=-2.2795% atr=3.92% hot=0.86 btccorr=0.15 btcTrend=0.05"
     },
     {
       "symbol": "RPL-USDT",
-      "funding_rate": -0.00992681,
-      "score": 0.9253274000857853,
-      "atr_pct": 0.024639368747911856,
-      "vol_usdt": 197791.75567199997,
-      "btc_corr": 0.12010220872749515,
-      "reason": "funding=-0.9927% atr=2.46% hot=0.76 btccorr=0.12 btcTrend=0.07"
+      "funding_rate": -0.01014753,
+      "score": 0.9312595674526558,
+      "atr_pct": 0.024382348268191925,
+      "vol_usdt": 261956.42903299996,
+      "btc_corr": 0.10467060907716974,
+      "reason": "funding=-1.0148% atr=2.44% hot=0.77 btccorr=0.10 btcTrend=0.05"
     },
     {
       "symbol": "KORU-USDT",
-      "funding_rate": 0.00441215,
-      "score": 0.9151861612034844,
-      "atr_pct": 0.013271737082769613,
-      "vol_usdt": 832673.3785000003,
-      "btc_corr": 0.2894171403605072,
-      "reason": "funding=0.4412% atr=1.33% hot=0.85 btccorr=0.29 btcTrend=0.07"
+      "funding_rate": 0.00284763,
+      "score": 0.919492715409945,
+      "atr_pct": 0.013778564268901129,
+      "vol_usdt": 1657999.9767999996,
+      "btc_corr": 0.2551301128460183,
+      "reason": "funding=0.2848% atr=1.38% hot=0.89 btccorr=0.26 btcTrend=0.05"
+    },
+    {
+      "symbol": "SLX-USDT",
+      "funding_rate": -0.01152734,
+      "score": 0.9068623866000436,
+      "atr_pct": 0.012045470975204219,
+      "vol_usdt": 1682393.2987999995,
+      "btc_corr": -0.0961062846552108,
+      "reason": "funding=-1.1527% atr=1.20% hot=0.89 btccorr=-0.10 btcTrend=0.05"
     },
     {
       "symbol": "MIRA-USDT",
-      "funding_rate": -0.01296719,
-      "score": 0.9009902811686035,
-      "atr_pct": 0.013257163583605375,
-      "vol_usdt": 319444.884613,
-      "btc_corr": -0.0040452008458065685,
-      "reason": "funding=-1.2967% atr=1.33% hot=0.79 btccorr=-0.00 btcTrend=0.07"
-    },
-    {
-      "symbol": "LA-USDT",
-      "funding_rate": -0.01161593,
-      "score": 0.8449947877056269,
-      "atr_pct": 0.00963415824669304,
-      "vol_usdt": 780161.2583859998,
-      "btc_corr": 0.015299497418766829,
-      "reason": "funding=-1.1616% atr=0.96% hot=0.84 btccorr=0.02 btcTrend=0.07"
-    },
-    {
-      "symbol": "CATSTOCK-USDT",
-      "funding_rate": -0.00337496,
-      "score": 0.7643834656007236,
-      "atr_pct": 0.006606121271522806,
-      "vol_usdt": 263784.21774000005,
-      "btc_corr": 0.005681553228677236,
-      "reason": "funding=-0.3375% atr=0.66% hot=0.77 btccorr=0.01 btcTrend=0.07"
-    },
-    {
-      "symbol": "GWEI-USDT",
-      "funding_rate": -0.00746838,
-      "score": 0.7623903873481748,
-      "atr_pct": 0.008129154795821462,
-      "vol_usdt": 48295.06749,
-      "btc_corr": 0.06767478229652202,
-      "reason": "funding=-0.7468% atr=0.81% hot=0.67 btccorr=0.07 btcTrend=0.07"
-    },
-    {
-      "symbol": "TLM-USDT",
-      "funding_rate": -0.00118139,
-      "score": 0.7475414840803039,
-      "atr_pct": 0.027096558781697717,
-      "vol_usdt": 6305587.604733901,
-      "btc_corr": -0.10128648842742104,
-      "reason": "funding=-0.1181% atr=2.71% hot=0.97 btccorr=-0.10 btcTrend=0.07"
-    },
-    {
-      "symbol": "ME-USDT",
-      "funding_rate": -0.00223693,
-      "score": 0.6916430393252055,
-      "atr_pct": 0.00823553014344468,
-      "vol_usdt": 250013.59496,
-      "btc_corr": 0.1937238147540958,
-      "reason": "funding=-0.2237% atr=0.82% hot=0.77 btccorr=0.19 btcTrend=0.07"
+      "funding_rate": -0.00678521,
+      "score": 0.9029142727343009,
+      "atr_pct": 0.013649054982817882,
+      "vol_usdt": 233463.84338,
+      "btc_corr": -0.014692173783221853,
+      "reason": "funding=-0.6785% atr=1.36% hot=0.77 btccorr=-0.01 btcTrend=0.05"
     },
     {
       "symbol": "SOXL-USDT",
-      "funding_rate": 0.00161822,
-      "score": 0.6734503973852988,
-      "atr_pct": 0.009638425331621741,
-      "vol_usdt": 2015186.2995,
-      "btc_corr": 0.3826029241141284,
-      "reason": "funding=0.1618% atr=0.96% hot=0.90 btccorr=0.38 btcTrend=0.07"
+      "funding_rate": 0.00313153,
+      "score": 0.8600313906218708,
+      "atr_pct": 0.009874563187816196,
+      "vol_usdt": 1605057.5412,
+      "btc_corr": 0.37555544167378596,
+      "reason": "funding=0.3132% atr=0.99% hot=0.89 btccorr=0.38 btcTrend=0.05"
     },
     {
-      "symbol": "AERGO-USDT",
-      "funding_rate": -0.00159543,
-      "score": 0.648218681778992,
-      "atr_pct": 0.0101794403892944,
-      "vol_usdt": 308347.82782,
-      "btc_corr": 0.24259013293022275,
-      "reason": "funding=-0.1595% atr=1.02% hot=0.78 btccorr=0.24 btcTrend=0.07"
+      "symbol": "ID-USDT",
+      "funding_rate": -0.00381975,
+      "score": 0.8255828085648758,
+      "atr_pct": 0.008369119190762496,
+      "vol_usdt": 1086387.1874799998,
+      "btc_corr": 0.05338243003507757,
+      "reason": "funding=-0.3820% atr=0.84% hot=0.86 btccorr=0.05 btcTrend=0.05"
+    },
+    {
+      "symbol": "BLEND-USDT",
+      "funding_rate": -0.00207725,
+      "score": 0.8117109981143894,
+      "atr_pct": 0.015228649373468349,
+      "vol_usdt": 311764.69752000005,
+      "btc_corr": -0.07769966137605233,
+      "reason": "funding=-0.2077% atr=1.52% hot=0.78 btccorr=-0.08 btcTrend=0.05"
+    },
+    {
+      "symbol": "GWEI-USDT",
+      "funding_rate": -0.00564131,
+      "score": 0.7961282698076623,
+      "atr_pct": 0.00852538956085867,
+      "vol_usdt": 185001.84923999998,
+      "btc_corr": 0.01273767677585516,
+      "reason": "funding=-0.5641% atr=0.85% hot=0.75 btccorr=0.01 btcTrend=0.05"
     },
     {
       "symbol": "DRAM-USDT",
-      "funding_rate": 0.00163062,
-      "score": 0.5678121817996004,
-      "atr_pct": 0.00575759987267229,
-      "vol_usdt": 412643.73099999997,
-      "btc_corr": 0.3940549928041498,
-      "reason": "funding=0.1631% atr=0.58% hot=0.80 btccorr=0.39 btcTrend=0.07"
+      "funding_rate": 0.00314001,
+      "score": 0.7637510046897291,
+      "atr_pct": 0.005983038576895233,
+      "vol_usdt": 604622.0520000001,
+      "btc_corr": 0.40619729354425466,
+      "reason": "funding=0.3140% atr=0.60% hot=0.83 btccorr=0.41 btcTrend=0.05"
+    },
+    {
+      "symbol": "ARX-USDT",
+      "funding_rate": -0.00394853,
+      "score": 0.7379767711991605,
+      "atr_pct": 0.005823529411764717,
+      "vol_usdt": 171897.38069999998,
+      "btc_corr": 0.31530622531604857,
+      "reason": "funding=-0.3949% atr=0.58% hot=0.75 btccorr=0.32 btcTrend=0.05"
+    },
+    {
+      "symbol": "ME-USDT",
+      "funding_rate": -0.00313493,
+      "score": 0.7309296777711249,
+      "atr_pct": 0.005357052928438332,
+      "vol_usdt": 183162.91074000002,
+      "btc_corr": 0.19403710465741789,
+      "reason": "funding=-0.3135% atr=0.54% hot=0.75 btccorr=0.19 btcTrend=0.05"
+    },
+    {
+      "symbol": "LA-USDT",
+      "funding_rate": -0.00161016,
+      "score": 0.6852942744706625,
+      "atr_pct": 0.01167127425382688,
+      "vol_usdt": 345912.7488599999,
+      "btc_corr": 0.022414791340176612,
+      "reason": "funding=-0.1610% atr=1.17% hot=0.79 btccorr=0.02 btcTrend=0.05"
+    },
+    {
+      "symbol": "BREV-USDT",
+      "funding_rate": -0.00161796,
+      "score": 0.6696713475137901,
+      "atr_pct": 0.010848393574297193,
+      "vol_usdt": 347922.21483000007,
+      "btc_corr": -0.05690565159264913,
+      "reason": "funding=-0.1618% atr=1.08% hot=0.79 btccorr=-0.06 btcTrend=0.05"
+    },
+    {
+      "symbol": "CATSTOCK-USDT",
+      "funding_rate": -0.00200835,
+      "score": 0.6345827026524783,
+      "atr_pct": 0.0063000279144422335,
+      "vol_usdt": 439053.21613,
+      "btc_corr": 0.11235585222310325,
+      "reason": "funding=-0.2008% atr=0.63% hot=0.81 btccorr=0.11 btcTrend=0.05"
+    },
+    {
+      "symbol": "EWY-USDT",
+      "funding_rate": 0.0022367,
+      "score": 0.6295090552870753,
+      "atr_pct": 0.004726926295920364,
+      "vol_usdt": 397763.2311000001,
+      "btc_corr": 0.3568936795171857,
+      "reason": "funding=0.2237% atr=0.47% hot=0.80 btccorr=0.36 btcTrend=0.05"
     },
     {
       "symbol": "SKHYNIX-USDT",
-      "funding_rate": 0.00077954,
-      "score": 0.544203506347877,
-      "atr_pct": 0.009288059058568401,
-      "vol_usdt": 1218986.3970700002,
-      "btc_corr": 0.4595600651079689,
-      "reason": "funding=0.0780% atr=0.93% hot=0.87 btccorr=0.46 btcTrend=0.07"
-    },
-    {
-      "symbol": "B3-USDT",
-      "funding_rate": 0.00195396,
-      "score": 0.5357332515026215,
-      "atr_pct": 0.005280300039478872,
-      "vol_usdt": 9145.47467,
-      "btc_corr": 0.012114589419211596,
-      "reason": "funding=0.1954% atr=0.53% hot=0.57 btccorr=0.01 btcTrend=0.07"
-    },
-    {
-      "symbol": "SLP-USDT",
-      "funding_rate": -0.00109728,
-      "score": 0.5305686877297591,
-      "atr_pct": 0.0072437449556093615,
-      "vol_usdt": 433676.08862299996,
-      "btc_corr": 0.16006966881018003,
-      "reason": "funding=-0.1097% atr=0.72% hot=0.81 btccorr=0.16 btcTrend=0.07"
+      "funding_rate": 0.00133085,
+      "score": 0.6156393384801073,
+      "atr_pct": 0.009387005703003673,
+      "vol_usdt": 869132.5155000001,
+      "btc_corr": 0.44938158191448707,
+      "reason": "funding=0.1331% atr=0.94% hot=0.85 btccorr=0.45 btcTrend=0.05"
     }
   ]
 }
