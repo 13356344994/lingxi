@@ -1315,6 +1315,39 @@ func fastScaledExitBps(base, k, unit float64) float64 {
 	return base
 }
 
+// fastLiqFollowImpUnitCapBps 事件线冲量能量单位上限:防闪崩级 imp15(数百bps)把灾难线推到永不触发
+// (2×120=240bps 灾难上限,5U 名义单笔最大学费≈0.12U,由 fast 日熔断兜底)。
+const fastLiqFollowImpUnitCapBps = 120.0
+
+// fastLiqFollowExitUnit v4.2(2026-07-04 接手审计,用户批准):liq_follow 单的出场能量单位
+// = max(池塘能量中位, 入场|imp15| 封顶120)。
+// 依据(39笔逐笔+同子集反事实):事件线专去全市场新地方,池塘统计天生不成熟(26/39 笔 unit=0
+// 回退死水绝对刻度 TP12/stop15/灾难25),而入场资格本身要求瀑布还在跑——实测入场 |imp15| 中位=37bps,
+// 尺子比水流小 3 倍:持有中位仅 8s(edge 地平线 60-180s),A斩 10 笔全在 3-4s 被瀑布呼吸触发(-0.145U),
+// 灾难止损被瀑布噪声秒触发再被薄盘滑穿(实收 -106/-119bps)。同子集反事实:持满 60s 净 +0.11U vs
+// 实际 -0.17U。瀑布自己报出了自己的能量(v3⑤"按噪声步长定刻度"补到它唯一失效的盲区),不必等 2h 统计。
+func fastLiqFollowExitUnit(pondUnit, entryImp15 float64) float64 {
+	imp := math.Abs(entryImp15)
+	if imp > fastLiqFollowImpUnitCapBps {
+		imp = fastLiqFollowImpUnitCapBps
+	}
+	if imp > pondUnit {
+		return imp
+	}
+	return pondUnit
+}
+
+// fastExitTriggersCooldown 坏出场触发 fast 层短冷却(v2.2 亏损退避的入口)。
+// v4.2 把 fast_disaster_stop 加入名单:最贵的教训此前反而没有学费记忆——
+// 07-03 实证:LAB 灾难止损 -0.053U 后 44s 同币再进,再灾难 -0.060U。
+func fastExitTriggersCooldown(reason string) bool {
+	switch reason {
+	case "fast_stop_reversal", "fast_no_feedback", "fast_early_cut", "fast_species_a_cut", "fast_disaster_stop":
+		return true
+	}
+	return false
+}
+
 // fastLiveManage 出场:v2 scalper exit(覆盖成本落袋 / 反向走弱快平 / 180s 兜底);"fixed"=旧 60s 固定。平仓必须重试到成功(防孤儿)。
 func (e *OKXDirectionalEngine) fastLiveManage(ctx context.Context) {
 	now := e.nowFn().UTC()
@@ -1365,6 +1398,11 @@ func (e *OKXDirectionalEngine) fastLiveManage(ctx context.Context) {
 		inMinHold := minHold > 0 && hold < minHold
 		// v3⑤ 能量单位制:高能池按噪声步长缩放出场阈值(灾难2.0×/止损1.2×/A斩0.6×/TP0.8×,不低于原绝对值)。
 		unit := e.fastExitUnitBps(p.Symbol)
+		// v4.2:liq_follow 单的能量单位改用 max(池塘, 入场|imp15| 封顶120)——事件线猎场池塘天生不成熟,
+		// unit=0 回退死水刻度曾把 8s 持有的降落伞配给 60s 的引擎(详见 fastLiqFollowExitUnit 注释)。
+		if p.CandidateSource == "liq_follow" && e.cfg.FastExitEnergyScaleEnabled {
+			unit = fastLiqFollowExitUnit(unit, p.EntryImpulse15s)
+		}
 		effDisaster := fastScaledExitBps(e.cfg.FastDisasterStopBps, 2.0, unit)
 		effStop := fastScaledExitBps(e.cfg.FastV2StopBps, 1.2, unit)
 		effTP := fastScaledExitBps(e.cfg.FastV2TakeProfitBps, 0.8, unit)
@@ -1553,8 +1591,8 @@ func (e *OKXDirectionalEngine) fastLiveClose(ctx context.Context, p *fastLivePos
 	delete(fastLivePos[e.venueName], sym)
 	e.fastLivePersistLocked()
 	fastLiveMu.Unlock()
-	// 坏出场(反向止损/无反馈/早砍)→ 该 symbol fast 层短冷却,防同一坏信号在同一行情片段反复刷单。
-	if reason == "fast_stop_reversal" || reason == "fast_no_feedback" || reason == "fast_early_cut" || reason == "fast_species_a_cut" {
+	// 坏出场(反向止损/无反馈/早砍/灾难)→ 该 symbol fast 层短冷却,防同一坏信号在同一行情片段反复刷单。
+	if fastExitTriggersCooldown(reason) {
 		e.fastSetCooldown(sym, reason, now)
 	}
 	e.logger.Printf("[fast_live] 已平 %s %s 持有%ds entry=%.6f exit=%.6f realized=%.4fU 原因=%s", sym, p.Side, holdSec, p.EntryPrice, exitPrice, realized, reason)

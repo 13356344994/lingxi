@@ -387,6 +387,51 @@ func TestFastScorerRecordOnlyGate(t *testing.T) {
 	}
 }
 
+// TestFastLiqFollowExitUnit v4.2:liq_follow 出场能量单位 = max(池塘, 入场|imp15| 封顶120)。
+// 锚定的裁决依据:39笔逐笔审计——26笔在未成熟池上回退死水刻度(TP12/灾难25),入场|imp15|中位37,
+// 持有中位8s vs edge地平线60-180s;同子集反事实持满60s净+0.11U vs 实际-0.17U。
+func TestFastLiqFollowExitUnit(t *testing.T) {
+	// 池塘未成熟(0)→ 用入场冲量(瀑布自己报能量,不等2h统计)
+	if u := fastLiqFollowExitUnit(0, -37); u != 37 {
+		t.Fatalf("未成熟池应用|imp15|=37,得到 %.1f", u)
+	}
+	// 冲量取绝对值(跟空单 imp15 为负)
+	if u := fastLiqFollowExitUnit(0, 55); u != 55 {
+		t.Fatalf("正冲量应=55,得到 %.1f", u)
+	}
+	// 池塘成熟且大于冲量 → 用池塘(不缩小既有刻度)
+	if u := fastLiqFollowExitUnit(30, -12); u != 30 {
+		t.Fatalf("池塘更大应用池塘30,得到 %.1f", u)
+	}
+	// 冲量大于池塘 → 用冲量(LAB 池能量26但瀑布imp15=-190:瀑布比池塘热)
+	if u := fastLiqFollowExitUnit(26, -90); u != 90 {
+		t.Fatalf("瀑布更热应用冲量90,得到 %.1f", u)
+	}
+	// 闪崩级冲量封顶120:防灾难线被推到永不触发(2×120=240bps=5U单笔学费上限0.12U)
+	if u := fastLiqFollowExitUnit(26, -500); u != fastLiqFollowImpUnitCapBps {
+		t.Fatalf("闪崩冲量应封顶%.0f,得到 %.1f", fastLiqFollowImpUnitCapBps, u)
+	}
+	// 双零 → 0(回退绝对刻度,行为与 v3⑤ 一致)
+	if u := fastLiqFollowExitUnit(0, 0); u != 0 {
+		t.Fatalf("双零应为0,得到 %.1f", u)
+	}
+}
+
+// TestFastExitTriggersCooldown v4.2:灾难止损加入冷却名单(最贵的教训必须有学费记忆——
+// LAB 灾难 -0.053U 后 44s 重进再灾难 -0.060U);盈利/到时出场不冷却。
+func TestFastExitTriggersCooldown(t *testing.T) {
+	for _, r := range []string{"fast_stop_reversal", "fast_no_feedback", "fast_early_cut", "fast_species_a_cut", "fast_disaster_stop"} {
+		if !fastExitTriggersCooldown(r) {
+			t.Fatalf("%s 应触发冷却", r)
+		}
+	}
+	for _, r := range []string{"fast_tp", "fast_trail_tp", "fast_max_hold", "fast_species_c_exit", "fast_horizon_exit"} {
+		if fastExitTriggersCooldown(r) {
+			t.Fatalf("%s 不应触发冷却", r)
+		}
+	}
+}
+
 func TestFastLiqCascadeAlive(t *testing.T) {
 	// 阈值<=0 = 闸关闭
 	if !fastLiqCascadeAlive("short", 0, 0) {
