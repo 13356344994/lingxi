@@ -1,33 +1,33 @@
 {
   "wired": true,
-  "updated_at": "2026-07-03T11:06:32.123612083Z",
+  "updated_at": "2026-07-03T11:21:46.531337073Z",
   "snapshot": {
-    "observed_at": "2026-07-03T11:06:31.363845748Z",
+    "observed_at": "2026-07-03T11:21:45.822084565Z",
     "day_start_cst": "2026-07-03T00:00:00+08:00",
-    "daily_realized_pnl_usdt": -3.485035,
-    "daily_equity_delta_usdt": -4.039111,
-    "daily_equity_delta_for_risk_usdt": -4.039111,
+    "daily_realized_pnl_usdt": -3.567025,
+    "daily_equity_delta_usdt": -4.12046,
+    "daily_equity_delta_for_risk_usdt": -4.12046,
     "venue_equity_deltas": {
       "binance": 0,
-      "bybit": -1.3108811799999955,
+      "bybit": -1.3121684999999985,
       "gate": 0,
-      "okx": -2.7282296047744126
+      "okx": -2.80829235398366
     },
     "equity_data_trusted": true,
-    "daily_losing_trade_count": 481,
-    "cumulative_realized_pnl_usdt": -31.100859,
+    "daily_losing_trade_count": 492,
+    "cumulative_realized_pnl_usdt": -31.182849,
     "realized_pnl_peak_usdt": 11.868901,
-    "account_drawdown_usdt": 42.96976,
+    "account_drawdown_usdt": 43.05175,
     "strategy_net_pnl": {
       "directional_binance": -0.996926,
       "directional_bybit": -7.694747,
       "directional_gate": -9.81336,
-      "directional_okx": -12.595826
+      "directional_okx": -12.677816
     },
-    "real_equity_total_usdt": 156.473658,
+    "real_equity_total_usdt": 156.392308,
     "real_equity_peak_usdt": 161.931074,
-    "real_equity_drawdown_usdt": 5.457416,
-    "real_equity_drawdown_adjusted_usdt": 5.457416,
+    "real_equity_drawdown_usdt": 5.538766,
+    "real_equity_drawdown_adjusted_usdt": 5.538766,
     "real_equity_quality_passed": true,
     "real_equity_peak_confirmed": true,
     "open_position_count": 2,

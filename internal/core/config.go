@@ -958,6 +958,11 @@ type OKXDirectionalConfig struct {
 	// ③ 物种化出场(424笔实证:A=3s深亏≤-6bps PF0.26仅26%回正→3s认错省血;C=10s无正反馈 PF0.51→快撤;
 	//   B=打完即弹 PF1.50 唯一毛正物种→现有 trail 逻辑不动)。默认关;随入场灰度一起开。
 	FastSpeciesExitEnabled bool `cfg:"fast_species_exit_enabled"`
+	// ⑤ 出场能量单位制(2026-07-03 19:11 逐笔对账钉死的结构矛盾:出场阈值按死水池(能量3-6bps)标定,
+	//   池塘过滤却把交易搬进能量11-31bps的高能池——LAB 灾难线只剩0.8个噪声步长,14笔灾难止损7笔、
+	//   12笔A斩7笔在180s内价格回到更优=一半止损在收割自己选的能量)。能量成熟(样本≥150)的池:
+	//   灾难=2.0×能量中位、止损=1.2×、A斩=0.6×、TP=0.8×,均不低于原绝对值;能量未知回退原值。
+	FastExitEnergyScaleEnabled bool `cfg:"fast_exit_energy_scale_enabled"`
 	// ===== cross-venue lead-lag peer 采集(Binance/Bybit 公共 WS;record-only,不接下单/不读账户)=====
 	FastPeerWSEnabled bool   `cfg:"fast_peer_ws_enabled"` // 默认 false
 	FastPeerVenues    string `cfg:"fast_peer_venues"`     // csv,如 "binance,bybit"

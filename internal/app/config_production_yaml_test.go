@@ -115,6 +115,9 @@ func TestLoadProductionConfigYAML(t *testing.T) {
 	if !cfg.OKXDirectional.FastSpeciesExitEnabled {
 		t.Fatal("fast_species_exit_enabled = false want true(A物种minHold是刑具,3s认错止血)")
 	}
+	if !cfg.OKXDirectional.FastExitEnergyScaleEnabled {
+		t.Fatal("fast_exit_energy_scale_enabled = false want true(高能池绝对阈值=0.8个噪声步长,止损收割自选能量)")
+	}
 	if !cfg.OKXDirectional.OpenMicroRecordEnabled {
 		t.Fatal("okx_directional.open_micro_record_enabled = false want true(runup 闸数据源)")
 	}

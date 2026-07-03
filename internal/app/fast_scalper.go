@@ -1263,6 +1263,31 @@ func (e *OKXDirectionalEngine) fastCurrentMid(ctx context.Context, sym string) f
 	return (book.BidPrice + book.AskPrice) / 2
 }
 
+// fastExitUnitBps 出场能量单位:池塘能量中位(30s |mid冲量| 中位bps)。样本未成熟或未启用返回 0(=用绝对阈值)。
+// 2026-07-03 19:11 逐笔对账钉死:出场阈值按死水池标定(灾难25bps=老池4-8个噪声步长),池塘过滤把交易搬进
+// LAB(30.7)/ZKP(15.3)/SLX(11.0) 后灾难线只剩 0.8-2.3 个噪声步长 → 14笔灾难止损7笔、12笔A斩7笔 180s 内回到更优价。
+func (e *OKXDirectionalEngine) fastExitUnitBps(sym string) float64 {
+	if !e.cfg.FastExitEnergyScaleEnabled {
+		return 0
+	}
+	en, _, n := fastPondEval(e.venueName + "|" + sym)
+	if n < fastPondWarmupSamples {
+		return 0
+	}
+	return en
+}
+
+// fastScaledExitBps 阈值 = max(绝对下限base, k×能量单位unit)。unit=0 时退回 base(能量未知不放大也不缩小)。
+func fastScaledExitBps(base, k, unit float64) float64 {
+	if unit <= 0 {
+		return base
+	}
+	if s := k * unit; s > base {
+		return s
+	}
+	return base
+}
+
 // fastLiveManage 出场:v2 scalper exit(覆盖成本落袋 / 反向走弱快平 / 180s 兜底);"fixed"=旧 60s 固定。平仓必须重试到成功(防孤儿)。
 func (e *OKXDirectionalEngine) fastLiveManage(ctx context.Context) {
 	now := e.nowFn().UTC()
@@ -1311,7 +1336,14 @@ func (e *OKXDirectionalEngine) fastLiveManage(ctx context.Context) {
 		// 盈利保护(trail_tp)不受 minHold 限制(锁盈不是翻炒来源)。
 		minHold := float64(e.cfg.FastMinHoldSeconds)
 		inMinHold := minHold > 0 && hold < minHold
-		if haveMid && e.cfg.FastDisasterStopBps > 0 && ubps <= -e.cfg.FastDisasterStopBps {
+		// v3⑤ 能量单位制:高能池按噪声步长缩放出场阈值(灾难2.0×/止损1.2×/A斩0.6×/TP0.8×,不低于原绝对值)。
+		unit := e.fastExitUnitBps(p.Symbol)
+		effDisaster := fastScaledExitBps(e.cfg.FastDisasterStopBps, 2.0, unit)
+		effStop := fastScaledExitBps(e.cfg.FastV2StopBps, 1.2, unit)
+		effTP := fastScaledExitBps(e.cfg.FastV2TakeProfitBps, 0.8, unit)
+		effAcutMae := fastScaledExitBps(6, 0.6, unit)
+		effAcutCur := fastScaledExitBps(4, 0.4, unit)
+		if haveMid && e.cfg.FastDisasterStopBps > 0 && ubps <= -effDisaster {
 			e.fastLiveClose(ctx, p, "fast_disaster_stop")
 			continue
 		}
@@ -1320,7 +1352,7 @@ func (e *OKXDirectionalEngine) fastLiveManage(ctx context.Context) {
 		//   C(死水):10s 无正反馈且不深亏 → PF0.51,时间成本主导 → 快撤换弹;
 		//   B(打完即弹,PF1.50 唯一毛正物种)不在此砍,交给既有 trail/max_hold。
 		if e.cfg.FastSpeciesExitEnabled && haveMid {
-			if seen3 && hold >= 3 && mae3 <= -6 && ubps <= -4 {
+			if seen3 && hold >= 3 && mae3 <= -effAcutMae && ubps <= -effAcutCur {
 				e.fastLiveClose(ctx, p, "fast_species_a_cut")
 				continue
 			}
@@ -1336,7 +1368,7 @@ func (e *OKXDirectionalEngine) fastLiveManage(ctx context.Context) {
 				e.fastLiveClose(ctx, p, "fast_early_cut")
 				continue
 			}
-			if haveMid && !inMinHold && e.cfg.FastV2StopBps > 0 && ubps <= -e.cfg.FastV2StopBps {
+			if haveMid && !inMinHold && e.cfg.FastV2StopBps > 0 && ubps <= -effStop {
 				e.fastLiveClose(ctx, p, "fast_stop_reversal")
 				continue
 			}
@@ -1364,11 +1396,11 @@ func (e *OKXDirectionalEngine) fastLiveManage(ctx context.Context) {
 			}
 			continue
 		}
-		if haveMid && e.cfg.FastV2TakeProfitBps > 0 && ubps >= e.cfg.FastV2TakeProfitBps {
+		if haveMid && e.cfg.FastV2TakeProfitBps > 0 && ubps >= effTP {
 			e.fastLiveClose(ctx, p, "fast_tp")
 			continue
 		}
-		if haveMid && !inMinHold && e.cfg.FastV2StopBps > 0 && ubps <= -e.cfg.FastV2StopBps {
+		if haveMid && !inMinHold && e.cfg.FastV2StopBps > 0 && ubps <= -effStop {
 			e.fastLiveClose(ctx, p, "fast_stop_reversal")
 			continue
 		}

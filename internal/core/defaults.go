@@ -597,6 +597,7 @@ func DefaultEngineConfig() EngineConfig {
 			FastLiqFollowMaxSpreadBps:      12,    // taker 进场点差上限
 			FastLiqFollowDepthHiUSDT:       150000, // 深度>15万=机构镜面盘,不去
 			FastSpeciesExitEnabled:         false, // v3物种化出场:默认关,随入场灰度一起开
+			FastExitEnergyScaleEnabled:     false, // v3出场能量单位制:默认关,config.yaml 显式开
 
 			FastPeerWSEnabled:              false, // cross-venue lead-lag peer 采集:默认关
 			FastPeerVenues:                 "binance,bybit",

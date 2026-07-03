@@ -286,3 +286,57 @@ func TestFastAlt_FadeLiveGate(t *testing.T) {
 		t.Fatalf("成熟OK池的 fade 不应被来源/分数闸拦,得到 %s", r)
 	}
 }
+
+func TestFastScaledExitBps(t *testing.T) {
+	// unit=0(能量未知/未启用)→ 原绝对值
+	if got := fastScaledExitBps(25, 2.0, 0); got != 25 {
+		t.Fatalf("unit=0 应回退绝对值 25,得到 %.1f", got)
+	}
+	// 死水池(能量6bps):2×6=12 < 25 → 仍用绝对下限,不缩小
+	if got := fastScaledExitBps(25, 2.0, 6); got != 25 {
+		t.Fatalf("低能池不应低于绝对下限,得到 %.1f", got)
+	}
+	// LAB 级高能池(30.7bps):灾难=61.4、止损=36.8、A斩=18.4、TP=24.6
+	if got := fastScaledExitBps(25, 2.0, 30.7); got < 61.3 || got > 61.5 {
+		t.Fatalf("高能池灾难线应≈61.4,得到 %.1f", got)
+	}
+	if got := fastScaledExitBps(15, 1.2, 30.7); got < 36.8 || got > 36.9 {
+		t.Fatalf("高能池止损应≈36.84,得到 %.1f", got)
+	}
+	if got := fastScaledExitBps(12, 0.8, 30.7); got < 24.5 || got > 24.6 {
+		t.Fatalf("高能池TP应≈24.56,得到 %.1f", got)
+	}
+}
+
+func TestFastExitUnitBps(t *testing.T) {
+	e := newFastV3TestEngine(t)
+	sym := "UNITTEST-USDT"
+	key := e.venueName + "|" + sym
+	fastPondMu.Lock()
+	delete(fastPondHist, key)
+	fastPondMu.Unlock()
+	// 未启用 → 0
+	e.cfg.FastExitEnergyScaleEnabled = false
+	if u := e.fastExitUnitBps(sym); u != 0 {
+		t.Fatalf("未启用应为 0,得到 %.1f", u)
+	}
+	e.cfg.FastExitEnergyScaleEnabled = true
+	// 样本不足 → 0(退回绝对阈值,不误放大)
+	now := time.Now().UTC()
+	for i := 0; i < 10; i++ {
+		fastPondRecord(key, now.Add(time.Duration(i)*time.Second), 20, 10000)
+	}
+	if u := e.fastExitUnitBps(sym); u != 0 {
+		t.Fatalf("样本不足应为 0,得到 %.1f", u)
+	}
+	// 样本成熟 → 能量中位
+	for i := 10; i < fastPondWarmupSamples+10; i++ {
+		fastPondRecord(key, now.Add(time.Duration(i)*time.Second), 20, 10000)
+	}
+	if u := e.fastExitUnitBps(sym); u < 19.9 || u > 20.1 {
+		t.Fatalf("成熟池能量单位应≈20,得到 %.1f", u)
+	}
+	fastPondMu.Lock()
+	delete(fastPondHist, key)
+	fastPondMu.Unlock()
+}
