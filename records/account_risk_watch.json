@@ -1,40 +1,37 @@
 {
   "wired": true,
-  "updated_at": "2026-07-03T12:36:56.599220429Z",
+  "updated_at": "2026-07-03T13:10:21.852930811Z",
   "snapshot": {
-    "observed_at": "2026-07-03T12:36:55.891973052Z",
+    "observed_at": "2026-07-03T13:10:21.149786006Z",
     "day_start_cst": "2026-07-03T00:00:00+08:00",
-    "daily_realized_pnl_usdt": -4.007548,
-    "daily_equity_delta_usdt": -4.508627,
-    "daily_equity_delta_for_risk_usdt": -4.508627,
+    "daily_realized_pnl_usdt": -4.261481,
+    "daily_equity_delta_usdt": -4.796552,
+    "daily_equity_delta_for_risk_usdt": -4.796552,
     "venue_equity_deltas": {
       "binance": 0,
-      "bybit": -1.4489874199999946,
+      "bybit": -1.648632070000005,
       "gate": 0,
-      "okx": -3.0596404697709545
+      "okx": -3.1479204777798344
     },
     "equity_data_trusted": true,
-    "daily_losing_trade_count": 524,
-    "cumulative_realized_pnl_usdt": -31.623372,
+    "daily_losing_trade_count": 537,
+    "cumulative_realized_pnl_usdt": -31.877305,
     "realized_pnl_peak_usdt": 11.868901,
-    "account_drawdown_usdt": 43.492273,
+    "account_drawdown_usdt": 43.746206,
     "strategy_net_pnl": {
       "directional_binance": -0.996926,
-      "directional_bybit": -7.889424,
+      "directional_bybit": -8.048814,
       "directional_gate": -9.81336,
-      "directional_okx": -12.923662
+      "directional_okx": -13.018205
     },
-    "real_equity_total_usdt": 156.004141,
+    "real_equity_total_usdt": 155.716216,
     "real_equity_peak_usdt": 161.931074,
-    "real_equity_drawdown_usdt": 5.926933,
-    "real_equity_drawdown_adjusted_usdt": 5.926933,
+    "real_equity_drawdown_usdt": 6.214858,
+    "real_equity_drawdown_adjusted_usdt": 6.214858,
     "real_equity_quality_passed": true,
     "real_equity_peak_confirmed": true,
-    "open_position_count": 1,
-    "open_notional_usdt": 7.47891,
-    "positions_by_strategy": {
-      "directional_bybit": 1
-    }
+    "open_position_count": 0,
+    "open_notional_usdt": 0
   },
   "thresholds": {
     "daily_loss_breached": false,

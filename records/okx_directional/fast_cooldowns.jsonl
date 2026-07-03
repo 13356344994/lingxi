@@ -253,3 +253,10 @@
 {"recorded_at":"2026-07-03T12:11:07.36039584Z","venue":"okx","symbol":"LAB-USDT","reason":"fast_species_a_cut","until":"2026-07-03T14:11:07.36039584Z","seconds":7200}
 {"recorded_at":"2026-07-03T12:16:29.434780548Z","venue":"okx","symbol":"MRVL-USDT","reason":"fast_no_feedback","until":"2026-07-03T14:16:29.434780548Z","seconds":7200}
 {"recorded_at":"2026-07-03T12:25:25.436034629Z","venue":"okx","symbol":"XPL-USDT","reason":"fast_stop_reversal","until":"2026-07-03T14:25:25.436034629Z","seconds":7200}
+{"recorded_at":"2026-07-03T12:38:46.583308351Z","venue":"okx","symbol":"SLX-USDT","reason":"fast_species_a_cut","until":"2026-07-03T14:38:46.583308351Z","seconds":7200}
+{"recorded_at":"2026-07-03T12:42:26.505071127Z","venue":"okx","symbol":"ZKP-USDT","reason":"fast_early_cut","until":"2026-07-03T14:42:26.505071127Z","seconds":7200}
+{"recorded_at":"2026-07-03T12:42:34.490194336Z","venue":"okx","symbol":"LAB-USDT","reason":"fast_stop_reversal","until":"2026-07-03T14:42:34.490194336Z","seconds":7200}
+{"recorded_at":"2026-07-03T12:45:04.528395853Z","venue":"okx","symbol":"MANA-USDT","reason":"fast_species_a_cut","until":"2026-07-03T14:45:04.528395853Z","seconds":7200}
+{"recorded_at":"2026-07-03T12:50:36.500973392Z","venue":"okx","symbol":"RE-USDT","reason":"fast_species_a_cut","until":"2026-07-03T14:50:36.500973392Z","seconds":7200}
+{"recorded_at":"2026-07-03T13:04:10.457469636Z","venue":"okx","symbol":"SNDK-USDT","reason":"fast_species_a_cut","until":"2026-07-03T15:04:10.457469636Z","seconds":7200}
+{"recorded_at":"2026-07-03T13:07:52.470215171Z","venue":"okx","symbol":"ALLO-USDT","reason":"fast_species_a_cut","until":"2026-07-03T13:22:52.470215171Z","seconds":900}

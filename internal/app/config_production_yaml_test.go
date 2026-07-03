@@ -109,8 +109,13 @@ func TestLoadProductionConfigYAML(t *testing.T) {
 	if cfg.OKXDirectional.FastPondMinEnergyBps < 6 {
 		t.Fatalf("fast_pond_min_energy_bps = %.1f want >=6(好池分水岭≥9.6,死水<6)", cfg.OKXDirectional.FastPondMinEnergyBps)
 	}
-	if !cfg.OKXDirectional.FastAltCandidatesEnabled || !cfg.OKXDirectional.FastFadeLiveEnabled {
-		t.Fatal("fade 接型灰度应启用(fast_alt_candidates_enabled + fast_fade_live_enabled 均须 true)")
+	if !cfg.OKXDirectional.FastAltCandidatesEnabled {
+		t.Fatal("fast_alt_candidates_enabled = false want true(fade/liq shadow 候选=地图数据,必须持续生成)")
+	}
+	// fade 实盘 2026-07-03 21:10 解剖降级:maker 成交=力竭诊断证伪器(实盘35笔 -10.6bps vs 全体9032 +1.0bps@60s),
+	// 群体优势付不起执行成本。回开=撤销解剖裁决,须用户明示。
+	if cfg.OKXDirectional.FastFadeLiveEnabled {
+		t.Fatal("fast_fade_live_enabled = true want false(成交即证伪,+1.0bps群体优势无可收割形态)")
 	}
 	if !cfg.OKXDirectional.FastSpeciesExitEnabled {
 		t.Fatal("fast_species_exit_enabled = false want true(A物种minHold是刑具,3s认错止血)")
