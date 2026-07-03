@@ -14,6 +14,10 @@
 **🚀 v3 蓝图三层已落地(2026-07-03 14:36 BJ 重启部署,用户批准"可以";单测 `fast_v3_pond_test.go`,部署后已核对数据流入)**:
 - **① 池塘质量(战场层)**:每个 shadow 事件带 `pond_energy_med_bps/pond_depth_med_usdt/pond_samples/pond_ok`(滚动 2h 逐扫描中位数,动态判定,禁止写死名单;热身期<150样本 fail-open)。依据 119k 事件实证:能量(30s位移中位)是主轴,好池全部 ≥9.6bps,死水镜面 SNDK/MRVL 深度17万但能量<6→跟随率38-56%,CELO 能量3.2 全场最差。**当前仅打标(`fast_pond_filter_enabled=false`);打标 1 天与离线排名核对命中集一致后才开过滤(开后 fastLiveOpen 拒 `pond_reject`)。**
 - **② 接型候选生成(入场层,record-only)**:`fast_alt_candidates_enabled=true`,每轮扫描从同一盘口快照派生两类"接"型候选写入 shadow(`candidate_source` 标记):`liq_catch`=强平后 60s 接被迫者(强平内存缓冲由 fast_ws 爆仓推送实时喂,P2 首验 82.0% 全场最高)、`fade_exhaustion`=30s 冲量≥8bps 且 15s 已减速<40% → 逆向接力竭者。依据:91k 实证同冲量档"接"比"追"高 8-15pp,而旧生成器 98% 产追单。**`fastLiveOpen` 对 `candidate_source` 非空硬闸拒绝(`record_only_source`),绝不实盘;攒 1-2 天前向成绩(离线按 candidate_source 分桶)达标才谈灰度。**部署 2 分钟即有 fade 42 + liq_catch 12 条流入。
+- **📌 首日前向裁决(2026-07-03 16:00,部署后1.5h,base shadow 做前向标尺)**:
+  - **fade_exhaustion 活着**:n≈3500,+60s 跟随 52.2% 均值 +1.73bps,且随窗口放大(15s+0.31→60s+1.73→180s 池塘OK子集 **+4.29**);偏态收益形状(错的多但对的走得远)正是"接"该有的样子。继续攒样本。
+  - **liq_catch 证伪,且解剖后连"力竭确认"也救不了**:整体 60s 均值 -18.6bps;按 15s 冲量分桶:已翻向(假力竭/死猫跳)**更差** -22.9bps,仍在砸 -17.6bps,横住 -9.8bps——全负。**假的部分预示的真东西:被迫流方向在这些池塘持续 1-3 分钟(180s 衰减到 -3.5),60s 内顺瀑布方向 = +17~23bps 的镜像信号(liq_follow)**。P2 之前的 82% 不矛盾:那批是 scorer 候选叠强平(=强平仍在砸但价格已在涨的"吸收"证据),条件完全不同。→ 接被迫者的合格前提是**吸收证据**(强平未停但价格顶住),不是时间窗也不是 15s 翻向;镜像 liq_follow 与吸收条件均可从现有 shadow 字段离线推导,不必改生成器,灰度设计时再定。
+  - 池塘打标与离线 119k 排名吻合(OK: LAB/ZKP/KORU/SLX/SOXL;REJ: CELO/SNDK/MRVL/SKHYNIX 等 19 个);反事实:1.5h 实盘 28 笔中 5 笔开在 REJ 池共亏 -0.037U。**打标核对通过,过滤闸具备开启条件。**
 - **③ 物种化出场**:`fast_species_exit_enabled=false`(代码已就位,默认关,随②灰度一起开)。A物种=3s 内 mae≤-6bps 且当前≤-4 → `fast_species_a_cut` 立即认错(豁免 minHold;424笔实证 A 物种 PF0.26 仅26%回正,minHold 对它是刑具)+ 计入冷却;C物种=10s 无正反馈(mfe10<1)且不深亏 → `fast_species_c_exit` 快撤换弹(PF0.51 时间成本主导);B物种(打完即弹,PF1.50 唯一毛正)不动,交给既有 trail。
 
 **v2 判定口径(修正后)**:① 机制层对比 v1 vs v2 的"看对单捕获量 / 看错单出血量"(不经时段);② v2 内部按点差×动量物理状态分桶;③ 灾难线穿透专项(名义 25bps 实际成交 -44.9bps,61 笔占 v2 亏损 ~68%);④ 时间只做因果校验轴。**毛均仍负 → 出场时序假设证伪 → 停线回 record-only(数据留作 v3 地图,不是扔掉)。**
