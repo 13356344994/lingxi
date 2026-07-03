@@ -403,43 +403,65 @@ type fastLiqHotItem struct {
 }
 
 var (
-	fastLiqHotMu   sync.Mutex
-	fastLiqHot     []fastLiqHotItem
-	fastLiqHotSeen = map[string]time.Time{} // symbol -> 最近入队(20s 去重,防单币爆仓刷屏)
+	fastLiqHotMu  sync.Mutex
+	fastLiqHot    []fastLiqHotItem
+	fastLiqEvalAt = map[string]time.Time{} // symbol -> 上次真评估(REST)时间;15s 冷却防同簇重复评估
 )
 
 // fastNoteLiqHot 爆仓推送入热队列(全市场;由 fastLiqFollowLoop 消费)。
+// 入队不去重(2026-07-03 18:30 修:入队层 20s 去重曾导致"n=1 时评估、n=2 簇成立时缺席"——
+// 第一笔爆仓消费掉热度,第二笔被去重挡住,合格簇永远错过;回放 50 簇/小时 vs 实际 0 触发即此因)。
+// 去重职责下移:同一 drain 批内按币去重 + tick 里 15s 评估冷却(REST 层),n<minLiqs 的早期跳过零成本。
 func fastNoteLiqHot(sym string, now time.Time) {
 	fastLiqHotMu.Lock()
 	defer fastLiqHotMu.Unlock()
-	if t, ok := fastLiqHotSeen[sym]; ok && now.Sub(t) < 20*time.Second {
-		return
-	}
-	fastLiqHotSeen[sym] = now
 	fastLiqHot = append(fastLiqHot, fastLiqHotItem{sym, now})
 	if len(fastLiqHot) > 64 { // 极端行情兜底:只留最新
 		fastLiqHot = append([]fastLiqHotItem{}, fastLiqHot[len(fastLiqHot)-64:]...)
 	}
 }
 
-// fastDrainLiqHot 取出 ≤maxAge 的热币(最多 maxN 个),过期丢弃,其余留队。
+// fastDrainLiqHot 取出 ≤maxAge 的热币(最多 maxN 个,批内按币去重),过期丢弃,其余留队。
 func fastDrainLiqHot(now time.Time, maxAge time.Duration, maxN int) []string {
 	fastLiqHotMu.Lock()
 	defer fastLiqHotMu.Unlock()
 	out := make([]string, 0, maxN)
+	seen := map[string]bool{}
 	rest := make([]fastLiqHotItem, 0, len(fastLiqHot))
 	for _, it := range fastLiqHot {
 		if now.Sub(it.ts) > maxAge {
 			continue // 过期=瀑布头段已错过,丢弃
 		}
+		if seen[it.sym] {
+			continue
+		}
 		if len(out) < maxN {
 			out = append(out, it.sym)
+			seen[it.sym] = true
 		} else {
 			rest = append(rest, it)
 		}
 	}
 	fastLiqHot = rest
 	return out
+}
+
+// fastLiqEvalAllowed 真评估(REST)前的 15s 冷却检查+登记;n<minLiqs 的跳过不登记,簇长成后仍可评估。
+func fastLiqEvalAllowed(sym string, now time.Time) bool {
+	fastLiqHotMu.Lock()
+	defer fastLiqHotMu.Unlock()
+	if t, ok := fastLiqEvalAt[sym]; ok && now.Sub(t) < 15*time.Second {
+		return false
+	}
+	if len(fastLiqEvalAt) > 2048 { // 防无界增长
+		for k, v := range fastLiqEvalAt {
+			if now.Sub(v) > 10*time.Minute {
+				delete(fastLiqEvalAt, k)
+			}
+		}
+	}
+	fastLiqEvalAt[sym] = now
+	return true
 }
 
 // fastLiqFollowSide 顺被迫流方向:多头被强平=被迫卖压 → 跟空;空头被强平=被迫买压 → 跟多。
@@ -823,7 +845,10 @@ func (e *OKXDirectionalEngine) fastLiqFollowTick(ctx context.Context) {
 		catch, n := fastRecentLiqCatchSide(sym, now, 30)
 		follow := fastLiqFollowSide(catch)
 		if follow == "" || n < minLiqs {
-			continue // 单笔=噪声;两向平票=混战不进
+			continue // 单笔=噪声;两向平票=混战不进(零成本跳过,不登记评估冷却,簇长成后可再评)
+		}
+		if !fastLiqEvalAllowed(sym, now) {
+			continue // 15s 内已评估过该簇
 		}
 		ev := e.buildFastEvent(ctx, sym, now)
 		if ev == nil {

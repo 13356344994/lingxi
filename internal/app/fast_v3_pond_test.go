@@ -209,8 +209,9 @@ func TestFastLiqFollow_GateAndHelpers(t *testing.T) {
 func TestFastLiqHotQueue(t *testing.T) {
 	now := time.Now().UTC()
 	sym := "HOT-" + t.Name() + "-USDT"
+	// 同币多笔入队(入队不去重),drain 批内去重 → 只出 1 个
 	fastNoteLiqHot(sym, now)
-	fastNoteLiqHot(sym, now.Add(5*time.Second)) // 20s 内去重
+	fastNoteLiqHot(sym, now.Add(5*time.Second))
 	got := fastDrainLiqHot(now.Add(6*time.Second), 8*time.Second, 10)
 	cnt := 0
 	for _, s := range got {
@@ -219,7 +220,19 @@ func TestFastLiqHotQueue(t *testing.T) {
 		}
 	}
 	if cnt != 1 {
-		t.Fatalf("去重失败: %d", cnt)
+		t.Fatalf("批内去重失败: %d", cnt)
+	}
+	// 关键回归(修过的 bug):第一笔评估后(n=1 跳过),第二笔爆仓再入队,簇长成时必须还能被消费到
+	fastNoteLiqHot(sym, now.Add(10*time.Second))
+	got2 := fastDrainLiqHot(now.Add(11*time.Second), 8*time.Second, 10)
+	found := false
+	for _, s := range got2 {
+		if s == sym {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("簇第二笔不应被入队去重挡住(曾导致合格簇永远错过)")
 	}
 	// 过期丢弃
 	sym2 := "HOT2-" + t.Name() + "-USDT"
@@ -228,6 +241,20 @@ func TestFastLiqHotQueue(t *testing.T) {
 		if s == sym2 {
 			t.Fatal("过期热币应被丢弃")
 		}
+	}
+}
+
+func TestFastLiqEvalCooldown(t *testing.T) {
+	now := time.Now().UTC()
+	sym := "EVAL-" + t.Name() + "-USDT"
+	if !fastLiqEvalAllowed(sym, now) {
+		t.Fatal("首次评估应放行")
+	}
+	if fastLiqEvalAllowed(sym, now.Add(5*time.Second)) {
+		t.Fatal("15s 内应冷却")
+	}
+	if !fastLiqEvalAllowed(sym, now.Add(16*time.Second)) {
+		t.Fatal("15s 后应放行")
 	}
 }
 
