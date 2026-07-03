@@ -1,39 +1,39 @@
 {
   "wired": true,
-  "updated_at": "2026-07-03T11:21:46.531337073Z",
+  "updated_at": "2026-07-03T12:05:25.592920788Z",
   "snapshot": {
-    "observed_at": "2026-07-03T11:21:45.822084565Z",
+    "observed_at": "2026-07-03T12:05:24.843496706Z",
     "day_start_cst": "2026-07-03T00:00:00+08:00",
-    "daily_realized_pnl_usdt": -3.567025,
-    "daily_equity_delta_usdt": -4.12046,
-    "daily_equity_delta_for_risk_usdt": -4.12046,
+    "daily_realized_pnl_usdt": -3.771124,
+    "daily_equity_delta_usdt": -4.328811,
+    "daily_equity_delta_for_risk_usdt": -4.328811,
     "venue_equity_deltas": {
       "binance": 0,
-      "bybit": -1.3121684999999985,
+      "bybit": -1.3957582799999955,
       "gate": 0,
-      "okx": -2.80829235398366
+      "okx": -2.933053211376432
     },
     "equity_data_trusted": true,
-    "daily_losing_trade_count": 492,
-    "cumulative_realized_pnl_usdt": -31.182849,
+    "daily_losing_trade_count": 507,
+    "cumulative_realized_pnl_usdt": -31.386948,
     "realized_pnl_peak_usdt": 11.868901,
-    "account_drawdown_usdt": 43.05175,
+    "account_drawdown_usdt": 43.255849,
     "strategy_net_pnl": {
       "directional_binance": -0.996926,
-      "directional_bybit": -7.694747,
+      "directional_bybit": -7.773984,
       "directional_gate": -9.81336,
-      "directional_okx": -12.677816
+      "directional_okx": -12.802678
     },
-    "real_equity_total_usdt": 156.392308,
+    "real_equity_total_usdt": 156.183958,
     "real_equity_peak_usdt": 161.931074,
-    "real_equity_drawdown_usdt": 5.538766,
-    "real_equity_drawdown_adjusted_usdt": 5.538766,
+    "real_equity_drawdown_usdt": 5.747116,
+    "real_equity_drawdown_adjusted_usdt": 5.747116,
     "real_equity_quality_passed": true,
     "real_equity_peak_confirmed": true,
-    "open_position_count": 2,
-    "open_notional_usdt": 14.4096,
+    "open_position_count": 1,
+    "open_notional_usdt": 4.1932,
     "positions_by_strategy": {
-      "directional_okx": 2
+      "directional_okx": 1
     }
   },
   "thresholds": {

@@ -340,3 +340,31 @@ func TestFastExitUnitBps(t *testing.T) {
 	delete(fastPondHist, key)
 	fastPondMu.Unlock()
 }
+
+func TestFastLiqFollowBlindGate(t *testing.T) {
+	e := newFastV3TestEngine(t)
+	sym := "BLINDGATE-USDT"
+	key := e.venueName + "|" + sym
+	fastMidMu.Lock()
+	delete(fastMidHist, key)
+	fastMidMu.Unlock()
+	now := time.Now().UTC()
+	// 零历史 → 跨度 0 <15 → 盲区(首见币只记观测不下单)
+	if span := fastMidSpanSecs(key, now); span >= 15 {
+		t.Fatalf("零历史跨度应<15,得到 %.1f", span)
+	}
+	// 首次评估(15s前)写入首个观测点:此刻评估时跨度 5s → 仍盲
+	e.updateFastMidHist(sym, now.Add(-5*time.Second), 1.0)
+	if span := fastMidSpanSecs(key, now); span >= 15 {
+		t.Fatalf("5s历史应仍<15,得到 %.1f", span)
+	}
+	// 首个观测点已存在 20s(冷却后新爆仓再评):跨度≥15 → 冲量真实可算,盲区闸放行
+	later := now.Add(15 * time.Second)
+	e.updateFastMidHist(sym, later, 1.0)
+	if span := fastMidSpanSecs(key, later); span < 15 {
+		t.Fatalf("20s历史应≥15放行,得到 %.1f", span)
+	}
+	fastMidMu.Lock()
+	delete(fastMidHist, key)
+	fastMidMu.Unlock()
+}

@@ -239,3 +239,12 @@
 {"recorded_at":"2026-07-03T11:12:05.943501993Z","venue":"okx","symbol":"ZKP-USDT","reason":"fast_species_a_cut","until":"2026-07-03T13:12:05.943501993Z","seconds":7200}
 {"recorded_at":"2026-07-03T11:12:45.945982002Z","venue":"okx","symbol":"LAB-USDT","reason":"fast_species_a_cut","until":"2026-07-03T13:12:45.945982002Z","seconds":7200}
 {"recorded_at":"2026-07-03T11:17:09.932814639Z","venue":"okx","symbol":"BASED-USDT","reason":"fast_species_a_cut","until":"2026-07-03T13:17:09.932814639Z","seconds":7200}
+{"recorded_at":"2026-07-03T11:23:46.362714304Z","venue":"okx","symbol":"MSTR-USDT","reason":"fast_no_feedback","until":"2026-07-03T11:28:46.362714304Z","seconds":300}
+{"recorded_at":"2026-07-03T11:24:12.372177984Z","venue":"okx","symbol":"SLX-USDT","reason":"fast_no_feedback","until":"2026-07-03T13:24:12.372177984Z","seconds":7200}
+{"recorded_at":"2026-07-03T11:24:28.40007629Z","venue":"okx","symbol":"LAB-USDT","reason":"fast_species_a_cut","until":"2026-07-03T13:24:28.40007629Z","seconds":7200}
+{"recorded_at":"2026-07-03T11:24:44.392265028Z","venue":"okx","symbol":"ZKP-USDT","reason":"fast_stop_reversal","until":"2026-07-03T13:24:44.392265028Z","seconds":7200}
+{"recorded_at":"2026-07-03T11:28:22.380854986Z","venue":"okx","symbol":"ALLO-USDT","reason":"fast_stop_reversal","until":"2026-07-03T11:33:22.380854986Z","seconds":300}
+{"recorded_at":"2026-07-03T11:40:18.377517885Z","venue":"okx","symbol":"BASED-USDT","reason":"fast_species_a_cut","until":"2026-07-03T13:40:18.377517885Z","seconds":7200}
+{"recorded_at":"2026-07-03T11:41:24.362827935Z","venue":"okx","symbol":"GRASS-USDT","reason":"fast_species_a_cut","until":"2026-07-03T12:26:24.362827935Z","seconds":2700}
+{"recorded_at":"2026-07-03T11:45:36.373697046Z","venue":"okx","symbol":"XPL-USDT","reason":"fast_stop_reversal","until":"2026-07-03T13:45:36.373697046Z","seconds":7200}
+{"recorded_at":"2026-07-03T11:59:50.369649921Z","venue":"okx","symbol":"SOON-USDT","reason":"fast_early_cut","until":"2026-07-03T12:14:50.369649921Z","seconds":900}

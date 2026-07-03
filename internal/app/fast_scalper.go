@@ -882,6 +882,12 @@ func (e *OKXDirectionalEngine) fastLiqFollowTick(ctx context.Context) {
 		}
 		skip := ""
 		switch {
+		// 盲区闸(2026-07-03 20:00 逐笔钉死:实盘8笔里7笔进场时该币零价格历史 imp=0=蒙眼买瀑布尾,
+		// 唯一有历史的一笔 imp30=-192 顺势 +21bps 落袋;离线 +6.5bps 依据样本全部有完整 mid 历史,条件必须对齐)。
+		// 首见币本轮只记观测(buildFastEvent 已写入首个 mid 点)不下单;瀑布若真还在走,新爆仓会再把它
+		// 顶回热队列,15s 评估冷却后带着真实冲量再评——"瀑布还活着"本身成为入场资格的一部分。
+		case fastMidSpanSecs(e.venueName+"|"+sym, now) < 15:
+			skip = "blind_no_history"
 		case ev.SpreadBps > maxSpread:
 			skip = "spread_wide"
 		case ev.DepthNotional10bps < e.cfg.FastPondDepthLoUSDT:
