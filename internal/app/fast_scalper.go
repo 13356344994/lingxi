@@ -346,6 +346,29 @@ func (e *OKXDirectionalEngine) fastPondRestore() {
 	}
 }
 
+// minVenueTradableQty 该合约最小可交易币量:张本位=1个最小张步进×面值;币本位=1个步进;
+// 再抬到 MinNotional 之上。返回 0 = 规格未知(调用方按原样拒)。
+func minVenueTradableQty(instr venue.Instrument, contractBased bool, refPrice float64) float64 {
+	var q, step float64
+	if contractBased && instr.ContractSize > 0 {
+		cs := instr.StepSize
+		if cs <= 0 {
+			cs = 1
+		}
+		step = cs * instr.ContractSize
+		q = step
+	} else if instr.StepSize > 0 {
+		step = instr.StepSize
+		q = step
+	} else {
+		return 0
+	}
+	if instr.MinNotional > 0 && refPrice > 0 && q*refPrice < instr.MinNotional {
+		q = math.Ceil(instr.MinNotional/refPrice/step) * step
+	}
+	return q
+}
+
 // fastMidSpanSecs mid 历史覆盖秒数(池塘样本只在 30s 冲量真实可算时才记,避免 0 值污染能量中位)。
 func fastMidSpanSecs(key string, now time.Time) float64 {
 	fastMidMu.Lock()
@@ -1520,6 +1543,7 @@ func (e *OKXDirectionalEngine) fastLiveOpen(ctx context.Context, ev *fastExecSha
 	if notional <= 0 {
 		return "no_notional"
 	}
+	baseNotional := notional
 	notional *= notionalFrac // 弱时段降名义(便宜地继续采样)
 	lev := float64(e.leverage())
 	if lev <= 0 {
@@ -1533,8 +1557,18 @@ func (e *OKXDirectionalEngine) fastLiveOpen(ctx context.Context, ev *fastExecSha
 	caps := e.v.Capabilities()
 	mid := ev.Mid
 	qty := normalizeVenueQty(notional/mid, instr, caps.ContractBasedPerp)
-	if !openLegTradableAfterQuantize(qty, mid, instr) { // 量化不可交易不开
-		return "not_tradable"
+	if !openLegTradableAfterQuantize(qty, mid, instr) {
+		// v3 池塘适配(2026-07-03 实盘暴露):LAB(1张≈8U)/KORU(≈5.9U)等最优池的最小张名义 > 5U
+		// 灰度名义 → 量化到 0 张永远 not_tradable,最好的战场反而从未入场(LAB 开仓数=0 印证)。
+		// 机制:交易所最小票额=入场费,票价 ≤ 2×配置名义就买最小票,更贵才真跳过。
+		minQty := minVenueTradableQty(instr, caps.ContractBasedPerp, mid)
+		if minQty > 0 && minQty*mid <= 2*baseNotional && openLegTradableAfterQuantize(minQty, mid, instr) {
+			qty = minQty
+			notional = minQty * mid
+			perPosCapital = notional / lev
+		} else {
+			return "not_tradable"
+		}
 	}
 	if avail, merr := fetchVenuePerpAvailableUSDT(ctx, e.v); merr == nil && avail+1e-9 < perPosCapital {
 		return "low_margin"

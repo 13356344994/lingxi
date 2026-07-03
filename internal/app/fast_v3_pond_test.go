@@ -6,6 +6,7 @@ import (
 	"context"
 	"io"
 	"log"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	"lingxi/internal/core"
+	"lingxi/internal/venue"
 )
 
 func newFastV3TestEngine(t *testing.T) *OKXDirectionalEngine {
@@ -139,6 +141,26 @@ func TestFastAlt_FadeExhaustionCandidate(t *testing.T) {
 	got := e.buildFastAltCandidates(base3, now)
 	if len(got) != 1 || got[0].FastCandidateSide != "long" {
 		t.Fatalf("下冲 fade 应接多: %+v", got)
+	}
+}
+
+func TestMinVenueTradableQty(t *testing.T) {
+	// 张本位:LAB 1张=10币 minSz=0.1张 → 最小币量=1;5U名义@8.01 量化到0张,但最小票=1币≈8U ≤ 2×5U 可开
+	instr := venue.Instrument{ContractSize: 10, StepSize: 0.1}
+	if q := minVenueTradableQty(instr, true, 8.01); q != 1 {
+		t.Fatalf("LAB 最小票 want 1 币, got %v", q)
+	}
+	// 币本位:step=0.01
+	if q := minVenueTradableQty(venue.Instrument{StepSize: 0.01}, false, 100); q != 0.01 {
+		t.Fatalf("币本位最小票 want 0.01, got %v", q)
+	}
+	// MinNotional 抬升:step=0.01,minNotional=5,价格100 → 需 0.05
+	if q := minVenueTradableQty(venue.Instrument{StepSize: 0.01, MinNotional: 5}, false, 100); math.Abs(q-0.05) > 1e-12 {
+		t.Fatalf("MinNotional 抬升 want 0.05, got %v", q)
+	}
+	// 规格未知 → 0
+	if q := minVenueTradableQty(venue.Instrument{}, false, 100); q != 0 {
+		t.Fatalf("未知规格 want 0, got %v", q)
 	}
 }
 

@@ -796,3 +796,315 @@
 2026/07/03 17:00:16 [bybit][OKX方向] ID-USDT 量化后不可交易 qty=143.00000000 mid=0.034745 notional=5.00
 2026/07/03 17:00:44 [账户风控] OK daily_equity_delta=-3.3498 daily_realized=-2.8207 settlement_dd=42.3054 real_equity_dd=4.7681 real_equity_dd_adj=4.7681 cum_fund_flow=-64.2452 positions=1 notional=4.61
 2026/07/03 17:00:55 [fast_scalper] record-only 扫描=20 记录=23 live=true 入场结果=map[alt_cooldown:4 alt_held_slow:5 alt_not_tradable:4 alt_record_only_source:33 cooldown:11 flat:2 held_slow:6 low_score:4 low_score_adaptive:29 not_tradable:28 pond_reject:240] → fast_executable_shadow_events.jsonl
+2026/07/03 17:01:05 [OKX方向][漏斗] shortlist=20 空位=4 有方向=0 | flat: 样本不足=0 资费否决=0 无信号=7 过地板挡=0 不可交易=0 runup未确认=0(地板=40bps) | 例[veto=][nosig=ZKP-USDT:无方向信号(regime=range)][floor=][runup=]
+2026/07/03 17:01:44 [账户风控] OK daily_equity_delta=-3.3498 daily_realized=-2.8207 settlement_dd=42.3054 real_equity_dd=4.7681 real_equity_dd_adj=4.7681 cum_fund_flow=-64.2452 positions=1 notional=4.61
+2026/07/03 17:01:44 [bybit][OKX方向][跨所] 否决 SKHYNIX-USDT short: 跨所2反向且无同向
+2026/07/03 17:01:44 [bybit][OKX方向][跨所] ID-USDT long 同向0/反向1 信心→0.60
+2026/07/03 17:01:44 [bybit][OKX方向] ID-USDT 量化后不可交易 qty=143.00000000 mid=0.034805 notional=5.00
+2026/07/03 17:01:59 [fast_scalper] record-only 扫描=20 记录=30 live=true 入场结果=map[alt_cooldown:7 alt_held_slow:1 alt_not_tradable:8 alt_record_only_source:68 cooldown:6 flat:7 held_slow:2 low_score:15 low_score_adaptive:31 not_tradable:17 pond_reject:242] → fast_executable_shadow_events.jsonl
+2026/07/03 17:02:35 [OKX方向][漏斗] shortlist=20 空位=4 有方向=0 | flat: 样本不足=0 资费否决=0 无信号=7 过地板挡=0 不可交易=0 runup未确认=0(地板=40bps) | 例[veto=][nosig=ZKP-USDT:仍急拉不追空顶(lastRet=1.61%)][floor=][runup=]
+2026/07/03 17:02:44 [账户风控] OK daily_equity_delta=-3.3724 daily_realized=-2.8207 settlement_dd=42.3054 real_equity_dd=4.7907 real_equity_dd_adj=4.7907 cum_fund_flow=-64.2452 positions=1 notional=4.61
+2026/07/03 17:03:03 [fast_scalper] record-only 扫描=20 记录=22 live=true 入场结果=map[alt_cooldown:2 alt_held_slow:2 alt_not_tradable:7 alt_record_only_source:49 cooldown:4 flat:5 held_slow:2 low_score:10 low_score_adaptive:26 not_tradable:22 pond_reject:251] → fast_executable_shadow_events.jsonl
+2026/07/03 17:03:14 [bybit][OKX方向][跨所] 否决 SKHYNIX-USDT short: 跨所2反向且无同向
+2026/07/03 17:03:44 [账户风控] OK daily_equity_delta=-3.3724 daily_realized=-2.8207 settlement_dd=42.3054 real_equity_dd=4.7907 real_equity_dd_adj=4.7907 cum_fund_flow=-64.2452 positions=1 notional=4.61
+2026/07/03 17:04:05 [OKX方向][跨所] ZHIPU-USDT short 同向1/反向0 信心→1.00
+2026/07/03 17:04:05 [OKX方向][流动性] ZHIPU-USDT 盘口价差 34bps > 20bps,薄盘跳过开仓
+2026/07/03 17:04:07 [fast_scalper] record-only 扫描=20 记录=26 live=true 入场结果=map[alt_cooldown:4 alt_held_slow:4 alt_not_tradable:8 alt_record_only_source:41 cooldown:2 held_slow:4 low_score_adaptive:26 not_tradable:32 pond_reject:256] → fast_executable_shadow_events.jsonl
+2026/07/03 17:04:44 [账户风控] OK daily_equity_delta=-3.3724 daily_realized=-2.8207 settlement_dd=42.3054 real_equity_dd=4.7907 real_equity_dd_adj=4.7907 cum_fund_flow=-64.2452 positions=1 notional=4.61
+2026/07/03 17:04:45 [bybit][OKX方向][跨所] 否决 SKHYNIX-USDT short: 跨所2反向且无同向
+2026/07/03 17:05:11 [fast_scalper] record-only 扫描=20 记录=31 live=true 入场结果=map[alt_cooldown:5 alt_held_slow:4 alt_not_tradable:10 alt_record_only_source:92 cooldown:4 held_slow:5 low_score:3 low_score_adaptive:23 not_tradable:29 pond_reject:256] → fast_executable_shadow_events.jsonl
+2026/07/03 17:05:35 [OKX方向][漏斗] shortlist=20 空位=4 有方向=0 | flat: 样本不足=0 资费否决=1 无信号=4 过地板挡=0 不可交易=0 runup未确认=2(地板=40bps) | 例[veto=ZKP-USDT:资费逆持仓,放弃(short 费率=-0.8185%)][nosig=BLEND-USDT:无方向信号(regime=range)][floor=][runup=ROBO-USDT short runup=-3.2bp<0.0]
+2026/07/03 17:05:43 [OKX方向][快速风控] SLX-USDT 浮盈-3.53%≤止损地板-3.00%,立即平仓(mae_disaster_cut)
+2026/07/03 17:05:43 [下单] venue=okx market=perp SLX-USDT side=sell price=0.4575 tick=0.0001 qty=10
+2026/07/03 17:05:43 [下单] venue=okx market=perp SLX-USDT side=sell price=0.4575 tick=0.0001 qty=10
+2026/07/03 17:05:44 [下单] venue=okx market=perp SLX-USDT side=sell price=0.4573 tick=0.0001 qty=10
+2026/07/03 17:05:44 [下单] venue=okx market=perp SLX-USDT side=sell price=0.4554 tick=0.0001 qty=10
+2026/07/03 17:05:44 [账户风控] OK daily_equity_delta=-3.3734 daily_realized=-2.8207 settlement_dd=42.3054 real_equity_dd=4.7917 real_equity_dd_adj=4.7917 cum_fund_flow=-64.2452 positions=1 notional=4.61
+2026/07/03 17:05:44 [OKX方向] 已平 SLX-USDT long 原因=mae_disaster_cut 实现≈-0.0330 USDT
+2026/07/03 17:06:01 [fast_live] 已开 SLX-USDT short qty=10.00000000 @0.456300 名义=5.00 score=0.92 maker=true edge=-3.3bps wait=439ms
+2026/07/03 17:06:13 [OKX方向][跨所] ZHIPU-USDT short 同向1/反向0 信心→1.00
+2026/07/03 17:06:14 [OKX方向][流动性] ZHIPU-USDT 盘口价差 41bps > 20bps,薄盘跳过开仓
+2026/07/03 17:06:14 [bybit][OKX方向][跨所] 否决 SKHYNIX-USDT short: 跨所2反向且无同向
+2026/07/03 17:06:15 [下单] venue=okx market=perp SLX-USDT side=buy price=0.4657 tick=0.0001 qty=10
+2026/07/03 17:06:15 [fast_scalper] record-only 扫描=20 记录=26 live=true 入场结果=map[alt_cooldown:3 alt_held_fast:2 alt_held_slow:5 alt_not_tradable:8 alt_record_only_source:103 cooldown:4 held_fast:1 held_slow:2 low_score:4 low_score_adaptive:24 not_tradable:28 opened:1 pond_reject:256] → fast_executable_shadow_events.jsonl
+2026/07/03 17:06:15 [fast_live] 已平 SLX-USDT short 持有14s entry=0.456300 exit=0.458800 realized=-0.0306U 原因=fast_disaster_stop
+2026/07/03 17:06:44 [账户风控] OK daily_equity_delta=-3.3734 daily_realized=-2.8843 settlement_dd=42.3690 real_equity_dd=4.7917 real_equity_dd_adj=4.7917 cum_fund_flow=-64.2452 positions=0 notional=0.00
+2026/07/03 17:07:15 [fast_scalper] record-only 扫描=20 记录=23 live=true 入场结果=map[alt_cooldown:4 alt_maker_not_filled:2 alt_not_tradable:8 alt_record_only_source:54 cooldown:4 low_score:6 low_score_adaptive:26 not_tradable:24 pond_reject:240] → fast_executable_shadow_events.jsonl
+2026/07/03 17:07:33 [fast_live] 已开 SLX-USDT long qty=10.00000000 @0.456500 名义=5.00 score=0.00 maker=true edge=1.1bps wait=431ms
+2026/07/03 17:07:44 [bybit][OKX方向][跨所] 否决 SKHYNIX-USDT short: 跨所2反向且无同向
+2026/07/03 17:07:44 [OKX方向][跨所] ZHIPU-USDT short 同向1/反向0 信心→1.00
+2026/07/03 17:07:44 [OKX方向][流动性] ZHIPU-USDT 盘口价差 43bps > 20bps,薄盘跳过开仓
+2026/07/03 17:07:44 [账户风控] OK daily_equity_delta=-3.3734 daily_realized=-2.8843 settlement_dd=42.3690 real_equity_dd=4.7917 real_equity_dd_adj=4.7917 cum_fund_flow=-64.2452 positions=0 notional=0.00
+2026/07/03 17:08:05 [下单] venue=okx market=perp SLX-USDT side=sell price=0.4483 tick=0.0001 qty=10
+2026/07/03 17:08:05 [fast_live] 已平 SLX-USDT long 持有32s entry=0.456500 exit=0.455100 realized=-0.0185U 原因=fast_disaster_stop
+2026/07/03 17:08:22 [fast_scalper] record-only 扫描=20 记录=23 live=true 入场结果=map[alt_cooldown:5 alt_held_fast:5 alt_maker_not_filled:2 alt_not_tradable:6 alt_opened:1 alt_record_only_source:46 cooldown:3 flat:10 held_fast:2 low_score:10 low_score_adaptive:32 maker_not_filled:2 not_tradable:20 pond_reject:221] → fast_executable_shadow_events.jsonl
+2026/07/03 17:08:34 [fast_live] 已开 SOXL-USDT long qty=0.02000000 @190.740000 名义=5.00 score=0.00 maker=true edge=0.3bps wait=1197ms
+2026/07/03 17:08:41 [fast_live] 已开 SLX-USDT short qty=10.00000000 @0.455100 名义=5.00 score=0.92 maker=true edge=7.7bps wait=435ms
+2026/07/03 17:08:44 [账户风控] OK daily_equity_delta=-3.4310 daily_realized=-2.9028 settlement_dd=42.3875 real_equity_dd=4.8493 real_equity_dd_adj=4.8493 cum_fund_flow=-64.2452 positions=0 notional=0.00
+2026/07/03 17:08:51 [下单] venue=okx market=perp SLX-USDT side=buy price=0.4635 tick=0.0001 qty=10
+2026/07/03 17:08:51 [fast_live] 已平 SLX-USDT short 持有10s entry=0.455100 exit=0.456600 realized=-0.0197U 原因=fast_disaster_stop
+2026/07/03 17:09:13 [bybit][OKX方向][漏斗] shortlist=20 空位=5 有方向=0 | flat: 样本不足=0 资费否决=2 无信号=5 过地板挡=0 不可交易=0 runup未确认=0(地板=40bps) | 例[veto=BLEND-USDT:资费逆持仓,放弃(short 费率=-0.2077%)][nosig=10000NEX-USDT:无方向信号(regime=range)][floor=][runup=]
+2026/07/03 17:09:14 [OKX方向][跨所] ZHIPU-USDT short 同向1/反向0 信心→1.00
+2026/07/03 17:09:14 [OKX方向][流动性] ZHIPU-USDT 盘口价差 37bps > 20bps,薄盘跳过开仓
+2026/07/03 17:09:14 [OKX方向][跨所] 否决 ROBO-USDT short: 跨所2反向且无同向
+2026/07/03 17:09:19 [下单] venue=okx market=perp SOXL-USDT side=sell price=187.54 tick=0.01 qty=0.02
+2026/07/03 17:09:19 [fast_cooldown] SOXL-USDT fast层冷却7200s 至11:09:19 原因=fast_stop_reversal(非永久黑名单)
+2026/07/03 17:09:19 [fast_live] 已平 SOXL-USDT long 持有45s entry=190.740000 exit=190.290000 realized=-0.0145U 原因=fast_stop_reversal
+2026/07/03 17:09:24 [fast_scalper] record-only 扫描=20 记录=23 live=true 入场结果=map[alt_cooldown:1 alt_held_fast:1 alt_maker_not_filled:3 alt_not_tradable:8 alt_opened:1 alt_record_only_source:38 cooldown:1 flat:4 held_fast:5 low_score:6 low_score_adaptive:35 not_tradable:22 opened:1 pond_reject:206] → fast_executable_shadow_events.jsonl
+2026/07/03 17:09:43 [fast_live] 已开 SLX-USDT long qty=10.00000000 @0.456300 名义=5.00 score=0.00 maker=true edge=1.1bps wait=435ms
+2026/07/03 17:09:44 [账户风控] OK daily_equity_delta=-3.4310 daily_realized=-2.9369 settlement_dd=42.4217 real_equity_dd=4.8493 real_equity_dd_adj=4.8493 cum_fund_flow=-64.2452 positions=0 notional=0.00
+2026/07/03 17:10:13 [下单] venue=okx market=perp SLX-USDT side=sell price=0.4580 tick=0.0001 qty=10
+2026/07/03 17:10:13 [下单] venue=okx market=perp SLX-USDT side=sell price=0.4580 tick=0.0001 qty=10
+2026/07/03 17:10:14 [下单] venue=okx market=perp SLX-USDT side=sell price=0.4580 tick=0.0001 qty=10
+2026/07/03 17:10:14 [下单] venue=okx market=perp SLX-USDT side=sell price=0.4563 tick=0.0001 qty=10
+2026/07/03 17:10:14 [fast_live] 已平 SLX-USDT long 持有31s entry=0.456300 exit=0.458200 realized=0.0176U 原因=fast_trail_tp
+2026/07/03 17:10:29 [fast_scalper] record-only 扫描=20 记录=25 live=true 入场结果=map[alt_cooldown:9 alt_maker_not_filled:2 alt_not_tradable:5 alt_opened:1 alt_record_only_source:44 cooldown:8 held_fast:1 low_score:9 low_score_adaptive:39 not_tradable:23 pond_reject:240] → fast_executable_shadow_events.jsonl
+2026/07/03 17:10:43 [bybit][OKX方向][漏斗] shortlist=20 空位=5 有方向=0 | flat: 样本不足=0 资费否决=2 无信号=5 过地板挡=0 不可交易=0 runup未确认=0(地板=40bps) | 例[veto=BLEND-USDT:资费逆持仓,放弃(short 费率=-0.2077%)][nosig=10000NEX-USDT:无方向信号(regime=range)][floor=][runup=]
+2026/07/03 17:10:44 [OKX方向][漏斗] shortlist=20 空位=5 有方向=0 | flat: 样本不足=0 资费否决=2 无信号=4 过地板挡=0 不可交易=0 runup未确认=1(地板=40bps) | 例[veto=BLEND-USDT:资费逆持仓,放弃(short 费率=-0.2210%)][nosig=LA-USDT:无方向信号(regime=range)][floor=][runup=ZHIPU-USDT short runup=-5.5bp<0.0]
+2026/07/03 17:10:44 [账户风控] OK daily_equity_delta=-3.4310 daily_realized=-2.9193 settlement_dd=42.4041 real_equity_dd=4.8493 real_equity_dd_adj=4.8493 cum_fund_flow=-64.2452 positions=0 notional=0.00
+2026/07/03 17:11:26 [fast_live] 已开 SLX-USDT short qty=10.00000000 @0.455800 名义=5.00 score=0.92 maker=true edge=1.1bps wait=436ms
+2026/07/03 17:11:31 [下单] venue=okx market=perp SLX-USDT side=buy price=0.4632 tick=0.0001 qty=10
+2026/07/03 17:11:31 [fast_cooldown] SLX-USDT fast层冷却7200s 至11:11:31 原因=fast_species_a_cut(非永久黑名单)
+2026/07/03 17:11:31 [fast_live] 已平 SLX-USDT short 持有4s entry=0.455800 exit=0.456200 realized=-0.0076U 原因=fast_species_a_cut
+2026/07/03 17:11:34 [fast_scalper] record-only 扫描=20 记录=27 live=true 入场结果=map[alt_cooldown:4 alt_held_fast:1 alt_maker_not_filled:2 alt_not_tradable:5 alt_record_only_source:39 cooldown:5 flat:5 low_score:3 low_score_adaptive:27 maker_not_filled:2 not_tradable:25 opened:1 pond_reject:212] → fast_executable_shadow_events.jsonl
+2026/07/03 17:11:44 [账户风控] OK daily_equity_delta=-3.4583 daily_realized=-2.9269 settlement_dd=42.4116 real_equity_dd=4.8766 real_equity_dd_adj=4.8766 cum_fund_flow=-64.2452 positions=0 notional=0.00
+2026/07/03 17:12:13 [bybit][OKX方向][漏斗] shortlist=20 空位=5 有方向=0 | flat: 样本不足=0 资费否决=2 无信号=5 过地板挡=0 不可交易=0 runup未确认=0(地板=40bps) | 例[veto=BLEND-USDT:资费逆持仓,放弃(short 费率=-0.2077%)][nosig=10000NEX-USDT:无方向信号(regime=range)][floor=][runup=]
+2026/07/03 17:12:14 [OKX方向][流动性] ZHIPU-USDT 盘口价差 31bps > 20bps,薄盘跳过开仓
+2026/07/03 17:12:35 [fast_scalper] record-only 扫描=20 记录=25 live=true 入场结果=map[alt_cooldown:6 alt_not_tradable:8 alt_record_only_source:59 cooldown:6 flat:27 low_score:4 low_score_adaptive:31 not_tradable:28 pond_reject:224] → fast_executable_shadow_events.jsonl
+2026/07/03 17:12:44 [账户风控] OK daily_equity_delta=-3.4583 daily_realized=-2.9269 settlement_dd=42.4116 real_equity_dd=4.8766 real_equity_dd_adj=4.8766 cum_fund_flow=-64.2452 positions=0 notional=0.00
+2026/07/03 17:13:39 [fast_scalper] record-only 扫描=20 记录=24 live=true 入场结果=map[alt_cooldown:9 alt_not_tradable:11 alt_record_only_source:42 cooldown:9 flat:12 low_score:5 low_score_adaptive:23 not_tradable:27 pond_reject:244] → fast_executable_shadow_events.jsonl
+2026/07/03 17:13:43 [bybit][OKX方向][漏斗] shortlist=20 空位=5 有方向=0 | flat: 样本不足=0 资费否决=1 无信号=6 过地板挡=0 不可交易=0 runup未确认=0(地板=40bps) | 例[veto=BLEND-USDT:资费逆持仓,放弃(short 费率=-0.2077%)][nosig=ZKP-USDT:无方向信号(regime=range)][floor=][runup=]
+2026/07/03 17:13:44 [OKX方向][漏斗] shortlist=20 空位=5 有方向=0 | flat: 样本不足=0 资费否决=1 无信号=5 过地板挡=0 不可交易=0 runup未确认=1(地板=40bps) | 例[veto=BLEND-USDT:资费逆持仓,放弃(short 费率=-0.2210%)][nosig=ZKP-USDT:无方向信号(regime=range)][floor=][runup=ZHIPU-USDT short runup=-14.9bp<0.0]
+2026/07/03 17:13:44 [账户风控] OK daily_equity_delta=-3.4583 daily_realized=-2.9269 settlement_dd=42.4116 real_equity_dd=4.8766 real_equity_dd_adj=4.8766 cum_fund_flow=-64.2452 positions=0 notional=0.00
+2026/07/03 17:14:39 [fast_scalper] record-only 扫描=20 记录=24 live=true 入场结果=map[alt_cooldown:9 alt_not_tradable:9 alt_record_only_source:35 cooldown:4 low_score:2 low_score_adaptive:26 not_tradable:28 pond_reject:240] → fast_executable_shadow_events.jsonl
+2026/07/03 17:14:44 [账户风控] OK daily_equity_delta=-3.4656 daily_realized=-2.9269 settlement_dd=42.4116 real_equity_dd=4.8839 real_equity_dd_adj=4.8839 cum_fund_flow=-64.2452 positions=0 notional=0.00
+2026/07/03 17:15:13 [OKX方向][漏斗] shortlist=20 空位=5 有方向=0 | flat: 样本不足=0 资费否决=2 无信号=4 过地板挡=0 不可交易=0 runup未确认=1(地板=40bps) | 例[veto=LA-USDT:资费逆持仓,放弃(short 费率=-0.2206%)][nosig=ZKP-USDT:无方向信号(regime=range)][floor=][runup=ZHIPU-USDT short runup=-1.7bp<0.0]
+2026/07/03 17:15:14 [bybit][OKX方向][漏斗] shortlist=20 空位=5 有方向=0 | flat: 样本不足=0 资费否决=1 无信号=6 过地板挡=0 不可交易=0 runup未确认=0(地板=40bps) | 例[veto=BLEND-USDT:资费逆持仓,放弃(short 费率=-0.2077%)][nosig=ZKP-USDT:无方向信号(regime=range)][floor=][runup=]
+2026/07/03 17:15:43 [fast_scalper] record-only 扫描=20 记录=21 live=true 入场结果=map[alt_cooldown:4 alt_not_tradable:4 alt_record_only_source:29 cooldown:6 flat:2 low_score:6 low_score_adaptive:25 not_tradable:26 pond_reject:255] → fast_executable_shadow_events.jsonl
+2026/07/03 17:15:44 [账户风控] OK daily_equity_delta=-3.4656 daily_realized=-2.9269 settlement_dd=42.4116 real_equity_dd=4.8839 real_equity_dd_adj=4.8839 cum_fund_flow=-64.2452 positions=0 notional=0.00
+2026/07/03 17:16:43 [bybit][OKX方向][漏斗] shortlist=20 空位=5 有方向=0 | flat: 样本不足=0 资费否决=0 无信号=7 过地板挡=0 不可交易=0 runup未确认=0(地板=40bps) | 例[veto=][nosig=ZKP-USDT:无方向信号(regime=range)][floor=][runup=]
+2026/07/03 17:16:43 [OKX方向][漏斗] shortlist=20 空位=5 有方向=0 | flat: 样本不足=0 资费否决=1 无信号=5 过地板挡=1 不可交易=0 runup未确认=0(地板=40bps) | 例[veto=ZKP-USDT:资费逆持仓,放弃(short 费率=-0.8185%)][nosig=BLEND-USDT:无方向信号(regime=range)][floor=ZHIPU-USDT short move=33bps<40][runup=]
+2026/07/03 17:16:44 [账户风控] OK daily_equity_delta=-3.4656 daily_realized=-2.9269 settlement_dd=42.4116 real_equity_dd=4.8839 real_equity_dd_adj=4.8839 cum_fund_flow=-64.2452 positions=0 notional=0.00
+2026/07/03 17:16:47 [fast_scalper] record-only 扫描=20 记录=22 live=true 入场结果=map[alt_cooldown:10 alt_not_tradable:3 alt_record_only_source:19 cooldown:7 flat:4 low_score:5 low_score_adaptive:25 not_tradable:27 pond_reject:252] → fast_executable_shadow_events.jsonl
+2026/07/03 17:17:44 [账户风控] OK daily_equity_delta=-3.4615 daily_realized=-2.9269 settlement_dd=42.4116 real_equity_dd=4.8798 real_equity_dd_adj=4.8798 cum_fund_flow=-64.2452 positions=0 notional=0.00
+2026/07/03 17:17:47 [fast_scalper] record-only 扫描=20 记录=23 live=true 入场结果=map[alt_cooldown:11 alt_not_tradable:3 alt_record_only_source:31 cooldown:6 flat:2 low_score:3 low_score_adaptive:24 not_tradable:27 pond_reject:238] → fast_executable_shadow_events.jsonl
+2026/07/03 17:17:57 [binance][OKX方向] 引擎退出: context canceled
+2026/07/03 17:17:57 [gate][OKX方向] 引擎退出: context canceled
+2026/07/03 17:17:57 [OKX方向] 引擎退出: context canceled
+2026/07/03 17:17:57 [bybit][OKX方向] 引擎退出: context canceled
+2026/07/03 17:17:58 启动 lingxi: version=dev commit=unknown build_time=unknown
+2026/07/03 17:17:58 [配置] 生效配置相对默认值有 49 处覆盖:
+2026/07/03 17:17:58 [配置]   CrossVenueExecutor.CloseSpreadAPR: 0.3 => 0.2
+2026/07/03 17:17:58 [配置]   CrossVenueExecutor.Enabled: false => true
+2026/07/03 17:17:58 [配置]   CrossVenueExecutor.LiveTradingEnabled: false => true
+2026/07/03 17:17:58 [配置]   CrossVenueExecutor.MarginSafetyFactor: 1 => 1.5
+2026/07/03 17:17:58 [配置]   CrossVenueExecutor.MaxConcurrent: 2 => 8
+2026/07/03 17:17:58 [配置]   CrossVenueExecutor.MaxPositionUSDT: 75 => 150
+2026/07/03 17:17:58 [配置]   CrossVenueExecutor.UnifiedCaptureModelEnabled: false => true
+2026/07/03 17:17:58 [配置]   CrossVenueExecutor.UntrackedExposureAction: halt => flatten
+2026/07/03 17:17:58 [配置]   CrossVenueScanner.DirectionalVenues:  => okx
+2026/07/03 17:17:58 [配置]   CrossVenueScanner.Enabled: true => false
+2026/07/03 17:17:58 [配置]   HistoricalConfig.AssumedHourlyBorrowInterestRate: 5e-05 => 4.75e-05
+2026/07/03 17:17:58 [配置]   HistoricalConfig.FuturesTakerFeeRate: 0.0005 => 0.00045
+2026/07/03 17:17:58 [配置]   HistoricalConfig.MaxFundingCyclesHeld: 1 => 3
+2026/07/03 17:17:58 [配置]   HistoricalConfig.SpotTakerFeeRate: 0.001 => 0.00075
+2026/07/03 17:17:58 [配置]   NetworkConfig.DashboardAddr: 127.0.0.1:8080 => 0.0.0.0:8080
+2026/07/03 17:17:58 [配置]   OKXDirectional.Enabled: false => true
+2026/07/03 17:17:58 [配置]   OKXDirectional.FastAltCandidatesEnabled: false => true
+2026/07/03 17:17:58 [配置]   OKXDirectional.FastFadeLiveEnabled: false => true
+2026/07/03 17:17:58 [配置]   OKXDirectional.FastLiqCollectorEnabled: false => true
+2026/07/03 17:17:58 [配置]   OKXDirectional.FastLiveEnabled: false => true
+2026/07/03 17:17:58 [配置]   OKXDirectional.FastLiveNotionalUSDT: 0 => 5
+2026/07/03 17:17:58 [配置]   OKXDirectional.FastPondFilterEnabled: false => true
+2026/07/03 17:17:58 [配置]   OKXDirectional.FastScalperV1Enabled: false => true
+2026/07/03 17:17:58 [配置]   OKXDirectional.FastSpeciesExitEnabled: false => true
+2026/07/03 17:17:58 [配置]   OKXDirectional.FastWSCollectorEnabled: false => true
+2026/07/03 17:17:58 [配置]   OKXDirectional.LiveTradingEnabled: false => true
+2026/07/03 17:17:58 [配置]   OKXDirectional.MAEDisasterCutEnabled: false => true
+2026/07/03 17:17:58 [配置]   OKXDirectional.MAEDisasterCutVenues:  => okx,bybit
+2026/07/03 17:17:58 [配置]   OKXDirectional.MaxConcurrent: 4 => 5
+2026/07/03 17:17:58 [配置]   OKXDirectional.MaxHoldMinutes: 30 => 60
+2026/07/03 17:17:58 [配置]   OKXDirectional.OpenMicroRecordEnabled: false => true
+2026/07/03 17:17:58 [配置]   OKXDirectional.OpenTakerFallbackBps: 0 => 30
+2026/07/03 17:17:58 [配置]   OKXDirectional.RegimeDegradeEnabled: false => true
+2026/07/03 17:17:58 [配置]   OKXDirectional.RunupConfirmFilterEnabled: false => true
+2026/07/03 17:17:58 [配置]   OKXDirectional.RunupConfirmVenues:  => okx
+2026/07/03 17:17:58 [配置]   PortfolioConfig.EnableRollingHold: false => true
+2026/07/03 17:17:58 [配置]   RiskConfig.BorrowCapacityCheckEnabled: false => true
+2026/07/03 17:17:58 [配置]   RiskConfig.DailyMaxLosingTrades: 8 => 0
+2026/07/03 17:17:58 [配置]   RiskConfig.ImmediateInvalidateRate: 0.0005 => 5e-05
+2026/07/03 17:17:58 [配置]   RiskConfig.MaxAccountDrawdownUSDT: 60 => 115
+2026/07/03 17:17:58 [配置]   RiskConfig.MaxAccountOpenNotionalUSDT: 1200 => 2200
+2026/07/03 17:17:58 [配置]   RiskConfig.MaxCycleOpenNotionalUSDT: 300 => 60
+2026/07/03 17:17:58 [配置]   RiskConfig.MaxDailyLossUSDT: 25 => 35
+2026/07/03 17:17:58 [配置]   RiskConfig.MaxStrategyCumulativeLossUSDT: 35 => 80
+2026/07/03 17:17:58 [配置]   StrategyConfig.PerSymbolQuoteUSDT: 100 => 30
+2026/07/03 17:17:58 [配置]   StrategyConfig.StrategyMode: collect_data => profit_seeking
+2026/07/03 17:17:58 [配置]   UnifiedRotation.Enabled: false => true
+2026/07/03 17:17:58 [配置]   UnifiedRotation.LiveTradingEnabled: false => true
+2026/07/03 17:17:58 [配置]   UnifiedRotation.TotalDeployableUSDT: 0 => 435
+2026/07/03 17:17:58 [冷启动检查] 开始执行每日健康检查...
+2026/07/03 17:17:58 [冷启动检查] 配置校验通过
+2026/07/03 17:17:58 [冷启动检查] 记录目录可写校验通过
+2026/07/03 17:17:58 [冷启动检查] 每日健康检查全部通过
+2026/07/03 17:17:58 [编排] venue=binance 运行时已注册(enabled,默认 idle,plan.autostart=false)
+2026/07/03 17:17:58 [编排] venue=bybit 适配器已注入(仅行情/账户,不启动交易引擎)
+2026/07/03 17:17:58 [编排] venue=bybit 运行时已注册(enabled,默认 idle,plan.autostart=false)
+2026/07/03 17:17:58 [编排] venue=gate 适配器已注入(仅行情/账户,不启动交易引擎)
+2026/07/03 17:17:58 [编排] venue=gate 运行时已注册(enabled,默认 idle,plan.autostart=false)
+2026/07/03 17:17:58 [编排] venue=okx 适配器已注入(仅行情/账户,不启动交易引擎)
+2026/07/03 17:17:58 [编排] venue=okx 运行时已注册(enabled,默认 idle,plan.autostart=false)
+2026/07/03 17:17:58 [权益采样] 已启动: interval=3m0s 口径=各所USDT现金余额真实变化
+2026/07/03 17:17:58 [OKX方向][冷却] 启动恢复:冷却币=16 当日亏损计数=20 同日=true
+2026/07/03 17:17:58 [bybit][OKX方向][冷却] 启动恢复:冷却币=17 当日亏损计数=39 同日=true
+2026/07/03 17:17:58 [方向] bybit 引擎已接线(默认停用,需面板点开始)
+2026/07/03 17:17:58 [gate][OKX方向][冷却] 启动恢复:冷却币=0 当日亏损计数=0 同日=true
+2026/07/03 17:17:58 [方向] gate 引擎已接线(默认停用,需面板点开始)
+2026/07/03 17:17:58 [gate][OKX方向] 引擎启动 live=true 周期=1m30s 风控=20s
+2026/07/03 17:17:58 [gate][OKX方向][生效参数] 本金=30.00U 止损=5%(本金) 杠杆=5X 并发上限=5 每仓名义=7.50U active=false
+2026/07/03 17:17:58 [gate][OKX方向][生效参数] 入场: minConv=0.55 zEntry=1.00 costFloor=40bps takerFallback=30bps(允许所=所有所,本所生效=30bps) universeTopN=20 选币周期=30min maxSpread=20bps
+2026/07/03 17:17:58 [gate][OKX方向][生效参数] 出场: quickTP=12% partialTP=6%×50% trailGap=6% trailLock=50% staleCut=30m maxHold=60m absMax=60m 反转最小持有=30m
+2026/07/03 17:17:58 [gate][OKX方向][生效参数] regime: 趋势态交易=false 资费对齐闸=true 跨所印证=true(否决需≥2反向) BTC追势过滤=false
+2026/07/03 17:17:58 [gate][OKX方向][生效参数] 阶段2A OpenMicro埋点=true 采集范围=所有所 本所生效=true(record-only,不改交易行为)
+2026/07/03 17:17:58 [gate][OKX方向][生效参数] regime_degrade=on action=downsize 命中名义=5.00U(默认7.50U) 命中(离散OR)=[transition_band:btc∈[0.10,0.20) 或 extreme_trend:btc_trend>=0.40 或 mode∈{broad_up}](仅缩新开仓名义,不停机/不禁开)
+2026/07/03 17:17:58 [gate][OKX方向][生效参数] mae_disaster_cut=on 阈值=-3.0%(本金) 灰度所=okx,bybit 本所生效=false(仅出场刹车;依据:触及-3%后89%仍亏)
+2026/07/03 17:17:58 [gate][OKX方向][生效参数] runup_confirm=on 最小runup=0.0bp 灰度所=okx 本所生效=false(开仓闸;micro 缺失放行)
+2026/07/03 17:17:58 [OKX方向] 引擎启动 live=true 周期=1m30s 风控=20s
+2026/07/03 17:17:58 [OKX方向][生效参数] 本金=100.00U 止损=5%(本金) 杠杆=5X 并发上限=5 每仓名义=7.50U active=true
+2026/07/03 17:17:58 [OKX方向][生效参数] 入场: minConv=0.55 zEntry=1.00 costFloor=40bps takerFallback=30bps(允许所=所有所,本所生效=30bps) universeTopN=20 选币周期=30min maxSpread=20bps
+2026/07/03 17:17:58 [OKX方向][生效参数] 出场: quickTP=12% partialTP=6%×50% trailGap=6% trailLock=50% staleCut=30m maxHold=60m absMax=60m 反转最小持有=30m
+2026/07/03 17:17:58 [OKX方向][生效参数] regime: 趋势态交易=false 资费对齐闸=true 跨所印证=true(否决需≥2反向) BTC追势过滤=false
+2026/07/03 17:17:58 [OKX方向][生效参数] 阶段2A OpenMicro埋点=true 采集范围=所有所 本所生效=true(record-only,不改交易行为)
+2026/07/03 17:17:58 [OKX方向][生效参数] regime_degrade=on action=downsize 命中名义=5.00U(默认7.50U) 命中(离散OR)=[transition_band:btc∈[0.10,0.20) 或 extreme_trend:btc_trend>=0.40 或 mode∈{broad_up}](仅缩新开仓名义,不停机/不禁开)
+2026/07/03 17:17:58 [OKX方向][生效参数] mae_disaster_cut=on 阈值=-3.0%(本金) 灰度所=okx,bybit 本所生效=true(仅出场刹车;依据:触及-3%后89%仍亏)
+2026/07/03 17:17:58 [OKX方向][生效参数] runup_confirm=on 最小runup=0.0bp 灰度所=okx 本所生效=true(开仓闸;micro 缺失放行)
+2026/07/03 17:17:58 [binance][OKX方向][冷却] 启动恢复:冷却币=0 当日亏损计数=0 同日=true
+2026/07/03 17:17:58 [方向] binance 引擎已接线(默认停用,需面板点开始)
+2026/07/03 17:17:58 [bybit][OKX方向] 引擎启动 live=true 周期=1m30s 风控=20s
+2026/07/03 17:17:58 [bybit][OKX方向][生效参数] 本金=50.00U 止损=5%(本金) 杠杆=5X 并发上限=5 每仓名义=7.50U active=true
+2026/07/03 17:17:58 [bybit][OKX方向][生效参数] 入场: minConv=0.55 zEntry=1.00 costFloor=40bps takerFallback=30bps(允许所=所有所,本所生效=30bps) universeTopN=20 选币周期=30min maxSpread=20bps
+2026/07/03 17:17:58 [bybit][OKX方向][生效参数] 出场: quickTP=12% partialTP=6%×50% trailGap=6% trailLock=50% staleCut=30m maxHold=60m absMax=60m 反转最小持有=30m
+2026/07/03 17:17:58 [bybit][OKX方向][生效参数] regime: 趋势态交易=false 资费对齐闸=true 跨所印证=true(否决需≥2反向) BTC追势过滤=false
+2026/07/03 17:17:58 [bybit][OKX方向][生效参数] 阶段2A OpenMicro埋点=true 采集范围=所有所 本所生效=true(record-only,不改交易行为)
+2026/07/03 17:17:58 [bybit][OKX方向][生效参数] regime_degrade=on action=downsize 命中名义=5.00U(默认7.50U) 命中(离散OR)=[transition_band:btc∈[0.10,0.20) 或 extreme_trend:btc_trend>=0.40 或 mode∈{broad_up}](仅缩新开仓名义,不停机/不禁开)
+2026/07/03 17:17:58 [bybit][OKX方向][生效参数] mae_disaster_cut=on 阈值=-3.0%(本金) 灰度所=okx,bybit 本所生效=true(仅出场刹车;依据:触及-3%后89%仍亏)
+2026/07/03 17:17:58 [bybit][OKX方向][生效参数] runup_confirm=on 最小runup=0.0bp 灰度所=okx 本所生效=false(开仓闸;micro 缺失放行)
+2026/07/03 17:17:58 Web 面板已启动: http://0.0.0.0:8080/
+2026/07/03 17:17:58 Dashboard 控制令牌已写入 records/.dashboard_control_token (0600,仅本机可读,可 cat 查看);指纹=d82604b988a96c46
+2026/07/03 17:17:58 [OKX方向][fast_scalper] v3 扫描goroutine启动 周期=4s 扫描上限=20 入场=maker live=true
+2026/07/03 17:17:58 [ALERT][INFO] 面板控制令牌已更新 | 服务已重启,新控制令牌:
+a3d3fb096170d54610211e00dafd838b | cycle=
+2026/07/03 17:17:58 [binance][OKX方向] 引擎启动 live=true 周期=1m30s 风控=20s
+2026/07/03 17:17:58 [binance][OKX方向][生效参数] 本金=15.00U 止损=5%(本金) 杠杆=5X 并发上限=5 每仓名义=7.50U active=false
+2026/07/03 17:17:58 [binance][OKX方向][生效参数] 入场: minConv=0.55 zEntry=1.00 costFloor=40bps takerFallback=30bps(允许所=所有所,本所生效=30bps) universeTopN=20 选币周期=30min maxSpread=20bps
+2026/07/03 17:17:58 [binance][OKX方向][生效参数] 出场: quickTP=12% partialTP=6%×50% trailGap=6% trailLock=50% staleCut=30m maxHold=60m absMax=60m 反转最小持有=30m
+2026/07/03 17:17:58 [binance][OKX方向][生效参数] regime: 趋势态交易=false 资费对齐闸=true 跨所印证=true(否决需≥2反向) BTC追势过滤=false
+2026/07/03 17:17:58 [binance][OKX方向][生效参数] 阶段2A OpenMicro埋点=true 采集范围=所有所 本所生效=true(record-only,不改交易行为)
+2026/07/03 17:17:58 [binance][OKX方向][生效参数] regime_degrade=on action=downsize 命中名义=5.00U(默认7.50U) 命中(离散OR)=[transition_band:btc∈[0.10,0.20) 或 extreme_trend:btc_trend>=0.40 或 mode∈{broad_up}](仅缩新开仓名义,不停机/不禁开)
+2026/07/03 17:17:58 [binance][OKX方向][生效参数] mae_disaster_cut=on 阈值=-3.0%(本金) 灰度所=okx,bybit 本所生效=false(仅出场刹车;依据:触及-3%后89%仍亏)
+2026/07/03 17:17:58 [binance][OKX方向][生效参数] runup_confirm=on 最小runup=0.0bp 灰度所=okx 本所生效=false(开仓闸;micro 缺失放行)
+2026/07/03 17:17:58 [账户风控] 已启动: interval=1m0s (Stage B:一级硬停默认启用,二级 flatten opt-in 默认关闭)
+2026/07/03 17:17:58 [fast_ws] OKX 动态采集器启动(record-only,不下单/不读账户)max_symbols=15
+2026/07/03 17:17:58 [fast_ws] 连接中断,3s 后重连: shortlist 空,暂不订阅
+2026/07/03 17:17:58 [fast_scalper] 池塘统计回放完成: 32376 样本(2h窗口,重启不失忆,免死水池热身fail-open)
+2026/07/03 17:17:58 [账户风控] 充提流水源=real cumulative=0.0000 (首次确认)
+2026/07/03 17:17:58 [账户风控] OK daily_equity_delta=-3.4615 daily_realized=-2.9269 settlement_dd=42.4116 real_equity_dd=4.8798 real_equity_dd_adj=4.8798 cum_fund_flow=-64.2452 positions=0 notional=0.00
+2026/07/03 17:17:59 [gate][OKX方向][选币] 候选=40 BTC趋势=0.04 入选=20 头部: BIRB-USDT(1.000) ZKP-USDT THE-USDT
+2026/07/03 17:17:59 [gate][delist-guard] 已刷新 okx instrument 状态: total=1672 non_trading=0
+2026/07/03 17:18:00 [gate][delist-guard] 已刷新 bybit instrument 状态: total=1275 non_trading=0
+2026/07/03 17:18:00 [gate][delist-guard] 已刷新 gate instrument 状态: total=2865 non_trading=4
+2026/07/03 17:18:01 [fast_ws] 连接中断,3s 后重连: shortlist 空,暂不订阅
+2026/07/03 17:18:04 [fast_ws] 连接中断,3s 后重连: shortlist 空,暂不订阅
+2026/07/03 17:18:05 [bybit][OKX方向][选币] 候选=40 BTC趋势=0.04 入选=20 头部: ZKP-USDT(0.971) BIRB-USDT 10000NEX-USDT
+2026/07/03 17:18:05 [bybit][delist-guard] 已刷新 gate instrument 状态: total=2865 non_trading=4
+2026/07/03 17:18:05 [bybit][delist-guard] 已刷新 bybit instrument 状态: total=1275 non_trading=0
+2026/07/03 17:18:05 [bybit][delist-guard] 已刷新 okx instrument 状态: total=1672 non_trading=0
+2026/07/03 17:18:07 [fast_ws] 连接中断,3s 后重连: shortlist 空,暂不订阅
+2026/07/03 17:18:07 [bybit][OKX方向][跨所] M-USDT short 同向0/反向1 信心→0.71
+2026/07/03 17:18:07 [binance][OKX方向][选币] 候选=40 BTC趋势=0.04 入选=20 头部: ZKP-USDT(1.000) THE-USDT BIRB-USDT
+2026/07/03 17:18:08 [bybit][OKX方向] M-USDT 量化后不可交易 qty=2.00000000 mid=1.782050 notional=5.00
+2026/07/03 17:18:08 [binance][delist-guard] 已刷新 binance instrument 状态: total=4445 non_trading=2394
+2026/07/03 17:18:08 [binance][delist-guard] 已刷新 okx instrument 状态: total=1672 non_trading=0
+2026/07/03 17:18:08 [binance][delist-guard] 已刷新 bybit instrument 状态: total=1275 non_trading=0
+2026/07/03 17:18:08 [binance][delist-guard] 已刷新 gate instrument 状态: total=2865 non_trading=4
+2026/07/03 17:18:10 [fast_ws] 连接中断,3s 后重连: shortlist 空,暂不订阅
+2026/07/03 17:18:13 [fast_ws] 连接中断,3s 后重连: shortlist 空,暂不订阅
+2026/07/03 17:18:16 [fast_ws] 连接中断,3s 后重连: shortlist 空,暂不订阅
+2026/07/03 17:18:19 [fast_ws] 连接中断,3s 后重连: shortlist 空,暂不订阅
+2026/07/03 17:18:22 [fast_ws] 连接中断,3s 后重连: shortlist 空,暂不订阅
+2026/07/03 17:18:25 [fast_ws] 连接中断,3s 后重连: shortlist 空,暂不订阅
+2026/07/03 17:18:28 [fast_ws] 连接中断,3s 后重连: shortlist 空,暂不订阅
+2026/07/03 17:18:31 [fast_ws] 连接中断,3s 后重连: shortlist 空,暂不订阅
+2026/07/03 17:18:34 [fast_ws] 连接中断,3s 后重连: shortlist 空,暂不订阅
+2026/07/03 17:18:37 [fast_ws] 连接中断,3s 后重连: shortlist 空,暂不订阅
+2026/07/03 17:18:40 [fast_ws] 连接中断,3s 后重连: shortlist 空,暂不订阅
+2026/07/03 17:18:43 [fast_ws] 连接中断,3s 后重连: shortlist 空,暂不订阅
+2026/07/03 17:18:46 [fast_ws] 连接中断,3s 后重连: shortlist 空,暂不订阅
+2026/07/03 17:18:49 [fast_ws] 连接中断,3s 后重连: shortlist 空,暂不订阅
+2026/07/03 17:18:52 [fast_ws] 连接中断,3s 后重连: shortlist 空,暂不订阅
+2026/07/03 17:18:52 [OKX方向][选币] 候选=21 BTC趋势=0.04 入选=20 头部: ZKP-USDT(1.000) SLX-USDT BLEND-USDT
+2026/07/03 17:18:52 [OKX公告] 已刷新风险集合: symbols=0
+2026/07/03 17:18:52 [delist-guard] 已刷新 okx instrument 状态: total=1672 non_trading=0
+2026/07/03 17:18:52 [delist-guard] 已刷新 bybit instrument 状态: total=1275 non_trading=0
+2026/07/03 17:18:52 [delist-guard] 已刷新 gate instrument 状态: total=2865 non_trading=4
+2026/07/03 17:18:53 [OKX方向][漏斗] shortlist=20 空位=5 有方向=0 | flat: 样本不足=0 资费否决=2 无信号=5 过地板挡=0 不可交易=0 runup未确认=0(地板=40bps) | 例[veto=LA-USDT:资费逆持仓,放弃(short 费率=-0.1719%)][nosig=BLEND-USDT:无方向信号(regime=range)][floor=][runup=]
+2026/07/03 17:18:59 [账户风控] OK daily_equity_delta=-3.4629 daily_realized=-2.9269 settlement_dd=42.4116 real_equity_dd=4.8812 real_equity_dd_adj=4.8812 cum_fund_flow=-64.2452 positions=0 notional=0.00
+2026/07/03 17:18:59 [fast_scalper] record-only 扫描=20 记录=20 live=true 入场结果=map[flat:20] → fast_executable_shadow_events.jsonl
+2026/07/03 17:19:16 [fast_live] 已开 LAB-USDT long qty=1.00000000 @7.845000 名义=7.83 score=0.60 maker=true edge=0.6bps wait=443ms
+2026/07/03 17:19:18 [下单] venue=okx market=perp LAB-USDT side=sell price=7.702 tick=0.001 qty=1.0
+2026/07/03 17:19:18 [fast_live] 已平 LAB-USDT long 持有2s entry=7.845000 exit=7.821000 realized=-0.0294U 原因=fast_disaster_stop
+2026/07/03 17:19:19 [fast_live] 已开 KORU-USDT short qty=0.01000000 @595.140000 名义=5.95 score=0.64 maker=true edge=3.8bps wait=2309ms
+2026/07/03 17:19:28 [OKX方向][漏斗] shortlist=20 空位=5 有方向=0 | flat: 样本不足=0 资费否决=1 无信号=7 过地板挡=0 不可交易=0 runup未确认=0(地板=40bps) | 例[veto=LA-USDT:资费逆持仓,放弃(short 费率=-0.1719%)][nosig=ZKP-USDT:无方向信号(regime=range)][floor=][runup=]
+2026/07/03 17:19:29 [bybit][OKX方向][跨所] M-USDT short 同向0/反向1 信心→0.73
+2026/07/03 17:19:29 [bybit][OKX方向] M-USDT 量化后不可交易 qty=2.00000000 mid=1.787150 notional=5.00
+2026/07/03 17:19:35 [fast_live] 已开 LAB-USDT long qty=1.00000000 @7.856000 名义=7.86 score=0.80 maker=true edge=9.5bps wait=1540ms
+2026/07/03 17:19:38 [fast_live] 已开 ZKP-USDT short qty=80.00000000 @0.059070 名义=5.00 score=0.94 maker=true edge=0.8bps wait=448ms
+2026/07/03 17:19:40 [fast_live] 已开 SLX-USDT short qty=10.00000000 @0.457200 名义=5.00 score=0.00 maker=true edge=1.1bps wait=803ms
+2026/07/03 17:19:40 [下单] venue=okx market=perp LAB-USDT side=sell price=7.726 tick=0.001 qty=1.0
+2026/07/03 17:19:40 [fast_cooldown] LAB-USDT fast层冷却900s 至09:34:40 原因=fast_species_a_cut(非永久黑名单)
+2026/07/03 17:19:40 [fast_live] 已平 LAB-USDT long 持有5s entry=7.856000 exit=7.836000 realized=-0.0255U 原因=fast_species_a_cut
+2026/07/03 17:19:54 [下单] venue=okx market=perp ZKP-USDT side=buy price=0.05893 tick=0.00001 qty=80
+2026/07/03 17:19:55 [fast_live] 已平 ZKP-USDT short 持有16s entry=0.059070 exit=0.058930 realized=0.0100U 原因=fast_trail_tp
+2026/07/03 17:19:59 [账户风控] OK daily_equity_delta=-3.4629 daily_realized=-2.9719 settlement_dd=42.4566 real_equity_dd=4.8812 real_equity_dd_adj=4.8812 cum_fund_flow=-64.2452 positions=0 notional=0.00
+2026/07/03 17:20:01 [fast_scalper] record-only 扫描=20 记录=22 live=true 入场结果=map[alt_cooldown:3 alt_held_fast:7 alt_maker_not_filled:1 alt_opened:1 alt_record_only_source:18 cooldown:5 flat:75 held_fast:11 low_score:9 low_score_adaptive:24 maker_not_filled:1 opened:4 pond_reject:171] → fast_executable_shadow_events.jsonl
+2026/07/03 17:20:04 [下单] venue=okx market=perp SLX-USDT side=buy price=0.4568 tick=0.0001 qty=10
+2026/07/03 17:20:05 [fast_live] 已平 SLX-USDT short 持有25s entry=0.457200 exit=0.456800 realized=0.0025U 原因=fast_trail_tp
+2026/07/03 17:20:39 [fast_live] 已开 ZKP-USDT short qty=80.00000000 @0.059080 名义=5.00 score=0.00 maker=true edge=0.8bps wait=453ms
+2026/07/03 17:20:58 [下单] venue=okx market=perp ZKP-USDT side=buy price=0.06017 tick=0.00001 qty=80
+2026/07/03 17:20:58 [OKX方向][漏斗] shortlist=20 空位=5 有方向=0 | flat: 样本不足=0 资费否决=1 无信号=7 过地板挡=0 不可交易=0 runup未确认=0(地板=40bps) | 例[veto=LA-USDT:资费逆持仓,放弃(short 费率=-0.1719%)][nosig=ZKP-USDT:无方向信号(regime=range)][floor=][runup=]
+2026/07/03 17:20:58 [fast_live] 已平 ZKP-USDT short 持有18s entry=0.059080 exit=0.059260 realized=-0.0185U 原因=fast_disaster_stop
+2026/07/03 17:20:58 [bybit][OKX方向][漏斗] shortlist=20 空位=5 有方向=0 | flat: 样本不足=0 资费否决=1 无信号=8 过地板挡=0 不可交易=0 runup未确认=0(地板=40bps) | 例[veto=LA-USDT:资费逆持仓,放弃(short 费率=-0.1918%)][nosig=ZKP-USDT:无方向信号(regime=range)][floor=][runup=]
+2026/07/03 17:20:59 [账户风控] OK daily_equity_delta=-3.4629 daily_realized=-2.9879 settlement_dd=42.4726 real_equity_dd=4.8812 real_equity_dd_adj=4.8812 cum_fund_flow=-64.2452 positions=0 notional=0.00
+2026/07/03 17:20:59 [fast_live] 已开 ZKP-USDT long qty=80.00000000 @0.059240 名义=5.00 score=0.94 maker=true edge=-0.8bps wait=441ms
+2026/07/03 17:21:05 [fast_scalper] record-only 扫描=20 记录=23 live=true 入场结果=map[alt_cooldown:4 alt_held_fast:2 alt_maker_not_filled:3 alt_opened:1 alt_record_only_source:12 cooldown:8 flat:8 held_fast:14 low_score:16 low_score_adaptive:34 maker_not_filled:2 opened:1 pond_reject:217] → fast_executable_shadow_events.jsonl
+2026/07/03 17:21:16 [下单] venue=okx market=perp ZKP-USDT side=sell price=0.05819 tick=0.00001 qty=80
+2026/07/03 17:21:16 [fast_live] 已平 ZKP-USDT long 持有16s entry=0.059240 exit=0.059080 realized=-0.0168U 原因=fast_disaster_stop
+2026/07/03 17:21:59 [账户风控] OK daily_equity_delta=-3.5287 daily_realized=-3.0047 settlement_dd=42.4894 real_equity_dd=4.9470 real_equity_dd_adj=4.9470 cum_fund_flow=-64.2452 positions=0 notional=0.00
+2026/07/03 17:22:00 [下单] venue=okx market=perp KORU-USDT side=buy price=605.14 tick=0.01 qty=0.01
+2026/07/03 17:22:00 [fast_cooldown] KORU-USDT fast层冷却300s 至09:27:00 原因=fast_stop_reversal(非永久黑名单)
+2026/07/03 17:22:00 [fast_live] 已平 KORU-USDT short 持有160s entry=595.140000 exit=596.300000 realized=-0.0158U 原因=fast_stop_reversal
+2026/07/03 17:22:01 [fast_live] 已开 SLX-USDT long qty=10.00000000 @0.456200 名义=5.00 score=0.00 maker=true edge=1.1bps wait=1544ms
+2026/07/03 17:22:06 [fast_scalper] record-only 扫描=20 记录=20 live=true 入场结果=map[alt_cooldown:3 alt_held_fast:3 alt_maker_not_filled:4 alt_opened:1 alt_record_only_source:17 cooldown:11 flat:3 held_fast:7 low_score:15 low_score_adaptive:29 maker_not_filled:3 pond_reject:192] → fast_executable_shadow_events.jsonl
+2026/07/03 17:22:24 [fast_live] 已开 ZKP-USDT long qty=80.00000000 @0.059060 名义=5.00 score=0.00 maker=true edge=0.8bps wait=1549ms
+2026/07/03 17:22:28 [下单] venue=okx market=perp ZKP-USDT side=sell price=0.05812 tick=0.00001 qty=80
+2026/07/03 17:22:28 [fast_cooldown] ZKP-USDT fast层冷却7200s 至11:22:28 原因=fast_species_a_cut(非永久黑名单)
+2026/07/03 17:22:28 [fast_live] 已平 ZKP-USDT long 持有3s entry=0.059060 exit=0.059000 realized=-0.0084U 原因=fast_species_a_cut
+2026/07/03 17:22:28 [bybit][OKX方向][漏斗] shortlist=20 空位=5 有方向=0 | flat: 样本不足=0 资费否决=1 无信号=8 过地板挡=0 不可交易=0 runup未确认=0(地板=40bps) | 例[veto=LA-USDT:资费逆持仓,放弃(short 费率=-0.1918%)][nosig=ZKP-USDT:无方向信号(regime=range)][floor=][runup=]
+2026/07/03 17:22:28 [OKX方向][漏斗] shortlist=20 空位=5 有方向=0 | flat: 样本不足=0 资费否决=1 无信号=7 过地板挡=0 不可交易=0 runup未确认=0(地板=40bps) | 例[veto=LA-USDT:资费逆持仓,放弃(short 费率=-0.1719%)][nosig=ZKP-USDT:无方向信号(regime=range)][floor=][runup=]
+2026/07/03 17:22:38 [下单] venue=okx market=perp SLX-USDT side=sell price=0.4485 tick=0.0001 qty=10
+2026/07/03 17:22:38 [fast_cooldown] SLX-USDT fast层冷却7200s 至11:22:38 原因=fast_stop_reversal(非永久黑名单)
+2026/07/03 17:22:38 [fast_live] 已平 SLX-USDT long 持有37s entry=0.456200 exit=0.455000 realized=-0.0163U 原因=fast_stop_reversal
+2026/07/03 17:22:59 [账户风控] OK daily_equity_delta=-3.5287 daily_realized=-3.0452 settlement_dd=42.5299 real_equity_dd=4.9470 real_equity_dd_adj=4.9470 cum_fund_flow=-64.2452 positions=0 notional=0.00
+2026/07/03 17:23:09 [fast_scalper] record-only 扫描=20 记录=22 live=true 入场结果=map[alt_cooldown:15 alt_held_fast:1 alt_maker_not_filled:1 alt_opened:1 alt_record_only_source:24 cooldown:28 flat:10 low_score:16 low_score_adaptive:36 pond_reject:230] → fast_executable_shadow_events.jsonl
+2026/07/03 17:23:59 [bybit][OKX方向][跨所] M-USDT short 同向0/反向1 信心→0.63
+2026/07/03 17:23:59 [账户风控] OK daily_equity_delta=-3.5287 daily_realized=-3.0452 settlement_dd=42.5299 real_equity_dd=4.9470 real_equity_dd_adj=4.9470 cum_fund_flow=-64.2452 positions=0 notional=0.00
+2026/07/03 17:23:59 [OKX方向][漏斗] shortlist=20 空位=5 有方向=0 | flat: 样本不足=0 资费否决=2 无信号=6 过地板挡=0 不可交易=0 runup未确认=1(地板=40bps) | 例[veto=LA-USDT:资费逆持仓,放弃(short 费率=-0.1719%)][nosig=BLEND-USDT:无方向信号(regime=range)][floor=][runup=SKHYNIX-USDT short runup=-2.5bp<0.0]
+2026/07/03 17:24:00 [bybit][下单] venue=bybit market=perp M-USDT side=sell price=1.7885 tick=0.0001 qty=4
+2026/07/03 17:24:00 [bybit][OKX方向][记账] M-USDT maker 部分成交 7.15/7.50U,名义按实际成交额记账
+2026/07/03 17:24:00 [bybit][OKX方向] 已开 M-USDT short qty=4.00000000 @1.788500 名义=7.50 regime=range
+2026/07/03 17:24:18 [fast_scalper] record-only 扫描=20 记录=22 live=true 入场结果=map[alt_cooldown:10 alt_record_only_source:23 cooldown:29 flat:8 low_score:10 low_score_adaptive:31 maker_not_filled:5 pond_reject:217] → fast_executable_shadow_events.jsonl
+2026/07/03 17:24:59 [账户风控] OK daily_equity_delta=-3.5761 daily_realized=-3.0452 settlement_dd=42.5299 real_equity_dd=4.9944 real_equity_dd_adj=4.9944 cum_fund_flow=-64.2452 positions=1 notional=7.15
+2026/07/03 17:25:17 [fast_scalper] record-only 扫描=20 记录=22 live=true 入场结果=map[alt_cooldown:17 alt_record_only_source:18 cooldown:30 flat:15 low_score:16 low_score_adaptive:34 pond_reject:225] → fast_executable_shadow_events.jsonl
+2026/07/03 17:25:29 [OKX方向][漏斗] shortlist=20 空位=5 有方向=0 | flat: 样本不足=0 资费否决=3 无信号=5 过地板挡=0 不可交易=0 runup未确认=1(地板=40bps) | 例[veto=LA-USDT:资费逆持仓,放弃(short 费率=-0.1719%)][nosig=LAB-USDT:无方向信号(regime=range)][floor=][runup=SKHYNIX-USDT short runup=-0.3bp<0.0]
+2026/07/03 17:25:29 [bybit][OKX方向][漏斗] shortlist=20 空位=4 有方向=0 | flat: 样本不足=0 资费否决=2 无信号=6 过地板挡=0 不可交易=0 runup未确认=0(地板=40bps) | 例[veto=LA-USDT:资费逆持仓,放弃(short 费率=-0.1918%)][nosig=10000NEX-USDT:无方向信号(regime=range)][floor=][runup=]
+2026/07/03 17:25:59 [账户风控] OK daily_equity_delta=-3.5761 daily_realized=-3.0452 settlement_dd=42.5299 real_equity_dd=4.9944 real_equity_dd_adj=4.9944 cum_fund_flow=-64.2452 positions=1 notional=7.15

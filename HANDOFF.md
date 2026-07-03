@@ -26,7 +26,8 @@
 - `fast_pond_filter_enabled=true`:池塘过滤实盘生效,死水候选每轮拦 150-220 个(`pond_reject`);**重启回放已补**(`fastPondRestore` 从 shadow 尾部恢复 2h 样本,重启不失忆,免死水池吃热身 fail-open 免检窗口——CELO 曾在重启后 10 分钟窗口漏开 1 笔)。
 - `fast_fade_live_enabled=true`:fade 接型入场灰度,**仅成熟 OK 池塘**(热身 fail-open 不适用于 fade 实盘资格);无 scorer 分数(机制条件即资格),跳过分数闸,冷却/退避/熔断/互斥全部照过;结算带 `fast_candidate_source` 分代对照。liq_catch 永远硬闸。
 - `fast_species_exit_enabled=true`:A=3s mae≤-6 且当前≤-4 → `fast_species_a_cut` 豁免 minHold 立即认错(+入冷却);C=10s 无正反馈不深亏 → `fast_species_c_exit` 快撤。部署数分钟内两者均已正确触发。
-- 生产 yaml 护栏测试已锚定 v3 三闸(回退即测试红);每日裁决:`python3 records/_fast_v3_daily_verdict.py`(口径固化,含 liq_follow 镜像跟踪)。A物种=3s 内 mae≤-6bps 且当前≤-4 → `fast_species_a_cut` 立即认错(豁免 minHold;424笔实证 A 物种 PF0.26 仅26%回正,minHold 对它是刑具)+ 计入冷却;C物种=10s 无正反馈(mfe10<1)且不深亏 → `fast_species_c_exit` 快撤换弹(PF0.51 时间成本主导);B物种(打完即弹,PF1.50 唯一毛正)不动,交给既有 trail。
+- 生产 yaml 护栏测试已锚定 v3 三闸(回退即测试红);每日裁决:`python3 records/_fast_v3_daily_verdict.py`(口径固化,含 liq_follow 镜像跟踪)。
+- **最小票适配(17:17 补,上线即暴露的结构矛盾)**:LAB 最小票=0.1张=1币≈8U、KORU=0.01张≈5.9U,都 > 5U 灰度名义 → 量化 0 张永远 `not_tradable`,**能量最高的战场反而从未入场过**(LAB 开仓数=0 印证)。修复:交易所最小票额=入场费,票价 ≤ 2×配置名义就买最小票(`minVenueTradableQty`,MinNotional 同步抬),更贵才真跳过。修后 fade 实盘首单已成交(SLX/ZKP `alt_opened`),KORU 首次进场。A物种=3s 内 mae≤-6bps 且当前≤-4 → `fast_species_a_cut` 立即认错(豁免 minHold;424笔实证 A 物种 PF0.26 仅26%回正,minHold 对它是刑具)+ 计入冷却;C物种=10s 无正反馈(mfe10<1)且不深亏 → `fast_species_c_exit` 快撤换弹(PF0.51 时间成本主导);B物种(打完即弹,PF1.50 唯一毛正)不动,交给既有 trail。
 
 **v2 判定口径(修正后)**:① 机制层对比 v1 vs v2 的"看对单捕获量 / 看错单出血量"(不经时段);② v2 内部按点差×动量物理状态分桶;③ 灾难线穿透专项(名义 25bps 实际成交 -44.9bps,61 笔占 v2 亏损 ~68%);④ 时间只做因果校验轴。**毛均仍负 → 出场时序假设证伪 → 停线回 record-only(数据留作 v3 地图,不是扔掉)。**
 
