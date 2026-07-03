@@ -1405,7 +1405,10 @@ func (e *OKXDirectionalEngine) fastLiveClose(ctx context.Context, p *fastLivePos
 	// v2.2 出场执行分级:盈利/到时出场(trail_tp/max_hold)非紧急 → maker-first 省 ~3bps(taker 5bps→maker 2bps,
 	// 费用是 trail_tp 利润的一半);止损/灾难/早砍保持 urgent IOC 秒平(等 maker = 亏损扩大)。
 	// maker 未成交由 placeDirectionalLeg 的平仓 IOC 兜底,不会挂死。
-	urgentClose := reason != "fast_trail_tp" && reason != "fast_max_hold"
+	// 盈利/到时出场 maker-first 省 ~3bps(有 IOC 兜底不挂死);止损/灾难/物种砍保持 urgent 秒平。
+	// fast_tp 加入非紧急名单(2026-07-03 19:04 复盘:liq_follow 双 taker 下 +12bps TP 被 ~10bps 费用吃平,
+	// 出现"tp 出场净亏"——盈利出场的费用是纯损耗,与 v2.2 trail_tp maker 化同一机理)。
+	urgentClose := reason != "fast_trail_tp" && reason != "fast_max_hold" && reason != "fast_tp"
 	res, legInfo, oerr := e.placeDirectionalLeg(ctx, venue.Symbol(sym), cside, p.Qty, clientID, true, instr, caps.ContractBasedPerp, urgentClose, 0)
 	if oerr != nil || res.ExecutedQty <= executionQtyTolerance {
 		// 交易所明确回报「该方向无持仓可平」(OKX 51169 等严格 allowlist)→ 主动按方向核验交易所持仓后清理本地幽灵,

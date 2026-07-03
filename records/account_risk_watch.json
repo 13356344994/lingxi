@@ -1,39 +1,38 @@
 {
   "wired": true,
-  "updated_at": "2026-07-03T10:29:01.729294455Z",
+  "updated_at": "2026-07-03T11:06:32.123612083Z",
   "snapshot": {
-    "observed_at": "2026-07-03T10:29:01.167631829Z",
+    "observed_at": "2026-07-03T11:06:31.363845748Z",
     "day_start_cst": "2026-07-03T00:00:00+08:00",
-    "daily_realized_pnl_usdt": -3.36293,
-    "daily_equity_delta_usdt": -3.805029,
-    "daily_equity_delta_for_risk_usdt": -3.805029,
+    "daily_realized_pnl_usdt": -3.485035,
+    "daily_equity_delta_usdt": -4.039111,
+    "daily_equity_delta_for_risk_usdt": -4.039111,
     "venue_equity_deltas": {
       "binance": 0,
-      "bybit": -1.2756461400000063,
+      "bybit": -1.3108811799999955,
       "gate": 0,
-      "okx": -2.529383495447817
+      "okx": -2.7282296047744126
     },
     "equity_data_trusted": true,
-    "daily_losing_trade_count": 470,
-    "cumulative_realized_pnl_usdt": -30.978754,
+    "daily_losing_trade_count": 481,
+    "cumulative_realized_pnl_usdt": -31.100859,
     "realized_pnl_peak_usdt": 11.868901,
-    "account_drawdown_usdt": 42.847655,
+    "account_drawdown_usdt": 42.96976,
     "strategy_net_pnl": {
       "directional_binance": -0.996926,
-      "directional_bybit": -7.691697,
+      "directional_bybit": -7.694747,
       "directional_gate": -9.81336,
-      "directional_okx": -12.476771
+      "directional_okx": -12.595826
     },
-    "real_equity_total_usdt": 156.707739,
+    "real_equity_total_usdt": 156.473658,
     "real_equity_peak_usdt": 161.931074,
-    "real_equity_drawdown_usdt": 5.223335,
-    "real_equity_drawdown_adjusted_usdt": 5.223335,
+    "real_equity_drawdown_usdt": 5.457416,
+    "real_equity_drawdown_adjusted_usdt": 5.457416,
     "real_equity_quality_passed": true,
     "real_equity_peak_confirmed": true,
-    "open_position_count": 3,
-    "open_notional_usdt": 19.10573,
+    "open_position_count": 2,
+    "open_notional_usdt": 14.4096,
     "positions_by_strategy": {
-      "directional_bybit": 1,
       "directional_okx": 2
     }
   },
