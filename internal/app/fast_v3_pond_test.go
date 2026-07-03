@@ -168,12 +168,66 @@ func TestFastAlt_RecordOnlyHardGate(t *testing.T) {
 	e := newFastV3TestEngine(t)
 	e.cfg.FastLiveEnabled = true
 	e.cfg.FastFadeLiveEnabled = true
-	// liq_catch:即使 fade 灰度开、池塘 OK,也永远硬闸(已证伪)
+	e.cfg.FastLiqFollowLiveEnabled = true
+	// liq_catch:即使 fade/liq_follow 灰度全开、池塘 OK,也永远硬闸(已证伪)
 	ev := &fastExecShadowEvent{Symbol: "G-USDT", Mid: 1, Bid: 0.999, Ask: 1.001,
 		CandidateSource: "liq_catch", FastCandidateSide: "long", FastCandidateScore: 0.99,
 		PondOK: true, PondSamples: fastPondWarmupSamples + 1}
 	if r := e.fastLiveOpen(context.Background(), ev); r != "record_only_source" {
 		t.Fatalf("liq_catch 必须被硬闸拒绝,得到 %s", r)
+	}
+}
+
+func TestFastLiqFollow_GateAndHelpers(t *testing.T) {
+	e := newFastV3TestEngine(t)
+	e.cfg.FastLiveEnabled = true
+	// 方向:多头被强平(被迫卖)→ 跟空;空头被强平 → 跟多
+	if fastLiqFollowSide("long") != "short" || fastLiqFollowSide("short") != "long" || fastLiqFollowSide("") != "" {
+		t.Fatal("liq_follow 方向映射错")
+	}
+	// liq_follow 强制 taker;其余来源按配置
+	if fastEntryMakerMode("maker", "liq_follow") || !fastEntryMakerMode("maker", "") ||
+		!fastEntryMakerMode("maker", "fade_exhaustion") || fastEntryMakerMode("taker", "") {
+		t.Fatal("入场模式选择错")
+	}
+	// 开关关 → 硬闸拒
+	ev := &fastExecShadowEvent{Symbol: "LF-USDT", Mid: 1, Bid: 0.999, Ask: 1.001,
+		CandidateSource: "liq_follow", FastCandidateSide: "short", PondOK: false, PondSamples: 9999}
+	e.cfg.FastLiqFollowLiveEnabled = false
+	if r := e.fastLiveOpen(context.Background(), ev); r != "record_only_source" {
+		t.Fatalf("开关关时 liq_follow 应拒,得到 %s", r)
+	}
+	// 开关开 → 过来源闸,且豁免静态池塘判定(pond REJ 不拦事件驱动线)
+	e.cfg.FastLiqFollowLiveEnabled = true
+	e.cfg.FastPondFilterEnabled = true
+	r := e.fastLiveOpen(context.Background(), ev)
+	if r == "record_only_source" || r == "pond_reject" || r == "low_score" || r == "low_score_adaptive" {
+		t.Fatalf("liq_follow 不应被来源/池塘/分数闸拦,得到 %s", r)
+	}
+}
+
+func TestFastLiqHotQueue(t *testing.T) {
+	now := time.Now().UTC()
+	sym := "HOT-" + t.Name() + "-USDT"
+	fastNoteLiqHot(sym, now)
+	fastNoteLiqHot(sym, now.Add(5*time.Second)) // 20s 内去重
+	got := fastDrainLiqHot(now.Add(6*time.Second), 8*time.Second, 10)
+	cnt := 0
+	for _, s := range got {
+		if s == sym {
+			cnt++
+		}
+	}
+	if cnt != 1 {
+		t.Fatalf("去重失败: %d", cnt)
+	}
+	// 过期丢弃
+	sym2 := "HOT2-" + t.Name() + "-USDT"
+	fastNoteLiqHot(sym2, now)
+	for _, s := range fastDrainLiqHot(now.Add(30*time.Second), 8*time.Second, 10) {
+		if s == sym2 {
+			t.Fatal("过期热币应被丢弃")
+		}
 	}
 }
 

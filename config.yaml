@@ -247,6 +247,14 @@ okx_directional:
   # ③ 物种化出场【开】:A=3s深亏≤-6bps立断(豁免minHold,424笔实证PF0.26仅26%回正)/
   #   C=10s无正反馈快撤换弹(PF0.51)/B(打完即弹PF1.50)不动交给trail。
   fast_species_exit_enabled: true
+  # ④ liq_follow 事件驱动全市场入场(2026-07-03 17:41 用户架构纠偏:"禁止漏斗套漏斗,挑选范围=全市场,
+  #   资格当刻判定"):爆仓推送(全部SWAP)→热队列→秒级现场验资格(点差≤12bps/深度5k-15万)→顺被迫流taker进场。
+  #   离线:liq_follow 镜像 1622 事件四窗口全正(+60s +6.5bps),今日最稳机制。
+  #   限频礼让(账号安全):每秒≤2币≤4个公共请求;连续失败退让60s;绝不硬扛 50011。
+  fast_liq_follow_live_enabled: true
+  fast_liq_follow_min_liqs: 2
+  fast_liq_follow_max_spread_bps: 12
+  fast_liq_follow_depth_hi_usdt: 150000
   # fast 实盘线 v2 重启(2026-07-03 用户决策,有意越过三闸——依据:交易所账本重建 6304 笔 v1 往返解剖,
   # 亏损集中在 <15s 出场翻炒(毛均 -12.8bps/PF 0.20),60-180s 桶毛正(+2.7bps/PF 1.36),信号方向真实存在。
   # v2 = 只修出场时序,不动打分器:minHold 60s 内禁亏损驱动出场 + 灾难线 40bps 防插针 + fast 层日亏 3U 熔断。

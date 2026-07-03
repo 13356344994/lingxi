@@ -592,6 +592,10 @@ func DefaultEngineConfig() EngineConfig {
 			FastAltCandidatesEnabled:       false, // v3接型候选:默认关,config.yaml 显式开(record-only)
 			FastFadeMinImpulseBps:          8,     // fade 候选冲量阈值
 			FastFadeLiveEnabled:            false, // fade 实盘灰度:默认关,config.yaml 显式开
+			FastLiqFollowLiveEnabled:       false, // liq_follow 事件驱动:默认关,config.yaml 显式开
+			FastLiqFollowMinLiqs:           2,     // 30s内同向净强平≥2笔才算被迫流(单笔=噪声)
+			FastLiqFollowMaxSpreadBps:      12,    // taker 进场点差上限
+			FastLiqFollowDepthHiUSDT:       150000, // 深度>15万=机构镜面盘,不去
 			FastSpeciesExitEnabled:         false, // v3物种化出场:默认关,随入场灰度一起开
 
 			FastPeerWSEnabled:              false, // cross-venue lead-lag peer 采集:默认关

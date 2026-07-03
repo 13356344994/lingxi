@@ -517,8 +517,9 @@ func (e *OKXDirectionalEngine) Run(ctx context.Context) {
 	// fast scalper 跑【独立 goroutine】:否则慢层 runOnce(选币/拉K线,数十秒)会把 fast tick 饿死,
 	// 导致定时平仓被拖几分钟(实盘仓滞留)。独立后 fast 每 N 秒稳定执行,与慢层互不阻塞。
 	if e.fastScalperEnabled() {
-		go e.fastScalperLoop(ctx) // 扫描/开仓(maker 入场可能阻塞)
-		go e.fastManageLoop(ctx)  // 平仓/接管(每2s,独立,不被开仓阻塞)
+		go e.fastScalperLoop(ctx)   // 扫描/开仓(maker 入场可能阻塞)
+		go e.fastManageLoop(ctx)    // 平仓/接管(每2s,独立,不被开仓阻塞)
+		go e.fastLiqFollowLoop(ctx) // v3③ 事件驱动全市场入场(爆仓热队列;开关在循环内判定)
 	}
 	if e.fastWSEnabled() {
 		go e.fastWSCollectorLoop(ctx) // OKX 公共 WS 动态特征采集(record-only,隔离,失败只告警)

@@ -222,3 +222,4 @@
 {"recorded_at":"2026-07-03T09:22:28.637433028Z","venue":"okx","symbol":"ZKP-USDT","reason":"fast_species_a_cut","until":"2026-07-03T11:22:28.637433028Z","seconds":7200}
 {"recorded_at":"2026-07-03T09:22:38.615155447Z","venue":"okx","symbol":"SLX-USDT","reason":"fast_stop_reversal","until":"2026-07-03T11:22:38.615155447Z","seconds":7200}
 {"recorded_at":"2026-07-03T09:28:22.571090699Z","venue":"okx","symbol":"KORU-USDT","reason":"fast_species_a_cut","until":"2026-07-03T10:13:22.571090699Z","seconds":2700}
+{"recorded_at":"2026-07-03T09:34:48.53913357Z","venue":"okx","symbol":"LAB-USDT","reason":"fast_species_a_cut","until":"2026-07-03T10:19:48.53913357Z","seconds":2700}

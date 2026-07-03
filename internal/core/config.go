@@ -948,6 +948,13 @@ type OKXDirectionalConfig struct {
 	// fade 实盘灰度(2026-07-03 16:44 用户纠偏"秒级策略2小时=充分样本,禁止日历思维攒数据"):
 	// 仅 fade_exhaustion 且成熟 OK 池塘可实盘;liq_catch 永远硬闸(已证伪:被迫流持续1-3分钟,60s接刀全负)。
 	FastFadeLiveEnabled bool `cfg:"fast_fade_live_enabled"`
+	// liq_follow 事件驱动全市场入场(2026-07-03 17:41 用户架构纠偏:"禁止漏斗套漏斗——不要从预选名单里
+	// 反复筛,挑选范围=全市场,资格当刻判定"):爆仓推送(全部SWAP)把注意力拉到正在发生被迫流的币,
+	// 秒级现场验资格(点差/深度/被迫流强度),顺被迫流 taker 进场。离线:1622事件四窗口全正(+60s+6.5bps)。
+	FastLiqFollowLiveEnabled  bool    `cfg:"fast_liq_follow_live_enabled"`
+	FastLiqFollowMinLiqs      int     `cfg:"fast_liq_follow_min_liqs"`       // 30s内同向净强平笔数下限(1笔可能是噪声)
+	FastLiqFollowMaxSpreadBps float64 `cfg:"fast_liq_follow_max_spread_bps"` // 当刻点差上限(taker 进场,点差即成本)
+	FastLiqFollowDepthHiUSDT  float64 `cfg:"fast_liq_follow_depth_hi_usdt"`  // 10bp深度上限(机构镜面盘不去,小资金战场纪律)
 	// ③ 物种化出场(424笔实证:A=3s深亏≤-6bps PF0.26仅26%回正→3s认错省血;C=10s无正反馈 PF0.51→快撤;
 	//   B=打完即弹 PF1.50 唯一毛正物种→现有 trail 逻辑不动)。默认关;随入场灰度一起开。
 	FastSpeciesExitEnabled bool `cfg:"fast_species_exit_enabled"`

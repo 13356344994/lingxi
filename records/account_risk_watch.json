@@ -1,39 +1,40 @@
 {
   "wired": true,
-  "updated_at": "2026-07-03T09:29:59.36311225Z",
+  "updated_at": "2026-07-03T10:20:27.774383934Z",
   "snapshot": {
-    "observed_at": "2026-07-03T09:29:58.73724279Z",
+    "observed_at": "2026-07-03T10:20:27.191590466Z",
     "day_start_cst": "2026-07-03T00:00:00+08:00",
-    "daily_realized_pnl_usdt": -3.06164,
-    "daily_equity_delta_usdt": -3.538672,
-    "daily_equity_delta_for_risk_usdt": -3.538672,
+    "daily_realized_pnl_usdt": -3.169353,
+    "daily_equity_delta_usdt": -3.640248,
+    "daily_equity_delta_for_risk_usdt": -3.640248,
     "venue_equity_deltas": {
       "binance": 0,
-      "bybit": -1.199604910000005,
+      "bybit": -1.2763473600000026,
       "gate": 0,
-      "okx": -2.3390672197321294
+      "okx": -2.363901258330884
     },
     "equity_data_trusted": true,
-    "daily_losing_trade_count": 447,
-    "cumulative_realized_pnl_usdt": -30.677464,
+    "daily_losing_trade_count": 454,
+    "cumulative_realized_pnl_usdt": -30.785177,
     "realized_pnl_peak_usdt": 11.868901,
-    "account_drawdown_usdt": 42.546365,
+    "account_drawdown_usdt": 42.654078,
     "strategy_net_pnl": {
       "directional_binance": -0.996926,
-      "directional_bybit": -7.645697,
+      "directional_bybit": -7.691697,
       "directional_gate": -9.81336,
-      "directional_okx": -12.221481
+      "directional_okx": -12.283194
     },
-    "real_equity_total_usdt": 156.974097,
+    "real_equity_total_usdt": 156.872521,
     "real_equity_peak_usdt": 161.931074,
-    "real_equity_drawdown_usdt": 4.956977,
-    "real_equity_drawdown_adjusted_usdt": 4.956977,
+    "real_equity_drawdown_usdt": 5.058553,
+    "real_equity_drawdown_adjusted_usdt": 5.058553,
     "real_equity_quality_passed": true,
     "real_equity_peak_confirmed": true,
-    "open_position_count": 1,
-    "open_notional_usdt": 7.154,
+    "open_position_count": 3,
+    "open_notional_usdt": 19.10573,
     "positions_by_strategy": {
-      "directional_bybit": 1
+      "directional_bybit": 1,
+      "directional_okx": 2
     }
   },
   "thresholds": {

@@ -393,6 +393,75 @@ func fastNoteLiq(sym, posSide string, now time.Time) {
 	fastLiqBuf[sym] = h[i:]
 }
 
+// ===== v3③ liq_follow 事件驱动全市场入场(2026-07-03 17:41 用户架构纠偏)=====
+// "禁止漏斗套漏斗":不从预选名单反复筛(慢线20→池塘5→冷却剩0-2,幸存者=末段行情,进场即反转),
+// 而是让全市场事件把注意力拉过去——爆仓推送覆盖全部 SWAP,哪里有被迫流秒级奔过去,资格当刻判定。
+
+type fastLiqHotItem struct {
+	sym string
+	ts  time.Time
+}
+
+var (
+	fastLiqHotMu   sync.Mutex
+	fastLiqHot     []fastLiqHotItem
+	fastLiqHotSeen = map[string]time.Time{} // symbol -> 最近入队(20s 去重,防单币爆仓刷屏)
+)
+
+// fastNoteLiqHot 爆仓推送入热队列(全市场;由 fastLiqFollowLoop 消费)。
+func fastNoteLiqHot(sym string, now time.Time) {
+	fastLiqHotMu.Lock()
+	defer fastLiqHotMu.Unlock()
+	if t, ok := fastLiqHotSeen[sym]; ok && now.Sub(t) < 20*time.Second {
+		return
+	}
+	fastLiqHotSeen[sym] = now
+	fastLiqHot = append(fastLiqHot, fastLiqHotItem{sym, now})
+	if len(fastLiqHot) > 64 { // 极端行情兜底:只留最新
+		fastLiqHot = append([]fastLiqHotItem{}, fastLiqHot[len(fastLiqHot)-64:]...)
+	}
+}
+
+// fastDrainLiqHot 取出 ≤maxAge 的热币(最多 maxN 个),过期丢弃,其余留队。
+func fastDrainLiqHot(now time.Time, maxAge time.Duration, maxN int) []string {
+	fastLiqHotMu.Lock()
+	defer fastLiqHotMu.Unlock()
+	out := make([]string, 0, maxN)
+	rest := make([]fastLiqHotItem, 0, len(fastLiqHot))
+	for _, it := range fastLiqHot {
+		if now.Sub(it.ts) > maxAge {
+			continue // 过期=瀑布头段已错过,丢弃
+		}
+		if len(out) < maxN {
+			out = append(out, it.sym)
+		} else {
+			rest = append(rest, it)
+		}
+	}
+	fastLiqHot = rest
+	return out
+}
+
+// fastLiqFollowSide 顺被迫流方向:多头被强平=被迫卖压 → 跟空;空头被强平=被迫买压 → 跟多。
+func fastLiqFollowSide(catchSide string) string {
+	switch catchSide {
+	case "long":
+		return "short"
+	case "short":
+		return "long"
+	}
+	return ""
+}
+
+// fastEntryMakerMode liq_follow 必须 taker:顺被迫流方向挂被动单不会成交(价格正在离开),
+// 等到成交=流已死、正好接反转(用户点破的"筛到最后关键时候反转")。其余来源按配置。
+func fastEntryMakerMode(cfgMode, source string) bool {
+	if source == "liq_follow" {
+		return false
+	}
+	return !strings.EqualFold(strings.TrimSpace(cfgMode), "taker")
+}
+
 // fastRecentLiqCatchSide 最近 windowSec 内该 symbol 有强平 → 返回"接被迫者"方向与强平笔数。
 // 多头爆=被迫卖砸出坑→接多;空头爆=被迫买顶出尖→接空。两向平票不出候选(混战不接)。
 func fastRecentLiqCatchSide(sym string, now time.Time, windowSec int) (string, int) {
@@ -692,6 +761,116 @@ func (e *OKXDirectionalEngine) fastManageLoop(ctx context.Context) {
 			e.fastLiveLoad()
 			e.fastLiveManage(ctx)
 		}
+	}
+}
+
+// ---- liq_follow 事件驱动循环(限频礼让:每秒≤2币≤4个公共请求;连续取书失败→退让60s,绝不硬扛交易所)----
+
+var (
+	fastLiqFollowPauseMu sync.Mutex
+	fastLiqFollowPause   time.Time // 退让到期时间(限频/网络抖动统一退让,保护账号)
+	fastLiqFollowFails   int       // 连续 buildFastEvent 失败计数
+)
+
+func (e *OKXDirectionalEngine) fastLiqFollowLoop(ctx context.Context) {
+	defer func() {
+		if r := recover(); r != nil {
+			e.logger.Printf("[fast_liqfollow] loop panic 已恢复: %v", r)
+		}
+	}()
+	if e.cfg.FastLiqFollowLiveEnabled && !e.cfg.FastLiqCollectorEnabled {
+		e.logger.Printf("[fast_liqfollow][warn] fast_liq_follow_live_enabled=true 但 fast_liq_collector_enabled=false,无爆仓推送=永不触发")
+	}
+	e.logger.Printf("[OKX方向][fast_liqfollow] 事件驱动线启动(全市场爆仓→秒级当刻验资格;每秒≤2币,限频即退让) live=%v", e.cfg.FastLiqFollowLiveEnabled)
+	t := time.NewTicker(time.Second)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			if !e.cfg.FastLiqFollowLiveEnabled || !e.fastScalperEnabled() {
+				continue
+			}
+			e.fastLiqFollowTick(ctx)
+		}
+	}
+}
+
+func (e *OKXDirectionalEngine) fastLiqFollowTick(ctx context.Context) {
+	defer func() {
+		if r := recover(); r != nil {
+			e.logger.Printf("[fast_liqfollow] tick panic 已恢复: %v", r)
+		}
+	}()
+	now := e.nowFn().UTC()
+	fastLiqFollowPauseMu.Lock()
+	paused := now.Before(fastLiqFollowPause)
+	fastLiqFollowPauseMu.Unlock()
+	if paused {
+		return
+	}
+	minLiqs := e.cfg.FastLiqFollowMinLiqs
+	if minLiqs <= 0 {
+		minLiqs = 2
+	}
+	for _, sym := range fastDrainLiqHot(now, 8*time.Second, 2) { // 每秒≤2币=≤4个公共请求,礼让核心交易
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+		catch, n := fastRecentLiqCatchSide(sym, now, 30)
+		follow := fastLiqFollowSide(catch)
+		if follow == "" || n < minLiqs {
+			continue // 单笔=噪声;两向平票=混战不进
+		}
+		ev := e.buildFastEvent(ctx, sym, now)
+		if ev == nil {
+			// 连续失败(限频/网络/下架)→ 退让 60s:事件层是增量,绝不跟核心交易抢请求额度
+			fastLiqFollowPauseMu.Lock()
+			fastLiqFollowFails++
+			if fastLiqFollowFails >= 3 {
+				fastLiqFollowPause = now.Add(60 * time.Second)
+				fastLiqFollowFails = 0
+				e.logger.Printf("[fast_liqfollow] 连续取书失败,退让 60s(限频保护)")
+			}
+			fastLiqFollowPauseMu.Unlock()
+			continue
+		}
+		fastLiqFollowPauseMu.Lock()
+		fastLiqFollowFails = 0
+		fastLiqFollowPauseMu.Unlock()
+		ev.CandidateSource = "liq_follow"
+		ev.FastCandidateSide = follow
+		ev.FastCandidateScore = 0
+		ev.FastCandidateReason = fmt.Sprintf("liq_follow_n%d", n)
+		ev.SnapshotID += "|liq_follow"
+		// 当刻资格(fast 自己的标准,非静态名单):点差可执行 + 深度既吃得下又非机构镜面盘
+		maxSpread := e.cfg.FastLiqFollowMaxSpreadBps
+		if maxSpread <= 0 {
+			maxSpread = 12
+		}
+		depthHi := e.cfg.FastLiqFollowDepthHiUSDT
+		if depthHi <= 0 {
+			depthHi = 150000
+		}
+		skip := ""
+		switch {
+		case ev.SpreadBps > maxSpread:
+			skip = "spread_wide"
+		case ev.DepthNotional10bps < e.cfg.FastPondDepthLoUSDT:
+			skip = "depth_thin"
+		case ev.DepthNotional10bps > depthHi:
+			skip = "depth_institutional"
+		}
+		_ = appendJSONLRecord(filepath.Join(e.recordDir, fastExecShadowFile), *ev) // 不论开否都留 shadow(离线对照)
+		if skip != "" {
+			e.logger.Printf("[fast_liqfollow] %s 跳过(%s) spread=%.1f depth10=%.0f liq_n=%d", sym, skip, ev.SpreadBps, ev.DepthNotional10bps, n)
+			continue
+		}
+		r := e.fastLiveOpen(ctx, ev)
+		e.logger.Printf("[fast_liqfollow] %s %s liq_n=%d spread=%.1f depth10=%.0f → %s", sym, follow, n, ev.SpreadBps, ev.DepthNotional10bps, r)
 	}
 }
 
@@ -1481,10 +1660,11 @@ func (e *OKXDirectionalEngine) fastLiveOpen(ctx context.Context, ev *fastExecSha
 		return "nil"
 	}
 	if ev.CandidateSource != "" {
-		// v3② fade 实盘灰度(2026-07-03 16:44 用户拍板:秒级策略 2h=数万决策周期,机制已核实即动,禁止日历攒数据):
-		// 机制=接力竭的 FOMO 冲量(我们做"被迫一次性taker"的对手方=唯一毛正物种 B 的镜像);仅限成熟 OK 池塘。
+		// v3② fade 实盘灰度(仅成熟 OK 池塘)+ v3③ liq_follow 事件驱动(全市场,资格当刻已验)。
 		// liq_catch 永远硬闸:已证伪(被迫流持续 1-3 分钟,60s 内接刀三桶全负,力竭/吸收确认都救不了)。
-		if !(e.cfg.FastFadeLiveEnabled && ev.CandidateSource == "fade_exhaustion" && ev.PondOK && ev.PondSamples >= fastPondWarmupSamples) {
+		allowFade := e.cfg.FastFadeLiveEnabled && ev.CandidateSource == "fade_exhaustion" && ev.PondOK && ev.PondSamples >= fastPondWarmupSamples
+		allowLiqFollow := e.cfg.FastLiqFollowLiveEnabled && ev.CandidateSource == "liq_follow"
+		if !allowFade && !allowLiqFollow {
 			return "record_only_source"
 		}
 	}
@@ -1497,8 +1677,10 @@ func (e *OKXDirectionalEngine) fastLiveOpen(ctx context.Context, ev *fastExecSha
 	if e.controlPlane != nil && e.controlPlane.IsEmergencyHaltActive() { // 唯一急停
 		return "halt"
 	}
-	// v3① 池塘过滤(独立灰度开关;默认仅打标不拦):死水/薄盘不下场,不跟机构抢镜面盘
-	if e.cfg.FastPondFilterEnabled && !ev.PondOK {
+	// v3① 池塘过滤(轮询追型线用):死水/薄盘不下场,不跟机构抢镜面盘。
+	// liq_follow 豁免:事件驱动线资格当刻判定(点差/深度/被迫流),静态池塘判定是滞后名单
+	// (2026-07-03 用户纠偏:爆仓瞬间的死水池就是活水,名单跟不上事件)。
+	if e.cfg.FastPondFilterEnabled && !ev.PondOK && ev.CandidateSource != "liq_follow" {
 		return "pond_reject"
 	}
 	sym := ev.Symbol
@@ -1587,7 +1769,7 @@ func (e *OKXDirectionalEngine) fastLiveOpen(ctx context.Context, ev *fastExecSha
 	} else {
 		side = venue.SideSell
 	}
-	makerMode := !strings.EqualFold(strings.TrimSpace(e.cfg.FastEntryMode), "taker") // 默认 maker(v3)
+	makerMode := fastEntryMakerMode(e.cfg.FastEntryMode, ev.CandidateSource) // liq_follow 强制 taker,其余按配置(默认 maker)
 	var res venue.OrderResult
 	var makerOrderPrice float64
 	var makerWaitMs int
