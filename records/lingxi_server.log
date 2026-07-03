@@ -1108,3 +1108,32 @@ a3d3fb096170d54610211e00dafd838b | cycle=
 2026/07/03 17:25:29 [OKX方向][漏斗] shortlist=20 空位=5 有方向=0 | flat: 样本不足=0 资费否决=3 无信号=5 过地板挡=0 不可交易=0 runup未确认=1(地板=40bps) | 例[veto=LA-USDT:资费逆持仓,放弃(short 费率=-0.1719%)][nosig=LAB-USDT:无方向信号(regime=range)][floor=][runup=SKHYNIX-USDT short runup=-0.3bp<0.0]
 2026/07/03 17:25:29 [bybit][OKX方向][漏斗] shortlist=20 空位=4 有方向=0 | flat: 样本不足=0 资费否决=2 无信号=6 过地板挡=0 不可交易=0 runup未确认=0(地板=40bps) | 例[veto=LA-USDT:资费逆持仓,放弃(short 费率=-0.1918%)][nosig=10000NEX-USDT:无方向信号(regime=range)][floor=][runup=]
 2026/07/03 17:25:59 [账户风控] OK daily_equity_delta=-3.5761 daily_realized=-3.0452 settlement_dd=42.5299 real_equity_dd=4.9944 real_equity_dd_adj=4.9944 cum_fund_flow=-64.2452 positions=1 notional=7.15
+2026/07/03 17:26:20 [fast_scalper] record-only 扫描=20 记录=23 live=true 入场结果=map[alt_cooldown:22 alt_record_only_source:33 cooldown:21 low_score:14 low_score_adaptive:39 maker_not_filled:1 pond_reject:225] → fast_executable_shadow_events.jsonl
+2026/07/03 17:26:59 [bybit][OKX方向][漏斗] shortlist=20 空位=4 有方向=0 | flat: 样本不足=0 资费否决=1 无信号=7 过地板挡=0 不可交易=0 runup未确认=0(地板=40bps) | 例[veto=LA-USDT:资费逆持仓,放弃(short 费率=-0.1918%)][nosig=ZKP-USDT:无方向信号(regime=range)][floor=][runup=]
+2026/07/03 17:26:59 [OKX方向][跨所] 否决 SKHYNIX-USDT short: 跨所2反向且无同向
+2026/07/03 17:26:59 [账户风控] OK daily_equity_delta=-3.5761 daily_realized=-3.0452 settlement_dd=42.5299 real_equity_dd=4.9944 real_equity_dd_adj=4.9944 cum_fund_flow=-64.2452 positions=1 notional=7.15
+2026/07/03 17:27:10 [fast_live] 已开 KORU-USDT long qty=0.01000000 @595.000000 名义=5.95 score=0.74 maker=true edge=1.8bps wait=2287ms
+2026/07/03 17:27:18 [fast_scalper] record-only 扫描=20 记录=20 live=true 入场结果=map[alt_cooldown:14 alt_record_only_source:33 cooldown:18 flat:2 held_fast:1 low_score:15 low_score_adaptive:40 opened:1 pond_reject:223] → fast_executable_shadow_events.jsonl
+2026/07/03 17:27:59 [账户风控] OK daily_equity_delta=-3.5387 daily_realized=-3.0452 settlement_dd=42.5299 real_equity_dd=4.9570 real_equity_dd_adj=4.9570 cum_fund_flow=-64.2452 positions=1 notional=7.15
+2026/07/03 17:28:08 [下单] venue=okx market=perp KORU-USDT side=sell price=595.50 tick=0.01 qty=0.01
+2026/07/03 17:28:11 [下单] venue=okx market=perp KORU-USDT side=sell price=595.36 tick=0.01 qty=0.01
+2026/07/03 17:28:13 [下单] venue=okx market=perp KORU-USDT side=sell price=595.15 tick=0.01 qty=0.01
+2026/07/03 17:28:14 [fast_live] 已平 KORU-USDT long 持有64s entry=595.000000 exit=595.150000 realized=-0.0009U 原因=fast_trail_tp
+2026/07/03 17:28:18 [fast_live] 已开 KORU-USDT long qty=0.01000000 @595.410000 名义=5.95 score=0.75 maker=true edge=2.0bps wait=2272ms
+2026/07/03 17:28:22 [下单] venue=okx market=perp KORU-USDT side=sell price=585.33 tick=0.01 qty=0.01
+2026/07/03 17:28:22 [fast_cooldown] KORU-USDT fast层冷却2700s 至10:13:22 原因=fast_species_a_cut(非永久黑名单)
+2026/07/03 17:28:22 [fast_live] 已平 KORU-USDT long 持有4s entry=595.410000 exit=594.270000 realized=-0.0156U 原因=fast_species_a_cut
+2026/07/03 17:28:23 [fast_scalper] record-only 扫描=20 记录=23 live=true 入场结果=map[alt_cooldown:10 alt_held_fast:1 alt_record_only_source:21 cooldown:9 flat:9 held_fast:13 low_score:16 low_score_adaptive:41 opened:1 pond_reject:231] → fast_executable_shadow_events.jsonl
+2026/07/03 17:28:29 [bybit][OKX方向][漏斗] shortlist=20 空位=4 有方向=0 | flat: 样本不足=0 资费否决=1 无信号=7 过地板挡=0 不可交易=0 runup未确认=0(地板=40bps) | 例[veto=ZKP-USDT:资费逆持仓,放弃(short 费率=-2.0000%)][nosig=10000NEX-USDT:无方向信号(regime=range)][floor=][runup=]
+2026/07/03 17:28:29 [OKX方向][漏斗] shortlist=20 空位=5 有方向=0 | flat: 样本不足=0 资费否决=2 无信号=6 过地板挡=0 不可交易=0 runup未确认=1(地板=40bps) | 例[veto=LA-USDT:资费逆持仓,放弃(short 费率=-0.1719%)][nosig=BLEND-USDT:无方向信号(regime=range)][floor=][runup=SKHYNIX-USDT short runup=-0.0bp<0.0]
+2026/07/03 17:28:59 [账户风控] OK daily_equity_delta=-3.5387 daily_realized=-3.0616 settlement_dd=42.5464 real_equity_dd=4.9570 real_equity_dd_adj=4.9570 cum_fund_flow=-64.2452 positions=1 notional=7.15
+2026/07/03 17:29:25 [fast_scalper] record-only 扫描=20 记录=25 live=true 入场结果=map[alt_cooldown:17 alt_record_only_source:35 cooldown:18 flat:8 low_score:16 low_score_adaptive:46 pond_reject:232] → fast_executable_shadow_events.jsonl
+2026/07/03 17:29:59 [bybit][OKX方向][漏斗] shortlist=20 空位=4 有方向=0 | flat: 样本不足=0 资费否决=1 无信号=7 过地板挡=0 不可交易=0 runup未确认=0(地板=40bps) | 例[veto=ZKP-USDT:资费逆持仓,放弃(short 费率=-2.0000%)][nosig=10000NEX-USDT:无方向信号(regime=range)][floor=][runup=]
+2026/07/03 17:29:59 [OKX方向][跨所] 否决 SKHYNIX-USDT short: 跨所2反向且无同向
+2026/07/03 17:29:59 [账户风控] OK daily_equity_delta=-3.5387 daily_realized=-3.0616 settlement_dd=42.5464 real_equity_dd=4.9570 real_equity_dd_adj=4.9570 cum_fund_flow=-64.2452 positions=1 notional=7.15
+2026/07/03 17:30:29 [fast_scalper] record-only 扫描=20 记录=27 live=true 入场结果=map[alt_cooldown:18 alt_record_only_source:49 cooldown:17 flat:20 low_score:4 low_score_adaptive:47 pond_reject:232] → fast_executable_shadow_events.jsonl
+2026/07/03 17:30:38 [bybit][OKX方向][快速风控] M-USDT 浮盈-6.43%≤止损地板-3.00%,立即平仓(mae_disaster_cut)
+2026/07/03 17:30:38 [bybit][下单] venue=bybit market=perp M-USDT side=buy price=1.8107 tick=0.0001 qty=4
+2026/07/03 17:30:38 [bybit][下单] venue=bybit market=perp M-USDT side=buy price=1.8099 tick=0.0001 qty=4
+2026/07/03 17:30:39 [bybit][下单] venue=bybit market=perp M-USDT side=buy price=1.8000 tick=0.0001 qty=4
+2026/07/03 17:30:39 [bybit][OKX方向] 已平 M-USDT short 原因=mae_disaster_cut 实现≈-0.0460 USDT
