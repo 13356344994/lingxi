@@ -1437,6 +1437,95 @@ func fastLiqFollowExitUnit(pondUnit, entryImp15 float64) float64 {
 	return pondUnit
 }
 
+// ===== 探针治理器(2026-07-04 章程,HANDOFF §-5)=====
+// 发现阶段的实盘小额快试:某 candidate_source 进入探针模式后,开仓数与累亏被机器硬顶,
+// 越线自动缴械——纪律写进结构,不依赖任何人的意志力。状态持久化,重启不失忆。
+
+const fastProbeStateFile = "fast_probe_state.json"
+
+// fastProbeState 探针账本(每 venue 一份;换 source 自动重置=新探针新预算)。
+type fastProbeState struct {
+	Source    string    `json:"source"`
+	StartedAt time.Time `json:"started_at"`
+	Trades    int       `json:"trades"`
+	Realized  float64   `json:"realized_usdt"`
+}
+
+var (
+	fastProbeMu sync.Mutex
+	fastProbe   = map[string]*fastProbeState{} // venue -> state
+)
+
+// fastProbeExhausted 纯判定:探针预算是否耗尽(笔数或累亏任一越线)。
+func fastProbeExhausted(st fastProbeState, maxTrades int, maxLoss float64) bool {
+	if maxTrades > 0 && st.Trades >= maxTrades {
+		return true
+	}
+	if maxLoss > 0 && st.Realized <= -maxLoss {
+		return true
+	}
+	return false
+}
+
+// fastProbeStateLocked 取当前探针账本(调用者持 fastProbeMu);首次从盘上恢复;source 变更即重置。
+func (e *OKXDirectionalEngine) fastProbeStateLocked(source string) *fastProbeState {
+	st := fastProbe[e.venueName]
+	if st == nil {
+		st = &fastProbeState{}
+		if data, err := os.ReadFile(filepath.Join(e.recordDir, fastProbeStateFile)); err == nil {
+			_ = json.Unmarshal(data, st)
+		}
+		fastProbe[e.venueName] = st
+	}
+	if st.Source != source { // 新探针:新预算
+		*st = fastProbeState{Source: source, StartedAt: e.nowFn().UTC()}
+		e.fastProbePersistLocked()
+	}
+	return st
+}
+
+func (e *OKXDirectionalEngine) fastProbePersistLocked() {
+	if st := fastProbe[e.venueName]; st != nil {
+		if err := writeJSONFile(filepath.Join(e.recordDir, fastProbeStateFile), st); err != nil {
+			e.logger.Printf("[fast_probe] 状态落盘失败: %v", err)
+		}
+	}
+}
+
+// fastProbeGate 开仓前闸:该 source 处于探针模式且预算耗尽 → 拒(probe_exhausted)。
+// 非探针 source 不受影响(它们各自的 live 开关是第一道闸)。
+func (e *OKXDirectionalEngine) fastProbeGate(source string) string {
+	probeSrc := strings.TrimSpace(e.cfg.FastProbeSource)
+	if probeSrc == "" || source != probeSrc {
+		return ""
+	}
+	fastProbeMu.Lock()
+	defer fastProbeMu.Unlock()
+	st := e.fastProbeStateLocked(probeSrc)
+	if fastProbeExhausted(*st, e.cfg.FastProbeMaxTrades, e.cfg.FastProbeMaxLossUSDT) {
+		return "probe_exhausted"
+	}
+	return ""
+}
+
+// fastProbeRecord 平仓后记账(仅探针 source):笔数+累亏;越线时打一条明确的缴械日志。
+func (e *OKXDirectionalEngine) fastProbeRecord(source string, realized float64) {
+	probeSrc := strings.TrimSpace(e.cfg.FastProbeSource)
+	if probeSrc == "" || source != probeSrc {
+		return
+	}
+	fastProbeMu.Lock()
+	defer fastProbeMu.Unlock()
+	st := e.fastProbeStateLocked(probeSrc)
+	st.Trades++
+	st.Realized += realized
+	e.fastProbePersistLocked()
+	if fastProbeExhausted(*st, e.cfg.FastProbeMaxTrades, e.cfg.FastProbeMaxLossUSDT) {
+		e.logger.Printf("[fast_probe] 探针 %s 预算耗尽自动缴械: trades=%d realized=%.4fU(上限 %d 笔 / -%.2fU)——等待裁决,不再开仓",
+			probeSrc, st.Trades, st.Realized, e.cfg.FastProbeMaxTrades, e.cfg.FastProbeMaxLossUSDT)
+	}
+}
+
 // fastExitTriggersCooldown 坏出场触发 fast 层短冷却(v2.2 亏损退避的入口)。
 // v4.2 把 fast_disaster_stop 加入名单:最贵的教训此前反而没有学费记忆——
 // 07-03 实证:LAB 灾难止损 -0.053U 后 44s 同币再进,再灾难 -0.060U。
@@ -1931,6 +2020,7 @@ func (e *OKXDirectionalEngine) fastLiveClose(ctx context.Context, p *fastLivePos
 		e.logger.Printf("[fast_live] v2 结算副本落盘失败: %v", err)
 	}
 	e.fastDailyAdd(now, sym, realized)
+	e.fastProbeRecord(p.CandidateSource, realized) // 探针记账(非探针 source 为 no-op)
 	fastLiveMu.Lock()
 	delete(fastLivePos[e.venueName], sym)
 	e.fastLivePersistLocked()
@@ -2178,6 +2268,10 @@ func (e *OKXDirectionalEngine) fastLiveOpen(ctx context.Context, ev *fastExecSha
 		if realized := e.fastDailyRealized(e.nowFn().UTC()); realized <= -lim {
 			return "daily_loss_halt"
 		}
+	}
+	// 探针治理器(章程 §-5):探针 source 的预算(笔数/累亏)由机器锁死,越线自动缴械。
+	if r := e.fastProbeGate(ev.CandidateSource); r != "" {
+		return r
 	}
 	// 同 symbol 已有未平 fast 仓 → 不重复、不反手
 	fastLiveMu.Lock()

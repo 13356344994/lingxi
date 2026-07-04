@@ -153,6 +153,14 @@ func TestLoadProductionConfigYAML(t *testing.T) {
 	if !cfg.OKXDirectional.OpenMicroRecordEnabled {
 		t.Fatal("okx_directional.open_micro_record_enabled = false want true(runup 闸数据源)")
 	}
+	// 探针制章程(2026-07-04,HANDOFF §-5):生产配置默认无探针活动;设置 fast_probe_source
+	// = 用户明示批准某候选进入探针层(同时须保证预算硬顶为正)。
+	if s := strings.TrimSpace(cfg.OKXDirectional.FastProbeSource); s != "" {
+		if cfg.OKXDirectional.FastProbeMaxTrades <= 0 || cfg.OKXDirectional.FastProbeMaxLossUSDT <= 0 {
+			t.Fatalf("探针 %q 激活但预算未锁死(max_trades=%d max_loss=%.2f 均须>0)", s,
+				cfg.OKXDirectional.FastProbeMaxTrades, cfg.OKXDirectional.FastProbeMaxLossUSDT)
+		}
+	}
 
 	// cross_venue_executor 杠杆/名义
 	if math.Abs(cfg.CrossVenueExecutor.MaxPositionUSDT-150) > 1e-9 {

@@ -964,6 +964,13 @@ type OKXDirectionalConfig struct {
 	// 只喂价格历史,不下单;每 N 秒 1 个公共请求(/market/tickers 限频 20次/2s,余量巨大)。
 	FastMarketMidsEnabled         bool `cfg:"fast_market_mids_enabled"`
 	FastMarketMidIntervalSeconds  int  `cfg:"fast_market_mid_interval_seconds"` // 默认 3
+	// ===== 探针制(2026-07-04 章程,HANDOFF §-5):发现阶段的实盘小额快试,预算由机器锁死 =====
+	// FastProbeSource 非空 = 该 candidate_source 的实盘线处于"探针模式":开仓数与累亏被硬顶,
+	// 越线自动缴械(probe_exhausted),状态持久化重启不失忆。空 = 无探针活动(生产默认,护栏锚定;
+	// 设置某个 source = 用户明示批准该候选进入探针层)。
+	FastProbeSource      string  `cfg:"fast_probe_source"`
+	FastProbeMaxTrades   int     `cfg:"fast_probe_max_trades"`    // 默认 20
+	FastProbeMaxLossUSDT float64 `cfg:"fast_probe_max_loss_usdt"` // 默认 0.5(预亏上限,买真滑点/真成交的学费)
 	// v5.5 Bybit 全市场价格标尺(2026-07-04,record-only):单请求拉 bybit linear tickers 存内存标尺,
 	// 普查/评估事件标注 xgap_bps(跨所价差锚:价差开=本地事故套利商必拽回,无价差=全局重定价)。
 	FastXMidEnabled bool `cfg:"fast_xmid_enabled"`

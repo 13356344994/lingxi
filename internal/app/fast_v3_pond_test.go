@@ -465,6 +465,52 @@ func TestFastClusterStats(t *testing.T) {
 	}
 }
 
+// TestFastProbeGovernor 探针治理器(章程 §-5):预算判定/开仓闸/记账/自动缴械/换source重置/持久化恢复。
+func TestFastProbeGovernor(t *testing.T) {
+	// 纯判定
+	if fastProbeExhausted(fastProbeState{Trades: 19, Realized: -0.4}, 20, 0.5) {
+		t.Fatal("预算内不应缴械")
+	}
+	if !fastProbeExhausted(fastProbeState{Trades: 20, Realized: 0}, 20, 0.5) {
+		t.Fatal("笔数越线应缴械")
+	}
+	if !fastProbeExhausted(fastProbeState{Trades: 1, Realized: -0.5}, 20, 0.5) {
+		t.Fatal("累亏越线应缴械")
+	}
+	// 引擎级:开仓闸+记账+缴械+换source重置
+	e := newFastV3TestEngine(t)
+	e.cfg.FastProbeSource = "probe_x"
+	e.cfg.FastProbeMaxTrades = 2
+	e.cfg.FastProbeMaxLossUSDT = 0.5
+	if r := e.fastProbeGate("probe_x"); r != "" {
+		t.Fatalf("新探针应放行,得到 %q", r)
+	}
+	if r := e.fastProbeGate("other_src"); r != "" {
+		t.Fatalf("非探针 source 不受影响,得到 %q", r)
+	}
+	e.fastProbeRecord("probe_x", -0.1)
+	e.fastProbeRecord("other_src", -99) // 非探针 source 不记账
+	if r := e.fastProbeGate("probe_x"); r != "" {
+		t.Fatalf("1笔/-0.1U 应仍放行,得到 %q", r)
+	}
+	e.fastProbeRecord("probe_x", -0.05)
+	if r := e.fastProbeGate("probe_x"); r != "probe_exhausted" {
+		t.Fatalf("2笔应缴械,得到 %q", r)
+	}
+	// 持久化恢复:清内存,重新加载应仍缴械
+	fastProbeMu.Lock()
+	delete(fastProbe, e.venueName)
+	fastProbeMu.Unlock()
+	if r := e.fastProbeGate("probe_x"); r != "probe_exhausted" {
+		t.Fatalf("重启恢复后应仍缴械,得到 %q", r)
+	}
+	// 换 source=新预算
+	e.cfg.FastProbeSource = "probe_y"
+	if r := e.fastProbeGate("probe_y"); r != "" {
+		t.Fatalf("新 source 应重置预算,得到 %q", r)
+	}
+}
+
 func TestFastLiqCascadeAlive(t *testing.T) {
 	// 阈值<=0 = 闸关闭
 	if !fastLiqCascadeAlive("short", 0, 0) {
