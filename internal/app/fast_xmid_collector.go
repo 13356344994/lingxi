@@ -9,16 +9,19 @@ import (
 	"time"
 )
 
-// ===== v5.5 Bybit 全市场价格标尺(2026-07-04,record-only)=====
-// 头脑风暴①"跨所价差锚"的数据地基:暴动时刻 OKX 与 Bybit 的瞬时价差状态,可能是
+// ===== v5.5/v5.6 跨所价格标尺(2026-07-04,record-only)=====
+// 头脑风暴①"跨所价差锚"的数据地基:暴动时刻 OKX 与别所的瞬时价差状态,可能是
 // "本地流动性事故(套利商必须拽回=接)vs 全局重定价(无人拽=跟)"的方向分类器——
 // 场上手被绑得最死的人是套利商,价差一开他们不得不动。
-// 采集:单请求拉 Bybit 全市场 linear tickers(/v5/market/tickers,一次全量),每 3s 一发,
-// 存内存标尺 + 价差标注进普查/评估事件(xgap_bps,正=OKX 溢价)。不下单/不读账户。
+// v5.6 扩到三锚:Bybit(WS 曾验证可用)+ Binance(WS 不通但 REST 通,定价权最重的共识锚)
+// + Gate(长尾币覆盖最广,与我们猎场重合度最高)。各 1 请求/3s 批发端点,内存标尺,
+// 价差标注进普查/评估事件。不下单/不读账户。
 
 var (
 	fastXMidMu sync.Mutex
-	fastXMid   = map[string]fastXMidPt{} // canon(BTC-USDT) -> bybit mid
+	fastXMid   = map[string]map[string]fastXMidPt{ // venue -> canon(BTC-USDT) -> mid
+		"bybit": {}, "binance": {}, "gate": {},
+	}
 )
 
 type fastXMidPt struct {
@@ -26,13 +29,29 @@ type fastXMidPt struct {
 	ts  time.Time
 }
 
-// fastXMidGapBps OKX mid 相对 Bybit mid 的价差(bps,正=OKX 贵);Bybit 无数据或过期(>15s)返回 (0,false)。
-func fastXMidGapBps(sym string, okxMid float64, now time.Time) (float64, bool) {
+func fastXMidStore(venue string, mids map[string]float64, now time.Time) {
+	if len(mids) == 0 {
+		return
+	}
+	fastXMidMu.Lock()
+	defer fastXMidMu.Unlock()
+	m := fastXMid[venue]
+	if m == nil {
+		m = map[string]fastXMidPt{}
+		fastXMid[venue] = m
+	}
+	for sym, mid := range mids {
+		m[sym] = fastXMidPt{mid, now}
+	}
+}
+
+// fastXMidGapBpsVenue OKX mid 相对某所 mid 的价差(bps,正=OKX 贵);无数据/过期(>15s)返回 (0,false)。
+func fastXMidGapBpsVenue(venue, sym string, okxMid float64, now time.Time) (float64, bool) {
 	if okxMid <= 0 {
 		return 0, false
 	}
 	fastXMidMu.Lock()
-	p, ok := fastXMid[sym]
+	p, ok := fastXMid[venue][sym]
 	fastXMidMu.Unlock()
 	if !ok || p.mid <= 0 || now.Sub(p.ts) > 15*time.Second {
 		return 0, false
@@ -40,7 +59,14 @@ func fastXMidGapBps(sym string, okxMid float64, now time.Time) (float64, bool) {
 	return (okxMid - p.mid) / p.mid * 10000, true
 }
 
-// parseBybitTickers 纯解析:/v5/market/tickers 响应 → canon->mid。
+// fastXMidGapBps 兼容入口(v5.5 首日数据=bybit 锚)。
+func fastXMidGapBps(sym string, okxMid float64, now time.Time) (float64, bool) {
+	return fastXMidGapBpsVenue("bybit", sym, okxMid, now)
+}
+
+// ---- 三所批发 tickers 解析(纯函数) ----
+
+// parseBybitTickers /v5/market/tickers?category=linear → canon->mid。
 func parseBybitTickers(body []byte) map[string]float64 {
 	var r struct {
 		Result struct {
@@ -61,20 +87,70 @@ func parseBybitTickers(body []byte) map[string]float64 {
 		if !strings.HasSuffix(raw, "USDT") {
 			continue
 		}
-		bid, _ := strconv.ParseFloat(tk.Bid, 64)
-		ask, _ := strconv.ParseFloat(tk.Ask, 64)
-		mid := 0.0
-		if bid > 0 && ask > 0 && ask >= bid {
-			mid = (bid + ask) / 2
-		} else if l, _ := strconv.ParseFloat(tk.Last, 64); l > 0 {
-			mid = l
+		if mid := midFromBidAskLast(tk.Bid, tk.Ask, tk.Last); mid > 0 {
+			out[strings.TrimSuffix(raw, "USDT")+"-USDT"] = mid
 		}
-		if mid <= 0 {
-			continue
-		}
-		out[strings.TrimSuffix(raw, "USDT")+"-USDT"] = mid
 	}
 	return out
+}
+
+// parseBinanceBookTickers /fapi/v1/ticker/bookTicker(无参=全市场)→ canon->mid。
+func parseBinanceBookTickers(body []byte) map[string]float64 {
+	var list []struct {
+		Symbol string `json:"symbol"`
+		Bid    string `json:"bidPrice"`
+		Ask    string `json:"askPrice"`
+	}
+	if json.Unmarshal(body, &list) != nil {
+		return nil
+	}
+	out := make(map[string]float64, len(list))
+	for _, tk := range list {
+		raw := strings.ToUpper(tk.Symbol)
+		if !strings.HasSuffix(raw, "USDT") {
+			continue
+		}
+		if mid := midFromBidAskLast(tk.Bid, tk.Ask, ""); mid > 0 {
+			out[strings.TrimSuffix(raw, "USDT")+"-USDT"] = mid
+		}
+	}
+	return out
+}
+
+// parseGateTickers /api/v4/futures/usdt/tickers → canon->mid(contract 形如 BTC_USDT)。
+func parseGateTickers(body []byte) map[string]float64 {
+	var list []struct {
+		Contract string `json:"contract"`
+		Bid      string `json:"highest_bid"`
+		Ask      string `json:"lowest_ask"`
+		Last     string `json:"last"`
+	}
+	if json.Unmarshal(body, &list) != nil {
+		return nil
+	}
+	out := make(map[string]float64, len(list))
+	for _, tk := range list {
+		raw := strings.ToUpper(tk.Contract)
+		if !strings.HasSuffix(raw, "_USDT") {
+			continue
+		}
+		if mid := midFromBidAskLast(tk.Bid, tk.Ask, tk.Last); mid > 0 {
+			out[strings.TrimSuffix(raw, "_USDT")+"-USDT"] = mid
+		}
+	}
+	return out
+}
+
+func midFromBidAskLast(bidS, askS, lastS string) float64 {
+	bid, _ := strconv.ParseFloat(bidS, 64)
+	ask, _ := strconv.ParseFloat(askS, 64)
+	if bid > 0 && ask > 0 && ask >= bid {
+		return (bid + ask) / 2
+	}
+	if l, _ := strconv.ParseFloat(lastS, 64); l > 0 {
+		return l
+	}
+	return 0
 }
 
 func (e *OKXDirectionalEngine) fastXMidEnabled() bool {
@@ -91,32 +167,39 @@ func (e *OKXDirectionalEngine) fastXMidLoop(ctx context.Context) {
 	if iv < 2 {
 		iv = 3
 	}
-	e.logger.Printf("[fast_xmid] Bybit 全市场价格标尺启动 间隔=%ds(跨所价差锚数据地基,record-only)", iv)
+	e.logger.Printf("[fast_xmid] 跨所价格标尺启动 间隔=%ds 锚=bybit+binance+gate(跨所价差,record-only)", iv)
 	t := time.NewTicker(time.Duration(iv) * time.Second)
 	defer t.Stop()
-	fails := 0
+	fails := map[string]int{}
+	srcs := []struct {
+		venue string
+		url   string
+		parse func([]byte) map[string]float64
+	}{
+		{"bybit", "https://api.bybit.com/v5/market/tickers?category=linear", parseBybitTickers},
+		{"binance", "https://fapi.binance.com/fapi/v1/ticker/bookTicker", parseBinanceBookTickers},
+		{"gate", "https://api.gateio.ws/api/v4/futures/usdt/tickers", parseGateTickers},
+	}
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-t.C:
-			var body json.RawMessage
-			err := peerGetJSON("https://api.bybit.com/v5/market/tickers?category=linear", &body)
-			mids := parseBybitTickers(body)
-			if err != nil || len(mids) == 0 {
-				fails++
-				if fails%20 == 1 {
-					e.logger.Printf("[fast_xmid] bybit tickers 拉取失败(连续%d): %v", fails, err)
-				}
-				continue
-			}
-			fails = 0
 			now := e.nowFn().UTC()
-			fastXMidMu.Lock()
-			for sym, mid := range mids {
-				fastXMid[sym] = fastXMidPt{mid, now}
+			for _, s := range srcs {
+				var body json.RawMessage
+				err := peerGetJSON(s.url, &body)
+				mids := s.parse(body)
+				if err != nil || len(mids) == 0 {
+					fails[s.venue]++
+					if fails[s.venue]%40 == 1 { // 每 ~2 分钟至多一条/所
+						e.logger.Printf("[fast_xmid] %s tickers 拉取失败(连续%d): %v", s.venue, fails[s.venue], err)
+					}
+					continue
+				}
+				fails[s.venue] = 0
+				fastXMidStore(s.venue, mids, now)
 			}
-			fastXMidMu.Unlock()
 		}
 	}
 }
