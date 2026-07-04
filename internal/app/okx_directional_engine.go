@@ -530,6 +530,9 @@ func (e *OKXDirectionalEngine) Run(ctx context.Context) {
 	if e.fastHotWSEnabled() {
 		go e.fastHotWSLoop(ctx) // v5.3 热币微结构(动态订阅,record-only)
 	}
+	if e.fastXMidEnabled() {
+		go e.fastXMidLoop(ctx) // v5.5 Bybit 价格标尺(跨所价差锚,record-only)
+	}
 	if e.fastWSEnabled() {
 		go e.fastWSCollectorLoop(ctx) // OKX 公共 WS 动态特征采集(record-only,隔离,失败只告警)
 	}

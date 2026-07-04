@@ -964,6 +964,9 @@ type OKXDirectionalConfig struct {
 	// 只喂价格历史,不下单;每 N 秒 1 个公共请求(/market/tickers 限频 20次/2s,余量巨大)。
 	FastMarketMidsEnabled         bool `cfg:"fast_market_mids_enabled"`
 	FastMarketMidIntervalSeconds  int  `cfg:"fast_market_mid_interval_seconds"` // 默认 3
+	// v5.5 Bybit 全市场价格标尺(2026-07-04,record-only):单请求拉 bybit linear tickers 存内存标尺,
+	// 普查/评估事件标注 xgap_bps(跨所价差锚:价差开=本地事故套利商必拽回,无价差=全局重定价)。
+	FastXMidEnabled bool `cfg:"fast_xmid_enabled"`
 	// v5.3 热币微结构采集(2026-07-04,record-only):第二条 OKX 公共 WS,动态订阅热币 books5+trades
 	// → fast_hot_micro.jsonl(按秒)。补齐热币连续深度+成交流(瀑布深度蒸发研究/"成交流反推强平"候选/
 	// 重开后的低延迟盘口地基)。不下单/不读账户。

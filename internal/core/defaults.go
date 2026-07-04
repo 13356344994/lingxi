@@ -599,6 +599,7 @@ func DefaultEngineConfig() EngineConfig {
 			FastMarketMidIntervalSeconds:   3,     // tickers 全量拉取间隔(限频 20次/2s,3s 一发余量巨大)
 			FastXvenueLiqEnabled:           false, // 跨所强平采集(Bybit allLiquidation):默认关,config.yaml 显式开
 			FastHotWSEnabled:               false, // 热币微结构采集:默认关,config.yaml 显式开
+			FastXMidEnabled:                false, // Bybit 价格标尺(跨所价差锚):默认关,config.yaml 显式开
 			FastHotWSMaxSymbols:            40,    // 动态订阅上限(books5+trades 双频道=80订阅,远低于连接上限)
 			FastLiqFollowMinLiqs:           2,     // 30s内同向净强平≥2笔才算被迫流(单笔=噪声)
 			FastLiqFollowMaxSpreadBps:      12,    // taker 进场点差上限

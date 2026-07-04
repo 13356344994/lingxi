@@ -269,6 +269,9 @@ okx_directional:
   #   热币微结构(v5.3):动态订阅热币 books5+trades,按秒记连续深度+成交流——瀑布深度蒸发研究、
   #   "成交流反推强平"候选机制、重开后低延迟盘口的三合一地基。
   fast_hot_ws_enabled: true
+  #   Bybit 全市场价格标尺(v5.5 跨所价差锚):暴动时刻价差已开=本地事故(套利商必拽回=接)
+  #   vs 无价差=全局重定价(跟)——方向分类器头号候选的数据地基;普查/评估事件带 xgap_bps。
+  fast_xmid_enabled: true
   fast_liq_follow_min_liqs: 2
   fast_liq_follow_max_spread_bps: 12
   fast_liq_follow_depth_hi_usdt: 150000

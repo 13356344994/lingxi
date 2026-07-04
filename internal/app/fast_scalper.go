@@ -203,6 +203,9 @@ type fastExecShadowEvent struct {
 	ClusterSpanMs   int64   `json:"cluster_span_ms,omitempty"` // 簇内最新-最老爆仓
 	MarketLiq5m     float64 `json:"market_liq_5m,omitempty"` // 全市场近5min爆仓笔数(燃料)
 	XliqN30s        int     `json:"xliq_n_30s,omitempty"`    // Bybit 同币近30s强平笔数(跨所传染)
+	// v5.5 跨所价差锚(正=OKX 比 Bybit 贵;nil=Bybit 无该币/标尺过期):
+	// 价差已开=本地事故,套利商不得不拽回;无价差=全局重定价。方向分类器候选①的原料。
+	XGapBps *float64 `json:"xgap_bps,omitempty"`
 	// 池塘质量打标(恒开,零成本;滚动2h逐扫描中位数,动态判定,禁止写死名单)
 	PondEnergyMedBps float64 `json:"pond_energy_med_bps,omitempty"`
 	PondDepthMedUSDT float64 `json:"pond_depth_med_usdt,omitempty"`
@@ -974,6 +977,9 @@ func (e *OKXDirectionalEngine) fastLiqFollowTick(ctx context.Context) {
 		}
 		ev.MarketLiq5m = fastMarketLiqRate(now, 300)
 		ev.XliqN30s = fastXliqCount(sym, now, 30)
+		if g, ok := fastXMidGapBps(sym, ev.Mid, now); ok { // v5.5 跨所价差锚
+			ev.XGapBps = &g
+		}
 		// 当刻资格(fast 自己的标准,非静态名单):点差可执行 + 深度既吃得下又非机构镜面盘
 		maxSpread := e.cfg.FastLiqFollowMaxSpreadBps
 		if maxSpread <= 0 {
@@ -1615,6 +1621,8 @@ type fastMoverEvent struct {
 	MarketLiq5m float64 `json:"market_liq_5m"`
 	SymLiq5m    int     `json:"sym_liq_5m"`
 	XliqN5m     int     `json:"xliq_n_5m,omitempty"` // Bybit 同币近5min强平(跨所传染)
+	// v5.5 跨所价差锚(正=OKX 溢价;nil=Bybit 无该币):暴动是本地事故还是全局重定价的分类器原料。
+	XGapBps *float64 `json:"xgap_bps,omitempty"`
 }
 
 // fastHotMidsFile v5.2 热币路径持久化:全市场标尺是内存态,重启即失忆,且离线研究只能看到
@@ -1764,6 +1772,9 @@ func (e *OKXDirectionalEngine) fastMarketMidLoop(ctx context.Context) {
 				}
 				if mid > 0 && bk.AskPrice >= bk.BidPrice {
 					ev.SpreadBps = (bk.AskPrice - bk.BidPrice) / mid * 10000
+				}
+				if g, ok := fastXMidGapBps(sym, mid, now); ok { // v5.5 跨所价差锚
+					ev.XGapBps = &g
 				}
 				if werr := appendJSONLRecord(censusPath, ev); werr != nil {
 					e.logger.Printf("[fast_mids] 普查落盘失败: %v", werr)
