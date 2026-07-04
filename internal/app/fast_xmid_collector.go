@@ -56,7 +56,6 @@ func fastXMidStore(venue string, mids map[string]float64, now time.Time) {
 		return
 	}
 	fastXMidMu.Lock()
-	defer fastXMidMu.Unlock()
 	m := fastXMid[venue]
 	if m == nil {
 		m = map[string]fastXMidPt{}
@@ -64,6 +63,12 @@ func fastXMidStore(venue string, mids map[string]float64, now time.Time) {
 	}
 	for sym, mid := range mids {
 		m[sym] = fastXMidPt{mid, now}
+	}
+	fastXMidMu.Unlock()
+	// v5.8 锚历史入滚动窗(300s):赢家解剖需要"运动开始之前"的锚状态——
+	// 检测时刻的价差已被运动本身污染,预测性检验必须用前置测量(信息集对齐,对分组条件同样适用)。
+	for sym, mid := range mids {
+		fastAppendMidHist(venue+"|"+sym, now, mid)
 	}
 }
 

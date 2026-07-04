@@ -1211,7 +1211,12 @@ func (e *OKXDirectionalEngine) buildFastAltCandidates(base *fastExecShadowEvent,
 }
 
 func (e *OKXDirectionalEngine) updateFastMidHist(sym string, now time.Time, mid float64) {
-	key := e.venueName + "|" + sym
+	fastAppendMidHist(e.venueName+"|"+sym, now, mid)
+}
+
+// fastAppendMidHist 包级滚动历史追加(300s 窗口)。键="venue|sym";锚所历史(bybit|SYM 等)
+// 与主引擎(okx|SYM)共用存储、互不碰撞——v5.8 赢家解剖流水线的地基:任何时刻的锚状态可回溯。
+func fastAppendMidHist(key string, now time.Time, mid float64) {
 	fastMidMu.Lock()
 	defer fastMidMu.Unlock()
 	h := append(fastMidHist[key], fastMidPoint{now, mid})
@@ -1739,14 +1744,21 @@ func fastAnnotateXGaps(sym string, okxMid float64, now time.Time, by, bn, gt, sp
 const fastHotMidsFile = "fast_hot_mids.jsonl"
 const fastHotMoverBps = 10.0
 
-// fastHotMidsRow 一轮热币快照(单行,mids=sym→mid);币首次转热时另发一条 backlog 行,
+// fastHotMidsRow 一轮热币快照(单行,mids=sym→mid);币首次转热时另发 backlog 行,
 // 把内存里该币过去 ≤300s 的 mid 历史倒出来——簇诞生前的路径(算诞生时刻 imp15/30 用)不缺失。
+// v5.8:快照行带四锚 mids(anchors[venue][sym]),backlog 行带 venue 标记(锚回溯与主回溯同款);
+// 由此任何热币在任何时刻的"锚状态"可离线重建=赢家解剖流水线的前置测量地基。
 type fastHotMidsRow struct {
-	RecordedAt time.Time          `json:"recorded_at"`
-	Mids       map[string]float64 `json:"mids,omitempty"`
-	BacklogSym string             `json:"backlog_sym,omitempty"`
-	Backlog    [][2]float64       `json:"backlog,omitempty"` // [unix_ms, mid]
+	RecordedAt time.Time                     `json:"recorded_at"`
+	Mids       map[string]float64            `json:"mids,omitempty"`
+	Anchors    map[string]map[string]float64 `json:"anchors,omitempty"` // venue -> sym -> mid
+	BacklogSym string                        `json:"backlog_sym,omitempty"`
+	BacklogVenue string                      `json:"backlog_venue,omitempty"` // 空=okx 主标尺
+	Backlog    [][2]float64                  `json:"backlog,omitempty"` // [unix_ms, mid]
 }
+
+// fastAnchorVenues v5.8 锚所清单(与 fastXMid 键一致)。
+var fastAnchorVenues = []string{"bybit", "binance", "gate", "okxspot"}
 
 // fastRecentLiqAny 该币近 windowSec 是否有 OKX 强平(热币判定用;缓冲容量5min)。
 func fastRecentLiqAny(sym string, now time.Time, windowSec int) bool {
@@ -1856,6 +1868,11 @@ func (e *OKXDirectionalEngine) fastMarketMidLoop(ctx context.Context) {
 						if bl := fastMidHistSnapshot(e.venueName + "|" + sym); len(bl) > 1 {
 							_ = appendJSONLRecord(hotPath, fastHotMidsRow{RecordedAt: now, BacklogSym: sym, Backlog: bl})
 						}
+						for _, av := range fastAnchorVenues { // v5.8 锚回溯:转热瞬间倒出各锚 ≤300s 历史
+							if bl := fastMidHistSnapshot(av + "|" + sym); len(bl) > 1 {
+								_ = appendJSONLRecord(hotPath, fastHotMidsRow{RecordedAt: now, BacklogSym: sym, BacklogVenue: av, Backlog: bl})
+							}
+						}
 					}
 					hotSeen[sym] = now
 					hotRow.Mids[sym] = mid
@@ -1886,6 +1903,21 @@ func (e *OKXDirectionalEngine) fastMarketMidLoop(ctx context.Context) {
 				}
 			}
 			if len(hotRow.Mids) > 0 {
+				// v5.8 快照行带锚:每轮把热币的四锚最新 mid 一并落盘(前置测量可回溯)
+				hotRow.Anchors = map[string]map[string]float64{}
+				fastXMidMu.Lock()
+				for _, av := range fastAnchorVenues {
+					vm := map[string]float64{}
+					for sym := range hotRow.Mids {
+						if p, ok := fastXMid[av][sym]; ok && p.mid > 0 && now.Sub(p.ts) <= 15*time.Second {
+							vm[sym] = p.mid
+						}
+					}
+					if len(vm) > 0 {
+						hotRow.Anchors[av] = vm
+					}
+				}
+				fastXMidMu.Unlock()
 				if werr := appendJSONLRecord(hotPath, hotRow); werr != nil {
 					e.logger.Printf("[fast_mids] 热币路径落盘失败: %v", werr)
 				}
