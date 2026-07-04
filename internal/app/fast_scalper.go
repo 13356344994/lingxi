@@ -193,6 +193,16 @@ type fastExecShadowEvent struct {
 	// v3 蓝图字段(2026-07-03):
 	// CandidateSource 非空 = 接型候选(liq_catch/fade_exhaustion),record-only,fastLiveOpen 硬闸拒绝实盘。
 	CandidateSource string `json:"candidate_source,omitempty"`
+	// v5.2 评估上下文(2026-07-04 用户"多加视野"指令;仅 liq_follow 评估事件填):
+	// 闸门拒绝原因写进数据本身(此前只在日志里,离线分析要抠日志);簇龄/跨度回答"瀑布哪一秒最适合进场"
+	// 与"我们结构性迟到多少";燃料/跨所计数回答"单所事故还是多所传染"。
+	GateSkip        string  `json:"gate_skip,omitempty"`
+	LiqN            int     `json:"liq_n,omitempty"`
+	LiqQtySum       float64 `json:"liq_qty_sum,omitempty"`   // 张数和(离线配 ctVal 换算名义)
+	EventAgeMs      int64   `json:"event_age_ms,omitempty"`  // 评估时刻 - 簇内最新爆仓
+	ClusterSpanMs   int64   `json:"cluster_span_ms,omitempty"` // 簇内最新-最老爆仓
+	MarketLiq5m     float64 `json:"market_liq_5m,omitempty"` // 全市场近5min爆仓笔数(燃料)
+	XliqN30s        int     `json:"xliq_n_30s,omitempty"`    // Bybit 同币近30s强平笔数(跨所传染)
 	// 池塘质量打标(恒开,零成本;滚动2h逐扫描中位数,动态判定,禁止写死名单)
 	PondEnergyMedBps float64 `json:"pond_energy_med_bps,omitempty"`
 	PondDepthMedUSDT float64 `json:"pond_depth_med_usdt,omitempty"`
@@ -244,7 +254,8 @@ const fastPondWarmupSamples = 150 // ~10min@4s扫描;样本不足 fail-open(pond
 // fastRecentLiq 最近强平内存缓冲(供接型候选 liq_catch;与落盘的 fastLiqEvent 解耦)。
 type fastRecentLiq struct {
 	ts      time.Time
-	posSide string // 被强平的持仓方向:long=多头爆(被迫卖) short=空头爆(被迫买)
+	posSide string  // 被强平的持仓方向:long=多头爆(被迫卖) short=空头爆(被迫买)
+	qty     float64 // 张数(原始;跨币不可直接比,离线配 instrument ctVal 换算名义)
 }
 
 func fastPondRecord(key string, now time.Time, absMove30, depth10 float64) {
@@ -392,16 +403,86 @@ func fastLiqCascadeAlive(follow string, imp15, minBps float64) bool {
 }
 
 // fastNoteLiq 由 fast_ws 强平推送调用:写入内存缓冲(保留5min),供接型候选生成(liq_catch)。
-func fastNoteLiq(sym, posSide string, now time.Time) {
+func fastNoteLiq(sym, posSide string, qty float64, now time.Time) {
 	fastLiqBufMu.Lock()
 	defer fastLiqBufMu.Unlock()
-	h := append(fastLiqBuf[sym], fastRecentLiq{now, posSide})
+	h := append(fastLiqBuf[sym], fastRecentLiq{now, posSide, qty})
 	cut := now.Add(-5 * time.Minute)
 	i := 0
 	for i < len(h) && h[i].ts.Before(cut) {
 		i++
 	}
 	fastLiqBuf[sym] = h[i:]
+}
+
+// ===== v5.2 跨所强平内存缓冲(2026-07-04 用户"多加视野"指令)=====
+// Bybit 同币被迫流的存在与强度,是评估事件/普查事件的重要上下文标注(瀑布是单所还是多所=传染强度)。
+var (
+	fastXliqBufMu sync.Mutex
+	fastXliqBuf   = map[string][]time.Time{} // symbol(OKX规范形) -> bybit 强平时刻(5min)
+)
+
+func fastNoteXliq(sym string, now time.Time) {
+	fastXliqBufMu.Lock()
+	defer fastXliqBufMu.Unlock()
+	h := append(fastXliqBuf[sym], now)
+	cut := now.Add(-5 * time.Minute)
+	i := 0
+	for i < len(h) && h[i].Before(cut) {
+		i++
+	}
+	fastXliqBuf[sym] = h[i:]
+}
+
+func fastXliqCount(sym string, now time.Time, windowSec int) int {
+	cut := now.Add(-time.Duration(windowSec) * time.Second)
+	fastXliqBufMu.Lock()
+	defer fastXliqBufMu.Unlock()
+	n := 0
+	for _, t := range fastXliqBuf[sym] {
+		if !t.Before(cut) {
+			n++
+		}
+	}
+	return n
+}
+
+// fastClusterStats v5.2 簇统计(评估事件上下文):窗口内 净方向/总笔数/张数和/最新与最老爆仓时刻。
+// ageMs(now-最新)=我们结构性迟到多少;spanMs(最新-最老)=簇发育了多久——两者是"瀑布哪一秒最适合进场"
+// 曲线的横轴原料。
+func fastClusterStats(sym string, now time.Time, windowSec int) (side string, n int, qtySum float64, newest, oldest time.Time) {
+	fastLiqBufMu.Lock()
+	defer fastLiqBufMu.Unlock()
+	cut := now.Add(-time.Duration(windowSec) * time.Second)
+	nLong, nShort := 0, 0
+	for _, l := range fastLiqBuf[sym] {
+		if l.ts.Before(cut) {
+			continue
+		}
+		switch l.posSide {
+		case "long":
+			nLong++
+		case "short":
+			nShort++
+		default:
+			continue
+		}
+		qtySum += l.qty
+		if newest.IsZero() || l.ts.After(newest) {
+			newest = l.ts
+		}
+		if oldest.IsZero() || l.ts.Before(oldest) {
+			oldest = l.ts
+		}
+	}
+	n = nLong + nShort
+	switch {
+	case nLong > nShort:
+		side = "long"
+	case nShort > nLong:
+		side = "short"
+	}
+	return
 }
 
 // ===== v3③ liq_follow 事件驱动全市场入场(2026-07-03 17:41 用户架构纠偏)=====
@@ -854,7 +935,7 @@ func (e *OKXDirectionalEngine) fastLiqFollowTick(ctx context.Context) {
 			return
 		default:
 		}
-		catch, n := fastRecentLiqCatchSide(sym, now, 30)
+		catch, n, qtySum, newest, oldest := fastClusterStats(sym, now, 30)
 		follow := fastLiqFollowSide(catch)
 		if follow == "" || n < minLiqs {
 			continue // 单笔=噪声;两向平票=混战不进(零成本跳过,不登记评估冷却,簇长成后可再评)
@@ -883,6 +964,16 @@ func (e *OKXDirectionalEngine) fastLiqFollowTick(ctx context.Context) {
 		ev.FastCandidateScore = 0
 		ev.FastCandidateReason = fmt.Sprintf("liq_follow_n%d", n)
 		ev.SnapshotID += "|liq_follow"
+		// v5.2 评估上下文(时机/强度/传染标注,离线画"最佳进场时机曲线"的原料)
+		ev.LiqN, ev.LiqQtySum = n, qtySum
+		if !newest.IsZero() {
+			ev.EventAgeMs = now.Sub(newest).Milliseconds()
+		}
+		if !newest.IsZero() && !oldest.IsZero() {
+			ev.ClusterSpanMs = newest.Sub(oldest).Milliseconds()
+		}
+		ev.MarketLiq5m = fastMarketLiqRate(now, 300)
+		ev.XliqN30s = fastXliqCount(sym, now, 30)
 		// 当刻资格(fast 自己的标准,非静态名单):点差可执行 + 深度既吃得下又非机构镜面盘
 		maxSpread := e.cfg.FastLiqFollowMaxSpreadBps
 		if maxSpread <= 0 {
@@ -917,9 +1008,10 @@ func (e *OKXDirectionalEngine) fastLiqFollowTick(ctx context.Context) {
 		case ev.DepthNotional10bps > depthHi:
 			skip = "depth_institutional"
 		}
+		ev.GateSkip = skip // v5.2:拒绝原因入数据本身(离线分析不再抠日志)
 		_ = appendJSONLRecord(filepath.Join(e.recordDir, fastExecShadowFile), *ev) // 不论开否都留 shadow(离线对照)
 		if skip != "" {
-			e.logger.Printf("[fast_liqfollow] %s 跳过(%s) spread=%.1f depth10=%.0f liq_n=%d", sym, skip, ev.SpreadBps, ev.DepthNotional10bps, n)
+			e.logger.Printf("[fast_liqfollow] %s 跳过(%s) spread=%.1f depth10=%.0f liq_n=%d age=%dms", sym, skip, ev.SpreadBps, ev.DepthNotional10bps, n, ev.EventAgeMs)
 			continue
 		}
 		r := e.fastLiveOpen(ctx, ev)
@@ -1514,11 +1606,52 @@ type fastMoverEvent struct {
 	SpreadBps  float64   `json:"spread_bps"`
 	TopBidQty  float64   `json:"top_bid_qty,omitempty"`
 	TopAskQty  float64   `json:"top_ask_qty,omitempty"`
-	Ret60sBps  float64   `json:"ret_60s_bps"`
-	Ret180sBps float64   `json:"ret_180s_bps,omitempty"`
+	// v5.2 形状:15/30s 位移与 60s 对照 = 暴动在加速还是减速(接/跟的分水岭候选)
+	Ret15sBps  float64 `json:"ret_15s_bps,omitempty"`
+	Ret30sBps  float64 `json:"ret_30s_bps,omitempty"`
+	Ret60sBps  float64 `json:"ret_60s_bps"`
+	Ret180sBps float64 `json:"ret_180s_bps,omitempty"`
 	// 近5min全市场爆仓笔数(燃料 regime 标注)与该币近5min爆仓笔数(区分"强平驱动"vs"无强平暴动")
 	MarketLiq5m float64 `json:"market_liq_5m"`
 	SymLiq5m    int     `json:"sym_liq_5m"`
+	XliqN5m     int     `json:"xliq_n_5m,omitempty"` // Bybit 同币近5min强平(跨所传染)
+}
+
+// fastHotMidsFile v5.2 热币路径持久化:全市场标尺是内存态,重启即失忆,且离线研究只能看到
+// shadow 里稀疏的评估点——把"近15min有爆仓(OKX/Bybit)或 |60s|≥10bps"的币的 mid 逐轮落盘,
+// 任何簇都能离线回放"诞生后第X秒进场"的完整收益曲线("最佳进场时机"研究的原料)。
+// 体量:热币通常 5-50 个/轮 × 1200轮/h ≈ 每小时数MB,可接受(4h备份已排除大研究流的先例照此办理时再议)。
+const fastHotMidsFile = "fast_hot_mids.jsonl"
+const fastHotMoverBps = 10.0
+
+// fastHotMidsRow 一轮热币快照(单行,mids=sym→mid);币首次转热时另发一条 backlog 行,
+// 把内存里该币过去 ≤300s 的 mid 历史倒出来——簇诞生前的路径(算诞生时刻 imp15/30 用)不缺失。
+type fastHotMidsRow struct {
+	RecordedAt time.Time          `json:"recorded_at"`
+	Mids       map[string]float64 `json:"mids,omitempty"`
+	BacklogSym string             `json:"backlog_sym,omitempty"`
+	Backlog    [][2]float64       `json:"backlog,omitempty"` // [unix_ms, mid]
+}
+
+// fastRecentLiqAny 该币近 windowSec 是否有 OKX 强平(热币判定用;缓冲容量5min)。
+func fastRecentLiqAny(sym string, now time.Time, windowSec int) bool {
+	cut := now.Add(-time.Duration(windowSec) * time.Second)
+	fastLiqBufMu.Lock()
+	defer fastLiqBufMu.Unlock()
+	arr := fastLiqBuf[sym]
+	return len(arr) > 0 && !arr[len(arr)-1].ts.Before(cut)
+}
+
+// fastMidHistSnapshot 该币当前内存 mid 历史(≤300s)快照,供热币 backlog 落盘。
+func fastMidHistSnapshot(key string) [][2]float64 {
+	fastMidMu.Lock()
+	defer fastMidMu.Unlock()
+	h := fastMidHist[key]
+	out := make([][2]float64, 0, len(h))
+	for _, p := range h {
+		out = append(out, [2]float64{float64(p.ts.UnixMilli()), p.mid})
+	}
+	return out
 }
 
 // fastMarketLiqRate 近 windowSec 秒全市场爆仓笔数(内存缓冲口径,重启后从 0 攒;普查标注用,非交易条件)。
@@ -1570,7 +1703,9 @@ func (e *OKXDirectionalEngine) fastMarketMidLoop(ctx context.Context) {
 	defer t.Stop()
 	fails := 0
 	censusPath := filepath.Join(e.recordDir, fastMoverCensusFile)
+	hotPath := filepath.Join(e.recordDir, fastHotMidsFile)
 	lastEmit := map[string]time.Time{}
+	hotSeen := map[string]time.Time{} // sym -> 最后一次判定为热的时刻(转热瞬间发 backlog)
 	for {
 		select {
 		case <-ctx.Done():
@@ -1589,6 +1724,7 @@ func (e *OKXDirectionalEngine) fastMarketMidLoop(ctx context.Context) {
 			fails = 0
 			now := e.nowFn().UTC()
 			mktLiq := fastMarketLiqRate(now, 300)
+			hotRow := fastHotMidsRow{RecordedAt: now, Mids: map[string]float64{}}
 			for sym, bk := range books {
 				mid := (bk.BidPrice + bk.AskPrice) / 2
 				if mid <= 0 {
@@ -1597,6 +1733,18 @@ func (e *OKXDirectionalEngine) fastMarketMidLoop(ctx context.Context) {
 				// 先算位移(用旧历史),再写入当前点(否则 60s 位移被当前点稀释)
 				r60 := e.fastImpulseBps(sym, mid, now, 60)
 				e.updateFastMidHist(sym, now, mid)
+				// v5.2 热币路径持久化:近5min有强平(OKX/Bybit)或 |60s|≥10bps → 本轮 mid 落盘;
+				// 首次转热补发 backlog(内存里≤300s 的历史)=簇诞生前路径不缺失。
+				hot := math.Abs(r60) >= fastHotMoverBps || fastRecentLiqAny(sym, now, 300) || fastXliqCount(sym, now, 300) > 0
+				if hot {
+					if last, ok2 := hotSeen[sym]; !ok2 || now.Sub(last) > 10*time.Minute {
+						if bl := fastMidHistSnapshot(e.venueName + "|" + sym); len(bl) > 1 {
+							_ = appendJSONLRecord(hotPath, fastHotMidsRow{RecordedAt: now, BacklogSym: sym, Backlog: bl})
+						}
+					}
+					hotSeen[sym] = now
+					hotRow.Mids[sym] = mid
+				}
 				if r60 == 0 || math.Abs(r60) < fastMoverMinAbsRet60Bps {
 					continue
 				}
@@ -1607,8 +1755,11 @@ func (e *OKXDirectionalEngine) fastMarketMidLoop(ctx context.Context) {
 				ev := fastMoverEvent{
 					RecordedAt: now, Symbol: sym, Mid: mid,
 					TopBidQty: bk.BidQty, TopAskQty: bk.AskQty,
+					Ret15sBps: e.fastImpulseBps(sym, mid, now, 15),
+					Ret30sBps: e.fastImpulseBps(sym, mid, now, 30),
 					Ret60sBps: r60, Ret180sBps: e.fastImpulseBps(sym, mid, now, 180),
 					MarketLiq5m: mktLiq, SymLiq5m: fastSymLiqCount(sym, now, 300),
+					XliqN5m: fastXliqCount(sym, now, 300),
 				}
 				if mid > 0 && bk.AskPrice >= bk.BidPrice {
 					ev.SpreadBps = (bk.AskPrice - bk.BidPrice) / mid * 10000
@@ -1617,10 +1768,22 @@ func (e *OKXDirectionalEngine) fastMarketMidLoop(ctx context.Context) {
 					e.logger.Printf("[fast_mids] 普查落盘失败: %v", werr)
 				}
 			}
+			if len(hotRow.Mids) > 0 {
+				if werr := appendJSONLRecord(hotPath, hotRow); werr != nil {
+					e.logger.Printf("[fast_mids] 热币路径落盘失败: %v", werr)
+				}
+			}
 			if len(lastEmit) > 4096 { // 防无界
 				for k, v := range lastEmit {
 					if now.Sub(v) > 10*time.Minute {
 						delete(lastEmit, k)
+					}
+				}
+			}
+			if len(hotSeen) > 4096 {
+				for k, v := range hotSeen {
+					if now.Sub(v) > 20*time.Minute {
+						delete(hotSeen, k)
 					}
 				}
 			}

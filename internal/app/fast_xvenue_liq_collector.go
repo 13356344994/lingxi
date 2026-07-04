@@ -187,6 +187,7 @@ func (e *OKXDirectionalEngine) runBybitLiqWS(ctx context.Context, rawSyms []stri
 		}
 		_ = conn.SetReadDeadline(time.Now().Add(40 * time.Second))
 		for _, ev := range parseBybitAllLiquidation(payload, e.nowFn().UTC()) {
+			fastNoteXliq(ev.Symbol, ev.RecordedAt) // v5.2 内存缓冲:评估/普查事件的跨所传染标注
 			if werr := appendJSONLRecord(path, ev); werr != nil {
 				e.logger.Printf("[fast_xliq] 落盘失败: %v", werr)
 			}

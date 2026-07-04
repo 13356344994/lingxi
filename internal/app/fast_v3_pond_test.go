@@ -96,8 +96,8 @@ func TestFastAlt_LiqCatchCandidate(t *testing.T) {
 	e := newFastV3TestEngine(t)
 	now := time.Now().UTC()
 	sym := "LIQ-USDT"
-	fastNoteLiq(sym, "long", now.Add(-10*time.Second)) // 多头爆=被迫卖 → 接多
-	fastNoteLiq(sym, "long", now.Add(-5*time.Second))
+	fastNoteLiq(sym, "long", 3, now.Add(-10*time.Second)) // 多头爆=被迫卖 → 接多
+	fastNoteLiq(sym, "long", 7, now.Add(-5*time.Second))
 	base := &fastExecShadowEvent{Symbol: sym, Mid: 1, SnapshotID: "s1"}
 	alts := e.buildFastAltCandidates(base, now)
 	if len(alts) != 1 {
@@ -109,14 +109,14 @@ func TestFastAlt_LiqCatchCandidate(t *testing.T) {
 	}
 	// 两向平票不出候选
 	sym2 := "TIE-USDT"
-	fastNoteLiq(sym2, "long", now)
-	fastNoteLiq(sym2, "short", now)
+	fastNoteLiq(sym2, "long", 1, now)
+	fastNoteLiq(sym2, "short", 1, now)
 	if got := e.buildFastAltCandidates(&fastExecShadowEvent{Symbol: sym2, Mid: 1}, now); len(got) != 0 {
 		t.Fatalf("平票不应出候选,得到 %d", len(got))
 	}
 	// 超 60s 窗口不出候选
 	sym3 := "OLD-USDT"
-	fastNoteLiq(sym3, "short", now.Add(-90*time.Second))
+	fastNoteLiq(sym3, "short", 1, now.Add(-90*time.Second))
 	if got := e.buildFastAltCandidates(&fastExecShadowEvent{Symbol: sym3, Mid: 1}, now); len(got) != 0 {
 		t.Fatalf("过期强平不应出候选,得到 %d", len(got))
 	}
@@ -429,6 +429,39 @@ func TestFastExitTriggersCooldown(t *testing.T) {
 		if fastExitTriggersCooldown(r) {
 			t.Fatalf("%s 不应触发冷却", r)
 		}
+	}
+}
+
+// TestFastClusterStats v5.2:簇统计(净方向/笔数/张数和/簇龄与跨度原料)。
+func TestFastClusterStats(t *testing.T) {
+	now := time.Now().UTC()
+	sym := "CLST-" + t.Name() + "-USDT"
+	fastNoteLiq(sym, "long", 10, now.Add(-20*time.Second))
+	fastNoteLiq(sym, "long", 5, now.Add(-8*time.Second))
+	fastNoteLiq(sym, "short", 2, now.Add(-3*time.Second))
+	side, n, qty, newest, oldest := fastClusterStats(sym, now, 30)
+	if side != "long" || n != 3 || qty != 17 {
+		t.Fatalf("簇统计错: side=%s n=%d qty=%v", side, n, qty)
+	}
+	if got := now.Sub(newest).Seconds(); got < 2.9 || got > 3.1 {
+		t.Fatalf("newest(簇龄原料)错: %.2fs", got)
+	}
+	if got := newest.Sub(oldest).Seconds(); got < 16.9 || got > 17.1 {
+		t.Fatalf("span 错: %.2fs", got)
+	}
+	// 窗口外不计
+	side2, n2, _, _, _ := fastClusterStats(sym, now, 5)
+	if side2 != "short" || n2 != 1 {
+		t.Fatalf("5s窗口应只剩最后一笔 short: side=%s n=%d", side2, n2)
+	}
+	// Bybit 跨所缓冲计数
+	fastNoteXliq(sym, now.Add(-10*time.Second))
+	fastNoteXliq(sym, now.Add(-2*time.Second))
+	if got := fastXliqCount(sym, now, 30); got != 2 {
+		t.Fatalf("xliq 30s 计数错: %d", got)
+	}
+	if got := fastXliqCount(sym, now, 5); got != 1 {
+		t.Fatalf("xliq 5s 计数错: %d", got)
 	}
 }
 

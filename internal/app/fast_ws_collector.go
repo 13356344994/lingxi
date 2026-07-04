@@ -307,7 +307,7 @@ func (e *OKXDirectionalEngine) fastWSHandleLiquidations(now time.Time, data []js
 			if qty <= 0 {
 				continue
 			}
-			fastNoteLiq(sym, det.PosSide, now)    // v3② 内存缓冲:方向统计(liq_catch/liq_follow 共用)
+			fastNoteLiq(sym, det.PosSide, qty, now) // v3② 内存缓冲:方向统计+簇强度(liq_catch/liq_follow 共用)
 			fastNoteLiqHot(sym, now)              // v3③ 热队列:事件驱动全市场入场的注意力信号
 			if err := appendJSONLRecord(path, fastLiqEvent{
 				RecordedAt: now, Symbol: sym, PosSide: det.PosSide, Side: det.Side,
