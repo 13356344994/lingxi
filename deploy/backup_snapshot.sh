@@ -84,6 +84,18 @@ if [ "$LOG_COPIED" = 1 ]; then
   truncate -s 0 "$LOG" 2>/dev/null || : > "$LOG"
 fi
 
+# 6.5) 研究流滚动(2026-07-04):可再生的大研究流 >2GB 时 rename 轮换(保留一代 .1),
+# 防磁盘被吃爆(hot_micro ~3.5GB/天)。appendJSONLRecord 每次 open-append-close,rename 后
+# 下次写入自动重建新文件,零丢失窗口;近期研究窗口(~半天到一天)始终可用(当前文件+.1)。
+for big in "$RECORD_DIR/okx_directional/fast_dynamic_feature_events.jsonl" \
+           "$RECORD_DIR/okx_directional/fast_hot_micro.jsonl"; do
+  [ -f "$big" ] || continue
+  sz=$(stat -c %s "$big" 2>/dev/null || echo 0)
+  if [ "$sz" -gt 2147483648 ]; then
+    mv -f "$big" "$big.1" && echo "[lingxi-backup] 研究流轮换 $(basename "$big") ($(numfmt --to=iec "$sz" 2>/dev/null || echo "$sz"B))"
+  fi
+done
+
 # 7) 保留策略:按名字排序(=按时间),删最旧的
 count=$(ls -1 "$BACKUP_DIR"/lingxi_*.tar.gz 2>/dev/null | wc -l)
 if [ "$count" -gt "$KEEP" ]; then

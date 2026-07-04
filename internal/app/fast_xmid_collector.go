@@ -43,11 +43,12 @@ type fastXMidPt struct {
 
 // fastXTickMeta 富字段(0=该所该字段无数据)。
 type fastXTickMeta struct {
-	Funding float64 // 当期资金费率
-	OI      float64 // 持仓量(张/币,所内口径,横向只看变化率)
-	Index   float64 // 指数价
-	Mark    float64 // 标记价
-	TS      time.Time
+	Funding     float64 // 当期资金费率
+	OI          float64 // 持仓量(张/币,所内口径,横向只看变化率)
+	Index       float64 // 指数价
+	Mark        float64 // 标记价
+	NextFunding int64   // 下次资费结算毫秒时间戳(结算倒计时假说 #8 的原料)
+	TS          time.Time
 }
 
 func fastXMidStore(venue string, mids map[string]float64, now time.Time) {
@@ -130,6 +131,7 @@ func parseBybitTickers(body []byte, now time.Time) (map[string]float64, map[stri
 				OI      string `json:"openInterest"`
 				Index   string `json:"indexPrice"`
 				Mark    string `json:"markPrice"`
+				NextFT  string `json:"nextFundingTime"`
 			} `json:"list"`
 		} `json:"result"`
 	}
@@ -148,7 +150,8 @@ func parseBybitTickers(body []byte, now time.Time) (map[string]float64, map[stri
 			mids[canon] = mid
 		}
 		if f, oi := pf(tk.Funding), pf(tk.OI); f != 0 || oi > 0 {
-			metas[canon] = fastXTickMeta{Funding: f, OI: oi, Index: pf(tk.Index), Mark: pf(tk.Mark), TS: now}
+			nft, _ := strconv.ParseInt(strings.TrimSpace(tk.NextFT), 10, 64)
+			metas[canon] = fastXTickMeta{Funding: f, OI: oi, Index: pf(tk.Index), Mark: pf(tk.Mark), NextFunding: nft, TS: now}
 		}
 	}
 	return mids, metas
@@ -281,7 +284,8 @@ func fastXMetaSnapshot(now time.Time) fastXMetaSnapshotRow {
 			if now.Sub(meta.TS) > 10*time.Minute {
 				continue
 			}
-			vm[sym] = []float64{meta.Funding, meta.OI}
+			// [funding, oi, next_funding_ms](第三元素 0=该所不提供;离线读端按变长处理)
+			vm[sym] = []float64{meta.Funding, meta.OI, float64(meta.NextFunding)}
 		}
 		if len(vm) > 0 {
 			row.Venues[venue] = vm
