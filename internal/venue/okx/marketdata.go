@@ -141,38 +141,43 @@ func (a *Adapter) fetchInstrumentsByType(ctx context.Context, instType string) (
 	return rows, nil
 }
 
-// FetchAllPerpMids 单请求拉全市场 USDT 本位 SWAP 的盘口中价(symbol→mid,symbol 无 -SWAP 后缀)。
-// 用途:fast 层全市场价格标尺(v5 盲区闸根治,record-only 基建)。bid/ask 缺失时回退 last。
+// FetchAllPerpTickers 单请求拉全市场 USDT 本位 SWAP 的盘口(symbol→BookTicker,symbol 无 -SWAP 后缀)。
+// 用途:fast 层全市场价格标尺 + 波动普查(v5,record-only 基建)。bid/ask 缺失时以 last 双边回退。
 // 单个公共请求(/market/tickers 限频 20次/2s),无逐币放大。
-func (a *Adapter) FetchAllPerpMids(ctx context.Context) (map[string]float64, error) {
+func (a *Adapter) FetchAllPerpTickers(ctx context.Context) (map[string]venue.BookTicker, error) {
 	q := url.Values{}
 	q.Set("instType", instTypeSwap)
 	var tickers []struct {
 		InstID string `json:"instId"`
 		BidPx  string `json:"bidPx"`
+		BidSz  string `json:"bidSz"`
 		AskPx  string `json:"askPx"`
+		AskSz  string `json:"askSz"`
 		Last   string `json:"last"`
 	}
 	if err := a.t.publicGet(ctx, pathTickers, q, &tickers); err != nil {
 		return nil, err
 	}
-	out := make(map[string]float64, len(tickers))
+	out := make(map[string]venue.BookTicker, len(tickers))
 	for _, tk := range tickers {
 		up := strings.ToUpper(tk.InstID)
 		if !strings.HasSuffix(up, "-USDT-SWAP") {
 			continue
 		}
 		bid, ask := parseFloat(tk.BidPx), parseFloat(tk.AskPx)
-		mid := 0.0
-		if bid > 0 && ask > 0 {
-			mid = (bid + ask) / 2
-		} else if l := parseFloat(tk.Last); l > 0 {
-			mid = l
+		if bid <= 0 || ask <= 0 || ask < bid {
+			if l := parseFloat(tk.Last); l > 0 {
+				bid, ask = l, l
+			} else {
+				continue
+			}
 		}
-		if mid <= 0 {
-			continue
+		sym := strings.TrimSuffix(tk.InstID, "-SWAP")
+		out[sym] = venue.BookTicker{
+			Symbol: venue.Symbol(sym), Market: venue.MarketPerp,
+			BidPrice: bid, BidQty: parseFloat(tk.BidSz),
+			AskPrice: ask, AskQty: parseFloat(tk.AskSz),
 		}
-		out[strings.TrimSuffix(tk.InstID, "-SWAP")] = mid
 	}
 	return out, nil
 }

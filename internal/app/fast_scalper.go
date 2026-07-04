@@ -1493,9 +1493,61 @@ func (e *OKXDirectionalEngine) fastLiveManage(ctx context.Context) {
 // 根治:单请求拉全部 SWAP tickers(限频 20次/2s,3s 一发余量巨大)喂 fastMidHist,全市场任何币在
 // 簇诞生时刻即有真实冲量可算。record-only 基建:只喂价格历史,不下单。
 
-// bulkMidVenue 可选接口:一次请求返回全市场 perp mid(symbol→mid)。
+// bulkMidVenue 可选接口:一次请求返回全市场 perp 盘口(symbol→BookTicker)。
 type bulkMidVenue interface {
-	FetchAllPerpMids(ctx context.Context) (map[string]float64, error)
+	FetchAllPerpTickers(ctx context.Context) (map[string]venue.BookTicker, error)
+}
+
+// ===== v5.1 波动普查(2026-07-04 用户指令"低燃料时段也有波动大的币,帮我找线索")=====
+// 全市场标尺每轮顺手做普查:|60s位移|≥阈值的币写一条事件(同币 120s 去重)。
+// 此前系统只看得见 shortlist(约20币)+有爆仓推送的币;无爆仓的暴力波动(纯大单/挤压)完全不可见。
+// record-only:研究"死水时段的孤立暴动是事故(会弹回=可接)还是起点(会延续=可跟)"的地图数据。
+const fastMoverCensusFile = "fast_mover_census.jsonl"
+const fastMoverMinAbsRet60Bps = 25.0
+const fastMoverDedupSec = 120
+
+// fastMoverEvent 一条波动普查事件。
+type fastMoverEvent struct {
+	RecordedAt time.Time `json:"recorded_at"`
+	Symbol     string    `json:"symbol"`
+	Mid        float64   `json:"mid"`
+	SpreadBps  float64   `json:"spread_bps"`
+	TopBidQty  float64   `json:"top_bid_qty,omitempty"`
+	TopAskQty  float64   `json:"top_ask_qty,omitempty"`
+	Ret60sBps  float64   `json:"ret_60s_bps"`
+	Ret180sBps float64   `json:"ret_180s_bps,omitempty"`
+	// 近5min全市场爆仓笔数(燃料 regime 标注)与该币近5min爆仓笔数(区分"强平驱动"vs"无强平暴动")
+	MarketLiq5m float64 `json:"market_liq_5m"`
+	SymLiq5m    int     `json:"sym_liq_5m"`
+}
+
+// fastMarketLiqRate 近 windowSec 秒全市场爆仓笔数(内存缓冲口径,重启后从 0 攒;普查标注用,非交易条件)。
+func fastMarketLiqRate(now time.Time, windowSec int) float64 {
+	cut := now.Add(-time.Duration(windowSec) * time.Second)
+	n := 0
+	fastLiqBufMu.Lock()
+	defer fastLiqBufMu.Unlock()
+	for _, arr := range fastLiqBuf {
+		for _, l := range arr {
+			if !l.ts.Before(cut) {
+				n++
+			}
+		}
+	}
+	return float64(n)
+}
+
+func fastSymLiqCount(sym string, now time.Time, windowSec int) int {
+	cut := now.Add(-time.Duration(windowSec) * time.Second)
+	n := 0
+	fastLiqBufMu.Lock()
+	defer fastLiqBufMu.Unlock()
+	for _, l := range fastLiqBuf[sym] {
+		if !l.ts.Before(cut) {
+			n++
+		}
+	}
+	return n
 }
 
 func (e *OKXDirectionalEngine) fastMarketMidLoop(ctx context.Context) {
@@ -1513,19 +1565,21 @@ func (e *OKXDirectionalEngine) fastMarketMidLoop(ctx context.Context) {
 	if iv < 2 {
 		iv = 3
 	}
-	e.logger.Printf("[fast_mids] 全市场 mid 标尺启动 间隔=%ds(盲区闸根治:簇诞生即有冲量可算)", iv)
+	e.logger.Printf("[fast_mids] 全市场 mid 标尺启动 间隔=%ds(盲区根治+波动普查:|60s|≥%.0fbps 记 %s)", iv, fastMoverMinAbsRet60Bps, fastMoverCensusFile)
 	t := time.NewTicker(time.Duration(iv) * time.Second)
 	defer t.Stop()
 	fails := 0
+	censusPath := filepath.Join(e.recordDir, fastMoverCensusFile)
+	lastEmit := map[string]time.Time{}
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-t.C:
 			fctx, cancel := context.WithTimeout(ctx, 8*time.Second)
-			mids, err := bm.FetchAllPerpMids(fctx)
+			books, err := bm.FetchAllPerpTickers(fctx)
 			cancel()
-			if err != nil || len(mids) == 0 {
+			if err != nil || len(books) == 0 {
 				fails++
 				if fails%20 == 1 { // 每 ~1 分钟至多一条,不刷屏
 					e.logger.Printf("[fast_mids] 全市场 tickers 拉取失败(连续%d): %v", fails, err)
@@ -1534,8 +1588,41 @@ func (e *OKXDirectionalEngine) fastMarketMidLoop(ctx context.Context) {
 			}
 			fails = 0
 			now := e.nowFn().UTC()
-			for sym, mid := range mids {
+			mktLiq := fastMarketLiqRate(now, 300)
+			for sym, bk := range books {
+				mid := (bk.BidPrice + bk.AskPrice) / 2
+				if mid <= 0 {
+					continue
+				}
+				// 先算位移(用旧历史),再写入当前点(否则 60s 位移被当前点稀释)
+				r60 := e.fastImpulseBps(sym, mid, now, 60)
 				e.updateFastMidHist(sym, now, mid)
+				if r60 == 0 || math.Abs(r60) < fastMoverMinAbsRet60Bps {
+					continue
+				}
+				if le, ok2 := lastEmit[sym]; ok2 && now.Sub(le) < fastMoverDedupSec*time.Second {
+					continue
+				}
+				lastEmit[sym] = now
+				ev := fastMoverEvent{
+					RecordedAt: now, Symbol: sym, Mid: mid,
+					TopBidQty: bk.BidQty, TopAskQty: bk.AskQty,
+					Ret60sBps: r60, Ret180sBps: e.fastImpulseBps(sym, mid, now, 180),
+					MarketLiq5m: mktLiq, SymLiq5m: fastSymLiqCount(sym, now, 300),
+				}
+				if mid > 0 && bk.AskPrice >= bk.BidPrice {
+					ev.SpreadBps = (bk.AskPrice - bk.BidPrice) / mid * 10000
+				}
+				if werr := appendJSONLRecord(censusPath, ev); werr != nil {
+					e.logger.Printf("[fast_mids] 普查落盘失败: %v", werr)
+				}
+			}
+			if len(lastEmit) > 4096 { // 防无界
+				for k, v := range lastEmit {
+					if now.Sub(v) > 10*time.Minute {
+						delete(lastEmit, k)
+					}
+				}
 			}
 		}
 	}
