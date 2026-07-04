@@ -964,6 +964,11 @@ type OKXDirectionalConfig struct {
 	// 只喂价格历史,不下单;每 N 秒 1 个公共请求(/market/tickers 限频 20次/2s,余量巨大)。
 	FastMarketMidsEnabled         bool `cfg:"fast_market_mids_enabled"`
 	FastMarketMidIntervalSeconds  int  `cfg:"fast_market_mid_interval_seconds"` // 默认 3
+	// v5.3 热币微结构采集(2026-07-04,record-only):第二条 OKX 公共 WS,动态订阅热币 books5+trades
+	// → fast_hot_micro.jsonl(按秒)。补齐热币连续深度+成交流(瀑布深度蒸发研究/"成交流反推强平"候选/
+	// 重开后的低延迟盘口地基)。不下单/不读账户。
+	FastHotWSEnabled    bool `cfg:"fast_hot_ws_enabled"`
+	FastHotWSMaxSymbols int  `cfg:"fast_hot_ws_max_symbols"` // 动态订阅上限(默认40)
 	// v5 跨所强平流采集(2026-07-04,record-only):Bybit allLiquidation(OKX∩Bybit 交集)→
 	// fast_xvenue_liq_events.jsonl。耳朵不是枪口:fast 实盘只在 OKX,别所被迫流只做信号研究。
 	// 频率问题的正解=加事件源不降标准:同一币在别所被强平,被迫流是同一股。不下单/不读账户/不影响交易。

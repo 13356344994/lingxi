@@ -525,7 +525,10 @@ func (e *OKXDirectionalEngine) Run(ctx context.Context) {
 		}
 	}
 	if e.fastXvenueLiqEnabled() {
-		go e.fastXvenueLiqLoop(ctx) // v5 Binance 强平流采集(record-only,失败只告警)
+		go e.fastXvenueLiqLoop(ctx) // v5 Bybit 强平流采集(record-only,失败只告警)
+	}
+	if e.fastHotWSEnabled() {
+		go e.fastHotWSLoop(ctx) // v5.3 热币微结构(动态订阅,record-only)
 	}
 	if e.fastWSEnabled() {
 		go e.fastWSCollectorLoop(ctx) // OKX 公共 WS 动态特征采集(record-only,隔离,失败只告警)

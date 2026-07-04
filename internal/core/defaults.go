@@ -597,7 +597,9 @@ func DefaultEngineConfig() EngineConfig {
 			FastLiqFollowShadowEnabled:     false, // 停火后评估管线继续(shadow+跳过原因,不下单):默认关,config.yaml 显式开
 			FastMarketMidsEnabled:          false, // 全市场 mid 标尺(盲区闸根治):默认关,config.yaml 显式开
 			FastMarketMidIntervalSeconds:   3,     // tickers 全量拉取间隔(限频 20次/2s,3s 一发余量巨大)
-			FastXvenueLiqEnabled:           false, // Binance forceOrder 跨所强平采集:默认关,config.yaml 显式开
+			FastXvenueLiqEnabled:           false, // 跨所强平采集(Bybit allLiquidation):默认关,config.yaml 显式开
+			FastHotWSEnabled:               false, // 热币微结构采集:默认关,config.yaml 显式开
+			FastHotWSMaxSymbols:            40,    // 动态订阅上限(books5+trades 双频道=80订阅,远低于连接上限)
 			FastLiqFollowMinLiqs:           2,     // 30s内同向净强平≥2笔才算被迫流(单笔=噪声)
 			FastLiqFollowMaxSpreadBps:      12,    // taker 进场点差上限
 			FastLiqFollowDepthHiUSDT:       150000, // 深度>15万=机构镜面盘,不去

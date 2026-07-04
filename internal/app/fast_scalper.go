@@ -1744,6 +1744,7 @@ func (e *OKXDirectionalEngine) fastMarketMidLoop(ctx context.Context) {
 					}
 					hotSeen[sym] = now
 					hotRow.Mids[sym] = mid
+					fastNoteHot(sym, now) // v5.3 共享热度表(热币微结构 WS 的订阅依据)
 				}
 				if r60 == 0 || math.Abs(r60) < fastMoverMinAbsRet60Bps {
 					continue
