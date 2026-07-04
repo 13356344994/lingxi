@@ -65,11 +65,15 @@ func parseBybitAllLiquidation(payload []byte, now time.Time) []fastXvenueLiqEven
 		if qty <= 0 {
 			continue
 		}
+		// 方向映射(2026-07-04 23:55 实证修正):Bybit S 字段=被强平仓位的方向本身(Buy=多头被爆),
+		// 与 Binance forceOrder(订单方向,Sell=多头被爆)语义相反。实证:17,318 对两所同币±5s重叠
+		// 爆仓,旧映射一致率仅 2%(物理上应≈100%)→ 翻转。修正前的历史行 pos_side 反向,
+		// side_raw 永远可信;一切分析必须从 side_raw+本规则推导,不读旧 pos_side。
 		var posSide string
 		switch strings.ToUpper(d.Side) {
-		case "SELL":
-			posSide = "long"
 		case "BUY":
+			posSide = "long"
+		case "SELL":
 			posSide = "short"
 		default:
 			continue

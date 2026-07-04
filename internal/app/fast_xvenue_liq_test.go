@@ -10,19 +10,20 @@ import (
 func TestParseBybitAllLiquidation(t *testing.T) {
 	now := time.Now().UTC()
 	// 多头被强平(强平单 Sell);单消息多条 data
+	// 映射按 2026-07-04 实证规则:Bybit S=仓位方向(Buy=多头被爆);17,318 对两所重叠事件锚定。
 	evs := parseBybitAllLiquidation([]byte(`{"topic":"allLiquidation.BTCUSDT","type":"snapshot","ts":1783100000000,"data":[
-		{"T":1783100000001,"s":"BTCUSDT","S":"Sell","v":"0.014","p":"95892.9"},
-		{"T":1783100000002,"s":"BTCUSDT","S":"Buy","v":"0.5","p":"95900.1"}]}`), now)
+		{"T":1783100000001,"s":"BTCUSDT","S":"Buy","v":"0.014","p":"95892.9"},
+		{"T":1783100000002,"s":"BTCUSDT","S":"Sell","v":"0.5","p":"95900.1"}]}`), now)
 	if len(evs) != 2 {
 		t.Fatalf("应解析出 2 条,得到 %d", len(evs))
 	}
-	if evs[0].Symbol != "BTC-USDT" || evs[0].RawSymbol != "BTCUSDT" || evs[0].PosSide != "long" || evs[0].SideRaw != "Sell" {
+	if evs[0].Symbol != "BTC-USDT" || evs[0].RawSymbol != "BTCUSDT" || evs[0].PosSide != "long" || evs[0].SideRaw != "Buy" {
 		t.Fatalf("多头爆映射错: %+v", evs[0])
 	}
 	if evs[0].Qty != 0.014 || evs[0].Price != 95892.9 || evs[0].ExchTs != 1783100000001 || evs[0].Venue != "bybit" {
 		t.Fatalf("数值解析错: %+v", evs[0])
 	}
-	if evs[1].PosSide != "short" || evs[1].SideRaw != "Buy" {
+	if evs[1].PosSide != "short" || evs[1].SideRaw != "Sell" {
 		t.Fatalf("空头爆映射错: %+v", evs[1])
 	}
 	// 1000 前缀币规范化原样保留前缀

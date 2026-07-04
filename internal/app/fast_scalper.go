@@ -1749,12 +1749,14 @@ const fastHotMoverBps = 10.0
 // v5.8:快照行带四锚 mids(anchors[venue][sym]),backlog 行带 venue 标记(锚回溯与主回溯同款);
 // 由此任何热币在任何时刻的"锚状态"可离线重建=赢家解剖流水线的前置测量地基。
 type fastHotMidsRow struct {
-	RecordedAt time.Time                     `json:"recorded_at"`
-	Mids       map[string]float64            `json:"mids,omitempty"`
-	Anchors    map[string]map[string]float64 `json:"anchors,omitempty"` // venue -> sym -> mid
-	BacklogSym string                        `json:"backlog_sym,omitempty"`
-	BacklogVenue string                      `json:"backlog_venue,omitempty"` // 空=okx 主标尺
-	Backlog    [][2]float64                  `json:"backlog,omitempty"` // [unix_ms, mid]
+	RecordedAt time.Time                        `json:"recorded_at"`
+	Mids       map[string]float64               `json:"mids,omitempty"`
+	// anchors[venue][sym]=[mid, ts_ms]:锚值带自身时间戳(审计修正:无 ts 时锚可陈旧≤15s,
+	// 快市 15s=30bps 假价差;读端须按 ts 做时间对齐,不许拿 recorded_at 当锚的时刻)。
+	Anchors      map[string]map[string][2]float64 `json:"anchors,omitempty"`
+	BacklogSym   string                           `json:"backlog_sym,omitempty"`
+	BacklogVenue string                           `json:"backlog_venue,omitempty"` // 空=okx 主标尺
+	Backlog      [][2]float64                     `json:"backlog,omitempty"` // [unix_ms, mid]
 }
 
 // fastAnchorVenues v5.8 锚所清单(与 fastXMid 键一致)。
@@ -1903,14 +1905,14 @@ func (e *OKXDirectionalEngine) fastMarketMidLoop(ctx context.Context) {
 				}
 			}
 			if len(hotRow.Mids) > 0 {
-				// v5.8 快照行带锚:每轮把热币的四锚最新 mid 一并落盘(前置测量可回溯)
-				hotRow.Anchors = map[string]map[string]float64{}
+				// v5.8 快照行带锚(带各自 ts,读端时间对齐;新鲜度≤8s=两个采集节拍)
+				hotRow.Anchors = map[string]map[string][2]float64{}
 				fastXMidMu.Lock()
 				for _, av := range fastAnchorVenues {
-					vm := map[string]float64{}
+					vm := map[string][2]float64{}
 					for sym := range hotRow.Mids {
-						if p, ok := fastXMid[av][sym]; ok && p.mid > 0 && now.Sub(p.ts) <= 15*time.Second {
-							vm[sym] = p.mid
+						if p, ok := fastXMid[av][sym]; ok && p.mid > 0 && now.Sub(p.ts) <= 8*time.Second {
+							vm[sym] = [2]float64{p.mid, float64(p.ts.UnixMilli())}
 						}
 					}
 					if len(vm) > 0 {
