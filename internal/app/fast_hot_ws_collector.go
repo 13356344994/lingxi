@@ -119,16 +119,18 @@ func (e *OKXDirectionalEngine) fastHotWSLoop(ctx context.Context) {
 	}
 }
 
-// fastHotWSSubOp 发送订阅/退订 op(books5+trades 双频道)。
+// fastHotWSSubOp 发送订阅/退订 op(books5+trades+open-interest 三频道;
+// OI=去杠杆总量直读,v5.4"瀑布还剩多少燃料"的原料,爆仓频道节流漏报而 OI 不会)。
 func fastHotWSSubOp(conn *websocket.Conn, op string, syms []string) error {
 	if len(syms) == 0 {
 		return nil
 	}
-	args := make([]map[string]string, 0, len(syms)*2)
+	args := make([]map[string]string, 0, len(syms)*3)
 	for _, s := range syms {
 		inst := s + "-SWAP"
 		args = append(args, map[string]string{"channel": "trades", "instId": inst})
 		args = append(args, map[string]string{"channel": "books5", "instId": inst})
+		args = append(args, map[string]string{"channel": "open-interest", "instId": inst})
 	}
 	return conn.WriteJSON(map[string]interface{}{"op": op, "args": args})
 }

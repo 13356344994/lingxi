@@ -81,6 +81,11 @@ type fastDynEvent struct {
 	MidRet10s float64 `json:"mid_ret_10s"`
 	// meta
 	CandidateReason string `json:"candidate_reason,omitempty"`
+	// v5.4 OI(仅热币 WS 订阅 open-interest 频道;无数据=0 省略)。OI 骤降=去杠杆总量,
+	// 是"瀑布还剩多少燃料"的直接读数(爆仓频道有节流漏报,OI 不会)。单位=张。
+	OINow       float64 `json:"oi_now,omitempty"`
+	OIDelta60s  float64 `json:"oi_delta_60s,omitempty"`
+	OIDelta300s float64 `json:"oi_delta_300s,omitempty"`
 }
 
 type wsTradePt struct {
@@ -94,10 +99,18 @@ type wsBookPt struct {
 	bidPx, bidQty, askPx, askQty, mid float64
 }
 
+type wsOIPt struct {
+	ts time.Time
+	oi float64
+}
+
 type fastWSState struct {
 	mu     sync.Mutex
 	trades map[string][]wsTradePt
 	books  map[string][]wsBookPt
+	// v5.4 OI(open-interest 频道,仅热币 WS 订阅;主采集连接不订=恒空,零影响)。
+	// OI 下降=去杠杆总量,是"瀑布还剩多少燃料"的直接读数(爆仓频道节流漏报,OI 骗不了人)。
+	ois map[string][]wsOIPt
 }
 
 func (e *OKXDirectionalEngine) fastWSEnabled() bool {
@@ -246,6 +259,25 @@ func (e *OKXDirectionalEngine) fastWSHandle(st *fastWSState, payload []byte) {
 	st.mu.Lock()
 	defer st.mu.Unlock()
 	switch msg.Arg.Channel {
+	case "open-interest":
+		for _, d := range msg.Data {
+			var o struct{ Oi string }
+			if json.Unmarshal(d, &o) != nil {
+				continue
+			}
+			if v, err := strconv.ParseFloat(o.Oi, 64); err == nil && v > 0 {
+				if st.ois == nil {
+					st.ois = map[string][]wsOIPt{}
+				}
+				h := append(st.ois[sym], wsOIPt{ts: now, oi: v})
+				cut := now.Add(-330 * time.Second)
+				i := 0
+				for i < len(h) && h[i].ts.Before(cut) {
+					i++
+				}
+				st.ois[sym] = h[i:]
+			}
+		}
 	case "trades":
 		for _, d := range msg.Data {
 			var t struct{ Px, Sz, Side string }
@@ -379,6 +411,7 @@ func (e *OKXDirectionalEngine) fastWSBuildEvent(st *fastWSState, sym string, now
 	st.mu.Lock()
 	trades := append([]wsTradePt(nil), st.trades[sym]...)
 	books := append([]wsBookPt(nil), st.books[sym]...)
+	ois := append([]wsOIPt(nil), st.ois[sym]...)
 	st.mu.Unlock()
 	if len(books) == 0 {
 		return nil
@@ -480,6 +513,27 @@ func (e *OKXDirectionalEngine) fastWSBuildEvent(st *fastWSState, sym string, now
 		return (cur.mid - prev.mid) / prev.mid
 	}
 	ev.MidRet1s, ev.MidRet3s, ev.MidRet5s, ev.MidRet10s = ret(1*time.Second), ret(3*time.Second), ret(5*time.Second), ret(10*time.Second)
+	// v5.4 OI 快照与增量(仅热币 WS 有数据)
+	if len(ois) > 0 {
+		curOI := ois[len(ois)-1]
+		ev.OINow = curOI.oi
+		oiAt := func(target time.Time) (float64, bool) {
+			var v float64
+			ok := false
+			for _, p := range ois {
+				if !p.ts.After(target) {
+					v, ok = p.oi, true
+				}
+			}
+			return v, ok
+		}
+		if v, ok := oiAt(now.Add(-60 * time.Second)); ok {
+			ev.OIDelta60s = curOI.oi - v
+		}
+		if v, ok := oiAt(now.Add(-300 * time.Second)); ok {
+			ev.OIDelta300s = curOI.oi - v
+		}
+	}
 	// candidate_reason:用现有静态 scorer 的 tag(best-effort,便于与 settlement 对齐)
 	se := &fastExecShadowEvent{Bid: cur.bidPx, Ask: cur.askPx, Mid: cur.mid, SpreadBps: ev.SpreadBps, OrderbookImbalance: ev.BookImbNow,
 		MidImpulse15sBps: ev.MidRet5s * 10000, MidImpulse30sBps: ev.MidRet10s * 10000}

@@ -66,6 +66,40 @@ func TestFastLiq_ParseAndPersist(t *testing.T) {
 	}
 }
 
+// TestFastWS_OpenInterest v5.4:OI 频道解析入状态 + 构建事件时算 60/300s 增量。
+func TestFastWS_OpenInterest(t *testing.T) {
+	e := newFastLiqTestEngine(t)
+	base := time.Now().UTC()
+	step := 0
+	times := []time.Time{base.Add(-301 * time.Second), base.Add(-70 * time.Second), base}
+	e.nowFn = func() time.Time { t := times[step]; return t }
+	st := &fastWSState{trades: map[string][]wsTradePt{}, books: map[string][]wsBookPt{}}
+	oiMsg := func(oi string) []byte {
+		return []byte(`{"arg":{"channel":"open-interest","instId":"OI-USDT-SWAP"},"data":[{"oi":"` + oi + `"}]}`)
+	}
+	e.fastWSHandle(st, oiMsg("1000")) // t-301s
+	step = 1
+	e.fastWSHandle(st, oiMsg("900")) // t-70s
+	step = 2
+	e.fastWSHandle(st, oiMsg("850")) // now
+	// 造一个 book 让 BuildEvent 可运行
+	e.fastWSHandle(st, []byte(`{"arg":{"channel":"books5","instId":"OI-USDT-SWAP"},"data":[{"asks":[["1.001","5"]],"bids":[["0.999","5"]]}]}`))
+	ev := e.fastWSBuildEvent(st, "OI-USDT", base)
+	if ev == nil {
+		t.Fatal("BuildEvent 不应为 nil")
+	}
+	if ev.OINow != 850 {
+		t.Fatalf("oi_now want 850, got %v", ev.OINow)
+	}
+	if ev.OIDelta60s != -50 { // 850 - 900(60s前最近点)
+		t.Fatalf("oi_delta_60s want -50, got %v", ev.OIDelta60s)
+	}
+	// 300s 前的点(1000)已被 330s 窗口保留:850-1000=-150
+	if ev.OIDelta300s != -150 {
+		t.Fatalf("oi_delta_300s want -150, got %v", ev.OIDelta300s)
+	}
+}
+
 func TestFastLiq_BadDataIgnored(t *testing.T) {
 	e := newFastLiqTestEngine(t)
 	st := &fastWSState{trades: map[string][]wsTradePt{}, books: map[string][]wsBookPt{}}
