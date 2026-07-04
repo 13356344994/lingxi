@@ -964,8 +964,10 @@ type OKXDirectionalConfig struct {
 	// 只喂价格历史,不下单;每 N 秒 1 个公共请求(/market/tickers 限频 20次/2s,余量巨大)。
 	FastMarketMidsEnabled         bool `cfg:"fast_market_mids_enabled"`
 	FastMarketMidIntervalSeconds  int  `cfg:"fast_market_mid_interval_seconds"` // 默认 3
-	// v5 跨所强平流采集(2026-07-04,record-only):Binance 全市场 forceOrder 流 → fast_xvenue_liq_events.jsonl。
+	// v5 跨所强平流采集(2026-07-04,record-only):Bybit allLiquidation(OKX∩Bybit 交集)→
+	// fast_xvenue_liq_events.jsonl。耳朵不是枪口:fast 实盘只在 OKX,别所被迫流只做信号研究。
 	// 频率问题的正解=加事件源不降标准:同一币在别所被强平,被迫流是同一股。不下单/不读账户/不影响交易。
+	// (Binance forceOrder 已实测本机零数据帧=僵尸连接,弃用;bookTicker 之外的 binance 期货流均不通。)
 	FastXvenueLiqEnabled      bool    `cfg:"fast_xvenue_liq_enabled"`
 	FastLiqFollowMinLiqs      int     `cfg:"fast_liq_follow_min_liqs"`       // 30s内同向净强平笔数下限(1笔可能是噪声)
 	FastLiqFollowMaxSpreadBps float64 `cfg:"fast_liq_follow_max_spread_bps"` // 当刻点差上限(taker 进场,点差即成本)

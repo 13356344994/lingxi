@@ -263,7 +263,8 @@ okx_directional:
   # v5 基建(2026-07-04,均 record-only):
   #   全市场 mid 标尺:单请求拉全部 SWAP tickers 喂价格历史,根治盲区闸迟到(3s一发,限频余量巨大);
   fast_market_mids_enabled: true
-  #   Binance 全市场 forceOrder 强平流采集(频率正解=加事件源不降标准;本机曾有 binance 期货流超时史,失败只告警重连)。
+  #   跨所强平流采集(耳朵不是枪口:fast 实盘只在 OKX,别所被迫流只做信号研究)。
+  #   源=Bybit allLiquidation(OKX∩Bybit 交集;09:10 探针实测 Binance forceOrder/aggTrade 本机零数据帧=僵尸,弃用)。
   fast_xvenue_liq_enabled: true
   fast_liq_follow_min_liqs: 2
   fast_liq_follow_max_spread_bps: 12
