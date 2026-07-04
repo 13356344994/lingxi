@@ -205,9 +205,10 @@ type fastExecShadowEvent struct {
 	XliqN30s        int     `json:"xliq_n_30s,omitempty"`    // Bybit 同币近30s强平笔数(跨所传染)
 	// v5.5/5.6 跨所价差锚(正=OKX 贵;nil=该所无此币/标尺过期):价差已开=本地事故,套利商不得不
 	// 拽回;无价差=全局重定价。方向分类器候选①的原料。bybit 键名保持 xgap_bps(兼容首日数据)。
-	XGapBps   *float64 `json:"xgap_bps,omitempty"`    // vs Bybit
-	XGapBnBps *float64 `json:"xgap_bn_bps,omitempty"` // vs Binance(定价权共识锚)
-	XGapGtBps *float64 `json:"xgap_gt_bps,omitempty"` // vs Gate(长尾覆盖最广)
+	XGapBps   *float64 `json:"xgap_bps,omitempty"`     // vs Bybit
+	XGapBnBps *float64 `json:"xgap_bn_bps,omitempty"`  // vs Binance(定价权共识锚)
+	XGapGtBps *float64 `json:"xgap_gt_bps,omitempty"`  // vs Gate(长尾覆盖最广)
+	SpotGapBps *float64 `json:"spot_gap_bps,omitempty"` // vs OKX现货(基差:杠杆流回归 vs 信息流延续)
 	// 池塘质量打标(恒开,零成本;滚动2h逐扫描中位数,动态判定,禁止写死名单)
 	PondEnergyMedBps float64 `json:"pond_energy_med_bps,omitempty"`
 	PondDepthMedUSDT float64 `json:"pond_depth_med_usdt,omitempty"`
@@ -979,7 +980,7 @@ func (e *OKXDirectionalEngine) fastLiqFollowTick(ctx context.Context) {
 		}
 		ev.MarketLiq5m = fastMarketLiqRate(now, 300)
 		ev.XliqN30s = fastXliqCount(sym, now, 30)
-		fastAnnotateXGaps(sym, ev.Mid, now, &ev.XGapBps, &ev.XGapBnBps, &ev.XGapGtBps) // v5.5/5.6 跨所价差锚
+		fastAnnotateXGaps(sym, ev.Mid, now, &ev.XGapBps, &ev.XGapBnBps, &ev.XGapGtBps, &ev.SpotGapBps) // v5.5-5.7 价差/基差锚
 		// 当刻资格(fast 自己的标准,非静态名单):点差可执行 + 深度既吃得下又非机构镜面盘
 		maxSpread := e.cfg.FastLiqFollowMaxSpreadBps
 		if maxSpread <= 0 {
@@ -1621,26 +1622,25 @@ type fastMoverEvent struct {
 	MarketLiq5m float64 `json:"market_liq_5m"`
 	SymLiq5m    int     `json:"sym_liq_5m"`
 	XliqN5m     int     `json:"xliq_n_5m,omitempty"` // Bybit 同币近5min强平(跨所传染)
-	// v5.5/5.6 跨所价差锚(正=OKX 溢价;nil=该所无此币):暴动是本地事故还是全局重定价的分类器原料。
-	XGapBps   *float64 `json:"xgap_bps,omitempty"`    // vs Bybit
-	XGapBnBps *float64 `json:"xgap_bn_bps,omitempty"` // vs Binance
-	XGapGtBps *float64 `json:"xgap_gt_bps,omitempty"` // vs Gate
+	// v5.5-5.7 跨所价差/基差锚(正=OKX perp 溢价;nil=该锚无此币):暴动是本地事故还是全局重定价。
+	XGapBps    *float64 `json:"xgap_bps,omitempty"`     // vs Bybit
+	XGapBnBps  *float64 `json:"xgap_bn_bps,omitempty"`  // vs Binance
+	XGapGtBps  *float64 `json:"xgap_gt_bps,omitempty"`  // vs Gate
+	SpotGapBps *float64 `json:"spot_gap_bps,omitempty"` // vs OKX现货(基差)
 }
 
-// fastAnnotateXGaps 三锚价差标注(有数据的锚才写;全无=保持 nil)。
-func fastAnnotateXGaps(sym string, okxMid float64, now time.Time, by, bn, gt **float64) {
-	if g, ok := fastXMidGapBpsVenue("bybit", sym, okxMid, now); ok {
-		v := g
-		*by = &v
+// fastAnnotateXGaps 四锚价差/基差标注(有数据的锚才写;全无=保持 nil)。
+func fastAnnotateXGaps(sym string, okxMid float64, now time.Time, by, bn, gt, spot **float64) {
+	set := func(venue string, dst **float64) {
+		if g, ok := fastXMidGapBpsVenue(venue, sym, okxMid, now); ok {
+			v := g
+			*dst = &v
+		}
 	}
-	if g, ok := fastXMidGapBpsVenue("binance", sym, okxMid, now); ok {
-		v := g
-		*bn = &v
-	}
-	if g, ok := fastXMidGapBpsVenue("gate", sym, okxMid, now); ok {
-		v := g
-		*gt = &v
-	}
+	set("bybit", by)
+	set("binance", bn)
+	set("gate", gt)
+	set("okxspot", spot)
 }
 
 // fastHotMidsFile v5.2 热币路径持久化:全市场标尺是内存态,重启即失忆,且离线研究只能看到
@@ -1791,7 +1791,7 @@ func (e *OKXDirectionalEngine) fastMarketMidLoop(ctx context.Context) {
 				if mid > 0 && bk.AskPrice >= bk.BidPrice {
 					ev.SpreadBps = (bk.AskPrice - bk.BidPrice) / mid * 10000
 				}
-				fastAnnotateXGaps(sym, mid, now, &ev.XGapBps, &ev.XGapBnBps, &ev.XGapGtBps) // v5.5/5.6 跨所价差锚
+				fastAnnotateXGaps(sym, mid, now, &ev.XGapBps, &ev.XGapBnBps, &ev.XGapGtBps, &ev.SpotGapBps) // v5.5-5.7 价差/基差锚
 				if werr := appendJSONLRecord(censusPath, ev); werr != nil {
 					e.logger.Printf("[fast_mids] 普查落盘失败: %v", werr)
 				}
