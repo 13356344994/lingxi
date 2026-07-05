@@ -600,6 +600,8 @@ func DefaultEngineConfig() EngineConfig {
 			FastXvenueLiqEnabled:           false, // 跨所强平采集(Bybit allLiquidation):默认关,config.yaml 显式开
 			FastHotWSEnabled:               false, // 热币微结构采集:默认关,config.yaml 显式开
 			FastXMidEnabled:                false, // Bybit 价格标尺(跨所价差锚):默认关,config.yaml 显式开
+			FastSentinelMinTrades:          20,    // v6 净值哨兵:≥20笔才判
+			FastSentinelWindow:             50,    // 滚动窗50笔;中位<0=sentinel_halt粘性停火
 			FastTapeLiveEnabled:            false, // v6 tape_burst 线:默认关死(枪已造好,开=用户批探针)
 			FastTapeConfirmWindowSec:       3,     // burst→官方确认窗口(与离线+1s进场研究同口径)
 			FastTapeMaxSpreadBps:           12,    // taker 进场点差上限

@@ -971,7 +971,12 @@ type OKXDirectionalConfig struct {
 	// → trail 棘轮出场(复用已验证出场机器)。飞轮门=12bps(净≥0 即合格走量引擎,两道门制见 HANDOFF §-7)。
 	FastTapeLiveEnabled     bool    `cfg:"fast_tape_live_enabled"`      // 默认 false;护栏锚定,开=用户明示
 	FastTapeConfirmWindowSec int    `cfg:"fast_tape_confirm_window_sec"` // burst 后等官方确认的窗口(默认3)
-	FastTapeMaxSpreadBps    float64 `cfg:"fast_tape_max_spread_bps"`    // 进场点差上限(默认12)
+	FastTapeMaxSpreadBps    float64 `cfg:"fast_tape_max_spread_bps"`    // 进场点上限(默认12)
+	// v6 净值哨兵(飞轮引擎的硬前提,HANDOFF §-7C):事件线 source 最近 N 笔净值中位 <0 → 自动停开
+	// (sentinel_halt)。飞轮策略高频走量,-2bps×330笔/天=烧账户,哨兵保证"不亏才配走量"。
+	// 触发即粘性停火(重启从结算重建=仍停),解除须人工解剖后调参——纪律在结构里,不在自觉里。
+	FastSentinelMinTrades int `cfg:"fast_sentinel_min_trades"` // 样本不足不判(默认20)
+	FastSentinelWindow    int `cfg:"fast_sentinel_window"`     // 滚动窗笔数(默认50)
 	// ===== 探针制(2026-07-04 章程,HANDOFF §-5):发现阶段的实盘小额快试,预算由机器锁死 =====
 	// FastProbeSource 非空 = 该 candidate_source 的实盘线处于"探针模式":开仓数与累亏被硬顶,
 	// 越线自动缴械(probe_exhausted),状态持久化重启不失忆。空 = 无探针活动(生产默认,护栏锚定;

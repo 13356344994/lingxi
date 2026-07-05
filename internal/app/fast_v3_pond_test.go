@@ -511,6 +511,47 @@ func TestFastProbeGovernor(t *testing.T) {
 	}
 }
 
+// TestFastSentinel v6 净值哨兵:样本闸/中位判定/入窗滚动/粘性停火/非事件线豁免。
+func TestFastSentinel(t *testing.T) {
+	if fastSentinelMedianHalt([]float64{-5, -5, 3}, 20) {
+		t.Fatal("样本<minTrades 不应停")
+	}
+	neg := make([]float64, 25)
+	for i := range neg {
+		neg[i] = -2
+	}
+	if !fastSentinelMedianHalt(neg, 20) {
+		t.Fatal("中位<0 应停")
+	}
+	pos := append(append([]float64{}, neg[:12]...), 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13)
+	if fastSentinelMedianHalt(pos, 20) {
+		t.Fatal("中位>0 不应停")
+	}
+	e := newFastV3TestEngine(t)
+	e.cfg.FastLiveEnabled = true
+	e.cfg.FastTapeLiveEnabled = true
+	e.cfg.FastSentinelMinTrades = 3
+	e.cfg.FastSentinelWindow = 5
+	// 空 source(scorer)豁免哨兵
+	if r := e.fastSentinelGate(""); r != "" {
+		t.Fatalf("空 source 应豁免,得到 %q", r)
+	}
+	// 连亏3笔 → 停;赢单挤走亏单 → 恢复(窗口滚动语义)
+	src := "sent_test"
+	for i := 0; i < 3; i++ {
+		e.fastSentinelRecord(src, -0.01, 5) // -20bps
+	}
+	if r := e.fastSentinelGate(src); r != "sentinel_halt" {
+		t.Fatalf("3连亏应 sentinel_halt,得到 %q", r)
+	}
+	for i := 0; i < 4; i++ {
+		e.fastSentinelRecord(src, +0.02, 5) // +40bps ×4,窗口5 → 中位转正
+	}
+	if r := e.fastSentinelGate(src); r != "" {
+		t.Fatalf("窗口滚动转正后应放行,得到 %q", r)
+	}
+}
+
 // TestFastTapeLine v6:挂起队列确认/过期/保留 + 来源闸(默认关死=record_only)。
 func TestFastTapeLine(t *testing.T) {
 	base := time.Now().UTC()

@@ -1531,6 +1531,99 @@ func (e *OKXDirectionalEngine) fastProbeRecord(source string, realized float64) 
 	}
 }
 
+// ===== v6 净值哨兵(飞轮引擎硬前提,HANDOFF §-7C)=====
+// 事件线 source 的最近 N 笔净值(bps)滚动窗:中位 <0 → 停开新仓(sentinel_halt)。
+// 粘性:内存窗从 settlements 重建,重启不解除;解除=人工解剖后调参。高频走量策略的生死闸:
+// -2bps×330笔/天=烧掉账户,"不亏才配走量"必须由机器保证。
+
+var (
+	fastSentinelMu   sync.Mutex
+	fastSentinelRing = map[string][]float64{} // venue|source -> 最近N笔净bps
+	fastSentinelInit = map[string]bool{}      // venue|source -> 已从盘上重建
+)
+
+// fastSentinelMedianHalt 纯判定:样本≥minTrades 且中位<0 → 停。
+func fastSentinelMedianHalt(ring []float64, minTrades int) bool {
+	if minTrades <= 0 || len(ring) < minTrades {
+		return false
+	}
+	v := append([]float64(nil), ring...)
+	return fastMedian(v) < 0
+}
+
+// fastSentinelKey venue|source。
+func (e *OKXDirectionalEngine) fastSentinelKey(source string) string { return e.venueName + "|" + source }
+
+// fastSentinelLoadLocked 首次访问从 settlements 重建该 source 的滚动窗(调用者持锁)。
+func (e *OKXDirectionalEngine) fastSentinelLoadLocked(source string) {
+	key := e.fastSentinelKey(source)
+	if fastSentinelInit[key] {
+		return
+	}
+	fastSentinelInit[key] = true
+	data, err := os.ReadFile(e.settlementsPath)
+	if err != nil {
+		return
+	}
+	win := e.cfg.FastSentinelWindow
+	if win <= 0 {
+		win = 50
+	}
+	var ring []float64
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		var rec okxDirectionalSettlement
+		if json.Unmarshal([]byte(line), &rec) != nil || rec.FastCandidateSource != source || rec.NotionalUSDT <= 0 {
+			continue
+		}
+		ring = append(ring, rec.RealizedUSDT/rec.NotionalUSDT*10000)
+		if len(ring) > win {
+			ring = ring[1:]
+		}
+	}
+	fastSentinelRing[key] = ring
+}
+
+// fastSentinelGate 开仓前哨兵闸(仅事件线 source):中位<0 → sentinel_halt。
+func (e *OKXDirectionalEngine) fastSentinelGate(source string) string {
+	if strings.TrimSpace(source) == "" {
+		return ""
+	}
+	fastSentinelMu.Lock()
+	defer fastSentinelMu.Unlock()
+	e.fastSentinelLoadLocked(source)
+	if fastSentinelMedianHalt(fastSentinelRing[e.fastSentinelKey(source)], e.cfg.FastSentinelMinTrades) {
+		return "sentinel_halt"
+	}
+	return ""
+}
+
+// fastSentinelRecord 平仓后入窗。
+func (e *OKXDirectionalEngine) fastSentinelRecord(source string, realized, notional float64) {
+	if strings.TrimSpace(source) == "" || notional <= 0 {
+		return
+	}
+	fastSentinelMu.Lock()
+	defer fastSentinelMu.Unlock()
+	e.fastSentinelLoadLocked(source)
+	key := e.fastSentinelKey(source)
+	win := e.cfg.FastSentinelWindow
+	if win <= 0 {
+		win = 50
+	}
+	ring := append(fastSentinelRing[key], realized/notional*10000)
+	if len(ring) > win {
+		ring = ring[1:]
+	}
+	fastSentinelRing[key] = ring
+	if fastSentinelMedianHalt(ring, e.cfg.FastSentinelMinTrades) {
+		e.logger.Printf("[fast_sentinel] %s 滚动%d笔净值中位<0 → 粘性停火(解除须人工解剖)", source, len(ring))
+	}
+}
+
 // fastExitTriggersCooldown 坏出场触发 fast 层短冷却(v2.2 亏损退避的入口)。
 // v4.2 把 fast_disaster_stop 加入名单:最贵的教训此前反而没有学费记忆——
 // 07-03 实证:LAB 灾难止损 -0.053U 后 44s 同币再进,再灾难 -0.060U。
@@ -2054,7 +2147,8 @@ func (e *OKXDirectionalEngine) fastLiveClose(ctx context.Context, p *fastLivePos
 		e.logger.Printf("[fast_live] v2 结算副本落盘失败: %v", err)
 	}
 	e.fastDailyAdd(now, sym, realized)
-	e.fastProbeRecord(p.CandidateSource, realized) // 探针记账(非探针 source 为 no-op)
+	e.fastProbeRecord(p.CandidateSource, realized)                    // 探针记账(非探针 source 为 no-op)
+	e.fastSentinelRecord(p.CandidateSource, realized, p.NotionalUSDT) // 哨兵入窗(空 source 为 no-op)
 	fastLiveMu.Lock()
 	delete(fastLivePos[e.venueName], sym)
 	e.fastLivePersistLocked()
@@ -2306,6 +2400,10 @@ func (e *OKXDirectionalEngine) fastLiveOpen(ctx context.Context, ev *fastExecSha
 	}
 	// 探针治理器(章程 §-5):探针 source 的预算(笔数/累亏)由机器锁死,越线自动缴械。
 	if r := e.fastProbeGate(ev.CandidateSource); r != "" {
+		return r
+	}
+	// 净值哨兵(§-7C):事件线滚动净值中位<0 → 粘性停火("不亏才配走量"由机器保证)。
+	if r := e.fastSentinelGate(ev.CandidateSource); r != "" {
 		return r
 	}
 	// 同 symbol 已有未平 fast 仓 → 不重复、不反手
