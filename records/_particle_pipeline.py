@@ -159,10 +159,22 @@ def fmt(m):
 
 
 # ===== 状态格子(章程⑪:盘中"选"的地基——每个 状态×组合 格子独立记账/独立判决)=====
-# 状态=市场燃料(物理慢变量,时段的真身);先二态控预算,验出差异再谈三态。
+# v2(07-06 00:20):状态变量从燃料换装"海况"(滚动30笔确认流影子净值中位>-10=海况好)。
+# 依据:潮汐钥匙实测证伪(滞后聚合继承迟到病);海况闸全天实测把全流-2157拉到+73、
+# 火灾×大额 PF 2.25→5.15。阈值-10/窗30=冻结值(当日4值试出,轻度in-sample,判决期检验)。
+_seq = sorted(range(len(rows)), key=lambda i: rows[i]["t0"])
+_hist = []
+for _i in _seq:
+    _e = rows[_i]
+    if len(_hist) >= 30:
+        _s = sorted(_hist[-30:])
+        _e["sea"] = _s[15 - 1] / 2 + _s[15] / 2 if len(_s) % 2 == 0 else _s[len(_s) // 2]
+    else:
+        _e["sea"] = 0.0  # 热身期视为海况中性(fail-open,与哨兵热身一致)
+    _hist.append(_e["v"] - 12.0)
 STATES = collections.OrderedDict([
-    ("死水(fuel<20)", lambda e: e["fuel"] < 20),
-    ("有燃料(fuel>=20)", lambda e: e["fuel"] >= 20),
+    ("海况好(roll30>-10)", lambda e: e.get("sea", 0) > -10),
+    ("海况差(roll30<=-10)", lambda e: e.get("sea", 0) <= -10),
 ])
 
 
