@@ -82,6 +82,30 @@ for e in rows:
     e["xgap"] = _gap("bybit", e["sym"], e["px"], e["t0"])
     e["spotgap"] = _gap("okxspot", e["sym"], e["px"], e["t0"])
 
+# 当刻状态原料:全市场爆仓时间线 → 瞬时潮汐(60s 多头被爆占比)与爆仓加速度(60s vs 前60s)
+_lt = []
+_ll = []
+for _line in open(REC + "/fast_liquidation_events.jsonl"):
+    _line = _line.strip()
+    if not _line:
+        continue
+    try:
+        _r = json.loads(_line)
+    except ValueError:
+        continue
+    _lt.append(ep(_r["recorded_at"]))
+    _ll.append(1 if _r.get("pos_side") == "long" else 0)
+_pl = [0]
+for _s in _ll:
+    _pl.append(_pl[-1] + _s)
+for e in rows:
+    _lo = bisect.bisect_left(_lt, e["t0"] - 60)
+    _hi = bisect.bisect_right(_lt, e["t0"])
+    _lo2 = bisect.bisect_left(_lt, e["t0"] - 120)
+    _n1 = _hi - _lo
+    e["i_tide"] = (_pl[_hi] - _pl[_lo]) / _n1 if _n1 >= 3 else None
+    e["i_accel"] = _n1 - (_lo - _lo2)
+
 # ===== 粒子清单(全部带对手模型注记;二值;交互项以"方向粒子×特征粒子"自然生成)=====
 PARTICLES = collections.OrderedDict([
     # 方向粒子(火灾/烟花——交互项的载体)
@@ -107,6 +131,13 @@ PARTICLES = collections.OrderedDict([
     ("现货领先", lambda e: e.get("spotgap") is not None and e["spotgap"] <= 0),
     # 执行质量
     ("窄点差", lambda e: e["spread"] is not None and e["spread"] <= 2.3),
+    # 当刻状态粒子(07-06 00:45 用户"按当刻信号状态选组合"共识:状态即粒子,路由从挖掘里长出来。
+    # 60s 窗=秒级新鲜,规避 30min 聚合的迟到病;首日读数两侧打架(火灾肥在减速/烟花肥在加速),
+    # 是否真规律交给多日判决)
+    ("瞬时跌潮", lambda e: e.get("i_tide") is not None and e["i_tide"] >= 0.7),
+    ("瞬时涨潮", lambda e: e.get("i_tide") is not None and e["i_tide"] <= 0.3),
+    ("爆仓加速", lambda e: e.get("i_accel") is not None and e["i_accel"] > 0),
+    ("爆仓减速", lambda e: e.get("i_accel") is not None and e["i_accel"] <= 0),
 ])
 
 
