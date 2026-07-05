@@ -64,18 +64,35 @@ def px_at(sym, t, tol=8):
     return None
 
 
-def ret_with_wavecut(e, cutX=20):
-    """通道①②持有包:trail + 二波止错(t0+20s 无同币二波→当刻止错)。"""
+def ret_with_wavecut(e, cutX=20, cap=120):
+    """通道①②持有包·联合模拟(v2 修正):同一条路径上 trail/灾难/二波止错谁先触发谁生效。
+    v1 曾把二波止错独立近似(忽略 cutX 前 trail 已离场的情形)= 模拟器 bug,已修。"""
     if not e["entry"]:
         return None
+    arr = paths.get(e["sym"])
+    keys = pk.get(e["sym"])
+    if not arr:
+        return None
     ts = liq_by_sym.get(e["sym"], [])
-    i = bisect.bisect_right(ts, e["t0"] + 3)
-    if i < len(ts) and ts[i] <= e["t0"] + cutX:
-        return e["v"]
-    m = px_at(e["sym"], e["t0"] + cutX)
-    if m is None:
-        return e["v"]
-    return e["dir"] * (m - e["entry"]) / e["entry"] * 1e4
+    i2 = bisect.bisect_right(ts, e["t0"] + 3)
+    wave2_at = ts[i2] if i2 < len(ts) else None  # 第二波到达时刻(None=没来)
+    i = bisect.bisect_left(keys, e["entry_t"])
+    peak, last = 0.0, None
+    for j in range(i, len(arr)):
+        T, m = arr[j]
+        if T - e["t0"] > cap:
+            break
+        ret = e["dir"] * (m - e["entry"]) / e["entry"] * 1e4
+        # 二波止错:过了 cutX 且二波未在 cutX 内到达 → 当刻离场(路径点粒度)
+        if T - e["t0"] >= cutX and (wave2_at is None or wave2_at > e["t0"] + cutX):
+            return ret
+        last = ret
+        peak = max(peak, ret)
+        if ret <= -40:
+            return ret
+        if peak >= 10 and peak - ret >= 20:
+            return ret
+    return last
 
 
 F = PARTICLES
@@ -102,10 +119,14 @@ def assign(e):
     return None, "无通道匹配"
 
 
+import sys
+SINCE = ep(sys.argv[1]) if len(sys.argv) > 1 else 0
 lanes = collections.defaultdict(list)
 zero = collections.Counter()
 trades = []
 for e in sorted(rows, key=lambda x: x["t0"]):
+    if e["t0"] < SINCE:
+        continue
     lane, why = assign(e)
     if lane is None:
         zero[why] += 1
