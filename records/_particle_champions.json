@@ -1,6 +1,6 @@
 {
- "frozen_at_utc": "2026-07-05T15:42:23",
- "frozen_at_ep": 1783266143.0,
+ "frozen_at_utc": "2026-07-05T15:54:32",
+ "frozen_at_ep": 1783266872.0,
  "cost_bps": 12.0,
  "scratch_bps": 5.0,
  "verdict_need_n": 30,
@@ -10,6 +10,20 @@
   "net_med_min": 0
  },
  "champions": [
+  {
+   "tag": "磁带活跃×前动量强×燃料上升期",
+   "mine": {
+    "n": 20,
+    "net_med": 14.78,
+    "net_mean": 30.07,
+    "net_sum": 601.44,
+    "win_neu": 65.0,
+    "scratch_n": 0,
+    "pf_net": 2.59,
+    "top": "OPN:5",
+    "depth": 3
+   }
+  },
   {
    "tag": "火灾(跟空)×大额2kU",
    "mine": {
@@ -25,17 +39,15 @@
    }
   },
   {
-   "tag": "非死磁带×大额2kU×方向侧突破",
+   "tag": "火灾(跟空)×磁带活跃×爆仓减速",
+   "frozen_at_utc": "2026-07-05T16:50:00",
    "mine": {
-    "n": 16,
-    "net_med": 9.72,
-    "net_mean": 17.99,
-    "net_sum": 287.83,
-    "win_neu": 66.67,
-    "scratch_n": 1,
-    "pf_net": 1.66,
-    "top": "LIT:3",
-    "depth": 3
+    "n": 30,
+    "net_med": 7.4,
+    "win_neu": 67,
+    "pf_net": 2.5,
+    "top": "XTZ:3",
+    "note": "状态开关型:减速市孤立瀑布=干净猎物(瞬时状态粒子首个冠军)"
    }
   }
  ]

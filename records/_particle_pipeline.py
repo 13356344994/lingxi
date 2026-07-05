@@ -256,11 +256,11 @@ if __name__ == "__main__":
             print("\n已冻结冠军 %d 个 → %s(判决集=此刻之后新确认事件,n≥30 终审)" % (len(champs), os.path.basename(CHAMP)))
     else:  # verdict
         cfg = json.load(open(CHAMP))
-        t_frozen = ep(cfg["frozen_at_utc"])
-        fresh = [e for e in rows if e["t0"] >= t_frozen]
-        print("冠军冻结于 %sZ | 判决集新事件=%d" % (cfg["frozen_at_utc"], len(fresh)))
         names = list(PARTICLES)
         for ch in cfg["champions"]:
+            t_frozen = ep(ch.get("frozen_at_utc") or cfg["frozen_at_utc"])
+            fresh = [e for e in rows if e["t0"] >= t_frozen]
+            print("[冻结 %sZ 判决集=%d]" % (ch.get("frozen_at_utc") or cfg["frozen_at_utc"], len(fresh)))
             combo = ch["tag"].split("×")
             fs = [PARTICLES[c] for c in combo if c in PARTICLES]
             sel = [e for e in fresh if all(f(e) for f in fs)]
