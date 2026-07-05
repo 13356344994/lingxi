@@ -139,4 +139,6 @@ func (e *OKXDirectionalEngine) fastBurstOnTrade(det *fastBurstDetector, sym stri
 	if err := appendJSONLRecord(det.path, ev); err != nil {
 		e.logger.Printf("[fast_burst] 落盘失败: %v", err)
 	}
+	// v6:入 tape_burst 挂起队列(等官方确认;live 关时下游只记 shadow 不下单)
+	fastTapeEnqueue(sym, map[bool]string{true: "long", false: "short"}[buySide], now, tot, tot/med, ev.SymLiqN30s)
 }

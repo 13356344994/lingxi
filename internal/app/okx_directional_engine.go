@@ -520,6 +520,7 @@ func (e *OKXDirectionalEngine) Run(ctx context.Context) {
 		go e.fastScalperLoop(ctx)   // 扫描/开仓(maker 入场可能阻塞)
 		go e.fastManageLoop(ctx)    // 平仓/接管(每2s,独立,不被开仓阻塞)
 		go e.fastLiqFollowLoop(ctx) // v3③ 事件驱动评估(爆仓热队列;实盘/shadow 开关在循环内判定)
+		go e.fastTapeLoop(ctx)      // v6 tape_burst 线(burst→确认→资格→taker;默认关死只记 shadow)
 		if e.cfg.FastMarketMidsEnabled {
 			go e.fastMarketMidLoop(ctx) // v5 全市场 mid 标尺(盲区闸根治;record-only 基建)
 		}

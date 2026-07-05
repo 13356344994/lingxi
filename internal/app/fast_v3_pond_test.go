@@ -511,6 +511,45 @@ func TestFastProbeGovernor(t *testing.T) {
 	}
 }
 
+// TestFastTapeLine v6:挂起队列确认/过期/保留 + 来源闸(默认关死=record_only)。
+func TestFastTapeLine(t *testing.T) {
+	base := time.Now().UTC()
+	fastTapeMu.Lock()
+	fastTapeQueue = nil
+	fastTapeMu.Unlock()
+	fastTapeEnqueue("TA-USDT", "short", base, 800, 8, 0)              // 将被确认
+	fastTapeEnqueue("TB-USDT", "long", base.Add(-10*time.Second), 600, 6, 0) // 过期(>3s)
+	fastTapeEnqueue("TC-USDT", "short", base, 700, 7, 0)              // 未确认,应留队
+	liqCount := func(sym string, since time.Time) int {
+		if sym == "TA-USDT" {
+			return 1
+		}
+		return 0
+	}
+	out := fastTapeDrainConfirmed(base.Add(1*time.Second), 3, liqCount)
+	if len(out) != 1 || out[0].sym != "TA-USDT" {
+		t.Fatalf("应只确认 TA: %+v", out)
+	}
+	fastTapeMu.Lock()
+	rest := len(fastTapeQueue)
+	fastTapeMu.Unlock()
+	if rest != 1 { // TB 过期丢弃,TC 留队
+		t.Fatalf("留队应剩 1(TC), got %d", rest)
+	}
+	// 来源闸:默认关死 → record_only_source;开 → 过闸
+	e := newFastV3TestEngine(t)
+	e.cfg.FastLiveEnabled = true
+	ev := &fastExecShadowEvent{Symbol: "TP-USDT", Mid: 1, Bid: 0.999, Ask: 1.001,
+		CandidateSource: "tape_burst", FastCandidateSide: "short", PondOK: true, PondSamples: 9999}
+	if r := e.fastLiveOpen(context.Background(), ev); r != "record_only_source" {
+		t.Fatalf("默认关死应 record_only,得到 %s", r)
+	}
+	e.cfg.FastTapeLiveEnabled = true
+	if r := e.fastLiveOpen(context.Background(), ev); r == "record_only_source" {
+		t.Fatalf("开火后不应被来源闸拦,得到 %s", r)
+	}
+}
+
 // TestFastBurstUpdate v5.9 亚秒探测器:基线热身/秒桶推进/5×触发/额度下限/死盘地板/方向。
 func TestFastBurstUpdate(t *testing.T) {
 	st := &symBurstState{}

@@ -1594,8 +1594,8 @@ func (e *OKXDirectionalEngine) fastLiveManage(ctx context.Context) {
 		unit := e.fastExitUnitBps(p.Symbol)
 		// v4.2:liq_follow 单的能量单位改用 max(池塘, 入场|imp15| 封顶120)——事件线猎场池塘天生不成熟,
 		// unit=0 回退死水刻度曾把 8s 持有的降落伞配给 60s 的引擎(详见 fastLiqFollowExitUnit 注释)。
-		if p.CandidateSource == "liq_follow" && e.cfg.FastExitEnergyScaleEnabled {
-			unit = fastLiqFollowExitUnit(unit, p.EntryImpulse15s)
+		if (p.CandidateSource == "liq_follow" || p.CandidateSource == "tape_burst") && e.cfg.FastExitEnergyScaleEnabled {
+			unit = fastLiqFollowExitUnit(unit, p.EntryImpulse15s) // 事件线共用:能量单位=max(池塘,入场|imp15|∧120)
 		}
 		effDisaster := fastScaledExitBps(e.cfg.FastDisasterStopBps, 2.0, unit)
 		effStop := fastScaledExitBps(e.cfg.FastV2StopBps, 1.2, unit)
@@ -1659,7 +1659,7 @@ func (e *OKXDirectionalEngine) fastLiveManage(ctx context.Context) {
 		// 的期望全在右尾(镜像中位+3~7bps/均值+21bps),TP封顶=切断期望来源(LAB反事实+625bps只落袋+43)。
 		// 改棘轮:激活=0.8×能量单位,回吐=0.4×能量即落袋;绝对下限沿用 trail 配置(8/5bps)。
 		// 注:当前 liq_follow 实盘已停火(record-only),此路径为重开灰度预置,部署时无行为影响。
-		if p.CandidateSource == "liq_follow" {
+		if p.CandidateSource == "liq_follow" || p.CandidateSource == "tape_burst" { // v6:tape 同用棘轮(肥尾收割)
 			effAct := fastScaledExitBps(e.cfg.FastV3TrailActivateBps, 0.8, unit)
 			effGive := fastScaledExitBps(e.cfg.FastV3TrailGiveBackBps, 0.4, unit)
 			if haveMid && e.cfg.FastV3TrailActivateBps > 0 && p.PeakBps >= effAct && ubps <= p.PeakBps-effGive {
@@ -2257,7 +2257,8 @@ func (e *OKXDirectionalEngine) fastLiveOpen(ctx context.Context, ev *fastExecSha
 		// liq_catch 永远硬闸:已证伪(被迫流持续 1-3 分钟,60s 内接刀三桶全负,力竭/吸收确认都救不了)。
 		allowFade := e.cfg.FastFadeLiveEnabled && ev.CandidateSource == "fade_exhaustion" && ev.PondOK && ev.PondSamples >= fastPondWarmupSamples
 		allowLiqFollow := e.cfg.FastLiqFollowLiveEnabled && ev.CandidateSource == "liq_follow"
-		if !allowFade && !allowLiqFollow {
+		allowTape := e.cfg.FastTapeLiveEnabled && ev.CandidateSource == "tape_burst" // v6:开=用户批探针(护栏锚定)
+		if !allowFade && !allowLiqFollow && !allowTape {
 			return "record_only_source"
 		}
 	} else if !e.cfg.FastScorerLiveEnabled {

@@ -153,6 +153,11 @@ func TestLoadProductionConfigYAML(t *testing.T) {
 	if !cfg.OKXDirectional.OpenMicroRecordEnabled {
 		t.Fatal("okx_directional.open_micro_record_enabled = false want true(runup 闸数据源)")
 	}
+	// v6 tape_burst 线(2026-07-05 预置):枪已造好但保险必须锁着——开火=用户批探针
+	// (届时 fast_tape_live_enabled=true + fast_probe_source=tape_burst 同时设置)。
+	if cfg.OKXDirectional.FastTapeLiveEnabled {
+		t.Fatal("fast_tape_live_enabled = true want false(开火须用户明示批探针;当前应只记 shadow)")
+	}
 	// 探针制章程(2026-07-04,HANDOFF §-5):生产配置默认无探针活动;设置 fast_probe_source
 	// = 用户明示批准某候选进入探针层(同时须保证预算硬顶为正)。
 	if s := strings.TrimSpace(cfg.OKXDirectional.FastProbeSource); s != "" {

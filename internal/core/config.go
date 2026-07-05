@@ -964,6 +964,14 @@ type OKXDirectionalConfig struct {
 	// 只喂价格历史,不下单;每 N 秒 1 个公共请求(/market/tickers 限频 20次/2s,余量巨大)。
 	FastMarketMidsEnabled         bool `cfg:"fast_market_mids_enabled"`
 	FastMarketMidIntervalSeconds  int  `cfg:"fast_market_mid_interval_seconds"` // 默认 3
+	// ===== v6 tape_burst 策略线(2026-07-05 预置;默认关死,开=用户批探针)=====
+	// 机制(已实证):强平市价单先打在成交流上(亚秒探测器识别延迟中位38ms),官方推送晚~0.5-1.5s;
+	// burst+官方确认后 +1s 进场 60s 中位 +13.6bps 毛(59%顺向),+3s 翻负=edge半衰期2s。
+	// 通路:探测器识别 burst → 挂起等官方爆仓确认(≤confirm_window)→ 当刻资格(点差/深度)→ taker 进
+	// → trail 棘轮出场(复用已验证出场机器)。飞轮门=12bps(净≥0 即合格走量引擎,两道门制见 HANDOFF §-7)。
+	FastTapeLiveEnabled     bool    `cfg:"fast_tape_live_enabled"`      // 默认 false;护栏锚定,开=用户明示
+	FastTapeConfirmWindowSec int    `cfg:"fast_tape_confirm_window_sec"` // burst 后等官方确认的窗口(默认3)
+	FastTapeMaxSpreadBps    float64 `cfg:"fast_tape_max_spread_bps"`    // 进场点差上限(默认12)
 	// ===== 探针制(2026-07-04 章程,HANDOFF §-5):发现阶段的实盘小额快试,预算由机器锁死 =====
 	// FastProbeSource 非空 = 该 candidate_source 的实盘线处于"探针模式":开仓数与累亏被硬顶,
 	// 越线自动缴械(probe_exhausted),状态持久化重启不失忆。空 = 无探针活动(生产默认,护栏锚定;
