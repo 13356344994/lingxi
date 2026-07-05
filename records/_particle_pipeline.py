@@ -158,6 +158,27 @@ def fmt(m):
         m["tag"], m["n"], m["net_med"], m["net_mean"], m["win_neu"], m["scratch_n"], m["pf_net"], m["top"])
 
 
+# ===== 状态格子(章程⑪:盘中"选"的地基——每个 状态×组合 格子独立记账/独立判决)=====
+# 状态=市场燃料(物理慢变量,时段的真身);先二态控预算,验出差异再谈三态。
+STATES = collections.OrderedDict([
+    ("死水(fuel<20)", lambda e: e["fuel"] < 20),
+    ("有燃料(fuel>=20)", lambda e: e["fuel"] >= 20),
+])
+
+
+def state_lines(sel, indent="    "):
+    out = []
+    for sname, sf in STATES.items():
+        sub = [e for e in sel if sf(e)]
+        if len(sub) < 5:
+            out.append("%s%-16s n=%d(不足)" % (indent, sname, len(sub)))
+            continue
+        m = metrics(sub)
+        out.append("%s%-16s n=%-3d 净中位=%+7.1f 胜(中性化)=%3.0f%% 净PF=%5.2f" % (
+            indent, sname, m["n"], m["net_med"], m["win_neu"], m["pf_net"]))
+    return out
+
+
 if __name__ == "__main__":
     mode = sys.argv[1] if len(sys.argv) > 1 else "mine"
     now = datetime.utcnow()
@@ -168,8 +189,12 @@ if __name__ == "__main__":
         ok.sort(key=lambda m: (-m["net_med"], m["depth"]))
         print("挖掘窗=全部 %d 事件(截至 %sZ)| 过双正门组合=%d" % (len(rows), now.strftime("%H:%M"), len(ok)))
         print("\n== 过门组合 top10(净口径,主排序=净中位,奥卡姆同分取浅)==")
+        names = list(PARTICLES)
         for m in ok[:10]:
             print("  " + fmt(m))
+            fs = [PARTICLES[c] for c in m["tag"].split("×")]
+            for ln in state_lines([e for e in rows if all(f(e) for f in fs)]):
+                print(ln)
         print("\n== 未过门但净中位 top5(对照)==")
         rest = sorted([m for m in res if m not in ok], key=lambda m: -m["net_med"])
         for m in rest[:5]:
@@ -201,6 +226,8 @@ if __name__ == "__main__":
             need = cfg.get("verdict_need_n", 30)
             status = "【到线】" if m["n"] >= need else "%d/%d" % (m["n"], need)
             print("  %s %s" % (status, fmt(m)))
+            for ln in state_lines(sel):
+                print(ln)
             if m["n"] >= need:
                 g = cfg["gates"]
                 ok = m["win_neu"] >= g["win_neu_min"] and m["pf_net"] >= g["pf_net_min"] and m["net_med"] > g["net_med_min"]
