@@ -21,7 +21,8 @@ type fastTapePending struct {
 	burstAt  time.Time
 	notional float64
 	multiple float64
-	liqAtDet int // 探测时刻本币官方爆仓已到笔数(确认=计数超过它)
+	liqAtDet int  // 探测时刻本币官方爆仓已到笔数(确认=计数超过它)
+	sideMatch bool // v6.2:确认推送的被爆方向与 burst 方向是否对号(多数票)
 }
 
 var (
@@ -34,15 +35,18 @@ var (
 func fastTapeEnqueue(sym, side string, burstAt time.Time, notional, multiple float64, liqAtDet int) {
 	fastTapeMu.Lock()
 	defer fastTapeMu.Unlock()
-	fastTapeQueue = append(fastTapeQueue, fastTapePending{sym, side, burstAt, notional, multiple, liqAtDet})
+	fastTapeQueue = append(fastTapeQueue, fastTapePending{sym: sym, side: side, burstAt: burstAt, notional: notional, multiple: multiple, liqAtDet: liqAtDet})
 	if len(fastTapeQueue) > 64 {
 		fastTapeQueue = append([]fastTapePending{}, fastTapeQueue[len(fastTapeQueue)-64:]...)
 	}
 }
 
 // fastTapeDrainConfirmed 纯逻辑:取出"已被官方爆仓确认"的挂起项,丢弃过期项,其余留队。
-// 确认 = 该币官方爆仓计数(30s窗)> 探测时刻计数,即 burst 之后官方推送到达 = 这确实是强平流。
-func fastTapeDrainConfirmed(now time.Time, windowSec int, liqCount func(sym string, since time.Time) int) []fastTapePending {
+// 确认 = burst 之后该币官方爆仓推送到达 = 这确实是强平流。
+// v6.2 方向核对(2026-07-05 用户质询"确认结合了什么信息"后授权):liqSides 返回 burst 后到达的
+// 被爆仓方向;sideMatch = 多数票对号(卖方burst应伴随 long 被爆,买方burst应伴随 short 被爆)。
+// 定义级核对:对不上号=这次 burst 不是我们以为的那场强平(实测 95 确认中错号 6 笔中位 -10.7 更差)。
+func fastTapeDrainConfirmed(now time.Time, windowSec int, liqSides func(sym string, since time.Time) []string) []fastTapePending {
 	fastTapeMu.Lock()
 	defer fastTapeMu.Unlock()
 	var out []fastTapePending
@@ -52,7 +56,19 @@ func fastTapeDrainConfirmed(now time.Time, windowSec int, liqCount func(sym stri
 		if age > time.Duration(windowSec)*time.Second {
 			continue // 过期未确认=纯大单(离线:中位+4.2 不过门),丢弃
 		}
-		if liqCount(p.sym, p.burstAt) > 0 {
+		sides := liqSides(p.sym, p.burstAt)
+		if len(sides) > 0 {
+			want := "short" // 买方burst(跟多)← 空头被爆(强平买回)
+			if p.side == "short" {
+				want = "long" // 卖方burst(跟空)← 多头被爆(强平抛售)
+			}
+			match := 0
+			for _, s := range sides {
+				if s == want {
+					match++
+				}
+			}
+			p.sideMatch = match*2 >= len(sides)
 			out = append(out, p)
 		} else {
 			rest = append(rest, p)
@@ -68,7 +84,7 @@ func (e *OKXDirectionalEngine) fastTapeLoop(ctx context.Context) {
 			e.logger.Printf("[fast_tape] loop panic 已恢复: %v", r)
 		}
 	}()
-	e.logger.Printf("[OKX方向][fast_tape] tape_burst 线启动(burst→官方确认→当刻资格→taker;live=%v,关=只记shadow)", e.cfg.FastTapeLiveEnabled)
+	e.logger.Printf("[OKX方向][fast_tape] tape_burst 线启动(burst→官方确认→当刻资格→taker;live=%v 方向核对=%v,关=只记shadow)", e.cfg.FastTapeLiveEnabled, e.cfg.FastTapeSideMatchEnabled)
 	t := time.NewTicker(150 * time.Millisecond) // 亚秒消费:确认到达后 ≤150ms 内评估
 	defer t.Stop()
 	for {
@@ -95,16 +111,16 @@ func (e *OKXDirectionalEngine) fastTapeTick(ctx context.Context) {
 	if win <= 0 {
 		win = 3
 	}
-	confirmed := fastTapeDrainConfirmed(now, win, func(sym string, since time.Time) int {
-		n := 0
+	confirmed := fastTapeDrainConfirmed(now, win, func(sym string, since time.Time) []string {
+		var sides []string
 		fastLiqBufMu.Lock()
 		for _, l := range fastLiqBuf[sym] {
 			if l.ts.After(since) {
-				n++
+				sides = append(sides, l.posSide)
 			}
 		}
 		fastLiqBufMu.Unlock()
-		return n
+		return sides
 	})
 	for _, p := range confirmed {
 		select {
@@ -133,7 +149,11 @@ func (e *OKXDirectionalEngine) fastTapeTick(ctx context.Context) {
 		}
 		ev.CandidateSource = "tape_burst"
 		ev.FastCandidateSide = p.side
-		ev.FastCandidateReason = fmt.Sprintf("tape_burst_%.0fx_%.0fU", p.multiple, p.notional)
+		sm := "_sm0"
+		if p.sideMatch {
+			sm = "_sm1"
+		}
+		ev.FastCandidateReason = fmt.Sprintf("tape_burst_%.0fx_%.0fU%s", p.multiple, p.notional, sm)
 		ev.SnapshotID += "|tape_burst"
 		ev.EventAgeMs = now.Sub(p.burstAt).Milliseconds() // burst→评估全链延迟(执行差距核心指标)
 		ev.LiqN = p.liqAtDet
@@ -145,6 +165,9 @@ func (e *OKXDirectionalEngine) fastTapeTick(ctx context.Context) {
 		}
 		skip := ""
 		switch {
+		case e.cfg.FastTapeSideMatchEnabled && !p.sideMatch:
+			// v6.2 方向核对闸:错号=不是我们以为的那场强平。shadow 照记(带 _sm0 标记)=对照组不丢。
+			skip = "confirm_side_mismatch"
 		case ev.SpreadBps > maxSpread:
 			skip = "spread_wide"
 		case ev.DepthNotional10bps < e.cfg.FastPondDepthLoUSDT:

@@ -607,6 +607,7 @@ func DefaultEngineConfig() EngineConfig {
 			FastTapeLiveEnabled:            false, // v6 tape_burst 线:默认关死(枪已造好,开=用户批探针)
 			FastTapeConfirmWindowSec:       3,     // burst→官方确认窗口(与离线+1s进场研究同口径)
 			FastTapeMaxSpreadBps:           12,    // taker 进场点差上限
+			FastTapeSideMatchEnabled:       false, // v6.2 方向核对闸:默认关,config.yaml 显式开
 			FastProbeSource:                "",    // 探针制:空=无探针;设 source=用户批准该候选进探针层
 			FastProbeMaxTrades:             20,    // 探针预算:笔数硬顶
 			FastProbeMaxLossUSDT:           0.5,   // 探针预算:累亏硬顶(越线自动缴械,重启不失忆)

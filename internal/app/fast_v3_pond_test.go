@@ -558,18 +558,28 @@ func TestFastTapeLine(t *testing.T) {
 	fastTapeMu.Lock()
 	fastTapeQueue = nil
 	fastTapeMu.Unlock()
-	fastTapeEnqueue("TA-USDT", "short", base, 800, 8, 0)              // 将被确认
+	fastTapeEnqueue("TA-USDT", "short", base, 800, 8, 0)              // 将被确认(方向对号)
 	fastTapeEnqueue("TB-USDT", "long", base.Add(-10*time.Second), 600, 6, 0) // 过期(>3s)
 	fastTapeEnqueue("TC-USDT", "short", base, 700, 7, 0)              // 未确认,应留队
-	liqCount := func(sym string, since time.Time) int {
-		if sym == "TA-USDT" {
-			return 1
+	fastTapeEnqueue("TD-USDT", "long", base, 900, 9, 0)               // 将被确认但方向错号
+	liqSides := func(sym string, since time.Time) []string {
+		switch sym {
+		case "TA-USDT":
+			return []string{"long"} // 卖方burst(short)← 多头爆 = 对号
+		case "TD-USDT":
+			return []string{"long", "long", "short"} // 买方burst(long)应对 short 爆,多数票 long = 错号
 		}
-		return 0
+		return nil
 	}
-	out := fastTapeDrainConfirmed(base.Add(1*time.Second), 3, liqCount)
-	if len(out) != 1 || out[0].sym != "TA-USDT" {
-		t.Fatalf("应只确认 TA: %+v", out)
+	out := fastTapeDrainConfirmed(base.Add(1*time.Second), 3, liqSides)
+	if len(out) != 2 || out[0].sym != "TA-USDT" || out[1].sym != "TD-USDT" {
+		t.Fatalf("应确认 TA+TD: %+v", out)
+	}
+	if !out[0].sideMatch {
+		t.Fatalf("TA 方向应对号: %+v", out[0])
+	}
+	if out[1].sideMatch {
+		t.Fatalf("TD 方向应错号(多数票): %+v", out[1])
 	}
 	fastTapeMu.Lock()
 	rest := len(fastTapeQueue)

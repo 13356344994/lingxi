@@ -270,6 +270,11 @@ okx_directional:
   # v6.1 热币坑位怪兽优先(同日拍板):40 坑满员时 30min 暴动≥5 次的候选驱逐暴动少≥3 次的在订者
   #   (迟滞防抖,每轮≤5 对)。动机=07-05 漏斗诊断:H-USDT 139 次暴动 0 秒覆盖=坑位被粘性在订者霸占。
   fast_hot_priority_enabled: true
+  # v6.2 tape 方向核对闸(2026-07-05 用户授权"现在就可以处理代码"):官方确认推送的被爆方向须与
+  #   burst 方向对号(卖burst←多头爆/买burst←空头爆,多数票),错号 skip=confirm_side_mismatch,
+  #   shadow 照记带 _sm0 标记(对照组不丢)。定义级核对;实测 95 确认 94% 天然对号,错号6笔中位-10.7 更差。
+  #   live 关死期间它只影响 shadow 标注与跳过原因;探针开火时即是真闸。
+  fast_tape_side_match_enabled: true
   #   跨所强平流采集(耳朵不是枪口:fast 实盘只在 OKX,别所被迫流只做信号研究)。
   #   源=Bybit allLiquidation(OKX∩Bybit 交集;09:10 探针实测 Binance forceOrder/aggTrade 本机零数据帧=僵尸,弃用)。
   fast_xvenue_liq_enabled: true

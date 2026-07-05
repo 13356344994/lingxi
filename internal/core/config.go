@@ -976,6 +976,10 @@ type OKXDirectionalConfig struct {
 	FastTapeLiveEnabled     bool    `cfg:"fast_tape_live_enabled"`      // 默认 false;护栏锚定,开=用户明示
 	FastTapeConfirmWindowSec int    `cfg:"fast_tape_confirm_window_sec"` // burst 后等官方确认的窗口(默认3)
 	FastTapeMaxSpreadBps    float64 `cfg:"fast_tape_max_spread_bps"`    // 进场点上限(默认12)
+	// v6.2 方向核对闸(2026-07-05 用户授权):确认推送的被爆方向须与 burst 方向对号(卖burst←多头爆/
+	// 买burst←空头爆,多数票),错号=skip confirm_side_mismatch(shadow 照记带 _sm0 标记=对照组不丢)。
+	// 定义级核对非拟合参数;实测 95 确认 94% 天然对号,错号 6 笔中位 -10.7 显著更差。
+	FastTapeSideMatchEnabled bool `cfg:"fast_tape_side_match_enabled"`
 	// v6 净值哨兵(飞轮引擎的硬前提,HANDOFF §-7C):事件线 source 最近 N 笔净值中位 <0 → 自动停开
 	// (sentinel_halt)。飞轮策略高频走量,-2bps×330笔/天=烧账户,哨兵保证"不亏才配走量"。
 	// 触发即粘性停火(重启从结算重建=仍停),解除须人工解剖后调参——纪律在结构里,不在自觉里。

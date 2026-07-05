@@ -150,6 +150,10 @@ func TestLoadProductionConfigYAML(t *testing.T) {
 	if !cfg.OKXDirectional.FastHotPriorityEnabled {
 		t.Fatal("fast_hot_priority_enabled = false want true(热币坑位怪兽优先:H-USDT 139次暴动0秒覆盖教训)")
 	}
+	// v6.2:tape 方向核对闸(定义级:确认被爆方向须与 burst 方向对号;错号6笔中位-10.7 实证)
+	if !cfg.OKXDirectional.FastTapeSideMatchEnabled {
+		t.Fatal("fast_tape_side_match_enabled = false want true(确认闸方向核对:错号=不是我们以为的那场强平)")
+	}
 	if cfg.OKXDirectional.FastLiqFollowMinImp15Bps < 3 {
 		t.Fatalf("fast_liq_follow_min_imp15_bps = %.1f want >=3(瀑布存活确认,死瀑布=接反转)", cfg.OKXDirectional.FastLiqFollowMinImp15Bps)
 	}
