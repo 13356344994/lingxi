@@ -154,6 +154,14 @@ func TestLoadProductionConfigYAML(t *testing.T) {
 	if !cfg.OKXDirectional.FastTapeSideMatchEnabled {
 		t.Fatal("fast_tape_side_match_enabled = false want true(确认闸方向核对:错号=不是我们以为的那场强平)")
 	}
+	// v6.3:选择层代码已装但必须锁死(开=探针日与 live 开关一起,用户明示);切点锚定冻结值防静默调参
+	if cfg.OKXDirectional.FastTapeSelEnabled || cfg.OKXDirectional.FastTapeSelBreakoutEnabled {
+		t.Fatal("fast_tape_sel_* = true want false(选择层开=探针日用户明示;新样本判决未过前不许开)")
+	}
+	if cfg.OKXDirectional.FastTapeSelMinBaseUSDT != 50 || cfg.OKXDirectional.FastTapeSelMinNtlOIRatio != 0.0017 {
+		t.Fatalf("选择层切点漂移(want 50/0.0017 got %.4g/%.4g)——切点=07-05 组合扫描冻结值,改=作弊",
+			cfg.OKXDirectional.FastTapeSelMinBaseUSDT, cfg.OKXDirectional.FastTapeSelMinNtlOIRatio)
+	}
 	if cfg.OKXDirectional.FastLiqFollowMinImp15Bps < 3 {
 		t.Fatalf("fast_liq_follow_min_imp15_bps = %.1f want >=3(瀑布存活确认,死瀑布=接反转)", cfg.OKXDirectional.FastLiqFollowMinImp15Bps)
 	}

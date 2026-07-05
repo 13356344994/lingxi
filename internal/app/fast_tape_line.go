@@ -78,6 +78,34 @@ func fastTapeDrainConfirmed(now time.Time, windowSec int, liqSides func(sym stri
 	return out
 }
 
+// fastTapeSelSkip 纯函数:v6.3 选择层判定(""=通过)。切点=07-05 组合扫描冻结值,由护栏测试锚定。
+// ㊀ 磁带活跃(基线=notional/multiple ≥ minBase)× 占市值比(notional/OI名义 ≥ minRatio);
+// ㊂ 追加方向侧突破(买侧 pos≥0.9 / 卖侧 pos≤0.1,30min 区间)。
+// fail-closed:倍数/OI/区间任一缺失即跳过——探针的每一发都必须站在完整信息集上。
+func fastTapeSelSkip(selOn, breakoutOn bool, minBase, minRatio, notional, multiple, oiNotional float64, oiOK bool, pos float64, posOK bool, side string) string {
+	if !selOn {
+		return ""
+	}
+	if multiple <= 0 || notional/multiple < minBase {
+		return "sel_dead_tape"
+	}
+	if !oiOK || oiNotional <= 0 || notional/oiNotional < minRatio {
+		return "sel_small_vs_oi"
+	}
+	if breakoutOn {
+		if !posOK {
+			return "sel_range_warmup"
+		}
+		if side == "long" && pos < 0.9 {
+			return "sel_no_breakout"
+		}
+		if side == "short" && pos > 0.1 {
+			return "sel_no_breakout"
+		}
+	}
+	return ""
+}
+
 func (e *OKXDirectionalEngine) fastTapeLoop(ctx context.Context) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -174,6 +202,13 @@ func (e *OKXDirectionalEngine) fastTapeTick(ctx context.Context) {
 			skip = "depth_thin"
 		case ev.DepthNotional10bps > e.cfg.FastLiqFollowDepthHiUSDT && e.cfg.FastLiqFollowDepthHiUSDT > 0:
 			skip = "depth_institutional"
+		}
+		if skip == "" { // v6.3 选择层(㊀/㊂,切点冻结;fail-closed)
+			oiN, oiOK := fastOKXOINotional(p.sym, ev.Mid, now)
+			pos, posOK := fastRangePos(p.sym, ev.Mid)
+			skip = fastTapeSelSkip(e.cfg.FastTapeSelEnabled, e.cfg.FastTapeSelBreakoutEnabled,
+				e.cfg.FastTapeSelMinBaseUSDT, e.cfg.FastTapeSelMinNtlOIRatio,
+				p.notional, p.multiple, oiN, oiOK, pos, posOK, p.side)
 		}
 		ev.GateSkip = skip
 		_ = appendJSONLRecord(filepath.Join(e.recordDir, fastExecShadowFile), *ev)

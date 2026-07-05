@@ -1214,6 +1214,57 @@ func (e *OKXDirectionalEngine) updateFastMidHist(sym string, now time.Time, mid 
 	fastAppendMidHist(e.venueName+"|"+sym, now, mid)
 }
 
+// ===== v6.3 30min 区间历史(2026-07-05,选择层"方向侧突破"的原料)=====
+// fastMidHist 只留 300s(backlog 语义依赖它,不动);突破判定需要 30min 区间 → 独立轻量环:
+// 每币 ≥15s 采一点(120 点/30min,全市场 ~750 币 ≈ 2MB),只算 min/max。
+
+var (
+	fastRangeMu   sync.Mutex
+	fastRangeHist = map[string][]fastMidPoint{}
+	fastRangeLast = map[string]time.Time{}
+)
+
+// fastNoteRange 全市场标尺循环调用(15s/币 降采样)。
+func fastNoteRange(sym string, now time.Time, mid float64) {
+	fastRangeMu.Lock()
+	defer fastRangeMu.Unlock()
+	if last, ok := fastRangeLast[sym]; ok && now.Sub(last) < 15*time.Second {
+		return
+	}
+	fastRangeLast[sym] = now
+	h := append(fastRangeHist[sym], fastMidPoint{now, mid})
+	cut := now.Add(-1800 * time.Second)
+	i := 0
+	for i < len(h) && h[i].ts.Before(cut) {
+		i++
+	}
+	fastRangeHist[sym] = h[i:]
+}
+
+// fastRangePos 当前价在 30min 区间的位置(0=低点 1=高点);历史不足(span<25min 或 <30点)ok=false。
+// 与离线特征"方向侧突破"同口径(pos≥0.9 买侧 / ≤0.1 卖侧;15s 降采样对 min/max 稳健)。
+func fastRangePos(sym string, mid float64) (float64, bool) {
+	fastRangeMu.Lock()
+	defer fastRangeMu.Unlock()
+	h := fastRangeHist[sym]
+	if len(h) < 30 || h[len(h)-1].ts.Sub(h[0].ts) < 1500*time.Second {
+		return 0, false
+	}
+	mn, mx := h[0].mid, h[0].mid
+	for _, p := range h {
+		if p.mid < mn {
+			mn = p.mid
+		}
+		if p.mid > mx {
+			mx = p.mid
+		}
+	}
+	if mx <= mn {
+		return 0, false
+	}
+	return (mid - mn) / (mx - mn), true
+}
+
 // fastAppendMidHist 包级滚动历史追加(300s 窗口)。键="venue|sym";锚所历史(bybit|SYM 等)
 // 与主引擎(okx|SYM)共用存储、互不碰撞——v5.8 赢家解剖流水线的地基:任何时刻的锚状态可回溯。
 func fastAppendMidHist(key string, now time.Time, mid float64) {
@@ -1968,6 +2019,7 @@ func (e *OKXDirectionalEngine) fastMarketMidLoop(ctx context.Context) {
 				// 先算位移(用旧历史),再写入当前点(否则 60s 位移被当前点稀释)
 				r60 := e.fastImpulseBps(sym, mid, now, 60)
 				e.updateFastMidHist(sym, now, mid)
+				fastNoteRange(sym, now, mid) // v6.3 30min 区间环(选择层突破判定)
 				// v5.2 热币路径持久化:近5min有强平(OKX/Bybit)或 |60s|≥10bps → 本轮 mid 落盘;
 				// 首次转热补发 backlog(内存里≤300s 的历史)=簇诞生前路径不缺失。
 				hot := math.Abs(r60) >= fastHotMoverBps || fastRecentLiqAny(sym, now, 300) || fastXliqCount(sym, now, 300) > 0

@@ -980,6 +980,15 @@ type OKXDirectionalConfig struct {
 	// 买burst←空头爆,多数票),错号=skip confirm_side_mismatch(shadow 照记带 _sm0 标记=对照组不丢)。
 	// 定义级核对非拟合参数;实测 95 确认 94% 天然对号,错号 6 笔中位 -10.7 显著更差。
 	FastTapeSideMatchEnabled bool `cfg:"fast_tape_side_match_enabled"`
+	// ===== v6.3 选择层(2026-07-05 组合扫描预注册㊀/㊂的代码化;切点=离线冻结值,不许调参)=====
+	// ㊀磁带活跃×占市值比:基线1s成交额≥minBase(死磁带=纯亏区 PF0.45)且 burst名义/OI名义≥minRatio
+	// (被迫流的大用所在池塘的尺子量,用户洞见);㊂再加方向侧突破(30min区间 买侧pos≥0.9/卖侧≤0.1)。
+	// 挖掘期读数:㊀ +18.1/75%/PF8.56(n=20)㊂ +18.1/81%/PF16.9(n=16)——in-sample,新样本判决后才配开。
+	// 开=探针日与 fast_tape_live_enabled 一起(用户明示);fail-closed:OI缺/区间热身中一律跳过。
+	FastTapeSelEnabled         bool    `cfg:"fast_tape_sel_enabled"`          // 默认 false
+	FastTapeSelBreakoutEnabled bool    `cfg:"fast_tape_sel_breakout_enabled"` // ㊂第三层,默认 false
+	FastTapeSelMinBaseUSDT     float64 `cfg:"fast_tape_sel_min_base_usdt"`    // 冻结切点 50
+	FastTapeSelMinNtlOIRatio   float64 `cfg:"fast_tape_sel_min_ntl_oi_ratio"` // 冻结切点 0.0017
 	// v6 净值哨兵(飞轮引擎的硬前提,HANDOFF §-7C):事件线 source 最近 N 笔净值中位 <0 → 自动停开
 	// (sentinel_halt)。飞轮策略高频走量,-2bps×330笔/天=烧账户,哨兵保证"不亏才配走量"。
 	// 触发即粘性停火(重启从结算重建=仍停),解除须人工解剖后调参——纪律在结构里,不在自觉里。

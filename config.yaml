@@ -275,6 +275,12 @@ okx_directional:
   #   shadow 照记带 _sm0 标记(对照组不丢)。定义级核对;实测 95 确认 94% 天然对号,错号6笔中位-10.7 更差。
   #   live 关死期间它只影响 shadow 标注与跳过原因;探针开火时即是真闸。
   fast_tape_side_match_enabled: true
+  # v6.3 tape 选择层(2026-07-05 组合扫描㊀㊂的代码化;挖掘期 ㊀+18.1/75% ㊂+18.1/81% 均 in-sample):
+  #   ㊀=磁带活跃(基线≥50U/s)×占市值比(名义/OI≥0.0017);㊂=㊀×方向侧突破(30min区间 0.9/0.1)。
+  #   代码已装、此处刻意保持 false:开=新样本判决(n≥30/20)过门 + 用户批探针,与 fast_tape_live_enabled
+  #   同日一起开。切点是冻结值,护栏测试锚定,改切点=作弊。
+  fast_tape_sel_enabled: false
+  fast_tape_sel_breakout_enabled: false
   #   跨所强平流采集(耳朵不是枪口:fast 实盘只在 OKX,别所被迫流只做信号研究)。
   #   源=Bybit allLiquidation(OKX∩Bybit 交集;09:10 探针实测 Binance forceOrder/aggTrade 本机零数据帧=僵尸,弃用)。
   fast_xvenue_liq_enabled: true

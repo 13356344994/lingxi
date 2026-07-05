@@ -88,6 +88,21 @@ func fastXMetaStore(venue string, metas map[string]fastXTickMeta) {
 	}
 }
 
+// fastOKXOINotional 该币 OKX OI 名义(张×mid;30s REST 轮询,≤5min 新鲜度)。
+// v6.3 选择层"占市值比"的分母;单位口径与离线研究(hot_micro oi_now×mid)一致。
+func fastOKXOINotional(sym string, mid float64, now time.Time) (float64, bool) {
+	if mid <= 0 {
+		return 0, false
+	}
+	fastXMetaMu.Lock()
+	defer fastXMetaMu.Unlock()
+	meta, ok := fastXMeta["okx"][sym]
+	if !ok || meta.OI <= 0 || now.Sub(meta.TS) > 5*time.Minute {
+		return 0, false
+	}
+	return meta.OI * mid, true
+}
+
 // fastXMidGapBpsVenue OKX mid 相对某所 mid 的价差(bps,正=OKX 贵);无数据/过期(>15s)返回 (0,false)。
 func fastXMidGapBpsVenue(venue, sym string, okxMid float64, now time.Time) (float64, bool) {
 	if okxMid <= 0 {

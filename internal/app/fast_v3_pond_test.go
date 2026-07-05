@@ -601,6 +601,46 @@ func TestFastTapeLine(t *testing.T) {
 	}
 }
 
+// TestFastTapeSelSkip v6.3 选择层纯判定:关=放行;死磁带/占市值比不足/OI缺失 fail-closed;
+// 突破层按方向侧判;全过=""(切点用冻结值 50/0.0017)。
+func TestFastTapeSelSkip(t *testing.T) {
+	if r := fastTapeSelSkip(false, false, 50, 0.0017, 100, 1, 0, false, 0, false, "long"); r != "" {
+		t.Fatalf("关闭应放行, got %q", r)
+	}
+	// 死磁带:base=600/15=40 < 50
+	if r := fastTapeSelSkip(true, false, 50, 0.0017, 600, 15, 1e6, true, 0, false, "long"); r != "sel_dead_tape" {
+		t.Fatalf("want sel_dead_tape, got %q", r)
+	}
+	// 占市值比不足:2000/2e6=0.001 < 0.0017
+	if r := fastTapeSelSkip(true, false, 50, 0.0017, 2000, 10, 2e6, true, 0, false, "long"); r != "sel_small_vs_oi" {
+		t.Fatalf("want sel_small_vs_oi, got %q", r)
+	}
+	// OI 缺失 fail-closed
+	if r := fastTapeSelSkip(true, false, 50, 0.0017, 2000, 10, 0, false, 0, false, "long"); r != "sel_small_vs_oi" {
+		t.Fatalf("OI缺失应 fail-closed, got %q", r)
+	}
+	// ㊀ 全过:base=200≥50,ratio=2000/1e6=0.002≥0.0017
+	if r := fastTapeSelSkip(true, false, 50, 0.0017, 2000, 10, 1e6, true, 0, false, "long"); r != "" {
+		t.Fatalf("㊀应放行, got %q", r)
+	}
+	// ㊂ 突破层:区间热身中 fail-closed;买侧 pos 不足;卖侧 pos 过高;方向侧通过
+	if r := fastTapeSelSkip(true, true, 50, 0.0017, 2000, 10, 1e6, true, 0, false, "long"); r != "sel_range_warmup" {
+		t.Fatalf("want sel_range_warmup, got %q", r)
+	}
+	if r := fastTapeSelSkip(true, true, 50, 0.0017, 2000, 10, 1e6, true, 0.5, true, "long"); r != "sel_no_breakout" {
+		t.Fatalf("买侧 pos=0.5 应拦, got %q", r)
+	}
+	if r := fastTapeSelSkip(true, true, 50, 0.0017, 2000, 10, 1e6, true, 0.5, true, "short"); r != "sel_no_breakout" {
+		t.Fatalf("卖侧 pos=0.5 应拦, got %q", r)
+	}
+	if r := fastTapeSelSkip(true, true, 50, 0.0017, 2000, 10, 1e6, true, 0.95, true, "long"); r != "" {
+		t.Fatalf("买侧 pos=0.95 应过, got %q", r)
+	}
+	if r := fastTapeSelSkip(true, true, 50, 0.0017, 2000, 10, 1e6, true, 0.05, true, "short"); r != "" {
+		t.Fatalf("卖侧 pos=0.05 应过, got %q", r)
+	}
+}
+
 // TestFastBurstUpdate v5.9 亚秒探测器:基线热身/秒桶推进/5×触发/额度下限/死盘地板/方向。
 func TestFastBurstUpdate(t *testing.T) {
 	st := &symBurstState{}

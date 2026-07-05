@@ -608,6 +608,10 @@ func DefaultEngineConfig() EngineConfig {
 			FastTapeConfirmWindowSec:       3,     // burst→官方确认窗口(与离线+1s进场研究同口径)
 			FastTapeMaxSpreadBps:           12,    // taker 进场点差上限
 			FastTapeSideMatchEnabled:       false, // v6.2 方向核对闸:默认关,config.yaml 显式开
+			FastTapeSelEnabled:             false,  // v6.3 选择层㊀:开=探针日用户明示
+			FastTapeSelBreakoutEnabled:     false,  // v6.3 选择层㊂第三层
+			FastTapeSelMinBaseUSDT:         50,     // 冻结切点(07-05 组合扫描 base_hi)
+			FastTapeSelMinNtlOIRatio:       0.0017, // 冻结切点(ratio_med)
 			FastProbeSource:                "",    // 探针制:空=无探针;设 source=用户批准该候选进探针层
 			FastProbeMaxTrades:             20,    // 探针预算:笔数硬顶
 			FastProbeMaxLossUSDT:           0.5,   // 探针预算:累亏硬顶(越线自动缴械,重启不失忆)
