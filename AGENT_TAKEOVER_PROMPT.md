@@ -16,6 +16,7 @@
    - `fast_executable_shadow_events.jsonl`(候选快照,v5.2 起带 gate_skip/簇龄/燃料/xgap 上下文);
    - `fast_burst_detect.jsonl`(亚秒 burst 识别,带识别延迟与官方推送状态)/ `fast_hot_mids.jsonl`(热币路径+四锚[mid,ts]+转热回溯)/ `fast_hot_micro.jsonl`(热币秒级盘口成交流OI)/ `fast_liquidation_events.jsonl` + `fast_xvenue_liq_events.jsonl`(OKX+Bybit 爆仓;**Bybit 旧行 pos_side 反向,side_raw 可信**)/ `fast_mover_census.jsonl`(暴动普查)/ `fast_xmeta_snapshots.jsonl`(funding/OI/nextFunding 快照);
    - `records/lingxi_server.log`(服务日志,BJ 时间)。
+   - **「13 流」统一口径(07-05 接管时以盘上实际落盘文件定案,与 HANDOFF ⓪同步)**:①fast_executable_shadow_events ②fast_burst_detect ③fast_hot_mids ④fast_hot_micro ⑤fast_liquidation_events ⑥fast_xvenue_liq_events ⑦fast_mover_census ⑧fast_xmeta_snapshots ⑨fast_dynamic_feature_events ⑩shadow_fast_signal_events ⑪open_decision_events ⑫settlements.jsonl(慢线账本)⑬instrument_meta.json。全市场 mid 标尺喂内存不落盘、fast_v2_settlements 是实盘账本(停火期无新行),均不计流。
 5. **守护测试** `internal/app/config_production_yaml_test.go`——每条断言锚着一个用血换来的决策,改配置前先看它为什么断言。
 6. 关键分析脚本(只读):`_direction_classifier_study.py`(方向分类器,已判死)、`_combo_miner.py`(组合挖掘,OI三重奏出处)、`_takeover_audit_liqfollow.py`、`_deadhour_mm_study.py`、`_full_history_review.py`。
 
