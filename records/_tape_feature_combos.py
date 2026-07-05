@@ -50,7 +50,8 @@ for line in open(REC + "/fast_burst_detect.jsonl"):
                    "ntl": float(r.get("notional_1s", 0) or 0),
                    "mult": float(r.get("multiple", 0) or 0),
                    "base": float(r.get("baseline_med_1s", 0) or 0),
-                   "fuel": float(r.get("market_liq_5m", 0) or 0)})
+                   "fuel": float(r.get("market_liq_5m", 0) or 0),
+                   "px": float(r.get("px", 0) or 0)})
 events.sort(key=lambda e: e["t0"])
 liqd = {}
 for line in open(REC + "/fast_liquidation_events.jsonl"):
@@ -64,7 +65,15 @@ for line in open(REC + "/fast_liquidation_events.jsonl"):
     liqd.setdefault(r["symbol"], []).append((ep(r["recorded_at"]), r.get("pos_side", "")))
 for v in liqd.values():
     v.sort()
+liq_all = sorted(t for arr in liqd.values() for t, _ in arr)
+
+
+def fuel_at(t):
+    return bisect.bisect_right(liq_all, t) - bisect.bisect_left(liq_all, t - 300)
+
+
 conf = []
+prior = collections.defaultdict(list)  # sym -> confirmed burst 时刻(算首发/续发)
 for e in events:
     arr = liqd.get(e["sym"])
     if not arr:
@@ -76,6 +85,12 @@ for e in events:
         continue
     want = "long" if e["dir"] < 0 else "short"
     e["sm"] = sum(1 for s in sides if s == want) * 2 >= len(sides)
+    # 相对特征原料:本币簇爆 / 燃料导数 / 首发vs续发
+    lo = bisect.bisect_left(keys, e["t0"] - 30)
+    e["symliq"] = sum(1 for t, _ in arr[lo:] if t <= e["t0"] + 3.0)
+    e["fuelrise"] = fuel_at(e["t0"]) > fuel_at(e["t0"] - 900)
+    e["prior30"] = sum(1 for t in prior[e["sym"]] if e["t0"] - t <= 1800)
+    prior[e["sym"]].append(e["t0"])
     conf.append(e)
 
 # ---- hot_micro:进场价 + t0 点差/OI + t0-60 OI ----
@@ -91,23 +106,31 @@ want = {}
 for sec, lst in want_sec.items():
     want[datetime.utcfromtimestamp(sec).strftime("%Y-%m-%dT%H:%M:%S")] = lst
 for e in conf:
-    e.update(entry=None, entry_t=None, spread=None, oi=None, oi60=None)
+    e.update(entry=None, entry_t=None, spread=None, oi=None, oi60=None, imb=None)
+conf_syms = {e["sym"] for e in conf}
+spr_samples = collections.defaultdict(list)  # sym -> 常态点差抽样(相对点差分母)
+nline = 0
 for fn in (REC + "/fast_hot_micro.jsonl.1", REC + "/fast_hot_micro.jsonl"):
     if not os.path.exists(fn):
         continue
     with open(fn) as f:
         for line in f:
+            nline += 1
             p = line.find('"recorded_at":"')
             if p < 0:
                 continue
             ks = want.get(line[p + 15:p + 34])
-            if not ks:
+            if ks is None and nline % 211 != 0:
                 continue
             try:
                 d = json.loads(line)
             except ValueError:
                 continue
             sym = d.get("symbol")
+            if ks is None:  # 抽样行:攒常态点差
+                if sym in conf_syms and d.get("spread_bps") is not None and len(spr_samples[sym]) < 800:
+                    spr_samples[sym].append(d["spread_bps"])
+                continue
             T = ep(d["recorded_at"])
             for k, kind in ks:
                 e = conf[k]
@@ -120,11 +143,14 @@ for fn in (REC + "/fast_hot_micro.jsonl.1", REC + "/fast_hot_micro.jsonl"):
                 elif kind == "now" and -5 <= dt <= 0.5:
                     if e["spread"] is None:
                         e["spread"] = d.get("spread_bps")
+                    if e["imb"] is None:
+                        e["imb"] = d.get("book_imbalance_now")
                     if d.get("oi_now"):
                         e["oi"] = d["oi_now"] * (d.get("mid") or 0)
                 elif kind == "old" and -65 <= dt <= -55:
                     if d.get("oi_now"):
                         e["oi60"] = d["oi_now"] * (d.get("mid") or 0)
+spr_typ = {s: statistics.median(v) for s, v in spr_samples.items() if len(v) >= 30}
 
 # ---- shadow 深度 ----
 depth = {}
@@ -181,6 +207,17 @@ def trail(e, mh=120):
     return last
 
 
+def series_at(sym, t, tol=90):
+    arr = paths.get(sym)
+    if not arr:
+        return None
+    keys = pk[sym]
+    i = bisect.bisect_right(keys, t) - 1
+    if i < 0 or t - arr[i][0] > tol:
+        return None
+    return arr[i][1]
+
+
 rows = []
 for e in conf:
     v = trail(e)
@@ -190,8 +227,29 @@ for e in conf:
     for dt in range(0, 6):
         d10 = depth.get((e["sym"], int(e["t0"]) + dt)) or d10
     e["v"], e["d10"] = v, d10
+    # 相对方向:burst 顺/逆自身 60s 前趋势
+    p60 = series_at(e["sym"], e["t0"] - 60)
+    e["r60p"] = (e["px"] - p60) / p60 * 1e4 if (p60 and e["px"]) else None
+    # 相对位置:30min 区间的方向侧边缘突破
+    arr = paths.get(e["sym"])
+    e["brk"] = None
+    if arr and e["px"]:
+        keys = pk[e["sym"]]
+        lo = bisect.bisect_left(keys, e["t0"] - 1800)
+        hi = bisect.bisect_right(keys, e["t0"])
+        win = [m for _, m in arr[lo:hi]]
+        if len(win) >= 30:
+            mn, mx = min(win), max(win)
+            if mx > mn:
+                pos = (e["px"] - mn) / (mx - mn)
+                e["brk"] = pos >= 0.9 if e["dir"] > 0 else pos <= 0.1
+    # 相对点差
+    t_ = spr_typ.get(e["sym"])
+    e["rspr"] = (e["spread"] / t_) if (e["spread"] is not None and t_ and t_ > 0) else None
     rows.append(e)
-print("确认=%d 可评=%d" % (len(conf), len(rows)))
+rsprs = [e["rspr"] for e in rows if e["rspr"] is not None]
+rspr_med = statistics.median(rsprs) if rsprs else 1.0
+print("确认=%d 可评=%d(常态点差覆盖 %d 币,相对点差可算 %d)" % (len(conf), len(rows), len(spr_typ), len(rsprs)))
 
 
 def perc(vals, p):
@@ -223,6 +281,16 @@ FEATS = collections.OrderedDict([
     ("方向一致", lambda e: e["sm"]),
     ("高燃料", lambda e: e["fuel"] >= 40),
     ("OI瓦解", lambda e: e["oi"] and e["oi60"] and (e["oi"] - e["oi60"]) / e["oi60"] <= -0.001),
+    # ===== v2 相对化扩展(2026-07-05 用户"绝对的地方用相对试试"指令)=====
+    ("顺自身趋势", lambda e: e["r60p"] is not None and abs(e["r60p"]) >= 5 and e["dir"] * e["r60p"] > 0),
+    ("逆自身趋势", lambda e: e["r60p"] is not None and abs(e["r60p"]) >= 5 and e["dir"] * e["r60p"] < 0),
+    ("盘口同向", lambda e: e["imb"] is not None and e["imb"] * e["dir"] > 0),
+    ("本币簇爆", lambda e: e.get("symliq", 0) >= 2),
+    ("燃料上升期", lambda e: e.get("fuelrise") is True),
+    ("首发burst", lambda e: e.get("prior30", 0) == 0),
+    ("续发burst", lambda e: e.get("prior30", 0) >= 1),
+    ("方向侧突破", lambda e: e.get("brk") is True),
+    ("相对窄点差", lambda e: e["rspr"] is not None and e["rspr"] <= rspr_med),
 ])
 
 
