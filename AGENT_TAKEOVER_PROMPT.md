@@ -8,16 +8,16 @@
 
 ## 第一步:必读材料(按此顺序读,读完向我复述你的理解)
 
-1. **`/root/lingxi/HANDOFF.md` 全文**——这是项目的活文档,按时间倒序记录了每一个决策、每一次证伪、每一条铁律的来龙去脉。特别注意所有标了 🔒铁律 和 🚀 的段落。
+1. **`/root/lingxi/HANDOFF.md` 的 ⓪作战面板**(顶部 15 行压缩全景,先读它建立坐标)→ 然后按 §-7(刀谱+飞轮+两道门)→ §-6(哲学纲领)→ §-5(三定理+探针章程)→ §-4(v5 停火与重建)→ 更早分节按需。活文档按时间倒序,标 🔒铁律 和 🚀 的段落必读。
 2. **`/root/lingxi/config.yaml`**——生产配置,每个 fast_* 开关旁边的注释就是它存在的理由和证据。
-3. **核心代码**:`internal/app/fast_scalper.go`(fast 超频线全部逻辑)、`internal/app/okx_directional_engine.go`(引擎与结算)、`internal/app/fast_ws_collector.go`(行情与爆仓采集)、`internal/core/config.go` + `defaults.go`(配置定义)。
+3. **核心代码**(按重要性):`internal/app/fast_tape_line.go`(v6 头号候选整枪,默认关死)、`fast_burst_detector.go`(亚秒探测器,38ms)、`fast_scalper.go`(fast 层全部机制:探针治理器/净值哨兵/出场机器/评估管线)、`fast_xmid_collector.go`(跨所信息标尺)、`fast_hot_ws_collector.go` + `fast_ws_collector.go`(WS 采集)、`okx_directional_engine.go`(引擎与结算)、`internal/core/config.go` + `defaults.go`(配置定义)。
 4. **数据文件**(在 `records/okx_directional/`):
-   - `fast_v2_settlements.jsonl`——每笔实盘结算,含成交后 3s/5s/10s/15s/30s/60s 的 MFE/MAE 路径、入场线标记 `fast_candidate_source`、出场原因;
-   - `fast_executable_shadow_events.jsonl`——所有候选快照(含未开仓的),`candidate_source` 空=scorer 轮询、fade_exhaustion/liq_catch/liq_follow=事件候选;这是无幸存者偏差的地图数据;
-   - `fast_liquidation_events.jsonl`——全市场 SWAP 爆仓推送原始流;
-   - `records/lingxi_server.log`——服务日志,含每笔开平仓和每轮扫描的入场结果分布。
-5. **守护测试** `internal/app/config_production_yaml_test.go`——生产配置的每一条断言都锚着一个用血换来的决策,改配置前先看它为什么断言。
-6. 分析脚本(只读,不影响交易):`records/_fast_v3_daily_verdict.py`(固化裁决口径)、`records/_fast_motive_factors.py`、`records/_fast_v3_blueprint_study.py`。
+   - `fast_v2_settlements.jsonl`(实盘结算,含 post-fill MFE/MAE 路径与 `fast_candidate_source`);
+   - `fast_executable_shadow_events.jsonl`(候选快照,v5.2 起带 gate_skip/簇龄/燃料/xgap 上下文);
+   - `fast_burst_detect.jsonl`(亚秒 burst 识别,带识别延迟与官方推送状态)/ `fast_hot_mids.jsonl`(热币路径+四锚[mid,ts]+转热回溯)/ `fast_hot_micro.jsonl`(热币秒级盘口成交流OI)/ `fast_liquidation_events.jsonl` + `fast_xvenue_liq_events.jsonl`(OKX+Bybit 爆仓;**Bybit 旧行 pos_side 反向,side_raw 可信**)/ `fast_mover_census.jsonl`(暴动普查)/ `fast_xmeta_snapshots.jsonl`(funding/OI/nextFunding 快照);
+   - `records/lingxi_server.log`(服务日志,BJ 时间)。
+5. **守护测试** `internal/app/config_production_yaml_test.go`——每条断言锚着一个用血换来的决策,改配置前先看它为什么断言。
+6. 关键分析脚本(只读):`_direction_classifier_study.py`(方向分类器,已判死)、`_combo_miner.py`(组合挖掘,OI三重奏出处)、`_takeover_audit_liqfollow.py`、`_deadhour_mm_study.py`、`_full_history_review.py`。
 
 **注意:不要只盯着文档。代码、日志、交易记录、时间相关(重点)、服务重启时间,全部要交叉核对。文档说的和日志对不上时,以日志为准,并向我报告。**
 
@@ -36,14 +36,15 @@
 11. **每次更新服务必须 git push。**顺序:build/test 绿 → `./start.sh` 重启 → 验证日志存活 → git add/commit(带动机)→ push → 核对 `git rev-list origin/main..HEAD --count` = 0。远端是最后一道防线(07-02 工作区曾被外部进程整个抹掉)。
 12. **报告风格:结果先行,如实,不粉饰。**测试失败就说失败,亏损就报亏损;每个修复必须预先登记"可证伪的裁决数字",之后拿实际数字对,不管好坏都报。
 
-## 第三步:当前系统状态(2026-07-04 深夜更新;接手时先核实是否仍然如此,更早快照已过时)
+## 第三步:当前系统状态(2026-07-05 10:45 BJ 更新;接手时先核实,更早快照已过时)
 
-- **fast 层当前零实盘(2026-07-04 起全线 record-only)**:liq_follow 已于 07-04 03:20 证伪停火(信息集对齐后 ex-LAB 全负,病根=盲区闸+评估冷却造成的结构性迟到;详见 HANDOFF §-4)。评估管线照跑(shadow+跳过原因),trail 出场已预置,重开须"簇诞生即评估"新信息集研究 ex-LAB 净正+用户明示。
-- **v5 数据体系(11 条流,全部 record-only)**:全市场 mid 标尺(3s,盲区已根治)+热币路径持久化+热币微结构(books5/trades/OI,动态订阅40币)+OKX/Bybit 双所爆仓流+波动普查(≥25bps 带四锚价差/基差/燃料标注)+跨所信息标尺(Bybit/Binance/Gate/OKX现货,funding/OI 5min 快照)+合约元数据(instrument_meta.json,含上市年龄)。
-- **探针制章程(HANDOFF §-5)+探针治理器(代码)**:发现阶段允许小额实盘快试(≤20笔/累亏≤0.5U,机器锁死自动缴械);`fast_probe_source` 空=无探针,设置=用户明示批准。
-- **哲学层四句纲领(HANDOFF §-6)**:调研定方向/极端定仓位/天道定信心/止错不止损,带刃口注释,是候选设计的审美标准。
-- **候选队列现状(07-04 深夜)**:存活=tape 反推强平(领先官方推送~1.1s,待误报率轮)、跨所价差/基差方向分类器(标注积累中)、制度层假说(资费结算倒计时/OI 复仇燃料表/引擎节拍/新上市结构);已阵亡(零学费)=吸收率、沉默钟、突破跟随、Bybit-only 引领(死于前视偏差——**分组条件也必须过信息集审查**)。
-- **旧状态(07-03,已作废,仅供读旧数据时对照)**:liq_follow 跟空单线曾实盘,闸序=blind_no_history→cascade_dead→squeeze_top_no_long→点差≤12→深度[5k,15万]。
+- **fast 层零实盘零出血(07-04 03:20 停火起持续)**;慢线 OKX(100U)/Bybit(50U)微仓探索照跑;总学费≈-51U;账户几千 U 级,**资金路径关死,唯一升档路=合约成交量**(两道门制因此而生)。
+- **头号候选 tape_burst,整枪已造好在运行(v6,保险锁定)**:机制=强平市价单先打在成交流上(亚秒探测器识别延迟中位 38ms),官方推送晚 ~0.5-1.5s;实测 edge 半衰期≈2s(burst+1s 进场 60s 中位 +13.6bps 毛/59% 顺向,+3s 翻 -13.0)。通路(生产代码,live=false 时空转记 shadow):探测→挂起→官方爆仓确认(≤3s)→当刻资格(点差≤12/深度5k-15万)→taker→trail 棘轮。**开火=改两行配置(fast_tape_live_enabled: true + fast_probe_source: tape_burst)+重启,前提=周一活跃 regime 复测通过+用户明示批准。**
+- **两道门制(HANDOFF §-7C)**:利润引擎门=中位≥18bps(1.5×成本);**飞轮引擎门=中位≥12bps(打平即合格走量引擎)**——tape(净+1.6)已过飞轮门;自举闭环=微利刷量 30 天→$10M→VIP2→成本 9.2/门 13.8→同策略晋升利润引擎。飞轮的机器保险=**净值哨兵**(事件线滚动 50 笔净值中位<0→sentinel_halt 粘性停火,重启不解除)+探针治理器(≤20笔/累亏≤0.5U 自动缴械)。
+- **数据体系 13 流全 record-only**(明细见第一步第 4 条);出场机器(能量刻度/物种斩/trail)已验证不要动;探针章程+哲学纲领见 HANDOFF §-5/§-6。
+- **候选记分牌**:①tape_burst(头号,等周一复测)②OI三重奏(预注册:失衡×OI骤降×锚同向→中位≥+8/赢率≥40%,周一样本外过检才算数——231 组合选优有多重比较风险)③bybit-only(正确映射后中位+2~3.4 未过线)④制度层假说(资费倒计时/OI复仇表/引擎节拍/新上市结构,原料齐未测)。**坟场(勿复活,除非费率降档触发重审)**:scorer/fade/liq_catch/liq_follow旧形态/吸收率/沉默钟/突破固定持有/动量全档/跨所价差分类器(降级为背景特征)/死水做市(搁置待tick级数据)。
+- **三定理**:59% 大运动无前兆、爆仓漏斗只见 8% 的肉;公开动量确认全档 PF 0.38-0.59(假阳性税);特征与分组条件都必须过信息集审查(前视/测量污染,已因此死过两候选+一次误证伪+一次险污染)。
+- **周一会审计划(最近的裁决点)**:活跃 regime 下 ①用 fast_burst_detect.jsonl 实测事件×前向复测 tape(+13.6 中位站住即向用户提探针)②OI 三重奏样本外 ③制度层首测。若三线全空→向用户提交战略级转向建议(换尺度/换所/换游戏),不无限研究。
 - **出场机器(已验证,不要动)**:能量单位制(能量成熟池阈值=max(绝对下限, k×池塘能量中位):灾难2.0×/止损1.2×/A斩0.6×/TP0.8×)+ 物种斩(A=3s深亏立断/C=10s死水快撤)+ trail;fast_tp 非紧急出场走 maker 省费。
 - **record-only 地图层(继续记录,不实盘)**:scorer 轮询线(91%子弹、3s顺向仅12%、逆选择税,已降级)、fade 力竭接单(成交即证伪,群体优势+1.0bps付不起执行成本)、liq_catch(永久硬闸)、liq_follow 跟多侧、池塘统计、爆仓流采集。
 - **已登记候选机制(攒 shadow,未实盘)**:"轧空冲顶反手做空"(离线镜像 +34bps@180s,n=56,需对手模型打磨+更厚样本)。
@@ -52,10 +53,10 @@
 
 ## 第四步:接手后你要持续做的事
 
-1. **健康检查**:进程存活、日志无 panic、扫描结果分布正常(`scorer_record_only`/`alt_record_only_source` 应大量出现;注:v4 换枪后 scorer 候选在池塘闸之前就被来源闸拦下,`pond_reject` 不再出现是正常行为)、liq_follow 闸的跳过原因分布合理。
-2. **对裁决数**(攒够几十笔就对,禁止等日历):liq_follow 跟空线的净值、成交后 3s 顺向占优率(基线 12%,换枪后 33%)、无肉单占比(基线 60%,换枪后 39%)、砍单"180s 白砍率"(修复前 50%,修复后 0/2)。用 `records/_fast_v3_daily_verdict.py` 的固化口径。
-3. **逐笔解剖新亏损**:每笔亏损单按"事件→方向核对→滑点→持仓路径→出场"过一遍,病灶积累到有对手模型解释时才动刀,一次部署只动一刀,每刀都配护栏测试+可证伪预言。
-4. **地图层数据积累**:fade 群体优势若增厚到 >5bps@60s、或"轧空反手空"样本够厚且对手模型立得住,向我提出重估,**不许自行开实盘闸**。
+1. **健康检查**(每 ~3h):进程存活、日志无 panic、13 条数据流最后写入时间在分钟内、磁盘余量、慢线净值正常;扫描分布里 `scorer_record_only`/`alt_record_only_source` 大量出现为正常。
+2. **执行周一会审计划**(见第三步末条)——这是最近的裁决点,结果无论好坏拿数字向我报。
+3. **逐笔解剖任何新实盘亏损**(探针开启后):事件→方向→滑点→路径→出场对账;执行差距追踪=每笔实盘 vs shadow 假设逐笔对比(结算里的 event_age_ms 等字段就是为此存的)。
+4. **候选重估触发条件**:OI三重奏样本外过检→提探针;bybit-only 中位站上 12→重审;费率若降档→按 §-7B 解锁地图重审坟场。**一切实盘开关都要我明示,你只递数字和方案。**
 
 ## 明确禁止(违反=事故)
 
