@@ -1,0 +1,42 @@
+{
+ "frozen_at_utc": "2026-07-05T15:42:23",
+ "frozen_at_ep": 1783266143.0,
+ "cost_bps": 12.0,
+ "scratch_bps": 5.0,
+ "verdict_need_n": 30,
+ "gates": {
+  "win_neu_min": 50,
+  "pf_net_min": 1.3,
+  "net_med_min": 0
+ },
+ "champions": [
+  {
+   "tag": "火灾(跟空)×大额2kU",
+   "mine": {
+    "n": 15,
+    "net_med": 14.56,
+    "net_mean": 27.1,
+    "net_sum": 406.56,
+    "win_neu": 60.0,
+    "scratch_n": 0,
+    "pf_net": 2.25,
+    "top": "GIGGLE:4",
+    "depth": 2
+   }
+  },
+  {
+   "tag": "非死磁带×大额2kU×方向侧突破",
+   "mine": {
+    "n": 16,
+    "net_med": 9.72,
+    "net_mean": 17.99,
+    "net_sum": 287.83,
+    "win_neu": 66.67,
+    "scratch_n": 1,
+    "pf_net": 1.66,
+    "top": "LIT:3",
+    "depth": 3
+   }
+  }
+ ]
+}
