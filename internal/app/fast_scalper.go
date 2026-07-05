@@ -1837,6 +1837,11 @@ func fastAnnotateXGaps(sym string, okxMid float64, now time.Time, by, bn, gt, sp
 const fastHotMidsFile = "fast_hot_mids.jsonl"
 const fastHotMoverBps = 10.0
 
+// v6.1 全市场 mid 落盘(2026-07-05 用户拍板):标尺每轮全部 mid 一行。动机=研究覆盖债
+// (tape 复测路径覆盖率仅 40%、E线 bps 级检验不可测、321 暴动币仅 39% 有秒级视野)。
+// ~0.5GB/天;备份脚本 >2GB rename 轮换(与 hot_micro 同列)。
+const fastMarketMidsFile = "fast_market_mids.jsonl"
+
 // fastHotMidsRow 一轮热币快照(单行,mids=sym→mid);币首次转热时另发 backlog 行,
 // 把内存里该币过去 ≤300s 的 mid 历史倒出来——簇诞生前的路径(算诞生时刻 imp15/30 用)不缺失。
 // v5.8:快照行带四锚 mids(anchors[venue][sym]),backlog 行带 venue 标记(锚回溯与主回溯同款);
@@ -1920,12 +1925,13 @@ func (e *OKXDirectionalEngine) fastMarketMidLoop(ctx context.Context) {
 	if iv < 2 {
 		iv = 3
 	}
-	e.logger.Printf("[fast_mids] 全市场 mid 标尺启动 间隔=%ds(盲区根治+波动普查:|60s|≥%.0fbps 记 %s)", iv, fastMoverMinAbsRet60Bps, fastMoverCensusFile)
+	e.logger.Printf("[fast_mids] 全市场 mid 标尺启动 间隔=%ds 全量落盘=%v(盲区根治+波动普查:|60s|≥%.0fbps 记 %s)", iv, e.cfg.FastMarketMidsPersistEnabled, fastMoverMinAbsRet60Bps, fastMoverCensusFile)
 	t := time.NewTicker(time.Duration(iv) * time.Second)
 	defer t.Stop()
 	fails := 0
 	censusPath := filepath.Join(e.recordDir, fastMoverCensusFile)
 	hotPath := filepath.Join(e.recordDir, fastHotMidsFile)
+	allPath := filepath.Join(e.recordDir, fastMarketMidsFile) // v6.1 全市场 mid 落盘(覆盖债根治)
 	lastEmit := map[string]time.Time{}
 	hotSeen := map[string]time.Time{} // sym -> 最后一次判定为热的时刻(转热瞬间发 backlog)
 	for {
@@ -1947,10 +1953,17 @@ func (e *OKXDirectionalEngine) fastMarketMidLoop(ctx context.Context) {
 			now := e.nowFn().UTC()
 			mktLiq := fastMarketLiqRate(now, 300)
 			hotRow := fastHotMidsRow{RecordedAt: now, Mids: map[string]float64{}}
+			var allRow *fastHotMidsRow // v6.1:persist 开启时每轮全市场 mid 一行(研究覆盖债根治,~0.5GB/天,备份脚本>2GB轮换)
+			if e.cfg.FastMarketMidsPersistEnabled {
+				allRow = &fastHotMidsRow{RecordedAt: now, Mids: make(map[string]float64, len(books))}
+			}
 			for sym, bk := range books {
 				mid := (bk.BidPrice + bk.AskPrice) / 2
 				if mid <= 0 {
 					continue
+				}
+				if allRow != nil {
+					allRow.Mids[sym] = mid
 				}
 				// 先算位移(用旧历史),再写入当前点(否则 60s 位移被当前点稀释)
 				r60 := e.fastImpulseBps(sym, mid, now, 60)
@@ -1980,6 +1993,7 @@ func (e *OKXDirectionalEngine) fastMarketMidLoop(ctx context.Context) {
 					continue
 				}
 				lastEmit[sym] = now
+				fastNoteRiot(sym, now) // v6.1 暴动登记(热币坑位怪兽优先的依据;与普查同口径同去重)
 				ev := fastMoverEvent{
 					RecordedAt: now, Symbol: sym, Mid: mid,
 					TopBidQty: bk.BidQty, TopAskQty: bk.AskQty,
@@ -2015,6 +2029,11 @@ func (e *OKXDirectionalEngine) fastMarketMidLoop(ctx context.Context) {
 				fastXMidMu.Unlock()
 				if werr := appendJSONLRecord(hotPath, hotRow); werr != nil {
 					e.logger.Printf("[fast_mids] 热币路径落盘失败: %v", werr)
+				}
+			}
+			if allRow != nil && len(allRow.Mids) > 0 {
+				if werr := appendJSONLRecord(allPath, *allRow); werr != nil {
+					e.logger.Printf("[fast_mids] 全市场mid落盘失败: %v", werr)
 				}
 			}
 			if len(lastEmit) > 4096 { // 防无界

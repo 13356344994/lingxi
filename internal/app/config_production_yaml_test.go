@@ -143,6 +143,13 @@ func TestLoadProductionConfigYAML(t *testing.T) {
 	if !cfg.OKXDirectional.FastXvenueLiqEnabled {
 		t.Fatal("fast_xvenue_liq_enabled = false want true(跨所强平流采集=频率正解的地图数据)")
 	}
+	// v6.1(2026-07-05 用户拍板"文档代码一块改了并上线"):研究覆盖债根治,两项均 record-only
+	if !cfg.OKXDirectional.FastMarketMidsPersistEnabled {
+		t.Fatal("fast_market_mids_persist_enabled = false want true(全市场mid落盘:tape复测路径覆盖仅40%/321暴动币61%无秒级视野的根治)")
+	}
+	if !cfg.OKXDirectional.FastHotPriorityEnabled {
+		t.Fatal("fast_hot_priority_enabled = false want true(热币坑位怪兽优先:H-USDT 139次暴动0秒覆盖教训)")
+	}
 	if cfg.OKXDirectional.FastLiqFollowMinImp15Bps < 3 {
 		t.Fatalf("fast_liq_follow_min_imp15_bps = %.1f want >=3(瀑布存活确认,死瀑布=接反转)", cfg.OKXDirectional.FastLiqFollowMinImp15Bps)
 	}

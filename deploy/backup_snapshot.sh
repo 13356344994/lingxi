@@ -88,7 +88,8 @@ fi
 # 防磁盘被吃爆(hot_micro ~3.5GB/天)。appendJSONLRecord 每次 open-append-close,rename 后
 # 下次写入自动重建新文件,零丢失窗口;近期研究窗口(~半天到一天)始终可用(当前文件+.1)。
 for big in "$RECORD_DIR/okx_directional/fast_dynamic_feature_events.jsonl" \
-           "$RECORD_DIR/okx_directional/fast_hot_micro.jsonl"; do
+           "$RECORD_DIR/okx_directional/fast_hot_micro.jsonl" \
+           "$RECORD_DIR/okx_directional/fast_market_mids.jsonl"; do
   [ -f "$big" ] || continue
   sz=$(stat -c %s "$big" 2>/dev/null || echo 0)
   if [ "$sz" -gt 2147483648 ]; then

@@ -597,6 +597,8 @@ func DefaultEngineConfig() EngineConfig {
 			FastLiqFollowShadowEnabled:     false, // 停火后评估管线继续(shadow+跳过原因,不下单):默认关,config.yaml 显式开
 			FastMarketMidsEnabled:          false, // 全市场 mid 标尺(盲区闸根治):默认关,config.yaml 显式开
 			FastMarketMidIntervalSeconds:   3,     // tickers 全量拉取间隔(限频 20次/2s,3s 一发余量巨大)
+			FastMarketMidsPersistEnabled:   false, // v6.1 全市场 mid 落盘(覆盖债根治):默认关,config.yaml 显式开
+			FastHotPriorityEnabled:         false, // v6.1 热币坑位怪兽优先:默认关,config.yaml 显式开
 			FastXvenueLiqEnabled:           false, // 跨所强平采集(Bybit allLiquidation):默认关,config.yaml 显式开
 			FastHotWSEnabled:               false, // 热币微结构采集:默认关,config.yaml 显式开
 			FastXMidEnabled:                false, // Bybit 价格标尺(跨所价差锚):默认关,config.yaml 显式开

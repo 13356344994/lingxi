@@ -263,6 +263,13 @@ okx_directional:
   # v5 基建(2026-07-04,均 record-only):
   #   全市场 mid 标尺:单请求拉全部 SWAP tickers 喂价格历史,根治盲区闸迟到(3s一发,限频余量巨大);
   fast_market_mids_enabled: true
+  # v6.1 全市场 mid 落盘(2026-07-05 用户拍板"文档代码一块改了并上线"):标尺每轮全部 mid 写
+  #   fast_market_mids.jsonl。动机=研究覆盖债:tape 滚动复测路径覆盖率仅 40%、当日 321 个暴动币
+  #   61% 无秒级视野、E线 bps 级检验不可测。~0.5GB/天,备份脚本 >2GB 自动轮换;record-only。
+  fast_market_mids_persist_enabled: true
+  # v6.1 热币坑位怪兽优先(同日拍板):40 坑满员时 30min 暴动≥5 次的候选驱逐暴动少≥3 次的在订者
+  #   (迟滞防抖,每轮≤5 对)。动机=07-05 漏斗诊断:H-USDT 139 次暴动 0 秒覆盖=坑位被粘性在订者霸占。
+  fast_hot_priority_enabled: true
   #   跨所强平流采集(耳朵不是枪口:fast 实盘只在 OKX,别所被迫流只做信号研究)。
   #   源=Bybit allLiquidation(OKX∩Bybit 交集;09:10 探针实测 Binance forceOrder/aggTrade 本机零数据帧=僵尸,弃用)。
   fast_xvenue_liq_enabled: true

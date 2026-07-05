@@ -52,17 +52,69 @@ func fastHotSetSnapshot() map[string]time.Time {
 	return out
 }
 
+// ===== v6.1 暴动登记(怪兽坑位优先的依据;2026-07-05)=====
+// census 口径(|60s|≥25bps,120s 同币去重)的暴动时刻,30min 滚动窗。
+// 由全市场标尺循环喂;热币 WS 差分订阅按它识别"正在连环暴动的币"。
+
+var (
+	fastRiotMu   sync.Mutex
+	fastRiotHist = map[string][]time.Time{}
+)
+
+// fastNoteRiot 普查发射点调用:登记一次暴动(窗口裁剪就地做,防无限涨)。
+func fastNoteRiot(sym string, now time.Time) {
+	fastRiotMu.Lock()
+	defer fastRiotMu.Unlock()
+	cut := now.Add(-30 * time.Minute)
+	h := append(fastRiotHist[sym], now)
+	i := 0
+	for i < len(h) && h[i].Before(cut) {
+		i++
+	}
+	fastRiotHist[sym] = h[i:]
+	if len(fastRiotHist) > 4096 {
+		for k, v := range fastRiotHist {
+			if len(v) == 0 || v[len(v)-1].Before(cut) {
+				delete(fastRiotHist, k)
+			}
+		}
+	}
+}
+
+// fastRiotCounts30m 各币 30min 暴动数快照(怪兽优先驱逐的输入)。
+func fastRiotCounts30m(now time.Time) map[string]int {
+	cut := now.Add(-30 * time.Minute)
+	out := map[string]int{}
+	fastRiotMu.Lock()
+	defer fastRiotMu.Unlock()
+	for sym, h := range fastRiotHist {
+		n := 0
+		for _, t := range h {
+			if !t.Before(cut) {
+				n++
+			}
+		}
+		if n > 0 {
+			out[sym] = n
+		}
+	}
+	return out
+}
+
 // fastHotWSDesired 纯函数:从热度表算出目标订阅集与退订集。
-// 规则:①已订阅且 stickySec 内仍热 → 保留;②空位按"最近热"优先补新币;③超期未热 → 退订。
-func fastHotWSDesired(hot map[string]time.Time, current map[string]bool, now time.Time, maxN, stickySec int) (subs, unsubs []string) {
+// 规则:①已订阅且 stickySec 内仍热 → 保留;②空位按"最近热"优先补新币;③超期未热 → 退订;
+// ④【v6.1 怪兽优先,riotN!=nil 时生效】满员后,30min 暴动数≥5 的新鲜候选可驱逐暴动数少
+//   ≥3 的在订者(迟滞防订阅抖动),每轮至多 5 对——07-05 漏斗诊断:H-USDT 139 次暴动 0 秒覆盖,
+//   坑位被粘性在订者霸占;怪兽币(连环暴动=杠杆瓦解候选猎场)必须挤得进视野。
+func fastHotWSDesired(hot map[string]time.Time, current map[string]bool, now time.Time, maxN, stickySec int, riotN map[string]int) (subs, unsubs []string) {
 	fresh := func(sym string) bool {
 		t, ok := hot[sym]
 		return ok && now.Sub(t) <= time.Duration(stickySec)*time.Second
 	}
-	kept := 0
+	kept := make([]string, 0, len(current))
 	for sym := range current {
 		if fresh(sym) {
-			kept++
+			kept = append(kept, sym)
 		} else {
 			unsubs = append(unsubs, sym)
 		}
@@ -78,15 +130,48 @@ func fastHotWSDesired(hot map[string]time.Time, current map[string]bool, now tim
 		}
 	}
 	sort.Slice(cands, func(i, j int) bool { return cands[i].t.After(cands[j].t) })
+	added := map[string]bool{}
 	for _, c := range cands {
-		if kept+len(subs) >= maxN {
+		if len(kept)+len(subs) >= maxN {
 			break
 		}
 		subs = append(subs, c.sym)
+		added[c.sym] = true
+	}
+	if riotN != nil && len(kept)+len(subs) >= maxN && len(kept) > 0 {
+		rest := make([]cand, 0, len(cands))
+		for _, c := range cands {
+			if !added[c.sym] && riotN[c.sym] >= 5 {
+				rest = append(rest, c)
+			}
+		}
+		sort.Slice(rest, func(i, j int) bool { return riotN[rest[i].sym] > riotN[rest[j].sym] })
+		sort.Slice(kept, func(i, j int) bool { return riotN[kept[i]] < riotN[kept[j]] })
+		ki, evicted := 0, 0
+		for _, c := range rest {
+			if evicted >= 5 || ki >= len(kept) {
+				break
+			}
+			if riotN[c.sym]-riotN[kept[ki]] < 3 {
+				break // rest 降序 kept 升序:此对不满足则后续更不满足
+			}
+			unsubs = append(unsubs, kept[ki])
+			subs = append(subs, c.sym)
+			ki++
+			evicted++
+		}
 	}
 	sort.Strings(subs)
 	sort.Strings(unsubs)
 	return
+}
+
+// fastHotRiotCounts 引擎侧包装:优先权开关关=nil(纯函数走旧行为)。
+func (e *OKXDirectionalEngine) fastHotRiotCounts(now time.Time) map[string]int {
+	if !e.cfg.FastHotPriorityEnabled {
+		return nil
+	}
+	return fastRiotCounts30m(now)
 }
 
 func (e *OKXDirectionalEngine) fastHotWSEnabled() bool {
@@ -103,7 +188,7 @@ func (e *OKXDirectionalEngine) fastHotWSLoop(ctx context.Context) {
 	if maxN <= 0 {
 		maxN = 40
 	}
-	e.logger.Printf("[fast_hotws] 热币微结构采集启动(record-only)动态订阅上限=%d 粘性=%ds → %s", maxN, fastHotWSStickySec, fastHotMicroFile)
+	e.logger.Printf("[fast_hotws] 热币微结构采集启动(record-only)动态订阅上限=%d 粘性=%ds 怪兽优先=%v → %s", maxN, fastHotWSStickySec, e.cfg.FastHotPriorityEnabled, fastHotMicroFile)
 	for {
 		select {
 		case <-ctx.Done():
@@ -148,7 +233,7 @@ func (e *OKXDirectionalEngine) runFastHotWS(ctx context.Context, maxN int) error
 	var subMu sync.Mutex
 	// 初始订阅
 	now := e.nowFn().UTC()
-	subs, _ := fastHotWSDesired(fastHotSetSnapshot(), subbed, now, maxN, fastHotWSStickySec)
+	subs, _ := fastHotWSDesired(fastHotSetSnapshot(), subbed, now, maxN, fastHotWSStickySec, e.fastHotRiotCounts(now))
 	if err := fastHotWSSubOp(conn, "subscribe", subs); err != nil {
 		return err
 	}
@@ -178,7 +263,7 @@ func (e *OKXDirectionalEngine) runFastHotWS(ctx context.Context, maxN int) error
 					cur[k] = true
 				}
 				subMu.Unlock()
-				add, del := fastHotWSDesired(fastHotSetSnapshot(), cur, nowD, maxN, fastHotWSStickySec)
+				add, del := fastHotWSDesired(fastHotSetSnapshot(), cur, nowD, maxN, fastHotWSStickySec, e.fastHotRiotCounts(nowD))
 				if len(add) == 0 && len(del) == 0 {
 					continue
 				}

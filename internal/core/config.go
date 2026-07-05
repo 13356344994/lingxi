@@ -964,6 +964,10 @@ type OKXDirectionalConfig struct {
 	// 只喂价格历史,不下单;每 N 秒 1 个公共请求(/market/tickers 限频 20次/2s,余量巨大)。
 	FastMarketMidsEnabled         bool `cfg:"fast_market_mids_enabled"`
 	FastMarketMidIntervalSeconds  int  `cfg:"fast_market_mid_interval_seconds"` // 默认 3
+	// v6.1 全市场 mid 落盘(2026-07-05 用户拍板):标尺每轮把全部 mid 写 fast_market_mids.jsonl。
+	// 动机=研究覆盖债:tape 滚动复测路径覆盖率仅 40%、E线 bps 级检验不可测,病根都是非热币路径不落盘。
+	// ~460MB/天,备份脚本 >2GB rename 轮换(同 hot_micro);record-only,不影响任何交易路径。
+	FastMarketMidsPersistEnabled bool `cfg:"fast_market_mids_persist_enabled"`
 	// ===== v6 tape_burst 策略线(2026-07-05 预置;默认关死,开=用户批探针)=====
 	// 机制(已实证):强平市价单先打在成交流上(亚秒探测器识别延迟中位38ms),官方推送晚~0.5-1.5s;
 	// burst+官方确认后 +1s 进场 60s 中位 +13.6bps 毛(59%顺向),+3s 翻负=edge半衰期2s。
@@ -992,6 +996,10 @@ type OKXDirectionalConfig struct {
 	// 重开后的低延迟盘口地基)。不下单/不读账户。
 	FastHotWSEnabled    bool `cfg:"fast_hot_ws_enabled"`
 	FastHotWSMaxSymbols int  `cfg:"fast_hot_ws_max_symbols"` // 动态订阅上限(默认40)
+	// v6.1 热币坑位怪兽优先(2026-07-05 用户拍板):40 坑满员时,30min 暴动数≥5 的候选可驱逐
+	// 明显更不活跃的在订者(暴动数差≥3 的迟滞防抖动)。动机=07-05 漏斗诊断:H-USDT 139 次暴动
+	// 0 秒覆盖,坑位被粘性在订者霸占,币级研究视野缺 61%。纯采集层,不影响交易。
+	FastHotPriorityEnabled bool `cfg:"fast_hot_priority_enabled"`
 	// v5 跨所强平流采集(2026-07-04,record-only):Bybit allLiquidation(OKX∩Bybit 交集)→
 	// fast_xvenue_liq_events.jsonl。耳朵不是枪口:fast 实盘只在 OKX,别所被迫流只做信号研究。
 	// 频率问题的正解=加事件源不降标准:同一币在别所被强平,被迫流是同一股。不下单/不读账户/不影响交易。
