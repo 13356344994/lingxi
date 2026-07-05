@@ -8,7 +8,10 @@
   挖掘期读数 = n=112, +9.5bps, 47%(基线 -1.0 / 30%)
 样本外窗 = SINCE(默认 2026-07-05T01:45,即挖掘完成之后)起的全部新数据。
 样本充分性:挖掘期事件率 ≈12/h;n<80 只报中间读数不裁决(与 miner 的 stat 门一致)。
-用法:python3 _oi_trio_oos.py [SINCE_ISO]
+用法:python3 _oi_trio_oos.py [SINCE_ISO] [UNTIL_ISO]
+v2(07-05 14:30,用户质询"NES单边行情"后加固):行带时间戳;新增**episode 去重口径**
+(同币命中间隔<300s 视为同一事件,只记首笔)——防伪重复:趋势持续期条件逐秒连发,
+26 个"命中"可能只是一段单边行情被采样 26 次。裁决一律以 episode 口径为准。
 """
 import json
 import sys
@@ -20,6 +23,7 @@ import os
 HERE = os.path.dirname(os.path.abspath(__file__))
 DIR = os.path.join(HERE, "okx_directional")
 SINCE = sys.argv[1] if len(sys.argv) > 1 else "2026-07-05T01:45"
+UNTIL = sys.argv[2] if len(sys.argv) > 2 else "9999"
 
 
 def ts(s):
@@ -89,7 +93,7 @@ for fn in files:
     with open(fn) as f:
         for line in f:
             i = line.find('"recorded_at":"')
-            if i < 0 or line[i + 15:i + 34] < SINCE:
+            if i < 0 or line[i + 15:i + 34] < SINCE or line[i + 15:i + 34] >= UNTIL:
                 continue
             try:
                 d = json.loads(line)
@@ -140,6 +144,7 @@ for fn in files:
                 oi_now > 0 and oi_d < -0.01 * oi_now,   # OI骤降
                 gap is not None and gap * side >= 10,   # 锚价差同向
                 sym,
+                t,
             ))
 
 print("样本外窗起点(UTC):", SINCE, "| 扫描", nscan, "行 → 决策时刻", len(rows), "个")
@@ -162,11 +167,31 @@ def stat(sel, tag, top_check=True):
     print("  %-36s n=%-5d 中位=%+6.1fbps 赢率(>=15)=%3.0f%%%s" % (tag, len(v), med, win, flag))
 
 
+def dedup_episodes(sel, gap_sec=300):
+    """同币命中间隔<gap_sec 归并为一个 episode,只保留首笔(信息集最早时刻)。"""
+    sel = sorted(sel, key=lambda r: r[5])
+    last = {}
+    out = []
+    for r in sel:
+        t0 = last.get(r[4])
+        if t0 is None or (r[5] - t0).total_seconds() >= gap_sec:
+            out.append(r)
+            last[r[4]] = r[5]
+    return out
+
+
 print("\n== 基线(全部决策时刻)==")
 stat(rows, "基线", top_check=False)
 print("\n== 单成分 ==")
 stat([r for r in rows if r[1]], "盘口失衡同向")
 stat([r for r in rows if r[2]], "OI骤降(60s<=-1%)")
 stat([r for r in rows if r[3]], "锚价差同向(>=10bps)")
-print("\n== 预注册三重奏(裁决锚:中位>=+8 且 赢率>=40%;n<80 只读不裁)==")
-stat([r for r in rows if r[1] and r[2] and r[3]], "失衡×OI骤降×锚同向")
+trio = [r for r in rows if r[1] and r[2] and r[3]]
+print("\n== 预注册三重奏(逐秒原始口径,含伪重复,仅对照用)==")
+stat(trio, "失衡×OI骤降×锚同向(raw)")
+print("\n== 三重奏 episode 口径(同币300s归并;裁决口径:中位>=+8 且 赢率>=40% 且非单币主导 且 n>=30 episode)==")
+epi = dedup_episodes(trio)
+stat(epi, "失衡×OI骤降×锚同向(episode)")
+print("\nepisode 明细(时刻 币 顺向60s):")
+for r in epi:
+    print("  %s  %-14s %+7.1fbps" % (r[5].strftime("%m-%d %H:%M:%S"), r[4], r[0]))
