@@ -111,6 +111,8 @@ type fastWSState struct {
 	// v5.4 OI(open-interest 频道,仅热币 WS 订阅;主采集连接不订=恒空,零影响)。
 	// OI 下降=去杠杆总量,是"瀑布还剩多少燃料"的直接读数(爆仓频道节流漏报,OI 骗不了人)。
 	ois map[string][]wsOIPt
+	// v5.9 亚秒 burst 探测器状态(nil=不探测;仅热币 WS 挂载)。
+	burst *fastBurstDetector
 }
 
 func (e *OKXDirectionalEngine) fastWSEnabled() bool {
@@ -280,7 +282,7 @@ func (e *OKXDirectionalEngine) fastWSHandle(st *fastWSState, payload []byte) {
 		}
 	case "trades":
 		for _, d := range msg.Data {
-			var t struct{ Px, Sz, Side string }
+			var t struct{ Px, Sz, Side, Ts string }
 			if json.Unmarshal(d, &t) != nil {
 				continue
 			}
@@ -290,6 +292,11 @@ func (e *OKXDirectionalEngine) fastWSHandle(st *fastWSState, payload []byte) {
 				continue
 			}
 			st.trades[sym] = append(st.trades[sym], wsTradePt{ts: now, buy: strings.EqualFold(t.Side, "buy"), qty: sz, px: px})
+			// v5.9 亚秒 burst 探测(仅热币 WS 携带探测器;record-only)
+			if st.burst != nil {
+				exch, _ := strconv.ParseInt(t.Ts, 10, 64)
+				e.fastBurstOnTrade(st.burst, sym, now, exch, px, sz, strings.EqualFold(t.Side, "buy"))
+			}
 		}
 		// prune >6s
 		st.trades[sym] = pruneTrades(st.trades[sym], now.Add(-6*time.Second))

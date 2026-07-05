@@ -511,6 +511,42 @@ func TestFastProbeGovernor(t *testing.T) {
 	}
 }
 
+// TestFastBurstUpdate v5.9 亚秒探测器:基线热身/秒桶推进/5×触发/额度下限/死盘地板/方向。
+func TestFastBurstUpdate(t *testing.T) {
+	st := &symBurstState{}
+	base := time.Unix(1783200000, 0)
+	// 热身:60 秒每秒 100U 底噪
+	for i := 0; i < 60; i++ {
+		fastBurstUpdate(st, base.Add(time.Duration(i)*time.Second), 100, true)
+	}
+	// 底噪不触发
+	hit, _, _, _ := fastBurstUpdate(st, base.Add(61*time.Second), 100, true)
+	if hit {
+		t.Fatal("底噪不应触发")
+	}
+	// 1s 内 600U(6×中位100)且≥500U → 触发,方向=卖
+	t2 := base.Add(62 * time.Second)
+	fastBurstUpdate(st, t2, 300, false)
+	hit, tot, med, buySide := fastBurstUpdate(st, t2.Add(200*time.Millisecond), 300, false)
+	if !hit || tot < 600 || med <= 0 || buySide {
+		t.Fatalf("应触发卖向burst: hit=%v tot=%v med=%v buy=%v", hit, tot, med, buySide)
+	}
+	// 额度下限:5×但名义<500U 不触发
+	st2 := &symBurstState{}
+	for i := 0; i < 60; i++ {
+		fastBurstUpdate(st2, base.Add(time.Duration(i)*time.Second), 10, true)
+	}
+	if hit, _, _, _ := fastBurstUpdate(st2, base.Add(61*time.Second), 60, true); hit {
+		t.Fatal("名义<500U 不应触发")
+	}
+	// 热身期(<30s)不判定
+	st3 := &symBurstState{}
+	fastBurstUpdate(st3, base, 100, true)
+	if hit, _, _, _ := fastBurstUpdate(st3, base.Add(time.Second), 99999, true); hit {
+		t.Fatal("热身期不应触发")
+	}
+}
+
 func TestFastLiqCascadeAlive(t *testing.T) {
 	// 阈值<=0 = 闸关闭
 	if !fastLiqCascadeAlive("short", 0, 0) {

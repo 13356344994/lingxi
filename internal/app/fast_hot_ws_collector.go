@@ -142,7 +142,8 @@ func (e *OKXDirectionalEngine) runFastHotWS(ctx context.Context, maxN int) error
 	}
 	defer conn.Close()
 	_ = conn.SetReadDeadline(time.Now().Add(35 * time.Second))
-	st := &fastWSState{trades: map[string][]wsTradePt{}, books: map[string][]wsBookPt{}}
+	st := &fastWSState{trades: map[string][]wsTradePt{}, books: map[string][]wsBookPt{},
+		burst: newFastBurstDetector(e.recordDir)} // v5.9 亚秒 burst 探测(仅热币 WS,record-only)
 	subbed := map[string]bool{}
 	var subMu sync.Mutex
 	// 初始订阅
