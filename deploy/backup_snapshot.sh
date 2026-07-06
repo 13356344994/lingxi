@@ -45,7 +45,8 @@ for v in okx bybit binance gate; do
   for f in settlements.jsonl position.json control.json cooldowns.json \
            fast_positions.json fast_cooldowns.jsonl universe.json \
            open_decision_events.jsonl shadow_fast_signal_events.jsonl \
-           slow_position_cleanup.jsonl fast_position_cleanup.jsonl; do
+           slow_position_cleanup.jsonl fast_position_cleanup.jsonl \
+           fast_liquidation_events.jsonl fast_burst_detect.jsonl; do
     copy_if "$d/$f"
   done
 done
