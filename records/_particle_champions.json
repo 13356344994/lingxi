@@ -1,6 +1,6 @@
 {
- "frozen_at_utc": "2026-07-05T15:54:32",
- "frozen_at_ep": 1783266872.0,
+ "frozen_at_utc": "2026-07-06T04:41:09",
+ "frozen_at_ep": 1783312869.0,
  "cost_bps": 12.0,
  "scratch_bps": 5.0,
  "verdict_need_n": 30,
@@ -11,43 +11,31 @@
  },
  "champions": [
   {
-   "tag": "磁带活跃×前动量强×燃料上升期",
+   "tag": "非死磁带×燃料上升期×跨所溢价高",
    "mine": {
-    "n": 20,
-    "net_med": 14.78,
-    "net_mean": 30.07,
-    "net_sum": 601.44,
-    "win_neu": 65.0,
-    "scratch_n": 0,
-    "pf_net": 2.59,
-    "top": "OPN:5",
+    "n": 18,
+    "net_med": 8.24,
+    "net_mean": 4.98,
+    "net_sum": 89.59,
+    "win_neu": 64.71,
+    "scratch_n": 1,
+    "pf_net": 1.37,
+    "top": "KORU:4",
     "depth": 3
    }
   },
   {
-   "tag": "火灾(跟空)×大额2kU",
+   "tag": "前动量强×高燃料×窄点差",
    "mine": {
-    "n": 15,
-    "net_med": 14.56,
-    "net_mean": 27.1,
-    "net_sum": 406.56,
-    "win_neu": 60.0,
-    "scratch_n": 0,
-    "pf_net": 2.25,
-    "top": "GIGGLE:4",
-    "depth": 2
-   }
-  },
-  {
-   "tag": "火灾(跟空)×磁带活跃×爆仓减速",
-   "frozen_at_utc": "2026-07-05T16:50:00",
-   "mine": {
-    "n": 30,
-    "net_med": 7.4,
-    "win_neu": 67,
-    "pf_net": 2.5,
-    "top": "XTZ:3",
-    "note": "状态开关型:减速市孤立瀑布=干净猎物(瞬时状态粒子首个冠军)"
+    "n": 18,
+    "net_med": -8.01,
+    "net_mean": 6.71,
+    "net_sum": 120.86,
+    "win_neu": 57.14,
+    "scratch_n": 4,
+    "pf_net": 1.33,
+    "top": "LAB:3",
+    "depth": 3
    }
   }
  ]
