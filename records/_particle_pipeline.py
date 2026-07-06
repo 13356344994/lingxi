@@ -23,7 +23,9 @@ from datetime import datetime
 
 REC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "okx_directional")
 CHAMP = os.path.join(os.path.dirname(os.path.abspath(__file__)), "_particle_champions.json")
-COST = 12.0
+# LX_COST:成本地板覆盖(07-06 换战场评估用:12=OKX Regular / 8≈Regular+返佣或VIP2 / 6≈低费率所)。
+# 默认 12 不变——判决口径仍以冻结时的 12 为准,其他地板只做"复活候选"重算,不改判决。
+COST = float(os.environ.get("LX_COST", "12"))
 SCRATCH = 5.0
 
 
