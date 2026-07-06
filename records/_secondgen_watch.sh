@@ -12,6 +12,8 @@ while true; do
     timeout 900 python3 records/_sorter_shadow_run.py "$FRESH" 2>&1 | grep -v '^→'
     echo "--- 冠军流水线 verdict ---"
     timeout 900 python3 records/_particle_pipeline.py verdict 2>&1
+    echo "--- 烟花反手刀前向判决(预注册 07-06 21:20,判决集=21:00Z 后) ---"
+    timeout 900 python3 records/_firework_verdict.py 2>&1
     echo ""
   } >> "$LOG" 2>&1
   sleep 1800
