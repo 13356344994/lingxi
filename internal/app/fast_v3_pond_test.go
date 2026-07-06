@@ -552,6 +552,30 @@ func TestFastSentinel(t *testing.T) {
 	}
 }
 
+// TestFastTapeKick v6.4:官方推送落地(fastNoteLiq)必须踢醒评估循环;重复踢不阻塞(缓冲1丢弃)。
+func TestFastTapeKick(t *testing.T) {
+	// 排空残留信号
+	select {
+	case <-fastTapeKick:
+	default:
+	}
+	now := time.Now().UTC()
+	fastNoteLiq("KICK-USDT", "long", 1, now)
+	select {
+	case <-fastTapeKick:
+	default:
+		t.Fatal("fastNoteLiq 后应有唤醒信号")
+	}
+	// 连续两次不阻塞(第二次落入 default 丢弃)
+	fastNoteLiq("KICK-USDT", "long", 1, now)
+	fastNoteLiq("KICK-USDT", "long", 1, now)
+	select {
+	case <-fastTapeKick:
+	default:
+		t.Fatal("应仍有一个在途唤醒")
+	}
+}
+
 // TestFastTapeLine v6:挂起队列确认/过期/保留 + 来源闸(默认关死=record_only)。
 func TestFastTapeLine(t *testing.T) {
 	base := time.Now().UTC()

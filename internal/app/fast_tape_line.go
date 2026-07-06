@@ -29,7 +29,18 @@ var (
 	fastTapeMu      sync.Mutex
 	fastTapeQueue   []fastTapePending
 	fastTapeEvalAt  = map[string]time.Time{} // 同币评估冷却(30s;与探测器冷却一致)
+	// v6.4 事件驱动唤醒(2026-07-06 延迟解剖:自身排队脂肪中位75ms/P90 134ms=纯轮询等待):
+	// 官方爆仓推送落地即踢醒评估循环,不再等下一个 tick。缓冲1,满了丢=已有唤醒在途。
+	fastTapeKick = make(chan struct{}, 1)
 )
+
+// fastTapeKickNow 非阻塞唤醒 tape 评估循环(fastNoteLiq=WS 推送线程调用,绝不能卡)。
+func fastTapeKickNow() {
+	select {
+	case fastTapeKick <- struct{}{}:
+	default:
+	}
+}
 
 // fastTapeEnqueue 探测器识别即入队(调用方持 fastWSState.mu;非阻塞)。
 func fastTapeEnqueue(sym, side string, burstAt time.Time, notional, multiple float64, liqAtDet int) {
@@ -113,12 +124,17 @@ func (e *OKXDirectionalEngine) fastTapeLoop(ctx context.Context) {
 		}
 	}()
 	e.logger.Printf("[OKX方向][fast_tape] tape_burst 线启动(burst→官方确认→当刻资格→taker;live=%v 方向核对=%v,关=只记shadow)", e.cfg.FastTapeLiveEnabled, e.cfg.FastTapeSideMatchEnabled)
-	t := time.NewTicker(150 * time.Millisecond) // 亚秒消费:确认到达后 ≤150ms 内评估
+	t := time.NewTicker(150 * time.Millisecond) // 兜底轮询(唤醒信号丢失时的保险)
 	defer t.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return
+		case <-fastTapeKick: // v6.4 事件驱动:确认推送落地即评估(砍掉中位75ms排队脂肪)
+			if !e.fastScalperEnabled() {
+				continue
+			}
+			e.fastTapeTick(ctx)
 		case <-t.C:
 			if !e.fastScalperEnabled() {
 				continue
@@ -171,10 +187,12 @@ func (e *OKXDirectionalEngine) fastTapeTick(ctx context.Context) {
 			}
 		}
 		fastTapeMu.Unlock()
-		ev := e.buildFastEvent(ctx, p.sym, now) // REST 盘口+深度(探针期口径;延迟计入执行差距)
+		evalT0 := e.nowFn().UTC()
+		ev := e.buildFastEvent(ctx, p.sym, now) // REST 盘口+深度(v6.4 已并发;延迟计入执行差距)
 		if ev == nil {
 			continue
 		}
+		ev.EvalRestMs = e.nowFn().UTC().Sub(evalT0).Milliseconds() // v6.4 复测读数:REST组装耗时
 		ev.CandidateSource = "tape_burst"
 		ev.FastCandidateSide = p.side
 		sm := "_sm0"

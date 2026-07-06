@@ -200,6 +200,7 @@ type fastExecShadowEvent struct {
 	LiqN            int     `json:"liq_n,omitempty"`
 	LiqQtySum       float64 `json:"liq_qty_sum,omitempty"`   // 张数和(离线配 ctVal 换算名义)
 	EventAgeMs      int64   `json:"event_age_ms,omitempty"`  // 评估时刻 - 簇内最新爆仓
+	EvalRestMs      int64   `json:"eval_rest_ms,omitempty"`  // v6.4:盘口+深度REST组装耗时(改并发后复测用)
 	ClusterSpanMs   int64   `json:"cluster_span_ms,omitempty"` // 簇内最新-最老爆仓
 	MarketLiq5m     float64 `json:"market_liq_5m,omitempty"` // 全市场近5min爆仓笔数(燃料)
 	XliqN30s        int     `json:"xliq_n_30s,omitempty"`    // Bybit 同币近30s强平笔数(跨所传染)
@@ -409,7 +410,9 @@ func fastLiqCascadeAlive(follow string, imp15, minBps float64) bool {
 }
 
 // fastNoteLiq 由 fast_ws 强平推送调用:写入内存缓冲(保留5min),供接型候选生成(liq_catch)。
+// v6.4:写完即踢醒 tape 评估循环(确认=官方推送到达,不等下一个150ms tick)。
 func fastNoteLiq(sym, posSide string, qty float64, now time.Time) {
+	defer fastTapeKickNow()
 	fastLiqBufMu.Lock()
 	defer fastLiqBufMu.Unlock()
 	h := append(fastLiqBuf[sym], fastRecentLiq{now, posSide, qty})
@@ -1101,11 +1104,25 @@ func (e *OKXDirectionalEngine) fastScalperTick(ctx context.Context) {
 }
 
 // buildFastEvent best-effort 拉盘口+深度组装一条 fast 事件 + 打分;失败返回 nil(跳过本 symbol)。
+// v6.4(2026-07-06 延迟解剖):盘口+深度两条 REST 由串行改并发(实测各~95ms,串行=195ms 纯浪费一个RTT)。
+// 语义不变:同样两条请求、同样字段、失败判定同(book 失败=nil,depth 失败=深度字段空)。
 func (e *OKXDirectionalEngine) buildFastEvent(ctx context.Context, sym string, now time.Time) *fastExecShadowEvent {
+	type depthRes struct {
+		d   venue.Depth
+		err error
+	}
+	depthCh := make(chan depthRes, 1)
+	go func() {
+		dctx, dcancel := context.WithTimeout(ctx, 5*time.Second)
+		defer dcancel()
+		d, derr := e.v.FetchDepth(dctx, venue.MarketPerp, venue.Symbol(sym), 50)
+		depthCh <- depthRes{d, derr}
+	}()
 	bctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	book, berr := e.v.FetchBookTicker(bctx, venue.MarketPerp, venue.Symbol(sym))
 	cancel()
 	if berr != nil || book.BidPrice <= 0 || book.AskPrice <= 0 {
+		<-depthCh // 收尸,不泄漏
 		return nil
 	}
 	mid := (book.BidPrice + book.AskPrice) / 2
@@ -1121,9 +1138,8 @@ func (e *OKXDirectionalEngine) buildFastEvent(ctx context.Context, sym string, n
 	if book.BidQty+book.AskQty > 0 {
 		ev.OrderbookImbalance = (book.BidQty - book.AskQty) / (book.BidQty + book.AskQty)
 	}
-	dctx, dcancel := context.WithTimeout(ctx, 5*time.Second)
-	depth, derr := e.v.FetchDepth(dctx, venue.MarketPerp, venue.Symbol(sym), 50)
-	dcancel()
+	dr := <-depthCh
+	depth, derr := dr.d, dr.err
 	if derr == nil && mid > 0 {
 		acc := func(levels []venue.DepthLevel) {
 			for _, lv := range levels {
