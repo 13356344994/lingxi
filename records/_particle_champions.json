@@ -1,6 +1,6 @@
 {
- "frozen_at_utc": "2026-07-06T04:41:09",
- "frozen_at_ep": 1783312869.0,
+ "frozen_at_utc": "2026-07-06T04:57:43",
+ "frozen_at_ep": 1783313863.0,
  "cost_bps": 12.0,
  "scratch_bps": 5.0,
  "verdict_need_n": 30,
@@ -21,20 +21,6 @@
     "scratch_n": 1,
     "pf_net": 1.37,
     "top": "KORU:4",
-    "depth": 3
-   }
-  },
-  {
-   "tag": "前动量强×高燃料×窄点差",
-   "mine": {
-    "n": 18,
-    "net_med": -8.01,
-    "net_mean": 6.71,
-    "net_sum": 120.86,
-    "win_neu": 57.14,
-    "scratch_n": 4,
-    "pf_net": 1.33,
-    "top": "LAB:3",
     "depth": 3
    }
   }

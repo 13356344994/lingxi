@@ -195,16 +195,20 @@ def fmt(m):
 # v2(07-06 00:20):状态变量从燃料换装"海况"(滚动30笔确认流影子净值中位>-10=海况好)。
 # 依据:潮汐钥匙实测证伪(滞后聚合继承迟到病);海况闸全天实测把全流-2157拉到+73、
 # 火灾×大额 PF 2.25→5.15。阈值-10/窗30=冻结值(当日4值试出,轻度in-sample,判决期检验)。
-_seq = sorted(range(len(rows)), key=lambda i: rows[i]["t0"])
-_hist = []
-for _i in _seq:
-    _e = rows[_i]
-    if len(_hist) >= 30:
-        _s = sorted(_hist[-30:])
-        _e["sea"] = _s[15 - 1] / 2 + _s[15] / 2 if len(_s) % 2 == 0 else _s[len(_s) // 2]
+# v3(07-06 13:10 信息集对齐审查后):sea 改 lag 口径——只用"trail 窗口已完成"(t0_j+120s≤t0_i)
+# 的最近30笔,决策当刻实盘可知。审查实测:与 lookahead 口径决策翻转仅 2.3%,放行集中位同 -14.6,
+# 但实时挂线只能用 lag,判决记账从此与实盘信息集一致(`_sea_alignment_audit.py`)。
+_order = sorted(rows, key=lambda e: e["t0"])
+_done = []
+_ptr = 0
+for _e in _order:
+    while _ptr < len(_order) and _order[_ptr]["t0"] + 120.0 <= _e["t0"]:
+        _done.append(_order[_ptr]["v"] - 12.0)  # 海况定义冻结在成本12,不随 LX_COST 漂
+        _ptr += 1
+    if len(_done) >= 30:
+        _e["sea"] = statistics.median(_done[-30:])
     else:
         _e["sea"] = 0.0  # 热身期视为海况中性(fail-open,与哨兵热身一致)
-    _hist.append(_e["v"] - 12.0)
 STATES = collections.OrderedDict([
     ("海况好(roll30>-10)", lambda e: e.get("sea", 0) > -10),
     ("海况差(roll30<=-10)", lambda e: e.get("sea", 0) <= -10),
@@ -230,7 +234,8 @@ if __name__ == "__main__":
     if mode == "mine":
         res = scan(rows)
         # 用户双正门:中性化胜率≥50% 且 净PF≥1.3;排序=净中位;奥卡姆:同分取浅
-        ok = [m for m in res if m["win_neu"] >= 50 and m["pf_net"] >= 1.3]
+        # 07-06 13:10 补门:净中位>0(流程体检发现挖掘门漏了终审主指标,冻结过中位-8的假冠军)
+        ok = [m for m in res if m["win_neu"] >= 50 and m["pf_net"] >= 1.3 and m["net_med"] > 0]
         ok.sort(key=lambda m: (-m["net_med"], m["depth"]))
         print("挖掘窗=全部 %d 事件(截至 %sZ)| 过双正门组合=%d" % (len(rows), now.strftime("%H:%M"), len(ok)))
         print("\n== 过门组合 top10(净口径,主排序=净中位,奥卡姆同分取浅)==")
