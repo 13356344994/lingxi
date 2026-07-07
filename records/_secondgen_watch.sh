@@ -14,6 +14,12 @@ while true; do
     timeout 900 python3 records/_particle_pipeline.py verdict 2>&1
     echo "--- 烟花反手刀前向判决(预注册 07-06 21:20,判决集=21:00Z 后) ---"
     timeout 900 python3 records/_firework_verdict.py 2>&1
+    echo "--- E-v1 冻结版前向判决(00:50Z 封样) ---"
+    timeout 900 python3 records/_xgap_reversion_verdict.py 2>&1
+    echo "--- E-v2 新鲜价差前向判决(04:15Z 封样) ---"
+    timeout 900 python3 records/_xgap_v2_verdict.py 2>&1
+    echo "--- 高维分拣器影子(章程㉕,record-only) ---"
+    timeout 120 python3 records/_meta_sorter_shadow.py 2>&1
     echo ""
   } >> "$LOG" 2>&1
   sleep 1800
