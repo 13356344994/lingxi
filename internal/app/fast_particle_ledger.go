@@ -17,7 +17,7 @@ import (
 
 const fastParticleLedgerFile = "particle_ledger.jsonl"
 
-// 粒子位(v0 八粒子;位序冻结——账本是数据,位序漂移=作弊)
+// 粒子位(位序冻结——账本是数据,位序漂移=作弊;只许追加不许重排)
 const (
 	pbFresh     = 1 << iota // 新鲜度:回看1800s价差出现过 >-20bps(可算点≥10,fail-closed)
 	pbCalmFuel              // 州:燃料 5min 爆仓 <40(非风暴)
@@ -27,6 +27,8 @@ const (
 	pbNonStock              // 币种:非股票 perp
 	pbHabitual              // 惯犯:本次之前 24h 内同币触发 ≥3 次
 	pbDutyXgap              // 派班合成位:calm ∧ breadthOK(冗余存储便于账本直读)
+	// v1 追加(REST 入场行专属;㉝残余带发现的机器原生化):
+	pbResidual2040          // REST 残余价差 ∈ [-40,-20](执行层唯一活区,预注册 12:10Z)
 )
 
 // fastLedgerStockPerps 股票 perp 名单(粒子 pbNonStock 用;静态集=标的性质,非黑名单)。
@@ -193,9 +195,12 @@ func fastParticleBits(sym string, now time.Time, gapBps, fuel5m float64, breadth
 // ---- 虚拟持仓与结账 ----
 type fastLedgerPos struct {
 	Sym      string
+	Src      string // det=探测时刻mid入场(v0) / rest=影子REST时刻mid入场(v1,可执行口径)
 	T0       time.Time
 	Entry    float64
 	GapDet   float64
+	GapRest  float64 // rest 行专属:REST 复核时刻残余价差
+	SpreadBps float64 // rest 行专属:REST 盘口点差(半点差敏感性分析原料)
 	Bits     int
 	Fuel     float64
 	Breadth  float64
@@ -205,8 +210,11 @@ type fastLedgerPos struct {
 type fastLedgerRow struct {
 	Time      time.Time `json:"time"` // 出场时刻
 	Symbol    string    `json:"symbol"`
+	Src       string    `json:"src"` // det / rest(可执行口径)
 	T0        time.Time `json:"t0"`
 	GapDetBps float64   `json:"gap_det_bps"`
+	GapRestBps float64  `json:"gap_rest_bps,omitempty"` // rest 行:REST残余价差
+	SpreadBps  float64  `json:"spread_bps,omitempty"`   // rest 行:REST盘口点差
 	Bits      int       `json:"bits"`
 	Fuel5m    float64   `json:"fuel_5m"`
 	Breadth30 float64   `json:"breadth_30m"`
@@ -239,13 +247,14 @@ func fastLedgerExit(retBps float64, gapNow float64, gapOK bool, holdSec float64,
 	return ""
 }
 
-// fastLedgerOnTrigger E 触发点调用(标尺循环内,与 fastXgapCheck 同点位;冷却已过)。
+// fastLedgerOnTrigger E 触发点调用(标尺循环内,与 fastXgapCheck 同点位;冷却已过)。src=det。
 func (e *OKXDirectionalEngine) fastLedgerOnTrigger(sym string, okxMid, gapBps float64, now time.Time) {
 	if !e.cfg.FastParticleLedgerEnabled || okxMid <= 0 {
 		return
 	}
+	key := "det|" + sym
 	fastLedgerMu.Lock()
-	if _, held := fastLedgerOpen[sym]; held {
+	if _, held := fastLedgerOpen[key]; held {
 		fastLedgerMu.Unlock()
 		return
 	}
@@ -255,7 +264,45 @@ func (e *OKXDirectionalEngine) fastLedgerOnTrigger(sym string, okxMid, gapBps fl
 	br, brOK := fastBreadth30(now)
 	bits := fastParticleBits(sym, now, gapBps, fuel, br, brOK, prev)
 	fastLedgerMu.Lock()
-	fastLedgerOpen[sym] = &fastLedgerPos{Sym: sym, T0: now, Entry: okxMid, GapDet: gapBps, Bits: bits, Fuel: fuel, Breadth: br}
+	fastLedgerOpen[key] = &fastLedgerPos{Sym: sym, Src: "det", T0: now, Entry: okxMid, GapDet: gapBps, Bits: bits, Fuel: fuel, Breadth: br}
+	fastLedgerMu.Unlock()
+}
+
+// fastLedgerOnTriggerREST v1 可执行口径:影子线 REST 建档通过守卫后调用(fastXgapFire 内)。
+// 入场=REST 时刻 mid(与㉝执行层证据包同口径,含 144ms 延迟后的真实价格);残余带粒子在此评估。
+// 惯犯环不重复登记(det 触发已记),粒子重新评估(REST 时刻的州可能已变)。
+func (e *OKXDirectionalEngine) fastLedgerOnTriggerREST(sym string, restMid, spreadBps, gapDet, gapRest float64, now time.Time) {
+	if !e.cfg.FastParticleLedgerEnabled || restMid <= 0 {
+		return
+	}
+	key := "rest|" + sym
+	fastLedgerMu.Lock()
+	if _, held := fastLedgerOpen[key]; held {
+		fastLedgerMu.Unlock()
+		return
+	}
+	fastLedgerMu.Unlock()
+	fuel := fastMarketLiqRate(now, 300)
+	br, brOK := fastBreadth30(now)
+	prev := 0
+	fastLedgerTrigMu.Lock()
+	cut := now.Add(-24 * time.Hour)
+	for _, t := range fastLedgerTrig[sym] {
+		if !t.Before(cut) {
+			prev++
+		}
+	}
+	fastLedgerTrigMu.Unlock()
+	if prev > 0 {
+		prev-- // det 触发刚登记过本次,剔除自身
+	}
+	bits := fastParticleBits(sym, now, gapDet, fuel, br, brOK, prev)
+	if gapRest >= -40 && gapRest <= -20 {
+		bits |= pbResidual2040
+	}
+	fastLedgerMu.Lock()
+	fastLedgerOpen[key] = &fastLedgerPos{Sym: sym, Src: "rest", T0: now, Entry: restMid,
+		GapDet: gapDet, GapRest: gapRest, SpreadBps: spreadBps, Bits: bits, Fuel: fuel, Breadth: br}
 	fastLedgerMu.Unlock()
 }
 
@@ -287,7 +334,8 @@ func (e *OKXDirectionalEngine) fastLedgerManage(mids map[string]float64, now tim
 			continue
 		}
 		row := fastLedgerRow{
-			Time: now, Symbol: p.Sym, T0: p.T0, GapDetBps: p.GapDet, Bits: p.Bits,
+			Time: now, Symbol: p.Sym, Src: p.Src, T0: p.T0,
+			GapDetBps: p.GapDet, GapRestBps: p.GapRest, SpreadBps: p.SpreadBps, Bits: p.Bits,
 			Fuel5m: p.Fuel, Breadth30: p.Breadth,
 			GrossBps: ret, NetBps: ret - fastLedgerCostBps, PeakBps: p.PeakBps,
 			HoldSec: int(hold), Exit: exit,
@@ -296,7 +344,7 @@ func (e *OKXDirectionalEngine) fastLedgerManage(mids map[string]float64, now tim
 			e.logger.Printf("[particle_ledger] 落盘失败: %v", err)
 		}
 		fastLedgerMu.Lock()
-		delete(fastLedgerOpen, p.Sym)
+		delete(fastLedgerOpen, p.Src+"|"+p.Sym)
 		fastLedgerMu.Unlock()
 	}
 }

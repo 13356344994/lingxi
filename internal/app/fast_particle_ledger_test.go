@@ -103,6 +103,22 @@ func TestFastLedgerExit(t *testing.T) {
 	}
 }
 
+// TestFastLedgerResidualBit v1:REST 残余带粒子位(㉝唯一活区 [-40,-20])。
+func TestFastLedgerResidualBit(t *testing.T) {
+	for _, c := range []struct {
+		gapRest float64
+		want    bool
+	}{{-30, true}, {-40, true}, {-20, true}, {-15, false}, {-45, false}, {-300, false}} {
+		bits := 0
+		if c.gapRest >= -40 && c.gapRest <= -20 {
+			bits |= pbResidual2040
+		}
+		if (bits&pbResidual2040 != 0) != c.want {
+			t.Fatalf("gapRest=%.0f 残余带位=%v want %v", c.gapRest, bits&pbResidual2040 != 0, c.want)
+		}
+	}
+}
+
 // TestFastLedgerTrigCount 惯犯环:评估在登记前(无前视),24h 窗滚动。
 func TestFastLedgerTrigCount(t *testing.T) {
 	fastLedgerTrigMu.Lock()
