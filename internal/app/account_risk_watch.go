@@ -70,6 +70,24 @@ type accountRiskThresholdResult struct {
 	DrawdownBreached  bool   `json:"drawdown_breached"`
 	DrawdownReason    string `json:"drawdown_reason,omitempty"`
 	AnyBreached       bool   `json:"any_breached"`
+	// UnexplainedOutflow 权益口径日亏触线但交易账本(在场仓/当日已实现)无法佐证:
+	// 按「未解释资金流出」告警对账,不硬停(2026-07-08 双账本佐证制,42U 划转误停事故的根治)。
+	UnexplainedOutflow       bool   `json:"unexplained_outflow,omitempty"`
+	UnexplainedOutflowReason string `json:"unexplained_outflow_reason,omitempty"`
+}
+
+// accountDailyLossCorroboratedByTrading 日亏硬停的双账本佐证(2026-07-08)。
+//
+// 定理:交易亏损要么已实现进 settlements,要么挂在在场仓的未实现上,没有第三个去处。
+// 因此 positions=0 且当日已实现亏损可忽略时,权益下降在数学上不可能是交易亏损——
+// 大概率是风控没识别出的资金划转(枚举账单类型永远追不上交易所全集;07-07 42U 内部
+// 划转误停即此)。该情形降级为「未解释资金流出」告警+对账,不硬停。
+// 有在场仓、或已实现亏损 ≥ 触发线两成时,权益口径照常硬停——保护不变松。
+func accountDailyLossCorroboratedByTrading(snap accountRiskSnapshot, lossLimit float64) bool {
+	if snap.OpenPositionCount > 0 || snap.OpenNotionalUSDT > 0 {
+		return true // 在场仓可能扛着未实现亏损,权益口径照常生效
+	}
+	return snap.DailyRealizedPnLUSDT <= -0.2*lossLimit
 }
 
 // accountHardHaltIntent 一级硬停判定(纯函数输出,无副作用;非破坏性,仅停新开仓)。
@@ -365,7 +383,7 @@ func (w *accountRiskWatcher) tickOnce() {
 			}
 			w.notifyFn("账户级硬停(一级)", detail)
 		}
-	} else if thresholds.AnyBreached {
+	} else if thresholds.AnyBreached || thresholds.UnexplainedOutflow {
 		for _, intent := range accountRiskAlertIntents(thresholds) {
 			w.notifyFn(intent.Title, intent.Detail)
 		}
@@ -532,12 +550,18 @@ func evaluateAccountRiskThresholds(snap accountRiskSnapshot, cfg RiskConfig) acc
 	lossLimit := effectiveMaxDailyLossUSDT(cfg, snap.RealEquityTotalUSDT)
 	dailyLossDelta := snap.DailyEquityDeltaForRiskUSDT
 	if lossLimit > 0 && dailyLossDelta <= -lossLimit {
-		res.DailyLossBreached = true
-		res.DailyLossReason = fmt.Sprintf(
+		detail := fmt.Sprintf(
 			"当日交易口径权益变化 %.4f USDT 已超过阈值 %.4f USDT(原始权益变化 %.4f,充提平移 %.4f,已实现 %.4f,持仓 %d 名义 %.2f)",
 			dailyLossDelta, lossLimit, snap.DailyEquityDeltaUSDT, snap.DailyFundFlowAdjustUSDT, snap.DailyRealizedPnLUSDT,
 			snap.OpenPositionCount, snap.OpenNotionalUSDT,
 		)
+		if accountDailyLossCorroboratedByTrading(snap, lossLimit) {
+			res.DailyLossBreached = true
+			res.DailyLossReason = detail
+		} else {
+			res.UnexplainedOutflow = true
+			res.UnexplainedOutflowReason = detail + " [双账本佐证失败:无在场仓且已实现亏损可忽略→疑似未识别的资金划转,仅对账告警不硬停]"
+		}
 	}
 	drawdownLimit := effectiveMaxAccountDrawdownUSDT(cfg, snap.RealEquityPeakUSDT)
 	if drawdownLimit > 0 && snap.AccountDrawdownUSDT >= drawdownLimit {
@@ -560,7 +584,7 @@ func evaluateAccountHardHaltIntent(snap accountRiskSnapshot, cfg RiskConfig) acc
 
 	lossLimit := effectiveMaxDailyLossUSDT(cfg, snap.RealEquityTotalUSDT)
 	dailyLossDelta := snap.DailyEquityDeltaForRiskUSDT
-	if lossLimit > 0 && dailyLossDelta <= -lossLimit {
+	if lossLimit > 0 && dailyLossDelta <= -lossLimit && accountDailyLossCorroboratedByTrading(snap, lossLimit) {
 		intent.DailyLossBreached = true
 		intent.Reasons = append(intent.Reasons, fmt.Sprintf(
 			"日权益回撤 %.4f ≥ MaxDailyLossUSDT %.4f", -dailyLossDelta, lossLimit))
@@ -637,10 +661,16 @@ type accountRiskAlertIntent struct {
 }
 
 func accountRiskAlertIntents(result accountRiskThresholdResult) []accountRiskAlertIntent {
-	if !result.AnyBreached {
+	if !result.AnyBreached && !result.UnexplainedOutflow {
 		return nil
 	}
 	var out []accountRiskAlertIntent
+	if result.UnexplainedOutflow {
+		out = append(out, accountRiskAlertIntent{
+			Title:  "未解释资金流出(对账告警,未停机)",
+			Detail: result.UnexplainedOutflowReason + " [若为本人划转请忽略;若非本人操作请立即检查账户安全]",
+		})
+	}
 	if result.DailyLossBreached {
 		out = append(out, accountRiskAlertIntent{
 			Title:  "账户日亏阈值(观测)",

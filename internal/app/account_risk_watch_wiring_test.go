@@ -138,3 +138,94 @@ func TestAccountRiskWatch_AutoFlattenWiredAndIdempotent(t *testing.T) {
 		t.Fatalf("autoFlattenDone 幂等失效,重复 flatten: %d", flattenCalls)
 	}
 }
+
+// TestAccountDailyLossCorroboration 双账本佐证制(2026-07-08,42U 划转误停事故根治):
+// 权益口径日亏触线时,须能在交易账本(在场仓/当日已实现)找到踪迹才许硬停;
+// 无仓且已实现可忽略 → 降级「未解释资金流出」告警,不硬停。
+func TestAccountDailyLossCorroboration(t *testing.T) {
+	const lossLimit = 35.0
+	cases := []struct {
+		name        string
+		snap        accountRiskSnapshot
+		corroborate bool
+	}{
+		{"42U划转型:无仓+已实现0+权益-43", accountRiskSnapshot{
+			EquityDataTrusted: true, DailyEquityDeltaForRiskUSDT: -43.4, DailyRealizedPnLUSDT: 0,
+		}, false},
+		{"真亏损型:无仓但已实现-30佐证", accountRiskSnapshot{
+			EquityDataTrusted: true, DailyEquityDeltaForRiskUSDT: -40, DailyRealizedPnLUSDT: -30,
+		}, true},
+		{"持仓扛亏型:有在场仓即佐证(未实现亏损无需查已实现)", accountRiskSnapshot{
+			EquityDataTrusted: true, DailyEquityDeltaForRiskUSDT: -40, DailyRealizedPnLUSDT: 0,
+			OpenPositionCount: 2, OpenNotionalUSDT: 15,
+		}, true},
+		{"边界:已实现亏损恰为触发线两成即佐证", accountRiskSnapshot{
+			EquityDataTrusted: true, DailyEquityDeltaForRiskUSDT: -36, DailyRealizedPnLUSDT: -0.2 * lossLimit,
+		}, true},
+	}
+	cfg := RiskConfig{MaxDailyLossUSDT: lossLimit}
+	for _, tc := range cases {
+		got := accountDailyLossCorroboratedByTrading(tc.snap, lossLimit)
+		if got != tc.corroborate {
+			t.Fatalf("%s: 佐证=%v 期望 %v", tc.name, got, tc.corroborate)
+		}
+		th := evaluateAccountRiskThresholds(tc.snap, cfg)
+		halt := evaluateAccountHardHaltIntent(tc.snap, cfg)
+		if tc.corroborate {
+			if !th.DailyLossBreached || !halt.DailyLossBreached {
+				t.Fatalf("%s: 佐证成立应照常触发日亏闸(th=%v halt=%v)", tc.name, th.DailyLossBreached, halt.DailyLossBreached)
+			}
+			if th.UnexplainedOutflow {
+				t.Fatalf("%s: 佐证成立不应标未解释流出", tc.name)
+			}
+		} else {
+			if th.DailyLossBreached || halt.DailyLossBreached || halt.ShouldHalt {
+				t.Fatalf("%s: 佐证失败不应硬停(th=%v halt=%v)", tc.name, th.DailyLossBreached, halt.ShouldHalt)
+			}
+			if !th.UnexplainedOutflow || th.UnexplainedOutflowReason == "" {
+				t.Fatalf("%s: 佐证失败必须标「未解释资金流出」并给原因", tc.name)
+			}
+			intents := accountRiskAlertIntents(th)
+			if len(intents) == 0 || intents[0].Title != "未解释资金流出(对账告警,未停机)" {
+				t.Fatalf("%s: 应产出未解释资金流出告警,实际 %+v", tc.name, intents)
+			}
+		}
+	}
+}
+
+// TestAccountRiskWatch_UnexplainedOutflowNoHalt 接线级:42U 场景全链路——权益骤降但
+// 无仓无已实现亏损 → haltFn 不调用、告警必须发出(用户能看见,但机器不停)。
+func TestAccountRiskWatch_UnexplainedOutflowNoHalt(t *testing.T) {
+	cfg := DefaultEngineConfig()
+	cfg.RiskConfig.MaxDailyLossUSDT = 35
+	cfg.RiskConfig.MaxDailyLossPct = 0
+	// 抬高单 tick 骤降阈值,绕过 equity trust 闸,专测日亏佐证路径。
+	cfg.RiskConfig.AccountRiskMaxEquityTickDropUSDT = 1000
+	// 抬高充提识别步长,避免 heuristic 把 -43 先平移掉(专测佐证降级路径)。
+	cfg.RiskConfig.AccountRiskMinFundFlowStepUSDT = 500
+	w, notified := newWiringTestWatcher(t, cfg)
+	w.equityFn = func(now time.Time) accountEquityObservation {
+		return accountEquityObservation{
+			TotalUSDT:     57,
+			ByVenue:       map[string]float64{"okx": 57},
+			RawDailyDelta: -43.4,
+			ReadOK:        true,
+		}
+	}
+	haltCalls := 0
+	w.haltFn = func(reason string) error { haltCalls++; return nil }
+	w.haltActiveFn = func() bool { return false }
+	w.tickOnce()
+	if haltCalls != 0 {
+		t.Fatalf("未佐证的权益流出不应硬停,haltFn 被调用 %d 次", haltCalls)
+	}
+	found := false
+	for _, title := range *notified {
+		if title == "未解释资金流出(对账告警,未停机)" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("应发出未解释资金流出告警,收到: %v", *notified)
+	}
+}
