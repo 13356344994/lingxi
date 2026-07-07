@@ -27,6 +27,7 @@ const (
 	pathAssetTransfer     = "/api/v5/asset/transfer"           // 所内划转(绝不跨所/提币)
 	pathDepositHistory    = "/api/v5/asset/deposit-history"    // 私有只读:链上充值
 	pathWithdrawalHistory = "/api/v5/asset/withdrawal-history" // 私有只读:链上提现
+	pathAssetBills        = "/api/v5/asset/bills"              // 私有只读:资金账户流水(内部转账116/117在此,不上链)
 
 	instTypeSpot = "SPOT"
 	instTypeSwap = "SWAP"

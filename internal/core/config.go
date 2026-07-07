@@ -1001,6 +1001,10 @@ type OKXDirectionalConfig struct {
 	FastXgapMaxHoldSeconds  int     `cfg:"fast_xgap_max_hold_seconds"` // 冻结 600
 	FastXgapDisasterBps     float64 `cfg:"fast_xgap_disaster_bps"`     // 冻结 60
 	FastXgapCooldownSeconds int     `cfg:"fast_xgap_cooldown_seconds"` // 冻结 1800
+	// Layer A 粒子账本(2026-07-07 粒子化宪法,record-only):E模块触发点逐事件评估粒子位
+	// (新鲜度/州/深度档/币种/惯犯),虚拟持仓按 E 出场规则结账写 particle_ledger.jsonl。
+	// 规则单一来源:粒子函数在 Go,回放/阅卷读账本(不再重解析GB级原始流),实枪加闸时复用同函数。
+	FastParticleLedgerEnabled bool `cfg:"fast_particle_ledger_enabled"` // 默认关,yaml 开(record-only)
 	// v6 净值哨兵(飞轮引擎的硬前提,HANDOFF §-7C):事件线 source 最近 N 笔净值中位 <0 → 自动停开
 	// (sentinel_halt)。飞轮策略高频走量,-2bps×330笔/天=烧账户,哨兵保证"不亏才配走量"。
 	// 触发即粘性停火(重启从结算重建=仍停),解除须人工解剖后调参——纪律在结构里,不在自觉里。

@@ -294,6 +294,11 @@ okx_directional:
   fast_xgap_max_hold_seconds: 600
   fast_xgap_disaster_bps: 60
   fast_xgap_cooldown_seconds: 1800
+  # Layer A 粒子账本(2026-07-07 粒子化宪法 v0,record-only):E模块触发点逐事件评估八粒子位
+  #   (新鲜度/燃料州/广度州/深度档/币种/惯犯/派班合成),虚拟仓按 E 出场规则结账写
+  #   particle_ledger.jsonl(小文件,阅卷直读,不再重解析GB级原始流)。规则单一来源:
+  #   粒子函数在 Go,实枪未来加闸复用同函数,消灭 Python/Go 双实现口径漂移。零交易影响。
+  fast_particle_ledger_enabled: true
   #   跨所强平流采集(耳朵不是枪口:fast 实盘只在 OKX,别所被迫流只做信号研究)。
   #   源=Bybit allLiquidation(OKX∩Bybit 交集;09:10 探针实测 Binance forceOrder/aggTrade 本机零数据帧=僵尸,弃用)。
   fast_xvenue_liq_enabled: true

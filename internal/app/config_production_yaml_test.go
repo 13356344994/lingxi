@@ -193,6 +193,10 @@ func TestLoadProductionConfigYAML(t *testing.T) {
 			cfg.OKXDirectional.FastXgapMaxHoldSeconds, cfg.OKXDirectional.FastXgapDisasterBps,
 			cfg.OKXDirectional.FastXgapCooldownSeconds)
 	}
+	// Layer A 粒子账本(2026-07-07 粒子化宪法):record-only 基建,阅卷层的规则单一来源;关=账本断流。
+	if !cfg.OKXDirectional.FastParticleLedgerEnabled {
+		t.Fatal("fast_particle_ledger_enabled = false want true(Layer A 粒子账本=record-only 基建)")
+	}
 	// 探针制章程(2026-07-04,HANDOFF §-5):生产配置默认无探针活动;设置 fast_probe_source
 	// = 用户明示批准某候选进入探针层(同时须保证预算硬顶为正)。
 	if s := strings.TrimSpace(cfg.OKXDirectional.FastProbeSource); s != "" {

@@ -56,6 +56,9 @@ func (e *OKXDirectionalEngine) fastXgapCheck(sym string, okxMid float64, now tim
 	if !ok {
 		return
 	}
+	if e.cfg.FastParticleLedgerEnabled {
+		fastNoteGapHist(sym, now, gap) // Layer A:价差历史环(新鲜度粒子数据地板,60s降采样)
+	}
 	fastXgapMu.Lock()
 	fire := fastXgapShouldFire(gap, e.cfg.FastXgapEntryGapBps, fastXgapLast[sym], now, e.cfg.FastXgapCooldownSeconds)
 	if fire {
@@ -72,7 +75,8 @@ func (e *OKXDirectionalEngine) fastXgapCheck(sym string, okxMid float64, now tim
 	if !fire {
 		return
 	}
-	go e.fastXgapFire(sym, gap, now) // 异步:标尺循环不等 REST
+	e.fastLedgerOnTrigger(sym, okxMid, gap, now) // Layer A:粒子评估+虚拟建仓(record-only,同步廉价)
+	go e.fastXgapFire(sym, gap, now)             // 异步:标尺循环不等 REST
 }
 
 // fastXgapFire 建档(REST 盘口+深度)→ 执行层守卫 → shadow 落盘 → fastLiveOpen(实弹闸默认锁死)。

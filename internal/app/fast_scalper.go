@@ -2124,6 +2124,20 @@ func (e *OKXDirectionalEngine) fastMarketMidLoop(ctx context.Context) {
 					e.logger.Printf("[fast_mids] 全市场mid落盘失败: %v", werr)
 				}
 			}
+			// Layer A 粒子账本:广度重算(60s节流)+ 虚拟仓按 E 规则结账(record-only)
+			if e.cfg.FastParticleLedgerEnabled {
+				if now.Sub(fastLedgerBreadthAt) >= 60*time.Second {
+					fastLedgerBreadthAt = now
+					fastBreadthRecalc(now)
+				}
+				midsNow := make(map[string]float64, len(books))
+				for sym, bk := range books {
+					if m := (bk.BidPrice + bk.AskPrice) / 2; m > 0 {
+						midsNow[sym] = m
+					}
+				}
+				e.fastLedgerManage(midsNow, now)
+			}
 			if len(lastEmit) > 4096 { // 防无界
 				for k, v := range lastEmit {
 					if now.Sub(v) > 10*time.Minute {
