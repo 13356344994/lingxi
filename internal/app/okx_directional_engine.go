@@ -690,17 +690,13 @@ func (e *OKXDirectionalEngine) runOnce(ctx context.Context) {
 	if e.delistGuard != nil {
 		e.delistGuard.Refresh(ctx)
 	}
-	// 持仓始终管理(即便页面已停止,也继续看护止损/止盈/反转,绝不撒手不管)。先管理(可能腾出仓位),再补开。
+	// 持仓始终管理(即便页面已停止,也继续看护止损/止盈/反转,绝不撒手不管)。
 	e.manageAll(ctx)
-	// 开新仓须页面"开始"(control.Active);日熔断按用户要求默认关闭(DailyLossLimitUSDT=0 → 永不熔断)。
-	ctrl := e.getControl()
-	if ctrl.Active {
-		// 把 OKX 统一交易账户可动用 USDT 向交易仓本金 M 靠拢(空仓双向调平;持仓时单向从资金账户补进闲置资金,使剩余空位能开出)。
-		e.provisionCapital(ctx)
-		if !directionalDailyLossHalted(e.dailyRealizedUSDT, e.cfg.DailyLossLimitUSDT) && e.concurrencyAllows() {
-			e.openFromShortlist(ctx)
-		}
-	}
+	// 慢线开仓路径已摘除(2026-07-07 用户指令"慢线一直在流血,全部停掉并删除逻辑"):
+	// 5m 慢信号全历史累计≈-52U、从未验证出正 edge。openFromShortlist 调用点在此移除,
+	// 无论 control.Active 如何设置都不再开慢仓;manage 保留看护残余仓收尾。
+	// universe 扫描保留(fast_ws 订阅与 fast shadow 依赖 shortlist);fast 层不受影响。
+	// 函数体级删除(openFromShortlist/信号评估等)列摘除手术第二刀,待残余仓归零后执行。
 }
 
 // provisionCapital 把统一交易账户可动用 USDT 向交易仓本金 M 靠拢:
