@@ -27,8 +27,13 @@
 records/opportunities/
 records/crossvenue/scan_snapshots.jsonl
 
-# 大体积研究数据(不进库,超GitHub 100MB限制)
+# 大体积研究数据(不进库,超GitHub 100MB限制;本地由 4h 备份脚本+>2GB 轮换管理)
 records/archive/
-records/*/fast_dynamic_feature_events.jsonl
-records/*/fast_executable_shadow_events.jsonl
+records/*/fast_dynamic_feature_events.jsonl*
+records/*/fast_executable_shadow_events.jsonl*
+records/*/fast_hot_micro.jsonl*
+records/*/fast_hot_mids.jsonl*
+records/*/fast_market_mids.jsonl*
+records/*/fast_mover_census.jsonl*
+records/*/fast_xmeta_snapshots.jsonl*
 records/crossvenue/fast_peer_leadlag_events.jsonl

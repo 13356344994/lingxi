@@ -2,6 +2,7 @@ package app
 
 import (
 	"path/filepath"
+	"sync"
 	"time"
 )
 
@@ -109,6 +110,48 @@ func fastBurstUpdate(st *symBurstState, now time.Time, notional float64, buy boo
 	return tot >= med*fastBurstMultiple, tot, med, buyN*2 >= tot
 }
 
+// ---- 近期 burst 内存环(15min;粒子账本"burst弹射"反事实标注的数据源,㊱曲线②)----
+type fastRecentBurst struct {
+	ts   time.Time
+	sell bool
+}
+
+var (
+	fastBurstRingMu sync.Mutex
+	fastBurstRing   = map[string][]fastRecentBurst{}
+)
+
+func fastNoteBurst(sym string, now time.Time, sell bool) {
+	fastBurstRingMu.Lock()
+	defer fastBurstRingMu.Unlock()
+	cut := now.Add(-15 * time.Minute)
+	h := append(fastBurstRing[sym], fastRecentBurst{now, sell})
+	i := 0
+	for i < len(h) && h[i].ts.Before(cut) {
+		i++
+	}
+	fastBurstRing[sym] = h[i:]
+	if len(fastBurstRing) > 4096 {
+		for k, v := range fastBurstRing {
+			if len(v) == 0 || now.Sub(v[len(v)-1].ts) > 30*time.Minute {
+				delete(fastBurstRing, k)
+			}
+		}
+	}
+}
+
+// fastSellBurstSince 该币 (since, now] 内是否出现过卖方 burst(弹射标注用)。
+func fastSellBurstSince(sym string, since, now time.Time) bool {
+	fastBurstRingMu.Lock()
+	defer fastBurstRingMu.Unlock()
+	for _, b := range fastBurstRing[sym] {
+		if b.sell && b.ts.After(since) && !b.ts.After(now) {
+			return true
+		}
+	}
+	return false
+}
+
 // fastBurstOnTrade 逐笔入口(调用方持 st.mu)。识别即落盘(带识别延迟与燃料/推送状态标注)。
 func (e *OKXDirectionalEngine) fastBurstOnTrade(det *fastBurstDetector, sym string, now time.Time, exchMs int64, px, sz float64, buy bool) {
 	st := det.perSym[sym]
@@ -139,6 +182,7 @@ func (e *OKXDirectionalEngine) fastBurstOnTrade(det *fastBurstDetector, sym stri
 	if err := appendJSONLRecord(det.path, ev); err != nil {
 		e.logger.Printf("[fast_burst] 落盘失败: %v", err)
 	}
+	fastNoteBurst(sym, now, !buySide) // ㊱曲线②:入近期burst环(粒子账本弹射标注)
 	// v6:入 tape_burst 挂起队列(等官方确认;live 关时下游只记 shadow 不下单)
 	fastTapeEnqueue(sym, map[bool]string{true: "long", false: "short"}[buySide], now, tot, tot/med, ev.SymLiqN30s)
 }

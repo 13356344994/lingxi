@@ -144,6 +144,25 @@ func TestFastLedgerMakerFill(t *testing.T) {
 	}
 }
 
+// TestFastSellBurstSince ㊱曲线②:burst环与"持仓期内首见卖方burst"判定。
+func TestFastSellBurstSince(t *testing.T) {
+	fastBurstRingMu.Lock()
+	fastBurstRing = map[string][]fastRecentBurst{}
+	fastBurstRingMu.Unlock()
+	base := time.Date(2026, 7, 7, 12, 0, 0, 0, time.UTC)
+	fastNoteBurst("Y-USDT", base.Add(10*time.Second), false) // 买方burst:不算
+	fastNoteBurst("Y-USDT", base.Add(20*time.Second), true)  // 卖方burst
+	if fastSellBurstSince("Y-USDT", base.Add(25*time.Second), base.Add(60*time.Second)) {
+		t.Fatal("入场(25s)之后无卖burst,不应命中")
+	}
+	if !fastSellBurstSince("Y-USDT", base.Add(15*time.Second), base.Add(60*time.Second)) {
+		t.Fatal("入场(15s)后 20s 有卖burst,应命中")
+	}
+	if fastSellBurstSince("Y-USDT", base.Add(5*time.Second), base.Add(15*time.Second)) {
+		t.Fatal("窗内只有买burst,不应命中")
+	}
+}
+
 // TestFastLedgerTrigCount 惯犯环:评估在登记前(无前视),24h 窗滚动。
 func TestFastLedgerTrigCount(t *testing.T) {
 	fastLedgerTrigMu.Lock()

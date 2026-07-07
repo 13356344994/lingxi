@@ -206,6 +206,9 @@ type fastLedgerPos struct {
 	Fuel     float64
 	Breadth  float64
 	PeakBps  float64
+	// ㊱曲线② burst弹射反事实标注(零行为改动:只记不弹,弹不弹由数据裁):
+	BurstSeen  bool
+	RetAtBurst float64 // 首见同币卖方burst时的浮盈bps(3s采样近似)
 }
 
 // maker 口径冻结先验(v2,2026-07-07 曲线救国方针):
@@ -232,7 +235,11 @@ type fastLedgerRow struct {
 	GrossBps  float64   `json:"gross_bps"`
 	PeakBps   float64   `json:"peak_bps"`
 	HoldSec   int       `json:"hold_sec"`
-	Exit      string    `json:"exit"` // converged / max_hold / disaster
+	Exit      string    `json:"exit"` // converged / max_hold / disaster / unfilled(mkr)
+	// burst弹射反事实(㊱曲线②):持仓中出现同币卖方burst=瀑布砸向多头;
+	// 若弹射粒子成立,ret_at_burst 与最终 gross 的差=每笔可省的钱。
+	BurstDuringHold bool    `json:"burst_during_hold,omitempty"`
+	RetAtBurstBps   float64 `json:"ret_at_burst_bps,omitempty"`
 }
 
 var (
@@ -366,6 +373,10 @@ func (e *OKXDirectionalEngine) fastLedgerManage(mids map[string]float64, now tim
 		if p.Src == "mkr" {
 			holdFrom = p.FilledAt // maker 持有期从成交起算
 		}
+		if !p.BurstSeen && fastSellBurstSince(p.Sym, holdFrom, now) {
+			p.BurstSeen = true
+			p.RetAtBurst = ret // ㊱曲线②:只标注不弹射
+		}
 		hold := now.Sub(holdFrom).Seconds()
 		exit := fastLedgerExit(ret, gapNow, gapOK, hold, e.cfg.FastXgapExitGapBps, e.cfg.FastXgapDisasterBps, e.cfg.FastXgapMaxHoldSeconds)
 		if exit == "" {
@@ -381,6 +392,7 @@ func (e *OKXDirectionalEngine) fastLedgerManage(mids map[string]float64, now tim
 			Fuel5m: p.Fuel, Breadth30: p.Breadth,
 			GrossBps: ret, NetBps: ret - cost, PeakBps: p.PeakBps,
 			HoldSec: int(hold), Exit: exit,
+			BurstDuringHold: p.BurstSeen, RetAtBurstBps: p.RetAtBurst,
 		}
 		if err := appendJSONLRecord(path, row); err != nil {
 			e.logger.Printf("[particle_ledger] 落盘失败: %v", err)
