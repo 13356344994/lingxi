@@ -16,8 +16,10 @@ while true; do
     timeout 900 python3 records/_firework_verdict.py 2>&1
     echo "--- E-v1 冻结版前向判决(00:50Z 封样) ---"
     timeout 900 python3 records/_xgap_reversion_verdict.py 2>&1
-    echo "--- E-v2 新鲜价差前向判决(04:15Z 封样) ---"
+    echo "--- E-v2 新鲜价差前向判决(04:15Z 封样;族级已判负,留档观察) ---"
     timeout 900 python3 records/_xgap_v2_verdict.py 2>&1
+    echo "--- E×平静海格子发证考试(09:30Z 封样,n>=30) ---"
+    timeout 900 python3 records/_xgap_cell_verdict.py 2>&1
     echo "--- 高维分拣器影子(章程㉕,record-only) ---"
     timeout 120 python3 records/_meta_sorter_shadow.py 2>&1
     echo ""
