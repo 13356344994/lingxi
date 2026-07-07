@@ -1679,3 +1679,51 @@ ac4130725c0c6de20204ad22a0b483fa | cycle=
 2026/07/08 02:20:54 [账户风控] OK daily_equity_delta=-0.7317 daily_realized=0.0000 settlement_dd=48.7949 real_equity_dd=44.6358 real_equity_dd_adj=16.2788 cum_fund_flow=-105.9652 positions=0 notional=0.00
 2026/07/08 02:20:55 [fast_xgap] KMNO-USDT long det=-47bps now=-15bps age=150ms spread=10.0 → record_only_source
 2026/07/08 02:20:59 [fast_scalper] record-only 扫描=20 记录=23 live=true 入场结果=map[alt_record_only_source:63 scorer_record_only:297] → fast_executable_shadow_events.jsonl
+2026/07/08 02:21:52 [fast_fulltape] 60s吞吐 msgs=18016(300/s) trades=18016 burst累计=1130 增量视野burst=274(24%)
+2026/07/08 02:21:54 [账户风控] OK daily_equity_delta=-0.7317 daily_realized=0.0000 settlement_dd=48.7949 real_equity_dd=44.6358 real_equity_dd_adj=16.2788 cum_fund_flow=-105.9652 positions=0 notional=0.00
+2026/07/08 02:21:58 [fast_xgap] UVXY-USDT 跳过(spread_wide) det=-44bps now=-38bps spread=17.0
+2026/07/08 02:22:03 [fast_scalper] record-only 扫描=20 记录=26 live=true 入场结果=map[alt_record_only_source:57 scorer_record_only:320] → fast_executable_shadow_events.jsonl
+2026/07/08 02:22:52 [fast_fulltape] 60s吞吐 msgs=14954(249/s) trades=14954 burst累计=1265 增量视野burst=281(22%)
+2026/07/08 02:22:54 [账户风控] OK daily_equity_delta=-0.7317 daily_realized=0.0000 settlement_dd=48.7949 real_equity_dd=44.6358 real_equity_dd_adj=16.2788 cum_fund_flow=-105.9652 positions=0 notional=0.00
+2026/07/08 02:23:07 [fast_scalper] record-only 扫描=20 记录=25 live=true 入场结果=map[alt_record_only_source:69 scorer_record_only:319] → fast_executable_shadow_events.jsonl
+2026/07/08 02:23:12 [fast_hotws] 订阅差分 +1 -1 当前=40
+2026/07/08 02:23:22 [fast_hotws] 订阅差分 +1 -1 当前=40
+2026/07/08 02:23:28 [fast_liqfollow] BLUR-USDT 跳过(squeeze_top_no_long) spread=4.7 depth10=18655 liq_n=2 age=869ms
+2026/07/08 02:23:28 [fast_xgap] OPN-USDT 跳过(gap_gone) det=-72bps now=11bps spread=1.7
+2026/07/08 02:23:52 [fast_fulltape] 60s吞吐 msgs=14583(243/s) trades=14583 burst累计=1385 增量视野burst=287(21%)
+2026/07/08 02:23:54 [账户风控] OK daily_equity_delta=-0.7981 daily_realized=0.0000 settlement_dd=48.7949 real_equity_dd=44.7022 real_equity_dd_adj=16.3452 cum_fund_flow=-105.9652 positions=0 notional=0.00
+2026/07/08 02:23:57 [fast_tape] BLUR-USDT 跳过(confirm_side_mismatch) spread=4.7 depth10=25143 age=2030ms
+2026/07/08 02:24:00 [fast_liqfollow] BLUR-USDT 跳过(squeeze_top_no_long) spread=4.7 depth10=18811 liq_n=2 age=958ms
+2026/07/08 02:24:11 [fast_scalper] record-only 扫描=20 记录=23 live=true 入场结果=map[alt_record_only_source:48 scorer_record_only:319] → fast_executable_shadow_events.jsonl
+2026/07/08 02:24:22 [fast_hotws] 订阅差分 +2 -2 当前=40
+2026/07/08 02:24:41 [fast_liqfollow] HMSTR-USDT 跳过(squeeze_top_no_long) spread=3.7 depth10=18954 liq_n=2 age=736ms
+2026/07/08 02:24:47 [fast_xliq] 连接中断,3s 后重连: read tcp 108.61.250.51:58838->3.173.238.103:443: i/o timeout
+2026/07/08 02:24:50 [fast_xliq][bybit] 已连并订阅 333 币
+2026/07/08 02:24:52 [fast_fulltape] 60s吞吐 msgs=14799(247/s) trades=14799 burst累计=1512 增量视野burst=294(19%)
+2026/07/08 02:24:52 [fast_hotws] 订阅差分 +1 -1 当前=40
+2026/07/08 02:24:54 [账户风控] OK daily_equity_delta=-0.7981 daily_realized=0.0000 settlement_dd=48.7949 real_equity_dd=44.7022 real_equity_dd_adj=16.3452 cum_fund_flow=-105.9652 positions=0 notional=0.00
+2026/07/08 02:24:55 [fast_xgap] SENT-USDT long det=-41bps now=-23bps age=180ms spread=7.1 → record_only_source
+2026/07/08 02:24:57 [fast_liqfollow] EDGE-USDT 跳过(squeeze_top_no_long) spread=10.4 depth10=3617 liq_n=2 age=689ms
+2026/07/08 02:25:11 [fast_scalper] record-only 扫描=20 记录=23 live=true 入场结果=map[alt_record_only_source:54 scorer_record_only:300] → fast_executable_shadow_events.jsonl
+2026/07/08 02:25:22 [fast_hotws] 订阅差分 +2 -2 当前=40
+2026/07/08 02:25:32 [fast_hotws] 订阅差分 +1 -1 当前=40
+2026/07/08 02:25:42 [fast_hotws] 订阅差分 +1 -1 当前=40
+2026/07/08 02:25:52 [fast_fulltape] 60s吞吐 msgs=17320(289/s) trades=17320 burst累计=1672 增量视野burst=298(18%)
+2026/07/08 02:25:53 [fast_tape] BLUR-USDT long 5x burst+确认 age=1306ms spread=9.2 → record_only_source
+2026/07/08 02:25:54 [账户风控] OK daily_equity_delta=-0.7981 daily_realized=0.0000 settlement_dd=48.7949 real_equity_dd=44.7022 real_equity_dd_adj=16.3452 cum_fund_flow=-105.9652 positions=0 notional=0.00
+2026/07/08 02:25:54 [fast_liqfollow] BLUR-USDT 跳过(squeeze_top_no_long) spread=4.6 depth10=18771 liq_n=2 age=255ms
+2026/07/08 02:25:57 [fast_tape] BEAT-USDT 跳过(confirm_side_mismatch) spread=0.4 depth10=12662 age=1325ms
+2026/07/08 02:26:02 [fast_hotws] 订阅差分 +1 -1 当前=40
+2026/07/08 02:26:11 [fast_scalper] record-only 扫描=20 记录=21 live=true 入场结果=map[alt_record_only_source:31 scorer_record_only:298] → fast_executable_shadow_events.jsonl
+2026/07/08 02:26:18 [fast_liqfollow] OPN-USDT 跳过(depth_thin) spread=1.7 depth10=4973 liq_n=2 age=724ms
+2026/07/08 02:26:22 [fast_hotws] 订阅差分 +1 -1 当前=40
+2026/07/08 02:26:32 [fast_hotws] 订阅差分 +1 -1 当前=40
+2026/07/08 02:26:40 [fast_xgap] IREN-USDT 跳过(gap_gone) det=-41bps now=-1bps spread=9.7
+2026/07/08 02:26:41 [fast_liqfollow] OPN-USDT 跳过(depth_thin) spread=5.0 depth10=4042 liq_n=3 age=459ms
+2026/07/08 02:26:42 [fast_liqfollow] RE-USDT short liq_n=2 spread=0.2 depth10=21836 → record_only_source
+2026/07/08 02:26:52 [fast_fulltape] 60s吞吐 msgs=17015(284/s) trades=17015 burst累计=1816 增量视野burst=304(17%)
+2026/07/08 02:26:54 [账户风控] OK daily_equity_delta=-0.7937 daily_realized=0.0000 settlement_dd=48.7949 real_equity_dd=44.6978 real_equity_dd_adj=16.3408 cum_fund_flow=-105.9652 positions=0 notional=0.00
+2026/07/08 02:27:12 [fast_hotws] 订阅差分 +1 -1 当前=40
+2026/07/08 02:27:15 [fast_scalper] record-only 扫描=20 记录=22 live=true 入场结果=map[alt_record_only_source:84 scorer_record_only:319] → fast_executable_shadow_events.jsonl
+2026/07/08 02:27:52 [fast_fulltape] 60s吞吐 msgs=12619(210/s) trades=12619 burst累计=1937 增量视野burst=311(16%)
+2026/07/08 02:27:54 [账户风控] OK daily_equity_delta=-0.7937 daily_realized=0.0000 settlement_dd=48.7949 real_equity_dd=44.6978 real_equity_dd_adj=16.3408 cum_fund_flow=-105.9652 positions=0 notional=0.00
