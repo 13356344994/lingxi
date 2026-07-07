@@ -195,17 +195,27 @@ func fastParticleBits(sym string, now time.Time, gapBps, fuel5m float64, breadth
 // ---- 虚拟持仓与结账 ----
 type fastLedgerPos struct {
 	Sym      string
-	Src      string // det=探测时刻mid入场(v0) / rest=影子REST时刻mid入场(v1,可执行口径)
-	T0       time.Time
-	Entry    float64
+	Src      string // det=探测mid(v0) / rest=REST mid可执行口径(v1) / mkr=maker挂单口径(v2,头号曲线测量仪)
+	T0       time.Time // 触发时刻(mkr:挂单时刻)
+	FilledAt time.Time // mkr 专属:成交时刻(零值=仍挂着)
+	Entry    float64   // mkr:挂单价(REST bid),成交后即入场价
 	GapDet   float64
-	GapRest  float64 // rest 行专属:REST 复核时刻残余价差
-	SpreadBps float64 // rest 行专属:REST 盘口点差(半点差敏感性分析原料)
+	GapRest  float64 // rest/mkr:REST 复核时刻残余价差
+	SpreadBps float64 // rest/mkr:REST 盘口点差
 	Bits     int
 	Fuel     float64
 	Breadth  float64
 	PeakBps  float64
 }
+
+// maker 口径冻结先验(v2,2026-07-07 曲线救国方针):
+//   挂单价=REST bid;成交判定=后续 mid ≤ 挂单价(mid 跌到我们的 bid=几乎必然成交,保守计成交);
+//   挂单超时 120s 未成交=撤单(记 unfilled 行,net=0,量"错过的收敛");
+//   成本=9bps(maker进2+taker出5+滑2) vs rest 口径 12。裁决问题:逆选择税是否 < 省下的 3-6bps。
+const (
+	fastLedgerMakerTimeoutSec = 120.0
+	fastLedgerMakerCostBps    = 9.0
+)
 
 type fastLedgerRow struct {
 	Time      time.Time `json:"time"` // 出场时刻
@@ -271,7 +281,7 @@ func (e *OKXDirectionalEngine) fastLedgerOnTrigger(sym string, okxMid, gapBps fl
 // fastLedgerOnTriggerREST v1 可执行口径:影子线 REST 建档通过守卫后调用(fastXgapFire 内)。
 // 入场=REST 时刻 mid(与㉝执行层证据包同口径,含 144ms 延迟后的真实价格);残余带粒子在此评估。
 // 惯犯环不重复登记(det 触发已记),粒子重新评估(REST 时刻的州可能已变)。
-func (e *OKXDirectionalEngine) fastLedgerOnTriggerREST(sym string, restMid, spreadBps, gapDet, gapRest float64, now time.Time) {
+func (e *OKXDirectionalEngine) fastLedgerOnTriggerREST(sym string, restMid, restBid, spreadBps, gapDet, gapRest float64, now time.Time) {
 	if !e.cfg.FastParticleLedgerEnabled || restMid <= 0 {
 		return
 	}
@@ -303,6 +313,13 @@ func (e *OKXDirectionalEngine) fastLedgerOnTriggerREST(sym string, restMid, spre
 	fastLedgerMu.Lock()
 	fastLedgerOpen[key] = &fastLedgerPos{Sym: sym, Src: "rest", T0: now, Entry: restMid,
 		GapDet: gapDet, GapRest: gapRest, SpreadBps: spreadBps, Bits: bits, Fuel: fuel, Breadth: br}
+	// v2 maker 口径并行:同一触发点挂虚拟被动单(价=REST bid),成交/超时由 manage 裁
+	if restBid > 0 {
+		if _, held := fastLedgerOpen["mkr|"+sym]; !held {
+			fastLedgerOpen["mkr|"+sym] = &fastLedgerPos{Sym: sym, Src: "mkr", T0: now, Entry: restBid,
+				GapDet: gapDet, GapRest: gapRest, SpreadBps: spreadBps, Bits: bits, Fuel: fuel, Breadth: br}
+		}
+	}
 	fastLedgerMu.Unlock()
 }
 
@@ -323,21 +340,46 @@ func (e *OKXDirectionalEngine) fastLedgerManage(mids map[string]float64, now tim
 		if !ok || mid <= 0 {
 			continue // 本轮无价,下轮再看(600s 上限兜底)
 		}
+		// mkr 挂单态:先裁成交/超时,成交后才进入持有态
+		if p.Src == "mkr" && p.FilledAt.IsZero() {
+			if mid <= p.Entry { // mid 跌到挂单价=保守计成交
+				p.FilledAt = now
+			} else if now.Sub(p.T0).Seconds() >= fastLedgerMakerTimeoutSec {
+				row := fastLedgerRow{Time: now, Symbol: p.Sym, Src: p.Src, T0: p.T0,
+					GapDetBps: p.GapDet, GapRestBps: p.GapRest, SpreadBps: p.SpreadBps, Bits: p.Bits,
+					Fuel5m: p.Fuel, Breadth30: p.Breadth, HoldSec: int(now.Sub(p.T0).Seconds()), Exit: "unfilled"}
+				if err := appendJSONLRecord(path, row); err != nil {
+					e.logger.Printf("[particle_ledger] 落盘失败: %v", err)
+				}
+				fastLedgerMu.Lock()
+				delete(fastLedgerOpen, "mkr|"+p.Sym)
+				fastLedgerMu.Unlock()
+			}
+			continue
+		}
 		ret := (mid - p.Entry) / p.Entry * 1e4
 		if ret > p.PeakBps {
 			p.PeakBps = ret
 		}
 		gapNow, gapOK := fastXMidGapBpsVenueTol("bybit", p.Sym, mid, now, fastXgapFreshTol)
-		hold := now.Sub(p.T0).Seconds()
+		holdFrom := p.T0
+		if p.Src == "mkr" {
+			holdFrom = p.FilledAt // maker 持有期从成交起算
+		}
+		hold := now.Sub(holdFrom).Seconds()
 		exit := fastLedgerExit(ret, gapNow, gapOK, hold, e.cfg.FastXgapExitGapBps, e.cfg.FastXgapDisasterBps, e.cfg.FastXgapMaxHoldSeconds)
 		if exit == "" {
 			continue
+		}
+		cost := fastLedgerCostBps
+		if p.Src == "mkr" {
+			cost = fastLedgerMakerCostBps
 		}
 		row := fastLedgerRow{
 			Time: now, Symbol: p.Sym, Src: p.Src, T0: p.T0,
 			GapDetBps: p.GapDet, GapRestBps: p.GapRest, SpreadBps: p.SpreadBps, Bits: p.Bits,
 			Fuel5m: p.Fuel, Breadth30: p.Breadth,
-			GrossBps: ret, NetBps: ret - fastLedgerCostBps, PeakBps: p.PeakBps,
+			GrossBps: ret, NetBps: ret - cost, PeakBps: p.PeakBps,
 			HoldSec: int(hold), Exit: exit,
 		}
 		if err := appendJSONLRecord(path, row); err != nil {

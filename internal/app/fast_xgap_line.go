@@ -117,8 +117,8 @@ func (e *OKXDirectionalEngine) fastXgapFire(sym string, detGapBps float64, detAt
 		e.logger.Printf("[fast_xgap] %s 跳过(%s) det=%.0fbps now=%.0fbps spread=%.1f", sym, skip, detGapBps, gapNow, ev.SpreadBps)
 		return
 	}
-	// Layer A v1 可执行口径:守卫通过=真枪会打的那批,虚拟仓按 REST 时刻价格建仓(record-only)
-	e.fastLedgerOnTriggerREST(sym, ev.Mid, ev.SpreadBps, detGapBps, gapNow, e.nowFn().UTC())
+	// Layer A v1/v2 可执行+maker 双口径:守卫通过=真枪会打的那批,虚拟仓按 REST 价格建仓(record-only)
+	e.fastLedgerOnTriggerREST(sym, ev.Mid, ev.Bid, ev.SpreadBps, detGapBps, gapNow, e.nowFn().UTC())
 	r := e.fastLiveOpen(ctx, ev)
 	e.logger.Printf("[fast_xgap] %s long det=%.0fbps now=%.0fbps age=%dms spread=%.1f → %s", sym, detGapBps, gapNow, ev.EventAgeMs, ev.SpreadBps, r)
 }

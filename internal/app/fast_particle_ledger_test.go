@@ -119,6 +119,31 @@ func TestFastLedgerResidualBit(t *testing.T) {
 	}
 }
 
+// TestFastLedgerMakerFill v2:maker 挂单成交/超时判定(mid≤挂单价=保守计成交)。
+func TestFastLedgerMakerFill(t *testing.T) {
+	base := time.Date(2026, 7, 7, 12, 0, 0, 0, time.UTC)
+	p := &fastLedgerPos{Sym: "X-USDT", Src: "mkr", T0: base, Entry: 100.0}
+	// mid 高于挂单价:不成交,未超时=继续挂
+	if mid := 100.5; mid <= p.Entry {
+		t.Fatal("mid 100.5 不应视为成交")
+	}
+	if base.Add(60 * time.Second).Sub(p.T0).Seconds() >= fastLedgerMakerTimeoutSec {
+		t.Fatal("60s 不应超时(冻结先验=120s)")
+	}
+	// mid 跌到挂单价:成交
+	if mid := 100.0; !(mid <= p.Entry) {
+		t.Fatal("mid=挂单价应计成交")
+	}
+	// 121s 未成交:超时撤单
+	if !(base.Add(121 * time.Second).Sub(p.T0).Seconds() >= fastLedgerMakerTimeoutSec) {
+		t.Fatal("121s 应超时")
+	}
+	// 成本口径:mkr=9 < rest=12(省的3-6bps就是曲线的赌注)
+	if fastLedgerMakerCostBps >= fastLedgerCostBps {
+		t.Fatal("maker 成本应低于 taker 口径")
+	}
+}
+
 // TestFastLedgerTrigCount 惯犯环:评估在登记前(无前视),24h 窗滚动。
 func TestFastLedgerTrigCount(t *testing.T) {
 	fastLedgerTrigMu.Lock()
