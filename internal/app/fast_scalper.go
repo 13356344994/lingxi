@@ -69,12 +69,12 @@ type fastLivePosition struct {
 	PeakBps         float64 `json:"peak_bps,omitempty"`   // 浮盈峰值(移动止盈用;全程 all-time)
 	TroughBps       float64 `json:"trough_bps,omitempty"` // 浮亏谷值(全程 all-time 最深回撤;早砍用)
 	// seen-aware 成交后水位(bps):首次采样某窗口时 MFE=MAE=ubps(不被假 0 污染);窗口外不采样(Seen=false)。
-	Mfe3  float64 `json:"mfe3,omitempty"`
-	Mae3  float64 `json:"mae3,omitempty"`
-	Seen3 bool    `json:"seen3,omitempty"`
-	Mfe5  float64 `json:"mfe5,omitempty"`
-	Mae5  float64 `json:"mae5,omitempty"`
-	Seen5 bool    `json:"seen5,omitempty"`
+	Mfe3   float64 `json:"mfe3,omitempty"`
+	Mae3   float64 `json:"mae3,omitempty"`
+	Seen3  bool    `json:"seen3,omitempty"`
+	Mfe5   float64 `json:"mfe5,omitempty"`
+	Mae5   float64 `json:"mae5,omitempty"`
+	Seen5  bool    `json:"seen5,omitempty"`
 	Mfe10  float64 `json:"mfe10,omitempty"`
 	Mae10  float64 `json:"mae10,omitempty"`
 	Seen10 bool    `json:"seen10,omitempty"`
@@ -196,20 +196,28 @@ type fastExecShadowEvent struct {
 	// v5.2 评估上下文(2026-07-04 用户"多加视野"指令;仅 liq_follow 评估事件填):
 	// 闸门拒绝原因写进数据本身(此前只在日志里,离线分析要抠日志);簇龄/跨度回答"瀑布哪一秒最适合进场"
 	// 与"我们结构性迟到多少";燃料/跨所计数回答"单所事故还是多所传染"。
-	GateSkip        string  `json:"gate_skip,omitempty"`
-	LiqN            int     `json:"liq_n,omitempty"`
-	LiqQtySum       float64 `json:"liq_qty_sum,omitempty"`   // 张数和(离线配 ctVal 换算名义)
-	EventAgeMs      int64   `json:"event_age_ms,omitempty"`  // 评估时刻 - 簇内最新爆仓
-	EvalRestMs      int64   `json:"eval_rest_ms,omitempty"`  // v6.4:盘口+深度REST组装耗时(改并发后复测用)
-	ClusterSpanMs   int64   `json:"cluster_span_ms,omitempty"` // 簇内最新-最老爆仓
-	MarketLiq5m     float64 `json:"market_liq_5m,omitempty"` // 全市场近5min爆仓笔数(燃料)
-	XliqN30s        int     `json:"xliq_n_30s,omitempty"`    // Bybit 同币近30s强平笔数(跨所传染)
+	GateSkip      string  `json:"gate_skip,omitempty"`
+	LiqN          int     `json:"liq_n,omitempty"`
+	LiqQtySum     float64 `json:"liq_qty_sum,omitempty"`     // 张数和(离线配 ctVal 换算名义)
+	EventAgeMs    int64   `json:"event_age_ms,omitempty"`    // 评估时刻 - 簇内最新爆仓
+	EvalRestMs    int64   `json:"eval_rest_ms,omitempty"`    // v6.4:盘口+深度REST组装耗时(改并发后复测用)
+	ClusterSpanMs int64   `json:"cluster_span_ms,omitempty"` // 簇内最新-最老爆仓
+	MarketLiq5m   float64 `json:"market_liq_5m,omitempty"`   // 全市场近5min爆仓笔数(燃料)
+	XliqN30s      int     `json:"xliq_n_30s,omitempty"`      // Bybit 同币近30s强平笔数(跨所传染)
 	// v5.5/5.6 跨所价差锚(正=OKX 贵;nil=该所无此币/标尺过期):价差已开=本地事故,套利商不得不
 	// 拽回;无价差=全局重定价。方向分类器候选①的原料。bybit 键名保持 xgap_bps(兼容首日数据)。
-	XGapBps   *float64 `json:"xgap_bps,omitempty"`     // vs Bybit
-	XGapBnBps *float64 `json:"xgap_bn_bps,omitempty"`  // vs Binance(定价权共识锚)
-	XGapGtBps *float64 `json:"xgap_gt_bps,omitempty"`  // vs Gate(长尾覆盖最广)
+	XGapBps    *float64 `json:"xgap_bps,omitempty"`     // vs Bybit
+	XGapBnBps  *float64 `json:"xgap_bn_bps,omitempty"`  // vs Binance(定价权共识锚)
+	XGapGtBps  *float64 `json:"xgap_gt_bps,omitempty"`  // vs Gate(长尾覆盖最广)
 	SpotGapBps *float64 `json:"spot_gap_bps,omitempty"` // vs OKX现货(基差:杠杆流回归 vs 信息流延续)
+	// ㊳① E 决策信息集路径化(2026-07-08,仅 xgap_rev 事件填;det 时刻冻结,record-only):
+	// 生龄=本轮 gap≤-20 连续时长;速度=3s/15s 价差变化(正=收敛中);归因=15s 内 OKX 自身 vs
+	// Bybit 锚各走多少(OKX 掉下来=本地卖压 vs 锚涨上去=对面先行,两种对手模型)。
+	GapAgeSec         float64 `json:"gap_age_sec,omitempty"`
+	GapVel3Bps        float64 `json:"gap_vel3_bps,omitempty"`
+	GapVel15Bps       float64 `json:"gap_vel15_bps,omitempty"`
+	GapOkxRet15Bps    float64 `json:"gap_okx_ret15_bps,omitempty"`
+	GapAnchorRet15Bps float64 `json:"gap_anchor_ret15_bps,omitempty"`
 	// 池塘质量打标(恒开,零成本;滚动2h逐扫描中位数,动态判定,禁止写死名单)
 	PondEnergyMedBps float64 `json:"pond_energy_med_bps,omitempty"`
 	PondDepthMedUSDT float64 `json:"pond_depth_med_usdt,omitempty"`
@@ -1018,7 +1026,7 @@ func (e *OKXDirectionalEngine) fastLiqFollowTick(ctx context.Context) {
 		case ev.DepthNotional10bps > depthHi:
 			skip = "depth_institutional"
 		}
-		ev.GateSkip = skip // v5.2:拒绝原因入数据本身(离线分析不再抠日志)
+		ev.GateSkip = skip                                                         // v5.2:拒绝原因入数据本身(离线分析不再抠日志)
 		_ = appendJSONLRecord(filepath.Join(e.recordDir, fastExecShadowFile), *ev) // 不论开否都留 shadow(离线对照)
 		if skip != "" {
 			e.logger.Printf("[fast_liqfollow] %s 跳过(%s) spread=%.1f depth10=%.0f liq_n=%d age=%dms", sym, skip, ev.SpreadBps, ev.DepthNotional10bps, n, ev.EventAgeMs)
@@ -1189,8 +1197,10 @@ func (e *OKXDirectionalEngine) buildFastEvent(ctx context.Context, sym string, n
 
 // buildFastAltCandidates v3② 接型候选生成(record-only,绝不实盘;fastLiveOpen 有 CandidateSource 硬闸)。
 // 动机:91k shadow 实证同冲量档"接"比"追"跟随率高 8-15pp,而现生成器 98% 产追单——缺的不是打分,是候选来源。
-//   liq_catch:强平后 60s 内接被迫者(P2 首验:接被迫卖 82.0% 全场最高 vs 无强平 60.7%)。
-//   fade_exhaustion:30s 冲量≥阈值 且 15s 冲量已减速(<40%)→ 追高者力竭,逆向接回落。
+//
+//	liq_catch:强平后 60s 内接被迫者(P2 首验:接被迫卖 82.0% 全场最高 vs 无强平 60.7%)。
+//	fade_exhaustion:30s 冲量≥阈值 且 15s 冲量已减速(<40%)→ 追高者力竭,逆向接回落。
+//
 // 先 shadow 攒前向成绩(fwd_15/30/60s 由离线脚本回填核对),达标才谈灰度实盘。
 func (e *OKXDirectionalEngine) buildFastAltCandidates(base *fastExecShadowEvent, now time.Time) []*fastExecShadowEvent {
 	if base == nil || base.Mid <= 0 {
@@ -1619,7 +1629,9 @@ func fastSentinelMedianHalt(ring []float64, minTrades int) bool {
 }
 
 // fastSentinelKey venue|source。
-func (e *OKXDirectionalEngine) fastSentinelKey(source string) string { return e.venueName + "|" + source }
+func (e *OKXDirectionalEngine) fastSentinelKey(source string) string {
+	return e.venueName + "|" + source
+}
 
 // fastSentinelLoadLocked 首次访问从 settlements 重建该 source 的滚动窗(调用者持锁)。
 func (e *OKXDirectionalEngine) fastSentinelLoadLocked(source string) {
@@ -1933,14 +1945,14 @@ const fastMarketMidsFile = "fast_market_mids.jsonl"
 // v5.8:快照行带四锚 mids(anchors[venue][sym]),backlog 行带 venue 标记(锚回溯与主回溯同款);
 // 由此任何热币在任何时刻的"锚状态"可离线重建=赢家解剖流水线的前置测量地基。
 type fastHotMidsRow struct {
-	RecordedAt time.Time                        `json:"recorded_at"`
-	Mids       map[string]float64               `json:"mids,omitempty"`
+	RecordedAt time.Time          `json:"recorded_at"`
+	Mids       map[string]float64 `json:"mids,omitempty"`
 	// anchors[venue][sym]=[mid, ts_ms]:锚值带自身时间戳(审计修正:无 ts 时锚可陈旧≤15s,
 	// 快市 15s=30bps 假价差;读端须按 ts 做时间对齐,不许拿 recorded_at 当锚的时刻)。
 	Anchors      map[string]map[string][2]float64 `json:"anchors,omitempty"`
 	BacklogSym   string                           `json:"backlog_sym,omitempty"`
 	BacklogVenue string                           `json:"backlog_venue,omitempty"` // 空=okx 主标尺
-	Backlog      [][2]float64                     `json:"backlog,omitempty"` // [unix_ms, mid]
+	Backlog      [][2]float64                     `json:"backlog,omitempty"`       // [unix_ms, mid]
 }
 
 // fastAnchorVenues v5.8 锚所清单(与 fastXMid 键一致)。
@@ -2054,7 +2066,7 @@ func (e *OKXDirectionalEngine) fastMarketMidLoop(ctx context.Context) {
 				// 先算位移(用旧历史),再写入当前点(否则 60s 位移被当前点稀释)
 				r60 := e.fastImpulseBps(sym, mid, now, 60)
 				e.updateFastMidHist(sym, now, mid)
-				fastNoteRange(sym, now, mid) // v6.3 30min 区间环(选择层突破判定)
+				fastNoteRange(sym, now, mid)   // v6.3 30min 区间环(选择层突破判定)
 				e.fastXgapCheck(sym, mid, now) // v6.5 E策略「捡便宜货」探测(廉价检查,触发才REST)
 				// v5.2 热币路径持久化:近5min有强平(OKX/Bybit)或 |60s|≥10bps → 本轮 mid 落盘;
 				// 首次转热补发 backlog(内存里≤300s 的历史)=簇诞生前路径不缺失。
@@ -2394,7 +2406,9 @@ func makerFillState(executed float64, status string, tol float64) string {
 
 // fastMakerEntry v3 单发 post-only 入场(不追价):挂被动价,等 wait_ms,成交则返回;超时撤单(不重挂)。
 // 返回 (成交结果, 挂单价, 等待ms, confirmPath, error)。confirmPath ∈
-//   immediate_fill / poll_fill / cancel_then_query_fill / suspicious_exec_qty_no_fill_status / maker_not_filled。
+//
+//	immediate_fill / poll_fill / cancel_then_query_fill / suspicious_exec_qty_no_fill_status / maker_not_filled。
+//
 // 成交判定加严:仅 makerFillState=="fill"(executed>tol 且 status filled/partial) 才返回成交;
 // executed>tol 但 status 非 fill 类 → suspicious(调用方不建仓);QueryOrder 失败/未成交 → maker_not_filled。
 func (e *OKXDirectionalEngine) fastMakerEntry(ctx context.Context, sym string, side venue.Side, qty float64, instr venue.Instrument, contractBased bool) (venue.OrderResult, float64, int, string, error) {
@@ -2473,7 +2487,7 @@ func (e *OKXDirectionalEngine) fastLiveOpen(ctx context.Context, ev *fastExecSha
 		allowFade := e.cfg.FastFadeLiveEnabled && ev.CandidateSource == "fade_exhaustion" && ev.PondOK && ev.PondSamples >= fastPondWarmupSamples
 		allowLiqFollow := e.cfg.FastLiqFollowLiveEnabled && ev.CandidateSource == "liq_follow"
 		allowTape := e.cfg.FastTapeLiveEnabled && ev.CandidateSource == "tape_burst" // v6:开=用户批探针(护栏锚定)
-		allowXgap := e.cfg.FastXgapLiveEnabled && ev.CandidateSource == "xgap_rev"  // v6.5 E策略:开=前向过检+用户批探针
+		allowXgap := e.cfg.FastXgapLiveEnabled && ev.CandidateSource == "xgap_rev"   // v6.5 E策略:开=前向过检+用户批探针
 		if !allowFade && !allowLiqFollow && !allowTape && !allowXgap {
 			return "record_only_source"
 		}
@@ -2675,8 +2689,8 @@ func (e *OKXDirectionalEngine) fastLiveOpen(ctx context.Context, ev *fastExecSha
 		Symbol: sym, Side: ev.FastCandidateSide, EntryPrice: fillPrice, Qty: res.ExecutedQty,
 		NotionalUSDT: notional, OpenedAt: now, PositionID: fmt.Sprintf("%s-%d", sym, now.UnixNano()),
 		OpenFeeUSDT: math.Abs(res.Fee), Score: ev.FastCandidateScore, ScoreReason: ev.FastCandidateReason,
-		OpenViaTaker:   openViaTaker,
-		EventID:        ev.SnapshotID, EventTime: ev.RecordedAt,
+		OpenViaTaker: openViaTaker,
+		EventID:      ev.SnapshotID, EventTime: ev.RecordedAt,
 		EntrySpreadBps: ev.SpreadBps, EntryImbalance: ev.OrderbookImbalance,
 		EntryImpulse15s: ev.MidImpulse15sBps, EntryImpulse30s: ev.MidImpulse30sBps, EntryImpulse60s: ev.MidImpulse60sBps,
 		MakerEntry: makerMode, MakerOrderPrice: makerOrderPrice, MakerWaitMs: makerWaitMs, FillMid: fillMid, MakerEdgeBps: makerEdge,

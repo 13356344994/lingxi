@@ -1070,3 +1070,202 @@ fd17e763f32bdf23d74fec92352256ba | cycle=
 2026/07/08 01:43:47 [fast_xgap] BASED-USDT long det=-55bps now=-25bps age=177ms spread=2.4 → record_only_source
 2026/07/08 01:43:48 [账户风控] OK daily_equity_delta=-0.5046 daily_realized=0.0000 settlement_dd=48.7949 real_equity_dd=44.4087 real_equity_dd_adj=16.0518 cum_fund_flow=-105.9652 positions=0 notional=0.00
 2026/07/08 01:43:51 [fast_liqfollow] BASED-USDT short liq_n=3 spread=2.4 depth10=8662 → record_only_source
+2026/07/08 01:43:57 [fast_hotws] 订阅差分 +38 -0 当前=40
+2026/07/08 01:44:07 [fast_liqfollow] BASED-USDT short liq_n=4 spread=1.2 depth10=8791 → record_only_source
+2026/07/08 01:44:11 [fast_liqfollow] BEAT-USDT short liq_n=2 spread=0.8 depth10=14642 → record_only_source
+2026/07/08 01:44:17 [fast_liqfollow] RAVE-USDT short liq_n=2 spread=3.3 depth10=8647 → record_only_source
+2026/07/08 01:44:18 [fast_liqfollow] MON-USDT short liq_n=2 spread=3.9 depth10=19749 → record_only_source
+2026/07/08 01:44:45 [fast_liqfollow] EDGE-USDT 跳过(squeeze_top_no_long) spread=4.9 depth10=7236 liq_n=2 age=239ms
+2026/07/08 01:44:46 [fast_scalper] record-only 扫描=20 记录=27 live=true 入场结果=map[alt_record_only_source:43 scorer_record_only:299] → fast_executable_shadow_events.jsonl
+2026/07/08 01:44:46 [fast_liqfollow] SOL-USDT 跳过(cascade_dead) spread=1.2 depth10=4122016 liq_n=2 age=111ms
+2026/07/08 01:44:48 [账户风控] OK daily_equity_delta=-0.5046 daily_realized=0.0000 settlement_dd=48.7949 real_equity_dd=44.4087 real_equity_dd_adj=16.0518 cum_fund_flow=-105.9652 positions=0 notional=0.00
+2026/07/08 01:44:52 [fast_liqfollow] LAB-USDT 跳过(cascade_dead) spread=2.5 depth10=5671 liq_n=2 age=924ms
+2026/07/08 01:45:28 [fast_tape] RAVE-USDT short 413x burst+确认 age=2059ms spread=3.3 → record_only_source
+2026/07/08 01:45:48 [账户风控] OK daily_equity_delta=-0.5046 daily_realized=0.0000 settlement_dd=48.7949 real_equity_dd=44.4087 real_equity_dd_adj=16.0518 cum_fund_flow=-105.9652 positions=0 notional=0.00
+2026/07/08 01:45:50 [fast_scalper] record-only 扫描=20 记录=26 live=true 入场结果=map[alt_record_only_source:74 scorer_record_only:318] → fast_executable_shadow_events.jsonl
+2026/07/08 01:46:20 [fast_xgap] OPG-USDT long det=-40bps now=-32bps age=114ms spread=8.1 → record_only_source
+2026/07/08 01:46:48 [账户风控] OK daily_equity_delta=-0.5396 daily_realized=0.0000 settlement_dd=48.7949 real_equity_dd=44.4438 real_equity_dd_adj=16.0868 cum_fund_flow=-105.9652 positions=0 notional=0.00
+2026/07/08 01:46:54 [fast_scalper] record-only 扫描=20 记录=27 live=true 入场结果=map[alt_record_only_source:50 scorer_record_only:319] → fast_executable_shadow_events.jsonl
+2026/07/08 01:47:07 [fast_liqfollow] HMSTR-USDT short liq_n=2 spread=3.9 depth10=17610 → record_only_source
+2026/07/08 01:47:29 [fast_xgap] EDGE-USDT 跳过(gap_gone) det=-42bps now=11bps spread=4.9
+2026/07/08 01:47:29 [fast_liqfollow] RE-USDT short liq_n=2 spread=0.2 depth10=36097 → record_only_source
+2026/07/08 01:47:41 [fast_xgap] SKHYNIX-USDT long det=-40bps now=-36bps age=113ms spread=0.1 → record_only_source
+2026/07/08 01:47:48 [账户风控] OK daily_equity_delta=-0.5396 daily_realized=0.0000 settlement_dd=48.7949 real_equity_dd=44.4438 real_equity_dd_adj=16.0868 cum_fund_flow=-105.9652 positions=0 notional=0.00
+2026/07/08 01:47:58 [fast_scalper] record-only 扫描=20 记录=24 live=true 入场结果=map[alt_record_only_source:60 scorer_record_only:317] → fast_executable_shadow_events.jsonl
+2026/07/08 01:47:58 [fast_liqfollow] SNDK-USDT short liq_n=2 spread=0.4 depth10=117307 → record_only_source
+2026/07/08 01:48:35 [fast_xgap] AGLD-USDT 跳过(gap_gone) det=-43bps now=-2bps spread=6.0
+2026/07/08 01:48:48 [账户风控] OK daily_equity_delta=-0.5396 daily_realized=0.0000 settlement_dd=48.7949 real_equity_dd=44.4438 real_equity_dd_adj=16.0868 cum_fund_flow=-105.9652 positions=0 notional=0.00
+2026/07/08 01:48:58 [fast_scalper] record-only 扫描=20 记录=23 live=true 入场结果=map[alt_record_only_source:58 scorer_record_only:299] → fast_executable_shadow_events.jsonl
+2026/07/08 01:49:49 [账户风控] OK daily_equity_delta=-0.5462 daily_realized=0.0000 settlement_dd=48.7949 real_equity_dd=44.4503 real_equity_dd_adj=16.0933 cum_fund_flow=-105.9652 positions=0 notional=0.00
+2026/07/08 01:50:02 [fast_scalper] record-only 扫描=20 记录=21 live=true 入场结果=map[alt_record_only_source:52 scorer_record_only:320] → fast_executable_shadow_events.jsonl
+2026/07/08 01:50:48 [账户风控] OK daily_equity_delta=-0.5462 daily_realized=0.0000 settlement_dd=48.7949 real_equity_dd=44.4503 real_equity_dd_adj=16.0933 cum_fund_flow=-105.9652 positions=0 notional=0.00
+2026/07/08 01:50:57 [fast_liqfollow] BEAT-USDT short liq_n=2 spread=0.4 depth10=15649 → record_only_source
+2026/07/08 01:51:02 [fast_scalper] record-only 扫描=20 记录=21 live=true 入场结果=map[alt_record_only_source:42 scorer_record_only:300] → fast_executable_shadow_events.jsonl
+2026/07/08 01:51:20 [fast_xgap] YFI-USDT 跳过(gap_gone) det=-41bps now=-6bps spread=4.1
+2026/07/08 01:51:32 [fast_xgap] KMNO-USDT long det=-45bps now=-18bps age=171ms spread=5.0 → record_only_source
+2026/07/08 01:51:35 [fast_liqfollow] RAVE-USDT short liq_n=2 spread=3.3 depth10=8928 → record_only_source
+2026/07/08 01:51:48 [账户风控] OK daily_equity_delta=-0.5462 daily_realized=0.0000 settlement_dd=48.7949 real_equity_dd=44.4503 real_equity_dd_adj=16.0933 cum_fund_flow=-105.9652 positions=0 notional=0.00
+2026/07/08 01:52:06 [fast_scalper] record-only 扫描=20 记录=24 live=true 入场结果=map[alt_record_only_source:47 scorer_record_only:318] → fast_executable_shadow_events.jsonl
+2026/07/08 01:52:07 [fast_hotws] 订阅差分 +1 -1 当前=40
+2026/07/08 01:52:10 [fast_liqfollow] LAB-USDT 跳过(squeeze_top_no_long) spread=4.6 depth10=0 liq_n=2 age=967ms
+2026/07/08 01:52:27 [fast_liqfollow] LAB-USDT 跳过(cascade_dead) spread=2.3 depth10=5400 liq_n=7 age=262ms
+2026/07/08 01:52:27 [fast_hotws] 订阅差分 +2 -2 当前=40
+2026/07/08 01:52:33 [bybit][OKX方向] 引擎退出: context canceled
+2026/07/08 01:52:33 [binance][OKX方向] 引擎退出: context canceled
+2026/07/08 01:52:33 [gate][OKX方向] 引擎退出: context canceled
+2026/07/08 01:52:33 [OKX方向] 引擎退出: context canceled
+2026/07/08 01:52:33 启动 lingxi: version=10c3153-dirty commit=10c3153 build_time=2026-07-07T17:52:33Z
+2026/07/08 01:52:33 [配置] 生效配置相对默认值有 59 处覆盖:
+2026/07/08 01:52:33 [配置]   CrossVenueExecutor.CloseSpreadAPR: 0.3 => 0.2
+2026/07/08 01:52:33 [配置]   CrossVenueExecutor.Enabled: false => true
+2026/07/08 01:52:33 [配置]   CrossVenueExecutor.LiveTradingEnabled: false => true
+2026/07/08 01:52:33 [配置]   CrossVenueExecutor.MarginSafetyFactor: 1 => 1.5
+2026/07/08 01:52:33 [配置]   CrossVenueExecutor.MaxConcurrent: 2 => 8
+2026/07/08 01:52:33 [配置]   CrossVenueExecutor.MaxPositionUSDT: 75 => 150
+2026/07/08 01:52:33 [配置]   CrossVenueExecutor.UnifiedCaptureModelEnabled: false => true
+2026/07/08 01:52:33 [配置]   CrossVenueExecutor.UntrackedExposureAction: halt => flatten
+2026/07/08 01:52:33 [配置]   CrossVenueScanner.DirectionalVenues:  => okx
+2026/07/08 01:52:33 [配置]   CrossVenueScanner.Enabled: true => false
+2026/07/08 01:52:33 [配置]   HistoricalConfig.AssumedHourlyBorrowInterestRate: 5e-05 => 4.75e-05
+2026/07/08 01:52:33 [配置]   HistoricalConfig.FuturesTakerFeeRate: 0.0005 => 0.00045
+2026/07/08 01:52:33 [配置]   HistoricalConfig.MaxFundingCyclesHeld: 1 => 3
+2026/07/08 01:52:33 [配置]   HistoricalConfig.SpotTakerFeeRate: 0.001 => 0.00075
+2026/07/08 01:52:33 [配置]   NetworkConfig.DashboardAddr: 127.0.0.1:8080 => 0.0.0.0:8080
+2026/07/08 01:52:33 [配置]   OKXDirectional.Enabled: false => true
+2026/07/08 01:52:33 [配置]   OKXDirectional.FastAltCandidatesEnabled: false => true
+2026/07/08 01:52:33 [配置]   OKXDirectional.FastExitEnergyScaleEnabled: false => true
+2026/07/08 01:52:33 [配置]   OKXDirectional.FastHotPriorityEnabled: false => true
+2026/07/08 01:52:33 [配置]   OKXDirectional.FastHotWSEnabled: false => true
+2026/07/08 01:52:33 [配置]   OKXDirectional.FastLiqCollectorEnabled: false => true
+2026/07/08 01:52:33 [配置]   OKXDirectional.FastLiqFollowShadowEnabled: false => true
+2026/07/08 01:52:33 [配置]   OKXDirectional.FastLiveEnabled: false => true
+2026/07/08 01:52:33 [配置]   OKXDirectional.FastLiveNotionalUSDT: 0 => 5
+2026/07/08 01:52:33 [配置]   OKXDirectional.FastMarketMidsEnabled: false => true
+2026/07/08 01:52:33 [配置]   OKXDirectional.FastMarketMidsPersistEnabled: false => true
+2026/07/08 01:52:33 [配置]   OKXDirectional.FastParticleLedgerEnabled: false => true
+2026/07/08 01:52:33 [配置]   OKXDirectional.FastPondFilterEnabled: false => true
+2026/07/08 01:52:33 [配置]   OKXDirectional.FastScalperV1Enabled: false => true
+2026/07/08 01:52:33 [配置]   OKXDirectional.FastSpeciesExitEnabled: false => true
+2026/07/08 01:52:33 [配置]   OKXDirectional.FastTapeSideMatchEnabled: false => true
+2026/07/08 01:52:33 [配置]   OKXDirectional.FastWSCollectorEnabled: false => true
+2026/07/08 01:52:33 [配置]   OKXDirectional.FastXMidEnabled: false => true
+2026/07/08 01:52:33 [配置]   OKXDirectional.FastXgapShadowEnabled: false => true
+2026/07/08 01:52:33 [配置]   OKXDirectional.FastXvenueLiqEnabled: false => true
+2026/07/08 01:52:33 [配置]   OKXDirectional.LiveTradingEnabled: false => true
+2026/07/08 01:52:33 [配置]   OKXDirectional.MAEDisasterCutEnabled: false => true
+2026/07/08 01:52:33 [配置]   OKXDirectional.MAEDisasterCutVenues:  => okx,bybit
+2026/07/08 01:52:33 [配置]   OKXDirectional.MaxConcurrent: 4 => 5
+2026/07/08 01:52:33 [配置]   OKXDirectional.MaxHoldMinutes: 30 => 60
+2026/07/08 01:52:33 [配置]   OKXDirectional.OpenMicroRecordEnabled: false => true
+2026/07/08 01:52:33 [配置]   OKXDirectional.OpenTakerFallbackBps: 0 => 30
+2026/07/08 01:52:33 [配置]   OKXDirectional.RegimeDegradeEnabled: false => true
+2026/07/08 01:52:33 [配置]   OKXDirectional.RunupConfirmFilterEnabled: false => true
+2026/07/08 01:52:33 [配置]   OKXDirectional.RunupConfirmVenues:  => okx
+2026/07/08 01:52:33 [配置]   PortfolioConfig.EnableRollingHold: false => true
+2026/07/08 01:52:33 [配置]   RiskConfig.BorrowCapacityCheckEnabled: false => true
+2026/07/08 01:52:33 [配置]   RiskConfig.DailyMaxLosingTrades: 8 => 0
+2026/07/08 01:52:33 [配置]   RiskConfig.ImmediateInvalidateRate: 0.0005 => 5e-05
+2026/07/08 01:52:33 [配置]   RiskConfig.MaxAccountDrawdownUSDT: 60 => 115
+2026/07/08 01:52:33 [配置]   RiskConfig.MaxAccountOpenNotionalUSDT: 1200 => 2200
+2026/07/08 01:52:33 [配置]   RiskConfig.MaxCycleOpenNotionalUSDT: 300 => 60
+2026/07/08 01:52:33 [配置]   RiskConfig.MaxDailyLossUSDT: 25 => 35
+2026/07/08 01:52:33 [配置]   RiskConfig.MaxStrategyCumulativeLossUSDT: 35 => 80
+2026/07/08 01:52:33 [配置]   StrategyConfig.PerSymbolQuoteUSDT: 100 => 30
+2026/07/08 01:52:33 [配置]   StrategyConfig.StrategyMode: collect_data => profit_seeking
+2026/07/08 01:52:33 [配置]   UnifiedRotation.Enabled: false => true
+2026/07/08 01:52:33 [配置]   UnifiedRotation.LiveTradingEnabled: false => true
+2026/07/08 01:52:33 [配置]   UnifiedRotation.TotalDeployableUSDT: 0 => 435
+2026/07/08 01:52:33 [冷启动检查] 开始执行每日健康检查...
+2026/07/08 01:52:33 [冷启动检查] 配置校验通过
+2026/07/08 01:52:33 [冷启动检查] 记录目录可写校验通过
+2026/07/08 01:52:33 [冷启动检查] 每日健康检查全部通过
+2026/07/08 01:52:33 [编排] venue=binance 运行时已注册(enabled,默认 idle,plan.autostart=false)
+2026/07/08 01:52:33 [编排] venue=bybit 适配器已注入(仅行情/账户,不启动交易引擎)
+2026/07/08 01:52:33 [编排] venue=bybit 运行时已注册(enabled,默认 idle,plan.autostart=false)
+2026/07/08 01:52:33 [编排] venue=gate 适配器已注入(仅行情/账户,不启动交易引擎)
+2026/07/08 01:52:33 [编排] venue=gate 运行时已注册(enabled,默认 idle,plan.autostart=false)
+2026/07/08 01:52:33 [编排] venue=okx 适配器已注入(仅行情/账户,不启动交易引擎)
+2026/07/08 01:52:33 [编排] venue=okx 运行时已注册(enabled,默认 idle,plan.autostart=false)
+2026/07/08 01:52:33 [权益采样] 已启动: interval=3m0s 口径=各所USDT现金余额真实变化
+2026/07/08 01:52:33 [OKX方向][冷却] 启动恢复:冷却币=0 当日亏损计数=0 同日=true
+2026/07/08 01:52:33 [bybit][OKX方向][冷却] 启动恢复:冷却币=0 当日亏损计数=0 同日=true
+2026/07/08 01:52:33 [方向] bybit 引擎已接线(默认停用,需面板点开始)
+2026/07/08 01:52:33 [gate][OKX方向][冷却] 启动恢复:冷却币=0 当日亏损计数=0 同日=true
+2026/07/08 01:52:33 [方向] gate 引擎已接线(默认停用,需面板点开始)
+2026/07/08 01:52:33 [OKX方向] 引擎启动 live=true 周期=1m30s 风控=20s
+2026/07/08 01:52:33 [OKX方向][生效参数] 本金=100.00U 止损=5%(本金) 杠杆=5X 并发上限=5 每仓名义=7.50U active=false
+2026/07/08 01:52:33 [OKX方向][生效参数] 入场: minConv=0.55 zEntry=1.00 costFloor=40bps takerFallback=30bps(允许所=所有所,本所生效=30bps) universeTopN=20 选币周期=30min maxSpread=20bps
+2026/07/08 01:52:33 [OKX方向][生效参数] 出场: quickTP=12% partialTP=6%×50% trailGap=6% trailLock=50% staleCut=30m maxHold=60m absMax=60m 反转最小持有=30m
+2026/07/08 01:52:33 [OKX方向][生效参数] regime: 趋势态交易=false 资费对齐闸=true 跨所印证=true(否决需≥2反向) BTC追势过滤=false
+2026/07/08 01:52:33 [OKX方向][生效参数] 阶段2A OpenMicro埋点=true 采集范围=所有所 本所生效=true(record-only,不改交易行为)
+2026/07/08 01:52:33 [OKX方向][生效参数] regime_degrade=on action=downsize 命中名义=5.00U(默认7.50U) 命中(离散OR)=[transition_band:btc∈[0.10,0.20) 或 extreme_trend:btc_trend>=0.40 或 mode∈{broad_up}](仅缩新开仓名义,不停机/不禁开)
+2026/07/08 01:52:33 [OKX方向][生效参数] mae_disaster_cut=on 阈值=-3.0%(本金) 灰度所=okx,bybit 本所生效=true(仅出场刹车;依据:触及-3%后89%仍亏)
+2026/07/08 01:52:33 [OKX方向][生效参数] runup_confirm=on 最小runup=0.0bp 灰度所=okx 本所生效=true(开仓闸;micro 缺失放行)
+2026/07/08 01:52:33 [bybit][OKX方向] 引擎启动 live=true 周期=1m30s 风控=20s
+2026/07/08 01:52:33 [bybit][OKX方向][生效参数] 本金=50.00U 止损=5%(本金) 杠杆=5X 并发上限=5 每仓名义=7.50U active=false
+2026/07/08 01:52:33 [bybit][OKX方向][生效参数] 入场: minConv=0.55 zEntry=1.00 costFloor=40bps takerFallback=30bps(允许所=所有所,本所生效=30bps) universeTopN=20 选币周期=30min maxSpread=20bps
+2026/07/08 01:52:33 [bybit][OKX方向][生效参数] 出场: quickTP=12% partialTP=6%×50% trailGap=6% trailLock=50% staleCut=30m maxHold=60m absMax=60m 反转最小持有=30m
+2026/07/08 01:52:33 [bybit][OKX方向][生效参数] regime: 趋势态交易=false 资费对齐闸=true 跨所印证=true(否决需≥2反向) BTC追势过滤=false
+2026/07/08 01:52:33 [bybit][OKX方向][生效参数] 阶段2A OpenMicro埋点=true 采集范围=所有所 本所生效=true(record-only,不改交易行为)
+2026/07/08 01:52:33 [bybit][OKX方向][生效参数] regime_degrade=on action=downsize 命中名义=5.00U(默认7.50U) 命中(离散OR)=[transition_band:btc∈[0.10,0.20) 或 extreme_trend:btc_trend>=0.40 或 mode∈{broad_up}](仅缩新开仓名义,不停机/不禁开)
+2026/07/08 01:52:33 [bybit][OKX方向][生效参数] mae_disaster_cut=on 阈值=-3.0%(本金) 灰度所=okx,bybit 本所生效=true(仅出场刹车;依据:触及-3%后89%仍亏)
+2026/07/08 01:52:33 [bybit][OKX方向][生效参数] runup_confirm=on 最小runup=0.0bp 灰度所=okx 本所生效=false(开仓闸;micro 缺失放行)
+2026/07/08 01:52:33 [binance][OKX方向][冷却] 启动恢复:冷却币=0 当日亏损计数=0 同日=true
+2026/07/08 01:52:33 [方向] binance 引擎已接线(默认停用,需面板点开始)
+2026/07/08 01:52:33 [gate][OKX方向] 引擎启动 live=true 周期=1m30s 风控=20s
+2026/07/08 01:52:33 [gate][OKX方向][生效参数] 本金=30.00U 止损=5%(本金) 杠杆=5X 并发上限=5 每仓名义=7.50U active=false
+2026/07/08 01:52:33 Web 面板已启动: http://0.0.0.0:8080/
+2026/07/08 01:52:33 [OKX方向][fast_scalper] v3 扫描goroutine启动 周期=4s 扫描上限=20 入场=maker live=true
+2026/07/08 01:52:33 Dashboard 控制令牌已写入 records/.dashboard_control_token (0600,仅本机可读,可 cat 查看);指纹=71e052f138f0e203
+2026/07/08 01:52:33 [ALERT][INFO] 面板控制令牌已更新 | 服务已重启,新控制令牌:
+3e44d6b9bae50f3fdc21ad480b27d95b | cycle=
+2026/07/08 01:52:33 [binance][OKX方向] 引擎启动 live=true 周期=1m30s 风控=20s
+2026/07/08 01:52:33 [binance][OKX方向][生效参数] 本金=15.00U 止损=5%(本金) 杠杆=5X 并发上限=5 每仓名义=7.50U active=false
+2026/07/08 01:52:33 [binance][OKX方向][生效参数] 入场: minConv=0.55 zEntry=1.00 costFloor=40bps takerFallback=30bps(允许所=所有所,本所生效=30bps) universeTopN=20 选币周期=30min maxSpread=20bps
+2026/07/08 01:52:33 [binance][OKX方向][生效参数] 出场: quickTP=12% partialTP=6%×50% trailGap=6% trailLock=50% staleCut=30m maxHold=60m absMax=60m 反转最小持有=30m
+2026/07/08 01:52:33 [binance][OKX方向][生效参数] regime: 趋势态交易=false 资费对齐闸=true 跨所印证=true(否决需≥2反向) BTC追势过滤=false
+2026/07/08 01:52:33 [binance][OKX方向][生效参数] 阶段2A OpenMicro埋点=true 采集范围=所有所 本所生效=true(record-only,不改交易行为)
+2026/07/08 01:52:33 [binance][OKX方向][生效参数] regime_degrade=on action=downsize 命中名义=5.00U(默认7.50U) 命中(离散OR)=[transition_band:btc∈[0.10,0.20) 或 extreme_trend:btc_trend>=0.40 或 mode∈{broad_up}](仅缩新开仓名义,不停机/不禁开)
+2026/07/08 01:52:33 [binance][OKX方向][生效参数] mae_disaster_cut=on 阈值=-3.0%(本金) 灰度所=okx,bybit 本所生效=false(仅出场刹车;依据:触及-3%后89%仍亏)
+2026/07/08 01:52:33 [binance][OKX方向][生效参数] runup_confirm=on 最小runup=0.0bp 灰度所=okx 本所生效=false(开仓闸;micro 缺失放行)
+2026/07/08 01:52:33 [账户风控] 已启动: interval=1m0s (Stage B:一级硬停默认启用,二级 flatten opt-in 默认关闭)
+2026/07/08 01:52:33 [gate][OKX方向][生效参数] 入场: minConv=0.55 zEntry=1.00 costFloor=40bps takerFallback=30bps(允许所=所有所,本所生效=30bps) universeTopN=20 选币周期=30min maxSpread=20bps
+2026/07/08 01:52:33 [gate][OKX方向][生效参数] 出场: quickTP=12% partialTP=6%×50% trailGap=6% trailLock=50% staleCut=30m maxHold=60m absMax=60m 反转最小持有=30m
+2026/07/08 01:52:33 [gate][OKX方向][生效参数] regime: 趋势态交易=false 资费对齐闸=true 跨所印证=true(否决需≥2反向) BTC追势过滤=false
+2026/07/08 01:52:33 [gate][OKX方向][生效参数] 阶段2A OpenMicro埋点=true 采集范围=所有所 本所生效=true(record-only,不改交易行为)
+2026/07/08 01:52:33 [gate][OKX方向][生效参数] regime_degrade=on action=downsize 命中名义=5.00U(默认7.50U) 命中(离散OR)=[transition_band:btc∈[0.10,0.20) 或 extreme_trend:btc_trend>=0.40 或 mode∈{broad_up}](仅缩新开仓名义,不停机/不禁开)
+2026/07/08 01:52:33 [gate][OKX方向][生效参数] mae_disaster_cut=on 阈值=-3.0%(本金) 灰度所=okx,bybit 本所生效=false(仅出场刹车;依据:触及-3%后89%仍亏)
+2026/07/08 01:52:33 [gate][OKX方向][生效参数] runup_confirm=on 最小runup=0.0bp 灰度所=okx 本所生效=false(开仓闸;micro 缺失放行)
+2026/07/08 01:52:33 [OKX方向][fast_liqfollow] 事件驱动线启动(全市场爆仓→秒级当刻验资格;每秒≤2币,限频即退让) live=false
+2026/07/08 01:52:33 [OKX方向][fast_tape] tape_burst 线启动(burst→官方确认→当刻资格→taker;live=false 方向核对=true,关=只记shadow)
+2026/07/08 01:52:33 [fast_mids] 全市场 mid 标尺启动 间隔=3s 全量落盘=true(盲区根治+波动普查:|60s|≥25bps 记 fast_mover_census.jsonl)
+2026/07/08 01:52:33 [fast_hotws] 热币微结构采集启动(record-only)动态订阅上限=40 粘性=600s 怪兽优先=true → fast_hot_micro.jsonl
+2026/07/08 01:52:33 [fast_xmid] 跨所信息标尺启动 间隔=3s 价锚=bybit+binance+gate+okx现货 富字段=funding/OI 快照=300s(record-only)
+2026/07/08 01:52:33 [fast_ws] OKX 动态采集器启动(record-only,不下单/不读账户)max_symbols=15
+2026/07/08 01:52:33 [fast_ws] 连接中断,3s 后重连: shortlist 空,暂不订阅
+2026/07/08 01:52:34 [fast_xliq] Bybit 全市场强平流采集启动(record-only,耳朵不是枪口;OKX∩Bybit=333 币)
+2026/07/08 01:52:34 [fast_xliq][bybit] 已连并订阅 333 币
+2026/07/08 01:52:34 [fast_scalper] 池塘统计回放完成: 27361 样本(2h窗口,重启不失忆,免死水池热身fail-open)
+2026/07/08 01:52:34 [账户风控] 充提流水源=real cumulative=0.0000 (首次确认)
+2026/07/08 01:52:34 [账户风控] OK daily_equity_delta=-0.5822 daily_realized=0.0000 settlement_dd=48.7949 real_equity_dd=44.4864 real_equity_dd_adj=16.1294 cum_fund_flow=-105.9652 positions=0 notional=0.00
+2026/07/08 01:52:34 [gate][OKX方向][选币] 候选=34 BTC趋势=0.14 入选=20 头部: EVAA-USDT(1.000) BLUR-USDT EPIC-USDT
+2026/07/08 01:52:34 [gate][delist-guard] 已刷新 gate instrument 状态: total=2871 non_trading=2
+2026/07/08 01:52:35 [gate][delist-guard] 已刷新 okx instrument 状态: total=1679 non_trading=0
+2026/07/08 01:52:36 [gate][delist-guard] 已刷新 bybit instrument 状态: total=1278 non_trading=0
+2026/07/08 01:52:36 [fast_ws] 连接中断,3s 后重连: shortlist 空,暂不订阅
+2026/07/08 01:52:39 [bybit][OKX方向][选币] 候选=29 BTC趋势=0.14 入选=20 头部: EPIC-USDT(0.952) GWEI-USDT BLUR-USDT
+2026/07/08 01:52:39 [bybit][delist-guard] 已刷新 okx instrument 状态: total=1679 non_trading=0
+2026/07/08 01:52:39 [fast_ws] 连接中断,3s 后重连: shortlist 空,暂不订阅
+2026/07/08 01:52:40 [fast_xgap] LAB-USDT long det=-798bps now=-802bps age=136ms spread=2.3 → record_only_source
+2026/07/08 01:52:40 [fast_xgap] SLX-USDT long det=-67bps now=-67bps age=137ms spread=5.6 → record_only_source
+2026/07/08 01:52:40 [fast_xgap] BLUR-USDT long det=-99bps now=-99bps age=145ms spread=4.9 → record_only_source
+2026/07/08 01:52:40 [bybit][delist-guard] 已刷新 bybit instrument 状态: total=1278 non_trading=0
+2026/07/08 01:52:40 [bybit][delist-guard] 已刷新 gate instrument 状态: total=2871 non_trading=2
+2026/07/08 01:52:41 [binance][OKX方向][选币] 候选=31 BTC趋势=0.14 入选=20 头部: BLUR-USDT(0.994) EPIC-USDT SPELL-USDT
+2026/07/08 01:52:41 [binance][delist-guard] 已刷新 binance instrument 状态: total=4455 non_trading=2394
+2026/07/08 01:52:42 [binance][delist-guard] 已刷新 okx instrument 状态: total=1679 non_trading=0
+2026/07/08 01:52:42 [binance][delist-guard] 已刷新 bybit instrument 状态: total=1278 non_trading=0
+2026/07/08 01:52:42 [binance][delist-guard] 已刷新 gate instrument 状态: total=2871 non_trading=2
+2026/07/08 01:52:42 [fast_ws] 连接中断,3s 后重连: shortlist 空,暂不订阅
+2026/07/08 01:52:44 [fast_hotws] 订阅差分 +2 -0 当前=2
+2026/07/08 01:52:45 [fast_ws] 连接中断,3s 后重连: shortlist 空,暂不订阅

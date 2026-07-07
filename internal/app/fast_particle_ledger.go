@@ -28,7 +28,7 @@ const (
 	pbHabitual              // 惯犯:本次之前 24h 内同币触发 ≥3 次
 	pbDutyXgap              // 派班合成位:calm ∧ breadthOK(冗余存储便于账本直读)
 	// v1 追加(REST 入场行专属;㉝残余带发现的机器原生化):
-	pbResidual2040          // REST 残余价差 ∈ [-40,-20](执行层唯一活区,预注册 12:10Z)
+	pbResidual2040 // REST 残余价差 ∈ [-40,-20](执行层唯一活区,预注册 12:10Z)
 )
 
 // fastLedgerStockPerps 股票 perp 名单(粒子 pbNonStock 用;静态集=标的性质,非黑名单)。
@@ -194,52 +194,75 @@ func fastParticleBits(sym string, now time.Time, gapBps, fuel5m float64, breadth
 
 // ---- 虚拟持仓与结账 ----
 type fastLedgerPos struct {
-	Sym      string
-	Src      string // det=探测mid(v0) / rest=REST mid可执行口径(v1) / mkr=maker挂单口径(v2,头号曲线测量仪)
-	T0       time.Time // 触发时刻(mkr:挂单时刻)
-	FilledAt time.Time // mkr 专属:成交时刻(零值=仍挂着)
-	Entry    float64   // mkr:挂单价(REST bid),成交后即入场价
-	GapDet   float64
-	GapRest  float64 // rest/mkr:REST 复核时刻残余价差
+	Sym       string
+	Src       string    // det=探测mid(v0) / rest=REST mid可执行口径(v1) / mkr=maker挂单口径(v2,头号曲线测量仪)
+	T0        time.Time // 触发时刻(mkr:挂单时刻)
+	FilledAt  time.Time // mkr 专属:成交时刻(零值=仍挂着)
+	Entry     float64   // mkr:挂单价(REST bid),成交后即入场价
+	GapDet    float64
+	GapRest   float64 // rest/mkr:REST 复核时刻残余价差
 	SpreadBps float64 // rest/mkr:REST 盘口点差
-	Bits     int
-	Fuel     float64
-	Breadth  float64
-	PeakBps  float64
+	Bits      int
+	Fuel      float64
+	Breadth   float64
+	PeakBps   float64
 	// ㊱曲线② burst弹射反事实标注(零行为改动:只记不弹,弹不弹由数据裁):
 	BurstSeen  bool
 	RetAtBurst float64 // 首见同币卖方burst时的浮盈bps(3s采样近似)
+	// ㊳① det 时刻价差路径信息集(生龄/速度/归因;Go 账本=判决口径,分桶直读)
+	Path fastGapPathStats
 }
 
 // maker 口径冻结先验(v2,2026-07-07 曲线救国方针):
-//   挂单价=REST bid;成交判定=后续 mid ≤ 挂单价(mid 跌到我们的 bid=几乎必然成交,保守计成交);
-//   挂单超时 120s 未成交=撤单(记 unfilled 行,net=0,量"错过的收敛");
-//   成本=9bps(maker进2+taker出5+滑2) vs rest 口径 12。裁决问题:逆选择税是否 < 省下的 3-6bps。
+//
+//	挂单价=REST bid;成交判定=后续 mid ≤ 挂单价(mid 跌到我们的 bid=几乎必然成交,保守计成交);
+//	挂单超时 120s 未成交=撤单(记 unfilled 行,net=0,量"错过的收敛");
+//	成本=9bps(maker进2+taker出5+滑2) vs rest 口径 12。裁决问题:逆选择税是否 < 省下的 3-6bps。
 const (
 	fastLedgerMakerTimeoutSec = 120.0
 	fastLedgerMakerCostBps    = 9.0
 )
 
 type fastLedgerRow struct {
-	Time      time.Time `json:"time"` // 出场时刻
-	Symbol    string    `json:"symbol"`
-	Src       string    `json:"src"` // det / rest(可执行口径)
-	T0        time.Time `json:"t0"`
-	GapDetBps float64   `json:"gap_det_bps"`
-	GapRestBps float64  `json:"gap_rest_bps,omitempty"` // rest 行:REST残余价差
-	SpreadBps  float64  `json:"spread_bps,omitempty"`   // rest 行:REST盘口点差
-	Bits      int       `json:"bits"`
-	Fuel5m    float64   `json:"fuel_5m"`
-	Breadth30 float64   `json:"breadth_30m"`
-	NetBps    float64   `json:"net_bps"` // 含成本12
-	GrossBps  float64   `json:"gross_bps"`
-	PeakBps   float64   `json:"peak_bps"`
-	HoldSec   int       `json:"hold_sec"`
-	Exit      string    `json:"exit"` // converged / max_hold / disaster / unfilled(mkr)
+	Time       time.Time `json:"time"` // 出场时刻
+	Symbol     string    `json:"symbol"`
+	Src        string    `json:"src"` // det / rest(可执行口径)
+	T0         time.Time `json:"t0"`
+	GapDetBps  float64   `json:"gap_det_bps"`
+	GapRestBps float64   `json:"gap_rest_bps,omitempty"` // rest 行:REST残余价差
+	SpreadBps  float64   `json:"spread_bps,omitempty"`   // rest 行:REST盘口点差
+	Bits       int       `json:"bits"`
+	Fuel5m     float64   `json:"fuel_5m"`
+	Breadth30  float64   `json:"breadth_30m"`
+	NetBps     float64   `json:"net_bps"` // 含成本12
+	GrossBps   float64   `json:"gross_bps"`
+	PeakBps    float64   `json:"peak_bps"`
+	HoldSec    int       `json:"hold_sec"`
+	Exit       string    `json:"exit"` // converged / max_hold / disaster / unfilled(mkr)
 	// burst弹射反事实(㊱曲线②):持仓中出现同币卖方burst=瀑布砸向多头;
 	// 若弹射粒子成立,ret_at_burst 与最终 gross 的差=每笔可省的钱。
 	BurstDuringHold bool    `json:"burst_during_hold,omitempty"`
 	RetAtBurstBps   float64 `json:"ret_at_burst_bps,omitempty"`
+	// ㊳① det 时刻价差路径(path_ok=false 表示 15s 历史不足,路径字段不可用):
+	PathOK            bool    `json:"path_ok,omitempty"`
+	GapAgeSec         float64 `json:"gap_age_sec,omitempty"`
+	GapVel3Bps        float64 `json:"gap_vel3_bps,omitempty"`
+	GapVel15Bps       float64 `json:"gap_vel15_bps,omitempty"`
+	GapOkxRet15Bps    float64 `json:"gap_okx_ret15_bps,omitempty"`
+	GapAnchorRet15Bps float64 `json:"gap_anchor_ret15_bps,omitempty"`
+}
+
+// applyGapPath 把 det 时刻路径信息集写入账本行(path.OK=false 只标不可算,不填数)。
+func (r *fastLedgerRow) applyGapPath(path fastGapPathStats) {
+	if !path.OK {
+		return
+	}
+	r.PathOK = true
+	r.GapAgeSec = path.AgeSec
+	r.GapVel3Bps = path.Vel3Bps
+	r.GapVel15Bps = path.Vel15Bps
+	r.GapOkxRet15Bps = path.OkxRet15Bps
+	r.GapAnchorRet15Bps = path.AnchorRet15Bps
 }
 
 var (
@@ -265,7 +288,7 @@ func fastLedgerExit(retBps float64, gapNow float64, gapOK bool, holdSec float64,
 }
 
 // fastLedgerOnTrigger E 触发点调用(标尺循环内,与 fastXgapCheck 同点位;冷却已过)。src=det。
-func (e *OKXDirectionalEngine) fastLedgerOnTrigger(sym string, okxMid, gapBps float64, now time.Time) {
+func (e *OKXDirectionalEngine) fastLedgerOnTrigger(sym string, okxMid, gapBps float64, now time.Time, path fastGapPathStats) {
 	if !e.cfg.FastParticleLedgerEnabled || okxMid <= 0 {
 		return
 	}
@@ -281,14 +304,14 @@ func (e *OKXDirectionalEngine) fastLedgerOnTrigger(sym string, okxMid, gapBps fl
 	br, brOK := fastBreadth30(now)
 	bits := fastParticleBits(sym, now, gapBps, fuel, br, brOK, prev)
 	fastLedgerMu.Lock()
-	fastLedgerOpen[key] = &fastLedgerPos{Sym: sym, Src: "det", T0: now, Entry: okxMid, GapDet: gapBps, Bits: bits, Fuel: fuel, Breadth: br}
+	fastLedgerOpen[key] = &fastLedgerPos{Sym: sym, Src: "det", T0: now, Entry: okxMid, GapDet: gapBps, Bits: bits, Fuel: fuel, Breadth: br, Path: path}
 	fastLedgerMu.Unlock()
 }
 
 // fastLedgerOnTriggerREST v1 可执行口径:影子线 REST 建档通过守卫后调用(fastXgapFire 内)。
 // 入场=REST 时刻 mid(与㉝执行层证据包同口径,含 144ms 延迟后的真实价格);残余带粒子在此评估。
 // 惯犯环不重复登记(det 触发已记),粒子重新评估(REST 时刻的州可能已变)。
-func (e *OKXDirectionalEngine) fastLedgerOnTriggerREST(sym string, restMid, restBid, spreadBps, gapDet, gapRest float64, now time.Time) {
+func (e *OKXDirectionalEngine) fastLedgerOnTriggerREST(sym string, restMid, restBid, spreadBps, gapDet, gapRest float64, now time.Time, path fastGapPathStats) {
 	if !e.cfg.FastParticleLedgerEnabled || restMid <= 0 {
 		return
 	}
@@ -319,12 +342,12 @@ func (e *OKXDirectionalEngine) fastLedgerOnTriggerREST(sym string, restMid, rest
 	}
 	fastLedgerMu.Lock()
 	fastLedgerOpen[key] = &fastLedgerPos{Sym: sym, Src: "rest", T0: now, Entry: restMid,
-		GapDet: gapDet, GapRest: gapRest, SpreadBps: spreadBps, Bits: bits, Fuel: fuel, Breadth: br}
+		GapDet: gapDet, GapRest: gapRest, SpreadBps: spreadBps, Bits: bits, Fuel: fuel, Breadth: br, Path: path}
 	// v2 maker 口径并行:同一触发点挂虚拟被动单(价=REST bid),成交/超时由 manage 裁
 	if restBid > 0 {
 		if _, held := fastLedgerOpen["mkr|"+sym]; !held {
 			fastLedgerOpen["mkr|"+sym] = &fastLedgerPos{Sym: sym, Src: "mkr", T0: now, Entry: restBid,
-				GapDet: gapDet, GapRest: gapRest, SpreadBps: spreadBps, Bits: bits, Fuel: fuel, Breadth: br}
+				GapDet: gapDet, GapRest: gapRest, SpreadBps: spreadBps, Bits: bits, Fuel: fuel, Breadth: br, Path: path}
 		}
 	}
 	fastLedgerMu.Unlock()
@@ -355,6 +378,7 @@ func (e *OKXDirectionalEngine) fastLedgerManage(mids map[string]float64, now tim
 				row := fastLedgerRow{Time: now, Symbol: p.Sym, Src: p.Src, T0: p.T0,
 					GapDetBps: p.GapDet, GapRestBps: p.GapRest, SpreadBps: p.SpreadBps, Bits: p.Bits,
 					Fuel5m: p.Fuel, Breadth30: p.Breadth, HoldSec: int(now.Sub(p.T0).Seconds()), Exit: "unfilled"}
+				row.applyGapPath(p.Path)
 				if err := appendJSONLRecord(path, row); err != nil {
 					e.logger.Printf("[particle_ledger] 落盘失败: %v", err)
 				}
@@ -394,6 +418,7 @@ func (e *OKXDirectionalEngine) fastLedgerManage(mids map[string]float64, now tim
 			HoldSec: int(hold), Exit: exit,
 			BurstDuringHold: p.BurstSeen, RetAtBurstBps: p.RetAtBurst,
 		}
+		row.applyGapPath(p.Path)
 		if err := appendJSONLRecord(path, row); err != nil {
 			e.logger.Printf("[particle_ledger] 落盘失败: %v", err)
 		}
