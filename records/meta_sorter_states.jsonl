@@ -27,3 +27,4 @@
 {"recorded_at": "2026-07-07T17:04:04Z", "fuel_5m": 69, "tide_30m": "mixed", "ebb_n": 144, "flood_n": 131, "breadth_med_ret30m_bps": -10.09, "duty": "none", "certified": false}
 {"recorded_at": "2026-07-07T17:41:59Z", "fuel_5m": 64, "tide_30m": "ebb", "ebb_n": 686, "flood_n": 190, "breadth_med_ret30m_bps": -4.01, "duty": "fire_cascade", "certified": false}
 {"recorded_at": "2026-07-07T18:19:54Z", "fuel_5m": 109, "tide_30m": "ebb", "ebb_n": 269, "flood_n": 98, "breadth_med_ret30m_bps": -19.48, "duty": "fire_cascade", "certified": false}
+{"recorded_at": "2026-07-07T18:48:36Z", "fuel_5m": 30, "tide_30m": "mixed", "ebb_n": 133, "flood_n": 99, "breadth_med_ret30m_bps": -7.46, "duty": "xgap_rev", "certified": false}

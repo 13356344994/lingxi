@@ -65,6 +65,51 @@ a{color:var(--blue);text-decoration:none}
   </div>
 </header>
 <main>
+  <div class="section">
+    <h2>作战地图 <span class="small" id="missionPhase"></span></h2>
+    <div class="flex">
+      <div class="card" style="min-width:340px;flex:1">
+        <h3>正在做什么(实时 Go 计算)</h3>
+        <table id="missionDoing"><thead><tr><th>工作流</th><th>进度</th></tr></thead><tbody></tbody></table>
+      </div>
+      <div class="card" style="min-width:340px;flex:1">
+        <h3>下一步 · 怎么进入(门槛 vs 现值)</h3>
+        <table id="missionGates"><thead><tr><th>门</th><th>现值</th><th>要求</th><th>状态</th></tr></thead><tbody></tbody></table>
+      </div>
+    </div>
+    <div class="flex" style="margin-top:10px">
+      <div class="card" style="flex:1"><h3>目标</h3><div class="small" id="missionGoal"></div></div>
+      <div class="card" style="flex:1"><h3>真钱阶梯(做到哪一步)</h3><div class="small" id="missionLadder"></div></div>
+      <div class="card" style="flex:1"><h3>整个策略(六层流水线)</h3><div class="small" id="missionPipeline"></div></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>策略报告 <span class="small">按时间段/策略,Go 从落盘真数据现算;真金(USDT)与影子(bps)永不混算</span></h2>
+    <div class="card">
+      <div class="ctrl" style="flex-wrap:wrap">
+        <span id="rangePills">
+          <button class="act ghost" onclick="setRange(1)">24h</button>
+          <button class="act ghost" onclick="setRange(3)">3天</button>
+          <button class="act ghost" onclick="setRange(7)">7天</button>
+          <button class="act ghost" onclick="setRange(30)">30天</button>
+          <button class="act ghost" onclick="setRange(0)">全部</button>
+        </span>
+        <label>从<input id="repFrom" type="datetime-local" style="padding:4px"></label>
+        <label>到<input id="repTo" type="datetime-local" style="padding:4px"></label>
+        <select id="repStrategy" style="padding:6px"><option value="">全部(曲线只画真金)</option></select>
+        <button class="act ghost" onclick="loadReport()">查询</button>
+      </div>
+      <div class="kv" id="repSummary" style="margin-top:8px"></div>
+      <canvas id="repCurve" width="1200" height="200" style="width:100%;height:200px;margin-top:8px"></canvas>
+      <div class="small" id="repCurveNote"></div>
+      <h3 style="margin-top:12px">分策略(窗口内)</h3>
+      <table id="repStrats"><thead><tr><th>策略</th><th>口径</th><th>笔数</th><th>胜率</th><th>净合计</th><th>净中位</th><th>PF</th><th>最大回撤</th><th>最近一笔</th></tr></thead><tbody></tbody></table>
+      <h3 style="margin-top:12px">明细(最新 ≤50 笔)</h3>
+      <table id="repTrades"><thead><tr><th>时间</th><th>策略</th><th>币</th><th>方向</th><th>净</th><th>持有</th><th>出场原因</th></tr></thead><tbody></tbody></table>
+    </div>
+  </div>
+
   <div class="grid cards" id="accountCards">
     <div class="card"><h3>账户总权益 (四所合计)</h3><div class="big" id="totalEquity">—</div><div class="small" id="totalUpnl"></div></div>
     <div class="card"><h3>今日账户变化 (北京0点基准)</h3><div class="big" id="todayEarning">—</div><div class="small" id="todayTrading"></div></div>
@@ -296,6 +341,107 @@ async function controlEngine(active){
   }catch(err){ toast("控制失败: "+err.message, true); }
 }
 
+// ===== 作战地图 =====
+async function refreshMission(){
+  try{
+    const r = await fetch("/api/mission", {headers: tokenHeaders()});
+    if(!r.ok) throw new Error(await r.text());
+    const d = await r.json();
+    document.getElementById("missionPhase").textContent = d.phase + " · " + d.phase_detail;
+    const doing = document.querySelector("#missionDoing tbody"); doing.innerHTML="";
+    (d.doing||[]).forEach(x=>{
+      doing.insertAdjacentHTML("beforeend", `<tr><td>${x.name}${x.note?`<div class="small">${x.note}</div>`:""}</td><td>${x.metric}</td></tr>`);
+    });
+    const gates = document.querySelector("#missionGates tbody"); gates.innerHTML="";
+    (d.gates||[]).forEach(g=>{
+      gates.insertAdjacentHTML("beforeend", `<tr><td>${g.name}${g.note?`<div class="small">${g.note}</div>`:""}</td><td>${g.current}</td><td>${g.required}</td><td class="${g.pass?'pos':'neg'}">${g.pass?"✓ 过":"未过"}</td></tr>`);
+    });
+    document.getElementById("missionGoal").innerHTML = (d.goal||[]).map(x=>"· "+x).join("<br>") +
+      (d.certified&&d.certified.length?("<br><b>持证:</b>"+d.certified.join(";")):"");
+    document.getElementById("missionLadder").innerHTML = (d.ladder||[]).map(s=>{
+      const mark = s.state==="done"?"✅":(s.state==="current"?"▶️":"·");
+      return `${mark} <b>${s.name}</b> ${s.note||""}`;
+    }).join("<br>");
+    document.getElementById("missionPipeline").innerHTML = (d.pipeline||[]).map(s=>`<b>${s.name}</b> ${s.note||""}`).join("<br>");
+  }catch(err){ console.warn("mission", err); }
+}
+
+// ===== 策略报告 =====
+function toLocalInput(dt){ const p=n=>String(n).padStart(2,"0"); return dt.getFullYear()+"-"+p(dt.getMonth()+1)+"-"+p(dt.getDate())+"T"+p(dt.getHours())+":"+p(dt.getMinutes()); }
+function setRange(days){
+  const to = new Date();
+  const from = days>0 ? new Date(to.getTime()-days*86400e3) : new Date("2026-06-01T00:00:00");
+  document.getElementById("repFrom").value = toLocalInput(from);
+  document.getElementById("repTo").value = toLocalInput(to);
+  loadReport();
+}
+async function loadReport(){
+  const f = document.getElementById("repFrom").value, t = document.getElementById("repTo").value;
+  const params = new URLSearchParams();
+  if(f) params.set("from", new Date(f).toISOString());
+  if(t) params.set("to", new Date(t).toISOString());
+  const sel = document.getElementById("repStrategy");
+  if(sel.value) params.set("strategy", sel.value);
+  try{
+    const r = await fetch("/api/strategy-report?"+params.toString(), {headers: tokenHeaders()});
+    if(!r.ok) throw new Error(await r.text());
+    const d = await r.json();
+    // 下拉框(保留选择)
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">全部(曲线只画真金)</option>';
+    (d.strategies||[]).forEach(s=>{
+      sel.insertAdjacentHTML("beforeend", `<option value="${s.key}" ${s.key===cur?"selected":""}>${s.label}${s.virtual?" [影子]":""}</option>`);
+    });
+    // 汇总
+    const reals = (d.strategies||[]).filter(s=>!s.virtual);
+    const realSum = reals.reduce((a,s)=>a+s.net_sum,0), realN = reals.reduce((a,s)=>a+s.n,0);
+    document.getElementById("repSummary").innerHTML =
+      `<span>真金合计</span><b class="${cls(realSum)}">${sign(realSum)} U / ${realN} 笔</b>`+
+      `<span>影子策略</span><b>${(d.strategies||[]).filter(s=>s.virtual).length} 条(bps 口径,单列)</b>`+
+      `<span>窗口</span><b>${ts(d.from)} → ${ts(d.to)}</b>`;
+    // 曲线
+    drawCurve(d.curve||[], d.curve_unit);
+    document.getElementById("repCurveNote").textContent =
+      (d.strategy? "曲线=策略 "+d.strategy+"(单位 "+d.curve_unit+")" : "曲线=真金合计(USDT)") + " · 累计净值,共 "+(d.curve||[]).length+" 点";
+    // 分策略表
+    const sb = document.querySelector("#repStrats tbody"); sb.innerHTML="";
+    (d.strategies||[]).forEach(s=>{
+      sb.insertAdjacentHTML("beforeend", `<tr>
+        <td>${s.label}</td><td>${s.virtual?"影子·"+s.unit:"真金·"+s.unit}</td><td>${s.n}</td>
+        <td>${(s.win_rate*100).toFixed(0)}%</td>
+        <td class="${cls(s.net_sum)}">${sign(s.net_sum)}</td>
+        <td class="${cls(s.net_med)}">${sign(s.net_med)}</td>
+        <td>${s.pf>=99?"∞":s.pf.toFixed(2)}</td><td>${fmt(s.max_dd)}</td><td>${ts(s.last_time)}</td></tr>`);
+    });
+    // 明细
+    const tb = document.querySelector("#repTrades tbody"); tb.innerHTML="";
+    (d.trades||[]).slice(0,50).forEach(x=>{
+      tb.insertAdjacentHTML("beforeend", `<tr>
+        <td>${ts(x.time)}</td><td>${x.strategy}${x.virtual?" [影子]":""}</td><td>${x.symbol}</td>
+        <td class="${x.side==='long'?'pos':'neg'}">${x.side}</td>
+        <td class="${cls(x.net)}">${sign(x.net)} ${x.virtual?"bps":"U"}</td>
+        <td>${x.hold_sec||0}s</td><td>${x.reason||""}</td></tr>`);
+    });
+  }catch(err){ toast("报告加载失败: "+err.message, true); }
+}
+function drawCurve(pts, unit){
+  const cv = document.getElementById("repCurve"), ctx = cv.getContext("2d");
+  ctx.clearRect(0,0,cv.width,cv.height);
+  if(!pts.length){ ctx.fillStyle="#888"; ctx.fillText("窗口内无数据", 20, 30); return; }
+  const xs = pts.map(p=>new Date(p.t).getTime()), ys = pts.map(p=>p.cum);
+  const x0=Math.min(...xs), x1=Math.max(...xs), y0=Math.min(...ys,0), y1=Math.max(...ys,0);
+  const px = t=> 40+(cv.width-60)*(x1>x0?(t-x0)/(x1-x0):0.5);
+  const py = v=> 10+(cv.height-30)*(y1>y0?(y1-v)/(y1-y0):0.5);
+  // 零线
+  ctx.strokeStyle="#555"; ctx.beginPath(); ctx.moveTo(40,py(0)); ctx.lineTo(cv.width-20,py(0)); ctx.stroke();
+  ctx.fillStyle="#888"; ctx.fillText("0", 25, py(0)+4);
+  ctx.fillText((y1).toFixed(1)+" "+unit, 2, 14); ctx.fillText((y0).toFixed(1), 2, cv.height-8);
+  // 曲线
+  ctx.strokeStyle = ys[ys.length-1]>=0 ? "#4caf7d" : "#e05d5d"; ctx.lineWidth=1.5; ctx.beginPath();
+  pts.forEach((p,i)=>{ const X=px(xs[i]), Y=py(ys[i]); i? ctx.lineTo(X,Y): ctx.moveTo(X,Y); });
+  ctx.stroke();
+}
+
 async function declareFundFlow(){
   const amt = parseFloat(document.getElementById("ffAmount").value)||0;
   if(amt<=0){ toast("请填写正数金额", true); return; }
@@ -318,8 +464,10 @@ document.getElementById("token").value = localStorage.getItem("lx_token")||"";
 (function(){ const t = localStorage.getItem("lx_token"); if(t && !document.cookie.includes("lx_token=")) document.cookie = "lx_token=" + encodeURIComponent(t) + "; path=/; max-age=31536000; SameSite=Strict"; })();
 renderTabs();
 refreshAccount(); refreshDirectional();
+refreshMission(); setRange(1);
 setInterval(refreshAccount, 15000);
 setInterval(refreshDirectional, 5000);
+setInterval(refreshMission, 30000);
 </script>
 </body>
 </html>
