@@ -22,6 +22,8 @@ while true; do
     timeout 900 python3 records/_xgap_cell_verdict.py 2>&1
     echo "--- 残余带闸前向判决(12:10Z 封样,n>=30;E探针真门票) ---"
     timeout 900 python3 records/_xgap_residual_verdict.py 2>&1
+    echo "--- ㊳① 路径信息集阅卷(17:50Z 部署封样,rest+path_ok n>=100) ---"
+    timeout 300 python3 records/_xgap_path_verdict.py 2>&1
     echo "--- #8b 资费后崩前向判决(08:25Z 封样,n>=40) ---"
     timeout 300 python3 records/_funding_postcrash_verdict.py 2>&1
     echo "--- 股票perp开盘反隔夜前向判决(11:00Z 封样,n>=10簇) ---"

@@ -32,7 +32,9 @@ const fastFullTapeSymbolsPerConn = 150
 const fastFullTapeMaxConns = 8
 const fastFullTapeEpochSec = 1800 // 每 30min 重取全市场清单重连(吸收新上市/下架)
 
-// fastFullBurstProbeEvent 探针识别事件(与 fastBurstEvent 同口径 + 覆盖标注)。
+// fastFullBurstProbeEvent 探针识别事件(与 fastBurstEvent 同口径 + 覆盖标注 + 州标注)。
+// 州标注(Layer A"每事件带州"):24h 裁决要按 燃料×广度×本币爆仓 分桶——盲区 burst 是
+// 强平驱动还是主动暴力、集中在哪个州,决定第一波视野接不接 tape 确认管线。
 type fastFullBurstProbeEvent struct {
 	RecordedAt  time.Time `json:"recorded_at"`
 	Symbol      string    `json:"symbol"`
@@ -44,6 +46,11 @@ type fastFullBurstProbeEvent struct {
 	Px          float64   `json:"px"`
 	InHotWS     bool      `json:"in_hot_ws"` // 热币 WS 当刻是否也覆盖(false=纯增量视野)
 	ConnID      int       `json:"conn_id"`
+	MarketLiq5m float64   `json:"market_liq_5m,omitempty"` // 燃料州
+	Breadth30   float64   `json:"breadth_30m,omitempty"`   // 广度州(0 且 breadth_ok=false=不可算)
+	BreadthOK   bool      `json:"breadth_ok,omitempty"`
+	SymLiqN30s  int       `json:"sym_liq_n_30s,omitempty"` // 本币官方爆仓已到几笔(0=纯tape信号)
+	XliqN30s    int       `json:"xliq_n_30s,omitempty"`    // Bybit 同币近30s强平
 }
 
 // 探针吞吐计数(60s 报告一次;可行性裁决数的原料)。
@@ -285,10 +292,15 @@ func (e *OKXDirectionalEngine) runFastFullTapeConn(ctx context.Context, id int, 
 				side = "buy"
 			}
 			inHot := fastFullTapeInHot(sym, now)
+			br, brOK := fastBreadth30(now)
 			ev := fastFullBurstProbeEvent{
 				RecordedAt: now, Symbol: sym, Side: side,
 				Notional1s: tot, BaselineMed: med, Multiple: tot / med,
 				LatencyMs: lat, Px: px, InHotWS: inHot, ConnID: id,
+				MarketLiq5m: fastMarketLiqRate(now, 300),
+				Breadth30:   br, BreadthOK: brOK,
+				SymLiqN30s: fastSymLiqCount(sym, now, 30),
+				XliqN30s:   fastXliqCount(sym, now, 30),
 			}
 			fastFullTapeBursts.Add(1)
 			if !inHot {
