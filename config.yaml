@@ -281,6 +281,19 @@ okx_directional:
   #   同日一起开。切点是冻结值,护栏测试锚定,改切点=作弊。
   fast_tape_sel_enabled: false
   fast_tape_sel_breakout_enabled: false
+  # v6.5 E策略「捡便宜货」跨所价差回归·多头腿(2026-07-07 入枪;机制=天道条款:同一张永续
+  #   两所价差,套利商必搬)。OKX mid 比 Bybit 锚(新鲜≤8s)便宜≥40bps → 买OKX;收敛≤10bps
+  #   或 600s 离场,-60 灾难砍,同币 1800s 一枪。54h 离线:n=1142 净+9656bps PF1.44 剔顶币
+  #   PF1.78,台阶四档全正、9/10 时段桶正;空头腿/共识锚变体已判负(不许复活)。
+  #   shadow 开=攒前向判决样本(预注册:n≥300 且 净中位≥+3 且 PF≥1.2 → 递探针申请);
+  #   live 锁死=前向过检+用户明示批探针。参数冻结口径,护栏锚定,改=作弊。
+  fast_xgap_shadow_enabled: true
+  fast_xgap_live_enabled: false
+  fast_xgap_entry_gap_bps: 40
+  fast_xgap_exit_gap_bps: 10
+  fast_xgap_max_hold_seconds: 600
+  fast_xgap_disaster_bps: 60
+  fast_xgap_cooldown_seconds: 1800
   #   跨所强平流采集(耳朵不是枪口:fast 实盘只在 OKX,别所被迫流只做信号研究)。
   #   源=Bybit allLiquidation(OKX∩Bybit 交集;09:10 探针实测 Binance forceOrder/aggTrade 本机零数据帧=僵尸,弃用)。
   fast_xvenue_liq_enabled: true

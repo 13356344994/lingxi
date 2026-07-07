@@ -103,6 +103,20 @@ func fastOKXOINotional(sym string, mid float64, now time.Time) (float64, bool) {
 	return meta.OI * mid, true
 }
 
+// fastXMidGapBpsVenueTol 同下,自定义新鲜度容忍(E策略冻结口径=8s,与离线回放一致)。
+func fastXMidGapBpsVenueTol(venue, sym string, okxMid float64, now time.Time, tol time.Duration) (float64, bool) {
+	if okxMid <= 0 {
+		return 0, false
+	}
+	fastXMidMu.Lock()
+	defer fastXMidMu.Unlock()
+	p, ok := fastXMid[venue][sym]
+	if !ok || p.mid <= 0 || now.Sub(p.ts) > tol {
+		return 0, false
+	}
+	return (okxMid - p.mid) / p.mid * 10000, true
+}
+
 // fastXMidGapBpsVenue OKX mid 相对某所 mid 的价差(bps,正=OKX 贵);无数据/过期(>15s)返回 (0,false)。
 func fastXMidGapBpsVenue(venue, sym string, okxMid float64, now time.Time) (float64, bool) {
 	if okxMid <= 0 {

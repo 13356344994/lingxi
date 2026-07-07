@@ -1696,7 +1696,8 @@ func (e *OKXDirectionalEngine) fastSentinelRecord(source string, realized, notio
 // 07-03 实证:LAB 灾难止损 -0.053U 后 44s 同币再进,再灾难 -0.060U。
 func fastExitTriggersCooldown(reason string) bool {
 	switch reason {
-	case "fast_stop_reversal", "fast_no_feedback", "fast_early_cut", "fast_species_a_cut", "fast_disaster_stop":
+	case "fast_stop_reversal", "fast_no_feedback", "fast_early_cut", "fast_species_a_cut", "fast_disaster_stop",
+		"fast_xgap_disaster": // v6.5:E策略灾难砍同样要学费记忆
 		return true
 	}
 	return false
@@ -1744,6 +1745,24 @@ func (e *OKXDirectionalEngine) fastLiveManage(ctx context.Context) {
 			mae3, seen3 = p.Mae3, p.Seen3
 			mfe10, mae10, seen10 = p.Mfe10, p.Mae10, p.Seen10
 			fastLiveMu.Unlock()
+		}
+		// v6.5 E策略(xgap_rev)专属出场程序(冻结口径 10/600/60,护栏锚定):它的论点是
+		// "价差会闭合",不是"动量会延续"——收敛即离场,与 minHold/物种/能量刻度/trail 全部无关。
+		if p.CandidateSource == "xgap_rev" {
+			if haveMid && e.cfg.FastXgapDisasterBps > 0 && ubps <= -e.cfg.FastXgapDisasterBps {
+				e.fastLiveClose(ctx, p, "fast_xgap_disaster")
+				continue
+			}
+			if haveMid {
+				if gap, gok := fastXMidGapBpsVenueTol("bybit", p.Symbol, mid, now, fastXgapFreshTol); gok && gap >= -e.cfg.FastXgapExitGapBps {
+					e.fastLiveClose(ctx, p, "fast_xgap_converged")
+					continue
+				}
+			}
+			if hold >= float64(e.cfg.FastXgapMaxHoldSeconds) {
+				e.fastLiveClose(ctx, p, "fast_xgap_max_hold")
+			}
+			continue
 		}
 		// v2 出场时序闸(2026-07-03,交易所账本 6304 笔解剖):minHold 内禁一切亏损驱动出场
 		// (<15s 出场毛均 -12.8bps 是出血主源;60s+ 桶毛正)。灾难线任何时刻有效(防插针深亏);
@@ -2036,6 +2055,7 @@ func (e *OKXDirectionalEngine) fastMarketMidLoop(ctx context.Context) {
 				r60 := e.fastImpulseBps(sym, mid, now, 60)
 				e.updateFastMidHist(sym, now, mid)
 				fastNoteRange(sym, now, mid) // v6.3 30min 区间环(选择层突破判定)
+				e.fastXgapCheck(sym, mid, now) // v6.5 E策略「捡便宜货」探测(廉价检查,触发才REST)
 				// v5.2 热币路径持久化:近5min有强平(OKX/Bybit)或 |60s|≥10bps → 本轮 mid 落盘;
 				// 首次转热补发 backlog(内存里≤300s 的历史)=簇诞生前路径不缺失。
 				hot := math.Abs(r60) >= fastHotMoverBps || fastRecentLiqAny(sym, now, 300) || fastXliqCount(sym, now, 300) > 0
@@ -2439,7 +2459,8 @@ func (e *OKXDirectionalEngine) fastLiveOpen(ctx context.Context, ev *fastExecSha
 		allowFade := e.cfg.FastFadeLiveEnabled && ev.CandidateSource == "fade_exhaustion" && ev.PondOK && ev.PondSamples >= fastPondWarmupSamples
 		allowLiqFollow := e.cfg.FastLiqFollowLiveEnabled && ev.CandidateSource == "liq_follow"
 		allowTape := e.cfg.FastTapeLiveEnabled && ev.CandidateSource == "tape_burst" // v6:开=用户批探针(护栏锚定)
-		if !allowFade && !allowLiqFollow && !allowTape {
+		allowXgap := e.cfg.FastXgapLiveEnabled && ev.CandidateSource == "xgap_rev"  // v6.5 E策略:开=前向过检+用户批探针
+		if !allowFade && !allowLiqFollow && !allowTape && !allowXgap {
 			return "record_only_source"
 		}
 	} else if !e.cfg.FastScorerLiveEnabled {
@@ -2461,7 +2482,8 @@ func (e *OKXDirectionalEngine) fastLiveOpen(ctx context.Context, ev *fastExecSha
 	// v3① 池塘过滤(轮询追型线用):死水/薄盘不下场,不跟机构抢镜面盘。
 	// liq_follow 豁免:事件驱动线资格当刻判定(点差/深度/被迫流),静态池塘判定是滞后名单
 	// (2026-07-03 用户纠偏:爆仓瞬间的死水池就是活水,名单跟不上事件)。
-	if e.cfg.FastPondFilterEnabled && !ev.PondOK && ev.CandidateSource != "liq_follow" {
+	// v6.5:xgap_rev 同豁免——资格=价差本身(锚新鲜+REST复核),静态池塘名单与它的机制无关。
+	if e.cfg.FastPondFilterEnabled && !ev.PondOK && ev.CandidateSource != "liq_follow" && ev.CandidateSource != "xgap_rev" {
 		return "pond_reject"
 	}
 	sym := ev.Symbol

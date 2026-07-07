@@ -989,6 +989,18 @@ type OKXDirectionalConfig struct {
 	FastTapeSelBreakoutEnabled bool    `cfg:"fast_tape_sel_breakout_enabled"` // ㊂第三层,默认 false
 	FastTapeSelMinBaseUSDT     float64 `cfg:"fast_tape_sel_min_base_usdt"`    // 冻结切点 50
 	FastTapeSelMinNtlOIRatio   float64 `cfg:"fast_tape_sel_min_ntl_oi_ratio"` // 冻结切点 0.0017
+	// ===== E策略「捡便宜货」跨所价差回归·多头腿(2026-07-07;机制=天道条款:套利商不会放着价差不搬)=====
+	// OKX mid 比 Bybit 锚(新鲜度≤8s)便宜≥entry_gap → 买OKX;价差收敛≤exit_gap 或 max_hold 离场;
+	// disaster 无条件砍;同币 cooldown 一枪。54h 离线:n=1142 净中位+4.6 净PF1.44 剔顶币更好(+12312/1.78)。
+	// 空头腿判负(贵=真拉升逆动量)、三所共识锚判负(信号=慢所追快所时滞)——只做多头腿、只对 Bybit 锚。
+	// 参数=冻结口径(40/10/600/60,先验预选+台阶四档全正),护栏锚定防漂移;live 开=前向判决过+用户批探针。
+	FastXgapShadowEnabled   bool    `cfg:"fast_xgap_shadow_enabled"`   // 影子探测线(record-only):默认关,yaml 开
+	FastXgapLiveEnabled     bool    `cfg:"fast_xgap_live_enabled"`     // 实弹:默认 false,护栏锚定
+	FastXgapEntryGapBps     float64 `cfg:"fast_xgap_entry_gap_bps"`    // 冻结 40
+	FastXgapExitGapBps      float64 `cfg:"fast_xgap_exit_gap_bps"`     // 冻结 10
+	FastXgapMaxHoldSeconds  int     `cfg:"fast_xgap_max_hold_seconds"` // 冻结 600
+	FastXgapDisasterBps     float64 `cfg:"fast_xgap_disaster_bps"`     // 冻结 60
+	FastXgapCooldownSeconds int     `cfg:"fast_xgap_cooldown_seconds"` // 冻结 1800
 	// v6 净值哨兵(飞轮引擎的硬前提,HANDOFF §-7C):事件线 source 最近 N 笔净值中位 <0 → 自动停开
 	// (sentinel_halt)。飞轮策略高频走量,-2bps×330笔/天=烧账户,哨兵保证"不亏才配走量"。
 	// 触发即粘性停火(重启从结算重建=仍停),解除须人工解剖后调参——纪律在结构里,不在自觉里。
