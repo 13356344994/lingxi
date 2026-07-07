@@ -154,6 +154,7 @@ func (s *DashboardServer) Start(ctx context.Context) error {
 	mux.HandleFunc("/api/earnings/clear", s.handleEarningsClearAPI)
 	mux.HandleFunc("/api/okx-directional", s.authorizeReadAPI(s.handleOKXDirectionalAPI))
 	mux.HandleFunc("/api/okx-directional/control", s.handleOKXDirectionalControlAPI)
+	mux.HandleFunc("/api/fund-flow/declare", s.handleFundFlowDeclareAPI) // ㊳④ 资金划转申报(控制类鉴权)
 	// 探针/指标(不鉴权,只暴露非敏感健康信息)。
 	mux.HandleFunc("/livez", s.handleLivez)
 	mux.HandleFunc("/healthz", s.handleHealthz)

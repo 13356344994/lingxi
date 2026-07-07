@@ -197,6 +197,10 @@ func TestLoadProductionConfigYAML(t *testing.T) {
 	if !cfg.OKXDirectional.FastParticleLedgerEnabled {
 		t.Fatal("fast_particle_ledger_enabled = false want true(Layer A 粒子账本=record-only 基建)")
 	}
+	// ㊳② 全市场磁带探针(2026-07-08):burst 第一波视野的数据源;关=增量视野断流。
+	if !cfg.OKXDirectional.FastFullTapeEnabled {
+		t.Fatal("fast_full_tape_enabled = false want true(全市场磁带探针=第一波视野 record-only 基建)")
+	}
 	// 探针制章程(2026-07-04,HANDOFF §-5):生产配置默认无探针活动;设置 fast_probe_source
 	// = 用户明示批准某候选进入探针层(同时须保证预算硬顶为正)。
 	if s := strings.TrimSpace(cfg.OKXDirectional.FastProbeSource); s != "" {

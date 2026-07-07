@@ -384,6 +384,18 @@ func (w *accountRiskWatcher) tickOnce() {
 			w.notifyFn("账户级硬停(一级)", detail)
 		}
 	} else if thresholds.AnyBreached || thresholds.UnexplainedOutflow {
+		// ㊳④ 申报消音:未解释流出若已被用户申报的净转出解释(当日窗,≥60% 量级),连告警都免了
+		// (只留一行日志对账);申报不影响硬停判定与 cum_fund_flow 口径。
+		if thresholds.UnexplainedOutflow && !thresholds.AnyBreached {
+			declared := sumDeclaredFundFlowsUSDT(w.recordDir, snap.DayStartCST, now)
+			if declaredFlowExplainsOutflow(declared, -snap.DailyEquityDeltaForRiskUSDT) {
+				if w.logger != nil {
+					w.logger.Printf("[账户风控] 未解释流出 %.2f 已被申报净转出 %.2f 解释,告警消音(对账通过)",
+						-snap.DailyEquityDeltaForRiskUSDT, declared)
+				}
+				thresholds.UnexplainedOutflow = false
+			}
+		}
 		for _, intent := range accountRiskAlertIntents(thresholds) {
 			w.notifyFn(intent.Title, intent.Detail)
 		}

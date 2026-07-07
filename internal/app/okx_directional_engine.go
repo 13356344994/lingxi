@@ -531,6 +531,9 @@ func (e *OKXDirectionalEngine) Run(ctx context.Context) {
 	if e.fastHotWSEnabled() {
 		go e.fastHotWSLoop(ctx) // v5.3 热币微结构(动态订阅,record-only)
 	}
+	if e.fastFullTapeEnabled() {
+		go e.fastFullTapeLoop(ctx) // ㊳② 全市场磁带探针(分片多连接,record-only,失败只告警)
+	}
 	if e.fastXMidEnabled() {
 		go e.fastXMidLoop(ctx) // v5.5 Bybit 价格标尺(跨所价差锚,record-only)
 	}

@@ -601,6 +601,7 @@ func DefaultEngineConfig() EngineConfig {
 			FastHotPriorityEnabled:         false, // v6.1 热币坑位怪兽优先:默认关,config.yaml 显式开
 			FastXvenueLiqEnabled:           false, // 跨所强平采集(Bybit allLiquidation):默认关,config.yaml 显式开
 			FastHotWSEnabled:               false, // 热币微结构采集:默认关,config.yaml 显式开
+			FastFullTapeEnabled:            false, // ㊳② 全市场磁带探针:默认关,config.yaml 显式开
 			FastXMidEnabled:                false, // Bybit 价格标尺(跨所价差锚):默认关,config.yaml 显式开
 			FastSentinelMinTrades:          20,    // v6 净值哨兵:≥20笔才判
 			FastSentinelWindow:             50,    // 滚动窗50笔;中位<0=sentinel_halt粘性停火

@@ -1025,6 +1025,10 @@ type OKXDirectionalConfig struct {
 	// 重开后的低延迟盘口地基)。不下单/不读账户。
 	FastHotWSEnabled    bool `cfg:"fast_hot_ws_enabled"`
 	FastHotWSMaxSymbols int  `cfg:"fast_hot_ws_max_symbols"` // 动态订阅上限(默认40)
+	// ㊳② 全市场磁带探针(2026-07-08,record-only):N 条公共 WS 分片订阅全市场 SWAP trades,
+	// 独立 burst 状态机(同口径),识别事件写 fast_full_burst_probe.jsonl(带 in_hot_ws 增量视野
+	// 标注)。根治"burst 探测器只看见 40 热币=几何上只见第二波"结构债;探针阶段不接 tape 确认管线。
+	FastFullTapeEnabled bool `cfg:"fast_full_tape_enabled"`
 	// v6.1 热币坑位怪兽优先(2026-07-05 用户拍板):40 坑满员时,30min 暴动数≥5 的候选可驱逐
 	// 明显更不活跃的在订者(暴动数差≥3 的迟滞防抖动)。动机=07-05 漏斗诊断:H-USDT 139 次暴动
 	// 0 秒覆盖,坑位被粘性在订者霸占,币级研究视野缺 61%。纯采集层,不影响交易。

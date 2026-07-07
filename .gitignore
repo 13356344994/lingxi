@@ -36,4 +36,5 @@ records/*/fast_hot_mids.jsonl*
 records/*/fast_market_mids.jsonl*
 records/*/fast_mover_census.jsonl*
 records/*/fast_xmeta_snapshots.jsonl*
+records/*/fast_full_burst_probe.jsonl*
 records/crossvenue/fast_peer_leadlag_events.jsonl

@@ -305,6 +305,11 @@ okx_directional:
   #   热币微结构(v5.3):动态订阅热币 books5+trades,按秒记连续深度+成交流——瀑布深度蒸发研究、
   #   "成交流反推强平"候选机制、重开后低延迟盘口的三合一地基。
   fast_hot_ws_enabled: true
+  # ㊳② 全市场磁带探针(2026-07-08,record-only):多连接分片订阅全市场 SWAP trades,独立 burst
+  #   状态机识别全市场爆量(带 in_hot_ws 增量视野标注)→ fast_full_burst_probe.jsonl。根治
+  #   "burst 只看见 40 热币=几何上只见第二波"结构债;探针阶段不接 tape 确认管线(一次一刀),
+  #   60s 吞吐日志=可行性裁决数(消息率/识别延迟/增量 burst 占比)。
+  fast_full_tape_enabled: true
   #   Bybit 全市场价格标尺(v5.5 跨所价差锚):暴动时刻价差已开=本地事故(套利商必拽回=接)
   #   vs 无价差=全局重定价(跟)——方向分类器头号候选的数据地基;普查/评估事件带 xgap_bps。
   fast_xmid_enabled: true
