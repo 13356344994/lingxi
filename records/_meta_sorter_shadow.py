@@ -7,12 +7,15 @@
   fuel_5m    全市场官方爆仓笔数/5min(死水<20/中间20-40/活跃>=40,占空比实测 55/30/15)
   tide_30m   30min 爆仓净方向(long爆>=2×short爆=跌潮 ebb;反之涨潮 flood;否则 mixed)
   breadth30  全市场 mid 30min 收益中位(bps)——E 族毒州探测器(广跌=单腿多头接崩盘)
-值班表 v0(冻结;表是数据不是代码,每行带证据;当前无族持证,duty 仅供反事实记账):
-  fuel>=40 & tide=ebb            → fire_cascade  (证据:40h风暴窗全肉;⑭剧本①;未持证)
-  fuel>=40 & tide!=ebb           → none          (轧空包③影子0触发未持证)
-  fuel<40  & breadth30>-15       → xgap_rev      (证据:07-06 n=627 +9.7/PF1.83;E-v2在考)
-  fuel<40  & breadth30<=-15      → none          (E毒州:07-07 UTC02 PF0.31)
-  数据不足                        → none          (fail-closed)
+值班表 v0.1(冻结;表是数据不是代码,每行带证据;当前无族持证,duty 仅供反事实记账):
+  fuel>=40 & tide=ebb            → fire_cascade   (证据:40h风暴窗全肉;⑭剧本①;未持证)
+  fuel>=40 & tide=flood          → firework_fade  (v0.1 扩编:烟花反手刀,+120s力竭反手空;
+                                                    两日独立同向+34/+7.7,细胞+21.5 n=95;
+                                                    前向判决 07-06 21:00Z 起在考,未持证)
+  fuel>=40 & tide=mixed          → none
+  fuel<40  & breadth30>-15       → xgap_rev       (证据:07-06 n=627 +9.7/PF1.83;E-v2在考)
+  fuel<40  & breadth30<=-15      → none           (E毒州:07-07 UTC02 PF0.31)
+  数据不足                        → none           (fail-closed)
 格子填充=离线 join:本文件的状态行 × 各族影子成绩(E=_xgap_v2_verdict 口径 trades,
 tape=fast_executable_shadow_events),每格 n>=30 双正才谈持证。
 """
@@ -103,7 +106,7 @@ if rows:
 
 # ---- 值班表 v0(冻结)----
 if fuel_5m >= 40:
-    duty = "fire_cascade" if tide == "ebb" else "none"
+    duty = {"ebb": "fire_cascade", "flood": "firework_fade"}.get(tide, "none")
 elif breadth is None:
     duty = "none"  # fail-closed:广度不可测不派班
 else:
