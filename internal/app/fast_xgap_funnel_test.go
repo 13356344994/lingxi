@@ -72,6 +72,34 @@ func TestMissionBaselineFromRows(t *testing.T) {
 	}
 }
 
+// TestExamKeysECurrent e_current 键:三闸部署后 rest 行才归属"当前版本 E"(混窗根治)。
+func TestExamKeysECurrent(t *testing.T) {
+	after := missionSealCellGates.Add(time.Hour)
+	before := missionSealCellGates.Add(-time.Hour)
+	has := func(keys []string, k string) bool {
+		for _, x := range keys {
+			if x == k {
+				return true
+			}
+		}
+		return false
+	}
+	if !has(examKeysForLedgerRow("rest", 0, after), "e_current") {
+		t.Fatal("三闸后 rest 行应归属 e_current")
+	}
+	if has(examKeysForLedgerRow("rest", 0, before), "e_current") {
+		t.Fatal("三闸前 rest 行不许混入 e_current")
+	}
+	if has(examKeysForLedgerRow("det", 0, after), "e_current") {
+		t.Fatal("det 行不属于可执行口径")
+	}
+	// 考试键不受时间断代影响(封样过滤在门槛表侧)
+	bits := pbFresh | pbDutyXgap | pbResidual2040
+	if keys := examKeysForLedgerRow("rest", bits, before); !has(keys, "exam_e_ticket") {
+		t.Fatalf("bits 齐全应归属 exam_e_ticket,got %v", keys)
+	}
+}
+
 // TestMissionStrategyCard 一军流程卡:锁态与今日实数正确反映 config 真值与漏斗。
 func TestMissionStrategyCard(t *testing.T) {
 	cfg := OKXDirectionalConfig{

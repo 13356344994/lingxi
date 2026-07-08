@@ -81,6 +81,7 @@ func stratLabel(key string) string {
 		"fast_xgap_rev": "fast·E捡便宜", "shadow_e_det": "E影子·探测口径",
 		"shadow_e_rest": "E影子·REST可执行口径", "shadow_e_mkr": "E影子·maker挂单口径",
 		"shadow_e_v0": "E影子·v0早期行(未标口径)",
+		"e_current":     "★E·当前版本(三闸口径部署后,页面基准同源)——选它看最新策略,任何时段不混旧口径",
 		"exam_e_cell":   "【考试】E格子口径(新鲜×派班)",
 		"exam_e_ticket": "【考试】E探针门票(格子×残余带)←门槛表那行数字的明细",
 		"shadow_fire_rest":     "火刀影子·程序S(逐tick)",
@@ -210,13 +211,18 @@ func loadStratTradesReal(recordDir string, from, to time.Time) []stratTrade {
 
 // examKeysForLedgerRow 纯函数:账本行额外归属的考试口径键(用户"考试数字看不到明细/选不了时段"
 // 之诉的修复——考试口径成为一等策略键,与 shadow_e_* 并列进报告,可选时段/看逐笔/画曲线)。
+// e_current     = ★当前版本 E(三闸口径部署 04:34Z 后的 rest 行;shadow_e_rest 键新旧口径混窗
+//                 的根治——用户任选时段都不会混入旧口径,与面板基准区同源)。
 // exam_e_cell   = E格子口径(rest × 新鲜 × 派班)
 // exam_e_ticket = E探针门票/残余带口径(格子 × REST残余∈[-40,-20]),即面板门槛表那行数字的明细。
-func examKeysForLedgerRow(src string, bits int) []string {
+func examKeysForLedgerRow(src string, bits int, t0 time.Time) []string {
 	if src != "rest" {
 		return nil
 	}
 	var keys []string
+	if !t0.Before(missionSealCellGates) {
+		keys = append(keys, "e_current")
+	}
 	if bits&pbFresh != 0 && bits&pbDutyXgap != 0 {
 		keys = append(keys, "exam_e_cell")
 		if bits&pbResidual2040 != 0 {
@@ -258,7 +264,7 @@ func loadStratTradesVirtual(recordDir string, from, to time.Time) []stratTrade {
 		}
 		out = append(out, base)
 		if module == "e" { // 考试口径只属于 E 模块(fire/firework 行禁止漏入)
-			for _, k := range examKeysForLedgerRow(src, r.Bits) {
+			for _, k := range examKeysForLedgerRow(src, r.Bits, r.T0) {
 				t := base
 				t.Strategy = k
 				out = append(out, t)

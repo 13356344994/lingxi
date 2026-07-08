@@ -195,8 +195,11 @@ type missionRosterGroup struct {
 }
 
 // missionVerdict 裁决日历一行:接下来会"出分"的考试,按到线先后排。
+// Scope 口径徽标(07-08 用户"考试结果全是最新策略的吗"之问):
+// strategy=最新策略口径战绩 / variant=下一版候选变体研究 / instrument=仪器与数据基建裁决。
 type missionVerdict struct {
 	Name     string `json:"name"`
+	Scope    string `json:"scope"`
 	ETA      string `json:"eta"`      // 预计到线(墙钟或样本条件)
 	Progress string `json:"progress"` // 当前进度(现算)
 	Question string `json:"question"` // 这场考试裁什么
@@ -520,23 +523,23 @@ func (s *DashboardServer) handleMissionAPI(w http.ResponseWriter, r *http.Reques
 	card := missionBuildStrategyCard(cfg, funnel)
 	roster := missionBuildRoster()
 	verdicts := []missionVerdict{
-		{Name: "改良包 vs 原版 E(前向对比)——头号",
+		{Name: "改良包 vs 原版 E(前向对比)——头号", Scope: "strategy",
 			ETA:      "rest 供给恢复后攒样本(风暴日 fail-closed 供给极低)",
 			Progress: fmt.Sprintf("棘轮配对 rest=%d/det=%d 笔,弹射配对 %d 笔,自动积累中", baseline.RatchetRestN, baseline.RatchetDetN, baseline.EjectN),
 			Question: "三闸+弹射+棘轮各拧回多少 bps?E 下一版口径的裁决文件"},
-		{Name: "E 探针门票(残余带闸)", Done: led.ResidualN >= 30,
+		{Name: "E 探针门票(残余带闸)", Scope: "strategy", Done: led.ResidualN >= 30,
 			ETA:      onOff(led.ResidualN >= 30, "首轮已出分", fmt.Sprintf("还差 %d 笔到 30", 30-led.ResidualN)),
 			Progress: fmt.Sprintf("n=%d 净中位%+.1f PF%.2f", led.ResidualN, led.ResidualMed, led.ResidualPF),
 			Question: "首轮未过门;改良口径继续攒,过门才谈探针"},
-		{Name: "全市场磁带 24h 裁决",
+		{Name: "全市场磁带 24h 裁决", Scope: "instrument",
 			ETA:      fmt.Sprintf("还差 %.0f 小时(满 24h)", max(0, 24-probeHours)),
 			Progress: fmt.Sprintf("已攒 %.1f/24h", probeHours),
 			Question: "全市场磁带比 40 热币多看见的爆量,值不值得接进确认管线(门=增量≥40%)"},
-		{Name: "maker 化裁决(曲线①)",
+		{Name: "maker 化裁决(曲线①)", Scope: "variant",
 			ETA:      fmt.Sprintf("还差 %.1f 天(满 2 天)", max(0, 2-mkrDays)),
 			Progress: fmt.Sprintf("mkr 口径已攒 %.1f 天", mkrDays),
 			Question: "挂单省的 6bps > 逆选择税吗?过→坟场半数按 6bps 地板复活重审"},
-		{Name: "E 路径分桶(生龄×速度×归因)", Done: led.PathN >= 100,
+		{Name: "E 路径分桶(生龄×速度×归因)", Scope: "variant", Done: led.PathN >= 100,
 			ETA:      onOff(led.PathN >= 100, "已到样,待阅卷", fmt.Sprintf("还差 %d 行到 100", 100-led.PathN)),
 			Progress: fmt.Sprintf("rest+path_ok 已攒 %d", led.PathN),
 			Question: "『价差怎么诞生的』这个路径信息值多少 bps"},

@@ -103,8 +103,8 @@ a{color:var(--blue);text-decoration:none}
 
     <!-- ④日历:接下来谁出分 -->
     <div class="card" style="margin-top:10px">
-      <h3>裁决日历:接下来这些考试会依次"出分"(全部影子考试,零真钱)</h3>
-      <table id="missionVerdicts"><thead><tr><th>考试</th><th>裁什么</th><th>进度</th><th>到线</th></tr></thead><tbody></tbody></table>
+      <h3>裁决日历:接下来这些考试会依次"出分"(全部影子考试,零真钱)。口径徽标:<span class="tag on">最新策略</span>=当前版本战绩 · <span class="tag warn">变体研究</span>=下一版候选 · <span class="tag off">仪器</span>=数据基建</h3>
+      <table id="missionVerdicts"><thead><tr><th>考试</th><th>口径</th><th>裁什么</th><th>进度</th><th>到线</th></tr></thead><tbody></tbody></table>
     </div>
 
     <!-- ⑤编制:四抽屉,全项目所有东西只在这四格里 -->
@@ -442,11 +442,14 @@ async function refreshMission(){
     document.getElementById("scExits").innerHTML = (sc.exits||[]).map(s=>stepHTML(s,false)).join("");
     document.getElementById("scUpgrade").innerHTML = (sc.upgrade||[]).map(s=>stepHTML(s,false)).join("");
     document.getElementById("scStatus").innerHTML = "<b>现在卡在:</b>" + (sc.status||"");
-    // ④裁决日历
+    // ④裁决日历(带口径徽标:哪些是最新策略的成绩,哪些是研究)
     const vq = document.querySelector("#missionVerdicts tbody"); vq.innerHTML = "";
+    const scopeTag = s => s==="strategy" ? '<span class="tag on">最新策略</span>'
+      : (s==="variant" ? '<span class="tag warn">变体研究</span>' : '<span class="tag off">仪器</span>');
     (d.verdict_queue||[]).forEach(v=>{
       const st = v.done ? '<span class="tag on">已出分</span>' : `<span class="tag off">${v.eta}</span>`;
       vq.insertAdjacentHTML("beforeend", `<tr><td style="white-space:normal;min-width:150px"><b>${v.name}</b></td>
+        <td>${scopeTag(v.scope)}</td>
         <td style="white-space:normal" class="small">${v.question}</td>
         <td class="small">${v.progress}</td><td>${st}</td></tr>`);
     });
