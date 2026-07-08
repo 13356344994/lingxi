@@ -28,6 +28,8 @@ while true; do
     timeout 300 python3 records/_funding_postcrash_verdict.py 2>&1
     echo "--- 股票perp开盘反隔夜前向判决(11:00Z 封样,n>=10簇) ---"
     timeout 300 python3 records/_stockperp_open_verdict.py 2>&1
+    echo "--- 粒子承重结构图(迷宫循环·地图层,每轮自动) ---"
+    timeout 120 python3 records/_particle_structure_map.py 2>&1
     echo "--- 高维分拣器影子(章程㉕,record-only) ---"
     timeout 120 python3 records/_meta_sorter_shadow.py 2>&1
     echo ""
