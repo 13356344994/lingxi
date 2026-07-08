@@ -195,6 +195,8 @@ func fastParticleBits(sym string, now time.Time, gapBps, fuel5m float64, breadth
 // ---- 虚拟持仓与结账 ----
 type fastLedgerPos struct {
 	Sym       string
+	Module    string    // ""/"e"=E模块 / "fire"=火刀模块(2026-07-08 多模块化v0:把整座迷宫接上电)
+	Side      string    // ""/"long"(E) / "short"(fire=顺卖方burst做空)
 	Src       string    // det=探测mid(v0) / rest=REST mid可执行口径(v1) / mkr=maker挂单口径(v2,头号曲线测量仪)
 	T0        time.Time // 触发时刻(mkr:挂单时刻)
 	FilledAt  time.Time // mkr 专属:成交时刻(零值=仍挂着)
@@ -235,6 +237,8 @@ const (
 type fastLedgerRow struct {
 	Time       time.Time `json:"time"` // 出场时刻
 	Symbol     string    `json:"symbol"`
+	Module     string    `json:"module,omitempty"` // 空=E / fire=火刀
+	Side       string    `json:"side,omitempty"`   // 空=long(E) / short(fire)
 	Src        string    `json:"src"` // det / rest(可执行口径)
 	T0         time.Time `json:"t0"`
 	GapDetBps  float64   `json:"gap_det_bps"`
@@ -284,6 +288,58 @@ var (
 )
 
 const fastLedgerCostBps = 12.0
+
+// fastSymLiqBetween 该币官方爆仓是否落在 (a, b] 内(火刀二波止错的论点证据)。
+func fastSymLiqBetween(sym string, a, b time.Time) bool {
+	fastLiqBufMu.Lock()
+	defer fastLiqBufMu.Unlock()
+	for _, l := range fastLiqBuf[sym] {
+		if l.ts.After(a) && !l.ts.After(b) {
+			return true
+		}
+	}
+	return false
+}
+
+// fastLedgerFireExit 纯判定:火刀模块虚拟仓出场(程序S,冻结口径:trail激活10/回吐20/灾难40/
+// 二波止错t0+20s无接力/cap120s)。ret=空头口径浮盈(价格下跌为正)。
+func fastLedgerFireExit(ret, peak, holdSec, sinceT0Sec float64, wave2 bool) string {
+	if ret <= -40 {
+		return "disaster"
+	}
+	if peak >= 10 && ret <= peak-20 {
+		return "trail"
+	}
+	if !wave2 && sinceT0Sec >= 20 {
+		return "no_second_wave"
+	}
+	if holdSec >= 120 {
+		return "max_hold"
+	}
+	return ""
+}
+
+// fastLedgerOnFireConfirm 火刀模块入账(2026-07-08 多模块化v0):tape 确认通过全部闸门的
+// 卖方burst(=火灾),按确认时刻 mid 开虚拟空仓;出场=程序S。record-only,把火刀格点接进织网。
+func (e *OKXDirectionalEngine) fastLedgerOnFireConfirm(sym string, mid, spreadBps float64, now time.Time) {
+	if !e.cfg.FastParticleLedgerEnabled || mid <= 0 {
+		return
+	}
+	key := "fire|rest|" + sym
+	fastLedgerMu.Lock()
+	if _, held := fastLedgerOpen[key]; held {
+		fastLedgerMu.Unlock()
+		return
+	}
+	fastLedgerMu.Unlock()
+	fuel := fastMarketLiqRate(now, 300)
+	br, brOK := fastBreadth30(now)
+	bits := fastParticleBits(sym, now, 0, fuel, br, brOK, 0) // 州位有效;深度/惯犯位对fire无义=0
+	fastLedgerMu.Lock()
+	fastLedgerOpen[key] = &fastLedgerPos{Sym: sym, Module: "fire", Side: "short", Src: "rest",
+		T0: now, Entry: mid, SpreadBps: spreadBps, Bits: bits, Fuel: fuel, Breadth: br}
+	fastLedgerMu.Unlock()
+}
 
 // fastLedgerExit 纯判定:虚拟仓此刻是否出场("");与 E 出场规则同口径。
 func fastLedgerExit(retBps float64, gapNow float64, gapOK bool, holdSec float64, exitGap, disaster float64, maxHold int) string {
@@ -401,10 +457,12 @@ func (e *OKXDirectionalEngine) fastLedgerManage(mids map[string]float64, now tim
 			continue
 		}
 		ret := (mid - p.Entry) / p.Entry * 1e4
+		if p.Side == "short" {
+			ret = -ret // 火刀=空头口径:价格下跌为正
+		}
 		if ret > p.PeakBps {
 			p.PeakBps = ret
 		}
-		gapNow, gapOK := fastXMidGapBpsVenueTol("bybit", p.Sym, mid, now, fastXgapFreshTol)
 		holdFrom := p.T0
 		if p.Src == "mkr" {
 			holdFrom = p.FilledAt // maker 持有期从成交起算
@@ -419,7 +477,14 @@ func (e *OKXDirectionalEngine) fastLedgerManage(mids map[string]float64, now tim
 			p.TrailExitBp = ret
 		}
 		hold := now.Sub(holdFrom).Seconds()
-		exit := fastLedgerExit(ret, gapNow, gapOK, hold, e.cfg.FastXgapExitGapBps, e.cfg.FastXgapDisasterBps, e.cfg.FastXgapMaxHoldSeconds)
+		var exit string
+		if p.Module == "fire" {
+			wave2 := fastSymLiqBetween(p.Sym, p.T0.Add(3*time.Second), p.T0.Add(20*time.Second))
+			exit = fastLedgerFireExit(ret, p.PeakBps, hold, now.Sub(p.T0).Seconds(), wave2)
+		} else {
+			gapNow, gapOK := fastXMidGapBpsVenueTol("bybit", p.Sym, mid, now, fastXgapFreshTol)
+			exit = fastLedgerExit(ret, gapNow, gapOK, hold, e.cfg.FastXgapExitGapBps, e.cfg.FastXgapDisasterBps, e.cfg.FastXgapMaxHoldSeconds)
+		}
 		if exit == "" {
 			continue
 		}
@@ -428,7 +493,7 @@ func (e *OKXDirectionalEngine) fastLedgerManage(mids map[string]float64, now tim
 			cost = fastLedgerMakerCostBps
 		}
 		row := fastLedgerRow{
-			Time: now, Symbol: p.Sym, Src: p.Src, T0: p.T0,
+			Time: now, Symbol: p.Sym, Module: p.Module, Side: p.Side, Src: p.Src, T0: p.T0,
 			GapDetBps: p.GapDet, GapRestBps: p.GapRest, SpreadBps: p.SpreadBps, Bits: p.Bits,
 			Fuel5m: p.Fuel, Breadth30: p.Breadth,
 			GrossBps: ret, NetBps: ret - cost, PeakBps: p.PeakBps,
@@ -441,7 +506,11 @@ func (e *OKXDirectionalEngine) fastLedgerManage(mids map[string]float64, now tim
 			e.logger.Printf("[particle_ledger] 落盘失败: %v", err)
 		}
 		fastLedgerMu.Lock()
-		delete(fastLedgerOpen, p.Src+"|"+p.Sym)
+		if p.Module != "" && p.Module != "e" {
+			delete(fastLedgerOpen, p.Module+"|"+p.Src+"|"+p.Sym)
+		} else {
+			delete(fastLedgerOpen, p.Src+"|"+p.Sym)
+		}
 		fastLedgerMu.Unlock()
 	}
 }

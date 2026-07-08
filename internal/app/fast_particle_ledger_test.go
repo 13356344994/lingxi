@@ -163,6 +163,49 @@ func TestFastSellBurstSince(t *testing.T) {
 	}
 }
 
+// TestFastLedgerFireExit 火刀模块程序S出场纯判定(冻结口径:灾难40/trail10-20/二波20s/cap120)。
+func TestFastLedgerFireExit(t *testing.T) {
+	cases := []struct {
+		ret, peak, hold, since float64
+		wave2                  bool
+		want                   string
+	}{
+		{-45, 0, 10, 10, true, "disaster"},         // 灾难优先
+		{-5, 15, 30, 30, true, "trail"},            // 激活后回吐≥20
+		{5, 8, 25, 25, false, "no_second_wave"},    // t0+20s 无接力=论点死
+		{5, 8, 25, 25, true, ""},                   // 有二波→继续骑
+		{5, 8, 130, 130, true, "max_hold"},         // cap120
+		{15, 18, 15, 15, false, ""},                // 20s 前不裁二波
+	}
+	for i, c := range cases {
+		if got := fastLedgerFireExit(c.ret, c.peak, c.hold, c.since, c.wave2); got != c.want {
+			t.Fatalf("case %d: got %q want %q", i, got, c.want)
+		}
+	}
+}
+
+// TestFastSymLiqBetween 二波证据查询:(a,b] 半开区间语义。
+// 符号须全局唯一+结束清理:fastLiqBuf 是共享包级状态,残留会污染 fade/liq_catch 候选测试。
+func TestFastSymLiqBetween(t *testing.T) {
+	const sym = "LIQBETWEEN-TEST-USDT"
+	t.Cleanup(func() {
+		fastLiqBufMu.Lock()
+		delete(fastLiqBuf, sym)
+		fastLiqBufMu.Unlock()
+	})
+	base := time.Date(2026, 7, 8, 12, 0, 0, 0, time.UTC)
+	fastNoteLiq(sym, "long", 1, base.Add(10*time.Second))
+	if fastSymLiqBetween(sym, base.Add(10*time.Second), base.Add(20*time.Second)) {
+		t.Fatal("(a,b] 左开:a 时刻的爆仓不算")
+	}
+	if !fastSymLiqBetween(sym, base.Add(5*time.Second), base.Add(10*time.Second)) {
+		t.Fatal("(a,b] 右闭:b 时刻的爆仓要算")
+	}
+	if fastSymLiqBetween(sym, base.Add(11*time.Second), base.Add(30*time.Second)) {
+		t.Fatal("窗外不应命中")
+	}
+}
+
 // TestFastLedgerTrigCount 惯犯环:评估在登记前(无前视),24h 窗滚动。
 func TestFastLedgerTrigCount(t *testing.T) {
 	fastLedgerTrigMu.Lock()

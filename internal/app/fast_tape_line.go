@@ -234,6 +234,11 @@ func (e *OKXDirectionalEngine) fastTapeTick(ctx context.Context) {
 			e.logger.Printf("[fast_tape] %s 跳过(%s) spread=%.1f depth10=%.0f age=%dms", p.sym, skip, ev.SpreadBps, ev.DepthNotional10bps, ev.EventAgeMs)
 			continue
 		}
+		// 多模块账本v0(2026-07-08):全闸通过的卖方burst(火灾)开虚拟空仓,程序S出场,
+		// 把火刀格点接进织网(record-only;火刀 live 永远另有来源闸)。
+		if p.side == "short" {
+			e.fastLedgerOnFireConfirm(p.sym, ev.Mid, ev.SpreadBps, now)
+		}
 		r := e.fastLiveOpen(ctx, ev)
 		e.logger.Printf("[fast_tape] %s %s %.0fx burst+确认 age=%dms spread=%.1f → %s", p.sym, p.side, p.multiple, ev.EventAgeMs, ev.SpreadBps, r)
 	}
