@@ -1534,9 +1534,24 @@ type fastProbeState struct {
 }
 
 var (
-	fastProbeMu sync.Mutex
-	fastProbe   = map[string]*fastProbeState{} // venue -> state
+	fastProbeMu     sync.Mutex
+	fastProbe       = map[string]*fastProbeState{} // venue|source -> state(多探针,2026-07-08 用户拍板)
+	fastProbeLoaded = map[string]bool{}            // venue -> 已从盘上恢复
 )
+
+// fastProbeHas 纯判定:source 是否在探针名单(fast_probe_source 支持 csv 多探针)。
+func fastProbeHas(probeCSV, source string) bool {
+	s := strings.TrimSpace(source)
+	if s == "" {
+		return false
+	}
+	for _, p := range strings.Split(probeCSV, ",") {
+		if strings.TrimSpace(p) == s {
+			return true
+		}
+	}
+	return false
+}
 
 // fastProbeExhausted 纯判定:探针预算是否耗尽(笔数或累亏任一越线)。
 func fastProbeExhausted(st fastProbeState, maxTrades int, maxLoss float64) bool {
@@ -1549,41 +1564,74 @@ func fastProbeExhausted(st fastProbeState, maxTrades int, maxLoss float64) bool 
 	return false
 }
 
-// fastProbeStateLocked 取当前探针账本(调用者持 fastProbeMu);首次从盘上恢复;source 变更即重置。
-func (e *OKXDirectionalEngine) fastProbeStateLocked(source string) *fastProbeState {
-	st := fastProbe[e.venueName]
-	if st == nil {
-		st = &fastProbeState{}
-		if data, err := os.ReadFile(filepath.Join(e.recordDir, fastProbeStateFile)); err == nil {
-			_ = json.Unmarshal(data, st)
-		}
-		fastProbe[e.venueName] = st
+// fastProbeKey 多探针状态键:venue|source。
+func (e *OKXDirectionalEngine) fastProbeKey(source string) string { return e.venueName + "|" + source }
+
+// fastProbeLoadLocked 首次从盘上恢复全部探针账本(调用者持 fastProbeMu)。
+// 新格式={"probes":{src:state}};老单探针格式自动迁移(缴械状态不失忆)。
+func (e *OKXDirectionalEngine) fastProbeLoadLocked() {
+	if fastProbeLoaded[e.venueName] {
+		return
 	}
-	if st.Source != source { // 新探针:新预算
-		*st = fastProbeState{Source: source, StartedAt: e.nowFn().UTC()}
+	fastProbeLoaded[e.venueName] = true
+	data, err := os.ReadFile(filepath.Join(e.recordDir, fastProbeStateFile))
+	if err != nil {
+		return
+	}
+	var multi struct {
+		Probes map[string]*fastProbeState `json:"probes"`
+	}
+	if json.Unmarshal(data, &multi) == nil && len(multi.Probes) > 0 {
+		for src, st := range multi.Probes {
+			fastProbe[e.fastProbeKey(src)] = st
+		}
+		return
+	}
+	var one fastProbeState // 迁移:07-08 前的单探针格式
+	if json.Unmarshal(data, &one) == nil && strings.TrimSpace(one.Source) != "" {
+		fastProbe[e.fastProbeKey(one.Source)] = &one
+	}
+}
+
+// fastProbeStateLocked 取该 source 的探针账本(调用者持 fastProbeMu);新 source=新预算。
+// 刻意不做"移除即清零":source 从名单摘除只是停用闸,预算记录保留(fail-closed:
+// 摘了再加回不会凭空多出 20 笔;人工重置=删状态文件条目,留痕操作)。
+func (e *OKXDirectionalEngine) fastProbeStateLocked(source string) *fastProbeState {
+	e.fastProbeLoadLocked()
+	key := e.fastProbeKey(source)
+	st := fastProbe[key]
+	if st == nil {
+		st = &fastProbeState{Source: source, StartedAt: e.nowFn().UTC()}
+		fastProbe[key] = st
 		e.fastProbePersistLocked()
 	}
 	return st
 }
 
 func (e *OKXDirectionalEngine) fastProbePersistLocked() {
-	if st := fastProbe[e.venueName]; st != nil {
-		if err := writeJSONFile(filepath.Join(e.recordDir, fastProbeStateFile), st); err != nil {
-			e.logger.Printf("[fast_probe] 状态落盘失败: %v", err)
+	out := struct {
+		Probes map[string]*fastProbeState `json:"probes"`
+	}{Probes: map[string]*fastProbeState{}}
+	prefix := e.venueName + "|"
+	for k, st := range fastProbe {
+		if strings.HasPrefix(k, prefix) {
+			out.Probes[strings.TrimPrefix(k, prefix)] = st
 		}
+	}
+	if err := writeJSONFile(filepath.Join(e.recordDir, fastProbeStateFile), out); err != nil {
+		e.logger.Printf("[fast_probe] 状态落盘失败: %v", err)
 	}
 }
 
-// fastProbeGate 开仓前闸:该 source 处于探针模式且预算耗尽 → 拒(probe_exhausted)。
-// 非探针 source 不受影响(它们各自的 live 开关是第一道闸)。
+// fastProbeGate 开仓前闸:该 source 在探针名单且自己的预算耗尽 → 拒(probe_exhausted)。
+// 多探针(2026-07-08 用户拍板):fast_probe_source=csv,每源独立预算独立缴械互不牵连。
 func (e *OKXDirectionalEngine) fastProbeGate(source string) string {
-	probeSrc := strings.TrimSpace(e.cfg.FastProbeSource)
-	if probeSrc == "" || source != probeSrc {
+	if !fastProbeHas(e.cfg.FastProbeSource, source) {
 		return ""
 	}
 	fastProbeMu.Lock()
 	defer fastProbeMu.Unlock()
-	st := e.fastProbeStateLocked(probeSrc)
+	st := e.fastProbeStateLocked(strings.TrimSpace(source))
 	if fastProbeExhausted(*st, e.cfg.FastProbeMaxTrades, e.cfg.FastProbeMaxLossUSDT) {
 		return "probe_exhausted"
 	}
@@ -1592,19 +1640,18 @@ func (e *OKXDirectionalEngine) fastProbeGate(source string) string {
 
 // fastProbeRecord 平仓后记账(仅探针 source):笔数+累亏;越线时打一条明确的缴械日志。
 func (e *OKXDirectionalEngine) fastProbeRecord(source string, realized float64) {
-	probeSrc := strings.TrimSpace(e.cfg.FastProbeSource)
-	if probeSrc == "" || source != probeSrc {
+	if !fastProbeHas(e.cfg.FastProbeSource, source) {
 		return
 	}
 	fastProbeMu.Lock()
 	defer fastProbeMu.Unlock()
-	st := e.fastProbeStateLocked(probeSrc)
+	st := e.fastProbeStateLocked(strings.TrimSpace(source))
 	st.Trades++
 	st.Realized += realized
 	e.fastProbePersistLocked()
 	if fastProbeExhausted(*st, e.cfg.FastProbeMaxTrades, e.cfg.FastProbeMaxLossUSDT) {
 		e.logger.Printf("[fast_probe] 探针 %s 预算耗尽自动缴械: trades=%d realized=%.4fU(上限 %d 笔 / -%.2fU)——等待裁决,不再开仓",
-			probeSrc, st.Trades, st.Realized, e.cfg.FastProbeMaxTrades, e.cfg.FastProbeMaxLossUSDT)
+			source, st.Trades, st.Realized, e.cfg.FastProbeMaxTrades, e.cfg.FastProbeMaxLossUSDT)
 	}
 }
 
@@ -2490,15 +2537,16 @@ func (e *OKXDirectionalEngine) fastMakerEntry(ctx context.Context, sym string, s
 	return acc, price, wms, "maker_not_filled", nil // 含 QueryOrder 失败 → 不建仓
 }
 
-// fastCertGate 纯判定:持证闸(""=放行)。source 身份三选一:探针(=probeSource,用户明示批准)/
-// 持证(在 certified csv 名单)/无证→"no_cert"。scorer 空 source 按 "scorer" 键查证。
+// fastCertGate 纯判定:持证闸(""=放行)。source 身份三选一:探针(在 probeSource csv 名单,
+// 用户明示批准,每源独立预算包裹)/持证(在 certified csv 名单)/无证→"no_cert"。
+// scorer 空 source 按 "scorer" 键查证。
 func fastCertGate(source, probeSource, certified string) string {
 	key := strings.TrimSpace(source)
 	if key == "" {
 		key = "scorer"
 	}
-	if p := strings.TrimSpace(probeSource); p != "" && p == strings.TrimSpace(source) {
-		return "" // 探针身份:用户设置 fast_probe_source 即明示批准,预算机器(20笔/0.5U)包裹
+	if fastProbeHas(probeSource, source) {
+		return "" // 探针身份:用户写进 fast_probe_source 即明示批准,预算机器(20笔/0.5U)包裹
 	}
 	for _, c := range strings.Split(certified, ",") {
 		if strings.TrimSpace(c) == key && key != "" {

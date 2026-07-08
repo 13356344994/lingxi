@@ -1019,7 +1019,8 @@ type OKXDirectionalConfig struct {
 	FastSentinelMinTrades int `cfg:"fast_sentinel_min_trades"` // 样本不足不判(默认20)
 	FastSentinelWindow    int `cfg:"fast_sentinel_window"`     // 滚动窗笔数(默认50)
 	// ===== 探针制(2026-07-04 章程,HANDOFF §-5):发现阶段的实盘小额快试,预算由机器锁死 =====
-	// FastProbeSource 非空 = 该 candidate_source 的实盘线处于"探针模式":开仓数与累亏被硬顶,
+	// FastProbeSource 非空 = 名单内 candidate_source 的实盘线处于"探针模式":开仓数与累亏被硬顶,
+	// 2026-07-08 多探针(用户拍板):支持 csv(如 "xgap_rev,tape_burst"),每源独立预算独立缴械,
 	// 越线自动缴械(probe_exhausted),状态持久化重启不失忆。空 = 无探针活动(生产默认,护栏锚定;
 	// 设置某个 source = 用户明示批准该候选进入探针层)。
 	FastProbeSource      string  `cfg:"fast_probe_source"`

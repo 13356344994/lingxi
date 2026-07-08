@@ -29,7 +29,8 @@ func TestFastXgapProbeWiring(t *testing.T) {
 	e.cfg.FastProbeMaxTrades = 20
 	e.cfg.FastProbeMaxLossUSDT = 0.5
 	fastProbeMu.Lock()
-	delete(fastProbe, e.venueName)
+	delete(fastProbe, e.fastProbeKey("xgap_rev"))
+	fastProbeLoaded[e.venueName] = true // 测试隔离:不从盘上恢复
 	fastProbeMu.Unlock()
 	if r := e.fastLiveOpen(nil, ev); r == "record_only_source" || r == "probe_exhausted" || r == "sentinel_halt" {
 		t.Fatalf("live 开+预算充足不应被闸拦,得 %s", r)
@@ -44,18 +45,28 @@ func TestFastXgapProbeWiring(t *testing.T) {
 	}
 	// 累亏口径:重置后亏穿 0.5U → 缴械
 	fastProbeMu.Lock()
-	delete(fastProbe, e.venueName)
+	delete(fastProbe, e.fastProbeKey("xgap_rev"))
 	fastProbeMu.Unlock()
 	e.fastProbeRecord("xgap_rev", -0.51)
 	if r := e.fastLiveOpen(nil, ev); r != "probe_exhausted" {
 		t.Fatalf("累亏 -0.51U 应缴械,得 %s", r)
 	}
 
+	// ③b 多探针独立预算(2026-07-08):xgap 缴械不牵连 tape 探针的预算
+	e.cfg.FastProbeSource = "xgap_rev,tape_burst"
+	if r := e.fastProbeGate("tape_burst"); r != "" {
+		t.Fatalf("tape 探针预算独立,不应被 xgap 缴械牵连,得 %s", r)
+	}
+	if r := e.fastProbeGate("xgap_rev"); r != "probe_exhausted" {
+		t.Fatalf("xgap 自己的缴械应仍生效,得 %s", r)
+	}
+	e.cfg.FastProbeSource = "xgap_rev"
+
 	// ④ 哨兵:滚动窗净值中位 <0 → 粘性停火(预算重置也拦得住)。
 	// 注:③里 -0.51U 已被持久化(重启不失忆的设计),须连磁盘账一起清才算真重置——
 	// 这个失败本身验证了缴械状态的持久性 ✓
 	fastProbeMu.Lock()
-	delete(fastProbe, e.venueName)
+	delete(fastProbe, e.fastProbeKey("xgap_rev"))
 	fastProbeMu.Unlock()
 	_ = os.Remove(filepath.Join(e.recordDir, fastProbeStateFile))
 	e.cfg.FastSentinelMinTrades = 5

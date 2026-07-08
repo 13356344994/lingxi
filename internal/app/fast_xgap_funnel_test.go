@@ -79,6 +79,20 @@ func TestMissionBaselineFromRows(t *testing.T) {
 	}
 }
 
+// TestFastProbeMulti 多探针纯函数:csv 名单判定 + 老格式状态文件迁移。
+func TestFastProbeMulti(t *testing.T) {
+	if !fastProbeHas("xgap_rev,tape_burst", "tape_burst") || !fastProbeHas("xgap_rev", "xgap_rev") {
+		t.Fatal("csv 名单应命中")
+	}
+	if fastProbeHas("xgap_rev,tape_burst", "fade_exhaustion") || fastProbeHas("", "xgap_rev") || fastProbeHas("xgap_rev", "") {
+		t.Fatal("名单外/空值不应命中")
+	}
+	// 持证闸吃 csv 探针名单
+	if r := fastCertGate("tape_burst", "xgap_rev,tape_burst", ""); r != "" {
+		t.Fatalf("csv 第二探针应放行,得 %q", r)
+	}
+}
+
 // TestFastCertGate 持证闸纯函数:探针放行/持证放行/无证硬拒。
 func TestFastCertGate(t *testing.T) {
 	// 无探针无证:一律 no_cert(把"误开 live+未设探针"的无上限实弹封死)
