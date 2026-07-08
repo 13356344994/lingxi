@@ -66,8 +66,18 @@ a{color:var(--blue);text-decoration:none}
 </header>
 <main>
   <div class="section">
-    <h2>作战地图 <span class="small" id="missionPhase"></span></h2>
-    <div class="flex">
+    <h2>一页看懂 <span class="small" id="missionPhase"></span></h2>
+    <div class="card" style="border-left:4px solid #4a9">
+      <div id="missionHeadline" style="font-size:16px;font-weight:600;line-height:1.5"></div>
+      <div id="missionFocus" style="margin-top:8px;padding:8px;background:rgba(255,200,60,.08);border-radius:6px;font-size:14px"></div>
+    </div>
+    <div class="card" style="margin-top:10px">
+      <h3>旅程图:整个项目一共六站,你在这里 ↓</h3>
+      <div id="missionJourney" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+    </div>
+    <div class="flex" style="margin-top:10px" id="missionCards"></div>
+    <details style="margin-top:10px"><summary class="small" style="cursor:pointer">▸ 展开细节(工作流/门槛/流水线,给深查用)</summary>
+    <div class="flex" style="margin-top:8px">
       <div class="card" style="min-width:340px;flex:1">
         <h3>正在做什么(实时 Go 计算)</h3>
         <table id="missionDoing"><thead><tr><th>工作流</th><th>进度</th></tr></thead><tbody></tbody></table>
@@ -82,6 +92,7 @@ a{color:var(--blue);text-decoration:none}
       <div class="card" style="flex:1"><h3>真钱阶梯(做到哪一步)</h3><div class="small" id="missionLadder"></div></div>
       <div class="card" style="flex:1"><h3>整个策略(六层流水线)</h3><div class="small" id="missionPipeline"></div></div>
     </div>
+    </details>
   </div>
 
   <div class="section">
@@ -348,6 +359,31 @@ async function refreshMission(){
     if(!r.ok) throw new Error(await r.text());
     const d = await r.json();
     document.getElementById("missionPhase").textContent = d.phase + " · " + d.phase_detail;
+    // 一页看懂:大字故事 + 今日焦点 + 旅程图 + 白话卡
+    document.getElementById("missionHeadline").textContent = d.headline || "";
+    document.getElementById("missionFocus").innerHTML = "<b>今日焦点:</b> " + (d.today_focus || "");
+    const jy = document.getElementById("missionJourney"); jy.innerHTML = "";
+    (d.journey||[]).forEach(s=>{
+      const bg = s.state==="current" ? "rgba(80,180,120,.18)" : (s.state==="done" ? "rgba(255,255,255,.04)" : "transparent");
+      const border = s.state==="current" ? "2px solid #4a9" : "1px solid rgba(255,255,255,.12)";
+      const mark = s.state==="done" ? "✅" : (s.state==="current" ? "📍" : "🔒");
+      jy.insertAdjacentHTML("beforeend",
+        `<div style="flex:1;min-width:150px;padding:8px;border:${border};border-radius:8px;background:${bg}">
+           <div style="font-weight:600">${mark} ${s.name}</div>
+           <div class="small" style="margin-top:4px">${s.plain}</div>
+           <div class="small" style="margin-top:4px;opacity:.75">→ ${s.condition}</div>
+         </div>`);
+    });
+    const cards = document.getElementById("missionCards"); cards.innerHTML = "";
+    (d.plain_cards||[]).forEach(c=>{
+      const col = c.tone==="good" ? "#4a9" : (c.tone==="bad" ? "#c66" : "#888");
+      cards.insertAdjacentHTML("beforeend",
+        `<div class="card" style="flex:1;min-width:220px;border-top:3px solid ${col}">
+           <div class="small">${c.title}</div>
+           <div style="font-size:20px;font-weight:700;margin:4px 0">${c.value}</div>
+           <div class="small" style="opacity:.8">${c.explain}</div>
+         </div>`);
+    });
     const doing = document.querySelector("#missionDoing tbody"); doing.innerHTML="";
     (d.doing||[]).forEach(x=>{
       doing.insertAdjacentHTML("beforeend", `<tr><td>${x.name}${x.note?`<div class="small">${x.note}</div>`:""}</td><td>${x.metric}</td></tr>`);

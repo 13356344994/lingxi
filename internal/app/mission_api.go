@@ -44,16 +44,68 @@ type missionStage struct {
 	Note  string `json:"note,omitempty"`
 }
 
+// missionJourneyStop 旅程图一站(给用户的白话版"进行到哪一步")。
+type missionJourneyStop struct {
+	Name      string `json:"name"`
+	Plain     string `json:"plain"`     // 这一站是什么(人话)
+	Condition string `json:"condition"` // 进入下一站的条件(人话+数字)
+	State     string `json:"state"`     // done / current / pending
+}
+
+// missionPlainCard 白话数字卡:一个数+一句解释。
+type missionPlainCard struct {
+	Title   string `json:"title"`
+	Value   string `json:"value"`
+	Explain string `json:"explain"`
+	Tone    string `json:"tone"` // good / bad / neutral
+}
+
 type missionResponse struct {
 	Now         time.Time           `json:"now"`
 	Phase       string              `json:"phase"`
 	PhaseDetail string              `json:"phase_detail"`
-	Goal        []string            `json:"goal"`
-	Doing       []missionWorkstream `json:"doing"`
-	Gates       []missionGate       `json:"gates"`
-	Ladder      []missionStage      `json:"ladder"`   // 真钱阶梯
-	Pipeline    []missionStage      `json:"pipeline"` // 六层流水线(整个策略)
-	Certified   []string            `json:"certified"`
+	// ===== 一页看懂(2026-07-08 用户"页面还是看不懂"反馈的重做;讲故事优先,细节表格下沉)=====
+	Headline   string               `json:"headline"`    // 大字一句话:现在在做什么
+	TodayFocus string               `json:"today_focus"` // 今日焦点:现在唯一值得看的一件事(机器自动挑)
+	Journey    []missionJourneyStop `json:"journey"`     // 六站旅程图:你在这里
+	PlainCards []missionPlainCard   `json:"plain_cards"` // 白话数字卡
+	// ===== 细节区(下沉,给深查用)=====
+	Goal      []string            `json:"goal"`
+	Doing     []missionWorkstream `json:"doing"`
+	Gates     []missionGate       `json:"gates"`
+	Ladder    []missionStage      `json:"ladder"`   // 真钱阶梯
+	Pipeline  []missionStage      `json:"pipeline"` // 六层流水线(整个策略)
+	Certified []string            `json:"certified"`
+}
+
+// missionTodayFocus 纯函数:从当前门状态里挑"现在唯一值得看的一件事"。
+// 优先级:需要用户拍板 > 刚判负的善后 > 最近的裁决点倒计时 > 默认(机器攒样本,无需操作)。
+func missionTodayFocus(resDone, resPass bool, resN int, resMed, resPF float64, mkrDays float64, pathN int, probeHours float64) string {
+	if resDone && resPass {
+		return "【等你拍板】E 的探针真门票(残余带闸)已过检——数字已备好,裁 5U 探针开不开。"
+	}
+	var waits []string
+	if !resDone {
+		waits = append(waits, fmt.Sprintf("残余带闸还差 %d 笔到线", 30-resN))
+	}
+	if mkrDays < 2 {
+		waits = append(waits, fmt.Sprintf("maker裁决还差 %.1f 天", 2-mkrDays))
+	}
+	if pathN < 100 {
+		waits = append(waits, fmt.Sprintf("路径分桶还差 %d 行", 100-pathN))
+	}
+	if probeHours > 0 && probeHours < 24 {
+		waits = append(waits, fmt.Sprintf("全市场磁带 24h 裁决还差 %.0f 小时", 24-probeHours))
+	}
+	head := "今天没有需要你做的事。"
+	if resDone && !resPass {
+		head = fmt.Sprintf("E 的探针门票已判负(n=%d 净中位%+.1f PF%.2f)→按预注册回炉,不发证不开枪。", resN, resMed, resPF)
+	}
+	if len(waits) == 0 {
+		return head + " 机器在无人值守攒证据。"
+	}
+	next := waits[0]
+	return head + " 最近的裁决点:" + next + ";其余在排队(" + strings.Join(waits, " / ") + ")。"
 }
 
 // missionLedgerStats particle_ledger 现算读数。
@@ -224,6 +276,51 @@ func (s *DashboardServer) handleMissionAPI(w http.ResponseWriter, r *http.Reques
 			"近期目标:第一个通过探针真门票的策略族拿 5U 探针实测真滑点(须用户明示批准)。",
 		},
 		Certified: []string{"E×平静海 格子(07-08 发证考试过检:n≥30 净中位+12.6 PF1.80;探针前须过残余带闸)"},
+	}
+
+	// ===== 一页看懂区(讲故事优先) =====
+	resDone := led.ResidualN >= 30
+	resPassNow := resDone && led.ResidualMed > 0 && led.ResidualPF >= 1.3
+	resp.Headline = "我们在用零真钱的影子机器海选策略:谁能连过三关(格子考试→探针门票→5U探针),谁才配用真钱。目前最接近的是 E(跨所捡便宜货)。"
+	resp.TodayFocus = missionTodayFocus(resDone, resPassNow, led.ResidualN, led.ResidualMed, led.ResidualPF, mkrDays, led.PathN, probeHours)
+	journeyState := func(idx int) string { // 0..5;当前=②影子考试(除非探针开着)
+		cur := 1
+		if probeSrc != "" {
+			cur = 3
+		}
+		switch {
+		case idx < cur:
+			return "done"
+		case idx == cur:
+			return "current"
+		}
+		return "pending"
+	}
+	resp.Journey = []missionJourneyStop{
+		{Name: "① 建机器", Plain: "把数据流/分拣器/考场/账本全部建好,让试错免费", Condition: "已完成:13流+司天监+Go三口径账本在跑", State: journeyState(0)},
+		{Name: "② 影子海选(现在在这)", Plain: "所有策略先在影子里用真数据考试,死掉不花一分钱", Condition: fmt.Sprintf("出线条件=格子考试过+探针门票过;E 已过格子,门票 %d/30", led.ResidualN), State: journeyState(1)},
+		{Name: "③ 5U 探针", Plain: "第一个双过的策略拿 5U 真钱测真滑点(你拍板才开)", Condition: "≤20笔/亏≤0.5U 自动缴械,买的是离线买不到的真实成交数据", State: journeyState(2)},
+		{Name: "④ 灰度", Plain: "探针赚钱才加码,单票 5→50→200U 阶梯放大", Condition: "探针 PF>1 且哨兵不报警", State: journeyState(3)},
+		{Name: "⑤ 走量升级", Plain: "单票 500U×几百笔/天刷成交量,费率档 VIP2,门票 12→9bps", Condition: "月成交量 $10M(机器算术:500U×330笔/天×30天)", State: journeyState(4)},
+		{Name: "⑥ 利润引擎", Plain: "门票降了,坟场边缘策略批量复活,多引擎全天候营业", Condition: "任一策略净中位≥新门票的1.5倍", State: journeyState(5)},
+	}
+	resTone := "neutral"
+	if resDone {
+		resTone = onOff(resPassNow, "good", "bad")
+	}
+	mkrTone := "neutral"
+	if led.MkrFilled+led.MkrUnfilled >= 50 {
+		mkrTone = "bad" // 首批读数 PF 偏低;到 2 天正式裁决
+	}
+	resp.PlainCards = []missionPlainCard{
+		{Title: "真钱敞口", Value: "0 U", Tone: "good",
+			Explain: "慢线已全停、fast 全锁,现在亏损上限=0。烧的是数据不是钱。"},
+		{Title: "E 的探针门票", Value: fmt.Sprintf("%d/30 笔,中位 %+.1f", led.ResidualN, led.ResidualMed), Tone: resTone,
+			Explain: "E 要拿真钱,必须先在『REST残余20-40bps』这个唯一活区里前向证明自己(中位>0 且 PF≥1.3)。"},
+		{Title: "maker 曲线(省门票实验)", Value: fmt.Sprintf("已攒 %.1f/2 天", mkrDays), Tone: mkrTone,
+			Explain: "如果挂单比吃单省的钱>逆选择亏的钱,坟场里一半死者复活。首批读数偏差,等满 2 天正式裁。"},
+		{Title: "第一波盲区探针", Value: fmt.Sprintf("已攒 %.1f/24 小时", probeHours), Tone: "neutral",
+			Explain: "以前只看得见 40 个热币,现在 401 币全market磁带——裁决『我们此前错过的第一波爆量值不值得接』。"},
 	}
 
 	resp.Doing = []missionWorkstream{
