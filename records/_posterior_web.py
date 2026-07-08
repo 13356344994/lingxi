@@ -39,8 +39,8 @@ for line in open(LEDGER):
         r = json.loads(line)
     except ValueError:
         continue
-    if r.get("exit") == "unfilled" or now - ep(r["time"]) > 48 * 3600:
-        continue
+    if r.get("module") not in (None, "", "e") or r.get("exit") == "unfilled" or now - ep(r["time"]) > 48 * 3600:
+        continue  # 织网v0仍按E模块出图;fire/firework格点扩容=下一版(需模块专属组合字典)
     rows.append(r)
 by_src = collections.defaultdict(list)
 for r in rows:

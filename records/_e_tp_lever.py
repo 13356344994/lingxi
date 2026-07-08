@@ -17,7 +17,7 @@ for line in open(LEDGER):
         r = json.loads(line)
     except ValueError:
         continue
-    if r.get("src") != "rest" or r.get("exit") == "unfilled":
+    if r.get("module") not in (None, "", "e") or r.get("src") != "rest" or r.get("exit") == "unfilled":
         continue
     rows.append(r)
 print("rest行=%d" % len(rows))

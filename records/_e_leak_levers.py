@@ -22,7 +22,7 @@ for line in open(LEDGER):
         r = json.loads(line)
     except ValueError:
         continue
-    if r.get("src") != "rest" or r.get("exit") == "unfilled" or not r.get("path_ok"):
+    if r.get("module") not in (None, "", "e") or r.get("src") != "rest" or r.get("exit") == "unfilled" or not r.get("path_ok"):
         continue
     rows.append(r)
 print("可执行×路径可知 行=%d" % len(rows))

@@ -101,7 +101,7 @@ for line in open(REC + "/particle_ledger.jsonl"):
         r = json.loads(line)
     except ValueError:
         continue
-    if r.get("src") != "rest" or r.get("exit") == "unfilled" or ep(r["t0"]) < t_seal:
+    if r.get("module") not in (None, "", "e") or r.get("src") != "rest" or r.get("exit") == "unfilled" or ep(r["t0"]) < t_seal:
         continue
     nets.append(r["net_bps"])
     spreads.append(r.get("spread_bps", 0))

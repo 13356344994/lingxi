@@ -83,6 +83,8 @@ func stratLabel(key string) string {
 		"shadow_e_v0": "E影子·v0早期行(未标口径)",
 		"exam_e_cell":   "【考试】E格子口径(新鲜×派班)",
 		"exam_e_ticket": "【考试】E探针门票(格子×残余带)←门槛表那行数字的明细",
+		"shadow_fire_rest":     "火刀影子·程序S(逐tick)",
+		"shadow_firework_rest": "烟花刀影子·固定300s(逐tick)",
 	}
 	if v, ok := m[key]; ok {
 		return v
@@ -241,16 +243,26 @@ func loadStratTradesVirtual(recordDir string, from, to time.Time) []stratTrade {
 		if src == "" {
 			src = "v0" // 账本 v0 早期行无口径标注(det 前身),单列不并桶
 		}
+		module := strings.TrimSpace(r.Module)
+		if module == "" {
+			module = "e"
+		}
+		side := r.Side
+		if side == "" {
+			side = "long"
+		}
 		base := stratTrade{
-			Time: r.Time, Venue: "okx", Symbol: r.Symbol, Side: "long",
-			Strategy: "shadow_e_" + src, Net: r.NetBps,
+			Time: r.Time, Venue: "okx", Symbol: r.Symbol, Side: side,
+			Strategy: "shadow_" + module + "_" + src, Net: r.NetBps,
 			Reason: r.Exit, HoldSec: r.HoldSec, Virtual: true,
 		}
 		out = append(out, base)
-		for _, k := range examKeysForLedgerRow(src, r.Bits) {
-			t := base
-			t.Strategy = k
-			out = append(out, t)
+		if module == "e" { // 考试口径只属于 E 模块(fire/firework 行禁止漏入)
+			for _, k := range examKeysForLedgerRow(src, r.Bits) {
+				t := base
+				t.Strategy = k
+				out = append(out, t)
+			}
 		}
 	}
 	return out

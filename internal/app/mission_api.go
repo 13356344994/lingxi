@@ -141,6 +141,9 @@ func missionScanLedger(recordDir string, now time.Time) missionLedgerStats {
 	sealRes, _ := time.Parse(time.RFC3339, missionSealResidual)
 	var resNets []float64
 	for _, r := range rows {
+		if r.Module != "" && r.Module != "e" {
+			continue // 多模块化后 fire/firework 行禁止漏入 E 考试/吞吐统计
+		}
 		switch r.Src {
 		case "rest":
 			if r.Exit == "unfilled" {
