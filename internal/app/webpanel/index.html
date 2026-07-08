@@ -65,81 +65,81 @@ a{color:var(--blue);text-decoration:none}
   </div>
 </header>
 <main>
-  <div class="section">
-    <h2>一页看懂 <span class="small" id="missionPhase"></span></h2>
+  <!-- ⓪ 状态条:阶段 + 今日焦点(一眼定位) -->
+  <div class="card" style="border-left:4px solid #4a9">
+    <div><span class="tag on" id="missionPhase">…</span></div>
+    <div id="missionFocus" style="margin-top:8px;padding:8px;background:rgba(255,200,60,.08);border-radius:6px;font-size:14px"></div>
+    <div class="small" id="missionHeadline" style="margin-top:6px;opacity:.8"></div>
+  </div>
 
-    <!-- ①锚:一句话+今日焦点+当前策略基准数据(页面一切数字以当前最新策略口径为基准) -->
-    <div class="card" style="border-left:4px solid #4a9">
-      <div id="missionHeadline" style="font-size:16px;font-weight:600;line-height:1.5"></div>
-      <div id="missionFocus" style="margin-top:8px;padding:8px;background:rgba(255,200,60,.08);border-radius:6px;font-size:14px"></div>
-      <div class="small" id="baselineLabel" style="margin-top:10px;font-weight:600"></div>
-      <div id="missionBaseline" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:6px"></div>
+  <!-- ① 主舞台:E 的完整因果链(策略→今天的数据→成绩→杠杆→出分,全部同一口径垂直串联) -->
+  <div class="card" style="margin-top:12px;border-left:4px solid var(--accent)">
+    <h2 style="margin:0 0 4px;font-size:16px" id="scName">一军策略</h2>
+    <div class="small" id="scMech" style="padding:8px;background:rgba(140,120,255,.07);border-radius:6px"></div>
+
+    <h3 style="margin-top:14px">❶ 进场管道 —— 每个节点印着"今天"的实数,拦截原因直接写在闸上</h3>
+    <div id="scSteps" style="display:flex;gap:6px;flex-wrap:wrap;align-items:stretch"></div>
+
+    <h3 style="margin-top:14px">❷ 出场机器 —— 买进后四种离场方式</h3>
+    <div id="scExits" style="display:flex;gap:6px;flex-wrap:wrap;align-items:stretch"></div>
+
+    <h3 style="margin-top:14px">❸ 这批枪的成绩 —— 与上面管道<b>同一口径</b>(★E·当前版本,三闸部署后可执行前向)</h3>
+    <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start">
+      <div id="basePerf" style="flex:0 0 240px"></div>
+      <div style="flex:1;min-width:320px">
+        <canvas id="eCurve" width="900" height="150" style="width:100%;height:150px"></canvas>
+        <div class="small" id="eCurveNote"></div>
+      </div>
     </div>
 
-    <!-- ②路线:六站旅程,你在这里 -->
-    <div class="card" style="margin-top:10px">
+    <h3 style="margin-top:14px">❹ 改良杠杆 —— 钱从哪漏 / 数据说能拧回多少 / 差什么</h3>
+    <div id="scLevers" style="display:flex;gap:10px;flex-wrap:wrap"></div>
+
+    <h3 style="margin-top:14px">❺ 最新策略的出分点</h3>
+    <table id="missionVerdicts"><thead><tr><th>考试</th><th>裁什么</th><th>进度</th><th>到线</th></tr></thead><tbody></tbody></table>
+    <div id="scStatus" style="margin-top:10px;padding:8px;background:rgba(120,160,255,.07);border-radius:6px;font-size:13px"></div>
+    <div class="small" style="margin-top:6px">钻取:<a href="javascript:void(0)" onclick="jumpToReport('e_current')">当前版本逐笔明细</a> · <a href="javascript:void(0)" onclick="jumpToReport('exam_e_ticket')">门票考试明细</a></div>
+  </div>
+
+  <!-- ② 折叠:变体与仪器(为下一版攒证据的研究,不是当前策略成绩) -->
+  <details class="section"><summary style="cursor:pointer;font-size:15px;font-weight:600">▸ 变体与仪器裁决(为 E 下一版攒证据;<span class="tag warn">变体研究</span> / <span class="tag off">仪器</span>)</summary>
+    <div class="card" style="margin-top:8px">
+      <table id="missionVerdictsOther"><thead><tr><th>考试</th><th>口径</th><th>裁什么</th><th>进度</th><th>到线</th></tr></thead><tbody></tbody></table>
+      <h3 style="margin-top:10px">后台工作流(实时 Go 计算)</h3>
+      <table id="missionDoing"><thead><tr><th>工作流</th><th>进度</th></tr></thead><tbody></tbody></table>
+    </div>
+  </details>
+
+  <!-- ③ 折叠:项目全景(路线/编制/候选/门槛) -->
+  <details class="section"><summary style="cursor:pointer;font-size:15px;font-weight:600">▸ 项目全景(六站路线 · 编制四抽屉 · 候选位置 · 门槛表)</summary>
+    <div class="card" style="margin-top:8px">
       <h3>路线图:整个项目一共六站,现在在哪 ↓</h3>
       <div id="missionJourney" style="display:flex;gap:8px;flex-wrap:wrap"></div>
     </div>
-
-    <!-- ③核心:一军 E 的完整流程(触发→闸→下单→出场→改良包) -->
-    <div class="card" style="margin-top:10px;border-left:4px solid var(--accent)">
-      <h3 style="color:var(--text);font-size:14px" id="scName">一军策略</h3>
-      <div class="small" id="scMech" style="padding:8px;background:rgba(140,120,255,.07);border-radius:6px;margin-bottom:10px"></div>
-      <div class="flex" style="gap:14px">
-        <div style="flex:1.4;min-width:340px">
-          <h3>进场流程(每一步带今日实数)</h3>
-          <div id="scSteps"></div>
-        </div>
-        <div style="flex:1;min-width:280px">
-          <h3>出场机器</h3>
-          <div id="scExits"></div>
-          <h3 style="margin-top:12px">改良包(进行时:E 翻身押在这)</h3>
-          <div id="scUpgrade"></div>
-        </div>
-      </div>
-      <div id="scStatus" style="margin-top:10px;padding:8px;background:rgba(255,120,120,.07);border-radius:6px;font-size:13px"></div>
-    </div>
-
-    <!-- ④日历:接下来谁出分 -->
-    <div class="card" style="margin-top:10px">
-      <h3>裁决日历:接下来这些考试会依次"出分"(全部影子考试,零真钱)。口径徽标:<span class="tag on">最新策略</span>=当前版本战绩 · <span class="tag warn">变体研究</span>=下一版候选 · <span class="tag off">仪器</span>=数据基建</h3>
-      <table id="missionVerdicts"><thead><tr><th>考试</th><th>口径</th><th>裁什么</th><th>进度</th><th>到线</th></tr></thead><tbody></tbody></table>
-    </div>
-
-    <!-- ⑤编制:四抽屉,全项目所有东西只在这四格里 -->
-    <div class="card" style="margin-top:10px">
+    <div class="card" style="margin-top:8px">
       <h3>编制四抽屉(全项目一切事物只属于这四格;试错再多也不散)</h3>
       <div id="missionRoster" style="display:flex;gap:10px;flex-wrap:wrap"></div>
     </div>
-
-    <div class="flex" style="margin-top:10px" id="missionCards"></div>
-    <details style="margin-top:10px"><summary class="small" style="cursor:pointer">▸ 展开细节(候选位置/工作流/门槛/流水线,给深查用)</summary>
     <div class="card" style="margin-top:8px">
       <h3>管线全员位置(左半段多车道并行;E在门口=跑得最快,不是只有它)</h3>
       <table id="missionCandidates"><thead><tr><th>候选</th><th>位置</th><th>状态</th></tr></thead><tbody></tbody></table>
     </div>
     <div class="flex" style="margin-top:8px">
       <div class="card" style="min-width:340px;flex:1">
-        <h3>正在做什么(实时 Go 计算)</h3>
-        <table id="missionDoing"><thead><tr><th>工作流</th><th>进度</th></tr></thead><tbody></tbody></table>
-      </div>
-      <div class="card" style="min-width:340px;flex:1">
         <h3>下一步 · 怎么进入(门槛 vs 现值)</h3>
         <table id="missionGates"><thead><tr><th>门</th><th>现值</th><th>要求</th><th>状态</th></tr></thead><tbody></tbody></table>
       </div>
+      <div class="card" style="flex:1;min-width:280px"><h3>目标</h3><div class="small" id="missionGoal"></div></div>
     </div>
-    <div class="flex" style="margin-top:10px">
-      <div class="card" style="flex:1"><h3>目标</h3><div class="small" id="missionGoal"></div></div>
+    <div class="flex" style="margin-top:8px">
       <div class="card" style="flex:1"><h3>真钱阶梯(做到哪一步)</h3><div class="small" id="missionLadder"></div></div>
-      <div class="card" style="flex:1"><h3>整个策略(六层流水线)</h3><div class="small" id="missionPipeline"></div></div>
+      <div class="card" style="flex:1"><h3>整个系统(六层流水线)</h3><div class="small" id="missionPipeline"></div></div>
     </div>
-    </details>
-  </div>
+  </details>
 
-  <div class="section">
-    <h2>策略报告 <span class="small">按时间段/策略,Go 从落盘真数据现算;真金(USDT)与影子(bps)永不混算</span></h2>
-    <div class="card">
+  <!-- ④ 折叠:报告钻取(任意时段/任意口径,真金与影子永不混算) -->
+  <details class="section" id="reportSection"><summary style="cursor:pointer;font-size:15px;font-weight:600">▸ 报告钻取(按时段/口径看任何一条曲线与逐笔明细)</summary>
+    <div class="card" style="margin-top:8px">
       <div class="ctrl" style="flex-wrap:wrap">
         <span id="rangePills">
           <button class="act ghost" onclick="setRange(1)">24h</button>
@@ -161,18 +161,18 @@ a{color:var(--blue);text-decoration:none}
       <h3 style="margin-top:12px">明细(最新 ≤50 笔)</h3>
       <table id="repTrades"><thead><tr><th>时间</th><th>策略</th><th>币</th><th>方向</th><th>净</th><th>持有</th><th>出场原因</th></tr></thead><tbody></tbody></table>
     </div>
-  </div>
+  </details>
 
-  <div class="grid cards" id="accountCards">
-    <div class="card"><h3>账户总权益 (四所合计)</h3><div class="big" id="totalEquity">—</div><div class="small" id="totalUpnl"></div></div>
-    <div class="card"><h3>今日账户变化 (北京0点基准)</h3><div class="big" id="todayEarning">—</div><div class="small" id="todayTrading"></div></div>
-    <div class="card"><h3>今日已实现 (方向结算)</h3><div class="big" id="todayRealized">—</div><div class="small" id="todayTrades"></div></div>
-    <div class="card"><h3>累计已实现</h3><div class="big" id="allTimeRealized">—</div><div class="small" id="allTimeFees"></div></div>
-  </div>
-
-  <div class="section">
-    <h2>各所资金</h2>
-    <div class="card">
+  <!-- ⑤ 折叠:真金与引擎(四所全停,日常无需打开;开火日在这操作) -->
+  <details class="section"><summary style="cursor:pointer;font-size:15px;font-weight:600">▸ 真金与引擎(账户 · 各所资金 · 引擎控制 · 持仓 · 最近结算 —— 当前全停,敞口 0)</summary>
+    <div class="grid cards" id="accountCards" style="margin-top:8px">
+      <div class="card"><h3>账户总权益 (四所合计)</h3><div class="big" id="totalEquity">—</div><div class="small" id="totalUpnl"></div></div>
+      <div class="card"><h3>今日账户变化 (北京0点基准)</h3><div class="big" id="todayEarning">—</div><div class="small" id="todayTrading"></div></div>
+      <div class="card"><h3>今日已实现 (方向结算)</h3><div class="big" id="todayRealized">—</div><div class="small" id="todayTrades"></div></div>
+      <div class="card"><h3>累计已实现</h3><div class="big" id="allTimeRealized">—</div><div class="small" id="allTimeFees"></div></div>
+    </div>
+    <div class="card" style="margin-top:8px">
+      <h3>各所资金</h3>
       <table id="venuesTable"><thead><tr>
         <th>交易所</th><th>钱包总额</th><th>浮盈亏</th><th>今日变化</th><th>今日交易盈亏</th><th>今日收益率</th>
       </tr></thead><tbody></tbody></table>
@@ -184,52 +184,41 @@ a{color:var(--blue);text-decoration:none}
       </div>
       <div class="small" style="margin-top:6px">提现/内部划转前后点一下,风控对账自动消音,不会误报"未解释资金流出"。只记账,不影响任何交易与风控阈值。</div>
     </div>
-  </div>
-
-  <div class="section">
-    <h2>方向引擎</h2>
-    <div class="venue-tabs" id="venueTabs"></div>
-    <div class="flex">
-      <div class="card" style="max-width:430px">
-        <h3>状态与控制 <span id="dirState"></span></h3>
-        <div class="kv" id="dirKV"></div>
-        <div class="ctrl">
-          <label>交易仓本金 USDT<input id="ctlCapital" type="number" step="1"></label>
-          <label>止损 % (本金)<input id="ctlStop" type="number" step="1"></label>
-          <button class="act start" onclick="controlEngine(true)">开始 (LIVE)</button>
-          <button class="act stop" onclick="controlEngine(false)">停止</button>
+    <div class="card" style="margin-top:8px">
+      <h3>方向引擎</h3>
+      <div class="venue-tabs" id="venueTabs"></div>
+      <div class="flex">
+        <div class="card" style="max-width:430px">
+          <h3>状态与控制 <span id="dirState"></span></h3>
+          <div class="kv" id="dirKV"></div>
+          <div class="ctrl">
+            <label>交易仓本金 USDT<input id="ctlCapital" type="number" step="1"></label>
+            <label>止损 % (本金)<input id="ctlStop" type="number" step="1"></label>
+            <button class="act start" onclick="controlEngine(true)">开始 (LIVE)</button>
+            <button class="act stop" onclick="controlEngine(false)">停止</button>
+          </div>
+          <div class="small" style="margin-top:8px">开始=真实下单,须持有控制令牌;停止只停新开仓,在场仓继续按规则管理。</div>
         </div>
-        <div class="small" style="margin-top:8px">开始=真实下单,须持有控制令牌;停止只停新开仓,在场仓继续按规则管理。</div>
+        <div class="card">
+          <h3>仓位级统计 (今日分层 / 全期)</h3>
+          <table id="statsTable"><thead><tr><th></th><th>开仓数</th><th>仓数(平)</th><th>胜率</th><th>PF</th><th>净利</th><th>最大亏</th></tr></thead><tbody>
+            <tr id="statsTodaySlow"><td>今日·慢线</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+            <tr id="statsTodayFast"><td>今日·fast</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+            <tr id="statsAll"><td>全期(合)</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+          </tbody></table>
+          <div class="small" id="statsNote" style="margin-top:6px"></div>
+        </div>
       </div>
-      <div class="card">
-        <h3>仓位级统计 (今日分层 / 全期)</h3>
-        <table id="statsTable"><thead><tr><th></th><th>开仓数</th><th>仓数(平)</th><th>胜率</th><th>PF</th><th>净利</th><th>最大亏</th></tr></thead><tbody>
-          <tr id="statsTodaySlow"><td>今日·慢线</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
-          <tr id="statsTodayFast"><td>今日·fast</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
-          <tr id="statsAll"><td>全期(合)</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
-        </tbody></table>
-        <div class="small" id="statsNote" style="margin-top:6px"></div>
-      </div>
-    </div>
-  </div>
-
-  <div class="section">
-    <h2>在场持仓 <span class="small" id="posSummary"></span></h2>
-    <div class="card">
+      <h3 style="margin-top:10px">在场持仓 <span class="small" id="posSummary"></span></h3>
       <table id="posTable"><thead><tr>
         <th>币种</th><th>方向</th><th>入场价</th><th>数量</th><th>名义</th><th>现价</th><th>浮盈% (本金)</th><th>浮盈 USDT</th><th>regime</th><th>开仓时间</th>
       </tr></thead><tbody></tbody></table>
-    </div>
-  </div>
-
-  <div class="section">
-    <h2>最近结算 (最新 20 笔)</h2>
-    <div class="card">
+      <h3 style="margin-top:10px">最近结算 (最新 20 笔)</h3>
       <table id="recentTable"><thead><tr>
         <th>时间</th><th>币种</th><th>方向</th><th>入场</th><th>出场</th><th>名义</th><th>盈亏</th><th>持有</th><th>原因</th><th>taker开/平</th>
       </tr></thead><tbody></tbody></table>
     </div>
-  </div>
+  </details>
 </main>
 <div id="msg"></div>
 <script>
@@ -400,60 +389,80 @@ async function refreshMission(){
     const r = await fetch("/api/mission", {headers: tokenHeaders()});
     if(!r.ok) throw new Error(await r.text());
     const d = await r.json();
-    document.getElementById("missionPhase").textContent = d.phase + " · " + d.phase_detail;
-    // 一页看懂:大字故事 + 今日焦点 + 旅程图 + 白话卡
-    document.getElementById("missionHeadline").textContent = d.headline || "";
+    document.getElementById("missionPhase").textContent = d.phase;
+    document.getElementById("missionHeadline").textContent = (d.headline||"") + " " + (d.phase_detail||"");
     document.getElementById("missionFocus").innerHTML = "<b>今日焦点:</b> " + (d.today_focus || "");
-    // ①当前策略基准数据(页面主锚:一切数字=当前最新策略口径,历史学费不上页面)
-    const b = d.baseline || {};
-    document.getElementById("baselineLabel").textContent = "当前策略基准:" + (b.since_label||"");
-    const bBox = document.getElementById("missionBaseline"); bBox.innerHTML = "";
-    const bItems = [
-      {t:"前向战绩(判决口径)", v:(b.n||0)+" 笔 · 中位 "+sign(b.net_med_bps)+"bps",
-       s:"PF "+fmt(b.pf)+" · 胜率 "+((b.win_rate||0)*100).toFixed(0)+"% · 净合计 "+sign(b.net_sum_bps)+"bps", tone:b.n>0?b.net_med_bps:0},
-      {t:"杠杆①吐回税(头号漏点)", v:(b.giveback_n||0)+" 单冲上≥5bps",
-       s:(b.giveback_neg_n||0)+" 单最终收负 · 吐回中位 "+fmt(b.giveback_med_bps,1)+"bps ← 棘轮要拧的钱", tone:-(b.giveback_neg_n||0)},
-      {t:"杠杆②棘轮(配对反事实)", v:"rest "+(b.ratchet_rest_n||0)+" 笔 "+(b.ratchet_rest_n?sign(b.ratchet_rest_med_bps)+"bps/笔":"攒样本中"),
-       s:"det 参考 "+(b.ratchet_det_n||0)+" 笔 "+sign(b.ratchet_det_med_bps)+"bps/笔 · 正=棘轮拧回的钱", tone:b.ratchet_rest_n?b.ratchet_rest_med_bps:0},
-      {t:"杠杆③burst弹射(配对反事实)", v:(b.eject_n||0)+" 笔命中 "+(b.eject_n?sign(b.eject_save_med_bps)+"bps/笔":"攒样本中"),
-       s:"持仓遇同币卖方爆量提前弹出可省的钱(开关锁死,数据先行)", tone:b.eject_n?b.eject_save_med_bps:0},
-    ];
-    bItems.forEach(x=>{
-      bBox.insertAdjacentHTML("beforeend",
-        `<div style="flex:1;min-width:210px;padding:8px 10px;border:1px solid var(--border);border-radius:8px">
-           <div class="small">${x.t}</div>
-           <div style="font-size:16px;font-weight:700" class="${cls(x.tone)}">${x.v}</div>
-           <div class="small" style="opacity:.75">${x.s}</div>
-         </div>`);
-    });
-    // ③一军策略流程卡
+
+    // ❶❷ 主舞台:进场管道 + 出场机器(横向节点,今日实数印在节点上)
     const sc = d.strategy_card || {};
     document.getElementById("scName").textContent = sc.name || "一军策略";
     document.getElementById("scMech").innerHTML = "<b>机制:</b>" + (sc.mechanism||"");
-    const stepHTML = (s, arrow)=>{
-      const lockTag = s.state==="locked" ? ' <span class="tag warn">锁</span>' : ' <span class="tag on">开</span>';
-      return `<div style="padding:7px 9px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;${s.state==='locked'?'opacity:.75':''}">
-        <div style="font-weight:600">${arrow?'↓ ':''}${s.name}${lockTag}</div>
-        <div class="small" style="margin-top:2px">${s.detail}</div>
-        ${s.today?`<div class="small" style="margin-top:2px;color:var(--blue)">今日:${s.today}</div>`:""}
-      </div>`;
+    const nodeHTML = (s, i, arr)=>{
+      const lockTag = s.state==="locked" ? '<span class="tag warn">锁</span>' : '<span class="tag on">开</span>';
+      const arrow = i<arr.length-1 ? '<div style="align-self:center;color:var(--muted);font-size:18px">→</div>' : '';
+      return `<div style="flex:1;min-width:170px;padding:7px 9px;border:1px solid var(--border);border-radius:8px;${s.state==='locked'?'opacity:.7;border-style:dashed':''}">
+        <div style="font-weight:600;display:flex;justify-content:space-between;gap:6px">${s.name} ${lockTag}</div>
+        <div class="small" style="margin-top:3px">${s.detail}</div>
+        ${s.today?`<div class="small" style="margin-top:4px;padding:3px 6px;background:rgba(88,166,255,.1);border-radius:4px;color:var(--blue)">${s.today}</div>`:""}
+      </div>${arrow}`;
     };
-    document.getElementById("scSteps").innerHTML = (sc.steps||[]).map((s,i)=>stepHTML(s,i>0)).join("");
-    document.getElementById("scExits").innerHTML = (sc.exits||[]).map(s=>stepHTML(s,false)).join("");
-    document.getElementById("scUpgrade").innerHTML = (sc.upgrade||[]).map(s=>stepHTML(s,false)).join("");
-    document.getElementById("scStatus").innerHTML = "<b>现在卡在:</b>" + (sc.status||"");
-    // ④裁决日历(带口径徽标:哪些是最新策略的成绩,哪些是研究)
-    const vq = document.querySelector("#missionVerdicts tbody"); vq.innerHTML = "";
+    document.getElementById("scSteps").innerHTML = (sc.steps||[]).map((s,i,a)=>nodeHTML(s,i,a)).join("");
+    document.getElementById("scExits").innerHTML = (sc.exits||[]).map((s,i)=>nodeHTML(s,i,[])).join("");
+    document.getElementById("scStatus").innerHTML = "<b>现在的位置:</b>" + (sc.status||"");
+
+    // ❸ 成绩(与管道同一口径)
+    const b = d.baseline || {};
+    document.getElementById("basePerf").innerHTML =
+      `<div style="padding:8px 10px;border:1px solid var(--border);border-radius:8px">
+         <div class="small">${b.since_label||""}</div>
+         <div style="font-size:22px;font-weight:700;margin:4px 0" class="${cls(b.n>0?b.net_med_bps:0)}">${b.n||0} 笔 · 中位 ${sign(b.net_med_bps)}bps</div>
+         <div class="small">PF ${fmt(b.pf)} · 胜率 ${((b.win_rate||0)*100).toFixed(0)}% · 净合计 ${sign(b.net_sum_bps)}bps</div>
+         <div class="small" style="opacity:.7;margin-top:4px">n 小=风暴日闸拦得紧(fail-closed 设计),不是坏事</div>
+       </div>`;
+
+    // ❹ 改良杠杆:漏点→数据→差什么(三行叙事)
+    const levers = [
+      {name:"杠杆① 吐回税", state: b.giveback_n?"data":"wait",
+       leak:"冲上去的浮盈又吐回来(E 头号漏点:确诊窗 53% 冲正单收负)",
+       data:`本口径:${b.giveback_n||0} 单冲上≥5bps,${b.giveback_neg_n||0} 单最终收负,吐回中位 ${fmt(b.giveback_med_bps,1)}bps`,
+       next:"由杠杆②棘轮来拧"},
+      {name:"杠杆② 棘轮出场", state:"data",
+       leak:"出场只认收敛/到点,不认浮盈 → 吐回税",
+       data:`配对反事实:判决口径 ${b.ratchet_rest_n||0} 笔 ${b.ratchet_rest_n?sign(b.ratchet_rest_med_bps)+"bps/笔":"攒样本中"};参考口径 ${b.ratchet_det_n||0} 笔 ${sign(b.ratchet_det_med_bps)}bps/笔(正=拧回的钱)`,
+       next:"判决口径攒够 n≥30 → 连数据递你批"},
+      {name:"杠杆③ burst 弹射", state:"data",
+       leak:"崩盘单一路扛到 -60 灾难线(最大单项亏损源)",
+       data:`配对反事实:${b.eject_n||0} 笔命中,每笔省中位 ${b.eject_n?sign(b.eject_save_med_bps)+"bps":"攒样本中"}(与离线研究 +20 同向)`,
+       next:"开关已装锁死;前向过检+你批准才开"},
+    ];
+    document.getElementById("scLevers").innerHTML = levers.map(l=>
+      `<div style="flex:1;min-width:250px;padding:8px 10px;border:1px solid var(--border);border-radius:8px">
+         <div style="font-weight:600">${l.name}</div>
+         <div class="small" style="margin-top:4px"><span style="color:var(--red)">漏点</span> ${l.leak}</div>
+         <div class="small" style="margin-top:4px"><span style="color:var(--blue)">数据</span> ${l.data}</div>
+         <div class="small" style="margin-top:4px"><span style="color:var(--amber)">下一步</span> ${l.next}</div>
+       </div>`).join("");
+
+    // ❺ 裁决:strategy 留主舞台,variant/instrument 进折叠区
     const scopeTag = s => s==="strategy" ? '<span class="tag on">最新策略</span>'
       : (s==="variant" ? '<span class="tag warn">变体研究</span>' : '<span class="tag off">仪器</span>');
+    const vq = document.querySelector("#missionVerdicts tbody"); vq.innerHTML = "";
+    const vo = document.querySelector("#missionVerdictsOther tbody"); vo.innerHTML = "";
     (d.verdict_queue||[]).forEach(v=>{
       const st = v.done ? '<span class="tag on">已出分</span>' : `<span class="tag off">${v.eta}</span>`;
-      vq.insertAdjacentHTML("beforeend", `<tr><td style="white-space:normal;min-width:150px"><b>${v.name}</b></td>
-        <td>${scopeTag(v.scope)}</td>
-        <td style="white-space:normal" class="small">${v.question}</td>
-        <td class="small">${v.progress}</td><td>${st}</td></tr>`);
+      if(v.scope==="strategy"){
+        vq.insertAdjacentHTML("beforeend", `<tr><td style="white-space:normal;min-width:150px"><b>${v.name}</b></td>
+          <td style="white-space:normal" class="small">${v.question}</td>
+          <td class="small">${v.progress}</td><td>${st}</td></tr>`);
+      }else{
+        vo.insertAdjacentHTML("beforeend", `<tr><td style="white-space:normal;min-width:150px"><b>${v.name}</b></td>
+          <td>${scopeTag(v.scope)}</td>
+          <td style="white-space:normal" class="small">${v.question}</td>
+          <td class="small">${v.progress}</td><td>${st}</td></tr>`);
+      }
     });
-    // ⑤编制四抽屉
+
+    // 折叠区:编制四抽屉
     const ro = document.getElementById("missionRoster"); ro.innerHTML = "";
     (d.roster||[]).forEach(g=>{
       ro.insertAdjacentHTML("beforeend",
@@ -480,16 +489,6 @@ async function refreshMission(){
       const hl = c.front ? ' style="background:rgba(80,180,120,.12);font-weight:600"' : "";
       cand.insertAdjacentHTML("beforeend", `<tr${hl}><td>${c.front?"📍 ":""}${c.name}</td><td>${c.stage}</td><td class="small">${c.note}</td></tr>`);
     });
-    const cards = document.getElementById("missionCards"); cards.innerHTML = "";
-    (d.plain_cards||[]).forEach(c=>{
-      const col = c.tone==="good" ? "#4a9" : (c.tone==="bad" ? "#c66" : "#888");
-      cards.insertAdjacentHTML("beforeend",
-        `<div class="card" style="flex:1;min-width:220px;border-top:3px solid ${col}">
-           <div class="small">${c.title}</div>
-           <div style="font-size:20px;font-weight:700;margin:4px 0">${c.value}</div>
-           <div class="small" style="opacity:.8">${c.explain}</div>
-         </div>`);
-    });
     const doing = document.querySelector("#missionDoing tbody"); doing.innerHTML="";
     (d.doing||[]).forEach(x=>{
       doing.insertAdjacentHTML("beforeend", `<tr><td>${x.name}${x.note?`<div class="small">${x.note}</div>`:""}</td><td>${x.metric}</td></tr>`);
@@ -512,9 +511,24 @@ async function refreshMission(){
   }catch(err){ console.warn("mission", err); }
 }
 
+// ===== 主舞台成绩曲线:自动加载 ★E·当前版本(e_current 断代键,与管道/基准同源) =====
+async function refreshECurve(){
+  try{
+    const params = new URLSearchParams({from:"2026-07-08T04:34:00Z", to:new Date().toISOString(), strategy:"e_current"});
+    const r = await fetch("/api/strategy-report?"+params, {headers: tokenHeaders()});
+    if(!r.ok) throw new Error(await r.text());
+    const d = await r.json();
+    drawCurve(document.getElementById("eCurve"), d.curve||[], d.curve_unit||"bps");
+    const last = (d.trades||[])[0];
+    document.getElementById("eCurveNote").textContent =
+      "累计净值(bps,影子口径)· 每一枪=管道❶全闸通过的那批 · 最近一笔:" + (last ? (ts(last.time)+" "+last.symbol+" "+sign(last.net)+"bps("+(last.reason||"")+")") : "暂无");
+  }catch(err){ console.warn("eCurve", err); }
+}
+
 // ===== 策略报告 =====
-// jumpToReport 从"一页看懂"任意门/卡跳到策略报告:预选口径+近2天+滚动到位。
+// jumpToReport 从主舞台任意数字跳到报告钻取:展开折叠+预选口径+近2天+滚动到位。
 function jumpToReport(key){
+  document.getElementById("reportSection").open = true;
   const sel = document.getElementById("repStrategy");
   if(![...sel.options].some(o=>o.value===key)){
     sel.insertAdjacentHTML("beforeend", `<option value="${key}">${key}</option>`);
@@ -556,7 +570,7 @@ async function loadReport(){
       `<span>影子策略</span><b>${(d.strategies||[]).filter(s=>s.virtual).length} 条(bps 口径,单列)</b>`+
       `<span>窗口</span><b>${ts(d.from)} → ${ts(d.to)}</b>`;
     // 曲线
-    drawCurve(d.curve||[], d.curve_unit);
+    drawCurve(document.getElementById("repCurve"), d.curve||[], d.curve_unit);
     document.getElementById("repCurveNote").textContent =
       (d.strategy? "曲线=策略 "+d.strategy+"(单位 "+d.curve_unit+")" : "曲线=真金合计(USDT)") + " · 累计净值,共 "+(d.curve||[]).length+" 点";
     // 分策略表
@@ -580,8 +594,8 @@ async function loadReport(){
     });
   }catch(err){ toast("报告加载失败: "+err.message, true); }
 }
-function drawCurve(pts, unit){
-  const cv = document.getElementById("repCurve"), ctx = cv.getContext("2d");
+function drawCurve(cv, pts, unit){
+  const ctx = cv.getContext("2d");
   ctx.clearRect(0,0,cv.width,cv.height);
   if(!pts.length){ ctx.fillStyle="#888"; ctx.fillText("窗口内无数据", 20, 30); return; }
   const xs = pts.map(p=>new Date(p.t).getTime()), ys = pts.map(p=>p.cum);
@@ -620,10 +634,11 @@ document.getElementById("token").value = localStorage.getItem("lx_token")||"";
 (function(){ const t = localStorage.getItem("lx_token"); if(t && !document.cookie.includes("lx_token=")) document.cookie = "lx_token=" + encodeURIComponent(t) + "; path=/; max-age=31536000; SameSite=Strict"; })();
 renderTabs();
 refreshAccount(); refreshDirectional();
-refreshMission(); setRange(1);
+refreshMission(); refreshECurve(); setRange(1);
 setInterval(refreshAccount, 15000);
 setInterval(refreshDirectional, 5000);
 setInterval(refreshMission, 30000);
+setInterval(refreshECurve, 60000);
 </script>
 </body>
 </html>
