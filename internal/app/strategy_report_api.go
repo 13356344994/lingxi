@@ -81,6 +81,8 @@ func stratLabel(key string) string {
 		"fast_xgap_rev": "fast·E捡便宜", "shadow_e_det": "E影子·探测口径",
 		"shadow_e_rest": "E影子·REST可执行口径", "shadow_e_mkr": "E影子·maker挂单口径",
 		"shadow_e_v0": "E影子·v0早期行(未标口径)",
+		"exam_e_cell":   "【考试】E格子口径(新鲜×派班)",
+		"exam_e_ticket": "【考试】E探针门票(格子×残余带)←门槛表那行数字的明细",
 	}
 	if v, ok := m[key]; ok {
 		return v
@@ -204,7 +206,26 @@ func loadStratTradesReal(recordDir string, from, to time.Time) []stratTrade {
 	return out
 }
 
+// examKeysForLedgerRow 纯函数:账本行额外归属的考试口径键(用户"考试数字看不到明细/选不了时段"
+// 之诉的修复——考试口径成为一等策略键,与 shadow_e_* 并列进报告,可选时段/看逐笔/画曲线)。
+// exam_e_cell   = E格子口径(rest × 新鲜 × 派班)
+// exam_e_ticket = E探针门票/残余带口径(格子 × REST残余∈[-40,-20]),即面板门槛表那行数字的明细。
+func examKeysForLedgerRow(src string, bits int) []string {
+	if src != "rest" {
+		return nil
+	}
+	var keys []string
+	if bits&pbFresh != 0 && bits&pbDutyXgap != 0 {
+		keys = append(keys, "exam_e_cell")
+		if bits&pbResidual2040 != 0 {
+			keys = append(keys, "exam_e_ticket")
+		}
+	}
+	return keys
+}
+
 // loadStratTradesVirtual 读粒子账本 → 影子交易行(bps;unfilled 行剔除)。
+// 考试口径行为同一笔的多键投影(聚合按键独立,真金/影子仍永不混算)。
 func loadStratTradesVirtual(recordDir string, from, to time.Time) []stratTrade {
 	path := filepath.Join(recordDir, "okx_directional", fastParticleLedgerFile)
 	recs, err := loadTailJSONLFile[fastLedgerRow](path, time.Time{}, 0)
@@ -220,11 +241,17 @@ func loadStratTradesVirtual(recordDir string, from, to time.Time) []stratTrade {
 		if src == "" {
 			src = "v0" // 账本 v0 早期行无口径标注(det 前身),单列不并桶
 		}
-		out = append(out, stratTrade{
+		base := stratTrade{
 			Time: r.Time, Venue: "okx", Symbol: r.Symbol, Side: "long",
 			Strategy: "shadow_e_" + src, Net: r.NetBps,
 			Reason: r.Exit, HoldSec: r.HoldSec, Virtual: true,
-		})
+		}
+		out = append(out, base)
+		for _, k := range examKeysForLedgerRow(src, r.Bits) {
+			t := base
+			t.Strategy = k
+			out = append(out, t)
+		}
 	}
 	return out
 }

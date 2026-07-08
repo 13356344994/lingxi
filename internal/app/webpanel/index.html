@@ -398,8 +398,12 @@ async function refreshMission(){
       doing.insertAdjacentHTML("beforeend", `<tr><td>${x.name}${x.note?`<div class="small">${x.note}</div>`:""}</td><td>${x.metric}</td></tr>`);
     });
     const gates = document.querySelector("#missionGates tbody"); gates.innerHTML="";
+    const gateJump = {"残余带闸":"exam_e_ticket"};
     (d.gates||[]).forEach(g=>{
-      gates.insertAdjacentHTML("beforeend", `<tr><td>${g.name}${g.note?`<div class="small">${g.note}</div>`:""}</td><td>${g.current}</td><td>${g.required}</td><td class="${g.pass?'pos':'neg'}">${g.pass?"✓ 过":"未过"}</td></tr>`);
+      let jump = "";
+      for(const k in gateJump){ if(g.name.includes(k)) jump = gateJump[k]; }
+      const link = jump ? ` <a href="javascript:void(0)" onclick="jumpToReport('${jump}')" style="font-size:12px">▸看逐笔明细/选时段</a>` : "";
+      gates.insertAdjacentHTML("beforeend", `<tr><td>${g.name}${link}${g.note?`<div class="small">${g.note}</div>`:""}</td><td>${g.current}</td><td>${g.required}</td><td class="${g.pass?'pos':'neg'}">${g.pass?"✓ 过":"未过"}</td></tr>`);
     });
     document.getElementById("missionGoal").innerHTML = (d.goal||[]).map(x=>"· "+x).join("<br>") +
       (d.certified&&d.certified.length?("<br><b>持证:</b>"+d.certified.join(";")):"");
@@ -412,6 +416,16 @@ async function refreshMission(){
 }
 
 // ===== 策略报告 =====
+// jumpToReport 从"一页看懂"任意门/卡跳到策略报告:预选口径+近2天+滚动到位。
+function jumpToReport(key){
+  const sel = document.getElementById("repStrategy");
+  if(![...sel.options].some(o=>o.value===key)){
+    sel.insertAdjacentHTML("beforeend", `<option value="${key}">${key}</option>`);
+  }
+  sel.value = key;
+  setRange(2);
+  document.getElementById("repStrategy").scrollIntoView({behavior:"smooth", block:"center"});
+}
 function toLocalInput(dt){ const p=n=>String(n).padStart(2,"0"); return dt.getFullYear()+"-"+p(dt.getMonth()+1)+"-"+p(dt.getDate())+"T"+p(dt.getHours())+":"+p(dt.getMinutes()); }
 function setRange(days){
   const to = new Date();
