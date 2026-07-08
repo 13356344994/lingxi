@@ -68,11 +68,12 @@ a{color:var(--blue);text-decoration:none}
   <div class="section">
     <h2>一页看懂 <span class="small" id="missionPhase"></span></h2>
 
-    <!-- ①锚:一句话+今日焦点+真金账目(先回答"钱怎么样了/现在还流血吗") -->
+    <!-- ①锚:一句话+今日焦点+当前策略基准数据(页面一切数字以当前最新策略口径为基准) -->
     <div class="card" style="border-left:4px solid #4a9">
       <div id="missionHeadline" style="font-size:16px;font-weight:600;line-height:1.5"></div>
       <div id="missionFocus" style="margin-top:8px;padding:8px;background:rgba(255,200,60,.08);border-radius:6px;font-size:14px"></div>
-      <div id="missionMoney" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px"></div>
+      <div class="small" id="baselineLabel" style="margin-top:10px;font-weight:600"></div>
+      <div id="missionBaseline" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:6px"></div>
     </div>
 
     <!-- ②路线:六站旅程,你在这里 -->
@@ -403,23 +404,28 @@ async function refreshMission(){
     // 一页看懂:大字故事 + 今日焦点 + 旅程图 + 白话卡
     document.getElementById("missionHeadline").textContent = d.headline || "";
     document.getElementById("missionFocus").innerHTML = "<b>今日焦点:</b> " + (d.today_focus || "");
-    // ①真金账目(锚)
-    const m = d.money || {};
-    const moneyBox = document.getElementById("missionMoney"); moneyBox.innerHTML = "";
-    const moneyItems = [
-      {t:"历史学费·慢线(本地账本)", v:sign(m.slow_tuition_usdt)+" U", s:(m.slow_n||0)+" 笔 · 07-07 已全停", tone:m.slow_tuition_usdt},
-      {t:"历史学费·fast(本地账本)", v:sign(m.fast_tuition_usdt)+" U", s:(m.fast_n||0)+" 笔 · 07-04 已停火", tone:m.fast_tuition_usdt},
-      {t:"全停以来真金损益", v:sign(m.since_stop_usdt)+" U", s:(m.since_stop_n||0)+" 笔在场仓收尾 · 现在敞口=0", tone:m.since_stop_n===0?1:m.since_stop_usdt},
+    // ①当前策略基准数据(页面主锚:一切数字=当前最新策略口径,历史学费不上页面)
+    const b = d.baseline || {};
+    document.getElementById("baselineLabel").textContent = "当前策略基准:" + (b.since_label||"");
+    const bBox = document.getElementById("missionBaseline"); bBox.innerHTML = "";
+    const bItems = [
+      {t:"前向战绩(判决口径)", v:(b.n||0)+" 笔 · 中位 "+sign(b.net_med_bps)+"bps",
+       s:"PF "+fmt(b.pf)+" · 胜率 "+((b.win_rate||0)*100).toFixed(0)+"% · 净合计 "+sign(b.net_sum_bps)+"bps", tone:b.n>0?b.net_med_bps:0},
+      {t:"杠杆①吐回税(头号漏点)", v:(b.giveback_n||0)+" 单冲上≥5bps",
+       s:(b.giveback_neg_n||0)+" 单最终收负 · 吐回中位 "+fmt(b.giveback_med_bps,1)+"bps ← 棘轮要拧的钱", tone:-(b.giveback_neg_n||0)},
+      {t:"杠杆②棘轮(配对反事实)", v:"rest "+(b.ratchet_rest_n||0)+" 笔 "+(b.ratchet_rest_n?sign(b.ratchet_rest_med_bps)+"bps/笔":"攒样本中"),
+       s:"det 参考 "+(b.ratchet_det_n||0)+" 笔 "+sign(b.ratchet_det_med_bps)+"bps/笔 · 正=棘轮拧回的钱", tone:b.ratchet_rest_n?b.ratchet_rest_med_bps:0},
+      {t:"杠杆③burst弹射(配对反事实)", v:(b.eject_n||0)+" 笔命中 "+(b.eject_n?sign(b.eject_save_med_bps)+"bps/笔":"攒样本中"),
+       s:"持仓遇同币卖方爆量提前弹出可省的钱(开关锁死,数据先行)", tone:b.eject_n?b.eject_save_med_bps:0},
     ];
-    moneyItems.forEach(x=>{
-      moneyBox.insertAdjacentHTML("beforeend",
-        `<div style="flex:1;min-width:180px;padding:8px 10px;border:1px solid var(--border);border-radius:8px">
+    bItems.forEach(x=>{
+      bBox.insertAdjacentHTML("beforeend",
+        `<div style="flex:1;min-width:210px;padding:8px 10px;border:1px solid var(--border);border-radius:8px">
            <div class="small">${x.t}</div>
-           <div style="font-size:18px;font-weight:700" class="${cls(x.tone)}">${x.v}</div>
+           <div style="font-size:16px;font-weight:700" class="${cls(x.tone)}">${x.v}</div>
            <div class="small" style="opacity:.75">${x.s}</div>
          </div>`);
     });
-    if(m.caveat) moneyBox.insertAdjacentHTML("beforeend", `<div class="small" style="flex-basis:100%;opacity:.6">${m.caveat}</div>`);
     // ③一军策略流程卡
     const sc = d.strategy_card || {};
     document.getElementById("scName").textContent = sc.name || "一军策略";

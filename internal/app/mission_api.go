@@ -69,18 +69,104 @@ type missionCandidate struct {
 	Front bool   `json:"front"` // 是否站在探针门口(当前唯一实盘候选)
 }
 
-// missionMoney 真金账目(全部从四所 settlements 现算,交易所实扣口径)。
-// 回答"试错花了多少钱/现在还在流血吗"——找回方向的第一根锚。
-type missionMoney struct {
-	SlowTuitionUSDT float64 `json:"slow_tuition_usdt"` // 慢线累计已实现(四所)
-	FastTuitionUSDT float64 `json:"fast_tuition_usdt"` // fast 层累计已实现(v1+v2 学费)
-	SlowN           int     `json:"slow_n"`
-	FastN           int     `json:"fast_n"`
-	SinceStopUSDT   float64 `json:"since_stop_usdt"` // 慢线全停(07-07 21:39 BJ)以来真金损益
-	SinceStopN      int     `json:"since_stop_n"`
-	// 诚实标注:本地 settlements 少 6-28→7-02 的行(07-02 工作区抹除事故,交易真实发生
-	// 数据在交易所);全期真实学费口径 慢线≈-52U / fast≈-51U(HANDOFF 登记数)。
-	Caveat string `json:"caveat"`
+// missionBaseline 当前最新策略基准数据(2026-07-08 用户重心指令:"页面数据一定以当前最新策略
+// 为基准"+"历史学费不上页面")。基准=E×格子三闸口径(04:34Z 部署后 rest 行=全闸通过的可执行
+// 口径,与探针开火时真枪同一批);杠杆=改良包三件的配对反事实现算(工程师口径:只答"哪个杠杆
+// 能把结果拧好多少",不记分)。
+type missionBaseline struct {
+	SinceLabel string  `json:"since_label"`
+	N          int     `json:"n"`
+	NetMedBps  float64 `json:"net_med_bps"`
+	NetSumBps  float64 `json:"net_sum_bps"`
+	PF         float64 `json:"pf"`
+	WinRate    float64 `json:"win_rate"`
+	// 吐回税监视(E 头号漏点:冲上去又吐回来的钱)
+	GivebackN      int     `json:"giveback_n"`     // 峰值≥5bps 的单数
+	GivebackNegN   int     `json:"giveback_neg_n"` // 其中最终收负
+	GivebackMedBps float64 `json:"giveback_med_bps"`
+	// 棘轮杠杆(配对反事实:同一笔 棘轮出场-原版出场,正=棘轮拧回的钱)
+	RatchetRestN      int     `json:"ratchet_rest_n"`
+	RatchetRestMedBps float64 `json:"ratchet_rest_med_bps"`
+	RatchetDetN       int     `json:"ratchet_det_n"` // det 提名口径参考(rest 供给低时先看方向)
+	RatchetDetMedBps  float64 `json:"ratchet_det_med_bps"`
+	// 弹射杠杆(配对反事实:burst 时刻弹出 vs 实际拿到,正=弹射省下的钱)
+	EjectN         int     `json:"eject_n"`
+	EjectSaveMedBps float64 `json:"eject_save_med_bps"`
+}
+
+func medianOf(xs []float64) float64 {
+	if len(xs) == 0 {
+		return 0
+	}
+	s := append([]float64(nil), xs...)
+	sort.Float64s(s)
+	if n := len(s); n%2 == 1 {
+		return s[n/2]
+	} else {
+		return (s[n/2-1] + s[n/2]) / 2
+	}
+}
+
+// missionBaselineFromRows 纯函数:账本行 → 当前策略基准(可单测)。
+// sinceCell=三闸口径起点(04:34Z 部署);E 模块行 only,unfilled 剔除。
+func missionBaselineFromRows(rows []fastLedgerRow, sinceCell time.Time) missionBaseline {
+	b := missionBaseline{SinceLabel: "三闸格子口径(07-08 12:34 BJ 部署)后可执行(rest)前向"}
+	var nets []float64
+	var giveback []float64
+	var ratchetRest, ratchetDet, ejectSave []float64
+	gp, gl, wins := 0.0, 0.0, 0
+	for _, r := range rows {
+		if (r.Module != "" && r.Module != "e") || r.Exit == "unfilled" {
+			continue
+		}
+		// 杠杆反事实:标注存在即可配对(不限窗;标注字段 07-08 14:59 BJ 起才有=天然封样)
+		if r.TrailFired {
+			d := r.TrailExitBps - r.NetBps
+			switch r.Src {
+			case "rest":
+				ratchetRest = append(ratchetRest, d)
+			case "det":
+				ratchetDet = append(ratchetDet, d)
+			}
+		}
+		if r.BurstDuringHold && r.Src == "rest" {
+			ejectSave = append(ejectSave, r.RetAtBurstBps-r.GrossBps)
+		}
+		// 基准战绩:三闸口径后 rest 行
+		if r.Src != "rest" || r.T0.Before(sinceCell) {
+			continue
+		}
+		b.N++
+		nets = append(nets, r.NetBps)
+		b.NetSumBps += r.NetBps
+		if r.NetBps > 0 {
+			wins++
+			gp += r.NetBps
+		} else {
+			gl -= r.NetBps
+		}
+		if r.PeakBps >= 5 {
+			b.GivebackN++
+			giveback = append(giveback, r.PeakBps-r.NetBps)
+			if r.NetBps < 0 {
+				b.GivebackNegN++
+			}
+		}
+	}
+	b.NetMedBps = medianOf(nets)
+	if gl > 0 {
+		b.PF = gp / gl
+	} else if gp > 0 {
+		b.PF = 99
+	}
+	if b.N > 0 {
+		b.WinRate = float64(wins) / float64(b.N)
+	}
+	b.GivebackMedBps = medianOf(giveback)
+	b.RatchetRestN, b.RatchetRestMedBps = len(ratchetRest), medianOf(ratchetRest)
+	b.RatchetDetN, b.RatchetDetMedBps = len(ratchetDet), medianOf(ratchetDet)
+	b.EjectN, b.EjectSaveMedBps = len(ejectSave), medianOf(ejectSave)
+	return b
 }
 
 // missionFlowStep E 策略流程一步(带今日实数=漏斗计数器现算)。
@@ -127,8 +213,9 @@ type missionResponse struct {
 	TodayFocus string               `json:"today_focus"` // 今日焦点:现在唯一值得看的一件事(机器自动挑)
 	Journey    []missionJourneyStop `json:"journey"`     // 六站旅程图:你在这里
 	PlainCards []missionPlainCard   `json:"plain_cards"` // 白话数字卡
-	// ===== 找回方向四件套(2026-07-08 用户"试错太多,流程认识不清晰"之诉)=====
-	Money        missionMoney        `json:"money"`         // 真金账目(学费/敞口/停火后损益)
+	// ===== 找回方向四件套(2026-07-08 用户"试错太多,流程认识不清晰"之诉;
+	// 同日重心纠偏:页面数据以当前最新策略为基准,历史学费不上页面)=====
+	Baseline     missionBaseline     `json:"baseline"`      // 当前策略基准+改良包杠杆现算
 	StrategyCard missionStrategyCard `json:"strategy_card"` // 一军 E 完整流程(带今日漏斗实数)
 	Roster       []missionRosterGroup `json:"roster"`       // 编制四抽屉(一军/仪器/冷藏/坟场)
 	VerdictQueue []missionVerdict    `json:"verdict_queue"` // 裁决日历(接下来谁出分)
@@ -162,7 +249,8 @@ func missionTodayFocus(resDone, resPass bool, resN int, resMed, resPF float64, m
 	}
 	head := "今天没有需要你做的事。"
 	if resDone && !resPass {
-		head = fmt.Sprintf("E 的探针门票已判负(n=%d 净中位%+.1f PF%.2f)→按预注册回炉,不发证不开枪。", resN, resMed, resPF)
+		// 工程师口径(07-08 用户重心指令):不停在"判负",直接指向改良杠杆。
+		head = fmt.Sprintf("E 门票首轮未过门(n=%d 中位%+.1f PF%.2f)→当前重心=改良包三杠杆(三闸/弹射/棘轮)前向对比,页面基准数据即该口径。", resN, resMed, resPF)
 	}
 	if len(waits) == 0 {
 		return head + " 机器在无人值守攒证据。"
@@ -270,34 +358,16 @@ func missionProbeStats(recordDir string, now time.Time) (n1h, inc1h int, hoursAc
 	return n1h, inc1h, now.Sub(first).Hours()
 }
 
-// missionSlowStopAt 慢线全停时刻(㉟,2026-07-07 21:39 BJ)= 真金账目"停火后损益"的分界。
-var missionSlowStopAt = time.Date(2026, 7, 7, 13, 39, 0, 0, time.UTC)
+// missionSealCellGates 三闸格子口径部署时刻(㊷,07-08 04:34Z)= 当前策略基准窗起点。
+var missionSealCellGates = time.Date(2026, 7, 8, 4, 34, 0, 0, time.UTC)
 
-// missionScanMoney 四所 settlements + fast 结算 → 真金账目(交易所实扣口径现算)。
-func missionScanMoney(recordDir string) missionMoney {
-	var m missionMoney
-	for _, vn := range directionalVenueNames {
-		path := filepath.Join(directionalRecordDir(recordDir, vn), okxDirectionalSettlementsFile)
-		recs, err := loadTailJSONLFile[okxDirectionalSettlement](path, time.Time{}, 0)
-		if err != nil {
-			continue
-		}
-		for _, r := range recs {
-			if strings.EqualFold(strings.TrimSpace(r.Regime), "fast") {
-				m.FastTuitionUSDT += r.RealizedUSDT
-				m.FastN++
-			} else {
-				m.SlowTuitionUSDT += r.RealizedUSDT
-				m.SlowN++
-			}
-			if !r.Time.Before(missionSlowStopAt) {
-				m.SinceStopUSDT += r.RealizedUSDT
-				m.SinceStopN++
-			}
-		}
+// missionScanBaseline 读粒子账本 → 当前策略基准+改良包杠杆(页面主展示,现算)。
+func missionScanBaseline(recordDir string) missionBaseline {
+	rows, err := loadTailJSONLFile[fastLedgerRow](filepath.Join(recordDir, "okx_directional", fastParticleLedgerFile), time.Time{}, 0)
+	if err != nil {
+		return missionBaseline{SinceLabel: "账本不可读"}
 	}
-	m.Caveat = "本地账本缺 6-28→7-02 行(工作区事故,原始成交在交易所);全期真实学费口径:慢线≈-52U、fast≈-51U(HANDOFF 登记)。"
-	return m
+	return missionBaselineFromRows(rows, missionSealCellGates)
 }
 
 // missionBuildStrategyCard 一军 E 完整流程卡:规则=冻结口径(config 真值),今日实数=漏斗计数器。
@@ -357,7 +427,7 @@ func missionBuildStrategyCard(cfg OKXDirectionalConfig, fn fastXgapFunnelStats) 
 			{Name: "burst 弹射(已装锁死)", State: "locked", Detail: "治最大单项亏损源(崩盘单);等前向数据+用户批"},
 			{Name: "棘轮出场(账本标注中)", State: "locked", Detail: "治吐回税(53%冲正单收负,吐回中位40.6bps);账本逐tick攒精确反事实,不动实枪"},
 		},
-		Status: "门票考试(残余带前向 n≥30)首轮判负→回炉;改良包三件的「改良包 vs 原版」前向对比表是 E 能否翻身的裁决文件。",
+		Status: "当前版本=三闸口径(页面基准数据即它);在拧的三个杠杆=三闸(已开)/弹射(锁,攒反事实)/棘轮(锁,攒反事实)——「改良包 vs 原版」前向对比表出数后定 E 的下一版口径。",
 	}
 }
 
@@ -445,19 +515,19 @@ func (s *DashboardServer) handleMissionAPI(w http.ResponseWriter, r *http.Reques
 	}
 
 	// ===== 找回方向四件套 =====
-	money := missionScanMoney(dir)
+	baseline := missionScanBaseline(dir)
 	funnel := fastXgapFunnelSnapshot(now)
 	card := missionBuildStrategyCard(cfg, funnel)
 	roster := missionBuildRoster()
 	verdicts := []missionVerdict{
-		{Name: "E 探针门票(残余带闸,首轮)", Done: led.ResidualN >= 30,
-			ETA:      onOff(led.ResidualN >= 30, "已到线出分", fmt.Sprintf("还差 %d 笔到 30", 30-led.ResidualN)),
-			Progress: fmt.Sprintf("n=%d 净中位%+.1f PF%.2f", led.ResidualN, led.ResidualMed, led.ResidualPF),
-			Question: "E 按格子口径打,真的赚钱吗?→ 首轮判负,回炉"},
-		{Name: "改良包 vs 原版 E(前向对比)",
+		{Name: "改良包 vs 原版 E(前向对比)——头号",
 			ETA:      "rest 供给恢复后攒样本(风暴日 fail-closed 供给极低)",
-			Progress: "弹射/棘轮标注已在账本自动积累",
-			Question: "三闸+弹射+棘轮能否把 E 拧回正期望?E 翻身与否的裁决文件"},
+			Progress: fmt.Sprintf("棘轮配对 rest=%d/det=%d 笔,弹射配对 %d 笔,自动积累中", baseline.RatchetRestN, baseline.RatchetDetN, baseline.EjectN),
+			Question: "三闸+弹射+棘轮各拧回多少 bps?E 下一版口径的裁决文件"},
+		{Name: "E 探针门票(残余带闸)", Done: led.ResidualN >= 30,
+			ETA:      onOff(led.ResidualN >= 30, "首轮已出分", fmt.Sprintf("还差 %d 笔到 30", 30-led.ResidualN)),
+			Progress: fmt.Sprintf("n=%d 净中位%+.1f PF%.2f", led.ResidualN, led.ResidualMed, led.ResidualPF),
+			Question: "首轮未过门;改良口径继续攒,过门才谈探针"},
 		{Name: "全市场磁带 24h 裁决",
 			ETA:      fmt.Sprintf("还差 %.0f 小时(满 24h)", max(0, 24-probeHours)),
 			Progress: fmt.Sprintf("已攒 %.1f/24h", probeHours),
@@ -474,7 +544,7 @@ func (s *DashboardServer) handleMissionAPI(w http.ResponseWriter, r *http.Reques
 
 	resp := missionResponse{
 		Now: now, Phase: phase, PhaseDetail: detail,
-		Money: money, StrategyCard: card, Roster: roster, VerdictQueue: verdicts,
+		Baseline: baseline, StrategyCard: card, Roster: roster, VerdictQueue: verdicts,
 		Goal: []string{
 			"使命:分拣器分拣后,派给排列好的粒子组合交易盈利(费率飞轮只是次要放大器)。",
 			"两道门(登记,HANDOFF §-7C):利润引擎门=中位≥18bps;飞轮引擎门=中位≥12bps。",
@@ -512,8 +582,8 @@ func (s *DashboardServer) handleMissionAPI(w http.ResponseWriter, r *http.Reques
 	// 管线全员位置表:左半段(海选/发证)多车道并行,右半段(探针起)当前单车道。
 	// E 在门口不是钦点,是唯一"枪已造好+三闸硬化+考试走完几轮"的候选;其余照跑未被压制。
 	resp.Candidates = []missionCandidate{
-		{Name: "E 跨所捡便宜货", Stage: "②→③ 探针门口(回炉改良)", Front: true,
-			Note: fmt.Sprintf("门票首轮判负(n=%d 中位%+.1f)→回炉;改良包(三闸+弹射+棘轮)前向对比表=翻身裁决文件", led.ResidualN, led.ResidualMed)},
+		{Name: "E 跨所捡便宜货", Stage: "②→③ 探针门口(改良中)", Front: true,
+			Note: fmt.Sprintf("当前=三闸口径攒前向(门票 n=%d);三杠杆(三闸/弹射/棘轮)对比表出数定下一版", led.ResidualN)},
 		{Name: "烟花反手刀", Stage: "①影子海选", Note: "力竭×拉升≥60×点差≤6;前向判决攒样本(阅卷人自动)"},
 		{Name: "开盘反隔夜(股票perp)", Stage: "①影子海选", Note: "按簇攒(周一开盘=肥簇假说);每天自动+1-2簇"},
 		{Name: "火灾瀑布刀", Stage: "①影子海选", Note: "组合判决屡败;等真风暴锚或费率降档,值班表内影子记账"},

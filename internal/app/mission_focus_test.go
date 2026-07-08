@@ -11,10 +11,10 @@ func TestMissionTodayFocus(t *testing.T) {
 	if s := missionTodayFocus(true, true, 35, 5.0, 1.5, 3, 120, 30); !strings.Contains(s, "等你拍板") {
 		t.Fatalf("门票过检应提示拍板,got %q", s)
 	}
-	// 门票判负 → 回炉说明 + 最近裁决点
+	// 门票未过 → 工程师口径:指向改良杠杆,不停在结果好坏(07-08 用户重心指令)
 	s := missionTodayFocus(true, false, 38, -9.1, 0.44, 0.5, 40, 10)
-	if !strings.Contains(s, "判负") || !strings.Contains(s, "回炉") {
-		t.Fatalf("判负应如实说明,got %q", s)
+	if !strings.Contains(s, "未过门") || !strings.Contains(s, "改良包") {
+		t.Fatalf("未过门应指向改良杠杆,got %q", s)
 	}
 	if !strings.Contains(s, "maker") {
 		t.Fatalf("应给出最近裁决点,got %q", s)

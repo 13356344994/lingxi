@@ -34,6 +34,44 @@ func TestFastXgapFunnel(t *testing.T) {
 	}
 }
 
+// TestMissionBaselineFromRows 当前策略基准纯函数:窗口过滤/模块过滤/配对杠杆算术。
+func TestMissionBaselineFromRows(t *testing.T) {
+	seal := time.Date(2026, 7, 8, 4, 34, 0, 0, time.UTC)
+	before := seal.Add(-time.Hour)
+	after := seal.Add(time.Hour)
+	rows := []fastLedgerRow{
+		// 窗内 rest:计入基准;peak≥5 计吐回;trail 配对 +7
+		{Src: "rest", T0: after, NetBps: 3, GrossBps: 15, PeakBps: 10, TrailFired: true, TrailExitBps: 10},
+		// 窗内 rest 亏单:peak≥5 且收负 → giveback_neg
+		{Src: "rest", T0: after, NetBps: -8, GrossBps: 4, PeakBps: 6},
+		// 窗前 rest:不计基准,但 trail 标注仍配对(标注天然封样)
+		{Src: "rest", T0: before, NetBps: 20, GrossBps: 32, TrailFired: true, TrailExitBps: 15},
+		// det 行:不计基准,trail 配对进 det 参考
+		{Src: "det", T0: after, NetBps: 0, GrossBps: 12, TrailFired: true, TrailExitBps: 6},
+		// fire 模块:全部排除
+		{Src: "rest", Module: "fire", T0: after, NetBps: 100, TrailFired: true, TrailExitBps: 200},
+		// 弹射配对:burst 时刻 +9,最终 gross -11 → 省 20
+		{Src: "rest", T0: after, NetBps: -23, GrossBps: -11, BurstDuringHold: true, RetAtBurstBps: 9},
+	}
+	b := missionBaselineFromRows(rows, seal)
+	if b.N != 3 { // 窗内 rest 三行(含弹射那行)
+		t.Fatalf("基准 n=%d want 3", b.N)
+	}
+	if b.GivebackN != 2 || b.GivebackNegN != 1 {
+		t.Fatalf("吐回税计数错: %d/%d", b.GivebackN, b.GivebackNegN)
+	}
+	// 棘轮配对:rest 两笔 delta=+7、-5(窗前行也配对)→ 中位 +1
+	if b.RatchetRestN != 2 || b.RatchetRestMedBps != 1 {
+		t.Fatalf("棘轮 rest 配对错: n=%d med=%.1f", b.RatchetRestN, b.RatchetRestMedBps)
+	}
+	if b.RatchetDetN != 1 || b.RatchetDetMedBps != 6 {
+		t.Fatalf("棘轮 det 配对错: n=%d med=%.1f", b.RatchetDetN, b.RatchetDetMedBps)
+	}
+	if b.EjectN != 1 || b.EjectSaveMedBps != 20 {
+		t.Fatalf("弹射配对错: n=%d save=%.1f", b.EjectN, b.EjectSaveMedBps)
+	}
+}
+
 // TestMissionStrategyCard 一军流程卡:锁态与今日实数正确反映 config 真值与漏斗。
 func TestMissionStrategyCard(t *testing.T) {
 	cfg := OKXDirectionalConfig{
