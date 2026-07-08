@@ -79,6 +79,44 @@ func TestMissionBaselineFromRows(t *testing.T) {
 	}
 }
 
+// TestFastExamVerdict 自动阅卷纯函数:到线判定/过门/单币主导作废/刮痕中性化。
+func TestFastExamVerdict(t *testing.T) {
+	ex := fastExamSpec{MinN: 3, MinMed: 0, MinPF: 1.3, MinWin: 0.45, MaxTop: 0.5,
+		Seal: time.Date(2026, 7, 8, 0, 0, 0, 0, time.UTC),
+		Rows: func(r fastLedgerRow) bool { return r.Src == "rest2" }}
+	after := ex.Seal.Add(time.Hour)
+	mk := func(sym string, net float64) fastLedgerRow {
+		return fastLedgerRow{Src: "rest2", Symbol: sym, T0: after, NetBps: net}
+	}
+	// 未到线
+	st := fastExamEvaluate([]fastLedgerRow{mk("A", 10), mk("B", 8)}, ex)
+	if v := fastExamVerdict(st, ex); v != "" {
+		t.Fatalf("n<3 应未到线,得 %q", v)
+	}
+	// 过门:三笔双正且分散
+	st = fastExamEvaluate([]fastLedgerRow{mk("A", 10), mk("B", 8), mk("C", -4)}, ex)
+	if v := fastExamVerdict(st, ex); v != "pass" {
+		t.Fatalf("应过门,得 %q(st=%+v)", v, st)
+	}
+	// 单币主导作废(A 占 2/3 > 0.5)
+	st = fastExamEvaluate([]fastLedgerRow{mk("A", 10), mk("A", 8), mk("C", -4)}, ex)
+	if v := fastExamVerdict(st, ex); v != "fail" {
+		t.Fatalf("单币主导应 fail,得 %q", v)
+	}
+	// 封样前的行不计
+	old := mk("D", 100)
+	old.T0 = ex.Seal.Add(-time.Hour)
+	st = fastExamEvaluate([]fastLedgerRow{old, mk("A", 10), mk("B", 8)}, ex)
+	if st.N != 2 {
+		t.Fatalf("封样前行不应计入,n=%d", st.N)
+	}
+	// 刮痕中性化:|net|≤5 不进胜率分母
+	st = fastExamEvaluate([]fastLedgerRow{mk("A", 10), mk("B", 3), mk("C", -2), mk("D", 8)}, ex)
+	if st.WinNeu != 1.0 { // 有效样本=10/8 两笔全胜
+		t.Fatalf("中性化胜率应 1.0,得 %.2f", st.WinNeu)
+	}
+}
+
 // TestFastProbeMulti 多探针纯函数:csv 名单判定 + 老格式状态文件迁移。
 func TestFastProbeMulti(t *testing.T) {
 	if !fastProbeHas("xgap_rev,tape_burst", "tape_burst") || !fastProbeHas("xgap_rev", "xgap_rev") {
