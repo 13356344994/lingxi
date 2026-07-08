@@ -1009,6 +1009,10 @@ type OKXDirectionalConfig struct {
 	// +残余带(REST残余∈[-40,-20])。与粒子账本同源函数=零口径漂移;开=探针按格子口径打,
 	// 关=纯 v6.5 行为。shadow 照记 cell_* 跳过原因(对照组不丢)。
 	FastXgapCellGatesEnabled bool `cfg:"fast_xgap_cell_gates_enabled"` // 默认关,探针日与 live 一起开
+	// E枪burst弹射(2026-07-08 杠杆研究L3):持仓中同币卖方burst=瀑布砸向多头,立即弹出,
+	// 不等-60灾难线。账本反事实:命中行毛中位-60.2→弹射点-6.3,每笔省+20bps(n=65)。
+	// 前向验证=账本弹射标注自动积累;开=前向过检+用户批准(E出场程序变更,护栏锚定)。
+	FastXgapBurstEjectEnabled bool `cfg:"fast_xgap_burst_eject_enabled"` // 默认关
 	// v6 净值哨兵(飞轮引擎的硬前提,HANDOFF §-7C):事件线 source 最近 N 笔净值中位 <0 → 自动停开
 	// (sentinel_halt)。飞轮策略高频走量,-2bps×330笔/天=烧账户,哨兵保证"不亏才配走量"。
 	// 触发即粘性停火(重启从结算重建=仍停),解除须人工解剖后调参——纪律在结构里,不在自觉里。

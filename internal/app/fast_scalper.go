@@ -1761,6 +1761,12 @@ func (e *OKXDirectionalEngine) fastLiveManage(ctx context.Context) {
 		// v6.5 E策略(xgap_rev)专属出场程序(冻结口径 10/600/60,护栏锚定):它的论点是
 		// "价差会闭合",不是"动量会延续"——收敛即离场,与 minHold/物种/能量刻度/trail 全部无关。
 		if p.CandidateSource == "xgap_rev" {
+			// burst弹射(杠杆L3,默认关):持仓中同币卖方burst=瀑布正砸向多头,比灾难线早数百ms
+			// 认错离场(账本反事实:命中行毛中位-60.2→弹射点-6.3)。开=前向过检+用户批准。
+			if e.cfg.FastXgapBurstEjectEnabled && fastSellBurstSince(p.Symbol, p.OpenedAt, now) {
+				e.fastLiveClose(ctx, p, "fast_xgap_burst_eject")
+				continue
+			}
 			if haveMid && e.cfg.FastXgapDisasterBps > 0 && ubps <= -e.cfg.FastXgapDisasterBps {
 				e.fastLiveClose(ctx, p, "fast_xgap_disaster")
 				continue
