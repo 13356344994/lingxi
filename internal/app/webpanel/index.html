@@ -75,6 +75,10 @@ a{color:var(--blue);text-decoration:none}
       <h3>旅程图:整个项目一共六站,你在这里 ↓</h3>
       <div id="missionJourney" style="display:flex;gap:8px;flex-wrap:wrap"></div>
     </div>
+    <div class="card" style="margin-top:10px">
+      <h3>管线全员位置(左半段多车道并行;E在门口=跑得最快,不是只有它)</h3>
+      <table id="missionCandidates"><thead><tr><th>候选</th><th>位置</th><th>状态</th></tr></thead><tbody></tbody></table>
+    </div>
     <div class="flex" style="margin-top:10px" id="missionCards"></div>
     <details style="margin-top:10px"><summary class="small" style="cursor:pointer">▸ 展开细节(工作流/门槛/流水线,给深查用)</summary>
     <div class="flex" style="margin-top:8px">
@@ -373,6 +377,11 @@ async function refreshMission(){
            <div class="small" style="margin-top:4px">${s.plain}</div>
            <div class="small" style="margin-top:4px;opacity:.75">→ ${s.condition}</div>
          </div>`);
+    });
+    const cand = document.querySelector("#missionCandidates tbody"); cand.innerHTML = "";
+    (d.candidates||[]).forEach(c=>{
+      const hl = c.front ? ' style="background:rgba(80,180,120,.12);font-weight:600"' : "";
+      cand.insertAdjacentHTML("beforeend", `<tr${hl}><td>${c.front?"📍 ":""}${c.name}</td><td>${c.stage}</td><td class="small">${c.note}</td></tr>`);
     });
     const cards = document.getElementById("missionCards"); cards.innerHTML = "";
     (d.plain_cards||[]).forEach(c=>{

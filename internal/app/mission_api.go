@@ -60,10 +60,20 @@ type missionPlainCard struct {
 	Tone    string `json:"tone"` // good / bad / neutral
 }
 
+// missionCandidate 管线全员位置表一行(回答"候选在哪一步/为什么现在谈的是谁")。
+// 位置与状态=项目官方决策记录(HANDOFF 同步维护);进度数字尽量 Go 现算。
+type missionCandidate struct {
+	Name  string `json:"name"`
+	Stage string `json:"stage"` // 替补席 / ①影子海选 / ②格子发证 / ③探针 / ④灰度 / ⑤走量
+	Note  string `json:"note"`
+	Front bool   `json:"front"` // 是否站在探针门口(当前唯一实盘候选)
+}
+
 type missionResponse struct {
 	Now         time.Time           `json:"now"`
 	Phase       string              `json:"phase"`
 	PhaseDetail string              `json:"phase_detail"`
+	Candidates  []missionCandidate  `json:"candidates"` // 管线全员位置表
 	// ===== 一页看懂(2026-07-08 用户"页面还是看不懂"反馈的重做;讲故事优先,细节表格下沉)=====
 	Headline   string               `json:"headline"`    // 大字一句话:现在在做什么
 	TodayFocus string               `json:"today_focus"` // 今日焦点:现在唯一值得看的一件事(机器自动挑)
@@ -303,6 +313,17 @@ func (s *DashboardServer) handleMissionAPI(w http.ResponseWriter, r *http.Reques
 		{Name: "④ 灰度", Plain: "探针赚钱才加码,单票 5→50→200U 阶梯放大", Condition: "探针 PF>1 且哨兵不报警", State: journeyState(3)},
 		{Name: "⑤ 走量升级", Plain: "单票 500U×几百笔/天刷成交量,费率档 VIP2,门票 12→9bps", Condition: "月成交量 $10M(机器算术:500U×330笔/天×30天)", State: journeyState(4)},
 		{Name: "⑥ 利润引擎", Plain: "门票降了,坟场边缘策略批量复活,多引擎全天候营业", Condition: "任一策略净中位≥新门票的1.5倍", State: journeyState(5)},
+	}
+	// 管线全员位置表:左半段(海选/发证)多车道并行,右半段(探针起)当前单车道。
+	// E 在门口不是钦点,是唯一"枪已造好+三闸硬化+考试走完几轮"的候选;其余照跑未被压制。
+	resp.Candidates = []missionCandidate{
+		{Name: "E 跨所捡便宜货", Stage: "②→③ 探针门口", Front: true,
+			Note: fmt.Sprintf("枪已硬化(三闸);门票考试 n=%d 中位%+.1f;今晚推荐书裁明日开火", led.ResidualN, led.ResidualMed)},
+		{Name: "烟花反手刀", Stage: "①影子海选", Note: "力竭×拉升≥60×点差≤6;前向判决攒样本(阅卷人自动)"},
+		{Name: "开盘反隔夜(股票perp)", Stage: "①影子海选", Note: "按簇攒(周一开盘=肥簇假说);每天自动+1-2簇"},
+		{Name: "火灾瀑布刀", Stage: "①影子海选", Note: "组合判决屡败;等真风暴锚或费率降档,值班表内影子记账"},
+		{Name: "#8b 资费后崩", Stage: "①影子海选", Note: "07-08 判负(跨日翻向);三问解剖后决定重考口径"},
+		{Name: "死水回补/死水做市/E2双腿/M程序", Stage: "替补席", Note: "等考位与前置条件,预注册后进①"},
 	}
 	resTone := "neutral"
 	if resDone {
