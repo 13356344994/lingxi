@@ -40,22 +40,29 @@ func TestMissionBaselineFromRows(t *testing.T) {
 	before := seal.Add(-time.Hour)
 	after := seal.Add(time.Hour)
 	rows := []fastLedgerRow{
-		// 窗内 rest:计入基准;peak≥5 计吐回;trail 配对 +7
+		// 窗内 rest2(改良版主口径):计入基准;peak≥5 计吐回
+		{Src: "rest2", T0: after, NetBps: 3, GrossBps: 15, PeakBps: 10},
+		{Src: "rest2", T0: after, NetBps: -8, GrossBps: 4, PeakBps: 6},
+		{Src: "rest2", T0: after, NetBps: -23, GrossBps: -11, PeakBps: 2},
+		// 窗前 rest2:不计基准
+		{Src: "rest2", T0: before, NetBps: 50},
+		// 窗内 rest(原版对照):计入 Orig,trail 配对
 		{Src: "rest", T0: after, NetBps: 3, GrossBps: 15, PeakBps: 10, TrailFired: true, TrailExitBps: 10},
-		// 窗内 rest 亏单:peak≥5 且收负 → giveback_neg
-		{Src: "rest", T0: after, NetBps: -8, GrossBps: 4, PeakBps: 6},
-		// 窗前 rest:不计基准,但 trail 标注仍配对(标注天然封样)
+		// 窗前 rest:不计对照,但 trail 标注仍配对(标注天然封样)
 		{Src: "rest", T0: before, NetBps: 20, GrossBps: 32, TrailFired: true, TrailExitBps: 15},
 		// det 行:不计基准,trail 配对进 det 参考
 		{Src: "det", T0: after, NetBps: 0, GrossBps: 12, TrailFired: true, TrailExitBps: 6},
 		// fire 模块:全部排除
 		{Src: "rest", Module: "fire", T0: after, NetBps: 100, TrailFired: true, TrailExitBps: 200},
-		// 弹射配对:burst 时刻 +9,最终 gross -11 → 省 20
+		// 弹射配对(rest 行标注):burst 时刻 +9,最终 gross -11 → 省 20
 		{Src: "rest", T0: after, NetBps: -23, GrossBps: -11, BurstDuringHold: true, RetAtBurstBps: 9},
 	}
 	b := missionBaselineFromRows(rows, seal)
-	if b.N != 3 { // 窗内 rest 三行(含弹射那行)
+	if b.N != 3 { // 窗内 rest2 三行
 		t.Fatalf("基准 n=%d want 3", b.N)
+	}
+	if b.OrigN != 2 { // 窗内 rest 两行(含弹射行)
+		t.Fatalf("原版对照 n=%d want 2", b.OrigN)
 	}
 	if b.GivebackN != 2 || b.GivebackNegN != 1 {
 		t.Fatalf("吐回税计数错: %d/%d", b.GivebackN, b.GivebackNegN)
@@ -69,6 +76,34 @@ func TestMissionBaselineFromRows(t *testing.T) {
 	}
 	if b.EjectN != 1 || b.EjectSaveMedBps != 20 {
 		t.Fatalf("弹射配对错: n=%d save=%.1f", b.EjectN, b.EjectSaveMedBps)
+	}
+}
+
+// TestFastLedgerExitV2 改良版出场纯函数:弹射>灾难>棘轮>收敛>到点。
+func TestFastLedgerExitV2(t *testing.T) {
+	// 弹射最优先(burst 出现即离场,哪怕价差已收敛)
+	if e := fastLedgerExitV2(5, 12, true, -5, true, 30, 10, 60, 600); e != "burst_eject" {
+		t.Fatalf("burst 应弹射,得 %s", e)
+	}
+	// 灾难
+	if e := fastLedgerExitV2(-61, 0, false, -50, true, 30, 10, 60, 600); e != "disaster" {
+		t.Fatalf("穿灾难线应 disaster,得 %s", e)
+	}
+	// 棘轮:峰值 12 回吐到 +3(回吐 9≥8)→ trail
+	if e := fastLedgerExitV2(3, 12, false, -30, true, 30, 10, 60, 600); e != "trail" {
+		t.Fatalf("峰12回吐9应 trail,得 %s", e)
+	}
+	// 峰值未到激活线(9<10)不触发棘轮 → 继续持有
+	if e := fastLedgerExitV2(0, 9, false, -30, true, 30, 10, 60, 600); e != "" {
+		t.Fatalf("峰9不应触发任何出场,得 %s", e)
+	}
+	// 收敛
+	if e := fastLedgerExitV2(4, 9, false, -8, true, 30, 10, 60, 600); e != "converged" {
+		t.Fatalf("价差-8≥-10应收敛离场,得 %s", e)
+	}
+	// 到点
+	if e := fastLedgerExitV2(1, 5, false, -30, true, 601, 10, 60, 600); e != "max_hold" {
+		t.Fatalf("601s应到点离场,得 %s", e)
 	}
 }
 
@@ -112,8 +147,8 @@ func TestMissionStrategyCard(t *testing.T) {
 	if card.Steps[3].State != "locked" { // ④下单必须显示锁死(live=false)
 		t.Fatalf("live 关时下单步应 locked,得 %s", card.Steps[3].State)
 	}
-	if card.Exits[3].State != "locked" { // burst 弹射默认锁死
-		t.Fatalf("弹射应 locked,得 %s", card.Exits[3].State)
+	if card.Exits[0].State != "on" { // 弹射:影子主口径真跑(实枪仍由 live 闸管)
+		t.Fatalf("弹射影子应 on,得 %s", card.Exits[0].State)
 	}
 	if want := "今日触发 42 次"; card.Steps[0].Today != want {
 		t.Fatalf("触发实数错: %q", card.Steps[0].Today)

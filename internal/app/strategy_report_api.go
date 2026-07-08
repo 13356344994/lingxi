@@ -81,7 +81,9 @@ func stratLabel(key string) string {
 		"fast_xgap_rev": "fast·E捡便宜", "shadow_e_det": "E影子·探测口径",
 		"shadow_e_rest": "E影子·REST可执行口径", "shadow_e_mkr": "E影子·maker挂单口径",
 		"shadow_e_v0": "E影子·v0早期行(未标口径)",
-		"e_current":     "★E·当前版本(三闸口径部署后,页面基准同源)——选它看最新策略,任何时段不混旧口径",
+		"e_next":         "★★E·改良版(三闸+棘轮+弹射真跑)——页面主口径,出场按最新策略执行",
+		"shadow_e_rest2": "E影子·改良版出场原始流(=e_next 同数据)",
+		"e_current":      "★E·原版出场(三闸口径,改良版的对照组)",
 		"exam_e_cell":   "【考试】E格子口径(新鲜×派班)",
 		"exam_e_ticket": "【考试】E探针门票(格子×残余带)←门槛表那行数字的明细",
 		"shadow_fire_rest":     "火刀影子·程序S(逐tick)",
@@ -216,6 +218,9 @@ func loadStratTradesReal(recordDir string, from, to time.Time) []stratTrade {
 // exam_e_cell   = E格子口径(rest × 新鲜 × 派班)
 // exam_e_ticket = E探针门票/残余带口径(格子 × REST残余∈[-40,-20]),即面板门槛表那行数字的明细。
 func examKeysForLedgerRow(src string, bits int, t0 time.Time) []string {
+	if src == "rest2" { // 改良版出场口径(棘轮+弹射真跑)= 页面主口径一等键
+		return []string{"e_next"}
+	}
 	if src != "rest" {
 		return nil
 	}

@@ -392,6 +392,31 @@ func fastLedgerExit(retBps float64, gapNow float64, gapOK bool, holdSec float64,
 	return ""
 }
 
+// fastLedgerExitV2 纯判定:E 改良版出场(src=rest2,07-08 用户"我看到的要用最新策略跑"指令)。
+// = 原版三条兜底 + 改良两刀真跑(非事后标注):
+//   burst弹射(持仓中同币卖方爆量→立即离场,治灾难单;反事实 78 笔省中位+17.9 的机器化)
+//   棘轮(峰值≥A10 回吐≥G8→离场,治吐回税;L5 冻结先验)。
+// 优先级:弹射>灾难>棘轮>收敛>到点(弹射在灾难前=它本来就是提前逃生)。
+// 影子账本口径,零实盘影响;实枪出场机器不动(铁律,过前向+用户批才谈)。
+func fastLedgerExitV2(retBps, peakBps float64, burstSeen bool, gapNow float64, gapOK bool, holdSec float64, exitGap, disaster float64, maxHold int) string {
+	if burstSeen {
+		return "burst_eject"
+	}
+	if retBps <= -disaster {
+		return "disaster"
+	}
+	if peakBps >= fastLedgerTrailActBps && retBps <= peakBps-fastLedgerTrailGiveBps {
+		return "trail"
+	}
+	if gapOK && gapNow >= -exitGap {
+		return "converged"
+	}
+	if holdSec >= float64(maxHold) {
+		return "max_hold"
+	}
+	return ""
+}
+
 // fastLedgerOnTrigger E 触发点调用(标尺循环内,与 fastXgapCheck 同点位;冷却已过)。src=det。
 func (e *OKXDirectionalEngine) fastLedgerOnTrigger(sym string, okxMid, gapBps float64, now time.Time, path fastGapPathStats) {
 	if !e.cfg.FastParticleLedgerEnabled || okxMid <= 0 {
@@ -448,6 +473,12 @@ func (e *OKXDirectionalEngine) fastLedgerOnTriggerREST(sym string, restMid, rest
 	fastLedgerMu.Lock()
 	fastLedgerOpen[key] = &fastLedgerPos{Sym: sym, Src: "rest", T0: now, Entry: restMid,
 		GapDet: gapDet, GapRest: gapRest, SpreadBps: spreadBps, Bits: bits, Fuel: fuel, Breadth: br, Path: path}
+	// 改良版口径并行(rest2=E·下一版:同触发同入场,出场真跑棘轮+弹射;07-08 用户指令
+	// "看到的要用最新策略跑"——影子层真跑,实枪出场机器不动):
+	if _, held := fastLedgerOpen["rest2|"+sym]; !held {
+		fastLedgerOpen["rest2|"+sym] = &fastLedgerPos{Sym: sym, Src: "rest2", T0: now, Entry: restMid,
+			GapDet: gapDet, GapRest: gapRest, SpreadBps: spreadBps, Bits: bits, Fuel: fuel, Breadth: br, Path: path}
+	}
 	// v2 maker 口径并行:同一触发点挂虚拟被动单(价=REST bid),成交/超时由 manage 裁
 	if restBid > 0 {
 		if _, held := fastLedgerOpen["mkr|"+sym]; !held {
@@ -520,6 +551,10 @@ func (e *OKXDirectionalEngine) fastLedgerManage(mids map[string]float64, now tim
 			exit = fastLedgerFireExit(ret, p.PeakBps, hold, now.Sub(p.T0).Seconds(), wave2)
 		} else if p.Module == "firework" {
 			exit = fastLedgerFireworkExit(ret, hold)
+		} else if p.Src == "rest2" {
+			// E 改良版:出场真跑棘轮+弹射(不是标注),兜底三条同原版
+			gapNow, gapOK := fastXMidGapBpsVenueTol("bybit", p.Sym, mid, now, fastXgapFreshTol)
+			exit = fastLedgerExitV2(ret, p.PeakBps, p.BurstSeen, gapNow, gapOK, hold, e.cfg.FastXgapExitGapBps, e.cfg.FastXgapDisasterBps, e.cfg.FastXgapMaxHoldSeconds)
 		} else {
 			gapNow, gapOK := fastXMidGapBpsVenueTol("bybit", p.Sym, mid, now, fastXgapFreshTol)
 			exit = fastLedgerExit(ret, gapNow, gapOK, hold, e.cfg.FastXgapExitGapBps, e.cfg.FastXgapDisasterBps, e.cfg.FastXgapMaxHoldSeconds)

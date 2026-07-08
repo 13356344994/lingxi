@@ -80,6 +80,10 @@ type missionBaseline struct {
 	NetSumBps  float64 `json:"net_sum_bps"`
 	PF         float64 `json:"pf"`
 	WinRate    float64 `json:"win_rate"`
+	// 原版出场对照(同触发同入场,出场=收敛/600s/-60;改良版差值=杠杆真实兑现)
+	OrigN      int     `json:"orig_n"`
+	OrigMedBps float64 `json:"orig_med_bps"`
+	OrigPF     float64 `json:"orig_pf"`
 	// 吐回税监视(E 头号漏点:冲上去又吐回来的钱)
 	GivebackN      int     `json:"giveback_n"`     // 峰值≥5bps 的单数
 	GivebackNegN   int     `json:"giveback_neg_n"` // 其中最终收负
@@ -110,11 +114,12 @@ func medianOf(xs []float64) float64 {
 // missionBaselineFromRows 纯函数:账本行 → 当前策略基准(可单测)。
 // sinceCell=三闸口径起点(04:34Z 部署);E 模块行 only,unfilled 剔除。
 func missionBaselineFromRows(rows []fastLedgerRow, sinceCell time.Time) missionBaseline {
-	b := missionBaseline{SinceLabel: "三闸格子口径(07-08 12:34 BJ 部署)后可执行(rest)前向"}
-	var nets []float64
+	b := missionBaseline{SinceLabel: "★E·改良版(三闸+棘轮+弹射真跑,07-08 17:40 BJ 上线)可执行前向"}
+	var nets, origNets []float64
 	var giveback []float64
 	var ratchetRest, ratchetDet, ejectSave []float64
 	gp, gl, wins := 0.0, 0.0, 0
+	ogp, ogl := 0.0, 0.0
 	for _, r := range rows {
 		if (r.Module != "" && r.Module != "e") || r.Exit == "unfilled" {
 			continue
@@ -132,24 +137,34 @@ func missionBaselineFromRows(rows []fastLedgerRow, sinceCell time.Time) missionB
 		if r.BurstDuringHold && r.Src == "rest" {
 			ejectSave = append(ejectSave, r.RetAtBurstBps-r.GrossBps)
 		}
-		// 基准战绩:三闸口径后 rest 行
-		if r.Src != "rest" || r.T0.Before(sinceCell) {
+		if r.T0.Before(sinceCell) {
 			continue
 		}
-		b.N++
-		nets = append(nets, r.NetBps)
-		b.NetSumBps += r.NetBps
-		if r.NetBps > 0 {
-			wins++
-			gp += r.NetBps
-		} else {
-			gl -= r.NetBps
-		}
-		if r.PeakBps >= 5 {
-			b.GivebackN++
-			giveback = append(giveback, r.PeakBps-r.NetBps)
-			if r.NetBps < 0 {
-				b.GivebackNegN++
+		switch r.Src {
+		case "rest2": // 主口径:改良版出场真跑
+			b.N++
+			nets = append(nets, r.NetBps)
+			b.NetSumBps += r.NetBps
+			if r.NetBps > 0 {
+				wins++
+				gp += r.NetBps
+			} else {
+				gl -= r.NetBps
+			}
+			if r.PeakBps >= 5 {
+				b.GivebackN++
+				giveback = append(giveback, r.PeakBps-r.NetBps)
+				if r.NetBps < 0 {
+					b.GivebackNegN++
+				}
+			}
+		case "rest": // 对照:原版出场
+			b.OrigN++
+			origNets = append(origNets, r.NetBps)
+			if r.NetBps > 0 {
+				ogp += r.NetBps
+			} else {
+				ogl -= r.NetBps
 			}
 		}
 	}
@@ -161,6 +176,12 @@ func missionBaselineFromRows(rows []fastLedgerRow, sinceCell time.Time) missionB
 	}
 	if b.N > 0 {
 		b.WinRate = float64(wins) / float64(b.N)
+	}
+	b.OrigMedBps = medianOf(origNets)
+	if ogl > 0 {
+		b.OrigPF = ogp / ogl
+	} else if ogp > 0 {
+		b.OrigPF = 99
 	}
 	b.GivebackMedBps = medianOf(giveback)
 	b.RatchetRestN, b.RatchetRestMedBps = len(ratchetRest), medianOf(ratchetRest)
@@ -484,17 +505,17 @@ func missionBuildStrategyCard(cfg OKXDirectionalConfig, fn fastXgapFunnelStats) 
 				Today: fmt.Sprintf("今日全闸通过 %d 枪(若实弹,这就是打出去的数)", fn.Pass)},
 		},
 		Exits: []missionFlowStep{
+			{Name: "burst 弹射(改良)", State: "on", Detail: "持仓中同币卖方爆量→立即弹出(治灾难单)。影子主口径已真跑;实枪采用=前向过检+你批" + onOff(cfg.FastXgapBurstEjectEnabled, "(实枪已开)", "")},
+			{Name: "棘轮锁盈(改良)", State: "on", Detail: "峰值冲上≥10bps 后回吐≥8bps→落袋离场(治吐回税)。影子主口径已真跑;实枪采用=前向过检+你批"},
 			{Name: "收敛离场", State: "on", Detail: fmt.Sprintf("价差回到 ≥-%.0fbps=论点兑现,离场", cfg.FastXgapExitGapBps)},
-			{Name: "到点离场", State: "on", Detail: fmt.Sprintf("%d 秒没闭合=论点过期(止错),离场", cfg.FastXgapMaxHoldSeconds)},
-			{Name: "灾难线", State: "on", Detail: fmt.Sprintf("-%.0fbps 无条件砍(不讲道理的保险)+该币入学费冷却", cfg.FastXgapDisasterBps)},
-			{Name: "burst 弹射", State: onOff(cfg.FastXgapBurstEjectEnabled, "on", "locked"), Detail: "持仓中同币出现卖方爆量→比灾难线早数百ms弹出(改良包,反事实每笔省20bps,前向过检+用户批才开)"},
+			{Name: "到点/灾难", State: "on", Detail: fmt.Sprintf("%d 秒没闭合=论点过期离场;-%.0fbps 无条件砍+该币入学费冷却", cfg.FastXgapMaxHoldSeconds, cfg.FastXgapDisasterBps)},
 		},
 		Upgrade: []missionFlowStep{
 			{Name: "三闸(已装已开)", State: "on", Detail: "把 E 从全时段乱打收敛到唯一活区;代价=风暴日几乎不开枪(fail-closed 如设计)"},
 			{Name: "burst 弹射(已装锁死)", State: "locked", Detail: "治最大单项亏损源(崩盘单);等前向数据+用户批"},
 			{Name: "棘轮出场(账本标注中)", State: "locked", Detail: "治吐回税(53%冲正单收负,吐回中位40.6bps);账本逐tick攒精确反事实,不动实枪"},
 		},
-		Status: "当前版本=三闸口径(页面基准数据即它);在拧的三个杠杆=三闸(已开)/弹射(锁,攒反事实)/棘轮(锁,攒反事实)——「改良包 vs 原版」前向对比表出数后定 E 的下一版口径。",
+		Status: "页面主口径=★E·改良版(三闸+棘轮+弹射,影子真跑);原版出场同步并行作对照——两条曲线的差=改良杠杆真实兑现的钱。实枪出场变更须前向过检+你批准。",
 	}
 }
 

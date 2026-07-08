@@ -110,7 +110,7 @@ a{color:var(--blue);text-decoration:none}
     <h3 style="margin-top:14px">❺ 最新策略的出分点</h3>
     <table id="missionVerdicts"><thead><tr><th>考试</th><th>裁什么</th><th>进度</th><th>到线</th></tr></thead><tbody></tbody></table>
     <div id="scStatus" style="margin-top:10px;padding:8px;background:rgba(120,160,255,.07);border-radius:6px;font-size:13px"></div>
-    <div class="small" style="margin-top:6px">钻取:<a href="javascript:void(0)" onclick="jumpToReport('e_current')">当前版本逐笔明细</a> · <a href="javascript:void(0)" onclick="jumpToReport('exam_e_ticket')">门票考试明细</a></div>
+    <div class="small" style="margin-top:6px">钻取:<a href="javascript:void(0)" onclick="jumpToReport('e_next')">改良版逐笔明细</a> · <a href="javascript:void(0)" onclick="jumpToReport('e_current')">原版对照明细</a> · <a href="javascript:void(0)" onclick="jumpToReport('exam_e_ticket')">门票考试明细</a></div>
   </div>
 
   <!-- ② 折叠:变体与仪器(为下一版攒证据的研究,不是当前策略成绩) -->
@@ -441,14 +441,15 @@ async function refreshMission(){
     document.getElementById("scExits").innerHTML = (sc.exits||[]).map((s,i)=>nodeHTML(s,i,[])).join("");
     document.getElementById("scStatus").innerHTML = "<b>现在的位置:</b>" + (sc.status||"");
 
-    // ❸ 成绩(与管道同一口径)
+    // ❸ 成绩:主口径=改良版真跑;原版并行作对照(两者差=改良杠杆真实兑现)
     const b = d.baseline || {};
     document.getElementById("basePerf").innerHTML =
       `<div style="padding:8px 10px;border:1px solid var(--border);border-radius:8px">
          <div class="small">${b.since_label||""}</div>
-         <div style="font-size:22px;font-weight:700;margin:4px 0" class="${cls(b.n>0?b.net_med_bps:0)}">${b.n||0} 笔 · 中位 ${sign(b.net_med_bps)}bps</div>
+         <div style="font-size:22px;font-weight:700;margin:4px 0" class="${cls(b.n>0?b.net_med_bps:0)}">${b.n||0} 笔 · 中位 ${b.n?sign(b.net_med_bps)+"bps":"攒样本中"}</div>
          <div class="small">PF ${fmt(b.pf)} · 胜率 ${((b.win_rate||0)*100).toFixed(0)}% · 净合计 ${sign(b.net_sum_bps)}bps</div>
-         <div class="small" style="opacity:.7;margin-top:4px">n 小=风暴日闸拦得紧(fail-closed 设计),不是坏事</div>
+         <div class="small" style="margin-top:6px;padding-top:6px;border-top:1px dashed var(--border)">对照·原版出场:${b.orig_n||0} 笔 中位 ${sign(b.orig_med_bps)}bps PF ${fmt(b.orig_pf)}</div>
+         <div class="small" style="opacity:.7;margin-top:4px">改良版 17:40 起真跑;n 小=风暴日闸拦得紧(fail-closed 设计)</div>
        </div>`;
 
     // ❹ 改良杠杆:漏点→数据→差什么(三行叙事)
@@ -542,17 +543,18 @@ async function refreshMission(){
   }catch(err){ console.warn("mission", err); }
 }
 
-// ===== 主舞台成绩曲线:自动加载 ★E·当前版本(e_current 断代键,与管道/基准同源) =====
+// ===== 主舞台成绩曲线:自动加载 ★★E·改良版(e_next,棘轮+弹射真跑=最新策略) =====
 async function refreshECurve(){
   try{
-    const params = new URLSearchParams({from:"2026-07-08T04:34:00Z", to:new Date().toISOString(), strategy:"e_current"});
+    const params = new URLSearchParams({from:"2026-07-08T04:34:00Z", to:new Date().toISOString(), strategy:"e_next"});
     const r = await fetch("/api/strategy-report?"+params, {headers: tokenHeaders()});
     if(!r.ok) throw new Error(await r.text());
     const d = await r.json();
     drawCurve(document.getElementById("eCurve"), d.curve||[], d.curve_unit||"bps");
     const last = (d.trades||[])[0];
     document.getElementById("eCurveNote").textContent =
-      "累计净值(bps,影子口径)· 每一枪=管道❶全闸通过的那批 · 最近一笔:" + (last ? (ts(last.time)+" "+last.symbol+" "+sign(last.net)+"bps("+(last.reason||"")+")") : "暂无");
+      "曲线=★★改良版累计净值(bps,17:40 上线起攒)· 每一枪=管道❶全闸通过的那批 · 最近一笔:"
+      + (last ? (ts(last.time)+" "+last.symbol+" "+sign(last.net)+"bps("+(last.reason||"")+")") : "暂无(等闸放行新枪)");
   }catch(err){ console.warn("eCurve", err); }
 }
 
