@@ -69,6 +69,54 @@ type missionCandidate struct {
 	Front bool   `json:"front"` // 是否站在探针门口(当前唯一实盘候选)
 }
 
+// missionMoney 真金账目(全部从四所 settlements 现算,交易所实扣口径)。
+// 回答"试错花了多少钱/现在还在流血吗"——找回方向的第一根锚。
+type missionMoney struct {
+	SlowTuitionUSDT float64 `json:"slow_tuition_usdt"` // 慢线累计已实现(四所)
+	FastTuitionUSDT float64 `json:"fast_tuition_usdt"` // fast 层累计已实现(v1+v2 学费)
+	SlowN           int     `json:"slow_n"`
+	FastN           int     `json:"fast_n"`
+	SinceStopUSDT   float64 `json:"since_stop_usdt"` // 慢线全停(07-07 21:39 BJ)以来真金损益
+	SinceStopN      int     `json:"since_stop_n"`
+	// 诚实标注:本地 settlements 少 6-28→7-02 的行(07-02 工作区抹除事故,交易真实发生
+	// 数据在交易所);全期真实学费口径 慢线≈-52U / fast≈-51U(HANDOFF 登记数)。
+	Caveat string `json:"caveat"`
+}
+
+// missionFlowStep E 策略流程一步(带今日实数=漏斗计数器现算)。
+type missionFlowStep struct {
+	Name   string `json:"name"`
+	Detail string `json:"detail"`          // 规则(冻结口径数字)
+	Today  string `json:"today,omitempty"` // 今日实数
+	State  string `json:"state"`           // on / locked
+}
+
+// missionStrategyCard 一军策略完整流程卡("对整个策略流程认识不清晰"的直接回答)。
+type missionStrategyCard struct {
+	Name      string            `json:"name"`
+	Mechanism string            `json:"mechanism"` // 机制一句话(对手模型)
+	Steps     []missionFlowStep `json:"steps"`     // 进场漏斗(触发→闸→下单)
+	Exits     []missionFlowStep `json:"exits"`     // 出场机器
+	Upgrade   []missionFlowStep `json:"upgrade"`   // 改良包三件(进行时资产)
+	Status    string            `json:"status"`    // 现在卡在哪(一句话)
+}
+
+// missionRosterGroup 编制四抽屉一格(㊘四抽屉收纳制的页面化)。
+type missionRosterGroup struct {
+	Title string   `json:"title"`
+	Items []string `json:"items"`
+	Note  string   `json:"note,omitempty"`
+}
+
+// missionVerdict 裁决日历一行:接下来会"出分"的考试,按到线先后排。
+type missionVerdict struct {
+	Name     string `json:"name"`
+	ETA      string `json:"eta"`      // 预计到线(墙钟或样本条件)
+	Progress string `json:"progress"` // 当前进度(现算)
+	Question string `json:"question"` // 这场考试裁什么
+	Done     bool   `json:"done"`     // 已到线出分
+}
+
 type missionResponse struct {
 	Now         time.Time           `json:"now"`
 	Phase       string              `json:"phase"`
@@ -79,6 +127,11 @@ type missionResponse struct {
 	TodayFocus string               `json:"today_focus"` // 今日焦点:现在唯一值得看的一件事(机器自动挑)
 	Journey    []missionJourneyStop `json:"journey"`     // 六站旅程图:你在这里
 	PlainCards []missionPlainCard   `json:"plain_cards"` // 白话数字卡
+	// ===== 找回方向四件套(2026-07-08 用户"试错太多,流程认识不清晰"之诉)=====
+	Money        missionMoney        `json:"money"`         // 真金账目(学费/敞口/停火后损益)
+	StrategyCard missionStrategyCard `json:"strategy_card"` // 一军 E 完整流程(带今日漏斗实数)
+	Roster       []missionRosterGroup `json:"roster"`       // 编制四抽屉(一军/仪器/冷藏/坟场)
+	VerdictQueue []missionVerdict    `json:"verdict_queue"` // 裁决日历(接下来谁出分)
 	// ===== 细节区(下沉,给深查用)=====
 	Goal      []string            `json:"goal"`
 	Doing     []missionWorkstream `json:"doing"`
@@ -217,7 +270,117 @@ func missionProbeStats(recordDir string, now time.Time) (n1h, inc1h int, hoursAc
 	return n1h, inc1h, now.Sub(first).Hours()
 }
 
-// missionSlowActive 各所慢线 control.json Active 状态。
+// missionSlowStopAt 慢线全停时刻(㉟,2026-07-07 21:39 BJ)= 真金账目"停火后损益"的分界。
+var missionSlowStopAt = time.Date(2026, 7, 7, 13, 39, 0, 0, time.UTC)
+
+// missionScanMoney 四所 settlements + fast 结算 → 真金账目(交易所实扣口径现算)。
+func missionScanMoney(recordDir string) missionMoney {
+	var m missionMoney
+	for _, vn := range directionalVenueNames {
+		path := filepath.Join(directionalRecordDir(recordDir, vn), okxDirectionalSettlementsFile)
+		recs, err := loadTailJSONLFile[okxDirectionalSettlement](path, time.Time{}, 0)
+		if err != nil {
+			continue
+		}
+		for _, r := range recs {
+			if strings.EqualFold(strings.TrimSpace(r.Regime), "fast") {
+				m.FastTuitionUSDT += r.RealizedUSDT
+				m.FastN++
+			} else {
+				m.SlowTuitionUSDT += r.RealizedUSDT
+				m.SlowN++
+			}
+			if !r.Time.Before(missionSlowStopAt) {
+				m.SinceStopUSDT += r.RealizedUSDT
+				m.SinceStopN++
+			}
+		}
+	}
+	m.Caveat = "本地账本缺 6-28→7-02 行(工作区事故,原始成交在交易所);全期真实学费口径:慢线≈-52U、fast≈-51U(HANDOFF 登记)。"
+	return m
+}
+
+// missionBuildStrategyCard 一军 E 完整流程卡:规则=冻结口径(config 真值),今日实数=漏斗计数器。
+func missionBuildStrategyCard(cfg OKXDirectionalConfig, fn fastXgapFunnelStats) missionStrategyCard {
+	skipLabel := map[string]string{
+		"gap_gone":              "REST复核时价差已收敛(机会没了)",
+		"spread_wide":           "盘口点差>12bps(mid价差吃不到)",
+		"cell_stale_gap":        "新鲜度闸:裂开超过半小时=标价不是错价",
+		"cell_off_duty_storm":   "派班闸:风暴州(燃料≥40)歇业",
+		"cell_off_duty_breadth": "派班闸:广跌州(广度≤-15)歇业",
+		"cell_residual_shallow": "残余带闸:残余>-20,肉没了",
+		"cell_residual_deep":    "残余带闸:残余<-40,没人抢有原因",
+	}
+	var skips []string
+	// 按次数降序列今日拦截
+	type kv struct {
+		k string
+		n int
+	}
+	var ks []kv
+	for k, n := range fn.Skips {
+		ks = append(ks, kv{k, n})
+	}
+	sort.Slice(ks, func(i, j int) bool { return ks[i].n > ks[j].n })
+	for _, x := range ks {
+		lb := skipLabel[x.k]
+		if lb == "" {
+			lb = x.k
+		}
+		skips = append(skips, fmt.Sprintf("%s ×%d", lb, x.n))
+	}
+	todaySkips := "今日未拦截"
+	if len(skips) > 0 {
+		todaySkips = strings.Join(skips, ";")
+	}
+	live := cfg.FastXgapLiveEnabled
+	return missionStrategyCard{
+		Name:      "E·跨所捡便宜货(唯一主攻)",
+		Mechanism: "同一张永续 OKX 比 Bybit 便宜太多时,搬砖商必然把价差搬平(天道条款)。我们买便宜的 OKX,等价差闭合。赚的是慢所追赶快所的时滞。",
+		Steps: []missionFlowStep{
+			{Name: "① 触发", State: "on", Detail: fmt.Sprintf("全市场标尺每3s扫:OKX mid 比 Bybit 锚便宜 ≥%.0fbps(锚新鲜≤8s),同币 %d 分钟一枪", cfg.FastXgapEntryGapBps, cfg.FastXgapCooldownSeconds/60),
+				Today: fmt.Sprintf("今日触发 %d 次", fn.Trigger)},
+			{Name: "② 执行守卫", State: "on", Detail: "REST 现拉盘口复核:价差还在(没收敛)+点差≤12bps(吃得到)"},
+			{Name: "③ 格子三闸", State: onOff(cfg.FastXgapCellGatesEnabled, "on", "locked"), Detail: "新鲜度(半小时内正常过)×派班(非风暴×非广跌)×残余带∈[-40,-20](唯一活区)",
+				Today: todaySkips},
+			{Name: "④ 下单", State: onOff(live, "on", "locked"), Detail: onOff(live, "⚠️ 实弹开启", "锁死(record-only):全闸通过也只记影子账,不下单"),
+				Today: fmt.Sprintf("今日全闸通过 %d 枪(若实弹,这就是打出去的数)", fn.Pass)},
+		},
+		Exits: []missionFlowStep{
+			{Name: "收敛离场", State: "on", Detail: fmt.Sprintf("价差回到 ≥-%.0fbps=论点兑现,离场", cfg.FastXgapExitGapBps)},
+			{Name: "到点离场", State: "on", Detail: fmt.Sprintf("%d 秒没闭合=论点过期(止错),离场", cfg.FastXgapMaxHoldSeconds)},
+			{Name: "灾难线", State: "on", Detail: fmt.Sprintf("-%.0fbps 无条件砍(不讲道理的保险)+该币入学费冷却", cfg.FastXgapDisasterBps)},
+			{Name: "burst 弹射", State: onOff(cfg.FastXgapBurstEjectEnabled, "on", "locked"), Detail: "持仓中同币出现卖方爆量→比灾难线早数百ms弹出(改良包,反事实每笔省20bps,前向过检+用户批才开)"},
+		},
+		Upgrade: []missionFlowStep{
+			{Name: "三闸(已装已开)", State: "on", Detail: "把 E 从全时段乱打收敛到唯一活区;代价=风暴日几乎不开枪(fail-closed 如设计)"},
+			{Name: "burst 弹射(已装锁死)", State: "locked", Detail: "治最大单项亏损源(崩盘单);等前向数据+用户批"},
+			{Name: "棘轮出场(账本标注中)", State: "locked", Detail: "治吐回税(53%冲正单收负,吐回中位40.6bps);账本逐tick攒精确反事实,不动实枪"},
+		},
+		Status: "门票考试(残余带前向 n≥30)首轮判负→回炉;改良包三件的「改良包 vs 原版」前向对比表是 E 能否翻身的裁决文件。",
+	}
+}
+
+// missionBuildRoster 编制四抽屉(㊘;登记态=项目官方决策记录,HANDOFF 同步维护)。
+func missionBuildRoster() []missionRosterGroup {
+	return []missionRosterGroup{
+		{Title: "一军(唯一主攻,汇报只讲它)", Items: []string{"E·跨所捡便宜货 —— 在探针门口回炉改良中"}},
+		{Title: "自动后台(仪器,测量不交易)", Items: []string{
+			"13 条数据流采集(全市场mid/热币WS/双所爆仓/磁带…)",
+			"Go 粒子账本三口径(det/rest/mkr)=判决货币",
+			"三层认知机器(kNN空间/引力场/后验织网,30min 自刷)",
+			"监视循环+阅卷人(考试自动出分)",
+		}, Note: "异常才报,平时不占你注意力"},
+		{Title: "冷藏(影子排队,越过门槛才许出现名字)", Items: []string{
+			"烟花反手刀 / 火灾瀑布刀 / #8b资费后崩 / 开盘反隔夜 —— 全部影子记账攒判决,零成本",
+			"替补席:死水回补 / 死水做市 / E2双腿 / M程序",
+		}},
+		{Title: "坟场(21具,不复活不占注意力)", Items: []string{
+			"scorer/fade/liq_catch/动量全档/吸收率/沉默钟…(死因五级已归档 PARTICLE_LIBRARY.md)",
+			"≥9 具直接死因=12bps 门票而非方向错 → maker化/费率降档若成,按 6bps 地板批量重审",
+		}},
+	}
+}
 func missionSlowActive(recordDir string) map[string]bool {
 	out := map[string]bool{}
 	for _, vn := range directionalVenueNames {
@@ -281,8 +444,37 @@ func (s *DashboardServer) handleMissionAPI(w http.ResponseWriter, r *http.Reques
 		mkrDays = now.Sub(led.MkrFirstAt).Hours() / 24
 	}
 
+	// ===== 找回方向四件套 =====
+	money := missionScanMoney(dir)
+	funnel := fastXgapFunnelSnapshot(now)
+	card := missionBuildStrategyCard(cfg, funnel)
+	roster := missionBuildRoster()
+	verdicts := []missionVerdict{
+		{Name: "E 探针门票(残余带闸,首轮)", Done: led.ResidualN >= 30,
+			ETA:      onOff(led.ResidualN >= 30, "已到线出分", fmt.Sprintf("还差 %d 笔到 30", 30-led.ResidualN)),
+			Progress: fmt.Sprintf("n=%d 净中位%+.1f PF%.2f", led.ResidualN, led.ResidualMed, led.ResidualPF),
+			Question: "E 按格子口径打,真的赚钱吗?→ 首轮判负,回炉"},
+		{Name: "改良包 vs 原版 E(前向对比)",
+			ETA:      "rest 供给恢复后攒样本(风暴日 fail-closed 供给极低)",
+			Progress: "弹射/棘轮标注已在账本自动积累",
+			Question: "三闸+弹射+棘轮能否把 E 拧回正期望?E 翻身与否的裁决文件"},
+		{Name: "全市场磁带 24h 裁决",
+			ETA:      fmt.Sprintf("还差 %.0f 小时(满 24h)", max(0, 24-probeHours)),
+			Progress: fmt.Sprintf("已攒 %.1f/24h", probeHours),
+			Question: "全市场磁带比 40 热币多看见的爆量,值不值得接进确认管线(门=增量≥40%)"},
+		{Name: "maker 化裁决(曲线①)",
+			ETA:      fmt.Sprintf("还差 %.1f 天(满 2 天)", max(0, 2-mkrDays)),
+			Progress: fmt.Sprintf("mkr 口径已攒 %.1f 天", mkrDays),
+			Question: "挂单省的 6bps > 逆选择税吗?过→坟场半数按 6bps 地板复活重审"},
+		{Name: "E 路径分桶(生龄×速度×归因)", Done: led.PathN >= 100,
+			ETA:      onOff(led.PathN >= 100, "已到样,待阅卷", fmt.Sprintf("还差 %d 行到 100", 100-led.PathN)),
+			Progress: fmt.Sprintf("rest+path_ok 已攒 %d", led.PathN),
+			Question: "『价差怎么诞生的』这个路径信息值多少 bps"},
+	}
+
 	resp := missionResponse{
 		Now: now, Phase: phase, PhaseDetail: detail,
+		Money: money, StrategyCard: card, Roster: roster, VerdictQueue: verdicts,
 		Goal: []string{
 			"使命:分拣器分拣后,派给排列好的粒子组合交易盈利(费率飞轮只是次要放大器)。",
 			"两道门(登记,HANDOFF §-7C):利润引擎门=中位≥18bps;飞轮引擎门=中位≥12bps。",
@@ -320,8 +512,8 @@ func (s *DashboardServer) handleMissionAPI(w http.ResponseWriter, r *http.Reques
 	// 管线全员位置表:左半段(海选/发证)多车道并行,右半段(探针起)当前单车道。
 	// E 在门口不是钦点,是唯一"枪已造好+三闸硬化+考试走完几轮"的候选;其余照跑未被压制。
 	resp.Candidates = []missionCandidate{
-		{Name: "E 跨所捡便宜货", Stage: "②→③ 探针门口", Front: true,
-			Note: fmt.Sprintf("枪已硬化(三闸);门票考试 n=%d 中位%+.1f;今晚推荐书裁明日开火", led.ResidualN, led.ResidualMed)},
+		{Name: "E 跨所捡便宜货", Stage: "②→③ 探针门口(回炉改良)", Front: true,
+			Note: fmt.Sprintf("门票首轮判负(n=%d 中位%+.1f)→回炉;改良包(三闸+弹射+棘轮)前向对比表=翻身裁决文件", led.ResidualN, led.ResidualMed)},
 		{Name: "烟花反手刀", Stage: "①影子海选", Note: "力竭×拉升≥60×点差≤6;前向判决攒样本(阅卷人自动)"},
 		{Name: "开盘反隔夜(股票perp)", Stage: "①影子海选", Note: "按簇攒(周一开盘=肥簇假说);每天自动+1-2簇"},
 		{Name: "火灾瀑布刀", Stage: "①影子海选", Note: "组合判决屡败;等真风暴锚或费率降档,值班表内影子记账"},

@@ -33,6 +33,57 @@ var (
 	fastXgapLast = map[string]time.Time{} // sym -> 上次触发(同币冷却)
 )
 
+// ===== E 线今日漏斗计数器(面板"找回方向"用;进程内存,北京日切,零 IO)=====
+// 动机:shadow 文件 GB 级不可扫,面板要回答"今天触发了多少、被哪道闸拦了多少、通过了几枪"。
+type fastXgapFunnelStats struct {
+	Day     string         // 北京日(yyyy-mm-dd),跨日自动清零
+	Trigger int            // det 触发(过冷却)
+	Pass    int            // 全闸通过(=真枪会打的那批)
+	Skips   map[string]int // skip 原因 → 次数
+}
+
+var (
+	fastXgapFunnelMu sync.Mutex
+	fastXgapFunnel   = fastXgapFunnelStats{Skips: map[string]int{}}
+)
+
+func fastXgapFunnelDay(now time.Time) string {
+	return now.In(beijingCST).Format("2006-01-02")
+}
+
+// fastXgapFunnelNote 记一次触发结局(skip=""表示全闸通过)。
+func fastXgapFunnelNote(now time.Time, stage string, skip string) {
+	fastXgapFunnelMu.Lock()
+	defer fastXgapFunnelMu.Unlock()
+	if d := fastXgapFunnelDay(now); d != fastXgapFunnel.Day {
+		fastXgapFunnel = fastXgapFunnelStats{Day: d, Skips: map[string]int{}}
+	}
+	switch stage {
+	case "trigger":
+		fastXgapFunnel.Trigger++
+	case "verdict":
+		if skip == "" {
+			fastXgapFunnel.Pass++
+		} else {
+			fastXgapFunnel.Skips[skip]++
+		}
+	}
+}
+
+// fastXgapFunnelSnapshot 面板读取(拷贝)。
+func fastXgapFunnelSnapshot(now time.Time) fastXgapFunnelStats {
+	fastXgapFunnelMu.Lock()
+	defer fastXgapFunnelMu.Unlock()
+	if d := fastXgapFunnelDay(now); d != fastXgapFunnel.Day {
+		return fastXgapFunnelStats{Day: d, Skips: map[string]int{}}
+	}
+	cp := fastXgapFunnelStats{Day: fastXgapFunnel.Day, Trigger: fastXgapFunnel.Trigger, Pass: fastXgapFunnel.Pass, Skips: map[string]int{}}
+	for k, v := range fastXgapFunnel.Skips {
+		cp.Skips[k] = v
+	}
+	return cp
+}
+
 // ===== 价差路径环(2026-07-08 ㊳工程队列①「E 决策信息集路径化」)=====
 // 陷阱诊断:决策时刻只读 gap 一个标量,把"价差怎么诞生的"全部扔掉。本环以标尺节拍(~3s)
 // 记录每币 (gap, okxMid) 路径,触发时刻产出三类路径信息(record-only,零行为改动):
@@ -198,6 +249,7 @@ func (e *OKXDirectionalEngine) fastXgapCheck(sym string, okxMid float64, now tim
 	if !fire {
 		return
 	}
+	fastXgapFunnelNote(now, "trigger", "")             // 今日漏斗:det 触发+1(面板)
 	path := fastGapPathAt(sym, now)                    // 决策时刻的路径信息集(det 时刻冻结)
 	e.fastLedgerOnTrigger(sym, okxMid, gap, now, path) // Layer A:粒子评估+虚拟建仓(record-only,同步廉价)
 	go e.fastXgapFire(sym, gap, now, path)             // 异步:标尺循环不等 REST
@@ -251,6 +303,7 @@ func (e *OKXDirectionalEngine) fastXgapFire(sym string, detGapBps float64, detAt
 			fastMarketLiqRate(e.nowFn().UTC(), 300), br, brOK, gapNow)
 	}
 	ev.GateSkip = skip
+	fastXgapFunnelNote(e.nowFn().UTC(), "verdict", skip) // 今日漏斗:闸判结局(面板)
 	_ = appendJSONLRecord(filepath.Join(e.recordDir, fastExecShadowFile), *ev)
 	if skip != "" {
 		e.logger.Printf("[fast_xgap] %s 跳过(%s) det=%.0fbps now=%.0fbps spread=%.1f", sym, skip, detGapBps, gapNow, ev.SpreadBps)

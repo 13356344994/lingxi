@@ -67,20 +67,57 @@ a{color:var(--blue);text-decoration:none}
 <main>
   <div class="section">
     <h2>一页看懂 <span class="small" id="missionPhase"></span></h2>
+
+    <!-- ①锚:一句话+今日焦点+真金账目(先回答"钱怎么样了/现在还流血吗") -->
     <div class="card" style="border-left:4px solid #4a9">
       <div id="missionHeadline" style="font-size:16px;font-weight:600;line-height:1.5"></div>
       <div id="missionFocus" style="margin-top:8px;padding:8px;background:rgba(255,200,60,.08);border-radius:6px;font-size:14px"></div>
+      <div id="missionMoney" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px"></div>
     </div>
+
+    <!-- ②路线:六站旅程,你在这里 -->
     <div class="card" style="margin-top:10px">
-      <h3>旅程图:整个项目一共六站,你在这里 ↓</h3>
+      <h3>路线图:整个项目一共六站,现在在哪 ↓</h3>
       <div id="missionJourney" style="display:flex;gap:8px;flex-wrap:wrap"></div>
     </div>
+
+    <!-- ③核心:一军 E 的完整流程(触发→闸→下单→出场→改良包) -->
+    <div class="card" style="margin-top:10px;border-left:4px solid var(--accent)">
+      <h3 style="color:var(--text);font-size:14px" id="scName">一军策略</h3>
+      <div class="small" id="scMech" style="padding:8px;background:rgba(140,120,255,.07);border-radius:6px;margin-bottom:10px"></div>
+      <div class="flex" style="gap:14px">
+        <div style="flex:1.4;min-width:340px">
+          <h3>进场流程(每一步带今日实数)</h3>
+          <div id="scSteps"></div>
+        </div>
+        <div style="flex:1;min-width:280px">
+          <h3>出场机器</h3>
+          <div id="scExits"></div>
+          <h3 style="margin-top:12px">改良包(进行时:E 翻身押在这)</h3>
+          <div id="scUpgrade"></div>
+        </div>
+      </div>
+      <div id="scStatus" style="margin-top:10px;padding:8px;background:rgba(255,120,120,.07);border-radius:6px;font-size:13px"></div>
+    </div>
+
+    <!-- ④日历:接下来谁出分 -->
     <div class="card" style="margin-top:10px">
+      <h3>裁决日历:接下来这些考试会依次"出分"(全部影子考试,零真钱)</h3>
+      <table id="missionVerdicts"><thead><tr><th>考试</th><th>裁什么</th><th>进度</th><th>到线</th></tr></thead><tbody></tbody></table>
+    </div>
+
+    <!-- ⑤编制:四抽屉,全项目所有东西只在这四格里 -->
+    <div class="card" style="margin-top:10px">
+      <h3>编制四抽屉(全项目一切事物只属于这四格;试错再多也不散)</h3>
+      <div id="missionRoster" style="display:flex;gap:10px;flex-wrap:wrap"></div>
+    </div>
+
+    <div class="flex" style="margin-top:10px" id="missionCards"></div>
+    <details style="margin-top:10px"><summary class="small" style="cursor:pointer">▸ 展开细节(候选位置/工作流/门槛/流水线,给深查用)</summary>
+    <div class="card" style="margin-top:8px">
       <h3>管线全员位置(左半段多车道并行;E在门口=跑得最快,不是只有它)</h3>
       <table id="missionCandidates"><thead><tr><th>候选</th><th>位置</th><th>状态</th></tr></thead><tbody></tbody></table>
     </div>
-    <div class="flex" style="margin-top:10px" id="missionCards"></div>
-    <details style="margin-top:10px"><summary class="small" style="cursor:pointer">▸ 展开细节(工作流/门槛/流水线,给深查用)</summary>
     <div class="flex" style="margin-top:8px">
       <div class="card" style="min-width:340px;flex:1">
         <h3>正在做什么(实时 Go 计算)</h3>
@@ -366,6 +403,57 @@ async function refreshMission(){
     // 一页看懂:大字故事 + 今日焦点 + 旅程图 + 白话卡
     document.getElementById("missionHeadline").textContent = d.headline || "";
     document.getElementById("missionFocus").innerHTML = "<b>今日焦点:</b> " + (d.today_focus || "");
+    // ①真金账目(锚)
+    const m = d.money || {};
+    const moneyBox = document.getElementById("missionMoney"); moneyBox.innerHTML = "";
+    const moneyItems = [
+      {t:"历史学费·慢线(本地账本)", v:sign(m.slow_tuition_usdt)+" U", s:(m.slow_n||0)+" 笔 · 07-07 已全停", tone:m.slow_tuition_usdt},
+      {t:"历史学费·fast(本地账本)", v:sign(m.fast_tuition_usdt)+" U", s:(m.fast_n||0)+" 笔 · 07-04 已停火", tone:m.fast_tuition_usdt},
+      {t:"全停以来真金损益", v:sign(m.since_stop_usdt)+" U", s:(m.since_stop_n||0)+" 笔在场仓收尾 · 现在敞口=0", tone:m.since_stop_n===0?1:m.since_stop_usdt},
+    ];
+    moneyItems.forEach(x=>{
+      moneyBox.insertAdjacentHTML("beforeend",
+        `<div style="flex:1;min-width:180px;padding:8px 10px;border:1px solid var(--border);border-radius:8px">
+           <div class="small">${x.t}</div>
+           <div style="font-size:18px;font-weight:700" class="${cls(x.tone)}">${x.v}</div>
+           <div class="small" style="opacity:.75">${x.s}</div>
+         </div>`);
+    });
+    if(m.caveat) moneyBox.insertAdjacentHTML("beforeend", `<div class="small" style="flex-basis:100%;opacity:.6">${m.caveat}</div>`);
+    // ③一军策略流程卡
+    const sc = d.strategy_card || {};
+    document.getElementById("scName").textContent = sc.name || "一军策略";
+    document.getElementById("scMech").innerHTML = "<b>机制:</b>" + (sc.mechanism||"");
+    const stepHTML = (s, arrow)=>{
+      const lockTag = s.state==="locked" ? ' <span class="tag warn">锁</span>' : ' <span class="tag on">开</span>';
+      return `<div style="padding:7px 9px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;${s.state==='locked'?'opacity:.75':''}">
+        <div style="font-weight:600">${arrow?'↓ ':''}${s.name}${lockTag}</div>
+        <div class="small" style="margin-top:2px">${s.detail}</div>
+        ${s.today?`<div class="small" style="margin-top:2px;color:var(--blue)">今日:${s.today}</div>`:""}
+      </div>`;
+    };
+    document.getElementById("scSteps").innerHTML = (sc.steps||[]).map((s,i)=>stepHTML(s,i>0)).join("");
+    document.getElementById("scExits").innerHTML = (sc.exits||[]).map(s=>stepHTML(s,false)).join("");
+    document.getElementById("scUpgrade").innerHTML = (sc.upgrade||[]).map(s=>stepHTML(s,false)).join("");
+    document.getElementById("scStatus").innerHTML = "<b>现在卡在:</b>" + (sc.status||"");
+    // ④裁决日历
+    const vq = document.querySelector("#missionVerdicts tbody"); vq.innerHTML = "";
+    (d.verdict_queue||[]).forEach(v=>{
+      const st = v.done ? '<span class="tag on">已出分</span>' : `<span class="tag off">${v.eta}</span>`;
+      vq.insertAdjacentHTML("beforeend", `<tr><td style="white-space:normal;min-width:150px"><b>${v.name}</b></td>
+        <td style="white-space:normal" class="small">${v.question}</td>
+        <td class="small">${v.progress}</td><td>${st}</td></tr>`);
+    });
+    // ⑤编制四抽屉
+    const ro = document.getElementById("missionRoster"); ro.innerHTML = "";
+    (d.roster||[]).forEach(g=>{
+      ro.insertAdjacentHTML("beforeend",
+        `<div style="flex:1;min-width:230px;padding:8px 10px;border:1px solid var(--border);border-radius:8px">
+           <div style="font-weight:600;margin-bottom:4px">${g.title}</div>
+           ${(g.items||[]).map(x=>`<div class="small" style="margin-top:3px">· ${x}</div>`).join("")}
+           ${g.note?`<div class="small" style="margin-top:4px;opacity:.6">${g.note}</div>`:""}
+         </div>`);
+    });
     const jy = document.getElementById("missionJourney"); jy.innerHTML = "";
     (d.journey||[]).forEach(s=>{
       const bg = s.state==="current" ? "rgba(80,180,120,.18)" : (s.state==="done" ? "rgba(255,255,255,.04)" : "transparent");
