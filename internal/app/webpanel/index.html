@@ -73,26 +73,88 @@ a{color:var(--blue);text-decoration:none}
     <div class="small" id="missionHeadline" style="margin-top:6px;opacity:.8"></div>
   </div>
 
-  <!-- ① 主舞台:E 的完整因果链(策略→今天的数据→成绩→杠杆→出分,全部同一口径垂直串联) -->
-  <div class="card" style="margin-top:12px;border-left:4px solid var(--accent)">
-    <h2 style="margin:0 0 4px;font-size:16px" id="scName">一军策略</h2>
-    <div class="small" id="scMech" style="padding:8px;background:rgba(140,120,255,.07);border-radius:6px"></div>
+  <!-- 🌳 系统全景树:六分支=整个系统;徽标实时上卷,点分支下钻 -->
+  <div class="section">
+    <h2>🌳 系统全景树 <span class="small">六分支=系统全部;徽标实时;树管导航,分支内保留因果管道</span></h2>
 
-    <!-- 解剖书:哲学→机制 + 八步流程的粒子组合与出处(回答"我说的思想在哪一步/策略怎么组合的") -->
-    <details style="margin-top:10px" open>
-      <summary style="cursor:pointer;font-weight:600">📖 策略解剖书 —— 你的四句哲学在哪一步生效 · 每一步由哪些粒子组合成、从哪具尸体上拆来</summary>
-      <div style="margin-top:8px">
-        <h3>全系统九层纵剖面(数字与锁态实时;真钱只能从第7层的门出来)</h3>
-        <div id="scFlowLayers"></div>
-        <h3 style="margin-top:12px">你的哲学纲领 → 系统里的化身</h3>
-        <div id="scPhilosophy" style="display:flex;gap:8px;flex-wrap:wrap"></div>
-        <h3 style="margin-top:12px">八步流程解剖:环节 → 规则 → 粒子组合(出身) → 哲学</h3>
-        <table id="scAnatomy"><thead><tr><th style="min-width:120px">环节</th><th>具体规则</th><th>粒子组合(从哪拆来)</th><th style="min-width:90px">哲学</th></tr></thead><tbody></tbody></table>
-        <div class="small" style="margin-top:6px;opacity:.7">粒子总册见 PARTICLE_LIBRARY.md(六族约40个粒子+坟场21具尸体的死因分级);此表=其中组合进当前 E 的部分。</div>
+    <!-- 💰 1. 真钱与防线(永远第一分支) -->
+    <details class="card" style="margin-top:8px">
+      <summary style="cursor:pointer;font-size:15px;font-weight:700">💰 真钱与防线 <span class="small" id="tbMoney" style="font-weight:400;color:var(--muted)"></span></summary>
+      <div class="grid cards" id="accountCards" style="margin-top:10px">
+        <div class="card"><h3>账户总权益 (四所合计)</h3><div class="big" id="totalEquity">—</div><div class="small" id="totalUpnl"></div></div>
+        <div class="card"><h3>今日账户变化 (北京0点基准)</h3><div class="big" id="todayEarning">—</div><div class="small" id="todayTrading"></div></div>
+        <div class="card"><h3>今日已实现 (方向结算)</h3><div class="big" id="todayRealized">—</div><div class="small" id="todayTrades"></div></div>
+        <div class="card"><h3>累计已实现</h3><div class="big" id="allTimeRealized">—</div><div class="small" id="allTimeFees"></div></div>
+      </div>
+      <div class="card" style="margin-top:8px">
+        <h3>各所资金</h3>
+        <table id="venuesTable"><thead><tr>
+          <th>交易所</th><th>钱包总额</th><th>浮盈亏</th><th>今日变化</th><th>今日交易盈亏</th><th>今日收益率</th>
+        </tr></thead><tbody></tbody></table>
+        <div class="ctrl" style="margin-top:10px">
+          <label>资金划转申报 USDT<input id="ffAmount" type="number" step="0.01" placeholder="金额"></label>
+          <select id="ffDirection" style="padding:6px"><option value="out">转出(提现/划走)</option><option value="in">转入(充值/划入)</option></select>
+          <input id="ffNote" type="text" placeholder="备注(可选)" style="padding:6px">
+          <button class="act ghost" onclick="declareFundFlow()">申报</button>
+        </div>
+        <div class="small" style="margin-top:6px">提现/内部划转前后点一下,风控对账自动消音。⚠️ 持仓真值以交易所为准(纪律29:posq 直查,本地文件不作数)。</div>
+      </div>
+      <div class="card" style="margin-top:8px">
+        <h3>方向引擎(慢线四所已停;此处=开火日操作台)</h3>
+        <div class="venue-tabs" id="venueTabs"></div>
+        <div class="flex">
+          <div class="card" style="max-width:430px">
+            <h3>状态与控制 <span id="dirState"></span></h3>
+            <div class="kv" id="dirKV"></div>
+            <div class="ctrl">
+              <label>交易仓本金 USDT<input id="ctlCapital" type="number" step="1"></label>
+              <label>止损 % (本金)<input id="ctlStop" type="number" step="1"></label>
+              <button class="act start" onclick="controlEngine(true)">开始 (LIVE)</button>
+              <button class="act stop" onclick="controlEngine(false)">停止</button>
+            </div>
+            <div class="small" style="margin-top:8px">开始=真实下单,须持有控制令牌;停止只停新开仓,在场仓继续按规则管理。</div>
+          </div>
+          <div class="card">
+            <h3>仓位级统计 (今日分层 / 全期)</h3>
+            <table id="statsTable"><thead><tr><th></th><th>开仓数</th><th>仓数(平)</th><th>胜率</th><th>PF</th><th>净利</th><th>最大亏</th></tr></thead><tbody>
+              <tr id="statsTodaySlow"><td>今日·慢线</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+              <tr id="statsTodayFast"><td>今日·fast</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+              <tr id="statsAll"><td>全期(合)</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+            </tbody></table>
+            <div class="small" id="statsNote" style="margin-top:6px"></div>
+          </div>
+        </div>
+        <h3 style="margin-top:10px">在场持仓 <span class="small" id="posSummary"></span></h3>
+        <table id="posTable"><thead><tr>
+          <th>币种</th><th>方向</th><th>入场价</th><th>数量</th><th>名义</th><th>现价</th><th>浮盈% (本金)</th><th>浮盈 USDT</th><th>regime</th><th>开仓时间</th>
+        </tr></thead><tbody></tbody></table>
+        <h3 style="margin-top:10px">最近结算 (最新 20 笔)</h3>
+        <table id="recentTable"><thead><tr>
+          <th>时间</th><th>币种</th><th>方向</th><th>入场</th><th>出场</th><th>名义</th><th>盈亏</th><th>持有</th><th>原因</th><th>taker开/平</th>
+        </tr></thead><tbody></tbody></table>
+      </div>
+      <div class="card" style="margin-top:8px"><h3>真钱阶梯(做到哪一步)</h3><div class="small" id="missionLadder"></div></div>
+    </details>
+
+    <!-- 🔭 2. 司天监 -->
+    <details class="card" style="margin-top:8px">
+      <summary style="cursor:pointer;font-size:15px;font-weight:700">🔭 司天监(读州 → 查值班表 → 派班)<span class="small" id="tbSky" style="font-weight:400;color:var(--muted)"></span></summary>
+      <div class="card" style="margin-top:10px">
+        <div class="small">实时州在顶部状态条;这里是它的制度:州变量(燃料/潮汐/广度)→ 值班表(模块×州持证格)→ 只放行持证者;当前持证=0 → 宪法口径全体歇业,真钱 0 枪。E 的派班闸已是实枪真闸(风暴/广跌自动歇业)。</div>
+        <h3 style="margin-top:10px">目标与持证</h3>
+        <div class="small" id="missionGoal"></div>
       </div>
     </details>
 
-    <h3 style="margin-top:14px">❶ 进场管道 —— 每个节点印着"今天"的实数,拦截原因直接写在闸上(与解剖书②③④⑤步对应)</h3>
+    <!-- 🔫 3. 策略模块 -->
+    <details class="card" style="margin-top:8px" open>
+      <summary style="cursor:pointer;font-size:15px;font-weight:700">🔫 策略模块(3)<span class="small" id="tbGuns" style="font-weight:400;color:var(--muted)"></span></summary>
+
+      <details style="margin-top:10px;border-left:3px solid var(--accent);padding-left:10px" open>
+        <summary style="cursor:pointer;font-weight:700">⭐ <span id="scName">E·跨所捡便宜</span> <span class="tag on">探针实弹</span></summary>
+        <div class="small" id="scMech" style="padding:8px;background:rgba(140,120,255,.07);border-radius:6px;margin-top:8px"></div>
+
+    <h3 style="margin-top:14px">❶ 进场管道 —— 每个节点印着"今天"的实数,拦截原因直接写在闸上</h3>
     <div id="scSteps" style="display:flex;gap:6px;flex-wrap:wrap;align-items:stretch"></div>
 
     <h3 style="margin-top:14px">❷ 出场机器 —— 买进后四种离场方式</h3>
@@ -110,50 +172,55 @@ a{color:var(--blue);text-decoration:none}
     <h3 style="margin-top:14px">❹ 改良杠杆 —— 钱从哪漏 / 数据说能拧回多少 / 差什么</h3>
     <div id="scLevers" style="display:flex;gap:10px;flex-wrap:wrap"></div>
 
-    <h3 style="margin-top:14px">❺ 最新策略的出分点</h3>
+    <h3 style="margin-top:14px">❺ 本策略的出分点</h3>
     <table id="missionVerdicts"><thead><tr><th>考试</th><th>裁什么</th><th>进度</th><th>到线</th></tr></thead><tbody></tbody></table>
     <div id="scStatus" style="margin-top:10px;padding:8px;background:rgba(120,160,255,.07);border-radius:6px;font-size:13px"></div>
     <div class="small" style="margin-top:6px">钻取:<a href="javascript:void(0)" onclick="jumpToReport('e_next')">改良版逐笔明细</a> · <a href="javascript:void(0)" onclick="jumpToReport('e_current')">原版对照明细</a> · <a href="javascript:void(0)" onclick="jumpToReport('exam_e_ticket')">门票考试明细</a></div>
-  </div>
+      </details>
 
-  <!-- ② 折叠:变体与仪器(为下一版攒证据的研究,不是当前策略成绩) -->
-  <details class="section"><summary style="cursor:pointer;font-size:15px;font-weight:600">▸ 变体与仪器裁决(为 E 下一版攒证据;<span class="tag warn">变体研究</span> / <span class="tag off">仪器</span>)</summary>
-    <div class="card" style="margin-top:8px">
-      <table id="missionVerdictsOther"><thead><tr><th>考试</th><th>口径</th><th>裁什么</th><th>进度</th><th>到线</th></tr></thead><tbody></tbody></table>
-      <h3 style="margin-top:10px">后台工作流(实时 Go 计算)</h3>
-      <table id="missionDoing"><thead><tr><th>工作流</th><th>进度</th></tr></thead><tbody></tbody></table>
-    </div>
-  </details>
+      <details style="margin-top:10px;border-left:3px solid var(--border);padding-left:10px">
+        <summary style="cursor:pointer;font-weight:700">🔥 火刀·跟瀑布 <span class="tag off">影子</span></summary>
+        <div class="small" style="margin-top:8px;padding:8px;background:rgba(255,120,60,.06);border-radius:6px">
+          机制:卖方爆量(38ms探测)→ 官方爆仓确认 → 顺瀑布做空,程序S出场(trail棘轮/二波止错/-40灾难/cap120s)。<br>
+          状态:枪已造好锁死;组合判决屡败,等真风暴锚或费率降档;<b>明日工程=接司天监州闸(风暴跌潮值班)后才谈上膛</b>。<br>
+          数据:账本 fire 模块逐日记账 · <a href="javascript:void(0)" onclick="jumpToReport('shadow_fire_rest')">看逐笔明细</a>
+        </div>
+      </details>
 
-  <!-- ③ 折叠:项目全景(路线/编制/候选/门槛) -->
-  <details class="section"><summary style="cursor:pointer;font-size:15px;font-weight:600">▸ 项目全景(六站路线 · 编制四抽屉 · 候选位置 · 门槛表)</summary>
-    <div class="card" style="margin-top:8px">
-      <h3>路线图:整个项目一共六站,现在在哪 ↓</h3>
-      <div id="missionJourney" style="display:flex;gap:8px;flex-wrap:wrap"></div>
-    </div>
-    <div class="card" style="margin-top:8px">
-      <h3>编制四抽屉(全项目一切事物只属于这四格;试错再多也不散)</h3>
-      <div id="missionRoster" style="display:flex;gap:10px;flex-wrap:wrap"></div>
-    </div>
-    <div class="card" style="margin-top:8px">
-      <h3>管线全员位置(左半段多车道并行;E在门口=跑得最快,不是只有它)</h3>
-      <table id="missionCandidates"><thead><tr><th>候选</th><th>位置</th><th>状态</th></tr></thead><tbody></tbody></table>
-    </div>
-    <div class="flex" style="margin-top:8px">
-      <div class="card" style="min-width:340px;flex:1">
-        <h3>下一步 · 怎么进入(门槛 vs 现值)</h3>
-        <table id="missionGates"><thead><tr><th>门</th><th>现值</th><th>要求</th><th>状态</th></tr></thead><tbody></tbody></table>
+      <details style="margin-top:10px;border-left:3px solid var(--border);padding-left:10px">
+        <summary style="cursor:pointer;font-weight:700">🎆 烟花·反手刀 <span class="tag off">影子</span> <span class="small" id="tbFirework" style="font-weight:400;color:var(--muted)"></span></summary>
+        <div class="small" style="margin-top:8px;padding:8px;background:rgba(255,200,60,.06);border-radius:6px">
+          机制:暴力拉升≥60bps × 力竭 × 点差≤6 → 反手做空,固定300s出场(-40灾难)。对手=最后一批追多的散户+竭尽的回补流。<br>
+          状态:无实枪(判决过门才造);今日全场最亮(研究口径 PF 0.80),钱分"会不会被轧空打穿"——惯犯币否决假设在攒(惯犯灾难率77% vs 40%)。<br>
+          数据:<a href="javascript:void(0)" onclick="jumpToReport('shadow_firework_rest')">看逐笔明细</a>
+        </div>
+      </details>
+    </details>
+
+    <!-- 📝 4. 判决工厂 -->
+    <details class="card" style="margin-top:8px">
+      <summary style="cursor:pointer;font-size:15px;font-weight:700">📝 判决工厂(唯一发证通道)<span class="small" id="tbExam" style="font-weight:400;color:var(--muted)"></span></summary>
+      <div class="card" style="margin-top:10px">
+        <h3>自动阅卷人·在考(10min一轮;到线自动出分+推送你的 Telegram;机器只发证,开火永远是你)</h3>
+        <div id="examsPanel"></div>
       </div>
-      <div class="card" style="flex:1;min-width:280px"><h3>目标</h3><div class="small" id="missionGoal"></div></div>
-    </div>
-    <div class="flex" style="margin-top:8px">
-      <div class="card" style="flex:1"><h3>真钱阶梯(做到哪一步)</h3><div class="small" id="missionLadder"></div></div>
-      <div class="card" style="flex:1"><h3>整个系统(六层流水线)</h3><div class="small" id="missionPipeline"></div></div>
-    </div>
-  </details>
+      <div class="card" style="margin-top:8px">
+        <h3>变体与仪器裁决(为下一版攒证据,不是当前策略成绩)</h3>
+        <table id="missionVerdictsOther"><thead><tr><th>考试</th><th>口径</th><th>裁什么</th><th>进度</th><th>到线</th></tr></thead><tbody></tbody></table>
+      </div>
+      <div class="flex" style="margin-top:8px">
+        <div class="card" style="min-width:340px;flex:1">
+          <h3>门槛表(门 vs 现值)</h3>
+          <table id="missionGates"><thead><tr><th>门</th><th>现值</th><th>要求</th><th>状态</th></tr></thead><tbody></tbody></table>
+        </div>
+        <div class="card" style="flex:1;min-width:280px">
+          <h3>管线全员位置</h3>
+          <table id="missionCandidates"><thead><tr><th>候选</th><th>位置</th><th>状态</th></tr></thead><tbody></tbody></table>
+        </div>
+      </div>
 
-  <!-- ④ 折叠:报告钻取(任意时段/任意口径,真金与影子永不混算) -->
-  <details class="section" id="reportSection"><summary style="cursor:pointer;font-size:15px;font-weight:600">▸ 报告钻取(按时段/口径看任何一条曲线与逐笔明细)</summary>
+  <!-- 报告钻取(嵌在判决工厂分支内:看任何口径的曲线与逐笔) -->
+  <details class="section" id="reportSection" style="margin-top:8px"><summary style="cursor:pointer;font-size:15px;font-weight:600">▸ 报告钻取(按时段/口径看任何一条曲线与逐笔明细;真金与影子永不混算)</summary>
     <div class="card" style="margin-top:8px">
       <div class="ctrl" style="flex-wrap:wrap">
         <span id="rangePills">
@@ -177,63 +244,43 @@ a{color:var(--blue);text-decoration:none}
       <table id="repTrades"><thead><tr><th>时间</th><th>策略</th><th>币</th><th>方向</th><th>净</th><th>持有</th><th>出场原因</th></tr></thead><tbody></tbody></table>
     </div>
   </details>
+    </details>
 
-  <!-- ⑤ 折叠:真金与引擎(四所全停,日常无需打开;开火日在这操作) -->
-  <details class="section"><summary style="cursor:pointer;font-size:15px;font-weight:600">▸ 真金与引擎(账户 · 各所资金 · 引擎控制 · 持仓 · 最近结算 —— 当前全停,敞口 0)</summary>
-    <div class="grid cards" id="accountCards" style="margin-top:8px">
-      <div class="card"><h3>账户总权益 (四所合计)</h3><div class="big" id="totalEquity">—</div><div class="small" id="totalUpnl"></div></div>
-      <div class="card"><h3>今日账户变化 (北京0点基准)</h3><div class="big" id="todayEarning">—</div><div class="small" id="todayTrading"></div></div>
-      <div class="card"><h3>今日已实现 (方向结算)</h3><div class="big" id="todayRealized">—</div><div class="small" id="todayTrades"></div></div>
-      <div class="card"><h3>累计已实现</h3><div class="big" id="allTimeRealized">—</div><div class="small" id="allTimeFees"></div></div>
-    </div>
-    <div class="card" style="margin-top:8px">
-      <h3>各所资金</h3>
-      <table id="venuesTable"><thead><tr>
-        <th>交易所</th><th>钱包总额</th><th>浮盈亏</th><th>今日变化</th><th>今日交易盈亏</th><th>今日收益率</th>
-      </tr></thead><tbody></tbody></table>
-      <div class="ctrl" style="margin-top:10px">
-        <label>资金划转申报 USDT<input id="ffAmount" type="number" step="0.01" placeholder="金额"></label>
-        <select id="ffDirection" style="padding:6px"><option value="out">转出(提现/划走)</option><option value="in">转入(充值/划入)</option></select>
-        <input id="ffNote" type="text" placeholder="备注(可选)" style="padding:6px">
-        <button class="act ghost" onclick="declareFundFlow()">申报</button>
+    <!-- 📡 5. 数据仪器 -->
+    <details class="card" style="margin-top:8px">
+      <summary style="cursor:pointer;font-size:15px;font-weight:700">📡 数据仪器(只测量不交易)<span class="small" id="tbData" style="font-weight:400;color:var(--muted)"></span></summary>
+      <div class="card" style="margin-top:10px">
+        <h3>后台工作流(实时 Go 计算)</h3>
+        <table id="missionDoing"><thead><tr><th>工作流</th><th>进度</th></tr></thead><tbody></tbody></table>
+        <h3 style="margin-top:10px">六层流水线</h3>
+        <div class="small" id="missionPipeline"></div>
       </div>
-      <div class="small" style="margin-top:6px">提现/内部划转前后点一下,风控对账自动消音,不会误报"未解释资金流出"。只记账,不影响任何交易与风控阈值。</div>
-    </div>
-    <div class="card" style="margin-top:8px">
-      <h3>方向引擎</h3>
-      <div class="venue-tabs" id="venueTabs"></div>
-      <div class="flex">
-        <div class="card" style="max-width:430px">
-          <h3>状态与控制 <span id="dirState"></span></h3>
-          <div class="kv" id="dirKV"></div>
-          <div class="ctrl">
-            <label>交易仓本金 USDT<input id="ctlCapital" type="number" step="1"></label>
-            <label>止损 % (本金)<input id="ctlStop" type="number" step="1"></label>
-            <button class="act start" onclick="controlEngine(true)">开始 (LIVE)</button>
-            <button class="act stop" onclick="controlEngine(false)">停止</button>
-          </div>
-          <div class="small" style="margin-top:8px">开始=真实下单,须持有控制令牌;停止只停新开仓,在场仓继续按规则管理。</div>
-        </div>
-        <div class="card">
-          <h3>仓位级统计 (今日分层 / 全期)</h3>
-          <table id="statsTable"><thead><tr><th></th><th>开仓数</th><th>仓数(平)</th><th>胜率</th><th>PF</th><th>净利</th><th>最大亏</th></tr></thead><tbody>
-            <tr id="statsTodaySlow"><td>今日·慢线</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
-            <tr id="statsTodayFast"><td>今日·fast</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
-            <tr id="statsAll"><td>全期(合)</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
-          </tbody></table>
-          <div class="small" id="statsNote" style="margin-top:6px"></div>
-        </div>
+    </details>
+
+    <!-- 📚 6. 制度与哲学 -->
+    <details class="card" style="margin-top:8px">
+      <summary style="cursor:pointer;font-size:15px;font-weight:700">📚 制度与哲学(为什么是这样设计的)</summary>
+      <div class="card" style="margin-top:10px">
+        <h3>全系统九层纵剖面(数字与锁态实时;真钱只能从第7层的门出来)</h3>
+        <div id="scFlowLayers"></div>
       </div>
-      <h3 style="margin-top:10px">在场持仓 <span class="small" id="posSummary"></span></h3>
-      <table id="posTable"><thead><tr>
-        <th>币种</th><th>方向</th><th>入场价</th><th>数量</th><th>名义</th><th>现价</th><th>浮盈% (本金)</th><th>浮盈 USDT</th><th>regime</th><th>开仓时间</th>
-      </tr></thead><tbody></tbody></table>
-      <h3 style="margin-top:10px">最近结算 (最新 20 笔)</h3>
-      <table id="recentTable"><thead><tr>
-        <th>时间</th><th>币种</th><th>方向</th><th>入场</th><th>出场</th><th>名义</th><th>盈亏</th><th>持有</th><th>原因</th><th>taker开/平</th>
-      </tr></thead><tbody></tbody></table>
-    </div>
-  </details>
+      <div class="card" style="margin-top:8px">
+        <h3>你的哲学纲领 → 系统里的化身</h3>
+        <div id="scPhilosophy" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+        <h3 style="margin-top:12px">八步流程解剖:环节 → 规则 → 粒子组合(出身) → 哲学</h3>
+        <table id="scAnatomy"><thead><tr><th style="min-width:120px">环节</th><th>具体规则</th><th>粒子组合(从哪拆来)</th><th style="min-width:90px">哲学</th></tr></thead><tbody></tbody></table>
+        <div class="small" style="margin-top:6px;opacity:.7">粒子总册见 PARTICLE_LIBRARY.md(六族约40个粒子+坟场21具尸体的死因分级)。</div>
+      </div>
+      <div class="card" style="margin-top:8px">
+        <h3>路线图:整个项目一共六站,现在在哪 ↓</h3>
+        <div id="missionJourney" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+      </div>
+      <div class="card" style="margin-top:8px">
+        <h3>编制四抽屉(全项目一切事物只属于这四格;试错再多也不散)</h3>
+        <div id="missionRoster" style="display:flex;gap:10px;flex-wrap:wrap"></div>
+      </div>
+    </details>
+  </div>
 </main>
 <div id="msg"></div>
 <script>
@@ -445,6 +492,31 @@ async function refreshMission(){
         `<div style="flex:1.4;min-width:280px;padding:8px 10px;border:1px solid var(--border);border-radius:8px">
            <div class="small">📝 自动阅卷人·在考(到线自动出分并推送你的 Telegram)</div>${rows}
          </div>`);
+    }
+
+    // 🌳 树徽标(实时上卷)+ 判决工厂在考面板
+    const doneN = exams.filter(x=>x.verdict).length;
+    const setTb = (id,txt)=>{ const el=document.getElementById(id); if(el) el.textContent=" — "+txt; };
+    const pr = (d.probes||[])[0];
+    setTb("tbMoney", pr ? `探针·${pr.source} ${pr.trades}/${pr.max_trades}笔 ${sign(pr.realized)}U${pr.exhausted?"(已缴械)":""} · 慢线四所停` : "敞口 0");
+    setTb("tbSky", `${sky.fuel_state||"?"}(燃料${fmt(sky.fuel,0)}) · ${sky.e_duty?"E 值班":"E 歇业"} · 持证 0`);
+    setTb("tbGuns", `⭐E=探针实弹 · 🔥火刀=影子锁 · 🎆烟花=影子`);
+    setTb("tbExam", `${exams.length} 场在考 · ${doneN} 已出分${doneN?"(见推送)":""}`);
+    setTb("tbData", (d.pipeline&&d.pipeline[0]&&d.pipeline[0].note)||"");
+    const fw = exams.find(x=>x.key==="firework_fwd");
+    if(fw){ const el=document.getElementById("tbFirework"); if(el) el.textContent=` — n=${fw.n} 中位${sign(fw.med)} PF${fmt(fw.pf)}${fw.verdict?(fw.verdict==="pass"?" 🎫过门":" ✗判负"):""}`; }
+    const ep = document.getElementById("examsPanel");
+    if(ep){
+      ep.innerHTML = exams.map(x=>{
+        const done = x.verdict ? (x.verdict==="pass"?'<span class="tag on">🎫 准考证已发</span>':'<span class="tag warn">✗ 判负(死因解剖排队)</span>') : '<span class="tag off">在考</span>';
+        const p = Math.min(100, 100*(x.n||0)/(x.min_n||30));
+        return `<div style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;margin-top:6px">
+          <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><b>${x.label}</b>${done}</div>
+          <div class="small" style="margin-top:3px;opacity:.8">${x.question||""}</div>
+          <div class="small" style="margin-top:4px">进度 ${x.n}/${x.min_n} 笔 · 净中位 ${sign(x.med)}bps · PF ${fmt(x.pf)}(门=中位>0 且 PF≥1.3 且 胜率≥45% 且 单币≤上限)</div>
+          <div style="height:5px;background:var(--panel2);border-radius:3px;margin-top:4px"><div style="width:${p}%;height:5px;background:${x.verdict==='fail'?'var(--red)':'var(--green)'};border-radius:3px"></div></div>
+        </div>`;
+      }).join("");
     }
 
     // 解剖书:九层纵剖面(数字/锁态现算)
