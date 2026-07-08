@@ -134,6 +134,30 @@ func fastGapPathAt(sym string, now time.Time) fastGapPathStats {
 // fastXgapFreshTol 锚新鲜度容忍(冻结口径,与离线回放的 8s 一致=两个采集节拍)。
 const fastXgapFreshTol = 8 * time.Second
 
+// fastXgapCellSkip 纯判定:格子口径三闸(2026-07-08 实盘日前置,㉝/格子考试口径的实枪化;""=通过)。
+// ①新鲜度:回看1800s价差须现过>-20(陈年价差=标价不是错价;fail-closed)
+// ②派班:燃料<40(非风暴)且广度>-15 已知(广跌=E毒州;广度不可算=fail-closed)
+// ③残余带:REST残余∈[-40,-20](执行层唯一活区;浅=肉没了,深=没人抢有原因)
+// 全部输入均为入场时刻可知(信息集审查✓);与粒子账本同源函数=回放/实枪零口径漂移。
+func fastXgapCellSkip(fresh bool, fuel float64, breadth float64, breadthOK bool, gapNow float64) string {
+	if !fresh {
+		return "cell_stale_gap"
+	}
+	if fuel >= 40 {
+		return "cell_off_duty_storm"
+	}
+	if !breadthOK || breadth <= -15 {
+		return "cell_off_duty_breadth"
+	}
+	if gapNow > -20 {
+		return "cell_residual_shallow"
+	}
+	if gapNow < -40 {
+		return "cell_residual_deep"
+	}
+	return ""
+}
+
 // fastXgapShouldFire 纯判定:入场价差触发 + 同币冷却(gapBps 负=OKX 便宜)。
 func fastXgapShouldFire(gapBps, entryGapBps float64, last, now time.Time, cooldownSec int) bool {
 	if entryGapBps <= 0 || gapBps > -entryGapBps {
@@ -217,6 +241,14 @@ func (e *OKXDirectionalEngine) fastXgapFire(sym string, detGapBps float64, detAt
 		skip = "gap_gone"
 	case ev.SpreadBps > maxSpread:
 		skip = "spread_wide" // 宽点差币的 mid 价差吃不到(离线按 mid 记账的执行修正)
+	}
+	// 格子口径三闸(2026-07-08 实盘日硬化;默认关=shadow 行为不变,开=探针按格子口径打)。
+	// shadow 照记 skip 原因=对照组不丢(与 v6.2 side_match 同哲学)。
+	if skip == "" && e.cfg.FastXgapCellGatesEnabled {
+		br, brOK := fastBreadth30(e.nowFn().UTC())
+		skip = fastXgapCellSkip(
+			fastGapFresh(sym, e.nowFn().UTC(), -20, 10),
+			fastMarketLiqRate(e.nowFn().UTC(), 300), br, brOK, gapNow)
 	}
 	ev.GateSkip = skip
 	_ = appendJSONLRecord(filepath.Join(e.recordDir, fastExecShadowFile), *ev)

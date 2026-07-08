@@ -299,6 +299,10 @@ okx_directional:
   #   particle_ledger.jsonl(小文件,阅卷直读,不再重解析GB级原始流)。规则单一来源:
   #   粒子函数在 Go,实枪未来加闸复用同函数,消灭 Python/Go 双实现口径漂移。零交易影响。
   fast_particle_ledger_enabled: true
+  # E枪格子口径三闸(2026-07-08 实盘日硬化):新鲜度+派班(燃料/广度)+残余带[-40,-20]。
+  #   与粒子账本同源Go函数=回放/实枪零口径漂移。此处即刻开启:live 仍锁死时它只影响
+  #   shadow 的 cell_* 跳过标注(对照组照记);探针开火时即是真闸,免得开火日再改两处。
+  fast_xgap_cell_gates_enabled: true
   #   跨所强平流采集(耳朵不是枪口:fast 实盘只在 OKX,别所被迫流只做信号研究)。
   #   源=Bybit allLiquidation(OKX∩Bybit 交集;09:10 探针实测 Binance forceOrder/aggTrade 本机零数据帧=僵尸,弃用)。
   fast_xvenue_liq_enabled: true

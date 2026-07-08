@@ -197,6 +197,11 @@ func TestLoadProductionConfigYAML(t *testing.T) {
 	if !cfg.OKXDirectional.FastParticleLedgerEnabled {
 		t.Fatal("fast_particle_ledger_enabled = false want true(Layer A 粒子账本=record-only 基建)")
 	}
+	// E枪格子三闸(2026-07-08 实盘日硬化):live 锁死期只影响 shadow 标注,探针开火时即真闸;
+	// 关闭=探针将按无闸 v6.5 口径打(已被㉝判负的口径)=配置回退事故。
+	if !cfg.OKXDirectional.FastXgapCellGatesEnabled {
+		t.Fatal("fast_xgap_cell_gates_enabled = false want true(格子三闸:探针必须按格子口径打)")
+	}
 	// ㊳② 全市场磁带探针(2026-07-08):burst 第一波视野的数据源;关=增量视野断流。
 	if !cfg.OKXDirectional.FastFullTapeEnabled {
 		t.Fatal("fast_full_tape_enabled = false want true(全市场磁带探针=第一波视野 record-only 基建)")

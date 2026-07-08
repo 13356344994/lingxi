@@ -1005,6 +1005,10 @@ type OKXDirectionalConfig struct {
 	// (新鲜度/州/深度档/币种/惯犯),虚拟持仓按 E 出场规则结账写 particle_ledger.jsonl。
 	// 规则单一来源:粒子函数在 Go,回放/阅卷读账本(不再重解析GB级原始流),实枪加闸时复用同函数。
 	FastParticleLedgerEnabled bool `cfg:"fast_particle_ledger_enabled"` // 默认关,yaml 开(record-only)
+	// E枪格子口径三闸(2026-07-08 实盘日硬化):新鲜度(回看1800s现过>-20)+派班(燃料<40且广度>-15)
+	// +残余带(REST残余∈[-40,-20])。与粒子账本同源函数=零口径漂移;开=探针按格子口径打,
+	// 关=纯 v6.5 行为。shadow 照记 cell_* 跳过原因(对照组不丢)。
+	FastXgapCellGatesEnabled bool `cfg:"fast_xgap_cell_gates_enabled"` // 默认关,探针日与 live 一起开
 	// v6 净值哨兵(飞轮引擎的硬前提,HANDOFF §-7C):事件线 source 最近 N 笔净值中位 <0 → 自动停开
 	// (sentinel_halt)。飞轮策略高频走量,-2bps×330笔/天=烧账户,哨兵保证"不亏才配走量"。
 	// 触发即粘性停火(重启从结算重建=仍停),解除须人工解剖后调参——纪律在结构里,不在自觉里。

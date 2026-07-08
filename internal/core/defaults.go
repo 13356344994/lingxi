@@ -621,6 +621,7 @@ func DefaultEngineConfig() EngineConfig {
 			FastXgapDisasterBps:            60,
 			FastXgapCooldownSeconds:        1800,
 			FastParticleLedgerEnabled:      false, // Layer A 粒子账本:默认关,yaml 显式开(record-only)
+			FastXgapCellGatesEnabled:       false, // E枪格子三闸:默认关,探针日与 live 一起开(护栏锚定)
 			FastProbeSource:                "",    // 探针制:空=无探针;设 source=用户批准该候选进探针层
 			FastProbeMaxTrades:             20,    // 探针预算:笔数硬顶
 			FastProbeMaxLossUSDT:           0.5,   // 探针预算:累亏硬顶(越线自动缴械,重启不失忆)
