@@ -34,6 +34,8 @@ while true; do
     timeout 300 python3 records/_event_space_knn.py 2>&1 | tail -7
     echo "--- 邻域引力场 vs 全局海况(㊵v2对决) ---"
     timeout 300 python3 records/_gravity_field_probe.py 2>&1 | tail -6
+    echo "--- 后验织网亮度图(㊵v3,叠加态) ---"
+    timeout 300 python3 records/_posterior_web.py 2>&1 | tail -18
     echo "--- 高维分拣器影子(章程㉕,record-only) ---"
     timeout 120 python3 records/_meta_sorter_shadow.py 2>&1
     echo ""
