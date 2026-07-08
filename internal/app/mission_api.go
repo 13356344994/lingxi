@@ -227,6 +227,67 @@ type missionAnatomyStep struct {
 	Tenet     string   `json:"tenet"`      // 对应哲学
 }
 
+// missionFlowLayer 全系统纵剖面一层(07-08 用户"这种格式我很喜欢,要详细"拍板的页面化)。
+type missionFlowLayer struct {
+	Title string   `json:"title"`
+	Lines []string `json:"lines"`
+	Note  string   `json:"note,omitempty"`
+}
+
+// missionBuildFlowLayers 九层纵剖面:规则=登记态,数字/锁态=现算。
+func missionBuildFlowLayers(cfg OKXDirectionalConfig, fn fastXgapFunnelStats) []missionFlowLayer {
+	sk := func(k string) int { return fn.Skips[k] }
+	lock := func(b bool) string { return onOff(b, "✅开", "🔒锁") }
+	return []missionFlowLayer{
+		{Title: "第0层 · 数据地基(仪器,全部 record-only)", Lines: []string{
+			"全市场 mid 标尺(~750币,3s一拍)← E 的眼睛 " + lock(cfg.FastMarketMidsEnabled),
+			"Bybit 价格锚 xmid(价差的另一半)" + lock(cfg.FastXMidEnabled) + " · 热币 WS 40坑(books5+逐笔,怪兽优先)" + lock(cfg.FastHotWSEnabled),
+			"burst 探测器(1s名义≥5×基线且≥500U,识别延迟中位38ms)← 火刀/弹射的耳朵",
+			"OKX 官方爆仓推送(~490ms)+ Bybit 爆仓流 " + lock(cfg.FastXvenueLiqEnabled) + " · 全市场磁带探针(401币)" + lock(cfg.FastFullTapeEnabled),
+			"由此现算三个州变量:燃料=5min爆仓数(<20死水/20-40中间/≥40风暴) · 潮汐=30min净向 · 广度=30min收益中位(≤-15=广跌)",
+		}},
+		{Title: "第1层 · 各模块触发器(各看各的事件;触发即写 det 无闸对照账)", Lines: []string{
+			fmt.Sprintf("E·捡便宜:OKX 比 Bybit 锚便宜≥%.0fbps(锚新鲜≤8s),同币 %d 分钟一枪 → 今日触发 %d 次", cfg.FastXgapEntryGapBps, cfg.FastXgapCooldownSeconds/60, fn.Trigger),
+			"火刀·跟瀑布:卖方 burst → 挂起队列 → 官方爆仓确认(≤3s窗)→ 方向对号(多数票)",
+			"烟花·反手:暴力拉升≥60bps × 力竭(15s涨幅<25%×60s)× 点差≤6 → 反手做空",
+		}},
+		{Title: "第2层 · 司天监(州→值班表→派班;慢变量允许滞后,扳机不允许)", Lines: []string{
+			"当前持证格 = 0 → 宪法口径:全体⓪歇业(真钱 0 枪 0 亏,发证期)",
+			fmt.Sprintf("E 已真接线:派班闸(风暴/广跌歇业)→ 今日拦 %d 次", sk("cell_off_duty_storm")+sk("cell_off_duty_breadth")),
+			"火刀/烟花:账本行带州标注,供判决工厂发证阅卷 · 海况刹车=护栏(只停枪不选组合)",
+		}},
+		{Title: "第3层 · 当刻资格闸(E 完整闸序,今日实拦数)", Lines: []string{
+			fmt.Sprintf("①REST复核价差已收敛 gap_gone×%d ②点差>12bps spread_wide×%d", sk("gap_gone"), sk("spread_wide")),
+			fmt.Sprintf("③新鲜度(回看1800s须现过>-20,陈年=标价)×%d ④派班闸×%d", sk("cell_stale_gap"), sk("cell_off_duty_storm")+sk("cell_off_duty_breadth")),
+			fmt.Sprintf("⑤残余带∈[-40,-20](浅=肉没了×%d,深=没人抢有原因×%d)→ 今日全闸通过 %d 枪", sk("cell_residual_shallow"), sk("cell_residual_deep"), fn.Pass),
+		}, Note: "若探针开火,打的就是「全闸通过」这批枪——推荐书裁的就是它们的影子成绩"},
+		{Title: "第4层 · 下单与预算机器(真钱防线)", Lines: []string{
+			"来源闸 fast_xgap_live_enabled=" + onOff(cfg.FastXgapLiveEnabled, "⚠️true(实弹!)", "false 🔒 全闸通过也只记影子"),
+			fmt.Sprintf("开火形态(你批准后两行配置):探针 %.0fU 名义 → 治理器 ≤%d笔/累亏≤%.1fU 自动缴械(重启不失忆)", cfg.FastLiveNotionalUSDT, cfg.FastProbeMaxTrades, cfg.FastProbeMaxLossUSDT),
+			"净值哨兵(滚50中位<0粘停)→ fast日熔断(本金30%)→ 账户级35U/日 → 急停三级(面板/文件/systemd)",
+		}},
+		{Title: "第5层 · 各策略专属出场(出场刀配游戏类型)", Lines: []string{
+			fmt.Sprintf("E·原版(回归局):收敛≥-%.0f=论点兑现 / %ds=论点过期 / -%.0f灾难+学费冷却", cfg.FastXgapExitGapBps, cfg.FastXgapMaxHoldSeconds, cfg.FastXgapDisasterBps),
+			"E·改良版(影子真跑):burst弹射 > 灾难 > 棘轮(峰≥10回吐8落袋) > 收敛 > 到点 —— 与原版并排记账",
+			"火刀·程序S(动量局):trail棘轮(10/20) / 二波止错(20s无接力=离场) / -40灾难 / cap120s",
+			"烟花(回归局):固定300s(trail在回归局=绞肉机,实证) / -40灾难",
+		}},
+		{Title: "第6层 · 账本(判决货币;每枪四口径并行)", Lines: []string{
+			"det=触发时刻(无闸对照) / rest=REST可执行·原版出场 / rest2=改良版出场 / mkr=挂单变体",
+			"每行带:八粒子位(新鲜/燃料/广度/深度档/币种/惯犯/派班/残余带)+ 路径(生龄/速度/归因)+ 反事实标注(棘轮/弹射)+ 州 + module",
+		}},
+		{Title: "第7层 · 判决工厂(唯一发证通道;真钱只能从这道门出来)", Lines: []string{
+			"假设登记(必须带对手模型)→ 预注册(冻结切点,改=作弊;封样在先)",
+			"→ 前向新样本 n≥30 且 净中位>0 且 PF≥1.3 且 胜率≥45% 且 单币≤20% → 格子持证",
+			"→ 连数字递你裁探针 → 探针PF>1 → 灰度5→50→200U → 走量升费率档",
+		}},
+		{Title: "第8层 · 认知机器(30min自刷;只提名不判决)", Lines: []string{
+			"kNN事件空间(相似事件→相似结局)/ 邻域引力场(局部海况)/ 后验织网(60格亮度)/ 结构图(粒子承重)",
+			"产出=重组假设 → 回到第7层排队;智能层永不拥有最后防线(宪法附则)",
+		}},
+	}
+}
+
 func missionBuildPhilosophy() []missionPhilosophyRow {
 	return []missionPhilosophyRow{
 		{Tenet: "调研定方向", Meaning: "方向=打哪场仗(选池塘/选被迫流),不是猜下一秒价格;只有过了证伪审查的调研才配定方向",
@@ -301,9 +362,10 @@ type missionResponse struct {
 	// ===== 找回方向四件套(2026-07-08 用户"试错太多,流程认识不清晰"之诉;
 	// 同日重心纠偏:页面数据以当前最新策略为基准,历史学费不上页面)=====
 	Baseline     missionBaseline     `json:"baseline"`      // 当前策略基准+改良包杠杆现算
-	// ===== 策略解剖书(同日"哲学/粒子/流程连不上"之诉)=====
-	Philosophy []missionPhilosophyRow `json:"philosophy"` // 四句纲领→机制化身
-	Anatomy    []missionAnatomyStep   `json:"anatomy"`    // 八步流程解剖(规则/粒子出身/哲学)
+	// ===== 策略解剖书(同日"哲学/粒子/流程连不上"之诉;"详细分层图"同日追加)=====
+	Philosophy []missionPhilosophyRow `json:"philosophy"`  // 四句纲领→机制化身
+	Anatomy    []missionAnatomyStep   `json:"anatomy"`     // 八步流程解剖(规则/粒子出身/哲学)
+	FlowLayers []missionFlowLayer     `json:"flow_layers"` // 九层纵剖面(数字/锁态现算)
 	StrategyCard missionStrategyCard `json:"strategy_card"` // 一军 E 完整流程(带今日漏斗实数)
 	Roster       []missionRosterGroup `json:"roster"`       // 编制四抽屉(一军/仪器/冷藏/坟场)
 	VerdictQueue []missionVerdict    `json:"verdict_queue"` // 裁决日历(接下来谁出分)
@@ -634,6 +696,7 @@ func (s *DashboardServer) handleMissionAPI(w http.ResponseWriter, r *http.Reques
 		Now: now, Phase: phase, PhaseDetail: detail,
 		Baseline: baseline, StrategyCard: card, Roster: roster, VerdictQueue: verdicts,
 		Philosophy: missionBuildPhilosophy(), Anatomy: missionBuildAnatomy(),
+		FlowLayers: missionBuildFlowLayers(cfg, funnel),
 		Goal: []string{
 			"使命:分拣器分拣后,派给排列好的粒子组合交易盈利(费率飞轮只是次要放大器)。",
 			"两道门(登记,HANDOFF §-7C):利润引擎门=中位≥18bps;飞轮引擎门=中位≥12bps。",

@@ -81,7 +81,9 @@ a{color:var(--blue);text-decoration:none}
     <details style="margin-top:10px" open>
       <summary style="cursor:pointer;font-weight:600">📖 策略解剖书 —— 你的四句哲学在哪一步生效 · 每一步由哪些粒子组合成、从哪具尸体上拆来</summary>
       <div style="margin-top:8px">
-        <h3>你的哲学纲领 → 系统里的化身</h3>
+        <h3>全系统九层纵剖面(数字与锁态实时;真钱只能从第7层的门出来)</h3>
+        <div id="scFlowLayers"></div>
+        <h3 style="margin-top:12px">你的哲学纲领 → 系统里的化身</h3>
         <div id="scPhilosophy" style="display:flex;gap:8px;flex-wrap:wrap"></div>
         <h3 style="margin-top:12px">八步流程解剖:环节 → 规则 → 粒子组合(出身) → 哲学</h3>
         <table id="scAnatomy"><thead><tr><th style="min-width:120px">环节</th><th>具体规则</th><th>粒子组合(从哪拆来)</th><th style="min-width:90px">哲学</th></tr></thead><tbody></tbody></table>
@@ -404,6 +406,17 @@ async function refreshMission(){
     document.getElementById("missionPhase").textContent = d.phase;
     document.getElementById("missionHeadline").textContent = (d.headline||"") + " " + (d.phase_detail||"");
     document.getElementById("missionFocus").innerHTML = "<b>今日焦点:</b> " + (d.today_focus || "");
+
+    // 解剖书:九层纵剖面(数字/锁态现算)
+    const fl = document.getElementById("scFlowLayers"); fl.innerHTML = "";
+    (d.flow_layers||[]).forEach((l,i)=>{
+      fl.insertAdjacentHTML("beforeend",
+        `<div style="border:1px solid var(--border);border-radius:8px;padding:7px 10px;margin-top:${i?4:0}px">
+           <div style="font-weight:600;color:var(--accent)">${l.title}</div>
+           ${(l.lines||[]).map(x=>`<div class="small" style="margin-top:3px">${x}</div>`).join("")}
+           ${l.note?`<div class="small" style="margin-top:4px;padding:3px 6px;background:rgba(255,200,60,.08);border-radius:4px">${l.note}</div>`:""}
+         </div>${i<(d.flow_layers.length-1)?'<div style="text-align:center;color:var(--muted);line-height:1">↓</div>':''}`);
+    });
 
     // 解剖书:哲学→化身 + 八步流程(规则/粒子出身/哲学)
     const ph = document.getElementById("scPhilosophy"); ph.innerHTML = "";
