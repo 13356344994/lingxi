@@ -211,7 +211,16 @@ type fastLedgerPos struct {
 	RetAtBurst float64 // 首见同币卖方burst时的浮盈bps(3s采样近似)
 	// ㊳① det 时刻价差路径信息集(生龄/速度/归因;Go 账本=判决口径,分桶直读)
 	Path fastGapPathStats
+	// 杠杆L5 棘轮反事实(2026-07-08:固定TP剪肥尾全灭[PF≤0.34],峰值近似棘轮PF2.58=上界,
+	// 须逐tick精确实测):峰值≥+10 激活后回吐 8bps 即记虚拟棘轮出场(只记不出;冻结先验 A=10/G=8)。
+	TrailFired  bool
+	TrailExitBp float64
 }
+
+const (
+	fastLedgerTrailActBps  = 10.0 // 冻结先验(与现役 FastV3TrailActivate 同族刻度)
+	fastLedgerTrailGiveBps = 8.0
+)
 
 // maker 口径冻结先验(v2,2026-07-07 曲线救国方针):
 //
@@ -243,6 +252,9 @@ type fastLedgerRow struct {
 	// 若弹射粒子成立,ret_at_burst 与最终 gross 的差=每笔可省的钱。
 	BurstDuringHold bool    `json:"burst_during_hold,omitempty"`
 	RetAtBurstBps   float64 `json:"ret_at_burst_bps,omitempty"`
+	// 杠杆L5 棘轮反事实(逐tick;A=10/G=8 冻结):fired=持有期触发过,exit_bps=触发时刻毛值
+	TrailFired   bool    `json:"trail_fired,omitempty"`
+	TrailExitBps float64 `json:"trail_exit_bps,omitempty"`
 	// ㊳① det 时刻价差路径(path_ok=false 表示 15s 历史不足,路径字段不可用):
 	PathOK            bool    `json:"path_ok,omitempty"`
 	GapAgeSec         float64 `json:"gap_age_sec,omitempty"`
@@ -401,6 +413,11 @@ func (e *OKXDirectionalEngine) fastLedgerManage(mids map[string]float64, now tim
 			p.BurstSeen = true
 			p.RetAtBurst = ret // ㊱曲线②:只标注不弹射
 		}
+		// 杠杆L5 棘轮反事实(逐tick精确,非峰值近似):激活后回吐≥G 即记虚拟出场价(只记不出)
+		if !p.TrailFired && p.PeakBps >= fastLedgerTrailActBps && ret <= p.PeakBps-fastLedgerTrailGiveBps {
+			p.TrailFired = true
+			p.TrailExitBp = ret
+		}
 		hold := now.Sub(holdFrom).Seconds()
 		exit := fastLedgerExit(ret, gapNow, gapOK, hold, e.cfg.FastXgapExitGapBps, e.cfg.FastXgapDisasterBps, e.cfg.FastXgapMaxHoldSeconds)
 		if exit == "" {
@@ -417,6 +434,7 @@ func (e *OKXDirectionalEngine) fastLedgerManage(mids map[string]float64, now tim
 			GrossBps: ret, NetBps: ret - cost, PeakBps: p.PeakBps,
 			HoldSec: int(hold), Exit: exit,
 			BurstDuringHold: p.BurstSeen, RetAtBurstBps: p.RetAtBurst,
+			TrailFired: p.TrailFired, TrailExitBps: p.TrailExitBp,
 		}
 		row.applyGapPath(p.Path)
 		if err := appendJSONLRecord(path, row); err != nil {
