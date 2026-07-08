@@ -93,30 +93,21 @@ def a_at(sym, t):
     return arr[i][1]
 
 
+# 净值口径=Go 粒子账本 rest 行(三闸部署后=格子口径实弹会打的同一批枪;判决以Go为准铁律)。
+# Python 不再重算出场——账本怎么记,推荐书怎么读。
 nets, spreads = [], []
-for d in events:
-    sym, t_in, entry = d["symbol"], ep(d["recorded_at"]), d.get("mid", 0)
-    if entry <= 0 or sym not in paths:
+for line in open(REC + "/particle_ledger.jsonl"):
+    try:
+        r = json.loads(line)
+    except ValueError:
         continue
-    spreads.append(d.get("spread_bps", 0))
-    arr = paths[sym]
-    j = bisect.bisect_left(pk[sym], t_in)
-    outv = None
-    for k in range(j, len(arr)):
-        T2, okx2 = arr[k]
-        if T2 - t_in > 600:
-            break
-        by2 = a_at(sym, T2)
-        ret = (okx2 - entry) / entry * 1e4
-        outv = ret
-        if ret <= -60:
-            break
-        if by2 and by2 > 0 and abs((okx2 - by2) / by2 * 1e4) <= 10:
-            break
-    if outv is not None:
-        nets.append(outv - COST)
+    if r.get("src") != "rest" or r.get("exit") == "unfilled" or ep(r["t0"]) < t_seal:
+        continue
+    nets.append(r["net_bps"])
+    spreads.append(r.get("spread_bps", 0))
 
-hours = (max(ep(d["recorded_at"]) for d in events) - t_seal) / 3600 if events else 0
+import time as _time
+hours = (_time.time() - t_seal) / 3600  # 供给按墙钟窗算(旧口径用最后PASS时刻,长时间无PASS会虚高枪/天)
 per_day = len(events) / max(hours, 0.1) * 24
 print("=" * 64)
 print("E 探针推荐书(数据=三闸部署后全闸通过的影子枪;%.1fh 窗)" % hours)
