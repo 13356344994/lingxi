@@ -263,6 +263,7 @@ func missionBuildFlowLayers(cfg OKXDirectionalConfig, fn fastXgapFunnelStats) []
 		}, Note: "若探针开火,打的就是「全闸通过」这批枪——推荐书裁的就是它们的影子成绩"},
 		{Title: "第4层 · 下单与预算机器(真钱防线)", Lines: []string{
 			"来源闸 fast_xgap_live_enabled=" + onOff(cfg.FastXgapLiveEnabled, "⚠️true(实弹!)", "false 🔒 全闸通过也只记影子"),
+			"持证闸(硬代码):非探针且不在持证名单 → no_cert 拒;当前持证名单=" + onOff(strings.TrimSpace(cfg.FastCertifiedSources) != "", cfg.FastCertifiedSources, "空(0张证)"),
 			fmt.Sprintf("开火形态(你批准后两行配置):探针 %.0fU 名义 → 治理器 ≤%d笔/累亏≤%.1fU 自动缴械(重启不失忆)", cfg.FastLiveNotionalUSDT, cfg.FastProbeMaxTrades, cfg.FastProbeMaxLossUSDT),
 			"净值哨兵(滚50中位<0粘停)→ fast日熔断(本金30%)→ 账户级35U/日 → 急停三级(面板/文件/systemd)",
 		}},

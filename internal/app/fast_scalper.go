@@ -2490,6 +2490,24 @@ func (e *OKXDirectionalEngine) fastMakerEntry(ctx context.Context, sym string, s
 	return acc, price, wms, "maker_not_filled", nil // 含 QueryOrder 失败 → 不建仓
 }
 
+// fastCertGate 纯判定:持证闸(""=放行)。source 身份三选一:探针(=probeSource,用户明示批准)/
+// 持证(在 certified csv 名单)/无证→"no_cert"。scorer 空 source 按 "scorer" 键查证。
+func fastCertGate(source, probeSource, certified string) string {
+	key := strings.TrimSpace(source)
+	if key == "" {
+		key = "scorer"
+	}
+	if p := strings.TrimSpace(probeSource); p != "" && p == strings.TrimSpace(source) {
+		return "" // 探针身份:用户设置 fast_probe_source 即明示批准,预算机器(20笔/0.5U)包裹
+	}
+	for _, c := range strings.Split(certified, ",") {
+		if strings.TrimSpace(c) == key && key != "" {
+			return ""
+		}
+	}
+	return "no_cert"
+}
+
 // fastLiveOpen 命中分数即真实开仓。各 guard:flat不开/异常盘口不开/量化不可交易不开/halt不开/已持(fast或slow)不重复不反手/下单失败不重试。
 func (e *OKXDirectionalEngine) fastLiveOpen(ctx context.Context, ev *fastExecShadowEvent) string {
 	if ev == nil {
@@ -2548,6 +2566,14 @@ func (e *OKXDirectionalEngine) fastLiveOpen(ctx context.Context, ev *fastExecSha
 		if realized := e.fastDailyRealized(e.nowFn().UTC()); realized <= -lim {
 			return "daily_loss_halt"
 		}
+	}
+	// 持证闸(2026-07-08 ㊹-补2,司天监持证制的代码化):live 开关开着也不等于配实弹——
+	// 只有两种身份放行:①探针(source==fast_probe_source=用户明示批准的例外,预算机器包裹)
+	// ②持证(source 在 fast_certified_sources 名单,发证=前向过门+用户批准后写入)。
+	// 其余一律 no_cert 硬拒:把"误开 live 开关+未设探针=无上限实弹"从物理上封死;
+	// 智能层不拥有最后防线,查表的死机器拥有。放在资格/冷却闸后=shadow 拒因分布不受影响。
+	if r := fastCertGate(ev.CandidateSource, e.cfg.FastProbeSource, e.cfg.FastCertifiedSources); r != "" {
+		return r
 	}
 	// 探针治理器(章程 §-5):探针 source 的预算(笔数/累亏)由机器锁死,越线自动缴械。
 	if r := e.fastProbeGate(ev.CandidateSource); r != "" {

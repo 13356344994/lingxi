@@ -79,6 +79,33 @@ func TestMissionBaselineFromRows(t *testing.T) {
 	}
 }
 
+// TestFastCertGate 持证闸纯函数:探针放行/持证放行/无证硬拒。
+func TestFastCertGate(t *testing.T) {
+	// 无探针无证:一律 no_cert(把"误开 live+未设探针"的无上限实弹封死)
+	if r := fastCertGate("xgap_rev", "", ""); r != "no_cert" {
+		t.Fatalf("无证应拒,得 %q", r)
+	}
+	// 探针身份:source==probe_source=用户明示批准
+	if r := fastCertGate("xgap_rev", "xgap_rev", ""); r != "" {
+		t.Fatalf("探针应放行,得 %q", r)
+	}
+	// 探针只豁免自己的 source
+	if r := fastCertGate("tape_burst", "xgap_rev", ""); r != "no_cert" {
+		t.Fatalf("非探针 source 应拒,得 %q", r)
+	}
+	// 持证名单放行
+	if r := fastCertGate("xgap_rev", "", "xgap_rev,tape_burst"); r != "" {
+		t.Fatalf("持证应放行,得 %q", r)
+	}
+	// scorer 空 source 按 scorer 键查证
+	if r := fastCertGate("", "", ""); r != "no_cert" {
+		t.Fatalf("scorer 无证应拒,得 %q", r)
+	}
+	if r := fastCertGate("", "", "scorer"); r != "" {
+		t.Fatalf("scorer 持证应放行,得 %q", r)
+	}
+}
+
 // TestFastLedgerExitV2 改良版出场纯函数:弹射>灾难>棘轮>收敛>到点。
 func TestFastLedgerExitV2(t *testing.T) {
 	// 弹射最优先(burst 出现即离场,哪怕价差已收敛)

@@ -1023,6 +1023,10 @@ type OKXDirectionalConfig struct {
 	// 越线自动缴械(probe_exhausted),状态持久化重启不失忆。空 = 无探针活动(生产默认,护栏锚定;
 	// 设置某个 source = 用户明示批准该候选进入探针层)。
 	FastProbeSource      string  `cfg:"fast_probe_source"`
+	// FastCertifiedSources 持证名单(csv):司天监持证制的代码化(2026-07-08 ㊹-补2)。
+	// live 开关外的第二道硬闸:source 不是探针也不在此名单 → fastLiveOpen 拒 no_cert。
+	// 写入=某格子前向过门+用户批准发证;当前空=持证0(护栏锚定)。
+	FastCertifiedSources string `cfg:"fast_certified_sources"`
 	FastProbeMaxTrades   int     `cfg:"fast_probe_max_trades"`    // 默认 20
 	FastProbeMaxLossUSDT float64 `cfg:"fast_probe_max_loss_usdt"` // 默认 0.5(预亏上限,买真滑点/真成交的学费)
 	// v5.5 Bybit 全市场价格标尺(2026-07-04,record-only):单请求拉 bybit linear tickers 存内存标尺,

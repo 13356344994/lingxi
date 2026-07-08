@@ -214,6 +214,10 @@ func TestLoadProductionConfigYAML(t *testing.T) {
 				cfg.OKXDirectional.FastProbeMaxTrades, cfg.OKXDirectional.FastProbeMaxLossUSDT)
 		}
 	}
+	// 持证闸(2026-07-08 ㊹-补2):当前持证=0;向名单写入任何 source=发证,须前向过门+用户批准。
+	if s := strings.TrimSpace(cfg.OKXDirectional.FastCertifiedSources); s != "" {
+		t.Fatalf("fast_certified_sources = %q want 空(持证=0;发证须前向过门+用户明示批准)", s)
+	}
 
 	// cross_venue_executor 杠杆/名义
 	if math.Abs(cfg.CrossVenueExecutor.MaxPositionUSDT-150) > 1e-9 {
