@@ -206,6 +206,19 @@ func TestFastSymLiqBetween(t *testing.T) {
 	}
 }
 
+// TestFastLedgerFireworkExit 烟花刀模块出场纯判定(冻结:固定300s/-40灾难,回归局不用trail)。
+func TestFastLedgerFireworkExit(t *testing.T) {
+	if got := fastLedgerFireworkExit(-45, 100); got != "disaster" {
+		t.Fatalf("灾难判定错: %q", got)
+	}
+	if got := fastLedgerFireworkExit(20, 299); got != "" {
+		t.Fatalf("299s 不应出场: %q", got)
+	}
+	if got := fastLedgerFireworkExit(20, 300); got != "fixed_300" {
+		t.Fatalf("300s 应固定出场: %q", got)
+	}
+}
+
 // TestFastLedgerTrigCount 惯犯环:评估在登记前(无前视),24h 窗滚动。
 func TestFastLedgerTrigCount(t *testing.T) {
 	fastLedgerTrigMu.Lock()

@@ -341,6 +341,43 @@ func (e *OKXDirectionalEngine) fastLedgerOnFireConfirm(sym string, mid, spreadBp
 	fastLedgerMu.Unlock()
 }
 
+// fastLedgerFireworkExit 纯判定:烟花刀模块出场(冻结口径=前向判决同款:固定300s/-40灾难;
+// 出场刀型定理:回归局用固定持有,trail 在回归局是绞肉机——07-06 精磨实证)。
+func fastLedgerFireworkExit(ret, holdSec float64) string {
+	if ret <= -40 {
+		return "disaster"
+	}
+	if holdSec >= 300 {
+		return "fixed_300"
+	}
+	return ""
+}
+
+// fastLedgerOnFireworkRiot 烟花刀模块入账:普查暴动命中"力竭×拉升≥60×点差≤6"细胞
+// (与 `_firework_verdict.py` 前向判决同口径)→ 开虚拟空仓。record-only。
+func (e *OKXDirectionalEngine) fastLedgerOnFireworkRiot(sym string, mid, ret15, ret60, spreadBps float64, now time.Time) {
+	if !e.cfg.FastParticleLedgerEnabled || mid <= 0 {
+		return
+	}
+	if ret60 < 60 || ret15 >= 0.25*ret60 || spreadBps <= 0 || spreadBps > 6 {
+		return // 细胞未命中(拉升不足/仍在加速/点差宽)
+	}
+	key := "firework|rest|" + sym
+	fastLedgerMu.Lock()
+	if _, held := fastLedgerOpen[key]; held {
+		fastLedgerMu.Unlock()
+		return
+	}
+	fastLedgerMu.Unlock()
+	fuel := fastMarketLiqRate(now, 300)
+	br, brOK := fastBreadth30(now)
+	bits := fastParticleBits(sym, now, 0, fuel, br, brOK, 0)
+	fastLedgerMu.Lock()
+	fastLedgerOpen[key] = &fastLedgerPos{Sym: sym, Module: "firework", Side: "short", Src: "rest",
+		T0: now, Entry: mid, SpreadBps: spreadBps, Bits: bits, Fuel: fuel, Breadth: br}
+	fastLedgerMu.Unlock()
+}
+
 // fastLedgerExit 纯判定:虚拟仓此刻是否出场("");与 E 出场规则同口径。
 func fastLedgerExit(retBps float64, gapNow float64, gapOK bool, holdSec float64, exitGap, disaster float64, maxHold int) string {
 	if retBps <= -disaster {
@@ -481,6 +518,8 @@ func (e *OKXDirectionalEngine) fastLedgerManage(mids map[string]float64, now tim
 		if p.Module == "fire" {
 			wave2 := fastSymLiqBetween(p.Sym, p.T0.Add(3*time.Second), p.T0.Add(20*time.Second))
 			exit = fastLedgerFireExit(ret, p.PeakBps, hold, now.Sub(p.T0).Seconds(), wave2)
+		} else if p.Module == "firework" {
+			exit = fastLedgerFireworkExit(ret, hold)
 		} else {
 			gapNow, gapOK := fastXMidGapBpsVenueTol("bybit", p.Sym, mid, now, fastXgapFreshTol)
 			exit = fastLedgerExit(ret, gapNow, gapOK, hold, e.cfg.FastXgapExitGapBps, e.cfg.FastXgapDisasterBps, e.cfg.FastXgapMaxHoldSeconds)

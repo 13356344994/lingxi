@@ -2100,6 +2100,14 @@ func (e *OKXDirectionalEngine) fastMarketMidLoop(ctx context.Context) {
 				}
 				lastEmit[sym] = now
 				fastNoteRiot(sym, now) // v6.1 暴动登记(热币坑位怪兽优先的依据;与普查同口径同去重)
+				// 多模块账本v0:烟花刀细胞(力竭×拉升≥60×点差≤6)命中即开虚拟空仓(record-only)
+				if e.cfg.FastParticleLedgerEnabled {
+					sp := 0.0
+					if mid > 0 && bk.AskPrice >= bk.BidPrice {
+						sp = (bk.AskPrice - bk.BidPrice) / mid * 10000
+					}
+					e.fastLedgerOnFireworkRiot(sym, mid, e.fastImpulseBps(sym, mid, now, 15), r60, sp, now)
+				}
 				ev := fastMoverEvent{
 					RecordedAt: now, Symbol: sym, Mid: mid,
 					TopBidQty: bk.BidQty, TopAskQty: bk.AskQty,
