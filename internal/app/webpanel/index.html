@@ -77,7 +77,19 @@ a{color:var(--blue);text-decoration:none}
     <h2 style="margin:0 0 4px;font-size:16px" id="scName">一军策略</h2>
     <div class="small" id="scMech" style="padding:8px;background:rgba(140,120,255,.07);border-radius:6px"></div>
 
-    <h3 style="margin-top:14px">❶ 进场管道 —— 每个节点印着"今天"的实数,拦截原因直接写在闸上</h3>
+    <!-- 解剖书:哲学→机制 + 八步流程的粒子组合与出处(回答"我说的思想在哪一步/策略怎么组合的") -->
+    <details style="margin-top:10px" open>
+      <summary style="cursor:pointer;font-weight:600">📖 策略解剖书 —— 你的四句哲学在哪一步生效 · 每一步由哪些粒子组合成、从哪具尸体上拆来</summary>
+      <div style="margin-top:8px">
+        <h3>你的哲学纲领 → 系统里的化身</h3>
+        <div id="scPhilosophy" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+        <h3 style="margin-top:12px">八步流程解剖:环节 → 规则 → 粒子组合(出身) → 哲学</h3>
+        <table id="scAnatomy"><thead><tr><th style="min-width:120px">环节</th><th>具体规则</th><th>粒子组合(从哪拆来)</th><th style="min-width:90px">哲学</th></tr></thead><tbody></tbody></table>
+        <div class="small" style="margin-top:6px;opacity:.7">粒子总册见 PARTICLE_LIBRARY.md(六族约40个粒子+坟场21具尸体的死因分级);此表=其中组合进当前 E 的部分。</div>
+      </div>
+    </details>
+
+    <h3 style="margin-top:14px">❶ 进场管道 —— 每个节点印着"今天"的实数,拦截原因直接写在闸上(与解剖书②③④⑤步对应)</h3>
     <div id="scSteps" style="display:flex;gap:6px;flex-wrap:wrap;align-items:stretch"></div>
 
     <h3 style="margin-top:14px">❷ 出场机器 —— 买进后四种离场方式</h3>
@@ -392,6 +404,25 @@ async function refreshMission(){
     document.getElementById("missionPhase").textContent = d.phase;
     document.getElementById("missionHeadline").textContent = (d.headline||"") + " " + (d.phase_detail||"");
     document.getElementById("missionFocus").innerHTML = "<b>今日焦点:</b> " + (d.today_focus || "");
+
+    // 解剖书:哲学→化身 + 八步流程(规则/粒子出身/哲学)
+    const ph = document.getElementById("scPhilosophy"); ph.innerHTML = "";
+    (d.philosophy||[]).forEach(p=>{
+      ph.insertAdjacentHTML("beforeend",
+        `<div style="flex:1;min-width:240px;padding:8px 10px;border:1px solid var(--border);border-radius:8px">
+           <div style="font-weight:700;color:var(--accent)">「${p.tenet}」</div>
+           <div class="small" style="margin-top:3px;opacity:.85">${p.meaning}</div>
+           ${(p.embodiments||[]).map(e=>`<div class="small" style="margin-top:3px">↳ ${e}</div>`).join("")}
+         </div>`);
+    });
+    const an = document.querySelector("#scAnatomy tbody"); an.innerHTML = "";
+    (d.anatomy||[]).forEach(a=>{
+      an.insertAdjacentHTML("beforeend", `<tr>
+        <td style="white-space:normal;font-weight:600">${a.step}</td>
+        <td style="white-space:normal" class="small">${a.rule}</td>
+        <td style="white-space:normal" class="small">${(a.particles||[]).map(x=>"· "+x).join("<br>")}</td>
+        <td style="white-space:normal" class="small" style="color:var(--accent)">${a.tenet}</td></tr>`);
+    });
 
     // ❶❷ 主舞台:进场管道 + 出场机器(横向节点,今日实数印在节点上)
     const sc = d.strategy_card || {};

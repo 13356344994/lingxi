@@ -187,6 +187,67 @@ type missionStrategyCard struct {
 	Status    string            `json:"status"`    // 现在卡在哪(一句话)
 }
 
+// ===== 策略解剖书(07-08 用户"哲学/粒子组合/流程对不上,一脸懵逼"之诉)=====
+// 登记态数据=项目官方决策记录(与 PARTICLE_LIBRARY.md / HANDOFF 同步维护):
+// 回答"我灌进去的哲学在哪一步生效/当前策略由哪些粒子组合成/每个粒子从哪具尸体上拆来"。
+
+// missionPhilosophyRow 一句哲学纲领 → 系统里的具体化身。
+type missionPhilosophyRow struct {
+	Tenet   string   `json:"tenet"`   // 纲领原文
+	Meaning string   `json:"meaning"` // 一句白话
+	Embodim []string `json:"embodiments"` // 化身机制(标注在流程第几步)
+}
+
+// missionAnatomyStep 流程解剖一步:规则数字 + 粒子组合(出身) + 哲学出处。
+type missionAnatomyStep struct {
+	Step      string   `json:"step"`
+	Rule      string   `json:"rule"`
+	Particles []string `json:"particles"`  // 粒子名(出身:从哪具尸体/哪次研究拆来)
+	Tenet     string   `json:"tenet"`      // 对应哲学
+}
+
+func missionBuildPhilosophy() []missionPhilosophyRow {
+	return []missionPhilosophyRow{
+		{Tenet: "调研定方向", Meaning: "方向=打哪场仗(选池塘/选被迫流),不是猜下一秒价格;只有过了证伪审查的调研才配定方向",
+			Embodim: []string{"E 的方向来自 54h 离线研究+预注册前向判决(第⑧步判决工厂)", "一切新想法先影子考试,过门才见真钱(裁决日历)", "信息集审查:入场规则只用入场时刻可知的数(全流程)"}},
+		{Tenet: "极端定仓位", Meaning: "期望藏在极端事件的肥尾里,平时仓位应为零;该定仓位的是只有我们测得到的极端",
+			Embodim: []string{"平时零仓位,价差裂开≥40bps(第②步触发)才动", "探针 5U×20笔×0.5U=赌注与验证严格度成正比(第⑥步)", "风暴/广跌州直接歇业(第④步派班),不在人人看见的极端里凑热闹"}},
+		{Tenet: "天道定信心", Meaning: "信心锚在不变量上(套利商不会放着价差不搬),不锚在近期盈亏;信念定期缴可证伪预言税",
+			Embodim: []string{"E 的论点=天道条款:同一张永续两所价差必被搬平(第②步)", "预言税=前向判决:预注册数字没兑现就是错(第⑧步)", "页面基准数据=当前口径前向,不粉饰(成绩区)"}},
+		{Tenet: "止错,不止损", Meaning: "价格逆行不是错,论点死亡才是错;'错'必须在进场前定义、有半衰期,另留一条不讲道理的灾难线",
+			Embodim: []string{"收敛≥-10=论点兑现离场(第⑦步)", "600s 没收敛=论点过期,到点离场=止错不是止损(第⑦步)", "-60bps 灾难线+学费冷却=数据看不见的错的保险费,杠杆下偿付能力优先于哲学(第⑦步)"}},
+	}
+}
+
+func missionBuildAnatomy() []missionAnatomyStep {
+	return []missionAnatomyStep{
+		{Step: "① 数据地基(仪器层)", Rule: "全市场 mid 标尺 3s 一拍 + Bybit 锚(新鲜≤8s)+ 爆仓流/燃料/广度",
+			Particles: []string{"全市场标尺(出身:liq_follow 尸体的'盲区闸迟到'根治)", "跨所锚 xmid(出身:跨所价差分类器尸体的数据,它死了但数据孕育了 E)"},
+			Tenet: "调研定方向"},
+		{Step: "② 触发", Rule: "OKX mid 比 Bybit 锚便宜 ≥40bps → 候选;同币 1800s 冷却一枪",
+			Particles: []string{"跨所价差触发粒子(天道条款)", "单币冷却粒子(出身:CELO 两天 1124 笔重复锤教训)"},
+			Tenet: "极端定仓位 / 天道定信心"},
+		{Step: "③ 执行守卫", Rule: "REST 现拉盘口复核:价差已收敛→放弃(gap_gone);盘口点差>12bps→放弃(吃不到)",
+			Particles: []string{"点差闸粒子(资格族,出身:scorer 尸体的 shadow 数据)", "机会已死不追(fade 尸体教训:追迟到的机会=付逆选择税)"},
+			Tenet: "止错(错在进场前定义)"},
+		{Step: "④ 格子三闸(司天监派班)", Rule: "新鲜度(回看1800s价差现过>-20)× 派班(燃料<40 且 广度>-15)× 残余带∈[-40,-20]",
+			Particles: []string{"新鲜度粒子(出身:E-v1 尸体——LAB 摆半小时的陈年价差=标价不是错价)", "燃料/广度州粒子(司天监:E 毒州=广跌,UTC02 血窗实证)", "残余带粒子(出身:㉝执行层解剖——浅=肉没了,深=没人抢有原因,[-40,-20]是唯一活区)"},
+			Tenet: "调研定方向(州=打哪场仗)"},
+		{Step: "⑤ 下单", Rule: "taker 买 OKX;当前锁死(record-only),开火=探针 5U",
+			Particles: []string{"taker 进场粒子(出身:fade 尸体——回归局挂 maker 等成交=力竭诊断被证伪)", "小池塘体型优势(铁律:几千U 不跟机构抢镜面盘)"},
+			Tenet: "极端定仓位"},
+		{Step: "⑥ 预算与哨兵(组织层)", Rule: "探针≤20笔/累亏≤0.5U 自动缴械;净值哨兵滚50中位<0 粘性停火;日熔断本金30%",
+			Particles: []string{"探针预算粒子(章程§-5:买离线买不到的真滑点)", "净值哨兵粒子(测'游戏此刻给不给钱'本身)", "死机器层:智能层永不拥有最后防线(宪法附则)"},
+			Tenet: "止错(认错成本上限)"},
+		{Step: "⑦ 持有与出场", Rule: "收敛≥-10 离场 / 600s 到点离场 / -60 灾难砍+学费冷却 / burst弹射(锁)",
+			Particles: []string{"收敛出场粒子(回归局专用:论点是闭合不是动量——烟花刀教训:出场刀必须配游戏类型)", "max_hold=错的半衰期", "灾难线+灾难入冷却(出身:LAB 灾难后 44s 再进再灾难)", "弹射粒子(出身:38ms burst 探测器,军火商思维:探测器不当枪当盾)"},
+			Tenet: "止错,不止损"},
+		{Step: "⑧ 学习闭环(判决工厂)", Rule: "每枪进粒子账本三口径(det提名/rest判决/mkr变体)+棘轮/弹射反事实逐tick标注 → 预注册考试自动阅卷 → 过门才递你批",
+			Particles: []string{"粒子账本(判决货币:Go 单一来源,消灭口径漂移)", "预注册=死亡证明书模板(错在上岗前定义)", "配对反事实标注(改良包三杠杆的证据工厂)"},
+			Tenet: "调研定方向 + 天道的预言税"},
+	}
+}
+
 // missionRosterGroup 编制四抽屉一格(㊘四抽屉收纳制的页面化)。
 type missionRosterGroup struct {
 	Title string   `json:"title"`
@@ -219,6 +280,9 @@ type missionResponse struct {
 	// ===== 找回方向四件套(2026-07-08 用户"试错太多,流程认识不清晰"之诉;
 	// 同日重心纠偏:页面数据以当前最新策略为基准,历史学费不上页面)=====
 	Baseline     missionBaseline     `json:"baseline"`      // 当前策略基准+改良包杠杆现算
+	// ===== 策略解剖书(同日"哲学/粒子/流程连不上"之诉)=====
+	Philosophy []missionPhilosophyRow `json:"philosophy"` // 四句纲领→机制化身
+	Anatomy    []missionAnatomyStep   `json:"anatomy"`    // 八步流程解剖(规则/粒子出身/哲学)
 	StrategyCard missionStrategyCard `json:"strategy_card"` // 一军 E 完整流程(带今日漏斗实数)
 	Roster       []missionRosterGroup `json:"roster"`       // 编制四抽屉(一军/仪器/冷藏/坟场)
 	VerdictQueue []missionVerdict    `json:"verdict_queue"` // 裁决日历(接下来谁出分)
@@ -548,6 +612,7 @@ func (s *DashboardServer) handleMissionAPI(w http.ResponseWriter, r *http.Reques
 	resp := missionResponse{
 		Now: now, Phase: phase, PhaseDetail: detail,
 		Baseline: baseline, StrategyCard: card, Roster: roster, VerdictQueue: verdicts,
+		Philosophy: missionBuildPhilosophy(), Anatomy: missionBuildAnatomy(),
 		Goal: []string{
 			"使命:分拣器分拣后,派给排列好的粒子组合交易盈利(费率飞轮只是次要放大器)。",
 			"两道门(登记,HANDOFF §-7C):利润引擎门=中位≥18bps;飞轮引擎门=中位≥12bps。",
