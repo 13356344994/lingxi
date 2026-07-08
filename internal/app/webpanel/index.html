@@ -65,9 +65,10 @@ a{color:var(--blue);text-decoration:none}
   </div>
 </header>
 <main>
-  <!-- ⓪ 状态条:阶段 + 今日焦点(一眼定位) -->
+  <!-- ⓪ 作战实时状态条:阶段 + 司天监此刻 + 探针预算 + 在考进度(30s 自刷,全部现算) -->
   <div class="card" style="border-left:4px solid #4a9">
     <div><span class="tag on" id="missionPhase">…</span></div>
+    <div id="liveStrip" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px"></div>
     <div id="missionFocus" style="margin-top:8px;padding:8px;background:rgba(255,200,60,.08);border-radius:6px;font-size:14px"></div>
     <div class="small" id="missionHeadline" style="margin-top:6px;opacity:.8"></div>
   </div>
@@ -406,6 +407,45 @@ async function refreshMission(){
     document.getElementById("missionPhase").textContent = d.phase;
     document.getElementById("missionHeadline").textContent = (d.headline||"") + " " + (d.phase_detail||"");
     document.getElementById("missionFocus").innerHTML = "<b>今日焦点:</b> " + (d.today_focus || "");
+
+    // ⓪ 作战实时状态条:司天监此刻 / 探针预算 / 在考进度
+    const strip = document.getElementById("liveStrip"); strip.innerHTML = "";
+    const sky = d.sky || {};
+    const dutyCol = sky.e_duty ? "var(--green)" : "var(--amber)";
+    strip.insertAdjacentHTML("beforeend",
+      `<div style="flex:1.2;min-width:250px;padding:8px 10px;border:1px solid var(--border);border-radius:8px">
+         <div class="small">🔭 司天监此刻(与派班闸同源现算)</div>
+         <div style="margin-top:4px;font-size:15px"><b>${sky.fuel_state||"?"}</b>(燃料 ${fmt(sky.fuel,0)})· 广度 ${sky.breadth_ok?fmt(sky.breadth,1):"热身中"} · 5min爆仓 多${sky.tide_long||0}/空${sky.tide_short||0}</div>
+         <div class="small" style="margin-top:4px;color:${dutyCol};font-weight:600">${sky.e_duty_why||""}</div>
+       </div>`);
+    (d.probes||[]).forEach(p=>{
+      const pct_t = Math.min(100, 100*(p.trades||0)/(p.max_trades||20));
+      const lossPct = Math.min(100, 100*Math.max(0,-(p.realized||0))/(p.max_loss||0.5));
+      const status = p.exhausted ? '<span class="tag warn">已缴械</span>' : '<span class="tag on">实弹值守</span>';
+      strip.insertAdjacentHTML("beforeend",
+        `<div style="flex:1;min-width:230px;padding:8px 10px;border:1px solid var(--accent);border-radius:8px">
+           <div class="small">🎯 探针·${p.source} ${status}</div>
+           <div style="margin-top:4px;font-size:15px"><b>${p.trades||0}/${p.max_trades}</b> 笔 · 已实现 <span class="${cls(p.realized)}">${sign(p.realized)}U</span> / 缴械线 -${p.max_loss}U</div>
+           <div style="margin-top:5px;height:5px;background:var(--panel2);border-radius:3px"><div style="width:${pct_t}%;height:5px;background:var(--blue);border-radius:3px"></div></div>
+           <div style="margin-top:2px;height:5px;background:var(--panel2);border-radius:3px"><div style="width:${lossPct}%;height:5px;background:var(--red);border-radius:3px"></div></div>
+           <div class="small" style="opacity:.6;margin-top:2px">上=笔数预算 下=亏损预算</div>
+         </div>`);
+    });
+    const exams = d.exams || [];
+    if(exams.length){
+      const rows = exams.map(x=>{
+        const done = x.verdict ? (x.verdict==="pass"?'<span class="tag on">🎫过门</span>':'<span class="tag warn">✗判负</span>') : "";
+        const p = Math.min(100, 100*(x.n||0)/(x.min_n||30));
+        return `<div style="margin-top:5px">
+          <div class="small" style="display:flex;justify-content:space-between"><span>${x.label} ${done}</span><span>${x.n}/${x.min_n} 笔 · 中位 ${sign(x.med)} · PF ${fmt(x.pf)}</span></div>
+          <div style="height:4px;background:var(--panel2);border-radius:2px;margin-top:2px"><div style="width:${p}%;height:4px;background:${x.verdict==='fail'?'var(--red)':'var(--green)'};border-radius:2px"></div></div>
+        </div>`;
+      }).join("");
+      strip.insertAdjacentHTML("beforeend",
+        `<div style="flex:1.4;min-width:280px;padding:8px 10px;border:1px solid var(--border);border-radius:8px">
+           <div class="small">📝 自动阅卷人·在考(到线自动出分并推送你的 Telegram)</div>${rows}
+         </div>`);
+    }
 
     // 解剖书:九层纵剖面(数字/锁态现算)
     const fl = document.getElementById("scFlowLayers"); fl.innerHTML = "";

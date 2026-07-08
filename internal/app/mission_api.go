@@ -363,6 +363,10 @@ type missionResponse struct {
 	// ===== 找回方向四件套(2026-07-08 用户"试错太多,流程认识不清晰"之诉;
 	// 同日重心纠偏:页面数据以当前最新策略为基准,历史学费不上页面)=====
 	Baseline     missionBaseline     `json:"baseline"`      // 当前策略基准+改良包杠杆现算
+	// ===== 作战实时状态条(07-08 21:40 探针实弹化后,"看页面了解系统全部"之诉)=====
+	Sky    map[string]interface{}   `json:"sky"`    // 司天监此刻:燃料/潮汐/广度/E值班(现算)
+	Probes []map[string]interface{} `json:"probes"` // 探针名单各源实时预算
+	Exams  []map[string]interface{} `json:"exams"`  // 自动阅卷人:在考考试进度/已出分
 	// ===== 策略解剖书(同日"哲学/粒子/流程连不上"之诉;"详细分层图"同日追加)=====
 	Philosophy []missionPhilosophyRow `json:"philosophy"`  // 四句纲领→机制化身
 	Anatomy    []missionAnatomyStep   `json:"anatomy"`     // 八步流程解剖(规则/粒子出身/哲学)
@@ -698,6 +702,9 @@ func (s *DashboardServer) handleMissionAPI(w http.ResponseWriter, r *http.Reques
 		Baseline: baseline, StrategyCard: card, Roster: roster, VerdictQueue: verdicts,
 		Philosophy: missionBuildPhilosophy(), Anatomy: missionBuildAnatomy(),
 		FlowLayers: missionBuildFlowLayers(cfg, funnel),
+		Sky:        eng.fastSkySnapshot(now),
+		Probes:     eng.fastProbeSnapshot(),
+		Exams:      eng.fastExamSnapshot(),
 		Goal: []string{
 			"使命:分拣器分拣后,派给排列好的粒子组合交易盈利(费率飞轮只是次要放大器)。",
 			"两道门(登记,HANDOFF §-7C):利润引擎门=中位≥18bps;飞轮引擎门=中位≥12bps。",

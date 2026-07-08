@@ -180,7 +180,7 @@ func (e *OKXDirectionalEngine) fastExamSupervisorLoop(ctx interface{ Done() <-ch
 			return
 		case <-t.C:
 		}
-		rows, err := loadTailJSONLFile[fastLedgerRow](filepath.Join(e.recordDir, "okx_directional", fastParticleLedgerFile), time.Time{}, 0)
+		rows, err := loadTailJSONLFile[fastLedgerRow](filepath.Join(e.recordDir, fastParticleLedgerFile), time.Time{}, 0)
 		if err != nil {
 			continue
 		}
@@ -217,9 +217,72 @@ func (e *OKXDirectionalEngine) fastExamSupervisorLoop(ctx interface{ Done() <-ch
 	}
 }
 
+// fastSkySnapshot 面板用:司天监此刻读数(全部现算,与派班闸同源函数)。
+func (e *OKXDirectionalEngine) fastSkySnapshot(now time.Time) map[string]interface{} {
+	fuel := fastMarketLiqRate(now, 300)
+	br, brOK := fastBreadth30(now)
+	long, short := 0, 0
+	fastLiqBufMu.Lock()
+	cut := now.Add(-5 * time.Minute)
+	for _, hs := range fastLiqBuf {
+		for _, l := range hs {
+			if l.ts.Before(cut) {
+				continue
+			}
+			if l.posSide == "long" {
+				long++ // 多头爆=被迫卖(跌潮方向)
+			} else if l.posSide == "short" {
+				short++
+			}
+		}
+	}
+	fastLiqBufMu.Unlock()
+	fuelState := "死水"
+	if fuel >= 40 {
+		fuelState = "风暴"
+	} else if fuel >= 20 {
+		fuelState = "中间"
+	}
+	// E 值班判定=派班闸同源口径(fastXgapCellSkip 的②③条件)
+	eDuty, why := true, "平静×非广跌 → E 值班"
+	if fuel >= 40 {
+		eDuty, why = false, "风暴态(燃料≥40)→ E 歇业"
+	} else if !brOK {
+		eDuty, why = false, "广度不可算(fail-closed)→ E 歇业"
+	} else if br <= -15 {
+		eDuty, why = false, "广跌态(广度≤-15)→ E 歇业"
+	}
+	return map[string]interface{}{
+		"fuel": fuel, "fuel_state": fuelState, "breadth": br, "breadth_ok": brOK,
+		"tide_long": long, "tide_short": short,
+		"e_duty": eDuty, "e_duty_why": why,
+	}
+}
+
+// fastProbeSnapshot 面板用:探针名单各源实时预算(现算,与预算闸同源)。
+func (e *OKXDirectionalEngine) fastProbeSnapshot() []map[string]interface{} {
+	var out []map[string]interface{}
+	for _, p := range strings.Split(e.cfg.FastProbeSource, ",") {
+		src := strings.TrimSpace(p)
+		if src == "" {
+			continue
+		}
+		fastProbeMu.Lock()
+		st := *e.fastProbeStateLocked(src)
+		fastProbeMu.Unlock()
+		out = append(out, map[string]interface{}{
+			"source": src, "trades": st.Trades, "max_trades": e.cfg.FastProbeMaxTrades,
+			"realized": st.Realized, "max_loss": e.cfg.FastProbeMaxLossUSDT,
+			"exhausted": fastProbeExhausted(st, e.cfg.FastProbeMaxTrades, e.cfg.FastProbeMaxLossUSDT),
+			"started_at": st.StartedAt,
+		})
+	}
+	return out
+}
+
 // fastExamSnapshot 面板用:全部在考考试当前读数+已出分记录(现算)。
 func (e *OKXDirectionalEngine) fastExamSnapshot() []map[string]interface{} {
-	rows, err := loadTailJSONLFile[fastLedgerRow](filepath.Join(e.recordDir, "okx_directional", fastParticleLedgerFile), time.Time{}, 0)
+	rows, err := loadTailJSONLFile[fastLedgerRow](filepath.Join(e.recordDir, fastParticleLedgerFile), time.Time{}, 0)
 	if err != nil {
 		return nil
 	}
