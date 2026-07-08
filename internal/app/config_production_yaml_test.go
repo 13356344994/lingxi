@@ -177,13 +177,15 @@ func TestLoadProductionConfigYAML(t *testing.T) {
 	if cfg.OKXDirectional.FastTapeLiveEnabled {
 		t.Fatal("fast_tape_live_enabled = true want false(开火须用户明示批探针;当前应只记 shadow)")
 	}
-	// v6.5 E策略「捡便宜货」(2026-07-07 入枪):影子线开(前向判决攒样本),实弹锁死;
-	// 参数=冻结口径(40/10/600/60/1800,先验预选),锚定防静默调参。
+	// v6.5 E策略「捡便宜货」(2026-07-07 入枪):影子线开(前向判决攒样本)。
+	// 2026-07-08 20:53 用户明示拍板开 E 探针(override 推荐书"机器不建议"):live 允许 true,
+	// 但必须是完整探针形态——live 开则 probe_source 必须=xgap_rev(双钥匙都在才是合法状态,
+	// 单开 live 无探针=配置事故)。
 	if !cfg.OKXDirectional.FastXgapShadowEnabled {
 		t.Fatal("fast_xgap_shadow_enabled = false want true(E策略前向判决要影子样本,n≥300 才裁决)")
 	}
-	if cfg.OKXDirectional.FastXgapLiveEnabled {
-		t.Fatal("fast_xgap_live_enabled = true want false(开火=前向判决过+用户明示批探针)")
+	if cfg.OKXDirectional.FastXgapLiveEnabled && strings.TrimSpace(cfg.OKXDirectional.FastProbeSource) != "xgap_rev" {
+		t.Fatal("fast_xgap_live_enabled=true 但 fast_probe_source≠xgap_rev(live 只许以探针形态开启,2026-07-08 用户拍板口径)")
 	}
 	if cfg.OKXDirectional.FastXgapEntryGapBps != 40 || cfg.OKXDirectional.FastXgapExitGapBps != 10 ||
 		cfg.OKXDirectional.FastXgapMaxHoldSeconds != 600 || cfg.OKXDirectional.FastXgapDisasterBps != 60 ||
