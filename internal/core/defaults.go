@@ -626,6 +626,7 @@ func DefaultEngineConfig() EngineConfig {
 			FastProbeSource:                "",    // 探针制:空=无探针;设 source=用户批准该候选进探针层
 			FastCertifiedSources:           "",    // 持证闸:空=持证0,非探针实弹一律 no_cert 硬拒
 			FastFireworkLiveEnabled:        false, // 烟花枪:开=探针形态+用户批(07-09 造枪)
+			FastFireworkEnergyExitEnabled:  false, // 烟花能量刻度出场:开=用户点头(07-09 坟场翻案,数字见 config.go 注释)
 			FastProbeMaxTrades:             20,    // 探针预算:笔数硬顶
 			FastProbeMaxLossUSDT:           0.5,   // 探针预算:累亏硬顶(越线自动缴械,重启不失忆)
 			FastHotWSMaxSymbols:            40,    // 动态订阅上限(books5+trades 双频道=80订阅,远低于连接上限)

@@ -47,6 +47,41 @@ func TestFastGapFresh(t *testing.T) {
 	}
 }
 
+// TestFastFwEnergyExit 烟花能量刻度出场(07-09 坟场翻案;考试口径=枪口径同函数,纪律 14f)。
+func TestFastFwEnergyExit(t *testing.T) {
+	// 能量单位:|r60| 夹在 [40,200]
+	if u := fastFwEnergyUnit(94); u != 94 {
+		t.Fatalf("unit(94)=%v want 94", u)
+	}
+	if u := fastFwEnergyUnit(25); u != 40 {
+		t.Fatalf("unit(25)=%v want 40(下限=原灾难线)", u)
+	}
+	if u := fastFwEnergyUnit(-350); u != 200 {
+		t.Fatalf("unit(-350)=%v want 200(上限防闪崩推没灾难线)", u)
+	}
+	// 灾难=1×unit:-41 在 unit=75 下必须活着(旧口径 -40 就死=止损在噪声里的病根)
+	if got := fastLedgerFireworkExitES(-41, 0, 30, 75); got != "" {
+		t.Fatalf("ret=-41 unit=75 应持有,got %q", got)
+	}
+	if got := fastLedgerFireworkExitES(-76, 0, 30, 75); got != "disaster" {
+		t.Fatalf("ret=-76 unit=75 应灾难,got %q", got)
+	}
+	// trail:峰值≥0.8×unit(60)后回吐 0.4×unit(30)落袋
+	if got := fastLedgerFireworkExitES(29, 60, 120, 75); got != "trail" {
+		t.Fatalf("peak=60 ret=29 unit=75 应 trail(回吐>30),got %q", got)
+	}
+	if got := fastLedgerFireworkExitES(45, 60, 120, 75); got != "" {
+		t.Fatalf("peak=60 ret=45 unit=75 应持有(回吐<30),got %q", got)
+	}
+	// 未激活(峰值<0.8×unit)不 trail;cap 600s 兜底
+	if got := fastLedgerFireworkExitES(5, 50, 120, 75); got != "" {
+		t.Fatalf("peak=50<60 不应 trail,got %q", got)
+	}
+	if got := fastLedgerFireworkExitES(5, 50, 600, 75); got != "max_hold" {
+		t.Fatalf("600s 应 max_hold,got %q", got)
+	}
+}
+
 // TestFastParticleBits 粒子位组合与派班合成位。
 func TestFastParticleBits(t *testing.T) {
 	fastGapHistMu.Lock()

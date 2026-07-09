@@ -1942,9 +1942,29 @@ func (e *OKXDirectionalEngine) fastLiveManage(ctx context.Context) {
 			}
 			continue
 		}
-		// 烟花枪(firework_pure)专属出场(07-09 造枪;回归局:trail 已证绞肉机,固定 300s 才对味):
-		// -40 灾难无条件砍(+学费冷却)/ 300s 到点离场。与 minHold/物种/能量刻度/trail 全部无关。
+		// 烟花枪(firework_pure)专属出场(07-09 造枪;07-09 晚坟场翻案后支持能量刻度):
+		// 能量口径(开关开)=fastLedgerFireworkExitES(与账本 rest2 考试口径同一个函数,纪律 14f):
+		//   灾难=1×unit / trail 0.8×激活 0.4×回吐 / cap600s,unit=min(max(40,|入场r60|),200)。
+		//   依据:细胞定义即 r60≥60 暴动币,-40 固定线=0.5 噪声步长双向打穿(同点位多空中位均-53);
+		//   能量口径 train +17.4/holdout +5.9,完全力竭子集 +21.2/+22.7(PF1.32/1.36)。
+		// 原口径(开关关)= -40 灾难 / 固定 300s。两者都与 minHold/物种/池塘能量刻度无关。
 		if p.CandidateSource == "firework_pure" {
+			if e.cfg.FastFireworkEnergyExitEnabled {
+				if haveMid {
+					switch fastLedgerFireworkExitES(ubps, p.PeakBps, hold, fastFwEnergyUnit(p.EntryImpulse60s)) {
+					case "disaster":
+						e.fastLiveClose(ctx, p, "fast_fw_disaster")
+						continue
+					case "trail":
+						e.fastLiveClose(ctx, p, "fast_fw_trail")
+						continue
+					case "max_hold":
+						e.fastLiveClose(ctx, p, "fast_fw_max_hold")
+						continue
+					}
+				}
+				continue
+			}
 			if haveMid && ubps <= -40 {
 				e.fastLiveClose(ctx, p, "fast_fw_disaster")
 				continue

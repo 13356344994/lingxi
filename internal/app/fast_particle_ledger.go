@@ -1,6 +1,7 @@
 package app
 
 import (
+	"math"
 	"path/filepath"
 	"sort"
 	"sync"
@@ -365,6 +366,43 @@ func fastLedgerFireworkExit(ret, holdSec float64) string {
 	return ""
 }
 
+// ===== 烟花能量刻度出场(2026-07-09 坟场翻案)=====
+// 病根:烟花细胞定义即 r60≥60 的暴动币(能量单位中位 75bps),-40 固定灾难线=0.5 个噪声
+// 步长,双向都被呼吸打穿(同点位多空中位均 -53=止损在收割噪声,v3⑤ 同款病,当时修了
+// liq_follow/tape 唯独没修烟花)。能量口径离线重测(`_fw_energy_exit_retrial.py`,参数运行前
+// 冻结):空单 train 中位 +17.4 / holdout +5.9;完全力竭子集 +21.2/+22.7 PF1.32/1.36,
+// 12h 分片 3/3 同号——原三特征组合本身无罪,是被出场尺子杀死的。
+// k 系数全部移植自已验证的能量单位制(灾难≈2×30s池塘能量≈1×r60;trail 0.8×激活/0.4×回吐),
+// 非新挖掘参数。纪律 14f:本函数=考试口径=枪口径,单一来源。
+
+// fastFwEnergyUnit 烟花能量单位:入场时刻 |r60|,下限 40(原灾难线)、上限 200(防闪崩把
+// 灾难线推到永不触发;与 fastLiqFollowImpUnitCapBps 同哲学但烟花口径独立冻结)。
+func fastFwEnergyUnit(entryRet60 float64) float64 {
+	u := math.Abs(entryRet60)
+	if u < 40 {
+		u = 40
+	}
+	if u > 200 {
+		u = 200
+	}
+	return u
+}
+
+// fastLedgerFireworkExitES 纯判定:烟花能量刻度出场(""=持有)。ret=空头口径浮盈(跌为正)。
+// 灾难=1.0×unit;trail=峰值≥0.8×unit 后回吐 0.4×unit 落袋;cap 600s。
+func fastLedgerFireworkExitES(ret, peak, holdSec, unit float64) string {
+	if ret <= -1.0*unit {
+		return "disaster"
+	}
+	if peak >= 0.8*unit && ret <= peak-0.4*unit {
+		return "trail"
+	}
+	if holdSec >= 600 {
+		return "max_hold"
+	}
+	return ""
+}
+
 // ---- 烟花惯犯计数环(07-09 仪器缺口补齐:pbHabitual 只计 E 触发,烟花要自己的环)----
 var (
 	fastLedgerFwTrigMu sync.Mutex
@@ -418,6 +456,13 @@ func (e *OKXDirectionalEngine) fastLedgerOnFireworkRiot(sym string, mid, ret15, 
 	fastLedgerOpen[key] = &fastLedgerPos{Sym: sym, Module: "firework", Side: "short", Src: "rest",
 		T0: now, Entry: mid, SpreadBps: spreadBps, Bits: bits, Fuel: fuel, Breadth: br,
 		PriorFw24h: prior, FwRet15: ret15, FwRet60: ret60, FwSymLiq5m: symLiq5m}
+	// 能量刻度出场并行口径(rest2,07-09 坟场翻案):同触发同入场,出场走
+	// fastLedgerFireworkExitES;rest 原口径照记=对照组不丢(口径断代,新键新考)。
+	if _, held := fastLedgerOpen["firework|rest2|"+sym]; !held {
+		fastLedgerOpen["firework|rest2|"+sym] = &fastLedgerPos{Sym: sym, Module: "firework", Side: "short", Src: "rest2",
+			T0: now, Entry: mid, SpreadBps: spreadBps, Bits: bits, Fuel: fuel, Breadth: br,
+			PriorFw24h: prior, FwRet15: ret15, FwRet60: ret60, FwSymLiq5m: symLiq5m}
+	}
 	fastLedgerMu.Unlock()
 }
 
@@ -598,6 +643,8 @@ func (e *OKXDirectionalEngine) fastLedgerManage(mids map[string]float64, now tim
 		if p.Module == "fire" {
 			wave2 := fastSymLiqBetween(p.Sym, p.T0.Add(3*time.Second), p.T0.Add(20*time.Second))
 			exit = fastLedgerFireExit(ret, p.PeakBps, hold, now.Sub(p.T0).Seconds(), wave2)
+		} else if p.Module == "firework" && p.Src == "rest2" {
+			exit = fastLedgerFireworkExitES(ret, p.PeakBps, hold, fastFwEnergyUnit(p.FwRet60))
 		} else if p.Module == "firework" {
 			exit = fastLedgerFireworkExit(ret, hold)
 		} else if p.Src == "rest2" {

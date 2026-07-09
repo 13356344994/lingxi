@@ -176,6 +176,26 @@ func fastExamRegistry() []fastExamSpec {
 			Question: "train PF0.69→holdout 非惯犯 PF1.75/惯犯 0.19(躲毒确认);前向能否把中位拧过 0",
 		},
 		{
+			Key: "fw_es_exhaust", Label: "烟花·能量出场×完全力竭(坟场翻案头号线)",
+			Seal: time.Date(2026, 7, 9, 10, 0, 0, 0, time.UTC), // rest2 能量口径上线时刻封样
+			MinN: 30, MinMed: 0, MinPF: 1.3, MinWin: 0.45, MaxTop: 0.30,
+			Rows: func(r fastLedgerRow) bool {
+				return r.Module == "firework" && r.Src == "rest2" &&
+					r.FwRet60Bps > 0 && r.FwRet15Bps < 0.05*r.FwRet60Bps
+			},
+			Question: "烟花被-40固定线杀死(双向中位-53=止损在噪声里);能量出场重测 train+21.2/holdout+22.7 PF1.32/1.36;前向监控能否复现",
+		},
+		{
+			Key: "fw_es_pure", Label: "烟花·能量出场×三特征(非惯犯×完全力竭×无爆仓)",
+			Seal: time.Date(2026, 7, 9, 10, 0, 0, 0, time.UTC),
+			MinN: 30, MinMed: 0, MinPF: 1.3, MinWin: 0.45, MaxTop: 0.30,
+			Rows: func(r fastLedgerRow) bool {
+				return r.Module == "firework" && r.Src == "rest2" && r.PriorFw24h < 3 &&
+					r.FwRet60Bps > 0 && r.FwRet15Bps < 0.05*r.FwRet60Bps && r.FwSymLiq5m == 0
+			},
+			Question: "原三特征×能量出场(train +27.6/PF1.55 n=49,holdout n=9 仅记形);过门=枪出场换能量刻度的探针材料(须用户批)",
+		},
+		{
 			Key: "firework_fwd", Label: "烟花反手刀·前向(Go账本口径)",
 			Seal: time.Date(2026, 7, 8, 7, 9, 0, 0, time.UTC), // 烟花模块通电时刻
 			MinN: 30, MinMed: 0, MinPF: 1.3, MinWin: 0.45, MaxTop: 0.50, // 预注册原文:单币>50%作废

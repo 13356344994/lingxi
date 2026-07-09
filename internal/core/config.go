@@ -1027,6 +1027,13 @@ type OKXDirectionalConfig struct {
 	// FastFireworkLiveEnabled 烟花枪实弹闸(2026-07-09 三枪会战:三特征 K 折 8/8 过检 PF1.36 后造枪)。
 	// 默认 false 护栏锚定;开=探针形态(source 进 fast_probe_source)+用户明示。
 	FastFireworkLiveEnabled bool `cfg:"fast_firework_live_enabled"`
+	// FastFireworkEnergyExitEnabled 烟花枪能量刻度出场(2026-07-09 坟场翻案:烟花细胞定义即 r60≥60
+	// 的暴动币,噪声步长中位 75bps,-40 固定灾难线躺在噪声里双向打穿[实测双向中位均-53]——
+	// v3⑤ 同款病,当时修了 liq_follow/tape 没修烟花。能量口径重测:train 中位+17.4/holdout+5.9,
+	// 完全力竭子集 +21.2/+22.7 PF1.32/1.36,12h 分片 3/3 同号。
+	// 开=出场换 fastLedgerFireworkExitES(灾难=1×unit/trail 0.8×激活 0.4×回吐/cap600s,
+	// unit=min(max(40,|入场r60|),200));关=原固定 300s/-40。改动实枪出场须用户点头(护栏锚定)。
+	FastFireworkEnergyExitEnabled bool `cfg:"fast_firework_energy_exit_enabled"`
 	// FastCertifiedSources 持证名单(csv):司天监持证制的代码化(2026-07-08 ㊹-补2)。
 	// live 开关外的第二道硬闸:source 不是探针也不在此名单 → fastLiveOpen 拒 no_cert。
 	// 写入=某格子前向过门+用户批准发证;当前空=持证0(护栏锚定)。

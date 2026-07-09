@@ -232,6 +232,17 @@ func TestLoadProductionConfigYAML(t *testing.T) {
 		fastFireworkPureSkip(0, 6, 100, 0) == "" || fastFireworkPureSkip(0, 3, 100, 1) == "" {
 		t.Fatal("烟花三特征闸切点漂移(冻结口径 3/0.05/0,改=作弊)")
 	}
+	// 烟花能量刻度出场(07-09 坟场翻案):代码已装,开=改动实枪出场程序,须用户点头;
+	// 账本 rest2 并行口径不受此开关影响(record-only 照记)。
+	if cfg.OKXDirectional.FastFireworkEnergyExitEnabled {
+		t.Fatal("fast_firework_energy_exit_enabled = true want false(实枪出场变更须用户明示点头)")
+	}
+	// 能量出场切点锚定(1×unit 灾难/0.8×激活/0.4×回吐/cap600/unit∈[40,200];改=作弊):
+	if fastFwEnergyUnit(94) != 94 || fastFwEnergyUnit(10) != 40 || fastFwEnergyUnit(999) != 200 ||
+		fastLedgerFireworkExitES(-41, 0, 30, 75) != "" || fastLedgerFireworkExitES(-76, 0, 30, 75) != "disaster" ||
+		fastLedgerFireworkExitES(29, 60, 120, 75) != "trail" || fastLedgerFireworkExitES(5, 50, 600, 75) != "max_hold" {
+		t.Fatal("烟花能量出场切点漂移(冻结口径 1.0/0.8/0.4/600/[40,200],改=作弊)")
+	}
 
 	// cross_venue_executor 杠杆/名义
 	if math.Abs(cfg.CrossVenueExecutor.MaxPositionUSDT-150) > 1e-9 {
