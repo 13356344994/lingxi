@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"testing"
 	"time"
 )
@@ -128,6 +129,44 @@ func TestFastProbeMulti(t *testing.T) {
 	// 持证闸吃 csv 探针名单
 	if r := fastCertGate("tape_burst", "xgap_rev,tape_burst", ""); r != "" {
 		t.Fatalf("csv 第二探针应放行,得 %q", r)
+	}
+}
+
+// TestFastMiner 自动挖掘器纯函数:谓词匹配/指纹稳定/K折评估门槛。
+func TestFastMiner(t *testing.T) {
+	row := fastLedgerRow{Fuel5m: 10, SpreadBps: 2, PriorFw24h: 1, FwRet15Bps: 2, FwRet60Bps: 100, Module: "firework", Src: "rest"}
+	if !fastMinerMatch(row, []fastMinerRule{{Field: "prior_fw_24h", Op: "lt", Val: 3}, {Field: "fw_exhaust_ratio", Op: "lt", Val: 0.05}}) {
+		t.Fatal("应命中(非惯犯×完全力竭)")
+	}
+	if fastMinerMatch(row, []fastMinerRule{{Field: "fuel_5m", Op: "ge", Val: 40}}) {
+		t.Fatal("fuel=10 不应命中风暴谓词")
+	}
+	// 指纹与规则顺序无关
+	a := fastMinerFingerprint("firework", "rest", []fastMinerRule{{Field: "a", Op: "lt", Val: 1}, {Field: "b", Op: "ge", Val: 2}})
+	b := fastMinerFingerprint("firework", "rest", []fastMinerRule{{Field: "b", Op: "ge", Val: 2}, {Field: "a", Op: "lt", Val: 1}})
+	if a != b {
+		t.Fatal("指纹应与规则顺序无关")
+	}
+	// K折评估:构造好组稳定净正的数据 → 过检;全负 → 不过
+	mk := func(i int, fuel float64, net float64) fastLedgerRow {
+		return fastLedgerRow{Symbol: fmt.Sprintf("S%d-USDT", i%20), T0: time.Date(2026, 7, 1, 0, i, 0, 0, time.UTC),
+			Fuel5m: fuel, NetBps: net, Src: "rest"}
+	}
+	var rows []fastLedgerRow
+	for i := 0; i < 120; i++ {
+		if i%2 == 0 {
+			rows = append(rows, mk(i, 10, 20)) // 好组:死水×净+20
+		} else {
+			rows = append(rows, mk(i, 50, -20))
+		}
+	}
+	ok, note := fastMinerEval(rows, []fastMinerRule{{Field: "fuel_5m", Op: "lt", Val: 20}})
+	if !ok {
+		t.Fatalf("稳定正组合应过检,note=%s", note)
+	}
+	ok, _ = fastMinerEval(rows, []fastMinerRule{{Field: "fuel_5m", Op: "ge", Val: 40}})
+	if ok {
+		t.Fatal("负组合不应过检")
 	}
 }
 

@@ -292,7 +292,8 @@ func (e *OKXDirectionalEngine) fastExamSupervisorLoop(ctx interface{ Done() <-ch
 			continue
 		}
 		changed := false
-		for _, ex := range fastExamRegistry() {
+		exams := append(fastExamRegistry(), e.fastMinerDynamicExams()...) // 静态+自动挖掘的动态考试
+		for _, ex := range exams {
 			if _, done := state[ex.Key]; done {
 				continue // 已出分:重考=登记新 Key(口径断代),不复用旧键
 			}
@@ -303,6 +304,9 @@ func (e *OKXDirectionalEngine) fastExamSupervisorLoop(ctx interface{ Done() <-ch
 			}
 			state[ex.Key] = fastExamRecord{Verdict: v, VerdictAt: e.nowFn().UTC(), Stats: st}
 			changed = true
+			if strings.HasPrefix(ex.Key, "dyn_") { // 动态考试出分即归档(判负记案底永不自动复活)
+				e.fastMinerRetireDynamic(ex.Key, v)
+			}
 			detail := fmt.Sprintf("n=%d 净中位%+.1fbps PF%.2f 胜率(中性化)%.0f%% 顶币%s(%.0f%%) 净合计%+.0fbps\n门=n≥%d 中位>%.0f PF≥%.1f\n%s",
 				st.N, st.Med, st.PF, st.WinNeu*100, st.TopSym, st.TopShr*100, st.NetSum,
 				ex.MinN, ex.MinMed, ex.MinPF, ex.Question)
@@ -401,7 +405,7 @@ func (e *OKXDirectionalEngine) fastExamSnapshot() []map[string]interface{} {
 	state := map[string]fastExamRecord{}
 	examReadJSONFile(filepath.Join(e.recordDir, fastExamStateFile), &state)
 	var out []map[string]interface{}
-	for _, ex := range fastExamRegistry() {
+	for _, ex := range append(fastExamRegistry(), e.fastMinerDynamicExams()...) {
 		st := fastExamEvaluate(rows, ex)
 		item := map[string]interface{}{
 			"key": ex.Key, "label": ex.Label, "n": st.N, "min_n": ex.MinN,

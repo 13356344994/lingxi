@@ -525,7 +525,8 @@ func (e *OKXDirectionalEngine) Run(ctx context.Context) {
 			go e.fastMarketMidLoop(ctx) // v5 全市场 mid 标尺(盲区闸根治;record-only 基建)
 		}
 		if e.cfg.FastParticleLedgerEnabled {
-			go e.fastExamSupervisorLoop(ctx) // ㊺-补2 自动阅卷人(到线自动发准考证/判负+推送;开火权仍在用户)
+			go e.fastExamSupervisorLoop(ctx) // ㊺-补2 自动阅卷人(到线自动发准考证/判负+推送)
+			go e.fastMinerLoop(ctx)          // 54-补 自动挖掘器(4h/轮,过检自动进考场)
 		}
 	}
 	if e.fastXvenueLiqEnabled() {
