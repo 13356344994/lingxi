@@ -83,8 +83,29 @@ func fastXMetaStore(venue string, metas map[string]fastXTickMeta) {
 		m = map[string]fastXTickMeta{}
 		fastXMeta[venue] = m
 	}
-	for sym, meta := range metas {
-		m[sym] = meta
+	// 按字段合并而非整体覆盖(2026-07-09 修 OKX 资费恒 0 bug:OKX 的 OI 与 funding 来自
+	// 两个端点,整体覆盖=后到的把先到的字段抹成 0;非零字段才更新,TS 取新)。
+	for sym, in := range metas {
+		cur := m[sym]
+		if in.Funding != 0 {
+			cur.Funding = in.Funding
+		}
+		if in.OI > 0 {
+			cur.OI = in.OI
+		}
+		if in.Index > 0 {
+			cur.Index = in.Index
+		}
+		if in.Mark > 0 {
+			cur.Mark = in.Mark
+		}
+		if in.NextFunding > 0 {
+			cur.NextFunding = in.NextFunding
+		}
+		if in.TS.After(cur.TS) {
+			cur.TS = in.TS
+		}
+		m[sym] = cur
 	}
 }
 
@@ -271,6 +292,35 @@ func parseOKXSpotTickers(body []byte) map[string]float64 {
 	return out
 }
 
+// parseOKXFundingRates /api/v5/public/funding-rate?instId=ANY → canon -> funding/nextFunding。
+// (2026-07-09 修 xmeta OKX 资费恒 0 bug:此前 OKX 只轮询 OI 端点,funding 字段从未被填过。)
+func parseOKXFundingRates(body []byte, now time.Time) map[string]fastXTickMeta {
+	var r struct {
+		Data []struct {
+			InstID          string `json:"instId"`
+			FundingRate     string `json:"fundingRate"`
+			NextFundingTime string `json:"nextFundingTime"`
+		} `json:"data"`
+	}
+	if json.Unmarshal(body, &r) != nil {
+		return nil
+	}
+	out := make(map[string]fastXTickMeta, len(r.Data))
+	for _, d := range r.Data {
+		up := strings.ToUpper(d.InstID)
+		if !strings.HasSuffix(up, "-USDT-SWAP") {
+			continue
+		}
+		f := pf(d.FundingRate)
+		if f == 0 {
+			continue
+		}
+		nf, _ := strconv.ParseInt(strings.TrimSpace(d.NextFundingTime), 10, 64)
+		out[strings.TrimSuffix(up, "-SWAP")] = fastXTickMeta{Funding: f, NextFunding: nf, TS: now}
+	}
+	return out
+}
+
 // parseOKXOpenInterest /api/v5/public/open-interest?instType=SWAP → canon -> OI(张)。
 func parseOKXOpenInterest(body []byte, now time.Time) map[string]fastXTickMeta {
 	var r struct {
@@ -395,6 +445,13 @@ func (e *OKXDirectionalEngine) fastXMidLoop(ctx context.Context) {
 					logFail("okxoi", err)
 				} else if metas := parseOKXOpenInterest(body, now); len(metas) > 0 {
 					fails["okxoi"] = 0
+					fastXMetaStore("okx", metas)
+				}
+				// okx 全市场资费(instId=ANY 批量端点;修 xmeta OKX funding 恒 0 bug)
+				if err := peerGetJSON("https://www.okx.com/api/v5/public/funding-rate?instId=ANY", &body); err != nil {
+					logFail("okxfunding", err)
+				} else if metas := parseOKXFundingRates(body, now); len(metas) > 0 {
+					fails["okxfunding"] = 0
 					fastXMetaStore("okx", metas)
 				}
 			}
