@@ -85,6 +85,8 @@ func fastMinerFieldVal(r fastLedgerRow, field string) (float64, bool) {
 		return r.FwRet15Bps / r.FwRet60Bps, true
 	case "bits":
 		return float64(r.Bits), true
+	case "liq_echo": // L1 回声(59 号研究):-1 不适用/0 无回声(毒)/1 同行确认
+		return float64(r.LiqEcho), true
 	}
 	return 0, false
 }

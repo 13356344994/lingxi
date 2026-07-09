@@ -158,6 +158,8 @@ func (s *DashboardServer) Start(ctx context.Context) error {
 	mux.HandleFunc("/api/mission", s.authorizeReadAPI(s.handleMissionAPI))
 	mux.HandleFunc("/api/params", s.handleRuntimeParamsAPI) // GET 只读现值;POST 内部走控制鉴权+审计
 	mux.HandleFunc("/api/strategy-report", s.authorizeReadAPI(s.handleStrategyReportAPI))
+	mux.HandleFunc("/api/pulse", s.authorizeReadAPI(s.handlePulseAPI)) // 极简面板「此刻谁在给钱」仪表
+
 	// 探针/指标(不鉴权,只暴露非敏感健康信息)。
 	mux.HandleFunc("/livez", s.handleLivez)
 	mux.HandleFunc("/healthz", s.handleHealthz)
