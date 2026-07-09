@@ -649,17 +649,29 @@ func (s *DashboardServer) handleMissionAPI(w http.ResponseWriter, r *http.Reques
 	slow := missionSlowActive(dir)
 
 	probeSrc := strings.TrimSpace(cfg.FastProbeSource)
+	autoSrcs := make([]string, 0, 2) // 07-09 历史考试制:自动接入名单同样=探针期
+	for s := range eng.fastAutoProbeList() {
+		autoSrcs = append(autoSrcs, s)
+	}
+	sort.Strings(autoSrcs)
+	allProbe := probeSrc
+	if len(autoSrcs) > 0 {
+		if allProbe != "" {
+			allProbe += ","
+		}
+		allProbe += strings.Join(autoSrcs, ",")
+	}
 	anyLive := cfg.FastXgapLiveEnabled || cfg.FastTapeLiveEnabled || cfg.FastLiqFollowLiveEnabled ||
-		cfg.FastScorerLiveEnabled || cfg.FastFadeLiveEnabled || probeSrc != ""
+		cfg.FastScorerLiveEnabled || cfg.FastFadeLiveEnabled || allProbe != ""
 	anySlow := false
 	for _, a := range slow {
 		anySlow = anySlow || a
 	}
 	phase := "阶段A·发现期(零实盘敞口)"
 	detail := "fast 层 07-04 停火、慢线 07-07 全停;全系统 record-only,搜索边际成本=0 真钱。"
-	if probeSrc != "" {
-		phase = "阶段B·探针期(" + probeSrc + ")"
-		detail = "探针预算 ≤" + fmt.Sprintf("%d 笔 / 累亏 ≤%.1fU", cfg.FastProbeMaxTrades, cfg.FastProbeMaxLossUSDT) + " 自动缴械。"
+	if allProbe != "" {
+		phase = "阶段B·探针期(" + allProbe + ")"
+		detail = "每源独立预算(自动资金阶梯 L0 起步)自动缴械/晋升;页面天花板+急停凌驾。"
 	} else if anyLive {
 		phase = "⚠️ 有实弹开关开启(请核对)"
 	}

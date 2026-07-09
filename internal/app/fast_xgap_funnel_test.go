@@ -242,9 +242,16 @@ func TestFastAutoProbe(t *testing.T) {
 
 // TestFastFireworkPureSkip 烟花枪三特征闸(冻结切点 3/0.05/0;改=作弊)。
 func TestFastFireworkPureSkip(t *testing.T) {
-	// 全过:非惯犯+完全力竭+无爆仓
+	// 全过:细胞(≥60,减速)+非惯犯+完全力竭+无爆仓
 	if s := fastFireworkPureSkip(2, 3, 100, 0); s != "" {
 		t.Fatalf("三特征全过应放行,得 %q", s)
+	}
+	// 细胞条件(07-09 14:50 口径漂移修复):小暴动/仍在加速不进
+	if s := fastFireworkPureSkip(0, 3, 29, 0); s != "fw_not_cell" {
+		t.Fatalf("r60=29 非细胞应拒,得 %q", s)
+	}
+	if s := fastFireworkPureSkip(0, 30, 100, 0); s != "fw_still_rising" {
+		t.Fatalf("仍在加速应拒,得 %q", s)
 	}
 	if s := fastFireworkPureSkip(3, 3, 100, 0); s != "fw_habitual" {
 		t.Fatalf("惯犯应拒,得 %q", s)

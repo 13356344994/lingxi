@@ -375,14 +375,25 @@ func (e *OKXDirectionalEngine) fastSkySnapshot(now time.Time) map[string]interfa
 	}
 }
 
-// fastProbeSnapshot 面板用:探针名单各源实时预算(现算,与预算闸同源)。
+// fastProbeSnapshot 面板用:探针名单各源实时预算(现算,与预算闸同源;含自动接入名单)。
 func (e *OKXDirectionalEngine) fastProbeSnapshot() []map[string]interface{} {
 	var out []map[string]interface{}
+	srcs := []string{}
+	seen := map[string]bool{}
 	for _, p := range strings.Split(e.cfg.FastProbeSource, ",") {
-		src := strings.TrimSpace(p)
-		if src == "" {
-			continue
+		if s := strings.TrimSpace(p); s != "" && !seen[s] {
+			srcs = append(srcs, s)
+			seen[s] = true
 		}
+	}
+	for s := range e.fastAutoProbeList() { // 自动接入的源(07-09 历史考试制)
+		if !seen[s] {
+			srcs = append(srcs, s)
+			seen[s] = true
+		}
+	}
+	sort.Strings(srcs)
+	for _, src := range srcs {
 		fastProbeMu.Lock()
 		st := *e.fastProbeStateLocked(src)
 		fastProbeMu.Unlock()

@@ -27,8 +27,16 @@ var (
 	fastFwFireLast = map[string]time.Time{} // 同币冷却(600s,与 K 折研究去重同口径)
 )
 
-// fastFireworkPureSkip 纯判定:三特征闸(""=通过;冻结切点 3/0.05/0)。
+// fastFireworkPureSkip 纯判定:细胞+三特征闸(""=通过;冻结切点,与考试口径同源)。
+// 07-09 14:50 修复口径漂移:枪入口此前漏了细胞判定(拉升≥60/力竭25%/点差≤6 只在账本层),
+// r60=29 的小暴动曾能走到三特征闸——接名单前 4 分钟窗口验证日志当场抓获,零开仓,已修。
 func fastFireworkPureSkip(prior24h int, ret15, ret60 float64, symLiq5m int) string {
+	if ret60 < 60 {
+		return "fw_not_cell" // 细胞条件:暴力拉升≥60bps(考试样本的定义域)
+	}
+	if ret15 >= 0.25*ret60 {
+		return "fw_still_rising" // 细胞条件:未减速(仍在加速的拉升不反手)
+	}
 	if prior24h >= 3 {
 		return "fw_habitual" // 惯犯币:控盘反复拉砸,反手=站在庄家对面
 	}
