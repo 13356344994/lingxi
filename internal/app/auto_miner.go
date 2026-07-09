@@ -29,6 +29,20 @@ const (
 	fastMinerMinN        = 40
 )
 
+// ===== 圣日封存制(2026-07-09 用户拍板"将过去某一天的数据拆出来,不参与系统/策略制定,只用来验证")=====
+// 圣日数据对一切挖掘/换届/切点标定不可见;唯一用途=候选过完 K 折+前向后的【一次性】终验,
+// 每个假设只许消费圣日一次(验证登记在 HANDOFF,复用=作弊)。
+// 名单只许追加不许移除(移除=把考卷塞回题库);每周日 UTC 自动入圣日集合(随数据增长滚动扩充)。
+var fastVaultDays = map[string]bool{
+	"2026-07-08": true, // 首个圣日(仪器覆盖最全的一天:全市场磁带+多模块账本+market_mids 全量)
+}
+
+// fastInVault 纯判定:该时刻是否属于圣日(名单日 或 周日 UTC)。
+func fastInVault(t time.Time) bool {
+	u := t.UTC()
+	return fastVaultDays[u.Format("2006-01-02")] || u.Weekday() == time.Sunday
+}
+
 // fastMinerRule 谓词(字段规则 DSL;字段集有限=数据地板内)。
 type fastMinerRule struct {
 	Field string  `json:"field"` // fuel_5m/breadth_30m/spread_bps/gap_det_bps/gap_rest_bps/prior_fw_24h/fw_exhaust_ratio/fw_sym_liq_5m/bit
@@ -259,6 +273,9 @@ func (e *OKXDirectionalEngine) fastMinerRunOnce() {
 		}
 		var sub []fastLedgerRow
 		for _, r := range rows {
+			if fastInVault(r.T0) {
+				continue // 圣日封存:挖掘永远看不见这一天(终验专用,一次性消费)
+			}
 			m := r.Module
 			if m == "e" {
 				m = ""

@@ -232,10 +232,10 @@ func TestLoadProductionConfigYAML(t *testing.T) {
 		fastFireworkPureSkip(0, 6, 100, 0) == "" || fastFireworkPureSkip(0, 3, 100, 1) == "" {
 		t.Fatal("烟花三特征闸切点漂移(冻结口径 3/0.05/0,改=作弊)")
 	}
-	// 烟花能量刻度出场(07-09 坟场翻案):代码已装,开=改动实枪出场程序,须用户点头;
-	// 账本 rest2 并行口径不受此开关影响(record-only 照记)。
-	if cfg.OKXDirectional.FastFireworkEnergyExitEnabled {
-		t.Fatal("fast_firework_energy_exit_enabled = true want false(实枪出场变更须用户明示点头)")
+	// 烟花能量刻度出场(07-09 坟场翻案;18:13 用户批准"可以根据你的建议来"后改锚为 true):
+	// 回退到 -40 固定线=回到已证死的坏尺子(双向中位-53),关它须新证据+用户明示。
+	if !cfg.OKXDirectional.FastFireworkEnergyExitEnabled {
+		t.Fatal("fast_firework_energy_exit_enabled = false want true(07-09 用户批准能量刻度;回退=回到被证死的坏尺子)")
 	}
 	// 能量出场切点锚定(1×unit 灾难/0.8×激活/0.4×回吐/cap600/unit∈[40,200];改=作弊):
 	if fastFwEnergyUnit(94) != 94 || fastFwEnergyUnit(10) != 40 || fastFwEnergyUnit(999) != 200 ||

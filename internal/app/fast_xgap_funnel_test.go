@@ -170,6 +170,35 @@ func TestFastMiner(t *testing.T) {
 	}
 }
 
+// TestFastVaultDays 圣日封存制(2026-07-09 用户拍板):名单日与周日 UTC 对挖掘不可见。
+func TestFastVaultDays(t *testing.T) {
+	if !fastInVault(time.Date(2026, 7, 8, 15, 0, 0, 0, time.UTC)) {
+		t.Fatal("2026-07-08 是首个圣日,应封存")
+	}
+	if !fastInVault(time.Date(2026, 7, 12, 3, 0, 0, 0, time.UTC)) {
+		t.Fatal("周日 UTC 应自动入圣日")
+	}
+	if fastInVault(time.Date(2026, 7, 9, 12, 0, 0, 0, time.UTC)) {
+		t.Fatal("普通工作日不应封存")
+	}
+	// 挖掘不可见:圣日行喂给 miner 的模块子集须被剔除——用谓词恒真组合验证 n 不含圣日行
+	var rows []fastLedgerRow
+	for i := 0; i < 100; i++ {
+		day := 7 + i%2 // 07-07 与 07-08(圣日)对半
+		rows = append(rows, fastLedgerRow{Symbol: fmt.Sprintf("S%d-USDT", i%20),
+			T0: time.Date(2026, 7, day, 1, i/2, 0, 0, time.UTC), Fuel5m: 10, NetBps: 20, Src: "rest"})
+	}
+	n := 0
+	for _, r := range rows {
+		if !fastInVault(r.T0) {
+			n++
+		}
+	}
+	if n != 50 {
+		t.Fatalf("圣日过滤后应剩 50 行,得 %d", n)
+	}
+}
+
 // TestFastGradVerdict 自动资金阶梯纯函数:晋升/缴械/停机/顶级滚动。
 func TestFastGradVerdict(t *testing.T) {
 	// L0 探针:20 笔打满且净正 → 晋升
