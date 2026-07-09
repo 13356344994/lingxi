@@ -60,13 +60,22 @@ func fastExamRegistry() []fastExamSpec {
 			Question: "E 首轮判负后的改良口径,前向能否转正?过=递探针发证材料",
 		},
 		{
-			Key: "e_next_pkg", Label: "E 改良包(三闸+棘轮+弹射真跑)",
+			Key: "e_next_pkg", Label: "E 改良包v2(棘轮+弹射)",
 			Seal: time.Date(2026, 7, 8, 9, 40, 0, 0, time.UTC), // 改良版上线 17:40 BJ
 			MinN: 30, MinMed: 0, MinPF: 1.3, MinWin: 0.45, MaxTop: 0.20,
 			Rows: func(r fastLedgerRow) bool {
 				return (r.Module == "" || r.Module == "e") && r.Src == "rest2"
 			},
-			Question: "改良出场能否把 E 拧回正期望?E 下一版口径的裁决文件",
+			Question: "改良出场能否把 E 拧回正期望?→ 07-09 判负(死因=弹射粒子级反向)",
+		},
+		{
+			Key: "e_next2_ratchet", Label: "E 棘轮版v3(只棘轮不弹射)",
+			Seal: time.Date(2026, 7, 9, 3, 10, 0, 0, time.UTC), // v3 上线时刻封样(07-09 11:10 BJ)
+			MinN: 30, MinMed: 0, MinPF: 1.3, MinWin: 0.45, MaxTop: 0.20,
+			Rows: func(r fastLedgerRow) bool {
+				return (r.Module == "" || r.Module == "e") && r.Src == "rest3"
+			},
+			Question: "v2 死因解剖(弹射-249/棘轮+57 配对)后的重考:棘轮单独能否过门",
 		},
 		{
 			Key: "firework_fwd", Label: "烟花反手刀·前向(Go账本口径)",

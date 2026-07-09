@@ -114,7 +114,7 @@ func medianOf(xs []float64) float64 {
 // missionBaselineFromRows 纯函数:账本行 → 当前策略基准(可单测)。
 // sinceCell=三闸口径起点(04:34Z 部署);E 模块行 only,unfilled 剔除。
 func missionBaselineFromRows(rows []fastLedgerRow, sinceCell time.Time) missionBaseline {
-	b := missionBaseline{SinceLabel: "★E·改良版(三闸+棘轮+弹射真跑,07-08 17:40 BJ 上线)可执行前向"}
+	b := missionBaseline{SinceLabel: "★★★E·棘轮版v3(只棘轮不弹射,07-09 11:10 BJ 上线)可执行前向"}
 	var nets, origNets []float64
 	var giveback []float64
 	var ratchetRest, ratchetDet, ejectSave []float64
@@ -141,7 +141,7 @@ func missionBaselineFromRows(rows []fastLedgerRow, sinceCell time.Time) missionB
 			continue
 		}
 		switch r.Src {
-		case "rest2": // 主口径:改良版出场真跑
+		case "rest3": // 主口径:棘轮版 v3(07-09 死因解剖后的最新口径)
 			b.N++
 			nets = append(nets, r.NetBps)
 			b.NetSumBps += r.NetBps

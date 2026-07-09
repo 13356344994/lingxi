@@ -479,6 +479,12 @@ func (e *OKXDirectionalEngine) fastLedgerOnTriggerREST(sym string, restMid, rest
 		fastLedgerOpen["rest2|"+sym] = &fastLedgerPos{Sym: sym, Src: "rest2", T0: now, Entry: restMid,
 			GapDet: gapDet, GapRest: gapRest, SpreadBps: spreadBps, Bits: bits, Fuel: fuel, Breadth: br, Path: path}
 	}
+	// v3 棘轮版(07-09 改良包死因解剖:弹射粒子级反向[11笔配对差-249bps],棘轮无罪[+57]——
+	// v3=只棘轮不弹射;v2 判负口径原封保留作对照,口径断代=新键新考):
+	if _, held := fastLedgerOpen["rest3|"+sym]; !held {
+		fastLedgerOpen["rest3|"+sym] = &fastLedgerPos{Sym: sym, Src: "rest3", T0: now, Entry: restMid,
+			GapDet: gapDet, GapRest: gapRest, SpreadBps: spreadBps, Bits: bits, Fuel: fuel, Breadth: br, Path: path}
+	}
 	// v2 maker 口径并行:同一触发点挂虚拟被动单(价=REST bid),成交/超时由 manage 裁
 	if restBid > 0 {
 		if _, held := fastLedgerOpen["mkr|"+sym]; !held {
@@ -552,9 +558,13 @@ func (e *OKXDirectionalEngine) fastLedgerManage(mids map[string]float64, now tim
 		} else if p.Module == "firework" {
 			exit = fastLedgerFireworkExit(ret, hold)
 		} else if p.Src == "rest2" {
-			// E 改良版:出场真跑棘轮+弹射(不是标注),兜底三条同原版
+			// E 改良版 v2:出场真跑棘轮+弹射(不是标注),兜底三条同原版
 			gapNow, gapOK := fastXMidGapBpsVenueTol("bybit", p.Sym, mid, now, fastXgapFreshTol)
 			exit = fastLedgerExitV2(ret, p.PeakBps, p.BurstSeen, gapNow, gapOK, hold, e.cfg.FastXgapExitGapBps, e.cfg.FastXgapDisasterBps, e.cfg.FastXgapMaxHoldSeconds)
+		} else if p.Src == "rest3" {
+			// E 棘轮版 v3:只棘轮不弹射(burstSeen 恒 false 即关闭弹射分支,其余同 v2)
+			gapNow, gapOK := fastXMidGapBpsVenueTol("bybit", p.Sym, mid, now, fastXgapFreshTol)
+			exit = fastLedgerExitV2(ret, p.PeakBps, false, gapNow, gapOK, hold, e.cfg.FastXgapExitGapBps, e.cfg.FastXgapDisasterBps, e.cfg.FastXgapMaxHoldSeconds)
 		} else {
 			gapNow, gapOK := fastXMidGapBpsVenueTol("bybit", p.Sym, mid, now, fastXgapFreshTol)
 			exit = fastLedgerExit(ret, gapNow, gapOK, hold, e.cfg.FastXgapExitGapBps, e.cfg.FastXgapDisasterBps, e.cfg.FastXgapMaxHoldSeconds)

@@ -40,12 +40,12 @@ func TestMissionBaselineFromRows(t *testing.T) {
 	before := seal.Add(-time.Hour)
 	after := seal.Add(time.Hour)
 	rows := []fastLedgerRow{
-		// 窗内 rest2(改良版主口径):计入基准;peak≥5 计吐回
-		{Src: "rest2", T0: after, NetBps: 3, GrossBps: 15, PeakBps: 10},
-		{Src: "rest2", T0: after, NetBps: -8, GrossBps: 4, PeakBps: 6},
-		{Src: "rest2", T0: after, NetBps: -23, GrossBps: -11, PeakBps: 2},
-		// 窗前 rest2:不计基准
-		{Src: "rest2", T0: before, NetBps: 50},
+		// 窗内 rest3(棘轮版 v3 主口径,07-09 起):计入基准;peak≥5 计吐回
+		{Src: "rest3", T0: after, NetBps: 3, GrossBps: 15, PeakBps: 10},
+		{Src: "rest3", T0: after, NetBps: -8, GrossBps: 4, PeakBps: 6},
+		{Src: "rest3", T0: after, NetBps: -23, GrossBps: -11, PeakBps: 2},
+		// 窗前 rest3:不计基准
+		{Src: "rest3", T0: before, NetBps: 50},
 		// 窗内 rest(原版对照):计入 Orig,trail 配对
 		{Src: "rest", T0: after, NetBps: 3, GrossBps: 15, PeakBps: 10, TrailFired: true, TrailExitBps: 10},
 		// 窗前 rest:不计对照,但 trail 标注仍配对(标注天然封样)
