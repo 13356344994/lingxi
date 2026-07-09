@@ -217,6 +217,8 @@ type fastLedgerPos struct {
 	// 须逐tick精确实测):峰值≥+10 激活后回吐 8bps 即记虚拟棘轮出场(只记不出;冻结先验 A=10/G=8)。
 	TrailFired  bool
 	TrailExitBp float64
+	// 07-09 烟花惯犯计数(走前:入场时刻此前24h同币烟花触发数;holdout 校验过的否决粒子)
+	PriorFw24h int
 }
 
 const (
@@ -259,6 +261,8 @@ type fastLedgerRow struct {
 	// 杠杆L5 棘轮反事实(逐tick;A=10/G=8 冻结):fired=持有期触发过,exit_bps=触发时刻毛值
 	TrailFired   bool    `json:"trail_fired,omitempty"`
 	TrailExitBps float64 `json:"trail_exit_bps,omitempty"`
+	// 07-09 烟花惯犯计数(走前口径;holdout 校验过的否决粒子的数据地板)
+	PriorFw24h int `json:"prior_fw_24h,omitempty"`
 	// ㊳① det 时刻价差路径(path_ok=false 表示 15s 历史不足,路径字段不可用):
 	PathOK            bool    `json:"path_ok,omitempty"`
 	GapAgeSec         float64 `json:"gap_age_sec,omitempty"`
@@ -353,6 +357,35 @@ func fastLedgerFireworkExit(ret, holdSec float64) string {
 	return ""
 }
 
+// ---- 烟花惯犯计数环(07-09 仪器缺口补齐:pbHabitual 只计 E 触发,烟花要自己的环)----
+var (
+	fastLedgerFwTrigMu sync.Mutex
+	fastLedgerFwTrig   = map[string][]time.Time{}
+)
+
+// fastLedgerFwPrior24h 记录本次触发并返回"此前 24h 同币烟花触发数"(走前口径,入场时刻可知)。
+func fastLedgerFwPrior24h(sym string, now time.Time) int {
+	fastLedgerFwTrigMu.Lock()
+	defer fastLedgerFwTrigMu.Unlock()
+	cut := now.Add(-24 * time.Hour)
+	h := fastLedgerFwTrig[sym]
+	i := 0
+	for i < len(h) && h[i].Before(cut) {
+		i++
+	}
+	h = h[i:]
+	prior := len(h)
+	fastLedgerFwTrig[sym] = append(h, now)
+	if len(fastLedgerFwTrig) > 4096 {
+		for k, v := range fastLedgerFwTrig {
+			if len(v) == 0 || now.Sub(v[len(v)-1]).Hours() > 25 {
+				delete(fastLedgerFwTrig, k)
+			}
+		}
+	}
+	return prior
+}
+
 // fastLedgerOnFireworkRiot 烟花刀模块入账:普查暴动命中"力竭×拉升≥60×点差≤6"细胞
 // (与 `_firework_verdict.py` 前向判决同口径)→ 开虚拟空仓。record-only。
 func (e *OKXDirectionalEngine) fastLedgerOnFireworkRiot(sym string, mid, ret15, ret60, spreadBps float64, now time.Time) {
@@ -369,12 +402,13 @@ func (e *OKXDirectionalEngine) fastLedgerOnFireworkRiot(sym string, mid, ret15, 
 		return
 	}
 	fastLedgerMu.Unlock()
+	prior := fastLedgerFwPrior24h(sym, now) // 惯犯计数(train/holdout 校验过的否决粒子的数据地板)
 	fuel := fastMarketLiqRate(now, 300)
 	br, brOK := fastBreadth30(now)
 	bits := fastParticleBits(sym, now, 0, fuel, br, brOK, 0)
 	fastLedgerMu.Lock()
 	fastLedgerOpen[key] = &fastLedgerPos{Sym: sym, Module: "firework", Side: "short", Src: "rest",
-		T0: now, Entry: mid, SpreadBps: spreadBps, Bits: bits, Fuel: fuel, Breadth: br}
+		T0: now, Entry: mid, SpreadBps: spreadBps, Bits: bits, Fuel: fuel, Breadth: br, PriorFw24h: prior}
 	fastLedgerMu.Unlock()
 }
 
@@ -584,6 +618,7 @@ func (e *OKXDirectionalEngine) fastLedgerManage(mids map[string]float64, now tim
 			HoldSec: int(hold), Exit: exit,
 			BurstDuringHold: p.BurstSeen, RetAtBurstBps: p.RetAtBurst,
 			TrailFired: p.TrailFired, TrailExitBps: p.TrailExitBp,
+			PriorFw24h: p.PriorFw24h,
 		}
 		row.applyGapPath(p.Path)
 		if err := appendJSONLRecord(path, row); err != nil {

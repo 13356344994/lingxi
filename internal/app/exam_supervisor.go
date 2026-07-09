@@ -78,6 +78,15 @@ func fastExamRegistry() []fastExamSpec {
 			Question: "v2 死因解剖(弹射-249/棘轮+57 配对)后的重考:棘轮单独能否过门",
 		},
 		{
+			Key: "fw_nohabit", Label: "烟花×非惯犯(24h同币<3枪;holdout 校验过)",
+			Seal: time.Date(2026, 7, 9, 3, 30, 0, 0, time.UTC), // 惯犯计数字段上线时刻封样
+			MinN: 30, MinMed: 0, MinPF: 1.3, MinWin: 0.45, MaxTop: 0.30,
+			Rows: func(r fastLedgerRow) bool {
+				return r.Module == "firework" && r.Src == "rest" && r.PriorFw24h < 3
+			},
+			Question: "train PF0.69→holdout 非惯犯 PF1.75/惯犯 0.19(躲毒确认);前向能否把中位拧过 0",
+		},
+		{
 			Key: "firework_fwd", Label: "烟花反手刀·前向(Go账本口径)",
 			Seal: time.Date(2026, 7, 8, 7, 9, 0, 0, time.UTC), // 烟花模块通电时刻
 			MinN: 30, MinMed: 0, MinPF: 1.3, MinWin: 0.45, MaxTop: 0.50, // 预注册原文:单币>50%作废
