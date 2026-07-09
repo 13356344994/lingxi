@@ -66,6 +66,8 @@ type fastLivePosition struct {
 	MakerWaitMs     int     `json:"maker_wait_ms,omitempty"`
 	FillMid         float64 `json:"fill_mid,omitempty"`
 	MakerEdgeBps    float64 `json:"maker_edge_bps,omitempty"`
+	// 07-09 探针执行税仪表:入场滑点=成交价 vs 评估时刻 mid(正=更差;预注册中止线=中位>8bps)
+	EntrySlipBps float64 `json:"entry_slip_bps,omitempty"`
 	PeakBps         float64 `json:"peak_bps,omitempty"`   // 浮盈峰值(移动止盈用;全程 all-time)
 	TroughBps       float64 `json:"trough_bps,omitempty"` // 浮亏谷值(全程 all-time 最深回撤;早砍用)
 	// seen-aware 成交后水位(bps):首次采样某窗口时 MFE=MAE=ubps(不被假 0 污染);窗口外不采样(Seen=false)。
@@ -2316,6 +2318,8 @@ func (e *OKXDirectionalEngine) fastLiveClose(ctx context.Context, p *fastLivePos
 		MakerWaitMs:     p.MakerWaitMs,
 		FillMid:         p.FillMid,
 		MakerEdgeBps:    p.MakerEdgeBps,
+		// 07-09 探针执行税仪表(此前 fast 结算不记滑点=监控缺口)
+		EntrySlipBps: p.EntrySlipBps,
 	}
 	// seen-aware 成交后水位:仅采样到的窗口写指针(nil=未采样,非nil含0=采样到)
 	ptr := func(seen bool, v float64) *float64 {
@@ -2782,6 +2786,7 @@ func (e *OKXDirectionalEngine) fastLiveOpen(ctx context.Context, ev *fastExecSha
 		EntrySpreadBps: ev.SpreadBps, EntryImbalance: ev.OrderbookImbalance,
 		EntryImpulse15s: ev.MidImpulse15sBps, EntryImpulse30s: ev.MidImpulse30sBps, EntryImpulse60s: ev.MidImpulse60sBps,
 		MakerEntry: makerMode, MakerOrderPrice: makerOrderPrice, MakerWaitMs: makerWaitMs, FillMid: fillMid, MakerEdgeBps: makerEdge,
+		EntrySlipBps:      directionalSlipBps(map[string]venue.Side{"long": venue.SideBuy, "short": venue.SideSell}[ev.FastCandidateSide], ev.Mid, fillPrice),
 		EntryAdaptiveTags: adaptiveTags,
 		CandidateSource:   ev.CandidateSource,
 	}
