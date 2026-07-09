@@ -219,6 +219,10 @@ type fastLedgerPos struct {
 	TrailExitBp float64
 	// 07-09 烟花惯犯计数(走前:入场时刻此前24h同币烟花触发数;holdout 校验过的否决粒子)
 	PriorFw24h int
+	// 07-09 烟花三特征粒子数据地板(K折过检组合:非惯犯×完全力竭×无本币爆仓)
+	FwRet15    float64
+	FwRet60    float64
+	FwSymLiq5m int
 }
 
 const (
@@ -263,6 +267,10 @@ type fastLedgerRow struct {
 	TrailExitBps float64 `json:"trail_exit_bps,omitempty"`
 	// 07-09 烟花惯犯计数(走前口径;holdout 校验过的否决粒子的数据地板)
 	PriorFw24h int `json:"prior_fw_24h,omitempty"`
+	// 07-09 烟花三特征(入场时刻冻结;fw_pure 考试口径)
+	FwRet15Bps float64 `json:"fw_ret15_bps,omitempty"`
+	FwRet60Bps float64 `json:"fw_ret60_bps,omitempty"`
+	FwSymLiq5m int     `json:"fw_sym_liq_5m,omitempty"`
 	// ㊳① det 时刻价差路径(path_ok=false 表示 15s 历史不足,路径字段不可用):
 	PathOK            bool    `json:"path_ok,omitempty"`
 	GapAgeSec         float64 `json:"gap_age_sec,omitempty"`
@@ -388,7 +396,7 @@ func fastLedgerFwPrior24h(sym string, now time.Time) int {
 
 // fastLedgerOnFireworkRiot 烟花刀模块入账:普查暴动命中"力竭×拉升≥60×点差≤6"细胞
 // (与 `_firework_verdict.py` 前向判决同口径)→ 开虚拟空仓。record-only。
-func (e *OKXDirectionalEngine) fastLedgerOnFireworkRiot(sym string, mid, ret15, ret60, spreadBps float64, now time.Time) {
+func (e *OKXDirectionalEngine) fastLedgerOnFireworkRiot(sym string, mid, ret15, ret60, spreadBps float64, symLiq5m int, now time.Time) {
 	if !e.cfg.FastParticleLedgerEnabled || mid <= 0 {
 		return
 	}
@@ -408,7 +416,8 @@ func (e *OKXDirectionalEngine) fastLedgerOnFireworkRiot(sym string, mid, ret15, 
 	bits := fastParticleBits(sym, now, 0, fuel, br, brOK, 0)
 	fastLedgerMu.Lock()
 	fastLedgerOpen[key] = &fastLedgerPos{Sym: sym, Module: "firework", Side: "short", Src: "rest",
-		T0: now, Entry: mid, SpreadBps: spreadBps, Bits: bits, Fuel: fuel, Breadth: br, PriorFw24h: prior}
+		T0: now, Entry: mid, SpreadBps: spreadBps, Bits: bits, Fuel: fuel, Breadth: br,
+		PriorFw24h: prior, FwRet15: ret15, FwRet60: ret60, FwSymLiq5m: symLiq5m}
 	fastLedgerMu.Unlock()
 }
 
@@ -619,6 +628,7 @@ func (e *OKXDirectionalEngine) fastLedgerManage(mids map[string]float64, now tim
 			BurstDuringHold: p.BurstSeen, RetAtBurstBps: p.RetAtBurst,
 			TrailFired: p.TrailFired, TrailExitBps: p.TrailExitBp,
 			PriorFw24h: p.PriorFw24h,
+			FwRet15Bps: p.FwRet15, FwRet60Bps: p.FwRet60, FwSymLiq5m: p.FwSymLiq5m,
 		}
 		row.applyGapPath(p.Path)
 		if err := appendJSONLRecord(path, row); err != nil {

@@ -2155,7 +2155,9 @@ func (e *OKXDirectionalEngine) fastMarketMidLoop(ctx context.Context) {
 					if mid > 0 && bk.AskPrice >= bk.BidPrice {
 						sp = (bk.AskPrice - bk.BidPrice) / mid * 10000
 					}
-					e.fastLedgerOnFireworkRiot(sym, mid, e.fastImpulseBps(sym, mid, now, 15), r60, sp, now)
+					// 07-09 三特征粒子数据地板:本币5min官方爆仓数(轧空回补流甄别,K折过检特征)
+					symLiq := fastSymLiqCount(sym, now, 300)
+					e.fastLedgerOnFireworkRiot(sym, mid, e.fastImpulseBps(sym, mid, now, 15), r60, sp, symLiq, now)
 				}
 				ev := fastMoverEvent{
 					RecordedAt: now, Symbol: sym, Mid: mid,

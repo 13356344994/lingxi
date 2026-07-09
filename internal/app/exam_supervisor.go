@@ -78,6 +78,16 @@ func fastExamRegistry() []fastExamSpec {
 			Question: "v2 死因解剖(弹射-249/棘轮+57 配对)后的重考:棘轮单独能否过门",
 		},
 		{
+			Key: "fw_pure", Label: "烟花·纯FOMO顶(非惯犯×完全力竭×无本币爆仓)",
+			Seal: time.Date(2026, 7, 9, 4, 30, 0, 0, time.UTC), // 三特征字段上线时刻封样
+			MinN: 30, MinMed: 0, MinPF: 1.3, MinWin: 0.45, MaxTop: 0.30,
+			Rows: func(r fastLedgerRow) bool {
+				return r.Module == "firework" && r.Src == "rest" && r.PriorFw24h < 3 &&
+					r.FwRet60Bps > 0 && r.FwRet15Bps < 0.05*r.FwRet60Bps && r.FwSymLiq5m == 0
+			},
+			Question: "K折 8/8 过检(n=106 中位-0.1 PF1.36):三特征能否把中位拧过 0=烟花的门票考试",
+		},
+		{
 			Key: "fw_nohabit", Label: "烟花×非惯犯(24h同币<3枪;holdout 校验过)",
 			Seal: time.Date(2026, 7, 9, 3, 30, 0, 0, time.UTC), // 惯犯计数字段上线时刻封样
 			MinN: 30, MinMed: 0, MinPF: 1.3, MinWin: 0.45, MaxTop: 0.30,
