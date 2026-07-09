@@ -2675,6 +2675,10 @@ func (e *OKXDirectionalEngine) fastLiveOpen(ctx context.Context, ev *fastExecSha
 		return "held_slow"
 	}
 	notional := e.cfg.FastLiveNotionalUSDT
+	// 07-09 运行时热覆盖(页面"应用"即生效;新仓用新参数,在场仓不受影响;硬顶 50U 防手滑)
+	if rp := loadRuntimeParams(filepath.Dir(e.recordDir)); rp.PerTradeNotionalUSDT > 0 {
+		notional = rp.PerTradeNotionalUSDT
+	}
 	if notional <= 0 {
 		notional = e.cfg.PerPositionNotionalUSDT
 	}

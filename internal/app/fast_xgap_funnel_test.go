@@ -131,6 +131,18 @@ func TestFastProbeMulti(t *testing.T) {
 	}
 }
 
+// TestSanitizeRuntimeParams 运行时参数硬顶(防手滑:名义≤50/杠杆≤10/负数归零)。
+func TestSanitizeRuntimeParams(t *testing.T) {
+	p := sanitizeRuntimeParams(RuntimeParams{PerTradeNotionalUSDT: 5000, Leverage: 100, MaxDailyLossUSDT: -3})
+	if p.PerTradeNotionalUSDT != 50 || p.Leverage != 10 || p.MaxDailyLossUSDT != 0 {
+		t.Fatalf("硬顶失效: %+v", p)
+	}
+	q := sanitizeRuntimeParams(RuntimeParams{PerTradeNotionalUSDT: 7.5, Leverage: 3, MaxDailyLossUSDT: 20})
+	if q.PerTradeNotionalUSDT != 7.5 || q.Leverage != 3 || q.MaxDailyLossUSDT != 20 {
+		t.Fatalf("正常值被误裁: %+v", q)
+	}
+}
+
 // TestFastAutoProbe 全自动升级管线:过门自动接入探针(去重/并发上限/合并判定)。
 func TestFastAutoProbe(t *testing.T) {
 	e := newFastV3TestEngine(t)

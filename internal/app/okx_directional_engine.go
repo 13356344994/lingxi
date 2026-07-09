@@ -2556,6 +2556,10 @@ func (e *OKXDirectionalEngine) openTakerFallbackBpsEffective() float64 {
 }
 
 func (e *OKXDirectionalEngine) leverage() int {
+	// 07-09 运行时热覆盖(页面"应用"即生效;只影响新开仓的 SetLeverage,在场仓杠杆不动)
+	if rp := loadRuntimeParams(filepath.Dir(e.recordDir)); rp.Leverage > 0 {
+		return rp.Leverage
+	}
 	if e.cfg.Leverage > 0 {
 		return e.cfg.Leverage
 	}

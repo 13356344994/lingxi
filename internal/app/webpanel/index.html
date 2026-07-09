@@ -133,6 +133,18 @@ a{color:var(--blue);text-decoration:none}
           <th>时间</th><th>币种</th><th>方向</th><th>入场</th><th>出场</th><th>名义</th><th>盈亏</th><th>持有</th><th>原因</th><th>taker开/平</th>
         </tr></thead><tbody></tbody></table>
       </div>
+      <div class="card" style="margin-top:8px">
+        <h3>⚙️ 运行时资金参数(点应用即生效,不重启;新仓用新参数,在场仓按开仓时参数维护)</h3>
+        <div class="ctrl" style="flex-wrap:wrap">
+          <label>每笔名义上限 U(空=沿用配置,硬顶50)<input id="rpNotional" type="number" step="0.5" min="0" max="50"></label>
+          <label>杠杆(空=沿用,硬顶10)<input id="rpLev" type="number" step="1" min="0" max="10"></label>
+          <label>账户日亏硬停 U<input id="rpDaily" type="number" step="1" min="0"></label>
+          <label>账户回撤硬停 U<input id="rpDD" type="number" step="1" min="0"></label>
+          <button class="act ghost" onclick="applyRuntimeParams()">应用(需控制令牌)</button>
+        </div>
+        <div class="small" id="rpStatus" style="margin-top:6px"></div>
+        <div class="small" style="opacity:.6;margin-top:4px">边界:策略切点(冻结口径)与探针预算(20笔/0.5U)不在此处、不可热改——那是"改=作弊"区;这里只管资金主权。</div>
+      </div>
       <div class="card" style="margin-top:8px"><h3>真钱阶梯(做到哪一步)</h3><div class="small" id="missionLadder"></div></div>
     </details>
 
@@ -770,6 +782,36 @@ function drawCurve(cv, pts, unit){
   ctx.stroke();
 }
 
+// ===== 运行时资金参数(热应用,不重启)=====
+async function loadRuntimeParams(){
+  try{
+    const p = await getJSON("/api/params");
+    const st = [];
+    if(p.per_trade_notional_usdt) st.push("名义="+p.per_trade_notional_usdt+"U");
+    if(p.leverage) st.push("杠杆="+p.leverage+"x");
+    if(p.max_daily_loss_usdt) st.push("日亏="+p.max_daily_loss_usdt+"U");
+    if(p.max_account_drawdown_usdt) st.push("回撤="+p.max_account_drawdown_usdt+"U");
+    document.getElementById("rpStatus").textContent = st.length
+      ? ("当前生效覆盖:"+st.join(" · ")+"(应用于 "+ts(p.updated_at)+")") : "当前无覆盖,全部沿用 config。";
+  }catch(e){ console.warn(e); }
+}
+async function applyRuntimeParams(){
+  const num = id => { const v = document.getElementById(id).value.trim(); return v==="" ? 0 : parseFloat(v); };
+  const body = {
+    per_trade_notional_usdt: num("rpNotional"),
+    leverage: Math.round(num("rpLev")),
+    max_daily_loss_usdt: num("rpDaily"),
+    max_account_drawdown_usdt: num("rpDD"),
+  };
+  try{
+    const r = await fetch("/api/params", {method:"POST", headers: tokenHeaders(), body: JSON.stringify(body)});
+    const text = await r.text();
+    if(!r.ok) throw new Error(text.slice(0,300));
+    toast("参数已应用,下一笔新仓即生效(在场仓不受影响)");
+    loadRuntimeParams();
+  }catch(err){ toast("应用失败: "+err.message, true); }
+}
+
 async function declareFundFlow(){
   const amt = parseFloat(document.getElementById("ffAmount").value)||0;
   if(amt<=0){ toast("请填写正数金额", true); return; }
@@ -792,7 +834,7 @@ document.getElementById("token").value = localStorage.getItem("lx_token")||"";
 (function(){ const t = localStorage.getItem("lx_token"); if(t && !document.cookie.includes("lx_token=")) document.cookie = "lx_token=" + encodeURIComponent(t) + "; path=/; max-age=31536000; SameSite=Strict"; })();
 renderTabs();
 refreshAccount(); refreshDirectional();
-refreshMission(); refreshECurve(); setRange(1);
+refreshMission(); refreshECurve(); loadRuntimeParams(); setRange(1);
 setInterval(refreshAccount, 15000);
 setInterval(refreshDirectional, 5000);
 setInterval(refreshMission, 30000);

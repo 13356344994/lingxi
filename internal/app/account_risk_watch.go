@@ -363,9 +363,20 @@ func (w *accountRiskWatcher) tickOnce() {
 		return
 	}
 
-	thresholds := evaluateAccountRiskThresholds(snap, w.cfg.RiskConfig)
-	haltIntent := evaluateAccountHardHaltIntent(snap, w.cfg.RiskConfig)
-	flattenIntent := evaluateAccountAutoFlattenIntent(snap, w.cfg.RiskConfig)
+	// 07-09 运行时资金参数热覆盖(用户页面"应用"即生效,不重启):只覆盖日亏/回撤两阈值,
+	// 其余风控语义不变;0=沿用 config。
+	riskCfg := w.cfg.RiskConfig
+	if rp := loadRuntimeParams(w.recordDir); rp.MaxDailyLossUSDT > 0 || rp.MaxAccountDrawdownUSDT > 0 {
+		if rp.MaxDailyLossUSDT > 0 {
+			riskCfg.MaxDailyLossUSDT = rp.MaxDailyLossUSDT
+		}
+		if rp.MaxAccountDrawdownUSDT > 0 {
+			riskCfg.MaxAccountDrawdownUSDT = rp.MaxAccountDrawdownUSDT
+		}
+	}
+	thresholds := evaluateAccountRiskThresholds(snap, riskCfg)
+	haltIntent := evaluateAccountHardHaltIntent(snap, riskCfg)
+	flattenIntent := evaluateAccountAutoFlattenIntent(snap, riskCfg)
 	w.persistObservation(snap, thresholds, haltIntent, flattenIntent)
 
 	manualRecoveryHint := "需人工确认后通过面板 START 或清除 global_halt 解除(不自动解除)"
