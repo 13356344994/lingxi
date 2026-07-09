@@ -224,6 +224,8 @@ type fastLedgerPos struct {
 	FwRet15    float64
 	FwRet60    float64
 	FwSymLiq5m int
+	// 07-09 L1 回声粒子(59 号研究):-1 不适用 / 0 有爆仓无回声(毒)/ 1 有回声(同行确认)
+	LiqEcho int
 }
 
 const (
@@ -272,6 +274,8 @@ type fastLedgerRow struct {
 	FwRet15Bps float64 `json:"fw_ret15_bps,omitempty"`
 	FwRet60Bps float64 `json:"fw_ret60_bps,omitempty"`
 	FwSymLiq5m int     `json:"fw_sym_liq_5m,omitempty"`
+	// 07-09 L1 回声(刻意不用 omitempty:0=有爆仓无回声 是有意义的值,吞 0=踩过的坑)
+	LiqEcho int `json:"liq_echo"`
 	// ㊳① det 时刻价差路径(path_ok=false 表示 15s 历史不足,路径字段不可用):
 	PathOK            bool    `json:"path_ok,omitempty"`
 	GapAgeSec         float64 `json:"gap_age_sec,omitempty"`
@@ -301,6 +305,40 @@ var (
 )
 
 const fastLedgerCostBps = 12.0
+
+// fastLiqEchoState L1「回声」粒子(59 号研究,2026-07-09):官方爆仓推送是公共信号,推送后
+// 0.3-2.5s 内的成交爆量=追爆仓 bot 群进场回声。实测假设反转——同行 bot 群是聪明的过滤器:
+// 无回声桶最毒(train -15.1/holdout -16.8)、回声桶最不亏(-1.0/-8.3)→ 用法=否决方向
+// (无回声不跟)+白嫖同行判断当确认。走前口径:只读 now 之前的缓冲;入场时刻回声窗未走完
+// 属删失(与研究口径同型,信息集干净)。返回 -1=近30s无官方爆仓(不适用)/0=有爆仓无回声/1=有回声。
+func fastLiqEchoState(sym string, now time.Time) int {
+	var liqT time.Time
+	fastLiqBufMu.Lock()
+	for _, l := range fastLiqBuf[sym] {
+		if l.ts.After(now) {
+			continue
+		}
+		if l.ts.After(liqT) {
+			liqT = l.ts
+		}
+	}
+	fastLiqBufMu.Unlock()
+	if liqT.IsZero() || now.Sub(liqT) > 30*time.Second {
+		return -1
+	}
+	lo, hi := liqT.Add(300*time.Millisecond), liqT.Add(2500*time.Millisecond)
+	if hi.After(now) {
+		hi = now // 走前:窗未走完只看已发生段
+	}
+	fastBurstRingMu.Lock()
+	defer fastBurstRingMu.Unlock()
+	for _, b := range fastBurstRing[sym] {
+		if b.ts.After(lo) && !b.ts.After(hi) {
+			return 1
+		}
+	}
+	return 0
+}
 
 // fastSymLiqBetween 该币官方爆仓是否落在 (a, b] 内(火刀二波止错的论点证据)。
 func fastSymLiqBetween(sym string, a, b time.Time) bool {
@@ -348,9 +386,10 @@ func (e *OKXDirectionalEngine) fastLedgerOnFireConfirm(sym string, mid, spreadBp
 	fuel := fastMarketLiqRate(now, 300)
 	br, brOK := fastBreadth30(now)
 	bits := fastParticleBits(sym, now, 0, fuel, br, brOK, 0) // 州位有效;深度/惯犯位对fire无义=0
+	echo := fastLiqEchoState(sym, now)
 	fastLedgerMu.Lock()
 	fastLedgerOpen[key] = &fastLedgerPos{Sym: sym, Module: "fire", Side: "short", Src: "rest",
-		T0: now, Entry: mid, SpreadBps: spreadBps, Bits: bits, Fuel: fuel, Breadth: br}
+		T0: now, Entry: mid, SpreadBps: spreadBps, Bits: bits, Fuel: fuel, Breadth: br, LiqEcho: echo}
 	fastLedgerMu.Unlock()
 }
 
@@ -452,16 +491,17 @@ func (e *OKXDirectionalEngine) fastLedgerOnFireworkRiot(sym string, mid, ret15, 
 	fuel := fastMarketLiqRate(now, 300)
 	br, brOK := fastBreadth30(now)
 	bits := fastParticleBits(sym, now, 0, fuel, br, brOK, 0)
+	echo := fastLiqEchoState(sym, now)
 	fastLedgerMu.Lock()
 	fastLedgerOpen[key] = &fastLedgerPos{Sym: sym, Module: "firework", Side: "short", Src: "rest",
 		T0: now, Entry: mid, SpreadBps: spreadBps, Bits: bits, Fuel: fuel, Breadth: br,
-		PriorFw24h: prior, FwRet15: ret15, FwRet60: ret60, FwSymLiq5m: symLiq5m}
+		PriorFw24h: prior, FwRet15: ret15, FwRet60: ret60, FwSymLiq5m: symLiq5m, LiqEcho: echo}
 	// 能量刻度出场并行口径(rest2,07-09 坟场翻案):同触发同入场,出场走
 	// fastLedgerFireworkExitES;rest 原口径照记=对照组不丢(口径断代,新键新考)。
 	if _, held := fastLedgerOpen["firework|rest2|"+sym]; !held {
 		fastLedgerOpen["firework|rest2|"+sym] = &fastLedgerPos{Sym: sym, Module: "firework", Side: "short", Src: "rest2",
 			T0: now, Entry: mid, SpreadBps: spreadBps, Bits: bits, Fuel: fuel, Breadth: br,
-			PriorFw24h: prior, FwRet15: ret15, FwRet60: ret60, FwSymLiq5m: symLiq5m}
+			PriorFw24h: prior, FwRet15: ret15, FwRet60: ret60, FwSymLiq5m: symLiq5m, LiqEcho: echo}
 	}
 	fastLedgerMu.Unlock()
 }
@@ -521,8 +561,9 @@ func (e *OKXDirectionalEngine) fastLedgerOnTrigger(sym string, okxMid, gapBps fl
 	fuel := fastMarketLiqRate(now, 300)
 	br, brOK := fastBreadth30(now)
 	bits := fastParticleBits(sym, now, gapBps, fuel, br, brOK, prev)
+	echo := fastLiqEchoState(sym, now)
 	fastLedgerMu.Lock()
-	fastLedgerOpen[key] = &fastLedgerPos{Sym: sym, Src: "det", T0: now, Entry: okxMid, GapDet: gapBps, Bits: bits, Fuel: fuel, Breadth: br, Path: path}
+	fastLedgerOpen[key] = &fastLedgerPos{Sym: sym, Src: "det", T0: now, Entry: okxMid, GapDet: gapBps, Bits: bits, Fuel: fuel, Breadth: br, Path: path, LiqEcho: echo}
 	fastLedgerMu.Unlock()
 }
 
@@ -558,26 +599,27 @@ func (e *OKXDirectionalEngine) fastLedgerOnTriggerREST(sym string, restMid, rest
 	if gapRest >= -40 && gapRest <= -20 {
 		bits |= pbResidual2040
 	}
+	echo := fastLiqEchoState(sym, now)
 	fastLedgerMu.Lock()
 	fastLedgerOpen[key] = &fastLedgerPos{Sym: sym, Src: "rest", T0: now, Entry: restMid,
-		GapDet: gapDet, GapRest: gapRest, SpreadBps: spreadBps, Bits: bits, Fuel: fuel, Breadth: br, Path: path}
+		GapDet: gapDet, GapRest: gapRest, SpreadBps: spreadBps, Bits: bits, Fuel: fuel, Breadth: br, Path: path, LiqEcho: echo}
 	// 改良版口径并行(rest2=E·下一版:同触发同入场,出场真跑棘轮+弹射;07-08 用户指令
 	// "看到的要用最新策略跑"——影子层真跑,实枪出场机器不动):
 	if _, held := fastLedgerOpen["rest2|"+sym]; !held {
 		fastLedgerOpen["rest2|"+sym] = &fastLedgerPos{Sym: sym, Src: "rest2", T0: now, Entry: restMid,
-			GapDet: gapDet, GapRest: gapRest, SpreadBps: spreadBps, Bits: bits, Fuel: fuel, Breadth: br, Path: path}
+			GapDet: gapDet, GapRest: gapRest, SpreadBps: spreadBps, Bits: bits, Fuel: fuel, Breadth: br, Path: path, LiqEcho: echo}
 	}
 	// v3 棘轮版(07-09 改良包死因解剖:弹射粒子级反向[11笔配对差-249bps],棘轮无罪[+57]——
 	// v3=只棘轮不弹射;v2 判负口径原封保留作对照,口径断代=新键新考):
 	if _, held := fastLedgerOpen["rest3|"+sym]; !held {
 		fastLedgerOpen["rest3|"+sym] = &fastLedgerPos{Sym: sym, Src: "rest3", T0: now, Entry: restMid,
-			GapDet: gapDet, GapRest: gapRest, SpreadBps: spreadBps, Bits: bits, Fuel: fuel, Breadth: br, Path: path}
+			GapDet: gapDet, GapRest: gapRest, SpreadBps: spreadBps, Bits: bits, Fuel: fuel, Breadth: br, Path: path, LiqEcho: echo}
 	}
 	// v2 maker 口径并行:同一触发点挂虚拟被动单(价=REST bid),成交/超时由 manage 裁
 	if restBid > 0 {
 		if _, held := fastLedgerOpen["mkr|"+sym]; !held {
 			fastLedgerOpen["mkr|"+sym] = &fastLedgerPos{Sym: sym, Src: "mkr", T0: now, Entry: restBid,
-				GapDet: gapDet, GapRest: gapRest, SpreadBps: spreadBps, Bits: bits, Fuel: fuel, Breadth: br, Path: path}
+				GapDet: gapDet, GapRest: gapRest, SpreadBps: spreadBps, Bits: bits, Fuel: fuel, Breadth: br, Path: path, LiqEcho: echo}
 		}
 	}
 	fastLedgerMu.Unlock()
@@ -676,6 +718,7 @@ func (e *OKXDirectionalEngine) fastLedgerManage(mids map[string]float64, now tim
 			TrailFired: p.TrailFired, TrailExitBps: p.TrailExitBp,
 			PriorFw24h: p.PriorFw24h,
 			FwRet15Bps: p.FwRet15, FwRet60Bps: p.FwRet60, FwSymLiq5m: p.FwSymLiq5m,
+			LiqEcho: p.LiqEcho,
 		}
 		row.applyGapPath(p.Path)
 		if err := appendJSONLRecord(path, row); err != nil {
