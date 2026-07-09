@@ -288,11 +288,12 @@ okx_directional:
   #   shadow 开=攒前向判决样本(预注册:n≥300 且 净中位≥+3 且 PF≥1.2 → 递探针申请);
   #   live 锁死=前向过检+用户明示批探针。参数冻结口径,护栏锚定,改=作弊。
   fast_xgap_shadow_enabled: true
-  # 2026-07-08 20:53 用户明示拍板开 E 探针("必须要用真钱来验证和学习",override 当晚推荐书的
-  # "机器不建议"):双钥匙同转=live+probe_source;预算机器 20笔/累亏0.5U 自动缴械,哨兵/熔断全程在岗。
-  # 探针买的是影子给不了的真滑点/真成交/真出场;预注册中止线=实测入场滑点中位>8bps 手动停火。
-  fast_xgap_live_enabled: true
-  fast_probe_source: "xgap_rev"
+  # 2026-07-09 12:32 探针停火(用户"听你的"):E 入场 K 折判死(159 组合无一过门)后,剩余 11 笔
+  # 无信息增量;探针战果=9 笔 -0.1025U,买到"真实执行与影子一致"(每笔中位-15bps≈影子-15.3)。
+  # 07-08 探针期史料:9 笔无残腿、缴械机器全程未触发、司天监州闸实弹态工作正常。
+  # E 重开条件=v3 棘轮版(e_next2)出分过门 + 用户批。
+  fast_xgap_live_enabled: false
+  fast_probe_source: ""
   fast_xgap_entry_gap_bps: 40
   fast_xgap_exit_gap_bps: 10
   fast_xgap_max_hold_seconds: 600

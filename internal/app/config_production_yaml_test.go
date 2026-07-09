@@ -177,15 +177,21 @@ func TestLoadProductionConfigYAML(t *testing.T) {
 	if cfg.OKXDirectional.FastTapeLiveEnabled {
 		t.Fatal("fast_tape_live_enabled = true want false(开火须用户明示批探针;当前应只记 shadow)")
 	}
-	// v6.5 E策略「捡便宜货」(2026-07-07 入枪):影子线开(前向判决攒样本)。
-	// 2026-07-08 20:53 用户明示拍板开 E 探针(override 推荐书"机器不建议"):live 允许 true,
-	// 但必须是完整探针形态——live 开则 probe_source 必须=xgap_rev(双钥匙都在才是合法状态,
-	// 单开 live 无探针=配置事故)。
+	// v6.5 E策略「捡便宜货」(2026-07-07 入枪;07-08 探针 9 笔;07-09 入场 K 折判死后探针停火)。
+	// 通用探针形态铁律(07-09 定形):任何 fast 线 live=true 时,其 source 必须在探针名单
+	// (fast_probe_source csv)或持证名单——单开 live 无身份=配置事故。
 	if !cfg.OKXDirectional.FastXgapShadowEnabled {
-		t.Fatal("fast_xgap_shadow_enabled = false want true(E策略前向判决要影子样本,n≥300 才裁决)")
+		t.Fatal("fast_xgap_shadow_enabled = false want true(E策略影子样本继续攒=v3判决数据源)")
 	}
-	if cfg.OKXDirectional.FastXgapLiveEnabled && strings.TrimSpace(cfg.OKXDirectional.FastProbeSource) != "xgap_rev" {
-		t.Fatal("fast_xgap_live_enabled=true 但 fast_probe_source≠xgap_rev(live 只许以探针形态开启,2026-07-08 用户拍板口径)")
+	probeHasOrCert := func(src string) bool {
+		return fastProbeHas(cfg.OKXDirectional.FastProbeSource, src) ||
+			fastProbeHas(cfg.OKXDirectional.FastCertifiedSources, src)
+	}
+	if cfg.OKXDirectional.FastXgapLiveEnabled && !probeHasOrCert("xgap_rev") {
+		t.Fatal("fast_xgap_live_enabled=true 但 xgap_rev 无探针/持证身份(live 只许以探针或持证形态开)")
+	}
+	if cfg.OKXDirectional.FastFireworkLiveEnabled && !probeHasOrCert("firework_pure") {
+		t.Fatal("fast_firework_live_enabled=true 但 firework_pure 无探针/持证身份")
 	}
 	if cfg.OKXDirectional.FastXgapEntryGapBps != 40 || cfg.OKXDirectional.FastXgapExitGapBps != 10 ||
 		cfg.OKXDirectional.FastXgapMaxHoldSeconds != 600 || cfg.OKXDirectional.FastXgapDisasterBps != 60 ||
@@ -219,6 +225,12 @@ func TestLoadProductionConfigYAML(t *testing.T) {
 	// 持证闸(2026-07-08 ㊹-补2):当前持证=0;向名单写入任何 source=发证,须前向过门+用户批准。
 	if s := strings.TrimSpace(cfg.OKXDirectional.FastCertifiedSources); s != "" {
 		t.Fatalf("fast_certified_sources = %q want 空(持证=0;发证须前向过门+用户明示批准)", s)
+	}
+	// 烟花枪三特征切点锚定(07-09 K 折冻结:惯犯<3/力竭 5%/爆仓=0 写死在 fastFireworkPureSkip,
+	// 此处锚定行为:全过样例必须放行、三个否决各自生效——切点漂移即红)。
+	if fastFireworkPureSkip(2, 3, 100, 0) != "" || fastFireworkPureSkip(3, 3, 100, 0) == "" ||
+		fastFireworkPureSkip(0, 6, 100, 0) == "" || fastFireworkPureSkip(0, 3, 100, 1) == "" {
+		t.Fatal("烟花三特征闸切点漂移(冻结口径 3/0.05/0,改=作弊)")
 	}
 
 	// cross_venue_executor 杠杆/名义

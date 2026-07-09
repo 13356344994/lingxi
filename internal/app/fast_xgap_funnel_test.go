@@ -131,6 +131,23 @@ func TestFastProbeMulti(t *testing.T) {
 	}
 }
 
+// TestFastFireworkPureSkip 烟花枪三特征闸(冻结切点 3/0.05/0;改=作弊)。
+func TestFastFireworkPureSkip(t *testing.T) {
+	// 全过:非惯犯+完全力竭+无爆仓
+	if s := fastFireworkPureSkip(2, 3, 100, 0); s != "" {
+		t.Fatalf("三特征全过应放行,得 %q", s)
+	}
+	if s := fastFireworkPureSkip(3, 3, 100, 0); s != "fw_habitual" {
+		t.Fatalf("惯犯应拒,得 %q", s)
+	}
+	if s := fastFireworkPureSkip(0, 6, 100, 0); s != "fw_not_exhausted" { // 6 >= 5%×100
+		t.Fatalf("未完全力竭应拒,得 %q", s)
+	}
+	if s := fastFireworkPureSkip(0, 3, 100, 1); s != "fw_squeeze_flow" {
+		t.Fatalf("有本币爆仓应拒,得 %q", s)
+	}
+}
+
 // TestFastCertGate 持证闸纯函数:探针放行/持证放行/无证硬拒。
 func TestFastCertGate(t *testing.T) {
 	// 无探针无证:一律 no_cert(把"误开 live+未设探针"的无上限实弹封死)

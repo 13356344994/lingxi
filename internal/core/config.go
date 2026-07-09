@@ -1024,6 +1024,9 @@ type OKXDirectionalConfig struct {
 	// 越线自动缴械(probe_exhausted),状态持久化重启不失忆。空 = 无探针活动(生产默认,护栏锚定;
 	// 设置某个 source = 用户明示批准该候选进入探针层)。
 	FastProbeSource      string  `cfg:"fast_probe_source"`
+	// FastFireworkLiveEnabled 烟花枪实弹闸(2026-07-09 三枪会战:三特征 K 折 8/8 过检 PF1.36 后造枪)。
+	// 默认 false 护栏锚定;开=探针形态(source 进 fast_probe_source)+用户明示。
+	FastFireworkLiveEnabled bool `cfg:"fast_firework_live_enabled"`
 	// FastCertifiedSources 持证名单(csv):司天监持证制的代码化(2026-07-08 ㊹-补2)。
 	// live 开关外的第二道硬闸:source 不是探针也不在此名单 → fastLiveOpen 拒 no_cert。
 	// 写入=某格子前向过门+用户批准发证;当前空=持证0(护栏锚定)。

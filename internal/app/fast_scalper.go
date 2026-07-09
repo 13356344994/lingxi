@@ -1758,7 +1758,8 @@ func (e *OKXDirectionalEngine) fastSentinelRecord(source string, realized, notio
 func fastExitTriggersCooldown(reason string) bool {
 	switch reason {
 	case "fast_stop_reversal", "fast_no_feedback", "fast_early_cut", "fast_species_a_cut", "fast_disaster_stop",
-		"fast_xgap_disaster": // v6.5:E策略灾难砍同样要学费记忆
+		"fast_xgap_disaster", // v6.5:E策略灾难砍同样要学费记忆
+		"fast_fw_disaster": // 07-09:烟花灾难=被轧空打穿,同币短期内绝不再反手
 		return true
 	}
 	return false
@@ -1828,6 +1829,18 @@ func (e *OKXDirectionalEngine) fastLiveManage(ctx context.Context) {
 			}
 			if hold >= float64(e.cfg.FastXgapMaxHoldSeconds) {
 				e.fastLiveClose(ctx, p, "fast_xgap_max_hold")
+			}
+			continue
+		}
+		// 烟花枪(firework_pure)专属出场(07-09 造枪;回归局:trail 已证绞肉机,固定 300s 才对味):
+		// -40 灾难无条件砍(+学费冷却)/ 300s 到点离场。与 minHold/物种/能量刻度/trail 全部无关。
+		if p.CandidateSource == "firework_pure" {
+			if haveMid && ubps <= -40 {
+				e.fastLiveClose(ctx, p, "fast_fw_disaster")
+				continue
+			}
+			if hold >= 300 {
+				e.fastLiveClose(ctx, p, "fast_fw_fixed300")
 			}
 			continue
 		}
@@ -2157,7 +2170,10 @@ func (e *OKXDirectionalEngine) fastMarketMidLoop(ctx context.Context) {
 					}
 					// 07-09 三特征粒子数据地板:本币5min官方爆仓数(轧空回补流甄别,K折过检特征)
 					symLiq := fastSymLiqCount(sym, now, 300)
-					e.fastLedgerOnFireworkRiot(sym, mid, e.fastImpulseBps(sym, mid, now, 15), r60, sp, symLiq, now)
+					ret15 := e.fastImpulseBps(sym, mid, now, 15)
+					e.fastLedgerOnFireworkRiot(sym, mid, ret15, r60, sp, symLiq, now)
+					// 烟花枪(07-09 造枪):三特征闸全过=真枪候选;live 锁死期只记 shadow(对照组照记)。
+					e.fastFireworkFire(sym, mid, ret15, r60, sp, symLiq, now)
 				}
 				ev := fastMoverEvent{
 					RecordedAt: now, Symbol: sym, Mid: mid,
@@ -2574,7 +2590,8 @@ func (e *OKXDirectionalEngine) fastLiveOpen(ctx context.Context, ev *fastExecSha
 		allowLiqFollow := e.cfg.FastLiqFollowLiveEnabled && ev.CandidateSource == "liq_follow"
 		allowTape := e.cfg.FastTapeLiveEnabled && ev.CandidateSource == "tape_burst" // v6:开=用户批探针(护栏锚定)
 		allowXgap := e.cfg.FastXgapLiveEnabled && ev.CandidateSource == "xgap_rev"   // v6.5 E策略:开=前向过检+用户批探针
-		if !allowFade && !allowLiqFollow && !allowTape && !allowXgap {
+		allowFw := e.cfg.FastFireworkLiveEnabled && ev.CandidateSource == "firework_pure" // 07-09 烟花枪:K折过检+用户批探针
+		if !allowFade && !allowLiqFollow && !allowTape && !allowXgap && !allowFw {
 			return "record_only_source"
 		}
 	} else if !e.cfg.FastScorerLiveEnabled {
