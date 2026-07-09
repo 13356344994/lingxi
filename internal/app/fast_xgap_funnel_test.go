@@ -131,6 +131,33 @@ func TestFastProbeMulti(t *testing.T) {
 	}
 }
 
+// TestFastGradVerdict 自动资金阶梯纯函数:晋升/缴械/停机/顶级滚动。
+func TestFastGradVerdict(t *testing.T) {
+	// L0 探针:20 笔打满且净正 → 晋升
+	if v := fastGradVerdict(0, 20, 0.12); v != "promote" {
+		t.Fatalf("净正打满应晋升,得 %q", v)
+	}
+	// L0 打满净负(未穿缴械线)→ 停机等裁决
+	if v := fastGradVerdict(0, 20, -0.3); v != "stalled" {
+		t.Fatalf("净负打满应停机,得 %q", v)
+	}
+	// 累亏穿线 → 缴械(未打满也缴)
+	if v := fastGradVerdict(0, 7, -0.51); v != "exhausted" {
+		t.Fatalf("累亏穿线应缴械,得 %q", v)
+	}
+	// 预算内 → 继续
+	if v := fastGradVerdict(1, 10, 0.5); v != "ok" {
+		t.Fatalf("预算内应 ok,得 %q", v)
+	}
+	// 顶级 L3:笔数不限,净正滚动;累亏 6U 封顶
+	if v := fastGradVerdict(3, 500, 2.0); v != "ok" {
+		t.Fatalf("顶级净正应滚动,得 %q", v)
+	}
+	if v := fastGradVerdict(3, 500, -6.1); v != "exhausted" {
+		t.Fatalf("顶级累亏穿线应缴械,得 %q", v)
+	}
+}
+
 // TestSanitizeRuntimeParams 运行时参数硬顶(防手滑:名义≤50/杠杆≤10/负数归零)。
 func TestSanitizeRuntimeParams(t *testing.T) {
 	p := sanitizeRuntimeParams(RuntimeParams{PerTradeNotionalUSDT: 5000, Leverage: 100, MaxDailyLossUSDT: -3})

@@ -1533,6 +1533,11 @@ type fastProbeState struct {
 	StartedAt time.Time `json:"started_at"`
 	Trades    int       `json:"trades"`
 	Realized  float64   `json:"realized_usdt"`
+	// 自动资金阶梯(07-09):当前级别(0=探针);Trades/Realized 为【本级】计数,晋升时清零重攒。
+	Level       int     `json:"level,omitempty"`
+	TotalTrades int     `json:"total_trades,omitempty"`  // 全生涯笔数(审计)
+	TotalPnL    float64 `json:"total_pnl_usdt,omitempty"` // 全生涯净损益(审计)
+	Stalled     bool    `json:"stalled,omitempty"`        // 打满净负=停机等裁决(非缴械)
 }
 
 var (
@@ -1555,7 +1560,69 @@ func fastProbeHas(probeCSV, source string) bool {
 	return false
 }
 
-// fastProbeExhausted 纯判定:探针预算是否耗尽(笔数或累亏任一越线)。
+// ===== 自动资金阶梯(2026-07-09 用户拍板"所有流程全自动,包括批灰度加钱")=====
+// 哲学落点:"批准"变成预注册的死机器规则——加钱不是审批是爬梯,用户主权在天花板层
+// (页面热参数=自动系统最大名义,随时可调)而非审批层。规则冻结,改=过 review。
+type fastGradLevel struct {
+	Name         string
+	NotionalUSDT float64 // 本级每笔名义(仍受页面热参数与 50U 绝对顶压制)
+	MaxTrades    int     // 本级笔数预算(打满且净正=晋升;打满净负=停机等裁决)
+	MaxLossUSDT  float64 // 本级累亏缴械线(粘性,人工复活)
+}
+
+// fastGradLadder 阶梯表(冻结;L0=探针语义与章程一致)。
+var fastGradLadder = []fastGradLevel{
+	{Name: "L0探针", NotionalUSDT: 5, MaxTrades: 20, MaxLossUSDT: 0.5},
+	{Name: "L1灰度", NotionalUSDT: 7.5, MaxTrades: 30, MaxLossUSDT: 1.5},
+	{Name: "L2放大", NotionalUSDT: 15, MaxTrades: 50, MaxLossUSDT: 3},
+	{Name: "L3常态", NotionalUSDT: 30, MaxTrades: 0, MaxLossUSDT: 6}, // 顶级:笔数不限,滚动累亏封顶
+}
+
+// fastGradLevelEff 当级有效预算:L0 与 config 探针预算取严(护栏"探针预算不许放宽"继续生效)。
+func fastGradLevelEff(level int, cfgMaxTrades int, cfgMaxLoss float64) fastGradLevel {
+	if level < 0 || level >= len(fastGradLadder) {
+		level = 0
+	}
+	l := fastGradLadder[level]
+	if level == 0 {
+		if cfgMaxTrades > 0 && cfgMaxTrades < l.MaxTrades {
+			l.MaxTrades = cfgMaxTrades
+		}
+		if cfgMaxLoss > 0 && cfgMaxLoss < l.MaxLossUSDT {
+			l.MaxLossUSDT = cfgMaxLoss
+		}
+	}
+	return l
+}
+
+// fastGradVerdict 纯判定:本级状态。返回 "ok"(继续打)/"promote"(晋升)/
+// "exhausted"(累亏缴械,粘性)/"stalled"(打满净负,停机等裁决)。
+func fastGradVerdict(level int, trades int, realized float64) string {
+	return fastGradVerdictEff(level, trades, realized, 0, 0)
+}
+
+// fastGradVerdictEff 带 config 探针预算压制的判定(L0 取严)。
+func fastGradVerdictEff(level int, trades int, realized float64, cfgMaxTrades int, cfgMaxLoss float64) string {
+	if level < 0 || level >= len(fastGradLadder) {
+		return "exhausted"
+	}
+	l := fastGradLevelEff(level, cfgMaxTrades, cfgMaxLoss)
+	if l.MaxLossUSDT > 0 && realized <= -l.MaxLossUSDT {
+		return "exhausted"
+	}
+	if l.MaxTrades > 0 && trades >= l.MaxTrades {
+		if realized > 0 && level < len(fastGradLadder)-1 {
+			return "promote"
+		}
+		if realized > 0 {
+			return "ok" // 已是顶级:滚动继续(累亏线仍在)
+		}
+		return "stalled"
+	}
+	return "ok"
+}
+
+// fastProbeExhausted 纯判定:当级预算是否耗尽(笔数或累亏任一越线;兼容旧调用)。
 func fastProbeExhausted(st fastProbeState, maxTrades int, maxLoss float64) bool {
 	if maxTrades > 0 && st.Trades >= maxTrades {
 		return true
@@ -1625,8 +1692,8 @@ func (e *OKXDirectionalEngine) fastProbePersistLocked() {
 	}
 }
 
-// fastProbeGate 开仓前闸:该 source 在探针名单且自己的预算耗尽 → 拒(probe_exhausted)。
-// 多探针(2026-07-08 用户拍板):fast_probe_source=csv,每源独立预算独立缴械互不牵连。
+// fastProbeGate 开仓前闸:该 source 在名单且当级预算耗尽/停机 → 拒。
+// 07-09 全自动阶梯:预算按当级(fastGradLadder)判定,不再只看 config 探针值。
 func (e *OKXDirectionalEngine) fastProbeGate(source string) string {
 	if !e.fastProbeAllowed(source) {
 		return ""
@@ -1634,13 +1701,38 @@ func (e *OKXDirectionalEngine) fastProbeGate(source string) string {
 	fastProbeMu.Lock()
 	defer fastProbeMu.Unlock()
 	st := e.fastProbeStateLocked(strings.TrimSpace(source))
-	if fastProbeExhausted(*st, e.cfg.FastProbeMaxTrades, e.cfg.FastProbeMaxLossUSDT) {
+	switch fastGradVerdictEff(st.Level, st.Trades, st.Realized, e.cfg.FastProbeMaxTrades, e.cfg.FastProbeMaxLossUSDT) {
+	case "exhausted":
 		return "probe_exhausted"
+	case "stalled":
+		return "grad_stalled"
+	}
+	if st.Stalled {
+		return "grad_stalled"
 	}
 	return ""
 }
 
-// fastProbeRecord 平仓后记账(仅探针 source):笔数+累亏;越线时打一条明确的缴械日志。
+// fastGradNotional 该 source 当级名义(受页面热参数天花板与 50U 绝对顶压制)。
+func (e *OKXDirectionalEngine) fastGradNotional(source string) float64 {
+	fastProbeMu.Lock()
+	st := e.fastProbeStateLocked(strings.TrimSpace(source))
+	lvl := st.Level
+	fastProbeMu.Unlock()
+	if lvl < 0 || lvl >= len(fastGradLadder) {
+		lvl = 0
+	}
+	n := fastGradLadder[lvl].NotionalUSDT
+	if rp := loadRuntimeParams(filepath.Dir(e.recordDir)); rp.PerTradeNotionalUSDT > 0 && rp.PerTradeNotionalUSDT < n {
+		n = rp.PerTradeNotionalUSDT // 用户天花板:自动系统永远不越过页面设的每笔上限
+	}
+	if n > rpMaxNotionalUSDT {
+		n = rpMaxNotionalUSDT
+	}
+	return n
+}
+
+// fastProbeRecord 平仓后记账+阶梯裁定:晋升(净正打满)/缴械(累亏穿线)/停机(净负打满)。
 func (e *OKXDirectionalEngine) fastProbeRecord(source string, realized float64) {
 	if !e.fastProbeAllowed(source) {
 		return
@@ -1650,11 +1742,29 @@ func (e *OKXDirectionalEngine) fastProbeRecord(source string, realized float64) 
 	st := e.fastProbeStateLocked(strings.TrimSpace(source))
 	st.Trades++
 	st.Realized += realized
-	e.fastProbePersistLocked()
-	if fastProbeExhausted(*st, e.cfg.FastProbeMaxTrades, e.cfg.FastProbeMaxLossUSDT) {
-		e.logger.Printf("[fast_probe] 探针 %s 预算耗尽自动缴械: trades=%d realized=%.4fU(上限 %d 笔 / -%.2fU)——等待裁决,不再开仓",
-			source, st.Trades, st.Realized, e.cfg.FastProbeMaxTrades, e.cfg.FastProbeMaxLossUSDT)
+	st.TotalTrades++
+	st.TotalPnL += realized
+	switch fastGradVerdictEff(st.Level, st.Trades, st.Realized, e.cfg.FastProbeMaxTrades, e.cfg.FastProbeMaxLossUSDT) {
+	case "promote":
+		old := fastGradLadder[st.Level].Name
+		st.Level++
+		st.Trades, st.Realized = 0, 0 // 新级重攒(每级独立证明自己)
+		nl := fastGradLadder[st.Level]
+		e.logger.Printf("[fast_grad] 🚀 %s 净正打满 %s → 晋升 %s(名义%.1fU,预算%d笔/-%.1fU;生涯 %d 笔 %+.3fU)",
+			source, old, nl.Name, nl.NotionalUSDT, nl.MaxTrades, nl.MaxLossUSDT, st.TotalTrades, st.TotalPnL)
+		newAlertDispatcher(e.netCfg.AlertingConfig, e.logger).Notify(Alert{Level: EventLevelWarning,
+			Title: "🚀 自动晋升:" + source + " " + old + "→" + nl.Name,
+			Detail: fmt.Sprintf("上级净正打满自动加钱(冻结阶梯规则)。新级名义 %.1fU 预算 %d 笔/-%.1fU;生涯 %d 笔 %+.3fU。页面热参数=天花板,急停三级随时可用。",
+				nl.NotionalUSDT, nl.MaxTrades, nl.MaxLossUSDT, st.TotalTrades, st.TotalPnL),
+			OccurredAt: e.nowFn().UTC()})
+	case "exhausted":
+		e.logger.Printf("[fast_grad] 💀 %s 在 %s 累亏穿线缴械: 本级 %d 笔 %.4fU(生涯 %d 笔 %+.3fU)——粘性停火,人工复活",
+			source, fastGradLadder[st.Level].Name, st.Trades, st.Realized, st.TotalTrades, st.TotalPnL)
+	case "stalled":
+		st.Stalled = true
+		e.logger.Printf("[fast_grad] ⏸ %s 在 %s 打满净负停机等裁决: %d 笔 %.4fU", source, fastGradLadder[st.Level].Name, st.Trades, st.Realized)
 	}
+	e.fastProbePersistLocked()
 }
 
 // ===== v6 净值哨兵(飞轮引擎硬前提,HANDOFF §-7C)=====
@@ -2678,6 +2788,10 @@ func (e *OKXDirectionalEngine) fastLiveOpen(ctx context.Context, ev *fastExecSha
 	// 07-09 运行时热覆盖(页面"应用"即生效;新仓用新参数,在场仓不受影响;硬顶 50U 防手滑)
 	if rp := loadRuntimeParams(filepath.Dir(e.recordDir)); rp.PerTradeNotionalUSDT > 0 {
 		notional = rp.PerTradeNotionalUSDT
+	}
+	// 07-09 全自动资金阶梯:名单内 source 的名义由当级决定(探针5U→晋升逐级加,页面热参数=天花板)
+	if e.fastProbeAllowed(ev.CandidateSource) {
+		notional = e.fastGradNotional(ev.CandidateSource)
 	}
 	if notional <= 0 {
 		notional = e.cfg.PerPositionNotionalUSDT

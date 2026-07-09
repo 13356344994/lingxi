@@ -494,15 +494,18 @@ func TestFastProbeGovernor(t *testing.T) {
 		t.Fatalf("1笔/-0.1U 应仍放行,得到 %q", r)
 	}
 	e.fastProbeRecord("probe_x", -0.05)
-	if r := e.fastProbeGate("probe_x"); r != "probe_exhausted" {
-		t.Fatalf("2笔应缴械,得到 %q", r)
+	// 07-09 阶梯语义:打满且净负=grad_stalled(停机等裁决);累亏穿线才是 probe_exhausted。
+	// 两者都=不再开仓,保护不变松。
+	if r := e.fastProbeGate("probe_x"); r != "grad_stalled" {
+		t.Fatalf("2笔净负打满应停机,得到 %q", r)
 	}
 	// 持久化恢复:清内存,重新加载应仍缴械
 	fastProbeMu.Lock()
-	delete(fastProbe, e.venueName)
+	delete(fastProbe, e.fastProbeKey("probe_x"))
+	fastProbeLoaded[e.venueName] = false // 模拟重启:强制从盘上恢复
 	fastProbeMu.Unlock()
-	if r := e.fastProbeGate("probe_x"); r != "probe_exhausted" {
-		t.Fatalf("重启恢复后应仍缴械,得到 %q", r)
+	if r := e.fastProbeGate("probe_x"); r != "grad_stalled" {
+		t.Fatalf("重启恢复后应仍停机,得到 %q", r)
 	}
 	// 换 source=新预算
 	e.cfg.FastProbeSource = "probe_y"

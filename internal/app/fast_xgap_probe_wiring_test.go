@@ -36,20 +36,33 @@ func TestFastXgapProbeWiring(t *testing.T) {
 		t.Fatalf("live 开+预算充足不应被闸拦,得 %s", r)
 	}
 
-	// ③ 预算耗尽:20 笔打满 → 缴械
+	// ③ 自动阶梯(07-09 全自动拍板):20 笔净正打满 → 自动晋升 L1(不再缴械=机器代批加钱)
 	for i := 0; i < 20; i++ {
 		e.fastProbeRecord("xgap_rev", 0.001)
 	}
-	if r := e.fastLiveOpen(nil, ev); r != "probe_exhausted" {
-		t.Fatalf("20 笔打满应缴械,得 %s", r)
+	fastProbeMu.Lock()
+	lvl := e.fastProbeStateLocked("xgap_rev").Level
+	fastProbeMu.Unlock()
+	if lvl != 1 {
+		t.Fatalf("净正打满应自动晋升 L1,得 level=%d", lvl)
 	}
-	// 累亏口径:重置后亏穿 0.5U → 缴械
+	if n := e.fastGradNotional("xgap_rev"); n != 7.5 {
+		t.Fatalf("L1 名义应 7.5U,得 %.1f", n)
+	}
+	// 累亏口径:L1 亏穿 1.5U → 缴械
+	e.fastProbeRecord("xgap_rev", -1.51)
+	if r := e.fastLiveOpen(nil, ev); r != "probe_exhausted" {
+		t.Fatalf("L1 累亏穿线应缴械,得 %s", r)
+	}
+	// 净负打满=停机等裁决(不晋升不缴械)
 	fastProbeMu.Lock()
 	delete(fastProbe, e.fastProbeKey("xgap_rev"))
 	fastProbeMu.Unlock()
-	e.fastProbeRecord("xgap_rev", -0.51)
-	if r := e.fastLiveOpen(nil, ev); r != "probe_exhausted" {
-		t.Fatalf("累亏 -0.51U 应缴械,得 %s", r)
+	for i := 0; i < 20; i++ {
+		e.fastProbeRecord("xgap_rev", -0.02) // 合计-0.4,未穿0.5缴械线
+	}
+	if r := e.fastLiveOpen(nil, ev); r != "grad_stalled" {
+		t.Fatalf("净负打满应停机等裁决,得 %s", r)
 	}
 
 	// ③b 多探针独立预算(2026-07-08):xgap 缴械不牵连 tape 探针的预算
@@ -57,8 +70,8 @@ func TestFastXgapProbeWiring(t *testing.T) {
 	if r := e.fastProbeGate("tape_burst"); r != "" {
 		t.Fatalf("tape 探针预算独立,不应被 xgap 缴械牵连,得 %s", r)
 	}
-	if r := e.fastProbeGate("xgap_rev"); r != "probe_exhausted" {
-		t.Fatalf("xgap 自己的缴械应仍生效,得 %s", r)
+	if r := e.fastProbeGate("xgap_rev"); r == "" {
+		t.Fatalf("xgap 自己的停机/缴械应仍生效,得放行")
 	}
 	e.cfg.FastProbeSource = "xgap_rev"
 
