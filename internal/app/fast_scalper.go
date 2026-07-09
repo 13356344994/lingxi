@@ -1628,7 +1628,7 @@ func (e *OKXDirectionalEngine) fastProbePersistLocked() {
 // fastProbeGate 开仓前闸:该 source 在探针名单且自己的预算耗尽 → 拒(probe_exhausted)。
 // 多探针(2026-07-08 用户拍板):fast_probe_source=csv,每源独立预算独立缴械互不牵连。
 func (e *OKXDirectionalEngine) fastProbeGate(source string) string {
-	if !fastProbeHas(e.cfg.FastProbeSource, source) {
+	if !e.fastProbeAllowed(source) {
 		return ""
 	}
 	fastProbeMu.Lock()
@@ -1642,7 +1642,7 @@ func (e *OKXDirectionalEngine) fastProbeGate(source string) string {
 
 // fastProbeRecord 平仓后记账(仅探针 source):笔数+累亏;越线时打一条明确的缴械日志。
 func (e *OKXDirectionalEngine) fastProbeRecord(source string, realized float64) {
-	if !fastProbeHas(e.cfg.FastProbeSource, source) {
+	if !e.fastProbeAllowed(source) {
 		return
 	}
 	fastProbeMu.Lock()
@@ -2591,7 +2591,11 @@ func (e *OKXDirectionalEngine) fastLiveOpen(ctx context.Context, ev *fastExecSha
 		allowTape := e.cfg.FastTapeLiveEnabled && ev.CandidateSource == "tape_burst" // v6:开=用户批探针(护栏锚定)
 		allowXgap := e.cfg.FastXgapLiveEnabled && ev.CandidateSource == "xgap_rev"   // v6.5 E策略:开=前向过检+用户批探针
 		allowFw := e.cfg.FastFireworkLiveEnabled && ev.CandidateSource == "firework_pure" // 07-09 烟花枪:K折过检+用户批探针
-		if !allowFade && !allowLiqFollow && !allowTape && !allowXgap && !allowFw {
+		// 07-09 全自动升级管线(用户"考证通过就接入,不用盯着"拍板):阅卷人过门自动接入的
+		// 探针源(auto_probe_sources.json)等同双钥匙已转;预算 20笔/0.5U 治理器封死,
+		// 哨兵/熔断/冷却全部照过;加钱(灰度)永远人工。
+		allowAuto := e.fastProbeAllowed(ev.CandidateSource)
+		if !allowFade && !allowLiqFollow && !allowTape && !allowXgap && !allowFw && !allowAuto {
 			return "record_only_source"
 		}
 	} else if !e.cfg.FastScorerLiveEnabled {
@@ -2643,8 +2647,10 @@ func (e *OKXDirectionalEngine) fastLiveOpen(ctx context.Context, ev *fastExecSha
 	// ②持证(source 在 fast_certified_sources 名单,发证=前向过门+用户批准后写入)。
 	// 其余一律 no_cert 硬拒:把"误开 live 开关+未设探针=无上限实弹"从物理上封死;
 	// 智能层不拥有最后防线,查表的死机器拥有。放在资格/冷却闸后=shadow 拒因分布不受影响。
-	if r := fastCertGate(ev.CandidateSource, e.cfg.FastProbeSource, e.cfg.FastCertifiedSources); r != "" {
-		return r
+	if !e.fastProbeAllowed(ev.CandidateSource) { // 探针身份(手动∪自动)直接放行,其余查持证
+		if r := fastCertGate(ev.CandidateSource, "", e.cfg.FastCertifiedSources); r != "" {
+			return r
+		}
 	}
 	// 探针治理器(章程 §-5):探针 source 的预算(笔数/累亏)由机器锁死,越线自动缴械。
 	if r := e.fastProbeGate(ev.CandidateSource); r != "" {

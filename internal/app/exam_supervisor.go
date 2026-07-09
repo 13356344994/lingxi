@@ -18,6 +18,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -32,6 +33,79 @@ func examReadJSONFile(path string, into interface{}) {
 
 const fastExamStateFile = "exam_supervisor_state.json"
 
+// fastAutoProbeFile 自动探针名单(07-09 用户"考证通过就接入,全自动"拍板):
+// 阅卷人过门自动写入,fastProbeHas 将其与 config 名单合并生效。
+// 安全边界:每源预算 20笔/0.5U 由探针治理器封死;并发≤fastAutoProbeMaxConcurrent;
+// 加钱(灰度/持证)永远人工。文件可人工删条目=手动收回。
+const fastAutoProbeFile = "auto_probe_sources.json"
+const fastAutoProbeMaxConcurrent = 2
+
+// fastAutoProbeState 自动接入记录。
+type fastAutoProbeState struct {
+	Sources map[string]time.Time `json:"sources"` // source -> 接入时刻
+}
+
+var (
+	fastAutoProbeMu    sync.Mutex
+	fastAutoProbeCache fastAutoProbeState
+	fastAutoProbeAt    time.Time // 缓存加载时刻(5s TTL,热读)
+)
+
+// fastAutoProbeList 读自动探针名单(带 TTL 缓存;引擎判闸热路径用)。
+func (e *OKXDirectionalEngine) fastAutoProbeList() map[string]time.Time {
+	fastAutoProbeMu.Lock()
+	defer fastAutoProbeMu.Unlock()
+	if time.Since(fastAutoProbeAt) > 5*time.Second {
+		st := fastAutoProbeState{Sources: map[string]time.Time{}}
+		examReadJSONFile(filepath.Join(e.recordDir, fastAutoProbeFile), &st)
+		if st.Sources == nil {
+			st.Sources = map[string]time.Time{}
+		}
+		fastAutoProbeCache = st
+		fastAutoProbeAt = time.Now()
+	}
+	out := map[string]time.Time{}
+	for k, v := range fastAutoProbeCache.Sources {
+		out[k] = v
+	}
+	return out
+}
+
+// fastProbeAllowed 探针身份合并判定:config 名单(用户手动) ∪ 自动名单(阅卷人过门)。
+// 全部下游防线(预算/哨兵/熔断/冷却)对两种身份一视同仁。
+func (e *OKXDirectionalEngine) fastProbeAllowed(source string) bool {
+	if fastProbeHas(e.cfg.FastProbeSource, source) {
+		return true
+	}
+	_, ok := e.fastAutoProbeList()[strings.TrimSpace(source)]
+	return ok
+}
+
+// fastAutoProbeAdmit 阅卷人过门时自动接入探针(并发上限内)。返回是否接入。
+func (e *OKXDirectionalEngine) fastAutoProbeAdmit(source string) bool {
+	fastAutoProbeMu.Lock()
+	defer fastAutoProbeMu.Unlock()
+	st := fastAutoProbeState{Sources: map[string]time.Time{}}
+	examReadJSONFile(filepath.Join(e.recordDir, fastAutoProbeFile), &st)
+	if st.Sources == nil {
+		st.Sources = map[string]time.Time{}
+	}
+	if _, ok := st.Sources[source]; ok {
+		return false // 已在名单
+	}
+	if len(st.Sources) >= fastAutoProbeMaxConcurrent {
+		return false // 并发满:排队等人工或某源缴械后人工腾位
+	}
+	st.Sources[source] = e.nowFn().UTC()
+	if err := writeJSONFile(filepath.Join(e.recordDir, fastAutoProbeFile), st); err != nil {
+		e.logger.Printf("[auto_probe] 名单落盘失败: %v", err)
+		return false
+	}
+	fastAutoProbeCache = st
+	fastAutoProbeAt = time.Now()
+	return true
+}
+
 // fastExamSpec 一场在考考试(冻结口径)。
 type fastExamSpec struct {
 	Key      string    // 状态/推送键
@@ -44,6 +118,9 @@ type fastExamSpec struct {
 	MaxTop   float64 // 单币主导上限(0=不查)
 	Rows     func(r fastLedgerRow) bool
 	Question string // 推送里说明这场考试裁什么
+	// ProbeSource 非空=过门自动接入探针的 candidate_source(07-09 用户"全自动"拍板;
+	// 前提=实枪口径与考试口径同源,否则留空走人工)。预算 20笔/0.5U 由治理器封死。
+	ProbeSource string
 }
 
 // fastExamRegistry 当前在考(v1 三场;登记时刻 2026-07-08 21:35 BJ)。
@@ -86,6 +163,8 @@ func fastExamRegistry() []fastExamSpec {
 					r.FwRet60Bps > 0 && r.FwRet15Bps < 0.05*r.FwRet60Bps && r.FwSymLiq5m == 0
 			},
 			Question: "K折 8/8 过检(n=106 中位-0.1 PF1.36):三特征能否把中位拧过 0=烟花的门票考试",
+			// 烟花枪三特征闸与本考试口径同源(fastFireworkPureSkip)→ 过门自动接探针
+			ProbeSource: "firework_pure",
 		},
 		{
 			Key: "fw_nohabit", Label: "烟花×非惯犯(24h同币<3枪;holdout 校验过)",
@@ -228,9 +307,14 @@ func (e *OKXDirectionalEngine) fastExamSupervisorLoop(ctx interface{ Done() <-ch
 				st.N, st.Med, st.PF, st.WinNeu*100, st.TopSym, st.TopShr*100, st.NetSum,
 				ex.MinN, ex.MinMed, ex.MinPF, ex.Question)
 			if v == "pass" {
+				admitted := ""
+				if ex.ProbeSource != "" && e.fastAutoProbeAdmit(ex.ProbeSource) {
+					admitted = "\n🚀 已自动接入探针(" + ex.ProbeSource + "):5U×20笔×累亏0.5U 自动缴械;人工收回=删 " + fastAutoProbeFile + " 条目"
+					e.logger.Printf("[auto_probe] 考试 %s 过门 → %s 自动接入探针(预算封顶)", ex.Key, ex.ProbeSource)
+				}
 				e.logger.Printf("[exam] 🎫 准考证已发:%s %s", ex.Label, strings.ReplaceAll(detail, "\n", " | "))
 				alerts.Notify(Alert{Level: EventLevelWarning, Title: "🎫 准考证:" + ex.Label + " 前向过门",
-					Detail: detail + "\n→ 是否裁探针/发证由你拍板(agent 只递数字)", OccurredAt: e.nowFn().UTC()})
+					Detail: detail + admitted + "\n(加钱/灰度永远由你拍板)", OccurredAt: e.nowFn().UTC()})
 			} else {
 				e.logger.Printf("[exam] ✗ 判负:%s %s", ex.Label, strings.ReplaceAll(detail, "\n", " | "))
 				alerts.Notify(Alert{Level: EventLevelWarning, Title: "✗ 判负:" + ex.Label,

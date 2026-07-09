@@ -131,6 +131,37 @@ func TestFastProbeMulti(t *testing.T) {
 	}
 }
 
+// TestFastAutoProbe 全自动升级管线:过门自动接入探针(去重/并发上限/合并判定)。
+func TestFastAutoProbe(t *testing.T) {
+	e := newFastV3TestEngine(t)
+	fastAutoProbeMu.Lock()
+	fastAutoProbeCache = fastAutoProbeState{}
+	fastAutoProbeAt = time.Time{}
+	fastAutoProbeMu.Unlock()
+	if !e.fastAutoProbeAdmit("firework_pure") {
+		t.Fatal("首次过门应接入")
+	}
+	if e.fastAutoProbeAdmit("firework_pure") {
+		t.Fatal("重复接入应拒(去重)")
+	}
+	if !e.fastAutoProbeAdmit("src_b") {
+		t.Fatal("第二源应接入(并发上限2)")
+	}
+	if e.fastAutoProbeAdmit("src_c") {
+		t.Fatal("第三源应被并发上限拦下")
+	}
+	if !e.fastProbeAllowed("firework_pure") || e.fastProbeAllowed("src_c") {
+		t.Fatal("合并判定错:自动名单内应放行,名单外应拒")
+	}
+	// 自动身份走通来源闸+持证闸(live 开关全关时 allowAuto 放行)
+	ev := &fastExecShadowEvent{Symbol: "FW-USDT", Mid: 1, Bid: 0.999, Ask: 1.001,
+		CandidateSource: "firework_pure", FastCandidateSide: "short", PondOK: true, PondSamples: 9999}
+	e.cfg.FastLiveEnabled = true
+	if r := e.fastLiveOpen(nil, ev); r == "record_only_source" || r == "no_cert" {
+		t.Fatalf("自动探针身份应过来源闸与持证闸,得 %s", r)
+	}
+}
+
 // TestFastFireworkPureSkip 烟花枪三特征闸(冻结切点 3/0.05/0;改=作弊)。
 func TestFastFireworkPureSkip(t *testing.T) {
 	// 全过:非惯犯+完全力竭+无爆仓
