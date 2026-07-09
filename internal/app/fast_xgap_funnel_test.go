@@ -170,6 +170,48 @@ func TestFastMiner(t *testing.T) {
 	}
 }
 
+// TestFastKeyLine 天气钥匙线纯函数:触发(惯犯×爆仓不对称)+死板出场(纪律 14k 切点锚定)。
+func TestFastKeyLine(t *testing.T) {
+	// 触发:惯犯币×空头爆占优→做空;多头爆占优→做多;平票/非惯犯/主流币不触发
+	if src, side := fastKeyTrigger("LAB-USDT", 1, 3, 200); src != "key_sqz_fade" || side != "short" {
+		t.Fatalf("空头爆占优应触发轧空竭尽空,得 %s/%s", src, side)
+	}
+	if src, side := fastKeyTrigger("LAB-USDT", 3, 1, 200); src != "key_casc_fade" || side != "long" {
+		t.Fatalf("多头爆占优应触发瀑布竭尽多,得 %s/%s", src, side)
+	}
+	if src, _ := fastKeyTrigger("LAB-USDT", 2, 2, 200); src != "" {
+		t.Fatal("平票不应触发")
+	}
+	if src, _ := fastKeyTrigger("LAB-USDT", 0, 3, 133); src != "" {
+		t.Fatal("非惯犯(<134)不应触发(join 冻结切点)")
+	}
+	if src, _ := fastKeyTrigger("BTC-USDT", 0, 3, 999); src != "" {
+		t.Fatal("主流币不应触发(奖品地图:钱在长尾)")
+	}
+	if src, _ := fastKeyTrigger("LAB-USDT", 0, 1, 200); src != "" {
+		t.Fatal("单笔爆仓=噪声不应触发")
+	}
+	// 出场:死板止损 -150 / 固定 1800s(切点漂移即红)
+	if fastKeyExit(-149, 100) != "" || fastKeyExit(-150, 100) != "fast_key_stop" {
+		t.Fatal("止损切点漂移(冻结 -150)")
+	}
+	if fastKeyExit(50, 1799) != "" || fastKeyExit(50, 1800) != "fast_key_fixed30m" {
+		t.Fatal("固定持有切点漂移(冻结 1800s)")
+	}
+	// 24h 惯犯环:计数与窗口裁剪
+	fastRiot24Mu.Lock()
+	fastRiot24Hist = map[string][]time.Time{}
+	fastRiot24Mu.Unlock()
+	now := time.Date(2026, 7, 9, 12, 0, 0, 0, time.UTC)
+	for i := 0; i < 5; i++ {
+		fastNoteRiot24("X-USDT", now.Add(-time.Duration(i)*time.Hour))
+	}
+	fastNoteRiot24("X-USDT", now.Add(-25*time.Hour)) // 过期,应被裁剪
+	if n := fastRiot24Count("X-USDT", now); n != 5 {
+		t.Fatalf("24h 环计数=%d want 5(25h 前的应出窗)", n)
+	}
+}
+
 // TestFastVaultDays 圣日封存制(2026-07-09 用户拍板):名单日与周日 UTC 对挖掘不可见。
 func TestFastVaultDays(t *testing.T) {
 	if !fastInVault(time.Date(2026, 7, 8, 15, 0, 0, 0, time.UTC)) {

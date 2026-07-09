@@ -299,7 +299,11 @@ okx_directional:
   # 07-08 探针期史料:9 笔无残腿、缴械机器全程未触发、司天监州闸实弹态工作正常。
   # E 重开条件=v3 棘轮版(e_next2)出分过门 + 用户批。
   fast_xgap_live_enabled: false
-  fast_probe_source: ""
+  # 2026-07-09 21:20 探针=常开仪表(用户指令七):天气钥匙线两个打法挂最小探针。
+  #   join 证据:惯犯钥匙 AUC 0.91/0.91;EV 直测 key_sqz_fade×30m train +4.3/holdout -3.0=
+  #   打平边缘,按 14j 判决改为上膛后持续投票(热加码/冷缩仓/连续冷缴械,机器全自动);
+  #   各源独立预算 20 笔/-0.5U 治理器封死,死板止损 -150/固定 30min(14k)。
+  fast_probe_source: "key_sqz_fade,key_casc_fade"
   fast_xgap_entry_gap_bps: 40
   fast_xgap_exit_gap_bps: 10
   fast_xgap_max_hold_seconds: 600

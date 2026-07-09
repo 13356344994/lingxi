@@ -1027,6 +1027,10 @@ type OKXDirectionalConfig struct {
 	// FastFireworkLiveEnabled 烟花枪实弹闸(2026-07-09 三枪会战:三特征 K 折 8/8 过检 PF1.36 后造枪)。
 	// 默认 false 护栏锚定;开=探针形态(source 进 fast_probe_source)+用户明示。
 	FastFireworkLiveEnabled bool `cfg:"fast_firework_live_enabled"`
+	// FastKeyLineEnabled 天气钥匙探针线(2026-07-09 四号任务 join 产物;纪律 14j 常开仪表):
+	// key_sqz_fade(轧空竭尽·空)/key_casc_fade(瀑布竭尽·多)×惯犯币(24h暴动≥134,AUC 0.91)。
+	// 线开=评估+shadow 照记;实弹=source 进 fast_probe_source(双钥匙),预算治理器封死。
+	FastKeyLineEnabled bool `cfg:"fast_key_line_enabled"`
 	// FastFireworkEnergyExitEnabled 烟花枪能量刻度出场(2026-07-09 坟场翻案:烟花细胞定义即 r60≥60
 	// 的暴动币,噪声步长中位 75bps,-40 固定灾难线躺在噪声里双向打穿[实测双向中位均-53]——
 	// v3⑤ 同款病,当时修了 liq_follow/tape 没修烟花。能量口径重测:train 中位+17.4/holdout+5.9,

@@ -419,14 +419,15 @@ func fastLiqCascadeAlive(follow string, imp15, minBps float64) bool {
 	return imp15 >= minBps
 }
 
-// fastNoteLiq 由 fast_ws 强平推送调用:写入内存缓冲(保留5min),供接型候选生成(liq_catch)。
+// fastNoteLiq 由 fast_ws 强平推送调用:写入内存缓冲(保留15min;07-09 天气钥匙线的
+// 900s 窗口需要,所有读端都传自己的 windowSec≤900,扩留存不改任何读数),供接型候选生成。
 // v6.4:写完即踢醒 tape 评估循环(确认=官方推送到达,不等下一个150ms tick)。
 func fastNoteLiq(sym, posSide string, qty float64, now time.Time) {
 	defer fastTapeKickNow()
 	fastLiqBufMu.Lock()
 	defer fastLiqBufMu.Unlock()
 	h := append(fastLiqBuf[sym], fastRecentLiq{now, posSide, qty})
-	cut := now.Add(-5 * time.Minute)
+	cut := now.Add(-15 * time.Minute)
 	i := 0
 	for i < len(h) && h[i].ts.Before(cut) {
 		i++
@@ -1942,6 +1943,22 @@ func (e *OKXDirectionalEngine) fastLiveManage(ctx context.Context) {
 			}
 			continue
 		}
+		// 天气钥匙探针线(07-09;join 产物)专属出场:死板止损-150/固定30min(纪律 14k,永不灵活)。
+		if p.CandidateSource == "key_sqz_fade" || p.CandidateSource == "key_casc_fade" {
+			if haveMid {
+				switch fastKeyExit(ubps, hold) {
+				case "fast_key_stop":
+					e.fastLiveClose(ctx, p, "fast_key_stop")
+					continue
+				case "fast_key_fixed30m":
+					e.fastLiveClose(ctx, p, "fast_key_fixed30m")
+					continue
+				}
+			} else if hold >= fastKeyHoldSec {
+				e.fastLiveClose(ctx, p, "fast_key_fixed30m")
+			}
+			continue
+		}
 		// 烟花枪(firework_pure)专属出场(07-09 造枪;07-09 晚坟场翻案后支持能量刻度):
 		// 能量口径(开关开)=fastLedgerFireworkExitES(与账本 rest2 考试口径同一个函数,纪律 14f):
 		//   灾难=1×unit / trail 0.8×激活 0.4×回吐 / cap600s,unit=min(max(40,|入场r60|),200)。
@@ -2291,7 +2308,8 @@ func (e *OKXDirectionalEngine) fastMarketMidLoop(ctx context.Context) {
 					continue
 				}
 				lastEmit[sym] = now
-				fastNoteRiot(sym, now) // v6.1 暴动登记(热币坑位怪兽优先的依据;与普查同口径同去重)
+				fastNoteRiot(sym, now)   // v6.1 暴动登记(热币坑位怪兽优先的依据;与普查同口径同去重)
+				fastNoteRiot24(sym, now) // 07-09 天气钥匙:24h 惯犯环(join 钥匙 AUC 0.91 的数据地板)
 				// 多模块账本v0:烟花刀细胞(力竭×拉升≥60×点差≤6)命中即开虚拟空仓(record-only)
 				if e.cfg.FastParticleLedgerEnabled {
 					sp := 0.0
