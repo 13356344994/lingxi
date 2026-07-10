@@ -2307,6 +2307,7 @@ func (e *OKXDirectionalEngine) fastMarketMidLoop(ctx context.Context) {
 				r60 := e.fastImpulseBps(sym, mid, now, 60)
 				e.updateFastMidHist(sym, now, mid)
 				fastNoteRange(sym, now, mid)   // v6.3 30min 区间环(选择层突破判定)
+				fastWxNote60(sym, now, mid)    // 07-10 天气格:60min mid 环(riot/breadth 数据地板)
 				e.fastXgapCheck(sym, mid, now) // v6.5 E策略「捡便宜货」探测(廉价检查,触发才REST)
 				// v5.2 热币路径持久化:近5min有强平(OKX/Bybit)或 |60s|≥10bps → 本轮 mid 落盘;
 				// 首次转热补发 backlog(内存里≤300s 的历史)=簇诞生前路径不缺失。
@@ -2388,6 +2389,25 @@ func (e *OKXDirectionalEngine) fastMarketMidLoop(ctx context.Context) {
 			if allRow != nil && len(allRow.Mids) > 0 {
 				if werr := appendJSONLRecord(allPath, *allRow); werr != nil {
 					e.logger.Printf("[fast_mids] 全市场mid落盘失败: %v", werr)
+				}
+			}
+			// 07-10 天气格 volx:全市场 24h 量小时序列(5min 节流一次;OKX tickers volCcy24h 之和)
+			if now.Sub(fastWxVolPollAt) >= 5*time.Minute {
+				fastWxVolPollAt = now
+				var tr struct {
+					Data []struct {
+						InstID    string `json:"instId"`
+						VolCcy24h string `json:"volCcy24h"`
+					} `json:"data"`
+				}
+				if err := peerGetJSON("https://www.okx.com/api/v5/market/tickers?instType=SWAP", &tr); err == nil {
+					tot := 0.0
+					for _, d := range tr.Data {
+						if len(d.InstID) > 10 && d.InstID[len(d.InstID)-9:] == "-USDT-SWAP" {
+							tot += pf(d.VolCcy24h)
+						}
+					}
+					e.fastWxNoteVol(now, tot)
 				}
 			}
 			// Layer A 粒子账本:广度重算(60s节流)+ 虚拟仓按 E 规则结账(record-only)

@@ -202,6 +202,19 @@ func (e *OKXDirectionalEngine) fastKeyTick(ctx context.Context) {
 	}
 }
 
+// fastKeyOpenCount 该 source 当前在场 fast 仓数(单打法敞口上限用)。
+func (e *OKXDirectionalEngine) fastKeyOpenCount(source string) int {
+	fastLiveMu.Lock()
+	defer fastLiveMu.Unlock()
+	n := 0
+	for _, p := range fastLivePos[e.venueName] {
+		if p != nil && p.CandidateSource == source {
+			n++
+		}
+	}
+	return n
+}
+
 // fastSymLiqSideCount 该币窗口内指定方向爆仓笔数。
 func fastSymLiqSideCount(sym string, now time.Time, windowSec int, side string) int {
 	cut := now.Add(-time.Duration(windowSec) * time.Second)
@@ -233,11 +246,19 @@ func (e *OKXDirectionalEngine) fastKeyFire(ctx context.Context, sym, src, side s
 	ev.FastCandidateSide = side
 	ev.SnapshotID += "|" + src
 	ev.EventAgeMs = e.nowFn().UTC().Sub(detAt).Milliseconds()
-	ev.FastCandidateReason = fmt.Sprintf("%s_L%d_S%d_r24_%d", src, nLong, nShort, fastRiot24Count(sym, detAt))
+	// 天气格标注(2 号 v1;record-only 恒记,营业收窄由 config 开关控制)
+	grid, _, _, _, gok := e.fastWxGridNow(e.nowFn().UTC())
+	inGrid := (src == "key_casc_fade" && fastWxCascFadeInGrid(grid, gok)) ||
+		(src == "key_sqz_fade" && fastWxSqzFadeInGrid(grid, gok))
+	ev.FastCandidateReason = fmt.Sprintf("%s_L%d_S%d_r24_%d_g%d_in%v", src, nLong, nShort, fastRiot24Count(sym, detAt), grid, inGrid)
 	ev.MarketLiq5m = fastMarketLiqRate(e.nowFn().UTC(), 300)
 	skip := ""
 	if ev.SpreadBps > 12 {
 		skip = "spread_wide"
+	} else if e.cfg.FastKeyGridGateEnabled && !inGrid {
+		skip = "off_grid" // 按格营业:格外触发 shadow 照记当对照组,不进 live
+	} else if n := e.fastKeyOpenCount(src); e.cfg.FastKeyMaxConcurrentPerSrc > 0 && n >= e.cfg.FastKeyMaxConcurrentPerSrc {
+		skip = "max_concurrent" // 单打法在场仓上限(防主角币独角戏)
 	}
 	ev.GateSkip = skip
 	_ = appendJSONLRecord(filepath.Join(e.recordDir, fastExecShadowFile), *ev)

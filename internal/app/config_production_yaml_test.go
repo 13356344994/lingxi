@@ -254,6 +254,27 @@ func TestLoadProductionConfigYAML(t *testing.T) {
 		t.Fatal("cap 否决位切点漂移(冻结 short×f≤-0.95%×fundingOK)")
 	}
 
+	// 按格营业(07-10 用户令一):默认关(先攒预注册对照);切点锚定同 2 号冻结值。
+	if cfg.OKXDirectional.FastKeyGridGateEnabled {
+		t.Fatal("fast_key_grid_gate_enabled = true want false(先攒预注册对照,营业收窄须验后开)")
+	}
+	if cfg.OKXDirectional.FastKeyMaxConcurrentPerSrc <= 0 {
+		t.Fatal("fast_key_max_concurrent_per_src 须 >0(防主角币独角戏,2号 LAB 教训)")
+	}
+	// 天气格切点锚定(2 号 v1 冻结 riot0.1611/breadth-0.01538/volx1.039;改=作弊):
+	if g, ok := fastWeatherGrid(0.2, -0.02, 1.1, true, true); !ok || g != 5 {
+		t.Fatalf("格5(暴动·跌·放量)判定漂移,得 g=%d ok=%v", g, ok)
+	}
+	if g, ok := fastWeatherGrid(0.05, -0.02, 0.9, true, true); !ok || g != 0 {
+		t.Fatalf("格0(死水·跌·缩量)判定漂移,得 g=%d", g)
+	}
+	if !fastWxCascFadeInGrid(5, true) || fastWxCascFadeInGrid(7, true) {
+		t.Fatal("casc_fade 营业格应=格5")
+	}
+	if !fastWxSqzFadeInGrid(0, true) || !fastWxSqzFadeInGrid(1, true) || fastWxSqzFadeInGrid(5, true) {
+		t.Fatal("sqz_fade 营业格应=死水·跌(格0/1)")
+	}
+
 	// cross_venue_executor 杠杆/名义
 	if math.Abs(cfg.CrossVenueExecutor.MaxPositionUSDT-150) > 1e-9 {
 		t.Fatalf("cross_venue_executor.max_position_usdt = %.2f want 150", cfg.CrossVenueExecutor.MaxPositionUSDT)

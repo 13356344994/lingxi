@@ -37,7 +37,9 @@ type stratAgg struct {
 	WinRate  float64 `json:"win_rate"`
 	NetSum   float64 `json:"net_sum"`
 	NetMed   float64 `json:"net_med"`
-	PF       float64 `json:"pf"`
+	PF       float64 `json:"pf"`     // 主口径:USDT 加权(真金)/ bps(影子)
+	PFBps    float64 `json:"pf_bps"` // 07-10 双口径(用户令二):真金按 net/notional*1e4 等权 bps 口径,展示层不许美化
+	NetMedBps float64 `json:"net_med_bps"` // 真金逐笔 bps 中位(与 USDT 加权分列)
 	MaxDD    float64 `json:"max_dd"` // 该策略自身净值曲线最大回撤(同单位)
 	LastTime string  `json:"last_time,omitempty"`
 }
@@ -144,10 +146,41 @@ func aggregateStratTrades(trades []stratTrade) []stratAgg {
 		if ts[0].Virtual {
 			unit = "bps"
 		}
+		// 07-10 双口径(用户令二):真金 PF 另算 bps 等权口径(net/notional*1e4),与 USDT 加权分列;
+		// 现 USDT PF1.53 vs bps PF1.048 差 46%=名义不等权+大赢单权重,展示层不许美化。
+		pfBps, medBps := 0.0, 0.0
+		if !ts[0].Virtual {
+			var bps []float64
+			gpb, glb := 0.0, 0.0
+			for _, t := range ts {
+				if t.Notional > 0 {
+					b := t.Net / t.Notional * 1e4
+					bps = append(bps, b)
+					if b > 0 {
+						gpb += b
+					} else {
+						glb -= b
+					}
+				}
+			}
+			if glb > 0 {
+				pfBps = gpb / glb
+			} else if gpb > 0 {
+				pfBps = 99
+			}
+			sort.Float64s(bps)
+			if n := len(bps); n > 0 {
+				if n%2 == 1 {
+					medBps = bps[n/2]
+				} else {
+					medBps = (bps[n/2-1] + bps[n/2]) / 2
+				}
+			}
+		}
 		out = append(out, stratAgg{
 			Key: key, Label: stratLabel(key), Virtual: ts[0].Virtual, Unit: unit,
 			N: len(ts), WinRate: float64(wins) / float64(len(ts)),
-			NetSum: cum, NetMed: med, PF: pf, MaxDD: maxDD,
+			NetSum: cum, NetMed: med, PF: pf, PFBps: pfBps, NetMedBps: medBps, MaxDD: maxDD,
 			LastTime: ts[len(ts)-1].Time.UTC().Format(time.RFC3339),
 		})
 	}

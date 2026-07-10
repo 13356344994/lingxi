@@ -226,6 +226,10 @@ type fastLedgerPos struct {
 	FwSymLiq5m int
 	// 07-09 L1 回声粒子(59 号研究):-1 不适用 / 0 有爆仓无回声(毒)/ 1 有回声(同行确认)
 	LiqEcho int
+	// 07-10 天气格(2 号 v1;开仓时刻冻结):0-7 格标签,-1 不可算
+	WxGrid int
+	// 07-10 起点后确认:持仓期内是否出现同向二次确认(1=有;复用 BurstSeen 语义)
+	ConfirmAfterT0 int
 }
 
 const (
@@ -276,6 +280,9 @@ type fastLedgerRow struct {
 	FwSymLiq5m int     `json:"fw_sym_liq_5m,omitempty"`
 	// 07-09 L1 回声(刻意不用 omitempty:0=有爆仓无回声 是有意义的值,吞 0=踩过的坑)
 	LiqEcho int `json:"liq_echo"`
+	// 07-10 天气格(2 号 v1)与起点后确认(auto_miner 谓词库新字段)
+	WxGrid         int `json:"wx_grid,omitempty"`
+	ConfirmAfterT0 int `json:"confirm_after_t0,omitempty"`
 	// ㊳① det 时刻价差路径(path_ok=false 表示 15s 历史不足,路径字段不可用):
 	PathOK            bool    `json:"path_ok,omitempty"`
 	GapAgeSec         float64 `json:"gap_age_sec,omitempty"`
@@ -600,14 +607,18 @@ func (e *OKXDirectionalEngine) fastLedgerOnTriggerREST(sym string, restMid, rest
 		bits |= pbResidual2040
 	}
 	echo := fastLiqEchoState(sym, now)
+	wxg, _, _, _, wok := e.fastWxGridNow(now)
+	if !wok {
+		wxg = -1
+	}
 	fastLedgerMu.Lock()
 	fastLedgerOpen[key] = &fastLedgerPos{Sym: sym, Src: "rest", T0: now, Entry: restMid,
-		GapDet: gapDet, GapRest: gapRest, SpreadBps: spreadBps, Bits: bits, Fuel: fuel, Breadth: br, Path: path, LiqEcho: echo}
+		GapDet: gapDet, GapRest: gapRest, SpreadBps: spreadBps, Bits: bits, Fuel: fuel, Breadth: br, Path: path, LiqEcho: echo, WxGrid: wxg}
 	// 改良版口径并行(rest2=E·下一版:同触发同入场,出场真跑棘轮+弹射;07-08 用户指令
 	// "看到的要用最新策略跑"——影子层真跑,实枪出场机器不动):
 	if _, held := fastLedgerOpen["rest2|"+sym]; !held {
 		fastLedgerOpen["rest2|"+sym] = &fastLedgerPos{Sym: sym, Src: "rest2", T0: now, Entry: restMid,
-			GapDet: gapDet, GapRest: gapRest, SpreadBps: spreadBps, Bits: bits, Fuel: fuel, Breadth: br, Path: path, LiqEcho: echo}
+			GapDet: gapDet, GapRest: gapRest, SpreadBps: spreadBps, Bits: bits, Fuel: fuel, Breadth: br, Path: path, LiqEcho: echo, WxGrid: wxg}
 	}
 	// v3 棘轮版(07-09 改良包死因解剖:弹射粒子级反向[11笔配对差-249bps],棘轮无罪[+57]——
 	// v3=只棘轮不弹射;v2 判负口径原封保留作对照,口径断代=新键新考):
@@ -718,7 +729,10 @@ func (e *OKXDirectionalEngine) fastLedgerManage(mids map[string]float64, now tim
 			TrailFired: p.TrailFired, TrailExitBps: p.TrailExitBp,
 			PriorFw24h: p.PriorFw24h,
 			FwRet15Bps: p.FwRet15, FwRet60Bps: p.FwRet60, FwSymLiq5m: p.FwSymLiq5m,
-			LiqEcho: p.LiqEcho,
+			LiqEcho: p.LiqEcho, WxGrid: p.WxGrid,
+		}
+		if p.BurstSeen {
+			row.ConfirmAfterT0 = 1
 		}
 		row.applyGapPath(p.Path)
 		if err := appendJSONLRecord(path, row); err != nil {

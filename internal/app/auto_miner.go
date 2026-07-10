@@ -87,6 +87,12 @@ func fastMinerFieldVal(r fastLedgerRow, field string) (float64, bool) {
 		return float64(r.Bits), true
 	case "liq_echo": // L1 回声(59 号研究):-1 不适用/0 无回声(毒)/1 同行确认
 		return float64(r.LiqEcho), true
+	case "wx_grid": // 07-10 天气格(2 号 v1;0-7,-1 不可算):格5=暴动·跌·放量
+		return float64(r.WxGrid), true
+	case "prior_fw_24h_habit": // 惯犯池(24h 同币烟花触发数;WHERE 钥匙 AUC0.91)
+		return float64(r.PriorFw24h), true
+	case "confirm_after_t0": // 起点后确认(1=进场后 t0+Δ 出现同向二次确认;0=无)
+		return float64(r.ConfirmAfterT0), true
 	}
 	return 0, false
 }

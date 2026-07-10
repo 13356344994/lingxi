@@ -1031,6 +1031,12 @@ type OKXDirectionalConfig struct {
 	// 该币负钉 cap(f≤-0.95%)时禁一切枪开空(轧空高压区,cap态开空4h中位-192bps=EDGE首枪死因)。
 	// 默认 false=record-only(shadow 标注 cap_short_veto 但不拦);实弹接线等用户批(护栏锚定)。
 	FastCapShortVetoEnabled bool `cfg:"fast_cap_short_veto_enabled"`
+	// FastKeyGridGateEnabled 按格营业(2026-07-10 用户令一;2 号天气学 v1 预注册):
+	// 开=casc_fade 仅格5(暴动·跌·放量)营业、sqz_fade 仅死水·跌格营业,格外触发 shadow 照记当对照组;
+	// 关=全天候(record-only 只打格标注不拦)。默认 false(先攒预注册对照)。
+	FastKeyGridGateEnabled bool `cfg:"fast_key_grid_gate_enabled"`
+	// FastKeyMaxConcurrentPerSrc 单打法在场仓上限(2 号证主角币独角戏风险 LAB 单段+9090;0=不限)。
+	FastKeyMaxConcurrentPerSrc int `cfg:"fast_key_max_concurrent_per_src"`
 	// FastKeyLineEnabled 天气钥匙探针线(2026-07-09 四号任务 join 产物;纪律 14j 常开仪表):
 	// key_sqz_fade(轧空竭尽·空)/key_casc_fade(瀑布竭尽·多)×惯犯币(24h暴动≥134,AUC 0.91)。
 	// 线开=评估+shadow 照记;实弹=source 进 fast_probe_source(双钥匙),预算治理器封死。
