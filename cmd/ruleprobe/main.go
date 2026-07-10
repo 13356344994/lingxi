@@ -5,6 +5,7 @@ package main
 // 用法:
 //   go run ./cmd/ruleprobe open  <venue> <SYMBOL> <long|short> <notionalUSDT> [maker]
 //   go run ./cmd/ruleprobe close <venue> <SYMBOL>            —— reduce-only IOC 全平
+//   go run ./cmd/ruleprobe reduce <venue> <SYMBOL> <qty>     —— reduce-only IOC 平指定量(残量边界实验)
 //   go run ./cmd/ruleprobe show  <venue> <SYMBOL>            —— 持仓/盘口/规格
 // open 默认 taker(IOC 限价 ±0.4% 保护);带 maker 参数=post-only 挂 best 不追价。
 
@@ -214,6 +215,38 @@ func main() {
 		audit("close", map[string]interface{}{"venue": vname, "symbol": string(sym), "amt": amt,
 			"executed": res.ExecutedQty, "avg": res.AvgPrice, "status": res.Status, "err": fmt.Sprint(oerr)})
 		fmt.Printf("平仓: executed=%.8g avg=%.8g status=%s err=%v\n", res.ExecutedQty, res.AvgPrice, res.Status, oerr)
+		return
+
+	case "reduce": // 平指定量(#1 残量边界实验:故意平到剩余 < 最小步进,看交易所怎么处理)
+		if len(os.Args) < 5 {
+			fmt.Println("reduce 需要 <qty>")
+			os.Exit(2)
+		}
+		var q float64
+		fmt.Sscanf(os.Args[4], "%f", &q)
+		ps, _ := v.FetchPositions(ctx)
+		amt := 0.0
+		for _, p := range ps {
+			if p.Symbol == sym {
+				amt = p.PositionAmt
+			}
+		}
+		if math.Abs(amt) < 1e-12 {
+			fmt.Println("无持仓")
+			return
+		}
+		side := venue.SideSell
+		px := book.BidPrice * (1 - slip)
+		if amt < 0 {
+			side = venue.SideBuy
+			px = book.AskPrice * (1 + slip)
+		}
+		res, oerr := v.PlaceOrder(ctx, venue.OrderRequest{Market: venue.MarketPerp, Symbol: sym, Side: side,
+			Type: venue.OrderTypeIOC, Qty: q, Price: px, ReduceOnly: true,
+			ClientOrderID: fmt.Sprintf("rpr%d", time.Now().UnixNano()%1e10)})
+		audit("reduce", map[string]interface{}{"venue": vname, "symbol": string(sym), "req_qty": q, "amt_before": amt,
+			"executed": res.ExecutedQty, "avg": res.AvgPrice, "status": res.Status, "err": fmt.Sprint(oerr)})
+		fmt.Printf("减仓: req=%.8g executed=%.8g avg=%.8g status=%s err=%v\n", q, res.ExecutedQty, res.AvgPrice, res.Status, oerr)
 		return
 	}
 	fmt.Println("未知模式", mode)
