@@ -14,6 +14,7 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -23,6 +24,7 @@ import (
 const (
 	fastMinerDynFile     = "exam_dynamic.json"
 	fastMinerHistFile    = "exam_dynamic_history.json"
+	fastMinerRanMarker   = "auto_miner_last_run.txt" // 挖掘轮标记(每轮 touch,跨重启节流)
 	fastMinerMaxInFlight = 3
 	fastMinerKFolds      = 6
 	fastMinerMinFoldOK   = 5
@@ -34,7 +36,7 @@ const (
 // 每个假设只许消费圣日一次(验证登记在 HANDOFF,复用=作弊)。
 // 名单只许追加不许移除(移除=把考卷塞回题库);每周日 UTC 自动入圣日集合(随数据增长滚动扩充)。
 var fastVaultDays = map[string]bool{
-	"2026-07-08": true, // 首个圣日(仪器覆盖最全的一天:全市场磁带+多模块账本+market_mids 全量)
+	"2026-07-12": true, // 圣日(07-10 用户改:07-06/07-08 作废,改 07-12;每周日 UTC 仍自动入圣日)
 }
 
 // fastInVault 纯判定:该时刻是否属于圣日(名单日 或 周日 UTC)。
@@ -247,24 +249,54 @@ func (e *OKXDirectionalEngine) fastMinerLoop(ctx interface{ Done() <-chan struct
 		}
 	}()
 	e.logger.Printf("[auto_miner] 自动挖掘器上岗(4h/轮,账本字段空间,深度≤2,动态在考≤%d)", fastMinerMaxInFlight)
+	// 修 audit_004(2026-07-10):原实现只在 4h ticker 首次 fire 时才跑——高频重启常态下
+	// 4h ticker 几乎从不 fire(每次重启清零),挖掘器事实上从未跑过一轮,exam_dynamic.json 从未生成。
+	// 修:上岗后先做一次预热延迟(10min 让账本攒行)再立即跑一轮,之后 4h 周期;
+	// 且用 lastRun 持久化跨重启节流(重启后若距上次跑≥4h 立即补跑,不再空等一个完整周期)。
+	warm := time.NewTimer(10 * time.Minute)
+	if e.fastMinerLastRunAgo() >= 4*time.Hour {
+		warm.Reset(30 * time.Second) // 久未跑=重启补跑,30s 后即跑
+	}
+	defer warm.Stop()
 	t := time.NewTicker(4 * time.Hour)
 	defer t.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return
+		case <-warm.C:
+			e.fastMinerRunOnce()
 		case <-t.C:
 			e.fastMinerRunOnce()
 		}
 	}
 }
 
+// fastMinerLastRunAgo 距上次挖掘轮的时长(读 挖掘轮标记文件 mtime;不存在=极大值)。
+func (e *OKXDirectionalEngine) fastMinerLastRunAgo() time.Duration {
+	fi, err := os.Stat(filepath.Join(e.recordDir, fastMinerRanMarker))
+	if err != nil {
+		return 1 << 62
+	}
+	return e.nowFn().UTC().Sub(fi.ModTime())
+}
+
 // fastMinerRunOnce 单轮挖掘。
 func (e *OKXDirectionalEngine) fastMinerRunOnce() {
+	// 每轮 touch 标记(不论是否找到组合)=记录"挖掘器真跑过一轮",跨重启节流依据(audit_004 修复)。
+	defer func() {
+		_ = os.WriteFile(filepath.Join(e.recordDir, fastMinerRanMarker), []byte(e.nowFn().UTC().Format(time.RFC3339)), 0o644)
+	}()
 	rows, err := loadTailJSONLFile[fastLedgerRow](filepath.Join(e.recordDir, fastParticleLedgerFile), time.Time{}, 0)
-	if err != nil || len(rows) == 0 {
+	if err != nil {
+		e.logger.Printf("[auto_miner] 账本读取失败: %v", err)
 		return
 	}
+	if len(rows) == 0 {
+		e.logger.Printf("[auto_miner] 账本空,本轮跳过")
+		return
+	}
+	e.logger.Printf("[auto_miner] 挖掘轮开始:账本 %d 行", len(rows))
 	// 现有动态考试与历史指纹
 	var dyn []fastMinerExam
 	examReadJSONFile(filepath.Join(e.recordDir, fastMinerDynFile), &dyn)

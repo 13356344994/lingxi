@@ -2444,13 +2444,16 @@ func (e *OKXDirectionalEngine) fastMarketMidLoop(ctx context.Context) {
 					Data []struct {
 						InstID    string `json:"instId"`
 						VolCcy24h string `json:"volCcy24h"`
+						Last      string `json:"last"`
 					} `json:"data"`
 				}
 				if err := peerGetJSON("https://www.okx.com/api/v5/market/tickers?instType=SWAP", &tr); err == nil {
 					tot := 0.0
 					for _, d := range tr.Data {
 						if len(d.InstID) > 10 && d.InstID[len(d.InstID)-9:] == "-USDT-SWAP" {
-							tot += pf(d.VolCcy24h)
+							// 修 audit_005 B1:OKX SWAP 的 volCcy24h 是「币枚数」不是美元 → ×last 换美元,
+							// 与 2 号种子(美元口径)同源;直接求和会让种子接币数轮询污染中位。
+							tot += pf(d.VolCcy24h) * pf(d.Last)
 						}
 					}
 					e.fastWxNoteVol(now, tot)

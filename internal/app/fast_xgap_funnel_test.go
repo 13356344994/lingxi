@@ -214,19 +214,19 @@ func TestFastKeyLine(t *testing.T) {
 
 // TestFastVaultDays 圣日封存制(2026-07-09 用户拍板):名单日与周日 UTC 对挖掘不可见。
 func TestFastVaultDays(t *testing.T) {
-	if !fastInVault(time.Date(2026, 7, 8, 15, 0, 0, 0, time.UTC)) {
-		t.Fatal("2026-07-08 是首个圣日,应封存")
+	if fastInVault(time.Date(2026, 7, 8, 15, 0, 0, 0, time.UTC)) {
+		t.Fatal("2026-07-08 已作废,不应再封存(07-10 用户改圣日为 07-12)")
 	}
 	if !fastInVault(time.Date(2026, 7, 12, 3, 0, 0, 0, time.UTC)) {
-		t.Fatal("周日 UTC 应自动入圣日")
+		t.Fatal("07-12 圣日(且周日 UTC)应封存")
 	}
 	if fastInVault(time.Date(2026, 7, 9, 12, 0, 0, 0, time.UTC)) {
 		t.Fatal("普通工作日不应封存")
 	}
-	// 挖掘不可见:圣日行喂给 miner 的模块子集须被剔除——用谓词恒真组合验证 n 不含圣日行
+	// 挖掘不可见:圣日行须被剔除——07-11(周六非圣日)与 07-12(圣日)对半,过滤后剩 07-11 的 50 行
 	var rows []fastLedgerRow
 	for i := 0; i < 100; i++ {
-		day := 7 + i%2 // 07-07 与 07-08(圣日)对半
+		day := 11 + i%2 // 07-11(非圣日)与 07-12(圣日)对半
 		rows = append(rows, fastLedgerRow{Symbol: fmt.Sprintf("S%d-USDT", i%20),
 			T0: time.Date(2026, 7, day, 1, i/2, 0, 0, time.UTC), Fuel5m: 10, NetBps: 20, Src: "rest"})
 	}
