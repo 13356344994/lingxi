@@ -231,6 +231,12 @@ type okxDirectionalSettlement struct {
 	FastExitVersion string `json:"fast_exit_version,omitempty"`
 	// v2.2 自适应入场标注(loss_lvlN / weak_hour),供按惩罚档位分桶复盘。
 	EntryAdaptiveTags string `json:"entry_adaptive_tags,omitempty"`
+	// 07-10 天气标注(入场时刻冻结,record-only):为 2 号天气学的分层预埋,一到直接分层不回补。
+	// 口径=fastSkySnapshot 同源(燃料 5min 爆仓数 / 全市场 30min 广度中位 / 5min 潮汐净向)。
+	WxFuel5m    float64 `json:"wx_fuel_5m,omitempty"`    // 入场时刻全市场近 5min 爆仓笔数(死水<20/风暴≥40)
+	WxBreadth30 float64 `json:"wx_breadth_30m,omitempty"` // 全市场 30min 收益中位 bps(广跌<-15)
+	WxBreadthOK bool    `json:"wx_breadth_ok,omitempty"`  // 广度是否可算(样本足)
+	WxTideNet   int     `json:"wx_tide_net,omitempty"`    // 5min 潮汐净向(多头爆-空头爆;正=跌潮)
 	// v3 maker-first 执行字段(区分 maker 入场 / taker 出场,供按 maker_filled/wait/edge 分桶)
 	MakerEntry      bool    `json:"maker_entry,omitempty"` // true=maker 入场(否则 taker)
 	MakerOrderPrice float64 `json:"maker_order_price,omitempty"`

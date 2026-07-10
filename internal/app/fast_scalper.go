@@ -68,6 +68,11 @@ type fastLivePosition struct {
 	MakerEdgeBps    float64 `json:"maker_edge_bps,omitempty"`
 	// 07-09 探针执行税仪表:入场滑点=成交价 vs 评估时刻 mid(正=更差;预注册中止线=中位>8bps)
 	EntrySlipBps float64 `json:"entry_slip_bps,omitempty"`
+	// 07-10 天气标注(入场时刻冻结,record-only;2 号天气学分层预埋)
+	WxFuel5m    float64 `json:"wx_fuel_5m,omitempty"`
+	WxBreadth30 float64 `json:"wx_breadth_30m,omitempty"`
+	WxBreadthOK bool    `json:"wx_breadth_ok,omitempty"`
+	WxTideNet   int     `json:"wx_tide_net,omitempty"`
 	PeakBps         float64 `json:"peak_bps,omitempty"`   // 浮盈峰值(移动止盈用;全程 all-time)
 	TroughBps       float64 `json:"trough_bps,omitempty"` // 浮亏谷值(全程 all-time 最深回撤;早砍用)
 	// seen-aware 成交后水位(bps):首次采样某窗口时 MFE=MAE=ubps(不被假 0 污染);窗口外不采样(Seen=false)。
@@ -2501,6 +2506,8 @@ func (e *OKXDirectionalEngine) fastLiveClose(ctx context.Context, p *fastLivePos
 		MakerEdgeBps:    p.MakerEdgeBps,
 		// 07-09 探针执行税仪表(此前 fast 结算不记滑点=监控缺口)
 		EntrySlipBps: p.EntrySlipBps,
+		// 07-10 天气标注(入场冻结,record-only;2 号天气学分层)
+		WxFuel5m: p.WxFuel5m, WxBreadth30: p.WxBreadth30, WxBreadthOK: p.WxBreadthOK, WxTideNet: p.WxTideNet,
 	}
 	// seen-aware 成交后水位:仅采样到的窗口写指针(nil=未采样,非nil含0=采样到)
 	ptr := func(seen bool, v float64) *float64 {
@@ -2973,6 +2980,25 @@ func (e *OKXDirectionalEngine) fastLiveOpen(ctx context.Context, ev *fastExecSha
 		}
 	}
 	now := e.nowFn().UTC()
+	// 07-10 天气标注(入场时刻冻结,record-only;2 号天气学分层预埋,与 fastSkySnapshot 同源)
+	wxFuel := fastMarketLiqRate(now, 300)
+	wxBr, wxBrOK := fastBreadth30(now)
+	wxLong, wxShort := 0, 0
+	fastLiqBufMu.Lock()
+	wxCut := now.Add(-5 * time.Minute)
+	for _, hs := range fastLiqBuf {
+		for _, l := range hs {
+			if l.ts.Before(wxCut) {
+				continue
+			}
+			if l.posSide == "long" {
+				wxLong++
+			} else if l.posSide == "short" {
+				wxShort++
+			}
+		}
+	}
+	fastLiqBufMu.Unlock()
 	pos := &fastLivePosition{
 		Symbol: sym, Side: ev.FastCandidateSide, EntryPrice: fillPrice, Qty: res.ExecutedQty,
 		NotionalUSDT: notional, OpenedAt: now, PositionID: fmt.Sprintf("%s-%d", sym, now.UnixNano()),
@@ -2985,6 +3011,10 @@ func (e *OKXDirectionalEngine) fastLiveOpen(ctx context.Context, ev *fastExecSha
 		EntrySlipBps:      directionalSlipBps(map[string]venue.Side{"long": venue.SideBuy, "short": venue.SideSell}[ev.FastCandidateSide], ev.Mid, fillPrice),
 		EntryAdaptiveTags: adaptiveTags,
 		CandidateSource:   ev.CandidateSource,
+		WxFuel5m:          wxFuel,
+		WxBreadth30:       wxBr,
+		WxBreadthOK:       wxBrOK,
+		WxTideNet:         wxLong - wxShort,
 	}
 	fastLiveMu.Lock()
 	if fastLivePos[e.venueName] == nil {
