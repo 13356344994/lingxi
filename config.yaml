@@ -304,6 +304,9 @@ okx_directional:
   #   打平边缘,按 14j 判决改为上膛后持续投票(热加码/冷缩仓/连续冷缴械,机器全自动);
   #   各源独立预算 20 笔/-0.5U 治理器封死,死板止损 -150/固定 30min(14k)。
   fast_probe_source: "key_sqz_fade,key_casc_fade"
+  # 2026-07-10 用户令四:cap 否决位转实弹(负钉 cap 币禁一切枪开空;EDGE 首枪死因;
+  #   cap态开空4h中位-192bps vs基线-14,train/holdout同向)。保险栓非新敞口。
+  fast_cap_short_veto_enabled: true
   fast_xgap_entry_gap_bps: 40
   fast_xgap_exit_gap_bps: 10
   fast_xgap_max_hold_seconds: 600

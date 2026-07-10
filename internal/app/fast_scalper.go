@@ -695,6 +695,51 @@ func (e *OKXDirectionalEngine) fastSymbolLossLevel(sym string, now time.Time) in
 	return e.fastDailyStateLocked(now).symLosses[sym]
 }
 
+// ===== 风险封顶比例制(2026-07-10 用户令二)=====
+// 分两类(代码里注释清楚):
+//   钱包限制跟权益走(仪表探针预算/腿量/簇并发名义顶=权益×比例);
+//   市场限制跟盘口走(容量顶=casc 500U/笔等体量签证值,保持绝对值,写在天花板层)。
+// 权益基准=账户风控最近可信总权益(records/account_risk_equity_state.json 的 last_trusted_total_usdt),
+// 5s TTL 缓存;不可读时回退本所交易本金(与既有 fast 日熔断口径一致,fail-safe 偏小)。
+var (
+	fastEqMu     sync.Mutex
+	fastEqVal    float64
+	fastEqAt     time.Time
+)
+
+func (e *OKXDirectionalEngine) fastEquityBaseUSDT() float64 {
+	fastEqMu.Lock()
+	defer fastEqMu.Unlock()
+	if time.Since(fastEqAt) < 5*time.Second && fastEqVal > 0 {
+		return fastEqVal
+	}
+	base := 0.0
+	if data, err := os.ReadFile(filepath.Join(filepath.Dir(e.recordDir), "account_risk_equity_state.json")); err == nil {
+		var p struct {
+			Total float64 `json:"last_trusted_total_usdt"`
+			Has   bool    `json:"has_last_trusted"`
+		}
+		if json.Unmarshal(data, &p) == nil && p.Has && p.Total > 0 {
+			base = p.Total
+		}
+	}
+	if base <= 0 { // 回退:本所交易本金(fail-safe 偏小=风险更保守)
+		base = e.getControl().TradingCapitalUSDT
+	}
+	fastEqVal, fastEqAt = base, time.Now()
+	return base
+}
+
+// fastProbeMaxLossEff 仪表探针累亏缴械线(比例制):max(交易所最小值 0.5U, 权益×1%)。
+// 钱包限制类。取代 config 绝对 0.5U(与 config 取严已由 fastGradLevelEff 处理,此处给比例地板)。
+func (e *OKXDirectionalEngine) fastProbeMaxLossEff() float64 {
+	v := e.fastEquityBaseUSDT() * 0.01
+	if v < 0.5 {
+		v = 0.5 // 交易所最小值地板(探针至少能打几笔)
+	}
+	return v
+}
+
 // effectiveFastDailyLossLimit fast 层日熔断有效阈值:pct>0 → 本所交易本金×pct(随页面调本金缩放);
 // 否则回退 USDT 绝对值;两者均未配 → 0(关)。
 func (e *OKXDirectionalEngine) effectiveFastDailyLossLimit() float64 {
@@ -1704,10 +1749,11 @@ func (e *OKXDirectionalEngine) fastProbeGate(source string) string {
 	if !e.fastProbeAllowed(source) {
 		return ""
 	}
+	maxLoss := e.fastProbeMaxLossEff() // 07-10 比例制:max(0.5U, 权益×1%),取代 config 绝对值
 	fastProbeMu.Lock()
 	defer fastProbeMu.Unlock()
 	st := e.fastProbeStateLocked(strings.TrimSpace(source))
-	switch fastGradVerdictEff(st.Level, st.Trades, st.Realized, e.cfg.FastProbeMaxTrades, e.cfg.FastProbeMaxLossUSDT) {
+	switch fastGradVerdictEff(st.Level, st.Trades, st.Realized, e.cfg.FastProbeMaxTrades, maxLoss) {
 	case "exhausted":
 		return "probe_exhausted"
 	case "stalled":
@@ -1755,7 +1801,7 @@ func (e *OKXDirectionalEngine) fastProbeRecord(source string, realized float64) 
 	st.Realized += realized
 	st.TotalTrades++
 	st.TotalPnL += realized
-	switch fastGradVerdictEff(st.Level, st.Trades, st.Realized, e.cfg.FastProbeMaxTrades, e.cfg.FastProbeMaxLossUSDT) {
+	switch fastGradVerdictEff(st.Level, st.Trades, st.Realized, e.cfg.FastProbeMaxTrades, e.fastProbeMaxLossEff()) {
 	case "promote":
 		if fastInstrumentProbes[strings.TrimSpace(source)] {
 			// 用户令②:仪表探针不晋级——同级周期重置(每周期预算照锁),名义永不上调
@@ -2870,9 +2916,19 @@ func (e *OKXDirectionalEngine) fastLiveOpen(ctx context.Context, ev *fastExecSha
 	// 同 symbol 已有未平 fast 仓 → 不重复、不反手
 	fastLiveMu.Lock()
 	_, hasFast := fastLivePos[e.venueName][sym]
+	// 07-10 用户令二(钱包限制类):全部 fast 在场名义合并顶=权益×60%(同天气簇齐进齐出的相关性风险刹车)
+	sumNtl := 0.0
+	for _, p := range fastLivePos[e.venueName] {
+		if p != nil {
+			sumNtl += p.NotionalUSDT
+		}
+	}
 	fastLiveMu.Unlock()
 	if hasFast {
 		return "held_fast"
+	}
+	if cap := e.fastEquityBaseUSDT() * 0.60; cap > 0 && sumNtl >= cap {
+		return "cluster_notional_cap"
 	}
 	// 慢引擎已持该 symbol → 跳过(避免同标的冲突)
 	e.mu.RLock()

@@ -244,9 +244,9 @@ func TestLoadProductionConfigYAML(t *testing.T) {
 		t.Fatal("烟花能量出场切点漂移(冻结口径 1.0/0.8/0.4/600/[40,200],改=作弊)")
 	}
 
-	// cap 否决位(07-10 用户令四):默认 record-only,实弹接线须用户批(护栏锚定)。
-	if cfg.OKXDirectional.FastCapShortVetoEnabled {
-		t.Fatal("fast_cap_short_veto_enabled = true want false(record-only;实弹接线须用户明示批)")
+	// cap 否决位(07-10 用户令四已批转实弹):负钉 cap 禁开空,回退=撤销保险栓须用户明示。
+	if !cfg.OKXDirectional.FastCapShortVetoEnabled {
+		t.Fatal("fast_cap_short_veto_enabled = false want true(07-10 用户批实弹;EDGE 首枪死因保险栓)")
 	}
 	// 否决位切点锚定:负钉 cap(f≤-0.95%)开空命中,其余不命中(改切点=作弊)。
 	if !fastCapShortVeto("short", -0.0095, true) || fastCapShortVeto("short", -0.009, true) ||
