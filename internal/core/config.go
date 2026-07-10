@@ -1027,6 +1027,10 @@ type OKXDirectionalConfig struct {
 	// FastFireworkLiveEnabled 烟花枪实弹闸(2026-07-09 三枪会战:三特征 K 折 8/8 过检 PF1.36 后造枪)。
 	// 默认 false 护栏锚定;开=探针形态(source 进 fast_probe_source)+用户明示。
 	FastFireworkLiveEnabled bool `cfg:"fast_firework_live_enabled"`
+	// FastCapShortVetoEnabled cap 否决位实弹开关(2026-07-10 用户令四;保险栓):
+	// 该币负钉 cap(f≤-0.95%)时禁一切枪开空(轧空高压区,cap态开空4h中位-192bps=EDGE首枪死因)。
+	// 默认 false=record-only(shadow 标注 cap_short_veto 但不拦);实弹接线等用户批(护栏锚定)。
+	FastCapShortVetoEnabled bool `cfg:"fast_cap_short_veto_enabled"`
 	// FastKeyLineEnabled 天气钥匙探针线(2026-07-09 四号任务 join 产物;纪律 14j 常开仪表):
 	// key_sqz_fade(轧空竭尽·空)/key_casc_fade(瀑布竭尽·多)×惯犯币(24h暴动≥134,AUC 0.91)。
 	// 线开=评估+shadow 照记;实弹=source 进 fast_probe_source(双钥匙),预算治理器封死。

@@ -1849,6 +1849,13 @@ func (e *OKXDirectionalEngine) fastSentinelGate(source string) string {
 	if strings.TrimSpace(source) == "" {
 		return ""
 	}
+	// 07-10 用户批准(方案 c):仪表探针类源免疫净值哨兵——它们的使命是"当温度计持续记数",
+	// 哨兵在 n=20 就粘性关停会让仪表永远攒不到样本(casc_fade n=23 中位-8.4 被停实证)。
+	// 死刑官改为唯一=预算机器(打满/累亏穿线自动缴械,L1 预算封顶=最坏代价)。
+	// 边界铁律:仅限 fastInstrumentProbes 名单;真枪(持证/config 探针名单外)照旧受哨兵管辖。
+	if fastInstrumentProbes[strings.TrimSpace(source)] {
+		return ""
+	}
 	fastSentinelMu.Lock()
 	defer fastSentinelMu.Unlock()
 	e.fastSentinelLoadLocked(source)
@@ -2777,6 +2784,16 @@ func (e *OKXDirectionalEngine) fastLiveOpen(ctx context.Context, ev *fastExecSha
 	}
 	if ev.FastCandidateSide != "long" && ev.FastCandidateSide != "short" { // flat 不开
 		return "flat"
+	}
+	// cap 否决位(07-10 用户令四保险栓):负钉 cap 态禁开空(轧空高压区,历史 cap态开空4h中位-192)。
+	// record-only 默认只标注不拦(shadow 已落 candidate_source);实弹开关开=真拦(护栏锚定)。
+	if ev.FastCandidateSide == "short" {
+		if f, ok := fastOKXFundingNow(ev.Symbol, e.nowFn().UTC()); fastCapShortVeto("short", f, ok) {
+			if e.cfg.FastCapShortVetoEnabled {
+				return "cap_short_veto"
+			}
+			e.logger.Printf("[fast_key][cap_veto] %s 负钉cap(f=%.3f%%)开空命中否决位(record-only,未拦)", ev.Symbol, f*100)
+		}
 	}
 	if ev.Mid <= 0 || ev.Bid <= 0 || ev.Ask <= 0 { // 异常盘口不开
 		return "bad_book"

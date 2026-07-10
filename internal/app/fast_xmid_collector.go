@@ -345,6 +345,24 @@ func parseOKXOpenInterest(body []byte, now time.Time) map[string]fastXTickMeta {
 	return out
 }
 
+// fastOKXFundingNow 该币 OKX 当期资费(≤10min 新鲜);ok=false 表示无数据/过期。
+// 07-10 cap 否决位数据源(xmeta OKX funding bug 修复后可用)。
+func fastOKXFundingNow(sym string, now time.Time) (float64, bool) {
+	fastXMetaMu.Lock()
+	defer fastXMetaMu.Unlock()
+	meta, ok := fastXMeta["okx"][sym]
+	if !ok || meta.Funding == 0 || now.Sub(meta.TS) > 10*time.Minute {
+		return 0, false
+	}
+	return meta.Funding, true
+}
+
+// fastCapShortVeto 纯判定:该币此刻处于负钉 cap 态(f≤-0.95%)时禁开空(record-only 研究:
+// cap 态开空 4h 中位 -192bps=被规则强制付租的空头正被轧,接刀;EDGE 首枪死因)。返回是否否决。
+func fastCapShortVeto(side string, funding float64, fundingOK bool) bool {
+	return side == "short" && fundingOK && funding <= -0.0095
+}
+
 func (e *OKXDirectionalEngine) fastXMidEnabled() bool {
 	return e.cfg.FastXMidEnabled && strings.EqualFold(e.venueName, "okx")
 }

@@ -244,6 +244,16 @@ func TestLoadProductionConfigYAML(t *testing.T) {
 		t.Fatal("烟花能量出场切点漂移(冻结口径 1.0/0.8/0.4/600/[40,200],改=作弊)")
 	}
 
+	// cap 否决位(07-10 用户令四):默认 record-only,实弹接线须用户批(护栏锚定)。
+	if cfg.OKXDirectional.FastCapShortVetoEnabled {
+		t.Fatal("fast_cap_short_veto_enabled = true want false(record-only;实弹接线须用户明示批)")
+	}
+	// 否决位切点锚定:负钉 cap(f≤-0.95%)开空命中,其余不命中(改切点=作弊)。
+	if !fastCapShortVeto("short", -0.0095, true) || fastCapShortVeto("short", -0.009, true) ||
+		fastCapShortVeto("long", -0.02, true) || fastCapShortVeto("short", -0.02, false) {
+		t.Fatal("cap 否决位切点漂移(冻结 short×f≤-0.95%×fundingOK)")
+	}
+
 	// cross_venue_executor 杠杆/名义
 	if math.Abs(cfg.CrossVenueExecutor.MaxPositionUSDT-150) > 1e-9 {
 		t.Fatalf("cross_venue_executor.max_position_usdt = %.2f want 150", cfg.CrossVenueExecutor.MaxPositionUSDT)

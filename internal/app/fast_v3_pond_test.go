@@ -553,6 +553,23 @@ func TestFastSentinel(t *testing.T) {
 	if r := e.fastSentinelGate(src); r != "" {
 		t.Fatalf("窗口滚动转正后应放行,得到 %q", r)
 	}
+	// 07-10 仪表探针哨兵豁免(方案 c):名单内源即使连亏也免疫哨兵(预算机器为唯一死刑官);
+	// 真枪(名单外)照旧受哨兵管辖(边界铁律)。
+	if !fastInstrumentProbes["key_casc_fade"] || !fastInstrumentProbes["key_sqz_fade"] {
+		t.Fatal("仪表名单应含 key_casc_fade/key_sqz_fade")
+	}
+	for i := 0; i < 5; i++ {
+		e.fastSentinelRecord("key_casc_fade", -0.05, 5) // 连亏 -100bps ×5
+	}
+	if r := e.fastSentinelGate("key_casc_fade"); r != "" {
+		t.Fatalf("仪表探针应免疫哨兵,得到 %q", r)
+	}
+	for i := 0; i < 5; i++ {
+		e.fastSentinelRecord("real_gun_xxx", -0.05, 5)
+	}
+	if r := e.fastSentinelGate("real_gun_xxx"); r != "sentinel_halt" {
+		t.Fatalf("非仪表真枪应仍受哨兵管辖,得到 %q", r)
+	}
 }
 
 // TestFastTapeKick v6.4:官方推送落地(fastNoteLiq)必须踢醒评估循环;重复踢不阻塞(缓冲1丢弃)。
