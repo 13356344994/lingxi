@@ -1733,6 +1733,11 @@ func (e *OKXDirectionalEngine) fastGradNotional(source string) float64 {
 	return n
 }
 
+// fastInstrumentProbes 仪表探针名单(2026-07-10 用户令②):研究判负的策略没有爬梯资格,
+// 阶梯只对过研究门的候选开放;仪表探针晋级冻结在当前名义(casc 已到 L1 维持,sqz 停 L0),
+// 永不再升——净正打满=同级周期重置(预算纪律不变),不加钱。
+var fastInstrumentProbes = map[string]bool{"key_sqz_fade": true, "key_casc_fade": true}
+
 // fastProbeRecord 平仓后记账+阶梯裁定:晋升(净正打满)/缴械(累亏穿线)/停机(净负打满)。
 func (e *OKXDirectionalEngine) fastProbeRecord(source string, realized float64) {
 	if !e.fastProbeAllowed(source) {
@@ -1747,6 +1752,14 @@ func (e *OKXDirectionalEngine) fastProbeRecord(source string, realized float64) 
 	st.TotalPnL += realized
 	switch fastGradVerdictEff(st.Level, st.Trades, st.Realized, e.cfg.FastProbeMaxTrades, e.cfg.FastProbeMaxLossUSDT) {
 	case "promote":
+		if fastInstrumentProbes[strings.TrimSpace(source)] {
+			// 用户令②:仪表探针不晋级——同级周期重置(每周期预算照锁),名义永不上调
+			e.logger.Printf("[fast_grad] 仪表探针 %s 净正打满:同级(%s)周期重置,不晋级(用户令 07-10)",
+				source, fastGradLadder[st.Level].Name)
+			st.Trades, st.Realized = 0, 0
+			e.fastProbePersistLocked()
+			return
+		}
 		old := fastGradLadder[st.Level].Name
 		st.Level++
 		st.Trades, st.Realized = 0, 0 // 新级重攒(每级独立证明自己)
@@ -2427,9 +2440,9 @@ func (e *OKXDirectionalEngine) fastLiveClose(ctx context.Context, p *fastLivePos
 	// 盈利/到时出场 maker-first 省 ~3bps(有 IOC 兜底不挂死);止损/灾难/物种砍保持 urgent 秒平。
 	// fast_tp 加入非紧急名单(2026-07-03 19:04 复盘:liq_follow 双 taker 下 +12bps TP 被 ~10bps 费用吃平,
 	// 出现"tp 出场净亏"——盈利出场的费用是纯损耗,与 v2.2 trail_tp maker 化同一机理)。
-	// fast_key_fixed30m(07-10):到点出场无紧急性,maker-first 省~3bps(费率杠杆;IOC 兜底);
-	// fast_key_stop 不在名单=止损保持 urgent 秒平(死板只留风险,纪律 14k)。
-	urgentClose := reason != "fast_trail_tp" && reason != "fast_max_hold" && reason != "fast_tp" && reason != "fast_key_fixed30m"
+	// 07-10 用户令①:撤销 key 线出场 maker 化(改出场须用户点头,违规已撤);key 线一切
+	// 参数/出场/执行冻结,casc_fade 原样跑到 n≥150。
+	urgentClose := reason != "fast_trail_tp" && reason != "fast_max_hold" && reason != "fast_tp"
 	res, legInfo, oerr := e.placeDirectionalLeg(ctx, venue.Symbol(sym), cside, p.Qty, clientID, true, instr, caps.ContractBasedPerp, urgentClose, 0)
 	if oerr != nil || res.ExecutedQty <= executionQtyTolerance {
 		// 交易所明确回报「该方向无持仓可平」(OKX 51169 等严格 allowlist)→ 主动按方向核验交易所持仓后清理本地幽灵,
