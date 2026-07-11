@@ -35,15 +35,18 @@ func TestLoadProductionConfigYAML(t *testing.T) {
 		t.Fatalf("strategy.strategy_mode = %q want profit_seeking", cfg.StrategyConfig.StrategyMode)
 	}
 
-	// unified_rotation 全局预算
-	if !cfg.UnifiedRotation.LiveTradingEnabled {
-		t.Fatal("unified_rotation.live_trading_enabled = false want true(生产配置应与 rotation_control active=true 意图一致)")
+	// 首战完全体重构期:遗留 carry/rotation 配置允许保留,但任何自动真钱入口必须封火。
+	if cfg.UnifiedRotation.LiveTradingEnabled {
+		t.Fatal("unified_rotation.live_trading_enabled = true want false(重构期禁止自动真钱)")
 	}
 	if math.Abs(cfg.UnifiedRotation.TotalDeployableUSDT-435) > 1e-9 {
 		t.Fatalf("unified_rotation.total_deployable_usdt = %.2f want 435", cfg.UnifiedRotation.TotalDeployableUSDT)
 	}
 	if math.Abs(cfg.UnifiedRotation.MaxStrategyCapitalUsagePct) > 1e-12 {
 		t.Fatalf("unified_rotation.max_strategy_capital_usage_pct = %.4f want 0", cfg.UnifiedRotation.MaxStrategyCapitalUsagePct)
+	}
+	if cfg.CrossVenueExecutor.LiveTradingEnabled {
+		t.Fatal("cross_venue_executor.live_trading_enabled = true want false(重构期禁止自动真钱)")
 	}
 
 	// risk 账户级硬停
@@ -83,9 +86,12 @@ func TestLoadProductionConfigYAML(t *testing.T) {
 	if !cfg.OKXDirectional.RunupConfirmFilterEnabled {
 		t.Fatal("okx_directional.runup_confirm_filter_enabled = false want true")
 	}
-	// fast v2 重启(2026-07-03 用户决策):必须带全部 v2 护栏,缺一即视为配置回退事故。
-	if !cfg.OKXDirectional.FastScalperV1Enabled || !cfg.OKXDirectional.FastLiveEnabled {
-		t.Fatal("fast v2 应启用(fast_scalper_v1_enabled + fast_live_enabled 均须 true)")
+	// 首战完全体重构期:采集/影子循环保留,真实新开仓总闸必须关闭。
+	if !cfg.OKXDirectional.FastScalperV1Enabled {
+		t.Fatal("fast_scalper_v1_enabled 应保持 true(采集与影子研究不断流)")
+	}
+	if cfg.OKXDirectional.LiveTradingEnabled || cfg.OKXDirectional.FastLiveEnabled {
+		t.Fatal("okx_directional live_trading_enabled/fast_live_enabled 必须同时为 false")
 	}
 	if math.Abs(cfg.OKXDirectional.FastLiveNotionalUSDT-5) > 1e-9 {
 		t.Fatalf("fast_live_notional_usdt = %.2f want 5(v2 灰度名义)", cfg.OKXDirectional.FastLiveNotionalUSDT)
@@ -109,8 +115,8 @@ func TestLoadProductionConfigYAML(t *testing.T) {
 	if cfg.OKXDirectional.FastPondMinEnergyBps < 6 {
 		t.Fatalf("fast_pond_min_energy_bps = %.1f want >=6(好池分水岭≥9.6,死水<6)", cfg.OKXDirectional.FastPondMinEnergyBps)
 	}
-	if !cfg.OKXDirectional.FastAltCandidatesEnabled {
-		t.Fatal("fast_alt_candidates_enabled = false want true(fade/liq shadow 候选=地图数据,必须持续生成)")
+	if cfg.OKXDirectional.FastAltCandidatesEnabled {
+		t.Fatal("fast_alt_candidates_enabled = true want false(07-10 降载:无真钱/研究消费者,暂停重复shadow)")
 	}
 	// fade 实盘 2026-07-03 21:10 解剖降级:maker 成交=力竭诊断证伪器(实盘35笔 -10.6bps vs 全体9032 +1.0bps@60s),
 	// 群体优势付不起执行成本。回开=撤销解剖裁决,须用户明示。
@@ -134,8 +140,8 @@ func TestLoadProductionConfigYAML(t *testing.T) {
 	if cfg.OKXDirectional.FastLiqFollowLiveEnabled {
 		t.Fatal("fast_liq_follow_live_enabled = true want false(2026-07-04 证伪停火,重开须用户明示)")
 	}
-	if !cfg.OKXDirectional.FastLiqFollowShadowEnabled {
-		t.Fatal("fast_liq_follow_shadow_enabled = false want true(停火后评估管线必须继续记 shadow=重开研究数据源)")
+	if cfg.OKXDirectional.FastLiqFollowShadowEnabled {
+		t.Fatal("fast_liq_follow_shadow_enabled = true want false(07-10 降载:证伪形态原始样本已足)")
 	}
 	if !cfg.OKXDirectional.FastMarketMidsEnabled {
 		t.Fatal("fast_market_mids_enabled = false want true(全市场mid标尺=盲区闸根治,重开研究前置)")
@@ -210,17 +216,17 @@ func TestLoadProductionConfigYAML(t *testing.T) {
 	if !cfg.OKXDirectional.FastXgapCellGatesEnabled {
 		t.Fatal("fast_xgap_cell_gates_enabled = false want true(格子三闸:探针必须按格子口径打)")
 	}
-	// ㊳② 全市场磁带探针(2026-07-08):burst 第一波视野的数据源;关=增量视野断流。
-	if !cfg.OKXDirectional.FastFullTapeEnabled {
-		t.Fatal("fast_full_tape_enabled = false want true(全市场磁带探针=第一波视野 record-only 基建)")
+	// 全市场磁带探针未过增量视野门且当前无实弹消费者，降载关闭。
+	if cfg.OKXDirectional.FastFullTapeEnabled {
+		t.Fatal("fast_full_tape_enabled = true want false(07-10 降载)")
+	}
+	if cfg.OKXDirectional.FastHotWSEnabled || cfg.OKXDirectional.FastXMidEnabled {
+		t.Fatal("fast_hot_ws/fast_xmid 应保持关闭(当前方向主线无消费者,避免恢复GB级写盘与跨所WS)")
 	}
 	// 探针制章程(2026-07-04,HANDOFF §-5):生产配置默认无探针活动;设置 fast_probe_source
 	// = 用户明示批准某候选进入探针层(同时须保证预算硬顶为正)。
 	if s := strings.TrimSpace(cfg.OKXDirectional.FastProbeSource); s != "" {
-		if cfg.OKXDirectional.FastProbeMaxTrades <= 0 || cfg.OKXDirectional.FastProbeMaxLossUSDT <= 0 {
-			t.Fatalf("探针 %q 激活但预算未锁死(max_trades=%d max_loss=%.2f 均须>0)", s,
-				cfg.OKXDirectional.FastProbeMaxTrades, cfg.OKXDirectional.FastProbeMaxLossUSDT)
-		}
+		t.Fatalf("fast_probe_source = %q want 空(重构期禁止任何自动真钱探针)", s)
 	}
 	// 持证闸(2026-07-08 ㊹-补2):当前持证=0;向名单写入任何 source=发证,须前向过门+用户批准。
 	if s := strings.TrimSpace(cfg.OKXDirectional.FastCertifiedSources); s != "" {

@@ -65,8 +65,8 @@ func Run(ctx context.Context) error {
 	return startLiveStack(ctx, cfg)
 }
 
-// startLiveStack 装配并启动实盘技术栈(冷启动检查 → 记录存储 → 后台控制器 → Web 面板)。
-// 运行三态 OFF/CANARY_LIVE/LIVE 由控制面 rotation_live_enabled + 部署闸决定。
+// startLiveStack 装配当前生产技术栈(冷启动检查 → 多所适配器 → 方向/fast 引擎 → 账户风控 → Web 面板)。
+// carry/rotation 配置仍为兼容数据结构，但本入口没有 scanner/executor/rotation 调用链。
 // 失败以 error 上抛（context.Canceled 视为正常退出，返回 nil）。
 func startLiveStack(ctx context.Context, cfg EngineConfig) error {
 	if err := PerformColdStartCheck(ctx, cfg); err != nil {
@@ -204,6 +204,10 @@ func startLiveStack(ctx context.Context, cfg EngineConfig) error {
 				if err := eng.FlattenAll(fctx, "账户级自动全平(硬止损)"); err != nil {
 					errs = append(errs, err.Error())
 				}
+			}
+			// 本地引擎结算后，以四所真实持仓再收敛一次，覆盖未登记腿/部分成交残腿。
+			if err := flattenExchangeTruth(fctx, accountVenues); err != nil {
+				errs = append(errs, err.Error())
 			}
 			if len(errs) > 0 {
 				return errors.New(strings.Join(errs, "; "))

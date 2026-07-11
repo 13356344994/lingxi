@@ -150,26 +150,26 @@ func fastMinerPredicates(module string) []fastMinerRule {
 	switch module {
 	case "firework":
 		return []fastMinerRule{
-			{Field: "prior_fw_24h", Op: "lt", Val: 3},     // 非惯犯(躲控盘反复拉砸)
+			{Field: "prior_fw_24h", Op: "lt", Val: 3},        // 非惯犯(躲控盘反复拉砸)
 			{Field: "fw_exhaust_ratio", Op: "lt", Val: 0.05}, // 完全力竭(买力枯竭)
-			{Field: "fw_sym_liq_5m", Op: "eq", Val: 0},    // 无本币爆仓(非轧空回补)
-			{Field: "spread_bps", Op: "lt", Val: 3},       // 厚盘(执行面)
-			{Field: "fuel_5m", Op: "lt", Val: 20},         // 死水州(无燃料助推二波)
-			{Field: "breadth_30m", Op: "ge", Val: 0},      // 大盘不跌(反手不逆大势)
+			{Field: "fw_sym_liq_5m", Op: "eq", Val: 0},       // 无本币爆仓(非轧空回补)
+			{Field: "spread_bps", Op: "lt", Val: 3},          // 厚盘(执行面)
+			{Field: "fuel_5m", Op: "lt", Val: 20},            // 死水州(无燃料助推二波)
+			{Field: "breadth_30m", Op: "ge", Val: 0},         // 大盘不跌(反手不逆大势)
 		}
 	case "fire":
 		return []fastMinerRule{
-			{Field: "fuel_5m", Op: "ge", Val: 40},     // 风暴州(瀑布接力环境)
+			{Field: "fuel_5m", Op: "ge", Val: 40},      // 风暴州(瀑布接力环境)
 			{Field: "breadth_30m", Op: "lt", Val: -15}, // 广跌(全场恐慌)
-			{Field: "spread_bps", Op: "lt", Val: 6},   // 厚盘
+			{Field: "spread_bps", Op: "lt", Val: 6},    // 厚盘
 		}
 	default: // e 模块
 		return []fastMinerRule{
-			{Field: "bits", Op: "bit_set", Val: float64(pbFresh)},     // 新鲜裂口
-			{Field: "bits", Op: "bit_set", Val: float64(pbDutyXgap)},  // 平静海派班
+			{Field: "bits", Op: "bit_set", Val: float64(pbFresh)},      // 新鲜裂口
+			{Field: "bits", Op: "bit_set", Val: float64(pbDutyXgap)},   // 平静海派班
 			{Field: "bits", Op: "bit_clear", Val: float64(pbHabitual)}, // 非惯犯
-			{Field: "gap_det_bps", Op: "ge", Val: -60},                // 非深折价(深=真崩盘)
-			{Field: "spread_bps", Op: "lt", Val: 3},                   // 厚盘
+			{Field: "gap_det_bps", Op: "ge", Val: -60},                 // 非深折价(深=真崩盘)
+			{Field: "spread_bps", Op: "lt", Val: 3},                    // 厚盘
 		}
 	}
 }
@@ -265,9 +265,15 @@ func (e *OKXDirectionalEngine) fastMinerLoop(ctx interface{ Done() <-chan struct
 		case <-ctx.Done():
 			return
 		case <-warm.C:
-			e.fastMinerRunOnce()
+			// 旧进程可能在本进程启动后的交接窗口刚完成一轮并更新 marker；
+			// 预热结束必须重读，避免一次部署在 10 分钟内重复挖同一批数据。
+			if e.fastMinerLastRunAgo() >= 4*time.Hour {
+				e.fastMinerRunOnce()
+			}
 		case <-t.C:
-			e.fastMinerRunOnce()
+			if e.fastMinerLastRunAgo() >= 4*time.Hour {
+				e.fastMinerRunOnce()
+			}
 		}
 	}
 }

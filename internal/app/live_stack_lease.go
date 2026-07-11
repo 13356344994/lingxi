@@ -8,6 +8,11 @@ var liveStackLeaseAcquire = acquireSingleWriterLease
 // requiresLiveSingleWriterLease 判断当前装配是否会触达真钱交易循环,需独占单写租约。
 // 纯面板或 cross_venue_scanner 只读扫描(未启用 executor 且未启用 unified_rotation)也不强制。
 func requiresLiveSingleWriterLease(cfg EngineConfig) bool {
+	// 方向栈即使处于 shadow-only 也会持续写行情、影子账本和持仓投影；
+	// 同时未来只允许经单一执行门解除封火，因此方向栈始终必须独占。
+	if cfg.OKXDirectional.Enabled {
+		return true
+	}
 	if cfg.CrossVenueScanner.Enabled && cfg.CrossVenueExecutor.Enabled {
 		return true
 	}

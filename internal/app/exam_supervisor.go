@@ -74,6 +74,11 @@ func (e *OKXDirectionalEngine) fastAutoProbeList() map[string]time.Time {
 // fastProbeAllowed 探针身份合并判定:config 名单(用户手动) ∪ 自动名单(阅卷人过门)。
 // 全部下游防线(预算/哨兵/熔断/冷却)对两种身份一视同仁。
 func (e *OKXDirectionalEngine) fastProbeAllowed(source string) bool {
+	if automaticLivePromotionSealed {
+		// 重构期只认显式配置身份(生产配置强制为空)，忽略旧自动名单文件。
+		// 测试可注入名单验证预算闸，但最终下单仍会被 directional executor 封死。
+		return fastProbeHas(e.cfg.FastProbeSource, source)
+	}
 	if fastProbeHas(e.cfg.FastProbeSource, source) {
 		return true
 	}
@@ -99,6 +104,27 @@ func (e *OKXDirectionalEngine) fastAutoProbeAdmit(source string) bool {
 	st.Sources[source] = e.nowFn().UTC()
 	if err := writeJSONFile(filepath.Join(e.recordDir, fastAutoProbeFile), st); err != nil {
 		e.logger.Printf("[auto_probe] 名单落盘失败: %v", err)
+		return false
+	}
+	fastAutoProbeCache = st
+	fastAutoProbeAt = time.Now()
+	return true
+}
+
+func (e *OKXDirectionalEngine) fastAutoProbeRevoke(source string) bool {
+	fastAutoProbeMu.Lock()
+	defer fastAutoProbeMu.Unlock()
+	st := fastAutoProbeState{Sources: map[string]time.Time{}}
+	examReadJSONFile(filepath.Join(e.recordDir, fastAutoProbeFile), &st)
+	if st.Sources == nil {
+		st.Sources = map[string]time.Time{}
+	}
+	if _, ok := st.Sources[source]; !ok {
+		return false
+	}
+	delete(st.Sources, source)
+	if err := writeJSONFile(filepath.Join(e.recordDir, fastAutoProbeFile), st); err != nil {
+		e.logger.Printf("[auto_probe] 撤销名单落盘失败: %v", err)
 		return false
 	}
 	fastAutoProbeCache = st
@@ -197,7 +223,7 @@ func fastExamRegistry() []fastExamSpec {
 		},
 		{
 			Key: "firework_fwd", Label: "烟花反手刀·前向(Go账本口径)",
-			Seal: time.Date(2026, 7, 8, 7, 9, 0, 0, time.UTC), // 烟花模块通电时刻
+			Seal: time.Date(2026, 7, 8, 7, 9, 0, 0, time.UTC),           // 烟花模块通电时刻
 			MinN: 30, MinMed: 0, MinPF: 1.3, MinWin: 0.45, MaxTop: 0.50, // 预注册原文:单币>50%作废
 			Rows: func(r fastLedgerRow) bool {
 				return r.Module == "firework" && r.Src == "rest"
@@ -209,13 +235,13 @@ func fastExamRegistry() []fastExamSpec {
 
 // fastExamStats 阅卷读数。
 type fastExamStats struct {
-	N       int     `json:"n"`
-	Med     float64 `json:"med_bps"`
-	PF      float64 `json:"pf"`
-	WinNeu  float64 `json:"win_neutralized"`
-	TopSym  string  `json:"top_sym"`
-	TopShr  float64 `json:"top_share"`
-	NetSum  float64 `json:"net_sum_bps"`
+	N      int     `json:"n"`
+	Med    float64 `json:"med_bps"`
+	PF     float64 `json:"pf"`
+	WinNeu float64 `json:"win_neutralized"`
+	TopSym string  `json:"top_sym"`
+	TopShr float64 `json:"top_share"`
+	NetSum float64 `json:"net_sum_bps"`
 }
 
 // fastExamEvaluate 纯函数:算一场考试的读数(样本=Seal 后且匹配 Rows 的账本行)。
@@ -332,7 +358,7 @@ func (e *OKXDirectionalEngine) fastExamSupervisorLoop(ctx interface{ Done() <-ch
 				ex.MinN, ex.MinMed, ex.MinPF, ex.Question)
 			if v == "pass" {
 				admitted := ""
-				if ex.ProbeSource != "" && e.fastAutoProbeAdmit(ex.ProbeSource) {
+				if !automaticLivePromotionSealed && ex.ProbeSource != "" && e.fastAutoProbeAdmit(ex.ProbeSource) {
 					admitted = "\n🚀 已自动接入探针(" + ex.ProbeSource + "):5U×20笔×累亏0.5U 自动缴械;人工收回=删 " + fastAutoProbeFile + " 条目"
 					e.logger.Printf("[auto_probe] 考试 %s 过门 → %s 自动接入探针(预算封顶)", ex.Key, ex.ProbeSource)
 				}
@@ -357,6 +383,7 @@ func (e *OKXDirectionalEngine) fastExamSupervisorLoop(ctx interface{ Done() <-ch
 func (e *OKXDirectionalEngine) fastSkySnapshot(now time.Time) map[string]interface{} {
 	fuel := fastMarketLiqRate(now, 300)
 	br, brOK := fastBreadth30(now)
+	wxGrid, wxRiot, wxBreadth, wxVolx, wxOK := e.fastWxGridNow(now)
 	long, short := 0, 0
 	fastLiqBufMu.Lock()
 	cut := now.Add(-5 * time.Minute)
@@ -388,10 +415,24 @@ func (e *OKXDirectionalEngine) fastSkySnapshot(now time.Time) map[string]interfa
 	} else if br <= -15 {
 		eDuty, why = false, "广跌态(广度≤-15)→ E 歇业"
 	}
+	assignments := []string{}
+	if fastWxCascFadeInGrid(wxGrid, wxOK) {
+		assignments = append(assignments, "key_casc_fade")
+	}
+	if fastWxSqzFadeInGrid(wxGrid, wxOK) {
+		assignments = append(assignments, "key_sqz_fade")
+	}
+	autonomyRisk, _ := loadAutonomousRisk(filepath.Dir(e.recordDir))
 	return map[string]interface{}{
 		"fuel": fuel, "fuel_state": fuelState, "breadth": br, "breadth_ok": brOK,
 		"tide_long": long, "tide_short": short,
 		"e_duty": eDuty, "e_duty_why": why,
+		"weather_grid": wxGrid, "weather_grid_ok": wxOK,
+		"weather_riot": wxRiot, "weather_breadth": wxBreadth, "weather_volx": wxVolx,
+		"sorter_assignments":  assignments,
+		"sorter_enforced":     e.cfg.FastKeyGridGateEnabled,
+		"autonomy_risk":       autonomyRisk,
+		"autonomy_strategies": e.autonomousStrategySnapshot(),
 	}
 }
 
@@ -420,7 +461,7 @@ func (e *OKXDirectionalEngine) fastProbeSnapshot() []map[string]interface{} {
 		out = append(out, map[string]interface{}{
 			"source": src, "trades": st.Trades, "max_trades": e.cfg.FastProbeMaxTrades,
 			"realized": st.Realized, "max_loss": e.cfg.FastProbeMaxLossUSDT,
-			"exhausted": fastProbeExhausted(st, e.cfg.FastProbeMaxTrades, e.cfg.FastProbeMaxLossUSDT),
+			"exhausted":  fastProbeExhausted(st, e.cfg.FastProbeMaxTrades, e.cfg.FastProbeMaxLossUSDT),
 			"started_at": st.StartedAt,
 		})
 	}

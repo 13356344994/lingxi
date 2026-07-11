@@ -17,7 +17,6 @@ package app
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 	"sync"
 	"time"
 )
@@ -104,7 +103,7 @@ func (e *OKXDirectionalEngine) fastFireworkExec(sym string, ret15, ret60, spread
 		skip = "spread_wide"
 	}
 	ev.GateSkip = skip
-	_ = appendJSONLRecord(filepath.Join(e.recordDir, fastExecShadowFile), *ev)
+	recordFastExecutableShadow(e, ev)
 	if skip != "" {
 		return // 三特征闸拦下:shadow 已记(对照组),不进 live 通路
 	}

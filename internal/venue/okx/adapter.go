@@ -24,6 +24,9 @@ type Adapter struct {
 	// instruments 元数据进程级缓存(lookupInstrument):下单/盘口换算热路径免逐次拉公网。
 	instMu    sync.RWMutex
 	instCache map[string]instCacheEntry
+
+	privateDialer Dialer
+	privateWSURL  string
 }
 
 // 编译期断言:Adapter 满足完整 venue.Venue 接口。
@@ -35,7 +38,14 @@ func New(cfg venue.Config) (*Adapter, error) {
 	if cfg.Extra != nil {
 		base = cfg.Extra["base_url"] // 可选覆盖(测试/模拟盘端点)
 	}
-	return &Adapter{t: newTransport(base, cfg.APIKey, cfg.APISecret, cfg.Passphrase)}, nil
+	privateWSURL := ""
+	if cfg.Extra != nil {
+		privateWSURL = cfg.Extra["private_ws_url"]
+	}
+	return &Adapter{
+		t:             newTransport(base, cfg.APIKey, cfg.APISecret, cfg.Passphrase),
+		privateDialer: NewGorillaPrivateDialer(), privateWSURL: privateWSURL,
+	}, nil
 }
 
 // Factory 是 venue.Registry 登记用的工厂函数(「加一家 = 注册一行」)。

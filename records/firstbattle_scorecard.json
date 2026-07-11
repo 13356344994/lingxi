@@ -1,0 +1,32 @@
+{
+  "generated_at": "2026-07-11T08:35:40.056704397Z",
+  "status": "NO_GO",
+  "reasons": [
+    "no_signed_sealed_exam_pass",
+    "no_accepted_mechanism_thesis"
+  ],
+  "warnings": [
+    "legacy_executable_net_not_positive"
+  ],
+  "settlements": {
+    "rows": 1112,
+    "net_usdt": -15.373158896242876,
+    "long_rows": 624,
+    "short_rows": 488
+  },
+  "maker": {
+    "attempts": 29849,
+    "filled": 5758,
+    "fast_filled_le_1s": 2658
+  },
+  "shadow": {
+    "rows": 500,
+    "accepted_theses": 0,
+    "force_flat_ood_rows": 491
+  },
+  "exams": {
+    "total": 1,
+    "consumed_passed": 0,
+    "signed_passed": 0
+  }
+}

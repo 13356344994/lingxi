@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 	"sync"
 	"time"
 )
@@ -16,19 +15,19 @@ import (
 // 默认 false=挂起队列照记 shadow 不下单)+ 探针治理器(fast_probe_source=tape_burst 时预算锁死)。
 
 type fastTapePending struct {
-	sym      string
-	side     string // long/short(burst 主导方向)
-	burstAt  time.Time
-	notional float64
-	multiple float64
-	liqAtDet int  // 探测时刻本币官方爆仓已到笔数(确认=计数超过它)
+	sym       string
+	side      string // long/short(burst 主导方向)
+	burstAt   time.Time
+	notional  float64
+	multiple  float64
+	liqAtDet  int  // 探测时刻本币官方爆仓已到笔数(确认=计数超过它)
 	sideMatch bool // v6.2:确认推送的被爆方向与 burst 方向是否对号(多数票)
 }
 
 var (
-	fastTapeMu      sync.Mutex
-	fastTapeQueue   []fastTapePending
-	fastTapeEvalAt  = map[string]time.Time{} // 同币评估冷却(30s;与探测器冷却一致)
+	fastTapeMu     sync.Mutex
+	fastTapeQueue  []fastTapePending
+	fastTapeEvalAt = map[string]time.Time{} // 同币评估冷却(30s;与探测器冷却一致)
 	// v6.4 事件驱动唤醒(2026-07-06 延迟解剖:自身排队脂肪中位75ms/P90 134ms=纯轮询等待):
 	// 官方爆仓推送落地即踢醒评估循环,不再等下一个 tick。缓冲1,满了丢=已有唤醒在途。
 	fastTapeKick = make(chan struct{}, 1)
@@ -229,7 +228,7 @@ func (e *OKXDirectionalEngine) fastTapeTick(ctx context.Context) {
 				p.notional, p.multiple, oiN, oiOK, pos, posOK, p.side)
 		}
 		ev.GateSkip = skip
-		_ = appendJSONLRecord(filepath.Join(e.recordDir, fastExecShadowFile), *ev)
+		recordFastExecutableShadow(e, ev)
 		if skip != "" {
 			e.logger.Printf("[fast_tape] %s 跳过(%s) spread=%.1f depth10=%.0f age=%dms", p.sym, skip, ev.SpreadBps, ev.DepthNotional10bps, ev.EventAgeMs)
 			continue

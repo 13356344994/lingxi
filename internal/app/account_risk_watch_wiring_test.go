@@ -9,10 +9,13 @@ import (
 	"context"
 	"errors"
 	"log"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	risktruth "lingxi/internal/risk"
 	"lingxi/internal/venue"
 )
 
@@ -112,15 +115,22 @@ func TestAccountRiskWatch_AutoFlattenWiredAndIdempotent(t *testing.T) {
 	cfg.RiskConfig.AutoFlattenOnHardDrawdownEnabled = true
 	cfg.RiskConfig.AutoFlattenAccountDrawdownUSDT = 10
 	cfg.RiskConfig.AutoFlattenAccountDrawdownPct = 0
+	cfg.RiskConfig.AccountRiskMinFundFlowStepUSDT = 100
 	// 抬高单 tick 骤降阈值,避免 100→80 被判为数据异常(本测试专测 flatten 路径)。
 	cfg.RiskConfig.AccountRiskMaxEquityTickDropUSDT = 1000
 	w, _ := newWiringTestWatcher(t, cfg)
-	// 真实现金 peak=100 current=80 → 回撤 20 ≥ 10
-	w.realEquityFn = func(string) (float64, float64, float64) { return 80, 100, 20 }
+	now := time.Now().UTC()
+	w.nowFn = func() time.Time { return now }
+	current := 100.0
+	// 先建立干净前沿，再模拟无资金流解释的大额权益下降。
+	w.realEquityFn = func(string) (float64, float64, float64) { return current, 100, 100 - current }
+	w.positionFn = func() accountRiskPositionSummary {
+		return accountRiskPositionSummary{TotalCount: 1, OpenNotional: 20}
+	}
 	w.equityFn = func(now time.Time) accountEquityObservation {
 		return accountEquityObservation{
-			TotalUSDT:     80,
-			ByVenue:       map[string]float64{"okx": 80},
+			TotalUSDT:     current,
+			ByVenue:       map[string]float64{"okx": current},
 			RawDailyDelta: 0,
 			ReadOK:        true,
 		}
@@ -130,12 +140,42 @@ func TestAccountRiskWatch_AutoFlattenWiredAndIdempotent(t *testing.T) {
 	w.haltFn = func(string) error { return nil }
 
 	w.tickOnce()
+	current = 80
+	now = now.Add(time.Minute)
+	w.tickOnce()
+	if flattenCalls != 0 {
+		t.Fatalf("大额权益变化在资金流配对窗内不应立即全平,实际 %d", flattenCalls)
+	}
+	for elapsed := time.Minute; elapsed <= risktruth.EquityTruthMatchWindow+time.Minute; elapsed += time.Minute {
+		now = now.Add(time.Minute)
+		w.tickOnce()
+	}
 	if flattenCalls != 1 {
-		t.Fatalf("二级全平应执行一次,实际 %d", flattenCalls)
+		t.Fatalf("待配对窗口过期后真实回撤应执行一次全平,实际 %d", flattenCalls)
 	}
 	w.tickOnce()
 	if flattenCalls != 1 {
 		t.Fatalf("autoFlattenDone 幂等失效,重复 flatten: %d", flattenCalls)
+	}
+}
+
+func TestAccountRiskPositionSummaryIncludesFast(t *testing.T) {
+	root := t.TempDir()
+	dir := directionalRecordDir(root, "okx")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, okxDirectionalPositionFile), []byte("[]\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	fast := `[{"symbol":"CAP-USDT","notional_usdt":7.5}]`
+	if err := os.WriteFile(filepath.Join(dir, fastLivePositionFile), []byte(fast), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	w := &accountRiskWatcher{recordDir: root}
+	got := w.collectPositionSummary()
+	if got.TotalCount != 1 || got.OpenNotional != 7.5 || got.ByStrategy["fast_directional_okx"] != 1 {
+		t.Fatalf("fast 仓未纳入账户风控汇总: %+v", got)
 	}
 }
 

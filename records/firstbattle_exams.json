@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "exams": [
+    {
+      "exam_id": "legacy-execution-challenge",
+      "generation": "firstbattle-legacy-baseline",
+      "order": 1,
+      "status": "consumed_failed",
+      "challenge_hash": "6b2428e0e2e72b24031f85ab6b22d5415d35babd4a0643025572c596f4726db1",
+      "protocol_hash": "5ee60feee184e827d21f95a28035fd0c828a951abc8bc2d1244c1b355d9b2655",
+      "data_hash": "799b62cd2cecf7902cc2f6a26a87e943f7f5477646f7ce3ebc30a894549c58e6",
+      "created_at": "2026-07-11T08:35:32.350608285Z",
+      "sealed_at": "2026-07-11T08:35:32.391661304Z",
+      "started_at": "2026-07-11T08:35:32.427018597Z",
+      "consumed_at": "2026-07-11T08:35:32.464296076Z",
+      "attempt_id": "39f1beda57345066c9c66864005c980d1b7beeaa666e64b4cb2c40c5181e12c3",
+      "verdict": {
+        "passed": false,
+        "reason": "legacy executable ledger net negative; historical challenge failed",
+        "decision_id": "firstbattle.legacy.execution",
+        "returned_at": "2026-07-11T08:35:32.464296076Z"
+      },
+      "receipt": {
+        "payload": {
+          "exam_id": "legacy-execution-challenge",
+          "generation": "firstbattle-legacy-baseline",
+          "attempt_id": "39f1beda57345066c9c66864005c980d1b7beeaa666e64b4cb2c40c5181e12c3",
+          "status": "consumed_failed",
+          "challenge_hash": "6b2428e0e2e72b24031f85ab6b22d5415d35babd4a0643025572c596f4726db1",
+          "protocol_hash": "5ee60feee184e827d21f95a28035fd0c828a951abc8bc2d1244c1b355d9b2655",
+          "data_hash": "799b62cd2cecf7902cc2f6a26a87e943f7f5477646f7ce3ebc30a894549c58e6",
+          "verdict_hash": "76a22177ce4ddb8239d5edc9e631114cbfb367c5c695da144048b855980ac6bf",
+          "consumed_at": "2026-07-11T08:35:32.464296076Z"
+        },
+        "signed": false,
+        "security_boundary": "UNSIGNED_BOUNDARY: no real key management service is configured; this receipt is an interface artifact only and must not be treated as cryptographic proof"
+      }
+    }
+  ]
+}

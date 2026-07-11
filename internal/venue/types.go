@@ -235,8 +235,12 @@ type OrderResult struct {
 
 // Trade 是一笔用户成交。
 type Trade struct {
+	ID              string
+	OrderID         string
+	ClientOrderID   string
 	Symbol          Symbol
 	Market          Market
+	Side            Side
 	Price           float64
 	Qty             float64
 	QuoteQty        float64
@@ -260,17 +264,21 @@ type UserEventKind uint8
 const (
 	UserEventOrderUpdate   UserEventKind = iota // 订单状态变更
 	UserEventAccountUpdate                      // 账户/持仓变更
+	UserEventTrade                              // 成交增量
 	UserEventOther
 )
 
 // UserEvent 是用户数据流的中性事件(封装 listenKey 续期等所内细节)。
 type UserEvent struct {
-	Kind    UserEventKind
-	Symbol  Symbol
-	Market  Market
-	Order   *OrderResult
-	RawType string
-	Time    time.Time
+	Kind       UserEventKind
+	Symbol     Symbol
+	Market     Market
+	Order      *OrderResult
+	Position   *Position
+	Trade      *Trade
+	RawType    string
+	Time       time.Time
+	ReceivedAt time.Time
 }
 
 // Wallet 是该所参与调仓的钱包标识(各所自定义取值)。

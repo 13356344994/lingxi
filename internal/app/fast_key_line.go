@@ -28,7 +28,7 @@ import (
 const (
 	fastKeyWindowSec   = 900
 	fastKeyMinLiqs     = 2
-	fastKeyHabitMin    = 134   // join 冻结切点(prior24h census 暴动数 75 分位)
+	fastKeyHabitMin    = 134 // join 冻结切点(prior24h census 暴动数 75 分位)
 	fastKeyCooldownSec = 7200
 	fastKeyStopBps     = 150.0 // 死板止损(研究口径;纪律 14k 永不灵活)
 	fastKeyHoldSec     = 1800.0
@@ -261,7 +261,7 @@ func (e *OKXDirectionalEngine) fastKeyFire(ctx context.Context, sym, src, side s
 		skip = "max_concurrent" // 单打法在场仓上限(防主角币独角戏)
 	}
 	ev.GateSkip = skip
-	_ = appendJSONLRecord(filepath.Join(e.recordDir, fastExecShadowFile), *ev)
+	recordFastExecutableShadow(e, ev)
 	if skip != "" {
 		return
 	}

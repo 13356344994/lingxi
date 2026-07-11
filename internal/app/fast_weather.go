@@ -10,10 +10,12 @@ package app
 // 数据源:60min 全市场 mid 环(mid 标尺循环喂)+ 全市场 24h 量的 14 天小时中位(持久化)。
 
 import (
+	"bufio"
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 )
@@ -52,6 +54,63 @@ func fastWxNote60(sym string, now time.Time, mid float64) {
 				delete(fastWx60Last, k)
 			}
 		}
+	}
+}
+
+// fastWxRestore60 从全市场 mid 流尾部恢复最近 65min 天气环，避免每次部署后司天监失明约 50min。
+// 只读文件尾最多 64MiB，并保留最后 1600 行；不扫描整份 GB 级历史。
+func (e *OKXDirectionalEngine) fastWxRestore60(now time.Time) {
+	path := filepath.Join(e.recordDir, fastMarketMidsFile)
+	f, err := os.Open(path)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	fi, err := f.Stat()
+	if err != nil || fi.Size() == 0 {
+		return
+	}
+	const maxTailBytes int64 = 64 << 20
+	offset := fi.Size() - maxTailBytes
+	if offset < 0 {
+		offset = 0
+	}
+	if _, err := f.Seek(offset, 0); err != nil {
+		return
+	}
+	sc := bufio.NewScanner(f)
+	sc.Buffer(make([]byte, 0, 1024*1024), 8*1024*1024)
+	if offset > 0 {
+		_ = sc.Scan() // 丢弃从文件中段开始的残行
+	}
+	const maxRows = 1600
+	lines := make([]string, 0, maxRows)
+	for sc.Scan() {
+		line := sc.Text()
+		if len(lines) == maxRows {
+			copy(lines, lines[1:])
+			lines[len(lines)-1] = line
+		} else {
+			lines = append(lines, line)
+		}
+	}
+	cut := now.Add(-65 * time.Minute)
+	rows, points := 0, 0
+	for _, line := range lines {
+		var row fastHotMidsRow
+		if json.Unmarshal([]byte(line), &row) != nil || row.RecordedAt.Before(cut) || row.RecordedAt.After(now.Add(time.Minute)) {
+			continue
+		}
+		rows++
+		for sym, mid := range row.Mids {
+			if mid > 0 {
+				fastWxNote60(sym, row.RecordedAt.UTC(), mid)
+				points++
+			}
+		}
+	}
+	if rows > 0 {
+		e.logger.Printf("[fast_weather] 重启恢复 60min 天气环: rows=%d points=%d，司天监无需重新盲等50min", rows, points)
 	}
 }
 
@@ -200,3 +259,10 @@ func fastWxCascFadeInGrid(grid int, ok bool) bool { return ok && grid == fastWxG
 
 // fastWxSqzFadeInGrid sqz_fade 营业格判定:死水·跌(riot低 ∧ breadth低,不看 volx)=格0/格1。
 func fastWxSqzFadeInGrid(grid int, ok bool) bool { return ok && (grid == 0 || grid == 1) }
+
+func fastSwapVolumeUSDT(instID string, volCcy24h, last float64) (string, float64, bool) {
+	if !strings.HasSuffix(instID, "-USDT-SWAP") || volCcy24h <= 0 || last <= 0 {
+		return "", 0, false
+	}
+	return normalizeDirectionFactorSymbol(instID), volCcy24h * last, true
+}

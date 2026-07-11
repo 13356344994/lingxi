@@ -23,7 +23,6 @@ package app
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 	"sync"
 	"time"
 )
@@ -304,7 +303,7 @@ func (e *OKXDirectionalEngine) fastXgapFire(sym string, detGapBps float64, detAt
 	}
 	ev.GateSkip = skip
 	fastXgapFunnelNote(e.nowFn().UTC(), "verdict", skip) // 今日漏斗:闸判结局(面板)
-	_ = appendJSONLRecord(filepath.Join(e.recordDir, fastExecShadowFile), *ev)
+	recordFastExecutableShadow(e, ev)
 	if skip != "" {
 		e.logger.Printf("[fast_xgap] %s 跳过(%s) det=%.0fbps now=%.0fbps spread=%.1f", sym, skip, detGapBps, gapNow, ev.SpreadBps)
 		return

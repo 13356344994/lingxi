@@ -6,28 +6,36 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	risktruth "lingxi/internal/risk"
 )
 
 const (
 	accountRiskEquityStateFileName      = "account_risk_equity_state.json"
-	accountRiskEquityStateSchemaVersion = 1
+	accountRiskEquityStateSchemaVersion = 2
 )
 
 // persistedAccountRiskEquityState 跨 tick/重启的账户权益状态(原子落盘)。
 type persistedAccountRiskEquityState struct {
-	SchemaVersion           int                `json:"schema_version"`
-	DayStartCST             time.Time          `json:"day_start_cst"`
-	LastTrustedTotalUSDT    float64            `json:"last_trusted_total_usdt"`
-	LastTrustedByVenue      map[string]float64 `json:"last_trusted_by_venue,omitempty"`
-	HasLastTrusted          bool               `json:"has_last_trusted"`
-	LastTrustedAt           time.Time          `json:"last_trusted_at,omitempty"`
-	DailyFundFlowAdjustUSDT    float64            `json:"daily_fund_flow_adjust_usdt"`
-	DailyFundFlowByVenueUSDT   map[string]float64 `json:"daily_fund_flow_by_venue_usdt,omitempty"`
-	CumulativeFundFlowUSDT     float64            `json:"cumulative_fund_flow_usdt"`
-	TradingEquityPeakUSDT   float64            `json:"trading_equity_peak_usdt"`
-	LastDailyRealizedPnL    float64            `json:"last_daily_realized_pnl"`
-	LastSettlementCount     int                `json:"last_settlement_count"`
-	LastPositionCount       int                `json:"last_position_count"`
+	SchemaVersion            int                           `json:"schema_version"`
+	DayStartCST              time.Time                     `json:"day_start_cst"`
+	LastTrustedTotalUSDT     float64                       `json:"last_trusted_total_usdt"`
+	LastTrustedByVenue       map[string]float64            `json:"last_trusted_by_venue,omitempty"`
+	HasLastTrusted           bool                          `json:"has_last_trusted"`
+	LastTrustedAt            time.Time                     `json:"last_trusted_at,omitempty"`
+	DailyFundFlowAdjustUSDT  float64                       `json:"daily_fund_flow_adjust_usdt"`
+	DailyFundFlowByVenueUSDT map[string]float64            `json:"daily_fund_flow_by_venue_usdt,omitempty"`
+	CumulativeFundFlowUSDT   float64                       `json:"cumulative_fund_flow_usdt"`
+	TradingEquityPeakUSDT    float64                       `json:"trading_equity_peak_usdt"`
+	EquityTruth              risktruth.EquityTruthSnapshot `json:"equity_truth,omitempty"`
+	EquityTruthObsSeq        int64                         `json:"equity_truth_obs_seq,omitempty"`
+	EquityTruthFlowSeq       int64                         `json:"equity_truth_flow_seq,omitempty"`
+	EquityTruthHasPending    bool                          `json:"equity_truth_has_pending,omitempty"`
+	TradingEquityCurrentUSDT float64                       `json:"trading_equity_current_usdt,omitempty"`
+	SolvencyEquityUSDT       float64                       `json:"solvency_equity_usdt,omitempty"`
+	LastDailyRealizedPnL     float64                       `json:"last_daily_realized_pnl"`
+	LastSettlementCount      int                           `json:"last_settlement_count"`
+	LastPositionCount        int                           `json:"last_position_count"`
 	// 充提平移来源与未确权额(向后兼容:旧文件无此字段则默认空/0,仍按 schema v1 读取)。
 	DailyFundFlowSource        string    `json:"daily_fund_flow_source,omitempty"`
 	DailyFundFlowReconcileUSDT float64   `json:"daily_fund_flow_reconcile_usdt,omitempty"`
@@ -57,6 +65,12 @@ func (st *accountRiskEquityState) toPersisted(now time.Time) persistedAccountRis
 		DailyFundFlowByVenueUSDT:   copyVenueEquityMap(st.DailyFundFlowByVenueUSDT),
 		CumulativeFundFlowUSDT:     st.CumulativeFundFlowUSDT,
 		TradingEquityPeakUSDT:      st.TradingEquityPeakUSDT,
+		EquityTruth:                st.EquityTruth,
+		EquityTruthObsSeq:          st.EquityTruthObsSeq,
+		EquityTruthFlowSeq:         st.EquityTruthFlowSeq,
+		EquityTruthHasPending:      st.EquityTruthHasPending,
+		TradingEquityCurrentUSDT:   st.TradingEquityCurrentUSDT,
+		SolvencyEquityUSDT:         st.SolvencyEquityUSDT,
 		LastDailyRealizedPnL:       st.LastDailyRealizedPnL,
 		LastSettlementCount:        st.LastSettlementCount,
 		LastPositionCount:          st.LastPositionCount,
@@ -79,6 +93,12 @@ func (st *accountRiskEquityState) applyPersisted(p persistedAccountRiskEquitySta
 	st.DailyFundFlowByVenueUSDT = copyVenueEquityMap(p.DailyFundFlowByVenueUSDT)
 	st.CumulativeFundFlowUSDT = p.CumulativeFundFlowUSDT
 	st.TradingEquityPeakUSDT = p.TradingEquityPeakUSDT
+	st.EquityTruth = p.EquityTruth
+	st.EquityTruthObsSeq = p.EquityTruthObsSeq
+	st.EquityTruthFlowSeq = p.EquityTruthFlowSeq
+	st.EquityTruthHasPending = p.EquityTruthHasPending
+	st.TradingEquityCurrentUSDT = p.TradingEquityCurrentUSDT
+	st.SolvencyEquityUSDT = p.SolvencyEquityUSDT
 	st.LastDailyRealizedPnL = p.LastDailyRealizedPnL
 	st.LastSettlementCount = p.LastSettlementCount
 	st.LastPositionCount = p.LastPositionCount
@@ -96,7 +116,7 @@ func loadAccountRiskEquityState(recordDir string) (accountRiskEquityState, bool)
 	if err := json.Unmarshal(data, &p); err != nil {
 		return accountRiskEquityState{}, false
 	}
-	if p.SchemaVersion != accountRiskEquityStateSchemaVersion {
+	if p.SchemaVersion != 1 && p.SchemaVersion != accountRiskEquityStateSchemaVersion {
 		return accountRiskEquityState{}, false
 	}
 	var st accountRiskEquityState

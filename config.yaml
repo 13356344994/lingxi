@@ -3,7 +3,8 @@
 # ⚠️ profit_seeking 会在加载时经 ApplyStrategyModeToEconomics 强制收紧成本闸(auto_derive/impact/min_net≥0.002/basis 收回),
 #    显著减少开单数——与「最大化开仓/满仓」存在张力,属刻意取舍。
 # ⚠️ 生产配置改动:部署前须人工 review + 重新部署进程。
-# 运行形态:enable_rolling_hold=true → 跨周期滚动持有(:55 复核续持);**生产主路径**为五策略统一轮动 runner(perp-perp 经 binding 派发,非独立循环)。
+# 当前生产入口只启动方向/fast 引擎、账户风控和面板；carry/rotation 段为历史兼容配置，
+# startLiveStack 无 scanner/executor/rotation 调用链，不得再把它们描述为生产主路径。
 
 strategy:
   # 用户 2026-06-19 拍板:profit_seeking + 满仓 + 3× 起步(可调至 5×)
@@ -62,7 +63,7 @@ network:
   # 监听所有网卡,通过机器 IP+端口(8080)直接访问面板,不再依赖 tailscale/本地回环。
   dashboard_addr: "0.0.0.0:8080"
 
-# P1 跨所 perp-perp 执行引擎(空高费所/多低费所 delta 中性)。
+# 历史兼容：跨所 perp-perp 执行引擎。当前 startLiveStack 不装配，修改本段不会启动 carry。
 # 【统一 runner】开仓由 UnifiedRotationRunner 经 bindCrossVenuePerpPerpRotationExecutor 派发;
 #   非独立 Run() 循环(run.go: SetRotationManaged(true)+SetOpeningsEnabled(false))。
 # 【名义上限】max_position_usdt 为硬顶;实际单仓名义=min(硬顶, 流动性 cap liquidity_sizing.go, 全局预算)。
@@ -70,7 +71,7 @@ network:
 #   sizing_conservative_no_depth_factor / slippage_budget_bps / taker_slippage_budget_bps 等。
 cross_venue_executor:
   enabled: true
-  live_trading_enabled: true
+  live_trading_enabled: false # 首战完全体重构期封火:保留兼容配置,生产入口本就未装配
   # perp-perp 结算前进场窗(秒):统一 runner 每 60s 基于 scanner 缓存快照做 perp-perp 高频决策,3min 可稳定接住结算档。
   open_funding_lead_seconds: 180
   # 用户 2026-06-19 拍板:profit_seeking + 满仓 + 3× 起步(可调至 5×) — 最大化并发/单腿名义
@@ -140,7 +141,7 @@ cross_venue_scanner:
 # 杠杆固定 5X、无日熔断;页面设「交易仓本金 + 止损%」并点开始/停止(control.json 持久化)。
 okx_directional:
   enabled: true              # 引擎常驻;实际开新仓须页面点"开始"(control.active)
-  live_trading_enabled: true # 真金闸:true 时页面"开始"即真实下单(用户要求实盘、禁影子)
+  live_trading_enabled: false # 首战完全体重构期:只采集/影子/管理,禁止自动新开仓
   loop_interval_seconds: 90
   # 杠杆固定 5X(用户拍板,不在页面调)
   leverage: 5
@@ -241,7 +242,7 @@ okx_directional:
   # ② 接型候选:fade_exhaustion 实盘灰度【开,仅成熟OK池塘】——机制=接力竭FOMO(做"被迫一次性taker"
   #   的对手方=唯一毛正物种B的镜像),前向核实 +60s+1.5bps/+180s+4.65bps 单调放大形状。
   #   liq_catch 永远硬闸(已证伪:被迫流持续1-3分钟,60s接刀三桶全负;其镜像 liq_follow 离线继续跟踪)。
-  fast_alt_candidates_enabled: true
+  fast_alt_candidates_enabled: false # 07-10 降载:fade/liq_catch 均无真钱资格,暂停重复 shadow
   fast_fade_min_impulse_bps: 8
   # fade 实盘降回 record-only(2026-07-03 21:10 解剖裁决,非砍掉了事):35笔实盘 vs 同期9032全体候选,
   #   信号口径前向 -10.6bps vs +1.0bps@60s——maker成交本身=力竭诊断被证伪(诊断对→价格反转碰不到挂单;
@@ -259,7 +260,7 @@ okx_directional:
   #   重开条件:全市场mid标尺上线后,以"簇诞生即评估"的新信息集重做对齐研究,ex-LAB 净正才向用户提重开。
   fast_liq_follow_live_enabled: false
   # 停火后评估管线继续跑(shadow+跳过原因照记,不下单)——重开研究的数据源,不许一并关掉。
-  fast_liq_follow_shadow_enabled: true
+  fast_liq_follow_shadow_enabled: false # 07-10 降载:该形态已证伪,原始数据已留存
   # v5 基建(2026-07-04,均 record-only):
   #   全市场 mid 标尺:单请求拉全部 SWAP tickers 喂价格历史,根治盲区闸迟到(3s一发,限频余量巨大);
   fast_market_mids_enabled: true
@@ -303,7 +304,8 @@ okx_directional:
   #   join 证据:惯犯钥匙 AUC 0.91/0.91;EV 直测 key_sqz_fade×30m train +4.3/holdout -3.0=
   #   打平边缘,按 14j 判决改为上膛后持续投票(热加码/冷缩仓/连续冷缴械,机器全自动);
   #   各源独立预算 20 笔/-0.5U 治理器封死,死板止损 -150/固定 30min(14k)。
-  fast_probe_source: "key_sqz_fade,key_casc_fade"
+  fast_probe_source: ""
+  fast_certified_sources: ""
   # 2026-07-10 用户令四:cap 否决位转实弹(负钉 cap 币禁一切枪开空;EDGE 首枪死因;
   #   cap态开空4h中位-192bps vs基线-14,train/holdout同向)。保险栓非新敞口。
   fast_cap_short_veto_enabled: true
@@ -326,15 +328,15 @@ okx_directional:
   fast_xvenue_liq_enabled: true
   #   热币微结构(v5.3):动态订阅热币 books5+trades,按秒记连续深度+成交流——瀑布深度蒸发研究、
   #   "成交流反推强平"候选机制、重开后低延迟盘口的三合一地基。
-  fast_hot_ws_enabled: true
+  fast_hot_ws_enabled: false # 07-10 降载:3GB微结构样本已足,当前方向枪无消费者
   # ㊳② 全市场磁带探针(2026-07-08,record-only):多连接分片订阅全市场 SWAP trades,独立 burst
   #   状态机识别全市场爆量(带 in_hot_ws 增量视野标注)→ fast_full_burst_probe.jsonl。根治
   #   "burst 只看见 40 热币=几何上只见第二波"结构债;探针阶段不接 tape 确认管线(一次一刀),
   #   60s 吞吐日志=可行性裁决数(消息率/识别延迟/增量 burst 占比)。
-  fast_full_tape_enabled: true
+  fast_full_tape_enabled: false # 07-10 降载:tape实弹关闭且增量视野未过预注册门
   #   Bybit 全市场价格标尺(v5.5 跨所价差锚):暴动时刻价差已开=本地事故(套利商必拽回=接)
   #   vs 无价差=全局重定价(跟)——方向分类器头号候选的数据地基;普查/评估事件带 xgap_bps。
-  fast_xmid_enabled: true
+  fast_xmid_enabled: false # 07-10 降载:E/xgap已判负停火,当前无真钱消费者
   fast_liq_follow_min_liqs: 2
   fast_liq_follow_max_spread_bps: 12
   fast_liq_follow_depth_hi_usdt: 150000
@@ -358,7 +360,7 @@ okx_directional:
   # v2 = 只修出场时序,不动打分器:minHold 60s 内禁亏损驱动出场 + 灾难线 40bps 防插针 + fast 层日亏 3U 熔断。
   # 灰度:仅 OKX、名义 5U;结算带 fast_exit_version=v2 且另存 fast_v2_settlements.jsonl 供分代对照分析。
   fast_scalper_v1_enabled: true
-  fast_live_enabled: true
+  fast_live_enabled: false
   fast_live_notional_usdt: 5
   # minHold=30s:账本细分桶显示 0-30s 全负(0-10s 毛均-15.6bps),30-45s/45-60s 桶 PF≈2 全曲线最强;
   # 60s 会把最优出场窗口锁在门外(2026-07-03 与用户对齐)。
@@ -379,11 +381,11 @@ okx_directional:
   fast_weak_hours_score_bump: 0.10
   fast_weak_hours_notional_frac: 0.5
 
-# 五策略统一资金费轮动 runner。perp-perp 执行体见 cross_venue_executor,开仓由 runner binding 派发。
+# 历史兼容：五策略统一资金费轮动 runner。当前 startLiveStack 不装配。
 # total_deployable_usdt: 绝对预算(USDT);另有 total_deployable_pct(默认见 defaults,占真实现金权益比例),二者与 equity 取 min。
 unified_rotation:
   enabled: true
-  live_trading_enabled: true
+  live_trading_enabled: false
   # 用户 2026-06-19 拍板:profit_seeking + 满仓 + 3× 起步(可调至 5×) — 全局资金预算
   total_deployable_usdt: 435
   max_strategy_capital_usage_pct: 0
@@ -403,14 +405,14 @@ venues:
   okx:
     enabled: true
     funding_executor:
-      live_trading_enabled: true
+      live_trading_enabled: false
       # 用户 2026-06-19 拍板:单所 ~100U 账户,80U 两腿名义上限(余额闸兜底,勿设满余额必拒)
       max_position_usdt: 80
       lead_seconds: 240
   gate:
     enabled: true
     funding_executor:
-      live_trading_enabled: true
+      live_trading_enabled: false
       # 用户 2026-06-19 拍板:单所 ~100U 账户,80U 两腿名义上限(余额闸兜底,勿设满余额必拒)
       max_position_usdt: 80
       lead_seconds: 240
@@ -420,7 +422,7 @@ venues:
     # 用户 2026-06-19 拍板:Bybit ~100U 分配本金(定量基准;0=永不开)
     allocated_capital_usdt: 100
     bybit_executor:
-      live_trading_enabled: true
+      live_trading_enabled: false
       top_n: 3
       min_funding_rate: 0.0002
       lead_seconds: 240

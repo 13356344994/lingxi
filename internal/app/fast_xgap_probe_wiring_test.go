@@ -35,6 +35,18 @@ func TestFastXgapProbeWiring(t *testing.T) {
 	if r := e.fastLiveOpen(nil, ev); r == "record_only_source" || r == "probe_exhausted" || r == "sentinel_halt" {
 		t.Fatalf("live 开+预算充足不应被闸拦,得 %s", r)
 	}
+	// 完全自主总止错必须拦住 fast；旧代码只认人工 .halt-live，会绕过账户 global_halt。
+	cp := NewControlPlane(t.TempDir(), nil, nil)
+	e.SetControlPlane(cp)
+	if err := cp.SetGlobalHalt(true); err != nil {
+		t.Fatal(err)
+	}
+	if r := e.fastLiveOpen(nil, ev); r != "halt" {
+		t.Fatalf("global_halt 必须拦 fast 新仓,得 %s", r)
+	}
+	if err := cp.SetGlobalHalt(false); err != nil {
+		t.Fatal(err)
+	}
 
 	// ③ 自动阶梯(07-09 全自动拍板):20 笔净正打满 → 自动晋升 L1(不再缴械=机器代批加钱)
 	for i := 0; i < 20; i++ {

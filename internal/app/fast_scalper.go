@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"os"
@@ -14,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"lingxi/internal/execution"
 	"lingxi/internal/venue"
 )
 
@@ -37,17 +39,21 @@ const fastCleanupReason = "fast_exchange_position_absent_cleanup"
 
 // fastLivePosition 一笔 fast 实盘仓。
 type fastLivePosition struct {
-	Symbol       string    `json:"symbol"`
-	Side         string    `json:"side"` // long/short
-	EntryPrice   float64   `json:"entry_price"`
-	Qty          float64   `json:"qty"`
-	NotionalUSDT float64   `json:"notional_usdt"`
-	OpenedAt     time.Time `json:"opened_at"`
-	PositionID   string    `json:"position_id"`
-	OpenFeeUSDT  float64   `json:"open_fee_usdt,omitempty"`
-	Score        float64   `json:"score,omitempty"`
-	ScoreReason  string    `json:"score_reason,omitempty"`
-	OpenViaTaker bool      `json:"open_via_taker,omitempty"`
+	Symbol       string  `json:"symbol"`
+	Side         string  `json:"side"` // long/short
+	EntryPrice   float64 `json:"entry_price"`
+	Qty          float64 `json:"qty"`
+	NotionalUSDT float64 `json:"notional_usdt"`
+	// 部分平仓累计:IOC 未完全成交时保留余仓并跨重启继续管理，最终结算合并已平部分。
+	ClosedNotionalUSDT  float64   `json:"closed_notional_usdt,omitempty"`
+	RealizedPartialUSDT float64   `json:"realized_partial_usdt,omitempty"`
+	CloseFeeUSDT        float64   `json:"close_fee_usdt,omitempty"`
+	OpenedAt            time.Time `json:"opened_at"`
+	PositionID          string    `json:"position_id"`
+	OpenFeeUSDT         float64   `json:"open_fee_usdt,omitempty"`
+	Score               float64   `json:"score,omitempty"`
+	ScoreReason         string    `json:"score_reason,omitempty"`
+	OpenViaTaker        bool      `json:"open_via_taker,omitempty"`
 	// v2.2 自适应入场标注(loss_lvlN / weak_hour;平仓时写入 settlement 供分桶复盘)
 	EntryAdaptiveTags string `json:"entry_adaptive_tags,omitempty"`
 	// v3 接型入场来源(空=scorer 追型;fade_exhaustion=接型灰度;平仓时写入 settlement 分代对照)
@@ -73,8 +79,8 @@ type fastLivePosition struct {
 	WxBreadth30 float64 `json:"wx_breadth_30m,omitempty"`
 	WxBreadthOK bool    `json:"wx_breadth_ok,omitempty"`
 	WxTideNet   int     `json:"wx_tide_net,omitempty"`
-	PeakBps         float64 `json:"peak_bps,omitempty"`   // 浮盈峰值(移动止盈用;全程 all-time)
-	TroughBps       float64 `json:"trough_bps,omitempty"` // 浮亏谷值(全程 all-time 最深回撤;早砍用)
+	PeakBps     float64 `json:"peak_bps,omitempty"`   // 浮盈峰值(移动止盈用;全程 all-time)
+	TroughBps   float64 `json:"trough_bps,omitempty"` // 浮亏谷值(全程 all-time 最深回撤;早砍用)
 	// seen-aware 成交后水位(bps):首次采样某窗口时 MFE=MAE=ubps(不被假 0 污染);窗口外不采样(Seen=false)。
 	Mfe3   float64 `json:"mfe3,omitempty"`
 	Mae3   float64 `json:"mae3,omitempty"`
@@ -239,17 +245,18 @@ type fastMidPoint struct {
 }
 
 var (
-	fastMidMu      sync.Mutex
-	fastMidHist    = map[string][]fastMidPoint{}
-	fastLastLog    time.Time
-	fastLiveMu     sync.Mutex
-	fastLivePos    = map[string]map[string]*fastLivePosition{} // venue -> symbol -> pos
-	fastLiveLoaded = map[string]bool{}
-	fastSkipAgg    = map[string]int{} // 入场结果/跳过原因聚合(每 60s 打一行后清空)
-	fastCooldownMu sync.Mutex
-	fastCooldown   = map[string]map[string]time.Time{} // venue -> symbol -> 冷却到期(fast 层;仅内存,5min 短冷却)
-	fastDailyMu    sync.Mutex
-	fastDaily      = map[string]*fastDailyState{} // venue -> 当日 fast 已实现(北京日切;重启从 settlements 重建)
+	fastMidMu       sync.Mutex
+	fastMidHist     = map[string][]fastMidPoint{}
+	fastLastLog     time.Time
+	fastLiveMu      sync.Mutex
+	fastLivePos     = map[string]map[string]*fastLivePosition{} // venue -> symbol -> pos
+	fastLiveLoaded  = map[string]bool{}
+	fastLiveClosing = map[string]bool{} // venue|position_id；防 manage/账户全平并发重复减仓
+	fastSkipAgg     = map[string]int{}  // 入场结果/跳过原因聚合(每 60s 打一行后清空)
+	fastCooldownMu  sync.Mutex
+	fastCooldown    = map[string]map[string]time.Time{} // venue -> symbol -> 冷却到期(fast 层;仅内存,5min 短冷却)
+	fastDailyMu     sync.Mutex
+	fastDaily       = map[string]*fastDailyState{} // venue -> 当日 fast 已实现(北京日切;重启从 settlements 重建)
 )
 
 // ===== v3 蓝图①:池塘质量(2026-07-03 用户批准) =====
@@ -697,14 +704,16 @@ func (e *OKXDirectionalEngine) fastSymbolLossLevel(sym string, now time.Time) in
 
 // ===== 风险封顶比例制(2026-07-10 用户令二)=====
 // 分两类(代码里注释清楚):
-//   钱包限制跟权益走(仪表探针预算/腿量/簇并发名义顶=权益×比例);
-//   市场限制跟盘口走(容量顶=casc 500U/笔等体量签证值,保持绝对值,写在天花板层)。
+//
+//	钱包限制跟权益走(仪表探针预算/腿量/簇并发名义顶=权益×比例);
+//	市场限制跟盘口走(容量顶=casc 500U/笔等体量签证值,保持绝对值,写在天花板层)。
+//
 // 权益基准=账户风控最近可信总权益(records/account_risk_equity_state.json 的 last_trusted_total_usdt),
 // 5s TTL 缓存;不可读时回退本所交易本金(与既有 fast 日熔断口径一致,fail-safe 偏小)。
 var (
-	fastEqMu     sync.Mutex
-	fastEqVal    float64
-	fastEqAt     time.Time
+	fastEqMu  sync.Mutex
+	fastEqVal float64
+	fastEqAt  time.Time
 )
 
 func (e *OKXDirectionalEngine) fastEquityBaseUSDT() float64 {
@@ -1079,8 +1088,8 @@ func (e *OKXDirectionalEngine) fastLiqFollowTick(ctx context.Context) {
 		case ev.DepthNotional10bps > depthHi:
 			skip = "depth_institutional"
 		}
-		ev.GateSkip = skip                                                         // v5.2:拒绝原因入数据本身(离线分析不再抠日志)
-		_ = appendJSONLRecord(filepath.Join(e.recordDir, fastExecShadowFile), *ev) // 不论开否都留 shadow(离线对照)
+		ev.GateSkip = skip                // v5.2:拒绝原因入数据本身(离线分析不再抠日志)
+		recordFastExecutableShadow(e, ev) // 兼容旧账本并同步首战机制影子
 		if skip != "" {
 			e.logger.Printf("[fast_liqfollow] %s 跳过(%s) spread=%.1f depth10=%.0f liq_n=%d age=%dms", sym, skip, ev.SpreadBps, ev.DepthNotional10bps, n, ev.EventAgeMs)
 			continue
@@ -1101,6 +1110,11 @@ func (e *OKXDirectionalEngine) fastScalperTick(ctx context.Context) {
 		return
 	}
 	e.fastLiveLoad() // 幂等;平仓由独立 fastManageLoop 负责(避免被 maker 入场等待拖延)
+	// scorer 已停且 alt 候选也停时，shortlist REST 扫描没有任何真钱或研究消费者；
+	// 直接跳过，避免每4秒×20币拉盘口/深度并继续膨胀 GB 级 shadow。
+	if !e.cfg.FastScorerLiveEnabled && !e.cfg.FastAltCandidatesEnabled {
+		return
+	}
 	maxSym := e.cfg.FastScalperV1MaxSymbols
 	if maxSym <= 0 {
 		maxSym = 20
@@ -1120,7 +1134,6 @@ func (e *OKXDirectionalEngine) fastScalperTick(ctx context.Context) {
 	if len(syms) == 0 {
 		return
 	}
-	path := filepath.Join(e.recordDir, fastExecShadowFile)
 	now := e.nowFn().UTC()
 	written := 0
 	for _, sym := range syms {
@@ -1133,7 +1146,7 @@ func (e *OKXDirectionalEngine) fastScalperTick(ctx context.Context) {
 		if ev == nil {
 			continue
 		}
-		if err := appendJSONLRecord(path, *ev); err != nil {
+		if err := recordFastExecutableShadow(e, ev); err != nil {
 			e.logger.Printf("[fast_scalper] 落盘失败: %v", err)
 			break
 		}
@@ -1142,7 +1155,7 @@ func (e *OKXDirectionalEngine) fastScalperTick(ctx context.Context) {
 		// 其余(liq_catch 等)由 fastLiveOpen 硬闸拒为 record_only_source。
 		if e.cfg.FastAltCandidatesEnabled {
 			for _, alt := range e.buildFastAltCandidates(ev, now) {
-				if err := appendJSONLRecord(path, *alt); err != nil {
+				if err := recordFastExecutableShadow(e, alt); err != nil {
 					e.logger.Printf("[fast_scalper] 接型候选落盘失败: %v", err)
 					break
 				}
@@ -1514,6 +1527,18 @@ func (e *OKXDirectionalEngine) fastLivePersistLocked() {
 	}
 }
 
+func (e *OKXDirectionalEngine) fastOpenPositionsSnapshot() []*fastLivePosition {
+	fastLiveMu.Lock()
+	defer fastLiveMu.Unlock()
+	out := make([]*fastLivePosition, 0, len(fastLivePos[e.venueName]))
+	for _, p := range fastLivePos[e.venueName] {
+		if p != nil {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
 // fastCurrentMid best-effort 拉当前中价(决策用);失败返回 0。
 func (e *OKXDirectionalEngine) fastCurrentMid(ctx context.Context, sym string) float64 {
 	bctx, cancel := context.WithTimeout(ctx, 5*time.Second)
@@ -1586,7 +1611,7 @@ type fastProbeState struct {
 	Realized  float64   `json:"realized_usdt"`
 	// 自动资金阶梯(07-09):当前级别(0=探针);Trades/Realized 为【本级】计数,晋升时清零重攒。
 	Level       int     `json:"level,omitempty"`
-	TotalTrades int     `json:"total_trades,omitempty"`  // 全生涯笔数(审计)
+	TotalTrades int     `json:"total_trades,omitempty"`   // 全生涯笔数(审计)
 	TotalPnL    float64 `json:"total_pnl_usdt,omitempty"` // 全生涯净损益(审计)
 	Stalled     bool    `json:"stalled,omitempty"`        // 打满净负=停机等裁决(非缴械)
 }
@@ -1743,6 +1768,14 @@ func (e *OKXDirectionalEngine) fastProbePersistLocked() {
 	}
 }
 
+func (e *OKXDirectionalEngine) fastProbeReset(source string) {
+	fastProbeMu.Lock()
+	defer fastProbeMu.Unlock()
+	e.fastProbeLoadLocked()
+	fastProbe[e.fastProbeKey(source)] = &fastProbeState{Source: source, StartedAt: e.nowFn().UTC()}
+	e.fastProbePersistLocked()
+}
+
 // fastProbeGate 开仓前闸:该 source 在名单且当级预算耗尽/停机 → 拒。
 // 07-09 全自动阶梯:预算按当级(fastGradLadder)判定,不再只看 config 探针值。
 func (e *OKXDirectionalEngine) fastProbeGate(source string) string {
@@ -1775,6 +1808,15 @@ func (e *OKXDirectionalEngine) fastGradNotional(source string) float64 {
 		lvl = 0
 	}
 	n := fastGradLadder[lvl].NotionalUSDT
+	// 完全自主资金规划:权益≥1000U 后按级别比例自动伸缩；小账户沿用最小可交易绝对梯。
+	// L3 10%权益与500U容量顶相交于5000U，超过后不再把规模硬塞进长尾盘口。
+	if eq := e.fastEquityBaseUSDT(); eq >= 1000 {
+		pcts := []float64{0.005, 0.015, 0.04, 0.10}
+		n = eq * pcts[lvl]
+	}
+	if n > 500 {
+		n = 500
+	}
 	if rp := loadRuntimeParams(filepath.Dir(e.recordDir)); rp.PerTradeNotionalUSDT > 0 && rp.PerTradeNotionalUSDT < n {
 		n = rp.PerTradeNotionalUSDT // 用户天花板:自动系统永远不越过页面设的每笔上限
 	}
@@ -1941,7 +1983,7 @@ func fastExitTriggersCooldown(reason string) bool {
 	switch reason {
 	case "fast_stop_reversal", "fast_no_feedback", "fast_early_cut", "fast_species_a_cut", "fast_disaster_stop",
 		"fast_xgap_disaster", // v6.5:E策略灾难砍同样要学费记忆
-		"fast_fw_disaster": // 07-09:烟花灾难=被轧空打穿,同币短期内绝不再反手
+		"fast_fw_disaster":   // 07-09:烟花灾难=被轧空打穿,同币短期内绝不再反手
 		return true
 	}
 	return false
@@ -1989,6 +2031,14 @@ func (e *OKXDirectionalEngine) fastLiveManage(ctx context.Context) {
 			mae3, seen3 = p.Mae3, p.Seen3
 			mfe10, mae10, seen10 = p.Mfe10, p.Mae10, p.Seen10
 			fastLiveMu.Unlock()
+		}
+		// 自主DSL策略的论点死亡条件=冻结持有期结束；不使用价格止损。
+		// 账户级30%总止错负责系统论点失效，探针/资金预算负责单策略学费。
+		if holdHours, ok := autonomyStrategyHoldHours(e.recordDir, p.CandidateSource); ok {
+			if hold >= float64(holdHours*3600) {
+				e.fastLiveClose(ctx, p, "fast_autonomy_horizon")
+			}
+			continue
 		}
 		// v6.5 E策略(xgap_rev)专属出场程序(冻结口径 10/600/60,护栏锚定):它的论点是
 		// "价差会闭合",不是"动量会延续"——收敛即离场,与 minHold/物种/能量刻度/trail 全部无关。
@@ -2316,8 +2366,10 @@ func (e *OKXDirectionalEngine) fastMarketMidLoop(ctx context.Context) {
 	censusPath := filepath.Join(e.recordDir, fastMoverCensusFile)
 	hotPath := filepath.Join(e.recordDir, fastHotMidsFile)
 	allPath := filepath.Join(e.recordDir, fastMarketMidsFile) // v6.1 全市场 mid 落盘(覆盖债根治)
+	e.fastWxRestore60(e.nowFn().UTC())                        // 司天监跨重启恢复，不再失明约50min
 	lastEmit := map[string]time.Time{}
 	hotSeen := map[string]time.Time{} // sym -> 最后一次判定为热的时刻(转热瞬间发 backlog)
+	lastAllPersist := time.Time{}
 	for {
 		select {
 		case <-ctx.Done():
@@ -2338,7 +2390,7 @@ func (e *OKXDirectionalEngine) fastMarketMidLoop(ctx context.Context) {
 			mktLiq := fastMarketLiqRate(now, 300)
 			hotRow := fastHotMidsRow{RecordedAt: now, Mids: map[string]float64{}}
 			var allRow *fastHotMidsRow // v6.1:persist 开启时每轮全市场 mid 一行(研究覆盖债根治,~0.5GB/天,备份脚本>2GB轮换)
-			if e.cfg.FastMarketMidsPersistEnabled {
+			if e.cfg.FastMarketMidsPersistEnabled && now.Sub(lastAllPersist) >= 15*time.Second {
 				allRow = &fastHotMidsRow{RecordedAt: now, Mids: make(map[string]float64, len(books))}
 			}
 			for sym, bk := range books {
@@ -2360,18 +2412,24 @@ func (e *OKXDirectionalEngine) fastMarketMidLoop(ctx context.Context) {
 				hot := math.Abs(r60) >= fastHotMoverBps || fastRecentLiqAny(sym, now, 300) || fastXliqCount(sym, now, 300) > 0
 				if hot {
 					if last, ok2 := hotSeen[sym]; !ok2 || now.Sub(last) > 10*time.Minute {
-						if bl := fastMidHistSnapshot(e.venueName + "|" + sym); len(bl) > 1 {
-							_ = appendJSONLRecord(hotPath, fastHotMidsRow{RecordedAt: now, BacklogSym: sym, Backlog: bl})
+						if e.cfg.FastHotWSEnabled {
+							if bl := fastMidHistSnapshot(e.venueName + "|" + sym); len(bl) > 1 {
+								_ = appendJSONLRecord(hotPath, fastHotMidsRow{RecordedAt: now, BacklogSym: sym, Backlog: bl})
+							}
 						}
-						for _, av := range fastAnchorVenues { // v5.8 锚回溯:转热瞬间倒出各锚 ≤300s 历史
-							if bl := fastMidHistSnapshot(av + "|" + sym); len(bl) > 1 {
-								_ = appendJSONLRecord(hotPath, fastHotMidsRow{RecordedAt: now, BacklogSym: sym, BacklogVenue: av, Backlog: bl})
+						if e.cfg.FastHotWSEnabled {
+							for _, av := range fastAnchorVenues { // v5.8 锚回溯:转热瞬间倒出各锚 ≤300s 历史
+								if bl := fastMidHistSnapshot(av + "|" + sym); len(bl) > 1 {
+									_ = appendJSONLRecord(hotPath, fastHotMidsRow{RecordedAt: now, BacklogSym: sym, BacklogVenue: av, Backlog: bl})
+								}
 							}
 						}
 					}
 					hotSeen[sym] = now
-					hotRow.Mids[sym] = mid
-					fastNoteHot(sym, now) // v5.3 共享热度表(热币微结构 WS 的订阅依据)
+					if e.cfg.FastHotWSEnabled {
+						hotRow.Mids[sym] = mid
+						fastNoteHot(sym, now) // v5.3 共享热度表(热币微结构 WS 的订阅依据)
+					}
 				}
 				if r60 == 0 || math.Abs(r60) < fastMoverMinAbsRet60Bps {
 					continue
@@ -2435,6 +2493,8 @@ func (e *OKXDirectionalEngine) fastMarketMidLoop(ctx context.Context) {
 			if allRow != nil && len(allRow.Mids) > 0 {
 				if werr := appendJSONLRecord(allPath, *allRow); werr != nil {
 					e.logger.Printf("[fast_mids] 全市场mid落盘失败: %v", werr)
+				} else {
+					lastAllPersist = now
 				}
 			}
 			// 07-10 天气格 volx:全市场 24h 量小时序列(5min 节流一次;OKX tickers volCcy24h 之和)
@@ -2449,14 +2509,21 @@ func (e *OKXDirectionalEngine) fastMarketMidLoop(ctx context.Context) {
 				}
 				if err := peerGetJSON("https://www.okx.com/api/v5/market/tickers?instType=SWAP", &tr); err == nil {
 					tot := 0.0
+					v24BySym := make(map[string]float64, len(tr.Data))
 					for _, d := range tr.Data {
-						if len(d.InstID) > 10 && d.InstID[len(d.InstID)-9:] == "-USDT-SWAP" {
-							// 修 audit_005 B1:OKX SWAP 的 volCcy24h 是「币枚数」不是美元 → ×last 换美元,
-							// 与 2 号种子(美元口径)同源;直接求和会让种子接币数轮询污染中位。
-							tot += pf(d.VolCcy24h) * pf(d.Last)
+						// OKX SWAP 的 volCcy24h 是币枚数，×last 换美元。
+						// 后缀必须按完整 "-USDT-SWAP"(10字符)判断；旧 len-9 切片使全部币永远不命中，
+						// total=0 → volx永久不可算 → 所有天气标签 g=-1。
+						if sym, v, ok := fastSwapVolumeUSDT(d.InstID, pf(d.VolCcy24h), pf(d.Last)); ok {
+							tot += v
+							v24BySym[sym] = v
 						}
 					}
 					e.fastWxNoteVol(now, tot)
+					// 新候选只做前向 shadow:每5min复用同一份 tickers，不增加全市场请求。
+					fctx, fcancel := context.WithTimeout(ctx, 8*time.Second)
+					e.fastDirectionFactorShadowTick(fctx, now, books, v24BySym)
+					fcancel()
 				}
 			}
 			// Layer A 粒子账本:广度重算(60s节流)+ 虚拟仓按 E 规则结账(record-only)
@@ -2493,6 +2560,20 @@ func (e *OKXDirectionalEngine) fastMarketMidLoop(ctx context.Context) {
 
 func (e *OKXDirectionalEngine) fastLiveClose(ctx context.Context, p *fastLivePosition, reason string) {
 	sym := p.Symbol
+	claimKey := e.venueName + "|" + p.PositionID
+	fastLiveMu.Lock()
+	cur := fastLivePos[e.venueName][sym]
+	if cur == nil || cur.PositionID != p.PositionID || fastLiveClosing[claimKey] {
+		fastLiveMu.Unlock()
+		return
+	}
+	fastLiveClosing[claimKey] = true
+	fastLiveMu.Unlock()
+	defer func() {
+		fastLiveMu.Lock()
+		delete(fastLiveClosing, claimKey)
+		fastLiveMu.Unlock()
+	}()
 	instr, ok := lookupVenueInstrumentForMarket(ctx, e.v, venue.Symbol(sym), venue.MarketPerp)
 	if !ok {
 		e.logger.Printf("[fast_live] %s 平仓: instrument 缺失,下轮重试", sym)
@@ -2547,7 +2628,26 @@ func (e *OKXDirectionalEngine) fastLiveClose(ctx context.Context, p *fastLivePos
 		return
 	}
 	exitPrice, _ := sanitizeFillPrice(res.AvgPrice, mid, e.cfg.FillPriceMaxDevPct)
-	realized := directionalUPnLPct(dside, p.EntryPrice, exitPrice)*p.NotionalUSDT - p.OpenFeeUSDT - math.Abs(res.Fee)
+	filledQty := math.Min(res.ExecutedQty, p.Qty)
+	closedFrac := filledQty / p.Qty
+	closedNotional := p.NotionalUSDT * closedFrac
+	closeGross := directionalUPnLPct(dside, p.EntryPrice, exitPrice) * closedNotional
+	if filledQty+executionQtyTolerance < p.Qty {
+		fastLiveMu.Lock()
+		if live := fastLivePos[e.venueName][sym]; live != nil && live.PositionID == p.PositionID {
+			live.Qty -= filledQty
+			live.NotionalUSDT -= closedNotional
+			live.ClosedNotionalUSDT += closedNotional
+			live.RealizedPartialUSDT += closeGross - math.Abs(res.Fee)
+			live.CloseFeeUSDT += math.Abs(res.Fee)
+			e.fastLivePersistLocked()
+		}
+		fastLiveMu.Unlock()
+		e.logger.Printf("[fast_live][warn] %s 平仓仅部分成交 %.8f/%.8f，余仓保留并将在下轮继续平", sym, filledQty, p.Qty)
+		return
+	}
+	totalNotional := p.ClosedNotionalUSDT + closedNotional
+	realized := p.RealizedPartialUSDT + closeGross - p.OpenFeeUSDT - math.Abs(res.Fee)
 	now := e.nowFn().UTC()
 	holdSec := int(now.Sub(p.OpenedAt).Seconds())
 	if holdSec < 0 {
@@ -2555,10 +2655,10 @@ func (e *OKXDirectionalEngine) fastLiveClose(ctx context.Context, p *fastLivePos
 	}
 	settle := okxDirectionalSettlement{
 		Time: now, Symbol: sym, Side: p.Side, Entry: p.EntryPrice, Exit: exitPrice,
-		NotionalUSDT: p.NotionalUSDT, RealizedUSDT: realized, HoldMinutes: holdSec / 60, HoldSeconds: holdSec,
+		NotionalUSDT: totalNotional, RealizedUSDT: realized, HoldMinutes: holdSec / 60, HoldSeconds: holdSec,
 		Regime: "fast", Reason: reason, PositionID: p.PositionID,
 		OpenViaTaker: p.OpenViaTaker, CloseViaTaker: legInfo.tookTaker,
-		FeeUSDT:         p.OpenFeeUSDT + math.Abs(res.Fee),
+		FeeUSDT:         p.OpenFeeUSDT + p.CloseFeeUSDT + math.Abs(res.Fee),
 		SignalLayer:     fastSignalLayer,
 		EntryLayer:      fastEntryLayer,
 		ManagementLayer: fastManagementLayer,
@@ -2609,8 +2709,8 @@ func (e *OKXDirectionalEngine) fastLiveClose(ctx context.Context, p *fastLivePos
 		e.logger.Printf("[fast_live] v2 结算副本落盘失败: %v", err)
 	}
 	e.fastDailyAdd(now, sym, realized)
-	e.fastProbeRecord(p.CandidateSource, realized)                    // 探针记账(非探针 source 为 no-op)
-	e.fastSentinelRecord(p.CandidateSource, realized, p.NotionalUSDT) // 哨兵入窗(空 source 为 no-op)
+	e.fastProbeRecord(p.CandidateSource, realized)                   // 探针记账(非探针 source 为 no-op)
+	e.fastSentinelRecord(p.CandidateSource, realized, totalNotional) // 哨兵入窗(空 source 为 no-op)
 	fastLiveMu.Lock()
 	delete(fastLivePos[e.venueName], sym)
 	e.fastLivePersistLocked()
@@ -2752,7 +2852,7 @@ func (e *OKXDirectionalEngine) fastMakerEntry(ctx context.Context, sym string, s
 	price, q := quantizeOrderPriceQty(price, qty, side, instr, contractBased, e.logger, sym)
 	clientID := okxDirectionalClientID(sym, "fastmaker")
 	start := e.nowFn().UTC()
-	placed, perr := e.v.PlaceOrder(ctx, venue.OrderRequest{
+	placed, perr := e.placeDirectionalOrder(ctx, venue.OrderRequest{
 		Market: venue.MarketPerp, Symbol: venue.Symbol(sym), Side: side,
 		Type: venue.OrderTypePostOnly, Qty: q, Price: price, ClientOrderID: clientID, ReduceOnly: false,
 	})
@@ -2834,8 +2934,8 @@ func (e *OKXDirectionalEngine) fastLiveOpen(ctx context.Context, ev *fastExecSha
 		// liq_catch 永远硬闸:已证伪(被迫流持续 1-3 分钟,60s 内接刀三桶全负,力竭/吸收确认都救不了)。
 		allowFade := e.cfg.FastFadeLiveEnabled && ev.CandidateSource == "fade_exhaustion" && ev.PondOK && ev.PondSamples >= fastPondWarmupSamples
 		allowLiqFollow := e.cfg.FastLiqFollowLiveEnabled && ev.CandidateSource == "liq_follow"
-		allowTape := e.cfg.FastTapeLiveEnabled && ev.CandidateSource == "tape_burst" // v6:开=用户批探针(护栏锚定)
-		allowXgap := e.cfg.FastXgapLiveEnabled && ev.CandidateSource == "xgap_rev"   // v6.5 E策略:开=前向过检+用户批探针
+		allowTape := e.cfg.FastTapeLiveEnabled && ev.CandidateSource == "tape_burst"      // v6:开=用户批探针(护栏锚定)
+		allowXgap := e.cfg.FastXgapLiveEnabled && ev.CandidateSource == "xgap_rev"        // v6.5 E策略:开=前向过检+用户批探针
 		allowFw := e.cfg.FastFireworkLiveEnabled && ev.CandidateSource == "firework_pure" // 07-09 烟花枪:K折过检+用户批探针
 		// 07-09 全自动升级管线(用户"考证通过就接入,不用盯着"拍板):阅卷人过门自动接入的
 		// 探针源(auto_probe_sources.json)等同双钥匙已转;预算 20笔/0.5U 治理器封死,
@@ -2867,8 +2967,11 @@ func (e *OKXDirectionalEngine) fastLiveOpen(ctx context.Context, ev *fastExecSha
 	if ev.Mid <= 0 || ev.Bid <= 0 || ev.Ask <= 0 { // 异常盘口不开
 		return "bad_book"
 	}
-	if e.controlPlane != nil && e.controlPlane.IsEmergencyHaltActive() { // 唯一急停
+	if e.controlPlane != nil && e.controlPlane.IsGlobalHaltActive() {
 		return "halt"
+	}
+	if !autonomySourceAllowed(filepath.Dir(e.recordDir), ev.CandidateSource) {
+		return "autonomy_generation_gate"
 	}
 	// v3① 池塘过滤(轮询追型线用):死水/薄盘不下场,不跟机构抢镜面盘。
 	// liq_follow 豁免:事件驱动线资格当刻判定(点差/深度/被迫流),静态池塘判定是滞后名单
@@ -2878,6 +2981,9 @@ func (e *OKXDirectionalEngine) fastLiveOpen(ctx context.Context, ev *fastExecSha
 		return "pond_reject"
 	}
 	sym := ev.Symbol
+	if !e.isExecutionRecoveryReady() {
+		return "execution_recovery_not_ready"
+	}
 	// v2.2 自适应门槛(替代禁开):单币当日亏损档位抬高再入场分数,弱时段(UTC 弱段)提标+降名义。
 	// fade 接型候选无 scorer 分数(机制条件即资格:冲量≥8bps+15s力竭+OK池塘),跳过分数闸;
 	// 冷却/单币退避降名义/日熔断/持仓互斥等其余闸照过。
@@ -2940,6 +3046,16 @@ func (e *OKXDirectionalEngine) fastLiveOpen(ctx context.Context, ev *fastExecSha
 	if hasSlow {
 		return "held_slow"
 	}
+	decisionID := execution.NewDecisionID(e.nowFn().UTC())
+	intentID := execution.DeriveIntentID(decisionID, 0)
+	releaseClaim, claimErr := e.acquireExecutionClaim(sym, intentID)
+	if claimErr != nil {
+		if errors.Is(claimErr, execution.ErrSymbolQuarantined) {
+			return "execution_quarantined"
+		}
+		return "opening_claimed"
+	}
+	defer releaseClaim()
 	notional := e.cfg.FastLiveNotionalUSDT
 	// 07-09 运行时热覆盖(页面"应用"即生效;新仓用新参数,在场仓不受影响;硬顶 50U 防手滑)
 	if rp := loadRuntimeParams(filepath.Dir(e.recordDir)); rp.PerTradeNotionalUSDT > 0 {

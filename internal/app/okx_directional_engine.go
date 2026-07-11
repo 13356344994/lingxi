@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"lingxi/internal/execution"
 	"lingxi/internal/venue"
 	"lingxi/internal/venue/binance"
 	"lingxi/internal/venue/bybit"
@@ -233,7 +234,7 @@ type okxDirectionalSettlement struct {
 	EntryAdaptiveTags string `json:"entry_adaptive_tags,omitempty"`
 	// 07-10 天气标注(入场时刻冻结,record-only):为 2 号天气学的分层预埋,一到直接分层不回补。
 	// 口径=fastSkySnapshot 同源(燃料 5min 爆仓数 / 全市场 30min 广度中位 / 5min 潮汐净向)。
-	WxFuel5m    float64 `json:"wx_fuel_5m,omitempty"`    // 入场时刻全市场近 5min 爆仓笔数(死水<20/风暴≥40)
+	WxFuel5m    float64 `json:"wx_fuel_5m,omitempty"`     // 入场时刻全市场近 5min 爆仓笔数(死水<20/风暴≥40)
 	WxBreadth30 float64 `json:"wx_breadth_30m,omitempty"` // 全市场 30min 收益中位 bps(广跌<-15)
 	WxBreadthOK bool    `json:"wx_breadth_ok,omitempty"`  // 广度是否可算(样本足)
 	WxTideNet   int     `json:"wx_tide_net,omitempty"`    // 5min 潮汐净向(多头爆-空头爆;正=跌潮)
@@ -304,14 +305,19 @@ type OKXDirectionalPositionView struct {
 
 // OKXDirectionalEngine OKX 方向引擎(独立于 carry)。
 type OKXDirectionalEngine struct {
-	cfg       OKXDirectionalConfig
-	netCfg    EngineConfig
-	v         DirectionalVenue
-	venueName string
-	peers     map[string]DirectionalVenue // G3 跨所;本阶段可为 nil
-	logger    *log.Logger
-	recordDir string
-	nowFn     func() time.Time
+	cfg                    OKXDirectionalConfig
+	netCfg                 EngineConfig
+	v                      DirectionalVenue
+	orderExecutor          directionalOrderExecutor
+	executionClaims        *execution.ClaimManager
+	executionReducer       *execution.TradeReducer
+	executionRecoveryReady bool
+	firstBattle            *firstBattleRuntime
+	venueName              string
+	peers                  map[string]DirectionalVenue // G3 跨所;本阶段可为 nil
+	logger                 *log.Logger
+	recordDir              string
+	nowFn                  func() time.Time
 
 	mu                sync.RWMutex
 	positions         map[string]*okxDirectionalPosition // 多币并发持仓(键=symbol)
@@ -370,6 +376,10 @@ func NewDirectionalEngine(venueName string, v DirectionalVenue, peers map[string
 		cfg:              cfg.OKXDirectional,
 		netCfg:           cfg,
 		v:                v,
+		orderExecutor:    newGuardedDirectionalOrderExecutor(v, true),
+		executionClaims:  execution.NewClaimManager(),
+		executionReducer: execution.NewTradeReducer(),
+		firstBattle:      newFirstBattleRuntime(),
 		venueName:        venueName,
 		peers:            peers,
 		logger:           logger,
@@ -472,10 +482,11 @@ func okxDirectionalRecordDir(base string) string {
 // reason 须含"止损"以走 closePosition 的 urgent 路径(跳过 maker、放宽滑点)。
 func (e *OKXDirectionalEngine) FlattenAll(ctx context.Context, reason string) error {
 	poss := e.openPositionsSnapshot()
-	if len(poss) == 0 {
+	fastPoss := e.fastOpenPositionsSnapshot()
+	if len(poss) == 0 && len(fastPoss) == 0 {
 		return nil
 	}
-	e.logger.Printf("[OKX方向][账户风控] 二级自动全平开始: %d 仓 原因=%s", len(poss), reason)
+	e.logger.Printf("[OKX方向][账户风控] 二级自动全平开始: slow=%d fast=%d 原因=%s", len(poss), len(fastPoss), reason)
 	for _, pos := range poss {
 		if !pos.isOpen() {
 			continue
@@ -496,12 +507,19 @@ func (e *OKXDirectionalEngine) FlattenAll(ctx context.Context, reason string) er
 		}
 		e.closePosition(ctx, pos, mid, uPnLNotional, holdMin, reason)
 	}
+	for _, pos := range fastPoss {
+		if pos == nil || pos.Qty <= executionQtyTolerance {
+			continue
+		}
+		e.fastLiveClose(ctx, pos, "fast_account_risk_flatten")
+	}
 	remaining := 0
 	for _, p := range e.openPositionsSnapshot() {
 		if p.isOpen() {
 			remaining++
 		}
 	}
+	remaining += len(e.fastOpenPositionsSnapshot())
 	if remaining > 0 {
 		return fmt.Errorf("%s 全平后仍有 %d 仓在场(见 last_error/日志)", e.venueName, remaining)
 	}
@@ -514,6 +532,14 @@ func (e *OKXDirectionalEngine) Run(ctx context.Context) {
 	if interval < 15*time.Second {
 		interval = 15 * time.Second
 	}
+	recoveryCtx, recoveryCancel := context.WithTimeout(ctx, 15*time.Second)
+	if err := e.reconcileExchangePositionsOnBoot(recoveryCtx); err != nil {
+		e.logger.Printf("[%s][execution_recovery] 启动真仓屏障未收敛，保持 shadow/manage-only: %v", e.venueName, err)
+	} else {
+		e.logger.Printf("[%s][execution_recovery] 本地投影与交易所真仓一致", e.venueName)
+	}
+	recoveryCancel()
+	e.startPrivateExecutionTruth(ctx)
 	e.logger.Printf("[OKX方向] 引擎启动 live=%v 周期=%s 风控=%s", e.cfg.LiveTradingEnabled, interval, okxDirectionalRiskInterval)
 	e.logEffectiveParams()
 	full := time.NewTicker(interval)
@@ -531,9 +557,10 @@ func (e *OKXDirectionalEngine) Run(ctx context.Context) {
 		if e.cfg.FastMarketMidsEnabled {
 			go e.fastMarketMidLoop(ctx) // v5 全市场 mid 标尺(盲区闸根治;record-only 基建)
 		}
-		if e.cfg.FastParticleLedgerEnabled {
-			go e.fastExamSupervisorLoop(ctx) // ㊺-补2 自动阅卷人(到线自动发准考证/判负+推送)
-			go e.fastMinerLoop(ctx)          // 54-补 自动挖掘器(4h/轮,过检自动进考场)
+		if e.cfg.FastParticleLedgerEnabled && legacyAutonomousResearchEnabled {
+			go e.fastExamSupervisorLoop(ctx)  // ㊺-补2 自动阅卷人(到线自动发准考证/判负+推送)
+			go e.fastMinerLoop(ctx)           // 54-补 自动挖掘器(4h/轮,过检自动进考场)
+			go e.autonomousLifecycleLoop(ctx) // 完全自主:shadow→探针→持证/退役→总止错后重新学习
 		}
 	}
 	if e.fastXvenueLiqEnabled() {
@@ -2248,6 +2275,51 @@ func (e *OKXDirectionalEngine) closePosition(ctx context.Context, pos *okxDirect
 		e.logger.Printf("[OKX方向] %s 平仓失败: %v", pos.Symbol, cerr)
 		return
 	}
+	if res.ExecutedQty+executionQtyTolerance < pos.Qty {
+		// IOC/挂单组合只平掉一部分时绝不能删除整仓；历史残腿事故即由“本地先归零”造成。
+		closedFrac := res.ExecutedQty / pos.Qty
+		closedNotional := pos.NotionalUSDT * closedFrac
+		realizedPartial := directionalUPnLPct(pos.directionSide(), pos.EntryPrice, exitPrice) * closedNotional
+		proratedOpenFee := pos.OpenFeeUSDT * closedFrac
+		holdSec := int(e.nowFn().UTC().Sub(pos.OpenedAt).Seconds())
+		if holdSec < 0 {
+			holdSec = 0
+		}
+		settle := okxDirectionalSettlement{
+			Time: e.nowFn().UTC(), Symbol: pos.Symbol, Side: pos.Side, Entry: pos.EntryPrice, Exit: exitPrice,
+			NotionalUSDT: closedNotional, RealizedUSDT: realizedPartial, HoldMinutes: holdMin, HoldSeconds: holdSec,
+			Regime: pos.Regime, Reason: reason + "(部分成交)", FundingAtOpen: pos.FundingAtOpen, PositionID: pos.PositionID,
+			EntrySlipBps: pos.EntrySlipBps, ExitSlipBps: directionalSlipBps(closeSide, mid, exitPrice),
+			OpenViaTaker: pos.OpenViaTaker, CloseViaTaker: closeInfo.tookTaker,
+			FeeUSDT: proratedOpenFee + math.Abs(res.Fee), OpenMicro: pos.OpenMicro,
+			SignalLayer: pos.SignalLayer, EntryLayer: pos.EntryLayer, ManagementLayer: pos.ManagementLayer,
+			RegimeDegradeHit: pos.RegimeDegradeHit, RegimeDegradeReason: pos.RegimeDegradeReason,
+		}
+		if err := appendJSONLRecord(e.settlementsPath, settle); err != nil {
+			e.logger.Printf("[OKX方向] 部分成交结算落盘失败: %v", err)
+		}
+		e.mu.Lock()
+		if live := e.positions[pos.Symbol]; live != nil && live.PositionID == pos.PositionID {
+			live.Qty -= res.ExecutedQty
+			live.NotionalUSDT -= closedNotional
+			live.RealizedPartialUSDT += realizedPartial
+			live.OpenFeeUSDT -= proratedOpenFee
+			if live.Qty < 0 {
+				live.Qty = 0
+			}
+			if live.NotionalUSDT < 0 {
+				live.NotionalUSDT = 0
+			}
+			if live.OpenFeeUSDT < 0 {
+				live.OpenFeeUSDT = 0
+			}
+		}
+		e.dailyRealizedUSDT += realizedPartial
+		e.mu.Unlock()
+		e.persistPositions()
+		e.logger.Printf("[OKX方向][warn] %s 平仓仅部分成交 %.8f/%.8f，余仓保留并将在下轮继续平", pos.Symbol, res.ExecutedQty, pos.Qty)
+		return
+	}
 	// 记账口径:默认盘口(平仓时刻真实 mark-to-market);仅当成交价可信且不是「回读成持仓均价」的伪值时才用真实成交价。
 	// 根治 Gate 假 0:某些 venue 平仓 AvgPrice 被回读成持仓均价(exit≈entry),用成交价算就记成假 0 污染复盘。
 	// 因此 exit≈entry(到 1e-6)一律判为回读伪值 → 用盘口口径(realized 已是盘口默认值)并把 Exit 记成盘口。
@@ -2664,7 +2736,7 @@ func (e *OKXDirectionalEngine) placeDirectionalLeg(
 		price, remaining = quantizeOrderPriceQty(price, remaining, side, instr, contractBased, e.logger, string(sym))
 		makerID := crossVenueLegClientID(clientID, fmt.Sprintf("m%d", attempt))
 		logLiveOrderLeg(e.logger, e.venueName, venue.MarketPerp, string(sym), side, price, instr.TickSize, remaining, instr.StepSize)
-		placed, perr := e.v.PlaceOrder(ctx, venue.OrderRequest{
+		placed, perr := e.placeDirectionalOrder(ctx, venue.OrderRequest{
 			Market:        venue.MarketPerp,
 			Symbol:        sym,
 			Side:          side,
@@ -2755,7 +2827,7 @@ func (e *OKXDirectionalEngine) placeDirectionalLeg(
 	takerPrice, remaining = quantizeOrderPriceQty(takerPrice, remaining, side, instr, contractBased, e.logger, string(sym))
 	takerID := crossVenueLegClientID(clientID, "tk")
 	logLiveOrderLeg(e.logger, e.venueName, venue.MarketPerp, string(sym), side, takerPrice, instr.TickSize, remaining, instr.StepSize)
-	takerRes, terr := e.v.PlaceOrder(ctx, venue.OrderRequest{
+	takerRes, terr := e.placeDirectionalOrder(ctx, venue.OrderRequest{
 		Market:        venue.MarketPerp,
 		Symbol:        sym,
 		Side:          side,

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"lingxi/internal/core"
+	"lingxi/internal/execution"
 	"lingxi/internal/venue"
 )
 
@@ -22,11 +23,13 @@ func newFastV3TestEngine(t *testing.T) *OKXDirectionalEngine {
 	cfg := core.DefaultEngineConfig().OKXDirectional
 	cfg.FastAltCandidatesEnabled = true
 	return &OKXDirectionalEngine{
-		cfg:       cfg,
-		venueName: "test_v3_" + t.Name(),
-		recordDir: t.TempDir(),
-		logger:    log.New(io.Discard, "", 0),
-		nowFn:     time.Now,
+		cfg:                    cfg,
+		venueName:              "test_v3_" + t.Name(),
+		recordDir:              t.TempDir(),
+		logger:                 log.New(io.Discard, "", 0),
+		nowFn:                  time.Now,
+		executionClaims:        execution.NewClaimManager(),
+		executionRecoveryReady: true,
 	}
 }
 
@@ -602,10 +605,10 @@ func TestFastTapeLine(t *testing.T) {
 	fastTapeMu.Lock()
 	fastTapeQueue = nil
 	fastTapeMu.Unlock()
-	fastTapeEnqueue("TA-USDT", "short", base, 800, 8, 0)              // 将被确认(方向对号)
+	fastTapeEnqueue("TA-USDT", "short", base, 800, 8, 0)                     // 将被确认(方向对号)
 	fastTapeEnqueue("TB-USDT", "long", base.Add(-10*time.Second), 600, 6, 0) // 过期(>3s)
-	fastTapeEnqueue("TC-USDT", "short", base, 700, 7, 0)              // 未确认,应留队
-	fastTapeEnqueue("TD-USDT", "long", base, 900, 9, 0)               // 将被确认但方向错号
+	fastTapeEnqueue("TC-USDT", "short", base, 700, 7, 0)                     // 未确认,应留队
+	fastTapeEnqueue("TD-USDT", "long", base, 900, 9, 0)                      // 将被确认但方向错号
 	liqSides := func(sym string, since time.Time) []string {
 		switch sym {
 		case "TA-USDT":

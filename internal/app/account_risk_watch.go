@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"lingxi/internal/money"
+	risktruth "lingxi/internal/risk"
 )
 
 const (
@@ -40,6 +41,8 @@ type accountRiskSnapshot struct {
 	DailyRealizedPnLUSDT        float64            `json:"daily_realized_pnl_usdt"`
 	DailyEquityDeltaUSDT        float64            `json:"daily_equity_delta_usdt"`
 	DailyFundFlowAdjustUSDT     float64            `json:"daily_fund_flow_adjust_usdt,omitempty"`
+	VenueEquities               map[string]float64 `json:"venue_equities,omitempty"`
+	DailyFundFlowByVenueUSDT    map[string]float64 `json:"daily_fund_flow_by_venue_usdt,omitempty"`
 	DailyEquityDeltaForRiskUSDT float64            `json:"daily_equity_delta_for_risk_usdt"`
 	VenueEquityDeltas           map[string]float64 `json:"venue_equity_deltas,omitempty"`
 	EquityDataTrusted           bool               `json:"equity_data_trusted"`
@@ -55,6 +58,9 @@ type accountRiskSnapshot struct {
 	// RealEquityDrawdownAdjustedUSDT 扣全时净充提后的交易口径回撤(自动全平/告警以此为准),
 	// 提现不再被算成回撤;真实交易亏损仍如实计入。
 	RealEquityDrawdownAdjustedUSDT float64        `json:"real_equity_drawdown_adjusted_usdt"`
+	TradingEquityUSDT              float64        `json:"trading_equity_usdt"`
+	SolvencyEquityUSDT             float64        `json:"solvency_equity_usdt"`
+	EquityTruthHasPending          bool           `json:"equity_truth_has_pending"`
 	RealEquityQualityPassed        bool           `json:"real_equity_quality_passed"`
 	RealEquityQualityFailReason    string         `json:"real_equity_quality_fail_reason,omitempty"`
 	RealEquityPeakConfirmed        bool           `json:"real_equity_peak_confirmed"`
@@ -176,10 +182,17 @@ type accountRiskEquityState struct {
 	CumulativeFundFlowUSDT float64
 	// TradingEquityPeakUSDT 交易口径权益(realEquity − CumulativeFundFlow)的高水位,跨天保留。
 	TradingEquityPeakUSDT float64
-	LastDailyRealizedPnL  float64
-	LastSettlementCount   int
-	LastPositionCount     int
-	fundFlowSourceLogged  bool
+	// EquityTruth 是资金流/权益异步事件的持久化真相账本；旧累计字段仅保留兼容展示。
+	EquityTruth              risktruth.EquityTruthSnapshot
+	EquityTruthObsSeq        int64
+	EquityTruthFlowSeq       int64
+	EquityTruthHasPending    bool
+	TradingEquityCurrentUSDT float64
+	SolvencyEquityUSDT       float64
+	LastDailyRealizedPnL     float64
+	LastSettlementCount      int
+	LastPositionCount        int
+	fundFlowSourceLogged     bool
 	// DailyFundFlowSource 当日充提平移来源:real(交易所充提历史确权) / real+reconcile(real 之外残差按无持仓推断) / heuristic(纯残差推断)。
 	// DailyFundFlowReconcileUSDT 平移额中「未经交易所确权」的部分(reconcile/heuristic 推断),供面板高亮提示用户确认,杜绝把真实亏损静默当成充提隐藏。
 	DailyFundFlowSource        string
@@ -209,6 +222,50 @@ func (st *accountRiskEquityState) updateTradingEquityDrawdown(realCurrent, realP
 		dd = 0
 	}
 	return dd
+}
+
+// updateEquityTruthDrawdown 用事件账本处理资金流与权益异步到达，避免“资金流先到、权益后到”
+// 把提现永久留成交易回撤。返回交易回撤与是否仍有待配对事件。
+func (st *accountRiskEquityState) updateEquityTruthDrawdown(
+	obs accountEquityObservation,
+	fundFlowStep float64,
+	now time.Time,
+	reanchored bool,
+) (float64, bool) {
+	if st == nil || !obs.ReadOK || obs.TotalUSDT <= 0 {
+		return 0, false
+	}
+	ledger := risktruth.NewEquityTruthLedger("account")
+	ledger.Restore(st.EquityTruth)
+	st.EquityTruthObsSeq++
+	view := ledger.ApplyEquityObservation(risktruth.EquityObservation{
+		ObservationID: fmt.Sprintf("account_equity_%d", st.EquityTruthObsSeq),
+		Venue:         "account",
+		RawEquity:     risktruth.MicroUSDTFromFloat64(obs.TotalUSDT),
+		ExchangeTime:  now,
+		ReceivedAt:    now,
+	})
+	if fundFlowStep != 0 {
+		st.EquityTruthFlowSeq++
+		view = ledger.ApplyFundFlow(risktruth.FundFlowEvent{
+			EventID:      fmt.Sprintf("account_flow_%d", st.EquityTruthFlowSeq),
+			Venue:        "account",
+			Amount:       risktruth.MicroUSDTFromFloat64(fundFlowStep),
+			ExchangeTime: now,
+			ReceivedAt:   now,
+		})
+	}
+	view = ledger.ExpirePending(now)
+	if reanchored && !view.HasPending {
+		ledger.ReanchorCleanFrontier(view.TradingEquity)
+		view = ledger.View()
+	}
+	st.EquityTruth = ledger.Snapshot()
+	st.EquityTruthHasPending = view.HasPending
+	st.TradingEquityCurrentUSDT = view.TradingEquity.Float64()
+	st.SolvencyEquityUSDT = view.SolvencyEquity.Float64()
+	st.TradingEquityPeakUSDT = view.HighWaterCleanFrontier.Float64()
+	return view.DrawdownFromFrontier.Float64(), view.HasPending
 }
 
 func (st *accountRiskEquityState) resetForDay(dayStart time.Time) {
@@ -362,6 +419,12 @@ func (w *accountRiskWatcher) tickOnce() {
 		w.persistObservation(snap, accountRiskThresholdResult{}, accountHardHaltIntent{}, accountAutoFlattenIntent{})
 		return
 	}
+	// 完全自主系统总止错:OKX 交易账户资金流调整高水位回撤30%。
+	// 触发后全平并进入 relearning；旧策略不得按时间原样恢复。
+	if w.handleAutonomousRisk(snap, now) {
+		w.persistObservation(snap, accountRiskThresholdResult{}, accountHardHaltIntent{}, accountAutoFlattenIntent{})
+		return
+	}
 
 	// 07-09 运行时资金参数热覆盖(用户页面"应用"即生效,不重启):只覆盖日亏/回撤两阈值,
 	// 其余风控语义不变;0=沿用 config。
@@ -486,6 +549,8 @@ func (w *accountRiskWatcher) buildSnapshot(now time.Time) accountRiskSnapshot {
 	connectivityBlind := isEquitySamplerConnectivityBlind(w.recordDir)
 	needsReanchor := blindGap || connectivityBlind
 	reanchoredThisTick := false
+	fundFlowStep := 0.0
+	fundFlowSource := ""
 	if trusted && needsReanchor {
 		if w.logger != nil {
 			w.logger.Printf("[账户风控] 因盲区重锚,不计入回撤(last_trusted_at=%s connectivity_blind=%v)",
@@ -500,7 +565,7 @@ func (w *accountRiskWatcher) buildSnapshot(now time.Time) accountRiskSnapshot {
 		if lookup == nil {
 			lookup = defaultAccountFundFlowLookup(w.equity.Venues())
 		}
-		_, fundFlowStep := applyAccountFundFlowAdjustment(
+		fundFlowSource, fundFlowStep = applyAccountFundFlowAdjustment(
 			ctx,
 			&w.equityState,
 			obs,
@@ -531,8 +596,12 @@ func (w *accountRiskWatcher) buildSnapshot(now time.Time) accountRiskSnapshot {
 	// CumulativeFundFlow,tradingEquity 连续不跳 → 既不制造也不掩盖回撤;只有真实交易盈亏移动它。
 	// 据此重锚的交易峰值供自动全平/告警用,杜绝把提现误判成回撤触发全平。
 	realEquityDrawdownAdjusted := realDrawdown
-	if realQuality.Passed && realCurrent > 0 {
-		realEquityDrawdownAdjusted = w.equityState.updateTradingEquityDrawdown(realCurrent, realPeak, reanchoredThisTick)
+	if trusted && obs.TotalUSDT > 0 {
+		confirmedFlowStep := 0.0
+		if fundFlowSource == "real" {
+			confirmedFlowStep = fundFlowStep
+		}
+		realEquityDrawdownAdjusted, _ = w.equityState.updateEquityTruthDrawdown(obs, confirmedFlowStep, now, reanchoredThisTick)
 		_ = saveAccountRiskEquityState(w.recordDir, &w.equityState, now)
 	}
 
@@ -542,6 +611,8 @@ func (w *accountRiskWatcher) buildSnapshot(now time.Time) accountRiskSnapshot {
 		DailyRealizedPnLUSDT:           daily.TotalNetPnL,
 		DailyEquityDeltaUSDT:           rawDailyDelta,
 		DailyFundFlowAdjustUSDT:        dailyFundFlowAdjust,
+		VenueEquities:                  copyVenueEquityMap(obs.ByVenue),
+		DailyFundFlowByVenueUSDT:       copyVenueEquityMap(w.equityState.DailyFundFlowByVenueUSDT),
 		DailyEquityDeltaForRiskUSDT:    dailyEquityForRisk,
 		DailyLosingTradeCount:          dailyLosingTrades,
 		VenueEquityDeltas:              obs.VenueDeltas,
@@ -555,6 +626,9 @@ func (w *accountRiskWatcher) buildSnapshot(now time.Time) accountRiskSnapshot {
 		RealEquityPeakUSDT:             realPeak,
 		RealEquityDrawdownUSDT:         realDrawdown,
 		RealEquityDrawdownAdjustedUSDT: realEquityDrawdownAdjusted,
+		TradingEquityUSDT:              w.equityState.TradingEquityCurrentUSDT,
+		SolvencyEquityUSDT:             w.equityState.SolvencyEquityUSDT,
+		EquityTruthHasPending:          w.equityState.EquityTruthHasPending,
 		RealEquityQualityPassed:        realQuality.Passed,
 		RealEquityQualityFailReason:    realQuality.Reason,
 		RealEquityPeakConfirmed:        realQuality.PeakConfirmed,
@@ -651,6 +725,9 @@ func evaluateAccountHardHaltIntent(snap accountRiskSnapshot, cfg RiskConfig) acc
 // evaluateAccountAutoFlattenIntent 纯函数:二级自动全平(opt-in + 高阈值 + 仅认 equity_snapshots 真实现金回撤)。
 func evaluateAccountAutoFlattenIntent(snap accountRiskSnapshot, cfg RiskConfig) accountAutoFlattenIntent {
 	if !snap.EquityDataTrusted {
+		return accountAutoFlattenIntent{}
+	}
+	if snap.EquityTruthHasPending {
 		return accountAutoFlattenIntent{}
 	}
 	if !snap.RealEquityQualityPassed {
@@ -1011,7 +1088,8 @@ func loadStrategySettlementRecordsFromDir(recordDir string) ([]strategySettlemen
 	return out, nil
 }
 
-// collectPositionSummary 从各所方向引擎的 position.json 汇总在场仓位(文件即事实源,无需持引擎引用)。
+// collectPositionSummary 从各所慢线 position.json 与 fast_positions.json 汇总在场仓位。
+// 交易所实仓仍由独立 reconciliation 负责；这里至少保证账户风控不再漏掉当前真钱主路径 fast。
 func (w *accountRiskWatcher) collectPositionSummary() accountRiskPositionSummary {
 	var summary accountRiskPositionSummary
 	summary.ByStrategy = make(map[string]int)
@@ -1023,22 +1101,66 @@ func (w *accountRiskWatcher) collectPositionSummary() accountRiskPositionSummary
 		NotionalUSDT float64 `json:"notional_usdt"`
 	}
 	for _, vn := range directionalVenueNames {
-		path := filepath.Join(directionalRecordDir(w.recordDir, vn), okxDirectionalPositionFile)
+		dir := directionalRecordDir(w.recordDir, vn)
+		path := filepath.Join(dir, okxDirectionalPositionFile)
 		data, err := os.ReadFile(path)
-		if err != nil {
+		if err == nil {
+			var positions []directionalPositionLite
+			if json.Unmarshal(data, &positions) == nil && len(positions) > 0 {
+				summary.ByStrategy["directional_"+vn] = len(positions)
+				summary.TotalCount += len(positions)
+				for _, p := range positions {
+					summary.OpenNotional = money.SumUSDT(summary.OpenNotional, p.NotionalUSDT)
+				}
+			}
+		}
+		fastPath := filepath.Join(dir, fastLivePositionFile)
+		fastData, ferr := os.ReadFile(fastPath)
+		if ferr != nil {
 			continue
 		}
-		var positions []directionalPositionLite
-		if err := json.Unmarshal(data, &positions); err != nil {
+		var fastPositions []directionalPositionLite
+		if err := json.Unmarshal(fastData, &fastPositions); err != nil || len(fastPositions) == 0 {
 			continue
 		}
-		if len(positions) == 0 {
-			continue
-		}
-		summary.ByStrategy["directional_"+vn] = len(positions)
-		summary.TotalCount += len(positions)
-		for _, p := range positions {
+		key := "fast_directional_" + vn
+		summary.ByStrategy[key] = len(fastPositions)
+		summary.TotalCount += len(fastPositions)
+		for _, p := range fastPositions {
 			summary.OpenNotional = money.SumUSDT(summary.OpenNotional, p.NotionalUSDT)
+		}
+	}
+	// 交易所实仓优先：四所全部查询成功时，以真实持仓覆盖本地汇总。
+	// 任一所失败则保守退回本地账本，避免把“查询失败”误当“零仓”。
+	if w.equity != nil {
+		venues := w.equity.Venues()
+		if len(venues) > 0 {
+			actual := accountRiskPositionSummary{ByStrategy: make(map[string]int)}
+			allOK := true
+			for name, v := range venues {
+				ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+				positions, err := v.FetchPositions(ctx)
+				cancel()
+				if err != nil {
+					allOK = false
+					break
+				}
+				for _, p := range positions {
+					if math.Abs(p.PositionAmt) <= executionQtyTolerance {
+						continue
+					}
+					actual.TotalCount++
+					actual.ByStrategy["exchange_"+name]++
+					mark := p.MarkPrice
+					if mark <= 0 {
+						mark = p.EntryPrice
+					}
+					actual.OpenNotional = money.SumUSDT(actual.OpenNotional, math.Abs(p.PositionAmt)*mark)
+				}
+			}
+			if allOK {
+				return actual
+			}
 		}
 	}
 	return summary

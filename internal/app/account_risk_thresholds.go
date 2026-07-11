@@ -2,6 +2,8 @@ package app
 
 import "math"
 
+const maxGrossLeverageHardCap = 5.0
+
 // effectiveLossDrawdownThresholdUSDT 亏损/回撤类有效阈值(纯函数)。
 // pct>0 且 equity>0: max(usdtFloor, pct×equity); pct>0 且 equity≤0: 退回 usdtFloor;
 // pct=0: 仅 usdtFloor(向后兼容)。
@@ -19,17 +21,21 @@ func effectiveLossDrawdownThresholdUSDT(usdtFloor, pct, equityUSDT float64) floa
 	return math.Max(usdtFloor, scaled)
 }
 
-// effectiveOpenNotionalLimitUSDT 在场名义上限: max_gross_leverage×当前权益,USDT 封顶作小账户 floor。
-// leverage=0 时退回固定 usdtCap。
+// effectiveOpenNotionalLimitUSDT 在场名义上限:固定 USDT 与杠杆口径取更严格者(min)。
+// 修复旧逻辑 max() 导致的小账户放宽问题;杠杆口径硬顶 5x。
 func effectiveOpenNotionalLimitUSDT(usdtCap, maxGrossLeverage, equityUSDT float64) float64 {
+	var scaled float64
 	if maxGrossLeverage > 0 && equityUSDT > 0 {
-		scaled := maxGrossLeverage * equityUSDT
-		if usdtCap > 0 {
-			return math.Max(usdtCap, scaled)
-		}
+		scaled = math.Min(maxGrossLeverage, maxGrossLeverageHardCap) * equityUSDT
+	}
+	switch {
+	case usdtCap > 0 && scaled > 0:
+		return math.Min(usdtCap, scaled)
+	case usdtCap > 0:
+		return usdtCap
+	default:
 		return scaled
 	}
-	return usdtCap
 }
 
 // effectiveTotalDeployableUSDT 全局可部署预算: pct>0 且 equity>0 → pct×equity; 否则 usdtCap。

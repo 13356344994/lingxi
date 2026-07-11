@@ -280,8 +280,8 @@ func TestSanitizeRuntimeParams(t *testing.T) {
 	}
 }
 
-// TestFastAutoProbe 全自动升级管线:过门自动接入探针(去重/并发上限/合并判定)。
-func TestFastAutoProbe(t *testing.T) {
+// TestFastAutoProbeRegistrySealed 旧自动名单仍可审计读取，但重构期不得赋予真钱身份。
+func TestFastAutoProbeRegistrySealed(t *testing.T) {
 	e := newFastV3TestEngine(t)
 	fastAutoProbeMu.Lock()
 	fastAutoProbeCache = fastAutoProbeState{}
@@ -299,15 +299,15 @@ func TestFastAutoProbe(t *testing.T) {
 	if e.fastAutoProbeAdmit("src_c") {
 		t.Fatal("第三源应被并发上限拦下")
 	}
-	if !e.fastProbeAllowed("firework_pure") || e.fastProbeAllowed("src_c") {
-		t.Fatal("合并判定错:自动名单内应放行,名单外应拒")
+	if e.fastProbeAllowed("firework_pure") || e.fastProbeAllowed("src_c") {
+		t.Fatal("重构期旧自动名单与名单外来源都不得取得真钱身份")
 	}
-	// 自动身份走通来源闸+持证闸(live 开关全关时 allowAuto 放行)
+	// 即使旧名单和 live 开关仍在，来源也只能 record-only。
 	ev := &fastExecShadowEvent{Symbol: "FW-USDT", Mid: 1, Bid: 0.999, Ask: 1.001,
 		CandidateSource: "firework_pure", FastCandidateSide: "short", PondOK: true, PondSamples: 9999}
 	e.cfg.FastLiveEnabled = true
-	if r := e.fastLiveOpen(nil, ev); r == "record_only_source" || r == "no_cert" {
-		t.Fatalf("自动探针身份应过来源闸与持证闸,得 %s", r)
+	if r := e.fastLiveOpen(nil, ev); r != "record_only_source" {
+		t.Fatalf("旧自动身份必须降级 record-only,得 %s", r)
 	}
 }
 
