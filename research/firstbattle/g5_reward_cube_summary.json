@@ -1,0 +1,32 @@
+{
+  "schema_version": "lingxi.router-g5-reward-cube.project-summary.v1",
+  "generation": "firstbattle-router-g5",
+  "protocol_hash": "bfe9f784039a89b773f2f9a0fb86d252c39ffa52b7f7202071e02bcc32333a7d",
+  "profile_id": "okx_5m",
+  "scope": "TRUNCATED_SMOKE",
+  "selected_primary_files": 3,
+  "available_primary_files": 200,
+  "max_lines_per_file": 3000,
+  "partitions": {
+    "discovery_rewards": 2791536,
+    "validation_rewards": 874368,
+    "walk_forward_rewards": 870474
+  },
+  "discovery": {
+    "flat_state_rewards": 761328,
+    "long_state_rewards": 1015104,
+    "short_state_rewards": 1015104,
+    "capacity_failure_rate": 0.10865989190180603,
+    "conservative_positive_rate_by_horizon": {
+      "5m": 0.0181706415392816,
+      "15m": 0.03449713706002717,
+      "60m": 0.08035002951779951,
+      "240m": 0.15048202853196233
+    }
+  },
+  "training_label_count": 100000,
+  "feature_context_rows": 8743,
+  "feature_hash": "cf2b12a35204a8c8daa557375b710feec0cbdda5bbe3dffef9a59ae7aef735b5",
+  "note": "低CPU工程smoke，仅验证动态动作数据链；不得解释为全市场收益结论。",
+  "exam_actions": 0
+}

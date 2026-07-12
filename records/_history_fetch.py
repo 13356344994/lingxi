@@ -2,11 +2,15 @@
 # -*- coding: utf-8 -*-
 """一次性长历史行情采集脚本(给"天气多样性验证"买数据)。
 
-采集内容:
-  a) OKX 1H K线   全部 USDT 本位 SWAP,翻页到 2024-01-01(或 API 到底) -> records/history/okx_1h/{instId}.jsonl
-  b) OKX 5m K线   24h 成交额前 150 合约,向前翻 60 天                  -> records/history/okx_5m/{instId}.jsonl
-  c) Bybit 资费    全部 linear USDT 永续,翻一年                        -> records/history/bybit_funding/{symbol}.jsonl
-  d) OKX 资费      全部 USDT SWAP,翻到底(约3个月)                     -> records/history/okx_funding/{instId}.jsonl
+采集内容(按优先队列执行):
+  第一梯队:24h 成交额前 200 合约,每个币依次下完 4 种数据:
+    okx_5m(60天) -> records/history/okx_5m/{instId}.jsonl
+    okx_1h(到2024-01-01) -> records/history/okx_1h/{instId}.jsonl
+    okx_funding(API到底约3个月) -> records/history/okx_funding/{instId}.jsonl
+    bybit_funding(一年;OKX BTC-USDT-SWAP -> Bybit BTCUSDT,映射失败跳过并记日志)
+      -> records/history/bybit_funding/{symbol}.jsonl
+  第二梯队:其余全部 USDT SWAP 的 okx_1h
+  第三梯队:其余币的资费(okx_funding + 剩余 bybit_funding)
 
 工程特性:
   - 全局限频 <=5 req/s;429/403 指数退避 1s->2s->4s->..->60s
@@ -165,7 +169,7 @@ def get_okx_usdt_swaps():
     return insts
 
 
-def get_okx_top150_by_turnover():
+def get_okx_top_by_turnover(n):
     j = http_get(OKX_BASE + "/api/v5/market/tickers", {"instType": "SWAP"})
     rows = []
     for t in j.get("data", []):
@@ -179,7 +183,14 @@ def get_okx_top150_by_turnover():
             turnover = 0.0
         rows.append((turnover, inst))
     rows.sort(reverse=True)
-    return [inst for _, inst in rows[:150]]
+    return [inst for _, inst in rows[:n]]
+
+
+def okx_to_bybit_symbol(inst):
+    """OKX BTC-USDT-SWAP -> Bybit BTCUSDT;不匹配返回 None。"""
+    if not inst.endswith("-USDT-SWAP"):
+        return None
+    return inst[:-len("-USDT-SWAP")] + "USDT"
 
 
 def get_bybit_linear_usdt_symbols():
@@ -314,16 +325,45 @@ def main():
     log("collecting instrument lists ...")
 
     okx_swaps = get_okx_usdt_swaps()
-    top150 = get_okx_top150_by_turnover()
+    top = [i for i in get_okx_top_by_turnover(200) if i in set(okx_swaps)]
     bybit_syms = get_bybit_linear_usdt_symbols()
 
     if TRIAL:
         okx_swaps = [i for i in TRIAL_INSTS if i in okx_swaps] or TRIAL_INSTS
-        top150 = list(okx_swaps)
+        top = list(okx_swaps)
         bybit_syms = [s for s in TRIAL_BYBIT if s in bybit_syms] or TRIAL_BYBIT
 
-    n_1h, n_5m, n_bf, n_of = len(okx_swaps), len(top150), len(bybit_syms), len(okx_swaps)
-    STATE["total"] = n_1h + n_5m + n_bf + n_of
+    bybit_set = set(bybit_syms)
+    top_set = set(top)
+    rest = [i for i in okx_swaps if i not in top_set]
+
+    # ---- 构建优先队列 ----
+    # 第一梯队:前200名成交额币,每币 5m -> 1h -> okx资费 -> bybit资费
+    tasks = []          # (kind, symbol)
+    top_bybit = set()   # 第一梯队已覆盖的 bybit 符号
+    for inst in top:
+        tasks.append(("okx_5m", inst))
+        tasks.append(("okx_1h", inst))
+        tasks.append(("okx_funding", inst))
+        bsym = okx_to_bybit_symbol(inst)
+        if bsym in bybit_set:
+            tasks.append(("bybit_funding", bsym))
+            top_bybit.add(bsym)
+        else:
+            log("bybit map miss: %s -> %s 不在 Bybit linear USDT 永续列表,跳过" % (inst, bsym))
+    # 第二梯队:其余币 1H
+    tasks.extend(("okx_1h", inst) for inst in rest)
+    # 第三梯队:其余币资费
+    tasks.extend(("okx_funding", inst) for inst in rest)
+    tasks.extend(("bybit_funding", s) for s in bybit_syms if s not in top_bybit)
+
+    n_1h, n_5m, n_of = len(okx_swaps), len(top), len(okx_swaps)
+    n_bf = sum(1 for k, _ in tasks if k == "bybit_funding")
+    STATE["total"] = len(tasks)
+
+    log("priority queue: %d tasks (top%d x4种数据 -> 其余%d币1H -> 其余资费)"
+        % (len(tasks), len(top), len(rest)))
+    log("queue head: %s" % ", ".join("%s:%s" % t for t in tasks[:10]))
 
     # ---- 磁盘/耗时估算先行 ----
     hours_since_2024 = (NOW_MS - CUTOFF_1H_MS) / 3600000.0
@@ -346,25 +386,16 @@ def main():
         % (est_lines / 1e6, est_gb, free_gb, "OK" if free_gb > est_gb * 3 else "偏紧,注意"))
     log("estimate: ~%d 请求 @5req/s -> 约 %.1f 小时跑完" % (int(est_reqs), est_hours))
 
-    # ---- 按 a/b/c/d 顺序执行 ----
-    log("task a: okx_1h, %d instruments" % n_1h)
-    for inst in okx_swaps:
-        fetch_okx_candles(inst, "1H", os.path.join(HIST_DIR, "okx_1h"), CUTOFF_1H_MS)
-    progress_log(force=True)
-
-    log("task b: okx_5m top150, %d instruments" % n_5m)
-    for inst in top150:
-        fetch_okx_candles(inst, "5m", os.path.join(HIST_DIR, "okx_5m"), CUTOFF_5M_MS)
-    progress_log(force=True)
-
-    log("task c: bybit_funding, %d symbols" % n_bf)
-    for sym in bybit_syms:
-        fetch_bybit_funding(sym, os.path.join(HIST_DIR, "bybit_funding"), CUTOFF_BYBIT_FUND_MS)
-    progress_log(force=True)
-
-    log("task d: okx_funding, %d instruments" % n_of)
-    for inst in okx_swaps:
-        fetch_okx_funding(inst, os.path.join(HIST_DIR, "okx_funding"))
+    # ---- 按优先队列执行(.done 断点续传逻辑在各 fetch 函数内保持不变)----
+    for kind, sym in tasks:
+        if kind == "okx_5m":
+            fetch_okx_candles(sym, "5m", os.path.join(HIST_DIR, "okx_5m"), CUTOFF_5M_MS)
+        elif kind == "okx_1h":
+            fetch_okx_candles(sym, "1H", os.path.join(HIST_DIR, "okx_1h"), CUTOFF_1H_MS)
+        elif kind == "okx_funding":
+            fetch_okx_funding(sym, os.path.join(HIST_DIR, "okx_funding"))
+        elif kind == "bybit_funding":
+            fetch_bybit_funding(sym, os.path.join(HIST_DIR, "bybit_funding"), CUTOFF_BYBIT_FUND_MS)
     progress_log(force=True)
 
     log("ALL DONE. done %d/%d, lines %d, requests %d, elapsed %.1f h"

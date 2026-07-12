@@ -1,0 +1,35 @@
+{
+  "schema_version": "lingxi.router-g5-stage.project-summary.v1",
+  "generation": "firstbattle-router-g5",
+  "protocol_hash": "bfe9f784039a89b773f2f9a0fb86d252c39ffa52b7f7202071e02bcc32333a7d",
+  "smoke_scope": {
+    "profile": "okx_5m",
+    "selected_symbols": 3,
+    "available_symbols": 200,
+    "bars_per_symbol": 3000,
+    "scope": "TRUNCATED_SMOKE",
+    "cpu_mode": "GOMAXPROCS=1,nice=19"
+  },
+  "reward_cube_rows": {
+    "discovery": 2791536,
+    "validation": 874368,
+    "walk_forward": 870474
+  },
+  "feature_context_rows": 8743,
+  "training_labels": 100000,
+  "joined_training_rows": 97196,
+  "model_attempts": 5,
+  "frozen_policy_count": 0,
+  "training_status": "TRAINING_REJECTED_DEGENERATE",
+  "validation_status": "SKIPPED_POLICY_UNAVAILABLE",
+  "walk_forward_status": "SKIPPED_VALIDATION_FAIL",
+  "research_pass_policies": 0,
+  "exam_status": "EXAM_UNAVAILABLE",
+  "system_status": "NO_GO",
+  "conclusion": "动态动作/连续特征数据链可运行，但首轮线性策略全部退化为固定方向/动作并被安全门拒绝；没有伪造policy进入validation。",
+  "exam_actions": {
+    "created": 0,
+    "unsealed": 0,
+    "consumed": 0
+  }
+}

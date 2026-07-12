@@ -1,0 +1,23 @@
+{
+  "schema_version": "lingxi.router-g5-policy-ledger.project-summary.v1",
+  "generation": "firstbattle-router-g5",
+  "protocol_hash": "bfe9f784039a89b773f2f9a0fb86d252c39ffa52b7f7202071e02bcc32333a7d",
+  "profile_id": "okx_5m",
+  "model_family": "regularized_linear_pairwise_ranking_action_value",
+  "joined_rows": 97196,
+  "train_rows": 77756,
+  "holdout_rows": 19440,
+  "lambda_attempts": [
+    {"lambda": 0.0001, "status": "rejected_fixed_action"},
+    {"lambda": 0.001, "status": "rejected_fixed_action"},
+    {"lambda": 0.01, "status": "rejected_fixed_action"},
+    {"lambda": 0.1, "status": "rejected_fixed_action"},
+    {"lambda": 1.0, "status": "rejected_fixed_action"}
+  ],
+  "status": "TRAINING_REJECTED_DEGENERATE",
+  "policy_hash": "",
+  "experiment_hash": "20209c2d976653f458cdfc71d8069bcebd2d3dd02e4df532318e3434520d1d49",
+  "fixed_direction_rejected": true,
+  "frozen_policy_available": false,
+  "exam_actions": 0
+}

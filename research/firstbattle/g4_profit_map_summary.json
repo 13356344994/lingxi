@@ -1,0 +1,41 @@
+{
+  "schema_version": "lingxi.router-g4-profit-map.project-summary.v1",
+  "generation": "firstbattle-router-g4",
+  "protocol_hash": "55d5da85272d9d326c81570a677b47b66ede7da69b14fc58fe4c154c0a1d6425",
+  "history_data_hash": "f41ed2586d91054c4b5b2e15e60f32a4d64ccde0032e76dfdc5fc6dee316379c",
+  "map_artifact_protocol_hash": "d13883e328f2d7a4d618f20fa77c2c5b66ac46220210dfd5dc17c249ccb6ab91",
+  "map_artifact_compatibility": "map-only; downstream candidate/validation/mechanism outputs use current protocol",
+  "profiles": {
+    "okx_1h": {
+      "available_primary_files": 401,
+      "selected_primary_files": 401,
+      "full_market": true,
+      "map_manifest_hash": "3b0f97a77519a1167a17f96f49a890db61a708ca64b4a4f204aad447af8f4df6",
+      "discovery_opportunities_with_capital_tiers": 32705532,
+      "cost_wipeout_rate": 0.17802495920262051,
+      "capacity_failure_rate": 0.000288575033728239,
+      "conservative_positive_rate_by_horizon": {
+        "1h": 0.18663659102074842,
+        "4h": 0.31771836030675177,
+        "24h": 0.42659168485625
+      }
+    },
+    "okx_5m": {
+      "available_primary_files": 200,
+      "selected_primary_files": 200,
+      "full_market": true,
+      "map_manifest_hash": "1dc28caa6d61410f3d04b0e7bd0960c0cf6dd7bfaaab9d2b6812355f64369904",
+      "discovery_opportunities_with_capital_tiers": 43753080,
+      "cost_wipeout_rate": 0.2032123909905314,
+      "capacity_failure_rate": 0.0037344113831529117,
+      "conservative_positive_rate_by_horizon": {
+        "5m": 0.0961381461602246,
+        "15m": 0.2013258952284045,
+        "60m": 0.3248600555663738,
+        "240m": 0.40528008542484323
+      }
+    }
+  },
+  "interpretation": "历史中存在大量事后 conservative_net>0 路径；该统计不代表决策前可预测或可交易。",
+  "exam_actions": 0
+}

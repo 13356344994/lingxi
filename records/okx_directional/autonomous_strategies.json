@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "updated_at": "2026-07-11T01:56:56.063247783Z",
+  "strategies": [
+    {
+      "source": "panic_volume_fade_4h",
+      "direction": "long",
+      "hold_hours": 4,
+      "rules": [
+        {
+          "field": "ret_1h_bps",
+          "op": "le",
+          "value": -200
+        },
+        {
+          "field": "btc_24h_bps",
+          "op": "le",
+          "value": -300
+        },
+        {
+          "field": "sym_volx",
+          "op": "ge",
+          "value": 1.5
+        },
+        {
+          "field": "age_days",
+          "op": "ge",
+          "value": 180
+        }
+      ],
+      "state": "shadow",
+      "generation": 2,
+      "shadow_started_at": "2026-07-11T01:56:56.047767441Z",
+      "probe_started_at": "0001-01-01T00:00:00Z",
+      "min_shadow_n": 60,
+      "min_pf": 1.3,
+      "min_median_bps": 0,
+      "max_top_share": 0.1,
+      "last_reason": "总止错后重新学习"
+    },
+    {
+      "source": "panic_volume_fade_1h_mature",
+      "direction": "long",
+      "hold_hours": 1,
+      "rules": [
+        {
+          "field": "ret_1h_bps",
+          "op": "le",
+          "value": -200
+        },
+        {
+          "field": "btc_24h_bps",
+          "op": "le",
+          "value": -300
+        },
+        {
+          "field": "sym_volx",
+          "op": "ge",
+          "value": 1.5
+        },
+        {
+          "field": "age_days",
+          "op": "ge",
+          "value": 365
+        }
+      ],
+      "state": "shadow",
+      "generation": 2,
+      "shadow_started_at": "2026-07-11T01:56:56.047767441Z",
+      "probe_started_at": "0001-01-01T00:00:00Z",
+      "min_shadow_n": 60,
+      "min_pf": 1.3,
+      "min_median_bps": 0,
+      "max_top_share": 0.1,
+      "last_reason": "总止错后重新学习"
+    }
+  ]
+}

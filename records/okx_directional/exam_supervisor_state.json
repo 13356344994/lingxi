@@ -1,0 +1,106 @@
+{
+  "e_next2_ratchet": {
+    "verdict": "fail",
+    "verdict_at": "2026-07-09T19:58:46.706576383Z",
+    "stats": {
+      "n": 30,
+      "med_bps": -6.500965389916724,
+      "pf": 0.22067493508225114,
+      "win_neutralized": 0.21739130434782608,
+      "top_sym": "BLUR-USDT",
+      "top_share": 0.1,
+      "net_sum_bps": -336.43918426062675
+    }
+  },
+  "e_next_pkg": {
+    "verdict": "fail",
+    "verdict_at": "2026-07-08T20:04:02.66954242Z",
+    "stats": {
+      "n": 31,
+      "med_bps": -7.900295178747298,
+      "pf": 0.18051466378131487,
+      "win_neutralized": 0.21739130434782608,
+      "top_sym": "SAMSUNG-USDT",
+      "top_share": 0.0967741935483871,
+      "net_sum_bps": -469.78238496043554
+    }
+  },
+  "e_ticket_r2": {
+    "verdict": "fail",
+    "verdict_at": "2026-07-08T23:44:02.689676042Z",
+    "stats": {
+      "n": 31,
+      "med_bps": -15.2821859358337,
+      "pf": 0.46146264770715434,
+      "win_neutralized": 0.3793103448275862,
+      "top_sym": "HYUNDAI-USDT",
+      "top_share": 0.0967741935483871,
+      "net_sum_bps": -309.35375462680383
+    }
+  },
+  "firework_fwd": {
+    "verdict": "fail",
+    "verdict_at": "2026-07-08T13:53:08.432790806Z",
+    "stats": {
+      "n": 138,
+      "med_bps": -53.24185050184484,
+      "pf": 0.7442842797862992,
+      "win_neutralized": 0.3383458646616541,
+      "top_sym": "LAB-USDT",
+      "top_share": 0.17391304347826086,
+      "net_sum_bps": -1474.867081254725
+    }
+  },
+  "fw_es_exhaust": {
+    "verdict": "fail",
+    "verdict_at": "2026-07-09T18:28:46.760752579Z",
+    "stats": {
+      "n": 30,
+      "med_bps": -19.728115916650278,
+      "pf": 0.5487904791635324,
+      "win_neutralized": 0.4666666666666667,
+      "top_sym": "EDGE-USDT",
+      "top_share": 0.26666666666666666,
+      "net_sum_bps": -645.4899613510139
+    }
+  },
+  "fw_es_pure": {
+    "verdict": "fail",
+    "verdict_at": "2026-07-10T08:30:58.320066504Z",
+    "stats": {
+      "n": 30,
+      "med_bps": -16.110939819140583,
+      "pf": 0.7343200431144911,
+      "win_neutralized": 0.4666666666666667,
+      "top_sym": "EDGE-USDT",
+      "top_share": 0.1,
+      "net_sum_bps": -367.46519144668696
+    }
+  },
+  "fw_nohabit": {
+    "verdict": "fail",
+    "verdict_at": "2026-07-09T08:04:10.454123401Z",
+    "stats": {
+      "n": 31,
+      "med_bps": -56.24521162019041,
+      "pf": 0.48143671369190916,
+      "win_neutralized": 0.2857142857142857,
+      "top_sym": "EDGE-USDT",
+      "top_share": 0.1935483870967742,
+      "net_sum_bps": -622.3343795054528
+    }
+  },
+  "fw_pure": {
+    "verdict": "fail",
+    "verdict_at": "2026-07-09T16:58:46.716170908Z",
+    "stats": {
+      "n": 30,
+      "med_bps": -54.68269562042605,
+      "pf": 0.749733779728414,
+      "win_neutralized": 0.3448275862068966,
+      "top_sym": "EDGE-USDT",
+      "top_share": 0.13333333333333333,
+      "net_sum_bps": -263.027333464466
+    }
+  }
+}

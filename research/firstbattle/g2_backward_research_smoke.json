@@ -1,0 +1,661 @@
+{
+  "generated_at": "2026-06-02T00:00:00.001Z",
+  "origin": "backward_mined",
+  "search_space_id": "firstbattle.g2.sky_conditioned_prize.v1",
+  "search_space_size": 162,
+  "discovery_data_hash": "8d5b7c844c84ef95ab506459b4199cc252b98e8585e9a1a5b83941ea45453025",
+  "events_input": 3486,
+  "events_eligible": 3486,
+  "family_wise_alpha": 0.005,
+  "per_combination_alpha": 0.0000308641975308642,
+  "rejected_combinations": [
+    {
+      "key": "ret_high_rv_high_fund_high_funding_flip_1h_long",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_high_rv_high_fund_high_funding_flip_1h_short",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_high_rv_high_fund_high_funding_flip_24h_long",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_high_rv_high_fund_high_funding_flip_24h_short",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_high_rv_high_fund_high_funding_flip_4h_long",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_high_rv_high_fund_high_funding_flip_4h_short",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_high_rv_high_fund_low_funding_flip_1h_long",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_high_rv_high_fund_low_funding_flip_1h_short",
+      "reason": "no_winners"
+    },
+    {
+      "key": "ret_high_rv_high_fund_low_funding_flip_24h_long",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_high_rv_high_fund_low_funding_flip_24h_short",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_high_rv_high_fund_low_funding_flip_4h_long",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_high_rv_high_fund_low_funding_flip_4h_short",
+      "reason": "no_winners"
+    },
+    {
+      "key": "ret_high_rv_high_fund_mid_funding_flip_1h_long",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_high_rv_high_fund_mid_funding_flip_1h_short",
+      "reason": "only_winner_no_matched_controls"
+    },
+    {
+      "key": "ret_high_rv_high_fund_mid_funding_flip_24h_long",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_high_rv_high_fund_mid_funding_flip_24h_short",
+      "reason": "only_winner_no_matched_controls"
+    },
+    {
+      "key": "ret_high_rv_high_fund_mid_funding_flip_4h_long",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_high_rv_high_fund_mid_funding_flip_4h_short",
+      "reason": "only_winner_no_matched_controls"
+    },
+    {
+      "key": "ret_high_rv_low_fund_high_funding_flip_1h_long",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_high_rv_low_fund_high_funding_flip_1h_short",
+      "reason": "no_winners"
+    },
+    {
+      "key": "ret_high_rv_low_fund_high_funding_flip_24h_long",
+      "reason": "no_winners"
+    },
+    {
+      "key": "ret_high_rv_low_fund_high_funding_flip_24h_short",
+      "reason": "only_winner_no_matched_controls"
+    },
+    {
+      "key": "ret_high_rv_low_fund_high_funding_flip_4h_long",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_high_rv_low_fund_high_funding_flip_4h_short",
+      "reason": "no_winners"
+    },
+    {
+      "key": "ret_high_rv_low_fund_low_funding_flip_1h_long",
+      "reason": "only_winner_no_matched_controls"
+    },
+    {
+      "key": "ret_high_rv_low_fund_low_funding_flip_1h_short",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_high_rv_low_fund_low_funding_flip_24h_long",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_high_rv_low_fund_low_funding_flip_24h_short",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_high_rv_low_fund_low_funding_flip_4h_long",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_high_rv_low_fund_low_funding_flip_4h_short",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_high_rv_low_fund_mid_funding_flip_1h_long",
+      "reason": "no_winners"
+    },
+    {
+      "key": "ret_high_rv_low_fund_mid_funding_flip_1h_short",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_high_rv_low_fund_mid_funding_flip_24h_long",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_high_rv_low_fund_mid_funding_flip_24h_short",
+      "reason": "only_winner_no_matched_controls"
+    },
+    {
+      "key": "ret_high_rv_low_fund_mid_funding_flip_4h_long",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_high_rv_low_fund_mid_funding_flip_4h_short",
+      "reason": "only_winner_no_matched_controls"
+    },
+    {
+      "key": "ret_high_rv_mid_fund_high_funding_flip_1h_long",
+      "reason": "only_winner_no_matched_controls"
+    },
+    {
+      "key": "ret_high_rv_mid_fund_high_funding_flip_1h_short",
+      "reason": "only_winner_no_matched_controls"
+    },
+    {
+      "key": "ret_high_rv_mid_fund_high_funding_flip_24h_long",
+      "reason": "only_winner_no_matched_controls"
+    },
+    {
+      "key": "ret_high_rv_mid_fund_high_funding_flip_24h_short",
+      "reason": "only_winner_no_matched_controls"
+    },
+    {
+      "key": "ret_high_rv_mid_fund_high_funding_flip_4h_long",
+      "reason": "no_winners"
+    },
+    {
+      "key": "ret_high_rv_mid_fund_high_funding_flip_4h_short",
+      "reason": "only_winner_no_matched_controls"
+    },
+    {
+      "key": "ret_high_rv_mid_fund_low_funding_flip_1h_long",
+      "reason": "only_winner_no_matched_controls"
+    },
+    {
+      "key": "ret_high_rv_mid_fund_low_funding_flip_1h_short",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_high_rv_mid_fund_low_funding_flip_24h_long",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_high_rv_mid_fund_low_funding_flip_24h_short",
+      "reason": "only_winner_no_matched_controls"
+    },
+    {
+      "key": "ret_high_rv_mid_fund_low_funding_flip_4h_long",
+      "reason": "only_winner_no_matched_controls"
+    },
+    {
+      "key": "ret_high_rv_mid_fund_low_funding_flip_4h_short",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_high_rv_mid_fund_mid_funding_flip_1h_long",
+      "reason": "only_winner_no_matched_controls"
+    },
+    {
+      "key": "ret_high_rv_mid_fund_mid_funding_flip_1h_short",
+      "reason": "no_winners"
+    },
+    {
+      "key": "ret_high_rv_mid_fund_mid_funding_flip_24h_long",
+      "reason": "only_winner_no_matched_controls"
+    },
+    {
+      "key": "ret_high_rv_mid_fund_mid_funding_flip_24h_short",
+      "reason": "only_winner_no_matched_controls"
+    },
+    {
+      "key": "ret_high_rv_mid_fund_mid_funding_flip_4h_long",
+      "reason": "only_winner_no_matched_controls"
+    },
+    {
+      "key": "ret_high_rv_mid_fund_mid_funding_flip_4h_short",
+      "reason": "no_winners"
+    },
+    {
+      "key": "ret_low_rv_high_fund_high_funding_flip_1h_long",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_low_rv_high_fund_high_funding_flip_1h_short",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_low_rv_high_fund_high_funding_flip_24h_long",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_low_rv_high_fund_high_funding_flip_24h_short",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_low_rv_high_fund_high_funding_flip_4h_long",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_low_rv_high_fund_high_funding_flip_4h_short",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_low_rv_high_fund_low_funding_flip_1h_long",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_low_rv_high_fund_low_funding_flip_1h_short",
+      "reason": "only_winner_no_matched_controls"
+    },
+    {
+      "key": "ret_low_rv_high_fund_low_funding_flip_24h_long",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_low_rv_high_fund_low_funding_flip_24h_short",
+      "reason": "only_winner_no_matched_controls"
+    },
+    {
+      "key": "ret_low_rv_high_fund_low_funding_flip_4h_long",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_low_rv_high_fund_low_funding_flip_4h_short",
+      "reason": "only_winner_no_matched_controls"
+    },
+    {
+      "key": "ret_low_rv_high_fund_mid_funding_flip_1h_long",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_low_rv_high_fund_mid_funding_flip_1h_short",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_low_rv_high_fund_mid_funding_flip_24h_long",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_low_rv_high_fund_mid_funding_flip_24h_short",
+      "reason": "only_winner_no_matched_controls"
+    },
+    {
+      "key": "ret_low_rv_high_fund_mid_funding_flip_4h_long",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_low_rv_high_fund_mid_funding_flip_4h_short",
+      "reason": "only_winner_no_matched_controls"
+    },
+    {
+      "key": "ret_low_rv_low_fund_high_funding_flip_1h_long",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_low_rv_low_fund_high_funding_flip_1h_short",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_low_rv_low_fund_high_funding_flip_24h_long",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_low_rv_low_fund_high_funding_flip_24h_short",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_low_rv_low_fund_high_funding_flip_4h_long",
+      "reason": "no_winners"
+    },
+    {
+      "key": "ret_low_rv_low_fund_high_funding_flip_4h_short",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_low_rv_low_fund_low_funding_flip_1h_long",
+      "reason": "no_winners"
+    },
+    {
+      "key": "ret_low_rv_low_fund_low_funding_flip_1h_short",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_low_rv_low_fund_low_funding_flip_24h_long",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_low_rv_low_fund_low_funding_flip_24h_short",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_low_rv_low_fund_low_funding_flip_4h_long",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_low_rv_low_fund_low_funding_flip_4h_short",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_low_rv_low_fund_mid_funding_flip_1h_long",
+      "reason": "only_winner_no_matched_controls"
+    },
+    {
+      "key": "ret_low_rv_low_fund_mid_funding_flip_1h_short",
+      "reason": "no_winners"
+    },
+    {
+      "key": "ret_low_rv_low_fund_mid_funding_flip_24h_long",
+      "reason": "no_winners"
+    },
+    {
+      "key": "ret_low_rv_low_fund_mid_funding_flip_24h_short",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_low_rv_low_fund_mid_funding_flip_4h_long",
+      "reason": "only_winner_no_matched_controls"
+    },
+    {
+      "key": "ret_low_rv_low_fund_mid_funding_flip_4h_short",
+      "reason": "no_winners"
+    },
+    {
+      "key": "ret_low_rv_mid_fund_high_funding_flip_1h_long",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_low_rv_mid_fund_high_funding_flip_1h_short",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_low_rv_mid_fund_high_funding_flip_24h_long",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_low_rv_mid_fund_high_funding_flip_24h_short",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_low_rv_mid_fund_high_funding_flip_4h_long",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_low_rv_mid_fund_high_funding_flip_4h_short",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_low_rv_mid_fund_low_funding_flip_1h_long",
+      "reason": "only_winner_no_matched_controls"
+    },
+    {
+      "key": "ret_low_rv_mid_fund_low_funding_flip_1h_short",
+      "reason": "only_winner_no_matched_controls"
+    },
+    {
+      "key": "ret_low_rv_mid_fund_low_funding_flip_24h_long",
+      "reason": "only_winner_no_matched_controls"
+    },
+    {
+      "key": "ret_low_rv_mid_fund_low_funding_flip_24h_short",
+      "reason": "only_winner_no_matched_controls"
+    },
+    {
+      "key": "ret_low_rv_mid_fund_low_funding_flip_4h_long",
+      "reason": "only_winner_no_matched_controls"
+    },
+    {
+      "key": "ret_low_rv_mid_fund_low_funding_flip_4h_short",
+      "reason": "only_winner_no_matched_controls"
+    },
+    {
+      "key": "ret_low_rv_mid_fund_mid_funding_flip_1h_long",
+      "reason": "no_winners"
+    },
+    {
+      "key": "ret_low_rv_mid_fund_mid_funding_flip_1h_short",
+      "reason": "no_winners"
+    },
+    {
+      "key": "ret_low_rv_mid_fund_mid_funding_flip_24h_long",
+      "reason": "no_winners"
+    },
+    {
+      "key": "ret_low_rv_mid_fund_mid_funding_flip_24h_short",
+      "reason": "no_winners"
+    },
+    {
+      "key": "ret_low_rv_mid_fund_mid_funding_flip_4h_long",
+      "reason": "no_winners"
+    },
+    {
+      "key": "ret_low_rv_mid_fund_mid_funding_flip_4h_short",
+      "reason": "no_winners"
+    },
+    {
+      "key": "ret_mid_rv_high_fund_high_funding_flip_1h_long",
+      "reason": "no_winners"
+    },
+    {
+      "key": "ret_mid_rv_high_fund_high_funding_flip_1h_short",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_mid_rv_high_fund_high_funding_flip_24h_long",
+      "reason": "no_winners"
+    },
+    {
+      "key": "ret_mid_rv_high_fund_high_funding_flip_24h_short",
+      "reason": "only_winner_no_matched_controls"
+    },
+    {
+      "key": "ret_mid_rv_high_fund_high_funding_flip_4h_long",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_mid_rv_high_fund_high_funding_flip_4h_short",
+      "reason": "only_winner_no_matched_controls"
+    },
+    {
+      "key": "ret_mid_rv_high_fund_low_funding_flip_1h_long",
+      "reason": "only_winner_no_matched_controls"
+    },
+    {
+      "key": "ret_mid_rv_high_fund_low_funding_flip_1h_short",
+      "reason": "no_winners"
+    },
+    {
+      "key": "ret_mid_rv_high_fund_low_funding_flip_24h_long",
+      "reason": "only_winner_no_matched_controls"
+    },
+    {
+      "key": "ret_mid_rv_high_fund_low_funding_flip_24h_short",
+      "reason": "no_winners"
+    },
+    {
+      "key": "ret_mid_rv_high_fund_low_funding_flip_4h_long",
+      "reason": "no_winners"
+    },
+    {
+      "key": "ret_mid_rv_high_fund_low_funding_flip_4h_short",
+      "reason": "no_winners"
+    },
+    {
+      "key": "ret_mid_rv_high_fund_mid_funding_flip_1h_long",
+      "reason": "no_winners"
+    },
+    {
+      "key": "ret_mid_rv_high_fund_mid_funding_flip_1h_short",
+      "reason": "only_winner_no_matched_controls"
+    },
+    {
+      "key": "ret_mid_rv_high_fund_mid_funding_flip_24h_long",
+      "reason": "only_winner_no_matched_controls"
+    },
+    {
+      "key": "ret_mid_rv_high_fund_mid_funding_flip_24h_short",
+      "reason": "no_winners"
+    },
+    {
+      "key": "ret_mid_rv_high_fund_mid_funding_flip_4h_long",
+      "reason": "only_winner_no_matched_controls"
+    },
+    {
+      "key": "ret_mid_rv_high_fund_mid_funding_flip_4h_short",
+      "reason": "no_winners"
+    },
+    {
+      "key": "ret_mid_rv_low_fund_high_funding_flip_1h_long",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_mid_rv_low_fund_high_funding_flip_1h_short",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_mid_rv_low_fund_high_funding_flip_24h_long",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_mid_rv_low_fund_high_funding_flip_24h_short",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_mid_rv_low_fund_high_funding_flip_4h_long",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_mid_rv_low_fund_high_funding_flip_4h_short",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_mid_rv_low_fund_low_funding_flip_1h_long",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_mid_rv_low_fund_low_funding_flip_1h_short",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_mid_rv_low_fund_low_funding_flip_24h_long",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_mid_rv_low_fund_low_funding_flip_24h_short",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_mid_rv_low_fund_low_funding_flip_4h_long",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_mid_rv_low_fund_low_funding_flip_4h_short",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_mid_rv_low_fund_mid_funding_flip_1h_long",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_mid_rv_low_fund_mid_funding_flip_1h_short",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_mid_rv_low_fund_mid_funding_flip_24h_long",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_mid_rv_low_fund_mid_funding_flip_24h_short",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_mid_rv_low_fund_mid_funding_flip_4h_long",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_mid_rv_low_fund_mid_funding_flip_4h_short",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_mid_rv_mid_fund_high_funding_flip_1h_long",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_mid_rv_mid_fund_high_funding_flip_1h_short",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_mid_rv_mid_fund_high_funding_flip_24h_long",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_mid_rv_mid_fund_high_funding_flip_24h_short",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_mid_rv_mid_fund_high_funding_flip_4h_long",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_mid_rv_mid_fund_high_funding_flip_4h_short",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_mid_rv_mid_fund_low_funding_flip_1h_long",
+      "reason": "no_winners"
+    },
+    {
+      "key": "ret_mid_rv_mid_fund_low_funding_flip_1h_short",
+      "reason": "no_winners"
+    },
+    {
+      "key": "ret_mid_rv_mid_fund_low_funding_flip_24h_long",
+      "reason": "only_winner_no_matched_controls"
+    },
+    {
+      "key": "ret_mid_rv_mid_fund_low_funding_flip_24h_short",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "ret_mid_rv_mid_fund_low_funding_flip_4h_long",
+      "reason": "only_winner_no_matched_controls"
+    },
+    {
+      "key": "ret_mid_rv_mid_fund_low_funding_flip_4h_short",
+      "reason": "no_winners"
+    },
+    {
+      "key": "ret_mid_rv_mid_fund_mid_funding_flip_1h_long",
+      "reason": "only_winner_no_matched_controls"
+    },
+    {
+      "key": "ret_mid_rv_mid_fund_mid_funding_flip_1h_short",
+      "reason": "only_winner_no_matched_controls"
+    },
+    {
+      "key": "ret_mid_rv_mid_fund_mid_funding_flip_24h_long",
+      "reason": "only_winner_no_matched_controls"
+    },
+    {
+      "key": "ret_mid_rv_mid_fund_mid_funding_flip_24h_short",
+      "reason": "only_winner_no_matched_controls"
+    },
+    {
+      "key": "ret_mid_rv_mid_fund_mid_funding_flip_4h_long",
+      "reason": "only_winner_no_matched_controls"
+    },
+    {
+      "key": "ret_mid_rv_mid_fund_mid_funding_flip_4h_short",
+      "reason": "only_winner_no_matched_controls"
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "id": "firstbattle.backward.funding_post_settlement.g1",
+  "generation": "firstbattle-router-g1",
+  "protocol_hash": "0eab9bda13055209c81d2b47f0286a0317b79dbb642592ec1b00cd4771397d31",
+  "source_data_hash": "f41ed2586d91054c4b5b2e15e60f32a4d64ccde0032e76dfdc5fc6dee316379c",
+  "combinations": [
+    {
+      "key": "negative_funding_receiver_release_short",
+      "feature_key": "funding_rate",
+      "op": "<=",
+      "threshold": -0.001,
+      "matching_rule": "same_time_symbol_volatility_liquidity",
+      "mechanism": "funding_post_settlement_release",
+      "direction": "short"
+    },
+    {
+      "key": "positive_funding_receiver_release_long",
+      "feature_key": "funding_rate",
+      "op": ">=",
+      "threshold": 0.001,
+      "matching_rule": "same_time_symbol_volatility_liquidity",
+      "mechanism": "funding_post_settlement_release",
+      "direction": "long"
+    }
+  ],
+  "definition_hash": "b86ca14e10d0f6e7c5528182ae4b7b50c333f21a706cf266577aed14822732f4",
+  "manifest_hash": "8375d2f64a224905b22b09a2f9968fcdca53e1a248fce680f9b6e060bfda4e73"
+}

@@ -1,0 +1,59 @@
+{
+  "schema_version": "lingxi.history-testability.v1",
+  "manifest_hash": "07b709f9ddd036749da76d28c66e7efe70638cec7c15bbe1b29789a8534622f7",
+  "verdicts": [
+    {
+      "id": "global_context.router_node",
+      "status": "TESTABLE",
+      "reason": "all_required_history_available"
+    },
+    {
+      "id": "panic_liquidation.exhaustion.long_squeezed.long",
+      "status": "UNTESTABLE",
+      "missing": [
+        "historical_depth",
+        "historical_liquidation",
+        "historical_oi",
+        "historical_xvenue",
+        "pit_instrument"
+      ],
+      "reason": "close_leaf_UNTESTABLE_NO_GO_no_future_wait"
+    },
+    {
+      "id": "panic_liquidation.exhaustion.short_squeezed.short",
+      "status": "UNTESTABLE",
+      "missing": [
+        "historical_depth",
+        "historical_liquidation",
+        "historical_oi",
+        "historical_xvenue",
+        "pit_instrument"
+      ],
+      "reason": "close_leaf_UNTESTABLE_NO_GO_no_future_wait"
+    },
+    {
+      "id": "panic_liquidation.relay.long_squeezed.short",
+      "status": "UNTESTABLE",
+      "missing": [
+        "historical_depth",
+        "historical_liquidation",
+        "historical_oi",
+        "historical_xvenue",
+        "pit_instrument"
+      ],
+      "reason": "close_leaf_UNTESTABLE_NO_GO_no_future_wait"
+    },
+    {
+      "id": "panic_liquidation.relay.short_squeezed.long",
+      "status": "UNTESTABLE",
+      "missing": [
+        "historical_depth",
+        "historical_liquidation",
+        "historical_oi",
+        "historical_xvenue",
+        "pit_instrument"
+      ],
+      "reason": "close_leaf_UNTESTABLE_NO_GO_no_future_wait"
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "phase": "shadow_recertification",
+  "venue": "okx",
+  "generation": 2,
+  "activated_at": "2026-07-10T15:05:55.967877968Z",
+  "updated_at": "2026-07-12T13:03:47.405409273Z",
+  "day_start_cst": "2026-07-12T00:00:00+08:00",
+  "high_water_usdt": 35.10788992055493,
+  "current_equity_usdt": 12.745774929863003,
+  "drawdown_usdt": 22.36211499069193,
+  "stop_pct": 0.3,
+  "stop_amount_usdt": 10.532366976166479,
+  "last_daily_flow_usdt": 0,
+  "triggered_at": "2026-07-11T01:54:57.280814465Z",
+  "trigger_reason": "自主系统总止错: okx交易权益自高水位回撤 22.3513/57.4618 USDT(38.90%)达到30%，旧策略全部吊销",
+  "flatten_attempts": 1,
+  "lessons_version": 1,
+  "require_generation_cert": true
+}

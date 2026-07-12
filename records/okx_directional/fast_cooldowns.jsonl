@@ -282,3 +282,5 @@
 {"recorded_at":"2026-07-03T17:46:10.157147064Z","venue":"okx","symbol":"XPL-USDT","reason":"fast_stop_reversal","until":"2026-07-03T18:31:10.157147064Z","seconds":2700}
 {"recorded_at":"2026-07-03T17:52:04.154338094Z","venue":"okx","symbol":"SLX-USDT","reason":"fast_stop_reversal","until":"2026-07-03T18:07:04.154338094Z","seconds":900}
 {"recorded_at":"2026-07-03T19:01:40.16522668Z","venue":"okx","symbol":"XPL-USDT","reason":"fast_stop_reversal","until":"2026-07-03T21:01:40.16522668Z","seconds":7200}
+{"recorded_at":"2026-07-08T17:22:23.220591737Z","venue":"okx","symbol":"SLX-USDT","reason":"fast_xgap_disaster","until":"2026-07-08T17:27:23.220591737Z","seconds":300}
+{"recorded_at":"2026-07-09T07:28:01.153702014Z","venue":"okx","symbol":"EDGE-USDT","reason":"fast_fw_disaster","until":"2026-07-09T07:33:01.153702014Z","seconds":300}

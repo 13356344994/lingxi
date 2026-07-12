@@ -1,0 +1,37 @@
+{
+  "schema_version": "lingxi.router-stage-summary.v1",
+  "generation": "firstbattle-router-g1",
+  "protocol_hash": "0eab9bda13055209c81d2b47f0286a0317b79dbb642592ec1b00cd4771397d31",
+  "history_data_hash": "f41ed2586d91054c4b5b2e15e60f32a4d64ccde0032e76dfdc5fc6dee316379c",
+  "backward_discovery_data_hash": "bd06535bc4d7a7613ebaf1e0d129e2f729a6d839ac950c355835b8461361198e",
+  "research_smoke": {
+    "family": "funding_post_settlement",
+    "symbols_bounded": 20,
+    "events": 7048,
+    "search_combinations": 2,
+    "candidate_nominations": 0,
+    "rejected_selection_tax": 2,
+    "forward_falsification_runs": 0,
+    "walk_forward_runs": 0,
+    "reason": "No backward nomination survived the frozen selection tax, so no candidate was eligible for forward falsification or walk-forward."
+  },
+  "leaf_status": {
+    "research_pass": [],
+    "closed": [
+      "backward.negative_funding_receiver_release_short",
+      "backward.positive_funding_receiver_release_long"
+    ],
+    "untestable": [
+      "panic_liquidation.relay.long_squeezed.short",
+      "panic_liquidation.relay.short_squeezed.long",
+      "panic_liquidation.exhaustion.long_squeezed.long",
+      "panic_liquidation.exhaustion.short_squeezed.short"
+    ]
+  },
+  "exam_actions": {
+    "created": 0,
+    "unsealed": 0,
+    "consumed": 0
+  },
+  "system_status": "NO_GO"
+}

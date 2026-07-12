@@ -1,0 +1,99 @@
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"flag"
+	"fmt"
+	"os"
+	"path/filepath"
+
+	historydata "lingxi/internal/datatruth/history"
+	"lingxi/internal/routerg4/profitmap"
+	"lingxi/internal/routerg5/outcome"
+	g5protocol "lingxi/internal/routerg5/protocol"
+)
+
+func main() {
+	if err := run(os.Args[1:]); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}
+
+func run(args []string) error {
+	fs := flag.NewFlagSet("router-g5-outcome-oracle", flag.ContinueOnError)
+	catalogPath := fs.String("catalog", "", "path to history_catalog.json")
+	historyRoot := fs.String("history-root", "", "history root directory")
+	profileID := fs.String("profile", "", "profile id: okx_1h or okx_5m")
+	outputDir := fs.String("output-dir", "", "explicit output directory")
+	checkpointPath := fs.String("checkpoint", "", "required checkpoint path")
+	maxFiles := fs.Int("max-files", 0, "maximum catalog files (required, positive)")
+	maxLines := fs.Int("max-lines", 0, "maximum lines per symbol file (required, positive)")
+	catalogSymbolLimit := fs.Int("catalog-symbol-limit", -1, "symbol limit; 0 means full catalog")
+	allowTruncatedSmoke := fs.Bool("allow-truncated-smoke", false, "allow an explicitly labeled TRUNCATED_SMOKE subset")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *catalogPath == "" || *historyRoot == "" || *profileID == "" || *outputDir == "" || *checkpointPath == "" {
+		return errors.New("router-g5-outcome-oracle: --catalog, --history-root, --profile, --output-dir, --checkpoint are required")
+	}
+	if *maxFiles <= 0 || *maxLines <= 0 {
+		return errors.New("router-g5-outcome-oracle: --max-files and --max-lines must be positive")
+	}
+	if *catalogSymbolLimit < 0 {
+		return errors.New("router-g5-outcome-oracle: --catalog-symbol-limit is required (0 for full catalog)")
+	}
+	if *profileID != profitmap.ProfileOKX1H && *profileID != profitmap.ProfileOKX5M {
+		return fmt.Errorf("router-g5-outcome-oracle: unsupported profile %q", *profileID)
+	}
+	absHistory, err := filepath.Abs(*historyRoot)
+	if err != nil {
+		return err
+	}
+	absOutput, err := filepath.Abs(*outputDir)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(absOutput, 0o755); err != nil {
+		return err
+	}
+	raw, err := os.ReadFile(*catalogPath)
+	if err != nil {
+		return err
+	}
+	var catalog historydata.HistoryCatalog
+	if err := json.Unmarshal(raw, &catalog); err != nil {
+		return err
+	}
+	cfg := outcome.RunConfig{
+		SchemaVersion:       "lingxi.router-g5-outcome-oracle.config.v1",
+		ProfileID:           *profileID,
+		HistoryRoot:         absHistory,
+		OutputDir:           absOutput,
+		MaxFiles:            *maxFiles,
+		MaxLines:            *maxLines,
+		CatalogSymbolLimit:  *catalogSymbolLimit,
+		ProgressEvery:       outcome.DefaultProgressEvery(),
+		Generation:          outcome.DefaultGeneration(),
+		ProtocolHash:        outcome.DefaultProtocolHash(),
+		HistoryDataHash:     outcome.DefaultHistoryDataHash(),
+		AllowTruncatedSmoke: *allowTruncatedSmoke,
+	}
+	runner := outcome.Runner{
+		Config:         cfg,
+		Catalog:        catalog,
+		CheckpointPath: *checkpointPath,
+		OnProgress: func(lines int64, symbol string) {
+			fmt.Fprintf(os.Stderr, "progress profile=%s symbol=%s lines=%d\n", *profileID, symbol, lines)
+		},
+	}
+	result, err := runner.Run(context.Background())
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(os.Stdout, "{\"profile\":%q,\"symbols\":%d,\"cells\":%d,\"exam_actions\":%d}\n",
+		result.ProfileID, len(result.Symbols), result.Store.CellCount(), g5protocol.ExamActions)
+	return nil
+}

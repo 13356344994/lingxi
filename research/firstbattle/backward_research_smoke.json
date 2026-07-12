@@ -1,0 +1,21 @@
+{
+  "generated_at": "2026-07-09T08:00:00.001Z",
+  "origin": "backward_mined",
+  "search_space_id": "firstbattle.backward.funding_post_settlement.g1",
+  "search_space_size": 2,
+  "discovery_data_hash": "bd06535bc4d7a7613ebaf1e0d129e2f729a6d839ac950c355835b8461361198e",
+  "events_input": 7048,
+  "events_eligible": 7048,
+  "family_wise_alpha": 0.01,
+  "per_combination_alpha": 0.005,
+  "rejected_combinations": [
+    {
+      "key": "negative_funding_receiver_release_short",
+      "reason": "selection_tax_failed"
+    },
+    {
+      "key": "positive_funding_receiver_release_long",
+      "reason": "selection_tax_failed"
+    }
+  ]
+}

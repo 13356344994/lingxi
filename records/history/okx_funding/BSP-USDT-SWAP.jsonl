@@ -1,0 +1,10 @@
+{"data":{"formulaType":"withRate","fundingRate":"0.000238924036167","fundingTime":"1783612800000","instId":"BSP-USDT-SWAP","instType":"SWAP","method":"current_period","realizedRate":"0.000238924036167"},"fetched_at":1783616620657}
+{"data":{"formulaType":"withRate","fundingRate":"0","fundingTime":"1783584000000","instId":"BSP-USDT-SWAP","instType":"SWAP","method":"current_period","realizedRate":"0"},"fetched_at":1783616620657}
+{"data":{"formulaType":"withRate","fundingRate":"0","fundingTime":"1783555200000","instId":"BSP-USDT-SWAP","instType":"SWAP","method":"current_period","realizedRate":"0"},"fetched_at":1783616620657}
+{"data":{"formulaType":"withRate","fundingRate":"0","fundingTime":"1783526400000","instId":"BSP-USDT-SWAP","instType":"SWAP","method":"current_period","realizedRate":"0"},"fetched_at":1783616620657}
+{"data":{"formulaType":"withRate","fundingRate":"0.0005033770368719","fundingTime":"1783497600000","instId":"BSP-USDT-SWAP","instType":"SWAP","method":"current_period","realizedRate":"0.0005033770368719"},"fetched_at":1783616620657}
+{"data":{"formulaType":"withRate","fundingRate":"0.0010885959313534","fundingTime":"1783468800000","instId":"BSP-USDT-SWAP","instType":"SWAP","method":"current_period","realizedRate":"0.0010885959313534"},"fetched_at":1783616620657}
+{"data":{"formulaType":"withRate","fundingRate":"0","fundingTime":"1783440000000","instId":"BSP-USDT-SWAP","instType":"SWAP","method":"current_period","realizedRate":"0"},"fetched_at":1783616620657}
+{"data":{"formulaType":"withRate","fundingRate":"-0.0010050501168678","fundingTime":"1783411200000","instId":"BSP-USDT-SWAP","instType":"SWAP","method":"current_period","realizedRate":"-0.0010050501168678"},"fetched_at":1783616620657}
+{"data":{"formulaType":"withRate","fundingRate":"0.0000872706680229","fundingTime":"1783382400000","instId":"BSP-USDT-SWAP","instType":"SWAP","method":"current_period","realizedRate":"0.0000872706680229"},"fetched_at":1783616620657}
+{"data":{"formulaType":"withRate","fundingRate":"0","fundingTime":"1783353600000","instId":"BSP-USDT-SWAP","instType":"SWAP","method":"current_period","realizedRate":"0"},"fetched_at":1783616620657}

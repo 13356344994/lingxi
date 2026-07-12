@@ -1,0 +1,14 @@
+{
+  "schema_version": "lingxi.router-g5-wf.project-summary.v1",
+  "generation": "firstbattle-router-g5",
+  "protocol_hash": "bfe9f784039a89b773f2f9a0fb86d252c39ffa52b7f7202071e02bcc32333a7d",
+  "profile_id": "okx_5m",
+  "policy_hash": "",
+  "experiment_hash": "20209c2d976653f458cdfc71d8069bcebd2d3dd02e4df532318e3434520d1d49",
+  "validation_report_hash": "7209dc3ebbe1f02da925d732961f0f4a02894dd21b24d6926d5562bc66c88242",
+  "status": "SKIPPED_VALIDATION_FAIL",
+  "fail_reason": "POLICY_UNAVAILABLE",
+  "fold_count": 0,
+  "report_hash": "fab8a0ffcf776959baf22ab358f85d19a91fda2061f752c617e5430694fd1486",
+  "exam_actions": 0
+}

@@ -1,0 +1,345 @@
+{
+  "schema_version": "1",
+  "protocol_id": "firstbattle.forced_liquidation.preregistration",
+  "generation": "firstbattle-forced-liquidation-g1",
+  "created_at": "2026-07-11T09:05:00Z",
+  "companion_doc": "research/firstbattle/forced_liquidation_preregistration.md",
+  "status": "preregistered_before_seal",
+  "principles": {
+    "direction_from_research": "方向只来自被迫流机制调研，不来自价格外推或叙事。",
+    "size_from_extremes": "仓位上限由逐所维持保证金、真实强平求根与极端场景取最小值决定。",
+    "confidence_from_heaven": "天道信心只能在硬上限内缩放仓位，不能突破上限。",
+    "no_presupposed_winner": "relay 与 exhaustion 两个假设享有对称预算与对称判定，禁止预设赢家。"
+  },
+  "regime_binding": {
+    "mechanism_regime_kinds": ["panic_liquidation", "tiered_liquidation"],
+    "experts": ["panic_liquidation", "tiered_liquidation"],
+    "card_type": "mechanism.MechanismEventCard",
+    "thesis_type": "mechanism.Thesis"
+  },
+  "hypotheses": [
+    {
+      "id": "H_relay",
+      "name": "forced_liquidation_relay_continuation",
+      "statement": "被迫流仍在释放、对手盘吸收不足时，顺被迫流方向存在可覆盖成本的边际优势。",
+      "direction_rule": "direction = forced_flow.side",
+      "expert_branch_predicate": "NOT exhausted",
+      "primary_metric": "net_edge_bps_lower_bound",
+      "prereg_thresholds": {
+        "min_net_edge_bps_lower_bound": 0.0,
+        "min_episodes_per_exam": 30,
+        "max_family_wise_alpha": 0.01
+      }
+    },
+    {
+      "id": "H_exhaustion",
+      "name": "forced_liquidation_exhaustion_reversal",
+      "statement": "被迫流衰减、剩余极少且对手盘大量吸收时，逆被迫流承接存在可覆盖成本的边际优势。",
+      "direction_rule": "direction = forced_flow.side.opposite()",
+      "expert_branch_predicate": "exhausted",
+      "primary_metric": "net_edge_bps_lower_bound",
+      "prereg_thresholds": {
+        "min_net_edge_bps_lower_bound": 0.0,
+        "min_episodes_per_exam": 30,
+        "max_family_wise_alpha": 0.01
+      }
+    }
+  ],
+  "payers": {
+    "definition": "payer 是被迫付款/被迫行动的一方；无可观测 payer 的候选一律淘汰（mechanism.RejectNoPayer）。",
+    "roles": [
+      {
+        "role": "long_liquidations",
+        "forced_side": "short",
+        "observable_from": "fast_liquidation_events.jsonl:side=long_forced_sell",
+        "note": "被强平多头被迫卖出 → 下行压力。"
+      },
+      {
+        "role": "short_liquidations",
+        "forced_side": "long",
+        "observable_from": "fast_liquidation_events.jsonl:side=short_forced_buy",
+        "note": "被强平空头被迫买入 → 上行压力。"
+      }
+    ],
+    "reject_if_unknown": true
+  },
+  "observable_fields": {
+    "clock_semantics": {
+      "event_time_ms": "交易所事件时间；特征截断以此为准。",
+      "receive_time_ms": "本地接收时间；迟到样本按接收时间二次截断。",
+      "process_time_ms": "本地处理时间；仅供审计，不得进入特征。"
+    },
+    "sources": [
+      {
+        "stream": "records/okx_directional/fast_liquidation_events.jsonl",
+        "role": "forced_flow_primary",
+        "fields": ["ts_event_ms", "ts_recv_ms", "instrument", "side", "notional_usdt", "price"],
+        "maps_to": ["ForcedFlow.Payer", "ForcedFlow.Side", "ForcedFlow.ObservedNotional"]
+      },
+      {
+        "stream": "records/okx_directional/fast_xvenue_liq_events.jsonl",
+        "role": "forced_flow_crossvenue",
+        "fields": ["ts_event_ms", "ts_recv_ms", "venue", "instrument", "side", "notional_usdt"],
+        "maps_to": ["ForcedFlow.RemainingNotional", "Transmission.Cluster"]
+      },
+      {
+        "stream": "records/okx_directional/fast_xmeta_snapshots.jsonl",
+        "role": "transmission_meta",
+        "fields": ["ts_event_ms", "instrument", "beta", "cluster_id", "lead_lag_ms"],
+        "maps_to": ["Transmission.Beta", "Transmission.Cluster", "Transmission.LeadLagMs"]
+      },
+      {
+        "stream": "records/okx_directional/fast_market_mids.jsonl",
+        "role": "mid_and_absorption",
+        "fields": ["ts_event_ms", "instrument", "mid", "spread_bps", "top_depth_notional"],
+        "maps_to": ["Transmission.AbsorptionRatio", "Executability.SpreadBps", "Executability.TopDepthNotional"]
+      },
+      {
+        "stream": "records/okx_directional/instrument_meta.json",
+        "role": "pit_instrument",
+        "point_in_time": true,
+        "fields": ["instrument", "tick", "lot", "min_notional", "contract_value", "listed_at", "delisted_at"],
+        "maps_to": ["Executability.LotNotional", "Executability.MinNotional"]
+      },
+      {
+        "stream": "records/okx_directional/universe.json",
+        "role": "pit_universe",
+        "point_in_time": true,
+        "note": "禁止用当前 universe 回填历史；只用 as_of 时点已知的标的集合。"
+      }
+    ],
+    "derived_signals": [
+      {"name": "absorption_ratio", "definition": "对手盘吸收的被迫名义 / 已观测被迫名义，clamp[0,1]。"},
+      {"name": "remaining_forced_notional", "definition": "估计未释放被迫名义（USDT）。"},
+      {"name": "tiers_remaining", "definition": "当前价位之外仍武装的强平档数（tiered_liquidation 专用命名信号）。"},
+      {"name": "forced_flow_decaying", "definition": "被迫流一阶差分是否为负。"}
+    ],
+    "forbidden_as_feature": ["settlements.jsonl", "fast_v2_settlements.jsonl", "realized_usdt", "任何收益/盈亏结果字段"]
+  },
+  "episode": {
+    "definition": "一个 episode = 同一相关簇内、由同向被迫流触发、在被迫流枯竭或制度期限前的一段连续被迫窗口。",
+    "anchor": {
+      "t0_ms": "首个满足触发条件的强平事件 event_time_ms（原始 episode 锚点；各 phase 真正的 as_of/decision 锚点见 phases，不再是单一 t0）。",
+      "trigger": "窗口内被迫名义 >= min_trigger_notional_usdt 且 payer 明确且方向可交易。"
+    },
+    "clustering": {
+      "rule": "同一 BTC/强平簇按一个相关 episode 处理，避免相关样本重复计数。",
+      "cluster_key": "Transmission.Cluster",
+      "merge_gap_ms": 60000
+    },
+    "min_trigger_notional_usdt": 50000,
+    "max_episode_duration_ms": 3600000,
+    "deadline_source": "Regime.DeadlineUnixMs；无期限（<=0）的候选直接淘汰（RejectNoDeadline）。"
+  },
+  "feature_time_truncation": {
+    "as_of_ms": "= 该 phase 的 as_of_ms（t_signal，见 phases.anchor_semantics）；双锚下不再等同于单一 episode.t0。",
+    "feature_lag_ms": 250,
+    "decision_ms": "as_of_ms + feature_lag_ms",
+    "rules": [
+      "特征只使用 event_time_ms <= as_of_ms 的事件（不再从 as_of 预减 feature_lag）。",
+      "(as_of_ms, as_of_ms + feature_lag_ms] 这段宽 feature_lag_ms 的等待生效窗口对特征与标签都不可见。",
+      "标签只使用 event_time_ms > decision_ms 的事件（decision_ms = as_of_ms + feature_lag_ms）。",
+      "同时要求 receive_time_ms <= as_of_ms，迟到样本按接收时间二次剔除。",
+      "只使用 as_of_ms 时点已知的 PIT instrument/universe。",
+      "as_of 之后发生的任何修正链（HasCorrection）不得回填进特征。",
+      "process_time 不得进入任何特征。"
+    ],
+    "leakage_guards": ["no_future_event_time", "no_future_receive_time", "no_current_universe_backfill", "no_post_t0_correction", "feature_label_embargo_gap"]
+  },
+  "phases": {
+    "note": "双锚：同一原始 episode 最多产出两个互相独立的候选 phase（relay 与 exhaustion），各自独立锚点、独立 EntryFeatures/FutureLabel、独立 EpisodeID（= raw_episode_id + '#' + phase），对称预算、对称判定；禁止用同一『结束时』特征快照同时检验两者（本包修复的核心防泄漏点，见 internal/mechanismpanel/types.go 与 episode.go）。",
+    "anchor_semantics": {
+      "as_of_ms": "t_signal；该 phase 结构性条件最早成立的原始信号 event_time_ms；EntryFeatures 只用 event_time_ms <= as_of_ms 的数据。",
+      "decision_ms": "as_of_ms + feature_lag_ms；标签/决策锚点；FutureLabel 只用 event_time_ms > decision_ms 的数据。",
+      "embargo_window_ms": "(as_of_ms, decision_ms] 宽 = feature_lag_ms，对特征与标签都不可见（等待生效延迟，防泄漏）。"
+    },
+    "relay": {
+      "phase": "relay",
+      "hypothesis": "H_relay",
+      "as_of_rule": "累计被迫名义（全 venue，event_time <= as_of）>= min_trigger_notional_usdt 且被迫流加速（后半 > 前半）、payer 明确、方向可交易的最早强平事件时刻。",
+      "direction_rule": "direction = forced_flow.side"
+    },
+    "exhaustion": {
+      "phase": "exhaustion",
+      "hypothesis": "H_exhaustion",
+      "as_of_rule": "gap 确认（最后强平事件后经过 merge_gap_ms 仍无新事件，或流自然耗尽）且被迫流不再加速、剩余比 <= exhaustion_max_remaining_ratio、吸收比 >= exhaustion_absorption_min 的最早时刻。",
+      "direction_rule": "direction = forced_flow.side.opposite()"
+    },
+    "shared_unified_params": {
+      "feature_lag_ms": 250,
+      "exhaustion_absorption_min": 0.60,
+      "exhaustion_max_remaining_ratio": 0.20,
+      "symmetric_budget": true,
+      "no_presupposed_winner": true
+    }
+  },
+  "features": [
+    {"name": "observed_forced_notional_usdt", "window_ms": 300000, "source": "fast_liquidation_events"},
+    {"name": "remaining_forced_notional_usdt", "source": "episode_second_half", "definition": "episode 后半段已观测被迫名义，作为未释放燃料的冻结代理；不得根据收益替换估计器。"},
+    {"name": "forced_flow_first_diff", "window_ms": 60000, "definition": "episode 后半段被迫名义减前半段被迫名义；second_half < first_half 时 Decaying=true。"},
+    {"name": "absorption_ratio", "window_ms": 120000, "source": "fast_market_mids"},
+    {"name": "tiers_remaining", "source": "derived_signal"},
+    {"name": "beta_to_cluster", "source": "fast_xmeta_snapshots"},
+    {"name": "spread_bps", "source": "fast_market_mids"},
+    {"name": "top_depth_notional_usdt", "source": "fast_market_mids"}
+  ],
+  "labels": {
+    "note": "标签为规格；由密封考试内的代码计算，研究者不在封卷前读取任何收益结果。",
+    "anchor": "该 phase 的 decision_ms（= as_of_ms + feature_lag_ms）；relay 与 exhaustion 各自独立锚点，不共用单一 t0。",
+    "horizon_ms": "min(Regime.DeadlineUnixMs - decision_ms, max_label_horizon_ms)",
+    "max_label_horizon_ms": 1800000,
+    "max_label_staleness_ms": 10000,
+    "label_horizons_ms": [30000, 60000, 120000, 300000],
+    "staleness_rule": "每个 horizon 只接受首个 offset>=horizon 且 offset-horizon<=max_label_staleness_ms 的价格；更晚样本将该 horizon 冻结为 unobserved，禁止用遥远未来价格代替。",
+    "measurement": "以可成交出场盘口（非入场盘口）计的净对数增长；扣除 costs 全量后为净标签。",
+    "primary_label": "net_log_growth_after_costs",
+    "exit_convention": "取 invalidator 触发、deadline 到期、label horizon 到期三者最早者。",
+    "correlated_episode_weight": "同簇 episode 合并为一个相关样本，权重不重复计数。"
+  },
+  "runtime": {
+    "note": "bounded-memory 运行时参数；与 internal/mechanismpanel.DefaultAggregatorConfig() 及 preregistration.go 常量逐字段一致（见 preregistration_test.go 的 manifest↔常量↔运行时三方漂移检测）。",
+    "max_open_episodes": 64,
+    "max_pending_labels": 128,
+    "max_context_buffer": 4096,
+    "max_dedupe_entries": 4096,
+    "label_horizons_ms": [30000, 60000, 120000, 300000],
+    "merge_gap_ms": 60000,
+    "max_episode_duration_ms": 3600000,
+    "min_trigger_notional_usdt": 50000,
+    "feature_lag_ms": 250,
+    "max_label_staleness_ms": 10000
+  },
+  "costs": {
+    "model": "internal/replay 全量成本模型；参数来自 fast_maker_attempts 校准，禁止为提高成交率而下调。",
+    "components": {
+      "taker_fee_bps": 5.0,
+      "maker_fee_bps": 2.0,
+      "funding_cost": "按 episode 跨越的资金费结算窗口计提。",
+      "expected_slippage_bps": "由 top_depth_notional 与目标名义推导，出场用出场盘口。",
+      "exit_book_not_entry_book": true,
+      "partial_fill": true,
+      "toxic_fill": true,
+      "latency_ms": 250
+    },
+    "objective": "优化条件净收益下界（net_edge_bps_lower_bound），不优化成交率。",
+    "downgraded_legacy": ["mid_cross", "fixed_12_18_bps", "entry_book_as_exit_book"]
+  },
+  "stop_error": {
+    "principle": "只认论点证伪，不认固定价格止损；偿付减仓是独立状态机。",
+    "invalidators": {
+      "H_relay": [
+        {"metric": "remaining_forced_notional", "condition": "drains toward zero", "observable": true},
+        {"metric": "absorption_ratio", "condition": "exceeds exhaustion threshold", "observable": true}
+      ],
+      "H_exhaustion": [
+        {"metric": "remaining_forced_notional", "condition": "rises again above exhaustion band", "observable": true},
+        {"metric": "absorption_ratio", "condition": "collapses below exhaustion threshold", "observable": true}
+      ],
+      "shared": [
+        {"metric": "deadline", "condition": "Regime.DeadlineUnixMs reached", "observable": true},
+        {"metric": "out_of_distribution", "condition": "Quality.OutOfDistribution true -> force flat", "observable": true}
+      ]
+    },
+    "requirement": "至少一个 Observable=true 的 invalidator，否则 RejectNoInvalidator。",
+    "solvency_defense": {
+      "separate_state_machine": true,
+      "rule": "按最差压力场景缓冲削减边际风险最大的仓位；任何专家不得关闭偿付防线。"
+    }
+  },
+  "extreme_scenarios": {
+    "source": "internal/replay.DefaultStressScenarios + 附加尾部场景",
+    "gate": "每个候选在全部场景下 SurvivingBufferPct > 0（不破产）方可进入下一区。",
+    "scenarios": [
+      {"name": "corr1_crash_30", "market_move_pct": -0.30},
+      {"name": "corr1_squeeze_30", "market_move_pct": 0.30},
+      {"name": "all_long_crash_20", "market_move_pct": -0.20, "side_filter": "long"},
+      {"name": "all_short_squeeze_20", "market_move_pct": 0.20, "side_filter": "short"},
+      {"name": "liquidity_evaporation", "market_move_pct": -0.10, "exit_friction_rate": 0.05},
+      {"name": "api_outage_pending_outflow", "market_move_pct": -0.10, "frozen_hold_pct": 0.10, "count_pending_outflow": true},
+      {"name": "stablecoin_depeg", "market_move_pct": -0.05, "exit_friction_rate": 0.08},
+      {"name": "mmr_tier_jump", "market_move_pct": -0.15, "exit_friction_rate": 0.03}
+    ]
+  },
+  "splits": {
+    "research_zone": {
+      "role": "research",
+      "touchable": true,
+      "purpose": "机制调研、特征与阈值开发；可反复读取（但不含任何密封卷）。"
+    },
+    "walk_forward": {
+      "role": "nested_walk_forward",
+      "touchable": true,
+      "scheme": "expanding_train_rolling_test",
+      "folds": 5,
+      "embargo_ms": 3600000,
+      "min_episodes_per_fold": 20,
+      "note": "结构参数预注册；WF 仅作用于研究区，不触碰任何密封考卷。"
+    },
+    "sealing_order_doc": "研究区 -> 嵌套 WF -> 历史挑战卷 -> 未接触跨所密封卷 -> 最终黄金卷。"
+  },
+  "exam_order": {
+    "note": "仅登记 exam_id 与固定顺序；考卷内容、时间范围、标的与阈值一律不写入研究者可见文档，只由考官服务持有。",
+    "registry_path": "records/firstbattle_exams.json",
+    "sequence": [
+      {"order": 2, "exam_id": "flq-hist-challenge-01", "role": "historical_challenge", "one_time": true},
+      {"order": 3, "exam_id": "flq-hist-challenge-02", "role": "historical_challenge", "one_time": true},
+      {"order": 4, "exam_id": "flq-hist-challenge-03", "role": "historical_challenge", "one_time": true},
+      {"order": 5, "exam_id": "flq-crossvenue-sealed-01", "role": "untouched_crossvenue_sealed", "one_time": true},
+      {"order": 6, "exam_id": "flq-golden-final", "role": "golden_final", "one_time": true}
+    ],
+    "consumption_rule": "任何解封、崩溃或结果返回都永久消费该卷（exam.Status -> consumed_*）。"
+  },
+  "failure_criteria": {
+    "per_hypothesis": "各假设按自身预注册阈值独立裁决；relay 失败不自动判 exhaustion 通过，反之亦然。",
+    "golden_fail_is_terminal": "黄金卷失败 -> 本 generation 永久失败；修改后必须新 generation、新考卷。",
+    "no_override": "天道叙事、架构完成度、金额暂时为正均不能覆盖失败。",
+    "no_unified_gate": "禁止用统一 PF 或固定交易笔数覆盖事件稀疏度差异；每机制阈值看卷前锁定。",
+    "sparse_event_handling": "episode 稀疏时用 min_episodes_per_exam 保底，不足则判 inconclusive 而非通过。"
+  },
+  "multiple_comparison_budget": {
+    "hypotheses": 2,
+    "variants_per_hypothesis": 1,
+    "sealed_exams": 5,
+    "total_prereg_tests": 10,
+    "family_wise_control": "Holm-Bonferroni",
+    "family_wise_alpha": 0.01,
+    "alpha_spend_rule": "每张考卷按 order 消费 alpha 预算；预算耗尽后不得追加变体或考卷。",
+    "no_post_hoc_variants": true
+  },
+  "prohibitions": [
+    "封卷决策前读取任何收益/结算/盈亏结果（settlements、realized_usdt 等）。",
+    "触碰、预览或重跑任何密封卷 / 跨所卷 / 黄金卷。",
+    "用当前 universe 或 t0 之后的修正回填历史特征。",
+    "看卷后修改阈值、假设、特征或成本参数。",
+    "优化成交率而非条件净收益下界。",
+    "用固定价格止损覆盖运行时可观测 invalidator。",
+    "用统一 PF / 固定交易笔数作为跨机制通用门。",
+    "在 relay 与 exhaustion 之间预设赢家或非对称分配预算。",
+    "接受无 payer / 无期限 / 无可观测 invalidator、仅凭『跌多会涨』的候选。",
+    "把考卷内容或时间范围写入研究者可见文档。"
+  ],
+  "red_team": {
+    "note": "红队 12 项对抗要求：每项都必须在封卷前由代码或流程强制，不能仅靠自觉；preregistration_test.go 断言本数组恰为 12 项。",
+    "requirements": [
+      {"id": "rt01_no_revenue_peek_before_seal", "requirement": "封卷决策前不读取任何收益/结算/盈亏结果（settlements、realized_usdt 等）。", "enforced_by": "observable_fields.forbidden_as_feature + prohibitions[0]"},
+      {"id": "rt02_no_touch_sealed_exams", "requirement": "不触碰、预览或重跑任何密封卷/跨所卷/黄金卷。", "enforced_by": "exam_order.consumption_rule + prohibitions[1]"},
+      {"id": "rt03_no_current_universe_or_post_asof_backfill", "requirement": "不用当前 universe 或 as_of 之后的修正回填历史特征。", "enforced_by": "feature_time_truncation.leakage_guards"},
+      {"id": "rt04_no_threshold_change_after_seal", "requirement": "看卷后不修改阈值、假设、特征或成本参数。", "enforced_by": "failure_criteria + prohibitions[3]"},
+      {"id": "rt05_optimize_net_edge_not_fill_rate", "requirement": "优化条件净收益下界而非成交率；成本参数禁止为提高成交率而下调。", "enforced_by": "costs.objective + prohibitions[4]"},
+      {"id": "rt06_no_price_stop_override_invalidator", "requirement": "不用固定价格止损覆盖运行时可观测 invalidator。", "enforced_by": "stop_error.principle + prohibitions[5]"},
+      {"id": "rt07_no_unified_gate", "requirement": "不用统一 PF 或固定交易笔数作为跨机制通用门。", "enforced_by": "failure_criteria.no_unified_gate + prohibitions[6]"},
+      {"id": "rt08_symmetric_relay_exhaustion", "requirement": "relay 与 exhaustion 对称预算、对称判定，禁止预设赢家或非对称分配。", "enforced_by": "phases.shared_unified_params.no_presupposed_winner + principles.no_presupposed_winner"},
+      {"id": "rt09_reject_no_payer_deadline_invalidator", "requirement": "淘汰无 payer / 无期限 / 无可观测 invalidator、仅凭『跌多会涨』的候选。", "enforced_by": "payers.reject_if_unknown + episode.deadline_source + stop_error.requirement"},
+      {"id": "rt10_feature_label_physical_separation", "requirement": "特征只用 <= as_of、标签只用 > decision，中间 feature_lag embargo 窗口对两者不可见；双锚各自独立 EntryFeatures/FutureLabel。", "enforced_by": "phases.anchor_semantics + internal/mechanismpanel.absorbFuture 时间闸门"},
+      {"id": "rt11_manifest_code_drift_guard", "requirement": "manifest ↔ preregistration.go 常量 ↔ DefaultAggregatorConfig() 运行时三方数值一致，任一漂移即测试失败。", "enforced_by": "preregistration_test.go TestManifestCodeConstantsNoDrift"},
+      {"id": "rt12_reproducible_protocol_hash", "requirement": "protocol hash 规范可复现：把 audit.protocol_hash 置 null 后对 manifest 做 datatruth.HashJSON，结果封卷前登记进 exam.ProtocolHash。", "enforced_by": "audit.protocol_hash_method + preregistration_test.go TestProtocolHashMatchesManifest"}
+    ]
+  },
+  "audit": {
+    "protocol_hash": "6b16eb531230a14242f29d398fd357188867062f2fb2f0f0af6b7f554dd83bcb",
+    "protocol_hash_method": "datatruth.HashJSON(canonical)，其中 canonical = 本 manifest 解析为通用 JSON 后把 audit.protocol_hash 置为 null；HashJSON 对对象键递归排序后做 SHA-256，输出小写 hex；结果登记进 exam.ProtocolHash。",
+    "protocol_hash_reproduce": "读取本文件 -> json.Unmarshal 到 map[string]any -> 令 doc[\"audit\"][\"protocol_hash\"]=nil -> datatruth.HashJSON(doc)。哈希对对象键序与空白不敏感，可逐字节复现（见 preregistration_test.go）。",
+    "unsigned_boundary": "无 KMS 时 receipt 为 UNSIGNED_BOUNDARY 接口产物，不得当作密码学证明。",
+    "drives": ["mechanism experts", "replay cost/stress", "exam registry", "scorecard gate"]
+  }
+}

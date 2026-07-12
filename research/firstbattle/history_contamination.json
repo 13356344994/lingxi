@@ -1,0 +1,195 @@
+{
+  "schema_version": "lingxi.history-contamination.v1",
+  "generated_at": "2026-07-11T14:17:30.632642992Z",
+  "catalog_data_hash": "f41ed2586d91054c4b5b2e15e60f32a4d64ccde0032e76dfdc5fc6dee316379c",
+  "catalog_schema_hash": "5bb4705d4aaf9267c431d675d100689d5e7cd4bca84a8205592f7e11ae63a6c0",
+  "families": [
+    {
+      "family": "bybit_funding",
+      "status": "RESEARCH_ONLY",
+      "evidence": [
+        {
+          "family": "bybit_funding",
+          "source": "records/_history_fetch.py",
+          "reason": "referenced_by_existing_research_artifact",
+          "bytes_read": 15173
+        },
+        {
+          "family": "bybit_funding",
+          "source": "records/_prize_join_study.py",
+          "reason": "referenced_by_existing_research_artifact",
+          "bytes_read": 14886
+        },
+        {
+          "family": "bybit_funding",
+          "source": "records/_weather_key_longhist.py",
+          "reason": "referenced_by_existing_research_artifact",
+          "bytes_read": 8924
+        }
+      ],
+      "reason": "existing_research_artifact_references_family"
+    },
+    {
+      "family": "okx_1h",
+      "status": "RESEARCH_ONLY",
+      "evidence": [
+        {
+          "family": "okx_1h",
+          "source": "records/_cap_veto_study.py",
+          "reason": "referenced_by_existing_research_artifact",
+          "bytes_read": 5165
+        },
+        {
+          "family": "okx_1h",
+          "source": "records/_history_fetch.py",
+          "reason": "referenced_by_existing_research_artifact",
+          "bytes_read": 15173
+        },
+        {
+          "family": "okx_1h",
+          "source": "records/_pin_direction_study.py",
+          "reason": "referenced_by_existing_research_artifact",
+          "bytes_read": 6386
+        },
+        {
+          "family": "okx_1h",
+          "source": "records/_pin_direction_v2.py",
+          "reason": "referenced_by_existing_research_artifact",
+          "bytes_read": 6624
+        },
+        {
+          "family": "okx_1h",
+          "source": "records/_where_key_2y.py",
+          "reason": "referenced_by_existing_research_artifact",
+          "bytes_read": 5481
+        }
+      ],
+      "reason": "existing_research_artifact_references_family"
+    },
+    {
+      "family": "okx_5m",
+      "status": "RESEARCH_ONLY",
+      "evidence": [
+        {
+          "family": "okx_5m",
+          "source": "records/_direction_key_rubik.py",
+          "reason": "referenced_by_existing_research_artifact",
+          "bytes_read": 9315
+        },
+        {
+          "family": "okx_5m",
+          "source": "records/_history_fetch.py",
+          "reason": "referenced_by_existing_research_artifact",
+          "bytes_read": 15173
+        },
+        {
+          "family": "okx_5m",
+          "source": "records/_pin_direction_v2.py",
+          "reason": "referenced_by_existing_research_artifact",
+          "bytes_read": 6624
+        },
+        {
+          "family": "okx_5m",
+          "source": "records/_rule_hole_funding_snipe.py",
+          "reason": "referenced_by_existing_research_artifact",
+          "bytes_read": 4911
+        },
+        {
+          "family": "okx_5m",
+          "source": "records/_weather_key_longhist.py",
+          "reason": "referenced_by_existing_research_artifact",
+          "bytes_read": 8924
+        }
+      ],
+      "reason": "existing_research_artifact_references_family"
+    },
+    {
+      "family": "okx_funding",
+      "status": "RESEARCH_ONLY",
+      "evidence": [
+        {
+          "family": "okx_funding",
+          "source": "records/_cap_veto_study.py",
+          "reason": "referenced_by_existing_research_artifact",
+          "bytes_read": 5165
+        },
+        {
+          "family": "okx_funding",
+          "source": "records/_history_fetch.py",
+          "reason": "referenced_by_existing_research_artifact",
+          "bytes_read": 15173
+        },
+        {
+          "family": "okx_funding",
+          "source": "records/_pin_direction_study.py",
+          "reason": "referenced_by_existing_research_artifact",
+          "bytes_read": 6386
+        },
+        {
+          "family": "okx_funding",
+          "source": "records/_pin_direction_v2.py",
+          "reason": "referenced_by_existing_research_artifact",
+          "bytes_read": 6624
+        },
+        {
+          "family": "okx_funding",
+          "source": "records/_rule_hole_funding_snipe.py",
+          "reason": "referenced_by_existing_research_artifact",
+          "bytes_read": 4911
+        }
+      ],
+      "reason": "existing_research_artifact_references_family"
+    },
+    {
+      "family": "rubik_lsratio_1h",
+      "status": "RESEARCH_ONLY",
+      "evidence": [
+        {
+          "family": "rubik_lsratio_1h",
+          "source": "records/_direction_key_rubik.py",
+          "reason": "referenced_by_existing_research_artifact",
+          "bytes_read": 9315
+        },
+        {
+          "family": "rubik_lsratio_1h",
+          "source": "records/_rubik_fetch.py",
+          "reason": "referenced_by_existing_research_artifact",
+          "bytes_read": 9345
+        }
+      ],
+      "reason": "existing_research_artifact_references_family"
+    },
+    {
+      "family": "rubik_taker_1h",
+      "status": "RESEARCH_ONLY",
+      "evidence": [
+        {
+          "family": "rubik_taker_1h",
+          "source": "records/_direction_key_rubik.py",
+          "reason": "referenced_by_existing_research_artifact",
+          "bytes_read": 9315
+        },
+        {
+          "family": "rubik_taker_1h",
+          "source": "records/_rubik_fetch.py",
+          "reason": "referenced_by_existing_research_artifact",
+          "bytes_read": 9345
+        }
+      ],
+      "reason": "existing_research_artifact_references_family"
+    },
+    {
+      "family": "rubik_taker_5m",
+      "status": "RESEARCH_ONLY",
+      "evidence": [
+        {
+          "family": "rubik_taker_5m",
+          "source": "records/_rubik_fetch.py",
+          "reason": "referenced_by_existing_research_artifact",
+          "bytes_read": 9345
+        }
+      ],
+      "reason": "existing_research_artifact_references_family"
+    }
+  ]
+}

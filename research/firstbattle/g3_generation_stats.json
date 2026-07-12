@@ -1,0 +1,33 @@
+{
+  "schema_version": "lingxi.router-g3-generation-summary.v1",
+  "protocol_hash": "1628e1a575585a7a1c2b7da0e01eb54de9707997272a6301e3824505dece17fb",
+  "exam_actions": 0,
+  "events_by_partition": {
+    "induction": 14022,
+    "recheck": 5910,
+    "forward": 5310,
+    "walk_forward": 7350
+  },
+  "sky_states_with_eligible_events": {
+    "induction": 131,
+    "recheck": 39,
+    "forward": 66,
+    "walk_forward": 40
+  },
+  "outcome_by_partition": {
+    "induction": {"winner": 6197, "loss": 7546, "neutral": 279},
+    "recheck": {"winner": 2661, "loss": 3143, "neutral": 106},
+    "forward": {"winner": 2465, "loss": 2759, "neutral": 86},
+    "walk_forward": {"winner": 3444, "loss": 3823, "neutral": 83}
+  },
+  "sorter_rejections_by_partition": {
+    "induction": {"PREDECISION_LIQUIDITY_INSUFFICIENT": 12264, "VOLATILITY_COST_RATIO_LOW": 23},
+    "recheck": {"PREDECISION_LIQUIDITY_INSUFFICIENT": 3896},
+    "forward": {"PREDECISION_LIQUIDITY_INSUFFICIENT": 4477},
+    "walk_forward": {"PREDECISION_LIQUIDITY_INSUFFICIENT": 3935}
+  },
+  "full_coverage_artifact": {
+    "event_manifest_hash": "577b16b49847c3669177bafc4e6cf05786c46c4f2c3c0c99222a6f8104c3d4b3",
+    "note": "完整逐 SkyState 覆盖由签名事件 manifest 对应的 bounded smoke bundle 生成；本文件保留项目内聚合统计。"
+  }
+}

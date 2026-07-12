@@ -1,0 +1,50 @@
+{
+  "schema_version": "lingxi.router-g3-stage.v1",
+  "generation": "firstbattle-router-g3",
+  "protocol_hash": "1628e1a575585a7a1c2b7da0e01eb54de9707997272a6301e3824505dece17fb",
+  "derivation_algorithm_config_hash": "e893269b83ee204bca6b2bb58bba0fec6147827dd4413cea361fe3151fa7fc69",
+  "history_data_hash": "f41ed2586d91054c4b5b2e15e60f32a4d64ccde0032e76dfdc5fc6dee316379c",
+  "partitions": {
+    "induction_events": 14022,
+    "recheck_events": 5910,
+    "forward_events": 5310,
+    "walk_forward_events": 7350
+  },
+  "outcomes": {
+    "induction": {"winner": 6197, "loss": 7546, "neutral": 279},
+    "recheck": {"winner": 2661, "loss": 3143, "neutral": 106},
+    "forward": {"winner": 2465, "loss": 2759, "neutral": 86},
+    "walk_forward": {"winner": 3444, "loss": 3823, "neutral": 83}
+  },
+  "induction": {
+    "actual_derived_rules": 192,
+    "single_rules": 162,
+    "dual_rules": 30,
+    "observed_coarse_groups": 162,
+    "covered_coarse_groups": 162,
+    "selection_tax_failed": 168,
+    "only_winner_no_matched_controls": 23,
+    "no_winners": 1,
+    "candidate_nominations": 0
+  },
+  "research": {
+    "recheck_pass": 0,
+    "attributed_candidates": 0,
+    "registered_candidates": 0,
+    "research_pass_leaves": 0
+  },
+  "commitments": {
+    "event_manifest_hash": "577b16b49847c3669177bafc4e6cf05786c46c4f2c3c0c99222a6f8104c3d4b3",
+    "search_manifest_hash": "17a187601501f17a83a556596d20fb3e4750765ffb13e01f5d823dc159f9705a",
+    "canonical_derived_rules_hash": "3d9cf9f6f7acaefe573720ac8a5405e711c33f16664625054010957d14cbd81b",
+    "alpha_ledger_hash": "22c8d9cad803a556b2c678d832a311fdeb6c3fe6163a71ea47a751d7d13fb1a1",
+    "coverage_hash": "4557292bc91a3b16cd35878e34c8962470ded8c0ef4211bd93cfcbd46a0f1e4b",
+    "discovery_receipt_hash": "fb08c9f487434ff8ec0bfb3a5db8c6b7e7f2fd943fe16601aae397b831229c97"
+  },
+  "exam_actions": {
+    "created": 0,
+    "unsealed": 0,
+    "consumed": 0
+  },
+  "system_status": "NO_GO"
+}

@@ -1,0 +1,607 @@
+{
+  "schema_version": "1",
+  "protocol_id": "firstbattle.hierarchical_router.g3",
+  "generation": "firstbattle-router-g3",
+  "created_at": "2026-07-12T02:00:00Z",
+  "companion_doc": "research/firstbattle/hierarchical_router_g3_preregistration.md",
+  "status": "preregistered_router_g3_protocol",
+  "principles": {
+    "single_goal": "结果优先倒序归纳：先从固定历史 discovery 区枚举资金流调整后的净赚钱事件，再倒推决策前行情与结构特征，随后用未参与归纳的历史分片正序证伪；无 RESEARCH_PASS 条件叶即 NO_TRADE。",
+    "outcome_first_reverse_induction": "倒序定义为净赚钱结果→决策前共同条件→付款机制；规则形成后必须回到该规则触发的全部 winner/loss/neutral 样本裁决，禁止只总结赢家。",
+    "no_global_direction": "不寻找跨行情永久单方向；方向只存在于 SkyState/机制/付款者/可执行条件绑定的叶子内。",
+    "fail_closed": "未知、歧义、反向冲突、未认证、OOD 一律 NO_TRADE；缺数据只关闭相关叶，不停整棵树。",
+    "no_future_wait": "只使用决策时刻可见、已完整收盘的历史/实时字段，不等待未来样本回答策略问题。",
+    "discovery_only_nominates": "倒序归纳与正序证伪只能提名候选，不能批准叶子；运行时树只含决策时刻正向可计算节点。",
+    "no_order_placement": "本协议只驱动 research/shadow 路由，不接生产下单路径，不创建/解封/消费真实考卷（exam_actions=0）。"
+  },
+  "closes_g1": {
+    "note": "g3 引用但绝不修改 g1 的 protocol hash 与零候选结论；g1 永久冻结。",
+    "g1_generation": "firstbattle-router-g1",
+    "g1_router_protocol_hash": "0eab9bda13055209c81d2b47f0286a0317b79dbb642592ec1b00cd4771397d31",
+    "g1_router_protocol_path": "research/firstbattle/hierarchical_router_preregistration.json",
+    "g1_result_path": "research/firstbattle/router_stage_summary.json",
+    "g1_certified_money_leaves": 0,
+    "g1_research_pass_leaves": 0,
+    "g1_system_status": "NO_GO",
+    "immutable": "g1 hash/result 只引用；修改 g1 阈值、改名、换皮重考、复活 CLOSED/UNTESTABLE 叶一律禁止。"
+  },
+  "closes_g2": {
+    "note": "g3 引用但绝不修改 g2 的 protocol hash 与 162 组合 0 提名 NO_GO 结论；g2 永久冻结。",
+    "g2_generation": "firstbattle-router-g2",
+    "g2_router_protocol_hash": "395d15ece40050e7227e0cff5a74a91c68cdab83285c02a10657d13f21a118ec",
+    "g2_router_protocol_path": "research/firstbattle/hierarchical_router_g2_preregistration.json",
+    "g2_result_path": "research/firstbattle/g2_stage_summary.json",
+    "g2_registered_search_combinations": 162,
+    "g2_candidate_nominations": 0,
+    "g2_research_pass_leaves": 0,
+    "g2_system_status": "NO_GO",
+    "g2_prize_mechanism": "funding_payer_flip_rebalance",
+    "immutable": "g2 hash/result 只引用；禁止复活 g2 funding_payer_flip_rebalance 或任何 g2 搜索组合；换皮/改名/调参重考一律禁止。"
+  },
+  "binds": {
+    "note": "路由协议绑定但不篡改被引用的历史契约与 g1/g2 路由协议；任一被绑定 hash 变化都必须新 generation。",
+    "history_data_hash": "f41ed2586d91054c4b5b2e15e60f32a4d64ccde0032e76dfdc5fc6dee316379c",
+    "history_regime_contract_hash": "a80978f75a74d68a8ac8dcc988ea2e16b01623f739ebab23428cf92f23fd7127",
+    "history_data_requirements_hash": "07b709f9ddd036749da76d28c66e7efe70638cec7c15bbe1b29789a8534622f7",
+    "g1_router_protocol_hash": "0eab9bda13055209c81d2b47f0286a0317b79dbb642592ec1b00cd4771397d31",
+    "g2_router_protocol_hash": "395d15ece40050e7227e0cff5a74a91c68cdab83285c02a10657d13f21a118ec",
+    "history_regime_contract_path": "research/firstbattle/history_regime_contract.json",
+    "history_data_requirements_path": "research/firstbattle/history_data_requirements.json",
+    "g1_router_protocol_path": "research/firstbattle/hierarchical_router_preregistration.json",
+    "g2_router_protocol_path": "research/firstbattle/hierarchical_router_g2_preregistration.json"
+  },
+  "data_families": {
+    "note": "G3 inventory 保留现有 7 族历史覆盖；catalog 预检只盘点时间覆盖，不读取收益。rubik_taker_5m 仅约 48h，无法支持四分区及相邻 168h embargo，本代 optional_nonblocking 且不得生成规则。",
+    "families": [
+      "okx_1h",
+      "okx_5m",
+      "okx_funding",
+      "bybit_funding",
+      "rubik_taker_1h",
+      "rubik_taker_5m",
+      "rubik_lsratio_1h"
+    ],
+    "optional_nonblocking": ["rubik_taker_5m"],
+    "excluded_from_g3_rule_generation": ["rubik_taker_5m"],
+    "coverage_constraints": {
+      "rubik_taker_5m": {
+        "observed_min_time": "2026-07-07T14:40:00Z",
+        "observed_max_time": "2026-07-09T14:39:17.232Z",
+        "reason": "approximately_48h_cannot_support_40_20_20_20_with_adjacent_168h_embargo",
+        "generation_action": "inventory_only_optional_nonblocking_no_rules"
+      }
+    },
+    "catalog_path": "research/firstbattle/history_catalog.json",
+    "forbidden_inputs": ["settlements", "realized_pnl", "sealed_exam", "current_universe_backfill"]
+  },
+  "node_order": [
+    "DataTruth",
+    "SkyBureau",
+    "Sorter",
+    "MechanismFamily",
+    "ConditionalLeaf"
+  ],
+  "node_inputs": {
+    "DataTruth": {
+      "observes": ["three_clock_status", "pit_coverage", "completeness", "dedupe"],
+      "fail_closed": "invalid/missing/late/correction/duplicate/out_of_order/unknown -> NO_TRADE",
+      "scope": "global_routing_context"
+    },
+    "SkyBureau": {
+      "observes": ["sky_state", "sky_ood_flag"],
+      "fail_closed": "unknown/unsupported(OOD)/missing -> NO_TRADE",
+      "regime_source": "history_regime_contract.json BTC 行情层，只用已完整收盘 bar，禁止用收益定义行情。",
+      "state_semantics": "SkyState 只表示大行情，不隐含交易方向。"
+    },
+    "Sorter": {
+      "observes": ["data_integrity", "history_coverage", "pre_decision_liquidity", "volatility_cost_ratio", "single_symbol_capacity", "cluster_capacity", "mechanism_required_fields"],
+      "min_quote_volume": 500000.0,
+      "min_volatility_cost_ratio": 2.0,
+      "fail_closed": "OOD/歧义/不可执行/缺机制字段 -> 拒绝该叶；缺 depth 不得阻塞只需 OHLCV/funding 的叶子。",
+      "per_leaf_data_requirements": "每个叶子声明自己的数据要求，分拣器逐叶判定可执行域。"
+    },
+    "MechanismFamily": {
+      "observes": ["mechanism_family_id", "observable_payer"],
+      "fail_closed": "unknown_family -> NO_TRADE; no_observable_payer -> NO_TRADE",
+      "multi_tree": "多个机制家族树可并行产生候选；账户层才处理相关性与资金竞争。",
+      "g3_note": "机制族由倒序归纳提出，不预先锁定单一 funding 族；无法解释付款机制的模式直接 NARRATIVE_ONLY/CLOSED。"
+    },
+    "ConditionalLeaf": {
+      "observes": ["sky_state", "sorter_domain", "mechanism", "variant", "direction", "leaf_state"],
+      "id_encoding": "SkyState/SorterDomain/Mechanism/Variant/Direction",
+      "fail_closed": "selector_unknown/ambiguous/no_matching_leaf -> NO_TRADE；选中叶后 CLOSED/UNTESTABLE -> LEAF_CLOSED；叶数据缺失 -> LEAF_DATA_MISSING(只关此叶)；未认证 -> NOT_CERTIFIED NO_TRADE。",
+      "direction_rule": "方向是叶子在具体 SkyState 下的冻结属性；同机制可在不同 SkyState 走相反方向，禁止合并为全市场单方向后裁决。"
+    }
+  },
+  "sky": {
+    "note": "司天监行情层：只用决策时刻之前已完整收盘的历史 bar，输出 SkyState；只表示行情，不决定方向，不读收益。",
+    "decision_time_rule": "每个特征只使用 open_time + timescale <= decision_time 的已收盘 bar；当前未收盘 bar、未来收益、当前 universe 回填均禁止。",
+    "timescales_hours": [1, 4, 24],
+    "binds_regime_contract_hash": "a80978f75a74d68a8ac8dcc988ea2e16b01623f739ebab23428cf92f23fd7127",
+    "binning": "research_quantiles",
+    "quantiles": [0.3333333333, 0.6666666667],
+    "fit_on": "reverse_induction_partition_only",
+    "missing_action": "OOD_NO_TRADE",
+    "freeze_rule": "分桶切点只在 G3 reverse-induction 区按特征分布拟合一次，不读取收益；切点冻结后原样应用到 recheck/forward/WF；禁止用当前 universe 回填历史，禁止用考试结果反向修改分类。",
+    "state_semantics": "SkyState 只表示大行情，不隐含交易方向；未匹配 SkyState 必须空仓。",
+    "dimensions": [
+      {
+        "name": "btc_return_24h",
+        "inputs": ["okx_1h:BTC-USDT-SWAP"],
+        "lookback_hours": 24,
+        "definition": "signed_return_from_first_to_last_closed_1h_close",
+        "fit_on": "reverse_induction_partition_only",
+        "missing_action": "OOD_NO_TRADE"
+      },
+      {
+        "name": "btc_trend_efficiency_24h",
+        "inputs": ["okx_1h:BTC-USDT-SWAP"],
+        "lookback_hours": 24,
+        "definition": "kaufman_efficiency_ratio_on_closed_1h_closes",
+        "fit_on": "reverse_induction_partition_only",
+        "missing_action": "OOD_NO_TRADE"
+      },
+      {
+        "name": "btc_realized_volatility_24h",
+        "inputs": ["okx_1h:BTC-USDT-SWAP"],
+        "lookback_hours": 24,
+        "definition": "sqrt_sum_squared_log_returns_on_closed_1h_closes",
+        "fit_on": "reverse_induction_partition_only",
+        "missing_action": "OOD_NO_TRADE"
+      },
+      {
+        "name": "btc_drawdown_168h",
+        "inputs": ["okx_1h:BTC-USDT-SWAP"],
+        "lookback_hours": 168,
+        "definition": "peak_to_last_close_drawdown_on_closed_1h_closes",
+        "fit_on": "reverse_induction_partition_only",
+        "missing_action": "OOD_NO_TRADE"
+      },
+      {
+        "name": "okx_btc_funding_state",
+        "inputs": ["okx_funding:BTC-USDT-SWAP"],
+        "lookback_hours": 24,
+        "definition": "mean_settled_funding_rate_before_decision_time",
+        "fit_on": "reverse_induction_partition_only",
+        "missing_action": "OOD_NO_TRADE"
+      }
+    ],
+    "forbidden_inputs": ["forward_return", "settlements", "realized_pnl", "sealed_exam", "current_universe_backfill", "current_open_bar", "pnl", "outcome", "net_edge"]
+  },
+  "feature_catalog": {
+    "note": "冻结本代可派生规则的最小决策前特征目录；禁止 pnl/outcome/forward_return 进入特征列；阈值只来自 induction 区特征分位数，禁止用收益峰值直接选任意阈值。rubik_taker_5m 仅保留在 DataFamilies inventory，不在本目录且不得生成本代规则。",
+    "decision_time_only": true,
+    "max_features_per_rule": 2,
+    "min_features_per_rule": 1,
+    "threshold_source": "reverse_induction_partition_quantiles",
+    "threshold_quantiles": [0.25, 0.5, 0.75],
+    "categories": [
+      {
+        "name": "price_return_volatility",
+        "features": [
+          {"name": "symbol_return_1h", "inputs": ["okx_1h"], "definition": "signed_return_last_closed_1h_bar"},
+          {"name": "symbol_return_4h", "inputs": ["okx_1h"], "definition": "signed_return_last_4_closed_1h_bars"},
+          {"name": "symbol_return_24h", "inputs": ["okx_1h"], "definition": "signed_return_last_24_closed_1h_bars"},
+          {"name": "symbol_realized_vol_1h", "inputs": ["okx_1h"], "definition": "sqrt_sum_squared_log_returns_1h"},
+          {"name": "symbol_realized_vol_4h", "inputs": ["okx_1h"], "definition": "sqrt_sum_squared_log_returns_4h"},
+          {"name": "symbol_realized_vol_24h", "inputs": ["okx_1h"], "definition": "sqrt_sum_squared_log_returns_24h"}
+        ]
+      },
+      {
+        "name": "okx_bybit_funding_spread_divergence",
+        "features": [
+          {"name": "okx_bybit_funding_spread", "inputs": ["okx_funding", "bybit_funding"], "definition": "okx_settled_funding_minus_bybit_settled_funding"},
+          {"name": "okx_bybit_funding_sign_divergence", "inputs": ["okx_funding", "bybit_funding"], "definition": "sign_okx_funding_ne_sign_bybit_funding_indicator"}
+        ]
+      },
+      {
+        "name": "rubik_taker_imbalance",
+        "features": [
+          {"name": "rubik_taker_imbalance_1h", "inputs": ["rubik_taker_1h"], "definition": "buy_taker_minus_sell_taker_over_sum_1h", "max_staleness_hours": 2, "stale_action": "MISSING"}
+        ]
+      },
+      {
+        "name": "long_short_ratio",
+        "features": [
+          {"name": "rubik_lsratio_1h", "inputs": ["rubik_lsratio_1h"], "definition": "long_short_account_ratio_1h", "max_staleness_hours": 2, "stale_action": "MISSING"}
+        ]
+      },
+      {
+        "name": "liquidity_capacity_proxy",
+        "features": [
+          {"name": "quote_volume_24h_log_bucket", "inputs": ["okx_1h"], "definition": "floor_log10_average_quote_volume_24h_clamp_0_9"},
+          {"name": "volatility_cost_ratio", "inputs": ["okx_1h"], "definition": "realized_vol_bps_over_cost_bps_24h"}
+        ]
+      }
+    ],
+    "forbidden_feature_inputs": ["pnl", "outcome", "forward_return", "net_edge", "realized_pnl", "settlements", "sealed_exam", "post_decision_features", "current_open_bar", "current_universe_backfill"]
+  },
+  "feature_to_economic_mechanism_attribution": {
+    "version": "g3-feature-mechanism-attribution-v1",
+    "note": "候选形成前按本表把规则特征归因到唯一经济机制；conditioner 只能缩小支持域，不能独立提供 payer。归因结果和关闭原因必须进入 sealed search manifest 与 alpha ledger。",
+    "mechanism_families": [
+      {
+        "family": "cross_venue_funding_pressure",
+        "features": ["okx_bybit_funding_spread", "okx_bybit_funding_sign_divergence"],
+        "mechanism": "cross_venue_funding_pressure_rebalance",
+        "payer": "cross_venue_carry_holders",
+        "forced_behavior": "venue_carry_or_margin_rebalance",
+        "cannot_wait_reason": "funding_settlement",
+        "competition_defense": "fragmented_venue_capital_and_capacity",
+        "deadline_template": "next_relevant_cross_venue_funding_settlement_at_or_before_decision_time_plus_outcome_horizon",
+        "invalidator_template": ["cross_venue_funding_spread_converged", "cross_venue_funding_sign_divergence_resolved", "required_venue_unavailable_or_ood"],
+        "distinct_from_g1_g2": "simultaneous_cross_venue_spread_or_sign_divergence; not g1 single_venue funding_post_settlement_release/receiver_release and not g2 adjacent funding_sign_flip/funding_payer_flip_rebalance"
+      },
+      {
+        "family": "urgent_taker_impact",
+        "features": ["rubik_taker_imbalance_1h"],
+        "mechanism": "urgent_taker_impact_reversion",
+        "payer": "urgent_aggressive_takers",
+        "forced_behavior": "execution_urgency_creates_temporary_impact_then_inventory_absorption_or_reversion",
+        "cannot_wait_reason": "execution_urgency",
+        "competition_defense": "temporary_impact_and_limited_capacity",
+        "deadline_template": "decision_time_plus_min(outcome_horizon,4h)",
+        "invalidator_template": ["taker_imbalance_normalized_before_entry", "same_side_aggressive_flow_reaccelerated", "liquidity_or_capacity_ood"],
+        "distinct_from_g1_g2": "not funding_post_settlement_release, funding_payer_flip_rebalance, or panic_liquidation"
+      },
+      {
+        "family": "crowded_leverage",
+        "features": ["rubik_lsratio_1h"],
+        "mechanism": "crowded_leverage_rebalance",
+        "payer": "crowded_leveraged_side",
+        "forced_behavior": "margin_or_carry_pressure_driven_deleveraging_or_rebalance",
+        "cannot_wait_reason": "margin_or_carry_pressure",
+        "competition_defense": "fragmented_positioning_and_limited_balance_sheet_capacity",
+        "deadline_template": "decision_time_plus_min(outcome_horizon,24h)",
+        "invalidator_template": ["long_short_ratio_no_longer_crowded", "margin_or_carry_pressure_dissipated", "liquidity_or_capacity_ood"],
+        "distinct_from_g1_g2": "not funding_post_settlement_release, funding_payer_flip_rebalance, or panic_liquidation"
+      }
+    ],
+    "conditioner_features": [
+      "symbol_return_1h",
+      "symbol_return_4h",
+      "symbol_return_24h",
+      "symbol_realized_vol_1h",
+      "symbol_realized_vol_4h",
+      "symbol_realized_vol_24h",
+      "quote_volume_24h_log_bucket",
+      "volatility_cost_ratio"
+    ],
+    "conditioner_rule": "conditioners_may_restrict_support_but_cannot_supply_payer_or_mechanism",
+    "rule_resolution": {
+      "zero_mechanism_features": "NARRATIVE_ONLY/CLOSED",
+      "one_mechanism_family": "ATTRIBUTE_TO_THAT_FAMILY",
+      "multiple_features_same_mechanism_family": "ATTRIBUTE_TO_THAT_FAMILY",
+      "multiple_different_mechanism_families": "AMBIGUOUS/CLOSED",
+      "conditioner_plus_one_mechanism_family": "ATTRIBUTE_TO_THAT_FAMILY",
+      "closed_rules_still_charge_alpha": true
+    },
+    "g1_g2_mechanism_graveyard": [
+      "funding_post_settlement_release",
+      "negative_funding_receiver_release",
+      "positive_funding_receiver_release",
+      "panic_liquidation",
+      "funding_payer_flip_rebalance"
+    ],
+    "graveyard_rule": "exact id, alias, renamed variant, threshold variant, sign/flip restatement, or semantic equivalent is CLOSED and cannot be attributed to a G3 mechanism"
+  },
+  "leaf_states": [
+    "UNRESEARCHED",
+    "RESEARCH_PASS",
+    "EXAM_PASS",
+    "SHADOW_PASS",
+    "LIVE_APPROVED",
+    "CLOSED",
+    "UNTESTABLE"
+  ],
+  "leaf_state_machine": {
+    "order": ["UNRESEARCHED", "RESEARCH_PASS", "EXAM_PASS", "SHADOW_PASS", "LIVE_APPROVED"],
+    "terminal_closed": ["CLOSED", "UNTESTABLE"],
+    "no_skip_rule": "叶子只能沿 order 逐级晋级；未达对应状态不得越级发候选。",
+    "revive_rule": "CLOSED/UNTESTABLE 叶不可被发现器复活；修改后必须新 leaf_id / 新 generation。",
+    "g3_exam_bypass": "G3 本轮 exam_actions=0；候选只须通过 recheck/forward/WF 达到 RESEARCH_PASS，不创建/解封/消费考卷。",
+    "candidate_emission": {
+      "LIVE_APPROVED": "live_candidate",
+      "SHADOW_PASS": "shadow_candidate",
+      "other": "NO_TRADE(NOT_CERTIFIED)"
+    }
+  },
+  "reason_codes": [
+    "ROUTED_CANDIDATE",
+    "SHADOW_CANDIDATE",
+    "DATA_TRUTH_INVALID",
+    "DATA_TRUTH_UNKNOWN",
+    "SKY_OOD",
+    "SKY_UNKNOWN",
+    "SORTER_REJECTED",
+    "MECHANISM_UNKNOWN",
+    "MECHANISM_NO_PAYER",
+    "CONDITIONAL_LEAF_AMBIGUOUS",
+    "LEAF_DATA_MISSING",
+    "LEAF_CLOSED",
+    "NOT_CERTIFIED",
+    "CONFLICT_NO_ARBITRATION",
+    "PORTFOLIO_RISK_BLOCKED"
+  ],
+  "coarse_trace_rule": {
+    "note": "trace 只含稳定 coarse reason code、终止节点、节点路径、SkyState 标签、叶子身份与候选方向。",
+    "must_not_contain": ["net_edge", "pnl", "realized_usdt", "exam_id", "hidden_time_range", "threshold_values", "near_threshold_margins", "per_trade_returns"],
+    "stable_reason_codes_only": true
+  },
+  "conditional_leaf_rule": {
+    "id_encoding": "SkyState/SorterDomain/Mechanism/Variant/Direction",
+    "same_mechanism_opposite_direction_allowed": true,
+    "no_global_direction": "禁止把不同 SkyState 合并成一个全市场方向后再裁决。",
+    "unmatched_sky_state": "NO_TRADE",
+    "enforced_by": "internal/routerg3/candidates.CanonicalID + ValidateCanonicalID"
+  },
+  "leaves": [],
+  "leaf_status_summary": {
+    "note": "g3 目前 0 个认证赚钱叶、0 个 RESEARCH_PASS；候选须经倒序归纳、recheck、forward 与历史 WF 才能晋级，样本不足直接 INCONCLUSIVE/CLOSED，不等待未来。",
+    "certified_money_leaves": 0,
+    "research_pass_leaves": 0
+  },
+  "discovery_budget": {
+    "note": "冻结倒序归纳/正序证伪预算与失败标准；发现器只提名候选，绝不批准叶子或直接晋级。",
+    "outcome_horizons_hours": [1, 4, 24],
+    "direction_symmetry": "long_short_symmetric",
+    "cost_bps": 12.0,
+    "neutral_band_bps": 3.0,
+    "forward": {
+      "origin": "forward_falsification",
+      "max_families": 8,
+      "max_candidates_per_family": 4,
+      "required_fields": ["payer", "forced_behavior", "cannot_wait_reason", "competition_cannot_erase_reason", "observable_invalidator", "deadline", "applicable_sky_states", "sorter_support_domain", "direction_rule"],
+      "reject_if_missing": ["payer", "deadline", "observable_invalidator"],
+      "context_source": "司天监 SkyState（history_regime_contract BTC 行情层），不用收益定义行情。",
+      "forbidden_inputs": ["settlements", "realized_pnl", "sealed_exam", "current_universe_backfill", "post_decision_features"]
+    },
+    "reverse_induction": {
+      "origin": "outcome_first_reverse_induction",
+      "partition": "REVERSE_INDUCTION_ONLY",
+      "max_files": 512,
+      "max_lines": 5000000,
+      "max_single_feature_rules": 162,
+      "max_dual_feature_rules": 30,
+      "max_derived_search_rules": 192,
+      "allowed_search_space_id": "firstbattle.g3.outcome_first_reverse_induction.v1",
+      "derivation_algorithm_version": "g3-outcome-first-derivation-v3-coarse-round-robin",
+      "derivation_algorithm": {
+        "input_scope": "reverse_induction_partition_winner_index_for_hypothesis_only",
+        "induction_grouping": "coarse_sky_pattern(ret,rv,fund,te=*,dd=*)+sorter_domain+horizon+direction",
+        "coarse_sky_axes": {
+          "ret": ["low", "mid", "high"],
+          "rv": ["low", "mid", "high"],
+          "fund": ["low", "mid", "high"]
+        },
+        "wildcard_sky_axes": {"te": "*", "dd": "*"},
+        "sorter_domains": ["liquid"],
+        "max_coarse_groups": 162,
+        "max_coarse_groups_formula": "3^3_sky_axes * 1_sorter_domain * 3_horizons * 2_directions = 162",
+        "observed_group_rule": "enumerate_only_coarse_groups_with_at_least_one_induction_event_in_frozen_group_order",
+        "group_order": "lexicographic(ret,rv,fund,sorter_domain,horizon,direction)",
+        "rule_fires": "full_sky_state_matches_coarse_pattern_with_te_dd_wildcards_and_exact_sorter_domain_horizon_direction",
+        "control_sky_match": "controls_must_match_same_full_sky_state_even_when_rule_fires_on_coarse_pattern",
+        "feature_derivation_order": [
+          "okx_bybit_funding_spread",
+          "okx_bybit_funding_sign_divergence",
+          "rubik_taker_imbalance_1h",
+          "rubik_lsratio_1h",
+          "symbol_return_1h",
+          "symbol_return_4h",
+          "symbol_return_24h",
+          "symbol_realized_vol_1h",
+          "symbol_realized_vol_4h",
+          "symbol_realized_vol_24h",
+          "quote_volume_24h_log_bucket",
+          "volatility_cost_ratio"
+        ],
+        "feature_order": "feature_derivation_order_mechanism_first_then_conditioners",
+        "threshold_rule": "induction_feature_quantiles_only_0.25_0.50_0.75",
+        "operator_order": ["lte_quantile", "gte_quantile"],
+        "single_rule_order": "feature_then_quantile_then_operator_then_observed_group_round_robin_with_group_innermost",
+        "single_coverage_rule": "within_each_feature_quantile_operator_round_each_observed_group_receives_at_most_one_generated_attempt_before_next_round",
+        "single_stage_exit": "stop_single_when_all_observed_groups_have_at_least_one_registered_single_rule_or_single_registered_count=162_or_single_stream_exhausted",
+        "dual_entry_rule": "enter_dual_only_after_single_stage_exit; dual_budget=min(30,192-total_registered_count)",
+        "dual_rule_order": "lexicographic_feature_pair_then_quantile_pair_then_operator_pair_then_observed_group_round_robin_with_group_innermost",
+        "dual_coverage_rule": "within_each_feature_pair_quantile_pair_operator_pair_round_each_observed_group_receives_at_most_one_generated_attempt_before_next_round",
+        "execution_model": "bounded_streaming_one_attempt_at_a_time",
+        "attempt_pipeline": "generate_next_in_frozen_order_then_canonicalize_then_dedupe_then_validate_then_attribute_then_append_ledger_then_register_if_valid",
+        "dedupe": "compare canonical hash against retained registered hashes plus current_group attempt hashes; duplicate_is_ledgered_not_registered; discard nonregistered current_group hashes at group boundary",
+        "selection_order": "single_observed_group_coverage_before_dual_then_frozen_round_robin_orders",
+        "truncation": "single_cap=162; dual_cap=30; total_cap=192; stop_before_requesting_next_item_when_active_cap_or_total_cap_reached; never outcome_rerank",
+        "single_stop_rule": "all_observed_groups_covered_by_registered_single_rule_or_single_registered_count_reaches_162_or_single_stream_exhausted",
+        "dual_stop_rule": "dual_registered_count_reaches_30_or_total_registered_count_reaches_192_or_dual_stream_exhausted",
+        "not_considered_rule": "cartesian_items_after_a_stop_condition_are_not_considered_and_have_no_ledger_entry_or_alpha_charge",
+        "candidate_memory_bound": "O(max_derived_search_rules + current_group)",
+        "materialization_prohibited": "must_not_materialize_all_candidates_or_copy_full_cartesian_provenance",
+        "streaming_state": "retain_registered_rules_and_their_hashes_up_to_caps_plus_current_group attempt hashes only",
+        "progress_rule": "emit_progress_at_default_progress_every_generated_attempts_and_each_round_boundary",
+        "stage_reporting": ["stage", "observed_group_count", "covered_group_count", "per_group_registered_rule_counts", "single_registered_count", "dual_registered_count", "total_registered_count"],
+        "checkpoint_rule": "checkpoint_after_each_round_and_progress_interval_with_next_enumerator_cursor,stage,observed_groups,covered_groups,per_group_registered_rule_counts,status_counts,registered_counts,bounded_registered_and_current_group_dedupe_hashes,ledger_hash",
+        "mechanism_attribution_step": "apply feature_to_economic_mechanism_attribution after canonical derivation and before candidate nomination; closed/ambiguous rules remain in alpha ledger",
+        "control_selection": "outcome_blind: within same sky_state,sorter_domain,symbol,liquidity,direction,horizon,cluster choose one-to-one nontrigger events in deterministic time_then_event_id order; never inspect winner/loss/neutral outcome",
+        "full_sample_recheck": "every_derived_rule_must_be_evaluated_on_all_triggered_winner_loss_neutral_events",
+        "forbidden_generation_inputs": ["rubik_taker_5m", "pnl_as_feature", "outcome_as_feature", "forward_return_as_feature"]
+      },
+      "allowed_search_space_definition_hash": "e893269b83ee204bca6b2bb58bba0fec6147827dd4413cea361fe3151fa7fc69",
+      "actual_derived_rule_count": null,
+      "actual_generated_attempt_count": null,
+      "actual_derived_rules_binding": "set_only_by_later_sealed_search_manifest",
+      "sealed_search_manifest_required": true,
+      "sealed_search_manifest_must_bind": ["protocol_hash", "derivation_algorithm_config_hash", "source_data_hash", "catalog_derivation_hash", "actual_generated_attempt_count", "actual_derived_rule_count", "attempt_status_counts", "canonical_derived_rules_hash", "alpha_ledger_hash", "final_enumerator_cursor"],
+      "max_candidates": 32,
+      "default_progress_every": 100000,
+      "checkpoint_required": true,
+      "signed_event_manifest_required": true,
+      "match_rule": "same_sky_state_symbol_liquidity_direction_horizon_cluster",
+      "matched_controls_required": true,
+      "controls_nontrigger_outcome_blind": true,
+      "controls_one_to_one_same_cluster": true,
+      "no_cross_cluster_control_reuse": true,
+      "treatment_includes_all_triggered_events": true,
+      "winner_only_rule_requires_nontrigger_controls": true,
+      "volatility_tolerance": 0.0,
+      "liquidity_tolerance": 0.0,
+      "neutral_band_bps": 3.0,
+      "discovery_cost_bps": 12.0,
+      "permutation_draws": 100000,
+      "exact_permutation_max_pairs": 20,
+      "bootstrap_samples": 1000,
+      "seed": 20260713,
+      "match_window_ms": 604800000,
+      "bounded_smoke": {
+        "max_symbols": 20,
+        "max_funding_lines": 500,
+        "max_price_lines": 25000
+      },
+      "decision_time_only": true,
+      "threshold_from_induction_quantiles_only": true,
+      "g1_g2_rule_exclusion": "禁止复用 g1 funding receiver release、g2 funding_payer_flip_rebalance 或任何 g1/g2 机制 ID。",
+      "records_per_search": ["origin", "discovery_data_hash", "derivation_algorithm_config_hash", "sealed_search_manifest_hash", "catalog_derivation_hash", "actual_generated_attempt_count", "actual_derived_rule_count", "attempt_status_counts", "canonical_derived_rules_hash", "alpha_ledger_hash", "final_enumerator_cursor", "candidate_rank", "match_rule"],
+      "statistics": ["permutation_placebo", "cluster_bootstrap", "selection_tax"],
+      "narrative_only_close": "找不到 payer/结构机制 -> NARRATIVE_ONLY 并关闭，不得直接进入 RESEARCH_PASS。",
+      "forbidden_inputs": ["hidden_challenge", "golden_papers", "settlements", "realized_pnl", "post_decision_features", "current_universe_backfill", "pnl", "outcome", "forward_return"]
+    },
+    "max_total_candidates": 64
+  },
+  "time_partition_roles": {
+    "note": "四分区 40/20/20/20；相邻分区 168h embargo；只公开 research/WF，不暴露任何考试范围。",
+    "reverse_induction": "最早段 research 区：枚举净赚钱事件、倒推特征、司天监分桶拟合都只在此区进行。",
+    "discovery_recheck": "未参与倒推的历史分片：提名必须先通过此区复核，只在 induction 有效立即关闭。",
+    "forward_falsification": "未参与倒推/recheck 的历史分片：候选冻结后正向重算。",
+    "walk_forward": "独立历史分片：时间 purge/embargo，symbol/market-cluster block bootstrap。",
+    "reverse_induction_permille": 400,
+    "recheck_permille": 200,
+    "forward_permille": 200,
+    "walk_forward_permille": 200,
+    "embargo_hours": 168,
+    "min_induction_clusters": 10,
+    "min_forward_samples": 30,
+    "min_forward_clusters": 10,
+    "min_recheck_samples": 20,
+    "min_recheck_clusters": 10,
+    "walk_forward_folds": 5,
+    "wf_min_samples": 30,
+    "wf_min_clusters": 10,
+    "purge_hours": 168,
+    "wf_embargo_hours": 168,
+    "embargo_purge_required": true,
+    "exam_scope_hidden": true,
+    "exam_actions": 0
+  },
+  "single_direction_judgment": {
+    "note": "倒序与正序同构候选统一进入不可变注册表，单向审判，不能等待未来数据或直接晋级。",
+    "dedupe_isomorphic": true,
+    "reverse_induction_must_recheck_before_forward": true,
+    "must_pass_recheck_forward_wf_before_research_pass": true,
+    "per_sky_state_statistics_required": true,
+    "sparse_sample_inconclusive": true,
+    "failed_candidate_permanent_graveyard": true,
+    "edit_requires_new_id_or_generation": true,
+    "g1_g2_semantic_graveyard": true
+  },
+  "multiple_comparison_budget": {
+    "family_wise_control": "Holm-Bonferroni",
+    "family_wise_alpha": 0.01,
+    "reverse_induction_selection_control": "Bonferroni",
+    "reverse_induction_alpha": 0.004,
+    "recheck_control": "Holm-Bonferroni",
+    "recheck_alpha": 0.002,
+    "forward_walk_forward_control": "Holm-Bonferroni",
+    "forward_alpha": 0.002,
+    "walk_forward_alpha": 0.002,
+    "covers_all_stages": "union_bound(reverse_induction_alpha + recheck_alpha + forward_alpha + walk_forward_alpha <= family_wise_alpha)",
+    "every_searched_rule_is_a_test": true,
+    "max_derived_search_rules": 192,
+    "alpha_ledger": {
+      "required": true,
+      "append_only": true,
+      "one_entry_per_generated_checked_attempt": true,
+      "entry_order": "bounded_streaming_generation_order",
+      "statuses": ["duplicate", "invalid", "registered"],
+      "must_record": ["attempt_ordinal", "enumerator_cursor", "canonical_rule_hash", "derivation_algorithm_config_hash", "status", "status_reason", "alpha_stage", "alpha_charge"],
+      "alpha_charge_rule": "registered=one_test_charge; duplicate_or_invalid=zero_because_not_outcome_tested; not_considered=absent",
+      "actual_count_source": "later_sealed_search_manifest",
+      "cannot_delete_generated_attempts": true,
+      "provenance_rule": "store_only_per_attempt_ledger_fields_and_running_hash; never_copy_full_cartesian_provenance"
+    },
+    "no_winners_only_registration": true,
+    "no_post_hoc_variants": true,
+    "search_space_split_cannot_reset_alpha": true,
+    "alpha_spend_rule": "每个搜索过的倒序规则都占用多重检验预算；拆分搜索空间不能重置 alpha。"
+  },
+  "failure_criteria": {
+    "unknown_ambiguous_conflict_uncertified_ood": "NO_TRADE",
+    "reject_no_payer_no_deadline_no_invalidator": true,
+    "winner_only_rule_without_nontrigger_controls": "REJECT",
+    "cross_cluster_or_reused_or_triggering_control": "REJECT",
+    "control_selection_uses_outcome_label": "REJECT",
+    "permutation_placebo_fake_edge": "MUST_NOT_PROMOTE",
+    "reverse_induction_candidate_skips_recheck": "REJECT",
+    "reverse_induction_candidate_skips_forward_falsification": "REJECT",
+    "duplicate_isomorphic_candidate": "REJECT",
+    "edit_frozen_candidate_or_rename_to_recheck": "REJECT",
+    "revive_g1_g2_funding_rule_or_forced_liquidation": "REJECT",
+    "outcome_or_post_decision_feature_leak": "REJECT",
+    "sparse_sample": "INCONCLUSIVE_not_pass",
+    "no_certification": "NO_TRADE",
+    "no_override": "天道叙事、架构完成度、混合行情整体为正/负均不能覆盖单条件叶的真实结论。"
+  },
+  "conflict_rule": {
+    "same_direction_multi_tree": "allow_candidates_account_layer_handles_correlation",
+    "opposing_direction_no_arbitration": "NO_TRADE(flat)",
+    "no_recency_reorder": "禁止按最近谁赚钱临时改变路由顺序。"
+  },
+  "prohibitions": [
+    "寻找跨行情永久单方向或把不同 SkyState 合并成全市场方向后裁决。",
+    "把发现器候选直接当作赚钱叶或跳过 recheck/forward/WF 晋级。",
+    "复活 g1 两个 funding 规则、g2 funding_payer_flip_rebalance 或 panic_liquidation.* 强平语义（改名/换皮/改阈值重考）。",
+    "复活任何 CLOSED/UNTESTABLE 叶。",
+    "用收益/结算/盈亏定义行情或方向，或用当前 bar/决策后特征。",
+    "读取 hidden challenge / golden papers / 未来数据以发现、挽救或调优方向。",
+    "用当前 universe 回填历史或用考试结果反向修改 SkyState 分类。",
+    "只登记倒序搜索的赢家、跨簇复用对照、用规则触发事件作对照、或依据 winner/loss/neutral 标签筛选对照。",
+    "在 trace 中泄漏 net_edge/pnl/exam_id/隐藏时间范围/阈值附近数值。",
+    "在无预注册仲裁规则时对反向冲突继续持仓。",
+    "拆分搜索空间以重置多重检验 alpha。",
+    "接生产下单路径或创建/解封/消费真实考卷（本协议 exam_actions=0）。",
+    "用 pnl/outcome/forward_return 作为倒推特征列。"
+  ],
+  "red_team": {
+    "note": "g3 路由红队 21 项：每项都由 routerg3 代码或本 manifest 强制；protocol_test.go 断言恰为 21 项。",
+    "requirements": [
+      {"id": "rt01_same_mechanism_opposite_direction_by_sky", "requirement": "相同机制在不同 SkyState 下可走相反方向，不得合并成全市场单方向。", "enforced_by": "conditional_leaf_rule + candidates.CanonicalID 编码 SkyState/.../Direction"},
+      {"id": "rt02_unmatched_sky_no_trade", "requirement": "未匹配/未知/OOD 的 SkyState 必须空仓。", "enforced_by": "SkyBureau 节点 + SKY_OOD/SKY_UNKNOWN + sky.missing_action=OOD_NO_TRADE"},
+      {"id": "rt03_winners_only_leaf_rejected", "requirement": "只看赢家产生的假叶若无同层非触发对照必须被拒。", "enforced_by": "reverse_induction.matched_controls_required + winner_only_rule_requires_nontrigger_controls"},
+      {"id": "rt04_mixed_regime_conditional_leaf_findable", "requirement": "混合行情整体为负但某条件叶真实稳定时能被按 SkyState 分层发现。", "enforced_by": "sky 分桶 + single_direction_judgment.per_sky_state_statistics_required"},
+      {"id": "rt05_leaf_closed_when_recheck_forward_wf_fails", "requirement": "条件叶只在 induction 有效、recheck/forward/WF 任一失效时关闭，不等待未来。", "enforced_by": "must_pass_recheck_forward_wf_before_research_pass + sparse_sample_inconclusive"},
+      {"id": "rt06_g1_g2_rules_cannot_revive", "requirement": "g1/g2 funding 规则与强平语义不能换名复活。", "enforced_by": "candidates registry g1/g2 semantic graveyard + prohibitions + closes_g1/closes_g2.immutable"},
+      {"id": "rt07_search_split_cannot_reset_alpha", "requirement": "拆分搜索空间不能重置多重检验 alpha。", "enforced_by": "multiple_comparison_budget.search_space_split_cannot_reset_alpha + every_searched_rule_is_a_test"},
+      {"id": "rt08_outcome_post_decision_leak_rejected", "requirement": "outcome/pnl/post-decision 特征泄漏必须拒绝。", "enforced_by": "feature_catalog.forbidden_feature_inputs + sky.forbidden_inputs + failure_criteria.outcome_or_post_decision_feature_leak"},
+      {"id": "rt09_control_cross_cluster_reuse_trigger_rejected", "requirement": "对照跨簇、重复使用或规则触发对照必须拒绝；非触发 winner 可作对照且不得因 outcome 标签排除。", "enforced_by": "reverse_induction.controls_nontrigger_outcome_blind + controls_one_to_one_same_cluster + no_cross_cluster_control_reuse"},
+      {"id": "rt10_coarse_trace_no_leak", "requirement": "路由 trace 不含收益、考试范围或阈值附近信息。", "enforced_by": "coarse_trace_rule.must_not_contain + stable_reason_codes_only"},
+      {"id": "rt11_uncertified_conflict_missing_ood_no_trade", "requirement": "无认证叶、反向冲突、缺数据与 OOD 全部 NO_TRADE。", "enforced_by": "failure_criteria + conflict_rule + node_inputs fail_closed"},
+      {"id": "rt12_node_order_frozen_drift_guard", "requirement": "节点顺序、叶子状态、reason 码、司天监分桶、特征目录、发现预算、多重检验与失败标准 manifest↔代码逐字段一致，任一漂移即失败。", "enforced_by": "protocol_test.go TestManifestCodeConstantsNoDrift"},
+      {"id": "rt13_reproducible_protocol_hash", "requirement": "g3 protocol hash 可复现；绑定的 history DataHash/regime/requirements/g1/g2 router hash 与被引用契约一致。", "enforced_by": "audit.protocol_hash_method + protocol_test.go TestProtocolHashMatchesManifest/TestBoundHashesMatchReferencedContracts"},
+      {"id": "rt14_g1_result_referenced_immutable", "requirement": "g3 只引用不修改 g1 零候选结论（0 认证叶 / NO_GO）。", "enforced_by": "closes_g1 + protocol_test.go TestG1ResultReferencedImmutable"},
+      {"id": "rt15_g2_result_referenced_immutable", "requirement": "g3 只引用不修改 g2 162 组合 0 提名 NO_GO 结论。", "enforced_by": "closes_g2 + protocol_test.go TestG2ResultReferencedImmutable"},
+      {"id": "rt16_zero_exam_actions", "requirement": "G3 全程 exam_actions=0，不创建/解封/消费考卷。", "enforced_by": "time_partition_roles.exam_actions + prohibitions + leaf_state_machine.g3_exam_bypass"},
+      {"id": "rt17_feature_mechanism_attribution", "requirement": "conditioner 不得独立提供 payer；零机制特征规则关闭；跨机制 family 双特征歧义关闭；同 family 才允许归因。", "enforced_by": "feature_to_economic_mechanism_attribution + protocol_test.go TestFeatureMechanismAttributionNoDrift"},
+      {"id": "rt18_noise_outcome_blind_controls", "requirement": "纯噪声与 winner/loss/neutral 标签不得影响 control 选择；只按同层匹配、规则不触发和冻结确定性顺序选择。", "enforced_by": "reverse_induction.controls_nontrigger_outcome_blind + derivation_algorithm.control_selection + protocol_test.go TestOutcomeBlindControlAndReachabilityNoDrift"},
+      {"id": "rt19_192_rule_production_reachable", "requirement": "192 条规则最坏 Bonferroni alpha 下 Monte Carlo 最小可达 p 值必须不高于门槛。", "enforced_by": "reverse_induction.permutation_draws=100000 + multiple_comparison_budget.reverse_induction_alpha/max_derived_search_rules + protocol_test.go TestOutcomeBlindControlAndReachabilityNoDrift"},
+      {"id": "rt20_bounded_streaming_derivation_memory", "requirement": "规则必须按冻结顺序逐条生成并在注册 cap 达到时立刻停止；不得 materialize 全量候选或复制全笛卡尔 provenance；峰值候选内存 O(max rules + current group)，支持 progress/checkpoint。", "enforced_by": "reverse_induction.derivation_algorithm bounded_streaming fields + alpha_ledger generated-attempt semantics + protocol_test.go TestBoundedStreamingDerivationNoDrift"},
+      {"id": "rt21_coarse_group_round_robin_coverage", "requirement": "规则预算必须先以机制特征按 coarse observed Sky groups round-robin 覆盖多行情，不得被 exact Sky 字典序前缀或 price-first 叙事特征耗尽。", "enforced_by": "derivation_algorithm coarse grouping + feature_derivation_order + single/dual coverage rules + stage_reporting + protocol_test.go TestV3CoarseRoundRobinCoverageNoDrift"}
+    ]
+  },
+  "audit": {
+    "protocol_hash": "1628e1a575585a7a1c2b7da0e01eb54de9707997272a6301e3824505dece17fb",
+    "protocol_hash_method": "datatruth.HashJSON(canonical)，其中 canonical = 本 manifest 解析为通用 JSON 后把 audit.protocol_hash 置为 null；HashJSON 对对象键递归排序后做 SHA-256，输出小写 hex。",
+    "protocol_hash_reproduce": "读取本文件 -> json.Unmarshal 到 map[string]any -> 令 doc[\"audit\"][\"protocol_hash\"]=nil -> datatruth.HashJSON(doc)。",
+    "unsigned_boundary": "无 KMS 时 receipt 为 UNSIGNED_BOUNDARY 接口产物，不得当作密码学证明。",
+    "binds_g1_router": "0eab9bda13055209c81d2b47f0286a0317b79dbb642592ec1b00cd4771397d31",
+    "binds_g2_router": "395d15ece40050e7227e0cff5a74a91c68cdab83285c02a10657d13f21a118ec",
+    "drives": ["routerg3 sky bureau", "routerg3 sorter", "outcome-first reverse induction", "discovery-recheck", "forward falsification", "walk-forward", "candidate registry", "alpha ledger"],
+    "exam_actions": 0
+  }
+}

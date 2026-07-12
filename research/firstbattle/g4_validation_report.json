@@ -1,0 +1,35 @@
+{
+  "schema_version": "lingxi.router-g4-validation.project-summary.v1",
+  "generation": "firstbattle-router-g4",
+  "protocol_hash": "55d5da85272d9d326c81570a677b47b66ede7da69b14fc58fe4c154c0a1d6425",
+  "candidate_manifest_hash": "9e25e4f42511cbeb6e4c49baed6a98dcfa15ac06b82f1a498390cb465f9a6d2e",
+  "candidate_count": 1024,
+  "validation_pass_count": 0,
+  "unique_phenomenon_pass_count": 0,
+  "validation_fail_count": 204,
+  "inconclusive_count": 820,
+  "failure_breakdown": {
+    "COVERAGE_INCONCLUSIVE": 820,
+    "DELAY": 179,
+    "CONCENTRATION": 19,
+    "COST": 5,
+    "MULTIPLE_TESTING": 1,
+    "NO_EDGE": 0,
+    "CAPACITY": 0
+  },
+  "gates": {
+    "min_unique_days": 10,
+    "min_independent_blocks": 8,
+    "min_unique_symbols": 3,
+    "max_single_event_positive_contribution_fraction": 0.25,
+    "max_day_positive_contribution_fraction": 0.35,
+    "delay_plus_one_bar_required": true,
+    "cost_stress_multiplier": 1.5,
+    "benjamini_hochberg_fdr_q": 0.1
+  },
+  "report_hash": "0bae78ad27a2d60fcef73eaa09bc5a250ee41cf7d965ef821480cdd023d7c8ba",
+  "survivors_hash": "ebb31996fe4d41b696af7d3cdeb6ce749b52309b4bc20e1c9e56d3ecd46bc179",
+  "validation_receipt_hash": "a13d640c0d6bd1c86db085720685303c4bc2960cedd1254ce80cb33af10d63b5",
+  "conclusion": "大量事后净正机会存在，但当前冻结的简单决策前规则没有通过独立 validation 可预测性筛选。",
+  "exam_actions": 0
+}

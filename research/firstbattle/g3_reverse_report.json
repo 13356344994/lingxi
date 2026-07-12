@@ -1,0 +1,32 @@
+{
+  "schema_version": "lingxi.router-g3-reverse-summary.v1",
+  "generation": "firstbattle-router-g3",
+  "protocol_hash": "1628e1a575585a7a1c2b7da0e01eb54de9707997272a6301e3824505dece17fb",
+  "origin": "outcome_first_reverse_induction",
+  "search_space_id": "firstbattle.g3.outcome_first_reverse_induction.v1",
+  "induction_data_hash": "7adf6c32fc4b3531406e47332e29a47a1b583744ef42615bd90bd239a793946b",
+  "search_manifest_hash": "17a187601501f17a83a556596d20fb3e4750765ffb13e01f5d823dc159f9705a",
+  "induction_events": 14022,
+  "winner_index_entries": 6197,
+  "actual_derived_rules": 192,
+  "reverse_induction_alpha": 0.004,
+  "per_rule_alpha": 0.000020833333333333333,
+  "ledger": {
+    "considered_invalid_or_missing": 4,
+    "duplicate": 0,
+    "registered": 192,
+    "observed_coarse_groups": 162,
+    "covered_coarse_groups": 162,
+    "canonical_derived_rules_hash": "3d9cf9f6f7acaefe573720ac8a5405e711c33f16664625054010957d14cbd81b",
+    "alpha_ledger_hash": "22c8d9cad803a556b2c678d832a311fdeb6c3fe6163a71ea47a751d7d13fb1a1"
+  },
+  "rejections": {
+    "selection_tax_failed": 168,
+    "only_winner_no_matched_controls": 23,
+    "no_winners": 1
+  },
+  "candidate_nominations": 0,
+  "recheck_verdicts": 0,
+  "exam_actions": 0,
+  "verdict": "NO_GO"
+}

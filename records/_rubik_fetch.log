@@ -1,0 +1,37 @@
+[2026-07-09 14:36:14] mode: FULL top200
+[2026-07-09 14:36:14] ccys: 200 个, 任务 600 个 (head: ETH, BTC, SNDK, SOL, MU, LAB, SKHYNIX, SOXL, XAU, SPCX)
+[2026-07-09 14:36:14] estimate: 每任务 1-2 页(1H 窗口仅 30 天 / 5m 仅 2 天), ~1200 请求 @2.5req/s ≈ 8 分钟
+[2026-07-09 14:36:16] progress: done 2/600 | current rubik_taker_5m:SNDK | lines 575 | requests 4 | elapsed 1s
+[2026-07-09 14:36:44] rubik_taker_5m SLX code=51012 msg=Token does not exist -> stop
+[2026-07-09 14:36:46] progress: done 33/600 | current rubik_taker_5m:EWY | lines 17847 | requests 65 | elapsed 32s
+[2026-07-09 14:37:17] progress: done 64/600 | current rubik_taker_5m:HMSTR | lines 35120 | requests 126 | elapsed 62s
+[2026-07-09 14:37:47] progress: done 94/600 | current rubik_taker_5m:APT | lines 52394 | requests 186 | elapsed 92s
+[2026-07-09 14:38:08] rubik_taker_5m DATA code=51012 msg=Token does not exist -> stop
+[2026-07-09 14:38:10] rubik_taker_5m GRAM code=51012 msg=Token does not exist -> stop
+[2026-07-09 14:38:17] progress: done 125/600 | current rubik_taker_5m:COAI | lines 69095 | requests 246 | elapsed 122s
+[2026-07-09 14:38:43] rubik_taker_5m AI code=51012 msg=Token does not exist -> stop
+[2026-07-09 14:38:48] progress: done 156/600 | current rubik_taker_5m:TRB | lines 86368 | requests 307 | elapsed 153s
+[2026-07-09 14:39:18] progress: done 186/600 | current rubik_taker_5m:KMNO | lines 103648 | requests 367 | elapsed 183s
+[2026-07-09 14:39:48] progress: done 217/600 | current rubik_taker_1h:CL | lines 122655 | requests 427 | elapsed 213s
+[2026-07-09 14:40:01] rubik_taker_1h SLX code=51012 msg=Token does not exist -> stop
+[2026-07-09 14:40:18] progress: done 248/600 | current rubik_taker_1h:FIL | lines 144255 | requests 488 | elapsed 243s
+[2026-07-09 14:40:49] progress: done 279/600 | current rubik_taker_1h:ENA | lines 165855 | requests 549 | elapsed 274s
+[2026-07-09 14:41:19] progress: done 309/600 | current rubik_taker_1h:ETC | lines 187455 | requests 609 | elapsed 304s
+[2026-07-09 14:41:25] rubik_taker_1h DATA code=51012 msg=Token does not exist -> stop
+[2026-07-09 14:41:26] rubik_taker_1h GRAM code=51012 msg=Token does not exist -> stop
+[2026-07-09 14:41:49] progress: done 340/600 | current rubik_taker_1h:MANA | lines 208335 | requests 669 | elapsed 334s
+[2026-07-09 14:42:00] rubik_taker_1h AI code=51012 msg=Token does not exist -> stop
+[2026-07-09 14:42:20] progress: done 371/600 | current rubik_taker_1h:SPY | lines 229935 | requests 730 | elapsed 365s
+[2026-07-09 14:42:50] progress: done 402/600 | current rubik_lsratio_1h:SNDK | lines 250815 | requests 790 | elapsed 395s
+[2026-07-09 14:43:18] rubik_lsratio_1h SLX code=51012 msg=Token does not exist -> stop
+[2026-07-09 14:43:20] progress: done 433/600 | current rubik_lsratio_1h:EWY | lines 272415 | requests 851 | elapsed 425s
+[2026-07-09 14:43:51] progress: done 464/600 | current rubik_lsratio_1h:HMSTR | lines 294015 | requests 912 | elapsed 456s
+[2026-07-09 14:44:21] progress: done 494/600 | current rubik_lsratio_1h:APT | lines 315615 | requests 972 | elapsed 486s
+[2026-07-09 14:44:42] rubik_lsratio_1h DATA code=51012 msg=Token does not exist -> stop
+[2026-07-09 14:44:43] rubik_lsratio_1h GRAM code=51012 msg=Token does not exist -> stop
+[2026-07-09 14:44:51] progress: done 525/600 | current rubik_lsratio_1h:COAI | lines 336495 | requests 1032 | elapsed 516s
+[2026-07-09 14:45:17] rubik_lsratio_1h AI code=51012 msg=Token does not exist -> stop
+[2026-07-09 14:45:21] progress: done 556/600 | current rubik_lsratio_1h:TRB | lines 358095 | requests 1093 | elapsed 546s
+[2026-07-09 14:45:51] progress: done 586/600 | current rubik_lsratio_1h:KMNO | lines 379695 | requests 1153 | elapsed 576s
+[2026-07-09 14:46:05] progress: done 600/600 | current rubik_lsratio_1h:EDEN | lines 389055 | requests 1180 | elapsed 590s
+[2026-07-09 14:46:05] ALL DONE. done 600/600, lines 389055, requests 1180, elapsed 9.8 min

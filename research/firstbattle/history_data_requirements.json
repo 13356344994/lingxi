@@ -1,0 +1,63 @@
+{
+  "schema_version": "1",
+  "protocol_id": "firstbattle.history_data_requirements.g1",
+  "items": [
+    {
+      "id": "global_context.router_node",
+      "kind": "router_node",
+      "generation": "firstbattle-router-g1",
+      "requirements": {
+        "required": ["okx_1h"],
+        "optional": ["okx_5m", "okx_funding", "bybit_funding"],
+        "forbidden": ["settlements", "realized_pnl", "sealed_exam"]
+      },
+      "missing_action": "disable_global_context_node",
+      "historical_data_search_deadline": "2026-07-11T16:00:00Z"
+    },
+    {
+      "id": "panic_liquidation.relay.long_squeezed.short",
+      "kind": "candidate_leaf",
+      "generation": "firstbattle-forced-liquidation-g1",
+      "requirements": {
+        "required": ["historical_liquidation", "historical_oi", "historical_depth", "historical_xvenue", "pit_instrument", "okx_5m"],
+        "forbidden": ["settlements", "realized_pnl", "sealed_exam"]
+      },
+      "missing_action": "close_leaf_UNTESTABLE_NO_GO_no_future_wait",
+      "historical_data_search_deadline": "2026-07-11T16:00:00Z"
+    },
+    {
+      "id": "panic_liquidation.relay.short_squeezed.long",
+      "kind": "candidate_leaf",
+      "generation": "firstbattle-forced-liquidation-g1",
+      "requirements": {
+        "required": ["historical_liquidation", "historical_oi", "historical_depth", "historical_xvenue", "pit_instrument", "okx_5m"],
+        "forbidden": ["settlements", "realized_pnl", "sealed_exam"]
+      },
+      "missing_action": "close_leaf_UNTESTABLE_NO_GO_no_future_wait",
+      "historical_data_search_deadline": "2026-07-11T16:00:00Z"
+    },
+    {
+      "id": "panic_liquidation.exhaustion.long_squeezed.long",
+      "kind": "candidate_leaf",
+      "generation": "firstbattle-forced-liquidation-g1",
+      "requirements": {
+        "required": ["historical_liquidation", "historical_oi", "historical_depth", "historical_xvenue", "pit_instrument", "okx_5m"],
+        "forbidden": ["settlements", "realized_pnl", "sealed_exam"]
+      },
+      "missing_action": "close_leaf_UNTESTABLE_NO_GO_no_future_wait",
+      "historical_data_search_deadline": "2026-07-11T16:00:00Z"
+    },
+    {
+      "id": "panic_liquidation.exhaustion.short_squeezed.short",
+      "kind": "candidate_leaf",
+      "generation": "firstbattle-forced-liquidation-g1",
+      "requirements": {
+        "required": ["historical_liquidation", "historical_oi", "historical_depth", "historical_xvenue", "pit_instrument", "okx_5m"],
+        "forbidden": ["settlements", "realized_pnl", "sealed_exam"]
+      },
+      "missing_action": "close_leaf_UNTESTABLE_NO_GO_no_future_wait",
+      "historical_data_search_deadline": "2026-07-11T16:00:00Z"
+    }
+  ],
+  "manifest_hash": "07b709f9ddd036749da76d28c66e7efe70638cec7c15bbe1b29789a8534622f7"
+}

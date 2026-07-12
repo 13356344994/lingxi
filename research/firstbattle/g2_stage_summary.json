@@ -1,0 +1,31 @@
+{
+  "schema_version": "lingxi.router-g2-summary.v1",
+  "generation": "firstbattle-router-g2",
+  "protocol_hash": "395d15ece40050e7227e0cff5a74a91c68cdab83285c02a10657d13f21a118ec",
+  "history_data_hash": "f41ed2586d91054c4b5b2e15e60f32a4d64ccde0032e76dfdc5fc6dee316379c",
+  "search_space_id": "firstbattle.g2.sky_conditioned_prize.v1",
+  "search_definition_hash": "796bcfc675d3f64ea59b5617058002556ab93c074dd679318bedbc2d5550dd84",
+  "partitions": {
+    "discovery_events": 3486,
+    "forward_events": 924,
+    "walk_forward_events": 1974
+  },
+  "search": {
+    "registered_combinations": 162,
+    "selection_tax_failed": 83,
+    "only_winner_no_matched_controls": 47,
+    "no_winners": 32,
+    "candidate_nominations": 0
+  },
+  "leaf_status": {
+    "research_pass": [],
+    "rejected_search_combinations": 162,
+    "untestable_from_g1": 4
+  },
+  "exam_actions": {
+    "created": 0,
+    "unsealed": 0,
+    "consumed": 0
+  },
+  "system_status": "NO_GO"
+}

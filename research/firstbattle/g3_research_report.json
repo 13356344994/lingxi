@@ -1,0 +1,23 @@
+{
+  "schema_version": "lingxi.router-g3-stage.v1",
+  "protocol_hash": "1628e1a575585a7a1c2b7da0e01eb54de9707997272a6301e3824505dece17fb",
+  "discovery_receipt_hash": "fb08c9f487434ff8ec0bfb3a5db8c6b7e7f2fd943fe16601aae397b831229c97",
+  "recheck_data_hash": "c162243735a9395fe3eed18dd2ad8b00a4ac6d241387995c747bea68172ef38b",
+  "frozen_rule_count": 192,
+  "candidate_count": 0,
+  "closed_count": 0,
+  "inconclusive_count": 0,
+  "research_pass_count": 0,
+  "research": {
+    "schema_version": "lingxi.router-g3-research.v1",
+    "forward_data_hash": "d525bf667db73d921c026acd1ff40ceb083cc141a805cba3798f3aa278e3c362",
+    "wf_data_hash": "6663ecbec580d0c59436c763018ff3f6e09f55c9fe4f65b3b2158d47da26b00d",
+    "results": []
+  },
+  "registry": {
+    "schema_version": "lingxi.router-candidates.v1",
+    "candidates": [],
+    "hash": "5a3c5a6136af0024fc25da0f45fb49dbe1c77a97b4883bb36fadefd315f49ef1"
+  },
+  "exam_actions": 0
+}

@@ -1,0 +1,48 @@
+{
+  "probes": {
+    "firework_pure": {
+      "source": "firework_pure",
+      "started_at": "2026-07-09T06:54:23.356808444Z",
+      "trades": 1,
+      "realized_usdt": -0.024200698773006596,
+      "total_trades": 1,
+      "total_pnl_usdt": -0.024200698773006596
+    },
+    "key_casc_fade": {
+      "source": "key_casc_fade",
+      "started_at": "2026-07-09T14:08:59.92334919Z",
+      "trades": 9,
+      "realized_usdt": -0.4075598595009095,
+      "level": 1,
+      "total_trades": 59,
+      "total_pnl_usdt": 0.545050297368673
+    },
+    "key_sqz_fade": {
+      "source": "key_sqz_fade",
+      "started_at": "2026-07-09T14:08:59.934408839Z",
+      "trades": 20,
+      "realized_usdt": -0.34691371492229023,
+      "total_trades": 20,
+      "total_pnl_usdt": -0.34691371492229023,
+      "stalled": true
+    },
+    "panic_volume_fade_1h_mature": {
+      "source": "panic_volume_fade_1h_mature",
+      "started_at": "2026-07-11T01:56:56.053515968Z",
+      "trades": 0,
+      "realized_usdt": 0
+    },
+    "panic_volume_fade_4h": {
+      "source": "panic_volume_fade_4h",
+      "started_at": "2026-07-11T01:56:56.048041949Z",
+      "trades": 0,
+      "realized_usdt": 0
+    },
+    "xgap_rev": {
+      "source": "xgap_rev",
+      "started_at": "2026-07-08T13:42:18.128389096Z",
+      "trades": 9,
+      "realized_usdt": -0.1024517736318202
+    }
+  }
+}

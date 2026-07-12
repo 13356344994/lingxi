@@ -1,0 +1,547 @@
+{
+  "schema_version": "1",
+  "protocol_id": "firstbattle.hierarchical_router.g4",
+  "generation": "firstbattle-router-g4",
+  "created_at": "2026-07-12T01:44:00Z",
+  "companion_doc": "research/firstbattle/hierarchical_router_g4_preregistration.md",
+  "status": "preregistered_router_g4_protocol",
+  "principles": {
+    "single_goal": "冻结全市场净利润机会地图的计算边界、成本代理与候选发现/快速筛选门；不预先冻结具体方向策略或认证赚钱叶。",
+    "map_before_rules": "先量化历史中扣成本后可获取的机会分布，再从重复净赢家倒推决策前条件；发现宽进，只有冻结模板可解释且通过 validation 的候选才进入严格 WF。",
+    "profile_independence": "okx_1h 与 okx_5m 数据族独立 profile、独立 horizon 集、独立 chronological 60/20/20 分区与 purge/embargo=max(lookback,horizon)。",
+    "no_global_direction": "地图按 SkyState/流动性/标的类别/horizon/方向/本金档位聚合；禁止寻找跨行情永久单方向。",
+    "fail_closed": "未知、歧义、OOD、未认证一律 NO_TRADE；缺可选特征只关闭相应列，不阻塞 OHLCV 主路径。",
+    "no_future_wait": "只使用决策时刻可见、已完整收盘的历史字段；不等待未来样本。",
+    "discovery_only_nominates": "发现与 validation 快速筛选只提名/淘汰候选，不批准叶子或直接晋级 RESEARCH_PASS。",
+    "no_order_placement": "本协议只驱动 research 机会地图与候选账本；exam_actions=0，不接生产下单路径。"
+  },
+  "closes_g1": {
+    "note": "g4 引用但绝不修改 g1 的 protocol hash 与零候选结论；g1 永久冻结。",
+    "g1_generation": "firstbattle-router-g1",
+    "g1_router_protocol_hash": "0eab9bda13055209c81d2b47f0286a0317b79dbb642592ec1b00cd4771397d31",
+    "g1_router_protocol_path": "research/firstbattle/hierarchical_router_preregistration.json",
+    "g1_result_path": "research/firstbattle/router_stage_summary.json",
+    "g1_certified_money_leaves": 0,
+    "g1_research_pass_leaves": 0,
+    "g1_system_status": "NO_GO",
+    "immutable": "g1 hash/result 只引用；修改 g1 阈值、改名、换皮重考、复活 CLOSED/UNTESTABLE 叶一律禁止。"
+  },
+  "closes_g2": {
+    "note": "g4 引用但绝不修改 g2 的 protocol hash 与 162 组合 0 提名 NO_GO 结论；g2 永久冻结。",
+    "g2_generation": "firstbattle-router-g2",
+    "g2_router_protocol_hash": "395d15ece40050e7227e0cff5a74a91c68cdab83285c02a10657d13f21a118ec",
+    "g2_router_protocol_path": "research/firstbattle/hierarchical_router_g2_preregistration.json",
+    "g2_result_path": "research/firstbattle/g2_stage_summary.json",
+    "g2_registered_search_combinations": 162,
+    "g2_candidate_nominations": 0,
+    "g2_research_pass_leaves": 0,
+    "g2_system_status": "NO_GO",
+    "g2_prize_mechanism": "funding_payer_flip_rebalance",
+    "immutable": "g2 hash/result 只引用；禁止复活 g2 funding_payer_flip_rebalance 或任何 g2 搜索组合。"
+  },
+  "closes_g3": {
+    "note": "g4 引用但绝不修改 g3 的 protocol hash 与 192 规则 0 提名 NO_GO 结论；g3 永久冻结。",
+    "g3_generation": "firstbattle-router-g3",
+    "g3_router_protocol_hash": "1628e1a575585a7a1c2b7da0e01eb54de9707997272a6301e3824505dece17fb",
+    "compatible_prior_profit_map_protocol_hashes": [
+      "d13883e328f2d7a4d618f20fa77c2c5b66ac46220210dfd5dc17c249ccb6ab91"
+    ],
+    "profit_map_compatibility_scope": "map artifacts only; candidate, validation, mechanism and certification outputs must use current G4 protocol",
+    "g3_router_protocol_path": "research/firstbattle/hierarchical_router_g3_preregistration.json",
+    "g3_result_path": "research/firstbattle/g3_stage_summary.json",
+    "g3_registered_search_rules": 192,
+    "g3_candidate_nominations": 0,
+    "g3_research_pass_leaves": 0,
+    "g3_system_status": "NO_GO",
+    "immutable": "g3 hash/result 只引用；禁止复活 g3 192 倒序规则、调参重考或改写 NO_GO 结论。"
+  },
+  "binds": {
+    "note": "路由协议绑定但不篡改被引用的历史契约与 g1/g2/g3 路由协议；任一被绑定 hash 变化都必须新 generation。",
+    "history_data_hash": "f41ed2586d91054c4b5b2e15e60f32a4d64ccde0032e76dfdc5fc6dee316379c",
+    "history_regime_contract_hash": "a80978f75a74d68a8ac8dcc988ea2e16b01623f739ebab23428cf92f23fd7127",
+    "history_data_requirements_hash": "07b709f9ddd036749da76d28c66e7efe70638cec7c15bbe1b29789a8534622f7",
+    "g1_router_protocol_hash": "0eab9bda13055209c81d2b47f0286a0317b79dbb642592ec1b00cd4771397d31",
+    "g2_router_protocol_hash": "395d15ece40050e7227e0cff5a74a91c68cdab83285c02a10657d13f21a118ec",
+    "g3_router_protocol_hash": "1628e1a575585a7a1c2b7da0e01eb54de9707997272a6301e3824505dece17fb",
+    "history_regime_contract_path": "research/firstbattle/history_regime_contract.json",
+    "history_data_requirements_path": "research/firstbattle/history_data_requirements.json",
+    "history_catalog_path": "research/firstbattle/history_catalog.json",
+    "g1_router_protocol_path": "research/firstbattle/hierarchical_router_preregistration.json",
+    "g2_router_protocol_path": "research/firstbattle/hierarchical_router_g2_preregistration.json",
+    "g3_router_protocol_path": "research/firstbattle/hierarchical_router_g3_preregistration.json"
+  },
+  "data_profiles": {
+    "note": "两族 OHLCV profile 独立分区与 horizon；funding/rubik 为 optional_nonblocking，缺失只关闭相应特征列，不阻塞主扫描。",
+    "catalog_path": "research/firstbattle/history_catalog.json",
+    "forbidden_inputs": ["settlements", "realized_pnl", "sealed_exam", "current_universe_backfill", "current_open_bar"],
+    "optional_nonblocking_families": [
+      "okx_funding",
+      "bybit_funding",
+      "rubik_taker_1h",
+      "rubik_lsratio_1h",
+      "rubik_taker_5m"
+    ],
+    "profiles": [
+      {
+        "id": "okx_1h",
+        "primary_family": "okx_1h",
+        "outcome_horizons_hours": [1, 4, 24],
+        "max_feature_lookback_hours": 24,
+        "purge_embargo_rule": "max(max_feature_lookback_hours, outcome_horizon_hours)",
+        "entry_price_rule": "next_bar_open_after_decision_close",
+        "exit_price_rule": "horizon_end_bar_open",
+        "optional_feature_families": ["okx_funding", "bybit_funding", "rubik_taker_1h", "rubik_lsratio_1h"]
+      },
+      {
+        "id": "okx_5m",
+        "primary_family": "okx_5m",
+        "outcome_horizons_minutes": [5, 15, 60, 240],
+        "max_feature_lookback_hours": 4,
+        "purge_embargo_rule": "max(max_feature_lookback_hours, outcome_horizon_hours)",
+        "entry_price_rule": "next_bar_open_after_decision_close",
+        "exit_price_rule": "horizon_end_bar_open",
+        "optional_feature_families": ["okx_funding", "bybit_funding", "rubik_taker_5m"]
+      }
+    ]
+  },
+  "time_partition_roles": {
+    "note": "每 profile 独立 chronological discovery/validation/WF=60/20/20；purge/embargo 取 max(lookback,horizon)，不再统一 168h。",
+    "partition_order": "chronological_earliest_to_latest",
+    "discovery_permille": 600,
+    "validation_permille": 200,
+    "walk_forward_permille": 200,
+    "purge_embargo_formula": "max(profile.max_feature_lookback_hours, outcome_horizon_hours)",
+    "per_profile_independent": true,
+    "exam_scope_hidden": true,
+    "exam_actions": 0
+  },
+  "capital_tiers_usdt": [30, 100, 1000],
+  "return_fields": {
+    "note": "三种冻结收益字段；gross 为未扣任何成本的方向性 holding return；basis 为 next-bar-open 可执行代理。",
+    "fields": ["gross", "fee_net", "conservative_net"],
+    "direction_symmetry": "long_short_symmetric",
+    "neutral_band_bps": 3.0
+  },
+  "cost_model": {
+    "note": "保守可执行成本代理，仅用现有 OHLCV（及可选 funding）；不是完整盘口或成交证明。",
+    "proxy_disclaimer": "conservative_execution_proxy_not_full_order_book_proof",
+    "roundtrip_taker_fee_bps": 10.0,
+    "base_spread_slippage_floor_bps": 2.0,
+    "rolling_quote_volume_window_hours": 24,
+    "capacity_impact_scale_bps": 10000.0,
+    "capacity_impact_cap_bps": 50.0,
+    "capacity_impact_formula": "min(capacity_impact_cap_bps, capital_usdt / max(rolling_quote_volume_usdt, 1) * capacity_impact_scale_bps)",
+    "bar_range_toxicity_scale": 0.5,
+    "bar_range_toxicity_cap_bps": 100.0,
+    "bar_range_toxicity_formula": "min(bar_range_toxicity_cap_bps, (high-low)/max(mid,1e-12) * 10000 * bar_range_toxicity_scale)",
+    "funding_across_settlements": true,
+    "funding_formula": "sum_abs_settled_funding_rate_over_hold_period_when_available_else_zero",
+    "fee_net_formula": "gross_bps - roundtrip_taker_fee_bps",
+    "conservative_net_formula": "gross_bps - roundtrip_taker_fee_bps - base_spread_slippage_floor_bps - capacity_impact_bps - bar_range_toxicity_bps - funding_bps",
+    "cost_stress_multiplier": 1.5,
+    "delay_plus_one_bar_entry": true
+  },
+  "profit_map": {
+    "note": "机会地图维度与聚合；扫描全 catalog 合格标的，不得硬编码字母序 20 截断。",
+    "dimensions": [
+      "sky_coarse_market",
+      "liquidity_bucket",
+      "symbol_class",
+      "horizon",
+      "direction",
+      "capital_tier"
+    ],
+    "sky_coarse_axes": {
+      "ret": ["low", "mid", "high"],
+      "rv": ["low", "mid", "high"],
+      "fund": ["low", "mid", "high", "unknown"],
+      "fund_missing_action": "unknown_nonblocking",
+      "te": "*",
+      "dd": "*"
+    },
+    "liquidity_bucket_rule": "floor_log10_average_quote_volume_24h_clamp_0_9",
+    "symbol_class_rule": "discovery_partition_volume_tertile_major_mid_long_tail",
+    "aggregates_per_cell": [
+      "opportunity_count",
+      "gross_bps_mean",
+      "fee_net_bps_mean",
+      "conservative_net_bps_mean",
+      "gross_positive_rate",
+      "fee_net_positive_rate",
+      "conservative_net_positive_rate",
+      "cost_wipeout_rate"
+    ],
+    "scan_bounds": {
+      "note": "CLI 必须显式传入 max_files/max_lines/catalog_symbol_limit；0 表示 catalog 全量上限。",
+      "max_files_required_cli": true,
+      "max_lines_required_cli": true,
+      "catalog_symbol_limit_required_cli": true,
+      "default_catalog_symbol_limit": 0,
+      "checkpoint_required": true,
+      "streaming_output_required": true,
+      "progress_every_lines": 100000,
+      "checkpoint_every_symbols": 25,
+      "quantile_reservoir_per_cell": 32,
+      "winner_reservoir_per_cell": 32
+    },
+    "full_market_semantics": {
+      "required_summary_fields": ["Available", "Selected", "Truncated", "FullMarket", "Scope"],
+      "full_market_scope": "FULL_MARKET",
+      "truncated_scope": "TRUNCATED_SMOKE",
+      "full_market_rule": "Selected==Available and Truncated=false and FullMarket=true and Scope=FULL_MARKET",
+      "truncation_rule": "Selected<Available requires explicit allow_truncated_smoke=true and Scope=TRUNCATED_SMOKE",
+      "catalog_zero_fail_rule": "catalog_symbol_limit=0 and allow_truncated_smoke=false and Selected<Available => FAIL",
+      "truncated_formal_path_policy": "TRUNCATED_SMOKE forbidden from candidate validation, mechanism attribution, strict WF, exam, or certified leaf"
+    }
+  },
+  "feature_catalog": {
+    "note": "倒推候选可用决策前特征；阈值只来自 discovery 区分位数网格；outcome/pnl 禁止进入特征。",
+    "decision_time_only": true,
+    "max_features_per_rule": 2,
+    "min_features_per_rule": 1,
+    "threshold_source": "discovery_partition_quantiles",
+    "threshold_quantiles": [0.25, 0.5, 0.75],
+    "forbidden_feature_inputs": [
+      "pnl",
+      "outcome",
+      "forward_return",
+      "net_edge",
+      "realized_pnl",
+      "settlements",
+      "sealed_exam",
+      "post_decision_features",
+      "current_open_bar",
+      "current_universe_backfill"
+    ],
+    "shared_features": [
+      "quote_volume_24h_log_bucket",
+      "volatility_cost_ratio"
+    ],
+    "attribution_features": [
+      "btc_relative_return",
+      "btc_beta_proxy",
+      "time_of_day_session",
+      "profile_quote_volume_24h_log_bucket"
+    ],
+    "attribution_features_discovery_eligible": true,
+    "attribution_feature_membership_never_explains_mechanism": true,
+    "symbol_realized_vol_formula": "sqrt(mean(squared_simple_returns))*10000",
+    "symbol_realized_vol_min_bars": 1,
+    "volatility_cost_ratio_formula": "symbol_realized_vol_rms_bps / roundtrip_taker_fee_bps",
+    "volatility_cost_ratio_vol_horizon": {
+      "okx_1h": "1h",
+      "okx_5m": "5m"
+    },
+    "profile_features": {
+      "okx_1h": [
+        "symbol_return_1h",
+        "symbol_return_4h",
+        "symbol_return_24h",
+        "symbol_realized_vol_1h",
+        "symbol_realized_vol_4h",
+        "symbol_realized_vol_24h",
+        "okx_bybit_funding_spread",
+        "okx_bybit_funding_sign_divergence",
+        "rubik_taker_imbalance_1h",
+        "rubik_lsratio_1h"
+      ],
+      "okx_5m": [
+        "symbol_return_5m",
+        "symbol_return_15m",
+        "symbol_return_1h",
+        "symbol_return_4h",
+        "symbol_realized_vol_5m",
+        "symbol_realized_vol_15m",
+        "symbol_realized_vol_1h",
+        "symbol_realized_vol_4h"
+      ]
+    }
+  },
+  "discovery_budget": {
+    "note": "从重复净赢家倒推简单单/双特征候选；append-only ledger；validation 前一次性冻结；不要求 payer，UNEXPLAINED 允许。",
+    "max_total_candidates": 1024,
+    "max_single_feature_rules": 900,
+    "max_dual_feature_rules": 124,
+    "allowed_search_space_id": "firstbattle.g4.profit_map_reverse_mine.v1",
+    "derivation_algorithm_version": "g4-reverse-mine-feature-cell-round-robin-v2",
+    "threshold_quantiles": [0.25, 0.5, 0.75],
+    "operator_order": ["lte_quantile", "gte_quantile"],
+    "execution_model": "bounded_streaming_one_attempt_at_a_time",
+    "attempt_pipeline": "generate_next_in_frozen_order_then_canonicalize_then_dedupe_then_validate_then_append_ledger_then_register_if_valid",
+    "freeze_before_validation": true,
+    "payer_required_at_discovery": false,
+    "unexplained_candidate_allowed": true,
+    "unexplained_status": "UNEXPLAINED_CANDIDATE",
+    "checkpoint_required": true,
+    "default_progress_every": 100000,
+    "enumeration_fairness": {
+      "dimensions": ["feature", "cell"],
+      "cell_strata": ["profile", "horizon", "direction", "capital_tier", "cell"],
+      "order": "allocation_round_then_feature_slot_then_profile_then_next_fair_cell",
+      "feature_rule": "within each profile every available feature receives registered allocation N before any feature receives registered allocation N+1",
+      "cell_rule": "next cell is round-robin across profile/horizon/direction/capital_tier/cell strata; no feature-major prefix exhaustion",
+      "invalid_attempt_rule": "invalid_or_duplicate_attempt_is_ledgered_but_does_not_increment_feature_registered_allocation",
+      "checkpoint_fields": ["allocation_round", "feature_slot", "profile_cursor", "per_profile_feature_registered_counts", "per_stratum_cell_cursor"]
+    },
+    "ledger": {
+      "required": true,
+      "append_only": true,
+      "one_entry_per_generated_checked_attempt": true,
+      "entry_order": "bounded_streaming_generation_order",
+      "statuses": ["duplicate", "invalid", "registered", "unexplained"],
+      "must_record": [
+        "attempt_ordinal",
+        "enumerator_cursor",
+        "canonical_rule_hash",
+        "profile_id",
+        "status",
+        "status_reason",
+        "ledger_stage"
+      ],
+      "cannot_delete_generated_attempts": true
+    }
+  },
+  "validation_gates": {
+    "note": "独立 validation 区 discovery-screen：先 deterministic gates，再 UTC 24h observation+horizon gap 非重叠 blocks 上 one-sided sign p + BH-FDR q=0.10（非最终 Holm）；严格认证另阶段。",
+    "apply_on": "validation_partition_only",
+    "frozen_before_reading_results": true,
+    "discovery_screen_method": "deterministic_gates_then_bh_fdr",
+    "no_final_holm": true,
+    "strict_certification_deferred": true,
+    "min_opportunities": 20,
+    "min_unique_days": 10,
+    "min_unique_symbols": 3,
+    "min_fee_net_mean_bps": 0.0,
+    "min_conservative_net_mean_bps": 0.0,
+    "max_single_event_contribution_fraction": 0.25,
+    "max_day_positive_contribution_fraction": 0.35,
+    "delay_plus_one_bar_required": true,
+    "cost_stress_multiplier": 1.5,
+    "cost_stress_must_remain_non_negative_conservative_net": true,
+    "sparse_sample_action": "INCONCLUSIVE",
+    "pass_status": "VALIDATION_PASS",
+    "fail_status": "VALIDATION_FAIL",
+    "day_block_sign_test": {
+      "required": true,
+      "block_unit": "utc_anchored_nonoverlap_block",
+      "observation_window_hours": 24,
+      "embargo_gap": "candidate_horizon",
+      "horizon_independence": "construct_and_test_each_candidate_horizon_separately",
+      "overlap_rule": "next_observation_start >= previous_observation_end + candidate_horizon",
+      "min_nonzero_blocks": 8,
+      "p_value": "exact_one_sided_binomial_sign_test_positive_on_nonzero_block_conservative_net",
+      "numeric_method": "log_gamma_log_sum_exp",
+      "integer_combination_counts_forbidden": true,
+      "multiple_comparison_control": "Benjamini-Hochberg-FDR",
+      "family": "all_frozen_candidates_on_validation_partition",
+      "family_q": 0.10
+    }
+  },
+  "phenomenon_id": {
+    "note": "同 profile/coarseSky/horizon/direction/conditions 为同一 phenomenon；capital tier 不参与聚合；liquidity/symbol_class 为 subpaths 并报告相关簇。",
+    "ignore_capital_tier": true,
+    "key_dimensions": ["profile_id", "sky_coarse_market", "horizon", "direction", "conditions"],
+    "subpath_dimensions": ["liquidity_bucket", "symbol_class"]
+  },
+  "feature_catalog_summary": {
+    "note": "discovery summary 必须区分 declared distinct names、available profile-feature slots、covered names、missing declared。",
+    "required_fields": [
+      "declared_distinct_feature_names",
+      "available_profile_feature_slots",
+      "covered_feature_names",
+      "missing_declared_feature_names"
+    ]
+  },
+  "mechanism_attribution": {
+    "note": "feature membership 只能提出机制假设，不能证明真实 payer。G4 无独立强制流/真实对手方证据，因此本代自动 EXPLAINED 路径关闭。",
+    "version": "g4-minimal-mechanism-attribution-v2-hypothesis-only",
+    "statuses": ["EXPLAINED", "MECHANISM_HYPOTHESIS", "UNEXPLAINED", "AMBIGUOUS", "GRAVEYARD"],
+    "discovery_requires_payer": false,
+    "feature_membership_auto_explained": false,
+    "g4_independent_evidence_available": false,
+    "automatic_explained_count": 0,
+    "evaluation_order": [
+      "claimed_mechanism_in_graveyard=>GRAVEYARD",
+      "contains_g1_g2_g3_graveyard_feature_family=>UNEXPLAINED",
+      "matches_both_templates=>AMBIGUOUS",
+      "matches_exactly_one_template_and_claim_is_empty_or_equal=>MECHANISM_HYPOTHESIS",
+      "future_independent_evidence_satisfies_contract=>EXPLAINED",
+      "otherwise=>UNEXPLAINED"
+    ],
+    "independent_evidence_contract": {
+      "required_for_explained": true,
+      "current_generation_satisfied": false,
+      "must_include": [
+        "independent_forced_flow_observation",
+        "identifiable_real_counterparty_or_payer_evidence",
+        "evidence_time_and_source_binding"
+      ],
+      "must_not_be_derived_from": [
+        "candidate_feature_membership",
+        "candidate_outcome",
+        "validation_result",
+        "mechanism_name_or_narrative"
+      ],
+      "future_binding": "new immutable evidence artifact and new protocol generation required"
+    },
+    "graveyard_feature_families": [
+      "okx_bybit_funding_spread",
+      "okx_bybit_funding_sign_divergence",
+      "rubik_taker_imbalance_1h",
+      "rubik_lsratio_1h"
+    ],
+    "unexplained_feature_classes": [
+      "price_return",
+      "realized_volatility",
+      "liquidity_only",
+      "g1_g2_g3_graveyard_feature_family"
+    ],
+    "templates": [
+      {
+        "id": "cross_asset_beta_rebalance_lag",
+        "required_all_features": ["btc_relative_return", "btc_beta_proxy"],
+        "required_any_features": [],
+        "mechanism": "cross_asset_beta_rebalance_lag",
+        "payer": "delayed_beta_hedgers",
+        "forced_behavior": "benchmark_or_beta_rebalance_deadline",
+        "deadline": "benchmark_or_beta_rebalance_deadline",
+        "capacity_defense": "fragmented_alt_liquidity",
+        "match_status": "MECHANISM_HYPOTHESIS",
+        "trade": false,
+        "exam": false,
+        "certified_leaf": false
+      },
+      {
+        "id": "scheduled_session_liquidity_transfer",
+        "required_all_features": ["time_of_day_session"],
+        "required_any_features": ["quote_volume_24h_log_bucket", "profile_quote_volume_24h_log_bucket"],
+        "mechanism": "scheduled_session_liquidity_transfer",
+        "payer": "time_constrained_session_flow",
+        "forced_behavior": "session_execution_window",
+        "deadline": "session_execution_window_end",
+        "capacity_defense": "not_preregistered",
+        "match_status": "MECHANISM_HYPOTHESIS",
+        "trade": false,
+        "exam": false,
+        "certified_leaf": false
+      }
+    ],
+    "cross_template_resolution": "AMBIGUOUS",
+    "narrative_rejection_rule": "feature conjunction may nominate only MECHANISM_HYPOTHESIS; names, prose, correlation, price/vol/liquidity, attribution-feature membership, or G1-G3 graveyard feature families cannot establish EXPLAINED payer or mechanism"
+  },
+  "post_validation_routing": {
+    "validation_pass_unexplained_status": "UNEXPLAINED_RESEARCH_PASS",
+    "validation_pass_hypothesis_status": "MECHANISM_HYPOTHESIS_RESEARCH_RESULT",
+    "unexplained_policy": "strictly_no_trade_no_exam_no_certified_leaf",
+    "hypothesis_policy": "strictly_no_trade_no_exam_no_certified_leaf",
+    "ambiguous_policy": "CLOSED",
+    "graveyard_policy": "CLOSED",
+    "strict_wf_eligibility": "validation_pass_and_future_independent_evidence_status_EXPLAINED_only",
+    "current_automatic_strict_wf_entries": 0
+  },
+  "strict_walk_forward": {
+    "note": "仅未来独立 evidence 标记 EXPLAINED 且 validation pass 候选可进入；G4 当前自动入口为 0。",
+    "partition": "walk_forward",
+    "uses_profile_purge_embargo": true,
+    "eligibility": "validation_pass_and_future_independent_evidence_status_EXPLAINED_only",
+    "current_automatic_entries": 0,
+    "min_firings": 30,
+    "min_unique_days": 10,
+    "min_independent_blocks": 10,
+    "min_unique_symbols": 5,
+    "strict_positive_mean_fields": [
+      "fee_net_bps",
+      "conservative_net_bps",
+      "delay_plus_one_bar_conservative_net_bps",
+      "cost_stress_conservative_net_bps"
+    ],
+    "mean_comparison": "strictly_greater_than_zero",
+    "max_single_event_contribution_fraction": 0.25,
+    "max_capacity_fail_fraction": 0.5,
+    "capacity_fail_comparison": "strictly_less_than",
+    "day_block_sign_test": {
+      "required": true,
+      "block_unit": "utc_anchored_nonoverlap_block",
+      "observation_window_hours": 24,
+      "embargo_gap": "candidate_horizon",
+      "horizon_independence": "construct_and_test_each_candidate_horizon_separately",
+      "overlap_rule": "next_observation_start >= previous_observation_end + candidate_horizon",
+      "p_value": "exact_two_sided_binomial_sign_test_on_nonzero_block_conservative_net",
+      "numeric_method": "log_gamma_log_sum_exp",
+      "integer_combination_counts_forbidden": true,
+      "multiple_comparison_control": "Holm-Bonferroni",
+      "family": "all_explained_validation_pass_candidates_entering_strict_wf",
+      "family_alpha": 0.01
+    },
+    "certification_states": ["RESEARCH_PASS", "CLOSED", "INCONCLUSIVE"],
+    "pass_state": "RESEARCH_PASS",
+    "gate_failure_state": "CLOSED",
+    "insufficient_sample_state": "INCONCLUSIVE",
+    "research_pass_policy": "research_only_no_trade_no_exam_no_certified_money_leaf",
+    "exam_actions": 0
+  },
+  "g1_g2_g3_mechanism_graveyard": [
+    "funding_post_settlement_release",
+    "negative_funding_receiver_release",
+    "positive_funding_receiver_release",
+    "panic_liquidation",
+    "funding_payer_flip_rebalance",
+    "cross_venue_funding_pressure_rebalance",
+    "urgent_taker_impact_reversion",
+    "crowded_leverage_rebalance"
+  ],
+  "prohibitions": [
+    "修改或复活 g1/g2/g3 已冻结协议 hash、阈值、192/162 搜索组合或 NO_GO 结论。",
+    "预先冻结具体方向策略，或把严格 WF 的 RESEARCH_PASS 当作可交易/考试/认证赚钱叶。",
+    "硬编码字母序 20 标的截断；必须使用显式 CLI max_files/max_lines/catalog_symbol_limit。",
+    "读取 validation 结果后继续追加或修改 discovery 候选（freeze_before_validation）。",
+    "用 pnl/outcome/forward_return 或 current bar 作为特征或 Sky 分桶输入。",
+    "把 discovery 候选直接当作 RESEARCH_PASS 叶或接生产下单路径。",
+    "从 feature membership（包括两个模板）、单独价格 return/vol/liquidity、G1-G3 graveyard 特征族、相关性或文字叙事自动标 EXPLAINED。",
+    "让 TRUNCATED_SMOKE 进入 candidate validation、mechanism、strict WF、exam 或 certified leaf。",
+    "创建/解封/消费真实考卷（exam_actions=0）。",
+    "声称 conservative_net 成本模型是完整盘口或 guaranteed fill 证明。"
+  ],
+  "red_team": {
+    "note": "g4 最小协议红队 26 项；protocol_test.go 断言恰为 26 项。",
+    "requirements": [
+      {"id": "rt01_g1_g2_g3_immutable", "requirement": "g1/g2/g3 hash 与 NO_GO/0 nomination 结论只引用不可修改。", "enforced_by": "closes_g1/closes_g2/closes_g3 + protocol_test.go TestG1G2G3ResultReferencedImmutable"},
+      {"id": "rt02_profile_independent_partitions", "requirement": "okx_1h 与 okx_5m profile 独立 60/20/20 分区与 horizon；purge/embargo=max(lookback,horizon)。", "enforced_by": "data_profiles + time_partition_roles + protocol_test.go TestProfilePartitionNoDrift"},
+      {"id": "rt03_optional_funding_nonblocking", "requirement": "funding/rubik 缺失只关闭可选特征，不阻塞 OHLCV 主扫描。", "enforced_by": "data_profiles.optional_nonblocking_families + feature_catalog.profile_features"},
+      {"id": "rt04_three_return_fields_and_tiers", "requirement": "冻结 gross/fee_net/conservative_net 与 30/100/1000 USDT 三档本金。", "enforced_by": "return_fields + capital_tiers_usdt + cost_model"},
+      {"id": "rt05_conservative_cost_proxy", "requirement": "成本公式仅用 OHLCV 保守代理（fee+floor+capacity+bar range+funding），并声明非完整盘口证明。", "enforced_by": "cost_model + protocol_test.go TestCostModelNoDrift"},
+      {"id": "rt06_map_dimensions_full_universe", "requirement": "地图按 Sky/流动性/标的类别/horizon/方向/本金档位聚合；CLI 显式 bounded 扫描，不得硬编码 20 标的。", "enforced_by": "profit_map + scan_bounds"},
+      {"id": "rt07_discovery_1024_freeze_ledger", "requirement": "discovery 最多 1024 候选、单/双特征分位网格、append-only ledger、validation 前冻结；UNEXPLAINED 允许。", "enforced_by": "discovery_budget + validation_gates.frozen_before_reading_results"},
+      {"id": "rt08_validation_bh_fdr_discovery_screen", "requirement": "validation 先 deterministic gates，再按 candidate horizon 构造 UTC 24h observation+horizon gap 非重叠 blocks（≥8 nonzero blocks），one-sided positive sign p，BH-FDR q=0.10 全 candidate family；不做最终 Holm。", "enforced_by": "validation_gates + protocol_test.go TestValidationBHFRDiscoveryScreen"},
+      {"id": "rt09_zero_exam_actions", "requirement": "G4 全程 exam_actions=0。", "enforced_by": "time_partition_roles.exam_actions + prohibitions"},
+      {"id": "rt10_outcome_leak_forbidden", "requirement": "outcome/pnl/post-decision/current bar 不得进入特征或 Sky 分桶。", "enforced_by": "feature_catalog.forbidden_feature_inputs + data_profiles.forbidden_inputs"},
+      {"id": "rt11_reproducible_protocol_hash", "requirement": "g4 protocol hash 可复现；绑定 history/regime/requirements/g1/g2/g3 router hash 与被引用契约一致。", "enforced_by": "audit.protocol_hash_method + protocol_test.go TestProtocolHashMatchesManifest/TestBoundHashesMatchReferencedContracts"},
+      {"id": "rt12_manifest_code_constants_no_drift", "requirement": "manifest ↔ protocol.go 逐字段一致，任一漂移即失败。", "enforced_by": "protocol_test.go TestManifestCodeConstantsNoDrift"},
+      {"id": "rt13_only_two_mechanism_hypotheses", "requirement": "两个 conjunction 只能产生 MECHANISM_HYPOTHESIS，feature membership 永不自动 EXPLAINED。", "enforced_by": "mechanism_attribution.templates/evidence contract + protocol_test.go TestMechanismHypothesisNeverAutoExplained"},
+      {"id": "rt14_narrative_attribution_rejected", "requirement": "单独 price/vol/liquidity、G1-G3 graveyard 特征族、名称或叙事不得硬归因 payer；跨模板必须 AMBIGUOUS。", "enforced_by": "mechanism_attribution evaluation/narrative rules + protocol_test.go TestNarrativeAttributionRejected"},
+      {"id": "rt15_unexplained_hypothesis_no_trade", "requirement": "validation 稳健的 UNEXPLAINED/HYPOTHESIS 只保留 research result，严格 no trade/no exam/no certified leaf。", "enforced_by": "post_validation_routing + protocol_test.go TestPostValidationRoutingNoDrift"},
+      {"id": "rt16_future_explained_strict_wf", "requirement": "Strict WF 只接受未来独立 evidence 标记 EXPLAINED；G4 当前自动入口必须为 0。", "enforced_by": "strict_walk_forward + protocol_test.go TestStrictWalkForwardNoDrift"},
+      {"id": "rt17_feature_cell_round_robin_intersection", "requirement": "discovery 按 feature×cell 二维 round-robin；每 profile 所有 feature 获第一条前任何 feature 不得获第二条，并跨 profile/horizon/direction/capital/cell 公平。", "enforced_by": "discovery_budget.enumeration_fairness + protocol_test.go TestFeatureCellRoundRobinIntersection"},
+      {"id": "rt18_binomial_overflow_safe", "requirement": "exact sign p 必须用 log-gamma/log-sum-exp，禁止 int64 组合数溢出。", "enforced_by": "strict_walk_forward.day_block_sign_test.numeric_method + protocol_test.go TestExactBinomialOverflowSafe"},
+      {"id": "rt19_wf_blocks_nonoverlap", "requirement": "WF 使用 UTC anchored 24h observation blocks，块间增加 candidate horizon embargo，按 horizon 独立且至少 10 blocks。", "enforced_by": "strict_walk_forward.day_block_sign_test + protocol_test.go TestUTCAnchoredBlocksDoNotOverlap"},
+      {"id": "rt20_full_market_scope_fields", "requirement": "manifest/summary 必须输出 Available/Selected/Truncated/FullMarket/Scope；catalog limit 0 的静默截断必须失败。", "enforced_by": "profit_map.full_market_semantics + protocol_test.go TestFullMarketScopeNoDrift"},
+      {"id": "rt21_truncated_smoke_isolation", "requirement": "截断只能标 TRUNCATED_SMOKE，且禁止进入 candidate validation/mechanism/strict WF 正式路径。", "enforced_by": "profit_map.full_market_semantics + protocol_test.go TestTruncatedSmokeCannotEnterFormalPath"},
+      {"id": "rt22_single_bar_rms_vol_nonzero", "requirement": "symbol_realized_vol 冻结为 sqrt(mean(squared simple returns))*10000；最短 1 bar 非零 return 时 vol 不得恒为 0；volatility_cost_ratio 引用该 RMS。", "enforced_by": "feature_catalog formulas + protocol_test.go TestSymbolRealizedVolRMSOneBarNonZero"},
+      {"id": "rt23_day_positive_contribution_cap", "requirement": "validation 按 block/day 聚合的正贡献上限 0.35，保留单事件 0.25 上限。", "enforced_by": "validation_gates.max_day_positive_contribution_fraction + protocol_test.go TestMaxDayPositiveContributionCap"},
+      {"id": "rt24_phenomenon_id_dedupe", "requirement": "PhenomenonID 忽略 capital tier；同 profile/coarseSky/horizon/direction/conditions 只算一个 phenomenon；liquidity/symbol_class 为 subpaths。", "enforced_by": "phenomenon_id + protocol_test.go TestPhenomenonIDDedupeIgnoresCapitalTier"},
+      {"id": "rt25_feature_catalog_summary_fields", "requirement": "summary 区分 declared distinct feature names、available profile-feature slots、covered names、missing declared。", "enforced_by": "feature_catalog_summary + protocol_test.go TestFeatureCatalogSummaryFields"},
+      {"id": "rt26_reverse_mine_protocol_version_bind", "requirement": "reversemine SearchSpaceID/DerivationAlgorithmVersion 必须绑定 protocol 冻结值；漂移即失败。", "enforced_by": "discovery_budget + protocol_test.go TestReverseMineProtocolVersionBind"}
+    ]
+  },
+  "audit": {
+    "protocol_hash": "55d5da85272d9d326c81570a677b47b66ede7da69b14fc58fe4c154c0a1d6425",
+    "protocol_hash_method": "datatruth.HashJSON(canonical)，其中 canonical = 本 manifest 解析为通用 JSON 后把 audit.protocol_hash 置为 null；HashJSON 对对象键递归排序后做 SHA-256，输出小写 hex。",
+    "protocol_hash_reproduce": "读取本文件 -> json.Unmarshal 到 map[string]any -> 令 doc[\"audit\"][\"protocol_hash\"]=nil -> datatruth.HashJSON(doc)。",
+    "unsigned_boundary": "无 KMS 时 receipt 为 UNSIGNED_BOUNDARY 接口产物，不得当作密码学证明。",
+    "binds_g1_router": "0eab9bda13055209c81d2b47f0286a0317b79dbb642592ec1b00cd4771397d31",
+    "binds_g2_router": "395d15ece40050e7227e0cff5a74a91c68cdab83285c02a10657d13f21a118ec",
+    "binds_g3_router": "1628e1a575585a7a1c2b7da0e01eb54de9707997272a6301e3824505dece17fb",
+    "drives": ["routerg4 profit map", "routerg4 reverse mine", "routerg4 validation screen", "routerg4 mechanism attribution", "routerg4 strict walk-forward", "candidate ledger"],
+    "exam_actions": 0
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "schema_version": "lingxi.router-g4-candidate-ledger.project-summary.v1",
+  "generation": "firstbattle-router-g4",
+  "protocol_hash": "55d5da85272d9d326c81570a677b47b66ede7da69b14fc58fe4c154c0a1d6425",
+  "search_space_id": "firstbattle.g4.profit_map_reverse_mine.v1",
+  "derivation_algorithm_version": "g4-reverse-mine-feature-cell-round-robin-v2",
+  "discovery_cells": 10098,
+  "candidate_count": 1024,
+  "unique_phenomenon_count": 994,
+  "single_feature_candidates": 900,
+  "dual_feature_candidates": 124,
+  "coverage": {
+    "okx_1h": 465,
+    "okx_5m": 559,
+    "long": 514,
+    "short": 510,
+    "capital_30": 330,
+    "capital_100": 354,
+    "capital_1000": 340,
+    "covered_distinct_feature_names": 15,
+    "declared_distinct_feature_names": 20
+  },
+  "missing_declared_feature_names": [
+    "okx_bybit_funding_sign_divergence",
+    "okx_bybit_funding_spread",
+    "profile_quote_volume_24h_log_bucket",
+    "rubik_lsratio_1h",
+    "rubik_taker_imbalance_1h"
+  ],
+  "candidates_hash": "1144353fe073c3ab42570b36adeea3ac9f611eb1c70da8994343052c7b77f479",
+  "ledger_hash": "4b4a3d6f5d83262fc2367f45c68a8771d4178e0c3968a7cc64bd4c8c8fb00fe1",
+  "candidate_manifest_hash": "9e25e4f42511cbeb6e4c49baed6a98dcfa15ac06b82f1a498390cb465f9a6d2e",
+  "status": "FROZEN_BEFORE_VALIDATION",
+  "exam_actions": 0
+}

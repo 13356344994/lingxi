@@ -1,0 +1,35 @@
+{
+  "schema_version": "lingxi.router-g4-stage.project-summary.v1",
+  "generation": "firstbattle-router-g4",
+  "protocol_hash": "55d5da85272d9d326c81570a677b47b66ede7da69b14fc58fe4c154c0a1d6425",
+  "full_market_coverage": {
+    "okx_1h": "401/401",
+    "okx_5m": "200/200"
+  },
+  "profit_map_discovery_opportunities_with_capital_tiers": {
+    "okx_1h": 32705532,
+    "okx_5m": 43753080
+  },
+  "frozen_candidates": 1024,
+  "unique_phenomena": 994,
+  "validation_pass_candidates": 0,
+  "validation_pass_phenomena": 0,
+  "unexplained_research_pass": 0,
+  "mechanism_hypothesis_research_result": 0,
+  "explained_candidates": 0,
+  "research_pass_leaves": 0,
+  "system_status": "NO_GO",
+  "evidence": {
+    "candidate_manifest_hash": "9e25e4f42511cbeb6e4c49baed6a98dcfa15ac06b82f1a498390cb465f9a6d2e",
+    "validation_report_hash": "0bae78ad27a2d60fcef73eaa09bc5a250ee41cf7d965ef821480cdd023d7c8ba",
+    "validation_survivors_hash": "ebb31996fe4d41b696af7d3cdeb6ce749b52309b4bc20e1c9e56d3ecd46bc179",
+    "mechanism_report_hash": "e62bab4df3152d18f779604ecdb4297c01ff611f079547e2487a22678264c656",
+    "strict_wf_report_hash": "06ee9c396ff9e4ef1e0e220135825c6db0c871cd8ccd72548cc392ef3374fe37"
+  },
+  "conclusion": "市场持续产生事后可盈利路径；当前价格/波动/时段/BTC相对强弱的简单规则无法在独立历史中稳定预选这些路径。",
+  "exam_actions": {
+    "created": 0,
+    "unsealed": 0,
+    "consumed": 0
+  }
+}

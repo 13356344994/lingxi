@@ -1,0 +1,52 @@
+{
+  "schema_version": "1",
+  "protocol_id": "firstbattle.history_regime_contract.g1",
+  "decision_time_rule": "只使用 decision_time 之前已完整收盘的历史 bar；当前 bar、未来收益、当前 universe 回填均禁止。",
+  "dimensions": [
+    {
+      "name": "btc_trend_efficiency_24h",
+      "inputs": ["okx_1h:BTC-USDT-SWAP"],
+      "lookback_hours": 24,
+      "binning": "research_quantiles",
+      "quantiles": [0.3333333333, 0.6666666667],
+      "fit_on": "research_partition_only",
+      "missing_action": "OOD_NO_TRADE"
+    },
+    {
+      "name": "btc_realized_volatility_24h",
+      "inputs": ["okx_1h:BTC-USDT-SWAP"],
+      "lookback_hours": 24,
+      "binning": "research_quantiles",
+      "quantiles": [0.3333333333, 0.6666666667],
+      "fit_on": "research_partition_only",
+      "missing_action": "OOD_NO_TRADE"
+    },
+    {
+      "name": "btc_drawdown_168h",
+      "inputs": ["okx_1h:BTC-USDT-SWAP"],
+      "lookback_hours": 168,
+      "binning": "research_quantiles",
+      "quantiles": [0.3333333333, 0.6666666667],
+      "fit_on": "research_partition_only",
+      "missing_action": "OOD_NO_TRADE"
+    },
+    {
+      "name": "okx_btc_funding_state",
+      "inputs": ["okx_funding:BTC-USDT-SWAP"],
+      "lookback_hours": 24,
+      "binning": "research_quantiles",
+      "quantiles": [0.3333333333, 0.6666666667],
+      "fit_on": "research_partition_only",
+      "missing_action": "OOD_NO_TRADE"
+    }
+  ],
+  "forbidden_inputs": [
+    "forward_return",
+    "settlements",
+    "realized_pnl",
+    "sealed_exam",
+    "current_universe_backfill"
+  ],
+  "freeze_rule": "分桶切点只在 research partition 上按特征分布拟合一次；不读取收益；切点在生成任何 challenge commitment 前冻结，考试结果不得反向修改分类。",
+  "manifest_hash": "a80978f75a74d68a8ac8dcc988ea2e16b01623f739ebab23428cf92f23fd7127"
+}

@@ -1,0 +1,4 @@
+{"action":"open","avg":0,"dir":"long","err":"\u003cnil\u003e","executed":0,"maker":false,"notional":2.0949999999999998,"px":1.052192,"qty":2,"status":"new","symbol":"LAB-USDT","ts":"2026-07-10T06:07:05Z","venue":"okx"}
+{"action":"reduce","amt_before":2,"avg":0,"err":"\u003cnil\u003e","executed":0,"req_qty":1.5,"status":"new","symbol":"LAB-USDT","ts":"2026-07-10T06:07:25Z","venue":"okx"}
+{"action":"reduce","amt_before":1,"avg":0,"err":"okx: 换算后张数为 0(qty=0.5 ctVal=10 lotSz=0.1)","executed":0,"req_qty":0.5,"status":"","symbol":"LAB-USDT","ts":"2026-07-10T06:07:55Z","venue":"okx"}
+{"action":"close","amt":1,"avg":0,"err":"\u003cnil\u003e","executed":0,"status":"new","symbol":"LAB-USDT","ts":"2026-07-10T06:07:59Z","venue":"okx"}
