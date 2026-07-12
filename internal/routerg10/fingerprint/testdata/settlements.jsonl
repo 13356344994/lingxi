@@ -1,0 +1,4 @@
+{"time":"2026-07-01T10:00:00Z","symbol":"BTC-USDT","side":"long","notional":50,"fee_usdt":0.05,"entry_slip_bps":1.2,"exit_slip_bps":0.8,"open_via_taker":false,"maker_entry":true,"funding_at_open":0.0001}
+{"time":"2026-07-01T10:30:00Z","symbol":"BTC-USDT","side":"long","notional":50,"fee_usdt":0.06,"entry_slip_bps":2.0,"exit_slip_bps":1.0,"open_via_taker":false,"maker_entry":true,"funding_at_open":0.0002}
+{"time":"2026-07-01T11:00:00Z","symbol":"ETH-USDT","side":"short","notional":120,"fee_usdt":0.12,"entry_slip_bps":3.0,"exit_slip_bps":2.5,"open_via_taker":true,"funding_at_open":-0.0003}
+{"time":"2026-07-01T12:00:00Z","symbol":"ETH-USDT","side":"short","notional":120,"fee_usdt":0.15,"entry_slip_bps":4.0,"exit_slip_bps":3.0,"open_via_taker":true,"funding_at_open":-0.0004}

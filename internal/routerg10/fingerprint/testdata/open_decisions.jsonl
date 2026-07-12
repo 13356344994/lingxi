@@ -1,0 +1,3 @@
+{"recorded_at":"2026-07-01T10:10:00Z","venue":"okx","symbol":"BTC-USDT","side":"long","decision_result":"opened","funding_rate":0.0001,"open_via_taker":false}
+{"recorded_at":"2026-07-01T10:20:00Z","venue":"okx","symbol":"BTC-USDT","side":"long","decision_result":"maker_not_filled","funding_rate":0.0002,"maker_rejected":true}
+{"recorded_at":"2026-07-01T11:10:00Z","venue":"okx","symbol":"ETH-USDT","side":"short","decision_result":"taker_filled","funding_rate":-0.0003,"open_via_taker":true}

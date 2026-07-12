@@ -1,0 +1,104 @@
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"flag"
+	"fmt"
+	"os"
+	"path/filepath"
+	"runtime"
+
+	historydata "lingxi/internal/datatruth/history"
+	"lingxi/internal/routerg6/eventmap"
+	"lingxi/internal/routerg6/protocol"
+)
+
+func main() {
+	if err := run(os.Args[1:]); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}
+
+func run(args []string) error {
+	fs := flag.NewFlagSet("router-g6-event-map", flag.ContinueOnError)
+	catalogPath := fs.String("catalog", "", "path to history_catalog.json")
+	historyRoot := fs.String("history-root", "", "history root directory")
+	profileID := fs.String("profile", "", "profile id: okx_1h or okx_5m")
+	outputDir := fs.String("output-dir", "", "explicit output directory")
+	checkpointPath := fs.String("checkpoint", "", "required checkpoint path")
+	maxFiles := fs.Int("max-files", 0, "maximum catalog files (required, positive)")
+	maxLines := fs.Int("max-lines", 0, "maximum lines per symbol file (required, positive)")
+	catalogSymbolLimit := fs.Int("catalog-symbol-limit", -1, "symbol limit; 0 means full catalog")
+	allowTruncatedSmoke := fs.Bool("allow-truncated-smoke", false, "allow an explicitly labeled TRUNCATED_SMOKE subset")
+	lowCPU := fs.Bool("low-cpu", true, "set GOMAXPROCS=1 for bounded server load")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *catalogPath == "" || *historyRoot == "" || *profileID == "" || *outputDir == "" || *checkpointPath == "" {
+		return errors.New("router-g6-event-map: --catalog, --history-root, --profile, --output-dir, --checkpoint are required")
+	}
+	if *maxFiles <= 0 || *maxLines <= 0 {
+		return errors.New("router-g6-event-map: --max-files and --max-lines must be positive")
+	}
+	if *catalogSymbolLimit < 0 {
+		return errors.New("router-g6-event-map: --catalog-symbol-limit is required (0 for full catalog)")
+	}
+	if *profileID != eventmap.ProfileOKX1H && *profileID != eventmap.ProfileOKX5M {
+		return fmt.Errorf("router-g6-event-map: unsupported profile %q", *profileID)
+	}
+	if *lowCPU {
+		runtime.GOMAXPROCS(protocol.RuntimeGOMAXPROCS)
+	}
+	absHistory, err := filepath.Abs(*historyRoot)
+	if err != nil {
+		return err
+	}
+	absOutput, err := filepath.Abs(*outputDir)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(absOutput, 0o755); err != nil {
+		return err
+	}
+	raw, err := os.ReadFile(*catalogPath)
+	if err != nil {
+		return err
+	}
+	var catalog historydata.HistoryCatalog
+	if err := json.Unmarshal(raw, &catalog); err != nil {
+		return err
+	}
+	cfg := eventmap.RunConfig{
+		SchemaVersion:       "lingxi.router-g6-event-map.config.v1",
+		ProfileID:           *profileID,
+		HistoryRoot:         absHistory,
+		OutputDir:           absOutput,
+		MaxFiles:            *maxFiles,
+		MaxLines:            *maxLines,
+		CatalogSymbolLimit:  *catalogSymbolLimit,
+		ProgressEvery:       eventmap.ProgressEveryLines(),
+		LowCPU:              *lowCPU,
+		Generation:          protocol.Generation,
+		ProtocolHash:        protocol.RouterProtocolHash,
+		HistoryDataHash:     protocol.HistoryDataHash,
+		AllowTruncatedSmoke: *allowTruncatedSmoke,
+	}
+	runner := eventmap.Runner{
+		Config:         cfg,
+		Catalog:        catalog,
+		CheckpointPath: *checkpointPath,
+		OnProgress: func(lines int64, symbol string, events int64) {
+			fmt.Fprintf(os.Stderr, "progress profile=%s symbol=%s lines=%d events=%d\n", *profileID, symbol, lines, events)
+		},
+	}
+	result, err := runner.Run(context.Background())
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(os.Stdout, "{\"profile\":%q,\"symbols\":%d,\"cells\":%d,\"exam_actions\":%d}\n",
+		result.ProfileID, len(result.Symbols), result.Store.CellCount(), protocol.ExamActions)
+	return nil
+}

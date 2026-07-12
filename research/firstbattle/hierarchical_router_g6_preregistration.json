@@ -1,0 +1,466 @@
+{
+  "schema_version": "1",
+  "protocol_id": "firstbattle.hierarchical_router.g6",
+  "generation": "firstbattle-router-g6",
+  "created_at": "2026-07-12T13:10:00Z",
+  "companion_doc": "research/firstbattle/hierarchical_router_g6_preregistration.md",
+  "status": "preregistered_router_g6_protocol",
+  "principles": {
+    "single_goal": "冻结小资金事件机会边界：从历史净赢家事件倒推条件，独立历史全触发验证，事件队列微仓 sizing，论点证伪或事件完成动态退出；研究/WF 只用已看历史；密封考试仅允许研究前已有独立 commitment 的预留连续时间块。",
+    "outcome_first_reverse_events": "未来净收益只作为事件标签进入奖金地图，绝不进入决策特征；EventCard 冻结后必须正序 validation/WF。",
+    "small_account_event_edge": "目标本金 30/100/1000U，真实硬上限 5 倍；研究仓位按事件 stress risk 定额，优先微仓而非用满杠杆；不要求机构级容量。",
+    "no_institutional_topk": "不做全市场 Top-K=5 机构式拍卖；事件同时到达时按 conservative_edge/stress_loss/margin_time 排序，只接受账户并发上限内的 1–3 个事件。",
+    "fail_closed": "未知、歧义、OOD、未认证一律 NO_TRADE；缺可选特征保留 missing mask，不阻塞 OHLCV 主路径。",
+    "no_future_wait": "只使用决策时刻可见、已完整收盘的历史字段；无合法预留卷时 EXAM_UNAVAILABLE/NO_GO，不等待未来。",
+    "exam_actions_zero": "G6 研究阶段 exam_actions=0；router-g6-commitments 只验证公开 commitment，不创建/解封考卷。",
+    "low_cpu_checkpoint": "默认 GOMAXPROCS=1、低优先级、分片 checkpoint；禁止长链一次跑满服务器。"
+  },
+  "closes_g1": {
+    "note": "g6 引用但绝不修改 g1 的 protocol hash 与零候选结论；g1 永久冻结。",
+    "g1_generation": "firstbattle-router-g1",
+    "g1_router_protocol_hash": "0eab9bda13055209c81d2b47f0286a0317b79dbb642592ec1b00cd4771397d31",
+    "g1_router_protocol_path": "research/firstbattle/hierarchical_router_preregistration.json",
+    "g1_result_path": "research/firstbattle/router_stage_summary.json",
+    "g1_certified_money_leaves": 0,
+    "g1_research_pass_leaves": 0,
+    "g1_system_status": "NO_GO",
+    "immutable": "g1 hash/result 只引用；修改 g1 阈值、改名、换皮重考、复活 CLOSED/UNTESTABLE 叶一律禁止。"
+  },
+  "closes_g2": {
+    "note": "g6 引用但绝不修改 g2 的 protocol hash 与 162 组合 0 提名 NO_GO 结论；g2 永久冻结。",
+    "g2_generation": "firstbattle-router-g2",
+    "g2_router_protocol_hash": "395d15ece40050e7227e0cff5a74a91c68cdab83285c02a10657d13f21a118ec",
+    "g2_router_protocol_path": "research/firstbattle/hierarchical_router_g2_preregistration.json",
+    "g2_result_path": "research/firstbattle/g2_stage_summary.json",
+    "g2_registered_search_combinations": 162,
+    "g2_candidate_nominations": 0,
+    "g2_research_pass_leaves": 0,
+    "g2_system_status": "NO_GO",
+    "g2_prize_mechanism": "funding_payer_flip_rebalance",
+    "immutable": "g2 hash/result 只引用；禁止复活 g2 funding_payer_flip_rebalance 或任何 g2 搜索组合。"
+  },
+  "closes_g3": {
+    "note": "g6 引用但绝不修改 g3 的 protocol hash 与 192 规则 0 提名 NO_GO 结论；g3 永久冻结。",
+    "g3_generation": "firstbattle-router-g3",
+    "g3_router_protocol_hash": "1628e1a575585a7a1c2b7da0e01eb54de9707997272a6301e3824505dece17fb",
+    "g3_router_protocol_path": "research/firstbattle/hierarchical_router_g3_preregistration.json",
+    "g3_result_path": "research/firstbattle/g3_stage_summary.json",
+    "g3_registered_search_rules": 192,
+    "g3_candidate_nominations": 0,
+    "g3_research_pass_leaves": 0,
+    "g3_system_status": "NO_GO",
+    "immutable": "g3 hash/result 只引用；禁止复活 g3 192 倒序规则、调参重考或改写 NO_GO 结论。"
+  },
+  "closes_g4": {
+    "note": "g6 引用但绝不修改 g4 的 protocol hash 与 1024 候选 0 validation pass NO_GO 结论；g4 永久冻结。",
+    "g4_generation": "firstbattle-router-g4",
+    "g4_router_protocol_hash": "55d5da85272d9d326c81570a677b47b66ede7da69b14fc58fe4c154c0a1d6425",
+    "g4_router_protocol_path": "research/firstbattle/hierarchical_router_g4_preregistration.json",
+    "g4_result_path": "research/firstbattle/g4_stage_summary.json",
+    "g4_full_market_coverage": {
+      "okx_1h": "401/401",
+      "okx_5m": "200/200"
+    },
+    "g4_frozen_candidates": 1024,
+    "g4_validation_pass_candidates": 0,
+    "g4_system_status": "NO_GO",
+    "immutable": "g4 hash/result 只引用；禁止调阈值复活 1024 简单规则、改写 profit map 结论或把 G4 NO_GO 当作 G6 可交易依据。"
+  },
+  "closes_g5": {
+    "note": "g6 引用但绝不修改 g5 的 protocol hash 与 0 policy 退化 NO_GO 结论；g5 永久冻结。",
+    "g5_generation": "firstbattle-router-g5",
+    "g5_router_protocol_hash": "bfe9f784039a89b773f2f9a0fb86d252c39ffa52b7f7202071e02bcc32333a7d",
+    "g5_router_protocol_path": "research/firstbattle/hierarchical_router_g5_preregistration.json",
+    "g5_result_path": "research/firstbattle/g5_stage_summary.json",
+    "g5_frozen_policy_count": 0,
+    "g5_training_status": "TRAINING_REJECTED_DEGENERATE",
+    "g5_research_pass_policies": 0,
+    "g5_system_status": "NO_GO",
+    "immutable": "g5 hash/result 只引用；禁止复活 g5 动态线性策略、调参重考或把 G5 NO_GO 当作 G6 可交易依据。"
+  },
+  "binds": {
+    "note": "路由协议绑定但不篡改被引用的历史契约与 g1/g2/g3/g4/g5 路由协议；任一被绑定 hash 变化都必须新 generation。",
+    "history_data_hash": "f41ed2586d91054c4b5b2e15e60f32a4d64ccde0032e76dfdc5fc6dee316379c",
+    "history_regime_contract_hash": "a80978f75a74d68a8ac8dcc988ea2e16b01623f739ebab23428cf92f23fd7127",
+    "history_data_requirements_hash": "07b709f9ddd036749da76d28c66e7efe70638cec7c15bbe1b29789a8534622f7",
+    "g1_router_protocol_hash": "0eab9bda13055209c81d2b47f0286a0317b79dbb642592ec1b00cd4771397d31",
+    "g2_router_protocol_hash": "395d15ece40050e7227e0cff5a74a91c68cdab83285c02a10657d13f21a118ec",
+    "g3_router_protocol_hash": "1628e1a575585a7a1c2b7da0e01eb54de9707997272a6301e3824505dece17fb",
+    "g4_router_protocol_hash": "55d5da85272d9d326c81570a677b47b66ede7da69b14fc58fe4c154c0a1d6425",
+    "g5_router_protocol_hash": "bfe9f784039a89b773f2f9a0fb86d252c39ffa52b7f7202071e02bcc32333a7d",
+    "history_regime_contract_path": "research/firstbattle/history_regime_contract.json",
+    "history_data_requirements_path": "research/firstbattle/history_data_requirements.json",
+    "history_catalog_path": "research/firstbattle/history_catalog.json",
+    "g1_router_protocol_path": "research/firstbattle/hierarchical_router_preregistration.json",
+    "g2_router_protocol_path": "research/firstbattle/hierarchical_router_g2_preregistration.json",
+    "g3_router_protocol_path": "research/firstbattle/hierarchical_router_g3_preregistration.json",
+    "g4_router_protocol_path": "research/firstbattle/hierarchical_router_g4_preregistration.json",
+    "g5_router_protocol_path": "research/firstbattle/hierarchical_router_g5_preregistration.json"
+  },
+  "data_profiles": {
+    "note": "两族 OHLCV profile 独立分区与 horizon；funding/rubik 为 optional_nonblocking；liq/depth/OI/xvenue 为 UNTESTABLE。",
+    "catalog_path": "research/firstbattle/history_catalog.json",
+    "forbidden_inputs": ["settlements", "realized_pnl", "sealed_exam", "current_universe_backfill", "current_open_bar", "event_map_labels_in_features"],
+    "optional_nonblocking_families": [
+      "okx_funding",
+      "bybit_funding",
+      "rubik_taker_1h",
+      "rubik_lsratio_1h",
+      "rubik_taker_5m"
+    ],
+    "untestable_families": [
+      "liquidation",
+      "depth",
+      "open_interest",
+      "xvenue"
+    ],
+    "profiles": [
+      {
+        "id": "okx_1h",
+        "primary_family": "okx_1h",
+        "outcome_horizons_hours": [1, 4, 24],
+        "max_feature_lookback_hours": 24,
+        "purge_embargo_rule": "max(max_feature_lookback_hours, event_deadline_hours)",
+        "entry_price_rule": "next_bar_open_after_decision_close",
+        "exit_price_rule": "stop_error_or_deadline_bar_open",
+        "optional_feature_families": ["okx_funding", "bybit_funding", "rubik_taker_1h", "rubik_lsratio_1h"]
+      },
+      {
+        "id": "okx_5m",
+        "primary_family": "okx_5m",
+        "outcome_horizons_minutes": [5, 15, 60, 240],
+        "max_feature_lookback_hours": 4,
+        "purge_embargo_rule": "max(max_feature_lookback_hours, event_deadline_hours)",
+        "entry_price_rule": "next_bar_open_after_decision_close",
+        "exit_price_rule": "stop_error_or_deadline_bar_open",
+        "optional_feature_families": ["okx_funding", "bybit_funding", "rubik_taker_5m"]
+      }
+    ]
+  },
+  "time_partition_roles": {
+    "note": "每 profile 独立 chronological research/validation/WF=60/20/20；purge/embargo 取 max(lookback, event_deadline)。",
+    "partition_order": "chronological_earliest_to_latest",
+    "research_permille": 600,
+    "validation_permille": 200,
+    "walk_forward_permille": 200,
+    "purge_embargo_formula": "max(profile.max_feature_lookback_hours, event_deadline_hours)",
+    "per_profile_independent": true,
+    "exam_scope_hidden": true,
+    "exam_actions": 0
+  },
+  "event_unit": {
+    "note": "冻结事件单元、窗口非重叠与 shock cluster 统计；同标的事件窗口不重叠时可重复，但 cluster 按共同市场 shock/机制 episode。",
+    "event_id_formula": "symbol + decision_time + event_family",
+    "window_nonoverlap_required": true,
+    "non_overlap_cooldown_formula": "profile_bar_duration * (1 + delay_bars + horizon_bar_count)",
+    "shock_cluster_required": true,
+    "shock_cluster_rule": "group_adjacent_bars_by_common_market_shock_or_mechanism_episode",
+    "independent_sample_unit": "non_overlap_shock_block",
+    "forbidden_overlap_pnl_sum": true,
+    "discovery_dedup_per_outcome_horizon_delay": true,
+    "discovery_dedup_tracker_key": "symbol|family|horizon|delay_bars"
+  },
+  "event_families": {
+    "note": "主事件族以可长期检验的 OHLCV 为核心；funding/rubik 仅作短历史增强列；liq/depth/OI 继续 UNTESTABLE。",
+    "primary_ohlcv_families": [
+      "ohlcv_extreme_continuation",
+      "ohlcv_extreme_reversal",
+      "session_liquidity_recovery",
+      "btc_relative_dislocation"
+    ],
+    "optional_context_families": [
+      "okx_funding",
+      "bybit_funding",
+      "rubik_taker_1h",
+      "rubik_lsratio_1h",
+      "rubik_taker_5m"
+    ],
+    "untestable_families": [
+      "liquidation",
+      "depth",
+      "open_interest",
+      "xvenue"
+    ],
+    "directions": ["long", "short"],
+    "horizons": {
+      "okx_5m_minutes": [5, 15, 60, 240],
+      "okx_1h_hours": [1, 4, 24]
+    },
+    "delay_bars": [0, 1, 2, 3],
+    "capital_tiers_usdt": [30, 100, 1000]
+  },
+  "event_account": {
+    "note": "小账户事件队列：30U 最多 1 仓、100U 最多 2 仓、1000U 最多 3 仓；单事件 stress loss ≤0.5% equity、总 stress loss ≤2%、有效杠杆 ≤5。",
+    "max_concurrent_by_capital": {
+      "30": 1,
+      "100": 2,
+      "1000": 3
+    },
+    "max_event_stress_loss_fraction": 0.005,
+    "max_account_stress_loss_fraction": 0.02,
+    "max_account_leverage": 5,
+    "effective_leverage_check_rule": "mark_to_market_each_bar_sum_event_notional_over_equity",
+    "queue_ranking_rule": "conservative_edge / stress_loss / margin_time descending",
+    "one_position_per_event": true,
+    "position_notional_rule": "stress_risk_budget_clipped_by_liquidity_min_notional_lot_floor_and_leverage",
+    "min_notional_lot_floor_rule": "skip_event_if_sized_notional_below_exchange_min_notional_or_lot_floor_no_upward_rounding",
+    "pending_flush_rule": "execute_matured_before_scoring_discard_unexpired_at_eof",
+    "pending_flush_execute_at": "current_bar_index",
+    "execute_index_formula": "decision_bar_index + 1 + delay_bars",
+    "stale_revalidate_at_execution": true,
+    "risk_gate_after_breach": "block_new_event_open_fail_closed_allow_stop_error_trim_close_flat"
+  },
+  "cost_model": {
+    "note": "继承 G4 conservative 成本代理；validation/WF 额外 delay+1bar 与 cost_stress_multiplier=1.5。",
+    "inherits": "firstbattle.hierarchical_router.g4",
+    "g4_protocol_hash": "55d5da85272d9d326c81570a677b47b66ede7da69b14fc58fe4c154c0a1d6425",
+    "proxy_disclaimer": "conservative_execution_proxy_not_full_order_book_proof",
+    "roundtrip_taker_fee_bps": 10.0,
+    "base_spread_slippage_floor_bps": 2.0,
+    "rolling_quote_volume_window_hours": 24,
+    "capacity_impact_scale_bps": 10000.0,
+    "capacity_impact_cap_bps": 50.0,
+    "capacity_impact_formula": "min(capacity_impact_cap_bps, capital_usdt / max(rolling_quote_volume_usdt, 1) * capacity_impact_scale_bps)",
+    "bar_range_toxicity_scale": 0.5,
+    "bar_range_toxicity_cap_bps": 100.0,
+    "bar_range_toxicity_formula": "min(bar_range_toxicity_cap_bps, (high-low)/max(mid,1e-12) * 10000 * bar_range_toxicity_scale)",
+    "funding_across_settlements": true,
+    "funding_formula": "sum_abs_settled_funding_rate_over_hold_period_when_available_else_zero",
+    "fee_net_formula": "gross_bps - roundtrip_taker_fee_bps",
+    "conservative_net_formula": "gross_bps - roundtrip_taker_fee_bps - base_spread_slippage_floor_bps - capacity_impact_bps - bar_range_toxicity_bps - funding_bps",
+    "cost_stress_multiplier": 1.5,
+    "delay_plus_one_bar_entry": true
+  },
+  "reverse_event_cards": {
+    "note": "结果优先倒推 EventCard；不用全市场机构模型；发现阶段允许 UNEXPLAINED_EVENT_CANDIDATE，但无法解释 payer/结构机制的候选不得考试或交易。",
+    "discovery_mode": "outcome_first_reverse_from_net_winner_events",
+    "institutional_model_forbidden": true,
+    "event_card_required_fields": [
+      "trigger_conditions",
+      "direction_rule",
+      "max_wait_time",
+      "dynamic_deadline",
+      "invalidator_conditions",
+      "capacity_band",
+      "capital_tiers",
+      "data_requirements"
+    ],
+    "unexplained_candidate_status": "UNEXPLAINED_EVENT_CANDIDATE",
+    "experiment_ledger_required": true,
+    "freeze_before_validation": true,
+    "hash_chain": ["EventCardHash", "ExperimentHash"],
+    "grouping_unit": "non_overlap_shock_cluster_block"
+  },
+  "dynamic_exit": {
+    "note": "固定 horizon 只作 deadline；主要退出必须来自事件完成、payer 消失、invalidator 或 OOD；StopError 统一出口。",
+    "stop_error_required": true,
+    "exit_triggers": [
+      "event_complete",
+      "payer_disappeared",
+      "invalidator",
+      "ood",
+      "deadline"
+    ],
+    "deadline_is_fallback_only": true,
+    "mechanical_price_stop_secondary_only": true
+  },
+  "validation_gates": {
+    "note": "G6 事件 validation 门：validation 分区正序全触发回放，不考试；30/100/1000 三档本金必须分别通过全部 delay 与 cost stress。",
+    "apply_on": "validation_partition_only",
+    "no_exam": true,
+    "freeze_before_validation": true,
+    "initial_equity_usdt": [30, 100, 1000],
+    "all_equity_tiers_must_pass": true,
+    "delay_bars": [0, 1, 2, 3],
+    "cost_stress_multiplier": 1.5,
+    "min_event_count": 50,
+    "min_independent_days": 20,
+    "min_non_overlap_shock_blocks": 10,
+    "sparse_sample_action": "INCONCLUSIVE",
+    "min_event_count_inconclusive_note": "INCONCLUSIVE is not VALIDATION_PASS",
+    "base_net_return_must_be_positive": true,
+    "all_delay_net_return_must_be_positive": true,
+    "cost_stress_net_return_must_be_positive": true,
+    "no_leverage_solvency_breach": true,
+    "effective_leverage_check_rule": "mark_to_market_each_bar_sum_event_notional_over_equity",
+    "max_single_day_positive_contribution_fraction": 0.35,
+    "max_single_event_positive_contribution_fraction": 0.35,
+    "discovery_screen_fdr_required": true,
+    "discovery_screen_family": "registered_event_cards_plus_ledger_attempts",
+    "pass_status": "VALIDATION_PASS",
+    "fail_status": "VALIDATION_FAIL",
+    "inconclusive_status": "INCONCLUSIVE",
+    "solvency_fail_reason": "SOLVENCY"
+  },
+  "walk_forward_gates": {
+    "note": "严格 WF+：仅 VALIDATION_PASS 且 hash 验证通过的 EventCard 进入；walk_forward 分区 5 fold；冻结 Card 不调参；fold/LOSO/shock/day/delay/cost 稳健 + Holm 覆盖 ledger family。",
+    "partition": "walk_forward",
+    "fold_count": 5,
+    "uses_profile_purge_embargo": true,
+    "eligibility": "validation_pass_and_signed_hash_verified_only",
+    "skipped_validation_fail_status": "SKIPPED_VALIDATION_FAIL",
+    "frozen_card_no_retuning": true,
+    "scan_includes_all_triggers": true,
+    "sizing_uses_survivor_frozen_edge": true,
+    "pnl_uses_realized_trigger": true,
+    "sizing_edge_floor_bps": 1.0,
+    "sizing_edge_source": "validation_survivor_frozen_conservative_stress_or_floor_bps",
+    "initial_equity_usdt": [30, 100, 1000],
+    "delay_bars": [0, 1, 2, 3],
+    "cost_stress_multiplier": 1.5,
+    "fold_net_return_must_be_positive": true,
+    "worst_fold_net_return_must_be_positive": true,
+    "lofo_net_return_must_be_positive": true,
+    "all_delay_net_return_must_be_positive": true,
+    "cost_stress_net_return_must_be_positive": true,
+    "robustness_checks": ["day_leave_one_out", "shock_block_leave_one_out", "symbol_leave_one_out"],
+    "sign_test": {
+      "p_value": "exact_one_sided_binomial_sign_test_on_nonzero_daily_equity_delta",
+      "numeric_method": "log_gamma_log_sum_exp",
+      "multiple_comparison_control": "Holm-Bonferroni",
+      "family": "selected_event_card_plus_ledger_attempts",
+      "family_alpha": 0.01,
+      "daily_replay_matches_scenario_funding_stress": true
+    },
+    "pass_status": "WF_PASS",
+    "fail_status": "WF_FAIL",
+    "inconclusive_status": "INCONCLUSIVE",
+    "exam_actions": 0
+  },
+  "event_mechanism_review": {
+    "note": "G6 当前无独立 forced-flow/counterparty evidence；WF pass 最多 UNEXPLAINED_EVENT_PASS；禁止 feature membership 自动解释。",
+    "unexplained_event_pass_status": "UNEXPLAINED_EVENT_PASS",
+    "forced_flow_evidence_required": true,
+    "counterparty_evidence_required": true,
+    "auto_mechanism_from_features_forbidden": true,
+    "trade_allowed": false,
+    "exam_eligible": false,
+    "certified": false,
+    "exam_actions": 0
+  },
+  "exam_commitments": {
+    "note": "公开 commitment 只含 id/queue/kind/family/alpha_spend/DataHash/ChallengeHash/ProtocolHash/status；不含时间/cluster/path。4 standard + 1 golden，golden 最后；每卷一次性/crash 消费。",
+    "schema_version": "lingxi.routerg6.public-commitments.v1",
+    "required_paper_count": 5,
+    "standard_paper_count": 4,
+    "golden_paper_count": 1,
+    "schedule_template": [
+      {"queue": 1, "kind": "standard", "family": "high_volatility", "alpha_spend": 1},
+      {"queue": 2, "kind": "standard", "family": "low_volatility_funding", "alpha_spend": 1},
+      {"queue": 3, "kind": "standard", "family": "cross_sectional_breadth", "alpha_spend": 1},
+      {"queue": 4, "kind": "standard", "family": "delay_stress", "alpha_spend": 1},
+      {"queue": 5, "kind": "golden", "family": "golden", "alpha_spend": 1}
+    ],
+    "public_fields": ["id", "queue", "kind", "family", "alpha_spend", "data_hash", "challenge_hash", "protocol_hash", "status"],
+    "forbidden_public_fields": ["start", "end", "cluster_ids", "fixture_path", "stratum", "fixture", "fixture_size", "nonce", "observations"],
+    "allowed_statuses": ["sealed", "running", "consumed_passed", "consumed_failed", "consumed_crashed"],
+    "consumption_rule": "unseal_grade_or_crash_permanently_consumes_paper",
+    "golden_last_rule": "exactly_one_golden_at_final_queue",
+    "no_valid_reservations_status": "EXAM_UNAVAILABLE",
+    "research_stage_exam_actions": 0
+  },
+  "exam_evaluator": {
+    "note": "G6 hidden exam fixture 为多 block 事件账户回放指标；CardHash/ExperimentHash 仅通过显式注册绑定，fixture 禁止自我声明。",
+    "fixture_schema_version": "lingxi.routerg6.exam-fixture.v1",
+    "min_blocks": 1,
+    "forbidden_fixture_fields": ["event_card_hash", "experiment_hash", "protocol_hash", "pass", "pass_threshold", "threshold"],
+    "expected_commitment_hash_formula": "sha256(event_card_hash\\nexperiment_hash\\nprotocol_hash)",
+    "registration_requires_expected_hashes": true,
+    "registration_requires_replay_callback": true,
+    "replay_required": true,
+    "replay_grades_computed_only": true,
+    "unregistered_status": "EXAM_UNAVAILABLE",
+    "gates": {
+      "base_net_return_must_be_positive": true,
+      "all_delay_net_return_must_be_positive": true,
+      "min_independent_days": 20,
+      "no_leverage_solvency_breach": true,
+      "cost_stress_multiplier": 1.5,
+      "cost_stress_net_return_must_be_positive": true,
+      "shock_block_loo_required": true,
+      "max_concurrent_by_capital_required": true
+    },
+    "coarse_reasons": ["PASS", "RISK_GATE", "ROBUSTNESS_GATE", "EXECUTION_GATE", "ALPHA_BUDGET"],
+    "research_pass_requires": {
+      "wf_status": "WF_PASS",
+      "mechanism_explained": true,
+      "exam_eligible": true
+    },
+    "boundary_statuses": {
+      "unavailable": "EXAM_UNAVAILABLE",
+      "no_go": "NO_GO",
+      "available": "AVAILABLE"
+    },
+    "research_stage_exam_actions": 0
+  },
+  "runtime_resource": {
+    "note": "所有真实扫描默认低 CPU：GOMAXPROCS=1、低优先级、分片 checkpoint。",
+    "gomaxprocs": 1,
+    "nice_priority": 19,
+    "checkpoint_required": true,
+    "checkpoint_shard_rule": "resume_from_last_completed_symbol_or_shock_block",
+    "forbidden_full_server_scan": true
+  },
+  "coarse_trace_rule": {
+    "must_not_contain": [
+      "pnl",
+      "exam_id",
+      "start_time",
+      "end_time",
+      "cluster_id",
+      "fixture_path",
+      "hidden_range",
+      "pass_threshold",
+      "grade_detail"
+    ]
+  },
+  "prohibitions": [
+    "修改或复活 g1/g2/g3/g4/g5 已冻结协议 hash、阈值、搜索空间或 NO_GO 结论。",
+    "复活 g5 动态线性策略或把 G5 NO_GO 当作 G6 可交易依据。",
+    "把事件地图标签、outcome、pnl 或 current bar 作为特征输入。",
+    "router-g6-commitments 读取 hidden manifest、时间范围、cluster 或 fixture path。",
+    "无合法预留卷时等待未来数据或伪造 commitment。",
+    "研究阶段创建/解封/消费真实考卷（exam_actions=0）。",
+    "重叠单笔收益相加伪造账户净值。",
+    "相邻 bar 重叠窗口当作独立 shock block 样本。",
+    "不足最小名义/张数时向上凑单。",
+    "声称 conservative_net 成本模型是完整盘口或 guaranteed fill 证明。"
+  ],
+  "red_team": {
+    "note": "g6 协议+公开 commitment+WF 阶段红队 16 项。",
+    "requirements": [
+      {"id": "rt01_g1_g2_g3_g4_g5_immutable", "requirement": "g1/g2/g3/g4/g5 hash 与 NO_GO 结论只引用不可修改。", "enforced_by": "closes_g1..closes_g5 + protocol_test.go TestG1G2G3G4G5ResultReferencedImmutable"},
+      {"id": "rt02_reproducible_protocol_hash", "requirement": "g6 protocol hash 可复现；绑定 history/regime/requirements/g1-g5 router hash 一致。", "enforced_by": "audit.protocol_hash_method + protocol_test.go TestProtocolHashMatchesManifest"},
+      {"id": "rt03_manifest_code_no_drift", "requirement": "manifest ↔ protocol.go 逐字段一致。", "enforced_by": "protocol_test.go TestManifestCodeConstantsNoDrift"},
+      {"id": "rt04_event_families_frozen", "requirement": "OHLCV 主事件族/optional/untestable 冻结。", "enforced_by": "event_families + protocol_test.go TestEventFamiliesNoDrift"},
+      {"id": "rt05_cost_inherits_g4", "requirement": "成本模型继承 G4 conservative 代理。", "enforced_by": "cost_model + protocol_test.go TestCostModelInheritsG4"},
+      {"id": "rt06_profile_partition_60_20_20", "requirement": "每 profile 独立 60/20/20 research/validation/WF；purge=max(lookback,event_deadline)。", "enforced_by": "time_partition_roles + data_profiles + protocol_test.go TestProfilePartitionNoDrift"},
+      {"id": "rt07_event_account_caps", "requirement": "30/100/1000U 并发 1/2/3、单事件 stress≤0.5%、账户≤2%、杠杆≤5。", "enforced_by": "event_account + protocol_test.go TestEventAccountCapsNoDrift"},
+      {"id": "rt08_event_id_nonoverlap_shock", "requirement": "event_id/window 非重叠；shock cluster 统计独立样本。", "enforced_by": "event_unit + protocol_test.go TestEventUnitNoDrift"},
+      {"id": "rt09_stop_error_exit", "requirement": "StopError 统一出口；deadline 仅 fallback。", "enforced_by": "dynamic_exit + protocol_test.go TestDynamicExitNoDrift"},
+      {"id": "rt10_exam_actions_zero", "requirement": "研究阶段 exam_actions=0。", "enforced_by": "time_partition_roles.exam_actions + audit.exam_actions"},
+      {"id": "rt11_commitment_schema_leak", "requirement": "公开 commitment 不得含时间/cluster/path；只允许冻结 public_fields。", "enforced_by": "exam_commitments + protocol_test.go TestExamCommitmentsNoDrift"},
+      {"id": "rt12_exam_unavailable_no_wait", "requirement": "无合法预留卷输出 EXAM_UNAVAILABLE，exam_actions=0，不等待未来。", "enforced_by": "exam_commitments.no_valid_reservations_status + protocol_test.go TestExamUnavailableNoWait"},
+      {"id": "rt13_validation_event_gates", "requirement": "validation 事件门：≥50 事件/≥20 日/≥10 shock blocks、FDR、base/all delay/cost stress 为正、无杠杆/偿付违约。", "enforced_by": "validation_gates + protocol_test.go TestValidationGatesNoDrift"},
+      {"id": "rt14_strict_wf_plus_gates", "requirement": "严格 WF+：仅 VALIDATION_PASS hash 验证 EventCard 进入；5 fold；fold/LOFO/delay/cost/shock 稳健 + Holm ledger family；exam_actions=0。", "enforced_by": "walk_forward_gates + protocol_test.go TestWalkForwardGatesNoDrift"},
+      {"id": "rt15_mechanism_no_auto_explain", "requirement": "无 forced-flow/counterparty evidence 时最多 UNEXPLAINED_EVENT_PASS；trade/exam/certified=false。", "enforced_by": "event_mechanism_review + protocol_test.go TestEventMechanismReviewNoDrift"},
+      {"id": "rt16_low_cpu_checkpoint", "requirement": "默认 GOMAXPROCS=1、低优先级、分片 checkpoint。", "enforced_by": "runtime_resource + protocol_test.go TestRuntimeResourceNoDrift"},
+      {"id": "rt17_wf_sizing_survivor_frozen_edge", "requirement": "WF replay sizing/queue 禁止 per-event realized conservative bps；使用 validation survivor 冻结 edge/stress 或 floor bps；PnL 仍全触发 realized。", "enforced_by": "walk_forward_gates + walkforward/sizing_test.go"},
+      {"id": "rt18_discovery_outcome_dedup", "requirement": "discovery eventmap dedup 按 outcome horizon+delay CooldownBarsForEvent；tracker key 含 horizon/delay，与 validation/WF 一致。", "enforced_by": "event_unit + eventmap/eventmap_test.go TestOutcomeDedupPerHorizonDelay"},
+      {"id": "rt19_reverse_shock_cluster_grouping", "requirement": "reverse grouping 使用 shock cluster block ID 而非 UTC date；winner 携带 shock_cluster 与 map manifest 绑定。", "enforced_by": "reverse_event_cards + reverseevent/reverseevent_test.go TestSameDayMultipleShockClustersDistinctGroups"}
+    ]
+  },
+  "audit": {
+    "protocol_hash": "d34b2798bec83cfcbb39eceec05cb644a74e362b741bb3326bf67bcbabfeb759",
+    "protocol_hash_method": "datatruth.HashJSON(canonical)，其中 canonical = 本 manifest 解析为通用 JSON 后把 audit.protocol_hash 置为 null；HashJSON 对对象键递归排序后做 SHA-256，输出小写 hex。",
+    "protocol_hash_reproduce": "读取本文件 -> json.Unmarshal 到 map[string]any -> 令 doc[\"audit\"][\"protocol_hash\"]=nil -> datatruth.HashJSON(doc)。",
+    "unsigned_boundary": "无 KMS 时 receipt 为 UNSIGNED_BOUNDARY 接口产物，不得当作密码学证明。",
+    "binds_g1_router": "0eab9bda13055209c81d2b47f0286a0317b79dbb642592ec1b00cd4771397d31",
+    "binds_g2_router": "395d15ece40050e7227e0cff5a74a91c68cdab83285c02a10657d13f21a118ec",
+    "binds_g3_router": "1628e1a575585a7a1c2b7da0e01eb54de9707997272a6301e3824505dece17fb",
+    "binds_g4_router": "55d5da85272d9d326c81570a677b47b66ede7da69b14fc58fe4c154c0a1d6425",
+    "binds_g5_router": "bfe9f784039a89b773f2f9a0fb86d252c39ffa52b7f7202071e02bcc32333a7d",
+    "drives": ["routerg6 protocol", "routerg6 examboundary", "routerg6 examevaluator", "router-g6-commitments", "router-g6-exam-boundary"],
+    "exam_actions": 0
+  }
+}

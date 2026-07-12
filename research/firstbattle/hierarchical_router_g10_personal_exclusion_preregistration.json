@@ -1,0 +1,412 @@
+{
+  "schema_version": "1",
+  "protocol_id": "firstbattle.hierarchical_router.g10.personal_exclusion",
+  "generation": "firstbattle-router-g10-personal-exclusion",
+  "created_at": "2026-07-12T17:32:00Z",
+  "companion_doc": "research/firstbattle/hierarchical_router_g10_personal_exclusion_preregistration.md",
+  "status": "preregistered_router_g10_personal_exclusion_protocol",
+  "principles": {
+    "single_goal": "交付只属于该个人账户的三重排除倒序 Brain：先圈定机构、普通散户、通用机器人难以参与的合法区域，再只从具备历史可入场证明的盈利录像倒序生成个人剧本。",
+    "research_order": "个人条件 → 三重排除区域 → 历史可入场盈利录像 → 倒序重建事件 → 独立历史证伪；禁止从公共因子正向预测。",
+    "okx_only_execution": "所有模拟与执行订单仅在 OKX；Binance、Bybit、Gate 等仅提供严格 PIT 的上线、下线、维护和交易状态变化信息。",
+    "terminal_risk_ceilings_not_targets": "单事件终局损失硬上限 40%、账户同时终局风险硬上限 70% 是绝对天花板而非建议仓位；Brain 必须按机会证据和强平距离向下 sizing，不能因为上限高而主动放大。",
+    "floating_loss_tolerated": "允许大幅浮亏、隔夜持仓、跨 funding 结算；论点失效由 ThesisHealth/StopError 退出，禁止机械补仓和向上凑单。",
+    "triple_exclusion_required": "每个候选必须分别证明机构、普通散户、通用机器人为何难以进入或缺乏参与动机；不能证明排除理由的事件不得进入倒序挖掘。",
+    "entry_execution_exit_proofs": "每个候选必须冻结 EntryProof、ExecutionPolicyProof、ExitProof；只证明能开仓但不能退出的录像不得成为赢家。",
+    "maker_taker_skip_not_default": "BOUNDED_MAKER / CONDITIONAL_MARKETABLE_LIMIT / SKIP 必须在同一决策时点冻结并反事实比较；不得先看结果再挑执行方式。",
+    "fail_closed": "未知、歧义、OOD、执行指纹 UNKNOWN、ENTRY_UNPROVEN、公告 lookahead 一律 fail closed；无真钱动作。",
+    "no_future_wait": "只使用决策时刻可见、已完整收盘的历史字段；无合法预留卷时 EXAM_UNAVAILABLE/NO_GO，不等待未来。",
+    "exam_actions_zero": "G10 Personal-Exclusion 研究阶段 exam_actions=0；trade_allowed=false。",
+    "low_cpu_checkpoint": "默认 GOMAXPROCS=1、低优先级、分片 checkpoint；禁止长链一次跑满服务器。",
+    "full_history_validation": "使用完整已有历史做正式 validation/WF；禁止用 3 标的 smoke 代替正式结论。"
+  },
+  "closes_g1": {
+    "note": "g10p 引用但绝不修改 g1 的 protocol hash 与零候选结论；g1 永久冻结。",
+    "g1_generation": "firstbattle-router-g1",
+    "g1_router_protocol_hash": "0eab9bda13055209c81d2b47f0286a0317b79dbb642592ec1b00cd4771397d31",
+    "g1_router_protocol_path": "research/firstbattle/hierarchical_router_preregistration.json",
+    "g1_result_path": "research/firstbattle/router_stage_summary.json",
+    "g1_certified_money_leaves": 0,
+    "g1_research_pass_leaves": 0,
+    "g1_system_status": "NO_GO",
+    "immutable": "g1 hash/result 只引用；修改 g1 阈值、改名、换皮重考、复活 CLOSED/UNTESTABLE 叶一律禁止。"
+  },
+  "closes_g2": {
+    "note": "g10p 引用但绝不修改 g2 的 protocol hash 与 162 组合 0 提名 NO_GO 结论；g2 永久冻结。",
+    "g2_generation": "firstbattle-router-g2",
+    "g2_router_protocol_hash": "395d15ece40050e7227e0cff5a74a91c68cdab83285c02a10657d13f21a118ec",
+    "g2_router_protocol_path": "research/firstbattle/hierarchical_router_g2_preregistration.json",
+    "g2_result_path": "research/firstbattle/g2_stage_summary.json",
+    "g2_registered_search_combinations": 162,
+    "g2_candidate_nominations": 0,
+    "g2_research_pass_leaves": 0,
+    "g2_system_status": "NO_GO",
+    "g2_prize_mechanism": "funding_payer_flip_rebalance",
+    "immutable": "g2 hash/result 只引用；禁止复活 g2 funding_payer_flip_rebalance 或任何 g2 搜索组合。"
+  },
+  "closes_g3": {
+    "note": "g10p 引用但绝不修改 g3 的 protocol hash 与 192 规则 0 提名 NO_GO 结论；g3 永久冻结。",
+    "g3_generation": "firstbattle-router-g3",
+    "g3_router_protocol_hash": "1628e1a575585a7a1c2b7da0e01eb54de9707997272a6301e3824505dece17fb",
+    "g3_router_protocol_path": "research/firstbattle/hierarchical_router_g3_preregistration.json",
+    "g3_result_path": "research/firstbattle/g3_stage_summary.json",
+    "g3_registered_search_rules": 192,
+    "g3_candidate_nominations": 0,
+    "g3_research_pass_leaves": 0,
+    "g3_system_status": "NO_GO",
+    "immutable": "g3 hash/result 只引用；禁止复活 g3 192 倒序规则、调参重考或改写 NO_GO 结论。"
+  },
+  "closes_g4": {
+    "note": "g10p 引用但绝不修改 g4 的 protocol hash 与 1024 候选 0 validation pass NO_GO 结论；g4 永久冻结。",
+    "g4_generation": "firstbattle-router-g4",
+    "g4_router_protocol_hash": "55d5da85272d9d326c81570a677b47b66ede7da69b14fc58fe4c154c0a1d6425",
+    "g4_router_protocol_path": "research/firstbattle/hierarchical_router_g4_preregistration.json",
+    "g4_result_path": "research/firstbattle/g4_stage_summary.json",
+    "g4_full_market_coverage": {
+      "okx_1h": "401/401",
+      "okx_5m": "200/200"
+    },
+    "g4_frozen_candidates": 1024,
+    "g4_validation_pass_candidates": 0,
+    "g4_system_status": "NO_GO",
+    "immutable": "g4 hash/result 只引用；禁止调阈值复活 1024 简单规则、改写 profit map 结论或把 G4 NO_GO 当作 G10P 可交易依据。"
+  },
+  "closes_g5": {
+    "note": "g10p 引用但绝不修改 g5 的 protocol hash 与 0 policy 退化 NO_GO 结论；g5 永久冻结。",
+    "g5_generation": "firstbattle-router-g5",
+    "g5_router_protocol_hash": "bfe9f784039a89b773f2f9a0fb86d252c39ffa52b7f7202071e02bcc32333a7d",
+    "g5_router_protocol_path": "research/firstbattle/hierarchical_router_g5_preregistration.json",
+    "g5_result_path": "research/firstbattle/g5_stage_summary.json",
+    "g5_frozen_policy_count": 0,
+    "g5_training_status": "TRAINING_REJECTED_DEGENERATE",
+    "g5_research_pass_policies": 0,
+    "g5_system_status": "NO_GO",
+    "immutable": "g5 hash/result 只引用；禁止复活 g5 动态线性策略、调参重考或把 G5 NO_GO 当作 G10P 可交易依据。"
+  },
+  "closes_g6": {
+    "note": "g10p 引用但绝不修改 g6 的 protocol hash 与 256 EventCard 0 validation pass NO_GO 结论；g6 永久冻结。",
+    "g6_generation": "firstbattle-router-g6",
+    "g6_router_protocol_hash": "d34b2798bec83cfcbb39eceec05cb644a74e362b741bb3326bf67bcbabfeb759",
+    "g6_router_protocol_path": "research/firstbattle/hierarchical_router_g6_preregistration.json",
+    "g6_result_path": "research/firstbattle/g6_stage_summary.json",
+    "g6_event_cards": 256,
+    "g6_validation_pass_cards": 0,
+    "g6_research_pass_cards": 0,
+    "g6_system_status": "NO_GO",
+    "g6_exam_status": "EXAM_UNAVAILABLE",
+    "immutable": "g6 hash/result 只引用；禁止复活 g6 EventCard、调参重考或把 G6 NO_GO 当作 G10P 可交易依据。"
+  },
+  "closes_g10": {
+    "note": "g10p 引用但绝不修改 g10 v1 的 protocol hash 与历史结论；当前 0 candidates 记为执行指纹技术阻断，不解释为市场无机会。",
+    "g10_generation": "firstbattle-router-g10",
+    "g10_router_protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+    "g10_router_protocol_path": "research/firstbattle/hierarchical_router_g10_preregistration.json",
+    "g10_companion_doc_path": "research/firstbattle/hierarchical_router_g10_preregistration.md",
+    "g10_zero_candidates_interpretation": "execution_fingerprint_technical_block_not_market_absence",
+    "g10_legacy_stress_caps_preserved": {
+      "max_event_stress_loss_fraction": 0.005,
+      "max_account_stress_loss_fraction": 0.02
+    },
+    "immutable": "g10 v1 hash/result 只引用；禁止篡改 g10 v1 protocol hash 或把 0.5%/2% 旧常量混入 g10p 个人宪法核心。"
+  },
+  "binds": {
+    "note": "路由协议绑定但不篡改被引用的历史契约与 g1–g6、g10 v1 路由协议；任一被绑定 hash 变化都必须新 generation。",
+    "history_data_hash": "f41ed2586d91054c4b5b2e15e60f32a4d64ccde0032e76dfdc5fc6dee316379c",
+    "history_regime_contract_hash": "a80978f75a74d68a8ac8dcc988ea2e16b01623f739ebab23428cf92f23fd7127",
+    "history_data_requirements_hash": "07b709f9ddd036749da76d28c66e7efe70638cec7c15bbe1b29789a8534622f7",
+    "g1_router_protocol_hash": "0eab9bda13055209c81d2b47f0286a0317b79dbb642592ec1b00cd4771397d31",
+    "g2_router_protocol_hash": "395d15ece40050e7227e0cff5a74a91c68cdab83285c02a10657d13f21a118ec",
+    "g3_router_protocol_hash": "1628e1a575585a7a1c2b7da0e01eb54de9707997272a6301e3824505dece17fb",
+    "g4_router_protocol_hash": "55d5da85272d9d326c81570a677b47b66ede7da69b14fc58fe4c154c0a1d6425",
+    "g5_router_protocol_hash": "bfe9f784039a89b773f2f9a0fb86d252c39ffa52b7f7202071e02bcc32333a7d",
+    "g6_router_protocol_hash": "d34b2798bec83cfcbb39eceec05cb644a74e362b741bb3326bf67bcbabfeb759",
+    "g10_router_protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+    "constitution_schema_version": "lingxi.routerg10.personal-constitution.v1",
+    "history_regime_contract_path": "research/firstbattle/history_regime_contract.json",
+    "history_data_requirements_path": "research/firstbattle/history_data_requirements.json",
+    "history_catalog_path": "research/firstbattle/history_catalog.json"
+  },
+  "personal_constitution": {
+    "note": "冻结真正的个人宪法；40%/70% 为终局损失硬上限而非仓位目标；旧 g10 0.5%/2% 仅保留在 closes_g10 记录。",
+    "schema_version": "lingxi.routerg10.personal-constitution.v1",
+    "capital_tiers_usdt": [30, 100, 1000],
+    "max_concurrent_by_capital": {
+      "30": 1,
+      "100": 2,
+      "1000": 3
+    },
+    "max_event_terminal_loss_fraction": 0.40,
+    "max_account_terminal_risk_fraction": 0.70,
+    "risk_ceiling_is_not_sizing_target": true,
+    "sizing_direction": "downward_only_from_evidence_and_liquidation_distance",
+    "execution_venue_okx_only": "okx",
+    "cross_venue_pit_info_venues": ["binance", "bybit", "gate"],
+    "cross_venue_execution_forbidden": true,
+    "allow_large_floating_loss": true,
+    "allow_overnight_hold": true,
+    "allow_cross_funding_settlement": true,
+    "multi_venue_preset_capital_future": true,
+    "no_manual_confirmation_required": true,
+    "long_term_idle_capacity_allowed": true,
+    "solvency_independent_required": true,
+    "prohibit_loss_chasing": true,
+    "prohibit_upward_rounding": true,
+    "prohibit_top_up_after_toxic_fill": true,
+    "actual_equity_tier_label": "actual"
+  },
+  "triple_exclusion": {
+    "note": "机构、普通散户、通用机器人三重排除；小市场本身不能成为野路子证据。",
+    "schema_version": "lingxi.routerg10.triple-exclusion.v1",
+    "required_axes": ["institution", "retail", "bot"],
+    "institution_exclusion_evidence": [
+      "capacity_cliff",
+      "absolute_profit_insufficient",
+      "capital_idle_too_long",
+      "custody_authorization_limit",
+      "large_order_impact"
+    ],
+    "retail_exclusion_evidence": [
+      "long_idle_required",
+      "cannot_chase_price",
+      "must_tolerate_large_drawdown_with_thesis_exit",
+      "min_lot_nonlinearity",
+      "complex_operational_discipline"
+    ],
+    "bot_exclusion_evidence": [
+      "event_sparsity",
+      "fixed_threshold_failure",
+      "conditional_combo_changes_per_event",
+      "queue_crowding",
+      "post_publication_decay",
+      "crowding_stress_1_3_5_micro_competitors"
+    ],
+    "forbidden_wild_evidence": [
+      "SMALL_BUT_COMPETITIVE",
+      "PUBLIC_AND_CROWDED",
+      "fixed_public_signal_only",
+      "small_market_size_only"
+    ],
+    "entry_requires_exclusion_proof": true
+  },
+  "cross_venue_pit_announcements": {
+    "note": "跨所公告只在 first_seen_at <= decision_time 时可见；所有订单仍只在 OKX。",
+    "schema_version": "lingxi.routerg10.cross-venue-pit-announcements.v1",
+    "execution_venue": "okx",
+    "info_venues": ["okx", "binance", "bybit", "gate"],
+    "event_types": ["listing", "delisting", "maintenance", "suspension", "trading_state_change"],
+    "required_fields": ["published_at", "first_seen_at", "effective_at", "source_hash"],
+    "visibility_rule": "first_seen_at_lte_decision_time_only",
+    "forbidden_backfill": ["web_update_time", "future_effective_time", "current_universe"],
+    "fail_open_forbidden": true
+  },
+  "entry_proof": {
+    "note": "先证明能开仓，再允许标记历史赢家；替换固定 next_bar_open 假设。",
+    "schema_version": "lingxi.routerg10.entry-proof.v1",
+    "required_fields": [
+      "decision_visible_info",
+      "order_type",
+      "price",
+      "min_sz",
+      "lot_sz",
+      "ct_val",
+      "ct_type",
+      "dynamic_min_notional",
+      "latency",
+      "executable_depth",
+      "participation_rate",
+      "partial_fill",
+      "queue_estimate",
+      "max_wait",
+      "cancel_rule",
+      "no_chase_rule",
+      "evidence_grade"
+    ],
+    "evidence_grades": {
+      "A": "real_fill_or_wal",
+      "B": "maker_attempt_ack_cancel",
+      "C": "executable_shadow_or_historical_trade",
+      "D": "public_conservative_boundary"
+    },
+    "discovery_allowed_grades": ["A", "B", "C", "D"],
+    "certification_allowed_grades": ["A", "B"],
+    "entry_unproven_status": "ENTRY_UNPROVEN",
+    "maker_touch_not_equal_fill": true,
+    "dynamic_min_notional_from_pit": true,
+    "static_min_notional_forbidden": true
+  },
+  "execution_policy": {
+    "note": "独立研究 Maker/Taker/SKIP；不得先看结果再挑执行方式。",
+    "schema_version": "lingxi.routerg10.execution-policy.v1",
+    "actions_compared": ["BOUNDED_MAKER", "CONDITIONAL_MARKETABLE_LIMIT", "SKIP"],
+    "freeze_before_outcome_known": true,
+    "maker_fill_selection_gate": {
+      "forbid_when_expected_net_filled_negative": true,
+      "forbid_when_fast_fill_worse": true,
+      "forbid_when_profit_concentrated_in_missed_group": true
+    },
+    "maker_quadrants": [
+      "filled_profitable",
+      "filled_unprofitable",
+      "unfilled_subsequently_profitable",
+      "unfilled_not_profitable"
+    ],
+    "missed_profitable_move_status": "MISSED_PROFITABLE_MOVE",
+    "missed_profitable_pnl_is_zero": true,
+    "no_long_lived_maker": true,
+    "no_chase_after_miss": true,
+    "taker_is_not_default": true,
+    "conditional_marketable_limit_requires": [
+      "max_price_cap",
+      "max_slippage",
+      "min_remaining_edge",
+      "timeout_cancel"
+    ],
+    "toxic_fill_revalidate_status": "TOXIC_FILL_REVALIDATE",
+    "toxic_fill_exit_status": "TOXIC_FILL_EXIT",
+    "forbidden_top_up_after_toxic_fill": true
+  },
+  "exit_proof": {
+    "note": "每个动作同时冻结 ExitProof；只证明能开仓但不能退出的录像不得成为赢家。",
+    "schema_version": "lingxi.routerg10.exit-proof.v1",
+    "required_fields": [
+      "exit_depth_sufficient",
+      "can_exit_before_delist_or_maintenance",
+      "extreme_slippage_bound",
+      "partial_close_feasible"
+    ],
+    "exit_required_for_certification": true
+  },
+  "brain_actions": {
+    "note": "Brain 执行已冻结的 BOUNDED_MAKER / CONDITIONAL_MARKETABLE_LIMIT / SKIP；禁止默认 maker、裸 Taker、追价。",
+    "position_actions": ["NO_TRADE", "LONG", "SHORT", "HOLD", "ADD", "TRIM", "CLOSE", "REVERSE"],
+    "execution_actions_compared": ["BOUNDED_MAKER", "CONDITIONAL_MARKETABLE_LIMIT", "SKIP"],
+    "open_actions": ["LONG", "SHORT"],
+    "no_matching_event_allowed": ["HOLD", "TRIM", "CLOSE"],
+    "counterfactual_scope": "current_event_only_not_full_market_topk"
+  },
+  "dynamic_exit": {
+    "note": "独立 Solvency 机器不可被 Playbook 关闭；论点失效立即退出。",
+    "stop_error_required": true,
+    "solvency_independent_required": true,
+    "exit_triggers": [
+      "event_complete",
+      "payer_disappeared",
+      "invalidator",
+      "ood",
+      "deadline",
+      "thesis_health_fail",
+      "toxic_fill_exit"
+    ],
+    "deadline_is_fallback_only": true,
+    "playbook_cannot_disable_solvency": true
+  },
+  "brain_trace": {
+    "note": "BrainTrace 必须包含排除证据、公告可见性、EntryProof、Maker 选择偏差、执行政策、成交/未成交/毒性退出原因、ExitProof、crowding stress 和终局风险占用。",
+    "schema_version": "lingxi.routerg10.brain-trace.v2",
+    "required_fields": [
+      "state_hash",
+      "constitution_hash",
+      "exclusion_proof_hash",
+      "announcement_visibility",
+      "entry_proof_hash",
+      "execution_policy_hash",
+      "maker_selection_bias",
+      "fill_or_miss_reason",
+      "toxic_fill_reason",
+      "exit_proof_hash",
+      "crowding_stress",
+      "terminal_risk_usage",
+      "final_action",
+      "trace_hash"
+    ],
+    "replay_trace_hash_must_match": true
+  },
+  "playbook": {
+    "note": "每张剧本必须绑定 ConstitutionHash + ExclusionProofHash + EntryProofHash + ExecutionPolicyHash + ExitProofHash + AnnouncementTapeHash。",
+    "hash_chain": [
+      "ConstitutionHash",
+      "ExclusionProofHash",
+      "EntryProofHash",
+      "ExecutionPolicyHash",
+      "ExitProofHash",
+      "AnnouncementTapeHash",
+      "PlaybookHash"
+    ],
+    "not_personal_enough_status": "NOT_PERSONAL_ENOUGH",
+    "discovery_mode": "outcome_first_reverse_from_triple_excluded_entry_eligible_winners"
+  },
+  "brain_mechanism_review": {
+    "note": "研究阶段 trade_allowed=false；无 forced-flow evidence 时最多 UNEXPLAINED_PERSONAL_EDGE。",
+    "trade_allowed_default": false,
+    "exam_eligible": false,
+    "certified": false,
+    "exam_actions": 0,
+    "unexplained_personal_edge_status": "UNEXPLAINED_PERSONAL_EDGE"
+  },
+  "exam_commitments": {
+    "note": "无合法预留卷 → EXAM_UNAVAILABLE；研究阶段 exam_actions=0。",
+    "schema_version": "lingxi.routerg10.public-commitments.v1",
+    "no_valid_reservations_status": "EXAM_UNAVAILABLE",
+    "research_stage_exam_actions": 0
+  },
+  "time_partition_roles": {
+    "partition_order": "chronological_earliest_to_latest",
+    "research_permille": 600,
+    "validation_permille": 200,
+    "walk_forward_permille": 200,
+    "full_history_required": true,
+    "smoke_substitute_forbidden": true,
+    "exam_actions": 0
+  },
+  "runtime_resource": {
+    "gomaxprocs": 1,
+    "nice_priority": 19,
+    "checkpoint_required": true,
+    "checkpoint_shard_rule": "resume_from_last_completed_symbol_or_shock_block",
+    "forbidden_full_server_scan": true
+  },
+  "prohibitions": [
+    "修改或复活 g1/g2/g3/g4/g5/g6/g10 v1 已冻结协议 hash、阈值、搜索空间或 NO_GO 结论。",
+    "篡改 g10 v1 protocol hash 9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750。",
+    "把 40%/70% 终局风险上限当作建议仓位或主动放大依据。",
+    "跨所信息演变成跨所下单；非 OKX 执行任何订单。",
+    "机械补仓、向上凑单、毒性成交后补齐仓位。",
+    "公告 lookahead、当前 metadata 回填历史、Maker 触价假成交。",
+    "未成交盈利被算收益、fill-only survivorship、先看结果再选 Maker/Taker。",
+    "错失后追价、EntryProof/ExitProof 自声明、crowding 证据造假。",
+    "Playbook 关闭独立 Solvency 机器。",
+    "无合法预留卷时等待未来数据或伪造 commitment。",
+    "研究阶段创建/解封/消费真实考卷（exam_actions=0）。",
+    "用 3 标的 smoke 代替完整历史 validation 正式结论。"
+  ],
+  "red_team": {
+    "note": "g10p 协议+manifest+constitution 红队；重点检查公告污染、执行选择偏差、风险上限误用。",
+    "requirements": [
+      {"id": "rt01_g1_g6_immutable", "requirement": "g1–g6 hash 与 NO_GO 结论只引用不可修改。", "enforced_by": "closes_g1..closes_g6 + protocolv2_test.go TestG1G2G3G4G5G6ResultReferencedImmutable"},
+      {"id": "rt02_g10_v1_immutable", "requirement": "g10 v1 hash 与 0 candidates 解释只引用不可修改。", "enforced_by": "closes_g10 + protocolv2_test.go TestG10V1ResultReferencedImmutable"},
+      {"id": "rt03_reproducible_protocol_hash", "requirement": "g10p protocol hash 可复现；绑定 history/g1-g6/g10 v1 hash 一致。", "enforced_by": "audit.protocol_hash_method + protocolv2_test.go TestProtocolHashMatchesManifest"},
+      {"id": "rt04_manifest_code_no_drift", "requirement": "manifest ↔ protocolv2.go ↔ constitution.go 逐字段一致。", "enforced_by": "protocolv2_test.go TestManifestCodeConstantsNoDrift"},
+      {"id": "rt05_personal_constitution_40_70", "requirement": "40% 单事件、70% 账户终局损失为硬上限而非仓位目标；向下 sizing。", "enforced_by": "personal_constitution + constitution + protocolv2_test.go TestPersonalConstitutionNoDrift"},
+      {"id": "rt06_okx_only_cross_venue_pit", "requirement": "OKX only execution；跨所仅 PIT 公告信息。", "enforced_by": "personal_constitution + cross_venue_pit_announcements + protocolv2_test.go TestOKXOnlyCrossVenuePITNoDrift"},
+      {"id": "rt07_triple_exclusion", "requirement": "机构/散户/机器人三重排除证据必须分别证明。", "enforced_by": "triple_exclusion + protocolv2_test.go TestTripleExclusionNoDrift"},
+      {"id": "rt08_entry_proof", "requirement": "EntryProof 分级；C/D 可发现但 ENTRY_UNPROVEN 不得认证。", "enforced_by": "entry_proof + protocolv2_test.go TestEntryProofNoDrift"},
+      {"id": "rt09_execution_policy_maker_taker_skip", "requirement": "BOUNDED_MAKER/CONDITIONAL_MARKETABLE_LIMIT/SKIP 同点冻结比较；禁止追价。", "enforced_by": "execution_policy + protocolv2_test.go TestExecutionPolicyNoDrift"},
+      {"id": "rt10_exit_proof", "requirement": "ExitProof 必须冻结；能开不能退不得认证。", "enforced_by": "exit_proof + protocolv2_test.go TestExitProofNoDrift"},
+      {"id": "rt11_solvency_independent", "requirement": "独立 Solvency；禁止补亏/向上凑单/毒性后补齐。", "enforced_by": "personal_constitution + dynamic_exit + protocolv2_test.go TestSolvencyAndProhibitionsNoDrift"},
+      {"id": "rt12_trade_false_exam_unavailable", "requirement": "trade_allowed=false；EXAM_UNAVAILABLE；exam_actions=0。", "enforced_by": "brain_mechanism_review + exam_commitments + protocolv2_test.go TestTradeFalseExamUnavailableNoDrift"},
+      {"id": "rt13_playbook_hash_chain", "requirement": "剧本绑定 Constitution+Exclusion+Entry+Execution+Exit+Announcement hash chain。", "enforced_by": "playbook.hash_chain + protocolv2_test.go TestPlaybookHashChainNoDrift"},
+      {"id": "rt14_brain_trace_v2_fields", "requirement": "BrainTrace v2 必须含排除/入场/执行/退出/终局风险字段。", "enforced_by": "brain_trace + protocolv2_test.go TestBrainTraceV2NoDrift"},
+      {"id": "rt15_full_history_validation", "requirement": "正式 validation 必须完整历史 catalog；禁止 smoke 代替。", "enforced_by": "time_partition_roles + protocolv2_test.go TestFullHistoryValidationNoDrift"},
+      {"id": "rt16_low_cpu_checkpoint", "requirement": "默认 GOMAXPROCS=1、低优先级、分片 checkpoint。", "enforced_by": "runtime_resource + protocolv2_test.go TestRuntimeResourceNoDrift"}
+    ]
+  },
+  "audit": {
+    "protocol_hash": "74d043b13fe46468baaa1f670112aeef3b446d0538956936fefc831a0dc39dc8",
+    "protocol_hash_method": "datatruth.HashJSON(canonical)，其中 canonical = 本 manifest 解析为通用 JSON 后把 audit.protocol_hash 置为 null；HashJSON 对对象键递归排序后做 SHA-256，输出小写 hex。",
+    "protocol_hash_reproduce": "读取本文件 -> json.Unmarshal 到 map[string]any -> 令 doc[\"audit\"][\"protocol_hash\"]=nil -> datatruth.HashJSON(doc)。",
+    "binds_g10_v1_router": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+    "binds_g6_router": "d34b2798bec83cfcbb39eceec05cb644a74e362b741bb3326bf67bcbabfeb759",
+    "drives": ["routerg10 constitution", "routerg10 protocolv2"],
+    "exam_actions": 0
+  }
+}

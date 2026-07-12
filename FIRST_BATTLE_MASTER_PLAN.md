@@ -468,3 +468,9 @@ shadow 通过叶子：0
 当前最小正确行动是冻结 G5 的“动态数据链成立、首轮线性策略退化”结论；若继续下一代，应更换模型族
 （例如受限深度树或 mixture-of-experts），扩大但保持低 CPU 的分层标的样本，并继续使用相同账户回放、
 delay/funding/偿付安全门。禁止放宽退化策略检测来强行得到 policy，也不得等待未来数据补考试。
+
+G6 已转向小资金事件策略：冻结协议 `d34b2798bec83cfcbb39eceec05cb644a74e362b741bb3326bf67bcbabfeb759`，
+实现事件地图、EventCard 倒序、全触发 validation、1/2/3 微仓账户、StopError、严格 WF 与考试边界。
+低 CPU 三标的 smoke 生成 discovery/validation/WF 事件结果 7,102/2,301/2,713，倒推出 256 张 EventCard；
+全部因仅覆盖 3 个独立日期而 `INCONCLUSIVE/COVERAGE`，0 validation pass、0 WF pass、考试 `EXAM_UNAVAILABLE`，
+未创建假通过。下一步只能扩大历史事件日期/分层样本后新 generation 研究，不能降低 20 日/10 shock 门槛。

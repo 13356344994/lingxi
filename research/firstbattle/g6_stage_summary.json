@@ -1,0 +1,32 @@
+{
+  "schema_version": "lingxi.router-g6-stage.project-summary.v1",
+  "generation": "firstbattle-router-g6",
+  "protocol_hash": "d34b2798bec83cfcbb39eceec05cb644a74e362b741bb3326bf67bcbabfeb759",
+  "smoke_scope": {"profile":"okx_5m","selected_symbols":3,"available_symbols":200,"bars_per_symbol":3000,"scope":"TRUNCATED_SMOKE","cpu_mode":"low"},
+  "event_map": {
+    "discovery_outcomes": 7102,
+    "validation_outcomes": 2301,
+    "walk_forward_outcomes": 2713,
+    "families": ["btc_relative_dislocation","ohlcv_extreme_continuation","ohlcv_extreme_reversal"]
+  },
+  "reverse": {
+    "winner_seeds": 1186,
+    "event_cards": 256,
+    "long_cards": 256,
+    "experiment_hash": "e25ca87f9f4dd60eacc892523bb98035bba07dfc29c6ce64e75efc991ed45850"
+  },
+  "validation": {
+    "pass": 0,
+    "fail": 0,
+    "inconclusive": 256,
+    "primary_reason": "COVERAGE",
+    "min_required_days": 20,
+    "observed_days_in_smoke": 3
+  },
+  "walk_forward": {"status":"SKIPPED_VALIDATION_FAIL","pass":0},
+  "research_pass_cards": 0,
+  "exam_status": "EXAM_UNAVAILABLE",
+  "system_status": "NO_GO",
+  "conclusion": "小资金事件链完整可运行；三标的短窗口smoke仅3个独立日期，全部EventCard因覆盖不足INCONCLUSIVE，未制造假通过。",
+  "exam_actions": {"created":0,"unsealed":0,"consumed":0}
+}

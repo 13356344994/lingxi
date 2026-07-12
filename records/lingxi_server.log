@@ -1,208 +1,196 @@
-2026/07/12 20:30:44 启动 lingxi: version=f23b2b6-dirty commit=f23b2b6 build_time=2026-07-10T15:05:55Z
-2026/07/12 20:30:44 [配置] 生效配置相对默认值有 54 处覆盖:
-2026/07/12 20:30:44 [配置]   CrossVenueExecutor.CloseSpreadAPR: 0.3 => 0.2
-2026/07/12 20:30:44 [配置]   CrossVenueExecutor.Enabled: false => true
-2026/07/12 20:30:44 [配置]   CrossVenueExecutor.MarginSafetyFactor: 1 => 1.5
-2026/07/12 20:30:44 [配置]   CrossVenueExecutor.MaxConcurrent: 2 => 8
-2026/07/12 20:30:44 [配置]   CrossVenueExecutor.MaxPositionUSDT: 75 => 150
-2026/07/12 20:30:44 [配置]   CrossVenueExecutor.UnifiedCaptureModelEnabled: false => true
-2026/07/12 20:30:44 [配置]   CrossVenueExecutor.UntrackedExposureAction: halt => flatten
-2026/07/12 20:30:44 [配置]   CrossVenueScanner.DirectionalVenues:  => okx
-2026/07/12 20:30:44 [配置]   CrossVenueScanner.Enabled: true => false
-2026/07/12 20:30:44 [配置]   HistoricalConfig.AssumedHourlyBorrowInterestRate: 5e-05 => 4.75e-05
-2026/07/12 20:30:44 [配置]   HistoricalConfig.FuturesTakerFeeRate: 0.0005 => 0.00045
-2026/07/12 20:30:44 [配置]   HistoricalConfig.MaxFundingCyclesHeld: 1 => 3
-2026/07/12 20:30:44 [配置]   HistoricalConfig.SpotTakerFeeRate: 0.001 => 0.00075
-2026/07/12 20:30:44 [配置]   NetworkConfig.DashboardAddr: 127.0.0.1:8080 => 0.0.0.0:8080
-2026/07/12 20:30:44 [配置]   OKXDirectional.Enabled: false => true
-2026/07/12 20:30:44 [配置]   OKXDirectional.FastCapShortVetoEnabled: false => true
-2026/07/12 20:30:44 [配置]   OKXDirectional.FastExitEnergyScaleEnabled: false => true
-2026/07/12 20:30:44 [配置]   OKXDirectional.FastFireworkEnergyExitEnabled: false => true
-2026/07/12 20:30:44 [配置]   OKXDirectional.FastHotPriorityEnabled: false => true
-2026/07/12 20:30:44 [配置]   OKXDirectional.FastLiqCollectorEnabled: false => true
-2026/07/12 20:30:44 [配置]   OKXDirectional.FastLiveNotionalUSDT: 0 => 5
-2026/07/12 20:30:44 [配置]   OKXDirectional.FastMarketMidsEnabled: false => true
-2026/07/12 20:30:44 [配置]   OKXDirectional.FastMarketMidsPersistEnabled: false => true
-2026/07/12 20:30:44 [配置]   OKXDirectional.FastParticleLedgerEnabled: false => true
-2026/07/12 20:30:44 [配置]   OKXDirectional.FastPondFilterEnabled: false => true
-2026/07/12 20:30:44 [配置]   OKXDirectional.FastScalperV1Enabled: false => true
-2026/07/12 20:30:44 [配置]   OKXDirectional.FastSpeciesExitEnabled: false => true
-2026/07/12 20:30:44 [配置]   OKXDirectional.FastTapeSideMatchEnabled: false => true
-2026/07/12 20:30:44 [配置]   OKXDirectional.FastWSCollectorEnabled: false => true
-2026/07/12 20:30:44 [配置]   OKXDirectional.FastXgapCellGatesEnabled: false => true
-2026/07/12 20:30:44 [配置]   OKXDirectional.FastXgapShadowEnabled: false => true
-2026/07/12 20:30:44 [配置]   OKXDirectional.FastXvenueLiqEnabled: false => true
-2026/07/12 20:30:44 [配置]   OKXDirectional.MAEDisasterCutEnabled: false => true
-2026/07/12 20:30:44 [配置]   OKXDirectional.MAEDisasterCutVenues:  => okx,bybit
-2026/07/12 20:30:44 [配置]   OKXDirectional.MaxConcurrent: 4 => 5
-2026/07/12 20:30:44 [配置]   OKXDirectional.MaxHoldMinutes: 30 => 60
-2026/07/12 20:30:44 [配置]   OKXDirectional.OpenMicroRecordEnabled: false => true
-2026/07/12 20:30:44 [配置]   OKXDirectional.OpenTakerFallbackBps: 0 => 30
-2026/07/12 20:30:44 [配置]   OKXDirectional.RegimeDegradeEnabled: false => true
-2026/07/12 20:30:44 [配置]   OKXDirectional.RunupConfirmFilterEnabled: false => true
-2026/07/12 20:30:44 [配置]   OKXDirectional.RunupConfirmVenues:  => okx
-2026/07/12 20:30:44 [配置]   PortfolioConfig.EnableRollingHold: false => true
-2026/07/12 20:30:44 [配置]   RiskConfig.BorrowCapacityCheckEnabled: false => true
-2026/07/12 20:30:44 [配置]   RiskConfig.DailyMaxLosingTrades: 8 => 0
-2026/07/12 20:30:44 [配置]   RiskConfig.ImmediateInvalidateRate: 0.0005 => 5e-05
-2026/07/12 20:30:44 [配置]   RiskConfig.MaxAccountDrawdownUSDT: 60 => 115
-2026/07/12 20:30:44 [配置]   RiskConfig.MaxAccountOpenNotionalUSDT: 1200 => 2200
-2026/07/12 20:30:44 [配置]   RiskConfig.MaxCycleOpenNotionalUSDT: 300 => 60
-2026/07/12 20:30:44 [配置]   RiskConfig.MaxDailyLossUSDT: 25 => 35
-2026/07/12 20:30:44 [配置]   RiskConfig.MaxStrategyCumulativeLossUSDT: 35 => 80
-2026/07/12 20:30:44 [配置]   StrategyConfig.PerSymbolQuoteUSDT: 100 => 30
-2026/07/12 20:30:44 [配置]   StrategyConfig.StrategyMode: collect_data => profit_seeking
-2026/07/12 20:30:44 [配置]   UnifiedRotation.Enabled: false => true
-2026/07/12 20:30:44 [配置]   UnifiedRotation.TotalDeployableUSDT: 0 => 435
-2026/07/12 20:30:44 [冷启动检查] 开始执行每日健康检查...
-2026/07/12 20:30:44 [冷启动检查] 配置校验通过
-2026/07/12 20:30:44 [冷启动检查] 记录目录可写校验通过
-2026/07/12 20:30:44 [冷启动检查] 每日健康检查全部通过
-2026/07/12 20:30:44 [编排] venue=binance 运行时已注册(enabled,默认 idle,plan.autostart=false)
-2026/07/12 20:30:44 [编排] venue=bybit 适配器已注入(仅行情/账户,不启动交易引擎)
-2026/07/12 20:30:44 [编排] venue=bybit 运行时已注册(enabled,默认 idle,plan.autostart=false)
-2026/07/12 20:30:44 [编排] venue=gate 适配器已注入(仅行情/账户,不启动交易引擎)
-2026/07/12 20:30:44 [编排] venue=gate 运行时已注册(enabled,默认 idle,plan.autostart=false)
-2026/07/12 20:30:44 [编排] venue=okx 适配器已注入(仅行情/账户,不启动交易引擎)
-2026/07/12 20:30:44 [编排] venue=okx 运行时已注册(enabled,默认 idle,plan.autostart=false)
-2026/07/12 20:30:44 [OKX方向][冷却] 启动恢复:冷却币=0 当日亏损计数=0 同日=true
-2026/07/12 20:30:44 [bybit][OKX方向][冷却] 启动恢复:冷却币=0 当日亏损计数=0 同日=true
-2026/07/12 20:30:44 [方向] bybit 引擎已接线(默认停用,需面板点开始)
-2026/07/12 20:30:44 [gate][OKX方向][冷却] 启动恢复:冷却币=0 当日亏损计数=0 同日=true
-2026/07/12 20:30:44 [方向] gate 引擎已接线(默认停用,需面板点开始)
-2026/07/12 20:30:44 [binance][OKX方向][冷却] 启动恢复:冷却币=0 当日亏损计数=0 同日=true
-2026/07/12 20:30:44 [方向] binance 引擎已接线(默认停用,需面板点开始)
-2026/07/12 20:30:44 Web 面板已启动: http://0.0.0.0:8080/
-2026/07/12 20:30:44 Dashboard 控制令牌已写入 records/.dashboard_control_token (0600,仅本机可读,可 cat 查看);指纹=84e494c7380bc8b6
-2026/07/12 20:30:44 [ALERT][INFO] 面板控制令牌已更新 | 服务已重启,新控制令牌:
-bf7993bbba3f2a0bfb0e1879cab8552c | cycle=
-2026/07/12 20:30:44 [权益采样] 已启动: interval=3m0s 口径=各所USDT现金余额真实变化
-2026/07/12 20:30:44 [OKX方向] 引擎启动 live=false 周期=1m30s 风控=20s
-2026/07/12 20:30:44 [bybit][OKX方向] 引擎启动 live=false 周期=1m30s 风控=20s
-2026/07/12 20:30:44 [gate][OKX方向] 引擎启动 live=false 周期=1m30s 风控=20s
-2026/07/12 20:30:44 [binance][OKX方向] 引擎启动 live=false 周期=1m30s 风控=20s
-2026/07/12 20:30:44 [账户风控] 已启动: interval=1m0s (Stage B:一级硬停默认启用,二级 flatten opt-in 默认关闭)
-2026/07/12 20:30:44 [OKX方向][生效参数] 本金=100.00U 止损=5%(本金) 杠杆=5X 并发上限=5 每仓名义=7.50U active=false
-2026/07/12 20:30:44 [OKX方向][生效参数] 入场: minConv=0.55 zEntry=1.00 costFloor=40bps takerFallback=30bps(允许所=所有所,本所生效=30bps) universeTopN=20 选币周期=30min maxSpread=20bps
-2026/07/12 20:30:44 [OKX方向][生效参数] 出场: quickTP=12% partialTP=6%×50% trailGap=6% trailLock=50% staleCut=30m maxHold=60m absMax=60m 反转最小持有=30m
-2026/07/12 20:30:44 [OKX方向][生效参数] regime: 趋势态交易=false 资费对齐闸=true 跨所印证=true(否决需≥2反向) BTC追势过滤=false
-2026/07/12 20:30:44 [OKX方向][生效参数] 阶段2A OpenMicro埋点=true 采集范围=所有所 本所生效=true(record-only,不改交易行为)
-2026/07/12 20:30:44 [OKX方向][生效参数] regime_degrade=on action=downsize 命中名义=5.00U(默认7.50U) 命中(离散OR)=[transition_band:btc∈[0.10,0.20) 或 extreme_trend:btc_trend>=0.40 或 mode∈{broad_up}](仅缩新开仓名义,不停机/不禁开)
-2026/07/12 20:30:44 [OKX方向][生效参数] mae_disaster_cut=on 阈值=-3.0%(本金) 灰度所=okx,bybit 本所生效=true(仅出场刹车;依据:触及-3%后89%仍亏)
-2026/07/12 20:30:44 [OKX方向][生效参数] runup_confirm=on 最小runup=0.0bp 灰度所=okx 本所生效=true(开仓闸;micro 缺失放行)
-2026/07/12 20:30:44 [fast_mids] 全市场 mid 标尺启动 间隔=3s 全量落盘=true(盲区根治+波动普查:|60s|≥25bps 记 fast_mover_census.jsonl)
-2026/07/12 20:30:44 [bybit][OKX方向][生效参数] 本金=50.00U 止损=5%(本金) 杠杆=5X 并发上限=5 每仓名义=7.50U active=false
-2026/07/12 20:30:44 [bybit][OKX方向][生效参数] 入场: minConv=0.55 zEntry=1.00 costFloor=40bps takerFallback=30bps(允许所=所有所,本所生效=30bps) universeTopN=20 选币周期=30min maxSpread=20bps
-2026/07/12 20:30:44 [bybit][OKX方向][生效参数] 出场: quickTP=12% partialTP=6%×50% trailGap=6% trailLock=50% staleCut=30m maxHold=60m absMax=60m 反转最小持有=30m
-2026/07/12 20:30:44 [bybit][OKX方向][生效参数] regime: 趋势态交易=false 资费对齐闸=true 跨所印证=true(否决需≥2反向) BTC追势过滤=false
-2026/07/12 20:30:44 [bybit][OKX方向][生效参数] 阶段2A OpenMicro埋点=true 采集范围=所有所 本所生效=true(record-only,不改交易行为)
-2026/07/12 20:30:44 [bybit][OKX方向][生效参数] regime_degrade=on action=downsize 命中名义=5.00U(默认7.50U) 命中(离散OR)=[transition_band:btc∈[0.10,0.20) 或 extreme_trend:btc_trend>=0.40 或 mode∈{broad_up}](仅缩新开仓名义,不停机/不禁开)
-2026/07/12 20:30:44 [bybit][OKX方向][生效参数] mae_disaster_cut=on 阈值=-3.0%(本金) 灰度所=okx,bybit 本所生效=true(仅出场刹车;依据:触及-3%后89%仍亏)
-2026/07/12 20:30:44 [bybit][OKX方向][生效参数] runup_confirm=on 最小runup=0.0bp 灰度所=okx 本所生效=false(开仓闸;micro 缺失放行)
-2026/07/12 20:30:44 [OKX方向][fast_scalper] v3 扫描goroutine启动 周期=4s 扫描上限=20 入场=maker live=false
-2026/07/12 20:30:44 [OKX方向][fast_liqfollow] 事件驱动线启动(全市场爆仓→秒级当刻验资格;每秒≤2币,限频即退让) live=false
-2026/07/12 20:30:44 [OKX方向][fast_tape] tape_burst 线启动(burst→官方确认→当刻资格→taker;live=false 方向核对=true,关=只记shadow)
-2026/07/12 20:30:44 [gate][OKX方向][生效参数] 本金=30.00U 止损=5%(本金) 杠杆=5X 并发上限=5 每仓名义=7.50U active=false
-2026/07/12 20:30:44 [gate][OKX方向][生效参数] 入场: minConv=0.55 zEntry=1.00 costFloor=40bps takerFallback=30bps(允许所=所有所,本所生效=30bps) universeTopN=20 选币周期=30min maxSpread=20bps
-2026/07/12 20:30:44 [gate][OKX方向][生效参数] 出场: quickTP=12% partialTP=6%×50% trailGap=6% trailLock=50% staleCut=30m maxHold=60m absMax=60m 反转最小持有=30m
-2026/07/12 20:30:44 [gate][OKX方向][生效参数] regime: 趋势态交易=false 资费对齐闸=true 跨所印证=true(否决需≥2反向) BTC追势过滤=false
-2026/07/12 20:30:44 [gate][OKX方向][生效参数] 阶段2A OpenMicro埋点=true 采集范围=所有所 本所生效=true(record-only,不改交易行为)
-2026/07/12 20:30:44 [gate][OKX方向][生效参数] regime_degrade=on action=downsize 命中名义=5.00U(默认7.50U) 命中(离散OR)=[transition_band:btc∈[0.10,0.20) 或 extreme_trend:btc_trend>=0.40 或 mode∈{broad_up}](仅缩新开仓名义,不停机/不禁开)
-2026/07/12 20:30:44 [gate][OKX方向][生效参数] mae_disaster_cut=on 阈值=-3.0%(本金) 灰度所=okx,bybit 本所生效=false(仅出场刹车;依据:触及-3%后89%仍亏)
-2026/07/12 20:30:44 [gate][OKX方向][生效参数] runup_confirm=on 最小runup=0.0bp 灰度所=okx 本所生效=false(开仓闸;micro 缺失放行)
-2026/07/12 20:30:44 [binance][OKX方向][生效参数] 本金=15.00U 止损=5%(本金) 杠杆=5X 并发上限=5 每仓名义=7.50U active=false
-2026/07/12 20:30:44 [binance][OKX方向][生效参数] 入场: minConv=0.55 zEntry=1.00 costFloor=40bps takerFallback=30bps(允许所=所有所,本所生效=30bps) universeTopN=20 选币周期=30min maxSpread=20bps
-2026/07/12 20:30:44 [binance][OKX方向][生效参数] 出场: quickTP=12% partialTP=6%×50% trailGap=6% trailLock=50% staleCut=30m maxHold=60m absMax=60m 反转最小持有=30m
-2026/07/12 20:30:44 [binance][OKX方向][生效参数] regime: 趋势态交易=false 资费对齐闸=true 跨所印证=true(否决需≥2反向) BTC追势过滤=false
-2026/07/12 20:30:44 [binance][OKX方向][生效参数] 阶段2A OpenMicro埋点=true 采集范围=所有所 本所生效=true(record-only,不改交易行为)
-2026/07/12 20:30:44 [binance][OKX方向][生效参数] regime_degrade=on action=downsize 命中名义=5.00U(默认7.50U) 命中(离散OR)=[transition_band:btc∈[0.10,0.20) 或 extreme_trend:btc_trend>=0.40 或 mode∈{broad_up}](仅缩新开仓名义,不停机/不禁开)
-2026/07/12 20:30:44 [binance][OKX方向][生效参数] mae_disaster_cut=on 阈值=-3.0%(本金) 灰度所=okx,bybit 本所生效=false(仅出场刹车;依据:触及-3%后89%仍亏)
-2026/07/12 20:30:44 [binance][OKX方向][生效参数] runup_confirm=on 最小runup=0.0bp 灰度所=okx 本所生效=false(开仓闸;micro 缺失放行)
-2026/07/12 20:30:44 [exam] 自动阅卷人上岗:8 场在考,10min 一轮;边界=只发证+通知,开火永远在用户
-2026/07/12 20:30:44 [auto_miner] 自动挖掘器上岗(4h/轮,账本字段空间,深度≤2,动态在考≤3)
-2026/07/12 20:30:44 [fast_ws] OKX 动态采集器启动(record-only,不下单/不读账户)max_symbols=15
-2026/07/12 20:30:44 [fast_ws] 连接中断,3s 后重连: shortlist 空,暂不订阅
-2026/07/12 20:30:45 [fast_xliq] Bybit 全市场强平流采集启动(record-only,耳朵不是枪口;OKX∩Bybit=340 币)
-2026/07/12 20:30:45 [fast_xliq][bybit] 已连并订阅 340 币
-2026/07/12 20:30:46 [账户风控] 因盲区重锚,不计入回撤(last_trusted_at=2026-07-12T09:49:58Z connectivity_blind=false)
-2026/07/12 20:30:46 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/12 20:30:47 [gate][OKX方向][选币] 候选=29 BTC趋势=0.01 入选=20 头部: VANRY-USDT(0.988) TLM-USDT T-USDT
-2026/07/12 20:30:47 [fast_ws] 连接中断,3s 后重连: shortlist 空,暂不订阅
-2026/07/12 20:30:47 [fast_key] 24h暴动环回放完成: 25695 条(惯犯钥匙重启不失忆)
-2026/07/12 20:30:47 [OKX方向][fast_key] 天气钥匙线启动(轧空竭尽空/瀑布竭尽多×惯犯币;死板止损150/固定1800s;实弹=probe名单)
-2026/07/12 20:30:47 [gate][delist-guard] 已刷新 bybit instrument 状态: total=1285 non_trading=0
-2026/07/12 20:30:47 [gate][delist-guard] 已刷新 gate instrument 状态: total=2884 non_trading=2
-2026/07/12 20:30:48 [gate][delist-guard] 已刷新 okx instrument 状态: total=1688 non_trading=0
-2026/07/12 20:30:50 [fast_ws] 连接中断,3s 后重连: shortlist 空,暂不订阅
-2026/07/12 20:30:50 [bybit][OKX方向][选币] 候选=31 BTC趋势=0.01 入选=20 头部: T-USDT(0.977) BLAST-USDT SXT-USDT
-2026/07/12 20:30:51 [bybit][delist-guard] 已刷新 bybit instrument 状态: total=1285 non_trading=0
-2026/07/12 20:30:51 [bybit][delist-guard] 已刷新 okx instrument 状态: total=1688 non_trading=0
-2026/07/12 20:30:51 [bybit][delist-guard] 已刷新 gate instrument 状态: total=2884 non_trading=2
-2026/07/12 20:30:53 [fast_ws] 连接中断,3s 后重连: shortlist 空,暂不订阅
-2026/07/12 20:30:54 [binance][OKX方向][选币] 我踏马来了-USDT K线失败,跳过: HTTP 状态异常: 202 Accepted
-2026/07/12 20:30:56 [fast_ws] 连接中断,3s 后重连: shortlist 空,暂不订阅
-2026/07/12 20:30:57 [binance][OKX方向][选币] 候选=22 BTC趋势=0.01 入选=20 头部: SXT-USDT(0.995) TLM-USDT VANRY-USDT
-2026/07/12 20:30:58 [binance][delist-guard] 已刷新 bybit instrument 状态: total=1285 non_trading=0
-2026/07/12 20:30:58 [binance][delist-guard] 已刷新 gate instrument 状态: total=2884 non_trading=2
-2026/07/12 20:30:58 [binance][delist-guard] 已刷新 okx instrument 状态: total=1688 non_trading=0
-2026/07/12 20:30:58 [binance][delist-guard] 已刷新 binance instrument 状态: total=4467 non_trading=2404
-2026/07/12 20:30:59 [fast_ws] 连接中断,3s 后重连: shortlist 空,暂不订阅
-2026/07/12 20:31:02 [fast_ws] 连接中断,3s 后重连: shortlist 空,暂不订阅
-2026/07/12 20:31:05 [fast_ws] 连接中断,3s 后重连: shortlist 空,暂不订阅
-2026/07/12 20:31:08 [fast_ws] 连接中断,3s 后重连: shortlist 空,暂不订阅
-2026/07/12 20:31:11 [fast_ws] 连接中断,3s 后重连: shortlist 空,暂不订阅
-2026/07/12 20:31:14 [fast_ws] 连接中断,3s 后重连: shortlist 空,暂不订阅
-2026/07/12 20:31:14 [auto_miner] 挖掘轮开始:账本 6010 行
-2026/07/12 20:31:17 [fast_ws] 连接中断,3s 后重连: shortlist 空,暂不订阅
-2026/07/12 20:31:20 [fast_ws] 连接中断,3s 后重连: shortlist 空,暂不订阅
-2026/07/12 20:31:23 [fast_ws] 连接中断,3s 后重连: shortlist 空,暂不订阅
-2026/07/12 20:31:26 [fast_ws] 连接中断,3s 后重连: shortlist 空,暂不订阅
-2026/07/12 20:31:29 [fast_ws] 连接中断,3s 后重连: shortlist 空,暂不订阅
-2026/07/12 20:31:32 [fast_ws] 连接中断,3s 后重连: shortlist 空,暂不订阅
-2026/07/12 20:31:35 [fast_ws] 连接中断,3s 后重连: shortlist 空,暂不订阅
-2026/07/12 20:31:38 [fast_ws] 连接中断,3s 后重连: shortlist 空,暂不订阅
-2026/07/12 20:31:38 [OKX方向][选币] 候选=8 BTC趋势=0.01 入选=8 头部: LAB-USDT(0.711) DATA-USDT SLX-USDT
-2026/07/12 20:31:38 [OKX公告] 已刷新风险集合: symbols=0
-2026/07/12 20:31:39 [delist-guard] 已刷新 okx instrument 状态: total=1688 non_trading=0
-2026/07/12 20:31:39 [delist-guard] 已刷新 gate instrument 状态: total=2884 non_trading=2
-2026/07/12 20:31:40 [delist-guard] 已刷新 bybit instrument 状态: total=1285 non_trading=0
-2026/07/12 20:31:47 [账户风控] 充提流水源=real cumulative=0.0000 (首次确认)
-2026/07/12 20:31:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/12 20:32:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/12 20:33:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/12 20:34:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/12 20:35:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/12 20:36:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/12 20:37:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/12 20:38:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/12 20:39:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/12 20:40:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/12 20:41:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/12 20:42:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/12 20:43:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/12 20:44:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/12 20:45:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/12 20:46:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/12 20:47:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/12 20:48:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/12 20:49:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/12 20:50:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/12 20:51:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/12 20:52:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/12 20:53:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/12 20:54:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/12 20:55:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/12 20:56:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/12 20:57:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/12 20:58:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/12 20:59:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/12 21:00:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/12 21:01:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/12 21:02:14 [gate][OKX方向][选币] 候选=27 BTC趋势=0.01 入选=20 头部: VANRY-USDT(0.988) TLM-USDT T-USDT
-2026/07/12 21:02:21 [bybit][OKX方向][选币] 候选=35 BTC趋势=0.01 入选=20 头部: T-USDT(0.990) SXT-USDT BLAST-USDT
-2026/07/12 21:02:24 [binance][OKX方向][选币] 我踏马来了-USDT K线失败,跳过: HTTP 状态异常: 202 Accepted
-2026/07/12 21:02:26 [binance][OKX方向][选币] 候选=20 BTC趋势=0.02 入选=19 头部: SXT-USDT(1.000) TLM-USDT VANRY-USDT
-2026/07/12 21:02:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/12 21:03:07 [OKX方向][选币] 候选=6 BTC趋势=0.01 入选=6 头部: LAB-USDT(0.720) DATA-USDT SLX-USDT
-2026/07/12 21:03:08 [OKX公告] 已刷新风险集合: symbols=0
-2026/07/12 21:03:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 00:03:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 00:04:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 00:05:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 00:06:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 00:07:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 00:08:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 00:09:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 00:10:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 00:11:15 [gate][OKX方向][选币] 候选=40 BTC趋势=0.15 入选=20 头部: T-USDT(0.998) TLM-USDT AGLD-USDT
+2026/07/13 00:11:20 [binance][OKX方向][选币] 候选=22 BTC趋势=0.14 入选=20 头部: T-USDT(0.997) SXT-USDT TLM-USDT
+2026/07/13 00:11:20 [bybit][OKX方向][选币] 候选=40 BTC趋势=0.15 入选=20 头部: T-USDT(0.980) SXT-USDT BLAST-USDT
+2026/07/13 00:11:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 00:12:07 [OKX方向][选币] 候选=5 BTC趋势=0.13 入选=5 头部: AGLD-USDT(0.788) LAB-USDT DATA-USDT
+2026/07/13 00:12:07 [OKX公告] 已刷新风险集合: symbols=0
+2026/07/13 00:12:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 00:13:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 00:14:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 00:15:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 00:16:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 00:17:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 00:18:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 00:19:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 00:20:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 00:21:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 00:22:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 00:23:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 00:24:48 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 00:25:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 00:26:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 00:27:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 00:28:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 00:29:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 00:30:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 00:31:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 00:32:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 00:33:44 [binance][delist-guard] 已刷新 binance instrument 状态: total=4467 non_trading=2404
+2026/07/13 00:33:45 [binance][delist-guard] 已刷新 bybit instrument 状态: total=1285 non_trading=0
+2026/07/13 00:33:45 [binance][delist-guard] 已刷新 gate instrument 状态: total=2884 non_trading=2
+2026/07/13 00:33:45 [binance][delist-guard] 已刷新 okx instrument 状态: total=1688 non_trading=0
+2026/07/13 00:33:48 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 00:34:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 00:35:14 [gate][delist-guard] 已刷新 okx instrument 状态: total=1688 non_trading=0
+2026/07/13 00:35:15 [delist-guard] 已刷新 bybit instrument 状态: total=1285 non_trading=0
+2026/07/13 00:35:15 [delist-guard] 已刷新 okx instrument 状态: total=1688 non_trading=0
+2026/07/13 00:35:15 [gate][delist-guard] 已刷新 bybit instrument 状态: total=1285 non_trading=0
+2026/07/13 00:35:15 [delist-guard] 已刷新 gate instrument 状态: total=2884 non_trading=2
+2026/07/13 00:35:15 [gate][delist-guard] 已刷新 gate instrument 状态: total=2884 non_trading=2
+2026/07/13 00:35:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 00:36:44 [bybit][delist-guard] 已刷新 bybit instrument 状态: total=1285 non_trading=0
+2026/07/13 00:36:45 [bybit][delist-guard] 已刷新 okx instrument 状态: total=1688 non_trading=0
+2026/07/13 00:36:45 [bybit][delist-guard] 已刷新 gate instrument 状态: total=2884 non_trading=2
+2026/07/13 00:36:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 00:37:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 00:38:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 00:39:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 00:40:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 00:41:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 00:42:45 [gate][OKX方向][选币] 候选=34 BTC趋势=0.10 入选=20 头部: T-USDT(0.998) TLM-USDT VANRY-USDT
+2026/07/13 00:42:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 00:42:49 [binance][OKX方向][选币] 候选=19 BTC趋势=0.09 入选=19 头部: T-USDT(0.998) SXT-USDT TLM-USDT
+2026/07/13 00:42:49 [bybit][OKX方向][选币] 候选=36 BTC趋势=0.10 入选=20 头部: T-USDT(0.984) SXT-USDT BLAST-USDT
+2026/07/13 00:43:37 [OKX方向][选币] 候选=5 BTC趋势=0.09 入选=5 头部: AGLD-USDT(0.745) LAB-USDT DATA-USDT
+2026/07/13 00:43:37 [OKX公告] 已刷新风险集合: symbols=0
+2026/07/13 00:43:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 00:44:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 00:45:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 00:46:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 00:47:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 00:48:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 00:49:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 00:50:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 00:51:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 00:52:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 00:53:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 00:54:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 00:55:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 00:56:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 00:57:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 00:58:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 00:59:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 01:00:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 01:01:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 01:02:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 01:03:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 01:04:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 01:05:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 01:06:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 01:07:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 01:08:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 01:09:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 01:10:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 01:11:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 01:12:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 01:13:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 01:14:15 [gate][OKX方向][选币] 候选=31 BTC趋势=0.09 入选=20 头部: T-USDT(0.998) TLM-USDT VANRY-USDT
+2026/07/13 01:14:19 [binance][OKX方向][选币] 候选=18 BTC趋势=0.09 入选=18 头部: T-USDT(0.998) SXT-USDT TLM-USDT
+2026/07/13 01:14:21 [bybit][OKX方向][选币] 候选=37 BTC趋势=0.09 入选=20 头部: T-USDT(0.983) SXT-USDT BLAST-USDT
+2026/07/13 01:14:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 01:15:07 [OKX方向][选币] 候选=5 BTC趋势=0.08 入选=5 头部: AGLD-USDT(0.706) LAB-USDT DATA-USDT
+2026/07/13 01:15:07 [OKX公告] 已刷新风险集合: symbols=0
+2026/07/13 01:15:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 01:16:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 01:17:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 01:18:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 01:19:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 01:20:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 01:21:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 01:22:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 01:23:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 01:24:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 01:25:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 01:26:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 01:27:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 01:28:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 01:29:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 01:30:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 01:31:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 01:32:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 01:33:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 01:34:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 01:35:14 [binance][delist-guard] 已刷新 binance instrument 状态: total=4467 non_trading=2404
+2026/07/13 01:35:14 [binance][delist-guard] 已刷新 bybit instrument 状态: total=1285 non_trading=0
+2026/07/13 01:35:15 [binance][delist-guard] 已刷新 gate instrument 状态: total=2884 non_trading=2
+2026/07/13 01:35:15 [binance][delist-guard] 已刷新 okx instrument 状态: total=1688 non_trading=0
+2026/07/13 01:35:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 01:36:44 [delist-guard] 已刷新 okx instrument 状态: total=1688 non_trading=0
+2026/07/13 01:36:44 [bybit][delist-guard] 已刷新 okx instrument 状态: total=1688 non_trading=0
+2026/07/13 01:36:44 [gate][delist-guard] 已刷新 gate instrument 状态: total=2884 non_trading=2
+2026/07/13 01:36:44 [delist-guard] 已刷新 gate instrument 状态: total=2884 non_trading=2
+2026/07/13 01:36:44 [bybit][delist-guard] 已刷新 gate instrument 状态: total=2884 non_trading=2
+2026/07/13 01:36:44 [gate][delist-guard] 已刷新 okx instrument 状态: total=1688 non_trading=0
+2026/07/13 01:36:45 [bybit][delist-guard] 已刷新 bybit instrument 状态: total=1285 non_trading=0
+2026/07/13 01:36:45 [gate][delist-guard] 已刷新 bybit instrument 状态: total=1285 non_trading=0
+2026/07/13 01:36:45 [delist-guard] 已刷新 bybit instrument 状态: total=1285 non_trading=0
+2026/07/13 01:36:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 01:37:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 01:38:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 01:39:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 01:40:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 01:41:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 01:42:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 01:43:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 01:44:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 01:45:45 [gate][OKX方向][选币] 候选=30 BTC趋势=0.08 入选=20 头部: T-USDT(0.999) TLM-USDT VANRY-USDT
+2026/07/13 01:45:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 01:45:49 [binance][OKX方向][选币] 候选=18 BTC趋势=0.08 入选=18 头部: T-USDT(0.999) SXT-USDT TLM-USDT
+2026/07/13 01:45:50 [bybit][OKX方向][选币] 候选=33 BTC趋势=0.08 入选=20 头部: T-USDT(0.976) SXT-USDT BLAST-USDT
+2026/07/13 01:46:37 [OKX方向][选币] 候选=4 BTC趋势=0.08 入选=4 头部: AGLD-USDT(0.686) LAB-USDT DATA-USDT
+2026/07/13 01:46:37 [OKX公告] 已刷新风险集合: symbols=0
+2026/07/13 01:46:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 01:47:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 01:48:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 01:49:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 01:50:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 01:51:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 01:52:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 01:53:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 01:54:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 01:55:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 01:56:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 01:57:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 01:58:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 01:59:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 02:00:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 02:01:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 02:02:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 02:03:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 02:04:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 02:05:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 02:06:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 02:07:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 02:08:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 02:09:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 02:10:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 02:11:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 02:12:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 02:13:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 02:14:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 02:15:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 02:16:32 [fast_ws] 连接中断,3s 后重连: websocket: close 1006 (abnormal closure): unexpected EOF
+2026/07/13 02:16:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 02:17:15 [gate][OKX方向][选币] 候选=28 BTC趋势=0.01 入选=20 头部: T-USDT(1.000) TLM-USDT VANRY-USDT
+2026/07/13 02:17:19 [binance][OKX方向][选币] 候选=18 BTC趋势=0.01 入选=18 头部: T-USDT(1.000) SXT-USDT TLM-USDT
+2026/07/13 02:17:20 [bybit][OKX方向][选币] 候选=35 BTC趋势=0.01 入选=20 头部: T-USDT(0.974) SXT-USDT TLM-USDT
+2026/07/13 02:17:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 02:18:07 [OKX方向][选币] 候选=5 BTC趋势=0.01 入选=5 头部: LAB-USDT(0.677) AGLD-USDT DATA-USDT
+2026/07/13 02:18:07 [OKX公告] 已刷新风险集合: symbols=0
+2026/07/13 02:18:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 02:19:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 02:20:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 02:21:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 02:22:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 02:23:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 02:24:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 02:25:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 02:26:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true

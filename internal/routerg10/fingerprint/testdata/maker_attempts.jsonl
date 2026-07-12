@@ -1,0 +1,4 @@
+{"recorded_at":"2026-07-01T10:05:00Z","venue":"okx","symbol":"BTC-USDT","side":"long","maker_wait_ms":100,"maker_filled":true,"fill_mid":100}
+{"recorded_at":"2026-07-01T10:15:00Z","venue":"okx","symbol":"BTC-USDT","side":"long","maker_wait_ms":300,"maker_filled":false,"fill_mid":100}
+{"recorded_at":"2026-07-01T10:25:00Z","venue":"okx","symbol":"BTC-USDT","side":"long","maker_wait_ms":500,"maker_filled":false,"fill_mid":100}
+{"recorded_at":"2026-07-01T11:05:00Z","venue":"okx","symbol":"ETH-USDT","side":"short","maker_wait_ms":200,"maker_filled":true,"fill_mid":50}
