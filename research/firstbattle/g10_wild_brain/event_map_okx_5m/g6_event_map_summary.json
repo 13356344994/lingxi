@@ -1,0 +1,179 @@
+{
+  "summaries": [
+    {
+      "profile_id": "okx_5m",
+      "partition": "discovery",
+      "generation": "firstbattle-router-g6",
+      "protocol_hash": "d34b2798bec83cfcbb39eceec05cb644a74e362b741bb3326bf67bcbabfeb759",
+      "available_primary_files": 200,
+      "selected_primary_files": 200,
+      "selection_truncated": false,
+      "full_market": true,
+      "map_scope": "FULL_MARKET",
+      "total_outcomes": 2454055,
+      "conservative_positive_cells": 48,
+      "cost_wipeout_cells": 48,
+      "cost_wipeout_rate": 0.281838019115301,
+      "capacity_failure_rate": 0,
+      "worst_conservative_bps": -8056.668812633642,
+      "conservative_p10_bps": -199.765407508214,
+      "by_event_family": {
+        "btc_relative_dislocation": {
+          "outcomes": 1052816,
+          "conservative_positive_rate": 0.19049767480737376,
+          "cost_wipeout_rate": 0.2846964711782496
+        },
+        "ohlcv_extreme_continuation": {
+          "outcomes": 713280,
+          "conservative_positive_rate": 0.19826155226558995,
+          "cost_wipeout_rate": 0.2829926536563481
+        },
+        "ohlcv_extreme_reversal": {
+          "outcomes": 687959,
+          "conservative_positive_rate": 0.20142624778511511,
+          "cost_wipeout_rate": 0.27626646355378737
+        }
+      },
+      "by_horizon": {
+        "15m": {
+          "outcomes": 788932,
+          "conservative_positive_rate": 0.2002251144585338,
+          "cost_wipeout_rate": 0.28072254642985706
+        },
+        "240m": {
+          "outcomes": 219082,
+          "conservative_positive_rate": 0.36774358459389633,
+          "cost_wipeout_rate": 0.11308094686007979
+        },
+        "5m": {
+          "outcomes": 970376,
+          "conservative_positive_rate": 0.10021270105608547,
+          "cost_wipeout_rate": 0.37214028376629266
+        },
+        "60m": {
+          "outcomes": 475665,
+          "conservative_positive_rate": 0.30436126265333796,
+          "cost_wipeout_rate": 0.17719403361609537
+        }
+      },
+      "exam_actions": 0
+    },
+    {
+      "profile_id": "okx_5m",
+      "partition": "validation",
+      "generation": "firstbattle-router-g6",
+      "protocol_hash": "d34b2798bec83cfcbb39eceec05cb644a74e362b741bb3326bf67bcbabfeb759",
+      "available_primary_files": 200,
+      "selected_primary_files": 200,
+      "selection_truncated": false,
+      "full_market": true,
+      "map_scope": "FULL_MARKET",
+      "total_outcomes": 921120,
+      "conservative_positive_cells": 48,
+      "cost_wipeout_cells": 48,
+      "cost_wipeout_rate": 0.2774546204620462,
+      "capacity_failure_rate": 0,
+      "worst_conservative_bps": -3757.2224394769687,
+      "conservative_p10_bps": -191.27619826319935,
+      "by_event_family": {
+        "btc_relative_dislocation": {
+          "outcomes": 395046,
+          "conservative_positive_rate": 0.18214840803349483,
+          "cost_wipeout_rate": 0.2804837917609595
+        },
+        "ohlcv_extreme_continuation": {
+          "outcomes": 264925,
+          "conservative_positive_rate": 0.18865716712277059,
+          "cost_wipeout_rate": 0.27716146079078985
+        },
+        "ohlcv_extreme_reversal": {
+          "outcomes": 261149,
+          "conservative_positive_rate": 0.18840202336597114,
+          "cost_wipeout_rate": 0.27316972303167925
+        }
+      },
+      "by_horizon": {
+        "15m": {
+          "outcomes": 295465,
+          "conservative_positive_rate": 0.1875552095848916,
+          "cost_wipeout_rate": 0.28120081904794136
+        },
+        "240m": {
+          "outcomes": 82391,
+          "conservative_positive_rate": 0.34133582551492275,
+          "cost_wipeout_rate": 0.10711121360342755
+        },
+        "5m": {
+          "outcomes": 364370,
+          "conservative_positive_rate": 0.09931113977550292,
+          "cost_wipeout_rate": 0.3598485056398716
+        },
+        "60m": {
+          "outcomes": 178894,
+          "conservative_positive_rate": 0.2873936521068342,
+          "cost_wipeout_rate": 0.18190101400829542
+        }
+      },
+      "exam_actions": 0
+    },
+    {
+      "profile_id": "okx_5m",
+      "partition": "walk_forward",
+      "generation": "firstbattle-router-g6",
+      "protocol_hash": "d34b2798bec83cfcbb39eceec05cb644a74e362b741bb3326bf67bcbabfeb759",
+      "available_primary_files": 200,
+      "selected_primary_files": 200,
+      "selection_truncated": false,
+      "full_market": true,
+      "map_scope": "FULL_MARKET",
+      "total_outcomes": 913683,
+      "conservative_positive_cells": 48,
+      "cost_wipeout_cells": 48,
+      "cost_wipeout_rate": 0.2801682859372452,
+      "capacity_failure_rate": 0,
+      "worst_conservative_bps": -6160.9948627692265,
+      "conservative_p10_bps": -199.76555903689268,
+      "by_event_family": {
+        "btc_relative_dislocation": {
+          "outcomes": 405237,
+          "conservative_positive_rate": 0.18263139841623544,
+          "cost_wipeout_rate": 0.2823014680298196
+        },
+        "ohlcv_extreme_continuation": {
+          "outcomes": 254854,
+          "conservative_positive_rate": 0.1912232101516947,
+          "cost_wipeout_rate": 0.2811609784425593
+        },
+        "ohlcv_extreme_reversal": {
+          "outcomes": 253592,
+          "conservative_positive_rate": 0.19663080854285625,
+          "cost_wipeout_rate": 0.2757618536862362
+        }
+      },
+      "by_horizon": {
+        "15m": {
+          "outcomes": 293395,
+          "conservative_positive_rate": 0.19126774484909423,
+          "cost_wipeout_rate": 0.28038991802859625
+        },
+        "240m": {
+          "outcomes": 80863,
+          "conservative_positive_rate": 0.3605357209106761,
+          "cost_wipeout_rate": 0.11829885114329174
+        },
+        "5m": {
+          "outcomes": 363302,
+          "conservative_positive_rate": 0.09864245173436975,
+          "cost_wipeout_rate": 0.3650791903154951
+        },
+        "60m": {
+          "outcomes": 176123,
+          "conservative_positive_rate": 0.29240360429926815,
+          "cost_wipeout_rate": 0.1789658363757147
+        }
+      },
+      "exam_actions": 0
+    }
+  ],
+  "exam_actions": 0
+}

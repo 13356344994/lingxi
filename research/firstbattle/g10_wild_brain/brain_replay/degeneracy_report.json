@@ -1,0 +1,31 @@
+{
+  "schema_version": "lingxi.routerg10.brain-trace.v1",
+  "generation": "firstbattle-router-g10",
+  "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+  "total_bars": 13,
+  "action_counts": {
+    "CLOSE": 3,
+    "HOLD": 3,
+    "LONG": 1,
+    "NO_TRADE": 3,
+    "SHORT": 1,
+    "TRIM": 2
+  },
+  "dominant_action": "HOLD",
+  "dominant_fraction": 0.23076923076923078,
+  "directional_fraction": 0.15384615384615385,
+  "bars_since_last_exit": 1,
+  "degenerate": false,
+  "status": "OK",
+  "path_matrix_covered": {
+    "below_min_notional_skip": true,
+    "concurrency_full_reject": true,
+    "continuation_long": true,
+    "data_distortion_no_trade": true,
+    "event_complete_close": true,
+    "failed_breakout_short": true,
+    "negative_memory_no_trade": true,
+    "solvency_trim": true
+  },
+  "report_hash": "07eef3cb5271e1e596d9c3941f8228bf8085a2de0ca26fac5a9a0e98b4c7c0e4"
+}

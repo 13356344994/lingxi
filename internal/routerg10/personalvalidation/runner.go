@@ -9,20 +9,24 @@ import (
 	"time"
 
 	historydata "lingxi/internal/datatruth/history"
+	"lingxi/internal/datatruth"
 	"lingxi/internal/routerg4/profitmap"
 	"lingxi/internal/routerg6/eventmap"
 	"lingxi/internal/routerg6/reverseevent"
+	"lingxi/internal/routerg10/exclusionmap"
 	g10protocolv2 "lingxi/internal/routerg10/protocolv2"
 	"lingxi/internal/routerg10/personalplaybook"
 )
 
 // Runner orchestrates personal validation screening with checkpoint resume.
 type Runner struct {
-	Config           RunConfig
-	Catalog          historydata.HistoryCatalog
-	CheckpointPath   string
-	OnProgress       func(lines int64, playbookHash, symbol string)
-	CatalogValidator func(historydata.HistoryCatalog) error
+	Config               RunConfig
+	Catalog              historydata.HistoryCatalog
+	CheckpointPath       string
+	InstrumentCatalog    datatruth.InstrumentCatalog
+	HasInstrumentCatalog bool
+	OnProgress           func(lines int64, playbookHash, symbol string)
+	CatalogValidator     func(historydata.HistoryCatalog) error
 }
 
 type profileContext struct {
@@ -68,6 +72,9 @@ func (r *Runner) Run(ctx context.Context) (RunResult, error) {
 	if err := VerifyFormalHistoryScope(r.Catalog, r.Config.MaxFiles, r.Config.AllowTruncatedSmoke, uniqueProfileIDs(bundle.Playbooks)); err != nil {
 		return RunResult{}, err
 	}
+	instrumentCat, hasInstrumentCat := exclusionmap.LoadInstrumentCatalogFromHistory(r.Config.HistoryRoot)
+	r.InstrumentCatalog = instrumentCat
+	r.HasInstrumentCatalog = hasInstrumentCat
 
 	profilesByID := map[string]profileContext{}
 	thresholdsByProfile := map[string]eventmap.FrozenThresholds{}
@@ -153,7 +160,7 @@ func (r *Runner) Run(ctx context.Context) (RunResult, error) {
 		pitByPlaybook[pb.PlaybookHash] = BuildPITReport(allEvents)
 		crowdingByPlaybook[pb.PlaybookHash] = BuildCrowdingReport(allEvents)
 
-		degSummary, err := CheckBrainDegeneracy(allEvents, pb)
+		degSummary, err := CheckBrainDegeneracy(allEvents, pb, proofs)
 		if err != nil {
 			return RunResult{}, err
 		}
@@ -172,7 +179,12 @@ func (r *Runner) Run(ctx context.Context) (RunResult, error) {
 			tierDaily = daily
 			exitClear := true
 			for _, ev := range allEvents {
-				if !ev.ExitProofOK {
+				if r.Config.AllowTruncatedSmoke {
+					if !ev.ExitProofOK {
+						exitClear = false
+						break
+					}
+				} else if !ev.ExitProofBound || !ev.ExitProofOK {
 					exitClear = false
 					break
 				}
@@ -187,18 +199,18 @@ func (r *Runner) Run(ctx context.Context) (RunResult, error) {
 		}
 		leaveOneByPlaybook[pb.PlaybookHash] = BuildLeaveOneReport(tierDaily, allEvents)
 		tierOutcomes[pb.PlaybookHash] = tierResults
+		eventsByPlaybook[pb.PlaybookHash] = allEvents
 	}
 
-	results := BuildPlaybookResults(bundle.Playbooks, tierOutcomes, degeneracyByPlaybook, makerByPlaybook, pitByPlaybook, crowdingByPlaybook, leaveOneByPlaybook)
+	results := BuildPlaybookResults(bundle.Playbooks, tierOutcomes, degeneracyByPlaybook, makerByPlaybook, pitByPlaybook, crowdingByPlaybook, leaveOneByPlaybook, eventsByPlaybook)
 	historyScope := BuildHistoryScope(r.Catalog, uniqueProfileIDs(bundle.Playbooks), r.Config.MaxFiles, r.Config.AllowTruncatedSmoke)
 	formalOK := FormalValidationAllowed(r.Config.AllowTruncatedSmoke, historyScope)
 	if !formalOK {
 		for i := range results {
-			if results[i].Status == StatusValidationPass {
-				results[i].Status = StatusInconclusive
-				results[i].FailReason = ReasonInsufficientEvidence
-				results[i].EligibleCapitalTiers = nil
-			}
+			results[i].Status = StatusHeuristicOnly
+			results[i].FailReason = ReasonInsufficientEvidence
+			results[i].EligibleCapitalTiers = nil
+			results[i].Layers = heuristicOnlyLayers()
 		}
 	}
 	report, err := BuildReport(r.Config, bundle, mapHashes, results, historyScope, formalOK)
@@ -251,6 +263,7 @@ func (r *Runner) scanSymbol(
 		Thresholds: profile.Thresholds, BTCBars: profile.BTCBars,
 		ShockClusterAt: profile.ShockCluster, Funding: funding, MaxLines: r.Config.MaxLines,
 		Proofs: proofs, RequireProofObservations: !r.Config.AllowTruncatedSmoke,
+		InstrumentCatalog: r.InstrumentCatalog, HasInstrumentCatalog: r.HasInstrumentCatalog,
 	}, tracker)
 }
 

@@ -1,0 +1,42 @@
+{
+  "schema_version": "lingxi.router-g6-event-map.manifest.v1",
+  "generation": "firstbattle-router-g6",
+  "protocol_hash": "d34b2798bec83cfcbb39eceec05cb644a74e362b741bb3326bf67bcbabfeb759",
+  "history_data_hash": "f41ed2586d91054c4b5b2e15e60f32a4d64ccde0032e76dfdc5fc6dee316379c",
+  "profile_id": "okx_1h",
+  "config_hash": "946d5ae26b77e7613d9eeaab9197fa8256efd64586fd8928b1c2f4817c6fec63",
+  "catalog_hash": "f41ed2586d91054c4b5b2e15e60f32a4d64ccde0032e76dfdc5fc6dee316379c",
+  "catalog_symbol_count": 401,
+  "available_primary_files": 401,
+  "selected_primary_files": 401,
+  "selection_truncated": false,
+  "full_market": true,
+  "map_scope": "FULL_MARKET",
+  "selected_files_hash": "0794101bb2dc045ebc9f523b96b187d3dd0312d8a66d02e0d9a4e606858dee9d",
+  "selected_symbols_hash": "7b89d462af139530a2d3dc998ec826d96dac25ffa43bc1476995ed21ffd9d07f",
+  "boundaries_hash": "86c612f0a732f55c728e489edda888c2cc710f3e8025f7ca0ebae0a4e1b9ea91",
+  "thresholds_hash": "cb1e398aa6b8d08916563284b2012a56f9378f86029f63e4e90f5a8fc01c96c9",
+  "cell_hash": "d0ab1b72fbdb8693785fe73ef39971911fac6644e89a48b067ae1301f3d90a3c",
+  "reservoir_risk_hash": "467f314447ee3cf468096ab075320c694a7edddce3722cdea05e6f87d711808f",
+  "artifact_hashes": {
+    "event_map_discovery_okx_1h.json": "c13bb1cef96a8cfc2483850b5225ba736b8ff8a301965ef933728026c4a7eff6",
+    "event_map_thresholds.json": "71b32e28122836fb991c10f60865d95facaedad3af5f1560e419244b56044c29",
+    "event_map_validation_okx_1h.json": "bdea941c06ec510a0d9e09700bb0e26be8f5e10e531f57fd6549a034d3b495a5",
+    "event_map_walk_forward_okx_1h.json": "bf8b476c294e032578b2b1876bfe1233ddf26f23d9397d372afbe4c7f7746f94",
+    "g6_event_map_summary.json": "2d9df373b781543ff78c5ee386ca19eb7036daa9f330c32ce18223c633fd13ee"
+  },
+  "partitions": [
+    "discovery",
+    "validation",
+    "walk_forward"
+  ],
+  "event_families": [
+    "ohlcv_extreme_continuation",
+    "ohlcv_extreme_reversal",
+    "session_liquidity_recovery",
+    "btc_relative_dislocation"
+  ],
+  "exam_actions": 0,
+  "created_at": "2026-07-13T05:10:41.856141816Z",
+  "manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+}

@@ -157,7 +157,7 @@ func (b *Brain) applyOpen(
 		}
 		return "NO_TRADE", positionSize(b, in.Features.Symbol), 0, appendUnique(rejects, reason)
 	}
-	if TerminalRiskCeilingBlocksOpen(b.Account, sized.StressBudgetUSDT) {
+	if TerminalRiskCeilingBlocksOpen(b.Account, stress) {
 		return "NO_TRADE", positionSize(b, in.Features.Symbol), 0, appendUnique(rejects, RejectTerminalRiskCeiling)
 	}
 	if !b.Config.TradeAllowed {
@@ -178,6 +178,7 @@ func (b *Brain) applyOpen(
 			ScenarioDelay: delay,
 			CostStress:    in.CostStress,
 		})
+		b.setPendingMaxPriceCap(ev.EventID, in.ExecutionSim.MaxPriceCap)
 		return posAction, sized.NotionalUSDT, sized.StressBudgetUSDT, rejects
 	}
 
@@ -191,6 +192,7 @@ func (b *Brain) applyOpen(
 			ScenarioDelay: delay,
 			CostStress:    in.CostStress,
 		})
+		b.setPendingMaxPriceCap(ev.EventID, in.ExecutionSim.MaxPriceCap)
 		return posAction, sized.NotionalUSDT, sized.StressBudgetUSDT, rejects
 	}
 
@@ -235,6 +237,9 @@ func (b *Brain) appendTrace(
 		ThesisHealth:           ev.ThesisHealth,
 		ConstitutionHash:       constHash,
 		ExclusionProofHash:     ev.Proofs.ExclusionProofHash,
+		InstitutionAxisHash:    ev.Proofs.InstitutionAxisHash,
+		RetailAxisHash:         ev.Proofs.RetailAxisHash,
+		BotAxisHash:            ev.Proofs.BotAxisHash,
 		AnnouncementVisibility: annVis,
 		EntryProofHash:         ev.Proofs.EntryProofHash,
 		ExecutionPolicyHash:    ev.Proofs.ExecutionPolicyHash,

@@ -89,16 +89,21 @@ type RunConfig struct {
 
 // SourceStatus reports per-archive availability without leaking raw bodies.
 type SourceStatus struct {
-	Path          string `json:"path,omitempty"`
-	Status        string `json:"status"`
-	Lines         int    `json:"lines,omitempty"`
-	Decoded       int    `json:"decoded,omitempty"`
-	Skipped       int    `json:"skipped,omitempty"`
-	Malformed     int    `json:"malformed,omitempty"`
-	Truncated     bool   `json:"truncated,omitempty"`
-	PagesComplete int    `json:"pages_complete,omitempty"`
-	PagesExpected int    `json:"pages_expected,omitempty"`
-	FetchFailed   bool   `json:"fetch_failed,omitempty"`
+	Path            string    `json:"path,omitempty"`
+	Status          string    `json:"status"`
+	Reason          string    `json:"reason,omitempty"`
+	Missing         bool      `json:"missing,omitempty"`
+	CoverageReceipt string    `json:"coverage_receipt,omitempty"`
+	CoverageFrom    time.Time `json:"coverage_from,omitempty"`
+	CoverageTo      time.Time `json:"coverage_to,omitempty"`
+	Lines           int       `json:"lines,omitempty"`
+	Decoded         int       `json:"decoded,omitempty"`
+	Skipped         int       `json:"skipped,omitempty"`
+	Malformed       int       `json:"malformed,omitempty"`
+	Truncated       bool      `json:"truncated,omitempty"`
+	PagesComplete   int       `json:"pages_complete,omitempty"`
+	PagesExpected   int       `json:"pages_expected,omitempty"`
+	FetchFailed     bool      `json:"fetch_failed,omitempty"`
 }
 
 const (
@@ -106,6 +111,16 @@ const (
 	StatusUnknown    = "UNKNOWN"
 	StatusTruncated  = "TRUNCATED"
 	StatusIncomplete = "INCOMPLETE"
+
+	ReasonRequiredVenueArchiveMissing    = "REQUIRED_VENUE_ARCHIVE_MISSING"
+	ReasonEmptyArchiveWithoutReceipt     = "EMPTY_ARCHIVE_WITHOUT_COVERAGE_RECEIPT"
+	ReasonFetchFailed                    = "FETCH_FAILED"
+	ReasonPaginationIncomplete           = "PAGINATION_INCOMPLETE"
+	ReasonTruncatedIngest                = "TRUNCATED_INGEST"
+	ReasonNoEventsCoverageReceipt        = "NO_EVENTS_COVERAGE_RECEIPT"
+
+	CoverageReceiptNoEventsComplete = "no_events_complete"
+	CoverageReceiptFormat           = "coverage_receipt_v1"
 )
 
 // CoverageSummary counts ingested announcements by venue/kind.
@@ -125,8 +140,9 @@ type AnnouncementTape struct {
 	ConfigHash      string              `json:"config_hash"`
 	TapeHash        string              `json:"tape_hash"`
 	BuiltAt         time.Time           `json:"built_at"`
-	Incomplete      bool                `json:"incomplete"`
-	SourceStatus    map[string]SourceStatus `json:"source_status"`
+	Incomplete        bool                `json:"incomplete"`
+	IncompleteReasons []string            `json:"incomplete_reasons,omitempty"`
+	SourceStatus      map[string]SourceStatus `json:"source_status"`
 	Coverage        CoverageSummary     `json:"coverage"`
 	Announcements   []Announcement      `json:"announcements"`
 }

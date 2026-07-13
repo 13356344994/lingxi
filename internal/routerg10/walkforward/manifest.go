@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"lingxi/internal/datatruth"
-	g10validation "lingxi/internal/routerg10/validation"
 	g10protocol "lingxi/internal/routerg10/protocol"
+	g10validation "lingxi/internal/routerg10/validation"
 )
 
 func hashJSON(payload any) (string, error) {
@@ -200,11 +200,17 @@ func cloneStringMap(in map[string]string) map[string]string {
 
 // BuildSkippedReport writes skip artifacts when validation did not pass.
 func BuildSkippedReport(cfg RunConfig, reason string, validation g10validation.ValidationReport, survivors g10validation.ValidationSurvivors) (WFReport, WFSummary, MechanismReport, ExecutionReport, error) {
+	cfgHash, err := ConfigFingerprint(cfg)
+	if err != nil {
+		return WFReport{}, WFSummary{}, MechanismReport{}, ExecutionReport{}, err
+	}
 	wf := WFReport{
 		SchemaVersion: SchemaVersionWFReport, Generation: g10protocol.Generation,
-		ProtocolHash: g10protocol.RouterProtocolHash, ValidationReportHash: validation.ReportHash,
+		ProtocolHash: g10protocol.RouterProtocolHash, PlaybookHash: validation.PlaybookHash,
+		ExperimentHash: validation.ExperimentHash, ValidationReportHash: validation.ReportHash,
 		SurvivorsHash: survivors.SurvivorsHash, Status: StatusSkippedValidationFail, FailReason: reason,
-		SurvivorCount: len(survivors.Survivors), ExamActions: g10protocol.ExamActions, CreatedAt: time.Now().UTC(),
+		SurvivorCount: len(survivors.Survivors), ConfigHash: cfgHash,
+		ExamActions: g10protocol.ExamActions, CreatedAt: time.Now().UTC(),
 	}
 	hash, err := hashWFReport(wf)
 	if err != nil {

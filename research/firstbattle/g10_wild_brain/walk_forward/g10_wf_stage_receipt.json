@@ -1,0 +1,22 @@
+{
+  "schema_version": "lingxi.router-g10-wf.stage-receipt.v1",
+  "generation": "firstbattle-router-g10",
+  "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+  "history_data_hash": "f41ed2586d91054c4b5b2e15e60f32a4d64ccde0032e76dfdc5fc6dee316379c",
+  "playbook_manifest_hash": "ef82da8421a9c6eb02b9854eebaf47673e94365918a058b610077d35064ce0c5",
+  "playbook_hash": "8ceae12715dc9cc885fcaf77c230b7c44dc3becfe3644372ad1f276bd2d8a8f0",
+  "experiment_hash": "a471569db03b5667815a944506a935cac8c5f2b74371a434807cd2c306995d19",
+  "validation_report_hash": "13703d334a9092eca81db52c17371c8a2377c2646b5b42e50e91e0c7959a8006",
+  "survivors_hash": "a1b07559b108743f79fa20dc7c106f46574ff8f4ef53ce1325cb78a8de9b5dc8",
+  "map_manifest_hashes": {},
+  "config_hash": "2fa4f10310cb4db3188ce7a17d3d4e581db851804d6e194016a88b208369569d",
+  "wf_report_hash": "7fe38567643f18af7222d7b8da5a72765162d0e9345c7547e7deb6d11d686628",
+  "mechanism_report_hash": "bfa584b7ea642384402906b2036ec46e12b6f214c259b5085875dd61fb2991c7",
+  "execution_report_hash": "eddca80670fa9944823b1fbe9a1dc920e1af0e019fb984218d61a8cf3fc162c8",
+  "canonical_data_hashes": {
+    "catalog_hash": "f41ed2586d91054c4b5b2e15e60f32a4d64ccde0032e76dfdc5fc6dee316379c"
+  },
+  "exam_actions": 0,
+  "created_at": "2026-07-13T07:13:13.613624954Z",
+  "receipt_hash": "271765ec4c040e29ab5e134ffc695315baa90718a71dd17acb81767d60686b30"
+}

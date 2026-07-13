@@ -7,6 +7,30 @@ import (
 	g10personalvalidation "lingxi/internal/routerg10/personalvalidation"
 )
 
+func TestEvaluateWFGatesAnnouncementLOOFail(t *testing.T) {
+	foldResults := []FoldResult{{BaseNetReturnFraction: 0.1, NetReturnNonNegative: true}}
+	lo := g10personalvalidation.LeaveOneReport{
+		AnnouncementLOOOK: false, ExchangeLOOOK: true,
+		DayLOOOK: true, ShockLOOOK: true, SymbolLOOOK: true,
+	}
+	status, _, reason := EvaluateWFGates(foldResults, nil, g10personalvalidation.DailyEquityReplay{}, lo)
+	if status != StatusWFFail || reason != ReasonAnnouncement {
+		t.Fatalf("got %s %s", status, reason)
+	}
+}
+
+func TestEvaluateWFGatesExchangeLOOFail(t *testing.T) {
+	foldResults := []FoldResult{{BaseNetReturnFraction: 0.1, NetReturnNonNegative: true}}
+	lo := g10personalvalidation.LeaveOneReport{
+		AnnouncementLOOOK: true, ExchangeLOOOK: false,
+		DayLOOOK: true, ShockLOOOK: true, SymbolLOOOK: true,
+	}
+	status, _, reason := EvaluateWFGates(foldResults, nil, g10personalvalidation.DailyEquityReplay{}, lo)
+	if status != StatusWFFail || reason != ReasonExchange {
+		t.Fatalf("got %s %s", status, reason)
+	}
+}
+
 func TestProtocolNoDrift(t *testing.T) {
 	if Generation != g10protocolv2.Generation {
 		t.Fatal("generation drift")

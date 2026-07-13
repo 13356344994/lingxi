@@ -119,7 +119,7 @@ func BuildPlaybookResults(
 				reason = ReasonCrowding
 			}
 		}
-		layers := EvaluateLayers(tiers, maker, pit, deg, leaveOne, len(eventsByPlaybook[pb.PlaybookHash]) > 0, eventsByPlaybook[pb.PlaybookHash])
+		layers := EvaluateLayers(tiers, maker, pit, deg, leaveOne, len(eventsByPlaybook[pb.PlaybookHash]) > 0, eventsByPlaybook[pb.PlaybookHash], false)
 		maxCap := maxCapacityFromTiers(tiers)
 		if maxCap <= 0 {
 			maxCap = pb.RiskNarrative.MaxCapacityUSDT

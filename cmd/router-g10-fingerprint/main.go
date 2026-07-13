@@ -75,10 +75,10 @@ func run(args []string) error {
 		SchemaVersion: fingerprint.ConfigSchema,
 		Generation:    fingerprint.Generation,
 		RecordRoot:    absRoot,
-		OutputDir:       absOutput,
-		Sources:         sources,
-		MaxLines:        *maxLines,
-		LowCPU:          *lowCPU,
+		OutputDir:     absOutput,
+		Sources:       sources,
+		MaxLines:      *maxLines,
+		LowCPU:        *lowCPU,
 	}
 	runner := fingerprint.Runner{
 		Config:         cfg,
@@ -93,7 +93,9 @@ func run(args []string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(os.Stdout, "{\"cells\":%d,\"fingerprint_hash\":%q,\"output\":%q}\n",
-		len(result.Fingerprint.Cells), result.Fingerprint.FingerprintHash, result.OutputPath)
+	fmt.Fprintf(os.Stdout, "{\"cells\":%d,\"fingerprint_hash\":%q,\"critical_known\":%d,\"critical_unknown\":%d,\"output\":%q,\"coverage\":%q}\n",
+		len(result.Fingerprint.Cells), result.Fingerprint.FingerprintHash,
+		result.Coverage.CriticalKnownCount, result.Coverage.CriticalUnknownCount,
+		result.OutputPath, result.CoveragePath)
 	return nil
 }

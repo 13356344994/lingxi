@@ -1,0 +1,22 @@
+{
+  "schema_version": "lingxi.routerg10.residual-map.summary.v1",
+  "generation": "firstbattle-router-g10",
+  "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+  "fingerprint_hash": "3c0924a6bf3f47a57d71a7c61e92c00043fee53ce2f9f2315692e5d1198c6f1e",
+  "winner_seed_count": 40685,
+  "triggered_seed_count": 40685,
+  "attempt_count": 40685,
+  "accepted_count": 101,
+  "rejected_count": 40584,
+  "reject_reason_counts": {
+    "BAR_REPLAY_MISS": 36848,
+    "NO_LARGE_TIER_FAIL": 3695,
+    "PUBLIC_SCALABLE": 2042,
+    "PUBLIC_SIMPLE_FACTOR": 472,
+    "USER_TIER_NEGATIVE": 795
+  },
+  "candidate_limit": 10000,
+  "map_hash": "dae64ed12164f7d7deaff7e1cb5c562091c1b424293bcb872c8bedb918351581",
+  "ledger_hash": "3fe3912e3f6f44c784e1f5587744562f50cc68107f5eaf1e8c66d90c6e40f4fd",
+  "manifest_hash": "f5e6093e77ffc1914d8bec2482e46f4a436a697aead3c08f20708651b322bb64"
+}

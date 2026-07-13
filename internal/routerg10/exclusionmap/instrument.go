@@ -13,9 +13,9 @@ import (
 	"lingxi/internal/mechanismpanel"
 )
 
-// pitDynamicMinNotionalUSDT resolves PIT instrument min notional at decision time.
+// PITDynamicMinNotionalUSDT resolves PIT instrument min notional at decision time.
 // Uses min_sz * ct_val * price for linear contracts; inverse/unknown fail closed.
-func pitDynamicMinNotionalUSDT(
+func PITDynamicMinNotionalUSDT(
 	cat datatruth.InstrumentCatalog,
 	symbol string,
 	decisionTime time.Time,
@@ -75,6 +75,11 @@ func inferContractType(v datatruth.InstrumentVersion) string {
 		return g10entryproof.CtTypeLinear
 	}
 	return g10entryproof.CtTypeUnknown
+}
+
+// LoadInstrumentCatalogFromHistory loads the first available OKX instrument catalog under history root.
+func LoadInstrumentCatalogFromHistory(historyRoot string) (datatruth.InstrumentCatalog, bool) {
+	return loadInstrumentCatalog(historyRoot)
 }
 
 func loadInstrumentCatalog(historyRoot string) (datatruth.InstrumentCatalog, bool) {

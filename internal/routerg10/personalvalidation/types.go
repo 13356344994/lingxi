@@ -92,6 +92,15 @@ type TriggerEvent struct {
 	ExecutionProofBound bool
 	ExitProofBound   bool
 	ExclusionProofBound bool
+
+	// Frozen CML/maker execution params sealed at decision time for replay.
+	MaxPriceCap         float64
+	MaxSlippageBPS      float64
+	MinRemainingEdgeBPS float64
+	TimeoutMS           int64
+	SpreadBPS           float64
+	FeeBPS              float64
+	LatencyMS           float64
 }
 
 // MakerPathStats aggregates maker quadrants over all triggers (full denominator).

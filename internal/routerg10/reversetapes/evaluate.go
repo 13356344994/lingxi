@@ -82,10 +82,6 @@ func Evaluate(in EvaluationInput, usedShocks map[string]bool) EvaluationResult {
 		result.RejectReasons = append(result.RejectReasons, RejectPaperWinnerNoFill)
 		return result
 	}
-	if !realizedFill && in.OutcomeLabel.ConservativeNetBPS > 0 && !discoveryOnly {
-		result.RejectReasons = append(result.RejectReasons, RejectPaperWinnerNoFill)
-		return result
-	}
 
 	label := in.OutcomeLabel
 	label.LabelOnly = true
@@ -205,10 +201,26 @@ func computeRealizedPath(in EvaluationInput, action string) (filled bool, reason
 		}
 		return true, "MAKER_FILLED", profit
 	case g10executionpolicy.ActionConditionalMarketableLimit:
+		var allowed bool
 		for _, a := range in.Execution.ActionsCompared {
-			if a.Action == g10executionpolicy.ActionConditionalMarketableLimit && a.Allowed {
-				profit = a.ExpectedNetUSDT
-				return true, "CONDITIONAL_LIMIT_FILLED", profit
+			if a.Action != g10executionpolicy.ActionConditionalMarketableLimit {
+				continue
+			}
+			if !a.Allowed {
+				return false, "CONDITIONAL_LIMIT_BLOCKED", 0
+			}
+			allowed = true
+			break
+		}
+		if !allowed {
+			return false, "CONDITIONAL_LIMIT_BLOCKED", 0
+		}
+		if !cmlFillEvidence(in) {
+			return false, "CONDITIONAL_LIMIT_NO_FILL_EVIDENCE", 0
+		}
+		for _, a := range in.Execution.ActionsCompared {
+			if a.Action == g10executionpolicy.ActionConditionalMarketableLimit {
+				return true, "CONDITIONAL_LIMIT_FILLED", a.ExpectedNetUSDT
 			}
 		}
 		return false, "CONDITIONAL_LIMIT_BLOCKED", 0
@@ -305,18 +317,12 @@ func detectActionHindsight(in EvaluationInput) error {
 		if a.Action == g10executionpolicy.ActionBoundedMaker && in.Execution.MakerGate.ForbidMaker {
 			continue
 		}
-		// hindsight bias: using realized net instead of frozen expectation
-		if a.Action == g10executionpolicy.ActionBoundedMaker && in.OutcomeLabel.ConservativeNetBPS > 0 &&
-			in.Execution.MakerQuadrant != g10executionpolicy.QuadrantFilledProfitable &&
-			in.Execution.MakerQuadrant != g10executionpolicy.QuadrantFilledUnprofitable {
-			ev = bpsToUSDT(in.OutcomeLabel.ConservativeNetBPS, in.CapitalUSDT)
-		}
 		if ev > best {
 			best = ev
 			hindsight = a.Action
 		}
 	}
-	if hindsight != in.Execution.SelectedAction && in.OutcomeLabel.ConservativeNetBPS > 20 {
+	if hindsight != in.Execution.SelectedAction && best > 0 && in.Execution.MakerQuadrant == g10executionpolicy.QuadrantFilledProfitable {
 		return errLookahead
 	}
 	return nil
@@ -325,7 +331,7 @@ func detectActionHindsight(in EvaluationInput) error {
 // detectFillOnlySurvivorship rejects when positive labels exist but the maker
 // cohort lacks unfilled triggers in the all-trigger denominator.
 func detectFillOnlySurvivorship(in EvaluationInput) error {
-	if in.OutcomeLabel.ConservativeNetBPS <= 0 {
+	if !executionShowsPositiveFilledPath(in) {
 		return nil
 	}
 	stats := in.Execution.MakerStats.Quadrants
@@ -371,6 +377,20 @@ func shockOverlapKey(symbol, cluster string) string {
 func GradeDiscoveryOnly(ep g10entryproof.EntryProof) bool {
 	return ep.EvidenceGrade == g10entryproof.GradeExecutableShadowOrTrade ||
 		ep.EvidenceGrade == g10entryproof.GradePublicConservativeBoundary
+}
+
+func executionShowsPositiveFilledPath(in EvaluationInput) bool {
+	for _, a := range in.Execution.ActionsCompared {
+		if a.Allowed && a.ExpectedNetUSDT > 0 {
+			return true
+		}
+	}
+	return in.Execution.MakerQuadrant == g10executionpolicy.QuadrantFilledProfitable
+}
+
+func cmlFillEvidence(in EvaluationInput) bool {
+	ep := in.Entry
+	return g10entryproof.CertificationAllowed(ep.EvidenceGrade) && ep.EvidenceArtifactHash != ""
 }
 
 func uniqueRejectReasons(in []string) []string {

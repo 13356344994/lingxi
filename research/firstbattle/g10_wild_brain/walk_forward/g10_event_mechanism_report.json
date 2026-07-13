@@ -1,0 +1,18 @@
+{
+  "schema_version": "lingxi.router-g10-wf.mechanism.v1",
+  "generation": "firstbattle-router-g10",
+  "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+  "playbook_hash": "8ceae12715dc9cc885fcaf77c230b7c44dc3becfe3644372ad1f276bd2d8a8f0",
+  "wf_report_hash": "7fe38567643f18af7222d7b8da5a72765162d0e9345c7547e7deb6d11d686628",
+  "mechanism_status": "SKIPPED_VALIDATION_FAIL",
+  "forced_flow_evidence": false,
+  "counterparty_evidence": false,
+  "auto_from_features": false,
+  "trade_allowed": false,
+  "exam_eligible": false,
+  "certified": false,
+  "brain_degeneracy_clear": false,
+  "exam_actions": 0,
+  "created_at": "2026-07-13T07:13:13.613540347Z",
+  "report_hash": "bfa584b7ea642384402906b2036ec46e12b6f214c259b5085875dd61fb2991c7"
+}

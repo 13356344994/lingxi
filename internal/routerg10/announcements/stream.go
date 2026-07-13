@@ -58,7 +58,9 @@ func streamArchiveJSONL(
 			stats.Malformed++
 			continue
 		}
-		stats.Decoded++
+		if !IsExplicitCoverageReceipt(preview) {
+			stats.Decoded++
+		}
 	}
 	if err := sc.Err(); err != nil {
 		return stats, fmt.Errorf("announcements: read %s: %w", path, err)

@@ -29,6 +29,7 @@ const (
 	StatusInconclusive   = "INCONCLUSIVE"
 	StatusValidationPass = "VALIDATION_PASS"
 	StatusValidationFail = "VALIDATION_FAIL"
+	StatusHeuristicOnly  = "HEURISTIC_ONLY"
 
 	LayerHistoricalPhenomenon      = "HISTORICAL_PHENOMENON"
 	LayerEntryProven               = "ENTRY_PROVEN"

@@ -98,6 +98,71 @@ func writeJSONAtomic(path string, payload any) error {
 	return os.Rename(tmp, path)
 }
 
+// LoadManifest reads exclusion_map_manifest.json with hash verification.
+func LoadManifest(path string) (MapManifest, error) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return MapManifest{}, err
+	}
+	var m MapManifest
+	if err := json.Unmarshal(raw, &m); err != nil {
+		return MapManifest{}, err
+	}
+	return m, ValidateManifest(m)
+}
+
+// VerifyOutputArtifacts checks on-disk map/ledger hashes and summary binding.
+// Manifest and summary file hashes are captured at the pre-seal write pass to
+// avoid self-referential fixed points; only map and ledger bytes are re-checked.
+func VerifyOutputArtifacts(outputDir string, manifest MapManifest, summary RunSummary) error {
+	if summary.ManifestHash != manifest.ManifestHash {
+		return errors.New("exclusionmap: summary manifest hash mismatch")
+	}
+	if summary.MapHash != manifest.MapHash {
+		return errors.New("exclusionmap: summary map hash mismatch")
+	}
+	if summary.LedgerHash != manifest.LedgerHash {
+		return errors.New("exclusionmap: summary ledger hash mismatch")
+	}
+	mapPath := filepath.Join(outputDir, OutputFileName)
+	exclusionMap, err := LoadExclusionMap(mapPath)
+	if err != nil {
+		return fmt.Errorf("exclusionmap: map artifact: %w", err)
+	}
+	if exclusionMap.MapHash != manifest.MapHash {
+		return errors.New("exclusionmap: map artifact hash mismatch")
+	}
+	ledgerPath := filepath.Join(outputDir, LedgerFileName)
+	raw, err := os.ReadFile(ledgerPath)
+	if err != nil {
+		return fmt.Errorf("exclusionmap: ledger artifact: %w", err)
+	}
+	var ledger ExperimentLedger
+	if err := json.Unmarshal(raw, &ledger); err != nil {
+		return err
+	}
+	if err := ValidateLedger(ledger); err != nil {
+		return err
+	}
+	if ledger.LedgerHash != manifest.LedgerHash {
+		return errors.New("exclusionmap: ledger artifact hash mismatch")
+	}
+	for _, name := range []string{OutputFileName, LedgerFileName} {
+		want := manifest.ArtifactHashes[name]
+		if want == "" {
+			return fmt.Errorf("exclusionmap: missing artifact hash for %s", name)
+		}
+		got, err := HashFile(filepath.Join(outputDir, name))
+		if err != nil {
+			return fmt.Errorf("exclusionmap: artifact %s: %w", name, err)
+		}
+		if got != want {
+			return fmt.Errorf("exclusionmap: artifact hash mismatch for %s", name)
+		}
+	}
+	return nil
+}
+
 // ValidateManifest checks sealed manifest integrity.
 func ValidateManifest(m MapManifest) error {
 	if m.SchemaVersion != SchemaVersionManifest {

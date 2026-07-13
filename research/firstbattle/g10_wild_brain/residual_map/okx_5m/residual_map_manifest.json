@@ -1,0 +1,24 @@
+{
+  "schema_version": "lingxi.routerg10.residual-map.manifest.v1",
+  "generation": "firstbattle-router-g10",
+  "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+  "history_data_hash": "f41ed2586d91054c4b5b2e15e60f32a4d64ccde0032e76dfdc5fc6dee316379c",
+  "profile_id": "okx_5m",
+  "catalog_hash": "f41ed2586d91054c4b5b2e15e60f32a4d64ccde0032e76dfdc5fc6dee316379c",
+  "fingerprint_hash": "3c0924a6bf3f47a57d71a7c61e92c00043fee53ce2f9f2315692e5d1198c6f1e",
+  "artifact_hashes": {
+    "residual_map_discovery_okx_5m.json": "4501ff8adc9159366d589ee662549ec886992d12f1b14182723f1d51e107abf1",
+    "residual_map_thresholds.json": "06f10f73a41aa2d130655de3404421e1cb9616d5922f234e90ac52ec1ad319db"
+  },
+  "thresholds_hash": "06f10f73a41aa2d130655de3404421e1cb9616d5922f234e90ac52ec1ad319db",
+  "candidate_status": "PERSONAL_WILD_CANDIDATE",
+  "residual_tier_labels": [
+    "actual",
+    "30",
+    "100",
+    "1000",
+    "10000",
+    "100000"
+  ],
+  "manifest_hash": "6ae9240f355c08b6fd16c35e352f552dcce9f9bbfac121958e966381d877156e"
+}

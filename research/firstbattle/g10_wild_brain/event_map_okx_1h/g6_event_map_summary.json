@@ -1,0 +1,164 @@
+{
+  "summaries": [
+    {
+      "profile_id": "okx_1h",
+      "partition": "discovery",
+      "generation": "firstbattle-router-g6",
+      "protocol_hash": "d34b2798bec83cfcbb39eceec05cb644a74e362b741bb3326bf67bcbabfeb759",
+      "available_primary_files": 401,
+      "selected_primary_files": 401,
+      "selection_truncated": false,
+      "full_market": true,
+      "map_scope": "FULL_MARKET",
+      "total_outcomes": 2259113,
+      "conservative_positive_cells": 36,
+      "cost_wipeout_cells": 36,
+      "cost_wipeout_rate": 0.20769036343024896,
+      "capacity_failure_rate": 0,
+      "worst_conservative_bps": -6276.197772277393,
+      "conservative_p10_bps": -440.26920721481565,
+      "by_event_family": {
+        "btc_relative_dislocation": {
+          "outcomes": 963389,
+          "conservative_positive_rate": 0.2731586098657967,
+          "cost_wipeout_rate": 0.21111202224646533
+        },
+        "ohlcv_extreme_continuation": {
+          "outcomes": 667351,
+          "conservative_positive_rate": 0.285533399964936,
+          "cost_wipeout_rate": 0.20411147956622527
+        },
+        "ohlcv_extreme_reversal": {
+          "outcomes": 628373,
+          "conservative_positive_rate": 0.28608963147684574,
+          "cost_wipeout_rate": 0.2062453351751269
+        }
+      },
+      "by_horizon": {
+        "1h": {
+          "outcomes": 1042036,
+          "conservative_positive_rate": 0.20782583327255488,
+          "cost_wipeout_rate": 0.2833462567512063
+        },
+        "24h": {
+          "outcomes": 398521,
+          "conservative_positive_rate": 0.3986013284118026,
+          "cost_wipeout_rate": 0.07821670627143865
+        },
+        "4h": {
+          "outcomes": 818556,
+          "conservative_positive_rate": 0.31527103826738795,
+          "cost_wipeout_rate": 0.17441445667736843
+        }
+      },
+      "exam_actions": 0
+    },
+    {
+      "profile_id": "okx_1h",
+      "partition": "validation",
+      "generation": "firstbattle-router-g6",
+      "protocol_hash": "d34b2798bec83cfcbb39eceec05cb644a74e362b741bb3326bf67bcbabfeb759",
+      "available_primary_files": 401,
+      "selected_primary_files": 401,
+      "selection_truncated": false,
+      "full_market": true,
+      "map_scope": "FULL_MARKET",
+      "total_outcomes": 1035991,
+      "conservative_positive_cells": 36,
+      "cost_wipeout_cells": 36,
+      "cost_wipeout_rate": 0.2028975155189572,
+      "capacity_failure_rate": 0,
+      "worst_conservative_bps": -8234.599182423066,
+      "conservative_p10_bps": -451.3038795351031,
+      "by_event_family": {
+        "btc_relative_dislocation": {
+          "outcomes": 456250,
+          "conservative_positive_rate": 0.260026301369863,
+          "cost_wipeout_rate": 0.20912657534246576
+        },
+        "ohlcv_extreme_continuation": {
+          "outcomes": 306501,
+          "conservative_positive_rate": 0.26556520207111883,
+          "cost_wipeout_rate": 0.20044632807070775
+        },
+        "ohlcv_extreme_reversal": {
+          "outcomes": 273240,
+          "conservative_positive_rate": 0.26971160884204365,
+          "cost_wipeout_rate": 0.195245937637242
+        }
+      },
+      "by_horizon": {
+        "1h": {
+          "outcomes": 474784,
+          "conservative_positive_rate": 0.19752350542562513,
+          "cost_wipeout_rate": 0.27172566893576866
+        },
+        "24h": {
+          "outcomes": 189075,
+          "conservative_positive_rate": 0.3736665344440037,
+          "cost_wipeout_rate": 0.08081978051037948
+        },
+        "4h": {
+          "outcomes": 372132,
+          "conservative_positive_rate": 0.29370492190943,
+          "cost_wipeout_rate": 0.17710919781152923
+        }
+      },
+      "exam_actions": 0
+    },
+    {
+      "profile_id": "okx_1h",
+      "partition": "walk_forward",
+      "generation": "firstbattle-router-g6",
+      "protocol_hash": "d34b2798bec83cfcbb39eceec05cb644a74e362b741bb3326bf67bcbabfeb759",
+      "available_primary_files": 401,
+      "selected_primary_files": 401,
+      "selection_truncated": false,
+      "full_market": true,
+      "map_scope": "FULL_MARKET",
+      "total_outcomes": 1301735,
+      "conservative_positive_cells": 36,
+      "cost_wipeout_cells": 36,
+      "cost_wipeout_rate": 0.21027551690628277,
+      "capacity_failure_rate": 0.00011138979899902822,
+      "worst_conservative_bps": -10711.027049979342,
+      "conservative_p10_bps": -480.0282441429979,
+      "by_event_family": {
+        "btc_relative_dislocation": {
+          "outcomes": 589306,
+          "conservative_positive_rate": 0.24627103745761963,
+          "cost_wipeout_rate": 0.21513610925393598
+        },
+        "ohlcv_extreme_continuation": {
+          "outcomes": 367928,
+          "conservative_positive_rate": 0.2614696353634407,
+          "cost_wipeout_rate": 0.2075134265399752
+        },
+        "ohlcv_extreme_reversal": {
+          "outcomes": 344501,
+          "conservative_positive_rate": 0.2551197238904967,
+          "cost_wipeout_rate": 0.20491087108600556
+        }
+      },
+      "by_horizon": {
+        "1h": {
+          "outcomes": 595215,
+          "conservative_positive_rate": 0.19166015641406886,
+          "cost_wipeout_rate": 0.2798837394890922
+        },
+        "24h": {
+          "outcomes": 239478,
+          "conservative_positive_rate": 0.3443239044922707,
+          "cost_wipeout_rate": 0.09643892132053884
+        },
+        "4h": {
+          "outcomes": 467042,
+          "conservative_positive_rate": 0.28409222296924047,
+          "cost_wipeout_rate": 0.17993456691261173
+        }
+      },
+      "exam_actions": 0
+    }
+  ],
+  "exam_actions": 0
+}

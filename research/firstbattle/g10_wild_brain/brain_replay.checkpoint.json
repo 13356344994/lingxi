@@ -1,0 +1,19 @@
+{
+  "schema_version": "lingxi.routerg10.brain.replay.v1",
+  "output_dir": "/root/lingxi/research/firstbattle/g10_wild_brain/brain_replay",
+  "bundle_hash": "79e27a7b4146bceacf4deb82fc93205633d33713ac4037b280a8ee5159a5b30f",
+  "trace_hash": "13614361ef4303670366f04f0973f51ad74c4b313e638c1d685c262328a4c63d",
+  "scenario_count": 8,
+  "path_matrix_covered": {
+    "below_min_notional_skip": true,
+    "concurrency_full_reject": true,
+    "continuation_long": true,
+    "data_distortion_no_trade": true,
+    "event_complete_close": true,
+    "failed_breakout_short": true,
+    "negative_memory_no_trade": true,
+    "solvency_trim": true
+  },
+  "degeneracy_status": "OK",
+  "replay_match": true
+}

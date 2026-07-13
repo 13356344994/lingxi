@@ -9,10 +9,11 @@ import (
 	"time"
 
 	historydata "lingxi/internal/datatruth/history"
-	"lingxi/internal/routerg4/profitmap"
-	"lingxi/internal/routerg6/eventmap"
 	"lingxi/internal/routerg10/playbook"
 	"lingxi/internal/routerg10/protocol"
+	"lingxi/internal/routerg10/residualmap"
+	"lingxi/internal/routerg4/profitmap"
+	"lingxi/internal/routerg6/eventmap"
 )
 
 // Runner orchestrates validation screening with checkpoint resume.
@@ -108,6 +109,11 @@ func (r *Runner) Run(ctx context.Context) (RunResult, error) {
 		return RunResult{}, fmt.Errorf("validation: fingerprint hash binding mismatch")
 	}
 	r.Fingerprint = fpBinding
+	eligibleSymbols := residualmap.CriticalKnownSymbolSet(fpBinding.Fingerprint)
+	for profileID, profile := range profilesByID {
+		profile.Symbols = filterEligibleSymbols(profile.Symbols, eligibleSymbols)
+		profilesByID[profileID] = profile
+	}
 
 	tierOutcomes := map[string][]TierResult{}
 	degeneracyByPlaybook := map[string]DegeneracySummary{}
@@ -130,10 +136,10 @@ func (r *Runner) Run(ctx context.Context) (RunResult, error) {
 	}
 
 	canonicalDataHashes := map[string]string{
-		"catalog_hash":            r.Catalog.DataHash,
-		"playbook_hash":           bundle.Manifest.PlaybookHash,
-		"experiment_hash":         bundle.Manifest.ExperimentHash,
-		"playbook_manifest_hash":  bundle.Manifest.ManifestHash,
+		"catalog_hash":           r.Catalog.DataHash,
+		"playbook_hash":          bundle.Manifest.PlaybookHash,
+		"experiment_hash":        bundle.Manifest.ExperimentHash,
+		"playbook_manifest_hash": bundle.Manifest.ManifestHash,
 	}
 
 	for pbIdx := startPlaybook; pbIdx < len(bundle.Playbooks); pbIdx++ {
@@ -217,6 +223,16 @@ func (r *Runner) Run(ctx context.Context) (RunResult, error) {
 		return RunResult{}, err
 	}
 	return RunResult{Report: report, Survivors: survivors, Receipt: receipt}, nil
+}
+
+func filterEligibleSymbols(symbols []string, eligible map[string]bool) []string {
+	out := make([]string, 0, len(symbols))
+	for _, symbol := range symbols {
+		if eligible[normalizeValidationSymbol(symbol)] {
+			out = append(out, symbol)
+		}
+	}
+	return out
 }
 
 func (r *Runner) scanSymbol(

@@ -27,7 +27,6 @@ type DecisionFeatureInput struct {
 	ShockCluster   string
 	CapitalUSDT    float64
 	MinNotionalUSDT float64
-	WantEventFamily string
 }
 
 // BuildDecisionVisibleFeatures computes trigger fields from market/announcement/event
@@ -47,18 +46,15 @@ func BuildDecisionVisibleFeatures(in DecisionFeatureInput) personalbrain.BarFeat
 		in.BTCBars, in.WindowBars,
 	)
 	eventFamily := ""
-	for _, family := range detected {
-		if in.WantEventFamily == "" || family == in.WantEventFamily {
-			eventFamily = family
-			break
-		}
+	if len(detected) > 0 {
+		eventFamily = detected[0]
 	}
 	mechFlow := 0.0
 	if math.Abs(g6.ReturnBPS) >= 5 && g6.RMSBPS >= 20 && sign(g6.ReturnBPS) != sign(g6.PriorReturnBPS) {
 		mechFlow = 1
 	}
 	prepositioned := 0.0
-	if minLot >= 0.15 && in.MinNotionalUSDT > 0 {
+	if minLot >= 0.15 {
 		prepositioned = 1
 	}
 	return personalbrain.BarFeatures{

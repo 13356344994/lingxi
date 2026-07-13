@@ -200,6 +200,146 @@ func TestRunnerWithSyntheticFixtures(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(out, OutputFileName)); err != nil {
 		t.Fatal(err)
 	}
+	assertArtifactIntegrity(t, out, result)
+}
+
+func TestArtifactIntegrityRoundTrip(t *testing.T) {
+	root, catalog, mapDir, annDir := writeSyntheticFixtures(t)
+	out := filepath.Join(root, "exclusion_out")
+	cfg := RunConfig{
+		SchemaVersion: SchemaVersionConfig,
+		HistoryRoot: root, OutputDir: out, MapDirs: []string{mapDir}, AnnouncementDir: annDir,
+		MaxFiles: 10, MaxLines: 2000, CandidateLimit: 32, ProgressEvery: 1,
+		Generation: g10protocolv2.Generation, ProtocolHash: g10protocolv2.RouterProtocolHash,
+		HistoryDataHash: g10protocolv2.HistoryDataHash,
+	}
+	runner := Runner{
+		Config: cfg, Catalog: catalog, CheckpointPath: filepath.Join(out, "cp.json"),
+		CatalogValidator: func(historydata.HistoryCatalog) error { return nil },
+	}
+	result, err := runner.Run(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertArtifactIntegrity(t, out, result)
+	manifest, err := LoadManifest(filepath.Join(out, ManifestFileName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := ValidateManifest(manifest); err != nil {
+		t.Fatal(err)
+	}
+	if err := VerifyOutputArtifacts(out, manifest, result.Summary); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestFailClosedArtifactIntegrityRoundTrip(t *testing.T) {
+	root, catalog, mapDir, _ := writeSyntheticFixtures(t)
+	annOut := filepath.Join(root, "ann_incomplete")
+	annCfg := g10announcements.RunConfig{
+		SchemaVersion: g10announcements.ConfigSchema,
+		Generation:    g10announcements.Generation,
+		ArchiveRoot:   filepath.Join(root, "missing_archive_root"),
+		OutputDir:     annOut,
+		MaxLines:      100,
+	}
+	annRunner := g10announcements.Runner{Config: annCfg, CheckpointPath: filepath.Join(annOut, "cp.json")}
+	annResult, err := annRunner.Run(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !annResult.Tape.Incomplete {
+		t.Fatal("missing archives must fail closed")
+	}
+	out := filepath.Join(root, "exclusion_failclosed")
+	cfg := RunConfig{
+		SchemaVersion: SchemaVersionConfig,
+		HistoryRoot: root, OutputDir: out, MapDirs: []string{mapDir}, AnnouncementDir: annOut,
+		MaxFiles: 10, MaxLines: 2000, CandidateLimit: 32, ProgressEvery: 1,
+		Generation: g10protocolv2.Generation, ProtocolHash: g10protocolv2.RouterProtocolHash,
+		HistoryDataHash: g10protocolv2.HistoryDataHash,
+	}
+	runner := Runner{
+		Config: cfg, Catalog: catalog, CheckpointPath: filepath.Join(out, "cp.json"),
+		CatalogValidator: func(historydata.HistoryCatalog) error { return nil },
+	}
+	result, err := runner.Run(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Summary.FailClosedReason != RejectIncompletePIT {
+		t.Fatalf("fail_closed_reason=%q want %q", result.Summary.FailClosedReason, RejectIncompletePIT)
+	}
+	assertArtifactIntegrity(t, out, result)
+}
+
+func TestCompletedResumeRoundTrip(t *testing.T) {
+	root, catalog, mapDir, annDir := writeSyntheticFixtures(t)
+	out := filepath.Join(root, "exclusion_out")
+	cfg := RunConfig{
+		SchemaVersion: SchemaVersionConfig,
+		HistoryRoot: root, OutputDir: out, MapDirs: []string{mapDir}, AnnouncementDir: annDir,
+		MaxFiles: 10, MaxLines: 2000, CandidateLimit: 32, ProgressEvery: 1,
+		Generation: g10protocolv2.Generation, ProtocolHash: g10protocolv2.RouterProtocolHash,
+		HistoryDataHash: g10protocolv2.HistoryDataHash,
+	}
+	runner := Runner{
+		Config: cfg, Catalog: catalog, CheckpointPath: filepath.Join(out, "cp.json"),
+		CatalogValidator: func(historydata.HistoryCatalog) error { return nil },
+	}
+	first, err := runner.Run(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := runner.Run(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second.Manifest.ManifestHash != first.Manifest.ManifestHash {
+		t.Fatalf("resume manifest hash drift: %s vs %s", second.Manifest.ManifestHash, first.Manifest.ManifestHash)
+	}
+	if second.Summary.ManifestHash != second.Manifest.ManifestHash {
+		t.Fatal("resumed summary must bind final manifest hash")
+	}
+	assertArtifactIntegrity(t, out, second)
+}
+
+func assertArtifactIntegrity(t *testing.T, out string, result RunResult) {
+	t.Helper()
+	if result.Summary.ManifestHash != result.Manifest.ManifestHash {
+		t.Fatalf("summary manifest_hash=%s disk manifest_hash=%s",
+			result.Summary.ManifestHash, result.Manifest.ManifestHash)
+	}
+	if result.Summary.MapHash != result.Map.MapHash {
+		t.Fatal("summary map hash mismatch")
+	}
+	if result.Summary.LedgerHash != result.Ledger.LedgerHash {
+		t.Fatal("summary ledger hash mismatch")
+	}
+	if err := VerifyOutputArtifacts(out, result.Manifest, result.Summary); err != nil {
+		t.Fatal(err)
+	}
+	diskManifest, err := LoadManifest(filepath.Join(out, ManifestFileName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diskManifest.ManifestHash != result.Manifest.ManifestHash {
+		t.Fatalf("disk manifest hash=%s result manifest hash=%s",
+			diskManifest.ManifestHash, result.Manifest.ManifestHash)
+	}
+	rawSummary, err := os.ReadFile(filepath.Join(out, SummaryFileName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var diskSummary RunSummary
+	if err := json.Unmarshal(rawSummary, &diskSummary); err != nil {
+		t.Fatal(err)
+	}
+	if diskSummary.ManifestHash != diskManifest.ManifestHash {
+		t.Fatalf("disk summary manifest_hash=%s disk manifest_hash=%s",
+			diskSummary.ManifestHash, diskManifest.ManifestHash)
+	}
 }
 
 func baseMetricContext(t *testing.T) MetricContext {
@@ -333,7 +473,12 @@ func writeSyntheticFixtures(t *testing.T) (root string, catalog historydata.Hist
 	annCfg := g10announcements.RunConfig{
 		SchemaVersion: g10announcements.ConfigSchema, Generation: g10announcements.Generation,
 		ArchiveRoot: annRoot, OutputDir: annDir,
-		Sources: g10announcements.SourcePaths{OKX: filepath.Join(annRoot, "multi_venue.jsonl")},
+		Sources: g10announcements.SourcePaths{
+			OKX:     filepath.Join(annRoot, "multi_venue.jsonl"),
+			Binance: filepath.Join(annRoot, "multi_venue.jsonl"),
+			Bybit:   filepath.Join(annRoot, "multi_venue.jsonl"),
+			Gate:    filepath.Join(annRoot, "multi_venue.jsonl"),
+		},
 		MaxLines: 100,
 	}
 	annRunner := g10announcements.Runner{Config: annCfg, CheckpointPath: filepath.Join(annDir, "cp.json")}

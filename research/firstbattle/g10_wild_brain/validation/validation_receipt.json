@@ -1,0 +1,34 @@
+{
+  "schema_version": "lingxi.router-g10-validation.receipt.v1",
+  "generation": "firstbattle-router-g10",
+  "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+  "history_data_hash": "f41ed2586d91054c4b5b2e15e60f32a4d64ccde0032e76dfdc5fc6dee316379c",
+  "playbook_manifest_hash": "ef82da8421a9c6eb02b9854eebaf47673e94365918a058b610077d35064ce0c5",
+  "playbook_hash": "8ceae12715dc9cc885fcaf77c230b7c44dc3becfe3644372ad1f276bd2d8a8f0",
+  "experiment_hash": "a471569db03b5667815a944506a935cac8c5f2b74371a434807cd2c306995d19",
+  "map_manifest_hashes": {
+    "okx_1h": "a260c9a257358c4a44a8826f8ec823321e788f99ea4bc20e22efeddde07449ac",
+    "okx_5m": "6ae9240f355c08b6fd16c35e352f552dcce9f9bbfac121958e966381d877156e"
+  },
+  "map_artifact_hashes": {
+    "okx_1h/residual_map_discovery_okx_1h.json": "ab3540c56b078eb61ae380a53a5cf9dc6fdb6e7d594e36245ecd4cbc6fc5f496",
+    "okx_1h/residual_map_thresholds.json": "71b32e28122836fb991c10f60865d95facaedad3af5f1560e419244b56044c29",
+    "okx_5m/residual_map_discovery_okx_5m.json": "4501ff8adc9159366d589ee662549ec886992d12f1b14182723f1d51e107abf1",
+    "okx_5m/residual_map_thresholds.json": "06f10f73a41aa2d130655de3404421e1cb9616d5922f234e90ac52ec1ad319db"
+  },
+  "catalog_hash": "f41ed2586d91054c4b5b2e15e60f32a4d64ccde0032e76dfdc5fc6dee316379c",
+  "config_hash": "150847b0e8f70a308ed57e65c481e7edec161537956b75bc6bb28ec464e83a8b",
+  "report_hash": "13703d334a9092eca81db52c17371c8a2377c2646b5b42e50e91e0c7959a8006",
+  "survivors_hash": "a1b07559b108743f79fa20dc7c106f46574ff8f4ef53ce1325cb78a8de9b5dc8",
+  "discovery_screen_family": "registered_playbooks_plus_ledger_attempts",
+  "discovery_screen_family_size": 44,
+  "canonical_data_hashes": {
+    "catalog_hash": "f41ed2586d91054c4b5b2e15e60f32a4d64ccde0032e76dfdc5fc6dee316379c",
+    "experiment_hash": "a471569db03b5667815a944506a935cac8c5f2b74371a434807cd2c306995d19",
+    "playbook_hash": "8ceae12715dc9cc885fcaf77c230b7c44dc3becfe3644372ad1f276bd2d8a8f0",
+    "playbook_manifest_hash": "ef82da8421a9c6eb02b9854eebaf47673e94365918a058b610077d35064ce0c5"
+  },
+  "exam_actions": 0,
+  "created_at": "2026-07-13T07:10:52.254205252Z",
+  "receipt_hash": "eeb2d22b92506ba925ee74713147096750f72adcf7ad10837b22b9a47ccf3e06"
+}

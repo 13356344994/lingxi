@@ -1,0 +1,11 @@
+{
+  "profile_id": "okx_5m",
+  "frozen_at": "2026-07-13T05:58:59.953861346Z",
+  "extreme_return_abs_bps": 51.85185185185293,
+  "extreme_rms_bps": 28.149190710766714,
+  "low_liquidity_quote": 7860.841144947917,
+  "volume_spike_quote": 82885.34096180554,
+  "btc_relative_abs_bps": 45.32283823027537,
+  "btc_shock_return_abs_bps": 19.94833524684214,
+  "discovery_sample_count": 1822904
+}

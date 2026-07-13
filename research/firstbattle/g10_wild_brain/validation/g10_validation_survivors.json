@@ -1,0 +1,10 @@
+{
+  "schema_version": "lingxi.router-g10-validation.survivors.v1",
+  "generation": "firstbattle-router-g10",
+  "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+  "playbook_manifest_hash": "ef82da8421a9c6eb02b9854eebaf47673e94365918a058b610077d35064ce0c5",
+  "report_hash": "13703d334a9092eca81db52c17371c8a2377c2646b5b42e50e91e0c7959a8006",
+  "survivors": [],
+  "survivors_hash": "a1b07559b108743f79fa20dc7c106f46574ff8f4ef53ce1325cb78a8de9b5dc8",
+  "exam_actions": 0
+}

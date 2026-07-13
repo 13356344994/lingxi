@@ -98,9 +98,7 @@ func TestRunnerLookaheadFixture(t *testing.T) {
 		Generation:    Generation,
 		ArchiveRoot:   root,
 		OutputDir:     out,
-		Sources: SourcePaths{
-			OKX: filepath.Join(root, "lookahead.jsonl"),
-		},
+		Sources:       allVenueSources(root, "lookahead.jsonl"),
 		MaxLines: 100,
 	}
 	runner := Runner{Config: cfg, CheckpointPath: cp}

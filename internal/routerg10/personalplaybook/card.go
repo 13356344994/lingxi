@@ -30,6 +30,8 @@ var ForbiddenTriggerFields = []string{
 	"shock_cluster",
 	"max_capacity_usdt",
 	"absolute_profit_usdt",
+	"personal_tape_family",
+	"horizon",
 }
 
 // KnownPublicTriggerFields are allowed feature-only predicates.
@@ -44,8 +46,6 @@ var KnownPublicTriggerFields = []string{
 	"custody_authorization_limit",
 	"event_sparsity",
 	"dynamic_threshold_shift",
-	"personal_tape_family",
-	"horizon",
 }
 
 // KnownPublicTriggerOps are allowed comparison operators.

@@ -1,0 +1,44 @@
+{
+  "schema_version": "lingxi.router-g10-playbooks.summary.v1",
+  "generation": "firstbattle-router-g10",
+  "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+  "discovery_mode": "outcome_first_reverse_from_personal_residual_winners",
+  "profile_ids": [
+    "okx_1h"
+  ],
+  "winner_seed_count": 101,
+  "attempt_count": 44,
+  "actual_playbook_count": 31,
+  "playbook_limit": 64,
+  "coverage_by_family": {
+    "btc_relative_dislocation": 11,
+    "ohlcv_extreme_continuation": 13,
+    "ohlcv_extreme_reversal": 7
+  },
+  "coverage_by_horizon": {
+    "1h": 10,
+    "24h": 11,
+    "4h": 10
+  },
+  "coverage_by_profile": {
+    "okx_1h": 31
+  },
+  "ledger_status_counts": {
+    "duplicate": 0,
+    "invalid": 0,
+    "personal_wild_candidate": 31,
+    "skipped_dedup": 9,
+    "skipped_nonoverlap": 4
+  },
+  "playbook_hash": "8ceae12715dc9cc885fcaf77c230b7c44dc3becfe3644372ad1f276bd2d8a8f0",
+  "experiment_hash": "a471569db03b5667815a944506a935cac8c5f2b74371a434807cd2c306995d19",
+  "coverage_hash": "d5c52a2590952ce5e9dbebda824d2fd369b3fe378a040a7be3b046ddd9fe9ff9",
+  "manifest_hash": "ef82da8421a9c6eb02b9854eebaf47673e94365918a058b610077d35064ce0c5",
+  "round_robin_dimensions": [
+    "event_family",
+    "horizon",
+    "profile_id",
+    "shock_cluster"
+  ],
+  "exam_actions": 0
+}

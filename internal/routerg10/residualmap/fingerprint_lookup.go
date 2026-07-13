@@ -15,36 +15,24 @@ func LookupPersonalAdjustments(fp fingerprint.PersonalExecutionFingerprint, symb
 	}
 	sym := normalizeSymbol(symbol)
 	dir := strings.ToLower(direction)
-	var best *fingerprint.ExecutionCell
-	for i := range fp.Cells {
-		c := &fp.Cells[i]
-		if normalizeSymbol(c.Symbol) != sym {
-			continue
-		}
-		if c.Direction != "" && c.Direction != dir && c.Direction != "unknown" {
-			continue
-		}
-		if best == nil || c.SampleCount > best.SampleCount {
-			best = c
-		}
-	}
-	if fingerprint.FingerprintCriticalUnknown(fp, best) {
+	resolved, ok := fingerprint.ResolveCriticalCell(fp, sym, dir)
+	if !ok || fingerprint.FingerprintCriticalUnknown(fp, &resolved) {
 		adj.CriticalUnknown = true
 		return adj
 	}
-	if best.FeeBPS.Status == fingerprint.StatusAvailable && best.FeeBPS.P90 > 0 {
-		adj.FeeDeltaBPS = best.FeeBPS.P90
+	if resolved.FeeBPS.Status == fingerprint.StatusAvailable && resolved.FeeBPS.P90 > 0 {
+		adj.FeeDeltaBPS = resolved.FeeBPS.P90
 	}
-	if best.EntrySlipBPS.Status == fingerprint.StatusAvailable && best.ExitSlipBPS.Status == fingerprint.StatusAvailable {
-		adj.SlipDeltaBPS = best.EntrySlipBPS.P90 + best.ExitSlipBPS.P90
+	if resolved.EntrySlipBPS.Status == fingerprint.StatusAvailable && resolved.ExitSlipBPS.Status == fingerprint.StatusAvailable {
+		adj.SlipDeltaBPS = resolved.EntrySlipBPS.P90 + resolved.ExitSlipBPS.P90
 	}
-	if best.LatencyMS.Status == fingerprint.StatusAvailable {
-		adj.LatencyP90MS = best.LatencyMS.P90
+	if resolved.LatencyMS.Status == fingerprint.StatusAvailable {
+		adj.LatencyP90MS = resolved.LatencyMS.P90
 	}
-	if best.MakerWaitMS.Status == fingerprint.StatusAvailable {
-		adj.MakerWaitP90MS = best.MakerWaitMS.P90
+	if resolved.MakerWaitMS.Status == fingerprint.StatusAvailable {
+		adj.MakerWaitP90MS = resolved.MakerWaitMS.P90
 	}
-	if best.FeeBPS.Status == fingerprint.StatusAvailable && best.FeeBPS.P90 > 20 {
+	if resolved.FeeBPS.Status == fingerprint.StatusAvailable && resolved.FeeBPS.P90 > 20 {
 		adj.CriticalNegative = true
 	}
 	return adj

@@ -1,0 +1,1164 @@
+{
+  "profile_id": "okx_5m",
+  "partition": "walk_forward",
+  "available_primary_files": 200,
+  "selected_primary_files": 200,
+  "selection_truncated": false,
+  "full_market": true,
+  "map_scope": "FULL_MARKET",
+  "cells": {
+    "btc_relative_dislocation|15m|long|0|30": {
+      "key": {
+        "event_family": "btc_relative_dislocation",
+        "horizon": "15m",
+        "direction": "long",
+        "delay_bars": 0,
+        "capital_tier": 30
+      },
+      "stats": {
+        "event_outcome_count": 38455,
+        "worst_conservative_bps": -3041.5198620984793,
+        "gross_bps_mean": -0.8037011590445347,
+        "fee_net_bps_mean": -10.803701159044557,
+        "conservative_net_bps_mean": -66.92062759692898,
+        "gross_positive_rate": 0.4797555584449356,
+        "fee_net_positive_rate": 0.42694057989858275,
+        "conservative_net_positive_rate": 0.1994279027434664,
+        "cost_wipeout_rate": 0.2708620465479131,
+        "capacity_failure_rate": 0,
+        "conservative_p10_bps": -197.53468023706085,
+        "conservative_p50_bps": -48.37423893386726,
+        "conservative_p90_bps": 20.530817688859344
+      }
+    },
+    "btc_relative_dislocation|15m|long|1|30": {
+      "key": {
+        "event_family": "btc_relative_dislocation",
+        "horizon": "15m",
+        "direction": "long",
+        "delay_bars": 1,
+        "capital_tier": 30
+      },
+      "stats": {
+        "event_outcome_count": 34000,
+        "worst_conservative_bps": -1956.7451034915973,
+        "gross_bps_mean": -1.3026326405860422,
+        "fee_net_bps_mean": -11.302632640586015,
+        "conservative_net_bps_mean": -66.70094509703792,
+        "gross_positive_rate": 0.4743823529411765,
+        "fee_net_positive_rate": 0.4176764705882353,
+        "conservative_net_positive_rate": 0.19061764705882353,
+        "cost_wipeout_rate": 0.2726470588235294,
+        "capacity_failure_rate": 0,
+        "conservative_p10_bps": -190.60334615212062,
+        "conservative_p50_bps": -54.45398604113898,
+        "conservative_p90_bps": 50.55100697932402
+      }
+    },
+    "btc_relative_dislocation|15m|long|2|30": {
+      "key": {
+        "event_family": "btc_relative_dislocation",
+        "horizon": "15m",
+        "direction": "long",
+        "delay_bars": 2,
+        "capital_tier": 30
+      },
+      "stats": {
+        "event_outcome_count": 30748,
+        "worst_conservative_bps": -1991.6338954671753,
+        "gross_bps_mean": -0.97752017738563,
+        "fee_net_bps_mean": -10.977520177385655,
+        "conservative_net_bps_mean": -65.94347347226409,
+        "gross_positive_rate": 0.47599843892285676,
+        "fee_net_positive_rate": 0.4184011968258098,
+        "conservative_net_positive_rate": 0.1884350201639131,
+        "cost_wipeout_rate": 0.27709119292311696,
+        "capacity_failure_rate": 0,
+        "conservative_p10_bps": -122.33474337701168,
+        "conservative_p50_bps": -43.480166383835986,
+        "conservative_p90_bps": 42.22026171139137
+      }
+    },
+    "btc_relative_dislocation|15m|long|3|30": {
+      "key": {
+        "event_family": "btc_relative_dislocation",
+        "horizon": "15m",
+        "direction": "long",
+        "delay_bars": 3,
+        "capital_tier": 30
+      },
+      "stats": {
+        "event_outcome_count": 28124,
+        "worst_conservative_bps": -1892.9142458598624,
+        "gross_bps_mean": -0.6293685505488729,
+        "fee_net_bps_mean": -10.629368550548845,
+        "conservative_net_bps_mean": -65.17119912000061,
+        "gross_positive_rate": 0.4821504764613853,
+        "fee_net_positive_rate": 0.4202460531930024,
+        "conservative_net_positive_rate": 0.17941971270089604,
+        "cost_wipeout_rate": 0.2912814677855213,
+        "capacity_failure_rate": 0,
+        "conservative_p10_bps": -176.88198662537684,
+        "conservative_p50_bps": -45.12660522010776,
+        "conservative_p90_bps": 11.795783863765747
+      }
+    },
+    "btc_relative_dislocation|240m|long|0|30": {
+      "key": {
+        "event_family": "btc_relative_dislocation",
+        "horizon": "240m",
+        "direction": "long",
+        "delay_bars": 0,
+        "capital_tier": 30
+      },
+      "stats": {
+        "event_outcome_count": 7804,
+        "worst_conservative_bps": -5302.39712477968,
+        "gross_bps_mean": 0.39200543833647905,
+        "fee_net_bps_mean": -9.607994561663492,
+        "conservative_net_bps_mean": -63.00516105190188,
+        "gross_positive_rate": 0.4725781650435674,
+        "fee_net_positive_rate": 0.4528446950281907,
+        "conservative_net_positive_rate": 0.35763710917478214,
+        "cost_wipeout_rate": 0.11071245515120451,
+        "capacity_failure_rate": 0,
+        "conservative_p10_bps": -339.3737219402136,
+        "conservative_p50_bps": -66.99770402794991,
+        "conservative_p90_bps": 236.73161796000466
+      }
+    },
+    "btc_relative_dislocation|240m|long|1|30": {
+      "key": {
+        "event_family": "btc_relative_dislocation",
+        "horizon": "240m",
+        "direction": "long",
+        "delay_bars": 1,
+        "capital_tier": 30
+      },
+      "stats": {
+        "event_outcome_count": 7698,
+        "worst_conservative_bps": -4991.11711435535,
+        "gross_bps_mean": 0.8708107892937836,
+        "fee_net_bps_mean": -9.129189210706219,
+        "conservative_net_bps_mean": -62.3764956421408,
+        "gross_positive_rate": 0.48077422707196676,
+        "fee_net_positive_rate": 0.45946999220576773,
+        "conservative_net_positive_rate": 0.3590542998181346,
+        "cost_wipeout_rate": 0.11847233047544817,
+        "capacity_failure_rate": 0,
+        "conservative_p10_bps": -518.8297432474449,
+        "conservative_p50_bps": -80.90866602291591,
+        "conservative_p90_bps": 144.85625014203035
+      }
+    },
+    "btc_relative_dislocation|240m|long|2|30": {
+      "key": {
+        "event_family": "btc_relative_dislocation",
+        "horizon": "240m",
+        "direction": "long",
+        "delay_bars": 2,
+        "capital_tier": 30
+      },
+      "stats": {
+        "event_outcome_count": 7595,
+        "worst_conservative_bps": -6160.9948627692265,
+        "gross_bps_mean": -1.0901268337556074,
+        "fee_net_bps_mean": -11.090126833755601,
+        "conservative_net_bps_mean": -64.15037908245365,
+        "gross_positive_rate": 0.47689269256089534,
+        "fee_net_positive_rate": 0.4545095457537854,
+        "conservative_net_positive_rate": 0.3531270572745227,
+        "cost_wipeout_rate": 0.11942067149440422,
+        "capacity_failure_rate": 0,
+        "conservative_p10_bps": -250.83049831300215,
+        "conservative_p50_bps": -80.09416095164207,
+        "conservative_p90_bps": 298.1129856250046
+      }
+    },
+    "btc_relative_dislocation|240m|long|3|30": {
+      "key": {
+        "event_family": "btc_relative_dislocation",
+        "horizon": "240m",
+        "direction": "long",
+        "delay_bars": 3,
+        "capital_tier": 30
+      },
+      "stats": {
+        "event_outcome_count": 7488,
+        "worst_conservative_bps": -5650.456883995783,
+        "gross_bps_mean": -1.4842938146967335,
+        "fee_net_bps_mean": -11.484293814696718,
+        "conservative_net_bps_mean": -64.57717230797194,
+        "gross_positive_rate": 0.47996794871794873,
+        "fee_net_positive_rate": 0.45753205128205127,
+        "conservative_net_positive_rate": 0.35550213675213677,
+        "cost_wipeout_rate": 0.11899038461538461,
+        "capacity_failure_rate": 0,
+        "conservative_p10_bps": -462.6319481672627,
+        "conservative_p50_bps": -66.73155815789397,
+        "conservative_p90_bps": 451.56983816403556
+      }
+    },
+    "btc_relative_dislocation|5m|long|0|30": {
+      "key": {
+        "event_family": "btc_relative_dislocation",
+        "horizon": "5m",
+        "direction": "long",
+        "delay_bars": 0,
+        "capital_tier": 30
+      },
+      "stats": {
+        "event_outcome_count": 54002,
+        "worst_conservative_bps": -2136.462577722352,
+        "gross_bps_mean": 0.15625497601896746,
+        "fee_net_bps_mean": -9.84374502398105,
+        "conservative_net_bps_mean": -68.11037158902829,
+        "gross_positive_rate": 0.485296840857746,
+        "fee_net_positive_rate": 0.40339246694566866,
+        "conservative_net_positive_rate": 0.11086626421243657,
+        "cost_wipeout_rate": 0.35922743602088814,
+        "capacity_failure_rate": 0,
+        "conservative_p10_bps": -149.0569200879002,
+        "conservative_p50_bps": -63.11174971095522,
+        "conservative_p90_bps": 58.68051377038732
+      }
+    },
+    "btc_relative_dislocation|5m|long|1|30": {
+      "key": {
+        "event_family": "btc_relative_dislocation",
+        "horizon": "5m",
+        "direction": "long",
+        "delay_bars": 1,
+        "capital_tier": 30
+      },
+      "stats": {
+        "event_outcome_count": 44500,
+        "worst_conservative_bps": -1159.0918295388901,
+        "gross_bps_mean": -0.4833613865136139,
+        "fee_net_bps_mean": -10.483361386513645,
+        "conservative_net_bps_mean": -67.3792947458164,
+        "gross_positive_rate": 0.4776179775280899,
+        "fee_net_positive_rate": 0.38923595505617975,
+        "conservative_net_positive_rate": 0.09932584269662921,
+        "cost_wipeout_rate": 0.360561797752809,
+        "capacity_failure_rate": 0,
+        "conservative_p10_bps": -162.97291942326166,
+        "conservative_p50_bps": -69.65475838681931,
+        "conservative_p90_bps": -6.901558768151362
+      }
+    },
+    "btc_relative_dislocation|5m|long|2|30": {
+      "key": {
+        "event_family": "btc_relative_dislocation",
+        "horizon": "5m",
+        "direction": "long",
+        "delay_bars": 2,
+        "capital_tier": 30
+      },
+      "stats": {
+        "event_outcome_count": 38455,
+        "worst_conservative_bps": -2136.462577950797,
+        "gross_bps_mean": -0.4448345726548459,
+        "fee_net_bps_mean": -10.444834572654829,
+        "conservative_net_bps_mean": -66.36748202846636,
+        "gross_positive_rate": 0.47647900143024313,
+        "fee_net_positive_rate": 0.3818229098946821,
+        "conservative_net_positive_rate": 0.09338187491873619,
+        "cost_wipeout_rate": 0.36434793914965546,
+        "capacity_failure_rate": 0,
+        "conservative_p10_bps": -128.3396884532362,
+        "conservative_p50_bps": -77.16968216285446,
+        "conservative_p90_bps": -20.18294701503359
+      }
+    },
+    "btc_relative_dislocation|5m|long|3|30": {
+      "key": {
+        "event_family": "btc_relative_dislocation",
+        "horizon": "5m",
+        "direction": "long",
+        "delay_bars": 3,
+        "capital_tier": 30
+      },
+      "stats": {
+        "event_outcome_count": 34000,
+        "worst_conservative_bps": -1478.5745583461685,
+        "gross_bps_mean": -0.9171481266898192,
+        "fee_net_bps_mean": -10.917148126689785,
+        "conservative_net_bps_mean": -66.14228513384641,
+        "gross_positive_rate": 0.47041176470588236,
+        "fee_net_positive_rate": 0.37176470588235294,
+        "conservative_net_positive_rate": 0.09344117647058824,
+        "cost_wipeout_rate": 0.3568823529411765,
+        "capacity_failure_rate": 0,
+        "conservative_p10_bps": -157.82907205541593,
+        "conservative_p50_bps": -67.06230322152123,
+        "conservative_p90_bps": -8.523359024583254
+      }
+    },
+    "btc_relative_dislocation|60m|long|0|30": {
+      "key": {
+        "event_family": "btc_relative_dislocation",
+        "horizon": "60m",
+        "direction": "long",
+        "delay_bars": 0,
+        "capital_tier": 30
+      },
+      "stats": {
+        "event_outcome_count": 19349,
+        "worst_conservative_bps": -3303.512540865494,
+        "gross_bps_mean": -1.6019917347220733,
+        "fee_net_bps_mean": -11.601991734722084,
+        "conservative_net_bps_mean": -65.18542219219563,
+        "gross_positive_rate": 0.4725308801488449,
+        "fee_net_positive_rate": 0.4403845159956587,
+        "conservative_net_positive_rate": 0.2934001757196754,
+        "cost_wipeout_rate": 0.17246369321411958,
+        "capacity_failure_rate": 0,
+        "conservative_p10_bps": -280.57797409860393,
+        "conservative_p50_bps": -111.94053826252458,
+        "conservative_p90_bps": 25.857302862782063
+      }
+    },
+    "btc_relative_dislocation|60m|long|1|30": {
+      "key": {
+        "event_family": "btc_relative_dislocation",
+        "horizon": "60m",
+        "direction": "long",
+        "delay_bars": 1,
+        "capital_tier": 30
+      },
+      "stats": {
+        "event_outcome_count": 18461,
+        "worst_conservative_bps": -3728.2012389009233,
+        "gross_bps_mean": -1.6560013051069193,
+        "fee_net_bps_mean": -11.656001305106926,
+        "conservative_net_bps_mean": -64.93967023234742,
+        "gross_positive_rate": 0.47120957694599425,
+        "fee_net_positive_rate": 0.4366502356318726,
+        "conservative_net_positive_rate": 0.28785006229348353,
+        "cost_wipeout_rate": 0.17626347435133524,
+        "capacity_failure_rate": 0,
+        "conservative_p10_bps": -138.505555347773,
+        "conservative_p50_bps": -44.48304120425498,
+        "conservative_p90_bps": 77.74717404902252
+      }
+    },
+    "btc_relative_dislocation|60m|long|2|30": {
+      "key": {
+        "event_family": "btc_relative_dislocation",
+        "horizon": "60m",
+        "direction": "long",
+        "delay_bars": 2,
+        "capital_tier": 30
+      },
+      "stats": {
+        "event_outcome_count": 17646,
+        "worst_conservative_bps": -3348.838025393641,
+        "gross_bps_mean": -1.4807853116611593,
+        "fee_net_bps_mean": -11.480785311661153,
+        "conservative_net_bps_mean": -64.90194941540057,
+        "gross_positive_rate": 0.47676527258302165,
+        "fee_net_positive_rate": 0.43992972911708034,
+        "conservative_net_positive_rate": 0.28896067097359174,
+        "cost_wipeout_rate": 0.180550833049983,
+        "capacity_failure_rate": 0,
+        "conservative_p10_bps": -215.18289498985925,
+        "conservative_p50_bps": -110.17679417868688,
+        "conservative_p90_bps": 33.03559884334203
+      }
+    },
+    "btc_relative_dislocation|60m|long|3|30": {
+      "key": {
+        "event_family": "btc_relative_dislocation",
+        "horizon": "60m",
+        "direction": "long",
+        "delay_bars": 3,
+        "capital_tier": 30
+      },
+      "stats": {
+        "event_outcome_count": 16912,
+        "worst_conservative_bps": -3082.6198511432235,
+        "gross_bps_mean": -2.698800990806011,
+        "fee_net_bps_mean": -12.69880099080604,
+        "conservative_net_bps_mean": -65.98307638772782,
+        "gross_positive_rate": 0.47557947019867547,
+        "fee_net_positive_rate": 0.4414616840113529,
+        "conservative_net_positive_rate": 0.28707426679280984,
+        "cost_wipeout_rate": 0.1809957426679281,
+        "capacity_failure_rate": 0,
+        "conservative_p10_bps": -265.815053996273,
+        "conservative_p50_bps": -48.90983823250599,
+        "conservative_p90_bps": 47.4785781654076
+      }
+    },
+    "ohlcv_extreme_continuation|15m|long|0|30": {
+      "key": {
+        "event_family": "ohlcv_extreme_continuation",
+        "horizon": "15m",
+        "direction": "long",
+        "delay_bars": 0,
+        "capital_tier": 30
+      },
+      "stats": {
+        "event_outcome_count": 22622,
+        "worst_conservative_bps": -1678.8905762606812,
+        "gross_bps_mean": -0.22063400187060092,
+        "fee_net_bps_mean": -10.220634001870657,
+        "conservative_net_bps_mean": -72.53139166825014,
+        "gross_positive_rate": 0.4862523207497127,
+        "fee_net_positive_rate": 0.43767129343117317,
+        "conservative_net_positive_rate": 0.19750685173724694,
+        "cost_wipeout_rate": 0.28039077004685703,
+        "capacity_failure_rate": 0,
+        "conservative_p10_bps": -255.06595117265329,
+        "conservative_p50_bps": -75.8135523916155,
+        "conservative_p90_bps": 0.5992283558027225
+      }
+    },
+    "ohlcv_extreme_continuation|15m|long|1|30": {
+      "key": {
+        "event_family": "ohlcv_extreme_continuation",
+        "horizon": "15m",
+        "direction": "long",
+        "delay_bars": 1,
+        "capital_tier": 30
+      },
+      "stats": {
+        "event_outcome_count": 20853,
+        "worst_conservative_bps": -1956.7451034915973,
+        "gross_bps_mean": -1.5517390106044382,
+        "fee_net_bps_mean": -11.551739010604402,
+        "conservative_net_bps_mean": -73.32352118175726,
+        "gross_positive_rate": 0.47901980530379323,
+        "fee_net_positive_rate": 0.42828370018702344,
+        "conservative_net_positive_rate": 0.1870714045940632,
+        "cost_wipeout_rate": 0.2828849566009687,
+        "capacity_failure_rate": 0,
+        "conservative_p10_bps": -215.51071103592034,
+        "conservative_p50_bps": -78.55089594543756,
+        "conservative_p90_bps": 25.22314876581758
+      }
+    },
+    "ohlcv_extreme_continuation|15m|long|2|30": {
+      "key": {
+        "event_family": "ohlcv_extreme_continuation",
+        "horizon": "15m",
+        "direction": "long",
+        "delay_bars": 2,
+        "capital_tier": 30
+      },
+      "stats": {
+        "event_outcome_count": 19404,
+        "worst_conservative_bps": -1956.7451041591337,
+        "gross_bps_mean": -0.3687814392315365,
+        "fee_net_bps_mean": -10.368781439231492,
+        "conservative_net_bps_mean": -71.74555240530302,
+        "gross_positive_rate": 0.48577612863327146,
+        "fee_net_positive_rate": 0.43434343434343436,
+        "conservative_net_positive_rate": 0.1863017934446506,
+        "cost_wipeout_rate": 0.2898371469800041,
+        "capacity_failure_rate": 0,
+        "conservative_p10_bps": -195.77661536766806,
+        "conservative_p50_bps": -74.7457844201299,
+        "conservative_p90_bps": 18.09304985188792
+      }
+    },
+    "ohlcv_extreme_continuation|15m|long|3|30": {
+      "key": {
+        "event_family": "ohlcv_extreme_continuation",
+        "horizon": "15m",
+        "direction": "long",
+        "delay_bars": 3,
+        "capital_tier": 30
+      },
+      "stats": {
+        "event_outcome_count": 18197,
+        "worst_conservative_bps": -3041.519858985712,
+        "gross_bps_mean": -0.691096303235734,
+        "fee_net_bps_mean": -10.691096303235796,
+        "conservative_net_bps_mean": -71.62640561066465,
+        "gross_positive_rate": 0.4894762873001044,
+        "fee_net_positive_rate": 0.4356212562510304,
+        "conservative_net_positive_rate": 0.17926031763477496,
+        "cost_wipeout_rate": 0.3008188162883992,
+        "capacity_failure_rate": 0,
+        "conservative_p10_bps": -208.0787762419416,
+        "conservative_p50_bps": -68.41546726981524,
+        "conservative_p90_bps": 8.872796386937505
+      }
+    },
+    "ohlcv_extreme_continuation|240m|long|0|30": {
+      "key": {
+        "event_family": "ohlcv_extreme_continuation",
+        "horizon": "240m",
+        "direction": "long",
+        "delay_bars": 0,
+        "capital_tier": 30
+      },
+      "stats": {
+        "event_outcome_count": 6524,
+        "worst_conservative_bps": -4921.493656568841,
+        "gross_bps_mean": 4.469453982254516,
+        "fee_net_bps_mean": -5.5305460177454835,
+        "conservative_net_bps_mean": -66.15208294548097,
+        "gross_positive_rate": 0.4823727774371551,
+        "fee_net_positive_rate": 0.46658491722869405,
+        "conservative_net_positive_rate": 0.3645003065603924,
+        "cost_wipeout_rate": 0.11511342734518701,
+        "capacity_failure_rate": 0,
+        "conservative_p10_bps": -350.02425917939587,
+        "conservative_p50_bps": -72.8459971119857,
+        "conservative_p90_bps": 184.66389978557405
+      }
+    },
+    "ohlcv_extreme_continuation|240m|long|1|30": {
+      "key": {
+        "event_family": "ohlcv_extreme_continuation",
+        "horizon": "240m",
+        "direction": "long",
+        "delay_bars": 1,
+        "capital_tier": 30
+      },
+      "stats": {
+        "event_outcome_count": 6452,
+        "worst_conservative_bps": -5650.456882575425,
+        "gross_bps_mean": 4.556510448312456,
+        "fee_net_bps_mean": -5.443489551687546,
+        "conservative_net_bps_mean": -66.01096018328805,
+        "gross_positive_rate": 0.48636081835089895,
+        "fee_net_positive_rate": 0.467606943583385,
+        "conservative_net_positive_rate": 0.356478611283323,
+        "cost_wipeout_rate": 0.12786732796032238,
+        "capacity_failure_rate": 0,
+        "conservative_p10_bps": -470.0522241904578,
+        "conservative_p50_bps": -172.01794377161872,
+        "conservative_p90_bps": 72.1820258459332
+      }
+    },
+    "ohlcv_extreme_continuation|240m|long|2|30": {
+      "key": {
+        "event_family": "ohlcv_extreme_continuation",
+        "horizon": "240m",
+        "direction": "long",
+        "delay_bars": 2,
+        "capital_tier": 30
+      },
+      "stats": {
+        "event_outcome_count": 6381,
+        "worst_conservative_bps": -5461.799029220754,
+        "gross_bps_mean": 2.379948348178228,
+        "fee_net_bps_mean": -7.620051651821769,
+        "conservative_net_bps_mean": -68.06638723376575,
+        "gross_positive_rate": 0.4745337721360288,
+        "fee_net_positive_rate": 0.4552577965836076,
+        "conservative_net_positive_rate": 0.3549600376116596,
+        "cost_wipeout_rate": 0.11659614480488951,
+        "capacity_failure_rate": 0,
+        "conservative_p10_bps": -247.54129256920825,
+        "conservative_p50_bps": -77.45179569454075,
+        "conservative_p90_bps": 260.2831960382843
+      }
+    },
+    "ohlcv_extreme_continuation|240m|long|3|30": {
+      "key": {
+        "event_family": "ohlcv_extreme_continuation",
+        "horizon": "240m",
+        "direction": "long",
+        "delay_bars": 3,
+        "capital_tier": 30
+      },
+      "stats": {
+        "event_outcome_count": 6285,
+        "worst_conservative_bps": -4524.642549715251,
+        "gross_bps_mean": 2.9293275622060695,
+        "fee_net_bps_mean": -7.070672437793938,
+        "conservative_net_bps_mean": -67.62018691940409,
+        "gross_positive_rate": 0.47955449482895784,
+        "fee_net_positive_rate": 0.4606205250596659,
+        "conservative_net_positive_rate": 0.35274463007159906,
+        "cost_wipeout_rate": 0.1239459029435163,
+        "capacity_failure_rate": 0,
+        "conservative_p10_bps": -179.75639668832227,
+        "conservative_p50_bps": -15.631805265551325,
+        "conservative_p90_bps": 215.29570433638997
+      }
+    },
+    "ohlcv_extreme_continuation|5m|long|0|30": {
+      "key": {
+        "event_family": "ohlcv_extreme_continuation",
+        "horizon": "5m",
+        "direction": "long",
+        "delay_bars": 0,
+        "capital_tier": 30
+      },
+      "stats": {
+        "event_outcome_count": 27625,
+        "worst_conservative_bps": -1529.5922198291314,
+        "gross_bps_mean": 0.6512999124247408,
+        "fee_net_bps_mean": -9.348700087575274,
+        "conservative_net_bps_mean": -72.94363620817126,
+        "gross_positive_rate": 0.495131221719457,
+        "fee_net_positive_rate": 0.41933031674208143,
+        "conservative_net_positive_rate": 0.1080180995475113,
+        "cost_wipeout_rate": 0.37223529411764705,
+        "capacity_failure_rate": 0,
+        "conservative_p10_bps": -176.17993866597013,
+        "conservative_p50_bps": -71.34489787724937,
+        "conservative_p90_bps": 6.7280254253951135
+      }
+    },
+    "ohlcv_extreme_continuation|5m|long|1|30": {
+      "key": {
+        "event_family": "ohlcv_extreme_continuation",
+        "horizon": "5m",
+        "direction": "long",
+        "delay_bars": 1,
+        "capital_tier": 30
+      },
+      "stats": {
+        "event_outcome_count": 24783,
+        "worst_conservative_bps": -1269.9343179051048,
+        "gross_bps_mean": -0.4750261148503513,
+        "fee_net_bps_mean": -10.475026114850369,
+        "conservative_net_bps_mean": -73.20931005126846,
+        "gross_positive_rate": 0.47597143203002057,
+        "fee_net_positive_rate": 0.3945849977807368,
+        "conservative_net_positive_rate": 0.09591252067949804,
+        "cost_wipeout_rate": 0.36464511963846186,
+        "capacity_failure_rate": 0,
+        "conservative_p10_bps": -192.22014458635067,
+        "conservative_p50_bps": -77.48694785879411,
+        "conservative_p90_bps": 2.593231084286396
+      }
+    },
+    "ohlcv_extreme_continuation|5m|long|2|30": {
+      "key": {
+        "event_family": "ohlcv_extreme_continuation",
+        "horizon": "5m",
+        "direction": "long",
+        "delay_bars": 2,
+        "capital_tier": 30
+      },
+      "stats": {
+        "event_outcome_count": 22622,
+        "worst_conservative_bps": -1524.0352212569805,
+        "gross_bps_mean": -0.5186383975213069,
+        "fee_net_bps_mean": -10.518638397521286,
+        "conservative_net_bps_mean": -72.61254401864849,
+        "gross_positive_rate": 0.48121297851648837,
+        "fee_net_positive_rate": 0.396251436654584,
+        "conservative_net_positive_rate": 0.08911678896649279,
+        "cost_wipeout_rate": 0.3770665723631863,
+        "capacity_failure_rate": 0,
+        "conservative_p10_bps": -150.23974171502678,
+        "conservative_p50_bps": -66.12880756344441,
+        "conservative_p90_bps": -15.379276270940755
+      }
+    },
+    "ohlcv_extreme_continuation|5m|long|3|30": {
+      "key": {
+        "event_family": "ohlcv_extreme_continuation",
+        "horizon": "5m",
+        "direction": "long",
+        "delay_bars": 3,
+        "capital_tier": 30
+      },
+      "stats": {
+        "event_outcome_count": 20853,
+        "worst_conservative_bps": -1522.2628132942712,
+        "gross_bps_mean": -0.5457899055769265,
+        "fee_net_bps_mean": -10.545789905576905,
+        "conservative_net_bps_mean": -72.12231461092341,
+        "gross_positive_rate": 0.484870282453364,
+        "fee_net_positive_rate": 0.3942837960964849,
+        "conservative_net_positive_rate": 0.08876420658898,
+        "cost_wipeout_rate": 0.3790341917230135,
+        "capacity_failure_rate": 0,
+        "conservative_p10_bps": -113.74451881882987,
+        "conservative_p50_bps": -47.77232179048145,
+        "conservative_p90_bps": 5.098471888116027
+      }
+    },
+    "ohlcv_extreme_continuation|60m|long|0|30": {
+      "key": {
+        "event_family": "ohlcv_extreme_continuation",
+        "horizon": "60m",
+        "direction": "long",
+        "delay_bars": 0,
+        "capital_tier": 30
+      },
+      "stats": {
+        "event_outcome_count": 13769,
+        "worst_conservative_bps": -3043.1227963734264,
+        "gross_bps_mean": -1.0977579274075437,
+        "fee_net_bps_mean": -11.097757927407523,
+        "conservative_net_bps_mean": -71.39446102035002,
+        "gross_positive_rate": 0.4766504466555305,
+        "fee_net_positive_rate": 0.44919747258333936,
+        "conservative_net_positive_rate": 0.2998039073280558,
+        "cost_wipeout_rate": 0.17096375916914808,
+        "capacity_failure_rate": 0,
+        "conservative_p10_bps": -288.6167593997386,
+        "conservative_p50_bps": -89.13969388866667,
+        "conservative_p90_bps": 55.38726287081875
+      }
+    },
+    "ohlcv_extreme_continuation|60m|long|1|30": {
+      "key": {
+        "event_family": "ohlcv_extreme_continuation",
+        "horizon": "60m",
+        "direction": "long",
+        "delay_bars": 1,
+        "capital_tier": 30
+      },
+      "stats": {
+        "event_outcome_count": 13283,
+        "worst_conservative_bps": -3303.512540996701,
+        "gross_bps_mean": -0.9396682712149909,
+        "fee_net_bps_mean": -10.939668271215044,
+        "conservative_net_bps_mean": -71.18681047547278,
+        "gross_positive_rate": 0.4757961303922307,
+        "fee_net_positive_rate": 0.4467364300233381,
+        "conservative_net_positive_rate": 0.2877362041707446,
+        "cost_wipeout_rate": 0.1829406007678988,
+        "capacity_failure_rate": 0,
+        "conservative_p10_bps": -178.59380481534293,
+        "conservative_p50_bps": -63.26496155457152,
+        "conservative_p90_bps": 87.9400773424218
+      }
+    },
+    "ohlcv_extreme_continuation|60m|long|2|30": {
+      "key": {
+        "event_family": "ohlcv_extreme_continuation",
+        "horizon": "60m",
+        "direction": "long",
+        "delay_bars": 2,
+        "capital_tier": 30
+      },
+      "stats": {
+        "event_outcome_count": 12820,
+        "worst_conservative_bps": -3934.607525911319,
+        "gross_bps_mean": -2.5481285983822075,
+        "fee_net_bps_mean": -12.548128598382252,
+        "conservative_net_bps_mean": -72.48510725900057,
+        "gross_positive_rate": 0.4745709828393136,
+        "fee_net_positive_rate": 0.44336973478939157,
+        "conservative_net_positive_rate": 0.2853354134165367,
+        "cost_wipeout_rate": 0.1842433697347894,
+        "capacity_failure_rate": 0,
+        "conservative_p10_bps": -384.7704552322911,
+        "conservative_p50_bps": -68.17599088525836,
+        "conservative_p90_bps": 161.89174755671945
+      }
+    },
+    "ohlcv_extreme_continuation|60m|long|3|30": {
+      "key": {
+        "event_family": "ohlcv_extreme_continuation",
+        "horizon": "60m",
+        "direction": "long",
+        "delay_bars": 3,
+        "capital_tier": 30
+      },
+      "stats": {
+        "event_outcome_count": 12381,
+        "worst_conservative_bps": -3283.3411315399467,
+        "gross_bps_mean": -3.663460817127576,
+        "fee_net_bps_mean": -13.66346081712768,
+        "conservative_net_bps_mean": -73.57879118936022,
+        "gross_positive_rate": 0.473952023261449,
+        "fee_net_positive_rate": 0.44689443502140375,
+        "conservative_net_positive_rate": 0.2820450690574267,
+        "cost_wipeout_rate": 0.18706081899685,
+        "capacity_failure_rate": 0,
+        "conservative_p10_bps": -264.3796055161251,
+        "conservative_p50_bps": -59.38819775215275,
+        "conservative_p90_bps": 144.95786131767053
+      }
+    },
+    "ohlcv_extreme_reversal|15m|long|0|30": {
+      "key": {
+        "event_family": "ohlcv_extreme_reversal",
+        "horizon": "15m",
+        "direction": "long",
+        "delay_bars": 0,
+        "capital_tier": 30
+      },
+      "stats": {
+        "event_outcome_count": 22600,
+        "worst_conservative_bps": -2233.1412831667626,
+        "gross_bps_mean": -1.0864228829071498,
+        "fee_net_bps_mean": -11.086422882907126,
+        "conservative_net_bps_mean": -71.5446017923453,
+        "gross_positive_rate": 0.479070796460177,
+        "fee_net_positive_rate": 0.43287610619469025,
+        "conservative_net_positive_rate": 0.2011504424778761,
+        "cost_wipeout_rate": 0.2697787610619469,
+        "capacity_failure_rate": 0,
+        "conservative_p10_bps": -134.8528347426348,
+        "conservative_p50_bps": -68.95611796615385,
+        "conservative_p90_bps": 38.38818630291749
+      }
+    },
+    "ohlcv_extreme_reversal|15m|long|1|30": {
+      "key": {
+        "event_family": "ohlcv_extreme_reversal",
+        "horizon": "15m",
+        "direction": "long",
+        "delay_bars": 1,
+        "capital_tier": 30
+      },
+      "stats": {
+        "event_outcome_count": 20832,
+        "worst_conservative_bps": -1892.9142447795782,
+        "gross_bps_mean": -0.6179605588584675,
+        "fee_net_bps_mean": -10.617960558858487,
+        "conservative_net_bps_mean": -70.46718832297792,
+        "gross_positive_rate": 0.4847830261136713,
+        "fee_net_positive_rate": 0.43221966205837176,
+        "conservative_net_positive_rate": 0.19834869431643626,
+        "cost_wipeout_rate": 0.2761616743471582,
+        "capacity_failure_rate": 0,
+        "conservative_p10_bps": -158.88920510876068,
+        "conservative_p50_bps": -68.42057075281693,
+        "conservative_p90_bps": 38.10439124828627
+      }
+    },
+    "ohlcv_extreme_reversal|15m|long|2|30": {
+      "key": {
+        "event_family": "ohlcv_extreme_reversal",
+        "horizon": "15m",
+        "direction": "long",
+        "delay_bars": 2,
+        "capital_tier": 30
+      },
+      "stats": {
+        "event_outcome_count": 19401,
+        "worst_conservative_bps": -2076.1336347263314,
+        "gross_bps_mean": 0.6937303133946857,
+        "fee_net_bps_mean": -9.306269686605296,
+        "conservative_net_bps_mean": -68.76064105194202,
+        "gross_positive_rate": 0.4883768877892892,
+        "fee_net_positive_rate": 0.4373485902788516,
+        "conservative_net_positive_rate": 0.1974125045100768,
+        "cost_wipeout_rate": 0.28230503582289573,
+        "capacity_failure_rate": 0,
+        "conservative_p10_bps": -171.31227381002896,
+        "conservative_p50_bps": -53.872397407701285,
+        "conservative_p90_bps": 45.229141202744394
+      }
+    },
+    "ohlcv_extreme_reversal|15m|long|3|30": {
+      "key": {
+        "event_family": "ohlcv_extreme_reversal",
+        "horizon": "15m",
+        "direction": "long",
+        "delay_bars": 3,
+        "capital_tier": 30
+      },
+      "stats": {
+        "event_outcome_count": 18159,
+        "worst_conservative_bps": -1956.7451048170842,
+        "gross_bps_mean": -1.2001644417696464,
+        "fee_net_bps_mean": -11.200164441769642,
+        "conservative_net_bps_mean": -70.2971495283146,
+        "gross_positive_rate": 0.48235034968885954,
+        "fee_net_positive_rate": 0.4288231730822182,
+        "conservative_net_positive_rate": 0.18574811388292306,
+        "cost_wipeout_rate": 0.2863593810231841,
+        "capacity_failure_rate": 0,
+        "conservative_p10_bps": -138.88112162624464,
+        "conservative_p50_bps": -55.16062698748679,
+        "conservative_p90_bps": -1.4206434151985148
+      }
+    },
+    "ohlcv_extreme_reversal|240m|long|0|30": {
+      "key": {
+        "event_family": "ohlcv_extreme_reversal",
+        "horizon": "240m",
+        "direction": "long",
+        "delay_bars": 0,
+        "capital_tier": 30
+      },
+      "stats": {
+        "event_outcome_count": 6267,
+        "worst_conservative_bps": -4353.101761989113,
+        "gross_bps_mean": -0.9041165008635129,
+        "fee_net_bps_mean": -10.904116500863521,
+        "conservative_net_bps_mean": -68.60098448695985,
+        "gross_positive_rate": 0.48300622307324076,
+        "fee_net_positive_rate": 0.4665709270783469,
+        "conservative_net_positive_rate": 0.36827828307004945,
+        "cost_wipeout_rate": 0.11281314823679592,
+        "capacity_failure_rate": 0,
+        "conservative_p10_bps": -481.802806686621,
+        "conservative_p50_bps": -96.00772967312002,
+        "conservative_p90_bps": 403.73740261582
+      }
+    },
+    "ohlcv_extreme_reversal|240m|long|1|30": {
+      "key": {
+        "event_family": "ohlcv_extreme_reversal",
+        "horizon": "240m",
+        "direction": "long",
+        "delay_bars": 1,
+        "capital_tier": 30
+      },
+      "stats": {
+        "event_outcome_count": 6196,
+        "worst_conservative_bps": -5302.397125573501,
+        "gross_bps_mean": 3.0838854554803223,
+        "fee_net_bps_mean": -6.916114544519657,
+        "conservative_net_bps_mean": -64.62218220721145,
+        "gross_positive_rate": 0.4946739832149774,
+        "fee_net_positive_rate": 0.4775661717236927,
+        "conservative_net_positive_rate": 0.3749193027759845,
+        "cost_wipeout_rate": 0.11733376371852808,
+        "capacity_failure_rate": 0,
+        "conservative_p10_bps": -350.4454979608275,
+        "conservative_p50_bps": -71.71236485758789,
+        "conservative_p90_bps": 285.02981080123624
+      }
+    },
+    "ohlcv_extreme_reversal|240m|long|2|30": {
+      "key": {
+        "event_family": "ohlcv_extreme_reversal",
+        "horizon": "240m",
+        "direction": "long",
+        "delay_bars": 2,
+        "capital_tier": 30
+      },
+      "stats": {
+        "event_outcome_count": 6122,
+        "worst_conservative_bps": -4742.748039704877,
+        "gross_bps_mean": 2.5850030429078474,
+        "fee_net_bps_mean": -7.414996957092157,
+        "conservative_net_bps_mean": -65.11978051664707,
+        "gross_positive_rate": 0.4926494609604704,
+        "fee_net_positive_rate": 0.4764782750735054,
+        "conservative_net_positive_rate": 0.3686703691604051,
+        "cost_wipeout_rate": 0.12038549493629533,
+        "capacity_failure_rate": 0,
+        "conservative_p10_bps": -423.0548294025598,
+        "conservative_p50_bps": -76.85738607144721,
+        "conservative_p90_bps": 274.60610568304
+      }
+    },
+    "ohlcv_extreme_reversal|240m|long|3|30": {
+      "key": {
+        "event_family": "ohlcv_extreme_reversal",
+        "horizon": "240m",
+        "direction": "long",
+        "delay_bars": 3,
+        "capital_tier": 30
+      },
+      "stats": {
+        "event_outcome_count": 6051,
+        "worst_conservative_bps": -5053.693149306692,
+        "gross_bps_mean": 2.038344017673879,
+        "fee_net_bps_mean": -7.961655982326143,
+        "conservative_net_bps_mean": -65.7855761809032,
+        "gross_positive_rate": 0.48719219963642374,
+        "fee_net_positive_rate": 0.4675260287555776,
+        "conservative_net_positive_rate": 0.36473310196661707,
+        "cost_wipeout_rate": 0.11931912080647827,
+        "capacity_failure_rate": 0,
+        "conservative_p10_bps": -238.464768367398,
+        "conservative_p50_bps": -0.9705717532159372,
+        "conservative_p90_bps": 254.94783989180735
+      }
+    },
+    "ohlcv_extreme_reversal|5m|long|0|30": {
+      "key": {
+        "event_family": "ohlcv_extreme_reversal",
+        "horizon": "5m",
+        "direction": "long",
+        "delay_bars": 0,
+        "capital_tier": 30
+      },
+      "stats": {
+        "event_outcome_count": 28084,
+        "worst_conservative_bps": -2136.462577722352,
+        "gross_bps_mean": -0.6347536519841632,
+        "fee_net_bps_mean": -10.63475365198421,
+        "conservative_net_bps_mean": -72.56740169137646,
+        "gross_positive_rate": 0.48073636234154676,
+        "fee_net_positive_rate": 0.40396667141432846,
+        "conservative_net_positive_rate": 0.10468594217347957,
+        "cost_wipeout_rate": 0.3616293975217206,
+        "capacity_failure_rate": 0,
+        "conservative_p10_bps": -156.26159473574003,
+        "conservative_p50_bps": -56.53985785396233,
+        "conservative_p90_bps": 22.966096902052147
+      }
+    },
+    "ohlcv_extreme_reversal|5m|long|1|30": {
+      "key": {
+        "event_family": "ohlcv_extreme_reversal",
+        "horizon": "5m",
+        "direction": "long",
+        "delay_bars": 1,
+        "capital_tier": 30
+      },
+      "stats": {
+        "event_outcome_count": 24946,
+        "worst_conservative_bps": -1234.5907630799377,
+        "gross_bps_mean": 0.0894834699125162,
+        "fee_net_bps_mean": -9.9105165300874,
+        "conservative_net_bps_mean": -70.90058300789592,
+        "gross_positive_rate": 0.48881584221919344,
+        "fee_net_positive_rate": 0.40435340335123865,
+        "conservative_net_positive_rate": 0.09873326384991582,
+        "cost_wipeout_rate": 0.3751703679948689,
+        "capacity_failure_rate": 0,
+        "conservative_p10_bps": -126.22363848557676,
+        "conservative_p50_bps": -47.79681202121939,
+        "conservative_p90_bps": -4.7918739817314036
+      }
+    },
+    "ohlcv_extreme_reversal|5m|long|2|30": {
+      "key": {
+        "event_family": "ohlcv_extreme_reversal",
+        "horizon": "5m",
+        "direction": "long",
+        "delay_bars": 2,
+        "capital_tier": 30
+      },
+      "stats": {
+        "event_outcome_count": 22600,
+        "worst_conservative_bps": -1529.5922171345296,
+        "gross_bps_mean": -0.6875522708642765,
+        "fee_net_bps_mean": -10.687552270864318,
+        "conservative_net_bps_mean": -70.91038100631862,
+        "gross_positive_rate": 0.47393805309734516,
+        "fee_net_positive_rate": 0.3897345132743363,
+        "conservative_net_positive_rate": 0.09477876106194691,
+        "cost_wipeout_rate": 0.36265486725663715,
+        "capacity_failure_rate": 0,
+        "conservative_p10_bps": -205.6936221552593,
+        "conservative_p50_bps": -64.99150994285613,
+        "conservative_p90_bps": -11.163045384683594
+      }
+    },
+    "ohlcv_extreme_reversal|5m|long|3|30": {
+      "key": {
+        "event_family": "ohlcv_extreme_reversal",
+        "horizon": "5m",
+        "direction": "long",
+        "delay_bars": 3,
+        "capital_tier": 30
+      },
+      "stats": {
+        "event_outcome_count": 20832,
+        "worst_conservative_bps": -925.2927798335453,
+        "gross_bps_mean": -0.8477470871087025,
+        "fee_net_bps_mean": -10.847747087108704,
+        "conservative_net_bps_mean": -70.47393168143101,
+        "gross_positive_rate": 0.4717741935483871,
+        "fee_net_positive_rate": 0.3824884792626728,
+        "conservative_net_positive_rate": 0.09067780337941628,
+        "cost_wipeout_rate": 0.363863287250384,
+        "capacity_failure_rate": 0,
+        "conservative_p10_bps": -134.96538625361947,
+        "conservative_p50_bps": -64.77806179493084,
+        "conservative_p90_bps": -17.11840903100723
+      }
+    },
+    "ohlcv_extreme_reversal|60m|long|0|30": {
+      "key": {
+        "event_family": "ohlcv_extreme_reversal",
+        "horizon": "60m",
+        "direction": "long",
+        "delay_bars": 0,
+        "capital_tier": 30
+      },
+      "stats": {
+        "event_outcome_count": 13603,
+        "worst_conservative_bps": -3348.8380256967857,
+        "gross_bps_mean": -0.36312747267861156,
+        "fee_net_bps_mean": -10.363127472678585,
+        "conservative_net_bps_mean": -68.60149161720689,
+        "gross_positive_rate": 0.48731897375578914,
+        "fee_net_positive_rate": 0.4575461295302507,
+        "conservative_net_positive_rate": 0.3014041020363155,
+        "cost_wipeout_rate": 0.18032786885245902,
+        "capacity_failure_rate": 0,
+        "conservative_p10_bps": -302.6281744196333,
+        "conservative_p50_bps": -60.178360960034524,
+        "conservative_p90_bps": 74.59302280816158
+      }
+    },
+    "ohlcv_extreme_reversal|60m|long|1|30": {
+      "key": {
+        "event_family": "ohlcv_extreme_reversal",
+        "horizon": "60m",
+        "direction": "long",
+        "delay_bars": 1,
+        "capital_tier": 30
+      },
+      "stats": {
+        "event_outcome_count": 13078,
+        "worst_conservative_bps": -2998.6404407446016,
+        "gross_bps_mean": 1.9310914776529262,
+        "fee_net_bps_mean": -8.068908522347101,
+        "conservative_net_bps_mean": -66.01267118045367,
+        "gross_positive_rate": 0.48478360605597187,
+        "fee_net_positive_rate": 0.4569506040679003,
+        "conservative_net_positive_rate": 0.30379262884233066,
+        "cost_wipeout_rate": 0.1761737268695519,
+        "capacity_failure_rate": 0,
+        "conservative_p10_bps": -226.6913206241757,
+        "conservative_p50_bps": -67.082779333558,
+        "conservative_p90_bps": 81.55964577623442
+      }
+    },
+    "ohlcv_extreme_reversal|60m|long|2|30": {
+      "key": {
+        "event_family": "ohlcv_extreme_reversal",
+        "horizon": "60m",
+        "direction": "long",
+        "delay_bars": 2,
+        "capital_tier": 30
+      },
+      "stats": {
+        "event_outcome_count": 12628,
+        "worst_conservative_bps": -3181.3053877676334,
+        "gross_bps_mean": -0.6067397177214997,
+        "fee_net_bps_mean": -10.606739717721522,
+        "conservative_net_bps_mean": -68.52919957902343,
+        "gross_positive_rate": 0.4821824516946468,
+        "fee_net_positive_rate": 0.4534368070953437,
+        "conservative_net_positive_rate": 0.2976718403547672,
+        "cost_wipeout_rate": 0.17936331960722204,
+        "capacity_failure_rate": 0,
+        "conservative_p10_bps": -247.833662797952,
+        "conservative_p50_bps": -53.45588848984822,
+        "conservative_p90_bps": 131.4362485768473
+      }
+    },
+    "ohlcv_extreme_reversal|60m|long|3|30": {
+      "key": {
+        "event_family": "ohlcv_extreme_reversal",
+        "horizon": "60m",
+        "direction": "long",
+        "delay_bars": 3,
+        "capital_tier": 30
+      },
+      "stats": {
+        "event_outcome_count": 12193,
+        "worst_conservative_bps": -3348.8380251374165,
+        "gross_bps_mean": 0.34768801450425363,
+        "fee_net_bps_mean": -9.652311985495798,
+        "conservative_net_bps_mean": -67.30481539050578,
+        "gross_positive_rate": 0.4823259247108997,
+        "fee_net_positive_rate": 0.45435905847617486,
+        "conservative_net_positive_rate": 0.297055687689658,
+        "cost_wipeout_rate": 0.1802673665217748,
+        "capacity_failure_rate": 0,
+        "conservative_p10_bps": -274.9205345634435,
+        "conservative_p50_bps": -77.33060048628494,
+        "conservative_p90_bps": 119.0212742572825
+      }
+    }
+  },
+  "cell_count": 48
+}

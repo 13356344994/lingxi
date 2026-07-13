@@ -80,14 +80,14 @@ func DefaultFixtureTriggers() []TriggerRecord {
 			Symbol: "ETH-USDT", Side: "short", Price: 3500,
 			MakerFilled: true, FillWaitMS: 800, NetPnLUSDT: 3.0,
 			RemainingEdgeBPS: 30, SpreadBPS: 4, FeeBPS: 2, LatencyMS: 60,
-			MaxPriceCap: 3520, MaxSlippageBPS: 12, MinRemainingEdgeBPS: 5, TimeoutMS: 3000,
+			MaxPriceCap: 3495.8, MaxSlippageBPS: 12, MinRemainingEdgeBPS: 5, TimeoutMS: 3000,
 		},
 		{
 			TriggerID: "unfilled_not_profitable", DecisionTime: parseTime("2026-07-01T10:45:00Z"),
 			Symbol: "ETH-USDT", Side: "short", Price: 3500,
 			MakerTouched: true, MakerFilled: false, SubsequentlyProfitable: false,
 			RemainingEdgeBPS: 8, SpreadBPS: 4, FeeBPS: 2, LatencyMS: 55,
-			MaxPriceCap: 3520, MaxSlippageBPS: 12, MinRemainingEdgeBPS: 5, TimeoutMS: 3000,
+			MaxPriceCap: 3495.8, MaxSlippageBPS: 12, MinRemainingEdgeBPS: 5, TimeoutMS: 3000,
 		},
 		{
 			TriggerID: "toxic_fast_fill_exit", DecisionTime: parseTime("2026-07-01T11:00:00Z"),

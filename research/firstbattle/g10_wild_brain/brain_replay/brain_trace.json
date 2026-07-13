@@ -1,0 +1,2418 @@
+{
+  "entries": [
+    {
+      "schema_version": "lingxi.routerg10.brain-trace.v1",
+      "generation": "firstbattle-router-g10",
+      "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+      "bar_index": 1,
+      "decision_time": "2024-06-01T13:00:00Z",
+      "state_hash": "7ff77d847c314bf2758dc27450eccbbc63b11038a7cd8fbc7c9a70c49b8d1590",
+      "symbol": "BTC-USDT-SWAP",
+      "event_family": "ohlcv_extreme_continuation",
+      "thesis_health": "invalidated",
+      "fingerprint_version": "fixture-fingerprint-known-hash-v1",
+      "memory_hits": [
+        {
+          "episode_hash": "win-a",
+          "event_id": "win-a",
+          "similarity": 0.7362638985798812
+        },
+        {
+          "episode_hash": "win-b",
+          "event_id": "win-b",
+          "similarity": 0.7362638985798812
+        },
+        {
+          "episode_hash": "win-c",
+          "event_id": "win-c",
+          "similarity": 0.7362638985798812
+        },
+        {
+          "episode_hash": "win-d",
+          "event_id": "win-d",
+          "similarity": 0.7362638985798812
+        },
+        {
+          "episode_hash": "win-e",
+          "event_id": "win-e",
+          "similarity": 0.7362638985798812
+        },
+        {
+          "episode_hash": "win-f",
+          "event_id": "win-f",
+          "similarity": 0.7362638985798812
+        }
+      ],
+      "counterfactual_table": {
+        "schema_version": "lingxi.routerg10.counterfactual.table.v1",
+        "generation": "firstbattle-router-g10",
+        "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+        "decision_time": "2024-06-01T13:00:00Z",
+        "symbol": "BTC-USDT-SWAP",
+        "actions": [
+          {
+            "action": "LONG",
+            "personal_conservative_net_bps": 11.500000000000284,
+            "stress_loss_bps": 30.749999999999574,
+            "margin_occupation_usdt": 4.166666666666667,
+            "expected_completion_bars": 1,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": 0.08975609756097906,
+            "allowed": false,
+            "size_scale": 1,
+            "reject_reasons": [
+              "DATA_OOD"
+            ]
+          },
+          {
+            "action": "ADD",
+            "personal_conservative_net_bps": 0,
+            "stress_loss_bps": 0,
+            "margin_occupation_usdt": 0,
+            "expected_completion_bars": 1,
+            "delay_bars": 0,
+            "min_lot_feasible": false,
+            "capacity_usdt": 0,
+            "rank_score": 0,
+            "allowed": false,
+            "size_scale": 1,
+            "reject_reasons": [
+              "NO_POSITION_TO_ADD"
+            ]
+          },
+          {
+            "action": "CLOSE",
+            "personal_conservative_net_bps": 0,
+            "stress_loss_bps": 0,
+            "margin_occupation_usdt": 0,
+            "expected_completion_bars": 1,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": 0,
+            "allowed": false,
+            "size_scale": 1,
+            "reject_reasons": [
+              "NO_POSITION_TO_CLOSE"
+            ]
+          },
+          {
+            "action": "HOLD",
+            "personal_conservative_net_bps": 0,
+            "stress_loss_bps": 0,
+            "margin_occupation_usdt": 0,
+            "expected_completion_bars": 1,
+            "delay_bars": 0,
+            "min_lot_feasible": false,
+            "capacity_usdt": 0,
+            "rank_score": 0,
+            "allowed": true,
+            "size_scale": 1
+          },
+          {
+            "action": "NO_TRADE",
+            "personal_conservative_net_bps": 0,
+            "stress_loss_bps": 0,
+            "margin_occupation_usdt": 0,
+            "expected_completion_bars": 1,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": 0,
+            "allowed": true,
+            "size_scale": 1
+          },
+          {
+            "action": "REVERSE",
+            "personal_conservative_net_bps": 0,
+            "stress_loss_bps": 0,
+            "margin_occupation_usdt": 0,
+            "expected_completion_bars": 1,
+            "delay_bars": 0,
+            "min_lot_feasible": false,
+            "capacity_usdt": 0,
+            "rank_score": 0,
+            "allowed": false,
+            "size_scale": 1,
+            "reject_reasons": [
+              "NO_POSITION_TO_REVERSE"
+            ]
+          },
+          {
+            "action": "TRIM",
+            "personal_conservative_net_bps": 0,
+            "stress_loss_bps": 0,
+            "margin_occupation_usdt": 0,
+            "expected_completion_bars": 1,
+            "delay_bars": 0,
+            "min_lot_feasible": false,
+            "capacity_usdt": 0,
+            "rank_score": 0,
+            "allowed": false,
+            "size_scale": 1,
+            "reject_reasons": [
+              "NO_POSITION_TO_TRIM"
+            ]
+          },
+          {
+            "action": "SHORT",
+            "personal_conservative_net_bps": -32.499999999999716,
+            "stress_loss_bps": 48.749999999999574,
+            "margin_occupation_usdt": 4.166666666666667,
+            "expected_completion_bars": 1,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": -0.15999999999999998,
+            "allowed": false,
+            "size_scale": 1,
+            "reject_reasons": [
+              "DATA_OOD"
+            ]
+          }
+        ],
+        "table_hash": "ba68b63a4912ee2bf3fc6fb85845da71923a8e5946051d788f3e9f38596be9ed"
+      },
+      "reject_reasons": [
+        "DATA_OOD",
+        "NO_POSITION_TO_ADD",
+        "NO_POSITION_TO_CLOSE",
+        "NO_POSITION_TO_REVERSE",
+        "NO_POSITION_TO_TRIM"
+      ],
+      "final_action": "NO_TRADE",
+      "position_size": 0,
+      "deadline": 2,
+      "stop_error_state": "holding",
+      "solvency_state": "ok",
+      "trace_hash": "048a7cfed4dad4aae6213e2a25ff762eb877b78835282d902fea237f016cc3de"
+    },
+    {
+      "schema_version": "lingxi.routerg10.brain-trace.v1",
+      "generation": "firstbattle-router-g10",
+      "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+      "bar_index": 1,
+      "decision_time": "2024-06-01T13:00:00Z",
+      "state_hash": "e25ec28a05914b6b16be9b0223d07618529a0f5c9ce9c588e41ff0762a6d78fd",
+      "symbol": "BTC-USDT-SWAP",
+      "event_family": "ohlcv_extreme_continuation",
+      "thesis_health": "healthy",
+      "fingerprint_version": "fixture-fingerprint-known-hash-v1",
+      "memory_hits": [
+        {
+          "episode_hash": "win-a",
+          "event_id": "win-a",
+          "similarity": 0.6882062756914424
+        },
+        {
+          "episode_hash": "win-b",
+          "event_id": "win-b",
+          "similarity": 0.6882062756914424
+        },
+        {
+          "episode_hash": "win-c",
+          "event_id": "win-c",
+          "similarity": 0.6882062756914424
+        },
+        {
+          "episode_hash": "win-d",
+          "event_id": "win-d",
+          "similarity": 0.6882062756914424
+        },
+        {
+          "episode_hash": "win-e",
+          "event_id": "win-e",
+          "similarity": 0.6882062756914424
+        },
+        {
+          "episode_hash": "win-f",
+          "event_id": "win-f",
+          "similarity": 0.6882062756914424
+        }
+      ],
+      "counterfactual_table": {
+        "schema_version": "lingxi.routerg10.counterfactual.table.v1",
+        "generation": "firstbattle-router-g10",
+        "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+        "decision_time": "2024-06-01T13:00:00Z",
+        "symbol": "BTC-USDT-SWAP",
+        "actions": [
+          {
+            "action": "LONG",
+            "personal_conservative_net_bps": 51.500000000000284,
+            "stress_loss_bps": 30.749999999999574,
+            "margin_occupation_usdt": 4.166666666666667,
+            "expected_completion_bars": 1,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": 0.40195121951220286,
+            "allowed": true,
+            "size_scale": 1
+          },
+          {
+            "action": "ADD",
+            "personal_conservative_net_bps": 0,
+            "stress_loss_bps": 0,
+            "margin_occupation_usdt": 0,
+            "expected_completion_bars": 1,
+            "delay_bars": 0,
+            "min_lot_feasible": false,
+            "capacity_usdt": 0,
+            "rank_score": 0,
+            "allowed": false,
+            "size_scale": 1,
+            "reject_reasons": [
+              "NO_POSITION_TO_ADD"
+            ]
+          },
+          {
+            "action": "CLOSE",
+            "personal_conservative_net_bps": 0,
+            "stress_loss_bps": 0,
+            "margin_occupation_usdt": 0,
+            "expected_completion_bars": 1,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": 0,
+            "allowed": false,
+            "size_scale": 1,
+            "reject_reasons": [
+              "NO_POSITION_TO_CLOSE"
+            ]
+          },
+          {
+            "action": "HOLD",
+            "personal_conservative_net_bps": 0,
+            "stress_loss_bps": 0,
+            "margin_occupation_usdt": 0,
+            "expected_completion_bars": 1,
+            "delay_bars": 0,
+            "min_lot_feasible": false,
+            "capacity_usdt": 0,
+            "rank_score": 0,
+            "allowed": true,
+            "size_scale": 1
+          },
+          {
+            "action": "NO_TRADE",
+            "personal_conservative_net_bps": 0,
+            "stress_loss_bps": 0,
+            "margin_occupation_usdt": 0,
+            "expected_completion_bars": 1,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": 0,
+            "allowed": true,
+            "size_scale": 1
+          },
+          {
+            "action": "REVERSE",
+            "personal_conservative_net_bps": 0,
+            "stress_loss_bps": 0,
+            "margin_occupation_usdt": 0,
+            "expected_completion_bars": 1,
+            "delay_bars": 0,
+            "min_lot_feasible": false,
+            "capacity_usdt": 0,
+            "rank_score": 0,
+            "allowed": false,
+            "size_scale": 1,
+            "reject_reasons": [
+              "NO_POSITION_TO_REVERSE"
+            ]
+          },
+          {
+            "action": "TRIM",
+            "personal_conservative_net_bps": 0,
+            "stress_loss_bps": 0,
+            "margin_occupation_usdt": 0,
+            "expected_completion_bars": 1,
+            "delay_bars": 0,
+            "min_lot_feasible": false,
+            "capacity_usdt": 0,
+            "rank_score": 0,
+            "allowed": false,
+            "size_scale": 1,
+            "reject_reasons": [
+              "NO_POSITION_TO_TRIM"
+            ]
+          },
+          {
+            "action": "SHORT",
+            "personal_conservative_net_bps": -47.499999999999716,
+            "stress_loss_bps": 71.24999999999957,
+            "margin_occupation_usdt": 4.166666666666667,
+            "expected_completion_bars": 1,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": -0.15999999999999998,
+            "allowed": false,
+            "size_scale": 1,
+            "reject_reasons": [
+              "OPEN_BREAKEVEN_FAIL"
+            ]
+          }
+        ],
+        "table_hash": "c33b6dac1a9fc97143fb887634d086d714107954bdddf29140f6d20775b77481"
+      },
+      "reject_reasons": [
+        "NO_POSITION_TO_ADD",
+        "NO_POSITION_TO_CLOSE",
+        "NO_POSITION_TO_REVERSE",
+        "NO_POSITION_TO_TRIM",
+        "OPEN_BREAKEVEN_FAIL"
+      ],
+      "final_action": "LONG",
+      "position_size": 162.6,
+      "deadline": 2,
+      "stop_error_state": "holding",
+      "solvency_state": "ok",
+      "trace_hash": "2124eb9290a087864160013d4c00127abc8f83a679451dca2172cecde4c4d1d1"
+    },
+    {
+      "schema_version": "lingxi.routerg10.brain-trace.v1",
+      "generation": "firstbattle-router-g10",
+      "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+      "bar_index": 1,
+      "decision_time": "2024-06-01T13:00:00Z",
+      "state_hash": "e3af2071d4a205c465113a77366c841c23d255917e7e3a032a51e37061c26cc9",
+      "symbol": "BTC-USDT-SWAP",
+      "event_family": "ohlcv_extreme_continuation",
+      "fingerprint_version": "fixture-fingerprint-known-hash-v1",
+      "memory_hits": [
+        {
+          "episode_hash": "win-a",
+          "event_id": "win-a",
+          "similarity": 0.4760812877880839
+        },
+        {
+          "episode_hash": "win-b",
+          "event_id": "win-b",
+          "similarity": 0.4760812877880839
+        },
+        {
+          "episode_hash": "win-c",
+          "event_id": "win-c",
+          "similarity": 0.4760812877880839
+        },
+        {
+          "episode_hash": "win-d",
+          "event_id": "win-d",
+          "similarity": 0.4760812877880839
+        },
+        {
+          "episode_hash": "win-e",
+          "event_id": "win-e",
+          "similarity": 0.4760812877880839
+        },
+        {
+          "episode_hash": "win-f",
+          "event_id": "win-f",
+          "similarity": 0.4760812877880839
+        }
+      ],
+      "counterfactual_table": {
+        "schema_version": "lingxi.routerg10.counterfactual.table.v1",
+        "generation": "firstbattle-router-g10",
+        "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+        "decision_time": "2024-06-01T13:00:00Z",
+        "symbol": "BTC-USDT-SWAP",
+        "actions": [
+          {
+            "action": "SHORT",
+            "personal_conservative_net_bps": 54.500000000000284,
+            "stress_loss_bps": 30.749999999999574,
+            "margin_occupation_usdt": 16.666666666666668,
+            "expected_completion_bars": 4,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": 0.10634146341463617,
+            "allowed": true,
+            "size_scale": 1
+          },
+          {
+            "action": "ADD",
+            "personal_conservative_net_bps": 0,
+            "stress_loss_bps": 0,
+            "margin_occupation_usdt": 0,
+            "expected_completion_bars": 4,
+            "delay_bars": 0,
+            "min_lot_feasible": false,
+            "capacity_usdt": 0,
+            "rank_score": 0,
+            "allowed": false,
+            "size_scale": 1,
+            "reject_reasons": [
+              "NO_POSITION_TO_ADD"
+            ]
+          },
+          {
+            "action": "CLOSE",
+            "personal_conservative_net_bps": 0,
+            "stress_loss_bps": 0,
+            "margin_occupation_usdt": 0,
+            "expected_completion_bars": 4,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": 0,
+            "allowed": false,
+            "size_scale": 1,
+            "reject_reasons": [
+              "NO_POSITION_TO_CLOSE"
+            ]
+          },
+          {
+            "action": "HOLD",
+            "personal_conservative_net_bps": 0,
+            "stress_loss_bps": 0,
+            "margin_occupation_usdt": 0,
+            "expected_completion_bars": 4,
+            "delay_bars": 0,
+            "min_lot_feasible": false,
+            "capacity_usdt": 0,
+            "rank_score": 0,
+            "allowed": true,
+            "size_scale": 1
+          },
+          {
+            "action": "NO_TRADE",
+            "personal_conservative_net_bps": 0,
+            "stress_loss_bps": 0,
+            "margin_occupation_usdt": 0,
+            "expected_completion_bars": 4,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": 0,
+            "allowed": true,
+            "size_scale": 1
+          },
+          {
+            "action": "REVERSE",
+            "personal_conservative_net_bps": 0,
+            "stress_loss_bps": 0,
+            "margin_occupation_usdt": 0,
+            "expected_completion_bars": 4,
+            "delay_bars": 0,
+            "min_lot_feasible": false,
+            "capacity_usdt": 0,
+            "rank_score": 0,
+            "allowed": false,
+            "size_scale": 1,
+            "reject_reasons": [
+              "NO_POSITION_TO_REVERSE"
+            ]
+          },
+          {
+            "action": "TRIM",
+            "personal_conservative_net_bps": 0,
+            "stress_loss_bps": 0,
+            "margin_occupation_usdt": 0,
+            "expected_completion_bars": 4,
+            "delay_bars": 0,
+            "min_lot_feasible": false,
+            "capacity_usdt": 0,
+            "rank_score": 0,
+            "allowed": false,
+            "size_scale": 1,
+            "reject_reasons": [
+              "NO_POSITION_TO_TRIM"
+            ]
+          },
+          {
+            "action": "LONG",
+            "personal_conservative_net_bps": -10.499999999999716,
+            "stress_loss_bps": 30.749999999999574,
+            "margin_occupation_usdt": 16.666666666666668,
+            "expected_completion_bars": 4,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": -0.020487804878048507,
+            "allowed": false,
+            "size_scale": 1,
+            "reject_reasons": [
+              "OPEN_BREAKEVEN_FAIL"
+            ]
+          }
+        ],
+        "table_hash": "eee989d089bebbe4978960ac2b8b4c8490cf38d52d7230ae03e05f100c909677"
+      },
+      "reject_reasons": [
+        "NO_POSITION_TO_ADD",
+        "NO_POSITION_TO_CLOSE",
+        "NO_POSITION_TO_REVERSE",
+        "NO_POSITION_TO_TRIM",
+        "OPEN_BREAKEVEN_FAIL"
+      ],
+      "final_action": "SHORT",
+      "position_size": 162.6,
+      "deadline": 5,
+      "stop_error_state": "holding",
+      "solvency_state": "ok",
+      "trace_hash": "fc18f6df68ea3bc8c972a75e66adfdf050375bbb021dc03de642ed0db95c9198"
+    },
+    {
+      "schema_version": "lingxi.routerg10.brain-trace.v1",
+      "generation": "firstbattle-router-g10",
+      "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+      "bar_index": 1,
+      "decision_time": "2024-06-01T13:00:00Z",
+      "state_hash": "75d60886d54d4ca4e2e4929ad5eef20d5fd830c7a7f8c24b1f8da20ac7008a66",
+      "symbol": "BTC-USDT-SWAP",
+      "event_family": "ohlcv_extreme_continuation",
+      "thesis_health": "healthy",
+      "fingerprint_version": "fixture-fingerprint-known-hash-v1",
+      "memory_hits": [
+        {
+          "episode_hash": "loss-a",
+          "event_id": "loss-a",
+          "similarity": 0.7395845519900628
+        },
+        {
+          "episode_hash": "loss-b",
+          "event_id": "loss-b",
+          "similarity": 0.7395845519900628
+        },
+        {
+          "episode_hash": "loss-c",
+          "event_id": "loss-c",
+          "similarity": 0.7395845519900628
+        },
+        {
+          "episode_hash": "loss-d",
+          "event_id": "loss-d",
+          "similarity": 0.7395845519900628
+        },
+        {
+          "episode_hash": "loss-e",
+          "event_id": "loss-e",
+          "similarity": 0.7395845519900628
+        },
+        {
+          "episode_hash": "loss-f",
+          "event_id": "loss-f",
+          "similarity": 0.7395845519900628
+        },
+        {
+          "episode_hash": "loss-g",
+          "event_id": "loss-g",
+          "similarity": 0.7395845519900628
+        },
+        {
+          "episode_hash": "loss-h",
+          "event_id": "loss-h",
+          "similarity": 0.7395845519900628
+        }
+      ],
+      "counterfactual_table": {
+        "schema_version": "lingxi.routerg10.counterfactual.table.v1",
+        "generation": "firstbattle-router-g10",
+        "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+        "decision_time": "2024-06-01T13:00:00Z",
+        "symbol": "BTC-USDT-SWAP",
+        "actions": [
+          {
+            "action": "LONG",
+            "personal_conservative_net_bps": 11.500000000000284,
+            "stress_loss_bps": 30.749999999999574,
+            "margin_occupation_usdt": 4.166666666666667,
+            "expected_completion_bars": 1,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": 0.08975609756097906,
+            "allowed": false,
+            "size_scale": 0,
+            "reject_reasons": [
+              "MEMORY_NEGATIVE_MAJORITY_VETO"
+            ]
+          },
+          {
+            "action": "ADD",
+            "personal_conservative_net_bps": 0,
+            "stress_loss_bps": 0,
+            "margin_occupation_usdt": 0,
+            "expected_completion_bars": 1,
+            "delay_bars": 0,
+            "min_lot_feasible": false,
+            "capacity_usdt": 0,
+            "rank_score": 0,
+            "allowed": false,
+            "size_scale": 1,
+            "reject_reasons": [
+              "NO_POSITION_TO_ADD"
+            ]
+          },
+          {
+            "action": "CLOSE",
+            "personal_conservative_net_bps": 0,
+            "stress_loss_bps": 0,
+            "margin_occupation_usdt": 0,
+            "expected_completion_bars": 1,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": 0,
+            "allowed": false,
+            "size_scale": 1,
+            "reject_reasons": [
+              "NO_POSITION_TO_CLOSE"
+            ]
+          },
+          {
+            "action": "HOLD",
+            "personal_conservative_net_bps": 0,
+            "stress_loss_bps": 0,
+            "margin_occupation_usdt": 0,
+            "expected_completion_bars": 1,
+            "delay_bars": 0,
+            "min_lot_feasible": false,
+            "capacity_usdt": 0,
+            "rank_score": 0,
+            "allowed": true,
+            "size_scale": 1
+          },
+          {
+            "action": "NO_TRADE",
+            "personal_conservative_net_bps": 0,
+            "stress_loss_bps": 0,
+            "margin_occupation_usdt": 0,
+            "expected_completion_bars": 1,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": 0,
+            "allowed": true,
+            "size_scale": 1
+          },
+          {
+            "action": "REVERSE",
+            "personal_conservative_net_bps": 0,
+            "stress_loss_bps": 0,
+            "margin_occupation_usdt": 0,
+            "expected_completion_bars": 1,
+            "delay_bars": 0,
+            "min_lot_feasible": false,
+            "capacity_usdt": 0,
+            "rank_score": 0,
+            "allowed": false,
+            "size_scale": 1,
+            "reject_reasons": [
+              "NO_POSITION_TO_REVERSE"
+            ]
+          },
+          {
+            "action": "TRIM",
+            "personal_conservative_net_bps": 0,
+            "stress_loss_bps": 0,
+            "margin_occupation_usdt": 0,
+            "expected_completion_bars": 1,
+            "delay_bars": 0,
+            "min_lot_feasible": false,
+            "capacity_usdt": 0,
+            "rank_score": 0,
+            "allowed": false,
+            "size_scale": 1,
+            "reject_reasons": [
+              "NO_POSITION_TO_TRIM"
+            ]
+          },
+          {
+            "action": "SHORT",
+            "personal_conservative_net_bps": -32.499999999999716,
+            "stress_loss_bps": 48.749999999999574,
+            "margin_occupation_usdt": 4.166666666666667,
+            "expected_completion_bars": 1,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": -0.15999999999999998,
+            "allowed": false,
+            "size_scale": 0,
+            "reject_reasons": [
+              "MEMORY_NEGATIVE_MAJORITY_VETO"
+            ]
+          }
+        ],
+        "table_hash": "933dac8277b9d5823feb499746c2361d9fa689f9b805f7658a870a6a16fa9cdb"
+      },
+      "reject_reasons": [
+        "MEMORY_NEGATIVE_MAJORITY_VETO",
+        "NO_POSITION_TO_ADD",
+        "NO_POSITION_TO_CLOSE",
+        "NO_POSITION_TO_REVERSE",
+        "NO_POSITION_TO_TRIM"
+      ],
+      "final_action": "NO_TRADE",
+      "position_size": 0,
+      "deadline": 2,
+      "stop_error_state": "holding",
+      "solvency_state": "ok",
+      "trace_hash": "5ed612a2d3f98dc4332238db6ae86ec45561af7b6e69c0c7ea469deaeb8cca35"
+    },
+    {
+      "schema_version": "lingxi.routerg10.brain-trace.v1",
+      "generation": "firstbattle-router-g10",
+      "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+      "bar_index": 1,
+      "decision_time": "2024-06-01T13:00:00Z",
+      "state_hash": "60939b03037768c172b3d2cb58e1c3611b1caaf49f7897fb7bfdc9847ca1e613",
+      "symbol": "BTC-USDT-SWAP",
+      "event_family": "ohlcv_extreme_continuation",
+      "event_phase": 0.5,
+      "thesis_health": "healthy",
+      "fingerprint_version": "fixture-fingerprint-known-hash-v1",
+      "memory_hits": [
+        {
+          "episode_hash": "win-a",
+          "event_id": "win-a",
+          "similarity": 0.9978356788612573
+        },
+        {
+          "episode_hash": "win-b",
+          "event_id": "win-b",
+          "similarity": 0.9978356788612573
+        },
+        {
+          "episode_hash": "win-c",
+          "event_id": "win-c",
+          "similarity": 0.9978356788612573
+        },
+        {
+          "episode_hash": "win-d",
+          "event_id": "win-d",
+          "similarity": 0.9978356788612573
+        },
+        {
+          "episode_hash": "win-e",
+          "event_id": "win-e",
+          "similarity": 0.9978356788612573
+        },
+        {
+          "episode_hash": "win-f",
+          "event_id": "win-f",
+          "similarity": 0.9978356788612573
+        }
+      ],
+      "counterfactual_table": {
+        "schema_version": "lingxi.routerg10.counterfactual.table.v1",
+        "generation": "firstbattle-router-g10",
+        "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+        "decision_time": "2024-06-01T13:00:00Z",
+        "symbol": "BTC-USDT-SWAP",
+        "actions": [
+          {
+            "action": "LONG",
+            "personal_conservative_net_bps": 24.500000000000284,
+            "stress_loss_bps": 30.749999999999574,
+            "margin_occupation_usdt": 16.666666666666668,
+            "expected_completion_bars": 4,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": 0.0478048780487817,
+            "allowed": false,
+            "size_scale": 1,
+            "reject_reasons": [
+              "STRESS_INSOLVENT"
+            ]
+          },
+          {
+            "action": "ADD",
+            "personal_conservative_net_bps": 24.500000000000284,
+            "stress_loss_bps": 30.749999999999574,
+            "margin_occupation_usdt": 266.6666666666667,
+            "expected_completion_bars": 4,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": 0.0029878048780488564,
+            "allowed": false,
+            "size_scale": 1,
+            "reject_reasons": [
+              "STRESS_INSOLVENT"
+            ]
+          },
+          {
+            "action": "CLOSE",
+            "personal_conservative_net_bps": 0,
+            "stress_loss_bps": 0,
+            "margin_occupation_usdt": 0,
+            "expected_completion_bars": 4,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": 0,
+            "allowed": true,
+            "size_scale": 1
+          },
+          {
+            "action": "HOLD",
+            "personal_conservative_net_bps": 0,
+            "stress_loss_bps": 0,
+            "margin_occupation_usdt": 250,
+            "expected_completion_bars": 4,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": 0,
+            "allowed": true,
+            "size_scale": 1
+          },
+          {
+            "action": "NO_TRADE",
+            "personal_conservative_net_bps": 0,
+            "stress_loss_bps": 0,
+            "margin_occupation_usdt": 0,
+            "expected_completion_bars": 4,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": 0,
+            "allowed": true,
+            "size_scale": 1
+          },
+          {
+            "action": "TRIM",
+            "personal_conservative_net_bps": 0,
+            "stress_loss_bps": 25,
+            "margin_occupation_usdt": 125,
+            "expected_completion_bars": 4,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": 0,
+            "allowed": true,
+            "size_scale": 1
+          },
+          {
+            "action": "REVERSE",
+            "personal_conservative_net_bps": -40.499999999999716,
+            "stress_loss_bps": 60.749999999999574,
+            "margin_occupation_usdt": 16.666666666666668,
+            "expected_completion_bars": 4,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": -0.039999999999999994,
+            "allowed": false,
+            "size_scale": 1,
+            "reject_reasons": [
+              "OPEN_BREAKEVEN_FAIL"
+            ]
+          },
+          {
+            "action": "SHORT",
+            "personal_conservative_net_bps": -40.499999999999716,
+            "stress_loss_bps": 60.749999999999574,
+            "margin_occupation_usdt": 16.666666666666668,
+            "expected_completion_bars": 4,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": -0.039999999999999994,
+            "allowed": false,
+            "size_scale": 1,
+            "reject_reasons": [
+              "OPEN_BREAKEVEN_FAIL"
+            ]
+          }
+        ],
+        "table_hash": "9901cd0266a851af9abffd6f4c10000500e562944928c2c4cf0888864bc5137c"
+      },
+      "reject_reasons": [
+        "OPEN_BREAKEVEN_FAIL",
+        "STRESS_INSOLVENT"
+      ],
+      "final_action": "TRIM",
+      "position_size": 62.5,
+      "deadline": 9,
+      "stop_error_state": "holding",
+      "solvency_state": "ok",
+      "trace_hash": "349052aa43a1a8be6528587a6a5f63e07ea6fe1cf38396ada07acff842d7011f"
+    },
+    {
+      "schema_version": "lingxi.routerg10.brain-trace.v1",
+      "generation": "firstbattle-router-g10",
+      "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+      "bar_index": 2,
+      "decision_time": "2024-06-01T14:00:00Z",
+      "state_hash": "ba14c7b583b80622b6f45e17b82fae64a499ea8df04fce898d1e800ce0c965a8",
+      "symbol": "BTC-USDT-SWAP",
+      "fingerprint_version": "fixture-fingerprint-known-hash-v1",
+      "memory_hits": [
+        {
+          "episode_hash": "win-a",
+          "event_id": "win-a",
+          "similarity": 0.6961802539163584
+        },
+        {
+          "episode_hash": "win-b",
+          "event_id": "win-b",
+          "similarity": 0.6961802539163584
+        },
+        {
+          "episode_hash": "win-c",
+          "event_id": "win-c",
+          "similarity": 0.6961802539163584
+        },
+        {
+          "episode_hash": "win-d",
+          "event_id": "win-d",
+          "similarity": 0.6961802539163584
+        },
+        {
+          "episode_hash": "win-e",
+          "event_id": "win-e",
+          "similarity": 0.6961802539163584
+        },
+        {
+          "episode_hash": "win-f",
+          "event_id": "win-f",
+          "similarity": 0.6961802539163584
+        }
+      ],
+      "counterfactual_table": {
+        "schema_version": "lingxi.routerg10.counterfactual.table.v1",
+        "generation": "firstbattle-router-g10",
+        "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+        "decision_time": "2024-06-01T14:00:00Z",
+        "symbol": "BTC-USDT-SWAP",
+        "actions": [
+          {
+            "action": "CLOSE",
+            "personal_conservative_net_bps": 0,
+            "stress_loss_bps": 0,
+            "margin_occupation_usdt": 0,
+            "expected_completion_bars": 0,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": 0,
+            "allowed": true,
+            "size_scale": 1
+          },
+          {
+            "action": "HOLD",
+            "personal_conservative_net_bps": 0,
+            "stress_loss_bps": 0,
+            "margin_occupation_usdt": 125,
+            "expected_completion_bars": 0,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": 0,
+            "allowed": true,
+            "size_scale": 1
+          },
+          {
+            "action": "NO_TRADE",
+            "personal_conservative_net_bps": 0,
+            "stress_loss_bps": 0,
+            "margin_occupation_usdt": 0,
+            "expected_completion_bars": 0,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": 0,
+            "allowed": true,
+            "size_scale": 1
+          },
+          {
+            "action": "TRIM",
+            "personal_conservative_net_bps": 0,
+            "stress_loss_bps": 25,
+            "margin_occupation_usdt": 62.5,
+            "expected_completion_bars": 0,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": 0,
+            "allowed": true,
+            "size_scale": 1
+          },
+          {
+            "action": "ADD",
+            "personal_conservative_net_bps": -20.499999999999716,
+            "stress_loss_bps": 30.749999999999574,
+            "margin_occupation_usdt": 129.16666666666666,
+            "expected_completion_bars": 0,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": -0.005161290322580645,
+            "allowed": false,
+            "size_scale": 1,
+            "reject_reasons": [
+              "OPEN_BREAKEVEN_FAIL",
+              "NO_MATCHING_EVENT"
+            ]
+          },
+          {
+            "action": "LONG",
+            "personal_conservative_net_bps": -20.499999999999716,
+            "stress_loss_bps": 30.749999999999574,
+            "margin_occupation_usdt": 4.166666666666667,
+            "expected_completion_bars": 0,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": -0.15999999999999998,
+            "allowed": false,
+            "size_scale": 1,
+            "reject_reasons": [
+              "OPEN_BREAKEVEN_FAIL",
+              "NO_MATCHING_EVENT"
+            ]
+          },
+          {
+            "action": "REVERSE",
+            "personal_conservative_net_bps": -20.499999999999716,
+            "stress_loss_bps": 30.749999999999574,
+            "margin_occupation_usdt": 4.166666666666667,
+            "expected_completion_bars": 0,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": -0.15999999999999998,
+            "allowed": false,
+            "size_scale": 1,
+            "reject_reasons": [
+              "OPEN_BREAKEVEN_FAIL",
+              "NO_MATCHING_EVENT"
+            ]
+          },
+          {
+            "action": "SHORT",
+            "personal_conservative_net_bps": -20.499999999999716,
+            "stress_loss_bps": 30.749999999999574,
+            "margin_occupation_usdt": 4.166666666666667,
+            "expected_completion_bars": 0,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": -0.15999999999999998,
+            "allowed": false,
+            "size_scale": 1,
+            "reject_reasons": [
+              "OPEN_BREAKEVEN_FAIL",
+              "NO_MATCHING_EVENT"
+            ]
+          }
+        ],
+        "table_hash": "35a7f16b32976805a84f781b1bbd691041d543f03f80d9c5d23123e52033f265"
+      },
+      "reject_reasons": [
+        "NO_MATCHING_EVENT",
+        "OPEN_BREAKEVEN_FAIL"
+      ],
+      "final_action": "HOLD",
+      "position_size": 125,
+      "deadline": 0,
+      "stop_error_state": "holding",
+      "solvency_state": "ok",
+      "trace_hash": "7e98ebde636ca27d31540cfc38afc8c396a954906d69e0d054ecb609e5eba80c"
+    },
+    {
+      "schema_version": "lingxi.routerg10.brain-trace.v1",
+      "generation": "firstbattle-router-g10",
+      "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+      "bar_index": 3,
+      "decision_time": "2024-06-01T15:00:00Z",
+      "state_hash": "241515ea62f3196dc9f4ca262756918cfe1d92baf0974b3ede7812c8ff07df06",
+      "symbol": "BTC-USDT-SWAP",
+      "fingerprint_version": "fixture-fingerprint-known-hash-v1",
+      "memory_hits": [
+        {
+          "episode_hash": "win-a",
+          "event_id": "win-a",
+          "similarity": 0.6915037764374816
+        },
+        {
+          "episode_hash": "win-b",
+          "event_id": "win-b",
+          "similarity": 0.6915037764374816
+        },
+        {
+          "episode_hash": "win-c",
+          "event_id": "win-c",
+          "similarity": 0.6915037764374816
+        },
+        {
+          "episode_hash": "win-d",
+          "event_id": "win-d",
+          "similarity": 0.6915037764374816
+        },
+        {
+          "episode_hash": "win-e",
+          "event_id": "win-e",
+          "similarity": 0.6915037764374816
+        },
+        {
+          "episode_hash": "win-f",
+          "event_id": "win-f",
+          "similarity": 0.6915037764374816
+        }
+      ],
+      "counterfactual_table": {
+        "schema_version": "lingxi.routerg10.counterfactual.table.v1",
+        "generation": "firstbattle-router-g10",
+        "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+        "decision_time": "2024-06-01T15:00:00Z",
+        "symbol": "BTC-USDT-SWAP",
+        "actions": [
+          {
+            "action": "CLOSE",
+            "personal_conservative_net_bps": 0,
+            "stress_loss_bps": 0,
+            "margin_occupation_usdt": 0,
+            "expected_completion_bars": 0,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": 0,
+            "allowed": true,
+            "size_scale": 1
+          },
+          {
+            "action": "HOLD",
+            "personal_conservative_net_bps": 0,
+            "stress_loss_bps": 0,
+            "margin_occupation_usdt": 125,
+            "expected_completion_bars": 0,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": 0,
+            "allowed": true,
+            "size_scale": 1
+          },
+          {
+            "action": "NO_TRADE",
+            "personal_conservative_net_bps": 0,
+            "stress_loss_bps": 0,
+            "margin_occupation_usdt": 0,
+            "expected_completion_bars": 0,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": 0,
+            "allowed": true,
+            "size_scale": 1
+          },
+          {
+            "action": "TRIM",
+            "personal_conservative_net_bps": 0,
+            "stress_loss_bps": 25,
+            "margin_occupation_usdt": 62.5,
+            "expected_completion_bars": 0,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": 0,
+            "allowed": true,
+            "size_scale": 1
+          },
+          {
+            "action": "ADD",
+            "personal_conservative_net_bps": -20.499999999999716,
+            "stress_loss_bps": 30.749999999999574,
+            "margin_occupation_usdt": 129.16666666666666,
+            "expected_completion_bars": 0,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": -0.005161290322580645,
+            "allowed": false,
+            "size_scale": 1,
+            "reject_reasons": [
+              "OPEN_BREAKEVEN_FAIL",
+              "NO_MATCHING_EVENT"
+            ]
+          },
+          {
+            "action": "LONG",
+            "personal_conservative_net_bps": -20.499999999999716,
+            "stress_loss_bps": 30.749999999999574,
+            "margin_occupation_usdt": 4.166666666666667,
+            "expected_completion_bars": 0,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": -0.15999999999999998,
+            "allowed": false,
+            "size_scale": 1,
+            "reject_reasons": [
+              "OPEN_BREAKEVEN_FAIL",
+              "NO_MATCHING_EVENT"
+            ]
+          },
+          {
+            "action": "REVERSE",
+            "personal_conservative_net_bps": -20.499999999999716,
+            "stress_loss_bps": 30.749999999999574,
+            "margin_occupation_usdt": 4.166666666666667,
+            "expected_completion_bars": 0,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": -0.15999999999999998,
+            "allowed": false,
+            "size_scale": 1,
+            "reject_reasons": [
+              "OPEN_BREAKEVEN_FAIL",
+              "NO_MATCHING_EVENT"
+            ]
+          },
+          {
+            "action": "SHORT",
+            "personal_conservative_net_bps": -20.499999999999716,
+            "stress_loss_bps": 30.749999999999574,
+            "margin_occupation_usdt": 4.166666666666667,
+            "expected_completion_bars": 0,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": -0.15999999999999998,
+            "allowed": false,
+            "size_scale": 1,
+            "reject_reasons": [
+              "OPEN_BREAKEVEN_FAIL",
+              "NO_MATCHING_EVENT"
+            ]
+          }
+        ],
+        "table_hash": "5748b71734d0228d8cbbcd9bbc3530d89e3cd756f2cd9f2a651d8a20d57ff445"
+      },
+      "reject_reasons": [
+        "NO_MATCHING_EVENT",
+        "OPEN_BREAKEVEN_FAIL"
+      ],
+      "final_action": "HOLD",
+      "position_size": 125,
+      "deadline": 0,
+      "stop_error_state": "holding",
+      "solvency_state": "ok",
+      "trace_hash": "20b8a6b2a65da8e7c0075d564707903c41aeaa45044105cc9f1aed93962fade8"
+    },
+    {
+      "schema_version": "lingxi.routerg10.brain-trace.v1",
+      "generation": "firstbattle-router-g10",
+      "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+      "bar_index": 4,
+      "decision_time": "2024-06-01T16:00:00Z",
+      "state_hash": "5b53b3138811cd2b552714096bf460a391401f7896923abe1e0b9daa00896261",
+      "symbol": "BTC-USDT-SWAP",
+      "fingerprint_version": "fixture-fingerprint-known-hash-v1",
+      "memory_hits": [
+        {
+          "episode_hash": "win-a",
+          "event_id": "win-a",
+          "similarity": 0.6866114878011066
+        },
+        {
+          "episode_hash": "win-b",
+          "event_id": "win-b",
+          "similarity": 0.6866114878011066
+        },
+        {
+          "episode_hash": "win-c",
+          "event_id": "win-c",
+          "similarity": 0.6866114878011066
+        },
+        {
+          "episode_hash": "win-d",
+          "event_id": "win-d",
+          "similarity": 0.6866114878011066
+        },
+        {
+          "episode_hash": "win-e",
+          "event_id": "win-e",
+          "similarity": 0.6866114878011066
+        },
+        {
+          "episode_hash": "win-f",
+          "event_id": "win-f",
+          "similarity": 0.6866114878011066
+        }
+      ],
+      "counterfactual_table": {
+        "schema_version": "lingxi.routerg10.counterfactual.table.v1",
+        "generation": "firstbattle-router-g10",
+        "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+        "decision_time": "2024-06-01T16:00:00Z",
+        "symbol": "BTC-USDT-SWAP",
+        "actions": [
+          {
+            "action": "CLOSE",
+            "personal_conservative_net_bps": 0,
+            "stress_loss_bps": 0,
+            "margin_occupation_usdt": 0,
+            "expected_completion_bars": 0,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": 0,
+            "allowed": true,
+            "size_scale": 1
+          },
+          {
+            "action": "HOLD",
+            "personal_conservative_net_bps": 0,
+            "stress_loss_bps": 0,
+            "margin_occupation_usdt": 125,
+            "expected_completion_bars": 0,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": 0,
+            "allowed": true,
+            "size_scale": 1
+          },
+          {
+            "action": "NO_TRADE",
+            "personal_conservative_net_bps": 0,
+            "stress_loss_bps": 0,
+            "margin_occupation_usdt": 0,
+            "expected_completion_bars": 0,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": 0,
+            "allowed": true,
+            "size_scale": 1
+          },
+          {
+            "action": "TRIM",
+            "personal_conservative_net_bps": 0,
+            "stress_loss_bps": 25,
+            "margin_occupation_usdt": 62.5,
+            "expected_completion_bars": 0,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": 0,
+            "allowed": true,
+            "size_scale": 1
+          },
+          {
+            "action": "ADD",
+            "personal_conservative_net_bps": -20.499999999999716,
+            "stress_loss_bps": 30.749999999999574,
+            "margin_occupation_usdt": 129.16666666666666,
+            "expected_completion_bars": 0,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": -0.005161290322580645,
+            "allowed": false,
+            "size_scale": 1,
+            "reject_reasons": [
+              "OPEN_BREAKEVEN_FAIL",
+              "NO_MATCHING_EVENT"
+            ]
+          },
+          {
+            "action": "LONG",
+            "personal_conservative_net_bps": -20.499999999999716,
+            "stress_loss_bps": 30.749999999999574,
+            "margin_occupation_usdt": 4.166666666666667,
+            "expected_completion_bars": 0,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": -0.15999999999999998,
+            "allowed": false,
+            "size_scale": 1,
+            "reject_reasons": [
+              "OPEN_BREAKEVEN_FAIL",
+              "NO_MATCHING_EVENT"
+            ]
+          },
+          {
+            "action": "REVERSE",
+            "personal_conservative_net_bps": -20.499999999999716,
+            "stress_loss_bps": 30.749999999999574,
+            "margin_occupation_usdt": 4.166666666666667,
+            "expected_completion_bars": 0,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": -0.15999999999999998,
+            "allowed": false,
+            "size_scale": 1,
+            "reject_reasons": [
+              "OPEN_BREAKEVEN_FAIL",
+              "NO_MATCHING_EVENT"
+            ]
+          },
+          {
+            "action": "SHORT",
+            "personal_conservative_net_bps": -20.499999999999716,
+            "stress_loss_bps": 30.749999999999574,
+            "margin_occupation_usdt": 4.166666666666667,
+            "expected_completion_bars": 0,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": -0.15999999999999998,
+            "allowed": false,
+            "size_scale": 1,
+            "reject_reasons": [
+              "OPEN_BREAKEVEN_FAIL",
+              "NO_MATCHING_EVENT"
+            ]
+          }
+        ],
+        "table_hash": "370099d90085ece2b9075db1620525e562cb0d5a2a7a351c6a95bf1cef50244d"
+      },
+      "reject_reasons": [
+        "NO_MATCHING_EVENT",
+        "OPEN_BREAKEVEN_FAIL"
+      ],
+      "final_action": "HOLD",
+      "position_size": 125,
+      "deadline": 0,
+      "stop_error_state": "holding",
+      "solvency_state": "ok",
+      "trace_hash": "3a400389c8316f55f74f57f8274a891e810b9c0c8c50be28e08c6d44445f13cb"
+    },
+    {
+      "schema_version": "lingxi.routerg10.brain-trace.v1",
+      "generation": "firstbattle-router-g10",
+      "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+      "bar_index": 5,
+      "decision_time": "2024-06-01T17:00:00Z",
+      "state_hash": "ed7c7cfb4b756777b3e57334a43227757cccffd5682186a4a630a162f74e9625",
+      "symbol": "BTC-USDT-SWAP",
+      "fingerprint_version": "fixture-fingerprint-known-hash-v1",
+      "memory_hits": [
+        {
+          "episode_hash": "win-a",
+          "event_id": "win-a",
+          "similarity": 0.6815084241954752
+        },
+        {
+          "episode_hash": "win-b",
+          "event_id": "win-b",
+          "similarity": 0.6815084241954752
+        },
+        {
+          "episode_hash": "win-c",
+          "event_id": "win-c",
+          "similarity": 0.6815084241954752
+        },
+        {
+          "episode_hash": "win-d",
+          "event_id": "win-d",
+          "similarity": 0.6815084241954752
+        },
+        {
+          "episode_hash": "win-e",
+          "event_id": "win-e",
+          "similarity": 0.6815084241954752
+        },
+        {
+          "episode_hash": "win-f",
+          "event_id": "win-f",
+          "similarity": 0.6815084241954752
+        }
+      ],
+      "counterfactual_table": {
+        "schema_version": "lingxi.routerg10.counterfactual.table.v1",
+        "generation": "firstbattle-router-g10",
+        "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+        "decision_time": "2024-06-01T17:00:00Z",
+        "symbol": "BTC-USDT-SWAP",
+        "actions": [
+          {
+            "action": "ADD",
+            "personal_conservative_net_bps": 0,
+            "stress_loss_bps": 0,
+            "margin_occupation_usdt": 0,
+            "expected_completion_bars": 0,
+            "delay_bars": 0,
+            "min_lot_feasible": false,
+            "capacity_usdt": 0,
+            "rank_score": 0,
+            "allowed": false,
+            "size_scale": 1,
+            "reject_reasons": [
+              "NO_POSITION_TO_ADD"
+            ]
+          },
+          {
+            "action": "CLOSE",
+            "personal_conservative_net_bps": 0,
+            "stress_loss_bps": 0,
+            "margin_occupation_usdt": 0,
+            "expected_completion_bars": 0,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": 0,
+            "allowed": false,
+            "size_scale": 1,
+            "reject_reasons": [
+              "NO_POSITION_TO_CLOSE"
+            ]
+          },
+          {
+            "action": "HOLD",
+            "personal_conservative_net_bps": 0,
+            "stress_loss_bps": 0,
+            "margin_occupation_usdt": 0,
+            "expected_completion_bars": 0,
+            "delay_bars": 0,
+            "min_lot_feasible": false,
+            "capacity_usdt": 0,
+            "rank_score": 0,
+            "allowed": false,
+            "size_scale": 1,
+            "reject_reasons": [
+              "NO_MATCHING_EVENT"
+            ]
+          },
+          {
+            "action": "NO_TRADE",
+            "personal_conservative_net_bps": 0,
+            "stress_loss_bps": 0,
+            "margin_occupation_usdt": 0,
+            "expected_completion_bars": 0,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": 0,
+            "allowed": true,
+            "size_scale": 1
+          },
+          {
+            "action": "REVERSE",
+            "personal_conservative_net_bps": 0,
+            "stress_loss_bps": 0,
+            "margin_occupation_usdt": 0,
+            "expected_completion_bars": 0,
+            "delay_bars": 0,
+            "min_lot_feasible": false,
+            "capacity_usdt": 0,
+            "rank_score": 0,
+            "allowed": false,
+            "size_scale": 1,
+            "reject_reasons": [
+              "NO_POSITION_TO_REVERSE"
+            ]
+          },
+          {
+            "action": "TRIM",
+            "personal_conservative_net_bps": 0,
+            "stress_loss_bps": 0,
+            "margin_occupation_usdt": 0,
+            "expected_completion_bars": 0,
+            "delay_bars": 0,
+            "min_lot_feasible": false,
+            "capacity_usdt": 0,
+            "rank_score": 0,
+            "allowed": false,
+            "size_scale": 1,
+            "reject_reasons": [
+              "NO_POSITION_TO_TRIM"
+            ]
+          },
+          {
+            "action": "LONG",
+            "personal_conservative_net_bps": -20.499999999999716,
+            "stress_loss_bps": 30.749999999999574,
+            "margin_occupation_usdt": 4.166666666666667,
+            "expected_completion_bars": 0,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": -0.15999999999999998,
+            "allowed": false,
+            "size_scale": 1,
+            "reject_reasons": [
+              "OPEN_BREAKEVEN_FAIL",
+              "NO_MATCHING_EVENT"
+            ]
+          },
+          {
+            "action": "SHORT",
+            "personal_conservative_net_bps": -20.499999999999716,
+            "stress_loss_bps": 30.749999999999574,
+            "margin_occupation_usdt": 4.166666666666667,
+            "expected_completion_bars": 0,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": -0.15999999999999998,
+            "allowed": false,
+            "size_scale": 1,
+            "reject_reasons": [
+              "OPEN_BREAKEVEN_FAIL",
+              "NO_MATCHING_EVENT"
+            ]
+          }
+        ],
+        "table_hash": "d44e8e2fbd92663287e52b1fa787c2089a0e7040c92536121a14619a308cfd11"
+      },
+      "reject_reasons": [
+        "STOP_ERROR_FORCED"
+      ],
+      "final_action": "CLOSE",
+      "position_size": 0,
+      "deadline": 0,
+      "stop_error_state": "exit",
+      "solvency_state": "ok",
+      "trace_hash": "7c7f11241def2fb7abcb5f64e369c6aa78864638f99fbdd19afe002359968be4"
+    },
+    {
+      "schema_version": "lingxi.routerg10.brain-trace.v1",
+      "generation": "firstbattle-router-g10",
+      "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+      "bar_index": 1,
+      "decision_time": "2024-06-01T13:00:00Z",
+      "state_hash": "8be9c09e6e5deae8597c59350a3346251c93bce1e639f844e66898a89fb254f3",
+      "symbol": "BTC-USDT-SWAP",
+      "fingerprint_version": "fixture-fingerprint-known-hash-v1",
+      "memory_hits": [
+        {
+          "episode_hash": "win-a",
+          "event_id": "win-a",
+          "similarity": 0.684085980573495
+        },
+        {
+          "episode_hash": "win-b",
+          "event_id": "win-b",
+          "similarity": 0.684085980573495
+        },
+        {
+          "episode_hash": "win-c",
+          "event_id": "win-c",
+          "similarity": 0.684085980573495
+        },
+        {
+          "episode_hash": "win-d",
+          "event_id": "win-d",
+          "similarity": 0.684085980573495
+        },
+        {
+          "episode_hash": "win-e",
+          "event_id": "win-e",
+          "similarity": 0.684085980573495
+        },
+        {
+          "episode_hash": "win-f",
+          "event_id": "win-f",
+          "similarity": 0.684085980573495
+        }
+      ],
+      "counterfactual_table": {
+        "schema_version": "lingxi.routerg10.counterfactual.table.v1",
+        "generation": "firstbattle-router-g10",
+        "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+        "decision_time": "2024-06-01T13:00:00Z",
+        "symbol": "BTC-USDT-SWAP",
+        "actions": [
+          {
+            "action": "CLOSE",
+            "personal_conservative_net_bps": 0,
+            "stress_loss_bps": 0,
+            "margin_occupation_usdt": 0,
+            "expected_completion_bars": 0,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": 0,
+            "allowed": true,
+            "size_scale": 1
+          },
+          {
+            "action": "HOLD",
+            "personal_conservative_net_bps": 0,
+            "stress_loss_bps": 0,
+            "margin_occupation_usdt": 0,
+            "expected_completion_bars": 0,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": 0,
+            "allowed": true,
+            "size_scale": 1
+          },
+          {
+            "action": "NO_TRADE",
+            "personal_conservative_net_bps": 0,
+            "stress_loss_bps": 0,
+            "margin_occupation_usdt": 0,
+            "expected_completion_bars": 0,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": 0,
+            "allowed": true,
+            "size_scale": 1
+          },
+          {
+            "action": "TRIM",
+            "personal_conservative_net_bps": 0,
+            "stress_loss_bps": 25,
+            "margin_occupation_usdt": 0,
+            "expected_completion_bars": 0,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": 0,
+            "allowed": true,
+            "size_scale": 1
+          },
+          {
+            "action": "ADD",
+            "personal_conservative_net_bps": -18.599999999999717,
+            "stress_loss_bps": 27.899999999999576,
+            "margin_occupation_usdt": 0.20833333333333334,
+            "expected_completion_bars": 0,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": -3.1999999999999997,
+            "allowed": false,
+            "size_scale": 1,
+            "reject_reasons": [
+              "STRESS_INSOLVENT",
+              "NO_MATCHING_EVENT"
+            ]
+          },
+          {
+            "action": "LONG",
+            "personal_conservative_net_bps": -18.599999999999717,
+            "stress_loss_bps": 27.899999999999576,
+            "margin_occupation_usdt": 0.20833333333333334,
+            "expected_completion_bars": 0,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": -3.1999999999999997,
+            "allowed": false,
+            "size_scale": 1,
+            "reject_reasons": [
+              "STRESS_INSOLVENT",
+              "NO_MATCHING_EVENT"
+            ]
+          },
+          {
+            "action": "REVERSE",
+            "personal_conservative_net_bps": -18.599999999999717,
+            "stress_loss_bps": 27.899999999999576,
+            "margin_occupation_usdt": 0.20833333333333334,
+            "expected_completion_bars": 0,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": -3.1999999999999997,
+            "allowed": false,
+            "size_scale": 1,
+            "reject_reasons": [
+              "STRESS_INSOLVENT",
+              "NO_MATCHING_EVENT"
+            ]
+          },
+          {
+            "action": "SHORT",
+            "personal_conservative_net_bps": -18.599999999999717,
+            "stress_loss_bps": 27.899999999999576,
+            "margin_occupation_usdt": 0.20833333333333334,
+            "expected_completion_bars": 0,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": -3.1999999999999997,
+            "allowed": false,
+            "size_scale": 1,
+            "reject_reasons": [
+              "STRESS_INSOLVENT",
+              "NO_MATCHING_EVENT"
+            ]
+          }
+        ],
+        "table_hash": "e1c6fca9b303e4dc9c9a67ff435c95c526de3f7e51b835bad91be12d936184b7"
+      },
+      "reject_reasons": [
+        "SOLVENCY_FORCED"
+      ],
+      "final_action": "CLOSE",
+      "position_size": 0,
+      "deadline": 0,
+      "stop_error_state": "holding",
+      "solvency_state": "breached",
+      "trace_hash": "303a8231195532aa69fdbc5f843a69be84fc4adf69d3e935d49df5c3fd9e7551"
+    },
+    {
+      "schema_version": "lingxi.routerg10.brain-trace.v1",
+      "generation": "firstbattle-router-g10",
+      "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+      "bar_index": 1,
+      "decision_time": "2024-06-01T13:00:00Z",
+      "state_hash": "02fa25dd0df7969096a464b9724ad4912918aacdd81460c254b20d7f6ba6f5c2",
+      "symbol": "BTC-USDT-SWAP",
+      "event_family": "ohlcv_extreme_continuation",
+      "thesis_health": "healthy",
+      "fingerprint_version": "fixture-fingerprint-known-hash-v1",
+      "memory_hits": [
+        {
+          "episode_hash": "win-a",
+          "event_id": "win-a",
+          "similarity": 0.7392148521467308
+        },
+        {
+          "episode_hash": "win-b",
+          "event_id": "win-b",
+          "similarity": 0.7392148521467308
+        },
+        {
+          "episode_hash": "win-c",
+          "event_id": "win-c",
+          "similarity": 0.7392148521467308
+        },
+        {
+          "episode_hash": "win-d",
+          "event_id": "win-d",
+          "similarity": 0.7392148521467308
+        },
+        {
+          "episode_hash": "win-e",
+          "event_id": "win-e",
+          "similarity": 0.7392148521467308
+        },
+        {
+          "episode_hash": "win-f",
+          "event_id": "win-f",
+          "similarity": 0.7392148521467308
+        }
+      ],
+      "counterfactual_table": {
+        "schema_version": "lingxi.routerg10.counterfactual.table.v1",
+        "generation": "firstbattle-router-g10",
+        "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+        "decision_time": "2024-06-01T13:00:00Z",
+        "symbol": "BTC-USDT-SWAP",
+        "actions": [
+          {
+            "action": "ADD",
+            "personal_conservative_net_bps": 20.900000000000283,
+            "stress_loss_bps": 28.649999999999576,
+            "margin_occupation_usdt": 1.25,
+            "expected_completion_bars": 1,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": 0.5835951134380619,
+            "allowed": false,
+            "size_scale": 1,
+            "reject_reasons": [
+              "CONCURRENCY_FULL"
+            ]
+          },
+          {
+            "action": "LONG",
+            "personal_conservative_net_bps": 20.900000000000283,
+            "stress_loss_bps": 28.649999999999576,
+            "margin_occupation_usdt": 1.25,
+            "expected_completion_bars": 1,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": 0.5835951134380619,
+            "allowed": false,
+            "size_scale": 1,
+            "reject_reasons": [
+              "CONCURRENCY_FULL"
+            ]
+          },
+          {
+            "action": "CLOSE",
+            "personal_conservative_net_bps": 0,
+            "stress_loss_bps": 0,
+            "margin_occupation_usdt": 0,
+            "expected_completion_bars": 1,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": 0,
+            "allowed": true,
+            "size_scale": 1
+          },
+          {
+            "action": "HOLD",
+            "personal_conservative_net_bps": 0,
+            "stress_loss_bps": 0,
+            "margin_occupation_usdt": 0,
+            "expected_completion_bars": 1,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": 0,
+            "allowed": true,
+            "size_scale": 1
+          },
+          {
+            "action": "NO_TRADE",
+            "personal_conservative_net_bps": 0,
+            "stress_loss_bps": 0,
+            "margin_occupation_usdt": 0,
+            "expected_completion_bars": 1,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": 0,
+            "allowed": true,
+            "size_scale": 1
+          },
+          {
+            "action": "TRIM",
+            "personal_conservative_net_bps": 0,
+            "stress_loss_bps": 25,
+            "margin_occupation_usdt": 0,
+            "expected_completion_bars": 1,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": 0,
+            "allowed": true,
+            "size_scale": 1
+          },
+          {
+            "action": "REVERSE",
+            "personal_conservative_net_bps": -34.09999999999972,
+            "stress_loss_bps": 51.14999999999958,
+            "margin_occupation_usdt": 1.25,
+            "expected_completion_bars": 1,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": -0.5333333333333333,
+            "allowed": false,
+            "size_scale": 1,
+            "reject_reasons": [
+              "OPEN_BREAKEVEN_FAIL"
+            ]
+          },
+          {
+            "action": "SHORT",
+            "personal_conservative_net_bps": -34.09999999999972,
+            "stress_loss_bps": 51.14999999999958,
+            "margin_occupation_usdt": 1.25,
+            "expected_completion_bars": 1,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": -0.5333333333333333,
+            "allowed": false,
+            "size_scale": 1,
+            "reject_reasons": [
+              "OPEN_BREAKEVEN_FAIL"
+            ]
+          }
+        ],
+        "table_hash": "440f5382cf6236546c5e14eb1931dead8f478d181b168b5f6c3592be5676b088"
+      },
+      "reject_reasons": [
+        "CONCURRENCY_FULL",
+        "OPEN_BREAKEVEN_FAIL"
+      ],
+      "final_action": "TRIM",
+      "position_size": 0,
+      "deadline": 2,
+      "stop_error_state": "holding",
+      "solvency_state": "ok",
+      "trace_hash": "633c1f13608c26928624f531ac74ba8757c848d14d093aff64807262bff3a900"
+    },
+    {
+      "schema_version": "lingxi.routerg10.brain-trace.v1",
+      "generation": "firstbattle-router-g10",
+      "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+      "bar_index": 2,
+      "decision_time": "2024-06-01T14:00:00Z",
+      "state_hash": "4df88fc1577a882caecb9e3b20ca0836e4a2a94c371054c5bb205c20853c96a0",
+      "symbol": "BTC-USDT-SWAP",
+      "event_family": "ohlcv_extreme_continuation",
+      "fingerprint_version": "fixture-fingerprint-known-hash-v1",
+      "memory_hits": [
+        {
+          "episode_hash": "win-a",
+          "event_id": "win-a",
+          "similarity": 0.7391224560650878
+        },
+        {
+          "episode_hash": "win-b",
+          "event_id": "win-b",
+          "similarity": 0.7391224560650878
+        },
+        {
+          "episode_hash": "win-c",
+          "event_id": "win-c",
+          "similarity": 0.7391224560650878
+        },
+        {
+          "episode_hash": "win-d",
+          "event_id": "win-d",
+          "similarity": 0.7391224560650878
+        },
+        {
+          "episode_hash": "win-e",
+          "event_id": "win-e",
+          "similarity": 0.7391224560650878
+        },
+        {
+          "episode_hash": "win-f",
+          "event_id": "win-f",
+          "similarity": 0.7391224560650878
+        }
+      ],
+      "counterfactual_table": {
+        "schema_version": "lingxi.routerg10.counterfactual.table.v1",
+        "generation": "firstbattle-router-g10",
+        "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+        "decision_time": "2024-06-01T14:00:00Z",
+        "symbol": "BTC-USDT-SWAP",
+        "actions": [
+          {
+            "action": "LONG",
+            "personal_conservative_net_bps": 20.900000000000283,
+            "stress_loss_bps": 28.649999999999576,
+            "margin_occupation_usdt": 5,
+            "expected_completion_bars": 4,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": 0.14589877835951548,
+            "allowed": false,
+            "size_scale": 1,
+            "reject_reasons": [
+              "STRESS_INSOLVENT"
+            ]
+          },
+          {
+            "action": "ADD",
+            "personal_conservative_net_bps": 0,
+            "stress_loss_bps": 0,
+            "margin_occupation_usdt": 0,
+            "expected_completion_bars": 4,
+            "delay_bars": 0,
+            "min_lot_feasible": false,
+            "capacity_usdt": 0,
+            "rank_score": 0,
+            "allowed": false,
+            "size_scale": 1,
+            "reject_reasons": [
+              "NO_POSITION_TO_ADD"
+            ]
+          },
+          {
+            "action": "CLOSE",
+            "personal_conservative_net_bps": 0,
+            "stress_loss_bps": 0,
+            "margin_occupation_usdt": 0,
+            "expected_completion_bars": 4,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": 0,
+            "allowed": false,
+            "size_scale": 1,
+            "reject_reasons": [
+              "NO_POSITION_TO_CLOSE"
+            ]
+          },
+          {
+            "action": "HOLD",
+            "personal_conservative_net_bps": 0,
+            "stress_loss_bps": 0,
+            "margin_occupation_usdt": 0,
+            "expected_completion_bars": 4,
+            "delay_bars": 0,
+            "min_lot_feasible": false,
+            "capacity_usdt": 0,
+            "rank_score": 0,
+            "allowed": true,
+            "size_scale": 1
+          },
+          {
+            "action": "NO_TRADE",
+            "personal_conservative_net_bps": 0,
+            "stress_loss_bps": 0,
+            "margin_occupation_usdt": 0,
+            "expected_completion_bars": 4,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": 0,
+            "allowed": true,
+            "size_scale": 1
+          },
+          {
+            "action": "REVERSE",
+            "personal_conservative_net_bps": 0,
+            "stress_loss_bps": 0,
+            "margin_occupation_usdt": 0,
+            "expected_completion_bars": 4,
+            "delay_bars": 0,
+            "min_lot_feasible": false,
+            "capacity_usdt": 0,
+            "rank_score": 0,
+            "allowed": false,
+            "size_scale": 1,
+            "reject_reasons": [
+              "NO_POSITION_TO_REVERSE"
+            ]
+          },
+          {
+            "action": "TRIM",
+            "personal_conservative_net_bps": 0,
+            "stress_loss_bps": 0,
+            "margin_occupation_usdt": 0,
+            "expected_completion_bars": 4,
+            "delay_bars": 0,
+            "min_lot_feasible": false,
+            "capacity_usdt": 0,
+            "rank_score": 0,
+            "allowed": false,
+            "size_scale": 1,
+            "reject_reasons": [
+              "NO_POSITION_TO_TRIM"
+            ]
+          },
+          {
+            "action": "SHORT",
+            "personal_conservative_net_bps": -39.09999999999972,
+            "stress_loss_bps": 58.64999999999958,
+            "margin_occupation_usdt": 5,
+            "expected_completion_bars": 4,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": -0.13333333333333333,
+            "allowed": false,
+            "size_scale": 1,
+            "reject_reasons": [
+              "OPEN_BREAKEVEN_FAIL"
+            ]
+          }
+        ],
+        "table_hash": "2dde94b77d87717b5332ec7ccab124fb0662f4520186d555a913cbd6056e9915"
+      },
+      "reject_reasons": [
+        "STOP_ERROR_FORCED"
+      ],
+      "final_action": "CLOSE",
+      "position_size": 0,
+      "deadline": 6,
+      "stop_error_state": "exit",
+      "solvency_state": "ok",
+      "trace_hash": "6a0569caf7a56e74b2c00b19bdd938fd3b9fdb2cce5b0d36ce6062ee0c1185b0"
+    },
+    {
+      "schema_version": "lingxi.routerg10.brain-trace.v1",
+      "generation": "firstbattle-router-g10",
+      "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+      "bar_index": 1,
+      "decision_time": "2024-06-01T13:00:00Z",
+      "state_hash": "8951504220f694c38e9b1861b65fc5b54c13b8a180397e4d3aacedc34f0da927",
+      "symbol": "BTC-USDT-SWAP",
+      "event_family": "ohlcv_extreme_continuation",
+      "thesis_health": "healthy",
+      "fingerprint_version": "fixture-fingerprint-known-hash-v1",
+      "memory_hits": [
+        {
+          "episode_hash": "win-a",
+          "event_id": "win-a",
+          "similarity": 0.7392148521467308
+        },
+        {
+          "episode_hash": "win-b",
+          "event_id": "win-b",
+          "similarity": 0.7392148521467308
+        },
+        {
+          "episode_hash": "win-c",
+          "event_id": "win-c",
+          "similarity": 0.7392148521467308
+        },
+        {
+          "episode_hash": "win-d",
+          "event_id": "win-d",
+          "similarity": 0.7392148521467308
+        },
+        {
+          "episode_hash": "win-e",
+          "event_id": "win-e",
+          "similarity": 0.7392148521467308
+        },
+        {
+          "episode_hash": "win-f",
+          "event_id": "win-f",
+          "similarity": 0.7392148521467308
+        }
+      ],
+      "counterfactual_table": {
+        "schema_version": "lingxi.routerg10.counterfactual.table.v1",
+        "generation": "firstbattle-router-g10",
+        "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+        "decision_time": "2024-06-01T13:00:00Z",
+        "symbol": "BTC-USDT-SWAP",
+        "actions": [
+          {
+            "action": "LONG",
+            "personal_conservative_net_bps": 20.900000000000283,
+            "stress_loss_bps": 28.649999999999576,
+            "margin_occupation_usdt": 1.25,
+            "expected_completion_bars": 1,
+            "delay_bars": 0,
+            "min_lot_feasible": false,
+            "capacity_usdt": 0,
+            "rank_score": 0.5835951134380619,
+            "allowed": false,
+            "size_scale": 1,
+            "reject_reasons": [
+              "BELOW_MIN_NOTIONAL",
+              "MIN_LOT_INFEASIBLE"
+            ]
+          },
+          {
+            "action": "ADD",
+            "personal_conservative_net_bps": 0,
+            "stress_loss_bps": 0,
+            "margin_occupation_usdt": 0,
+            "expected_completion_bars": 1,
+            "delay_bars": 0,
+            "min_lot_feasible": false,
+            "capacity_usdt": 0,
+            "rank_score": 0,
+            "allowed": false,
+            "size_scale": 1,
+            "reject_reasons": [
+              "NO_POSITION_TO_ADD"
+            ]
+          },
+          {
+            "action": "CLOSE",
+            "personal_conservative_net_bps": 0,
+            "stress_loss_bps": 0,
+            "margin_occupation_usdt": 0,
+            "expected_completion_bars": 1,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": 0,
+            "allowed": false,
+            "size_scale": 1,
+            "reject_reasons": [
+              "NO_POSITION_TO_CLOSE"
+            ]
+          },
+          {
+            "action": "HOLD",
+            "personal_conservative_net_bps": 0,
+            "stress_loss_bps": 0,
+            "margin_occupation_usdt": 0,
+            "expected_completion_bars": 1,
+            "delay_bars": 0,
+            "min_lot_feasible": false,
+            "capacity_usdt": 0,
+            "rank_score": 0,
+            "allowed": true,
+            "size_scale": 1
+          },
+          {
+            "action": "NO_TRADE",
+            "personal_conservative_net_bps": 0,
+            "stress_loss_bps": 0,
+            "margin_occupation_usdt": 0,
+            "expected_completion_bars": 1,
+            "delay_bars": 0,
+            "min_lot_feasible": true,
+            "capacity_usdt": 0,
+            "rank_score": 0,
+            "allowed": true,
+            "size_scale": 1
+          },
+          {
+            "action": "REVERSE",
+            "personal_conservative_net_bps": 0,
+            "stress_loss_bps": 0,
+            "margin_occupation_usdt": 0,
+            "expected_completion_bars": 1,
+            "delay_bars": 0,
+            "min_lot_feasible": false,
+            "capacity_usdt": 0,
+            "rank_score": 0,
+            "allowed": false,
+            "size_scale": 1,
+            "reject_reasons": [
+              "NO_POSITION_TO_REVERSE"
+            ]
+          },
+          {
+            "action": "TRIM",
+            "personal_conservative_net_bps": 0,
+            "stress_loss_bps": 0,
+            "margin_occupation_usdt": 0,
+            "expected_completion_bars": 1,
+            "delay_bars": 0,
+            "min_lot_feasible": false,
+            "capacity_usdt": 0,
+            "rank_score": 0,
+            "allowed": false,
+            "size_scale": 1,
+            "reject_reasons": [
+              "NO_POSITION_TO_TRIM"
+            ]
+          },
+          {
+            "action": "SHORT",
+            "personal_conservative_net_bps": -34.09999999999972,
+            "stress_loss_bps": 51.14999999999958,
+            "margin_occupation_usdt": 1.25,
+            "expected_completion_bars": 1,
+            "delay_bars": 0,
+            "min_lot_feasible": false,
+            "capacity_usdt": 0,
+            "rank_score": -0.5333333333333333,
+            "allowed": false,
+            "size_scale": 1,
+            "reject_reasons": [
+              "BELOW_MIN_NOTIONAL",
+              "MIN_LOT_INFEASIBLE",
+              "OPEN_BREAKEVEN_FAIL"
+            ]
+          }
+        ],
+        "table_hash": "9cd90f98f7e47028f7a8f7ef6273e13dc2718645f5dc26bfe3e3161b81939d21"
+      },
+      "reject_reasons": [
+        "BELOW_MIN_NOTIONAL",
+        "MIN_LOT_INFEASIBLE",
+        "NO_POSITION_TO_ADD",
+        "NO_POSITION_TO_CLOSE",
+        "NO_POSITION_TO_REVERSE",
+        "NO_POSITION_TO_TRIM",
+        "OPEN_BREAKEVEN_FAIL"
+      ],
+      "final_action": "NO_TRADE",
+      "position_size": 0,
+      "deadline": 2,
+      "stop_error_state": "holding",
+      "solvency_state": "ok",
+      "trace_hash": "98b9adc0a364fead3289326c26db5aab41e0a77db07899226e47d722c9b6224d"
+    }
+  ],
+  "seq": 0
+}

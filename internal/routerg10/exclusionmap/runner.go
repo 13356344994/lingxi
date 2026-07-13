@@ -71,6 +71,19 @@ func (r *Runner) Run(ctx context.Context) (RunResult, error) {
 	if err != nil {
 		return RunResult{}, err
 	}
+	if loaded, ok, err := LoadCheckpoint(r.CheckpointPath); err != nil {
+		return RunResult{}, err
+	} else if ok {
+		if err := VerifyCheckpointBinding(
+			loaded, r.Config, r.Catalog.DataHash, constitutionHash,
+			mapManifestHashes, ann.TapeHash, ann.ManifestHash,
+		); err != nil {
+			return RunResult{}, err
+		}
+		if loaded.Done {
+			return r.loadCompleted()
+		}
+	}
 	if ann.Incomplete {
 		return r.completeFailClosed(
 			ctx, constitutionHash, bundles, mapManifestHashes, mapArtifactHashes, ann, RejectIncompletePIT,
@@ -93,12 +106,6 @@ func (r *Runner) Run(ctx context.Context) (RunResult, error) {
 			mapManifestHashes, ann.TapeHash, ann.ManifestHash,
 		); err != nil {
 			return RunResult{}, err
-		}
-		if loaded.Done && loaded.NextWorkIndex >= len(workItems) {
-			return r.loadCompleted()
-		}
-		if loaded.Done {
-			loaded.Done = false
 		}
 		cp = loaded
 	} else {
@@ -300,25 +307,20 @@ func (r *Runner) finalizeRun(
 	if err != nil {
 		return RunResult{}, err
 	}
-	artifactHashes, err := WriteOutputs(r.Config.OutputDir, exclusionMap, ledger, MapManifest{}, RunSummary{})
-	if err != nil {
-		return RunResult{}, err
-	}
 	manifest, err := BuildManifest(
 		r.Config, r.Catalog.DataHash, constitutionHash,
 		mapManifestHashes, mapArtifactHashes,
 		ann.TapeHash, ann.ManifestHash,
-		exclusionMap, ledger, artifactHashes,
+		exclusionMap, ledger, nil,
 	)
 	if err != nil {
 		return RunResult{}, err
 	}
 	summary := BuildSummary(r.Config, constitutionHash, triggeredSeedCount, ledger, exclusionMap, manifest, failClosedReason)
-	artifactHashes, err = WriteOutputs(r.Config.OutputDir, exclusionMap, ledger, manifest, summary)
+	artifactHashes, err := WriteOutputs(r.Config.OutputDir, exclusionMap, ledger, manifest, summary)
 	if err != nil {
 		return RunResult{}, err
 	}
-	manifest.ArtifactHashes = artifactHashes
 	manifest, err = BuildManifest(
 		r.Config, r.Catalog.DataHash, constitutionHash,
 		mapManifestHashes, mapArtifactHashes,
@@ -329,6 +331,10 @@ func (r *Runner) finalizeRun(
 		return RunResult{}, err
 	}
 	if err := WriteManifest(r.Config.OutputDir, manifest); err != nil {
+		return RunResult{}, err
+	}
+	summary = BuildSummary(r.Config, constitutionHash, triggeredSeedCount, ledger, exclusionMap, manifest, failClosedReason)
+	if err := writeJSONAtomic(filepath.Join(r.Config.OutputDir, SummaryFileName), summary); err != nil {
 		return RunResult{}, err
 	}
 	cp.Done = true
@@ -384,6 +390,12 @@ func (r *Runner) loadCompleted() (RunResult, error) {
 	}
 	var summary RunSummary
 	if err := unmarshalJSON(rawSummary, &summary); err != nil {
+		return RunResult{}, err
+	}
+	if summary.ManifestHash != manifest.ManifestHash {
+		return RunResult{}, fmt.Errorf("exclusionmap: summary manifest hash mismatch")
+	}
+	if err := VerifyOutputArtifacts(r.Config.OutputDir, manifest, summary); err != nil {
 		return RunResult{}, err
 	}
 	return RunResult{Map: exclusionMap, Ledger: ledger, Manifest: manifest, Summary: summary}, nil

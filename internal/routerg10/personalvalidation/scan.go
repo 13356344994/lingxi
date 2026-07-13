@@ -6,6 +6,7 @@ import (
 	"math"
 	"time"
 
+	"lingxi/internal/datatruth"
 	"lingxi/internal/routerg4/profitmap"
 	"lingxi/internal/routerg6/eventmap"
 	"lingxi/internal/routerg10/executionpolicy"
@@ -28,6 +29,8 @@ type ScanConfig struct {
 	Proofs         ProofBundle
 	Partition      string // eventmap.PartitionValidation or PartitionWalkForward
 	RequireProofObservations bool
+	InstrumentCatalog        datatruth.InstrumentCatalog
+	HasInstrumentCatalog     bool
 }
 
 // ScanPlaybookSymbol evaluates validation-partition triggers for one frozen personal playbook.
@@ -81,15 +84,35 @@ func ScanPlaybookSymbol(
 				cluster = "none"
 			}
 		}
-		feat := BuildDecisionVisibleFeatures(DecisionFeatureInput{
+		featBase := BuildDecisionVisibleFeatures(DecisionFeatureInput{
 			Bars: bars, BarIndex: i, Spec: cfg.Spec, Boundaries: cfg.Boundaries,
 			Thresholds: cfg.Thresholds, BTCBars: cfg.BTCBars, WindowBars: windowBars,
 			PrimaryBack: primaryBack, Decision: decision, Symbol: symbol, ProfileID: cfg.ProfileID,
 			Announcements: cfg.Proofs.Announcements, ShockCluster: cluster,
-			CapitalUSDT: CapitalTiersUSDT[0], MinNotionalUSDT: pb.EntryNarrative.DynamicMinNotionalUSDT,
-			WantEventFamily: pb.EventFamily,
+			CapitalUSDT: CapitalTiersUSDT[0],
+			MinNotionalUSDT: resolveDecisionMinNotional(
+				symbol, decision, bars[i].Close,
+				CanonicalEventID(symbol, decision, pb.EventFamily),
+				cfg.Proofs, cfg.InstrumentCatalog, cfg.HasInstrumentCatalog,
+			),
 		})
-		matched := personalbrain.MatchPersonalPlaybooks([]personalplaybook.PersonalWildPlaybook{pb}, feat, i)
+		detected := eventmap.DetectFamilies(
+			symbol, bars, i, cfg.Spec, cfg.Boundaries, cfg.Thresholds,
+			cfg.BTCBars, windowBars,
+		)
+		if len(detected) == 0 {
+			continue
+		}
+		var matched []personalbrain.MatchedPersonalEvent
+		var feat personalbrain.BarFeatures
+		for _, family := range detected {
+			feat = featBase
+			feat.EventFamily = family
+			matched = personalbrain.MatchPersonalPlaybooks([]personalplaybook.PersonalWildPlaybook{pb}, feat, i)
+			if len(matched) > 0 {
+				break
+			}
+		}
 		if len(matched) == 0 {
 			continue
 		}
@@ -122,23 +145,36 @@ func buildTriggerEvent(
 	_ = exitIndex
 	eventID := CanonicalEventID(feat.Symbol, decision, pb.EventFamily)
 	me.EventID = eventID
-	conservative, stress, capFail, cliff := estimateOutcome(bars, i, horizon, me.Direction, delay, pb)
+	var conservative, stress float64
+	var capFail bool
+	var cliff float64
+	if cfg.RequireProofObservations {
+		cliff = pb.RiskNarrative.MaxCapacityUSDT
+		capFail = cliff <= 0 || pb.RiskNarrative.MaxSizeUSDT <= 0
+	} else {
+		conservative, stress, capFail, cliff = estimateOutcome(bars, i, horizon, me.Direction, delay, pb)
+	}
 	sim, tr := observeExecution(bars, i, delay, me.Direction, conservative, stress, feat.Price, eventID, pb, cfg.Proofs, cfg.RequireProofObservations)
-	exitOK := resolveExitProofOK(eventID, bars, i, delay, horizon.BarCount, pb, cfg.Proofs)
+	if cfg.RequireProofObservations {
+		conservative, stress = boundConservativeStressBPS(eventID, pb, cfg.Proofs, sim, tr)
+	}
+	exitOK := resolveExitProofOK(eventID, cfg.Proofs, cfg.RequireProofObservations)
 	crowdingLevel, crowdingPass := crowdingFromProofs(eventID, conservative, pb, cfg.Proofs)
 	var crowdingStress exclusionmap.CrowdingStress
 	if cs, ok := cfg.Proofs.crowdingStress(eventID); ok {
 		crowdingStress = cs
 	}
 
-	me = enrichMatchedEvent(me, pb, cfg.Proofs, eventID, exitOK, crowdingPass, crowdingStress, pb.ExecutionNarrative.FrozenExecutionAction)
+	me = enrichMatchedEvent(me, pb, cfg.Proofs, eventID, exitOK, crowdingPass, crowdingStress, pb.ExecutionNarrative.FrozenExecutionAction, cfg.RequireProofObservations)
 
 	barInput := personalbrain.BarInput{
 		BarIndex: i, DecisionTime: decision,
 		Features: personalbrain.BarFeatures{
-			Symbol: feat.Symbol, ProfileID: cfg.ProfileID,
+			Symbol: feat.Symbol, ProfileID: cfg.ProfileID, DecisionTime: decision,
 			ReturnBPS: feat.ReturnBPS, PriorReturnBPS: feat.PriorReturnBPS,
 			BTCRelativeBPS: feat.BTCRelativeBPS, BarRangeBPS: feat.BarRangeBPS, Price: feat.Price,
+			EventFamily: feat.EventFamily, DynamicMinNotionalUSDT: feat.DynamicMinNotionalUSDT,
+			MinLotNonlinearity: feat.MinLotNonlinearity, PrepositionedCapitalWindow: feat.PrepositionedCapitalWindow,
 		},
 		Prices:       map[string]float64{feat.Symbol: feat.Price},
 		ExecutionSim: sim,
@@ -151,10 +187,11 @@ func buildTriggerEvent(
 	}
 	barInput.Events = []personalbrain.MatchedPersonalEvent{me}
 
+	minNotional := resolveDecisionMinNotional(feat.Symbol, decision, feat.Price, eventID, cfg.Proofs, cfg.InstrumentCatalog, cfg.HasInstrumentCatalog)
 	cfgBrain := personalbrain.Config{
 		InitialEquityUSDT: CapitalTiersUSDT[0],
 		ConstitutionHash:  pb.ProofBinding.ConstitutionHash,
-		MinNotionalUSDT:   pb.EntryNarrative.DynamicMinNotionalUSDT,
+		MinNotionalUSDT:   minNotional,
 		ProtocolHash:      ProtocolHash,
 		TradeAllowed:      true,
 	}
@@ -168,7 +205,10 @@ func buildTriggerEvent(
 	pitPub, pitFS := evaluatePITFlags(cfg.Proofs.Announcements, decision)
 	entryGrade := me.Proofs.EntryGrade
 	_, entryBound := cfg.Proofs.entryProof(eventID)
-	_, execBound := cfg.Proofs.executionPolicy(eventID, pb.ProofBinding.ExecutionPolicyHash)
+	_, execBound := cfg.Proofs.executionPolicy(eventID)
+	if execBound && !cfg.Proofs.verifyExecutionPolicyHash(eventID, pb.ProofBinding.ExecutionPolicyHash) {
+		execBound = false
+	}
 	_, exitBound := cfg.Proofs.exitProof(eventID)
 	_, exclBound := cfg.Proofs.exclusionProof(eventID)
 	return TriggerEvent{
@@ -177,7 +217,7 @@ func buildTriggerEvent(
 		Symbol:             feat.Symbol,
 		ProfileID:          cfg.ProfileID,
 		Direction:          me.Direction,
-		EventFamily:        pb.EventFamily,
+		EventFamily:        feat.EventFamily,
 		PersonalTapeFamily: pb.PersonalTapeFamily,
 		DecisionTime:       decision,
 		DecisionBarIndex:   i,
@@ -218,6 +258,13 @@ func buildTriggerEvent(
 		ExecutionProofBound: execBound,
 		ExitProofBound:     exitBound,
 		ExclusionProofBound: exclBound,
+		MaxPriceCap:         sim.MaxPriceCap,
+		MaxSlippageBPS:      sim.MaxSlippageBPS,
+		MinRemainingEdgeBPS: sim.MinRemainingEdgeBPS,
+		TimeoutMS:           sim.TimeoutMS,
+		SpreadBPS:           sim.SpreadBPS,
+		FeeBPS:              sim.FeeBPS,
+		LatencyMS:           sim.LatencyMS,
 	}
 }
 
@@ -246,6 +293,40 @@ func mapFrozenAction(action, enterGate, direction string) string {
 		return "NO_TRADE"
 	}
 }
+func boundConservativeStressBPS(
+	eventID string,
+	pb personalplaybook.PersonalWildPlaybook,
+	proofs ProofBundle,
+	sim personalbrain.ExecutionSimState,
+	tr executionpolicy.TriggerRecord,
+) (conservative, stress float64) {
+	if !sim.MakerFilled && !makerActionFilled(tr) {
+		return 0, 0
+	}
+	ref := pb.RiskNarrative.MaxSizeUSDT
+	if ref <= 0 {
+		ref = CapitalTiersUSDT[0]
+	}
+	if fp, ok := proofs.executionPolicy(eventID); ok {
+		for _, a := range fp.ActionsCompared {
+			if a.Action == fp.SelectedAction && a.Allowed {
+				conservative = executionpolicy.ActionExpectedNetBPS(a, ref)
+				stress = conservative - 8*(CostStressMultiplier-1)
+				return conservative, stress
+			}
+		}
+	}
+	if tr.RemainingEdgeBPS != 0 {
+		conservative = tr.RemainingEdgeBPS
+		stress = conservative - 8*(CostStressMultiplier-1)
+	}
+	return conservative, stress
+}
+
+func makerActionFilled(tr executionpolicy.TriggerRecord) bool {
+	return tr.MakerFilled
+}
+
 func estimateOutcome(bars []eventmap.Bar, i int, horizon profitmap.HorizonSpec, direction string, delay int, pb personalplaybook.PersonalWildPlaybook) (conservative, stress float64, capFail bool, cliff float64) {
 	entry := i + 1 + delay
 	exit := entry + horizon.BarCount

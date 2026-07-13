@@ -220,24 +220,24 @@ func TestSmokeRunnerWithSyntheticFixtures(t *testing.T) {
 	root, catalog, mapDir, fpPath := writeSyntheticFixtures(t)
 	outDir := filepath.Join(root, "out")
 	cfg := RunConfig{
-		SchemaVersion: SchemaVersionConfig,
-		HistoryRoot:   root,
-		OutputDir:     outDir,
-		FingerprintPath: fpPath,
-		MapDirs:       []string{mapDir},
-		MaxFiles:      10,
-		MaxLines:      2000,
-		CandidateLimit: 16,
-		ProgressEvery: 1,
+		SchemaVersion:       SchemaVersionConfig,
+		HistoryRoot:         root,
+		OutputDir:           outDir,
+		FingerprintPath:     fpPath,
+		MapDirs:             []string{mapDir},
+		MaxFiles:            10,
+		MaxLines:            2000,
+		CandidateLimit:      16,
+		ProgressEvery:       1,
 		AllowTruncatedSmoke: true,
-		Generation:    g10protocol.Generation,
-		ProtocolHash:    g10protocol.RouterProtocolHash,
-		HistoryDataHash: g10protocol.HistoryDataHash,
+		Generation:          g10protocol.Generation,
+		ProtocolHash:        g10protocol.RouterProtocolHash,
+		HistoryDataHash:     g10protocol.HistoryDataHash,
 	}
 	runner := Runner{
-		Config:         cfg,
-		Catalog:        catalog,
-		CheckpointPath: filepath.Join(root, "cp.json"),
+		Config:           cfg,
+		Catalog:          catalog,
+		CheckpointPath:   filepath.Join(root, "cp.json"),
 		CatalogValidator: func(historydata.HistoryCatalog) error { return nil },
 	}
 	result, err := runner.Run(context.Background())
@@ -284,24 +284,24 @@ func TestProfileBundlePlaybookCompatible(t *testing.T) {
 	root, catalog, mapDir, fpPath := writeSyntheticFixtures(t)
 	outDir := filepath.Join(root, "out")
 	cfg := RunConfig{
-		SchemaVersion: SchemaVersionConfig,
-		HistoryRoot:   root,
-		OutputDir:     outDir,
-		FingerprintPath: fpPath,
-		MapDirs:       []string{mapDir},
-		MaxFiles:      10,
-		MaxLines:      2000,
-		CandidateLimit: 16,
-		ProgressEvery: 1,
+		SchemaVersion:       SchemaVersionConfig,
+		HistoryRoot:         root,
+		OutputDir:           outDir,
+		FingerprintPath:     fpPath,
+		MapDirs:             []string{mapDir},
+		MaxFiles:            10,
+		MaxLines:            2000,
+		CandidateLimit:      16,
+		ProgressEvery:       1,
 		AllowTruncatedSmoke: true,
-		Generation:    g10protocol.Generation,
-		ProtocolHash:    g10protocol.RouterProtocolHash,
-		HistoryDataHash: g10protocol.HistoryDataHash,
+		Generation:          g10protocol.Generation,
+		ProtocolHash:        g10protocol.RouterProtocolHash,
+		HistoryDataHash:     g10protocol.HistoryDataHash,
 	}
 	runner := Runner{
-		Config:         cfg,
-		Catalog:        catalog,
-		CheckpointPath: filepath.Join(root, "cp2.json"),
+		Config:           cfg,
+		Catalog:          catalog,
+		CheckpointPath:   filepath.Join(root, "cp2.json"),
 		CatalogValidator: func(historydata.HistoryCatalog) error { return nil },
 	}
 	result, err := runner.Run(context.Background())
@@ -384,15 +384,15 @@ func writeSyntheticFixtures(t *testing.T) (root string, catalog historydata.Hist
 	writeJSONFile(t, thresholdsPath, thresholds)
 	thresholdsHash, _ := eventmap.HashFile(thresholdsPath)
 	manifest := eventmap.MapManifest{
-		SchemaVersion: "lingxi.router-g6-event-map.manifest.v1",
-		Generation: protocol.Generation,
-		ProtocolHash: protocol.RouterProtocolHash,
+		SchemaVersion:   "lingxi.router-g6-event-map.manifest.v1",
+		Generation:      protocol.Generation,
+		ProtocolHash:    protocol.RouterProtocolHash,
 		HistoryDataHash: protocol.HistoryDataHash,
-		ProfileID: eventmap.ProfileOKX1H,
-		CatalogHash: g10protocol.HistoryDataHash,
-		FullMarket: true,
+		ProfileID:       eventmap.ProfileOKX1H,
+		CatalogHash:     g10protocol.HistoryDataHash,
+		FullMarket:      true,
 		ArtifactHashes: map[string]string{
-			discoveryName: discoveryHash,
+			discoveryName:               discoveryHash,
 			"event_map_thresholds.json": thresholdsHash,
 		},
 	}
@@ -433,7 +433,7 @@ func TestActualEquityUnknownDoesNotDefault30(t *testing.T) {
 	}
 	tiers := ComputeTierCosts(40, CostBase{
 		RollingQuoteVolumeUSDT: 5e5,
-		BarHigh: 100.2, BarLow: 99.8, BarMid: 100,
+		BarHigh:                100.2, BarLow: 99.8, BarMid: 100,
 		ProfileID: eventmap.ProfileOKX1H, Horizon: "1h",
 	}, PersonalAdjustments{}, 0)
 	if tiers["actual"].CapitalUSDT != 0 {
@@ -447,11 +447,11 @@ func TestActualEquityUnknownDoesNotDefault30(t *testing.T) {
 func TestLargeTiersRequireEvaluableCapacityFail(t *testing.T) {
 	item := EventWorkItem{
 		ProfileID: eventmap.ProfileOKX1H,
-		Event: TriggeredEventEntry{EventID: "evt-cap", EventFamily: eventmap.FamilyExtremeReversal, Horizon: "1h", DelayBars: 1},
+		Event:     TriggeredEventEntry{EventID: "evt-cap", EventFamily: eventmap.FamilyExtremeReversal, Horizon: "1h", DelayBars: 1},
 	}
 	base := CostBase{
 		RollingQuoteVolumeUSDT: 5e5,
-		BarHigh: 100.2, BarLow: 99.8, BarMid: 100,
+		BarHigh:                100.2, BarLow: 99.8, BarMid: 100,
 		ProfileID: eventmap.ProfileOKX1H, Horizon: "1h", DelayBars: 1,
 	}
 	result := EvaluateFromGross(item, 80, base, PersonalAdjustments{}, 80)
@@ -472,11 +472,11 @@ func TestLargeTiersRequireEvaluableCapacityFail(t *testing.T) {
 func TestUnknownCriticalDoesNotHelpLargeTierFail(t *testing.T) {
 	item := EventWorkItem{
 		ProfileID: eventmap.ProfileOKX1H,
-		Event: TriggeredEventEntry{EventID: "evt-unk", EventFamily: eventmap.FamilyExtremeReversal, Horizon: "1h", DelayBars: 1},
+		Event:     TriggeredEventEntry{EventID: "evt-unk", EventFamily: eventmap.FamilyExtremeReversal, Horizon: "1h", DelayBars: 1},
 	}
 	base := CostBase{
 		RollingQuoteVolumeUSDT: 1e9,
-		BarHigh: 100.2, BarLow: 99.8, BarMid: 100,
+		BarHigh:                100.2, BarLow: 99.8, BarMid: 100,
 		ProfileID: eventmap.ProfileOKX1H, Horizon: "1h", DelayBars: 1,
 	}
 	adj := PersonalAdjustments{CriticalUnknown: true}
@@ -495,11 +495,11 @@ func TestUnknownCriticalDoesNotHelpLargeTierFail(t *testing.T) {
 func TestPublicSimpleFactorIncludes10k(t *testing.T) {
 	item := EventWorkItem{
 		ProfileID: eventmap.ProfileOKX1H,
-		Event: TriggeredEventEntry{EventID: "evt-pub", EventFamily: eventmap.FamilyExtremeContinuation, Horizon: "1h", DelayBars: 1},
+		Event:     TriggeredEventEntry{EventID: "evt-pub", EventFamily: eventmap.FamilyExtremeContinuation, Horizon: "1h", DelayBars: 1},
 	}
 	base := CostBase{
 		RollingQuoteVolumeUSDT: 1e9,
-		BarHigh: 100.2, BarLow: 99.8, BarMid: 100,
+		BarHigh:                100.2, BarLow: 99.8, BarMid: 100,
 		ProfileID: eventmap.ProfileOKX1H, Horizon: "1h", DelayBars: 1,
 	}
 	result := EvaluateFromGross(item, 60, base, PersonalAdjustments{}, 100)
@@ -525,6 +525,21 @@ func TestCollectTriggeredEventWorkItemsNotWinnerSeeded(t *testing.T) {
 		if item.Event.ConservativeBPS > 0 {
 			t.Fatal("triggered work items must not carry winner conservative labels")
 		}
+	}
+}
+
+func TestCriticalKnownSymbolSetExcludesUnknownFingerprintSymbols(t *testing.T) {
+	fp := buildTestFingerprint(t)
+	fp.Cells = append(fp.Cells, fingerprint.ExecutionCell{
+		CellKey:     fingerprint.CellKey{Symbol: "ETH-USDT", Direction: "long"},
+		SampleCount: 100,
+	})
+	eligible := CriticalKnownSymbolSet(fp)
+	if !eligible["BTC-USDT"] {
+		t.Fatalf("known BTC symbol missing: %+v", eligible)
+	}
+	if eligible["ETH-USDT"] {
+		t.Fatalf("unknown ETH symbol must not enter residual scan: %+v", eligible)
 	}
 }
 
@@ -562,15 +577,15 @@ func buildTestFingerprint(t *testing.T) fingerprint.PersonalExecutionFingerprint
 			MedianCashUSDT: 80, Status: fingerprint.StatusAvailable,
 		},
 		Cells: []fingerprint.ExecutionCell{{
-			CellKey: fingerprint.CellKey{Symbol: "BTC-USDT", Direction: "long"},
-			FeeBPS: fingerprint.QuantileMetric{P50: 1, P90: 2, N: 3, Status: fingerprint.StatusAvailable},
-			EntrySlipBPS: fingerprint.QuantileMetric{P50: 0.5, P90: 1, N: 3, Status: fingerprint.StatusAvailable},
-			ExitSlipBPS: fingerprint.QuantileMetric{P50: 0.5, P90: 1, N: 3, Status: fingerprint.StatusAvailable},
-			LatencyMS: fingerprint.QuantileMetric{P50: 100, P90: 200, N: 3, Status: fingerprint.StatusAvailable},
-			MakerWaitMS: fingerprint.QuantileMetric{P50: 500, P90: 800, N: 3, Status: fingerprint.StatusAvailable},
+			CellKey:       fingerprint.CellKey{Symbol: "BTC-USDT", Direction: "long"},
+			FeeBPS:        fingerprint.QuantileMetric{P50: 1, P90: 2, N: 3, Status: fingerprint.StatusAvailable},
+			EntrySlipBPS:  fingerprint.QuantileMetric{P50: 0.5, P90: 1, N: 3, Status: fingerprint.StatusAvailable},
+			ExitSlipBPS:   fingerprint.QuantileMetric{P50: 0.5, P90: 1, N: 3, Status: fingerprint.StatusAvailable},
+			LatencyMS:     fingerprint.QuantileMetric{P50: 100, P90: 200, N: 3, Status: fingerprint.StatusAvailable},
+			MakerWaitMS:   fingerprint.QuantileMetric{P50: 500, P90: 800, N: 3, Status: fingerprint.StatusAvailable},
 			MakerFillRate: fingerprint.RateMetric{Rate: 0.6, N: 3, Status: fingerprint.StatusAvailable},
-			Instrument: fingerprint.KnownLinearInstrument("1", "1", "0.1", 100),
-			SampleCount: 3,
+			Instrument:    fingerprint.KnownLinearInstrument("1", "1", "0.1", 100),
+			SampleCount:   3,
 		}},
 	}
 	payload := fp
@@ -646,9 +661,9 @@ func TestProgressThrottledToProgressEvery(t *testing.T) {
 	}
 	progressCalls := 0
 	runner := Runner{
-		Config:         cfg,
-		Catalog:        catalog,
-		CheckpointPath: filepath.Join(root, "progress-cp.json"),
+		Config:           cfg,
+		Catalog:          catalog,
+		CheckpointPath:   filepath.Join(root, "progress-cp.json"),
 		CatalogValidator: func(historydata.HistoryCatalog) error { return nil },
 		OnProgress: func(attempts, accepted int) {
 			progressCalls++
@@ -678,7 +693,7 @@ func TestResumeSkipsProcessedAttemptsWithoutDuplicate(t *testing.T) {
 	cfg := RunConfig{
 		SchemaVersion:       SchemaVersionConfig,
 		HistoryRoot:         root,
-		OutputDir:             outDir,
+		OutputDir:           outDir,
 		FingerprintPath:     fpPath,
 		MapDirs:             []string{mapDir},
 		MaxFiles:            10,
@@ -692,9 +707,9 @@ func TestResumeSkipsProcessedAttemptsWithoutDuplicate(t *testing.T) {
 	}
 	cpPath := filepath.Join(root, "resume-cp.json")
 	runner := Runner{
-		Config:         cfg,
-		Catalog:        catalog,
-		CheckpointPath: cpPath,
+		Config:           cfg,
+		Catalog:          catalog,
+		CheckpointPath:   cpPath,
 		CatalogValidator: func(historydata.HistoryCatalog) error { return nil },
 	}
 	first, err := runner.Run(context.Background())
@@ -754,9 +769,9 @@ func TestFailClosedZeroCandidatesWithoutScanning(t *testing.T) {
 		HistoryDataHash:     g10protocol.HistoryDataHash,
 	}
 	runner := Runner{
-		Config:         cfg,
-		Catalog:        catalog,
-		CheckpointPath: filepath.Join(root, "fail-closed-cp.json"),
+		Config:           cfg,
+		Catalog:          catalog,
+		CheckpointPath:   filepath.Join(root, "fail-closed-cp.json"),
 		CatalogValidator: func(historydata.HistoryCatalog) error { return nil },
 	}
 	result, err := runner.Run(context.Background())
@@ -822,9 +837,9 @@ func TestFailClosedNotUsedWhenCoverageExists(t *testing.T) {
 		HistoryDataHash:     g10protocol.HistoryDataHash,
 	}
 	runner := Runner{
-		Config:         cfg,
-		Catalog:        catalog,
-		CheckpointPath: filepath.Join(root, "coverage-cp.json"),
+		Config:           cfg,
+		Catalog:          catalog,
+		CheckpointPath:   filepath.Join(root, "coverage-cp.json"),
 		CatalogValidator: func(historydata.HistoryCatalog) error { return nil },
 	}
 	result, err := runner.Run(context.Background())
@@ -860,9 +875,9 @@ func TestSIGTERMSavesCheckpointForResume(t *testing.T) {
 	cpPath := filepath.Join(root, "sigterm-cp.json")
 	ctx, cancel := context.WithCancel(context.Background())
 	runner := Runner{
-		Config:         cfg,
-		Catalog:        catalog,
-		CheckpointPath: cpPath,
+		Config:           cfg,
+		Catalog:          catalog,
+		CheckpointPath:   cpPath,
 		CatalogValidator: func(historydata.HistoryCatalog) error { return nil },
 		OnProgress: func(attempts, accepted int) {
 			cancel()

@@ -72,7 +72,7 @@ func replayScenario(
 	cfg := personalbrain.Config{
 		InitialEquityUSDT: initialEquity,
 		ConstitutionHash:  pb.ProofBinding.ConstitutionHash,
-		MinNotionalUSDT:   pb.EntryNarrative.DynamicMinNotionalUSDT,
+		MinNotionalUSDT:   brainMinNotionalFromEvents(events, proofs),
 		ProtocolHash:      ProtocolHash,
 		TradeAllowed:      true,
 	}
@@ -103,6 +103,13 @@ func replayScenario(
 			symbols := b.OpenSymbols()
 			b.ApplyHoldFunding(fundingBundle, symbols, prev, step.time, costStress)
 			b.Account.MarkToMarket(step.prices)
+		}
+		flushOut, _ := b.DecideBar(personalbrain.BarInput{
+			BarIndex: step.barIndex, DecisionTime: step.time,
+			Prices: step.prices, CostStress: costStress,
+		})
+		if flushOut.AppliedAction == "LONG" || flushOut.AppliedAction == "SHORT" {
+			stats.TriggersTraded++
 		}
 		before := b.Account.Core.EquityUSDT
 		for _, eventID := range step.eventIDs {
@@ -181,7 +188,7 @@ func replayTriggerViaDecideBar(
 		stats.CapacityFails++
 		return nil
 	}
-	if pb.EntryNarrative.DynamicMinNotionalUSDT > initialEquity*0.5 {
+	if minNotionalForBrain(*ev, proofs) > initialEquity*0.5 {
 		stats.SkipBelowMinNotional++
 		return nil
 	}
@@ -241,18 +248,26 @@ func buildBarInputFromTrigger(
 		ToxicThroughPrice: ev.ThroughPrice, ToxicFastFullFill: ev.ToxicRevalidate,
 		ThesisStillValid: !ev.ToxicExit,
 		RemainingEdgeBPS: ev.ConservativeBPS,
+		MaxPriceCap: ev.MaxPriceCap, MaxSlippageBPS: ev.MaxSlippageBPS,
+		MinRemainingEdgeBPS: ev.MinRemainingEdgeBPS, TimeoutMS: ev.TimeoutMS,
+		SpreadBPS: ev.SpreadBPS, FeeBPS: ev.FeeBPS, LatencyMS: ev.LatencyMS,
 	}
 	feat := personalbrain.BarFeatures{
-		Symbol: ev.Symbol, ProfileID: ev.ProfileID,
+		Symbol: ev.Symbol, ProfileID: ev.ProfileID, DecisionTime: ev.DecisionTime,
 		ReturnBPS: ev.ReturnBPS, PriorReturnBPS: ev.PriorReturnBPS, Price: price,
+		EventFamily: ev.EventFamily,
 	}
 	matched := personalbrain.MatchPersonalPlaybooks([]personalplaybook.PersonalWildPlaybook{pb}, feat, ev.DecisionBarIndex)
 	if len(matched) == 0 {
-		matched = []personalbrain.MatchedPersonalEvent{{
-			Playbook: pb, EventID: ev.EventID, EventFamily: ev.EventFamily, Direction: ev.Direction,
-		}}
+		return personalbrain.BarInput{}
 	}
-	me := enrichMatchedEvent(matched[0], pb, proofs, ev.EventID, ev.ExitProofOK, ev.CrowdingPassed, exclusionmap.CrowdingStress{}, ev.FrozenAction)
+	exitOK := ev.ExitProofOK
+	if xp, ok := proofs.exitProof(ev.EventID); ok {
+		exitOK = xp.CertificationOK
+	}
+	crowdingLevel, crowdingPass := crowdingFromProofs(ev.EventID, ev.ConservativeBPS, pb, proofs)
+	_ = crowdingLevel
+	me := enrichMatchedEvent(matched[0], pb, proofs, ev.EventID, exitOK, crowdingPass, exclusionmap.CrowdingStress{}, ev.FrozenAction, ev.ExclusionProofBound)
 	return personalbrain.BarInput{
 		BarIndex: step.barIndex, DecisionTime: step.time,
 		Features: feat, Events: []personalbrain.MatchedPersonalEvent{me},

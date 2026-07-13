@@ -23,9 +23,10 @@ type Manifest struct {
 	ChainHash        string              `json:"chain_hash"`
 	CoverageHash     string              `json:"coverage_hash"`
 	Coverage         CoverageSummary     `json:"coverage"`
-	ExecutionVenue   string              `json:"execution_venue"`
-	Incomplete       bool                `json:"incomplete"`
-	SourceStatus     map[string]SourceStatus `json:"source_status"`
+	ExecutionVenue    string              `json:"execution_venue"`
+	Incomplete        bool                `json:"incomplete"`
+	IncompleteReasons []string            `json:"incomplete_reasons,omitempty"`
+	SourceStatus      map[string]SourceStatus `json:"source_status"`
 	CreatedAt        time.Time           `json:"created_at"`
 	ManifestHash     string              `json:"manifest_hash"`
 }
@@ -52,6 +53,7 @@ func BuildManifest(cfg RunConfig, tape AnnouncementTape, chain EventChain) (Mani
 		Coverage:        tape.Coverage,
 		ExecutionVenue:  ExecutionVenue,
 		Incomplete:      tape.Incomplete,
+		IncompleteReasons: append([]string(nil), tape.IncompleteReasons...),
 		SourceStatus:    cloneSourceStatus(tape.SourceStatus),
 		CreatedAt:       time.Now().UTC(),
 	}
@@ -187,22 +189,6 @@ func HashTape(items []Announcement) (string, error) {
 func ConfigFingerprint(cfg RunConfig) (string, error) {
 	hash, _, err := datatruth.HashJSON(cfg)
 	return hash, err
-}
-
-// ShouldFailClosed reports incomplete archives that must not backfill history.
-func ShouldFailClosed(sourceStatus map[string]SourceStatus) bool {
-	for _, st := range sourceStatus {
-		if st.FetchFailed || st.Status == StatusIncomplete {
-			return true
-		}
-		if st.Truncated {
-			return true
-		}
-		if st.PagesExpected > 0 && st.PagesComplete < st.PagesExpected {
-			return true
-		}
-	}
-	return false
 }
 
 // VerifyOutputArtifacts checks on-disk hashes against manifest.

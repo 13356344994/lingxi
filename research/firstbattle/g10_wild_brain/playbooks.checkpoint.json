@@ -1,0 +1,3465 @@
+{
+  "schema_version": "lingxi.router-g10-playbooks.checkpoint.v1",
+  "generation": "firstbattle-router-g10",
+  "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+  "history_data_hash": "f41ed2586d91054c4b5b2e15e60f32a4d64ccde0032e76dfdc5fc6dee316379c",
+  "config_hash": "3edfea3df347a337fb791fd3fe56e411a4210a5111d62aaca504229a9aff6e8b",
+  "catalog_hash": "f41ed2586d91054c4b5b2e15e60f32a4d64ccde0032e76dfdc5fc6dee316379c",
+  "map_manifest_hashes": {
+    "okx_1h": "a260c9a257358c4a44a8826f8ec823321e788f99ea4bc20e22efeddde07449ac",
+    "okx_5m": "6ae9240f355c08b6fd16c35e352f552dcce9f9bbfac121958e966381d877156e"
+  },
+  "output_dir": "/root/lingxi/research/firstbattle/g10_wild_brain/playbooks",
+  "next_attempt_ordinal": 45,
+  "playbook_count": 31,
+  "playbooks": [
+    {
+      "schema_version": "lingxi.router-g10-playbooks.playbook.v1",
+      "generation": "firstbattle-router-g10",
+      "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+      "playbook_hash": "21359dbf9a26928d411a2cfd52f61a790aea3743758350b8af1eb3b6c07ca5c1",
+      "experiment_hash": "a471569db03b5667815a944506a935cac8c5f2b74371a434807cd2c306995d19",
+      "profile_id": "okx_1h",
+      "ordinal": 1,
+      "event_family": "btc_relative_dislocation",
+      "horizon": "1h",
+      "delay_bars": 1,
+      "shock_cluster": "none",
+      "trigger_conditions": {
+        "event_family": "btc_relative_dislocation",
+        "conditions": [
+          {
+            "field": "btc_relative_abs_bps",
+            "op": "gte",
+            "value": 146.87033609567578
+          }
+        ]
+      },
+      "long_branch": {
+        "action": "LONG",
+        "thesis": "dislocation_revert_long",
+        "entry_rule": "relative_dislocation_extreme_with_mean_revert_setup",
+        "exit_rule": "dislocation_closed_or_deadline"
+      },
+      "short_branch": {
+        "action": "SHORT",
+        "thesis": "dislocation_extend_short",
+        "entry_rule": "dislocation_extreme_with_continuation_setup",
+        "exit_rule": "event_complete_or_invalidator"
+      },
+      "flat_branch": {
+        "action": "NO_TRADE",
+        "thesis": "dislocation_ambiguous",
+        "entry_rule": "trigger_without_clear_revert_or_extend",
+        "exit_rule": "max_wait_elapsed"
+      },
+      "max_wait_time": "1h",
+      "dynamic_deadline": {
+        "horizon": "1h",
+        "fallback_only": true,
+        "stop_error_required": true
+      },
+      "invalidator_conditions": [
+        "event_complete",
+        "payer_disappeared",
+        "invalidator",
+        "ood",
+        "deadline"
+      ],
+      "capacity_band": "0_1000_usdt",
+      "eligible_capital_tiers": [
+        "100",
+        "1000",
+        "30",
+        "actual"
+      ],
+      "personal_execution_requirements": [
+        "fingerprint_available_or_block_open",
+        "delay_bars_in_[0 1 2 3]",
+        "min_notional_and_lot_feasible",
+        "personal_conservative_expected_net_ge_zero",
+        "profile:okx_1h"
+      ],
+      "stop_conditions": [
+        "event_complete",
+        "payer_disappeared",
+        "invalidator",
+        "ood",
+        "deadline_fallback"
+      ],
+      "event_completion": "event_complete_stop_error",
+      "payer_status": "UNEXPLAINED_PERSONAL_EDGE",
+      "status": "PERSONAL_WILD_CANDIDATE",
+      "validation_stage": "full_playbook_verification_pending",
+      "trade_allowed": false,
+      "exam_eligible": false,
+      "source_winner_count": 2,
+      "source_winner_ids_hash": "eb1bb724591c140e3361dd033a112326ee7b3f5a7a68f328e087f3767a7102d5",
+      "map_manifest_hash": "a260c9a257358c4a44a8826f8ec823321e788f99ea4bc20e22efeddde07449ac",
+      "discovery_mode": "outcome_first_reverse_from_personal_residual_winners",
+      "exam_actions": 0
+    },
+    {
+      "schema_version": "lingxi.router-g10-playbooks.playbook.v1",
+      "generation": "firstbattle-router-g10",
+      "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+      "playbook_hash": "b19616242a5a11ea2fe3b2eda0ab6fdc51060c035b4ac48a80361c9df72b80f1",
+      "experiment_hash": "a471569db03b5667815a944506a935cac8c5f2b74371a434807cd2c306995d19",
+      "profile_id": "okx_1h",
+      "ordinal": 2,
+      "event_family": "ohlcv_extreme_continuation",
+      "horizon": "1h",
+      "delay_bars": 0,
+      "shock_cluster": "none",
+      "trigger_conditions": {
+        "event_family": "ohlcv_extreme_continuation",
+        "conditions": [
+          {
+            "field": "abs_return_bps",
+            "op": "gte",
+            "value": 185.1063829787214
+          },
+          {
+            "field": "rms_bps",
+            "op": "gte",
+            "value": 108.07651514274374
+          },
+          {
+            "field": "return_sign",
+            "op": "eq_prior_sign",
+            "note": "continuation_setup"
+          }
+        ]
+      },
+      "long_branch": {
+        "action": "LONG",
+        "thesis": "breakout_continuation_success",
+        "entry_rule": "trigger_fires_and_follow_through_confirmed",
+        "exit_rule": "event_complete_or_invalidator"
+      },
+      "short_branch": {
+        "action": "SHORT",
+        "thesis": "failed_breakout_fade",
+        "entry_rule": "trigger_fires_but_follow_through_fails",
+        "exit_rule": "event_complete_or_invalidator"
+      },
+      "flat_branch": {
+        "action": "NO_TRADE",
+        "thesis": "ambiguous_breakout",
+        "entry_rule": "trigger_fires_without_clear_follow_through_or_failure",
+        "exit_rule": "max_wait_elapsed"
+      },
+      "max_wait_time": "1h",
+      "dynamic_deadline": {
+        "horizon": "1h",
+        "fallback_only": true,
+        "stop_error_required": true
+      },
+      "invalidator_conditions": [
+        "event_complete",
+        "payer_disappeared",
+        "invalidator",
+        "ood",
+        "deadline"
+      ],
+      "capacity_band": "0_1000_usdt",
+      "eligible_capital_tiers": [
+        "100",
+        "1000",
+        "30",
+        "actual"
+      ],
+      "personal_execution_requirements": [
+        "fingerprint_available_or_block_open",
+        "delay_bars_in_[0 1 2 3]",
+        "min_notional_and_lot_feasible",
+        "personal_conservative_expected_net_ge_zero",
+        "profile:okx_1h"
+      ],
+      "stop_conditions": [
+        "event_complete",
+        "payer_disappeared",
+        "invalidator",
+        "ood",
+        "deadline_fallback"
+      ],
+      "event_completion": "event_complete_stop_error",
+      "payer_status": "UNEXPLAINED_PERSONAL_EDGE",
+      "status": "PERSONAL_WILD_CANDIDATE",
+      "validation_stage": "full_playbook_verification_pending",
+      "trade_allowed": false,
+      "exam_eligible": false,
+      "source_winner_count": 3,
+      "source_winner_ids_hash": "95b4b04bd0a97c1b037e6a07e1be825b790e278a2d9eaa0c8c5f330081dd6cf7",
+      "map_manifest_hash": "a260c9a257358c4a44a8826f8ec823321e788f99ea4bc20e22efeddde07449ac",
+      "discovery_mode": "outcome_first_reverse_from_personal_residual_winners",
+      "exam_actions": 0
+    },
+    {
+      "schema_version": "lingxi.router-g10-playbooks.playbook.v1",
+      "generation": "firstbattle-router-g10",
+      "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+      "playbook_hash": "923796aa86da94f9fa9d29715f06ccea93b6fd4ecd658f96783d82955ffa9697",
+      "experiment_hash": "a471569db03b5667815a944506a935cac8c5f2b74371a434807cd2c306995d19",
+      "profile_id": "okx_1h",
+      "ordinal": 3,
+      "event_family": "ohlcv_extreme_reversal",
+      "horizon": "1h",
+      "delay_bars": 1,
+      "shock_cluster": "2026-06-24T16:00:00Z",
+      "trigger_conditions": {
+        "event_family": "ohlcv_extreme_reversal",
+        "conditions": [
+          {
+            "field": "abs_return_bps",
+            "op": "gte",
+            "value": 185.1063829787214
+          },
+          {
+            "field": "rms_bps",
+            "op": "gte",
+            "value": 108.07651514274374
+          },
+          {
+            "field": "return_sign",
+            "op": "ne_prior_sign",
+            "note": "reversal_setup"
+          }
+        ]
+      },
+      "long_branch": {
+        "action": "SHORT",
+        "thesis": "exhaustion_reversal_down",
+        "entry_rule": "extreme_up_trigger_with_reversal_signature",
+        "exit_rule": "event_complete_or_invalidator"
+      },
+      "short_branch": {
+        "action": "LONG",
+        "thesis": "exhaustion_reversal_up",
+        "entry_rule": "extreme_down_trigger_with_reversal_signature",
+        "exit_rule": "event_complete_or_invalidator"
+      },
+      "flat_branch": {
+        "action": "NO_TRADE",
+        "thesis": "exhaustion_not_confirmed",
+        "entry_rule": "trigger_without_clear_exhaustion_path",
+        "exit_rule": "max_wait_elapsed"
+      },
+      "max_wait_time": "1h",
+      "dynamic_deadline": {
+        "horizon": "1h",
+        "fallback_only": true,
+        "stop_error_required": true
+      },
+      "invalidator_conditions": [
+        "event_complete",
+        "payer_disappeared",
+        "invalidator",
+        "ood",
+        "deadline"
+      ],
+      "capacity_band": "0_1000_usdt",
+      "eligible_capital_tiers": [
+        "100",
+        "1000",
+        "30",
+        "actual"
+      ],
+      "personal_execution_requirements": [
+        "fingerprint_available_or_block_open",
+        "delay_bars_in_[0 1 2 3]",
+        "min_notional_and_lot_feasible",
+        "personal_conservative_expected_net_ge_zero",
+        "profile:okx_1h"
+      ],
+      "stop_conditions": [
+        "event_complete",
+        "payer_disappeared",
+        "invalidator",
+        "ood",
+        "deadline_fallback"
+      ],
+      "event_completion": "event_complete_stop_error",
+      "payer_status": "UNEXPLAINED_PERSONAL_EDGE",
+      "status": "PERSONAL_WILD_CANDIDATE",
+      "validation_stage": "full_playbook_verification_pending",
+      "trade_allowed": false,
+      "exam_eligible": false,
+      "source_winner_count": 1,
+      "source_winner_ids_hash": "f7988d0325e27f22bceadaaf8075bd4839c6048cb74078e33e27ad6b185a6967",
+      "map_manifest_hash": "a260c9a257358c4a44a8826f8ec823321e788f99ea4bc20e22efeddde07449ac",
+      "discovery_mode": "outcome_first_reverse_from_personal_residual_winners",
+      "exam_actions": 0
+    },
+    {
+      "schema_version": "lingxi.router-g10-playbooks.playbook.v1",
+      "generation": "firstbattle-router-g10",
+      "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+      "playbook_hash": "94bdf829e9012c577b9fdcde7252bc08beed684ccc61812f23a17d4b9a1ed861",
+      "experiment_hash": "a471569db03b5667815a944506a935cac8c5f2b74371a434807cd2c306995d19",
+      "profile_id": "okx_1h",
+      "ordinal": 4,
+      "event_family": "btc_relative_dislocation",
+      "horizon": "24h",
+      "delay_bars": 0,
+      "shock_cluster": "2026-03-06T14:00:00Z",
+      "trigger_conditions": {
+        "event_family": "btc_relative_dislocation",
+        "conditions": [
+          {
+            "field": "btc_relative_abs_bps",
+            "op": "gte",
+            "value": 146.87033609567578
+          }
+        ]
+      },
+      "long_branch": {
+        "action": "LONG",
+        "thesis": "dislocation_revert_long",
+        "entry_rule": "relative_dislocation_extreme_with_mean_revert_setup",
+        "exit_rule": "dislocation_closed_or_deadline"
+      },
+      "short_branch": {
+        "action": "SHORT",
+        "thesis": "dislocation_extend_short",
+        "entry_rule": "dislocation_extreme_with_continuation_setup",
+        "exit_rule": "event_complete_or_invalidator"
+      },
+      "flat_branch": {
+        "action": "NO_TRADE",
+        "thesis": "dislocation_ambiguous",
+        "entry_rule": "trigger_without_clear_revert_or_extend",
+        "exit_rule": "max_wait_elapsed"
+      },
+      "max_wait_time": "24h",
+      "dynamic_deadline": {
+        "horizon": "24h",
+        "fallback_only": true,
+        "stop_error_required": true
+      },
+      "invalidator_conditions": [
+        "event_complete",
+        "payer_disappeared",
+        "invalidator",
+        "ood",
+        "deadline"
+      ],
+      "capacity_band": "0_1000_usdt",
+      "eligible_capital_tiers": [
+        "100",
+        "1000",
+        "30",
+        "actual"
+      ],
+      "personal_execution_requirements": [
+        "fingerprint_available_or_block_open",
+        "delay_bars_in_[0 1 2 3]",
+        "min_notional_and_lot_feasible",
+        "personal_conservative_expected_net_ge_zero",
+        "profile:okx_1h"
+      ],
+      "stop_conditions": [
+        "event_complete",
+        "payer_disappeared",
+        "invalidator",
+        "ood",
+        "deadline_fallback"
+      ],
+      "event_completion": "event_complete_stop_error",
+      "payer_status": "UNEXPLAINED_PERSONAL_EDGE",
+      "status": "PERSONAL_WILD_CANDIDATE",
+      "validation_stage": "full_playbook_verification_pending",
+      "trade_allowed": false,
+      "exam_eligible": false,
+      "source_winner_count": 1,
+      "source_winner_ids_hash": "f34b99496940e54168ece8102a41d13198900d6752605ec51291b5861d7957fd",
+      "map_manifest_hash": "a260c9a257358c4a44a8826f8ec823321e788f99ea4bc20e22efeddde07449ac",
+      "discovery_mode": "outcome_first_reverse_from_personal_residual_winners",
+      "exam_actions": 0
+    },
+    {
+      "schema_version": "lingxi.router-g10-playbooks.playbook.v1",
+      "generation": "firstbattle-router-g10",
+      "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+      "playbook_hash": "b16edf57b9cee36082f5966ca38ff600bf056bda258181a52862fe95b1b6d832",
+      "experiment_hash": "a471569db03b5667815a944506a935cac8c5f2b74371a434807cd2c306995d19",
+      "profile_id": "okx_1h",
+      "ordinal": 5,
+      "event_family": "ohlcv_extreme_continuation",
+      "horizon": "24h",
+      "delay_bars": 0,
+      "shock_cluster": "none",
+      "trigger_conditions": {
+        "event_family": "ohlcv_extreme_continuation",
+        "conditions": [
+          {
+            "field": "abs_return_bps",
+            "op": "gte",
+            "value": 185.1063829787214
+          },
+          {
+            "field": "rms_bps",
+            "op": "gte",
+            "value": 108.07651514274374
+          },
+          {
+            "field": "return_sign",
+            "op": "eq_prior_sign",
+            "note": "continuation_setup"
+          }
+        ]
+      },
+      "long_branch": {
+        "action": "LONG",
+        "thesis": "breakout_continuation_success",
+        "entry_rule": "trigger_fires_and_follow_through_confirmed",
+        "exit_rule": "event_complete_or_invalidator"
+      },
+      "short_branch": {
+        "action": "SHORT",
+        "thesis": "failed_breakout_fade",
+        "entry_rule": "trigger_fires_but_follow_through_fails",
+        "exit_rule": "event_complete_or_invalidator"
+      },
+      "flat_branch": {
+        "action": "NO_TRADE",
+        "thesis": "ambiguous_breakout",
+        "entry_rule": "trigger_fires_without_clear_follow_through_or_failure",
+        "exit_rule": "max_wait_elapsed"
+      },
+      "max_wait_time": "24h",
+      "dynamic_deadline": {
+        "horizon": "24h",
+        "fallback_only": true,
+        "stop_error_required": true
+      },
+      "invalidator_conditions": [
+        "event_complete",
+        "payer_disappeared",
+        "invalidator",
+        "ood",
+        "deadline"
+      ],
+      "capacity_band": "0_1000_usdt",
+      "eligible_capital_tiers": [
+        "100",
+        "1000",
+        "30",
+        "actual"
+      ],
+      "personal_execution_requirements": [
+        "fingerprint_available_or_block_open",
+        "delay_bars_in_[0 1 2 3]",
+        "min_notional_and_lot_feasible",
+        "personal_conservative_expected_net_ge_zero",
+        "profile:okx_1h"
+      ],
+      "stop_conditions": [
+        "event_complete",
+        "payer_disappeared",
+        "invalidator",
+        "ood",
+        "deadline_fallback"
+      ],
+      "event_completion": "event_complete_stop_error",
+      "payer_status": "UNEXPLAINED_PERSONAL_EDGE",
+      "status": "PERSONAL_WILD_CANDIDATE",
+      "validation_stage": "full_playbook_verification_pending",
+      "trade_allowed": false,
+      "exam_eligible": false,
+      "source_winner_count": 2,
+      "source_winner_ids_hash": "e0c706e745961150cc0831d8d5d2555e5ccf20979c8c14ebfc8c38159029f055",
+      "map_manifest_hash": "a260c9a257358c4a44a8826f8ec823321e788f99ea4bc20e22efeddde07449ac",
+      "discovery_mode": "outcome_first_reverse_from_personal_residual_winners",
+      "exam_actions": 0
+    },
+    {
+      "schema_version": "lingxi.router-g10-playbooks.playbook.v1",
+      "generation": "firstbattle-router-g10",
+      "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+      "playbook_hash": "2cdd9daf2642cfcc1755a760c137cd331a3ddc4f5ddeed53fefc0132ca96ba05",
+      "experiment_hash": "a471569db03b5667815a944506a935cac8c5f2b74371a434807cd2c306995d19",
+      "profile_id": "okx_1h",
+      "ordinal": 6,
+      "event_family": "ohlcv_extreme_reversal",
+      "horizon": "24h",
+      "delay_bars": 0,
+      "shock_cluster": "2026-03-06T14:00:00Z",
+      "trigger_conditions": {
+        "event_family": "ohlcv_extreme_reversal",
+        "conditions": [
+          {
+            "field": "abs_return_bps",
+            "op": "gte",
+            "value": 185.1063829787214
+          },
+          {
+            "field": "rms_bps",
+            "op": "gte",
+            "value": 108.07651514274374
+          },
+          {
+            "field": "return_sign",
+            "op": "ne_prior_sign",
+            "note": "reversal_setup"
+          }
+        ]
+      },
+      "long_branch": {
+        "action": "SHORT",
+        "thesis": "exhaustion_reversal_down",
+        "entry_rule": "extreme_up_trigger_with_reversal_signature",
+        "exit_rule": "event_complete_or_invalidator"
+      },
+      "short_branch": {
+        "action": "LONG",
+        "thesis": "exhaustion_reversal_up",
+        "entry_rule": "extreme_down_trigger_with_reversal_signature",
+        "exit_rule": "event_complete_or_invalidator"
+      },
+      "flat_branch": {
+        "action": "NO_TRADE",
+        "thesis": "exhaustion_not_confirmed",
+        "entry_rule": "trigger_without_clear_exhaustion_path",
+        "exit_rule": "max_wait_elapsed"
+      },
+      "max_wait_time": "24h",
+      "dynamic_deadline": {
+        "horizon": "24h",
+        "fallback_only": true,
+        "stop_error_required": true
+      },
+      "invalidator_conditions": [
+        "event_complete",
+        "payer_disappeared",
+        "invalidator",
+        "ood",
+        "deadline"
+      ],
+      "capacity_band": "0_1000_usdt",
+      "eligible_capital_tiers": [
+        "100",
+        "1000",
+        "30",
+        "actual"
+      ],
+      "personal_execution_requirements": [
+        "fingerprint_available_or_block_open",
+        "delay_bars_in_[0 1 2 3]",
+        "min_notional_and_lot_feasible",
+        "personal_conservative_expected_net_ge_zero",
+        "profile:okx_1h"
+      ],
+      "stop_conditions": [
+        "event_complete",
+        "payer_disappeared",
+        "invalidator",
+        "ood",
+        "deadline_fallback"
+      ],
+      "event_completion": "event_complete_stop_error",
+      "payer_status": "UNEXPLAINED_PERSONAL_EDGE",
+      "status": "PERSONAL_WILD_CANDIDATE",
+      "validation_stage": "full_playbook_verification_pending",
+      "trade_allowed": false,
+      "exam_eligible": false,
+      "source_winner_count": 1,
+      "source_winner_ids_hash": "75eb6db1b7e38ca24fb981026fb91b04d96369d1e3542b4873ef3dbb5830c548",
+      "map_manifest_hash": "a260c9a257358c4a44a8826f8ec823321e788f99ea4bc20e22efeddde07449ac",
+      "discovery_mode": "outcome_first_reverse_from_personal_residual_winners",
+      "exam_actions": 0
+    },
+    {
+      "schema_version": "lingxi.router-g10-playbooks.playbook.v1",
+      "generation": "firstbattle-router-g10",
+      "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+      "playbook_hash": "53fd92d2f5cb9ad5956bac3624ebd1e7089a26b9cdff1ecbaebc478f73588df3",
+      "experiment_hash": "a471569db03b5667815a944506a935cac8c5f2b74371a434807cd2c306995d19",
+      "profile_id": "okx_1h",
+      "ordinal": 7,
+      "event_family": "btc_relative_dislocation",
+      "horizon": "4h",
+      "delay_bars": 0,
+      "shock_cluster": "2026-03-23T12:00:00Z",
+      "trigger_conditions": {
+        "event_family": "btc_relative_dislocation",
+        "conditions": [
+          {
+            "field": "btc_relative_abs_bps",
+            "op": "gte",
+            "value": 146.87033609567578
+          }
+        ]
+      },
+      "long_branch": {
+        "action": "LONG",
+        "thesis": "dislocation_revert_long",
+        "entry_rule": "relative_dislocation_extreme_with_mean_revert_setup",
+        "exit_rule": "dislocation_closed_or_deadline"
+      },
+      "short_branch": {
+        "action": "SHORT",
+        "thesis": "dislocation_extend_short",
+        "entry_rule": "dislocation_extreme_with_continuation_setup",
+        "exit_rule": "event_complete_or_invalidator"
+      },
+      "flat_branch": {
+        "action": "NO_TRADE",
+        "thesis": "dislocation_ambiguous",
+        "entry_rule": "trigger_without_clear_revert_or_extend",
+        "exit_rule": "max_wait_elapsed"
+      },
+      "max_wait_time": "4h",
+      "dynamic_deadline": {
+        "horizon": "4h",
+        "fallback_only": true,
+        "stop_error_required": true
+      },
+      "invalidator_conditions": [
+        "event_complete",
+        "payer_disappeared",
+        "invalidator",
+        "ood",
+        "deadline"
+      ],
+      "capacity_band": "0_1000_usdt",
+      "eligible_capital_tiers": [
+        "100",
+        "1000",
+        "30",
+        "actual"
+      ],
+      "personal_execution_requirements": [
+        "fingerprint_available_or_block_open",
+        "delay_bars_in_[0 1 2 3]",
+        "min_notional_and_lot_feasible",
+        "personal_conservative_expected_net_ge_zero",
+        "profile:okx_1h"
+      ],
+      "stop_conditions": [
+        "event_complete",
+        "payer_disappeared",
+        "invalidator",
+        "ood",
+        "deadline_fallback"
+      ],
+      "event_completion": "event_complete_stop_error",
+      "payer_status": "UNEXPLAINED_PERSONAL_EDGE",
+      "status": "PERSONAL_WILD_CANDIDATE",
+      "validation_stage": "full_playbook_verification_pending",
+      "trade_allowed": false,
+      "exam_eligible": false,
+      "source_winner_count": 1,
+      "source_winner_ids_hash": "4ecebfa1d2303872eff944b332cde6ce91e6ca229cfbc869b415bc872c8c4355",
+      "map_manifest_hash": "a260c9a257358c4a44a8826f8ec823321e788f99ea4bc20e22efeddde07449ac",
+      "discovery_mode": "outcome_first_reverse_from_personal_residual_winners",
+      "exam_actions": 0
+    },
+    {
+      "schema_version": "lingxi.router-g10-playbooks.playbook.v1",
+      "generation": "firstbattle-router-g10",
+      "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+      "playbook_hash": "2b0bec06531dcfecbcaf082cfc4e12b792209c227106d8fe93503ad4507522a9",
+      "experiment_hash": "a471569db03b5667815a944506a935cac8c5f2b74371a434807cd2c306995d19",
+      "profile_id": "okx_1h",
+      "ordinal": 8,
+      "event_family": "ohlcv_extreme_continuation",
+      "horizon": "4h",
+      "delay_bars": 0,
+      "shock_cluster": "none",
+      "trigger_conditions": {
+        "event_family": "ohlcv_extreme_continuation",
+        "conditions": [
+          {
+            "field": "abs_return_bps",
+            "op": "gte",
+            "value": 185.1063829787214
+          },
+          {
+            "field": "rms_bps",
+            "op": "gte",
+            "value": 108.07651514274374
+          },
+          {
+            "field": "return_sign",
+            "op": "eq_prior_sign",
+            "note": "continuation_setup"
+          }
+        ]
+      },
+      "long_branch": {
+        "action": "LONG",
+        "thesis": "breakout_continuation_success",
+        "entry_rule": "trigger_fires_and_follow_through_confirmed",
+        "exit_rule": "event_complete_or_invalidator"
+      },
+      "short_branch": {
+        "action": "SHORT",
+        "thesis": "failed_breakout_fade",
+        "entry_rule": "trigger_fires_but_follow_through_fails",
+        "exit_rule": "event_complete_or_invalidator"
+      },
+      "flat_branch": {
+        "action": "NO_TRADE",
+        "thesis": "ambiguous_breakout",
+        "entry_rule": "trigger_fires_without_clear_follow_through_or_failure",
+        "exit_rule": "max_wait_elapsed"
+      },
+      "max_wait_time": "4h",
+      "dynamic_deadline": {
+        "horizon": "4h",
+        "fallback_only": true,
+        "stop_error_required": true
+      },
+      "invalidator_conditions": [
+        "event_complete",
+        "payer_disappeared",
+        "invalidator",
+        "ood",
+        "deadline"
+      ],
+      "capacity_band": "0_1000_usdt",
+      "eligible_capital_tiers": [
+        "100",
+        "1000",
+        "30",
+        "actual"
+      ],
+      "personal_execution_requirements": [
+        "fingerprint_available_or_block_open",
+        "delay_bars_in_[0 1 2 3]",
+        "min_notional_and_lot_feasible",
+        "personal_conservative_expected_net_ge_zero",
+        "profile:okx_1h"
+      ],
+      "stop_conditions": [
+        "event_complete",
+        "payer_disappeared",
+        "invalidator",
+        "ood",
+        "deadline_fallback"
+      ],
+      "event_completion": "event_complete_stop_error",
+      "payer_status": "UNEXPLAINED_PERSONAL_EDGE",
+      "status": "PERSONAL_WILD_CANDIDATE",
+      "validation_stage": "full_playbook_verification_pending",
+      "trade_allowed": false,
+      "exam_eligible": false,
+      "source_winner_count": 1,
+      "source_winner_ids_hash": "58bc0ddfdb1b795288925e26c04c97b3afda468b53f4b31c7ee323ba82d50e37",
+      "map_manifest_hash": "a260c9a257358c4a44a8826f8ec823321e788f99ea4bc20e22efeddde07449ac",
+      "discovery_mode": "outcome_first_reverse_from_personal_residual_winners",
+      "exam_actions": 0
+    },
+    {
+      "schema_version": "lingxi.router-g10-playbooks.playbook.v1",
+      "generation": "firstbattle-router-g10",
+      "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+      "playbook_hash": "753d67d484e324b1d9e751203b2b2257b5d66a1f548782a61a11f3d9a75c7b81",
+      "experiment_hash": "a471569db03b5667815a944506a935cac8c5f2b74371a434807cd2c306995d19",
+      "profile_id": "okx_1h",
+      "ordinal": 9,
+      "event_family": "btc_relative_dislocation",
+      "horizon": "1h",
+      "delay_bars": 2,
+      "shock_cluster": "none",
+      "trigger_conditions": {
+        "event_family": "btc_relative_dislocation",
+        "conditions": [
+          {
+            "field": "btc_relative_abs_bps",
+            "op": "gte",
+            "value": 146.87033609567578
+          }
+        ]
+      },
+      "long_branch": {
+        "action": "LONG",
+        "thesis": "dislocation_revert_long",
+        "entry_rule": "relative_dislocation_extreme_with_mean_revert_setup",
+        "exit_rule": "dislocation_closed_or_deadline"
+      },
+      "short_branch": {
+        "action": "SHORT",
+        "thesis": "dislocation_extend_short",
+        "entry_rule": "dislocation_extreme_with_continuation_setup",
+        "exit_rule": "event_complete_or_invalidator"
+      },
+      "flat_branch": {
+        "action": "NO_TRADE",
+        "thesis": "dislocation_ambiguous",
+        "entry_rule": "trigger_without_clear_revert_or_extend",
+        "exit_rule": "max_wait_elapsed"
+      },
+      "max_wait_time": "1h",
+      "dynamic_deadline": {
+        "horizon": "1h",
+        "fallback_only": true,
+        "stop_error_required": true
+      },
+      "invalidator_conditions": [
+        "event_complete",
+        "payer_disappeared",
+        "invalidator",
+        "ood",
+        "deadline"
+      ],
+      "capacity_band": "0_1000_usdt",
+      "eligible_capital_tiers": [
+        "100",
+        "1000",
+        "30",
+        "actual"
+      ],
+      "personal_execution_requirements": [
+        "fingerprint_available_or_block_open",
+        "delay_bars_in_[0 1 2 3]",
+        "min_notional_and_lot_feasible",
+        "personal_conservative_expected_net_ge_zero",
+        "profile:okx_1h"
+      ],
+      "stop_conditions": [
+        "event_complete",
+        "payer_disappeared",
+        "invalidator",
+        "ood",
+        "deadline_fallback"
+      ],
+      "event_completion": "event_complete_stop_error",
+      "payer_status": "UNEXPLAINED_PERSONAL_EDGE",
+      "status": "PERSONAL_WILD_CANDIDATE",
+      "validation_stage": "full_playbook_verification_pending",
+      "trade_allowed": false,
+      "exam_eligible": false,
+      "source_winner_count": 3,
+      "source_winner_ids_hash": "f2901cf8fff74ab21623d02b3454f14075c38de598d7944c6414cbf0270e9c73",
+      "map_manifest_hash": "a260c9a257358c4a44a8826f8ec823321e788f99ea4bc20e22efeddde07449ac",
+      "discovery_mode": "outcome_first_reverse_from_personal_residual_winners",
+      "exam_actions": 0
+    },
+    {
+      "schema_version": "lingxi.router-g10-playbooks.playbook.v1",
+      "generation": "firstbattle-router-g10",
+      "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+      "playbook_hash": "d8bcdf77dcf0e55fd340c989600dd87949f7ee98197a8d70f412d25e79a8fc9a",
+      "experiment_hash": "a471569db03b5667815a944506a935cac8c5f2b74371a434807cd2c306995d19",
+      "profile_id": "okx_1h",
+      "ordinal": 10,
+      "event_family": "ohlcv_extreme_continuation",
+      "horizon": "1h",
+      "delay_bars": 1,
+      "shock_cluster": "none",
+      "trigger_conditions": {
+        "event_family": "ohlcv_extreme_continuation",
+        "conditions": [
+          {
+            "field": "abs_return_bps",
+            "op": "gte",
+            "value": 185.1063829787214
+          },
+          {
+            "field": "rms_bps",
+            "op": "gte",
+            "value": 108.07651514274374
+          },
+          {
+            "field": "return_sign",
+            "op": "eq_prior_sign",
+            "note": "continuation_setup"
+          }
+        ]
+      },
+      "long_branch": {
+        "action": "LONG",
+        "thesis": "breakout_continuation_success",
+        "entry_rule": "trigger_fires_and_follow_through_confirmed",
+        "exit_rule": "event_complete_or_invalidator"
+      },
+      "short_branch": {
+        "action": "SHORT",
+        "thesis": "failed_breakout_fade",
+        "entry_rule": "trigger_fires_but_follow_through_fails",
+        "exit_rule": "event_complete_or_invalidator"
+      },
+      "flat_branch": {
+        "action": "NO_TRADE",
+        "thesis": "ambiguous_breakout",
+        "entry_rule": "trigger_fires_without_clear_follow_through_or_failure",
+        "exit_rule": "max_wait_elapsed"
+      },
+      "max_wait_time": "1h",
+      "dynamic_deadline": {
+        "horizon": "1h",
+        "fallback_only": true,
+        "stop_error_required": true
+      },
+      "invalidator_conditions": [
+        "event_complete",
+        "payer_disappeared",
+        "invalidator",
+        "ood",
+        "deadline"
+      ],
+      "capacity_band": "0_1000_usdt",
+      "eligible_capital_tiers": [
+        "100",
+        "1000",
+        "30",
+        "actual"
+      ],
+      "personal_execution_requirements": [
+        "fingerprint_available_or_block_open",
+        "delay_bars_in_[0 1 2 3]",
+        "min_notional_and_lot_feasible",
+        "personal_conservative_expected_net_ge_zero",
+        "profile:okx_1h"
+      ],
+      "stop_conditions": [
+        "event_complete",
+        "payer_disappeared",
+        "invalidator",
+        "ood",
+        "deadline_fallback"
+      ],
+      "event_completion": "event_complete_stop_error",
+      "payer_status": "UNEXPLAINED_PERSONAL_EDGE",
+      "status": "PERSONAL_WILD_CANDIDATE",
+      "validation_stage": "full_playbook_verification_pending",
+      "trade_allowed": false,
+      "exam_eligible": false,
+      "source_winner_count": 2,
+      "source_winner_ids_hash": "5210a3e8b380c8c62a6180e47afaea50b1b5a452c7857cebef830a211198dacf",
+      "map_manifest_hash": "a260c9a257358c4a44a8826f8ec823321e788f99ea4bc20e22efeddde07449ac",
+      "discovery_mode": "outcome_first_reverse_from_personal_residual_winners",
+      "exam_actions": 0
+    },
+    {
+      "schema_version": "lingxi.router-g10-playbooks.playbook.v1",
+      "generation": "firstbattle-router-g10",
+      "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+      "playbook_hash": "611cfb71ce86f03340ede5e60f40afb47784b23cb8bd5636aad04b41547d79ca",
+      "experiment_hash": "a471569db03b5667815a944506a935cac8c5f2b74371a434807cd2c306995d19",
+      "profile_id": "okx_1h",
+      "ordinal": 11,
+      "event_family": "ohlcv_extreme_reversal",
+      "horizon": "1h",
+      "delay_bars": 0,
+      "shock_cluster": "2026-03-17T15:00:00Z",
+      "trigger_conditions": {
+        "event_family": "ohlcv_extreme_reversal",
+        "conditions": [
+          {
+            "field": "abs_return_bps",
+            "op": "gte",
+            "value": 185.1063829787214
+          },
+          {
+            "field": "rms_bps",
+            "op": "gte",
+            "value": 108.07651514274374
+          },
+          {
+            "field": "return_sign",
+            "op": "ne_prior_sign",
+            "note": "reversal_setup"
+          }
+        ]
+      },
+      "long_branch": {
+        "action": "SHORT",
+        "thesis": "exhaustion_reversal_down",
+        "entry_rule": "extreme_up_trigger_with_reversal_signature",
+        "exit_rule": "event_complete_or_invalidator"
+      },
+      "short_branch": {
+        "action": "LONG",
+        "thesis": "exhaustion_reversal_up",
+        "entry_rule": "extreme_down_trigger_with_reversal_signature",
+        "exit_rule": "event_complete_or_invalidator"
+      },
+      "flat_branch": {
+        "action": "NO_TRADE",
+        "thesis": "exhaustion_not_confirmed",
+        "entry_rule": "trigger_without_clear_exhaustion_path",
+        "exit_rule": "max_wait_elapsed"
+      },
+      "max_wait_time": "1h",
+      "dynamic_deadline": {
+        "horizon": "1h",
+        "fallback_only": true,
+        "stop_error_required": true
+      },
+      "invalidator_conditions": [
+        "event_complete",
+        "payer_disappeared",
+        "invalidator",
+        "ood",
+        "deadline"
+      ],
+      "capacity_band": "0_100_usdt",
+      "eligible_capital_tiers": [
+        "100",
+        "30",
+        "actual"
+      ],
+      "personal_execution_requirements": [
+        "fingerprint_available_or_block_open",
+        "delay_bars_in_[0 1 2 3]",
+        "min_notional_and_lot_feasible",
+        "personal_conservative_expected_net_ge_zero",
+        "profile:okx_1h"
+      ],
+      "stop_conditions": [
+        "event_complete",
+        "payer_disappeared",
+        "invalidator",
+        "ood",
+        "deadline_fallback"
+      ],
+      "event_completion": "event_complete_stop_error",
+      "payer_status": "UNEXPLAINED_PERSONAL_EDGE",
+      "status": "PERSONAL_WILD_CANDIDATE",
+      "validation_stage": "full_playbook_verification_pending",
+      "trade_allowed": false,
+      "exam_eligible": false,
+      "source_winner_count": 1,
+      "source_winner_ids_hash": "9cd47944a3991e9e746801d91852d1f996f2c028f5c33bf67c0ec34d6a50faa4",
+      "map_manifest_hash": "a260c9a257358c4a44a8826f8ec823321e788f99ea4bc20e22efeddde07449ac",
+      "discovery_mode": "outcome_first_reverse_from_personal_residual_winners",
+      "exam_actions": 0
+    },
+    {
+      "schema_version": "lingxi.router-g10-playbooks.playbook.v1",
+      "generation": "firstbattle-router-g10",
+      "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+      "playbook_hash": "d38147f0e2b705fca1ad5a5ae8d8d8b2d7589261ab0c455424f06578a5917481",
+      "experiment_hash": "a471569db03b5667815a944506a935cac8c5f2b74371a434807cd2c306995d19",
+      "profile_id": "okx_1h",
+      "ordinal": 12,
+      "event_family": "ohlcv_extreme_continuation",
+      "horizon": "24h",
+      "delay_bars": 1,
+      "shock_cluster": "2026-03-19T13:00:00Z",
+      "trigger_conditions": {
+        "event_family": "ohlcv_extreme_continuation",
+        "conditions": [
+          {
+            "field": "abs_return_bps",
+            "op": "gte",
+            "value": 185.1063829787214
+          },
+          {
+            "field": "rms_bps",
+            "op": "gte",
+            "value": 108.07651514274374
+          },
+          {
+            "field": "return_sign",
+            "op": "eq_prior_sign",
+            "note": "continuation_setup"
+          }
+        ]
+      },
+      "long_branch": {
+        "action": "LONG",
+        "thesis": "breakout_continuation_success",
+        "entry_rule": "trigger_fires_and_follow_through_confirmed",
+        "exit_rule": "event_complete_or_invalidator"
+      },
+      "short_branch": {
+        "action": "SHORT",
+        "thesis": "failed_breakout_fade",
+        "entry_rule": "trigger_fires_but_follow_through_fails",
+        "exit_rule": "event_complete_or_invalidator"
+      },
+      "flat_branch": {
+        "action": "NO_TRADE",
+        "thesis": "ambiguous_breakout",
+        "entry_rule": "trigger_fires_without_clear_follow_through_or_failure",
+        "exit_rule": "max_wait_elapsed"
+      },
+      "max_wait_time": "24h",
+      "dynamic_deadline": {
+        "horizon": "24h",
+        "fallback_only": true,
+        "stop_error_required": true
+      },
+      "invalidator_conditions": [
+        "event_complete",
+        "payer_disappeared",
+        "invalidator",
+        "ood",
+        "deadline"
+      ],
+      "capacity_band": "0_1000_usdt",
+      "eligible_capital_tiers": [
+        "100",
+        "1000",
+        "30",
+        "actual"
+      ],
+      "personal_execution_requirements": [
+        "fingerprint_available_or_block_open",
+        "delay_bars_in_[0 1 2 3]",
+        "min_notional_and_lot_feasible",
+        "personal_conservative_expected_net_ge_zero",
+        "profile:okx_1h"
+      ],
+      "stop_conditions": [
+        "event_complete",
+        "payer_disappeared",
+        "invalidator",
+        "ood",
+        "deadline_fallback"
+      ],
+      "event_completion": "event_complete_stop_error",
+      "payer_status": "UNEXPLAINED_PERSONAL_EDGE",
+      "status": "PERSONAL_WILD_CANDIDATE",
+      "validation_stage": "full_playbook_verification_pending",
+      "trade_allowed": false,
+      "exam_eligible": false,
+      "source_winner_count": 1,
+      "source_winner_ids_hash": "67261e96d4bce5eae365c30f669083542fb31c2567d34235e046c7db9ed74cb3",
+      "map_manifest_hash": "a260c9a257358c4a44a8826f8ec823321e788f99ea4bc20e22efeddde07449ac",
+      "discovery_mode": "outcome_first_reverse_from_personal_residual_winners",
+      "exam_actions": 0
+    },
+    {
+      "schema_version": "lingxi.router-g10-playbooks.playbook.v1",
+      "generation": "firstbattle-router-g10",
+      "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+      "playbook_hash": "872e0c049e89ffc9a6605d70509b1af96c44d04c5cd44a69d01fff92a81e5927",
+      "experiment_hash": "a471569db03b5667815a944506a935cac8c5f2b74371a434807cd2c306995d19",
+      "profile_id": "okx_1h",
+      "ordinal": 13,
+      "event_family": "ohlcv_extreme_continuation",
+      "horizon": "4h",
+      "delay_bars": 1,
+      "shock_cluster": "2026-03-23T12:00:00Z",
+      "trigger_conditions": {
+        "event_family": "ohlcv_extreme_continuation",
+        "conditions": [
+          {
+            "field": "abs_return_bps",
+            "op": "gte",
+            "value": 185.1063829787214
+          },
+          {
+            "field": "rms_bps",
+            "op": "gte",
+            "value": 108.07651514274374
+          },
+          {
+            "field": "return_sign",
+            "op": "eq_prior_sign",
+            "note": "continuation_setup"
+          }
+        ]
+      },
+      "long_branch": {
+        "action": "LONG",
+        "thesis": "breakout_continuation_success",
+        "entry_rule": "trigger_fires_and_follow_through_confirmed",
+        "exit_rule": "event_complete_or_invalidator"
+      },
+      "short_branch": {
+        "action": "SHORT",
+        "thesis": "failed_breakout_fade",
+        "entry_rule": "trigger_fires_but_follow_through_fails",
+        "exit_rule": "event_complete_or_invalidator"
+      },
+      "flat_branch": {
+        "action": "NO_TRADE",
+        "thesis": "ambiguous_breakout",
+        "entry_rule": "trigger_fires_without_clear_follow_through_or_failure",
+        "exit_rule": "max_wait_elapsed"
+      },
+      "max_wait_time": "4h",
+      "dynamic_deadline": {
+        "horizon": "4h",
+        "fallback_only": true,
+        "stop_error_required": true
+      },
+      "invalidator_conditions": [
+        "event_complete",
+        "payer_disappeared",
+        "invalidator",
+        "ood",
+        "deadline"
+      ],
+      "capacity_band": "0_1000_usdt",
+      "eligible_capital_tiers": [
+        "100",
+        "1000",
+        "30",
+        "actual"
+      ],
+      "personal_execution_requirements": [
+        "fingerprint_available_or_block_open",
+        "delay_bars_in_[0 1 2 3]",
+        "min_notional_and_lot_feasible",
+        "personal_conservative_expected_net_ge_zero",
+        "profile:okx_1h"
+      ],
+      "stop_conditions": [
+        "event_complete",
+        "payer_disappeared",
+        "invalidator",
+        "ood",
+        "deadline_fallback"
+      ],
+      "event_completion": "event_complete_stop_error",
+      "payer_status": "UNEXPLAINED_PERSONAL_EDGE",
+      "status": "PERSONAL_WILD_CANDIDATE",
+      "validation_stage": "full_playbook_verification_pending",
+      "trade_allowed": false,
+      "exam_eligible": false,
+      "source_winner_count": 1,
+      "source_winner_ids_hash": "277cf0f74994b7308081edb9b44c7179120972de4c9844e3dde5833309fcc5f4",
+      "map_manifest_hash": "a260c9a257358c4a44a8826f8ec823321e788f99ea4bc20e22efeddde07449ac",
+      "discovery_mode": "outcome_first_reverse_from_personal_residual_winners",
+      "exam_actions": 0
+    },
+    {
+      "schema_version": "lingxi.router-g10-playbooks.playbook.v1",
+      "generation": "firstbattle-router-g10",
+      "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+      "playbook_hash": "cadb1c0c466ccf6f5d6f4da8404eff42b73ca38c9bd9e91ce8fec7f03b5aa53d",
+      "experiment_hash": "a471569db03b5667815a944506a935cac8c5f2b74371a434807cd2c306995d19",
+      "profile_id": "okx_1h",
+      "ordinal": 14,
+      "event_family": "ohlcv_extreme_reversal",
+      "horizon": "4h",
+      "delay_bars": 1,
+      "shock_cluster": "none",
+      "trigger_conditions": {
+        "event_family": "ohlcv_extreme_reversal",
+        "conditions": [
+          {
+            "field": "abs_return_bps",
+            "op": "gte",
+            "value": 185.1063829787214
+          },
+          {
+            "field": "rms_bps",
+            "op": "gte",
+            "value": 108.07651514274374
+          },
+          {
+            "field": "return_sign",
+            "op": "ne_prior_sign",
+            "note": "reversal_setup"
+          }
+        ]
+      },
+      "long_branch": {
+        "action": "SHORT",
+        "thesis": "exhaustion_reversal_down",
+        "entry_rule": "extreme_up_trigger_with_reversal_signature",
+        "exit_rule": "event_complete_or_invalidator"
+      },
+      "short_branch": {
+        "action": "LONG",
+        "thesis": "exhaustion_reversal_up",
+        "entry_rule": "extreme_down_trigger_with_reversal_signature",
+        "exit_rule": "event_complete_or_invalidator"
+      },
+      "flat_branch": {
+        "action": "NO_TRADE",
+        "thesis": "exhaustion_not_confirmed",
+        "entry_rule": "trigger_without_clear_exhaustion_path",
+        "exit_rule": "max_wait_elapsed"
+      },
+      "max_wait_time": "4h",
+      "dynamic_deadline": {
+        "horizon": "4h",
+        "fallback_only": true,
+        "stop_error_required": true
+      },
+      "invalidator_conditions": [
+        "event_complete",
+        "payer_disappeared",
+        "invalidator",
+        "ood",
+        "deadline"
+      ],
+      "capacity_band": "0_1000_usdt",
+      "eligible_capital_tiers": [
+        "100",
+        "1000",
+        "30",
+        "actual"
+      ],
+      "personal_execution_requirements": [
+        "fingerprint_available_or_block_open",
+        "delay_bars_in_[0 1 2 3]",
+        "min_notional_and_lot_feasible",
+        "personal_conservative_expected_net_ge_zero",
+        "profile:okx_1h"
+      ],
+      "stop_conditions": [
+        "event_complete",
+        "payer_disappeared",
+        "invalidator",
+        "ood",
+        "deadline_fallback"
+      ],
+      "event_completion": "event_complete_stop_error",
+      "payer_status": "UNEXPLAINED_PERSONAL_EDGE",
+      "status": "PERSONAL_WILD_CANDIDATE",
+      "validation_stage": "full_playbook_verification_pending",
+      "trade_allowed": false,
+      "exam_eligible": false,
+      "source_winner_count": 1,
+      "source_winner_ids_hash": "382b370949d6c1be0fe3b30fb420e1859409e45a7f122962d5db6a45e4a82baa",
+      "map_manifest_hash": "a260c9a257358c4a44a8826f8ec823321e788f99ea4bc20e22efeddde07449ac",
+      "discovery_mode": "outcome_first_reverse_from_personal_residual_winners",
+      "exam_actions": 0
+    },
+    {
+      "schema_version": "lingxi.router-g10-playbooks.playbook.v1",
+      "generation": "firstbattle-router-g10",
+      "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+      "playbook_hash": "9e8d79853c6e07e91936d06baf564c42889aa5b3a683e7922f0d5a4cbef931bf",
+      "experiment_hash": "a471569db03b5667815a944506a935cac8c5f2b74371a434807cd2c306995d19",
+      "profile_id": "okx_1h",
+      "ordinal": 15,
+      "event_family": "btc_relative_dislocation",
+      "horizon": "1h",
+      "delay_bars": 3,
+      "shock_cluster": "none",
+      "trigger_conditions": {
+        "event_family": "btc_relative_dislocation",
+        "conditions": [
+          {
+            "field": "btc_relative_abs_bps",
+            "op": "gte",
+            "value": 146.87033609567578
+          }
+        ]
+      },
+      "long_branch": {
+        "action": "LONG",
+        "thesis": "dislocation_revert_long",
+        "entry_rule": "relative_dislocation_extreme_with_mean_revert_setup",
+        "exit_rule": "dislocation_closed_or_deadline"
+      },
+      "short_branch": {
+        "action": "SHORT",
+        "thesis": "dislocation_extend_short",
+        "entry_rule": "dislocation_extreme_with_continuation_setup",
+        "exit_rule": "event_complete_or_invalidator"
+      },
+      "flat_branch": {
+        "action": "NO_TRADE",
+        "thesis": "dislocation_ambiguous",
+        "entry_rule": "trigger_without_clear_revert_or_extend",
+        "exit_rule": "max_wait_elapsed"
+      },
+      "max_wait_time": "1h",
+      "dynamic_deadline": {
+        "horizon": "1h",
+        "fallback_only": true,
+        "stop_error_required": true
+      },
+      "invalidator_conditions": [
+        "event_complete",
+        "payer_disappeared",
+        "invalidator",
+        "ood",
+        "deadline"
+      ],
+      "capacity_band": "0_100_usdt",
+      "eligible_capital_tiers": [
+        "100",
+        "30",
+        "actual"
+      ],
+      "personal_execution_requirements": [
+        "fingerprint_available_or_block_open",
+        "delay_bars_in_[0 1 2 3]",
+        "min_notional_and_lot_feasible",
+        "personal_conservative_expected_net_ge_zero",
+        "profile:okx_1h"
+      ],
+      "stop_conditions": [
+        "event_complete",
+        "payer_disappeared",
+        "invalidator",
+        "ood",
+        "deadline_fallback"
+      ],
+      "event_completion": "event_complete_stop_error",
+      "payer_status": "UNEXPLAINED_PERSONAL_EDGE",
+      "status": "PERSONAL_WILD_CANDIDATE",
+      "validation_stage": "full_playbook_verification_pending",
+      "trade_allowed": false,
+      "exam_eligible": false,
+      "source_winner_count": 1,
+      "source_winner_ids_hash": "b9fe0cbd31f7f987640dab9ed5a65e0c338cb40d1f303050e2ff4a1f8737960d",
+      "map_manifest_hash": "a260c9a257358c4a44a8826f8ec823321e788f99ea4bc20e22efeddde07449ac",
+      "discovery_mode": "outcome_first_reverse_from_personal_residual_winners",
+      "exam_actions": 0
+    },
+    {
+      "schema_version": "lingxi.router-g10-playbooks.playbook.v1",
+      "generation": "firstbattle-router-g10",
+      "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+      "playbook_hash": "8f2618094376d25a5dbc5943ec037bbdb3e2b46d90cd031cd0ffbdc06f599d39",
+      "experiment_hash": "a471569db03b5667815a944506a935cac8c5f2b74371a434807cd2c306995d19",
+      "profile_id": "okx_1h",
+      "ordinal": 16,
+      "event_family": "ohlcv_extreme_continuation",
+      "horizon": "1h",
+      "delay_bars": 2,
+      "shock_cluster": "none",
+      "trigger_conditions": {
+        "event_family": "ohlcv_extreme_continuation",
+        "conditions": [
+          {
+            "field": "abs_return_bps",
+            "op": "gte",
+            "value": 185.1063829787214
+          },
+          {
+            "field": "rms_bps",
+            "op": "gte",
+            "value": 108.07651514274374
+          },
+          {
+            "field": "return_sign",
+            "op": "eq_prior_sign",
+            "note": "continuation_setup"
+          }
+        ]
+      },
+      "long_branch": {
+        "action": "LONG",
+        "thesis": "breakout_continuation_success",
+        "entry_rule": "trigger_fires_and_follow_through_confirmed",
+        "exit_rule": "event_complete_or_invalidator"
+      },
+      "short_branch": {
+        "action": "SHORT",
+        "thesis": "failed_breakout_fade",
+        "entry_rule": "trigger_fires_but_follow_through_fails",
+        "exit_rule": "event_complete_or_invalidator"
+      },
+      "flat_branch": {
+        "action": "NO_TRADE",
+        "thesis": "ambiguous_breakout",
+        "entry_rule": "trigger_fires_without_clear_follow_through_or_failure",
+        "exit_rule": "max_wait_elapsed"
+      },
+      "max_wait_time": "1h",
+      "dynamic_deadline": {
+        "horizon": "1h",
+        "fallback_only": true,
+        "stop_error_required": true
+      },
+      "invalidator_conditions": [
+        "event_complete",
+        "payer_disappeared",
+        "invalidator",
+        "ood",
+        "deadline"
+      ],
+      "capacity_band": "0_1000_usdt",
+      "eligible_capital_tiers": [
+        "100",
+        "1000",
+        "30",
+        "actual"
+      ],
+      "personal_execution_requirements": [
+        "fingerprint_available_or_block_open",
+        "delay_bars_in_[0 1 2 3]",
+        "min_notional_and_lot_feasible",
+        "personal_conservative_expected_net_ge_zero",
+        "profile:okx_1h"
+      ],
+      "stop_conditions": [
+        "event_complete",
+        "payer_disappeared",
+        "invalidator",
+        "ood",
+        "deadline_fallback"
+      ],
+      "event_completion": "event_complete_stop_error",
+      "payer_status": "UNEXPLAINED_PERSONAL_EDGE",
+      "status": "PERSONAL_WILD_CANDIDATE",
+      "validation_stage": "full_playbook_verification_pending",
+      "trade_allowed": false,
+      "exam_eligible": false,
+      "source_winner_count": 2,
+      "source_winner_ids_hash": "05353ff4fa7a4a96dbb02e8fa4cf5ea92778424d5ddd5fd01bdca1dafbe299d9",
+      "map_manifest_hash": "a260c9a257358c4a44a8826f8ec823321e788f99ea4bc20e22efeddde07449ac",
+      "discovery_mode": "outcome_first_reverse_from_personal_residual_winners",
+      "exam_actions": 0
+    },
+    {
+      "schema_version": "lingxi.router-g10-playbooks.playbook.v1",
+      "generation": "firstbattle-router-g10",
+      "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+      "playbook_hash": "02afcffd699e999b67ffb22f46a9133267a90372e0b12c1e7db2d27c2d8eab39",
+      "experiment_hash": "a471569db03b5667815a944506a935cac8c5f2b74371a434807cd2c306995d19",
+      "profile_id": "okx_1h",
+      "ordinal": 17,
+      "event_family": "ohlcv_extreme_reversal",
+      "horizon": "24h",
+      "delay_bars": 1,
+      "shock_cluster": "2026-03-22T00:00:00Z",
+      "trigger_conditions": {
+        "event_family": "ohlcv_extreme_reversal",
+        "conditions": [
+          {
+            "field": "abs_return_bps",
+            "op": "gte",
+            "value": 185.1063829787214
+          },
+          {
+            "field": "rms_bps",
+            "op": "gte",
+            "value": 108.07651514274374
+          },
+          {
+            "field": "return_sign",
+            "op": "ne_prior_sign",
+            "note": "reversal_setup"
+          }
+        ]
+      },
+      "long_branch": {
+        "action": "SHORT",
+        "thesis": "exhaustion_reversal_down",
+        "entry_rule": "extreme_up_trigger_with_reversal_signature",
+        "exit_rule": "event_complete_or_invalidator"
+      },
+      "short_branch": {
+        "action": "LONG",
+        "thesis": "exhaustion_reversal_up",
+        "entry_rule": "extreme_down_trigger_with_reversal_signature",
+        "exit_rule": "event_complete_or_invalidator"
+      },
+      "flat_branch": {
+        "action": "NO_TRADE",
+        "thesis": "exhaustion_not_confirmed",
+        "entry_rule": "trigger_without_clear_exhaustion_path",
+        "exit_rule": "max_wait_elapsed"
+      },
+      "max_wait_time": "24h",
+      "dynamic_deadline": {
+        "horizon": "24h",
+        "fallback_only": true,
+        "stop_error_required": true
+      },
+      "invalidator_conditions": [
+        "event_complete",
+        "payer_disappeared",
+        "invalidator",
+        "ood",
+        "deadline"
+      ],
+      "capacity_band": "0_100_usdt",
+      "eligible_capital_tiers": [
+        "100",
+        "30",
+        "actual"
+      ],
+      "personal_execution_requirements": [
+        "fingerprint_available_or_block_open",
+        "delay_bars_in_[0 1 2 3]",
+        "min_notional_and_lot_feasible",
+        "personal_conservative_expected_net_ge_zero",
+        "profile:okx_1h"
+      ],
+      "stop_conditions": [
+        "event_complete",
+        "payer_disappeared",
+        "invalidator",
+        "ood",
+        "deadline_fallback"
+      ],
+      "event_completion": "event_complete_stop_error",
+      "payer_status": "UNEXPLAINED_PERSONAL_EDGE",
+      "status": "PERSONAL_WILD_CANDIDATE",
+      "validation_stage": "full_playbook_verification_pending",
+      "trade_allowed": false,
+      "exam_eligible": false,
+      "source_winner_count": 1,
+      "source_winner_ids_hash": "0c7078b913b07b221a0ef736daa3d8156015af154b58318689eb200040bf4baf",
+      "map_manifest_hash": "a260c9a257358c4a44a8826f8ec823321e788f99ea4bc20e22efeddde07449ac",
+      "discovery_mode": "outcome_first_reverse_from_personal_residual_winners",
+      "exam_actions": 0
+    },
+    {
+      "schema_version": "lingxi.router-g10-playbooks.playbook.v1",
+      "generation": "firstbattle-router-g10",
+      "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+      "playbook_hash": "c983f8b1fdb649689f26e2c631bf52a79d1140470b9fd60ae24fcf3bc1cdf7df",
+      "experiment_hash": "a471569db03b5667815a944506a935cac8c5f2b74371a434807cd2c306995d19",
+      "profile_id": "okx_1h",
+      "ordinal": 18,
+      "event_family": "btc_relative_dislocation",
+      "horizon": "4h",
+      "delay_bars": 1,
+      "shock_cluster": "2026-06-24T14:00:00Z",
+      "trigger_conditions": {
+        "event_family": "btc_relative_dislocation",
+        "conditions": [
+          {
+            "field": "btc_relative_abs_bps",
+            "op": "gte",
+            "value": 146.87033609567578
+          }
+        ]
+      },
+      "long_branch": {
+        "action": "LONG",
+        "thesis": "dislocation_revert_long",
+        "entry_rule": "relative_dislocation_extreme_with_mean_revert_setup",
+        "exit_rule": "dislocation_closed_or_deadline"
+      },
+      "short_branch": {
+        "action": "SHORT",
+        "thesis": "dislocation_extend_short",
+        "entry_rule": "dislocation_extreme_with_continuation_setup",
+        "exit_rule": "event_complete_or_invalidator"
+      },
+      "flat_branch": {
+        "action": "NO_TRADE",
+        "thesis": "dislocation_ambiguous",
+        "entry_rule": "trigger_without_clear_revert_or_extend",
+        "exit_rule": "max_wait_elapsed"
+      },
+      "max_wait_time": "4h",
+      "dynamic_deadline": {
+        "horizon": "4h",
+        "fallback_only": true,
+        "stop_error_required": true
+      },
+      "invalidator_conditions": [
+        "event_complete",
+        "payer_disappeared",
+        "invalidator",
+        "ood",
+        "deadline"
+      ],
+      "capacity_band": "0_1000_usdt",
+      "eligible_capital_tiers": [
+        "100",
+        "1000",
+        "30",
+        "actual"
+      ],
+      "personal_execution_requirements": [
+        "fingerprint_available_or_block_open",
+        "delay_bars_in_[0 1 2 3]",
+        "min_notional_and_lot_feasible",
+        "personal_conservative_expected_net_ge_zero",
+        "profile:okx_1h"
+      ],
+      "stop_conditions": [
+        "event_complete",
+        "payer_disappeared",
+        "invalidator",
+        "ood",
+        "deadline_fallback"
+      ],
+      "event_completion": "event_complete_stop_error",
+      "payer_status": "UNEXPLAINED_PERSONAL_EDGE",
+      "status": "PERSONAL_WILD_CANDIDATE",
+      "validation_stage": "full_playbook_verification_pending",
+      "trade_allowed": false,
+      "exam_eligible": false,
+      "source_winner_count": 1,
+      "source_winner_ids_hash": "5143cee0939f431ea032c2b348847bd4331e979bfdd647415a115925c41a5e98",
+      "map_manifest_hash": "a260c9a257358c4a44a8826f8ec823321e788f99ea4bc20e22efeddde07449ac",
+      "discovery_mode": "outcome_first_reverse_from_personal_residual_winners",
+      "exam_actions": 0
+    },
+    {
+      "schema_version": "lingxi.router-g10-playbooks.playbook.v1",
+      "generation": "firstbattle-router-g10",
+      "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+      "playbook_hash": "2f036877921e6c5659ae3e217f78b657c2376ca66c5aa58c78b7f90d36b1f3e4",
+      "experiment_hash": "a471569db03b5667815a944506a935cac8c5f2b74371a434807cd2c306995d19",
+      "profile_id": "okx_1h",
+      "ordinal": 19,
+      "event_family": "ohlcv_extreme_continuation",
+      "horizon": "4h",
+      "delay_bars": 1,
+      "shock_cluster": "2026-06-24T14:00:00Z",
+      "trigger_conditions": {
+        "event_family": "ohlcv_extreme_continuation",
+        "conditions": [
+          {
+            "field": "abs_return_bps",
+            "op": "gte",
+            "value": 185.1063829787214
+          },
+          {
+            "field": "rms_bps",
+            "op": "gte",
+            "value": 108.07651514274374
+          },
+          {
+            "field": "return_sign",
+            "op": "eq_prior_sign",
+            "note": "continuation_setup"
+          }
+        ]
+      },
+      "long_branch": {
+        "action": "LONG",
+        "thesis": "breakout_continuation_success",
+        "entry_rule": "trigger_fires_and_follow_through_confirmed",
+        "exit_rule": "event_complete_or_invalidator"
+      },
+      "short_branch": {
+        "action": "SHORT",
+        "thesis": "failed_breakout_fade",
+        "entry_rule": "trigger_fires_but_follow_through_fails",
+        "exit_rule": "event_complete_or_invalidator"
+      },
+      "flat_branch": {
+        "action": "NO_TRADE",
+        "thesis": "ambiguous_breakout",
+        "entry_rule": "trigger_fires_without_clear_follow_through_or_failure",
+        "exit_rule": "max_wait_elapsed"
+      },
+      "max_wait_time": "4h",
+      "dynamic_deadline": {
+        "horizon": "4h",
+        "fallback_only": true,
+        "stop_error_required": true
+      },
+      "invalidator_conditions": [
+        "event_complete",
+        "payer_disappeared",
+        "invalidator",
+        "ood",
+        "deadline"
+      ],
+      "capacity_band": "0_1000_usdt",
+      "eligible_capital_tiers": [
+        "100",
+        "1000",
+        "30",
+        "actual"
+      ],
+      "personal_execution_requirements": [
+        "fingerprint_available_or_block_open",
+        "delay_bars_in_[0 1 2 3]",
+        "min_notional_and_lot_feasible",
+        "personal_conservative_expected_net_ge_zero",
+        "profile:okx_1h"
+      ],
+      "stop_conditions": [
+        "event_complete",
+        "payer_disappeared",
+        "invalidator",
+        "ood",
+        "deadline_fallback"
+      ],
+      "event_completion": "event_complete_stop_error",
+      "payer_status": "UNEXPLAINED_PERSONAL_EDGE",
+      "status": "PERSONAL_WILD_CANDIDATE",
+      "validation_stage": "full_playbook_verification_pending",
+      "trade_allowed": false,
+      "exam_eligible": false,
+      "source_winner_count": 1,
+      "source_winner_ids_hash": "29ebccad7d198aa063b9eacf9c9ccf06e34c5e0e3773d9d3a1dd1b295241d3ff",
+      "map_manifest_hash": "a260c9a257358c4a44a8826f8ec823321e788f99ea4bc20e22efeddde07449ac",
+      "discovery_mode": "outcome_first_reverse_from_personal_residual_winners",
+      "exam_actions": 0
+    },
+    {
+      "schema_version": "lingxi.router-g10-playbooks.playbook.v1",
+      "generation": "firstbattle-router-g10",
+      "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+      "playbook_hash": "c71cdc60525639d01e1af2a9b9653b9e5c2a4d85e4e3845c25653fdaf993b5d5",
+      "experiment_hash": "a471569db03b5667815a944506a935cac8c5f2b74371a434807cd2c306995d19",
+      "profile_id": "okx_1h",
+      "ordinal": 20,
+      "event_family": "btc_relative_dislocation",
+      "horizon": "1h",
+      "delay_bars": 0,
+      "shock_cluster": "none",
+      "trigger_conditions": {
+        "event_family": "btc_relative_dislocation",
+        "conditions": [
+          {
+            "field": "btc_relative_abs_bps",
+            "op": "gte",
+            "value": 146.87033609567578
+          }
+        ]
+      },
+      "long_branch": {
+        "action": "LONG",
+        "thesis": "dislocation_revert_long",
+        "entry_rule": "relative_dislocation_extreme_with_mean_revert_setup",
+        "exit_rule": "dislocation_closed_or_deadline"
+      },
+      "short_branch": {
+        "action": "SHORT",
+        "thesis": "dislocation_extend_short",
+        "entry_rule": "dislocation_extreme_with_continuation_setup",
+        "exit_rule": "event_complete_or_invalidator"
+      },
+      "flat_branch": {
+        "action": "NO_TRADE",
+        "thesis": "dislocation_ambiguous",
+        "entry_rule": "trigger_without_clear_revert_or_extend",
+        "exit_rule": "max_wait_elapsed"
+      },
+      "max_wait_time": "1h",
+      "dynamic_deadline": {
+        "horizon": "1h",
+        "fallback_only": true,
+        "stop_error_required": true
+      },
+      "invalidator_conditions": [
+        "event_complete",
+        "payer_disappeared",
+        "invalidator",
+        "ood",
+        "deadline"
+      ],
+      "capacity_band": "0_1000_usdt",
+      "eligible_capital_tiers": [
+        "100",
+        "1000",
+        "30",
+        "actual"
+      ],
+      "personal_execution_requirements": [
+        "fingerprint_available_or_block_open",
+        "delay_bars_in_[0 1 2 3]",
+        "min_notional_and_lot_feasible",
+        "personal_conservative_expected_net_ge_zero",
+        "profile:okx_1h"
+      ],
+      "stop_conditions": [
+        "event_complete",
+        "payer_disappeared",
+        "invalidator",
+        "ood",
+        "deadline_fallback"
+      ],
+      "event_completion": "event_complete_stop_error",
+      "payer_status": "UNEXPLAINED_PERSONAL_EDGE",
+      "status": "PERSONAL_WILD_CANDIDATE",
+      "validation_stage": "full_playbook_verification_pending",
+      "trade_allowed": false,
+      "exam_eligible": false,
+      "source_winner_count": 2,
+      "source_winner_ids_hash": "04896b06baebbf01541c7abd47505c7c8a57a989756ee6ca5bb2f7529685260b",
+      "map_manifest_hash": "a260c9a257358c4a44a8826f8ec823321e788f99ea4bc20e22efeddde07449ac",
+      "discovery_mode": "outcome_first_reverse_from_personal_residual_winners",
+      "exam_actions": 0
+    },
+    {
+      "schema_version": "lingxi.router-g10-playbooks.playbook.v1",
+      "generation": "firstbattle-router-g10",
+      "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+      "playbook_hash": "89128e007903a48062620f80dee0dfda61612eac5c2b5ca1d6aed3a71cc69b07",
+      "experiment_hash": "a471569db03b5667815a944506a935cac8c5f2b74371a434807cd2c306995d19",
+      "profile_id": "okx_1h",
+      "ordinal": 21,
+      "event_family": "ohlcv_extreme_continuation",
+      "horizon": "1h",
+      "delay_bars": 3,
+      "shock_cluster": "2026-03-09T14:00:00Z",
+      "trigger_conditions": {
+        "event_family": "ohlcv_extreme_continuation",
+        "conditions": [
+          {
+            "field": "abs_return_bps",
+            "op": "gte",
+            "value": 185.1063829787214
+          },
+          {
+            "field": "rms_bps",
+            "op": "gte",
+            "value": 108.07651514274374
+          },
+          {
+            "field": "return_sign",
+            "op": "eq_prior_sign",
+            "note": "continuation_setup"
+          }
+        ]
+      },
+      "long_branch": {
+        "action": "LONG",
+        "thesis": "breakout_continuation_success",
+        "entry_rule": "trigger_fires_and_follow_through_confirmed",
+        "exit_rule": "event_complete_or_invalidator"
+      },
+      "short_branch": {
+        "action": "SHORT",
+        "thesis": "failed_breakout_fade",
+        "entry_rule": "trigger_fires_but_follow_through_fails",
+        "exit_rule": "event_complete_or_invalidator"
+      },
+      "flat_branch": {
+        "action": "NO_TRADE",
+        "thesis": "ambiguous_breakout",
+        "entry_rule": "trigger_fires_without_clear_follow_through_or_failure",
+        "exit_rule": "max_wait_elapsed"
+      },
+      "max_wait_time": "1h",
+      "dynamic_deadline": {
+        "horizon": "1h",
+        "fallback_only": true,
+        "stop_error_required": true
+      },
+      "invalidator_conditions": [
+        "event_complete",
+        "payer_disappeared",
+        "invalidator",
+        "ood",
+        "deadline"
+      ],
+      "capacity_band": "0_100_usdt",
+      "eligible_capital_tiers": [
+        "100",
+        "30",
+        "actual"
+      ],
+      "personal_execution_requirements": [
+        "fingerprint_available_or_block_open",
+        "delay_bars_in_[0 1 2 3]",
+        "min_notional_and_lot_feasible",
+        "personal_conservative_expected_net_ge_zero",
+        "profile:okx_1h"
+      ],
+      "stop_conditions": [
+        "event_complete",
+        "payer_disappeared",
+        "invalidator",
+        "ood",
+        "deadline_fallback"
+      ],
+      "event_completion": "event_complete_stop_error",
+      "payer_status": "UNEXPLAINED_PERSONAL_EDGE",
+      "status": "PERSONAL_WILD_CANDIDATE",
+      "validation_stage": "full_playbook_verification_pending",
+      "trade_allowed": false,
+      "exam_eligible": false,
+      "source_winner_count": 1,
+      "source_winner_ids_hash": "28c0f32d57bdb83eb125e358160b11f0987cac3b2f5d5afab4cbb8589dc53750",
+      "map_manifest_hash": "a260c9a257358c4a44a8826f8ec823321e788f99ea4bc20e22efeddde07449ac",
+      "discovery_mode": "outcome_first_reverse_from_personal_residual_winners",
+      "exam_actions": 0
+    },
+    {
+      "schema_version": "lingxi.router-g10-playbooks.playbook.v1",
+      "generation": "firstbattle-router-g10",
+      "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+      "playbook_hash": "0ff468645e6eff793006d4fbc18e0eb4646e96bddd4b114f900cbf9c1e7cc620",
+      "experiment_hash": "a471569db03b5667815a944506a935cac8c5f2b74371a434807cd2c306995d19",
+      "profile_id": "okx_1h",
+      "ordinal": 22,
+      "event_family": "btc_relative_dislocation",
+      "horizon": "24h",
+      "delay_bars": 1,
+      "shock_cluster": "2026-03-29T23:00:00Z",
+      "trigger_conditions": {
+        "event_family": "btc_relative_dislocation",
+        "conditions": [
+          {
+            "field": "btc_relative_abs_bps",
+            "op": "gte",
+            "value": 146.87033609567578
+          }
+        ]
+      },
+      "long_branch": {
+        "action": "LONG",
+        "thesis": "dislocation_revert_long",
+        "entry_rule": "relative_dislocation_extreme_with_mean_revert_setup",
+        "exit_rule": "dislocation_closed_or_deadline"
+      },
+      "short_branch": {
+        "action": "SHORT",
+        "thesis": "dislocation_extend_short",
+        "entry_rule": "dislocation_extreme_with_continuation_setup",
+        "exit_rule": "event_complete_or_invalidator"
+      },
+      "flat_branch": {
+        "action": "NO_TRADE",
+        "thesis": "dislocation_ambiguous",
+        "entry_rule": "trigger_without_clear_revert_or_extend",
+        "exit_rule": "max_wait_elapsed"
+      },
+      "max_wait_time": "24h",
+      "dynamic_deadline": {
+        "horizon": "24h",
+        "fallback_only": true,
+        "stop_error_required": true
+      },
+      "invalidator_conditions": [
+        "event_complete",
+        "payer_disappeared",
+        "invalidator",
+        "ood",
+        "deadline"
+      ],
+      "capacity_band": "0_100_usdt",
+      "eligible_capital_tiers": [
+        "100",
+        "30",
+        "actual"
+      ],
+      "personal_execution_requirements": [
+        "fingerprint_available_or_block_open",
+        "delay_bars_in_[0 1 2 3]",
+        "min_notional_and_lot_feasible",
+        "personal_conservative_expected_net_ge_zero",
+        "profile:okx_1h"
+      ],
+      "stop_conditions": [
+        "event_complete",
+        "payer_disappeared",
+        "invalidator",
+        "ood",
+        "deadline_fallback"
+      ],
+      "event_completion": "event_complete_stop_error",
+      "payer_status": "UNEXPLAINED_PERSONAL_EDGE",
+      "status": "PERSONAL_WILD_CANDIDATE",
+      "validation_stage": "full_playbook_verification_pending",
+      "trade_allowed": false,
+      "exam_eligible": false,
+      "source_winner_count": 1,
+      "source_winner_ids_hash": "6e6de17f2e8075e6cf45eb369994d3c48c147a73f0e07a377bdd2c55f3d6be15",
+      "map_manifest_hash": "a260c9a257358c4a44a8826f8ec823321e788f99ea4bc20e22efeddde07449ac",
+      "discovery_mode": "outcome_first_reverse_from_personal_residual_winners",
+      "exam_actions": 0
+    },
+    {
+      "schema_version": "lingxi.router-g10-playbooks.playbook.v1",
+      "generation": "firstbattle-router-g10",
+      "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+      "playbook_hash": "6f02a16ea30336ca571084455677c1cbfbf503fc8e08c49710d97dd49cc9b7a0",
+      "experiment_hash": "a471569db03b5667815a944506a935cac8c5f2b74371a434807cd2c306995d19",
+      "profile_id": "okx_1h",
+      "ordinal": 23,
+      "event_family": "ohlcv_extreme_continuation",
+      "horizon": "24h",
+      "delay_bars": 2,
+      "shock_cluster": "none",
+      "trigger_conditions": {
+        "event_family": "ohlcv_extreme_continuation",
+        "conditions": [
+          {
+            "field": "abs_return_bps",
+            "op": "gte",
+            "value": 185.1063829787214
+          },
+          {
+            "field": "rms_bps",
+            "op": "gte",
+            "value": 108.07651514274374
+          },
+          {
+            "field": "return_sign",
+            "op": "eq_prior_sign",
+            "note": "continuation_setup"
+          }
+        ]
+      },
+      "long_branch": {
+        "action": "LONG",
+        "thesis": "breakout_continuation_success",
+        "entry_rule": "trigger_fires_and_follow_through_confirmed",
+        "exit_rule": "event_complete_or_invalidator"
+      },
+      "short_branch": {
+        "action": "SHORT",
+        "thesis": "failed_breakout_fade",
+        "entry_rule": "trigger_fires_but_follow_through_fails",
+        "exit_rule": "event_complete_or_invalidator"
+      },
+      "flat_branch": {
+        "action": "NO_TRADE",
+        "thesis": "ambiguous_breakout",
+        "entry_rule": "trigger_fires_without_clear_follow_through_or_failure",
+        "exit_rule": "max_wait_elapsed"
+      },
+      "max_wait_time": "24h",
+      "dynamic_deadline": {
+        "horizon": "24h",
+        "fallback_only": true,
+        "stop_error_required": true
+      },
+      "invalidator_conditions": [
+        "event_complete",
+        "payer_disappeared",
+        "invalidator",
+        "ood",
+        "deadline"
+      ],
+      "capacity_band": "0_1000_usdt",
+      "eligible_capital_tiers": [
+        "100",
+        "1000",
+        "30",
+        "actual"
+      ],
+      "personal_execution_requirements": [
+        "fingerprint_available_or_block_open",
+        "delay_bars_in_[0 1 2 3]",
+        "min_notional_and_lot_feasible",
+        "personal_conservative_expected_net_ge_zero",
+        "profile:okx_1h"
+      ],
+      "stop_conditions": [
+        "event_complete",
+        "payer_disappeared",
+        "invalidator",
+        "ood",
+        "deadline_fallback"
+      ],
+      "event_completion": "event_complete_stop_error",
+      "payer_status": "UNEXPLAINED_PERSONAL_EDGE",
+      "status": "PERSONAL_WILD_CANDIDATE",
+      "validation_stage": "full_playbook_verification_pending",
+      "trade_allowed": false,
+      "exam_eligible": false,
+      "source_winner_count": 2,
+      "source_winner_ids_hash": "cb9a98d388c4461a4faa303e85bbd07b13908b0af38134139e6db771ae1eee68",
+      "map_manifest_hash": "a260c9a257358c4a44a8826f8ec823321e788f99ea4bc20e22efeddde07449ac",
+      "discovery_mode": "outcome_first_reverse_from_personal_residual_winners",
+      "exam_actions": 0
+    },
+    {
+      "schema_version": "lingxi.router-g10-playbooks.playbook.v1",
+      "generation": "firstbattle-router-g10",
+      "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+      "playbook_hash": "c2b45ef555b3765712c0e015d5986964ec9527e20e1bdf112329ef940e232024",
+      "experiment_hash": "a471569db03b5667815a944506a935cac8c5f2b74371a434807cd2c306995d19",
+      "profile_id": "okx_1h",
+      "ordinal": 24,
+      "event_family": "ohlcv_extreme_reversal",
+      "horizon": "24h",
+      "delay_bars": 1,
+      "shock_cluster": "none",
+      "trigger_conditions": {
+        "event_family": "ohlcv_extreme_reversal",
+        "conditions": [
+          {
+            "field": "abs_return_bps",
+            "op": "gte",
+            "value": 185.1063829787214
+          },
+          {
+            "field": "rms_bps",
+            "op": "gte",
+            "value": 108.07651514274374
+          },
+          {
+            "field": "return_sign",
+            "op": "ne_prior_sign",
+            "note": "reversal_setup"
+          }
+        ]
+      },
+      "long_branch": {
+        "action": "SHORT",
+        "thesis": "exhaustion_reversal_down",
+        "entry_rule": "extreme_up_trigger_with_reversal_signature",
+        "exit_rule": "event_complete_or_invalidator"
+      },
+      "short_branch": {
+        "action": "LONG",
+        "thesis": "exhaustion_reversal_up",
+        "entry_rule": "extreme_down_trigger_with_reversal_signature",
+        "exit_rule": "event_complete_or_invalidator"
+      },
+      "flat_branch": {
+        "action": "NO_TRADE",
+        "thesis": "exhaustion_not_confirmed",
+        "entry_rule": "trigger_without_clear_exhaustion_path",
+        "exit_rule": "max_wait_elapsed"
+      },
+      "max_wait_time": "24h",
+      "dynamic_deadline": {
+        "horizon": "24h",
+        "fallback_only": true,
+        "stop_error_required": true
+      },
+      "invalidator_conditions": [
+        "event_complete",
+        "payer_disappeared",
+        "invalidator",
+        "ood",
+        "deadline"
+      ],
+      "capacity_band": "0_1000_usdt",
+      "eligible_capital_tiers": [
+        "100",
+        "1000",
+        "30",
+        "actual"
+      ],
+      "personal_execution_requirements": [
+        "fingerprint_available_or_block_open",
+        "delay_bars_in_[0 1 2 3]",
+        "min_notional_and_lot_feasible",
+        "personal_conservative_expected_net_ge_zero",
+        "profile:okx_1h"
+      ],
+      "stop_conditions": [
+        "event_complete",
+        "payer_disappeared",
+        "invalidator",
+        "ood",
+        "deadline_fallback"
+      ],
+      "event_completion": "event_complete_stop_error",
+      "payer_status": "UNEXPLAINED_PERSONAL_EDGE",
+      "status": "PERSONAL_WILD_CANDIDATE",
+      "validation_stage": "full_playbook_verification_pending",
+      "trade_allowed": false,
+      "exam_eligible": false,
+      "source_winner_count": 1,
+      "source_winner_ids_hash": "5cf111aa7a7c141cf0f6fb9abf059af4ae7ea4744dbce8f982e728a8e81ca9bd",
+      "map_manifest_hash": "a260c9a257358c4a44a8826f8ec823321e788f99ea4bc20e22efeddde07449ac",
+      "discovery_mode": "outcome_first_reverse_from_personal_residual_winners",
+      "exam_actions": 0
+    },
+    {
+      "schema_version": "lingxi.router-g10-playbooks.playbook.v1",
+      "generation": "firstbattle-router-g10",
+      "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+      "playbook_hash": "3044f9e732b8d56ed52704865c3fbc81b980d1ce8d827a229c7061b6575f8c8d",
+      "experiment_hash": "a471569db03b5667815a944506a935cac8c5f2b74371a434807cd2c306995d19",
+      "profile_id": "okx_1h",
+      "ordinal": 25,
+      "event_family": "btc_relative_dislocation",
+      "horizon": "4h",
+      "delay_bars": 1,
+      "shock_cluster": "none",
+      "trigger_conditions": {
+        "event_family": "btc_relative_dislocation",
+        "conditions": [
+          {
+            "field": "btc_relative_abs_bps",
+            "op": "gte",
+            "value": 146.87033609567578
+          }
+        ]
+      },
+      "long_branch": {
+        "action": "LONG",
+        "thesis": "dislocation_revert_long",
+        "entry_rule": "relative_dislocation_extreme_with_mean_revert_setup",
+        "exit_rule": "dislocation_closed_or_deadline"
+      },
+      "short_branch": {
+        "action": "SHORT",
+        "thesis": "dislocation_extend_short",
+        "entry_rule": "dislocation_extreme_with_continuation_setup",
+        "exit_rule": "event_complete_or_invalidator"
+      },
+      "flat_branch": {
+        "action": "NO_TRADE",
+        "thesis": "dislocation_ambiguous",
+        "entry_rule": "trigger_without_clear_revert_or_extend",
+        "exit_rule": "max_wait_elapsed"
+      },
+      "max_wait_time": "4h",
+      "dynamic_deadline": {
+        "horizon": "4h",
+        "fallback_only": true,
+        "stop_error_required": true
+      },
+      "invalidator_conditions": [
+        "event_complete",
+        "payer_disappeared",
+        "invalidator",
+        "ood",
+        "deadline"
+      ],
+      "capacity_band": "0_1000_usdt",
+      "eligible_capital_tiers": [
+        "100",
+        "1000",
+        "30",
+        "actual"
+      ],
+      "personal_execution_requirements": [
+        "fingerprint_available_or_block_open",
+        "delay_bars_in_[0 1 2 3]",
+        "min_notional_and_lot_feasible",
+        "personal_conservative_expected_net_ge_zero",
+        "profile:okx_1h"
+      ],
+      "stop_conditions": [
+        "event_complete",
+        "payer_disappeared",
+        "invalidator",
+        "ood",
+        "deadline_fallback"
+      ],
+      "event_completion": "event_complete_stop_error",
+      "payer_status": "UNEXPLAINED_PERSONAL_EDGE",
+      "status": "PERSONAL_WILD_CANDIDATE",
+      "validation_stage": "full_playbook_verification_pending",
+      "trade_allowed": false,
+      "exam_eligible": false,
+      "source_winner_count": 2,
+      "source_winner_ids_hash": "7a48d67549bd1a358881d65329dc9461a72bfaf24dfabdbb437cc247e3cee6f1",
+      "map_manifest_hash": "a260c9a257358c4a44a8826f8ec823321e788f99ea4bc20e22efeddde07449ac",
+      "discovery_mode": "outcome_first_reverse_from_personal_residual_winners",
+      "exam_actions": 0
+    },
+    {
+      "schema_version": "lingxi.router-g10-playbooks.playbook.v1",
+      "generation": "firstbattle-router-g10",
+      "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+      "playbook_hash": "1b4ced242f777b1d8d9497d1601605eeff88a9769c38c25202a638bc53c75789",
+      "experiment_hash": "a471569db03b5667815a944506a935cac8c5f2b74371a434807cd2c306995d19",
+      "profile_id": "okx_1h",
+      "ordinal": 26,
+      "event_family": "ohlcv_extreme_continuation",
+      "horizon": "24h",
+      "delay_bars": 3,
+      "shock_cluster": "none",
+      "trigger_conditions": {
+        "event_family": "ohlcv_extreme_continuation",
+        "conditions": [
+          {
+            "field": "abs_return_bps",
+            "op": "gte",
+            "value": 185.1063829787214
+          },
+          {
+            "field": "rms_bps",
+            "op": "gte",
+            "value": 108.07651514274374
+          },
+          {
+            "field": "return_sign",
+            "op": "eq_prior_sign",
+            "note": "continuation_setup"
+          }
+        ]
+      },
+      "long_branch": {
+        "action": "LONG",
+        "thesis": "breakout_continuation_success",
+        "entry_rule": "trigger_fires_and_follow_through_confirmed",
+        "exit_rule": "event_complete_or_invalidator"
+      },
+      "short_branch": {
+        "action": "SHORT",
+        "thesis": "failed_breakout_fade",
+        "entry_rule": "trigger_fires_but_follow_through_fails",
+        "exit_rule": "event_complete_or_invalidator"
+      },
+      "flat_branch": {
+        "action": "NO_TRADE",
+        "thesis": "ambiguous_breakout",
+        "entry_rule": "trigger_fires_without_clear_follow_through_or_failure",
+        "exit_rule": "max_wait_elapsed"
+      },
+      "max_wait_time": "24h",
+      "dynamic_deadline": {
+        "horizon": "24h",
+        "fallback_only": true,
+        "stop_error_required": true
+      },
+      "invalidator_conditions": [
+        "event_complete",
+        "payer_disappeared",
+        "invalidator",
+        "ood",
+        "deadline"
+      ],
+      "capacity_band": "0_1000_usdt",
+      "eligible_capital_tiers": [
+        "100",
+        "1000",
+        "30",
+        "actual"
+      ],
+      "personal_execution_requirements": [
+        "fingerprint_available_or_block_open",
+        "delay_bars_in_[0 1 2 3]",
+        "min_notional_and_lot_feasible",
+        "personal_conservative_expected_net_ge_zero",
+        "profile:okx_1h"
+      ],
+      "stop_conditions": [
+        "event_complete",
+        "payer_disappeared",
+        "invalidator",
+        "ood",
+        "deadline_fallback"
+      ],
+      "event_completion": "event_complete_stop_error",
+      "payer_status": "UNEXPLAINED_PERSONAL_EDGE",
+      "status": "PERSONAL_WILD_CANDIDATE",
+      "validation_stage": "full_playbook_verification_pending",
+      "trade_allowed": false,
+      "exam_eligible": false,
+      "source_winner_count": 3,
+      "source_winner_ids_hash": "fe6c9e6886190b8680d3142aacbd239da9417b75c4b0e46b71f533be18e0fd82",
+      "map_manifest_hash": "a260c9a257358c4a44a8826f8ec823321e788f99ea4bc20e22efeddde07449ac",
+      "discovery_mode": "outcome_first_reverse_from_personal_residual_winners",
+      "exam_actions": 0
+    },
+    {
+      "schema_version": "lingxi.router-g10-playbooks.playbook.v1",
+      "generation": "firstbattle-router-g10",
+      "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+      "playbook_hash": "69bfc55f42d640e91497dca763882c54f8d73d25275a805a53c707b97a2e8fcf",
+      "experiment_hash": "a471569db03b5667815a944506a935cac8c5f2b74371a434807cd2c306995d19",
+      "profile_id": "okx_1h",
+      "ordinal": 27,
+      "event_family": "ohlcv_extreme_reversal",
+      "horizon": "24h",
+      "delay_bars": 2,
+      "shock_cluster": "2026-03-04T16:00:00Z",
+      "trigger_conditions": {
+        "event_family": "ohlcv_extreme_reversal",
+        "conditions": [
+          {
+            "field": "abs_return_bps",
+            "op": "gte",
+            "value": 185.1063829787214
+          },
+          {
+            "field": "rms_bps",
+            "op": "gte",
+            "value": 108.07651514274374
+          },
+          {
+            "field": "return_sign",
+            "op": "ne_prior_sign",
+            "note": "reversal_setup"
+          }
+        ]
+      },
+      "long_branch": {
+        "action": "SHORT",
+        "thesis": "exhaustion_reversal_down",
+        "entry_rule": "extreme_up_trigger_with_reversal_signature",
+        "exit_rule": "event_complete_or_invalidator"
+      },
+      "short_branch": {
+        "action": "LONG",
+        "thesis": "exhaustion_reversal_up",
+        "entry_rule": "extreme_down_trigger_with_reversal_signature",
+        "exit_rule": "event_complete_or_invalidator"
+      },
+      "flat_branch": {
+        "action": "NO_TRADE",
+        "thesis": "exhaustion_not_confirmed",
+        "entry_rule": "trigger_without_clear_exhaustion_path",
+        "exit_rule": "max_wait_elapsed"
+      },
+      "max_wait_time": "24h",
+      "dynamic_deadline": {
+        "horizon": "24h",
+        "fallback_only": true,
+        "stop_error_required": true
+      },
+      "invalidator_conditions": [
+        "event_complete",
+        "payer_disappeared",
+        "invalidator",
+        "ood",
+        "deadline"
+      ],
+      "capacity_band": "0_1000_usdt",
+      "eligible_capital_tiers": [
+        "100",
+        "1000",
+        "30",
+        "actual"
+      ],
+      "personal_execution_requirements": [
+        "fingerprint_available_or_block_open",
+        "delay_bars_in_[0 1 2 3]",
+        "min_notional_and_lot_feasible",
+        "personal_conservative_expected_net_ge_zero",
+        "profile:okx_1h"
+      ],
+      "stop_conditions": [
+        "event_complete",
+        "payer_disappeared",
+        "invalidator",
+        "ood",
+        "deadline_fallback"
+      ],
+      "event_completion": "event_complete_stop_error",
+      "payer_status": "UNEXPLAINED_PERSONAL_EDGE",
+      "status": "PERSONAL_WILD_CANDIDATE",
+      "validation_stage": "full_playbook_verification_pending",
+      "trade_allowed": false,
+      "exam_eligible": false,
+      "source_winner_count": 1,
+      "source_winner_ids_hash": "c96a73b6efdcb6806f868c37779e5a693b7c1bd749a6aeeb98538fdd0ea1cb98",
+      "map_manifest_hash": "a260c9a257358c4a44a8826f8ec823321e788f99ea4bc20e22efeddde07449ac",
+      "discovery_mode": "outcome_first_reverse_from_personal_residual_winners",
+      "exam_actions": 0
+    },
+    {
+      "schema_version": "lingxi.router-g10-playbooks.playbook.v1",
+      "generation": "firstbattle-router-g10",
+      "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+      "playbook_hash": "c0026b44e39832198f796b3e684105b5f4d2c8b9c494aa16d72ca429d12440fe",
+      "experiment_hash": "a471569db03b5667815a944506a935cac8c5f2b74371a434807cd2c306995d19",
+      "profile_id": "okx_1h",
+      "ordinal": 28,
+      "event_family": "ohlcv_extreme_continuation",
+      "horizon": "4h",
+      "delay_bars": 2,
+      "shock_cluster": "none",
+      "trigger_conditions": {
+        "event_family": "ohlcv_extreme_continuation",
+        "conditions": [
+          {
+            "field": "abs_return_bps",
+            "op": "gte",
+            "value": 185.1063829787214
+          },
+          {
+            "field": "rms_bps",
+            "op": "gte",
+            "value": 108.07651514274374
+          },
+          {
+            "field": "return_sign",
+            "op": "eq_prior_sign",
+            "note": "continuation_setup"
+          }
+        ]
+      },
+      "long_branch": {
+        "action": "LONG",
+        "thesis": "breakout_continuation_success",
+        "entry_rule": "trigger_fires_and_follow_through_confirmed",
+        "exit_rule": "event_complete_or_invalidator"
+      },
+      "short_branch": {
+        "action": "SHORT",
+        "thesis": "failed_breakout_fade",
+        "entry_rule": "trigger_fires_but_follow_through_fails",
+        "exit_rule": "event_complete_or_invalidator"
+      },
+      "flat_branch": {
+        "action": "NO_TRADE",
+        "thesis": "ambiguous_breakout",
+        "entry_rule": "trigger_fires_without_clear_follow_through_or_failure",
+        "exit_rule": "max_wait_elapsed"
+      },
+      "max_wait_time": "4h",
+      "dynamic_deadline": {
+        "horizon": "4h",
+        "fallback_only": true,
+        "stop_error_required": true
+      },
+      "invalidator_conditions": [
+        "event_complete",
+        "payer_disappeared",
+        "invalidator",
+        "ood",
+        "deadline"
+      ],
+      "capacity_band": "0_1000_usdt",
+      "eligible_capital_tiers": [
+        "100",
+        "1000",
+        "30",
+        "actual"
+      ],
+      "personal_execution_requirements": [
+        "fingerprint_available_or_block_open",
+        "delay_bars_in_[0 1 2 3]",
+        "min_notional_and_lot_feasible",
+        "personal_conservative_expected_net_ge_zero",
+        "profile:okx_1h"
+      ],
+      "stop_conditions": [
+        "event_complete",
+        "payer_disappeared",
+        "invalidator",
+        "ood",
+        "deadline_fallback"
+      ],
+      "event_completion": "event_complete_stop_error",
+      "payer_status": "UNEXPLAINED_PERSONAL_EDGE",
+      "status": "PERSONAL_WILD_CANDIDATE",
+      "validation_stage": "full_playbook_verification_pending",
+      "trade_allowed": false,
+      "exam_eligible": false,
+      "source_winner_count": 2,
+      "source_winner_ids_hash": "07eac280cda8899ef2960fdf3cc77af189dae2115a76f28c0c86835234ef4d5c",
+      "map_manifest_hash": "a260c9a257358c4a44a8826f8ec823321e788f99ea4bc20e22efeddde07449ac",
+      "discovery_mode": "outcome_first_reverse_from_personal_residual_winners",
+      "exam_actions": 0
+    },
+    {
+      "schema_version": "lingxi.router-g10-playbooks.playbook.v1",
+      "generation": "firstbattle-router-g10",
+      "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+      "playbook_hash": "94dcd2137a4e4c378fdbf2a0084965febadbc98f42f604deb4ad3e77e438b5ac",
+      "experiment_hash": "a471569db03b5667815a944506a935cac8c5f2b74371a434807cd2c306995d19",
+      "profile_id": "okx_1h",
+      "ordinal": 29,
+      "event_family": "btc_relative_dislocation",
+      "horizon": "24h",
+      "delay_bars": 2,
+      "shock_cluster": "2026-03-04T16:00:00Z",
+      "trigger_conditions": {
+        "event_family": "btc_relative_dislocation",
+        "conditions": [
+          {
+            "field": "btc_relative_abs_bps",
+            "op": "gte",
+            "value": 146.87033609567578
+          }
+        ]
+      },
+      "long_branch": {
+        "action": "LONG",
+        "thesis": "dislocation_revert_long",
+        "entry_rule": "relative_dislocation_extreme_with_mean_revert_setup",
+        "exit_rule": "dislocation_closed_or_deadline"
+      },
+      "short_branch": {
+        "action": "SHORT",
+        "thesis": "dislocation_extend_short",
+        "entry_rule": "dislocation_extreme_with_continuation_setup",
+        "exit_rule": "event_complete_or_invalidator"
+      },
+      "flat_branch": {
+        "action": "NO_TRADE",
+        "thesis": "dislocation_ambiguous",
+        "entry_rule": "trigger_without_clear_revert_or_extend",
+        "exit_rule": "max_wait_elapsed"
+      },
+      "max_wait_time": "24h",
+      "dynamic_deadline": {
+        "horizon": "24h",
+        "fallback_only": true,
+        "stop_error_required": true
+      },
+      "invalidator_conditions": [
+        "event_complete",
+        "payer_disappeared",
+        "invalidator",
+        "ood",
+        "deadline"
+      ],
+      "capacity_band": "0_1000_usdt",
+      "eligible_capital_tiers": [
+        "100",
+        "1000",
+        "30",
+        "actual"
+      ],
+      "personal_execution_requirements": [
+        "fingerprint_available_or_block_open",
+        "delay_bars_in_[0 1 2 3]",
+        "min_notional_and_lot_feasible",
+        "personal_conservative_expected_net_ge_zero",
+        "profile:okx_1h"
+      ],
+      "stop_conditions": [
+        "event_complete",
+        "payer_disappeared",
+        "invalidator",
+        "ood",
+        "deadline_fallback"
+      ],
+      "event_completion": "event_complete_stop_error",
+      "payer_status": "UNEXPLAINED_PERSONAL_EDGE",
+      "status": "PERSONAL_WILD_CANDIDATE",
+      "validation_stage": "full_playbook_verification_pending",
+      "trade_allowed": false,
+      "exam_eligible": false,
+      "source_winner_count": 1,
+      "source_winner_ids_hash": "97d4fd7290a42135eddbf0e713eec7e36a286dc9c77212d52030690b7f37bd74",
+      "map_manifest_hash": "a260c9a257358c4a44a8826f8ec823321e788f99ea4bc20e22efeddde07449ac",
+      "discovery_mode": "outcome_first_reverse_from_personal_residual_winners",
+      "exam_actions": 0
+    },
+    {
+      "schema_version": "lingxi.router-g10-playbooks.playbook.v1",
+      "generation": "firstbattle-router-g10",
+      "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+      "playbook_hash": "19a2d9749633d9962d0fe9f85938ecb99f8caa3ee51557c9aaa684270165fe3d",
+      "experiment_hash": "a471569db03b5667815a944506a935cac8c5f2b74371a434807cd2c306995d19",
+      "profile_id": "okx_1h",
+      "ordinal": 30,
+      "event_family": "btc_relative_dislocation",
+      "horizon": "4h",
+      "delay_bars": 3,
+      "shock_cluster": "2026-03-18T15:00:00Z",
+      "trigger_conditions": {
+        "event_family": "btc_relative_dislocation",
+        "conditions": [
+          {
+            "field": "btc_relative_abs_bps",
+            "op": "gte",
+            "value": 146.87033609567578
+          }
+        ]
+      },
+      "long_branch": {
+        "action": "LONG",
+        "thesis": "dislocation_revert_long",
+        "entry_rule": "relative_dislocation_extreme_with_mean_revert_setup",
+        "exit_rule": "dislocation_closed_or_deadline"
+      },
+      "short_branch": {
+        "action": "SHORT",
+        "thesis": "dislocation_extend_short",
+        "entry_rule": "dislocation_extreme_with_continuation_setup",
+        "exit_rule": "event_complete_or_invalidator"
+      },
+      "flat_branch": {
+        "action": "NO_TRADE",
+        "thesis": "dislocation_ambiguous",
+        "entry_rule": "trigger_without_clear_revert_or_extend",
+        "exit_rule": "max_wait_elapsed"
+      },
+      "max_wait_time": "4h",
+      "dynamic_deadline": {
+        "horizon": "4h",
+        "fallback_only": true,
+        "stop_error_required": true
+      },
+      "invalidator_conditions": [
+        "event_complete",
+        "payer_disappeared",
+        "invalidator",
+        "ood",
+        "deadline"
+      ],
+      "capacity_band": "0_100_usdt",
+      "eligible_capital_tiers": [
+        "100",
+        "30",
+        "actual"
+      ],
+      "personal_execution_requirements": [
+        "fingerprint_available_or_block_open",
+        "delay_bars_in_[0 1 2 3]",
+        "min_notional_and_lot_feasible",
+        "personal_conservative_expected_net_ge_zero",
+        "profile:okx_1h"
+      ],
+      "stop_conditions": [
+        "event_complete",
+        "payer_disappeared",
+        "invalidator",
+        "ood",
+        "deadline_fallback"
+      ],
+      "event_completion": "event_complete_stop_error",
+      "payer_status": "UNEXPLAINED_PERSONAL_EDGE",
+      "status": "PERSONAL_WILD_CANDIDATE",
+      "validation_stage": "full_playbook_verification_pending",
+      "trade_allowed": false,
+      "exam_eligible": false,
+      "source_winner_count": 1,
+      "source_winner_ids_hash": "8e8cd5e9a498a7ee6edc46e7e6c345cb16b9ce7343b1574373edbfd76f4d68d8",
+      "map_manifest_hash": "a260c9a257358c4a44a8826f8ec823321e788f99ea4bc20e22efeddde07449ac",
+      "discovery_mode": "outcome_first_reverse_from_personal_residual_winners",
+      "exam_actions": 0
+    },
+    {
+      "schema_version": "lingxi.router-g10-playbooks.playbook.v1",
+      "generation": "firstbattle-router-g10",
+      "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+      "playbook_hash": "728d99362f018560dd8e618776b3e2d86e4d9ced2a0b96a8e8e269a0cdd8fa0e",
+      "experiment_hash": "a471569db03b5667815a944506a935cac8c5f2b74371a434807cd2c306995d19",
+      "profile_id": "okx_1h",
+      "ordinal": 31,
+      "event_family": "ohlcv_extreme_continuation",
+      "horizon": "4h",
+      "delay_bars": 3,
+      "shock_cluster": "none",
+      "trigger_conditions": {
+        "event_family": "ohlcv_extreme_continuation",
+        "conditions": [
+          {
+            "field": "abs_return_bps",
+            "op": "gte",
+            "value": 185.1063829787214
+          },
+          {
+            "field": "rms_bps",
+            "op": "gte",
+            "value": 108.07651514274374
+          },
+          {
+            "field": "return_sign",
+            "op": "eq_prior_sign",
+            "note": "continuation_setup"
+          }
+        ]
+      },
+      "long_branch": {
+        "action": "LONG",
+        "thesis": "breakout_continuation_success",
+        "entry_rule": "trigger_fires_and_follow_through_confirmed",
+        "exit_rule": "event_complete_or_invalidator"
+      },
+      "short_branch": {
+        "action": "SHORT",
+        "thesis": "failed_breakout_fade",
+        "entry_rule": "trigger_fires_but_follow_through_fails",
+        "exit_rule": "event_complete_or_invalidator"
+      },
+      "flat_branch": {
+        "action": "NO_TRADE",
+        "thesis": "ambiguous_breakout",
+        "entry_rule": "trigger_fires_without_clear_follow_through_or_failure",
+        "exit_rule": "max_wait_elapsed"
+      },
+      "max_wait_time": "4h",
+      "dynamic_deadline": {
+        "horizon": "4h",
+        "fallback_only": true,
+        "stop_error_required": true
+      },
+      "invalidator_conditions": [
+        "event_complete",
+        "payer_disappeared",
+        "invalidator",
+        "ood",
+        "deadline"
+      ],
+      "capacity_band": "0_1000_usdt",
+      "eligible_capital_tiers": [
+        "100",
+        "1000",
+        "30",
+        "actual"
+      ],
+      "personal_execution_requirements": [
+        "fingerprint_available_or_block_open",
+        "delay_bars_in_[0 1 2 3]",
+        "min_notional_and_lot_feasible",
+        "personal_conservative_expected_net_ge_zero",
+        "profile:okx_1h"
+      ],
+      "stop_conditions": [
+        "event_complete",
+        "payer_disappeared",
+        "invalidator",
+        "ood",
+        "deadline_fallback"
+      ],
+      "event_completion": "event_complete_stop_error",
+      "payer_status": "UNEXPLAINED_PERSONAL_EDGE",
+      "status": "PERSONAL_WILD_CANDIDATE",
+      "validation_stage": "full_playbook_verification_pending",
+      "trade_allowed": false,
+      "exam_eligible": false,
+      "source_winner_count": 1,
+      "source_winner_ids_hash": "85a90eedb812bc405dee519dfb0eb465db25cdcc3304d9d71e04690068d43e31",
+      "map_manifest_hash": "a260c9a257358c4a44a8826f8ec823321e788f99ea4bc20e22efeddde07449ac",
+      "discovery_mode": "outcome_first_reverse_from_personal_residual_winners",
+      "exam_actions": 0
+    }
+  ],
+  "ledger_attempts": [
+    {
+      "attempt_ordinal": 1,
+      "enumerator_cursor": "group|index=0|key=okx_1h|btc_relative_dislocation|1h|1|none",
+      "playbook_hash": "21359dbf9a26928d411a2cfd52f61a790aea3743758350b8af1eb3b6c07ca5c1",
+      "profile_id": "okx_1h",
+      "event_family": "btc_relative_dislocation",
+      "horizon": "1h",
+      "shock_cluster": "none",
+      "status": "personal_wild_candidate",
+      "status_reason": "PERSONAL_WILD_CANDIDATE",
+      "ledger_stage": "discovery_reverse_playbooks",
+      "source_winner_count": 2,
+      "source_winner_ids_hash": "eb1bb724591c140e3361dd033a112326ee7b3f5a7a68f328e087f3767a7102d5"
+    },
+    {
+      "attempt_ordinal": 2,
+      "enumerator_cursor": "group|index=1|key=okx_1h|ohlcv_extreme_continuation|1h|0|none",
+      "playbook_hash": "b19616242a5a11ea2fe3b2eda0ab6fdc51060c035b4ac48a80361c9df72b80f1",
+      "profile_id": "okx_1h",
+      "event_family": "ohlcv_extreme_continuation",
+      "horizon": "1h",
+      "shock_cluster": "none",
+      "status": "personal_wild_candidate",
+      "status_reason": "PERSONAL_WILD_CANDIDATE",
+      "ledger_stage": "discovery_reverse_playbooks",
+      "source_winner_count": 3,
+      "source_winner_ids_hash": "95b4b04bd0a97c1b037e6a07e1be825b790e278a2d9eaa0c8c5f330081dd6cf7"
+    },
+    {
+      "attempt_ordinal": 3,
+      "enumerator_cursor": "group|index=2|key=okx_1h|ohlcv_extreme_reversal|1h|1|2026-06-24T16:00:00Z",
+      "playbook_hash": "923796aa86da94f9fa9d29715f06ccea93b6fd4ecd658f96783d82955ffa9697",
+      "profile_id": "okx_1h",
+      "event_family": "ohlcv_extreme_reversal",
+      "horizon": "1h",
+      "shock_cluster": "2026-06-24T16:00:00Z",
+      "status": "personal_wild_candidate",
+      "status_reason": "PERSONAL_WILD_CANDIDATE",
+      "ledger_stage": "discovery_reverse_playbooks",
+      "source_winner_count": 1,
+      "source_winner_ids_hash": "f7988d0325e27f22bceadaaf8075bd4839c6048cb74078e33e27ad6b185a6967"
+    },
+    {
+      "attempt_ordinal": 4,
+      "enumerator_cursor": "group|index=3|key=okx_1h|btc_relative_dislocation|24h|0|2026-03-06T14:00:00Z",
+      "playbook_hash": "94bdf829e9012c577b9fdcde7252bc08beed684ccc61812f23a17d4b9a1ed861",
+      "profile_id": "okx_1h",
+      "event_family": "btc_relative_dislocation",
+      "horizon": "24h",
+      "shock_cluster": "2026-03-06T14:00:00Z",
+      "status": "personal_wild_candidate",
+      "status_reason": "PERSONAL_WILD_CANDIDATE",
+      "ledger_stage": "discovery_reverse_playbooks",
+      "source_winner_count": 1,
+      "source_winner_ids_hash": "f34b99496940e54168ece8102a41d13198900d6752605ec51291b5861d7957fd"
+    },
+    {
+      "attempt_ordinal": 5,
+      "enumerator_cursor": "group|index=4|key=okx_1h|ohlcv_extreme_continuation|24h|0|none",
+      "playbook_hash": "b16edf57b9cee36082f5966ca38ff600bf056bda258181a52862fe95b1b6d832",
+      "profile_id": "okx_1h",
+      "event_family": "ohlcv_extreme_continuation",
+      "horizon": "24h",
+      "shock_cluster": "none",
+      "status": "personal_wild_candidate",
+      "status_reason": "PERSONAL_WILD_CANDIDATE",
+      "ledger_stage": "discovery_reverse_playbooks",
+      "source_winner_count": 2,
+      "source_winner_ids_hash": "e0c706e745961150cc0831d8d5d2555e5ccf20979c8c14ebfc8c38159029f055"
+    },
+    {
+      "attempt_ordinal": 6,
+      "enumerator_cursor": "group|index=5|key=okx_1h|ohlcv_extreme_reversal|24h|0|2026-03-06T14:00:00Z",
+      "playbook_hash": "2cdd9daf2642cfcc1755a760c137cd331a3ddc4f5ddeed53fefc0132ca96ba05",
+      "profile_id": "okx_1h",
+      "event_family": "ohlcv_extreme_reversal",
+      "horizon": "24h",
+      "shock_cluster": "2026-03-06T14:00:00Z",
+      "status": "personal_wild_candidate",
+      "status_reason": "PERSONAL_WILD_CANDIDATE",
+      "ledger_stage": "discovery_reverse_playbooks",
+      "source_winner_count": 1,
+      "source_winner_ids_hash": "75eb6db1b7e38ca24fb981026fb91b04d96369d1e3542b4873ef3dbb5830c548"
+    },
+    {
+      "attempt_ordinal": 7,
+      "enumerator_cursor": "group|index=6|key=okx_1h|btc_relative_dislocation|4h|0|2026-03-23T12:00:00Z",
+      "playbook_hash": "53fd92d2f5cb9ad5956bac3624ebd1e7089a26b9cdff1ecbaebc478f73588df3",
+      "profile_id": "okx_1h",
+      "event_family": "btc_relative_dislocation",
+      "horizon": "4h",
+      "shock_cluster": "2026-03-23T12:00:00Z",
+      "status": "personal_wild_candidate",
+      "status_reason": "PERSONAL_WILD_CANDIDATE",
+      "ledger_stage": "discovery_reverse_playbooks",
+      "source_winner_count": 1,
+      "source_winner_ids_hash": "4ecebfa1d2303872eff944b332cde6ce91e6ca229cfbc869b415bc872c8c4355"
+    },
+    {
+      "attempt_ordinal": 8,
+      "enumerator_cursor": "group|index=7|key=okx_1h|ohlcv_extreme_continuation|4h|0|none",
+      "playbook_hash": "2b0bec06531dcfecbcaf082cfc4e12b792209c227106d8fe93503ad4507522a9",
+      "profile_id": "okx_1h",
+      "event_family": "ohlcv_extreme_continuation",
+      "horizon": "4h",
+      "shock_cluster": "none",
+      "status": "personal_wild_candidate",
+      "status_reason": "PERSONAL_WILD_CANDIDATE",
+      "ledger_stage": "discovery_reverse_playbooks",
+      "source_winner_count": 1,
+      "source_winner_ids_hash": "58bc0ddfdb1b795288925e26c04c97b3afda468b53f4b31c7ee323ba82d50e37"
+    },
+    {
+      "attempt_ordinal": 9,
+      "enumerator_cursor": "group|index=8|key=okx_1h|ohlcv_extreme_reversal|4h|0|none",
+      "profile_id": "okx_1h",
+      "event_family": "ohlcv_extreme_reversal",
+      "horizon": "4h",
+      "shock_cluster": "none",
+      "status": "skipped_nonoverlap",
+      "status_reason": "window_nonoverlap_violation",
+      "ledger_stage": "discovery_reverse_playbooks",
+      "source_winner_count": 3
+    },
+    {
+      "attempt_ordinal": 10,
+      "enumerator_cursor": "group|index=9|key=okx_1h|btc_relative_dislocation|1h|2|none",
+      "playbook_hash": "753d67d484e324b1d9e751203b2b2257b5d66a1f548782a61a11f3d9a75c7b81",
+      "profile_id": "okx_1h",
+      "event_family": "btc_relative_dislocation",
+      "horizon": "1h",
+      "shock_cluster": "none",
+      "status": "personal_wild_candidate",
+      "status_reason": "PERSONAL_WILD_CANDIDATE",
+      "ledger_stage": "discovery_reverse_playbooks",
+      "source_winner_count": 3,
+      "source_winner_ids_hash": "f2901cf8fff74ab21623d02b3454f14075c38de598d7944c6414cbf0270e9c73"
+    },
+    {
+      "attempt_ordinal": 11,
+      "enumerator_cursor": "group|index=10|key=okx_1h|ohlcv_extreme_continuation|1h|1|none",
+      "playbook_hash": "d8bcdf77dcf0e55fd340c989600dd87949f7ee98197a8d70f412d25e79a8fc9a",
+      "profile_id": "okx_1h",
+      "event_family": "ohlcv_extreme_continuation",
+      "horizon": "1h",
+      "shock_cluster": "none",
+      "status": "personal_wild_candidate",
+      "status_reason": "PERSONAL_WILD_CANDIDATE",
+      "ledger_stage": "discovery_reverse_playbooks",
+      "source_winner_count": 2,
+      "source_winner_ids_hash": "5210a3e8b380c8c62a6180e47afaea50b1b5a452c7857cebef830a211198dacf"
+    },
+    {
+      "attempt_ordinal": 12,
+      "enumerator_cursor": "group|index=11|key=okx_1h|ohlcv_extreme_reversal|1h|0|2026-03-17T15:00:00Z",
+      "playbook_hash": "611cfb71ce86f03340ede5e60f40afb47784b23cb8bd5636aad04b41547d79ca",
+      "profile_id": "okx_1h",
+      "event_family": "ohlcv_extreme_reversal",
+      "horizon": "1h",
+      "shock_cluster": "2026-03-17T15:00:00Z",
+      "status": "personal_wild_candidate",
+      "status_reason": "PERSONAL_WILD_CANDIDATE",
+      "ledger_stage": "discovery_reverse_playbooks",
+      "source_winner_count": 1,
+      "source_winner_ids_hash": "9cd47944a3991e9e746801d91852d1f996f2c028f5c33bf67c0ec34d6a50faa4"
+    },
+    {
+      "attempt_ordinal": 13,
+      "enumerator_cursor": "group|index=12|key=okx_1h|btc_relative_dislocation|24h|0|2026-03-24T14:00:00Z",
+      "profile_id": "okx_1h",
+      "event_family": "btc_relative_dislocation",
+      "horizon": "24h",
+      "shock_cluster": "2026-03-24T14:00:00Z",
+      "status": "skipped_dedup",
+      "status_reason": "discovery_dedup_tracker_key",
+      "ledger_stage": "discovery_reverse_playbooks"
+    },
+    {
+      "attempt_ordinal": 14,
+      "enumerator_cursor": "group|index=13|key=okx_1h|ohlcv_extreme_continuation|24h|1|2026-03-19T13:00:00Z",
+      "playbook_hash": "d38147f0e2b705fca1ad5a5ae8d8d8b2d7589261ab0c455424f06578a5917481",
+      "profile_id": "okx_1h",
+      "event_family": "ohlcv_extreme_continuation",
+      "horizon": "24h",
+      "shock_cluster": "2026-03-19T13:00:00Z",
+      "status": "personal_wild_candidate",
+      "status_reason": "PERSONAL_WILD_CANDIDATE",
+      "ledger_stage": "discovery_reverse_playbooks",
+      "source_winner_count": 1,
+      "source_winner_ids_hash": "67261e96d4bce5eae365c30f669083542fb31c2567d34235e046c7db9ed74cb3"
+    },
+    {
+      "attempt_ordinal": 15,
+      "enumerator_cursor": "group|index=14|key=okx_1h|ohlcv_extreme_reversal|24h|0|none",
+      "profile_id": "okx_1h",
+      "event_family": "ohlcv_extreme_reversal",
+      "horizon": "24h",
+      "shock_cluster": "none",
+      "status": "skipped_dedup",
+      "status_reason": "discovery_dedup_tracker_key",
+      "ledger_stage": "discovery_reverse_playbooks"
+    },
+    {
+      "attempt_ordinal": 16,
+      "enumerator_cursor": "group|index=15|key=okx_1h|btc_relative_dislocation|4h|0|none",
+      "profile_id": "okx_1h",
+      "event_family": "btc_relative_dislocation",
+      "horizon": "4h",
+      "shock_cluster": "none",
+      "status": "skipped_nonoverlap",
+      "status_reason": "window_nonoverlap_violation",
+      "ledger_stage": "discovery_reverse_playbooks",
+      "source_winner_count": 8
+    },
+    {
+      "attempt_ordinal": 17,
+      "enumerator_cursor": "group|index=16|key=okx_1h|ohlcv_extreme_continuation|4h|1|2026-03-23T12:00:00Z",
+      "playbook_hash": "872e0c049e89ffc9a6605d70509b1af96c44d04c5cd44a69d01fff92a81e5927",
+      "profile_id": "okx_1h",
+      "event_family": "ohlcv_extreme_continuation",
+      "horizon": "4h",
+      "shock_cluster": "2026-03-23T12:00:00Z",
+      "status": "personal_wild_candidate",
+      "status_reason": "PERSONAL_WILD_CANDIDATE",
+      "ledger_stage": "discovery_reverse_playbooks",
+      "source_winner_count": 1,
+      "source_winner_ids_hash": "277cf0f74994b7308081edb9b44c7179120972de4c9844e3dde5833309fcc5f4"
+    },
+    {
+      "attempt_ordinal": 18,
+      "enumerator_cursor": "group|index=17|key=okx_1h|ohlcv_extreme_reversal|4h|1|none",
+      "playbook_hash": "cadb1c0c466ccf6f5d6f4da8404eff42b73ca38c9bd9e91ce8fec7f03b5aa53d",
+      "profile_id": "okx_1h",
+      "event_family": "ohlcv_extreme_reversal",
+      "horizon": "4h",
+      "shock_cluster": "none",
+      "status": "personal_wild_candidate",
+      "status_reason": "PERSONAL_WILD_CANDIDATE",
+      "ledger_stage": "discovery_reverse_playbooks",
+      "source_winner_count": 1,
+      "source_winner_ids_hash": "382b370949d6c1be0fe3b30fb420e1859409e45a7f122962d5db6a45e4a82baa"
+    },
+    {
+      "attempt_ordinal": 19,
+      "enumerator_cursor": "group|index=18|key=okx_1h|btc_relative_dislocation|1h|3|none",
+      "playbook_hash": "9e8d79853c6e07e91936d06baf564c42889aa5b3a683e7922f0d5a4cbef931bf",
+      "profile_id": "okx_1h",
+      "event_family": "btc_relative_dislocation",
+      "horizon": "1h",
+      "shock_cluster": "none",
+      "status": "personal_wild_candidate",
+      "status_reason": "PERSONAL_WILD_CANDIDATE",
+      "ledger_stage": "discovery_reverse_playbooks",
+      "source_winner_count": 1,
+      "source_winner_ids_hash": "b9fe0cbd31f7f987640dab9ed5a65e0c338cb40d1f303050e2ff4a1f8737960d"
+    },
+    {
+      "attempt_ordinal": 20,
+      "enumerator_cursor": "group|index=19|key=okx_1h|ohlcv_extreme_continuation|1h|2|none",
+      "playbook_hash": "8f2618094376d25a5dbc5943ec037bbdb3e2b46d90cd031cd0ffbdc06f599d39",
+      "profile_id": "okx_1h",
+      "event_family": "ohlcv_extreme_continuation",
+      "horizon": "1h",
+      "shock_cluster": "none",
+      "status": "personal_wild_candidate",
+      "status_reason": "PERSONAL_WILD_CANDIDATE",
+      "ledger_stage": "discovery_reverse_playbooks",
+      "source_winner_count": 2,
+      "source_winner_ids_hash": "05353ff4fa7a4a96dbb02e8fa4cf5ea92778424d5ddd5fd01bdca1dafbe299d9"
+    },
+    {
+      "attempt_ordinal": 21,
+      "enumerator_cursor": "group|index=20|key=okx_1h|btc_relative_dislocation|24h|0|none",
+      "profile_id": "okx_1h",
+      "event_family": "btc_relative_dislocation",
+      "horizon": "24h",
+      "shock_cluster": "none",
+      "status": "skipped_dedup",
+      "status_reason": "discovery_dedup_tracker_key",
+      "ledger_stage": "discovery_reverse_playbooks"
+    },
+    {
+      "attempt_ordinal": 22,
+      "enumerator_cursor": "group|index=21|key=okx_1h|ohlcv_extreme_continuation|24h|1|none",
+      "profile_id": "okx_1h",
+      "event_family": "ohlcv_extreme_continuation",
+      "horizon": "24h",
+      "shock_cluster": "none",
+      "status": "skipped_dedup",
+      "status_reason": "discovery_dedup_tracker_key",
+      "ledger_stage": "discovery_reverse_playbooks"
+    },
+    {
+      "attempt_ordinal": 23,
+      "enumerator_cursor": "group|index=22|key=okx_1h|ohlcv_extreme_reversal|24h|1|2026-03-22T00:00:00Z",
+      "playbook_hash": "02afcffd699e999b67ffb22f46a9133267a90372e0b12c1e7db2d27c2d8eab39",
+      "profile_id": "okx_1h",
+      "event_family": "ohlcv_extreme_reversal",
+      "horizon": "24h",
+      "shock_cluster": "2026-03-22T00:00:00Z",
+      "status": "personal_wild_candidate",
+      "status_reason": "PERSONAL_WILD_CANDIDATE",
+      "ledger_stage": "discovery_reverse_playbooks",
+      "source_winner_count": 1,
+      "source_winner_ids_hash": "0c7078b913b07b221a0ef736daa3d8156015af154b58318689eb200040bf4baf"
+    },
+    {
+      "attempt_ordinal": 24,
+      "enumerator_cursor": "group|index=23|key=okx_1h|btc_relative_dislocation|4h|1|2026-06-24T14:00:00Z",
+      "playbook_hash": "c983f8b1fdb649689f26e2c631bf52a79d1140470b9fd60ae24fcf3bc1cdf7df",
+      "profile_id": "okx_1h",
+      "event_family": "btc_relative_dislocation",
+      "horizon": "4h",
+      "shock_cluster": "2026-06-24T14:00:00Z",
+      "status": "personal_wild_candidate",
+      "status_reason": "PERSONAL_WILD_CANDIDATE",
+      "ledger_stage": "discovery_reverse_playbooks",
+      "source_winner_count": 1,
+      "source_winner_ids_hash": "5143cee0939f431ea032c2b348847bd4331e979bfdd647415a115925c41a5e98"
+    },
+    {
+      "attempt_ordinal": 25,
+      "enumerator_cursor": "group|index=24|key=okx_1h|ohlcv_extreme_continuation|4h|1|2026-06-24T14:00:00Z",
+      "playbook_hash": "2f036877921e6c5659ae3e217f78b657c2376ca66c5aa58c78b7f90d36b1f3e4",
+      "profile_id": "okx_1h",
+      "event_family": "ohlcv_extreme_continuation",
+      "horizon": "4h",
+      "shock_cluster": "2026-06-24T14:00:00Z",
+      "status": "personal_wild_candidate",
+      "status_reason": "PERSONAL_WILD_CANDIDATE",
+      "ledger_stage": "discovery_reverse_playbooks",
+      "source_winner_count": 1,
+      "source_winner_ids_hash": "29ebccad7d198aa063b9eacf9c9ccf06e34c5e0e3773d9d3a1dd1b295241d3ff"
+    },
+    {
+      "attempt_ordinal": 26,
+      "enumerator_cursor": "group|index=25|key=okx_1h|ohlcv_extreme_reversal|4h|2|none",
+      "profile_id": "okx_1h",
+      "event_family": "ohlcv_extreme_reversal",
+      "horizon": "4h",
+      "shock_cluster": "none",
+      "status": "skipped_nonoverlap",
+      "status_reason": "window_nonoverlap_violation",
+      "ledger_stage": "discovery_reverse_playbooks",
+      "source_winner_count": 4
+    },
+    {
+      "attempt_ordinal": 27,
+      "enumerator_cursor": "group|index=26|key=okx_1h|btc_relative_dislocation|1h|0|none",
+      "playbook_hash": "c71cdc60525639d01e1af2a9b9653b9e5c2a4d85e4e3845c25653fdaf993b5d5",
+      "profile_id": "okx_1h",
+      "event_family": "btc_relative_dislocation",
+      "horizon": "1h",
+      "shock_cluster": "none",
+      "status": "personal_wild_candidate",
+      "status_reason": "PERSONAL_WILD_CANDIDATE",
+      "ledger_stage": "discovery_reverse_playbooks",
+      "source_winner_count": 2,
+      "source_winner_ids_hash": "04896b06baebbf01541c7abd47505c7c8a57a989756ee6ca5bb2f7529685260b"
+    },
+    {
+      "attempt_ordinal": 28,
+      "enumerator_cursor": "group|index=27|key=okx_1h|ohlcv_extreme_continuation|1h|3|2026-03-09T14:00:00Z",
+      "playbook_hash": "89128e007903a48062620f80dee0dfda61612eac5c2b5ca1d6aed3a71cc69b07",
+      "profile_id": "okx_1h",
+      "event_family": "ohlcv_extreme_continuation",
+      "horizon": "1h",
+      "shock_cluster": "2026-03-09T14:00:00Z",
+      "status": "personal_wild_candidate",
+      "status_reason": "PERSONAL_WILD_CANDIDATE",
+      "ledger_stage": "discovery_reverse_playbooks",
+      "source_winner_count": 1,
+      "source_winner_ids_hash": "28c0f32d57bdb83eb125e358160b11f0987cac3b2f5d5afab4cbb8589dc53750"
+    },
+    {
+      "attempt_ordinal": 29,
+      "enumerator_cursor": "group|index=28|key=okx_1h|btc_relative_dislocation|24h|1|2026-03-29T23:00:00Z",
+      "playbook_hash": "0ff468645e6eff793006d4fbc18e0eb4646e96bddd4b114f900cbf9c1e7cc620",
+      "profile_id": "okx_1h",
+      "event_family": "btc_relative_dislocation",
+      "horizon": "24h",
+      "shock_cluster": "2026-03-29T23:00:00Z",
+      "status": "personal_wild_candidate",
+      "status_reason": "PERSONAL_WILD_CANDIDATE",
+      "ledger_stage": "discovery_reverse_playbooks",
+      "source_winner_count": 1,
+      "source_winner_ids_hash": "6e6de17f2e8075e6cf45eb369994d3c48c147a73f0e07a377bdd2c55f3d6be15"
+    },
+    {
+      "attempt_ordinal": 30,
+      "enumerator_cursor": "group|index=29|key=okx_1h|ohlcv_extreme_continuation|24h|2|none",
+      "playbook_hash": "6f02a16ea30336ca571084455677c1cbfbf503fc8e08c49710d97dd49cc9b7a0",
+      "profile_id": "okx_1h",
+      "event_family": "ohlcv_extreme_continuation",
+      "horizon": "24h",
+      "shock_cluster": "none",
+      "status": "personal_wild_candidate",
+      "status_reason": "PERSONAL_WILD_CANDIDATE",
+      "ledger_stage": "discovery_reverse_playbooks",
+      "source_winner_count": 2,
+      "source_winner_ids_hash": "cb9a98d388c4461a4faa303e85bbd07b13908b0af38134139e6db771ae1eee68"
+    },
+    {
+      "attempt_ordinal": 31,
+      "enumerator_cursor": "group|index=30|key=okx_1h|ohlcv_extreme_reversal|24h|1|none",
+      "playbook_hash": "c2b45ef555b3765712c0e015d5986964ec9527e20e1bdf112329ef940e232024",
+      "profile_id": "okx_1h",
+      "event_family": "ohlcv_extreme_reversal",
+      "horizon": "24h",
+      "shock_cluster": "none",
+      "status": "personal_wild_candidate",
+      "status_reason": "PERSONAL_WILD_CANDIDATE",
+      "ledger_stage": "discovery_reverse_playbooks",
+      "source_winner_count": 1,
+      "source_winner_ids_hash": "5cf111aa7a7c141cf0f6fb9abf059af4ae7ea4744dbce8f982e728a8e81ca9bd"
+    },
+    {
+      "attempt_ordinal": 32,
+      "enumerator_cursor": "group|index=31|key=okx_1h|btc_relative_dislocation|4h|1|none",
+      "playbook_hash": "3044f9e732b8d56ed52704865c3fbc81b980d1ce8d827a229c7061b6575f8c8d",
+      "profile_id": "okx_1h",
+      "event_family": "btc_relative_dislocation",
+      "horizon": "4h",
+      "shock_cluster": "none",
+      "status": "personal_wild_candidate",
+      "status_reason": "PERSONAL_WILD_CANDIDATE",
+      "ledger_stage": "discovery_reverse_playbooks",
+      "source_winner_count": 2,
+      "source_winner_ids_hash": "7a48d67549bd1a358881d65329dc9461a72bfaf24dfabdbb437cc247e3cee6f1"
+    },
+    {
+      "attempt_ordinal": 33,
+      "enumerator_cursor": "group|index=32|key=okx_1h|ohlcv_extreme_continuation|4h|1|none",
+      "profile_id": "okx_1h",
+      "event_family": "ohlcv_extreme_continuation",
+      "horizon": "4h",
+      "shock_cluster": "none",
+      "status": "skipped_dedup",
+      "status_reason": "discovery_dedup_tracker_key",
+      "ledger_stage": "discovery_reverse_playbooks"
+    },
+    {
+      "attempt_ordinal": 34,
+      "enumerator_cursor": "group|index=33|key=okx_1h|btc_relative_dislocation|1h|2|2026-04-05T23:00:00Z",
+      "profile_id": "okx_1h",
+      "event_family": "btc_relative_dislocation",
+      "horizon": "1h",
+      "shock_cluster": "2026-04-05T23:00:00Z",
+      "status": "skipped_dedup",
+      "status_reason": "discovery_dedup_tracker_key",
+      "ledger_stage": "discovery_reverse_playbooks"
+    },
+    {
+      "attempt_ordinal": 35,
+      "enumerator_cursor": "group|index=34|key=okx_1h|btc_relative_dislocation|24h|1|none",
+      "profile_id": "okx_1h",
+      "event_family": "btc_relative_dislocation",
+      "horizon": "24h",
+      "shock_cluster": "none",
+      "status": "skipped_dedup",
+      "status_reason": "discovery_dedup_tracker_key",
+      "ledger_stage": "discovery_reverse_playbooks"
+    },
+    {
+      "attempt_ordinal": 36,
+      "enumerator_cursor": "group|index=35|key=okx_1h|ohlcv_extreme_continuation|24h|3|none",
+      "playbook_hash": "1b4ced242f777b1d8d9497d1601605eeff88a9769c38c25202a638bc53c75789",
+      "profile_id": "okx_1h",
+      "event_family": "ohlcv_extreme_continuation",
+      "horizon": "24h",
+      "shock_cluster": "none",
+      "status": "personal_wild_candidate",
+      "status_reason": "PERSONAL_WILD_CANDIDATE",
+      "ledger_stage": "discovery_reverse_playbooks",
+      "source_winner_count": 3,
+      "source_winner_ids_hash": "fe6c9e6886190b8680d3142aacbd239da9417b75c4b0e46b71f533be18e0fd82"
+    },
+    {
+      "attempt_ordinal": 37,
+      "enumerator_cursor": "group|index=36|key=okx_1h|ohlcv_extreme_reversal|24h|2|2026-03-04T16:00:00Z",
+      "playbook_hash": "69bfc55f42d640e91497dca763882c54f8d73d25275a805a53c707b97a2e8fcf",
+      "profile_id": "okx_1h",
+      "event_family": "ohlcv_extreme_reversal",
+      "horizon": "24h",
+      "shock_cluster": "2026-03-04T16:00:00Z",
+      "status": "personal_wild_candidate",
+      "status_reason": "PERSONAL_WILD_CANDIDATE",
+      "ledger_stage": "discovery_reverse_playbooks",
+      "source_winner_count": 1,
+      "source_winner_ids_hash": "c96a73b6efdcb6806f868c37779e5a693b7c1bd749a6aeeb98538fdd0ea1cb98"
+    },
+    {
+      "attempt_ordinal": 38,
+      "enumerator_cursor": "group|index=37|key=okx_1h|btc_relative_dislocation|4h|2|none",
+      "profile_id": "okx_1h",
+      "event_family": "btc_relative_dislocation",
+      "horizon": "4h",
+      "shock_cluster": "none",
+      "status": "skipped_nonoverlap",
+      "status_reason": "window_nonoverlap_violation",
+      "ledger_stage": "discovery_reverse_playbooks",
+      "source_winner_count": 6
+    },
+    {
+      "attempt_ordinal": 39,
+      "enumerator_cursor": "group|index=38|key=okx_1h|ohlcv_extreme_continuation|4h|2|none",
+      "playbook_hash": "c0026b44e39832198f796b3e684105b5f4d2c8b9c494aa16d72ca429d12440fe",
+      "profile_id": "okx_1h",
+      "event_family": "ohlcv_extreme_continuation",
+      "horizon": "4h",
+      "shock_cluster": "none",
+      "status": "personal_wild_candidate",
+      "status_reason": "PERSONAL_WILD_CANDIDATE",
+      "ledger_stage": "discovery_reverse_playbooks",
+      "source_winner_count": 2,
+      "source_winner_ids_hash": "07eac280cda8899ef2960fdf3cc77af189dae2115a76f28c0c86835234ef4d5c"
+    },
+    {
+      "attempt_ordinal": 40,
+      "enumerator_cursor": "group|index=39|key=okx_1h|btc_relative_dislocation|1h|3|2026-03-09T14:00:00Z",
+      "profile_id": "okx_1h",
+      "event_family": "btc_relative_dislocation",
+      "horizon": "1h",
+      "shock_cluster": "2026-03-09T14:00:00Z",
+      "status": "skipped_dedup",
+      "status_reason": "discovery_dedup_tracker_key",
+      "ledger_stage": "discovery_reverse_playbooks"
+    },
+    {
+      "attempt_ordinal": 41,
+      "enumerator_cursor": "group|index=40|key=okx_1h|btc_relative_dislocation|24h|2|2026-03-04T16:00:00Z",
+      "playbook_hash": "94dcd2137a4e4c378fdbf2a0084965febadbc98f42f604deb4ad3e77e438b5ac",
+      "profile_id": "okx_1h",
+      "event_family": "btc_relative_dislocation",
+      "horizon": "24h",
+      "shock_cluster": "2026-03-04T16:00:00Z",
+      "status": "personal_wild_candidate",
+      "status_reason": "PERSONAL_WILD_CANDIDATE",
+      "ledger_stage": "discovery_reverse_playbooks",
+      "source_winner_count": 1,
+      "source_winner_ids_hash": "97d4fd7290a42135eddbf0e713eec7e36a286dc9c77212d52030690b7f37bd74"
+    },
+    {
+      "attempt_ordinal": 42,
+      "enumerator_cursor": "group|index=41|key=okx_1h|ohlcv_extreme_reversal|24h|2|none",
+      "profile_id": "okx_1h",
+      "event_family": "ohlcv_extreme_reversal",
+      "horizon": "24h",
+      "shock_cluster": "none",
+      "status": "skipped_dedup",
+      "status_reason": "discovery_dedup_tracker_key",
+      "ledger_stage": "discovery_reverse_playbooks"
+    },
+    {
+      "attempt_ordinal": 43,
+      "enumerator_cursor": "group|index=42|key=okx_1h|btc_relative_dislocation|4h|3|2026-03-18T15:00:00Z",
+      "playbook_hash": "19a2d9749633d9962d0fe9f85938ecb99f8caa3ee51557c9aaa684270165fe3d",
+      "profile_id": "okx_1h",
+      "event_family": "btc_relative_dislocation",
+      "horizon": "4h",
+      "shock_cluster": "2026-03-18T15:00:00Z",
+      "status": "personal_wild_candidate",
+      "status_reason": "PERSONAL_WILD_CANDIDATE",
+      "ledger_stage": "discovery_reverse_playbooks",
+      "source_winner_count": 1,
+      "source_winner_ids_hash": "8e8cd5e9a498a7ee6edc46e7e6c345cb16b9ce7343b1574373edbfd76f4d68d8"
+    },
+    {
+      "attempt_ordinal": 44,
+      "enumerator_cursor": "group|index=43|key=okx_1h|ohlcv_extreme_continuation|4h|3|none",
+      "playbook_hash": "728d99362f018560dd8e618776b3e2d86e4d9ced2a0b96a8e8e269a0cdd8fa0e",
+      "profile_id": "okx_1h",
+      "event_family": "ohlcv_extreme_continuation",
+      "horizon": "4h",
+      "shock_cluster": "none",
+      "status": "personal_wild_candidate",
+      "status_reason": "PERSONAL_WILD_CANDIDATE",
+      "ledger_stage": "discovery_reverse_playbooks",
+      "source_winner_count": 1,
+      "source_winner_ids_hash": "85a90eedb812bc405dee519dfb0eb465db25cdcc3304d9d71e04690068d43e31"
+    }
+  ],
+  "playbook_hash": "8ceae12715dc9cc885fcaf77c230b7c44dc3becfe3644372ad1f276bd2d8a8f0",
+  "ledger_hash": "a471569db03b5667815a944506a935cac8c5f2b74371a434807cd2c306995d19",
+  "done": true,
+  "saved_at": "2026-07-13T07:08:15.197046743Z",
+  "checkpoint_hash": "57700cdfec25121e00bc45e69dbb9439aff7fb703f3d0347a397046ae017e98a"
+}

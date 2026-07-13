@@ -3,11 +3,11 @@ package personalvalidation
 import (
 	"time"
 
-	"lingxi/internal/routerg6/eventmap"
+	"lingxi/internal/routerg10/personalbrain"
 )
 
 // CanonicalEventID is the stable EventID/TriggerID namespace shared with
 // exclusionmap, entryproof, executionpolicy, and exitproof artifacts.
 func CanonicalEventID(symbol string, decision time.Time, eventFamily string) string {
-	return eventmap.BuildEventID(symbol, decision, eventFamily)
+	return personalbrain.CanonicalEventID(symbol, decision, eventFamily)
 }

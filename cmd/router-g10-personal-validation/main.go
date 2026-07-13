@@ -67,6 +67,11 @@ func run(args []string) error {
 	if len(mapDirs) == 0 {
 		return errors.New("router-g10-personal-validation: at least one --map-dir is required")
 	}
+	if !*allowTruncatedSmoke {
+		if *entryProofDir == "" || *executionPolicyDir == "" || *exitProofPath == "" || *exclusionMapDir == "" {
+			return errors.New("router-g10-personal-validation: formal validation requires --entry-proof-dir, --execution-policy-dir, --exit-proof-path, --exclusion-map-dir")
+		}
+	}
 	if *lowCPU {
 		runtime.GOMAXPROCS(personalvalidation.RuntimeGOMAXPROCS)
 	}

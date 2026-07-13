@@ -21,6 +21,9 @@ type BrainTraceEntry struct {
 	ThesisHealth        string                 `json:"thesis_health,omitempty"`
 	ConstitutionHash    string                 `json:"constitution_hash"`
 	ExclusionProofHash  string                 `json:"exclusion_proof_hash,omitempty"`
+	InstitutionAxisHash string                 `json:"institution_axis_hash,omitempty"`
+	RetailAxisHash      string                 `json:"retail_axis_hash,omitempty"`
+	BotAxisHash         string                 `json:"bot_axis_hash,omitempty"`
 	AnnouncementVisibility AnnouncementVisibility `json:"announcement_visibility"`
 	EntryProofHash      string                 `json:"entry_proof_hash,omitempty"`
 	ExecutionPolicyHash string                 `json:"execution_policy_hash,omitempty"`
@@ -90,6 +93,9 @@ func HashState(entry BrainTraceEntry) (string, error) {
 		ThesisHealth           string                               `json:"thesis_health"`
 		ConstitutionHash       string                               `json:"constitution_hash"`
 		ExclusionProofHash     string                               `json:"exclusion_proof_hash"`
+		InstitutionAxisHash    string                               `json:"institution_axis_hash"`
+		RetailAxisHash         string                               `json:"retail_axis_hash"`
+		BotAxisHash            string                               `json:"bot_axis_hash"`
 		AnnouncementVisibility AnnouncementVisibility               `json:"announcement_visibility"`
 		EntryProofHash         string                               `json:"entry_proof_hash"`
 		ExecutionPolicyHash    string                               `json:"execution_policy_hash"`
@@ -120,6 +126,9 @@ func HashState(entry BrainTraceEntry) (string, error) {
 		ThesisHealth:           entry.ThesisHealth,
 		ConstitutionHash:       entry.ConstitutionHash,
 		ExclusionProofHash:     entry.ExclusionProofHash,
+		InstitutionAxisHash:    entry.InstitutionAxisHash,
+		RetailAxisHash:         entry.RetailAxisHash,
+		BotAxisHash:            entry.BotAxisHash,
 		AnnouncementVisibility: entry.AnnouncementVisibility,
 		EntryProofHash:         entry.EntryProofHash,
 		ExecutionPolicyHash:    entry.ExecutionPolicyHash,

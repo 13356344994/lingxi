@@ -26,6 +26,23 @@ func NewBrain(cfg Config) *Brain {
 	}
 }
 
+func (b *Brain) pendingMaxPriceCap(entry eventaccount.PendingEntry) float64 {
+	if b.PendingCaps == nil {
+		return 0
+	}
+	return b.PendingCaps[entry.Candidate.EventID]
+}
+
+func (b *Brain) setPendingMaxPriceCap(eventID string, cap float64) {
+	if cap <= 0 {
+		return
+	}
+	if b.PendingCaps == nil {
+		b.PendingCaps = make(map[string]float64)
+	}
+	b.PendingCaps[eventID] = cap
+}
+
 func flushPending(b *Brain, matured []eventaccount.PendingEntry, in BarInput, priceFn func(string, int) (float64, bool)) bool {
 	traded := false
 	for _, entry := range matured {
@@ -39,6 +56,16 @@ func flushPending(b *Brain, matured []eventaccount.PendingEntry, in BarInput, pr
 			b.Account.Core.StaleRejects++
 			continue
 		}
+		if maxCap := b.pendingMaxPriceCap(entry); maxCap > 0 {
+			if entry.Candidate.Direction == "short" && price < maxCap {
+				b.Account.Core.PendingRejects++
+				continue
+			}
+			if entry.Candidate.Direction != "short" && price > maxCap {
+				b.Account.Core.PendingRejects++
+				continue
+			}
+		}
 		state := b.Account.Core.CurrentPositionState(entry.Candidate.Symbol)
 		cost := executionCost(notional, entry.Candidate.CostEstimateBPS, entry.CostStress)
 		if err := b.Account.Core.ApplyExecution(entry.Candidate.Symbol, state, action, price, cost, 0); err != nil {
@@ -46,6 +73,7 @@ func flushPending(b *Brain, matured []eventaccount.PendingEntry, in BarInput, pr
 			continue
 		}
 		openSlot(b, entry, notional, stress, entry.ExecuteIndex)
+		delete(b.PendingCaps, entry.Candidate.EventID)
 		traded = true
 	}
 	return traded

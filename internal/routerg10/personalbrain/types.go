@@ -25,6 +25,7 @@ type BarFeatures struct {
 	LiquidityBucket           string  `json:"liquidity_bucket,omitempty"`
 	OOD                       bool    `json:"ood"`
 	Price                     float64 `json:"price"`
+	DecisionTime              time.Time `json:"decision_time,omitempty"`
 	VisibleAnnouncementCount  int     `json:"visible_announcement_count,omitempty"`
 	CrossVenueShockCluster    string  `json:"cross_venue_shock_cluster,omitempty"`
 	EventFamily               string  `json:"event_family,omitempty"`
@@ -35,8 +36,6 @@ type BarFeatures struct {
 	CustodyAuthorizationLimit float64 `json:"custody_authorization_limit,omitempty"`
 	EventSparsity             float64 `json:"event_sparsity,omitempty"`
 	DynamicThresholdShift     float64 `json:"dynamic_threshold_shift,omitempty"`
-	PersonalTapeFamily        string  `json:"personal_tape_family,omitempty"`
-	Horizon                   string  `json:"horizon,omitempty"`
 }
 
 // ExecutionSimState carries bar-local execution simulation for fixtures/replay.
@@ -147,6 +146,7 @@ type Brain struct {
 	Config       Config
 	Account      *eventaccount.Account
 	Pending      *eventaccount.PendingQueue
+	PendingCaps  map[string]float64
 	MakerOrder   *MakerOrderState
 	ToxicBlocked bool
 	Trace        *TraceLog

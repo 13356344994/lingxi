@@ -99,7 +99,7 @@ func buildMetricContext(
 	decay := postPublicationDecayBPS(ann, item.Event.Symbol, item.Event.DecisionTime, gross)
 	dynamicMin := 0.0
 	if hasInstrumentCat {
-		dynamicMin, _ = pitDynamicMinNotionalUSDT(
+		dynamicMin, _ = PITDynamicMinNotionalUSDT(
 			instrumentCat, item.Event.Symbol, item.Event.DecisionTime, decisionBar.Mid(),
 		)
 	}

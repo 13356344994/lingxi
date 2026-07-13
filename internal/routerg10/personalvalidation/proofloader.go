@@ -141,16 +141,27 @@ func (b ProofBundle) entryProof(eventID string) (g10entryproof.EntryProof, bool)
 	return g10entryproof.EntryProof{}, false
 }
 
-func (b ProofBundle) executionPolicy(eventID, hash string) (g10executionpolicy.FrozenPolicy, bool) {
+func (b ProofBundle) executionPolicy(eventID string) (g10executionpolicy.FrozenPolicy, bool) {
 	if fp, ok := b.ExecutionPolicies[eventID]; ok {
+		if fp.TriggerID != "" && fp.TriggerID != eventID {
+			return g10executionpolicy.FrozenPolicy{}, false
+		}
 		return fp, true
 	}
-	if hash != "" {
-		if fp, ok := b.ExecutionPoliciesByHash[hash]; ok {
-			return fp, true
-		}
-	}
 	return g10executionpolicy.FrozenPolicy{}, false
+}
+
+// verifyExecutionPolicyHash checks playbook-bound hash integrity for one eventID.
+// Hash lookup is integrity-only — never substitutes another trigger's policy.
+func (b ProofBundle) verifyExecutionPolicyHash(eventID, hash string) bool {
+	if hash == "" {
+		return true
+	}
+	fp, ok := b.ExecutionPolicies[eventID]
+	if !ok {
+		return false
+	}
+	return fp.ExecutionPolicyHash == hash
 }
 
 func (b ProofBundle) exitProof(eventID string) (g10exitproof.Proof, bool) {

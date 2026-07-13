@@ -26,6 +26,23 @@ func SymbolHasCriticalKnownCoverage(fp fingerprint.PersonalExecutionFingerprint,
 	return false
 }
 
+// CriticalKnownSymbolSet returns the deterministic symbol universe that can possibly
+// pass the frozen execution-fingerprint gate. Symbols outside this set are not research
+// hypotheses because UNKNOWN costs force NO_TRADE before outcome evaluation.
+func CriticalKnownSymbolSet(fp fingerprint.PersonalExecutionFingerprint) map[string]bool {
+	out := map[string]bool{}
+	for _, cell := range fp.Cells {
+		symbol := normalizeSymbol(cell.Symbol)
+		if symbol == "" || out[symbol] {
+			continue
+		}
+		if SymbolHasCriticalKnownCoverage(fp, symbol) {
+			out[symbol] = true
+		}
+	}
+	return out
+}
+
 // ProfileCatalogHasCriticalKnownCoverage scans one profile's primary catalog symbols.
 func ProfileCatalogHasCriticalKnownCoverage(
 	fp fingerprint.PersonalExecutionFingerprint,

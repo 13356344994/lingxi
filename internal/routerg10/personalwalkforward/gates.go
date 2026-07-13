@@ -81,6 +81,12 @@ func EvaluateWFGates(foldResults []FoldResult, lofo []LOFOResult, daily DailyEqu
 	if !checks.Robustness.SymbolClusterLOO_OK {
 		return StatusWFFail, checks, ReasonSymbol
 	}
+	if !checks.Robustness.AnnouncementLeaveOneOutOK {
+		return StatusWFFail, checks, ReasonAnnouncement
+	}
+	if !checks.Robustness.ExchangeLeaveOneOutOK {
+		return StatusWFFail, checks, ReasonExchange
+	}
 	if !checks.MaxDrawdownOK || !checks.CapacityFailRateOK || !checks.NoLeverageSolvencyBreach {
 		return StatusWFFail, checks, ReasonFoldNetReturn
 	}

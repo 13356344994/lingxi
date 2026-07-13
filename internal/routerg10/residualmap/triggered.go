@@ -22,6 +22,20 @@ func CollectTriggeredEventWorkItems(
 	historyRoot string,
 	maxFiles, maxLines int,
 ) ([]EventWorkItem, error) {
+	return CollectTriggeredEventWorkItemsForSymbols(
+		bundles, catalog, historyRoot, maxFiles, maxLines, nil,
+	)
+}
+
+// CollectTriggeredEventWorkItemsForSymbols scans only symbols that can pass an
+// outcome-blind upstream eligibility gate. A nil set preserves the full scan.
+func CollectTriggeredEventWorkItemsForSymbols(
+	bundles []reverseevent.MapBundle,
+	catalog historydata.HistoryCatalog,
+	historyRoot string,
+	maxFiles, maxLines int,
+	eligibleSymbols map[string]bool,
+) ([]EventWorkItem, error) {
 	seen := map[string]bool{}
 	var items []EventWorkItem
 	for _, bundle := range bundles {
@@ -46,6 +60,9 @@ func CollectTriggeredEventWorkItems(
 		windowBars := eventmap.RollingWindowBars(spec)
 		tracker := eventmap.NewWindowTracker()
 		for _, file := range selection.Files {
+			if eligibleSymbols != nil && !eligibleSymbols[normalizeSymbol(file.Symbol)] {
+				continue
+			}
 			bars, err := eventmap.LoadBars(eventmap.CatalogFilePath(historyRoot, file.Path), maxLines)
 			if err != nil {
 				continue
@@ -133,6 +150,7 @@ func EvaluateTriggeredEvent(
 	}
 	actualEquity := ActualEquityUSDT(fp)
 	best := directionEvaluation{}
+	bestSet := false
 	flatSeen := false
 	type comboKey struct {
 		horizon string
@@ -168,15 +186,19 @@ func EvaluateTriggeredEvent(
 			if direction == flatDirection {
 				continue
 			}
-			if eval.userTierConservative > best.userTierConservative {
+			if eval.adj.CriticalUnknown {
+				continue
+			}
+			if !bestSet || eval.userTierConservative > best.userTierConservative {
 				best = eval
+				bestSet = true
 			}
 		}
 	}
 	if !flatSeen {
 		_ = evaluateDirectionGross(item, idx, spec.Horizons[0].Label, 0, flatDirection, 0, bars, spec, funding, fp, actualEquity)
 	}
-	if best.direction == "" {
+	if !bestSet || best.direction == "" {
 		return EvaluationResult{
 			EventID:       item.Event.EventID,
 			RejectReasons: []string{RejectBarReplayMiss},

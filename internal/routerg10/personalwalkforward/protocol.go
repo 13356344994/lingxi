@@ -37,6 +37,8 @@ const (
 	ReasonDay                 = "DAY_ROBUSTNESS"
 	ReasonShock               = "SHOCK_ROBUSTNESS"
 	ReasonSymbol              = "SYMBOL_ROBUSTNESS"
+	ReasonAnnouncement        = "ANNOUNCEMENT_ROBUSTNESS"
+	ReasonExchange            = "EXCHANGE_ROBUSTNESS"
 	ReasonInsufficientEvents  = "INSUFFICIENT_EVENTS"
 	ReasonBrainDegeneracy     = g10personalvalidation.ReasonBrainDegeneracy
 

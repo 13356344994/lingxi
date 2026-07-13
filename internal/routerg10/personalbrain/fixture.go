@@ -63,7 +63,7 @@ func BuildDefaultFixtures() FixtureBundle {
 		{
 			Name: "cannot_enter_unproven", WantPath: "cannot_enter_unproven",
 			WantEnterGate: EnterCannotEnter, WantAction: "NO_TRADE",
-			WantReject: []string{"PLAYBOOK_NOT_CERTIFIED"},
+			WantReject: []string{RejectEntryUnproven},
 			Bars: []BarInput{
 				baseBar(1, baseFeat(50, 45, false), []MatchedPersonalEvent{
 					unprovenEvent(baseFeat(50, 45, false), 1, constHash),
@@ -374,15 +374,22 @@ func certifiedEventWithOptions(feat BarFeatures, idx int, execAction, constHash 
 	pb := syntheticPlaybook(constHash, execAction, true, opts.makerForbid)
 	evs := MatchPersonalPlaybooks([]personalplaybook.PersonalWildPlaybook{pb}, feat, idx)
 	if len(evs) == 0 {
+		proofs := proofsFromPlaybook(pb)
+		proofs.ExclusionAccepted = true
 		return MatchedPersonalEvent{
-			Playbook: pb, Proofs: proofsFromPlaybook(pb),
+			Playbook: pb, Proofs: proofs,
 			EventID: "fixture-cert", EventFamily: pb.EventFamily,
 			Direction: "long", ThesisHealth: ThesisHealthy,
 			GrossLongBPS: 75, GrossShortBPS: -30, CompletionBars: 4, DeadlineBar: idx + 4,
 			CapacityUSDT: 500, MaxSizeUSDT: 200,
 		}
 	}
-	return evs[0]
+	ev := evs[0]
+	ev.Proofs.EntryCertified = true
+	ev.Proofs.EntryGrade = "A"
+	ev.Proofs.ExitCertified = true
+	ev.Proofs.ExclusionAccepted = true
+	return ev
 }
 
 func unprovenEvent(feat BarFeatures, idx int, constHash string) MatchedPersonalEvent {

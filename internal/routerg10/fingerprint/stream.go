@@ -21,9 +21,9 @@ type streamStats struct {
 }
 
 type ingestContext struct {
-	store      *store
-	catalog    datatruth.InstrumentCatalog
-	hasCatalog bool
+	store        *store
+	catalog      datatruth.InstrumentCatalog
+	hasCatalog   bool
 	defaultVenue string
 }
 
@@ -32,9 +32,9 @@ type settlementRow struct {
 	Symbol        string    `json:"symbol"`
 	Side          string    `json:"side"`
 	NotionalUSDT  float64   `json:"notional"`
-	FeeUSDT       float64   `json:"fee_usdt"`
-	EntrySlipBps  float64   `json:"entry_slip_bps"`
-	ExitSlipBps   float64   `json:"exit_slip_bps"`
+	FeeUSDT       *float64  `json:"fee_usdt"`
+	EntrySlipBps  *float64  `json:"entry_slip_bps"`
+	ExitSlipBps   *float64  `json:"exit_slip_bps"`
 	OpenViaTaker  bool      `json:"open_via_taker"`
 	MakerEntry    bool      `json:"maker_entry"`
 	FundingAtOpen float64   `json:"funding_at_open"`
@@ -52,12 +52,12 @@ type openDecisionRow struct {
 }
 
 type shadowRow struct {
-	RecordedAt       time.Time `json:"recorded_at"`
-	Venue            string    `json:"venue"`
-	Symbol           string    `json:"symbol"`
-	FastCandidateSide string   `json:"fast_candidate_side"`
-	EvalRestMs       int64     `json:"eval_rest_ms"`
-	SpreadBps        float64   `json:"spread_bps"`
+	RecordedAt        time.Time `json:"recorded_at"`
+	Venue             string    `json:"venue"`
+	Symbol            string    `json:"symbol"`
+	FastCandidateSide string    `json:"fast_candidate_side"`
+	EvalRestMs        int64     `json:"eval_rest_ms"`
+	SpreadBps         float64   `json:"spread_bps"`
 }
 
 type equityRow struct {
@@ -121,9 +121,15 @@ func ingestSettlements(path string, maxLines, skipLines int, ctx ingestContext) 
 		}
 		acc := ctx.store.cell(key)
 		acc.samples++
-		acc.feeBPS.add(feeBPS(row.FeeUSDT, row.NotionalUSDT))
-		acc.entrySlip.add(row.EntrySlipBps)
-		acc.exitSlip.add(row.ExitSlipBps)
+		if row.FeeUSDT != nil && *row.FeeUSDT >= 0 && row.NotionalUSDT > 0 {
+			acc.feeBPS.add(feeBPS(*row.FeeUSDT, row.NotionalUSDT))
+		}
+		if row.EntrySlipBps != nil {
+			acc.entrySlip.add(*row.EntrySlipBps)
+		}
+		if row.ExitSlipBps != nil {
+			acc.exitSlip.add(*row.ExitSlipBps)
+		}
 		acc.funding.add(row.FundingAtOpen)
 		if ctx.hasCatalog {
 			attachInstrument(acc, instrumentForSymbol(ctx.catalog, key.Symbol, venue, row.Time, 0))

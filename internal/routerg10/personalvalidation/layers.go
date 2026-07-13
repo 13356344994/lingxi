@@ -15,12 +15,16 @@ func EvaluateLayers(
 	leaveOne LeaveOneReport,
 	hasTriggers bool,
 	events []TriggerEvent,
+	heuristicOnly bool,
 ) []LayerVerdict {
+	if heuristicOnly {
+		return heuristicOnlyLayers()
+	}
 	layers := make([]LayerVerdict, 0, 5)
 
 	histStatus := StatusInconclusive
 	histReason := ReasonInsufficientEvidence
-	if hasTriggers {
+	if historicalPhenomenonPassed(events) {
 		histStatus = StatusValidationPass
 		histReason = ""
 	}
@@ -90,6 +94,20 @@ func EvaluateLayers(
 	return layers
 }
 
+func heuristicOnlyLayers() []LayerVerdict {
+	layers := make([]LayerVerdict, 0, 5)
+	for _, name := range []string{
+		LayerHistoricalPhenomenon, LayerEntryProven, LayerCostBounded,
+		LayerPersonalExecutionVerified, LayerWFPass,
+	} {
+		layers = append(layers, LayerVerdict{
+			Layer: name, Status: StatusInconclusive, FailReason: ReasonInsufficientEvidence,
+			Note: "HEURISTIC_ONLY smoke — no layer may pass",
+		})
+	}
+	return layers
+}
+
 func executionProofVerified(events []TriggerEvent) bool {
 	for _, ev := range events {
 		if !ev.EntryProofBound || !ev.ExecutionProofBound || !ev.ExitProofBound {
@@ -116,6 +134,26 @@ func hasGradeCEntryOnly(events []TriggerEvent) bool {
 		}
 	}
 	return hasC
+}
+
+func historicalPhenomenonPassed(events []TriggerEvent) bool {
+	if len(events) < 3 {
+		return false
+	}
+	days := map[string]bool{}
+	shocks := map[string]bool{}
+	for _, ev := range events {
+		if ev.EventFamily == "" {
+			return false
+		}
+		if ev.Day != "" {
+			days[ev.Day] = true
+		}
+		if ev.ShockCluster != "" && ev.ShockCluster != "none" {
+			shocks[ev.ShockCluster] = true
+		}
+	}
+	return len(days) >= 2 && len(shocks) >= 1
 }
 
 // BuildLayerSummary aggregates layer counts across playbook results.

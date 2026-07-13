@@ -1,0 +1,99 @@
+{
+  "schema_version": "lingxi.router-g10-wild-brain-stage.project-summary.v1",
+  "generation": "firstbattle-router-g10",
+  "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+  "history_data_hash": "f41ed2586d91054c4b5b2e15e60f32a4d64ccde0032e76dfdc5fc6dee316379c",
+  "fingerprint": {
+    "fingerprint_hash": "3c0924a6bf3f47a57d71a7c61e92c00043fee53ce2f9f2315692e5d1198c6f1e",
+    "coverage_report_hash": "11858d147de03da2663fbd253bc7a6b50e6412ff33870ddeb854b9db5a508c33",
+    "raw_cells": 16207,
+    "symbol_directions": 822,
+    "critical_known_directions": 9,
+    "critical_unknown_directions": 813,
+    "critical_known_symbols": [
+      "AI-USDT",
+      "ARX-USDT",
+      "KORU-USDT",
+      "RE-USDT",
+      "SKHYNIX-USDT",
+      "SLX-USDT",
+      "SNDK-USDT",
+      "SOXL-USDT"
+    ],
+    "blocker_resolution": "缺失 fee/slip 字段不再伪装为零；按冻结维度保留原始 cells，并在 symbol/direction 查询时合并 settlement、maker-attempt、shadow 的互补聚合证据。",
+    "rerun_hash_match": true
+  },
+  "full_market_event_maps": {
+    "okx_1h": {
+      "coverage": "401/401",
+      "manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+    },
+    "okx_5m": {
+      "coverage": "200/200",
+      "manifest_hash": "60e050cfcc9889cd44d391e6354088a2e3119e0976c9d769a37c569a8abc2f4e"
+    }
+  },
+  "residual_map": {
+    "fingerprint_eligible_trigger_count": 40685,
+    "attempt_count": 40685,
+    "accepted_count": 101,
+    "rejected_count": 40584,
+    "reject_reason_counts": {
+      "BAR_REPLAY_MISS": 36848,
+      "NO_LARGE_TIER_FAIL": 3695,
+      "PUBLIC_SCALABLE": 2042,
+      "PUBLIC_SIMPLE_FACTOR": 472,
+      "USER_TIER_NEGATIVE": 795
+    },
+    "map_hash": "dae64ed12164f7d7deaff7e1cb5c562091c1b424293bcb872c8bedb918351581",
+    "ledger_hash": "3fe3912e3f6f44c784e1f5587744562f50cc68107f5eaf1e8c66d90c6e40f4fd",
+    "manifest_hash": "f5e6093e77ffc1914d8bec2482e46f4a436a697aead3c08f20708651b322bb64"
+  },
+  "playbooks": {
+    "winner_seed_count": 101,
+    "ledger_attempts": 44,
+    "playbook_count": 31,
+    "profile_ids": [
+      "okx_1h"
+    ],
+    "playbook_hash": "8ceae12715dc9cc885fcaf77c230b7c44dc3becfe3644372ad1f276bd2d8a8f0",
+    "experiment_hash": "a471569db03b5667815a944506a935cac8c5f2b74371a434807cd2c306995d19",
+    "manifest_hash": "ef82da8421a9c6eb02b9854eebaf47673e94365918a058b610077d35064ce0c5"
+  },
+  "validation": {
+    "playbook_count": 31,
+    "pass": 0,
+    "fail": 31,
+    "inconclusive": 0,
+    "survivors": 0,
+    "primary_reason": "BRAIN_DEGENERATE",
+    "underlying_gate_reason": "COVERAGE",
+    "observed_validation_events": 0,
+    "report_hash": "13703d334a9092eca81db52c17371c8a2377c2646b5b42e50e91e0c7959a8006",
+    "survivors_hash": "a1b07559b108743f79fa20dc7c106f46574ff8f4ef53ce1325cb78a8de9b5dc8",
+    "receipt_hash": "eeb2d22b92506ba925ee74713147096750f72adcf7ad10837b22b9a47ccf3e06"
+  },
+  "walk_forward": {
+    "status": "SKIPPED_VALIDATION_FAIL",
+    "fail_reason": "PLAYBOOK_UNAVAILABLE",
+    "survivors": 0,
+    "pass": 0,
+    "report_hash": "7fe38567643f18af7222d7b8da5a72765162d0e9345c7547e7deb6d11d686628",
+    "stage_receipt_hash": "271765ec4c040e29ab5e134ffc695315baa90718a71dd17acb81767d60686b30"
+  },
+  "brain_path_fixture": {
+    "scenario_count": 8,
+    "trace_hash": "13614361ef4303670366f04f0973f51ad74c4b313e638c1d685c262328a4c63d",
+    "degeneracy_status": "OK",
+    "replay_match": true
+  },
+  "research_boundary": {
+    "g1_g6_immutable": true,
+    "g10p_personal_exclusion_unchanged": true,
+    "exam_actions": 0,
+    "exam_status": "EXAM_UNAVAILABLE",
+    "trade_allowed": false
+  },
+  "system_status": "NO_GO",
+  "conclusion": "G10 v1 的执行指纹技术阻断已部分解除，不再把缺失字段伪装为零；真实历史仅 8 个 symbol、9 个方向达到 critical-known。完整历史残差发现得到 101 个个人候选并冻结 31 个 Playbook，但独立 validation 时段在该窄指纹支持域内没有匹配事件，31 个 Playbook 全部因 COVERAGE/BRAIN_DEGENERATE 失败，0 survivor，WF 正确跳过。该结论不等于市场无个人机会，只证明当前真实执行证据覆盖不足以认证任何赚钱 Playbook；不得等待未来数据、放宽门槛、考试或开真钱。"
+}

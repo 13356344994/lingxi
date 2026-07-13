@@ -1,0 +1,85 @@
+{
+  "schema_version": "lingxi.router-g10-personal-exclusion-stage.project-summary.v1",
+  "generation": "firstbattle-router-g10-personal-exclusion",
+  "protocol_hash": "74d043b13fe46468baaa1f670112aeef3b446d0538956936fefc831a0dc39dc8",
+  "constitution_hash": "815b7055fd167bc091e8d5c4c2e344b3b4f27167e1842d1fca0c4d16fe8fa4b3",
+  "history_data_hash": "f41ed2586d91054c4b5b2e15e60f32a4d64ccde0032e76dfdc5fc6dee316379c",
+  "g6_full_market_maps": {
+    "okx_1h": {
+      "coverage": "401/401",
+      "map_manifest_hash": "3dd4437ae829ed00931ea61b37b874cb3e8b03aa685a1a36681b16ecc531c852"
+    },
+    "okx_5m": {
+      "coverage": "200/200",
+      "map_manifest_hash": "2c09a3dd722415d2278fbb2ed9446280871827420db613bb7f08431c97eea84a"
+    }
+  },
+  "announcements": {
+    "formal_replay": true,
+    "incomplete": true,
+    "incomplete_reasons": [
+      "binance:REQUIRED_VENUE_ARCHIVE_MISSING",
+      "bybit:REQUIRED_VENUE_ARCHIVE_MISSING",
+      "gate:REQUIRED_VENUE_ARCHIVE_MISSING",
+      "okx:REQUIRED_VENUE_ARCHIVE_MISSING"
+    ],
+    "total_announcements": 0,
+    "tape_hash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+    "manifest_hash": "ec83be1d6a2b97c28c50685a4af019c38ba9fd9c4b0f07e29b3c11d142d2e4c0"
+  },
+  "exclusion_map": {
+    "formal_replay": true,
+    "fail_closed": true,
+    "fail_closed_reason": "INCOMPLETE_ANNOUNCEMENT_PIT",
+    "attempt_count": 0,
+    "accepted_count": 0,
+    "rejected_count": 0,
+    "manifest_hash": "865733c7a84468632b40e13c3177f6bd3ec4d572489b9c07b49468069c5ea864",
+    "map_hash": "bbee282d848f9eb0ba99a56716b7a115a9b537c5b2d12d1459a9a35c02be3745",
+    "ledger_hash": "b3a905e3613baf4a958dd12444d1c4d27b60d63016c6cae504490020bb862a32"
+  },
+  "reverse_tapes": {
+    "status": "NOT_RUN_UPSTREAM_FAIL_CLOSED",
+    "upstream_block_reason": "INCOMPLETE_ANNOUNCEMENT_PIT"
+  },
+  "playbooks": {
+    "status": "NOT_RUN_UPSTREAM_FAIL_CLOSED",
+    "upstream_block_reason": "INCOMPLETE_ANNOUNCEMENT_PIT",
+    "research_pass_playbooks": 0
+  },
+  "validation": {
+    "status": "NOT_RUN_UPSTREAM_FAIL_CLOSED",
+    "upstream_block_reason": "INCOMPLETE_ANNOUNCEMENT_PIT",
+    "pass": 0,
+    "fail": 0,
+    "inconclusive": 0
+  },
+  "walk_forward": {
+    "status": "NOT_RUN_UPSTREAM_FAIL_CLOSED",
+    "upstream_block_reason": "INCOMPLETE_ANNOUNCEMENT_PIT",
+    "pass": 0
+  },
+  "path_fixtures": {
+    "entry_proof_bundle_hash": "ce48b3923282b60dc2fafb36d8e9a5d32d43f7afcf4388a40379c78c16e900df",
+    "execution_policy_bundle_hash": "49896adcba31ffdb5d56059b8758dd9fef3c8f77228e920f4f6abb7ce2bfe6e3",
+    "personal_brain_trace_hash": "2fd1b2d0d7a26238f2cd3216312fbff60a217a3e931bd4f4ef9a4d0524e5c587",
+    "personal_brain_replay_match": true,
+    "personal_brain_degeneracy_status": "OK"
+  },
+  "verification": {
+    "unit_tests": "PASS",
+    "race_detector": "PASS",
+    "go_vet": "PASS",
+    "red_team_protocolv2": "PASS"
+  },
+  "exam_status": "EXAM_UNAVAILABLE",
+  "trade_allowed": false,
+  "system_status": "NO_GO",
+  "conclusion": "正式公告四所归档均缺失→PIT incomplete fail-closed；三重排除地图 v3 在 attempts/accepted=0 下封存（INCOMPLETE_ANNOUNCEMENT_PIT），不解释为市场无机会；reverse/playbook/validation/WF 因上游阻断未运行。",
+  "exam_actions": {
+    "created": 0,
+    "unsealed": 0,
+    "consumed": 0
+  },
+  "stage_summary_hash": "d2dd0ce87c190d07350659c1cb5222d40af519c01b67ddc03e970179ff9a41d1"
+}

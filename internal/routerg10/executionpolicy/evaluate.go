@@ -39,9 +39,10 @@ func MissedProfitablePnL(tr TriggerRecord) float64 {
 // FreezeBoundedMaker evaluates maker path using decision-visible costs only.
 func FreezeBoundedMaker(tr TriggerRecord) ActionEvaluation {
 	ev := ActionEvaluation{Action: ActionBoundedMaker}
+	notional := ReferenceNotional(tr)
 	if tr.MakerTouched && !tr.MakerFilled {
 		ev.PFill = 0
-		ev.ExpectedNetUSDT = 0
+		setExpectedNet(&ev, 0, 0)
 		ev.Allowed = true
 		return ev
 	}
@@ -50,24 +51,33 @@ func FreezeBoundedMaker(tr TriggerRecord) ActionEvaluation {
 		pFill = 1
 	}
 	costBPS := tr.SpreadBPS + tr.FeeBPS
-	expected := tr.RemainingEdgeBPS - costBPS
+	expectedBPS := tr.RemainingEdgeBPS - costBPS
 	if tr.MakerFilled {
-		expected = tr.NetPnLUSDT
+		populateExpectedNetFromUSDT(&ev, tr.NetPnLUSDT, notional)
 	} else if tr.SubsequentlyProfitable {
-		expected = 0
+		setExpectedNet(&ev, 0, 0)
+	} else {
+		populateExpectedNetFromBPS(&ev, expectedBPS, notional)
 	}
 	ev.PFill = pFill
-	ev.ExpectedNetUSDT = expected
 	ev.Allowed = true
 	return ev
 }
 
 // FreezeConditionalMarketableLimit evaluates conditional taker path.
+// LONG: MaxPriceCap is highest acceptable buy price. SHORT: MaxPriceCap is lowest acceptable sell floor.
 func FreezeConditionalMarketableLimit(tr TriggerRecord) ActionEvaluation {
 	ev := ActionEvaluation{Action: ActionConditionalMarketableLimit}
-	if tr.MaxPriceCap > 0 && tr.Price > tr.MaxPriceCap {
-		ev.BlockReason = "above_max_price_cap"
-		return ev
+	if tr.MaxPriceCap > 0 {
+		if tr.Side == "short" {
+			if tr.Price < tr.MaxPriceCap {
+				ev.BlockReason = "below_min_price_floor"
+				return ev
+			}
+		} else if tr.Price > tr.MaxPriceCap {
+			ev.BlockReason = "above_max_price_cap"
+			return ev
+		}
 	}
 	slip := tr.SpreadBPS
 	if slip > tr.MaxSlippageBPS && tr.MaxSlippageBPS > 0 {
@@ -83,18 +93,16 @@ func FreezeConditionalMarketableLimit(tr TriggerRecord) ActionEvaluation {
 		ev.BlockReason = "timeout_cancel_required"
 		return ev
 	}
-	ev.ExpectedNetUSDT = remaining
+	populateExpectedNetFromBPS(&ev, remaining, ReferenceNotional(tr))
 	ev.Allowed = true
 	return ev
 }
 
 // FreezeSkip evaluates explicit skip path.
 func FreezeSkip() ActionEvaluation {
-	return ActionEvaluation{
-		Action:          ActionSkip,
-		ExpectedNetUSDT: 0,
-		Allowed:         true,
-	}
+	ev := ActionEvaluation{Action: ActionSkip, Allowed: true}
+	setExpectedNet(&ev, 0, 0)
+	return ev
 }
 
 // SelectFrozenAction picks action from frozen expectations only — never from realized outcome.
@@ -229,6 +237,15 @@ func FreezePolicy(tr TriggerRecord, cohort []TriggerRecord) (FrozenPolicy, error
 		NoChaseAfterMiss:         true,
 		ToxicFillStatus:          EvaluateToxicFill(tr),
 		SelectedAction:           selected,
+		Side:                     tr.Side,
+		Price:                    tr.Price,
+		MaxPriceCap:              tr.MaxPriceCap,
+		MaxSlippageBPS:           tr.MaxSlippageBPS,
+		MinRemainingEdgeBPS:      tr.MinRemainingEdgeBPS,
+		TimeoutMS:                tr.TimeoutMS,
+		SpreadBPS:                tr.SpreadBPS,
+		FeeBPS:                   tr.FeeBPS,
+		LatencyMS:                tr.LatencyMS,
 	}
 	hash, err := CanonicalPolicyHash(fp)
 	if err != nil {

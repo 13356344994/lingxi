@@ -1,6 +1,7 @@
 package personalvalidation
 
 import (
+	"lingxi/internal/routerg10/exclusionmap"
 	"lingxi/internal/routerg10/personalbrain"
 	"lingxi/internal/routerg10/personalplaybook"
 )
@@ -9,6 +10,7 @@ import (
 func CheckBrainDegeneracy(
 	events []TriggerEvent,
 	pb personalplaybook.PersonalWildPlaybook,
+	proofs ProofBundle,
 ) (DegeneracySummary, error) {
 	if len(events) == 0 {
 		return DegeneracySummary{Status: "EMPTY", Degenerate: true, Reasons: []string{"no_triggers"}}, nil
@@ -16,7 +18,7 @@ func CheckBrainDegeneracy(
 	cfg := personalbrain.Config{
 		InitialEquityUSDT: CapitalTiersUSDT[0],
 		ConstitutionHash:  pb.ProofBinding.ConstitutionHash,
-		MinNotionalUSDT:   pb.EntryNarrative.DynamicMinNotionalUSDT,
+		MinNotionalUSDT:   brainMinNotionalFromEvents(events, proofs),
 		ProtocolHash:      ProtocolHash,
 		TradeAllowed:      false,
 	}
@@ -27,18 +29,27 @@ func CheckBrainDegeneracy(
 			MakerFilled: ev.MakerFilled, MakerTouchedNotFilled: ev.MakerTouchedNotFilled,
 			SubsequentlyProfitable: ev.SubsequentlyProfitable,
 			ThesisStillValid: !ev.ToxicExit,
+			RemainingEdgeBPS: ev.ConservativeBPS,
+			MaxPriceCap: ev.MaxPriceCap, MaxSlippageBPS: ev.MaxSlippageBPS,
+			MinRemainingEdgeBPS: ev.MinRemainingEdgeBPS, TimeoutMS: ev.TimeoutMS,
+			SpreadBPS: ev.SpreadBPS, FeeBPS: ev.FeeBPS, LatencyMS: ev.LatencyMS,
 		}
 		bar := personalbrain.BarInput{
 			BarIndex: ev.DecisionBarIndex, DecisionTime: ev.DecisionTime,
 			Features: personalbrain.BarFeatures{
-				Symbol: ev.Symbol, ProfileID: ev.ProfileID,
+				Symbol: ev.Symbol, ProfileID: ev.ProfileID, DecisionTime: ev.DecisionTime,
 				ReturnBPS: ev.ReturnBPS, PriorReturnBPS: ev.PriorReturnBPS, Price: 100,
+				EventFamily: ev.EventFamily,
 			},
 			Prices: map[string]float64{ev.Symbol: 100}, ExecutionSim: sim,
 			CapitalTierUSDT: CapitalTiersUSDT[0],
 		}
 		matched := personalbrain.MatchPersonalPlaybooks([]personalplaybook.PersonalWildPlaybook{pb}, bar.Features, ev.DecisionBarIndex)
-		bar.Events = matched
+		if len(matched) == 0 {
+			continue
+		}
+		me := enrichMatchedEvent(matched[0], pb, proofs, ev.EventID, ev.ExitProofOK, ev.CrowdingPassed, exclusionmapFromEvent(ev), ev.FrozenAction, ev.ExclusionProofBound)
+		bar.Events = []personalbrain.MatchedPersonalEvent{me}
 		out, err := b.DecideBar(bar)
 		if err != nil {
 			return DegeneracySummary{}, err
@@ -59,4 +70,9 @@ func CheckBrainDegeneracy(
 		DominantAction: report.DominantAction, DominantFraction: report.DominantFraction,
 		BarsSinceLastExit: report.BarsSinceLastExit, Reasons: report.DegeneracyReasons,
 	}, nil
+}
+
+func exclusionmapFromEvent(ev TriggerEvent) exclusionmap.CrowdingStress {
+	_ = ev
+	return exclusionmap.CrowdingStress{}
 }

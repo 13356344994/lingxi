@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"time"
 
 	"lingxi/internal/routerg10/personalplaybook"
 	"lingxi/internal/routerg6/eventmap"
@@ -28,7 +29,7 @@ func MatchPersonalPlaybooks(playbooks []personalplaybook.PersonalWildPlaybook, f
 		me := MatchedPersonalEvent{
 			Playbook:       pb,
 			Proofs:         proofs,
-			EventID:        eventID(feat.Symbol, feat.ProfileID, pb.EventFamily, barIndex),
+			EventID:        CanonicalEventID(feat.Symbol, feat.DecisionTime, pb.EventFamily),
 			EventFamily:    pb.EventFamily,
 			EventPhase:     phase,
 			ThesisHealth:   health,
@@ -50,7 +51,6 @@ func MatchPersonalPlaybooks(playbooks []personalplaybook.PersonalWildPlaybook, f
 }
 
 func proofsFromPlaybook(pb personalplaybook.PersonalWildPlaybook) VerifiedProofs {
-	exclusionAccepted := personalplaybook.ValidateExclusionAccepted(pb.ProofBinding, pb.ExclusionNarrative) == nil
 	makerForbid := strings.Contains(pb.ExecutionNarrative.MakerSelectionConclusion, "forbid_maker") ||
 		strings.Contains(pb.ExecutionNarrative.MakerSelectionConclusion, "adverse_selection")
 	return VerifiedProofs{
@@ -66,7 +66,7 @@ func proofsFromPlaybook(pb personalplaybook.PersonalWildPlaybook) VerifiedProofs
 		EntryGrade:            entryGradeFromPlaybook(pb),
 		EntryCertified:        false,
 		ExitCertified:         false,
-		ExclusionAccepted:     exclusionAccepted,
+		ExclusionAccepted:     false,
 		CrowdingPassed:        pb.StopNarrative.CrowdingStopRule != "crowding_failed",
 		MakerGateForbid:       makerForbid,
 		DynamicMinNotional:    pb.EntryNarrative.DynamicMinNotionalUSDT,
@@ -127,10 +127,6 @@ func evalPublicCondition(cond personalplaybook.PublicTriggerCondition, feat BarF
 		return compareFloat(op, feat.EventSparsity, cond.Value)
 	case "dynamic_threshold_shift":
 		return compareFloat(op, feat.DynamicThresholdShift, cond.Value)
-	case "personal_tape_family":
-		return compareStringEq(op, feat.PersonalTapeFamily, cond.Note)
-	case "horizon":
-		return compareStringEq(op, feat.Horizon, cond.Note)
 	default:
 		return false
 	}
@@ -227,6 +223,10 @@ func horizonBars(horizon, profileID string) int {
 		}
 		return 4
 	}
+}
+
+func CanonicalEventID(symbol string, decision time.Time, eventFamily string) string {
+	return eventmap.BuildEventID(symbol, decision, eventFamily)
 }
 
 func eventID(symbol, profileID, family string, barIndex int) string {

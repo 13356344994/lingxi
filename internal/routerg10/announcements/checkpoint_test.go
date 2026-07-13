@@ -16,9 +16,7 @@ func TestCheckpointTamperRejected(t *testing.T) {
 		Generation:    Generation,
 		ArchiveRoot:   filepath.Join("testdata"),
 		OutputDir:     dir,
-		Sources: SourcePaths{
-			OKX: filepath.Join("testdata", "multi_venue.jsonl"),
-		},
+		Sources:       allVenueSources("testdata", "multi_venue.jsonl"),
 		MaxLines: 100,
 	}
 	runner := Runner{Config: cfg, CheckpointPath: path}
@@ -53,9 +51,7 @@ func TestManifestTamperRejected(t *testing.T) {
 		Generation:    Generation,
 		ArchiveRoot:   filepath.Join("testdata"),
 		OutputDir:     dir,
-		Sources: SourcePaths{
-			OKX: filepath.Join("testdata", "multi_venue.jsonl"),
-		},
+		Sources:       allVenueSources("testdata", "multi_venue.jsonl"),
 		MaxLines: 100,
 	}
 	runner := Runner{Config: cfg, CheckpointPath: filepath.Join(dir, "cp.json")}

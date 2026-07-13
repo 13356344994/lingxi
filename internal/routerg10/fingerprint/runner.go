@@ -15,7 +15,9 @@ import (
 // RunResult summarizes one fingerprint build.
 type RunResult struct {
 	Fingerprint  PersonalExecutionFingerprint
+	Coverage     CoverageReport
 	OutputPath   string
+	CoveragePath string
 	Checkpointed bool
 }
 
@@ -52,6 +54,9 @@ func (r *Runner) Run(ctx context.Context) (RunResult, error) {
 	} else if ok {
 		if err := VerifyCheckpointBinding(cp, cfg); err != nil {
 			return RunResult{}, err
+		}
+		if cp.Done {
+			return loadCompletedResult(cfg.OutputDir)
 		}
 		store = restoreStore(cp.Accumulator)
 		sourceStatus = cp.SourceStatus
@@ -120,9 +125,17 @@ func (r *Runner) Run(ctx context.Context) (RunResult, error) {
 		return RunResult{}, err
 	}
 	fp.FingerprintHash = hash
+	coverage, err := BuildCoverageReport(fp)
+	if err != nil {
+		return RunResult{}, err
+	}
 
 	outPath := filepath.Join(cfg.OutputDir, OutputFileName)
 	if err := writeFingerprint(outPath, fp); err != nil {
+		return RunResult{}, err
+	}
+	coveragePath := filepath.Join(cfg.OutputDir, CoverageFileName)
+	if err := writeCoverageReport(coveragePath, coverage); err != nil {
 		return RunResult{}, err
 	}
 
@@ -142,7 +155,9 @@ func (r *Runner) Run(ctx context.Context) (RunResult, error) {
 
 	return RunResult{
 		Fingerprint:  fp,
+		Coverage:     coverage,
 		OutputPath:   outPath,
+		CoveragePath: coveragePath,
 		Checkpointed: true,
 	}, nil
 }
@@ -204,7 +219,15 @@ func hashFingerprint(fp PersonalExecutionFingerprint) (string, error) {
 }
 
 func writeFingerprint(path string, fp PersonalExecutionFingerprint) error {
-	raw, err := json.MarshalIndent(fp, "", "  ")
+	return writeRedactedJSON(path, fp)
+}
+
+func writeCoverageReport(path string, report CoverageReport) error {
+	return writeRedactedJSON(path, report)
+}
+
+func writeRedactedJSON(path string, value any) error {
+	raw, err := json.MarshalIndent(value, "", "  ")
 	if err != nil {
 		return err
 	}
@@ -217,6 +240,43 @@ func writeFingerprint(path string, fp PersonalExecutionFingerprint) error {
 		return err
 	}
 	return os.Rename(tmp, path)
+}
+
+func loadCompletedResult(outputDir string) (RunResult, error) {
+	outPath := filepath.Join(outputDir, OutputFileName)
+	coveragePath := filepath.Join(outputDir, CoverageFileName)
+	var fp PersonalExecutionFingerprint
+	if err := readJSONArtifact(outPath, &fp); err != nil {
+		return RunResult{}, err
+	}
+	if err := ValidateFingerprintSchema(fp); err != nil {
+		return RunResult{}, err
+	}
+	var coverage CoverageReport
+	if err := readJSONArtifact(coveragePath, &coverage); err != nil {
+		return RunResult{}, err
+	}
+	if err := ValidateCoverageReport(coverage, fp.FingerprintHash); err != nil {
+		return RunResult{}, err
+	}
+	return RunResult{
+		Fingerprint:  fp,
+		Coverage:     coverage,
+		OutputPath:   outPath,
+		CoveragePath: coveragePath,
+		Checkpointed: true,
+	}, nil
+}
+
+func readJSONArtifact(path string, dst any) error {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	if err := json.Unmarshal(raw, dst); err != nil {
+		return err
+	}
+	return nil
 }
 
 // ValidateFingerprintSchema checks required envelope fields.

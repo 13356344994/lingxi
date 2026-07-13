@@ -1,0 +1,20 @@
+{
+  "schema_version": "lingxi.router-g10-wf.report.v1",
+  "generation": "firstbattle-router-g10",
+  "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+  "playbook_hash": "8ceae12715dc9cc885fcaf77c230b7c44dc3becfe3644372ad1f276bd2d8a8f0",
+  "experiment_hash": "a471569db03b5667815a944506a935cac8c5f2b74371a434807cd2c306995d19",
+  "validation_report_hash": "13703d334a9092eca81db52c17371c8a2377c2646b5b42e50e91e0c7959a8006",
+  "survivors_hash": "a1b07559b108743f79fa20dc7c106f46574ff8f4ef53ce1325cb78a8de9b5dc8",
+  "config_hash": "2fa4f10310cb4db3188ce7a17d3d4e581db851804d6e194016a88b208369569d",
+  "status": "SKIPPED_VALIDATION_FAIL",
+  "fail_reason": "PLAYBOOK_UNAVAILABLE",
+  "survivor_count": 0,
+  "pass_count": 0,
+  "fail_count": 0,
+  "results": null,
+  "brain_degeneracy_clear": false,
+  "exam_actions": 0,
+  "created_at": "2026-07-13T07:13:13.613443114Z",
+  "report_hash": "7fe38567643f18af7222d7b8da5a72765162d0e9345c7547e7deb6d11d686628"
+}

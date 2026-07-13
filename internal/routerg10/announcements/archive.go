@@ -21,12 +21,15 @@ type ArchiveLine struct {
 	BodyHash      string          `json:"body_hash,omitempty"`
 	Body          json.RawMessage `json:"body,omitempty"`
 	// Normalized shortcut fields (format=normalized_v1).
-	PublishedAt time.Time `json:"published_at,omitempty"`
-	FirstSeenAt time.Time `json:"first_seen_at,omitempty"`
-	EffectiveAt time.Time `json:"effective_at,omitempty"`
-	Kind        Kind      `json:"kind,omitempty"`
-	Title       string    `json:"title,omitempty"`
-	Symbols     []string  `json:"symbols,omitempty"`
+	PublishedAt     time.Time `json:"published_at,omitempty"`
+	FirstSeenAt     time.Time `json:"first_seen_at,omitempty"`
+	EffectiveAt     time.Time `json:"effective_at,omitempty"`
+	Kind            Kind      `json:"kind,omitempty"`
+	Title           string    `json:"title,omitempty"`
+	Symbols         []string  `json:"symbols,omitempty"`
+	CoverageReceipt string    `json:"coverage_receipt,omitempty"`
+	CoverageFrom    time.Time `json:"coverage_from,omitempty"`
+	CoverageTo      time.Time `json:"coverage_to,omitempty"`
 }
 
 // ParseArchiveLine decodes one JSONL archive record.
@@ -49,14 +52,18 @@ func HashArchiveLine(line ArchiveLine) (string, error) {
 
 // streamStats counts one archive pass.
 type streamStats struct {
-	Lines         int
-	Decoded       int
-	Skipped       int
-	Malformed     int
-	Truncated     bool
-	PagesComplete int
-	PagesExpected int
-	FetchFailed   bool
+	Lines                   int
+	Decoded                 int
+	Skipped                 int
+	Malformed               int
+	Truncated               bool
+	PagesComplete           int
+	PagesExpected           int
+	FetchFailed             bool
+	CoverageReceiptComplete bool
+	CoverageReceipt         string
+	CoverageFrom            time.Time
+	CoverageTo              time.Time
 }
 
 func ingestArchiveFile(
@@ -70,6 +77,9 @@ func ingestArchiveFile(
 		if err != nil {
 			return err
 		}
+		if IsExplicitCoverageReceipt(line) {
+			return nil
+		}
 		if line.Venue != "" && line.Venue != venue {
 			return nil
 		}
@@ -80,6 +90,12 @@ func ingestArchiveFile(
 		store.Append(items...)
 		return nil
 	}, func(line ArchiveLine, stats *streamStats) {
+		if IsExplicitCoverageReceipt(line) {
+			stats.CoverageReceiptComplete = true
+			stats.CoverageReceipt = line.CoverageReceipt
+			stats.CoverageFrom = line.CoverageFrom.UTC()
+			stats.CoverageTo = line.CoverageTo.UTC()
+		}
 		if line.FetchStatus == "failed" {
 			stats.FetchFailed = true
 		}

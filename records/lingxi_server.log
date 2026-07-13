@@ -1,196 +1,316 @@
-2026/07/13 00:03:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 00:04:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 00:05:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 00:06:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 00:07:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 00:08:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 00:09:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 00:10:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 00:11:15 [gate][OKX方向][选币] 候选=40 BTC趋势=0.15 入选=20 头部: T-USDT(0.998) TLM-USDT AGLD-USDT
-2026/07/13 00:11:20 [binance][OKX方向][选币] 候选=22 BTC趋势=0.14 入选=20 头部: T-USDT(0.997) SXT-USDT TLM-USDT
-2026/07/13 00:11:20 [bybit][OKX方向][选币] 候选=40 BTC趋势=0.15 入选=20 头部: T-USDT(0.980) SXT-USDT BLAST-USDT
-2026/07/13 00:11:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 00:12:07 [OKX方向][选币] 候选=5 BTC趋势=0.13 入选=5 头部: AGLD-USDT(0.788) LAB-USDT DATA-USDT
-2026/07/13 00:12:07 [OKX公告] 已刷新风险集合: symbols=0
-2026/07/13 00:12:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 00:13:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 00:14:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 00:15:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 00:16:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 00:17:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 00:18:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 00:19:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 00:20:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 00:21:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 00:22:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 00:23:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 00:24:48 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 00:25:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 00:26:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 00:27:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 00:28:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 00:29:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 00:30:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 00:31:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 00:32:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 00:33:44 [binance][delist-guard] 已刷新 binance instrument 状态: total=4467 non_trading=2404
-2026/07/13 00:33:45 [binance][delist-guard] 已刷新 bybit instrument 状态: total=1285 non_trading=0
-2026/07/13 00:33:45 [binance][delist-guard] 已刷新 gate instrument 状态: total=2884 non_trading=2
-2026/07/13 00:33:45 [binance][delist-guard] 已刷新 okx instrument 状态: total=1688 non_trading=0
-2026/07/13 00:33:48 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 00:34:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 00:35:14 [gate][delist-guard] 已刷新 okx instrument 状态: total=1688 non_trading=0
-2026/07/13 00:35:15 [delist-guard] 已刷新 bybit instrument 状态: total=1285 non_trading=0
-2026/07/13 00:35:15 [delist-guard] 已刷新 okx instrument 状态: total=1688 non_trading=0
-2026/07/13 00:35:15 [gate][delist-guard] 已刷新 bybit instrument 状态: total=1285 non_trading=0
-2026/07/13 00:35:15 [delist-guard] 已刷新 gate instrument 状态: total=2884 non_trading=2
-2026/07/13 00:35:15 [gate][delist-guard] 已刷新 gate instrument 状态: total=2884 non_trading=2
-2026/07/13 00:35:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 00:36:44 [bybit][delist-guard] 已刷新 bybit instrument 状态: total=1285 non_trading=0
-2026/07/13 00:36:45 [bybit][delist-guard] 已刷新 okx instrument 状态: total=1688 non_trading=0
-2026/07/13 00:36:45 [bybit][delist-guard] 已刷新 gate instrument 状态: total=2884 non_trading=2
-2026/07/13 00:36:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 00:37:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 00:38:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 00:39:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 00:40:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 00:41:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 00:42:45 [gate][OKX方向][选币] 候选=34 BTC趋势=0.10 入选=20 头部: T-USDT(0.998) TLM-USDT VANRY-USDT
-2026/07/13 00:42:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 00:42:49 [binance][OKX方向][选币] 候选=19 BTC趋势=0.09 入选=19 头部: T-USDT(0.998) SXT-USDT TLM-USDT
-2026/07/13 00:42:49 [bybit][OKX方向][选币] 候选=36 BTC趋势=0.10 入选=20 头部: T-USDT(0.984) SXT-USDT BLAST-USDT
-2026/07/13 00:43:37 [OKX方向][选币] 候选=5 BTC趋势=0.09 入选=5 头部: AGLD-USDT(0.745) LAB-USDT DATA-USDT
-2026/07/13 00:43:37 [OKX公告] 已刷新风险集合: symbols=0
-2026/07/13 00:43:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 00:44:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 00:45:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 00:46:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 00:47:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 00:48:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 00:49:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 00:50:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 00:51:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 00:52:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 00:53:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 00:54:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 00:55:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 00:56:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 00:57:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 00:58:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 00:59:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 01:00:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 01:01:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 01:02:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 01:03:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 01:04:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 01:05:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 01:06:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 01:07:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 01:08:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 01:09:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 01:10:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 01:11:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 01:12:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 01:13:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 01:14:15 [gate][OKX方向][选币] 候选=31 BTC趋势=0.09 入选=20 头部: T-USDT(0.998) TLM-USDT VANRY-USDT
-2026/07/13 01:14:19 [binance][OKX方向][选币] 候选=18 BTC趋势=0.09 入选=18 头部: T-USDT(0.998) SXT-USDT TLM-USDT
-2026/07/13 01:14:21 [bybit][OKX方向][选币] 候选=37 BTC趋势=0.09 入选=20 头部: T-USDT(0.983) SXT-USDT BLAST-USDT
-2026/07/13 01:14:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 01:15:07 [OKX方向][选币] 候选=5 BTC趋势=0.08 入选=5 头部: AGLD-USDT(0.706) LAB-USDT DATA-USDT
-2026/07/13 01:15:07 [OKX公告] 已刷新风险集合: symbols=0
-2026/07/13 01:15:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 01:16:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 01:17:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 01:18:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 01:19:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 01:20:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 01:21:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 01:22:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 01:23:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 01:24:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 01:25:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 01:26:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 01:27:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 01:28:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 01:29:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 01:30:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 01:31:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 01:32:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 01:33:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 01:34:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 01:35:14 [binance][delist-guard] 已刷新 binance instrument 状态: total=4467 non_trading=2404
-2026/07/13 01:35:14 [binance][delist-guard] 已刷新 bybit instrument 状态: total=1285 non_trading=0
-2026/07/13 01:35:15 [binance][delist-guard] 已刷新 gate instrument 状态: total=2884 non_trading=2
-2026/07/13 01:35:15 [binance][delist-guard] 已刷新 okx instrument 状态: total=1688 non_trading=0
-2026/07/13 01:35:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 01:36:44 [delist-guard] 已刷新 okx instrument 状态: total=1688 non_trading=0
-2026/07/13 01:36:44 [bybit][delist-guard] 已刷新 okx instrument 状态: total=1688 non_trading=0
-2026/07/13 01:36:44 [gate][delist-guard] 已刷新 gate instrument 状态: total=2884 non_trading=2
-2026/07/13 01:36:44 [delist-guard] 已刷新 gate instrument 状态: total=2884 non_trading=2
-2026/07/13 01:36:44 [bybit][delist-guard] 已刷新 gate instrument 状态: total=2884 non_trading=2
-2026/07/13 01:36:44 [gate][delist-guard] 已刷新 okx instrument 状态: total=1688 non_trading=0
-2026/07/13 01:36:45 [bybit][delist-guard] 已刷新 bybit instrument 状态: total=1285 non_trading=0
-2026/07/13 01:36:45 [gate][delist-guard] 已刷新 bybit instrument 状态: total=1285 non_trading=0
-2026/07/13 01:36:45 [delist-guard] 已刷新 bybit instrument 状态: total=1285 non_trading=0
-2026/07/13 01:36:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 01:37:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 01:38:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 01:39:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 01:40:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 01:41:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 01:42:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 01:43:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 01:44:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 01:45:45 [gate][OKX方向][选币] 候选=30 BTC趋势=0.08 入选=20 头部: T-USDT(0.999) TLM-USDT VANRY-USDT
-2026/07/13 01:45:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 01:45:49 [binance][OKX方向][选币] 候选=18 BTC趋势=0.08 入选=18 头部: T-USDT(0.999) SXT-USDT TLM-USDT
-2026/07/13 01:45:50 [bybit][OKX方向][选币] 候选=33 BTC趋势=0.08 入选=20 头部: T-USDT(0.976) SXT-USDT BLAST-USDT
-2026/07/13 01:46:37 [OKX方向][选币] 候选=4 BTC趋势=0.08 入选=4 头部: AGLD-USDT(0.686) LAB-USDT DATA-USDT
-2026/07/13 01:46:37 [OKX公告] 已刷新风险集合: symbols=0
-2026/07/13 01:46:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 01:47:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 01:48:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 01:49:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 01:50:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 01:51:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 01:52:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 01:53:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 01:54:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 01:55:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 01:56:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 01:57:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 01:58:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 01:59:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 02:00:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 02:01:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 02:02:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 02:03:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 02:04:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 02:05:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 02:06:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 02:07:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 02:08:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 02:09:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 02:10:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 02:11:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 02:12:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 02:13:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 02:14:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 02:15:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 02:16:32 [fast_ws] 连接中断,3s 后重连: websocket: close 1006 (abnormal closure): unexpected EOF
-2026/07/13 02:16:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 02:17:15 [gate][OKX方向][选币] 候选=28 BTC趋势=0.01 入选=20 头部: T-USDT(1.000) TLM-USDT VANRY-USDT
-2026/07/13 02:17:19 [binance][OKX方向][选币] 候选=18 BTC趋势=0.01 入选=18 头部: T-USDT(1.000) SXT-USDT TLM-USDT
-2026/07/13 02:17:20 [bybit][OKX方向][选币] 候选=35 BTC趋势=0.01 入选=20 头部: T-USDT(0.974) SXT-USDT TLM-USDT
-2026/07/13 02:17:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 02:18:07 [OKX方向][选币] 候选=5 BTC趋势=0.01 入选=5 头部: LAB-USDT(0.677) AGLD-USDT DATA-USDT
-2026/07/13 02:18:07 [OKX公告] 已刷新风险集合: symbols=0
-2026/07/13 02:18:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 02:19:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 02:20:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 02:21:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 02:22:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 02:23:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 02:24:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 02:25:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
-2026/07/13 02:26:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 12:03:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 12:04:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 12:05:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 12:06:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 12:07:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 12:08:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 12:09:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 12:10:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 12:11:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 12:12:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 12:13:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 12:14:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 12:15:45 [gate][OKX方向][选币] 候选=36 BTC趋势=0.18 入选=20 头部: T-USDT(0.988) SKHYNIX-USDT SAMSUNG-USDT
+2026/07/13 12:15:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 12:15:50 [bybit][OKX方向][选币] 候选=39 BTC趋势=0.18 入选=20 头部: BLAST-USDT(0.970) T-USDT SKHYNIX-USDT
+2026/07/13 12:15:53 [binance][OKX方向][选币] 候选=37 BTC趋势=0.18 入选=20 头部: DODOX-USDT(0.997) T-USDT SXT-USDT
+2026/07/13 12:16:38 [fast_firework] UB-USDT short r60=77 r15=3 prior=0 liq=0 age=173ms → record_only_source
+2026/07/13 12:16:39 [OKX方向][选币] 候选=18 BTC趋势=0.18 入选=18 头部: DATA-USDT(0.773) SKHYNIX-USDT SAMSUNG-USDT
+2026/07/13 12:16:39 [OKX公告] 已刷新风险集合: symbols=0
+2026/07/13 12:16:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 12:17:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 12:18:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 12:19:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 12:20:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 12:21:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 12:22:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 12:23:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 12:24:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 12:25:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 12:26:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 12:27:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 12:28:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 12:29:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 12:30:44 [auto_miner] 挖掘轮开始:账本 6186 行
+2026/07/13 12:30:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 12:31:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 12:32:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 12:33:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 12:34:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 12:35:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 12:36:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 12:37:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 12:38:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 12:39:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 12:40:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 12:41:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 12:42:44 [binance][delist-guard] 已刷新 binance instrument 状态: total=4467 non_trading=2404
+2026/07/13 12:42:45 [binance][delist-guard] 已刷新 bybit instrument 状态: total=1285 non_trading=0
+2026/07/13 12:42:45 [binance][delist-guard] 已刷新 gate instrument 状态: total=2884 non_trading=2
+2026/07/13 12:42:45 [binance][delist-guard] 已刷新 okx instrument 状态: total=1688 non_trading=0
+2026/07/13 12:42:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 12:43:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 12:44:14 [delist-guard] 已刷新 okx instrument 状态: total=1688 non_trading=0
+2026/07/13 12:44:14 [delist-guard] 已刷新 gate instrument 状态: total=2884 non_trading=2
+2026/07/13 12:44:15 [delist-guard] 已刷新 bybit instrument 状态: total=1285 non_trading=0
+2026/07/13 12:44:15 [bybit][delist-guard] 已刷新 bybit instrument 状态: total=1285 non_trading=0
+2026/07/13 12:44:15 [bybit][delist-guard] 已刷新 okx instrument 状态: total=1688 non_trading=0
+2026/07/13 12:44:15 [bybit][delist-guard] 已刷新 gate instrument 状态: total=2884 non_trading=2
+2026/07/13 12:44:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 12:45:44 [gate][delist-guard] 已刷新 gate instrument 状态: total=2884 non_trading=2
+2026/07/13 12:45:44 [gate][delist-guard] 已刷新 okx instrument 状态: total=1688 non_trading=0
+2026/07/13 12:45:45 [gate][delist-guard] 已刷新 bybit instrument 状态: total=1285 non_trading=0
+2026/07/13 12:45:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 12:46:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 12:47:15 [gate][OKX方向][选币] 候选=32 BTC趋势=0.20 入选=20 头部: T-USDT(0.986) SKHYNIX-USDT TLM-USDT
+2026/07/13 12:47:21 [bybit][OKX方向][选币] 候选=40 BTC趋势=0.20 入选=20 头部: BLAST-USDT(0.960) T-USDT 1000XEC-USDT
+2026/07/13 12:47:24 [binance][OKX方向][选币] 候选=39 BTC趋势=0.20 入选=20 头部: DODOX-USDT(0.996) T-USDT 1000XEC-USDT
+2026/07/13 12:47:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 12:48:09 [OKX方向][选币] 候选=17 BTC趋势=0.20 入选=17 头部: DATA-USDT(0.772) SKHYNIX-USDT SAMSUNG-USDT
+2026/07/13 12:48:09 [OKX公告] 已刷新风险集合: symbols=0
+2026/07/13 12:48:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 12:49:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 12:50:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 12:51:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 12:52:52 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 12:53:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 12:54:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 12:55:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 12:56:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 12:57:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 12:58:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 12:59:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 13:00:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 13:01:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 13:02:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 13:03:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 13:04:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 13:05:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 13:06:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 13:07:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 13:08:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 13:09:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 13:10:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 13:11:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 13:12:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 13:13:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 13:14:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 13:15:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 13:16:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 13:17:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 13:18:45 [gate][OKX方向][选币] 候选=30 BTC趋势=0.20 入选=20 头部: T-USDT(0.917) TLM-USDT SKHYNIX-USDT
+2026/07/13 13:18:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 13:18:50 [bybit][OKX方向][选币] 候选=40 BTC趋势=0.20 入选=20 头部: BLAST-USDT(0.958) 1000XEC-USDT SKHYNIX-USDT
+2026/07/13 13:18:53 [binance][OKX方向][选币] 候选=38 BTC趋势=0.20 入选=20 头部: DODOX-USDT(0.995) T-USDT 1000XEC-USDT
+2026/07/13 13:19:39 [OKX方向][选币] 候选=17 BTC趋势=0.20 入选=17 头部: SKHYNIX-USDT(0.769) DATA-USDT SAMSUNG-USDT
+2026/07/13 13:19:39 [OKX公告] 已刷新风险集合: symbols=0
+2026/07/13 13:19:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 13:20:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 13:21:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 13:22:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 13:23:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 13:24:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 13:25:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 13:26:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 13:27:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 13:28:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 13:29:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 13:30:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 13:31:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 13:32:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 13:33:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 13:34:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 13:35:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 13:36:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 13:37:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 13:38:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 13:39:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 13:40:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 13:41:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 13:42:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 13:43:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 13:44:14 [binance][delist-guard] 已刷新 bybit instrument 状态: total=1285 non_trading=0
+2026/07/13 13:44:14 [binance][delist-guard] 已刷新 gate instrument 状态: total=2884 non_trading=2
+2026/07/13 13:44:15 [binance][delist-guard] 已刷新 okx instrument 状态: total=1688 non_trading=0
+2026/07/13 13:44:15 [binance][delist-guard] 已刷新 binance instrument 状态: total=4467 non_trading=2404
+2026/07/13 13:44:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 13:45:44 [delist-guard] 已刷新 okx instrument 状态: total=1688 non_trading=0
+2026/07/13 13:45:44 [delist-guard] 已刷新 gate instrument 状态: total=2884 non_trading=2
+2026/07/13 13:45:44 [bybit][delist-guard] 已刷新 bybit instrument 状态: total=1285 non_trading=0
+2026/07/13 13:45:44 [delist-guard] 已刷新 bybit instrument 状态: total=1285 non_trading=0
+2026/07/13 13:45:45 [bybit][delist-guard] 已刷新 okx instrument 状态: total=1688 non_trading=0
+2026/07/13 13:45:45 [bybit][delist-guard] 已刷新 gate instrument 状态: total=2884 non_trading=2
+2026/07/13 13:45:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 13:46:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 13:47:14 [gate][delist-guard] 已刷新 bybit instrument 状态: total=1285 non_trading=0
+2026/07/13 13:47:14 [gate][delist-guard] 已刷新 gate instrument 状态: total=2884 non_trading=2
+2026/07/13 13:47:15 [gate][delist-guard] 已刷新 okx instrument 状态: total=1688 non_trading=0
+2026/07/13 13:47:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 13:48:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 13:49:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 13:50:15 [gate][OKX方向][选币] 候选=27 BTC趋势=0.20 入选=20 头部: T-USDT(0.944) SKHYNIX-USDT TLM-USDT
+2026/07/13 13:50:20 [bybit][OKX方向][选币] 候选=37 BTC趋势=0.20 入选=20 头部: BLAST-USDT(0.957) T-USDT SKHYNIX-USDT
+2026/07/13 13:50:23 [binance][OKX方向][选币] 候选=38 BTC趋势=0.20 入选=20 头部: DODOX-USDT(0.995) T-USDT 1000XEC-USDT
+2026/07/13 13:50:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 13:51:09 [OKX方向][选币] 候选=18 BTC趋势=0.20 入选=18 头部: SKHYNIX-USDT(0.781) SAMSUNG-USDT DATA-USDT
+2026/07/13 13:51:09 [OKX公告] 已刷新风险集合: symbols=0
+2026/07/13 13:51:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 13:52:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 13:53:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 13:54:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 13:55:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 13:56:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 13:57:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 13:58:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 13:59:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 14:00:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 14:01:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 14:02:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 14:03:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 14:04:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 14:05:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 14:06:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 14:07:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 14:08:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 14:09:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 14:10:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 14:11:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 14:12:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 14:13:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 14:14:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 14:15:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 14:16:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 14:17:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 14:18:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 14:19:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 14:20:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 14:21:45 [gate][OKX方向][选币] 候选=27 BTC趋势=0.21 入选=20 头部: SKHYNIX-USDT(0.861) TLM-USDT T-USDT
+2026/07/13 14:21:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 14:21:51 [bybit][OKX方向][选币] 候选=37 BTC趋势=0.21 入选=20 头部: BLAST-USDT(0.964) 1000XEC-USDT SKHYNIX-USDT
+2026/07/13 14:21:54 [binance][OKX方向][选币] 候选=39 BTC趋势=0.20 入选=20 头部: DODOX-USDT(0.995) 1000XEC-USDT SKHYNIX-USDT
+2026/07/13 14:22:40 [OKX方向][选币] 候选=18 BTC趋势=0.21 入选=18 头部: SKHYNIX-USDT(0.795) SAMSUNG-USDT KIOXIA-USDT
+2026/07/13 14:22:40 [OKX公告] 已刷新风险集合: symbols=0
+2026/07/13 14:22:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 14:23:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 14:24:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 14:25:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 14:26:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 14:27:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 14:28:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 14:29:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 14:30:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 14:31:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 14:32:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 14:33:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 14:34:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 14:35:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 14:36:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 14:37:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 14:38:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 14:39:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 14:40:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 14:41:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 14:42:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 14:43:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 14:44:14 [binance][delist-guard] 已刷新 binance instrument 状态: total=4467 non_trading=2404
+2026/07/13 14:44:15 [binance][delist-guard] 已刷新 bybit instrument 状态: total=1285 non_trading=0
+2026/07/13 14:44:15 [binance][delist-guard] 已刷新 gate instrument 状态: total=2884 non_trading=2
+2026/07/13 14:44:15 [binance][delist-guard] 已刷新 okx instrument 状态: total=1688 non_trading=0
+2026/07/13 14:44:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 14:45:44 [bybit][delist-guard] 已刷新 bybit instrument 状态: total=1285 non_trading=0
+2026/07/13 14:45:45 [bybit][delist-guard] 已刷新 okx instrument 状态: total=1688 non_trading=0
+2026/07/13 14:45:45 [bybit][delist-guard] 已刷新 gate instrument 状态: total=2884 non_trading=2
+2026/07/13 14:45:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 14:46:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 14:47:14 [delist-guard] 已刷新 okx instrument 状态: total=1688 non_trading=0
+2026/07/13 14:47:14 [gate][delist-guard] 已刷新 gate instrument 状态: total=2884 non_trading=2
+2026/07/13 14:47:14 [delist-guard] 已刷新 gate instrument 状态: total=2884 non_trading=2
+2026/07/13 14:47:14 [gate][delist-guard] 已刷新 okx instrument 状态: total=1688 non_trading=0
+2026/07/13 14:47:14 [delist-guard] 已刷新 bybit instrument 状态: total=1285 non_trading=0
+2026/07/13 14:47:15 [gate][delist-guard] 已刷新 bybit instrument 状态: total=1285 non_trading=0
+2026/07/13 14:47:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 14:48:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 14:49:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 14:50:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 14:51:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 14:52:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 14:53:15 [gate][OKX方向][选币] 候选=28 BTC趋势=0.19 入选=20 头部: SKHYNIX-USDT(0.870) TLM-USDT JCT-USDT
+2026/07/13 14:53:20 [bybit][OKX方向][选币] 候选=37 BTC趋势=0.19 入选=20 头部: BLAST-USDT(0.967) 1000XEC-USDT SKHYNIX-USDT
+2026/07/13 14:53:24 [binance][OKX方向][选币] 候选=40 BTC趋势=0.19 入选=20 头部: DODOX-USDT(0.995) 1000XEC-USDT SKHYNIX-USDT
+2026/07/13 14:53:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 14:54:09 [OKX方向][选币] 候选=17 BTC趋势=0.19 入选=17 头部: SKHYNIX-USDT(0.805) SAMSUNG-USDT HYUNDAI-USDT
+2026/07/13 14:54:09 [OKX公告] 已刷新风险集合: symbols=0
+2026/07/13 14:54:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 14:55:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 14:56:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 14:57:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 14:58:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 14:59:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 15:00:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 15:01:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 15:02:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 15:03:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 15:04:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 15:05:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 15:06:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 15:07:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 15:08:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 15:09:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 15:10:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 15:11:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 15:12:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 15:13:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 15:14:48 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 15:15:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 15:16:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 15:17:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 15:18:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 15:19:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 15:20:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 15:21:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 15:22:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 15:23:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 15:24:45 [gate][OKX方向][选币] 候选=26 BTC趋势=0.16 入选=20 头部: T-USDT(0.902) SKHYNIX-USDT TLM-USDT
+2026/07/13 15:24:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 15:24:50 [bybit][OKX方向][选币] 候选=39 BTC趋势=0.16 入选=20 头部: BLAST-USDT(0.982) T-USDT 1000XEC-USDT
+2026/07/13 15:24:54 [binance][OKX方向][选币] 候选=40 BTC趋势=0.16 入选=20 头部: DODOX-USDT(0.976) 1000XEC-USDT KORU-USDT
+2026/07/13 15:25:39 [OKX方向][选币] 候选=18 BTC趋势=0.15 入选=18 头部: SKHYNIX-USDT(0.812) SAMSUNG-USDT HYUNDAI-USDT
+2026/07/13 15:25:39 [OKX公告] 已刷新风险集合: symbols=0
+2026/07/13 15:25:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 15:26:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 15:27:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 15:28:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 15:29:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 15:30:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 15:31:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 15:32:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 15:33:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 15:34:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 15:35:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 15:36:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 15:37:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 15:38:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 15:39:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 15:40:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 15:41:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 15:42:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 15:43:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 15:44:15 [binance][delist-guard] 已刷新 bybit instrument 状态: total=1285 non_trading=0
+2026/07/13 15:44:15 [binance][delist-guard] 已刷新 gate instrument 状态: total=2884 non_trading=2
+2026/07/13 15:44:15 [binance][delist-guard] 已刷新 okx instrument 状态: total=1688 non_trading=0
+2026/07/13 15:44:15 [binance][delist-guard] 已刷新 binance instrument 状态: total=4467 non_trading=2404
+2026/07/13 15:44:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 15:45:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 15:46:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 15:47:14 [delist-guard] 已刷新 gate instrument 状态: total=2884 non_trading=2
+2026/07/13 15:47:14 [delist-guard] 已刷新 bybit instrument 状态: total=1285 non_trading=0
+2026/07/13 15:47:15 [bybit][delist-guard] 已刷新 bybit instrument 状态: total=1285 non_trading=0
+2026/07/13 15:47:15 [delist-guard] 已刷新 okx instrument 状态: total=1688 non_trading=0
+2026/07/13 15:47:15 [bybit][delist-guard] 已刷新 okx instrument 状态: total=1688 non_trading=0
+2026/07/13 15:47:15 [bybit][delist-guard] 已刷新 gate instrument 状态: total=2884 non_trading=2
+2026/07/13 15:47:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 15:48:44 [gate][delist-guard] 已刷新 gate instrument 状态: total=2884 non_trading=2
+2026/07/13 15:48:44 [gate][delist-guard] 已刷新 okx instrument 状态: total=1688 non_trading=0
+2026/07/13 15:48:45 [gate][delist-guard] 已刷新 bybit instrument 状态: total=1285 non_trading=0
+2026/07/13 15:48:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true
+2026/07/13 15:49:47 [控制面] 状态已落盘 records/control_plane.json global_halt=true allow_new_opens=true

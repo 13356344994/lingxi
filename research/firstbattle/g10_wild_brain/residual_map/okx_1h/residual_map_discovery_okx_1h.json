@@ -1,0 +1,2302 @@
+{
+  "schema_version": "lingxi.routerg10.residual-map.discovery.v1",
+  "profile_id": "okx_1h",
+  "partition": "discovery",
+  "cells": {
+    "btc_relative_dislocation|1h|0": {
+      "key": {
+        "event_family": "btc_relative_dislocation",
+        "horizon": "1h",
+        "delay_bars": 0
+      },
+      "winners": [
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-10T02:00:00Z|btc_relative_dislocation",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-10T02:00:00Z",
+          "event_family": "btc_relative_dislocation",
+          "horizon": "1h",
+          "delay_bars": 0,
+          "user_tier_conservative_net_bps": 8.01762204718247,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100"
+          ],
+          "max_capacity_usdt": 100,
+          "shock_cluster": "none",
+          "personal_residual_reason": "impact",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-04-07T18:00:00Z|btc_relative_dislocation",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-04-07T18:00:00Z",
+          "event_family": "btc_relative_dislocation",
+          "horizon": "1h",
+          "delay_bars": 0,
+          "user_tier_conservative_net_bps": 10.597266250164495,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        }
+      ]
+    },
+    "btc_relative_dislocation|1h|1": {
+      "key": {
+        "event_family": "btc_relative_dislocation",
+        "horizon": "1h",
+        "delay_bars": 1
+      },
+      "winners": [
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-09T10:00:00Z|btc_relative_dislocation",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-09T10:00:00Z",
+          "event_family": "btc_relative_dislocation",
+          "horizon": "1h",
+          "delay_bars": 1,
+          "user_tier_conservative_net_bps": 112.15524260050321,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-09T16:00:00Z|btc_relative_dislocation",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-09T16:00:00Z",
+          "event_family": "btc_relative_dislocation",
+          "horizon": "1h",
+          "delay_bars": 1,
+          "user_tier_conservative_net_bps": 2.8399182869065243,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100"
+          ],
+          "max_capacity_usdt": 100,
+          "shock_cluster": "none",
+          "personal_residual_reason": "impact",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        }
+      ]
+    },
+    "btc_relative_dislocation|1h|2": {
+      "key": {
+        "event_family": "btc_relative_dislocation",
+        "horizon": "1h",
+        "delay_bars": 2
+      },
+      "winners": [
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-09T09:00:00Z|btc_relative_dislocation",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-09T09:00:00Z",
+          "event_family": "btc_relative_dislocation",
+          "horizon": "1h",
+          "delay_bars": 2,
+          "user_tier_conservative_net_bps": 112.12291474638248,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-09T15:00:00Z|btc_relative_dislocation",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-09T15:00:00Z",
+          "event_family": "btc_relative_dislocation",
+          "horizon": "1h",
+          "delay_bars": 2,
+          "user_tier_conservative_net_bps": 2.835801735841102,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100"
+          ],
+          "max_capacity_usdt": 100,
+          "shock_cluster": "none",
+          "personal_residual_reason": "impact",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-13T12:00:00Z|btc_relative_dislocation",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-13T12:00:00Z",
+          "event_family": "btc_relative_dislocation",
+          "horizon": "1h",
+          "delay_bars": 2,
+          "user_tier_conservative_net_bps": 160.27789633300486,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-04-05T23:00:00Z|btc_relative_dislocation",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-04-05T23:00:00Z",
+          "event_family": "btc_relative_dislocation",
+          "horizon": "1h",
+          "delay_bars": 2,
+          "user_tier_conservative_net_bps": 15.702408938290226,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100"
+          ],
+          "max_capacity_usdt": 100,
+          "shock_cluster": "2026-04-05T23:00:00Z",
+          "personal_residual_reason": "impact",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        }
+      ]
+    },
+    "btc_relative_dislocation|1h|3": {
+      "key": {
+        "event_family": "btc_relative_dislocation",
+        "horizon": "1h",
+        "delay_bars": 3
+      },
+      "winners": [
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-09T14:00:00Z|btc_relative_dislocation",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-09T14:00:00Z",
+          "event_family": "btc_relative_dislocation",
+          "horizon": "1h",
+          "delay_bars": 3,
+          "user_tier_conservative_net_bps": 2.795948986446092,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100"
+          ],
+          "max_capacity_usdt": 100,
+          "shock_cluster": "2026-03-09T14:00:00Z",
+          "personal_residual_reason": "impact",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-23T03:00:00Z|btc_relative_dislocation",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-23T03:00:00Z",
+          "event_family": "btc_relative_dislocation",
+          "horizon": "1h",
+          "delay_bars": 3,
+          "user_tier_conservative_net_bps": 37.627242980565356,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100"
+          ],
+          "max_capacity_usdt": 100,
+          "shock_cluster": "none",
+          "personal_residual_reason": "impact",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        }
+      ]
+    },
+    "btc_relative_dislocation|24h|0": {
+      "key": {
+        "event_family": "btc_relative_dislocation",
+        "horizon": "24h",
+        "delay_bars": 0
+      },
+      "winners": [
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-06T15:00:00Z|btc_relative_dislocation",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-06T15:00:00Z",
+          "event_family": "btc_relative_dislocation",
+          "horizon": "24h",
+          "delay_bars": 0,
+          "user_tier_conservative_net_bps": 785.4868159191377,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "2026-03-06T14:00:00Z",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-13T19:00:00Z|btc_relative_dislocation",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-13T19:00:00Z",
+          "event_family": "btc_relative_dislocation",
+          "horizon": "24h",
+          "delay_bars": 0,
+          "user_tier_conservative_net_bps": 55.77801876985956,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-19T20:00:00Z|btc_relative_dislocation",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-19T20:00:00Z",
+          "event_family": "btc_relative_dislocation",
+          "horizon": "24h",
+          "delay_bars": 0,
+          "user_tier_conservative_net_bps": 657.0684757265435,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-24T14:00:00Z|btc_relative_dislocation",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-24T14:00:00Z",
+          "event_family": "btc_relative_dislocation",
+          "horizon": "24h",
+          "delay_bars": 0,
+          "user_tier_conservative_net_bps": 434.2118102881194,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100"
+          ],
+          "max_capacity_usdt": 100,
+          "shock_cluster": "2026-03-24T14:00:00Z",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-30T13:00:00Z|btc_relative_dislocation",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-30T13:00:00Z",
+          "event_family": "btc_relative_dislocation",
+          "horizon": "24h",
+          "delay_bars": 0,
+          "user_tier_conservative_net_bps": 795.5188390936103,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        }
+      ]
+    },
+    "btc_relative_dislocation|24h|1": {
+      "key": {
+        "event_family": "btc_relative_dislocation",
+        "horizon": "24h",
+        "delay_bars": 1
+      },
+      "winners": [
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-25T11:00:00Z|btc_relative_dislocation",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-25T11:00:00Z",
+          "event_family": "btc_relative_dislocation",
+          "horizon": "24h",
+          "delay_bars": 1,
+          "user_tier_conservative_net_bps": 526.7016869574757,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-29T23:00:00Z|btc_relative_dislocation",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-29T23:00:00Z",
+          "event_family": "btc_relative_dislocation",
+          "horizon": "24h",
+          "delay_bars": 1,
+          "user_tier_conservative_net_bps": 754.4887429033852,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100"
+          ],
+          "max_capacity_usdt": 100,
+          "shock_cluster": "2026-03-29T23:00:00Z",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        }
+      ]
+    },
+    "btc_relative_dislocation|24h|2": {
+      "key": {
+        "event_family": "btc_relative_dislocation",
+        "horizon": "24h",
+        "delay_bars": 2
+      },
+      "winners": [
+        {
+          "event_id": "AI-USDT-SWAP|2026-06-28T22:00:00Z|btc_relative_dislocation",
+          "symbol": "AI-USDT-SWAP",
+          "decision_time": "2026-06-28T22:00:00Z",
+          "event_family": "btc_relative_dislocation",
+          "horizon": "24h",
+          "delay_bars": 2,
+          "user_tier_conservative_net_bps": 3332.57025283768,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-04T16:00:00Z|btc_relative_dislocation",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-04T16:00:00Z",
+          "event_family": "btc_relative_dislocation",
+          "horizon": "24h",
+          "delay_bars": 2,
+          "user_tier_conservative_net_bps": 421.86023691257014,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "2026-03-04T16:00:00Z",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-04T23:00:00Z|btc_relative_dislocation",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-04T23:00:00Z",
+          "event_family": "btc_relative_dislocation",
+          "horizon": "24h",
+          "delay_bars": 2,
+          "user_tier_conservative_net_bps": 505.31828025514864,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "2026-03-04T23:00:00Z",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-06T05:00:00Z|btc_relative_dislocation",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-06T05:00:00Z",
+          "event_family": "btc_relative_dislocation",
+          "horizon": "24h",
+          "delay_bars": 2,
+          "user_tier_conservative_net_bps": 995.9836671937154,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100"
+          ],
+          "max_capacity_usdt": 100,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-11T20:00:00Z|btc_relative_dislocation",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-11T20:00:00Z",
+          "event_family": "btc_relative_dislocation",
+          "horizon": "24h",
+          "delay_bars": 2,
+          "user_tier_conservative_net_bps": 419.9683351613318,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-13T17:00:00Z|btc_relative_dislocation",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-13T17:00:00Z",
+          "event_family": "btc_relative_dislocation",
+          "horizon": "24h",
+          "delay_bars": 2,
+          "user_tier_conservative_net_bps": 55.588466000421505,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-19T13:00:00Z|btc_relative_dislocation",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-19T13:00:00Z",
+          "event_family": "btc_relative_dislocation",
+          "horizon": "24h",
+          "delay_bars": 2,
+          "user_tier_conservative_net_bps": 239.3216281648973,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "2026-03-19T13:00:00Z",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-25T13:00:00Z|btc_relative_dislocation",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-25T13:00:00Z",
+          "event_family": "btc_relative_dislocation",
+          "horizon": "24h",
+          "delay_bars": 2,
+          "user_tier_conservative_net_bps": 602.1862680310198,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        }
+      ]
+    },
+    "btc_relative_dislocation|24h|3": {
+      "key": {
+        "event_family": "btc_relative_dislocation",
+        "horizon": "24h",
+        "delay_bars": 3
+      },
+      "winners": [
+        {
+          "event_id": "AI-USDT-SWAP|2026-06-27T19:00:00Z|btc_relative_dislocation",
+          "symbol": "AI-USDT-SWAP",
+          "decision_time": "2026-06-27T19:00:00Z",
+          "event_family": "btc_relative_dislocation",
+          "horizon": "24h",
+          "delay_bars": 3,
+          "user_tier_conservative_net_bps": 168.9086917252717,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "AI-USDT-SWAP|2026-06-28T21:00:00Z|btc_relative_dislocation",
+          "symbol": "AI-USDT-SWAP",
+          "decision_time": "2026-06-28T21:00:00Z",
+          "event_family": "btc_relative_dislocation",
+          "horizon": "24h",
+          "delay_bars": 3,
+          "user_tier_conservative_net_bps": 3332.541911514261,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "KORU-USDT-SWAP|2026-06-24T18:00:00Z|btc_relative_dislocation",
+          "symbol": "KORU-USDT-SWAP",
+          "decision_time": "2026-06-24T18:00:00Z",
+          "event_family": "btc_relative_dislocation",
+          "horizon": "24h",
+          "delay_bars": 3,
+          "user_tier_conservative_net_bps": 657.8640890668827,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "KORU-USDT-SWAP|2026-06-27T23:00:00Z|btc_relative_dislocation",
+          "symbol": "KORU-USDT-SWAP",
+          "decision_time": "2026-06-27T23:00:00Z",
+          "event_family": "btc_relative_dislocation",
+          "horizon": "24h",
+          "delay_bars": 3,
+          "user_tier_conservative_net_bps": 252.65156829747337,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-05T18:00:00Z|btc_relative_dislocation",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-05T18:00:00Z",
+          "event_family": "btc_relative_dislocation",
+          "horizon": "24h",
+          "delay_bars": 3,
+          "user_tier_conservative_net_bps": 519.6651336631935,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100"
+          ],
+          "max_capacity_usdt": 100,
+          "shock_cluster": "2026-03-05T18:00:00Z",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-13T16:00:00Z|btc_relative_dislocation",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-13T16:00:00Z",
+          "event_family": "btc_relative_dislocation",
+          "horizon": "24h",
+          "delay_bars": 3,
+          "user_tier_conservative_net_bps": 55.553644107405475,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-19T15:00:00Z|btc_relative_dislocation",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-19T15:00:00Z",
+          "event_family": "btc_relative_dislocation",
+          "horizon": "24h",
+          "delay_bars": 3,
+          "user_tier_conservative_net_bps": 315.58968270169646,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-19T16:00:00Z|btc_relative_dislocation",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-19T16:00:00Z",
+          "event_family": "btc_relative_dislocation",
+          "horizon": "24h",
+          "delay_bars": 3,
+          "user_tier_conservative_net_bps": 366.35794071157534,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-25T15:00:00Z|btc_relative_dislocation",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-25T15:00:00Z",
+          "event_family": "btc_relative_dislocation",
+          "horizon": "24h",
+          "delay_bars": 3,
+          "user_tier_conservative_net_bps": 893.9451441949109,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "SOXL-USDT-SWAP|2026-05-19T12:00:00Z|btc_relative_dislocation",
+          "symbol": "SOXL-USDT-SWAP",
+          "decision_time": "2026-05-19T12:00:00Z",
+          "event_family": "btc_relative_dislocation",
+          "horizon": "24h",
+          "delay_bars": 3,
+          "user_tier_conservative_net_bps": 1648.7695752255468,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "SOXL-USDT-SWAP|2026-05-25T12:00:00Z|btc_relative_dislocation",
+          "symbol": "SOXL-USDT-SWAP",
+          "decision_time": "2026-05-25T12:00:00Z",
+          "event_family": "btc_relative_dislocation",
+          "horizon": "24h",
+          "delay_bars": 3,
+          "user_tier_conservative_net_bps": 575.1075910253345,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        }
+      ]
+    },
+    "btc_relative_dislocation|4h|0": {
+      "key": {
+        "event_family": "btc_relative_dislocation",
+        "horizon": "4h",
+        "delay_bars": 0
+      },
+      "winners": [
+        {
+          "event_id": "KORU-USDT-SWAP|2026-06-24T15:00:00Z|btc_relative_dislocation",
+          "symbol": "KORU-USDT-SWAP",
+          "decision_time": "2026-06-24T15:00:00Z",
+          "event_family": "btc_relative_dislocation",
+          "horizon": "4h",
+          "delay_bars": 0,
+          "user_tier_conservative_net_bps": 542.7243703092003,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-10T18:00:00Z|btc_relative_dislocation",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-10T18:00:00Z",
+          "event_family": "btc_relative_dislocation",
+          "horizon": "4h",
+          "delay_bars": 0,
+          "user_tier_conservative_net_bps": 40.70472562194661,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-18T19:00:00Z|btc_relative_dislocation",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-18T19:00:00Z",
+          "event_family": "btc_relative_dislocation",
+          "horizon": "4h",
+          "delay_bars": 0,
+          "user_tier_conservative_net_bps": 277.0625200316997,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100"
+          ],
+          "max_capacity_usdt": 100,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-20T14:00:00Z|btc_relative_dislocation",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-20T14:00:00Z",
+          "event_family": "btc_relative_dislocation",
+          "horizon": "4h",
+          "delay_bars": 0,
+          "user_tier_conservative_net_bps": 388.1211275884529,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-20T16:00:00Z|btc_relative_dislocation",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-20T16:00:00Z",
+          "event_family": "btc_relative_dislocation",
+          "horizon": "4h",
+          "delay_bars": 0,
+          "user_tier_conservative_net_bps": 152.29118942445507,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-23T13:00:00Z|btc_relative_dislocation",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-23T13:00:00Z",
+          "event_family": "btc_relative_dislocation",
+          "horizon": "4h",
+          "delay_bars": 0,
+          "user_tier_conservative_net_bps": 486.8971118310997,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "2026-03-23T12:00:00Z",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-26T16:00:00Z|btc_relative_dislocation",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-26T16:00:00Z",
+          "event_family": "btc_relative_dislocation",
+          "horizon": "4h",
+          "delay_bars": 0,
+          "user_tier_conservative_net_bps": 307.83135675481515,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-30T16:00:00Z|btc_relative_dislocation",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-30T16:00:00Z",
+          "event_family": "btc_relative_dislocation",
+          "horizon": "4h",
+          "delay_bars": 0,
+          "user_tier_conservative_net_bps": 87.05158285543412,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "SOXL-USDT-SWAP|2026-05-25T09:00:00Z|btc_relative_dislocation",
+          "symbol": "SOXL-USDT-SWAP",
+          "decision_time": "2026-05-25T09:00:00Z",
+          "event_family": "btc_relative_dislocation",
+          "horizon": "4h",
+          "delay_bars": 0,
+          "user_tier_conservative_net_bps": 21.238175002002507,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        }
+      ]
+    },
+    "btc_relative_dislocation|4h|1": {
+      "key": {
+        "event_family": "btc_relative_dislocation",
+        "horizon": "4h",
+        "delay_bars": 1
+      },
+      "winners": [
+        {
+          "event_id": "KORU-USDT-SWAP|2026-06-24T14:00:00Z|btc_relative_dislocation",
+          "symbol": "KORU-USDT-SWAP",
+          "decision_time": "2026-06-24T14:00:00Z",
+          "event_family": "btc_relative_dislocation",
+          "horizon": "4h",
+          "delay_bars": 1,
+          "user_tier_conservative_net_bps": 542.6934287149887,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "2026-06-24T14:00:00Z",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-06T21:00:00Z|btc_relative_dislocation",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-06T21:00:00Z",
+          "event_family": "btc_relative_dislocation",
+          "horizon": "4h",
+          "delay_bars": 1,
+          "user_tier_conservative_net_bps": 264.4006837229949,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-27T14:00:00Z|btc_relative_dislocation",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-27T14:00:00Z",
+          "event_family": "btc_relative_dislocation",
+          "horizon": "4h",
+          "delay_bars": 1,
+          "user_tier_conservative_net_bps": 122.64682416589972,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        }
+      ]
+    },
+    "btc_relative_dislocation|4h|2": {
+      "key": {
+        "event_family": "btc_relative_dislocation",
+        "horizon": "4h",
+        "delay_bars": 2
+      },
+      "winners": [
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-12T14:00:00Z|btc_relative_dislocation",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-12T14:00:00Z",
+          "event_family": "btc_relative_dislocation",
+          "horizon": "4h",
+          "delay_bars": 2,
+          "user_tier_conservative_net_bps": 65.01969835751508,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-23T20:00:00Z|btc_relative_dislocation",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-23T20:00:00Z",
+          "event_family": "btc_relative_dislocation",
+          "horizon": "4h",
+          "delay_bars": 2,
+          "user_tier_conservative_net_bps": 66.14143490448394,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-24T07:00:00Z|btc_relative_dislocation",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-24T07:00:00Z",
+          "event_family": "btc_relative_dislocation",
+          "horizon": "4h",
+          "delay_bars": 2,
+          "user_tier_conservative_net_bps": 38.70015114478433,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-26T14:00:00Z|btc_relative_dislocation",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-26T14:00:00Z",
+          "event_family": "btc_relative_dislocation",
+          "horizon": "4h",
+          "delay_bars": 2,
+          "user_tier_conservative_net_bps": 296.65264574426857,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-26T17:00:00Z|btc_relative_dislocation",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-26T17:00:00Z",
+          "event_family": "btc_relative_dislocation",
+          "horizon": "4h",
+          "delay_bars": 2,
+          "user_tier_conservative_net_bps": 11.640160750983696,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100"
+          ],
+          "max_capacity_usdt": 100,
+          "shock_cluster": "none",
+          "personal_residual_reason": "impact",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-27T04:00:00Z|btc_relative_dislocation",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-27T04:00:00Z",
+          "event_family": "btc_relative_dislocation",
+          "horizon": "4h",
+          "delay_bars": 2,
+          "user_tier_conservative_net_bps": 292.70056560777977,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        }
+      ]
+    },
+    "btc_relative_dislocation|4h|3": {
+      "key": {
+        "event_family": "btc_relative_dislocation",
+        "horizon": "4h",
+        "delay_bars": 3
+      },
+      "winners": [
+        {
+          "event_id": "KORU-USDT-SWAP|2026-06-24T12:00:00Z|btc_relative_dislocation",
+          "symbol": "KORU-USDT-SWAP",
+          "decision_time": "2026-06-24T12:00:00Z",
+          "event_family": "btc_relative_dislocation",
+          "horizon": "4h",
+          "delay_bars": 3,
+          "user_tier_conservative_net_bps": 542.5867178936732,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-18T15:00:00Z|btc_relative_dislocation",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-18T15:00:00Z",
+          "event_family": "btc_relative_dislocation",
+          "horizon": "4h",
+          "delay_bars": 3,
+          "user_tier_conservative_net_bps": 122.41857638476245,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100"
+          ],
+          "max_capacity_usdt": 100,
+          "shock_cluster": "2026-03-18T15:00:00Z",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        }
+      ]
+    },
+    "ohlcv_extreme_continuation|1h|0": {
+      "key": {
+        "event_family": "ohlcv_extreme_continuation",
+        "horizon": "1h",
+        "delay_bars": 0
+      },
+      "winners": [
+        {
+          "event_id": "KORU-USDT-SWAP|2026-06-24T17:00:00Z|ohlcv_extreme_continuation",
+          "symbol": "KORU-USDT-SWAP",
+          "decision_time": "2026-06-24T17:00:00Z",
+          "event_family": "ohlcv_extreme_continuation",
+          "horizon": "1h",
+          "delay_bars": 0,
+          "user_tier_conservative_net_bps": 203.315400535773,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-05T17:00:00Z|ohlcv_extreme_continuation",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-05T17:00:00Z",
+          "event_family": "ohlcv_extreme_continuation",
+          "horizon": "1h",
+          "delay_bars": 0,
+          "user_tier_conservative_net_bps": 228.9638218853234,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100"
+          ],
+          "max_capacity_usdt": 100,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-10T02:00:00Z|ohlcv_extreme_continuation",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-10T02:00:00Z",
+          "event_family": "ohlcv_extreme_continuation",
+          "horizon": "1h",
+          "delay_bars": 0,
+          "user_tier_conservative_net_bps": 8.01762204718247,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100"
+          ],
+          "max_capacity_usdt": 100,
+          "shock_cluster": "none",
+          "personal_residual_reason": "impact",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        }
+      ]
+    },
+    "ohlcv_extreme_continuation|1h|1": {
+      "key": {
+        "event_family": "ohlcv_extreme_continuation",
+        "horizon": "1h",
+        "delay_bars": 1
+      },
+      "winners": [
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-09T10:00:00Z|ohlcv_extreme_continuation",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-09T10:00:00Z",
+          "event_family": "ohlcv_extreme_continuation",
+          "horizon": "1h",
+          "delay_bars": 1,
+          "user_tier_conservative_net_bps": 112.15524260050321,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-09T16:00:00Z|ohlcv_extreme_continuation",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-09T16:00:00Z",
+          "event_family": "ohlcv_extreme_continuation",
+          "horizon": "1h",
+          "delay_bars": 1,
+          "user_tier_conservative_net_bps": 2.8399182869065243,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100"
+          ],
+          "max_capacity_usdt": 100,
+          "shock_cluster": "none",
+          "personal_residual_reason": "impact",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        }
+      ]
+    },
+    "ohlcv_extreme_continuation|1h|2": {
+      "key": {
+        "event_family": "ohlcv_extreme_continuation",
+        "horizon": "1h",
+        "delay_bars": 2
+      },
+      "winners": [
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-09T09:00:00Z|ohlcv_extreme_continuation",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-09T09:00:00Z",
+          "event_family": "ohlcv_extreme_continuation",
+          "horizon": "1h",
+          "delay_bars": 2,
+          "user_tier_conservative_net_bps": 112.12291474638248,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-09T15:00:00Z|ohlcv_extreme_continuation",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-09T15:00:00Z",
+          "event_family": "ohlcv_extreme_continuation",
+          "horizon": "1h",
+          "delay_bars": 2,
+          "user_tier_conservative_net_bps": 2.835801735841102,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100"
+          ],
+          "max_capacity_usdt": 100,
+          "shock_cluster": "none",
+          "personal_residual_reason": "impact",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        }
+      ]
+    },
+    "ohlcv_extreme_continuation|1h|3": {
+      "key": {
+        "event_family": "ohlcv_extreme_continuation",
+        "horizon": "1h",
+        "delay_bars": 3
+      },
+      "winners": [
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-09T14:00:00Z|ohlcv_extreme_continuation",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-09T14:00:00Z",
+          "event_family": "ohlcv_extreme_continuation",
+          "horizon": "1h",
+          "delay_bars": 3,
+          "user_tier_conservative_net_bps": 2.795948986446092,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100"
+          ],
+          "max_capacity_usdt": 100,
+          "shock_cluster": "2026-03-09T14:00:00Z",
+          "personal_residual_reason": "impact",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        }
+      ]
+    },
+    "ohlcv_extreme_continuation|24h|0": {
+      "key": {
+        "event_family": "ohlcv_extreme_continuation",
+        "horizon": "24h",
+        "delay_bars": 0
+      },
+      "winners": [
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-19T20:00:00Z|ohlcv_extreme_continuation",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-19T20:00:00Z",
+          "event_family": "ohlcv_extreme_continuation",
+          "horizon": "24h",
+          "delay_bars": 0,
+          "user_tier_conservative_net_bps": 657.0684757265435,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-30T13:00:00Z|ohlcv_extreme_continuation",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-30T13:00:00Z",
+          "event_family": "ohlcv_extreme_continuation",
+          "horizon": "24h",
+          "delay_bars": 0,
+          "user_tier_conservative_net_bps": 795.5188390936103,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        }
+      ]
+    },
+    "ohlcv_extreme_continuation|24h|1": {
+      "key": {
+        "event_family": "ohlcv_extreme_continuation",
+        "horizon": "24h",
+        "delay_bars": 1
+      },
+      "winners": [
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-19T14:00:00Z|ohlcv_extreme_continuation",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-19T14:00:00Z",
+          "event_family": "ohlcv_extreme_continuation",
+          "horizon": "24h",
+          "delay_bars": 1,
+          "user_tier_conservative_net_bps": 226.56269117199565,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "2026-03-19T13:00:00Z",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-25T11:00:00Z|ohlcv_extreme_continuation",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-25T11:00:00Z",
+          "event_family": "ohlcv_extreme_continuation",
+          "horizon": "24h",
+          "delay_bars": 1,
+          "user_tier_conservative_net_bps": 526.7016869574757,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        }
+      ]
+    },
+    "ohlcv_extreme_continuation|24h|2": {
+      "key": {
+        "event_family": "ohlcv_extreme_continuation",
+        "horizon": "24h",
+        "delay_bars": 2
+      },
+      "winners": [
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-11T20:00:00Z|ohlcv_extreme_continuation",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-11T20:00:00Z",
+          "event_family": "ohlcv_extreme_continuation",
+          "horizon": "24h",
+          "delay_bars": 2,
+          "user_tier_conservative_net_bps": 419.9683351613318,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-13T17:00:00Z|ohlcv_extreme_continuation",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-13T17:00:00Z",
+          "event_family": "ohlcv_extreme_continuation",
+          "horizon": "24h",
+          "delay_bars": 2,
+          "user_tier_conservative_net_bps": 55.588466000421505,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        }
+      ]
+    },
+    "ohlcv_extreme_continuation|24h|3": {
+      "key": {
+        "event_family": "ohlcv_extreme_continuation",
+        "horizon": "24h",
+        "delay_bars": 3
+      },
+      "winners": [
+        {
+          "event_id": "AI-USDT-SWAP|2026-06-28T21:00:00Z|ohlcv_extreme_continuation",
+          "symbol": "AI-USDT-SWAP",
+          "decision_time": "2026-06-28T21:00:00Z",
+          "event_family": "ohlcv_extreme_continuation",
+          "horizon": "24h",
+          "delay_bars": 3,
+          "user_tier_conservative_net_bps": 3332.541911514261,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "KORU-USDT-SWAP|2026-06-24T18:00:00Z|ohlcv_extreme_continuation",
+          "symbol": "KORU-USDT-SWAP",
+          "decision_time": "2026-06-24T18:00:00Z",
+          "event_family": "ohlcv_extreme_continuation",
+          "horizon": "24h",
+          "delay_bars": 3,
+          "user_tier_conservative_net_bps": 657.8640890668827,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "SOXL-USDT-SWAP|2026-05-19T12:00:00Z|ohlcv_extreme_continuation",
+          "symbol": "SOXL-USDT-SWAP",
+          "decision_time": "2026-05-19T12:00:00Z",
+          "event_family": "ohlcv_extreme_continuation",
+          "horizon": "24h",
+          "delay_bars": 3,
+          "user_tier_conservative_net_bps": 1648.7695752255468,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        }
+      ]
+    },
+    "ohlcv_extreme_continuation|4h|0": {
+      "key": {
+        "event_family": "ohlcv_extreme_continuation",
+        "horizon": "4h",
+        "delay_bars": 0
+      },
+      "winners": [
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-30T16:00:00Z|ohlcv_extreme_continuation",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-30T16:00:00Z",
+          "event_family": "ohlcv_extreme_continuation",
+          "horizon": "4h",
+          "delay_bars": 0,
+          "user_tier_conservative_net_bps": 87.05158285543412,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        }
+      ]
+    },
+    "ohlcv_extreme_continuation|4h|1": {
+      "key": {
+        "event_family": "ohlcv_extreme_continuation",
+        "horizon": "4h",
+        "delay_bars": 1
+      },
+      "winners": [
+        {
+          "event_id": "KORU-USDT-SWAP|2026-06-24T14:00:00Z|ohlcv_extreme_continuation",
+          "symbol": "KORU-USDT-SWAP",
+          "decision_time": "2026-06-24T14:00:00Z",
+          "event_family": "ohlcv_extreme_continuation",
+          "horizon": "4h",
+          "delay_bars": 1,
+          "user_tier_conservative_net_bps": 542.6934287149887,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "2026-06-24T14:00:00Z",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-06T21:00:00Z|ohlcv_extreme_continuation",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-06T21:00:00Z",
+          "event_family": "ohlcv_extreme_continuation",
+          "horizon": "4h",
+          "delay_bars": 1,
+          "user_tier_conservative_net_bps": 264.4006837229949,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-20T15:00:00Z|ohlcv_extreme_continuation",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-20T15:00:00Z",
+          "event_family": "ohlcv_extreme_continuation",
+          "horizon": "4h",
+          "delay_bars": 1,
+          "user_tier_conservative_net_bps": 152.33496390356402,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-23T12:00:00Z|ohlcv_extreme_continuation",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-23T12:00:00Z",
+          "event_family": "ohlcv_extreme_continuation",
+          "horizon": "4h",
+          "delay_bars": 1,
+          "user_tier_conservative_net_bps": 486.8766746512424,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "2026-03-23T12:00:00Z",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-27T14:00:00Z|ohlcv_extreme_continuation",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-27T14:00:00Z",
+          "event_family": "ohlcv_extreme_continuation",
+          "horizon": "4h",
+          "delay_bars": 1,
+          "user_tier_conservative_net_bps": 122.64682416589972,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        }
+      ]
+    },
+    "ohlcv_extreme_continuation|4h|2": {
+      "key": {
+        "event_family": "ohlcv_extreme_continuation",
+        "horizon": "4h",
+        "delay_bars": 2
+      },
+      "winners": [
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-12T14:00:00Z|ohlcv_extreme_continuation",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-12T14:00:00Z",
+          "event_family": "ohlcv_extreme_continuation",
+          "horizon": "4h",
+          "delay_bars": 2,
+          "user_tier_conservative_net_bps": 65.01969835751508,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-24T07:00:00Z|ohlcv_extreme_continuation",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-24T07:00:00Z",
+          "event_family": "ohlcv_extreme_continuation",
+          "horizon": "4h",
+          "delay_bars": 2,
+          "user_tier_conservative_net_bps": 38.70015114478433,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        }
+      ]
+    },
+    "ohlcv_extreme_continuation|4h|3": {
+      "key": {
+        "event_family": "ohlcv_extreme_continuation",
+        "horizon": "4h",
+        "delay_bars": 3
+      },
+      "winners": [
+        {
+          "event_id": "KORU-USDT-SWAP|2026-06-24T12:00:00Z|ohlcv_extreme_continuation",
+          "symbol": "KORU-USDT-SWAP",
+          "decision_time": "2026-06-24T12:00:00Z",
+          "event_family": "ohlcv_extreme_continuation",
+          "horizon": "4h",
+          "delay_bars": 3,
+          "user_tier_conservative_net_bps": 542.5867178936732,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-10T15:00:00Z|ohlcv_extreme_continuation",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-10T15:00:00Z",
+          "event_family": "ohlcv_extreme_continuation",
+          "horizon": "4h",
+          "delay_bars": 3,
+          "user_tier_conservative_net_bps": 13.205313077921303,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100"
+          ],
+          "max_capacity_usdt": 100,
+          "shock_cluster": "2026-03-10T14:00:00Z",
+          "personal_residual_reason": "impact",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        }
+      ]
+    },
+    "ohlcv_extreme_reversal|1h|0": {
+      "key": {
+        "event_family": "ohlcv_extreme_reversal",
+        "horizon": "1h",
+        "delay_bars": 0
+      },
+      "winners": [
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-17T15:00:00Z|ohlcv_extreme_reversal",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-17T15:00:00Z",
+          "event_family": "ohlcv_extreme_reversal",
+          "horizon": "1h",
+          "delay_bars": 0,
+          "user_tier_conservative_net_bps": 6.055650377053226,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100"
+          ],
+          "max_capacity_usdt": 100,
+          "shock_cluster": "2026-03-17T15:00:00Z",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        }
+      ]
+    },
+    "ohlcv_extreme_reversal|1h|1": {
+      "key": {
+        "event_family": "ohlcv_extreme_reversal",
+        "horizon": "1h",
+        "delay_bars": 1
+      },
+      "winners": [
+        {
+          "event_id": "KORU-USDT-SWAP|2026-06-24T16:00:00Z|ohlcv_extreme_reversal",
+          "symbol": "KORU-USDT-SWAP",
+          "decision_time": "2026-06-24T16:00:00Z",
+          "event_family": "ohlcv_extreme_reversal",
+          "horizon": "1h",
+          "delay_bars": 1,
+          "user_tier_conservative_net_bps": 203.3048769733855,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "2026-06-24T16:00:00Z",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        }
+      ]
+    },
+    "ohlcv_extreme_reversal|24h|0": {
+      "key": {
+        "event_family": "ohlcv_extreme_reversal",
+        "horizon": "24h",
+        "delay_bars": 0
+      },
+      "winners": [
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-06T15:00:00Z|ohlcv_extreme_reversal",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-06T15:00:00Z",
+          "event_family": "ohlcv_extreme_reversal",
+          "horizon": "24h",
+          "delay_bars": 0,
+          "user_tier_conservative_net_bps": 785.4868159191377,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "2026-03-06T14:00:00Z",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-06T18:00:00Z|ohlcv_extreme_reversal",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-06T18:00:00Z",
+          "event_family": "ohlcv_extreme_reversal",
+          "horizon": "24h",
+          "delay_bars": 0,
+          "user_tier_conservative_net_bps": 592.5626944103375,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-13T19:00:00Z|ohlcv_extreme_reversal",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-13T19:00:00Z",
+          "event_family": "ohlcv_extreme_reversal",
+          "horizon": "24h",
+          "delay_bars": 0,
+          "user_tier_conservative_net_bps": 55.77801876985956,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        }
+      ]
+    },
+    "ohlcv_extreme_reversal|24h|1": {
+      "key": {
+        "event_family": "ohlcv_extreme_reversal",
+        "horizon": "24h",
+        "delay_bars": 1
+      },
+      "winners": [
+        {
+          "event_id": "AI-USDT-SWAP|2026-06-28T23:00:00Z|ohlcv_extreme_reversal",
+          "symbol": "AI-USDT-SWAP",
+          "decision_time": "2026-06-28T23:00:00Z",
+          "event_family": "ohlcv_extreme_reversal",
+          "horizon": "24h",
+          "delay_bars": 1,
+          "user_tier_conservative_net_bps": 3332.582546640577,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-22T00:00:00Z|ohlcv_extreme_reversal",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-22T00:00:00Z",
+          "event_family": "ohlcv_extreme_reversal",
+          "horizon": "24h",
+          "delay_bars": 1,
+          "user_tier_conservative_net_bps": 194.62858979157835,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100"
+          ],
+          "max_capacity_usdt": 100,
+          "shock_cluster": "2026-03-22T00:00:00Z",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        }
+      ]
+    },
+    "ohlcv_extreme_reversal|24h|2": {
+      "key": {
+        "event_family": "ohlcv_extreme_reversal",
+        "horizon": "24h",
+        "delay_bars": 2
+      },
+      "winners": [
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-04T16:00:00Z|ohlcv_extreme_reversal",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-04T16:00:00Z",
+          "event_family": "ohlcv_extreme_reversal",
+          "horizon": "24h",
+          "delay_bars": 2,
+          "user_tier_conservative_net_bps": 421.86023691257014,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "2026-03-04T16:00:00Z",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-25T13:00:00Z|ohlcv_extreme_reversal",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-25T13:00:00Z",
+          "event_family": "ohlcv_extreme_reversal",
+          "horizon": "24h",
+          "delay_bars": 2,
+          "user_tier_conservative_net_bps": 602.1862680310198,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        }
+      ]
+    },
+    "ohlcv_extreme_reversal|24h|3": {
+      "key": {
+        "event_family": "ohlcv_extreme_reversal",
+        "horizon": "24h",
+        "delay_bars": 3
+      },
+      "winners": [
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-25T15:00:00Z|ohlcv_extreme_reversal",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-25T15:00:00Z",
+          "event_family": "ohlcv_extreme_reversal",
+          "horizon": "24h",
+          "delay_bars": 3,
+          "user_tier_conservative_net_bps": 893.9451441949109,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        }
+      ]
+    },
+    "ohlcv_extreme_reversal|4h|0": {
+      "key": {
+        "event_family": "ohlcv_extreme_reversal",
+        "horizon": "4h",
+        "delay_bars": 0
+      },
+      "winners": [
+        {
+          "event_id": "KORU-USDT-SWAP|2026-06-24T15:00:00Z|ohlcv_extreme_reversal",
+          "symbol": "KORU-USDT-SWAP",
+          "decision_time": "2026-06-24T15:00:00Z",
+          "event_family": "ohlcv_extreme_reversal",
+          "horizon": "4h",
+          "delay_bars": 0,
+          "user_tier_conservative_net_bps": 542.7243703092003,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-20T14:00:00Z|ohlcv_extreme_reversal",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-20T14:00:00Z",
+          "event_family": "ohlcv_extreme_reversal",
+          "horizon": "4h",
+          "delay_bars": 0,
+          "user_tier_conservative_net_bps": 388.1211275884529,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-20T16:00:00Z|ohlcv_extreme_reversal",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-20T16:00:00Z",
+          "event_family": "ohlcv_extreme_reversal",
+          "horizon": "4h",
+          "delay_bars": 0,
+          "user_tier_conservative_net_bps": 152.29118942445507,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        }
+      ]
+    },
+    "ohlcv_extreme_reversal|4h|1": {
+      "key": {
+        "event_family": "ohlcv_extreme_reversal",
+        "horizon": "4h",
+        "delay_bars": 1
+      },
+      "winners": [
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-30T14:00:00Z|ohlcv_extreme_reversal",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-30T14:00:00Z",
+          "event_family": "ohlcv_extreme_reversal",
+          "horizon": "4h",
+          "delay_bars": 1,
+          "user_tier_conservative_net_bps": 367.4150104248929,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        }
+      ]
+    },
+    "ohlcv_extreme_reversal|4h|2": {
+      "key": {
+        "event_family": "ohlcv_extreme_reversal",
+        "horizon": "4h",
+        "delay_bars": 2
+      },
+      "winners": [
+        {
+          "event_id": "KORU-USDT-SWAP|2026-06-24T13:00:00Z|ohlcv_extreme_reversal",
+          "symbol": "KORU-USDT-SWAP",
+          "decision_time": "2026-06-24T13:00:00Z",
+          "event_family": "ohlcv_extreme_reversal",
+          "horizon": "4h",
+          "delay_bars": 2,
+          "user_tier_conservative_net_bps": 542.6423868616967,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-26T14:00:00Z|ohlcv_extreme_reversal",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-26T14:00:00Z",
+          "event_family": "ohlcv_extreme_reversal",
+          "horizon": "4h",
+          "delay_bars": 2,
+          "user_tier_conservative_net_bps": 296.65264574426857,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-26T17:00:00Z|ohlcv_extreme_reversal",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-26T17:00:00Z",
+          "event_family": "ohlcv_extreme_reversal",
+          "horizon": "4h",
+          "delay_bars": 2,
+          "user_tier_conservative_net_bps": 11.640160750983696,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100"
+          ],
+          "max_capacity_usdt": 100,
+          "shock_cluster": "none",
+          "personal_residual_reason": "impact",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        },
+        {
+          "event_id": "SNDK-USDT-SWAP|2026-03-27T04:00:00Z|ohlcv_extreme_reversal",
+          "symbol": "SNDK-USDT-SWAP",
+          "decision_time": "2026-03-27T04:00:00Z",
+          "event_family": "ohlcv_extreme_reversal",
+          "horizon": "4h",
+          "delay_bars": 2,
+          "user_tier_conservative_net_bps": 292.70056560777977,
+          "eligible_capital_tiers": [
+            "actual",
+            "30",
+            "100",
+            "1000"
+          ],
+          "max_capacity_usdt": 1000,
+          "shock_cluster": "none",
+          "personal_residual_reason": "capacity",
+          "large_tier_fail_reason": "capacity",
+          "map_manifest_hash": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321"
+        }
+      ]
+    }
+  }
+}

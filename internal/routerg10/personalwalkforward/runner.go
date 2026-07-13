@@ -6,12 +6,14 @@ import (
 	"path/filepath"
 	"time"
 
+	"lingxi/internal/datatruth"
 	historydata "lingxi/internal/datatruth/history"
 	"lingxi/internal/routerg4/profitmap"
 	"lingxi/internal/routerg6/eventmap"
 	"lingxi/internal/routerg6/reverseevent"
 	g10protocolv2 "lingxi/internal/routerg10/protocolv2"
 	g10personalvalidation "lingxi/internal/routerg10/personalvalidation"
+	"lingxi/internal/routerg10/exclusionmap"
 	"lingxi/internal/routerg10/personalplaybook"
 )
 
@@ -60,6 +62,8 @@ type Runner struct {
 	Catalog          historydata.HistoryCatalog
 	CheckpointPath   string
 	Proofs           g10personalvalidation.ProofBundle
+	InstrumentCatalog datatruth.InstrumentCatalog
+	HasInstrumentCatalog bool
 	OnProgress       func(survivorIndex int, playbookHash, symbol string)
 	CatalogValidator func(historydata.HistoryCatalog) error
 }
@@ -93,6 +97,9 @@ func (r *Runner) Run(ctx context.Context) (RunResult, error) {
 	}
 	r.Config.ConstitutionHash = constHash
 	r.Proofs = proofs
+	instrumentCat, hasInstrumentCat := exclusionmap.LoadInstrumentCatalogFromHistory(r.Config.HistoryRoot)
+	r.InstrumentCatalog = instrumentCat
+	r.HasInstrumentCatalog = hasInstrumentCat
 	if err := g10personalvalidation.VerifyBindings(g10personalvalidation.RunConfig{
 		ProtocolHash: g10protocolv2.RouterProtocolHash, HistoryDataHash: g10protocolv2.HistoryDataHash,
 		PlaybookManifestHash: bundle.Manifest.ManifestHash, ConstitutionHash: constHash,
@@ -188,7 +195,10 @@ func (r *Runner) runPlaybookWF(
 	barsBySymbol := map[string][]profitmap.Bar{}
 	fundingBySymbol := map[string][]profitmap.FundingPoint{}
 	tracker := eventmap.NewWindowTracker()
-	proofs := g10personalvalidation.ProofBundle{Announcements: r.Proofs.Announcements, ConstitutionHash: r.Config.ConstitutionHash}
+	proofs := r.Proofs
+	if proofs.ConstitutionHash == "" {
+		proofs.ConstitutionHash = r.Config.ConstitutionHash
+	}
 
 	for _, symbol := range profile.Symbols {
 		rel := profile.Spec.PrimaryFamily + "/" + symbol + ".jsonl"
@@ -210,6 +220,8 @@ func (r *Runner) runPlaybookWF(
 			Context: ctx, Spec: profile.Spec, ProfileID: profile.ProfileID, Boundaries: profile.Boundaries,
 			Thresholds: profile.Thresholds, BTCBars: profile.BTCBars, ShockClusterAt: profile.ShockCluster,
 			Funding: funding, MaxLines: r.Config.MaxLines, Proofs: proofs,
+			RequireProofObservations: !r.Config.AllowTruncatedSmoke,
+			InstrumentCatalog: r.InstrumentCatalog, HasInstrumentCatalog: r.HasInstrumentCatalog,
 		}, tracker)
 		if err != nil {
 			return PlaybookWFResult{}, err
@@ -228,7 +240,7 @@ func (r *Runner) runPlaybookWF(
 		}, nil
 	}
 
-	degSummary, err := g10personalvalidation.CheckBrainDegeneracy(allEvents, pb)
+	degSummary, err := g10personalvalidation.CheckBrainDegeneracy(allEvents, pb, proofs)
 	if err != nil {
 		return PlaybookWFResult{}, err
 	}

@@ -85,16 +85,18 @@ func (r *Runner) Run(ctx context.Context) (RunResult, error) {
 		default:
 		}
 		if !fileExists(spec.path) {
-			sourceStatus[spec.key] = SourceStatus{Path: spec.path, Status: StatusUnknown}
+			sourceStatus[spec.key] = MissingSourceStatus(spec.path)
 			continue
 		}
 		stats, err := ingestArchiveFile(spec.path, cfg.MaxLines, offsets[spec.key], cfg.PageSize, spec.venue, store)
 		if err != nil {
-			sourceStatus[spec.key] = SourceStatus{Path: spec.path, Status: StatusIncomplete, FetchFailed: true}
+			sourceStatus[spec.key] = SourceStatus{
+				Path: spec.path, Status: StatusIncomplete, FetchFailed: true, Reason: ReasonFetchFailed,
+			}
 			continue
 		}
 		offsets[spec.key] += stats.Decoded + stats.Malformed
-		st := buildSourceStatus(spec.path, stats)
+		st := BuildSourceStatus(spec.path, stats)
 		sourceStatus[spec.key] = st
 		if r.OnProgress != nil {
 			r.OnProgress(spec.key, offsets[spec.key])
@@ -102,6 +104,7 @@ func (r *Runner) Run(ctx context.Context) (RunResult, error) {
 	}
 
 	incomplete := ShouldFailClosed(sourceStatus)
+	incompleteReasons := CollectIncompleteReasons(sourceStatus)
 	items := store.Items()
 	tapeHash, err := HashTape(items)
 	if err != nil {
@@ -114,8 +117,9 @@ func (r *Runner) Run(ctx context.Context) (RunResult, error) {
 		ConfigHash:     configHash,
 		TapeHash:       tapeHash,
 		BuiltAt:        time.Now().UTC(),
-		Incomplete:     incomplete,
-		SourceStatus:   sourceStatus,
+		Incomplete:        incomplete,
+		IncompleteReasons: incompleteReasons,
+		SourceStatus:      sourceStatus,
 		Coverage:       store.Coverage(),
 		Announcements:  items,
 	}
@@ -145,31 +149,6 @@ func (r *Runner) Run(ctx context.Context) (RunResult, error) {
 	}
 
 	return RunResult{Tape: tape, Chain: chain, Manifest: manifest}, nil
-}
-
-func buildSourceStatus(path string, stats streamStats) SourceStatus {
-	status := StatusAvailable
-	if stats.FetchFailed {
-		status = StatusIncomplete
-	} else if stats.Truncated {
-		status = StatusTruncated
-	} else if stats.PagesExpected > 0 && stats.PagesComplete < stats.PagesExpected {
-		status = StatusIncomplete
-	} else if stats.Decoded == 0 {
-		status = StatusUnknown
-	}
-	return SourceStatus{
-		Path:          path,
-		Status:        status,
-		Lines:         stats.Lines,
-		Decoded:       stats.Decoded,
-		Skipped:       stats.Skipped,
-		Malformed:     stats.Malformed,
-		Truncated:     stats.Truncated,
-		PagesComplete: stats.PagesComplete,
-		PagesExpected: stats.PagesExpected,
-		FetchFailed:   stats.FetchFailed,
-	}
 }
 
 func fileExists(path string) bool {

@@ -37,10 +37,11 @@ type TriggerRecord struct {
 	MaxSlippageBPS    float64 `json:"max_slippage_bps"`
 	MinRemainingEdgeBPS float64 `json:"min_remaining_edge_bps"`
 	TimeoutMS         int64   `json:"timeout_ms"`
-	RemainingEdgeBPS  float64 `json:"remaining_edge_bps"`
-	SpreadBPS         float64 `json:"spread_bps"`
-	LatencyMS         float64 `json:"latency_ms"`
-	FeeBPS            float64 `json:"fee_bps"`
+	RemainingEdgeBPS       float64 `json:"remaining_edge_bps"`
+	ReferenceNotionalUSDT  float64 `json:"reference_notional_usdt,omitempty"`
+	SpreadBPS              float64 `json:"spread_bps"`
+	LatencyMS              float64 `json:"latency_ms"`
+	FeeBPS                 float64 `json:"fee_bps"`
 
 	ToxicFastFullFill bool `json:"toxic_fast_full_fill"`
 	ToxicThroughPrice bool `json:"toxic_through_price"`
@@ -51,6 +52,7 @@ type TriggerRecord struct {
 // ActionEvaluation is one frozen action path at decision time.
 type ActionEvaluation struct {
 	Action          string  `json:"action"`
+	ExpectedNetBPS  float64 `json:"expected_net_bps"`
 	ExpectedNetUSDT float64 `json:"expected_net_usdt"`
 	PFill           float64 `json:"p_fill,omitempty"`
 	Allowed         bool    `json:"allowed"`
@@ -98,6 +100,17 @@ type FrozenPolicy struct {
 	ToxicFillStatus         string             `json:"toxic_fill_status,omitempty"`
 	SelectedAction          string             `json:"selected_action"`
 	ExecutionPolicyHash     string             `json:"execution_policy_hash"`
+
+	// Frozen decision-visible execution bounds (LONG cap / SHORT floor).
+	Side                string  `json:"side,omitempty"`
+	Price               float64 `json:"price,omitempty"`
+	MaxPriceCap         float64 `json:"max_price_cap,omitempty"`
+	MaxSlippageBPS      float64 `json:"max_slippage_bps,omitempty"`
+	MinRemainingEdgeBPS float64 `json:"min_remaining_edge_bps,omitempty"`
+	TimeoutMS           int64   `json:"timeout_ms,omitempty"`
+	SpreadBPS           float64 `json:"spread_bps,omitempty"`
+	FeeBPS              float64 `json:"fee_bps,omitempty"`
+	LatencyMS           float64 `json:"latency_ms,omitempty"`
 }
 
 // Manifest seals execution-policy run outputs.

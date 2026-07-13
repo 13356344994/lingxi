@@ -2,12 +2,10 @@ package personalvalidation
 
 import (
 	"math"
-	"time"
 
 	"lingxi/internal/routerg6/eventmap"
 	g10entryproof "lingxi/internal/routerg10/entryproof"
 	g10executionpolicy "lingxi/internal/routerg10/executionpolicy"
-	g10exitproof "lingxi/internal/routerg10/exitproof"
 	"lingxi/internal/routerg10/exclusionmap"
 	"lingxi/internal/routerg10/personalbrain"
 	"lingxi/internal/routerg10/personalplaybook"
@@ -36,7 +34,7 @@ func observeExecution(
 	requireProofObservations bool,
 ) (personalbrain.ExecutionSimState, g10executionpolicy.TriggerRecord) {
 	ep, hasEntry := proofs.entryProof(eventID)
-	maxCap := frozenMaxPriceCap(price, direction, pb, proofs)
+	maxCap := frozenMaxPriceCap(price, direction, eventID, proofs)
 	latencyMS := 50.0
 	if hasEntry && ep.LatencyMS > 0 {
 		latencyMS = ep.LatencyMS
@@ -64,15 +62,34 @@ func observeExecution(
 		sim.MakerFilled = false
 		sim.MakerTouchedNotFilled = false
 	} else {
-		touched, filled, partial, subsequentlyProf := observeMakerPathHeuristic(bars, i, delay, direction, conservative)
-		sim.MakerFilled = filled
-		sim.MakerTouchedNotFilled = touched && !filled
-		sim.SubsequentlyProfitable = subsequentlyProf
-		sim.PartialFill = partial
+		// Smoke/heuristic scan: never impersonate bound fills for tier gates.
+		sim.MakerFilled = false
+		sim.MakerTouchedNotFilled = false
 	}
 	tr := executionTriggerFromObservations(eventID, direction, price, sim, conservative, sim.MakerFilled)
-	if fp, ok := proofs.executionPolicy(eventID, pb.ProofBinding.ExecutionPolicyHash); ok {
+	if fp, ok := proofs.executionPolicy(eventID); ok {
 		tr = mergeExecutionPolicyObservations(tr, fp)
+		if fp.MaxPriceCap > 0 {
+			sim.MaxPriceCap = fp.MaxPriceCap
+		}
+		if fp.MaxSlippageBPS > 0 {
+			sim.MaxSlippageBPS = fp.MaxSlippageBPS
+		}
+		if fp.MinRemainingEdgeBPS > 0 {
+			sim.MinRemainingEdgeBPS = fp.MinRemainingEdgeBPS
+		}
+		if fp.TimeoutMS > 0 {
+			sim.TimeoutMS = fp.TimeoutMS
+		}
+		if fp.SpreadBPS > 0 {
+			sim.SpreadBPS = fp.SpreadBPS
+		}
+		if fp.FeeBPS > 0 {
+			sim.FeeBPS = fp.FeeBPS
+		}
+		if fp.LatencyMS > 0 {
+			sim.LatencyMS = fp.LatencyMS
+		}
 	}
 	return sim, tr
 }
@@ -151,6 +168,33 @@ func observeMakerPathHeuristic(bars []eventmap.Bar, i, delay int, direction stri
 func mergeExecutionPolicyObservations(tr g10executionpolicy.TriggerRecord, fp g10executionpolicy.FrozenPolicy) g10executionpolicy.TriggerRecord {
 	tr.ToxicFastFullFill = fp.ToxicFillStatus == g10executionpolicy.ToxicFillExitStatus ||
 		fp.ToxicFillStatus == g10executionpolicy.ToxicFillRevalidateStatus
+	if fp.Side != "" {
+		tr.Side = fp.Side
+	}
+	if fp.Price > 0 {
+		tr.Price = fp.Price
+	}
+	if fp.MaxPriceCap > 0 {
+		tr.MaxPriceCap = fp.MaxPriceCap
+	}
+	if fp.MaxSlippageBPS > 0 {
+		tr.MaxSlippageBPS = fp.MaxSlippageBPS
+	}
+	if fp.MinRemainingEdgeBPS > 0 {
+		tr.MinRemainingEdgeBPS = fp.MinRemainingEdgeBPS
+	}
+	if fp.TimeoutMS > 0 {
+		tr.TimeoutMS = fp.TimeoutMS
+	}
+	if fp.SpreadBPS > 0 {
+		tr.SpreadBPS = fp.SpreadBPS
+	}
+	if fp.FeeBPS > 0 {
+		tr.FeeBPS = fp.FeeBPS
+	}
+	if fp.LatencyMS > 0 {
+		tr.LatencyMS = fp.LatencyMS
+	}
 	if fp.MakerGate.ForbidMaker {
 		_ = fp.MakerGate
 	}
@@ -207,17 +251,14 @@ func executionTriggerFromObservations(
 	return tr
 }
 
-func frozenMaxPriceCap(price float64, direction string, pb personalplaybook.PersonalWildPlaybook, proofs ProofBundle) float64 {
+func frozenMaxPriceCap(price float64, direction string, eventID string, proofs ProofBundle) float64 {
 	if price <= 0 {
 		return 0
 	}
-	slipFrac := obsMaxSlippageBPS / 10000
-	if _, ok := proofs.executionPolicy("", pb.ProofBinding.ExecutionPolicyHash); ok {
-		if direction == "short" {
-			return price * (1 - slipFrac)
-		}
-		return price * (1 + slipFrac)
+	if fp, ok := proofs.executionPolicy(eventID); ok && fp.MaxPriceCap > 0 {
+		return fp.MaxPriceCap
 	}
+	slipFrac := obsMaxSlippageBPS / 10000
 	if direction == "short" {
 		return price * (1 - slipFrac)
 	}
@@ -226,54 +267,16 @@ func frozenMaxPriceCap(price float64, direction string, pb personalplaybook.Pers
 
 func resolveExitProofOK(
 	eventID string,
-	bars []eventmap.Bar,
-	i, delay, horizonBars int,
-	pb personalplaybook.PersonalWildPlaybook,
 	proofs ProofBundle,
+	requireBoundProofs bool,
 ) bool {
 	if xp, ok := proofs.exitProof(eventID); ok {
 		return xp.CertificationOK
 	}
-	entryIdx := i + 1 + delay
-	exitIdx := entryIdx + horizonBars
-	if entryIdx >= len(bars) || exitIdx >= len(bars) {
+	if requireBoundProofs {
 		return false
 	}
-	depth := pb.EntryNarrative.ExecutableDepthUSDT
-	if depth <= 0 {
-		depth = pb.RiskNarrative.MaxSizeUSDT
-	}
-	xp, err := buildExitProofFromBars(eventID, bars[i].OpenTime, depth, entryIdx, exitIdx, bars)
-	if err != nil {
-		return false
-	}
-	return xp.CertificationOK
-}
-
-func buildExitProofFromBars(
-	eventID string,
-	decisionTime time.Time,
-	depth float64,
-	entryIdx, exitIdx int,
-	bars []eventmap.Bar,
-) (g10exitproof.Proof, error) {
-	canExit := exitIdx < len(bars) && entryIdx < len(bars)
-	slip := 0.0
-	if canExit {
-		entryPx := bars[entryIdx].Open
-		exitPx := bars[exitIdx].Close
-		if entryPx > 0 {
-			slip = math.Abs(exitPx-entryPx) / entryPx * 10000
-		}
-	}
-	return g10exitproof.BuildProof(g10exitproof.Input{
-		TriggerID:                eventID,
-		DecisionTime:             decisionTime,
-		ExitDepthUSDT:            depth,
-		CanExitBeforeMaintenance: canExit,
-		ExtremeExitSlippageBPS:   slip,
-		PartialCloseFeasible:     depth > 0 && canExit,
-	})
+	return false
 }
 
 func crowdingFromProofs(eventID string, conservative float64, pb personalplaybook.PersonalWildPlaybook, proofs ProofBundle) (level int, passed bool) {
@@ -312,6 +315,7 @@ func enrichMatchedEvent(
 	crowdingPassed bool,
 	crowding exclusionmap.CrowdingStress,
 	frozenAction string,
+	requireBoundProofs bool,
 ) personalbrain.MatchedPersonalEvent {
 	me.Proofs.ConstitutionHash = pb.ProofBinding.ConstitutionHash
 	me.Proofs.ExclusionProofHash = pb.ProofBinding.ExclusionProofHash
@@ -325,8 +329,6 @@ func enrichMatchedEvent(
 	me.Proofs.ExclusionAccepted = false
 	if ex, ok := proofs.exclusionProof(eventID); ok {
 		me.Proofs.ExclusionAccepted = ValidateExclusionFromProof(pb.ProofBinding, ex) == nil
-	} else {
-		me.Proofs.ExclusionAccepted = personalplaybook.ValidateExclusionAccepted(pb.ProofBinding, pb.ExclusionNarrative) == nil
 	}
 	me.Proofs.ExitCertified = exitOK
 	me.Proofs.CrowdingPassed = crowdingPassed
@@ -339,7 +341,7 @@ func enrichMatchedEvent(
 		me.Proofs.DynamicMinNotional = ep.DynamicMinNotional
 		me.Proofs.ExecutableDepthUSDT = ep.ExecutableDepth
 	}
-	if fp, ok := proofs.executionPolicy(eventID, pb.ProofBinding.ExecutionPolicyHash); ok {
+	if fp, ok := proofs.executionPolicy(eventID); ok {
 		me.Proofs.MakerGateForbid = fp.MakerGate.ForbidMaker
 	}
 	_ = frozenAction

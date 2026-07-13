@@ -1,0 +1,34 @@
+{
+  "schema_version": "lingxi.router-g10-fingerprint.coverage.v1",
+  "generation": "firstbattle-router-g10",
+  "fingerprint_hash": "3c0924a6bf3f47a57d71a7c61e92c00043fee53ce2f9f2315692e5d1198c6f1e",
+  "report_hash": "11858d147de03da2663fbd253bc7a6b50e6412ff33870ddeb854b9db5a508c33",
+  "raw_cell_count": 16207,
+  "symbol_count": 411,
+  "symbol_direction_count": 822,
+  "critical_known_count": 9,
+  "critical_unknown_count": 813,
+  "critical_known_symbols": [
+    "AI-USDT",
+    "ARX-USDT",
+    "KORU-USDT",
+    "RE-USDT",
+    "SKHYNIX-USDT",
+    "SLX-USDT",
+    "SNDK-USDT",
+    "SOXL-USDT"
+  ],
+  "critical_unknown_by_reason": {
+    "CELL_MISSING": 36,
+    "CONTRACT_VALUE_UNKNOWN": 683,
+    "CRITICAL_SAMPLE_COUNT_LT_3": 757,
+    "DYNAMIC_MIN_NOTIONAL_UNKNOWN": 683,
+    "ENTRY_SLIP_UNKNOWN_OR_SPARSE": 741,
+    "EXIT_SLIP_UNKNOWN_OR_SPARSE": 752,
+    "FEE_UNKNOWN_OR_SPARSE": 702,
+    "INSTRUMENT_UNKNOWN": 683,
+    "LATENCY_UNKNOWN_OR_SPARSE": 563,
+    "LOT_SIZE_UNKNOWN": 683,
+    "MAKER_FILL_UNKNOWN_OR_SPARSE": 622
+  }
+}

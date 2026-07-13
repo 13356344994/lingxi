@@ -6,14 +6,16 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	historydata "lingxi/internal/datatruth/history"
-	"lingxi/internal/routerg4/profitmap"
-	"lingxi/internal/routerg6/eventmap"
-	g10validation "lingxi/internal/routerg10/validation"
 	"lingxi/internal/routerg10/playbook"
 	"lingxi/internal/routerg10/protocol"
+	"lingxi/internal/routerg10/residualmap"
+	g10validation "lingxi/internal/routerg10/validation"
+	"lingxi/internal/routerg4/profitmap"
+	"lingxi/internal/routerg6/eventmap"
 )
 
 // Runner orchestrates bounded G10 playbook walk-forward replay.
@@ -53,16 +55,19 @@ func (r *Runner) Run(ctx context.Context) (RunResult, error) {
 	}
 
 	validationReport, survivors, valErr := VerifyValidationInputs(r.Config.ValidationDir, r.Config.PlaybookManifestHash)
+	cfg := r.Config
+	cfg.ValidationReportHash = validationReport.ReportHash
+	cfg.SurvivorsHash = survivors.SurvivorsHash
 	if valErr != nil {
 		reason := ReasonValidationNotPass
 		if validationReport.ReportHash == "" {
 			reason = ReasonValidationTamper
 		}
-		wf, summary, mechanism, execution, skipErr := BuildSkippedReport(r.Config, reason, validationReport, survivors)
+		wf, summary, mechanism, execution, skipErr := BuildSkippedReport(cfg, reason, validationReport, survivors)
 		if skipErr != nil {
 			return RunResult{}, skipErr
 		}
-		receipt, recErr := BuildStageReceipt(r.Config, r.Config.PlaybookManifestHash, "", "", nil, wf, mechanism, execution, map[string]string{
+		receipt, recErr := BuildStageReceipt(cfg, r.Config.PlaybookManifestHash, validationReport.PlaybookHash, validationReport.ExperimentHash, nil, wf, mechanism, execution, map[string]string{
 			"catalog_hash": r.Catalog.DataHash,
 		})
 		if recErr != nil {
@@ -74,11 +79,11 @@ func (r *Runner) Run(ctx context.Context) (RunResult, error) {
 		return RunResult{WFReport: wf, Summary: summary, MechanismReport: mechanism, ExecutionReport: execution, Receipt: receipt, Validation: validationReport, Survivors: survivors}, nil
 	}
 	if len(survivors.Survivors) == 0 {
-		wf, summary, mechanism, execution, err := BuildSkippedReport(r.Config, ReasonPlaybookUnavailable, validationReport, survivors)
+		wf, summary, mechanism, execution, err := BuildSkippedReport(cfg, ReasonPlaybookUnavailable, validationReport, survivors)
 		if err != nil {
 			return RunResult{}, err
 		}
-		receipt, err := BuildStageReceipt(r.Config, r.Config.PlaybookManifestHash, validationReport.PlaybookHash, validationReport.ExperimentHash, nil, wf, mechanism, execution, map[string]string{
+		receipt, err := BuildStageReceipt(cfg, r.Config.PlaybookManifestHash, validationReport.PlaybookHash, validationReport.ExperimentHash, nil, wf, mechanism, execution, map[string]string{
 			"catalog_hash": r.Catalog.DataHash,
 		})
 		if err != nil {
@@ -97,10 +102,6 @@ func (r *Runner) Run(ctx context.Context) (RunResult, error) {
 	if bundle.Manifest.ManifestHash != r.Config.PlaybookManifestHash {
 		return RunResult{}, fmt.Errorf("walkforward: playbook manifest hash mismatch")
 	}
-
-	cfg := r.Config
-	cfg.ValidationReportHash = validationReport.ReportHash
-	cfg.SurvivorsHash = survivors.SurvivorsHash
 
 	mapManifestHashes := map[string]string{}
 	profilesByID := map[string]profileContext{}
@@ -144,6 +145,11 @@ func (r *Runner) Run(ctx context.Context) (RunResult, error) {
 		return RunResult{}, fmt.Errorf("walkforward: fingerprint hash binding mismatch")
 	}
 	r.Fingerprint = fpBinding
+	eligibleSymbols := residualmap.CriticalKnownSymbolSet(fpBinding.Fingerprint)
+	for profileID, profile := range profilesByID {
+		profile.Symbols = filterEligibleSymbols(profile.Symbols, eligibleSymbols)
+		profilesByID[profileID] = profile
+	}
 
 	playbooksByHash := map[string]playbook.FrozenEventPlaybook{}
 	for _, pb := range bundle.Playbooks {
@@ -224,6 +230,17 @@ func (r *Runner) Run(ctx context.Context) (RunResult, error) {
 		return RunResult{}, err
 	}
 	return RunResult{WFReport: wfReport, Summary: summary, MechanismReport: mechanism, ExecutionReport: execution, Receipt: receipt, Validation: validationReport, Survivors: survivors}, nil
+}
+
+func filterEligibleSymbols(symbols []string, eligible map[string]bool) []string {
+	out := make([]string, 0, len(symbols))
+	for _, symbol := range symbols {
+		normalized := strings.TrimSuffix(strings.ToUpper(strings.TrimSpace(symbol)), "-SWAP")
+		if eligible[normalized] {
+			out = append(out, symbol)
+		}
+	}
+	return out
 }
 
 func (r *Runner) runPlaybookWF(

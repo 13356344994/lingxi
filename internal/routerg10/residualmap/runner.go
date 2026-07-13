@@ -80,8 +80,9 @@ func (r *Runner) Run(ctx context.Context) (RunResult, error) {
 		)
 	}
 
-	workItems, err := CollectTriggeredEventWorkItems(
-		bundles, r.Catalog, r.Config.HistoryRoot, r.Config.MaxFiles, r.Config.MaxLines,
+	eligibleSymbols := CriticalKnownSymbolSet(fpEnv.Fingerprint)
+	workItems, err := CollectTriggeredEventWorkItemsForSymbols(
+		bundles, r.Catalog, r.Config.HistoryRoot, r.Config.MaxFiles, r.Config.MaxLines, eligibleSymbols,
 	)
 	if err != nil {
 		return RunResult{}, err

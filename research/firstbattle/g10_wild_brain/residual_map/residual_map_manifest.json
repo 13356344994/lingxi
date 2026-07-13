@@ -1,0 +1,45 @@
+{
+  "schema_version": "lingxi.routerg10.residual-map.manifest.v1",
+  "generation": "firstbattle-router-g10",
+  "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+  "history_data_hash": "f41ed2586d91054c4b5b2e15e60f32a4d64ccde0032e76dfdc5fc6dee316379c",
+  "config_hash": "bbc0e4f385cc9e01e99d3141b1905d50321e933d053dbb1765a96fbe164d7418",
+  "catalog_hash": "f41ed2586d91054c4b5b2e15e60f32a4d64ccde0032e76dfdc5fc6dee316379c",
+  "fingerprint_hash": "3c0924a6bf3f47a57d71a7c61e92c00043fee53ce2f9f2315692e5d1198c6f1e",
+  "fingerprint_path": "/root/lingxi/research/firstbattle/g10_wild_brain/personal_execution_fingerprint.json",
+  "map_manifest_hashes": {
+    "okx_1h": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321",
+    "okx_5m": "60e050cfcc9889cd44d391e6354088a2e3119e0976c9d769a37c569a8abc2f4e"
+  },
+  "map_artifact_hashes": {
+    "okx_1h/event_map_discovery_okx_1h.json": "c13bb1cef96a8cfc2483850b5225ba736b8ff8a301965ef933728026c4a7eff6",
+    "okx_1h/event_map_thresholds.json": "71b32e28122836fb991c10f60865d95facaedad3af5f1560e419244b56044c29",
+    "okx_1h/event_map_validation_okx_1h.json": "bdea941c06ec510a0d9e09700bb0e26be8f5e10e531f57fd6549a034d3b495a5",
+    "okx_1h/event_map_walk_forward_okx_1h.json": "bf8b476c294e032578b2b1876bfe1233ddf26f23d9397d372afbe4c7f7746f94",
+    "okx_1h/g6_event_map_summary.json": "2d9df373b781543ff78c5ee386ca19eb7036daa9f330c32ce18223c633fd13ee",
+    "okx_5m/event_map_discovery_okx_5m.json": "f930346855f568a4c7fb16a1c0c065cf9be5eb9b652ddb77a4581035a8e62e65",
+    "okx_5m/event_map_thresholds.json": "06f10f73a41aa2d130655de3404421e1cb9616d5922f234e90ac52ec1ad319db",
+    "okx_5m/event_map_validation_okx_5m.json": "77d8ed5462b01913241a84dd194e4d4803c0744fbe9b8ff2ca9696c91d4827af",
+    "okx_5m/event_map_walk_forward_okx_5m.json": "d73a713daab01dede34f9d1c9ac7ae6d79e62d0792491935bc1493877c2eca2c",
+    "okx_5m/g6_event_map_summary.json": "558d818de298a372d3668a694b8789f123a367dfd39f800e216dba939599504a"
+  },
+  "candidate_limit": 10000,
+  "accepted_count": 101,
+  "rejected_count": 40584,
+  "map_hash": "dae64ed12164f7d7deaff7e1cb5c562091c1b424293bcb872c8bedb918351581",
+  "ledger_hash": "3fe3912e3f6f44c784e1f5587744562f50cc68107f5eaf1e8c66d90c6e40f4fd",
+  "artifact_hashes": {
+    "okx_1h/residual_map_discovery_okx_1h.json": "ab3540c56b078eb61ae380a53a5cf9dc6fdb6e7d594e36245ecd4cbc6fc5f496",
+    "okx_1h/residual_map_manifest.json": "65bb365d3cede9900d9497e3ec545d3ecc4ec2f4d0a30bacd67a410ba49dc00e",
+    "okx_1h/residual_map_thresholds.json": "71b32e28122836fb991c10f60865d95facaedad3af5f1560e419244b56044c29",
+    "okx_5m/residual_map_discovery_okx_5m.json": "4501ff8adc9159366d589ee662549ec886992d12f1b14182723f1d51e107abf1",
+    "okx_5m/residual_map_manifest.json": "2906a388ebfdf9662619698314ae232fa16db52575724376e621c4c63c7ed4a2",
+    "okx_5m/residual_map_thresholds.json": "06f10f73a41aa2d130655de3404421e1cb9616d5922f234e90ac52ec1ad319db",
+    "personal_residual_map.json": "cb02d00eaade7036da80b2ed399159957470e6fdc1a90b34782da88c5faad1d4",
+    "residual_map_ledger.json": "0f4fe5f1df593d5dbb7ea215c28f773969fdd72f5ec848da32c208bd6650841e",
+    "residual_map_manifest.json": "d232fdf4ff219824cb65a2432d96b21ea82e6b9380021a8134a9fa61b9ed9378",
+    "residual_map_summary.json": "95d34f016eeede91193ca26237e49c25e8fb4c6005cfb5a18badc203fa4e6ec8"
+  },
+  "created_at": "2026-07-13T07:07:21.024978641Z",
+  "manifest_hash": "f5e6093e77ffc1914d8bec2482e46f4a436a697aead3c08f20708651b322bb64"
+}

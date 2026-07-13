@@ -18,6 +18,11 @@ func evaluatePITFlags(all []announcements.Announcement, decision time.Time) (pub
 				firstSeenContaminated = true
 			}
 		}
+		if !a.EffectiveAt.IsZero() && a.EffectiveAt.After(decision) {
+			if announcements.VisibleAt(a, decision) {
+				publishedContaminated = true
+			}
+		}
 	}
 	return publishedContaminated, firstSeenContaminated
 }
@@ -41,14 +46,13 @@ func BuildPITReport(events []TriggerEvent) PITContaminationReport {
 func RunPITContaminationSelfTest() PITContaminationReport {
 	pub := time.Date(2024, 6, 20, 8, 0, 0, 0, time.UTC)
 	firstSeen := time.Date(2024, 6, 20, 9, 0, 0, 0, time.UTC)
+	effective := time.Date(2024, 6, 25, 0, 0, 0, 0, time.UTC)
 	decision := time.Date(2024, 6, 10, 0, 0, 0, 0, time.UTC)
 	a := announcements.Announcement{
 		Venue: announcements.VenueBinance, Symbol: "ETH-USDT", Kind: announcements.KindListing,
-		PublishedAt: pub, FirstSeenAt: firstSeen, SourceHash: "test", InfoOnly: true,
+		PublishedAt: pub, FirstSeenAt: firstSeen, EffectiveAt: effective, SourceHash: "test", InfoOnly: true,
 	}
-	ev := TriggerEvent{DecisionTime: decision}
 	pubBad, fsBad := evaluatePITFlags([]announcements.Announcement{a}, decision)
-	ev.PITPublishedContaminated = pubBad
-	ev.PITFirstSeenContaminated = fsBad
+	ev := TriggerEvent{DecisionTime: decision, PITPublishedContaminated: pubBad, PITFirstSeenContaminated: fsBad}
 	return BuildPITReport([]TriggerEvent{ev})
 }
