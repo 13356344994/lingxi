@@ -1,0 +1,11 @@
+{
+  "schema_version": "lingxi.data-driven-router-v3.shard-receipt.v2",
+  "partition": "router_holdout",
+  "month": "2026-06",
+  "path": "partition=router_holdout/month=2026-06.jsonl.gz",
+  "rows": 259087,
+  "first_ms": 1780272000000,
+  "last_ms": 1782860400000,
+  "sha256": "12d6ce16ba729feade5429782058411c3e46d103e96435e76db7d61e5e9eaa16",
+  "source_binding": "4089551091dae25213db1c27e6bac754498cbb2e2102cbab5e53fb0099960405"
+}

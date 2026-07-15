@@ -1,0 +1,35 @@
+{
+  "schema_version": "lingxi.data-driven-router-v3.builder-benchmark.v1",
+  "status": "PASS",
+  "symbols": [
+    "ADA-USDT-SWAP",
+    "AVAX-USDT-SWAP",
+    "BTC-USDT-SWAP",
+    "DOGE-USDT-SWAP",
+    "ETH-USDT-SWAP",
+    "LINK-USDT-SWAP",
+    "SOL-USDT-SWAP",
+    "XRP-USDT-SWAP"
+  ],
+  "complete_utc_days": 30,
+  "minimum_state_rows_per_second": 10000,
+  "runs": [
+    {
+      "rows": 5760,
+      "emission_nanos": 155941998,
+      "state_rows_per_second": 36936.81031328071,
+      "dataset_hash": "6ac07e5e76d4fd97cc44aa1a64767b00064195d7b9b3555a7d5a93dc53dfccf9",
+      "peak_rss_bytes": 18956288
+    },
+    {
+      "rows": 5760,
+      "emission_nanos": 154570899,
+      "state_rows_per_second": 37264.45299383294,
+      "dataset_hash": "6ac07e5e76d4fd97cc44aa1a64767b00064195d7b9b3555a7d5a93dc53dfccf9",
+      "peak_rss_bytes": 21024768
+    }
+  ],
+  "hash_deterministic": true,
+  "real_reward_labels_read": false,
+  "legacy_dataset_status": "STALLED_UNTRUSTED"
+}

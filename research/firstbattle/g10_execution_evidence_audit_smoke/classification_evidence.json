@@ -1,0 +1,12 @@
+{
+  "artifact_hash": "5a25cfbc66b85230d203f9f70b2df82d6d1404cd4b87b6be8a637d8ebcc98b19",
+  "classification_by_route": {
+    "g10_v1": {
+      "classification": null,
+      "engineering_status": "NON_FORMAL_SMOKE",
+      "phase": "A",
+      "reason": "truncated prefix smoke cannot produce a formal seven-class verdict"
+    }
+  },
+  "schema_version": "lingxi.g10-execution-evidence-audit.v1"
+}

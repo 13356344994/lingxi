@@ -1,0 +1,477 @@
+{
+  "schema_version": "lingxi.g10-execution-evidence-audit-preregistration.v1",
+  "protocol_id": "firstbattle.g10.execution-evidence-audit",
+  "generation": "firstbattle-g10-execution-evidence-audit-v1",
+  "created_at": "2026-07-13T09:31:00Z",
+  "status": "PREREGISTERED_NOT_RUN",
+  "companion_doc": "research/firstbattle/g10_execution_evidence_audit_preregistration.md",
+  "mission": {
+    "goal": "区分数据不可见、不可识别、事后解释、个人不可执行、支持不足、机制表述被证伪与可进入新 generation；不预设 G10 成功或失败。",
+    "account_scope": "几十 U 到几千 U，最高 5 倍杠杆，严格偿付约束。",
+    "current_fact": "G10 v1 validation 0/31、0 survivor、WF skipped；observed validation events=0，底层门为 COVERAGE。",
+    "non_goal": "本协议不创建候选结论、不调 G10 v1 阈值、不消费考卷、不授予交易权限。",
+    "no_future_wait": true
+  },
+  "frozen_g10_bindings": {
+    "generation": "firstbattle-router-g10",
+    "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+    "history_data_hash": "f41ed2586d91054c4b5b2e15e60f32a4d64ccde0032e76dfdc5fc6dee316379c",
+    "fingerprint_hash": "3c0924a6bf3f47a57d71a7c61e92c00043fee53ce2f9f2315692e5d1198c6f1e",
+    "fingerprint_coverage_hash": "11858d147de03da2663fbd253bc7a6b50e6412ff33870ddeb854b9db5a508c33",
+    "map_manifest_hashes": {
+      "okx_1h": "f757f2b103785c835603ad165e5b40f4e704b1295e4e9a32bde228acf966a321",
+      "okx_5m": "60e050cfcc9889cd44d391e6354088a2e3119e0976c9d769a37c569a8abc2f4e"
+    },
+    "residual_map_hash": "dae64ed12164f7d7deaff7e1cb5c562091c1b424293bcb872c8bedb918351581",
+    "playbook_hash": "8ceae12715dc9cc885fcaf77c230b7c44dc3becfe3644372ad1f276bd2d8a8f0",
+    "experiment_hash": "a471569db03b5667815a944506a935cac8c5f2b74371a434807cd2c306995d19",
+    "playbook_manifest_hash": "ef82da8421a9c6eb02b9854eebaf47673e94365918a058b610077d35064ce0c5",
+    "validation_report_hash": "13703d334a9092eca81db52c17371c8a2377c2646b5b42e50e91e0c7959a8006",
+    "validation_survivors_hash": "a1b07559b108743f79fa20dc7c106f46574ff8f4ef53ce1325cb78a8de9b5dc8",
+    "validation_receipt_hash": "eeb2d22b92506ba925ee74713147096750f72adcf7ad10837b22b9a47ccf3e06",
+    "walk_forward_report_hash": "7fe38567643f18af7222d7b8da5a72765162d0e9345c7547e7deb6d11d686628",
+    "walk_forward_receipt_hash": "271765ec4c040e29ab5e134ffc695315baa90718a71dd17acb81767d60686b30"
+  },
+  "design_decision": {
+    "selected": "BYTE_PREFIX_MANIFEST_PLUS_STREAMING_PROJECTION",
+    "alternatives": [
+      {
+        "id": "IMMUTABLE_FULL_COPY",
+        "design": "先复制全部输入到研究目录再审计。",
+        "decision": "REJECTED",
+        "reason": "最强隔离但会复制多 GB 运行态日志，增加 I/O、磁盘和误处理私人原始行的风险。"
+      },
+      {
+        "id": "BYTE_PREFIX_MANIFEST_PLUS_STREAMING_PROJECTION",
+        "design": "冻结每个 JSONL 的完整换行字节前缀、prefix hash、行数与 cutoff，再只流式投影允许字段。",
+        "decision": "SELECTED",
+        "reason": "不修改 records、不复制大日志；前缀可复算，追加行不会进入；字段投影与标签防火墙可审计。"
+      },
+      {
+        "id": "EVENT_TIME_CUTOFF_RESCAN",
+        "design": "按记录时间 <= cutoff 每次重扫当前文件。",
+        "decision": "REJECTED",
+        "reason": "迟到/回填行、时钟语义和文件重写会改变成员集合，无法稳定重放。"
+      },
+      {
+        "id": "LINE_COUNT_ONLY",
+        "design": "只冻结行数并按行号截断。",
+        "decision": "REJECTED",
+        "reason": "无法检测前缀原地改写，且 partial trailing line 与 malformed 行会使解码偏移漂移。"
+      }
+    ]
+  },
+  "allowed_inputs": [
+    {
+      "source_id": "settlements",
+      "path": "records/okx_directional/settlements.jsonl",
+      "format": "JSONL_APPEND",
+      "role": "settlement lifecycle、直接 fee/slip、方向、名义本金与时间",
+      "forbidden_projection_fields": ["realized_usdt", "mfe_*", "mae_*"]
+    },
+    {
+      "source_id": "fast_v2_settlements",
+      "path": "records/okx_directional/fast_v2_settlements.jsonl",
+      "format": "JSONL_APPEND",
+      "role": "第二 settlement 流；不得与 settlements 静默重复累计",
+      "forbidden_projection_fields": ["realized_usdt", "mfe_*", "mae_*"]
+    },
+    {
+      "source_id": "exchange_fills",
+      "path": "records/fast_exchange_fills_cache.jsonl",
+      "format": "JSONL_APPEND",
+      "role": "交易所成交、费用、价格、数量与成交时刻的最高来源等级",
+      "sensitive_identity_fields": ["tradeId", "billId", "ordId", "clOrdId"]
+    },
+    {
+      "source_id": "maker_attempts",
+      "path": "records/okx_directional/fast_maker_attempts.jsonl",
+      "format": "JSONL_APPEND",
+      "role": "maker 尝试全分母、显式 filled、wait 与报价/成交价格"
+    },
+    {
+      "source_id": "executable_shadow",
+      "path": "records/okx_directional/fast_executable_shadow_events.jsonl",
+      "format": "JSONL_APPEND",
+      "role": "决策时刻盘口/深度可执行代理与 eval_rest_ms 弱延迟代理",
+      "not_truth_for": ["actual_fill", "actual_fee", "signal_ack_fill_latency"]
+    },
+    {
+      "source_id": "open_decisions",
+      "path": "records/okx_directional/open_decision_events.jsonl",
+      "format": "JSONL_APPEND",
+      "role": "开仓意图、接受/拒绝、maker/taker 路径与决策时刻"
+    },
+    {
+      "source_id": "instrument_metadata",
+      "path": "records/okx_directional/instrument_meta.json",
+      "format": "JSON_MUTABLE_SNAPSHOT",
+      "role": "tick、lot、min size、contract value/type 与 fetched_at"
+    },
+    {
+      "source_id": "equity_snapshots",
+      "path": "records/crossvenue/equity_snapshots.jsonl",
+      "format": "JSONL_APPEND",
+      "role": "账户资金档和偿付上下文；不作为收益标签"
+    },
+    {
+      "source_id": "validation_triggers_okx_1h",
+      "path": "research/firstbattle/g10_wild_brain/event_map_okx_1h/event_map_validation_okx_1h.json",
+      "format": "FROZEN_JSON_LABEL_FIREWALL",
+      "role": "只投影 validation partition 的 outcome-blind trigger identity/support 字段"
+    },
+    {
+      "source_id": "validation_triggers_okx_5m",
+      "path": "research/firstbattle/g10_wild_brain/event_map_okx_5m/event_map_validation_okx_5m.json",
+      "format": "FROZEN_JSON_LABEL_FIREWALL",
+      "role": "只投影 validation partition 的 outcome-blind trigger identity/support 字段"
+    },
+    {
+      "source_id": "playbook_bindings",
+      "path": "research/firstbattle/g10_wild_brain/playbooks/g10_event_playbooks.json",
+      "format": "FROZEN_JSON_LABEL_FIREWALL",
+      "role": "只投影 PlaybookHash、public trigger、profile/event family/horizon/direction 与冻结 proof bindings"
+    },
+    {
+      "source_id": "playbook_manifest",
+      "path": "research/firstbattle/g10_wild_brain/playbooks/event_playbook_manifest.json",
+      "format": "FROZEN_JSON",
+      "role": "验证 Playbook/experiment/hash 链"
+    }
+  ],
+  "source_freeze": {
+    "boundary_capture_order": [
+      "为所有输入取得 advisory read lock（若 writer 不支持则 stat-before/read-prefix/stat-after 稳定性重试）",
+      "JSONL 只冻结最后一个 LF 结束位置；尾部未换行字节不进入 prefix",
+      "记录 device/inode、relative_path、captured_at、byte_prefix、complete_line_count、prefix_sha256、first/last complete-line sha256",
+      "JSON_MUTABLE_SNAPSHOT 在 stat-before/read/stat-after 一致时原子复制到新 audit input_snapshots 目录并记录 whole_file_sha256",
+      "冻结 manifest 并计算 manifest_hash 后才允许解析"
+    ],
+    "append_after_capture": "IGNORED",
+    "prefix_mutation": "FAIL_CLOSED",
+    "file_truncation_or_inode_change": "FAIL_CLOSED",
+    "partial_trailing_line": "EXCLUDED_AND_REPORTED_NOT_MALFORMED",
+    "malformed_complete_line": "COUNT_AND_QUARANTINE_HASH; EXCLUDE_ROW; SOURCE_STATUS=DEGRADED; critical field impact remains UNKNOWN",
+    "empty_line": "COUNT_SEPARATELY; EXCLUDE",
+    "max_line_bytes": 4194304,
+    "cutoff_semantics": "captured_at 是证据冻结时间，不替代事件时间；成员资格由 byte_prefix 决定。",
+    "manifest_required_fields": [
+      "source_id",
+      "relative_path",
+      "format",
+      "device",
+      "inode",
+      "captured_at",
+      "byte_prefix",
+      "complete_line_count",
+      "partial_trailing_bytes",
+      "prefix_sha256",
+      "whole_file_sha256",
+      "first_complete_line_sha256",
+      "last_complete_line_sha256",
+      "status"
+    ],
+    "source_manifest_envelope": {
+      "schema_version": "lingxi.g10-execution-evidence-source-manifest.v1",
+      "required_fields": ["schema_version", "generation", "protocol_hash", "captured_at", "sources", "manifest_hash"],
+      "manifest_hash_method": "将 manifest_hash 置 null 后 datatruth.HashJSON；sources 按 source_id 升序，禁止依赖 map/文件遍历顺序。",
+      "write_order": "先完成并校验全部 source entries，再原子写 manifest；manifest_hash 冻结后不得追加 source。"
+    }
+  },
+  "label_firewall": {
+    "phase_a_allowed_trigger_fields": [
+      "event_id",
+      "symbol",
+      "profile_id",
+      "event_family",
+      "decision_time",
+      "decision_bar_index",
+      "day",
+      "shock_cluster",
+      "horizon",
+      "direction",
+      "delay_bars"
+    ],
+    "phase_a_allowed_playbook_fields": [
+      "playbook_hash",
+      "experiment_hash",
+      "profile_id",
+      "event_family",
+      "public_trigger",
+      "horizon",
+      "direction",
+      "proof_binding"
+    ],
+    "forbidden_until_support_and_matching_hashes_frozen": [
+      "return",
+      "pnl",
+      "profit",
+      "winner",
+      "future_outcome",
+      "conservative_net",
+      "mfe",
+      "mae",
+      "subsequently_profitable"
+    ],
+    "phase_b_unblind_rule": "只有 support_set_hash、matched_set_hash、baseline_set_hash、Data Fitness Matrix hash、解析配置 hash 全部冻结后，独立评分阶段才可读取既有冻结标签；不得改字段、匹配、阈值或支持域。",
+    "raw_label_summary_in_audit_setup": false,
+    "scope_change_after_unblind": "NEW_GENERATION_REQUIRED"
+  },
+  "data_fitness_matrix": {
+    "row_key": ["route_id", "required_field"],
+    "required_columns": [
+      "semantic_definition",
+      "required_for_layer",
+      "source_ids",
+      "fitness_status",
+      "decision_time_availability",
+      "reconstruction_rule",
+      "weak_proxy_limit",
+      "coverage_numerator",
+      "coverage_denominator",
+      "missing_reason_counts",
+      "false_negative_risk",
+      "leakage_risk",
+      "evidence_hash"
+    ],
+    "fitness_status_enum": ["DIRECT", "RECONSTRUCTABLE", "WEAK_PROXY", "MISSING"],
+    "decision_time_availability_enum": ["KNOWN_AT_DECISION", "KNOWN_AFTER_DECISION", "PIT_UNPROVEN", "UNKNOWN"],
+    "rules": [
+      "required field 不得因 JSON 零值而视为已知；必须有 presence bit、来源和语义校验。",
+      "KNOWN_AFTER_DECISION 不得作为事前预测特征，但可作为执行结果证据。",
+      "WEAK_PROXY 不得升级为交易所真值；MISSING/UNKNOWN 不得补零。",
+      "每个缺失项必须写明可能造成哪类假阴性。"
+    ]
+  },
+  "canonical_semantics": {
+    "time": {
+      "event_time": "交易所/源事件发生时间；若无法证明则 UNKNOWN",
+      "receive_time": "本地首次接收时间；与 recorded_at/process time 不混用",
+      "decision_time": "G10 validation trigger 冻结决策时刻",
+      "recorded_at": "本地写入/评估时间，只能按源声明使用",
+      "pit_rule": "任何字段 KnownFrom > decision_time 均不得作为 decision-time evidence"
+    },
+    "notional": "优先直接 USDT notional；否则 linear contract 使用 abs(fillSz)*ctVal*fillPx 重建；inverse/币本位或缺 ctVal/price/currency conversion 时 UNKNOWN。",
+    "fee_bps": "优先交易所 fill fee，经成交时点 fee currency 合法换算为 USDT 后 abs(fee_usdt)/notional_usdt*10000；其次 settlement fee_usdt；缺换算、符号语义冲突或 notional<=0 为 UNKNOWN。",
+    "entry_slip_bps": "已有 settlement entry_slip_bps 为 DIRECT；重建时 long=(fill-reference)/reference*10000，short=(reference-fill)/reference*10000；reference 必须是 decision-time 可见且冻结的预成交 mid/quote，否则 UNKNOWN。",
+    "exit_slip_bps": "已有 settlement exit_slip_bps 为 DIRECT；重建公式与方向一致，reference 必须是冻结退出决策时可见 mid/quote；仅有成交价不得推断零滑点。",
+    "latency": {
+      "signal_to_ack_ms": "需 signal_time 与 exchange_ack/receive_time；缺任一为 UNKNOWN",
+      "ack_to_fill_ms": "需 exchange_ack 与 fill_time；缺任一为 UNKNOWN",
+      "maker_wait_ms": "maker attempt 显式 maker_wait_ms 可 DIRECT",
+      "eval_rest_ms": "仅 WEAK_PROXY，不得冒充 signal-to-ack-fill latency"
+    },
+    "maker": "分母是冻结前缀内所有语义有效 maker attempts；仅显式 maker_filled=true 计 filled。缺行、未匹配 settlement 或未观察到 fill 不得自动视为未成交。",
+    "instrument": "按 decision_time 选择 KnownFrom<=decision_time 的版本；tick/lot/min_sz/ctVal/ctType 全部已知且 linear 时才可计算 dynamic_min_notional=min_sz*ctVal*price。当前 snapshot 无历史 KnownFrom 证明时为 PIT_UNPROVEN/WEAK_PROXY。",
+    "open_close_pairing": {
+      "direct": "同一稳定 position/order lifecycle identity 且方向、symbol、size/time 一致",
+      "reconstructable": "无稳定 ID 时按 venue+normalized_symbol+position_side 使用事件时间 FIFO/size conservation；必须唯一且无并发歧义",
+      "unmatched": "保留该行可证明字段，pair status=UNMATCHED；不产生零收益、零费用或零滑点",
+      "partial": "按已成交 size 分段配对并保留 remainder；不得把 partial 当 full",
+      "cross_source_time_tolerance_ms": 5000
+    }
+  },
+  "dedup_and_conflicts": {
+    "source_priority_by_fact": {
+      "actual_fill_price_size_time_fee": ["exchange_fills", "settlements", "fast_v2_settlements"],
+      "settled_lifecycle_and_direct_slip": ["settlements", "fast_v2_settlements", "exchange_fills"],
+      "maker_attempt_denominator": ["maker_attempts"],
+      "decision_intent": ["open_decisions"],
+      "decision_time_market_proxy": ["executable_shadow"],
+      "instrument_constraints": ["instrument_metadata"],
+      "equity_context": ["equity_snapshots"]
+    },
+    "dedup_keys": {
+      "exchange_fills": ["venue+tradeId", "venue+billId", "fallback: venue+instId+fillTime+side+posSide+fillPx+fillSz+fee"],
+      "settlements": ["source+position_id", "source+fast_event_id", "fallback: source+symbol+side+time+entry+exit+notional"],
+      "maker_attempts": ["venue+symbol+side+recorded_at+maker_order_price+maker_wait_ms"],
+      "open_decisions": ["venue+symbol+side+recorded_at+position_id+decision_result"],
+      "executable_shadow": ["venue+symbol+recorded_at+snapshot_id"],
+      "equity_snapshots": ["venue+ts"]
+    },
+    "sensitive_key_handling": "原始 ID 只在内存中以 audit-salt HMAC/sha256 token 用于 join/dedup；输出不得含原始 ID。",
+    "exact_duplicate": "计数后只保留一个 canonical observation。",
+    "cross_source_duplicate": "建立 provenance links，不重复累计事实。",
+    "conflict_rule": "高优先来源可决定该单一事实，但冲突必须进入 conflict matrix；若单位/身份/时序不能证明一致，则该事实 UNKNOWN，不静默覆盖。",
+    "conflict_severity_enum": ["INFO_DUPLICATE", "DEGRADED", "CRITICAL_UNKNOWN", "FATAL_BINDING_DRIFT"]
+  },
+  "reverse_winner_control_design": {
+    "unit": "outcome-blind validation trigger",
+    "winner_seed_binding": "只使用已冻结 Playbook 的 source_event_id/PlaybookHash 作为 seed identity；Phase A 不读取 seed 收益值。",
+    "support_domain": "将每个 Playbook public_trigger 应用于完整 validation partition outcome-blind triggers，取 profile/event_family/horizon/direction 与 PIT 条件交集。",
+    "matched_loser_pool": "同一 support domain 内除 seed 外全部触发；匹配不使用 outcome。",
+    "exact_match": ["profile_id", "event_family", "horizon", "direction"],
+    "coarsened_match": ["decision-time volatility bucket", "liquidity bucket", "UTC session", "instrument min-notional bucket"],
+    "matching_order": "exact strata 后按预冻结 bucket 距离、decision_time、event_id 稳定排序；每 seed 最多 5 controls，无合格 control 明示 UNIDENTIFIABLE。",
+    "replacement": false,
+    "baseline_incidence": "完整 support domain 中 seed identity / 全部 outcome-blind triggers；同时输出每层分母和 UNKNOWN。",
+    "required_hashes_before_unblind": ["winner_seed_set_hash", "matched_control_set_hash", "baseline_support_set_hash", "matching_config_hash"],
+    "posthoc_rule": "若只在 seed 可解释、匹配 controls 无事前区分力，裁决 POSTHOC_ONLY；禁止调 bucket/阈值复活。"
+  },
+  "critical_known_gate": {
+    "required_fields": [
+      "fee_bps",
+      "entry_slip_bps",
+      "exit_slip_bps",
+      "maker_fill_rate",
+      "latency_ms",
+      "instrument_lot",
+      "instrument_contract_value",
+      "instrument_contract_type",
+      "dynamic_min_notional_usdt"
+    ],
+    "per_metric_min_samples": 3,
+    "success_thresholds": {
+      "events": 50,
+      "independent_days": 20,
+      "non_overlap_shock_blocks": 10
+    },
+    "all_required": true,
+    "unknown_action": "BLOCK_LAYER_AND_CLASSIFY_BY_EARLIEST_PROVEN_BLOCKER",
+    "threshold_reduction_forbidden": true
+  },
+  "falsification_chain": [
+    "observability",
+    "identifiability",
+    "ex_ante_predictability",
+    "personal_executability",
+    "independent_support",
+    "net_edge"
+  ],
+  "classification": {
+    "single_class_required": true,
+    "earliest_blocker_wins": true,
+    "classes": {
+      "DATA_BLIND": "关键 required field 为 MISSING/WEAK_PROXY 且足以制造假阴性；关闭当前测量方案。",
+      "UNIDENTIFIABLE": "关键变量可见但无法与替代解释或匹配 controls 区分；仅新识别设计可重开。",
+      "POSTHOC_ONLY": "只能解释 seed/winners，无法在冻结口径下事前区分 matched controls。",
+      "UNEXECUTABLE": "毛机会可识别，但本账户 fee/slip/latency/maker/min-notional/pairing 后不可捕获。",
+      "INSUFFICIENT_SUPPORT": "可观测且可识别，但未达到 50 events/20 days/10 shock blocks 或 critical-known 样本门。",
+      "FALSIFIED": "前五层充分且达到支持门，冻结表述的净 edge 仍失败。",
+      "SUPPORTED_FOR_NEW_GENERATION": "六层均有支持；仅允许提出新 generation 预注册，不授予考试或交易。"
+    },
+    "cannot_be_falsified_if": [
+      "observability 未通过",
+      "identifiability 未通过",
+      "critical-known 未通过",
+      "支持样本门未通过"
+    ],
+    "closure_scope": "默认关闭当前可检验表述，不默认关闭机制家族。"
+  },
+  "checkpoint_and_outputs": {
+    "checkpoint_binding": [
+      "protocol_hash",
+      "source_manifest_hash",
+      "projection_schema_hash",
+      "matching_config_hash",
+      "output_dir"
+    ],
+    "offset_unit": "source byte offset within frozen byte_prefix plus complete-line ordinal",
+    "checkpoint_hash_self_exclusion": "checkpoint_hash 置 null 后 datatruth.HashJSON",
+    "resume": "重验全部 bindings；前缀 hash、配置、输出目录任一漂移立即 fail closed。",
+    "atomic_write": "同目录 .tmp 写入、fsync file、rename、fsync directory；manifest 最后写。",
+    "output_hash_method": "每个 JSON artifact 将自身 hash 字段置 null 后 datatruth.HashJSON；JSONL 以冻结完整 LF 行的原始字节前缀做 SHA-256；audit_receipt 绑定排序后的 relative_path+artifact_hash。",
+    "raw_private_rows_in_output": false,
+    "required_outputs": [
+      "source_manifest.json",
+      "data_fitness_matrix.json",
+      "field_completeness.json",
+      "critical_reasons.json",
+      "support_counts.json",
+      "winner_control_bindings.json",
+      "falsification_chain.json",
+      "classification_evidence.json",
+      "conflict_matrix.json",
+      "decision_journal.json",
+      "audit_summary.json",
+      "audit_receipt.json",
+      "checkpoint.json"
+    ],
+    "audit_summary_required_fields": [
+      "schema_version",
+      "generation",
+      "protocol_hash",
+      "source_manifest_hash",
+      "g10_bindings",
+      "field_completeness",
+      "critical_reason_counts",
+      "support_counts_by_playbook_symbol_day_direction",
+      "data_blind_denominator",
+      "observed_failure_denominator",
+      "falsification_chain_by_route",
+      "classification_by_route",
+      "conflict_matrix_hash",
+      "decision_journal_hash",
+      "output_hashes",
+      "exam_actions",
+      "trade_allowed",
+      "system_status"
+    ],
+    "decision_journal_required_fields": [
+      "sequence",
+      "recorded_at",
+      "owner",
+      "observation",
+      "hypothesis_before",
+      "hypothesis_after",
+      "decision",
+      "rejected_alternatives",
+      "unresolved_uncertainty",
+      "budget_spent",
+      "next_stop_condition"
+    ]
+  },
+  "drift_detection": {
+    "implementation_must_embed": [
+      "schema_version",
+      "protocol_id",
+      "protocol_hash",
+      "allowed source IDs and paths",
+      "fitness enums",
+      "critical-known fields",
+      "support thresholds",
+      "classification enum",
+      "forbidden label fields"
+    ],
+    "required_tests": [
+      "protocol hash reproducible",
+      "manifest/code constants no drift",
+      "append after cutoff ignored",
+      "prefix mutation rejected",
+      "partial trailing line excluded",
+      "malformed complete line quarantined",
+      "duplicate fill not double counted",
+      "source conflict fail closed",
+      "missing fee/slip remains UNKNOWN",
+      "unmatched and untriggered are not zero return",
+      "winner/control/baseline hashes freeze before label unblind",
+      "checkpoint resume byte-identical",
+      "atomic output leaves no partial manifest"
+    ]
+  },
+  "strongest_counterexample_and_uncertainty": [
+    "即使真实个人 edge 存在，当前记录可能只覆盖系统选择过的事件和少数已成交路径；审计可能仍是选择性观测，不能把未观察到的执行路径判失败。",
+    "exchange fills 与策略 intent/position 的稳定 join key 可能不足；时间+价格+数量重建会在并发订单下不可识别。",
+    "instrument_meta 当前快照未必提供历史 PIT 版本，dynamic min-notional 可能只能 weak proxy。",
+    "eval_rest_ms 不等于 signal-to-ack-fill latency；缺 ack/receive timestamp 时延迟保持 UNKNOWN。",
+    "validation trigger 物理文件含 outcome 字段；实现若未做字段级投影与两阶段 hash 防火墙，可能发生无意后视泄漏。",
+    "byte-prefix 能抵御追加但不能证明 writer 从不原地改写；因此运行前和恢复时必须重验 prefix hash。"
+  ],
+  "safety": {
+    "read_only_records": true,
+    "records_write_forbidden": true,
+    "real_money_switch_change_forbidden": true,
+    "exam_create_unseal_consume_forbidden": true,
+    "frozen_g10_artifact_change_forbidden": true,
+    "exchange_connection_forbidden": true,
+    "exam_actions": 0,
+    "trade_allowed": false,
+    "system_status": "NO_GO"
+  },
+  "audit": {
+    "protocol_hash": "dccd7974a7d172e3894174a953c4cce02ea840a48bb41fbdec589ed4d1153dd3",
+    "protocol_hash_method": "datatruth.HashJSON(canonical)：读取本 JSON 为通用对象，将 audit.protocol_hash 置为 null；递归规范化并按 Go encoding/json 确定性编码后 SHA-256，输出小写 hex。",
+    "protocol_hash_reproduce": "json.Unmarshal -> doc.audit.protocol_hash=nil -> datatruth.HashJSON(doc)",
+    "self_excluded_field": "audit.protocol_hash"
+  }
+}

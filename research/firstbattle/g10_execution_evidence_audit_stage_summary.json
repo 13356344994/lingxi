@@ -1,0 +1,245 @@
+{
+  "schema_version": "lingxi.g10-execution-evidence-audit-stage-summary.v1",
+  "stage_id": "firstbattle.g10.execution-evidence-audit.final-verdict",
+  "created_at": "2026-07-13T12:33:00Z",
+  "status": "STAGE_CLOSED_AT_USER_APPROVAL_POINT",
+  "formal_scope": "G10 v1 current measurement generation only",
+  "hash_chain": {
+    "audit_protocol_hash": "dccd7974a7d172e3894174a953c4cce02ea840a48bb41fbdec589ed4d1153dd3",
+    "full_source_manifest_hash": "c8c5f38e6542855aa6fbc8e3373a751a24646922d0838a9774fce4a7e41a9379",
+    "audit_summary_hash": "cf9da460a7807c4d131bbc1e2b22ec9c0e860902fbb6a9726707d7c697b9d9ab",
+    "audit_receipt_hash": "29494eb6dfc62c8317315f93391aa60bd9d4f7ae515a166f94ae0a28c99b4f9a",
+    "audit_decision_journal_hash": "9ba234f0a6ff4f8d9cdcb830a4b8a40cf3a1e2ff5d6708d32d16706eba90afa3",
+    "conflict_matrix_hash": "e37796a989c7d325e7d7809c8309f2881c6a0a1538834a84f5287c666f110105",
+    "classification_evidence_hash": "8e5846c730a292645eedb63298c3535587d95cc9a13b3cd3cf88b2aa30d7fb18",
+    "route_portfolio_json_hash": "166ea394419544f55e54919216b6e67b31e2d1dfaf11ef27df06bb3686072977",
+    "route_portfolio_markdown_hash": "733b7ae620b083eb18802bcdcb5c4520b345df7c05ef5da97140105d2efacec8"
+  },
+  "formal_verdict": {
+    "route_id": "g10_v1",
+    "classification": "DATA_BLIND",
+    "earliest_blocker": "observability",
+    "phase": "A",
+    "single_class_required": true,
+    "reason": "critical instrument semantics and event identity are absent, so current historical measurement cannot establish critical-known execution or an outcome-blind matched support domain",
+    "not_falsified": true,
+    "labels_unblinded": false,
+    "observed_failure_denominator": 0
+  },
+  "classification_enum": [
+    "SUPPORTED_FOR_NEW_GENERATION",
+    "DATA_BLIND",
+    "UNIDENTIFIABLE",
+    "POSTHOC_ONLY",
+    "UNEXECUTABLE",
+    "INSUFFICIENT_SUPPORT",
+    "FALSIFIED"
+  ],
+  "mutual_exclusion_evidence": {
+    "selected": "DATA_BLIND",
+    "excluded": {
+      "SUPPORTED_FOR_NEW_GENERATION": "observability and support identity did not pass",
+      "UNIDENTIFIABLE": "may be a downstream risk, but observability is the earlier proven blocker",
+      "POSTHOC_ONLY": "matched controls and baseline support set cannot be constructed, so this layer was not reached",
+      "UNEXECUTABLE": "some execution evidence is visible, but missing critical-known instrument semantics and event linkage prevent an executability verdict",
+      "INSUFFICIENT_SUPPORT": "events/days/shock blocks are unavailable rather than observed below threshold; event identity is the earlier blocker",
+      "FALSIFIED": "observability, identifiability, support and net-edge layers were never validly reached"
+    }
+  },
+  "critical_blindness": {
+    "instrument_contract_type": {
+      "known": 0,
+      "denominator": 394,
+      "missing": 394,
+      "reason": "MISSING_CT_TYPE_DATA"
+    },
+    "dynamic_min_notional_usdt": {
+      "known": 0,
+      "denominator": 12826,
+      "missing_reason_counts": {
+        "MISSING_CT_TYPE_DATA": 12644,
+        "MISSING_INSTRUMENT_METADATA": 182
+      }
+    },
+    "exchange_fill_fee_bps": {
+      "known": 0,
+      "denominator": 12826,
+      "missing_reason_counts": {
+        "MISSING_CT_TYPE_DATA": 12644,
+        "MISSING_INSTRUMENT_METADATA": 182
+      },
+      "interpretation": "fill fee exists in source schema, but without proven contract/notional semantics it cannot be normalized to fee_bps"
+    },
+    "validation_support_identity": {
+      "outcome_blind_aggregate_cells": 84,
+      "events": null,
+      "independent_days": null,
+      "non_overlap_shock_blocks": null,
+      "event_identity_available": false,
+      "winner_binding_kind": "PLAYBOOK_HASH_PLUS_OPAQUE_SOURCE_WINNER_IDS_HASH",
+      "matched_control_set_hash": null,
+      "baseline_support_set_hash": null,
+      "reason": "validation maps expose aggregate cells but no event/day/shock identity"
+    }
+  },
+  "visible_after_decision_execution_evidence": {
+    "semantic_boundary": "These are KNOWN_AFTER_DECISION execution observations. They can audit execution where present but cannot serve as ex-ante prediction features or repair missing critical-known/event identity.",
+    "settlement_fee_bps": {
+      "known": 973,
+      "denominator": 1091
+    },
+    "entry_slip_bps": {
+      "known": 296,
+      "denominator": 1091
+    },
+    "exit_slip_bps": {
+      "known": 196,
+      "denominator": 1091
+    },
+    "maker_fill_rate": {
+      "known": 29849,
+      "denominator": 29849
+    }
+  },
+  "conflicts_and_dedup": {
+    "suppressed_lower_priority_facts": 808,
+    "cross_source_conflicts": 42,
+    "unresolved_cross_source_identities": 45332,
+    "severity": "CRITICAL_UNKNOWN",
+    "interpretation": "suppression follows frozen source priority, but unresolved identity/conflicts remain explicit and are not converted to zero, duplicate evidence or a passing field"
+  },
+  "formal_run": {
+    "scope_status": "FULL_PREFIX",
+    "projected_rows_before_dedup": 2802749,
+    "peak_buffered_rows": 220,
+    "peak_buffered_bytes": 170425,
+    "elapsed_ms": 117530,
+    "low_cpu": true,
+    "exit_code": 0
+  },
+  "verification": {
+    "full_test_command": "GOMAXPROCS=2 go test ./... -count=1",
+    "target_race_command": "GOMAXPROCS=2 go test -race ./internal/routerg10/evidenceaudit ./cmd/router-g10-evidence-audit -count=1",
+    "vet_command": "GOMAXPROCS=2 go vet ./...",
+    "chained_exit_code": 0,
+    "chained_elapsed_ms": 188414,
+    "full_tests_passed": true,
+    "target_race_passed": true,
+    "go_vet_passed": true,
+    "evidence": "terminal run ending 2026-07-13T12:25:52.620Z; target race package reported 114.164s"
+  },
+  "route_portfolio_verdict": {
+    "all_current_classification": "DATA_BLIND",
+    "routes_started": 0,
+    "routes": [
+      {
+        "route_id": "micro_execution_capacity_cliff",
+        "classification": "DATA_BLIND",
+        "portfolio_action": "RETAIN_TOP_PRIORITY_NOT_STARTED"
+      },
+      {
+        "route_id": "exchange_rule_discontinuity",
+        "classification": "DATA_BLIND",
+        "portfolio_action": "RETAIN_SECONDARY_NOT_STARTED"
+      },
+      {
+        "route_id": "sparse_forced_flow",
+        "classification": "DATA_BLIND",
+        "portfolio_action": "RETAIN_DORMANT_NOT_STARTED"
+      },
+      {
+        "route_id": "cross_venue_operational_asymmetry",
+        "classification": "DATA_BLIND",
+        "portfolio_action": "REJECT_NEAR_TERM_ARCHIVE_ONLY"
+      }
+    ]
+  },
+  "closure": {
+    "closure_scope": "Close further return scoring, validation/WF progression and exam actions for the current G10 v1 audit/measurement generation. Do not close mechanism families that were not sufficiently observed.",
+    "closed_actions": [
+      "current generation further return or net-edge scoring",
+      "current generation matched-control or support inference from aggregate cells",
+      "current generation WF progression",
+      "exam creation, unseal or consumption",
+      "route auto-selection or auto-launch",
+      "future-data waiting to rescue the generation"
+    ],
+    "mechanism_family_closed": false,
+    "current_generation_closed": true
+  },
+  "reopen_conditions": {
+    "only_allowed_next_question": "Do already-existing historical assets satisfy any route's frozen reopen condition?",
+    "existence_inventory_only": true,
+    "requires_separate_user_approval": true,
+    "auto_execute": false,
+    "no_future_wait": true,
+    "minimum_evidence": [
+      "PIT-valid ctType/contract version and dynamic min-notional semantics where required",
+      "stable outcome-blind event/day/shock identity sufficient to freeze winner, matched-control and baseline support sets",
+      "route-specific direct or legally reconstructable fields listed in the route portfolio",
+      "immutable source identity and self-verifying hashes"
+    ],
+    "if_found": "Return to user with an existence-only inventory. Any experiment requires a separate new generation preregistration and approval.",
+    "if_not_found": "Keep route DATA_BLIND/archived and stop; do not collect future data to revive it."
+  },
+  "decision_journal": [
+    {
+      "sequence": 1,
+      "owner": "evidence-audit implementation owner",
+      "decision": "freeze FULL_PREFIX inputs and publish bounded artifacts",
+      "evidence": "source manifest and receipt hash chain; 2,802,749 projected rows; peak 220 rows/170425 bytes"
+    },
+    {
+      "sequence": 2,
+      "owner": "research governance owner",
+      "decision": "select DATA_BLIND at observability as the only formal class",
+      "rejected": ["FALSIFIED", "POSTHOC_ONLY", "UNEXECUTABLE", "INSUFFICIENT_SUPPORT"],
+      "evidence": "critical-known and event identity blockers precede all rejected classes"
+    },
+    {
+      "sequence": 3,
+      "owner": "route portfolio owner",
+      "decision": "retain two routes without launch, keep forced-flow dormant, archive cross-venue near-term",
+      "evidence": "outcome-blind portfolio ranking; routes_started=0"
+    },
+    {
+      "sequence": 4,
+      "owner": "research governance owner",
+      "decision": "close current generation and stop at user approval point",
+      "evidence": "no route meets reopen/start conditions; exam_actions=0; trade_allowed=false"
+    }
+  ],
+  "responsibility": {
+    "implementation_owner": {
+      "role": "evidence-audit implementation owner",
+      "responsible_for": ["source freeze", "bounded-memory run", "artifact integrity", "tests and failure recovery"]
+    },
+    "verdict_owner": {
+      "role": "LINGXI research governance owner",
+      "responsible_for": ["earliest-blocker classification", "closure scope", "route portfolio synthesis", "user-facing final truth"]
+    },
+    "reviewer": {
+      "role": "governance reviewer independent of implementation",
+      "review_performed": ["hash-chain cross-check", "numerator/denominator cross-check", "classification layer audit", "safety boundary audit"],
+      "not_authorized_to": ["self-approve a new route", "open exam", "grant live trading"]
+    },
+    "future_reopen_review": "Any reopened route requires a separate independent red-team reviewer and cannot be approved by its proposer/implementer alone."
+  },
+  "strongest_uncertainty": "The audit proves current measurement blindness, not that an edge exists. Existing records may be selection-biased toward system-chosen/filled paths, while missing event and instrument identities may conceal either a real personal edge or merely eliminate an apparent one; neither direction is identifiable from this generation.",
+  "safety": {
+    "global_halt_required": true,
+    "system_status": "NO_GO",
+    "exam_status": "EXAM_UNAVAILABLE",
+    "exam_actions": 0,
+    "trade_allowed": false,
+    "stages_f_g_h_passed": false,
+    "records_write_forbidden": true,
+    "frozen_g1_g10_write_forbidden": true,
+    "real_money_change_forbidden": true
+  },
+  "hashes": {
+    "stage_summary_hash": "05550c0603fa340939c35efa9bd212509ab48cec50b07e541f530e875a7817ff",
+    "hash_method": "Read this JSON as a generic object, set hashes.stage_summary_hash to null, then compute repository datatruth.HashJSON (deterministic Go encoding/json plus SHA-256 lowercase hex).",
+    "self_excluded_field": "hashes.stage_summary_hash"
+  }
+}

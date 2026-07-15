@@ -1,0 +1,38 @@
+[
+  {
+    "sequence": 1,
+    "attempt_id": "fit:terra",
+    "owner_id": "terra",
+    "operation": "FIT_DISCOVERY",
+    "input_hash": "33251cdcfcd8ef1b528e00a82f36d77f4fbbf400ff6a0d0108f2cfcf12aacca1",
+    "previous_hash": "",
+    "entry_hash": "5533f0f7772dbbfe88c7aac367e8d2d32d46676a40cc2bc9bdf2d60298af4eba"
+  },
+  {
+    "sequence": 2,
+    "attempt_id": "fit:opus",
+    "owner_id": "opus",
+    "operation": "FIT_DISCOVERY",
+    "input_hash": "33251cdcfcd8ef1b528e00a82f36d77f4fbbf400ff6a0d0108f2cfcf12aacca1",
+    "previous_hash": "5533f0f7772dbbfe88c7aac367e8d2d32d46676a40cc2bc9bdf2d60298af4eba",
+    "entry_hash": "a6e1740143b3ceb8f96c0dbe7cb6f8e2275a50b9a1facc85eed759046056f027"
+  },
+  {
+    "sequence": 3,
+    "attempt_id": "fit:sonnet",
+    "owner_id": "sonnet",
+    "operation": "FIT_DISCOVERY",
+    "input_hash": "33251cdcfcd8ef1b528e00a82f36d77f4fbbf400ff6a0d0108f2cfcf12aacca1",
+    "previous_hash": "a6e1740143b3ceb8f96c0dbe7cb6f8e2275a50b9a1facc85eed759046056f027",
+    "entry_hash": "96cd19f53f72c050d301e8ae34ae6c4a5d4d2a33c08bc75e9631c01822bae017"
+  },
+  {
+    "sequence": 4,
+    "attempt_id": "fit:grok",
+    "owner_id": "grok",
+    "operation": "FIT_DISCOVERY",
+    "input_hash": "33251cdcfcd8ef1b528e00a82f36d77f4fbbf400ff6a0d0108f2cfcf12aacca1",
+    "previous_hash": "96cd19f53f72c050d301e8ae34ae6c4a5d4d2a33c08bc75e9631c01822bae017",
+    "entry_hash": "804f172f70eb250e85f18e05498454f54959d2c1561397785c3999e39c24ae00"
+  }
+]

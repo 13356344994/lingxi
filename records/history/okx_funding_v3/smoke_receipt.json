@@ -1,0 +1,45 @@
+{
+  "schema_version": "lingxi.okx-funding-archive-smoke.v1",
+  "labels_or_outcomes_read": false,
+  "plan_hash": "4f8e966188349d766e57985024f8a592556db083004a41d54da0a8c4eb8265fa",
+  "source_id": "okx-official-allswap-fundingrates-v3",
+  "csv_header": "instrument_name,funding_rate,funding_time",
+  "date_count": 3,
+  "complete_days": 3,
+  "gap_days": 0,
+  "rows": 909,
+  "downloaded_bytes": 21385,
+  "days": [
+    {
+      "date": "2023-12-31",
+      "status": "COMPLETE",
+      "filename": "allswap-fundingrates-2023-12-31.zip",
+      "source_url_hash": "cab5aa5d4e8492b0c17cf19c2ca298ca77d2223deb978726b62709006745c336",
+      "daily_raw_hash": "0cccc73d25c33d4d510e38bf2cc6945815f3210b7df49d241c1fc1c00834fa69",
+      "output_hash": "bebb570b6d5d84c137ea9c45d0ef3be9aefd3fff64abeabadac68d8fec13cb60",
+      "rows": 303,
+      "bytes": 7088
+    },
+    {
+      "date": "2024-01-01",
+      "status": "COMPLETE",
+      "filename": "allswap-fundingrates-2024-01-01.zip",
+      "source_url_hash": "c51818100c5568b9bc890324f4b82657505bf5a19a051884c81078863b602422",
+      "daily_raw_hash": "f679ff98745b8eebf9ed8e74d9254994bc739101f79ff8be4190ddfbb7e91cec",
+      "output_hash": "8f37284db949f6b1add34c987ce28c0170a4d639f5ff99a8281c0dea3a56f166",
+      "rows": 303,
+      "bytes": 7159
+    },
+    {
+      "date": "2024-01-02",
+      "status": "COMPLETE",
+      "filename": "allswap-fundingrates-2024-01-02.zip",
+      "source_url_hash": "35f5761d63e61e09299b6072982dd6e1c040010640e2440eb8502353fb857226",
+      "daily_raw_hash": "4501d829a10db3ecc5a8b7094b9ba1bee8eafb427d80839ccf8072769360b8cf",
+      "output_hash": "fd047c540eccf18af59c851a168e4e7823e64376c44847d9d970d175749a40df",
+      "rows": 303,
+      "bytes": 7138
+    }
+  ],
+  "manifest_hash": "7d6a2f374e8c017ff7513cdc7efb02ed8d63c5f8b6aeada49b4d4dcd8a1f2d13"
+}

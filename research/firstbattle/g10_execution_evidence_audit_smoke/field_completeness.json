@@ -1,0 +1,169 @@
+{
+  "artifact_hash": "fa0cb546bd6852879d3380a2331ad1538c4ab0121815a991c2a2da155d2368ee",
+  "fields": {
+    "dynamic_min_notional_usdt": {
+      "denominator": 1918,
+      "missing_reason_counts": {
+        "MISSING_CT_TYPE_DATA": 1918
+      },
+      "numerator": 0,
+      "scopes": {
+        "execution_rows": {
+          "numerator": 0,
+          "denominator": 1918,
+          "missing_reason_counts": {
+            "MISSING_CT_TYPE_DATA": 1918
+          }
+        }
+      }
+    },
+    "entry_slip_bps": {
+      "denominator": 818,
+      "missing_reason_counts": {
+        "MISSING_REFERENCE_QUOTE": 747
+      },
+      "numerator": 71,
+      "scopes": {
+        "settlement_rows": {
+          "numerator": 71,
+          "denominator": 818,
+          "missing_reason_counts": {
+            "MISSING_REFERENCE_QUOTE": 747
+          }
+        }
+      }
+    },
+    "exit_slip_bps": {
+      "denominator": 818,
+      "missing_reason_counts": {
+        "MISSING_REFERENCE_QUOTE": 762,
+        "SOURCE_CONFLICT": 8
+      },
+      "numerator": 48,
+      "scopes": {
+        "settlement_rows": {
+          "numerator": 48,
+          "denominator": 818,
+          "missing_reason_counts": {
+            "MISSING_REFERENCE_QUOTE": 762,
+            "SOURCE_CONFLICT": 8
+          }
+        }
+      }
+    },
+    "fee_bps": {
+      "denominator": 2736,
+      "missing_reason_counts": {
+        "ABSENT_FIELD": 97,
+        "MISSING_CT_TYPE_DATA": 1918,
+        "SOURCE_CONFLICT": 8
+      },
+      "numerator": 713,
+      "scopes": {
+        "exchange_fill_rows": {
+          "numerator": 0,
+          "denominator": 1918,
+          "missing_reason_counts": {
+            "MISSING_CT_TYPE_DATA": 1918
+          }
+        },
+        "settlement_rows": {
+          "numerator": 713,
+          "denominator": 818,
+          "missing_reason_counts": {
+            "ABSENT_FIELD": 97,
+            "SOURCE_CONFLICT": 8
+          }
+        }
+      }
+    },
+    "instrument_contract_type": {
+      "denominator": 394,
+      "missing_reason_counts": {
+        "MISSING_CT_TYPE_DATA": 394
+      },
+      "numerator": 0,
+      "scopes": {
+        "metadata_entries": {
+          "numerator": 0,
+          "denominator": 394,
+          "missing_reason_counts": {
+            "MISSING_CT_TYPE_DATA": 394
+          }
+        }
+      }
+    },
+    "instrument_contract_value": {
+      "denominator": 394,
+      "missing_reason_counts": {},
+      "numerator": 394,
+      "scopes": {
+        "metadata_entries": {
+          "numerator": 394,
+          "denominator": 394,
+          "missing_reason_counts": {}
+        }
+      }
+    },
+    "instrument_lot": {
+      "denominator": 394,
+      "missing_reason_counts": {},
+      "numerator": 394,
+      "scopes": {
+        "metadata_entries": {
+          "numerator": 394,
+          "denominator": 394,
+          "missing_reason_counts": {}
+        }
+      }
+    },
+    "latency_ms": {
+      "denominator": 4989,
+      "missing_reason_counts": {
+        "ABSENT_FIELD": 1514
+      },
+      "numerator": 3475,
+      "scopes": {
+        "maker_attempt_rows": {
+          "numerator": 3475,
+          "denominator": 3479,
+          "missing_reason_counts": {
+            "ABSENT_FIELD": 4
+          }
+        },
+        "shadow_rows": {
+          "numerator": 0,
+          "denominator": 1510,
+          "missing_reason_counts": {
+            "ABSENT_FIELD": 1510
+          }
+        }
+      }
+    },
+    "maker_fill_rate": {
+      "denominator": 2870,
+      "missing_reason_counts": {},
+      "numerator": 2870,
+      "scopes": {
+        "maker_attempt_rows": {
+          "numerator": 2870,
+          "denominator": 2870,
+          "missing_reason_counts": {}
+        }
+      }
+    }
+  },
+  "presence_bits_required": true,
+  "projected_rows": 22076,
+  "projected_total_before_dedup": 22645,
+  "schema_version": "lingxi.g10-execution-evidence-audit.v1",
+  "source_rows": {
+    "equity_snapshots": 14048,
+    "exchange_fills": 1918,
+    "executable_shadow": 1510,
+    "fast_v2_settlements": 663,
+    "maker_attempts": 2870,
+    "open_decisions": 912,
+    "settlements": 724
+  }
+}

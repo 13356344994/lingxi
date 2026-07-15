@@ -1,0 +1,96 @@
+{
+  "schema_version": "lingxi.data-driven-router-v3.protocol-overlay.v1",
+  "protocol_id": "firstbattle.data-driven-router-v3",
+  "generation": "firstbattle-data-driven-router-v3-g9",
+  "created_at": "2026-07-15T03:15:00Z",
+  "status": "PREREGISTERED_MODEL_SCALE_FREEZE_PENDING_REVIEW",
+  "supersedes": {
+    "generation": "firstbattle-data-driven-router-v3-g8",
+    "overlay_hash": "c492cd191e869073b330221835fcec4b4437b27ec67e6e9d18252119fc7da682",
+    "reason": "freeze production-scale model bounds and final owner submissions before discovery labels are created",
+    "prior_reward_labels_unblinded": false
+  },
+  "inheritance": {
+    "g1_hash": "5d80166eb28307d23e33cd19efae2b60811852ff0da49a3a6e16663aba2e7ddd",
+    "g2_hash": "7096395f1f3bae212b6dc866c5d46ccb372cd284e4a959d424dfbfbb92d6c226",
+    "g3_hash": "63f4ee088efb09e9e58386ab273b997af4a9206d4c5c18e73c59fda5d42a7a57",
+    "g4_hash": "2fd8c5852bba5023c9024d46b5b5e9527e71d670c370a1276e4728f4ef4cd2b9",
+    "g5_hash": "518d0003c829da641f1bcc955c4382023e158ba9938c0ac6f0ff19b5bf729385",
+    "g6_hash": "08b609e3271029b1e9f772921e325ef7c7fd30326589ae9c03cc86d73d9c844b",
+    "g7_hash": "4aacc43e928d25b6b83cdf8fe10d5b576e2b1009ea10b7bfad3e750388e47747",
+    "g8_hash": "c492cd191e869073b330221835fcec4b4437b27ec67e6e9d18252119fc7da682",
+    "all_unmodified_fields_inherited": true
+  },
+  "final_owner_submissions": {
+    "terra_tree_sha256": "301bf46567b8049ea27b0dae60bca99c7e2e563382348dbe8c921e9d0107fd09",
+    "opus_moe_sha256": "2215eb5e50bd911a75225ab0c82e39d7b024ab1e087de43c2825c6b838fc070f",
+    "sonnet_episodic_sha256": "ecb5ede85a0895dca0784d4450db445b2312ccb4f8c265f1360a27bf2e1d2c67",
+    "grok_changepoint_sha256": "b2776efd27fe79407e5ab4021131b2f3f05413f35eefbfe42f4eaf21702c4c52",
+    "all_frozen_before_discovery_label_creation": true,
+    "all_labels_read_false": true
+  },
+  "production_scale_bounds": {
+    "terra_tree": {
+      "input_examples": 100000,
+      "fit_rows_max": 8192,
+      "fit_row_selection": "lowest sha256(seed42 + example_id + event_id + decision_ms)",
+      "selection_excludes": ["features", "account_context", "selected_target_intent", "reward"],
+      "thresholds_per_feature_per_node_max": 31,
+      "missingness_candidate_per_feature_per_node_max": 1,
+      "prediction_accepts_full_state_stream": true
+    },
+    "opus_moe": {
+      "input_examples": 100000,
+      "fit_rows_max": 8192,
+      "fit_row_selection": "lowest sha256(seed42 + example_id + event_id + decision_ms)",
+      "selection_excludes": ["features", "account_context", "selected_target_intent", "reward"],
+      "thresholds_per_feature_per_gate_max": 31,
+      "prediction_accepts_full_state_stream": true
+    },
+    "sonnet_episodic": {
+      "input_examples": 100000,
+      "candidate_pool_max": 8192,
+      "candidate_pool_selection": "lowest sha256(seed42 + neighbor + example_id + event_id)",
+      "selection_excludes": ["features", "account_context", "selected_target_intent", "reward"],
+      "loo_queries_max": 1024,
+      "prediction_candidate_pool_max": 8192
+    },
+    "grok_changepoint": {
+      "input_examples": 100000,
+      "fit_rows_max": 100000,
+      "complexity_class": "linear scan per frozen bounded attempt plus bounded sorting by day",
+      "additional_sampling": "none"
+    }
+  },
+  "common_input_semantics": {
+    "neutral_runner_passes_identical_100000_examples_to_all_four_models": true,
+    "owner_internal_scale_bounds_are_model_hyperparameters": true,
+    "no_owner_changes_after_label_bundle_creation": true,
+    "any_code_or_submission_hash_change_requires_new_protocol_generation": true
+  },
+  "verification": {
+    "synthetic_100000_row_scale_tests": ["terra_tree", "opus_moe", "sonnet_episodic"],
+    "target_mutation_does_not_change_cap_membership": ["terra_tree", "opus_moe", "sonnet_episodic"],
+    "input_permutation_does_not_change_cap_membership": ["terra_tree", "opus_moe", "sonnet_episodic"],
+    "gofmt": "PASS",
+    "go_test": "PASS",
+    "go_test_race_owner_reported": "PASS",
+    "go_vet": "PASS",
+    "lint": "PASS",
+    "diff_check": "PASS"
+  },
+  "safety": {
+    "discovery_label_bundle_created": false,
+    "validation_labels_unblinded": false,
+    "leaf_wf_labels_unblinded": false,
+    "router_holdout_labels_unblinded": false,
+    "routes_started": 0,
+    "system_status": "NO_GO",
+    "trade_allowed": false
+  },
+  "hashes": {
+    "overlay_hash": "fe3ce29ef3b8b07da7ef81e0ea3ccc732722f8a184e7ba91ebb8edacd7b2802c",
+    "hash_method": "Set hashes.overlay_hash to null, then compute repository datatruth.HashJSON.",
+    "self_excluded_field": "hashes.overlay_hash"
+  }
+}

@@ -1,0 +1,182 @@
+{
+  "schema_version": "lingxi.p0-swap-data-fitness-reviewer-receipt.v1",
+  "artifact_id": "firstbattle.p0-swap-data-fitness-reviewer-receipt",
+  "reviews_artifact": "firstbattle.p0-swap-data-fitness",
+  "reviews_generation": "firstbattle-p0-swap-data-fitness-v1",
+  "reviewed_at": "2026-07-14T03:17:36Z",
+  "repo_head_commit_at_review": "ab2780405f0fd5c80d268fe0feff39eb14a29eda",
+  "reviewer": {
+    "identity": "Independent reviewer subagent, distinct session from the owner agent(s) that authored the reviewed artifacts",
+    "model": "Claude Sonnet 5",
+    "workspace": "/root/lingxi",
+    "write_scope": "Permitted to add only new reviewer-receipt files (this JSON and its companion Markdown). Did not modify FIRST_BATTLE_MASTER_PLAN.md, route_data_contracts.json/.md, route_data_source_registry.json/.md, p0_swap_data_fitness.json/.md, p0_swap_data_fitness_measurement.json, records/, internal/historydownload source or tests, or any exam/real-money material. Made no git commits.",
+    "separation_statement": "This receipt is produced by an agent instance that did not author internal/historydownload/datafitness, cmd/p0-swap-data-fitness, p0_swap_data_fitness.json/.md, route_data_contracts.json, or the OWNER_JOURNAL entries it reviews. All findings below are derived from commands executed by this reviewer against the frozen artifacts and against the external private/public data roots, not from trusting the owner's narrative or the owner-authored 'independent_redteam' block embedded in p0_swap_data_fitness.json.",
+    "raw_or_outcome_access": "None. This review read only tokenized projection pages (orders/fills schemas contain no pnl/fillPnl/outcome fields), manifests, and the public instruments snapshot (instrument specs only, no private trade data). No file under private-raw/ or raw/ was opened. No decision, exam, or real-money surface was touched."
+  },
+  "inputs_reviewed": {
+    "research/firstbattle/p0_swap_data_fitness_measurement.json": {
+      "declared_receipt_hash": "f23a815fba52dab22368428a6a95250a1ad58e429c09613fea0ac977b1030c92",
+      "independently_reverified": true
+    },
+    "research/firstbattle/p0_swap_data_fitness.json": {
+      "declared_artifact_hash": "393a12952b480fc2671774d76790e5f850bcbc26b43c8eb8d870bba9c9e2bd66",
+      "independently_reverified": true
+    },
+    "research/firstbattle/p0_swap_data_fitness.md": {
+      "declared_document_hash": "697cf3686f72748459d89943c1f45f0071e670f5d22a36f23f61d0154707e899",
+      "independently_reverified": true
+    },
+    "research/firstbattle/route_data_contracts.json": {
+      "declared_protocol_hash": "4a4c201d2c8cedde5bd1ff55ea40ad31d099e189feb709a517701b504c453588",
+      "independently_reverified": true
+    },
+    "research/firstbattle/route_data_contracts.md": {
+      "declared_document_hash": "68dc6666fc0138850fff2911965e5ef05505797ac9fc6137ddde928744e74639",
+      "independently_reverified": true
+    },
+    "research/firstbattle/route_data_source_registry.json": {
+      "declared_registry_hash": "1c6672563d4bc00ea102df2f9575b365a2a9dc30e763db75067f9a49052e5318",
+      "independently_reverified": true
+    },
+    "research/firstbattle/route_data_source_registry.md": {
+      "declared_document_hash": "483ee318d954cf939646f0a9305e155ab908a3918a75afdfd6fb5f7bb149a0cf",
+      "independently_reverified": true
+    },
+    "internal/historydownload/datafitness/datafitness.go and datafitness_test.go": {
+      "reviewed": true,
+      "note": "Calculator source read line-by-line; unit tests exercise duplicate/outcome/schema/decimal/completeness gates."
+    },
+    "internal/historydownload/OWNER_JOURNAL.md": { "reviewed": true },
+    "external_private_manifest_orders": {
+      "path": "/root/.lingxi-private/historydownload/api/v5/trade/orders-history-archive/SWAP/manifest.json",
+      "self_declared_manifest_hash": "3bd6db35f9270cf22183249d542fbb0acd62d5aa70d6ae7199d23acb639a55fa",
+      "matches_p0_swap_data_fitness_binding": true
+    },
+    "external_private_manifest_fills": {
+      "path": "/root/.lingxi-private/historydownload/api/v5/trade/fills-history/SWAP/manifest.json",
+      "self_declared_manifest_hash": "390c153265d29d7147ca7efcfc1bea38941beffa05df540bbd2895b04a3bc295",
+      "matches_p0_swap_data_fitness_binding": true
+    },
+    "external_public_instruments_current": {
+      "path": "/root/.lingxi-data/historydownload/instruments/current.json",
+      "self_declared_manifest_hash": "073f3087042402e004e99cf211a069b36c6312b9bd429f61646bf444d8510715",
+      "self_declared_current_hash": "34cca1c1f629c6f0271722e905ea7bff04d5f1352b7562bc21d5a04c27f1099d",
+      "matches_p0_swap_data_fitness_binding": true
+    },
+    "external_public_instruments_generation_manifest": {
+      "path": "/root/.lingxi-data/historydownload/instruments/generation-073f3087042402e004e99cf2/manifest.json",
+      "artifact_hashes_declared": {
+        "snapshot-raw.json": "e2445309936d2079d959cc6ae060c03e76b1d8b791f2ef2ce132793175e29267",
+        "snapshot-receipt.json": "f880ae937f32bec7f2e9d203e2a03f2485e5382df8022ee30059f79914e5f628"
+      },
+      "independently_recomputed_sha256": {
+        "snapshot-raw.json": "e2445309936d2079d959cc6ae060c03e76b1d8b791f2ef2ce132793175e29267",
+        "snapshot-receipt.json": "f880ae937f32bec7f2e9d203e2a03f2485e5382df8022ee30059f79914e5f628"
+      },
+      "match": true
+    },
+    "excluded_from_review": [
+      "private-raw/ and raw/ directories under /root/.lingxi-private and /root/.lingxi-data (immutable exchange raw responses; not opened)",
+      "records/ (production runtime state; not opened for this review)",
+      "any exam/sealed material or real-money control surface (none exist in this scope; not opened)"
+    ]
+  },
+  "independent_methods": [
+    {
+      "method_id": "M1_REPO_CLI_FRESH_RECOMPUTE",
+      "description": "Built the repository at HEAD (go build ./...), ran the full internal/historydownload test suite including datafitness (go test ./internal/historydownload/...), then executed 'go run ./cmd/p0-swap-data-fitness' with default private/public roots and --output omitted (stdout only, no file write) to force a fresh read of every manifest, every projection page, and the instruments snapshot from disk.",
+      "result": "go build: success. go test ./internal/historydownload/...: all packages ok (datafitness 9.63s). Freshly recomputed measurement JSON compared by deep structural equality (Python json load + ==) against the committed research/firstbattle/p0_swap_data_fitness_measurement.json: IDENTICAL, including measurement_receipt_hash f23a815f...0c92 and both projection aggregate hashes.",
+      "independence_caveat": "This method reuses the owner's calculator code; it proves determinism/reproducibility of the code-to-data mapping and that no post-hoc hand-edit was applied to the frozen JSON, but it does not independently validate the calculator's algorithm. Method M2 below is algorithm-independent."
+    },
+    {
+      "method_id": "M2_FROM_SCRATCH_PYTHON_REIMPLEMENTATION",
+      "description": "Wrote a standalone Python script (outside the repository, in /tmp, not committed) that does not import or call any lingxi/internal code. It independently: (a) recomputes the projection aggregate hash as sha256(concat(relative_filename+NUL+page_sha256+NUL+decimal_bytes+NUL+decimal_rows+LF)) over every ordered page for orders and fills; (b) parses every projection row directly to recompute distinct/duplicate order tokens, order state counts, order type counts, clOrdIdToken-missing counts, source-nonempty counts, accFillSz sign classification (no-fill vs filled, including the canceled subset), UTC day histogram and top-two-day share, order/fill traded instId sets and their union; (c) recomputes fills distinct trade/bill token uniqueness, exec-type counts, fills-per-order distribution, single/multi-fill counts, max fills per order, and order<->fill join matched/unmatched counts; (d) recomputes cross-endpoint instId conflicts by comparing each fill row's instId/instType against the order's instId/instType for the same order token; (e) loads the public instruments current pointer/generation/receipt to recompute current-instrument record/field-presence counts and the traded-vs-snapshot missing-instrument sets; (f) scans every key of every projection row (orders and fills, all 29,298 rows) for case/punctuation-normalized substrings of pnl/return/profit/winner/outcome/mfe/mae/upnl.",
+      "result": "Every recomputed value exactly matched the frozen artifact: orders_records=13622, distinct_tokens=13622, duplicates=0, states={filled:13566,canceled:56}, canceled_accFillSz>0=56, canceled_accFillSz=0=0, no_fill_orders=0, ord_types={ioc:7228,post_only:6393,market:1}, clOrdId_missing=1 (orders) and 1 (fills), source_nonempty=0, fills_records=15676, distinct_trade_tokens=15676, distinct_bill_tokens=15676, duplicate_trade=0, duplicate_bill=0, exec_types={T:9081,M:6595}, fills_per_order distribution identical bucket-for-bucket, single_fill_orders=12212, multi_fill_orders=1410, max_per_order=40, join matched=13622/unmatched=0, orders_traded_instruments=144, fills_traded_instruments=144, union=145, current_instrument_records=420 with ctType/minSz/ctVal present=420/420/420, union_missing_from_snapshot=['DATA-USDT-SWAP-OFF20260702-2','IP-USDT-SWAP'] (2), present=143, cross-endpoint conflict orders=168 / fill_rows=199 on the single pair DATA-USDT-SWAP-OFF20260702-2 -> IP-USDT-SWAP, distinct_utc_days=26, top_two_day_share_pct=81.74276905006607, orders_projection_aggregate_hash=e2cad38f667a0895fcc7ad0d4961b5bf5b3d8d67d3dd3c5e931618cee877b6b3, fills_projection_aggregate_hash=36d3fd5e3e0fe267af94122e590da077fb49fa3b290d90268b488d9dc8fa2b2a, forbidden_field_hits_count=0 across all 29,298 rows.",
+      "independence_caveat": "None material found. This is a clean-room reimplementation of the counting/hashing algorithm documented in datafitness.go and the measurement receipt's own 'algorithm' field, executed against the same external data roots the owner used."
+    },
+    {
+      "method_id": "M3_SELF_EXCLUDING_HASH_RECOMPUTE",
+      "description": "For each frozen JSON artifact, loaded it as a generic object, nulled the self-excluded hash field named in its own hashes.hash_method, and recomputed via a temporary Go program calling the repository's internal/datatruth.HashJSON (deterministic Go encoding/json plus SHA-256 lowercase hex), matching the documented self-exclusion rule verbatim. For each companion Markdown file, normalized the single '> Document hash: `<value>`' line to '> Document hash: `SELF_EXCLUDED`' and took SHA-256 over the UTF-8 LF bytes, matching the documented md_hash_self_exclusion rule verbatim. The temporary Go program was deleted immediately after use and never committed.",
+      "result": "p0_swap_data_fitness.json artifact_hash: declared 393a1295...9c9e2bd66 == recomputed. route_data_contracts.json protocol_hash: declared 4a4c201d...504c453588 == recomputed. route_data_source_registry.json registry_hash: declared 1c667256...9a49052e5318 == recomputed. p0_swap_data_fitness.md, route_data_contracts.md, route_data_source_registry.md document hashes: all declared == recomputed.",
+      "independence_caveat": "Uses the repository's own canonical hashing primitive (as directed by each artifact's own hash_method), since that primitive defines what 'the hash' means in this repository; independence here is in the fresh execution against on-disk bytes, not in reimplementing SHA-256 canonicalization from a different codebase."
+    },
+    {
+      "method_id": "M4_MANIFEST_CLOCK_AND_DENOMINATOR_FIELD_AUDIT",
+      "description": "Read orders and fills manifest.json event_time_range/receive_time_range/clocks/clock_fitness/denominator_fitness/pit_status fields directly and compared them against p0_swap_data_fitness.json's time_ranges and fitness_matrix/earliest_blockers claims.",
+      "result": "orders/fills manifest event_time_range exactly matches p0_swap_data_fitness.json time_ranges.orders_event/fills_event. Manifest receive_time_range (local collector receive, not exchange ReceiveTime) exactly matches time_ranges.orders_local_retrieval/fills_local_retrieval. Both manifests self-declare clock_fitness=ARCHIVE_ORIGINAL_RECEIVE_TIME_ABSENT and denominator_fitness=INCOMPLETE_API_SLICE, corroborating the claims 'receive_clock: MISSING_ORIGINAL' and earliest_blocker INCOMPLETE_ATTEMPTS_DENOMINATOR. Neither orders nor fills projection_fields contain a decision_id, ack-time, or original-receive-time field, corroborating 'decision_id_to_order_identity: MISSING' and 'ack_clock: MISSING'. order_states observed are limited to {filled, canceled}; no rejected/expired/live-open state exists in the schema or the data, corroborating 'rejected_expired_live_open: MISSING'."
+    },
+    {
+      "method_id": "M5_MASTER_PLAN_CROSS_CHECK",
+      "description": "Grepped FIRST_BATTLE_MASTER_PLAN.md for the P0 Data Fitness section without modifying it, to check plan/artifact consistency.",
+      "result": "See governance_findings below: plan section 5.11 heading still reads '(待独立红队)' (pending independent red-team) while the artifact's own status field already reads REDTEAM_PASS_DATA_FITNESS_CLASSIFICATION_STOPPED and embeds an owner-authored independent_redteam.verdict=PASS_DATA_FITNESS_CLASSIFICATION block. This drift is reported, not corrected, per instructions to leave FIRST_BATTLE_MASTER_PLAN.md to the governance owner."
+    }
+  ],
+  "commands_run": [
+    "cd /root/lingxi && git status --short && git log --oneline -5",
+    "cd /root/lingxi && go build ./...",
+    "cd /root/lingxi && go test ./internal/historydownload/...",
+    "cd /root/lingxi && go run ./cmd/p0-swap-data-fitness > /tmp/reviewer_recomputed_measurement.json",
+    "python3 /tmp/independent_verify.py > /tmp/independent_verify_output.json  (clean-room script, method M2, not committed)",
+    "temporary Go program under a transient cmd/ directory calling internal/datatruth.HashJSON for method M3, deleted after use, not committed",
+    "python3 one-liner recomputing Markdown SELF_EXCLUDED document hashes for method M3"
+  ],
+  "findings": [
+    {
+      "id": "F1",
+      "severity": "INFO",
+      "title": "All quantitative claims independently reproduced with zero discrepancies",
+      "detail": "Every count, hash, and range in p0_swap_data_fitness.json, p0_swap_data_fitness_measurement.json, and their bindings to route_data_contracts.json/route_data_source_registry.json was independently recomputed by at least one of M1-M4 above and matched exactly. No numeric, hash, or field-presence discrepancy was found."
+    },
+    {
+      "id": "F2",
+      "severity": "INFO",
+      "title": "Outcome-blindness independently confirmed",
+      "detail": "A clean-room scan of every key in all 13,622 order rows and 15,676 fill rows (29,298 rows total, across 137+157 projection pages) for case/punctuation-normalized substrings of pnl/return/profit/winner/outcome/mfe/mae/upnl found zero matches, corroborating outcome_blind_attestation.forbidden_values_read=false independently of the calculator's own internal forbidden-key gate."
+    },
+    {
+      "id": "F3",
+      "severity": "INFO",
+      "title": "Denominator and identity gaps independently corroborated",
+      "detail": "Zero no-fill orders, zero rejected/expired/live-open states, absence of decision_id/ack-time/original-receive-time fields in both endpoint schemas, and clock_fitness=ARCHIVE_ORIGINAL_RECEIVE_TIME_ABSENT / denominator_fitness=INCOMPLETE_API_SLICE self-declared in both source manifests, all directly support the earliest_blocker=INCOMPLETE_ATTEMPTS_DENOMINATOR classification and the secondary blockers (CROSS_ENDPOINT_INSTRUMENT_IDENTITY_DRIFT, ORIGINAL_RECEIVE_TIME_ABSENT, DECISION_ID_ABSENT, INSTRUMENT_PIT_UNPROVEN)."
+    },
+    {
+      "id": "F4",
+      "severity": "MEDIUM",
+      "title": "Owner-authored 'independent_redteam' self-attestation is not itself independently verifiable evidence, and drifts from the master plan",
+      "detail": "p0_swap_data_fitness.json contains an 'independent_redteam' block (reviewer: 'Sonnet 5 Thinking High', verdict: PASS_DATA_FITNESS_CLASSIFICATION) and p0_swap_data_fitness.md section 8 narrates a prior Sonnet review, but both are prose written by the same owner-side agent that authored the rest of the artifact, inside a file only the owner controls. No separate reviewer-authored, hash-bound receipt existed for this claim before the present file. Separately, FIRST_BATTLE_MASTER_PLAN.md section 5.11 heading still reads '(待独立红队)' (pending independent red-team), which is inconsistent with the artifact's own REDTEAM_PASS_DATA_FITNESS_CLASSIFICATION_STOPPED status and the embedded independent_redteam.verdict. This is the exact 'owner self-declares PASS' pattern this review was commissioned to resolve.",
+      "resolution": "This receipt is the first artifact in this lineage authored by a separate reviewer identity, with its own independently executed commands and its own self-excluding hash, and it supersedes the evidentiary weight of the owner-authored independent_redteam block for the current generation. Governance should update FIRST_BATTLE_MASTER_PLAN.md section 5.11 to point at this receipt instead of, or in addition to, the owner's self-narrated redteam text; this reviewer did not make that edit because plan updates are reserved for the governance owner."
+    }
+  ],
+  "conflicts_with_owner_artifact": "NONE_ON_SUBSTANCE. This reviewer's independently recomputed hashes, counts, and field-presence facts are in complete agreement with p0_swap_data_fitness.json and p0_swap_data_fitness_measurement.json. The only disagreement is procedural (F4): the owner's own artifact should not be the sole evidence of its own independent review; this receipt is offered as the missing separate evidence.",
+  "verdict": "PASS_INDEPENDENT_VERIFICATION_DATA_FITNESS_CLASSIFICATION",
+  "approved_scope": "The only scope this reviewer approves is that current OKX SWAP orders/fills/instruments data remain classified DATA_BLIND (root_context_ood=GATE_ACTIVE_FAIL_CLOSED; micro_execution_capacity_cliff=DATA_BLIND; exchange_rule_discontinuity=DATA_BLIND/PIT_UNPROVEN; sparse_forced_flow=DATA_BLIND; cross_venue_operational_asymmetry=DATA_BLIND/WEAK_PROXY_ONLY) with routes_reopened=0, exactly as p0_swap_data_fitness.json states. No broader claim is approved.",
+  "not_approved": [
+    "outcome/profitability research of any kind",
+    "validation or walk-forward testing",
+    "exam issuance or exam actions",
+    "shadow trading",
+    "real-money trading or any route reopening",
+    "treating the 100% order-fill token join as a complete attempts denominator",
+    "treating the current instruments snapshot as historical PIT",
+    "treating this receipt as authorizing any mechanism, route, or generation beyond the DATA_BLIND/routes_reopened=0 classification above"
+  ],
+  "if_independent_proof_had_failed": "Not applicable; independent reproduction succeeded on every checked value. Per instructions, any unreproduced or contradicted claim would have been written here as BLOCK with the specific mismatch, rather than accommodated.",
+  "safety": {
+    "system_status": "NO_GO",
+    "exam_status": "EXAM_UNAVAILABLE",
+    "trade_allowed": false,
+    "labels_unblinded": false,
+    "routes_started": 0,
+    "routes_reopened": 0,
+    "reviewer_made_commits": false,
+    "reviewer_modified_owner_artifacts": false,
+    "reviewer_modified_plan": false,
+    "reviewer_modified_records": false,
+    "reviewer_read_raw_or_outcome_values": false
+  },
+  "hashes": {
+    "receipt_hash": "0cdd322c130a7c6e58bd9803e5611f6a144d35bf6e5a3f0cdac49292ad9dcad4",
+    "hash_method": "Read this JSON as a generic object, set hashes.receipt_hash to null, then compute repository datatruth.HashJSON (deterministic Go encoding/json plus SHA-256 lowercase hex), exactly as used by the artifacts this receipt reviews.",
+    "self_excluded_field": "hashes.receipt_hash"
+  }
+}

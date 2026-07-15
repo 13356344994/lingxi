@@ -1,0 +1,47 @@
+{
+  "schema_version": "lingxi.data-driven-router-v3.model-api.v1",
+  "policy_id": "changepoint-grok-cp-r4-d10-p1-s9",
+  "leaves": [
+    {
+      "leaf_id": "grok-cp-r4-d10-p1-s9-regime-0",
+      "predicate": "regime_id=regime-0 \u0026\u0026 rare_state=false \u0026\u0026 present(quote_volume_24h) \u0026\u0026 quote_volume_24h\u003e=196914228.603 \u0026\u0026 bar_range_bps\u003e=180.589371954 \u0026\u0026 funding_age_hours\u003e=3.50166599457 \u0026\u0026 reason=change_point_regime=0_days=111_events=20152_rare=false_penalty=1.0_sse=4950135430450749440.000000_seed=42",
+      "intent": {
+        "target_signed_position_fraction": 1,
+        "target_horizon_hours": 24,
+        "delay_bars": 3
+      }
+    },
+    {
+      "leaf_id": "grok-cp-r4-d10-p1-s9-regime-1",
+      "predicate": "regime_id=regime-1 \u0026\u0026 rare_state=false \u0026\u0026 present(quote_volume_24h) \u0026\u0026 quote_volume_24h\u003c181142362.334 \u0026\u0026 bar_range_bps\u003c172.999401402 \u0026\u0026 beta_24h\u003c1.44395177419 \u0026\u0026 reason=change_point_regime=1_days=199_events=42199_rare=false_penalty=1.0_sse=4950135430450749440.000000_seed=42",
+      "intent": {
+        "target_signed_position_fraction": -1,
+        "target_horizon_hours": 24,
+        "delay_bars": 3
+      }
+    },
+    {
+      "leaf_id": "grok-cp-r4-d10-p1-s9-regime-2",
+      "predicate": "regime_id=regime-2 \u0026\u0026 rare_state=true \u0026\u0026 present(quote_volume_24h) \u0026\u0026 quote_volume_24h\u003e=250446442.245 \u0026\u0026 bar_range_bps\u003e=211.049801516 \u0026\u0026 beta_24h\u003e=1.48464064246 \u0026\u0026 reason=change_point_regime=2_days=36_events=8420_rare=true_penalty=1.0_sse=4950135430450749440.000000_seed=42,_rare_state_relative_predicate",
+      "intent": {
+        "target_signed_position_fraction": 1,
+        "target_horizon_hours": 24,
+        "delay_bars": 3
+      }
+    },
+    {
+      "leaf_id": "grok-cp-r4-d10-p1-s9-regime-3",
+      "predicate": "regime_id=regime-3 \u0026\u0026 rare_state=false \u0026\u0026 present(quote_volume_24h) \u0026\u0026 quote_volume_24h\u003c182451427.488 \u0026\u0026 bar_range_bps\u003e=181.802038808 \u0026\u0026 funding_age_hours\u003c3.35359316882 \u0026\u0026 reason=change_point_regime=3_days=114_events=29229_rare=false_penalty=1.0_sse=4950135430450749440.000000_seed=42",
+      "intent": {
+        "target_signed_position_fraction": -1,
+        "target_horizon_hours": 24,
+        "delay_bars": 3
+      }
+    }
+  ],
+  "default_intent": {
+    "target_signed_position_fraction": 0,
+    "target_horizon_hours": 1,
+    "delay_bars": 0
+  }
+}

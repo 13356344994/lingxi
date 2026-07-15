@@ -1,0 +1,192 @@
+{
+  "schema_version": "lingxi.mechanism-search-v2.shortlist-reviewer-receipt.v1",
+  "artifact_id": "firstbattle.mechanism-search-v2.mechanism-shortlist-reviewer-receipt",
+  "reviews_artifacts": [
+    "research/firstbattle/mechanism_search_v2/candidates_opus.json",
+    "research/firstbattle/mechanism_search_v2/candidates_fable.json",
+    "research/firstbattle/mechanism_search_v2/candidates_grok.json",
+    "research/firstbattle/mechanism_search_v2/mechanism_hypothesis_library.json",
+    "research/firstbattle/mechanism_search_v2/mechanism_shortlist.json"
+  ],
+  "reviewed_at": "2026-07-14T06:02:00Z",
+  "reviewer": {
+    "identity": "Independent reviewer subagent, distinct session from the Opus/Fable/Grok owner agents that authored the three candidates_*.json/.md files",
+    "model": "Claude Sonnet 5",
+    "workspace": "/root/lingxi",
+    "write_scope": "Permitted, and used, to add only: mechanism_hypothesis_library.json/.md, mechanism_shortlist.json/.md, mechanism_shortlist_reviewer_receipt.json/.md under research/firstbattle/mechanism_search_v2/. Did not modify candidates_opus/fable/grok.*, route_data_contracts.json/.md, route_data_source_registry.json/.md, history_catalog.json, p0_swap_data_fitness*.json/.md, data_mainline_closure_v1.json/.md, FIRST_BATTLE_MASTER_PLAN.md, any code, records/, private-raw, or G1-G10 frozen artifacts. Made no git commits.",
+    "separation_statement": "This receipt is produced by an agent instance that did not author any of the three candidate files, the hypothesis library, or the shortlist reviewed here beyond authoring the library/shortlist itself as the same reviewer identity (there is no separate proposer to be independent from at this stage \u2014 the proposers are Opus/Fable/Grok, and this reviewer is independent of all three). All findings are derived from this reviewer's own commands against frozen artifacts and local feature-side history, not from trusting any owner's narrative or self-score.",
+    "raw_or_outcome_access": "None. Read only price/funding-rate/timestamp/schema fields from records/history/okx_1h and records/history/okx_funding (feature-side only), plus JSON metadata from the candidate/registry/contract/receipt/closure files. No pnl/fillPnl/realized_pnl/return/winner/future_outcome/mfe/mae/upnl field was read. No file under private-raw/ or any sealed exam surface was opened. No records/ file was opened."
+  },
+  "independent_methods": [
+    {
+      "method_id": "M1_UPSTREAM_HASH_REVERIFICATION",
+      "description": "Built a temporary Go program under a transient cmd/ directory (following the identical pattern used by p0_swap_data_fitness_reviewer_receipt.json's method M3) that loads each bound JSON artifact as a generic map, nulls the field named in its own hashes.hash_method/self_excluded_field, and calls the repository's internal/datatruth.HashJSON. Ran it against all seven upstream-bound artifacts, then deleted the program and confirmed git status showed no residual diff under cmd/.",
+      "result": "Initial review found 6 of 7 matched exactly and candidates_fable.json's then-declared f6af94cd... did not reproduce; the independent recompute was a244b53c...f97cea. The Fable owner subsequently corrected only its self-hash declaration to that exact independently-derived value. Follow-up method M6 independently confirms all 7 of 7 now match; the original mismatch is RESOLVED_OWNER_HASH_CORRECTED, not suppressed.",
+      "independence_caveat": "Uses the repository's own canonical hashing primitive, as directed by each artifact's own hash_method field; independence here is in fresh execution against on-disk bytes by an agent that did not author any of the seven files, not in reimplementing SHA-256 canonicalization from a separate codebase."
+    },
+    {
+      "method_id": "M2_MARKDOWN_DOCUMENT_HASH_CROSS_CHECK",
+      "description": "For each of the three candidate .md files, normalized the single '> Document hash: `<value>`' line to '> Document hash: `SELF_EXCLUDED`' and recomputed SHA-256 over the UTF-8 LF bytes with a standalone Python script (not part of the repository, not committed).",
+      "result": "All three candidate Markdown document hashes reproduced in the initial review. After the Fable owner updated the Markdown's JSON-hash reference and self-hash only, follow-up normalization independently reproduces the corrected candidates_fable.md document hash 879d93eb...703a9. No mechanism text change was reported; JSON canonical-content continuity is independently proven by M6."
+    },
+    {
+      "method_id": "M3_FEATURE_SIDE_LOCAL_HISTORY_REVERIFICATION",
+      "description": "Directly sampled records/history/okx_1h/{AAPL,SPY,TSLA,GME}-USDT-SWAP.jsonl and records/history/okx_funding/{BTC,H,LAB,RAVE,ENJ}-USDT-SWAP.jsonl for row counts, min/max timestamps, schema fields, and (for the equity perps) a full 24-hour Saturday price/volume series, and separately grepped/globbed for calendar/holiday artifacts repo-wide and enumerated the full okx_1h symbol universe via directory listing. Read only price/funding-rate/timestamp fields, never any outcome field.",
+      "result": "Corroborated: 401 okx_1h files, 401 okx_funding files, 200 okx_5m files; AAPL/SPY/TSLA/GME date windows match the candidate's cited day counts; BTC funding schema and settlement-stamp identity confirmed; funding pin/clamp runs on H/LAB/RAVE/ENJ confirmed present (though at insufficient magnitude for the 50-event gate). NEW findings beyond what any owner reported: (a) records/history/rubik_lsratio_1h exists locally (hourly long/short-ratio tape, ~30 days) and was not checked by Opus's OI-imbalance existence scan; (b) zero local calendar/holiday/DST artifacts exist anywhere in the repository; (c) the okx_1h symbol universe spans multiple distinct underlying-market calendars and asset classes (US equities/ETFs, foreign single stocks and country ETFs, commodities, private-company perps with no underlying market), not one homogeneous cluster; (d) on a sampled Saturday, AAPL-USDT-SWAP shows continuous non-frozen hourly price/volume movement, independently passing FAB-MSV2-01's own first falsification cut.",
+      "independence_caveat": "Sampling was necessarily partial given time/effort constraints (one symbol for the weekend-movement check, five symbols for the funding-pin check); these are spot checks corroborating or correcting the owners' broader scans, not a full re-audit of all 401 symbols."
+    },
+    {
+      "method_id": "M4_CROSS_OWNER_CONTRADICTION_SEARCH",
+      "description": "Read all three owner files together (something no single owner did, since each worked independently per the task's non-collusion requirement) specifically looking for cases where one owner's own hard-reject reasoning invalidates a different owner's candidate that the first owner never saw.",
+      "result": "Found one material cross-owner contradiction: candidates_fable.json's own decision_journal explicitly hard-rejects a 'Rubik long/short-ratio extreme' candidate as a pure public factor; candidates_opus.json's MSV2-OPUS-01 depends on exactly this data family (records/history/rubik_lsratio_1h, confirmed present in M3) as its only currently-dense decision-time crowding proxy once its originally-cited xmeta OI source is confirmed too sparse. Neither owner could have caught this alone. Used as the decisive reason OPUS-01 is not shortlisted (see mechanism_hypothesis_library.json R7/R8)."
+    },
+    {
+      "method_id": "M5_G_SERIES_HOMOLOGY_GROUNDING",
+      "description": "Grepped FIRST_BATTLE_MASTER_PLAN.md \u00a74.2 (read-only) for G2's frozen protocol description, rather than trusting each owner's own non_isomorphism_proof text at face value.",
+      "result": "Confirmed G2's frozen protocol (hash 395d15ece40050e7227e0cff5a74a91c68cdab83285c02a10657d13f21a118ec) tested a 162-combination 'BTC return \u00d7 realized volatility \u00d7 BTC funding state \u00d7 horizon \u00d7 direction' grid with a 'funding payer side flip' framing on BTC only, reaching 0 nominations. Used to classify OPUS-01/FAB-06/GROK-01 as family-adjacent-high-isomorphism-risk rather than accepting each owner's self-declared 'non-isomorphic' verdict unexamined."
+    },
+    {
+      "method_id": "M6_FABLE_OWNER_HASH_CORRECTION_REVERIFICATION",
+      "description": "Used a standalone Go program in /tmp (outside the repository, deleted after use) that independently reimplements repository datatruth.HashJSON's generic JSON decode, recursive normalization, deterministic encoding/json marshal, and SHA-256 steps. Nulled candidates_fable.json.hashes.candidates_hash and recomputed; separately normalized candidates_fable.md's Document hash line to SELF_EXCLUDED and computed SHA-256 with Python. No candidate, plan, master, code, or records file was modified.",
+      "result": "JSON recompute=a244b53ccb39e9c28d01f4287a8bf83cd66e01d4d9cd7431c83b60c1c1f97cea, exactly matching the corrected owner declaration AND this reviewer's prior independent recompute. Therefore canonical candidate JSON content did not change apart from the self-hash field; otherwise this value would have changed. Markdown recompute=879d93ebc43cdd7cb886e3725ecffb7becf33e879449542874a0fa2befe703a9, exactly matching the corrected declaration. Verdict: RESOLVED_OWNER_HASH_CORRECTED. Candidate scores, clusters, and shortlist remain unchanged."
+    }
+  ],
+  "commands_run": [
+    "Glob/Grep across research/firstbattle/** and /root/lingxi for calendar/holiday/DST/session artifacts (none found)",
+    "Read of candidates_opus.json, candidates_fable.json, candidates_grok.json, route_data_contracts.json, route_data_source_registry.json, history_catalog.json (grepped due to 1.3MB size, not fully read), g10_reopen_condition_inventory.json, p0_swap_data_fitness.json, p0_swap_data_fitness_reviewer_receipt.json, data_mainline_closure_v1.json",
+    "Grep of FIRST_BATTLE_MASTER_PLAN.md \u00a74.2 for G2 protocol description (read-only, no modification)",
+    "wc -l / python3 json sampling of records/history/okx_1h/{AAPL,SPY,TSLA,GME}-USDT-SWAP.jsonl and records/history/okx_funding/{BTC,H,LAB,RAVE,ENJ}-USDT-SWAP.jsonl",
+    "Directory listing of records/history/okx_1h to enumerate the full symbol universe",
+    "Grep counts of okx_1h/okx_5m/okx_funding file counts inside history_catalog.json",
+    "Temporary Go program under cmd/tmp-hashverify-reviewer calling internal/datatruth.HashJSON for method M1, built with 'go build ./cmd/tmp-hashverify-reviewer/', run with 'go run ./cmd/tmp-hashverify-reviewer <path> <field>' per file, then deleted with 'rm -rf cmd/tmp-hashverify-reviewer'; not committed",
+    "Standalone Python one-liner recomputing Markdown SELF_EXCLUDED document hashes for method M2",
+    "Follow-up standalone /tmp Go canonicalizer independently recomputing corrected candidates_fable.json hash plus Python SELF_EXCLUDED Markdown hash recompute for method M6; /tmp source deleted, repository untouched",
+    "git status --short and git status --short cmd/ before and after temp-program cleanup to confirm no residual diff"
+  ],
+  "conflict_matrix": {
+    "note": "Pairwise check of whether any owner's PASS/RETAIN verdict conflicts with a different owner's REJECT/DATA_BLIND verdict on the SAME underlying mechanism, plus this reviewer's own independent verdict where it differs from the owner's self-label.",
+    "rows": [
+      {
+        "topic": "Funding-settlement decision-time crowding feature availability",
+        "opus_position": "RETAIN_HYPOTHESIS / DATA_PARTIAL_PIT_GAP (OPUS-01), citing xmeta OI as the only, insufficient, decision-time OI source.",
+        "fable_position": "Separately, and without reference to OPUS-01, hard-rejects a Rubik long/short-ratio candidate as a pure public factor.",
+        "grok_position": "N/A (Grok's GROK-01 is a different sub-mechanism, interval densification, not decision-time crowding).",
+        "conflict_found": true,
+        "resolution": "Cross-referenced (M4): the two owner positions, read together, jointly falsify OPUS-01's path to a non-public-factor decision-time feature. Reviewer verdict: RETAIN_HYPOTHESIS_NOT_SHORTLISTED, siding with the combined evidence over OPUS-01's own DATA_PARTIAL framing alone."
+      },
+      {
+        "topic": "Funding-clamp/pin saturation as an independently supported mechanism",
+        "opus_position": "OPUS-06 self-rejected as sibling of OPUS-01 with PIT_UNPROVEN cap-threshold archive.",
+        "fable_position": "FAB-04 independently designs a tape-internal identity that avoids the PIT gap, but self-classifies INSUFFICIENT_SUPPORT.",
+        "grok_position": "N/A.",
+        "conflict_found": false,
+        "resolution": "Compatible, non-conflicting views (different specific blockers on the same underlying phenomenon). Reviewer independently re-measured (M3) and corroborates FAB-04's insufficient-support conclusion; both candidates rejected for their respective, non-contradictory reasons."
+      },
+      {
+        "topic": "Borrowing-interest-settlement forced-repay identity",
+        "opus_position": "OPUS-03: RETAIN_HYPOTHESIS_WEAK / DATA_BLIND, no forced-repay identity observable.",
+        "fable_position": "N/A (no Fable candidate in this family).",
+        "grok_position": "GROK-02: REJECTED_DATA_BLIND, identical conclusion, independently reached.",
+        "conflict_found": false,
+        "resolution": "Agreement across independent owners; reviewer concurs (SIBLING_DUPLICATE cluster, both HARD_REJECTED for the same reason)."
+      },
+      {
+        "topic": "Listing-week / listing-delisting forced flow direction and identifiability",
+        "opus_position": "N/A.",
+        "fable_position": "FAB-02: TESTABLE_ON_EXISTING_HISTORY_WITH_IDENTIFICATION_WEAKNESS, but with an unresolved symmetric payer hypothesis.",
+        "grok_position": "GROK-03: REJECTED_DATA_BLIND (delisting/migration side, opposite lifecycle end).",
+        "conflict_found": false,
+        "resolution": "Not the same mechanism (birth vs. death side of the lifecycle), so not a direct conflict. Reviewer independently downgrades FAB-02 further than Fable's own framing, from 'testable with a weakness' to REJECTED_PAYER_NOT_DIRECTLY_OBSERVABLE, per the task's specific instruction to scrutinize whether FAB-02 has a real seller identity or is just listing drift; GROK-03's HARD_REJECTED verdict is affirmed unchanged."
+      },
+      {
+        "topic": "Mark/index dislocation and ADL/liquidation forced flow vs. the frozen sparse_forced_flow route",
+        "opus_position": "OPUS-05: self-rejected, explicit sibling-homology admission vs. sparse_forced_flow.",
+        "fable_position": "N/A.",
+        "grok_position": "GROK-04: DATA_BLIND, explicit 'same data blocker' admission vs. G10 sparse_forced_flow.",
+        "conflict_found": false,
+        "resolution": "Both owners independently reach the same existing-route-homology conclusion the reviewer would have reached anyway; affirmed HARD_REJECTED / ISOMORPHIC_TO_EXISTING_ROUTE for both."
+      },
+      {
+        "topic": "Cross-venue operational asymmetry vs. the frozen cross_venue_operational_asymmetry route",
+        "opus_position": "N/A.",
+        "fable_position": "N/A.",
+        "grok_position": "GROK-07: self-acknowledges 'same family, stricter framing' vs. the existing frozen route.",
+        "conflict_found": false,
+        "resolution": "Reviewer treats this as DUPLICATE_OF_EXISTING_ROUTE rather than a new candidate at all, consistent with Grok's own admission; not merely DATA_BLIND but explicitly not novel."
+      },
+      {
+        "topic": "Equity-perp session-gap mechanism: novelty, moat, and universe homogeneity",
+        "opus_position": "N/A.",
+        "fable_position": "FAB-01: TESTABLE_ON_EXISTING_HISTORY_PENDING_INDEX_METHOD_CHECK, owner's own top-ranked candidate, day-clustering self-flagged but multi-calendar composition of the 121-symbol universe NOT self-flagged.",
+        "grok_position": "N/A.",
+        "conflict_found": false,
+        "resolution": "No cross-owner conflict (sole owner of this mechanism), but reviewer's own independent findings (R9/R10/R12 in the library) materially extend and partially correct the owner's framing: PIT claim overstated for the full heterogeneous universe, moat argument incomplete (crypto-native institutions not addressed), and one falsification cut independently run and passed (R3). Reviewer verdict SHORTLISTED_CONDITIONAL_RESCOPED, not a straight adoption of Fable's own TESTABLE label."
+      }
+    ]
+  },
+  "input_hashes": {
+    "candidates_opus_json_declared": "1ed962fc83026349a4f112c87c7d185ca9604566e14245395434824b898c4d32",
+    "candidates_opus_json_reverified": true,
+    "candidates_fable_json_declared": "a244b53ccb39e9c28d01f4287a8bf83cd66e01d4d9cd7431c83b60c1c1f97cea",
+    "candidates_fable_json_reverified": true,
+    "candidates_fable_json_independent_recompute": "a244b53ccb39e9c28d01f4287a8bf83cd66e01d4d9cd7431c83b60c1c1f97cea",
+    "candidates_fable_hash_correction_status": "RESOLVED_OWNER_HASH_CORRECTED",
+    "candidates_fable_canonical_content_unchanged": true,
+    "candidates_fable_md_document_hash_declared": "879d93ebc43cdd7cb886e3725ecffb7becf33e879449542874a0fa2befe703a9",
+    "candidates_fable_md_document_hash_reverified": true,
+    "candidates_grok_json_declared": "615c1e5aa5267e30698ee8839b41d88b09e54bc5b70ebc7a5c5e0efb0a5dcddc",
+    "candidates_grok_json_reverified": true,
+    "route_data_contracts_protocol_hash_declared": "4a4c201d2c8cedde5bd1ff55ea40ad31d099e189feb709a517701b504c453588",
+    "route_data_contracts_protocol_hash_reverified": true,
+    "route_data_source_registry_hash_declared": "1c6672563d4bc00ea102df2f9575b365a2a9dc30e763db75067f9a49052e5318",
+    "route_data_source_registry_hash_reverified": true,
+    "history_catalog_data_hash_referenced": "f41ed2586d91054c4b5b2e15e60f32a4d64ccde0032e76dfdc5fc6dee316379c",
+    "history_catalog_data_hash_reverified": false,
+    "history_catalog_reverify_note": "history_catalog.json is 1.3MB; this reviewer read it via targeted Grep/offset reads (family names, file counts, per-file min/max/lines for cited symbols) rather than a full self-excluding hash recompute, since the file carries no self-excluded hash field of its own to reverify (it is a plain catalog, not a hash-bound envelope) and is a read-only reference input, not a file this reviewer authored or modified.",
+    "p0_swap_data_fitness_reviewer_receipt_hash_declared": "0cdd322c130a7c6e58bd9803e5611f6a144d35bf6e5a3f0cdac49292ad9dcad4",
+    "p0_swap_data_fitness_reviewer_receipt_hash_reverified": true,
+    "data_mainline_closure_v1_hash_declared": "d4f78f1efabead5b86e0656ab73903734da6c36d1d737337c535a14e6568525e",
+    "data_mainline_closure_v1_hash_reverified": true
+  },
+  "scoring_hash": {
+    "note": "This reviewer's frozen per-candidate reviewer_scores and cluster assignments live in mechanism_hypothesis_library.json.candidates[*].reviewer_scores and .clusters; the scoring_input_hash below binds this receipt to the exact library content this receipt reviews, computed the same way as all other self-excluding hashes in this repository.",
+    "scoring_input_hash": "d208f96cbf6b22623df47858ab9a0aaaa46d80dd16768ad993daff02bc10eae5",
+    "scoring_input_hash_method": "Read research/firstbattle/mechanism_search_v2/mechanism_hypothesis_library.json as a generic object, set its own hashes.library_hash to null, compute datatruth.HashJSON over the result, and record that value here verbatim (i.e. this field must equal mechanism_hypothesis_library.json's own hashes.library_hash once both are finalized)."
+  },
+  "reviewed_output_hashes": {
+    "mechanism_hypothesis_library_hash": "d208f96cbf6b22623df47858ab9a0aaaa46d80dd16768ad993daff02bc10eae5",
+    "mechanism_shortlist_hash": "b3c63aee84509eead9dc24bf067e68cdc16f08f50a532e006a68e633b015c541"
+  },
+  "verdict": "PASS_INDEPENDENT_MECHANISM_TRIAGE_ONE_CONDITIONAL_SHORTLIST_ENTRY",
+  "approved_scope": [
+    "The Mechanism Hypothesis Library's 19-candidate triage, clustering, and hard-reject/rubric scoring as frozen in mechanism_hypothesis_library.json.",
+    "The single conditional shortlist entry (FAB-MSV2-01, rescoped) as frozen in mechanism_shortlist.json, with its explicit rescoping, open falsification cuts, and Phase A prerequisites treated as BINDING conditions, not advisory notes.",
+    "The resolved Fable integrity finding: corrected JSON and Markdown hashes now independently reproduce; canonical candidate JSON content is unchanged, so scores and shortlist remain unchanged."
+  ],
+  "not_approved": [
+    "Any data contract freeze, download, or acquisition beyond what is already local plus the two explicitly-scoped public reference lookups (calendar construction, OKX index/mark methodology documentation).",
+    "Any Phase A event-denominator build, generation preregistration, validation, walk-forward, exam, shadow trading, or real-money action for the shortlisted route or any other candidate.",
+    "Treating FAB-MSV2-01's shortlisting as a proof that the mechanism is real; it is a conditional pass on observability/plausibility grounds only, with two falsification cuts still open.",
+    "Treating any owner's self-declared classification, score, or non-isomorphism proof as sufficient evidence on its own; all were independently re-derived or cross-checked before this receipt's verdict."
+  ],
+  "if_independent_verification_had_found_zero_eligible_routes": "Not applicable to the final outcome, but explicitly acknowledged as the leading alternative this reviewer weighed: 18 of 19 candidates independently failed on existing-history grounds regardless of scoring, and the single remaining candidate's inclusion rests on a rescoping and two open falsification cuts this reviewer performed/identified but did not fully close. Per instructions, if this reviewer's own confidence in that one entry had been lower, the correct action would have been to return 0 and recommend returning to mechanism research rather than force a selection; this receipt records that this was a close, not a clean, call.",
+  "safety": {
+    "system_status": "NO_GO",
+    "exam_status": "EXAM_UNAVAILABLE",
+    "trade_allowed": false,
+    "labels_unblinded": false,
+    "routes_started": 0,
+    "routes_reopened": 0,
+    "reviewer_made_commits": false,
+    "reviewer_modified_owner_artifacts": false,
+    "reviewer_modified_plan": false,
+    "reviewer_modified_records": false,
+    "reviewer_modified_code": false,
+    "reviewer_read_raw_or_outcome_values": false
+  },
+  "hashes": {
+    "receipt_hash": "6c5a0c25f065e169f64f909aacedd4fc85f7ca0dad066222cc5e3f146a2bbdce",
+    "hash_method": "Read this JSON as a generic object, set hashes.receipt_hash to null, then compute repository datatruth.HashJSON (deterministic Go encoding/json plus SHA-256 lowercase hex), exactly as used by the artifacts this receipt reviews.",
+    "self_excluded_field": "hashes.receipt_hash"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "schema_version": "lingxi.data-driven-router-v3.okx-funding-archive-day.v1",
+  "status": "DOWNLOADED",
+  "utc_date": "2025-08-03",
+  "module": "3",
+  "discovery_url": "https://www.okx.com/api/v5/public/market-data-history?begin=1754179200000\u0026dateAggrType=daily\u0026end=1754265599999\u0026instType=SWAP\u0026module=3",
+  "discovery_sha256": "a146d8d492eb02495ddb4d2c161fcea2e61be3704ca8c639191524ff62965f05",
+  "archive_url": "https://static.okx.com/cdn/okex/traderecords/swaprates/daily/20250803/allswap-fundingrates-2025-08-03.zip?v=999",
+  "archive_sha256": "8d2e0a963bdb78bd69debdcb67ca18dc4708dc608509b148df43683923c91ee5",
+  "canonical_sha256": "a3a72b18d8a262d02a45607fee9ee84511bede4bea00cca3f0d168ccf6c33aca",
+  "rows": 1209
+}

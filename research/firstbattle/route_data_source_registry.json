@@ -1,0 +1,651 @@
+{
+  "schema_version": "lingxi.route-data-source-registry.v1",
+  "registry_id": "firstbattle.route-data-source-registry",
+  "generation": "firstbattle-route-data-source-registry-v1",
+  "investigated_at": "2026-07-13T14:08:24Z",
+  "status": "INVESTIGATION_REGISTRY_NO_ACQUIRE",
+  "todo_id": "investigate-forced-and-rules",
+  "todo_portion": "investigation_and_registry_only",
+  "supreme_objective": "在不同市场状态、特殊事件和个人执行条件下，动态路由到各自经过历史证据认证的专属盈利路径；没有可靠匹配路径时必须空仓。最终以资金流调整后的真实账户净值长期增长为唯一成功标准。",
+  "scope": "只登记官方/免费与付费候选来源的可用性、route fit、identity/clocks/PIT、license/provenance、coverage、pilot、disk estimate、stop gate 与官方 URL；不下载大数据、不购买、不读取收益、不启动路线、不修改冻结合同。本 registry 不是 Data Fitness 验收，也不是 generation 预注册。",
+  "bindings": {
+    "binding_policy": "REFERENCE_ONLY_NO_MODIFY. 引用已冻结合同 hash，不回写合同。",
+    "route_data_contracts_protocol_hash": "4a4c201d2c8cedde5bd1ff55ea40ad31d099e189feb709a517701b504c453588",
+    "g10_reopen_condition_inventory_json_hash": "b9b62bc4d959d256e9d553385c2b3a474c1017632a35951a84e70d2a8e46e69a",
+    "g10_reopen_condition_inventory_source_manifest_hash": "66b47378f674a2e9f8cdbe6e7649f11afee633610aa5ca330c09f2d38b8b79cd"
+  },
+  "policy": {
+    "no_purchase": true,
+    "no_bulk_download_in_this_todo": true,
+    "no_outcome_read": true,
+    "labels_unblinded": false,
+    "routes_started": 0,
+    "post_apply_archive_endpoints_authorized_after_isolated_redteam": [
+      "POST /api/v5/account/bills-history-archive"
+    ],
+    "delisted_archive_endpoints_forbidden": ["POST /api/v5/trade/fills-archive"],
+    "archive_post_boundary": "仅可由与GET downloader及交易adapter物理隔离的专用客户端调用；实现后须独立红队。当前唯一白名单为bills-history-archive；下单/撤单/划转/账户设置POST永久不在白名单。",
+    "secret_tracked_not_a_data_source_blocker": true,
+    "p0_only_okx_private_plus_public_pilot": true,
+    "l2_must_not_crowd_out_private_execution": true,
+    "local_forced_streams_are_not_official_complete_denominator": true,
+    "announcement_fragments_do_not_form_rule_version_chain": true
+  },
+  "sources": [
+    {
+      "source_id": "okx_historical_data_portal_and_cdn",
+      "tier": "tier0_official_public",
+      "availability": "PRESENT_OFFICIAL_FREE",
+      "official_urls": [
+        "https://www.okx.com/historical-data",
+        "https://www.okx.com/docs-v5/en/#public-data-rest-api-get-historical-market-data",
+        "https://static.okx.com/cdn/okex/traderecords/"
+      ],
+      "discovery": "GET /api/v5/public/market-data-history returns official CDN URLs on static.okx.com；SWAP discovery 可能返回 allswap-* 全品种包而非单标的小文件，L2 module 映射仍待 1日×1标的 pilot 验证",
+      "provenance": "OKX official Historical Data portal + official REST discovery → static.okx.com CDN zip",
+      "license_notes": "OKX public historical market data; free for download via official portal/API; follow OKX site terms",
+      "coverage": {
+        "trades_tick": "2021-09+",
+        "l2_order_book": "2023-03+",
+        "funding_rate": "2022-03+",
+        "borrowing_rate": "2021-12+",
+        "candles": "2023-07+"
+      },
+      "fields_expected": "product-specific CSV inside zip (trades tick; high-resolution L2; funding; borrowing); exact headers require 1-day pilot",
+      "identity_clocks_pit": {
+        "identity": "public tape rows; no private order/fill identity",
+        "event_time": "exchange event timestamps inside files",
+        "receive_time": "ABSENT from archive (download ProcessTime only)",
+        "process_time": "local download time",
+        "pit": "market tape replay by event time only; NOT instrument/rule PIT"
+      },
+      "route_fit": [
+        "micro_execution_capacity_cliff: context depth/tape only; cannot invent attempts denominator",
+        "cross_venue_operational_asymmetry: OKX leg L2 candidate (P2)",
+        "sparse_forced_flow: WEAK context only; not forced identity",
+        "exchange_rule_discontinuity: none for rule versions"
+      ],
+      "pilot": "BTC-USDT-SWAP × 1 UTC day: trades + books + funding；先验证 discovery 返回是否为单标的或 allswap 全品种包、L2 module 映射，再记录 sizeMB、row counts、clock columns、gaps",
+      "disk_estimate": "API returns sizeMB per file when discovery succeeds; L2 >> trades; MUST pilot before any multi-day pull. Do not bulk-download in this todo.",
+      "region_403_risk": "Prior probe of market-data-history from some networks returned HTTP 403 (geo/WAF). Provenance still official when discovery succeeds via portal or alternate egress; treat 403 as access risk, not absence of product.",
+      "live_probe_2026_07_14": {
+        "request": "module=1, instType=SWAP, instIdList=BTC-USDT-SWAP, dateAggrType=daily, UTC date 2026-07-10",
+        "result": "code=0 but returned allswap-trades-2026-07-10.zip (263.72MB) and an additional 2026-07-11 allswap package (177.2MB); no exact single-instrument group",
+        "l2_module_4_result": "code=0 with empty details",
+        "fitness": "FAIL_CLOSED_NOT_1D1S_NO_ARCHIVE_DOWNLOADED"
+      },
+      "stop_gate": "If discovery persistently 403 without alternate egress, pause public CDN pull and keep P0 private GET path. If schema lacks usable event ts or day files have unlogged gaps after pilot, stop that product slice.",
+      "evidence_date": "2026-07-13",
+      "purchase_status": "NOT_APPLICABLE_FREE"
+    },
+    {
+      "source_id": "okx_private_orders_history_archive_get",
+      "tier": "tier0_official_private_readonly",
+      "availability": "PRESENT_OFFICIAL_API_ROLLING_3M",
+      "official_urls": [
+        "https://www.okx.com/docs-v5/en/#order-book-trading-trade-get-orders-history-last-3-months"
+      ],
+      "endpoint": "GET /api/v5/trade/orders-history-archive",
+      "provenance": "OKX private Read API",
+      "license_notes": "Account-private; raw ordId/clOrdId stay outside research projection; pnl forbidden in research layer",
+      "coverage": "orders placed in last ~3 months (incl. older orders completed inside window)",
+      "fields_expected": "ordId, clOrdId, ordType, state(canceled/filled/mmp_canceled), cTime, uTime, fee/feeCcy, instId/instType, cancel/source fields as returned；该端点不证明 rejected/expired/live-open attempts",
+      "identity_clocks_pit": {
+        "identity": "ordId/clOrdId lifecycle keys",
+        "event_time": "cTime/uTime",
+        "receive_time": "local recorded_at if captured by downloader",
+        "process_time": "local persist time",
+        "pit": "execution facts at exchange clocks; instrument rule PIT still separate"
+      },
+      "route_fit": [
+        "micro_execution_capacity_cliff: P0 primary attempts/orders denominator"
+      ],
+      "pagination": "after/before use ordId; begin/end filter cTime; limit<=100. instType must be explicit and each type isolated in its own checkpoint/dataset.",
+      "pilot": "paginated GET for explicit SWAP first (SPOT/MARGIN/FUTURES separate datasets only if needed); verify ordId cursor progress, state coverage and lifecycle join readiness",
+      "disk_estimate": "account-scale; typically MB-class for short windows; enforce downloader disk cap",
+      "stop_gate": "If ordId cannot join fills, or the API slice is mistaken for a complete attempts denominator despite missing rejected/expired/live-open attempts, stop micro route measurement.",
+      "evidence_date": "2026-07-13",
+      "purchase_status": "NOT_APPLICABLE_FREE",
+      "priority_band": "P0"
+    },
+    {
+      "source_id": "okx_private_fills_history_get",
+      "tier": "tier0_official_private_readonly",
+      "availability": "PRESENT_OFFICIAL_API_ROLLING_3M",
+      "official_urls": [
+        "https://www.okx.com/docs-v5/en/#order-book-trading-trade-get-transaction-details-last-3-months"
+      ],
+      "endpoint": "GET /api/v5/trade/fills-history",
+      "provenance": "OKX private Read API",
+      "license_notes": "Account-private; fillPnl/pnl must not enter research features",
+      "coverage": "fills in last ~3 months",
+      "fields_expected": "tradeId, ordId, billId, fillPx, fillSz, fillTime, ts, execType, fee/feeCcy, side, instId/instType",
+      "identity_clocks_pit": {
+        "identity": "tradeId+ordId join to orders",
+        "event_time": "fillTime",
+        "receive_time": "local recorded_at if captured",
+        "process_time": "local persist time",
+        "pit": "fill facts; not rule PIT"
+      },
+      "route_fit": [
+        "micro_execution_capacity_cliff: P0 primary fills chain"
+      ],
+      "pagination": "after/before use billId (not tradeId); begin/end filter ts (not fillTime); limit<=100. instType must be explicit and each type isolated in its own checkpoint/dataset.",
+      "pilot": "paginated GET using billId cursor; join sample to orders-history-archive on ordId; count fillPnl presence but do not project it",
+      "disk_estimate": "account-scale; MB-class typical under disk cap",
+      "stop_gate": "If fill↔order join fails uniqueness or execType/fee clocks missing, stop.",
+      "evidence_date": "2026-07-13",
+      "purchase_status": "NOT_APPLICABLE_FREE",
+      "priority_band": "P0"
+    },
+    {
+      "source_id": "okx_report_center_manual_export",
+      "tier": "tier0_official_private_manual",
+      "availability": "MANUAL_EXPORT_UNVERIFIED",
+      "official_urls": [
+        "https://www.okx.com/en-us/help/how-to-check-download-order-history-position-history-and-trading-history"
+      ],
+      "provenance": "OKX official Help Center Order/Trading/Position download paths (Order center)",
+      "license_notes": "Account-private CSV/PDF; link expires ~1 hour after copy; statements do not mark API vs manual placement",
+      "coverage": {
+        "order_history_download": "2021-01-28 to present",
+        "trading_history_download": "2021-01-28 to present",
+        "position_history_download": "2021-01-28 to present",
+        "position_snapshot_download": "2022-12-01 to present (single-day)",
+        "online_view": "up to ~1 year"
+      },
+      "fields_expected": "Order/Trading/Position CSV columns per export template; schema NOT yet locally verified",
+      "identity_clocks_pit": {
+        "identity": "expected order/trade ids in export; join rules UNVERIFIED until import",
+        "event_time": "export timestamps; clock semantics UNVERIFIED",
+        "receive_time": "ABSENT (manual download ProcessTime only)",
+        "pit": "not a rule archive"
+      },
+      "route_fit": [
+        "micro_execution_capacity_cliff: only path for private denominator beyond API 3 months"
+      ],
+      "pilot": "user exports one recent complete month Order+Trading CSV; schema/join check before any research use",
+      "disk_estimate": "depends on account activity; typically low vs L2; still stage outside repo",
+      "stop_gate": "Remain MANUAL_EXPORT_UNVERIFIED until imported under privacy boundary and join-tested. Do not claim 20-day/50-event support from API window alone.",
+      "evidence_date": "2026-07-13",
+      "purchase_status": "NOT_APPLICABLE_FREE",
+      "automation": "NOT_AVAILABLE",
+      "priority_band": "P0_SUPPORTING_MANUAL"
+    },
+    {
+      "source_id": "okx_bills_history_archive_apply",
+      "tier": "authorized_non_trading_archive_apply_separate_boundary",
+      "availability": "PRESENT_AUTHORIZED_NOT_IMPLEMENTED",
+      "official_urls": [
+        "https://www.okx.com/docs-v5/en/#trading-account-rest-api-apply-bills-details-since-2021",
+        "https://www.okx.com/docs-v5/en/#trading-account-rest-api-get-bills-details-since-2021"
+      ],
+      "endpoints": [
+        "POST /api/v5/account/bills-history-archive then GET"
+      ],
+      "coverage": "since 2021-02 except current quarter; year+quarter async archive, fileHref short-lived",
+      "route_fit": [
+        "P1 only: extends ledger/fee/funding and some ordId-linked evidence; does not provide order state or complete attempt denominator"
+      ],
+      "stop_gate": "禁止进入 production GET downloader 或任何交易 adapter。仅当Data Fitness证明账本/费用长窗有增量价值时，由独立 archive-application 客户端在红队通过后申请；不得声称补齐attempt denominator。",
+      "evidence_date": "2026-07-14",
+      "purchase_status": "NOT_APPLICABLE",
+      "priority_band": "P1_AUTHORIZED_SEPARATE_EVALUATE_VALUE"
+    },
+    {
+      "source_id": "okx_fills_archive_delisted",
+      "tier": "delisted_forbidden",
+      "availability": "DELISTED_2024_09_19",
+      "official_urls": ["https://www.okx.com/docs-v5/log_en/"],
+      "endpoint": "POST /api/v5/trade/fills-archive",
+      "finding": "Official changelog states the transaction details (last 2 years) endpoints were delisted on 2024-09-19; current docs retain only fills/fills-history short windows.",
+      "route_fit": ["none: delisted; even historical behavior was fills-only and could not form attempt denominator"],
+      "stop_gate": "Do not implement, call, or include in any allowlist.",
+      "evidence_date": "2026-07-14",
+      "purchase_status": "NOT_APPLICABLE",
+      "priority_band": "STOP_DELISTED"
+    },
+    {
+      "source_id": "okx_instruments_current_snapshot",
+      "tier": "tier0_official_public_snapshot",
+      "availability": "PRESENT_SNAPSHOT_ONLY",
+      "official_urls": [
+        "https://www.okx.com/docs-v5/en/#public-data-rest-api-get-instruments"
+      ],
+      "endpoints": [
+        "GET /api/v5/public/instruments",
+        "GET /api/v5/account/instruments"
+      ],
+      "provenance": "OKX official instruments endpoints",
+      "coverage": "current live snapshot only",
+      "fields_expected": "ctType, minSz, lotSz, tickSz, ctVal, ctValCcy, state, listTime; optional upcChg.{param,newValue,effTime} for pending changes",
+      "identity_clocks_pit": {
+        "identity": "instId current version only",
+        "known_from": "capture time forward only",
+        "pit": "PIT_UNPROVEN for any decision_time before capture; must not backfill history"
+      },
+      "route_fit": [
+        "exchange_rule_discontinuity: future-only seed",
+        "micro_execution_capacity_cliff: decision-time specs only after KnownFrom"
+      ],
+      "pilot": "one snapshot pull; assert ctType present; stamp KnownFrom=capture UTC",
+      "disk_estimate": "KB–MB",
+      "stop_gate": "Any use of current snapshot to rewrite past rule state → immediate stop (PIT violation).",
+      "evidence_date": "2026-07-13",
+      "purchase_status": "NOT_APPLICABLE_FREE",
+      "priority_band": "P0"
+    },
+    {
+      "source_id": "okx_official_rule_instrument_version_archive",
+      "tier": "tier0_sought_official",
+      "availability": "ABSENT",
+      "pit_status": "PIT_UNPROVEN",
+      "official_urls": [
+        "https://www.okx.com/help/okx-to-enable-automatic-adjustment-of-several-trading-parameters"
+      ],
+      "finding": "No official historical instrument/rule version archive with KnownFrom/effective_at chain for ctType/minSz/lot/tick/ctVal. Announcement fragments and post-2026-01-15 auto parameter adjustments without default announcements cannot compose a version chain.",
+      "route_fit": [
+        "exchange_rule_discontinuity: remains DATA_BLIND/PIT_UNPROVEN"
+      ],
+      "pilot": "none — absence is the finding",
+      "disk_estimate": "n/a",
+      "stop_gate": "Do not fabricate PIT from announcements or current snapshot. Route stays closed until a legal historical version archive appears.",
+      "evidence_date": "2026-07-13",
+      "purchase_status": "NOT_APPLICABLE",
+      "priority_band": "P1_GAP"
+    },
+    {
+      "source_id": "okx_official_liquidation_history_batch",
+      "tier": "tier0_sought_official",
+      "availability": "ABSENT",
+      "official_urls": [
+        "https://www.okx.com/historical-data",
+        "https://www.okx.com/docs-v5/en/"
+      ],
+      "finding": "Official Historical Data products list trades/candles/funding/L2/borrowing only; no liquidation/forced-order long-history batch product. Public REST GET /api/v5/public/liquidation-orders and real-time WS liquidation-orders provide only recent/rolling observations, not a long-history complete archive.",
+      "route_fit": [
+        "sparse_forced_flow: official long-history denominator ABSENT"
+      ],
+      "pilot": "none",
+      "disk_estimate": "n/a",
+      "stop_gate": "Do not label any third-party or local stream as official complete OKX forced denominator.",
+      "evidence_date": "2026-07-13",
+      "purchase_status": "NOT_APPLICABLE",
+      "priority_band": "P1_GAP"
+    },
+    {
+      "source_id": "bybit_official_liquidation_history_batch",
+      "tier": "tier0_sought_official",
+      "availability": "ABSENT",
+      "official_urls": [
+        "https://www.bybit.com/en/derivative-activity/history-data/",
+        "https://bybit-exchange.github.io/docs/v5/websocket/public/all-liquidation"
+      ],
+      "finding": "Official History Data has no liquidation package; WS allLiquidation is realtime only.",
+      "route_fit": [
+        "sparse_forced_flow: official batch history ABSENT"
+      ],
+      "pilot": "none",
+      "disk_estimate": "n/a",
+      "stop_gate": "Same as OKX — ABSENT official batch history.",
+      "evidence_date": "2026-07-13",
+      "purchase_status": "NOT_APPLICABLE",
+      "priority_band": "P1_GAP"
+    },
+    {
+      "source_id": "binance_vision_liquidation_um_cm",
+      "tier": "tier0_official_public_partial",
+      "availability": "UM_ABSENT_CM_LIMITED",
+      "official_urls": [
+        "https://data.binance.vision/?prefix=data/futures/um/daily/liquidationSnapshot/",
+        "https://data.binance.vision/?prefix=data/futures/cm/daily/liquidationSnapshot/",
+        "https://developers.binance.com/docs/derivatives/usds-margined-futures/websocket-market-streams/Liquidation-Order-Streams"
+      ],
+      "finding": "UM liquidationSnapshot prefix empty (ABSENT). CM liquidationSnapshot PRESENT for Coin-M symbols (e.g. BTCUSD_PERP) with time/side/qty/price-style rows. Realtime @forceOrder is not a complete historical denominator.",
+      "route_fit": [
+        "sparse_forced_flow: limited CM contrast only; not LINGXI OKX primary path"
+      ],
+      "pilot": "optional 1-day CM sample for schema contrast only; must not redefine primary forced denominator",
+      "disk_estimate": "small per day for listed CM symbols",
+      "stop_gate": "Do not treat CM snapshot as OKX/Bybit official complete market forced denominator.",
+      "evidence_date": "2026-07-13",
+      "purchase_status": "NOT_APPLICABLE_FREE",
+      "priority_band": "P1_SUPPORTING_ONLY"
+    },
+    {
+      "source_id": "bybit_private_order_history_denominator",
+      "tier": "tier0_official_private_readonly",
+      "availability": "PRESENT_SHORT_WINDOW_LONG_SURVIVOR_ONLY",
+      "official_urls": ["https://bybit-exchange.github.io/docs/v5/order/order-list"],
+      "coverage": "default 7 days; canceled/rejected/deactivated retained about 24h; beyond 7 days only filled or partially-filled-then-canceled orders",
+      "route_fit": ["micro execution short-window schema contrast only; long-history no-fill denominator unavailable"],
+      "pilot": "none for long denominator; only a bounded <=24h engineering contrast if needed",
+      "stop_gate": "Do not perform long pull or call >7d data a complete attempts denominator.",
+      "evidence_date": "2026-07-14",
+      "purchase_status": "NOT_APPLICABLE_FREE",
+      "priority_band": "STOP_LONG_DENOMINATOR"
+    },
+    {
+      "source_id": "binance_futures_order_history_async_candidate",
+      "tier": "tier0_official_private_readonly_async",
+      "availability": "PRESENT_PILOT_UNVERIFIED_DENOMINATOR",
+      "official_urls": ["https://developers.binance.com/docs/derivatives/usds-margined-futures/account/rest-api/Get-Download-Id-For-Futures-Order-History"],
+      "coverage": "async futures order-history package; requested range up to about one year, quota shared with UI; exact zero-fill retention unverified",
+      "route_fit": ["micro execution candidate only if package contains CANCELED/EXPIRED with executedQty=0; still lacks local decision/non-submit and original ReceiveTime"],
+      "pilot": "smallest recent 7-30 day package, count status x executedQty==0 without reading outcome fields",
+      "stop_gate": "If zero-fill terminal states are absent or quota semantics are unclear, stop after one pilot.",
+      "evidence_date": "2026-07-14",
+      "purchase_status": "NOT_APPLICABLE_FREE",
+      "priority_band": "P1_PILOT_CANDIDATE"
+    },
+    {
+      "source_id": "gate_futures_order_history_denominator",
+      "tier": "tier0_official_private_readonly",
+      "availability": "PRESENT_LONG_SURVIVOR_ONLY",
+      "official_urls": [
+        "https://www.gate.com/docs/developers/apiv4/en/",
+        "https://github.com/gateio/gateapi-nodejs/blob/master/docs/FuturesApi.md"
+      ],
+      "coverage": "finished-order history can be long, but zero-fill canceled orders become unavailable roughly 10 minutes after cancellation",
+      "route_fit": ["finish_as is useful for short engineering diagnostics; long-history no-fill denominator structurally unavailable"],
+      "pilot": "none for long denominator",
+      "stop_gate": "Do not spend private API budget on long pull for micro attempts.",
+      "evidence_date": "2026-07-14",
+      "purchase_status": "NOT_APPLICABLE_FREE",
+      "priority_band": "STOP_LONG_DENOMINATOR"
+    },
+    {
+      "source_id": "mexc_futures_history_orders_candidate",
+      "tier": "tier0_official_private_readonly",
+      "availability": "PRESENT_PILOT_UNVERIFIED_RETENTION",
+      "official_urls": [
+        "https://www.mexc.com/api-docs/futures/account-and-trading-endpoints/get-all-historical-orders",
+        "https://www.mexc.com/learn/article/how-to-use-mexc-s-account-data-export-function/1"
+      ],
+      "coverage": "API states include canceled and invalid; export advertises longer account history, but deep zero-fill retention is unverified",
+      "route_fit": ["micro candidate if historical state canceled/invalid with dealVol=0 survives; still lacks decision-side non-submit and PIT"],
+      "pilot": "bounded read-only recent page for states canceled/invalid, then one-month manual export only if account activity exists",
+      "stop_gate": "If deep history is filled-only or account has no relevant activity, stop.",
+      "evidence_date": "2026-07-14",
+      "purchase_status": "NOT_APPLICABLE_FREE",
+      "priority_band": "P1_PILOT_CANDIDATE"
+    },
+    {
+      "source_id": "local_okx_bybit_liquidation_streams",
+      "tier": "tier1_local_self_collected",
+      "availability": "PRESENT_PARTIAL",
+      "official_urls": [],
+      "local_binding": {
+        "okx_rows": 62728,
+        "bybit_rows": 85960,
+        "source_manifest_hash": "66b47378f674a2e9f8cdbe6e7649f11afee633610aa5ca330c09f2d38b8b79cd"
+      },
+      "provenance": "Local collectors of public WS liquidation feeds; NOT exchange historical archive",
+      "coverage": "short recent window only (see inventory); no uptime/gap complete denominator proven",
+      "identity_clocks_pit": {
+        "identity": "no stable exchange event ID; composite RECONSTRUCTABLE only",
+        "event_time": "exchange ts present",
+        "receive_time": "recorded_at present",
+        "process_time": "local persist",
+        "pit": "event-time instrument PIT still unproven"
+      },
+      "route_fit": [
+        "sparse_forced_flow: schema seed PRESENT_PARTIAL only"
+      ],
+      "pilot": "none new; do not wait for future samples",
+      "disk_estimate": "already on disk as inventory-bound JSONL",
+      "stop_gate": "Cannot be called official complete denominator. Missing stable ID + uptime manifest + payer disappearance → route stays DATA_BLIND.",
+      "evidence_date": "2026-07-13",
+      "purchase_status": "NOT_APPLICABLE",
+      "priority_band": "P1_SEED_ONLY"
+    },
+    {
+      "source_id": "okx_official_l2_history_free",
+      "tier": "tier0_official_public",
+      "availability": "PRESENT_OFFICIAL_FREE_PILOT_ELIGIBLE",
+      "official_urls": [
+        "https://www.okx.com/historical-data",
+        "https://www.okx.com/docs-v5/en/#public-data-rest-api-get-historical-market-data"
+      ],
+      "coverage": "L2 order book 2023-03+",
+      "route_fit": [
+        "micro: depth context after private P0",
+        "cross_venue: OKX leg (P2 only)"
+      ],
+      "pilot": "1 symbol × 1 day AFTER private execution pilot capacity reserved",
+      "disk_estimate": "large vs trades; sizeMB from discovery; hard stop if would crowd private download budget",
+      "stop_gate": "L2 must not displace P0 private orders/fills. Bulk multi-day/multi-symbol L2 forbidden without separate approval.",
+      "evidence_date": "2026-07-13",
+      "purchase_status": "NOT_APPLICABLE_FREE",
+      "priority_band": "P0_PUBLIC_PILOT_SECONDARY"
+    },
+    {
+      "source_id": "bybit_official_l2_history_free",
+      "tier": "tier0_official_public",
+      "availability": "PRESENT_OFFICIAL_FREE_PILOT_ELIGIBLE",
+      "official_urls": [
+        "https://www.bybit.com/en/derivative-activity/history-data/",
+        "https://quote-saver.bycsi.com/orderbook/"
+      ],
+      "coverage": "orderbook archives via quote-saver (linear/inverse/spot); BTCUSDT ob500 listing observed from 2023-01-18",
+      "fields_expected": "snapshot+delta style packs; ts system-generated; sequence gap self-check required",
+      "route_fit": [
+        "cross_venue_operational_asymmetry: Bybit leg candidate (P2)"
+      ],
+      "pilot": "1 day BTCUSDT ob500 only for disk budget; do not start route research",
+      "disk_estimate": "large daily ob500 files; prior ~246 MB/day observation was not independently re-HEAD-verified in this review and must be rechecked before any pilot",
+      "stop_gate": "P2 only after non-speed personal executability proven. Must not crowd P0.",
+      "evidence_date": "2026-07-13",
+      "purchase_status": "NOT_APPLICABLE_FREE",
+      "priority_band": "P2"
+    },
+    {
+      "source_id": "binance_vision_bookdepth_and_tick_l2",
+      "tier": "tier0_official_public_limited_or_stopped",
+      "availability": "BOOKDEPTH_NOT_L2__TICK_L2_STOPPED",
+      "official_urls": [
+        "https://data.binance.vision/?prefix=data/futures/um/daily/bookDepth/",
+        "https://github.com/binance/binance-public-data/tree/master/Futures_Order_Book_Download (STALE_404_AS_OF_2026-07-13)",
+        "https://github.com/binance/binance-public-data/issues/437"
+      ],
+      "finding": "Vision bookDepth schema is timestamp/percentage/depth/notional (~30s aggregated notional bands) — NOT tick L2. Tick-level historical order book (T_DEPTH whitelist path) officially stopped support as of 2024-11 per Binance staff note in public-data issue #437; must not depend on new applications.",
+      "route_fit": [
+        "cross_venue: NOT usable as executable L2 peer"
+      ],
+      "pilot": "none for L2 purposes",
+      "disk_estimate": "bookDepth ~0.45 MB/day BTCUSDT observed; irrelevant as L2 substitute",
+      "stop_gate": "Do not treat bookDepth as L2. Do not plan research on stopped tick L2 feed.",
+      "evidence_date": "2026-07-13",
+      "purchase_status": "NOT_APPLICABLE",
+      "priority_band": "REJECT_AS_L2"
+    },
+    {
+      "source_id": "tardis_dev_paid_candidate",
+      "tier": "tier3_non_official_third_party_paid",
+      "availability": "PAID_CANDIDATE_LIST_ONLY",
+      "classification": "NON_OFFICIAL_THIRD_PARTY",
+      "official_urls": [
+        "https://tardis.dev/"
+      ],
+      "provenance": "Third-party capture of exchange WS feeds; NOT exchange official archive",
+      "public_pricing": {
+        "perpetuals_plans_usd_per_month": {
+          "academic": 350,
+          "startup": 700,
+          "professional": 1000,
+          "business": 3000
+        },
+        "all_exchanges_plans_usd_per_month": {
+          "academic": 650,
+          "startup": 1200,
+          "professional": 2200,
+          "business": 6000
+        },
+        "pricing_url": "https://tardis.dev/",
+        "pricing_observed_date": "2026-07-13",
+        "note": "Published plan cards on tardis.dev; monthly billing history window shorter than yearly — exact backfill window depends on selected plan/dates on site."
+      },
+      "fields_coverage_value": {
+        "fields": "normalized/native trades, L2, liquidations, funding/OI and related derivatives feeds per Tardis product list",
+        "venues": "OKX/Bybit/Binance among others",
+        "clocks": "exchange timestamp + local_timestamp (two clocks on capture)",
+        "value_to_lingxi": "Only systematic candidate to backfill official forced-history ABSENT gap; does NOT replace private order lifecycle or rule PIT; cannot be labeled official provenance"
+      },
+      "route_fit": [
+        "sparse_forced_flow: paid gap-filler candidate only after separate purchase approval"
+      ],
+      "pilot": "free first-of-month sample CSV may be used for schema contrast only; no purchase",
+      "disk_estimate": "depends on symbols/channels; inquire before any buy",
+      "stop_gate": "NO PURCHASE without explicit user approval. Never rewrite as official forced denominator.",
+      "evidence_date": "2026-07-13",
+      "purchase_status": "NOT_PURCHASED_AWAITING_SEPARATE_APPROVAL",
+      "priority_band": "PAID_LIST_ONLY"
+    },
+    {
+      "source_id": "kaiko_coinapi_other_paid_candidates",
+      "tier": "tier3_non_official_third_party_paid",
+      "availability": "PAID_CANDIDATE_LIST_ONLY",
+      "classification": "NON_OFFICIAL_THIRD_PARTY",
+      "official_urls": [],
+      "public_pricing": {
+        "status": "NO_PUBLIC_TRUSTED_PRICE_FOUND",
+        "action": "INQUIRE_ONLY_IF_NEEDED",
+        "do_not_guess": true
+      },
+      "fields_coverage_value": "Institutional L2/trades/reference data vendors; not investigated in depth this round because free official OKX path is P0.",
+      "route_fit": [
+        "none until price/field/coverage inquired and separately approved"
+      ],
+      "pilot": "none",
+      "disk_estimate": "unknown — inquire",
+      "stop_gate": "No purchase; no guessed prices.",
+      "evidence_date": "2026-07-13",
+      "purchase_status": "NOT_PURCHASED",
+      "priority_band": "PAID_LIST_ONLY"
+    }
+  ],
+  "source_combinations": [
+    {
+      "combo_id": "combo_p0_okx_private_plus_public_pilot",
+      "priority": "P0",
+      "recommended": true,
+      "members": [
+        "okx_private_orders_history_archive_get",
+        "okx_private_fills_history_get",
+        "okx_instruments_current_snapshot",
+        "okx_historical_data_portal_and_cdn",
+        "okx_report_center_manual_export"
+      ],
+      "intent": "唯一 P0：私人执行 GET + 官方公共 1日×1标的 pilot + instruments snapshot；Report Center 人工补长窗。L2 只作次级小样，不得挤占私人执行带宽/磁盘/工期。",
+      "explicit_non_goals": [
+        "no official forced complete denominator claim",
+        "no rule PIT fabrication",
+        "archive POST only through separately reviewed non-trading applicant; never through GET downloader",
+        "no purchase",
+        "no bulk L2"
+      ]
+    },
+    {
+      "combo_id": "combo_p1_forced_reality",
+      "priority": "P1",
+      "recommended": false,
+      "members": [
+        "combo_p0_okx_private_plus_public_pilot",
+        "local_okx_bybit_liquidation_streams",
+        "binance_vision_liquidation_um_cm",
+        "okx_official_liquidation_history_batch",
+        "bybit_official_liquidation_history_batch"
+      ],
+      "intent": "在 P0 之上维持本地 PRESENT_PARTIAL 强平流作 schema seed；Binance CM liquidationSnapshot 仅对照；OKX/Bybit 官方批量历史登记为 ABSENT。不能 reopen 完整 forced 分母。",
+      "explicit_non_goals": [
+        "do not wait for future liquidations",
+        "do not call local streams official complete denominator"
+      ]
+    },
+    {
+      "combo_id": "combo_p2_cross_venue_l2_prep",
+      "priority": "P2",
+      "recommended": false,
+      "members": [
+        "okx_official_l2_history_free",
+        "bybit_official_l2_history_free",
+        "binance_vision_bookdepth_and_tick_l2"
+      ],
+      "intent": "仅当跨场所合同先证明非纯速度且个人可执行后，才用 OKX+Bybit 官方免费 L2；Binance bookDepth 明确非 L2，tick L2 停止不可依赖。",
+      "explicit_non_goals": [
+        "must not crowd P0 private execution",
+        "no full-market full-history L2"
+      ]
+    },
+    {
+      "combo_id": "combo_paid_gap_list",
+      "priority": "PAID_LIST_ONLY",
+      "recommended": false,
+      "members": [
+        "tardis_dev_paid_candidate",
+        "kaiko_coinapi_other_paid_candidates"
+      ],
+      "intent": "付费缺口清单：Tardis 有公开价与 liquidations/L2 价值说明；其他厂商无公开可信价则只写询价。全部 NON_OFFICIAL_THIRD_PARTY，未购买。",
+      "explicit_non_goals": [
+        "no purchase in this todo",
+        "cannot replace official provenance label"
+      ]
+    }
+  ],
+  "priority_verdict": {
+    "p0": "ONLY combo_p0_okx_private_plus_public_pilot",
+    "p0_ordering": [
+      "1_private_orders_history_archive",
+      "2_private_fills_history",
+      "3_instruments_snapshot_forward_only",
+      "4_public_trades_funding_1d1s_pilot",
+      "5_public_l2_1d1s_pilot_if_budget_remains",
+      "6_report_center_manual_export_user_checklist"
+    ],
+    "l2_crowding_rule": "If disk/network/time budget conflicts, drop or defer L2 pilot; never defer private orders/fills.",
+    "forced_official": "OKX ABSENT; Bybit ABSENT; Binance UM ABSENT; Binance CM limited; local PRESENT_PARTIAL ≠ official complete",
+    "rules_pit": "ABSENT archive → PIT_UNPROVEN; announcement fragments insufficient",
+    "attempt_denominator_cross_venue": "No VERIFIED existing long history closes the denominator. Bybit/Gate long history drops no-fill; Binance async and MEXC canceled/invalid are bounded P1 pilots only. P0 remains OKX Report Center recent-month Order CSV plus local decision/submission WAL schema audit."
+  },
+  "decision_journal": {
+    "problem_restatement": "在不购买、不拉大数据、不改冻结合同前提下，把官方强制流与规则版本调查结果登记为可复算来源表，并固定 P0=OKX 私人+公共 pilot。",
+    "competing_hypotheses": [
+      "H_official_forced_exists: 某交易所提供可证明完整强平批量历史 — REJECTED for OKX/Bybit/Binance-UM; CM only limited",
+      "H_rule_version_archive_exists: 官方 instrument/rule PIT 版本库存在 — REJECTED/ABSENT",
+      "H_p0_should_be_l2_first: 先拉 L2 更能解盲 — REJECTED; private execution is the scarce personal denominator",
+      "H_report_center_ready: 人工导出可直接当已验证分母 — REJECTED; status MANUAL_EXPORT_UNVERIFIED",
+      "H_tardis_as_official: 付费捕获可称官方 — REJECTED; NON_OFFICIAL_THIRD_PARTY"
+    ],
+    "most_likely_ignored_counterexample": "把本地 OKX/Bybit 强平 JSONL 或 Binance CM snapshot 写成“官方完整分母”，或用公告拼出版本链冒充 PIT；以及用 L2 磁盘占用挤掉 3 个月私人 orders/fills。",
+      "method_and_rejections": "基于 OKX Historical Data 门户、OKX docs、Report Center Help、Bybit history portal、Binance Vision 前缀探测与 Tardis 公开价页；GET downloader 继续拒绝 POST；用户后续授权有价值的非交易 archive-application POST，须另建物理隔离客户端并红队；弃选 bookDepth-as-L2、弃选未审批购买。",
+    "budget_spent": "文档核验 + 已完成调查综合 + registry 写作；无 bulk download、无 purchase、无 outcome read。",
+    "stop_decision": "Registry 写完即停本 todo 的调查/注册表部分；获取动作属 acquire-p0-history / downloader，不在本交付自动启动。",
+    "reviewer_separation": "本 owner 不自批 Data Fitness 或路线重开；须独立红队。"
+  },
+  "safety": {
+    "global_halt": true,
+    "system_status": "NO_GO",
+    "exam_status": "EXAM_UNAVAILABLE",
+    "exam_actions": 0,
+    "trade_allowed": false,
+    "labels_unblinded": false,
+    "routes_started": 0,
+    "not_modified": [
+      "records/",
+      "frozen G1-G10 protocol/hash/generation artifacts",
+      "route_data_contracts.json|.md",
+      "exam papers",
+      "real-money switches",
+      "plan.md"
+    ],
+    "no_purchase": true,
+    "no_bulk_download": true,
+    "no_commit": true
+  },
+  "hashes": {
+    "registry_hash": "1c6672563d4bc00ea102df2f9575b365a2a9dc30e763db75067f9a49052e5318",
+    "hash_method": "Read this JSON as a generic object, set hashes.registry_hash to null, then compute repository datatruth.HashJSON (deterministic Go encoding/json plus SHA-256 lowercase hex).",
+    "self_excluded_field": "hashes.registry_hash",
+    "document_hash_method": "Markdown: normalize the single line '> Document hash: `<value>`' to '> Document hash: `SELF_EXCLUDED`', then SHA-256 over UTF-8 LF bytes."
+  }
+}

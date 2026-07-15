@@ -1,0 +1,134 @@
+{
+  "schema_version": "lingxi.data-driven-router-v3.protocol-overlay.v1",
+  "protocol_id": "firstbattle.data-driven-router-v3",
+  "generation": "firstbattle-data-driven-router-v3-g6",
+  "created_at": "2026-07-14T12:35:00Z",
+  "status": "PREREGISTERED_REWARD_LABELS_STILL_SEALED_PENDING_INDEPENDENT_REVIEW",
+  "supersedes": {
+    "generation": "firstbattle-data-driven-router-v3-g5",
+    "overlay_hash": "518d0003c829da641f1bcc955c4382023e158ba9938c0ac6f0ff19b5bf729385",
+    "reason": "add shared account context and deterministic target-position state transitions before model tournament",
+    "g5_reward_labels_unblinded": false
+  },
+  "inheritance": {
+    "g1_hash": "5d80166eb28307d23e33cd19efae2b60811852ff0da49a3a6e16663aba2e7ddd",
+    "g2_hash": "7096395f1f3bae212b6dc866c5d46ccb372cd284e4a959d424dfbfbb92d6c226",
+    "g3_hash": "63f4ee088efb09e9e58386ab273b997af4a9206d4c5c18e73c59fda5d42a7a57",
+    "g4_hash": "2fd8c5852bba5023c9024d46b5b5e9527e71d670c370a1276e4728f4ef4cd2b9",
+    "g5_hash": "518d0003c829da641f1bcc955c4382023e158ba9938c0ac6f0ff19b5bf729385",
+    "all_unmodified_fields_inherited": true
+  },
+  "account_context": {
+    "generated_only_by_neutral_runner": true,
+    "fields": [
+      "position_direction",
+      "signed_position_fraction",
+      "fixed_notional_usdt",
+      "weighted_average_entry_price",
+      "opened_at_ms",
+      "position_age_bars",
+      "decision_time_unrealized_return",
+      "cumulative_signed_funding_usdt",
+      "cash_usdt",
+      "marked_equity_usdt",
+      "retained_capital_base_usdt",
+      "cumulative_withdrawals_usdt",
+      "gross_leverage",
+      "free_equity_usdt",
+      "open_position_count",
+      "pending_action_count"
+    ],
+    "decision_time_unrealized_return_is_allowed": "current marked price versus historical entry price at DecisionTime; not a future reward label",
+    "future_or_terminal_pnl_as_feature": "FORBIDDEN",
+    "account_context_hash_required_per_decision": true
+  },
+  "model_action_api": {
+    "model_output": ["target_signed_position_fraction", "target_horizon_hours", "delay_bars"],
+    "target_signed_position_fraction_grid": [-1.0, -0.5, -0.25, -0.1, 0.0, 0.1, 0.25, 0.5, 1.0],
+    "target_horizon_hours": [1, 4, 24],
+    "delay_bars": [0, 1, 2, 3],
+    "model_input": "MarketStateRowV2 + AccountContext",
+    "model_may_not_output_verb_directly": true,
+    "reason": "verbs are deterministic state transitions, not independently-accounted labels"
+  },
+  "derived_transition": {
+    "flat_to_zero": "NO_TRADE",
+    "flat_to_positive": "LONG",
+    "flat_to_negative": "SHORT",
+    "same_sign_equal_absolute_fraction": "HOLD",
+    "same_sign_larger_absolute_fraction": "ADD",
+    "same_sign_smaller_nonzero_absolute_fraction": "TRIM",
+    "nonzero_to_zero": "CLOSE",
+    "opposite_sign": "REVERSE",
+    "reverse_atomic_semantics": "CLOSE existing position with full exit cost, recompute account, then open opposite target with full entry cost only if all hard gates pass",
+    "transition_hash_required": true
+  },
+  "position_accounting": {
+    "add": "increase fixed notional and update weighted average entry price by executed notional",
+    "trim": "realize proportional PnL and funding on reduced notional; preserve entry price on remainder",
+    "close": "realize all PnL/funding/cost and remove position",
+    "hold": "keep fixed notional and entry; accrue signed funding and update MTM",
+    "reverse": "close then conditionally open opposite; never net prices or costs across legs",
+    "pending": "target transition executes only when delay matures; account continues MTM/funding before maturity",
+    "eof": "discard unmatured pending; close open positions using frozen EOF rule for account reporting",
+    "withdrawal": "apply effective g3-g5 withdrawal rules only after MTM/funding/exits and before new risk proposals"
+  },
+  "canonical_training_contexts": {
+    "purpose": "allow model code to train before chronological policy trajectories exist, without owner-specific account-state inventions",
+    "start_directions": ["FLAT", "LONG", "SHORT"],
+    "position_age_bars": [1, 4, 24],
+    "position_fraction_grid": [0.1, 0.25, 0.5, 1.0],
+    "entry_price_rule": "historical completed-bar open at decision_at - position_age_bars",
+    "unrealized_return_rule": "decision_time current close versus canonical entry price with direction sign",
+    "cumulative_funding_rule": "sum actual signed settlements between canonical entry and decision",
+    "cash_and_equity_rule": "retained base before hypothetical position; mark position at decision; no synthetic withdrawal before decision",
+    "deterministic_hash_sampling": "if full grid is too large, sample contexts by fixed event_id+context hash priority; sampling budget frozen before label generation",
+    "canonical_contexts_are_discovery_labels_only": true,
+    "certification_uses_real_chronological_account_context": true
+  },
+  "neutral_runner": {
+    "single_implementation_for_all_models_and_baselines": true,
+    "input_hashes": ["state_dataset_manifest", "effective_protocol_chain", "model_code_hash", "model_grid_hash", "reward_evaluator_hash"],
+    "chronological_order_required": true,
+    "batch_same_timestamp_proposals_before_execution": true,
+    "account_context_emitted_before_model_decision": true,
+    "state_transition_applied_after_delay_and_account_gates": true,
+    "append_only_trace_required": true
+  },
+  "required_fixtures": [
+    "FLAT_to_LONG",
+    "FLAT_to_SHORT",
+    "LONG_HOLD",
+    "LONG_ADD_weighted_entry",
+    "LONG_TRIM_proportional_realization",
+    "LONG_CLOSE",
+    "LONG_REVERSE_equals_CLOSE_then_SHORT",
+    "SHORT_mirror_all_transitions",
+    "HOLD_signed_funding",
+    "pending_delay_MTM_before_execution",
+    "EOF_pending_discard",
+    "withdrawal_after_MTM_before_new_risk",
+    "unknown_MMR_withdrawal_deferred",
+    "five_times_leverage_hard_gate",
+    "no_negative_cash"
+  ],
+  "dataset_status": {
+    "market_state_dataset_manifest_hash": "0c084dc440761569eeb0bbf9b078d653daf2688d65f5a1ac7c2c977c26691fa1",
+    "market_state_rows": 4025979,
+    "market_state_shards": 34,
+    "market_state_layer": "APPROVED_BY_INDEPENDENT_REVIEW",
+    "account_state_layer": "DEFINED_NOT_IMPLEMENTED",
+    "reward_label_bundle": "SEALED_NOT_READ_OR_CREATED"
+  },
+  "safety": {
+    "labels_unblinded": false,
+    "routes_started": 0,
+    "system_status": "NO_GO",
+    "trade_allowed": false
+  },
+  "hashes": {
+    "overlay_hash": "08b609e3271029b1e9f772921e325ef7c7fd30326589ae9c03cc86d73d9c844b",
+    "hash_method": "Set hashes.overlay_hash to null, then compute repository datatruth.HashJSON.",
+    "self_excluded_field": "hashes.overlay_hash"
+  }
+}

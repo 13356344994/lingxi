@@ -1,0 +1,22 @@
+{
+  "artifact_hash": "9ba234f0a6ff4f8d9cdcb830a4b8a40cf3a1e2ff5d6708d32d16706eba90afa3",
+  "entries": [
+    {
+      "budget_spent": "fixture-only",
+      "decision": "STOP_AT_EARLIEST_BLOCKER",
+      "hypothesis_after": "event-level matching is impossible from allowed schemas",
+      "hypothesis_before": "allowed maps expose outcome-blind event rows",
+      "next_stop_condition": "new preregistration with legal event identity source",
+      "observation": "validation maps contain aggregate outcome stats but no event identities",
+      "owner": "routerg10/evidenceaudit",
+      "recorded_at": "2026-07-13T12:20:25.99100825Z",
+      "rejected_alternatives": [
+        "treat aggregate event_outcome_count as events",
+        "invent seed identities"
+      ],
+      "sequence": 1,
+      "unresolved_uncertainty": "event-level support and matching"
+    }
+  ],
+  "schema_version": "lingxi.g10-execution-evidence-audit.v1"
+}

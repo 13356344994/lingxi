@@ -1,0 +1,518 @@
+{
+  "schema_version": "lingxi.mechanism-search-v2.hypothesis-library.v1",
+  "artifact_id": "firstbattle.mechanism-search-v2.mechanism-hypothesis-library",
+  "generation": "mechanism-search-v2-sonnet-reviewer-v1",
+  "produced_at": "2026-07-14T05:40:00Z",
+  "hash_correction_reviewed_at": "2026-07-14T06:02:00Z",
+  "reviewer": {
+    "identity": "Independent reviewer subagent, distinct session from Opus/Fable/Grok owners who authored candidates_opus.json, candidates_fable.json, candidates_grok.json",
+    "model": "Claude Sonnet 5",
+    "workspace": "/root/lingxi",
+    "write_scope": "Added only mechanism_hypothesis_library.json/.md, mechanism_shortlist.json/.md, mechanism_shortlist_reviewer_receipt.json/.md under research/firstbattle/mechanism_search_v2/. Did not modify candidates_opus/fable/grok.*, FIRST_BATTLE_MASTER_PLAN.md, route_data_contracts.json/.md, route_data_source_registry.json/.md, history_catalog.json, p0_swap_data_fitness*.json/.md, data_mainline_closure_v1.json/.md, any code, records/, private raw, or G1-G10 frozen artifacts. Made no git commits.",
+    "outcome_access": "None. Read only feature-side metadata: candidate files, route_data_contracts.json, route_data_source_registry.json, history_catalog.json (schema/lines/min_time/max_time/file_hash only), g10_reopen_condition_inventory.json, p0_swap_data_fitness.json/.md, p0_swap_data_fitness_reviewer_receipt.json, data_mainline_closure_v1.json, FIRST_BATTLE_MASTER_PLAN.md (grep, read-only), and raw price/funding-schema rows under records/history/okx_1h and records/history/okx_funding (price/funding-rate/timestamp fields only \u2014 not pnl/return/winner/mfe/mae/future_outcome/exam material). No file under private-raw/ or the sealed exam surface was opened."
+  },
+  "policy": {
+    "no_purchase": true,
+    "no_bulk_download": true,
+    "no_outcome_read": true,
+    "labels_unblinded": false,
+    "routes_started": 0,
+    "no_commit": true,
+    "no_modify_owner_or_frozen_files": true,
+    "forbidden_reads_honored": ["future_return", "return", "pnl", "fillPnl", "realized_pnl", "profit", "winner", "future_outcome", "mfe", "mae", "upnl_after_decision", "exam papers"]
+  },
+  "candidate_set_composition": {
+    "total_candidates": 19,
+    "by_owner": {"opus": 6, "fable": 6, "grok": 7},
+    "input_bindings": {
+      "candidates_opus_json_self_declared_hash": "1ed962fc83026349a4f112c87c7d185ca9604566e14245395434824b898c4d32",
+      "candidates_opus_json_reverified": true,
+      "candidates_fable_json_self_declared_hash": "a244b53ccb39e9c28d01f4287a8bf83cd66e01d4d9cd7431c83b60c1c1f97cea",
+      "candidates_fable_json_reverified": true,
+      "candidates_fable_md_document_hash": "879d93ebc43cdd7cb886e3725ecffb7becf33e879449542874a0fa2befe703a9",
+      "candidates_fable_md_reverified": true,
+      "candidates_fable_hash_reverify_finding": "RESOLVED_OWNER_HASH_CORRECTED: standalone Go reimplementation of repository datatruth.HashJSON, with hashes.candidates_hash nulled, independently yields a244b53ccb39e9c28d01f4287a8bf83cd66e01d4d9cd7431c83b60c1c1f97cea, exactly matching the corrected declaration. This value is also identical to this reviewer's prior independent recompute, proving the candidate JSON's canonical mechanism content did not change apart from the corrected self-hash field. Independently normalizing candidates_fable.md's Document hash line to SELF_EXCLUDED yields 879d93ebc43cdd7cb886e3725ecffb7becf33e879449542874a0fa2befe703a9, exactly matching its corrected declaration; the Markdown's other hash-reference text changed only to bind the corrected JSON hash. No candidate content, reviewer score, clustering, or shortlist decision changed.",
+      "candidates_grok_json_self_declared_hash": "615c1e5aa5267e30698ee8839b41d88b09e54bc5b70ebc7a5c5e0efb0a5dcddc",
+      "candidates_grok_json_reverified": true,
+      "route_data_contracts_protocol_hash": "4a4c201d2c8cedde5bd1ff55ea40ad31d099e189feb709a517701b504c453588",
+      "route_data_contracts_reverified": true,
+      "route_data_source_registry_hash": "1c6672563d4bc00ea102df2f9575b365a2a9dc30e763db75067f9a49052e5318",
+      "route_data_source_registry_reverified": true,
+      "history_catalog_data_hash_referenced": "f41ed2586d91054c4b5b2e15e60f32a4d64ccde0032e76dfdc5fc6dee316379c",
+      "p0_swap_data_fitness_reviewer_receipt_hash": "0cdd322c130a7c6e58bd9803e5611f6a144d35bf6e5a3f0cdac49292ad9dcad4",
+      "p0_swap_data_fitness_reviewer_receipt_reverified": true,
+      "data_mainline_closure_v1_hash": "d4f78f1efabead5b86e0656ab73903734da6c36d1d737337c535a14e6568525e",
+      "data_mainline_closure_v1_reverified": true,
+      "reverify_method": "Temporary Go program under a transient cmd/ directory calling internal/datatruth.HashJSON (identical pattern to p0_swap_data_fitness_reviewer_receipt.json method M3), built and run, then deleted immediately; not committed; git status confirmed clean after deletion."
+    }
+  },
+  "frozen_scoring_rubric": {
+    "note": "This rubric and the hard-reject list were frozen upstream, identically, inside candidates_opus.json.scoring_rubric_outcome_blind, candidates_fable.json (hard_rejects_applied), and candidates_grok.json (hard_rejects_applied) BEFORE this reviewer opened the three files together; this reviewer independently confirmed all three declare the same five weights before comparing candidate content, satisfying '\u5148\u51bb\u7ed3\u8bc4\u5206\u548c\u786c\u62d2\u7edd,\u518d\u770b\u5019\u9009\u5185\u5bb9'. Reviewer applies this rubric with reviewer-assigned scores; owner self-scores (present only in candidates_fable.json.outcome_blind_score) are NOT trusted or reused.",
+    "weights": {
+      "payer_forced_action_structural_strength": 0.30,
+      "existing_history_observability_identity_full_denominator": 0.25,
+      "post_public_institutional_exclusion_capacity_moat": 0.20,
+      "this_account_real_executability": 0.15,
+      "shortest_falsification_cost": 0.10
+    },
+    "scale": "Each dimension scored 0-10 by this reviewer; weighted_total = sum(weight * score), max 10.0.",
+    "hard_reject_categories": [
+      "NO_PAYER",
+      "PUBLIC_FACTOR_OR_KNOWN_ANOMALY_RENAME",
+      "PURE_SPEED",
+      "REQUIRES_FUTURE_COLLECTION",
+      "COMPLETE_DENOMINATOR_NOT_CONSTRUCTIBLE",
+      "G1_G10_ISOMORPHIC",
+      "DEFINES_WINNERS_ONLY",
+      "PIT_BACKFILL"
+    ],
+    "existing_route_homology_baseline": {
+      "note": "In addition to G1-G10, four already-frozen route families (route_data_contracts.json) are treated as a homology baseline any candidate must not simply restate: micro_execution_capacity_cliff, exchange_rule_discontinuity, sparse_forced_flow, cross_venue_operational_asymmetry. Restating one of these without a materially different payer/clock/denominator is classified DUPLICATE_OF_EXISTING_ROUTE, not a new candidate."
+    }
+  },
+  "independent_feature_side_reverification": {
+    "note": "All checks below read only price/funding-rate/timestamp/schema/file-existence fields from records/history/** and instrument snapshot metadata. No pnl/return/winner/mfe/mae/outcome field was opened.",
+    "checks": [
+      {
+        "id": "R1_FILE_COUNTS",
+        "finding": "history_catalog.json families: bybit_funding (per-symbol files), okx_1h=401 files, okx_5m=200 files, okx_funding=401 files, rubik_lsratio_1h and rubik_taker_1h/5m families also present. Confirms Opus/Grok's repeated '401 symbols' claim at the okx_1h/okx_funding file-count level, and Fable's 'okx_5m covers 200 total files' framing (Fable's 52/121 is a groupId=7 subset claim, not contradicted)."
+      },
+      {
+        "id": "R2_EQUITY_PERP_WINDOWS",
+        "finding": "Direct read of records/history/okx_1h/{AAPL,SPY,TSLA,GME}-USDT-SWAP.jsonl min/max fetch times: AAPL 2026-03-04..2026-07-09 (~127d), SPY 2026-03-04..2026-07-09, TSLA 2026-02-25..2026-07-09 (~134d), GME 2026-05-08..2026-07-09 (~62d). Matches FAB-MSV2-01's cited 128/128/135/63-day windows."
+      },
+      {
+        "id": "R3_WEEKEND_PRICE_MOVEMENT_FALSIFICATION_CUT_1",
+        "finding": "Sampled AAPL-USDT-SWAP.jsonl for Saturday 2026-05-16 (a day the underlying NYSE/NASDAQ market is fully closed): all 24 hourly bars show distinct, non-frozen open/high/low/close and non-zero volume (e.g. 00:00 close=299.72 -> 12:00 close=298.92 -> 23:00 close=299.23, continuously varying). This is FAB-MSV2-01's own 'shortest_falsification' cut #1 ('\u7b2c\u4e00\u5200...perp\u4ef7\u683c\u5728CLOSED\u7a97\u53e3\u5185\u662f\u5426\u771f\u5b9e\u79fb\u52a8'); it PASSES (perp is not frozen/pegged during the underlying's closed window), which is a necessary-not-sufficient precondition and independently de-risks the mechanism beyond what Fable itself had confirmed at proposal time.",
+        "scope_limit": "Only checked at hourly granularity for one symbol/one weekend; does not confirm official mark/index computation methodology (falsification cut #3 remains open)."
+      },
+      {
+        "id": "R4_FUNDING_SCHEMA_AND_SETTLEMENT_IDENTITY",
+        "finding": "records/history/okx_funding/BTC-USDT-SWAP.jsonl: 280 rows, fields {formulaType, fundingRate, fundingTime, instId, instType, method, realizedRate}. fundingTime forms a clean deterministic settlement-stamp identity per symbol, corroborating OPUS-MSV2-01's identity=(symbol, settlement_stamp) claim at the raw-event level."
+      },
+      {
+        "id": "R5_FUNDING_CLAMP_PIN_RUNS",
+        "finding": "Independent scan of H/LAB/RAVE/ENJ funding tapes for consecutive identical |rate|>=0.005 prints found real multi-period pin runs on all four symbols (e.g. H: runs of 13/4/30; RAVE: runs of 3/6/6), corroborating FAB-MSV2-04's tape-observed pin/clamp claim, but at a magnitude (roughly a dozen qualifying runs across 4 symbols) that independently corroborates \u2014 not undermines \u2014 Fable's own INSUFFICIENT_SUPPORT verdict relative to the 50-event gate."
+      },
+      {
+        "id": "R6_OI_IMBALANCE_PROXY_GAP_AND_UNDISCLOSED_ALTERNATIVE",
+        "finding": "OPUS-MSV2-01's own existence scan cites only multi_venue_funding_oi_snapshots (1,733 sparse rows) for decision-time OI/crowding context and concludes this is insufficient to cover a per-settlement complete denominator. This reviewer found a denser, LOCALLY EXISTING alternative that Opus's scan did not mention: records/history/rubik_lsratio_1h/*.jsonl (per-symbol hourly long/short account-ratio tape, ~720 rows/symbol, 2026-06-09..07-09, across many symbols including tokenized-stock tickers). This materially changes the observability picture for OPUS-MSV2-01's decision-time crowding feature (denser than Opus assumed) but does not rescue the candidate (see R7)."
+      },
+      {
+        "id": "R7_RUBIK_LSRATIO_IS_A_HARD_REJECT_PATTERN_ALREADY_FLAGGED_BY_A_DIFFERENT_OWNER",
+        "finding": "candidates_fable.json's own decision_journal item 5 explicitly hard-rejects a candidate built on 'Rubik \u591a\u7a7a\u6bd4\u6781\u503c\uff08\u7eaf\u516c\u5171\u56e0\u5b50\uff0c\u786c\u62d2\u7edd\u8868\u547d\u4e2d\uff09' \u2014 i.e. a DIFFERENT owner already independently classified exactly the data source that would need to fill OPUS-MSV2-01's decision-time OI-imbalance gap as a public-factor hard-reject pattern (contrarian long/short-ratio fade). Cross-referencing the two owner files (something neither owner did against the other, since they worked independently) shows OPUS-MSV2-01's only currently-existing dense crowding proxy is the same instrument Fable already tagged as a public-factor hard-reject. This is treated below as decisive evidence against shortlisting OPUS-MSV2-01: either the decision feature stays DATA_PARTIAL at sparse xmeta density (fails complete-denominator test), or it is filled with rubik_lsratio and the mechanism degenerates into a funding/long-short-ratio public factor (fails PUBLIC_FACTOR hard-reject and risks G2 isomorphism, since G2's frozen protocol explicitly already tested a 'BTC funding state' conditioning grid \u2014 see R8)."
+      },
+      {
+        "id": "R8_G2_HOMOLOGY_CHECK",
+        "finding": "FIRST_BATTLE_MASTER_PLAN.md \u00a74.2 (read-only grep) confirms G2's frozen protocol (hash 395d15ece40050e7227e0cff5a74a91c68cdab83285c02a10657d13f21a118ec) tested 162 frozen 'BTC return \u00d7 realized volatility \u00d7 BTC funding state \u00d7 horizon \u00d7 direction' combinations with a 'funding payer side flip' framing, single-symbol (BTC), zero nominations. OPUS-MSV2-01's per-symbol settlement-stamp event denominator is NOT literally the same construction (G2 conditions on funding as a STATE variable for a BTC-only direction grid; OPUS-01 defines the event AS the settlement stamp across many symbols) \u2014 so it is not a flat isomorph \u2014 but R7 shows the only available complete-denominator decision feature collapses toward the same funding/crowding-state public-factor territory G2 already exhausted. Classified FAMILY_ADJACENT_HIGH_ISOMORPHISM_RISK, not literal duplicate.",
+        "also_applies_to": ["FAB-MSV2-06 (owner self-flagged 'one feature-collapse away from G1')", "GROK-MSV2-01 (interval densification is a rule-version species of exchange_rule_discontinuity, and would need a G1-style post-settlement direction read to be tradeable)"]
+      },
+      {
+        "id": "R9_NO_LOCAL_TRADING_CALENDAR_ARTIFACT",
+        "finding": "Grep across research/firstbattle/** and glob across /root/lingxi for calendar/holiday/DST/early_close/session_calendar found zero locally frozen trading-calendar artifact for any equity market. FAB-MSV2-01's claim 'PIT \u6700\u5f3a\uff08\u63d0\u524d\u6570\u5e74\u5df2\u77e5\uff09' is true IN PRINCIPLE for public exchange calendars but is NOT YET a locally constructed, hash-bound, versioned artifact; none currently exists in this repository."
+      },
+      {
+        "id": "R10_UNDERLYING_UNIVERSE_IS_MULTI_CALENDAR_NOT_ONE_SHOCK_CLUSTER",
+        "finding": "Directory listing of records/history/okx_1h/*.jsonl shows the tokenized-perp universe spans far more than one calendar: US common stocks/ETFs (AAPL, TSLA, SPY, QQQ, IWM, most of the 401), country ETFs on FOREIGN calendars (EWJ=Japan/TSE, EWT=Taiwan, EWY=Korea/KRX, EWZ=Brazil), foreign single-name perps on their own exchanges (SAMSUNG, SONY, SOFTBANK, HYUNDAI, SKHYNIX, ASML, TSEM), commodities with no clean single daily 'closed' session (XAU, XAG, XCU, XPD, XPT), and private-company perps with NO underlying public market at all (OPENAI, ANTHROPIC, MINIMAX, ZHIPU \u2014 already correctly excluded by Fable). FAB-MSV2-01's '121 symbols share one shock' framing understates the problem: even after Fable's own day-clustering correction (effective independent samples \u2248 trading-day count, not event count), the 121 are not even ONE shared calendar-shock cluster; they are several DISTINCT calendar clusters (US majority + several small foreign clusters + a commodity sub-group with an ill-defined session boundary). Pooling all 121 into one denominator without stratification would silently inflate apparent independence across sub-clusters that do not share a holiday/DST calendar.",
+        "consequence": "Any shortlisted version of this mechanism must be rescoped to a SINGLE, calendar-verified sub-universe (this reviewer recommends: US-listed common stock/ETF tickers on the NYSE/NASDAQ calendar only) rather than the full undifferentiated 121, until per-market calendars are separately constructed and verified for the other clusters."
+      },
+      {
+        "id": "R11_INSTRUMENT_SNAPSHOT_CROSS_CHECK",
+        "finding": "p0_swap_data_fitness.json measured_counts.traded_missing_from_snapshot=['DATA-USDT-SWAP-OFF20260702-2','IP-USDT-SWAP'] independently corroborates FAB-MSV2-03's claim that pre-market '-OFF' contracts vanish from the current instruments snapshot once converted/delisted (survivorship deletion), reinforcing FAB-03's DATA_BLIND verdict on denominator constructibility."
+      },
+      {
+        "id": "R12_MOAT_ARGUMENT_WEAKNESS_FAB01",
+        "finding": "FAB-MSV2-01's institutional_exclusion argument names regulated equity institutions (correctly excluded: compliance/custody/counterparty risk on offshore tokenized-stock derivatives) but does not address CRYPTO-NATIVE institutional market makers, who already quote and can continuously adjust the OKX perp 24/7 with no regulatory bar. Since the perp order book is fully public, any exploitable reopen-repricing pattern in the wrapper itself is equally visible to crypto-native quant desks. This is a genuine, independently-identified moat weakness beyond what Fable's own (already only mid-scoring) moat self-assessment disclosed."
+      }
+    ]
+  },
+  "clusters": [
+    {
+      "cluster_id": "C_FUNDING_SETTLEMENT_CLOCK_AND_CLAMP_FAMILY",
+      "members": ["MSV2-OPUS-01", "MSV2-OPUS-06", "FAB-MSV2-04", "GROK-MSV2-01"],
+      "homology_relationship": "SIBLING_FAMILY",
+      "shared_basis": "All four are species of 'periodic OKX funding-settlement mechanics produce a forced or clamped payer'. OPUS-01 = per-stamp payer at the settlement instant; OPUS-06 = cap/clamp sub-species of OPUS-01 (owner self-declared sibling, PIT_UNPROVEN); FAB-04 = clamp/pin-run sub-species using a tape-internal identity that avoids OPUS-06's PIT gap but is INSUFFICIENT_SUPPORT; GROK-01 = interval-densification sub-species requiring an ABSENT official schedule-version archive.",
+      "independent_finding": "R7/R8 above: the only currently-dense decision-time crowding proxy for this whole family (rubik_lsratio_1h) is the same public-factor pattern already hard-rejected inside candidates_fable.json's own decision journal."
+    },
+    {
+      "cluster_id": "C_CROSS_VENUE_FUNDING_PHASE_OFFSET",
+      "members": ["FAB-MSV2-06"],
+      "homology_relationship": "ADJACENT_TO_C_FUNDING_SETTLEMENT_CLOCK (shares OKX interval-transition tape with GROK-MSV2-01) plus HIGH_ISOMORPHISM_RISK_TO_G1 (owner self-flagged pre-registered kill-switch)",
+      "shared_basis": "Cross-venue (OKX vs Bybit) settlement-phase mismatch; owner itself ranks this its own weakest, lowest-priority candidate."
+    },
+    {
+      "cluster_id": "C_BORROWING_INTEREST_SETTLEMENT_FAMILY",
+      "members": ["MSV2-OPUS-03", "GROK-MSV2-02"],
+      "homology_relationship": "SIBLING_DUPLICATE",
+      "shared_basis": "Both = 'margin/auto-borrow interest settlement forces repayment/deleverage'; OPUS-03 frames the payer as the auto-borrow inventory holder, GROK-02 as the leveraged margin debtor. Neither can observe forced-repayment identity in any existing source (both self-classified DATA_BLIND / REJECTED_DATA_BLIND for the identical reason: only current-snapshot borrow rates exist, no historical suspend/limit calendar, no forced-repay identity)."
+    },
+    {
+      "cluster_id": "C_CONTRACT_LIFECYCLE_TERMINAL_CONVERGENCE",
+      "members": ["MSV2-OPUS-02", "FAB-MSV2-03"],
+      "homology_relationship": "SIBLING_FAMILY",
+      "shared_basis": "Both = 'a contract's terminal clock (delivery / TGE conversion deadline) forces convergence/conversion'; OPUS-02 targets regular dated futures (tape existence unverified for OKX dated contracts), FAB-03 targets pre-market '-OFF' contracts (tape confirmed ABSENT, and R11 independently corroborates the survivorship-deletion evidence). Different instrument sub-class, same lifecycle-terminal-clock logic, both DATA_BLIND on denominator."
+    },
+    {
+      "cluster_id": "C_LISTING_DELISTING_MIGRATION_LIFECYCLE",
+      "members": ["FAB-MSV2-02", "GROK-MSV2-03"],
+      "homology_relationship": "SIBLING_FAMILY_OPPOSITE_LIFECYCLE_ENDS",
+      "shared_basis": "FAB-02 = birth-side (new-listing forced distributor/hedger), GROK-03 = death-side (delisting/migration forced exit). Same underlying lifecycle-event family, opposite direction, neither is a literal duplicate of the other."
+    },
+    {
+      "cluster_id": "C_COLLATERAL_AUTHORIZATION_RESTRICTION",
+      "members": ["GROK-MSV2-05"],
+      "homology_relationship": "INDEPENDENT",
+      "shared_basis": "Collateral haircut / transfer-permission trap; standalone within this batch; ABSENT source (collateral_authorization_history)."
+    },
+    {
+      "cluster_id": "C_FORCED_LIQUIDATION_ADL_MARK_INDEX_ISOMORPHIC_TO_EXISTING_ROUTE",
+      "members": ["MSV2-OPUS-05", "GROK-MSV2-04"],
+      "homology_relationship": "ISOMORPHIC_TO_EXISTING_ROUTE(sparse_forced_flow)",
+      "shared_basis": "Both are species of the already-frozen dormant route sparse_forced_flow (liquidation/ADL/mark-index-clamp forced exits share its official-batch-history-ABSENT blocker and forced-event-identity gap). OPUS-05 self-rejected as sibling of R3/sparse_forced_flow; GROK-04 self-acknowledges vs_G10_sparse_forced_flow 'same data blocker, tighter framing'."
+    },
+    {
+      "cluster_id": "C_RULE_DISCRETENESS_ABSTENTION_ISOMORPHIC_TO_EXISTING_ROUTE",
+      "members": ["GROK-MSV2-06"],
+      "homology_relationship": "ISOMORPHIC_TO_EXISTING_ROUTE(exchange_rule_discontinuity)",
+      "shared_basis": "Min-notional/lot round-up abstention is a specific action branch (refuse to trade) layered on the already-frozen exchange_rule_discontinuity route (PIT_UNPROVEN rule-version archive is the identical blocker for both)."
+    },
+    {
+      "cluster_id": "C_CROSS_VENUE_OPS_ASYMMETRY_DUPLICATE_OF_EXISTING_ROUTE",
+      "members": ["GROK-MSV2-07"],
+      "homology_relationship": "DUPLICATE_OF_EXISTING_ROUTE(cross_venue_operational_asymmetry)",
+      "shared_basis": "Owner's own non_isomorphism_vs_g1_g10 admits '\u540c\u5bb6\u65cf\u4f46\u66f4\u786c\u5730\u8981\u6c42\u8fd0\u8425\u65e5\u5386\u5206\u6bcd' \u2014 this restates the already-frozen dormant route_data_contracts.json cross_venue_operational_asymmetry route (also DATA_BLIND/WEAK_PROXY_ONLY) rather than proposing a materially new mechanism."
+    },
+    {
+      "cluster_id": "C_EQUITY_PERP_SESSION_CALENDAR_GAP",
+      "members": ["FAB-MSV2-01"],
+      "homology_relationship": "INDEPENDENT",
+      "shared_basis": "No sibling among the 19; no G-series or existing-route overlap found (verified: G-series concept space is BTC return/vol/funding-state combinatorics; none of G1-G10 encode an underlying-market session/calendar state machine). Sole SHORTLISTED candidate, rescoped \u2014 see mechanism_shortlist.json."
+    },
+    {
+      "cluster_id": "C_COPY_TRADE_AUTHORIZED_MIRROR_FLOW",
+      "members": ["MSV2-OPUS-04"],
+      "homology_relationship": "INDEPENDENT",
+      "shared_basis": "Novel authorization-flow framing; standalone; SOURCE_ABSENT (no lead-trader action history registered anywhere)."
+    },
+    {
+      "cluster_id": "C_VESTING_CLIFF_STATUTORY_SUPPLY",
+      "members": ["FAB-MSV2-05"],
+      "homology_relationship": "INDEPENDENT",
+      "shared_basis": "Standalone; DATA_BLIND (no versioned vesting/unlock calendar; owner itself flags that using today's calendar to backfill history would be a PIT violation)."
+    }
+  ],
+  "candidates": [
+    {
+      "candidate_id": "MSV2-OPUS-01",
+      "route_id": "funding_settlement_instant_coercion",
+      "owner": "opus",
+      "cluster_id": "C_FUNDING_SETTLEMENT_CLOCK_AND_CLAMP_FAMILY",
+      "independent_restatement": "Every OKX perpetual funding settlement stamp forces a value transfer between the paying and receiving side of open interest; the raw event denominator (symbol, settlement stamp) is real, official, and cleanly constructible from existing local funding tape (independently confirmed: BTC-USDT-SWAP.jsonl has 280 rows with deterministic fundingTime/fundingRate/realizedRate). The mechanism's claim to be MORE than a funding-carry public factor rests entirely on a decision-time OI/crowding-imbalance feature that gates which settlements count as 'forced'.",
+      "payer_directness": "DIRECT_AT_RAW_EVENT_LEVEL_BUT_UNGATEABLE_AT_DECISION_TIME",
+      "hard_reject_screen": {
+        "no_payer": false,
+        "public_factor_or_known_anomaly_rename": "BORDERLINE_TRUE \u2014 see independent_finding R7: the only existing dense decision-time gating feature (rubik_lsratio_1h) is the same construction a different owner (Fable) independently hard-rejected as a pure public factor.",
+        "pure_speed": false,
+        "requires_future_collection": false,
+        "complete_denominator_not_constructible": "TRUE for the decision-time gating feature at full density (xmeta OI is only 1,733 sparse rows against ~150k settlement events); FALSE for the raw settlement-stamp event list itself.",
+        "g1_g10_isomorphic": "FAMILY_ADJACENT_HIGH_RISK (R8) \u2014 not literal duplicate of G2, but the only viable dense proxy collapses toward the same funding/crowding-state territory G2 already exhausted with 0 nominations.",
+        "defines_winners_only": false,
+        "pit_backfill": "Funding-interval KnownFrom version chain is unproven for interval-changed symbols; not backfilled, but also not resolved."
+      },
+      "reviewer_scores": {"payer_forced_action_structural_strength": 6.0, "existing_history_observability_identity_full_denominator": 4.0, "post_public_institutional_exclusion_capacity_moat": 5.0, "this_account_real_executability": 7.0, "shortest_falsification_cost": 6.0, "weighted_total": 5.4},
+      "verdict": "RETAIN_HYPOTHESIS_NOT_SHORTLISTED",
+      "rejection_or_hold_reasons": [
+        "Decision-time OI/crowding feature cannot be computed at complete-denominator density from any currently existing free/official source (xmeta sparse; rubik_lsratio_1h denser but is the exact pattern R7 shows already hard-rejected elsewhere as a public factor).",
+        "Any redesign that drops the OI-imbalance gate collapses the mechanism into a funding-sign/magnitude carry bet, which is a public factor and family-adjacent to G2's already-exhausted funding-state grid.",
+        "Funding-interval PIT is unproven for symbols with interval transitions."
+      ],
+      "reopen_condition": "A locally-verified, dense (near-complete), non-public-factor decision-time crowding/imbalance source distinct from long/short-ratio contrarian fade, with proven KnownFrom for funding-interval changes."
+    },
+    {
+      "candidate_id": "MSV2-OPUS-02",
+      "route_id": "dated_delivery_basis_convergence_settlement",
+      "owner": "opus",
+      "cluster_id": "C_CONTRACT_LIFECYCLE_TERMINAL_CONVERGENCE",
+      "independent_restatement": "Dated futures must converge to index at delivery; the payer is whoever holds unconverged basis into the delivery stamp.",
+      "payer_directness": "DIRECT_IN_THEORY_UNVERIFIABLE_IN_PRACTICE",
+      "hard_reject_screen": {"no_payer": false, "public_factor_or_known_anomaly_rename": false, "pure_speed": false, "requires_future_collection": false, "complete_denominator_not_constructible": true, "g1_g10_isomorphic": false, "defines_winners_only": false, "pit_backfill": "Would require backfilling delivered-contract history from the current snapshot, which the owner correctly refuses."},
+      "reviewer_scores": {"payer_forced_action_structural_strength": 6.0, "existing_history_observability_identity_full_denominator": 0.5, "post_public_institutional_exclusion_capacity_moat": 5.0, "this_account_real_executability": 4.0, "shortest_falsification_cost": 6.0, "weighted_total": 3.0},
+      "verdict": "HARD_REJECTED",
+      "rejection_or_hold_reasons": ["No delivered dated-contract tape or delivery calendar exists locally or is registered as officially available; already-delisted contracts vanish from the current instruments snapshot (R11 corroborates this survivorship pattern generally)."],
+      "reopen_condition": "A legally-sourced, provenance-clear historical dated-futures tape plus a KnownFrom-versioned delivery calendar."
+    },
+    {
+      "candidate_id": "MSV2-OPUS-03",
+      "route_id": "margin_borrow_interest_settlement_coercion",
+      "owner": "opus",
+      "cluster_id": "C_BORROWING_INTEREST_SETTLEMENT_FAMILY",
+      "independent_restatement": "Auto-borrow interest is charged hourly; the payer is the account carrying negative-currency inventory, but which accounts are forced to deleverage/repay is not observable in any local or registered official source.",
+      "payer_directness": "IDENTITY_UNOBSERVABLE",
+      "hard_reject_screen": {"no_payer": "BORDERLINE_TRUE (payer inventory concept exists, but the FORCED ACTION side has no observable identity anywhere)", "public_factor_or_known_anomaly_rename": false, "pure_speed": false, "requires_future_collection": false, "complete_denominator_not_constructible": true, "g1_g10_isomorphic": false, "defines_winners_only": false, "pit_backfill": false},
+      "reviewer_scores": {"payer_forced_action_structural_strength": 3.0, "existing_history_observability_identity_full_denominator": 1.0, "post_public_institutional_exclusion_capacity_moat": 4.0, "this_account_real_executability": 4.0, "shortest_falsification_cost": 5.0, "weighted_total": 2.85},
+      "verdict": "HARD_REJECTED",
+      "rejection_or_hold_reasons": ["Forced deleverage/repay event has no exchange event identity in any source; owner's own scan reaches the same conclusion (DATA_BLIND)."],
+      "reopen_condition": "An officially provenanced forced-repayment/deleverage event archive with stable identity."
+    },
+    {
+      "candidate_id": "MSV2-OPUS-04",
+      "route_id": "copy_trade_authorized_mirror_flow_coercion",
+      "owner": "opus",
+      "cluster_id": "C_COPY_TRADE_AUTHORIZED_MIRROR_FLOW",
+      "independent_restatement": "Copy-trading followers are contractually forced to mirror a lead trader's action within seconds; the payer is the follower-aggregate flow that moves price on thin symbols.",
+      "payer_directness": "DIRECT_IN_THEORY_SOURCE_ABSENT",
+      "hard_reject_screen": {"no_payer": false, "public_factor_or_known_anomaly_rename": false, "pure_speed": false, "requires_future_collection": false, "complete_denominator_not_constructible": true, "g1_g10_isomorphic": false, "defines_winners_only": false, "pit_backfill": false},
+      "reviewer_scores": {"payer_forced_action_structural_strength": 7.0, "existing_history_observability_identity_full_denominator": 0.5, "post_public_institutional_exclusion_capacity_moat": 6.0, "this_account_real_executability": 6.0, "shortest_falsification_cost": 6.0, "weighted_total": 3.7},
+      "verdict": "HARD_REJECTED",
+      "rejection_or_hold_reasons": ["No lead-trader action history is registered as available anywhere (route_data_source_registry.json has no source_id for this); this reviewer found no locally cached fragment either."],
+      "reopen_condition": "An officially available lead-trader action + follower-AUM historical feed, registered in route_data_source_registry first."
+    },
+    {
+      "candidate_id": "MSV2-OPUS-05",
+      "route_id": "adl_insurance_fund_socialization_reimbursement",
+      "owner": "opus",
+      "cluster_id": "C_FORCED_LIQUIDATION_ADL_MARK_INDEX_ISOMORPHIC_TO_EXISTING_ROUTE",
+      "independent_restatement": "ADL forces profitable counterparties to close at bankruptcy price when the insurance fund is exhausted; owner already self-rejected this.",
+      "payer_directness": "DIRECT_IN_THEORY_NO_EVENT_IDENTITY",
+      "hard_reject_screen": {"no_payer": false, "public_factor_or_known_anomaly_rename": false, "pure_speed": false, "requires_future_collection": false, "complete_denominator_not_constructible": true, "g1_g10_isomorphic": "ISOMORPHIC_TO_EXISTING_ROUTE(sparse_forced_flow)", "defines_winners_only": false, "pit_backfill": false},
+      "reviewer_scores": {"payer_forced_action_structural_strength": 5.0, "existing_history_observability_identity_full_denominator": 0.0, "post_public_institutional_exclusion_capacity_moat": 2.0, "this_account_real_executability": 3.0, "shortest_falsification_cost": 7.0, "weighted_total": 2.15},
+      "verdict": "HARD_REJECTED",
+      "rejection_or_hold_reasons": ["No ADL event identity exists in any official or local source; sibling-homologous with the already-frozen sparse_forced_flow route (agrees with owner's self-rejection)."],
+      "reopen_condition": "An official ADL/insurance-fund-exhaustion event archive, plus proof of non-homology with sparse_forced_flow."
+    },
+    {
+      "candidate_id": "MSV2-OPUS-06",
+      "route_id": "funding_rate_cap_clamp_persistent_imbalance",
+      "owner": "opus",
+      "cluster_id": "C_FUNDING_SETTLEMENT_CLOCK_AND_CLAMP_FAMILY",
+      "independent_restatement": "Funding-rate caps mute the price signal for extreme crowding, letting imbalance build up until an uncapped release. Owner already self-rejected as sibling of OPUS-01 with unprovable cap-threshold PIT.",
+      "payer_directness": "WEAK_NOT_LOCALIZABLE",
+      "hard_reject_screen": {"no_payer": false, "public_factor_or_known_anomaly_rename": false, "pure_speed": false, "requires_future_collection": false, "complete_denominator_not_constructible": true, "g1_g10_isomorphic": false, "defines_winners_only": false, "pit_backfill": "TRUE risk \u2014 cap-threshold version archive is ABSENT; would require backfilling from current parameters."},
+      "reviewer_scores": {"payer_forced_action_structural_strength": 4.0, "existing_history_observability_identity_full_denominator": 1.0, "post_public_institutional_exclusion_capacity_moat": 3.0, "this_account_real_executability": 4.0, "shortest_falsification_cost": 6.0, "weighted_total": 2.75},
+      "verdict": "HARD_REJECTED",
+      "rejection_or_hold_reasons": ["Agrees with owner's self-rejection: sibling of OPUS-01, cap-threshold PIT_UNPROVEN (same gap as the frozen exchange_rule_discontinuity route)."],
+      "reopen_condition": "Same as OPUS-01 reopen condition, plus a legal cap-threshold historical version archive."
+    },
+    {
+      "candidate_id": "FAB-MSV2-01",
+      "route_id": "equity_perp_underlying_session_gap_forced_repricing",
+      "owner": "fable",
+      "cluster_id": "C_EQUITY_PERP_SESSION_CALENDAR_GAP",
+      "independent_restatement": "OKX tokenized-stock perpetuals trade 24/7 while their underlying cash market trades on a fixed exchange calendar; at reopen, holders of the wrong-direction leveraged perp position are forced to mark-to-market against the new reference, a real, official, calendar-driven forced-repricing event distinct from any G-series concept.",
+      "payer_directness": "DIRECT_MARK_TO_MARKET_FORCED_AT_REOPEN",
+      "hard_reject_screen": {"no_payer": false, "public_factor_or_known_anomaly_rename": "PARTIAL \u2014 the underlying economic intuition (overnight/weekend gap) is one of the most published equity anomalies in existence (owner's own strongest_counterexample), but the specific tokenized-perp wrapper mechanism is not a literal rename of a named crypto/G-series factor.", "pure_speed": false, "requires_future_collection": false, "complete_denominator_not_constructible": "FALSE for a calendar-verified sub-universe using existing local okx_1h/okx_funding tape, once a public exchange calendar is constructed (see rescoping in mechanism_shortlist.json); the FULL undifferentiated 121-symbol universe is not usable as-is (R10).", "g1_g10_isomorphic": false, "defines_winners_only": false, "pit_backfill": "Risk flagged (R9/R10): must not fabricate multi-market holiday/DST/early-close PIT; must scope to verified calendars only."},
+      "reviewer_scores": {"payer_forced_action_structural_strength": 7.0, "existing_history_observability_identity_full_denominator": 6.5, "post_public_institutional_exclusion_capacity_moat": 4.5, "this_account_real_executability": 7.5, "shortest_falsification_cost": 7.0, "weighted_total": 6.475},
+      "verdict": "SHORTLISTED_CONDITIONAL_RESCOPED",
+      "rejection_or_hold_reasons": [],
+      "reopen_condition": "N/A \u2014 see mechanism_shortlist.json for frozen conditions."
+    },
+    {
+      "candidate_id": "FAB-MSV2-02",
+      "route_id": "listing_week_statutory_seller_decay",
+      "owner": "fable",
+      "cluster_id": "C_LISTING_DELISTING_MIGRATION_LIFECYCLE",
+      "independent_restatement": "New-listing airdrop/points-farmer hedgers and FOMO buyers create a statutory forced flow in the listing week; owner proposes two SYMMETRIC, mutually exclusive payer hypotheses (hedge-overhang vs FOMO-decay) to be arbitrated only in Phase B, and explicitly documents that funding is only an INDIRECT observer of the hedger, not a direct identity.",
+      "payer_directness": "NOT_DIRECTLY_OBSERVABLE_SYMMETRIC_UNTESTED_HYPOTHESIS",
+      "hard_reject_screen": {"no_payer": "BORDERLINE_TRUE \u2014 no single, falsifiable payer is named before outcomes; two opposite payers are proposed and left for post-hoc arbitration.", "public_factor_or_known_anomaly_rename": "HIGH RISK \u2014 owner's own strongest_counterexample: '\u4e0a\u5e02\u6cf5/\u780b\u662f\u52a0\u5bc6\u5708\u6700\u516c\u5f00\u7684\u6c11\u95f4\u4f20\u8bf4'.", "pure_speed": false, "requires_future_collection": false, "complete_denominator_not_constructible": false, "g1_g10_isomorphic": false, "defines_winners_only": "RISK: symmetric payer hypothesis resolved only after seeing which side won is functionally close to defining winners only.", "pit_backfill": false},
+      "reviewer_scores": {"payer_forced_action_structural_strength": 2.5, "existing_history_observability_identity_full_denominator": 5.5, "post_public_institutional_exclusion_capacity_moat": 3.5, "this_account_real_executability": 6.0, "shortest_falsification_cost": 6.5, "weighted_total": 4.1},
+      "verdict": "REJECTED_PAYER_NOT_DIRECTLY_OBSERVABLE",
+      "rejection_or_hold_reasons": [
+        "Special-scrutiny finding requested by task: FAB-02 does not have a genuine, directly observable forced-seller identity distinct from generic listing-drift/pump-dump narrative; the payer is inferred only indirectly through funding sign, and the owner itself frames it as an unresolved symmetric hypothesis rather than a falsifiable claim.",
+        "Single-regime support (one OKX listing-tempo regime, 4 months) per owner's own caveat."
+      ],
+      "reopen_condition": "A directly observable forced-hedger or forced-seller identity (e.g. verified airdrop/points-claim event log) distinct from price/funding-inferred proxies."
+    },
+    {
+      "candidate_id": "FAB-MSV2-03",
+      "route_id": "pre_market_futures_tge_conversion_deadline",
+      "owner": "fable",
+      "cluster_id": "C_CONTRACT_LIFECYCLE_TERMINAL_CONVERGENCE",
+      "independent_restatement": "Pre-market ('-OFF') futures are a countdown to forced TGE conversion/settlement; the payer is whoever holds unconverted/unwanted exposure at the deadline.",
+      "payer_directness": "DIRECT_IN_THEORY_NO_TAPE",
+      "hard_reject_screen": {"no_payer": false, "public_factor_or_known_anomaly_rename": false, "pure_speed": false, "requires_future_collection": false, "complete_denominator_not_constructible": true, "g1_g10_isomorphic": false, "defines_winners_only": false, "pit_backfill": false},
+      "reviewer_scores": {"payer_forced_action_structural_strength": 6.5, "existing_history_observability_identity_full_denominator": 0.5, "post_public_institutional_exclusion_capacity_moat": 5.5, "this_account_real_executability": 4.5, "shortest_falsification_cost": 6.5, "weighted_total": 3.35},
+      "verdict": "HARD_REJECTED",
+      "rejection_or_hold_reasons": ["Independently corroborated (R11): converted/delisted '-OFF' instruments are absent from the current snapshot (survivorship deletion); no historical -OFF contract archive, conversion-term archive, or price tape exists anywhere in scope."],
+      "reopen_condition": "An officially provenanced -OFF contract lifecycle archive (full historical instrument list + conversion terms + price tape)."
+    },
+    {
+      "candidate_id": "FAB-MSV2-04",
+      "route_id": "funding_clamp_pin_saturation_release",
+      "owner": "fable",
+      "cluster_id": "C_FUNDING_SETTLEMENT_CLOCK_AND_CLAMP_FAMILY",
+      "independent_restatement": "A run of identical extreme funding prints reveals a clamp pinning the crowded side below its true cost; release is the payer-liquidating unwind. Owner's tape-internal run-length identity avoids the cap-threshold PIT gap that killed OPUS-06.",
+      "payer_directness": "DIRECT_BUT_SPARSE",
+      "hard_reject_screen": {"no_payer": false, "public_factor_or_known_anomaly_rename": false, "pure_speed": false, "requires_future_collection": false, "complete_denominator_not_constructible": "FALSE at existence level, but support is measured (not merely possible) and falls far short of the gate.", "g1_g10_isomorphic": "Owner pre-registered an explicit kill-switch if the discriminating feature collapses to plain funding sign/level.", "defines_winners_only": false, "pit_backfill": false},
+      "reviewer_scores": {"payer_forced_action_structural_strength": 5.5, "existing_history_observability_identity_full_denominator": 3.0, "post_public_institutional_exclusion_capacity_moat": 2.5, "this_account_real_executability": 6.0, "shortest_falsification_cost": 6.5, "weighted_total": 4.375},
+      "verdict": "REJECTED_INSUFFICIENT_SUPPORT",
+      "rejection_or_hold_reasons": [
+        "Independently re-measured (R5): on existing tape, qualifying pin runs number roughly a dozen across 4 symbols \u2014 an order of magnitude below the 50-event/20-day/10-block gate on currently local history. This is a MEASURED failure, not merely a possible one, so it fails the shortlist bar even though DATA_PARTIAL alone would not have auto-excluded it.",
+        "Owner itself scores the lowest moat among its testable candidates (basis/carry desks can already do this)."
+      ],
+      "reopen_condition": "A legally acquired longer OKX CDN funding history (2022-03+, already registered PRESENT_OFFICIAL_FREE) pulled specifically for this route, subject to separate approval and re-measurement against the 50/20/10 gate before any resubmission."
+    },
+    {
+      "candidate_id": "FAB-MSV2-05",
+      "route_id": "vesting_cliff_statutory_supply_unwind",
+      "owner": "fable",
+      "cluster_id": "C_VESTING_CLIFF_STATUTORY_SUPPLY",
+      "independent_restatement": "Token vesting cliffs are a contractually known future supply event; hedgers pre-position and unwind on a public but not-locally-versioned calendar.",
+      "payer_directness": "SYMMETRIC_UNTESTED",
+      "hard_reject_screen": {"no_payer": "BORDERLINE_TRUE (symmetric hypothesis, not resolved)", "public_factor_or_known_anomaly_rename": "HIGH RISK per owner's own strongest_counterexample (heavily published crypto unlock research).", "pure_speed": false, "requires_future_collection": false, "complete_denominator_not_constructible": true, "g1_g10_isomorphic": false, "defines_winners_only": false, "pit_backfill": "TRUE risk explicitly flagged by owner: using today's unlock calendar to backfill history would be a PIT violation."},
+      "reviewer_scores": {"payer_forced_action_structural_strength": 2.5, "existing_history_observability_identity_full_denominator": 0.5, "post_public_institutional_exclusion_capacity_moat": 2.0, "this_account_real_executability": 4.0, "shortest_falsification_cost": 6.0, "weighted_total": 1.95},
+      "verdict": "HARD_REJECTED",
+      "rejection_or_hold_reasons": ["No versioned (as-of/KnownFrom) unlock calendar source is registered or locally present; using a present-day calendar to reconstruct history would violate PIT."],
+      "reopen_condition": "A discovered free, versioned (as-of) vesting/unlock calendar source with provable KnownFrom."
+    },
+    {
+      "candidate_id": "FAB-MSV2-06",
+      "route_id": "cross_venue_settlement_clock_phase_offset",
+      "owner": "fable",
+      "cluster_id": "C_CROSS_VENUE_FUNDING_PHASE_OFFSET",
+      "independent_restatement": "OKX and Bybit settle funding on different, sometimes-changing clocks; at 'offset' moments (only one venue settles) a cross-venue carry position is forced to pay unilaterally.",
+      "payer_directness": "DIRECT_BUT_WEAKEST_MOAT",
+      "hard_reject_screen": {"no_payer": false, "public_factor_or_known_anomaly_rename": false, "pure_speed": "Owner explicitly excludes pure quote-lead-lag, but the underlying is adjacent to cross-venue funding/basis carry, an institutional specialty per owner's own admission.", "requires_future_collection": false, "complete_denominator_not_constructible": "Owner flags 1h-bar granularity may be too coarse to observe 4h/8h settlement transfer \u2014 likely UNIDENTIFIABLE at current resolution.", "g1_g10_isomorphic": "Owner's own pre-registered kill-switch: 'if it collapses to single-venue funding sign/level \u2192 auto ISOMORPH_G1'.", "defines_winners_only": false, "pit_backfill": false},
+      "reviewer_scores": {"payer_forced_action_structural_strength": 4.5, "existing_history_observability_identity_full_denominator": 5.0, "post_public_institutional_exclusion_capacity_moat": 1.5, "this_account_real_executability": 4.0, "shortest_falsification_cost": 5.5, "weighted_total": 3.85},
+      "verdict": "RETAIN_HYPOTHESIS_NOT_SHORTLISTED",
+      "rejection_or_hold_reasons": [
+        "Owner's own ranking places this last among testable candidates; explicitly the highest self-flagged G1-isomorphism risk in the whole batch.",
+        "Institutional cross-venue carry desks are the natural operators of exactly this trade (owner's own admission), undermining the moat criterion the hardest of any non-hard-rejected candidate.",
+        "1h-bar granularity likely too coarse to resolve a 4h/8h settlement transfer window."
+      ],
+      "reopen_condition": "Finer-than-1h decision-time resolution across both venues, plus a discriminating feature proven not to collapse to single-venue funding level."
+    },
+    {
+      "candidate_id": "GROK-MSV2-01",
+      "route_id": "funding_interval_densification_calendar_tax",
+      "owner": "grok",
+      "cluster_id": "C_FUNDING_SETTLEMENT_CLOCK_AND_CLAMP_FAMILY",
+      "independent_restatement": "When funding settlement intervals densify (8h\u21924h\u21921h), positions holding through the new settlement points pay more often; the payer is whoever holds through a newly added settlement point.",
+      "payer_directness": "DIRECT_IN_THEORY_NO_SCHEDULE_ARCHIVE",
+      "hard_reject_screen": {"no_payer": false, "public_factor_or_known_anomaly_rename": "RISK if action degenerates to 'reduce exposure on high funding' (owner explicitly forbids this).", "pure_speed": false, "requires_future_collection": false, "complete_denominator_not_constructible": true, "g1_g10_isomorphic": "Owner argues distinctness from G2; this reviewer notes it is a rule-version species of the already-frozen exchange_rule_discontinuity route.", "defines_winners_only": false, "pit_backfill": "Owner explicitly forbids using tape gaps as a stand-in for an official schedule version archive, which is ABSENT."},
+      "reviewer_scores": {"payer_forced_action_structural_strength": 4.5, "existing_history_observability_identity_full_denominator": 1.0, "post_public_institutional_exclusion_capacity_moat": 3.5, "this_account_real_executability": 5.5, "shortest_falsification_cost": 6.0, "weighted_total": 3.05},
+      "verdict": "HARD_REJECTED",
+      "rejection_or_hold_reasons": ["Official funding-interval schedule/version archive with KnownFrom is ABSENT; tape gaps cannot substitute without risking PIT fabrication (owner's own stop gate)."],
+      "reopen_condition": "An official, KnownFrom-versioned funding-interval schedule archive covering the local 401-symbol universe."
+    },
+    {
+      "candidate_id": "GROK-MSV2-02",
+      "route_id": "borrow_rate_spike_or_limit_suspension_forced_repay",
+      "owner": "grok",
+      "cluster_id": "C_BORROWING_INTEREST_SETTLEMENT_FAMILY",
+      "independent_restatement": "Borrow-rate spikes or limit suspensions force margin debtors to repay/deleverage; near-duplicate of OPUS-03.",
+      "payer_directness": "IDENTITY_UNOBSERVABLE",
+      "hard_reject_screen": {"no_payer": false, "public_factor_or_known_anomaly_rename": false, "pure_speed": false, "requires_future_collection": false, "complete_denominator_not_constructible": true, "g1_g10_isomorphic": false, "defines_winners_only": false, "pit_backfill": false},
+      "reviewer_scores": {"payer_forced_action_structural_strength": 3.0, "existing_history_observability_identity_full_denominator": 0.5, "post_public_institutional_exclusion_capacity_moat": 4.0, "this_account_real_executability": 4.0, "shortest_falsification_cost": 6.5, "weighted_total": 2.475},
+      "verdict": "HARD_REJECTED",
+      "rejection_or_hold_reasons": ["Owner self-rejected (REJECTED_DATA_BLIND); only current-snapshot borrow rates exist, no historical suspend/limit calendar or forced-repay identity, same gap as OPUS-03 (SIBLING_DUPLICATE cluster)."],
+      "reopen_condition": "Same as OPUS-03."
+    },
+    {
+      "candidate_id": "GROK-MSV2-03",
+      "route_id": "listing_delisting_migration_forced_inventory",
+      "owner": "grok",
+      "cluster_id": "C_LISTING_DELISTING_MIGRATION_LIFECYCLE",
+      "independent_restatement": "Delisting/migration deadlines force inventory holders to exit or accept forced settlement; opposite lifecycle end from FAB-02.",
+      "payer_directness": "DIRECT_IN_THEORY_NO_ARCHIVE",
+      "hard_reject_screen": {"no_payer": false, "public_factor_or_known_anomaly_rename": false, "pure_speed": false, "requires_future_collection": false, "complete_denominator_not_constructible": true, "g1_g10_isomorphic": false, "defines_winners_only": false, "pit_backfill": "Owner explicitly forbids backfilling with current listTime."},
+      "reviewer_scores": {"payer_forced_action_structural_strength": 5.5, "existing_history_observability_identity_full_denominator": 0.5, "post_public_institutional_exclusion_capacity_moat": 4.5, "this_account_real_executability": 4.0, "shortest_falsification_cost": 6.0, "weighted_total": 3.075},
+      "verdict": "HARD_REJECTED",
+      "rejection_or_hold_reasons": ["No official delist/migration archive exists (registry: ABSENT); announcement fragments explicitly cannot form a rule-version chain per registry policy."],
+      "reopen_condition": "An official historical instrument-state/migration archive with KnownFrom."
+    },
+    {
+      "candidate_id": "GROK-MSV2-04",
+      "route_id": "mark_index_clamp_dislocation_forced_flow",
+      "owner": "grok",
+      "cluster_id": "C_FORCED_LIQUIDATION_ADL_MARK_INDEX_ISOMORPHIC_TO_EXISTING_ROUTE",
+      "independent_restatement": "Mark/index dislocation hitting a clamp or liquidation band forces the breached side to liquidate; a species of the already-frozen sparse_forced_flow route.",
+      "payer_directness": "DIRECT_IN_THEORY_NO_OFFICIAL_ARCHIVE",
+      "hard_reject_screen": {"no_payer": false, "public_factor_or_known_anomaly_rename": false, "pure_speed": false, "requires_future_collection": false, "complete_denominator_not_constructible": true, "g1_g10_isomorphic": "ISOMORPHIC_TO_EXISTING_ROUTE(sparse_forced_flow)", "defines_winners_only": false, "pit_backfill": false},
+      "reviewer_scores": {"payer_forced_action_structural_strength": 5.0, "existing_history_observability_identity_full_denominator": 1.0, "post_public_institutional_exclusion_capacity_moat": 3.0, "this_account_real_executability": 4.0, "shortest_falsification_cost": 6.0, "weighted_total": 2.9},
+      "verdict": "HARD_REJECTED",
+      "rejection_or_hold_reasons": ["Owner self-acknowledges same data blocker as sparse_forced_flow (official liquidation batch history ABSENT for OKX/Bybit); local liquidation streams are PRESENT_PARTIAL only, not a complete official denominator."],
+      "reopen_condition": "Same as the frozen sparse_forced_flow route: a stable exchange event ID + true three clocks + uptime-gap manifest + payer disappearance evidence."
+    },
+    {
+      "candidate_id": "GROK-MSV2-05",
+      "route_id": "collateral_haircut_transfer_permission_trap",
+      "owner": "grok",
+      "cluster_id": "C_COLLATERAL_AUTHORIZATION_RESTRICTION",
+      "independent_restatement": "Collateral haircut/transfer-permission changes force accounts relying on the penalized asset to sell or convert.",
+      "payer_directness": "DIRECT_IN_THEORY_NO_ARCHIVE",
+      "hard_reject_screen": {"no_payer": false, "public_factor_or_known_anomaly_rename": false, "pure_speed": false, "requires_future_collection": false, "complete_denominator_not_constructible": true, "g1_g10_isomorphic": false, "defines_winners_only": false, "pit_backfill": false},
+      "reviewer_scores": {"payer_forced_action_structural_strength": 4.5, "existing_history_observability_identity_full_denominator": 0.0, "post_public_institutional_exclusion_capacity_moat": 3.5, "this_account_real_executability": 4.0, "shortest_falsification_cost": 6.5, "weighted_total": 2.475},
+      "verdict": "HARD_REJECTED",
+      "rejection_or_hold_reasons": ["collateral_authorization_history is registered ABSENT; owner self-rejected (REJECTED_DATA_BLIND)."],
+      "reopen_condition": "An officially provenanced collateral discount/transfer-permission change history."
+    },
+    {
+      "candidate_id": "GROK-MSV2-06",
+      "route_id": "discrete_min_notional_lot_roundup_refusal",
+      "owner": "grok",
+      "cluster_id": "C_RULE_DISCRETENESS_ABSTENTION_ISOMORPHIC_TO_EXISTING_ROUTE",
+      "independent_restatement": "When price forces a round-up to satisfy min-notional/lot rules, refusing to trade avoids the nonlinear risk that a forced-must-trade counterparty accepts; a species of the already-frozen exchange_rule_discontinuity route.",
+      "payer_directness": "DIRECT_IN_THEORY_PIT_UNPROVEN",
+      "hard_reject_screen": {"no_payer": false, "public_factor_or_known_anomaly_rename": false, "pure_speed": false, "requires_future_collection": false, "complete_denominator_not_constructible": true, "g1_g10_isomorphic": "ISOMORPHIC_TO_EXISTING_ROUTE(exchange_rule_discontinuity)", "defines_winners_only": false, "pit_backfill": "Rule-version PIT is unproven; current snapshot cannot be backfilled."},
+      "reviewer_scores": {"payer_forced_action_structural_strength": 4.0, "existing_history_observability_identity_full_denominator": 1.5, "post_public_institutional_exclusion_capacity_moat": 3.0, "this_account_real_executability": 5.0, "shortest_falsification_cost": 6.0, "weighted_total": 3.075},
+      "verdict": "HARD_REJECTED",
+      "rejection_or_hold_reasons": ["Same PIT_UNPROVEN rule-version-archive gap already blocking the frozen exchange_rule_discontinuity route; complete attempts denominator (including unsubmitted/rejected intents) is also absent, echoing the already-diagnosed micro_execution_capacity_cliff blocker."],
+      "reopen_condition": "Same as the frozen exchange_rule_discontinuity route."
+    },
+    {
+      "candidate_id": "GROK-MSV2-07",
+      "route_id": "cross_venue_ops_window_permission_asymmetry_nonspeed",
+      "owner": "grok",
+      "cluster_id": "C_CROSS_VENUE_OPS_ASYMMETRY_DUPLICATE_OF_EXISTING_ROUTE",
+      "independent_restatement": "Non-speed operational asymmetry (maintenance windows, deposit unlock delays, permission gaps) forces risk adjustment on the reachable venue only; a stricter restatement of the already-frozen cross_venue_operational_asymmetry route.",
+      "payer_directness": "DIRECT_IN_THEORY_NO_OPS_CALENDAR",
+      "hard_reject_screen": {"no_payer": false, "public_factor_or_known_anomaly_rename": false, "pure_speed": "Owner explicitly excludes lead-lag speed features, but the frozen route this restates is itself already flagged WEAK_PROXY_ONLY for exactly this speed-vs-non-speed ambiguity.", "requires_future_collection": false, "complete_denominator_not_constructible": true, "g1_g10_isomorphic": "DUPLICATE_OF_EXISTING_ROUTE(cross_venue_operational_asymmetry)", "defines_winners_only": false, "pit_backfill": false},
+      "reviewer_scores": {"payer_forced_action_structural_strength": 4.5, "existing_history_observability_identity_full_denominator": 1.5, "post_public_institutional_exclusion_capacity_moat": 3.5, "this_account_real_executability": 4.0, "shortest_falsification_cost": 5.5, "weighted_total": 3.15},
+      "verdict": "HARD_REJECTED",
+      "rejection_or_hold_reasons": ["This is a restatement, not a new mechanism: it duplicates the already-frozen dormant route cross_venue_operational_asymmetry (also DATA_BLIND/WEAK_PROXY_ONLY) with a stricter framing rather than a materially different payer/clock/denominator.", "No official maintenance/deposit-unlock/permission calendar exists; only weak mid-anchor proxies."],
+      "reopen_condition": "Same as the frozen cross_venue_operational_asymmetry route."
+    }
+  ],
+  "summary_counts": {
+    "total_candidates": 19,
+    "shortlisted": 1,
+    "retain_hypothesis_not_shortlisted": 2,
+    "rejected_insufficient_support": 1,
+    "rejected_payer_not_directly_observable": 1,
+    "hard_rejected": 14,
+    "isomorphic_to_existing_route_count": 4,
+    "note": "14+1+1+2+1=19."
+  },
+  "decision_journal": {
+    "problem_restatement": "Independently restate, dedup/cluster, and outcome-blind score all 19 candidates from three independently-produced owner files, using only feature-side existing-history metadata, then freeze a Mechanism Hypothesis Library before any shortlist selection.",
+    "competing_hypotheses": [
+      "HA: owners' own DATA_BLIND/REJECTED self-labels are trustworthy and this reviewer can rubber-stamp them.",
+      "HB: owners' self-labels must be independently re-derived from raw local artifacts, not trusted, per task instruction to not trust owner self-scoring.",
+      "HC: at least one candidate clears the shortlist bar on existing history without further acquisition.",
+      "HD: zero candidates clear the bar and the honest answer is to return to mechanism research."
+    ],
+    "chosen_method": "Re-verified file existence/schema/counts directly against records/history/** (R1-R6, R9-R11), cross-referenced the three owner files against each other for contradictions neither owner could see alone (R7, R8), re-computed self-excluding hashes for all bound inputs, and independently confirmed the Fable owner corrected its self-hash to the reviewer's prior recomputed value without changing canonical mechanism content. Applied the frozen 8-item hard-reject screen and the frozen 5-weight rubric with reviewer-assigned (not owner-assigned) scores, and clustered all 19 by real payer/clock/denominator overlap rather than trusting each owner's own non_isomorphism_proof at face value.",
+    "strongest_own_counterexample": "FAB-MSV2-01's rescoped clearance of the shortlist bar rests on two things this reviewer did NOT fully verify: (1) OKX's actual index/mark computation methodology during underlying-market-closed windows (public docs, not yet located/hash-bound), and (2) feature separability between boundary and non-boundary bars (not yet computed). Both remain open falsification cuts; this reviewer's positive weekend-price-movement check (R3) is necessary-not-sufficient and should not be read as a full pass.",
+    "most_likely_ignored_blind_spot": "This reviewer's own re-scoping of FAB-01 to a US-listed-only calendar cluster is itself an unverified design choice made under time constraints; it has not been checked for whether even the US-only subset genuinely reaches 20 independent trading days once holidays/early-closes are properly excluded (only a plausibility argument, not a computed count), and the exact US-only subset (vs. tokenized ETFs like TQQQ/SOXL/UVXY that track baskets, not single issuers) is not yet enumerated.",
+    "budget_spent": "Read-only review of 3 candidate files, 6 upstream frozen/registry files, history_catalog.json (grepped, not fully read given 1.3MB size), FIRST_BATTLE_MASTER_PLAN.md (grepped section only), plus direct feature-side sampling of records/history/okx_1h and records/history/okx_funding (price/funding-rate/timestamp fields only) and one temporary/deleted Go hash-verification program under cmd/. No downloads, no purchases, no outcome reads, no commits.",
+    "stop_decision": "Library frozen; proceeds to mechanism_shortlist.json and mechanism_shortlist_reviewer_receipt.json in the same delivery, then stops for user approval. Does not proceed to data contract freezing, generation preregistration, or any acquisition beyond what is already local."
+  },
+  "safety": {
+    "global_halt": true,
+    "system_status": "NO_GO",
+    "exam_status": "EXAM_UNAVAILABLE",
+    "trade_allowed": false,
+    "labels_unblinded": false,
+    "routes_started": 0,
+    "routes_reopened": 0,
+    "no_purchase": true,
+    "no_bulk_download": true,
+    "no_commit": true,
+    "reviewer_modified_owner_or_frozen_files": false
+  },
+  "hashes": {
+    "library_hash": "d208f96cbf6b22623df47858ab9a0aaaa46d80dd16768ad993daff02bc10eae5",
+    "hash_method": "Read this JSON as a generic object, set hashes.library_hash to null, then compute repository datatruth.HashJSON (deterministic Go encoding/json plus SHA-256 lowercase hex).",
+    "self_excluded_field": "hashes.library_hash"
+  }
+}

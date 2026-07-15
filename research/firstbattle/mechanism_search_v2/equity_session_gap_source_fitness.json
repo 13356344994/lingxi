@@ -1,0 +1,412 @@
+{
+  "schema_version": "lingxi.mechanism-search-v2.equity-session-gap-source-fitness.v1",
+  "artifact_id": "firstbattle.mechanism-search-v2.equity-session-gap-source-fitness",
+  "owner": {
+    "model": "Grok 4.5",
+    "role": "official_source_mechanism_data_owner",
+    "workspace": "/root/lingxi",
+    "write_scope": "ADD ONLY research/firstbattle/mechanism_search_v2/equity_session_gap_source_fitness.json/.md and us_market_calendar_2026.json/.md. No plan/master/shortlist/candidates/code/records/private-raw edits. No git commit."
+  },
+  "produced_at": "2026-07-14T06:35:00Z",
+  "lookup_batch_id": "equity_session_gap_fetch_20260714T062031Z",
+  "bindings": {
+    "mechanism_shortlist_json": "research/firstbattle/mechanism_search_v2/mechanism_shortlist.json",
+    "mechanism_shortlist_hash_declared": "b3c63aee84509eead9dc24bf067e68cdc16f08f50a532e006a68e633b015c541",
+    "mechanism_shortlist_hash_recomputed": "b3c63aee84509eead9dc24bf067e68cdc16f08f50a532e006a68e633b015c541",
+    "mechanism_shortlist_hash_match": true,
+    "mechanism_shortlist_reviewer_receipt_json": "research/firstbattle/mechanism_search_v2/mechanism_shortlist_reviewer_receipt.json",
+    "reviewer_receipt_hash_declared": "6c5a0c25f065e169f64f909aacedd4fc85f7ca0dad066222cc5e3f146a2bbdce",
+    "reviewer_receipt_hash_recomputed": "6c5a0c25f065e169f64f909aacedd4fc85f7ca0dad066222cc5e3f146a2bbdce",
+    "reviewer_receipt_hash_match": true,
+    "hash_recompute_method": "Temporary cmd/tmp-hashverify-equity calling internal/datatruth.HashJSON after nulling self-excluded field; program deleted after use.",
+    "route_id": "equity_perp_underlying_session_gap_forced_repricing",
+    "source_candidate_id": "FAB-MSV2-01",
+    "us_market_calendar_2026_json": "research/firstbattle/mechanism_search_v2/us_market_calendar_2026.json",
+    "us_market_calendar_2026_hash": "65e7795a7a68d0384ddad15188d8c8b2818df225d042197b4d12ee7a51086297"
+  },
+  "policy": {
+    "no_purchase": true,
+    "no_bulk_download": true,
+    "no_outcome_read": true,
+    "no_pnl_or_price_result_judgment": true,
+    "no_commit": true,
+    "official_or_free_public_lookup_only": true,
+    "labels_unblinded": false,
+    "routes_started": 0
+  },
+  "adjudications": {
+    "calendar": "PRESENT",
+    "mark_index_method": "PRESENT_SUPPORTS",
+    "symbol_mapping": "PARTIAL"
+  },
+  "source_fitness_verdict": "READY_FOR_LOCAL_FEATURE_TEST",
+  "source_fitness_verdict_rationale": [
+    "Stop gate (methodology falsification cut #3): OKX official Stock Perpetuals page documents closed-session index behavior that does NOT freeze or peg mark/index to the last cash-session print; index continues using crypto/self sources during off-hours/weekends/holidays, with a ±10% band anchored to the last available vendor stock price. Therefore MECHANISM_FALSIFIED does not fire.",
+    "Calendar: Independent official NYSE and Nasdaq 2026 holiday/early-close + regular-hours sources agree; constructed and hash-bound us_market_calendar_2026.json (calendar=PRESENT).",
+    "Symbol mapping remains PARTIAL (ticker string official; venue/ISIN absent). This does not by itself make the route DATA_BLIND for local feature tests on already-local US-ticker equity perps, but blocks claiming a complete official NYSE/Nasdaq listing map from OKX fields alone.",
+    "UNEXECUTABLE does not fire: docs do not show mark freeze + funding clamp that would collapse all transfer into a single untakeable tick; funding is described as standard/variable by contract, not as a closed-session freeze.",
+    "Outcome-blind: no returns/pnl/fill outcomes read; no price-result judgment used for this verdict."
+  ],
+  "stop_gates_evaluation": [
+    {
+      "gate": "OKX mark/index frozen or synthetically clamped TO last cash-session print during closure → close / MECHANISM_FALSIFIED",
+      "status": "NOT_TRIGGERED",
+      "evidence_summary": "Official text: during off-hours the index relies more on OKX contract price and other venues stock-perp indices; last available stock price is used for INDEX BANDS (±10%), not as a hard peg of index/mark."
+    },
+    {
+      "gate": "Holiday/DST/early-close coverage unverifiable for a sub-period → exclude that period rather than fabricate PIT",
+      "status": "SATISFIED_FOR_2026",
+      "evidence_summary": "2026 joint NYSE+Nasdaq calendar constructed with KnownFrom; pre-2026 periods remain out of scope of this artifact."
+    },
+    {
+      "gate": "Boundary vs non-boundary feature separability (falsification cut #2)",
+      "status": "NOT_RUN_THIS_TASK",
+      "evidence_summary": "Requires local tape feature test; deferred to READY_FOR_LOCAL_FEATURE_TEST."
+    },
+    {
+      "gate": "Direction feature collapses to public crowding factor",
+      "status": "NOT_RUN_THIS_TASK",
+      "evidence_summary": "Phase B concern; not part of this official-source lookup."
+    }
+  ],
+  "calendar_lookup": {
+    "verdict": "PRESENT",
+    "artifact": "research/firstbattle/mechanism_search_v2/us_market_calendar_2026.json",
+    "artifact_hash": "65e7795a7a68d0384ddad15188d8c8b2818df225d042197b4d12ee7a51086297",
+    "known_from": "2026-07-14T06:20:31Z",
+    "nyse_regular_hours_et": "09:30-16:00",
+    "nasdaq_regular_hours_et": "09:30-16:00",
+    "holidays_2026_count": 10,
+    "early_closes_2026": [
+      "2026-11-27",
+      "2026-12-24"
+    ],
+    "dst_handled": true,
+    "venue_non_substitution_attestation": "Nasdaq calendar was fetched from nasdaq.com and nasdaqtrader.com independently of NYSE; agreement was verified, not assumed by overlaying NYSE onto Nasdaq.",
+    "official_sources": [
+      {
+        "role": "NYSE_HOURS_HOLIDAYS",
+        "publisher": "NYSE/ICE",
+        "classification": "OFFICIAL_EXCHANGE",
+        "third_party": false,
+        "url": "https://www.nyse.com/markets/hours-calendars",
+        "fetched_at_utc": "2026-07-14T06:20:31Z",
+        "http_code": "200",
+        "content_sha256": "6385a2a07313aee09c5f28a6d5df2931e0a617252b4c833b2aeeafdad4e44cac",
+        "bytes": 109670,
+        "evidence_excerpts": [
+          "Core Trading Session: 9:30 a.m. to 4:00 p.m. ET",
+          "2026 holiday table includes Jan 1, Jan 19, Feb 16, Apr 3, May 25, Jun 19, Jul 3 (observed), Sep 7, Nov 26, Dec 25",
+          "Footnotes: early close 1:00 p.m. ET on Fri Nov 27, 2026 and Thu Dec 24, 2026"
+        ]
+      },
+      {
+        "role": "NASDAQ_HOURS_HOLIDAYS",
+        "publisher": "Nasdaq, Inc.",
+        "classification": "OFFICIAL_EXCHANGE",
+        "third_party": false,
+        "url": "https://www.nasdaq.com/market-activity/stock-market-holiday-schedule",
+        "fetched_at_utc": "2026-07-14T06:24:01Z",
+        "http_code": "200",
+        "content_sha256": "f86f9762da25cc45a500457b79b9bdb7911b7af409864ed4d9b47e4449a8fa99",
+        "bytes": 200609,
+        "evidence_excerpts": [
+          "Opens: 9:30 am ET / Closes: 4:00 pm ET",
+          "2026 Closed holidays match NYSE list including Jul 3 Independence Day (Observed)",
+          "Early Close Nov 27, 2026 1:00 p.m.; Early Close Dec 24, 2026 1:00 p.m."
+        ]
+      },
+      {
+        "role": "NASDAQTRADER_HOLIDAYS",
+        "publisher": "Nasdaq Trader",
+        "classification": "OFFICIAL_EXCHANGE",
+        "third_party": false,
+        "url": "https://www.nasdaqtrader.com/trader.aspx?id=calendar",
+        "fetched_at_utc": "2026-07-14T06:20:32Z",
+        "http_code": "200",
+        "content_sha256": "6f528906fd77787094a3d3adf5fad19f8081bc8b5e56835e1d4e58da0d3b4bd5",
+        "bytes": 54721,
+        "evidence_excerpts": [
+          "U.S. Equity and Options Markets Holiday Schedule 2026 lists same Closed/Early Close dates"
+        ]
+      },
+      {
+        "role": "NYSE_PDF_CORROBORATION",
+        "publisher": "NYSE/ICE",
+        "classification": "OFFICIAL_EXCHANGE",
+        "third_party": false,
+        "url": "https://www.nyse.com/publicdocs/nyse/ICE_NYSE_2026_Yearly_Trading_Calendar.pdf",
+        "fetched_at_utc": "2026-07-14T06:20:31Z",
+        "http_code": "200",
+        "content_sha256": "70f5577eb43e60a9dbbecaae3cec23d0f02028c05c7f175013bb3e97816d394f",
+        "bytes": 232670,
+        "notes": "Fetched; HTML used as primary parseable source (pdftotext unavailable)."
+      },
+      {
+        "role": "NASDAQ_PDF_CORROBORATION",
+        "publisher": "Nasdaq Trader",
+        "classification": "OFFICIAL_EXCHANGE",
+        "third_party": false,
+        "url": "https://www.nasdaqtrader.com/content/technicalsupport/tradingcalendar.pdf",
+        "fetched_at_utc": "2026-07-14T06:24:06Z",
+        "http_code": "200",
+        "content_sha256": "2c0caeb2513eed4990c01551fad9b0b0cd0049818ba5d561dbb61bdb017abeb8",
+        "bytes": 445299,
+        "notes": "Fetched; HTML used as primary parseable source."
+      }
+    ],
+    "third_party_rejected": [
+      "financecalendar.com",
+      "marketopen.at",
+      "FINRA market-transparency reporting holiday calendar (not equity matching engine calendar)",
+      "ICE IR press page (HTTP 403 at fetch; unused)"
+    ]
+  },
+  "okx_stock_perp_lookup": {
+    "product_docs": {
+      "verdict_fields": {
+        "product_description": "PRESENT",
+        "underlying_index_constituents_named_types": "PRESENT",
+        "per_index_live_constituents_weights_api": "PRESENT_LIVE_SNAPSHOT_ONLY",
+        "index_calculation_closed_session": "PRESENT",
+        "mark_price_formula": "PRESENT",
+        "mark_price_closed_session_special_case": "PRESENT_VIA_INDEX_PLUS_STANDARD_MARK",
+        "cash_market_closed_data_source_update_clamp_exception": "PRESENT",
+        "funding_rules_stock_specific": "PARTIAL_DEFERS_TO_STANDARD_PLUS_CONTRACT_SPEC",
+        "price_limit_rules_stock_specific": "PARTIAL_DEFERS_TO_STANDARD_PLUS_LIVE_PARAMS",
+        "open_interest_rules_stock_specific": "ABSENT_UNVERIFIED_IN_DOCS_LIVE_FIELDS_ONLY"
+      },
+      "primary_official_page": {
+        "role": "OKX_STOCK_PERPETUALS_HELP",
+        "publisher": "OKX",
+        "classification": "OFFICIAL_EXCHANGE_DOCS",
+        "third_party": false,
+        "url": "https://www.okx.com/help/stock-perpetuals",
+        "fetched_at_utc": "2026-07-14T06:20:33Z",
+        "http_code": "200",
+        "content_sha256": "e02edcd2b839552da9cca35f47422e917171ac194241361f0579cfb61d855e9c",
+        "bytes": 76769,
+        "evidence_excerpts": [
+          "Stock Perpetuals ... track the price of publicly traded stocks (e.g. AAPL, TSLA, NVDA).",
+          "Trading pair format: [TICKER]USDT (e.g. AAPLUSDT, TSLAUSDT, NVDAUSDT).",
+          "OKX supports 24/7 trading for stock perpetuals.",
+          "US Stock Market Regular Market: 9:30 AM – 4:00 PM ET; Closed on weekends and US market holidays.",
+          "During regular market hours, the index draws from all sources, with stock price feeds carrying significant weight.",
+          "During off-hours, weekends, and holidays, the index relies more on OKX's own contract price and stock perps index price on other exchanges.",
+          "Index Bands Protection: index price limited within a 10% range of the stock price (Pyth). During off-hours... stock prices stop updating, but the last available stock price is still used for index bands calculation.",
+          "Mark Price = Index Price + Basis Moving Average; same logic as regular perpetual swaps.",
+          "Price limits follow the same logic as regular perpetual swaps; parameters may vary by stock.",
+          "Funding: standard funding rate mechanism; settlement intervals may vary by product — see contract specification page."
+        ]
+      },
+      "mirror_en_us": {
+        "role": "OKX_STOCK_PERPETUALS_HELP_EN_US",
+        "publisher": "OKX",
+        "classification": "OFFICIAL_EXCHANGE_DOCS",
+        "third_party": false,
+        "url": "https://www.okx.com/en-us/help/stock-perpetuals",
+        "fetched_at_utc": "2026-07-14T06:20:33Z",
+        "http_code": "200",
+        "content_sha256": "39f93bf99dfa76d658fe78b29308f135b95ff4038d4b27cd34f6858ce8ae1d63",
+        "bytes": 69046
+      },
+      "linked_mark_price_doc": {
+        "role": "OKX_MARK_PRICE_AND_LAST_PRICE",
+        "publisher": "OKX",
+        "classification": "OFFICIAL_EXCHANGE_DOCS",
+        "third_party": false,
+        "url": "https://www.okx.com/help/ii-mark-price-and-last-price",
+        "fetched_at_utc": "2026-07-14T06:25:15Z",
+        "http_code": "200",
+        "content_sha256": "31bd26aaa9786dc862177f4c23b28ea4a7fa701e69aa92d96d6de7ffdd9f68e6",
+        "bytes": 69896,
+        "notes": "Linked from Stock Perpetuals page as /help/ii-mark-price-and-last-price. Used ONLY as the generic mark formula reference that the stock page itself cites; closed-session stock-perp method is taken from the Stock Perpetuals page, not inferred solely from this generic doc."
+      },
+      "linked_funding_doc": {
+        "role": "OKX_PERPS_FUNDING_FEE_MECHANISM",
+        "publisher": "OKX",
+        "classification": "OFFICIAL_EXCHANGE_DOCS",
+        "third_party": false,
+        "url": "https://www.okx.com/help/perps-funding-fee-mechanism",
+        "fetched_at_utc": "2026-07-14T06:28:17Z",
+        "http_code": "200",
+        "content_sha256": "18d9ddfd661dc968475146dfe6baebf6f938859efbbd82a053ae6d07240201cc",
+        "bytes": 90481,
+        "notes": "Standard perpetual funding mechanism page. Stock page says Stock Perpetuals use the standard mechanism with possibly varying settlement intervals; no stock-only closed-session funding freeze documented."
+      },
+      "related_stock_split_doc": {
+        "role": "OKX_STOCK_SPLIT_ADJUSTMENTS",
+        "publisher": "OKX",
+        "classification": "OFFICIAL_EXCHANGE_DOCS",
+        "third_party": false,
+        "url": "https://www.okx.com/help/stock-split-adjustments-for-stock-perpetuals",
+        "fetched_at_utc": "2026-07-14T06:28:17Z",
+        "http_code": "200",
+        "content_sha256": "0aba20e563c39fc5c98e587ddf8cd06798ec909aad585b62c5853a0230bc0a04",
+        "bytes": 83629,
+        "notes": "Confirms stock-perp product family has corporate-action docs; not used as closed-session mark evidence."
+      },
+      "live_public_api_lookups_not_historical_archives": [
+        {
+          "role": "OKX_PUBLIC_INSTRUMENTS_SWAP",
+          "publisher": "OKX",
+          "classification": "OFFICIAL_PUBLIC_API",
+          "third_party": false,
+          "url": "https://www.okx.com/api/v5/public/instruments?instType=SWAP",
+          "fetched_at_utc": "2026-07-14T06:25:16Z",
+          "http_code": "200",
+          "content_sha256": "b0b43d0ab37633d86b905d105346cc608ac4f051cc162acd1f40a9f28913d630",
+          "bytes": 436448,
+          "notes": "Current snapshot only; KnownFrom=fetch time. Used for field existence / ticker binding, not historical rule archive."
+        },
+        {
+          "role": "OKX_INDEX_COMPONENTS_AAPL_USDT",
+          "publisher": "OKX",
+          "classification": "OFFICIAL_PUBLIC_API",
+          "third_party": false,
+          "url": "https://www.okx.com/api/v5/market/index-components?index=AAPL-USDT",
+          "fetched_at_utc": "2026-07-14T06:25:16Z",
+          "http_code": "200",
+          "content_sha256": "574f1943780f70b57488ddf7e1c79f1d61c4bf5a631b9268d1c092440df9f896",
+          "bytes": 869,
+          "notes": "Live constituents/weights for AAPL-USDT index at fetch time; demonstrates multi-source index including Pyth/Ondo/other venues/OKX linear perp. Not a historical archive."
+        },
+        {
+          "role": "OKX_FUNDING_RATE_AAPL",
+          "publisher": "OKX",
+          "classification": "OFFICIAL_PUBLIC_API",
+          "third_party": false,
+          "url": "https://www.okx.com/api/v5/public/funding-rate?instId=AAPL-USDT-SWAP",
+          "fetched_at_utc": "2026-07-14T06:25:56Z",
+          "http_code": "200",
+          "content_sha256": "862423a676315f7603eda48a4b55eacf993c1359499914272725f79e68d1cf92",
+          "bytes": 516,
+          "notes": "Live funding params for AAPL-USDT-SWAP at fetch time only."
+        }
+      ],
+      "absent_unverified": [
+        {
+          "item": "Historical archive of stock-perp index constituent weights as-of each past closed session",
+          "status": "ABSENT_UNVERIFIED"
+        },
+        {
+          "item": "Dedicated price-limit documentation URL linked from stock page resolved to a usable article in this lookup (several guessed /help/* URLs returned 404 shells)",
+          "status": "ABSENT_UNVERIFIED",
+          "mitigation": "Stock Perpetuals page itself states price-limit logic follows regular perps with stock-specific adjustable parameters; live instruments fields initPxLmtPct/floatPxLmtPct/maxPxLmtPct observed on AAPL-USDT-SWAP snapshot."
+        },
+        {
+          "item": "Official prose documenting open-interest caps / maxPlatOILmt semantics specifically for stock perps",
+          "status": "ABSENT_UNVERIFIED",
+          "mitigation": "Live instruments fields posLmtAmt/posLmtPct present; maxPlatOILmt empty on sampled AAPL row at fetch time — snapshot only."
+        }
+      ],
+      "anti_patterns_avoided": [
+        "Did NOT treat generic OKX perpetual mark formula alone as the stock-perp closed-session method; closed-session source-shift + index-band language comes from Stock Perpetuals page.",
+        "Did NOT interpret ±10% index band around last available stock price as freeze/peg to last cash print (stop-gate language).",
+        "Did NOT backfill historical closed-session rules from the current webpage into pre-KnownFrom periods."
+      ]
+    }
+  },
+  "symbol_mapping_lookup": {
+    "verdict": "PARTIAL",
+    "question": "Can OKX instId be accurately mapped to a NYSE/Nasdaq underlying using only official fields/pages?",
+    "present_official_evidence": [
+      {
+        "claim": "instId / uly / ctValCcy encode a stock ticker string used as the product naming convention",
+        "evidence": "Help page: trading pair format [TICKER]USDT with examples AAPLUSDT/TSLAUSDT/NVDAUSDT for publicly traded stocks; instruments API AAPL-USDT-SWAP has uly=AAPL-USDT, ctValCcy=AAPL, instFamily=AAPL-USDT.",
+        "source": "okx_stock_perpetuals + okx_instruments_public"
+      },
+      {
+        "claim": "Index components for AAPL-USDT use AAPL/USD (and AAPL/USDT) symbols from named vendors/venues",
+        "evidence": "GET /api/v5/market/index-components?index=AAPL-USDT returned components with symbol AAPL/USD or AAPL/USDT and exch in {Pyth, Kaiko_Reference_Rate, OKX_LINEAR_PERPETUAL, Hyperliquid_Oracle, Binance_Index, Ondo_TICKER, dxFeed} at fetch time.",
+        "source": "okx_index_components"
+      },
+      {
+        "claim": "groupId=7 appears on sampled US equity/ETF-named swaps in the live instruments snapshot",
+        "evidence": "AAPL/TSLA/GME/NVDA/MSFT/SPY/QQQ-USDT-SWAP all groupId=7 in fetch snapshot.",
+        "caveat": "OKX help page does not define groupId=7 as NYSE/Nasdaq-only; cannot treat as official venue classifier."
+      }
+    ],
+    "absent_official_evidence": [
+      "No instruments field names NYSE, Nasdaq, listing exchange, MIC, ISIN, CUSIP, or company legal name.",
+      "No official OKX page enumerating which cash-market venue each ticker trades on.",
+      "Official examples naming AAPL/TSLA/NVDA as publicly traded stocks do not constitute a complete, venue-bound mapping table for the rescoped universe."
+    ],
+    "forbidden_inference": "Famous-ticker common knowledge (e.g. AAPL=Nasdaq) is NOT accepted as evidence under this task.",
+    "implication_for_route": "US-listed rescoped subset enumeration still requires a separately hash-bound official listing map (exchange directory / issuer filing) beyond OKX fields; OKX alone yields ticker-string identity PARTIAL.",
+    "sample_live_instrument_fields_aapl_usdt_swap": {
+      "instId": "AAPL-USDT-SWAP",
+      "uly": "AAPL-USDT",
+      "ctValCcy": "AAPL",
+      "instFamily": "AAPL-USDT",
+      "groupId": "7",
+      "instCategory": "3",
+      "settleCcy": "USDT",
+      "state": "live",
+      "listing_exchange_field": null,
+      "isin_field": null
+    },
+    "sample_index_components_exchanges_aapl_usdt": [
+      "Binance_Index",
+      "Hyperliquid_Oracle",
+      "Kaiko_Reference_Rate",
+      "OKX_LINEAR_PERPETUAL",
+      "Ondo_TICKER",
+      "Pyth",
+      "dxFeed"
+    ]
+  },
+  "decision_journal": [
+    {
+      "id": "DJ1",
+      "decision": "Independently recompute shortlist and receipt HashJSON before any lookup",
+      "result": "MATCH shortlist b3c63aee…15c541 and receipt 6c5a0c25…a2bbdce"
+    },
+    {
+      "id": "DJ2",
+      "decision": "Require both NYSE and Nasdaq official calendars; refuse NYSE-only overlay",
+      "result": "Both fetched; 2026 holiday/early-close dates identical; calendar=PRESENT and artifact written"
+    },
+    {
+      "id": "DJ3",
+      "decision": "Treat Stock Perpetuals help page as authoritative for closed-session index/mark method; cite generic mark doc only as the page itself references it",
+      "result": "mark_index_method=PRESENT_SUPPORTS; stop-gate falsification NOT_TRIGGERED"
+    },
+    {
+      "id": "DJ4",
+      "decision": "Refuse to classify ±10% last-stock-price band as freeze/peg to last cash print",
+      "result": "Not MECHANISM_FALSIFIED; band documented as deviation limiter while crypto sources continue"
+    },
+    {
+      "id": "DJ5",
+      "decision": "Symbol mapping PRESENT only if official fields prove NYSE/Nasdaq underlying venue binding",
+      "result": "PARTIAL — ticker string present; venue/ISIN absent; no common-knowledge fill-in"
+    },
+    {
+      "id": "DJ6",
+      "decision": "Unique source_fitness verdict from shortlist stop gates without reading outcomes",
+      "result": "READY_FOR_LOCAL_FEATURE_TEST"
+    },
+    {
+      "id": "DJ7",
+      "decision": "Reject third-party calendars and unused 403 ICE IR page as official evidence",
+      "result": "Recorded under explicitly_not_used / third_party_rejected"
+    }
+  ],
+  "safety": {
+    "system_status": "NO_GO",
+    "exam_status": "EXAM_UNAVAILABLE",
+    "trade_allowed": false,
+    "labels_unblinded": false,
+    "routes_started": 0,
+    "routes_reopened": 0,
+    "owner_made_commits": false,
+    "owner_modified_disallowed_paths": false,
+    "outcome_values_read": false
+  },
+  "hashes": {
+    "source_fitness_hash": "3c88d6aa189be2393b9c84aa6313b544dcde82f3e6ce8908b0bb328887990c3b",
+    "hash_method": "Read this JSON as a generic object, set hashes.source_fitness_hash to null, then compute repository datatruth.HashJSON (deterministic Go encoding/json plus SHA-256 lowercase hex).",
+    "self_excluded_field": "hashes.source_fitness_hash"
+  }
+}

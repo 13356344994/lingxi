@@ -1,0 +1,47 @@
+{
+  "schema_version": "lingxi.data-driven-router-v3.model-api.v1",
+  "policy_id": "3618574bfecdc03b89e9c67f215de09dbd92872abed646ed598885c46b0b5c0e",
+  "leaves": [
+    {
+      "leaf_id": "opus-e4-d2-l0.001-x0",
+      "predicate": "btc_rms_vol_24h\u003c0.00813809[missing-\u003eleft] AND btc_rms_vol_24h\u003c0.00643756[missing-\u003eleft]",
+      "intent": {
+        "target_signed_position_fraction": 0,
+        "target_horizon_hours": 24,
+        "delay_bars": 3
+      }
+    },
+    {
+      "leaf_id": "opus-e4-d2-l0.001-x1",
+      "predicate": "btc_rms_vol_24h\u003c0.00813809[missing-\u003eleft] AND btc_rms_vol_24h\u003e=0.00643756[missing-\u003eleft]",
+      "intent": {
+        "target_signed_position_fraction": -0.25,
+        "target_horizon_hours": 24,
+        "delay_bars": 3
+      }
+    },
+    {
+      "leaf_id": "opus-e4-d2-l0.001-x2",
+      "predicate": "btc_rms_vol_24h\u003e=0.00813809[missing-\u003eleft] AND btc_return_24h\u003c-0.0122709[missing-\u003eleft]",
+      "intent": {
+        "target_signed_position_fraction": 0.5,
+        "target_horizon_hours": 24,
+        "delay_bars": 0
+      }
+    },
+    {
+      "leaf_id": "opus-e4-d2-l0.001-x3",
+      "predicate": "btc_rms_vol_24h\u003e=0.00813809[missing-\u003eleft] AND btc_return_24h\u003e=-0.0122709[missing-\u003eleft]",
+      "intent": {
+        "target_signed_position_fraction": -0.1,
+        "target_horizon_hours": 24,
+        "delay_bars": 0
+      }
+    }
+  ],
+  "default_intent": {
+    "target_signed_position_fraction": 0,
+    "target_horizon_hours": 1,
+    "delay_bars": 0
+  }
+}

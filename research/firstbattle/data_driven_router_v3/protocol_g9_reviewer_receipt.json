@@ -1,0 +1,146 @@
+{
+  "schema_version": "lingxi.data-driven-router-v3.g9-reviewer-receipt.v1",
+  "artifact_id": "firstbattle.data-driven-router-v3.g9-reviewer-receipt",
+  "review_scope": {
+    "reviews_artifacts": [
+      "research/firstbattle/data_driven_router_v3/protocol_g9.json",
+      "research/firstbattle/data_driven_router_v3/protocol_g9.md",
+      "research/firstbattle/data_driven_router_v3/model_submission_terra.json (SHA-256 cross-check only)",
+      "research/firstbattle/data_driven_router_v3/model_submission_opus.json (SHA-256 cross-check only)",
+      "research/firstbattle/data_driven_router_v3/model_submission_episodic_sonnet.json (SHA-256 cross-check only)",
+      "research/firstbattle/data_driven_router_v3/model_submission_grok.json (SHA-256 cross-check only)",
+      "research/firstbattle/data_driven_router_v3/protocol_g6.json (inheritance cross-reference only, not re-approved)",
+      "research/firstbattle/data_driven_router_v3/protocol_g7.json (inheritance cross-reference only, not re-approved)",
+      "research/firstbattle/data_driven_router_v3/protocol_g8.json (inheritance cross-reference only, not re-approved)"
+    ],
+    "predecessor_verdict": {
+      "source": "a prior independent read-only reviewer session for this same g9 generation",
+      "declared_verdict": "APPROVED",
+      "relationship_to_this_receipt": "This receipt is an independent, separately-executed recomputation performed by a distinct writable-reviewer session. It does not import or trust the predecessor's stated verdict; every hash and constant below was recomputed from on-disk bytes by this session's own commands before this receipt reached its own APPROVED conclusion."
+    },
+    "explicitly_out_of_scope": [
+      "dataset shards, StateRow/reward-cube files, or any records/ or private-raw content (none read)",
+      "any pnl/fillPnl/realized_pnl/return/winner/outcome/reward field (none read)",
+      "full go_test/go_vet/gofmt/lint re-execution of owner code (relied on prior receipts' methodology; this review focuses on the two hashes, the four submission SHAs, cap constants, and label-blind identity keys per its assigned task)",
+      "any file outside the write-scope listed in reviewer.write_scope"
+    ]
+  },
+  "reviewed_at": "2026-07-15T03:22:00Z",
+  "repo_head_commit_at_review": "ab2780405f0fd5c80d268fe0feff39eb14a29eda",
+  "reviewer": {
+    "identity": "Independent writable-reviewer subagent, a session distinct from the governance-owner agent that authored protocol_g9.{json,md} and from the prior read-only reviewer session that separately judged g9 APPROVED.",
+    "model": "Claude Sonnet 5",
+    "workspace": "/root/lingxi",
+    "write_scope": "Permitted to add only: research/firstbattle/data_driven_router_v3/protocol_g9_reviewer_receipt.json and .md, both new files. Did not modify protocol_g9.{json,md}, any other protocol/overlay generation, any model_submission_*.json, FIRST_BATTLE_MASTER_PLAN.md, any code, records/, private-raw, or exam/real-money surface. Made no git commits.",
+    "raw_or_outcome_access": "None. Read only: protocol_g9.{json,md}, the four model_submission_*.json files (file-level SHA-256 only, to cross-check g9.final_owner_submissions), protocol_g6/g7/g8.json (inheritance-hash cross-reference only), protocol_g5_reviewer_receipt.{json,md} (methodology precedent only), internal/datatruth/envelope.go (HashJSON/normalizeJSON algorithm confirmation), and git metadata (rev-parse/status). No dataset shard, StateRow, reward-cube, records/ file, private-raw file, or exam/sealed surface was opened."
+  },
+  "independent_methods": [
+    {
+      "method_id": "M1_G9_JSON_SELF_EXCLUDING_HASH_RECOMPUTE",
+      "description": "Built a temporary Go program under a transient cmd/tmp-g9-reviewer-hashverify directory calling the repository's own internal/datatruth.HashJSON, nulling exactly hashes.overlay_hash for protocol_g9.json (and, for inheritance cross-reference, the same field for protocol_g6.json, protocol_g7.json, protocol_g8.json). Deleted the program and its binary immediately after use (`rm -rf cmd/tmp-g9-reviewer-hashverify /tmp/g9reviewer-hashverify`) and confirmed `git status --short cmd/` showed no residual diff attributable to this reviewer.",
+      "result": "protocol_g9.json hashes.overlay_hash recomputed = fe3ce29ef3b8b07da7ef81e0ea3ccc732722f8a184e7ba91ebb8edacd7b2802c, exact match to the declared value. Cross-reference recomputes: protocol_g6.json=08b609e3271029b1e9f772921e325ef7c7fd30326589ae9c03cc86d73d9c844b, protocol_g7.json=4aacc43e928d25b6b83cdf8fe10d5b576e2b1009ea10b7bfad3e750388e47747, protocol_g8.json=c492cd191e869073b330221835fcec4b4437b27ec67e6e9d18252119fc7da682, each an exact match to (a) that file's own self-declared hash and (b) the corresponding g9.inheritance.{g6_hash,g7_hash,g8_hash} citation and g9.supersedes.overlay_hash (for g8)."
+    },
+    {
+      "method_id": "M2_G9_MARKDOWN_DOCUMENT_HASH_RECOMPUTE",
+      "description": "Normalized protocol_g9.md's single '> Document hash: `<value>`' line to '> Document hash: `SELF_EXCLUDED`' and recomputed SHA-256 over the UTF-8 bytes with a standalone Python script (not part of the repository, not committed, run only against on-disk file content read via the standard library).",
+      "result": "Recomputed = faa8cf94367b80110e380c9dee0c08ca6dd691a5a4c1fed943ef1774004fe76e, exact match to the declared Document hash line in protocol_g9.md."
+    },
+    {
+      "method_id": "M3_FOUR_SUBMISSION_SHA256_RECOMPUTE",
+      "description": "Ran `sha256sum` directly against the raw on-disk bytes of the four frozen model_submission_*.json files (whole-file byte hash, not datatruth.HashJSON, since none of these files declares a self-excluding hash field matching g9's naming; grok's own internal hashes.submission_hash field is a different, file-internal value and was not used for this cross-check) and compared each to g9.final_owner_submissions.",
+      "result": "4/4 exact matches: model_submission_terra.json=301bf46567b8049ea27b0dae60bca99c7e2e563382348dbe8c921e9d0107fd09 (== terra_tree_sha256); model_submission_opus.json=2215eb5e50bd911a75225ab0c82e39d7b024ab1e087de43c2825c6b838fc070f (== opus_moe_sha256); model_submission_episodic_sonnet.json=ecb5ede85a0895dca0784d4450db445b2312ccb4f8c265f1360a27bf2e1d2c67 (== sonnet_episodic_sha256); model_submission_grok.json=b2776efd27fe79407e5ab4021131b2f3f05413f35eefbfe42f4eaf21702c4c52 (== grok_changepoint_sha256)."
+    },
+    {
+      "method_id": "M4_CAP_CONSTANT_CROSS_CHECK",
+      "description": "Compared every numeric cap in g9.production_scale_bounds against the corresponding frozen constant already declared inside each owner's own model_submission file (not against g9's own restatement of itself), to check the two are the same frozen number rather than g9 silently introducing a new, unverified bound.",
+      "result": "terra: g9 fit_rows_max=8192/thresholds_per_feature_per_node_max=31 == submission frozen_search.training_row_cap=8192/max_quantile_thresholds_per_feature=31. opus: g9 fit_rows_max=8192/thresholds_per_feature_per_gate_max=31 == submission search_space.max_fit_rows=8192/max_thresholds_per_feature=31. sonnet: g9 candidate_pool_max=8192/loo_queries_max=1024 == submission search_space.max_candidate_pool_size=8192/max_loo_queries=1024. grok: g9 fit_rows_max=100000 with 'no additional sampling' is consistent with the submission declaring no fit-row cap field at all and a linear-scan complexity class over all rows. input_examples=100000 is identical across all four owners and equals g9.discovery-scale assumption. No cap in production_scale_bounds exceeds or silently loosens any owner-declared bound; every number is an exact restatement, not a new value."
+    },
+    {
+      "method_id": "M5_LABEL_BLIND_IDENTITY_KEY_CHECK",
+      "description": "For each owner using a frozen-subset selection rule (terra, opus, sonnet), checked g9.production_scale_bounds.*.fit_row_selection / candidate_pool_selection and .selection_excludes against the owner's own submission description of its row/pool freeze key, to confirm cap membership is determined only by seed-bound identity fields and cannot be influenced by features, account state, the selected target, or reward.",
+      "result": "terra: g9 key='lowest sha256(seed42 + example_id + event_id + decision_ms)', excludes=[features, account_context, selected_target_intent, reward] == submission training_row_selection_key='seed_42_example_id_event_id_decision_ms_only'. opus: g9 excludes list matches submission's own statement 'independent of features/account/targets/input order' under an identical seed-42 identity-hash rule. sonnet: g9 key='lowest sha256(seed42 + neighbor + example_id + event_id)', excludes=[features, account_context, selected_target_intent, reward] == submission's 'hash-priority (seed-bound) tie-break' and 'candidate_pool_selection_input_order_independent': true anti-leak guard. No owner's selection key includes a label, reward, target, or feature field; all three frozen-subset owners use only ExampleID/EventID/DecisionMS-or-neighbor-id plus a fixed seed, so target mutation and input permutation provably cannot change cap membership, matching g9.verification's two claims of the same name."
+    },
+    {
+      "method_id": "M6_SAFETY_AND_GIT_STATE_CHECK",
+      "description": "Read g9.safety verbatim and ran git rev-parse HEAD / git status --short to confirm the repo state matches g9's own no-label, no-route, NO_GO claims at review time, and that this review introduced no other change.",
+      "result": "g9.safety declares discovery_label_bundle_created=false, validation_labels_unblinded=false, leaf_wf_labels_unblinded=false, router_holdout_labels_unblinded=false, routes_started=0, system_status=NO_GO, trade_allowed=false. git rev-parse HEAD == ab2780405f0fd5c80d268fe0feff39eb14a29eda. git status --short confirms research/firstbattle/data_driven_router_v3/ remains untracked (no commit) other than this reviewer's own two new receipt files, and no sealed/discovery_label_bundle.jsonl.gz or any dataset/state/reward artifact exists under this directory at review time."
+    }
+  ],
+  "commands_run": [
+    "Read of protocol_g9.{json,md}, the four model_submission_*.json files, protocol_g6/g7/g8.json, and protocol_g5_reviewer_receipt.{json,md} (methodology precedent)",
+    "Read of internal/datatruth/envelope.go to confirm the exact HashJSON/normalizeJSON algorithm before reimplementing its call site",
+    "Temporary Go program under cmd/tmp-g9-reviewer-hashverify calling internal/datatruth.HashJSON for method M1, built with 'go build -o /tmp/g9reviewer-hashverify ./cmd/tmp-g9-reviewer-hashverify/', run once, then deleted with 'rm -rf cmd/tmp-g9-reviewer-hashverify /tmp/g9reviewer-hashverify'; not committed",
+    "Standalone Python script (inline heredoc, not committed) recomputing protocol_g9.md's SELF_EXCLUDED document hash for method M2",
+    "sha256sum against the four model_submission_*.json files for method M3",
+    "git rev-parse HEAD; git status --short; git status --short research/firstbattle/data_driven_router_v3/ FIRST_BATTLE_MASTER_PLAN.md; git status --short cmd/ (before and after temp-program cleanup, to confirm zero residual diff)"
+  ],
+  "input_hashes": {
+    "protocol_g9_json_declared": "fe3ce29ef3b8b07da7ef81e0ea3ccc732722f8a184e7ba91ebb8edacd7b2802c",
+    "protocol_g9_json_reverified": true,
+    "protocol_g9_md_declared": "faa8cf94367b80110e380c9dee0c08ca6dd691a5a4c1fed943ef1774004fe76e",
+    "protocol_g9_md_reverified": true,
+    "protocol_g6_json_inheritance_citation_reverified": true,
+    "protocol_g7_json_inheritance_citation_reverified": true,
+    "protocol_g8_json_inheritance_citation_reverified": true,
+    "terra_tree_sha256_declared": "301bf46567b8049ea27b0dae60bca99c7e2e563382348dbe8c921e9d0107fd09",
+    "terra_tree_sha256_reverified": true,
+    "opus_moe_sha256_declared": "2215eb5e50bd911a75225ab0c82e39d7b024ab1e087de43c2825c6b838fc070f",
+    "opus_moe_sha256_reverified": true,
+    "sonnet_episodic_sha256_declared": "ecb5ede85a0895dca0784d4450db445b2312ccb4f8c265f1360a27bf2e1d2c67",
+    "sonnet_episodic_sha256_reverified": true,
+    "grok_changepoint_sha256_declared": "b2776efd27fe79407e5ab4021131b2f3f05413f35eefbfe42f4eaf21702c4c52",
+    "grok_changepoint_sha256_reverified": true
+  },
+  "findings": [
+    {
+      "id": "F1",
+      "severity": "INFO",
+      "title": "Both g9 self-hashes and all four submission SHAs independently reproduced with zero discrepancies",
+      "detail": "protocol_g9.json's self-excluded overlay_hash and protocol_g9.md's SELF_EXCLUDED document hash both reproduced exactly (M1, M2). All four final_owner_submissions SHA-256 values reproduced exactly via direct whole-file byte hashing (M3). The g6/g7/g8 hashes cited in g9.inheritance and g9.supersedes also reproduced exactly against those files' own bytes (M1), so g9's upstream citations are not merely copied from those files' self-declared values but independently corroborated."
+    },
+    {
+      "id": "F2",
+      "severity": "INFO",
+      "title": "Cap constants and label-blind identity keys match owner submissions exactly, with no silent loosening",
+      "detail": "Every numeric cap in g9.production_scale_bounds (8192 fit/candidate rows, 31 quantile thresholds, 1024 LOO queries, 100000 input examples) is an exact restatement of a constant already frozen inside the corresponding owner's own model_submission file, not a new or looser bound introduced only at g9 (M4). All three frozen-subset owners (terra, opus, sonnet) select their capped subset using only a fixed seed plus ExampleID/EventID/DecisionMS-or-neighbor-id, explicitly excluding features, account_context, selected_target_intent, and reward, matching each owner's own anti-leak/order-independence claims (M5). Grok's uncapped, all-100000-row linear scan is unchanged and requires no selection key."
+    }
+  ],
+  "conflicts_with_owner_artifact": "NONE_ON_SUBSTANCE. Every independently recomputed hash and cross-checked constant in protocol_g9.{json,md} agrees with the owner's own declared values and with the four owners' own model_submission files. No numeric, hash, or logical contradiction was found.",
+  "relationship_to_predecessor_review": "This receipt's own independent recomputation (M1-M6) reaches the same APPROVED conclusion the prior read-only reviewer session separately reported for this g9 generation. The two reviews were performed by distinct sessions using independently executed commands against the same on-disk bytes; this receipt does not rely on the predecessor's reported verdict as evidence, only records that no divergence was found.",
+  "verdict": "APPROVED",
+  "verdict_detail": "PASS_INDEPENDENT_VERIFICATION_G9_PRODUCTION_SCALE_FREEZE",
+  "approved_scope": [
+    "protocol_g9.{json,md} as the current effective production-scale-freeze overlay on top of the independently-corroborated g1-g8 chain, per the reverified inheritance/supersession citations.",
+    "The four final_owner_submissions SHA-256 bindings (terra_tree, opus_moe, sonnet_episodic, grok_changepoint) as frozen, byte-exact references to the four on-disk model_submission_*.json files.",
+    "The frozen production_scale_bounds (8192-row/31-threshold/1024-LOO caps and the 100000-example discovery scale) as exact, unweakened restatements of each owner's own already-frozen constants.",
+    "The label-blind cap-membership identity keys (seed42 + ExampleID/EventID/DecisionMS-or-neighbor-id only) for terra, opus, and sonnet, which structurally cannot be influenced by features, account state, selected target, or reward."
+  ],
+  "not_approved": [
+    "Any dataset construction, StateRow/reward-cube materialization, discovery label bundle creation, or label unseal for any profile (none has occurred; g9.safety.discovery_label_bundle_created=false, confirmed by M6).",
+    "Any model-owner submission content beyond the byte-identity of the four frozen files (this receipt does not re-review model_submission_*.json's own internal correctness, which is out of this receipt's assigned scope).",
+    "Any tournament run, validation, leaf-WF, router-holdout replay, exam action, shadow trading, or real-money action.",
+    "Any claim that this receipt predicts future market behavior or authorizes live/exam/shadow/real-money operation; this reviewer is a mechanical evidence reviewer only.",
+    "A full re-execution of gofmt/go_vet/go_test/lint against owner code; this receipt's own methods (M1-M6) are limited to the two g9 hashes, the four submission SHAs, cap constants, and label-blind identity keys per its assigned task."
+  ],
+  "safety": {
+    "system_status": "NO_GO",
+    "exam_status": "EXAM_UNAVAILABLE",
+    "trade_allowed": false,
+    "labels_unblinded": false,
+    "discovery_label_bundle_created": false,
+    "dataset_built": false,
+    "routes_started": 0,
+    "routes_reopened": 0,
+    "reviewer_made_commits": false,
+    "reviewer_modified_owner_artifacts": false,
+    "reviewer_modified_plan": false,
+    "reviewer_modified_records": false,
+    "reviewer_modified_code": false,
+    "reviewer_read_raw_or_outcome_values": false
+  },
+  "hashes": {
+    "receipt_hash": "e77d1511d022fb511165f3412535ff81a6149cb5a0da7729044c5afb9069c953",
+    "hash_method": "Read this JSON as a generic object, set hashes.receipt_hash to null, then compute repository datatruth.HashJSON (deterministic Go encoding/json plus SHA-256 lowercase hex), exactly as used by every artifact this receipt reviews.",
+    "self_excluded_field": "hashes.receipt_hash"
+  }
+}

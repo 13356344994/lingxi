@@ -1,0 +1,92 @@
+[
+  {
+    "sequence": 1,
+    "attempt_id": "fit:begin:opus",
+    "owner_id": "opus",
+    "operation": "FIT_BEGIN",
+    "input_hash": "6d305d1e5dcf2527499a449f070d39cc24bab83dd83e225856bca2801ffc5121",
+    "previous_hash": "",
+    "entry_hash": "16de22e02dec7e276069b4da3c9c6bcb77c3ab8d9f642177bf2807f55b82a4eb"
+  },
+  {
+    "sequence": 2,
+    "attempt_id": "fit:attempt:1",
+    "owner_id": "opus",
+    "operation": "FIT_ATTEMPT",
+    "input_hash": "41d17086894ff54754eb9767cae863759f0fe9e34a48efe72e1414ed6310eb52",
+    "previous_hash": "16de22e02dec7e276069b4da3c9c6bcb77c3ab8d9f642177bf2807f55b82a4eb",
+    "entry_hash": "ecee866fcd1f882d1a9469c26d12a9b6b664d86ce134c42015d5aae7c73ce7f4"
+  },
+  {
+    "sequence": 3,
+    "attempt_id": "fit:attempt:2",
+    "owner_id": "opus",
+    "operation": "FIT_ATTEMPT",
+    "input_hash": "fbcb817d3449d986cf4b0e9e8f4691a0af95847edb0c43ec31bb7ceb3fa571cf",
+    "previous_hash": "ecee866fcd1f882d1a9469c26d12a9b6b664d86ce134c42015d5aae7c73ce7f4",
+    "entry_hash": "2d6c297b5dc3b8aa4291b02788a8c01b1045c482434721a35043b51ab7093ff3"
+  },
+  {
+    "sequence": 4,
+    "attempt_id": "fit:attempt:3",
+    "owner_id": "opus",
+    "operation": "FIT_ATTEMPT",
+    "input_hash": "cd2d7e006a385b73fcf8201e4e01047c31231eca94c5d3b217753b1ba51e77bc",
+    "previous_hash": "2d6c297b5dc3b8aa4291b02788a8c01b1045c482434721a35043b51ab7093ff3",
+    "entry_hash": "ed5115dcfd985a6da1edb051ea3f8d78b8586b07bb413d6ef4375a8f457bc8bc"
+  },
+  {
+    "sequence": 5,
+    "attempt_id": "fit:attempt:4",
+    "owner_id": "opus",
+    "operation": "FIT_ATTEMPT",
+    "input_hash": "c2232d20f3fd78e7c1adb9b9cf17f3f638db828df0fe7c9eb8b262436b99e153",
+    "previous_hash": "ed5115dcfd985a6da1edb051ea3f8d78b8586b07bb413d6ef4375a8f457bc8bc",
+    "entry_hash": "4d632e1c97e7fa3b51c6cf3252abedd30e3f1089408a8e7917c5ecdd45628c72"
+  },
+  {
+    "sequence": 6,
+    "attempt_id": "fit:attempt:5",
+    "owner_id": "opus",
+    "operation": "FIT_ATTEMPT",
+    "input_hash": "3c8c22a7895a3d81da1ed98791417aeee3f24f11d85ac45a2961288f7ac23e28",
+    "previous_hash": "4d632e1c97e7fa3b51c6cf3252abedd30e3f1089408a8e7917c5ecdd45628c72",
+    "entry_hash": "6ee49799583648cde9cf7192dcdf0e033211f35a22a528b4b122e9122e6530b2"
+  },
+  {
+    "sequence": 7,
+    "attempt_id": "fit:attempt:6",
+    "owner_id": "opus",
+    "operation": "FIT_ATTEMPT",
+    "input_hash": "5c3395204b866f1720ec5bb1899cfc3452519b869479069094ca282e7f4f40d0",
+    "previous_hash": "6ee49799583648cde9cf7192dcdf0e033211f35a22a528b4b122e9122e6530b2",
+    "entry_hash": "c3540234f339e63781d811e70965edb443f03bb36ea508b04858b328c6fb9b75"
+  },
+  {
+    "sequence": 8,
+    "attempt_id": "fit:attempt:7",
+    "owner_id": "opus",
+    "operation": "FIT_ATTEMPT",
+    "input_hash": "5d0d31a1d4f7ae7182d62fcd1fd4d4c4e3c33c539ffea52ae00049f6524fcb3a",
+    "previous_hash": "c3540234f339e63781d811e70965edb443f03bb36ea508b04858b328c6fb9b75",
+    "entry_hash": "8835f65b4dcb9a9a83c245b36b0bb4cce3589d7975e5de9ca395e2ed30a8b17e"
+  },
+  {
+    "sequence": 9,
+    "attempt_id": "fit:attempt:8",
+    "owner_id": "opus",
+    "operation": "FIT_ATTEMPT",
+    "input_hash": "81d1d11412c88c7b19a267ea07346de7cf1e19caff64423744d26277016a4df5",
+    "previous_hash": "8835f65b4dcb9a9a83c245b36b0bb4cce3589d7975e5de9ca395e2ed30a8b17e",
+    "entry_hash": "263f31fb0d711344565f651183ddd459efd20848bdfd44900c713d3badd08a34"
+  },
+  {
+    "sequence": 10,
+    "attempt_id": "fit:select:opus",
+    "owner_id": "opus",
+    "operation": "FIT_SELECT",
+    "input_hash": "5d0d31a1d4f7ae7182d62fcd1fd4d4c4e3c33c539ffea52ae00049f6524fcb3a",
+    "previous_hash": "263f31fb0d711344565f651183ddd459efd20848bdfd44900c713d3badd08a34",
+    "entry_hash": "f10430de391ea601b7d07cd768bd20876150fd23a386deb1bc32b758b7731e50"
+  }
+]

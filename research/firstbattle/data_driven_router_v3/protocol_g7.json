@@ -1,0 +1,59 @@
+{
+  "schema_version": "lingxi.data-driven-router-v3.protocol-overlay.v1",
+  "protocol_id": "firstbattle.data-driven-router-v3",
+  "generation": "firstbattle-data-driven-router-v3-g7",
+  "created_at": "2026-07-14T13:55:00Z",
+  "status": "PREREGISTERED_REWARD_LABELS_STILL_SEALED_PENDING_INDEPENDENT_REVIEW",
+  "supersedes": {
+    "generation": "firstbattle-data-driven-router-v3-g6",
+    "overlay_hash": "08b609e3271029b1e9f772921e325ef7c7fd30326589ae9c03cc86d73d9c844b",
+    "reason": "replace blocked V2 market-dataset binding with purged independently checked V3 dataset",
+    "g6_reward_labels_unblinded": false
+  },
+  "inheritance": {
+    "g1_hash": "5d80166eb28307d23e33cd19efae2b60811852ff0da49a3a6e16663aba2e7ddd",
+    "g2_hash": "7096395f1f3bae212b6dc866c5d46ccb372cd284e4a959d424dfbfbb92d6c226",
+    "g3_hash": "63f4ee088efb09e9e58386ab273b997af4a9206d4c5c18e73c59fda5d42a7a57",
+    "g4_hash": "2fd8c5852bba5023c9024d46b5b5e9527e71d670c370a1276e4728f4ef4cd2b9",
+    "g5_hash": "518d0003c829da641f1bcc955c4382023e158ba9938c0ac6f0ff19b5bf729385",
+    "g6_hash": "08b609e3271029b1e9f772921e325ef7c7fd30326589ae9c03cc86d73d9c844b",
+    "all_unmodified_fields_inherited": true
+  },
+  "dataset_binding_override": {
+    "old_v1_status": "STALLED_UNTRUSTED",
+    "old_v2_manifest_hash": "0c084dc440761569eeb0bbf9b078d653daf2688d65f5a1ac7c2c977c26691fa1",
+    "old_v2_status": "BLOCKED_PURGE_MISSING",
+    "effective_dataset_path": "research/firstbattle/data_driven_router_v3/dataset_state_okx_1h_v3",
+    "effective_dataset_manifest_hash": "f9dc0944919709a49f765fe3291cf60a46952919f796add47d892af5f2808a6d",
+    "effective_dataset_rows": 3996040,
+    "effective_dataset_shards": 34,
+    "partition_gap_hours": {
+      "discovery_to_validation": 50,
+      "validation_to_leaf_wf": 50,
+      "leaf_wf_to_router_holdout": 50
+    },
+    "purge_requirement_hours_each_side": 24,
+    "manifest_self_hash_verified": true,
+    "shard_row_sum_verified": true,
+    "market_state_layer": "APPROVED_PURGED_V3",
+    "reward_label_bundle": "SEALED_NOT_READ_OR_CREATED"
+  },
+  "account_state_binding": {
+    "protocol": "g6 inherited",
+    "fixture_receipt": "research/firstbattle/data_driven_router_v3/account_state_fixture_receipt.json",
+    "fixture_status": "PASS",
+    "real_state_rows_read_by_fixture": false,
+    "reward_labels_read_by_fixture": false
+  },
+  "safety": {
+    "labels_unblinded": false,
+    "routes_started": 0,
+    "system_status": "NO_GO",
+    "trade_allowed": false
+  },
+  "hashes": {
+    "overlay_hash": "4aacc43e928d25b6b83cdf8fe10d5b576e2b1009ea10b7bfad3e750388e47747",
+    "hash_method": "Set hashes.overlay_hash to null, then compute repository datatruth.HashJSON.",
+    "self_excluded_field": "hashes.overlay_hash"
+  }
+}

@@ -1,0 +1,423 @@
+{
+  "schema_version": "lingxi.mechanism-search-v2.equity-session-gap-data-contract.v1",
+  "artifact_id": "firstbattle.mechanism-search-v2.equity-session-gap-data-contract",
+  "contract_id": "firstbattle.mechanism-search-v2.equity_perp_underlying_session_gap.data-contract",
+  "generation": "mechanism-search-v2-equity-session-gap-data-contract-v1",
+  "produced_at": "2026-07-14T06:50:00Z",
+  "frozen_at": "2026-07-14T06:50:00Z",
+  "status": "FROZEN_DATA_CONTRACT_DEFINITION_STOPPED_BEFORE_ANY_OUTCOME_READ",
+  "todo_id": "freeze-shortlist-data",
+  "owner": {
+    "model": "Claude Opus 4.8 Thinking High",
+    "role": "outcome_blind_data_contract_owner",
+    "workspace": "/root/lingxi",
+    "write_scope": "ADD ONLY research/firstbattle/mechanism_search_v2/equity_session_gap_data_contract.json and .md. No edits to plan/master/shortlist/candidates/source-fitness/calendar/code/records/private-raw. No git commit.",
+    "reviewer_separation": "This is a definition product. Any route reopen, download, Phase A build, feature test, validation/WF, exam, shadow or real money still requires a separate independent reviewer red-team; the proposer/implementer may not self-approve."
+  },
+  "supreme_objective": "在不同市场状态、特殊事件和个人执行条件下，动态路由到各自经过历史证据认证的专属盈利路径；没有可靠匹配路径时必须空仓。最终以资金流调整后的真实账户净值长期增长为唯一成功标准。",
+  "purpose": "在读取任何未来收益/结果前，为 shortlisted 路线 equity_perp_underlying_session_gap 冻结最小数据/feature falsification 合同：完整事件分母、现有历史可测性、最小新增 GET-only 端点、两项 pre-Phase-A 证伪 cut、identity/PIT/时钟、停止门与预算。本文件不下载、不读取收益、不启动路线、不做盈利/方向判断。",
+  "bindings": {
+    "binding_policy": "REFERENCE_ONLY_NO_MODIFY. 加载时必须逐一比对下述冻结 hash；任一不匹配即 fail closed，不静默继续。全部 hash 由本 owner 用仓库 datatruth.HashJSON 语义 (Go encoding/json 确定性编码 + HTML-escape < > & + SHA-256 小写 hex，自排除字段置 null) 独立复算。",
+    "hash_recompute_method": "对每个上游 JSON：读为泛型对象，将其自排除 hash 字段置 null，按 sorted-key 紧凑 JSON、HTML 转义 < > & 与 U+2028/U+2029、UTF-8 字节做 SHA-256。本 owner 用独立 Python 复现该编码并对 4 个已知声明 hash 全部验证一致后才采信，等价于仓库 datatruth.HashJSON。",
+    "mechanism_shortlist": {
+      "path": "research/firstbattle/mechanism_search_v2/mechanism_shortlist.json",
+      "self_excluded_field": "hashes.shortlist_hash",
+      "hash_declared": "b3c63aee84509eead9dc24bf067e68cdc16f08f50a532e006a68e633b015c541",
+      "hash_recomputed": "b3c63aee84509eead9dc24bf067e68cdc16f08f50a532e006a68e633b015c541",
+      "match": true
+    },
+    "mechanism_shortlist_reviewer_receipt": {
+      "path": "research/firstbattle/mechanism_search_v2/mechanism_shortlist_reviewer_receipt.json",
+      "self_excluded_field": "hashes.receipt_hash",
+      "hash_declared": "6c5a0c25f065e169f64f909aacedd4fc85f7ca0dad066222cc5e3f146a2bbdce",
+      "hash_recomputed": "6c5a0c25f065e169f64f909aacedd4fc85f7ca0dad066222cc5e3f146a2bbdce",
+      "match": true
+    },
+    "equity_session_gap_source_fitness": {
+      "path": "research/firstbattle/mechanism_search_v2/equity_session_gap_source_fitness.json",
+      "self_excluded_field": "hashes.source_fitness_hash",
+      "hash_declared": "3c88d6aa189be2393b9c84aa6313b544dcde82f3e6ce8908b0bb328887990c3b",
+      "hash_recomputed": "3c88d6aa189be2393b9c84aa6313b544dcde82f3e6ce8908b0bb328887990c3b",
+      "match": true
+    },
+    "us_market_calendar_2026": {
+      "path": "research/firstbattle/mechanism_search_v2/us_market_calendar_2026.json",
+      "self_excluded_field": "hashes.calendar_hash",
+      "hash_declared": "65e7795a7a68d0384ddad15188d8c8b2818df225d042197b4d12ee7a51086297",
+      "hash_recomputed": "65e7795a7a68d0384ddad15188d8c8b2818df225d042197b4d12ee7a51086297",
+      "match": true
+    },
+    "route_data_contracts": {
+      "path": "research/firstbattle/route_data_contracts.json",
+      "self_excluded_field": "hashes.protocol_hash",
+      "hash_declared": "4a4c201d2c8cedde5bd1ff55ea40ad31d099e189feb709a517701b504c453588",
+      "hash_recomputed": "4a4c201d2c8cedde5bd1ff55ea40ad31d099e189feb709a517701b504c453588",
+      "match": true
+    },
+    "route_data_source_registry": {
+      "path": "research/firstbattle/route_data_source_registry.json",
+      "self_excluded_field": "hashes.registry_hash",
+      "hash_declared": "1c6672563d4bc00ea102df2f9575b365a2a9dc30e763db75067f9a49052e5318",
+      "hash_recomputed": "1c6672563d4bc00ea102df2f9575b365a2a9dc30e763db75067f9a49052e5318",
+      "match": true
+    },
+    "history_catalog": {
+      "path": "research/firstbattle/history_catalog.json",
+      "field": "data_hash",
+      "hash_referenced": "f41ed2586d91054c4b5b2e15e60f32a4d64ccde0032e76dfdc5fc6dee316379c",
+      "cross_check": "EQUALS route_data_contracts.json bindings.history_data_hash (f41ed258…16379c).",
+      "independent_recompute": "NOT_RECOMPUTED_BY_THIS_OWNER",
+      "reason": "history_catalog.data_hash 是 downloader/扫描器对已落盘 tape 内容计算的数据哈希，非 datatruth self-hash；在 GET-only 数据合同 owner 范围外独立重扫全部 tape 超预算，改为交叉核对其等于路由合同已冻结绑定值。"
+    },
+    "route_data_contracts_root_gate_inheritance": "本路线合同继承 route_data_contracts.json 的 common.clock_definitions / minimum_support_gate(50/20/10) / data_source_priority_tiers / forbidden_outcome_fields / stop_gate_semantics / falsifiability_ladder / classification_vocabulary / root_context_ood 根门；本文件只在其下细化该单条路线。"
+  },
+  "policy": {
+    "no_purchase": true,
+    "no_bulk_download": true,
+    "no_outcome_read": true,
+    "no_pnl_or_price_result_judgment": true,
+    "no_boundary_crossing_return_computed": true,
+    "define_before_download": true,
+    "labels_unblinded": false,
+    "routes_started": 0,
+    "routes_reopened": 0,
+    "no_commit": true,
+    "not_a_generation_preregistration": "本文件只冻结该路线的数据/feature falsification 合同。它不授权任何下载、Phase A 事件分母 build、Phase B 倒序、validation/WF、考试、shadow 或真钱。这些仍受 route_data_contracts.json 既有 per-route 停止门与单独用户批准约束。"
+  },
+  "scope": {
+    "universe_frozen": ["AAPL-USDT-SWAP", "TSLA-USDT-SWAP", "NVDA-USDT-SWAP"],
+    "universe_justification": "严格限定为 OKX 官方 Stock Perpetuals 帮助页明确举例的三只股票永续 (help page: 'track the price of publicly traded stocks (e.g. AAPL, TSLA, NVDA)'；'trading pair format [TICKER]USDT (e.g. AAPLUSDT, TSLAUSDT, NVDAUSDT)')。见 source_fitness okx_stock_perp_lookup.primary_official_page evidence_excerpts，content_sha256 e02edcd2…d855e9c。",
+    "narrower_than_shortlist_on_purpose": "mechanism_shortlist.json 的 rescoped_universe 举例含 GME/MSFT/SPY/QQQ/IWM/TQQQ 等待枚举清单；本合同 DELIBERATELY 收紧到官方页仅有的 3 只，避免用常识扩展 (AAPL=Nasdaq 等) 或未经官方 venue 绑定的清单。symbol_mapping 仍为 PARTIAL (ticker 字符串官方，venue/ISIN 缺)。",
+    "explicitly_not_claimed": [
+      "不宣称这是完整股票永续宇宙；OKX 可能上市更多股票永续，本合同不覆盖。",
+      "不宣称已有官方 venue-bound 上市映射表；仅 ticker 字符串 identity。",
+      "不宣称 AAPL/NVDA=Nasdaq、TSLA=Nasdaq 等常识 venue 归属可作为证据 (forbidden_inference)。",
+      "不扩展到外国 ETF/单名永续、商品永续、私营公司永续 (不同或不存在 cash calendar)。"
+    ],
+    "calendar_scope": "事件日历仅用官方 2026 NYSE/Nasdaq artifact (us_market_calendar_2026.json，双所独立抓取一致) 覆盖期；本地 bar 覆盖全部落在 2026 内，故 calendar coverage 对本地 tape 充分。pre-2026 超出 artifact 范围，若未来扩展 tape 到 2025 则该段 DATA_BLIND (无 as-of 日历)。",
+    "session_definition": "America/New_York regular/core cash 会话 09:30-16:00 ET (early close 09:30-13:00 ET)。pre/after-hours 不计入 open 窗口。DST 由日历 per-day open_utc/close_utc 处理 (2026-03-08 起 EDT，open 14:30Z->13:30Z)。"
+  },
+  "route": {
+    "route_id": "equity_perp_underlying_session_gap_forced_repricing",
+    "source_candidate_id": "FAB-MSV2-01",
+    "shortlist_status_inherited": "SHORTLISTED_CONDITIONAL_RESCOPED_NOT_A_GENERATION",
+    "mechanism_one_line": "OKX 股票永续 24/7 交易，其现货标的只在固定交易所日历内交易；在每个标的收/开盘边界，错方向杠杆永续持有者被强制对新参考价 mark-to-market — 一个真实、日历驱动、官方计时的强制重定价事件。",
+    "payer_primary": "在重开参考价对面方向的永续持有者，被强制接受 mark-to-market 重定价，若保证金不足则被强平/部分平仓 (margin/mark 机制强制动作，非自愿)。",
+    "payer_directness_caveat": "source_fitness 已确认 (且本 owner Cut-1 全子集观测证实) 永续在标的收盘窗口并未冻结 — 这是 payer 故事成立的必要前提，但尚不足以证明 payer 被非普通 gap 风险强制。",
+    "moat_status": "INSTITUTIONAL_MOAT_UNPROVEN",
+    "moat_detail": "受监管股票机构因托管/合规/对手方风险被排除 (强)；但 crypto-native 做市商不受该排除且已连续报价该永续 (最弱环节，未证明被排除)。仅剩未验证论点：OKX per-symbol OI 上限与重开窗口薄簿深使机构名义难无自冲击运行，把可利用容量限制在个人已占的小名义带。本合同不主张其成立。"
+  },
+  "existing_local_data": {
+    "note": "以下为 records/history 下已落盘、无需任何新增采集的本地历史；均为 OKX 官方 /market history-candles 最后成交价 K 线与 funding。已核实解析 0 坏行。",
+    "families": {
+      "okx_1h_last_price": {
+        "path_pattern": "records/history/okx_1h/{SYM}-USDT-SWAP.jsonl",
+        "schema": "OKX candle array [ts_ms, o, h, l, c, vol, volCcy, volCcyQuote, confirm]，最后成交价 K 线 (非 index、非 mark)。",
+        "coverage": {
+          "AAPL-USDT-SWAP": {"bars": 3053, "utc_from": "2026-03-04T08:00", "utc_to": "2026-07-09T12:00", "span_days": 127.2},
+          "NVDA-USDT-SWAP": {"bars": 3056, "utc_from": "2026-03-04T07:00", "utc_to": "2026-07-09T14:00", "span_days": 127.3},
+          "TSLA-USDT-SWAP": {"bars": 3223, "utc_from": "2026-02-25T09:00", "utc_to": "2026-07-09T15:00", "span_days": 134.2}
+        }
+      },
+      "okx_5m_last_price": {
+        "path_pattern": "records/history/okx_5m/{SYM}-USDT-SWAP.jsonl",
+        "schema": "同上，5m K 线。",
+        "coverage": {
+          "AAPL-USDT-SWAP": {"bars": 17300, "utc_from": "2026-05-10T14:10", "utc_to": "2026-07-09T15:45", "span_days": 60.1},
+          "NVDA-USDT-SWAP": {"bars": 17300, "utc_from": "2026-05-10T13:10", "utc_to": "2026-07-09T14:45", "span_days": 60.1},
+          "TSLA-USDT-SWAP": {"bars": 17300, "utc_from": "2026-05-10T13:35", "utc_to": "2026-07-09T15:10", "span_days": 60.1}
+        }
+      },
+      "okx_funding": {
+        "path_pattern": "records/history/okx_funding/{SYM}-USDT-SWAP.jsonl",
+        "schema": "{fundingRate, realizedRate, fundingTime, formulaType, method, instId}，8h 结算。",
+        "coverage": {"all_three": {"records": 280, "utc_from": "2026-04-07T08:00", "utc_to": "2026-07-09T08:00", "span_days": 93.0}}
+      },
+      "public_crowding_proxies_present_but_forbidden_as_decision_feature": {
+        "paths": ["records/history/rubik_lsratio_1h/{AAPL,NVDA,TSLA}.jsonl", "records/history/rubik_taker_1h|5m/{...}.jsonl", "records/history/bybit_funding/{...}USDT.jsonl"],
+        "policy": "存在但 FORBIDDEN 作为决策方向特征：rubik long/short ratio 与 taker flow 是公共 crowding 因子；若唯一可行方向特征坍缩到此类 -> ISOMORPH_PUBLIC_FACTOR，关闭 (镜像 shortlist 停止门)。可仅作事后诊断，不入特征层。"
+      }
+    },
+    "critical_gap": "本地只有最后成交价 K 线；INDEX candle 与 MARK candle 皆缺 -> pre-open perp-index basis 与 mark 冻结检验无法只用本地数据完成；这是唯一需要新增 GET-only 采集的字段。"
+  },
+  "minimal_new_acquisition": {
+    "principle": "先定义、后下载。本合同只定义最小 GET-only 端点/范围/落盘/停止门；不执行采集。执行需单独批准。禁止 K 线/price proxy 冒充 index (data_source_priority_tiers.forbidden)。",
+    "endpoints": [
+      {
+        "stream": "history_index_candles",
+        "method": "GET",
+        "url_template": "https://www.okx.com/api/v5/market/history-index-candles?instId={AAPL|TSLA|NVDA}-USDT&bar={1H|5m}&after={ts}&limit=100",
+        "instIds": ["AAPL-USDT", "TSLA-USDT", "NVDA-USDT"],
+        "provides": "官方 index price K 线，用于构造 pre-open perp-index basis (决策时刻 perp last - index)。",
+        "note": "instId 为 index (无 -SWAP)。GET-only 公共端点，无鉴权。"
+      },
+      {
+        "stream": "history_mark_price_candles",
+        "method": "GET",
+        "url_template": "https://www.okx.com/api/v5/market/history-mark-price-candles?instId={AAPL|TSLA|NVDA}-USDT-SWAP&bar={1H|5m}&after={ts}&limit=100",
+        "instIds": ["AAPL-USDT-SWAP", "TSLA-USDT-SWAP", "NVDA-USDT-SWAP"],
+        "provides": "官方 mark price K 线，用于 Cut-1 mark 行为 (是否闭市窗口冻结/合成钉住) 与 mark-vs-index 关系诊断。",
+        "note": "GET-only 公共端点，无鉴权。"
+      }
+    ],
+    "minimal_bar_time_range": {
+      "primary_1H": "对齐并不超出既有 okx_1h last-price 窗口：AAPL/NVDA 2026-03-04..2026-07-09，TSLA 2026-02-25..2026-07-09。1H bar，每 symbol×stream ~3050-3220 bars。",
+      "overlay_5m": "仅覆盖 5m 子窗口 2026-05-10..2026-07-09 (~17300 bars/symbol/stream)，仅用于 DecisionTime 精度提升，不外扩历史。",
+      "no_future_or_forward_fetch": "不采集 2026-07-09 之后或本地 last-price 窗口之外的 bar；不做全市场/其他 symbol 采集。"
+    },
+    "request_budget_estimate": {
+      "1H_only": "6 streams (3 symbols × index+mark) × ~31 reqs (100 bars/req) ≈ 186 GET。",
+      "plus_5m_overlay": "+6 streams × ~173 reqs ≈ +1038 GET。合计 ≈ 1224 GET，全部公共 GET，远低于任何 bulk-download 阈值。"
+    },
+    "disk_cap": {
+      "hard_cap_mb": 200,
+      "expected_mb": "1H index+mark ≈ 2.5 MB；加 5m overlay ≈ +12 MB；总 < 15 MB，200 MB 为硬上限。超过硬上限即停止采集并报 DISK_CAP_EXCEEDED，不静默续写。",
+      "raw_dir": "records/history/okx_index_1h|okx_index_5m|okx_mark_1h|okx_mark_5m/ (采集执行时新建；本 owner 不创建)。"
+    },
+    "raw_manifest_pit": {
+      "raw": "append-only JSONL，每行保留原始 candle 数组 + fetched_at (=receive_time)；不改写。",
+      "manifest": "每文件 manifest 记录 instId/bar/first_ts/last_ts/expected_bars/present_bars/gap_list/dup_count/content_sha256/fetch_batch_id/known_from；缺 manifest 不得声称完整分母。",
+      "pit_methodology": "闭市窗口 index/mark 方法学只由当前网页 KnownFrom 证明 (source_fitness KnownFrom 2026-07-14T06:20:31Z)；当前网页 KnownFrom 不能回填方法版本到 pre-KnownFrom 历史 bar。方法学状态标 DOCUMENTED_CURRENT / PIT_UNPROVEN_PRE_FETCH：可用于当前及之后 bar 的方法学假设，不得断言历史 bar 用相同方法算出。"
+    }
+  },
+  "event_denominator": {
+    "event_identity": {
+      "event_id": "(instId, boundary_type, session_date_America_New_York, boundary_utc)",
+      "boundary_types": ["regular_open", "regular_close", "long_open", "long_close"],
+      "boundary_definitions": {
+        "regular_open": "交易日 open_utc (09:30 ET)。",
+        "regular_close": "交易日 close_utc (16:00 ET，early close 13:00 ET)。",
+        "long_close": "在 >1 日历日间隔 (周末/假期) 之前最后一个交易日的 close (pre-weekend/holiday)。",
+        "long_open": "在 >1 日历日间隔之后第一个交易日的 open (post-weekend/holiday)。"
+      },
+      "note": "long_open/long_close 是 regular_open/regular_close 的子集标记，不是额外重复事件；同一 open 若同时是 regular_open 又是 long_open，boundary_type 记 long_open 并保留 is_long 标记。"
+    },
+    "same_day_clustering": {
+      "day_block": "day_block = session_date_America_New_York；同一天跨 symbol 的边界共享 day_block。",
+      "shock_block": "shock_block = 引发 long_open/long_close 的具体周末/假期间隔 id；同一 shock 下所有 symbol×边界共享 shock_block。",
+      "independence_rule": "独立样本量受 day_block (常规) 与 shock_block (长边界) 计数上界约束，而非原始 event 计数；同一天多 symbol 共享 NYSE/Nasdaq 假期/DST 冲击，不得按 event 数虚增独立性 (继承 shortlist independence_caveat)。"
+    },
+    "complete_denominator": "对 3 只 symbol，取每只自身 okx_1h last-price 覆盖窗口与 2026 NYSE/Nasdaq 日历交叉，枚举窗口内每个 (instId × boundary_type × session_date) 边界事件，无论本账户当时是否持仓。这是 outcome-blind 全触发集。",
+    "matched_loser": "对每个边界事件：同 symbol、同 boundary_type、反号或近零 basis 的其他事件，加同日跨 symbol 控制集；显式排除的非 US 簇单独登记为 NOT part of denominator，防止多日历污染。",
+    "missing_duplicate_gap_policy": {
+      "duplicate": "按 (instId, bar_ts) 去重，保留首条，dup_count 入 manifest。",
+      "missing": "闭市窗口内缺 bar 使该窗口 coverage 下降；单窗 coverage < 阈值 -> 该窗 DATA_INCOMPLETE 并排除，不 fabricate；系统性缺失 -> DATA_BLIND。",
+      "gap_out_of_order": "按 ts 排序；乱序/间隙记入 manifest gap_list；跨越 boundary 的缺口使该边界事件 QUALITY_INVALID -> 排除该事件，不顶替。"
+    }
+  },
+  "potential_support_counts": {
+    "computed_from": "us_market_calendar_2026.json sessions × 本地 okx_1h 覆盖窗口，本 owner 独立复算 (outcome-blind，仅计数边界，不读价格结果)。",
+    "common_overlap_window": "2026-03-04..2026-07-09 (受 AAPL/NVDA 1H 起点约束；TSLA 可回溯到 2026-02-25)。",
+    "per_symbol_1h": {
+      "AAPL": {"trading_days": 88, "regular_open": 88, "regular_close": 88, "long_open": 18, "long_close": 18},
+      "NVDA": {"trading_days": 88, "regular_open": 88, "regular_close": 88, "long_open": 18, "long_close": 18},
+      "TSLA": {"trading_days": 93, "regular_open": 93, "regular_close": 93, "long_open": 19, "long_close": 19}
+    },
+    "pooled_common_window": {
+      "independent_trading_days": 88,
+      "pooled_regular_open_events": 264,
+      "pooled_regular_close_events": 264,
+      "pooled_long_open_events": 54,
+      "pooled_long_close_events": 54,
+      "distinct_shock_blocks_long_open": 18
+    },
+    "vs_gate_50_20_10": {
+      "min_events_50": "PASS_POTENTIAL (仅 regular_open 池化 264 >> 50)",
+      "min_independent_utc_days_20": "PASS_POTENTIAL (88 独立交易日 > 20)",
+      "min_non_overlap_shock_blocks_10": "PASS_POTENTIAL (18 周末/假期 shock_block > 10)",
+      "caveat": "PLAUSIBLE_MEETS_50_20_10，但独立性上界为 88 日 / 18 shock_block，非 264 event；5m-only 子窗口 (~42 交易日, ~8-9 shock_block) 会跌破 10-block 底线，见 designs。此为潜力计数，非已认证支持；50/20/10 门仅在 observability+identifiability 通过后于后续 generation 评估。"
+    }
+  },
+  "clocks_and_pit": {
+    "event_time": "venue candle 时间戳 (bar 开始 ts；bar 闭合 = ts + bar_interval)。",
+    "receive_time": "本地 fetched_at。",
+    "process_time": "落盘 ts。",
+    "decision_time_rule": "DecisionTime = regular open 前最后一个完整 bar 的闭合时刻，即满足 bar_close_utc <= open_utc 的最大 bar。特征只允许来自 bar_close_utc <= DecisionTime 的 bar；标签只允许来自 DecisionTime 之后 (禁读)。三时钟缺一按缺失登记，不得互相顶替。",
+    "decision_time_resolution": {
+      "1H": "最后完整 1H bar 闭合于 open 前 30 分钟 (EDT open 13:30Z -> bar 闭合 13:00Z；EST open 14:30Z -> 14:00Z)。basis 有 ~30min stale。",
+      "5m": "最后完整 5m bar 闭合恰在 open (EDT: ts 13:25Z bar 覆盖 13:25-13:30Z，闭合 13:30Z <= open)，0-5min stale。精度更高。",
+      "per_event_tier_record": "每事件记录其 DecisionTime 所用 bar tier (1H|5m) 与实际 stale 分钟，禁止无记录混用。"
+    },
+    "methodology_pit": "index/mark 闭市方法学 KnownFrom = 2026-07-14T06:20:31Z (source_fitness webpage)；标 DOCUMENTED_CURRENT / PIT_UNPROVEN_PRE_FETCH；不回填历史。"
+  },
+  "forbidden_outcomes": {
+    "forbidden_fields": ["future_return", "return", "pnl", "fillPnl", "realized_pnl", "realized_usdt", "profit", "winner", "future_outcome", "mfe", "mae", "upnl_after_decision", "boundary_crossing_return", "overnight_gap_return", "reopen_pnl"],
+    "price_basis_policy": "价格/基差只能作为 DecisionTime 之前的 feature (闭市窗口内 bar、pre-open basis)。禁止计算任何跨 boundary 之后的 return/PnL：不得计算 close->reopen gap return、reopen 后 mark-to-market 结果、方向盈亏。Cut-1 的窗口内 movement 与 Cut-2 的 pre-open feature 均不跨越 regular-open 边界，故仍 outcome-blind。",
+    "outcome_field_local_raw_policy": "若未来采集含结果字段的私有数据，可留本地私有 raw，但禁止进入研究发现/特征层；本路线的公共 candle 不含 PnL 字段。"
+  },
+  "cut1_full_subset_closure_movement_and_coverage": {
+    "purpose": "pre-Phase-A 证伪 cut #1：对 3 symbols 全部已覆盖 closed windows，用 boundary 前已完成 bars，验证永续并非系统性冻结、数据完整、非零成交/价格变化比例足够。outcome-blind (仅窗口内 movement，不跨 boundary return)。",
+    "closed_window_definition": "从某交易日 close_utc 到下一交易日 open_utc 的区间 (含隔夜、周末、假期)；期间现货标的关闭。窗口内 bar = 满足 bar_ts >= close_utc 且 bar_ts + interval <= open_utc 的完整 bar。",
+    "metrics_per_window_per_symbol": {
+      "coverage": "present_bars / expected_bars，expected = floor(window_duration / bar_interval)。",
+      "nonzero_volume_ratio": "窗口内 vol>0 的 bar 占比。",
+      "intrabar_move_ratio": "窗口内 high != low 的 bar 占比 (曾以不同价成交)。"
+    },
+    "thresholds_frozen_a_priori": {
+      "coverage_min": 0.95,
+      "nonzero_volume_ratio_min": 0.90,
+      "intrabar_move_ratio_min": 0.80,
+      "threshold_justification": "阈值由机制推导、非看值调参：OKX 官方 (help/stock-perpetuals) 声明股票永续 24/7 连续交易，故连续市场应有近满 bar 覆盖 — coverage 0.95 容 5% collector 缺口；'非系统性冻结' 要求绝大多数 bar 有成交 — nonzero_volume 0.90 容薄时段偶发零量；'活跃重定价' 要求价格实际移动 — intrabar_move 0.80 容薄时段偶发平 bar。阈值在观测前冻结。",
+      "no_value_tuning_attestation": "阈值先冻结、后观测；下述 prefreeze_observation 的实测远超阈值，不构成据值回调。"
+    },
+    "failure_classification": {
+      "systemic_freeze_falsified": "若池化 (全子集) intrabar_move_ratio < 0.80 或 nonzero_volume_ratio < 0.90 系统性成立，或 mark candle 显示闭市窗口 mark 冻结/合成钉住到最后现价 -> MECHANISM_FALSIFIED_FROZEN：强制重定价前提为假 (价值在单 tick 跳跃里转移，小 taker 结构性吃不到)，整条路线死亡。",
+      "data_incomplete_window": "单窗 coverage < 0.95 -> 该窗 DATA_INCOMPLETE 并排除，不 fabricate。",
+      "data_blind": "若跨 symbol 系统性无法达 coverage 阈值 (collector 大面积缺口或 mark/index 端点无覆盖) -> DATA_BLIND stop。",
+      "pass": "coverage>=0.95 且 nonzero_volume>=0.90 且 intrabar_move>=0.80 -> Cut-1 PASS，永续非冻结前提成立，进入 Cut-2。"
+    },
+    "prefreeze_observation_outcome_blind": {
+      "computed_by": "本 owner 在本地 okx_1h last-price bars 上运行 (阈值先冻结)；outcome-blind，仅窗口内 movement。",
+      "scope_note": "此为 last-price K 线上的先行观测，作为佐证；正式 Cut-1 需在采集 mark candle 后对 mark 也复核 (mark 冻结/钉住检验需 mark candle)。",
+      "results": {
+        "AAPL": {"closed_windows": 86, "expected_bars": 2421, "present_bars": 2421, "coverage": 1.000, "nonzero_volume_ratio": 0.996, "intrabar_move_ratio": 0.990, "verdict": "PASS"},
+        "NVDA": {"closed_windows": 87, "expected_bars": 2438, "present_bars": 2438, "coverage": 1.000, "nonzero_volume_ratio": 1.000, "intrabar_move_ratio": 0.999, "verdict": "PASS"},
+        "TSLA": {"closed_windows": 92, "expected_bars": 2571, "present_bars": 2571, "coverage": 1.000, "nonzero_volume_ratio": 1.000, "intrabar_move_ratio": 1.000, "verdict": "PASS"}
+      },
+      "interpretation": "last-price 层面永续在闭市窗口连续交易、数据完整、活跃移动，非系统性冻结 (与 source_fitness stop-gate NOT_TRIGGERED 一致，并把 reviewer 单点 AAPL/周六抽样推广到全子集)。mark 层面冻结检验仍 OPEN，待 mark candle 采集。"
+    },
+    "status": "DEFINITION_FROZEN; last_price_prefreeze=PASS; mark_layer=OPEN_PENDING_MARK_CANDLE_FETCH"
+  },
+  "cut2_boundary_feature_identifiability": {
+    "purpose": "pre-Phase-A 证伪 cut #2：定义 DecisionTime feature 与 outcome-blind matched controls，冻结统计/距离/coverage 判据，只证明 features 可构造且非退化，不证明盈利/方向。",
+    "decision_time": "regular open 前最后一个完整 bar (见 clocks_and_pit.decision_time_rule/resolution)。",
+    "features_decision_time_visible_only": [
+      {"name": "closed_window_cum_perp_move", "def": "从上一 close 到 DecisionTime 的 perp last-price 累计对数/百分比变动 (窗口内 bar，不跨 open)。", "source": "本地 last-price"},
+      {"name": "pre_open_perp_index_basis", "def": "DecisionTime 时 perp last - index price (或 mark - index)；需 index candle。", "source": "NEW index candle (缺则该 feature DATA_BLIND，丢弃不 fabricate)"},
+      {"name": "closed_window_range", "def": "窗口内 high-low 幅度。", "source": "本地 last-price / mark"},
+      {"name": "closed_window_volume", "def": "窗口内成交量之和/均值。", "source": "本地 last-price"},
+      {"name": "closed_window_funding", "def": "窗口内累计/最近 funding (8h)，若可得。", "source": "本地 okx_funding (稀疏，8h)"}
+    ],
+    "features_forbidden": "禁止把 rubik long/short ratio、taker flow 等公共 crowding 因子作决策特征；禁止把 boundary 后 return/gap 作特征。",
+    "matched_controls": {
+      "requirement": "controls 必须 outcome-blind、同 symbol/session/month/duration，且不跨 regular-open 边界。",
+      "families": [
+        {"name": "MID_CLOSED_WINDOW", "def": "位于长闭市窗口深处 (与前 close、后 open 均 >= buffer) 的 bar，同 symbol，同 trailing-window duration bucket；feature 用不跨任何 boundary 的等长 trailing 窗口计算。"},
+        {"name": "IN_SESSION_PLACEBO", "def": "现货会话内非 open 时刻的伪边界，同 symbol，同 trailing-window duration；不跨 regular-open。"}
+      ],
+      "matching_keys": ["symbol", "session_type", "calendar_month", "closed_window_duration_bucket", "time_of_day_bucket"],
+      "time_label_trap_guard": "时间标签天然不同不算 separable：controls 必须 time-of-day 匹配 (或在可分性检验中把 hour-of-day 作为 blocked/stratified 变量、减去 time-of-day 均值)，任何残余可分性必须来自机制 feature 而非'边界事件发生在不同 clock time'这一事实。"
+    },
+    "criteria_frozen": {
+      "constructibility_coverage": "每个 last-price 派生 feature 在边界事件上的非空占比 >= 0.95；basis feature 覆盖以 index candle 采集成功为条件，缺则该 feature 丢弃 (DATA_BLIND for that feature)，不 fabricate。",
+      "non_degeneracy": "每个保留 feature 非常量 (stdev>0) 且 CV/MAD 高于小 floor；成对 |Spearman| < 0.99，近重复对丢其一。若所有 feature 坍缩为单一公共因子 (如 basis ≈ 单调(funding sign)) -> ISOMORPH_PUBLIC_FACTOR，关闭。",
+      "time_controlled_distinguishability": "对 time-of-day 匹配、同 symbol/session/month/duration、不跨 open 的 controls，至少一个机制 feature 的 boundary 分布须超过冻结 permutation-null 与最小效应量：permutation test N=10000 双侧，Bonferroni across features 后 alpha=0.01，且 |Cliff's delta| >= 0.147 (small-effect floor) 或 energy-distance z 超过冻结阈。若匹配 time-of-day 后可分性消失 -> UNIDENTIFIABLE (feature 只是时间标签)，关闭。",
+      "support_for_test": "有效 matched pair >= 50 边界事件方可评判；不足 -> INSUFFICIENT_SUPPORT_FOR_CUT2 (数据支持不足，非机制失败)。"
+    },
+    "explicitly_not_proven": "Cut-2 只证明 feature 可构造、非退化、非纯时间标签可分；不证明方向、不证明盈利、不做 winner/loser 归因。方向与盈利留待后续 (Phase B) 单独 generation，且仍受 outcome-blind 分区纪律约束。",
+    "failure_classification": {
+      "unidentifiable": "time-controlled distinguishability 不过 -> UNIDENTIFIABLE，关闭。",
+      "isomorph_public_factor": "feature 坍缩公共 crowding 因子 -> ISOMORPH_PUBLIC_FACTOR，关闭。",
+      "data_blind_basis": "index candle 无覆盖使 basis 不可构 -> 该 feature DATA_BLIND；若 basis 是唯一非退化机制 feature 则整 cut DATA_BLIND。",
+      "insufficient_support": "有效 matched pair < 50 -> INSUFFICIENT_SUPPORT_FOR_CUT2。",
+      "pass": "coverage + non-degeneracy + time-controlled distinguishability + support 全过 -> Cut-2 PASS (features identifiable & constructible)。"
+    },
+    "status": "DEFINITION_FROZEN_NOT_RUN (需 index/mark candle 采集与本地 tape feature 计算，属后续 gated 步骤)"
+  },
+  "source_priority": {
+    "tier0_authoritative": "OKX 官方公共 market history-candles (last-price 已本地；index/mark 待 GET-only 采集)、OKX 官方 Stock Perpetuals/mark/funding 文档 (方法学，KnownFrom)、官方 2026 NYSE/Nasdaq 日历 (已冻结)。",
+    "tier1_own_collectors": "本地 append-only okx_1h/okx_5m/okx_funding tape (需 manifest；本合同要求采集 index/mark 时同建 manifest)。",
+    "tier3_weak_proxy": "funding (稀疏上下文)。",
+    "forbidden": ["用当前网页 snapshot 回填历史 index/mark 方法学 PIT", "用 last-price K 线 proxy 冒充 index/mark 专属字段", "rubik/taker 公共 crowding 作决策方向特征", "任何付费/whitelist/bulk-download"]
+  },
+  "data_designs": [
+    {
+      "design_id": "D1_1H_ONLY_FULL_WINDOW",
+      "summary": "仅 1H：last-price(已本地) + 新增 index/mark 1H candle，覆盖全 127 日窗口。",
+      "pros": ["独立日最大 (88) 与 shock_block (18) 清 10-block 底线", "新增采集最小 (~186 GET)", "历史最长"],
+      "cons": ["DecisionTime 30min slack，basis 偏陈旧", "闭市窗口 movement 粒度粗"],
+      "decision": "REJECTED_AS_SOLE (作为 spine 保留，但单独不够精)"
+    },
+    {
+      "design_id": "D2_5M_ONLY_SUBWINDOW",
+      "summary": "仅 5m：last-price(已本地) + 新增 index/mark 5m candle，覆盖 60 日子窗口。",
+      "pros": ["DecisionTime 精确 (0-5min slack)", "闭市窗口 movement 细"],
+      "cons": ["仅 ~42 交易日 (>20 但) shock_block ~8-9 < 10，跌破 non_overlap_shock_block 底线 -> INSUFFICIENT_SUPPORT", "请求更多 (~1038 GET)", "历史短"],
+      "decision": "REJECTED_AS_SOLE (清不了 10-block 门)"
+    },
+    {
+      "design_id": "D3_HYBRID_TIERED_1H_SPINE_5M_OVERLAY",
+      "summary": "分层：1H 作为分母/覆盖/独立性 spine (全 127 日窗口，清 50/20/10) + 5m 仅在 60 日子窗口做 DecisionTime 精度 overlay；新增采集 = 3 symbols 的 index+mark 在 1H(全窗) 与 5m(子窗)；DecisionTime 有 5m 用 5m、否则用 1H，且每事件记录 resolution tier 与 stale 分钟。",
+      "pros": ["同时得到独立性 (1H:88 日/18 block) 与精度 (5m 子窗)", "优雅降级，缺 5m 不致盲", "per-event resolution tier 防止静默混用不同 DecisionTime"],
+      "cons": ["两个 bar tier 需管理", "须严格记录每事件 resolution tier"],
+      "decision": "CHOSEN"
+    },
+    {
+      "design_id": "D4_LAST_PRICE_ONLY_PROXY_BASIS",
+      "summary": "不采集 index/mark，用 last-price vs 公共 index proxy 近似 basis。",
+      "pros": ["零新增采集"],
+      "cons": ["违反 K线/proxy 不得冒充专属字段", "basis 需官方 index，无 proxy 替代", "无 mark candle 无法做 mark 冻结检验"],
+      "decision": "REJECTED"
+    },
+    {
+      "design_id": "D5_BULK_FULL_MARKET",
+      "summary": "全市场 bulk L2/trades 下载。",
+      "pros": ["数据全"],
+      "cons": ["bulk-download 禁止", "范围外", "非本路线所需"],
+      "decision": "REJECTED"
+    }
+  ],
+  "chosen_design": "D3_HYBRID_TIERED_1H_SPINE_5M_OVERLAY",
+  "budget_and_stop_gates": {
+    "budget": {"cpu": 1, "wall_clock_hours": 6, "attempts": 1, "acquisition": "仅 GET-only index/mark candle (对齐既有 last-price 窗口) + 已完成的公共文档/日历查找；零购买、零 bulk-download。"},
+    "stop_gates": [
+      "index/mark 历史端点无法覆盖本地 last-price 窗口 (history-index-candles / history-mark-price-candles 对这些 instId 返回 404/空/历史过短) -> DATA_BLIND stop：basis 与 mark 冻结检验无法运行，关闭本设计并轮换。",
+      "mark candle 显示闭市窗口 mark 冻结或合成钉住到最后现价 -> MECHANISM_FALSIFIED_FROZEN，立即关闭，不进入 Cut-2/calendar 之后步骤。",
+      "Cut-1 全子集 (含 mark) 未达 coverage/nonzero-volume/intrabar-move 阈值系统性 -> 按 failure_classification (FALSIFIED 或 DATA_BLIND)。",
+      "Cut-2 time-controlled distinguishability 不过 -> UNIDENTIFIABLE，关闭。",
+      "唯一可行方向特征坍缩为公共 crowding 因子 -> ISOMORPH_PUBLIC_FACTOR，关闭。",
+      "假期/DST/early-close 某子期无法核实 -> 排除该期，不 fabricate PIT。",
+      "disk 超 200MB 硬上限 -> DISK_CAP_EXCEEDED，停止采集。",
+      "任一 binding hash 不匹配 -> fail closed，不静默继续。",
+      "触发任一停止门立即停止当前 generation，不因已采集/已投入代码续命 (stop_gate_semantics earliest-blocker 分类)。"
+    ]
+  },
+  "current_classification": {
+    "observability": "OBSERVABLE_ON_EXISTING_LAST_PRICE; INDEX_MARK_PENDING_GET_ONLY_FETCH",
+    "cut1_last_price_layer": "PASS (prefreeze observation)",
+    "cut1_mark_layer": "OPEN_PENDING_MARK_CANDLE",
+    "cut2_identifiability": "DEFINITION_FROZEN_NOT_RUN",
+    "identifiability_ladder_position": "observability 已过 last-price 层；identifiability 未评；ex_ante_predictability/personal_executability/independent_support/net_edge 均未越级评估。",
+    "institutional_moat": "UNPROVEN",
+    "symbol_mapping": "PARTIAL (ticker 字符串官方，venue/ISIN 缺)",
+    "overall": "DATA_CONTRACT_FROZEN_READY_FOR_SEPARATELY_APPROVED_GET_ONLY_FETCH_THEN_CUTS"
+  },
+  "decision_journal": [
+    {"id": "DJ1", "decision": "先独立复算全部上游 binding hash 再动任何设计", "result": "shortlist/receipt/source_fitness/calendar/route_contract/registry 6 个 datatruth self-hash 全部 MATCH；先用 4 个已知声明 hash 验证 Python 复现等价 datatruth.HashJSON 后才采信；history_catalog data_hash 交叉核对等于路由合同绑定 (非重扫)"},
+    {"id": "DJ2", "decision": "universe 收紧到 OKX 官方页仅举例的 AAPL/TSLA/NVDA，拒绝 shortlist 的 GME/MSFT/SPY/QQQ 等未官方 venue 绑定扩展与常识 venue 归属", "result": "scope.universe_frozen=3；explicitly_not_claimed 记录不宣称完整宇宙/venue 映射"},
+    {"id": "DJ3", "decision": "确认本地只有 last-price K 线，index/mark 缺失，判定唯一最小新增采集 = GET-only history-index-candles + history-mark-price-candles，对齐既有窗口", "result": "minimal_new_acquisition 冻结端点/范围/disk cap/raw/manifest/PIT；方法学标 DOCUMENTED_CURRENT/PIT_UNPROVEN_PRE_FETCH"},
+    {"id": "DJ4", "decision": "Cut-1 阈值由 OKX 24/7 连续交易文档先验推导并在观测前冻结，再在本地 last-price bars 上 outcome-blind 复核", "result": "coverage 0.95/vol 0.90/move 0.80 冻结；3 symbol 实测 ~1.0/0.996-1.0/0.99-1.0 全 PASS，远超阈值，无据值回调；mark 层仍 OPEN"},
+    {"id": "DJ5", "decision": "Cut-2 定义 DecisionTime、DecisionTime-visible features、time-of-day 匹配 matched controls，并冻结 permutation/Cliff's delta/coverage 判据，显式防止把时间标签当 separable", "result": "只证 feature 可构造+非退化+非纯时间标签可分；不证方向/盈利；失败分类 UNIDENTIFIABLE/ISOMORPH_PUBLIC_FACTOR/DATA_BLIND/INSUFFICIENT_SUPPORT"},
+    {"id": "DJ6", "decision": "提出 5 个数据设计，比较独立性(50/20/10) 与 DecisionTime 精度的权衡", "result": "选 D3 混合分层 (1H spine 全窗清门 + 5m overlay 精度)；拒 D1/D2 单独、D4 proxy-basis、D5 bulk"},
+    {"id": "DJ7", "decision": "冻结 index/mark 端点无法覆盖 -> DATA_BLIND stop，及 mark 冻结 -> MECHANISM_FALSIFIED_FROZEN 等停止门；机构护城河维持 UNPROVEN", "result": "budget 1CPU/6h/1attempt；routes_started=0；labels_unblinded=false；不下载、不读收益、不提交"}
+  ],
+  "drift_requirements": {
+    "contract_hash_self_exclusion": "hashes.contract_hash 计算时置 null，用仓库 datatruth.HashJSON 语义 (Go encoding/json 确定性编码 + SHA-256 小写 hex)。",
+    "no_silent_edit": "任一字段变更必须开新 generation 与新 hash，禁止静默改写本 generation。",
+    "binding_drift": "bindings 内上游冻结 hash 加载时逐一匹配；不匹配 fail closed。",
+    "json_md_consistency": "equity_session_gap_data_contract.md 与本 JSON 的 route_id、universe_frozen、chosen_design、potential_support_counts、cut 阈值、stop_gates 必须一致；不一致视为 drift。",
+    "md_hash_self_exclusion": "Markdown 将唯一一行 '> Document hash: `<value>`' 规范化为 '> Document hash: `SELF_EXCLUDED`' 后对整文件 UTF-8 LF 字节做 SHA-256。"
+  },
+  "safety": {
+    "global_halt": true,
+    "system_status": "NO_GO",
+    "exam_status": "EXAM_UNAVAILABLE",
+    "trade_allowed": false,
+    "labels_unblinded": false,
+    "routes_started": 0,
+    "routes_reopened": 0,
+    "no_purchase": true,
+    "no_bulk_download": true,
+    "no_commit": true,
+    "owner_made_commits": false,
+    "owner_modified_disallowed_paths": false,
+    "outcome_values_read": false,
+    "boundary_crossing_return_computed": false
+  },
+  "hashes": {
+    "contract_hash": "47e4113ea9cb2aaffc7d3bdeace2a43997917ea837e5f6fcf71302c6b3c6213a",
+    "hash_method": "Read this JSON as a generic object, set hashes.contract_hash to null, then compute repository datatruth.HashJSON (deterministic Go encoding/json plus SHA-256 lowercase hex).",
+    "self_excluded_field": "hashes.contract_hash",
+    "md_document_hash_method": "Markdown: normalize the unique line '> Document hash: `<value>`' to '> Document hash: `SELF_EXCLUDED`' then SHA-256 the whole file UTF-8 LF bytes. The MD value is stored only in the .md file (one-directional), not here, to avoid a JSON<->MD hash cycle."
+  }
+}

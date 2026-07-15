@@ -1,0 +1,57 @@
+{
+  "schema_version": "lingxi.data-driven-router-v3.path-validation.v1",
+  "validation_owner": "GPT-5.6 Sol",
+  "generated_at": "2026-07-15T04:52:38.999616489Z",
+  "sealed_manifest_path": "/root/lingxi/research/firstbattle/data_driven_router_v3/sealed/discovery-tournament-100000/manifest.json",
+  "sealed_manifest_byte_hash": "deb901e662d27e122092ef8bd95b3d13a07f9c40b2a2a9e62aabf2a5abaeb7f7",
+  "sealed_bundle_byte_hash": "db6e87646d515ca69712f46faf90d1aac6461b19ef824f635245f731732b7b77",
+  "tournament_code_hash": "3382f1625d50b13cb4cfe222a847690376a37202e8ec5136441dc00a007a38a3",
+  "dataset_manifest_hash": "f9dc0944919709a49f765fe3291cf60a46952919f796add47d892af5f2808a6d",
+  "dataset_reviewer_receipt_hash": "5fbb51bf0bab3be2649b57ba76ed68b2f714cda8a5fc7c0722a1a53f4c52edfb",
+  "g9_reviewer_receipt_hash": "e77d1511d022fb511165f3412535ff81a6149cb5a0da7729044c5afb9069c953",
+  "g10_reviewer_receipt_hash": "9de865f7620f0252b22ed8bf53f1a6e008e9df5a021ac8e4564baff2899fc6b8",
+  "funding_manifest_hash": "7f864cfd3909bfc5e6785a06e08d58e83cddc5f4a053981f08d06d74d77402c2",
+  "funding_receipt_hash": "22ca63a78b1d2e0b6be32e8728c07d12cd8d76f8e9d2a5d0f97b4cc58cbc267b",
+  "policy_hashes": {
+    "grok": "d30624963a20a8d12571e295d98c25d99fe19044fe852b4081e7e73c83601860",
+    "opus": "1cc2a416c56e2402b116671df86a7ad95f9fc620e63ea2202d00c80754d15145",
+    "sonnet": "a53ad29fcc0f773b301bc505089fa75157ebf16aec9ee454a4219fb71a25d7c5",
+    "terra": "43e44609c854eec71e354d65a460620eb04f90ab19dd705b6928737bbe5a9d04"
+  },
+  "attempt_ledger_hashes": {
+    "grok": "f2128d9958e62ebb78b74f4991a17130cdfe65fee398ea8cd916cdc031eff4d7",
+    "opus": "7ad561460f0e2b7f6def136bd48070b987a42c0aa92aa7ac35e9173b318a00da",
+    "sonnet": "64296dbc81077c66bad6c5470c5bcead199fbf65f46f7a2fa8b959409b109e8b",
+    "terra": "10edd103176db0b4c6ee2ec465abcb7d46dcbb67773b09a2e653a77f11844f19"
+  },
+  "shared_attempt_ledger_hash": "6a06eb8cdbffcac98963bfe9497102956c4b54d80e103a13880d9ef05f707c1d",
+  "protocol_hashes": {
+    "g1": "5d80166eb28307d23e33cd19efae2b60811852ff0da49a3a6e16663aba2e7ddd",
+    "g10": "0d09d595947f09aeb6258b9af023e5c87e2d334bc52649761f91cb2ae263e7cb",
+    "g2": "7096395f1f3bae212b6dc866c5d46ccb372cd284e4a959d424dfbfbb92d6c226",
+    "g3": "63f4ee088efb09e9e58386ab273b997af4a9206d4c5c18e73c59fda5d42a7a57",
+    "g4": "2fd8c5852bba5023c9024d46b5b5e9527e71d670c370a1276e4728f4ef4cd2b9",
+    "g5": "518d0003c829da641f1bcc955c4382023e158ba9938c0ac6f0ff19b5bf729385",
+    "g6": "08b609e3271029b1e9f772921e325ef7c7fd30326589ae9c03cc86d73d9c844b",
+    "g7": "4aacc43e928d25b6b83cdf8fe10d5b576e2b1009ea10b7bfad3e750388e47747",
+    "g8": "c492cd191e869073b330221835fcec4b4437b27ec67e6e9d18252119fc7da682",
+    "g9": "fe3ce29ef3b8b07da7ef81e0ea3ccc732722f8a184e7ba91ebb8edacd7b2802c"
+  },
+  "protocol_chain_verified": [
+    "research/firstbattle/data_driven_router_v3/protocol.json",
+    "research/firstbattle/data_driven_router_v3/protocol_g10.json",
+    "research/firstbattle/data_driven_router_v3/protocol_g2.json",
+    "research/firstbattle/data_driven_router_v3/protocol_g3.json",
+    "research/firstbattle/data_driven_router_v3/protocol_g4.json",
+    "research/firstbattle/data_driven_router_v3/protocol_g5.json",
+    "research/firstbattle/data_driven_router_v3/protocol_g6.json",
+    "research/firstbattle/data_driven_router_v3/protocol_g7.json",
+    "research/firstbattle/data_driven_router_v3/protocol_g8.json",
+    "research/firstbattle/data_driven_router_v3/protocol_g9.json"
+  ],
+  "router_holdout_unblinded": false,
+  "trade_allowed": false,
+  "owners": null,
+  "validation_family_size": 52,
+  "leaf_wf_family_size": 0
+}

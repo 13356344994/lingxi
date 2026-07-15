@@ -1,0 +1,331 @@
+{
+  "schema_version": "lingxi.data-driven-router-v3.model-api.v1",
+  "policy_id": "sonnet-episodic-k64-required_plus_optional",
+  "leaves": [
+    {
+      "leaf_id": "episodic-bucket-01",
+      "predicate": "EPISODIC_NEIGHBOR_EVIDENCE k=64 feature_set=required_plus_optional support=1065",
+      "intent": {
+        "target_signed_position_fraction": -1,
+        "target_horizon_hours": 24,
+        "delay_bars": 3
+      },
+      "rejection_reason": "synthetic-only aggregated neighbor evidence; individual training rows are sealed and never exposed"
+    },
+    {
+      "leaf_id": "episodic-bucket-02",
+      "predicate": "EPISODIC_NEIGHBOR_EVIDENCE k=64 feature_set=required_plus_optional support=963",
+      "intent": {
+        "target_signed_position_fraction": -1,
+        "target_horizon_hours": 24,
+        "delay_bars": 0
+      },
+      "rejection_reason": "synthetic-only aggregated neighbor evidence; individual training rows are sealed and never exposed"
+    },
+    {
+      "leaf_id": "episodic-bucket-03",
+      "predicate": "EPISODIC_NEIGHBOR_EVIDENCE k=64 feature_set=required_plus_optional support=927",
+      "intent": {
+        "target_signed_position_fraction": 1,
+        "target_horizon_hours": 24,
+        "delay_bars": 3
+      },
+      "rejection_reason": "synthetic-only aggregated neighbor evidence; individual training rows are sealed and never exposed"
+    },
+    {
+      "leaf_id": "episodic-bucket-04",
+      "predicate": "EPISODIC_NEIGHBOR_EVIDENCE k=64 feature_set=required_plus_optional support=895",
+      "intent": {
+        "target_signed_position_fraction": 1,
+        "target_horizon_hours": 24,
+        "delay_bars": 0
+      },
+      "rejection_reason": "synthetic-only aggregated neighbor evidence; individual training rows are sealed and never exposed"
+    },
+    {
+      "leaf_id": "episodic-bucket-05",
+      "predicate": "EPISODIC_NEIGHBOR_EVIDENCE k=64 feature_set=required_plus_optional support=706",
+      "intent": {
+        "target_signed_position_fraction": -1,
+        "target_horizon_hours": 24,
+        "delay_bars": 2
+      },
+      "rejection_reason": "synthetic-only aggregated neighbor evidence; individual training rows are sealed and never exposed"
+    },
+    {
+      "leaf_id": "episodic-bucket-06",
+      "predicate": "EPISODIC_NEIGHBOR_EVIDENCE k=64 feature_set=required_plus_optional support=670",
+      "intent": {
+        "target_signed_position_fraction": -1,
+        "target_horizon_hours": 24,
+        "delay_bars": 1
+      },
+      "rejection_reason": "synthetic-only aggregated neighbor evidence; individual training rows are sealed and never exposed"
+    },
+    {
+      "leaf_id": "episodic-bucket-07",
+      "predicate": "EPISODIC_NEIGHBOR_EVIDENCE k=64 feature_set=required_plus_optional support=642",
+      "intent": {
+        "target_signed_position_fraction": 1,
+        "target_horizon_hours": 24,
+        "delay_bars": 2
+      },
+      "rejection_reason": "synthetic-only aggregated neighbor evidence; individual training rows are sealed and never exposed"
+    },
+    {
+      "leaf_id": "episodic-bucket-08",
+      "predicate": "EPISODIC_NEIGHBOR_EVIDENCE k=64 feature_set=required_plus_optional support=590",
+      "intent": {
+        "target_signed_position_fraction": 1,
+        "target_horizon_hours": 24,
+        "delay_bars": 1
+      },
+      "rejection_reason": "synthetic-only aggregated neighbor evidence; individual training rows are sealed and never exposed"
+    },
+    {
+      "leaf_id": "episodic-bucket-09",
+      "predicate": "EPISODIC_NEIGHBOR_EVIDENCE k=64 feature_set=required_plus_optional support=244",
+      "intent": {
+        "target_signed_position_fraction": 1,
+        "target_horizon_hours": 4,
+        "delay_bars": 3
+      },
+      "rejection_reason": "synthetic-only aggregated neighbor evidence; individual training rows are sealed and never exposed"
+    },
+    {
+      "leaf_id": "episodic-bucket-10",
+      "predicate": "EPISODIC_NEIGHBOR_EVIDENCE k=64 feature_set=required_plus_optional support=224",
+      "intent": {
+        "target_signed_position_fraction": -1,
+        "target_horizon_hours": 4,
+        "delay_bars": 3
+      },
+      "rejection_reason": "synthetic-only aggregated neighbor evidence; individual training rows are sealed and never exposed"
+    },
+    {
+      "leaf_id": "episodic-bucket-11",
+      "predicate": "EPISODIC_NEIGHBOR_EVIDENCE k=64 feature_set=required_plus_optional support=211",
+      "intent": {
+        "target_signed_position_fraction": 1,
+        "target_horizon_hours": 4,
+        "delay_bars": 0
+      },
+      "rejection_reason": "synthetic-only aggregated neighbor evidence; individual training rows are sealed and never exposed"
+    },
+    {
+      "leaf_id": "episodic-bucket-12",
+      "predicate": "EPISODIC_NEIGHBOR_EVIDENCE k=64 feature_set=required_plus_optional support=186",
+      "intent": {
+        "target_signed_position_fraction": -1,
+        "target_horizon_hours": 4,
+        "delay_bars": 0
+      },
+      "rejection_reason": "synthetic-only aggregated neighbor evidence; individual training rows are sealed and never exposed"
+    },
+    {
+      "leaf_id": "episodic-bucket-13",
+      "predicate": "EPISODIC_NEIGHBOR_EVIDENCE k=64 feature_set=required_plus_optional support=184",
+      "intent": {
+        "target_signed_position_fraction": 1,
+        "target_horizon_hours": 4,
+        "delay_bars": 2
+      },
+      "rejection_reason": "synthetic-only aggregated neighbor evidence; individual training rows are sealed and never exposed"
+    },
+    {
+      "leaf_id": "episodic-bucket-14",
+      "predicate": "EPISODIC_NEIGHBOR_EVIDENCE k=64 feature_set=required_plus_optional support=165",
+      "intent": {
+        "target_signed_position_fraction": 1,
+        "target_horizon_hours": 4,
+        "delay_bars": 1
+      },
+      "rejection_reason": "synthetic-only aggregated neighbor evidence; individual training rows are sealed and never exposed"
+    },
+    {
+      "leaf_id": "episodic-bucket-15",
+      "predicate": "EPISODIC_NEIGHBOR_EVIDENCE k=64 feature_set=required_plus_optional support=162",
+      "intent": {
+        "target_signed_position_fraction": -1,
+        "target_horizon_hours": 4,
+        "delay_bars": 2
+      },
+      "rejection_reason": "synthetic-only aggregated neighbor evidence; individual training rows are sealed and never exposed"
+    },
+    {
+      "leaf_id": "episodic-bucket-16",
+      "predicate": "EPISODIC_NEIGHBOR_EVIDENCE k=64 feature_set=required_plus_optional support=158",
+      "intent": {
+        "target_signed_position_fraction": -1,
+        "target_horizon_hours": 4,
+        "delay_bars": 1
+      },
+      "rejection_reason": "synthetic-only aggregated neighbor evidence; individual training rows are sealed and never exposed"
+    },
+    {
+      "leaf_id": "episodic-bucket-17",
+      "predicate": "EPISODIC_NEIGHBOR_EVIDENCE k=64 feature_set=required_plus_optional support=27",
+      "intent": {
+        "target_signed_position_fraction": 1,
+        "target_horizon_hours": 1,
+        "delay_bars": 0
+      },
+      "rejection_reason": "synthetic-only aggregated neighbor evidence; individual training rows are sealed and never exposed"
+    },
+    {
+      "leaf_id": "episodic-bucket-18",
+      "predicate": "EPISODIC_NEIGHBOR_EVIDENCE k=64 feature_set=required_plus_optional support=26",
+      "intent": {
+        "target_signed_position_fraction": -1,
+        "target_horizon_hours": 1,
+        "delay_bars": 0
+      },
+      "rejection_reason": "synthetic-only aggregated neighbor evidence; individual training rows are sealed and never exposed"
+    },
+    {
+      "leaf_id": "episodic-bucket-19",
+      "predicate": "EPISODIC_NEIGHBOR_EVIDENCE k=64 feature_set=required_plus_optional support=25",
+      "intent": {
+        "target_signed_position_fraction": 1,
+        "target_horizon_hours": 1,
+        "delay_bars": 3
+      },
+      "rejection_reason": "synthetic-only aggregated neighbor evidence; individual training rows are sealed and never exposed"
+    },
+    {
+      "leaf_id": "episodic-bucket-20",
+      "predicate": "EPISODIC_NEIGHBOR_EVIDENCE k=64 feature_set=required_plus_optional support=20",
+      "intent": {
+        "target_signed_position_fraction": -1,
+        "target_horizon_hours": 1,
+        "delay_bars": 3
+      },
+      "rejection_reason": "synthetic-only aggregated neighbor evidence; individual training rows are sealed and never exposed"
+    },
+    {
+      "leaf_id": "episodic-bucket-21",
+      "predicate": "EPISODIC_NEIGHBOR_EVIDENCE k=64 feature_set=required_plus_optional support=16",
+      "intent": {
+        "target_signed_position_fraction": 1,
+        "target_horizon_hours": 1,
+        "delay_bars": 2
+      },
+      "rejection_reason": "synthetic-only aggregated neighbor evidence; individual training rows are sealed and never exposed"
+    },
+    {
+      "leaf_id": "episodic-bucket-22",
+      "predicate": "EPISODIC_NEIGHBOR_EVIDENCE k=64 feature_set=required_plus_optional support=13",
+      "intent": {
+        "target_signed_position_fraction": -1,
+        "target_horizon_hours": 1,
+        "delay_bars": 1
+      },
+      "rejection_reason": "synthetic-only aggregated neighbor evidence; individual training rows are sealed and never exposed"
+    },
+    {
+      "leaf_id": "episodic-bucket-23",
+      "predicate": "EPISODIC_NEIGHBOR_EVIDENCE k=64 feature_set=required_plus_optional support=12",
+      "intent": {
+        "target_signed_position_fraction": 1,
+        "target_horizon_hours": 1,
+        "delay_bars": 1
+      },
+      "rejection_reason": "synthetic-only aggregated neighbor evidence; individual training rows are sealed and never exposed"
+    },
+    {
+      "leaf_id": "episodic-bucket-24",
+      "predicate": "EPISODIC_NEIGHBOR_EVIDENCE k=64 feature_set=required_plus_optional support=11",
+      "intent": {
+        "target_signed_position_fraction": 0,
+        "target_horizon_hours": 1,
+        "delay_bars": 0
+      },
+      "rejection_reason": "synthetic-only aggregated neighbor evidence; individual training rows are sealed and never exposed"
+    },
+    {
+      "leaf_id": "episodic-bucket-25",
+      "predicate": "EPISODIC_NEIGHBOR_EVIDENCE k=64 feature_set=required_plus_optional support=9",
+      "intent": {
+        "target_signed_position_fraction": -1,
+        "target_horizon_hours": 1,
+        "delay_bars": 2
+      },
+      "rejection_reason": "synthetic-only aggregated neighbor evidence; individual training rows are sealed and never exposed"
+    },
+    {
+      "leaf_id": "episodic-bucket-26",
+      "predicate": "EPISODIC_NEIGHBOR_EVIDENCE k=64 feature_set=required_plus_optional support=2",
+      "intent": {
+        "target_signed_position_fraction": 0.25,
+        "target_horizon_hours": 4,
+        "delay_bars": 3
+      },
+      "rejection_reason": "synthetic-only aggregated neighbor evidence; individual training rows are sealed and never exposed"
+    },
+    {
+      "leaf_id": "episodic-bucket-27",
+      "predicate": "EPISODIC_NEIGHBOR_EVIDENCE k=64 feature_set=required_plus_optional support=2",
+      "intent": {
+        "target_signed_position_fraction": -0.25,
+        "target_horizon_hours": 1,
+        "delay_bars": 2
+      },
+      "rejection_reason": "synthetic-only aggregated neighbor evidence; individual training rows are sealed and never exposed"
+    },
+    {
+      "leaf_id": "episodic-bucket-28",
+      "predicate": "EPISODIC_NEIGHBOR_EVIDENCE k=64 feature_set=required_plus_optional support=2",
+      "intent": {
+        "target_signed_position_fraction": 0.25,
+        "target_horizon_hours": 24,
+        "delay_bars": 3
+      },
+      "rejection_reason": "synthetic-only aggregated neighbor evidence; individual training rows are sealed and never exposed"
+    },
+    {
+      "leaf_id": "episodic-bucket-29",
+      "predicate": "EPISODIC_NEIGHBOR_EVIDENCE k=64 feature_set=required_plus_optional support=2",
+      "intent": {
+        "target_signed_position_fraction": 0.25,
+        "target_horizon_hours": 24,
+        "delay_bars": 1
+      },
+      "rejection_reason": "synthetic-only aggregated neighbor evidence; individual training rows are sealed and never exposed"
+    },
+    {
+      "leaf_id": "episodic-bucket-30",
+      "predicate": "EPISODIC_NEIGHBOR_EVIDENCE k=64 feature_set=required_plus_optional support=2",
+      "intent": {
+        "target_signed_position_fraction": 0.25,
+        "target_horizon_hours": 24,
+        "delay_bars": 2
+      },
+      "rejection_reason": "synthetic-only aggregated neighbor evidence; individual training rows are sealed and never exposed"
+    },
+    {
+      "leaf_id": "episodic-bucket-31",
+      "predicate": "EPISODIC_NEIGHBOR_EVIDENCE k=64 feature_set=required_plus_optional support=2",
+      "intent": {
+        "target_signed_position_fraction": -0.5,
+        "target_horizon_hours": 24,
+        "delay_bars": 1
+      },
+      "rejection_reason": "synthetic-only aggregated neighbor evidence; individual training rows are sealed and never exposed"
+    },
+    {
+      "leaf_id": "episodic-bucket-other",
+      "predicate": "EPISODIC_NEIGHBOR_EVIDENCE k=64 feature_set=required_plus_optional support=29 bucket=other",
+      "intent": {
+        "target_signed_position_fraction": 0,
+        "target_horizon_hours": 1,
+        "delay_bars": 0
+      },
+      "rejection_reason": "aggregated overflow bucket beyond leaf budget; individual training rows are sealed and never exposed"
+    }
+  ],
+  "default_intent": {
+    "target_signed_position_fraction": -1,
+    "target_horizon_hours": 24,
+    "delay_bars": 3
+  }
+}

@@ -1,0 +1,528 @@
+{
+  "schema_version": "lingxi.g10-wild-route-portfolio.v1",
+  "portfolio_id": "firstbattle.g10.wild-route-portfolio",
+  "created_at": "2026-07-13T12:26:00Z",
+  "status": "HYPOTHESIS_LIBRARY_ONLY",
+  "launch_authorized": false,
+  "mission": {
+    "problem_restatement": "在不读取候选未来收益、不复活 G10 v1 的前提下，建立互不依赖的个人 edge 机制假设，并先判断现有冻结历史能否观察、识别和检验它们；当前任务是防止单路线锁死，不是选出策略。",
+    "account_scope": "几十 U 到几千 U，最高 5 倍杠杆，严格偿付约束。",
+    "current_evidence": "正式 FULL_PREFIX 执行证据审计裁决 G10 v1 为 DATA_BLIND；ctType 394/394 缺失，dynamic min-notional 0/12826 可证明，84 个 validation cells 无 event/day/shock identity，winner binding 仅有 PlaybookHash+opaque source winner IDs hash。",
+    "no_outcome_use": "不读取、汇报或使用候选未来收益；只按 outcome-blind data fitness、可识别性、个人可执行性、机构排斥强度和最短证伪成本排序。",
+    "closure_rule": "关闭的是当前可检验表述，不默认关闭机制家族；保留假设不产生交易权或无限预算。"
+  },
+  "formal_audit_bindings": {
+    "protocol_hash": "dccd7974a7d172e3894174a953c4cce02ea840a48bb41fbdec589ed4d1153dd3",
+    "source_manifest_hash": "c8c5f38e6542855aa6fbc8e3373a751a24646922d0838a9774fce4a7e41a9379",
+    "audit_summary_hash": "cf9da460a7807c4d131bbc1e2b22ec9c0e860902fbb6a9726707d7c697b9d9ab",
+    "audit_receipt_hash": "29494eb6dfc62c8317315f93391aa60bd9d4f7ae515a166f94ae0a28c99b4f9a",
+    "classification_evidence_hash": "8e5846c730a292645eedb63298c3535587d95cc9a13b3cd3cf88b2aa30d7fb18",
+    "winner_control_bindings_hash": "70a5dd09190e384ace12a4179a0ef04ead76128c1ebc4d280d3e007878728c39",
+    "support_counts_hash": "890cb74d1aaf35f86f3309bc925fc373399916b1f92539d4a973d592554e228d",
+    "scope_status": "FULL_PREFIX",
+    "formal_classification": "DATA_BLIND"
+  },
+  "competing_hypotheses": [
+    {
+      "id": "H0_NULL_SELECTION_AND_COST",
+      "statement": "所谓个人残差主要来自选择偏差、数据缺口、成本低估或无法配对的执行证据；不存在可复现净 edge。",
+      "role": "所有路线共同的最强零假设。"
+    },
+    {
+      "id": "H1_RULE_DISCONTINUITY",
+      "statement": "交易所离散规则、最小下单、合约面值、结算或迁移边界制造只在微小本金档可行的局部机会。"
+    },
+    {
+      "id": "H2_SPARSE_FORCED_FLOW",
+      "statement": "少数可识别主体在规则或偿付压力下被迫交易，个人可在低容量事件中提供或撤回流动性。"
+    },
+    {
+      "id": "H3_MICRO_EXECUTION_CLIFF",
+      "statement": "个人小单在排队、撤单、最小冲击和授权流程上具有容量断层，大资金同样信号无法按比例执行。"
+    },
+    {
+      "id": "H4_CROSS_VENUE_ASYMMETRY",
+      "statement": "跨场所合约规则、抵押品和授权不对称产生短暂但非纯速度型的可执行错位。"
+    }
+  ],
+  "strongest_portfolio_counterexample": "即使单笔容量很小，机构仍可用统一基础设施在大量标的和场所复制小单并聚合容量；公开后若规则、权限、维护成本或资金分割没有持续限制，所谓个人护城河会消失。机构暂时不知道、策略新奇或单市场容量小都不足以证明排斥。",
+  "priority_policy": {
+    "outcome_blind": true,
+    "score_range": "0..5",
+    "weights": {
+      "data_fitness": 0.3,
+      "identifiability": 0.25,
+      "personal_executability": 0.2,
+      "institutional_exclusion_strength": 0.15,
+      "short_falsification_cost": 0.1
+    },
+    "tie_break": ["lower falsification CPU-hours", "stronger direct decision-time fields", "route_id lexical"],
+    "forbidden_rank_inputs": ["future_return", "realized_pnl", "winner_profit", "G10 residual magnitude", "recent live performance"]
+  },
+  "priority": [
+    {
+      "rank": 1,
+      "route_id": "micro_execution_capacity_cliff",
+      "scores": {
+        "data_fitness": 2.5,
+        "identifiability": 2.0,
+        "personal_executability": 3.0,
+        "institutional_exclusion_strength": 4.0,
+        "short_falsification_cost": 4.0
+      },
+      "weighted_score": 2.85,
+      "decision": "RETAIN_TOP_PRIORITY_NOT_STARTED",
+      "reason": "maker attempts 与部分 settlement 执行字段最接近直接证据，最短失败成本最低；但缺 attempted notional、完整 lifecycle/ack 和事件 identity，不能启动检验。"
+    },
+    {
+      "rank": 2,
+      "route_id": "exchange_rule_discontinuity",
+      "scores": {
+        "data_fitness": 2.0,
+        "identifiability": 2.5,
+        "personal_executability": 3.0,
+        "institutional_exclusion_strength": 4.0,
+        "short_falsification_cost": 3.5
+      },
+      "weighted_score": 2.775,
+      "decision": "RETAIN_SECONDARY_NOT_STARTED",
+      "reason": "规则断点机制清晰且可预注册，但正式审计证明 ctType 与 PIT dynamic min-notional 不可见，当前测量方案直接阻断。"
+    },
+    {
+      "rank": 3,
+      "route_id": "sparse_forced_flow",
+      "scores": {
+        "data_fitness": 1.5,
+        "identifiability": 1.5,
+        "personal_executability": 2.5,
+        "institutional_exclusion_strength": 4.0,
+        "short_falsification_cost": 2.5
+      },
+      "weighted_score": 2.175,
+      "decision": "RETAIN_DORMANT_NOT_STARTED",
+      "reason": "被迫付款机制强于公共因子，但现有代理无法证明 forced actor/action，容易把一般波动误写成强制流。"
+    },
+    {
+      "rank": 4,
+      "route_id": "cross_venue_operational_asymmetry",
+      "scores": {
+        "data_fitness": 1.0,
+        "identifiability": 1.5,
+        "personal_executability": 1.5,
+        "institutional_exclusion_strength": 3.5,
+        "short_falsification_cost": 1.5
+      },
+      "weighted_score": 1.65,
+      "decision": "REJECT_NEAR_TERM_ARCHIVE_ONLY",
+      "reason": "现有 xgap/shadow 只是弱代理，缺同步可成交双边盘口、场所费用和资金/权限状态；且最易退化为机构可复制的速度套利。"
+    }
+  ],
+  "route_cards": [
+    {
+      "route_id": "micro_execution_capacity_cliff",
+      "mechanism_family": "个人订单执行 / 容量断层",
+      "mechanism": "同一决策前事件下，微小订单可在不显著推价、较短排队和较低授权摩擦下成交；订单规模扩大后 fill probability、冲击、排队毒性或最小风险预算非线性恶化。",
+      "payer_or_forced_action": "需要立即成交或撤出流动性的对手方支付 spread/impact；大账户因容量、审批、风控或最小收益贡献门放弃该微小机会。",
+      "why_institutions_excluded": "单事件绝对容量过小、跨大量小单的监控/合规/维护成本高、账户授权和风险占用不成比例；不是因为机构不知道。",
+      "post_publication_moat": "若公开后仍成立，保护来自每事件硬容量、队列位置、最小冲击与机构固定流程成本；若可统一批量化并聚合，护城河失败。",
+      "personal_execution_advantage": "30–1000U 小单可低冲击地选择 maker/taker、跳过低于 min-notional 的事件，并容忍低绝对收益但不得突破偿付门。",
+      "required_fields": [
+        {
+          "field": "maker_attempt_identity_and_decision_time",
+          "status": "DIRECT",
+          "existing_source": "maker_attempts",
+          "decision_time": "KNOWN_AT_DECISION",
+          "limit": "当前复合键不是交易所稳定生命周期 ID。"
+        },
+        {
+          "field": "maker_filled_and_wait_ms",
+          "status": "DIRECT",
+          "existing_source": "maker_attempts",
+          "decision_time": "KNOWN_AFTER_DECISION",
+          "limit": "fill 结果只作执行证据，不作预测特征。"
+        },
+        {
+          "field": "attempted_order_notional_and_partial_fill_size",
+          "status": "MISSING",
+          "existing_source": "none proven",
+          "decision_time": "UNKNOWN",
+          "limit": "没有 size 不能识别容量曲线。"
+        },
+        {
+          "field": "signal_ack_cancel_fill_timestamps",
+          "status": "MISSING",
+          "existing_source": "maker_wait_ms only",
+          "decision_time": "UNKNOWN",
+          "limit": "maker_wait 是聚合结果，不能分解排队与网络延迟。"
+        },
+        {
+          "field": "decision_time_depth_and_spread",
+          "status": "WEAK",
+          "existing_source": "executable_shadow",
+          "decision_time": "KNOWN_AT_DECISION",
+          "limit": "shadow 不是真实 queue/fill。"
+        },
+        {
+          "field": "instrument_ctType_and_dynamic_min_notional",
+          "status": "MISSING",
+          "existing_source": "instrument_metadata + exchange_fills",
+          "decision_time": "PIT_UNPROVEN",
+          "limit": "正式审计 ctType 0/394、dynamic min-notional 0/12826。"
+        },
+        {
+          "field": "outcome_blind_event_identity",
+          "status": "MISSING",
+          "existing_source": "validation map",
+          "decision_time": "UNKNOWN",
+          "limit": "当前只有 84 aggregated cells，无 event/day/shock identity。"
+        }
+      ],
+      "legal_historical_proxies": [
+        "maker attempts 的 fill/wait/spread/mid 字段可审计 maker 路径，但不能代替 order size/queue。",
+        "settlements 的部分 fee/entry/exit slip 可验证已成交子集，但有选择性观测。",
+        "executable shadow depth/spread 仅可作 decision-time 弱代理。"
+      ],
+      "winner_and_matched_loser_design": {
+        "status": "UNAVAILABLE_EVENT_IDENTITY",
+        "winner_definition": "在口径冻结后才按同事件、同方向、同下单规模的执行结果定义；当前不得读取。",
+        "matched_loser": "同 symbol/session/spread/depth/notional bucket、相同 maker action 但未获得同等 fill/毒性结果的全部 outcome-blind attempts。",
+        "baseline": "所有满足同一 decision-time action eligibility 的 attempts。",
+        "anti_posthoc": "先冻结 attempt IDs、notional buckets、matching hash 和完整分母，再解盲执行结果；当前缺 event/notional identity，禁止执行。"
+      },
+      "strongest_alternative_explanation": "高 fill rate 只是更宽松报价、行情顺行或系统只记录已选择 attempts；所谓容量 cliff 可能是缺失 notional 与选择偏差。",
+      "shortest_falsification_experiment": "只扫描冻结历史中是否存在稳定 attempt lifecycle、attempted notional、partial size 与 ack/cancel/fill 时钟；不读收益。任一关键字段不存在即停止，不构造容量曲线。",
+      "fixed_budget": {
+        "max_cpu": 1,
+        "max_wall_clock_hours": 8,
+        "max_attempts": 1,
+        "data_scope": "only already-frozen historical prefixes",
+        "launch_status": "NOT_AUTHORIZED"
+      },
+      "stop_gates": [
+        "无稳定 event/attempt identity 或 attempted notional，立即 DATA_BLIND。",
+        "无法冻结全 attempts 分母，立即 UNIDENTIFIABLE。",
+        "公开后机构可低成本批量复制并聚合容量，关闭机制表述。",
+        "任何资本档经 fee/slip/latency/min-notional 后不可执行，UNEXECUTABLE。",
+        "不得降低 50 events/20 days/10 shock blocks。"
+      ],
+      "reopen_condition": "仅当在当前已有、未纳入的历史文件中找到可 hash 绑定的 order lifecycle、attempt size、ack/cancel/fill 时钟和 event identity；不得等待未来采集。",
+      "current_classification": "DATA_BLIND",
+      "downstream_risks": ["UNIDENTIFIABLE", "POSTHOC_ONLY", "UNEXECUTABLE"],
+      "trade_allowed": false
+    },
+    {
+      "route_id": "exchange_rule_discontinuity",
+      "mechanism_family": "交易所规则 / 离散门槛",
+      "mechanism": "合约面值、min size、tick、资金结算、迁移或风控规则的离散变化，使微小账户在特定规则侧可执行，而更大资金跨过容量、保证金或最小收益贡献断点。",
+      "payer_or_forced_action": "被规则迫使调整订单、仓位或抵押品的参与者支付；错误离散化或必须在边界时刻成交的账户承担成本。",
+      "why_institutions_excluded": "硬容量太小、规则监控与多场所审批维护成本超过绝对收益，或机构订单跨过冲击/保证金断点；仅“机构没注意”不算排斥。",
+      "post_publication_moat": "公开后仍由交易所硬规则、每事件容量与组织固定成本保护；若机构可自动化分拆且不受授权/容量约束，则护城河失败。",
+      "personal_execution_advantage": "小单可精确落在 lot/min-notional/tick 断点内，选择跳过而非向上凑单，并保持账户偿付余量。",
+      "required_fields": [
+        {
+          "field": "PIT_instrument_version_identity",
+          "status": "MISSING",
+          "existing_source": "instrument_metadata current snapshot",
+          "decision_time": "PIT_UNPROVEN",
+          "limit": "当前快照不能回填历史。"
+        },
+        {
+          "field": "ctType",
+          "status": "MISSING",
+          "existing_source": "instrument_metadata",
+          "decision_time": "UNKNOWN",
+          "limit": "正式审计 0/394。"
+        },
+        {
+          "field": "ctVal_lot_tick",
+          "status": "DIRECT",
+          "existing_source": "instrument_metadata",
+          "decision_time": "KNOWN_AFTER_DECISION",
+          "limit": "394/394 当前 snapshot 有值，但历史 PIT 未证明。"
+        },
+        {
+          "field": "dynamic_min_notional_at_decision",
+          "status": "MISSING",
+          "existing_source": "metadata + decision price",
+          "decision_time": "PIT_UNPROVEN",
+          "limit": "正式审计 0/12826 可证明。"
+        },
+        {
+          "field": "rule_change_effective_time_and_known_from",
+          "status": "MISSING",
+          "existing_source": "none proven",
+          "decision_time": "UNKNOWN",
+          "limit": "无公告/PIT rule archive 绑定。"
+        },
+        {
+          "field": "outcome_blind_event_identity",
+          "status": "MISSING",
+          "existing_source": "validation map",
+          "decision_time": "UNKNOWN",
+          "limit": "aggregated cells 不能恢复事件。"
+        }
+      ],
+      "legal_historical_proxies": [
+        "当前 instrument snapshot 的 lot/ctVal/tick 只能发现 schema 与候选断点，不能证明历史有效性。",
+        "exchange fills 的 instId/instType/fillSz/fillPx 可做语义交叉检查，但缺 ctType 时不能计算历史动态最小名义。",
+        "open decision 的 min-notional/reject reason 若在既有文件中显式存在才可作直接拒绝证据；当前未证明。"
+      ],
+      "winner_and_matched_loser_design": {
+        "status": "UNAVAILABLE_EVENT_IDENTITY",
+        "winner_definition": "规则版本和 event identity 冻结后，定义跨越离散边界且执行可行的事件；当前不得从收益反推边界。",
+        "matched_loser": "同 symbol、规则版本、session、波动和方向，距同一离散边界相邻但位于另一侧的 outcome-blind 事件。",
+        "baseline": "规则有效期内全部符合预注册 proximity window 的事件。",
+        "anti_posthoc": "先冻结规则生效表、距离 bucket、事件集合和基准发生率，再允许任何结果评分。"
+      },
+      "strongest_alternative_explanation": "边界附近差异只是价格/波动连续变化、当前 metadata 回填或幸存标的选择，并非规则造成。",
+      "shortest_falsification_experiment": "仅搜索现有冻结历史是否含 ctType、effective_at、known_from 和稳定 event identity；不能全部 hash 绑定即停止，不使用当前 snapshot 回填。",
+      "fixed_budget": {
+        "max_cpu": 1,
+        "max_wall_clock_hours": 8,
+        "max_attempts": 1,
+        "data_scope": "only already-existing immutable rule/instrument history",
+        "launch_status": "NOT_AUTHORIZED"
+      },
+      "stop_gates": [
+        "ctType/effective_at/known_from/event identity 任一缺失，DATA_BLIND。",
+        "边界两侧不能形成 outcome-blind matched set，UNIDENTIFIABLE。",
+        "效应可由连续价格/波动解释，关闭当前表述。",
+        "机构可无额外成本自动分拆复制，关闭个人护城河。",
+        "不得等待新规则事件或未来 metadata。"
+      ],
+      "reopen_condition": "仅当发现当前已存在且可验证来源时间的历史 instrument/rule archive，包含 ctType、版本生效时刻、KnownFrom 和事件 identity。",
+      "current_classification": "DATA_BLIND",
+      "downstream_risks": ["UNIDENTIFIABLE", "POSTHOC_ONLY"],
+      "trade_allowed": false
+    },
+    {
+      "route_id": "sparse_forced_flow",
+      "mechanism_family": "稀疏强制流",
+      "mechanism": "清算、到期、规则整改、抵押品短缺或其他可验证约束迫使特定一侧在短窗口交易，个人只在容量很小且付款者仍存在时提供/撤回流动性。",
+      "payer_or_forced_action": "被强平、到期、保证金或合规约束迫使成交的一侧支付短期冲击与 spread。",
+      "why_institutions_excluded": "事件稀疏、单事件容量小、全天候监控和授权成本高，且大单会自毁价格；若可规模化聚合，机构排斥不成立。",
+      "post_publication_moat": "护城河必须来自稀疏容量、不可批量化授权与大单自冲击，不来自事件秘密。",
+      "personal_execution_advantage": "个人可在小容量窗口快速选择不交易、微仓或撤单，并在 payer 消失时退出；不得假设速度优势。",
+      "required_fields": [
+        {
+          "field": "forced_actor_or_forced_action_identity",
+          "status": "MISSING",
+          "existing_source": "none in formal audit",
+          "decision_time": "UNKNOWN",
+          "limit": "价格冲击不能证明 forced flow。"
+        },
+        {
+          "field": "forced_event_time_and_receive_time",
+          "status": "MISSING",
+          "existing_source": "runtime liquidation-like records not bound to frozen audit",
+          "decision_time": "UNKNOWN",
+          "limit": "不得等待未来或把未审计 runtime 流当历史真值。"
+        },
+        {
+          "field": "decision_time_trade_intensity_or_taker_proxy",
+          "status": "WEAK",
+          "existing_source": "historical OHLCV/Rubik taker/funding families",
+          "decision_time": "KNOWN_AT_DECISION_OR_PIT_UNPROVEN",
+          "limit": "代理不能区分自愿交易、新闻与清算。"
+        },
+        {
+          "field": "payer_disappearance_invalidator",
+          "status": "MISSING",
+          "existing_source": "none proven",
+          "decision_time": "UNKNOWN",
+          "limit": "没有机制完成标记会退化为价格止盈止损。"
+        },
+        {
+          "field": "outcome_blind_event_identity_and_shock_block",
+          "status": "MISSING",
+          "existing_source": "validation map",
+          "decision_time": "UNKNOWN",
+          "limit": "84 cells 无 event/day/shock identity。"
+        },
+        {
+          "field": "personal_execution_costs",
+          "status": "DIRECT",
+          "existing_source": "settlements/maker attempts subset",
+          "decision_time": "KNOWN_AFTER_DECISION",
+          "limit": "只覆盖被系统选择/成交的子集。"
+        }
+      ],
+      "legal_historical_proxies": [
+        "已有 OHLCV 极端、funding 与 taker flow 只能生成候选触发，不能证明 forced payer。",
+        "现有 settlement/maker evidence 可在事件 identity 恢复后审查执行，不可定义机制。",
+        "只有当前已存在、带 event/receive time 与来源身份的历史强制流档案才可升级为 direct；存在性尚未证明。"
+      ],
+      "winner_and_matched_loser_design": {
+        "status": "UNAVAILABLE_FORCED_EVENT_IDENTITY",
+        "winner_definition": "先按 forced action 身份与机制窗口定义全部事件，之后才可标记结果；当前不能从极端赢家倒推。",
+        "matched_loser": "同 forced-action type、symbol liquidity、方向、强度、session 和前置波动，但后续未产生同类结果的全部事件。",
+        "baseline": "冻结历史中全部来源可验证的 forced events，而非仅价格 shock。",
+        "anti_posthoc": "forced identity、窗口、cooldown、shock block 和 controls 全部 hash 后才评分。"
+      },
+      "strongest_alternative_explanation": "所谓强制流只是新闻、一般高波动或公共 momentum/reversal；payer 身份和消失时点无法观察。",
+      "shortest_falsification_experiment": "盘点当前已有冻结历史是否存在可验证 forced event ID、event/receive time、方向/规模和机制结束标记；缺任一关键身份即停止。",
+      "fixed_budget": {
+        "max_cpu": 1,
+        "max_wall_clock_hours": 12,
+        "max_attempts": 1,
+        "data_scope": "only existing historical forced-flow archives if located",
+        "launch_status": "NOT_AUTHORIZED"
+      },
+      "stop_gates": [
+        "只能看到价格 shock 或 taker proxy，看不到 forced action，DATA_BLIND。",
+        "无法区分新闻/自愿流，UNIDENTIFIABLE。",
+        "只能解释赢家，POSTHOC_ONLY。",
+        "少于 50 events/20 days/10 shock blocks，INSUFFICIENT_SUPPORT。",
+        "不得等待未来 liquidation 样本。"
+      ],
+      "reopen_condition": "仅当定位到当前已存在、来源合法且带稳定 event identity/event+receive time/forced side/size 的历史档案，并能构造完整事件分母。",
+      "current_classification": "DATA_BLIND",
+      "downstream_risks": ["UNIDENTIFIABLE", "POSTHOC_ONLY", "INSUFFICIENT_SUPPORT"],
+      "trade_allowed": false
+    },
+    {
+      "route_id": "cross_venue_operational_asymmetry",
+      "mechanism_family": "跨场所非对称",
+      "mechanism": "非纯速度型的合约规格、抵押品、授权、结算或最小下单差异，使一个场所被迫调整而另一个场所可用小单承接。",
+      "payer_or_forced_action": "受单场所保证金、结算、规则或库存约束的一侧支付跨场所基差/冲击。",
+      "why_institutions_excluded": "需证明资金分割、场所授权和维护成本对机构固定且不值得，而个人已有账户可低成本执行；单纯延迟快不构成个人优势。",
+      "post_publication_moat": "公开后只有场所准入/抵押品隔离、硬容量和维护成本仍在才有护城河；纯报价差会被机构基础设施抹平。",
+      "personal_execution_advantage": "小账户可在已授权场所用微仓处理小容量不对称，但不能依赖跨场所转账及时到账或提高杠杆。",
+      "required_fields": [
+        {
+          "field": "synchronized_executable_bid_ask_depth_each_venue",
+          "status": "MISSING",
+          "existing_source": "xgap/shadow fields",
+          "decision_time": "UNKNOWN",
+          "limit": "单流 xgap 不是双边可成交盘口。"
+        },
+        {
+          "field": "venue_specific_fee_slip_latency",
+          "status": "MISSING",
+          "existing_source": "formal audit mostly OKX",
+          "decision_time": "UNKNOWN",
+          "limit": "无法证明双腿净成本。"
+        },
+        {
+          "field": "contract_spec_and_ctType_each_venue",
+          "status": "MISSING",
+          "existing_source": "instrument metadata",
+          "decision_time": "PIT_UNPROVEN",
+          "limit": "主场所 ctType 已全缺，跨场所更弱。"
+        },
+        {
+          "field": "collateral_borrow_transfer_authorization_state",
+          "status": "MISSING",
+          "existing_source": "equity snapshots only",
+          "decision_time": "UNKNOWN",
+          "limit": "cash snapshot 不证明可借、可转或授权。"
+        },
+        {
+          "field": "cross_venue_event_identity",
+          "status": "MISSING",
+          "existing_source": "validation map",
+          "decision_time": "UNKNOWN",
+          "limit": "无同步 event identity。"
+        },
+        {
+          "field": "xgap_signal",
+          "status": "WEAK",
+          "existing_source": "executable_shadow",
+          "decision_time": "KNOWN_AT_DECISION",
+          "limit": "缺对手场所 provenance 与 executable depth。"
+        }
+      ],
+      "legal_historical_proxies": [
+        "shadow xgap/xliq 字段只能做存在性盘点，不可证明双腿成交。",
+        "equity snapshots 只证明局部现金上下文，不证明跨场所可调度资金。",
+        "若当前已有同步多场所 quote/depth 与费用档案，可另立新预注册；本资产不假设其存在。"
+      ],
+      "winner_and_matched_loser_design": {
+        "status": "UNAVAILABLE_CROSS_VENUE_EVENT_IDENTITY",
+        "winner_definition": "先定义同步可成交双边价差、资金已就位和非速度型规则触发，再冻结事件。",
+        "matched_loser": "同场所对、合约规格、session、深度与资金状态但价差未能覆盖双腿压力成本的全部事件。",
+        "baseline": "所有同步、双腿可执行且资金已授权的事件。",
+        "anti_posthoc": "没有同步事件和完整双腿分母时禁止用单边 xgap 选赢家。"
+      },
+      "strongest_alternative_explanation": "观测价差不可成交、时间戳不同步、资金不可调度，或本质是机构更擅长的速度套利。",
+      "shortest_falsification_experiment": "只盘点当前已有历史是否同时包含同步双边 quote/depth、venue fee、ctType 和资金授权状态；缺一即停止。",
+      "fixed_budget": {
+        "max_cpu": 1,
+        "max_wall_clock_hours": 6,
+        "max_attempts": 1,
+        "data_scope": "only already-existing synchronized cross-venue history",
+        "launch_status": "NOT_AUTHORIZED"
+      },
+      "stop_gates": [
+        "无同步双边可成交盘口或双腿成本，DATA_BLIND。",
+        "无法区分 stale quote/时钟错位，UNIDENTIFIABLE。",
+        "机制依赖亚秒速度，按个人排斥原则关闭。",
+        "需要未授权转账、借贷或突破偿付门，UNEXECUTABLE。",
+        "当前 near-term 不启动，除非重开条件先满足。"
+      ],
+      "reopen_condition": "仅当定位到当前已存在、时钟可校验的多场所 quote/depth/fee/contract/collateral 历史，并证明无需未来转账或新增权限。",
+      "current_classification": "DATA_BLIND",
+      "downstream_risks": ["UNIDENTIFIABLE", "UNEXECUTABLE"],
+      "trade_allowed": false
+    }
+  ],
+  "mechanism_hypothesis_library": {
+    "purpose": "保留未充分证伪机制、缺失观测、已有历史代理与有限重开条件；不赋交易权。",
+    "entries": [
+      {
+        "route_id": "micro_execution_capacity_cliff",
+        "library_status": "RETAIN_TOP_PRIORITY_NOT_STARTED",
+        "missing_observations": ["attempted notional", "stable lifecycle ID", "ack/cancel/fill clocks", "event identity", "ctType/dynamic min-notional"],
+        "existing_proxies": ["maker fill/wait", "partial settlement fee/slip", "shadow depth/spread"],
+        "reopen_condition": "现有历史中找到并 hash 绑定完整 order lifecycle/size/time/event identity。"
+      },
+      {
+        "route_id": "exchange_rule_discontinuity",
+        "library_status": "RETAIN_SECONDARY_NOT_STARTED",
+        "missing_observations": ["historical PIT ctType", "rule effective_at/KnownFrom", "dynamic min-notional", "event identity"],
+        "existing_proxies": ["current lot/ctVal/tick snapshot", "exchange fill instId/instType"],
+        "reopen_condition": "现有不可变 instrument/rule archive 同时提供版本、时点和事件身份。"
+      },
+      {
+        "route_id": "sparse_forced_flow",
+        "library_status": "RETAIN_DORMANT_NOT_STARTED",
+        "missing_observations": ["forced actor/action identity", "event+receive time", "payer disappearance", "complete event denominator"],
+        "existing_proxies": ["OHLCV extremes", "funding", "taker-flow proxies", "execution subset"],
+        "reopen_condition": "现有合法历史含稳定 forced event identity、双时钟、方向/规模和完整分母。"
+      },
+      {
+        "route_id": "cross_venue_operational_asymmetry",
+        "library_status": "REJECT_NEAR_TERM_ARCHIVE_ONLY",
+        "missing_observations": ["synchronized executable books", "two-leg costs", "venue ctType", "collateral/authorization state", "event identity"],
+        "existing_proxies": ["shadow xgap/xliq", "equity snapshots"],
+        "reopen_condition": "现有同步多场所历史完整覆盖 quote/depth/fee/spec/collateral，且机制非速度型。"
+      }
+    ],
+    "trade_allowed": false,
+    "exam_eligible": false,
+    "next_action": "NONE_UNTIL_SEPARATE_USER_APPROVAL_AND_REOPEN_CONDITION",
+    "future_data_wait_forbidden": true
+  },
+  "portfolio_decision": {
+    "routes_started": 0,
+    "routes_retained": 3,
+    "routes_archived_near_term": 1,
+    "all_currently_data_blind": true,
+    "why_not_all_worth_doing": "优先级 1/2 仅因已有字段更接近低成本证伪而保留；稀疏强制流休眠；跨场所路线因数据最弱且易退化为机构速度优势而近期开除。没有路线满足启动门。",
+    "current_action": "STOP",
+    "user_approval_required_before_any_route_preregistration": true
+  },
+  "safety": {
+    "frozen_g1_g10_unchanged": true,
+    "records_unchanged": true,
+    "exam_actions": 0,
+    "trade_allowed": false,
+    "system_status": "NO_GO",
+    "real_money_change_forbidden": true
+  },
+  "hashes": {
+    "portfolio_hash": "166ea394419544f55e54919216b6e67b31e2d1dfaf11ef27df06bb3686072977",
+    "hash_method": "读取本 JSON 为通用对象，将 hashes.portfolio_hash 置为 null，然后使用 datatruth.HashJSON；即 Go encoding/json 确定性编码后 SHA-256 小写 hex。",
+    "self_excluded_field": "hashes.portfolio_hash"
+  }
+}

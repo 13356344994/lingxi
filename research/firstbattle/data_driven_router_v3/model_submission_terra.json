@@ -1,0 +1,43 @@
+{
+  "schema_version": "lingxi.data-driven-router-v3.model-submission.v1",
+  "owner_id": "terra",
+  "model_family": "deterministic_bounded_depth_tree",
+  "source_scope": [
+    "internal/datadrivenv3/models/tree/**"
+  ],
+  "bindings": {
+    "model_api_schema_version": "lingxi.data-driven-router-v3.model-api.v1",
+    "model_api_hash": "1593a18d2db0cdac3cc32d3adbd147490d3981e4142c0281bd1d46ebe9ba4168",
+    "grid_hash": "789f18922df9060e8991afe650955706c74a88c016e6617dd7b3629de7f45b72",
+    "synthetic_fixture_input_hash": "882e7638640fab7546837ed8143496c722881d426c2ac008a4f96881f9433d8c",
+    "implementation_hash": "e64967ba048fe4b7811d0626c41c426691b762a0bd5bf41469358a2cb7d61b46",
+    "fitted_model_hash": "computed as sha256(implementation, seed, selected_grid, synthetic_input_hash, canonical_policy)"
+  },
+  "frozen_search": {
+    "seed": 42,
+    "depth": [2, 3, 4],
+    "min_leaf_blocks": [10, 20],
+    "max_leaves": [8, 16],
+    "max_attempts": 16,
+    "attempts_used_per_fit": 12,
+    "max_candidate_leaves": 32,
+    "training_row_cap": 8192,
+    "max_quantile_thresholds_per_feature": 31,
+    "training_row_selection_key": "seed_42_example_id_event_id_decision_ms_only"
+  },
+  "guarantees": {
+    "decision_time_market_and_account_only": true,
+    "missing_aware_predicates": true,
+    "symbol_or_date_features_used": false,
+    "event_id_or_decision_time_features_used": false,
+    "filesystem_io": false,
+    "real_dataset_read": false,
+    "reward_labels_read": false,
+    "peer_outputs_read": false,
+    "attempt_ledger_append_only": true,
+    "replayable_leaf_predicates_and_reasons": true
+  },
+  "status": "SYNTHETIC_FIXTURE_ONLY_NOT_VALIDATED",
+  "labels_read": false,
+  "trade_allowed": false
+}

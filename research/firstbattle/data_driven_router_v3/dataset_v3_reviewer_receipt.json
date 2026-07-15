@@ -1,0 +1,142 @@
+{
+  "schema_version": "lingxi.data-driven-router-v3.dataset-v3-reviewer-receipt.v2",
+  "artifact_id": "firstbattle.data-driven-router-v3.dataset-v3-reviewer-receipt",
+  "reviewed_at": "2026-07-14T14:24:00Z",
+  "reviewer": {
+    "identity": "Independent writable reviewer session",
+    "model": "Claude Sonnet 5",
+    "workspace": "/root/lingxi",
+    "write_scope": [
+      "research/firstbattle/data_driven_router_v3/dataset_v3_reviewer_receipt.json",
+      "research/firstbattle/data_driven_router_v3/dataset_v3_reviewer_receipt.md"
+    ],
+    "commits_made": false,
+    "prohibited_data_accessed": false
+  },
+  "verdict": "APPROVED",
+  "approved_scope": {
+    "protocol_generation": "firstbattle-data-driven-router-v3-g7",
+    "protocol_g7_overlay_hash": "4aacc43e928d25b6b83cdf8fe10d5b576e2b1009ea10b7bfad3e750388e47747",
+    "protocol_g7_document_hash": "92c09f9c8cec70f1c4a9665abc570483c880a7f1e944b60ee0e3fbd7a9d289d4",
+    "dataset_path": "research/firstbattle/data_driven_router_v3/dataset_state_okx_1h_v3",
+    "dataset_manifest_hash": "f9dc0944919709a49f765fe3291cf60a46952919f796add47d892af5f2808a6d",
+    "dataset_rows": 3996040,
+    "dataset_shards": 34,
+    "source_binding_hash": "4089551091dae25213db1c27e6bac754498cbb2e2102cbab5e53fb0099960405",
+    "account_fixture_receipt": "research/firstbattle/data_driven_router_v3/account_state_fixture_receipt.json",
+    "account_fixture_status": "PASS"
+  },
+  "methods": [
+    {
+      "id": "M1",
+      "method": "Recomputed protocol_g7.json with hashes.overlay_hash=null using canonical sorted compact JSON SHA-256; normalized the single protocol_g7.md Document hash line to SELF_EXCLUDED and SHA-256 hashed LF bytes. Cross-checked g7 supersedes/inheritance declarations against the already reviewed g1-g6 declared hash chain.",
+      "result": "PASS"
+    },
+    {
+      "id": "M2",
+      "method": "Recomputed dataset_manifest.json using the builder's actual pre-insertion method: remove manifest_hash, canonical JSON SHA-256. Cross-checked dataset_receipt rows/shards/hash, checkpoint COMPLETE sealed_shards equality, and source_binding binding-subobject hash.",
+      "result": "PASS"
+    },
+    {
+      "id": "M3",
+      "method": "For each of 34 shards, streamed SHA-256 over compressed bytes, fully decompressed for gzip integrity, compared its .receipt.json object to the manifest entry, and sampled the first and last JSON lines for decision_ms equality to declared first_ms/last_ms. Did not perform a new 4M-row semantic rescan.",
+      "result": "PASS"
+    },
+    {
+      "id": "M4",
+      "method": "Summed manifest-declared shard rows and derived partition extrema from all 34 manifest entries; cross-checked the three chronological partition gaps against g7 purge requirements.",
+      "result": "PASS"
+    },
+    {
+      "id": "M5",
+      "method": "Cross-checked g7 and manifest legacy statuses, sealed reward flags, safety flags, and account_state_fixture_receipt.json status/declared no-real-StateRow/no-reward-label access.",
+      "result": "PASS"
+    }
+  ],
+  "findings": {
+    "g7_json_self_hash": {
+      "declared": "4aacc43e928d25b6b83cdf8fe10d5b576e2b1009ea10b7bfad3e750388e47747",
+      "recomputed": "4aacc43e928d25b6b83cdf8fe10d5b576e2b1009ea10b7bfad3e750388e47747",
+      "pass": true
+    },
+    "g7_markdown_self_hash": {
+      "declared": "92c09f9c8cec70f1c4a9665abc570483c880a7f1e944b60ee0e3fbd7a9d289d4",
+      "recomputed": "92c09f9c8cec70f1c4a9665abc570483c880a7f1e944b60ee0e3fbd7a9d289d4",
+      "pass": true
+    },
+    "g7_inheritance": {
+      "g6_hash": "08b609e3271029b1e9f772921e325ef7c7fd30326589ae9c03cc86d73d9c844b",
+      "all_unmodified_fields_inherited": true,
+      "dataset_binding_corrected_to_v3": true,
+      "pass": true
+    },
+    "manifest_self_hash": {
+      "method": "manifest_hash absent during hash, matching cmd/data-driven-v3-dataset/main.go",
+      "declared": "f9dc0944919709a49f765fe3291cf60a46952919f796add47d892af5f2808a6d",
+      "recomputed": "f9dc0944919709a49f765fe3291cf60a46952919f796add47d892af5f2808a6d",
+      "pass": true
+    },
+    "artifact_binding": {
+      "dataset_receipt_matches_manifest": true,
+      "checkpoint_status": "COMPLETE",
+      "checkpoint_shards_equal_manifest": true,
+      "source_binding_recomputed": true,
+      "pass": true
+    },
+    "shards": {
+      "count": 34,
+      "compressed_sha256_matches": 34,
+      "gzip_integrity_passes": 34,
+      "shard_receipts_match_manifest": 34,
+      "first_last_samples_match": 34,
+      "declared_row_sum": 3996040,
+      "declared_row_sum_matches_manifest": true,
+      "pass": true
+    },
+    "partition_gaps_hours": {
+      "discovery_to_validation": 50.0,
+      "validation_to_leaf_wf": 50.0,
+      "leaf_wf_to_router_holdout": 50.0,
+      "required_purge_each_side_hours": 24,
+      "pass": true
+    },
+    "legacy_datasets": {
+      "v1": "STALLED_UNTRUSTED",
+      "v2": "BLOCKED_PURGE_MISSING",
+      "valid_model_inputs": false,
+      "pass": true
+    },
+    "reward_and_safety": {
+      "reward_label_bundle": "SEALED_NOT_READ_OR_CREATED",
+      "labels_unblinded": false,
+      "routes_started": 0,
+      "system_status": "NO_GO",
+      "trade_allowed": false,
+      "pass": true
+    },
+    "account_fixture": {
+      "status": "PASS",
+      "real_state_rows_read": false,
+      "sealed_labels_read": false,
+      "pass": true
+    }
+  },
+  "limitations": [
+    "No new line-by-line semantic scan or independent row recount of 3,996,040 rows was performed; approval is hash-bound to the manifest, all compressed shard bytes, matching shard receipts, gzip integrity, and first/last-line samples.",
+    "No reward, PnL, winner, exam, private-raw, or records data was read.",
+    "Approval is limited to the preregistered g7 protocol/dataset/account-fixture evidence chain. It does not authorize route execution, label unsealing, exam, shadow, or real-money trading."
+  ],
+  "safety": {
+    "system_status": "NO_GO",
+    "trade_allowed": false,
+    "labels_unblinded": false,
+    "reward_label_bundle": "SEALED_NOT_READ_OR_CREATED",
+    "reviewer_made_commits": false,
+    "reviewer_modified_other_files": false
+  },
+  "hashes": {
+    "receipt_hash": "5fbb51bf0bab3be2649b57ba76ed68b2f714cda8a5fc7c0722a1a53f4c52edfb",
+    "hash_method": "Set hashes.receipt_hash to null, then SHA-256 the canonical JSON encoding (sorted keys, compact separators, UTF-8).",
+    "self_excluded_field": "hashes.receipt_hash"
+  }
+}

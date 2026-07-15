@@ -1,0 +1,40 @@
+{
+  "schema_version": "lingxi.data-driven-router-v3.account-state-fixture-receipt.v1",
+  "status": "PASS",
+  "generation": "firstbattle-data-driven-router-v3-g6",
+  "protocol_hashes": {
+    "g1": "5d80166eb28307d23e33cd19efae2b60811852ff0da49a3a6e16663aba2e7ddd",
+    "g2": "7096395f1f3bae212b6dc866c5d46ccb372cd284e4a959d424dfbfbb92d6c226",
+    "g3": "63f4ee088efb09e9e58386ab273b997af4a9206d4c5c18e73c59fda5d42a7a57",
+    "g4": "2fd8c5852bba5023c9024d46b5b5e9527e71d670c370a1276e4728f4ef4cd2b9",
+    "g5": "518d0003c829da641f1bcc955c4382023e158ba9938c0ac6f0ff19b5bf729385",
+    "g6": "08b609e3271029b1e9f772921e325ef7c7fd30326589ae9c03cc86d73d9c844b"
+  },
+  "hash_verification": {
+    "g6_method": "protocol_g6.json with hashes.overlay_hash null, repository datatruth.HashJSON canonical JSON",
+    "g6_recomputed": "08b609e3271029b1e9f772921e325ef7c7fd30326589ae9c03cc86d73d9c844b",
+    "accountstate_go_sha256": "47b4ffcb76d31855a207d280cc8f5f006f672581ae8bdac5ae74817f97bc9c2c",
+    "accountstate_test_go_sha256": "1ebbd42272deeca6b92fbe751d5b062eda0b231e21e8bb5f9e46ffa736bb2dcb"
+  },
+  "fixtures": [
+    "FLAT_to_LONG",
+    "FLAT_to_SHORT",
+    "LONG_HOLD",
+    "LONG_ADD_weighted_entry",
+    "LONG_TRIM_proportional_realization",
+    "LONG_CLOSE",
+    "LONG_REVERSE_equals_CLOSE_then_SHORT",
+    "SHORT_mirror_all_transitions",
+    "HOLD_signed_funding",
+    "pending_delay_MTM_before_execution",
+    "EOF_pending_discard",
+    "withdrawal_after_MTM_before_new_risk",
+    "unknown_MMR_withdrawal_deferred",
+    "five_times_leverage_hard_gate",
+    "no_negative_cash"
+  ],
+  "sealed_labels_read": false,
+  "real_state_rows_read": false,
+  "routes_started": 0,
+  "trade_allowed": false
+}

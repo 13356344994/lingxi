@@ -1,0 +1,8 @@
+{
+  "labels_unblinded": false,
+  "manifest_hash": "f9dc0944919709a49f765fe3291cf60a46952919f796add47d892af5f2808a6d",
+  "reward_label_bundle": "SEALED_NOT_READ_OR_CREATED",
+  "rows": 3996040,
+  "schema_version": "lingxi.data-driven-router-v3.dataset-receipt.v1",
+  "shards": 34
+}

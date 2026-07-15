@@ -1,0 +1,187 @@
+{
+  "schema_version": "lingxi.p0-swap-data-fitness.v1",
+  "artifact_id": "firstbattle.p0-swap-data-fitness",
+  "generation": "firstbattle-p0-swap-data-fitness-v1",
+  "frozen_at": "2026-07-13T18:09:00Z",
+  "status": "REDTEAM_PASS_DATA_FITNESS_CLASSIFICATION_STOPPED",
+  "supreme_objective": "在不同市场状态、特殊事件和个人执行条件下，动态路由到各自经过历史证据认证的专属盈利路径；没有可靠匹配路径时必须空仓。最终以资金流调整后的真实账户净值长期增长为唯一成功标准。",
+  "scope": "只审计已发布 OKX SWAP orders/fills 与 current instruments 的 provenance、字段存在性、token identity join、时钟、PIT、分母和路线适配性。不读取 pnl/fillPnl/outcome 值，不运行收益、validation、WF、考试、shadow 或真钱。",
+  "bindings": {
+    "route_data_contracts_protocol_hash": "4a4c201d2c8cedde5bd1ff55ea40ad31d099e189feb709a517701b504c453588",
+    "route_data_source_registry_hash": "1c6672563d4bc00ea102df2f9575b365a2a9dc30e763db75067f9a49052e5318",
+    "orders_manifest_hash": "3bd6db35f9270cf22183249d542fbb0acd62d5aa70d6ae7199d23acb639a55fa",
+    "orders_projection_schema_hash": "3c30a0321d5fa4e5030611dbed2767f9a789291695944fc44b0d1c9d5e67ea96",
+    "orders_query_hash": "1f355e27461ff32f0e63b97518ce8cf676743e769e5dc6042dce9b126525420e",
+    "fills_manifest_hash": "390c153265d29d7147ca7efcfc1bea38941beffa05df540bbd2895b04a3bc295",
+    "fills_projection_schema_hash": "20ceb85a78bbab6503c261e3f43feb2ef4b2af41046cba59e04ef793558c48fe",
+    "instruments_current_hash": "34cca1c1f629c6f0271722e905ea7bff04d5f1352b7562bc21d5a04c27f1099d",
+    "instruments_manifest_hash": "073f3087042402e004e99cf211a069b36c6312b9bd429f61646bf444d8510715",
+    "instruments_snapshot_raw_hash": "e2445309936d2079d959cc6ae060c03e76b1d8b791f2ef2ce132793175e29267",
+    "instruments_snapshot_receipt_hash": "f880ae937f32bec7f2e9d203e2a03f2485e5382df8022ee30059f79914e5f628",
+    "measurement_receipt_hash": "f23a815fba52dab22368428a6a95250a1ad58e429c09613fea0ac977b1030c92",
+    "measurement_calculator_version": "p0-swap-data-fitness.v3",
+    "orders_projection_aggregate_hash": "e2cad38f667a0895fcc7ad0d4961b5bf5b3d8d67d3dd3c5e931618cee877b6b3",
+    "fills_projection_aggregate_hash": "36d3fd5e3e0fe267af94122e590da077fb49fa3b290d90268b488d9dc8fa2b2a"
+  },
+  "outcome_blind_attestation": {
+    "forbidden_values_read": false,
+    "pnl_fillPnl_outcome_read": false,
+    "projection_only_for_private_rows": true,
+    "generator_no_outcomes": true,
+    "routes_started": 0,
+    "exam_actions": 0,
+    "trade_allowed": false
+  },
+  "measured_counts": {
+    "orders_records": 13622,
+    "orders_distinct_order_tokens": 13622,
+    "orders_duplicate_count": 0,
+    "orders_missing_identity_count": 0,
+    "orders_state": {"filled": 13566, "canceled": 56},
+    "orders_canceled_accFill_gt_zero": 56,
+    "orders_canceled_accFill_eq_zero": 0,
+    "orders_ord_type": {"ioc": 7228, "post_only": 6393, "market": 1},
+    "orders_clOrdId_missing": 1,
+    "orders_source_nonempty": 0,
+    "fills_records": 15676,
+    "fills_distinct_order_tokens": 13622,
+    "fills_distinct_trade_tokens": 15676,
+    "fills_distinct_bill_tokens": 15676,
+    "fills_exec_type": {"T": 9081, "M": 6595},
+    "fills_single_fill_orders": 12212,
+    "fills_multi_fill_orders": 1410,
+    "fills_max_per_order": 40,
+    "fills_clOrdId_missing": 1,
+    "join_fill_order_tokens_matched": 13622,
+    "join_fill_order_tokens_unmatched": 0,
+    "distinct_utc_days": 26,
+    "top_two_day_share_pct": 81.7428,
+    "orders_traded_distinct_instruments": 144,
+    "fills_traded_distinct_instruments": 144,
+    "union_traded_distinct_instruments": 145,
+    "union_traded_in_current_snapshot": 143,
+    "traded_missing_from_snapshot": ["DATA-USDT-SWAP-OFF20260702-2", "IP-USDT-SWAP"],
+    "cross_endpoint_instId_conflict_orders": 168,
+    "cross_endpoint_instId_conflict_fill_rows": 199,
+    "cross_endpoint_instId_conflict_pairs": {
+      "DATA-USDT-SWAP-OFF20260702-2 -> IP-USDT-SWAP": {"orders": 168, "fill_rows": 199}
+    },
+    "current_instruments_records": 420,
+    "current_instruments_ctType_present": 420,
+    "current_instruments_minSz_present": 420,
+    "current_instruments_ctVal_present": 420
+  },
+  "time_ranges": {
+    "orders_event": {"min": "2026-06-12T12:53:51.619Z", "max": "2026-07-11T01:54:58.546Z"},
+    "fills_event": {"min": "2026-06-12T12:53:51.620Z", "max": "2026-07-11T01:54:58.546Z"},
+    "orders_local_retrieval": {"min": "2026-07-13T17:16:25.440900143Z", "max": "2026-07-13T17:18:42.519197240Z"},
+    "fills_local_retrieval": {"min": "2026-07-13T17:25:59.953540067Z", "max": "2026-07-13T17:28:37.054194083Z"},
+    "instruments_known_from": "2026-07-13T17:29:07.322248434Z"
+  },
+  "fitness_matrix": {
+    "root_context_ood": {
+      "provenance": "DIRECT",
+      "event_clock": "DIRECT",
+      "receive_clock": "MISSING_ORIGINAL",
+      "pit_universe": "MISSING",
+      "market_context": "MISSING",
+      "current_status": "GATE_ACTIVE_FAIL_CLOSED"
+    },
+    "micro_execution_capacity_cliff": {
+      "exchange_identity": "PARTIAL_UNSTABLE_ACROSS_ENDPOINTS",
+      "order_fill_join": "DIRECT",
+      "partial_fill_sequence": "DIRECT_RECONSTRUCTABLE",
+      "fees": "DIRECT",
+      "attempted_price_size": "DIRECT",
+      "decision_id_to_order_identity": "MISSING",
+      "ack_clock": "MISSING",
+      "original_receive_clock": "MISSING",
+      "complete_attempt_denominator": "MISSING",
+      "no_fill_arm": "MISSING",
+      "rejected_expired_live_open": "MISSING",
+      "attempt_time_instrument_pit": "PIT_UNPROVEN",
+      "decision_time_depth_spread_mid": "MISSING"
+    },
+    "exchange_rule_discontinuity": {
+      "current_instrument_snapshot": "DIRECT_FORWARD_ONLY",
+      "historical_rule_versions": "MISSING",
+      "effective_at_known_from": "MISSING",
+      "boundary_event_denominator": "MISSING",
+      "current_status": "DATA_BLIND/PIT_UNPROVEN"
+    },
+    "sparse_forced_flow": {
+      "forced_event_identity": "MISSING_NOT_APPLICABLE_SOURCE",
+      "uptime_denominator": "MISSING",
+      "payer_disappearance": "MISSING",
+      "current_status": "DATA_BLIND"
+    },
+    "cross_venue_operational_asymmetry": {
+      "synchronized_executable_books": "MISSING",
+      "peer_venue_identity": "MISSING",
+      "collateral_authorization": "MISSING",
+      "current_status": "DATA_BLIND/WEAK_PROXY_ONLY"
+    }
+  },
+  "earliest_blockers": {
+    "micro_execution_capacity_cliff": {
+      "primary": "INCOMPLETE_ATTEMPTS_DENOMINATOR",
+      "evidence": "All 13,622 downloaded orders have accFillSz>0; 56 canceled orders are partial-fill cancellations; zero no-fill orders are present. Rejected, expired, historical live-open and decision-side non-submissions are absent.",
+      "secondary": ["CROSS_ENDPOINT_INSTRUMENT_IDENTITY_DRIFT", "ORIGINAL_RECEIVE_TIME_ABSENT", "DECISION_ID_ABSENT", "INSTRUMENT_PIT_UNPROVEN"]
+    },
+    "exchange_rule_discontinuity": "HISTORICAL_INSTRUMENT_RULE_VERSION_CHAIN_ABSENT",
+    "sparse_forced_flow": "SOURCE_NOT_FORCED_FLOW",
+    "cross_venue_operational_asymmetry": "SYNCHRONIZED_EXECUTABLE_MULTI_VENUE_SOURCE_ABSENT"
+  },
+  "classification_verdict": {
+    "root_context_ood": "GATE_ACTIVE_FAIL_CLOSED",
+    "micro_execution_capacity_cliff": "DATA_BLIND",
+    "exchange_rule_discontinuity": "DATA_BLIND/PIT_UNPROVEN",
+    "sparse_forced_flow": "DATA_BLIND",
+    "cross_venue_operational_asymmetry": "DATA_BLIND/WEAK_PROXY_ONLY",
+    "routes_reopened": 0
+  },
+  "interpretation_limits": [
+    "100% token join proves row-level referential integrity only; it does not prove complete attempts denominator.",
+    "The same order token has conflicting instId values across orders and fills for 168 orders/199 fill rows, so exchange identity is not stable across endpoints.",
+    "Current instrument metadata may only apply from KnownFrom forward and cannot be backfilled over the downloaded attempts.",
+    "The 26 UTC days are highly concentrated: 81.7428% of orders occur in two days.",
+    "Report Center and bills history can extend calendar coverage but cannot create rejected/no-fill/decision denominator or original ReceiveTime."
+  ],
+  "next_highest_value_actions": [
+    "Define and implement an append-only local execution attempt WAL with decision_id, submit/reject/no-fill/partial/cancel/ack/fill clocks and uptime/gap manifest.",
+    "Maintain a forward-only instrument PIT ledger with KnownFrom and delist/version changes.",
+    "Prepare Report Center Order History manual CSV import and schema gate for longer completed-order coverage; do not call it a complete attempt denominator.",
+    "Use public tape only as decision-time context when an exact bounded source exists; do not let it replace private attempts."
+  ],
+  "owner_decision_journal": {
+    "owner": "LINGXI data contract and causal audit owner",
+    "competing_hypotheses": [
+      "HA: 100% order-fill join means the data is ready.",
+      "HB: the API slice is survivor-biased because no-fill/rejected/expired/live-open arms are absent.",
+      "HC: original ReceiveTime and attempt-time instrument PIT remain unobservable.",
+      "HD: nominal day count is dominated by two days and may hide support failure."
+    ],
+    "strongest_counterexample": "Every downloaded order has a positive accumulated fill, so the dataset cannot compare fill versus no-fill attempts even though joins are complete.",
+    "chosen_method": "Outcome-blind projection counts, token joins, field presence, time ranges and snapshot set differences only.",
+    "rejected_methods": ["reading outcome fields", "backfilling current instruments", "equating joins with denominator", "running research or exams"],
+    "stop_decision": "The tested v3 generator rebuilt and hash-bound all measurements after the first red-team block. Independent Sonnet review passed the Data Fitness classification; freeze at DATA_BLIND/routes_reopened=0 and do not proceed to outcome research."
+  },
+  "independent_redteam": {
+    "reviewer": "Sonnet 5 Thinking High",
+    "verdict": "PASS_DATA_FITNESS_CLASSIFICATION",
+    "approved_scope": "Current data remains DATA_BLIND with routes_reopened=0 only.",
+    "not_approved": ["outcome research", "validation", "walk-forward", "exam", "shadow", "real money"]
+  },
+  "safety": {
+    "system_status": "NO_GO",
+    "exam_status": "EXAM_UNAVAILABLE",
+    "trade_allowed": false,
+    "labels_unblinded": false,
+    "routes_started": 0
+  },
+  "hashes": {
+    "artifact_hash": "393a12952b480fc2671774d76790e5f850bcbc26b43c8eb8d870bba9c9e2bd66",
+    "hash_method": "Set hashes.artifact_hash to null, then compute repository datatruth.HashJSON.",
+    "self_excluded_field": "hashes.artifact_hash"
+  }
+}

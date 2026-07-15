@@ -1,0 +1,531 @@
+{
+  "schema_version": "lingxi.g10-reopen-condition-inventory.v1",
+  "inventory_id": "firstbattle.g10.reopen-condition-inventory",
+  "created_at": "2026-07-13T13:03:00Z",
+  "status": "EXISTENCE_INVENTORY_COMPLETE_STOPPED",
+  "scope": "Read-only existence, schema, identity, PIT and denominator inventory over already-existing historical assets.",
+  "bindings": {
+    "source_manifest_hash": "66b47378f674a2e9f8cdbe6e7649f11afee633610aa5ca330c09f2d38b8b79cd",
+    "audit_protocol_hash": "dccd7974a7d172e3894174a953c4cce02ea840a48bb41fbdec589ed4d1153dd3",
+    "formal_audit_source_manifest_hash": "c8c5f38e6542855aa6fbc8e3373a751a24646922d0838a9774fce4a7e41a9379",
+    "formal_audit_summary_hash": "cf9da460a7807c4d131bbc1e2b22ec9c0e860902fbb6a9726707d7c697b9d9ab",
+    "formal_audit_receipt_hash": "29494eb6dfc62c8317315f93391aa60bd9d4f7ae515a166f94ae0a28c99b4f9a",
+    "stage_summary_hash": "05550c0603fa340939c35efa9bd212509ab48cec50b07e541f530e875a7817ff",
+    "route_portfolio_hash": "166ea394419544f55e54919216b6e67b31e2d1dfaf11ef27df06bb3686072977",
+    "history_data_hash": "f41ed2586d91054c4b5b2e15e60f32a4d64ccde0032e76dfdc5fc6dee316379c"
+  },
+  "source_binding_registry": {
+    "new": {
+      "manifest_path": "research/firstbattle/g10_reopen_condition_inventory_source_manifest.json",
+      "manifest_hash": "66b47378f674a2e9f8cdbe6e7649f11afee633610aa5ca330c09f2d38b8b79cd",
+      "resolution": "new:<source_id> resolves to new_candidate_prefixes[source_id]"
+    },
+    "formal": {
+      "manifest_path": "research/firstbattle/g10_execution_evidence_audit/source_manifest.json",
+      "manifest_hash": "c8c5f38e6542855aa6fbc8e3373a751a24646922d0838a9774fce4a7e41a9379",
+      "resolution": "formal:<source_id> resolves to formal_audit_references.entries[source_id] in the new manifest and the original formal manifest"
+    },
+    "immutable": {
+      "manifest_path": "research/firstbattle/g10_reopen_condition_inventory_source_manifest.json",
+      "manifest_hash": "66b47378f674a2e9f8cdbe6e7649f11afee633610aa5ca330c09f2d38b8b79cd",
+      "resolution": "immutable:<asset_id> resolves to immutable_research_assets[asset_id]"
+    },
+    "absent": {
+      "manifest_path": "research/firstbattle/g10_reopen_condition_inventory_source_manifest.json",
+      "manifest_hash": "66b47378f674a2e9f8cdbe6e7649f11afee633610aa5ca330c09f2d38b8b79cd",
+      "resolution": "absent:<asset_id> resolves to absent_expected_paths[asset_id] with hash=null"
+    }
+  },
+  "verdict_enum": [
+    "PRESENT_COMPLETE",
+    "PRESENT_PARTIAL",
+    "WEAK_PROXY_ONLY",
+    "ABSENT",
+    "PIT_UNPROVEN"
+  ],
+  "portfolio_result": {
+    "routes_reopened": 0,
+    "present_complete_routes": 0,
+    "route_verdicts": {
+      "micro_execution_capacity_cliff": "PRESENT_PARTIAL",
+      "exchange_rule_discontinuity": "PIT_UNPROVEN",
+      "sparse_forced_flow": "PRESENT_PARTIAL",
+      "cross_venue_operational_asymmetry": "WEAK_PROXY_ONLY"
+    },
+    "automatic_route_selection": false,
+    "new_generation_authorized": false
+  },
+  "outcome_private_exclusion": {
+    "labels_unblinded": false,
+    "outcome_values_read": false,
+    "outcome_values_reported": false,
+    "private_values_emitted": false,
+    "forbidden_fields": [
+      "future_return",
+      "return",
+      "pnl",
+      "profit",
+      "winner",
+      "future_outcome",
+      "realized_usdt",
+      "realized_pnl",
+      "mfe",
+      "mae"
+    ],
+    "files_with_forbidden_fields": "May be bound by raw-byte hash or schema-only inspection, but forbidden values are never projected."
+  },
+  "formal_audit_omitted_sources_found": [
+    {
+      "source_ids": ["okx_liquidation_events", "bybit_liquidation_events"],
+      "finding": "Direct public-exchange forced-action observations with exchange timestamp, local recorded_at, forced side and size.",
+      "effect": "Upgrades forced-flow existence from assumed missing to PRESENT_PARTIAL; does not satisfy stable exchange event ID, three clocks, uptime denominator or payer disappearance."
+    },
+    {
+      "source_ids": ["hot_mids_with_timestamped_anchors"],
+      "finding": "Timestamped Binance/Bybit/Gate/OKX-spot anchor mids exist.",
+      "effect": "Upgrades cross-venue mid availability, but remains WEAK_PROXY_ONLY because mid anchors are not synchronized executable bid/ask/depth."
+    },
+    {
+      "source_ids": ["okx_dynamic_features", "okx_hot_micro", "okx_full_burst_probe", "okx_market_mids", "multi_venue_funding_oi_snapshots"],
+      "finding": "Decision-time public market context exists with varying windows.",
+      "effect": "Adds weak/reconstructable context only; does not supply shared order lifecycle, instrument rule versions or full cross-venue execution."
+    },
+    {
+      "source_ids": ["firstbattle_mechanism_shadow"],
+      "finding": "500 selected shadow rows expose decision_id and card event/receive fields.",
+      "effect": "Identity fragment only; two-second selected subset cannot form an outcome-blind complete denominator."
+    },
+    {
+      "source_ids": ["rule_probe_audit", "fast_position_cleanup", "slow_position_cleanup", "mexc_okx_tape_probe", "crossvenue_settlements"],
+      "finding": "Small execution/rule/cross-venue fragments exist.",
+      "effect": "Schema fragments are bound but remain too sparse or selected to satisfy route reopen conditions."
+    }
+  ],
+  "writer_code_without_production_asset": [
+    {
+      "capability": "append-only execution WAL with decision/intent/client-order/exchange-order/trade IDs and fill payload",
+      "code_evidence": "internal/execution/journal.go and internal/execution/reducer.go",
+      "absent_paths": ["records/execution.wal", "records/okx_directional/execution.wal"],
+      "finding": "Writer/schema exists in code; no production WAL asset exists at expected paths."
+    },
+    {
+      "capability": "PIT InstrumentCatalog with KnownFrom",
+      "code_evidence": "internal/datatruth/pit.go",
+      "absent_paths": ["records/okx_directional/instrument_catalog.json", "records/context/instrument_catalog.json"],
+      "finding": "Catalog model exists, but no persisted production catalog; model also lacks ctType."
+    },
+    {
+      "capability": "peer lead/lag event stream",
+      "code_evidence": "legacy/expected path naming",
+      "absent_paths": ["records/okx_directional/fast_peer_leadlag_events.jsonl"],
+      "finding": "Expected historical file is absent; no hash is fabricated."
+    },
+    {
+      "capability": "versioned instrument/rule archive and synchronized cross-venue executable books",
+      "code_evidence": "route reopen requirement only",
+      "absent_paths": [
+        "records/okx_directional/instrument_rule_archive.jsonl",
+        "records/crossvenue/synchronized_executable_books.jsonl",
+        "records/crossvenue/collateral_authorization_history.jsonl"
+      ],
+      "finding": "No production asset exists at expected paths."
+    }
+  ],
+  "routes": [
+    {
+      "route_id": "micro_execution_capacity_cliff",
+      "existence_verdict": "PRESENT_PARTIAL",
+      "reopen_condition_satisfied": false,
+      "conditions": [
+        {
+          "condition_id": "maker_attempt_denominator_fragment",
+          "required": "All semantically valid maker attempts for the collector scope.",
+          "candidate_sources": ["formal:maker_attempts"],
+          "schema_fields": ["recorded_at", "venue", "symbol", "side", "maker_order_price", "maker_wait_ms", "maker_filled", "fill_price", "entry_confirm_path"],
+          "time_range": "2026-06-30T18:34:22.198332486Z..2026-07-11T01:34:26.539056204Z",
+          "identity_status": "composite attempt key only",
+          "pit_status": "recorded_at available; fill/wait known after decision",
+          "denominator_status": "29849/29849 maker-attempt rows exist for this writer, but cannot link to the other lifecycle streams",
+          "fitness": "DIRECT",
+          "satisfied": true,
+          "blocker": "This is an attempt denominator fragment, not a shared order lifecycle.",
+          "source_manifest_binding": "c8c5f38e...:maker_attempts:3711e84e..."
+        },
+        {
+          "condition_id": "exchange_fill_identity",
+          "required": "Stable fill identity, size, price, exchange time and fee.",
+          "candidate_sources": ["formal:exchange_fills"],
+          "schema_fields": ["tradeId", "billId", "ordId", "clOrdId", "fillSz", "fillPx", "fillTime", "fee", "feeCcy"],
+          "time_range": "2026-06-29T00:02:26.788Z..2026-07-02T11:33:38.177Z",
+          "identity_status": "exchange fill IDs present",
+          "pit_status": "KNOWN_AFTER_DECISION",
+          "denominator_status": "12826 fills only; no non-fill attempt denominator",
+          "fitness": "DIRECT",
+          "satisfied": true,
+          "blocker": "Fill IDs do not join to maker rows because maker rows carry no shared order ID.",
+          "source_manifest_binding": "c8c5f38e...:exchange_fills:2a743419..."
+        },
+        {
+          "condition_id": "shared_order_lifecycle",
+          "required": "A common stable identity across intent, attempted notional, ack, partial fill, cancel and final fill.",
+          "candidate_sources": ["formal:maker_attempts", "formal:exchange_fills", "formal:open_decisions", "new:firstbattle_mechanism_shadow", "new:fast_position_cleanup", "new:slow_position_cleanup"],
+          "schema_fields": ["position_id or decision_id fragments", "fill order IDs", "maker composite key"],
+          "time_range": "fragmented across 2026-06-28..2026-07-11",
+          "identity_status": "45332 unresolved cross-source identities in formal audit; production WAL absent",
+          "pit_status": "mixed decision/after-decision",
+          "denominator_status": "not constructable",
+          "fitness": "MISSING",
+          "satisfied": false,
+          "blocker": "No shared lifecycle ID spans the writers.",
+          "source_manifest_binding": "formal c8c5f38e... plus new 66b47378..."
+        },
+        {
+          "condition_id": "attempted_notional_partial_and_clocks",
+          "required": "Attempted notional, partial size, signal/ack/cancel/fill clocks.",
+          "candidate_sources": ["new:rule_probe_audit", "formal:maker_attempts", "formal:exchange_fills"],
+          "schema_fields": ["rule probe req_qty/notional in 4 rows", "maker_wait_ms", "fillSz/fillTime"],
+          "time_range": "rule probe only 2026-07-10T06:07:05Z..06:07:59Z",
+          "identity_status": "no common identity",
+          "pit_status": "partial after-decision evidence",
+          "denominator_status": "4-row probe cannot represent all attempts",
+          "fitness": "MISSING",
+          "satisfied": false,
+          "blocker": "Attempted notional and partial/ack/cancel/fill chain are not jointly observed.",
+          "source_manifest_binding": "66b47378...:rule_probe_audit:d55e090e..."
+        },
+        {
+          "condition_id": "outcome_blind_event_identity",
+          "required": "Stable event/day/shock identity and complete eligible attempt denominator.",
+          "candidate_sources": ["new:firstbattle_mechanism_shadow", "formal:validation triggers"],
+          "schema_fields": ["decision_id", "card.ID", "EventTimeUnixMs", "ReceiveTimeUnixMs"],
+          "time_range": "500 selected rows over 2026-07-11T08:34:50.927Z..08:34:52.787Z",
+          "identity_status": "selected shadow decision IDs exist; validation source remains aggregate cells",
+          "pit_status": "selected decision-time fragment",
+          "denominator_status": "no complete outcome-blind denominator",
+          "fitness": "RECONSTRUCTABLE",
+          "satisfied": false,
+          "blocker": "Two-second selected shadow subset cannot replace event/day/shock support.",
+          "source_manifest_binding": "66b47378...:firstbattle_mechanism_shadow:c10c0b36..."
+        }
+      ],
+      "blocking_summary": "Direct maker/fill fragments exist, but no shared lifecycle, attempted notional/partial chain, complete clocks or event denominator."
+    },
+    {
+      "route_id": "exchange_rule_discontinuity",
+      "existence_verdict": "PIT_UNPROVEN",
+      "reopen_condition_satisfied": false,
+      "rule_archive_status": "ABSENT",
+      "conditions": [
+        {
+          "condition_id": "current_instrument_snapshot",
+          "required": "Instrument version identity with ctType, ctVal, lot, tick and KnownFrom.",
+          "candidate_sources": ["formal:instrument_metadata"],
+          "schema_fields": ["fetched_at", "list_time_ms", "ct_val", "lot", "tick", "state"],
+          "time_range": "single snapshot fetched_at=2026-07-04T15:38:18.189311Z",
+          "identity_status": "394 current live symbols",
+          "pit_status": "Known only from fetched_at forward; no historical versions",
+          "denominator_status": "current-live snapshot only",
+          "fitness": "DIRECT",
+          "satisfied": false,
+          "blocker": "ctType is absent and current snapshot cannot be backfilled into prior history.",
+          "source_manifest_binding": "c8c5f38e...:instrument_metadata:112cd85e..."
+        },
+        {
+          "condition_id": "ctType_and_dynamic_min_notional",
+          "required": "PIT-valid ctType and dynamic min-notional semantics.",
+          "candidate_sources": ["formal:instrument_metadata", "formal:exchange_fills", "new:multi_venue_funding_oi_snapshots"],
+          "schema_fields": ["instType exists on fills; xmeta vectors contain funding/OI only"],
+          "time_range": "xmeta 1733 snapshots, 2026-07-04T12:48:51.667Z..2026-07-10T11:06:04.254Z",
+          "identity_status": "symbol/instId fragments",
+          "pit_status": "ctType 0/394; dynamic min-notional 0/12826 in formal audit",
+          "denominator_status": "not calculable under frozen protocol",
+          "fitness": "MISSING",
+          "satisfied": false,
+          "blocker": "No source contains explicit historical ctType; xmeta is not instrument metadata.",
+          "source_manifest_binding": "formal c8c5f38e... plus 66b47378...:multi_venue_funding_oi_snapshots:4877cace..."
+        },
+        {
+          "condition_id": "versioned_rule_archive",
+          "required": "effective_at, KnownFrom, rule version and immutable provenance.",
+          "candidate_sources": ["new:rule_probe_audit", "absent:instrument_rule_archive", "immutable:history_catalog"],
+          "schema_fields": ["rule probe action/qty/req_qty/notional/status/error in 4 rows"],
+          "time_range": "rule probe 2026-07-10T06:07:05Z..06:07:59Z; history catalog spans market/funding families only",
+          "identity_status": "one LAB probe sequence; no rule version identity",
+          "pit_status": "PIT_UNPROVEN",
+          "denominator_status": "rule archive absent",
+          "fitness": "MISSING",
+          "satisfied": false,
+          "blocker": "No ctType/effective_at/KnownFrom/rule-version archive exists; code catalog model is not persisted.",
+          "source_manifest_binding": "66b47378...:rule_probe_audit:d55e090e...; absent path has null hash"
+        },
+        {
+          "condition_id": "rule_event_identity",
+          "required": "Outcome-blind events on both sides of a frozen rule discontinuity.",
+          "candidate_sources": ["formal:validation triggers", "immutable:history_catalog"],
+          "schema_fields": ["84 aggregate validation cells; OHLCV/funding timestamps"],
+          "time_range": "history catalog DataHash f41ed258...",
+          "identity_status": "generic bar identity reconstructable; rule-event identity absent",
+          "pit_status": "rule version unavailable",
+          "denominator_status": "cannot form boundary-side denominator",
+          "fitness": "MISSING",
+          "satisfied": false,
+          "blocker": "Price timestamps do not identify a rule version or discontinuity.",
+          "source_manifest_binding": "history_catalog whole-file 9b77c5df... and formal c8c5f38e..."
+        }
+      ],
+      "blocking_summary": "Current instrument fields exist, but explicit ctType, historical effective/KnownFrom versions and rule-event denominator do not."
+    },
+    {
+      "route_id": "sparse_forced_flow",
+      "existence_verdict": "PRESENT_PARTIAL",
+      "reopen_condition_satisfied": false,
+      "conditions": [
+        {
+          "condition_id": "direct_forced_action_observation",
+          "required": "Exchange-origin forced side and size with source provenance.",
+          "candidate_sources": ["new:okx_liquidation_events", "new:bybit_liquidation_events"],
+          "schema_fields": ["symbol", "pos_side/side_raw", "qty", "price/bk_px", "exch_ts", "recorded_at", "venue"],
+          "time_range": "OKX 62728 rows, 2026-07-03T04:13:46.371Z..2026-07-13T12:54:40.518Z; Bybit 85960 rows, 2026-07-04T01:19:23.150Z..2026-07-13T12:54:50.012Z",
+          "identity_status": "no exchange event ID; composite identity can be proposed but is not frozen",
+          "pit_status": "exchange event timestamp plus local recorded_at",
+          "denominator_status": "collector-window rows only",
+          "fitness": "DIRECT",
+          "satisfied": true,
+          "blocker": "Direct forced action exists, but not the full reopen condition.",
+          "source_manifest_binding": "66b47378...:okx_liquidation_events:6cb46516... and bybit_liquidation_events:ae21e08f..."
+        },
+        {
+          "condition_id": "stable_event_identity",
+          "required": "Stable exchange event ID with deterministic dedup.",
+          "candidate_sources": ["new:okx_liquidation_events", "new:bybit_liquidation_events"],
+          "schema_fields": ["symbol+exch_ts+side+qty+price/bk_px composite candidates"],
+          "time_range": "same frozen prefixes",
+          "identity_status": "RECONSTRUCTABLE composite only; one duplicate composite was observed in pre-freeze schema inventory for Bybit",
+          "pit_status": "event-time fields available",
+          "denominator_status": "dedup rule not preregistered",
+          "fitness": "RECONSTRUCTABLE",
+          "satisfied": false,
+          "blocker": "Composite equality is not guaranteed to equal exchange event identity.",
+          "source_manifest_binding": "66b47378..."
+        },
+        {
+          "condition_id": "true_three_clocks",
+          "required": "event, receive and process clocks with declared semantics.",
+          "candidate_sources": ["new:okx_liquidation_events", "new:bybit_liquidation_events"],
+          "schema_fields": ["exch_ts", "recorded_at"],
+          "time_range": "same frozen prefixes",
+          "identity_status": "event/local-record pair",
+          "pit_status": "two clocks only; receive vs process is not separately recorded",
+          "denominator_status": "not applicable",
+          "fitness": "PRESENT_PARTIAL",
+          "satisfied": false,
+          "blocker": "True receive_time and process_time are not distinct.",
+          "source_manifest_binding": "66b47378..."
+        },
+        {
+          "condition_id": "uptime_gap_complete_denominator",
+          "required": "Collector health/gap manifest proving complete event capture over the claimed window.",
+          "candidate_sources": ["new:okx_liquidation_events", "new:bybit_liquidation_events"],
+          "schema_fields": ["none"],
+          "time_range": "approximately 10-day writer windows",
+          "identity_status": "rows only",
+          "pit_status": "UNKNOWN during disconnects",
+          "denominator_status": "incomplete/unproven",
+          "fitness": "MISSING",
+          "satisfied": false,
+          "blocker": "No uptime, subscription-ack, reconnect-gap or completeness manifest.",
+          "source_manifest_binding": "66b47378..."
+        },
+        {
+          "condition_id": "payer_disappearance_and_shock_identity",
+          "required": "Observable payer disappearance plus frozen event/day/shock identity.",
+          "candidate_sources": ["new:firstbattle_mechanism_shadow", "new:okx_dynamic_features", "new:okx_full_burst_probe"],
+          "schema_fields": ["decision_id/card event-receive fragment", "market flow proxies", "market_liq_5m"],
+          "time_range": "mechanism shadow 500 selected rows over two seconds; dynamic features 1881078 rows through 2026-07-13T12:55:15.155Z",
+          "identity_status": "selected decision IDs and proxy rows",
+          "pit_status": "decision-time context exists",
+          "denominator_status": "no complete forced-event support/shock set",
+          "fitness": "WEAK",
+          "satisfied": false,
+          "blocker": "Absence of later flow cannot prove payer disappearance without complete collector uptime; no frozen shock-cluster rule.",
+          "source_manifest_binding": "66b47378..."
+        }
+      ],
+      "blocking_summary": "Direct forced-action rows were missed by the formal audit, but stable exchange identity, true three clocks, complete uptime denominator and payer disappearance remain absent."
+    },
+    {
+      "route_id": "cross_venue_operational_asymmetry",
+      "existence_verdict": "WEAK_PROXY_ONLY",
+      "component_status": {
+        "timestamped_cross_venue_mids": "PRESENT_PARTIAL",
+        "okx_executable_book": "PRESENT_PARTIAL",
+        "synchronized_two_venue_executable_books": "ABSENT",
+        "two_leg_selected_costs": "PRESENT_PARTIAL",
+        "venue_contract_specs": "PIT_UNPROVEN",
+        "collateral_authorization_history": "ABSENT"
+      },
+      "reopen_condition_satisfied": false,
+      "conditions": [
+        {
+          "condition_id": "timestamped_anchor_mids",
+          "required": "Time-aligned cross-venue context.",
+          "candidate_sources": ["new:hot_mids_with_timestamped_anchors", "new:okx_market_mids", "new:mexc_okx_tape_probe"],
+          "schema_fields": ["recorded_at", "mids", "anchors[venue][symbol]=[mid,ts_ms]", "trade tape venue/symbol/ts_ms"],
+          "time_range": "hot mids 421144 rows, 2026-07-04T01:52:47.632Z..2026-07-10T11:07:22.319Z; MEXC/OKX tape 22192 rows over about 12 minutes",
+          "identity_status": "symbol+timestamp context",
+          "pit_status": "anchor timestamps available",
+          "denominator_status": "not an executable opportunity denominator",
+          "fitness": "DIRECT",
+          "satisfied": false,
+          "blocker": "Mids/trade prints are not executable bid/ask/depth.",
+          "source_manifest_binding": "66b47378...:hot_mids...:774e3dae...; mexc_okx_tape_probe:f8014e26..."
+        },
+        {
+          "condition_id": "synchronized_executable_books",
+          "required": "Bid, ask and depth for both venues on a common clock.",
+          "candidate_sources": ["formal:executable_shadow", "new:okx_hot_micro", "absent:synchronized_executable_books"],
+          "schema_fields": ["OKX bid/ask/depth/top quantities; xgap fields; no peer executable books"],
+          "time_range": "formal shadow 2701689 rows; OKX hot micro 416862 rows over 2026-07-10T08:03:24.526Z..11:07:24.630Z",
+          "identity_status": "OKX snapshot identity only",
+          "pit_status": "OKX decision-time book plus peer-mid proxies",
+          "denominator_status": "no two-leg executable event set",
+          "fitness": "WEAK",
+          "satisfied": false,
+          "blocker": "Single-venue book plus xgap/mid cannot prove simultaneous two-leg execution.",
+          "source_manifest_binding": "formal c8c5f38e...:executable_shadow:9c308bbb... plus 66b47378...:okx_hot_micro:3d4e9b75..."
+        },
+        {
+          "condition_id": "venue_fee_slip_latency",
+          "required": "Per-venue, per-leg fee/slip/latency for the complete opportunity denominator.",
+          "candidate_sources": ["new:crossvenue_settlements", "formal:settlements", "formal:exchange_fills"],
+          "schema_fields": ["selected crossvenue open/close fees/slippage and venue labels; mostly OKX formal fills"],
+          "time_range": "214 selected crossvenue settlement rows plus formal audit prefixes",
+          "identity_status": "selected position/opportunity IDs only",
+          "pit_status": "KNOWN_AFTER_DECISION",
+          "denominator_status": "selected executed positions, not all eligible cross-venue events",
+          "fitness": "PRESENT_PARTIAL",
+          "satisfied": false,
+          "blocker": "No complete two-leg attempt/miss denominator or peer latency.",
+          "source_manifest_binding": "66b47378...:crossvenue_settlements:600e6d1f... plus formal c8c5f38e..."
+        },
+        {
+          "condition_id": "venue_specs_and_collateral_authorization",
+          "required": "PIT ctType/specs plus collateral, borrow, transfer and authorization state for each venue.",
+          "candidate_sources": ["new:multi_venue_funding_oi_snapshots", "formal:instrument_metadata", "formal:equity_snapshots", "absent:collateral_authorization_history"],
+          "schema_fields": ["funding/OI vectors", "OKX current ctVal/lot/tick", "venue cash snapshots"],
+          "time_range": "xmeta 1733 rows; formal equity 41771 rows",
+          "identity_status": "venue/symbol fragments",
+          "pit_status": "ctType/spec versions and authorization history unproven",
+          "denominator_status": "not constructable",
+          "fitness": "MISSING",
+          "satisfied": false,
+          "blocker": "Funding/OI and cash do not prove contract semantics, borrow/transfer capability or authorization.",
+          "source_manifest_binding": "66b47378... plus formal c8c5f38e...; absent path has null hash"
+        },
+        {
+          "condition_id": "cross_venue_event_identity",
+          "required": "Stable synchronized event identity and complete executable baseline.",
+          "candidate_sources": ["new:hot_mids_with_timestamped_anchors", "formal:validation triggers"],
+          "schema_fields": ["timestamped mid anchors", "84 aggregate validation cells"],
+          "time_range": "bounded source prefixes",
+          "identity_status": "mid timestamp identity only",
+          "pit_status": "context timestamped but execution unavailable",
+          "denominator_status": "no complete executable event denominator",
+          "fitness": "WEAK",
+          "satisfied": false,
+          "blocker": "No shared executable-book event ID or authorized-capital baseline.",
+          "source_manifest_binding": "66b47378... plus formal c8c5f38e..."
+        }
+      ],
+      "blocking_summary": "Timestamped peer mids and selected two-leg fragments exist, but only as proxies/selected executions; synchronized executable books, full costs, specs and authorization are absent."
+    }
+  ],
+  "owner_report_reconciliation": {
+    "reports": [
+      {
+        "owner": "Terra implementation/schema owner",
+        "responsibility": "Locate files, writer schemas, prefix-safe boundaries and reconstructability constraints."
+      },
+      {
+        "owner": "LINGXI research governance owner",
+        "responsibility": "Apply route-level PIT/identity/denominator standards and prevent proxy upgrades."
+      }
+    ],
+    "agreements": [
+      "No route is PRESENT_COMPLETE.",
+      "Micro execution has real fragments but no shared lifecycle or attempted-notional/clock chain.",
+      "Rule history lacks ctType/effective_at/KnownFrom/version archive.",
+      "Liquidation streams are direct forced-action observations but not a complete denominator.",
+      "Timestamped peer mids are not synchronized executable books.",
+      "No route may reopen automatically."
+    ],
+    "resolved_differences": [
+      {
+        "topic": "forced event identity",
+        "implementation_view": "A composite can be reconstructed from venue/symbol/exch_ts/side/qty/price.",
+        "governance_resolution": "Record as RECONSTRUCTABLE but not satisfied because no stable exchange event ID or frozen dedup semantics."
+      },
+      {
+        "topic": "cross-venue availability",
+        "implementation_view": "Timestamped anchor mids and selected cross-venue settlements are PRESENT_PARTIAL components.",
+        "governance_resolution": "Keep component statuses, but route-level verdict is WEAK_PROXY_ONLY because executable books/full denominator are absent."
+      },
+      {
+        "topic": "firstbattle mechanism identity",
+        "implementation_view": "decision_id and card event/receive fields exist.",
+        "governance_resolution": "Treat as a selected two-second identity fragment, not a complete event denominator."
+      }
+    ],
+    "unresolved_conflict": null
+  },
+  "decision_journal": [
+    {
+      "sequence": 1,
+      "decision": "Freeze new candidate live sources by complete-LF byte prefix; reference formal-audit inputs without rescanning.",
+      "evidence": "Source manifest 66b47378f674a2e9f8cdbe6e7649f11afee633610aa5ca330c09f2d38b8b79cd."
+    },
+    {
+      "sequence": 2,
+      "decision": "Upgrade forced-flow source existence from assumed missing to PRESENT_PARTIAL.",
+      "evidence": "Hash-bound OKX/Bybit liquidation rows expose direct forced side/size and two timestamps."
+    },
+    {
+      "sequence": 3,
+      "decision": "Do not upgrade cross-venue route beyond WEAK_PROXY_ONLY.",
+      "evidence": "Timestamped anchors contain mids, not peer executable bid/ask/depth; selected settlements do not form a denominator."
+    },
+    {
+      "sequence": 4,
+      "decision": "Keep micro PRESENT_PARTIAL and rule PIT_UNPROVEN.",
+      "evidence": "No production WAL/shared lifecycle; no explicit historical ctType/rule version archive."
+    },
+    {
+      "sequence": 5,
+      "decision": "Reopen zero routes and stop.",
+      "evidence": "No RouteCard satisfies all required identity, PIT and denominator conditions."
+    }
+  ],
+  "strongest_uncertainty": "The new forced-action and timestamped-anchor sources were omitted from the formal audit, but their collector uptime and schema boundaries are incomplete. They may support a new measurement design, yet could still produce selection/gap bias; existence does not establish net edge or even a complete falsification denominator.",
+  "next_step": {
+    "inventory_complete": true,
+    "routes_reopened": 0,
+    "direct_new_generation_allowed": false,
+    "allowed_proposal": "A new measurement-design proposal for PRESENT_PARTIAL routes using only these frozen existing prefixes.",
+    "requires_separate_user_approval": true,
+    "automatic_start": false,
+    "no_future_wait": true,
+    "current_action": "STOP"
+  },
+  "safety": {
+    "records_modified": false,
+    "frozen_g1_g10_or_audit_or_portfolio_modified": false,
+    "exam_actions": 0,
+    "trade_allowed": false,
+    "system_status": "NO_GO"
+  },
+  "hashes": {
+    "inventory_hash": "b9b62bc4d959d256e9d553385c2b3a474c1017632a35951a84e70d2a8e46e69a",
+    "hash_method": "Read this JSON as a generic object, set hashes.inventory_hash to null, then compute repository datatruth.HashJSON (deterministic Go encoding/json plus SHA-256 lowercase hex).",
+    "self_excluded_field": "hashes.inventory_hash"
+  }
+}

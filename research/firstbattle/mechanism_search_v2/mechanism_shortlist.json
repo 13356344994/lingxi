@@ -1,0 +1,121 @@
+{
+  "schema_version": "lingxi.mechanism-search-v2.shortlist.v1",
+  "artifact_id": "firstbattle.mechanism-search-v2.mechanism-shortlist",
+  "generation": "mechanism-search-v2-sonnet-reviewer-v1",
+  "produced_at": "2026-07-14T05:40:00Z",
+  "hash_correction_reviewed_at": "2026-07-14T06:02:00Z",
+  "reviewed_library": "research/firstbattle/mechanism_search_v2/mechanism_hypothesis_library.json",
+  "reviewed_library_hash": "d208f96cbf6b22623df47858ab9a0aaaa46d80dd16768ad993daff02bc10eae5",
+  "supreme_objective": "\u5728\u4e0d\u540c\u5e02\u573a\u72b6\u6001\u3001\u7279\u6b8a\u4e8b\u4ef6\u548c\u4e2a\u4eba\u6267\u884c\u6761\u4ef6\u4e0b\uff0c\u52a8\u6001\u8def\u7531\u5230\u5404\u81ea\u7ecf\u5386\u5386\u53f2\u8bc1\u636e\u8ba4\u8bc1\u7684\u4e13\u5c5e\u76c8\u5229\u8def\u5f84\uff1b\u6ca1\u6709\u53ef\u9760\u5339\u914d\u8def\u5f84\u65f6\u5fc5\u987b\u7a7a\u4ed3\u3002",
+  "policy": {
+    "no_purchase": true,
+    "no_bulk_download": true,
+    "no_outcome_read": true,
+    "labels_unblinded": false,
+    "routes_started": 0,
+    "routes_reopened": 0,
+    "no_commit": true,
+    "not_a_generation_preregistration": "This file freezes shortlist candidate cards only. It does NOT authorize any data contract freeze, download, Phase A event-denominator build, validation/WF, exam, shadow, or real-money action. Those remain separately gated by route_data_contracts.json's existing per-route stop gates and require separate user approval."
+  },
+  "selection_summary": {
+    "max_allowed": 3,
+    "selected_count": 1,
+    "allowed_to_be_zero": true,
+    "honesty_statement": "Of 19 outcome-blind candidates, only one (FAB-MSV2-01, rescoped) satisfies all five frozen shortlist conditions at a 'could plausibly reach the support gate on existing history' level. This is NOT a full validation pass \u2014 it is a conditional, fragile inclusion with explicit open falsification cuts and a required rescoping that the original candidate file did not itself perform. If the user wants a stricter bar (i.e. treat any open falsification cut as disqualifying), 0 is the defensible alternative; this reviewer's judgment is that the objective, existing-history conditions the task specified are met and the honest, most useful deliverable is 1 heavily-caveated entry rather than either a forced 3 or a reflexive 0.",
+    "not_selected_with_reasons": {
+      "MSV2-OPUS-01": "Decision-time crowding/OI-imbalance feature cannot be built at complete-denominator density from any existing free source without collapsing into the exact public-factor pattern (rubik_lsratio contrarian fade) a different owner already independently hard-rejected; family-adjacent high isomorphism risk to G2's already-exhausted funding-state grid.",
+      "FAB-MSV2-06": "Owner's own highest self-flagged G1-isomorphism risk; weakest moat in the whole batch (institutional cross-venue carry desks are the natural operator); 1h-bar granularity likely too coarse to resolve the claimed transfer window.",
+      "FAB-MSV2-04": "Measured (not merely possible) support on existing tape is roughly a dozen qualifying events across 4 symbols \u2014 an order of magnitude short of the 50-event/20-day/10-block gate.",
+      "FAB-MSV2-02": "No directly observable forced-seller/forced-hedger identity; owner itself frames payer as an unresolved symmetric hypothesis rather than a falsifiable claim, and its own strongest counterexample is that this is generic, heavily-published listing drift.",
+      "all_others_14": "Hard-rejected on COMPLETE_DENOMINATOR_NOT_CONSTRUCTIBLE and/or PIT_BACKFILL and/or existing-route/G-series isomorphism; see mechanism_hypothesis_library.json for the per-candidate hard-reject screen."
+    }
+  },
+  "shortlisted_routes": [
+    {
+      "shortlist_rank": 1,
+      "source_candidate_id": "FAB-MSV2-01",
+      "route_id": "equity_perp_underlying_session_gap_forced_repricing",
+      "status": "SHORTLISTED_CONDITIONAL_RESCOPED_NOT_A_GENERATION",
+      "one_line": "OKX tokenized-stock perpetuals trade 24/7 while their cash-market underlying trades only on a fixed exchange calendar; at each underlying-market close/reopen boundary, holders of the wrong-direction leveraged perp position are forced to mark-to-market against the new reference \u2014 a real, calendar-driven, officially-timed forced-repricing event, rescoped here to the single calendar cluster this reviewer could verify.",
+      "rescoping_vs_original_candidate": {
+        "why_rescoped": "Independent review (mechanism_hypothesis_library.json findings R9/R10) found the original 121-symbol universe spans several DISTINCT underlying-market calendars (US NYSE/NASDAQ majority, foreign country ETFs and single-name perps on Japan/Korea/Taiwan/Brazil/Netherlands/Israel exchanges, commodities with no clean single 'closed' session, and private-company perps with no underlying market at all) and that NO locally frozen trading-calendar artifact exists anywhere in this repository for any of them. Pooling all 121 into one denominator without stratification would silently overstate independence.",
+        "rescoped_universe": "US-listed common-stock and single-issuer-ETF tickers traded on the NYSE/NASDAQ calendar only (e.g. AAPL, TSLA, GME, NVDA, MSFT, SPY, QQQ, IWM \u2014 exact list to be enumerated from the current instruments snapshot cross-referenced against a to-be-constructed NYSE/NASDAQ listing map; leveraged/derivative ETFs such as TQQQ/SOXL/UVXY may be included since they share the same NYSE/NASDAQ session calendar even though their baskets correlate with other included names \u2014 that correlation affects independence accounting, not calendar validity).",
+        "explicitly_excluded_for_now": ["Foreign country ETFs (EWJ/EWT/EWY/EWZ) and foreign single-name perps (SAMSUNG/SONY/SOFTBANK/HYUNDAI/SKHYNIX/ASML/TSEM) \u2014 different calendar, not yet verified", "Commodities (XAU/XAG/XCU/XPD/XPT) \u2014 no clean single daily closed-session boundary", "Private-company perps (OPENAI/ANTHROPIC/MINIMAX/ZHIPU) \u2014 no underlying public market at all, already correctly excluded by the original candidate"]
+      },
+      "payer": {
+        "primary": "The perpetual position holder on the direction opposite the reopening reference price at the moment of reopen, forced to accept mark-to-market repricing and, if under-margined, forced liquidation/partial closure \u2014 this is a margin/mark-mechanics forced action, not a voluntary trading decision.",
+        "secondary": "The market maker who must hold inventory through the closed window with no live underlying reference and re-center at reopen.",
+        "directness_caveat": "This reviewer independently confirmed (mechanism_hypothesis_library.json R3) that the perp itself does NOT freeze during the underlying's closed window (continuous price/volume movement observed on a sampled Saturday) \u2014 this is a necessary precondition for the payer story to be more than a semantic redefinition of ordinary leveraged-position gap risk, but it is not yet sufficient proof that the payer is forced by something other than the same generic gap risk any leveraged futures/CFD holder already bears."
+      },
+      "support_status": "OBSERVABLE_ON_EXISTING_LOCAL_HISTORY_PENDING_CALENDAR_CONSTRUCTION_AND_TWO_OPEN_FALSIFICATION_CUTS",
+      "support_status_explicit_non_auto_include": "This is NOT a DATA_PARTIAL auto-include. It is included because: (a) the raw event denominator is fully constructible today from existing local records/history/okx_1h + records/history/okx_funding tape with zero new acquisition, (b) the first of three owner-designed falsification cuts (does the perp actually move during closure) was independently run by this reviewer and PASSED, and (c) >=50 events / >=20 independent days / >=10 non-overlap shock blocks is plausible for the rescoped US-only subset (roughly 90 trading days of overlapping NYSE/NASDAQ tape already exist locally per symbol, well above the day/block floors, before any new data is fetched). Cuts (2) feature separability and (3) official index/mark methodology confirmation remain OPEN and are frozen as pre-Phase-A gates below, not waived.",
+      "action_branches": {
+        "closed_window_default": "NO_TRADE (default space during the underlying's closed window; this default itself is treated as half the mechanism's value, per original candidate design, unchanged).",
+        "pre_close_branch": "At the close boundary: bucket by observable perp-vs-underlying-close-reference basis; direction (fade vs follow) intentionally left open for Phase B outcome-blind arbitration, not pre-assumed.",
+        "reopen_branch": "At the reopen boundary: bucket by observed overnight cumulative perp move vs. the reopening reference gap sign; basis within a cost band is treated as FLAT.",
+        "no_presupposed_winner": true,
+        "carried_over_unchanged_from": "FAB-MSV2-01 (this reviewer did not alter the action-branch design, only the universe scope and support-status framing)."
+      },
+      "source_requirements": {
+        "already_local_no_new_acquisition": [
+          "records/history/okx_1h/{US-subset}-USDT-SWAP.jsonl (existing, ~62-135 days per symbol depending on listing date)",
+          "records/history/okx_funding/{US-subset}-USDT-SWAP.jsonl (existing, cross-check funding behavior around boundaries)",
+          "current OKX instruments snapshot (existing, forward-only PIT, used only to confirm current listing/state, not to backfill history)"
+        ],
+        "new_but_zero_acquisition_public_reference_only": [
+          "An official NYSE/NASDAQ trading-day calendar (holidays, early closes, DST-driven UTC-offset shifts for market hours) constructed from public exchange-published sources and hash-bound as a new local artifact BEFORE any Phase A build \u2014 no purchase, no bulk download, just a versioned reference table.",
+          "OKX's official public documentation on index/mark price computation methodology for equity-tokenized perpetuals during the underlying's closed sessions (public docs; must be located and hash-bound; NOT YET DONE by this reviewer or either candidate owner)."
+        ],
+        "explicitly_forbidden": ["Purchasing any calendar/data vendor product for this route", "Bulk-downloading full-market L2 or trades for this route", "Backfilling any market's holiday/DST/early-close history from today's calendar without a versioned as-of source"]
+      },
+      "minimal_data": "Zero new OKX acquisition. The only new artifact required is a public, free, non-private reference calendar plus a documentation lookup \u2014 both zero-cost, zero-purchase, zero-bulk-download.",
+      "complete_denominator_and_matched_loser": {
+        "complete_denominator": "Every (instId \u00d7 session-boundary) event for the rescoped US-listed subset, for every trading day/holiday/weekend boundary in the overlap of (a) each symbol's existing okx_1h tape window and (b) the constructed NYSE/NASDAQ calendar \u2014 regardless of whether this account ever held a position at that boundary. Boundary types: close, open, long_close (pre-weekend/holiday), long_open (post-weekend/holiday).",
+        "matched_loser": "For each boundary event: all other same-symbol, same-boundary-type events with opposite-sign or near-zero basis, PLUS a same-day cross-symbol control set, PLUS the explicitly excluded non-US clusters logged separately as NOT part of this generation's denominator (to prevent silent multi-calendar contamination identified in R10).",
+        "independence_caveat_carried_forward": "Same-day boundary events across many US symbols share the same NYSE/NASDAQ holiday/DST shock; effective independent sample size is bounded by trading-day count (~90 in the currently local window), not raw event count \u2014 this must be respected in any future support accounting, not papered over by counting events."
+      },
+      "strongest_counterexample": {
+        "primary": "Overnight/weekend equity gap risk is one of the most exhaustively published anomalies in financial markets; if this mechanism is nothing more than that gap risk wrapped in a new instrument, any edge is already priced by whoever else trades the same public 24/7 OKX perp order book.",
+        "moat_specific": "The original candidate's institutional-exclusion argument only addresses regulated equity institutions (correctly excluded by custody/compliance/counterparty risk) and does not address crypto-native institutional market makers, who face no such regulatory bar and already quote this exact perp continuously \u2014 independently identified by this review as the weakest link in the whole shortlist entry.",
+        "hard_falsification_risk": "If OKX's index/mark methodology freezes or synthetically pegs the perp's reference during the underlying's closed window (not yet confirmed either way), the entire 'gradual mispricing during closure, forced convergence at reopen' story collapses into a single discontinuous jump that transfers value inside one exchange tick, which a small taker account structurally cannot be positioned to capture."
+      },
+      "budget_stop": {
+        "cpu": 1,
+        "wall_clock_hours": 6,
+        "attempts": 1,
+        "acquisition": "Zero new OKX acquisition; public calendar construction and one documentation lookup only.",
+        "stop_gates": [
+          "If OKX's public documentation shows mark/index is frozen or synthetically clamped to the last cash-session print during closure (methodology falsification cut #3, still open) \u2192 close immediately, do not proceed to calendar construction.",
+          "If, once the US-only calendar is constructed, boundary-window bar features are not statistically separable from matched non-boundary control bars using existing local tape (falsification cut #2, still open) \u2192 UNIDENTIFIABLE, close.",
+          "If holiday/DST/early-close coverage cannot be verified for a given sub-period \u2192 exclude that period rather than fabricate PIT.",
+          "If the only viable decision-time direction feature collapses to a public crowding factor (e.g. plain overnight funding sign) \u2192 treat as ISOMORPH_PUBLIC_FACTOR and close, mirroring the kill-switches other candidates in this batch already pre-registered."
+        ]
+      },
+      "why_not_an_ordinary_institutional_strategy": "Regulated equity-market institutions cannot legally hold or arbitrage this offshore tokenized-stock derivative at all (custody/compliance/counterparty-risk bar). Crypto-native institutions CAN access it and are NOT excluded by that argument (see moat_specific counterexample above) \u2014 the only remaining, UNVERIFIED argument is that OKX's per-symbol open-interest caps and thin reopen-window book depth make the trade uneconomical to run at institutional notional without self-impact, bounding the exploitable capacity to roughly the same small-notional band an individual account already occupies. This reviewer explicitly flags this as the weakest, least-verified part of the whole entry and does not assert it as proven.",
+      "phase_a_prerequisites_before_any_generation": [
+        "Construct and hash-bind the NYSE/NASDAQ calendar (holidays, early closes, DST-driven market-hour UTC shifts) as a new local artifact.",
+        "Locate and hash-bind OKX's official documentation on index/mark computation during underlying-closed sessions for equity-tokenized perps.",
+        "Enumerate the exact US-listed rescoped symbol subset from the current instruments snapshot, explicitly logging which symbols are excluded and why.",
+        "Re-run falsification cut #1 (mark/price movement during closure) across the full rescoped subset, not just the single AAPL/Saturday sample this review checked.",
+        "Run falsification cut #2 (boundary vs. non-boundary feature separability) before any Phase A data-contract freeze."
+      ]
+    }
+  ],
+  "safety": {
+    "global_halt": true,
+    "system_status": "NO_GO",
+    "exam_status": "EXAM_UNAVAILABLE",
+    "trade_allowed": false,
+    "labels_unblinded": false,
+    "routes_started": 0,
+    "routes_reopened": 0,
+    "no_purchase": true,
+    "no_bulk_download": true,
+    "no_commit": true
+  },
+  "hashes": {
+    "shortlist_hash": "b3c63aee84509eead9dc24bf067e68cdc16f08f50a532e006a68e633b015c541",
+    "hash_method": "Read this JSON as a generic object, set hashes.shortlist_hash to null, then compute repository datatruth.HashJSON (deterministic Go encoding/json plus SHA-256 lowercase hex).",
+    "self_excluded_field": "hashes.shortlist_hash"
+  }
+}

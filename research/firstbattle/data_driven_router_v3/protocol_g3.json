@@ -1,0 +1,102 @@
+{
+  "schema_version": "lingxi.data-driven-router-v3.protocol-overlay.v1",
+  "protocol_id": "firstbattle.data-driven-router-v3",
+  "generation": "firstbattle-data-driven-router-v3-g3",
+  "created_at": "2026-07-14T08:28:00Z",
+  "status": "PREREGISTERED_LABELS_SEALED_PENDING_INDEPENDENT_REVIEW",
+  "supersedes": {
+    "generation": "firstbattle-data-driven-router-v3-g2",
+    "overlay_hash": "7096395f1f3bae212b6dc866c5d46ccb372cd284e4a959d424dfbfbb92d6c226",
+    "reason": "align replay objective and stress semantics with user capital extraction and no-top-up policy",
+    "g2_labels_were_unblinded": false,
+    "g2_dataset_was_built": false
+  },
+  "inheritance": {
+    "base_protocol_hash": "5d80166eb28307d23e33cd19efae2b60811852ff0da49a3a6e16663aba2e7ddd",
+    "g2_overlay_hash": "7096395f1f3bae212b6dc866c5d46ccb372cd284e4a959d424dfbfbb92d6c226",
+    "all_unmodified_g1_and_g2_fields_inherited": true,
+    "effective_protocol_requires_all_three_hashes": true
+  },
+  "capital_extraction": {
+    "retained_capital_base": "initial_equity_for_each_capital_tier",
+    "capital_tiers_usdt": [30, 100, 1000],
+    "withdrawal_trigger_equity_multiple": 1.5,
+    "withdrawal_tranche_fraction_of_base": 0.5,
+    "withdrawal_rule": "while equity >= 1.5 * retained_base, withdraw 0.5 * retained_base and record external cashflow",
+    "retained_base_resets_after_loss": false,
+    "automatic_top_up": false,
+    "ruin_rule": "on liquidation or equity <= 0, set terminal equity to zero and stop all future trading for that replay",
+    "past_withdrawals_survive_ruin": true,
+    "external_deposit_after_start": 0.0
+  },
+  "primary_objective": {
+    "name": "cashflow_adjusted_total_wealth",
+    "formula": "cumulative_withdrawals + terminal_equity - initial_external_deposit",
+    "comparison_to_always_flat": "candidate objective must exceed ALWAYS_FLAT on validation, leaf_wf, and frozen router_holdout",
+    "normal_history_has_priority_over_synthetic_tail_scenarios": true,
+    "secondary_metrics": [
+      "cumulative_withdrawals",
+      "terminal_equity",
+      "time_to_first_withdrawal",
+      "withdrawal_count",
+      "max_drawdown",
+      "historical_ruin",
+      "no_trade_fraction",
+      "capital_occupation"
+    ]
+  },
+  "stress_semantics_override": {
+    "synthetic_liquidity_void_is_hard_route_veto": false,
+    "all_correlation_one_is_hard_route_veto": false,
+    "cost_stress_must_remain_positive_override": false,
+    "all_delays_must_remain_positive_override": false,
+    "stress_purpose": "report risk frontier, withdrawal retention, terminal equity, and ruin under frozen adverse scenarios; do not erase a positive normal-history route solely because a synthetic scenario fails",
+    "historical_path_liquidation": "real loss; equity zero; stop; prior withdrawals retained",
+    "synthetic_scenario_outputs": [
+      "withdrawal_adjusted_total_wealth",
+      "ruin_indicator",
+      "withdrawals_preserved_before_ruin",
+      "terminal_equity",
+      "max_drawdown",
+      "liquidation_time",
+      "unexecutable_exit_bars"
+    ],
+    "required_disclosure": "every validated candidate publishes baseline and every frozen stress scenario side by side; no hidden composite safety score"
+  },
+  "leverage_and_execution": {
+    "account_gross_leverage_hard_ceiling": 5.0,
+    "model_may_choose_any_lower_leverage": true,
+    "historical_account_path_uses_actual_frozen_allocator": true,
+    "synthetic_stress_does_not_resize_baseline_positions_after_the_fact": true,
+    "reduce_only_close_trim_priority_in_runtime_design": true,
+    "unknown_cost_decision_remains_NO_TRADE": true,
+    "direct_execution_coverage_80pct_is_certification_tier_not_profitability_veto": true,
+    "below_80pct_direct_status": "VALIDATED_MARKET_PATH_EXECUTION_EVIDENCE_LIMITED"
+  },
+  "selection_semantics": {
+    "baseline_validation_requirement": "cashflow_adjusted_total_wealth positive and greater than ALWAYS_FLAT after frozen costs",
+    "leaf_wf_requirement": "same primary objective positive under chronological frozen leaf_wf",
+    "router_holdout_requirement": "same primary objective positive under one-shot frozen account router replay",
+    "synthetic_tail_failure_classification": "TAIL_RISK_HIGH_REPORTED_NOT_AUTO_REJECTED",
+    "historical_ruin_allowed_to_pass": "only if cumulative withdrawals plus terminal equity still exceed initial deposit and all statistical gates pass; must be explicitly labeled HISTORICAL_RUIN_WITH_WITHDRAWAL_RECOVERY",
+    "no_withdrawal_and_terminal_loss": "NO_EDGE"
+  },
+  "reviewer_authority_reaffirmed": {
+    "reviewer_checks_math_and_evidence": true,
+    "reviewer_does_not_choose_user_risk_preference": true,
+    "reviewer_must_report_pareto_frontier_not_replace_it_with_safety_score": true,
+    "reviewer_cannot_approve_live_or_real_money": true
+  },
+  "safety": {
+    "labels_unblinded": false,
+    "dataset_built": false,
+    "routes_started": 0,
+    "system_status": "NO_GO",
+    "trade_allowed": false
+  },
+  "hashes": {
+    "overlay_hash": "63f4ee088efb09e9e58386ab273b997af4a9206d4c5c18e73c59fda5d42a7a57",
+    "hash_method": "Set hashes.overlay_hash to null, then compute repository datatruth.HashJSON.",
+    "self_excluded_field": "hashes.overlay_hash"
+  }
+}

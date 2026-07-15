@@ -1,0 +1,457 @@
+{
+  "schema_version": "lingxi.g10-reopen-condition-inventory-source-manifest.v1",
+  "generation": "firstbattle-g10-reopen-condition-inventory-v1",
+  "captured_at": "2026-07-13T12:55:15.416104Z",
+  "status": "FROZEN_EXISTENCE_ONLY",
+  "scope": "Only source existence, schema, identity, PIT and denominator fitness; no outcome/private value projection.",
+  "capture_policy": {
+    "jsonl_boundary": "Freeze bytes through the last complete LF observed at per-source captured_at.",
+    "hashing": "Chunked streaming SHA-256 over byte_prefix; first/last complete-line SHA-256 exclude CR/LF.",
+    "append_same_inode": "Allowed after capture and ignored.",
+    "truncate_inode_change_or_prefix_mutation": "FAIL_CLOSED",
+    "partial_trailing_line": "Excluded and reported.",
+    "raw_rows_copied": false,
+    "raw_values_emitted": false,
+    "sensitive_ids_emitted": false,
+    "outcome_fields_projected": false
+  },
+  "new_candidate_prefixes": [
+    {
+      "source_id": "okx_liquidation_events",
+      "relative_path": "records/okx_directional/fast_liquidation_events.jsonl",
+      "format": "JSONL_APPEND",
+      "device": 64770,
+      "inode": 4693694,
+      "captured_at": "2026-07-13T12:55:15.416104Z",
+      "file_size_at_capture": 10362154,
+      "file_size_after_hash": 10362154,
+      "byte_prefix": 10362154,
+      "complete_line_count": 62728,
+      "partial_trailing_bytes": 0,
+      "prefix_sha256": "6cb465163567b330fc0c4f76e1fc6dee927c90a6aeadef10b181b98ca128f48a",
+      "first_complete_line_sha256": "ce221ffc4f3fceee8c12318ea076a50190225741f154002d5e87001869dafebd",
+      "last_complete_line_sha256": "f3f603bdb3fb274728afb36e5d597fc1c82c5934bfced3f3d8647373800aa6d9",
+      "status": "FROZEN_PREFIX"
+    },
+    {
+      "source_id": "bybit_liquidation_events",
+      "relative_path": "records/okx_directional/fast_xvenue_liq_events.jsonl",
+      "format": "JSONL_APPEND",
+      "device": 64770,
+      "inode": 4689008,
+      "captured_at": "2026-07-13T12:55:15.431528Z",
+      "file_size_at_capture": 16698771,
+      "file_size_after_hash": 16698771,
+      "byte_prefix": 16698771,
+      "complete_line_count": 85960,
+      "partial_trailing_bytes": 0,
+      "prefix_sha256": "ae21e08f475463146d1275d4186f27880ca2e9a83666038579e749c69afb605f",
+      "first_complete_line_sha256": "bc37555a1ef18368ce6ccd7b1301dadbdd47a7ea57c6b46732ea6c0d25b5a94d",
+      "last_complete_line_sha256": "63dfdab48f912d28010f9f92da39c00c92b3450190fe6c22c5b713e84797028c",
+      "status": "FROZEN_PREFIX"
+    },
+    {
+      "source_id": "okx_dynamic_features",
+      "relative_path": "records/okx_directional/fast_dynamic_feature_events.jsonl",
+      "format": "JSONL_APPEND",
+      "device": 64770,
+      "inode": 4723100,
+      "captured_at": "2026-07-13T12:55:15.452733Z",
+      "file_size_at_capture": 1986364950,
+      "file_size_after_hash": 1986381653,
+      "byte_prefix": 1986364950,
+      "complete_line_count": 1881078,
+      "partial_trailing_bytes": 0,
+      "prefix_sha256": "f2e563aa972a7f8cd021c8f50bbb4066ba88a541d1f8a36bbb7dc08deca2ac66",
+      "first_complete_line_sha256": "b5b508935ffb867759ab9613266d54859bc3adc9e6f39eff7fe900f206cfb260",
+      "last_complete_line_sha256": "ac9bf74341d784ec9b7df4c1cbb0b03cb586b24499f6c1dcd8c2c07f7998dfde",
+      "status": "FROZEN_PREFIX_APPEND_IGNORED"
+    },
+    {
+      "source_id": "hot_mids_with_timestamped_anchors",
+      "relative_path": "records/okx_directional/fast_hot_mids.jsonl",
+      "format": "JSONL_APPEND",
+      "device": 64770,
+      "inode": 4688983,
+      "captured_at": "2026-07-13T12:55:19.500181Z",
+      "file_size_at_capture": 3140429042,
+      "file_size_after_hash": 3140429042,
+      "byte_prefix": 3140429042,
+      "complete_line_count": 421144,
+      "partial_trailing_bytes": 0,
+      "prefix_sha256": "774e3daedfc2caf82802e0e6e5c0b2ff51d668c803044992f4df205f636f3c53",
+      "first_complete_line_sha256": "81b8829a74339a4a786923b8e6335dba3dfaeec85896a5007133b689d3749ba9",
+      "last_complete_line_sha256": "78197ff4c5e3e67e42d714032a79f396395dca6fcbda85bb5451db4fc0b4ff57",
+      "status": "FROZEN_PREFIX"
+    },
+    {
+      "source_id": "okx_hot_micro",
+      "relative_path": "records/okx_directional/fast_hot_micro.jsonl",
+      "format": "JSONL_APPEND",
+      "device": 64770,
+      "inode": 4688686,
+      "captured_at": "2026-07-13T12:55:24.569338Z",
+      "file_size_at_capture": 476497604,
+      "file_size_after_hash": 476497604,
+      "byte_prefix": 476497604,
+      "complete_line_count": 416862,
+      "partial_trailing_bytes": 0,
+      "prefix_sha256": "3d4e9b75b8f4bf2582fe7b698b82752be4496069bfe661c9db1a50ce4ef5e8ee",
+      "first_complete_line_sha256": "3cc0e99a7745b5a4c303f7773643ebbeaf90efb3a154f21d479965b6b688c67f",
+      "last_complete_line_sha256": "769570dfd9dff8d44e43ee1ef89a7cfc47c548fc66808ddd6fd21886449c02c2",
+      "status": "FROZEN_PREFIX"
+    },
+    {
+      "source_id": "okx_full_burst_probe",
+      "relative_path": "records/okx_directional/fast_full_burst_probe.jsonl",
+      "format": "JSONL_APPEND",
+      "device": 64770,
+      "inode": 4696436,
+      "captured_at": "2026-07-13T12:55:25.358987Z",
+      "file_size_at_capture": 142265708,
+      "file_size_after_hash": 142265708,
+      "byte_prefix": 142265708,
+      "complete_line_count": 529575,
+      "partial_trailing_bytes": 0,
+      "prefix_sha256": "c62ec5f430e288321ac16273ebb0436e904d66089d5605b0509475dc029a0954",
+      "first_complete_line_sha256": "7fc576d85e052f92e65b2c91e8d9093fdf842c19e3a288d157e1b5886195e9cd",
+      "last_complete_line_sha256": "702154ddabe13515f95832999ad3e28973ae9a571c991c0bd07789389a310acc",
+      "status": "FROZEN_PREFIX"
+    },
+    {
+      "source_id": "okx_market_mids",
+      "relative_path": "records/okx_directional/fast_market_mids.jsonl",
+      "format": "JSONL_APPEND",
+      "device": 64770,
+      "inode": 4692543,
+      "captured_at": "2026-07-13T12:55:25.560938Z",
+      "file_size_at_capture": 1505866199,
+      "file_size_after_hash": 1505875561,
+      "byte_prefix": 1505866199,
+      "complete_line_count": 163883,
+      "partial_trailing_bytes": 0,
+      "prefix_sha256": "e37d8d763c65e64a76496af10810962a54749da92abed99c9fcd18c47b0ab305",
+      "first_complete_line_sha256": "0670a214d640ec0bfe81dff1fd638e704214864b32ecbd5fd26e885a976c07ec",
+      "last_complete_line_sha256": "d4a22663c0c75460446540f835a85dffd12adfffa96502156fe19665016e4cd2",
+      "status": "FROZEN_PREFIX_APPEND_IGNORED"
+    },
+    {
+      "source_id": "multi_venue_funding_oi_snapshots",
+      "relative_path": "records/okx_directional/fast_xmeta_snapshots.jsonl",
+      "format": "JSONL_APPEND",
+      "device": 64770,
+      "inode": 4692165,
+      "captured_at": "2026-07-13T12:55:27.163073Z",
+      "file_size_at_capture": 105748052,
+      "file_size_after_hash": 105748052,
+      "byte_prefix": 105748052,
+      "complete_line_count": 1733,
+      "partial_trailing_bytes": 0,
+      "prefix_sha256": "4877cace26a01123c440a0f03ae3b40c2230aaa9385c98c27830ecd4c4ceca59",
+      "first_complete_line_sha256": "1f6a935cac925a7a850423107d2240ffd4ad3cd6384b007f9162fb216e27a94d",
+      "last_complete_line_sha256": "726c03cca37e622f40d1bdb07a8f13dfac20c7e6cd8a0c97a3c6b0a1d5a0d752",
+      "status": "FROZEN_PREFIX"
+    },
+    {
+      "source_id": "firstbattle_mechanism_shadow",
+      "relative_path": "records/okx_directional/firstbattle_mechanism_shadow.jsonl",
+      "format": "JSONL_APPEND",
+      "device": 64770,
+      "inode": 4725254,
+      "captured_at": "2026-07-13T12:55:27.327985Z",
+      "file_size_at_capture": 1659139,
+      "file_size_after_hash": 1659139,
+      "byte_prefix": 1659139,
+      "complete_line_count": 500,
+      "partial_trailing_bytes": 0,
+      "prefix_sha256": "c10c0b36fdd0677a8f47b0b151a110a8ce8cdb370ca097eab0af6cc74c57a24c",
+      "first_complete_line_sha256": "208c847d41b87a9d7c6811f08057097f286db9c120cfd0141753a4ad205c9db2",
+      "last_complete_line_sha256": "94d63a3864725f5afca242a061e2a36c6e17a7a1de519dbc2c9c7e4d3161d3ef",
+      "status": "FROZEN_PREFIX"
+    },
+    {
+      "source_id": "rule_probe_audit",
+      "relative_path": "records/rule_probe_audit.jsonl",
+      "format": "JSONL_APPEND",
+      "device": 64770,
+      "inode": 4188314,
+      "captured_at": "2026-07-13T12:55:27.336708Z",
+      "file_size_at_capture": 745,
+      "file_size_after_hash": 745,
+      "byte_prefix": 745,
+      "complete_line_count": 4,
+      "partial_trailing_bytes": 0,
+      "prefix_sha256": "d55e090edac1a775abdbfe30393d0264793c77fe9aa9018f239f75597ec308c4",
+      "first_complete_line_sha256": "355819d803ac510be2c4b367c5d69cd3e4e4462a8e78b8e1f7e8881f2c5b4edb",
+      "last_complete_line_sha256": "8f14b65b9da2e5594ed41b26d19b225decb3e1446f1b981efff1e394de508254",
+      "status": "FROZEN_PREFIX"
+    },
+    {
+      "source_id": "fast_position_cleanup",
+      "relative_path": "records/okx_directional/fast_position_cleanup.jsonl",
+      "format": "JSONL_APPEND",
+      "device": 64770,
+      "inode": 4695979,
+      "captured_at": "2026-07-13T13:01:43.606699Z",
+      "file_size_at_capture": 6671,
+      "file_size_after_hash": 6671,
+      "byte_prefix": 6671,
+      "complete_line_count": 10,
+      "partial_trailing_bytes": 0,
+      "prefix_sha256": "258a9ea39afaaadf79b11a94069c3d0846f1691d4193c170fa2ce59b83e69c4d",
+      "first_complete_line_sha256": "42ec44d6c4cd300a7b7761d640d8a2e3e825284d168ed441def4720531c262f6",
+      "last_complete_line_sha256": "698b1b4ec428e404f7bf4b979bd2903ac84035342abb55b396be7154b24dea4e",
+      "status": "FROZEN_PREFIX"
+    },
+    {
+      "source_id": "slow_position_cleanup",
+      "relative_path": "records/okx_directional/slow_position_cleanup.jsonl",
+      "format": "JSONL_APPEND",
+      "device": 64770,
+      "inode": 4695980,
+      "captured_at": "2026-07-13T13:01:43.607824Z",
+      "file_size_at_capture": 3169,
+      "file_size_after_hash": 3169,
+      "byte_prefix": 3169,
+      "complete_line_count": 2,
+      "partial_trailing_bytes": 0,
+      "prefix_sha256": "db0881ab3bf6cfa8043ace73d98ae218bc6e863e42b5413dda22cab413ef521f",
+      "first_complete_line_sha256": "abb69e5c2e42dc4d398562ca2acdb3162576725ce29c02badea21101edbb4b51",
+      "last_complete_line_sha256": "0ddd73eb38dc04ceb4b529511bbd159992a649b7a1f11e43144ead8b093988dc",
+      "status": "FROZEN_PREFIX"
+    },
+    {
+      "source_id": "mexc_okx_tape_probe",
+      "relative_path": "records/crossvenue/mexc_tape_probe.jsonl",
+      "format": "JSONL_APPEND",
+      "device": 64770,
+      "inode": 6772733,
+      "captured_at": "2026-07-13T13:01:43.608896Z",
+      "file_size_at_capture": 3509210,
+      "file_size_after_hash": 3509210,
+      "byte_prefix": 3509210,
+      "complete_line_count": 22192,
+      "partial_trailing_bytes": 0,
+      "prefix_sha256": "f8014e2684b6fe780ed86f9d0548a6ef76bbbfcdf9ae80a40a003df6fd805b47",
+      "first_complete_line_sha256": "242ee931fdca44b2fd3c120fe1ae6550f67673e8194640797d6382b84c10d066",
+      "last_complete_line_sha256": "5f479585fe06f11fdc0e4cf36b475319a7889096f9b7e0906c683e631363b817",
+      "status": "FROZEN_PREFIX"
+    },
+    {
+      "source_id": "crossvenue_settlements",
+      "relative_path": "records/crossvenue/settlements.jsonl",
+      "format": "JSONL_APPEND",
+      "device": 64770,
+      "inode": 6773032,
+      "captured_at": "2026-07-13T13:01:43.622310Z",
+      "file_size_at_capture": 112140,
+      "file_size_after_hash": 112140,
+      "byte_prefix": 112140,
+      "complete_line_count": 214,
+      "partial_trailing_bytes": 0,
+      "prefix_sha256": "600e6d1f59108f1488f0c6ed3c96b6df0a8c52aeffada0b10150b22f9c830250",
+      "first_complete_line_sha256": "9659add72fd7e26e8631c637cf43e57fd3b389eecd2afd78ca581c7e5d14e1c0",
+      "last_complete_line_sha256": "fbcf301e6010de66b475256ec5bb1f51769b2b225c5286c7cd7b303658f991b9",
+      "status": "FROZEN_PREFIX"
+    }
+  ],
+  "formal_audit_references": {
+    "binding_kind": "REFERENCE_ONLY_NO_RESCAN",
+    "formal_source_manifest_path": "research/firstbattle/g10_execution_evidence_audit/source_manifest.json",
+    "formal_source_manifest_hash": "c8c5f38e6542855aa6fbc8e3373a751a24646922d0838a9774fce4a7e41a9379",
+    "formal_source_manifest_whole_file_sha256": "cab3ff5b1dae2c6a6efb3b2682f383fed573bc8ec11f55beee88f332fdd09293",
+    "entries": [
+      {
+        "source_id": "settlements",
+        "relative_path": "records/okx_directional/settlements.jsonl",
+        "byte_prefix": 1719728,
+        "complete_line_count": 1112,
+        "entry_prefix_sha256": "aad2a5cc8fa914db0982fc1e9bf1dc7f2510d8b0daaa47f448895cf4bdc90644"
+      },
+      {
+        "source_id": "fast_v2_settlements",
+        "relative_path": "records/okx_directional/fast_v2_settlements.jsonl",
+        "byte_prefix": 1160076,
+        "complete_line_count": 729,
+        "entry_prefix_sha256": "80ec7d53a73defd6f8fffe0d22856a9e4700b21a70205f7e9036880c62bb8d2d"
+      },
+      {
+        "source_id": "exchange_fills",
+        "relative_path": "records/fast_exchange_fills_cache.jsonl",
+        "byte_prefix": 7008388,
+        "complete_line_count": 12826,
+        "entry_prefix_sha256": "2a7434194d7139b237d132191e358fed0fd20893fca95684d8cb66330fcadb7f"
+      },
+      {
+        "source_id": "maker_attempts",
+        "relative_path": "records/okx_directional/fast_maker_attempts.jsonl",
+        "byte_prefix": 11212238,
+        "complete_line_count": 29849,
+        "entry_prefix_sha256": "3711e84e14954a257cddffc23e50382b41e6723c6d5407b6ff45598a9b6abe92"
+      },
+      {
+        "source_id": "open_decisions",
+        "relative_path": "records/okx_directional/open_decision_events.jsonl",
+        "byte_prefix": 18443617,
+        "complete_line_count": 14773,
+        "entry_prefix_sha256": "eb6362cc8bd1e4b8c2c4a54ec65ec229248f9cfe3fedff55cd9e73b367df72fd"
+      },
+      {
+        "source_id": "executable_shadow",
+        "relative_path": "records/okx_directional/fast_executable_shadow_events.jsonl",
+        "byte_prefix": 2150201903,
+        "complete_line_count": 2701689,
+        "entry_prefix_sha256": "9c308bbb51ccfea441f4c56b9e6a482781c967c961234eec0576fd394899a925"
+      },
+      {
+        "source_id": "instrument_metadata",
+        "relative_path": "records/okx_directional/instrument_meta.json",
+        "byte_prefix": 43169,
+        "complete_line_count": 0,
+        "entry_prefix_sha256": "112cd85e2c30bc8670c01c1d2477aa1f5b3e82a8a9be65ab44e4e2cfdecb4999"
+      },
+      {
+        "source_id": "equity_snapshots",
+        "relative_path": "records/crossvenue/equity_snapshots.jsonl",
+        "byte_prefix": 3508555,
+        "complete_line_count": 41771,
+        "entry_prefix_sha256": "6eef464587ba9e925d80339eae55974c10e4351a25bfdec9e56de542ecef42cb"
+      }
+    ]
+  },
+  "immutable_research_assets": [
+    {
+      "asset_id": "history_catalog",
+      "relative_path": "research/firstbattle/history_catalog.json",
+      "whole_file_sha256": "9b77c5df7e59c364ee651520f6b7c848f6e5cbdeaf8f2fcfaf7205be5fef4239",
+      "embedded_data_hash": "f41ed2586d91054c4b5b2e15e60f32a4d64ccde0032e76dfdc5fc6dee316379c",
+      "embedded_schema_hash": "5bb4705d4aaf9267c431d675d100689d5e7cd4bca84a8205592f7e11ae63a6c0",
+      "files_scanned": 2218,
+      "lines_scanned": 8891185,
+      "status": "IMMUTABLE_BOUND"
+    },
+    {
+      "asset_id": "audit_protocol",
+      "relative_path": "research/firstbattle/g10_execution_evidence_audit_preregistration.json",
+      "whole_file_sha256": "2b0e2bacb97f104d5ef13546e20117f92da34447ee85121da45bcd372b92f060",
+      "embedded_artifact_hash": "dccd7974a7d172e3894174a953c4cce02ea840a48bb41fbdec589ed4d1153dd3",
+      "status": "IMMUTABLE_BOUND"
+    },
+    {
+      "asset_id": "audit_summary",
+      "relative_path": "research/firstbattle/g10_execution_evidence_audit/audit_summary.json",
+      "whole_file_sha256": "ef896366b43ec3a6809d749492b44bcfd146569e218fac045c68602d852ad66d",
+      "embedded_artifact_hash": "cf9da460a7807c4d131bbc1e2b22ec9c0e860902fbb6a9726707d7c697b9d9ab",
+      "status": "IMMUTABLE_BOUND"
+    },
+    {
+      "asset_id": "audit_receipt",
+      "relative_path": "research/firstbattle/g10_execution_evidence_audit/audit_receipt.json",
+      "whole_file_sha256": "d2fc41b81006fd896b9c14d4700bd53828b320355a149f0c5d0884c8dd8f5a7b",
+      "embedded_artifact_hash": "29494eb6dfc62c8317315f93391aa60bd9d4f7ae515a166f94ae0a28c99b4f9a",
+      "status": "IMMUTABLE_BOUND"
+    },
+    {
+      "asset_id": "audit_stage_summary",
+      "relative_path": "research/firstbattle/g10_execution_evidence_audit_stage_summary.json",
+      "whole_file_sha256": "6bb41be07adea9acfd9e979315d6683a821d8a8cda6d9fd575cb501ed84e2fc8",
+      "embedded_artifact_hash": "05550c0603fa340939c35efa9bd212509ab48cec50b07e541f530e875a7817ff",
+      "status": "IMMUTABLE_BOUND"
+    },
+    {
+      "asset_id": "route_portfolio_json",
+      "relative_path": "research/firstbattle/g10_wild_route_portfolio.json",
+      "whole_file_sha256": "35dc16e5d49969cc2db0b6ea3940f99ab89f6be0485f111086dce4bba9c07bfb",
+      "embedded_artifact_hash": "166ea394419544f55e54919216b6e67b31e2d1dfaf11ef27df06bb3686072977",
+      "status": "IMMUTABLE_BOUND"
+    },
+    {
+      "asset_id": "route_portfolio_markdown",
+      "relative_path": "research/firstbattle/g10_wild_route_portfolio.md",
+      "whole_file_sha256": "5bf9233dba964b911b8a80622668cb974c586a358607351cd6eeb7de4d89bb8a",
+      "embedded_artifact_hash": "733b7ae620b083eb18802bcdcb5c4520b345df7c05ef5da97140105d2efacec8",
+      "status": "IMMUTABLE_BOUND"
+    },
+    {
+      "asset_id": "g10_playbook_manifest",
+      "relative_path": "research/firstbattle/g10_wild_brain/playbooks/event_playbook_manifest.json",
+      "whole_file_sha256": "d8916213bd83db2d90a5ae12deb0913559ac41222736a93f8dddad258097d9f6",
+      "embedded_artifact_hash": "ef82da8421a9c6eb02b9854eebaf47673e94365918a058b610077d35064ce0c5",
+      "status": "IMMUTABLE_BOUND"
+    }
+  ],
+  "absent_expected_paths": [
+    {
+      "asset_id": "peer_leadlag_events",
+      "relative_path": "records/okx_directional/fast_peer_leadlag_events.jsonl",
+      "status": "ABSENT_EXPECTED_PATH",
+      "hash": null
+    },
+    {
+      "asset_id": "production_execution_wal",
+      "relative_path": "records/execution.wal",
+      "status": "ABSENT_EXPECTED_PATH",
+      "hash": null
+    },
+    {
+      "asset_id": "okx_execution_wal",
+      "relative_path": "records/okx_directional/execution.wal",
+      "status": "ABSENT_EXPECTED_PATH",
+      "hash": null
+    },
+    {
+      "asset_id": "order_lifecycle",
+      "relative_path": "records/okx_directional/order_lifecycle.jsonl",
+      "status": "ABSENT_EXPECTED_PATH",
+      "hash": null
+    },
+    {
+      "asset_id": "instrument_catalog",
+      "relative_path": "records/okx_directional/instrument_catalog.json",
+      "status": "ABSENT_EXPECTED_PATH",
+      "hash": null
+    },
+    {
+      "asset_id": "context_instrument_catalog",
+      "relative_path": "records/context/instrument_catalog.json",
+      "status": "ABSENT_EXPECTED_PATH",
+      "hash": null
+    },
+    {
+      "asset_id": "instrument_rule_archive",
+      "relative_path": "records/okx_directional/instrument_rule_archive.jsonl",
+      "status": "ABSENT_EXPECTED_PATH",
+      "hash": null
+    },
+    {
+      "asset_id": "synchronized_executable_books",
+      "relative_path": "records/crossvenue/synchronized_executable_books.jsonl",
+      "status": "ABSENT_EXPECTED_PATH",
+      "hash": null
+    },
+    {
+      "asset_id": "collateral_authorization_history",
+      "relative_path": "records/crossvenue/collateral_authorization_history.jsonl",
+      "status": "ABSENT_EXPECTED_PATH",
+      "hash": null
+    }
+  ],
+  "labels_unblinded": false,
+  "forbidden_projection_fields": [
+    "future_return",
+    "return",
+    "pnl",
+    "profit",
+    "winner",
+    "future_outcome",
+    "realized_usdt",
+    "realized_pnl",
+    "mfe",
+    "mae"
+  ],
+  "hashes": {
+    "manifest_hash": "66b47378f674a2e9f8cdbe6e7649f11afee633610aa5ca330c09f2d38b8b79cd",
+    "hash_method": "Read this JSON as a generic object, set hashes.manifest_hash to null, then compute repository datatruth.HashJSON (deterministic Go encoding/json plus SHA-256 lowercase hex).",
+    "self_excluded_field": "hashes.manifest_hash"
+  }
+}

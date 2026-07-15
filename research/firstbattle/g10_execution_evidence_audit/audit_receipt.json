@@ -1,0 +1,22 @@
+{
+  "artifact_hash": "29494eb6dfc62c8317315f93391aa60bd9d4f7ae515a166f94ae0a28c99b4f9a",
+  "artifact_hashes": {
+    "audit_summary.json": "cf9da460a7807c4d131bbc1e2b22ec9c0e860902fbb6a9726707d7c697b9d9ab",
+    "checkpoint.json": "cc23ed9580ccd4c7c6d8a109adf0a3cd4ad94c66da69bc717a00667ec753f4b1",
+    "classification_evidence.json": "8e5846c730a292645eedb63298c3535587d95cc9a13b3cd3cf88b2aa30d7fb18",
+    "conflict_matrix.json": "e37796a989c7d325e7d7809c8309f2881c6a0a1538834a84f5287c666f110105",
+    "critical_reasons.json": "68b8e6d595bd66c7a78e8447c2be0c69a9783b89d8255c7a03dc3ec8b243c232",
+    "data_fitness_matrix.json": "38f3e4c4848fe3d6f4e6837013fe9e79e61b05f2190afa0f7209d272809c66ab",
+    "decision_journal.json": "9ba234f0a6ff4f8d9cdcb830a4b8a40cf3a1e2ff5d6708d32d16706eba90afa3",
+    "falsification_chain.json": "1ec804566eb4e0b8552f69a56e563a905d23653f338d4db355372ea073f62d1a",
+    "field_completeness.json": "dc8eea201ade84db9e89d6b14997ae1dae9fb9d2ea5ccafec7e1d35f471f1ce1",
+    "support_counts.json": "890cb74d1aaf35f86f3309bc925fc373399916b1f92539d4a973d592554e228d",
+    "winner_control_bindings.json": "70a5dd09190e384ace12a4179a0ef04ead76128c1ebc4d280d3e007878728c39"
+  },
+  "complete": true,
+  "not_formal_verdict": false,
+  "protocol_hash": "dccd7974a7d172e3894174a953c4cce02ea840a48bb41fbdec589ed4d1153dd3",
+  "schema_version": "lingxi.g10-execution-evidence-audit.v1",
+  "scope_status": "FULL_PREFIX",
+  "source_manifest_hash": "c8c5f38e6542855aa6fbc8e3373a751a24646922d0838a9774fce4a7e41a9379"
+}

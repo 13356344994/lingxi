@@ -1,0 +1,128 @@
+{
+  "schema_version": "lingxi.p0-swap-data-fitness-receipt.v3",
+  "calculator_version": "p0-swap-data-fitness.v3",
+  "inputs": {
+    "orders_source_manifest_hash": "3bd6db35f9270cf22183249d542fbb0acd62d5aa70d6ae7199d23acb639a55fa",
+    "orders_query_hash": "1f355e27461ff32f0e63b97518ce8cf676743e769e5dc6042dce9b126525420e",
+    "orders_projection_schema_hash": "3c30a0321d5fa4e5030611dbed2767f9a789291695944fc44b0d1c9d5e67ea96",
+    "fills_source_manifest_hash": "390c153265d29d7147ca7efcfc1bea38941beffa05df540bbd2895b04a3bc295",
+    "fills_query_hash": "1f355e27461ff32f0e63b97518ce8cf676743e769e5dc6042dce9b126525420e",
+    "fills_projection_schema_hash": "20ceb85a78bbab6503c261e3f43feb2ef4b2af41046cba59e04ef793558c48fe",
+    "instruments_current_hash": "34cca1c1f629c6f0271722e905ea7bff04d5f1352b7562bc21d5a04c27f1099d",
+    "instruments_manifest_hash": "073f3087042402e004e99cf211a069b36c6312b9bd429f61646bf444d8510715"
+  },
+  "projection_evidence": {
+    "status": "PROJECTION_BYTES_FROZEN_AT_MEASUREMENT",
+    "algorithm": "sha256(concat(relative_filename+NUL+page_sha256+NUL+decimal_bytes+NUL+decimal_rows+LF))",
+    "orders": {
+      "source_manifest_hash": "3bd6db35f9270cf22183249d542fbb0acd62d5aa70d6ae7199d23acb639a55fa",
+      "aggregate_hash": "e2cad38f667a0895fcc7ad0d4961b5bf5b3d8d67d3dd3c5e931618cee877b6b3",
+      "page_count": 137,
+      "total_bytes": 7334063,
+      "total_rows": 13622
+    },
+    "fills": {
+      "source_manifest_hash": "390c153265d29d7147ca7efcfc1bea38941beffa05df540bbd2895b04a3bc295",
+      "aggregate_hash": "36d3fd5e3e0fe267af94122e590da077fb49fa3b290d90268b488d9dc8fa2b2a",
+      "page_count": 157,
+      "total_bytes": 9829988,
+      "total_rows": 15676
+    }
+  },
+  "counts": {
+    "orders_records": 13622,
+    "orders_distinct_order_tokens": 13622,
+    "orders_duplicate_tokens": 0,
+    "orders_cl_ord_id_missing": 1,
+    "orders_source_nonempty": 0,
+    "fills_records": 15676,
+    "fills_distinct_order_tokens": 13622,
+    "fills_distinct_trade_tokens": 15676,
+    "fills_distinct_bill_tokens": 15676,
+    "fills_cl_ord_id_missing": 1,
+    "matched_order_tokens": 13622,
+    "unmatched_fill_order_tokens": 0,
+    "orders_traded_instruments": 144,
+    "fills_traded_instruments": 144,
+    "union_traded_instruments": 145,
+    "orders_snapshot_missing": 1,
+    "fills_snapshot_missing": 1,
+    "union_snapshot_missing": 2,
+    "orders_snapshot_missing_instruments": [
+      "DATA-USDT-SWAP-OFF20260702-2"
+    ],
+    "fills_snapshot_missing_instruments": [
+      "IP-USDT-SWAP"
+    ],
+    "union_snapshot_missing_instruments": [
+      "DATA-USDT-SWAP-OFF20260702-2",
+      "IP-USDT-SWAP"
+    ],
+    "order_states": {
+      "canceled": 56,
+      "filled": 13566
+    },
+    "no_fill_orders": 0,
+    "orders_acc_fill_positive": 13622,
+    "canceled_acc_fill_positive": 56,
+    "canceled_acc_fill_zero": 0,
+    "order_types": {
+      "ioc": 7228,
+      "market": 1,
+      "post_only": 6393
+    },
+    "fill_exec_types": {
+      "M": 6595,
+      "T": 9081
+    },
+    "fills_per_order": {
+      "1": 12212,
+      "11": 1,
+      "16": 1,
+      "2": 1084,
+      "20": 1,
+      "21": 1,
+      "3": 204,
+      "4": 65,
+      "40": 1,
+      "5": 24,
+      "6": 9,
+      "7": 12,
+      "8": 5,
+      "9": 2
+    },
+    "fills_single_order_count": 12212,
+    "fills_multi_order_count": 1410,
+    "fills_max_per_order": 40,
+    "current_instrument_records": 420,
+    "current_ct_type_present": 420,
+    "current_min_sz_present": 420,
+    "current_ct_val_present": 420,
+    "utc_order_days": 26,
+    "top_two_order_day_share_pct": 81.74276905006607,
+    "orders_event_range": {
+      "min": "2026-06-12T12:53:51.619Z",
+      "max": "2026-07-11T01:54:58.546Z"
+    },
+    "fills_event_range": {
+      "min": "2026-06-12T12:53:51.62Z",
+      "max": "2026-07-11T01:54:58.546Z"
+    }
+  },
+  "identity_conflicts": {
+    "order_count": 168,
+    "fill_row_count": 199,
+    "symbol_pairs": [
+      {
+        "orders_instrument": "DATA-USDT-SWAP-OFF20260702-2",
+        "orders_inst_type": "SWAP",
+        "fills_instrument": "IP-USDT-SWAP",
+        "fills_inst_type": "SWAP",
+        "orders": 168,
+        "fill_rows": 199
+      }
+    ]
+  },
+  "no_outcomes": true,
+  "receipt_hash": "f23a815fba52dab22368428a6a95250a1ad58e429c09613fea0ac977b1030c92"
+}

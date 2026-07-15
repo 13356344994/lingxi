@@ -1,0 +1,100 @@
+{
+  "schema_version": "lingxi.data-driven-router-v3.moe-opus.v1",
+  "owner_id": "opus",
+  "owner_model": "Claude Opus 4.8 Thinking High",
+  "model_family": "sparse Mixture-of-Experts with explainable top-1 gating",
+  "status": "MODEL_IMPLEMENTED_SYNTHETIC_ONLY",
+  "scope": {
+    "implemented": [
+      "explainable sparse Mixture-of-Experts (hard top-1 gate + L1 Lasso experts)",
+      "missing-aware axis-aligned gate with replayable per-region predicate/reason",
+      "frozen grid search experts[2,3,4] x gate_depth[1,2] x l1[0.001,0.01], seed 42",
+      "expert-collapse and fixed-direction degeneration guards",
+      "append-only attempt ledger over the search",
+      "seed-42 identity-hash deterministic fit-row cap at 8192, using only ExampleID/EventID/DecisionMS and independent of features/account/targets/input order",
+      "at most 31 deterministic quantile thresholds per feature",
+      "synthetic contract fixtures and tests"
+    ],
+    "not_implemented": [
+      "real-label access",
+      "dataset-on-disk read",
+      "route execution",
+      "peer-output access",
+      "owner filesystem or network IO"
+    ]
+  },
+  "search_space": {
+    "experts": [2, 3, 4],
+    "gate_depth": [1, 2],
+    "l1": [0.001, 0.01],
+    "seed": 42,
+    "max_attempts": 16,
+    "max_leaves": 32,
+    "max_fit_rows": 8192,
+    "max_thresholds_per_feature": 31,
+    "feasibility_rule": "experts <= 2^gate_depth",
+    "routing": "hard top-1, missing feature follows a frozen branch",
+    "expert_head": "L1-regularised linear on standardised present features, snapped to the frozen signed-position grid",
+    "selection_objective": "sum squared (routed_prediction - synthetic_target) + l1 * sum|expert_weights|"
+  },
+  "anti_degeneration_guards": {
+    "expert_collapse_single_region": "rejected",
+    "fixed_action_no_state_dependence": "rejected",
+    "fixed_direction_always_directional": "rejected",
+    "uses_symbol_or_date_features": false
+  },
+  "synthetic_contract_fixture": {
+    "description": "24-state deterministic fixture where the sign of own_return_1h flips the synthetic target direction",
+    "selected_choice": {
+      "experts": 2,
+      "gate_depth": 1,
+      "l1": 0.001,
+      "seed": 42,
+      "attempts": 8,
+      "leaves_used": 16
+    },
+    "leaf_count": 2,
+    "policy_id": "e56fb6472c76fb75e9a6350e7bba9db96770383907f0c47fbe09fcb90d83e32c",
+    "attempt_ledger_entries": 10,
+    "attempt_ledger_head_hash": "6466a2a07613509e78adce7847735c6d57c040875686406d2178f043f75ae28f"
+  },
+  "bindings": {
+    "modelapi_grid_hash": "789f18922df9060e8991afe650955706c74a88c016e6617dd7b3629de7f45b72",
+    "modelapi_api_hash": "1593a18d2db0cdac3cc32d3adbd147490d3981e4142c0281bd1d46ebe9ba4168",
+    "modelapi_code_hash": "392ec218614f25fdadaedddd415922735006fa15776dd8b485b400929bd8b910"
+  },
+  "code_sha256": {
+    "internal/datadrivenv3/models/moe/moe.go": "bce24131c148e4dd8d615948e07f9913fb07068eea0a51c48a0cea42ddef969a",
+    "internal/datadrivenv3/models/moe/moe_synthetic_test.go": "6e2fd0f0af7235f89148b6f24178027e935e698d981295a56343a1b8767c9c33",
+    "internal/datadrivenv3/models/moe/moe_scalability_test.go": "f5a1f135a2011e445beb94d91a0804bc5b1cea856e7846138c99a80738b3ab06"
+  },
+  "tests": [
+    "TestFitRoutesDistinctStatesToDistinctExperts",
+    "TestPredicatesAreReplayableAndPolicyMatchesExperts",
+    "TestMissingAwareRoutingFollowsFrozenBranch",
+    "TestDeterministicUnderSeed42",
+    "TestBudgetRespectsAttemptAndLeafCaps",
+    "TestL1PenaltyShrinksActiveWeights",
+    "TestDegenerateTargetsRejected",
+    "TestUnfittedPredictErrorsAndLedgerGrows",
+    "TestScalabilityComplexityBoundLargeSynthetic",
+    "TestPolicyPredictsArbitraryFullStateAtScale",
+    "TestPermutationDeterminismAtScale",
+    "TestSelectFitExamplesIsBoundedAndOrderIndependent",
+    "TestFitRowSelectionIgnoresTargets",
+    "TestQuantileThresholdsBounded",
+    "TestScaleFixtureIsSeed42Deterministic"
+  ],
+  "verification": {
+    "gofmt": "clean",
+    "go_vet": "clean",
+    "go_test": "pass",
+    "go_test_race": "pass"
+  },
+  "labels_or_real_model_outputs_read": false,
+  "peer_outputs_read": false,
+  "dataset_files_read": false,
+  "routes_started": 0,
+  "trade_allowed": false,
+  "global_halt": true
+}

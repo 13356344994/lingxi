@@ -1,0 +1,12 @@
+{
+  "artifact_hash": "70a5dd09190e384ace12a4179a0ef04ead76128c1ebc4d280d3e007878728c39",
+  "baseline_support_set_hash": null,
+  "labels_unblinded": false,
+  "matched_control_set_hash": null,
+  "matching_config_hash": "2f1654821f174c2653a59a61cab78a6e778b04df0d94a4cb26e0f22f05f92995",
+  "outcome_blind": true,
+  "schema_version": "lingxi.g10-execution-evidence-audit.v1",
+  "status": "UNAVAILABLE_SOURCE_SCHEMA",
+  "winner_binding_kind": "PLAYBOOK_HASH_PLUS_OPAQUE_SOURCE_WINNER_IDS_HASH",
+  "winner_seed_set_hash": "ec7b84b5b814e3d8088e2d658e45c7cabd120d3a7588bc56dea8a9d39ba35556"
+}

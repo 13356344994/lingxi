@@ -1,0 +1,56 @@
+{
+  "schema_version": "lingxi.data-driven-router-v3.model-api-receipt.v1",
+  "status": "API_FROZEN_SYNTHETIC_ONLY",
+  "scope": {
+    "implemented": [
+      "owner-neutral model API",
+      "sealed-label neutral runner scaffold",
+      "synthetic contract fixtures"
+    ],
+    "not_implemented": [
+      "real-label access",
+      "real model training",
+      "route execution",
+      "peer-output access",
+      "owner filesystem IO"
+    ]
+  },
+  "bindings": {
+    "effective_protocol_hashes": {
+      "g1": "5d80166eb28307d23e33cd19efae2b60811852ff0da49a3a6e16663aba2e7ddd",
+      "g2": "7096395f1f3bae212b6dc866c5d46ccb372cd284e4a959d424dfbfbb92d6c226",
+      "g3": "63f4ee088efb09e9e58386ab273b997af4a9206d4c5c18e73c59fda5d42a7a57",
+      "g4": "2fd8c5852bba5023c9024d46b5b5e9527e71d670c370a1276e4728f4ef4cd2b9",
+      "g5": "518d0003c829da641f1bcc955c4382023e158ba9938c0ac6f0ff19b5bf729385",
+      "g6": "08b609e3271029b1e9f772921e325ef7c7fd30326589ae9c03cc86d73d9c844b",
+      "g7": "4aacc43e928d25b6b83cdf8fe10d5b576e2b1009ea10b7bfad3e750388e47747"
+    },
+    "dataset_v3_manifest_hash": "f9dc0944919709a49f765fe3291cf60a46952919f796add47d892af5f2808a6d",
+    "dataset_v3_reviewer_receipt_hash": "5fbb51bf0bab3be2649b57ba76ed68b2f714cda8a5fc7c0722a1a53f4c52edfb",
+    "account_fixture_receipt_sha256": "c80745299bfac73495060d18a77cb8201a7c5ca40858ebf0df3010489d39b300"
+  },
+  "api": {
+    "market_state": "25 fixed features plus missing_bits",
+    "model_methods": [
+      "Fit(synthetic/discovery examples only)",
+      "Predict(decision-time market and account context)"
+    ],
+    "grid_hash_enforced": true,
+    "owner_code_hash_enforced": true,
+    "shared_input_hash_enforced": true,
+    "append_only_attempt_ledger": true,
+    "atomic_output_barrier": true,
+    "same_account_transition_engine_for_models_and_baselines": true,
+    "same_synthetic_reward_evaluator_for_models_and_baselines": true,
+    "real_label_provider_default": "SEALED"
+  },
+  "code_sha256": {
+    "internal/datadrivenv3/modelapi/modelapi.go": "905764170d26ffc756377a4427f600b2b79fdc947d31b24b569bedb674e25832",
+    "internal/datadrivenv3/modelapi/modelapi_synthetic_test.go": "7991fe289672d3ee2299e9630c34986018b361e0c34fc4c5c68a231b0a14ee79",
+    "internal/datadrivenv3/neutralrunner/neutralrunner.go": "12bbd2709f8dcdbba808ec2e42c3093515d4b87e5bdba4a73c11254a3011d605",
+    "internal/datadrivenv3/neutralrunner/neutralrunner_synthetic_test.go": "97c8b1066caca352c60fc1fd1e8e1b5f24cf43aab81c4f57bd982b889b708624"
+  },
+  "labels_or_real_model_outputs_read": false,
+  "routes_started": 0,
+  "trade_allowed": false
+}

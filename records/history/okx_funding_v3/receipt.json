@@ -1,0 +1,9 @@
+{
+  "complete_days": 922,
+  "gap_days": 0,
+  "labels_or_outcomes_read": false,
+  "manifest_hash": "7f864cfd3909bfc5e6785a06e08d58e83cddc5f4a053981f08d06d74d77402c2",
+  "plan_hash": "4f8e966188349d766e57985024f8a592556db083004a41d54da0a8c4eb8265fa",
+  "rows": 727494,
+  "schema_version": "lingxi.okx-funding-archive-receipt.v1"
+}

@@ -1,0 +1,119 @@
+[
+  {
+    "sequence": 1,
+    "attempt_id": "grok-cp-r2-d10-p1-s1",
+    "owner_id": "grok",
+    "operation": "FIT_GRID",
+    "input_hash": "3a5f7e14f89e6ccc783a914b88367b40c33992d698e48fa588a4e31c992b036f",
+    "previous_hash": "",
+    "entry_hash": "7f92176f69a2ad191b294901c411c16782b26da472997b4b63c8c3c7bde5ae2b"
+  },
+  {
+    "sequence": 2,
+    "attempt_id": "grok-cp-r2-d10-p2-s2",
+    "owner_id": "grok",
+    "operation": "FIT_GRID",
+    "input_hash": "55f6c6aa9941363e3f4416e3d70ff8ec52a518649374cf6b6406269087ac24ea",
+    "previous_hash": "7f92176f69a2ad191b294901c411c16782b26da472997b4b63c8c3c7bde5ae2b",
+    "entry_hash": "de9fb8b5f7008b1e70da2208959b2dc9c1505c6c601adb38810c54b746c1530e"
+  },
+  {
+    "sequence": 3,
+    "attempt_id": "grok-cp-r2-d20-p1-s3",
+    "owner_id": "grok",
+    "operation": "FIT_GRID",
+    "input_hash": "d3b0e89ff6a20e2211251b4076f27f77f09791eba20fad286bd8552c1c5f21ea",
+    "previous_hash": "de9fb8b5f7008b1e70da2208959b2dc9c1505c6c601adb38810c54b746c1530e",
+    "entry_hash": "4d775e375ff543fb8e5cfcc41e41b1e5e4a5724f47f74113cdf4a3a3e86f2931"
+  },
+  {
+    "sequence": 4,
+    "attempt_id": "grok-cp-r2-d20-p2-s4",
+    "owner_id": "grok",
+    "operation": "FIT_GRID",
+    "input_hash": "e00a84a03a8592c3cb09edcfc4545ea254e050f2032ae3e024484bcd7ea3e5a9",
+    "previous_hash": "4d775e375ff543fb8e5cfcc41e41b1e5e4a5724f47f74113cdf4a3a3e86f2931",
+    "entry_hash": "ceca60fc4ce4935915fa8f24b16b9a6093d83b4c5904fc2e759921ab6fb462e1"
+  },
+  {
+    "sequence": 5,
+    "attempt_id": "grok-cp-r3-d10-p1-s5",
+    "owner_id": "grok",
+    "operation": "FIT_GRID",
+    "input_hash": "b5fc43fd90acaed54a4703cc029b9e54720ecfb4c7e48773c52f548f8e530176",
+    "previous_hash": "ceca60fc4ce4935915fa8f24b16b9a6093d83b4c5904fc2e759921ab6fb462e1",
+    "entry_hash": "d908c2ba5258b8e1bc69d62795646219c44eec9754f12fb6cff6654f6891bf68"
+  },
+  {
+    "sequence": 6,
+    "attempt_id": "grok-cp-r3-d10-p2-s6",
+    "owner_id": "grok",
+    "operation": "FIT_GRID",
+    "input_hash": "477de37d3bc7b67d9baf7f2b1c15bce4b6f41c59461254d9463d40af8e8c9278",
+    "previous_hash": "d908c2ba5258b8e1bc69d62795646219c44eec9754f12fb6cff6654f6891bf68",
+    "entry_hash": "5ab58d64a37fcbda4b029801a5a7d62c21eb54334363920733e0ae53d04c51b0"
+  },
+  {
+    "sequence": 7,
+    "attempt_id": "grok-cp-r3-d20-p1-s7",
+    "owner_id": "grok",
+    "operation": "FIT_GRID",
+    "input_hash": "49804a050488a60b60c09e6a596503380de238da06243461470217df7bceb47b",
+    "previous_hash": "5ab58d64a37fcbda4b029801a5a7d62c21eb54334363920733e0ae53d04c51b0",
+    "entry_hash": "721171835663626e5d8e6842c88ea079764662b23c5f7225d4695a2b703f704f"
+  },
+  {
+    "sequence": 8,
+    "attempt_id": "grok-cp-r3-d20-p2-s8",
+    "owner_id": "grok",
+    "operation": "FIT_GRID",
+    "input_hash": "b29b765c412c457e8ef6c3a6315c9536baf7b986b7d5116eb181a704134a8828",
+    "previous_hash": "721171835663626e5d8e6842c88ea079764662b23c5f7225d4695a2b703f704f",
+    "entry_hash": "3a90acc61761b2feb9eda759ab097de560182dba5c89a0a3f41f9fb5b208c303"
+  },
+  {
+    "sequence": 9,
+    "attempt_id": "grok-cp-r4-d10-p1-s9",
+    "owner_id": "grok",
+    "operation": "FIT_GRID",
+    "input_hash": "6b62a81a4e1c8d891ba042e436cdd51c3231e011a74b228b7876b38bf9707e92",
+    "previous_hash": "3a90acc61761b2feb9eda759ab097de560182dba5c89a0a3f41f9fb5b208c303",
+    "entry_hash": "00e8c6a13fba7aca75f41693bc37a77f2df1a71bed688820f5766b35dff24ee0"
+  },
+  {
+    "sequence": 10,
+    "attempt_id": "grok-cp-r4-d10-p2-s10",
+    "owner_id": "grok",
+    "operation": "FIT_GRID",
+    "input_hash": "c1719973f0e9a8352bda86cb45a29e6a5c01cc768e72e32f517323ebecf20524",
+    "previous_hash": "00e8c6a13fba7aca75f41693bc37a77f2df1a71bed688820f5766b35dff24ee0",
+    "entry_hash": "3dffe5247a38d3a8413e46c8cc2dc0a97bb5ff34b9591f676682019869cd5eb4"
+  },
+  {
+    "sequence": 11,
+    "attempt_id": "grok-cp-r4-d20-p1-s11",
+    "owner_id": "grok",
+    "operation": "FIT_GRID",
+    "input_hash": "ada1eee067dc1dca0801f2b60fa861b6cd81292421137f017936bd47f06926b4",
+    "previous_hash": "3dffe5247a38d3a8413e46c8cc2dc0a97bb5ff34b9591f676682019869cd5eb4",
+    "entry_hash": "8856da752d8c1dcd4855cef8a2b49adacc425c0f6aaeca023377501d1885b38f"
+  },
+  {
+    "sequence": 12,
+    "attempt_id": "grok-cp-r4-d20-p2-s12",
+    "owner_id": "grok",
+    "operation": "FIT_GRID",
+    "input_hash": "e53986db07406b216c09eb86dbee3a34a66c1900ebe1c4773d82a34daf49608d",
+    "previous_hash": "8856da752d8c1dcd4855cef8a2b49adacc425c0f6aaeca023377501d1885b38f",
+    "entry_hash": "b83efabc66a1eae82af635616599ac5c06376df46fe9e14749e2909a9d4030a7"
+  },
+  {
+    "sequence": 13,
+    "attempt_id": "select:grok-cp-r4-d10-p1-s9",
+    "owner_id": "grok",
+    "operation": "SELECT_POLICY",
+    "input_hash": "0ca7653e70b73dfc6201609597a112e3c7f0630551d312a5e1c0515bfc3d8c6f",
+    "previous_hash": "b83efabc66a1eae82af635616599ac5c06376df46fe9e14749e2909a9d4030a7",
+    "entry_hash": "b16fede2025e0977b4a0075d95d995fb016fa23f2d94a98946420b76248afe03"
+  }
+]

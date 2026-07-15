@@ -1,0 +1,124 @@
+{
+  "schema_version": "lingxi.data-driven-router-v3.verdict.v1",
+  "artifact_id": "firstbattle.data-driven-router-v3.verdict",
+  "created_at": "2026-07-15T05:44:00Z",
+  "status": "NO_CERTIFIED_ROUTE_CURRENT_GENERATION",
+  "supreme_objective": "Dynamically route each market state, special event, and personal execution condition to a historically certified proprietary profitable path; remain flat when no reliable path matches; success is only long-run growth of cashflow-adjusted real account equity.",
+  "scope_of_verdict": {
+    "means": "No route from this V3 generation may proceed to router holdout or trading.",
+    "does_not_mean": "The supreme objective or existence of a proprietary profitable route is disproved.",
+    "router_holdout_unblinded": false,
+    "trade_allowed": false
+  },
+  "evidence_bindings": {
+    "dataset_manifest_hash": "f9dc0944919709a49f765fe3291cf60a46952919f796add47d892af5f2808a6d",
+    "dataset_reviewer_receipt_hash": "5fbb51bf0bab3be2649b57ba76ed68b2f714cda8a5fc7c0722a1a53f4c52edfb",
+    "discovery_tournament_manifest_sha256": "deb901e662d27e122092ef8bd95b3d13a07f9c40b2a2a9e62aabf2a5abaeb7f7",
+    "discovery_label_bundle_sha256": "db6e87646d515ca69712f46faf90d1aac6461b19ef824f635245f731732b7b77",
+    "validation_receipt_sha256": "31d48cf21f2f943818d95aad2442b6fd3ada911d93fc849cf19ec2223233fe0b",
+    "owner_path_verdicts_sha256": "4f02770f1283d5e5583a5742a644f585863130a0e257c2edfe6e0c73f511f4f3",
+    "account_router_v4_report_sha256": "b172ccc21271417d97757a3c696faf2cb7e049d1374a2695f607ee4b63cb7a5b",
+    "account_router_v4_report_path": "research/firstbattle/data_driven_router_v3/account_router/run-20260715-gpt56sol-eligibility-v4/account_router_report.json"
+  },
+  "discovery_tournament": {
+    "examples": 100000,
+    "owners": ["terra", "opus", "sonnet", "grok"],
+    "completed": true,
+    "policies_published_atomically": true
+  },
+  "independent_validation": {
+    "candidate_paths": 52,
+    "wf_confirmed_paths": 0,
+    "owners": {
+      "terra": {
+        "paths": 12,
+        "fully_replayable": true,
+        "validation_activation_rate": 0.9960031037422008,
+        "verdicts": {"NO_EDGE": 3, "UNEXECUTABLE": 9}
+      },
+      "opus": {
+        "paths": 4,
+        "fully_replayable": false,
+        "reason": "sealed policy omitted fitted linear expert parameters",
+        "verdicts": {"UNREPLAYABLE": 4}
+      },
+      "sonnet": {
+        "paths": 32,
+        "fully_replayable": false,
+        "reason": "episodic policy exposed aggregate neighbor evidence but no observable-state membership predicate",
+        "verdicts": {"UNREPLAYABLE": 32}
+      },
+      "grok": {
+        "paths": 4,
+        "fully_replayable": "unique predicate matches only",
+        "validation_activation_rate": 0.438231580449482,
+        "reason": "zero or multiple matches require fitted centroids absent from the sealed policy",
+        "verdicts": {"NO_EDGE": 1, "UNEXECUTABLE": 3}
+      }
+    }
+  },
+  "strongest_observed_path": {
+    "owner": "terra",
+    "leaf_id": "leaf-05",
+    "intent": "LONG fraction=1 horizon=24h delay=0",
+    "validation_support": 38307,
+    "validation_base_reward_sum": 146444.82971884735,
+    "validation_cost_stress_reward_sum": 81890.28329348739,
+    "validation_robustness_gates_passed": 9,
+    "validation_robustness_gates_total": 9,
+    "validation_issue_at_original_size": "two independent-context ruin events at fraction=1",
+    "account_router_selected_fraction": 0.25,
+    "selection_reason": "largest tested fraction with all three capital tiers solvent and profitable across base delay 0-3 plus positive own-delay 1.5x cost stress on validation"
+  },
+  "leaf_wf_account_result": {
+    "selected_fraction": 0.25,
+    "capital_tiers_usdt": [30, 100, 1000],
+    "scenarios": 8,
+    "result": "FAIL_HARD_SAFETY",
+    "ruin_scenarios": 8,
+    "unknown_cost_events": 0,
+    "ruin_reason": "LEVERAGE_BREACH",
+    "concurrent_positions_at_first_breach": 8,
+    "gross_notional_fraction_of_retained_base": 2,
+    "representative_equity_fraction_of_retained_base": 0.3946,
+    "interpretation": "The state-direction edge did not survive cross-symbol correlated concurrency under the 5x leverage hard gate."
+  },
+  "invalidated_account_runs": [
+    {
+      "path": "research/firstbattle/data_driven_router_v3/account_router/run-20260715-gpt56terra-final",
+      "reason": "future latest-bar MTM, wrong open execution price, incomplete scenario matrix"
+    },
+    {
+      "path": "research/firstbattle/data_driven_router_v3/account_router/run-20260715-gpt56sol-corrected-v2",
+      "reason": "overstrict Cartesian profitability gate beyond frozen g1 semantics"
+    },
+    {
+      "path": "research/firstbattle/data_driven_router_v3/account_router/run-20260715-gpt56sol-g1-selection-v3",
+      "reason": "missing PrepareRow eligibility gate created false ruin from incomplete signals"
+    }
+  ],
+  "root_cause_findings": [
+    "Discovery labels optimized single-instrument local counterfactual reward, while final success is multi-instrument cashflow-adjusted account equity.",
+    "The learned long path clustered across correlated instruments and accumulated 2x gross notional before a broad drawdown, breaching the 5x account leverage ceiling.",
+    "This is not inactivity: the replayable policies activated frequently.",
+    "Three owner artifacts were not fully replay-complete, preventing honest certification of their complete model behavior."
+  ],
+  "next_generation_only_after_user_approval": [
+    "Move portfolio concurrency, correlation, gross-notional occupation, pending positions, and withdrawal-adjusted equity into discovery-time account reward rather than applying them only after path discovery.",
+    "Require every model submission to export replay-complete fitted parameters or an owner-blind neutral prediction artifact before validation.",
+    "Treat correlated-position admission and account-aware sizing as learned routing outputs; do not merely add a tighter subjective pre-filter.",
+    "Preserve the hard ruin gate, treat drawdown as soft, and treat failure to activate a certified match as an explicit failure."
+  ],
+  "safety": {
+    "router_holdout_unblinded": false,
+    "routes_started": 0,
+    "trade_allowed": false,
+    "system_status": "NO_GO",
+    "awaiting_user_approval": true
+  },
+  "hashes": {
+    "verdict_hash": "d2822528914fdc71559683724a3a852a414334a2ab63698a3c4dba8524d8c86b",
+    "hash_method": "Set hashes.verdict_hash to null, then compute repository datatruth.HashJSON.",
+    "self_excluded_field": "hashes.verdict_hash"
+  }
+}

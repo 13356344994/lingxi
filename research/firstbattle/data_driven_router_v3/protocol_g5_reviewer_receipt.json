@@ -1,0 +1,210 @@
+{
+  "schema_version": "lingxi.data-driven-router-v3.g5-reviewer-receipt.v1",
+  "artifact_id": "firstbattle.data-driven-router-v3.g5-reviewer-receipt",
+  "reviews_artifacts": [
+    "research/firstbattle/data_driven_router_v3/supersession.json",
+    "research/firstbattle/data_driven_router_v3/supersession.md",
+    "research/firstbattle/data_driven_router_v3/protocol.json",
+    "research/firstbattle/data_driven_router_v3/protocol.md",
+    "research/firstbattle/data_driven_router_v3/protocol_g2.json",
+    "research/firstbattle/data_driven_router_v3/protocol_g2.md",
+    "research/firstbattle/data_driven_router_v3/protocol_g3.json",
+    "research/firstbattle/data_driven_router_v3/protocol_g3.md",
+    "research/firstbattle/data_driven_router_v3/protocol_g4.json",
+    "research/firstbattle/data_driven_router_v3/protocol_g4.md",
+    "research/firstbattle/data_driven_router_v3/protocol_g5.json",
+    "research/firstbattle/data_driven_router_v3/protocol_g5.md",
+    "FIRST_BATTLE_MASTER_PLAN.md \u00a75.14-5.18 (citation cross-check only; file not modified by this reviewer)"
+  ],
+  "reviewed_at": "2026-07-14T09:50:00Z",
+  "repo_head_commit_at_review": "ab2780405f0fd5c80d268fe0feff39eb14a29eda",
+  "reviewer": {
+    "identity": "Independent reviewer subagent, distinct session from the governance-owner agent that authored supersession.{json,md} and protocol{,_g2,_g3,_g4,_g5}.{json,md}",
+    "model": "Claude Sonnet 5",
+    "workspace": "/root/lingxi",
+    "write_scope": "Permitted to add only: research/firstbattle/data_driven_router_v3/protocol_g5_reviewer_receipt.json and .md. Did not modify supersession.{json,md}, protocol{,_g2,_g3,_g4,_g5}.{json,md}, FIRST_BATTLE_MASTER_PLAN.md, any mechanism_search_v2 or G1-G10 frozen artifact, any code, records/, private-raw, or exam/real-money surface. Made no git commits.",
+    "separation_statement": "This receipt is authored by an agent instance that did not author any of the reviewed g1-g5 protocol/overlay files or the supersession artifact. Every finding below is derived from this reviewer's own independently executed commands against the frozen on-disk bytes and the repository's own canonical datatruth.HashJSON primitive, not from trusting the owner's decision_journal narrative or self-declared hash values.",
+    "raw_or_outcome_access": "None. This review read only: the 12 reviewed JSON/MD files, FIRST_BATTLE_MASTER_PLAN.md \u00a71 and \u00a75.14-5.18 (grep/read only, not modified), the repository's internal/datatruth/envelope.go source (to confirm the exact HashJSON algorithm), git metadata (log/status/diff), and, for corroboration only, the self-excluded hash fields of research/firstbattle/mechanism_search_v2/candidates_opus.json, mechanism_shortlist.json, mechanism_shortlist_reviewer_receipt.json, data_mainline_closure_v1.json, p0_swap_data_fitness_reviewer_receipt.json, and the plain .data_hash field of history_catalog.json (metadata/hash fields only). No pnl/fillPnl/realized_pnl/return/winner/future_outcome field, no records/ file, no private-raw file, and no exam/sealed surface was opened. No StateRow/reward-cube/dataset file exists yet anywhere in the repository (verified in M6); none was read because none exists."
+  },
+  "independent_methods": [
+    {
+      "method_id": "M1_SELF_EXCLUDING_JSON_HASH_RECOMPUTE",
+      "description": "Built a temporary Go program under a transient cmd/ directory (following the same pattern as mechanism_shortlist_reviewer_receipt.json's M1 and p0_swap_data_fitness_reviewer_receipt.json's M3) that loads each artifact as a generic map, nulls exactly the field named in its own hashes.self_excluded_field, and calls the repository's internal/datatruth.HashJSON. Ran it against supersession.json and all five protocol/overlay JSON files (g1-g5), then deleted the program (`rm -rf cmd/tmp-g5-reviewer-hashverify`) and confirmed `git status --short cmd/` showed no residual diff.",
+      "result": "6/6 exact matches: supersession.json hashes.supersession_hash=44f098e1...ae7bad2; protocol.json hashes.protocol_hash=5d80166e...aba2e7ddd; protocol_g2.json hashes.overlay_hash=7096395f...b92d6c226; protocol_g3.json hashes.overlay_hash=63f4ee08...59fda5d42a7a57; protocol_g4.json hashes.overlay_hash=2fd8c585...4728f4ef4cd2b9; protocol_g5.json hashes.overlay_hash=518d0003...19b5bf729385. Every declared self-hash reproduces byte-for-byte independently."
+    },
+    {
+      "method_id": "M2_MARKDOWN_DOCUMENT_HASH_RECOMPUTE",
+      "description": "For each of the six companion Markdown files, normalized the single '> Document hash: `<value>`' line to '> Document hash: `SELF_EXCLUDED`' and recomputed SHA-256 over the UTF-8 bytes with a standalone Python script (not part of the repository, not committed, executed only against on-disk file content read via the standard library).",
+      "result": "6/6 exact matches: supersession.md=b24e2639...241ead812dc; protocol.md=b76f341e...b95a988f75ad04132a; protocol_g2.md=ad51f16f...e60bf9375cb0e86001f706c62; protocol_g3.md=4ffab243...be7dabfca35d61124b; protocol_g4.md=6dd37c27...d0a77c7929898c4b; protocol_g5.md=e211ec43...176067227621717b5e."
+    },
+    {
+      "method_id": "M3_INHERITANCE_CHAIN_CROSS_REFERENCE",
+      "description": "Read each overlay's `inheritance`/`supersedes` block and cross-checked every cited upstream hash against the actual independently-recomputed hash of the file it claims to cite (not merely against that file's own self-declared value), and checked that the set of cited hashes strictly grows by exactly one per generation with no dropped or altered prior citation.",
+      "result": "g2.supersedes.protocol_hash and g2.inheritance.base_protocol_hash both equal the independently-recomputed protocol.json hash (M1). g3.inheritance.{base_protocol_hash,g2_overlay_hash} equal the M1 hashes of protocol.json and protocol_g2.json; g3.supersedes.overlay_hash equals g2's own recomputed hash. g4.inheritance carries all three prior hashes (base+g2+g3), each equal to its M1 recompute; g4.supersedes.overlay_hash equals g3's recomputed hash. g5.inheritance carries all four prior hashes (base+g2+g3+g4), each equal to its M1 recompute; g5.supersedes.overlay_hash equals g4's recomputed hash. No generation silently drops, mutates, or renames a prior citation; each 'effective_protocol_requires_all_N_hashes' count (2,3,4,5 for g2..g5) is arithmetically correct for the number of distinct hashes actually cited."
+    },
+    {
+      "method_id": "M4_MASTER_PLAN_CITATION_CROSS_CHECK",
+      "description": "Read FIRST_BATTLE_MASTER_PLAN.md \u00a75.14-5.18 verbatim (read-only) and compared every JSON hash and Markdown document hash quoted there against this reviewer's own M1/M2 independent recomputes (not against the artifacts' own self-declared values, to avoid a circular check). Also read \u00a71 (supreme objective) and compared it byte-for-byte against protocol.json.supreme_objective, protocol.md's quoted objective, supersession.json.supreme_objective_verbatim, and supersession.md's quoted objective.",
+      "result": "All five Master sections (5.14 g1, 5.15 g2, 5.16 g3, 5.17 g4, 5.18 g5) quote hash/document-hash pairs that exactly equal this reviewer's independent M1/M2 recomputes, with matching generation id and status string in every case. The supreme objective text ('LINGXI \u6c38\u4e45\u3001\u552f\u4e00\u3001\u6700\u9ad8\u4f18\u5148\u7ea7\u76ee\u6807\uff1a...\u552f\u4e00\u6210\u529f\u6807\u51c6\u3002') is byte-identical across Master \u00a71, protocol.json, protocol.md, supersession.json, and supersession.md; g2-g5 do not restate the objective at all (consistent with their own 'all_unmodified_fields_inherited' claim), so there is no drift surface for it to have changed on across generations 2-5.",
+      "note": "git diff against HEAD shows FIRST_BATTLE_MASTER_PLAN.md \u00a71's wording differs from an older, pre-V3 phrasing that existed at some earlier uncommitted point in this working tree (title changed from a leaf-routing framing to the current multi-state framing). That earlier rewording predates the V3 generation entirely (V3's own timestamps start 2026-07-14T07:40Z; the Master's own status line already reads '2026-07-13' for the prior data-mainline pivot) and is outside this receipt's reviewed scope (supersession + g1-g5). Within that scope, the objective is proven unchanged across every V3 artifact and the current Master \u00a71 text, which is the specific claim supersession.json.supreme_objective_preservation.unchanged=true actually makes."
+    },
+    {
+      "method_id": "M5_UPSTREAM_BINDING_SPOT_CHECK",
+      "description": "Independently recomputed (same M1 tool) the self-excluded hash of five upstream artifacts that g1's `bindings` block and supersession.json's `superseded_artifacts` cite by hash, to corroborate the owner's own 'independently_reverified' claims rather than trust them: candidates_opus.json, mechanism_shortlist.json, mechanism_shortlist_reviewer_receipt.json, data_mainline_closure_v1.json, and p0_swap_data_fitness_reviewer_receipt.json. Also directly read history_catalog.json's plain (non-self-excluding) `.data_hash` field.",
+      "result": "5/5 exact matches against both the owner's declared value and the exact hash cited in protocol.json.bindings / supersession.json.superseded_artifacts: candidates_opus_hash=1ed962fc...b898c4d32; mechanism_shortlist_hash=b3c63aee...633b015c541; mechanism_shortlist_reviewer_receipt_hash=6c5a0c25...f146a2bbdce; data_mainline_closure_v1_hash=d4f78f1e...a14e6568525e (matches g1 bindings.data_mainline_closure_hash exactly); p0_swap_data_fitness_reviewer_receipt_hash=0cdd3221...9292ad9dcad4 (matches g1 bindings.p0_data_fitness_reviewer_receipt_hash exactly). history_catalog.json.data_hash=f41ed258...dfdc5fc6dee316379c matches g1 bindings.history_data_hash exactly (declared field only, not a self-excluding hash, so not independently re-derivable from source without re-reading the full catalog; treated as reference-only per this artifact's own structure).",
+      "independence_caveat": "This is a corroborating spot-check of a subset of supersession.json's own exclude_from_v3_model_input list (6 of 12 non-disputed JSON entries), not a full re-audit of all mechanism_search_v2 artifacts; the disputed equity_session_gap_data_contract hash was deliberately not recomputed, matching supersession.json's own explicit non-adjudication stance, which this reviewer independently endorses as the correct action rather than a gap (recomputing it would itself constitute taking a side in an unresolved dispute)."
+    },
+    {
+      "method_id": "M6_MECHANICS_AND_SAFETY_GATE_REVIEW",
+      "description": "Read every g5 field line-by-line against the six specific properties named in the review task (deterministic withdrawal reserve, unknown MMR handling, synthetic-override scope, real hard gates, baseline-neutral evaluator, capital withdrawal rules / 5x cap / no negative cash), checked each for internal mathematical consistency and for silent contradiction against g1-g4, then ran `git status`/`git log`/`git rev-parse HEAD` to confirm the reviewed repo_head, confirm the V3 directory and Master-plan diff are still uncommitted, and confirm no dataset/StateRow/reward-cube artifact exists anywhere in the repository at review time.",
+      "result": "See mechanics_findings and inheritance_and_git_findings below for the itemized results; no mathematical, contradiction, or scope-leak defect was found. `git rev-parse HEAD` == `ab2780405f0fd5c80d268fe0feff39eb14a29eda`, matching supersession.json.repo_head exactly. `git status --short` shows research/firstbattle/data_driven_router_v3/ as untracked (??) and FIRST_BATTLE_MASTER_PLAN.md as modified but uncommitted, consistent with the no-commit claim. No file named dataset_data_fitness*, *state_rows*, *reward_cube*, or *StateRow* exists under research/firstbattle/data_driven_router_v3/ (directory listing: only the 12 reviewed protocol/supersession files existed there before this receipt was added), confirming dataset_built=false and labels_unblinded=false hold in fact, not just in declared JSON fields."
+    }
+  ],
+  "commands_run": [
+    "Read of all 12 reviewed JSON/MD files under research/firstbattle/data_driven_router_v3/",
+    "Grep of FIRST_BATTLE_MASTER_PLAN.md for '5.1[4-8]' headings and Read of lines 540-666 (read-only)",
+    "Read of internal/datatruth/envelope.go (HashJSON/normalizeJSON) to confirm the exact hashing algorithm before reimplementing its call site",
+    "Temporary Go program under cmd/tmp-g5-reviewer-hashverify calling internal/datatruth.HashJSON for method M1/M5, built with 'go build -o /tmp/g5reviewer-hashverify ./cmd/tmp-g5-reviewer-hashverify/', run once per file+field pair, then deleted with 'rm -rf cmd/tmp-g5-reviewer-hashverify /tmp/g5reviewer-hashverify'; not committed",
+    "Standalone Python script (inline heredoc, not committed) recomputing all six Markdown SELF_EXCLUDED document hashes for method M2",
+    "git rev-parse HEAD; git log --oneline -3; git status --short; git status --short research/firstbattle/data_driven_router_v3/ FIRST_BATTLE_MASTER_PLAN.md; git diff --stat FIRST_BATTLE_MASTER_PLAN.md; git status --short cmd/ (before and after temp-program cleanup, to confirm zero residual diff)",
+    "find/ls of research/firstbattle/data_driven_router_v3/, cmd/data-driven-v3-dataset/, and internal/datadrivenv3/ to confirm no dataset/state/reward artifact exists yet",
+    "Read of cmd/data-driven-v3-dataset/main.go and internal/datadrivenv3/preflight.go (first 60 lines) to characterize newly-appeared, out-of-scope code encountered mid-review (see F5)"
+  ],
+  "input_hashes": {
+    "supersession_json_declared": "44f098e19cffa0657a963673b5c97425dcac58dcf15ae7d5939a8fec9ae7bad2",
+    "supersession_json_reverified": true,
+    "supersession_md_declared": "b24e26398b8082b4fbd9895bb7ef834fedc195b79127905c09888241ead812dc",
+    "supersession_md_reverified": true,
+    "protocol_g1_json_declared": "5d80166eb28307d23e33cd19efae2b60811852ff0da49a3a6e16663aba2e7ddd",
+    "protocol_g1_json_reverified": true,
+    "protocol_g1_md_declared": "b76f341e0694f27513b602203c8bde2d184bcd10260800b95a988f75ad04132a",
+    "protocol_g1_md_reverified": true,
+    "protocol_g2_json_declared": "7096395f1f3bae212b6dc866c5d46ccb372cd284e4a959d424dfbfbb92d6c226",
+    "protocol_g2_json_reverified": true,
+    "protocol_g2_md_declared": "ad51f16f891fe4abc5293ce62403330ab6d7fa6e60bf9375cb0e86001f706c62",
+    "protocol_g2_md_reverified": true,
+    "protocol_g3_json_declared": "63f4ee088efb09e9e58386ab273b997af4a9206d4c5c18e73c59fda5d42a7a57",
+    "protocol_g3_json_reverified": true,
+    "protocol_g3_md_declared": "4ffab243d5f894c0efdaa3f7f904222652c934e8e29096be7dabfca35d61124b",
+    "protocol_g3_md_reverified": true,
+    "protocol_g4_json_declared": "2fd8c5852bba5023c9024d46b5b5e9527e71d670c370a1276e4728f4ef4cd2b9",
+    "protocol_g4_json_reverified": true,
+    "protocol_g4_md_declared": "6dd37c27f4d6b373e560af375f6ba47788dfcca567176d11d0a77c7929898c4b",
+    "protocol_g4_md_reverified": true,
+    "protocol_g5_json_declared": "518d0003c829da641f1bcc955c4382023e158ba9938c0ac6f0ff19b5bf729385",
+    "protocol_g5_json_reverified": true,
+    "protocol_g5_md_declared": "e211ec431d8aa9d6ceaeb8e9907604041d5fb99121b447176067227621717b5e",
+    "protocol_g5_md_reverified": true,
+    "master_plan_5_14_through_5_18_citations_declared": "all five sections' quoted hash/document-hash pairs",
+    "master_plan_citations_reverified": true,
+    "upstream_spot_check_candidates_opus_json_reverified": true,
+    "upstream_spot_check_mechanism_shortlist_json_reverified": true,
+    "upstream_spot_check_mechanism_shortlist_reviewer_receipt_json_reverified": true,
+    "upstream_spot_check_data_mainline_closure_v1_json_reverified": true,
+    "upstream_spot_check_p0_swap_data_fitness_reviewer_receipt_json_reverified": true,
+    "upstream_spot_check_history_catalog_data_hash_cross_referenced_only": true
+  },
+  "inheritance_and_git_findings": [
+    {"id": "IG1", "check": "repo_head matches actual HEAD", "result": "MATCH: ab2780405f0fd5c80d268fe0feff39eb14a29eda == git rev-parse HEAD"},
+    {"id": "IG2", "check": "V3 directory and Master-plan edits remain uncommitted", "result": "CONFIRMED: git status --short shows research/firstbattle/data_driven_router_v3/ as untracked and FIRST_BATTLE_MASTER_PLAN.md as modified-not-staged; no commit exists for either"},
+    {"id": "IG3", "check": "g2..g5 each cite the correct, independently-recomputed hash of every prior generation, with the citation set growing by exactly one hash per generation", "result": "CONFIRMED for all four supersession edges (g1->g2, g2->g3, g3->g4, g4->g5); see M3"},
+    {"id": "IG4", "check": "Master \u00a75.14-5.18 hash/document-hash citations match the independently-recomputed values, not merely the artifacts' own self-declared values", "result": "CONFIRMED for all five sections; see M4"},
+    {"id": "IG5", "check": "Supreme objective verbatim and unchanged across all V3 artifacts and Master \u00a71", "result": "CONFIRMED byte-identical across protocol.json, protocol.md, supersession.json, supersession.md, and the current Master \u00a71 quote block; g2-g5 do not restate it, consistent with 'all_unmodified_fields_inherited'"}
+  ],
+  "mechanics_findings": [
+    {
+      "id": "F1",
+      "topic": "Deterministic withdrawal reserve (g5.withdrawal_reserve_formula)",
+      "severity": "INFO",
+      "detail": "leverage_reserve = total_abs_notional/5 is exactly the minimum equity required to keep leverage=notional/equity<=5, so reserving it is not an arbitrary buffer but the algebraic inverse of the account's own 5x ceiling. maintenance_reserve additionally reserves margin-rate*notional plus the frozen close cost. required_reserve=max(leverage_reserve, maintenance_reserve) is correct (not sum): both are independent floors on how much equity must remain, so the binding constraint is whichever is larger, not their sum. free_equity=max(0, marked_equity-required_reserve) and floor_to_micro_usdt(min(0.5*retained_base, free_equity)) rounds down, i.e. only in the safe (never-over-withdraw) direction, consistent with money_precision=micro_usdt_int64 and the no-negative-cash hard gate.",
+      "verdict": "MATH_CONSISTENT_NO_DEFECT_FOUND"
+    },
+    {
+      "id": "F2",
+      "topic": "Unknown MMR handling",
+      "severity": "INFO",
+      "detail": "'maintenance_margin_unknown_with_open_position': 'actual_withdrawal=0' fails closed exactly as required: an unknown maintenance-margin rate cannot be assumed zero (which would overstate free_equity and risk a post-withdrawal margin breach), so withdrawal is blocked entirely rather than estimated. This is consistent with g1/g2's pre-existing 'unknown_cost_decision_action=NO_TRADE' pattern applied to the withdrawal path specifically.",
+      "verdict": "FAIL_CLOSED_CORRECT"
+    },
+    {
+      "id": "F3",
+      "topic": "Synthetic-override scope (g5.synthetic_stress_override_scope)",
+      "severity": "INFO",
+      "detail": "The override list names exactly four g2 fields (liquidity_void_stress.any_solvency_or_liquidation_breach; extreme_scenario_sizing.position_size_rule's synthetic component; extreme_scenario_sizing.stress_failure_action; batch_account_allocator.batch_if_stress_insolvent's synthetic all-correlation component). It does not touch g2's cost_coverage_gate (unknown_cost_decision_action=NO_TRADE, >=95% known-cost coverage, >=80% direct-coverage certification tier) or g1's core state/action/reward definitions, and g5's own hard_gates_preserved list is a strict, unweakened superset of what g1/g2/g4 already required for real (non-synthetic) history. The override is scoped to disclosure-not-veto for hypothetical scenario replay only; actual chronological historical liquidation/solvency breaches remain fully charged per g3/g4's ruin_rule.",
+      "verdict": "SCOPE_PRECISE_NO_OVERREACH"
+    },
+    {
+      "id": "F4",
+      "topic": "Real hard gates retained (g5.synthetic_stress_override_scope.hard_gates_preserved)",
+      "severity": "INFO",
+      "detail": "All six items the task asked this reviewer to specifically confirm are present verbatim in the JSON array: actual chronological historical equity and liquidation; account gross leverage<=5; known execution cost or frozen proxy; maintenance margin at actual historical timestamps; no negative cash; PIT and time isolation. Each is independently corroborated by an unmodified upstream field: leverage<=5 by g1.action_space.max_account_leverage=5 and g3.leverage_and_execution.account_gross_leverage_hard_ceiling=5.0; known-cost-or-NO_TRADE by g2.cost_coverage_gate.unknown_cost_decision_action=NO_TRADE (not in the override list); PIT/time isolation by g1.event_identity/global_time_partitions (untouched by any overlay).",
+      "verdict": "ALL_SIX_HARD_GATES_PRESENT_AND_UNCONTRADICTED"
+    },
+    {
+      "id": "F5",
+      "topic": "Baseline-neutral evaluator (g5.baseline_evaluator_identity)",
+      "severity": "INFO",
+      "detail": "same_neutral_runner_required=true with 14 named shared fields (state_rows, decision_timestamps, partitions, reward_evaluator_hash, cost_evidence, delay, funding, min_lot, maintenance_margin, account_allocator, withdrawal_rule, no_topup_rule, ruin_rule, execution_order) and only_allowed_difference='action_policy' is a sufficient condition for apples-to-apples comparison: every input that could bias a comparison in favor of a candidate over ALWAYS_FLAT (or vice versa) is pinned identical, leaving only the decision logic itself as a free variable. baseline_output_manifest_and_hash_required=true additionally makes this falsifiable rather than a bare promise. hard=ALWAYS_FLAT / comparative_only={FIXED_LONG,FIXED_SHORT,BUY_HOLD,RANDOM_SEED42,BTC_BETA_MATCHED} is the identical 6-item partition already declared in g1.baselines and g4.baseline_policy, with no addition, removal, or reclassification across generations.",
+      "verdict": "IDENTITY_CONDITION_SUFFICIENT_NO_DRIFT_ACROSS_G1_G4_G5"
+    },
+    {
+      "id": "F6",
+      "topic": "Capital withdrawal rules / 5x / no negative cash across g3->g4->g5",
+      "severity": "INFO",
+      "detail": "g3 introduces the 1.5B trigger / 0.5B tranche / no-topup / ruin-zeroes-equity rule; g4 pins its evaluation to bar-close DecisionTime (post-MTM, pre-new-risk) and adds the rollback-to-safe-amount-or-zero post-withdrawal check; g5 replaces g4's textual free_equity formula with the closed-form max(leverage_reserve, maintenance_reserve) reserve and adds micro-USDT determinism plus the explicit unknown-MMR=0 rule. Each generation is a strict refinement of the previous one's stated intent (never a reversal): the 1.5x/0.5x numbers, the no-automatic-topup rule, and the ruin-zeroes-but-prior-withdrawals-survive rule are byte-unchanged from g3 through g5. 5x remains the leverage ceiling in every generation (g1 action_space, g2 extreme_scenario_sizing, g3 leverage_and_execution, g4 safety block, g5 hard_gates_preserved and the reserve formula's own denominator). No negative cash is asserted as a hard, non-overridable gate starting g2 (any_solvency_or_liquidation_breach=FAIL) and reaffirmed unweakened in g5.hard_gates_preserved even though g5 explicitly relaxes the *synthetic-scenario* veto power over baseline sizing.",
+      "verdict": "MONOTONIC_REFINEMENT_NO_SILENT_CONTRADICTION"
+    }
+  ],
+  "findings": [
+    {
+      "id": "F7",
+      "severity": "INFO",
+      "title": "All quantitative and hash claims independently reproduced with zero discrepancies",
+      "detail": "Every self-excluded JSON hash (6/6), every Markdown document hash (6/6), every inheritance-chain cross-citation (4/4 edges), and every Master \u00a75.14-5.18 citation (5/5 sections) was independently recomputed or cross-checked and matched exactly. No numeric, hash, or field-presence discrepancy was found anywhere in the reviewed scope."
+    },
+    {
+      "id": "F8",
+      "severity": "LOW",
+      "title": "Concurrently-running, out-of-scope preflight tool executed mid-review and failed closed exactly as designed, without building any dataset or touching labels",
+      "detail": "During this review, `cmd/data-driven-v3-dataset/main.go` and `internal/datadrivenv3/{preflight.go,preflight_test.go}` appeared in the working tree as untracked files not present in git HEAD and not authored by this reviewer, and were then actually executed (by a process other than this reviewer) before this receipt was finalized, producing `dataset_data_fitness.json`, `dataset_data_fitness.md`, `dataset_data_fitness_measurement_receipt.json`, and `dataset_decision_journal.txt` under this same directory. Read-only inspection of the outputs shows: `status=\"DATA_BLIND_COST\"` (not `PASS`), `highest_blocker=\"discovery/1h/delay0 known cost coverage 0.8750 < 0.95\"` (i.e. it independently measured real known-cost coverage against exactly the 0.95 threshold this reviewer verified in g2.cost_coverage_gate.formal_profile_minimum_known_cost_coverage in M6/F4, and the profile does not yet clear it), and `labels_unblinded: false`. The decision journal states verbatim 'No dataset shards or reward labels are generated unless this report is PASS' and 'Outcome fields, route results, PnL, winners, and reward labels were not read'. Because status != PASS, `main.go`'s own control flow (read in M6) never reaches dataset/state construction. `internal/datadrivenv3.ProtocolChain` also hardcodes the identical five protocol/overlay hashes this reviewer independently recomputed in M1, corroborating rather than contradicting this receipt's hash findings.",
+      "resolution": "Not blocking. This is additional real-world corroboration, observed incidentally, that the system remains correctly NO_GO/DATA_BLIND under g5's own cost-coverage gate: no dataset was built, no label was unblinded, and the preflight failed closed rather than being loosened to force a PASS. This receipt still does not review or approve the preflight code's correctness (its schema_version is lingxi.data-driven-router-v3.measurement-receipt.v1; its cost-coverage measurement methodology is outside the reviewed g5 protocol text); governance should commission a separate receipt for that code and its DATA_BLIND_COST classification before relying on it for anything beyond the reassurance recorded here."
+    }
+  ],
+  "conflicts_with_owner_artifact": "NONE_ON_SUBSTANCE. Every independently recomputed hash, every inheritance citation, and every mechanics claim in g5 (and its g1-g4 ancestry) agrees with what the owner's own artifacts and decision journals state. No numeric or logical contradiction was found between generations, between any generation and the Master \u00a75.14-5.18 citations, or between the declared safety fields and the actual repository state at review time.",
+  "verdict": "APPROVED",
+  "verdict_detail": "PASS_INDEPENDENT_VERIFICATION_G5_DETERMINISTIC_MECHANICS_OVERLAY",
+  "approved_scope": [
+    "The g5 overlay (research/firstbattle/data_driven_router_v3/protocol_g5.{json,md}) as the current effective mechanics layer on top of the unmodified g1 base protocol and g2/g3/g4 overlays, per the verified hash-bound inheritance chain.",
+    "The deterministic withdrawal-reserve closed form, its unknown-MMR fail-closed rule, its synthetic-stress override scope, its six preserved real hard gates, and its baseline-neutral-evaluator identity condition, exactly as frozen in protocol_g5.json.",
+    "The supersession.{json,md} boundary isolating mechanism_search_v2 and the old 3-symbol equity contract as HYPOTHESIS_ONLY_NOT_MODEL_INPUT / SUPERSEDED_SCOPE_REJECTED, and its explicit non-adjudication of the disputed equity_session_gap_data_contract hash.",
+    "Master \u00a75.14-5.18's hash/document-hash citations of all five generations plus the supersession boundary, as consistent with the underlying files."
+  ],
+  "not_approved": [
+    "Any dataset construction, StateRow/feature-shard materialization, reward-cube build, or label unseal for any profile (this remains gated behind a separate, later todo; none has occurred: the one preflight run observed mid-review returned DATA_BLIND_COST, not PASS, per M6/F8).",
+    "The cmd/data-driven-v3-dataset and internal/datadrivenv3 preflight code or its DATA_BLIND_COST cost-coverage measurement (observed running mid-review; not reviewed for correctness by this receipt).",
+    "Any model-owner submission, tournament run, validation, leaf-WF, router-holdout replay, exam action, shadow trading, or real-money action.",
+    "Any claim that this receipt predicts future market behavior, structural breaks, or approves live/exam/shadow/real-money operation; this reviewer is a mechanical evidence reviewer only, per g2.reviewer_authority and g3/g4's reviewer-boundary clauses, which this receipt itself observes.",
+    "Treating the disputed equity_session_gap_data_contract hash as resolved in either direction; this receipt deliberately did not recompute it, matching supersession.json's own non-adjudication stance."
+  ],
+  "if_independent_verification_had_found_a_mismatch": "Not applicable; every independently reproduced value matched exactly. Per instructions, any unreproduced hash, broken inheritance citation, contradicted hard gate, or unsafe mechanics defect found here would have been written as a BLOCK verdict with the specific mismatch identified, rather than accommodated or silently corrected.",
+  "safety": {
+    "system_status": "NO_GO",
+    "exam_status": "EXAM_UNAVAILABLE",
+    "trade_allowed": false,
+    "labels_unblinded": false,
+    "dataset_built": false,
+    "routes_started": 0,
+    "routes_reopened": 0,
+    "reviewer_made_commits": false,
+    "reviewer_modified_owner_artifacts": false,
+    "reviewer_modified_plan": false,
+    "reviewer_modified_records": false,
+    "reviewer_modified_code": false,
+    "reviewer_read_raw_or_outcome_values": false
+  },
+  "hashes": {
+    "receipt_hash": "63e7f6c68aa2197dcbeebd7dacfeb96c9c5cd0c1425cfa0b02243bbe4b7d85b8",
+    "hash_method": "Read this JSON as a generic object, set hashes.receipt_hash to null, then compute repository datatruth.HashJSON (deterministic Go encoding/json plus SHA-256 lowercase hex), exactly as used by every artifact this receipt reviews.",
+    "self_excluded_field": "hashes.receipt_hash"
+  }
+}

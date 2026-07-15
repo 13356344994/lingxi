@@ -1,0 +1,394 @@
+{
+  "schema_version": "lingxi.route-data-contract.v1",
+  "contract_id": "firstbattle.route-data-contracts",
+  "generation": "firstbattle-route-data-contracts-v1",
+  "frozen_at": "2026-07-13T13:44:31Z",
+  "status": "FROZEN_CONTRACT_DEFINITION_STOPPED",
+  "todo_id": "freeze-route-data-contracts",
+  "supreme_objective": "在不同市场状态、特殊事件和个人执行条件下，动态路由到各自经过历史证据认证的专属盈利路径；没有可靠匹配路径时必须空仓。最终以资金流调整后的真实账户净值长期增长为唯一成功标准。",
+  "not_universal_strategy": true,
+  "independent_certification_required": true,
+  "define_before_download": true,
+  "labels_unblinded": false,
+  "routes_started": 0,
+  "scope": "先定义、后下载。本文件只冻结根层 context/OOD 门与四类专属路径在决策时刻真正需要的数据合同；不下载、不读取收益、不选路线、不启动实验。每条路径的 required fields、identity、三时钟、PIT/KnownFrom、完整分母、匹配输家、最小支持门、数据来源优先级、outcome forbidden fields 与停止门独立冻结，独立认证。普通 K 线或价格 proxy 不得冒充专属机制字段。",
+  "bindings": {
+    "binding_policy": "REFERENCE_ONLY_NO_MODIFY. 加载时必须比对下述冻结 hash；任一不匹配即 fail closed，不静默继续。",
+    "history_data_hash": "f41ed2586d91054c4b5b2e15e60f32a4d64ccde0032e76dfdc5fc6dee316379c",
+    "forced_liquidation_g1_protocol_hash": "6b16eb531230a14242f29d398fd357188867062f2fb2f0f0af6b7f554dd83bcb",
+    "hierarchical_router_g1_manifest_hash": "0eab9bda13055209c81d2b47f0286a0317b79dbb642592ec1b00cd4771397d31",
+    "g10_protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+    "g10_execution_evidence_audit_protocol_hash": "dccd7974a7d172e3894174a953c4cce02ea840a48bb41fbdec589ed4d1153dd3",
+    "g10_execution_evidence_audit_source_manifest_hash": "c8c5f38e6542855aa6fbc8e3373a751a24646922d0838a9774fce4a7e41a9379",
+    "g10_execution_evidence_audit_summary_hash": "cf9da460a7807c4d131bbc1e2b22ec9c0e860902fbb6a9726707d7c697b9d9ab",
+    "g10_execution_evidence_audit_stage_summary_hash": "05550c0603fa340939c35efa9bd212509ab48cec50b07e541f530e875a7817ff",
+    "g10_wild_route_portfolio_json_hash": "166ea394419544f55e54919216b6e67b31e2d1dfaf11ef27df06bb3686072977",
+    "g10_reopen_condition_inventory_json_hash": "b9b62bc4d959d256e9d553385c2b3a474c1017632a35951a84e70d2a8e46e69a",
+    "g10_reopen_condition_inventory_source_manifest_hash": "66b47378f674a2e9f8cdbe6e7649f11afee633610aa5ca330c09f2d38b8b79cd"
+  },
+  "confirmed_source_availability": {
+    "note": "以下为官方已确认覆盖，作为数据来源优先级与停止门的硬约束；不含任何未来采集承诺，不代表字段已适配。",
+    "okx_private_orders_history_archive": {
+      "channel": "OKX Read API",
+      "coverage": "最近约 3 个月（rolling）",
+      "provides": "ordId/clOrdId、ordType、side、posSide、px、sz、accFillSz、state、cTime、uTime、fee/feeCcy、instId/instType、category/source（撤单来源）等",
+      "constraint": "API 只回溯约 3 个月；更长历史必须走 Report Center 人工导出。结果字段（如 pnl）不得进入研究发现层。"
+    },
+    "okx_private_fills_history": {
+      "channel": "OKX Read API",
+      "coverage": "最近约 3 个月（rolling）",
+      "provides": "tradeId、ordId/clOrdId、billId、fillPx、fillSz、fillTime、execType(T/M)、fee/feeCcy、side、instId/instType 等",
+      "constraint": "API 只回溯约 3 个月；fillPnl 等结果字段禁止进入研究发现层。"
+    },
+    "okx_report_center_manual_export": {
+      "channel": "OKX Report Center（人工导出，自动化不可得）",
+      "coverage": "Order/Trading/Position history 可导出自约 2021 年起的更长历史",
+      "provides": "较 API 更长的私人订单/成交/持仓历史",
+      "constraint": "人工下载清单交用户执行；未导入前私人 lifecycle 完整分母只覆盖 API 的约 3 个月窗口，通常不足 20 独立日/50 事件门。"
+    },
+    "okx_public_historical_trades": {
+      "channel": "OKX 官方历史数据页",
+      "coverage": "tick trades 自 2021-09 起",
+      "provides": "逐笔成交 ts/px/sz/side",
+      "constraint": "公共 tape，不含私人执行 identity，不能补造 attempted notional 或订单生命周期。"
+    },
+    "okx_public_l2_orderbook": {
+      "channel": "OKX 官方历史数据页",
+      "coverage": "L2 order book 自 2023-03 起",
+      "provides": "历史盘口快照",
+      "constraint": "单场所盘口；跨场所路线仍缺 peer venue 同步 executable book 与资金授权。"
+    },
+    "okx_instruments_snapshot": {
+      "channel": "OKX public/account instruments 端点",
+      "coverage": "当前快照",
+      "provides": "当前 ctType/minSz/lotSz/tickSz/ctVal/ctValCcy/state/listTime",
+      "constraint": "只能从抓取时刻向未来生效，禁止回填历史 PIT；当前正式审计中 ctType 0/394 known。"
+    },
+    "paid_or_whitelist_sources": {
+      "policy": "任何付费历史或需申请/whitelist 的来源（含 peer venue L2、第三方 liquidation 历史）只提交价格/字段/覆盖/预期价值清单，单独审批，禁止一开始全市场全时段下载。"
+    }
+  },
+  "design_alternatives": [
+    {
+      "design_id": "A_MONOLITHIC_SHARED_SCHEMA",
+      "summary": "单一巨型合同：根层与四路径共享同一六源 context 字段字典，全部路径要求同一组字段齐备才可测量。",
+      "pros": ["实现简单", "字段集中"],
+      "cons": [
+        "违反阶段 A2 已确立的‘按叶子最小数据需求’原则",
+        "任一源缺字段会同时致盲所有路线，无法独立认证",
+        "把机构因子采样偏差扩散到全部路线"
+      ],
+      "decision": "REJECTED"
+    },
+    {
+      "design_id": "B_LAYERED_ROOT_GATE_PLUS_INDEPENDENT_ROUTES",
+      "summary": "分层：一个冻结的根层 context/OOD 门作为所有路线的共同前置，四条专属路径各自为独立、按 hash 绑定根门、可独立认证的合同，各自拥有 required fields/identity/三时钟/PIT/完整分母/匹配输家/最小支持/来源优先级/forbidden fields/停止门。",
+      "pros": [
+        "对齐路由漏斗 ROOT->DataTruth->GlobalContext->MechanismFamily->Leaf",
+        "路径独立认证，单路失血不拖垮全树",
+        "每条路线独立分母与停止门，符合最高宗旨与研究纪律",
+        "根门 fail-closed 保证无匹配即 NO_TRADE"
+      ],
+      "cons": ["合同数量多，需维护跨合同 hash 一致性与 drift 检测"],
+      "decision": "CHOSEN"
+    },
+    {
+      "design_id": "C_OUTCOME_ANCHORED_WINNER_FIRST",
+      "summary": "以观测到的盈利执行为锚，反推每条路径的 required fields。",
+      "pros": ["可快速对齐已见赢家的字段"],
+      "cons": [
+        "把合同锚定在 forbidden outcome fields 上，制造泄漏与选择偏差",
+        "无法在事前冻结 outcome-blind 匹配输家分母",
+        "与‘倒序赢家必须回到全部 outcome-blind 触发’的纪律冲突：倒序只用于生成假设，不能定义数据合同"
+      ],
+      "decision": "REJECTED"
+    },
+    {
+      "design_id": "D_AVAILABILITY_FIRST_DOWNLOADER_DRIVEN",
+      "summary": "先看 OKX API/交易所现有返回字段，再据此定义每条路径的合同。",
+      "pros": ["与可下载数据天然对齐，落地摩擦小"],
+      "cons": [
+        "让数据可得性定义机制，违反‘先定义、后下载’",
+        "会把 3 个月 API 窗口或缺失字段合理化为机制边界，掩盖真实分母缺口",
+        "容易用 K 线/price proxy 顶替专属字段"
+      ],
+      "decision": "REJECTED"
+    }
+  ],
+  "chosen_design": "B_LAYERED_ROOT_GATE_PLUS_INDEPENDENT_ROUTES",
+  "common": {
+    "clock_definitions": {
+      "event_time": "经济事件在交易所发生/撮合/结算/生效的时刻（venue authoritative timestamp）。",
+      "receive_time": "本地 collector 收到该记录的时刻（recorded_at / WS receive）。",
+      "process_time": "本地流水线处理并落盘的时刻（write ts）。",
+      "decision_time_rule": "DecisionTime = max(EventTime, ReceiveTime) + FeatureLag。特征只允许来自 ReceiveTime <= DecisionTime 的数据；标签只允许来自 DecisionTime 之后的数据。三时钟缺一按缺失登记，不得用另一时钟顶替。"
+    },
+    "minimum_support_gate": {
+      "min_events": 50,
+      "min_independent_utc_days": 20,
+      "min_non_overlap_shock_blocks": 10,
+      "semantics": "每条被认证叶子必须独立满足；不足判 INSUFFICIENT_SUPPORT（该层仅在 observability/identifiability 通过后可达）。当前任何路线都未到达该层。禁止用聚合 cell 冒充 event，禁止跨路线共享分母。"
+    },
+    "data_source_priority_tiers": {
+      "tier0_authoritative": "官方交易所权威记录且 provenance/PIT 可证：OKX private orders-history-archive / fills-history（API，约 3 个月）、OKX Report Center 人工导出（约 2021 起，更长）、官方公共历史 trades（2021-09 起）、官方 L2（2023-03 起）、instruments 快照（仅向未来生效）。",
+      "tier1_own_collectors": "本地 append-only collector，且具备三时钟与 uptime/gap 完整性 manifest：execution WAL、liquidation streams、equity/settlement 流。缺 uptime manifest 不得声称完整分母。",
+      "tier2_reconstructable": "可合法重建的 composite identity（如 forced 事件 venue+symbol+exch_ts+side+qty+price）。必须预注册，且不等于稳定 exchange event ID。",
+      "tier3_weak_proxy": "mids/OHLCV/funding/taker-flow 等弱代理。只可作决策时刻上下文，禁止顶替任一 required 机制字段或补造缺失分母。",
+      "forbidden": [
+        "用当前 snapshot 回填历史 PIT",
+        "用普通 K 线或 price proxy 冒充专属机制字段",
+        "未经单独审批的付费/whitelist 全量下载"
+      ]
+    },
+    "forbidden_outcome_fields": [
+      "future_return",
+      "return",
+      "pnl",
+      "fillPnl",
+      "realized_pnl",
+      "realized_usdt",
+      "profit",
+      "winner",
+      "future_outcome",
+      "mfe",
+      "mae",
+      "upnl_after_decision"
+    ],
+    "outcome_field_policy": "OKX fills/orders history 含 pnl/fillPnl 等结果字段；下载可保留在本地私有 raw 区，但禁止进入研究发现层/特征层。任何 DecisionTime 之后派生的标签在对应 generation 冻结前不可读取。",
+    "stop_gate_semantics": "任一 required field / identity / 三时钟 / PIT / 完整分母缺失即立即停止该路线并按 earliest-blocker 分类，不因已下载或已投入代码续命；被 DATA_BLIND/UNIDENTIFIABLE/PIT_UNPROVEN/INSUFFICIENT_SUPPORT 阻断的路线归入假设库，仅在出现新合法历史来源时重新立项。",
+    "falsifiability_ladder": "observability -> identifiability -> ex_ante_predictability -> personal_executability -> independent_support -> net_edge；前层不过不得越级评后层。",
+    "classification_vocabulary": [
+      "SUPPORTED_FOR_NEW_GENERATION",
+      "DATA_BLIND",
+      "UNIDENTIFIABLE",
+      "POSTHOC_ONLY",
+      "UNEXECUTABLE",
+      "INSUFFICIENT_SUPPORT",
+      "FALSIFIED"
+    ]
+  },
+  "root_context_contract": {
+    "node_id": "root_context_ood",
+    "role": "GATE_NOT_MECHANISM",
+    "purpose": "为所有路线提供共同前置：决策时刻全局状态、OOD 边界、市场/事件 identity 与 universe PIT。根门本身不认证任何盈利叶子，只裁决 context 是否可信及 OOD 覆盖。",
+    "required_fields": [
+      "decision_time 全局风险/regime 特征（BTC beta、相关簇、波动状态）",
+      "OOD 边界特征（是否落在已支持域内）",
+      "市场/事件 identity（symbol、session、regime bucket）",
+      "PIT universe membership（KnownFrom）",
+      "每源数据完整性/新鲜度标志（missing/late/out-of-order/duplicate/correction 率）"
+    ],
+    "identity": {
+      "primary": "root_decision_id = (decision_time_bucket, universe_snapshot_known_from)",
+      "stability": "universe/instrument 快照只从 fetched_at 向未来生效；当天开端前未 KnownFrom 的 shortlist 不得覆盖该日。"
+    },
+    "clocks": {
+      "event_time": "各 context 源的 venue/生成时刻",
+      "receive_time": "本地 recorded_at",
+      "process_time": "落盘 ts",
+      "requirement": "每个 canonical 分区保留三时钟；缺失或乱序 -> QUALITY_INVALID -> NO_TRADE。"
+    },
+    "pit_knownfrom": "所有 context 只用 DecisionTime 之前可见值；禁止用未来快照回填。",
+    "complete_denominator": "在 scope 内、通过 DataTruth 的全部 decision timestamps，而非只有已交易时刻。每条路线的分母都是本根门通过集合的子集。",
+    "matched_losers": "根门不匹配输家（非机制层）；但定义了所有路线匹配输家所处的 outcome-blind 总体。",
+    "minimum_support": "根门不认证叶子，故不适用 50/20/10 盈利门；但要求 OOD 覆盖足以判定 supported/unknown。",
+    "data_source_priority": ["tier0_authoritative", "tier1_own_collectors", "tier3_weak_proxy"],
+    "outcome_forbidden_fields": "见 common.forbidden_outcome_fields。",
+    "stop_gate": "任一 required context 源缺失/停更/乱序/质量异常 -> fail closed -> NO_TRADE；universe 无法覆盖当天开端 -> 当日该源路线分母作废。",
+    "current_classification": "GATE_ACTIVE_FAIL_CLOSED",
+    "current_data_fitness": "已有 context materializer/validator 与三时钟分区；2026-07-11 context smoke 因 DEPTH_MISSING/MIDS_MISSING/OI_STALE/UNIVERSE_MISSING/QUALITY_INVALID/INCOMPLETE_DAY 正确 FAIL。根门可运行但当前多源不完整。"
+  },
+  "route_contracts": [
+    {
+      "route_id": "micro_execution_capacity_cliff",
+      "priority": "TOP_PRIORITY_NOT_STARTED",
+      "mechanism": "微小订单在 fill probability、冲击、排队毒性和授权摩擦上可能优于放大订单；付款者是需要立即成交或撤出流动性的对手方。机构排斥必须来自每事件硬容量、固定审批/监控成本和大单自冲击，不能来自‘不知道’。",
+      "not_universal": "只在小容量且付款者仍存在时成立；公开后若可统一批量化并聚合，机制关闭。",
+      "required_fields": [
+        "稳定 lifecycle identity：decision_id <-> clOrdId <-> ordId <-> fill tradeId 唯一链",
+        "attempted notional 与 size、ordType、post-only、相对 mid 的报价偏移",
+        "partial fill 序列（每笔 fillSz/fillPx/fillTime/fee/feeCcy/liquidity flag maker|taker/execType）",
+        "ack time、cancel time + cancel source/reason、fill time(s)、cTime、uTime",
+        "决策时刻 depth/spread/mid（提交时）",
+        "队列位置代理（前方 depth）——WEAK",
+        "PIT instrument：ctType/minSz/lotSz/tickSz/ctVal（attempt KnownFrom 时点）",
+        "outcome-blind event identity：symbol/session/spread/depth/notional bucket + maker action"
+      ],
+      "identity": "order lifecycle ID（decision_id<->clOrdId<->ordId<->fill tradeIds）；当前 formal audit 有 45,332 未解析 cross-source identity，join 未证明唯一。",
+      "clocks": {
+        "event_time": "交易所 ack/fill ts（cTime/uTime/fillTime）",
+        "receive_time": "本地 recorded_at",
+        "process_time": "落盘 ts"
+      },
+      "pit_knownfrom": "attempt 发生时点的 instrument 语义必须 KnownFrom；当前 ctType 0/394、dynamic min-notional 0/12826，PIT 未证明。",
+      "complete_denominator": "scope 内全部尝试：filled + partially filled + cancelled + rejected + expired，不只是已成交。这是完整 attempts 分母。",
+      "matched_losers": "同 symbol/session/spread/depth/notional bucket 且同 maker action 的全部 attempts，比较执行结果（fill/no-fill 属执行物理，非 forbidden PnL）；注意净 edge/PnL 在认证前仍 forbidden。",
+      "minimum_support": {"min_events": 50, "min_independent_utc_days": 20, "min_non_overlap_shock_blocks": 10},
+      "data_source_priority": [
+        "tier0: OKX orders-history-archive + fills-history（约 3 个月，提供 ordId/clOrdId/tradeId/execType/fee/cTime/uTime/fillTime）；Report Center 人工导出补更长历史",
+        "tier1: 本地 fast_maker_attempts + exchange_fills + open_decisions + execution WAL（WAL 生产文件当前 ABSENT）",
+        "tier3: shadow depth/spread（仅上下文）"
+      ],
+      "outcome_forbidden_fields": ["fillPnl", "pnl", "realized_pnl", "realized_usdt", "future_return", "winner", "mfe", "mae"],
+      "stop_gate": "若 attempt->order->fill 无法唯一 join，或 attempted notional 缺失，或完整 attempts 分母缺失，或 PIT ctType/minSz 缺失 -> 立即停止。预算 1 CPU / 8h / 1 次 / 仅冻结历史，禁止等待未来。",
+      "current_classification": "DATA_BLIND",
+      "downstream_risk": ["UNIDENTIFIABLE", "POSTHOC_ONLY", "UNEXECUTABLE"],
+      "reopen_condition": "当前已存在但未纳入的完整 order lifecycle 历史（含共享 ID、attempted notional、partial + ack/cancel/fill 三时钟、PIT instrument）——例如 OKX API 3 个月 + Report Center 导出后重建。"
+    },
+    {
+      "route_id": "exchange_rule_discontinuity",
+      "priority": "SECONDARY_NOT_STARTED",
+      "mechanism": "ctVal/lot/tick/minSz/结算/迁移/风控规则的离散变化，可能使微小账户位于可执行一侧，而大资金跨过容量/保证金/最小收益贡献断点。付款者是被规则迫使调整订单/仓位/抵押品的一侧。",
+      "not_universal": "机构若能自动分拆且不增加成本，个人护城河失败；护城河必须来自硬规则、每事件容量与组织固定成本。",
+      "required_fields": [
+        "PIT instrument 版本链：ctType、minSz、lotSz、tickSz、ctVal、ctValCcy、state、listTime、effective_at、KnownFrom",
+        "规则公告（delist/listing/参数变更）及其发布时间",
+        "离散边界两侧的 instrument/账户 event identity",
+        "边界两侧 outcome-blind event 的 session/volatility/direction"
+      ],
+      "identity": "(instId, rule_version, effective_at) + 被规则迫使调整的订单/仓位 event identity。",
+      "clocks": {
+        "event_time": "规则 effective_at / 公告 publish time",
+        "receive_time": "我方捕获该版本/公告的时刻",
+        "process_time": "落盘 ts"
+      },
+      "pit_knownfrom": "必须有带 KnownFrom 的历史版本链；当前只有单一 snapshot，只能向未来生效，rule archive ABSENT，故 PIT_UNPROVEN。",
+      "complete_denominator": "跨越同一离散边界两侧的全部 instrument-events（outcome-blind），不只是被选中的赢家侧。",
+      "matched_losers": "同 symbol/version/session/volatility/direction、位于离散边界两侧的全部 outcome-blind events。",
+      "minimum_support": {"min_events": 50, "min_independent_utc_days": 20, "min_non_overlap_shock_blocks": 10},
+      "data_source_priority": [
+        "tier0: OKX instruments 端点（快照，仅向未来生效）+ 官方规则公告/变更记录（provenance 可证）+ Report Center",
+        "tier2: 由 exchange fill 的 instId/instType 做语义交叉检查（不得补造 ctType）",
+        "forbidden: 用当前 snapshot 回填历史 PIT"
+      ],
+      "outcome_forbidden_fields": ["future_return", "pnl", "profit", "winner", "mfe", "mae"],
+      "stop_gate": "若无带 KnownFrom 的历史 PIT 规则版本链，或无边界两侧 event identity -> 立即停止（PIT_UNPROVEN/DATA_BLIND）。预算 1 CPU / 8h / 1 次。",
+      "current_classification": "DATA_BLIND",
+      "pit_status": "PIT_UNPROVEN",
+      "downstream_risk": ["UNIDENTIFIABLE", "POSTHOC_ONLY"],
+      "reopen_condition": "已存在且来源时间可验证的历史 instrument/rule archive（含 ctType/effective_at/KnownFrom 版本链）。"
+    },
+    {
+      "route_id": "sparse_forced_flow",
+      "priority": "DORMANT_NOT_STARTED",
+      "mechanism": "清算、到期、保证金、规则整改或抵押品短缺迫使一侧在短窗口成交。个人只在小容量且付款者仍存在时提供或撤回流动性。",
+      "not_universal": "机构排斥可能来自事件稀疏、单事件容量小、全天候授权/监控固定成本和大单自冲击；不能依赖秘密或纯速度。价格 shock/funding/taker flow 不能证明 forced payer。",
+      "required_fields": [
+        "forced action identity（稳定 exchange event ID）",
+        "venue、symbol、forced side、size、price、bankruptcy price",
+        "collector subscription/uptime/reconnect-gap 完整性 manifest",
+        "payer disappearance / episode 完成标记",
+        "冻结 shock-cluster identity",
+        "事件时点 instrument spec"
+      ],
+      "identity": "稳定 exchange event ID；过渡期 composite (venue+symbol+exch_ts+side+qty+price) 为 RECONSTRUCTABLE，必须预注册，不等于稳定 ID。",
+      "clocks": {
+        "event_time": "交易所 forced ts",
+        "receive_time": "本地 recorded_at",
+        "process_time": "落盘 ts",
+        "gap": "当前仅可靠两时钟（exch ts + recorded_at）；无 uptime/gap manifest。"
+      },
+      "pit_knownfrom": "事件时点 instrument spec 必须 KnownFrom。",
+      "complete_denominator": "uptime 校验窗口内的全部 forced episodes（不只是我方交易过的）；缺 uptime/gap manifest 不得声称完整分母。",
+      "matched_losers": "同 action type/liquidity/direction/intensity/session/prior volatility 的 episodes。",
+      "minimum_support": {"min_events": 50, "min_independent_utc_days": 20, "min_non_overlap_shock_blocks": 10},
+      "data_source_priority": [
+        "tier0: 官方 provenance 可证的 liquidation/forced-order 历史（需调查；若付费则只列清单单独审批）",
+        "tier1: 本地 OKX/Bybit liquidation streams（schema seed，需补 uptime manifest）",
+        "tier3-forbidden: price shock/funding/taker-flow 不得顶替 forced identity"
+      ],
+      "outcome_forbidden_fields": ["future_return", "pnl", "profit", "winner", "mfe", "mae"],
+      "stop_gate": "若无稳定 forced event ID + 真 event/receive time + uptime 完整分母 + payer disappearance -> 立即停止。预算 1 CPU / 12h / 1 次，不等待未来 liquidation。",
+      "current_classification": "DATA_BLIND",
+      "present_partial_note": "本地 OKX(62,728)/Bybit(85,960) liquidation streams 是 direct forced-action observation（PRESENT_PARTIAL），但缺稳定 ID、真三时钟、完整分母、payer disappearance。",
+      "downstream_risk": ["UNIDENTIFIABLE", "POSTHOC_ONLY", "INSUFFICIENT_SUPPORT"],
+      "reopen_condition": "已存在且能形成完整事件分母的合法 forced-flow 历史（稳定 ID + 三时钟 + uptime manifest）。"
+    },
+    {
+      "route_id": "cross_venue_operational_asymmetry",
+      "priority": "NEAR_TERM_ARCHIVE_ONLY",
+      "mechanism": "非纯速度型的合约规格/抵押品/授权/结算/最小下单差异，使一个场所被迫调整，另一个场所可用小单承接。",
+      "not_universal": "纯 quote 差或亚秒速度优势不是个人 edge；机构排斥必须来自资金分割、准入/授权、硬容量和维护成本。",
+      "required_fields": [
+        "双场所同步双边 executable bid/ask/depth",
+        "各 venue 时钟",
+        "双腿 fee/slip/latency",
+        "各 venue PIT ctType/spec 版本",
+        "collateral/borrow/transfer/authorization state",
+        "跨场所 event identity"
+      ],
+      "identity": "venue pair 上的同步 executable event ID。",
+      "clocks": {
+        "event_time": "各 venue 盘口/成交 ts",
+        "receive_time": "本地 recorded_at",
+        "process_time": "落盘 ts"
+      },
+      "pit_knownfrom": "各 venue instrument spec 版本必须 KnownFrom。",
+      "complete_denominator": "全部同步 executable、资金已就位、eligible 的跨场所窗口（misses + takes）。",
+      "matched_losers": "同 venue-pair/spec/session/depth/collateral state 的窗口。",
+      "minimum_support": {"min_events": 50, "min_independent_utc_days": 20, "min_non_overlap_shock_blocks": 10},
+      "data_source_priority": [
+        "tier0: 官方 per-venue L2（OKX L2 自 2023-03；peer venue 需申请/whitelist -> 只列清单）+ funding/borrow 历史",
+        "tier3-forbidden: timestamped anchor mids 不得顶替同步 executable book"
+      ],
+      "outcome_forbidden_fields": ["future_return", "pnl", "profit", "winner", "mfe", "mae"],
+      "stop_gate": "仅当合同先证明机制非纯速度且个人可执行才重开；否则归档。预算 1 CPU / 6h / 1 次。",
+      "current_classification": "DATA_BLIND",
+      "route_level_status": "WEAK_PROXY_ONLY",
+      "downstream_risk": ["UNIDENTIFIABLE", "UNEXECUTABLE"],
+      "reopen_condition": "已存在、时钟可校验且机制非速度型的多场所历史（同步 executable book + 双腿成本 + collateral authorization）。"
+    }
+  ],
+  "drift_requirements": {
+    "protocol_hash_self_exclusion": "hashes.protocol_hash 计算时置 null，用仓库 datatruth.HashJSON（Go encoding/json 确定性编码 + SHA-256 小写 hex）。",
+    "no_silent_edit": "任一字段变更必须开新 generation 与新 hash，禁止静默改写本 generation。",
+    "three_way_drift": "本合同 JSON（manifest）、下载器/消费者代码常量、运行时配置三方必须一致；任一不匹配 fail closed（对齐强平 g1 三方漂移检测）。",
+    "binding_drift": "bindings 内的上游冻结 hash 在加载时必须逐一匹配；不匹配 fail closed，不静默继续。",
+    "json_md_consistency": "route_data_contracts.md 与本 JSON 的 route_id、current_classification、minimum_support、bindings、chosen_design 必须一致；不一致视为 drift。",
+    "md_hash_self_exclusion": "Markdown 将唯一一行 '> Document hash: `<value>`' 规范化为 '> Document hash: `SELF_EXCLUDED`' 后对整文件 UTF-8 LF 字节做 SHA-256。"
+  },
+  "owner_decision_journal": {
+    "owner": "LINGXI 多路径研究合同 owner（研究协议/因果统计门/机制审判）",
+    "reviewer_separation": "本合同为定义产物；任何路线重开、实验、考试或真钱仍须不同 reviewer 独立红队，提出/实现 owner 不得自批。",
+    "problem_restatement": "在不下载、不读取收益、不修改冻结产物的前提下，先定义根层 context/OOD 与四类专属路径在决策时刻真正需要的数据合同，使后续获取与验收有可复算、可 fail-closed 的目标。",
+    "competing_hypotheses": [
+      "H0_NULL_SELECTION_AND_COST：个人残差只是选择偏差/数据缺口/成本低估/配对失败，无可复现净 edge。",
+      "H1_RULE_DISCONTINUITY：交易所离散规则与门槛制造微小容量机会。",
+      "H2_SPARSE_FORCED_FLOW：可验证的强制行动在稀疏窗口产生付款者。",
+      "H3_MICRO_EXECUTION_CLIFF：小单 fill/冲击/流程存在大资金无法线性复制的容量断层。",
+      "H4_CROSS_VENUE_ASYMMETRY：非纯速度型的场所规则/抵押品/授权差异产生错位。"
+    ],
+    "most_likely_ignored_blind_or_counterexample": "机构可用统一基础设施在多标的/多场所复制小单，把单事件小容量聚合成机构级容量；且 OKX 私有 API 仅约 3 个月窗口会让 micro/forced 路线的完整分母天然不足 20 独立日/50 事件，Report Center 未导入前极易把窗口不足误当机制边界。",
+    "chosen_method_and_rejected": "选 B（分层根门 + 独立路径合同）。拒 A（共享六源致盲全树、破坏独立认证）、拒 C（outcome-anchored 泄漏与选择偏差、无法事前冻结匹配输家）、拒 D（可得性定义机制，违反先定义后下载并会合理化窗口/字段缺口）。",
+    "budget_spent": "仅读取现有 inventory/portfolio/stage summary/审计源码与冻结 hash，定义合同并计算自身 hash；未下载、未读取收益、未运行实验。",
+    "per_route_current_classification": {
+      "root_context_ood": "GATE_ACTIVE_FAIL_CLOSED",
+      "micro_execution_capacity_cliff": "DATA_BLIND",
+      "exchange_rule_discontinuity": "DATA_BLIND / PIT_UNPROVEN",
+      "sparse_forced_flow": "DATA_BLIND (sources PRESENT_PARTIAL)",
+      "cross_venue_operational_asymmetry": "DATA_BLIND / WEAK_PROXY_ONLY"
+    },
+    "stop_decision": "合同冻结完成即停在用户审批点；不自动进入 build-readonly-downloaders 或任何获取动作。下载、读取收益、路线启动、考试、真钱均须再次批准。"
+  },
+  "safety": {
+    "global_halt": true,
+    "system_status": "NO_GO",
+    "exam_status": "EXAM_UNAVAILABLE",
+    "exam_actions": 0,
+    "trade_allowed": false,
+    "labels_unblinded": false,
+    "routes_started": 0,
+    "not_modified": [
+      "records/",
+      "G1-G10 frozen protocol/hash/generation/artifacts",
+      "考卷/sealed exams",
+      "真钱开关/运行控制面",
+      "/root/.cursor/plans/lingxi_数据优先主线_f249821c.plan.md"
+    ]
+  },
+  "hashes": {
+    "protocol_hash": "4a4c201d2c8cedde5bd1ff55ea40ad31d099e189feb709a517701b504c453588",
+    "hash_method": "Read this JSON as a generic object, set hashes.protocol_hash to null, then compute repository datatruth.HashJSON (deterministic Go encoding/json plus SHA-256 lowercase hex).",
+    "self_excluded_field": "hashes.protocol_hash"
+  }
+}

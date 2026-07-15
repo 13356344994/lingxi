@@ -1,0 +1,65 @@
+[
+  {
+    "sequence": 1,
+    "attempt_id": "sonnet-episodic-k16-required_only",
+    "owner_id": "sonnet",
+    "operation": "FIT_GRID_EMBARGOED_LOO",
+    "input_hash": "e36e8716e39a18abe15edfd5a6acb323a9a6f30146f526e05bec3210ba9dcf65",
+    "previous_hash": "",
+    "entry_hash": "7de32e83ba70a3df6e3b603c445a231ca9f8e8041aa934a743b4c8a80498447a"
+  },
+  {
+    "sequence": 2,
+    "attempt_id": "sonnet-episodic-k16-required_plus_optional",
+    "owner_id": "sonnet",
+    "operation": "FIT_GRID_EMBARGOED_LOO",
+    "input_hash": "e36e8716e39a18abe15edfd5a6acb323a9a6f30146f526e05bec3210ba9dcf65",
+    "previous_hash": "7de32e83ba70a3df6e3b603c445a231ca9f8e8041aa934a743b4c8a80498447a",
+    "entry_hash": "81a08f7f35bf8c73ae6c83c97b31ab00deaad0de97f53dfb1386273a6a3e0f46"
+  },
+  {
+    "sequence": 3,
+    "attempt_id": "sonnet-episodic-k32-required_only",
+    "owner_id": "sonnet",
+    "operation": "FIT_GRID_EMBARGOED_LOO",
+    "input_hash": "e36e8716e39a18abe15edfd5a6acb323a9a6f30146f526e05bec3210ba9dcf65",
+    "previous_hash": "81a08f7f35bf8c73ae6c83c97b31ab00deaad0de97f53dfb1386273a6a3e0f46",
+    "entry_hash": "fa56afb4086a5abbc66aa7c1f5d6c560da145e9dde1f11104f93f9695c9aae3d"
+  },
+  {
+    "sequence": 4,
+    "attempt_id": "sonnet-episodic-k32-required_plus_optional",
+    "owner_id": "sonnet",
+    "operation": "FIT_GRID_EMBARGOED_LOO",
+    "input_hash": "e36e8716e39a18abe15edfd5a6acb323a9a6f30146f526e05bec3210ba9dcf65",
+    "previous_hash": "fa56afb4086a5abbc66aa7c1f5d6c560da145e9dde1f11104f93f9695c9aae3d",
+    "entry_hash": "430d00565dceeb01028ac7589d9807a18ab5a8abc1aa2eebce93a2973edd61c2"
+  },
+  {
+    "sequence": 5,
+    "attempt_id": "sonnet-episodic-k64-required_only",
+    "owner_id": "sonnet",
+    "operation": "FIT_GRID_EMBARGOED_LOO",
+    "input_hash": "e36e8716e39a18abe15edfd5a6acb323a9a6f30146f526e05bec3210ba9dcf65",
+    "previous_hash": "430d00565dceeb01028ac7589d9807a18ab5a8abc1aa2eebce93a2973edd61c2",
+    "entry_hash": "dd85dc6c45941e74268801d4540cc2a86ce37d08a4c9922a4cdb5ef53fc6cd8a"
+  },
+  {
+    "sequence": 6,
+    "attempt_id": "sonnet-episodic-k64-required_plus_optional",
+    "owner_id": "sonnet",
+    "operation": "FIT_GRID_EMBARGOED_LOO",
+    "input_hash": "e36e8716e39a18abe15edfd5a6acb323a9a6f30146f526e05bec3210ba9dcf65",
+    "previous_hash": "dd85dc6c45941e74268801d4540cc2a86ce37d08a4c9922a4cdb5ef53fc6cd8a",
+    "entry_hash": "b5faaceace94e781085fdb889a44b1f4e07277a8fb1fd1f94cb5955a5a045573"
+  },
+  {
+    "sequence": 7,
+    "attempt_id": "select:sonnet-episodic-k64-required_plus_optional",
+    "owner_id": "sonnet",
+    "operation": "SELECT_EPISODIC_CONFIG",
+    "input_hash": "e36e8716e39a18abe15edfd5a6acb323a9a6f30146f526e05bec3210ba9dcf65",
+    "previous_hash": "b5faaceace94e781085fdb889a44b1f4e07277a8fb1fd1f94cb5955a5a045573",
+    "entry_hash": "ae509d07ddc1112a123e26b11555b4af7914eff53ef69698ca1401e2be1be288"
+  }
+]

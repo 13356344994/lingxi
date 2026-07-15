@@ -1,0 +1,242 @@
+{
+  "schema_version": "lingxi.data-driven-router-v3.protocol.v1",
+  "protocol_id": "firstbattle.data-driven-router-v3",
+  "generation": "firstbattle-data-driven-router-v3-g1",
+  "created_at": "2026-07-14T08:05:00Z",
+  "status": "PREREGISTERED_LABELS_SEALED",
+  "supreme_objective": "在不同市场状态、特殊事件和个人执行条件下，动态路由到各自经过历史证据认证的专属盈利路径；没有可靠匹配路径时必须空仓。最终以资金流调整后的真实账户净值长期增长为唯一成功标准。",
+  "policy": {
+    "no_market_story_priors": true,
+    "forbidden_admission_priors": ["payer_story", "institutional_exclusion", "event_sparsity", "capacity_moat", "speed_moat", "secrecy"],
+    "labels_unblinded": false,
+    "routes_started": 0,
+    "exam_actions": 0,
+    "trade_allowed": false,
+    "global_halt_required": true
+  },
+  "bindings": {
+    "supersession_hash": "44f098e19cffa0657a963673b5c97425dcac58dcf15ae7d5939a8fec9ae7bad2",
+    "history_catalog_path": "research/firstbattle/history_catalog.json",
+    "history_data_hash": "f41ed2586d91054c4b5b2e15e60f32a4d64ccde0032e76dfdc5fc6dee316379c",
+    "data_mainline_closure_hash": "d4f78f1efabead5b86e0656ab73903734da6c36d1d737337c535a14e6568525e",
+    "p0_data_fitness_reviewer_receipt_hash": "0cdd322c130a7c6e58bd9803e5611f6a144d35bf6e5a3f0cdac49292ad9dcad4",
+    "old_results_as_model_input_forbidden": true
+  },
+  "profiles": {
+    "formal": [
+      {
+        "profile_id": "okx_1h",
+        "primary_family": "okx_1h",
+        "catalog_symbol_count": 401,
+        "catalog_range": "2023-12-31..2026-07-09",
+        "lookback_hours": 24,
+        "horizons_hours": [1, 4, 24],
+        "optional_feature_families": ["okx_funding", "bybit_funding", "rubik_taker_1h", "rubik_lsratio_1h"],
+        "missing_optional_policy": "missing_mask_no_backfill"
+      }
+    ],
+    "smoke_only": [
+      {
+        "profile_id": "okx_5m",
+        "reason": "about_60_days_cannot_support_independent_validation_wf_router_holdout",
+        "labels_may_be_used_for_formal_selection": false
+      },
+      {
+        "profile_id": "rubik_taker_5m",
+        "reason": "about_2_days",
+        "labels_may_be_used_for_formal_selection": false
+      }
+    ]
+  },
+  "global_time_partitions": {
+    "single_calendar_split_shared_by_all_models": true,
+    "order": ["discovery", "validation", "leaf_wf", "router_holdout"],
+    "permille": {
+      "discovery": 500,
+      "validation": 200,
+      "leaf_wf": 150,
+      "router_holdout": 150
+    },
+    "boundary_rule": "chronological_quantiles_over_common_profile_calendar",
+    "purge_embargo_hours": 24,
+    "purge_embargo_scope": "global_calendar_not_per_symbol",
+    "sealed": {
+      "leaf_wf": "one_submission_per_model_owner_crash_consumes_attempt",
+      "router_holdout": "one_combination_replay_only_no_tuning"
+    },
+    "boundary_hash_required": true
+  },
+  "event_identity": {
+    "namespace": "firstbattle-data-driven-router-v3",
+    "key_fields": ["profile_id", "venue", "instrument", "decision_at", "source_id", "source_version"],
+    "profile_required_in_join": true,
+    "observed_at_must_not_exceed_decision_at": true,
+    "symbol_or_absolute_date_as_feature_forbidden": true
+  },
+  "state_schema": {
+    "decision_time_only": true,
+    "continuous_features": [
+      "own_return_1h", "own_return_4h", "own_return_24h",
+      "own_rms_vol_4h", "own_rms_vol_24h", "own_drawdown_24h",
+      "quote_volume_24h", "bar_range_bps",
+      "btc_return_1h", "btc_return_4h", "btc_return_24h",
+      "btc_rms_vol_24h", "btc_drawdown_24h", "btc_beta_24h",
+      "cross_section_return_rank", "cross_section_vol_rank", "cross_section_liquidity_rank",
+      "funding_rate_latest", "funding_age_hours",
+      "rubik_taker_ratio", "rubik_ls_ratio",
+      "utc_hour_sin", "utc_hour_cos", "weekday_sin", "weekday_cos"
+    ],
+    "required_features": [
+      "own_return_1h", "own_return_4h", "own_return_24h",
+      "own_rms_vol_24h", "quote_volume_24h", "bar_range_bps",
+      "btc_return_1h", "btc_return_4h", "btc_return_24h", "btc_rms_vol_24h"
+    ],
+    "optional_features": ["funding_rate_latest", "funding_age_hours", "rubik_taker_ratio", "rubik_ls_ratio"],
+    "missing_mask_per_feature": true,
+    "forbidden": [
+      "symbol_id", "absolute_date", "future_return", "pnl", "winner", "old_candidate_id",
+      "old_route_id", "old_threshold", "current_open_bar", "post_decision_value"
+    ],
+    "feature_schema_hash_required": true
+  },
+  "action_space": {
+    "verbs": ["NO_TRADE", "LONG", "SHORT", "HOLD", "ADD", "TRIM", "CLOSE", "REVERSE"],
+    "start_states": ["FLAT", "LONG", "SHORT"],
+    "delay_bars": [0, 1, 2, 3],
+    "horizons_hours": [1, 4, 24],
+    "size_fractions": [0.0, 0.1, 0.25, 0.5, 1.0],
+    "capital_tiers_usdt": [30, 100, 1000],
+    "max_account_leverage": 5,
+    "fixed_notional_at_entry": true,
+    "transition_validation_required": true
+  },
+  "reward_evaluator": {
+    "freeze_code_hash_before_any_model_label_read": true,
+    "entry": "next_completed_bar_open_plus_delay",
+    "exit": "frozen_horizon_or_action_transition",
+    "roundtrip_taker_fee_bps": 10.0,
+    "spread_slippage_floor_bps": 2.0,
+    "capacity_impact_formula": "min(50, capital_usdt/max(rolling_quote_volume_usdt,1)*10000)",
+    "bar_toxicity_formula": "min(100, (high-low)/max(mid,1e-12)*10000*0.5)",
+    "funding_base_scenario": "signed_cashflow_long_negative_when_rate_positive_short_positive",
+    "funding_stress_scenario": "adverse_absolute_funding",
+    "cost_stress_multiplier": 1.5,
+    "unknown_cost_policy": "mark_unknown_and_block_VALIDATED_PATH_unless_frozen_conservative_proxy_applies",
+    "pending_delay_accounted": true,
+    "mtm_leverage_accounted": true,
+    "min_lot_accounted": true,
+    "eof_unmatured_pending_discarded": true,
+    "isolated_reward_is_not_account_equity": true
+  },
+  "account_counterfactual": {
+    "discovery_reward": "single_decision_local_counterfactual_with_other_positions_frozen",
+    "certification_reward": "chronological_full_account_replay_only",
+    "concurrent_positions_coupled_in_certification": true,
+    "no_overlapping_pnl_sum": true,
+    "top_k": 5,
+    "cluster_cap_fraction_of_max_notional": 0.40,
+    "solvency_independent": true
+  },
+  "model_tournament": {
+    "owners": {
+      "terra": "bounded_depth_tree",
+      "opus": "mixture_of_experts_sparse_gating",
+      "fable": "episodic_nearest_neighbor",
+      "grok": "change_point_rare_state"
+    },
+    "shared_data_and_partition_hash_required": true,
+    "owners_cannot_read_peer_outputs_before_submission": true,
+    "seed": 42,
+    "max_attempts_per_owner": 16,
+    "max_candidate_leaves_per_owner": 32,
+    "max_total_attempts": 64,
+    "max_total_candidate_leaves": 128,
+    "cpu_per_owner": 1,
+    "max_wall_hours_per_owner": 12,
+    "append_only_attempt_ledger_required": true,
+    "out_of_ledger_attempt_invalid": true
+  },
+  "model_search_spaces": {
+    "terra": {
+      "max_depth": [2, 3, 4],
+      "min_leaf_blocks": [10, 20],
+      "max_leaves": [8, 16]
+    },
+    "opus": {
+      "expert_count": [2, 3, 4],
+      "gate_depth": [1, 2],
+      "l1_strength": [0.001, 0.01]
+    },
+    "fable": {
+      "neighbor_k": [16, 32, 64],
+      "distance_feature_sets": ["required_only", "required_plus_optional"],
+      "self_symbol_embargo_hours": 24
+    },
+    "grok": {
+      "regime_count": [2, 3, 4],
+      "minimum_segment_days": [10, 20],
+      "change_penalty": [1.0, 2.0]
+    }
+  },
+  "candidate_and_validation_statistics": {
+    "minimum_events": 50,
+    "minimum_active_days": 20,
+    "minimum_nonoverlap_regime_blocks": 10,
+    "discovery_candidate_generation_only": true,
+    "validation_bh_fdr_q": 0.10,
+    "validation_family": "union_of_all_four_model_candidate_leaves",
+    "leaf_wf_holm_family_alpha": 0.01,
+    "leaf_wf_family": "union_of_all_attempt_ledgers_and_selected_policies",
+    "router_holdout_no_multiple_attempts": true
+  },
+  "robustness": {
+    "symbol_hash_folds": 10,
+    "minimum_positive_symbol_folds": 8,
+    "calendar_month_leave_one_out_required": true,
+    "minimum_positive_month_fraction": 0.80,
+    "btc_regime_blocks": "discovery_quantiles_of_btc_return_and_vol_then_contiguous_runs",
+    "minimum_positive_regime_blocks": 8,
+    "maximum_top_two_day_positive_contribution_fraction": 0.35,
+    "maximum_single_symbol_positive_contribution_fraction": 0.35,
+    "delay_plus_one_failure": "FAIL",
+    "all_delays_0_to_3_must_have_positive_net_account_return": true,
+    "cost_stress_must_remain_positive": true
+  },
+  "degeneracy": {
+    "policy_equivalent_to_best_fixed_baseline_fraction_max": 0.99,
+    "symbol_or_date_feature_use": "FAIL",
+    "never_exits_nonzero_positions": "FAIL",
+    "leverage_or_solvency_breach": "FAIL",
+    "no_trade_dominance_is_allowed": true,
+    "one_sided_direction_is_allowed_if_state_dependent_and_beats_fixed_baseline": true
+  },
+  "baselines": [
+    "ALWAYS_FLAT", "FIXED_LONG_SAME_FREQUENCY", "FIXED_SHORT_SAME_FREQUENCY",
+    "BUY_HOLD", "RANDOM_SAME_FREQUENCY_SEED42", "BTC_BETA_MATCHED"
+  ],
+  "router_combination": {
+    "freeze_before_router_holdout": true,
+    "include_all_independently_passed_leaves": true,
+    "conflict_rule": "opposite_actions_without_prevalidated_priority_to_NO_TRADE",
+    "priority_rule": "validation_conservative_score_only",
+    "no_holdout_tuning": true,
+    "primary_metric": "cashflow_adjusted_account_final_equity",
+    "secondary_metrics": ["max_drawdown", "solvency", "effective_leverage", "capital_occupation", "no_trade_fraction"]
+  },
+  "verdicts": [
+    "VALIDATED_PATH", "POSTHOC_ONLY", "UNSTABLE", "UNEXECUTABLE",
+    "DATA_BLIND", "NO_EDGE", "DEGENERATE", "NO_VALIDATED_PATH"
+  ],
+  "safety": {
+    "system_status": "NO_GO",
+    "exam_status": "EXAM_UNAVAILABLE",
+    "exam_actions": 0,
+    "trade_allowed": false,
+    "labels_unblinded": false
+  },
+  "hashes": {
+    "protocol_hash": "5d80166eb28307d23e33cd19efae2b60811852ff0da49a3a6e16663aba2e7ddd",
+    "hash_method": "Set hashes.protocol_hash to null, then compute repository datatruth.HashJSON.",
+    "self_excluded_field": "hashes.protocol_hash"
+  }
+}

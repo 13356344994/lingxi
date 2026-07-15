@@ -1,0 +1,27 @@
+{
+  "artifact_hash": "9c57e51fc3983ee5e27c299ba6bb3521938aed93150ec9cbb6186d737b59c3d7",
+  "conflicts": 16,
+  "cross_source_conflicts": 16,
+  "exact_duplicates": 0,
+  "firewall_rejected_outcome_sections": 84,
+  "malformed_quarantined": 0,
+  "provenance_counts": {
+    "dynamic_min_notional_usdt|exchange_fills": 1918,
+    "entry_slip_bps|fast_v2_settlements": 663,
+    "entry_slip_bps|settlements": 724,
+    "exit_slip_bps|fast_v2_settlements": 663,
+    "exit_slip_bps|settlements": 724,
+    "fee_bps|exchange_fills": 1918,
+    "fee_bps|fast_v2_settlements": 663,
+    "fee_bps|settlements": 724,
+    "latency_ms|fast_v2_settlements": 609,
+    "latency_ms|maker_attempts": 2870,
+    "latency_ms|settlements": 549,
+    "maker_fill_rate|maker_attempts": 2870
+  },
+  "schema_version": "lingxi.g10-execution-evidence-audit.v1",
+  "severity": "CRITICAL_UNKNOWN",
+  "suppressed_lower_priority_facts": 561,
+  "unresolved_cross_source_identities": 5045,
+  "unresolved_reason": "CROSS_SOURCE_IDENTITY_UNAVAILABLE"
+}

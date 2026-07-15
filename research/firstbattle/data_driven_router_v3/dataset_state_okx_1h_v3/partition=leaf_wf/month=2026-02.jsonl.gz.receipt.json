@@ -1,0 +1,11 @@
+{
+  "schema_version": "lingxi.data-driven-router-v3.shard-receipt.v2",
+  "partition": "leaf_wf",
+  "month": "2026-02",
+  "path": "partition=leaf_wf/month=2026-02.jsonl.gz",
+  "rows": 116735,
+  "first_ms": 1769904000000,
+  "last_ms": 1771592400000,
+  "sha256": "8a16a1ff9da2c5a1c6c8b75c7a8e67d3cad8fe4cc8bc99efa0bcbc9688da2f49",
+  "source_binding": "4089551091dae25213db1c27e6bac754498cbb2e2102cbab5e53fb0099960405"
+}

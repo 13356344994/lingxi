@@ -1,0 +1,131 @@
+{
+  "schema_version": "lingxi.data-driven-router-v3.model-api.v1",
+  "policy_id": "terra-bounded-tree-d4-b10-l16",
+  "leaves": [
+    {
+      "leaf_id": "leaf-01",
+      "predicate": "btc_return_24h IS MISSING OR btc_return_24h \u003c= -0.007277585190889557 AND btc_rms_vol_24h IS MISSING OR btc_rms_vol_24h \u003c= 0.003906421398127353 AND own_return_24h IS MISSING OR own_return_24h \u003c= -0.009995553941975432 AND cross_section_liquidity_rank IS MISSING OR cross_section_liquidity_rank \u003c= 0.7701058201058202",
+      "intent": {
+        "target_signed_position_fraction": -1,
+        "target_horizon_hours": 24,
+        "delay_bars": 3
+      },
+      "rejection_reason": "synthetic-only candidate; real-label validation remains sealed"
+    },
+    {
+      "leaf_id": "leaf-02",
+      "predicate": "btc_return_24h IS MISSING OR btc_return_24h \u003c= -0.007277585190889557 AND btc_rms_vol_24h IS MISSING OR btc_rms_vol_24h \u003c= 0.003906421398127353 AND own_return_24h IS MISSING OR own_return_24h \u003c= -0.009995553941975432 AND cross_section_liquidity_rank IS PRESENT AND cross_section_liquidity_rank \u003e 0.7701058201058202",
+      "intent": {
+        "target_signed_position_fraction": 1,
+        "target_horizon_hours": 24,
+        "delay_bars": 0
+      },
+      "rejection_reason": "synthetic-only candidate; real-label validation remains sealed"
+    },
+    {
+      "leaf_id": "leaf-03",
+      "predicate": "btc_return_24h IS MISSING OR btc_return_24h \u003c= -0.007277585190889557 AND btc_rms_vol_24h IS MISSING OR btc_rms_vol_24h \u003c= 0.003906421398127353 AND own_return_24h IS PRESENT AND own_return_24h \u003e -0.009995553941975432 AND btc_return_1h IS MISSING OR btc_return_1h \u003c= -0.0033573117157335575",
+      "intent": {
+        "target_signed_position_fraction": -1,
+        "target_horizon_hours": 24,
+        "delay_bars": 0
+      },
+      "rejection_reason": "synthetic-only candidate; real-label validation remains sealed"
+    },
+    {
+      "leaf_id": "leaf-04",
+      "predicate": "btc_return_24h IS MISSING OR btc_return_24h \u003c= -0.007277585190889557 AND btc_rms_vol_24h IS MISSING OR btc_rms_vol_24h \u003c= 0.003906421398127353 AND own_return_24h IS PRESENT AND own_return_24h \u003e -0.009995553941975432 AND btc_return_1h IS PRESENT AND btc_return_1h \u003e -0.0033573117157335575",
+      "intent": {
+        "target_signed_position_fraction": 1,
+        "target_horizon_hours": 24,
+        "delay_bars": 0
+      },
+      "rejection_reason": "synthetic-only candidate; real-label validation remains sealed"
+    },
+    {
+      "leaf_id": "leaf-05",
+      "predicate": "btc_return_24h IS MISSING OR btc_return_24h \u003c= -0.007277585190889557 AND btc_rms_vol_24h IS PRESENT AND btc_rms_vol_24h \u003e 0.003906421398127353 AND btc_return_4h IS MISSING OR btc_return_4h \u003c= -0.0005939718052847542 AND own_drawdown_24h IS MISSING OR own_drawdown_24h \u003c= -0.01578399121142915",
+      "intent": {
+        "target_signed_position_fraction": 1,
+        "target_horizon_hours": 24,
+        "delay_bars": 0
+      },
+      "rejection_reason": "synthetic-only candidate; real-label validation remains sealed"
+    },
+    {
+      "leaf_id": "leaf-06",
+      "predicate": "btc_return_24h IS MISSING OR btc_return_24h \u003c= -0.007277585190889557 AND btc_rms_vol_24h IS PRESENT AND btc_rms_vol_24h \u003e 0.003906421398127353 AND btc_return_4h IS MISSING OR btc_return_4h \u003c= -0.0005939718052847542 AND own_drawdown_24h IS PRESENT AND own_drawdown_24h \u003e -0.01578399121142915",
+      "intent": {
+        "target_signed_position_fraction": -1,
+        "target_horizon_hours": 24,
+        "delay_bars": 0
+      },
+      "rejection_reason": "synthetic-only candidate; real-label validation remains sealed"
+    },
+    {
+      "leaf_id": "leaf-07",
+      "predicate": "btc_return_24h IS MISSING OR btc_return_24h \u003c= -0.007277585190889557 AND btc_rms_vol_24h IS PRESENT AND btc_rms_vol_24h \u003e 0.003906421398127353 AND btc_return_4h IS PRESENT AND btc_return_4h \u003e -0.0005939718052847542 AND btc_return_4h IS MISSING OR btc_return_4h \u003c= 0.0006702157664026931",
+      "intent": {
+        "target_signed_position_fraction": -1,
+        "target_horizon_hours": 24,
+        "delay_bars": 3
+      },
+      "rejection_reason": "synthetic-only candidate; real-label validation remains sealed"
+    },
+    {
+      "leaf_id": "leaf-08",
+      "predicate": "btc_return_24h IS MISSING OR btc_return_24h \u003c= -0.007277585190889557 AND btc_rms_vol_24h IS PRESENT AND btc_rms_vol_24h \u003e 0.003906421398127353 AND btc_return_4h IS PRESENT AND btc_return_4h \u003e -0.0005939718052847542 AND btc_return_4h IS PRESENT AND btc_return_4h \u003e 0.0006702157664026931",
+      "intent": {
+        "target_signed_position_fraction": 1,
+        "target_horizon_hours": 24,
+        "delay_bars": 3
+      },
+      "rejection_reason": "synthetic-only candidate; real-label validation remains sealed"
+    },
+    {
+      "leaf_id": "leaf-09",
+      "predicate": "btc_return_24h IS PRESENT AND btc_return_24h \u003e -0.007277585190889557 AND utc_hour_cos IS MISSING OR utc_hour_cos \u003c= -0.9829629131445341 AND own_drawdown_24h IS MISSING OR own_drawdown_24h \u003c= -0.028993867987069655",
+      "intent": {
+        "target_signed_position_fraction": -1,
+        "target_horizon_hours": 24,
+        "delay_bars": 0
+      },
+      "rejection_reason": "synthetic-only candidate; real-label validation remains sealed"
+    },
+    {
+      "leaf_id": "leaf-10",
+      "predicate": "btc_return_24h IS PRESENT AND btc_return_24h \u003e -0.007277585190889557 AND utc_hour_cos IS MISSING OR utc_hour_cos \u003c= -0.9829629131445341 AND own_drawdown_24h IS PRESENT AND own_drawdown_24h \u003e -0.028993867987069655",
+      "intent": {
+        "target_signed_position_fraction": 1,
+        "target_horizon_hours": 24,
+        "delay_bars": 3
+      },
+      "rejection_reason": "synthetic-only candidate; real-label validation remains sealed"
+    },
+    {
+      "leaf_id": "leaf-11",
+      "predicate": "btc_return_24h IS PRESENT AND btc_return_24h \u003e -0.007277585190889557 AND utc_hour_cos IS PRESENT AND utc_hour_cos \u003e -0.9829629131445341 AND cross_section_vol_rank IS MISSING OR cross_section_vol_rank \u003c= 0.0031645569620253164",
+      "intent": {
+        "target_signed_position_fraction": 0,
+        "target_horizon_hours": 1,
+        "delay_bars": 0
+      },
+      "rejection_reason": "synthetic-only candidate; real-label validation remains sealed"
+    },
+    {
+      "leaf_id": "leaf-12",
+      "predicate": "btc_return_24h IS PRESENT AND btc_return_24h \u003e -0.007277585190889557 AND utc_hour_cos IS PRESENT AND utc_hour_cos \u003e -0.9829629131445341 AND cross_section_vol_rank IS PRESENT AND cross_section_vol_rank \u003e 0.0031645569620253164",
+      "intent": {
+        "target_signed_position_fraction": -1,
+        "target_horizon_hours": 24,
+        "delay_bars": 3
+      },
+      "rejection_reason": "synthetic-only candidate; real-label validation remains sealed"
+    }
+  ],
+  "default_intent": {
+    "target_signed_position_fraction": -1,
+    "target_horizon_hours": 24,
+    "delay_bars": 3
+  }
+}

@@ -1,0 +1,127 @@
+{
+  "schema_version": "lingxi.data-driven-router-v3.model-submission.v1",
+  "owner_id": "sonnet",
+  "owner_model": "Claude Sonnet 5",
+  "supersedes_owner": "fable",
+  "supersession_reason": "fable_could_not_launch_behind_an_external_policy_gate",
+  "model_family": "deterministic_bounded_episodic_nearest_neighbor",
+  "status": "MODEL_IMPLEMENTED_SYNTHETIC_ONLY",
+  "independence_statement": "Sonnet owner submission uses only modelapi synthetic fixtures. Real dataset shards, reward labels, peer owner outputs, and filesystem/network IO were not read.",
+  "source_scope": [
+    "internal/datadrivenv3/models/episodic/**"
+  ],
+  "scope": {
+    "implemented": [
+      "deterministic missing-aware standardized-distance episodic k-NN",
+      "frozen grid search k[16,32,64] x feature_set[required_only,required_plus_optional], seed 42",
+      "self-symbol embargo: exact self-event exclusion plus a 24h decision-time purge window",
+      "hash-priority (seed-bound) tie-break for neighbor selection, vote ties, and grid-attempt ties",
+      "data-independent candidate pool capped at 8192 rows, frozen by seed-42 hash priority independently of input order",
+      "data-independent embargoed LOO pseudo-query set capped at 1024 rows from the frozen candidate pool",
+      "bounded, aggregated neighbor evidence summary and reason string per prediction",
+      "append-only attempt ledger over the embargoed leave-one-out grid search",
+      "synthetic contract fixtures and tests"
+    ],
+    "not_implemented": [
+      "real-label access",
+      "dataset-on-disk read",
+      "route execution",
+      "peer-output access",
+      "owner filesystem or network IO"
+    ]
+  },
+  "search_space": {
+    "k": [16, 32, 64],
+    "feature_set": ["required_only", "required_plus_optional"],
+    "seed": 42,
+    "max_attempts": 16,
+    "max_leaves": 32,
+    "max_candidate_pool_size": 8192,
+    "max_loo_queries": 1024,
+    "grid_attempts": 6,
+    "embargo_hours": 24,
+    "distance": "missing-aware standardized (z-score) mean-squared distance; a missing feature on either side contributes a fixed, data-free penalty instead of an imputed value",
+    "neighbor_weight": "inverse distance, epsilon-stabilized so an exact match dominates a merely nearby one",
+    "vote": "distance-weighted mean for the continuous fraction (snapped to the frozen signed-position grid), plus distance-weighted mode with hash-priority ties for horizon/delay",
+    "selection_objective": "embargoed leave-one-out mean loss over at most 1024 seed-42 hash-priority pseudo-queries from the frozen candidate pool: squared fraction error + horizon mismatch + delay mismatch",
+    "complexity_upper_bound": {
+      "fit_pool_freeze": "O(n log n) one-time deterministic ordering, retaining at most 8192 rows",
+      "fit_grid_scoring": "O(6 * 1024 * 8192 * feature_dims), independent of input size n after pool freeze",
+      "predict": "O(8192 * feature_dims), independent of input size n"
+    }
+  },
+  "feature_sets": {
+    "required_only": "23 of the 25 frozen market features, excluding the dataset's own documented optional feed features (rubik_taker_ratio, rubik_ls_ratio), plus the 4 decision-time account (local-state) features",
+    "required_plus_optional": "all 25 frozen market features plus the 4 decision-time account features"
+  },
+  "anti_leak_guards": {
+    "self_neighbor_excluded": true,
+    "self_symbol_embargo_hours": 24,
+    "symbol_or_date_features_used": false,
+    "event_id_or_decision_time_used_as_predict_feature": false,
+    "training_rows_exposed_in_policy_or_evidence": false,
+    "evidence_summary_is_aggregate_only": true,
+    "candidate_pool_selection_input_order_independent": true
+  },
+  "synthetic_contract_fixture": {
+    "description": "20-state deterministic mixed fixture where own_return_1h and account leverage jointly gate the synthetic target direction",
+    "selected_choice": {
+      "k": 64,
+      "feature_set": "required_only",
+      "seed": 42,
+      "attempts": 6
+    },
+    "leaves_used": 3,
+    "policy_id": "sonnet-episodic-k64-required_only",
+    "attempt_ledger_entries": 7,
+    "attempt_ledger_head_hash": "3af6ac9a4f8f28c6f7047f4b00e894c70c829bc45a47dc52f630854168015d9b",
+    "model_hash": "1330a3bd2e51998dc40496e5008427e35b1d5472981a090edea6d3fe2e74b076",
+    "synthetic_fixture_input_hash": "531479124548484c5b06ee8dc211965c2270f3bb36a84f980d5807073e82c6ba"
+  },
+  "bindings": {
+    "model_api_schema_version": "lingxi.data-driven-router-v3.model-api.v1",
+    "modelapi_api_hash": "1593a18d2db0cdac3cc32d3adbd147490d3981e4142c0281bd1d46ebe9ba4168",
+    "modelapi_grid_hash": "789f18922df9060e8991afe650955706c74a88c016e6617dd7b3629de7f45b72",
+    "modelapi_code_hash": "392ec218614f25fdadaedddd415922735006fa15776dd8b485b400929bd8b910",
+    "episodic_owner_code_hash": "9a32b37878f81086a92c04b52c360e1497e60e92502062f60b3c14a069f26974"
+  },
+  "code_sha256": {
+    "internal/datadrivenv3/models/episodic/episodic.go": "b7c017c9e118d57c391d6bfb92f9ac967a690de2af4bb439b196fce99b00a20c",
+    "internal/datadrivenv3/models/episodic/episodic_synthetic_test.go": "7d0ce210430eb471b4f4c74977ab0167f0bd8e8fc9d41f5221b56dd0b82e256c",
+    "internal/datadrivenv3/models/episodic/episodic_scale_test.go": "967a9c11a7e63b80be4cd289a5bbd53aa411146b7c16b5a5b2b310d2c0174ece"
+  },
+  "tests": [
+    "TestSyntheticSelfNeighborEmbargo",
+    "TestSyntheticEmbargoWindow",
+    "TestSyntheticMissingAwareDistance",
+    "TestSyntheticDeterminism",
+    "TestSyntheticLocalStateActions",
+    "TestSyntheticGridAndBudget",
+    "TestSyntheticBudgetExhausted",
+    "TestSyntheticRejectRealLabelKind",
+    "TestSyntheticEvidenceDoesNotLeakTrainingRows",
+    "TestSyntheticScalability100kBoundedPool",
+    "TestSyntheticSelectionOrderIndependenceAtScale",
+    "TestSyntheticCandidatePoolBoundary",
+    "TestSyntheticLOOQueryBoundary",
+    "TestSyntheticSelectPoolEdgeCases",
+    "TestSyntheticPoolCapsMatchSpecAndLeaveGridUnchanged",
+    "TestSyntheticManifestBindings"
+  ],
+  "verification": {
+    "gofmt": "clean",
+    "go_vet": "clean",
+    "go_test": "pass",
+    "go_test_race": "pass"
+  },
+  "labels_read": false,
+  "labels_or_real_model_outputs_read": false,
+  "peer_outputs_read": false,
+  "real_dataset_read": false,
+  "dataset_files_read": false,
+  "file_io_during_fit_predict": false,
+  "attempt_ledger_append_only": true,
+  "routes_started": 0,
+  "trade_allowed": false,
+  "global_halt": true
+}

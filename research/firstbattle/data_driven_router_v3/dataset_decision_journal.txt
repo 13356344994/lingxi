@@ -1,0 +1,8 @@
+Outcome fields, route results, PnL, winners, and reward labels were not read.
+Only fundingarchive.LoadVerifiedSource (the v3 manifest, receipt, and verified COMPLETE daily shards) was used for signed funding; the older daily archive was not opened.
+Known cost is based on COMPLETE UTC daily coverage over entry through exit and actual interval events; no fixed funding cadence was inferred.
+Exact duplicate signed funding rows are de-duplicated by the verified source; conflicting timestamp values fail closed.
+MMR is unavailable: G5 withdrawals are deferred to zero while a position is open, so certification evidence is limited rather than DATA_BLIND.
+No dataset shards or reward labels are generated unless this report is PASS.
+fitness_hash=2942fe5c57c7f93aa86ab939e0d5ce1e6d9298b8ef2ced74c4b7216e67602428
+

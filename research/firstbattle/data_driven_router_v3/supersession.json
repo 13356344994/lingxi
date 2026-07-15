@@ -1,0 +1,172 @@
+{
+  "schema_version": "lingxi.data-driven-router-v3.supersession.v1",
+  "artifact_id": "firstbattle.data-driven-router-v3.supersession",
+  "supersession_id": "firstbattle.data-driven-router-v3.supersede-mechanism-priors",
+  "generation": "firstbattle-data-driven-router-v3",
+  "todo_id": "supersede-mechanism-priors",
+  "produced_at": "2026-07-14T07:40:00Z",
+  "repo_head": "ab2780405f0fd5c80d268fe0feff39eb14a29eda",
+  "owner": {
+    "role": "LINGXI governance owner (data-driven-router-v3)",
+    "workspace": "/root/lingxi",
+    "write_scope": "ADD ONLY research/firstbattle/data_driven_router_v3/supersession.json and .md; UPDATE ONLY FIRST_BATTLE_MASTER_PLAN.md (append current-path/status, delete no history). MUST NOT modify plan files, mechanism_search_v2 legacy artifacts, code, records/, private raw, G1-G10 frozen artifacts, sealed exam surface, or real-money switches. No git commit.",
+    "self_adjudication_policy": "This owner did NOT re-adjudicate the equity_session_gap_data_contract.json hash dispute and did NOT modify any legacy artifact. Non-disputed upstream hashes were independently recomputed with a throwaway datatruth.HashJSON-equivalent tool (built and deleted outside the repo) for reference only."
+  },
+  "supreme_objective_verbatim": "LINGXI 永久、唯一、最高优先级目标：在不同市场状态、特殊事件和个人执行条件下，动态路由到各自经过历史证据认证的专属盈利路径；没有可靠匹配路径时必须空仓。最终以资金流调整后的真实账户净值长期增长为唯一成功标准。",
+  "supreme_objective_preservation": {
+    "statement": "最高宗旨原文逐字保留、不改写、不弱化。V3 只改变到达该宗旨的方法(停止主观先验准入、改为数据驱动状态-动作学习)，不改变宗旨本身。",
+    "source_of_record": "FIRST_BATTLE_MASTER_PLAN.md 第 1 节『永久、唯一、最高优先级目标』引用块，本 supersession 仅引用不覆盖。",
+    "unchanged": true
+  },
+  "purpose": "执行 V3 todo `supersede-mechanism-priors`：隔离旧机制搜索(mechanism_search_v2)的全部候选/库/shortlist 与旧股票 session-gap 来源/日历/合同，把它们冻结为历史假设证据而非 V3 模型输入；显式声明 V3 继承什么(仅保证证据可信的纪律)、拒绝继承什么(主观准入先验)、以及旧数据主线与 Data Fitness 的允许角色；把当前主线切换到数据驱动动态路由 V3。本文件不下载、不读取收益、不解盲标签、不启动路线、不提交。",
+  "supersession_summary": "mechanism_search_v2 的全部 candidate/library/shortlist、以及旧股票 3-symbol session-gap 的 source fitness/日历/数据合同，全部标记 HYPOTHESIS_ONLY_NOT_MODEL_INPUT：历史证据保留、不删除，但不再决定 V3 的搜索空间，也不进入 V3 的 state / features / labels / selection。V3 从冻结协议、完整决策时刻状态-动作数据集与多模型独立竞赛重新出发，只让真实历史数据决定 LONG/SHORT/HOLD/CLOSE/NO_TRADE。",
+  "status_vocabulary": {
+    "HYPOTHESIS_ONLY_NOT_MODEL_INPUT": "历史假设证据；可读作背景/动机，禁止作为 V3 的 state/feature/label/selection 输入或搜索空间来源。",
+    "SUPERSEDED_SCOPE_REJECTED": "因用户否定其 scope 而被取代；保留为历史事实，不重启、不作为 V3 输入。",
+    "HASH_INTEGRITY_DISPUTED_NOT_TRUSTED": "该工件的自证 hash 存在相互矛盾的独立声明；本 owner 不自行裁决、不改旧文件；无论 hash 真假，均不作为 V3 输入。",
+    "RETAINED_AS_CREDIBILITY_DISCIPLINE_ONLY": "继承项仅用于保证证据可信(数据真相/PIT/时间隔离/成本/账户安全/历史失败结论)，本身不产生方向、不产生 route label、不产生交易权。",
+    "RAW_VISIBLE_VARIABLE_OR_POSTHOC_EXPLANATION_ONLY": "被拒绝的主观先验只能以原始可见变量身份进入数据，或在数据驱动验证通过后作为事后解释；不得作为候选准入故事或筛选先验。"
+  },
+  "v3_inherited_credibility_discipline_only": {
+    "note": "以下项 V3 继承，但仅用于保证证据可信；它们不是赚钱方向、不是 route label、不授予交易权。",
+    "items": [
+      {"id": "DataTruth", "meaning": "三时钟 / PIT / 完整性 / 去重 / fail-closed 质量门", "role": "RETAINED_AS_CREDIBILITY_DISCIPLINE_ONLY"},
+      {"id": "PIT", "meaning": "point-in-time / KnownFrom，禁止用当前快照回填历史", "role": "RETAINED_AS_CREDIBILITY_DISCIPLINE_ONLY"},
+      {"id": "TimeIsolation", "meaning": "时间切分 / purge / embargo / walk-forward / discovery 与 validation 分区隔离", "role": "RETAINED_AS_CREDIBILITY_DISCIPLINE_ONLY"},
+      {"id": "CompleteCost", "meaning": "完整手续费/滑点/funding/未成交/延迟成本，未知成本保守压力不补零", "role": "RETAINED_AS_CREDIBILITY_DISCIPLINE_ONLY"},
+      {"id": "AccountSafety", "meaning": "global_halt / NO_GO / 5x 硬上限 / 偿付防线 / 真钱须用户批准 / 不触碰 records 与考卷", "role": "RETAINED_AS_CREDIBILITY_DISCIPLINE_ONLY"},
+      {"id": "HistoricalFailureConclusions", "meaning": "G1-G10、数据主线 closure、P0 Data Fitness、G10 执行证据审计等历史失败/DATA_BLIND 结论，只读冻结不回写", "role": "RETAINED_AS_CREDIBILITY_DISCIPLINE_ONLY"}
+    ],
+    "explicit_non_inheritance_of_conclusions_as_labels": "继承历史失败结论意味着不重复其错误、不篡改其 generation/hash；不意味着把它们的分类当作 V3 的 route label 或方向先验。"
+  },
+  "v3_rejected_subjective_admission_priors": {
+    "note": "V3 不继承以下主观准入先验作为候选准入故事或筛选先验；它们若重要，只能作为数据中的原始可见变量出现，或在数据驱动验证通过后作为事后经济解释，不得反向改变筛选。",
+    "priors": [
+      {"id": "payer", "meaning": "『谁被迫付款/为何必须现在付款』的先验付款者故事"},
+      {"id": "institutional_exclusion", "meaning": "『机构进不来/公开后护城河仍在』的机构排斥先验"},
+      {"id": "event_sparsity", "meaning": "稀疏强制流/事件稀有性作为准入优势的先验"},
+      {"id": "capacity", "meaning": "小账户容量护城河先验"},
+      {"id": "speed", "meaning": "速度优势先验"},
+      {"id": "moat", "meaning": "护城河/反常识路线的主观优势先验"}
+    ],
+    "allowed_forms": "RAW_VISIBLE_VARIABLE_OR_POSTHOC_EXPLANATION_ONLY",
+    "forbidden_forms": "候选准入故事、搜索空间预筛选、outcome-blind 评分权重、shortlist 入选理由、方向叶子先验。"
+  },
+  "superseded_artifacts": {
+    "hash_semantics": "JSON self-hash = repository datatruth.HashJSON(自排除字段置 null)。本 owner 用 datatruth.HashJSON 等价工具(仓库外构建后删除)独立复算了下列非争议 JSON 的自证 hash 并 MATCH；争议工件不复算。MD 文件按路径引用，未逐一复算 document hash。",
+    "exclude_from_v3_model_input": [
+      {"path": "research/firstbattle/mechanism_search_v2/candidates_opus.json", "self_excluded_field": "hashes.candidates_hash", "hash": "1ed962fc83026349a4f112c87c7d185ca9604566e14245395434824b898c4d32", "independently_reverified": true, "status": "HYPOTHESIS_ONLY_NOT_MODEL_INPUT", "kind": "candidate"},
+      {"path": "research/firstbattle/mechanism_search_v2/candidates_opus.md", "hash": "REFERENCE_ONLY_NOT_RECOMPUTED", "independently_reverified": false, "status": "HYPOTHESIS_ONLY_NOT_MODEL_INPUT", "kind": "candidate"},
+      {"path": "research/firstbattle/mechanism_search_v2/candidates_fable.json", "self_excluded_field": "hashes.candidates_hash", "hash": "a244b53ccb39e9c28d01f4287a8bf83cd66e01d4d9cd7431c83b60c1c1f97cea", "independently_reverified": true, "status": "HYPOTHESIS_ONLY_NOT_MODEL_INPUT", "kind": "candidate"},
+      {"path": "research/firstbattle/mechanism_search_v2/candidates_fable.md", "hash": "879d93ebc43cdd7cb886e3725ecffb7becf33e879449542874a0fa2befe703a9", "hash_source": "declared_by_library_reverify", "independently_reverified": false, "status": "HYPOTHESIS_ONLY_NOT_MODEL_INPUT", "kind": "candidate"},
+      {"path": "research/firstbattle/mechanism_search_v2/candidates_grok.json", "self_excluded_field": "hashes.candidates_hash", "hash": "615c1e5aa5267e30698ee8839b41d88b09e54bc5b70ebc7a5c5e0efb0a5dcddc", "independently_reverified": true, "status": "HYPOTHESIS_ONLY_NOT_MODEL_INPUT", "kind": "candidate"},
+      {"path": "research/firstbattle/mechanism_search_v2/candidates_grok.md", "hash": "REFERENCE_ONLY_NOT_RECOMPUTED", "independently_reverified": false, "status": "HYPOTHESIS_ONLY_NOT_MODEL_INPUT", "kind": "candidate"},
+      {"path": "research/firstbattle/mechanism_search_v2/mechanism_hypothesis_library.json", "self_excluded_field": "hashes.library_hash", "hash": "d208f96cbf6b22623df47858ab9a0aaaa46d80dd16768ad993daff02bc10eae5", "independently_reverified": true, "status": "HYPOTHESIS_ONLY_NOT_MODEL_INPUT", "kind": "library"},
+      {"path": "research/firstbattle/mechanism_search_v2/mechanism_hypothesis_library.md", "hash": "REFERENCE_ONLY_NOT_RECOMPUTED", "independently_reverified": false, "status": "HYPOTHESIS_ONLY_NOT_MODEL_INPUT", "kind": "library"},
+      {"path": "research/firstbattle/mechanism_search_v2/mechanism_shortlist.json", "self_excluded_field": "hashes.shortlist_hash", "hash": "b3c63aee84509eead9dc24bf067e68cdc16f08f50a532e006a68e633b015c541", "independently_reverified": true, "status": "HYPOTHESIS_ONLY_NOT_MODEL_INPUT", "kind": "shortlist"},
+      {"path": "research/firstbattle/mechanism_search_v2/mechanism_shortlist.md", "hash": "REFERENCE_ONLY_NOT_RECOMPUTED", "independently_reverified": false, "status": "HYPOTHESIS_ONLY_NOT_MODEL_INPUT", "kind": "shortlist"},
+      {"path": "research/firstbattle/mechanism_search_v2/mechanism_shortlist_reviewer_receipt.json", "self_excluded_field": "hashes.receipt_hash", "hash": "6c5a0c25f065e169f64f909aacedd4fc85f7ca0dad066222cc5e3f146a2bbdce", "independently_reverified": true, "status": "HYPOTHESIS_ONLY_NOT_MODEL_INPUT", "kind": "shortlist_reviewer_receipt"},
+      {"path": "research/firstbattle/mechanism_search_v2/mechanism_shortlist_reviewer_receipt.md", "hash": "REFERENCE_ONLY_NOT_RECOMPUTED", "independently_reverified": false, "status": "HYPOTHESIS_ONLY_NOT_MODEL_INPUT", "kind": "shortlist_reviewer_receipt"},
+      {"path": "research/firstbattle/mechanism_search_v2/equity_session_gap_source_fitness.json", "self_excluded_field": "hashes.source_fitness_hash", "hash": "3c88d6aa189be2393b9c84aa6313b544dcde82f3e6ce8908b0bb328887990c3b", "independently_reverified": true, "status": "HYPOTHESIS_ONLY_NOT_MODEL_INPUT", "kind": "equity_session_gap_source"},
+      {"path": "research/firstbattle/mechanism_search_v2/equity_session_gap_source_fitness.md", "hash": "REFERENCE_ONLY_NOT_RECOMPUTED", "independently_reverified": false, "status": "HYPOTHESIS_ONLY_NOT_MODEL_INPUT", "kind": "equity_session_gap_source"},
+      {"path": "research/firstbattle/mechanism_search_v2/us_market_calendar_2026.json", "self_excluded_field": "hashes.calendar_hash", "hash": "65e7795a7a68d0384ddad15188d8c8b2818df225d042197b4d12ee7a51086297", "independently_reverified": true, "status": "HYPOTHESIS_ONLY_NOT_MODEL_INPUT", "kind": "equity_session_gap_calendar"},
+      {"path": "research/firstbattle/mechanism_search_v2/us_market_calendar_2026.md", "hash": "REFERENCE_ONLY_NOT_RECOMPUTED", "independently_reverified": false, "status": "HYPOTHESIS_ONLY_NOT_MODEL_INPUT", "kind": "equity_session_gap_calendar"},
+      {"path": "research/firstbattle/mechanism_search_v2/equity_session_gap_data_contract.json", "self_excluded_field": "hashes.contract_hash", "declared_hash": "47e4113ea9cb2aaffc7d3bdeace2a43997917ea837e5f6fcf71302c6b3c6213a", "independently_reverified": false, "status": "SUPERSEDED_SCOPE_REJECTED + HASH_INTEGRITY_DISPUTED_NOT_TRUSTED", "kind": "equity_session_gap_contract_3symbol", "note": "旧股票 3-symbol(AAPL/TSLA/NVDA) session-gap 数据合同；用户否定其 scope，且其自证 hash 处于争议。见 hash_integrity_dispute 与 old_stock_3symbol_contract。"},
+      {"path": "research/firstbattle/mechanism_search_v2/equity_session_gap_data_contract.md", "hash": "REFERENCE_ONLY_NOT_RECOMPUTED", "independently_reverified": false, "status": "SUPERSEDED_SCOPE_REJECTED + HASH_INTEGRITY_DISPUTED_NOT_TRUSTED", "kind": "equity_session_gap_contract_3symbol"}
+    ],
+    "include_as_credibility_or_raw_only": [
+      {"path": "internal/datatruth/", "role": "RETAINED_AS_CREDIBILITY_DISCIPLINE_ONLY", "meaning": "三时钟/PIT/去重/hash 语义代码；V3 可复用数据真相与账户模拟正确代码，不复用旧结果/赢家/阈值。", "hash": "CODE_REFERENCE_NOT_HASHED"},
+      {"path": "internal/routerg4/", "role": "RETAINED_AS_CREDIBILITY_DISCIPLINE_ONLY", "meaning": "已验证数据/账户模拟组件，仅复用正确代码，禁止复用其结果/阈值/赢家。", "hash": "CODE_REFERENCE_NOT_HASHED"},
+      {"path": "internal/routerg5/", "role": "RETAINED_AS_CREDIBILITY_DISCIPLINE_ONLY", "meaning": "同上(account-aware reward/leverage/EOF accounting 组件复用)。", "hash": "CODE_REFERENCE_NOT_HASHED"},
+      {"path": "internal/routerg10/", "role": "RETAINED_AS_CREDIBILITY_DISCIPLINE_ONLY", "meaning": "同上；禁止复用 G10 赢家/Playbook/validation 结论作为 V3 输入。", "hash": "CODE_REFERENCE_NOT_HASHED"},
+      {"path": "research/firstbattle/data_mainline_closure_v1.json", "role": "DATA_QUALITY_AND_COST_EVIDENCE_ONLY_NOT_ROUTE_LABEL", "hash": "d4f78f1efabead5b86e0656ab73903734da6c36d1d737337c535a14e6568525e", "hash_source": "declared", "independently_reverified": false},
+      {"path": "research/firstbattle/data_mainline_closure_v1.md", "role": "DATA_QUALITY_AND_COST_EVIDENCE_ONLY_NOT_ROUTE_LABEL", "hash": "REFERENCE_ONLY_NOT_RECOMPUTED", "independently_reverified": false},
+      {"path": "research/firstbattle/p0_swap_data_fitness.json", "role": "DATA_QUALITY_AND_COST_EVIDENCE_ONLY_NOT_ROUTE_LABEL", "hash": "393a12952b480fc2671774d76790e5f850bcbc26b43c8eb8d870bba9c9e2bd66", "hash_source": "declared", "independently_reverified": false},
+      {"path": "research/firstbattle/p0_swap_data_fitness_reviewer_receipt.json", "role": "DATA_QUALITY_AND_COST_EVIDENCE_ONLY_NOT_ROUTE_LABEL", "hash": "0cdd322c130a7c6e58bd9803e5611f6a144d35bf6e5a3f0cdac49292ad9dcad4", "hash_source": "declared", "independently_reverified": false}
+    ]
+  },
+  "hash_integrity_dispute": {
+    "artifact": "research/firstbattle/mechanism_search_v2/equity_session_gap_data_contract.json",
+    "status": "HASH_INTEGRITY_DISPUTED_NOT_TRUSTED",
+    "declared_hash_in_artifact": "47e4113ea9cb2aaffc7d3bdeace2a43997917ea837e5f6fcf71302c6b3c6213a",
+    "terra_report_claim": "Terra 报告声明：该工件内声明的 contract_hash(47e4113e…)与仓库 Go datatruth.HashJSON 实际复算结果(以 1618… 起)不一致。",
+    "terra_recomputed_hash_prefix_as_reported": "1618…",
+    "owner_counterclaim": "存在 owner 相反声明(工件自身 hash_method/decision_journal DJ1 主张已用等价 datatruth.HashJSON 复算并 MATCH)。",
+    "resolution": "NOT_SELF_ADJUDICATED. 本 owner 不自行裁决孰对孰错、不复算该争议 hash、不修改任何旧文件。两个相反声明并存并如实记录。",
+    "why_not_recomputed": "任务明确要求不自行裁决且无论 hash 如何均不作为 V3 输入；主动复算即构成裁决，故本 owner 刻意放弃复算。",
+    "v3_effect": "无论该 hash 真假，equity_session_gap_data_contract 及其派生一律不进入 V3 的 state/features/labels/selection/搜索空间。",
+    "old_file_untouched": true
+  },
+  "old_stock_3symbol_contract": {
+    "path": "research/firstbattle/mechanism_search_v2/equity_session_gap_data_contract.json",
+    "universe_frozen": ["AAPL-USDT-SWAP", "TSLA-USDT-SWAP", "NVDA-USDT-SWAP"],
+    "primary_status": "SUPERSEDED_SCOPE_REJECTED",
+    "scope_rejection_reason": "用户否定该路线 scope(仅 3 只官方举例股票永续的 session-gap 强制重定价假设)。据此该 generation 被取代，不重启、不作为 V3 输入。",
+    "secondary_status": "HASH_INTEGRITY_DISPUTED_NOT_TRUSTED",
+    "retention": "历史证据保留、不删除、不修改；来源调查(source fitness/日历)保留为普通数据说明，不作为 V3 准入故事。"
+  },
+  "forbidden_imports_into_v3_dataset": {
+    "principle": "V3 的 state / features / labels / selection / 搜索空间禁止导入以下任何内容。违反即数据集污染，fail closed。",
+    "forbidden": [
+      "mechanism_search_v2 任一 candidate(opus/fable/grok) 的机制假设、付款者故事、outcome-blind 自评分或 shortlist 入选理由。",
+      "mechanism_hypothesis_library / mechanism_shortlist / shortlist_reviewer_receipt 的评分权重、排名、入选/淘汰结论作为特征或选择先验。",
+      "equity_session_gap 路线的 route_id、universe(AAPL/TSLA/NVDA)、Cut-1/Cut-2 阈值、方向分支设计、moat 论点作为 V3 候选准入或方向先验。",
+      "us_market_calendar_2026 / source fitness 作为 V3 专属机制字段来源(可作原始可见变量，但不得作为准入故事)。",
+      "被拒绝主观先验(payer / 机构排斥 / 稀疏 / 容量 / 速度 / 护城河)作为候选准入故事、搜索空间预筛选或评分权重。",
+      "任一历史 generation 的赢家/Playbook/阈值/validation 结论作为 V3 特征、标签或选择输入(G1-G10 与 mechanism_search_v2 同)。",
+      "旧数据主线 closure 与 P0 Data Fitness 的分类作为 V3 的 route label 或方向标签。",
+      "争议 hash 工件(equity_session_gap_data_contract)无论 hash 真假作为任何 V3 输入。",
+      "任何未来采集数据用于发现/挽救/调优赚钱方向(仅可用于运行时 OOD/工程一致性/安全)。"
+    ],
+    "allowed_instead": "原始、决策时刻可见、经 DataTruth/PIT/时间隔离/完整成本纪律的市场与执行变量;主观概念只能以此类原始变量身份进入,或在数据驱动 validation/WF 通过后作为事后解释。"
+  },
+  "old_data_mainline_and_datafitness_role": {
+    "statement": "旧数据主线 closure(data_mainline_closure_v1)与 P0 Data Fitness(p0_swap_data_fitness 及其独立 reviewer receipt)仅作为数据质量/成本证据使用,不作为 V3 的 route label 或方向标签。",
+    "allowed_use": ["证明某数据源的 provenance/PIT/三时钟/完整分母/缺口/重复/乱序等质量事实", "为 V3 成本模型提供已知费用/滑点/未成交/延迟的证据", "标记 DATA_BLIND/INCOMPLETE_ATTEMPTS_DENOMINATOR 等数据不足事实以便 V3 fail-closed"],
+    "forbidden_use": ["把其分类(DATA_BLIND 等)当作某条 route 的 label 或方向", "把 100% order/fill join 当作完整 attempts 分母", "把 current snapshot 当作历史 PIT", "据其结论恢复收益研究/validation/WF/考试/真钱"]
+  },
+  "current_action": {
+    "switch_to": "firstbattle-data-driven-router-v3",
+    "previous_mainline": "firstbattle-mechanism-search-v2 (candidate/shortlist 已冻结为 HYPOTHESIS_ONLY_NOT_MODEL_INPUT)",
+    "labels_unblinded": false,
+    "routes_started": 0,
+    "routes_reopened": 0,
+    "system_status": "NO_GO",
+    "next_gated_step": "freeze-v3-protocol (冻结状态/动作/成本/切分/模型搜索空间/账户级成功标准);须在本 supersession 之后单独执行,且不解盲标签、不下载、不提交。"
+  },
+  "decision_journal": [
+    {"id": "DJ1", "decision": "只在允许范围写文件:新增 supersession.json/.md + 更新 Master;不碰 plan/旧工件/代码/records/private raw/G1-G10/考卷/真钱,不提交。", "result": "写入范围严格受限;git status 预期仅新增 V3 两文件 + Master 修改。"},
+    {"id": "DJ2", "decision": "逐字保留最高宗旨原文,只改到达方法不改宗旨。", "result": "supreme_objective_verbatim 与 Master 第 1 节引用块一致;unchanged=true。"},
+    {"id": "DJ3", "decision": "把 mechanism_search_v2 全部 candidate/library/shortlist 与股票 session-gap source/calendar/contract 标 HYPOTHESIS_ONLY_NOT_MODEL_INPUT,历史证据保留不删除,不再决定搜索空间,不进入 V3 state/features/labels/selection。", "result": "superseded_artifacts.exclude_from_v3_model_input 列出 17 条路径与 hash/引用。"},
+    {"id": "DJ4", "decision": "用 datatruth.HashJSON 等价工具(仓库外构建后删除)独立复算 6 个非争议 msv2 自证 hash 作参考;不复算争议合同 hash。", "result": "opus/fable/grok/shortlist/library/receipt/source_fitness/calendar 复算全部 MATCH(candidates_fable.md 用 library reverify 声明值);equity contract 刻意不复算。"},
+    {"id": "DJ5", "decision": "旧股票 3-symbol(AAPL/TSLA/NVDA)合同因用户否定 scope 标 SUPERSEDED_SCOPE_REJECTED;并存 Terra hash 不一致报告(47e…vs 1618…)与 owner 相反声明,标 HASH_INTEGRITY_DISPUTED_NOT_TRUSTED,不自行裁决、不改旧文件。", "result": "无论 hash 真假均不作为 V3 输入;hash_integrity_dispute.why_not_recomputed 记录刻意放弃复算。"},
+    {"id": "DJ6", "decision": "V3 拒绝继承 payer/机构排斥/稀疏/容量/速度/护城河等主观准入先验,只允许它们作为原始可见变量或验证后事后解释。", "result": "v3_rejected_subjective_admission_priors 列 6 项;allowed_forms=RAW_VISIBLE_VARIABLE_OR_POSTHOC_EXPLANATION_ONLY。"},
+    {"id": "DJ7", "decision": "V3 继承 DataTruth/PIT/时间隔离/完整成本/账户安全/历史失败结论,但仅用于保证证据可信,不作方向/route label/交易权。", "result": "v3_inherited_credibility_discipline_only 列 6 项;继承结论不当作 V3 label。"},
+    {"id": "DJ8", "decision": "旧数据主线 closure 与 P0 Data Fitness 仅作数据质量/成本证据,不作 route label。", "result": "old_data_mainline_and_datafitness_role 明确 allowed/forbidden use。"},
+    {"id": "DJ9", "decision": "把 current action 切到 firstbattle-data-driven-router-v3,保持 labels_unblinded=false/routes_started=0/NO_GO。", "result": "current_action 记录;下一步 freeze-v3-protocol 须单独 gated 执行。"}
+  ],
+  "safety": {
+    "global_halt": true,
+    "system_status": "NO_GO",
+    "exam_status": "EXAM_UNAVAILABLE",
+    "trade_allowed": false,
+    "labels_unblinded": false,
+    "routes_started": 0,
+    "routes_reopened": 0,
+    "no_purchase": true,
+    "no_bulk_download": true,
+    "no_outcome_read": true,
+    "no_commit": true,
+    "owner_made_commits": false,
+    "owner_modified_disallowed_paths": false,
+    "supreme_objective_verbatim_preserved": true,
+    "legacy_artifacts_unmodified": true,
+    "hash_dispute_self_adjudicated": false
+  },
+  "hashes": {
+    "supersession_hash": "44f098e19cffa0657a963673b5c97425dcac58dcf15ae7d5939a8fec9ae7bad2",
+    "hash_method": "Read this JSON as a generic object, set hashes.supersession_hash to null, then compute repository datatruth.HashJSON (json.Marshal -> unmarshal to any -> normalizeJSON -> json.Marshal with sorted keys and HTML-escape -> SHA-256 lowercase hex).",
+    "self_excluded_field": "hashes.supersession_hash",
+    "md_document_hash_method": "Markdown: normalize the unique line '> Document hash: `<value>`' to '> Document hash: `SELF_EXCLUDED`' then SHA-256 the whole file UTF-8 LF bytes. The MD value lives only in the .md file (one-directional), not here."
+  }
+}

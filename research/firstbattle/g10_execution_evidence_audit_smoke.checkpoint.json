@@ -1,0 +1,2632 @@
+{
+  "schema_version": "lingxi.g10-execution-evidence-audit.v1",
+  "protocol_hash": "dccd7974a7d172e3894174a953c4cce02ea840a48bb41fbdec589ed4d1153dd3",
+  "source_manifest_hash": "9e6075b56228d2ff95488852a4d3f3a9d2b60230d9a4adab337234f8202d50f1",
+  "projection_schema_hash": "53ce69118e9012c457f4bb53339fc64ef195a4f06b0df472d2fdc5fe8fd39526",
+  "matching_config_hash": "2f1654821f174c2653a59a61cab78a6e778b04df0d94a4cb26e0f22f05f92995",
+  "output_dir": "/root/lingxi/research/firstbattle/g10_execution_evidence_audit_smoke",
+  "source_offsets": {
+    "equity_snapshots": {
+      "byte_offset": 1048500,
+      "complete_line_ordinal": 14048
+    },
+    "exchange_fills": {
+      "byte_offset": 1048412,
+      "complete_line_ordinal": 1918
+    },
+    "executable_shadow": {
+      "byte_offset": 1048333,
+      "complete_line_ordinal": 1510
+    },
+    "fast_v2_settlements": {
+      "byte_offset": 1048541,
+      "complete_line_ordinal": 663
+    },
+    "maker_attempts": {
+      "byte_offset": 1048393,
+      "complete_line_ordinal": 2870
+    },
+    "open_decisions": {
+      "byte_offset": 1048286,
+      "complete_line_ordinal": 912
+    },
+    "settlements": {
+      "byte_offset": 1047877,
+      "complete_line_ordinal": 724
+    }
+  },
+  "phase": "PUBLISH",
+  "current_bucket": 256,
+  "staging_dir": "/root/lingxi/research/firstbattle/g10_execution_evidence_audit_smoke/.evidenceaudit-staging",
+  "staging_binding_hash": "b7316d220add4112eb1785f166b328a38191b0ce1f138088f49afa1437b12f18",
+  "bucket_count": 256,
+  "max_bucket_rows": 50000,
+  "bucket_files": [
+    {
+      "relative_path": "bucket-0000.jsonl",
+      "size": 17340,
+      "chain_digest": "294f6fe3a25248faa8a759c46039b089675e995c2e0672f61f0487e203f95e6d"
+    },
+    {
+      "relative_path": "bucket-0001.jsonl",
+      "size": 19912,
+      "chain_digest": "935804b9a290b5e415a421c3047b9f9da3e9db3ae94fb4a3512826ddbc2acc20"
+    },
+    {
+      "relative_path": "bucket-0002.jsonl",
+      "size": 20632,
+      "chain_digest": "63cd00584f1c923991c3bf87e49b1dd53bcdcd01e037c35d3c6b2f1746551311"
+    },
+    {
+      "relative_path": "bucket-0003.jsonl",
+      "size": 13285,
+      "chain_digest": "c3d48eef70cf48d71ca617055992c6a5bdaede48044441d050a0f399e603db57"
+    },
+    {
+      "relative_path": "bucket-0004.jsonl",
+      "size": 14582,
+      "chain_digest": "c8fe1a422ebc0280493d0486fb5418408e8475f8b548819e6cf8010830b3afd1"
+    },
+    {
+      "relative_path": "bucket-0005.jsonl",
+      "size": 18136,
+      "chain_digest": "3fa5e713a902edbbfb9ee2d9239478c289be3575ce9b1e20f33759e56659c831"
+    },
+    {
+      "relative_path": "bucket-0006.jsonl",
+      "size": 20699,
+      "chain_digest": "f54cab1ac8eb665d608759f00b8871105042707150dbf0e47387a89808e74ebb"
+    },
+    {
+      "relative_path": "bucket-0007.jsonl",
+      "size": 18001,
+      "chain_digest": "ea5d09818727c53bb5bba141ccedc5c1afa9dd8a7cffaad5baec866f13c13e3b"
+    },
+    {
+      "relative_path": "bucket-0008.jsonl",
+      "size": 15708,
+      "chain_digest": "af561d8377b28c6184983764b49df15027d72ddba808f0e1a7cd24a6044c691e"
+    },
+    {
+      "relative_path": "bucket-0009.jsonl",
+      "size": 23665,
+      "chain_digest": "2ef8c91e4059da90012d53985435c5fd0236599c4b0064206e9740df8b5b02c1"
+    },
+    {
+      "relative_path": "bucket-0010.jsonl",
+      "size": 20357,
+      "chain_digest": "f4302ffe993dcd322ab2ccbda580be0cb190e3e92d9e852e7b94665657c8dde2"
+    },
+    {
+      "relative_path": "bucket-0011.jsonl",
+      "size": 18496,
+      "chain_digest": "17bdadbfa5eeeaaa57e625697307188bd31dcdb132c09de01c3ee3858119cf69"
+    },
+    {
+      "relative_path": "bucket-0012.jsonl",
+      "size": 20103,
+      "chain_digest": "7a6c768b8e2d9b89332d0d1ef6ea6cb6637437399fefc72a3634b77093fbf2af"
+    },
+    {
+      "relative_path": "bucket-0013.jsonl",
+      "size": 20521,
+      "chain_digest": "5310d3d3e53ce572dc6b32e860d333769ce5e80c8389f3141b411e5bc0fb36fb"
+    },
+    {
+      "relative_path": "bucket-0014.jsonl",
+      "size": 17936,
+      "chain_digest": "f0cdda16eacfc3c3444315186c69b0b14f0eda4dc85eaa6b451b066dc53a912a"
+    },
+    {
+      "relative_path": "bucket-0015.jsonl",
+      "size": 18777,
+      "chain_digest": "66c1496ab146cd749b2c144014d54cfbd0955b70ed8dc6ce735dc1c6684b5ce2"
+    },
+    {
+      "relative_path": "bucket-0016.jsonl",
+      "size": 28764,
+      "chain_digest": "3805cf7df3b4a49aa3adf960f7aa3de108d40a5584b2737320d4afac4309216a"
+    },
+    {
+      "relative_path": "bucket-0017.jsonl",
+      "size": 19553,
+      "chain_digest": "64e5d1b30a261de2fb28ff47b2fac06955ae9b33ffd20b8df2a7695e93f4b90b"
+    },
+    {
+      "relative_path": "bucket-0018.jsonl",
+      "size": 21588,
+      "chain_digest": "cf8598d08b87b1d7654a209e36c3e352f819c288ebc6d477bc78c41eea730be5"
+    },
+    {
+      "relative_path": "bucket-0019.jsonl",
+      "size": 22577,
+      "chain_digest": "f3a12c16edcf9731ebcc34cf82df2becd11c6e6b3720a102112a1c38b24a2261"
+    },
+    {
+      "relative_path": "bucket-0020.jsonl",
+      "size": 13335,
+      "chain_digest": "f6c5e3646f51aec93f77f41e69cdb60f310926ad328b98303e5cb32f2e23d882"
+    },
+    {
+      "relative_path": "bucket-0021.jsonl",
+      "size": 21919,
+      "chain_digest": "6370c34f8b4083740ced3aa6ec0f51da68fd53db4ce152f9f3f914ed7c2f9fdc"
+    },
+    {
+      "relative_path": "bucket-0022.jsonl",
+      "size": 13225,
+      "chain_digest": "479be4942b72f1b2319de8ad57df01648bf8e3ad1eb8f0b02debf96fb234aa6e"
+    },
+    {
+      "relative_path": "bucket-0023.jsonl",
+      "size": 15959,
+      "chain_digest": "1e5e99bc06a4be5169212887eceae6a28a2e4e228e7869ccf2737d9cb2cc5e0e"
+    },
+    {
+      "relative_path": "bucket-0024.jsonl",
+      "size": 15110,
+      "chain_digest": "7c7f8a48d16b8250c985db734d8cded7fd1fe1a30624e80e0f397c3a5cc91836"
+    },
+    {
+      "relative_path": "bucket-0025.jsonl",
+      "size": 26569,
+      "chain_digest": "825522b9beedde702f0e381ca53ab11af8e219dd8fb78dd37456aaa21899a08f"
+    },
+    {
+      "relative_path": "bucket-0026.jsonl",
+      "size": 18827,
+      "chain_digest": "ea24a5965461a707b0078678e597f4d3a1aa8ccd86dcaebac5ab73c6f2fcfa90"
+    },
+    {
+      "relative_path": "bucket-0027.jsonl",
+      "size": 18055,
+      "chain_digest": "1eca57023704e4555b585be300b3ba3d6232eaf73cb4993248348d2a806e6965"
+    },
+    {
+      "relative_path": "bucket-0028.jsonl",
+      "size": 19127,
+      "chain_digest": "25836436a227f5f7c66b9ceab474afb11ed54a5aa1c11dc8025afecf7a42398d"
+    },
+    {
+      "relative_path": "bucket-0029.jsonl",
+      "size": 16426,
+      "chain_digest": "29543bd7b5baf86895d383e280fa287f0b9f93bf27b3439687bb0092f4dc834b"
+    },
+    {
+      "relative_path": "bucket-0030.jsonl",
+      "size": 18792,
+      "chain_digest": "dc624087901199d98653bbdc89e958e4c0ed5f0cf5959531e5d6a4b1e9f04fd6"
+    },
+    {
+      "relative_path": "bucket-0031.jsonl",
+      "size": 24157,
+      "chain_digest": "e00968887ff73ac14e5fc0bc14c68f81ab943581fcc2b985812b525a565c2a58"
+    },
+    {
+      "relative_path": "bucket-0032.jsonl",
+      "size": 22110,
+      "chain_digest": "f52b7103fbd513e82cd61a0173b7f37b32b6d3c997fe9b0a6b8baab161af7f29"
+    },
+    {
+      "relative_path": "bucket-0033.jsonl",
+      "size": 22009,
+      "chain_digest": "e91f46f21be4ff657be1a363167b4f2ac8296a3faccd5e6c1a63f5ecf92b0bb7"
+    },
+    {
+      "relative_path": "bucket-0034.jsonl",
+      "size": 14652,
+      "chain_digest": "d74da79bd8c7cb2c9e05a91113a405230a013382fc8f40d1014867c2647c7bdb"
+    },
+    {
+      "relative_path": "bucket-0035.jsonl",
+      "size": 22119,
+      "chain_digest": "6fbc51ac85f61386b3ff6a3d4ed269aebec503803465ca543d31af5908ce9477"
+    },
+    {
+      "relative_path": "bucket-0036.jsonl",
+      "size": 18055,
+      "chain_digest": "7aa94bf8394451ef7fbc99f071219dfb006c69198402cf86907acb4021bd69de"
+    },
+    {
+      "relative_path": "bucket-0037.jsonl",
+      "size": 20987,
+      "chain_digest": "e01470b5d7bc886ec7d9ee8b700dc6a3aa1886b7597b80f2236f5701816673a2"
+    },
+    {
+      "relative_path": "bucket-0038.jsonl",
+      "size": 12251,
+      "chain_digest": "7c5b8263609e1a1086223969d9f99dc17dedf37b61cf6363a83251cffd29bfa3"
+    },
+    {
+      "relative_path": "bucket-0039.jsonl",
+      "size": 16355,
+      "chain_digest": "e5c7e655d947fab44242c1392add1982c2a0350f3c335018cfaa22c520b8eeda"
+    },
+    {
+      "relative_path": "bucket-0040.jsonl",
+      "size": 19730,
+      "chain_digest": "65b40cc1953448421cc72777ee857e3f0b4d42e853beaf79ec793c3fdc2f02ef"
+    },
+    {
+      "relative_path": "bucket-0041.jsonl",
+      "size": 22108,
+      "chain_digest": "6b9317bbf8d411ff979ff1a000219c000a9ffa2f6fc80b0bc423ab2d57b0ed3c"
+    },
+    {
+      "relative_path": "bucket-0042.jsonl",
+      "size": 20605,
+      "chain_digest": "e8f220285033e4cc108b53a8cfa83750c5415b38e6ea7691340ddae72b671786"
+    },
+    {
+      "relative_path": "bucket-0043.jsonl",
+      "size": 24031,
+      "chain_digest": "b2fad1a829d1029018d56af968f3ea52fd4d71e130efcb29f2fef477ce75fa54"
+    },
+    {
+      "relative_path": "bucket-0044.jsonl",
+      "size": 14072,
+      "chain_digest": "a7b30221b44414b741687506258e4fe9714f989353e20fa0821822273457b4ec"
+    },
+    {
+      "relative_path": "bucket-0045.jsonl",
+      "size": 22740,
+      "chain_digest": "7b01de516b3ae0a62b194298e870a1ac652c3e52458ef2349009e94b6884e163"
+    },
+    {
+      "relative_path": "bucket-0046.jsonl",
+      "size": 16309,
+      "chain_digest": "9bcdc599930e95f284cc953bdd5b97f13e212574d3a5d61518ee152de68c3259"
+    },
+    {
+      "relative_path": "bucket-0047.jsonl",
+      "size": 21234,
+      "chain_digest": "1e5d8a99466f047aba0d5b8b140bc2692f2528fbfd362a0ecfaf6a1310af4f29"
+    },
+    {
+      "relative_path": "bucket-0048.jsonl",
+      "size": 17279,
+      "chain_digest": "b83b31641600a5c8130de59ca8a9ecec4039f1bee53b213981121049ed65418f"
+    },
+    {
+      "relative_path": "bucket-0049.jsonl",
+      "size": 22206,
+      "chain_digest": "4f846cb025ced69836ac3e3f302a7b98d37a320fd5d8233f29f1db92999b84a5"
+    },
+    {
+      "relative_path": "bucket-0050.jsonl",
+      "size": 20326,
+      "chain_digest": "689da4375b328f564b4debbd94bf0549a68b89fb683faea4dcf311ec92216385"
+    },
+    {
+      "relative_path": "bucket-0051.jsonl",
+      "size": 17237,
+      "chain_digest": "b6d5a4741f3a302baa58560d76598d99298ba85a5bc6f5f8a699c7dc6ed4cacb"
+    },
+    {
+      "relative_path": "bucket-0052.jsonl",
+      "size": 11890,
+      "chain_digest": "ec66e038365610ce91c58c9da3c7789849ad6442f37cb8419842846c697e9e3a"
+    },
+    {
+      "relative_path": "bucket-0053.jsonl",
+      "size": 19430,
+      "chain_digest": "0497142eb952bec3cd55d0521e8008574d9c8c3ea3edf5188eac4c83710a49d3"
+    },
+    {
+      "relative_path": "bucket-0054.jsonl",
+      "size": 15138,
+      "chain_digest": "6da73ca706e2985a0eba9c2112ff2a32ddb2c7c96790c6c17284a5264973060e"
+    },
+    {
+      "relative_path": "bucket-0055.jsonl",
+      "size": 20060,
+      "chain_digest": "54d5fd031f19ef291976b44afffe69a23755b65d20f65cd88948156e79a9caa9"
+    },
+    {
+      "relative_path": "bucket-0056.jsonl",
+      "size": 19992,
+      "chain_digest": "d048921d3c9fb19a82d105862bec177a2bdeaae387c954c3a210fe0b557f1c60"
+    },
+    {
+      "relative_path": "bucket-0057.jsonl",
+      "size": 19163,
+      "chain_digest": "61754583fcf058e68839db35781ed3fe1008cb490601f66864e188ba8a718790"
+    },
+    {
+      "relative_path": "bucket-0058.jsonl",
+      "size": 18072,
+      "chain_digest": "f0403e8075d4c77781f5ce4aafde635491b59447a104b074b266f3e1d1404ec6"
+    },
+    {
+      "relative_path": "bucket-0059.jsonl",
+      "size": 21692,
+      "chain_digest": "64498b4496ebf810dd664f1f39fec32e8a7a8ec5d5ce399e5f5d12ad2498624e"
+    },
+    {
+      "relative_path": "bucket-0060.jsonl",
+      "size": 31957,
+      "chain_digest": "5b58f8b852f73f5c7cf0c9013678e2370273c3f7c4ba47cb53f045c26f59d1c2"
+    },
+    {
+      "relative_path": "bucket-0061.jsonl",
+      "size": 15652,
+      "chain_digest": "f927d2602b973b76dca60e2c6b43e2f5f8a184f14cda9e2b0ea8049c19f403ac"
+    },
+    {
+      "relative_path": "bucket-0062.jsonl",
+      "size": 12479,
+      "chain_digest": "04247ff42dd00305d67d312d502ddc1152f74871386d46343389c2f73b49f4e9"
+    },
+    {
+      "relative_path": "bucket-0063.jsonl",
+      "size": 11963,
+      "chain_digest": "5e72f56bd78ba57cf16b2d0a4e31e00945cefc38097375bfc2bcf5a410a9f27b"
+    },
+    {
+      "relative_path": "bucket-0064.jsonl",
+      "size": 20182,
+      "chain_digest": "81025c0553c0e67e0283edeb09a466af552cb526eada3ff6d1b94af1125c654f"
+    },
+    {
+      "relative_path": "bucket-0065.jsonl",
+      "size": 13429,
+      "chain_digest": "96b4d1a7f0626e6a3ccaaa9e34fa37bf6dbddee024aec18af10b79da43294dad"
+    },
+    {
+      "relative_path": "bucket-0066.jsonl",
+      "size": 19594,
+      "chain_digest": "573715c56a66d544c3082b75ce75c69ae1ecd0fbeee8c44a84bed00d68594620"
+    },
+    {
+      "relative_path": "bucket-0067.jsonl",
+      "size": 14720,
+      "chain_digest": "886b5446514be61665b125cf6dd1a1447bbbcb88455b17bc106da739854da963"
+    },
+    {
+      "relative_path": "bucket-0068.jsonl",
+      "size": 11775,
+      "chain_digest": "e39c3e635f2bd1b45829d7968b0f60605bb8b5a326dc7e65911fd5ac767e63ec"
+    },
+    {
+      "relative_path": "bucket-0069.jsonl",
+      "size": 21823,
+      "chain_digest": "20ecb203ab5be94974f6623093fb137d23b4887083f6fbfe56c921906fd46ba6"
+    },
+    {
+      "relative_path": "bucket-0070.jsonl",
+      "size": 20365,
+      "chain_digest": "037f3d5d4261144e624fce8fbe01d4b27983cfb367208a2506fcb49013db3dc3"
+    },
+    {
+      "relative_path": "bucket-0071.jsonl",
+      "size": 28015,
+      "chain_digest": "186625d7038cd574549f8fc0c00fc4d7bd70d70aaf93f0a236e5d51bb3999c58"
+    },
+    {
+      "relative_path": "bucket-0072.jsonl",
+      "size": 14754,
+      "chain_digest": "7c68e3e714a074422392887914c8369bf212b1a363f4bab3852be4097f842a87"
+    },
+    {
+      "relative_path": "bucket-0073.jsonl",
+      "size": 27464,
+      "chain_digest": "f134047155d5310a7e1f752600a04817cb07edcea3d447ff1c3c9d6b2cb3438f"
+    },
+    {
+      "relative_path": "bucket-0074.jsonl",
+      "size": 14563,
+      "chain_digest": "c4bec36d4e77f1bc1f43cdb265a42b036740087a39dd80028d3ddb88548cfb46"
+    },
+    {
+      "relative_path": "bucket-0075.jsonl",
+      "size": 18022,
+      "chain_digest": "fdfd6a8d82aadb43e7e1693e76e355e6e4a5cf255d6ca4684fd645ce52ef9e47"
+    },
+    {
+      "relative_path": "bucket-0076.jsonl",
+      "size": 19067,
+      "chain_digest": "e38f12f50ac2daa3a2e48f7c1fd514c92075be6e81a59b08624b595002730971"
+    },
+    {
+      "relative_path": "bucket-0077.jsonl",
+      "size": 27350,
+      "chain_digest": "79bcebdf9fb5863d4ddcb943310c16d27711aed8fc8be10de2c9e60a73150b1f"
+    },
+    {
+      "relative_path": "bucket-0078.jsonl",
+      "size": 17944,
+      "chain_digest": "5e02237dcfe0c8b89a60d8b412a2ea770f1aae6677e79326ea52351e1facd6e4"
+    },
+    {
+      "relative_path": "bucket-0079.jsonl",
+      "size": 17093,
+      "chain_digest": "d91b96fa914d83cb414cc1c2193b086d26b59a61acab69f2013ebda5d660796e"
+    },
+    {
+      "relative_path": "bucket-0080.jsonl",
+      "size": 14608,
+      "chain_digest": "b0142e2296880d2e6f58e781972db33485838af15e10b9be24705a0ad84e5194"
+    },
+    {
+      "relative_path": "bucket-0081.jsonl",
+      "size": 14960,
+      "chain_digest": "ed3a8d395b901875bf4949603cc61b258babaa5918f7bbfb1363e655315092ce"
+    },
+    {
+      "relative_path": "bucket-0082.jsonl",
+      "size": 12505,
+      "chain_digest": "995c14b79a7a8255cdbbcfd81750d4abf48d50bd6353e8386de860bed24f4947"
+    },
+    {
+      "relative_path": "bucket-0083.jsonl",
+      "size": 23054,
+      "chain_digest": "7262fe1c82050ef1e20704a79e852aced0efd71af0963f8d6a4622df1687fc44"
+    },
+    {
+      "relative_path": "bucket-0084.jsonl",
+      "size": 15585,
+      "chain_digest": "632cf4e3635bf0a869e91735674ee9add20a3e29d7dc2617decfcb17dec3a845"
+    },
+    {
+      "relative_path": "bucket-0085.jsonl",
+      "size": 15513,
+      "chain_digest": "8b907bdcc0e868a1aa5adb9640c5e6b7270214b0f06ee884fca4bb5f62ecc89b"
+    },
+    {
+      "relative_path": "bucket-0086.jsonl",
+      "size": 16212,
+      "chain_digest": "c6de6d86cc0a02ff0ec09aa8864cd02c8728ab32d9fedc9e691acaed1517d28c"
+    },
+    {
+      "relative_path": "bucket-0087.jsonl",
+      "size": 20254,
+      "chain_digest": "8d55d3bdc04f7e812d9d91c1e45366d1ddec0dcb8d95aa47c779d93bde007b01"
+    },
+    {
+      "relative_path": "bucket-0088.jsonl",
+      "size": 22743,
+      "chain_digest": "6ecad988067b2d19b25df8aea110e8b182d98135ce54d450890a28c3d0da128c"
+    },
+    {
+      "relative_path": "bucket-0089.jsonl",
+      "size": 14601,
+      "chain_digest": "e34c2504e12a134838399dfaa0acb2d05e9862f52544f68ae80646f81aa2ef48"
+    },
+    {
+      "relative_path": "bucket-0090.jsonl",
+      "size": 15757,
+      "chain_digest": "bf031466860d3a7a4da5ae83602cd4ff59c2c735816d9b67e2cc986d32f97209"
+    },
+    {
+      "relative_path": "bucket-0091.jsonl",
+      "size": 19517,
+      "chain_digest": "8313ced3400b3109f533e35eb74bcbf7bf67b27e834ccf17bbf7d6fabcbb6733"
+    },
+    {
+      "relative_path": "bucket-0092.jsonl",
+      "size": 19696,
+      "chain_digest": "71ead962302722eb7dfc7b2785cef13573561a9d499009948bfed502db82ca32"
+    },
+    {
+      "relative_path": "bucket-0093.jsonl",
+      "size": 15679,
+      "chain_digest": "4aee3e83bd5c012ed829e7ab1517feb0e6fd2c32a9670111be5757a556f26e0f"
+    },
+    {
+      "relative_path": "bucket-0094.jsonl",
+      "size": 18272,
+      "chain_digest": "8fb7999d3bce44880add8d03cbfe56ea7bf090a9814c75e0dc3246948c05ca1f"
+    },
+    {
+      "relative_path": "bucket-0095.jsonl",
+      "size": 20301,
+      "chain_digest": "9bb58385883cf3e9cdc25059add701a9d08094610516d15068b47a929b37213e"
+    },
+    {
+      "relative_path": "bucket-0096.jsonl",
+      "size": 21393,
+      "chain_digest": "e57c5eb13cea1e0fda79387806d2eb6261389604c2436ce8c8dedb282657ec39"
+    },
+    {
+      "relative_path": "bucket-0097.jsonl",
+      "size": 26249,
+      "chain_digest": "9f068156247ca156ed27c3717f7cfa77eedf3eb747a8263ed18fd1a3841315eb"
+    },
+    {
+      "relative_path": "bucket-0098.jsonl",
+      "size": 13901,
+      "chain_digest": "fc1d5e1585af0a2200325e26dc92fc0bf7272718f174a0b8f523e047b24ada58"
+    },
+    {
+      "relative_path": "bucket-0099.jsonl",
+      "size": 13453,
+      "chain_digest": "b9a7739f34aaa7050e714619d39b33dd2b10a75eeba3e26b29ac7341f785ae64"
+    },
+    {
+      "relative_path": "bucket-0100.jsonl",
+      "size": 21364,
+      "chain_digest": "045943cce3c72c85d5362d38e9f20afa784b01e0a5a97e6eb30120b8d8b41aab"
+    },
+    {
+      "relative_path": "bucket-0101.jsonl",
+      "size": 14793,
+      "chain_digest": "b59e30ce65a4787c01865e3c970cf5c0c30e9cf6d0887b3fb7fb015035751254"
+    },
+    {
+      "relative_path": "bucket-0102.jsonl",
+      "size": 25195,
+      "chain_digest": "cbad39e5078032775dc9ea5cb42729207724aac15c29dbfef4d704c29a8ad0b3"
+    },
+    {
+      "relative_path": "bucket-0103.jsonl",
+      "size": 13163,
+      "chain_digest": "4cd11b460c73d03d963e47967bd3e829f9b4543cea297a8bb5723547dd5acdca"
+    },
+    {
+      "relative_path": "bucket-0104.jsonl",
+      "size": 17387,
+      "chain_digest": "862687e0991d51cb5b2fe534e330ac1a222fe247a55acfcd54d4f61ba8230f8f"
+    },
+    {
+      "relative_path": "bucket-0105.jsonl",
+      "size": 15712,
+      "chain_digest": "fa60c295b8d163754b1adc729e0c6c46717096fedcd29f9595e578bfb56a6b9c"
+    },
+    {
+      "relative_path": "bucket-0106.jsonl",
+      "size": 14259,
+      "chain_digest": "b4298bc57df3deecd08232d9ec1fcafd9570289d453e4af311113b60f32abe45"
+    },
+    {
+      "relative_path": "bucket-0107.jsonl",
+      "size": 15571,
+      "chain_digest": "56a9cc31de77f48cf5c3ea0826b7d701d934d56c682d46e6009d8c1a0d2d19ff"
+    },
+    {
+      "relative_path": "bucket-0108.jsonl",
+      "size": 16488,
+      "chain_digest": "ce425054648e186bf5e8b1d4af5a8ac37b6625a43e3d21a6dfe1e07b14d33350"
+    },
+    {
+      "relative_path": "bucket-0109.jsonl",
+      "size": 15562,
+      "chain_digest": "94c6bd31cd58e4c07d86c9b9d6f17132c178d06245117754db4b9eaee5e008b9"
+    },
+    {
+      "relative_path": "bucket-0110.jsonl",
+      "size": 11734,
+      "chain_digest": "97e7c7832303f7d1bd96c9efa060713725eea0d3ce2dc8dbfbeb4b5b9a6e2ee7"
+    },
+    {
+      "relative_path": "bucket-0111.jsonl",
+      "size": 15912,
+      "chain_digest": "cf0890b3d945208de061d9b977037f28803b6682472de0dcb5f373b58920f323"
+    },
+    {
+      "relative_path": "bucket-0112.jsonl",
+      "size": 22881,
+      "chain_digest": "ad08a755e8dd5451a412fafaac3b26968f7d0fc0202fbd09bf09f0669b1e5d3e"
+    },
+    {
+      "relative_path": "bucket-0113.jsonl",
+      "size": 21715,
+      "chain_digest": "ecfe68f3abd805558e8a8aac1ff235bb92155b4f12570dda66008df97ad4711a"
+    },
+    {
+      "relative_path": "bucket-0114.jsonl",
+      "size": 23494,
+      "chain_digest": "cb672dcbd85574c680e64ed95e8d690f9c520d01b1d4cae3c1bea1463b0d5925"
+    },
+    {
+      "relative_path": "bucket-0115.jsonl",
+      "size": 17247,
+      "chain_digest": "ed3d49dbcc28a8fe1cb741d2cbad788e06674e82b42155acaf7c27f4ef1fc36f"
+    },
+    {
+      "relative_path": "bucket-0116.jsonl",
+      "size": 22052,
+      "chain_digest": "c233161f66db32e0972fb92ca282f097f56467553c9a43e867e4c884ed70dfd7"
+    },
+    {
+      "relative_path": "bucket-0117.jsonl",
+      "size": 13253,
+      "chain_digest": "435a20674cb048af9a346f9ee817b0c61aa159f61b0e5ff8600bae5a5a239a38"
+    },
+    {
+      "relative_path": "bucket-0118.jsonl",
+      "size": 17424,
+      "chain_digest": "27f6111c2b9e78fe8902e36d728d60bf4971c268e7c241b25e12b6bfb4686266"
+    },
+    {
+      "relative_path": "bucket-0119.jsonl",
+      "size": 18821,
+      "chain_digest": "1499286f58225d455b90332b5cfcffcd9e9aab4839bbeaeceaa2ee14b0468bd2"
+    },
+    {
+      "relative_path": "bucket-0120.jsonl",
+      "size": 17120,
+      "chain_digest": "f260d51069aeba1203291cbba7c7ec4ac184499e0f3fc642eaac6f7a18ead042"
+    },
+    {
+      "relative_path": "bucket-0121.jsonl",
+      "size": 14097,
+      "chain_digest": "68323effe8dbc262010cd77d3869ec2645431e381d9f71948aa08a91010c33b6"
+    },
+    {
+      "relative_path": "bucket-0122.jsonl",
+      "size": 10042,
+      "chain_digest": "538da52a79e9077d8789a387076efe0cfdf1a50bad265dae8e96a5906803ac5b"
+    },
+    {
+      "relative_path": "bucket-0123.jsonl",
+      "size": 20278,
+      "chain_digest": "0a932c8c9ac83d20d4d77438eac7fb3464a8e77e7969ba4925609c3fb40de668"
+    },
+    {
+      "relative_path": "bucket-0124.jsonl",
+      "size": 15482,
+      "chain_digest": "a8e8b649914e90df0ed966fdb6857b36f4c82928b0e4c4fb3536cf5982de5015"
+    },
+    {
+      "relative_path": "bucket-0125.jsonl",
+      "size": 19546,
+      "chain_digest": "3ce2ba3cb4e23c3ae63564abe4b1a4eee9ea8961396b072902d76f0565312311"
+    },
+    {
+      "relative_path": "bucket-0126.jsonl",
+      "size": 12399,
+      "chain_digest": "907295b4986ad164e741d81241550cc6ae5c4cb86353e7d60cdbf99e56bf6f84"
+    },
+    {
+      "relative_path": "bucket-0127.jsonl",
+      "size": 18920,
+      "chain_digest": "7a853078e10a28f68659315dedf7f8ba98f07d58771c9722250d9b7529ecccb0"
+    },
+    {
+      "relative_path": "bucket-0128.jsonl",
+      "size": 18963,
+      "chain_digest": "68e3b872e198804a308040660ee661fb57e712f451ade7a464f803033c1c8da6"
+    },
+    {
+      "relative_path": "bucket-0129.jsonl",
+      "size": 12451,
+      "chain_digest": "e5488170068d674327a61cb79d496ab0217922a2bdd67affb3ccc3bca3b01f74"
+    },
+    {
+      "relative_path": "bucket-0130.jsonl",
+      "size": 21312,
+      "chain_digest": "88b948b93eae8622e17c50c4ed39ff70e6ad1bac33c7d16d93cb97b27fee5ff4"
+    },
+    {
+      "relative_path": "bucket-0131.jsonl",
+      "size": 21433,
+      "chain_digest": "fe8a4658931c2955f9e3c607c0898669c08f6ab3a22d8c5fa0b716184ec382ba"
+    },
+    {
+      "relative_path": "bucket-0132.jsonl",
+      "size": 26118,
+      "chain_digest": "bc7b5ccb41be5a81d87ffae83db289607b20b2a408f906e0f045d847c5c6d1a3"
+    },
+    {
+      "relative_path": "bucket-0133.jsonl",
+      "size": 14065,
+      "chain_digest": "f964a53689037d451a7c769dfb4520031a1d1c633be8a35d65995ba5b341ceb1"
+    },
+    {
+      "relative_path": "bucket-0134.jsonl",
+      "size": 24388,
+      "chain_digest": "ec0587b485df0e942f884256b4ee1365bf47f081fefc4df9e6ec322427d66293"
+    },
+    {
+      "relative_path": "bucket-0135.jsonl",
+      "size": 16620,
+      "chain_digest": "26a0da6f5708df56febdb482162e76012f98a84be556d2b3676fce411cb8ddae"
+    },
+    {
+      "relative_path": "bucket-0136.jsonl",
+      "size": 24118,
+      "chain_digest": "a55cd4e080d2e793257f3580f1b7bf6394b994f72d27dd1be74ca34cbb0667da"
+    },
+    {
+      "relative_path": "bucket-0137.jsonl",
+      "size": 16049,
+      "chain_digest": "4611c90dff2a60d1c42a80def48d7372ee0e0692cf6c09cda8bf0836e65342e3"
+    },
+    {
+      "relative_path": "bucket-0138.jsonl",
+      "size": 22963,
+      "chain_digest": "355ce610b4c8066a1a81ed16bec083e4b87df2c5d4fd18351bc4ad0dbe8a4fae"
+    },
+    {
+      "relative_path": "bucket-0139.jsonl",
+      "size": 14092,
+      "chain_digest": "98ff48143128a1642abed3373d16e84cbca04457077ab872332ad0ca079e3916"
+    },
+    {
+      "relative_path": "bucket-0140.jsonl",
+      "size": 15772,
+      "chain_digest": "47855f7f4c6e996631ff94c3603a4ff478556eb8f517e692713a17a29ab46f8e"
+    },
+    {
+      "relative_path": "bucket-0141.jsonl",
+      "size": 22559,
+      "chain_digest": "424786a50ce0caf3b06975ac45d8fbcb5d23c7b96bbafe9faa1d4c100121f07e"
+    },
+    {
+      "relative_path": "bucket-0142.jsonl",
+      "size": 23548,
+      "chain_digest": "07447d727492a88709217140539518f1b73be3bd8c619c1c873654756a1fc892"
+    },
+    {
+      "relative_path": "bucket-0143.jsonl",
+      "size": 17204,
+      "chain_digest": "84e1604ef00fa460957f6dd21ac06dc0dff7e99278a7cce8810183697a96089e"
+    },
+    {
+      "relative_path": "bucket-0144.jsonl",
+      "size": 15005,
+      "chain_digest": "293fc738bca3fe7b89e0d4523a46f7954a91c41c3527c5826b9efe66b0e1c4a0"
+    },
+    {
+      "relative_path": "bucket-0145.jsonl",
+      "size": 15905,
+      "chain_digest": "3ebfb3068b907c53eabd77136a7e220ada2d1e458993327b62452e29816fc996"
+    },
+    {
+      "relative_path": "bucket-0146.jsonl",
+      "size": 18187,
+      "chain_digest": "2d6f44457e6082650616a9633a36467a0c5361ed4f344e872f5b20e00544e2c2"
+    },
+    {
+      "relative_path": "bucket-0147.jsonl",
+      "size": 20653,
+      "chain_digest": "f0f83f9ab33de41825433e73111b87355b88e27b0bd17a27701dfcfdedd3013f"
+    },
+    {
+      "relative_path": "bucket-0148.jsonl",
+      "size": 15672,
+      "chain_digest": "76b0030594a8e2bb19f449cae2bd3d24a5bedcd0480ff298e47887ca09e4ed8f"
+    },
+    {
+      "relative_path": "bucket-0149.jsonl",
+      "size": 19002,
+      "chain_digest": "55ba7bea18370425429155577bf0928885f379c2236a308991cc3cb409883da0"
+    },
+    {
+      "relative_path": "bucket-0150.jsonl",
+      "size": 20666,
+      "chain_digest": "bd9932eb5b77dbe55c93d8e876392eb58fd99c900a35c2215dbe58ad8852ec5a"
+    },
+    {
+      "relative_path": "bucket-0151.jsonl",
+      "size": 23878,
+      "chain_digest": "b4c4c1f2148f41acdbfd232e4471fabf6e3e12440c1dc1780d5191497567bce4"
+    },
+    {
+      "relative_path": "bucket-0152.jsonl",
+      "size": 26984,
+      "chain_digest": "5a4a2b36aab86b7ae380e64067fcec60d4eb9b276b2559a5750b5cedfee1ca98"
+    },
+    {
+      "relative_path": "bucket-0153.jsonl",
+      "size": 18933,
+      "chain_digest": "16e3aeb2fc32138847b707987e182d5d9211cae2acc86b7ee87d55ebd6bf4d59"
+    },
+    {
+      "relative_path": "bucket-0154.jsonl",
+      "size": 26660,
+      "chain_digest": "3b95438894c22c2e1a238df07412b406464f35e1d2eb371d8d29cc07424a5742"
+    },
+    {
+      "relative_path": "bucket-0155.jsonl",
+      "size": 13263,
+      "chain_digest": "aba7942c5476333ae602751f0986844b5a257104df7b8a80dab4f14e4ca8a991"
+    },
+    {
+      "relative_path": "bucket-0156.jsonl",
+      "size": 22773,
+      "chain_digest": "54e75dcce5d4c9c3c53d48eb9c31fed476f1ad9fd660ae78cacaa3d1170d4ee8"
+    },
+    {
+      "relative_path": "bucket-0157.jsonl",
+      "size": 23883,
+      "chain_digest": "31eeec0b2f7943789cd74708f94222f635db5791278fb75e04f3847acaafde75"
+    },
+    {
+      "relative_path": "bucket-0158.jsonl",
+      "size": 16437,
+      "chain_digest": "9b247fccf8caf7d48d02692bc281451b412985d09b54b6fd251b2e221a64ef5b"
+    },
+    {
+      "relative_path": "bucket-0159.jsonl",
+      "size": 19825,
+      "chain_digest": "71433f86bc6a364ffffe6a6978f350799104d9699b3f822ea154bb9c6e6e7602"
+    },
+    {
+      "relative_path": "bucket-0160.jsonl",
+      "size": 19832,
+      "chain_digest": "3cffed5ce7f67c84519c23a1a91d3d65439f7e7cda74606b4a27d1b59b8134ac"
+    },
+    {
+      "relative_path": "bucket-0161.jsonl",
+      "size": 22135,
+      "chain_digest": "4125c93dd9660ae43ecb30112f392ea55958beb359185f48c9329c15b5c36148"
+    },
+    {
+      "relative_path": "bucket-0162.jsonl",
+      "size": 18020,
+      "chain_digest": "4b22b546b4c9e24ff5295327def92a9c5ff5596be167d0d7ea436b9e304b3ddc"
+    },
+    {
+      "relative_path": "bucket-0163.jsonl",
+      "size": 17386,
+      "chain_digest": "0484444542c1b2a563040270b7193e372a7eaf7beeda6b1f02ecdb1dfd214454"
+    },
+    {
+      "relative_path": "bucket-0164.jsonl",
+      "size": 15468,
+      "chain_digest": "116eaf2b8f44fe5e69d1f7bf6c7f78bee8c24a2dd503c29ae407f1753ed1b78f"
+    },
+    {
+      "relative_path": "bucket-0165.jsonl",
+      "size": 10273,
+      "chain_digest": "5ecc9ee8b8e2993a5f07c9cc5e3de6e0423807e767e17771c95ff53d6fe3e0fa"
+    },
+    {
+      "relative_path": "bucket-0166.jsonl",
+      "size": 23185,
+      "chain_digest": "892a8fc559166874e8dfc50bed4bd22a996965811f75d0b58cb7d8df188ed2e3"
+    },
+    {
+      "relative_path": "bucket-0167.jsonl",
+      "size": 14465,
+      "chain_digest": "cc2aebabc6b89b47e9fbfd7f1528793711953184e9dbc9b70e46f5bf76e138d2"
+    },
+    {
+      "relative_path": "bucket-0168.jsonl",
+      "size": 21441,
+      "chain_digest": "97f17cd9bd21ebfb664418b29fa162e882f5a83d950f50fed0fd4dda1f025d4e"
+    },
+    {
+      "relative_path": "bucket-0169.jsonl",
+      "size": 28104,
+      "chain_digest": "93fd5209606b5f29dd7cc1c2fff45d3e7ec3e5fb3a3d49b47bd56bc89e8a5f25"
+    },
+    {
+      "relative_path": "bucket-0170.jsonl",
+      "size": 17443,
+      "chain_digest": "388c44e28188cec970428e0fbae12520fceda2287a80c00adc8c481a0f11137d"
+    },
+    {
+      "relative_path": "bucket-0171.jsonl",
+      "size": 18885,
+      "chain_digest": "515bf9a06fb032eb643ba8eb97a709f32d9bd98bca5760b93174e68733475581"
+    },
+    {
+      "relative_path": "bucket-0172.jsonl",
+      "size": 25338,
+      "chain_digest": "12be14e17699135da0b397491eec6188a885abd70d689ded18aa9fa9425cdb33"
+    },
+    {
+      "relative_path": "bucket-0173.jsonl",
+      "size": 11116,
+      "chain_digest": "0ddcf134abdbe0d2bb3b5f5b16c8c53e8d8427189c0a4a1551134e8a47ae3e11"
+    },
+    {
+      "relative_path": "bucket-0174.jsonl",
+      "size": 19617,
+      "chain_digest": "544d7003e6e28097ee93f3823609588685c2bedb32349c0b9247b57ea1777cb3"
+    },
+    {
+      "relative_path": "bucket-0175.jsonl",
+      "size": 20541,
+      "chain_digest": "91e9cc44ef47558613871b5f470d2ca651c1a1acc5deeb74f48ee363061afb9f"
+    },
+    {
+      "relative_path": "bucket-0176.jsonl",
+      "size": 26634,
+      "chain_digest": "a99cae28be66bffabb7ad9ea47c0b3565b014ce098807dcae1bf82f74c549233"
+    },
+    {
+      "relative_path": "bucket-0177.jsonl",
+      "size": 19844,
+      "chain_digest": "5a92910438e569e92a7973438a18fa463c7aced18e24338f41038dd31ba88bfe"
+    },
+    {
+      "relative_path": "bucket-0178.jsonl",
+      "size": 13296,
+      "chain_digest": "9e175809837334659cfcf0d6c7bbe4ec96f9afed6f3f5abfa37cc512ccfa61cb"
+    },
+    {
+      "relative_path": "bucket-0179.jsonl",
+      "size": 13204,
+      "chain_digest": "f83666a56ab6eadebb983f7b0503ef04ebb7ce8177f3b31d50750b8518d65c1b"
+    },
+    {
+      "relative_path": "bucket-0180.jsonl",
+      "size": 13311,
+      "chain_digest": "ecd32ee163c709e8a8bb1255788b79795be6fef2d5ae0498890666ebe368f6ce"
+    },
+    {
+      "relative_path": "bucket-0181.jsonl",
+      "size": 26789,
+      "chain_digest": "0d9964a19ce7f5fd6822ddc2c25be41368cda6cb44a5f767fb7af45b9df9c9b2"
+    },
+    {
+      "relative_path": "bucket-0182.jsonl",
+      "size": 22395,
+      "chain_digest": "1b18fd8b3a0e8d3d1ddd374f1c93101a08266f73feaeaf86cbbec41dab095709"
+    },
+    {
+      "relative_path": "bucket-0183.jsonl",
+      "size": 20929,
+      "chain_digest": "08e442863af1cde38f323f69f0b700882b5b13ace182f976b0139a59b769220a"
+    },
+    {
+      "relative_path": "bucket-0184.jsonl",
+      "size": 25232,
+      "chain_digest": "c40898ac6535a8d8ed9737238062f605fef012675703d3405ebe2d65cb391ce5"
+    },
+    {
+      "relative_path": "bucket-0185.jsonl",
+      "size": 19916,
+      "chain_digest": "1ff67a4eae16eb69bad1547241ac248bc0fda5efbbf536f4640d126985bce4a1"
+    },
+    {
+      "relative_path": "bucket-0186.jsonl",
+      "size": 22819,
+      "chain_digest": "b38e82e51780e1538d825bf88c18e46097b4b76a24fbb1561a2d526ca4edc0f3"
+    },
+    {
+      "relative_path": "bucket-0187.jsonl",
+      "size": 14027,
+      "chain_digest": "fcdf109090a72684e1f72d930a1e7878756f418f51b5870561c3a3595e386b20"
+    },
+    {
+      "relative_path": "bucket-0188.jsonl",
+      "size": 15563,
+      "chain_digest": "dd6da173b1f08c8d30e5e5fc51f844c07658d1648a69aa6c052071eba73276f8"
+    },
+    {
+      "relative_path": "bucket-0189.jsonl",
+      "size": 21376,
+      "chain_digest": "25a344029992467db28710bd4cc1c10c7f58805b026d21cfabdef9573bf8bb61"
+    },
+    {
+      "relative_path": "bucket-0190.jsonl",
+      "size": 14768,
+      "chain_digest": "3978b50a7ae15cc0c45b3e1a76c1cff40815b14071ae6570b5a68052dd5fc09f"
+    },
+    {
+      "relative_path": "bucket-0191.jsonl",
+      "size": 21155,
+      "chain_digest": "4498a98e40e7ad7f6b15759b5e42d356a56a91ec972e4ba9b3962ee9018fdc54"
+    },
+    {
+      "relative_path": "bucket-0192.jsonl",
+      "size": 23588,
+      "chain_digest": "f33f78c0edc3593573fd3a34fac585dd3ecaacce31f103eb808b896c02eceec3"
+    },
+    {
+      "relative_path": "bucket-0193.jsonl",
+      "size": 18818,
+      "chain_digest": "1f0d0a88ce96af5b99b5bb52afdd868b1cbbbc103b3b344684754edad622ad05"
+    },
+    {
+      "relative_path": "bucket-0194.jsonl",
+      "size": 22206,
+      "chain_digest": "b345ab0b95c1bc9e371c1b34b38314c3a9e4469e0c347a2400fe2c8fec5ae47d"
+    },
+    {
+      "relative_path": "bucket-0195.jsonl",
+      "size": 24193,
+      "chain_digest": "3c31f900c1f3c6665235ecdb71e00b6bc90a98ed10c3648dfe57c84e98faa15a"
+    },
+    {
+      "relative_path": "bucket-0196.jsonl",
+      "size": 15565,
+      "chain_digest": "77c62a1b018924e57ad9606d7de942c7614abd4da65a821d775f8f66c2240b30"
+    },
+    {
+      "relative_path": "bucket-0197.jsonl",
+      "size": 15836,
+      "chain_digest": "e26a9ffa3250ab4fb97900fa7a6cf2b228fb28f3c7e00a3519a496b43c9aa6a5"
+    },
+    {
+      "relative_path": "bucket-0198.jsonl",
+      "size": 18027,
+      "chain_digest": "054492f6dc41b5804a2c4d79d4760d299abba4968b0173414ee865b234789543"
+    },
+    {
+      "relative_path": "bucket-0199.jsonl",
+      "size": 21539,
+      "chain_digest": "ebc395b7c5f41dcb3c204e116e9c5a0618c678e8d0b1db2b06091e5f5dcbbaa3"
+    },
+    {
+      "relative_path": "bucket-0200.jsonl",
+      "size": 20518,
+      "chain_digest": "3ebb6e143bde1af36ceb88a92f8beb44ad19b53cddffe35e6ad6c4f8566d1278"
+    },
+    {
+      "relative_path": "bucket-0201.jsonl",
+      "size": 25292,
+      "chain_digest": "a9267011fa1d51d5dd317fd5662df2a77963bf848cef0bf37cc3ad2f635976be"
+    },
+    {
+      "relative_path": "bucket-0202.jsonl",
+      "size": 19373,
+      "chain_digest": "a1dc9e496ff22bad2c54c394272a3433812c23963533c95d5cb05c820bf24e82"
+    },
+    {
+      "relative_path": "bucket-0203.jsonl",
+      "size": 13097,
+      "chain_digest": "6d802ac31622e0e5709cd3f9bcb73b717b21833eb0f4f10c97730fef506a7366"
+    },
+    {
+      "relative_path": "bucket-0204.jsonl",
+      "size": 24243,
+      "chain_digest": "3085bc399e2a54c3ffaa04de5fa734bd0d0d290a3e2fedcac723e91631a652eb"
+    },
+    {
+      "relative_path": "bucket-0205.jsonl",
+      "size": 22626,
+      "chain_digest": "e1df5a8bcb8e1b15b79a89b0e236237c86072b6cf26d79a55871c4b07b1f9fb6"
+    },
+    {
+      "relative_path": "bucket-0206.jsonl",
+      "size": 14075,
+      "chain_digest": "144db480e1f278344d22d926f6e262285da8d1838180d6f11c4e0cb82271cb27"
+    },
+    {
+      "relative_path": "bucket-0207.jsonl",
+      "size": 21279,
+      "chain_digest": "d0c30b2a2c18e7a20a746645b8e1e785e83587a50ffa67a9e6a4437f06a8d4d3"
+    },
+    {
+      "relative_path": "bucket-0208.jsonl",
+      "size": 14154,
+      "chain_digest": "b1d3f248011d5c12e4574b65773fd8fb72c9db21f5f827c94988e29d93d01f89"
+    },
+    {
+      "relative_path": "bucket-0209.jsonl",
+      "size": 21384,
+      "chain_digest": "4fdeb41fb99c29720d821b7f7a2bc731ee976f2c6a112b207645e62fa8af8aad"
+    },
+    {
+      "relative_path": "bucket-0210.jsonl",
+      "size": 18061,
+      "chain_digest": "e339862122773c378c13508a6577e5d897f1158d808f46fbd34dd78ce1c67d51"
+    },
+    {
+      "relative_path": "bucket-0211.jsonl",
+      "size": 13884,
+      "chain_digest": "6781189e3d266354f97626d34805dade4235292e503b1e12056bd8ad633f9c3d"
+    },
+    {
+      "relative_path": "bucket-0212.jsonl",
+      "size": 15639,
+      "chain_digest": "2b7b6ac2d8850cc5ab294bb0fb22b8f73dec4fefefe50c15d8b378bd0bc3e769"
+    },
+    {
+      "relative_path": "bucket-0213.jsonl",
+      "size": 26126,
+      "chain_digest": "363e7490243a99b7a65149715f62533446d6137a544f6c085f8827273091ef13"
+    },
+    {
+      "relative_path": "bucket-0214.jsonl",
+      "size": 17440,
+      "chain_digest": "e55895834f6590409099ebe1fac23a4618086a0573f2aa05531af55af543b00c"
+    },
+    {
+      "relative_path": "bucket-0215.jsonl",
+      "size": 20581,
+      "chain_digest": "27555afbc658764e9aee0d0d100dd54e96bf0193c17e37958bd3816ead3e2609"
+    },
+    {
+      "relative_path": "bucket-0216.jsonl",
+      "size": 19784,
+      "chain_digest": "147c316aaf9a1a567901364a7563db088a764a807490748575833ab54600d055"
+    },
+    {
+      "relative_path": "bucket-0217.jsonl",
+      "size": 23210,
+      "chain_digest": "651bc13e704531726ff5a1667ba9b168fcd6d0c4d42430194adf63bae56ea23d"
+    },
+    {
+      "relative_path": "bucket-0218.jsonl",
+      "size": 13329,
+      "chain_digest": "d3597579c6f76c33c5791f0f1ffe582fcccf24afa77a4d5f08918dae1dda2e12"
+    },
+    {
+      "relative_path": "bucket-0219.jsonl",
+      "size": 22803,
+      "chain_digest": "b3219997ac777a02790181af441051d3dae645de27c1cfc005d4e6ca10e58869"
+    },
+    {
+      "relative_path": "bucket-0220.jsonl",
+      "size": 10098,
+      "chain_digest": "90249b7fc43c4e17761c4cff26668d1be8111b51660557c163a90f39b9a9ccc4"
+    },
+    {
+      "relative_path": "bucket-0221.jsonl",
+      "size": 25350,
+      "chain_digest": "0407fe9ca2745f582163a1899e49ce3b9533887bdcea2bae1aa19bf938d9bed1"
+    },
+    {
+      "relative_path": "bucket-0222.jsonl",
+      "size": 20464,
+      "chain_digest": "43025d1bcf613a79f27b479e812ecd926714b19dbcb53b2e4e43e82edd923d3d"
+    },
+    {
+      "relative_path": "bucket-0223.jsonl",
+      "size": 21995,
+      "chain_digest": "d04ded1f12799d01681cc8b65689505274a4ab8fccac4f6da12aab8038a6a47d"
+    },
+    {
+      "relative_path": "bucket-0224.jsonl",
+      "size": 22132,
+      "chain_digest": "5cd0fc7a71e6c264467bd2b0825aeaa040b9ed95150f91556a42189c092558b4"
+    },
+    {
+      "relative_path": "bucket-0225.jsonl",
+      "size": 31343,
+      "chain_digest": "c9cebe9ebbe6f922a0ecf011e6bca37794ade58b8d211a366b3d03fa7261d916"
+    },
+    {
+      "relative_path": "bucket-0226.jsonl",
+      "size": 25177,
+      "chain_digest": "44f098c848e2b4bd41b88e7426b49acb47767b45e12be7c4dafe5379fcec4e42"
+    },
+    {
+      "relative_path": "bucket-0227.jsonl",
+      "size": 17452,
+      "chain_digest": "7356abb620e7ecbc9ca074063d59d95b9777aa05706725467647931346967b09"
+    },
+    {
+      "relative_path": "bucket-0228.jsonl",
+      "size": 19599,
+      "chain_digest": "4de4b4fba1c48f4f7aec327ad9ddc73548e530511bc87d8a19805d2e6bc3b399"
+    },
+    {
+      "relative_path": "bucket-0229.jsonl",
+      "size": 26362,
+      "chain_digest": "987cdfcdaebb84cf0f8c5ebed2b1b0064badda470b2fce0361408cddf2eac726"
+    },
+    {
+      "relative_path": "bucket-0230.jsonl",
+      "size": 13376,
+      "chain_digest": "d534b3e92ec01489c8cc0421224680461c2eb12b09eb1407ef8ad2614b2c1ab3"
+    },
+    {
+      "relative_path": "bucket-0231.jsonl",
+      "size": 16800,
+      "chain_digest": "5de7c170407d1b371f19dfa8a9c08fcd0cf175693d91a98e8d5129c45c297cb0"
+    },
+    {
+      "relative_path": "bucket-0232.jsonl",
+      "size": 18985,
+      "chain_digest": "4bc0ea206ee4b564f3068455045108df2ba127ecf61d9416a207cec3aaf5e7d5"
+    },
+    {
+      "relative_path": "bucket-0233.jsonl",
+      "size": 15935,
+      "chain_digest": "c372ddd8fe2205690b250553f5e2866c5c3790a295c86d31b0b0f582b6918260"
+    },
+    {
+      "relative_path": "bucket-0234.jsonl",
+      "size": 21051,
+      "chain_digest": "75cc61c7e9fca469d015bd8c9cfd736a8f62b5ad759e8a7733f1f339a5875fe8"
+    },
+    {
+      "relative_path": "bucket-0235.jsonl",
+      "size": 14933,
+      "chain_digest": "4c014d02858f3107ef701ab4211d6dda07c8d5c217e42e349566b2f3833994c7"
+    },
+    {
+      "relative_path": "bucket-0236.jsonl",
+      "size": 13155,
+      "chain_digest": "3a0642d172af8555e52242483ffdfbf7484d708d10f36399902535ed1ec1b4f1"
+    },
+    {
+      "relative_path": "bucket-0237.jsonl",
+      "size": 20183,
+      "chain_digest": "b49e9bde4041685acfd160825b4439fd5095a4201710f5d692d370ef96f6b60c"
+    },
+    {
+      "relative_path": "bucket-0238.jsonl",
+      "size": 20803,
+      "chain_digest": "bfdde19554a05c2d6bd17cab8510edc2aead255413a698fedde85a665b3c97d7"
+    },
+    {
+      "relative_path": "bucket-0239.jsonl",
+      "size": 19436,
+      "chain_digest": "6349c6587bd645e5c4dbf9acdef23f20854256bde141f63ac3e6a5cf88ee4470"
+    },
+    {
+      "relative_path": "bucket-0240.jsonl",
+      "size": 18944,
+      "chain_digest": "1574294794a18f9e82b3b08cf8e9371b8c577d892449077aa3d44ab5869a98b7"
+    },
+    {
+      "relative_path": "bucket-0241.jsonl",
+      "size": 15622,
+      "chain_digest": "64f6e0bb4c07bcb173b01e3c0aae983765e95728a2ff079da1494c5f02cb6e34"
+    },
+    {
+      "relative_path": "bucket-0242.jsonl",
+      "size": 24500,
+      "chain_digest": "77db62d92cd94c952be8bfd6430977249042e3ee23c00ba42645f5fa506e5494"
+    },
+    {
+      "relative_path": "bucket-0243.jsonl",
+      "size": 15037,
+      "chain_digest": "bf9c2b192e56db160e3ed001344a5397f8e6ba755f9d277f03514d829763f362"
+    },
+    {
+      "relative_path": "bucket-0244.jsonl",
+      "size": 25585,
+      "chain_digest": "536d178cf08a15f958e042d484e4fe645e4ad8cc3773ae3c94fdb7f602ca995c"
+    },
+    {
+      "relative_path": "bucket-0245.jsonl",
+      "size": 24291,
+      "chain_digest": "573a50137977d3a6a481fe8204e1ae41efc474324fcc748766337789132deede"
+    },
+    {
+      "relative_path": "bucket-0246.jsonl",
+      "size": 18412,
+      "chain_digest": "c9c5e54c3fdb1b17083b7c04917a13f6653116c2bbf797e1275c97aa2dea85c6"
+    },
+    {
+      "relative_path": "bucket-0247.jsonl",
+      "size": 21968,
+      "chain_digest": "09056b04e3a374f8215becb7407cafffb697914ccb2e0adec64c0c8a843b09c2"
+    },
+    {
+      "relative_path": "bucket-0248.jsonl",
+      "size": 28088,
+      "chain_digest": "b8d1b3ae846a5ac2b1c41bf0409c6786523f0d18c4ff265aac3c9d66d0934bfa"
+    },
+    {
+      "relative_path": "bucket-0249.jsonl",
+      "size": 11833,
+      "chain_digest": "7d2216f42c3d57a9646b913c5721000f59bf5447750f1203b199e1f4dee23223"
+    },
+    {
+      "relative_path": "bucket-0250.jsonl",
+      "size": 15464,
+      "chain_digest": "5a4c80518bd9ea5dcc4fba806c2b1fdca77cc37e3fffabf68662644b23f42049"
+    },
+    {
+      "relative_path": "bucket-0251.jsonl",
+      "size": 21885,
+      "chain_digest": "9e38834424ee91ea2aa2fa0a07ac50bf85b53bba40255082cea1391676e0f81c"
+    },
+    {
+      "relative_path": "bucket-0252.jsonl",
+      "size": 22180,
+      "chain_digest": "683f6f7a3fd023926cfb79ab67eadd137e660d04ef03743e0a4600e473a7c2f8"
+    },
+    {
+      "relative_path": "bucket-0253.jsonl",
+      "size": 17168,
+      "chain_digest": "4bbb77f141ffdc0495dceb6953242e973fa5d703ec9a613d78e18fb1f595ca26"
+    },
+    {
+      "relative_path": "bucket-0254.jsonl",
+      "size": 13136,
+      "chain_digest": "73f5e13f125edfc4bb7db99809a4f1fd22682c5a5dd799432ea4c1f7573c52af"
+    },
+    {
+      "relative_path": "bucket-0255.jsonl",
+      "size": 19091,
+      "chain_digest": "1cb9116011c61a06e126997005c95a57be77347cf0d5a49421c3ba46275494fb"
+    }
+  ],
+  "aggregate_files": [
+    {
+      "relative_path": "aggregates/bucket-0000.json",
+      "size": 2221,
+      "sha256": "8b96d9342c75b1d810f70dedc18b6169affc4fb115302d5c4a09c31511360df9"
+    },
+    {
+      "relative_path": "aggregates/bucket-0001.json",
+      "size": 2139,
+      "sha256": "e0d60e9cbc63e47d610ad86bddbada1ccaa6ab9775285e72097e355dfeaa2a9d"
+    },
+    {
+      "relative_path": "aggregates/bucket-0002.json",
+      "size": 2139,
+      "sha256": "390fdecb4115edd26c562cd802a8c344386f5f4e213cd1530a026a9fdf5f1439"
+    },
+    {
+      "relative_path": "aggregates/bucket-0003.json",
+      "size": 2139,
+      "sha256": "5bcd25896631d87e20a40f9618fee37c4abb6820130f3bc075437c93c6ae6194"
+    },
+    {
+      "relative_path": "aggregates/bucket-0004.json",
+      "size": 1307,
+      "sha256": "f2f1689b1558bc1517c3cce3eb57ed0546d7a83f1784691c4d4ee522e845e328"
+    },
+    {
+      "relative_path": "aggregates/bucket-0005.json",
+      "size": 2134,
+      "sha256": "49a5b3b932ed26d537aa9aa55f6d86b5e66b0f0f2c6955109cccd6325be7bad7"
+    },
+    {
+      "relative_path": "aggregates/bucket-0006.json",
+      "size": 2188,
+      "sha256": "983c37b98a089396dbea3e322f0c4e0a1080b80758b43f5f85da29ca809960ca"
+    },
+    {
+      "relative_path": "aggregates/bucket-0007.json",
+      "size": 2188,
+      "sha256": "c5bc15e2834f6c0793700328fa6bc1a044b88bc9a070d382cbcc5fa69bc9b441"
+    },
+    {
+      "relative_path": "aggregates/bucket-0008.json",
+      "size": 2183,
+      "sha256": "5c40db4e1d50bea0472a5c1f8c44fcfefa4d03d47ccfc0e0f7bbe39d4dd2bc24"
+    },
+    {
+      "relative_path": "aggregates/bucket-0009.json",
+      "size": 2139,
+      "sha256": "436a5e69b8ada7d4f3b4f01bdd9139777ccc43d32f51f70c6a0279dda786a9e7"
+    },
+    {
+      "relative_path": "aggregates/bucket-0010.json",
+      "size": 2181,
+      "sha256": "691f02e911db59d6ee271b21b74068d7dcb0958429c97dd9682764d6ecd23668"
+    },
+    {
+      "relative_path": "aggregates/bucket-0011.json",
+      "size": 1316,
+      "sha256": "28d794f49f59d2c662cbb71cb0e98bbaa813ba9e41b4b612325af2e983289fd0"
+    },
+    {
+      "relative_path": "aggregates/bucket-0012.json",
+      "size": 2197,
+      "sha256": "118af3c41e750db67489994da4e2d7a131ca69ca35a6f27f9f55a53f363e931e"
+    },
+    {
+      "relative_path": "aggregates/bucket-0013.json",
+      "size": 2140,
+      "sha256": "0a5ae259f903ed9e10216493eafb8d71fead4235cd09831a0af8b788b68a4ea5"
+    },
+    {
+      "relative_path": "aggregates/bucket-0014.json",
+      "size": 2189,
+      "sha256": "5d1b648465466b2e0993dace6439239dff4d24e6d02c4f5d5c6e8a393c0368c7"
+    },
+    {
+      "relative_path": "aggregates/bucket-0015.json",
+      "size": 2140,
+      "sha256": "b03e46026928dc6f1422f6c6761bdcb5fa933c9fb08a822a5d5dca7a96dda0b7"
+    },
+    {
+      "relative_path": "aggregates/bucket-0016.json",
+      "size": 2148,
+      "sha256": "d96b203f72f97b7c236452f15b622b71c9017c40dc9e84bcde418bd57cee0fef"
+    },
+    {
+      "relative_path": "aggregates/bucket-0017.json",
+      "size": 2140,
+      "sha256": "61525cabb9c0d45c261e7a7ba0d3f1bca80bebb36c66a38a08516df6c4cf2692"
+    },
+    {
+      "relative_path": "aggregates/bucket-0018.json",
+      "size": 2169,
+      "sha256": "507d2718cdee4aa51eb7379fec6c235bb9401390f875846f1a3a6cd1023ee6be"
+    },
+    {
+      "relative_path": "aggregates/bucket-0019.json",
+      "size": 2148,
+      "sha256": "c1df2efdd6034f90a4c0d9531f256a2c25443ab01a25cf133dcd17846bb02834"
+    },
+    {
+      "relative_path": "aggregates/bucket-0020.json",
+      "size": 2140,
+      "sha256": "c8175fe0fca57d9a6e15012793f9b3479bfe3e2a83fd52fa635810bca5abffe7"
+    },
+    {
+      "relative_path": "aggregates/bucket-0021.json",
+      "size": 2197,
+      "sha256": "1f698e67f0d5d740ee0a70bede8629739ea709599b3beb6410337c3f5e5efc6f"
+    },
+    {
+      "relative_path": "aggregates/bucket-0022.json",
+      "size": 1308,
+      "sha256": "02eec33685b754ccca5e6a59a082bff6270134511559ebe9f58f9879bd1c64ee"
+    },
+    {
+      "relative_path": "aggregates/bucket-0023.json",
+      "size": 2135,
+      "sha256": "c11d3aee26b01759814757522064672ba044e5a82a424aadd203b1f3d88921c6"
+    },
+    {
+      "relative_path": "aggregates/bucket-0024.json",
+      "size": 2132,
+      "sha256": "994b3dce771adddc721a1afe117775e1ce3269b6a31af84863b3f2d0fc819ae1"
+    },
+    {
+      "relative_path": "aggregates/bucket-0025.json",
+      "size": 2181,
+      "sha256": "1cfcdc7b1ed49f5f1fbdf46f3fa04b87177ab89c5b272ae9edc94309c1cd1bac"
+    },
+    {
+      "relative_path": "aggregates/bucket-0026.json",
+      "size": 2140,
+      "sha256": "e60eae5886556697d39a3eb86ab02b32ddd383eb2f66e133889b5e9587cf7e94"
+    },
+    {
+      "relative_path": "aggregates/bucket-0027.json",
+      "size": 2140,
+      "sha256": "dd58380043c4b50718fede52fe36fda916bb563e9b861c902c079ef100309cdd"
+    },
+    {
+      "relative_path": "aggregates/bucket-0028.json",
+      "size": 1316,
+      "sha256": "cab0a58a815436574832de7acc9cd8bd1271ca45d87cf45c6abe1416cbcfa5f7"
+    },
+    {
+      "relative_path": "aggregates/bucket-0029.json",
+      "size": 2140,
+      "sha256": "f1b445ea443683af1fa1372db8de66e728098d331136f03d41a2cc37ba16dcfc"
+    },
+    {
+      "relative_path": "aggregates/bucket-0030.json",
+      "size": 2165,
+      "sha256": "6e26d88130a0ffb72943f9b2ad888a0755829c0698bddab537935b281d0fd8d6"
+    },
+    {
+      "relative_path": "aggregates/bucket-0031.json",
+      "size": 2173,
+      "sha256": "448ecc35c5c063ef15a726548ea1f759736fd333ee488f961117ebbcadfe1d70"
+    },
+    {
+      "relative_path": "aggregates/bucket-0032.json",
+      "size": 2140,
+      "sha256": "3c59b7214671ab2680cd48ac38d35c16a879d44904250d0e8e72abfd6476d119"
+    },
+    {
+      "relative_path": "aggregates/bucket-0033.json",
+      "size": 2140,
+      "sha256": "f8a5669c726308842242f6928754c9e025d5da0735209e2167976a8b8389c30a"
+    },
+    {
+      "relative_path": "aggregates/bucket-0034.json",
+      "size": 2173,
+      "sha256": "3a416dde2e14473639f92560238ba961c16ff5201967c0c76943ddd8d437635d"
+    },
+    {
+      "relative_path": "aggregates/bucket-0035.json",
+      "size": 2174,
+      "sha256": "424a2a4bac33ff69b7ef328ef96822ac548d779d432b9be601fcf0427ba0fcac"
+    },
+    {
+      "relative_path": "aggregates/bucket-0036.json",
+      "size": 2140,
+      "sha256": "65a2591e2edfc9c3f4df60b1fb32d086879fd6b3da8b3db8c63afcee39ffbf75"
+    },
+    {
+      "relative_path": "aggregates/bucket-0037.json",
+      "size": 2189,
+      "sha256": "bc8b31b03df5df2190097b14c9e686fde9b721b630c7683ce3d42e1c1bd403de"
+    },
+    {
+      "relative_path": "aggregates/bucket-0038.json",
+      "size": 1300,
+      "sha256": "a9dec4b2e788d1a58b9359dde3436627302c0e4cdcd3e9063b9168c5258f3ee1"
+    },
+    {
+      "relative_path": "aggregates/bucket-0039.json",
+      "size": 2140,
+      "sha256": "1a7a524615587153e1fbcb2c4c03a0c04353f2d225c43572df31545192afc616"
+    },
+    {
+      "relative_path": "aggregates/bucket-0040.json",
+      "size": 2140,
+      "sha256": "92c168993afdad9d115d5162916b89230f2d5aafa7dfc4a7d1f6b75643f3baec"
+    },
+    {
+      "relative_path": "aggregates/bucket-0041.json",
+      "size": 2173,
+      "sha256": "0b19e64acc7ec04ef6ca2524d31d01ffc9dcf4ce7b4514afb4cd098d3471493d"
+    },
+    {
+      "relative_path": "aggregates/bucket-0042.json",
+      "size": 2140,
+      "sha256": "f613ed453b99c493f65e680c09df276cd496aff08251aad043040f961db16370"
+    },
+    {
+      "relative_path": "aggregates/bucket-0043.json",
+      "size": 2197,
+      "sha256": "574b0d7a8e91bd9ab236b7a93b5bdf37a3466ab17647a4d2753701f33c5f1241"
+    },
+    {
+      "relative_path": "aggregates/bucket-0044.json",
+      "size": 2140,
+      "sha256": "8c451fa8006687bf9b8162d6470f31284b6296de9d6566b2a73c38f6a6f33e9a"
+    },
+    {
+      "relative_path": "aggregates/bucket-0045.json",
+      "size": 2197,
+      "sha256": "0c29ae599f17924d400b245374037a9235011559e47a381bc82b5ad826a8a958"
+    },
+    {
+      "relative_path": "aggregates/bucket-0046.json",
+      "size": 2140,
+      "sha256": "fa2f87235a566370de14aaaf08ba5caeeb79e872827a7071eb503ca22bb545d4"
+    },
+    {
+      "relative_path": "aggregates/bucket-0047.json",
+      "size": 2173,
+      "sha256": "2a4ac7e433c9f1d286500486a66873c6293b63b5bdec4fe51ca798e5326961ef"
+    },
+    {
+      "relative_path": "aggregates/bucket-0048.json",
+      "size": 2168,
+      "sha256": "8016cfdcf066220b28dc508448c8140f7f9d3fec4f9033605fac83e56f604cf6"
+    },
+    {
+      "relative_path": "aggregates/bucket-0049.json",
+      "size": 2231,
+      "sha256": "85b1ef6f96e45655734bbe03d21d81bd502130afe7a3421c1d02be5747767b6f"
+    },
+    {
+      "relative_path": "aggregates/bucket-0050.json",
+      "size": 2181,
+      "sha256": "3b40e71d3050543c0fcbb724c147a849b5a85bce0d7e7d0c451198708dd7f4cf"
+    },
+    {
+      "relative_path": "aggregates/bucket-0051.json",
+      "size": 2168,
+      "sha256": "3b173ad196e1c4907b31d8f1db8a4f3847e5b1650ac8bc0e3f2b6fb0bdccaf85"
+    },
+    {
+      "relative_path": "aggregates/bucket-0052.json",
+      "size": 2132,
+      "sha256": "4bbb8f5951e7d698b3d27ff3da99237e05fcd464917a466645374efb48f6b2b3"
+    },
+    {
+      "relative_path": "aggregates/bucket-0053.json",
+      "size": 2168,
+      "sha256": "09ba616a5f3003da0ab63d3808b0b337e2b6b01a5cb082712e4cd0516ffb34eb"
+    },
+    {
+      "relative_path": "aggregates/bucket-0054.json",
+      "size": 2173,
+      "sha256": "377df638f299cbe8aef75a440c81374cc15b0aa5ef12e76ffded9e7fe83edc1c"
+    },
+    {
+      "relative_path": "aggregates/bucket-0055.json",
+      "size": 2143,
+      "sha256": "a9ef3af03f8f479ab22aaa0bd7f1b4cf854167da1f60ad28ee559db677201478"
+    },
+    {
+      "relative_path": "aggregates/bucket-0056.json",
+      "size": 2140,
+      "sha256": "913429d7e7883deff187b7018e168b0139a3b5a5a7ed70a3394cea53a4b21f05"
+    },
+    {
+      "relative_path": "aggregates/bucket-0057.json",
+      "size": 1316,
+      "sha256": "61efab2358729d636e8e764123323daf3b9fc73bfc529d384344c4af4784fc39"
+    },
+    {
+      "relative_path": "aggregates/bucket-0058.json",
+      "size": 2189,
+      "sha256": "451ed7e0237da3e42ce246ab965852f3493db651e0de619ce95821fc235ac818"
+    },
+    {
+      "relative_path": "aggregates/bucket-0059.json",
+      "size": 2143,
+      "sha256": "7eb550c023f7e07a6f442d937fa5c59625d64b6e0bcec52cd4adeec30541e013"
+    },
+    {
+      "relative_path": "aggregates/bucket-0060.json",
+      "size": 2188,
+      "sha256": "02be308f13c6929a42bdfc086261c4e23e6f4dc9b3583be76e0d427e8999de38"
+    },
+    {
+      "relative_path": "aggregates/bucket-0061.json",
+      "size": 2135,
+      "sha256": "723c7057ce60b86e849168bc454ad5c4675ca5802f1b3433d0c55c60f98740fa"
+    },
+    {
+      "relative_path": "aggregates/bucket-0062.json",
+      "size": 1851,
+      "sha256": "3e08b8532c7cd4de6e87c6fc191c1dcdf18bc962ab828c4777802efa68f27048"
+    },
+    {
+      "relative_path": "aggregates/bucket-0063.json",
+      "size": 2132,
+      "sha256": "3d176ed95efbe3f8c93dc8c57f7f702dad0468b592a783517fc373800bb26414"
+    },
+    {
+      "relative_path": "aggregates/bucket-0064.json",
+      "size": 2181,
+      "sha256": "3d40f92e9ff69d23d9b58c7456c24c18dc6063722231e2f013235780c15fb556"
+    },
+    {
+      "relative_path": "aggregates/bucket-0065.json",
+      "size": 2165,
+      "sha256": "3538ec241a8c9aa6600cbabfcf4372da156dd373391eeaae0fd7b6c6c6def79a"
+    },
+    {
+      "relative_path": "aggregates/bucket-0066.json",
+      "size": 2140,
+      "sha256": "22e9b28fbed4950358f728b52d9169512772d56002a83886c40a9781d81d2af8"
+    },
+    {
+      "relative_path": "aggregates/bucket-0067.json",
+      "size": 1960,
+      "sha256": "737081ec55e48fb4a3ff32585301cd9dfc5b98c6db3c15e66144c87828f53d90"
+    },
+    {
+      "relative_path": "aggregates/bucket-0068.json",
+      "size": 2181,
+      "sha256": "7084193d03fee92f69bb104a8feb0fa0634175757303675daba4fcdaf6f90836"
+    },
+    {
+      "relative_path": "aggregates/bucket-0069.json",
+      "size": 2148,
+      "sha256": "814433c6e4ce27a6e450691fde5caed06844fa0c5d20dc272cd163baa49a87d4"
+    },
+    {
+      "relative_path": "aggregates/bucket-0070.json",
+      "size": 2140,
+      "sha256": "85182506aec8c37a6da169402cdbee695b19952a454ed549148c105886867f86"
+    },
+    {
+      "relative_path": "aggregates/bucket-0071.json",
+      "size": 2173,
+      "sha256": "0c63923b5c0f57a4afeb335dea5a1a307536e5d9946bc937280cfd7c40fd91e2"
+    },
+    {
+      "relative_path": "aggregates/bucket-0072.json",
+      "size": 1851,
+      "sha256": "c955c33a834f50822274916b11a894945956c4a84b10edee59045f422786875a"
+    },
+    {
+      "relative_path": "aggregates/bucket-0073.json",
+      "size": 2239,
+      "sha256": "d04bf737de918a2c5c72dec0ba416a9f4883b9b8d74c705b0961824cacb159fa"
+    },
+    {
+      "relative_path": "aggregates/bucket-0074.json",
+      "size": 1308,
+      "sha256": "0391a9afd636d104134f5f4abf97be59d646784e089c7f9c3828f1206a431fcf"
+    },
+    {
+      "relative_path": "aggregates/bucket-0075.json",
+      "size": 2258,
+      "sha256": "db0329625c18903c9c974be836896d07248f8f7bb83badd0ea14246573a0bbd4"
+    },
+    {
+      "relative_path": "aggregates/bucket-0076.json",
+      "size": 2184,
+      "sha256": "197baa92cab6e0e3b37cba0440d7586e15344de0dc4e3c80275a9f3a35eba385"
+    },
+    {
+      "relative_path": "aggregates/bucket-0077.json",
+      "size": 2140,
+      "sha256": "8d46548dd5cb00eb7008521164aa03a8847be9ad1d68c313181c8f43cd2ceddb"
+    },
+    {
+      "relative_path": "aggregates/bucket-0078.json",
+      "size": 2140,
+      "sha256": "b50136b50094bc4e4e6362c30426936d2086d5130264c1aeabf15242ea52ad56"
+    },
+    {
+      "relative_path": "aggregates/bucket-0079.json",
+      "size": 2176,
+      "sha256": "0d4fd6444e73250bf2ee6944910669a6998e529601abfb0e5123ef3555c1414a"
+    },
+    {
+      "relative_path": "aggregates/bucket-0080.json",
+      "size": 2004,
+      "sha256": "e8e7aa06ec003e5f7def45803383aa85f1a8785ef7f8f8e972c3dbc77e883b50"
+    },
+    {
+      "relative_path": "aggregates/bucket-0081.json",
+      "size": 2140,
+      "sha256": "c5a7e95fbb85750726185645eb81349f1211ea95316a0cb04f2bf41fd317d36d"
+    },
+    {
+      "relative_path": "aggregates/bucket-0082.json",
+      "size": 2135,
+      "sha256": "962c563e02095f0dfee04e896a11d31280d55c55eb72415b454d76ebb50efde4"
+    },
+    {
+      "relative_path": "aggregates/bucket-0083.json",
+      "size": 2173,
+      "sha256": "5b14a647dd0d503ff092de1af2f1323eb5a39d9ec540b5d453dcc398c4411eb7"
+    },
+    {
+      "relative_path": "aggregates/bucket-0084.json",
+      "size": 2140,
+      "sha256": "0e4aa1353531f84bf7c978bd10e62520b07911e65d7572480e4c68f78681dcad"
+    },
+    {
+      "relative_path": "aggregates/bucket-0085.json",
+      "size": 2132,
+      "sha256": "457b49a3068d2a60468b8977af2a639a8f90b11fabc82fee8e84e5c5ed892830"
+    },
+    {
+      "relative_path": "aggregates/bucket-0086.json",
+      "size": 1308,
+      "sha256": "46c124f9f558a81cf2babc9eda33f50d2ca3b484c583fb28b080513ed9fb68db"
+    },
+    {
+      "relative_path": "aggregates/bucket-0087.json",
+      "size": 2181,
+      "sha256": "5b866f0ee9e55191a8c7902dc435f87bcea191d1ae3ed17b0dc83f357d8a64b7"
+    },
+    {
+      "relative_path": "aggregates/bucket-0088.json",
+      "size": 2148,
+      "sha256": "2eec1f31e8383b0598c3d8ef65f7fa0a610e45a3fc8c34acdc2ba58a7ed84c7d"
+    },
+    {
+      "relative_path": "aggregates/bucket-0089.json",
+      "size": 1843,
+      "sha256": "40d55cb2446d3fb624137356f1ddcca414c904e0a70a326b9e44a89622fd5457"
+    },
+    {
+      "relative_path": "aggregates/bucket-0090.json",
+      "size": 2226,
+      "sha256": "20d1b33f3d333e999ccfb810f8db486f9c436b4a4fdccc6f303ff5fdda8d3f80"
+    },
+    {
+      "relative_path": "aggregates/bucket-0091.json",
+      "size": 2140,
+      "sha256": "78ace9445c4c96c79be5f6be58dae9479fbe33fc663af7b807bd4462d15a6368"
+    },
+    {
+      "relative_path": "aggregates/bucket-0092.json",
+      "size": 2140,
+      "sha256": "b90630e359d389b9a497ccb6ad0b67f162aec6ce5694069ccc38216c110ae870"
+    },
+    {
+      "relative_path": "aggregates/bucket-0093.json",
+      "size": 2173,
+      "sha256": "4128d467aad52e9d215d27762c3cb31c3d977674f5d2ce715b5ddf858d38e375"
+    },
+    {
+      "relative_path": "aggregates/bucket-0094.json",
+      "size": 2135,
+      "sha256": "05b5d9a8067ba4f795c425a2af0b8d138e04c740ea6f95a9c014cc0bcef684ed"
+    },
+    {
+      "relative_path": "aggregates/bucket-0095.json",
+      "size": 2148,
+      "sha256": "6a598b2c10ebf35b0d930532f22c5b5a2b8bda5ba3c8bc3cc3184c920d4f761d"
+    },
+    {
+      "relative_path": "aggregates/bucket-0096.json",
+      "size": 2169,
+      "sha256": "53aab0e04b78de5def4e5559c7d6c29faae86e161f757a39e610b8f10f98c30e"
+    },
+    {
+      "relative_path": "aggregates/bucket-0097.json",
+      "size": 2148,
+      "sha256": "ec623799a5ae7558aaf608090eecf2d8ddfcd2cb8d5ba44643f5e747113c1647"
+    },
+    {
+      "relative_path": "aggregates/bucket-0098.json",
+      "size": 2013,
+      "sha256": "004d347ebbdb51aabe204d1ba04d95cc102a8b7f329af71797c45df1c9504cdd"
+    },
+    {
+      "relative_path": "aggregates/bucket-0099.json",
+      "size": 2165,
+      "sha256": "02cd951b00991bbcddc1698e68195c68d44a43b5d54510ebcc9cbe5bb3aab4cb"
+    },
+    {
+      "relative_path": "aggregates/bucket-0100.json",
+      "size": 2190,
+      "sha256": "76d675bc7cc4cf0714f2b1c941150a6efa64be7e29e1a2b71391935e6e874039"
+    },
+    {
+      "relative_path": "aggregates/bucket-0101.json",
+      "size": 2141,
+      "sha256": "2febcac7be01a6489f1a4a38e59f97e250fcc74a1e243cfa90e583cf834c0d02"
+    },
+    {
+      "relative_path": "aggregates/bucket-0102.json",
+      "size": 2182,
+      "sha256": "795dfaad4540db7d5bb0ada902061a6ce3583dcf4aa0d29609d2a94da72834a8"
+    },
+    {
+      "relative_path": "aggregates/bucket-0103.json",
+      "size": 2108,
+      "sha256": "29a37d9c429d74174680583fa4f76387f1f6d7994200602ab00856f9e8c9e82b"
+    },
+    {
+      "relative_path": "aggregates/bucket-0104.json",
+      "size": 2141,
+      "sha256": "11e7f58530c4f62f7cd12e23cee6c1abe392ab5cb07198a6439193bd092f96f6"
+    },
+    {
+      "relative_path": "aggregates/bucket-0105.json",
+      "size": 2166,
+      "sha256": "3f2bf9199e9051d551d04389609316dd045e42e176730cc612e208ed7c93c99e"
+    },
+    {
+      "relative_path": "aggregates/bucket-0106.json",
+      "size": 2133,
+      "sha256": "ea02f2027f5a57b1899f610e8cb74ad80336f04b1c7b07c850b08ec54f1d973f"
+    },
+    {
+      "relative_path": "aggregates/bucket-0107.json",
+      "size": 2161,
+      "sha256": "d57c3c5b0d5be959ebc0cc18440f0620e2bbf87d9e8e1e3495daa3dd88b6cbfc"
+    },
+    {
+      "relative_path": "aggregates/bucket-0108.json",
+      "size": 2141,
+      "sha256": "f9846d2353a39a01d6b7aedf803c1f3219bc42260a62ac52c4560a7a9e9a5f27"
+    },
+    {
+      "relative_path": "aggregates/bucket-0109.json",
+      "size": 2141,
+      "sha256": "8998dd15644c42541f1ab1ac18500095f126ddfc09c9acb6ef8eae55cfd2798f"
+    },
+    {
+      "relative_path": "aggregates/bucket-0110.json",
+      "size": 2182,
+      "sha256": "8b1466f7ae592fa128207b4eac5f9508ff0cf1c012ea13e79e44d2dc63f4da67"
+    },
+    {
+      "relative_path": "aggregates/bucket-0111.json",
+      "size": 2136,
+      "sha256": "21f6cec80505de0746d9f7fc5646fa38dec442c58887d8cf371f5e442dcea5cf"
+    },
+    {
+      "relative_path": "aggregates/bucket-0112.json",
+      "size": 2174,
+      "sha256": "ff8ddfd93c699aa1def7d3761743b6e92b03db32c26cbf22d788f5ddbf8e24c7"
+    },
+    {
+      "relative_path": "aggregates/bucket-0113.json",
+      "size": 2144,
+      "sha256": "f1afb581c4ac64dd1d4cd51f5f83ffaca7e0967cf337817584e453f54e1562b8"
+    },
+    {
+      "relative_path": "aggregates/bucket-0114.json",
+      "size": 2141,
+      "sha256": "045f07788c681afd12d9c73f540092bd246c58c1f01c148e5b84f7585d265b69"
+    },
+    {
+      "relative_path": "aggregates/bucket-0115.json",
+      "size": 2223,
+      "sha256": "44f4d5dd297f54eea99233e31fde53fff6bfb08aab7240da2d1cdc22f3da49f6"
+    },
+    {
+      "relative_path": "aggregates/bucket-0116.json",
+      "size": 2182,
+      "sha256": "79955272f23b5a7999963b9613e601878e370a5f3dafc6d17e055e353f64a6d8"
+    },
+    {
+      "relative_path": "aggregates/bucket-0117.json",
+      "size": 2136,
+      "sha256": "f2a579a030de6698387b6c3b6e0237a55ecb4bfbd87c8166f9c0cf85e00b0242"
+    },
+    {
+      "relative_path": "aggregates/bucket-0118.json",
+      "size": 2141,
+      "sha256": "d678453f341e176bf63a596125da5cc4336ae9afde7b6c518aa7a7a5e18ba20c"
+    },
+    {
+      "relative_path": "aggregates/bucket-0119.json",
+      "size": 2175,
+      "sha256": "fdbe5d69e856db089e7555ee8c17d5ad6a93b1f585d2ea2e13e7a5838c93d936"
+    },
+    {
+      "relative_path": "aggregates/bucket-0120.json",
+      "size": 2141,
+      "sha256": "2a27f2162a8115e6dc952c8b358370e1ac4ed911376731e8bfd0b2714d6102b7"
+    },
+    {
+      "relative_path": "aggregates/bucket-0121.json",
+      "size": 2136,
+      "sha256": "221df7a0a81f6f21a1ffa2a2ab2bdd0fe9d3198fd73d1b337211fbc69acb2510"
+    },
+    {
+      "relative_path": "aggregates/bucket-0122.json",
+      "size": 1301,
+      "sha256": "d02c90c64d0ac7a73831a76c0badba154075f3dc0ce255cd586004f232b9454f"
+    },
+    {
+      "relative_path": "aggregates/bucket-0123.json",
+      "size": 2190,
+      "sha256": "da5a35bf81b1ab89d82144f5d4ea87b1fa96f338b24330c87fa1b58b87a341e1"
+    },
+    {
+      "relative_path": "aggregates/bucket-0124.json",
+      "size": 2100,
+      "sha256": "b7b23103f6661f32196e628574099ef2a9c1ca653fc6c080fb7be9d741dda95a"
+    },
+    {
+      "relative_path": "aggregates/bucket-0125.json",
+      "size": 2141,
+      "sha256": "c91c93ecea9667450c3b77988eee6746a8223c7b600705289bff7f6e5b1a4954"
+    },
+    {
+      "relative_path": "aggregates/bucket-0126.json",
+      "size": 1947,
+      "sha256": "c3cb0021d3e5dcd7fdd30d32d2990c968dd628681ad3d90b4c500a5727cee42d"
+    },
+    {
+      "relative_path": "aggregates/bucket-0127.json",
+      "size": 2174,
+      "sha256": "6e042a96b36c3babbc176040ee1a5f6cebae87039bd203031e036593f372086b"
+    },
+    {
+      "relative_path": "aggregates/bucket-0128.json",
+      "size": 2141,
+      "sha256": "ec6f924c4efd6b59821ce416a71b5db9ea5c35f6ee1f81d46dfa366a911fa3c5"
+    },
+    {
+      "relative_path": "aggregates/bucket-0129.json",
+      "size": 2187,
+      "sha256": "c3a767feb44abd8a8edadea5ff3e407679ce4844a95252f682e6f30b57b8f467"
+    },
+    {
+      "relative_path": "aggregates/bucket-0130.json",
+      "size": 2174,
+      "sha256": "ab38239488a75821e37b93b55fe5397f26b07175f9c8ec99895acf871d2d5a64"
+    },
+    {
+      "relative_path": "aggregates/bucket-0131.json",
+      "size": 2174,
+      "sha256": "321d47e41dc25db6bd9c6a9974498142e91a98de17e60b6b64757f81b2265a02"
+    },
+    {
+      "relative_path": "aggregates/bucket-0132.json",
+      "size": 2174,
+      "sha256": "50d8ae2211330fac242e3bed03b4dc8ccf15e6391c79149ff31320f118b425b5"
+    },
+    {
+      "relative_path": "aggregates/bucket-0133.json",
+      "size": 2141,
+      "sha256": "2099e0dcad190180e09f74e797d3b0a99f3a9a06d452fa3529ce941d851c5868"
+    },
+    {
+      "relative_path": "aggregates/bucket-0134.json",
+      "size": 2174,
+      "sha256": "83fd34c4488aa65b976716f981abbac6d1400325dec9c7b5e3f148ee944cb226"
+    },
+    {
+      "relative_path": "aggregates/bucket-0135.json",
+      "size": 2174,
+      "sha256": "d1f256ffe5131a89ddf210a5ca116e41057d54abba7290ae6f702cfd5b6adff5"
+    },
+    {
+      "relative_path": "aggregates/bucket-0136.json",
+      "size": 2198,
+      "sha256": "8fb4813fe0bfd77d818cd08ff7a4eeec4c8c5caf90f339735baf049164407a57"
+    },
+    {
+      "relative_path": "aggregates/bucket-0137.json",
+      "size": 2174,
+      "sha256": "c0551f2bffc3456eef198b7bcfedeac39223cad8483bed703ed5b3fe11e674dc"
+    },
+    {
+      "relative_path": "aggregates/bucket-0138.json",
+      "size": 2141,
+      "sha256": "569bc979bbfcc0c6d5d821b354f71da837989e8b1dd6fcfe2e254cc469029d36"
+    },
+    {
+      "relative_path": "aggregates/bucket-0139.json",
+      "size": 2182,
+      "sha256": "00456cb8e12dc20bbdbf9a009c4d5e5c4d82faa32de803bdbdbcf1355232efc3"
+    },
+    {
+      "relative_path": "aggregates/bucket-0140.json",
+      "size": 2191,
+      "sha256": "e5178c8f9e8636d5b48c2da2b72a59e0844ccd4e088ba9207f1e734cdd4a1a33"
+    },
+    {
+      "relative_path": "aggregates/bucket-0141.json",
+      "size": 2240,
+      "sha256": "9f1384e63ecfd2b332663f46a61ab56bf826beb3c56055bceaa838834fde79ff"
+    },
+    {
+      "relative_path": "aggregates/bucket-0142.json",
+      "size": 2141,
+      "sha256": "808a6083424535fec14bba1e05457e2505eb9c52528603c910919a1ae0c88561"
+    },
+    {
+      "relative_path": "aggregates/bucket-0143.json",
+      "size": 2185,
+      "sha256": "19d015fa9ab19af9bea8456a683454fe3cb301a3cee3ef0f1a950658c44c9802"
+    },
+    {
+      "relative_path": "aggregates/bucket-0144.json",
+      "size": 2141,
+      "sha256": "d1f469f72f3e2aedd31fdc36134e10ec0667f7a8d5ed3e0d608d4f119bce41a6"
+    },
+    {
+      "relative_path": "aggregates/bucket-0145.json",
+      "size": 2223,
+      "sha256": "8bb29e5335d703f8f9c0d8c65887b2c6ef3ae121943420087bc1fcb9e751b286"
+    },
+    {
+      "relative_path": "aggregates/bucket-0146.json",
+      "size": 2141,
+      "sha256": "ac8eaddee16dcf2f699432f85460c2f6236086c722fc96f6c423104ff530e863"
+    },
+    {
+      "relative_path": "aggregates/bucket-0147.json",
+      "size": 2141,
+      "sha256": "dcde745afc42852fe1e4920e1ed14ac384fafce6cf6dff050bec05b0f71cfd04"
+    },
+    {
+      "relative_path": "aggregates/bucket-0148.json",
+      "size": 2174,
+      "sha256": "1b0a96f9925fbfb43373e4d32dab86fba4333260c2c5202eb583ab8705d80b29"
+    },
+    {
+      "relative_path": "aggregates/bucket-0149.json",
+      "size": 2185,
+      "sha256": "53495c53010e56b0ec09cbc17dc54e5776a5795d71a52028495b8ef9dae46254"
+    },
+    {
+      "relative_path": "aggregates/bucket-0150.json",
+      "size": 2136,
+      "sha256": "653aff6930d09672fc42e6c1cda241c5d039e2cef4cd1339ce0ebc86b5dc371c"
+    },
+    {
+      "relative_path": "aggregates/bucket-0151.json",
+      "size": 2141,
+      "sha256": "3a0c165abe38fbe2af12ebaf30974e8b947b2577f53493e8381df8c0bf826fd4"
+    },
+    {
+      "relative_path": "aggregates/bucket-0152.json",
+      "size": 2169,
+      "sha256": "52424289460736c8210c1c8342deb640519d9068fe7cccbb48d3ee03a67dccc2"
+    },
+    {
+      "relative_path": "aggregates/bucket-0153.json",
+      "size": 2223,
+      "sha256": "a8c18e018f30ac57bb4e3e0841fac7d04d281999d0ba94875712df195a140296"
+    },
+    {
+      "relative_path": "aggregates/bucket-0154.json",
+      "size": 2182,
+      "sha256": "3db4f7bf7895c2083648991788d7efeb423a83751386607ab8812464716a24fb"
+    },
+    {
+      "relative_path": "aggregates/bucket-0155.json",
+      "size": 2136,
+      "sha256": "016b8662f8af28a97c8b8d79ef3c046e011797a0571cd16ec5b025378a1ae7ef"
+    },
+    {
+      "relative_path": "aggregates/bucket-0156.json",
+      "size": 2278,
+      "sha256": "ce339890280d8b2d166b0e0df38c52435ec83fc32c62b80a13d9e756484e9025"
+    },
+    {
+      "relative_path": "aggregates/bucket-0157.json",
+      "size": 2174,
+      "sha256": "c51981cdb6fb0c018b1ec45c3690d2abf6154f15e564139321ff976c52c9b1e3"
+    },
+    {
+      "relative_path": "aggregates/bucket-0158.json",
+      "size": 2185,
+      "sha256": "1710067735a6cf895cbba3eb8a986dadb0c85c8553147b91f699fec97ec8f64a"
+    },
+    {
+      "relative_path": "aggregates/bucket-0159.json",
+      "size": 2174,
+      "sha256": "1f479d479c955904523201155ff6a24da5826bd476fc4ebc722951d651c7d2cc"
+    },
+    {
+      "relative_path": "aggregates/bucket-0160.json",
+      "size": 2232,
+      "sha256": "b4571b917310740712e8e989c5cde60ea32383066a93464ce3fb96380945fff1"
+    },
+    {
+      "relative_path": "aggregates/bucket-0161.json",
+      "size": 2177,
+      "sha256": "15618d49b78db308130a09bc25b37bb9c283c037c45040f83966ed2eced28b0b"
+    },
+    {
+      "relative_path": "aggregates/bucket-0162.json",
+      "size": 2141,
+      "sha256": "dc66b6c2826ad862cd8a66cd3931a6da2e203bc8980a07bf7d22acba8678c341"
+    },
+    {
+      "relative_path": "aggregates/bucket-0163.json",
+      "size": 2136,
+      "sha256": "6326d052c8e7178f391e923898f835b7f7391130871e0c9e9cda8937e37c4943"
+    },
+    {
+      "relative_path": "aggregates/bucket-0164.json",
+      "size": 2141,
+      "sha256": "304264aaa17f70c17b7ae1a13ff707c4eadf72944de4fc93fa3d0e5ab1e03c68"
+    },
+    {
+      "relative_path": "aggregates/bucket-0165.json",
+      "size": 2165,
+      "sha256": "9f10e281b09cffa1c4d1ca0fc87fab7d86c6b80eec72a10a4893435c2a8603c4"
+    },
+    {
+      "relative_path": "aggregates/bucket-0166.json",
+      "size": 2174,
+      "sha256": "99c30e9cd70f367b3f51da853819afa022a9fe9a09f25ac292fb1797b48e1eb5"
+    },
+    {
+      "relative_path": "aggregates/bucket-0167.json",
+      "size": 1309,
+      "sha256": "38d8f389c5026b027beb942be5162451b67d14bf77d139dbeea500cfe2d5ca71"
+    },
+    {
+      "relative_path": "aggregates/bucket-0168.json",
+      "size": 2170,
+      "sha256": "d05b62c28037a034c9fbbcb3b8a719f1e11cb64f89ef68811295bc2dda3aa051"
+    },
+    {
+      "relative_path": "aggregates/bucket-0169.json",
+      "size": 2198,
+      "sha256": "8102145c31d2df0120567bca05add31f0f7261dd2a86ba11f371958e47d98db8"
+    },
+    {
+      "relative_path": "aggregates/bucket-0170.json",
+      "size": 2136,
+      "sha256": "3021eb8cac9aee2d8ef0280a391415c985b4f262877bc7b1d1b2594b59fa7c6b"
+    },
+    {
+      "relative_path": "aggregates/bucket-0171.json",
+      "size": 2260,
+      "sha256": "0af1eff0b067a5e09a5fbbe407a01e7234c26f16f3d14234224f833c7fe26736"
+    },
+    {
+      "relative_path": "aggregates/bucket-0172.json",
+      "size": 2175,
+      "sha256": "b673989b726ca0853b916b5346db85f9f32d8d58ef9363c2d0c0aa604243b103"
+    },
+    {
+      "relative_path": "aggregates/bucket-0173.json",
+      "size": 2132,
+      "sha256": "7790106413cfc6e854ccabae94fd55639ec50569e1e0960b44008513f1bc4f2a"
+    },
+    {
+      "relative_path": "aggregates/bucket-0174.json",
+      "size": 2141,
+      "sha256": "6b7d91eaa28e6b198eea2d87cda57f4126ffdf7990d16cf2809b9d77a9d8de0d"
+    },
+    {
+      "relative_path": "aggregates/bucket-0175.json",
+      "size": 2141,
+      "sha256": "d89d86097b26de99f3a67ccba444448f8b56ac71f6edaf1cc8aacb3483ee38a4"
+    },
+    {
+      "relative_path": "aggregates/bucket-0176.json",
+      "size": 2149,
+      "sha256": "da4c90abf506f3e3be10ae8464e90fe8d179faae08cf8d57c695c79d31b2e2bb"
+    },
+    {
+      "relative_path": "aggregates/bucket-0177.json",
+      "size": 2141,
+      "sha256": "31122f3d4b903d61d5cba967206a4a08e41ca8e8d68306605d9166f07bff3376"
+    },
+    {
+      "relative_path": "aggregates/bucket-0178.json",
+      "size": 2141,
+      "sha256": "1ad32793421cc7ac2c4084f47d00b8b8dd7b837764d96868d3d470187576b23f"
+    },
+    {
+      "relative_path": "aggregates/bucket-0179.json",
+      "size": 2005,
+      "sha256": "db280ced9a7a4f3c2a13409f85a369eb5ddbd06d6b2221ad7fd08c49bba32521"
+    },
+    {
+      "relative_path": "aggregates/bucket-0180.json",
+      "size": 2133,
+      "sha256": "a4495eea0a42f09df8ccf6cf49415b6ee8bc9fa8163010c45e1357275952db3a"
+    },
+    {
+      "relative_path": "aggregates/bucket-0181.json",
+      "size": 2182,
+      "sha256": "826c5ecacb751d0574737e039ec68716d45c8c3b79b78701044cd3ef6941d0be"
+    },
+    {
+      "relative_path": "aggregates/bucket-0182.json",
+      "size": 2136,
+      "sha256": "ddaf850f3ef00a814c0aa273e96fa7572006cd81d54c5a824fa4a779392d5407"
+    },
+    {
+      "relative_path": "aggregates/bucket-0183.json",
+      "size": 2174,
+      "sha256": "dd0369c8c15c231d5524338944e03c90c3ac2458fb37a02bdaf23c0cfa316d94"
+    },
+    {
+      "relative_path": "aggregates/bucket-0184.json",
+      "size": 2175,
+      "sha256": "f2d786511f8e790a2e169fccf1200c33f36fdcb50c726af6d39d44a85d2d204c"
+    },
+    {
+      "relative_path": "aggregates/bucket-0185.json",
+      "size": 2174,
+      "sha256": "0629341723a63a37480ae75d6d95bc2d7f393fde2bbd74bc11ecae29f1b63da5"
+    },
+    {
+      "relative_path": "aggregates/bucket-0186.json",
+      "size": 2141,
+      "sha256": "603ca46db18de3c23fc6c115f7566f26c88df52fc55864f35f8458d02e90975b"
+    },
+    {
+      "relative_path": "aggregates/bucket-0187.json",
+      "size": 2141,
+      "sha256": "dd39658292bca4e0950bd1814fec1292da61260f3b39702fff998d53f052b969"
+    },
+    {
+      "relative_path": "aggregates/bucket-0188.json",
+      "size": 2167,
+      "sha256": "1ff37026aff7b5bdbfa8bf3f7ef582771c698ad4601887056914595b716f87ab"
+    },
+    {
+      "relative_path": "aggregates/bucket-0189.json",
+      "size": 2174,
+      "sha256": "d5ff87496c1043fe39b6447fc339d761e5720f007d363ef8c6711999bb2be7f9"
+    },
+    {
+      "relative_path": "aggregates/bucket-0190.json",
+      "size": 2185,
+      "sha256": "d2e4fd72e08ebcaddcb7156f2944144a1f70bc40e18e4aaf600794b3b4039b66"
+    },
+    {
+      "relative_path": "aggregates/bucket-0191.json",
+      "size": 2224,
+      "sha256": "9b82ac1e9817a202526c58bb8036f5b5fdfc890c43842911a9e03acd8ff22bb7"
+    },
+    {
+      "relative_path": "aggregates/bucket-0192.json",
+      "size": 2224,
+      "sha256": "ab02ee62f385d85fd2972b4bdcc4b5199d77c0f0c893a0e624247b6a020edd36"
+    },
+    {
+      "relative_path": "aggregates/bucket-0193.json",
+      "size": 2141,
+      "sha256": "bec6e000be8eee906b93537391c6f4aae9103df83efe3388fc7abe3c92bad55d"
+    },
+    {
+      "relative_path": "aggregates/bucket-0194.json",
+      "size": 2141,
+      "sha256": "bc91fb79fdac09e545d7519805afa25a34bd6bb3e2fc0f2b86454f21b1e12330"
+    },
+    {
+      "relative_path": "aggregates/bucket-0195.json",
+      "size": 2149,
+      "sha256": "c88e11ab5f1f79319ceacd88afd6145a9255f91a9ea8a7ca1d1f0a039dc4d88c"
+    },
+    {
+      "relative_path": "aggregates/bucket-0196.json",
+      "size": 2141,
+      "sha256": "23eb49bef3a13ae99c8d4538656de3bbf91a7a90fce5c690ed0cc3d7ada69ce0"
+    },
+    {
+      "relative_path": "aggregates/bucket-0197.json",
+      "size": 2174,
+      "sha256": "36d66d3cbdd7874b183b180c959c529da3a7610f2feb1d533fc3b378de235335"
+    },
+    {
+      "relative_path": "aggregates/bucket-0198.json",
+      "size": 2177,
+      "sha256": "11dc65ac6c1c616691b0fdb2acb7df02e7d4e6210ed0f12f5458a7ac900414f9"
+    },
+    {
+      "relative_path": "aggregates/bucket-0199.json",
+      "size": 2136,
+      "sha256": "b5783ccfd6445bb31f8662491a6a9e3f3a4db207752b27e6b549725be70add8a"
+    },
+    {
+      "relative_path": "aggregates/bucket-0200.json",
+      "size": 2174,
+      "sha256": "05b2678afae177111a88bdb364e3dba14381c588c7bf2f085e01c19ac954c4ae"
+    },
+    {
+      "relative_path": "aggregates/bucket-0201.json",
+      "size": 2149,
+      "sha256": "fb6b7ec952169e6b1494f30dc12822cc78495ca6bf24aea71d428fd4bc485635"
+    },
+    {
+      "relative_path": "aggregates/bucket-0202.json",
+      "size": 2223,
+      "sha256": "12eb15a5aa5d9069f49f1ea9091b83ecf7927310b2b2536b1c8bd5f4b3200284"
+    },
+    {
+      "relative_path": "aggregates/bucket-0203.json",
+      "size": 2141,
+      "sha256": "ca375469533260d69f5e3ec834d0fb2e4971227e00d2836f3e81425b51807614"
+    },
+    {
+      "relative_path": "aggregates/bucket-0204.json",
+      "size": 2141,
+      "sha256": "bad81d83ad96a5c343dec53a5878ecacfa477b69e25704f6646d52d67074c46f"
+    },
+    {
+      "relative_path": "aggregates/bucket-0205.json",
+      "size": 2149,
+      "sha256": "88c241643f80300a920434ec45baf5c8eea4781bbb26583fb17f170ee27c075a"
+    },
+    {
+      "relative_path": "aggregates/bucket-0206.json",
+      "size": 2224,
+      "sha256": "e0c1833ce0ac520570581a61eb79952aba8c110f8a3a1cfb410a58bb0dee227e"
+    },
+    {
+      "relative_path": "aggregates/bucket-0207.json",
+      "size": 2141,
+      "sha256": "1ddd04d6e52306dca50c6517f00104cfc41bf3b1b0f751b977c0711190a68d2e"
+    },
+    {
+      "relative_path": "aggregates/bucket-0208.json",
+      "size": 2136,
+      "sha256": "9cc9a7acfc1565f5d3b90b29ca706ed07e7599b31a6664c3037c19e50903f23b"
+    },
+    {
+      "relative_path": "aggregates/bucket-0209.json",
+      "size": 2175,
+      "sha256": "4fe58305c4ea9c8c0fdb453ca96ce6596fbc0d60a8d05db580779c5b1e96bcdc"
+    },
+    {
+      "relative_path": "aggregates/bucket-0210.json",
+      "size": 2136,
+      "sha256": "05090bf6fc5d710541f4912f75b817c6f8aae1aa367f4d0883d9522b9262f561"
+    },
+    {
+      "relative_path": "aggregates/bucket-0211.json",
+      "size": 1309,
+      "sha256": "c202014c71653cbd520b08f76bc2bea0340638e65cc5d9005df7f61d7d423a76"
+    },
+    {
+      "relative_path": "aggregates/bucket-0212.json",
+      "size": 2141,
+      "sha256": "f187b3816dc3fb18ff3bf41dc48396dcde69abbc3ed7bd32909a05945cf2619e"
+    },
+    {
+      "relative_path": "aggregates/bucket-0213.json",
+      "size": 2190,
+      "sha256": "00a9e8b2807129e1a9f7cef03d723ed4009a58b4ef539db30b1016868473e146"
+    },
+    {
+      "relative_path": "aggregates/bucket-0214.json",
+      "size": 2141,
+      "sha256": "62750e1e247714d6e9eed1aa8d77f56f20f457dbcf7a01e14c241a675c4e5339"
+    },
+    {
+      "relative_path": "aggregates/bucket-0215.json",
+      "size": 2166,
+      "sha256": "ad52644f193cdf0fd7d79300b179f1ed3ccb57770b9c7dfa0b4ce223c3e0e312"
+    },
+    {
+      "relative_path": "aggregates/bucket-0216.json",
+      "size": 2195,
+      "sha256": "a30b40cb1f5c23986d1eb397991d6426a1501588c295dc9d39e656ca9c9689ff"
+    },
+    {
+      "relative_path": "aggregates/bucket-0217.json",
+      "size": 2174,
+      "sha256": "9b8e3a31c3deba22cf7631e564ab4bfd89ea5e88568122e9e78a618fa3ac9649"
+    },
+    {
+      "relative_path": "aggregates/bucket-0218.json",
+      "size": 2136,
+      "sha256": "cda2bdb4ac688f44416831c08a4a40d0632cbe5a3fdc88bfe61d0747498272ae"
+    },
+    {
+      "relative_path": "aggregates/bucket-0219.json",
+      "size": 2149,
+      "sha256": "d9ecd996ff6eda3c028a00e3bf891ea6026e98d29315fdca8c50d4d1c567dbc0"
+    },
+    {
+      "relative_path": "aggregates/bucket-0220.json",
+      "size": 1947,
+      "sha256": "6ad974c3381f56eeecf13a6c802b8c05ec5aeac9e095ccf63ad37edfb3d5331c"
+    },
+    {
+      "relative_path": "aggregates/bucket-0221.json",
+      "size": 2149,
+      "sha256": "59f6652fdf5ed2649cecdc2f5459ea26b943fd647c229a5e81ba916472472de6"
+    },
+    {
+      "relative_path": "aggregates/bucket-0222.json",
+      "size": 2166,
+      "sha256": "163a28646d367f128c0610926d6f27439accec0d7c2bf1ce1330c9f0d8ceef57"
+    },
+    {
+      "relative_path": "aggregates/bucket-0223.json",
+      "size": 2190,
+      "sha256": "f85766db0c859231e23731a7cb097886546cb49e0d3c2d418da9095669401c6a"
+    },
+    {
+      "relative_path": "aggregates/bucket-0224.json",
+      "size": 2141,
+      "sha256": "972d2959ed5d270bf81696900a836be1d1c03e40814d7871a11272510899f788"
+    },
+    {
+      "relative_path": "aggregates/bucket-0225.json",
+      "size": 2231,
+      "sha256": "ea0c5f1ca5ed391f9cc90a249f89cb78929187779573ce803557b58f502c45a5"
+    },
+    {
+      "relative_path": "aggregates/bucket-0226.json",
+      "size": 2190,
+      "sha256": "af5688dbb3db6f39a4efc598785844c7574f9013a7b5e2aec7bec30b9e53ff98"
+    },
+    {
+      "relative_path": "aggregates/bucket-0227.json",
+      "size": 2195,
+      "sha256": "d87a351cd2c0f51db724004ed6be99c3f6a765b9628a83f353596fddb737756c"
+    },
+    {
+      "relative_path": "aggregates/bucket-0228.json",
+      "size": 2141,
+      "sha256": "18709b2a5cab78cd6cd1122af9e709b117d6d87c5e050deccc0aeb2b9990b222"
+    },
+    {
+      "relative_path": "aggregates/bucket-0229.json",
+      "size": 2174,
+      "sha256": "b7afca2cc8d4b3705286a46266caa8d8bf41d133ec2b2b94f1a3e07e1c5423ee"
+    },
+    {
+      "relative_path": "aggregates/bucket-0230.json",
+      "size": 2133,
+      "sha256": "bbc8dd0f7cd664ec0927143bc07af74b0e92c7273e7df5e5f86f8b3f37d34cb1"
+    },
+    {
+      "relative_path": "aggregates/bucket-0231.json",
+      "size": 2141,
+      "sha256": "b77dbe8f0d63e36e48282e0f87a322bc75e7a5464234e922f0b74f9f753372f0"
+    },
+    {
+      "relative_path": "aggregates/bucket-0232.json",
+      "size": 2169,
+      "sha256": "b5343f4c9036e01397c70017f7535163242cbae56a4d56033b0299291f384c7f"
+    },
+    {
+      "relative_path": "aggregates/bucket-0233.json",
+      "size": 2169,
+      "sha256": "caec133527dcad4367180c37ec65b67ad8a5f6e76c722be94e9966b86fdf7bd8"
+    },
+    {
+      "relative_path": "aggregates/bucket-0234.json",
+      "size": 2182,
+      "sha256": "6e72be9cf04d07c8b53b349ed5450054230a379593a4e8c94be89e806a0ee5b3"
+    },
+    {
+      "relative_path": "aggregates/bucket-0235.json",
+      "size": 2136,
+      "sha256": "2f3cb9dd5f0a5347c827b7ea60a655019a745afe3ab680c61f76d955a875d130"
+    },
+    {
+      "relative_path": "aggregates/bucket-0236.json",
+      "size": 1852,
+      "sha256": "f734a1a924a6876df727f9ccb0d05cc369baa49959eacdbc221dd861e0071827"
+    },
+    {
+      "relative_path": "aggregates/bucket-0237.json",
+      "size": 2198,
+      "sha256": "28304f1912689ba0046b3d808117e1edca0be296a711076200f5acee4f3ce8a1"
+    },
+    {
+      "relative_path": "aggregates/bucket-0238.json",
+      "size": 2190,
+      "sha256": "68ec6881da84dd5ce3ec92d670193ee6a040ed32ebb5d16053036e992edb0a16"
+    },
+    {
+      "relative_path": "aggregates/bucket-0239.json",
+      "size": 2169,
+      "sha256": "39f501544376ea88dda02e610813e532159ae358225b5aba378efe0367d07437"
+    },
+    {
+      "relative_path": "aggregates/bucket-0240.json",
+      "size": 2141,
+      "sha256": "0ad8d04dc18757a98188ef35414661033feb61389108b22df7e27056e1caf867"
+    },
+    {
+      "relative_path": "aggregates/bucket-0241.json",
+      "size": 2169,
+      "sha256": "fd1dee610ba198f356ec8201153ada6c4c94aa4d9612e51afc65d71075d72c5f"
+    },
+    {
+      "relative_path": "aggregates/bucket-0242.json",
+      "size": 2166,
+      "sha256": "448c85e00fa2759007f9fa9a8f604deced43f5d7cae2892692ff804eec753081"
+    },
+    {
+      "relative_path": "aggregates/bucket-0243.json",
+      "size": 2182,
+      "sha256": "ee5aedb77060173bda7bfab48db65328c715f05fad4c895c29de283860726735"
+    },
+    {
+      "relative_path": "aggregates/bucket-0244.json",
+      "size": 2149,
+      "sha256": "8969038be549e08ce96501ba4715092929cd5cf734b869dd9a91bd8aa47affd6"
+    },
+    {
+      "relative_path": "aggregates/bucket-0245.json",
+      "size": 2149,
+      "sha256": "26319b52f17b0fc0c911232f01a2e20db941253e6c27e21fe1d4d0117475055a"
+    },
+    {
+      "relative_path": "aggregates/bucket-0246.json",
+      "size": 2174,
+      "sha256": "b2a2876a7d48cbe35b5feb38d5d7013fd4059f7e028ae59d1604f57d5c5ddba8"
+    },
+    {
+      "relative_path": "aggregates/bucket-0247.json",
+      "size": 2141,
+      "sha256": "53ade18d03d0e8556d4657715a8b7f47d6dff696fe173a40e902d2446be0cebe"
+    },
+    {
+      "relative_path": "aggregates/bucket-0248.json",
+      "size": 2141,
+      "sha256": "09fa8a6c26c00e6ceccea9887a5986fc9d709fa9d89ee0b7a0990a1bc86bbc98"
+    },
+    {
+      "relative_path": "aggregates/bucket-0249.json",
+      "size": 2166,
+      "sha256": "47b6891105e57435a0f2bf7986815e34131093e849c50e4516b78eb4b1f578ca"
+    },
+    {
+      "relative_path": "aggregates/bucket-0250.json",
+      "size": 1309,
+      "sha256": "4a900baacedd7f8d2577f736a4813419e50d83bbde0bb4951384a4412fdb2dcf"
+    },
+    {
+      "relative_path": "aggregates/bucket-0251.json",
+      "size": 2198,
+      "sha256": "c36f02e53018f4964d5319bd291dce81b940147d1a8c6029baa759b7b819d834"
+    },
+    {
+      "relative_path": "aggregates/bucket-0252.json",
+      "size": 2141,
+      "sha256": "fc7cef6d099560babdf1bbd25e1bde82bb4822a5a66204c02090212f31f15d94"
+    },
+    {
+      "relative_path": "aggregates/bucket-0253.json",
+      "size": 2166,
+      "sha256": "8bc3c7314a301363145f7ae43b2ee3c4d790b8a39adb0b26288883ae3e030cc9"
+    },
+    {
+      "relative_path": "aggregates/bucket-0254.json",
+      "size": 1309,
+      "sha256": "df6843c659e945c8333be3257be6c826bdb04de21c29edc87b6eef98582a13bf"
+    },
+    {
+      "relative_path": "aggregates/bucket-0255.json",
+      "size": 2223,
+      "sha256": "b915b173407926b28d497fd5e03a96ba1b070859ec6846db997278629597dbfe"
+    }
+  ],
+  "projected_total": 22645,
+  "malformed_rows": 0,
+  "presence_only_rows": 16470,
+  "presence_coverage": {
+    "latency_ms|shadow_rows": {
+      "numerator": 0,
+      "denominator": 1510,
+      "missing_reason_counts": {
+        "ABSENT_FIELD": 1510
+      }
+    }
+  },
+  "source_rows": {
+    "equity_snapshots": 14048,
+    "exchange_fills": 1918,
+    "executable_shadow": 1510,
+    "fast_v2_settlements": 663,
+    "maker_attempts": 2870,
+    "open_decisions": 912,
+    "settlements": 724
+  },
+  "checkpoint_hashed_bytes": 0,
+  "done": true,
+  "checkpoint_hash": "51385993f8fcbce335c3f900abe3360ee872cd17a3f441c3dd1ff44724e005ec"
+}

@@ -1,0 +1,13 @@
+{
+  "artifact_hash": "ba549ac4c7d4edd293a020abd5a1a7b37f11afdf94a40d6dbe787dc7075fc152",
+  "layers": [
+    "observability",
+    "identifiability",
+    "ex_ante_predictability",
+    "personal_executability",
+    "independent_support",
+    "net_edge"
+  ],
+  "schema_version": "lingxi.g10-execution-evidence-audit.v1",
+  "stopped_at": "engineering_scope"
+}

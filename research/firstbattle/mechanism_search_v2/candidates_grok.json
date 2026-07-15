@@ -1,0 +1,762 @@
+{
+  "schema_version": "lingxi.mechanism-search-v2.candidates.v1",
+  "artifact_id": "firstbattle.mechanism-search-v2.candidates-grok",
+  "owner": "grok-4.5-high-fast",
+  "owner_role": "exchange_edge_ops_constraints_counterintuitive_datasource",
+  "generation": "mechanism-search-v2-grok-v1",
+  "created_at": "2026-07-14T03:15:00Z",
+  "status": "OUTCOME_BLIND_CANDIDATES_ONLY",
+  "labels_unblinded": false,
+  "routes_started": 0,
+  "launch_authorized": false,
+  "trade_allowed": false,
+  "exam_actions": 0,
+  "system_status": "NO_GO",
+  "scope": "独立提出交易所边角、运营约束与反常识小账户付款机制；只调查已存在/免费官方历史能否支持完整分母；不读取收益/考卷、不购买、不联网交易、不启动路线、不提交。",
+  "bindings_reference_only": {
+    "binding_policy": "REFERENCE_ONLY_NO_MODIFY",
+    "route_data_contracts_protocol_hash": "4a4c201d2c8cedde5bd1ff55ea40ad31d099e189feb709a517701b504c453588",
+    "route_data_source_registry_json_hash": "1c6672563d4bc00ea102df2f9575b365a2a9dc30e763db75067f9a49052e5318",
+    "g10_reopen_condition_inventory_json_hash": "b9b62bc4d959d256e9d553385c2b3a474c1017632a35951a84e70d2a8e46e69a",
+    "g10_reopen_condition_inventory_source_manifest_hash": "66b47378f674a2e9f8cdbe6e7649f11afee633610aa5ca330c09f2d38b8b79cd",
+    "p0_swap_data_fitness_json_hash": "393a12952b480fc2671774d76790e5f850bcbc26b43c8eb8d870bba9c9e2bd66",
+    "head_commit_observed": "ab2780405f0fd5c80d268fe0feff39eb14a29eda"
+  },
+  "hard_rejects_applied": [
+    "no_payer_or_forced_action",
+    "public_factor_or_ordinary_arbitrage_repackaged_as_wild_route",
+    "pure_speed_cross_venue",
+    "requires_future_collection_to_invent_measurability",
+    "incomplete_event_denominator_fabricated_as_testable",
+    "g1_g10_parameter_isomorph"
+  ],
+  "global_hypotheses": {
+    "H0": {
+      "id": "H0_NULL_SELECTION_COST_OR_DATA_ILLUSION",
+      "statement": "所谓交易所边角/运营约束 edge 主要来自不完整分母、PIT 回填幻觉、选择偏差或成本低估；在完整事件分母与真实费用下不存在可复现个人净付款优势。"
+    },
+    "competitors": [
+      {
+        "id": "H_CALENDAR_FORCED_FEE",
+        "statement": "结算/借贷/交割日历与区间变更迫使持仓或负债主体在固定时刻付款或调仓，付款者是规则时钟而非预测 alpha。"
+      },
+      {
+        "id": "H_DISCRETE_OPS_CONSTRAINT",
+        "statement": "最小名义、档位、抵押折扣、划转/权限与维护窗等离散运营约束制造小账户可执行、机构不值得规模化的局部机会，或制造应空仓的陷阱。"
+      },
+      {
+        "id": "H_MARK_INDEX_RULE_CLAMP",
+        "statement": "标记/指数错位触及公式夹具或限价带时触发强制流，对手方被迫在狭窄流动性上成交。"
+      },
+      {
+        "id": "H_PUBLIC_FACTOR_MISLABEL",
+        "statement": "候选只是 funding 符号、波动或跨所 mid 差的公共因子包装——必须拒绝为野路。"
+      }
+    ],
+    "strongest_portfolio_counterexample": "机构可用统一自动化在全部低容量事件上复制小单并聚合；若公开后缺少持续的规则硬容量、权限分割或维护成本壁垒，个人护城河消失。单市场容量小或“机构暂时不知道”不足证明排斥。"
+  },
+  "datasource_investigation": {
+    "question": "已存在/免费官方历史能否支持 funding/borrowing/settlement calendars、listing/delisting/migration、rule/cap/floor、index/mark dislocation、collateral/borrow/transfer restrictions、非速度跨场所运营不对称的完整分母？",
+    "method": "只读 route_data_source_registry、reopen inventory/source manifest、本地 records/history 与仓库外 P0 私人路径的存在性/schema/时钟；不下载 CDN 大包、不购买、不投影收益字段。",
+    "findings": [
+      {
+        "family": "funding_settlement_calendars",
+        "official_free": "PRESENT_OFFICIAL_FREE",
+        "official_urls": [
+          "https://www.okx.com/historical-data",
+          "https://www.okx.com/docs-v5/en/#public-data-rest-api-get-historical-market-data",
+          "https://static.okx.com/cdn/okex/traderecords/"
+        ],
+        "coverage_claim": "OKX CDN funding_rate 2022-03+",
+        "local_availability": "PRESENT_PARTIAL: records/history/okx_funding ≈401 SWAP jsonl；records/history/bybit_funding 大量符号；schema=fundingTime/fundingRate/realizedRate/formulaType（本地样本 formulaType 恒为 withRate）",
+        "denominator_verdict": "费率结算时刻 tape 可重建，但“区间变更/公告生效/被迫持仓主体”完整事件分母与 announcement PIT 未证明；时间戳空洞≠官方区间变更",
+        "usable_for_route_now": false
+      },
+      {
+        "family": "borrowing_calendars",
+        "official_free": "PRESENT_OFFICIAL_FREE_NOT_ACQUIRED",
+        "official_urls": [
+          "https://www.okx.com/historical-data",
+          "https://www.okx.com/docs-v5/en/#public-data-rest-api-get-historical-market-data"
+        ],
+        "coverage_claim": "OKX CDN borrowing_rate 2021-12+",
+        "local_availability": "ABSENT_TIMESERIES: borrow_probes.jsonl 空文件；tools/go_no_go/borrow_rates.json 仅为当前快照（daily_rate/borrow_limit），无 KnownFrom 链；无借币暂停/限额变更官方日历",
+        "denominator_verdict": "DATA_BLIND：缺历史借贷率完整日历本地副本，更缺 forced repay/transfer 主体 identity",
+        "usable_for_route_now": false
+      },
+      {
+        "family": "listing_delisting_migration",
+        "official_free": "ABSENT_COMPLETE_ARCHIVE",
+        "official_urls": [
+          "https://www.okx.com/docs-v5/en/#public-data-rest-api-get-instruments",
+          "https://www.okx.com/help/okx-to-enable-automatic-adjustment-of-several-trading-parameters"
+        ],
+        "local_availability": "SNAPSHOT_ONLY: instruments 当前快照 + instrument_meta.list_time_ms；公告碎片不可拼版本链（registry: announcement_fragments_do_not_form_rule_version_chain）",
+        "denominator_verdict": "REJECTED/DATA_BLIND/PIT_UNPROVEN",
+        "usable_for_route_now": false
+      },
+      {
+        "family": "rule_cap_floor_tiers",
+        "official_free": "ABSENT_HISTORICAL_VERSION_ARCHIVE",
+        "official_urls": [
+          "https://www.okx.com/docs-v5/en/#public-data-rest-api-get-instruments"
+        ],
+        "local_availability": "PIT_UNPROVEN: 当前 ctType/minSz/ctVal 快照存在；无历史 cap/floor/杠杆档/维持保证金档版本链",
+        "denominator_verdict": "DATA_BLIND/PIT_UNPROVEN（与 registry okx_official_rule_instrument_version_archive=ABSENT 一致）",
+        "usable_for_route_now": false
+      },
+      {
+        "family": "index_mark_dislocation",
+        "official_free": "UNPROVEN_AS_COMPLETE_DISLOCATION_DENOMINATOR",
+        "official_urls": [
+          "https://www.okx.com/docs-v5/en/#public-data-rest-api-get-mark-price",
+          "https://www.okx.com/docs-v5/en/#public-data-rest-api-get-index-tickers"
+        ],
+        "local_availability": "WEAK_PROXY_ONLY: fast_market_mids / hot_mids；无官方长期 markPx↔idxPx 错位事件完整档案；官方强平批量历史 ABSENT",
+        "denominator_verdict": "DATA_BLIND",
+        "usable_for_route_now": false
+      },
+      {
+        "family": "collateral_borrow_transfer_restrictions",
+        "official_free": "ABSENT",
+        "official_urls": [
+          "https://www.okx.com/docs-v5/en/#trading-account-rest-api"
+        ],
+        "local_availability": "ABSENT: reopen inventory 记 collateral_authorization_history=ABSENT",
+        "denominator_verdict": "REJECTED/DATA_BLIND",
+        "usable_for_route_now": false
+      },
+      {
+        "family": "non_speed_cross_venue_operational_asymmetry",
+        "official_free": "PARTIAL_L2_CANDIDATE_ONLY",
+        "official_urls": [
+          "https://www.okx.com/historical-data",
+          "https://www.bybit.com/en/derivative-activity/history-data/"
+        ],
+        "local_availability": "WEAK_PROXY_ONLY: 多所 mid 锚点与少量 selected crossvenue settlements；无维护窗/充提解锁/权限日历完整分母；Binance tick L2 已停",
+        "denominator_verdict": "DATA_BLIND；禁止把延迟套利写成运营不对称",
+        "usable_for_route_now": false
+      },
+      {
+        "family": "private_attempts_denominator",
+        "official_free": "N_A_PRIVATE",
+        "local_availability": "PRESENT_PARTIAL survivor-biased: 仓库外 OKX SWAP orders 13622 + fills 15676；Data Fitness earliest blocker=INCOMPLETE_ATTEMPTS_DENOMINATOR",
+        "denominator_verdict": "不能把私人成交切片伪造成完整 attempts/事件分母",
+        "usable_for_route_now": false
+      }
+    ],
+    "verdict": "本轮无候选达到“现有历史完整分母可测”。凡依赖缺失日历/PIT/强制主体 identity 的路线标 REJECTED 或 DATA_BLIND，不造可测性。"
+  },
+  "candidates": [
+    {
+      "candidate_id": "GROK-MSV2-01",
+      "title": "funding_interval_densification_calendar_tax",
+      "family": "funding_settlement_calendars",
+      "status": "DATA_BLIND",
+      "wild_route_ok": false,
+      "mechanism": "当永续合约资金费结算间距由疏变密（如 8h→4h→1h）或结算时刻集合突然加密时，被迫跨过新增结算点的持仓方向成为付款者（支付更频繁的 funding），而非“funding 符号预测收益”的公共因子。个人优势是在可识别的日历加密之前减仓/空仓，避免成为密集结算的付款方；若无法在决策时刻证明区间变更 KnownFrom，则必须 NO_TRADE。",
+      "payer_or_forced_action": {
+        "payer": "在新增结算点仍持有付款方向仓位的账户（被结算时钟强制扣 funding）",
+        "forced_action": "持有穿过 settlement instant，或为避免连续扣费而在不利流动性中被动减仓",
+        "why_must_act_now": "结算时刻由交易所时钟触发，错过减仓窗口后付款不可撤销"
+      },
+      "state_and_action_branches": {
+        "trigger_state": "决策时刻已可见的结算日历加密（官方公告生效或可证明的 interval schedule），且账户若持仓将穿过 ≥1 个新增 settlement",
+        "long": "若当前持仓为付款方向 → 减仓/flat；若为收款方向 → 默认 NO_TRADE（收款侧常被机构/库存流量化，不作公共 carry）",
+        "short": "对称：付款方向减仓/flat",
+        "flat": "保持 flat；禁止把区间加密改写成方向性 breakout",
+        "ood_no_trade": "无法证明 interval 变更 KnownFrom、或只能从 tape 空洞反推、或与普通高 funding 波动不可分时 NO_TRADE"
+      },
+      "why_institutions_not_worth_or_cannot_scale": "单事件绝对金额随名义线性放大但需要全市场日历监控与多账户持仓编排；对大账户，调仓冲击与合规审批常超过可省 funding；不是因为机构看不到费率。",
+      "post_publication_moat": "若公开后仍成立，护城河应来自结算时钟硬约束 + 小名义下可无冲击减仓；若机构可用自动化在全部加密事件上零成本同步减仓，则护城河失败。",
+      "personal_execution_advantage": "几十–几千 U、≤5x 可在结算前低冲击减到 flat，且可容忍放弃收款侧 carry。",
+      "decision_time_visible_fields": [
+        "instId",
+        "next_funding_times_schedule_or_official_interval",
+        "KnownFrom/effective_at of interval change",
+        "current position side/size (account-private)",
+        "fee/minSz constraints"
+      ],
+      "complete_denominator_event_identity_pit_clocks": {
+        "required_denominator": "研究宇宙内每一次官方 funding interval/schedule 变更事件 + 变更后每一个 settlement instant，含未交易/已 flat 的对照",
+        "event_identity": "venue|instId|schedule_version|effective_at|settlement_ts",
+        "pit": "公告或官方 schedule 的 KnownFrom ≤ decision_time；禁止用事后完整 tape 回填“当时已知”",
+        "clocks": "EventTime=官方 settlement/生效时间；ReceiveTime=本地首次可见公告/schedule；ProcessTime=决策写入。缺 ReceiveTime 则 PIT 失败",
+        "local_now": "okx_funding 提供 fundingTime tape（多符号存在 1h/2h/4h/8h 间距），但无官方 schedule 版本链、无 ReceiveTime、空洞与真变更不可分",
+        "verdict": "INCOMPLETE_DENOMINATOR → DATA_BLIND"
+      },
+      "matched_loser_design": {
+        "winner_definition_frozen_before_outcomes": "在同一次 interval densification 事件中，决策时刻选择避免成为付款方向持仓者（提前 flat/减仓）的账户路径",
+        "matched_loser": "同一 instId、同一 schedule_version 事件、同一决策时刻持仓方向桶，但未减仓而穿过新增 settlement 的路径；以及同日历事件下已 flat 的非触发对照",
+        "anti_posthoc": "先冻结全部 schedule 变更事件 ID 与持仓桶分母，再允许任何费用差额比较；当前禁止进入 Phase B"
+      },
+      "official_sources_and_local": [
+        {
+          "source_id": "okx_historical_data_portal_and_cdn",
+          "urls": [
+            "https://www.okx.com/historical-data",
+            "https://www.okx.com/docs-v5/en/#public-data-rest-api-get-historical-market-data"
+          ],
+          "local": "records/history/okx_funding/* PRESENT_PARTIAL tape only"
+        },
+        {
+          "source_id": "okx_announcement_fragments",
+          "urls": [
+            "https://www.okx.com/help-center"
+          ],
+          "local": "无完整可复算公告版本链；不可单独构成分母"
+        }
+      ],
+      "strongest_alternative_explanation": "观察到的间距变化来自 API/采集空洞或符号上市初期稀疏点，不是官方区间变更；收益差来自并存的波动/funding 符号公共因子（G2 同类）。",
+      "strongest_counterexample": "若在完整官方 schedule 分母上，提前 flat 相对持有穿过结算的费用优势被 taker 冲击与漏判变更完全侵蚀，或机构可零成本复制，机制失败。",
+      "shortest_outcome_blind_falsification": "只盘点是否存在可 hash 绑定的官方 funding interval/schedule 历史版本（KnownFrom/effective_at）覆盖本地 401 符号；若只能用 fundingTime 差分猜测，立即保持 DATA_BLIND 并停止。不读任何 fwd return/funding PnL。",
+      "budget_and_stop_gate": {
+        "max_cpu": 1,
+        "max_wall_clock_hours": 4,
+        "max_attempts": 1,
+        "disk_budget_mb": 256,
+        "allowed_io": "metadata/schema/existence only; no CDN bulk zip; no outcome projection",
+        "stop_gates": [
+          "无官方 schedule 版本链 → DATA_BLIND stop",
+          "用 tape 空洞冒充变更 → REJECT",
+          "退化成 funding 符号方向因子 → REJECT_AS_PUBLIC_FACTOR",
+          "任何收益解盲请求 → HALT"
+        ]
+      },
+      "non_isomorphism_vs_g1_g10": {
+        "vs_G2": "G2 检验的是 BTC funding state × 方向/波动条件组合的 payer-side flip 预测；本候选是结算日历加密本身的被迫付费，明确禁止方向性 funding alpha。",
+        "vs_G3_G4_G5_G6": "不依赖倒序特征规则、全市场赚钱格子、连续动作价值或 EventCard。",
+        "vs_G10": "不使用个人残差 Playbook/执行指纹；不复活 G10 validation cells。",
+        "vs_wild_sparse_forced_flow": "付款触发是结算时钟/区间版本，不是强平 tape。",
+        "proof_summary": "动作主分支是“避免穿过新增 settlement”，不是预测结算后收益符号。"
+      }
+    },
+    {
+      "candidate_id": "GROK-MSV2-02",
+      "title": "borrow_rate_spike_or_limit_suspension_forced_repay",
+      "family": "borrowing_calendars",
+      "status": "REJECTED_DATA_BLIND",
+      "wild_route_ok": false,
+      "mechanism": "当杠杆借币利率尖峰、borrow limit 下调或借币暂停时，负债账户被费用或强平/还款规则迫使偿还、兑换或划转；小账户可在限制生效前降低负债或反向提供闲置资产，但不得包装成普通现货动量。",
+      "payer_or_forced_action": {
+        "payer": "借入资产的保证金负债账户（支付利息）及在 limit/暂停下必须偿还/减仓者",
+        "forced_action": "repay、减杠杆、卖出持仓换还债资产、或接受高利息",
+        "why_must_act_now": "利率/额度/暂停按交易所规则生效，拖延直接增加利息或触发强平路径"
+      },
+      "state_and_action_branches": {
+        "trigger_state": "决策时刻可见的 borrow rate/limit/suspend 变更且账户有对应负债",
+        "long": "若多头依赖借入报价货币 → 降杠杆/repay；无负债 → NO_TRADE",
+        "short": "若空头依赖借入标的 → repay/平仓；无负债 → NO_TRADE",
+        "flat": "不主动追利率交易；禁止“高借币利率做多/做空”公共因子",
+        "ood_no_trade": "只有快照利率、无变更事件 identity 时 NO_TRADE"
+      },
+      "why_institutions_not_worth_or_cannot_scale": "机构常有更低融资渠道，不走零售借币尖峰；零售借币事件绝对金额小且运营监控成本高。",
+      "post_publication_moat": "依赖借币额度/暂停的硬规则与零售负债池；若公开后大资金并不使用该融资路径，则“可交易对手方”可能不足而非护城河增强。",
+      "personal_execution_advantage": "小负债可快速 repay；但无历史负债 identity 时优势不可证。",
+      "decision_time_visible_fields": [
+        "ccy",
+        "borrow_rate",
+        "borrow_limit",
+        "suspend_flag",
+        "KnownFrom",
+        "account liability size"
+      ],
+      "complete_denominator_event_identity_pit_clocks": {
+        "required_denominator": "全部 borrow rate/limit/suspend 变更事件 × 当时存在该币种负债的账户集合（至少公开可重建的市场层事件完整集）",
+        "event_identity": "venue|ccy|rule_version|effective_at",
+        "pit": "变更 KnownFrom ≤ decision_time",
+        "clocks": "EventTime=生效；ReceiveTime=首次可见；ProcessTime=决策",
+        "local_now": "官方 CDN borrowing 宣称存在但未获取；本地仅有当前快照 borrow_rates.json；无 suspend 日历",
+        "verdict": "REJECTED_DATA_BLIND — 不把未下载 CDN 写成已可测"
+      },
+      "matched_loser_design": {
+        "winner_definition_frozen_before_outcomes": "同变更事件下，决策时刻降低负债/避开暂停路径者",
+        "matched_loser": "同 ccy、同 rule_version 事件下保持负债穿过生效点者",
+        "anti_posthoc": "无完整变更分母前禁止任何利息差额回放"
+      },
+      "official_sources_and_local": [
+        {
+          "source_id": "okx_historical_data_portal_and_cdn",
+          "urls": [
+            "https://www.okx.com/historical-data"
+          ],
+          "local": "NOT_ACQUIRED; borrow_rates.json SNAPSHOT_ONLY; borrow_probes.jsonl EMPTY"
+        }
+      ],
+      "strongest_alternative_explanation": "利率尖峰只是现货波动代理；所谓还款优势来自价格方向而非借币规则。",
+      "strongest_counterexample": "官方 borrowing 历史即使下载，若无 limit/suspend 与负债主体分母，仍无法识别 forced action。",
+      "shortest_outcome_blind_falsification": "核对本地是否已有带时间戳的 borrowing 历史完整日历与 suspend/limit 字段；若无，保持 REJECTED_DATA_BLIND，不申请 bulk 下载除非短名单另批。",
+      "budget_and_stop_gate": {
+        "max_cpu": 1,
+        "max_wall_clock_hours": 2,
+        "max_attempts": 1,
+        "disk_budget_mb": 64,
+        "stop_gates": [
+          "无本地 timeseries → stop",
+          "只有 snapshot → stop",
+          "把利率当方向信号 → REJECT_AS_PUBLIC_FACTOR"
+        ]
+      },
+      "non_isomorphism_vs_g1_g10": {
+        "vs_G2": "G2 用永续 funding 状态；本候选是保证金借币利率/额度运营约束。",
+        "vs_G1_G10_forced": "不是清算 tape 残差或个人执行指纹。",
+        "proof_summary": "付款工具是 borrow interest/limit，不是 perpetual funding 或 OHLCV 因子。"
+      }
+    },
+    {
+      "candidate_id": "GROK-MSV2-03",
+      "title": "listing_delisting_migration_forced_inventory",
+      "family": "listing_delisting_migration",
+      "status": "REJECTED_DATA_BLIND",
+      "wild_route_ok": false,
+      "mechanism": "上币、下架、合约迁移/换月/代号变更迫使库存持有者在截止时钟前平仓、兑换或接受结算价；对手方在狭窄窗口承接被迫流量。",
+      "payer_or_forced_action": {
+        "payer": "在 delist/migration 截止前仍持有将被取消或强制结算仓位/现货的账户",
+        "forced_action": "市价或限价退出、接受交割/迁移转换、或仓位被系统关闭",
+        "why_must_act_now": "截止后工具不可交易或按官方规则强制处理"
+      },
+      "state_and_action_branches": {
+        "trigger_state": "官方已公告且 KnownFrom 成立的 list/delist/migrate 截止事件",
+        "long": "持有多头被迫退出 → 个人仅在可证非速度、有深度余量时考虑被动承接；否则 NO_TRADE",
+        "short": "对称",
+        "flat": "默认可交易，但无完整事件分母时禁止",
+        "ood_no_trade": "只有 listTime 快照或公告碎片 → NO_TRADE"
+      },
+      "why_institutions_not_worth_or_cannot_scale": "单次下架窗口容量小、合规限制承接垃圾币库存、跨法域权限不一。",
+      "post_publication_moat": "硬截止时钟 + 小容量；若做市商批量承接则消失。",
+      "personal_execution_advantage": "小单可在窗口内提供有限流动性；但无分母则不可宣称优势。",
+      "decision_time_visible_fields": [
+        "announcement_id",
+        "instId_from",
+        "instId_to",
+        "effective_at",
+        "KnownFrom",
+        "state_transition"
+      ],
+      "complete_denominator_event_identity_pit_clocks": {
+        "required_denominator": "研究期全部 listing/delisting/migration 官方事件，含无交易对照日",
+        "event_identity": "venue|announcement_id|instId|effective_at",
+        "pit": "公告 KnownFrom 链；registry 已裁定公告碎片不能组成规则版本链",
+        "clocks": "三时钟；ReceiveTime 必需",
+        "local_now": "instrument_meta.list_time_ms 与当前 instruments 快照；无完整 delist/migrate 日历档案",
+        "verdict": "REJECTED_DATA_BLIND/PIT_UNPROVEN"
+      },
+      "matched_loser_design": {
+        "winner_definition_frozen_before_outcomes": "同事件同方向桶内，在截止前完成合规退出或明确不承接的路径",
+        "matched_loser": "同事件下错过退出窗口被强制处理，或在无深度时盲目承接者",
+        "anti_posthoc": "禁止用事后价格反推“该承接”"
+      },
+      "official_sources_and_local": [
+        {
+          "source_id": "okx_instruments_current_snapshot",
+          "urls": [
+            "https://www.okx.com/docs-v5/en/#public-data-rest-api-get-instruments"
+          ],
+          "local": "SNAPSHOT_ONLY / PIT_UNPROVEN"
+        },
+        {
+          "source_id": "okx_official_rule_instrument_version_archive",
+          "urls": [
+            "https://www.okx.com/help/okx-to-enable-automatic-adjustment-of-several-trading-parameters"
+          ],
+          "local": "ABSENT"
+        }
+      ],
+      "strongest_alternative_explanation": "把新币波动或叙事动量误当成下架/迁移被迫流。",
+      "strongest_counterexample": "即使有公告列表，若不能证明账户层 forced inventory 与完整事件集，机制不可测。",
+      "shortest_outcome_blind_falsification": "寻找官方可复算的 historical instrument state/migration archive；若 ABSENT（已确认），维持 REJECTED，不采集未来公告冒充历史分母。",
+      "budget_and_stop_gate": {
+        "max_cpu": 1,
+        "max_wall_clock_hours": 2,
+        "max_attempts": 1,
+        "disk_budget_mb": 32,
+        "stop_gates": [
+          "ABSENT archive → REJECTED stop",
+          "用当前 listTime 回填历史 → PIT violation stop"
+        ]
+      },
+      "non_isomorphism_vs_g1_g10": {
+        "vs_G4": "G4 是全市场收益格子，不是官方下架/迁移强制库存时钟。",
+        "vs_G10_rule_discontinuity": "野路规则断点关注 min/ctVal；本候选是产品生命周期强制退出。",
+        "proof_summary": "事件定义是产品存续状态跃迁，不是 bar 收益或个人残差。"
+      }
+    },
+    {
+      "candidate_id": "GROK-MSV2-04",
+      "title": "mark_index_clamp_dislocation_forced_flow",
+      "family": "index_mark_dislocation",
+      "status": "DATA_BLIND",
+      "wild_route_ok": false,
+      "mechanism": "当 mark/index 或溢价触及交易所公式夹具、价格带或强平触发带时，被标记价格规则强制减仓/强平的方向成为瞬时付款者；个人仅在可识别夹具事件且非纯速度的前提下提供对面微小流动性。",
+      "payer_or_forced_action": {
+        "payer": "被 mark 价格/维持保证金规则强制减仓或强平的仓位持有者",
+        "forced_action": "liquidation/ADL/强制减仓订单",
+        "why_must_act_now": "标记价格穿越阈值后系统自动执行，无协商"
+      },
+      "state_and_action_branches": {
+        "trigger_state": "决策时刻可见 mark-index basis 与官方夹具/强平带状态",
+        "long": "若强制流为卖出 → 仅小名义考虑接买；否则 NO_TRADE",
+        "short": "对称",
+        "flat": "默认可；缺分母则禁止",
+        "ood_no_trade": "只有 mid、无 mark/index/夹具参数 PIT → NO_TRADE；有速度竞赛特征 → REJECT"
+      },
+      "why_institutions_not_worth_or_cannot_scale": "低流动性山寨强平窗口绝对容量小；机构聚合会自伤冲击；合规限制接盘。",
+      "post_publication_moat": "硬规则触发 + 每事件容量；公开后若专业强平接盘柜自动覆盖则失败。",
+      "personal_execution_advantage": "小单可避开大单冲击；但官方 forced 历史 ABSENT，优势不可证。",
+      "decision_time_visible_fields": [
+        "markPx",
+        "idxPx",
+        "basis",
+        "clamp_or_band_params",
+        "KnownFrom",
+        "depth_at_decision"
+      ],
+      "complete_denominator_event_identity_pit_clocks": {
+        "required_denominator": "全部 mark/index 夹具或强平触发事件的完整集合，含稳定 exchange event id 与 uptime",
+        "event_identity": "venue|instId|event_id|mark_ts|trigger_type",
+        "pit": "夹具参数版本 KnownFrom；mark/index 序列在决策前可见",
+        "clocks": "EventTime/ReceiveTime/ProcessTime；本地强平流缺稳定 ID 与完整 uptime",
+        "local_now": "官方 OKX/Bybit 强平批量历史 ABSENT；本地 liquidation JSONL 仅 PRESENT_PARTIAL；无长期 mark↔index 错位档案",
+        "verdict": "DATA_BLIND（不得把本地强平流标成官方完整分母）"
+      },
+      "matched_loser_design": {
+        "winner_definition_frozen_before_outcomes": "同 trigger 事件同侧流动性动作下，事前可识别夹具状态并限制名义者",
+        "matched_loser": "同事件同侧但无夹具识别或名义过大被冲击者；以及无触发的 matched 时段对照",
+        "anti_posthoc": "先冻结 forced event 分母与参数 PIT，再谈执行结果"
+      },
+      "official_sources_and_local": [
+        {
+          "source_id": "okx_official_liquidation_history_batch",
+          "urls": [
+            "https://www.okx.com/historical-data"
+          ],
+          "local": "ABSENT official batch"
+        },
+        {
+          "source_id": "local_okx_bybit_liquidation_streams",
+          "urls": [],
+          "local": "PRESENT_PARTIAL seed only; not complete denominator"
+        }
+      ],
+      "strongest_alternative_explanation": "只是高波动公共因子或延迟套利；夹具参数事后拟合。",
+      "strongest_counterexample": "机构接盘柜或交易所保险基金机制吸收 forced flow，使个人不可执行。",
+      "shortest_outcome_blind_falsification": "确认是否存在官方完整 mark/index + forced 事件档案；答案为否 → DATA_BLIND stop，不购买 Tardis 冒充官方。",
+      "budget_and_stop_gate": {
+        "max_cpu": 1,
+        "max_wall_clock_hours": 3,
+        "max_attempts": 1,
+        "disk_budget_mb": 128,
+        "stop_gates": [
+          "official forced ABSENT → DATA_BLIND",
+          "speed-arb packaging → REJECT",
+          "purchase without approval → FORBIDDEN"
+        ]
+      },
+      "non_isomorphism_vs_g1_g10": {
+        "vs_G10_sparse_forced_flow": "本候选把触发器钉在 mark/index 夹具规则，而不是泛化强平稀事件残差；当前仍因数据同等阻断。",
+        "vs_G2_G4": "不是 funding 符号或横截面收益格子。",
+        "proof_summary": "机制句子以标记价格规则夹具为因果核，不是个人执行指纹或 SkyState 组合。"
+      }
+    },
+    {
+      "candidate_id": "GROK-MSV2-05",
+      "title": "collateral_haircut_transfer_permission_trap",
+      "family": "collateral_borrow_transfer_restrictions",
+      "status": "REJECTED_DATA_BLIND",
+      "wild_route_ok": false,
+      "mechanism": "抵押品折扣、可转入/转出权限、资金账户与交易账户隔离、提现锁定等运营约束，在压力期间迫使账户出售折价抵押物或无法合并保证金，从而在单一场所出现非价格发现的被迫成交。",
+      "payer_or_forced_action": {
+        "payer": "持有被下调折扣或被限制划转的抵押资产、且需要维持保证金的账户",
+        "forced_action": "卖出抵押物、转入更高折扣资产、或接受强制减仓",
+        "why_must_act_now": "折扣/权限变更按规则生效，保证金率瞬时恶化"
+      },
+      "state_and_action_branches": {
+        "trigger_state": "决策时刻可见的 haircut/permission 变更 + 账户依赖该抵押",
+        "long": "依赖被惩罚抵押支撑的多头 → 降杠杆/换抵押；否则 NO_TRADE",
+        "short": "对称",
+        "flat": "不交易“折扣变更方向赌”",
+        "ood_no_trade": "无权限/折扣历史 → NO_TRADE"
+      },
+      "why_institutions_not_worth_or_cannot_scale": "机构常用跨场所授信与白名单资产，不走零售折扣陷阱；零售事件绝对金额小。",
+      "post_publication_moat": "账户权限与资产白名单分割；公开后若人人可预调抵押则机会消失。",
+      "personal_execution_advantage": "小账户可快速切换抵押；但无历史权限链则不可证。",
+      "decision_time_visible_fields": [
+        "ccy",
+        "discount_rate",
+        "transfer_permission",
+        "account_mode",
+        "KnownFrom",
+        "margin_ratio"
+      ],
+      "complete_denominator_event_identity_pit_clocks": {
+        "required_denominator": "全部 collateral discount/transfer permission 变更事件",
+        "event_identity": "venue|ccy|permission_version|effective_at",
+        "pit": "KnownFrom 链",
+        "clocks": "三时钟",
+        "local_now": "collateral_authorization_history=ABSENT（reopen inventory）",
+        "verdict": "REJECTED_DATA_BLIND"
+      },
+      "matched_loser_design": {
+        "winner_definition_frozen_before_outcomes": "同权限变更事件下提前换出被惩罚抵押者",
+        "matched_loser": "同事件下仍依赖旧折扣并被强制调整者",
+        "anti_posthoc": "无分母不准回放"
+      },
+      "official_sources_and_local": [
+        {
+          "source_id": "absent_collateral_authorization_history",
+          "urls": [
+            "https://www.okx.com/docs-v5/en/#trading-account-rest-api"
+          ],
+          "local": "ABSENT"
+        }
+      ],
+      "strongest_alternative_explanation": "只是山寨抵押资产自身价格下跌的公共风险因子。",
+      "strongest_counterexample": "折扣变更与价格冲击完全共线，无法分离运营约束付款。",
+      "shortest_outcome_blind_falsification": "确认 collateral/transfer 历史是否存在；已确认 ABSENT → REJECTED stop。",
+      "budget_and_stop_gate": {
+        "max_cpu": 1,
+        "max_wall_clock_hours": 1,
+        "max_attempts": 1,
+        "disk_budget_mb": 16,
+        "stop_gates": [
+          "ABSENT → REJECTED"
+        ]
+      },
+      "non_isomorphism_vs_g1_g10": {
+        "vs_G5_G10": "不是仓位动作价值学习或个人残差；因果核是抵押/划转权限运营约束。",
+        "vs_cross_venue_wild_route": "可在单场所发生，不要求跨所速度。",
+        "proof_summary": "缺的是权限日历，不是 mid lead/lag。"
+      }
+    },
+    {
+      "candidate_id": "GROK-MSV2-06",
+      "title": "discrete_min_notional_lot_roundup_refusal",
+      "family": "rule_cap_floor",
+      "status": "DATA_BLIND_PIT_UNPROVEN",
+      "wild_route_ok": false,
+      "mechanism": "反常识：当价格与 minSz/lot/min-notional 离散阶梯迫使“向上凑单”时，小账户的优势不是成交，而是拒绝凑单并 NO_TRADE，避免被迫扩大名义后的非线性风险与冲击；付款者是必须成交、因而接受凑单或更差滑点的主体。",
+      "payer_or_forced_action": {
+        "payer": "因策略/风控/强平/套利约束必须立即成交、从而接受 round-up 或跨档名义的账户",
+        "forced_action": "把订单放大到满足 min-notional/lot 的可成交尺寸，或取消后以更差价格重下",
+        "why_must_act_now": "规则硬约束使原计划名义不可提交/不可成交"
+      },
+      "state_and_action_branches": {
+        "trigger_state": "决策时刻 PIT 可见的 minSz/lot/tick/ctVal 与动态 min-notional，且目标名义落在不可执行缝隙",
+        "long": "若需 round-up 才可做多 → 默认 flat（拒绝）；仅当 forced payer 对面且容量允许时才考虑反向微小 maker，否则 NO_TRADE",
+        "short": "对称",
+        "flat": "主分支：拒绝凑单",
+        "ood_no_trade": "PIT 规则未知 → NO_TRADE"
+      },
+      "why_institutions_not_worth_or_cannot_scale": "机构最小收益贡献与风控单元常大于缝隙名义；批量拆单有固定成本；“拒绝交易”对其考核不友好。",
+      "post_publication_moat": "硬离散规则 + 小账户可空仓；若公开后只变成人人空仓，则无超额，只剩风险避免——仍可能有净值保护价值，但不是可规模化 alpha。",
+      "personal_execution_advantage": "几十–几千 U 可直接跳过不可执行缝隙，不必为凑单放大杠杆。",
+      "decision_time_visible_fields": [
+        "ctType",
+        "ctVal",
+        "minSz",
+        "lotSz",
+        "tickSz",
+        "dynamic_min_notional",
+        "decision_price",
+        "KnownFrom"
+      ],
+      "complete_denominator_event_identity_pit_clocks": {
+        "required_denominator": "全部“目标名义落入不可执行缝隙”的决策时刻事件，含提交失败/拒绝凑单/被迫凑单分支",
+        "event_identity": "decision_id|instId|rule_version|notional_bucket|gap_type",
+        "pit": "instrument rule version KnownFrom；当前快照不可回填",
+        "clocks": "决策 Receive/Process；订单 ack/reject 时钟",
+        "local_now": "instruments 快照有 ct_val/lot/tick；正式审计 ctType/dynamic min-notional PIT 失败；attempts 分母不完整；execution WAL 生产资产 ABSENT",
+        "verdict": "DATA_BLIND_PIT_UNPROVEN"
+      },
+      "matched_loser_design": {
+        "winner_definition_frozen_before_outcomes": "同缝隙事件同方向意图下选择拒绝凑单/不提交者",
+        "matched_loser": "同规则版本同名义桶下被迫 round-up 提交者，及同桶无缝隙对照",
+        "anti_posthoc": "先冻结 gap 事件与规则版本，再比较执行代价；禁止用成交收益定义 gap"
+      },
+      "official_sources_and_local": [
+        {
+          "source_id": "okx_instruments_current_snapshot",
+          "urls": [
+            "https://www.okx.com/docs-v5/en/#public-data-rest-api-get-instruments"
+          ],
+          "local": "PRESENT_SNAPSHOT_ONLY"
+        },
+        {
+          "source_id": "okx_official_rule_instrument_version_archive",
+          "urls": [
+            "https://www.okx.com/help/okx-to-enable-automatic-adjustment-of-several-trading-parameters"
+          ],
+          "local": "ABSENT"
+        },
+        {
+          "source_id": "okx_private_orders_history_archive_get",
+          "urls": [
+            "https://www.okx.com/docs-v5/en/#order-book-trading-trade-get-orders-history-last-3-months"
+          ],
+          "local": "PRESENT_PARTIAL survivor-biased; incomplete attempts"
+        }
+      ],
+      "strongest_alternative_explanation": "所谓优势只是避免交易后的波动运气；或与 micro_execution_capacity_cliff 同构的选样偏差。",
+      "strongest_counterexample": "若机构可自动拆单且不受最小收益门约束，拒绝凑单没有独特护城河；若 gap 事件 identity 无法在历史中重建，则不可测。",
+      "shortest_outcome_blind_falsification": "检查是否存在决策时刻 PIT 规则版本 + 完整 attempts（含未提交/reject）。任一缺失 → 保持 DATA_BLIND，不构造凑单曲线。",
+      "budget_and_stop_gate": {
+        "max_cpu": 1,
+        "max_wall_clock_hours": 4,
+        "max_attempts": 1,
+        "disk_budget_mb": 128,
+        "stop_gates": [
+          "PIT_UNPROVEN → stop",
+          "INCOMPLETE_ATTEMPTS_DENOMINATOR → stop",
+          "复活 G10/micro 阈值 → FORBIDDEN"
+        ]
+      },
+      "non_isomorphism_vs_g1_g10": {
+        "vs_G10_micro_execution_capacity_cliff": "micro 路线强调同信号下小单 fill/冲击曲线；本候选主动作是拒绝 round-up 的空仓分支，付款者是“必须成交而凑单”的主体。",
+        "vs_G10_exchange_rule_discontinuity": "规则断点野路更广（面值/结算/迁移）；本候选收窄为 min-notional/lot 缝隙上的 abstention。",
+        "vs_G5": "不是连续 trim/increase 动作学习。",
+        "proof_summary": "成功定义首先是“正确空仓避开凑单”，不是提高 fill rate 或预测收益。"
+      }
+    },
+    {
+      "candidate_id": "GROK-MSV2-07",
+      "title": "cross_venue_ops_window_permission_asymmetry_nonspeed",
+      "family": "non_speed_cross_venue_operational_asymmetry",
+      "status": "DATA_BLIND",
+      "wild_route_ok": false,
+      "mechanism": "非速度：一侧交易所处于维护、充提解锁延迟、账户模式/权限未就绪或抵押未到账，而另一侧可交易时，被迫在可达场所完成风险调整的账户成为付款者。明确排除延时套利/lead-lag mid 追单。",
+      "payer_or_forced_action": {
+        "payer": "因运营/权限/资金未到位而无法在最优场所对冲、必须在可达场所成交的账户",
+        "forced_action": "单边减仓、高成本对冲或接受敞口",
+        "why_must_act_now": "风险/结算/维持保证金约束在运营窗口内仍生效"
+      },
+      "state_and_action_branches": {
+        "trigger_state": "决策时刻可证的跨所运营不对称（维护日历、解锁时间、权限状态），且非毫秒级行情领先",
+        "long": "仅当 forced 方向明确且本账户在可达场所具备权限与容量时才考虑微小承接；否则 NO_TRADE",
+        "short": "对称",
+        "flat": "默认",
+        "ood_no_trade": "只有 mid 差或 xgap → NO_TRADE；任何纯速度特征 → REJECT"
+      },
+      "why_institutions_not_worth_or_cannot_scale": "机构通常预留多账户权限与预存抵押，运营窗不对称对其更弱；零售事件金钱绝对量小。",
+      "post_publication_moat": "权限/资金分割与维护日历；公开后若人人预存双边抵押则削弱。",
+      "personal_execution_advantage": "小名义可在单侧完成调整；但无运营日历分母不可证。",
+      "decision_time_visible_fields": [
+        "venue_ops_status",
+        "deposit_unlock_ts",
+        "transfer_permission",
+        "account_mode_ready",
+        "KnownFrom",
+        "executable_bid_ask_both_venues"
+      ],
+      "complete_denominator_event_identity_pit_clocks": {
+        "required_denominator": "全部跨所运营不对称窗口事件（维护/解锁/权限），含无交易对照",
+        "event_identity": "venue_a|venue_b|ops_event_id|window_start|window_end",
+        "pit": "运营状态 KnownFrom",
+        "clocks": "官方维护/解锁时钟 + 本地 ReceiveTime；需要双边可成交盘口而非 mid",
+        "local_now": "hot_mids 多所锚点 WEAK_PROXY；crossvenue settlements 为 selected 子集；无维护/解锁/权限完整日历；Binance tick L2 停止",
+        "verdict": "DATA_BLIND"
+      },
+      "matched_loser_design": {
+        "winner_definition_frozen_before_outcomes": "同运营窗事件下，事前识别不可达场所并限制动作者",
+        "matched_loser": "同窗下仍按“跨所价差”速度逻辑下单者，及无运营不对称的对照窗",
+        "anti_posthoc": "先冻结 ops 窗口分母，剔除一切 lead-lag 特征"
+      },
+      "official_sources_and_local": [
+        {
+          "source_id": "okx_official_l2_history_free",
+          "urls": [
+            "https://www.okx.com/historical-data"
+          ],
+          "local": "NOT_BULK_DOWNLOADED; pilot blocked as allswap package / L2 module empty in registry probe"
+        },
+        {
+          "source_id": "bybit_official_l2_history_free",
+          "urls": [
+            "https://www.bybit.com/en/derivative-activity/history-data/"
+          ],
+          "local": "NOT_STARTED_P2"
+        },
+        {
+          "source_id": "hot_mids_with_timestamped_anchors",
+          "urls": [],
+          "local": "WEAK_PROXY_ONLY mids ≠ executable ops calendar"
+        }
+      ],
+      "strongest_alternative_explanation": "就是跨所延迟套利换皮；所谓维护窗只是为 mid 差找叙事。",
+      "strongest_counterexample": "无官方运营日历时任何回放都会选中高波动窗口，制造伪 edge。",
+      "shortest_outcome_blind_falsification": "盘点是否存在可绑定的多所维护/充提/权限历史分母与同步可成交双边盘口；若无，DATA_BLIND stop，不拉全市场 L2。",
+      "budget_and_stop_gate": {
+        "max_cpu": 1,
+        "max_wall_clock_hours": 3,
+        "max_attempts": 1,
+        "disk_budget_mb": 512,
+        "stop_gates": [
+          "no ops calendar → DATA_BLIND",
+          "only mids → WEAK_PROXY reject start",
+          "L2 would crowd P0 private → stop",
+          "speed features in trigger → REJECT"
+        ]
+      },
+      "non_isomorphism_vs_g1_g10": {
+        "vs_G10_cross_venue_operational_asymmetry": "同家族但更硬地要求运营日历分母，并显式拒绝 xgap/mid lead-lag 代理；当前同等 DATA_BLIND。",
+        "vs_G2_G4_G5": "不是单所 funding/收益地图/策略梯度。",
+        "proof_summary": "触发器是 ops/permission 窗口，不是价格领先毫秒。"
+      }
+    }
+  ],
+  "portfolio_summary": {
+    "n_candidates": 7,
+    "n_rejected_or_data_blind": 7,
+    "n_measurable_with_existing_complete_denominator": 0,
+    "n_routes_started": 0,
+    "recommendation_to_orchestrator": "不要为这些候选启动收益研究或 bulk CDN 拉取；若 shortlist 需要 funding/borrowing 官方免费历史，须另批最小存在性 pilot，且先解决 schedule/PIT/强制主体分母，而不是下载即开跑。",
+    "retained_hypothesis_families_even_if_blind": [
+      "funding_interval_densification_calendar_tax",
+      "discrete_min_notional_lot_roundup_refusal",
+      "cross_venue_ops_window_permission_asymmetry_nonspeed"
+    ]
+  },
+  "decision_journal": {
+    "problem_restatement": "作为 Grok owner，独立给出 ≥5 个交易所边角/运营约束/反常识小账户机制，并诚实评估现有免费官方历史是否支撑完整分母。",
+    "h0_first": "先提出 H0=选择偏差/成本/数据幻觉，再列日历被迫付费、离散运营约束、mark/index 夹具、以及公共因子误贴标签等竞争解释。",
+    "method": "只读 registry/inventory/本地 schema 与存在性；抽样 fundingTime 间距仅用于证明“tape 存在但不足以当 schedule 分母”；不读 funding_moment_events 的 fwd 收益字段值；不读考卷；不购买；不交易。",
+    "rejections": [
+      "普通 funding 符号/carry 方向 → 公共因子/G2 同构，拒绝",
+      "强平稀事件残差直接复活 → G10 sparse_forced_flow 同构且官方分母 ABSENT",
+      "跨所 mid 差 → 速度套利换皮，拒绝",
+      "把未下载 CDN borrowing/funding zip 写成已可测 → 拒绝",
+      "用 instruments 当前快照回填规则/上下架 PIT → 拒绝"
+    ],
+    "most_likely_ignored_counterexample": "用 fundingTime 差分把采集空洞当成官方区间变更，或把拒绝凑单的空仓保护事后解释成 alpha。",
+    "budget_spent": "文档与本地存在性盘点 + 候选写作；无 bulk download；无 purchase；无 outcome unblind；routes_started=0。",
+    "stop_decision": "写完 candidates_grok.json/.md 并自 hash、验证 diff 后停止；不提交；不等待未来数据。",
+    "reviewer_separation": "本 owner 不自批 shortlist；交 Sonnet 红队与 orchestrator 合并去重。"
+  },
+  "safety": {
+    "global_halt": true,
+    "system_status": "NO_GO",
+    "exam_status": "EXAM_UNAVAILABLE",
+    "exam_actions": 0,
+    "trade_allowed": false,
+    "labels_unblinded": false,
+    "routes_started": 0,
+    "no_purchase": true,
+    "no_bulk_download": true,
+    "no_online_trading": true,
+    "no_commit": true,
+    "not_modified": [
+      "records/",
+      "frozen G1-G10 protocol/hash/generation artifacts",
+      "route_data_contracts.json|.md",
+      "route_data_source_registry.json|.md",
+      "exam papers",
+      "real-money switches",
+      "other owners candidates_* files"
+    ]
+  },
+  "hashes": {
+    "candidates_hash": "615c1e5aa5267e30698ee8839b41d88b09e54bc5b70ebc7a5c5e0efb0a5dcddc",
+    "hash_method": "Read this JSON as a generic object, set hashes.candidates_hash to null, then compute repository datatruth.HashJSON (deterministic encoding/json plus SHA-256 lowercase hex).",
+    "self_excluded_field": "hashes.candidates_hash",
+    "document_hash_method": "Markdown: normalize the single line '> Document hash: `<value>`' to '> Document hash: `SELF_EXCLUDED`', then SHA-256 over UTF-8 LF bytes."
+  }
+}

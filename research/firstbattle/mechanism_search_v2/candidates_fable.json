@@ -1,0 +1,505 @@
+{
+  "schema_version": "lingxi.mechanism-search-v2.candidates.v1",
+  "artifact_id": "firstbattle.mechanism-search-v2.candidates-fable",
+  "owner": "claude-fable-5-thinking-high",
+  "owner_role": "倒序事件归纳 / 行为与流程摩擦 / 非标准小容量机制",
+  "generation": "mechanism-search-v2-fable-v1",
+  "created_at": "2026-07-14T03:40:00Z",
+  "status": "OUTCOME_BLIND_CANDIDATES_ONLY",
+  "labels_unblinded": false,
+  "routes_started": 0,
+  "launch_authorized": false,
+  "trade_allowed": false,
+  "exam_actions": 0,
+  "system_status": "NO_GO",
+  "scope": {
+    "writes_only": [
+      "research/firstbattle/mechanism_search_v2/candidates_fable.json",
+      "research/firstbattle/mechanism_search_v2/candidates_fable.md"
+    ],
+    "no_commit": true,
+    "no_purchase": true,
+    "no_bulk_download": true,
+    "no_outcome_read": true,
+    "no_exam_touch": true,
+    "does_not_modify": [
+      "G1-G10 frozen artifacts",
+      "records/",
+      "route_data_contracts",
+      "route_data_source_registry",
+      "candidates_grok.*",
+      "考卷 / 真钱开关 / plan"
+    ]
+  },
+  "bindings_reference_only": {
+    "route_data_contracts_protocol_hash": "4a4c201d2c8cedde5bd1ff55ea40ad31d099e189feb709a517701b504c453588",
+    "route_data_source_registry_json_hash": "1c6672563d4bc00ea102df2f9575b365a2a9dc30e763db75067f9a49052e5318",
+    "p0_swap_data_fitness_json_hash": "393a12952b480fc2671774d76790e5f850bcbc26b43c8eb8d870bba9c9e2bd66",
+    "g10_wild_route_portfolio_json_hash": "166ea394419544f55e54919216b6e67b31e2d1dfaf11ef27df06bb3686072977",
+    "history_catalog_data_hash": "f41ed2586d91054c4b5b2e15e60f32a4d64ccde0032e76dfdc5fc6dee316379c",
+    "instruments_snapshot_manifest_hash": "073f3087042402e004e99cf211a069b36c6312b9bd429f61646bf444d8510715"
+  },
+  "method_note": "本 owner 专长是倒序事件归纳，但本阶段 labels_unblinded=false：所有倒序赢家归纳全部推迟到计划 §5 Phase B（事件分母与 protocol hash 冻结之后）。本文件只做 Phase A 之前的机制假设与事件 identity 设计，出发点是『哪些强制/流程事件会产生付款者』，不是价格因子。",
+  "hard_rejects_applied": [
+    "纯RSI/K线形态/动量反转换皮",
+    "纯速度/毫秒套利",
+    "依赖未来采集（等待未来数据）",
+    "只有赢家、无法构造全体事件分母",
+    "G1-G10 或 Grok 候选换名",
+    "无可观测付款者",
+    "无匹配输家设计"
+  ],
+  "competing_frameworks": {
+    "H0": "零假设（默认最优）：一切表观流程 edge 都是选择偏差、不完整分母、成本低估、或早已公开定价的知识；本 owner 全部候选默认输给 H0，直到独立支持门满足。",
+    "F1_mandatory_clock": "强制时钟框架：外生确定性时钟（标的开收盘、上市时刻、转换截止、解锁日、结算表）迫使可识别主体在窗口内行动，行动时机与价格无关。付款者=被时钟钉死的一方。",
+    "F2_unhedgeable_window": "不可对冲窗口框架：天然对冲工具暂时不存在（标的休市、无借币、TGE前）时，风险持有者必须为退出或持有支付溢价。付款者=被困在无对冲窗口内的风险持有者。",
+    "F3_clamp_queue": "钳制排队框架：交易所风控钳制（funding上限、OI上限、价格限制）压低杠杆价格，使强制流排队积压，在钳制解除时集中释放。付款者=钳制期内被补贴而过度拥挤的一侧。",
+    "F4_statutory_distribution": "法定分发框架：代币分发事件（上市、空投、解锁）制造合同性卖方/对冲方，其时机由合约与日历决定而非自由裁量。付款者=法定接收者及其对手。",
+    "strongest_global_counterexample": "机构可以用统一基础设施把小容量事件批量化聚合；日历与流程事件全部是公开信息，公开时钟越确定越容易被提前定价；『新颖』『没人写过』不构成护城河。"
+  },
+  "existence_scans_performed": [
+    {
+      "scan": "okx_funding 401 symbols 全量 settlement 盘点",
+      "fields_read": "fundingTime/fundingRate/realizedRate/formulaType/method（全部决策时可见字段）",
+      "outcome_fields_read": "NONE",
+      "facts": "147497 settlements；formula/method transitions=0；realized!=quoted=0；interval transitions=106；|rate|>=0.5% settlements=587；identical-extreme runs>=3 = 14 across 4 symbols(ENJ/H/LAB/RAVE)"
+    },
+    {
+      "scan": "instruments snapshot (manifest 073f3087…) SWAP 盘点",
+      "fields_read": "instId/instType/groupId/listTime/auctionEndTime/lever/maxPlatOILmt",
+      "outcome_fields_read": "NONE",
+      "facts": "420 rows；groupId=7 equity-like perps=125（121 有本地 1h+funding tape）；OFF pre-market instruments in snapshot=0；listTime 落于 funding tape 窗口内且有 tape 的新上市=118（43 个独立上市日，4 个月）；maxPlatOILmt 非空=207"
+    },
+    {
+      "scan": "okx_1h equity-perp 覆盖与休市时段存在性",
+      "fields_read": "bar timestamp（仅日历维度），无前向收益",
+      "outcome_fields_read": "NONE",
+      "facts": "AAPL/SPY 128 天、TSLA 135 天、GME 63 天；周末 bar 天数 36/36/38/18 → perp 在标的休市期间持续交易"
+    },
+    {
+      "scan": "bybit_funding vs okx_funding 时钟对照",
+      "fields_read": "fundingRateTimestamp/fundingTime",
+      "outcome_fields_read": "NONE",
+      "facts": "Bybit 模态间隔 4h；OKX 模态 8h=206 / 4h=195；base symbol 交集=336"
+    },
+    {
+      "scan": "okx_5m 覆盖",
+      "fields_read": "文件存在性",
+      "outcome_fields_read": "NONE",
+      "facts": "groupId=7 有 5m tape=52；5m 窗口内新上市且有 5m tape=36"
+    }
+  ],
+  "candidates": [
+    {
+      "candidate_id": "FAB-MSV2-01",
+      "name": "equity_perp_underlying_session_gap_forced_repricing",
+      "framework": [
+        "F1_mandatory_clock",
+        "F2_unhedgeable_window"
+      ],
+      "one_line": "OKX 股票/ETF 代币化永续 7x24 交易，而标的每天只交易 ~6.5h：标的休市期间 perp 无活参照、做市商无对冲；标的重开盘时刻，持有隔夜错方向杠杆仓位者被 mark/保证金强制向新参照收敛付款。",
+      "market_state": "逐 symbol 三状态确定性时钟：UNDERLYING_OPEN / UNDERLYING_CLOSED_OVERNIGHT / UNDERLYING_CLOSED_LONG（周末+假日）。状态由公开交易所日历（NYSE/NASDAQ/TSE/KRX/AMS 等）提前数年可知，PIT 最强。私营公司 perp（OPENAI/ANTHROPIC/ZHIPU/MINIMAX 等无任何标的交易时段）从分母排除并单独登记。",
+      "action_branches": {
+        "closed_window_default": "标的休市中段 = 无参照 = OOD → NO_TRADE（默认空仓是本候选的一半价值）",
+        "pre_close_branch": "收盘边界前：以可观测 perp-vs-标的收盘参照 basis 分桶，方向留待 Phase B 对称归纳（fade/follow 不预设赢家）",
+        "reopen_branch": "重开边界：以可观测隔夜累计 perp 移动 vs 重开参照 gap 符号分支 long/short；basis 在成本带内 → flat",
+        "no_presupposed_winner": true
+      },
+      "payer": "持有与重开印刷价相反方向的杠杆 perp 持仓者：重开后数分钟内被 mark 收敛、保证金追缴或在薄簿中付 spread 退出；次级付款者=休市期间被迫持库存、重开时必须重新居中的做市商。",
+      "institutional_exclusion": "受监管股票机构因合规/托管/对手方风险不碰离岸代币化股票 perp；加密原生机构同样处于不可对冲窗口（这正是机制本身）且受 10-25x 杠杆上限与平台 OI 上限约束；想表达同样观点的机构直接用真股票/CME，不来 OKX 抢这口 venue-local 收敛流。公开后护城河=监管边界+单事件硬容量，不是『不知道』。",
+      "personal_capacity": "几十到几千 USDT 恰好低于簿深度断层；股票 perp 簿薄、OI 有上限，个人单事件容量天然匹配。",
+      "complete_denominator": {
+        "definition": "全部 (symbol × session boundary) 事件：121 个有 tape 的 groupId=7 perp × 每个交易日的 close/open 边界 + 周末/假日长休边界，由日历确定性生成，零选择自由度。",
+        "existing_history": "okx_1h（listing 起至 2026-07-09，AAPL/SPY 128天、TSLA 135天）+ okx_funding 121/121 覆盖 + okx_5m 覆盖 52 symbols（2026-05-10 起）",
+        "support_estimate": "美股标的 ~85-90 个交易日边界 × ~110 symbols（分批上市）；独立日 ~90；周末长休块 ~18；≥50事件/≥20独立日/≥10 shock块 可满足（以日为聚类单位后仍满足）",
+        "caveat": "同一交易日全部 symbol 共享同一边界 → 事件高度日内聚类，有效独立样本≈交易日数(~90)，不是事件数(~万)。"
+      },
+      "event_identity_pit_clocks": {
+        "event_id": "instId + session_calendar_id + boundary_type(close|open|long_close|long_open) + boundary_utc_ms",
+        "pit": "边界时刻来自公开交易所日历，提前已知（无 KnownFrom 问题）；listTime 以 tape 首bar交叉验证；features 仅用 event_time<=boundary 的已完整收盘 bar",
+        "clocks": "bar 的交易所时间为 event_time；tape fetched_at 为 receive 代理；无本地毫秒级 receive → 分钟级以下微结构不主张",
+        "known_gaps": "OKX 休市时段 index/mark 计算方法未在本地存档（未验证 mark 是否冻结于标的收盘）→ 这是本候选最短证伪的第一刀；1h bar 对分钟级收敛太粗，5m 只覆盖 52/121"
+      },
+      "matched_loser": "同一边界日的全体同类事件天然成组：匹配输家 = 同 symbol、同边界类型、同 |basis| 桶、相反 basis 符号的事件 + basis≈0 的对照事件；完整触发集 = 每一个边界（无论 basis 大小），禁止只取大 gap。",
+      "strongest_counterexample": "若 OKX 休市期把 index/mark 冻结在标的收盘价并钳制 funding，则 gap 在重开瞬间一跳到位——付款者存在但小账户 taker 吃不到，全部转移发生在做市商的一个 tick 内；且隔夜 gap 是股票市场最古老、文献最厚的异象，CME 上能规模化的部分早已被定价。",
+      "shortest_falsification": [
+        "第一刀（零获取）：现有 1h tape 检查 perp 价格在 CLOSED 窗口内是否真实移动（若 perp 也冻结 → 机制死）——已初步确认周末 bar 存在，但需检查 bar 内价格变化非零",
+        "第二刀（零获取）：feature 侧检查边界窗口 bar 特征与匹配的非边界窗口是否可区分；不可区分 → UNIDENTIFIABLE 关闭",
+        "第三刀（一次有界获取，需另批）：OKX 股票 perp index/mark 方法学公开页存在性核验；ABSENT → 识别设计降级"
+      ],
+      "budget_stop": {
+        "cpu": 1,
+        "wall_hours": 6,
+        "attempts": 1,
+        "data": "仅现有冻结 tape",
+        "stop_gates": [
+          "5m 覆盖 <30 symbols 且 1h 粒度下边界特征不可区分 → 停",
+          "perp 价格休市窗口不移动 → 立即关闭",
+          "index 方法学显示 mark 冻结且 funding 钳制 → 改判 UNEXECUTABLE 并停"
+        ]
+      },
+      "non_isomorphism_proof": "G1-G10 中不存在：标的交易时段状态机、代币化股票宇宙、对冲工具可用性概念。非 G1/G2 funding 符号（时钟来自外部股票市场而非 funding 结算）；非 G6 OHLCV extreme 家族（事件由日历定义，与价格极值无关，触发集包含 basis≈0 事件）；非 G10-2 规则离散（那是交易所自身微结构参数，这是外部市场的时钟）；非 G10-3 稀疏强制流（付款者由日历定义，不依赖强平流）；非 Grok-07 运营窗口（那是 venue 维护/权限，此处 venue 全程开放，是参照资产在关闭）。",
+      "outcome_blind_score": {
+        "payer_structure_30": 2.5,
+        "observability_identity_25": 2.0,
+        "moat_20": 2.0,
+        "personal_executability_15": 2.5,
+        "falsification_cost_10": 2.5,
+        "weighted": 2.275
+      },
+      "classification_now": "TESTABLE_ON_EXISTING_HISTORY_PENDING_INDEX_METHOD_CHECK"
+    },
+    {
+      "candidate_id": "FAB-MSV2-02",
+      "name": "listing_week_statutory_seller_decay",
+      "framework": [
+        "F4_statutory_distribution",
+        "F2_unhedgeable_window"
+      ],
+      "one_line": "新永续上市制造法定卖方/对冲方：空投接收者与积分农民在上市后固定窗口内必须变现或对冲（时机由领取日历决定，不由价格决定），做市商按上市协议被迫报价；付款者在上市周内可通过 funding 印刷与吸收结构观测。",
+      "market_state": "symbol 年龄状态机：LISTING_DAY(0-24h) / DISCOVERY_WEEK(1-7d) / MATURE(>30d，禁区)。年龄由 tape 首个 settlement/首 bar 定义，确定性。",
+      "action_branches": {
+        "listing_window": "仅在前两状态内行动：以首 2-6 个 funding 印刷的符号与幅度 + bar 区间收缩度分支 long/short；funding 在正常带内 → flat",
+        "mature": "NO_TRADE（硬禁区）",
+        "no_presupposed_winner": true
+      },
+      "payer": "两个对称假设：H_hedge_overhang=空投对冲者付 funding 维持空头、解除时向多头付款；H_fomo_decay=上市泵中追入的晚到多头向分发卖方付款。谁是净付款者由 Phase B 对称裁决。",
+      "institutional_exclusion": "全新代币无借币市场、合规/托管审批周期长于上市周本身；上市周簿深不容机构规模；做市机构在场但身份是付款/报价侧而非与我竞争的 taker 侧。护城河=每事件硬容量+机构审批固定成本。",
+      "personal_capacity": "上市周小容量恰好个人可执行；分批小单不冲击。",
+      "complete_denominator": {
+        "definition": "funding tape 窗口内（2026-04-07..2026-07-09）全部 118 个新上市 SWAP，identity 以 tape 首 settlement 为主、snapshot listTime 交叉验证；零挑选。",
+        "existing_history": "okx_funding + okx_1h 全覆盖；okx_5m 覆盖其中 36 个",
+        "support_estimate": "118 事件 / 43 个独立上市日 / 4 个月 → ≥50/≥20 满足，shock 块按上市批次日聚类 ~40",
+        "caveat": "只有一个上市政策 regime（2026 Q2-Q3 OKX 上市节奏），无跨 regime 支持。"
+      },
+      "event_identity_pit_clocks": {
+        "event_id": "instId + first_settlement_ms（tape 内生，不依赖 snapshot 回填）",
+        "pit": "listTime 是不可回改的出生时间戳，且以 tape 首观测为主 identity 消除 snapshot KnownFrom 问题；features 仅用上市后已发生的 settlement/bar",
+        "clocks": "funding settlement 的交易所时间戳；无毫秒 receive → 上市首分钟微结构不主张",
+        "known_gaps": "空投/领取日历本身未存档（无法直接观测对冲者身份）→ 只能通过 funding/吸收间接识别 forced hedger，存在识别弱点"
+      },
+      "matched_loser": "同上市日跨 symbol 队列；同 funding 符号桶、不同年龄的事件；同 symbol MATURE 期对照窗口。完整触发集=全部 118 上市，包括 funding 正常带内的『无信号』上市。",
+      "strongest_counterexample": "『上市泵/砸』是加密圈最公开的民间传说；上市周成交量可被洗盘伪造、簿可被操纵，整个信号可能是交易所编排的营销微结构，多年前已被定价；118 事件×4 个月×单一 regime 统计力弱。",
+      "shortest_falsification": [
+        "第一刀（零获取，feature 侧）：上市周 funding 印刷分布 vs MATURE 对照分布是否可区分；不可区分 → 无可观测 forced hedger → 关闭",
+        "第二刀（零获取）：任一上市的 tape 首 bar 与 listTime 矛盾 → identity 破损 → 关闭"
+      ],
+      "budget_stop": {
+        "cpu": 1,
+        "wall_hours": 4,
+        "attempts": 1,
+        "data": "仅现有冻结 tape",
+        "stop_gates": [
+          "funding 分布不可区分 → 停",
+          "identity 矛盾 >2 例 → 停"
+        ]
+      },
+      "non_isomorphism_proof": "G1-G10 无 symbol 年龄或上市事件状态；G1/G2 funding 候选把 funding 当全市场水平因子（阈值±0.001，已 CLOSED），本候选 funding 仅作为上市时钟条件下的 forced-hedger 观测器，触发集由上市日历定义而非 funding 水平；非 Grok-03（退市/迁移=产品死亡，此处是出生+分发悬顶）；非 Grok-01（结算日历加密税）。",
+      "outcome_blind_score": {
+        "payer_structure_30": 2.0,
+        "observability_identity_25": 2.0,
+        "moat_20": 1.5,
+        "personal_executability_15": 2.0,
+        "falsification_cost_10": 2.5,
+        "weighted": 1.95
+      },
+      "classification_now": "TESTABLE_ON_EXISTING_HISTORY_WITH_IDENTIFICATION_WEAKNESS"
+    },
+    {
+      "candidate_id": "FAB-MSV2-03",
+      "name": "pre_market_futures_tge_conversion_deadline",
+      "framework": [
+        "F1_mandatory_clock",
+        "F2_unhedgeable_window"
+      ],
+      "one_line": "OKX pre-market 期货（instId 带 -OFF 后缀）在 TGE/转换截止时刻全员强制转换或结算：产品整个生命就是一个倒计时，截止前无法/不愿转换者被迫平仓，basis 必须按构造收敛。",
+      "market_state": "time-to-conversion 桶（>7d / 1-7d / <24h）+ 转换条款已公布与否。",
+      "action_branches": {
+        "far": "NO_TRADE",
+        "near_with_terms": "以可观测 pre-market vs 现货/同族 perp basis 符号分支，方向 Phase B 对称归纳",
+        "terms_unknown": "NO_TRADE"
+      },
+      "payer": "截止时钟前仍持有、且无转换资格或不愿承接转换后资产的仓位持有者；他们必须在收敛窗口内成交。",
+      "institutional_exclusion": "TGE 前无对冲工具（F2 极端形态）；仓位/杠杆上限极小；合规上机构基本不碰 pre-TGE 衍生品。",
+      "personal_capacity": "产品天然微容量，个人恰好可执行。",
+      "complete_denominator": {
+        "definition": "全体 pre-market futures 生命周期（每一个曾上市的 -OFF 合约=一个事件）",
+        "existing_history": "NONE：本地 7 个 tape family 均无 OFF 合约；当前 snapshot OFF=0（转换后即从宇宙消失=幸存者删除）；唯一存在证据是 P0 Data Fitness 的 cross-endpoint instId drift（DATA-USDT-SWAP-OFF20260702-2 出现在本账户私人 orders）",
+        "support_estimate": "不可估——连全体事件名单都无法从现有持有数据枚举",
+        "caveat": "这是『snapshot 宇宙不能枚举已死产品』的教科书案例，任何用当前宇宙构造的分母都是幸存者偏差。"
+      },
+      "event_identity_pit_clocks": {
+        "event_id": "instId(-OFF…) + conversion_deadline_ms（需官方条款存档，当前 ABSENT）",
+        "pit": "UNPROVEN——转换条款公告未存档",
+        "clocks": "无 tape",
+        "known_gaps": "identity/denominator/条款/价格 tape 全缺"
+      },
+      "matched_loser": "设计（被 identity 缺失阻断）：同 time-to-deadline 桶、相反 basis 符号的合约事件互为对照。",
+      "strongest_counterexample": "pre-market 定价可能本质是彩票市场：TGE 重定价风险远大于任何流程收敛 edge，『必然收敛』收敛到的是一个未知的新价格，不是可套利的锚。",
+      "shortest_falsification": [
+        "一次有界存在性核验（需另批）：OKX 是否有官方 pre-market 合约生命周期档案（全部 -OFF 合约名单+转换条款+价格历史）；ABSENT → 维持 DATA_BLIND 并停"
+      ],
+      "budget_stop": {
+        "cpu": 0.5,
+        "wall_hours": 2,
+        "attempts": 1,
+        "data": "仅存在性核验，不下载",
+        "stop_gates": [
+          "档案 ABSENT → 永久 DATA_BLIND，除非未来出现新合法历史来源"
+        ]
+      },
+      "non_isomorphism_proof": "转换截止是 pre-TGE 产品的构造性终点，非 G10-2 规则离散（活产品参数变化）、非 Grok-03 退市（成熟产品死亡）、非强平（无保证金触发）；G1-G10 从未包含产品生命周期时钟。",
+      "outcome_blind_score": {
+        "payer_structure_30": 2.5,
+        "observability_identity_25": 0.5,
+        "moat_20": 2.0,
+        "personal_executability_15": 1.5,
+        "falsification_cost_10": 2.5,
+        "weighted": 1.75
+      },
+      "classification_now": "DATA_BLIND"
+    },
+    {
+      "candidate_id": "FAB-MSV2-04",
+      "name": "funding_clamp_pin_saturation_release",
+      "framework": [
+        "F3_clamp_queue"
+      ],
+      "one_line": "funding 被上限钳制并连续多期钉死（pin）时，杠杆价格被行政性压低：拥挤侧少付钱、仓位无法经由 funding 出清而排队积压；pin 解除事件=排队释放，付款者=钳制期内被补贴而过度滞留的拥挤侧。",
+      "market_state": "PINNED_POSITIVE / PINNED_NEGATIVE / RELEASED(解除后 N settlements) / NORMAL。pin 定义=连续 k>=3 个完全相同的极端 funding 印刷（|rate|>=0.5%）——钳制在 tape 里自我暴露，不需要 cap 参数的历史版本档案。",
+      "action_branches": {
+        "pinned": "默认 NO_TRADE（识别期）",
+        "release_event": "以被钉死一侧的符号分支方向，Phase B 对称归纳 fade/follow",
+        "normal": "NO_TRADE"
+      },
+      "payer": "pin 期间按补贴价滞留的拥挤侧：解除后必须以价格或全额 funding 出清。",
+      "institutional_exclusion": "本 owner 最弱护城河候选：基差/carry 桌完全有能力做这件事；唯一排斥是被 pin 的小市值单事件容量低于机构规模下限。如实降权。",
+      "personal_capacity": "被 pin 的小市值 perp 簿薄，个人规模匹配。",
+      "complete_denominator": {
+        "definition": "401 symbols × 全部 147497 settlements 中每一个 pin-entry / pin-release 事件，规则确定性，零挑选",
+        "existing_history": "okx_funding tape（2026-04-07..07-09）内：|rate|>=0.5% settlements=587，identical-extreme runs>=3 仅 14 段 / 4 symbols",
+        "support_estimate": "当前 tape 远低于 50事件/20独立日/10块 → 支持门自动失败",
+        "caveat": "唯一合法扩展=官方免费 OKX CDN funding 历史（2022-03+，registry §3 已登记）的一次有界获取，需用户另批；不等待未来数据。"
+      },
+      "event_identity_pit_clocks": {
+        "event_id": "instId + pin_run_start_settlement_ms + run_length（release 事件同理）",
+        "pit": "pin 由 tape 自身印刷定义，不依赖 cap 参数档案 → 绕开 G10-2 的 PIT_UNPROVEN 阻断（这是本候选的设计核心）",
+        "clocks": "settlement 交易所时间戳",
+        "known_gaps": "连续相同印刷可能是采集/API 语义假象而非钳制（第一刀证伪对象）；realizedRate 与 fundingRate 语义须核验"
+      },
+      "matched_loser": "同 symbol 的极端但未钉死 settlements；同波动桶其它 symbol 的极端 settlements。完整触发集=全部 pin 事件（不论后续）。",
+      "strongest_counterexample": "identical 连续印刷=stale collection 假象；且被 pin 的高 funding 小币恰是 carry 农民的田地——release 可能只是他们的退出脚印，早被定价；4 symbols/14 段是轶事不是证据。",
+      "shortest_falsification": [
+        "第一刀（零获取）：核验 API 语义——fundingRate 是否为钳制后值、identical run 是否可能由采集去重伪造；假象 → 立即关闭",
+        "第二刀：现有 tape 支持门自动失败 → 冻结为 INSUFFICIENT_SUPPORT，等待（不请求）CDN 获取另批"
+      ],
+      "budget_stop": {
+        "cpu": 1,
+        "wall_hours": 4,
+        "attempts": 1,
+        "data": "仅现有 tape；CDN 获取单独审批",
+        "stop_gates": [
+          "API 语义假象 → 停",
+          "支持门失败且无已批扩展 → 冻结"
+        ]
+      },
+      "non_isomorphism_proof": "G1 funding 候选=单期水平阈值±0.001（已 CLOSED），本候选=run-length 钳制饱和状态机+release 事件 identity，触发集与 G1 正交（G1 触发于水平，本候选触发于连续相同极端印刷的解除）；非 Grok-01（结算间隔加密是交易所对同一压力的另一响应，其 identity 是 schedule 变更且被判 DATA_BLIND；本候选 identity 是钳制状态本身，tape 内可测）。预注册杀开关：若 Phase B 区分特征collapse为单期 funding 符号/水平 → 自动判 ISOMORPH_G1 关闭。",
+      "outcome_blind_score": {
+        "payer_structure_30": 2.0,
+        "observability_identity_25": 1.5,
+        "moat_20": 1.0,
+        "personal_executability_15": 2.0,
+        "falsification_cost_10": 2.5,
+        "weighted": 1.725
+      },
+      "classification_now": "INSUFFICIENT_SUPPORT_IN_CURRENT_TAPE"
+    },
+    {
+      "candidate_id": "FAB-MSV2-05",
+      "name": "vesting_cliff_statutory_supply_unwind",
+      "framework": [
+        "F4_statutory_distribution",
+        "F1_mandatory_clock"
+      ],
+      "one_line": "代币 vesting cliff 把合同性供给按公开日历（提前数月已知=最强 PIT 时钟）交到团队/VC手中；标准行为=cliff 前用永续对冲锁值（付 funding 维持拥挤空头）、解锁后解除。付款者=对冲的接收者或吸收法定供给的买方。",
+      "market_state": "days-to-cliff 桶 × cliff 规模/流通盘比例桶；无 cliff 窗口=NO_TRADE。",
+      "action_branches": {
+        "pre_cliff": "以可观测 funding/basis 拥挤度分支，Phase B 对称归纳",
+        "post_cliff": "解除窗口分支",
+        "no_cliff": "NO_TRADE"
+      },
+      "payer": "cliff 接收者（对冲成本）或现货吸收方；对称假设不预设。",
+      "institutional_exclusion": "最弱环节之一：解锁交易已高度机构化（研究桌公开发布解锁日历）；个人 edge 只可能存在于机构规模下限以下的小市值。如实降权。",
+      "personal_capacity": "小市值 cliff 恰好机构吃不下、个人可执行。",
+      "complete_denominator": {
+        "definition": "401 个已上市 symbol 的全体 cliff 事件（由解锁日历定义）",
+        "existing_history": "perp tape 有；解锁日历 NONE——本地无任何 vesting/unlock 数据族",
+        "support_estimate": "无日历无法估",
+        "caveat": "致命 PIT 问题：多数免费聚合器只给『今天的』日历，历史修订常见——用今日日历回填历史=事后知识污染。必须找到 as-known-at 版本化日历，否则永久 DATA_BLIND。"
+      },
+      "event_identity_pit_clocks": {
+        "event_id": "instId + cliff_utc_ms + calendar_version_as_of",
+        "pit": "日历本身的 PIT 未证明（这是与其它候选相反的罕见情形：事件时钟公开且提前已知，但『当时已知的日历版本』无法证明）",
+        "clocks": "cliff 为链上/合约时刻，可事后从链上验证发生，但『事前已知性』仍需版本化档案",
+        "known_gaps": "版本化解锁日历来源存在性未核验"
+      },
+      "matched_loser": "同 symbol 非 cliff 窗口；同 cliff 规模桶其它 symbol。触发集=全部 cliff 无论大小。",
+      "strongest_counterexample": "解锁效应是 2024-2026 被发表最多的加密事件研究，日线粒度上可检测的部分早已定价；日历修订的后见偏差可以凭空捏造 edge。",
+      "shortest_falsification": [
+        "一次有界调查（需另批）：是否存在任何免费的版本化/as-of 解锁日历源；不存在 → 永久 DATA_BLIND 关闭"
+      ],
+      "budget_stop": {
+        "cpu": 0.5,
+        "wall_hours": 2,
+        "attempts": 1,
+        "data": "仅来源存在性调查",
+        "stop_gates": [
+          "无版本化来源 → 永久关闭"
+        ]
+      },
+      "non_isomorphism_proof": "G1-G10 无任何代币发行/归属日历概念；与 FAB-02 区分：上市=产品出生时的分发，cliff=中年合同性供给注入，时钟、payer 群体、数据源全不同；与全部 Grok 候选区分：交易所运营时钟 vs 代币合约时钟。",
+      "outcome_blind_score": {
+        "payer_structure_30": 2.0,
+        "observability_identity_25": 0.5,
+        "moat_20": 1.0,
+        "personal_executability_15": 1.5,
+        "falsification_cost_10": 2.5,
+        "weighted": 1.4
+      },
+      "classification_now": "DATA_BLIND_EXTERNAL_CALENDAR_REQUIRED"
+    },
+    {
+      "candidate_id": "FAB-MSV2-06",
+      "name": "cross_venue_settlement_clock_phase_offset",
+      "framework": [
+        "F1_mandatory_clock"
+      ],
+      "one_line": "OKX 206 个 symbol 模态 8h 结算、195 个 4h，Bybit 全线 4h，且 OKX 间隔会迁移（tape 内 106 次转变）：跨所 carry 仓位面对错相时钟，在『只有一边结算』的时刻被迫单腿付款/再平衡。",
+      "market_state": "matched-clock 时刻（两所同时结算）vs offset 时刻（仅一所结算）× 跨所 funding 分歧桶。",
+      "action_branches": {
+        "offset_with_divergence": "以被迫付款腿方向分支，Phase B 对称归纳",
+        "matched_or_no_divergence": "NO_TRADE"
+      },
+      "payer": "在 offset 结算时刻持有付款腿的跨所 carry 持仓者。",
+      "institutional_exclusion": "最弱：跨所 carry 是机构主场；唯一主张是机构规模下限以下的小市值错相 symbol。如实给出最低分。",
+      "personal_capacity": "小市值双所 symbol 单事件容量小。",
+      "complete_denominator": {
+        "definition": "336 个双所 base × 全部 offset 结算时刻，由两条本地 funding tape 确定性生成，零挑选",
+        "existing_history": "bybit_funding（2025-09+，616 symbols）+ okx_funding（2026-04+，401 symbols）双 tape 在手",
+        "support_estimate": "offset 时刻极密（每天多次×336 base）→ 支持门数量上轻松满足，但独立性按日聚类后大幅缩水",
+        "caveat": "1h bar 粒度对 4h/8h 结算窗口的转移观测可能太粗 → 可能立即 UNIDENTIFIABLE，如实接受"
+      },
+      "event_identity_pit_clocks": {
+        "event_id": "base_symbol + offset_settlement_utc_ms + paying_venue + divergence_bucket",
+        "pit": "两所结算时刻均为 tape 内生交易所时间戳；间隔迁移以 tape 内已观测转变为准（不依赖 schedule 档案，但采集空洞可伪造转变——须核验）",
+        "clocks": "settlement 交易所时间",
+        "known_gaps": "OKX tape 仅 3 个月；间隔转变 106 次中多少是采集空洞未核验"
+      },
+      "matched_loser": "同 base 的 matched-clock 结算时刻为天然对照；同分歧桶不同 base。",
+      "strongest_counterexample": "结算时刻资金流由 TWAP 化的机构主导，funding 在结算前早已定价入 basis；错相时钟可能在 bar 粒度上什么都转移不了。",
+      "shortest_falsification": [
+        "第一刀（零获取）：offset 时刻 bar 特征 vs matched-clock 对照是否可区分；不可区分 → UNIDENTIFIABLE 关闭",
+        "第二刀：106 次间隔转变逐一对照采集连续性；空洞伪造占比高 → identity 降级"
+      ],
+      "budget_stop": {
+        "cpu": 1,
+        "wall_hours": 4,
+        "attempts": 1,
+        "data": "仅现有双 tape",
+        "stop_gates": [
+          "bar 粒度不可区分 → 停",
+          "转变多为采集空洞 → 停"
+        ]
+      },
+      "non_isomorphism_proof": "G1 已 CLOSED 的 funding_post_settlement_release=单所 funding 水平阈值（±0.001）+结算后方向；本候选触发于『两所时钟错相』这一结构事件，与 funding 水平正交（分歧桶只是条件不是触发）。如实自flag：这是本 owner 同构风险最高的候选。预注册杀开关：若 Phase B 区分特征collapse为单所 funding 符号/水平或纯结算时刻效应 → 自动判 ISOMORPH_G1 关闭。非 Grok-07（运营/权限窗口）：此处两所全程可交易，错的是结算相位。",
+      "outcome_blind_score": {
+        "payer_structure_30": 1.5,
+        "observability_identity_25": 2.0,
+        "moat_20": 0.5,
+        "personal_executability_15": 1.5,
+        "falsification_cost_10": 2.0,
+        "weighted": 1.475
+      },
+      "classification_now": "TESTABLE_BUT_HIGH_ISOMORPHISM_RISK_LOWEST_PRIORITY"
+    }
+  ],
+  "portfolio_summary": {
+    "candidates_total": 6,
+    "testable_on_existing_history_now": [
+      "FAB-MSV2-01",
+      "FAB-MSV2-02",
+      "FAB-MSV2-06"
+    ],
+    "support_gated": [
+      "FAB-MSV2-04"
+    ],
+    "data_blind": [
+      "FAB-MSV2-03",
+      "FAB-MSV2-05"
+    ],
+    "outcome_blind_ranking": [
+      {
+        "id": "FAB-MSV2-01",
+        "weighted": 2.275
+      },
+      {
+        "id": "FAB-MSV2-02",
+        "weighted": 1.95
+      },
+      {
+        "id": "FAB-MSV2-03",
+        "weighted": 1.75
+      },
+      {
+        "id": "FAB-MSV2-04",
+        "weighted": 1.725
+      },
+      {
+        "id": "FAB-MSV2-06",
+        "weighted": 1.475
+      },
+      {
+        "id": "FAB-MSV2-05",
+        "weighted": 1.4
+      }
+    ],
+    "owner_recommendation": "只有 FAB-01 与 FAB-02 同时满足『现有历史完整分母 + tape 内生 identity + 有界零获取证伪』；FAB-06 可测但同构风险最高应最后考虑；其余三条如实登记为支持门/数据盲阻断，不造可测性。本 owner 不自批 shortlist。"
+  },
+  "brutal_self_critique": {
+    "novelty_is_not_edge": "本 owner 的专长偏好（找『有趣的流程故事』）本身就是风险：六条候选里没有一条的新颖性构成护城河；FAB-01 的隔夜 gap 与 FAB-02 的上市效应恰恰属于公开文献最厚的两类异象，先验上 H0 仍然是最大概率赢家。",
+    "single_regime": "全部可测候选依赖 3-4.5 个月单一 regime tape（2026 Q2-Q3）；任何通过都只是单 regime 通过。",
+    "day_clustering": "FAB-01/06 事件数看似巨大，但同日全 symbol 共享边界/结算时刻，有效独立样本=交易日数（~90/~65），比事件数小两个数量级；用事件数吹支持度=自欺。",
+    "identification_gaps_are_real": "FAB-01 未验证休市期 mark/index 规则——若 mark 冻结则机制的可捕获性直接归零；FAB-02 无法直接观测对冲者身份，funding 只是间接观测器；把间接观测当直接证据是本 owner 最容易犯的错。",
+    "isomorphism_pressure": "FAB-06 离 G1 只有一次特征collapse的距离；FAB-04 离 Grok-01 只有一个 identity 选择的距离。两者都已挂预注册杀开关，但红队应默认怀疑。",
+    "no_receive_time": "全部候选只有交易所时间+fetched_at 代理，无真 receive 时钟；任何分钟级以下的主张都不诚实，已在各候选中禁止。",
+    "conclusion": "按最高纪律：0 条候选获得启动资格；最好的两条也只配进入红队去重与 outcome-blind 评分池。"
+  },
+  "decision_journal": [
+    "1 问题重述：不读结果标签，从『哪些强制/流程事件产生付款者』出发，提出与 G1-G10、常见量化因子、及 Grok 候选非同源的至少 5 条事件机制，并诚实标注现有历史可测性。",
+    "2 竞争框架：先冻结 H0 + F1 强制时钟 / F2 不可对冲窗口 / F3 钳制排队 / F4 法定分发 四个竞争框架与全局最强反例，再生成候选。",
+    "3 存在性盘点（每候选一次，预注册前合法）：对本地 7 个 tape family + instruments snapshot 做 5 次 feature-side 扫描（见 existence_scans_performed），全程未读取任何 forward return/PnL/winner/settlement 字段。",
+    "4 关键发现：121 个股票类 perp 带完整休市/开市时钟且 tape 覆盖周末（FAB-01 的分母基础）；118 个窗口内新上市（FAB-02）；OFF pre-market 合约在 snapshot 中零存在但在私人 fills drift 中留痕（FAB-03 的幸存者删除证据）；14 段 funding 钉死 run（FAB-04 存在但支持不足）；106 次间隔迁移与 336 个双所 base（FAB-06）。",
+    "5 弃选：结算间隔加密税（与 Grok-01 同构）、退市/迁移（Grok-03 已覆盖）、OI-cap 饱和 reduce-only（无 OI 历史族，完全盲）、USDC 脱锚（支持度必然不足）、Rubik 多空比极值（纯公共因子，硬拒绝表命中）、上市后杠杆档解锁（与 G10-2 同等 PIT 盲）。",
+    "6 自评：六条全部先验输给 H0；两条可测候选恰好落在文献最厚的异象区，先验被定价概率高；已在 brutal_self_critique 中逐条列出杀招。",
+    "7 预算已花：只读扫描（<10 CPU-min）+ 本二文件写入；无下载、无购买、无收益读取、无考卷接触、无提交。",
+    "8 停止：候选提交即停，等待红队（Sonnet）与主代理裁决；本 owner 不自批、不启动任何路线。"
+  ],
+  "safety": {
+    "global_halt": true,
+    "system_status": "NO_GO",
+    "exam_status": "EXAM_UNAVAILABLE",
+    "exam_actions": 0,
+    "trade_allowed": false,
+    "labels_unblinded": false,
+    "routes_started": 0,
+    "no_purchase": true,
+    "no_bulk_download": true,
+    "no_commit": true
+  },
+  "hashes": {
+    "candidates_hash": "a244b53ccb39e9c28d01f4287a8bf83cd66e01d4d9cd7431c83b60c1c1f97cea",
+    "hash_method": "Read this JSON as a generic object, set hashes.candidates_hash to null, then compute repository datatruth.HashJSON (deterministic encoding/json plus SHA-256 lowercase hex).",
+    "self_excluded_field": "hashes.candidates_hash",
+    "document_hash_method": "Markdown: normalize the single line '> Document hash: `<value>`' to '> Document hash: `SELF_EXCLUDED`', then SHA-256 over UTF-8 LF bytes."
+  }
+}

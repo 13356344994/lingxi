@@ -1,0 +1,100 @@
+{
+  "schema_version": "lingxi.data-driven-router-v3.protocol-overlay.v1",
+  "protocol_id": "firstbattle.data-driven-router-v3",
+  "generation": "firstbattle-data-driven-router-v3-g4",
+  "created_at": "2026-07-14T08:55:00Z",
+  "status": "PREREGISTERED_LABELS_SEALED_PENDING_INDEPENDENT_REVIEW",
+  "supersedes": {
+    "generation": "firstbattle-data-driven-router-v3-g3",
+    "overlay_hash": "63f4ee088efb09e9e58386ab273b997af4a9206d4c5c18e73c59fda5d42a7a57",
+    "reason": "close withdrawal mechanics and clarify user-owned risk preference without reinstating synthetic stress vetoes",
+    "g3_labels_were_unblinded": false,
+    "g3_dataset_was_built": false
+  },
+  "inheritance": {
+    "base_protocol_hash": "5d80166eb28307d23e33cd19efae2b60811852ff0da49a3a6e16663aba2e7ddd",
+    "g2_overlay_hash": "7096395f1f3bae212b6dc866c5d46ccb372cd284e4a959d424dfbfbb92d6c226",
+    "g3_overlay_hash": "63f4ee088efb09e9e58386ab273b997af4a9206d4c5c18e73c59fda5d42a7a57",
+    "all_unmodified_fields_inherited": true,
+    "effective_protocol_requires_all_four_hashes": true
+  },
+  "withdrawal_execution": {
+    "evaluation_time": "bar_close_decision_time_after_mark_to_market_and_before_new_risk_proposals",
+    "intrabar_equity_spike_may_trigger_withdrawal": false,
+    "gross_trigger": "equity >= 1.5 * retained_base",
+    "requested_tranche": "0.5 * retained_base",
+    "free_equity_formula": "equity - maintenance_margin_required - frozen_liquidation_buffer",
+    "actual_withdrawal": "min(requested_tranche, max(free_equity,0))",
+    "zero_free_equity": "defer_withdrawal",
+    "partial_tranche_allowed": true,
+    "after_each_withdrawal": [
+      "recompute_equity",
+      "recompute_effective_leverage",
+      "recompute_maintenance_margin",
+      "recompute_liquidation_distance",
+      "recompute_solvency"
+    ],
+    "post_withdrawal_hard_gates": {
+      "effective_leverage_max": 5.0,
+      "solvency_breach": "rollback_withdrawal_to_maximum_safe_amount_or_zero",
+      "liquidation_distance_invalid": "rollback_withdrawal_to_maximum_safe_amount_or_zero"
+    },
+    "repeat_rule": "repeat only while equity >= 1.5*retained_base and safe free equity remains"
+  },
+  "normal_history_and_stress_priority": {
+    "primary_path": "untouched_chronological_history_with_frozen_observed_cost_and_delay",
+    "hard_profitability_gate": "cashflow_adjusted_total_wealth > ALWAYS_FLAT",
+    "delay_zero": "primary",
+    "delay_plus_one": "mandatory_report_and_status",
+    "delay_two_three": "mandatory_report_and_status",
+    "cost_stress_1_5x": "mandatory_report_and_status",
+    "delay_plus_one_negative_status": "VALIDATED_PATH_DELAY_SENSITIVE",
+    "delay_two_three_negative_status": "VALIDATED_PATH_HIGH_DELAY_SENSITIVE",
+    "cost_stress_negative_status": "VALIDATED_PATH_COST_SENSITIVE",
+    "none_of_these_sensitivity_statuses_auto_rejects_baseline_positive_path": true
+  },
+  "historical_vs_synthetic_tail": {
+    "actual_chronological_historical_events": "always included in primary account path; liquidation sets equity zero and stops",
+    "reapplying_worst_observed_gap_or_bar_to_other_times": "synthetic_stress_disclosure_not_hard_veto",
+    "no_executable_close_1_2_3_bars": "synthetic_stress_disclosure_not_hard_veto",
+    "all_correlation_one": "synthetic_stress_disclosure_not_hard_veto",
+    "required_output": "baseline and every stress scenario shown separately with withdrawals, terminal equity, ruin, drawdown, and liquidation time"
+  },
+  "baseline_policy": {
+    "hard_baseline": "ALWAYS_FLAT",
+    "comparative_only": [
+      "FIXED_LONG_SAME_FREQUENCY",
+      "FIXED_SHORT_SAME_FREQUENCY",
+      "BUY_HOLD",
+      "RANDOM_SAME_FREQUENCY_SEED42",
+      "BTC_BETA_MATCHED"
+    ],
+    "reason": "user objective is absolute cashflow-adjusted wealth growth, not mandatory relative alpha versus every alternative",
+    "all_comparative_baselines_use_same_withdrawal_and_no_topup_rule": true,
+    "comparative_underperformance_must_be_reported": true,
+    "comparative_underperformance_is_not_automatic_rejection": true
+  },
+  "verdict_extensions": [
+    "VALIDATED_PATH_DELAY_SENSITIVE",
+    "VALIDATED_PATH_HIGH_DELAY_SENSITIVE",
+    "VALIDATED_PATH_COST_SENSITIVE",
+    "HISTORICAL_RUIN_WITH_WITHDRAWAL_RECOVERY"
+  ],
+  "reviewer_boundary": {
+    "reviewer_may_verify_mechanics": true,
+    "reviewer_may_report_risk_and_baseline_frontier": true,
+    "reviewer_may_not_replace_user_absolute_wealth_objective_with_relative_alpha_or_zero_ruin_preference": true
+  },
+  "safety": {
+    "labels_unblinded": false,
+    "dataset_built": false,
+    "routes_started": 0,
+    "system_status": "NO_GO",
+    "trade_allowed": false
+  },
+  "hashes": {
+    "overlay_hash": "2fd8c5852bba5023c9024d46b5b5e9527e71d670c370a1276e4728f4ef4cd2b9",
+    "hash_method": "Set hashes.overlay_hash to null, then compute repository datatruth.HashJSON.",
+    "self_excluded_field": "hashes.overlay_hash"
+  }
+}

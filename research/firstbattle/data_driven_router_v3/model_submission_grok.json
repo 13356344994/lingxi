@@ -1,0 +1,98 @@
+{
+  "schema_version": "lingxi.data-driven-router-v3.model-submission.v1",
+  "owner_id": "grok",
+  "model_family": "change_point_rare_state",
+  "status": "SYNTHETIC_OWNER_CODE_FROZEN",
+  "independence_statement": "Grok owner submission uses only modelapi synthetic fixtures. Real dataset shards, reward labels, peer owner outputs, and filesystem IO were not read.",
+  "search_space": {
+    "regime_count": [
+      2,
+      3,
+      4
+    ],
+    "minimum_segment_days": [
+      10,
+      20
+    ],
+    "change_penalty": [
+      1.0,
+      2.0
+    ]
+  },
+  "budget": {
+    "seed": 42,
+    "max_attempts": 16,
+    "max_candidate_leaves": 32,
+    "grid_attempts": 12,
+    "cpu": 1
+  },
+  "bindings": {
+    "owner_code_hash": "616ad7161c7177b6559e16a2f192206e3dd2f09ffc3b33d5fc261e31ef7cae12",
+    "api_hash": "1593a18d2db0cdac3cc32d3adbd147490d3981e4142c0281bd1d46ebe9ba4168",
+    "grid_hash": "789f18922df9060e8991afe650955706c74a88c016e6617dd7b3629de7f45b72",
+    "model_api_schema_version": "lingxi.data-driven-router-v3.model-api.v1",
+    "effective_protocol_hashes": {
+      "g1": "5d80166eb28307d23e33cd19efae2b60811852ff0da49a3a6e16663aba2e7ddd",
+      "g2": "7096395f1f3bae212b6dc866c5d46ccb372cd284e4a959d424dfbfbb92d6c226",
+      "g3": "63f4ee088efb09e9e58386ab273b997af4a9206d4c5c18e73c59fda5d42a7a57",
+      "g4": "2fd8c5852bba5023c9024d46b5b5e9527e71d670c370a1276e4728f4ef4cd2b9",
+      "g5": "518d0003c829da641f1bcc955c4382023e158ba9938c0ac6f0ff19b5bf729385",
+      "g6": "08b609e3271029b1e9f772921e325ef7c7fd30326589ae9c03cc86d73d9c844b",
+      "g7": "4aacc43e928d25b6b83cdf8fe10d5b576e2b1009ea10b7bfad3e750388e47747"
+    },
+    "dataset_v3_manifest_hash": "f9dc0944919709a49f765fe3291cf60a46952919f796add47d892af5f2808a6d",
+    "dataset_v3_reviewer_receipt_hash": "5fbb51bf0bab3be2649b57ba76ed68b2f714cda8a5fc7c0722a1a53f4c52edfb",
+    "account_fixture_receipt_sha256": "c80745299bfac73495060d18a77cb8201a7c5ca40858ebf0df3010489d39b300"
+  },
+  "code_sha256": {
+    "internal/datadrivenv3/models/changepoint/changepoint.go": "0d8145e609c51b822e89f0aecbce9c2767052c628072abb7b085527e30ebb974",
+    "internal/datadrivenv3/models/changepoint/segment.go": "ad31c01ee3c4a6f4e6d9aa78d65fa9897ec893be3dd601c5d5af5ab2887d4921",
+    "internal/datadrivenv3/models/changepoint/predicate.go": "156e618ae6ba3bbe0175252a512856671177ac5bc1a242efe170f7a8bd00ed58",
+    "internal/datadrivenv3/models/changepoint/changepoint_synthetic_test.go": "68c2c946ccb636525aea5e1b6e56e160b028eaa8863b5204965252d5680c90e4"
+  },
+  "implementation": {
+    "package": "lingxi/internal/datadrivenv3/models/changepoint",
+    "methods": [
+      "Fit",
+      "Predict"
+    ],
+    "segmentation": "exact_dp_time_block_feature_distribution_sse",
+    "predict_features": "relative_regime_predicates_and_missing_aware_centroids_only",
+    "absolute_date_as_predict_feature": false,
+    "boundary_time_used_only_inside_fit": true,
+    "missing_aware": true,
+    "outputs": [
+      "regime_predicates",
+      "TargetIntent",
+      "reason",
+      "attempt_ledger"
+    ]
+  },
+  "synthetic_smoke": {
+    "fixture": "two_regime_series_in_memory",
+    "selected_attempt_id": "grok-cp-r3-d10-p1-s5",
+    "policy_hash": "0beb32c1696ff3a2afa3d87cf1e58d8783fc783470f859d2ddb8b371d645c989",
+    "attempt_ledger_len": 13,
+    "attempt_ledger_head": "e27d01cb99012e2e1198292122deabe2bb0912f5da079b7ec2e6262abf43e86e",
+    "tests": [
+      "TestChangeDetectionSynthetic",
+      "TestRareStateSynthetic",
+      "TestMinSegmentConstraint",
+      "TestDeterminismSynthetic",
+      "TestBudgetAndGrid",
+      "TestMissingAwarePredict",
+      "TestRejectRealLabelKind",
+      "TestNoAbsoluteDatePredictFeature",
+      "TestCodeHashStable"
+    ]
+  },
+  "labels_read": false,
+  "peer_outputs_read": false,
+  "real_dataset_read": false,
+  "file_io_during_fit_predict": false,
+  "routes_started": 0,
+  "trade_allowed": false,
+  "hashes": {
+    "submission_hash": "269d368900c645e38b6f5a295fae527112fdbcf6c6311420604a053d5bf8c00e"
+  }
+}

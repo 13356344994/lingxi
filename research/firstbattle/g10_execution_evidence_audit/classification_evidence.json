@@ -1,0 +1,12 @@
+{
+  "artifact_hash": "8e5846c730a292645eedb63298c3535587d95cc9a13b3cd3cf88b2aa30d7fb18",
+  "classification_by_route": {
+    "g10_v1": {
+      "classification": "DATA_BLIND",
+      "earliest_blocker": "observability",
+      "phase": "A",
+      "reason": "one or more critical-known metrics have fewer than 3 semantically valid samples"
+    }
+  },
+  "schema_version": "lingxi.g10-execution-evidence-audit.v1"
+}

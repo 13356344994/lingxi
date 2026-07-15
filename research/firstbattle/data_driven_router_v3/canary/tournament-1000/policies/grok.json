@@ -1,0 +1,47 @@
+{
+  "schema_version": "lingxi.data-driven-router-v3.model-api.v1",
+  "policy_id": "changepoint-grok-cp-r4-d10-p1-s9",
+  "leaves": [
+    {
+      "leaf_id": "grok-cp-r4-d10-p1-s9-regime-0",
+      "predicate": "regime_id=regime-0 \u0026\u0026 rare_state=false \u0026\u0026 present(quote_volume_24h) \u0026\u0026 quote_volume_24h\u003e=298300577.625 \u0026\u0026 bar_range_bps\u003c171.011144215 \u0026\u0026 funding_age_hours\u003e=3.63843407065 \u0026\u0026 reason=change_point_regime=0_days=58_events=131_rare=false_penalty=1.0_sse=153311487375754395648.000000_seed=42",
+      "intent": {
+        "target_signed_position_fraction": 1,
+        "target_horizon_hours": 24,
+        "delay_bars": 0
+      }
+    },
+    {
+      "leaf_id": "grok-cp-r4-d10-p1-s9-regime-1",
+      "predicate": "regime_id=regime-1 \u0026\u0026 rare_state=false \u0026\u0026 present(quote_volume_24h) \u0026\u0026 quote_volume_24h\u003c207104830.022 \u0026\u0026 bar_range_bps\u003c174.151716506 \u0026\u0026 beta_24h\u003c1.42543363122 \u0026\u0026 reason=change_point_regime=1_days=224_events=537_rare=false_penalty=1.0_sse=153311487375754395648.000000_seed=42",
+      "intent": {
+        "target_signed_position_fraction": -1,
+        "target_horizon_hours": 24,
+        "delay_bars": 3
+      }
+    },
+    {
+      "leaf_id": "grok-cp-r4-d10-p1-s9-regime-2",
+      "predicate": "regime_id=regime-2 \u0026\u0026 rare_state=true \u0026\u0026 present(quote_volume_24h) \u0026\u0026 quote_volume_24h\u003e=611936712.063 \u0026\u0026 bar_range_bps\u003e=225.809805786 \u0026\u0026 funding_age_hours\u003c3.15284137323 \u0026\u0026 reason=change_point_regime=2_days=12_events=31_rare=true_penalty=1.0_sse=153311487375754395648.000000_seed=42,_rare_state_relative_predicate",
+      "intent": {
+        "target_signed_position_fraction": 1,
+        "target_horizon_hours": 24,
+        "delay_bars": 2
+      }
+    },
+    {
+      "leaf_id": "grok-cp-r4-d10-p1-s9-regime-3",
+      "predicate": "regime_id=regime-3 \u0026\u0026 rare_state=false \u0026\u0026 present(quote_volume_24h) \u0026\u0026 quote_volume_24h\u003c175743006.157 \u0026\u0026 bar_range_bps\u003e=178.562583362 \u0026\u0026 beta_24h\u003e=1.48159094831 \u0026\u0026 reason=change_point_regime=3_days=105_events=301_rare=false_penalty=1.0_sse=153311487375754395648.000000_seed=42",
+      "intent": {
+        "target_signed_position_fraction": 1,
+        "target_horizon_hours": 24,
+        "delay_bars": 0
+      }
+    }
+  ],
+  "default_intent": {
+    "target_signed_position_fraction": 0,
+    "target_horizon_hours": 1,
+    "delay_bars": 0
+  }
+}

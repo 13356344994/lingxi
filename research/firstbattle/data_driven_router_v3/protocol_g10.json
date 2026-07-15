@@ -1,0 +1,124 @@
+{
+  "schema_version": "lingxi.data-driven-router-v3.protocol-overlay.v1",
+  "protocol_id": "firstbattle.data-driven-router-v3",
+  "generation": "firstbattle-data-driven-router-v3-g10",
+  "created_at": "2026-07-15T03:28:00Z",
+  "status": "PREREGISTERED_COUNTERFACTUAL_ACCOUNT_SEMANTICS_PENDING_REVIEW",
+  "supersedes": {
+    "generation": "firstbattle-data-driven-router-v3-g9",
+    "overlay_hash": "fe3ce29ef3b8b07da7ef81e0ea3ccc732722f8a184e7ba91ebb8edacd7b2802c",
+    "reviewer_receipt_hash": "e77d1511d022fb511165f3412535ff81a6149cb5a0da7729044c5afb9069c953",
+    "reason": "make inherited capital tiers, dynamic execution costs, and target expiry unique before discovery target generation",
+    "prior_reward_labels_unblinded": false
+  },
+  "inheritance": {
+    "g1_hash": "5d80166eb28307d23e33cd19efae2b60811852ff0da49a3a6e16663aba2e7ddd",
+    "g2_hash": "7096395f1f3bae212b6dc866c5d46ccb372cd284e4a959d424dfbfbb92d6c226",
+    "g3_hash": "63f4ee088efb09e9e58386ab273b997af4a9206d4c5c18e73c59fda5d42a7a57",
+    "g4_hash": "2fd8c5852bba5023c9024d46b5b5e9527e71d670c370a1276e4728f4ef4cd2b9",
+    "g5_hash": "518d0003c829da641f1bcc955c4382023e158ba9938c0ac6f0ff19b5bf729385",
+    "g6_hash": "08b609e3271029b1e9f772921e325ef7c7fd30326589ae9c03cc86d73d9c844b",
+    "g7_hash": "4aacc43e928d25b6b83cdf8fe10d5b576e2b1009ea10b7bfad3e750388e47747",
+    "g8_hash": "c492cd191e869073b330221835fcec4b4437b27ec67e6e9d18252119fc7da682",
+    "g9_hash": "fe3ce29ef3b8b07da7ef81e0ea3ccc732722f8a184e7ba91ebb8edacd7b2802c",
+    "all_unmodified_fields_inherited": true
+  },
+  "capital_tier_assignment": {
+    "tiers_usdt": [30, 100, 1000],
+    "one_tier_per_event": true,
+    "selection": "uint64(first_8_bytes_sha256(seed42 + event_id + capital_tier)) modulo 3",
+    "selection_frozen_before_reward_evaluation": true,
+    "retained_capital_base_usdt": "selected tier",
+    "notional_per_fraction_usdt": "selected tier",
+    "fixed_notional_usdt": "absolute(position_fraction) * selected tier"
+  },
+  "canonical_context_initialization": {
+    "flat": {
+      "cash_usdt": "selected tier",
+      "marked_equity_usdt": "selected tier",
+      "cumulative_withdrawals_usdt": 0
+    },
+    "nonflat": {
+      "entry_execution_time": "decision_ms - position_age_bars * 1h",
+      "entry_price": "completed bar open at entry_execution_time",
+      "decision_mark": "completed bar close at decision_ms",
+      "entry_cost_usdt": "fixed_notional_usdt * dynamic_one_way_entry_cost_bps(entry_execution_bar) / 10000",
+      "signed_funding_usdt": "sum(-direction_sign * fixed_notional_usdt * actual_funding_rate) for settlements after entry_execution_time through decision_ms",
+      "cash_usdt": "selected tier - entry_cost_usdt + signed_funding_usdt",
+      "unrealized_pnl_usdt": "direction_sign * fixed_notional_usdt * (decision_mark / entry_price - 1)",
+      "marked_equity_usdt": "cash_usdt + unrealized_pnl_usdt",
+      "cumulative_withdrawals_usdt": 0
+    },
+    "ineligible": [
+      "required entry bar unavailable",
+      "any required OHLCV or funding coverage unknown",
+      "cash_usdt < 0",
+      "marked_equity_usdt <= 0",
+      "gross leverage > 5"
+    ],
+    "ineligibility_checked_before_target_reward_evaluation": true
+  },
+  "dynamic_execution_cost": {
+    "source": "effective g1-g2 reward cost formula evaluated on each actual execution bar",
+    "roundtrip_taker_fee_bps": 10,
+    "spread_slippage_floor_bps": 2,
+    "impact_bps": "min(50, selected_tier_usdt / max(rolling_quote_volume_usdt, 1) * 10000)",
+    "toxicity_bps": "min(100, (bar_high - bar_low) / max(bar_mid, 1e-12) * 10000 * 0.5)",
+    "base_roundtrip_bps": "roundtrip_taker_fee_bps + max(spread_slippage_floor_bps, observed_spread_bps) + impact_bps + toxicity_bps",
+    "observed_spread_bps_when_unavailable": 0,
+    "one_way_entry_cost_bps": "0.5 * base_roundtrip_bps at the entry/add execution bar",
+    "one_way_exit_cost_bps": "0.5 * base_roundtrip_bps at the trim/close execution bar",
+    "reverse": "full one-way exit cost on old notional plus full one-way entry cost on new notional",
+    "discovery_target_stress_multiplier": 1,
+    "validation_cost_stress_multiplier": 1.5,
+    "unknown_cost": "target ineligible"
+  },
+  "counterfactual_timeline": {
+    "decision_mark": "completed bar close at decision_ms",
+    "delay_zero": "execute target transition at decision_mark",
+    "delay_positive": "existing position continues MTM and actual signed funding; execute target at completed-bar close decision_ms + delay_bars * 1h",
+    "horizon_origin": "target execution time",
+    "expiry_time": "target execution time + target_horizon_hours * 1h",
+    "expiry": "force target position to zero at expiry completed-bar close using that bar dynamic one-way exit cost",
+    "funding_interval": "settlements strictly after the previous processed mark and at or before the current processed mark",
+    "withdrawal_order": "after MTM/funding/exits and before any new risk, inherited g3-g5",
+    "unmatured_or_unexpired_at_partition_end": "ineligible for discovery label generation"
+  },
+  "counterfactual_objective": {
+    "starting_total_wealth": "starting cumulative withdrawals + starting marked equity",
+    "ending_total_wealth": "ending cumulative withdrawals + ending marked equity after forced expiry close",
+    "local_reward": "ending_total_wealth - starting_total_wealth",
+    "ruin_reward": "negative_infinity",
+    "selected_target": "maximum local_reward using g8 total-order tie break",
+    "full_reward_vector_exposed_to_models": false
+  },
+  "implementation_requirements": {
+    "single_counterfactual_evaluator_for_all_108_targets": true,
+    "same_dynamic_cost_primitive_reused_by_later_chronological_replay": true,
+    "target_horizon_must_affect_account_transition": true,
+    "synthetic_fixture_required_for_each_capital_tier": true,
+    "dynamic_cost_bar_change_fixture_required": true,
+    "delay_then_horizon_fixture_required": true,
+    "reverse_two_leg_cost_fixture_required": true,
+    "withdrawal_survives_ruin_fixture_required": true
+  },
+  "scope_boundary": {
+    "this_generation": "single-instrument canonical discovery counterfactual labels",
+    "not_certified_here": "multi-instrument chronological portfolio replay",
+    "certification_requires_later_shared_portfolio_runner": true
+  },
+  "safety": {
+    "discovery_label_bundle_created": false,
+    "validation_labels_unblinded": false,
+    "leaf_wf_labels_unblinded": false,
+    "router_holdout_labels_unblinded": false,
+    "routes_started": 0,
+    "system_status": "NO_GO",
+    "trade_allowed": false
+  },
+  "hashes": {
+    "overlay_hash": "0d09d595947f09aeb6258b9af023e5c87e2d334bc52649761f91cb2ae263e7cb",
+    "hash_method": "Set hashes.overlay_hash to null, then compute repository datatruth.HashJSON.",
+    "self_excluded_field": "hashes.overlay_hash"
+  }
+}

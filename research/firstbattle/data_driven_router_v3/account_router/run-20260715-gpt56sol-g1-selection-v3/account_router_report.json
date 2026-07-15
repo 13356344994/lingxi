@@ -1,0 +1,1850 @@
+{
+  "schema_version": "lingxi.data-driven-router-v3.account-router.v2",
+  "generated_at": "2026-07-15T05:22:03.791509836Z",
+  "invalidates_run": "research/firstbattle/data_driven_router_v3/account_router/run-20260715-gpt56sol-corrected-v2",
+  "invalidation_reason": "OVERSTRICT_CARTESIAN_PROFIT_GATE",
+  "router_holdout_unblinded": false,
+  "trade_allowed": false,
+  "leaf_id": "leaf-05",
+  "predicate": "btc_return_24h IS MISSING OR btc_return_24h \u003c= -0.007277585190889557 AND btc_rms_vol_24h IS PRESENT AND btc_rms_vol_24h \u003e 0.003906421398127353 AND btc_return_4h IS MISSING OR btc_return_4h \u003c= -0.0005939718052847542 AND own_drawdown_24h IS MISSING OR own_drawdown_24h \u003c= -0.01578399121142915",
+  "horizon_hours": 24,
+  "selection_partition": "validation",
+  "confirmation_partition": "leaf_wf",
+  "validation": [
+    {
+      "fraction": 1,
+      "scenarios": [
+        {
+          "delay_bars": 0,
+          "cost_stress": 1,
+          "tiers": {
+            "100": {
+              "initial_deposit": 100,
+              "terminal_equity": 139.3073200309455,
+              "cashflow_adjusted_wealth": 39.307320030945505,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.30134791812708284,
+              "ruin": false,
+              "activation": 60,
+              "missed_certified_opportunity": 38262,
+              "trade_count": 60,
+              "unknown_cost_count": 0
+            },
+            "1000": {
+              "initial_deposit": 1000,
+              "terminal_equity": 1380.012183587582,
+              "cashflow_adjusted_wealth": 380.01218358758206,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.3064768529746375,
+              "ruin": false,
+              "activation": 60,
+              "missed_certified_opportunity": 38262,
+              "trade_count": 60,
+              "unknown_cost_count": 0
+            },
+            "30": {
+              "initial_deposit": 30,
+              "terminal_equity": 41.82267171496799,
+              "cashflow_adjusted_wealth": 11.822671714967989,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.30095006710520883,
+              "ruin": false,
+              "activation": 60,
+              "missed_certified_opportunity": 38262,
+              "trade_count": 60,
+              "unknown_cost_count": 0
+            }
+          },
+          "passes_scenario": true,
+          "execution_start_ms": 1743919200000,
+          "execution_end_ms": 1759741200000
+        },
+        {
+          "delay_bars": 0,
+          "cost_stress": 1.5,
+          "tiers": {
+            "100": {
+              "initial_deposit": 100,
+              "terminal_equity": 110.15385801939122,
+              "cashflow_adjusted_wealth": 10.153858019391222,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.3849602420551851,
+              "ruin": false,
+              "activation": 60,
+              "missed_certified_opportunity": 38262,
+              "trade_count": 60,
+              "unknown_cost_count": 0
+            },
+            "1000": {
+              "initial_deposit": 1000,
+              "terminal_equity": 1081.9470551111024,
+              "cashflow_adjusted_wealth": 81.94705511110237,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.3937111219343947,
+              "ruin": false,
+              "activation": 60,
+              "missed_certified_opportunity": 38262,
+              "trade_count": 60,
+              "unknown_cost_count": 0
+            },
+            "30": {
+              "initial_deposit": 30,
+              "terminal_equity": 33.09187096434398,
+              "cashflow_adjusted_wealth": 3.0918709643439826,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.38428247850320935,
+              "ruin": false,
+              "activation": 60,
+              "missed_certified_opportunity": 38262,
+              "trade_count": 60,
+              "unknown_cost_count": 0
+            }
+          },
+          "passes_scenario": true,
+          "execution_start_ms": 1743919200000,
+          "execution_end_ms": 1759741200000
+        },
+        {
+          "delay_bars": 1,
+          "cost_stress": 1,
+          "tiers": {
+            "100": {
+              "initial_deposit": 100,
+              "terminal_equity": 101.2079920258004,
+              "cashflow_adjusted_wealth": 1.2079920258003938,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.4233111727862137,
+              "ruin": false,
+              "activation": 60,
+              "missed_certified_opportunity": 38262,
+              "trade_count": 60,
+              "unknown_cost_count": 0
+            },
+            "1000": {
+              "initial_deposit": 1000,
+              "terminal_equity": 998.9484101183316,
+              "cashflow_adjusted_wealth": -1.0515898816684057,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.4279220540556123,
+              "ruin": false,
+              "activation": 60,
+              "missed_certified_opportunity": 38262,
+              "trade_count": 60,
+              "unknown_cost_count": 0
+            },
+            "30": {
+              "initial_deposit": 30,
+              "terminal_equity": 30.39303779806602,
+              "cashflow_adjusted_wealth": 0.39303779806601824,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.42295558661111876,
+              "ruin": false,
+              "activation": 60,
+              "missed_certified_opportunity": 38262,
+              "trade_count": 60,
+              "unknown_cost_count": 0
+            }
+          },
+          "passes_scenario": false,
+          "execution_start_ms": 1743919200000,
+          "execution_end_ms": 1759744800000
+        },
+        {
+          "delay_bars": 1,
+          "cost_stress": 1.5,
+          "tiers": {
+            "100": {
+              "initial_deposit": 100,
+              "terminal_equity": 74.02946388160622,
+              "cashflow_adjusted_wealth": -25.97053611839378,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.5522180238297886,
+              "ruin": false,
+              "activation": 60,
+              "missed_certified_opportunity": 38262,
+              "trade_count": 60,
+              "unknown_cost_count": 0
+            },
+            "1000": {
+              "initial_deposit": 1000,
+              "terminal_equity": 720.5973736065505,
+              "cashflow_adjusted_wealth": -279.4026263934495,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.565670479640179,
+              "ruin": false,
+              "activation": 60,
+              "missed_certified_opportunity": 38262,
+              "trade_count": 60,
+              "unknown_cost_count": 0
+            },
+            "30": {
+              "initial_deposit": 30,
+              "terminal_equity": 22.25479944997071,
+              "cashflow_adjusted_wealth": -7.745200550029288,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.5511772602790965,
+              "ruin": false,
+              "activation": 60,
+              "missed_certified_opportunity": 38262,
+              "trade_count": 60,
+              "unknown_cost_count": 0
+            }
+          },
+          "passes_scenario": true,
+          "execution_start_ms": 1743919200000,
+          "execution_end_ms": 1759744800000
+        },
+        {
+          "delay_bars": 2,
+          "cost_stress": 1,
+          "tiers": {
+            "100": {
+              "initial_deposit": 100,
+              "terminal_equity": 76.36207588289125,
+              "cashflow_adjusted_wealth": -23.637924117108753,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.5439641263523741,
+              "ruin": false,
+              "activation": 60,
+              "missed_certified_opportunity": 38262,
+              "trade_count": 60,
+              "unknown_cost_count": 0
+            },
+            "1000": {
+              "initial_deposit": 1000,
+              "terminal_equity": 750.3920819793473,
+              "cashflow_adjusted_wealth": -249.60791802065273,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.5539770401692156,
+              "ruin": false,
+              "activation": 60,
+              "missed_certified_opportunity": 38262,
+              "trade_count": 60,
+              "unknown_cost_count": 0
+            },
+            "30": {
+              "initial_deposit": 30,
+              "terminal_equity": 22.939489677516328,
+              "cashflow_adjusted_wealth": -7.0605103224836725,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.5431861024515467,
+              "ruin": false,
+              "activation": 60,
+              "missed_certified_opportunity": 38262,
+              "trade_count": 60,
+              "unknown_cost_count": 0
+            }
+          },
+          "passes_scenario": false,
+          "execution_start_ms": 1743919200000,
+          "execution_end_ms": 1759748400000
+        },
+        {
+          "delay_bars": 2,
+          "cost_stress": 1.5,
+          "tiers": {
+            "100": {
+              "initial_deposit": 100,
+              "terminal_equity": 0,
+              "cashflow_adjusted_wealth": -100,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.6645731470330833,
+              "ruin": true,
+              "activation": 50,
+              "missed_certified_opportunity": 38272,
+              "trade_count": 50,
+              "unknown_cost_count": 0
+            },
+            "1000": {
+              "initial_deposit": 1000,
+              "terminal_equity": 0,
+              "cashflow_adjusted_wealth": -1000,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.643611745384047,
+              "ruin": true,
+              "activation": 50,
+              "missed_certified_opportunity": 38272,
+              "trade_count": 50,
+              "unknown_cost_count": 0
+            },
+            "30": {
+              "initial_deposit": 30,
+              "terminal_equity": 0,
+              "cashflow_adjusted_wealth": -30,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.6633697385677423,
+              "ruin": true,
+              "activation": 50,
+              "missed_certified_opportunity": 38272,
+              "trade_count": 50,
+              "unknown_cost_count": 0
+            }
+          },
+          "passes_scenario": false,
+          "execution_start_ms": 1743919200000,
+          "execution_end_ms": 1759748400000
+        },
+        {
+          "delay_bars": 3,
+          "cost_stress": 1,
+          "tiers": {
+            "100": {
+              "initial_deposit": 100,
+              "terminal_equity": 105.03358214452803,
+              "cashflow_adjusted_wealth": 5.033582144528026,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.3702905910556007,
+              "ruin": false,
+              "activation": 60,
+              "missed_certified_opportunity": 38262,
+              "trade_count": 60,
+              "unknown_cost_count": 0
+            },
+            "1000": {
+              "initial_deposit": 1000,
+              "terminal_equity": 1037.0128585898765,
+              "cashflow_adjusted_wealth": 37.01285858987649,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.37666756011661884,
+              "ruin": false,
+              "activation": 60,
+              "missed_certified_opportunity": 38262,
+              "trade_count": 60,
+              "unknown_cost_count": 0
+            },
+            "30": {
+              "initial_deposit": 30,
+              "terminal_equity": 31.54116155668767,
+              "cashflow_adjusted_wealth": 1.541161556687669,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.3699619151865889,
+              "ruin": false,
+              "activation": 60,
+              "missed_certified_opportunity": 38262,
+              "trade_count": 60,
+              "unknown_cost_count": 0
+            }
+          },
+          "passes_scenario": true,
+          "execution_start_ms": 1743919200000,
+          "execution_end_ms": 1759752000000
+        },
+        {
+          "delay_bars": 3,
+          "cost_stress": 1.5,
+          "tiers": {
+            "100": {
+              "initial_deposit": 100,
+              "terminal_equity": 79.75665425157366,
+              "cashflow_adjusted_wealth": -20.243345748426336,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.5139039236643715,
+              "ruin": false,
+              "activation": 60,
+              "missed_certified_opportunity": 38262,
+              "trade_count": 60,
+              "unknown_cost_count": 0
+            },
+            "1000": {
+              "initial_deposit": 1000,
+              "terminal_equity": 777.5820982326273,
+              "cashflow_adjusted_wealth": -222.41790176737265,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.5261232950480066,
+              "ruin": false,
+              "activation": 60,
+              "missed_certified_opportunity": 38262,
+              "trade_count": 60,
+              "unknown_cost_count": 0
+            },
+            "30": {
+              "initial_deposit": 30,
+              "terminal_equity": 23.973626645465984,
+              "cashflow_adjusted_wealth": -6.026373354534016,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.5129591476618447,
+              "ruin": false,
+              "activation": 60,
+              "missed_certified_opportunity": 38262,
+              "trade_count": 60,
+              "unknown_cost_count": 0
+            }
+          },
+          "passes_scenario": true,
+          "execution_start_ms": 1743919200000,
+          "execution_end_ms": 1759752000000
+        }
+      ],
+      "passes_selection": false
+    },
+    {
+      "fraction": 0.5,
+      "scenarios": [
+        {
+          "delay_bars": 0,
+          "cost_stress": 1,
+          "tiers": {
+            "100": {
+              "initial_deposit": 100,
+              "terminal_equity": 140.44427161155323,
+              "cashflow_adjusted_wealth": 40.44427161155323,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.35262830371086257,
+              "ruin": false,
+              "activation": 120,
+              "missed_certified_opportunity": 38202,
+              "trade_count": 120,
+              "unknown_cost_count": 0
+            },
+            "1000": {
+              "initial_deposit": 1000,
+              "terminal_equity": 1392.9309314915522,
+              "cashflow_adjusted_wealth": 392.9309314915522,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.35699215625607855,
+              "ruin": false,
+              "activation": 120,
+              "missed_certified_opportunity": 38202,
+              "trade_count": 120,
+              "unknown_cost_count": 0
+            },
+            "30": {
+              "initial_deposit": 30,
+              "terminal_equity": 42.16014231425538,
+              "cashflow_adjusted_wealth": 12.160142314255381,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.35228962580734585,
+              "ruin": false,
+              "activation": 120,
+              "missed_certified_opportunity": 38202,
+              "trade_count": 120,
+              "unknown_cost_count": 0
+            }
+          },
+          "passes_scenario": true,
+          "execution_start_ms": 1743919200000,
+          "execution_end_ms": 1759741200000
+        },
+        {
+          "delay_bars": 0,
+          "cost_stress": 1.5,
+          "tiers": {
+            "100": {
+              "initial_deposit": 100,
+              "terminal_equity": 111.41965726582106,
+              "cashflow_adjusted_wealth": 11.419657265821058,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.43517417507640965,
+              "ruin": false,
+              "activation": 120,
+              "missed_certified_opportunity": 38202,
+              "trade_count": 120,
+              "unknown_cost_count": 0
+            },
+            "1000": {
+              "initial_deposit": 1000,
+              "terminal_equity": 1096.9288957222545,
+              "cashflow_adjusted_wealth": 96.92889572225454,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.44229544369493934,
+              "ruin": false,
+              "activation": 120,
+              "missed_certified_opportunity": 38202,
+              "trade_count": 120,
+              "unknown_cost_count": 0
+            },
+            "30": {
+              "initial_deposit": 30,
+              "terminal_equity": 33.46618842593012,
+              "cashflow_adjusted_wealth": 3.4661884259301203,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.4346221764987421,
+              "ruin": false,
+              "activation": 120,
+              "missed_certified_opportunity": 38202,
+              "trade_count": 120,
+              "unknown_cost_count": 0
+            }
+          },
+          "passes_scenario": true,
+          "execution_start_ms": 1743919200000,
+          "execution_end_ms": 1759741200000
+        },
+        {
+          "delay_bars": 1,
+          "cost_stress": 1,
+          "tiers": {
+            "100": {
+              "initial_deposit": 100,
+              "terminal_equity": 110.78668673870028,
+              "cashflow_adjusted_wealth": 10.786686738700283,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.3697018918219807,
+              "ruin": false,
+              "activation": 120,
+              "missed_certified_opportunity": 38202,
+              "trade_count": 120,
+              "unknown_cost_count": 0
+            },
+            "1000": {
+              "initial_deposit": 1000,
+              "terminal_equity": 1096.3124301433209,
+              "cashflow_adjusted_wealth": 96.31243014332085,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.3753236835527679,
+              "ruin": false,
+              "activation": 120,
+              "missed_certified_opportunity": 38202,
+              "trade_count": 120,
+              "unknown_cost_count": 0
+            },
+            "30": {
+              "initial_deposit": 30,
+              "terminal_equity": 33.26296637517861,
+              "cashflow_adjusted_wealth": 3.262966375178607,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.3692662712452926,
+              "ruin": false,
+              "activation": 120,
+              "missed_certified_opportunity": 38202,
+              "trade_count": 120,
+              "unknown_cost_count": 0
+            }
+          },
+          "passes_scenario": true,
+          "execution_start_ms": 1743919200000,
+          "execution_end_ms": 1759744800000
+        },
+        {
+          "delay_bars": 1,
+          "cost_stress": 1.5,
+          "tiers": {
+            "100": {
+              "initial_deposit": 100,
+              "terminal_equity": 83.46240239691073,
+              "cashflow_adjusted_wealth": -16.537597603089267,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.5213376899544075,
+              "ruin": false,
+              "activation": 120,
+              "missed_certified_opportunity": 38202,
+              "trade_count": 120,
+              "unknown_cost_count": 0
+            },
+            "1000": {
+              "initial_deposit": 1000,
+              "terminal_equity": 817.2923681035924,
+              "cashflow_adjusted_wealth": -182.70763189640763,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.5321158325216433,
+              "ruin": false,
+              "activation": 120,
+              "missed_certified_opportunity": 38202,
+              "trade_count": 120,
+              "unknown_cost_count": 0
+            },
+            "30": {
+              "initial_deposit": 30,
+              "terminal_equity": 25.07916124942591,
+              "cashflow_adjusted_wealth": -4.920838750574092,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.5205025769504572,
+              "ruin": false,
+              "activation": 120,
+              "missed_certified_opportunity": 38202,
+              "trade_count": 120,
+              "unknown_cost_count": 0
+            }
+          },
+          "passes_scenario": true,
+          "execution_start_ms": 1743919200000,
+          "execution_end_ms": 1759744800000
+        },
+        {
+          "delay_bars": 2,
+          "cost_stress": 1,
+          "tiers": {
+            "100": {
+              "initial_deposit": 100,
+              "terminal_equity": 83.53279186343464,
+              "cashflow_adjusted_wealth": -16.46720813656536,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.5349973419383914,
+              "ruin": false,
+              "activation": 120,
+              "missed_certified_opportunity": 38202,
+              "trade_count": 120,
+              "unknown_cost_count": 0
+            },
+            "1000": {
+              "initial_deposit": 1000,
+              "terminal_equity": 823.708442643658,
+              "cashflow_adjusted_wealth": -176.29155735634197,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.5429257887510001,
+              "ruin": false,
+              "activation": 120,
+              "missed_certified_opportunity": 38202,
+              "trade_count": 120,
+              "unknown_cost_count": 0
+            },
+            "30": {
+              "initial_deposit": 30,
+              "terminal_equity": 25.086949669675203,
+              "cashflow_adjusted_wealth": -4.913050330324797,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.5343814509459756,
+              "ruin": false,
+              "activation": 120,
+              "missed_certified_opportunity": 38202,
+              "trade_count": 120,
+              "unknown_cost_count": 0
+            }
+          },
+          "passes_scenario": false,
+          "execution_start_ms": 1743919200000,
+          "execution_end_ms": 1759748400000
+        },
+        {
+          "delay_bars": 2,
+          "cost_stress": 1.5,
+          "tiers": {
+            "100": {
+              "initial_deposit": 100,
+              "terminal_equity": 0,
+              "cashflow_adjusted_wealth": -100,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.6956048328228663,
+              "ruin": true,
+              "activation": 100,
+              "missed_certified_opportunity": 38222,
+              "trade_count": 100,
+              "unknown_cost_count": 0
+            },
+            "1000": {
+              "initial_deposit": 1000,
+              "terminal_equity": 0,
+              "cashflow_adjusted_wealth": -1000,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.6632425561564044,
+              "ruin": true,
+              "activation": 100,
+              "missed_certified_opportunity": 38222,
+              "trade_count": 100,
+              "unknown_cost_count": 0
+            },
+            "30": {
+              "initial_deposit": 30,
+              "terminal_equity": 0,
+              "cashflow_adjusted_wealth": -30,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.6946393194358371,
+              "ruin": true,
+              "activation": 100,
+              "missed_certified_opportunity": 38222,
+              "trade_count": 100,
+              "unknown_cost_count": 0
+            }
+          },
+          "passes_scenario": false,
+          "execution_start_ms": 1743919200000,
+          "execution_end_ms": 1759748400000
+        },
+        {
+          "delay_bars": 3,
+          "cost_stress": 1,
+          "tiers": {
+            "100": {
+              "initial_deposit": 100,
+              "terminal_equity": 109.22529567674576,
+              "cashflow_adjusted_wealth": 9.225295676745759,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.39924825216434867,
+              "ruin": false,
+              "activation": 120,
+              "missed_certified_opportunity": 38202,
+              "trade_count": 120,
+              "unknown_cost_count": 0
+            },
+            "1000": {
+              "initial_deposit": 1000,
+              "terminal_equity": 1080.5402272255378,
+              "cashflow_adjusted_wealth": 80.54022722553782,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.4039004993061749,
+              "ruin": false,
+              "activation": 120,
+              "missed_certified_opportunity": 38202,
+              "trade_count": 120,
+              "unknown_cost_count": 0
+            },
+            "30": {
+              "initial_deposit": 30,
+              "terminal_equity": 32.7949184052881,
+              "cashflow_adjusted_wealth": 2.794918405288101,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.3988874902209778,
+              "ruin": false,
+              "activation": 120,
+              "missed_certified_opportunity": 38202,
+              "trade_count": 120,
+              "unknown_cost_count": 0
+            }
+          },
+          "passes_scenario": true,
+          "execution_start_ms": 1743919200000,
+          "execution_end_ms": 1759752000000
+        },
+        {
+          "delay_bars": 3,
+          "cost_stress": 1.5,
+          "tiers": {
+            "100": {
+              "initial_deposit": 100,
+              "terminal_equity": 83.7063888371053,
+              "cashflow_adjusted_wealth": -16.293611162894706,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.5365873942177338,
+              "ruin": false,
+              "activation": 120,
+              "missed_certified_opportunity": 38202,
+              "trade_count": 120,
+              "unknown_cost_count": 0
+            },
+            "1000": {
+              "initial_deposit": 1000,
+              "terminal_equity": 819.4947940581795,
+              "cashflow_adjusted_wealth": -180.50520594182046,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.5469123632751361,
+              "ruin": false,
+              "activation": 120,
+              "missed_certified_opportunity": 38202,
+              "trade_count": 120,
+              "unknown_cost_count": 0
+            },
+            "30": {
+              "initial_deposit": 30,
+              "terminal_equity": 25.15291120452815,
+              "cashflow_adjusted_wealth": -4.847088795471851,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.5357881540229068,
+              "ruin": false,
+              "activation": 120,
+              "missed_certified_opportunity": 38202,
+              "trade_count": 120,
+              "unknown_cost_count": 0
+            }
+          },
+          "passes_scenario": true,
+          "execution_start_ms": 1743919200000,
+          "execution_end_ms": 1759752000000
+        }
+      ],
+      "passes_selection": false
+    },
+    {
+      "fraction": 0.25,
+      "scenarios": [
+        {
+          "delay_bars": 0,
+          "cost_stress": 1,
+          "tiers": {
+            "100": {
+              "initial_deposit": 100,
+              "terminal_equity": 87.93556924496454,
+              "cashflow_adjusted_wealth": 37.93556924496454,
+              "withdrawals": 50,
+              "max_drawdown_soft": 0.6391172569666904,
+              "ruin": false,
+              "activation": 227,
+              "missed_certified_opportunity": 38095,
+              "trade_count": 227,
+              "unknown_cost_count": 0
+            },
+            "1000": {
+              "initial_deposit": 1000,
+              "terminal_equity": 869.3721063033496,
+              "cashflow_adjusted_wealth": 369.3721063033495,
+              "withdrawals": 500,
+              "max_drawdown_soft": 0.6424952315833247,
+              "ruin": false,
+              "activation": 227,
+              "missed_certified_opportunity": 38095,
+              "trade_count": 227,
+              "unknown_cost_count": 0
+            },
+            "30": {
+              "initial_deposit": 30,
+              "terminal_equity": 26.403965807831113,
+              "cashflow_adjusted_wealth": 11.403965807831113,
+              "withdrawals": 15,
+              "max_drawdown_soft": 0.6388550747267745,
+              "ruin": false,
+              "activation": 227,
+              "missed_certified_opportunity": 38095,
+              "trade_count": 227,
+              "unknown_cost_count": 0
+            }
+          },
+          "passes_scenario": true,
+          "execution_start_ms": 1743919200000,
+          "execution_end_ms": 1759741200000
+        },
+        {
+          "delay_bars": 0,
+          "cost_stress": 1.5,
+          "tiers": {
+            "100": {
+              "initial_deposit": 100,
+              "terminal_equity": 111.17831478155536,
+              "cashflow_adjusted_wealth": 11.178314781555358,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.41268402226361056,
+              "ruin": false,
+              "activation": 227,
+              "missed_certified_opportunity": 38095,
+              "trade_count": 227,
+              "unknown_cost_count": 0
+            },
+            "1000": {
+              "initial_deposit": 1000,
+              "terminal_equity": 1096.8077685961066,
+              "cashflow_adjusted_wealth": 96.8077685961066,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.4192837668448142,
+              "ruin": false,
+              "activation": 227,
+              "missed_certified_opportunity": 38095,
+              "trade_count": 227,
+              "unknown_cost_count": 0
+            },
+            "30": {
+              "initial_deposit": 30,
+              "terminal_equity": 33.388436985979475,
+              "cashflow_adjusted_wealth": 3.3884369859794745,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.4121724048541038,
+              "ruin": false,
+              "activation": 227,
+              "missed_certified_opportunity": 38095,
+              "trade_count": 227,
+              "unknown_cost_count": 0
+            }
+          },
+          "passes_scenario": true,
+          "execution_start_ms": 1743919200000,
+          "execution_end_ms": 1759741200000
+        },
+        {
+          "delay_bars": 1,
+          "cost_stress": 1,
+          "tiers": {
+            "100": {
+              "initial_deposit": 100,
+              "terminal_equity": 113.34446318272975,
+              "cashflow_adjusted_wealth": 13.344463182729754,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.4225262487781495,
+              "ruin": false,
+              "activation": 227,
+              "missed_certified_opportunity": 38095,
+              "trade_count": 227,
+              "unknown_cost_count": 0
+            },
+            "1000": {
+              "initial_deposit": 1000,
+              "terminal_equity": 1123.512481898431,
+              "cashflow_adjusted_wealth": 123.5124818984309,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.42681632942772446,
+              "ruin": false,
+              "activation": 227,
+              "missed_certified_opportunity": 38095,
+              "trade_count": 227,
+              "unknown_cost_count": 0
+            },
+            "30": {
+              "initial_deposit": 30,
+              "terminal_equity": 34.026513971320426,
+              "cashflow_adjusted_wealth": 4.026513971320426,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.42219329622462426,
+              "ruin": false,
+              "activation": 227,
+              "missed_certified_opportunity": 38095,
+              "trade_count": 227,
+              "unknown_cost_count": 0
+            }
+          },
+          "passes_scenario": true,
+          "execution_start_ms": 1743919200000,
+          "execution_end_ms": 1759744800000
+        },
+        {
+          "delay_bars": 1,
+          "cost_stress": 1.5,
+          "tiers": {
+            "100": {
+              "initial_deposit": 100,
+              "terminal_equity": 87.7786500154869,
+              "cashflow_adjusted_wealth": -12.221349984513097,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.5487962236419587,
+              "ruin": false,
+              "activation": 227,
+              "missed_certified_opportunity": 38095,
+              "trade_count": 227,
+              "unknown_cost_count": 0
+            },
+            "1000": {
+              "initial_deposit": 1000,
+              "terminal_equity": 862.8882752615914,
+              "cashflow_adjusted_wealth": -137.1117247384086,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.5559846196994391,
+              "ruin": false,
+              "activation": 227,
+              "missed_certified_opportunity": 38095,
+              "trade_count": 227,
+              "unknown_cost_count": 0
+            },
+            "30": {
+              "initial_deposit": 30,
+              "terminal_equity": 26.368357529397688,
+              "cashflow_adjusted_wealth": -3.631642470602312,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.5482390334813182,
+              "ruin": false,
+              "activation": 227,
+              "missed_certified_opportunity": 38095,
+              "trade_count": 227,
+              "unknown_cost_count": 0
+            }
+          },
+          "passes_scenario": true,
+          "execution_start_ms": 1743919200000,
+          "execution_end_ms": 1759744800000
+        },
+        {
+          "delay_bars": 2,
+          "cost_stress": 1,
+          "tiers": {
+            "100": {
+              "initial_deposit": 100,
+              "terminal_equity": 101.38827883168159,
+              "cashflow_adjusted_wealth": 1.388278831681589,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.48808498589507315,
+              "ruin": false,
+              "activation": 227,
+              "missed_certified_opportunity": 38095,
+              "trade_count": 227,
+              "unknown_cost_count": 0
+            },
+            "1000": {
+              "initial_deposit": 1000,
+              "terminal_equity": 1003.9424120505277,
+              "cashflow_adjusted_wealth": 3.9424120505276505,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.49260176889591356,
+              "ruin": false,
+              "activation": 227,
+              "missed_certified_opportunity": 38095,
+              "trade_count": 227,
+              "unknown_cost_count": 0
+            },
+            "30": {
+              "initial_deposit": 30,
+              "terminal_equity": 30.439677860793196,
+              "cashflow_adjusted_wealth": 0.4396778607931964,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.4877344532815428,
+              "ruin": false,
+              "activation": 227,
+              "missed_certified_opportunity": 38095,
+              "trade_count": 227,
+              "unknown_cost_count": 0
+            }
+          },
+          "passes_scenario": true,
+          "execution_start_ms": 1743919200000,
+          "execution_end_ms": 1759748400000
+        },
+        {
+          "delay_bars": 2,
+          "cost_stress": 1.5,
+          "tiers": {
+            "100": {
+              "initial_deposit": 100,
+              "terminal_equity": 76.89427514353972,
+              "cashflow_adjusted_wealth": -23.105724856460284,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.6127370413429475,
+              "ruin": false,
+              "activation": 227,
+              "missed_certified_opportunity": 38095,
+              "trade_count": 227,
+              "unknown_cost_count": 0
+            },
+            "1000": {
+              "initial_deposit": 1000,
+              "terminal_equity": 754.0321870359842,
+              "cashflow_adjusted_wealth": -245.96781296401582,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.6204324580664806,
+              "ruin": false,
+              "activation": 227,
+              "missed_certified_opportunity": 38095,
+              "trade_count": 227,
+              "unknown_cost_count": 0
+            },
+            "30": {
+              "initial_deposit": 30,
+              "terminal_equity": 23.103073859994257,
+              "cashflow_adjusted_wealth": -6.896926140005743,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.6121405902020921,
+              "ruin": false,
+              "activation": 227,
+              "missed_certified_opportunity": 38095,
+              "trade_count": 227,
+              "unknown_cost_count": 0
+            }
+          },
+          "passes_scenario": true,
+          "execution_start_ms": 1743919200000,
+          "execution_end_ms": 1759748400000
+        },
+        {
+          "delay_bars": 3,
+          "cost_stress": 1,
+          "tiers": {
+            "100": {
+              "initial_deposit": 100,
+              "terminal_equity": 78.99846292415103,
+              "cashflow_adjusted_wealth": 28.998462924151028,
+              "withdrawals": 50,
+              "max_drawdown_soft": 0.6698346053588223,
+              "ruin": false,
+              "activation": 227,
+              "missed_certified_opportunity": 38095,
+              "trade_count": 227,
+              "unknown_cost_count": 0
+            },
+            "1000": {
+              "initial_deposit": 1000,
+              "terminal_equity": 779.9769744550814,
+              "cashflow_adjusted_wealth": 279.9769744550813,
+              "withdrawals": 500,
+              "max_drawdown_soft": 0.6744218924558804,
+              "ruin": false,
+              "activation": 227,
+              "missed_certified_opportunity": 38095,
+              "trade_count": 227,
+              "unknown_cost_count": 0
+            },
+            "30": {
+              "initial_deposit": 30,
+              "terminal_equity": 23.722890071747468,
+              "cashflow_adjusted_wealth": 8.722890071747472,
+              "withdrawals": 15,
+              "max_drawdown_soft": 0.6694785497967932,
+              "ruin": false,
+              "activation": 227,
+              "missed_certified_opportunity": 38095,
+              "trade_count": 227,
+              "unknown_cost_count": 0
+            }
+          },
+          "passes_scenario": true,
+          "execution_start_ms": 1743919200000,
+          "execution_end_ms": 1759752000000
+        },
+        {
+          "delay_bars": 3,
+          "cost_stress": 1.5,
+          "tiers": {
+            "100": {
+              "initial_deposit": 100,
+              "terminal_equity": 104.5774975168971,
+              "cashflow_adjusted_wealth": 4.577497516897097,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.4595491125788958,
+              "ruin": false,
+              "activation": 227,
+              "missed_certified_opportunity": 38095,
+              "trade_count": 227,
+              "unknown_cost_count": 0
+            },
+            "1000": {
+              "initial_deposit": 1000,
+              "terminal_equity": 1030.7634929893238,
+              "cashflow_adjusted_wealth": 30.763492989323822,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.4663468733719701,
+              "ruin": false,
+              "activation": 227,
+              "missed_certified_opportunity": 38095,
+              "trade_count": 227,
+              "unknown_cost_count": 0
+            },
+            "30": {
+              "initial_deposit": 30,
+              "terminal_equity": 31.40827604682237,
+              "cashflow_adjusted_wealth": 1.408276046822369,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.4590221083624711,
+              "ruin": false,
+              "activation": 227,
+              "missed_certified_opportunity": 38095,
+              "trade_count": 227,
+              "unknown_cost_count": 0
+            }
+          },
+          "passes_scenario": true,
+          "execution_start_ms": 1743919200000,
+          "execution_end_ms": 1759752000000
+        }
+      ],
+      "passes_selection": true
+    },
+    {
+      "fraction": 0.1,
+      "scenarios": [
+        {
+          "delay_bars": 0,
+          "cost_stress": 1,
+          "tiers": {
+            "100": {
+              "initial_deposit": 100,
+              "terminal_equity": 70.01498984321474,
+              "cashflow_adjusted_wealth": 20.014989843214735,
+              "withdrawals": 50,
+              "max_drawdown_soft": 0.6751215870200639,
+              "ruin": false,
+              "activation": 502,
+              "missed_certified_opportunity": 37820,
+              "trade_count": 502,
+              "unknown_cost_count": 0
+            },
+            "1000": {
+              "initial_deposit": 1000,
+              "terminal_equity": 690.7142926738214,
+              "cashflow_adjusted_wealth": 190.71429267382155,
+              "withdrawals": 500,
+              "max_drawdown_soft": 0.6793986501247055,
+              "ruin": false,
+              "activation": 502,
+              "missed_certified_opportunity": 37820,
+              "trade_count": 502,
+              "unknown_cost_count": 0
+            },
+            "30": {
+              "initial_deposit": 30,
+              "terminal_equity": 21.026513366400216,
+              "cashflow_adjusted_wealth": 6.026513366400216,
+              "withdrawals": 15,
+              "max_drawdown_soft": 0.6747894739222877,
+              "ruin": false,
+              "activation": 502,
+              "missed_certified_opportunity": 37820,
+              "trade_count": 502,
+              "unknown_cost_count": 0
+            }
+          },
+          "passes_scenario": true,
+          "execution_start_ms": 1743919200000,
+          "execution_end_ms": 1759741200000
+        },
+        {
+          "delay_bars": 0,
+          "cost_stress": 1.5,
+          "tiers": {
+            "100": {
+              "initial_deposit": 100,
+              "terminal_equity": 97.34943300474816,
+              "cashflow_adjusted_wealth": -2.650566995251836,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.4518239441168042,
+              "ruin": false,
+              "activation": 502,
+              "missed_certified_opportunity": 37820,
+              "trade_count": 502,
+              "unknown_cost_count": 0
+            },
+            "1000": {
+              "initial_deposit": 1000,
+              "terminal_equity": 959.3409214099314,
+              "cashflow_adjusted_wealth": -40.65907859006859,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.45799501331144965,
+              "ruin": false,
+              "activation": 502,
+              "missed_certified_opportunity": 37820,
+              "trade_count": 502,
+              "unknown_cost_count": 0
+            },
+            "30": {
+              "initial_deposit": 30,
+              "terminal_equity": 29.237854521579216,
+              "cashflow_adjusted_wealth": -0.7621454784207842,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.4513452092586271,
+              "ruin": false,
+              "activation": 502,
+              "missed_certified_opportunity": 37820,
+              "trade_count": 502,
+              "unknown_cost_count": 0
+            }
+          },
+          "passes_scenario": false,
+          "execution_start_ms": 1743919200000,
+          "execution_end_ms": 1759741200000
+        },
+        {
+          "delay_bars": 1,
+          "cost_stress": 1,
+          "tiers": {
+            "100": {
+              "initial_deposit": 100,
+              "terminal_equity": 65.02732784347712,
+              "cashflow_adjusted_wealth": 15.027327843477124,
+              "withdrawals": 50,
+              "max_drawdown_soft": 0.709952946090266,
+              "ruin": false,
+              "activation": 502,
+              "missed_certified_opportunity": 37820,
+              "trade_count": 502,
+              "unknown_cost_count": 0
+            },
+            "1000": {
+              "initial_deposit": 1000,
+              "terminal_equity": 640.8216129069393,
+              "cashflow_adjusted_wealth": 140.8216129069392,
+              "withdrawals": 500,
+              "max_drawdown_soft": 0.7142616577175206,
+              "ruin": false,
+              "activation": 502,
+              "missed_certified_opportunity": 37820,
+              "trade_count": 502,
+              "unknown_cost_count": 0
+            },
+            "30": {
+              "initial_deposit": 30,
+              "terminal_equity": 19.530252239274425,
+              "cashflow_adjusted_wealth": 4.530252239274425,
+              "withdrawals": 15,
+              "max_drawdown_soft": 0.7096183697006513,
+              "ruin": false,
+              "activation": 502,
+              "missed_certified_opportunity": 37820,
+              "trade_count": 502,
+              "unknown_cost_count": 0
+            }
+          },
+          "passes_scenario": true,
+          "execution_start_ms": 1743919200000,
+          "execution_end_ms": 1759744800000
+        },
+        {
+          "delay_bars": 1,
+          "cost_stress": 1.5,
+          "tiers": {
+            "100": {
+              "initial_deposit": 100,
+              "terminal_equity": 93.25275630140047,
+              "cashflow_adjusted_wealth": -6.747243698599533,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.48469474403286794,
+              "ruin": false,
+              "activation": 502,
+              "missed_certified_opportunity": 37820,
+              "trade_count": 502,
+              "unknown_cost_count": 0
+            },
+            "1000": {
+              "initial_deposit": 1000,
+              "terminal_equity": 918.3500647222025,
+              "cashflow_adjusted_wealth": -81.64993527779745,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.4909088385254508,
+              "ruin": false,
+              "activation": 502,
+              "missed_certified_opportunity": 37820,
+              "trade_count": 502,
+              "unknown_cost_count": 0
+            },
+            "30": {
+              "initial_deposit": 30,
+              "terminal_equity": 28.008907719768118,
+              "cashflow_adjusted_wealth": -1.9910922802318822,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.484212656820289,
+              "ruin": false,
+              "activation": 502,
+              "missed_certified_opportunity": 37820,
+              "trade_count": 502,
+              "unknown_cost_count": 0
+            }
+          },
+          "passes_scenario": true,
+          "execution_start_ms": 1743919200000,
+          "execution_end_ms": 1759744800000
+        },
+        {
+          "delay_bars": 2,
+          "cost_stress": 1,
+          "tiers": {
+            "100": {
+              "initial_deposit": 100,
+              "terminal_equity": 115.78567937985693,
+              "cashflow_adjusted_wealth": 15.78567937985693,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.37697473972560797,
+              "ruin": false,
+              "activation": 502,
+              "missed_certified_opportunity": 37820,
+              "trade_count": 502,
+              "unknown_cost_count": 0
+            },
+            "1000": {
+              "initial_deposit": 1000,
+              "terminal_equity": 1148.3906256452485,
+              "cashflow_adjusted_wealth": 148.39062564524852,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.3808140536792533,
+              "ruin": false,
+              "activation": 502,
+              "missed_certified_opportunity": 37820,
+              "trade_count": 502,
+              "unknown_cost_count": 0
+            },
+            "30": {
+              "initial_deposit": 30,
+              "terminal_equity": 34.757791539648565,
+              "cashflow_adjusted_wealth": 4.757791539648565,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.3766766124573523,
+              "ruin": false,
+              "activation": 502,
+              "missed_certified_opportunity": 37820,
+              "trade_count": 502,
+              "unknown_cost_count": 0
+            }
+          },
+          "passes_scenario": true,
+          "execution_start_ms": 1743919200000,
+          "execution_end_ms": 1759748400000
+        },
+        {
+          "delay_bars": 2,
+          "cost_stress": 1.5,
+          "tiers": {
+            "100": {
+              "initial_deposit": 100,
+              "terminal_equity": 94.33734824163798,
+              "cashflow_adjusted_wealth": -5.662651758362017,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.47565902294301154,
+              "ruin": false,
+              "activation": 502,
+              "missed_certified_opportunity": 37820,
+              "trade_count": 502,
+              "unknown_cost_count": 0
+            },
+            "1000": {
+              "initial_deposit": 1000,
+              "terminal_equity": 929.1742301864589,
+              "cashflow_adjusted_wealth": -70.82576981354111,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.4819006503435479,
+              "ruin": false,
+              "activation": 502,
+              "missed_certified_opportunity": 37820,
+              "trade_count": 502,
+              "unknown_cost_count": 0
+            },
+            "30": {
+              "initial_deposit": 30,
+              "terminal_equity": 28.334336061028164,
+              "cashflow_adjusted_wealth": -1.6656639389718357,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.4751747983981226,
+              "ruin": false,
+              "activation": 502,
+              "missed_certified_opportunity": 37820,
+              "trade_count": 502,
+              "unknown_cost_count": 0
+            }
+          },
+          "passes_scenario": true,
+          "execution_start_ms": 1743919200000,
+          "execution_end_ms": 1759748400000
+        },
+        {
+          "delay_bars": 3,
+          "cost_stress": 1,
+          "tiers": {
+            "100": {
+              "initial_deposit": 100,
+              "terminal_equity": 81.38463672787965,
+              "cashflow_adjusted_wealth": 31.384636727879638,
+              "withdrawals": 50,
+              "max_drawdown_soft": 0.6173592490664217,
+              "ruin": false,
+              "activation": 502,
+              "missed_certified_opportunity": 37820,
+              "trade_count": 502,
+              "unknown_cost_count": 0
+            },
+            "1000": {
+              "initial_deposit": 1000,
+              "terminal_equity": 804.3022961788301,
+              "cashflow_adjusted_wealth": 304.30229617883015,
+              "withdrawals": 500,
+              "max_drawdown_soft": 0.6215449058351884,
+              "ruin": false,
+              "activation": 502,
+              "missed_certified_opportunity": 37820,
+              "trade_count": 502,
+              "unknown_cost_count": 0
+            },
+            "30": {
+              "initial_deposit": 30,
+              "terminal_equity": 24.437660517596996,
+              "cashflow_adjusted_wealth": 9.437660517596996,
+              "withdrawals": 15,
+              "max_drawdown_soft": 0.6170342216627327,
+              "ruin": false,
+              "activation": 502,
+              "missed_certified_opportunity": 37820,
+              "trade_count": 502,
+              "unknown_cost_count": 0
+            }
+          },
+          "passes_scenario": true,
+          "execution_start_ms": 1743919200000,
+          "execution_end_ms": 1759752000000
+        },
+        {
+          "delay_bars": 3,
+          "cost_stress": 1.5,
+          "tiers": {
+            "100": {
+              "initial_deposit": 100,
+              "terminal_equity": 110.30126874259844,
+              "cashflow_adjusted_wealth": 10.301268742598438,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.3844115801376109,
+              "ruin": false,
+              "activation": 502,
+              "missed_certified_opportunity": 37820,
+              "trade_count": 502,
+              "unknown_cost_count": 0
+            },
+            "1000": {
+              "initial_deposit": 1000,
+              "terminal_equity": 1088.6965807759468,
+              "cashflow_adjusted_wealth": 88.69658077594681,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.39040718551182235,
+              "ruin": false,
+              "activation": 502,
+              "missed_certified_opportunity": 37820,
+              "trade_count": 502,
+              "unknown_cost_count": 0
+            },
+            "30": {
+              "initial_deposit": 30,
+              "terminal_equity": 33.123784871629816,
+              "cashflow_adjusted_wealth": 3.123784871629816,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.38394642621594843,
+              "ruin": false,
+              "activation": 502,
+              "missed_certified_opportunity": 37820,
+              "trade_count": 502,
+              "unknown_cost_count": 0
+            }
+          },
+          "passes_scenario": true,
+          "execution_start_ms": 1743919200000,
+          "execution_end_ms": 1759752000000
+        }
+      ],
+      "passes_selection": false
+    }
+  ],
+  "selected_fraction": 0.25,
+  "leaf_wf": [
+    {
+      "fraction": 0.25,
+      "scenarios": [
+        {
+          "delay_bars": 0,
+          "cost_stress": 1,
+          "tiers": {
+            "100": {
+              "initial_deposit": 100,
+              "terminal_equity": 0,
+              "cashflow_adjusted_wealth": -100,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.6359064728450011,
+              "ruin": true,
+              "activation": 48,
+              "missed_certified_opportunity": 123930,
+              "trade_count": 48,
+              "unknown_cost_count": 0
+            },
+            "1000": {
+              "initial_deposit": 1000,
+              "terminal_equity": 0,
+              "cashflow_adjusted_wealth": -1000,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.632873923961395,
+              "ruin": true,
+              "activation": 48,
+              "missed_certified_opportunity": 123930,
+              "trade_count": 48,
+              "unknown_cost_count": 0
+            },
+            "30": {
+              "initial_deposit": 30,
+              "terminal_equity": 0,
+              "cashflow_adjusted_wealth": -30,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.6357218531446236,
+              "ruin": true,
+              "activation": 48,
+              "missed_certified_opportunity": 123930,
+              "trade_count": 48,
+              "unknown_cost_count": 0
+            }
+          },
+          "passes_scenario": false,
+          "execution_start_ms": 1759834800000,
+          "execution_end_ms": 1771678800000
+        },
+        {
+          "delay_bars": 0,
+          "cost_stress": 1.5,
+          "tiers": {
+            "100": {
+              "initial_deposit": 100,
+              "terminal_equity": 0,
+              "cashflow_adjusted_wealth": -100,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.6407924397961579,
+              "ruin": true,
+              "activation": 48,
+              "missed_certified_opportunity": 123930,
+              "trade_count": 48,
+              "unknown_cost_count": 0
+            },
+            "1000": {
+              "initial_deposit": 1000,
+              "terminal_equity": 0,
+              "cashflow_adjusted_wealth": -1000,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.6268789832938954,
+              "ruin": true,
+              "activation": 48,
+              "missed_certified_opportunity": 123930,
+              "trade_count": 48,
+              "unknown_cost_count": 0
+            },
+            "30": {
+              "initial_deposit": 30,
+              "terminal_equity": 0,
+              "cashflow_adjusted_wealth": -30,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.6405114102203627,
+              "ruin": true,
+              "activation": 48,
+              "missed_certified_opportunity": 123930,
+              "trade_count": 48,
+              "unknown_cost_count": 0
+            }
+          },
+          "passes_scenario": false,
+          "execution_start_ms": 1759834800000,
+          "execution_end_ms": 1771678800000
+        },
+        {
+          "delay_bars": 1,
+          "cost_stress": 1,
+          "tiers": {
+            "100": {
+              "initial_deposit": 100,
+              "terminal_equity": 0,
+              "cashflow_adjusted_wealth": -100,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.6426881092360472,
+              "ruin": true,
+              "activation": 56,
+              "missed_certified_opportunity": 123922,
+              "trade_count": 56,
+              "unknown_cost_count": 0
+            },
+            "1000": {
+              "initial_deposit": 1000,
+              "terminal_equity": 0,
+              "cashflow_adjusted_wealth": -1000,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.6452231518266344,
+              "ruin": true,
+              "activation": 56,
+              "missed_certified_opportunity": 123922,
+              "trade_count": 56,
+              "unknown_cost_count": 0
+            },
+            "30": {
+              "initial_deposit": 30,
+              "terminal_equity": 0,
+              "cashflow_adjusted_wealth": -30,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.6424912386353189,
+              "ruin": true,
+              "activation": 56,
+              "missed_certified_opportunity": 123922,
+              "trade_count": 56,
+              "unknown_cost_count": 0
+            }
+          },
+          "passes_scenario": false,
+          "execution_start_ms": 1759834800000,
+          "execution_end_ms": 1771682400000
+        },
+        {
+          "delay_bars": 1,
+          "cost_stress": 1.5,
+          "tiers": {
+            "100": {
+              "initial_deposit": 100,
+              "terminal_equity": 0,
+              "cashflow_adjusted_wealth": -100,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.6303320025039375,
+              "ruin": true,
+              "activation": 48,
+              "missed_certified_opportunity": 123930,
+              "trade_count": 48,
+              "unknown_cost_count": 0
+            },
+            "1000": {
+              "initial_deposit": 1000,
+              "terminal_equity": 0,
+              "cashflow_adjusted_wealth": -1000,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.6336482460719794,
+              "ruin": true,
+              "activation": 48,
+              "missed_certified_opportunity": 123930,
+              "trade_count": 48,
+              "unknown_cost_count": 0
+            },
+            "30": {
+              "initial_deposit": 30,
+              "terminal_equity": 0,
+              "cashflow_adjusted_wealth": -30,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.6462420319999396,
+              "ruin": true,
+              "activation": 48,
+              "missed_certified_opportunity": 123930,
+              "trade_count": 48,
+              "unknown_cost_count": 0
+            }
+          },
+          "passes_scenario": false,
+          "execution_start_ms": 1759834800000,
+          "execution_end_ms": 1771682400000
+        },
+        {
+          "delay_bars": 2,
+          "cost_stress": 1,
+          "tiers": {
+            "100": {
+              "initial_deposit": 100,
+              "terminal_equity": 0,
+              "cashflow_adjusted_wealth": -100,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.6345002680906555,
+              "ruin": true,
+              "activation": 56,
+              "missed_certified_opportunity": 123922,
+              "trade_count": 56,
+              "unknown_cost_count": 0
+            },
+            "1000": {
+              "initial_deposit": 1000,
+              "terminal_equity": 0,
+              "cashflow_adjusted_wealth": -1000,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.6370962302440982,
+              "ruin": true,
+              "activation": 56,
+              "missed_certified_opportunity": 123922,
+              "trade_count": 56,
+              "unknown_cost_count": 0
+            },
+            "30": {
+              "initial_deposit": 30,
+              "terminal_equity": 0,
+              "cashflow_adjusted_wealth": -30,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.6342986744142005,
+              "ruin": true,
+              "activation": 56,
+              "missed_certified_opportunity": 123922,
+              "trade_count": 56,
+              "unknown_cost_count": 0
+            }
+          },
+          "passes_scenario": false,
+          "execution_start_ms": 1759834800000,
+          "execution_end_ms": 1771686000000
+        },
+        {
+          "delay_bars": 2,
+          "cost_stress": 1.5,
+          "tiers": {
+            "100": {
+              "initial_deposit": 100,
+              "terminal_equity": 0,
+              "cashflow_adjusted_wealth": -100,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.6200441027179501,
+              "ruin": true,
+              "activation": 48,
+              "missed_certified_opportunity": 123930,
+              "trade_count": 48,
+              "unknown_cost_count": 0
+            },
+            "1000": {
+              "initial_deposit": 1000,
+              "terminal_equity": 0,
+              "cashflow_adjusted_wealth": -1000,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.617733484644514,
+              "ruin": true,
+              "activation": 48,
+              "missed_certified_opportunity": 123930,
+              "trade_count": 48,
+              "unknown_cost_count": 0
+            },
+            "30": {
+              "initial_deposit": 30,
+              "terminal_equity": 0,
+              "cashflow_adjusted_wealth": -30,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.6197811915537623,
+              "ruin": true,
+              "activation": 48,
+              "missed_certified_opportunity": 123930,
+              "trade_count": 48,
+              "unknown_cost_count": 0
+            }
+          },
+          "passes_scenario": false,
+          "execution_start_ms": 1759834800000,
+          "execution_end_ms": 1771686000000
+        },
+        {
+          "delay_bars": 3,
+          "cost_stress": 1,
+          "tiers": {
+            "100": {
+              "initial_deposit": 100,
+              "terminal_equity": 0,
+              "cashflow_adjusted_wealth": -100,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.6269057069327765,
+              "ruin": true,
+              "activation": 24,
+              "missed_certified_opportunity": 123954,
+              "trade_count": 24,
+              "unknown_cost_count": 0
+            },
+            "1000": {
+              "initial_deposit": 1000,
+              "terminal_equity": 0,
+              "cashflow_adjusted_wealth": -1000,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.6289285536327082,
+              "ruin": true,
+              "activation": 24,
+              "missed_certified_opportunity": 123954,
+              "trade_count": 24,
+              "unknown_cost_count": 0
+            },
+            "30": {
+              "initial_deposit": 30,
+              "terminal_equity": 0,
+              "cashflow_adjusted_wealth": -30,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.6267484540228256,
+              "ruin": true,
+              "activation": 24,
+              "missed_certified_opportunity": 123954,
+              "trade_count": 24,
+              "unknown_cost_count": 0
+            }
+          },
+          "passes_scenario": false,
+          "execution_start_ms": 1759834800000,
+          "execution_end_ms": 1771689600000
+        },
+        {
+          "delay_bars": 3,
+          "cost_stress": 1.5,
+          "tiers": {
+            "100": {
+              "initial_deposit": 100,
+              "terminal_equity": 0,
+              "cashflow_adjusted_wealth": -100,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.6168885185252221,
+              "ruin": true,
+              "activation": 24,
+              "missed_certified_opportunity": 123954,
+              "trade_count": 24,
+              "unknown_cost_count": 0
+            },
+            "1000": {
+              "initial_deposit": 1000,
+              "terminal_equity": 0,
+              "cashflow_adjusted_wealth": -1000,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.6199275209880403,
+              "ruin": true,
+              "activation": 24,
+              "missed_certified_opportunity": 123954,
+              "trade_count": 24,
+              "unknown_cost_count": 0
+            },
+            "30": {
+              "initial_deposit": 30,
+              "terminal_equity": 0,
+              "cashflow_adjusted_wealth": -30,
+              "withdrawals": 0,
+              "max_drawdown_soft": 0.6166523317241368,
+              "ruin": true,
+              "activation": 24,
+              "missed_certified_opportunity": 123954,
+              "trade_count": 24,
+              "unknown_cost_count": 0
+            }
+          },
+          "passes_scenario": false,
+          "execution_start_ms": 1759834800000,
+          "execution_end_ms": 1771689600000
+        }
+      ],
+      "passes_selection": false
+    }
+  ],
+  "verdict": "NO_ROUTE",
+  "sealed_policy_hash": "43e44609c854eec71e354d65a460620eb04f90ab19dd705b6928737bbe5a9d04"
+}

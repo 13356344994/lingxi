@@ -1,0 +1,15 @@
+{
+  "artifact_hash": "890cb74d1aaf35f86f3309bc925fc373399916b1f92539d4a973d592554e228d",
+  "events": null,
+  "independent_days": null,
+  "outcome_blind_cell_count": 84,
+  "outcome_blind_cell_set_hash": "a9afc8141a61745593def53b6611c14b5f98830cc1ba3af40f75c54abc12e517",
+  "schema_version": "lingxi.g10-execution-evidence-audit.v1",
+  "shock_blocks": null,
+  "status": "UNAVAILABLE_SOURCE_SCHEMA",
+  "thresholds": {
+    "events": 50,
+    "independent_days": 20,
+    "shock_blocks": 10
+  }
+}

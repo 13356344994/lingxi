@@ -1,0 +1,124 @@
+{
+  "schema_version": "lingxi.data-driven-router-v3.protocol-overlay.v1",
+  "protocol_id": "firstbattle.data-driven-router-v3",
+  "generation": "firstbattle-data-driven-router-v3-g8",
+  "created_at": "2026-07-14T14:05:00Z",
+  "status": "PREREGISTERED_DISCOVERY_LABEL_GENERATION_PENDING_REVIEW",
+  "supersedes": {
+    "generation": "firstbattle-data-driven-router-v3-g7",
+    "overlay_hash": "4aacc43e928d25b6b83cdf8fe10d5b576e2b1009ea10b7bfad3e750388e47747",
+    "reason": "freeze neutral discovery target generation after all four model implementations were submitted",
+    "prior_reward_labels_unblinded": false
+  },
+  "inheritance": {
+    "g1_hash": "5d80166eb28307d23e33cd19efae2b60811852ff0da49a3a6e16663aba2e7ddd",
+    "g2_hash": "7096395f1f3bae212b6dc866c5d46ccb372cd284e4a959d424dfbfbb92d6c226",
+    "g3_hash": "63f4ee088efb09e9e58386ab273b997af4a9206d4c5c18e73c59fda5d42a7a57",
+    "g4_hash": "2fd8c5852bba5023c9024d46b5b5e9527e71d670c370a1276e4728f4ef4cd2b9",
+    "g5_hash": "518d0003c829da641f1bcc955c4382023e158ba9938c0ac6f0ff19b5bf729385",
+    "g6_hash": "08b609e3271029b1e9f772921e325ef7c7fd30326589ae9c03cc86d73d9c844b",
+    "g7_hash": "4aacc43e928d25b6b83cdf8fe10d5b576e2b1009ea10b7bfad3e750388e47747",
+    "all_unmodified_fields_inherited": true
+  },
+  "frozen_inputs": {
+    "dataset_manifest_hash": "f9dc0944919709a49f765fe3291cf60a46952919f796add47d892af5f2808a6d",
+    "dataset_reviewer_receipt_hash": "5fbb51bf0bab3be2649b57ba76ed68b2f714cda8a5fc7c0722a1a53f4c52edfb",
+    "account_fixture_receipt_hash": "c80745299bfac73495060d18a77cb8201a7c5ca40858ebf0df3010489d39b300",
+    "model_api_receipt_path": "research/firstbattle/data_driven_router_v3/model_api_receipt.json",
+    "model_submissions": [
+      "research/firstbattle/data_driven_router_v3/model_submission_terra.json",
+      "research/firstbattle/data_driven_router_v3/model_submission_opus.json",
+      "research/firstbattle/data_driven_router_v3/model_submission_episodic_sonnet.json",
+      "research/firstbattle/data_driven_router_v3/model_submission_grok.json"
+    ],
+    "all_model_code_and_grids_frozen_before_discovery_labels": true
+  },
+  "discovery_sample": {
+    "partition": "discovery",
+    "maximum_examples": 100000,
+    "selection": "lowest_sha256(event_id + canonical_context_id + seed42)",
+    "selection_frozen_before_reward_evaluation": true,
+    "symbol_or_date_stratification": "none",
+    "minimum_examples_if_available": 100000,
+    "sample_manifest_hash_required": true
+  },
+  "canonical_account_context": {
+    "context_ids": {
+      "flat": ["FLAT|age=0|fraction=0"],
+      "long_short": [
+        "LONG|age=1|fraction=0.1", "LONG|age=1|fraction=0.25", "LONG|age=1|fraction=0.5", "LONG|age=1|fraction=1",
+        "LONG|age=4|fraction=0.1", "LONG|age=4|fraction=0.25", "LONG|age=4|fraction=0.5", "LONG|age=4|fraction=1",
+        "LONG|age=24|fraction=0.1", "LONG|age=24|fraction=0.25", "LONG|age=24|fraction=0.5", "LONG|age=24|fraction=1",
+        "SHORT|age=1|fraction=0.1", "SHORT|age=1|fraction=0.25", "SHORT|age=1|fraction=0.5", "SHORT|age=1|fraction=1",
+        "SHORT|age=4|fraction=0.1", "SHORT|age=4|fraction=0.25", "SHORT|age=4|fraction=0.5", "SHORT|age=4|fraction=1",
+        "SHORT|age=24|fraction=0.1", "SHORT|age=24|fraction=0.25", "SHORT|age=24|fraction=0.5", "SHORT|age=24|fraction=1"
+      ]
+    },
+    "one_context_per_event": "sha256(event_id + seed42) modulo 25",
+    "entry_price": "completed_bar_open at decision_at - age_bars",
+    "insufficient_entry_history": "event_context_pair is deterministically ineligible before reward evaluation and excluded from the hash-priority sample",
+    "unrealized_return": "direction-signed decision close versus canonical entry",
+    "funding": "all actual settlements from canonical entry through decision",
+    "cash_and_equity": "retained base marked through canonical position; no pre-decision synthetic withdrawal",
+    "context_hash_required": true
+  },
+  "target_grid": {
+    "signed_fraction": [-1.0, -0.5, -0.25, -0.1, 0.0, 0.1, 0.25, 0.5, 1.0],
+    "horizon_hours": [1, 4, 24],
+    "delay_bars": [0, 1, 2, 3],
+    "targets_per_example": 108
+  },
+  "target_reward": {
+    "evaluator": "effective g1-g7 neutral accountstate/reward evaluator",
+    "objective": "local change in cashflow_adjusted_total_wealth over the frozen horizon",
+    "costs": "effective protocol known cost/proxy and actual signed funding",
+    "unknown_cost_target": "ineligible",
+    "ruin_target": "negative_infinity",
+    "selection": "maximum objective",
+    "tie_break_order": [
+      "lower turnover",
+      "lower absolute target exposure",
+      "shorter horizon",
+      "lower delay",
+      "target zero",
+      "lower numeric signed_fraction"
+    ],
+    "all_target_scores_remain_inside_sealed_label_bundle": true,
+    "models_receive_only_selected_target_intent": true
+  },
+  "label_bundle": {
+    "schema_version": "lingxi.data-driven-router-v3.discovery-label-bundle.v1",
+    "contains": ["example_id", "market_state_hash", "account_context_hash", "selected_target_intent", "target_selection_hash"],
+    "forbidden": ["all_target_reward_vector", "validation_labels", "leaf_wf_labels", "router_holdout_labels"],
+    "output_path": "research/firstbattle/data_driven_router_v3/sealed/discovery_label_bundle.jsonl.gz",
+    "manifest_and_hash_required": true,
+    "access": "neutral_runner_only",
+    "owner_agents_may_read": false
+  },
+  "model_api_transport": {
+    "discovery_selected_target_field": "modelapi.TrainingExample.synthetic_target",
+    "semantic_override": "For kind=DISCOVERY this legacy-named field carries only the neutral runner selected discovery TargetIntent; for kind=SYNTHETIC it carries fixture targets.",
+    "discovery_models_receive_reward_values": false,
+    "discovery_models_receive_full_target_reward_vectors": false
+  },
+  "model_execution": {
+    "all_four_models_fit_same_training_examples": true,
+    "neutral_orchestrator_only": true,
+    "atomic_peer_output_publication": true,
+    "attempt_ledgers_union_required": true,
+    "validation_labels_remain_sealed": true
+  },
+  "safety": {
+    "validation_labels_unblinded": false,
+    "leaf_wf_labels_unblinded": false,
+    "router_holdout_labels_unblinded": false,
+    "routes_started": 0,
+    "system_status": "NO_GO",
+    "trade_allowed": false
+  },
+  "hashes": {
+    "overlay_hash": "c492cd191e869073b330221835fcec4b4437b27ec67e6e9d18252119fc7da682",
+    "hash_method": "Set hashes.overlay_hash to null, then compute repository datatruth.HashJSON.",
+    "self_excluded_field": "hashes.overlay_hash"
+  }
+}

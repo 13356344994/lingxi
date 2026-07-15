@@ -1,0 +1,185 @@
+{
+  "schema_version": "lingxi.data-mainline-closure.v1",
+  "artifact_id": "firstbattle.data-mainline-closure",
+  "generation": "firstbattle-data-mainline-closure-v1",
+  "frozen_at": "2026-07-14T03:30:00Z",
+  "repo_head_commit": "ab2780405f0fd5c80d268fe0feff39eb14a29eda",
+  "status": "OLD_DATA_MAINLINE_CLOSED_MINIMAL_HANDOFF_TO_MECHANISM_SEARCH_V2",
+  "purpose": "机制搜索V2第1项收尾：停止把旧数据工程本身当主线，只做一次最小可信关闭并绑定权威独立证据，然后把主线交给 firstbattle-mechanism-search-v2。本工件不重开任何路线、不解盲标签、不读取收益。",
+  "supreme_objective": "在不同市场状态、特殊事件和个人执行条件下，动态路由到各自经过历史证据认证的专属盈利路径；没有可靠匹配路径时必须空仓。最终以资金流调整后的真实账户净值长期增长为唯一成功标准。",
+  "scope": {
+    "authorized_by_reviewer_receipt": "current OKX SWAP orders/fills/instruments data remain DATA_BLIND with routes_reopened=0 only",
+    "closes": "旧 OKX 私有 orders/fills/current-instruments Data Fitness 数据主线的当前 generation（作为主线动作关闭，不作为机制否定）",
+    "does_not_close": "四条机制路线家族本身；关闭的只是当前可检验表述/generation，不得写成 FALSIFIED",
+    "forbidden_this_artifact": [
+      "读取或汇报 pnl/fillPnl/outcome 值",
+      "收益研究、validation、walk-forward",
+      "考试签发或考试动作",
+      "shadow 或真钱",
+      "重开任何路线或解盲标签",
+      "把 100% order/fill join 当作完整 attempts 分母",
+      "把 current instruments 快照当作历史 PIT",
+      "继续为完成旧 todo 工程化旧数据主线",
+      "下载 allswap 全市场包冒充 1d1s"
+    ]
+  },
+  "authoritative_new_evidence": {
+    "artifact": "research/firstbattle/p0_swap_data_fitness_reviewer_receipt.json",
+    "companion_md": "research/firstbattle/p0_swap_data_fitness_reviewer_receipt.md",
+    "reviewer_receipt_hash": "0cdd322c130a7c6e58bd9803e5611f6a144d35bf6e5a3f0cdac49292ad9dcad4",
+    "reviewer_receipt_md_document_hash": "567cbaea088027a4a521e6ecfa11fdd28fb1b3ac149896e77f13042d031e7bbc",
+    "reviewer_identity": "Independent reviewer subagent (Claude Sonnet 5), distinct session from the owner agent(s) that authored the reviewed artifacts",
+    "verdict": "PASS_INDEPENDENT_VERIFICATION_DATA_FITNESS_CLASSIFICATION",
+    "reviewed_repo_head_commit": "ab2780405f0fd5c80d268fe0feff39eb14a29eda",
+    "approved_scope": "current data remains DATA_BLIND; routes_reopened=0; no broader claim approved",
+    "not_approved": [
+      "outcome/profitability research",
+      "validation or walk-forward",
+      "exam issuance or exam actions",
+      "shadow trading",
+      "real-money trading or any route reopening",
+      "treating the 100% order/fill join as a complete attempts denominator",
+      "treating the current instruments snapshot as historical PIT"
+    ],
+    "independence_note": "receipt 由独立 reviewer 会话产出、命令独立复算（M1 CLI 重算、M2 clean-room Python 重实现、M3 自排除 hash 重算、M4 manifest 时钟/分母审计、M5 plan drift 检查），并带自排除 receipt hash；不依赖 owner 叙述。"
+  },
+  "owner_self_attestation_downgraded": {
+    "location": "p0_swap_data_fitness.json.independent_redteam 与 p0_swap_data_fitness.md 第 8 节",
+    "prior_role_claimed": "被当作独立红队 PASS 的证据",
+    "new_role": "NON_EVIDENCE_OWNER_NARRATIVE_RETAINED",
+    "reason": "该 independent_redteam 块与 md 叙述是由撰写其余工件的同一 owner 侧 agent 谱系、在只有 owner 可控的文件内写下的自证，本身不是独立可验证证据（reviewer receipt finding F4，MEDIUM，process）。保留原文作为 owner 自述，但其证据权重被本轮独立 reviewer receipt 取代。",
+    "artifacts_unmodified": "本收尾不修改 p0_swap_data_fitness.json/.md；owner 自述原样保留，仅在 Master 计划与本 closure 中降级为非证据并改引独立 receipt。"
+  },
+  "bindings": {
+    "repo_head_commit": "ab2780405f0fd5c80d268fe0feff39eb14a29eda",
+    "route_data_contracts_protocol_hash": "4a4c201d2c8cedde5bd1ff55ea40ad31d099e189feb709a517701b504c453588",
+    "route_data_contracts_document_hash": "68dc6666fc0138850fff2911965e5ef05505797ac9fc6137ddde928744e74639",
+    "route_data_source_registry_hash": "1c6672563d4bc00ea102df2f9575b365a2a9dc30e763db75067f9a49052e5318",
+    "route_data_source_registry_document_hash": "483ee318d954cf939646f0a9305e155ab908a3918a75afdfd6fb5f7bb149a0cf",
+    "p0_swap_data_fitness_artifact_hash": "393a12952b480fc2671774d76790e5f850bcbc26b43c8eb8d870bba9c9e2bd66",
+    "p0_swap_data_fitness_document_hash": "697cf3686f72748459d89943c1f45f0071e670f5d22a36f23f61d0154707e899",
+    "p0_swap_data_fitness_measurement_receipt_hash": "f23a815fba52dab22368428a6a95250a1ad58e429c09613fea0ac977b1030c92",
+    "measurement_calculator_version": "p0-swap-data-fitness.v3",
+    "orders_projection_aggregate_hash": "e2cad38f667a0895fcc7ad0d4961b5bf5b3d8d67d3dd3c5e931618cee877b6b3",
+    "fills_projection_aggregate_hash": "36d3fd5e3e0fe267af94122e590da077fb49fa3b290d90268b488d9dc8fa2b2a",
+    "orders_manifest_hash": "3bd6db35f9270cf22183249d542fbb0acd62d5aa70d6ae7199d23acb639a55fa",
+    "fills_manifest_hash": "390c153265d29d7147ca7efcfc1bea38941beffa05df540bbd2895b04a3bc295",
+    "instruments_current_hash": "34cca1c1f629c6f0271722e905ea7bff04d5f1352b7562bc21d5a04c27f1099d",
+    "instruments_manifest_hash": "073f3087042402e004e99cf211a069b36c6312b9bd429f61646bf444d8510715",
+    "reviewer_receipt_hash": "0cdd322c130a7c6e58bd9803e5611f6a144d35bf6e5a3f0cdac49292ad9dcad4",
+    "reviewer_receipt_document_hash": "567cbaea088027a4a521e6ecfa11fdd28fb1b3ac149896e77f13042d031e7bbc"
+  },
+  "frozen_old_data_lines": {
+    "retained_frozen": {
+      "get_downloader": {
+        "status": "RETAINED_FROZEN",
+        "note": "GET-only downloader (internal/historydownload/**, cmd/okx-history-download) 已经三轮独立红队与真实增量复核；保留为冻结工件，不继续工程化扩展。"
+      },
+      "okx_p0_private_orders_fills": {
+        "status": "RETAINED_FROZEN",
+        "note": "OKX SWAP orders-history-archive 137 pages/13,622 rows 与 fills-history 157 pages/15,676 rows；raw 在仓库外 /root/.lingxi-private，绑定 manifest hash；不再拉同类 survivor-biased orders/fills。"
+      },
+      "current_instruments": {
+        "status": "RETAINED_FROZEN_SNAPSHOT_ONLY",
+        "note": "current SWAP instruments 420 rows；PIT=SNAPSHOT_ONLY/PIT_UNPROVEN；不得回填历史。"
+      },
+      "route_data_source_registry": {
+        "status": "RETAINED_FROZEN",
+        "note": "来源注册表已独立外核并修订；作为机制搜索V2入选路线的来源查表输入保留，本身不代表任何来源已下载。"
+      },
+      "data_fitness_measurement": {
+        "status": "RETAINED_FROZEN",
+        "note": "p0-swap-data-fitness.v3 measurement 与 p0_swap_data_fitness.json/.md 保留为冻结机械测量证据，绑定 measurement receipt 与独立 reviewer receipt。"
+      }
+    },
+    "not_required_unless_shortlisted_route_demands_it": {
+      "okx_report_center_manual_export": {
+        "status": "NOT_REQUIRED_UNLESS_SHORTLISTED_ROUTE_DEMANDS_IT",
+        "note": "Report Center 人工导出清单 AWAITING_USER_MANUAL_EXPORT，inspector 最终 PASS 未记录（IMPLEMENTATION_FIXED_FINAL_VERDICT_NOT_RECORDED_DUE_STOP）。只延长 completed-order 覆盖，不能补造完整 attempts 分母；除非机制搜索V2入选路线明确需要，否则不继续。"
+      },
+      "binance_async_order_history_pilot": {
+        "status": "NOT_REQUIRED_UNLESS_SHORTLISTED_ROUTE_DEMANDS_IT",
+        "connected_path": "STOP_UNVERIFIED_DOWNLOAD_HOST",
+        "note": "Binance 一次性 async pilot 曾被红队 BLOCK；官方 download host 未被钉死，connected path 终态 STOP_UNVERIFIED_DOWNLOAD_HOST，禁止 --connect、禁止消耗 quota、禁止联网试错。除非入选路线明确需要且先通过红队，否则不继续。"
+      },
+      "public_l2_depth": {
+        "status": "NOT_REQUIRED_UNLESS_SHORTLISTED_ROUTE_DEMANDS_IT",
+        "note": "公共 L2/depth（module=4 返回空 details；Binance bookDepth 非 tick L2；旧 tick L2 路径 404 停止）。不为完成旧 todo 全市场拉 L2；除非入选路线明确需要，否则不继续。"
+      }
+    },
+    "engineering_directive": "NO_FURTHER_OLD_MAINLINE_ENGINEERING_TO_COMPLETE_LEGACY_TODOS：禁止为“完成旧 todo”继续工程化旧数据主线；上述 NOT_REQUIRED 项只在机制搜索V2某条入选路线的冻结数据需求明确触发时，作为该路线的最小数据获取重新单独立项并先过红队。"
+  },
+  "earliest_blocker": {
+    "id": "INCOMPLETE_ATTEMPTS_DENOMINATOR",
+    "layer": "micro_execution_capacity_cliff",
+    "evidence": "全部 13,622 个下载订单 accFillSz>0；56 个 canceled 均为部分成交撤单；no-fill 订单=0；端点不提供 rejected/expired/live-open/decision 侧非提交 arm。",
+    "secondary": [
+      "CROSS_ENDPOINT_INSTRUMENT_IDENTITY_DRIFT",
+      "ORIGINAL_RECEIVE_TIME_ABSENT",
+      "DECISION_ID_ABSENT",
+      "INSTRUMENT_PIT_UNPROVEN"
+    ],
+    "interpretation_limits": [
+      "100% order/fill token join 只证明 survivor-biased API slice 的行级引用完整性，不等于完整 attempts 分母。",
+      "同一 order token 在 orders 与 fills 端点出现 168 订单/199 fill rows 的 instId 冲突，exchange identity 跨端点不稳定。",
+      "current instrument 元数据可能只从 KnownFrom 向未来生效，不能回填下载的历史 attempts。",
+      "26 个 UTC 日中 top-2 日占 81.74276905006607%，支持度高度集中。"
+    ],
+    "closure_semantics": "Data 工程关闭 != 路线/机制失败。关闭的是当前数据主线 generation 的可检验表述；四路径保持 DATA_BLIND，不写 FALSIFIED，不等待未来数据续命。"
+  },
+  "verification": {
+    "scope_run_by_main_agent_this_round": "target 测试 / race / vet / git diff --check",
+    "result": "本轮主代理命令已 exit 0（target tests、race、vet、git diff --check 通过）",
+    "honesty_caveat": "未声称本轮已重跑最终全仓 race；全仓 go test ./... 曾在 Report/Binance 最后改动前通过，最终全量 test/race/vet 仍待所有代码冻结后重跑。无必要不跑额外命令。",
+    "this_artifact_commands": "本 closure 工件仅新增 JSON/MD 与更新 Master 计划，并用仓库 datatruth.HashJSON 计算自排除 hash 与 markdown 文档 hash；未修改代码、plan 文件、候选机制文件、records、private raw 或 G1–G10 冻结工件；未提交。"
+  },
+  "next_mainline": {
+    "generation": "firstbattle-mechanism-search-v2",
+    "handoff": "由 Opus、Fable、Grok 并行提出至少十五个非同源付款机制候选，先过 payer/existing-history observability/complete denominator/PIT-identity/50 events·20 days·10 blocks，之后才允许读任何历史标签。",
+    "labels_unblinded": false,
+    "routes_started": 0,
+    "routes_reopened": 0,
+    "system_status": "NO_GO"
+  },
+  "decision_journal": {
+    "owner": "LINGXI 独立治理 owner（机制搜索V2第1项收尾）",
+    "competing_hypotheses": [
+      "HA: owner 自述 independent_redteam 已构成独立 PASS，可直接关闭。",
+      "HB: owner 自述不是独立证据，必须由独立 reviewer receipt 承担证据权重。",
+      "HC: 100% join 意味数据就绪，可脱离 DATA_BLIND。",
+      "HD: Data 工程关闭等于路线/机制失败。"
+    ],
+    "strongest_counterexample": "所有下载订单均有正成交，数据无法比较 fill 与 no-fill attempts，即便 join 完整，故 attempts 分母不完整；这独立地否定 HC。",
+    "chosen_method": "以独立 reviewer receipt（hash 0cdd322c…9ad9dcad4，verdict PASS_INDEPENDENT_VERIFICATION_DATA_FITNESS_CLASSIFICATION）作为权威证据，将 owner 自述降级为非证据；冻结旧数据主线于 DATA_BLIND/routes_reopened=0；把主线交给 firstbattle-mechanism-search-v2。",
+    "rejected": [
+      "HA：owner 自证冒充独立 PASS",
+      "HC：把 join 当完整分母",
+      "HD：把工程关闭写成机制 FALSIFIED",
+      "为完成旧 todo 继续工程化旧数据主线",
+      "重开路线 / 解盲 / 收益研究 / 考试 / shadow / 真钱"
+    ],
+    "stop_decision": "旧数据主线最小关闭完成，绑定合同/来源注册表/P0 工件/measurement/独立 reviewer receipt/HEAD；停在机制搜索V2启动前，未经用户再次批准不运行收益研究、validation/WF、考试、shadow 或真钱。"
+  },
+  "safety": {
+    "system_status": "NO_GO",
+    "exam_status": "EXAM_UNAVAILABLE",
+    "trade_allowed": false,
+    "labels_unblinded": false,
+    "routes_started": 0,
+    "routes_reopened": 0,
+    "owner_made_commits": false,
+    "owner_modified_plan_file": false,
+    "owner_modified_candidate_mechanism_files": false,
+    "owner_modified_code": false,
+    "owner_modified_records": false,
+    "owner_modified_private_raw": false,
+    "owner_modified_frozen_g1_g10_artifacts": false,
+    "owner_modified_p0_data_fitness_or_reviewer_artifacts": false,
+    "owner_read_raw_or_outcome_values": false
+  },
+  "hashes": {
+    "artifact_hash": "d4f78f1efabead5b86e0656ab73903734da6c36d1d737337c535a14e6568525e",
+    "hash_method": "Read this JSON as a generic object, set hashes.artifact_hash to null, then compute repository datatruth.HashJSON (deterministic Go encoding/json plus SHA-256 lowercase hex), exactly as used by the artifacts this closure binds.",
+    "self_excluded_field": "hashes.artifact_hash"
+  }
+}

@@ -1,0 +1,355 @@
+{
+  "artifact_hash": "368283516503c0e836b664d2315f850b94907bab80242c501ebaed5a142cd2d8",
+  "bounded_memory": {
+    "checkpoint_hashed_bytes": 0,
+    "peak_buffered_bytes": 28793,
+    "peak_buffered_rows": 37,
+    "projected_total": 22645,
+    "staging_binding_hash": "b7316d220add4112eb1785f166b328a38191b0ce1f138088f49afa1437b12f18",
+    "staging_files_hash": "420eac062e330fad5fcb4d01e6d4a401b62176931a3ec044438b3d16ce8c1d41"
+  },
+  "classification_by_route": {
+    "g10_v1": {
+      "classification": null,
+      "engineering_status": "NON_FORMAL_SMOKE",
+      "phase": "A",
+      "reason": "truncated prefix smoke cannot produce a formal seven-class verdict"
+    }
+  },
+  "conflict_matrix_hash": "9c57e51fc3983ee5e27c299ba6bb3521938aed93150ec9cbb6186d737b59c3d7",
+  "critical_reason_counts": {
+    "dynamic_min_notional_usdt": {
+      "denominator": 1918,
+      "missing_reason_counts": {
+        "MISSING_CT_TYPE_DATA": 1918
+      },
+      "numerator": 0,
+      "scopes": {
+        "execution_rows": {
+          "numerator": 0,
+          "denominator": 1918,
+          "missing_reason_counts": {
+            "MISSING_CT_TYPE_DATA": 1918
+          }
+        }
+      }
+    },
+    "entry_slip_bps": {
+      "denominator": 818,
+      "missing_reason_counts": {
+        "MISSING_REFERENCE_QUOTE": 747
+      },
+      "numerator": 71,
+      "scopes": {
+        "settlement_rows": {
+          "numerator": 71,
+          "denominator": 818,
+          "missing_reason_counts": {
+            "MISSING_REFERENCE_QUOTE": 747
+          }
+        }
+      }
+    },
+    "exit_slip_bps": {
+      "denominator": 818,
+      "missing_reason_counts": {
+        "MISSING_REFERENCE_QUOTE": 762,
+        "SOURCE_CONFLICT": 8
+      },
+      "numerator": 48,
+      "scopes": {
+        "settlement_rows": {
+          "numerator": 48,
+          "denominator": 818,
+          "missing_reason_counts": {
+            "MISSING_REFERENCE_QUOTE": 762,
+            "SOURCE_CONFLICT": 8
+          }
+        }
+      }
+    },
+    "fee_bps": {
+      "denominator": 2736,
+      "missing_reason_counts": {
+        "ABSENT_FIELD": 97,
+        "MISSING_CT_TYPE_DATA": 1918,
+        "SOURCE_CONFLICT": 8
+      },
+      "numerator": 713,
+      "scopes": {
+        "exchange_fill_rows": {
+          "numerator": 0,
+          "denominator": 1918,
+          "missing_reason_counts": {
+            "MISSING_CT_TYPE_DATA": 1918
+          }
+        },
+        "settlement_rows": {
+          "numerator": 713,
+          "denominator": 818,
+          "missing_reason_counts": {
+            "ABSENT_FIELD": 97,
+            "SOURCE_CONFLICT": 8
+          }
+        }
+      }
+    },
+    "instrument_contract_type": {
+      "denominator": 394,
+      "missing_reason_counts": {
+        "MISSING_CT_TYPE_DATA": 394
+      },
+      "numerator": 0,
+      "scopes": {
+        "metadata_entries": {
+          "numerator": 0,
+          "denominator": 394,
+          "missing_reason_counts": {
+            "MISSING_CT_TYPE_DATA": 394
+          }
+        }
+      }
+    },
+    "instrument_contract_value": {
+      "denominator": 394,
+      "missing_reason_counts": {},
+      "numerator": 394,
+      "scopes": {
+        "metadata_entries": {
+          "numerator": 394,
+          "denominator": 394,
+          "missing_reason_counts": {}
+        }
+      }
+    },
+    "instrument_lot": {
+      "denominator": 394,
+      "missing_reason_counts": {},
+      "numerator": 394,
+      "scopes": {
+        "metadata_entries": {
+          "numerator": 394,
+          "denominator": 394,
+          "missing_reason_counts": {}
+        }
+      }
+    },
+    "latency_ms": {
+      "denominator": 4989,
+      "missing_reason_counts": {
+        "ABSENT_FIELD": 1514
+      },
+      "numerator": 3475,
+      "scopes": {
+        "maker_attempt_rows": {
+          "numerator": 3475,
+          "denominator": 3479,
+          "missing_reason_counts": {
+            "ABSENT_FIELD": 4
+          }
+        },
+        "shadow_rows": {
+          "numerator": 0,
+          "denominator": 1510,
+          "missing_reason_counts": {
+            "ABSENT_FIELD": 1510
+          }
+        }
+      }
+    },
+    "maker_fill_rate": {
+      "denominator": 2870,
+      "missing_reason_counts": {},
+      "numerator": 2870,
+      "scopes": {
+        "maker_attempt_rows": {
+          "numerator": 2870,
+          "denominator": 2870,
+          "missing_reason_counts": {}
+        }
+      }
+    }
+  },
+  "data_blind_denominator": 22076,
+  "decision_journal_hash": "a590ef16e930e9a80340e553b9179d1bc3c00f3d230bcc62b596197cff668ec8",
+  "exam_actions": 0,
+  "falsification_chain_by_route": {
+    "g10_v1": "engineering_scope"
+  },
+  "field_completeness": {
+    "dynamic_min_notional_usdt": {
+      "denominator": 1918,
+      "missing_reason_counts": {
+        "MISSING_CT_TYPE_DATA": 1918
+      },
+      "numerator": 0,
+      "scopes": {
+        "execution_rows": {
+          "numerator": 0,
+          "denominator": 1918,
+          "missing_reason_counts": {
+            "MISSING_CT_TYPE_DATA": 1918
+          }
+        }
+      }
+    },
+    "entry_slip_bps": {
+      "denominator": 818,
+      "missing_reason_counts": {
+        "MISSING_REFERENCE_QUOTE": 747
+      },
+      "numerator": 71,
+      "scopes": {
+        "settlement_rows": {
+          "numerator": 71,
+          "denominator": 818,
+          "missing_reason_counts": {
+            "MISSING_REFERENCE_QUOTE": 747
+          }
+        }
+      }
+    },
+    "exit_slip_bps": {
+      "denominator": 818,
+      "missing_reason_counts": {
+        "MISSING_REFERENCE_QUOTE": 762,
+        "SOURCE_CONFLICT": 8
+      },
+      "numerator": 48,
+      "scopes": {
+        "settlement_rows": {
+          "numerator": 48,
+          "denominator": 818,
+          "missing_reason_counts": {
+            "MISSING_REFERENCE_QUOTE": 762,
+            "SOURCE_CONFLICT": 8
+          }
+        }
+      }
+    },
+    "fee_bps": {
+      "denominator": 2736,
+      "missing_reason_counts": {
+        "ABSENT_FIELD": 97,
+        "MISSING_CT_TYPE_DATA": 1918,
+        "SOURCE_CONFLICT": 8
+      },
+      "numerator": 713,
+      "scopes": {
+        "exchange_fill_rows": {
+          "numerator": 0,
+          "denominator": 1918,
+          "missing_reason_counts": {
+            "MISSING_CT_TYPE_DATA": 1918
+          }
+        },
+        "settlement_rows": {
+          "numerator": 713,
+          "denominator": 818,
+          "missing_reason_counts": {
+            "ABSENT_FIELD": 97,
+            "SOURCE_CONFLICT": 8
+          }
+        }
+      }
+    },
+    "instrument_contract_type": {
+      "denominator": 394,
+      "missing_reason_counts": {
+        "MISSING_CT_TYPE_DATA": 394
+      },
+      "numerator": 0,
+      "scopes": {
+        "metadata_entries": {
+          "numerator": 0,
+          "denominator": 394,
+          "missing_reason_counts": {
+            "MISSING_CT_TYPE_DATA": 394
+          }
+        }
+      }
+    },
+    "instrument_contract_value": {
+      "denominator": 394,
+      "missing_reason_counts": {},
+      "numerator": 394,
+      "scopes": {
+        "metadata_entries": {
+          "numerator": 394,
+          "denominator": 394,
+          "missing_reason_counts": {}
+        }
+      }
+    },
+    "instrument_lot": {
+      "denominator": 394,
+      "missing_reason_counts": {},
+      "numerator": 394,
+      "scopes": {
+        "metadata_entries": {
+          "numerator": 394,
+          "denominator": 394,
+          "missing_reason_counts": {}
+        }
+      }
+    },
+    "latency_ms": {
+      "denominator": 4989,
+      "missing_reason_counts": {
+        "ABSENT_FIELD": 1514
+      },
+      "numerator": 3475,
+      "scopes": {
+        "maker_attempt_rows": {
+          "numerator": 3475,
+          "denominator": 3479,
+          "missing_reason_counts": {
+            "ABSENT_FIELD": 4
+          }
+        },
+        "shadow_rows": {
+          "numerator": 0,
+          "denominator": 1510,
+          "missing_reason_counts": {
+            "ABSENT_FIELD": 1510
+          }
+        }
+      }
+    },
+    "maker_fill_rate": {
+      "denominator": 2870,
+      "missing_reason_counts": {},
+      "numerator": 2870,
+      "scopes": {
+        "maker_attempt_rows": {
+          "numerator": 2870,
+          "denominator": 2870,
+          "missing_reason_counts": {}
+        }
+      }
+    }
+  },
+  "g10_bindings": "frozen_by_protocol",
+  "generation": "firstbattle-g10-execution-evidence-audit-v1",
+  "not_formal_verdict": true,
+  "observed_failure_denominator": 0,
+  "output_hashes": {
+    "checkpoint.json": "51385993f8fcbce335c3f900abe3360ee872cd17a3f441c3dd1ff44724e005ec",
+    "classification_evidence.json": "5a25cfbc66b85230d203f9f70b2df82d6d1404cd4b87b6be8a637d8ebcc98b19",
+    "conflict_matrix.json": "9c57e51fc3983ee5e27c299ba6bb3521938aed93150ec9cbb6186d737b59c3d7",
+    "critical_reasons.json": "d2c0493ef53c0f615fc2799939ad720f45ddc9752de814751af722d74d8013b8",
+    "data_fitness_matrix.json": "b4b63188269839665c65472b353d79df8ef29670058e1a058838597792cc790c",
+    "decision_journal.json": "a590ef16e930e9a80340e553b9179d1bc3c00f3d230bcc62b596197cff668ec8",
+    "falsification_chain.json": "ba549ac4c7d4edd293a020abd5a1a7b37f11afdf94a40d6dbe787dc7075fc152",
+    "field_completeness.json": "fa0cb546bd6852879d3380a2331ad1538c4ab0121815a991c2a2da155d2368ee",
+    "support_counts.json": "890cb74d1aaf35f86f3309bc925fc373399916b1f92539d4a973d592554e228d",
+    "winner_control_bindings.json": "70a5dd09190e384ace12a4179a0ef04ead76128c1ebc4d280d3e007878728c39"
+  },
+  "protocol_hash": "dccd7974a7d172e3894174a953c4cce02ea840a48bb41fbdec589ed4d1153dd3",
+  "schema_version": "lingxi.g10-execution-evidence-audit.v1",
+  "scope_status": "TRUNCATED_SMOKE",
+  "source_manifest_hash": "9e6075b56228d2ff95488852a4d3f3a9d2b60230d9a4adab337234f8202d50f1",
+  "support_counts_by_playbook_symbol_day_direction": null,
+  "system_status": "TRUNCATED_SMOKE",
+  "trade_allowed": false
+}

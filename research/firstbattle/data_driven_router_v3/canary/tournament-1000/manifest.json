@@ -1,0 +1,482 @@
+{
+  "schema_version": "lingxi.data-driven-router-v3.canary-tournament.v1",
+  "examples": 1000,
+  "bundle_sha256": "9764b2512cbf9cd2a6b107167057aec1bff1b3dc2469bbfde52e89700f767eef",
+  "sample_hash": "eaed1477e5d54d0b16e79eae93c58847e4d9209477f118c1689ad8f741970b7e",
+  "code_hash": "bdcbe96d5846bc263a7851f29a67309b49c00e17f9cb0e199c8441151be5d44b",
+  "protocol_hashes": {
+    "g1": "5d80166eb28307d23e33cd19efae2b60811852ff0da49a3a6e16663aba2e7ddd",
+    "g10": "0d09d595947f09aeb6258b9af023e5c87e2d334bc52649761f91cb2ae263e7cb",
+    "g2": "7096395f1f3bae212b6dc866c5d46ccb372cd284e4a959d424dfbfbb92d6c226",
+    "g3": "63f4ee088efb09e9e58386ab273b997af4a9206d4c5c18e73c59fda5d42a7a57",
+    "g4": "2fd8c5852bba5023c9024d46b5b5e9527e71d670c370a1276e4728f4ef4cd2b9",
+    "g5": "518d0003c829da641f1bcc955c4382023e158ba9938c0ac6f0ff19b5bf729385",
+    "g6": "08b609e3271029b1e9f772921e325ef7c7fd30326589ae9c03cc86d73d9c844b",
+    "g7": "4aacc43e928d25b6b83cdf8fe10d5b576e2b1009ea10b7bfad3e750388e47747",
+    "g8": "c492cd191e869073b330221835fcec4b4437b27ec67e6e9d18252119fc7da682",
+    "g9": "fe3ce29ef3b8b07da7ef81e0ea3ccc732722f8a184e7ba91ebb8edacd7b2802c"
+  },
+  "g10_reviewer_receipt_hash": "9de865f7620f0252b22ed8bf53f1a6e008e9df5a021ac8e4564baff2899fc6b8",
+  "dataset_manifest_hash": "f9dc0944919709a49f765fe3291cf60a46952919f796add47d892af5f2808a6d",
+  "dataset_reviewer_receipt_hash": "5fbb51bf0bab3be2649b57ba76ed68b2f714cda8a5fc7c0722a1a53f4c52edfb",
+  "g9_reviewer_receipt_hash": "e77d1511d022fb511165f3412535ff81a6149cb5a0da7729044c5afb9069c953",
+  "model_submission_hashes": {
+    "grok": "b2776efd27fe79407e5ab4021131b2f3f05413f35eefbfe42f4eaf21702c4c52",
+    "opus": "2215eb5e50bd911a75225ab0c82e39d7b024ab1e087de43c2825c6b838fc070f",
+    "sonnet": "ecb5ede85a0895dca0784d4450db445b2312ccb4f8c265f1360a27bf2e1d2c67",
+    "terra": "301bf46567b8049ea27b0dae60bca99c7e2e563382348dbe8c921e9d0107fd09"
+  },
+  "funding_manifest_hash": "7f864cfd3909bfc5e6785a06e08d58e83cddc5f4a053981f08d06d74d77402c2",
+  "funding_receipt_hash": "22ca63a78b1d2e0b6be32e8728c07d12cd8d76f8e9d2a5d0f97b4cc58cbc267b",
+  "fits": [
+    {
+      "owner_id": "terra",
+      "duration_ns": 4055617039,
+      "policy_hash": "b6c37615bd576a39db7b1fc5da1aa42fe499b65edb894203c2e96de06208faeb",
+      "attempt_ledger_hash": "b9d1f75b856976bc1cf80792c8b89cc320b2810c148d77d6e26f8d120e464759",
+      "attempt_ledger": [
+        {
+          "sequence": 1,
+          "attempt_id": "terra-tree-01",
+          "owner_id": "terra",
+          "operation": "FIT_SYNTHETIC_TREE",
+          "input_hash": "5e945430231b96946c5c9a3a5e1f4c378ec88119120e894e905dbaf218c8abcc",
+          "previous_hash": "",
+          "entry_hash": "35b7e76a63b7f1ca1df8b9a80803f65d9332e4f89ac6e73f3f2acd80cbcc85ed"
+        },
+        {
+          "sequence": 2,
+          "attempt_id": "terra-tree-02",
+          "owner_id": "terra",
+          "operation": "FIT_SYNTHETIC_TREE",
+          "input_hash": "5e945430231b96946c5c9a3a5e1f4c378ec88119120e894e905dbaf218c8abcc",
+          "previous_hash": "35b7e76a63b7f1ca1df8b9a80803f65d9332e4f89ac6e73f3f2acd80cbcc85ed",
+          "entry_hash": "82fa47123c3d8abadea1d68cb8aa072d781002a4e1899f8c084f49427e65fdb0"
+        },
+        {
+          "sequence": 3,
+          "attempt_id": "terra-tree-03",
+          "owner_id": "terra",
+          "operation": "FIT_SYNTHETIC_TREE",
+          "input_hash": "5e945430231b96946c5c9a3a5e1f4c378ec88119120e894e905dbaf218c8abcc",
+          "previous_hash": "82fa47123c3d8abadea1d68cb8aa072d781002a4e1899f8c084f49427e65fdb0",
+          "entry_hash": "7733adc6306f210ee9bcd0be5d1d856ed7062b7cbe7d2a72c62dec73adda5918"
+        },
+        {
+          "sequence": 4,
+          "attempt_id": "terra-tree-04",
+          "owner_id": "terra",
+          "operation": "FIT_SYNTHETIC_TREE",
+          "input_hash": "5e945430231b96946c5c9a3a5e1f4c378ec88119120e894e905dbaf218c8abcc",
+          "previous_hash": "7733adc6306f210ee9bcd0be5d1d856ed7062b7cbe7d2a72c62dec73adda5918",
+          "entry_hash": "7f09271e31a1de581fdc898eb41297045c91edb9e6a9a9c6d61061e27666dc22"
+        },
+        {
+          "sequence": 5,
+          "attempt_id": "terra-tree-05",
+          "owner_id": "terra",
+          "operation": "FIT_SYNTHETIC_TREE",
+          "input_hash": "5e945430231b96946c5c9a3a5e1f4c378ec88119120e894e905dbaf218c8abcc",
+          "previous_hash": "7f09271e31a1de581fdc898eb41297045c91edb9e6a9a9c6d61061e27666dc22",
+          "entry_hash": "eb6d8664617984ce1e51bc4bbc95f36703f85cc6c0caf21b560403d09d4411dd"
+        },
+        {
+          "sequence": 6,
+          "attempt_id": "terra-tree-06",
+          "owner_id": "terra",
+          "operation": "FIT_SYNTHETIC_TREE",
+          "input_hash": "5e945430231b96946c5c9a3a5e1f4c378ec88119120e894e905dbaf218c8abcc",
+          "previous_hash": "eb6d8664617984ce1e51bc4bbc95f36703f85cc6c0caf21b560403d09d4411dd",
+          "entry_hash": "2c8986345b8eea65a9a6595f86b37cd243fccf9f4ccb8e98c7e396879d294e91"
+        },
+        {
+          "sequence": 7,
+          "attempt_id": "terra-tree-07",
+          "owner_id": "terra",
+          "operation": "FIT_SYNTHETIC_TREE",
+          "input_hash": "5e945430231b96946c5c9a3a5e1f4c378ec88119120e894e905dbaf218c8abcc",
+          "previous_hash": "2c8986345b8eea65a9a6595f86b37cd243fccf9f4ccb8e98c7e396879d294e91",
+          "entry_hash": "17f6ba9bf9ff28a80ec8414628753b02e7927d86288ae6276e815f2a0cf7601b"
+        },
+        {
+          "sequence": 8,
+          "attempt_id": "terra-tree-08",
+          "owner_id": "terra",
+          "operation": "FIT_SYNTHETIC_TREE",
+          "input_hash": "5e945430231b96946c5c9a3a5e1f4c378ec88119120e894e905dbaf218c8abcc",
+          "previous_hash": "17f6ba9bf9ff28a80ec8414628753b02e7927d86288ae6276e815f2a0cf7601b",
+          "entry_hash": "0e411e2a1f8e55faf5d71bc8ed8ff1ab7249bcfad7a2b6681d0a7f86a9ee057d"
+        },
+        {
+          "sequence": 9,
+          "attempt_id": "terra-tree-09",
+          "owner_id": "terra",
+          "operation": "FIT_SYNTHETIC_TREE",
+          "input_hash": "5e945430231b96946c5c9a3a5e1f4c378ec88119120e894e905dbaf218c8abcc",
+          "previous_hash": "0e411e2a1f8e55faf5d71bc8ed8ff1ab7249bcfad7a2b6681d0a7f86a9ee057d",
+          "entry_hash": "feeebca8892ee1a49d6ad55ed73148ac53a45ad72b9abb3a61f6cc5226b957c0"
+        },
+        {
+          "sequence": 10,
+          "attempt_id": "terra-tree-10",
+          "owner_id": "terra",
+          "operation": "FIT_SYNTHETIC_TREE",
+          "input_hash": "5e945430231b96946c5c9a3a5e1f4c378ec88119120e894e905dbaf218c8abcc",
+          "previous_hash": "feeebca8892ee1a49d6ad55ed73148ac53a45ad72b9abb3a61f6cc5226b957c0",
+          "entry_hash": "8e01803eb2c683d79eecd3415dafa17ab23023f0dd597e99633d79d46174536f"
+        },
+        {
+          "sequence": 11,
+          "attempt_id": "terra-tree-11",
+          "owner_id": "terra",
+          "operation": "FIT_SYNTHETIC_TREE",
+          "input_hash": "5e945430231b96946c5c9a3a5e1f4c378ec88119120e894e905dbaf218c8abcc",
+          "previous_hash": "8e01803eb2c683d79eecd3415dafa17ab23023f0dd597e99633d79d46174536f",
+          "entry_hash": "8c1e40ba69eaa619bf5d0e9a98fce1b96fb22bedbca20b12121ebb89c9ac8c1a"
+        },
+        {
+          "sequence": 12,
+          "attempt_id": "terra-tree-12",
+          "owner_id": "terra",
+          "operation": "FIT_SYNTHETIC_TREE",
+          "input_hash": "5e945430231b96946c5c9a3a5e1f4c378ec88119120e894e905dbaf218c8abcc",
+          "previous_hash": "8c1e40ba69eaa619bf5d0e9a98fce1b96fb22bedbca20b12121ebb89c9ac8c1a",
+          "entry_hash": "6f385df171ce502a4cb36c6f1e24ba56b6b0f32dd6a1df8a8582ca22c2f14c5c"
+        }
+      ]
+    },
+    {
+      "owner_id": "opus",
+      "duration_ns": 285908812,
+      "policy_hash": "f9e577ba7b0ac1ceb877723b230f59eaa48dca7c98f8ab54640d5c09437a7fa7",
+      "attempt_ledger_hash": "b925f2c83d4db7db75702f0bdd7650b5416afda5f5b44cdfcd69845357f61fa4",
+      "attempt_ledger": [
+        {
+          "sequence": 1,
+          "attempt_id": "fit:begin:opus",
+          "owner_id": "opus",
+          "operation": "FIT_BEGIN",
+          "input_hash": "6d305d1e5dcf2527499a449f070d39cc24bab83dd83e225856bca2801ffc5121",
+          "previous_hash": "",
+          "entry_hash": "16de22e02dec7e276069b4da3c9c6bcb77c3ab8d9f642177bf2807f55b82a4eb"
+        },
+        {
+          "sequence": 2,
+          "attempt_id": "fit:attempt:1",
+          "owner_id": "opus",
+          "operation": "FIT_ATTEMPT",
+          "input_hash": "41d17086894ff54754eb9767cae863759f0fe9e34a48efe72e1414ed6310eb52",
+          "previous_hash": "16de22e02dec7e276069b4da3c9c6bcb77c3ab8d9f642177bf2807f55b82a4eb",
+          "entry_hash": "ecee866fcd1f882d1a9469c26d12a9b6b664d86ce134c42015d5aae7c73ce7f4"
+        },
+        {
+          "sequence": 3,
+          "attempt_id": "fit:attempt:2",
+          "owner_id": "opus",
+          "operation": "FIT_ATTEMPT",
+          "input_hash": "fbcb817d3449d986cf4b0e9e8f4691a0af95847edb0c43ec31bb7ceb3fa571cf",
+          "previous_hash": "ecee866fcd1f882d1a9469c26d12a9b6b664d86ce134c42015d5aae7c73ce7f4",
+          "entry_hash": "2d6c297b5dc3b8aa4291b02788a8c01b1045c482434721a35043b51ab7093ff3"
+        },
+        {
+          "sequence": 4,
+          "attempt_id": "fit:attempt:3",
+          "owner_id": "opus",
+          "operation": "FIT_ATTEMPT",
+          "input_hash": "cd2d7e006a385b73fcf8201e4e01047c31231eca94c5d3b217753b1ba51e77bc",
+          "previous_hash": "2d6c297b5dc3b8aa4291b02788a8c01b1045c482434721a35043b51ab7093ff3",
+          "entry_hash": "ed5115dcfd985a6da1edb051ea3f8d78b8586b07bb413d6ef4375a8f457bc8bc"
+        },
+        {
+          "sequence": 5,
+          "attempt_id": "fit:attempt:4",
+          "owner_id": "opus",
+          "operation": "FIT_ATTEMPT",
+          "input_hash": "c2232d20f3fd78e7c1adb9b9cf17f3f638db828df0fe7c9eb8b262436b99e153",
+          "previous_hash": "ed5115dcfd985a6da1edb051ea3f8d78b8586b07bb413d6ef4375a8f457bc8bc",
+          "entry_hash": "4d632e1c97e7fa3b51c6cf3252abedd30e3f1089408a8e7917c5ecdd45628c72"
+        },
+        {
+          "sequence": 6,
+          "attempt_id": "fit:attempt:5",
+          "owner_id": "opus",
+          "operation": "FIT_ATTEMPT",
+          "input_hash": "3c8c22a7895a3d81da1ed98791417aeee3f24f11d85ac45a2961288f7ac23e28",
+          "previous_hash": "4d632e1c97e7fa3b51c6cf3252abedd30e3f1089408a8e7917c5ecdd45628c72",
+          "entry_hash": "6ee49799583648cde9cf7192dcdf0e033211f35a22a528b4b122e9122e6530b2"
+        },
+        {
+          "sequence": 7,
+          "attempt_id": "fit:attempt:6",
+          "owner_id": "opus",
+          "operation": "FIT_ATTEMPT",
+          "input_hash": "5c3395204b866f1720ec5bb1899cfc3452519b869479069094ca282e7f4f40d0",
+          "previous_hash": "6ee49799583648cde9cf7192dcdf0e033211f35a22a528b4b122e9122e6530b2",
+          "entry_hash": "c3540234f339e63781d811e70965edb443f03bb36ea508b04858b328c6fb9b75"
+        },
+        {
+          "sequence": 8,
+          "attempt_id": "fit:attempt:7",
+          "owner_id": "opus",
+          "operation": "FIT_ATTEMPT",
+          "input_hash": "5d0d31a1d4f7ae7182d62fcd1fd4d4c4e3c33c539ffea52ae00049f6524fcb3a",
+          "previous_hash": "c3540234f339e63781d811e70965edb443f03bb36ea508b04858b328c6fb9b75",
+          "entry_hash": "8835f65b4dcb9a9a83c245b36b0bb4cce3589d7975e5de9ca395e2ed30a8b17e"
+        },
+        {
+          "sequence": 9,
+          "attempt_id": "fit:attempt:8",
+          "owner_id": "opus",
+          "operation": "FIT_ATTEMPT",
+          "input_hash": "81d1d11412c88c7b19a267ea07346de7cf1e19caff64423744d26277016a4df5",
+          "previous_hash": "8835f65b4dcb9a9a83c245b36b0bb4cce3589d7975e5de9ca395e2ed30a8b17e",
+          "entry_hash": "263f31fb0d711344565f651183ddd459efd20848bdfd44900c713d3badd08a34"
+        },
+        {
+          "sequence": 10,
+          "attempt_id": "fit:select:opus",
+          "owner_id": "opus",
+          "operation": "FIT_SELECT",
+          "input_hash": "5d0d31a1d4f7ae7182d62fcd1fd4d4c4e3c33c539ffea52ae00049f6524fcb3a",
+          "previous_hash": "263f31fb0d711344565f651183ddd459efd20848bdfd44900c713d3badd08a34",
+          "entry_hash": "f10430de391ea601b7d07cd768bd20876150fd23a386deb1bc32b758b7731e50"
+        }
+      ]
+    },
+    {
+      "owner_id": "sonnet",
+      "duration_ns": 2854014814,
+      "policy_hash": "fca9a2b043aaa9041517af5424b37f692214788ae962d33edc52bc14f6ee3b20",
+      "attempt_ledger_hash": "e52b7bfe46add15a1f72f360578341d34ea09881fbbd028232d681fead782780",
+      "attempt_ledger": [
+        {
+          "sequence": 1,
+          "attempt_id": "sonnet-episodic-k16-required_only",
+          "owner_id": "sonnet",
+          "operation": "FIT_GRID_EMBARGOED_LOO",
+          "input_hash": "814ca6f082027011f0ac400a70d5e7e2d36ebbd628d5ff612de0f760dff97780",
+          "previous_hash": "",
+          "entry_hash": "ccd7db09ae5b38c1d20ad4e834b7148b69d1db795262b6dbcdf6ee6b335b47b0"
+        },
+        {
+          "sequence": 2,
+          "attempt_id": "sonnet-episodic-k16-required_plus_optional",
+          "owner_id": "sonnet",
+          "operation": "FIT_GRID_EMBARGOED_LOO",
+          "input_hash": "814ca6f082027011f0ac400a70d5e7e2d36ebbd628d5ff612de0f760dff97780",
+          "previous_hash": "ccd7db09ae5b38c1d20ad4e834b7148b69d1db795262b6dbcdf6ee6b335b47b0",
+          "entry_hash": "be28a6e3dc6f781f28287842de0705280a2e9134a7d94da44973f8d20693c9ea"
+        },
+        {
+          "sequence": 3,
+          "attempt_id": "sonnet-episodic-k32-required_only",
+          "owner_id": "sonnet",
+          "operation": "FIT_GRID_EMBARGOED_LOO",
+          "input_hash": "814ca6f082027011f0ac400a70d5e7e2d36ebbd628d5ff612de0f760dff97780",
+          "previous_hash": "be28a6e3dc6f781f28287842de0705280a2e9134a7d94da44973f8d20693c9ea",
+          "entry_hash": "e1575240256dc0e16492ca34ea56058357e4079c3536c7aafc1268edd7f04033"
+        },
+        {
+          "sequence": 4,
+          "attempt_id": "sonnet-episodic-k32-required_plus_optional",
+          "owner_id": "sonnet",
+          "operation": "FIT_GRID_EMBARGOED_LOO",
+          "input_hash": "814ca6f082027011f0ac400a70d5e7e2d36ebbd628d5ff612de0f760dff97780",
+          "previous_hash": "e1575240256dc0e16492ca34ea56058357e4079c3536c7aafc1268edd7f04033",
+          "entry_hash": "db7c1359beaf188bcb9446a9ce95da0568f9b581db2965f3cb2d5c77b88d6216"
+        },
+        {
+          "sequence": 5,
+          "attempt_id": "sonnet-episodic-k64-required_only",
+          "owner_id": "sonnet",
+          "operation": "FIT_GRID_EMBARGOED_LOO",
+          "input_hash": "814ca6f082027011f0ac400a70d5e7e2d36ebbd628d5ff612de0f760dff97780",
+          "previous_hash": "db7c1359beaf188bcb9446a9ce95da0568f9b581db2965f3cb2d5c77b88d6216",
+          "entry_hash": "cdea200577adcf3c54a1a8dcf3b95ebe1adf05bbb575b0cd077d597d875c1ebc"
+        },
+        {
+          "sequence": 6,
+          "attempt_id": "sonnet-episodic-k64-required_plus_optional",
+          "owner_id": "sonnet",
+          "operation": "FIT_GRID_EMBARGOED_LOO",
+          "input_hash": "814ca6f082027011f0ac400a70d5e7e2d36ebbd628d5ff612de0f760dff97780",
+          "previous_hash": "cdea200577adcf3c54a1a8dcf3b95ebe1adf05bbb575b0cd077d597d875c1ebc",
+          "entry_hash": "8489d91edbe311df5adee23ef67c8aa91f8230f38e21b9fe246fdc17bdca497b"
+        },
+        {
+          "sequence": 7,
+          "attempt_id": "select:sonnet-episodic-k64-required_only",
+          "owner_id": "sonnet",
+          "operation": "SELECT_EPISODIC_CONFIG",
+          "input_hash": "814ca6f082027011f0ac400a70d5e7e2d36ebbd628d5ff612de0f760dff97780",
+          "previous_hash": "8489d91edbe311df5adee23ef67c8aa91f8230f38e21b9fe246fdc17bdca497b",
+          "entry_hash": "38f3a1c3c8e74cc98192d7fc6afe36af3290114c822bdf5718422a7ca0303ad9"
+        }
+      ]
+    },
+    {
+      "owner_id": "grok",
+      "duration_ns": 8121293868,
+      "policy_hash": "3b7f2c7f0ce9b5dca388e4d921c02e0b986a436af756d4beaa08b39a6dc6fe00",
+      "attempt_ledger_hash": "40e29aa5d5e59494b8d33bef397781841ae6f82fd69e2c67dc70383f761f0fdb",
+      "attempt_ledger": [
+        {
+          "sequence": 1,
+          "attempt_id": "grok-cp-r2-d10-p1-s1",
+          "owner_id": "grok",
+          "operation": "FIT_GRID",
+          "input_hash": "f8bcd9f571b041caa6feedd0f1e0bc126ea5ec8445c7cd3cba3aaf8933d6d1ee",
+          "previous_hash": "",
+          "entry_hash": "7eaeb8cf11dfde9be4995d14857f41bc241b2ee9131c7ef32cf1d7d8d868e288"
+        },
+        {
+          "sequence": 2,
+          "attempt_id": "grok-cp-r2-d10-p2-s2",
+          "owner_id": "grok",
+          "operation": "FIT_GRID",
+          "input_hash": "602f201f4764cda62f0ca6dc93aff699089311020d777022ec81e7bb06c8fe0d",
+          "previous_hash": "7eaeb8cf11dfde9be4995d14857f41bc241b2ee9131c7ef32cf1d7d8d868e288",
+          "entry_hash": "08e52751c350a90bf6e07cdc5e6e3fd0fef33ced49946a2934ad8ecd9ed6a3f6"
+        },
+        {
+          "sequence": 3,
+          "attempt_id": "grok-cp-r2-d20-p1-s3",
+          "owner_id": "grok",
+          "operation": "FIT_GRID",
+          "input_hash": "f683fbf56f7e67abc50fbe989e745c019dc7abb275143086e2d662cd2be364cb",
+          "previous_hash": "08e52751c350a90bf6e07cdc5e6e3fd0fef33ced49946a2934ad8ecd9ed6a3f6",
+          "entry_hash": "f26a21aa56b46afdf6350afc80f00d015b988fd286bd8bf9830decb1675d8f38"
+        },
+        {
+          "sequence": 4,
+          "attempt_id": "grok-cp-r2-d20-p2-s4",
+          "owner_id": "grok",
+          "operation": "FIT_GRID",
+          "input_hash": "2d493b6b0a168dd9f922eb3bba1516527d99485900d6a4bf96f01e216f2bfabf",
+          "previous_hash": "f26a21aa56b46afdf6350afc80f00d015b988fd286bd8bf9830decb1675d8f38",
+          "entry_hash": "06b4cf063ffad70a8b45fbf702a34d7a4b50a586d05d71a908961cb83034c3ff"
+        },
+        {
+          "sequence": 5,
+          "attempt_id": "grok-cp-r3-d10-p1-s5",
+          "owner_id": "grok",
+          "operation": "FIT_GRID",
+          "input_hash": "5a41d21683be166a27ae680e04bc95e671121d8e00913ad924fc2f02eb868c15",
+          "previous_hash": "06b4cf063ffad70a8b45fbf702a34d7a4b50a586d05d71a908961cb83034c3ff",
+          "entry_hash": "63596e1fdaa5c035c71c75df7ec43f7fa60d6ab74842d5ed2fbd2edc23284617"
+        },
+        {
+          "sequence": 6,
+          "attempt_id": "grok-cp-r3-d10-p2-s6",
+          "owner_id": "grok",
+          "operation": "FIT_GRID",
+          "input_hash": "a7382dd7db510b3b0fc89a7a3d4be9837c9766edcd41674e5bd621e6a95a457a",
+          "previous_hash": "63596e1fdaa5c035c71c75df7ec43f7fa60d6ab74842d5ed2fbd2edc23284617",
+          "entry_hash": "0d3a2c5e6002c157a5146069050451440264e648f28619e3614da328ec1c0a98"
+        },
+        {
+          "sequence": 7,
+          "attempt_id": "grok-cp-r3-d20-p1-s7",
+          "owner_id": "grok",
+          "operation": "FIT_GRID",
+          "input_hash": "b626368939e34c49c020fd0fc169ea352e3db5bad4d20d78b6d9693de6116fe4",
+          "previous_hash": "0d3a2c5e6002c157a5146069050451440264e648f28619e3614da328ec1c0a98",
+          "entry_hash": "8090e590d6c344dfd2bd5398e8a6b6048d63776158a77f324f3440a747b735fe"
+        },
+        {
+          "sequence": 8,
+          "attempt_id": "grok-cp-r3-d20-p2-s8",
+          "owner_id": "grok",
+          "operation": "FIT_GRID",
+          "input_hash": "b93756714ea8088bff3bcf6d977130e17cfe83f44b548415d5e11c6636edef5e",
+          "previous_hash": "8090e590d6c344dfd2bd5398e8a6b6048d63776158a77f324f3440a747b735fe",
+          "entry_hash": "8556a066e71b548ba4ded334f8aef79f3e306f71693b84c70e7cb94ae472f500"
+        },
+        {
+          "sequence": 9,
+          "attempt_id": "grok-cp-r4-d10-p1-s9",
+          "owner_id": "grok",
+          "operation": "FIT_GRID",
+          "input_hash": "e1230977c50e603592d39258899a00e008e1354b099429d7e6f87f8c7300d634",
+          "previous_hash": "8556a066e71b548ba4ded334f8aef79f3e306f71693b84c70e7cb94ae472f500",
+          "entry_hash": "913160aba97858eac4f75b9d01fa20f8e53cba834e5e52d4a023f967632008a1"
+        },
+        {
+          "sequence": 10,
+          "attempt_id": "grok-cp-r4-d10-p2-s10",
+          "owner_id": "grok",
+          "operation": "FIT_GRID",
+          "input_hash": "d3667639032f0e2aae7139427735eec69c29462b951d6a2ca145fe1f15fd802d",
+          "previous_hash": "913160aba97858eac4f75b9d01fa20f8e53cba834e5e52d4a023f967632008a1",
+          "entry_hash": "8664bcf3be41b1d145780066c6f6d9e70ffc655a844d06fd33c95c0cd56309b6"
+        },
+        {
+          "sequence": 11,
+          "attempt_id": "grok-cp-r4-d20-p1-s11",
+          "owner_id": "grok",
+          "operation": "FIT_GRID",
+          "input_hash": "dbb5febcae90f416dfd4df99b7844277bb7eac61dd94654e474ab9d69487fac5",
+          "previous_hash": "8664bcf3be41b1d145780066c6f6d9e70ffc655a844d06fd33c95c0cd56309b6",
+          "entry_hash": "0bcf4cd346daf50a38f0c5c752a099d585af9af777cde70d071b217f9e0aa8f6"
+        },
+        {
+          "sequence": 12,
+          "attempt_id": "grok-cp-r4-d20-p2-s12",
+          "owner_id": "grok",
+          "operation": "FIT_GRID",
+          "input_hash": "09ae9356c191d85ccba2f91b3d95e6196229ea768592a12082a762fa57aa083b",
+          "previous_hash": "0bcf4cd346daf50a38f0c5c752a099d585af9af777cde70d071b217f9e0aa8f6",
+          "entry_hash": "d86392c72c74e725a7382b58a98e8801c698f5fb8b89f9321bea4f3b0b769057"
+        },
+        {
+          "sequence": 13,
+          "attempt_id": "select:grok-cp-r4-d10-p1-s9",
+          "owner_id": "grok",
+          "operation": "SELECT_POLICY",
+          "input_hash": "d1e667a5f361cbe6532e6e2efa14668b74f0db700c1709b7dbcbe22b8df74ea4",
+          "previous_hash": "d86392c72c74e725a7382b58a98e8801c698f5fb8b89f9321bea4f3b0b769057",
+          "entry_hash": "1eaf4a162ef30a95e7f59fde883de044b25f34bdfc9a7e2912a41b5fe8886713"
+        }
+      ]
+    }
+  ],
+  "shared_attempt_ledger": [
+    {
+      "sequence": 1,
+      "attempt_id": "fit:terra",
+      "owner_id": "terra",
+      "operation": "FIT_DISCOVERY",
+      "input_hash": "eaed1477e5d54d0b16e79eae93c58847e4d9209477f118c1689ad8f741970b7e",
+      "previous_hash": "",
+      "entry_hash": "4f1092058d754585b505946aba74af6ef0be73b7f7f33baabbbe3f9e4b4c6704"
+    },
+    {
+      "sequence": 2,
+      "attempt_id": "fit:opus",
+      "owner_id": "opus",
+      "operation": "FIT_DISCOVERY",
+      "input_hash": "eaed1477e5d54d0b16e79eae93c58847e4d9209477f118c1689ad8f741970b7e",
+      "previous_hash": "4f1092058d754585b505946aba74af6ef0be73b7f7f33baabbbe3f9e4b4c6704",
+      "entry_hash": "ee580bc997ded98e45fa8bc7298b593a8102275b4910e683553b8e9effc24175"
+    },
+    {
+      "sequence": 3,
+      "attempt_id": "fit:sonnet",
+      "owner_id": "sonnet",
+      "operation": "FIT_DISCOVERY",
+      "input_hash": "eaed1477e5d54d0b16e79eae93c58847e4d9209477f118c1689ad8f741970b7e",
+      "previous_hash": "ee580bc997ded98e45fa8bc7298b593a8102275b4910e683553b8e9effc24175",
+      "entry_hash": "669d719588b293b4d4cea572693c14dcb44143c23f68c787f3b7122a33b5d5df"
+    },
+    {
+      "sequence": 4,
+      "attempt_id": "fit:grok",
+      "owner_id": "grok",
+      "operation": "FIT_DISCOVERY",
+      "input_hash": "eaed1477e5d54d0b16e79eae93c58847e4d9209477f118c1689ad8f741970b7e",
+      "previous_hash": "669d719588b293b4d4cea572693c14dcb44143c23f68c787f3b7122a33b5d5df",
+      "entry_hash": "9e9a01be8d5f22da1b3149c1f2ee0277e9280554e6a6fd89dc2977c7bed41870"
+    }
+  ],
+  "created_at": "2026-07-15T03:51:45.654200842Z"
+}

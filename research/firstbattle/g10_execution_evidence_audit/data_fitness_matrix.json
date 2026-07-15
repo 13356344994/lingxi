@@ -1,0 +1,215 @@
+{
+  "artifact_hash": "38f3e4c4848fe3d6f4e6837013fe9e79e61b05f2190afa0f7209d272809c66ab",
+  "fitness_status_enum": [
+    "DIRECT",
+    "RECONSTRUCTABLE",
+    "WEAK_PROXY",
+    "MISSING"
+  ],
+  "rows": [
+    {
+      "coverage_denominator": 13917,
+      "coverage_numerator": 973,
+      "cross_source_duplicate_risk": true,
+      "decision_time_availability": "KNOWN_AFTER_DECISION",
+      "evidence_hash": "c2839ded7ca8a2839908ebbdb9578deb58a00d5389b6c5add19ce0473bf5a0a8",
+      "false_negative_risk": "missing execution evidence can hide executable personal edge",
+      "fitness_status": "DIRECT",
+      "leakage_risk": "KNOWN_AFTER_DECISION is execution evidence only, never a prediction feature",
+      "missing_reason_counts": {
+        "ABSENT_FIELD": 97,
+        "MISSING_CT_TYPE_DATA": 12644,
+        "MISSING_INSTRUMENT_METADATA": 182,
+        "SOURCE_CONFLICT": 21
+      },
+      "reconstruction_rule": "abs(fee_usdt)/notional_usdt*10000 when currency semantics and notional are valid",
+      "required_field": "fee_bps",
+      "required_for_layer": "observability",
+      "route_id": "g10_v1",
+      "semantic_definition": "fee_bps",
+      "source_ids": [
+        "exchange_fills",
+        "settlements",
+        "fast_v2_settlements"
+      ],
+      "weak_proxy_limit": ""
+    },
+    {
+      "coverage_denominator": 1091,
+      "coverage_numerator": 296,
+      "cross_source_duplicate_risk": true,
+      "decision_time_availability": "KNOWN_AFTER_DECISION",
+      "evidence_hash": "a48b6e80873233665306114194f9ffd4a42a354c13977ca6b7b6d02ddba899b6",
+      "false_negative_risk": "missing execution evidence can hide executable personal edge",
+      "fitness_status": "DIRECT",
+      "leakage_risk": "KNOWN_AFTER_DECISION is execution evidence only, never a prediction feature",
+      "missing_reason_counts": {
+        "MISSING_REFERENCE_QUOTE": 795
+      },
+      "reconstruction_rule": "none; direct presence required",
+      "required_field": "entry_slip_bps",
+      "required_for_layer": "observability",
+      "route_id": "g10_v1",
+      "semantic_definition": "entry_slip_bps",
+      "source_ids": [
+        "settlements",
+        "fast_v2_settlements"
+      ],
+      "weak_proxy_limit": ""
+    },
+    {
+      "coverage_denominator": 1091,
+      "coverage_numerator": 196,
+      "cross_source_duplicate_risk": true,
+      "decision_time_availability": "KNOWN_AFTER_DECISION",
+      "evidence_hash": "bf17a5d5f664cb17fa722319e15a4af0cbb471514c384692e7db282f6b5299bf",
+      "false_negative_risk": "missing execution evidence can hide executable personal edge",
+      "fitness_status": "DIRECT",
+      "leakage_risk": "KNOWN_AFTER_DECISION is execution evidence only, never a prediction feature",
+      "missing_reason_counts": {
+        "MISSING_REFERENCE_QUOTE": 874,
+        "SOURCE_CONFLICT": 21
+      },
+      "reconstruction_rule": "none; direct presence required",
+      "required_field": "exit_slip_bps",
+      "required_for_layer": "observability",
+      "route_id": "g10_v1",
+      "semantic_definition": "exit_slip_bps",
+      "source_ids": [
+        "settlements",
+        "fast_v2_settlements"
+      ],
+      "weak_proxy_limit": ""
+    },
+    {
+      "coverage_denominator": 29849,
+      "coverage_numerator": 29849,
+      "cross_source_duplicate_risk": true,
+      "decision_time_availability": "KNOWN_AFTER_DECISION",
+      "evidence_hash": "3f17694c915464f07be641b8b4589947d5a510169be26a1f1ecfaf396728ae69",
+      "false_negative_risk": "missing execution evidence can hide executable personal edge",
+      "fitness_status": "DIRECT",
+      "leakage_risk": "KNOWN_AFTER_DECISION is execution evidence only, never a prediction feature",
+      "missing_reason_counts": {},
+      "reconstruction_rule": "none; direct presence required",
+      "required_field": "maker_fill_rate",
+      "required_for_layer": "observability",
+      "route_id": "g10_v1",
+      "semantic_definition": "maker_fill_rate",
+      "source_ids": [
+        "maker_attempts"
+      ],
+      "weak_proxy_limit": ""
+    },
+    {
+      "coverage_denominator": 2732213,
+      "coverage_numerator": 30420,
+      "cross_source_duplicate_risk": true,
+      "decision_time_availability": "KNOWN_AFTER_DECISION",
+      "evidence_hash": "e2a3970017b88b174135912c925a729bb8e970af3f54c1795663d39dea4e0a00",
+      "false_negative_risk": "missing execution evidence can hide executable personal edge",
+      "fitness_status": "DIRECT",
+      "leakage_risk": "KNOWN_AFTER_DECISION is execution evidence only, never a prediction feature",
+      "missing_reason_counts": {
+        "ABSENT_FIELD": 2699498,
+        "WEAK_PROXY_ONLY": 2295
+      },
+      "reconstruction_rule": "none; direct presence required",
+      "required_field": "latency_ms",
+      "required_for_layer": "observability",
+      "route_id": "g10_v1",
+      "semantic_definition": "latency_ms",
+      "source_ids": [
+        "maker_attempts",
+        "executable_shadow"
+      ],
+      "weak_proxy_limit": ""
+    },
+    {
+      "coverage_denominator": 394,
+      "coverage_numerator": 394,
+      "cross_source_duplicate_risk": true,
+      "decision_time_availability": "KNOWN_AFTER_DECISION",
+      "evidence_hash": "dd7ae0d8baacf7c8a36e342c6ee856f41237eb41f599e1547e18e95707efb971",
+      "false_negative_risk": "missing execution evidence can hide executable personal edge",
+      "fitness_status": "DIRECT",
+      "leakage_risk": "current mutable snapshot may be PIT_UNPROVEN",
+      "missing_reason_counts": {},
+      "reconstruction_rule": "none; direct presence required",
+      "required_field": "instrument_lot",
+      "required_for_layer": "observability",
+      "route_id": "g10_v1",
+      "semantic_definition": "instrument_lot",
+      "source_ids": [
+        "instrument_metadata"
+      ],
+      "weak_proxy_limit": ""
+    },
+    {
+      "coverage_denominator": 394,
+      "coverage_numerator": 394,
+      "cross_source_duplicate_risk": true,
+      "decision_time_availability": "KNOWN_AFTER_DECISION",
+      "evidence_hash": "542319357936c3f4b8c3e8692bd5952533d978fe173e866060efc4406e2ab09a",
+      "false_negative_risk": "missing execution evidence can hide executable personal edge",
+      "fitness_status": "DIRECT",
+      "leakage_risk": "current mutable snapshot may be PIT_UNPROVEN",
+      "missing_reason_counts": {},
+      "reconstruction_rule": "none; direct presence required",
+      "required_field": "instrument_contract_value",
+      "required_for_layer": "observability",
+      "route_id": "g10_v1",
+      "semantic_definition": "instrument_contract_value",
+      "source_ids": [
+        "instrument_metadata"
+      ],
+      "weak_proxy_limit": ""
+    },
+    {
+      "coverage_denominator": 394,
+      "coverage_numerator": 0,
+      "cross_source_duplicate_risk": true,
+      "decision_time_availability": "UNKNOWN",
+      "evidence_hash": "a1be574be2e552b4044fcfde30c44481f99f6da03130e49b4283377013f8a1ef",
+      "false_negative_risk": "missing execution evidence can hide executable personal edge",
+      "fitness_status": "MISSING",
+      "leakage_risk": "current mutable snapshot may be PIT_UNPROVEN",
+      "missing_reason_counts": {
+        "MISSING_CT_TYPE_DATA": 394
+      },
+      "reconstruction_rule": "none; direct presence required",
+      "required_field": "instrument_contract_type",
+      "required_for_layer": "observability",
+      "route_id": "g10_v1",
+      "semantic_definition": "instrument_contract_type",
+      "source_ids": [
+        "instrument_metadata"
+      ],
+      "weak_proxy_limit": ""
+    },
+    {
+      "coverage_denominator": 12826,
+      "coverage_numerator": 0,
+      "cross_source_duplicate_risk": true,
+      "decision_time_availability": "PIT_UNPROVEN",
+      "evidence_hash": "efc593de0d3bcf8e85161a61ef342bb2551672db58e35113774f5797602f2664",
+      "false_negative_risk": "missing execution evidence can hide executable personal edge",
+      "fitness_status": "MISSING",
+      "leakage_risk": "current mutable snapshot may be PIT_UNPROVEN",
+      "missing_reason_counts": {
+        "MISSING_CT_TYPE_DATA": 12644,
+        "MISSING_INSTRUMENT_METADATA": 182
+      },
+      "reconstruction_rule": "min_sz*ctVal*price only for linear contracts with PIT-valid metadata",
+      "required_field": "dynamic_min_notional_usdt",
+      "required_for_layer": "observability",
+      "route_id": "g10_v1",
+      "semantic_definition": "dynamic_min_notional_usdt",
+      "source_ids": [
+        "instrument_metadata"
+      ],
+      "weak_proxy_limit": ""
+    }
+  ],
+  "schema_version": "lingxi.g10-execution-evidence-audit.v1"
+}

@@ -1,0 +1,489 @@
+{
+  "schema_version": "lingxi.mechanism-search-v2.candidates.v1",
+  "candidate_set_id": "firstbattle.mechanism_search_v2.candidates_opus",
+  "owner_model": "Claude Opus 4.8 Thinking High",
+  "owner_domain": "structural payers / rules / reimbursement(偿付) / settlement(结算) / inventory(库存) / authorization(授权) mechanisms",
+  "generation": "msv2-opus-candidates-v1",
+  "produced_at": "2026-07-14T03:18:00Z",
+  "status": "OUTCOME_BLIND_CANDIDATE_PROPOSALS_ONLY_STOPPED",
+  "supreme_objective": "在不同市场状态、特殊事件和个人执行条件下，动态路由到各自经过历史证据认证的专属盈利路径；没有可靠匹配路径时必须空仓。最终以资金流调整后的真实账户净值长期增长为唯一成功标准。",
+  "scope": "本文件只独立提出非同源的结构性付款者机制候选并对每条给出 outcome-blind RouteCard。不下载大数据、不购买、不读取任何收益、不启动路线、不修改 plan/master/records/冻结工件、不提交。可测性判断只用 route data source registry / history catalog / 官方元数据。",
+  "independence_statement": "本候选集在未读取 Fable/Grok 或任何其他 owner 的 v2 候选文件、未读取任何收益/winner/考卷前独立生成。仅引用已冻结的 registry/inventory/contract 的机制与来源描述（非收益字段）判断可测性。",
+  "bindings_reference_only_no_modify": {
+    "binding_policy": "REFERENCE_ONLY_NO_MODIFY。只引用上游冻结 hash 判断非同源与可测性，不回写、不修改任何被引用工件。",
+    "route_data_source_registry_hash": "1c6672563d4bc00ea102df2f9575b365a2a9dc30e763db75067f9a49052e5318",
+    "route_data_contracts_protocol_hash": "4a4c201d2c8cedde5bd1ff55ea40ad31d099e189feb709a517701b504c453588",
+    "g10_wild_route_portfolio_json_hash": "166ea394419544f55e54919216b6e67b31e2d1dfaf11ef27df06bb3686072977",
+    "g10_reopen_condition_inventory_json_hash": "b9b62bc4d959d256e9d553385c2b3a474c1017632a35951a84e70d2a8e46e69a",
+    "g10_reopen_condition_inventory_source_manifest_hash": "66b47378f674a2e9f8cdbe6e7649f11afee633610aa5ca330c09f2d38b8b79cd",
+    "g10_protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+    "history_data_hash": "f41ed2586d91054c4b5b2e15e60f32a4d64ccde0032e76dfdc5fc6dee316379c"
+  },
+  "policy": {
+    "no_purchase": true,
+    "no_bulk_download": true,
+    "no_outcome_read": true,
+    "labels_unblinded": false,
+    "routes_started": 0,
+    "no_commit": true,
+    "no_modify_frozen": true,
+    "testability_inputs_allowed": [
+      "route_data_source_registry (source availability/coverage/identity/clocks/PIT/route_fit)",
+      "history catalog (g10_reopen_condition_inventory frozen prefixes and existence findings)",
+      "official exchange metadata / docs (coverage, endpoints, settlement rules)"
+    ],
+    "forbidden_reads": [
+      "future_return", "return", "pnl", "fillPnl", "realized_pnl", "profit",
+      "winner", "future_outcome", "mfe", "mae", "upnl_after_decision", "exam papers"
+    ],
+    "account_constraint": "small account 30U-数千U, leverage <= 5x, real fees/slippage/funding/min-order/latency must bind before any authentication."
+  },
+  "hypotheses": {
+    "H0_NULL_STRUCTURAL": "所有候选的表面 edge 只是选择偏差、成本低估、公共因子重命名、窗口不足或事后归纳；不存在被结构性规则/结算/偿付/授权强制的付款者，也不存在小账户可事前区分并吃到的净 edge。除非能冻结完整事件分母 + 匹配输家并在 observability→identifiability→ex_ante 阶梯上逐层通过，否则默认 H0。",
+    "competing_hypotheses": [
+      {
+        "id": "H1_SETTLEMENT_CLOCK_COERCION",
+        "claim": "交易所在确定性结算时钟（资金费 8h、借币利息按小时、交割日）对某一侧强制转移价值；被迫的一侧在结算窗口附近产生可观测的暂时性库存错位，其分母是官方定义的结算事件本身。"
+      },
+      {
+        "id": "H2_DELIVERY_CONVERGENCE_COERCION",
+        "claim": "定期交割合约在交割时刻被规则强制按交割指数结算，基差必须收敛；持有基差的一侧被交割时钟强制平仓，收敛是合约结算规则而非价格预测。"
+      },
+      {
+        "id": "H3_AUTHORIZATION_MANDATED_FLOW",
+        "claim": "授权型强制流（跟单镜像、子账户授权、强制赎回）在被授权动作触发时确定性执行；被授权聚合流在薄标的上产生暂时冲击，付款者是预授权的跟随方。"
+      },
+      {
+        "id": "H4_REIMBURSEMENT_SOCIALIZATION",
+        "claim": "偿付/社会化机制（自动减仓 ADL、保险基金穿仓分摊）在破产缺口时刻把损失强制转嫁给盈利对手方；付款者是被强制减仓的赢家一侧。"
+      }
+    ],
+    "note": "H1-H4 与 H0 竞争；本轮不读取任何收益判断胜负，只判断“现有官方/本地历史能否观测并识别其完整事件分母与匹配输家”。任一候选若无法在现有历史上冻结完整分母与匹配输家，即回到 H0 分类为 DATA_BLIND/REJECTED，不得降门槛或等待未来数据。"
+  },
+  "scoring_rubric_outcome_blind": {
+    "note": "评分规则在读取任何收益前冻结；本文件不打最终分，只提出候选并声明将用此规则由独立红队排序。",
+    "weights": {
+      "mechanism_structural_strength": 0.30,
+      "existing_history_observability_identity_full_denominator": 0.25,
+      "post_public_institutional_exclusion_capacity_moat": 0.20,
+      "this_account_real_executability": 0.15,
+      "shortest_falsification_cost": 0.10
+    },
+    "forbidden_signals": ["future_return", "realized_pnl", "winner_profit", "recent_live_performance", "g10_residual_magnitude"]
+  },
+  "non_homology_baseline": {
+    "existing_routes_must_avoid": [
+      {"route_id": "micro_execution_capacity_cliff", "core": "自有小单在 fill 概率/冲击/排队毒性/授权摩擦上的容量断层"},
+      {"route_id": "exchange_rule_discontinuity", "core": "ctVal/lot/tick/minSz/结算规则/迁移/风控参数的离散版本变化 + 容量/保证金/最小贡献断点，需 PIT 版本链"},
+      {"route_id": "sparse_forced_flow", "core": "清算/到期/保证金/规则整改/抵押品短缺迫使一侧短窗成交"},
+      {"route_id": "cross_venue_operational_asymmetry", "core": "跨场所规格/抵押品/授权/结算/最小下单差异导致的错位"}
+    ],
+    "g_series_note": "G1-G10 是同一“司天监 SkyState → 分拣器 → 机制 → 条件方向”研究的历代 generation，机制空间以上述四路线 + BTC return × realized volatility × BTC funding STATE × horizon × direction 的单/双特征公共因子规则为主。本候选集必须避免：(a) 复用该公共因子规则空间；(b) 把 funding/vol 当公共 STATE 因子回归；(c) 与四路线同构。每条候选给出显式 non_homology_proof。",
+    "homology_test_applied": "对每条候选逐一验证：付款者是否与四路线相同？触发时钟/事件分母是否相同？所需 required fields 是否相同？若任一维度实质重合则判 sibling/route homology 并 REJECT 或改造。"
+  },
+  "candidates": [
+    {
+      "candidate_id": "MSV2-OPUS-01",
+      "route_id": "funding_settlement_instant_coercion",
+      "title": "资金费结算瞬时强制付款者（8h 结算时钟）",
+      "verdict": "RETAIN_HYPOTHESIS",
+      "current_classification": "DATA_PARTIAL_PIT_GAP",
+      "mechanism": "永续合约在每个 8h 结算戳（OKX 00:00/08:00/16:00 UTC）按 position_notional × funding_rate 在多空之间强制转移价值。这是合约结算规则，不是价格预测。付款者=结算瞬时处于付款侧的持仓者（被合约强制转出）；次级付款者=为规避付款而在结算前窗口被迫减仓/翻转的高杠杆持有者。被迫动作在结算戳附近制造暂时性库存错位与随后回归，事件分母是官方定义的结算事件本身。",
+      "payer_and_forced_action": "结算侧持仓者被合约强制在戳点转出 funding；funding-averse 杠杆持有者被迫在戳前窗口减仓。区别于自愿套利者：付款义务由结算合约强制，无法在不平仓/不自冲击的前提下规避。",
+      "urgency": "硬交易所结算时钟：转移在戳点确定发生，规避窗口只有分钟级；错过即被强制转出。三时钟中 EventTime=交易所结算戳。",
+      "supported_market_states": "|funding| 处于极端 bucket（单侧拥挤、OI 严重失衡）且临近结算戳的 event-clock regime；|funding| 中性 bucket 或远离戳点时不激活。",
+      "branches": {
+        "LONG": "付款侧为空头（funding 深度为正、空头付多头）且戳前 taker-flow 显示被迫减仓压力时，在错位低点承接、持有过戳收 funding，回归窗口内平。",
+        "SHORT": "付款侧为多头（funding 深度为负、多头付空头）且戳前出现被迫多头减仓的镜像情形。",
+        "FLAT": "|funding| 在中性 bucket、OI 不失衡或戳前无被迫流特征时不进场。",
+        "HOLD": "仅当已在收款侧且错位-回归尚未完成、结算戳内库存错位被确认时持有。",
+        "EXIT": "回归窗口关闭、funding bucket 退出极端、或戳后 taker-flow 中性化即退出。",
+        "NO_TRADE_DEFAULT": "决策时刻缺 funding_rate 现值/下一期、缺结算戳对齐、或 OI 失衡特征不可算 → 空仓。"
+      },
+      "institutional_exclusion_and_post_public_moat": "机构在整本库存上承担 funding，无法在戳点无自冲击地翻转符号，且翻转本身在薄标的上放大冲击；结算是硬规则，付款义务随规模线性放大不可规避。公开后护城河=每标的每戳的错位容量极小（分钟级、小 notional），跨多标的聚合会触及每标的容量上限、监控固定成本与自冲击；‘知道机制’不降低大资金的 per-notional 结算成本。",
+      "small_account_advantage": "30U-数千U 在戳点翻转/进出的市场冲击可忽略；tiny notional 的 funding 微不足道；可瞬时归零库存，恰好落在错位可执行侧。",
+      "decision_time_required_fields": [
+        "current funding_rate + next-interval predicted funding_rate",
+        "funding settlement timestamp + time_to_settlement",
+        "PIT funding interval per symbol (KnownFrom; 部分标的曾/可变 8h↔其它)",
+        "OI / long-short ratio imbalance bucket at decision",
+        "pre-stamp taker-flow imbalance (event-time)",
+        "decision-time depth/spread/mid",
+        "symbol/session identity",
+        "min order size / tick / lot (PIT)"
+      ],
+      "full_event_denominator_and_matched_losers": "分母=in-scope 标的在观测窗内的全部 funding 结算事件（每 8h × 标的），无论是否交易。匹配输家=同 funding-sign × magnitude-bucket × session × OI-imbalance-bucket 的结算事件中未获得错位-回归定位的那些。fill/no-fill 属执行物理；净 edge/PnL 仍 forbidden。",
+      "existing_history_source_paths_and_hash_feasibility": {
+        "official": [
+          "okx_historical_data_portal_and_cdn: coverage.funding_rate 2021+/2022-03+（registry），提供结算戳与费率",
+          "okx_historical_data_portal_and_cdn: trades_tick 2021-09+ 提供 event-time tape 以计算戳附近错位/taker-flow",
+          "okx_instruments_current_snapshot: 当前 funding interval/spec（仅向未来 KnownFrom）"
+        ],
+        "local_catalog": [
+          "multi-venue funding/OI snapshots 1,733 行 (xmeta) — 仅稀疏 OI 快照，不足以在每戳提供决策时刻 OI 失衡分母",
+          "timestamped hot mids 421,144 行 / market mids 163,883 行 — 戳附近价差/中价上下文（WEAK）",
+          "OKX private fills-history 3M — 仅用于校验个人在戳附近的成交，非分母"
+        ],
+        "feasibility": "事件分母（结算戳）从官方 funding 历史可干净构造，identity=(symbol, settlement_stamp) 是官方确定性键；这是相对四路线的关键优势。缺口：(a) 历史 funding interval 的 KnownFrom 版本链缺失→PIT_UNPROVEN 于 interval 变更标的；(b) 决策时刻 OI 失衡只有 1,733 稀疏快照，不足以覆盖每戳完整分母；(c) 戳附近 taker-flow 需 tape 事件时钟对齐验证。"
+      },
+      "pit_identity_three_clock": {
+        "identity": "(symbol, funding_settlement_stamp) 官方确定性事件 ID + 决策时刻状态桶",
+        "event_time": "交易所结算戳 / tape 事件时间",
+        "receive_time": "本地 recorded_at（funding/tape 落地）",
+        "process_time": "本地落盘",
+        "pit": "funding interval/费率上限等结算参数须 KnownFrom；当前只有向未来快照 → 变更标的 PIT_UNPROVEN，不得回填。"
+      },
+      "strongest_alternative_explanation": "只是 funding carry（公共因子）或单侧拥挤的一般动量；戳前移动只是 UTC session 效应（00:00 UTC 换日）而非结算强制流。区分：匹配输家控制 funding 幅度/方向/session，只测‘结算戳错位-回归’的结构量而非 carry 符号或 return；并把 00:00 与 08:00/16:00 戳分层排除纯 UTC-day 效应。",
+      "shortest_outcome_blind_falsification": "仅用现有 funding 历史 + 公共 tape：(1) 验证结算戳存在且能与 tape 事件时间对齐；(2) 验证能在决策时刻（戳前）计算 OI 失衡/taker-flow 特征而不使用戳后信息；(3) 验证 funding interval PIT 是否可证。任一不成立即停；全程不读 return/PnL。",
+      "budget_stop_reopen": "预算 1 CPU / 8h / 1 次 / 仅冻结历史。停止门：funding interval PIT 不可证、或无法在戳前构造 OI 失衡决策特征、或结算戳与 tape 不可对齐。重开仅限现有 funding+tape 历史补齐决策时刻 OI 失衡分母；不等待未来 funding。",
+      "non_homology_proof": {
+        "vs_micro_execution_capacity_cliff": "不依赖自有 order lifecycle/fill 概率/排队；付款者是合约结算转出方，触发是官方结算时钟，非自有订单执行。",
+        "vs_exchange_rule_discontinuity": "funding 结算是循环合约转移事件，不是 instrument spec 的离散版本 CHANGE，也不需要 ctType/effective_at 版本链；identity 是每戳事件而非规则版本。",
+        "vs_sparse_forced_flow": "R3 列举 清算/到期/保证金/规则整改/抵押品短缺；funding 结算显式不在该集合内，付款者是 funding 付款方而非被清算/到期方。",
+        "vs_cross_venue_operational_asymmetry": "单场所内机制，不涉及跨场所同步 executable book。",
+        "vs_g_series": "不把 funding 当公共 STATE 因子回归（G2/G5 的 funding-state 用法），而是以官方结算事件为分母、以结算强制转移的结构错位为对象。",
+        "vs_siblings": "与 OPUS-03 同为结算时钟，但基质不同（永续多空转移 vs 保证金借币利息），付款者与分母不同。"
+      },
+      "downstream_risk": "PIT_UNPROVEN(interval) / INSUFFICIENT_SUPPORT(决策时刻 OI 失衡稀疏) / POSTHOC_ONLY(若无法戳前区分)"
+    },
+    {
+      "candidate_id": "MSV2-OPUS-02",
+      "route_id": "dated_delivery_basis_convergence_settlement",
+      "title": "定期交割结算收敛强制（交割日时钟）",
+      "verdict": "RETAIN_HYPOTHESIS",
+      "current_classification": "DATA_BLIND",
+      "mechanism": "定期（周/季）交割合约在交割时刻被规则强制按交割指数结算，基差（future - index）必须在交割戳收敛到零。持有基差头寸的一侧被交割时钟强制在交割前平仓或被强制现金结算。收敛是合约结算规则，不是价格预测。付款者=临近交割仍持有非零基差的一侧。",
+      "payer_and_forced_action": "临近交割的基差持有者被交割结算规则强制在交割前平仓或接受按指数强制现金结算；被迫动作=交割前的收敛平仓流。",
+      "urgency": "固定交割戳（周五/季末指定 UTC 时刻），收敛在交割瞬间强制完成，越临近交割规避成本越高。",
+      "supported_market_states": "临近周/季交割的 T-minus 窗口（calendar-clock regime）；远离交割或纯永续标的不激活。",
+      "branches": {
+        "LONG": "future 低于 index（贴水）且临近交割、收敛须向上时，做多基差侧承接被迫收敛流。",
+        "SHORT": "future 高于 index（升水）且临近交割、收敛须向下时。",
+        "FLAT": "远离交割戳或基差在噪声带内。",
+        "HOLD": "已在收敛侧且基差尚未收敛到阈值内时持有至临界。",
+        "EXIT": "基差收敛入阈值、或进入交割结算冻结期即退出。",
+        "NO_TRADE_DEFAULT": "缺交割日历 PIT、缺定期合约 tape、或基差不可在决策时刻计算 → 空仓。"
+      },
+      "institutional_exclusion_and_post_public_moat": "机构可大规模做基差，但受定期合约薄流动性、交割结算机制与库存约束；公开后护城河=每个到期事件容量受限于该定期合约深度（远小于永续），跨多个到期聚合触及每合约容量与监控成本。小账户以极小基差持有至收敛，冲击可忽略。",
+      "small_account_advantage": "微小基差头寸持有至交割收敛几乎无冲击；不需要在薄的定期合约上放大规模。",
+      "decision_time_required_fields": [
+        "dated future price + spot/index price at decision (compute basis)",
+        "delivery timestamp + time_to_delivery (PIT delivery calendar)",
+        "dated contract identity (expiry, listTime, state) PIT",
+        "decision-time depth/spread on the dated contract",
+        "session identity",
+        "min order size / tick / lot (PIT)"
+      ],
+      "full_event_denominator_and_matched_losers": "分母=观测窗内全部 (dated_contract, delivery_event) 及其 T-minus 决策时点，无论是否交易。匹配输家=同 tenor（周/季）× 升贴水符号/幅度 bucket × session 的交割事件中未定位收敛的那些。",
+      "existing_history_source_paths_and_hash_feasibility": {
+        "official": [
+          "okx_historical_data_portal_and_cdn: trades_tick 2021-09+（是否含定期 FUTURES 合约 tape 未验证，registry 主要面向 SWAP）",
+          "okx_instruments_current_snapshot: 仅当前 live 合约，含 listTime/state/expiry；已交割合约不在快照"
+        ],
+        "local_catalog": [
+          "history catalog 7 个 data family 无 instrument/rule/交割事件 archive（见 g10_reopen_condition_inventory §4.2）",
+          "无 delivery/expiry 事件历史，无已交割合约 PIT"
+        ],
+        "feasibility": "阻断：已交割合约从当前 instruments 快照消失 → 交割事件与合约 spec 无 PIT（PIT gap）；定期合约历史 tape 可得性未验证；无官方交割事件 archive。→ 观测层即 DATA_BLIND。"
+      },
+      "pit_identity_three_clock": {
+        "identity": "(dated_contract_id, delivery_stamp)",
+        "event_time": "交割戳 / 定期合约 tape 事件时间",
+        "receive_time": "recorded_at（若采集）",
+        "process_time": "落盘",
+        "pit": "交割日历与合约 spec 须 KnownFrom；已交割合约当前快照缺失 → PIT_UNPROVEN。"
+      },
+      "strongest_alternative_explanation": "基差只是利率/资金成本的确定性 carry（公共），或升贴水反映真实持有成本而非强制收敛错位；临近交割的移动只是流动性枯竭噪声。区分需交割日历 PIT + 定期合约 tape，当前均缺。",
+      "shortest_outcome_blind_falsification": "盘点现有历史是否存在：(1) 已交割定期合约的 tape；(2) 带 KnownFrom 的交割日历/合约 spec；(3) 决策时刻可算基差的 index 序列。任一缺失即停（预计立即 DATA_BLIND）。不读收益。",
+      "budget_stop_reopen": "预算 1 CPU / 6h / 1 次。停止门：无已交割合约 tape 或无交割日历 PIT。重开仅限出现合法的已交割合约历史 tape + 带来源时间的交割日历；不等待未来交割。",
+      "non_homology_proof": {
+        "vs_micro_execution_capacity_cliff": "对象是交割收敛结构而非自有小单执行物理。",
+        "vs_exchange_rule_discontinuity": "交割是合约生命周期的结算事件（到点强制现金/实物结算），不是 spec 参数的离散版本变化；不需要 ctType 版本链，需要交割日历。",
+        "vs_sparse_forced_flow": "R3 的‘到期’指被保证金/清算强制的短窗成交；此处是全体持有者在交割戳被有序结算规则强制收敛，付款者是基差持有者而非被清算方，且以基差收敛而非清算冲击为对象。",
+        "vs_cross_venue_operational_asymmetry": "单场所 future-vs-its-own-index，不涉及跨场所同步 book。",
+        "vs_g_series": "不属于 BTC return×vol×funding 公共因子规则空间；对象是合约结算收敛。",
+        "vs_siblings": "与 OPUS-01 同为结算时钟但基质为定期交割收敛（非永续多空转移）。"
+      },
+      "downstream_risk": "DATA_BLIND(observability) → 无法进入 identifiability；PIT_UNPROVEN(交割日历/已交割合约)"
+    },
+    {
+      "candidate_id": "MSV2-OPUS-03",
+      "route_id": "margin_borrow_interest_settlement_coercion",
+      "title": "多币种自动借币利息结算强制（按小时结算时钟）",
+      "verdict": "RETAIN_HYPOTHESIS_WEAK",
+      "current_classification": "DATA_BLIND",
+      "mechanism": "在跨/组合保证金下，负币种余额触发自动借币，借币利息按小时结算并被规则强制计提，账户被迫在每个利息结算戳前后选择偿还或继续被计息。这是借贷结算/偿付规则。付款者=持有自动借币库存、在利息结算戳被强制计息的一侧；被迫动作=为规避利息在结算戳前的偿还/减仓。",
+      "payer_and_forced_action": "自动借币账户被规则强制按小时计息；被迫动作=结算戳前偿还或减少借币库存，制造暂时性去杠杆流。",
+      "urgency": "硬按小时利息结算时钟；未偿还即确定性计息，随借币规模线性放大。",
+      "supported_market_states": "借币利率飙升（借贷紧张）regime 且临近小时利息结算；借币利率平稳时不激活。",
+      "branches": {
+        "LONG": "借币紧张迫使被计息侧去杠杆抛压出现、抛压结构性过度时承接。",
+        "SHORT": "被计息侧被迫买回平掉借币空头造成的暂时性上行时。",
+        "FLAT": "借币利率中性或无结算戳邻近。",
+        "HOLD": "错位-回归未完成时持有。",
+        "EXIT": "利率退出紧张 bucket 或回归完成即退出。",
+        "NO_TRADE_DEFAULT": "缺借币利率现值、缺结算戳、或无法识别被迫去杠杆流 → 空仓。"
+      },
+      "institutional_exclusion_and_post_public_moat": "机构在大额借币库存上承担全额利息且难以在戳点无冲击地偿还；护城河=利息随借币规模线性放大不可规避，且被迫流分散、单事件容量小。小账户借币库存微小、偿还无冲击。",
+      "small_account_advantage": "微小借币可瞬时偿还、利息可忽略，可在被迫去杠杆流对侧以小单承接。",
+      "decision_time_required_fields": [
+        "current borrowing_rate per currency + next settlement stamp",
+        "hourly interest settlement timestamp + time_to_settlement",
+        "borrowed inventory pressure proxy (aggregate borrow demand)",
+        "decision-time depth/spread/mid on affected pair",
+        "session identity",
+        "min order size / tick / lot (PIT)"
+      ],
+      "full_event_denominator_and_matched_losers": "分母=观测窗内全部 (currency, hourly_interest_settlement) 事件及其决策时点。匹配输家=同借币利率 bucket × 币种流动性 × session 的结算事件中未定位去杠杆错位的那些。",
+      "existing_history_source_paths_and_hash_feasibility": {
+        "official": [
+          "okx_historical_data_portal_and_cdn: coverage.borrowing_rate 2021-12+（registry），提供借币利率历史与结算周期",
+          "okx_historical_data_portal_and_cdn: trades_tick 2021-09+ 用于结算戳附近微观错位"
+        ],
+        "local_catalog": [
+          "无被迫偿还/去杠杆的事件 identity；借币利率可见但‘谁被强制偿还’在任何现有源均不可观测",
+          "去杠杆错位对现货借贷市场分散，不像永续 tape 那样定域"
+        ],
+        "feasibility": "阻断：利率与结算戳可观测（identity=(currency, settlement_stamp)），但被迫动作（偿还/去杠杆）无事件 identity，dislocation 分散不定域 → identifiability 失败 → DATA_BLIND。相对 OPUS-01 明显更弱。"
+      },
+      "pit_identity_three_clock": {
+        "identity": "(currency, hourly_interest_settlement_stamp)（利率戳可识别；被迫动作不可识别）",
+        "event_time": "利息结算戳 / tape 事件时间",
+        "receive_time": "recorded_at",
+        "process_time": "落盘",
+        "pit": "借币利率/计息规则须 KnownFrom；规则变更无版本链则 PIT_UNPROVEN。"
+      },
+      "strongest_alternative_explanation": "只是借贷成本 carry（公共），或利率飙升与价格波动同源共动而非被迫去杠杆流；观测到的抛压是一般波动。",
+      "shortest_outcome_blind_falsification": "盘点现有历史能否 (1) 对齐利息结算戳与 tape；(2) 在决策时刻构造‘被迫去杠杆流’的可识别特征而非仅利率。第二点几乎必然失败即停。不读收益。",
+      "budget_stop_reopen": "预算 1 CPU / 6h / 1 次。停止门：无被迫去杠杆事件 identity。重开仅限出现可识别的强制偿还/去杠杆流历史。",
+      "non_homology_proof": {
+        "vs_micro_execution_capacity_cliff": "对象是借币利息结算强制流，非自有小单执行。",
+        "vs_exchange_rule_discontinuity": "按小时利息结算是循环结算事件，非 spec 版本离散变化。",
+        "vs_sparse_forced_flow": "R3 的‘保证金/抵押品短缺’强制是清算侧短窗成交；此处付款者是自动借币计息方，被利息结算时钟而非清算强制，且对象是去杠杆错位。",
+        "vs_cross_venue_operational_asymmetry": "单场所借贷/现货，不涉及跨场所同步 book。",
+        "vs_g_series": "不在公共因子规则空间。",
+        "vs_siblings": "与 OPUS-01 同为结算时钟，基质为保证金借币利息（非永续多空 funding 转移）。"
+      },
+      "downstream_risk": "UNIDENTIFIABLE(被迫去杠杆流) / POSTHOC_ONLY / DATA_BLIND"
+    },
+    {
+      "candidate_id": "MSV2-OPUS-04",
+      "route_id": "copy_trade_authorized_mirror_flow_coercion",
+      "title": "跟单授权镜像流强制（授权动作时钟）",
+      "verdict": "RETAIN_HYPOTHESIS",
+      "current_classification": "DATA_BLIND_SOURCE_ABSENT",
+      "mechanism": "在交易所跟单产品中，跟随者预先授权镜像带单员；当带单员开/平仓时，全部跟随者账户被授权规则强制在秒级镜像，形成与跟随 AUM 成比例的确定性聚合流。这是授权（授权镜像）机制。付款者=被授权强制追随带单员成交（更差价格）的跟随者聚合流。",
+      "payer_and_forced_action": "跟随者在授权下被强制镜像带单员动作；被迫动作=带单员在薄标的开/平仓瞬间的聚合镜像追随流。",
+      "urgency": "授权镜像在带单员动作触发后秒级确定性执行；跟随流无自主择时，urgency 来自授权契约。",
+      "supported_market_states": "高 AUM 带单员在低流动性标的上交易的 idiosyncratic-flow regime；无大带单员活动时不激活。",
+      "branches": {
+        "LONG": "带单员在薄标的开多触发镜像买入波，冲击过度后回归时在对侧低点承接后的回归（fade 镜像波）。",
+        "SHORT": "带单员开空触发镜像卖出波、过度下冲后回归。",
+        "FLAT": "无可观测带单员动作或标的过深不产生镜像冲击。",
+        "HOLD": "镜像波冲击-回归未完成时持有。",
+        "EXIT": "回归完成或镜像流耗尽即退出。",
+        "NO_TRADE_DEFAULT": "缺带单员动作事件 identity、缺跟随 AUM 代理、或标的深度不可算 → 空仓。"
+      },
+      "institutional_exclusion_and_post_public_moat": "授权镜像流是特定带单员-跟随者关系的特质流，机构难以统一复制且每事件容量受限于薄标的深度；护城河=授权契约驱动的强制流持续存在、单事件小容量、跨带单员特质不可聚合成机构级容量。小账户可在镜像波对侧以小单承接。",
+      "small_account_advantage": "微小规模可在薄标的镜像波对侧承接/回吐而无自冲击；机构承接会二次放大冲击。",
+      "decision_time_required_fields": [
+        "lead-trader action event (open/close, symbol, side, time)",
+        "follower AUM / copier count proxy per lead (KnownFrom)",
+        "decision-time depth/spread/mid on the thin symbol",
+        "symbol liquidity bucket / session identity",
+        "min order size / tick / lot (PIT)"
+      ],
+      "full_event_denominator_and_matched_losers": "分母=观测窗内全部带单员动作事件（每 lead × action）及其决策时点，无论是否交易。匹配输家=同 lead-AUM bucket × 标的深度 × side × session 的动作事件中未定位镜像波错位的那些。",
+      "existing_history_source_paths_and_hash_feasibility": {
+        "official": [
+          "OKX copy-trading 公共带单员/带单持仓接口存在但为快照/滚动，非完整历史强制流分母（registry 未登记为 source；属 ABSENT_EXPECTED）",
+          "trades_tick 2021-09+ 仅能看到聚合 tape，无法归因到镜像授权流"
+        ],
+        "local_catalog": [
+          "history catalog 无 lead-trader action / follower mirror-flow 历史；registry 无该 source_id",
+          "无法从现有历史冻结带单员动作事件 identity 与跟随流分母"
+        ],
+        "feasibility": "阻断：现有 registry/catalog 均无带单员动作/镜像流历史（source ABSENT），tape 无法归因授权流 → 观测层 DATA_BLIND / SOURCE_ABSENT。机制新颖但当前不可测。"
+      },
+      "pit_identity_three_clock": {
+        "identity": "(lead_trader_id, action_event) → mirror wave；当前无稳定历史 event ID",
+        "event_time": "带单员动作交易所时间",
+        "receive_time": "recorded_at（若采集）",
+        "process_time": "落盘",
+        "pit": "带单员跟随 AUM / 授权关系须 KnownFrom；当前仅快照。"
+      },
+      "strongest_alternative_explanation": "所谓镜像波只是一般 taker 动量或新闻驱动；带单员本身可能就是聪明钱而非被授权强制的被动流；薄标的移动是流动性噪声。区分需带单员动作 identity + 跟随 AUM，当前缺。",
+      "shortest_outcome_blind_falsification": "盘点现有历史/接口是否提供带单员动作事件 + 时间 + 跟随 AUM 代理，可否构造完整动作分母。当前 registry/catalog 无 → 立即 DATA_BLIND。不读收益。",
+      "budget_stop_reopen": "预算 1 CPU / 6h / 1 次。停止门：无带单员动作历史 identity。重开仅限出现合法的带单员动作历史 + 跟随 AUM 代理（须单独审批数据存在性盘点）；不等待未来采集。",
+      "non_homology_proof": {
+        "vs_micro_execution_capacity_cliff": "付款者是被授权强制的第三方跟随流，非自有订单执行物理。",
+        "vs_exchange_rule_discontinuity": "触发是授权镜像动作，非 spec 版本离散变化。",
+        "vs_sparse_forced_flow": "R3 是交易所风控/清算强制；此处是跟随者预授权契约的商业强制流，付款者是自愿预授权的跟随方而非被清算方——付款者身份与强制来源完全不同。",
+        "vs_cross_venue_operational_asymmetry": "单场所产品内，不涉及跨场所 book。",
+        "vs_g_series": "不在公共因子规则空间；对象是授权镜像特质流。",
+        "vs_siblings": "唯一以‘授权’而非‘结算/交割’为强制来源的候选，付款者为跟随聚合流。"
+      },
+      "downstream_risk": "DATA_BLIND / SOURCE_ABSENT / UNIDENTIFIABLE(镜像流归因)"
+    },
+    {
+      "candidate_id": "MSV2-OPUS-05",
+      "route_id": "adl_insurance_fund_socialization_reimbursement",
+      "title": "自动减仓 / 保险基金穿仓社会化偿付强制（破产缺口时钟）",
+      "verdict": "REJECTED",
+      "current_classification": "REJECTED_HOMOLOGY_AND_DATA_BLIND",
+      "mechanism": "当保险基金不足以吸收穿仓时，交易所通过自动减仓（ADL）强制盈利对手方按破产价平仓，把损失社会化转嫁给赢家一侧——一种偿付/社会化结算机制。付款者=被 ADL 强制减仓的盈利一侧。",
+      "payer_and_forced_action": "盈利对手方在破产缺口时刻被 ADL 规则强制按破产价平仓，被迫交出有利头寸。",
+      "urgency": "保险基金穿仓瞬间强制执行。",
+      "supported_market_states": "极端行情 + 保险基金穿仓 + ADL 触发的尾部 regime。",
+      "branches": {
+        "note": "未展开 LONG/SHORT/FLAT/HOLD/EXIT，因候选在观测层即被拒（见 rejection_reasons），展开分支会给不可测机制虚假可执行外观。",
+        "NO_TRADE_DEFAULT": "无 ADL/保险基金事件 identity → 恒空仓。"
+      },
+      "institutional_exclusion_and_post_public_moat": "理论上小账户 ADL 优先级较低（低杠杆/低盈利排在后），但这构成‘小账户被少 ADL’的被动保护，而非可主动吃到的付款者错位；护城河论证不成立。",
+      "small_account_advantage": "仅‘更少被 ADL’的被动保护，非主动 edge。",
+      "decision_time_required_fields": [
+        "ADL event identity (who/when/price) — 现有源不可得",
+        "insurance fund balance history — 官方仅当前/滚动",
+        "bankruptcy price / forced side"
+      ],
+      "full_event_denominator_and_matched_losers": "分母需全部 ADL 事件；现有历史无 ADL 事件 identity，无法冻结完整分母与匹配输家。",
+      "existing_history_source_paths_and_hash_feasibility": {
+        "official": [
+          "无官方 ADL 事件历史 archive；保险基金余额仅当前/滚动接口",
+          "okx_official_liquidation_history_batch: ABSENT（registry）"
+        ],
+        "local_catalog": [
+          "local liquidation streams (OKX 62,728 / Bybit 85,960) 是被清算侧观测，非 ADL（被减仓赢家侧）事件",
+          "无 ADL / 保险基金穿仓事件 identity"
+        ],
+        "feasibility": "观测层即失败：无 ADL 事件 identity，无完整分母。"
+      },
+      "pit_identity_three_clock": {
+        "identity": "ADL 事件无稳定历史 event ID",
+        "event_time": "ADL 执行时间（不可得）",
+        "receive_time": "n/a",
+        "process_time": "n/a",
+        "pit": "n/a"
+      },
+      "strongest_alternative_explanation": "ADL 罕见且与极端清算同时发生，所谓 edge 只是尾部清算级联的重命名。",
+      "shortest_outcome_blind_falsification": "盘点是否存在 ADL 事件 identity；现有源无 → 立即拒。",
+      "budget_stop_reopen": "预算 0（当前拒绝，不分配尝试）。重开仅限出现官方 ADL/保险基金穿仓事件历史 + 稳定 identity，且需先证明与 R3 sparse_forced_flow 非同构。",
+      "non_homology_proof": {
+        "status": "FAILED_INSUFFICIENT_SEPARATION",
+        "detail": "ADL 是清算级联的镜像（保险基金穿仓后的社会化），其触发条件、时钟与完整分母与 R3 sparse_forced_flow 高度重叠，会共用同一 forced-flow 分母；无法证明与 R3 实质非同构。"
+      },
+      "rejection_reasons": [
+        "观测层 DATA_BLIND：现有 registry/catalog 无 ADL/保险基金事件 identity（liquidation streams 只是被清算侧，非被 ADL 赢家侧）",
+        "同源风险：与 R3 sparse_forced_flow 共用破产/清算强制分母，非同构证明失败",
+        "护城河仅为‘被动少被 ADL’，非可主动吃到的付款者错位"
+      ],
+      "downstream_risk": "REJECTED（不进入下游）"
+    },
+    {
+      "candidate_id": "MSV2-OPUS-06",
+      "route_id": "funding_rate_cap_clamp_persistent_imbalance",
+      "title": "资金费率上限触顶导致持续失衡释放（费率封顶规则）",
+      "verdict": "REJECTED",
+      "current_classification": "REJECTED_PIT_UNPROVEN_AND_SIBLING_HOMOLOGY",
+      "mechanism": "交易所对每期 funding 设有上/下限；当理论 funding 超过上限时被 clamp，付款侧被规则少收/少付，单侧拥挤无法被费率充分惩罚而持续累积，直至离散释放。付款者=本应支付超过上限但被 clamp 的一侧。",
+      "payer_and_forced_action": "被 clamp 的付款侧在封顶期被规则少计费，导致拥挤持续；被迫动作弱且不定域。",
+      "urgency": "封顶在结算戳绑定，但释放时点不确定。",
+      "supported_market_states": "funding 触及封顶的极端拥挤 regime。",
+      "branches": {
+        "note": "未展开分支，因候选被拒（PIT 与 sibling 同源）；避免给不可测机制虚假可执行外观。",
+        "NO_TRADE_DEFAULT": "无封顶规则 PIT 版本链 → 恒空仓。"
+      },
+      "institutional_exclusion_and_post_public_moat": "护城河与 OPUS-01 重叠（同一 funding 结算基质），不构成独立护城河。",
+      "small_account_advantage": "与 OPUS-01 相同，非独立优势。",
+      "decision_time_required_fields": [
+        "funding cap schedule per symbol with KnownFrom (历史版本链缺失)",
+        "theoretical vs clamped funding",
+        "settlement stamp"
+      ],
+      "full_event_denominator_and_matched_losers": "需封顶绑定事件分母；封顶阈值历史版本无 KnownFrom，无法在决策时刻证明封顶是否绑定。",
+      "existing_history_source_paths_and_hash_feasibility": {
+        "official": [
+          "funding 历史提供已实现 funding，但不提供理论未 clamp 值与封顶阈值版本链",
+          "okx_official_rule_instrument_version_archive: ABSENT / PIT_UNPROVEN（registry）"
+        ],
+        "local_catalog": [
+          "无封顶阈值历史版本链；无法区分 clamp 是否绑定"
+        ],
+        "feasibility": "PIT_UNPROVEN：封顶阈值属规则参数，无历史版本 archive（与 R2 同一 PIT gap）；且 clamp 绑定不可在决策时刻证明。"
+      },
+      "pit_identity_three_clock": {
+        "identity": "(symbol, settlement_stamp, cap_version) — cap_version 无 KnownFrom",
+        "event_time": "结算戳",
+        "receive_time": "recorded_at",
+        "process_time": "落盘",
+        "pit": "封顶阈值 PIT_UNPROVEN。"
+      },
+      "strongest_alternative_explanation": "与 OPUS-01 无法区分——两者共用 funding 结算基质；封顶效应可能只是 OPUS-01 极端 bucket 的一个子情形。",
+      "shortest_outcome_blind_falsification": "检查是否存在封顶阈值的 KnownFrom 历史版本链；现有源 ABSENT → 立即拒。",
+      "budget_stop_reopen": "预算 0。重开仅限出现封顶阈值的合法历史版本 archive，且需先证明与 OPUS-01 非 sibling 同构。",
+      "non_homology_proof": {
+        "status": "FAILED_SIBLING_HOMOLOGY",
+        "detail": "与 OPUS-01 共用 funding 结算事件与分母，且封顶阈值的 PIT gap 与 R2 exchange_rule_discontinuity 重叠；不能同时独立于 OPUS-01 与 R2。作为 OPUS-01 的极端-bucket 条件记录，不单列为独立路线。"
+      },
+      "rejection_reasons": [
+        "PIT_UNPROVEN：封顶阈值无历史版本链（与 R2 同 gap）",
+        "sibling 同源：与 OPUS-01 共用 funding 结算基质与分母",
+        "clamp 绑定不可在决策时刻证明"
+      ],
+      "downstream_risk": "REJECTED（作为 OPUS-01 的条件注记保留）"
+    }
+  ],
+  "summary_counts": {
+    "candidates_proposed": 6,
+    "retain_hypothesis": 3,
+    "retain_hypothesis_weak": 1,
+    "rejected": 2,
+    "present_complete": 0,
+    "routes_started": 0,
+    "note": "无 PRESENT_COMPLETE；无路线可直接进入 generation。3 条 RETAIN + 1 WEAK 均为 DATA_PARTIAL/DATA_BLIND 假设，须独立红队按冻结评分排序，再由用户批准数据存在性盘点。"
+  },
+  "decision_journal": {
+    "problem_restatement": "作为 Opus 机制 owner，在不读收益、不改冻结工件、不提交前提下，独立提出至少 5 个与 G1-G10 及四路线非同源的结构性付款者机制候选，并仅用 registry/catalog/官方元数据判断其现有历史可测性。",
+    "why_these": "聚焦‘确定性时钟上的强制价值转移’（结算/交割/利息）与‘授权强制流’，因为这类机制的事件分母可由官方确定性事件（结算戳/交割戳/授权动作）干净定义，恰好补上四路线普遍缺失的稳定 event identity；同时天然带 per-notional 硬成本护城河（大资金不可规避、小账户冲击可忽略）。",
+    "competing_hypotheses": ["H0_NULL_STRUCTURAL", "H1_SETTLEMENT_CLOCK_COERCION", "H2_DELIVERY_CONVERGENCE_COERCION", "H3_AUTHORIZATION_MANDATED_FLOW", "H4_REIMBURSEMENT_SOCIALIZATION"],
+    "most_likely_ignored_counterexample": "把 funding/borrow 结算错位误当结构强制流，实为公共 carry 因子或 UTC-session 效应的重命名（正是 G2/G5 已用过的 funding-state 公共因子）；以及把稀疏结算/交割事件的窗口不足误当机制边界。已在每条 strongest_alternative_explanation 与 falsification 中显式对冲。",
+    "method_and_rejections": "对每条候选做 homology_test（付款者/时钟/分母/required fields 四维）与可测性盘点。拒 OPUS-05（与 R3 forced-flow 同源 + ADL 事件 identity 缺失）、拒 OPUS-06（与 OPUS-01 sibling 同源 + 封顶阈值 PIT_UNPROVEN，同 R2 gap）。OPUS-02/03/04 保留为假设但诚实标 DATA_BLIND（交割/授权/去杠杆事件 identity 现有历史缺失），OPUS-01 标 DATA_PARTIAL（结算戳分母干净，但决策时刻 OI 失衡稀疏且 interval PIT 未证）。",
+    "strongest_candidate": "MSV2-OPUS-01 funding_settlement_instant_coercion：唯一其完整事件分母（结算戳）可从现有官方 funding 历史干净构造，identity=(symbol, settlement_stamp) 为官方确定性键；主要缺口是决策时刻 OI 失衡分母稀疏与 funding interval PIT。",
+    "budget_spent": "仅读取 route_data_source_registry / route_data_contracts / g10_wild_route_portfolio / g10_reopen_condition_inventory / master plan 机制段与 datatruth.HashJSON 源码；无下载、无购买、无收益读取、无实验。",
+    "stop_decision": "写完两个候选文件即停，等待独立红队排序与用户批准；不自动预注册、不获取数据、不启动路线。",
+    "reviewer_separation": "本 owner 不自批可测性 PASS 或路线重开；须由独立 Sonnet 红队检查同构/泄漏/事后选择/机构可复制性/完整分母。"
+  },
+  "safety": {
+    "global_halt": true,
+    "system_status": "NO_GO",
+    "exam_status": "EXAM_UNAVAILABLE",
+    "exam_actions": 0,
+    "trade_allowed": false,
+    "labels_unblinded": false,
+    "routes_started": 0,
+    "no_purchase": true,
+    "no_bulk_download": true,
+    "no_commit": true,
+    "not_modified": [
+      "records/",
+      "frozen G1-G10 protocol/hash/generation artifacts",
+      "FIRST_BATTLE_MASTER_PLAN.md",
+      "route_data_contracts.json|.md",
+      "route_data_source_registry.json|.md",
+      "g10_* artifacts",
+      "exam papers",
+      "real-money switches / control plane",
+      "plan.md"
+    ],
+    "self_files_only": [
+      "research/firstbattle/mechanism_search_v2/candidates_opus.json",
+      "research/firstbattle/mechanism_search_v2/candidates_opus.md"
+    ]
+  },
+  "hashes": {
+    "candidates_hash": "1ed962fc83026349a4f112c87c7d185ca9604566e14245395434824b898c4d32",
+    "hash_method": "Read this JSON as a generic object, set hashes.candidates_hash to null, then compute repository datatruth.HashJSON (json.Marshal -> unmarshal to any -> normalizeJSON -> json.Marshal -> SHA-256 lowercase hex).",
+    "self_excluded_field": "hashes.candidates_hash",
+    "document_hash_method": "Markdown: normalize the single line '> Document hash: `<value>`' to '> Document hash: `SELF_EXCLUDED`', then SHA-256 over UTF-8 LF bytes."
+  }
+}

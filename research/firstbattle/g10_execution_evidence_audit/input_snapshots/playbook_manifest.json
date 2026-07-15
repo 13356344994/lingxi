@@ -1,0 +1,45 @@
+{
+  "schema_version": "lingxi.router-g10-playbooks.manifest.v1",
+  "generation": "firstbattle-router-g10",
+  "protocol_hash": "9f86ce54c24b00de41d1a6735a4f8190b00d49dce2a66371242646ffecd10750",
+  "history_data_hash": "f41ed2586d91054c4b5b2e15e60f32a4d64ccde0032e76dfdc5fc6dee316379c",
+  "discovery_mode": "outcome_first_reverse_from_personal_residual_winners",
+  "config_hash": "3edfea3df347a337fb791fd3fe56e411a4210a5111d62aaca504229a9aff6e8b",
+  "catalog_hash": "f41ed2586d91054c4b5b2e15e60f32a4d64ccde0032e76dfdc5fc6dee316379c",
+  "map_manifest_hashes": {
+    "okx_1h": "a260c9a257358c4a44a8826f8ec823321e788f99ea4bc20e22efeddde07449ac",
+    "okx_5m": "6ae9240f355c08b6fd16c35e352f552dcce9f9bbfac121958e966381d877156e"
+  },
+  "map_artifact_hashes": {
+    "okx_1h/residual_map_discovery_okx_1h.json": "ab3540c56b078eb61ae380a53a5cf9dc6fdb6e7d594e36245ecd4cbc6fc5f496",
+    "okx_1h/residual_map_thresholds.json": "71b32e28122836fb991c10f60865d95facaedad3af5f1560e419244b56044c29",
+    "okx_5m/residual_map_discovery_okx_5m.json": "4501ff8adc9159366d589ee662549ec886992d12f1b14182723f1d51e107abf1",
+    "okx_5m/residual_map_thresholds.json": "06f10f73a41aa2d130655de3404421e1cb9616d5922f234e90ac52ec1ad319db"
+  },
+  "playbook_limit": 64,
+  "actual_playbook_count": 31,
+  "playbook_hash": "8ceae12715dc9cc885fcaf77c230b7c44dc3becfe3644372ad1f276bd2d8a8f0",
+  "experiment_hash": "a471569db03b5667815a944506a935cac8c5f2b74371a434807cd2c306995d19",
+  "coverage_hash": "d5c52a2590952ce5e9dbebda824d2fd369b3fe378a040a7be3b046ddd9fe9ff9",
+  "coverage": {
+    "total_buckets": 52,
+    "covered_buckets": 31,
+    "coverage_by_profile": {
+      "okx_1h": 31
+    },
+    "coverage_by_family": {
+      "btc_relative_dislocation": 11,
+      "ohlcv_extreme_continuation": 13,
+      "ohlcv_extreme_reversal": 7
+    },
+    "coverage_by_horizon": {
+      "1h": 10,
+      "24h": 11,
+      "4h": 10
+    }
+  },
+  "freeze_before_validation": true,
+  "exam_actions": 0,
+  "created_at": "2026-07-13T07:08:15.19472974Z",
+  "manifest_hash": "ef82da8421a9c6eb02b9854eebaf47673e94365918a058b610077d35064ce0c5"
+}

@@ -1,0 +1,148 @@
+{
+  "schema_version": "lingxi.data-driven-router-v3.protocol-overlay.v1",
+  "protocol_id": "firstbattle.data-driven-router-v3",
+  "generation": "firstbattle-data-driven-router-v3-g2",
+  "created_at": "2026-07-14T08:18:00Z",
+  "status": "PREREGISTERED_LABELS_SEALED_PENDING_INDEPENDENT_REVIEW",
+  "supersedes": {
+    "generation": "firstbattle-data-driven-router-v3-g1",
+    "protocol_hash": "5d80166eb28307d23e33cd19efae2b60811852ff0da49a3a6e16663aba2e7ddd",
+    "reason": "close cost-coverage, owner-isolation, liquidity-void, crisis-correlation, and reviewer-authority gaps before any label unseal",
+    "g1_labels_were_unblinded": false,
+    "g1_dataset_was_built": false
+  },
+  "inheritance": {
+    "base_protocol_path": "research/firstbattle/data_driven_router_v3/protocol.json",
+    "base_protocol_hash": "5d80166eb28307d23e33cd19efae2b60811852ff0da49a3a6e16663aba2e7ddd",
+    "all_unmodified_fields_inherited": true,
+    "effective_protocol_requires_both_hashes": true,
+    "silent_base_or_overlay_edit": "FAIL_CLOSED"
+  },
+  "cost_coverage_gate": {
+    "cost_status_enum": ["DIRECT", "FROZEN_CONSERVATIVE_PROXY", "UNKNOWN"],
+    "formal_profile_minimum_known_cost_coverage": 0.95,
+    "traded_decision_cost_status_required": ["DIRECT", "FROZEN_CONSERVATIVE_PROXY"],
+    "unknown_cost_decision_action": "NO_TRADE",
+    "direct_execution_coverage_required_for_VALIDATED_PATH": 0.80,
+    "below_direct_threshold_status": "RESEARCH_PATH_EXECUTION_UNPROVEN",
+    "frozen_conservative_proxy": {
+      "roundtrip_taker_fee_bps": 10.0,
+      "spread_slippage_floor_bps": 2.0,
+      "capacity_impact_formula": "min(50, capital_usdt/max(rolling_quote_volume_usdt,1)*10000)",
+      "bar_toxicity_formula": "min(100, (high-low)/max(mid,1e-12)*10000*0.5)",
+      "funding_base": "signed_cashflow_long_negative_when_rate_positive_short_positive",
+      "funding_stress": "adverse_absolute_funding",
+      "required_inputs": ["open", "high", "low", "close", "rolling_quote_volume", "capital_usdt", "hold_interval", "funding_when_crossed"],
+      "missing_required_input": "UNKNOWN"
+    },
+    "coverage_denominator": "all formally eligible decision timestamps before outcome filtering",
+    "coverage_report_required_by_profile_partition": true
+  },
+  "model_owner_isolation": {
+    "owners_receive": ["protocol hashes", "feature schema", "synthetic fixtures", "model API", "resource budget"],
+    "owners_must_not_receive": ["real reward labels", "peer code", "peer outputs", "validation data", "leaf_wf data", "router_holdout data"],
+    "owner_submission_order": "all model code and search grids submitted and hash-frozen before reward-label bundle generation",
+    "execution": "neutral deterministic orchestrator executes all four frozen model implementations after all submissions are sealed",
+    "parallel_start_required": true,
+    "peer_output_publication": "atomic_publish_only_after_all_four_runs_finish_or_fail",
+    "evidence": [
+      "owner_code_hash",
+      "owner_search_grid_hash",
+      "submission_timestamp",
+      "input_bundle_hash",
+      "synthetic_test_receipt",
+      "neutral_runner_receipt"
+    ],
+    "owner_running_real_labels_directly": "INVALID_ATTEMPT",
+    "owner_read_access_to_peer_output_before_atomic_publish": "INVALID_TOURNAMENT"
+  },
+  "liquidity_void_stress": {
+    "applies_to": ["validation", "leaf_wf", "router_holdout"],
+    "scenarios": [
+      "baseline",
+      "delay_plus_one_bar",
+      "no_executable_close_for_1_bar",
+      "no_executable_close_for_2_bars",
+      "no_executable_close_for_3_bars",
+      "worst_observed_adverse_gap_block",
+      "worst_observed_adverse_bar_path"
+    ],
+    "no_executable_close_rule": "position remains open; continue MTM, signed funding, maintenance margin, and liquidation-distance accounting until first eligible exit bar",
+    "conservative_exit_price": {
+      "long": "min(first_eligible_exit_bar_open, first_eligible_exit_bar_low)",
+      "short": "max(first_eligible_exit_bar_open, first_eligible_exit_bar_high)"
+    },
+    "zero_or_missing_volume_bar": "not executable; extend void until scenario cap, then fail solvency if still unavailable",
+    "historical_stress_source": "full frozen profile history only; no hand-entered 10pct_or_20pct assumption",
+    "unknown_depth_or_fill_evidence_status_cap": "RESEARCH_PATH_EXECUTION_UNPROVEN",
+    "any_solvency_or_liquidation_breach": "FAIL"
+  },
+  "extreme_scenario_sizing": {
+    "max_account_leverage_5_is_ceiling_not_target": true,
+    "position_size_rule": "minimum_of_model_size, liquidity_capacity, min_lot_feasible_size, and solvency_size_under_all_frozen_stress_scenarios",
+    "maintenance_margin_and_liquidation_distance_required": true,
+    "min_lot_requires_upward_rounding": "NO_TRADE",
+    "confidence_may_only_reduce_size": true,
+    "stress_failure_action": "reduce_size_or_NO_TRADE_before_execution"
+  },
+  "batch_account_allocator": {
+    "all_same_timestamp_proposals_collected_before_any_execution": true,
+    "sequential_independent_reservation_forbidden": true,
+    "account_gross_leverage_after_batch_max": 5.0,
+    "aggregate_same_direction_notional_required": true,
+    "aggregate_btc_beta_exposure_required": true,
+    "crisis_correlation_scenario": {
+      "all_positions_treated_as_one_cluster": true,
+      "all_pairwise_correlations": 1.0,
+      "all_same_direction_pressure_combined": true
+    },
+    "cluster_cap_fraction_in_normal_scenario": 0.40,
+    "crisis_scenario_overrides_normal_clusters": true,
+    "batch_if_stress_insolvent": "shrink_all_proportionally_then_recheck_else_NO_TRADE",
+    "reduce_only_priority": ["CLOSE", "TRIM"],
+    "new_risk_actions_after_reduce_only": "recompute_account_before_allowing"
+  },
+  "reviewer_authority": {
+    "sonnet_role": "mechanical_evidence_reviewer_only",
+    "may_review": [
+      "protocol drift",
+      "code and test evidence",
+      "hashes and manifests",
+      "PIT and leakage",
+      "statistics and replay reproducibility"
+    ],
+    "may_not": [
+      "predict structural breaks",
+      "declare future market safety",
+      "approve exam",
+      "approve shadow",
+      "approve real money",
+      "override exchange truth or runtime OOD"
+    ],
+    "historical_pass_auto_promotes_live": false,
+    "future_live_requires": [
+      "separate runtime OOD and exchange-truth validation",
+      "private-stream recovery and order reconciliation",
+      "separate shadow approval",
+      "explicit user real-money approval"
+    ]
+  },
+  "additional_verdicts": [
+    "RESEARCH_PATH_EXECUTION_UNPROVEN",
+    "FAIL_LIQUIDITY_VOID",
+    "FAIL_CRISIS_CORRELATION",
+    "INVALID_TOURNAMENT_ISOLATION"
+  ],
+  "safety": {
+    "labels_unblinded": false,
+    "dataset_built": false,
+    "routes_started": 0,
+    "system_status": "NO_GO",
+    "trade_allowed": false
+  },
+  "hashes": {
+    "overlay_hash": "7096395f1f3bae212b6dc866c5d46ccb372cd284e4a959d424dfbfbb92d6c226",
+    "hash_method": "Set hashes.overlay_hash to null, then compute repository datatruth.HashJSON.",
+    "self_excluded_field": "hashes.overlay_hash"
+  }
+}

@@ -1,0 +1,133 @@
+{
+  "schema_version": "lingxi.data-driven-router-v3.g10-reviewer-receipt.v1",
+  "artifact_id": "firstbattle.data-driven-router-v3.g10-reviewer-receipt",
+  "review_scope": {
+    "reviews_artifacts": [
+      "research/firstbattle/data_driven_router_v3/protocol_g10.json",
+      "research/firstbattle/data_driven_router_v3/protocol_g10.md",
+      "research/firstbattle/data_driven_router_v3/protocol_g9.json (g9 receipt binding cross-check only, not re-approved)",
+      "research/firstbattle/data_driven_router_v3/protocol_g9_reviewer_receipt.json (g9 receipt binding cross-check only, not re-approved)",
+      "research/firstbattle/data_driven_router_v3/protocol_g6.json (inheritance cross-reference only, not re-approved)",
+      "research/firstbattle/data_driven_router_v3/protocol_g7.json (inheritance cross-reference only, not re-approved)",
+      "research/firstbattle/data_driven_router_v3/protocol_g8.json (inheritance cross-reference only, not re-approved)"
+    ],
+    "predecessor_verdict": {
+      "source": "a prior independent read-only reviewer session for this same g10 generation",
+      "declared_verdict": "APPROVED",
+      "relationship_to_this_receipt": "This receipt is an independent, separately-executed recomputation performed by a distinct writable-reviewer session. It does not import or trust the predecessor's stated verdict; every hash and binding below was recomputed from on-disk bytes by this session's own commands before this receipt reached its own APPROVED conclusion."
+    },
+    "explicitly_out_of_scope": [
+      "dataset shards, StateRow/reward-cube files, or any records/ or private-raw content (none read)",
+      "any pnl/fillPnl/realized_pnl/return/winner/outcome/reward field (none read)",
+      "full go_test/go_vet/gofmt/lint re-execution of owner code (relied on prior receipts' methodology; this review focuses on the g10 overlay hash, the g10 document hash, the g9 receipt binding, and the g1-g8 inheritance chain per its assigned task)",
+      "any file outside the write-scope listed in reviewer.write_scope",
+      "protocol_g10.json/.md byte content itself was not modified; this receipt is a purely external, additive attestation and does not alter the pending-review preregistered bytes of the artifact it reviews"
+    ]
+  },
+  "reviewed_at": "2026-07-15T03:38:00Z",
+  "repo_head_commit_at_review": "ab2780405f0fd5c80d268fe0feff39eb14a29eda",
+  "reviewer": {
+    "identity": "Independent writable-reviewer subagent, a session distinct from the governance-owner agent that authored protocol_g10.{json,md} and from the prior read-only reviewer session that separately judged g10 APPROVED.",
+    "model": "Claude Sonnet 5",
+    "workspace": "/root/lingxi",
+    "write_scope": "Permitted to add only: research/firstbattle/data_driven_router_v3/protocol_g10_reviewer_receipt.json and .md, both new files. Did not modify protocol_g10.{json,md} (its status remains PREREGISTERED_COUNTERFACTUAL_ACCOUNT_SEMANTICS_PENDING_REVIEW and its bytes/hashes are unchanged by this receipt), any other protocol/overlay generation, any model_submission_*.json, FIRST_BATTLE_MASTER_PLAN.md, any code, records/, private-raw, or exam/real-money surface. Made no git commits.",
+    "raw_or_outcome_access": "None. Read only: protocol_g10.{json,md}, protocol_g9.json and protocol_g9_reviewer_receipt.json (byte-level binding cross-check only), protocol_g6/g7/g8.json (inheritance-hash cross-reference only), protocol_g9_reviewer_receipt.{json,md} (methodology precedent), internal/datatruth/envelope.go (HashJSON/normalizeJSON algorithm confirmation), and git metadata (rev-parse/status). No dataset shard, StateRow, reward-cube, records/ file, private-raw file, or exam/sealed surface was opened."
+  },
+  "independent_methods": [
+    {
+      "method_id": "M1_G10_JSON_SELF_EXCLUDING_HASH_RECOMPUTE",
+      "description": "Built a temporary Go program under a transient cmd/tmp-g10-reviewer-hashverify directory calling the repository's own internal/datatruth.HashJSON, nulling exactly hashes.overlay_hash for protocol_g10.json (and, for the g9 binding check, hashes.overlay_hash for protocol_g9.json and hashes.receipt_hash for protocol_g9_reviewer_receipt.json). Deleted the program and its binary immediately after use (`rm -rf cmd/tmp-g10-reviewer-hashverify /tmp/g10reviewer-hashverify`) and confirmed `git status --short cmd/` showed no residual diff attributable to this reviewer.",
+      "result": "protocol_g10.json hashes.overlay_hash recomputed = 0d09d595947f09aeb6258b9af023e5c87e2d334bc52649761f91cb2ae263e7cb, exact match to the declared value. protocol_g9.json hashes.overlay_hash recomputed = fe3ce29ef3b8b07da7ef81e0ea3ccc732722f8a184e7ba91ebb8edacd7b2802c, exact match to that file's own declared value. protocol_g9_reviewer_receipt.json hashes.receipt_hash recomputed = e77d1511d022fb511165f3412535ff81a6149cb5a0da7729044c5afb9069c953, exact match to that file's own declared value."
+    },
+    {
+      "method_id": "M2_G10_MARKDOWN_DOCUMENT_HASH_RECOMPUTE",
+      "description": "Normalized protocol_g10.md's single '> Document hash: `<value>`' line to '> Document hash: `SELF_EXCLUDED`' and recomputed SHA-256 over the UTF-8 bytes with a standalone Python script (not part of the repository, not committed, run only against on-disk file content read via the standard library).",
+      "result": "Recomputed = c08db9de8768918cc04c72a7ebc5c87f257a82d952520abefab06a6ec02e4653, exact match to the declared Document hash line in protocol_g10.md."
+    },
+    {
+      "method_id": "M3_G9_RECEIPT_BINDING_CROSS_CHECK",
+      "description": "Compared protocol_g10.json's supersedes.overlay_hash, supersedes.reviewer_receipt_hash, and inheritance.g9_hash, and protocol_g10.md's '> g9 reviewer receipt:' header line, against the independently recomputed self-hashes of protocol_g9.json (M1) and protocol_g9_reviewer_receipt.json (M1), rather than trusting g10's restatement of those values at face value.",
+      "result": "g10.supersedes.overlay_hash (fe3ce29ef3b8b07da7ef81e0ea3ccc732722f8a184e7ba91ebb8edacd7b2802c) and g10.inheritance.g9_hash (same value) both exactly match protocol_g9.json's independently recomputed hashes.overlay_hash. g10.supersedes.reviewer_receipt_hash (e77d1511d022fb511165f3412535ff81a6149cb5a0da7729044c5afb9069c953) exactly matches protocol_g9_reviewer_receipt.json's independently recomputed hashes.receipt_hash, and this same value appears verbatim in protocol_g10.md's '> g9 reviewer receipt:' header line. The g10 generation is therefore bound to the exact, byte-verified g9 overlay and its exact, byte-verified independent-reviewer APPROVED receipt, not to an unverified restatement."
+    },
+    {
+      "method_id": "M4_G1_G8_INHERITANCE_CHAIN_UNCHANGED_CHECK",
+      "description": "Compared protocol_g10.json's inheritance.{g1_hash..g8_hash} field-by-field against protocol_g9.json's own inheritance.{g1_hash..g8_hash} block (both read directly, no additional recomputation needed since M1 in the g9 receipt already independently reproduced g6_hash/g7_hash/g8_hash against protocol_g6/g7/g8.json's own bytes).",
+      "result": "All eight values (g1_hash through g8_hash) are byte-identical between protocol_g10.json.inheritance and protocol_g9.json.inheritance: g1=5d80166eb28307d23e33cd19efae2b60811852ff0da49a3a6e16663aba2e7ddd, g2=7096395f1f3bae212b6dc866c5d46ccb372cd284e4a959d424dfbfbb92d6c226, g3=63f4ee088efb09e9e58386ab273b997af4a9206d4c5c18e73c59fda5d42a7a57, g4=2fd8c5852bba5023c9024d46b5b5e9527e71d670c370a1276e4728f4ef4cd2b9, g5=518d0003c829da641f1bcc955c4382023e158ba9938c0ac6f0ff19b5bf729385, g6=08b609e3271029b1e9f772921e325ef7c7fd30326589ae9c03cc86d73d9c844b, g7=4aacc43e928d25b6b83cdf8fe10d5b576e2b1009ea10b7bfad3e750388e47747, g8=c492cd191e869073b330221835fcec4b4437b27ec67e6e9d18252119fc7da682. g10 introduces only a new inheritance.g9_hash entry (independently reverified in M1/M3) and does not silently alter any earlier-generation hash it restates."
+    },
+    {
+      "method_id": "M5_SAFETY_AND_GIT_STATE_CHECK",
+      "description": "Read g10.safety verbatim and ran git rev-parse HEAD / git status --short to confirm the repo state matches g10's own no-label, no-route, NO_GO claims at review time, and that this review introduced no other change beyond its own two new receipt files.",
+      "result": "g10.safety declares discovery_label_bundle_created=false, validation_labels_unblinded=false, leaf_wf_labels_unblinded=false, router_holdout_labels_unblinded=false, routes_started=0, system_status=NO_GO, trade_allowed=false. git rev-parse HEAD == ab2780405f0fd5c80d268fe0feff39eb14a29eda. git status --short confirms research/firstbattle/data_driven_router_v3/ remains untracked (no commit) and protocol_g10.{json,md} are unmodified by this reviewer; no sealed/discovery_label_bundle.jsonl.gz or any dataset/state/reward artifact exists under this directory at review time."
+    }
+  ],
+  "commands_run": [
+    "Read of protocol_g10.{json,md}, protocol_g9.json, protocol_g9_reviewer_receipt.{json,md}, and protocol_g6/g7/g8.json",
+    "Read of internal/datatruth/envelope.go to confirm the exact HashJSON/normalizeJSON algorithm before reimplementing its call site",
+    "Temporary Go program under cmd/tmp-g10-reviewer-hashverify calling internal/datatruth.HashJSON for method M1, built with 'go build -o /tmp/g10reviewer-hashverify ./cmd/tmp-g10-reviewer-hashverify/', run once, then deleted with 'rm -rf cmd/tmp-g10-reviewer-hashverify /tmp/g10reviewer-hashverify'; not committed",
+    "Standalone Python script (inline heredoc, not committed) recomputing protocol_g10.md's SELF_EXCLUDED document hash for method M2",
+    "git rev-parse HEAD; git status --short; git status --short research/firstbattle/data_driven_router_v3/; git status --short cmd/ (before and after temp-program cleanup, to confirm zero residual diff)"
+  ],
+  "input_hashes": {
+    "protocol_g10_json_declared": "0d09d595947f09aeb6258b9af023e5c87e2d334bc52649761f91cb2ae263e7cb",
+    "protocol_g10_json_reverified": true,
+    "protocol_g10_md_declared": "c08db9de8768918cc04c72a7ebc5c87f257a82d952520abefab06a6ec02e4653",
+    "protocol_g10_md_reverified": true,
+    "protocol_g9_json_overlay_hash_reverified": true,
+    "protocol_g9_reviewer_receipt_hash_reverified": true,
+    "protocol_g6_json_inheritance_citation_reverified": true,
+    "protocol_g7_json_inheritance_citation_reverified": true,
+    "protocol_g8_json_inheritance_citation_reverified": true
+  },
+  "findings": [
+    {
+      "id": "F1",
+      "severity": "INFO",
+      "title": "g10 self-hashes and g9 receipt binding both independently reproduced with zero discrepancies",
+      "detail": "protocol_g10.json's self-excluded overlay_hash and protocol_g10.md's SELF_EXCLUDED document hash both reproduced exactly (M1, M2). protocol_g10.json's supersedes.overlay_hash/inheritance.g9_hash and supersedes.reviewer_receipt_hash exactly match the independently recomputed self-hashes of protocol_g9.json and protocol_g9_reviewer_receipt.json respectively (M3), so g10's binding to the g9 APPROVED receipt is verified against on-disk bytes, not merely restated."
+    },
+    {
+      "id": "F2",
+      "severity": "INFO",
+      "title": "g1-g8 inheritance chain restated without alteration",
+      "detail": "All eight of protocol_g10.json's inheritance.{g1_hash..g8_hash} values are byte-identical to protocol_g9.json's own inheritance block for the same fields (M4), so g10 introduces only its new g9_hash citation and does not silently alter any earlier-generation hash."
+    }
+  ],
+  "conflicts_with_owner_artifact": "NONE_ON_SUBSTANCE. Every independently recomputed hash and cross-checked binding in protocol_g10.{json,md} agrees with the owner's own declared values and with protocol_g9.{json} / protocol_g9_reviewer_receipt.json. No numeric, hash, or logical contradiction was found.",
+  "relationship_to_predecessor_review": "This receipt's own independent recomputation (M1-M5) reaches the same APPROVED conclusion the prior read-only reviewer session separately reported for this g10 generation. The two reviews were performed by distinct sessions using independently executed commands against the same on-disk bytes; this receipt does not rely on the predecessor's reported verdict as evidence, only records that no divergence was found.",
+  "verdict": "APPROVED",
+  "verdict_detail": "PASS_INDEPENDENT_VERIFICATION_G10_COUNTERFACTUAL_ACCOUNT_SEMANTICS",
+  "approved_scope": [
+    "protocol_g10.{json,md} as the current effective counterfactual-account-semantics preregistration overlay on top of the independently-corroborated g1-g9 chain, per the reverified inheritance/supersession citations.",
+    "The g9 reviewer-receipt binding (supersedes.overlay_hash, supersedes.reviewer_receipt_hash, inheritance.g9_hash) as an exact, byte-verified reference to the on-disk protocol_g9.json and its independently APPROVED protocol_g9_reviewer_receipt.json.",
+    "The unaltered restatement of the g1-g8 inheritance chain, each hash byte-identical to protocol_g9.json's own citation of the same generation."
+  ],
+  "not_approved": [
+    "Any dataset construction, StateRow/reward-cube materialization, discovery label bundle creation, or label unseal for any profile (none has occurred; g10.safety.discovery_label_bundle_created=false, confirmed by M5).",
+    "Any substantive re-review of the counterfactual account-semantics formulas themselves (capital tier assignment, canonical context initialization, dynamic execution cost, counterfactual timeline/objective) beyond confirming their hash and binding integrity; that substantive content review is out of this receipt's assigned scope.",
+    "This receipt does not modify, and is not a substitute for resolving, protocol_g10.json's own status field, which remains PREREGISTERED_COUNTERFACTUAL_ACCOUNT_SEMANTICS_PENDING_REVIEW at the byte level; this receipt is an external, additive approval attestation only.",
+    "Any tournament run, validation, leaf-WF, router-holdout replay, exam action, shadow trading, or real-money action.",
+    "Any claim that this receipt predicts future market behavior or authorizes live/exam/shadow/real-money operation; this reviewer is a mechanical evidence reviewer only.",
+    "A full re-execution of gofmt/go_vet/go_test/lint against owner code; this receipt's own methods (M1-M5) are limited to the g10 hashes, the g9 receipt binding, and the g1-g8 inheritance chain per its assigned task."
+  ],
+  "safety": {
+    "system_status": "NO_GO",
+    "exam_status": "EXAM_UNAVAILABLE",
+    "trade_allowed": false,
+    "labels_unblinded": false,
+    "discovery_label_bundle_created": false,
+    "dataset_built": false,
+    "routes_started": 0,
+    "routes_reopened": 0,
+    "reviewer_made_commits": false,
+    "reviewer_modified_owner_artifacts": false,
+    "reviewer_modified_plan": false,
+    "reviewer_modified_records": false,
+    "reviewer_modified_code": false,
+    "reviewer_read_raw_or_outcome_values": false
+  },
+  "hashes": {
+    "receipt_hash": "9de865f7620f0252b22ed8bf53f1a6e008e9df5a021ac8e4564baff2899fc6b8",
+    "hash_method": "Read this JSON as a generic object, set hashes.receipt_hash to null, then compute repository datatruth.HashJSON (deterministic Go encoding/json plus SHA-256 lowercase hex), exactly as used by every artifact this receipt reviews.",
+    "self_excluded_field": "hashes.receipt_hash"
+  }
+}

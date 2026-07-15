@@ -1,0 +1,105 @@
+{
+  "schema_version": "lingxi.data-driven-router-v3.protocol-overlay.v1",
+  "protocol_id": "firstbattle.data-driven-router-v3",
+  "generation": "firstbattle-data-driven-router-v3-g5",
+  "created_at": "2026-07-14T09:02:00Z",
+  "status": "PREREGISTERED_LABELS_SEALED_PENDING_INDEPENDENT_REVIEW",
+  "supersedes": {
+    "generation": "firstbattle-data-driven-router-v3-g4",
+    "overlay_hash": "2fd8c5852bba5023c9024d46b5b5e9527e71d670c370a1276e4728f4ef4cd2b9",
+    "reason": "make withdrawal reserve, synthetic-stress override, and baseline evaluator mechanically deterministic",
+    "g4_labels_were_unblinded": false,
+    "g4_dataset_was_built": false
+  },
+  "inheritance": {
+    "base_protocol_hash": "5d80166eb28307d23e33cd19efae2b60811852ff0da49a3a6e16663aba2e7ddd",
+    "g2_overlay_hash": "7096395f1f3bae212b6dc866c5d46ccb372cd284e4a959d424dfbfbb92d6c226",
+    "g3_overlay_hash": "63f4ee088efb09e9e58386ab273b997af4a9206d4c5c18e73c59fda5d42a7a57",
+    "g4_overlay_hash": "2fd8c5852bba5023c9024d46b5b5e9527e71d670c370a1276e4728f4ef4cd2b9",
+    "all_unmodified_fields_inherited": true,
+    "effective_protocol_requires_all_five_hashes": true
+  },
+  "withdrawal_reserve_formula": {
+    "money_precision": "micro_usdt_int64",
+    "total_abs_notional": "sum(abs(fixed_position_notional_usdt))",
+    "leverage_reserve": "total_abs_notional / 5",
+    "maintenance_reserve": "sum(position_notional_usdt * instrument_maintenance_margin_rate) + frozen_close_cost_usdt",
+    "required_reserve": "max(leverage_reserve, maintenance_reserve)",
+    "free_equity": "max(0, marked_equity - required_reserve)",
+    "requested_tranche": "0.5 * retained_capital_base",
+    "actual_withdrawal": "floor_to_micro_usdt(min(requested_tranche, free_equity))",
+    "maintenance_margin_unknown_with_open_position": "actual_withdrawal=0",
+    "frozen_close_cost_usdt": "sum(position_notional_usdt * frozen_close_cost_bps / 10000)",
+    "frozen_close_cost_bps": "same cost status and proxy used by the effective g1/g2 reward evaluator",
+    "deterministic_solver": "closed_form_no_iteration",
+    "post_check": "effective_leverage<=5 and no maintenance_margin_breach and no negative_cash",
+    "post_check_failure": "withdrawal=0 and emit WITHDRAWAL_BLOCKED_SOLVENCY"
+  },
+  "synthetic_stress_override_scope": {
+    "overrides_g2_fields": [
+      "liquidity_void_stress.any_solvency_or_liquidation_breach",
+      "extreme_scenario_sizing.position_size_rule synthetic-scenario component",
+      "extreme_scenario_sizing.stress_failure_action",
+      "batch_account_allocator.batch_if_stress_insolvent synthetic all-correlation component"
+    ],
+    "effective_rule": "synthetic no-exit, worst-path reapplication, and all-correlation-one scenarios are mandatory disclosure and do not resize or veto the untouched baseline historical policy",
+    "hard_gates_preserved": [
+      "actual chronological historical equity and liquidation",
+      "account gross leverage <=5",
+      "known execution cost or frozen proxy",
+      "maintenance margin at actual historical timestamps",
+      "no negative cash",
+      "PIT and time isolation"
+    ],
+    "ordinary_delay_and_cost_sensitivity": {
+      "delay_0": "primary historical result",
+      "delay_1_2_3": "mandatory separate sensitivity labels not hard veto",
+      "cost_stress_1_5x": "mandatory separate sensitivity label not hard veto",
+      "delay_plus_one_failure": "VALIDATED_PATH_DELAY_SENSITIVE not FAIL",
+      "reason": "user objective prioritizes absolute normal-history cashflow wealth; reviewer may not replace it with zero-tail-risk preference"
+    }
+  },
+  "baseline_evaluator_identity": {
+    "same_neutral_runner_required": true,
+    "shared_fields": [
+      "state_rows",
+      "decision_timestamps",
+      "partitions",
+      "reward_evaluator_hash",
+      "cost_evidence",
+      "delay",
+      "funding",
+      "min_lot",
+      "maintenance_margin",
+      "account_allocator",
+      "withdrawal_rule",
+      "no_topup_rule",
+      "ruin_rule",
+      "execution_order"
+    ],
+    "only_allowed_difference": "action_policy",
+    "baseline_output_manifest_and_hash_required": true,
+    "baseline_comparison_scope": {
+      "hard": "ALWAYS_FLAT",
+      "comparative_only": [
+        "FIXED_LONG_SAME_FREQUENCY",
+        "FIXED_SHORT_SAME_FREQUENCY",
+        "BUY_HOLD",
+        "RANDOM_SAME_FREQUENCY_SEED42",
+        "BTC_BETA_MATCHED"
+      ]
+    }
+  },
+  "safety": {
+    "labels_unblinded": false,
+    "dataset_built": false,
+    "routes_started": 0,
+    "system_status": "NO_GO",
+    "trade_allowed": false
+  },
+  "hashes": {
+    "overlay_hash": "518d0003c829da641f1bcc955c4382023e158ba9938c0ac6f0ff19b5bf729385",
+    "hash_method": "Set hashes.overlay_hash to null, then compute repository datatruth.HashJSON.",
+    "self_excluded_field": "hashes.overlay_hash"
+  }
+}
